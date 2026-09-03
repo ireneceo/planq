@@ -5,7 +5,7 @@
     "dev-frontend/src/components/Common/CalendarPicker.tsx": 1,
     "dev-frontend/src/components/Common/CueHelpDrawer.tsx": 1,
     "dev-frontend/src/components/Common/DrawerFooter.tsx": 2,
-    "dev-frontend/src/components/Common/ErrorBoundary.tsx": 5,
+    "dev-frontend/src/components/Common/ErrorBoundary.tsx": 6,
     "dev-frontend/src/components/Common/ExpiredShareLink.tsx": 1,
     "dev-frontend/src/components/Common/FilePicker.tsx": 1,
     "dev-frontend/src/components/Common/GlobalSearchModal.tsx": 2,

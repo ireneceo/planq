@@ -997,5 +997,9 @@
     "aria": "Ask Cue",
     "send": "Ask",
     "sending": "…"
+  },
+  "reportProblem": {
+    "link": "Report this",
+    "retry": "Try again"
   }
 }

@@ -108,6 +108,10 @@ export interface ApiInvoice {
     last_overdue_notify_stage?: string; last_overdue_notify_at?: string; overdue_notify_count?: number;
     overdue_notify_off?: boolean;
     last_resent_at?: string; resend_count?: number;
+    /** 발송 진행 상태 — 서버가 백그라운드로 보내면서 갱신하고 socket 으로 밀어준다.
+     *  값 목록은 services/invoiceDelivery.js 의 DELIVERY_STATUSES 와 **같아야 한다**. */
+    email_delivery?: InvoiceDelivery;
+    chat_delivery?: InvoiceDelivery;
   } | null;
   source_post_id: number | null;
   project_id: number | null;
@@ -182,12 +186,27 @@ export interface SendInvoicePayload {
   message?: string;
 }
 
+/** 발송 진행 상태. 서버(services/invoiceDelivery.js)와 같은 값 목록이다.
+ *  ★ 값을 늘리면 이 타입과 utils/invoiceDelivery.ts 라벨을 **같이** 고친다 —
+ *    한쪽만 늘리면 화면이 조용히 기본값으로 떨어진다(CLAUDE.md 상태값 규약). */
+export type DeliveryStatus = 'queued' | 'sending' | 'sent' | 'failed' | 'skipped';
+export interface InvoiceDelivery {
+  status: DeliveryStatus;
+  to?: string;
+  reason?: string;
+  conversation_id?: number;
+  message_id?: number;
+  title?: string;
+  pdf_attached?: boolean;
+  queued_at?: string;
+  finished_at?: string;
+}
+
+/** 발송은 **응답 뒤 백그라운드**로 돈다 — 이 응답은 "보내기를 걸었다" 는 뜻이지 도달이 아니다.
+ *  실제 결과는 invoice.meta.email_delivery / chat_delivery 가 말한다(socket 으로 갱신된다). */
 export interface SendInvoiceResult {
   invoice: ApiInvoice;
-  deliver: {
-    chat?: { conversation_id: number; message_id: number } | { error: string } | null;
-    email?: { to: string; sent: boolean } | { error: string } | null;
-  };
+  deliver: { queued: boolean; chat: boolean; email: boolean };
 }
 
 // ─── 헬퍼 ───
@@ -496,24 +515,25 @@ export async function setInvoiceOverdueNotify(
   return expectOk<{ enabled: boolean }>(r);
 }
 
-/** 고객 발송 전, 발행자 본인 이메일로 청구서 PDF 미리보기 발송 (draft 유지). */
+/** 고객 발송 전, 발행자 본인 이메일로 청구서 PDF 미리보기 발송 (draft 유지).
+ *  ★ queued 는 "보내기를 걸었다" 는 뜻이다 — 도달 여부가 아니다. */
 export async function sendInvoicePreview(
   businessId: number, invoiceId: number
-): Promise<{ sent: boolean; to: string }> {
+): Promise<{ queued: boolean; to: string }> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/send-preview`, { method: 'POST' });
-  return expectOk<{ sent: boolean; to: string }>(r);
+  return expectOk<{ queued: boolean; to: string }>(r);
 }
 
 /** 재발송 — 이미 보낸 청구서를 원본 그대로(PDF 포함, 독촉 톤 없음) 고객에게 다시. 상태 무변경. */
 export async function resendInvoice(
   businessId: number, invoiceId: number, message?: string
-): Promise<{ sent: boolean; to: string; resend_count: number }> {
+): Promise<{ queued: boolean; to: string; resend_count: number }> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/resend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(message ? { message } : {}),
   });
-  return expectOk<{ sent: boolean; to: string; resend_count: number }>(r);
+  return expectOk<{ queued: boolean; to: string; resend_count: number }>(r);
 }
 
 export async function listSourceCandidates(

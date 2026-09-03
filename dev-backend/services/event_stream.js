@@ -189,7 +189,10 @@ function looksLikeRawIdNote(eventType, note) {
   return /^\s*(\d+|—|-)\s*→\s*(\d+|—|-)\s*$/.test(String(note));
 }
 
-const PROJECT_SOURCES = ['project', 'task', 'post', 'file', 'note', 'invoice'];
+// ★ 'note' 는 **프로젝트 메모(ProjectNote)** 다. Q Note 회의록은 별도 서비스(SQLite)라
+//   여기서 직접 못 읽어, 여태 히스토리에 아예 안 실렸다(Irene 2026-09-03: "히스토리에 안 쌓여").
+//   'qnote' 를 별도 소스로 둔다 — 같은 이름에 두 가지를 담으면 어느 쪽이 빠졌는지 알 수 없다.
+const PROJECT_SOURCES = ['project', 'task', 'post', 'file', 'note', 'qnote', 'invoice'];
 
 // 이벤트 id 는 `<접두어>:<원장 id>` — 커서 비교를 위해 둘로 나눈다.
 function parseEventId(id) {
@@ -451,6 +454,36 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
         title: String(r.body || '').replace(/\s+/g, ' ').trim().slice(0, 80) || null,
       })))
     );
+  }
+
+  // ── Q Note 회의록 ──
+  //   다른 서비스라 HTTP 로 가져온다. **실패해도 히스토리 전체를 죽이지 않는다** —
+  //   회의록 하나 때문에 업무·문서·청구까지 안 보이면 그게 더 큰 사고다.
+  //   ★ 개인 노트(L1)는 q-note 쪽에서 제외한다 — Q Note 는 본인 도구다.
+  if (want('qnote')) {
+    jobs.push((async () => {
+      const key = process.env.INTERNAL_API_KEY;
+      if (!key) return [];
+      const base = process.env.QNOTE_INTERNAL_URL || 'http://localhost:8000';
+      try {
+        const qs = new URLSearchParams({ business_id: String(bizId), project_id: String(projectId), limit: '50' });
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 2000);
+        const r = await fetch(`${base}/api/sessions/internal/by-entity?${qs}`, {
+          headers: { 'x-internal-api-key': key }, signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        if (!r.ok) return [];
+        const j = await r.json();
+        return (j?.data || []).map((n) => ({
+          id: `qnote:${n.id}`, source: 'qnote', kind: 'qnote.created',
+          at: iso(n.created_at), actor_user_id: n.user_id,
+          entity_type: 'qnote', entity_id: n.id,
+          from_status: null, to_status: null,
+          title: n.title || null,
+        }));
+      } catch { return []; }
+    })());
   }
 
   // ── 청구 (발송·입금만) ──

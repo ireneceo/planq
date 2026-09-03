@@ -419,5 +419,8 @@
       "tooling_health": "도구 상태",
       "undeployed": "이 배포에 안 들어간 것"
     }
+  },
+  "adminFeedback": {
+    "errorContext": "사건 맥락"
   }
 }

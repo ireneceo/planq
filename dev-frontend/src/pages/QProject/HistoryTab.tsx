@@ -16,7 +16,9 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 interface HistoryEvent {
   id: string;
-  source: 'project' | 'task' | 'post' | 'file' | 'note' | 'invoice';
+  // ★ 'note' 는 프로젝트 메모, 'qnote' 는 Q Note 회의록이다 — 다른 원장이다.
+  //   같은 이름에 담으면 어느 쪽이 빠졌는지 알 수 없다(회의록이 여태 통째로 빠져 있었다).
+  source: 'project' | 'task' | 'post' | 'file' | 'note' | 'qnote' | 'invoice';
   kind: string;
   at: string;
   actor_user_id: number | null;
@@ -139,6 +141,7 @@ export default function HistoryTab({ projectId }: Props) {
       case 'post': return e.entity_id ? `/projects/p/${projectId}?tab=docs&post=${e.entity_id}` : null;
       case 'file': return `/projects/p/${projectId}?tab=files`;
       case 'note': return `/projects/p/${projectId}?tab=overview`;      // 메모는 개요 탭에 모인다
+      case 'qnote': return e.entity_id ? `/notes?session=${e.entity_id}` : '/notes';   // 회의록은 Q Note 로
       case 'invoice': return e.entity_id ? `/bills?invoice=${e.entity_id}` : null;
       case 'project': return `/projects/p/${projectId}?tab=details`;    // 상태 변경 → 상세정보(상태 이력 카드)
       default: return null;

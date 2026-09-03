@@ -33,6 +33,50 @@ router = APIRouter(prefix='/api/sessions', tags=['sessions'])
 # ─── #63 Phase 3 — 내부 export (Node 워커가 자료 이동/내보내기에 본인 Q Note 세션 포함) ───
 # 인증: x-internal-api-key (INTERNAL_API_KEY, Node↔qnote 공유). 사적 공간 원칙 — user_id 본인 세션만.
 # session_id 가 int 타입이라 /internal/export 는 /{session_id} 와 충돌하지 않음.
+@router.get('/internal/by-entity')
+async def internal_sessions_by_entity(
+    business_id: int = Query(...),
+    project_id: Optional[int] = Query(None),
+    client_id: Optional[int] = Query(None),
+    before: Optional[str] = Query(None),
+    limit: int = Query(30, ge=1, le=100),
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  """프로젝트·고객에 연결된 노트 목록 — Node 히스토리(services/event_stream.js)가 부른다.
+
+  왜 필요한가: Q Note 는 별도 서비스(SQLite)라 Node 가 직접 못 읽는다. 그래서 프로젝트
+    히스토리의 'note' 는 여태 **프로젝트 메모(ProjectNote)** 였고, 회의록은 어디에도 안 쌓였다
+    (Irene 2026-09-03: "히스토리에 안 쌓여").
+
+  ★ 개인 노트(L1)는 내보내지 않는다. Q Note 는 본인 도구다 — 프로젝트에 연결했다는 이유로
+    남의 개인 회의록이 히스토리에 뜨면 안 된다. 연결은 했지만 범위는 여전히 본인 것이다.
+  """
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  if not project_id and not client_id:
+    raise HTTPException(status_code=400, detail='project_id or client_id required')
+
+  conds = ['business_id = ?', "visibility <> 'L1'"]
+  params: list = [business_id]
+  if project_id:
+    conds.append('project_id = ?'); params.append(project_id)
+  if client_id:
+    conds.append('client_id = ?'); params.append(client_id)
+  if before:
+    conds.append('created_at < ?'); params.append(before)
+
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cur = await db.execute(
+      f"SELECT id, title, user_id, created_at, status, capture_mode, project_id, client_id "
+      f"FROM sessions WHERE {' AND '.join(conds)} ORDER BY created_at DESC LIMIT ?",
+      tuple(params + [limit]),
+    )
+    rows = await cur.fetchall()
+    return success([dict(r) for r in rows])
+
+
 @router.get('/internal/export')
 async def internal_export_sessions(
     business_id: int = Query(...),
@@ -221,6 +265,13 @@ class UpdateSessionRequest(BaseModel):
   meeting_answer_style: Optional[str] = Field(None, max_length=2000)
   meeting_answer_length: Optional[str] = Field(None, max_length=20)
   keywords: Optional[List[str]] = None
+  # 운영 신고 2026-09-03 — 프로젝트·고객 연결. 0/음수는 '연결 해제' 로 쓰지 않는다(아래 참조).
+  project_id: Optional[int] = None
+  client_id: Optional[int] = None
+  #   ★ None 은 "안 건드림" 이라 해제를 표현할 수 없다. 해제는 이 두 플래그로 명시한다 —
+  #     그렇지 않으면 한 번 연결하면 영영 못 뗀다.
+  unlink_project: Optional[bool] = None
+  unlink_client: Optional[bool] = None
   category: Optional[str] = Field(None, max_length=100)  # 운영 #54 — 분류
   tags: Optional[List[str]] = None                       # 운영 #54 — 태그
   # N+42 — 정리하기 모달이 트랜스크립트를 외부 자산(업무/지식/문서/공유) 으로 변환할 때 timestamp 기록
@@ -489,6 +540,34 @@ async def _load_session_or_403(db, session_id: int, user_id: int, user_business_
   raise HTTPException(status_code=403, detail='Forbidden')
 
 
+async def _belongs_to_business(kind: str, entity_id: int, business_id: int) -> bool:
+  """이 프로젝트/고객이 그 워크스페이스 것인가 — Node internal API.
+
+  ★ 화면이 보낸 id 를 그대로 믿으면 남의 워크스페이스 번호를 붙일 수 있다.
+    그 순간 그 고객·프로젝트 히스토리에 남의 회의록이 섞인다(멀티테넌트 격리 위반).
+  ★ 실패하면 False 다(보수적) — 확인 못 한 것을 통과시키면 검사가 없는 것과 같다.
+  """
+  import httpx
+  internal_key = os.environ.get('INTERNAL_API_KEY')
+  if not internal_key or not entity_id or not business_id:
+    return False
+  path = 'client-in-business' if kind == 'client' else 'project-in-business'
+  node_base = os.environ.get('PLANQ_BACKEND_URL', 'http://localhost:3003')
+  try:
+    async with httpx.AsyncClient(timeout=2.0) as client:
+      r = await client.get(
+        f'{node_base}/api/internal/{path}/{entity_id}/{business_id}',
+        headers={'x-internal-api-key': internal_key},
+      )
+      if r.status_code != 200:
+        return False
+      body = r.json()
+      d = body.get('data') if isinstance(body, dict) else None
+      return bool(d and d.get('ok'))
+  except Exception:
+    return False
+
+
 async def _is_user_in_project(user_id: int, project_id: int) -> bool:
   """Node 백엔드의 internal API 호출하여 project membership 확인.
 
@@ -568,6 +647,15 @@ def _build_field_updates(body: UpdateSessionRequest):
   fields, values = [], []
   if body.title is not None:
     fields.append('title = ?'); values.append(body.title)
+  # 프로젝트·고객 연결 — 소유권 검사는 라우트가 한다(여기는 SQL 조립만)
+  if body.unlink_project:
+    fields.append('project_id = ?'); values.append(None)
+  elif body.project_id is not None:
+    fields.append('project_id = ?'); values.append(body.project_id)
+  if body.unlink_client:
+    fields.append('client_id = ?'); values.append(None)
+  elif body.client_id is not None:
+    fields.append('client_id = ?'); values.append(body.client_id)
   if body.status is not None:
     fields.append('status = ?'); values.append(body.status)
   if body.brief is not None:
@@ -873,6 +961,11 @@ async def list_sessions(
   limit: int = Query(20, ge=1, le=100),
   scope: str = Query('mine', pattern='^(mine|shared|all)$'),
   visibility: Optional[str] = Query(None, pattern='^L[1-4]$'),
+  # 운영 신고 2026-09-03 — 프로젝트·고객 히스토리와 목록 검색.
+  #   연결만 만들고 거를 수가 없으면 "히스토리에 쌓인다" 가 성립하지 않는다.
+  project_id: Optional[int] = Query(None),
+  client_id: Optional[int] = Query(None),
+  q: Optional[str] = Query(None, max_length=100),
   user: dict = Depends(get_current_user)
 ):
   """세션 목록 (사이클 N+14 visibility 통합).
@@ -919,6 +1012,19 @@ async def list_sessions(
   if visibility:
     conds.append('visibility = ?')
     params.append(visibility)
+  if project_id:
+    conds.append('project_id = ?')
+    params.append(project_id)
+  if client_id:
+    conds.append('client_id = ?')
+    params.append(client_id)
+  if q and q.strip():
+    # LIKE 와일드카드 이스케이프 — 사용자가 %  를 치면 전부 매치되면 안 된다
+    needle = q.strip().replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    conds.append("(LOWER(IFNULL(title,'')) LIKE LOWER(?) ESCAPE '\\' "
+                 "OR LOWER(IFNULL(brief,'')) LIKE LOWER(?) ESCAPE '\\' "
+                 "OR LOWER(IFNULL(body,'')) LIKE LOWER(?) ESCAPE '\\')")
+    params.extend([f'%{needle}%', f'%{needle}%', f'%{needle}%'])
 
   where_sql = ' AND '.join(conds)
 
@@ -1043,6 +1149,15 @@ async def update_session(
     # Q Note 는 본인 도구 — visibility 는 read 권한만 부여. 편집은 owner only (memo 이든 회의이든)
     if row['user_id'] != user['user_id']:
       raise HTTPException(status_code=403, detail='owner_only')
+
+    # ★ 연결 대상이 **내 워크스페이스 것**인지 확인한다. 화면이 보낸 번호를 그대로 쓰지 않는다.
+    biz_id = row['business_id'] if 'business_id' in row.keys() else None
+    if body.project_id is not None and not body.unlink_project:
+      if not await _belongs_to_business('project', body.project_id, biz_id):
+        raise HTTPException(status_code=403, detail='project_not_in_workspace')
+    if body.client_id is not None and not body.unlink_client:
+      if not await _belongs_to_business('client', body.client_id, biz_id):
+        raise HTTPException(status_code=403, detail='client_not_in_workspace')
 
     fields, values = _build_field_updates(body)
     if fields:

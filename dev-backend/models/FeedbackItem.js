@@ -43,6 +43,11 @@ FeedbackItem.init({
   },
   // 자동 수집 메타
   page_url: { type: DataTypes.STRING(500), allowNull: true },
+  // ★ 무엇이 어디서 잘못됐는지 — 사용자가 다시 설명하지 않아도 되게 화면이 실어 보낸다.
+  //   client_env(브라우저·기기)와 성격이 다르다: 이것은 **그 순간의 사건**이다.
+  //   { area, action, code, message, entity_type, entity_id, extra } 형태.
+  //   ★ 여기에 사용자 데이터 본문을 담지 않는다 — 오류 식별에 필요한 것만.
+  error_context: { type: DataTypes.JSON, allowNull: true, defaultValue: null },
   user_agent: { type: DataTypes.STRING(500), allowNull: true },
   // #162 — 디바이스·앱 환경(vw/vh/dpr/lang/platform/standalone 등) + 팝아웃 여부. 트리아지 정확도.
   client_env: { type: DataTypes.JSON, allowNull: true, defaultValue: null },

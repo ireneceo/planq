@@ -353,6 +353,23 @@
       "openPayPage": "Open payment page",
       "pdf": "Download PDF",
       "chat": "Ask the manager"
+    },
+    "delivery": {
+      "chat": "Chat",
+      "email": "Email",
+      "queued": "Sending…",
+      "sending": "Sending…",
+      "sent": "Sent",
+      "skipped": "Not sent",
+      "failed": "Failed",
+      "reason": {
+        "noEmail": "No recipient email",
+        "noConv": "No linked conversation",
+        "noTarget": "No client or project set",
+        "smtp": "The mail server rejected it",
+        "timeout": "Did not finish in time"
+      },
+      "reportMsg": "{{invoiceNumber}} delivery failed"
     }
   },
   "newInvoice": {

@@ -1272,158 +1272,22 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
     }
     await t.commit();
 
-    // 발송 채널 처리 (post-commit)
+    // 발송 채널 처리 — ★ **응답 뒤 백그라운드**로 돈다 (services/invoiceDelivery.js).
+    //   여태 여기서 PDF(2.6초)와 SMTP(타임아웃 최대 30초)를 await 해서, 메일 서버가 느리면
+    //   사용자가 30~50초를 빈 화면 앞에서 기다렸다(Irene: "발송 누르면 계속 로딩되고 있어").
+    //   상태 전이는 위 트랜잭션에서 이미 끝났다 — 기다릴 이유가 없는 대기였다.
     const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
     const shareUrl = `${APP_URL}/public/invoices/${invoice.share_token}`;
-    const deliver = { chat: null, email: null };
-
-    // ① 채팅방 카드 메시지 (자동 검색 — 새 방 생성 X)
-    if (send_chat && (invoice.project_id || invoice.client_id)) {
-      try {
-        let conv = null;
-        // 프로젝트 청구 → 그 프로젝트의 '고객' 대화방(channel_type='customer').
-        //   프로젝트 대화방은 client_id=null 로 project_id 로 묶이므로 client_id 로 찾으면 못 찾던 버그 fix.
-        if (invoice.project_id) {
-          conv = await Conversation.findOne({ where: { business_id: req.params.businessId, project_id: invoice.project_id, channel_type: 'customer' }, order: [['last_message_at', 'DESC']] });
-          // 고객방이 없으면 그 프로젝트의 아무 대화방 (fallback)
-          if (!conv) conv = await Conversation.findOne({ where: { business_id: req.params.businessId, project_id: invoice.project_id }, order: [['last_message_at', 'DESC']] });
-        }
-        // standalone 고객 청구(프로젝트 없음) → client_id 로
-        if (!conv && invoice.client_id) {
-          conv = await Conversation.findOne({ where: { business_id: req.params.businessId, client_id: invoice.client_id }, order: [['last_message_at', 'DESC']] });
-        }
-
-        if (conv) {
-          const userMessage = String(message || '').slice(0, 1000);
-          const fallback = userMessage
-            ? `[청구서] ${invoice.invoice_number} · ${invoice.title} — ${userMessage}`
-            : `[청구서] ${invoice.invoice_number} · ${invoice.title}`;
-          const msg = await Message.create({
-            conversation_id: conv.id,
-            sender_id: req.user.id,
-            content: fallback,
-            kind: 'card',
-            meta: {
-              card_type: 'invoice',
-              invoice_id: invoice.id,
-              invoice_number: invoice.invoice_number,
-              share_token: invoice.share_token,
-              share_url: shareUrl,
-              title: invoice.title,
-              total: Number(invoice.grand_total || 0),
-              currency: invoice.currency,
-              installment_mode: invoice.installment_mode,
-              status: 'sent',
-              paid_at: null,
-              last_notify_at: null,
-              last_notify_installment_id: null,
-              note: userMessage || null,
-            },
-          });
-          await conv.update({ last_message_at: new Date() });
-          // Socket.IO broadcast — conv + business room (CLAUDE.md §16). 누락 시 카드가 실시간으로 안 뜸.
-          try {
-            const full = await Message.findByPk(msg.id, { include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized'] }] });
-            const fullJson = full.toJSON();
-            try { const { applyMemberDisplayNameOne } = require('../services/displayName'); await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']); } catch { /* display name best-effort */ }
-            const io = req.app.get('io');
-            if (io) {
-              io.to(`conv:${conv.id}`).emit('message:new', fullJson);
-              io.to(`business:${conv.business_id}`).emit('message:new', fullJson);
-            }
-          } catch (bErr) { console.warn('[invoice send chat broadcast]', bErr.message); }
-          // 알림 fan-out — 대화 참여자(발신자 제외)에게 새 메시지 알림 (CLAUDE.md §13)
-          try {
-            const { ConversationParticipant } = require('../models');
-            const parts = await ConversationParticipant.findAll({ where: { conversation_id: conv.id }, attributes: ['user_id'] });
-            const targetIds = parts.map(p => p.user_id).filter(uid => uid && uid !== req.user.id);
-            if (targetIds.length) {
-              const { notifyMany } = require('./notifications');
-              const bizForChat = await require('../models').Business.findByPk(conv.business_id, { attributes: ['name', 'brand_name'] }).catch(() => null);
-              const wsNameForChat = bizForChat?.brand_name || bizForChat?.name || null;
-              await notifyMany({
-                userIds: targetIds,
-                businessId: conv.business_id,
-                eventKind: 'message',
-                titleSpec: { feature: 'bill', action: 'bill_invoice_sent', subject: invoice.invoice_number },
-                body: `${invoice.title || ''} 청구서가 도착했습니다.`,
-                link: `/talk/${conv.id}`,
-                // #214 — 워크스페이스 업무 알림은 발송처가 [워크스페이스명] 이어야 한다.
-                //   미전달 시 emailService.subjectPrefix 가 [PlanQ] 로 떨어져 출처가 거짓이 된다.
-                workspaceName: wsNameForChat,
-              });
-            }
-          } catch (nErr) { console.warn('[invoice send chat notify]', nErr.message); }
-          deliver.chat = { conversation_id: conv.id, message_id: msg.id, title: conv.title || null };
-        } else {
-          deliver.chat = { error: 'no_conversation' };
-        }
-      } catch (err) {
-        deliver.chat = { error: err.message };
-      }
-    }
-
-    // ② 이메일 발송 (우선순위: recipient_email → tax_invoice_email → billing_contact_email → invite_email)
-    //    + PDF 자동 첨부 + 워크스페이스 발신자 표시이름
-    if (send_email) {
-      try {
-        const { sendInvoiceEmail } = require('../services/emailService');
-        let recipient = invoice.recipient_email;
-        if (!recipient && invoice.client_id) {
-          const cl = await Client.findByPk(invoice.client_id, { attributes: ['tax_invoice_email', 'billing_contact_email', 'invite_email'] });
-          recipient = cl?.tax_invoice_email || cl?.billing_contact_email || cl?.invite_email || null;
-        }
-        if (!recipient) {
-          deliver.email = { error: 'no_recipient_email' };
-        } else {
-          const business = await Business.findByPk(req.params.businessId, {
-            attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'],
-          });
-          const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
-          const { getMemberDisplayName } = require('../services/displayName');
-          const senderDisp = await getMemberDisplayName(invoice.business_id, req.user.id, sender?.name);
-
-          // PDF 첨부 — 발송 실패해도 메일 자체는 진행 (best-effort)
-          let attachments = null;
-          try {
-            const { pdf } = await buildInvoicePdf(invoice.id);
-            attachments = [{
-              filename: `${invoice.invoice_number || 'invoice'}.pdf`,
-              content: pdf,
-              contentType: 'application/pdf',
-            }];
-          } catch (pdfErr) {
-            console.warn('[invoice send] PDF attach failed:', pdfErr.message);
-          }
-
-          // #274 — Client 가 include 안 된 경로 대비. 이미 실려 있으면 재조회하지 않는다.
-          const mailClient = invoice.Client || (invoice.client_id ? await Client.findByPk(invoice.client_id) : null);
-          const ok = await sendInvoiceEmail({
-      // #274 — 입금 코드·세금계산서 예고는 서버 단일 원천에서 계산해 넘긴다(메일도 같은 값).
-      //   ★ 이 라우트들은 Invoice 를 Client include 없이 로드하는 곳이 있다 — `invoice.Client` 만
-      //     믿으면 코드가 조용히 빈 문자열이 된다(만들어놓고 안 나오는 전형). 없으면 직접 읽는다.
-      payerCode: payerCodeOf(invoice, invoice.Client || mailClient),
-      willIssueTax: receiptKindOf(invoice, invoice.Client || mailClient) === 'tax' && invoice.tax_invoice_status !== 'issued',
-            to: recipient,
-            invoiceNumber: invoice.invoice_number,
-            title: invoice.title,
-            total: Number(invoice.grand_total || 0),
-            currency: invoice.currency,
-            dueDate: invoice.due_date,
-            senderName: senderDisp.name || '',
-            workspaceName: business?.brand_name || business?.name || '',
-            message: String(message || '').slice(0, 1000) || null,
-            shareUrl,
-            attachments,
-            fromName: business?.mail_from_name || business?.brand_name || business?.name || null,
-            replyTo: business?.mail_reply_to || null,
-          });
-          deliver.email = { to: recipient, sent: ok, pdf_attached: !!attachments };
-        }
-      } catch (err) {
-        deliver.email = { error: err.message };
-      }
-    }
+    const { queueDelivery } = require('../services/invoiceDelivery');
+    const deliver = queueDelivery({
+      invoiceId: invoice.id,
+      actorUserId: req.user.id,
+      sendChat: !!send_chat,
+      sendEmail: !!send_email,
+      message,
+      shareUrl,
+      io: req.app.get('io'),
+    });
 
     const refreshed = await Invoice.findByPk(invoice.id, {
       include: [
@@ -1432,7 +1296,6 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
       ],
     });
     if (refreshed?.project_id) require('../services/projectStageEngine').onInvoiceChanged(refreshed.id).catch(() => null);
-    // 사이클 N+51 — audit 보강. draft → sent 전이 + 발송 채널 기록
     require('../services/auditService').logAudit(req, {
       action: 'invoice.send',
       targetType: 'invoice',
@@ -1441,21 +1304,16 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
       newValue: {
         status: 'sent',
         invoice_number: invoice.invoice_number,
-        deliver_chat: !!deliver.chat,
-        deliver_email: !!deliver.email && !deliver.email.error,
+        deliver_chat: !!send_chat,
+        deliver_email: !!send_email,
         share_expires_at: invoice.share_expires_at,
       },
     });
-    // Q Bill 타임라인 — 발행(draft → sent) + 발송 채널
+    // Q Bill 타임라인 — 발행(draft → sent). 어디로 나갔는지는 발송이 끝난 뒤
+    // invoiceDelivery 가 'delivered' 이벤트로 따로 남긴다(그때가 되어야 사실이다).
     await logBillEvent('invoice', invoice.id, 'sent', { actorUserId: req.user?.id, detail: {
-      chat: !!(deliver.chat && !deliver.chat.error), email: !!(deliver.email && !deliver.email.error),
-      // 어느 이메일·어느 채팅방에 보냈는지 이력에 무조건 남김 (사용자 요구)
-      email_to: (deliver.email && !deliver.email.error && deliver.email.to) || null,
-      chat_conversation_id: (deliver.chat && !deliver.chat.error && deliver.chat.conversation_id) || null,
-      chat_title: (deliver.chat && !deliver.chat.error && deliver.chat.title) || null,
+      chat_requested: !!send_chat, email_requested: !!send_email,
     } });
-    // 실시간 반영 (CLAUDE.md §16) — 이 라우트만 broadcast 를 안 불러서, 발송해도 다른 탭·다른
-    //   사용자의 청구서 목록이 갱신되지 않았다. 목록은 이미 'invoice:updated' 를 듣고 있다.
     broadcastInvoice(req, refreshed, 'invoice:updated');
     successResponse(res, { invoice: refreshed, deliver }, 'Invoice sent');
   } catch (error) { try { await t.rollback(); } catch {} next(error); }
@@ -1475,40 +1333,23 @@ router.post('/:businessId/:id/send-preview', authenticateToken, checkBusinessAcc
     const { getMemberDisplayName: getMemberDispName } = require('../services/displayName');
     const meDisp = await getMemberDispName(Number(req.params.businessId), req.user.id, me.name);
     const business = await Business.findByPk(req.params.businessId, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
-    // PDF 첨부 (draft 도 렌더 가능) — best-effort
-    let attachments = null;
-    try {
-      const { pdf } = await buildInvoicePdf(invoice.id);
-      attachments = [{ filename: `${invoice.invoice_number || 'invoice'}-preview.pdf`, content: pdf, contentType: 'application/pdf' }];
-    } catch (pdfErr) { console.warn('[invoice send-preview] PDF attach failed:', pdfErr.message); }
-    const { sendInvoiceEmail } = require('../services/emailService');
-    // #274 — Client 가 include 안 된 경로 대비. 이미 실려 있으면 재조회하지 않는다.
-    const mailClient = invoice.Client || (invoice.client_id ? await Client.findByPk(invoice.client_id) : null);
-    const ok = await sendInvoiceEmail({
-      // #274 — 입금 코드·세금계산서 예고는 서버 단일 원천에서 계산해 넘긴다(메일도 같은 값).
-      //   ★ 이 라우트들은 Invoice 를 Client include 없이 로드하는 곳이 있다 — `invoice.Client` 만
-      //     믿으면 코드가 조용히 빈 문자열이 된다(만들어놓고 안 나오는 전형). 없으면 직접 읽는다.
-      payerCode: payerCodeOf(invoice, invoice.Client || mailClient),
-      willIssueTax: receiptKindOf(invoice, invoice.Client || mailClient) === 'tax' && invoice.tax_invoice_status !== 'issued',
-      to: me.email,
-      invoiceNumber: invoice.invoice_number,
-      title: `[미리보기] ${invoice.title || ''}`,
-      total: Number(invoice.grand_total || 0),
-      currency: invoice.currency,
-      dueDate: invoice.due_date,
-      senderName: meDisp.name || '',
-      workspaceName: business?.brand_name || business?.name || '',
+    // ★ /send · /resend 와 같은 착지점. 여기서도 PDF(2.6초)+SMTP(최대 30초)를 await 하면
+    //   "미리보기 보내기" 를 누른 사용자가 똑같이 멈춰 있는다.
+    require('../services/invoiceDelivery').queueDelivery({
+      invoiceId: invoice.id,
+      actorUserId: req.user.id,
+      sendChat: false,
+      sendEmail: true,
+      emailTo: me.email,                       // 고객이 아니라 **본인에게**
       message: '고객에게 발송하기 전 미리보기입니다. 첨부 PDF 로 내용을 확인한 뒤, 이상 없으면 "발송"으로 고객에게 보내세요.',
-      shareUrl: null,
-      attachments,
-      fromName: business?.mail_from_name || business?.brand_name || business?.name || null,
-      replyTo: business?.mail_reply_to || null,
+      shareUrl: null,                          // 미리보기에는 공개 결제 링크를 넣지 않는다
+      io: req.app.get('io'),
     });
     require('../services/auditService').logAudit(req, {
       action: 'invoice.send_preview', targetType: 'invoice', targetId: invoice.id,
       newValue: { to: me.email, invoice_number: invoice.invoice_number },
     });
-    return successResponse(res, { sent: ok, to: me.email }, ok ? '미리보기를 보냈습니다' : 'sent');
+    return successResponse(res, { queued: true, to: me.email }, 'preview_queued');
   } catch (err) { next(err); }
 });
 
@@ -1643,51 +1484,32 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
     let shareToken = invoice.share_token;
     if (!shareToken) { shareToken = require('crypto').randomBytes(32).toString('hex'); await invoice.update({ share_token: shareToken }); }
     const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
-    const business = await Business.findByPk(businessId, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
-    const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
-    // PDF 첨부 (best-effort — 실패해도 메일은 진행)
-    let attachments = null;
-    try {
-      const { pdf } = await buildInvoicePdf(invoice.id);
-      attachments = [{ filename: `${invoice.invoice_number || 'invoice'}.pdf`, content: pdf, contentType: 'application/pdf' }];
-    } catch (pdfErr) { console.warn('[invoice resend] PDF attach failed:', pdfErr.message); }
-    const { sendInvoiceEmail } = require('../services/emailService');
-    // #274 — Client 가 include 안 된 경로 대비. 이미 실려 있으면 재조회하지 않는다.
-    const mailClient = invoice.Client || (invoice.client_id ? await Client.findByPk(invoice.client_id) : null);
-    const ok = await sendInvoiceEmail({
-      // #274 — 입금 코드·세금계산서 예고는 서버 단일 원천에서 계산해 넘긴다(메일도 같은 값).
-      //   ★ 이 라우트들은 Invoice 를 Client include 없이 로드하는 곳이 있다 — `invoice.Client` 만
-      //     믿으면 코드가 조용히 빈 문자열이 된다(만들어놓고 안 나오는 전형). 없으면 직접 읽는다.
-      payerCode: payerCodeOf(invoice, invoice.Client || mailClient),
-      willIssueTax: receiptKindOf(invoice, invoice.Client || mailClient) === 'tax' && invoice.tax_invoice_status !== 'issued',
-      to: recipient,
-      invoiceNumber: invoice.invoice_number,
-      title: invoice.title,
-      total: Number(invoice.grand_total || 0),
-      currency: invoice.currency,
-      dueDate: invoice.due_date,
-      senderName: sender?.name || '',
-      workspaceName: business?.brand_name || business?.name || '',
-      message: req.body?.message ? String(req.body.message).slice(0, 1000) : null,
+
+    // ★ 발송은 /send 와 **같은 착지점**을 쓴다. 세 경로(send·resend·preview)가 각자 PDF 를 만들고
+    //   각자 SMTP 를 부르면 반드시 갈라진다 — 실제로 입금자명 코드 폴백이 세 벌로 복사돼 있었다.
+    require('../services/invoiceDelivery').queueDelivery({
+      invoiceId: invoice.id,
+      actorUserId: req.user.id,
+      sendChat: false,
+      sendEmail: true,
+      message: req.body?.message ? String(req.body.message).slice(0, 1000) : '',
       shareUrl,
-      attachments,
-      fromName: business?.mail_from_name || business?.brand_name || business?.name || null,
-      replyTo: business?.mail_reply_to || null,
+      io: req.app.get('io'),
     });
-    if (!ok) return errorResponse(res, 'email_send_failed', 502);
+
     // 추적 (상태 무변경)
     const meta = (invoice.meta && typeof invoice.meta === 'object') ? { ...invoice.meta } : {};
     meta.last_resent_at = new Date().toISOString();
     meta.resend_count = (Number(meta.resend_count) || 0) + 1;
     await invoice.update({ meta });
-    try { await logBillEvent('invoice', invoice.id, 'sent', { detail: { resend: true, email_to: recipient } }); } catch { /* best-effort */ }
     require('../services/auditService').logAudit(req, {
       action: 'invoice.resend', targetType: 'invoice', targetId: invoice.id,
       newValue: { invoice_number: invoice.invoice_number, recipient, resend_count: meta.resend_count },
     });
     const io = req.app.get('io');
     if (io) io.to(`business:${businessId}`).emit('invoice:updated', invoice.toJSON());
-    return successResponse(res, { sent: true, to: recipient, resend_count: meta.resend_count }, 'resent');
+    // sent:true 는 '보내기를 걸었다' 는 뜻이다 — 실제 도달 여부는 meta.email_delivery 가 말한다.
+    return successResponse(res, { queued: true, to: recipient, resend_count: meta.resend_count }, 'resend_queued');
   } catch (error) { next(error); }
 });
 

@@ -789,7 +789,8 @@
       "task.assignee_change": "Assignee changed",
       "task.due_change": "Due date changed",
       "task.project_change": "Moved to another project",
-      "task.on_hold": "Task on hold"
+      "task.on_hold": "Task on hold",
+      "qnote.created": "Meeting note linked"
     },
     "status": {
       "not_started": "Not started",

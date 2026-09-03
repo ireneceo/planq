@@ -10,6 +10,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { FEEDBACK_OPEN_EVENT, describeContext, type FeedbackOpenDetail, type FeedbackContext } from '../../utils/feedbackOpen';
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import AttachmentField from './AttachmentField';
@@ -113,6 +114,9 @@ const CueHelpDrawer: React.FC<{
   const bodyRef = useRef<HTMLDivElement>(null);
 
   // 피드백 모드 폼 상태 (로그인 사용자 전용)
+  // 화면이 실어 보낸 사건 맥락 — 사용자가 "어디서 뭐 하다가" 를 다시 쓰지 않게 한다.
+  //   제출 payload 의 error_context 로 그대로 나간다(서버가 허용 키만 남긴다).
+  const [fbContext, setFbContext] = useState<FeedbackContext | null>(null);
   const [fbCategory, setFbCategory] = useState<FeedbackCategory>('improve');
   const [fbPriority, setFbPriority] = useState<'normal' | 'high'>('normal');
   const [fbBody, setFbBody] = useState('');
@@ -181,6 +185,27 @@ const CueHelpDrawer: React.FC<{
     };
     window.addEventListener('planq:open-tool', onOpen as EventListener);
     return () => window.removeEventListener('planq:open-tool', onOpen as EventListener);
+  }, [guestView]);
+
+  // ★ 어디서든 "문제 신고" — utils/feedbackOpen.openFeedback() 단일 진입점.
+  //   오류가 난 자리에서 바로 열리고, 무엇이 어디서 잘못됐는지는 화면이 실어 보낸다.
+  //   게스트는 피드백 폼을 쓸 수 없으므로(로그인 필요) 열지 않는다 — 열어 놓고 못 쓰게 하면
+  //   막다른 길이 된다.
+  useEffect(() => {
+    const onFb = (e: Event) => {
+      if (guestView) return;
+      const d = (e as CustomEvent<FeedbackOpenDetail>).detail || {};
+      setFbContext(d.context || null);
+      if (d.category) setFbCategory(d.category);
+      else if (d.context) setFbCategory('bug');   // 맥락이 실려 왔다 = 무언가 잘못됐다
+      const head = d.prefill || describeContext(d.context);
+      // 사용자가 쓰던 내용을 덮지 않는다 — 비어 있을 때만 채운다
+      setFbBody((prev) => (prev.trim() ? prev : (head ? `${head}\n\n` : '')));
+      setMode('feedback');
+      setOpen(true);
+    };
+    window.addEventListener(FEEDBACK_OPEN_EVENT, onFb as EventListener);
+    return () => window.removeEventListener(FEEDBACK_OPEN_EVENT, onFb as EventListener);
   }, [guestView]);
 
   // N+93 — standalone(/help-popout): 닫기는 창 닫기
@@ -401,6 +426,7 @@ const CueHelpDrawer: React.FC<{
           page_url: pageUrl,
           is_popout: isPopout,
           client_env: clientEnv,
+          error_context: fbContext,
           attachments: fbAttachmentPayload.length > 0 ? fbAttachmentPayload : null,
         }),
       });
@@ -408,6 +434,7 @@ const CueHelpDrawer: React.FC<{
       if (!res.ok || !j.success) throw new Error(j.message || 'feedback error');
       setFbResultMsg(t('qhelper.fbThanks', '접수됐습니다 #{{id}} — 빠르게 검토할게요', { id: j.data?.id }) as string);
       setFbBody('');
+      setFbContext(null);
       setFbCategory('improve');
       setFbPriority('normal');
       setFbFiles([]);
@@ -418,7 +445,7 @@ const CueHelpDrawer: React.FC<{
     } finally {
       setSubmitting(false);
     }
-  }, [fbCategory, fbPriority, fbBody, fbFiles, submitting, location, t]);
+  }, [fbCategory, fbPriority, fbBody, fbFiles, fbContext, submitting, location, t]);
 
   // 피드백 이미지 첨부 규칙 — 이미지만 / 파일당 1MB / 최대 3개.
   //   AttachmentField 가 고른 File[] 을 받아 여기서 검증한다(통과분만 상태에 남긴다).

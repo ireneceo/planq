@@ -441,5 +441,14 @@
     "errGeneric": "Upload failed.",
     "processingNotice": "Turning the recording into text. It will appear here automatically when it is done.",
     "failedNotice": "Transcription failed. Please try uploading the file again."
+  },
+  "link": {
+    "project": "Project",
+    "client": "Client",
+    "projectPlaceholder": "No project linked",
+    "clientPlaceholder": "No client linked",
+    "notInWorkspace": "That item is not in this workspace",
+    "ownerOnly": "Only the author can link this",
+    "failed": "Could not link"
   }
 }

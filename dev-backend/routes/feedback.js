@@ -16,9 +16,49 @@ const ALLOWED_PRIORITY = ['normal', 'high'];
 
 // POST — 사용자 제출 (자동 메타 page_url, user_agent 수집)
 //   parent_id 동봉 시 = 답변 받은 원 피드백에 대한 추가 문의(스레드 자식, #70)
+// 화면이 보낸 사건 맥락을 **허용한 키만** 받는다.
+//   ★ JSON 을 통째로 잘라 다시 파싱하면 깨진 JSON 이 되어 파싱이 던진다 — 필드 단위로 자른다.
+//   ★ 화이트리스트인 이유: 화면이 실수로 응답 전체나 사용자 본문을 실어 보내면
+//     피드백 원장에 남의 데이터가 쌓인다. 열거해서 빠뜨리는 쪽이 아니라, 남길 것만 남긴다.
+// 발생 페이지 주소는 **그대로 저장하지 않는다.**
+//   주소에는 사용자가 친 검색어(?q=), 공유 토큰(/public/invoices/<64자>), 초대 토큰이 들어간다.
+//   그것을 원장에 남기면 플랫폼 관리자가 남의 검색어와 살아 있는 토큰을 보게 된다.
+//   경로 모양은 남기고(어느 화면인지 알아야 고친다), 값만 가린다.
+const SAFE_QUERY_KEYS = new Set(['tab', 'view', 'scope', 'page', 'mode', 'status']);
+function sanitizePageUrl(raw) {
+  if (!raw) return null;
+  let u;
+  try { u = new URL(String(raw), 'https://planq.kr'); } catch { return String(raw).slice(0, 200); }
+  // 경로의 토큰 같은 긴 16진/난수 세그먼트는 가린다
+  const path = u.pathname.split('/').map((seg) => {
+    if (seg.length >= 24 && /^[A-Za-z0-9_-]+$/.test(seg)) return '<token>';
+    return seg;
+  }).join('/');
+  const qs = [];
+  for (const [k, v] of u.searchParams.entries()) {
+    // 화면을 특정하는 데 필요한 키만 값을 남긴다. 나머지는 키만 남기고 값을 가린다.
+    qs.push(`${k}=${SAFE_QUERY_KEYS.has(k) ? String(v).slice(0, 40) : '<hidden>'}`);
+  }
+  return `${path}${qs.length ? `?${qs.join('&')}` : ''}`.slice(0, 500);
+}
+
+const CTX_KEYS = ['area', 'action', 'code', 'message', 'entity_type', 'entity_id', 'status', 'detail'];
+function sanitizeErrorContext(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const out = {};
+  for (const k of CTX_KEYS) {
+    const v = raw[k];
+    if (v === undefined || v === null) continue;
+    if (typeof v === 'number' || typeof v === 'boolean') { out[k] = v; continue; }
+    const str = String(v).slice(0, 500);
+    if (str) out[k] = str;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const { category, priority, title, body, page_url, attachments, parent_id, client_env, is_popout } = req.body || {};
+    const { category, priority, title, body, page_url, attachments, parent_id, client_env, is_popout, error_context } = req.body || {};
     if (!body || !String(body).trim()) return errorResponse(res, 'body_required', 400);
 
     // 추가 문의(parent_id) 검증 — 본인 소유 + 답변 받은 최상위 부모만
@@ -56,10 +96,12 @@ router.post('/', authenticateToken, async (req, res, next) => {
       title: finalTitle.slice(0, 200),
       body: String(body),
       attachments: Array.isArray(attachments) ? attachments.slice(0, 5) : null,
-      page_url: page_url ? String(page_url).slice(0, 500) : null,
+      page_url: sanitizePageUrl(page_url),
       user_agent: ua,
       client_env: (client_env && typeof client_env === 'object' && !Array.isArray(client_env)) ? client_env : null,
       is_popout: !!is_popout,
+      // 화면이 실어 보낸 사건 맥락. 사용자가 "어디서 뭐 하다가" 를 다시 쓰지 않아도 된다.
+      error_context: sanitizeErrorContext(error_context),
       status: 'pending',
     });
 

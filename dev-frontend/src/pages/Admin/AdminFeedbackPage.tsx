@@ -23,6 +23,8 @@ interface FeedbackItem {
   title: string;
   body: string;
   page_url: string | null;
+  /** 화면이 실어 보낸 사건 맥락 — 사용자가 다시 설명하지 않아도 되게. routes/feedback.js CTX_KEYS. */
+  error_context: Record<string, string | number> | null;
   user_agent: string | null;
   status: Status;
   admin_response: string | null;
@@ -180,6 +182,17 @@ const AdminFeedbackPage = () => {
                   <MetaRow><MetaLabel>{t('adminFeedback.user', '사용자')}</MetaLabel><MetaValue>{detail.user?.name} ({detail.user?.email})</MetaValue></MetaRow>
                   <MetaRow><MetaLabel>{t('adminFeedback.workspace', '워크스페이스')}</MetaLabel><MetaValue>#{detail.business_id ?? '—'}</MetaValue></MetaRow>
                   <MetaRow><MetaLabel>{t('adminFeedback.page', '발생 페이지')}</MetaLabel><MetaValue>{detail.page_url || '—'}</MetaValue></MetaRow>
+                  {detail.error_context && Object.keys(detail.error_context).length > 0 && (
+                    <MetaRow>
+                      <MetaLabel>{t('adminFeedback.errorContext', '사건 맥락')}</MetaLabel>
+                      <MetaValue>
+                        {/* 값을 텍스트로만 그린다 — 사용자가 보낸 문자열이다 */}
+                        {Object.entries(detail.error_context).map(([k, v]) => (
+                          <div key={k}><b>{k}</b>: {String(v)}</div>
+                        ))}
+                      </MetaValue>
+                    </MetaRow>
+                  )}
                   <MetaRow><MetaLabel>{t('adminFeedback.ua', '브라우저')}</MetaLabel><MetaValue>{(detail.user_agent || '—').slice(0, 80)}</MetaValue></MetaRow>
                   <MetaRow><MetaLabel>{t('adminFeedback.createdAt', '제출')}</MetaLabel><MetaValue>{new Date(detail.created_at).toLocaleString()}</MetaValue></MetaRow>
                 </Meta>

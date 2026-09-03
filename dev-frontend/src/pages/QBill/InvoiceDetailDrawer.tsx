@@ -1,6 +1,9 @@
 // 청구서 상세 우측 드로어 — 실 API
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { deliveryLabel, deliveryTone, isDeliveryInFlight } from '../../utils/invoiceDelivery';
+import { ReportProblemLink } from '../../components/Common/ReportProblem';
+import { onSocket } from '../../services/socket';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import DetailDrawer from '../../components/Common/DetailDrawer';
@@ -124,6 +127,19 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [resendNote, setResendNote] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [overdueNotifyBusy, setOverdueNotifyBusy] = useState(false);
+  // 발송 진행을 실시간으로 받는다 — 발송은 백그라운드로 도는데 드로어가 구독을 안 하면
+  //   사용자는 드로어를 닫았다 열어야 결과를 본다(그때까지는 "보내는 중" 그대로).
+  //   ★ 이 청구서 것만 반영한다. 남의 청구서 이벤트로 화면을 다시 그리면
+  //     보고 있던 자리가 흔들린다(memory feedback_background_refresh_must_not_repaint).
+  useEffect(() => {
+    const off = onSocket<{ id?: number; meta?: unknown }>('invoice:updated', (data) => {
+      if (!data || !invoice || Number(data.id) !== Number(invoice.id)) return;
+      setInvoice((prev) => (prev ? { ...prev, ...(data as Partial<ApiInvoice>) } : prev));
+    });
+    return off;
+    // invoice.id 만 의존한다 — invoice 전체를 넣으면 setInvoice 마다 구독이 재생성된다
+  }, [invoice?.id]);
+
   // 발송(draft → sent) 중복 제출 가드. ★ 훅은 반드시 early return(`if (!invoice) return null`) **위**에
   //   선언한다 — 이 드로어는 InvoicesTab 에서 invoice={selected|null} 로 **항상 mount** 되므로,
   //   아래쪽에 두면 열리는 순간 훅 개수가 변해 React #310 으로 드로어 전체가 크래시한다.
@@ -358,7 +374,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     setPreviewNote(null);
     try {
       const r = await sendInvoicePreview(invoice.business_id, invoice.id);
-      setPreviewNote({ tone: 'ok', text: t('detail.preview.sent', { defaultValue: '내 이메일({{to}})로 미리보기를 보냈어요', to: r.to }) as string });
+      // ★ 발송은 백그라운드다 — "보냈어요" 는 아직 사실이 아니다(memory feedback_new_behavior_makes_copy_lie)
+      setPreviewNote({ tone: 'ok', text: t('detail.preview.queued', { defaultValue: '내 이메일({{to}})로 보내는 중입니다. 잠시 뒤 메일함을 확인해 주세요', to: r.to }) as string });
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
       setPreviewNote({
@@ -410,7 +427,8 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     setResendNote(null);
     try {
       const r = await resendInvoice(invoice.business_id, invoice.id);
-      setResendNote({ tone: 'ok', text: t('detail.resend.sent', { to: r.to, defaultValue: `청구서를 다시 보냈습니다 (${r.to})` }) as string });
+      // 백그라운드 발송 — 결과는 위 발송 상태 줄이 말한다
+      setResendNote({ tone: 'ok', text: t('detail.resend.queued', { to: r.to, defaultValue: `${r.to} 로 다시 보내는 중입니다` }) as string });
       await refresh();
     } catch (e) {
       const msg = e instanceof Error ? e.message : '';
@@ -572,6 +590,35 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             </ActionBtn>
           )}
         </ActionRow>
+        {/* 발송 진행 — 서버가 백그라운드로 보내며 갱신하고 socket 으로 밀어준다.
+            누르자마자 응답이 오므로(51ms 실측), 진행 상황은 여기서 봐야 한다. */}
+        {(invoice.meta?.email_delivery || invoice.meta?.chat_delivery) && (
+          <DeliveryRow>
+            {invoice.meta?.chat_delivery && (
+              <DeliveryChip $tone={deliveryTone(invoice.meta.chat_delivery.status)}>
+                {isDeliveryInFlight(invoice.meta.chat_delivery) && <TinySpinner aria-hidden />}
+                {t('detail.delivery.chat', { defaultValue: '채팅' })} · {deliveryLabel(invoice.meta.chat_delivery, (k, d) => t(`detail.${k}`, { defaultValue: d }) as string)}
+              </DeliveryChip>
+            )}
+            {invoice.meta?.email_delivery && (
+              <DeliveryChip $tone={deliveryTone(invoice.meta.email_delivery.status)}>
+                {isDeliveryInFlight(invoice.meta.email_delivery) && <TinySpinner aria-hidden />}
+                {t('detail.delivery.email', { defaultValue: '메일' })} · {deliveryLabel(invoice.meta.email_delivery, (k, d) => t(`detail.${k}`, { defaultValue: d }) as string)}
+                {invoice.meta.email_delivery.to ? ` (${invoice.meta.email_delivery.to})` : ''}
+              </DeliveryChip>
+            )}
+            {/* 발송이 실패했으면 그 자리에서 바로 신고할 수 있어야 한다.
+                고객에게 돈을 청구하는 일이라 "왜 안 갔는지" 를 우리가 빨리 알아야 한다. */}
+            {(invoice.meta?.email_delivery?.status === 'failed' || invoice.meta?.chat_delivery?.status === 'failed') && (
+              <ReportProblemLink context={{
+                area: 'qbill', action: 'invoice_send',
+                entity_type: 'invoice', entity_id: invoice.id,
+                code: invoice.meta?.email_delivery?.reason || invoice.meta?.chat_delivery?.reason,
+                message: t('detail.delivery.reportMsg', { invoiceNumber: invoice.invoice_number, defaultValue: '{{invoiceNumber}} 발송 실패' }) as string,
+              }} />
+            )}
+          </DeliveryRow>
+        )}
         {remindNote && <RemindNote $tone={remindNote.tone}>{remindNote.text}</RemindNote>}
         {resendNote && <RemindNote $tone={resendNote.tone}>{resendNote.text}</RemindNote>}
         {previewNote && <RemindNote $tone={previewNote.tone}>{previewNote.text}</RemindNote>}
@@ -1304,6 +1351,26 @@ const ActionBtn = styled.button<{ $primary?: boolean }>`
   }
   &:disabled { opacity: 0.5; cursor: default; }
 `;
+// 발송 진행 줄 — 채팅·메일 각각의 상태를 나란히. 값 목록은 utils/invoiceDelivery.ts 가 단일 원천.
+const DeliveryRow = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;
+`;
+const DeliveryChip = styled.span<{ $tone: 'progress' | 'good' | 'bad' | 'muted' }>`
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.75rem; font-weight: 600; border-radius: 6px; padding: 4px 9px;
+  ${p => p.$tone === 'good' ? 'background:#ECFDF5;color:#047857;'
+    : p.$tone === 'bad' ? 'background:#FEF2F2;color:#B91C1C;'
+    : p.$tone === 'progress' ? 'background:#F0F9FF;color:#0369A1;'
+    : 'background:#F1F5F9;color:#64748B;'}
+`;
+const TinySpinner = styled.span`
+  /* 컨트롤이 아니라 칩 안의 장식이다 — px 로 고정하면 글자 크기와 따로 논다(가드도 컨트롤로 오인). */
+  width: 0.72em; height: 0.72em; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent;
+  animation: pqSpin 0.7s linear infinite; flex-shrink: 0;
+  @keyframes pqSpin { to { transform: rotate(360deg); } }
+`;
+
 const RemindNote = styled.div<{ $tone: 'ok' | 'warn' }>`
   margin-top: 8px; font-size: 0.75rem; font-weight: 600;
   color: ${p => p.$tone === 'ok' ? '#0F766E' : '#B45309'};

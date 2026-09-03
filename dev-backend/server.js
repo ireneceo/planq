@@ -716,6 +716,13 @@ const exportJobWorker = require('./services/exportJobWorker');
 setInterval(() => { exportJobWorker.runExportJobTick().catch(e => console.warn('[exportJobWorker]', e.message)); }, 30 * 1000);
 setInterval(() => { exportJobWorker.cleanupExpiredExports().catch(() => {}); }, 6 * 60 * 60 * 1000);
 
+// 청구서 발송 — 죽은 'sending' 정리. 발송 도중 프로세스가 재시작되면 상태가 영원히
+// '보내는 중' 으로 남고, 화면에는 그것이 무한 로딩과 구별되지 않는다.
+//   ★ 부팅 직후 1회 + 5분 주기. 이전 프로세스가 남긴 것을 켜자마자 치운다.
+const invoiceDelivery = require('./services/invoiceDelivery');
+setTimeout(() => { invoiceDelivery.sweepStaleDeliveries().catch(e => console.warn('[invoiceDelivery sweep]', e.message)); }, 20 * 1000);
+setInterval(() => { invoiceDelivery.sweepStaleDeliveries().catch(e => console.warn('[invoiceDelivery sweep]', e.message)); }, 5 * 60 * 1000);
+
 // 미읽음 알림 이메일 에스컬레이션 — push silent-drop 안전망 (운영: 알림 미수신 미팅 누락 사고)
 const { initUnreadEscalationCron } = require('./services/unreadEscalationCron');
 initUnreadEscalationCron();

@@ -353,6 +353,23 @@
       "openPayPage": "결제 안내 페이지 열기",
       "pdf": "PDF 내려받기",
       "chat": "담당자에게 문의"
+    },
+    "delivery": {
+      "chat": "채팅",
+      "email": "메일",
+      "queued": "보내는 중…",
+      "sending": "보내는 중…",
+      "sent": "보냈습니다",
+      "skipped": "보내지 않음",
+      "failed": "실패",
+      "reason": {
+        "noEmail": "받는 사람 이메일이 없습니다",
+        "noConv": "연결된 대화방이 없습니다",
+        "noTarget": "고객·프로젝트가 지정되지 않았습니다",
+        "smtp": "메일 서버가 거부했습니다",
+        "timeout": "시간 안에 끝나지 않았습니다"
+      },
+      "reportMsg": "{{invoiceNumber}} 발송 실패"
     }
   },
   "newInvoice": {

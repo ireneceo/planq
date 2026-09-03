@@ -73,11 +73,14 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   // ─── 폼 state ───
   const [submitting, setSubmitting] = useState(false);
 
-  // 발송 결과 (sendInvoice 응답 기반) — 채팅방 가기 / 닫기
+  // 발송 접수 결과 — ★ 발송은 응답 뒤 백그라운드로 돈다(services/invoiceDelivery.js).
+  //   여기서 "발송 완료" 라고 쓰면 거짓말이다. 무엇을 어디로 **보내기 시작했는지**만 말하고,
+  //   결과는 청구서 상세의 발송 상태가 말한다(socket 으로 갱신된다).
   const [sentResult, setSentResult] = useState<{
     invoiceId: number;
     convId: number | null;
     convName: string | null;
+    emailQueued: boolean;
     emailTo: string | null;
   } | null>(null);
 
@@ -462,18 +465,16 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           send_email: sendEmail,
           message: notes.trim() || undefined,
         });
-        // 발송 결과 — 채팅 conversation_id / email to 안전 추출
-        const chatRes = sent?.deliver?.chat;
-        const emailRes = sent?.deliver?.email;
-        const convId = (chatRes && 'conversation_id' in chatRes) ? chatRes.conversation_id : null;
-        const emailSent = (emailRes && 'sent' in emailRes) ? emailRes.sent : false;
-        const emailToAddr = (emailRes && 'to' in emailRes) ? emailRes.to : null;
-        if (convId || emailSent) {
+        // ★ 응답은 "보내기를 걸었다" 는 뜻이다 — 도달 여부가 아니다.
+        //   어디로 걸었는지는 우리가 요청한 값으로 안다(서버가 그대로 받는다).
+        if (sent?.deliver?.queued) {
+          const convId = (sendChat && conversation) ? conversation.id : null;
           setSentResult({
             invoiceId: created.id,
             convId,
             convName: convId ? (conversation?.title || null) : null,
-            emailTo: emailSent ? emailToAddr : null,
+            emailQueued: !!sent.deliver.email,
+            emailTo: recipientEmail || null,
           });
           setSubmitting(false);
           return; // 결과 화면 유지
@@ -494,23 +495,26 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     return (
       <>
         <Backdrop onClick={onClose} />
-        <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newInvoice.sent.title', '발송 완료') as string} style={{ width: 460 }}>
+        <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('newInvoice.sent.title', '청구서를 발행했습니다') as string} style={{ width: 460 }}>
           <Head>
-            <Title>{t('newInvoice.sent.title', '발송 완료')}</Title>
+            <Title>{t('newInvoice.sent.title', '청구서를 발행했습니다')}</Title>
             <CloseBtn type="button" onClick={onClose} aria-label={t('common.close', '닫기') as string}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
             </CloseBtn>
           </Head>
           <SentBody>
             <SentIcon>✓</SentIcon>
-            <SentTitle>{t('newInvoice.sent.title', '발송 완료')}</SentTitle>
+            <SentTitle>{t('newInvoice.sent.title', '청구서를 발행했습니다')}</SentTitle>
             <SentList>
               {sentResult.convId && sentResult.convName && (
-                <li>{t('newInvoice.sent.chat', '"{{name}}" 채팅방에 카드 메시지를 보냈습니다', { name: sentResult.convName })}</li>
+                <li>{t('newInvoice.sent.chat', '"{{name}}" 채팅방으로 보내는 중입니다', { name: sentResult.convName })}</li>
               )}
-              {sentResult.emailTo && (
-                <li>{t('newInvoice.sent.email', '{{to}} 에게 이메일을 발송했습니다', { to: sentResult.emailTo })}</li>
+              {sentResult.emailQueued && (
+                sentResult.emailTo
+                  ? <li>{t('newInvoice.sent.email', '{{to}} 로 메일을 보내는 중입니다', { to: sentResult.emailTo })}</li>
+                  : <li>{t('newInvoice.sent.emailNoAddr', '고객 이메일로 보내는 중입니다')}</li>
               )}
+              <li>{t('newInvoice.sent.note', '발송 결과는 청구서 상세에서 확인할 수 있습니다. 창을 닫아도 계속 진행됩니다.')}</li>
             </SentList>
             <SentActions>
               {sentResult.convId && (

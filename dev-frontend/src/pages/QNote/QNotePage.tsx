@@ -59,6 +59,7 @@ import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { deriveMemoPreview } from '../../utils/qnoteBody';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
+import SessionLinkBar from './SessionLinkBar';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { usePanelStack } from '../../hooks/usePanelStack';
 // MemoView (PostEditor 풀모드 + 헤더) — 메모 신규/편집 시점에만 chunk fetch (vendor-tiptap lazy).
@@ -2941,6 +2942,21 @@ const QNotePage = () => {
                     editable={String(activeSession.user_id) === String(user?.id)}
                     onChange={(patch) => patchTaxonomy(activeSession.id, patch)}
                   />
+                  {/* 프로젝트·고객 연결 — 이게 없어서 회의록이 어느 일의 것인지 남지 않았다.
+                      분류·태그와 같은 성격(이 노트가 무엇에 속하는가)이라 같은 줄에 둔다. */}
+                  {businessId && (
+                    <SessionLinkBar
+                      session={activeSession}
+                      businessId={businessId}
+                      editable={String(activeSession.user_id) === String(user?.id)}
+                      onChange={(updated) => {
+                        setActiveSession(updated);
+                        setSessions((prev) => prev.map((x) => (x.id === updated.id
+                          ? { ...x, project_id: updated.project_id, client_id: updated.client_id }
+                          : x)));
+                      }}
+                    />
+                  )}
                 </TaxonomyInHeader>
               </HeaderLeft>
               <HeaderRight>

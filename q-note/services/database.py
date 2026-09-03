@@ -127,6 +127,10 @@ async def _run_migrations(db):
   session_share_cols = [
     ('visibility', "TEXT NOT NULL DEFAULT 'L1'"),
     ('project_id', 'INTEGER'),  # MySQL projects 참조 (soft ref, FK 불가)
+    # 운영 신고 2026-09-03 (Irene): "프로젝트/고객 연결 기능이 없어서 히스토리에 안 쌓여."
+    #   project_id 는 원래 L2(팀 비공개) 범위 판정용으로 들어왔다 — 연결 수단이 아니었다.
+    #   client_id 는 아예 없었다. 둘 다 soft ref(다른 DB) 라 FK 를 걸 수 없다.
+    ('client_id', 'INTEGER'),   # MySQL clients 참조 (soft ref, FK 불가)
     ('share_token', 'TEXT'),
     ('shared_at', 'TEXT'),
     ('share_expires_at', 'TEXT'),
@@ -136,6 +140,9 @@ async def _run_migrations(db):
     if not await _column_exists(db, 'sessions', col):
       await db.execute(f"ALTER TABLE sessions ADD COLUMN {col} {typ}")
   await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_visibility ON sessions(business_id, visibility)")
+  # 프로젝트·고객 히스토리 조회 — 인덱스가 없으면 세션이 쌓일수록 그 화면만 느려진다
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(business_id, project_id)")
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_client ON sessions(business_id, client_id)")
   await db.execute("CREATE INDEX IF NOT EXISTS idx_sessions_share_token ON sessions(share_token) WHERE share_token IS NOT NULL")
 
   # qa_pairs: 임베딩 + priority 플래그 + 1문장 답변 + 키워드

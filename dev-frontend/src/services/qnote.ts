@@ -100,6 +100,8 @@ export interface QNoteSession {
   // 사이클 N+14 — visibility 4단계 (L1/L2/L3/L4)
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   project_id?: number | null;
+  /** 운영 신고 2026-09-03 — 고객 연결. 히스토리가 고객 축으로도 쌓이게. */
+  client_id?: number | null;
   share_token?: string | null;
   shared_at?: string | null;
   shared_consent?: number | null;
@@ -114,6 +116,25 @@ export interface QNoteSession {
   // 운영 #54 — 분류/태그 (메모·음성 공통)
   category?: string | null;
   tags?: string[] | null;
+}
+
+/** 노트를 프로젝트·고객에 연결/해제한다.
+ *  ★ null 은 "안 건드림" 이라 해제를 표현할 수 없다 — 해제는 unlink_* 플래그로 명시한다.
+ *    그렇지 않으면 한 번 연결하면 영영 못 뗀다.
+ *  ★ 서버가 그 프로젝트·고객이 **내 워크스페이스 것인지** 확인한다(403 project_not_in_workspace).
+ */
+export async function linkSessionEntities(
+  sessionId: number,
+  body: { project_id?: number; client_id?: number; unlink_project?: boolean; unlink_client?: boolean }
+): Promise<QNoteSession> {
+  const res = await fetch(`${BASE}/sessions/${sessionId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken()}` },
+    body: JSON.stringify(body),
+  });
+  const j = await res.json();
+  if (!j.success) throw new Error(j.message || j.detail || 'link_failed');
+  return j.data;
 }
 
 // visibility 변경 API — N+66: L4 도 type 으로 받음 (backend Q note 가 거부하면 별도 share 흐름 안내)

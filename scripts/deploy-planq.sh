@@ -726,9 +726,12 @@ close_feedback() {
 publish_dev_status() {
   log "Publishing dev status..."
   cd /opt/planq
-  local HEAD_FULL NOTE META SHORT
+  local HEAD_FULL NOTE META SHORT MY_VER
   HEAD_FULL=$(git rev-parse HEAD)
   SHORT=$(git rev-parse --short HEAD)
+  # ★ publish_release_note 의 $VER 은 그 함수의 local 이라 여기까지 안 온다 —
+  #   첫 실전(6ffbc710)에서 version 이 null 로 들어갔다. 여기서 직접 읽는다.
+  MY_VER=$(node -p "require('/opt/planq/dev-backend/package.json').version" 2>/dev/null || echo "")
   # ★ 커밋 해시는 커밋하기 전에는 알 수 없다. 그래서 작성 중인 현황은 next.json 에 쓰고,
   #   배포 시점에 이 스크립트가 실제 HEAD 로 도장을 찍는다(파일은 그대로 두고 DB 키만 커밋).
   #   특정 배포를 다시 쓸 일이 있으면 {짧은해시}.json 을 만들어 두면 그쪽이 우선한다.
@@ -741,7 +744,7 @@ publish_dev_status() {
   dim "  원본: $(basename "$NOTE")"
 
   META=$(cat <<EOF
-{"commit_to":"$HEAD_FULL","commit_from":"${LAST_REMOTE:-}","version":"${VER:-}",
+{"commit_to":"$HEAD_FULL","commit_from":"${LAST_REMOTE:-}","version":"${MY_VER:-}",
  "deployed_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","backup_dir":"$BACKUP_DIR",
  "closed_feedback_ids":[$(printf '%s' "${DEPLOY_CLOSED_IDS:-}" | tr -d ' ')],
  "kept_open_ids":[$(printf '%s' "${DEPLOY_KEPT_IDS:-}" | tr -d ' ')],

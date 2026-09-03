@@ -997,5 +997,9 @@
     "aria": "Cue 에게 물어보기",
     "send": "묻기",
     "sending": "…"
+  },
+  "reportProblem": {
+    "link": "이 문제 신고",
+    "retry": "다시 시도"
   }
 }

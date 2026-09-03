@@ -789,7 +789,8 @@
       "task.assignee_change": "담당자 변경",
       "task.due_change": "마감일 변경",
       "task.project_change": "프로젝트 이관",
-      "task.on_hold": "업무 보류"
+      "task.on_hold": "업무 보류",
+      "qnote.created": "회의록이 연결되었습니다"
     },
     "status": {
       "not_started": "시작 전",

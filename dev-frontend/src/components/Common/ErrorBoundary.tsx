@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
+import { openFeedback } from '../../utils/feedbackOpen';
 
 interface Props {
   children: React.ReactNode;
@@ -109,11 +110,13 @@ class ErrorBoundary extends React.Component<Props, State> {
       desc: 'An unexpected error occurred while rendering this page.',
       retry: 'Try again',
       home: 'Back to dashboard',
+      report: 'Report this',
     } : {
       title: '문제가 발생했습니다',
       desc: '페이지를 표시하는 중 예기치 못한 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
       retry: '다시 시도',
       home: '대시보드로',
+      report: '이 문제 신고',
     };
 
     return (
@@ -124,6 +127,17 @@ class ErrorBoundary extends React.Component<Props, State> {
         <Row>
           <PrimaryBtn onClick={this.reset}>{L.retry}</PrimaryBtn>
           <SecondaryBtn onClick={() => { window.location.href = '/dashboard'; }}>{L.home}</SecondaryBtn>
+          {/* ★ 화면이 통째로 죽었을 때야말로 신고 경로가 필요하다. 여기서 신고를 못 하면
+              사용자는 대시보드로 돌아가고, 우리는 이 오류를 영영 모른다.
+              i18n 이 깨져도 동작해야 하므로 t() 대신 위 하드코딩 ko/en 을 쓴다(이 경계의 규칙). */}
+          <SecondaryBtn onClick={() => openFeedback({
+            category: 'bug',
+            context: {
+              area: 'app', action: 'render_crash',
+              message: error.message,
+              detail: typeof window !== 'undefined' ? window.location.pathname : undefined,
+            },
+          })}>{L.report}</SecondaryBtn>
         </Row>
       </Wrap>
     );

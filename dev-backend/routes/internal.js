@@ -10,7 +10,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { ProjectMember, Project, BusinessMember, QnoteUsage, QnoteUsageEvent } = require('../models');
+const { ProjectMember, Project, BusinessMember, Client, QnoteUsage, QnoteUsageEvent } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const planEngine = require('../services/plan');
 const { notifyPlatformAdmins } = require('../services/platformNotify');
@@ -53,6 +53,39 @@ router.get('/project-membership/:userId/:projectId', async (req, res, next) => {
       attributes: ['user_id'],
     });
     return successResponse(res, { member: !!bm, role: bm ? 'workspace_owner' : null });
+  } catch (err) { next(err); }
+});
+
+// ─── 고객이 이 워크스페이스 것인가 ───
+// GET /api/internal/client-in-business/:clientId/:businessId
+//   Q Note 세션에 고객을 연결할 때 쓴다. 화면이 보낸 client_id 를 그대로 믿으면
+//   남의 워크스페이스 고객 번호를 붙일 수 있다 — 그 순간 그 고객의 히스토리에
+//   남의 회의록이 섞인다(멀티테넌트 격리 위반).
+router.get('/client-in-business/:clientId/:businessId', async (req, res, next) => {
+  try {
+    const clientId = Number(req.params.clientId);
+    const businessId = Number(req.params.businessId);
+    if (!clientId || !businessId) return errorResponse(res, 'invalid_ids', 400);
+    // ★ Client 에는 name 컬럼이 없다 — display_name / company_name 이다.
+    //   없는 컬럼을 attributes 에 넣으면 조회가 통째로 실패하고, 호출한 쪽은 그것을
+    //   "이 워크스페이스 것이 아님" 으로 읽어 연결이 영영 안 된다(실측 403).
+    const c = await Client.findOne({
+      where: { id: clientId, business_id: businessId },
+      attributes: ['id', 'display_name', 'company_name'],
+    });
+    return successResponse(res, { ok: !!c, name: c?.display_name || c?.company_name || null });
+  } catch (err) { next(err); }
+});
+
+// ─── 프로젝트가 이 워크스페이스 것인가 ───
+// GET /api/internal/project-in-business/:projectId/:businessId
+router.get('/project-in-business/:projectId/:businessId', async (req, res, next) => {
+  try {
+    const projectId = Number(req.params.projectId);
+    const businessId = Number(req.params.businessId);
+    if (!projectId || !businessId) return errorResponse(res, 'invalid_ids', 400);
+    const p = await Project.findOne({ where: { id: projectId, business_id: businessId }, attributes: ['id', 'name'] });
+    return successResponse(res, { ok: !!p, name: p?.name || null });
   } catch (err) { next(err); }
 });
 

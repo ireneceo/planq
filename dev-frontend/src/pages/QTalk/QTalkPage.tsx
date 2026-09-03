@@ -26,6 +26,7 @@ import { useTabTitle } from '../../hooks/useTabTitle';
 import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { mapApiError } from '../../utils/apiError';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
+import { ReportProblemLink } from '../../components/Common/ReportProblem';
 import { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 
 /**
@@ -1776,6 +1777,12 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           <WorkbenchRetryBtn type="button" onClick={() => { setProjectDataError(null); setReloadKey((k) => k + 1); }}>
             {t('workbench.retry', { defaultValue: '다시 시도' }) as string}
           </WorkbenchRetryBtn>
+          {/* 다시 시도해도 안 되면 신고할 곳이 있어야 한다 — 없으면 사용자는 그냥 포기한다 */}
+          <ReportProblemLink context={{
+            area: 'qtalk', action: 'workbench_load',
+            entity_type: 'project', entity_id: activeProjectId,
+            message: projectDataError,
+          }} />
         </WorkbenchErrorBar>
       )}
 

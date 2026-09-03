@@ -419,5 +419,8 @@
       "tooling_health": "Tooling health",
       "undeployed": "Not in this deploy"
     }
+  },
+  "adminFeedback": {
+    "errorContext": "Error context"
   }
 }
