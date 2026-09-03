@@ -755,6 +755,10 @@
         "on_hold": "보류중",
         "external_review": "외부컨펌중"
       }
+    },
+    "file": {
+      "previewLoading": "미리보기 준비 중…",
+      "previewUnavailable": "미리보기를 만들 수 없어요. 파일을 내려받아 확인해 주세요."
     }
   },
   "myFeedback": {

@@ -755,6 +755,10 @@
         "on_hold": "On hold",
         "external_review": "External review"
       }
+    },
+    "file": {
+      "previewLoading": "Preparing preview…",
+      "previewUnavailable": "Preview is unavailable. Please download the file to view it."
     }
   },
   "myFeedback": {

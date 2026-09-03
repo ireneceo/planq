@@ -173,6 +173,18 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       workspace: file.Business ? { id: file.Business.id, name: file.Business.brand_name || file.Business.name } : null,
       shared_at: file.shared_at,
       created_at: file.created_at,
+      // ★ 미리보기가 **가능한가**를 서버가 정한다 (2026-09-03).
+      //   화면이 mime 만 보고 판단하면, 바이트가 닿지 않는 경우(Drive 토큰 죽음 등)에
+      //   빈 iframe/엑박이 뜨고 사용자는 무엇이 잘못됐는지 모른다.
+      //   술어를 양쪽에 두면 갈라진다(memory feedback_predicate_must_match_both_sides) — 서버가 말하고 화면은 따른다.
+      preview_kind: (() => {
+        const { isSafeInline } = require('../services/fileServing');
+        if (!isSafeInline(file.mime_type, file.file_name)) return null;
+        const m = String(file.mime_type || '').toLowerCase();
+        if (m.startsWith('image/')) return 'image';
+        if (m === 'application/pdf') return 'pdf';
+        return null;
+      })(),
     };
     await applyMemberDisplayNameOne(payload, file.business_id, ['uploader']);
     return successResponse(res, payload);
@@ -206,11 +218,18 @@ router.get('/public/by-token/:token/download', async (req, res, next) => {
     const v = await verifySharePassword(file, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
     if (await _s3Redirect(file, res)) return;
-    if (file.storage_provider !== 'planq') {
-      if (file.external_url) return res.redirect(file.external_url);
-      return errorResponse(res, 'external_file_no_url', 400);
-    }
-    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'file_missing_on_disk', 410);
+    // ★ Drive 파일을 external_url 로 **리다이렉트하지 않는다** (운영 신고 2026-09-03).
+    //   PlanQ 는 Drive 에 올린 파일에 권한을 부여한 적이 없어서(gdrive 서비스 전체에 permissions.create 0건)
+    //   external_url 은 **연결한 구글 계정 본인에게만** 열리는 사적 링크다.
+    //   무인증 실측: /view 401 · /preview 401 · /uc?export=download → 로그인 벽.
+    //   즉 공유 링크를 받은 사람은 미리보기도 다운로드도 못 했다.
+    //   services/attachmentStorage.readAttachmentBody 가 이미 정본이다 —
+    //   무인증 경로 3곳(public-image · message-attachments · tasks/public/attach)이 이미 그것을 쓰고,
+    //   그 파일 머리말이 "Drive 링크로 리다이렉트하면 안 된다" 고 이 사고를 예언해 뒀다.
+    //   같은 블록이 4곳에 복사돼 있었고 그 4곳만 안 고쳐져 있었다.
+    const body = await require('../services/attachmentStorage').readAttachmentBody(file);
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return res.redirect(body.redirect);   // S3 presign — 그대로 둔다
     // ★ inline 은 **안전한 형식에만**. 업로드에 확장자·MIME 화이트리스트가 없어서
     //   `.html` 을 올려 공유하면 planq.kr origin 에서 렌더됐다 (2026-09-02 Fable 실증).
     //   판정은 services/fileServing 한 곳 — 다른 문과 갈라지지 않게.
@@ -219,7 +238,7 @@ router.get('/public/by-token/:token/download', async (req, res, next) => {
       inline,
       disposition: `inline; filename*=UTF-8''${encodeURIComponent(file.file_name)}`,
     });
-    fs.createReadStream(file.file_path).pipe(res);
+    body.stream.pipe(res);
   } catch (err) { next(err); }
 });
 
@@ -294,14 +313,13 @@ router.get('/public/:token/download', async (req, res, next) => {
       return errorResponse(res, 'link_expired', 410);
     }
     if (await _s3Redirect(file, res)) return;
-    if (file.storage_provider !== 'planq') {
-      if (file.external_url) return res.redirect(file.external_url);
-      return errorResponse(res, 'external_file_no_url', 400);
-    }
-    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
+    // Drive 는 리다이렉트하지 않는다 — 수신자에게 401 이다 (by-token 경로와 같은 이유·같은 함수).
+    const body2 = await require('../services/attachmentStorage').readAttachmentBody(file);
+    if (!body2.ok) return errorResponse(res, body2.msg, body2.code);
+    if (body2.redirect) return res.redirect(body2.redirect);
     res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
     if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
-    return res.sendFile(path.resolve(file.file_path));
+    return body2.stream.pipe(res);   // sendFile 은 로컬 경로 전용 — Drive 스트림에는 못 쓴다
   } catch (err) { next(err); }
 });
 
@@ -1153,12 +1171,21 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
       return errorResponse(res, 'forbidden', 403);
     }
     if (await _s3Redirect(file, res)) return;
-    if (file.storage_provider !== 'planq') {
-      if (file.external_url) return res.redirect(file.external_url);
-      return errorResponse(res, 'External file has no URL', 400);
+    // ★ 인앱 다운로드도 같다 — 여기서 Drive 로 리다이렉트하면 프론트의 fetch 기반 다운로드
+    //   (useFileDownload → downloadFromApi)가 CORS 없는 401 을 만나 "다운로드 실패" 로 떨어진다.
+    //   **오너 본인도** 실패한다. 서버가 바이트를 받아 흘려준다.
+    const bodyIn = await require('../services/attachmentStorage').readAttachmentBody(file);
+    if (!bodyIn.ok) return errorResponse(res, bodyIn.msg, bodyIn.code);
+    if (bodyIn.redirect) return res.redirect(bodyIn.redirect);
+    if (!bodyIn.abs) {
+      // Drive 스트림 — 리사이즈·sendFile 은 로컬 경로가 있어야 하므로 그대로 흘려준다
+      require('../services/fileServing').applyFileResponseHeaders(res, file, {
+        inline: String(req.query.inline || '') === '1',
+        disposition: `inline; filename*=UTF-8''${encodeURIComponent(file.file_name)}`,
+      });
+      return bodyIn.stream.pipe(res);
     }
-    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'Physical file missing', 410);
-    const absPath = path.resolve(file.file_path);
+    const absPath = bodyIn.abs;
     // ★ 2026-08-24 (Irene: "이메일에 이미지가 첨부된게 너무 늦게 떠")
     //   ?w= 가 붙은 이미지 요청은 리사이즈본(webp)을 준다 — 원본 2.4MB 를 그대로 내려주던 것이
     //   메일 본문 인라인 이미지가 늦게 뜨는 직접 원인이었다.

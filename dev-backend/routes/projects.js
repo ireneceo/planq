@@ -3221,9 +3221,8 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         uploader_id: f.uploader_id,
         uploader_name: f.uploader ? f.uploader.name : null,
         uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
-        download_url: f.storage_provider === 'gdrive' && f.external_url
-          ? f.external_url
-          : `/api/files/${bizId}/${f.id}/download`,
+        // ★ gdrive 라고 구글로 직행시키지 않는다 — 수신자에게 401 이다 (2026-09-03)
+          download_url: `/api/files/${bizId}/${f.id}/download`,
         preview_url: previewUrl,
         external_id: f.external_id,
         external_url: f.external_url,
@@ -3324,9 +3323,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           uploader_name: a.uploader ? a.uploader.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
           // 라우터 마운트 경로 포함 — `/public/attach/...` 는 존재하지 않는 경로라 404 였다
-          download_url: a.storage_provider === 'gdrive' && a.external_url
-            ? a.external_url
-            : `/api/tasks/public/attach/${a.stored_name}`,
+          // ★ /api/tasks/public/attach 는 이미 Drive 를 서버가 받아 흘려준다(readAttachmentBody).
+          //   external_url 로 직행시키면 수신자가 구글 401 을 만난다 (2026-09-03).
+          download_url: `/api/tasks/public/attach/${a.stored_name}`,
           preview_url: previewUrl,
           external_id: a.external_id || null,
           external_url: a.external_url || null,
@@ -3369,8 +3368,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
           uploader_name: f.uploader ? f.uploader.name : null,
           uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString
             ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
-          download_url: f.storage_provider === 'gdrive' && f.external_url
-            ? f.external_url : `/api/files/${bizId}/${f.id}/download`,
+          download_url: `/api/files/${bizId}/${f.id}/download`,
           preview_url: previewUrlForFile(f),
           external_id: f.external_id, external_url: f.external_url,
           context: post ? { kind: 'post', id: post.id, label: post.title } : undefined,
@@ -3435,9 +3433,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         uploader_id: f.uploader_id,
         uploader_name: f.uploader ? f.uploader.name : null,
         uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
-        download_url: f.storage_provider === 'gdrive' && f.external_url
-          ? f.external_url
-          : `/api/files/${bizId}/${f.id}/download`,
+        // ★ gdrive 라고 구글로 직행시키지 않는다 — 수신자에게 401 이다 (2026-09-03)
+          download_url: `/api/files/${bizId}/${f.id}/download`,
         preview_url: previewUrlForFile(f),
         external_id: f.external_id,
         external_url: f.external_url,
@@ -3521,9 +3518,9 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           uploader_name: a.uploader ? a.uploader.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
           // 라우터 마운트 경로 포함 — `/public/attach/...` 는 존재하지 않는 경로라 404 였다
-          download_url: a.storage_provider === 'gdrive' && a.external_url
-            ? a.external_url
-            : `/api/tasks/public/attach/${a.stored_name}`,
+          // ★ /api/tasks/public/attach 는 이미 Drive 를 서버가 받아 흘려준다(readAttachmentBody).
+          //   external_url 로 직행시키면 수신자가 구글 401 을 만난다 (2026-09-03).
+          download_url: `/api/tasks/public/attach/${a.stored_name}`,
           preview_url: (a.mime_type && a.mime_type.startsWith('image/') && a.stored_name)
             ? `/api/tasks/public/attach/${a.stored_name}`
             : undefined,
@@ -3582,8 +3579,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
               uploader_name: f.uploader ? f.uploader.name : null,
               uploaded_at: (f.createdAt || f.created_at || new Date()).toISOString
                 ? (f.createdAt || f.created_at).toISOString() : new Date().toISOString(),
-              download_url: f.storage_provider === 'gdrive' && f.external_url
-                ? f.external_url : `/api/files/${bizId}/${f.id}/download`,
+              download_url: `/api/files/${bizId}/${f.id}/download`,
               preview_url: previewUrlForFile(f),
               external_id: f.external_id,
               external_url: f.external_url,

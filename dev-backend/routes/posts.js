@@ -196,9 +196,9 @@ function serialize(p, withContent = false) {
           //   ※ 공개 응답에는 L4 첨부만 실리므로 여기에 등급이 실려도 새는 정보가 없다.
           vlevel: a.file.vlevel,
           visibility: a.file.visibility,
-          download_url: a.file.storage_provider === 'gdrive' && a.file.external_url
-            ? a.file.external_url
-            : `/api/files/${a.file.business_id}/${a.file.id}/download`,
+          // ★ gdrive 라고 external_url 로 직행시키지 않는다 — 수신자에게 구글 401 이다.
+          //   서버가 바이트를 흘려주는 API 경로로 통일한다(2026-09-03).
+          download_url: `/api/files/${a.file.business_id}/${a.file.id}/download`,
         } : null,
       })),
     } : {}),
@@ -1692,17 +1692,15 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
     if (!(file.vlevel === 'L4' || (!file.vlevel && file.visibility === 'L4'))) {
       return errorResponse(res, 'attachment_not_shared', 403);
     }
-    if (file.storage_provider !== 'planq') {
-      if (file.external_url) return res.redirect(file.external_url);
-      return errorResponse(res, 'external_file_no_url', 400);
-    }
-    const fsLocal = require('fs');
-    if (!fsLocal.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
+    // Drive 는 리다이렉트하지 않는다 — 공유 문서를 받은 사람에게 구글 401 이다 (files.js 와 같은 함수).
+    const body = await require('../services/attachmentStorage').readAttachmentBody(file);
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return res.redirect(body.redirect);
     // 한글 파일명 안전 — RFC 5987 filename*=UTF-8'' 우선 + ASCII fallback. res.download 의 default
-    // Content-Disposition 는 ASCII only 라 한글 깨짐 → 직접 헤더 설정 후 sendFile.
+    // Content-Disposition 는 ASCII only 라 한글 깨짐 → 직접 헤더 설정.
     res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
     if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
-    return res.sendFile(path.resolve(file.file_path));
+    return body.stream.pipe(res);
   } catch (err) { next(err); }
 });
 
