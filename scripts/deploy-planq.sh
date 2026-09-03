@@ -706,8 +706,20 @@ close_feedback() {
     warn "장부 스크립트 전송 실패 — 장부는 수동으로 닫아야 합니다 (배포 자체는 정상)"
     return 0
   fi
-  prod_run "cd $PROD_BE && node /tmp/cdf.js --ids $IDS --apply" \
+  # ★ **보낸 번호와 실제로 닫힌 번호는 다르다.** 밀린 장부 파일(feedback-close-backlog.txt)의
+  #   번호는 매 배포마다 다시 실려 나가고, 이미 done 인 건은 스크립트가 건너뛴다(멱등).
+  #   그런데 개발 현황에는 **보낸 번호**를 그대로 적고 있었다 — 그래서 오늘 배포 4건이
+  #   전부 "같은 신고 7건을 닫았다" 고 기록됐다. 닫은 것은 첫 배포 하나뿐인데.
+  #   닫기 스크립트가 실제로 바꾼 번호(`닫을 건 N: #213 #220`)를 받아 그것만 기록한다.
+  local CLOSE_OUT
+  CLOSE_OUT=$(prod_run "cd $PROD_BE && node /tmp/cdf.js --ids $IDS --apply" 2>&1) \
     || warn "장부 닫기 실패 — 수동 확인 필요 (배포 자체는 정상)"
+  printf '%s\n' "$CLOSE_OUT"
+  local ACTUAL
+  ACTUAL=$( printf '%s\n' "$CLOSE_OUT" | grep -E '^닫을 건 [0-9]+:' | grep -oE '#[0-9]+' \
+            | tr -d '#' | sort -un | paste -sd, - || true )
+  # 파싱이 실패하면(문구가 바뀌면) 보낸 번호로 되돌린다 — 기록이 비는 것보다 낫다.
+  if [ -n "$CLOSE_OUT" ]; then DEPLOY_CLOSED_IDS="$ACTUAL"; fi
   prod_run "rm -f /tmp/cdf.js" > /dev/null 2>&1 || true
 }
 
