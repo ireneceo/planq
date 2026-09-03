@@ -77,7 +77,8 @@
     "dev-backend/routes/kb.js": 1,
     "dev-backend/routes/project_process.js": 2,
     "dev-backend/routes/projects.js": 13,
-    "dev-backend/routes/push.js": 2
+    "dev-backend/routes/push.js": 2,
+    "dev-backend/routes/admin_dev_status.js": 1
   },
   "pagination": {
     "dev-backend/routes/account_deletion.js": 1,

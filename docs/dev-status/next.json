@@ -1,0 +1,87 @@
+{
+  "sections": {
+    "completed": [
+      { "title": "문서에서 프로젝트를 골라도 저장이 안 나갔다",
+        "detail": "지난 수정(87818530)이 자동저장 payload 에만 project_id 를 넣고, 자동저장을 깨우는 조건은 안 고쳤다. 발화 판정이 제목·본문·카테고리만 비교해 프로젝트만 바꾸면 '바뀐 것 없음' 으로 타이머가 예약되지 않았다. 실측: 선택 후 4초 대기 PUT 0건 → 수정 후 PUT 1건, DB posts#476.project_id=226 확인.",
+        "commit": "c7781f17", "verified": "opus_only" },
+      { "title": "표 편집 바가 리스트 접기 화살표 아래로 깔렸다",
+        "detail": "화살표가 높아서가 아니라 표 편집 바에 z-index 가 아예 없었다. TipTap v3 BubbleMenu 래퍼는 position:absolute 만 주고 z-index 를 주지 않는다. 검증은 값 비교가 아니라 좌표(elementFromPoint 3지점)로 했다.",
+        "commit": "c7781f17", "verified": "opus_only" },
+      { "title": "iOS TestFlight 베타 링크를 앱 안에 붙였다",
+        "detail": "지시받고 안 붙여 뒀던 항목. config/appLinks.ts 단일 원천. 기기에 네이티브 앱이 없으면 null 이라 여태처럼 PWA 안내가 나온다(회귀 0).",
+        "commit": "c7781f17", "verified": "opus_only" },
+      { "title": "안드로이드 런처 아이콘이 Capacitor 기본 아이콘이었다",
+        "detail": "파란 X 플레이스홀더가 그대로 남아 있었다. 그대로 출시하면 사용자 홈 화면에 PlanQ 가 아닌 아이콘이 뜬다. iOS 와 같은 그림으로 15개(5밀도 × 레거시·원형·adaptive 전경) 교체.",
+        "commit": "c7781f17", "verified": "opus_only" },
+      { "title": "Drive 파일이 공유 링크로 안 열리던 것 — 운영에서 검증 완료",
+        "detail": "6304281d 배포 후 운영 files#1268 에서 readAttachmentBody 가 %PDF-1.7 로 201KB 스트리밍하는 것을 확인했다. 커밋에 남겨둔 미검증 항목이 닫혔다.",
+        "commit": "6304281d", "verified": "opus_only" },
+      { "title": "플랫폼 관리자 > 개발 현황 메뉴 (이 화면)",
+        "detail": "배포마다 무엇을 했고 무엇이 열려 있는지 개발자/관리자 시선으로 남긴다. Fable 설계 게이트 조건부 승인 후 7건 반영.",
+        "verified": "fable_pass" }
+    ],
+    "behavior_changes": [
+      { "title": "문서 프로젝트 연결",
+        "before": "프로젝트를 골라도 저장 요청이 나가지 않아 새로고침하면 사라졌다",
+        "after": "고르면 2초 뒤 자동저장된다. 편집을 취소하면 프로젝트도 같이 되돌아간다",
+        "affected": "Q docs · 프로젝트 문서 탭" },
+      { "title": "iOS 설치 안내",
+        "before": "'홈 화면에 추가' 만 안내했다",
+        "after": "iPhone·iPad 에서 '앱 받기 (베타)' 가 먼저 뜬다. '앱 없이 홈 화면에 추가하기' 도 남아 있다",
+        "affected": "모바일 첫 방문 배너" },
+      { "title": "Cue 입력칸 안내 문구",
+        "before": "'⌘/Ctrl+Enter' 라고 적혀 있었으나 실제로는 Enter 로 보내졌다",
+        "after": "'Enter 로 보내기 · Shift+Enter 줄바꿈' — 동작과 문구가 일치한다",
+        "affected": "Cue 패널" },
+      { "title": "안드로이드 앱 아이콘",
+        "before": "Capacitor 기본 아이콘(파란 X)",
+        "after": "PlanQ 마크. 단 다음 안드로이드 빌드부터 반영된다",
+        "affected": "안드로이드 네이티브 앱" }
+    ],
+    "in_progress": [
+      { "title": "청구서 발송 비동기화", "detail": "발송을 누르면 계속 로딩되고 리스트가 바로 안 바뀐다. Fable 설계 판정 있음 — services/invoiceDelivery.js 신설, setImmediate 백그라운드 발송, invoices.meta.email_delivery 상태, stale 스위퍼, send/resend/preview 3경로 통합.", "blocked_by": "착수 대기" },
+      { "title": "피드백 진입점 상황별 배치", "detail": "오류·빈 화면 등 상황에 맞는 자리에서 바로 피드백으로 연결. Fable 설계 판정 있음 — feedbackOpen.ts, ReportProblemLink, InlineErrorBar, error_context 컬럼, page_url 검색 마스킹.", "blocked_by": "착수 대기" },
+      { "title": "Q Note 우측 패널 + 프로젝트·고객 연결", "detail": "요약·업무추출이 세로 공간을 먹어 트랜스크립트를 못 본다. Fable 판정: 우측 패널 채택, 접기 기각. 연결 기능은 A→C→B 순서.", "blocked_by": "착수 대기" }
+    ],
+    "issues": [
+      { "title": "운영 .last-deployed-commit 이 rsync --delete 대상 안에 있다",
+        "detail": "sync_backend ~ update_record 사이에 파일이 존재하지 않는다(Fable 이 배포 중 실측). 그 사이에 배포가 죽으면 다음 배포가 '(first deploy)' 로 돌고 장부 닫기가 조용히 건너뛴다. dev_status_reports.commit_to 를 폴백으로 쓸 수 있다.",
+        "severity": "medium", "area": "배포 파이프라인" },
+      { "title": "장부 닫기가 세 곳으로 갈라져 있다",
+        "detail": "deploy-planq.sh 는 Feedback-Closes 트레일러, close-deployed-feedback.js 와 /배포 스킬 3-B 는 본문 #숫자 방식. #숫자 는 인용한 업무번호까지 긁어 고치지도 않은 신고를 닫는다(2026-08-21 반증).",
+        "severity": "high", "area": "피드백 장부" },
+      { "title": "Q Note 상세 모바일에서 상단 버튼이 요약 위로 겹친다",
+        "detail": "스토어 스크린샷 캡처 중 발견. 공개범위·공유·문서로 저장·재요약 줄이 잘리고 요약 제목을 덮는다.",
+        "severity": "medium", "area": "Q Note" },
+      { "title": "구글드라이브 파일 첨부(노션처럼) 미착수",
+        "detail": "Irene 이 '나중에' 로 보류. Drive 파일은 현재 permissions.create 를 부르지 않아 공유 링크 수신자에게 원본 권한이 없다.",
+        "severity": "low", "area": "파일" }
+    ],
+    "blocked_on_human": [
+      { "what": "안드로이드 Play Console 등록 마무리", "who": "Irene", "since": "2026-09-03" },
+      { "what": "TestFlight '테스트할 내용' 을 고객용 문구로 교체 (App Store Connect)", "who": "Irene", "since": "2026-09-03" },
+      { "what": "스왑 확장 — sudo 필요 (swapoff → fallocate 6G → mkswap → swapon)", "who": "Irene", "since": "2026-09-02" },
+      { "what": "Google OAuth 검증 제출", "who": "Irene", "since": "2026-08" }
+    ],
+    "migrations": [
+      { "script": "sync-database.js", "table": "dev_status_reports", "kind": "create_table",
+        "rollback_note": "신규 테이블이라 기존 데이터 영향 없음. 되돌리려면 DROP TABLE dev_status_reports." }
+    ],
+    "check_areas": [
+      { "area": "안드로이드 아이콘", "why": "mipmap 파일만 바꿨을 뿐 앱에는 아직 안 들어갔다", "how": "npx cap sync android 후 Codemagic 빌드 → 실기기 홈 화면에서 확인" },
+      { "area": "TestFlight 배너", "why": "iOS 실기기에서만 나오는 분기라 데스크탑 검증으로 안 잡힌다", "how": "iPhone Safari 로 dev.planq.kr 접속 → 첫 방문 배너에 '앱 받기 (베타)' 확인" },
+      { "area": "z-index 층", "why": "표 편집 바 외에도 값이 60종으로 갈라져 있다(최대 2147483000)", "how": "모달 위 드로어, 드로어 위 토스트 등 겹치는 조합을 좌표로 재본다" },
+      { "area": "문서 프로젝트 연결의 나머지 진입점", "why": "Irene 은 '문서나 다른 메뉴에서 프로젝트 연결 다 되어야 해' 라고 했다", "how": "파일·업무·메일에서 프로젝트를 고르는 자리마다 같은 방식으로 요청이 나가는지 확인" }
+    ],
+    "backlog": [
+      { "title": "엔터 통일 나머지 검토", "detail": "채팅 5곳은 이미 Enter=보내기다. 메일 답장·메모·업무 빠른추가는 의도적으로 ⌘/Ctrl+Enter 를 유지 중 — Irene 확인 필요.", "priority": "low" },
+      { "title": "z-index 전면 정리", "detail": "토큰은 세웠으나 기존 200여 사용처는 그대로다. 겹침 신고가 날 때마다 해당 층만 토큰으로 옮긴다.", "priority": "medium" },
+      { "title": "구글드라이브 파일 첨부", "detail": "Irene 보류 항목.", "priority": "low" }
+    ],
+    "tooling_health": [
+      { "tool": "tsc", "symptom": "단독 실행 시 약 77초에 heap 부족으로 죽는다", "workaround": "npm run build 는 NODE_OPTIONS=--max-old-space-size=4096 으로 통과한다. 8192 는 오히려 abort." },
+      { "tool": "earlyoom", "symptom": "-m 10,5 -s 50,25 설정이 빌드 중 tsc 를 죽인 전례", "workaround": "스왑 확장 대기 중(사람 손 필요)" },
+      { "tool": "guard-invariants", "symptom": "--category 단독 + --update-baseline 이 다른 카테고리 베이스라인을 파괴한다", "workaround": "베이스라인 갱신은 전체 실행으로만" }
+    ]
+  }
+}

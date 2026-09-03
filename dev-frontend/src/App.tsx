@@ -90,6 +90,7 @@ const QFilePage = lazy(() => import('./pages/QFile/QFilePage'));
 const AdminDashboardPage = lazy(() => import('./pages/Admin/AdminDashboardPage'));
 const AdminBusinessesPage = lazy(() => import('./pages/Admin/AdminBusinessesPage'));
 const AdminFeedbackPage = lazy(() => import('./pages/Admin/AdminFeedbackPage'));
+const DevStatusPage = lazy(() => import('./pages/Admin/DevStatusPage'));
 const AdminWikiPage = lazy(() => import('./pages/Admin/AdminWikiPage'));
 const AdminEmailLogsPage = lazy(() => import('./pages/Admin/AdminEmailLogsPage'));
 const AdminPushLogsPage = lazy(() => import('./pages/Admin/AdminPushLogsPage'));
@@ -514,6 +515,11 @@ function ShellApp() {
         <Route path="/admin/feedback" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminFeedbackPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/dev-status" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><DevStatusPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/wiki" element={

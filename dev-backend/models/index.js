@@ -35,6 +35,7 @@ const TaskTemplateItem = require('./TaskTemplateItem');
 const PushSubscription = require('./PushSubscription');
 const PushLog = require('./PushLog');
 const FeedbackItem = require('./FeedbackItem');
+const DevStatusReport = require('./DevStatusReport');
 const ExportJob = require('./ExportJob');
 const TaskStatusHistory = require('./TaskStatusHistory');
 const TaskDeliverableVersion = require('./TaskDeliverableVersion');
@@ -501,6 +502,9 @@ TaskTag.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 FeedbackItem.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 FeedbackItem.belongsTo(User, { as: 'responder', foreignKey: 'responded_by' });
 // #70 — 추가 문의 스레드 (self-FK, 1단계)
+// DevStatusReport — 배포별 개발 현황(platform_admin 전용). business_id 없는 플랫폼 공통 테이블.
+DevStatusReport.belongsTo(User, { as: 'author', foreignKey: 'author_id', onDelete: 'SET NULL' });
+
 FeedbackItem.belongsTo(FeedbackItem, { as: 'parent', foreignKey: 'parent_id' });
 FeedbackItem.hasMany(FeedbackItem, { as: 'replies', foreignKey: 'parent_id' });
 
@@ -631,6 +635,7 @@ module.exports = {
   QRecordAudit,
   // P6 — 사용자 피드백
   FeedbackItem,
+  DevStatusReport,
   ExportJob,
   // 주간 보고
   WeeklyReview,

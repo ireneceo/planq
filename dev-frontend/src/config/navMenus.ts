@@ -89,6 +89,7 @@ export const ADMIN_MENUS: NavMenuEntry[] = [
   { key: 'admin-businesses', to: '/admin/businesses', labelKey: 'nav.businesses', section: 'admin', roles: 'any' },
   { key: 'admin-inquiries', to: '/admin/inquiries', labelKey: 'nav.inquiries', section: 'admin', roles: 'any' },
   { key: 'admin-feedback', to: '/admin/feedback', labelKey: 'nav.feedback', section: 'admin', roles: 'any' },
+  { key: 'admin-dev-status', to: '/admin/dev-status', labelKey: 'nav.devStatus', section: 'admin', roles: 'any' },
   { key: 'admin-wiki', to: '/admin/wiki', labelKey: 'nav.wiki', section: 'admin', roles: 'any' },
   { key: 'admin-email-logs', to: '/admin/email-logs', labelKey: 'nav.emailLogs', section: 'admin', roles: 'any' },
   { key: 'admin-push-logs', to: '/admin/push-logs', labelKey: 'nav.pushLogs', section: 'admin', roles: 'any' },

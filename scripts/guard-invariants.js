@@ -290,6 +290,8 @@ const NON_TENANT_MODELS = new Set([
   'User', 'RefreshToken', 'PlatformSetting', 'PlatformSettings',
   'HelpArticle', 'HelpCategory', 'PushLog', 'EmailLog', 'ContactInquiry',
   'Plan', 'DocumentTemplate', 'Payment',
+  // 배포별 개발 현황 — business_id 가 없는 플랫폼 공통. platform_admin 라우터 전역 가드로 막는다.
+  'DevStatusReport',
 ]);
 // 호출 스니펫 안에서 "테넌트 스코프 처리됨" 으로 인정하는 마커
 const TENANT_MARKERS = /business_id|businessId|listWhere|Where\(scope|scope\)|attachWorkspaceScope|canAccess|req\.workspace|findByPk/;

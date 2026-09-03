@@ -242,6 +242,12 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-gcal-link-fk.js 2>&1 | tail -10"
 
   log "Syncing DB schema on prod..."
+  # ★ 이번 배포에 스키마가 바뀌었는지를 **기계가 판정**해 개발 현황에 남긴다.
+  #   사람이 "마이그레이션 있음" 을 적게 두면 반드시 어긋난다. 모델/마이그레이션 파일이
+  #   직전 배포 이후 손댔는지로 본다(LAST_REMOTE 가 없으면 판단 불가 → false).
+  if [ -n "${LAST_REMOTE:-}" ] && ! git -C /opt/planq diff --quiet "${LAST_REMOTE}" HEAD -- dev-backend/models dev-backend/scripts/migrate- 2>/dev/null; then
+    DEPLOY_SCHEMA_CHANGED=true
+  fi
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node sync-database.js 2>&1 | tail -20"
   success "DB sync 완료"
 
@@ -631,6 +637,7 @@ publish_release_note() {
   # 실패해도 배포를 되돌리지 않는다 — 코드는 이미 나갔고, 고지는 나중에 손으로도 할 수 있다.
   if prod_run "cd $PROD_BE && node scripts/publish-release-note.js /tmp/v${VER}.json --publish"; then
     success "릴리즈 노트 v${VER} 발행 완료 (새 소식에 노출)"
+    DEPLOY_RELEASE_NOTE_PUBLISHED=true
   else
     warn "  릴리즈 노트 발행 실패 — 배포 자체는 정상. 수동 발행 필요"
   fi
@@ -677,6 +684,10 @@ close_feedback() {
          | { if [ -n "$KEEP_IDS" ]; then grep -vxF -f <(printf '%s\n' $KEEP_IDS) || true; else cat; fi; } \
          | paste -sd, - || true )
   if [ -n "$KEEP_IDS" ]; then dim "  (열어둠: $(printf '%s' "$KEEP_IDS" | paste -sd, -) — 부분 해결)"; fi
+  # 개발현황(publish_dev_status)이 같은 값을 다시 계산하지 않게 전역에 남긴다.
+  # 두 곳이 각자 뽑으면 반드시 갈라진다 — 한쪽은 닫았다 하고 한쪽은 안 닫았다 한다.
+  DEPLOY_CLOSED_IDS="$IDS"
+  DEPLOY_KEPT_IDS=$(printf '%s' "$KEEP_IDS" | paste -sd, - || true)
 
   if [ -z "$IDS" ]; then
     dim "  (커밋 메시지에 피드백 번호가 없어 건너뜀)"
@@ -703,6 +714,55 @@ close_feedback() {
 # ──────────────────────────────────────────
 # Update record (.last-deployed-commit)
 # ──────────────────────────────────────────
+# ──────────────────────────────────────────
+# 개발 현황 발행 (플랫폼 관리자 > 개발 현황)
+# ──────────────────────────────────────────
+#   왜 여기(스크립트) 인가: 문서(스킬)에만 적어 두면 사람이 기억할 때만 나간다 —
+#   장부 닫기 3-B 가 이미 그렇게 스크립트와 어긋난 채 남아 있다.
+#   릴리즈노트(publish_release_note)와 같은 정책: 실패해도 배포를 되돌리지 않는다.
+#
+#   ★ 기계가 아는 사실은 사람이 적지 않는다. 이 함수가 --meta 로 주입하고,
+#     json 에는 서술(무엇을 했고 무엇이 열려 있는지)만 적는다.
+publish_dev_status() {
+  log "Publishing dev status..."
+  cd /opt/planq
+  local HEAD_FULL NOTE META SHORT
+  HEAD_FULL=$(git rev-parse HEAD)
+  SHORT=$(git rev-parse --short HEAD)
+  # ★ 커밋 해시는 커밋하기 전에는 알 수 없다. 그래서 작성 중인 현황은 next.json 에 쓰고,
+  #   배포 시점에 이 스크립트가 실제 HEAD 로 도장을 찍는다(파일은 그대로 두고 DB 키만 커밋).
+  #   특정 배포를 다시 쓸 일이 있으면 {짧은해시}.json 을 만들어 두면 그쪽이 우선한다.
+  NOTE="/opt/planq/docs/dev-status/${SHORT}.json"
+  [ -f "$NOTE" ] || NOTE="/opt/planq/docs/dev-status/next.json"
+  if [ ! -f "$NOTE" ]; then
+    warn "  개발 현황 없음 (docs/dev-status/${SHORT}.json 또는 next.json) — 이번 배포가 장부에 안 남습니다"
+    return 0
+  fi
+  dim "  원본: $(basename "$NOTE")"
+
+  META=$(cat <<EOF
+{"commit_to":"$HEAD_FULL","commit_from":"${LAST_REMOTE:-}","version":"${VER:-}",
+ "deployed_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","backup_dir":"$BACKUP_DIR",
+ "closed_feedback_ids":[$(printf '%s' "${DEPLOY_CLOSED_IDS:-}" | tr -d ' ')],
+ "kept_open_ids":[$(printf '%s' "${DEPLOY_KEPT_IDS:-}" | tr -d ' ')],
+ "pdf_check":"${PDF_CHECK_RESULT:-미실행}",
+ "release_note_published":${DEPLOY_RELEASE_NOTE_PUBLISHED:-false},
+ "schema_changed":${DEPLOY_SCHEMA_CHANGED:-false}}
+EOF
+)
+  if [ "$DRY_RUN" = true ]; then
+    dim "  [dry] scp $NOTE + publish-dev-status.js --meta"
+    return 0
+  fi
+  scp $SSH_OPTS -q "$NOTE" "$PROD_HOST:/tmp/devstatus-${SHORT}.json" || { warn "  전송 실패 — 건너뜀"; return 0; }
+  if prod_run "cd $PROD_BE && node scripts/publish-dev-status.js /tmp/devstatus-${SHORT}.json --meta '$META'"; then
+    success "개발 현황 발행 완료 (${SHORT})"
+  else
+    warn "  개발 현황 발행 실패 — 배포 자체는 정상"
+  fi
+  prod_run "rm -f /tmp/devstatus-${SHORT}.json" > /dev/null 2>&1 || true
+}
+
 update_record() {
   if [ "$DRY_RUN" = true ]; then return 0; fi
   cd /opt/planq
@@ -773,6 +833,7 @@ main() {
   verify_deployment
   publish_release_note
   close_feedback
+  publish_dev_status
   show_summary
   update_record
 

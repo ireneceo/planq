@@ -150,7 +150,8 @@
     "updates": "새소식·인사이트",
     "announcement": "공지 배너",
     "askCue": "Cue 에게 묻기",
-    "back": "뒤로"
+    "back": "뒤로",
+    "devStatus": "개발 현황"
   },
   "user": {
     "profile": "내 프로필",

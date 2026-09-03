@@ -1175,6 +1175,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     </InboxBadge>
                   )}
                 </NavItem>
+                {/* 개발 현황 — 배포마다 무엇을 했고 무엇이 열려 있는지. 사용자용 릴리즈노트와 다른 화면이다. */}
+                <NavItem to="/admin/dev-status" $isCollapsed={isCollapsed} $active={isActive('/admin/dev-status')}
+                  title={isCollapsed ? t('nav.devStatus', '개발 현황') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.devStatus', '개발 현황')}</NavLabel>
+                </NavItem>
                 {/* 도움말(Q위키) — 개발 사이클이 seed-wiki-content.js 로 채우는 쪽. 여기서는 확인·수정. */}
                 <NavItem to="/admin/wiki" $isCollapsed={isCollapsed} $active={isActive('/admin/wiki')}
                   title={isCollapsed ? t('nav.wiki', '도움말 관리') : undefined}>

@@ -533,6 +533,8 @@ app.use('/api/plan', require('./routes/plan'));
 app.use('/api/admin', require('./routes/admin'));
 // 외부 API 선불 크레딧 — 같은 /api/admin 아래. admin.js god-file 분리본.
 app.use('/api/admin', require('./routes/admin_credits'));
+// 배포별 개발 현황 — platform_admin 전용. 라우터 자체가 authenticateToken+requireRole 로 닫혀 있다.
+app.use('/api/admin', require('./routes/admin_dev_status'));
 // 이력 라우터를 먼저 — /:id/revisions 가 /:id 패턴에 먹히지 않도록 순서를 명시한다.
 app.use('/api/posts', require('./routes/post_revisions'));
 app.use('/api/posts', require('./routes/posts'));
