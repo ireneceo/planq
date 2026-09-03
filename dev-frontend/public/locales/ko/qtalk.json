@@ -518,5 +518,9 @@
     "errNotCustomer": "고객 대화방에서만 만들 수 있습니다.",
     "errArchived": "보관된 대화방에는 만들 수 없습니다.",
     "errGeneric": "링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "workbench": {
+    "loadFailed": "작업대 정보를 불러오지 못했습니다",
+    "retry": "다시 시도"
   }
 }

@@ -268,6 +268,20 @@ function withLoadTimeout<T>(pr: Promise<T>, ms = 15000): Promise<T> {
   return Promise.race([pr, new Promise<T>((_, rj) => setTimeout(() => rj(new Error('timeout')), ms))]);
 }
 
+const WorkbenchErrorBar = styled.div`
+  position: absolute; top: 8px; right: 8px; z-index: 5;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 8px;
+  background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C;
+  font-size: 0.75rem; font-weight: 500;
+`;
+const WorkbenchRetryBtn = styled.button`
+  /* 컨트롤 높이는 토큰(36/40/44)만 — 24px 로 뒀다가 UI 규격 래칫에 걸렸다 */
+  height: 36px; padding: 0 12px; border-radius: 6px;
+  background: #fff; color: #B91C1C; border: 1px solid #FECACA;
+  font-size: 0.6875rem; font-weight: 600; cursor: pointer;
+  &:hover { background: #FEF2F2; }
+`;
 const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId = null, initialProjectId = null, pinSlot, onEmbeddedContextChange }) => {
   const { t } = useTranslation('qtalk');
   const { t: tErr } = useTranslation('errors');
@@ -380,6 +394,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 풀스크린 spinner 게이트는 제거 (사이클 N+15-A): 위치 점프 0 + skeleton 으로 인지 즉시성 확보.
   const [loading, setLoading] = useState(!initialCache);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // 프로젝트 작업대(업무·메모·이슈·후보) 로드 실패 — **대화와 분리한다.**
+  //   이 값이 있어도 대화는 정상적으로 보인다. 페이지를 덮는 것은 loadError 뿐이다.
+  const [projectDataError, setProjectDataError] = useState<string | null>(null);
   // 다시 시도 — 값을 바꿔 초기 로드 effect 를 다시 돌린다.
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -963,7 +980,10 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         //   finally 가 영영 안 돌아 **스피너가 무한**이다 (Irene 2026-09-02:
         //   "프로젝트 채팅 누르면 넘어가서 계속 로딩되고 있어").
         //   같은 규칙을 같은 함수로 — 상한에 걸리면 실패로 떨어져 화면이 이유와 [다시 시도]를 준다.
+        if (!cancelled) setProjectDataError(null);   // 재시도·프로젝트 전환 시 이전 오류를 남기지 않는다
         const [convList, tasksList, notesList, issuesList, candidatesList] = await withLoadTimeout(Promise.all([
+          // ★ 5개 중 이것만 .catch() 가 없다 — 의도된 것이다. 대화 목록이 없으면 작업대가 성립하지 않으니
+          //   실패를 삼키지 않고 아래 catch 로 보낸다. 다만 그 결과는 **작업대에만** 표시된다(페이지를 안 덮는다).
           qtalkApi.listProjectConversations(activeProjectId),
           qtalkApi.listProjectTasks(activeProjectId).catch(() => [] as qtalkApi.ApiTask[]),
           qtalkApi.listProjectNotes(activeProjectId).catch(() => [] as qtalkApi.ApiNote[]),
@@ -1060,7 +1080,14 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         //   무엇이 실패했는지 말하고, 다시 시도할 길을 준다.
         // eslint-disable-next-line no-console
         console.error('[QTalk] project data load failed', err);
-        if (!cancelled) setLoadError(mapApiError(err, tErr));
+        // ★★ 그런데 **페이지 전체를 오류 화면으로 덮으면 안 된다** (Irene 2026-09-03):
+        //   프로젝트에서 파일을 공유하고 [대화방 열기] 를 눌렀더니 "불러오지 못했습니다" 가 떴다.
+        //   여기서 실패하는 것은 **프로젝트 작업대 데이터**(대화목록·업무·메모·이슈·후보)이지
+        //   대화 자체가 아니다. 그런데 setLoadError 가 페이지 레벨이라 대화까지 통째로 가렸다.
+        //   게다가 5개 중 listProjectConversations 만 .catch() 가 없어 그 하나의 실패·타임아웃(15초)이
+        //   전체를 throw 시켰다.
+        //   → 이 실패는 작업대 영역에만 표시하고, 대화는 계속 보이게 한다.
+        if (!cancelled) setProjectDataError(mapApiError(err, tErr));
       } finally {
         // 실패했든 아니든 **로딩은 끝난다**. 안 내리면 스피너가 영원히 돈다.
         if (!cancelled) setLoading(false);
@@ -1740,6 +1767,18 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           ariaLabel={`${(rightCollapsed ? t('right.expand', { defaultValue: '작업대 열기' }) : t('right.collapse', { defaultValue: '작업대 접기' })) as string} (⌘/)`}
         />
       )}
+      {/* 작업대 데이터 로드 실패 — 대화는 그대로 두고 여기만 알린다 (Irene 2026-09-03).
+          안 보여주면 업무·메모·이슈가 **조용히 빈 채로** 있어 사용자는 "원래 없는 것" 으로 읽는다
+          (memory feedback_silent_no_output_paths). 다시 시도할 길을 같이 준다. */}
+      {projectDataError && activeProjectId && (
+        <WorkbenchErrorBar role="alert" data-testid="qtalk-workbench-error">
+          <span>{t('workbench.loadFailed', { defaultValue: '작업대 정보를 불러오지 못했습니다' }) as string}</span>
+          <WorkbenchRetryBtn type="button" onClick={() => { setProjectDataError(null); setReloadKey((k) => k + 1); }}>
+            {t('workbench.retry', { defaultValue: '다시 시도' }) as string}
+          </WorkbenchRetryBtn>
+        </WorkbenchErrorBar>
+      )}
+
       <RightPanel
         project={activeProject}
         activeConversationId={activeConversationId}
