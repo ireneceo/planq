@@ -43,7 +43,7 @@ const path = require('path');
 //   안 적으면 test() 가 등록 시점에 죽는다(fail-closed).
 const CATEGORIES = [
   'infra', 'auth', 'security', 'qnote', 'voice', 'external',
-  'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime',
+  'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly',
 ];
 
 const args = process.argv.slice(2);
@@ -960,6 +960,51 @@ function defineCalendarLinkTests() {
 //   message:new 를 영영 못 받음 → "소리만 나고 숫자 안 오름". 서버 connection 의
 //   autoJoinUserBusinesses 가 깨지면 이 테스트가 즉시 실패한다.
 //   memory: feedback_unread_badge_socket_room_join
+// dateonly — DATEONLY 값을 **비교하기 전에 정규화하는가**
+//   2026-09-03 운영 사고: `tasks.due_date` 가 dev 에서는 'YYYY-MM-DD' 문자열, **운영에서는 Date 객체**로 왔다.
+//   그래서 `String(due) < todayStr` 이 운영에서만 항상 false 였고, 반복업무 지난 회차 정리가
+//   **배포 후에도 0건**이었다 — dev 검증은 전부 통과한 채로.
+//   (memory feedback_dev_cannot_reproduce_prod_schema — 스키마·타입이 어긋나면 dev 검증이 전부 거짓 통과)
+//   ★ 이 검사는 "우리 DB 가 지금 무엇을 주는가" 를 **실측**한다. 코드 모양이 아니라 값의 타입을 본다.
+function defineDateOnlyTests() {
+  test('dateonly', 'DATEONLY 비교 전 정규화 (dev/운영 타입 차이)', async () => {
+    // ★ DB 조회는 백엔드 cwd 의 별도 프로세스로 — 이 스크립트에는 DB 환경변수가 없다(다른 검사와 동일 패턴).
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();const{Sequelize}=require('sequelize');`
+      + `const s=new Sequelize(process.env.DB_NAME,process.env.DB_USER,process.env.DB_PASSWORD,`
+      + `{host:process.env.DB_HOST,dialect:'mysql',logging:false});`
+      + `const T=s.define('tasks',{due_date:{type:require('sequelize').DataTypes.DATEONLY}},{tableName:'tasks',timestamps:false});`
+      + `(async()=>{const r=await T.findOne({where:{due_date:{[require('sequelize').Op.ne]:null}},attributes:['due_date']});`
+      + `const v=r&&r.due_date;`
+      + `process.stdout.write('<<'+JSON.stringify({kind:v===null||v===undefined?'null':(typeof v==='string'?'string':(v instanceof Date?'Date':typeof v)),raw:v===null||v===undefined?null:String(v)}));`
+      + `process.exit(0);})().catch(e=>{process.stdout.write('<<'+JSON.stringify({err:e.message}));process.exit(0);});"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 },
+    );
+    const info = JSON.parse(out.slice(out.indexOf('<<') + 2));
+    if (info.err) throw new Error(`DB 조회 실패: ${info.err}`);
+    if (info.kind === 'null') return '검사할 due_date 행 없음 (건너뜀)';
+
+    // 정규화 함수가 두 타입을 같은 결과로 만드는가
+    const src = fs.readFileSync('/opt/planq/dev-backend/services/recurringTaskGenerator.js', 'utf8');
+    const m = src.match(/function dateOnlyOf[\s\S]*?\n}/);
+    if (!m) throw new Error('recurringTaskGenerator.dateOnlyOf 가 없다 — 정규화 없이 비교하면 운영에서만 깨진다');
+    // eslint-disable-next-line no-eval
+    const norm = eval('(function(){function toDateOnlyStr(d){return d.toISOString().slice(0,10);}\n' + m[0] + '\nreturn dateOnlyOf;})()');
+    const a1 = norm('2026-08-28');
+    const a2 = norm(new Date('2026-08-28T00:00:00.000Z'));
+    if (a1 !== '2026-08-28' || a2 !== '2026-08-28') throw new Error(`정규화 불일치 — string→${a1} / Date→${a2}`);
+
+    // 실제 DB 가 주는 값도 통과하는가 + 정규화 없이 비교하면 깨지는지 같이 본다(양성 대조군)
+    const normalized = norm(info.kind === 'Date' ? new Date(info.raw) : info.raw);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(normalized))) {
+      throw new Error(`DB 값 정규화 실패 — ${info.kind} ${JSON.stringify(info.raw)} → ${JSON.stringify(normalized)}`);
+    }
+    const naive = String(info.raw).slice(0, 10);
+    return `DB 가 주는 타입 = ${info.kind}${naive !== normalized ? ' · 정규화 없이 비교하면 깨진다(이 검사가 막는 것)' : ''}`;
+  });
+}
+
 function defineRealtimeTests() {
   test('realtime', '신규 socket 이 business room 에 auto-join (숫자 뱃지 실시간)', async () => {
     let io;
@@ -1100,6 +1145,7 @@ async function runTests(allTests, category) {
   defineAccountDeletionTests();
   defineCalendarLinkTests();
   defineRealtimeTests();
+  defineDateOnlyTests();
 
   const allPass = await runTests(tests, opts.category);
   process.exit(allPass ? 0 : 1);

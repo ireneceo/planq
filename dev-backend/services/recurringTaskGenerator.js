@@ -47,6 +47,15 @@ function toDateOnlyStr(d) {
   return d.toISOString().slice(0, 10);
 }
 
+/** DATEONLY 값을 'YYYY-MM-DD' 로 정규화. 문자열이 오든 Date 가 오든 같은 결과.
+ *  dev/운영이 서로 다른 타입을 주므로 **비교 전에 반드시 이 함수를 통과시킨다.** */
+function dateOnlyOf(v) {
+  if (!v) return null;
+  if (typeof v === 'string') return v.slice(0, 10);
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : toDateOnlyStr(d);
+}
+
 // rrule 표준 + dtstart 합쳐서 다음 occurrence 계산.
 // generatedCount: 이미 만들어진 occurrences 수 (parent 1 + 인스턴스 수). COUNT 도달 체크용.
 // 반환: 다음 occurrence Date (UTC) 또는 종료 시 null.
@@ -302,8 +311,14 @@ async function skipMissedOccurrences(parent, today = new Date(), io = null) {
   const todayStr = toDateOnlyStr(today);
   const skippedIds = [];
 
-  // ① 부모 행 자신 = 시리즈의 첫 회차. due_date 는 DATEONLY 라 'YYYY-MM-DD' 문자열 비교로 충분하다.
-  if (parent.status === 'not_started' && parent.due_date && String(parent.due_date) < todayStr) {
+  // ① 부모 행 자신 = 시리즈의 첫 회차.
+  //   ★ due_date 를 문자열로 단정하지 말 것 (2026-09-03 운영 실측):
+  //     dev 는 DATEONLY 를 'YYYY-MM-DD' **문자열**로 주는데 **운영은 Date 객체**로 준다.
+  //     그래서 `String(due) < todayStr` 이 운영에서만 항상 false 였고, 배포 후 1회 실행에서
+  //     skipped:0 이 나왔다 — dev 검증은 전부 통과한 채로. (memory feedback_dev_cannot_reproduce_prod_schema)
+  //     자식 쪽은 SQL `Op.lt` 라 MySQL 이 알아서 비교해 멀쩡했다 — JS 비교를 한 이 줄만 깨졌다.
+  const dueStr = dateOnlyOf(parent.due_date);
+  if (parent.status === 'not_started' && dueStr && dueStr < todayStr) {
     await parent.update({ status: 'canceled', completed_at: null });
     try {
       await TaskStatusHistory.create({
