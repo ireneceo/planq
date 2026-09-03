@@ -842,6 +842,16 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           title: titleDraft.trim(),
           content_json: contentDraft as never,
           category: categoryVal,
+          // ★ 프로젝트 연결을 자동저장에도 실어 보낸다 (운영 신고 2026-09-03 — Irene:
+          //   "문서에서 프로젝트 연결해도 연결이 안돼").
+          //   여태 **신규 생성(createPost)과 수동 저장에만** project_id 가 실렸고,
+          //   자동저장(이 분기)에는 빠져 있었다. 그래서 이미 있는 문서에서 프로젝트를 고르면
+          //   화면은 "저장됨" 뱃지를 띄우는데 값은 서버로 가지 않았다 —
+          //   실제로 운영 문서 #82 는 project_id 가 null 이었고, 8/25 에 **생성 시점에** 고른
+          //   #73·#74 만 값이 붙어 있었다.
+          //   (memory feedback_ui_control_sends_nothing — 문구만 바뀌고 요청은 안 나가는 컨트롤)
+          //   프로젝트 scope 페이지에서는 값이 고정이라 보내지 않는다(수동 저장과 같은 규칙).
+          ...(scope.type === 'workspace' ? { project_id: projectDraft } : {}),
           base_updated_at: baseUpdatedAtRef.current,
           autosave: true,
         });
