@@ -36,6 +36,11 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [company, setCompany] = useState<CompanyInfo | null>(null);
+  // 앱 베타 링크가 실제로 있을 때만 메뉴를 노출한다.
+  //   ★ 링크가 비어 있으면 /beta 는 "준비 중" 만 보여준다 — 그 상태로 메뉴를 걸면
+  //     눌러도 아무것도 못 받는 죽은 진입점이 된다(memory feedback_produced_link_no_consumer).
+  //   값은 /beta 페이지가 쓰는 것과 **같은 엔드포인트**를 본다(따로 만들면 갈라진다).
+  const [betaOn, setBetaOn] = useState(false);
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -50,6 +55,15 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   }, []);
 
   useEffect(() => {
+    let alive = true;
+    fetch('/api/platform/beta')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (alive) setBetaOn(!!(j?.data?.ios_url || j?.data?.android_url)); })
+      .catch(() => { /* 실패하면 메뉴를 안 보여준다 — 모르면 닫는 쪽 */ });
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -59,6 +73,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   // transparentTop=true 면 hero(다크) 위에서 transparent + 흰 텍스트, scroll 후 white background.
   // transparentTop=false 면 항상 white (서브 페이지 — 처음부터 라이트).
   const isTransparent = transparentTop && !scrolled && !mobileOpen;
+  const navItems = betaOn ? [...NAV_ITEMS, { to: '/beta', key: 'nav.beta' }] : NAV_ITEMS;
 
   // #196 — 게스트가 언어를 바꿀 수단이 랜딩에 없었다. i18n detection 은 localStorage → navigator 라
   //   브라우저가 한국어면 영어 사용자가 영어 랜딩에 닿을 방법이 아예 없다. LegalPage 의 KO·EN
@@ -81,7 +96,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
           </Brand>
 
           <DesktopNav>
-            {NAV_ITEMS.map(item => (
+            {navItems.map(item => (
               <NavItem key={item.to} to={item.to} $light={isTransparent}>{t(item.key)}</NavItem>
             ))}
           </DesktopNav>
@@ -115,7 +130,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
 
         {mobileOpen && (
           <MobileSheet>
-            {NAV_ITEMS.map(item => (
+            {navItems.map(item => (
               <MobileNavItem key={item.to} to={item.to}>{t(item.key)}</MobileNavItem>
             ))}
             <MobileDivider />
@@ -148,6 +163,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterLink to="/service">{t('nav.service')}</FooterLink>
               <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
               <FooterLink to="/wiki">{t('nav.help')}</FooterLink>{/* F7 — Q위키 도움말 */}
+              {betaOn && <FooterLink to="/beta">{t('nav.beta')}</FooterLink>}
             </FooterCol>
             <FooterCol>
               <FooterTitle>{t('footer.company', 'COMPANY')}</FooterTitle>

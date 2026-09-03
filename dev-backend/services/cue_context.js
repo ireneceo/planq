@@ -38,13 +38,23 @@ const { taskListWhere, invoiceListWhere, calendarListWhere, isMemberOrAbove } = 
 //
 //   그래서 커버리지를 데이터 쪽에서 선언해 프롬프트에 실어 보낸다. 새 영역을 연결하면
 //   아래 배열에서 한 줄을 옮기기만 하면 되고, 프롬프트 문구가 따로 낡지 않는다.
+//   ★ 괄호 안의 메뉴 이름은 **화면에 실제로 있는 이름**이어야 한다.
+//     2026-09-03 운영 신고: Cue 가 "Q knowledge 메뉴에서 확인하세요" 라고 답했는데
+//     그런 메뉴가 없다. 지식베이스는 예전에 Q knowledge → **Q info** 로 이름이 바뀌었고
+//     (경로 /knowledge → /info), 화면 i18n 은 고쳤지만 **LLM 에게 주는 텍스트만 옛 이름이 남았다.**
+//     Irene: *"Q knowledge는 메뉴가 아예 없어. 이게 왜 나와?"*
+//     LLM 은 우리가 준 이름을 그대로 믿는다 — 여기 적힌 것이 곧 사용자가 찾아갈 곳이다.
+//     정본은 dev-frontend/src/config/navMenus.ts + locales/{ko,en}/layout.json 의 nav.* 라벨.
+//   ★ 메뉴 이름은 타이핑하지 않고 M(services/cueMenus.js) 에서 꺼낸다 —
+//     이름이 바뀌면 여기도 자동으로 따라가고, 가드(--category=menuname)가 화면 라벨과 대조한다.
+const { M } = require('./cueMenus');
 const COVERED_DOMAINS = [
-  '프로젝트', '업무(Q Task)', '워크스페이스 일정(Q Calendar)', '고객 명단',
-  '청구(Q Bill)', '서명 요청', '대화(Q Talk) 최근 내역', '지식베이스(KB)',
+  '프로젝트', `업무(${M.task})`, `워크스페이스 일정(${M.calendar})`, '고객 명단',
+  `청구(${M.qbill})`, '서명 요청', `대화(${M.talk}) 최근 내역`, `회사 자료·지식베이스(${M.qinfo})`,
 ];
 const UNCOVERED_DOMAINS = [
-  '문서(Q docs)', '파일(Q File)', '메일(Q Mail)',
-  '개인 일정(구글 캘린더 연동분)', '고객 활동 이력', '회의록(Q Note)', '근태·휴가', '주간 보고서',
+  `문서(${M.docs})`, `파일(${M.file})`, `메일(${M.qmail})`,
+  '개인 일정(구글 캘린더 연동분)', '고객 활동 이력', `회의록(${M.note})`, '근태·휴가', '주간 보고서',
 ];
 
 // ★ 이번 **요청에서 실제로 조회한 것** 기준으로 만든다(Fable A-6).
@@ -57,7 +67,16 @@ function coverageBlock(covered = COVERED_DOMAINS, uncovered = UNCOVERED_DOMAINS)
 
 ★ 위 '아직 조회하지 못함' 영역에 대해서는 **"없다" 고 단정하지 말 것.**
   그 영역은 데이터가 없는 것이 아니라 내가 아직 안 본 것이다.
-  "제가 아직 그 영역은 못 봅니다. <해당 메뉴>에서 직접 확인하실 수 있어요" 처럼 답한다.`;
+  "제가 아직 그 영역은 못 봅니다. ${M.docs} 메뉴에서 바로 보실 수 있어요" 처럼 **영역과 메뉴를 짚어서** 답한다.
+
+★★ ${require('./cueMenus').menuRuleBlock()}
+
+★★★ **이 규칙은 질문이 위 영역들에 관한 것일 때만 적용된다.**
+  워크스페이스 데이터와 무관한 일반 질문(기술·용어·업무 상식 등)에는 이 문구를 쓰지 말 것.
+  그런 질문에는 **아는 대로 바로 답한다.** 우리 워크스페이스에 관련 자료가 없으면
+  "우리 자료에는 없어요" 를 한 줄로 밝히고 **일반적인 답을 이어서** 준다.
+  (운영 신고 2026-09-03: "plesk용" 이라는 질문에 조회 범위 얘기만 하고 아무 답도 안 했다.
+   Irene: *"워크스페이스 관련해서 대답할게 없으면 없다고 하고 일반적인 답변 해야 하는 거 아니야?"*)`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -923,7 +942,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
   }
 
   if (kb?.has_results) {
-    parts.push('\n## 회사 자료 (Q knowledge)');
+    parts.push(`\n## 회사 자료 (${M.qinfo})`);
     if (kb.pinned_faqs?.length) {
       kb.pinned_faqs.slice(0, 2).forEach(f => parts.push(`- FAQ: ${snip(f.question, 80)} → ${snip(f.answer, 200)}`));
     }
@@ -1015,15 +1034,15 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
     const i = uncovered.indexOf(label);
     if (i >= 0) { uncovered.splice(i, 1); covered.push(label); }
   };
-  movedByHint('문서(Q docs)', overview?.counts?.docs != null || matches?.posts?.length);
-  movedByHint('파일(Q File)', overview?.counts?.files != null || matches?.files?.length);
+  movedByHint(`문서(${M.docs})`, overview?.counts?.docs != null || matches?.posts?.length);
+  movedByHint(`파일(${M.file})`, overview?.counts?.files != null || matches?.files?.length);
   // #227 — **본문까지 읽은 턴**에만 그렇게 선언한다. 이름만 본 턴에 "내용도 봤다" 고 하면
   //   Cue 가 읽지도 않은 파일을 아는 척한다 — 그게 다음 신고다.
   //   반대로 정말 읽었으면 그 사실을 말해야 사용자가 답을 믿을 수 있다.
   if (matches?.fileTexts?.length) {
     covered.push(`파일 본문(${matches.fileTexts.length}건 — 이름이 일치한 파일만, 형식은 텍스트·PDF 한정)`);
   }
-  movedByHint('메일(Q Mail)', !!overview?.counts?.mail || matches?.mail?.length || !!thread);
+  movedByHint(`메일(${M.qmail})`, !!overview?.counts?.mail || matches?.mail?.length || !!thread);
   if (thread) covered.push(`보고 있는 메일 스레드 본문(최근 ${thread.messages?.length || 0}통)`);
   movedByHint('고객 활동 이력', client?.timeline?.length);
   if (sched) {

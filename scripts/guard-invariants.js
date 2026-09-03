@@ -1438,6 +1438,78 @@ function checkFileInline() {
   report('fileinline', `업로드 바이트 inline 서빙 (변수 MIME 서빙 ${scanned}곳 검사)`, bad.length === 0, bad);
 }
 
+// ═══════════════════════════════════════════════
+// menuname — LLM 에게 알려 주는 메뉴 이름 ↔ 화면 라벨 일치
+// ═══════════════════════════════════════════════
+//   2026-09-03 운영 신고: Cue 가 "Q knowledge 메뉴에서 확인하세요" 라고 답했다. **그런 메뉴가 없다.**
+//   지식베이스는 Q knowledge → Q info 로 이름이 바뀌었고(경로 /knowledge → /info) 화면 i18n 은
+//   고쳤는데, **LLM 에게 주는 텍스트만 옛 이름으로 남아 있었다.** LLM 은 우리가 준 이름을 그대로
+//   믿으므로, 그 텍스트가 곧 사용자가 헛걸음하는 목적지가 된다.
+//   Irene: *"Q knowledge는 메뉴가 아예 없어. 이게 왜 나와?"*
+//
+//   그래서 이름을 dev-backend/services/cueMenus.js 한 벌로 모으고, 여기서 세 가지를 대조한다:
+//     ① cueMenus 의 name 이 locales/ko·en/layout.json 의 nav.<navKey> 라벨과 같은가
+//     ② 사이드바 features 메뉴(navMenus.ts)가 cueMenus 에 빠짐없이 들어 있는가 (신규 메뉴 누락)
+//     ③ 프롬프트/컨텍스트 파일이 목록을 **손으로 다시 적고 있지 않은가** (다시 갈라질 씨앗)
+function checkMenuName() {
+  const bad = [];
+  let menus = null;
+  try {
+    menus = require(`${ROOT}/dev-backend/services/cueMenus.js`);
+  } catch (e) {
+    report('menuname', 'LLM 프롬프트 메뉴 이름 ↔ 화면 라벨', false, [`cueMenus.js 로드 실패: ${e.message}`]);
+    return;
+  }
+
+  // ① 라벨 대조 (ko / en 양쪽)
+  for (const loc of ['ko', 'en']) {
+    let nav;
+    try {
+      nav = JSON.parse(fs.readFileSync(`${ROOT}/dev-frontend/public/locales/${loc}/layout.json`, 'utf8')).nav || {};
+    } catch (e) { bad.push(`locales/${loc}/layout.json 읽기 실패: ${e.message}`); continue; }
+    for (const m of menus.CUE_MENUS) {
+      const label = nav[m.navKey];
+      if (label === undefined) bad.push(`locales/${loc}/layout.json 에 nav.${m.navKey} 없음 (cueMenus '${m.name}')`);
+      else if (label !== m.name) bad.push(`이름 불일치 [${loc}] nav.${m.navKey}: 화면='${label}' vs cueMenus='${m.name}'`);
+    }
+  }
+
+  // ② 사이드바 features 메뉴가 전부 실려 있는가 — 새 메뉴를 추가하고 여기 안 넣으면 Cue 가 그 메뉴를 모른다
+  try {
+    const navSrc = fs.readFileSync(`${ROOT}/dev-frontend/src/config/navMenus.ts`, 'utf8');
+    const known = new Set(menus.CUE_MENUS.map((m) => m.navKey));
+    const re = /labelKey:\s*'nav\.([A-Za-z]+)'[^}]*section:\s*'features'/g;
+    let mm;
+    while ((mm = re.exec(navSrc))) {
+      if (!known.has(mm[1])) bad.push(`navMenus.ts features 메뉴 nav.${mm[1]} 가 cueMenus.js 에 없음 — Cue 가 이 메뉴를 모른다`);
+    }
+  } catch (e) { bad.push(`navMenus.ts 읽기 실패: ${e.message}`); }
+
+  // ③ LLM 에게 나가는 문자열 안의 메뉴 이름은 **전부 M/헬퍼 경유**여야 한다.
+  //    Fable 이 첫 판본("한 줄에 3개 이상") 의 구멍 두 개를 잡았다(2026-09-03):
+  //      ⓐ 줄바꿈된 목록(줄당 1개)을 못 잡아 SYSTEM_PROMPT_GUEST 가 Q mail·Q project·
+  //         Q info·Q file 이 빠진 채 낡아 있었다
+  //      ⓑ composeMarkdown 의 '## 회사 자료 (Q info)' 같은 단발 손타이핑도 못 잡았다
+  //    그래서 개수 휴리스틱을 버리고 **손으로 적었는가** 하나로 판정한다.
+  //    예외는 둘뿐: 주석, 그리고 '없는 메뉴' 를 가르치는 부정문.
+  const names = menus.CUE_MENUS.map((m) => m.name);
+  for (const relPath of ['dev-backend/services/cuePrompts.js', 'dev-backend/services/cue_context.js']) {
+    let src;
+    try { src = fs.readFileSync(`${ROOT}/${relPath}`, 'utf8'); } catch { continue; }
+    src.split('\n').forEach((line, i) => {
+      if (line.trimStart().startsWith('//')) return;                 // 주석은 설명
+      if (/\bM\.[a-zA-Z]+|menuList|menuRuleBlock/.test(line)) return; // 이미 단일 원천 경유
+      if (/없는 메뉴|없다\b/.test(line)) return;                      // "Q knowledge 는 없다" 같은 부정문
+      const hit = names.filter((n) => line.includes(n));
+      if (hit.length) {
+        bad.push(`${relPath}:${i + 1}: 메뉴 이름 ${hit.map((h) => `'${h}'`).join('·')} 을 문자열로 직접 씀 — cueMenus.js 의 M.<navKey>/menuList*() 를 쓸 것`);
+      }
+    });
+  }
+
+  report('menuname', `LLM 프롬프트 메뉴 이름 ↔ 화면 라벨 (메뉴 ${menus.CUE_MENUS.length}개 × ko/en)`, bad.length === 0, bad);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1467,6 +1539,7 @@ const CATEGORIES = {
   vlevelpair: checkVlevelPair,
   csp: checkCsp,
   fileinline: checkFileInline,
+  menuname: checkMenuName,
 };
 
 try {

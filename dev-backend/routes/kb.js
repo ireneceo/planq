@@ -589,7 +589,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-file', authenticat
 });
 
 // ─── 포스트(문서) → Knowledge ingest ──────────────────────────────
-// PostsPage 의 "Q knowledge 로 보내기" 메뉴에서 호출.
+// PostsPage 의 "Q info 로 보내기" 메뉴에서 호출.
 router.post('/businesses/:businessId/kb/documents/import-from-post', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
@@ -628,7 +628,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
       } catch { /* JSON parse fail — content_text 로 폴백 */ }
     }
     if (!text) text = (post.content_text || '').trim();
-    if (!text) return errorResponse(res, '본문이 비어있어 Q knowledge 에 보낼 수 없습니다.', 400);
+    if (!text) return errorResponse(res, '본문이 비어있어 Q info 에 보낼 수 없습니다.', 400);
 
     // #284 — AI 항목 분리로 보내려면 프론트가 **본문 평문**을 알아야 한다.
     //   그 추출 규칙(content_json → 문단 복원)은 위에 한 벌뿐이고, 프론트에 베끼면 반드시 갈라진다

@@ -285,7 +285,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [aiInitialBriefText, setAiInitialBriefText] = useState<string | undefined>(undefined);
   const briefPrefillAppliedRef = useRef(false);
   const [signOpen, setSignOpen] = useState(false);
-  // 사이클 O3 — Q knowledge 로 보내기 (post → KbDocument import)
+  // 사이클 O3 — Q info 로 보내기 (post → KbDocument import)
   const [knowledgeBusy, setKnowledgeBusy] = useState(false);
   const [knowledgeMsg, setKnowledgeMsg] = useState<string | null>(null);
   const [signReloadKey, setSignReloadKey] = useState(0);
@@ -654,7 +654,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setError(null);
   };
 
-  // 사이클 O3 — 포스트를 Q knowledge 로 보내기 (인덱싱 후 Cue 답변에 활용)
+  // 사이클 O3 — 포스트를 Q info 로 보내기 (인덱싱 후 Cue 답변에 활용)
   // N+72-7 — 문서 ↔ 표 타입 변경 (편집 모드).
   //   표→문서: 빈 표면 자유, 컬럼/행 있으면 ConfirmDialog (force_kind_change=true)
   //   문서→표: 자유 (빈 q_record 자동 생성)
@@ -1986,7 +1986,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {t('sign.button', '서명 받기')}
                 </SignBtn>
                 {/* 3) IconBtn + 툴팁 — 가끔 쓰는 것 */}
-                <IconBtn type="button" onClick={() => sendToKnowledge(detail)} title={t('actions.sendToKnowledge', 'Q knowledge 로 보내기 — Cue 가 답변 시 참조') as string} aria-label={t('actions.sendToKnowledge', 'Q knowledge 로 보내기') as string} disabled={knowledgeBusy}>
+                <IconBtn type="button" onClick={() => sendToKnowledge(detail)} title={t('actions.sendToKnowledge', 'Q info 로 보내기 — Cue 가 답변 시 참조') as string} aria-label={t('actions.sendToKnowledge', 'Q info 로 보내기') as string} disabled={knowledgeBusy}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
                 </IconBtn>
                 <IconBtn type="button" onClick={() => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); }} title={t('actions.saveAsTemplate', '템플릿으로 저장 — 다음 새 글 작성 시 검색해서 사용') as string} aria-label={t('actions.saveAsTemplate', '템플릿으로 저장') as string}>
@@ -2427,7 +2427,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           onClose={() => setAiIngest(null)}
           onSaved={() => {
             setAiIngest(null);
-            setKnowledgeMsg(t('actions.sendToKnowledgeOk', 'Q knowledge 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다') as string);
+            setKnowledgeMsg(t('actions.sendToKnowledgeOk', 'Q info 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다') as string);
             setTimeout(() => setKnowledgeMsg(null), 4000);
           }}
         />

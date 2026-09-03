@@ -167,7 +167,9 @@ router.post('/help-public', async (req, res, next) => {
         { role: 'system', content: SYSTEM_PROMPT_GUEST },
         { role: 'user', content: q },
       ],
-      maxTokens: 400,
+      // ★ maxTokens 를 여기서 덮지 않는다 — 상한은 purpose 레지스트리
+      //   (services/llm.js kb_answer) 한 곳에서만 정한다. 옛 값(400)을 남겨두면
+      //   gpt-5.1 의 길어진 답이 중간에 잘린다(실측 출력 75~487 토큰).
       temperature: 0.3,
       fallback: '',
     });
@@ -359,7 +361,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     const { content, fallback, tool_calls } = await callLLM({
       purpose: 'kb_answer',
       messages,
-      maxTokens: 600,
+      // ★ 위와 같은 이유로 maxTokens 를 덮지 않는다 (services/llm.js kb_answer 가 단일 원천).
       temperature: 0.3,
       fallback: '',
       ...(useTools ? { tools: cueTools.TOOL_SCHEMAS } : {}),

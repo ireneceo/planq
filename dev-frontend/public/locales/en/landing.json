@@ -10,7 +10,8 @@
     "signup": "Start free",
     "toApp": "My workspace",
     "menu": "Menu",
-    "service": "Services"
+    "service": "Services",
+    "beta": "App beta"
   },
   "hero": {
     "slogan": "WORK, JUST WORK",
@@ -441,7 +442,7 @@
         }
       },
       "wiki": {
-        "name": "Q Knowledge · Wiki",
+        "name": "Q info · Wiki",
         "lead": "Build up FAQs and product how-tos as knowledge, reused across AI replies and help.",
         "bullets": {
           "0": "Embedding search over workspace knowledge (FAQ)",

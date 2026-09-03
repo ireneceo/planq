@@ -20,11 +20,16 @@ const kbService = require('./kb_service');
 const MODEL_NANO = 'gpt-4.1-nano';
 const MODEL_MINI = 'gpt-4o-mini';
 
-// 비용 (1M tokens 기준, 2026-04 단가)
+// 비용 (1M tokens 기준). 출처: developers.openai.com/api/docs/pricing (2026-09-03 확인)
+//   ★ 여기에 없는 모델을 쓰면 원장이 거짓이 된다 — 아래 recordUsage 참조.
 const PRICING = {
   'gpt-4.1-nano': { input: 0.10, output: 0.40 },
   'gpt-4o-mini': { input: 0.15, output: 0.60 },
-  'gpt-4o': { input: 2.50, output: 10.00 }
+  'gpt-4o': { input: 2.50, output: 10.00 },
+  // Cue 답변 계열 (2026-09-03 승격). 4o-mini 대비 입력 8.3배 · 출력 16.7배 —
+  //   답 한 건(입력 ~6K · 출력 ~200 토큰) 기준 약 $0.001 → $0.0095.
+  'gpt-5.1': { input: 1.25, output: 10.00 },
+  'gpt-5.2': { input: 1.75, output: 14.00 },
 };
 
 // 플랜 한도 — services/plan.js + config/plans.js 경유로 통합 (이 상수는 DEPRECATED, 제거 예정)
@@ -63,8 +68,17 @@ async function checkUsageLimit(businessId /*, plan */) {
 // ─── 사용량 기록 (UPSERT) ───
 async function recordUsage(businessId, actionType, model, inputTokens, outputTokens) {
   const ym = currentYearMonth();
-  const pricing = PRICING[model] || PRICING[MODEL_NANO];
-  const cost = (inputTokens / 1e6) * pricing.input + (outputTokens / 1e6) * pricing.output;
+  // ★ 모르는 모델을 **가장 싼 단가로 조용히 기록하지 않는다.** 옛 코드는 PRICING[MODEL_NANO] 로
+  //   떨어뜨려서, 모델을 올린 뒤에도 원장에는 nano 값이 찍혔다 — 숫자가 있는데 거짓인 쪽이
+  //   숫자가 없는 쪽보다 나쁘다(사용량 화면·플랜 판단이 그 숫자를 믿는다).
+  //   모르면 0 으로 두고 로그에 남긴다. 단가를 PRICING 에 채우는 것이 유일한 해결이다.
+  const pricing = PRICING[model];
+  if (!pricing) {
+    console.warn(`[cue] 단가 미등록 모델 '${model}' — cost_usd 0 으로 기록한다. services/cue_orchestrator.js PRICING 에 추가할 것`);
+  }
+  const cost = pricing
+    ? (inputTokens / 1e6) * pricing.input + (outputTokens / 1e6) * pricing.output
+    : 0;
 
   const [row, created] = await CueUsage.findOrCreate({
     where: { business_id: businessId, year_month: ym, action_type: actionType },
@@ -99,11 +113,16 @@ async function callLLM(model, messages, opts = {}) {
     model,
     messages,
     temperature: opts.temperature ?? 0.3,
-    maxTokens: opts.maxTokens || 400,
+    // ★ 상한을 여기서 400 으로 못 박지 않는다 — 안 주면 purpose 레지스트리가 정한다.
+    //   400 은 4o-mini 의 한 줄 답에 맞춘 값이라, 근거를 붙이는 gpt-5.1 의 답이 중간에 잘린다.
+    ...(opts.maxTokens ? { maxTokens: opts.maxTokens } : {}),
     fallback: CUE_FALLBACK,
   });
   return {
     content: r.content,
+    // ★ 실제로 어떤 모델이 답했는지 — 호출부가 원장(ai_model·cue_usage)에 기록한다.
+    //   모델을 여기서 고정하지 않게 된 뒤로는 이 값이 유일한 진실이다(짐작해서 적으면 원장이 거짓말).
+    model: r.model,
     input_tokens: r.input_tokens,
     output_tokens: r.output_tokens,
     fallback: r.fallback,
@@ -184,11 +203,14 @@ async function respondToMessage({ message, conversation, business, client }) {
 
   // 5. LLM 호출 — system prompt 에 전방위 컨텍스트 + KB 결과 포함
   const systemPrompt = buildSystemPrompt(business, searchResults) + (ctx.markdown ? `\n\n# 워크스페이스 현황 (참고)\n${ctx.markdown}` : '');
-  const llmModel = searchResults.has_results ? MODEL_MINI : MODEL_NANO;
-  const llmResult = await callLLM(llmModel, [
+  // ★ 모델을 여기서 고르지 않는다 (2026-09-03) — services/llm.js 의 purpose 레지스트리가 단일 원천.
+  //   여태 KB 검색 결과 유무로 mini/nano 를 갈랐는데, 그 분기는 **답이 필요 없을 때 더 나쁜 모델을
+  //   쓰는** 것이라 검색이 빈 질문일수록 답이 나빠졌다 — Irene 이 겪은 "딴 소리" 가 정확히 그 구간이다.
+  const llmResult = await callLLM(null, [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: message.content }
-  ], { temperature: 0.3, maxTokens: 400 });
+  ], { temperature: 0.3 });
+  const llmModel = llmResult.model;
 
   // 6. Confidence 판정 (간단: 검색 결과 점수 최대값 기반)
   const topFaqScore = searchResults.pinned_faqs?.[0]?.score || 0;

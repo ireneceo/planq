@@ -21,8 +21,21 @@ const API_BASE = process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
 //   ※ 아래 값은 **옛 호출부의 실제 값과 1:1** 이다 (게이트웨이 이관은 동작 무변경 리팩터 — Fable D-1).
 //     레지스트리가 실제와 다르면 그건 문서가 아니라 거짓말이다. 값을 바꾸려면 여기서 의도적으로 바꾼다.
 const PURPOSES = {
-  cue_reply:      { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 400,  timeoutMs: 45_000, maxInputChars: 24_000 },
-  cue_task:       { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 1200, timeoutMs: 45_000, maxInputChars: 32_000 },
+  // ── Cue 답변 계열 — gpt-5.1 (2026-09-03, Irene 결정) ──────────────────────
+  //   Irene: "cue가 너무 성능이 낮아 … 딴 소리 하거나 도움 안되면 안되거든."
+  //   같은 프롬프트·같은 질문("plesk용")으로 A/B 실측한 결과가 근거다:
+  //     gpt-4o-mini → "제가 아직 그 영역은 못 봅니다. Q docs 메뉴에서 확인하세요" (회피)
+  //     gpt-5.1     → 무엇을 찾는지 세 갈래로 되물으며 우리 워크스페이스 맥락으로 좁힘
+  //   ★ maxTokens 를 함께 올린 이유 (Fable 실측으로 한 번 정정됨 — 2026-09-03):
+  //     gpt-5.1 은 **우리 호출 형태에서는 추론 토큰을 쓰지 않는다**(reasoning_tokens=0).
+  //     그래도 상한을 올린 것은 답이 실제로 길어졌기 때문이다 — 4o-mini 는 21~32 토큰짜리
+  //     회피 한 줄을 냈고 gpt-5.1 은 75~487 토큰으로 근거와 선택지를 준다. 옛 상한(400)이면
+  //     그 답이 중간에 잘린다. 상한은 천장이지 목표가 아니라 짧은 답에서는 비용이 그대로다.
+  //   ※ `reasoning_effort` 를 붙이는 순간 이야기가 달라진다 — 그때는 추론 토큰이 이 예산을
+  //     먼저 먹고, **gpt-5.1 도 temperature 0.3 을 400 으로 거부한다**(실측). 그 옵션을 쓸
+  //     거면 modelCaps 에 그 조합을 먼저 기록할 것.
+  cue_reply:      { model: 'gpt-5.1', temperature: 0.3, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 24_000 },
+  cue_task:       { model: 'gpt-5.1', temperature: 0.3, maxTokens: 2400, timeoutMs: 45_000, maxInputChars: 32_000 },
   task_extract:   { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 32_000 },
   task_plan:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 2000, timeoutMs: 45_000, maxInputChars: 16_000 },
   // #354 루틴 설계 모드 — 같은 분해라도 **출력 부피가 다른 일**이라 task_plan 과 나눠 둔다.
@@ -45,7 +58,8 @@ const PURPOSES = {
   // #379/Cue 확장 — 문서·파일·메일·개인일정·고객이력을 실으면 최악 컨텍스트가 ~31K chars 로
   //   32K 상한에 딱 붙는다. 상한에 걸리면 **꼬리(KB 블록)부터 조용히 잘려** 답이 나빠지는데
   //   어디서 잘렸는지 화면에 안 나온다. 여유를 준다(호출당 비용 증가는 $0.001 미만).
-  kb_answer:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 40_000 },
+  //   ★ Cue 검색창·Q helper·게스트 안내가 전부 이 purpose 로 온다 — 사용자가 Cue 라고 부르는 것의 본체.
+  kb_answer:      { model: 'gpt-5.1', temperature: 0.2, maxTokens: 2000, timeoutMs: 45_000, maxInputChars: 40_000 },
   docs_generate:  { model: 'gpt-4o-mini', temperature: 0.4, maxTokens: 3000, timeoutMs: 90_000, maxInputChars: 24_000 },
   // brief — 옛 호출부가 자료를 100,000자까지 보냈다(자료 여러 건을 합쳐 요약하는 기능). 상한을 그 아래로
   //   내리면 요약이 조용히 일부 자료를 빠뜨린다. 옛 값을 존중하되 천장은 둔다.
@@ -61,6 +75,36 @@ const PURPOSES = {
 const EMBED_MODEL = process.env.EMBED_MODEL || 'text-embedding-3-small';
 const EMBED_TIMEOUT_MS = 30_000;
 const EMBED_MAX_CHARS = 8_000;
+
+// ─────────────────────────────────────────────────────────────
+// 모델 능력표 — **모델마다 받는 파라미터가 다르다**
+// ─────────────────────────────────────────────────────────────
+//   2026-09-03 실측. 같은 body 를 모델만 바꿔 보냈을 때:
+//     gpt-4o-mini : max_tokens ✅  temperature 0.3 ✅
+//     gpt-5.1     : max_tokens ❌ ("Use 'max_completion_tokens' instead")  temperature 0.3 ✅
+//     gpt-5.2     : 위와 같음
+//     gpt-5-mini · 5.5 · 5.6 : max_tokens ❌ · temperature ❌ (기본값 1 만 허용)
+//
+//   ★ 왜 표가 필요한가: 400 은 RETRYABLE 이 아니라 곧장 fallback 으로 떨어진다.
+//     즉 **모델 문자열만 바꾸면 Cue 가 빈 답을 내며 조용히 죽는다** — 로그를 안 보면 모른다.
+//     "모델 교체는 여기 한 줄" 이라는 약속을 지키려면 능력 차이를 게이트웨이가 흡수해야 한다.
+//     (memory: feedback_column_reference_must_exist — 없는 것을 참조하면 조용히 죽는다)
+//
+//   판정은 접두어로 한다. 새 모델이 나와도 계열이 같으면 자동으로 맞고, 예외만 EXCEPTIONS 에 적는다.
+const MODEL_EXCEPTIONS = {
+  // 모델명: { maxTokensParam, temperature: true(자유) | false(기본값만) }
+};
+function modelCaps(model) {
+  const m = String(model || '');
+  if (MODEL_EXCEPTIONS[m]) return MODEL_EXCEPTIONS[m];
+  // gpt-5 계열 · o 시리즈(추론 모델) — 토큰 상한 파라미터 이름이 다르다
+  const isNewGen = /^(gpt-5|o[1-9])/.test(m);
+  if (!isNewGen) return { maxTokensParam: 'max_tokens', temperature: true };
+  // 그 안에서도 temperature 를 받는 것과 기본값만 받는 것이 갈린다.
+  //   받는 것: gpt-5.1 · gpt-5.2 (실측). 나머지(mini·nano·5.5·5.6·o 시리즈)는 기본값만.
+  const acceptsTemp = /^gpt-5\.(1|2)(-|$|\d)/.test(m) && !/-(mini|nano)/.test(m);
+  return { maxTokensParam: 'max_completion_tokens', temperature: acceptsTemp };
+}
 
 // 재시도 — 429(레이트리밋)와 5xx(일시 장애)만. 4xx(잘못된 요청)는 다시 보내도 같은 답이다.
 const MAX_ATTEMPTS = 3;
@@ -140,6 +184,7 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
 
   const capped = capMessages(messages || [], cfg.maxInputChars);
   if (capped.truncated) console.warn(`[llm] ${purpose} 입력 상한 초과 → 잘라서 호출 (max ${cfg.maxInputChars}자)`);
+  const caps = modelCaps(cfg.model);
 
   let lastStatus = 0;
   let lastMessage = '';
@@ -151,8 +196,9 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
         body: JSON.stringify({
           model: cfg.model,
           messages: capped.messages,
-          temperature: cfg.temperature,
-          max_tokens: cfg.maxTokens,
+          // ★ 파라미터 이름·지원 여부는 모델마다 다르다 (modelCaps). 틀리면 400 → 조용한 fallback.
+          ...(caps.temperature ? { temperature: cfg.temperature } : {}),
+          [caps.maxTokensParam]: cfg.maxTokens,
           ...(json ? { response_format: { type: 'json_object' } } : {}),
           ...(tools && tools.length ? { tools, ...(toolChoice ? { tool_choice: toolChoice } : {}) } : {}),
         }),
@@ -180,10 +226,25 @@ async function callLLM({ purpose = 'generic', messages, json = false, tools = nu
       const outTok = data.usage?.completion_tokens || 0;
       stats.ok++; stats.input_tokens += inTok; stats.output_tokens += outTok; stats.total_ms += ms;
       bump(purpose, 'ok'); bump(purpose, 'ms', ms);
+      // ★ 추론을 켠 모델은 답을 쓰기 전에 추론 토큰을 먼저 태운다. 상한이 빠듯하면
+      //   **200 인데 본문이 빈 문자열**로 온다 — 실패가 아니라 성공으로 세어져 화면에는
+      //   "답이 안 나온다" 로만 보인다. (실측: gpt-5-mini maxTokens=16 → finish=length,
+      //   reasoning=16/16, 본문 0자. gpt-5.1 은 우리 호출에선 reasoning=0 이라 해당 없음.)
+      //   상한을 올리라고 로그와 stats.last_error 에 남긴다.
+      const _content = data.choices?.[0]?.message?.content || '';
+      const _tools = data.choices?.[0]?.message?.tool_calls || [];
+      if (!_content && !_tools.length) {
+        const reasoned = data.usage?.completion_tokens_details?.reasoning_tokens || 0;
+        stats.last_error = {
+          at: new Date().toISOString(), purpose, status: 200,
+          message: `empty_content model=${cfg.model} finish=${data.choices?.[0]?.finish_reason} reasoning_tokens=${reasoned} maxTokens=${cfg.maxTokens}`,
+        };
+        console.warn(`[llm] ${purpose} 응답 본문이 비었다 — model=${cfg.model} finish=${data.choices?.[0]?.finish_reason} reasoning=${reasoned}/${cfg.maxTokens}`);
+      }
       return {
-        content: data.choices?.[0]?.message?.content || '',
+        content: _content,
         // 툴 제안 (실행 아님). tools 를 안 준 호출은 항상 빈 배열이라 기존 호출부에 영향 0.
-        tool_calls: data.choices?.[0]?.message?.tool_calls || [],
+        tool_calls: _tools,
         // 'length' 면 maxTokens 상한에서 잘린 응답 — 호출부가 "반쪽 결과 성공 처리" 를 막을 수 있다
         finish_reason: data.choices?.[0]?.finish_reason || null,
         input_tokens: inTok,
