@@ -13,6 +13,36 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 
 // ─── 권한 헬퍼 ───
+//
+// ★★ 표의 공개 범위는 **연결된 문서(Post)** 가 정한다. 표 자신의 vlevel/read_policy 는 보지 않는다.
+//
+// 왜: 같은 자산인데 진입점마다 술어가 갈라져 있었고, 그 갈라짐이 실제 유출로 재현됐다.
+//   2026-09-03 실측 — post#185 는 L1(개인, 작성자만)인데 그 표(q_record#56)는 L3/read_policy='all'
+//   이었다. `GET /api/posts/185` 는 403 인데 `GET /api/records/56` 은 **200** 이었다.
+//   문서를 잠가도 표로 들어오면 열린다. 운영에도 같은 드리프트가 2건 있었다(post#7 L1 ↔ 표 L3).
+//   같은 계열: memory feedback_list_blocked_search_open · feedback_predicate_must_match_both_sides
+//
+//   두 컬럼을 동기화하는 훅을 만드는 길은 택하지 않았다 — 그러면 세 번째 공식이 된다.
+//   q_records 의 vlevel/read_policy 는 **파생값으로 죽이고**, 판정은 문서 하나로 모은다.
+const { canAccessPostByLevel, getUserScope } = require('../middleware/access_scope');
+
+/**
+ * 이 표를 볼 수 있는가 — 연결된 문서의 공개 범위로 판정한다.
+ * 문서가 없는 고아 표(옛 데이터)는 **닫는다**(fail-closed). 판정 근거가 없는 것을 열면 그게 구멍이다.
+ * @returns {Promise<{ok: boolean, post: object|null}>}
+ */
+async function canViewRecord(userId, record, isPlatformAdmin) {
+  if (isPlatformAdmin) return { ok: true, post: null };
+  const { Post } = require('../models');
+  const post = await Post.findOne({
+    where: { q_record_id: record.id },
+    attributes: ['id', 'business_id', 'author_id', 'vlevel', 'project_id', 'target_member_ids', 'kind'],
+  });
+  if (!post) return { ok: false, post: null };
+  const scope = await getUserScope(userId, post.business_id);
+  return { ok: await canAccessPostByLevel(userId, post, scope), post };
+}
+
 async function assertMember(userId, businessId, isPlatformAdmin) {
   if (isPlatformAdmin) return true;
   const m = await BusinessMember.findOne({ where: { business_id: businessId, user_id: userId } });
@@ -183,13 +213,10 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     if (!r) return errorResponse(res, 'not_found', 404);
     const isAdmin = req.user.platform_role === 'platform_admin';
     if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    // ★ 표의 공개 범위 = 연결된 문서. 워크스페이스 멤버라는 사실만으로 통과시키면
+    //   개인(L1) 문서의 표를 남이 읽고 쓴다(2026-09-03 실측 유출).
+    if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
     const rBusinessId = r.business_id;
-
-    // read_policy=owner 면 owner+admin 만
-    if (r.read_policy === 'owner') {
-      const role = await getRole(req.user.id, r.business_id, isAdmin);
-      if (!['owner', 'platform_admin'].includes(role)) return errorResponse(res, 'forbidden', 403);
-    }
 
     const rows = await QRecordRow.findAll({
       where: { q_record_id: r.id },
@@ -209,6 +236,9 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (!r) return errorResponse(res, 'not_found', 404);
     const isAdmin = req.user.platform_role === 'platform_admin';
     if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    // ★ 표의 공개 범위 = 연결된 문서. 워크스페이스 멤버라는 사실만으로 통과시키면
+    //   개인(L1) 문서의 표를 남이 읽고 쓴다(2026-09-03 실측 유출).
+    if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
 
     const patch = {};
     if (req.body.name !== undefined) patch.name = String(req.body.name).slice(0, 200);
@@ -238,6 +268,9 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     if (!r) return errorResponse(res, 'not_found', 404);
     const isAdmin = req.user.platform_role === 'platform_admin';
     if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    // ★ 표의 공개 범위 = 연결된 문서. 워크스페이스 멤버라는 사실만으로 통과시키면
+    //   개인(L1) 문서의 표를 남이 읽고 쓴다(2026-09-03 실측 유출).
+    if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
     const role = await getRole(req.user.id, r.business_id, isAdmin);
     if (!['owner', 'platform_admin'].includes(role) && r.created_by !== req.user.id) {
       return errorResponse(res, '오너 또는 작성자만 삭제할 수 있습니다', 403);
@@ -267,6 +300,9 @@ router.post('/:id/rows', authenticateToken, async (req, res, next) => {
     if (!r) return errorResponse(res, 'not_found', 404);
     const isAdmin = req.user.platform_role === 'platform_admin';
     if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    // ★ 표의 공개 범위 = 연결된 문서. 워크스페이스 멤버라는 사실만으로 통과시키면
+    //   개인(L1) 문서의 표를 남이 읽고 쓴다(2026-09-03 실측 유출).
+    if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
 
     const last = await QRecordRow.max('position', { where: { q_record_id: r.id } });
     const row = await QRecordRow.create({
@@ -289,6 +325,9 @@ router.put('/:id/rows/:rowId', authenticateToken, async (req, res, next) => {
     if (!r) return errorResponse(res, 'not_found', 404);
     const isAdmin = req.user.platform_role === 'platform_admin';
     if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    // ★ 표의 공개 범위 = 연결된 문서. 워크스페이스 멤버라는 사실만으로 통과시키면
+    //   개인(L1) 문서의 표를 남이 읽고 쓴다(2026-09-03 실측 유출).
+    if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
     const row = await QRecordRow.findOne({ where: { id: req.params.rowId, q_record_id: r.id } });
     if (!row) return errorResponse(res, 'row not_found', 404);
 
@@ -318,6 +357,9 @@ router.delete('/:id/rows/:rowId', authenticateToken, async (req, res, next) => {
     if (!r) return errorResponse(res, 'not_found', 404);
     const isAdmin = req.user.platform_role === 'platform_admin';
     if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    // ★ 표의 공개 범위 = 연결된 문서. 워크스페이스 멤버라는 사실만으로 통과시키면
+    //   개인(L1) 문서의 표를 남이 읽고 쓴다(2026-09-03 실측 유출).
+    if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
     const row = await QRecordRow.findOne({ where: { id: req.params.rowId, q_record_id: r.id } });
     if (!row) return errorResponse(res, 'row not_found', 404);
     await QRecordAudit.create({ q_record_id: r.id, q_record_row_id: row.id, user_id: req.user.id, action: 'row.delete' });
@@ -334,6 +376,9 @@ router.get('/:id/rows/:rowId/secret/:colId', authenticateToken, async (req, res,
     if (!r) return errorResponse(res, 'not_found', 404);
     const isAdmin = req.user.platform_role === 'platform_admin';
     if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    // ★ 표의 공개 범위 = 연결된 문서. 워크스페이스 멤버라는 사실만으로 통과시키면
+    //   개인(L1) 문서의 표를 남이 읽고 쓴다(2026-09-03 실측 유출).
+    if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
     const row = await QRecordRow.findOne({ where: { id: req.params.rowId, q_record_id: r.id } });
     if (!row) return errorResponse(res, 'row not_found', 404);
     const col = (r.columns || []).find(c => c.id === req.params.colId);
