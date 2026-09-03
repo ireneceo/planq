@@ -17,8 +17,11 @@ interface Props {
   effectiveDate: string;           // '2026-04-22'
 }
 
+/** t(...,{returnObjects:true}) 는 리소스 미도착 시 키 문자열을 준다 — 배열일 때만 통과시킨다. */
+const asItems = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+
 const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
-  const { t, i18n } = useTranslation('legal');
+  const { t, i18n, ready } = useTranslation('legal');
   const isKo = i18n.language?.startsWith('ko') !== false;
 
   // 문서별 섹션 목록
@@ -67,6 +70,14 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
 
   const rootKey = doc;  // 'privacy' | 'terms' | 'deletion'
 
+  // ★ 번역 리소스가 도착하기 전에는 그리지 않는다.
+  //   i18n.ts 가 `useSuspense: false` 라 첫 렌더에서 t() 가 **키 문자열**을 돌려준다.
+  //   그 상태에서 `returnObjects: true` 의 결과에 .map 을 걸면 TypeError 로 페이지 전체가
+  //   ErrorBoundary("Something went wrong")에 덮인다. 캐시가 없는 첫 방문이 100% 이랬다 —
+  //   /privacy·/terms 는 2026-04-22 부터 그 상태였고, 아무도 새 방문자로 열어보지 않았다.
+  //   스토어 심사관이 여는 것이 정확히 그 첫 방문이다.
+  if (!ready) return null;
+
   return (
     <Wrap>
       <Container>
@@ -93,7 +104,7 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
             {s.content && <SectionP>{t(`${s.key}.${s.content}`)}</SectionP>}
             {s.items && (
               <List>
-                {(t(`${s.key}.items`, { returnObjects: true }) as string[]).map((item, i) => (
+                {asItems(t(`${s.key}.items`, { returnObjects: true })).map((item, i) => (
                   <ListItem key={i}>{item}</ListItem>
                 ))}
               </List>
@@ -110,7 +121,10 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
         {/* 계정 삭제 안내의 연락처 */}
         {doc === 'deletion' && (
           <ContactBox>
-            <ContactRow><ContactKey>{t('deletion.s7.contact.officer')}</ContactKey><ContactVal>{t('deletion.s7.contact.name')}</ContactVal></ContactRow>
+            {/* ★ 책임자 표기는 /privacy 와 **같은 키**를 읽는다. 따로 적어 두었더니 두 법적
+                페이지가 서로 다른 사람을 책임자로 적고 있었다(김미정 vs 이수민). 원천이 하나면
+                갈라질 수 없다. 이메일만 요청 창구(help@)로 따로 둔다. */}
+            <ContactRow><ContactKey>{t('privacy.s11.contact.officer')}</ContactKey><ContactVal>{t('privacy.s11.contact.name')}</ContactVal></ContactRow>
             <ContactRow><ContactKey>Email</ContactKey><ContactVal><a href={`mailto:${t('deletion.s7.contact.email')}`}>{t('deletion.s7.contact.email')}</a></ContactVal></ContactRow>
           </ContactBox>
         )}
