@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import DetailFallback from '../../components/Common/DetailFallback';
+import CategoryTree, { Split, MainArea } from '../../components/Common/CategoryTree';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import PageShell from '../../components/Layout/PageShell';
@@ -793,21 +794,13 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
       {/* ─── 좌측 카테고리 트리 + 메인 영역 (Q file 과 같은 패턴) ─── */}
       <Split>
-        <TreePanel>
-          <TreeRoot>
-            <TreeRow $selected={activeCat === 'all'} onClick={() => setActiveCat('all')}>
-              <TreeName>{t('cat.all')}</TreeName>
-              <TreeCount>{categoryCounts.all || 0}</TreeCount>
-            </TreeRow>
-            {visibleCategories.length > 0 && <TreeDivider />}
-            {visibleCategories.map(cat => (
-              <TreeRow key={cat} $selected={activeCat === cat} onClick={() => setActiveCat(cat)}>
-                <TreeName>{catLabel(t, cat)}</TreeName>
-                <TreeCount>{categoryCounts[cat] || 0}</TreeCount>
-              </TreeRow>
-            ))}
-          </TreeRoot>
-        </TreePanel>
+        <CategoryTree
+          items={visibleCategories.map(cat => ({ key: cat, label: catLabel(t, cat), count: categoryCounts[cat] || 0 }))}
+          allLabel={t('cat.all') as string}
+          allCount={categoryCounts.all || 0}
+          active={activeCat}
+          onSelect={(k) => setActiveCat(k as KbCategory | 'all')}
+        />
 
         <MainArea>
           {activeTag && (
@@ -2460,41 +2453,7 @@ const RowCheckbox = styled.input`
 `;
 
 // Q info — 좌측 트리 + 메인 영역 (Q file 과 같은 패턴)
-const Split = styled.div`
-  display: grid; grid-template-columns: 220px 1fr; gap: 12px; align-items: start;
-  @media (max-width: 900px) { grid-template-columns: 1fr; }
-`;
-const TreePanel = styled.div`
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; padding: 6px;
-  /* N+72-5 fix — Body overflow-y:auto 안에서 sticky top:0. 옛 top:8px 는 padding 과 중복돼 안 보이는 회귀.
-     사용자 호소 "문서 길면 메뉴 따라가야 하는데 안 됨" */
-  position: sticky; top: 0;
-  max-height: calc(100vh - 100px); overflow-y: auto;
-  @media (max-width: 900px) { position: static; max-height: none; }
-`;
-const TreeRoot = styled.div`display: flex; flex-direction: column; gap: 1px;`;
-const TreeDivider = styled.div`height: 1px; background: #F1F5F9; margin: 6px 0;`;
-const TreeRow = styled.button<{ $selected?: boolean }>`
-  display: grid; grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center; gap: 8px; padding: 6px 8px;
-  background: ${p => p.$selected ? '#F0FDFA' : 'transparent'};
-  color: ${p => p.$selected ? '#0F766E' : '#0F172A'};
-  border: none; border-radius: 6px; cursor: pointer;
-  min-height: 30px; text-align: left; width: 100%;
-  &:hover { background: ${p => p.$selected ? '#F0FDFA' : '#F8FAFC'}; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
-`;
-const TreeName = styled.div`
-  min-width: 0; font-size: 0.75rem; font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-`;
-const TreeCount = styled.span`
-  font-size: 0.625rem; color: #94A3B8; font-weight: 600;
-  min-width: 22px; padding: 1px 6px;
-  background: #F1F5F9; border-radius: 999px;
-  text-align: center; justify-self: end;
-`;
-const MainArea = styled.div`display: flex; flex-direction: column; gap: 10px; min-width: 0;`;
+// 좌측 카테고리 트리 껍데기는 components/Common/CategoryTree 로 옮겼다 (프로젝트>정보와 공용).
 
 // 커스텀 항목 — Row 의 ColCustomArea 안에서 자동 배치
 const CustomItem = styled.span`

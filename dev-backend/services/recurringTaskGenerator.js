@@ -284,10 +284,41 @@ async function flushRecurringNotifications(notifyBucket, io = null) {
  * ★ 대상은 **지난 회차 중 손도 안 댄 것(not_started)** 뿐이다. 진행 중·컨펌 중·보류는
  *   사람이 이미 손을 댄 일이라 건드리지 않는다.
  * ★ 이력을 남긴다 — 남기지 않으면 사용자에겐 "업무가 조용히 사라진" 것으로 보인다.
+ *
+ * ★★ #349 의 **세 번째 구멍** (운영 신고 2026-09-03) — 첫 회차가 면제돼 있었다.
+ *   Irene: *"설정을 이렇게 해도 지낸 리스트까지 오늘 업무리스트에 다 나와"*
+ *   (매주 금 · 계속 반복 · 못 한 회차는 자동으로 넘기기)
+ *   원인: **반복 업무의 첫 회차는 부모 행 자신**이다(`recurrence_parent_id IS NULL`).
+ *   그런데 정리 조건이 `recurrence_parent_id = parent.id` 라 **자기 자신은 영원히 안 걸린다.**
+ *   그래서 모든 시리즈의 첫 회차가 구조적으로 면제됐고, 지난 금요일 것이 오늘 목록에 지연으로
+ *   계속 떴다(운영 실측: 같은 상태의 부모 5건 — #232·#233·#234·#235·#237).
+ *   → 부모 자신도 "지난 미수행 회차" 면 같이 마감한다.
+ *   ※ 시리즈는 죽지 않는다: 생성 대상 조회(:400-406)에 status 조건이 없고,
+ *     createOccurrence 는 부모 상태를 보지 않으며(항상 not_started 로 새 회차를 만든다),
+ *     반복 설정 편집 권한도 상태와 무관하다(작성자·소유자 기준). `next_occurrence_at` 은 건드리지 않는다.
  */
-async function skipMissedOccurrences(parent, today = new Date()) {
+async function skipMissedOccurrences(parent, today = new Date(), io = null) {
   if (parent.miss_policy !== 'auto_skip') return [];
   const todayStr = toDateOnlyStr(today);
+  const skippedIds = [];
+
+  // ① 부모 행 자신 = 시리즈의 첫 회차. due_date 는 DATEONLY 라 'YYYY-MM-DD' 문자열 비교로 충분하다.
+  if (parent.status === 'not_started' && parent.due_date && String(parent.due_date) < todayStr) {
+    await parent.update({ status: 'canceled', completed_at: null });
+    try {
+      await TaskStatusHistory.create({
+        task_id: parent.id,
+        event_type: 'status_change',
+        from_status: 'not_started',
+        to_status: 'canceled',
+        actor_user_id: null,
+        note: '미수행 회차 자동 마감 (시리즈 설정: 지난 회차 자동 넘김)',
+      });
+    } catch (e) { console.warn('[recurringTask] skip history(parent)', e.message); }
+    skippedIds.push(parent.id);
+  }
+
+  // ② 자식 회차
   const stale = await Task.findAll({
     where: {
       recurrence_parent_id: parent.id,
@@ -296,7 +327,6 @@ async function skipMissedOccurrences(parent, today = new Date()) {
     },
     attributes: ['id'],
   });
-  const skippedIds = [];
   for (const inst of stale) {
     await inst.update({ status: 'canceled', completed_at: null });
     try {
@@ -313,13 +343,24 @@ async function skipMissedOccurrences(parent, today = new Date()) {
   }
   if (skippedIds.length) {
     console.log('[recurringTask] parent', parent.id, '미수행 회차 자동 마감', skippedIds.length, '건');
+    // CLAUDE.md 운영 안정성 16 — 같은 파일의 createOccurrence 는 task:new 를 쏘는데 취소는 안 쐈다.
+    //   자정 배치만이면 영향이 작지만, 배포 직후 수동 1회 실행에서는 열어 둔 화면에 지운 항목이 남는다.
+    if (io) {
+      for (const id of skippedIds) {
+        try {
+          const payload = { id, status: 'canceled', business_id: parent.business_id, project_id: parent.project_id || null };
+          if (parent.business_id) io.to(`business:${parent.business_id}`).emit('task:updated', payload);
+          if (parent.project_id) io.to(`project:${parent.project_id}`).emit('task:updated', payload);
+        } catch (e) { console.warn('[recurringTask] skip broadcast', id, e.message); }
+      }
+    }
   }
   return skippedIds;
 }
 
 async function generateOneSeries(parent, today = new Date(), io = null, notifyBucket = null) {
   // ★ 정리를 **먼저** 한다 — 아래 조기 반환(series_ended · not_due_yet)에 걸려도 실행되도록.
-  const skippedIds = await skipMissedOccurrences(parent, today);
+  const skippedIds = await skipMissedOccurrences(parent, today, io);
 
   if (!parent.next_occurrence_at) {
     return { parent_id: parent.id, skipped: 'series_ended', skipped_ids: skippedIds, skipped_count: skippedIds.length };
@@ -442,7 +483,7 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
   });
   for (const p of cleanupOnly) {
     try {
-      const skippedIds = await skipMissedOccurrences(p, today);
+      const skippedIds = await skipMissedOccurrences(p, today, io);
       if (skippedIds.length) {
         out.skipped += skippedIds.length;
         out.results.push({

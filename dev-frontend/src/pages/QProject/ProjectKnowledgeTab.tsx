@@ -1,7 +1,10 @@
 // 프로젝트 상세 — Q info (정보) 탭 (사이클 N+14)
 //
 // KnowledgePage 와 동일한 UI/UX (PageShell·EmptyState·AttachmentField·ShareModal·DetailDrawer 공통).
-// 차이점: scope='project' 강제, project_id 자동 설정, 카테고리/스코프 필터 빼고 단순화.
+// 차이점: scope='project' 강제, project_id 자동 설정.
+//   ★ 2026-09-03 (Irene) — "Q info처럼 ai로 업로드되게 해야지 카테고리도 표시되어야 하고. 좌측에"
+//     좌측 카테고리 트리(components/Common/CategoryTree — Q info 와 **같은 한 벌**) + AI 자동추가 추가.
+//     AI 모달은 KbAiIngestModal 을 scope='project' 로 재사용한다(한 벌 더 만들면 갈라진다).
 //
 // 다른 페이지의 KbDocument 와 데이터 단일 source — KnowledgePage 에서 보면 같이 보임.
 
@@ -15,6 +18,10 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import AttachmentField from '../../components/Common/AttachmentField';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import CategoryTree, { Split, MainArea, type CategoryTreeItem } from '../../components/Common/CategoryTree';
+import KbAiIngestModal from '../Knowledge/KbAiIngestModal';
+import { SparkleIcon } from '../../components/Common/Icons';
+import { listKbCategories } from '../../services/knowledge';
 import { apiFetch } from '../../contexts/AuthContext';
 import {
   listKnowledge, createKnowledge, deleteKnowledge, updateKnowledge,
@@ -41,7 +48,10 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
   const [docs, setDocs] = useState<KbDocumentRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<KbCategory | 'all'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [aiOpen, setAiOpen] = useState(false);
+  // 좌측 트리에 쓸 카테고리 — 워크스페이스 등록분(Q info 와 같은 엔드포인트) ∪ 이 프로젝트 문서가 쓰는 값
+  const [wsCats, setWsCats] = useState<string[]>([]);
 
   // detail drawer
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -132,6 +142,14 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
     } finally { setSubmitting(false); }
   };
 
+  useEffect(() => {
+    let alive = true;
+    listKbCategories(businessId)
+      .then(r => { if (alive) setWsCats([...(r.master || []).map(m => m.name), ...(r.orphan || [])]); })
+      .catch(() => { /* 실패해도 문서가 쓰는 카테고리로 트리는 그려진다 */ });
+    return () => { alive = false; };
+  }, [businessId]);
+
   const performDelete = async (id: number) => {
     try {
       await deleteKnowledge(businessId, id);
@@ -140,54 +158,94 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
     } finally { setConfirmDelete(null); }
   };
 
+  // 문서 한 건의 카테고리들 — 백엔드가 다중(categories)로 내려주고 단수(category)는 하위호환.
+  //   ★ 단수만 읽으면 다중으로 저장된 문서가 트리에서 통째로 사라진다(AI 자동추가는 배열로 저장한다).
+  const catsOf = useCallback((d: KbDocumentRow): string[] => {
+    const multi = (d as { categories?: string[] }).categories;
+    if (Array.isArray(multi) && multi.length) return multi;
+    return d.category ? [d.category] : [];
+  }, []);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return docs.filter(d => {
-      if (categoryFilter !== 'all' && d.category !== categoryFilter) return false;
-      if (q && !(d.title.toLowerCase().includes(q) || (d.category || '').toLowerCase().includes(q))) return false;
+      const cs = catsOf(d);
+      if (categoryFilter !== 'all' && !cs.includes(categoryFilter)) return false;
+      if (q && !(d.title.toLowerCase().includes(q) || cs.join(' ').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [docs, search, categoryFilter]);
+  }, [docs, search, categoryFilter, catsOf]);
+
+  // 좌측 트리 — 이 프로젝트 문서가 실제로 쓰는 카테고리 + 워크스페이스 등록분.
+  //   건수 0 인 등록 카테고리도 보여준다(분류 자리가 있다는 걸 알아야 거기에 넣는다).
+  const treeItems = useMemo<CategoryTreeItem[]>(() => {
+    const counts: Record<string, number> = {};
+    for (const d of docs) for (const c of catsOf(d)) counts[c] = (counts[c] || 0) + 1;
+    const names = [...new Set([...Object.keys(counts), ...wsCats, ...CATEGORIES])];
+    return names
+      .map(k => ({ key: k, label: t(`category.${k}`, k) as string, count: counts[k] || 0 }))
+      .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
+  }, [docs, wsCats, catsOf, t]);
 
   return (
     <Wrap>
       <Toolbar>
         <ToolbarLeft>
           <SearchBox value={search} onChange={setSearch} placeholder={t('search.placeholder', '제목·카테고리 검색') as string} />
-          <PlanQSelect size="sm"
-            value={{ value: categoryFilter, label: categoryFilter === 'all' ? t('filter.all', '모든 카테고리') as string : t(`category.${categoryFilter}`, categoryFilter) as string }}
-            onChange={(opt) => setCategoryFilter((opt as PlanQSelectOption | null)?.value as KbCategory | 'all' || 'all')}
-            options={[
-              { value: 'all', label: t('filter.all', '모든 카테고리') as string },
-              ...CATEGORIES.map(c => ({ value: c, label: t(`category.${c}`, c) as string })),
-            ]}
-          />
         </ToolbarLeft>
+        {/* AI 자동추가 — Q info 와 같은 모달을 scope='project' 로 재사용 (Irene 2026-09-03) */}
+        <AiBtn type="button" data-testid="projinfo-ai-add" onClick={() => setAiOpen(true)}>
+          <SparkleIcon size={14} />
+          {t('button.aiAdd', 'AI 로 자동 추가') as string}
+        </AiBtn>
         <PrimaryBtn type="button" onClick={openModal}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           {t('button.add', '정보 등록') as string}
         </PrimaryBtn>
       </Toolbar>
 
-      {loading && <SkBar style={{ width: '100%', height: 48 }} />}
-      {!loading && filtered.length === 0 && (
-        <EmptyState
-          title={t('empty.title', '아직 등록된 정보가 없어요') as string}
-          description={t('empty.body', '이 프로젝트에서 자주 참조하는 자료·정책·매뉴얼을 등록하면 Cue 가 답변 시 참조합니다.') as string}
+      {/* 좌측 카테고리 트리 + 본문 — Q info 와 같은 껍데기(components/Common/CategoryTree) */}
+      <Split>
+        <CategoryTree
+          items={treeItems}
+          allLabel={t('filter.all', '모든 카테고리') as string}
+          allCount={docs.length}
+          active={categoryFilter}
+          onSelect={setCategoryFilter}
         />
-      )}
-      {!loading && filtered.length > 0 && (
-        <List>
-          {filtered.map(d => (
-            <Row key={d.id} $active={detailId === d.id} onClick={() => setDetailId(prev => prev === d.id ? null : d.id)}>
-              <RowTitle>{d.title}</RowTitle>
-              <RowMeta>
-                {d.category && <CategoryChip>{t(`category.${d.category}`, d.category) as string}</CategoryChip>}
-                {d.chunk_count > 0 && <span>· chunk {d.chunk_count}</span>}
-              </RowMeta>
-            </Row>
-          ))}
-        </List>
+        <MainArea>
+          {loading && <SkBar style={{ width: '100%', height: 48 }} />}
+          {!loading && filtered.length === 0 && (
+            <EmptyState
+              title={t('empty.title', '아직 등록된 정보가 없어요') as string}
+              description={t('empty.body', '이 프로젝트에서 자주 참조하는 자료·정책·매뉴얼을 등록하면 Cue 가 답변 시 참조합니다.') as string}
+            />
+          )}
+          {!loading && filtered.length > 0 && (
+            <List>
+              {filtered.map(d => (
+                <Row key={d.id} $active={detailId === d.id} onClick={() => setDetailId(prev => prev === d.id ? null : d.id)}>
+                  <RowTitle>{d.title}</RowTitle>
+                  <RowMeta>
+                    {/* 다중 카테고리 표시 — 단수만 그리면 AI 가 배열로 저장한 문서에 칩이 안 뜬다 */}
+                    {catsOf(d).map(c => <CategoryChip key={c}>{t(`category.${c}`, c) as string}</CategoryChip>)}
+                    {d.chunk_count > 0 && <span>· chunk {d.chunk_count}</span>}
+                  </RowMeta>
+                </Row>
+              ))}
+            </List>
+          )}
+        </MainArea>
+      </Split>
+
+      {aiOpen && (
+        <KbAiIngestModal
+          businessId={businessId}
+          scope="project"
+          projectId={projectId}
+          onClose={() => setAiOpen(false)}
+          onSaved={() => { setAiOpen(false); load(); }}
+        />
       )}
 
       {/* 상세 drawer — KnowledgePage 와 동일 패턴 (작은 버전) */}
@@ -363,6 +421,14 @@ const RowTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172
 const RowMeta = styled.div`display: flex; gap: 8px; align-items: center; font-size: 0.75rem; color: #64748B;`;
 const CategoryChip = styled.span`background: #F1F5F9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 0.6875rem; font-weight: 500;`;
 const SkBar = styled.div`background: linear-gradient(90deg, #F1F5F9 0px, #E2E8F0 40px, #F1F5F9 80px); background-size: 200px 100%; animation: sk 1.2s linear infinite; border-radius: 4px; @keyframes sk { 0% { background-position: -200px 0 } 100% { background-position: calc(200px + 100%) 0 } }`;
+const AiBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 12px; border-radius: 8px;
+  background: #fff; color: #0F766E; border: 1px solid #99F6E4;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  &:hover { background: #F0FDFA; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
+`;
 const PrimaryBtn = styled.button`display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; background: #14B8A6; color: #fff; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover:not(:disabled) { background: #0D9488; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;
 const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
 const DangerBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #DC2626; border: 1px solid #FECACA; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #FEF2F2; }`;

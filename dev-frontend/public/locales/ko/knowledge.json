@@ -211,7 +211,8 @@
     "file": "파일에서 가져오기 (선택)",
     "fileHint": "텍스트·마크다운·CSV·JSON·HTML 파일을 떨어뜨리면 내용을 입력칸에 채웁니다",
     "fileLoaded": "{{count}}개 파일을 불러왔습니다.",
-    "fileUnsupported": "{{names}} 은(는) 아직 읽지 못합니다. 텍스트·마크다운·CSV·JSON·HTML 만 지원합니다 — 내용을 복사해 붙여넣어 주세요."
+    "fileUnsupported": "{{names}} 은(는) 아직 읽지 못합니다. 텍스트·마크다운·CSV·JSON·HTML 만 지원합니다 — 내용을 복사해 붙여넣어 주세요.",
+    "noCategory": "미분류"
   },
   "csv": {
     "secretMasked": "(비밀값 — 내보내지 않음)"
@@ -220,5 +221,8 @@
     "title": "정보를 불러오지 못했습니다",
     "desc": "잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요.",
     "retry": "다시 시도"
+  },
+  "button": {
+    "aiAdd": "AI 로 자동 추가"
   }
 }

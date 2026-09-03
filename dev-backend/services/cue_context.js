@@ -48,6 +48,8 @@ const { taskListWhere, invoiceListWhere, calendarListWhere, isMemberOrAbove } = 
 //   ★ 메뉴 이름은 타이핑하지 않고 M(services/cueMenus.js) 에서 꺼낸다 —
 //     이름이 바뀌면 여기도 자동으로 따라가고, 가드(--category=menuname)가 화면 라벨과 대조한다.
 const { M } = require('./cueMenus');
+// 상태값은 사람 말로 바꿔 싣는다 — raw ENUM 이 고객 답변에까지 나갔다(2026-09-03).
+const { label } = require('./cueLabels');
 const COVERED_DOMAINS = [
   '프로젝트', `업무(${M.task})`, `워크스페이스 일정(${M.calendar})`, '고객 명단',
   `청구(${M.qbill})`, '서명 요청', `대화(${M.talk}) 최근 내역`, `회사 자료·지식베이스(${M.qinfo})`,
@@ -728,10 +730,12 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
         if (bits.length) parts.push(`- ${bits.join(' · ')} — 건수만 조회했다. 목록이 필요하면 그 메뉴에서 볼 수 있다고 안내한다`);
       }
       if (o.projects?.length) {
-        parts.push(`- 활성 프로젝트 ${o.projects.length}개: ${o.projects.map(p => `${p.name}(${p.status})`).join(', ')}`);
+        parts.push(`- 활성 프로젝트 ${o.projects.length}개: ${o.projects.map(p => `${p.name}(${label('project', p.status)})`).join(', ')}`);
       }
       if (o.taskTotal) {
-        const byStatus = Object.entries(o.taskCounts).map(([s, n]) => `${s} ${n}`).join(', ');
+        // ★ 키가 곧 status 코드다 — 구조분해라 `${x.status}` 형태가 아니어서 첫 정리 때 놓쳤고,
+        //   실제 답변에 "진행(in_progress) 상태인 업무는 2건" 처럼 raw 가 나갔다(Fable 실측).
+        const byStatus = Object.entries(o.taskCounts).map(([s, n]) => `${label('task', s)} ${n}`).join(', ');
         parts.push(`- 업무 총 ${o.taskTotal}건 (${byStatus})${o.overdue ? ` · ⚠ 마감 지난 활성 업무 ${o.overdue}건` : ''}`);
       }
       if (o.urgentTasks?.length) {
@@ -739,7 +743,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
         o.urgentTasks.forEach(t => {
           const due = t.due_date ? String(t.due_date).slice(0, 10) : '미정';
           const who = t.assignee?.name ? ` · ${t.assignee.name}` : '';
-          parts.push(`  · ${t.title} (${t.status}, 진행 ${t.progress_percent || 0}%, 마감 ${due}${who})`);
+          parts.push(`  · ${t.title} (${label('task', t.status)}, 진행 ${t.progress_percent || 0}%, 마감 ${due}${who})`);
         });
       }
       // 고객 — 총 수는 그 자체가 답(#291). 목록은 이름·상태 한 줄만 (프롬프트 예산 절약).
@@ -748,7 +752,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
         o.clients.rows.forEach((c) => {
           const nm = c.display_name || c.company_name || c.biz_name || `#${c.id}`;
           const co = c.company_name && c.company_name !== nm ? ` · ${c.company_name}` : '';
-          parts.push(`  · ${nm}${co} (${c.status || '-'})`);
+          parts.push(`  · ${nm}${co} (${label('client', c.status)})`);
         });
       }
       if (o.finance) {
@@ -763,7 +767,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       parts.push(`- 진행 중 업무 (${userSnap.myTasks.length}):`);
       userSnap.myTasks.forEach(t => {
         const due = t.due_date ? String(t.due_date).slice(0, 10) : '미정';
-        parts.push(`  · ${t.title} (${t.status}, 진행 ${t.progress_percent || 0}%, 마감 ${due})`);
+        parts.push(`  · ${t.title} (${label('task', t.status)}, 진행 ${t.progress_percent || 0}%, 마감 ${due})`);
       });
     }
     if (userSnap.inboxTasks?.length) {
@@ -808,7 +812,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       // ── 업무 마감일 (화면의 세 번째 겹) ──
       if (sched?.dueTasks?.length) {
         parts.push(`- 마감 임박 업무 (7일 내, ${sched.dueTasks.length}건):`);
-        sched.dueTasks.forEach((t) => parts.push(`  · ${t.title} — 마감 ${String(t.due_date).slice(0, 10)} (${t.status})`));
+        sched.dueTasks.forEach((t) => parts.push(`  · ${t.title} — 마감 ${String(t.due_date).slice(0, 10)} (${label('task', t.status)})`));
       } else if (sched) {
         parts.push('- 마감 임박 업무 (7일 내): 없음 (조회됨)');
       }
@@ -835,14 +839,14 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
     parts.push('## 프로젝트 상황');
     parts.push(`- 이름: ${project.project.name}${project.project.description ? ` — ${snip(project.project.description, 100)}` : ''}`);
     if (project.active) {
-      parts.push(`- 현재 단계: ${project.active.label} (${project.active.kind})`);
+      parts.push(`- 현재 단계: ${project.active.label} (${label('stageKind', project.active.kind)})`);
     }
     parts.push(`- 단계 진행: ${project.completed}/${project.totalStages} 완료`);
     if (project.tasks.length) {
       parts.push(`- 진행 중 업무 (상위 ${project.tasks.length}):`);
       project.tasks.forEach(t => {
         const due = t.due_date ? String(t.due_date).slice(0, 10) : '미정';
-        parts.push(`  · ${t.title} (${t.status}, 진행 ${t.progress_percent || 0}%, 마감 ${due}, 담당 ${t.assignee?.name || '-'})`);
+        parts.push(`  · ${t.title} (${label('task', t.status)}, 진행 ${t.progress_percent || 0}%, 마감 ${due}, 담당 ${t.assignee?.name || '-'})`);
       });
     }
     if (project.events.length) {
@@ -866,7 +870,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       client.timeline.forEach((it) => {
         const when = it.at || it.created_at || it.occurred_at;
         const ts = when ? String(new Date(when).toISOString()).slice(0, 16).replace('T', ' ') : '';
-        parts.push(`  · [${it.type || it.kind || '활동'}] ${snip(it.title || it.preview || it.summary || '', 80)}${ts ? ` (${ts})` : ''}`);
+        parts.push(`  · [${label('timelineKind', it.type || it.kind || '활동')}] ${snip(it.title || it.preview || it.summary || '', 80)}${ts ? ` (${ts})` : ''}`);
       });
     }
     if (client.recentInvoices.length) {
@@ -894,16 +898,17 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       parts.push(`- 업무 ${matches.tasks.length}건:`);
       matches.tasks.forEach((t) => {
         const due = t.due_date ? String(t.due_date).slice(0, 10) : '미정';
-        parts.push(`  · ${t.title} (${t.status}, 진행 ${t.progress_percent || 0}%, 마감 ${due}, 담당 ${t.assignee?.name || '-'})`);
+        parts.push(`  · ${t.title} (${label('task', t.status)}, 진행 ${t.progress_percent || 0}%, 마감 ${due}, 담당 ${t.assignee?.name || '-'})`);
       });
     }
     if (matches.projects?.length) {
       parts.push(`- 프로젝트 ${matches.projects.length}건:`);
-      matches.projects.forEach((p) => parts.push(`  · ${p.name} (${p.status || '-'})${p.description ? ` — ${snip(p.description, 80)}` : ''}`));
+      // ★ `|| '-'` 폴백이 붙어 있어 가드 정규식에도, 내 눈에도 안 걸렸다.
+      matches.projects.forEach((p) => parts.push(`  · ${p.name} (${label('project', p.status)})${p.description ? ` — ${snip(p.description, 80)}` : ''}`));
     }
     if (matches.clients?.length) {
       parts.push(`- 고객 ${matches.clients.length}건:`);
-      matches.clients.forEach((c) => parts.push(`  · ${c.company_name || c.biz_name || c.display_name || `#${c.id}`} (${c.status || '-'})`));
+      matches.clients.forEach((c) => parts.push(`  · ${c.company_name || c.biz_name || c.display_name || `#${c.id}`} (${label('client', c.status)})`));
     }
     // 문서·메일은 제목만. 파일은 이름으로 특정된 상위 몇 건에 한해 **본문**도 싣는다(#227).
     if (matches.posts?.length) {
@@ -936,7 +941,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       parts.push(`- 청구서 ${matches.invoices.length}건:`);
       matches.invoices.forEach((i) => {
         const owed = Number(i.grand_total || 0) - Number(i.paid_amount || 0);
-        parts.push(`  · ${i.invoice_number}${i.recipient_business_name ? ` (${i.recipient_business_name})` : ''} — ${i.status}, 잔액 ${owed.toLocaleString('ko-KR')} ${i.currency || 'KRW'}`);
+        parts.push(`  · ${i.invoice_number}${i.recipient_business_name ? ` (${i.recipient_business_name})` : ''} — ${label('invoice', i.status)}, 잔액 ${owed.toLocaleString('ko-KR')} ${i.currency || 'KRW'}`);
       });
     }
   }
@@ -1072,4 +1077,7 @@ module.exports = {
   buildCueContext,
   getWorkspaceOverview, getWorkspaceMatches, getClientSnapshot, getProjectSnapshot,
   COVERED_DOMAINS, UNCOVERED_DOMAINS, coverageBlock,
+  // ★ 가드(guard-invariants --category=statuslabel)가 **실제 결과물**을 스캔하려고 쓴다.
+  //   코드 모양(정규식)만 보는 검사는 두 번 거짓 통과했다 — 만들어진 마크다운으로 판정해야 한다.
+  composeMarkdown,
 };

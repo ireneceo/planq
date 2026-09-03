@@ -211,7 +211,8 @@
     "file": "Import from file (optional)",
     "fileHint": "Drop a text, Markdown, CSV, JSON or HTML file to fill the box with its contents",
     "fileLoaded": "Loaded {{count}} file(s).",
-    "fileUnsupported": "{{names}} cannot be read yet. Only text, Markdown, CSV, JSON and HTML are supported — please paste the contents instead."
+    "fileUnsupported": "{{names}} cannot be read yet. Only text, Markdown, CSV, JSON and HTML are supported — please paste the contents instead.",
+    "noCategory": "Uncategorized"
   },
   "csv": {
     "secretMasked": "(secret — not exported)"
@@ -220,5 +221,8 @@
     "title": "Couldn't load your info",
     "desc": "Please try again in a moment. If it keeps failing, check your network connection.",
     "retry": "Try again"
+  },
+  "button": {
+    "aiAdd": "Add with AI"
   }
 }

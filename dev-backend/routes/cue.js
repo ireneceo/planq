@@ -310,7 +310,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
               if (taskMatch) {
                 const { Task } = require('../models');
                 const cur = await Task.findOne({ where: { id: Number(taskMatch[1]), business_id: businessId }, attributes: ['id', 'title', 'status'] });
-                if (cur) ctxBlock += `\n[현재 업무] #${cur.id} "${cur.title}" (상태: ${cur.status}) — "이 업무" 는 이걸 가리킨다. submit_review·complete_task·add_task_comment 의 task_id 로 사용.`;
+                if (cur) ctxBlock += `\n[현재 업무] #${cur.id} "${cur.title}" (상태: ${require('../services/cueLabels').label('task', cur.status)}) — "이 업무" 는 이걸 가리킨다. submit_review·complete_task·add_task_comment 의 task_id 로 사용.`;
               }
             } catch (e) { console.warn('[cue/help task ctx]', e.message); }
           }
@@ -358,7 +358,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
 
     // #81 — workspace 모드 + 킬스위치 on 이면 쓰기 툴을 제안하게 한다 (실행 X, 제안만).
     const useTools = CUE_TOOLS_ENABLED && finalMode === 'workspace' && !!workspaceBizId;
-    const { content, fallback, tool_calls } = await callLLM({
+    const { content, fallback, tool_calls, model: usedModel, input_tokens, output_tokens } = await callLLM({
       purpose: 'kb_answer',
       messages,
       // ★ 위와 같은 이유로 maxTokens 를 덮지 않는다 (services/llm.js kb_answer 가 단일 원천).
@@ -368,6 +368,24 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     });
     if (fallback) return errorResponse(res, 'llm_error', 502);
     const answer = (content || '').trim();
+
+    // ── 사용량 원장 (2026-09-03, Fable 판정) ────────────────────────────────
+    //   여태 이 라우트는 `plan.can('use_cue')` **게이트는 부르면서 recordUsage 는 하지 않았다.**
+    //   즉 자기가 늘리지 않는 카운터를 읽고 있었다 — /help 로 아무리 써도 한도가 안 찬다.
+    //   2026-07-15 설계(#81)의 "제안 무과금" 은 두 전제 위에 있었다: 답 한 건 $0.001,
+    //   그리고 게이트가 사실상 죽어 있었다는 것. 오늘 둘 다 깨졌다 —
+    //   gpt-5.1 승격으로 답 한 건이 $0.0095 가 되면서, **제품에서 가장 비싼 단건 LLM 경로가
+    //   유일하게 원장 행이 없는 경로**가 됐다. 사용량 화면(PlanSettings '기능별 내역')과
+    //   랜딩의 "Cue 월 N 액션" 이 이 원장을 믿는데, 사용자가 Cue 라고 부르는 것이 빠져 있었다.
+    //   → workspace 모드만 기록한다. 기록하면 getCueActionsThisMonth 합산에 자동으로 잡혀
+    //     쿼터도 따라간다(별도 코드 없음 — 빼려면 오히려 코드를 더 짜야 한다).
+    //   qhelper(제품 사용법)와 /help-public(게스트)은 게이트도 안 부르므로 무과금 유지 —
+    //     "게이트를 부르는 모드 = 기록하는 모드" 로 대칭을 맞춘다.
+    if (finalMode === 'workspace' && workspaceBizId) {
+      const { recordUsage } = require('../services/cue_orchestrator');
+      recordUsage(workspaceBizId, 'help', usedModel, input_tokens || 0, output_tokens || 0)
+        .catch((e) => console.warn('[cue/help usage]', e.message));
+    }
 
     // 툴 제안 → 확인 카드용 proposed_action (첫 유효 쓰기 툴 1건). 절대 실행 안 함.
     let proposedAction = null;

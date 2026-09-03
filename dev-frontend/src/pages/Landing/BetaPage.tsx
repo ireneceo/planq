@@ -20,7 +20,14 @@ interface BetaLinks {
 /** 지금 기기가 어느 쪽인지 — 맞는 카드를 위로 올려준다(강제하지 않는다). */
 function currentOs(): 'ios' | 'android' | null {
   const ua = navigator.userAgent || '';
-  if (/iPhone|iPad|iPod/i.test(ua)) return 'ios';
+  if (/iPhone|iPod/i.test(ua)) return 'ios';
+  // ★ iPad 는 UA 에 'iPad' 가 안 들어온다 (2026-09-03).
+  //   iPadOS 13 부터 사파리가 기본으로 **데스크탑급 브라우징**이라 자기를 'Macintosh' 로 알린다.
+  //   그래서 UA 만 보면 아이패드가 '이 기기' 로 안 잡히고, 정작 받을 수 있는 기기에서
+  //   안내가 어긋난다(앱은 유니버설이라 iPad 에서 정상 동작한다 — TARGETED_DEVICE_FAMILY "1,2").
+  //   구분법: Mac 은 터치가 없고 iPad 는 있다.
+  if (/iPad/i.test(ua)) return 'ios';
+  if (/Macintosh/i.test(ua) && typeof navigator.maxTouchPoints === 'number' && navigator.maxTouchPoints > 1) return 'ios';
   if (/Android/i.test(ua)) return 'android';
   return null;
 }

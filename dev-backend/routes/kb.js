@@ -1154,17 +1154,50 @@ const SYSTEM_PROMPT_INGEST = `너는 PlanQ Knowledge Base 자료 정리 도우�
 1. 원문 정보만 사용. 새로운 정보·예시·해설을 절대 추가하지 마.
 2. 문장은 거의 그대로. 오타·띄어쓰기·줄바꿈만 정리.
 3. 토픽이 명확히 다르면 여러 항목으로 분리. 한 서비스의 자격증명 정보처럼 묶음이면 1개 항목.
-4. 카테고리 자동 분류: policy(정책)/manual(매뉴얼·자격증명·연락처 포함)/incident(사고)/faq(자주묻는질문)/about(회사소개)/pricing(가격) 중 가장 적합한 1개.
-   계정/자격증명/연락처 정보는 'manual' 카테고리 사용.
+4. 카테고리: **아래 '사용 가능한 카테고리' 목록에서만 고른다.** 목록에 없는 이름을 지어내지 말 것.
+   애매하면 목록 중 가장 가까운 것을 고르고, 정말 아무것도 안 맞을 때만 목록의 첫 번째를 쓴다.
+   ★ categories 는 **반드시 채운다.** 비우거나 생략하면 화면에 분류가 안 뜬다.
 5. 태그 2~6개 추출 (원문 키워드만). 자격증명이면 ["서비스명","자격증명","연락처"] 같이.
 6. title: 원문 첫 줄 또는 핵심 명사구. 50자 이내. 예: "기율법무법인 링크드인 계정" "Mary 전화번호".
 7. body: 원문 그대로 (오타/공백만 정리). 줄바꿈 \\n 그대로 유지.
 
+8. **주소·연락처 같은 값은 body 에 묻지 말고 fields 로 뺀다** (운영 신고 2026-09-03).
+   URL·이메일·전화번호·담당자·계정 ID 처럼 **뒤에 다시 찾아 쓸 값**은 body 문장이 아니라
+   "fields" 의 이름-값으로 넣는다. 이름은 원문에 쓰인 말 그대로("블로그", "대표번호", "담당자").
+   예: {"fields": {"블로그": "https://blog.naver.com/kalis001"}}
+
+9. **한 줄에 하나씩 나열된 목록은 줄마다 다른 항목이다.**
+   "-A 블로그: https://... / -B 블로그: https://..." 처럼 **서로 다른 대상**이 각자의 값을 갖고
+   나열되면 **대상 수만큼 항목을 만든다.** 하나로 합치고 링크 두 개를 body 에 넣는 것은 오답이다.
+   (실제 사고: 변호사 두 곳의 블로그 주소를 한 항목으로 뭉쳐 링크가 본문에 묻혔다.)
+   반대로 **같은 대상의 여러 속성**(한 서비스의 ID·비밀번호·URL)은 1개 항목 + fields 여러 개다.
+   기준은 "나중에 이걸 따로 찾을 일이 있는가" — 따로 찾을 것이면 따로 만든다.
+
 답변 형식 — **반드시 다음 중 하나**:
-- 단일 항목이면: { "items": [{ "title": "...", "body": "...", "category": "manual", "tags": [...] }] }
+- 단일 항목이면: { "items": [{ "title": "...", "body": "...", "categories": ["manual"], "tags": [...], "fields": { "블로그": "https://..." } }] }
 - 다중 항목이면: { "items": [{ ... }, { ... }] }
 - 절대 빈 items 반환 금지. 텍스트가 한 줄이라도 의미 있으면 1개 항목으로 추출.
 - 다른 설명 X. JSON 만.`;
+
+// 워크스페이스에 등록된 카테고리를 프롬프트에 실어 준다.
+//   ★ 여태 legacy 6종을 프롬프트에 박아 놨다 — 사용자가 만든 카테고리를 AI 가 알 길이 없어
+//     "카테고리 등록된대로 안 떠" 가 났다(Irene 2026-09-03). 마스터를 읽어 넣는다.
+const LEGACY_KB_CATEGORIES = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
+async function buildIngestPrompt(businessId) {
+  let names = [];
+  try {
+    const rows = await KbCategory.findAll({
+      where: { business_id: businessId },
+      attributes: ['name'], order: [['sort_order', 'ASC'], ['id', 'ASC']],
+    });
+    names = rows.map((r) => r.name).filter(Boolean);
+  } catch (e) { console.warn('[kb/ai-ingest] 카테고리 마스터 조회 실패', e.message); }
+  if (!names.length) names = LEGACY_KB_CATEGORIES;   // 아직 하나도 안 만들었으면 기본 6종
+  return `${SYSTEM_PROMPT_INGEST}
+
+## 사용 가능한 카테고리 (이 목록에서만 고를 것)
+${names.map((n) => `- ${n}`).join('\n')}`;
+}
 
 router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
@@ -1188,7 +1221,7 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
     }
 
     const messages = [
-      { role: 'system', content: SYSTEM_PROMPT_INGEST },
+      { role: 'system', content: await buildIngestPrompt(businessId) },
       { role: 'user', content: `[입력 언어 힌트: ${source_language || 'auto'}]\n\n${cleanText}` },
     ];
 

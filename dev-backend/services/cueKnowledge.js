@@ -23,7 +23,9 @@ async function buildKnowledgeBlock(businessId) {
   try {
     const cards = await getActiveCards(businessId);
     if (!cards.length) return '';
-    const lines = cards.map((c) => `- [${c.kind}] ${c.title}: ${String(c.body).slice(0, 300)}`);
+    // ★ kind 는 DB ENUM 이다 — 그대로 실으면 답변에 'work_pattern' 이 나간다(Fable 권고).
+    const { label } = require('./cueLabels');
+    const lines = cards.map((c) => `- [${label('knowledgeKind', c.kind)}] ${c.title}: ${String(c.body).slice(0, 300)}`);
     return `# 워크스페이스 지식 (팀이 확정한 사실 — 답변에 우선 반영)\n${lines.join('\n')}`;
   } catch (e) {
     console.warn('[cueKnowledge] block build failed:', e.message);

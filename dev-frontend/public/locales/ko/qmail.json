@@ -173,7 +173,7 @@
   "translate": {
     "langLabel": "번역 언어",
     "translate": "번역하기",
-    "showOriginal": "원본 보기",
+    "closeTranslation": "번역 닫기",
     "cancel": "번역 취소",
     "loading": "번역 중…",
     "error": "번역할 수 없습니다",

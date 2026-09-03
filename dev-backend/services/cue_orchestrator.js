@@ -90,12 +90,20 @@ async function recordUsage(businessId, actionType, model, inputTokens, outputTok
     }
   });
   if (!created) {
-    await row.update({
-      action_count: (row.action_count || 0) + 1,
-      token_input: (row.token_input || 0) + inputTokens,
-      token_output: (row.token_output || 0) + outputTokens,
-      cost_usd: Number(row.cost_usd || 0) + cost
-    });
+    // ★ 읽고-더해서-쓰면 동시 호출이 서로를 덮어쓴다 (Fable 실측 2026-09-03:
+    //   동시 10건 → action_count 2 · cost 0.0045, **80% 유실**).
+    //   원장의 정확도가 동시 사용자 수에 반비례하면 그건 원장이 아니다.
+    //   increment 는 `SET col = col + v` 를 내보내 DB 가 원자적으로 더한다.
+    //   (행 생성 경합은 UNIQUE(business_id, year_month, action_type) + findOrCreate 가 막는다.)
+    await CueUsage.increment(
+      {
+        action_count: 1,
+        token_input: inputTokens,
+        token_output: outputTokens,
+        cost_usd: cost,
+      },
+      { where: { id: row.id } },
+    );
   }
   return { cost, ym };
 }

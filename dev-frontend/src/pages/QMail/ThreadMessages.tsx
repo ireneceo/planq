@@ -234,8 +234,12 @@ export default function ThreadMessages(p: Props) {
               <option value="zh">{t('translate.lang.zh') as string}</option>
               <option value="es">{t('translate.lang.es') as string}</option>
             </TransSelect>
-            {/* #202 — 로딩 중에는 "취소", 번역이 떠 있으면 "원본 보기", 그 외 "번역하기" 3분기.
-                로딩 상태에서 버튼을 죽여두면(옛 동작) 긴 번역에 사용자가 갇힌다. */}
+            {/* #202 — 로딩 중에는 "취소", 번역이 떠 있으면 "번역 닫기", 그 외 "번역하기" 3분기.
+                로딩 상태에서 버튼을 죽여두면(옛 동작) 긴 번역에 사용자가 갇힌다.
+                ★ 가운데 분기는 "원본 보기" 였다 — 거짓말이었다(Irene 2026-09-03):
+                  번역문은 원본을 **대체하지 않고 아래에 덧붙는다**(TransBody). 원본은 사라진 적이 없으니
+                  누를 이유가 없는 버튼이었고, 실제 동작은 showing:false = **번역을 닫는 것**이다.
+                  memory feedback_new_behavior_makes_copy_lie — 동작이 문구를 뒷받침하는지 같이 본다. */}
             {msgTrans[m.id]?.loading ? (
               <TransBtn type="button" onClick={() => cancelTranslate(m.id)}>
                 {t('translate.cancel', { defaultValue: '번역 취소' }) as string}
@@ -243,7 +247,7 @@ export default function ThreadMessages(p: Props) {
             ) : msgTrans[m.id]?.showing ? (
               <TransBtn type="button"
                 onClick={() => setMsgTrans(prev => ({ ...prev, [m.id]: { ...(prev[m.id] || { loading: false }), showing: false } }))}>
-                {t('translate.showOriginal', { defaultValue: '원본 보기' }) as string}
+                {t('translate.closeTranslation', { defaultValue: '번역 닫기' }) as string}
               </TransBtn>
             ) : (
               <TransBtn type="button"

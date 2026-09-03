@@ -1,7 +1,7 @@
-// Q knowledge — AI 자동 분석 추가 모달
+// Q info — AI 자동 분석 추가 모달
 // 사용자가 자유 텍스트 입력 → AI 가 토픽별 분리 + 분류 + 태그 추출 → 검수 → 일괄 저장
 // 설계: docs/KB_AI_INGEST_DESIGN.md
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -9,6 +9,7 @@ import AttachmentField from '../../components/Common/AttachmentField';
 import { SparkleIcon } from '../../components/Common/Icons';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { mapApiError } from '../../utils/apiError';
+import { listKbCategories } from '../../services/knowledge';
 
 type Lang = 'ko' | 'en';
 type Category = 'policy' | 'manual' | 'incident' | 'faq' | 'about' | 'pricing';
@@ -37,6 +38,12 @@ interface Props {
   initialText?: string;
   /** 어느 문서에서 왔는가 — 저장되는 항목마다 출처로 남겨 서로 참조하게 한다 (#284 두 번째 요청). */
   sourcePostId?: number;
+  /** 어느 범위에 저장하는가. 프로젝트>정보 탭이 이 모달을 그대로 재사용한다 (Irene 2026-09-03).
+   *  ★ 여태 'workspace' 로 못 박혀 있어서, 프로젝트에서 열어도 워크스페이스 자료로 저장됐을 것이다.
+   *    범위를 인자로 받는 이유가 그것이다 — 모달을 한 벌 더 만들면 프롬프트·검수 화면이 갈라진다. */
+  scope?: 'workspace' | 'project';
+  /** scope='project' 일 때 필수. 저장 시 project_id 로 나간다. */
+  projectId?: number;
 }
 
 const CATEGORIES: Category[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
@@ -50,9 +57,35 @@ const TruncBox = styled.div`
   font-size: 0.75rem; line-height: 1.5;
 `;
 
-const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initialText, sourcePostId }) => {
+const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initialText, sourcePostId, scope = 'workspace', projectId }) => {
+  // ★ 워크스페이스에 **실제로 등록된** 카테고리를 쓴다 (Irene 2026-09-03: "카테고리 등록된대로 안 떠").
+  //   여태 legacy 6종을 화면에도 프롬프트에도 박아 놔서, 사용자가 만든 카테고리는 어디에도 없었다.
+  //   Q info 목록 화면과 **같은 엔드포인트**를 본다 — 사본을 만들면 갈라진다.
+  const [wsCats, setWsCats] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    listKbCategories(businessId)
+      .then((r) => { if (alive) setWsCats([...(r.master || []).map((m) => m.name), ...(r.orphan || [])]); })
+      .catch(() => { /* 실패하면 아래 fallback(legacy + AI 가 준 값)으로 */ });
+    return () => { alive = false; };
+  }, [businessId]);
   const { t } = useTranslation('knowledge');
   const { t: tErr } = useTranslation('errors');
+  /** 후보가 실제로 들고 있는 분류. 백엔드는 `categories`(배열)를 주는데 화면은 `category`(단수)를
+   *  읽고 있었다 — 그래서 항상 undefined 였고 `category.undefined` 가 그대로 렌더됐다(Irene 신고). */
+  const catOf = useCallback((c: Candidate): string => (c.categories?.[0] || c.category || ''), []);
+  /** 라벨 — legacy 코드면 i18n, 사용자가 만든 자유 이름이면 그대로. 빈 값이면 "미분류". */
+  const catLabel = useCallback((v: string): string => (
+    v ? (t(`category.${v}`, v) as string) : (t('aiIngest.noCategory', '미분류') as string)
+  ), [t]);
+  /** 선택지 = 워크스페이스 등록분 ∪ legacy 6종 ∪ **지금 이 후보의 값**.
+   *  마지막 항목이 중요하다 — AI 가 목록 밖 이름을 내놨을 때 그것을 선택지에서 지워 버리면
+   *  사용자에게는 값이 조용히 사라진 것으로 보인다(빈 셀렉트). 보이게 두고 고를 수 있게 한다. */
+  const catOptions = useCallback((current: string) => {
+    const base = wsCats.length ? wsCats : [...CATEGORIES];
+    const all = [...new Set([...base, ...CATEGORIES, ...(current ? [current] : [])])];
+    return all.map((v) => ({ value: v, label: catLabel(v) }));
+  }, [wsCats, catLabel]);
   const [step, setStep] = useState<'input' | 'review'>('input');
   const [text, setText] = useState(initialText || '');
   const [sourceLanguage, setSourceLanguage] = useState<Lang>('ko');
@@ -162,7 +195,8 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initia
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           items: filtered,
-          scope: 'workspace',
+          scope,
+          ...(scope === 'project' && projectId ? { project_id: projectId } : {}),
           // 출처를 같이 보낸다 — 저장된 항목에서 원본 문서로 되짚을 수 있게(#284).
           ...(sourcePostId ? { source_post_id: sourcePostId } : {}),
           source_language: sourceLanguage,
@@ -179,7 +213,7 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initia
     } finally {
       setSaving(false);
     }
-  }, [businessId, sourceLanguage, autoTranslate, visibility, onSaved, onClose, t]);
+  }, [businessId, sourceLanguage, autoTranslate, visibility, onSaved, onClose, t, scope, projectId]);
 
   const updateCandidate = (idx: number, patch: Partial<Candidate>) => {
     setCandidates(prev => prev.map((c, i) => i === idx ? { ...c, ...patch } : c));
@@ -313,11 +347,12 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initia
                       <CardNum>#{idx + 1}</CardNum>
                       <CardCategoryWrap>
                         <PlanQSelect size="sm" isSearchable={false}
-                          value={{ value: c.category, label: t(`category.${c.category}`, c.category) as string }}
-                          options={CATEGORIES.map(cat => ({ value: cat, label: t(`category.${cat}`, cat) as string }))}
+                          value={{ value: catOf(c), label: catLabel(catOf(c)) }}
+                          options={catOptions(catOf(c))}
                           onChange={(opt) => {
-                            const v = (opt as PlanQSelectOption | null)?.value as Category | undefined;
-                            if (v) updateCandidate(idx, { category: v });
+                            const v = (opt as PlanQSelectOption | null)?.value as string | undefined;
+                            // 저장은 categories(배열)로 나간다 — 단수 필드만 고치면 화면만 바뀌고 저장은 그대로다.
+                            if (v) updateCandidate(idx, { categories: [v], category: v as Category });
                           }}
                         />
                       </CardCategoryWrap>

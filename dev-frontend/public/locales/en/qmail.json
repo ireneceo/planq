@@ -173,7 +173,7 @@
   "translate": {
     "langLabel": "Translation language",
     "translate": "Translate",
-    "showOriginal": "Show original",
+    "closeTranslation": "Hide translation",
     "cancel": "Cancel translation",
     "loading": "Translating…",
     "error": "Couldn't translate",

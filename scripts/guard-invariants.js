@@ -38,6 +38,7 @@
 const fs = require('fs');
 const path = require('path');
 
+const cp = require('child_process');
 const ROOT = '/opt/planq';
 const BASELINE_PATH = path.join(ROOT, 'scripts/guards-baseline.json');
 
@@ -1510,6 +1511,123 @@ function checkMenuName() {
   report('menuname', `LLM 프롬프트 메뉴 이름 ↔ 화면 라벨 (메뉴 ${menus.CUE_MENUS.length}개 × ko/en)`, bad.length === 0, bad);
 }
 
+// ═══════════════════════════════════════════════
+// statuslabel — LLM 컨텍스트의 상태 라벨 ↔ 화면 문구 일치 + raw ENUM 유출 0
+// ═══════════════════════════════════════════════
+//   2026-09-03 Fable 판정. Cue 답변에 DB ENUM 이 그대로 나갔다:
+//     "• 김도윤 · 하나커피 (invited)"  ← `invited` 는 우리 컬럼값이지 사용자의 말이 아니다.
+//   더 나쁜 것: composeMarkdown 은 **고객 대화방 답변에도 쓰인다** — 이미 고객에게 나가고 있었다.
+//   라벨 정본은 dev-backend/services/cueLabels.js 한 벌. 화면과 같은 말인지는 여기서 본다.
+//   ("같은 술어" 라고 주석에 쓰면 갈라진다 — 기계가 대조해야 한다.
+//    memory feedback_comment_lies_predicate_drifts)
+function checkStatusLabel() {
+  const bad = [];
+  let labels = null;
+  try {
+    labels = require(`${ROOT}/dev-backend/services/cueLabels.js`).LABELS;
+  } catch (e) {
+    report('statuslabel', 'Cue 상태 라벨 ↔ 화면 문구', false, [`cueLabels.js 로드 실패: ${e.message}`]);
+    return;
+  }
+  const readJson = (rel) => {
+    try { return JSON.parse(fs.readFileSync(`${ROOT}/dev-frontend/public/locales/ko/${rel}`, 'utf8')); }
+    catch (e) { bad.push(`locales/ko/${rel} 읽기 실패: ${e.message}`); return null; }
+  };
+  const dig = (o, path) => path.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+
+  // ① 라벨 대조 — 화면이 쓰는 키와 같은 말인가
+  //    업무는 4차원(status.<code>.<관점>) 이고 Cue 는 관찰자라 observer 를 본다.
+  const clients = readJson('clients.json');
+  const qtask = readJson('qtask.json');
+  const qbill = readJson('qbill.json');
+  const pairs = [
+    ['client', clients, (code) => dig(clients, `status.${code}`)],
+    ['project', clients, (code) => dig(clients, `projectStatus.${code}`)],
+    ['task', qtask, (code) => dig(qtask, `status.${code}.observer`)],
+    ['invoice', qbill, (code) => dig(qbill, `invoices.status.${code}`)],
+  ];
+  let compared = 0;
+  for (const [kind, src, get] of pairs) {
+    if (!src) continue;
+    for (const [code, mine] of Object.entries(labels[kind] || {})) {
+      const theirs = get(code);
+      if (theirs === undefined) { bad.push(`${kind}.${code}: 화면 i18n 에 해당 키가 없다 — 화면에서 사라진 상태값인지 확인할 것`); continue; }
+      compared++;
+      if (theirs !== mine) bad.push(`${kind}.${code}: 화면='${theirs}' vs cueLabels='${mine}'`);
+    }
+  }
+
+  // ② raw ENUM 유출.
+  //   ★ 첫 판본은 `${ident.status}` 만 봤다가 **거짓 통과**했다 (Fable 2026-09-03):
+  //       `${p.status || '-'}`   ← 폴백 연산자가 붙어 안 걸림
+  //       `.map(([s, n]) => \`${s} ${n}\`)` ← 구조분해라 이름에 status 가 없음
+  //     둘 다 실제 답변으로 나갔다("진행(in_progress) 상태인 업무는 2건").
+  //     → 소스 정규식은 넓히되, **그것만으로는 또 샌다.** 아래 ②-b 에서 실제로 만들어진
+  //       마크다운을 스캔한다. 코드 모양이 아니라 결과물로 판정한다.
+  const STATUS_CODES = [...new Set(Object.values(labels).flatMap((m) => Object.keys(m)))];
+  for (const rel of ['dev-backend/services/cue_context.js', 'dev-backend/routes/cue.js']) {
+    let src;
+    try { src = fs.readFileSync(`${ROOT}/${rel}`, 'utf8'); } catch { continue; }
+    src.split('\n').forEach((line, i) => {
+      if (line.trimStart().startsWith('//')) return;
+      if (/label\(/.test(line)) return;                       // 이미 라벨 경유
+      if (!/parts\.push|ctxBlock|`/.test(line)) return;        // 프롬프트로 나가는 줄만
+      // 폴백·옵셔널 체이닝·공백 허용
+      if (/\$\{[^}]*\b(status|kind)\b[^}]*\}/.test(line)) {
+        bad.push(`${rel}:${i + 1}: 상태값을 raw 로 프롬프트에 실음 — services/cueLabels.js 의 label() 을 쓸 것`);
+      }
+    });
+  }
+
+  // ②-b 실제 마크다운 스캔 — composeMarkdown 이 만든 결과물에 상태 코드가 그대로 있는가.
+  //   양성 대조군: 일부러 코드를 한 개 심어 검출되는지 먼저 확인한다(빈 입력으로 "0건=정상" 금지).
+  //   ※ cue_context 는 models 를 끌어와 DB 환경변수를 요구한다 → 백엔드 cwd 에서 별도 프로세스로 돈다.
+  try {
+    const script = [
+      "require('dotenv').config();",
+      "const { composeMarkdown } = require('./services/cue_context');",
+      "const probe = composeMarkdown({ overview: { taskTotal: 3, taskCounts: { in_progress: 2, not_started: 1 }, counts: {} },",
+      "  matches: { projects: [{ id:1, name:'P', status:'active' }], clients: [{ id:1, company_name:'C', status:'invited' }] } });",
+      "const canary = composeMarkdown({ matches: { projects: [{ id:1, name:'P', status:'zzcanaryzz' }] } });",
+      "process.stdout.write('<<'+JSON.stringify({ probe, canaryOk: canary.indexOf('zzcanaryzz') >= 0 }));",
+      // ★ 명시적 종료 — models 가 DB 커넥션을 열어 두면 프로세스가 안 죽어 execFileSync 가 타임아웃난다
+      //   (실제로 한 번 ETIMEDOUT 으로 검사가 통째로 실패했다).
+      "process.exit(0);",
+    ].join('\n');
+    const out = cp.execFileSync(process.execPath, ['-e', script],
+      { cwd: `${ROOT}/dev-backend`, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 });
+    const { probe, canaryOk } = JSON.parse(out.slice(out.indexOf('<<') + 2));
+    // 양성 대조군 — 심은 값이 결과물에 안 나오면 이 검사는 아무것도 못 잡는 상태다
+    if (!canaryOk) bad.push('마크다운 스캔 카나리 실패 — 심은 값이 결과물에 안 나온다(검사가 죽어 있다)');
+    const found = STATUS_CODES.filter((c) => new RegExp(`\\b${c}\\b`).test(probe));
+    if (found.length) bad.push(`composeMarkdown 결과물에 raw 상태 코드 노출: ${found.join(', ')} — label() 경유로 바꿀 것`);
+  } catch (e) {
+    bad.push(`composeMarkdown 결과물 스캔 실패: ${String(e.message).slice(0, 160)}`);
+  }
+
+  // ③ 사용량 종류(action_type)에 화면 라벨이 있는가
+  //    PlanSettings 는 `t('usage.cueKind.'+kind, kind)` — 라벨이 없으면 **키를 그대로** 그린다.
+  //    즉 라벨을 안 넣으면 사용자가 사용량 화면에서 'task_extraction' 같은 내부값을 읽는다.
+  //    (2026-09-03 실측: 라벨 없는 종류가 이미 9종이었고 신규 'help' 가 열 번째가 될 뻔했다.)
+  let kinds = [];
+  try {
+    const src = ['dev-backend/services', 'dev-backend/routes']
+      .flatMap((d) => walk(`${ROOT}/${d}`, ['.js']))
+      .map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+    kinds = [...new Set([...src.matchAll(/recordUsage\(\s*[^,]+,\s*'([a-z_]+)'/g)].map((m) => m[1]))];
+  } catch (e) { bad.push(`action_type 수집 실패: ${e.message}`); }
+  for (const loc of ['ko', 'en']) {
+    let ck;
+    try { ck = JSON.parse(fs.readFileSync(`${ROOT}/dev-frontend/public/locales/${loc}/plan.json`, 'utf8'))?.usage?.cueKind || {}; }
+    catch (e) { bad.push(`locales/${loc}/plan.json 읽기 실패: ${e.message}`); continue; }
+    for (const k of kinds) {
+      if (!ck[k]) bad.push(`usage.cueKind.${k} 라벨 없음 [${loc}] — 사용량 화면에 내부값 '${k}' 이 그대로 뜬다`);
+    }
+  }
+
+  report('statuslabel', `Cue 상태 라벨 ↔ 화면 문구 (${compared}개 대조) · 사용량 종류 ${kinds.length}종 라벨 · raw ENUM 유출`, bad.length === 0, bad);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1540,6 +1658,7 @@ const CATEGORIES = {
   csp: checkCsp,
   fileinline: checkFileInline,
   menuname: checkMenuName,
+  statuslabel: checkStatusLabel,
 };
 
 try {

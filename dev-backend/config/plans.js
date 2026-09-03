@@ -254,6 +254,41 @@ function planAtLeast(code, minCode) {
 /**
  * 사용자 노출용 안전 객체 (Infinity → null 변환, 민감 X)
  */
+// ─────────────────────────────────────────────────────────────
+// LLM 프롬프트에 싣는 플랜 요약 — **손으로 적지 않는다**
+// ─────────────────────────────────────────────────────────────
+//   2026-09-03 Fable 이 잡았다: services/cuePrompts.js 의 SYSTEM_PROMPT_GUEST 가
+//   플랜 표를 손으로 적어 두고 낡아 있었다. 가입 전 방문자에게 **틀린 가격표를**
+//   또박또박 읽어 주고 있었다 —
+//     Basic  프롬프트 "고객 30 · 50GB · Cue 300회"  ↔ 실제 고객 20 · 5GB · Cue 1,500회
+//     Pro    프롬프트 "멤버 15 · 500GB · Cue 1,000회" ↔ 실제 멤버 10 · 20GB · Cue 7,500회
+//   cueMenus 와 같은 병(같은 값을 두 벌 손으로 적음)이라 같은 처방을 쓴다: 여기서 생성한다.
+//   ★ 한도 없음은 이 저장소에서 null 과 Infinity 두 가지로 표현된다(projects_max 는 Infinity).
+//     Infinity.toLocaleString('ko-KR') 은 '∞' 라 그대로 두면 프롬프트에 수학 기호가 실린다.
+function isUnlimited(n) { return n === null || n === undefined || !Number.isFinite(n); }
+function fmtLimit(n, unit = '') {
+  if (isUnlimited(n)) return '무제한';
+  return `${n.toLocaleString('ko-KR')}${unit}`;
+}
+function fmtBytes(n) {
+  if (isUnlimited(n)) return '무제한';
+  const gb = n / (1024 ** 3);
+  return `${gb % 1 === 0 ? gb : gb.toFixed(1)}GB`;
+}
+/** "• Starter — 월 9,900원 · 멤버 1 · 고객 5 · …" 형태의 여러 줄 */
+function planSummaryForPrompt() {
+  return PLAN_ORDER.map((code) => {
+    const p = PLANS[code];
+    const L = p.limits;
+    const krw = p.price_monthly?.KRW;
+    const price = krw == null ? '맞춤 견적' : `월 ${krw.toLocaleString('ko-KR')}원`;
+    if (krw == null) return `• ${p.name} — ${price}`;
+    return `• ${p.name} — ${price} · 멤버 ${fmtLimit(L.members_max)} · 고객 ${fmtLimit(L.clients_max)}`
+      + ` · 프로젝트 ${fmtLimit(L.projects_max)} · Cue ${fmtLimit(L.cue_actions_monthly)}회/월`
+      + ` · 저장공간 ${fmtBytes(L.storage_bytes)}`;
+  }).join('\n');
+}
+
 function toPublicJson(code) {
   const p = getPlan(code);
   const convert = v => v === Infinity ? null : v;
@@ -281,4 +316,5 @@ module.exports = {
   listAddonsForPlan,
   planAtLeast,
   toPublicJson,
+  planSummaryForPrompt,
 };

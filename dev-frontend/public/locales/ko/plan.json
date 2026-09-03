@@ -50,7 +50,19 @@
       "qnote_answer": "Q Note 답변",
       "post_draft": "초안 작성",
       "ai_task_create": "AI 업무 추가",
-      "ai_routine_plan": "루틴 설계"
+      "ai_routine_plan": "루틴 설계",
+      "answer": "Cue 답변 (고객 대화)",
+      "help": "Cue 답변 (검색·도움말)",
+      "task_extraction": "업무 추출",
+      "task_execute": "업무 실행",
+      "tool_call": "실행 승인",
+      "email_reply": "메일 답장 초안",
+      "email_compose": "메일 작성",
+      "thread_summary": "메일 스레드 요약",
+      "summary": "고객 요약",
+      "translation": "번역",
+      "voice_capture": "음성 받아쓰기",
+      "canvas_draft": "캔버스 초안"
     }
   },
   "comparison": {
