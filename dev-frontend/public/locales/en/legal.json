@@ -224,5 +224,70 @@
       "name": "Irene Lee",
       "email": "irene@irenecompany.com"
     }
+  },
+  "deletion": {
+    "title": "Request account deletion",
+    "intro": "This page explains how to request deletion of your PlanQ account (provided by irene&company Inc.) and the data linked to it. You can make the request from here without installing the app.",
+    "s1": {
+      "title": "1. How to request deletion",
+      "items": [
+        "Sign in to the app or the web (planq.kr) → profile menu at the top right → My Profile → 'Delete account' at the bottom → confirm with your password → submit the request",
+        "If you signed up with Google, or if you cannot sign in: email help@planq.kr from the address you registered with, asking to delete your account. We will verify it is you and process the request the same way, including the 30-day grace period",
+        "As soon as the request is made, sign-in is blocked and sessions and notifications on every device are ended"
+      ]
+    },
+    "s2": {
+      "title": "2. A 30-day grace period — you can undo a mistake",
+      "items": [
+        "For 30 days after the request, signing in again restores your account",
+        "The grace period exists to protect against accidental requests and malicious deletion by someone who gained access to an account",
+        "After 30 days the anonymisation below runs, and recovery is no longer possible"
+      ]
+    },
+    "s3": {
+      "title": "3. Data that is deleted",
+      "items": [
+        "Name, email address, phone number, profile photo",
+        "Per-workspace profile (display name, bio, job title, organisation, areas of expertise)",
+        "Sign-in credentials — password, authentication tokens and sign-in sessions on every device",
+        "Q Note voice recordings and their transcriptions",
+        "Access tokens for connected services (Google Drive, Calendar, Gmail) — connections are removed immediately",
+        "Push notification subscriptions"
+      ]
+    },
+    "s4": {
+      "title": "4. Data that is kept, and why",
+      "intro": "PlanQ is a tool people use together. Deleting the records below would break the records of the people you worked with, so the content stays and the author is shown as 'Deleted user' instead.",
+      "items": [
+        "Messages, tasks, comments and document history — the author is shown as 'Deleted user'",
+        "E-commerce records (payments and invoices): up to 5 years, as required by Korean consumer protection law",
+        "Audit logs (including access IP addresses and activity records): 30 days to 7 years depending on plan, for fraud prevention and dispute handling; deleted once that period ends",
+        "Anything kept under a legal retention duty is deleted once that period ends"
+      ]
+    },
+    "s5": {
+      "title": "5. If you are the only person in a workspace",
+      "items": [
+        "A workspace with no other members is scheduled for deletion together with your account",
+        "If you own a workspace that still has other members, you need to transfer ownership or wind the workspace down first. The deletion screen tells you what is blocking"
+      ]
+    },
+    "s6": {
+      "title": "6. Deleting some data without closing your account",
+      "items": [
+        "Files, documents, messages and notes can be deleted individually in the app while keeping your account",
+        "Emptying the trash deletes immediately; items left in the trash are removed automatically after 7 to 90 days depending on plan",
+        "For anything else, email help@planq.kr and tell us what you would like removed"
+      ]
+    },
+    "s7": {
+      "title": "7. Contact",
+      "content": "For questions about account deletion, please contact us.",
+      "contact": {
+        "officer": "Privacy Officer",
+        "name": "Mijung Kim",
+        "email": "help@planq.kr"
+      }
+    }
   }
 }

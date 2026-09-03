@@ -105,6 +105,7 @@ const AdminUsersPage = lazy(() => import('./pages/Admin/AdminUsersPage'));
 const ShareReceivePage = lazy(() => import('./pages/ShareReceive/ShareReceivePage'));
 const InsightsPage = lazy(() => import('./pages/Insights/InsightsPage'));
 const PrivacyPolicy = lazy(() => import('./pages/Legal/PrivacyPolicy'));
+const AccountDeletion = lazy(() => import('./pages/Legal/AccountDeletion'));
 const TermsOfService = lazy(() => import('./pages/Legal/TermsOfService'));
 // N+75-D Q mail M2 — 인박스 read-only (옛 ComingSoonPage 자리 대체)
 const MailPage = lazy(() => import('./pages/QMail/MailPage'));
@@ -224,6 +225,8 @@ function ShellApp() {
         {/* 앱 베타 받기 — 공개. 네이티브 앱 안에서는 의미가 없으므로(이미 앱이다) 마케팅 리다이렉트. */}
         <Route path="/beta" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBeta />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        {/* 계정 삭제 안내 — 스토어(구글플레이·애플)가 요구하는 공개 주소. 로그인 없이 열려야 한다. */}
+        <Route path="/account-deletion" element={<AccountDeletion />} />
         <Route path="/terms" element={<TermsOfService />} />
         {/* Q위키 (Q Wiki) — 게스트 허용 공개 라우트 (public article) + 로그인 시 전체.
             WikiShell 로 GNB/푸터를 붙여 막다른 길 해소 (랜딩·로그인·가입·내 워크스페이스 진입로). */}

@@ -13,7 +13,7 @@ interface SectionDef {
 }
 
 interface Props {
-  doc: 'privacy' | 'terms';
+  doc: 'privacy' | 'terms' | 'deletion';
   effectiveDate: string;           // '2026-04-22'
 }
 
@@ -22,7 +22,20 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
   const isKo = i18n.language?.startsWith('ko') !== false;
 
   // 문서별 섹션 목록
-  const sections: SectionDef[] = doc === 'privacy'
+  // ★ deletion(계정 삭제 안내)은 **구글플레이가 요구하는 공개 페이지**다 —
+  //   계정을 만들 수 있는 앱은 앱을 설치하지 않고도 삭제를 요청할 수 있는 주소를 제공해야 한다.
+  //   그래서 로그인 없이 열려야 하고, 지우는 것/남기는 것/보관기간을 다 적어야 한다.
+  const sections: SectionDef[] = doc === 'deletion'
+    ? [
+        { key: 'deletion.s1', items: true },
+        { key: 'deletion.s2', items: true },
+        { key: 'deletion.s3', items: true },
+        { key: 'deletion.s4', intro: true, items: true },
+        { key: 'deletion.s5', items: true },
+        { key: 'deletion.s6', items: true },
+        { key: 'deletion.s7', content: 'content' },
+      ]
+    : doc === 'privacy'
     ? [
         { key: 'privacy.s1', items: true },
         { key: 'privacy.s2', items: true },
@@ -52,7 +65,7 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
         { key: 'terms.s13', items: true },
       ];
 
-  const rootKey = doc;  // 'privacy' | 'terms'
+  const rootKey = doc;  // 'privacy' | 'terms' | 'deletion'
 
   return (
     <Wrap>
@@ -93,6 +106,14 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
             )}
           </Section>
         ))}
+
+        {/* 계정 삭제 안내의 연락처 */}
+        {doc === 'deletion' && (
+          <ContactBox>
+            <ContactRow><ContactKey>{t('deletion.s7.contact.officer')}</ContactKey><ContactVal>{t('deletion.s7.contact.name')}</ContactVal></ContactRow>
+            <ContactRow><ContactKey>Email</ContactKey><ContactVal><a href={`mailto:${t('deletion.s7.contact.email')}`}>{t('deletion.s7.contact.email')}</a></ContactVal></ContactRow>
+          </ContactBox>
+        )}
 
         {/* Terms 의 문의 섹션 */}
         {doc === 'terms' && (
