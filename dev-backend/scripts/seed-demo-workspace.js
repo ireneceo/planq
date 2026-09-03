@@ -25,8 +25,12 @@ const {
   Project, ProjectMember, ProjectClient,
   Task, File, FileFolder, BusinessStorageUsage,
   Invoice, InvoiceItem, InvoicePayment, PlatformSetting,
+  Post, PostCategory,
 } = require('../models');
 
+// ★ 시간 필드를 넘길 때는 create 의 두 번째 인자에 { silent: true } 를 반드시 같이 준다.
+//   없으면 Sequelize 가 updatedAt 을 "지금" 으로 덮어써서, 시드가 몇 달 치를 만들어도
+//   화면에는 전부 "오늘 수정됨" 으로 보인다(실측 — Q docs 목록은 updated_at 을 그린다).
 // ─────────────────────────────────────────────
 // 상수
 // ─────────────────────────────────────────────
@@ -280,6 +284,15 @@ async function wipeDemoData(businessId) {
   await FileFolder.destroy({ where: { business_id: businessId } });
   await BusinessStorageUsage.destroy({ where: { business_id: businessId } });
 
+  // posts 는 project_id FK 를 들고 있다 — 프로젝트보다 먼저 지운다
+  const posts = await Post.findAll({ where: { business_id: businessId }, attributes: ['id'] });
+  const postIds = posts.map((p) => p.id);
+  if (postIds.length) {
+    await sequelize.query('DELETE FROM post_attachments WHERE post_id IN (:ids)', { replacements: { ids: postIds } }).catch(() => {});
+    await Post.destroy({ where: { id: postIds }, force: true });
+  }
+  await PostCategory.destroy({ where: { business_id: businessId } });
+
   const projs = await Project.findAll({ where: { business_id: businessId }, attributes: ['id'] });
   const projIds = projs.map((p) => p.id);
   if (projIds.length) {
@@ -293,7 +306,7 @@ async function wipeDemoData(businessId) {
 
   await Client.destroy({ where: { business_id: businessId } });
 
-  console.log(`  정리: 대화 ${convIds.length} · 업무 ${taskIds.length} · 청구서 ${invIds.length} · 파일 ${files.length} · 프로젝트 ${projIds.length}`);
+  console.log(`  정리: 대화 ${convIds.length} · 업무 ${taskIds.length} · 청구서 ${invIds.length} · 파일 ${files.length} · 문서 ${postIds.length} · 프로젝트 ${projIds.length}`);
 }
 
 // ─────────────────────────────────────────────
@@ -358,7 +371,7 @@ async function createFileRow({ businessId, folderId, uploaderId, clientId, fileN
     vlevel: 'L2',
     createdAt: created,
     updatedAt: created,
-  });
+  }, { silent: true });
 }
 
 // ─────────────────────────────────────────────
@@ -507,7 +520,7 @@ async function seed() {
   const msg = (conv, sender, content, at) => Message.create({
     conversation_id: conv.id, sender_id: sender.id, content, kind: 'text',
     createdAt: at, updatedAt: at,
-  });
+  }, { silent: true });
 
   await msg(convHaneul, owner, '안녕하세요 정민아 팀장님, 브랜드 리뉴얼 킥오프 내용 정리해서 공유드립니다. 이번 주 금요일에 1차 로고 시안 3종 보여드릴게요.', daysAgo(3));
   await msg(convHaneul, clientUser, '감사합니다. 저희 임원 보고가 다음 주 화요일이라 그 전에 컬러 시스템까지 같이 보면 좋겠습니다.', hoursAgo(68));
@@ -559,7 +572,7 @@ async function seed() {
       created_via: 'manual',
       createdAt: daysAgo(6),
       updatedAt: hoursAgo(6),
-    });
+    }, { silent: true });
   }
   console.log(`업무 ${taskSpecs.length}건`);
 
@@ -672,7 +685,7 @@ async function seed() {
       owner_user_id: owner.id,
       createdAt: spec.issued || daysAgo(1),
       updatedAt: spec.paid || spec.issued || daysAgo(1),
-    });
+    }, { silent: true });
     for (const [i, it] of spec.items.entries()) {
       await InvoiceItem.create({
         invoice_id: inv.id,
@@ -695,10 +708,70 @@ async function seed() {
         recorded_by: owner.id,
         createdAt: spec.paid,
         updatedAt: spec.paid,
-      });
+      }, { silent: true });
     }
   }
   console.log(`청구서 ${invoiceSpecs.length}건 (수금 ${invoiceSpecs.filter((s2) => s2.status === 'paid').length}건)`);
+
+  // 9-B) Q docs — 팀이 함께 읽는 문서. 카테고리 + 프로젝트 연결까지 실제 형태로.
+  //   Q docs 가 비어 있으면 데모/스토어 캡처에 빈 상태만 나온다(실측). 나머지 메뉴와 같은 밀도로 채운다.
+  const docCats = {};
+  for (const [i, name] of ['업무 가이드', '회의록', '공지'].entries()) {
+    docCats[name] = await PostCategory.create({ business_id: biz.id, name, sort_order: i });
+  }
+  const docSpecs = [
+    {
+      title: '브랜드 리뉴얼 진행 가이드',
+      cat: '업무 가이드', proj: 'haneul', author: owner, ageDays: 12, pinned: true,
+      paras: [
+        '로고 시안은 3종을 기본으로 만들고, 컨펌 회차마다 어떤 기준으로 골랐는지를 남깁니다.',
+        '컬러 시스템은 메인 1색 · 보조 2색 · 중립 3단계로 고정합니다. 인쇄용 별색은 감리 직전에 확정합니다.',
+        '고객 전달본은 항상 PDF 로 내보내고, 원본(AI)은 자료실 "브랜드" 폴더에만 둡니다.',
+      ],
+    },
+    {
+      title: '주간 팀 미팅 회의록 — 7월 4주',
+      cat: '회의록', proj: null, author: users.jimin, ageDays: 4,
+      paras: [
+        '최우선 과제는 노들커머스 로고 시안 금요일 납품으로 확인했습니다.',
+        '디자인은 3종 중 2종을 마쳤고 남은 1종은 당일 마감 예정입니다.',
+        '개발은 모눈스터디 랜딩 성능 점검을 진행 중이며 결과는 다음 날 오전 공유하기로 했습니다.',
+      ],
+    },
+    {
+      title: '자료 전달 · 파일 이름 규칙',
+      cat: '공지', proj: null, author: owner, ageDays: 26,
+      paras: [
+        '고객에게 나가는 파일은 "고객사_산출물_YYYYMMDD_v1" 형식으로 이름을 맞춥니다.',
+        '중간 시안은 자료실에만 올리고, 최종본만 대화방으로 보냅니다. 어느 것이 최종인지 헷갈리지 않게 하기 위해서입니다.',
+        '용량이 큰 원본은 링크 대신 자료실 경로를 알려 주세요.',
+      ],
+    },
+  ];
+  for (const d of docSpecs) {
+    const contentJson = {
+      type: 'doc',
+      content: d.paras.map((t) => ({ type: 'paragraph', content: [{ type: 'text', text: t }] })),
+    };
+    const at = daysAgo(d.ageDays);
+    await Post.create({
+      business_id: biz.id,
+      project_id: d.proj ? projects[d.proj].id : null,
+      title: d.title,
+      category: d.cat,
+      content_json: JSON.stringify(contentJson),
+      content_text: d.paras.join('\n'),
+      author_id: d.author.id,
+      status: 'published',
+      visibility: 'internal',
+      kind: 'doc',
+      is_pinned: !!d.pinned,
+      view_count: 3 + d.ageDays,
+      createdAt: at,
+      updatedAt: at,
+    }, { silent: true });
+  }
+  console.log(`문서 ${docSpecs.length}건 (카테고리 ${Object.keys(docCats).length})`);
 
   // 10) Q note — 별도 백엔드(FastAPI + SQLite)라 전용 파이썬 시드를 호출한다
   const { spawnSync } = require('child_process');

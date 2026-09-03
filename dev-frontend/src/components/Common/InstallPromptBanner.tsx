@@ -13,6 +13,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { isPushSupported, getPushStatus, subscribe as subscribePush } from '../../services/push';
+import { nativeAppLink } from '../../config/appLinks';
 
 const DISMISS_KEY = 'planq.install.dismissed_at';
 const NOTIF_DISMISS_KEY = 'planq.notif.dismissed_at';
@@ -142,18 +143,25 @@ const InstallPromptBanner: React.FC = () => {
 
   if (mode === 'install') {
     const ios = isIOS();
+    // ★ 네이티브 앱이 있는 기기에는 홈 화면 추가(PWA)보다 앱을 먼저 권한다.
+    //   iOS 는 TestFlight 베타가 승인돼 있다(2026-09-03). 앱이 없는 기기에서는 null 이라
+    //   여태처럼 PWA 안내가 그대로 나온다 — 회귀 0.
+    const native = nativeAppLink();
     // 환경별 PrimaryBtn 동작:
     //  - installEvent 존재 (Android Chrome 등): 즉시 prompt() 호출
     //  - 그 외 (iOS Safari / Mac Safari / Firefox 등): [방법 보기] 토글 → 단계 안내 펼침
     const handlePrimary = () => {
+      if (native) { window.open(native.url, '_blank', 'noopener'); return; }
       if (installEvent) onInstall();
       else setExpanded((v) => !v);
     };
-    const primaryLabel = installEvent
-      ? t('installPrompt.installBtn', '설치')
-      : expanded
-        ? t('installPrompt.hideSteps', '접기')
-        : t('installPrompt.showSteps', '방법 보기');
+    const primaryLabel = native
+      ? (native.beta ? t('installPrompt.getBetaApp', '앱 받기 (베타)') : t('installPrompt.getApp', '앱 받기'))
+      : installEvent
+        ? t('installPrompt.installBtn', '설치')
+        : expanded
+          ? t('installPrompt.hideSteps', '접기')
+          : t('installPrompt.showSteps', '방법 보기');
 
     return (
       <Banner role="complementary" aria-label={t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기') as string}>
@@ -162,7 +170,11 @@ const InstallPromptBanner: React.FC = () => {
           <BannerBody>
             <BannerTitle>{t('installPrompt.title', 'PlanQ 를 앱처럼 사용하기')}</BannerTitle>
             <BannerDesc>
-              {t('installPrompt.shortDesc', '홈 화면에 추가하면 앱처럼 빠르게 접속할 수 있어요.')}
+              {native
+                ? (native.beta
+                    ? t('installPrompt.betaDesc', 'TestFlight 로 iOS 앱 베타를 바로 설치할 수 있어요.')
+                    : t('installPrompt.nativeDesc', '앱을 설치하면 알림도 더 정확하게 받을 수 있어요.'))
+                : t('installPrompt.shortDesc', '홈 화면에 추가하면 앱처럼 빠르게 접속할 수 있어요.')}
             </BannerDesc>
           </BannerBody>
           <BannerActions>
@@ -174,8 +186,16 @@ const InstallPromptBanner: React.FC = () => {
             </DismissBtn>
           </BannerActions>
         </BannerRow>
-        {/* 단계 안내 — installEvent 없을 때 [방법 보기] 클릭 시 펼침 */}
-        {!installEvent && expanded && (
+        {/* 앱을 권하는 기기에서도 홈 화면 추가 경로는 남긴다 — 베타 설치를 원치 않는 사람이 있다 */}
+        {native && (
+          <SecondaryLine>
+            <LinkBtn type="button" onClick={() => setExpanded((v) => !v)}>
+              {expanded ? t('installPrompt.hideSteps', '접기') : t('installPrompt.homeScreenInstead', '앱 없이 홈 화면에 추가하기')}
+            </LinkBtn>
+          </SecondaryLine>
+        )}
+        {/* 단계 안내 — installEvent 없거나 네이티브 안내일 때 [방법 보기] 클릭 시 펼침 */}
+        {(!installEvent || native) && expanded && (
           <Steps>
             {ios ? (
               <>
@@ -260,6 +280,17 @@ const Banner = styled.div`
 const BannerRow = styled.div`
   display: flex; align-items: center; gap: 12px;
 `;
+// 네이티브 앱 안내 아래 보조 줄 — "앱 없이 홈 화면에 추가" 경로를 남긴다
+const SecondaryLine = styled.div`
+  padding: 0 12px 8px;
+`;
+const LinkBtn = styled.button`
+  all: unset; cursor: pointer;
+  font-size: 0.75rem; color: #0D9488; text-decoration: underline;
+  min-height: 36px; display: inline-flex; align-items: center;
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; border-radius: 4px; }
+`;
+
 const Steps = styled.div`
   display: flex; flex-direction: column; gap: 4px;
   padding: 10px 12px;

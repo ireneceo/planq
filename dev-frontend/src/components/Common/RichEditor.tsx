@@ -352,14 +352,14 @@ export default function RichEditor({
       )}
       {!readOnly && (
         <>
-          <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
+          <BubbleMenu className="pq-editor-bubble" editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
             <Bubble>
               <BBtn type="button" $active={editor.getAttributes('image').width === '33%'} onMouseDown={e => { e.preventDefault(); setImageWidth('33%'); }}>S</BBtn>
               <BBtn type="button" $active={editor.getAttributes('image').width === '66%'} onMouseDown={e => { e.preventDefault(); setImageWidth('66%'); }}>M</BBtn>
               <BBtn type="button" $active={!editor.getAttributes('image').width || editor.getAttributes('image').width === '100%'} onMouseDown={e => { e.preventDefault(); setImageWidth(null); }}>L</BBtn>
             </Bubble>
           </BubbleMenu>
-          <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => !ed.isActive('image') && !ed.state.selection.empty}>
+          <BubbleMenu className="pq-editor-bubble" editor={editor} shouldShow={({ editor: ed }) => !ed.isActive('image') && !ed.state.selection.empty}>
             <Bubble>
               <BBtn type="button" $active={editor.isActive('bold')} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleBold().run(); }}>B</BBtn>
               <BBtn type="button" $active={editor.isActive('italic')} style={{ fontStyle: 'italic' }} onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleItalic().run(); }}>I</BBtn>

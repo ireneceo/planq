@@ -256,13 +256,16 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 자동저장이 만든 draft 의 id (신규 모드). 명시 저장·취소가 이걸 보고 승격/삭제한다.
   const autoDraftIdRef = useRef<number | null>(null);
   // 편집 진입 시점 스냅샷 — "취소" 가 자동저장된 내용을 되돌리는 근거.
-  const editSnapshotRef = useRef<{ title: string; content: unknown; category: string } | null>(null);
+  // ★ projectId 를 스냅샷에 포함한다 — 자동저장 **발화 조건**이기도 하다.
+  //   payload 에만 넣고 여기서 빼면, 프로젝트를 골라도 '바뀐 것 없음'으로 판정돼
+  //   요청이 아예 안 나간다(2026-09-03 실측: 선택 후 4초 대기, PUT 0건).
+  const editSnapshotRef = useRef<{ title: string; content: unknown; category: string; projectId: number | null } | null>(null);
   // ★ 자동저장 발화 기준은 "마지막으로 서버에 쓴 값" 이어야 한다 (편집 진입 스냅샷이 아니라).
   //   진입 스냅샷만 보면, 한 글자만 고쳐도 그 뒤로 **영원히 changed=true** 라
   //   저장이 끝나 autoState 가 바뀔 때마다 effect 가 다시 2초 타이머를 걸어 **자동저장이 자기를 재예약**한다.
   //   → 타이핑을 멈춰도 2초마다 PUT 이 계속 나간다(운영 신고: "갑자기 갑자기 저장이 돼").
   //   진입 스냅샷은 '취소' 되돌림 기준이라 건드리면 안 되므로 **기준을 둘로 분리**한다.
-  const lastSavedRef = useRef<{ title: string; content: unknown; category: string } | null>(null);
+  const lastSavedRef = useRef<{ title: string; content: unknown; category: string; projectId: number | null } | null>(null);
   // ★ 편집 세션 카운터. 스냅샷 effect 를 `detail?.id` 에 걸면, 첫 자동저장의 setDetail(created) 가
   //   그 effect 를 재발화시켜 autoDraftIdRef·autoState 를 리셋한다 — 그러면 명시 저장이 승격 대신
   //   글을 하나 더 만들고, 취소는 draft 를 못 지운다(Fable 실측 BLOCKER). 진입 지점만 이 값을 올린다.
@@ -750,7 +753,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //        되돌리는 명시 PUT 이어야 한다(안 그러면 취소해도 남는다).
   useEffect(() => {
     if (mode === 'edit' || mode === 'new') {
-      editSnapshotRef.current = { title: titleDraft, content: contentDraft, category: categoryDraft };
+      editSnapshotRef.current = { title: titleDraft, content: contentDraft, category: categoryDraft, projectId: projectDraft };
       lastSavedRef.current = null;
       baseUpdatedAtRef.current = detail?.updated_at ?? null;
       autoDraftIdRef.current = mode === 'new' ? null : (detail?.id ?? null);
@@ -779,7 +782,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setContentDraft(latest.content_json);
     setCategoryDraft(latest.category || '');
     baseUpdatedAtRef.current = latest.updated_at ?? null;
-    lastSavedRef.current = { title: latest.title, content: latest.content_json, category: latest.category || '' };
+    lastSavedRef.current = { title: latest.title, content: latest.content_json, category: latest.category || '', projectId: latest.project_id ?? null };
     autoDirtyRef.current = false;
     setAutoErr(null);
     setAutoState('idle');
@@ -813,7 +816,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     // 이 저장이 실제로 보낸 값 — 성공 후 자동저장 발화 기준(lastSavedRef)이 된다.
     //   await 도중 사용자가 더 타이핑하면 draft 가 바뀌므로 **호출 시점 값**으로 고정해야 한다
     //   (안 그러면 방금 친 글자가 "이미 저장됨" 으로 처리돼 마지막 타이핑이 유실된다).
-    const sentSnapshot = { title: titleDraft, content: contentDraft, category: categoryDraft };
+    const sentSnapshot = { title: titleDraft, content: contentDraft, category: categoryDraft, projectId: projectDraft };
     try {
       const categoryVal = categoryDraft.trim() || null;
       const targetId = detail?.id ?? autoDraftIdRef.current;
@@ -978,13 +981,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     const snap = lastSavedRef.current || editSnapshotRef.current;
     const changed = titleDraft !== snap.title
       || JSON.stringify(contentDraft ?? null) !== JSON.stringify(snap.content ?? null)
-      || categoryDraft !== snap.category;
+      || categoryDraft !== snap.category
+      // 워크스페이스 화면에서만 프로젝트를 고를 수 있다 — 프로젝트 화면은 값이 고정이라 비교 대상이 아니다
+      || (scope.type === 'workspace' && projectDraft !== snap.projectId);
     if (!changed && !autoDirtyRef.current) return;
     autoDirtyRef.current = true;
     if (autoTimerRef.current) clearTimeout(autoTimerRef.current);
     autoTimerRef.current = setTimeout(() => { runAutosave(); }, AUTOSAVE_DEBOUNCE_MS);
     return () => { if (autoTimerRef.current) clearTimeout(autoTimerRef.current); };
-  }, [titleDraft, contentDraft, categoryDraft, mode, autoState, runAutosave]);
+  }, [titleDraft, contentDraft, categoryDraft, projectDraft, scope.type, mode, autoState, runAutosave]);
 
   // 저장 대기 중 이탈 경고 + PWA 자동 reload 차단 (운영 안정성 2번 — body[data-form-dirty]).
   useEffect(() => {
@@ -1038,6 +1043,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             title: snap.title,
             content_json: snap.content as never,
             category: snap.category.trim() || null,
+            // 프로젝트도 자동저장으로 이미 서버에 나갔다 — 같이 되돌리지 않으면
+            // "취소했는데 프로젝트만 붙어 있다" 가 된다.
+            ...(scope.type === 'workspace' ? { project_id: snap.projectId } : {}),
             base_updated_at: baseUpdatedAtRef.current,
           });
           baseUpdatedAtRef.current = reverted.updated_at ?? null;
@@ -1052,7 +1060,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setTitleDraft(snap?.title ?? detail.title);
       setContentDraft(snap?.content ?? detail.content_json);
       setCategoryDraft(snap?.category ?? (detail.category || ''));
-      setProjectDraft(detail.project_id);
+      setProjectDraft(snap ? snap.projectId : detail.project_id);
     }
     setAutoState('idle');
     setAutoErr(null);

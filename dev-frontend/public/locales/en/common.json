@@ -488,7 +488,12 @@
     "iosStep3": "Tap the new PlanQ icon — it opens like an app",
     "menuStep1": "Tap the browser menu (︙ / ⋯ / ⓘ)",
     "menuStep2": "Choose \"Add to Home Screen\" / \"Install app\"",
-    "menuStep3": "Tap the new PlanQ icon — it opens like an app"
+    "menuStep3": "Tap the new PlanQ icon — it opens like an app",
+    "getBetaApp": "Get the app (beta)",
+    "getApp": "Get the app",
+    "betaDesc": "Install the iOS beta right away through TestFlight.",
+    "nativeDesc": "Installing the app also makes notifications more reliable.",
+    "homeScreenInstead": "Add to home screen instead"
   },
   "notifPrompt": {
     "title": "Enable notifications",
@@ -988,7 +993,7 @@
   },
   "cuePanel": {
     "empty": "Ask about what you are looking at. You can add tasks and events here too.",
-    "placeholder": "Ask Cue (⌘/Ctrl+Enter)",
+    "placeholder": "Ask Cue (Enter to send · Shift+Enter for a new line)",
     "aria": "Ask Cue",
     "send": "Ask",
     "sending": "…"

@@ -127,6 +127,8 @@ export default function CuePanelSection({ surface, subjectId, location, contextP
     //     되돌릴 수 없는 것(청구서 발행 등)에 적용되는 것이지, 대화 입력에 적용되는 규칙이 아니다.
     //   ※ isEnterAction 은 한글 조합 중 Enter(확정)를 걸러낸다 — 그것 없이 바꾸면 한글 사용자가
     //     마지막 글자를 확정하는 순간 전송된다(utils/imeKey).
+    // Enter=보내기 / Shift+Enter=줄바꿈. placeholder 문구도 이 동작을 그대로 말해야 한다
+    // (2026-09-03 — 동작은 Enter 인데 안내는 ⌘/Ctrl+Enter 라고 적혀 있었다).
     if (isEnterAction(e) && !e.shiftKey) { e.preventDefault(); chat.submit(); }
   }, [chat]);
 
@@ -159,7 +161,7 @@ export default function CuePanelSection({ surface, subjectId, location, contextP
             e.target.style.height = ''; e.target.style.height = `${Math.min(120, e.target.scrollHeight)}px`;
           }}
           onKeyDown={onKey}
-          placeholder={t('cuePanel.placeholder', 'Cue 에게 물어보기 (⌘/Ctrl+Enter)') as string}
+          placeholder={t('cuePanel.placeholder', 'Cue 에게 물어보기 (Enter 로 보내기 · Shift+Enter 줄바꿈)') as string}
           aria-label={t('cuePanel.aria', 'Cue 에게 물어보기') as string}
         />
         <SendBtn type="button" onClick={() => chat.submit()} disabled={!chat.input.trim() || chat.submitting}>

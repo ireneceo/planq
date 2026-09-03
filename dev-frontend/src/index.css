@@ -38,6 +38,37 @@ html, body {
   --pq-safe-bottom: env(safe-area-inset-bottom, 0px);
   --pq-mobile-header: 56px;
   --pq-mobile-chrome: calc(var(--pq-mobile-header) + var(--pq-safe-top));
+
+  /* ─── z-index 층 (단일 원천) ───────────────────────────────────────────
+     왜 토큰인가: 값이 60종까지 갈라져 있었고 최댓값이 2147483000 이었다. 각자 "내가 제일 위"
+     로 올린 결과라, 무엇이 무엇을 덮는지 코드로는 알 수 없었다. 실제 증상 —
+     좌측 리스트 접기 화살표(FloatingPanelToggle)가 **표 편집 바 위**로 올라와 버튼을 가렸다
+     (Irene 2026-09-03: "여전히 메뉴닫는 세로 화살표 아래로 보여").
+     원인은 화살표가 높아서가 아니라 표 편집 바에 z-index 가 아예 없어서였다 — TipTap v3
+     BubbleMenu 래퍼는 position:absolute 만 주고 z-index 를 주지 않는다(실측).
+
+     층의 순서(낮은 것부터):
+       page-sticky  본문 안에서 붙어 있는 것 (에디터 툴바·표 헤더)
+       panel-handle 패널 접기 화살표 — 본문 위, 그러나 그 위에 뜨는 것에는 전부 진다
+       editor-bubble 커서를 따라다니는 편집 컨트롤 (표·이미지 버블) — 화살표를 덮어야 한다
+       app-chrome   모바일 헤더·앱 사이드바
+       overlay      드로어·우측 도크
+       modal        모달과 그 backdrop
+       toast        토스트·알림
+     새 값을 직접 쓰지 말고 여기에 층을 추가한다. */
+  --pq-z-page-sticky: 5;
+  --pq-z-panel-handle: 90;
+  --pq-z-editor-bubble: 95;
+  --pq-z-app-chrome: 100;
+  --pq-z-overlay: 130;
+  --pq-z-modal: 300;
+  --pq-z-toast: 3000;
+}
+
+/* 에디터 버블(표·이미지 편집 컨트롤) — TipTap 이 만드는 래퍼 div 에 붙는다.
+   래퍼는 우리 컴포넌트가 아니라서 styled-components 로는 못 잡는다. className 으로만 닿는다. */
+.pq-editor-bubble {
+  z-index: var(--pq-z-editor-bubble);
 }
 
 /* 네이티브 WebView 고무줄(overscroll bounce) 차단 — 앱 셸이 아닌 화면(로그인·가입·공개)도 포함.

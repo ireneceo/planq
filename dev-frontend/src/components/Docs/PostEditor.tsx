@@ -394,7 +394,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
         </Toolbar>
       )}
       {editable && (
-        <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
+        <BubbleMenu className="pq-editor-bubble" editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
           <ImgSizeBubble>
             <ImgSizeBtn type="button" $active={editor.getAttributes('image').width === '33%'}
               onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().updateAttributes('image', { width: '33%' }).run(); }}>S</ImgSizeBtn>
@@ -407,7 +407,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
       )}
       {/* 표 안에 커서가 있을 때 떠오르는 행/열 컨트롤 — 툴바 끝 버튼은 발견이 어려워 추가 (Notion 패턴) */}
       {editable && (
-        <BubbleMenu editor={editor} shouldShow={({ editor: ed }) => ed.isActive('table')}>
+        <BubbleMenu className="pq-editor-bubble" editor={editor} shouldShow={({ editor: ed }) => ed.isActive('table')}>
           <TableBubble>
             <TableBubbleGroup>
               <TableBubbleBtn type="button" title={t('editor.table.addColLeft', '왼쪽에 열 추가') as string}
