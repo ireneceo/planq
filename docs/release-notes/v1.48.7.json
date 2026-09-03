@@ -1,0 +1,24 @@
+{
+  "version": "1.48.7",
+  "date": "2026-09-03",
+  "items": [
+    {
+      "ko": { "title": "링크로 들어온 고객이 답글을 메일로 받을 수 있습니다",
+        "body": "채팅 링크를 받아 들어온 분은 지금까지 답이 왔는지 알 방법이 없었습니다. 글을 남기고 창을 닫으면, 담당자가 답을 해도 그 링크를 다시 눌러 봐야 알 수 있었습니다. 이제 원하시면 화면 위쪽에서 이름과 이메일을 남기고(메일로 오는 확인 코드 한 번) 답글이 올 때 알림을 받으실 수 있습니다. 등록은 선택이라 그냥 지금처럼 익명으로 쓰셔도 됩니다." },
+      "en": { "title": "Guests on a chat link can now get replies by email",
+        "body": "Until now, someone who came in through a chat link had no way to know a reply had arrived — they had to open the link again and check. They can now leave a name and email at the top of the screen (with one emailed verification code) and get notified when someone replies. It stays optional: without it, the chat works exactly as before." }
+    },
+    {
+      "ko": { "title": "알림 메일에는 대화 내용을 담지 않습니다",
+        "body": "메일함은 다른 사람이 볼 수도 있고 전달되기도 합니다. 그래서 알림 메일에는 '새 답글이 있습니다' 와 여는 버튼만 담고, 보낸 사람 이름도 본문도 넣지 않습니다. 확인 코드 메일에는 코드 외에 워크스페이스 이름이나 대화 제목조차 들어가지 않습니다. 알림은 언제든 그 화면에서 끄실 수 있고, 남긴 이름·이메일도 그 자리에서 지우실 수 있습니다." },
+      "en": { "title": "Notification emails never contain the conversation",
+        "body": "Inboxes get shared and forwarded, so the alert says only that there is a new reply, with a button to open it — no sender name, no message text. The verification email carries the code and nothing else, not even the workspace or conversation name. Alerts can be turned off from the same screen, and the name and email can be deleted there too." }
+    },
+    {
+      "ko": { "title": "담당자는 누가 이 링크를 쓰는지 볼 수 있습니다",
+        "body": "대화방의 게스트 링크 관리에 '답글 알림을 신청한 사람' 이 이름·이메일·확인 여부와 함께 표시됩니다. 한 사람만 따로 회수할 수도 있고, 링크 자체를 회수하면 그 아래 등록도 같이 닫힙니다." },
+      "en": { "title": "You can see who is using each guest link",
+        "body": "The guest link panel in a conversation now lists the people who signed up for reply alerts, with their name, address, and whether they verified it. You can revoke one person, and revoking the link closes everyone under it." }
+    }
+  ]
+}
