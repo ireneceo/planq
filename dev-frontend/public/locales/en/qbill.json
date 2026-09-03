@@ -898,6 +898,17 @@
       "hint": "You'll be taken to Stripe's secure checkout, and payment confirms instantly on completion.",
       "notConfigured": "Card payment isn't available yet. Please use bank transfer.",
       "failed": "Couldn't start the card payment. Please try again in a moment."
+    },
+    "senderInfo": "Supplier",
+    "sender": {
+      "name": "Company",
+      "taxId": "Business No.",
+      "ceo": "Representative",
+      "address": "Address",
+      "bizType": "Business type",
+      "bizItem": "Business item",
+      "phone": "Phone",
+      "email": "Email"
     }
   },
   "kind": {

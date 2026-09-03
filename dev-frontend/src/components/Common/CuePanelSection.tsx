@@ -119,8 +119,15 @@ export default function CuePanelSection({ surface, subjectId, location, contextP
   }, [cacheKey, setTurns]);
 
   const onKey = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter 단독 전송 금지 — 오발송 방지(UI_DESIGN_GUIDE 1.8). Ctrl/Cmd+Enter 만.
-    if ((e.metaKey || e.ctrlKey) && isEnterAction(e)) { e.preventDefault(); chat.submit(); }
+    // ★ 채팅 입력은 Enter 전송 · Shift+Enter 줄바꿈 (Irene 2026-09-03: "채팅솔루션들 모두 엔터가
+    //   보내기야 … 이거 모든 입력란에 통일하자"). Q talk · Cue 드로어 · Q note 질문줄 ·
+    //   Q task Cue바 · 게스트 채팅이 이미 그렇게 동작하는데 **이 패널만 ⌘+Enter 였다.**
+    //   같은 앱에서 어떤 Cue 는 Enter 로 가고 어떤 Cue 는 안 가면 그 자체가 고장으로 느껴진다.
+    //   ※ UI_DESIGN_GUIDE 1.8 의 "Enter 단독 저장 금지" 는 **생성·승인 같은 폼 액션** 규칙이다.
+    //     되돌릴 수 없는 것(청구서 발행 등)에 적용되는 것이지, 대화 입력에 적용되는 규칙이 아니다.
+    //   ※ isEnterAction 은 한글 조합 중 Enter(확정)를 걸러낸다 — 그것 없이 바꾸면 한글 사용자가
+    //     마지막 글자를 확정하는 순간 전송된다(utils/imeKey).
+    if (isEnterAction(e) && !e.shiftKey) { e.preventDefault(); chat.submit(); }
   }, [chat]);
 
   return (

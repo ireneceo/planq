@@ -148,10 +148,18 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
         </Field>
       </Section>
 
-      {/* 직접 발송 — 이미 제공 중 (Q mail) */}
+      {/* 직접 발송 — 이미 제공 중 (Q mail)
+          ★ 2026-09-03 (Irene): "자동발송 메일이 회사 메일함에 등록한 메일로 발송하면 되는 거 아니야?
+            왜 이런 안내가 있어?" — 이 화면이 **자동 발송**(위 섹션)과 **직접 발송**(이 섹션)을 나란히
+            놓고 구분을 안 해줘서, 계정을 연결하면 청구서도 그 주소로 나가는 것처럼 읽혔다.
+            실제로는 자동 발송은 언제나 PlanQ 가 보낸다(연결 계정을 쓰지 않는다).
+            정책은 그대로 두고 **문구가 사실을 말하게** 한다 —
+            남의 SMTP 로 자동 발송을 대신하면 SPF·DKIM·발송한도·실패 책임이 고객 설정마다 갈리고,
+            그래도 욕은 우리가 먹는다(Irene 판단 2026-09-03). */}
       <Section>
-        <SectionTitle>{t('email.send.title', '본인 메일 직접 발송')}</SectionTitle>
+        <SectionTitle>{t('email.send.title', '본인 메일 직접 발송 (Q mail)')}</SectionTitle>
         <SectionDesc>{t('email.send.desc', 'Gmail / 회사 SMTP 계정을 연결하면 Q mail에서 직접 작성·답장·전달할 수 있습니다.')}</SectionDesc>
+        <ScopeNote>{t('email.send.scopeNote', '이 연결은 사람이 직접 쓰는 메일에만 쓰입니다. 청구서·알림 같은 자동 발송은 연결과 무관하게 PlanQ 가 보내며, 위에서 설정한 표시이름과 회신 주소가 적용됩니다.')}</ScopeNote>
       </Section>
     </Wrap>
   );
@@ -169,6 +177,12 @@ const Section = styled.section`
 `;
 const SectionTitle = styled.h3`font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;`;
 const SectionDesc = styled.div`font-size: 0.75rem; color: #64748B;`;
+// 자동 발송과 직접 발송의 경계를 한 줄로 — 이 구분이 없어서 오해가 났다
+const ScopeNote = styled.div`
+  margin-top: 8px; padding: 8px 10px; border-radius: 6px;
+  background: #F8FAFC; border: 1px solid #E2E8F0;
+  font-size: 0.75rem; line-height: 1.6; color: #475569;
+`;
 const StatusBox = styled.div<{ $ok: boolean }>`
   display: flex; align-items: center; gap: 10px;
   padding: 12px 14px; border-radius: 10px;

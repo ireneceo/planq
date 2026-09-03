@@ -58,6 +58,15 @@ interface PublicInvoice {
     swift_code?: string;
     bank_name_en?: string;
     bank_account_name_en?: string;
+    // 2026-09-03 — 여태 응답에 없어서 그릴 수가 없던 것들 (Irene: "회사 정보 다 들어있는데도")
+    tax_id?: string | null;          // 사업자등록번호 (받는 쪽 recipient_business_number 와 짝)
+    biz_ceo_en?: string | null;
+    address?: string | null;
+    address_en?: string | null;
+    biz_type?: string | null;        // 업태
+    biz_item?: string | null;        // 종목
+    phone?: string | null;
+    email?: string | null;
   } | null;
   source_post: { id: number; category: string; title: string; share_token: string | null } | null;
   receipt?: {
@@ -435,6 +444,42 @@ const PublicInvoicePage: React.FC = () => {
             </InstallList>
           )}
         </Card>
+
+        {/* 공급자 정보 — 운영 신고 2026-09-03 (Irene): "청구내용에 워크스페이스 회사정보가
+            받는 쪽 처럼 제대로 정보가 있어야 하는데 회사이름이랑 국민은행이라고 은행이름만 나와."
+            원인은 두 겹이었다 — ① 응답이 주소·전화·사업자번호를 안 실었고 ② 화면은 은행 블록만 그렸다.
+            PDF 는 이미 같은 항목을 그리고 있었으므로(pdfTemplates.js) 위계를 그대로 맞춘다.
+            ★ 빈 값은 줄 자체를 없앤다 — 빈 라벨이나 대시를 남기면 "정보 없는 회사" 로 보인다. */}
+        {(() => {
+          const sd = invoice.sender;
+          if (!sd) return null;
+          const foreign = invoice.currency !== 'KRW';
+          const rows: Array<[string, string]> = [];
+          const nm = (foreign && sd.biz_name_en) || sd.biz_name || sd.name;
+          if (nm) rows.push([t('public.sender.name', '상호') as string, nm]);
+          if (sd.tax_id) rows.push([t('public.sender.taxId', '사업자등록번호') as string, sd.tax_id]);
+          if (sd.biz_ceo) rows.push([t('public.sender.ceo', '대표자') as string, (foreign && sd.biz_ceo_en) || sd.biz_ceo]);
+          const addr = (foreign && sd.address_en) || sd.address;
+          if (addr) rows.push([t('public.sender.address', '주소') as string, addr]);
+          if (!foreign && sd.biz_type) rows.push([t('public.sender.bizType', '업태') as string, sd.biz_type]);
+          if (!foreign && sd.biz_item) rows.push([t('public.sender.bizItem', '종목') as string, sd.biz_item]);
+          if (sd.phone) rows.push([t('public.sender.phone', '전화') as string, sd.phone]);
+          if (sd.email) rows.push([t('public.sender.email', '이메일') as string, sd.email]);
+          if (rows.length <= 1) return null;   // 상호만 있으면 이미 헤더에 있다 — 중복 블록을 만들지 않는다
+          return (
+            <Section>
+              <SectionTitle>{t('public.senderInfo', '공급자') as string}</SectionTitle>
+              <BankCard data-testid="invoice-sender-info">
+                {rows.map(([label, val]) => (
+                  <BankRow key={label}>
+                    <BankLabel>{label}</BankLabel>
+                    <BankValue>{val}</BankValue>
+                  </BankRow>
+                ))}
+              </BankCard>
+            </Section>
+          );
+        })()}
 
         {/* 입금 안내 */}
         {invoice.sender?.bank_name && (

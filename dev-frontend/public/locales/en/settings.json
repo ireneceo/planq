@@ -112,8 +112,9 @@
       "replyToHint": "Customer replies land here. If blank, replies are not possible."
     },
     "send": {
-      "title": "Send via your own mail",
-      "desc": "Connect your Gmail / company SMTP to compose, reply, and forward directly in Q mail."
+      "title": "Send from your own mailbox (Q mail)",
+      "desc": "Connect Gmail or a company SMTP account to compose, reply, and forward directly in Q mail.",
+      "scopeNote": "This connection is used only for mail you write yourself. Automated mail (invoices, notifications) is always sent by PlanQ, using the sender name and reply-to address set above."
     },
     "signature": {
       "label": "Workspace email signature",

@@ -9,6 +9,7 @@
 // invoice 를 함께 사용한다(파일명·헤더 구성).
 
 const { Invoice, InvoiceItem, InvoiceInstallment, Client, Business } = require('../models');
+const { SENDER_ATTRIBUTES } = require('./invoiceSender');
 
 async function buildInvoicePdf(invoiceId) {
   const invoice = await Invoice.findByPk(invoiceId, {
@@ -19,8 +20,10 @@ async function buildInvoicePdf(invoiceId) {
     ],
   });
   if (!invoice) throw new Error('not_found');
+  // ★ 템플릿(pdfTemplates.js:142-147)은 업태·종목·전화·이메일을 이미 그리는데, 여기서 **안 읽어와서**
+  //   그 줄들이 죽은 코드였다(2026-09-03 실측). 공용 목록으로 바꿔 살린다.
   const business = await Business.findByPk(invoice.business_id, {
-    attributes: ['name', 'brand_name', 'legal_name', 'legal_name_en', 'tax_id', 'representative', 'address', 'address_en', 'bank_name', 'bank_account_number', 'bank_account_name', 'swift_code', 'bank_name_en', 'bank_account_name_en'],
+    attributes: [...SENDER_ATTRIBUTES],
   });
   const { invoicePdfHtml } = require('./pdfTemplates');
   const { renderPdfFromHtml } = require('./pdfService');

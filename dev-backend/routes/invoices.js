@@ -6,6 +6,8 @@ const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 const { buildInvoicePdf } = require('../services/invoicePdf');
 // 증빙 종류 판정 단일 원천 — 증빙 큐(대시보드 인박스·Q Bill 증빙 탭)와 상세 표시가 갈라지지 않게 공용.
 const { receiptKindOf, payerCodeOf, resolveReceiptProfile } = require('../services/receiptsDue');
+// 공급자(보내는 쪽) 정보 — 청구서 응답·PDF·메일이 **같은 함수**를 쓴다 (2026-09-03)
+const { senderBlockOf, SENDER_ATTRIBUTES } = require('../services/invoiceSender');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
 const { isStripeEnabled } = require('../services/stripeService'); // Q Bill 워크스페이스 카드결제 활성 판정
 const { authenticateToken, optionalAuth, checkBusinessAccess } = require('../middleware/auth');
@@ -172,8 +174,12 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
       await logBillEvent('invoice', invoice.id, 'viewed', { detail: { first: isFirstView }, dedupeWindowMs: 60 * 60 * 1000 });
     }
     // 발신자 워크스페이스 (공개 페이지 용 최소 정보)
+    // ★ 읽어오는 컬럼 목록도 공용이다 — 여기가 진짜 원인이었다.
+    //   tax_id·address·phone·email·biz_type·biz_item 을 **조회조차 하지 않아서**
+    //   senderBlockOf 가 아무리 잘 만들어도 값이 undefined 였다.
+    //   (memory feedback_column_reference_must_exist — 안 읽은 컬럼은 조용히 없는 값이 된다)
     const business = await Business.findByPk(invoice.business_id, {
-      attributes: ['id', 'name', 'brand_name', 'legal_name', 'legal_name_en', 'representative', 'bank_name', 'bank_account_number', 'bank_account_name', 'swift_code', 'bank_name_en', 'bank_account_name_en'],
+      attributes: ['id', ...SENDER_ATTRIBUTES],
     });
     // 출처 문서 (있다면 제목만)
     let sourcePost = null;
@@ -246,19 +252,10 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
         tax_invoice_file: !!invoice.tax_invoice_file_id,
         cash_receipt_file: !!invoice.cash_receipt_file_id,
       },
-      sender: business ? {
-        name: business.brand_name || business.name,
-        biz_name: business.legal_name,
-        biz_name_en: business.legal_name_en,
-        biz_ceo: business.representative,
-        bank_name: business.bank_name,
-        bank_account_number: business.bank_account_number,
-        bank_account_name: business.bank_account_name,
-        // 해외 송금용 (외화 청구서 시 노출)
-        swift_code: business.swift_code,
-        bank_name_en: business.bank_name_en,
-        bank_account_name_en: business.bank_account_name_en,
-      } : null,
+      // ★ 공급자 정보 공식은 services/invoiceSender.senderBlockOf 하나뿐이다 (2026-09-03).
+      //   여기에 사본을 두면 PDF·메일과 조용히 갈라진다 — 실제로 갈라져 있었다:
+      //   주소·전화·이메일·업태·종목·사업자등록번호가 이 응답에만 없어서 화면이 그릴 수가 없었다.
+      sender: senderBlockOf(business),
       source_post: sourcePost,
     };
     successResponse(res, safe);
