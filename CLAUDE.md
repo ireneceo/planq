@@ -4,7 +4,8 @@
 
 **PlanQ** — B2B SaaS 업무 전용 고객 채팅 + 실행 구조 통합 OS
 - 브랜드: Plan + Cue(실행 신호) + Queue(업무 정리)
-- "요청은 Queue로, 실행은 Cue로."
+- 슬로건 — 메인 "일을 일답게 하다, PlanQ" / 서브 "일이 일이되지 않게, PlanQ"
+  (구 버전 "요청은 Queue로, 실행은 Cue로" 는 **폐기**. 정본은 memory `project_brand_concept`)
 - 핵심 기능: Q Talk(대화), Q Task(할일), Q Note(음성/요약), Q File(자료), Q Bill(청구)
 
 ### 역할 체계
