@@ -17,7 +17,7 @@ import AudioUploadModal from './AudioUploadModal';
 import { getDefaultLanguageFromBrowser } from '../../constants/languages';
 import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
-import { useAuth, getAccessToken } from '../../contexts/AuthContext';
+import { useAuth, getAccessToken, apiFetch } from '../../contexts/AuthContext';
 import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -294,6 +294,19 @@ const QNotePage = () => {
   const panel = usePanelStack(!!urlSessionId, false, () => navigate('/notes'));
   // 사이클 N+14 — visibility 변경 모달 + 에러 표시
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
+  // ★ 공개 범위 모달에 넘길 프로젝트 목록 (Irene 2026-09-03: "특정 프로젝트 검색 안되고 공개범위
+  //   변경 기능이 제대로 작동 안해"). 여태 `projects={[]}` 로 **빈 배열이 하드코딩**돼 있어
+  //   L2 를 고르려 해도 후보가 하나도 없었다. NewNoteModal 과 같은 엔드포인트를 쓴다.
+  const [visProjects, setVisProjects] = useState<Array<{ id: number; name: string }>>([]);
+  useEffect(() => {
+    if (!visibilityModalOpen || !businessId) return;
+    let alive = true;
+    apiFetch(`/api/projects?business_id=${businessId}&limit=200`)
+      .then((r) => r.json())
+      .then((j) => { if (alive && j?.success) setVisProjects((j.data || []).map((p: { id: number; name: string }) => ({ id: p.id, name: p.name }))); })
+      .catch(() => { /* 실패하면 목록이 빈 채로 — L2 는 못 고르지만 나머지 범위는 바꿀 수 있다 */ });
+    return () => { alive = false; };
+  }, [visibilityModalOpen, businessId]);
   // 사이클 N+24 — review 모드 헤더 버튼 모달 state
   // N+88 — 인라인 영속 요약 (review 상시 표시). 생성/재요약 시 activeSession.summary_* 갱신.
   const [summarizing, setSummarizing] = useState(false);
@@ -1328,7 +1341,6 @@ const QNotePage = () => {
     setPhase('review');
     setPendingConfig(null);
     void releaseLockIfHeld();
-    loadSessions();
     if (sid != null) {
       void (async () => {
         try {
@@ -1336,11 +1348,22 @@ const QNotePage = () => {
           const refreshed = await getSession(sid);
           // 종료 후 다른 세션으로 이동했으면 덮어쓰지 않음
           setActiveSession((prev) => (prev && prev.id === sid ? refreshed : prev));
+          // ★ 목록도 같이 갱신한다 (운영 신고 2026-09-03 — Irene: "녹음 종료 했는데도 리스트에 녹음중이라고 나와").
+          //   여태 activeSession 만 고쳐서, 상세는 종료로 바뀌는데 **왼쪽 목록의 빨간 '녹음 중' 뱃지는 그대로**였다.
+          //   DB 는 completed 로 잘 바뀌어 있었다(운영 세션 50 실측) — 화면만 옛 값을 들고 있었다.
+          setSessions((prev) => prev.map((x) => (x.id === sid ? { ...x, ...refreshed } : x)));
           speakersRef.current = refreshed.speakers || [];
         } catch (err) {
           console.error('End meeting background refresh failed:', err);
+        } finally {
+          // ★ 전체 재조회는 **상태를 바꾼 뒤에** 한다.
+          //   옛 코드는 이 호출이 updateSession 보다 **먼저** 있어서, 목록을 아직 'recording' 인
+          //   상태로 다시 읽어왔다. 순서가 뒤집혀 있었던 것이 이 버그의 절반이다.
+          loadSessions();
         }
       })();
+    } else {
+      loadSessions();
     }
   };
 
@@ -3182,16 +3205,24 @@ const QNotePage = () => {
         onStart={handleSaveSessionEdit}
       />
       {/* 사이클 N+14 — visibility 변경 모달 (통합 컴포넌트 사용) */}
+      {/* ★ 세 인자가 모두 빠져 있어 L2 가 구조적으로 불가능했다 (Irene 신고 2026-09-03):
+            ① canChooseL2 가 **이미 연결된 세션**만 허용 → 연결할 방법이 없으니 영영 false
+            ② projects 가 빈 배열로 하드코딩 → 고를 후보 0개
+            ③ onConfirm 이 projectId 를 **안 보냄** → 골라도 백엔드가 project_id_required_for_L2 로 거절
+            셋 다 고친다. 정상 사례는 components/Docs/PostsPage.tsx 의 같은 모달 사용부. */}
       {activeSession && (
         <VisibilityChangeModal
           open={visibilityModalOpen}
           current={(activeSession.visibility as VLevel) || 'L1'}
-          canChooseL2={!!activeSession.project_id}
-          projects={[]}
-          onConfirm={async ({ level }) => {
+          canChooseL2
+          projects={visProjects}
+          onConfirm={async ({ level, projectId }) => {
             setVisibilityError(null);
             try {
-              const updated = await changeSessionVisibility(activeSession.id, { visibility: level });
+              const updated = await changeSessionVisibility(activeSession.id, {
+                visibility: level,
+                ...(level === 'L2' && projectId ? { project_id: projectId } : {}),
+              });
               setActiveSession(updated);
               setSessions((prev) => prev.map((s) => (s.id === updated.id ? { ...s, visibility: updated.visibility, project_id: updated.project_id } : s)));
             } catch (e) {
