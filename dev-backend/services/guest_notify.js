@@ -54,6 +54,14 @@ async function notifyGuestsOfReply(message) {
 
     const conversation = await Conversation.findByPk(message.conversation_id);
     if (!conversation) return 0;
+    // ★ 킬스위치는 **2단(플랫폼 → 워크스페이스)** 이고, 여기도 둘 다 봐야 한다.
+    //   처음엔 워크스페이스만 봤다 — 플랫폼 스위치를 내려도 **메일은 계속 나갔다**(Fable 실측).
+    //   그 메일 속 링크는 열리지 않으므로(읽는 문은 둘 다 본다) 사용자에게는
+    //   "알림은 오는데 눌러도 안 열린다" 가 된다. 사고를 멈추려고 내린 스위치가
+    //   사고를 한 겹 더 만드는 셈이다. 못 읽으면 "모름" 이고, 모르면 안 보낸다(fail-closed).
+    const { PlatformSetting } = require('../models');
+    const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
+    if (!platform || platform.guest_links_enabled !== true) return 0;
     const biz = await Business.findByPk(conversation.business_id, {
       attributes: ['id', 'name', 'brand_name', 'deleted_at', 'guest_links_enabled'],
     });

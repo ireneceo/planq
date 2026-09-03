@@ -229,13 +229,11 @@ async function ensurePersonalLink({ parentLink, email, name = null, locale = nul
     return { link: existing, token: null, revoked: false };
   }
 
-  // 이 사람 몫의 신원. 대화 참여자로도 등록해야 목록·안읽음이 이 사람을 안다.
-  const guestUser = await ensureShadowUser();
-  await ConversationParticipant.findOrCreate({
-    where: { conversation_id: parentLink.conversation_id, user_id: guestUser.id },
-    defaults: { conversation_id: parentLink.conversation_id, user_id: guestUser.id, role: 'client' },
-  });
-
+  // ★ 신원은 **확인을 마친 뒤** 만든다(`promotePersonalIdentity`). 여기서 만들면
+  //   ①확인도 안 한 사람 몫의 User 행이 신청 수만큼 쌓이고, ②그림자 User 생성이 bcrypt 라
+  //   **신규 주소만 400ms 가 더 걸려** 응답 시간으로 "이 주소가 여기 등록돼 있나" 를 읽을 수
+  //   있다(Fable 실측: 회수 주소 14~44ms vs 신규 ~400ms). 본문을 똑같이 맞춰 놓고
+  //   시간으로 새면 열거를 막은 것이 아니다. 그때까지는 부모의 익명 신원을 그대로 쓴다.
   // 아무도 갖지 않는 값 — 이 해시에 대응하는 원문은 이 함수 밖으로 나가지 않는다.
   const placeholder = generateToken();
   const link = await GuestLink.create({
@@ -243,7 +241,8 @@ async function ensurePersonalLink({ parentLink, email, name = null, locale = nul
     conversation_id: parentLink.conversation_id,
     project_id: parentLink.project_id,
     client_id: parentLink.client_id,
-    guest_user_id: guestUser.id,               // ★ 자기 신원(부모의 익명 무리와 분리)
+    guest_user_id: parentLink.guest_user_id,   // 확인 전까지는 부모의 익명 신원
+    email_verified_at: null,
     token_hash: hashToken(placeholder),
     token_hint: '------',                      // 확인 전에는 보여줄 힌트가 없다
     can_write: parentLink.can_write,           // 권한은 부모를 넘지 않는다(판정은 resolve 에서)
@@ -256,6 +255,25 @@ async function ensurePersonalLink({ parentLink, email, name = null, locale = nul
     locale: locale ? String(locale).slice(0, 5) : null,
   });
   return { link, revoked: false };
+}
+
+/**
+ * 확인을 마친 사람에게 **자기 신원**을 준다 — 그림자 User + 대화 참여자 행.
+ *
+ * ★ 부모의 그림자는 그 링크로 들어온 **모두**가 함께 쓰는 익명 신원이다. 그것을 계속 쓰면
+ *   ①§8 승격(게스트→고객)이 그 사람 하나가 아니라 무리 전체를 올리고 ②`is_mine` 이
+ *   남이 쓴 글까지 자기 글로 보여 준다.
+ * ★ 대신 **확인 직전에 익명으로 쓴 자기 글은 남의 글처럼 보이게 된다** — 신원이 그때
+ *   갈리기 때문이다. 과거를 소급해 고치지 않는 쪽을 택했다(기록은 쓴 시점의 것이다).
+ */
+async function promotePersonalIdentity(link) {
+  const guestUser = await ensureShadowUser();
+  await ConversationParticipant.findOrCreate({
+    where: { conversation_id: link.conversation_id, user_id: guestUser.id },
+    defaults: { conversation_id: link.conversation_id, user_id: guestUser.id, role: 'client' },
+  });
+  await link.update({ guest_user_id: guestUser.id });
+  return guestUser;
 }
 
 /**
@@ -300,5 +318,6 @@ module.exports = {
   SLIDING_TTL_MS, hashToken, generateToken, visibleToGuest,
   OTP_TTL_MS, OTP_MAX_ATTEMPTS, OTP_LOCK_MS, NOTIFY_COOLDOWN_MS,
   generateOtpCode, normalizeEmail, ensurePersonalLink, mintPersonalToken, personalTokenFor,
+  promotePersonalIdentity,
   resolveGuestToken, ensureShadowUser, issueGuestLink,
 };

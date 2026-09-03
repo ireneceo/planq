@@ -79,6 +79,8 @@
     "errCode": "That code doesn't match. {{left}} attempts left",
     "errLocked": "Too many attempts. Please try again in 30 minutes.",
     "errTooMany": "Too many requests. Please try again shortly.",
-    "errFailed": "Something went wrong. Please try again shortly."
+    "errFailed": "Something went wrong. Please try again shortly.",
+    "errCodePlain": "That code doesn't match.",
+    "unsubHint": "Tap “Turn off alerts” below and we'll stop emailing you."
   }
 }

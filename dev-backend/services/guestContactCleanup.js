@@ -104,4 +104,20 @@ async function runGuestContactCleanup(now = new Date()) {
   return stats;
 }
 
-module.exports = { runGuestContactCleanup, UNVERIFIED_TTL_MS, RETENTION_MS };
+/**
+ * **지금 이 자리에서** 한 사람의 흔적을 지운다 — 본인이 화면에서 "지우기" 를 눌렀을 때.
+ *
+ * ★ cron 에 맡길 수 없다. cron 은 `contact_email` 이 남아 있는 행에서 주소를 모으는데,
+ *   삭제는 그 컬럼을 즉시 NULL 로 만든다 — 그러면 그 주소는 **영원히 마스킹 대상이 아니다**
+ *   (Fable 실측: 삭제 31일 뒤에도 email_logs 에 주소가 그대로 남았다).
+ *   본체를 지우고 로그에 남기면 안 지운 것이다.
+ */
+async function purgeContactNow(link) {
+  if (!link) return { email_logs: 0 };
+  const email = link.contact_email;
+  await link.update({ ...PII_CLEARED, revoked_at: link.revoked_at || new Date() });
+  const n = email ? await maskEmailLogs([email]).catch(() => 0) : 0;
+  return { email_logs: n };
+}
+
+module.exports = { runGuestContactCleanup, purgeContactNow, UNVERIFIED_TTL_MS, RETENTION_MS };

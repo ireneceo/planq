@@ -97,8 +97,13 @@ router.post('/:token/notify/request', ...otpRequestGuards, async (req, res, next
 
     const code = generateOtpCode();
     const privacy = await PlatformSetting.findOne({ attributes: ['privacy_version'] }).catch(() => null);
+    // ★ **확인이 끝난 등록의 이름은 남이 못 바꾼다.** 링크와 주소만 알면 신청을 한 번 더
+    //   보내는 것으로 `contact_name` 을 갈아치울 수 있었다(Fable 실측: Fable A → IMPOSTOR,
+    //   확인 상태는 그대로). 멤버 화면에는 그 이름이 "확인된 사람" 으로 뜬다 —
+    //   #259 에서 이미 난 "제3자가 고객 본인처럼 보인다" 와 같은 모양이다.
+    const nameToKeep = link.email_verified_at ? link.contact_name : (name || link.contact_name);
     await link.update({
-      contact_name: name || link.contact_name,
+      contact_name: nameToKeep,
       otp_hash: hashToken(code),
       otp_sent_at: new Date(),
       otp_expires_at: new Date(Date.now() + OTP_TTL_MS),
@@ -127,10 +132,22 @@ router.post('/:token/notify/request', ...otpRequestGuards, async (req, res, next
 
 // ── POST /:token/notify/verify — 코드 확인 ────────────────────────────────
 router.post('/:token/notify/verify',
-  guestLimiter('guest-notify-verify', { windowMs: 60 * 60 * 1000, max: 10 }), attachGuest, async (req, res, next) => {
+  attachGuest,
+  // ★ 링크 단위로 걸면 안 된다 — 링크를 아는 아무나 오답 10번으로 **카톡방 전원의 확인을
+  //   1시간 막는다**(Fable 실측: 내 잠금 테스트가 이것 때문에 OTP 5회 잠금에 닿지도 못했다).
+  //   틀린 코드를 막는 일은 OTP 5회 잠금이 하고, 여기서는 주소별로만 상한을 둔다.
+  otpLimit('gn-vpair', {
+    windowMs: 60 * 60 * 1000, max: 20,
+    key: (r) => `gn-v-${String(r.params.token).slice(0, 32)}-${bodyEmail(r)}`,
+  }),
+  otpLimit('gn-vip', { windowMs: 60 * 60 * 1000, max: 60, key: (r) => `gn-vi-${ipKeyGenerator(r.ip)}` }),
+  async (req, res, next) => {
   try {
     const { GuestLink } = require('../models');
-    const { normalizeEmail, hashToken, mintPersonalToken, OTP_MAX_ATTEMPTS, OTP_LOCK_MS } = require('../services/guest_link');
+    const {
+      normalizeEmail, hashToken, mintPersonalToken, promotePersonalIdentity,
+      OTP_MAX_ATTEMPTS, OTP_LOCK_MS,
+    } = require('../services/guest_link');
     const email = normalizeEmail(req.body?.email);
     const code = String(req.body?.code || '').trim();
     if (!email || !/^\d{4,8}$/.test(code)) return errorResponse(res, 'invalid_code', 400);
@@ -166,6 +183,8 @@ router.post('/:token/notify/verify',
     // ★ 첫 확인일 때만 토큰을 만든다. 이미 확인된 링크를 회전시키면 지난 알림 메일의
     //   링크가 전부 죽는다 — 사용자에게는 "링크가 만료됐다" 로 보인다.
     const first = !link.email_verified_at;
+    // 신원은 여기서 갈린다 — 확인 전에는 부모의 익명 신원을 쓰고 있었다(열거 타이밍·쓰레기 행 방지).
+    if (first) await promotePersonalIdentity(link);
     const minted = first ? await mintPersonalToken(link) : null;
     await link.update({
       email_verified_at: link.email_verified_at || new Date(),
@@ -232,15 +251,10 @@ router.delete('/:token/notify',
   try {
     const link = ownPersonalLink(req);
     if (!link) return errorResponse(res, 'not_found', 404);
-    await link.update({
-      contact_name: null, contact_email: null, email_verified_at: null,
-      otp_hash: null, otp_sent_at: null, otp_expires_at: null,
-      otp_attempts: 0, otp_locked_until: null,
-      consent_at: null, consent_privacy_version: null,
-      unsubscribed_at: new Date(), last_notified_at: null,
-      // 연락처가 없는 개인 링크는 존재 이유가 없다 — 토큰도 같이 닫는다.
-      revoked_at: new Date(),
-    });
+    // ★ 지우는 목록을 여기 또 적지 않는다 — 보관기간 cron 과 갈라지는 순간 한쪽이 덜 지운다.
+    //   같은 함수를 부른다. 발송 기록의 수신 주소까지 **그 자리에서** 가린다.
+    const purged = await require('../services/guestContactCleanup').purgeContactNow(link);
+    void purged;
     try { require('../services/guest_notify').invalidateGuestCache(link.conversation_id); } catch { /* 캐시일 뿐이다 */ }
     return successResponse(res, { deleted: true });
   } catch (err) { next(err); }

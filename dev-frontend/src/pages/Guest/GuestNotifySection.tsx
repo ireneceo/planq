@@ -106,7 +106,9 @@ export default function GuestNotifySection({ token, onGone }: Props) {
       if (r.status === 429) { setErr(t('notify.errLocked', { defaultValue: '시도가 많아 잠시 잠겼어요. 30분 뒤에 다시 해주세요.' }) as string); return; }
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) {
-        setErr(t('notify.errCode', { left: '', defaultValue: '코드가 맞지 않아요.' }) as string);
+        // ★ 남은 횟수를 서버가 알려주지 않는다(알려주면 그것도 열거 신호다). 그러니
+        //   "남은 시도 회" 처럼 빈 자리가 남는 문구를 쓰지 않는다.
+        setErr(t('notify.errCodePlain', { defaultValue: '코드가 맞지 않아요.' }) as string);
         return;
       }
       // ★ 원문 토큰은 **여기 한 번**만 온다. 재확인이면 null 이므로 옛 값을 지우지 않는다.
@@ -154,8 +156,12 @@ export default function GuestNotifySection({ token, onGone }: Props) {
             ? t('notify.off', { defaultValue: '답글 알림 꺼짐' })
             : t('notify.on', { email: me.email || '', defaultValue: '답글 알림 켜짐' })}
         </Line>
+        {/* 메일의 '알림 그만 받기' 로 들어온 자리 — 여기서 끄라고 말해 준다.
+            전에는 등록 안내문(notify.lead)을 띄워서, 끄러 온 사람에게 신청을 권했다. */}
         {unsubAsked && !me.unsubscribed && (
-          <Line style={{ color: '#0F766E' }}>{t('notify.lead', { defaultValue: '' })}</Line>
+          <Line style={{ color: '#0F766E' }}>
+            {t('notify.unsubHint', { defaultValue: '아래 “알림 끄기” 를 누르면 더 이상 메일을 보내지 않습니다.' })}
+          </Line>
         )}
         <Row>
           {me.unsubscribed ? (
