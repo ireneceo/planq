@@ -2,8 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- ★ 2026-09-04 — en 이면 WKWebView 의 navigator.language 가 기기 언어와 무관하게 en 이 된다.
+	     그래서 아이폰이 한국어여도 앱만 영어로 떴다. 기본 지역을 ko 로 두고 지원 언어를 명시한다. -->
 	<key>CFBundleDevelopmentRegion</key>
-	<string>en</string>
+	<string>ko</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>ko</string>
+		<string>en</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>PlanQ</string>
 	<key>CFBundleExecutable</key>

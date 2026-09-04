@@ -66,7 +66,10 @@ const LeftSection = styled.div`
 
   @media (max-width: 768px) {
     /* 모바일 — 짧은 헤더로 (로고만). 폼이 주인. */
-    padding: 24px 24px 20px;
+    /* ★ 헤더가 없는 화면이라 상단 안전영역을 **여기서** 비켜줘야 한다.
+       노치(47~59px) 아래로 로고가 내려오지 않으면 잘려 보인다(2026-09-04 Irene 신고).
+       웹·PWA 는 --pq-safe-top 이 0 이라 회귀 0. */
+    padding: calc(24px + var(--pq-safe-top, 0px)) 24px 20px;
     min-height: auto;
     flex: 0 0 auto;
   }

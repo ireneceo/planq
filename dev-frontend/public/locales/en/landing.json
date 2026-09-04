@@ -11,7 +11,7 @@
     "toApp": "My workspace",
     "menu": "Menu",
     "service": "Services",
-    "beta": "App beta",
+    "beta": "App",
     "app": "Get the app"
   },
   "hero": {
@@ -989,26 +989,26 @@
     }
   },
   "betaPage": {
-    "eyebrow": "BETA",
-    "title": "Try the PlanQ app early",
-    "sub": "This is a beta ahead of the public release. Tell us what gets in your way and we'll fix it.",
+    "eyebrow": "APP",
+    "title": "Use PlanQ as an app",
+    "sub": "Everything you do on the web, with faster notifications.",
     "ios": {
       "name": "iPhone · iPad",
-      "how": "TestFlight is installed alongside. Open the link to join."
+      "how": "Takes you to the install screen. Follow the prompts to install."
     },
     "android": {
       "name": "Android",
-      "how": "Takes you to the Google Play testing page."
+      "how": "Takes you to the Google Play install page."
     },
-    "join": "Get the beta",
+    "join": "Install",
     "soon": "Coming soon",
-    "soonHow": "The join link appears here once review is complete.",
+    "soonHow": "The install link appears here once it's ready.",
     "thisDevice": "Your device",
     "loading": "Loading…",
-    "error": "We couldn't load the join details right now. Please try again shortly.",
+    "error": "We couldn't load the install details right now. Please try again shortly.",
     "faq": {
-      "q1": "Is the beta free?",
-      "a1": "Yes. There's no charge for using the app during the beta.",
+      "q1": "Does the app cost extra?",
+      "a1": "No. The app is included in your PlanQ subscription — same account, same plan as the web. There's nothing extra to pay for the app.",
       "q2": "Will my existing data be there?",
       "a2": "Sign in with the same account and you'll see exactly what you see on the web. Nothing to migrate.",
       "q3": "How do I report a problem?",

@@ -14,6 +14,9 @@ const jwt = require('jsonwebtoken');
 const { User, Business, BusinessMember, OauthConnection, sequelize } = require('../models');
 const { cookieSecure } = require('../services/authTokens');
 const googleOauthLogin = require('../services/google_oauth_login');
+// ★ 2026-09-04: 이 줄이 없어서 아래 호출이 ReferenceError 였다 —
+//   네이티브 구글 로그인이 catch 로 떨어져 **매번 웹 로그인 화면으로** 돌아갔다.
+const { sendNativeReturn } = require('../utils/nativeReturn');
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
 const { helpers } = require('./auth');
 const { createRefreshTokenRow, generateAccessToken, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND, setSessionHint } = helpers;
@@ -225,6 +228,16 @@ router.get('/google/callback', async (req, res) => {
           picture: profile.picture,
           exp: Date.now() + 5 * 60 * 1000,
         });
+        // ★ 2026-09-04 — 네이티브 분기가 없어서 이 경로가 **앱에서 막혀 있었다.**
+        //   기존 회원이 구글로 로그인하면(= 아직 연결 안 된 계정) 여기로 오는데, 웹 경로로
+        //   302 하면 그 확인 화면이 **시스템 브라우저 안에** 뜬다. 거기서 확인을 눌러도
+        //   세션 쿠키는 그 브라우저에 심기고 앱 WebView 는 아무것도 못 받는다
+        //   (Irene: "구글로 연결하는 과정이 전에 있었고 이미 했었어. 그런데 지금 전후 엉망이야").
+        //   → 앱으로 먼저 돌아간 뒤, 앱 WebView 안에서 확인 화면을 연다. 그래야 쿠키가 앱에 심긴다.
+        if (isNativeOAuth(req)) {
+          res.clearCookie('oauth_native', { path: '/api/auth' });
+          return sendNativeReturn(res, { confirm: confirmToken });
+        }
         return res.redirect(302, `/oauth/connect-confirm?token=${confirmToken}&email=${encodeURIComponent(profile.email)}&existing_email=${encodeURIComponent(prospectUser.email)}&name=${encodeURIComponent(profile.name || '')}`);
       }
       // [분기 3] 둘 다 없음 → 신규 가입 (기존 로직 그대로)
@@ -285,8 +298,8 @@ router.get('/google/callback', async (req, res) => {
     if (isNativeOAuth(req)) {
       res.clearCookie('oauth_native', { path: '/api/auth' });
       const code = issueNativeOAuthCode(user);
-      // 커스텀 스킴으로 복귀 — 같은 도메인 302 는 iOS Universal Link 를 발화시키지 못한다(utils/nativeReturn).
-      return res.redirect(302, nativeReturnUrl({ code, new: isNewUser ? '1' : '0' }));
+      // 302 가 아니라 HTML 착지 — SFSafariViewController 는 커스텀 스킴 **리다이렉트를 무시**한다.
+      return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' });
     }
 
     // refresh_token cookie 발급 (옛 /login 패턴 정합) — AuthContext 가 mount 시 자동 refresh

@@ -489,9 +489,9 @@
     "menuStep1": "Tap the browser menu (︙ / ⋯ / ⓘ)",
     "menuStep2": "Choose \"Add to Home Screen\" / \"Install app\"",
     "menuStep3": "Tap the new PlanQ icon — it opens like an app",
-    "getBetaApp": "Get the app (beta)",
+    "getBetaApp": "Get the app",
     "getApp": "Get the app",
-    "betaDesc": "Install the iOS beta right away through TestFlight.",
+    "betaDesc": "Install the PlanQ app on iPhone and iPad.",
     "nativeDesc": "Installing the app also makes notifications more reliable.",
     "homeScreenInstead": "Add to home screen instead"
   },

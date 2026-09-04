@@ -52,7 +52,8 @@ const LeftSection = styled.div`
   /* 모바일: 폼이 먼저 보이도록 브랜드 헤더를 컴팩트하게. FeatureList 는 숨김
      (회원가입 란이 위 마케팅에 밀려 안 보인다는 피드백). */
   @media (max-width: 768px) {
-    padding: 24px 24px 20px;
+    /* 로그인과 같은 이유 — 헤더 없는 화면이라 상단 안전영역을 여기서 비켜준다(2026-09-04) */
+    padding: calc(24px + var(--pq-safe-top, 0px)) 24px 20px;
   }
 `;
 

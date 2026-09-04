@@ -24,6 +24,8 @@ const personalCalendar = require('../services/personalCalendar');
 const personalDrive = require('../services/personalDrive');
 const { encrypt } = require('../services/encryption');
 const { logOauthFailure } = require('../utils/oauthLog');
+// ★ 2026-09-04: auth_oauth.js 와 같은 결함 — import 가 없어 호출 시 ReferenceError 였다.
+const { sendNativeReturn } = require('../utils/nativeReturn');
 
 // 본인이 해당 워크스페이스 멤버인지 검증 (owner 도 business_members 행 보유 — 확인됨)
 async function assertBusinessMember(req, bizId) {
@@ -39,12 +41,12 @@ const PERSONAL_PROVIDERS = ['google_calendar', 'google_drive', 'gmail'];
 //   NativeBridge 의 appUrlOpen 이 시스템 브라우저를 닫은 뒤 'planq:oauth-connected' 를 발행한다.
 //   (로그인 OAuth 와 같은 통로. 같은 도메인 302 로는 iOS UL 이 안 열린다 — utils/nativeReturn 주석)
 function nativeReturnRedirect(res, { ok, provider, error }) {
-  return res.redirect(302, nativeReturnUrl({
+  return sendNativeReturn(res, {
     kind: 'connect',
     provider: provider || '',
     ok: ok ? '1' : '0',
     error: error ? String(error).slice(0, 120) : '',
-  }));
+  });
 }
 
 function personalCallbackHtml({ ok, provider, title, body }) {

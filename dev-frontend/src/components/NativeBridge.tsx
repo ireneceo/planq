@@ -113,6 +113,14 @@ export default function NativeBridge() {
                 }));
                 return;
               }
+              // ★ 2026-09-04 — 기존 회원의 구글 "연결 확인". 서버가 앱으로 먼저 돌려보내고
+              //   확인 화면은 **앱 WebView 안에서** 연다(세션 쿠키가 앱에 심겨야 하므로).
+              //   시스템 브라우저에서 확인시키면 쿠키가 거기 심겨 앱은 계속 로그인 화면에 머문다.
+              const confirmToken = u.searchParams.get('confirm');
+              if (confirmToken) {
+                window.location.href = `/oauth/connect-confirm?token=${encodeURIComponent(confirmToken)}`;
+                return;
+              }
               const code = u.searchParams.get('code');
               if (code) {
                 try {

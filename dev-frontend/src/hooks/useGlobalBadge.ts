@@ -45,6 +45,13 @@ async function applyBadge(count: number) {
 export function useGlobalBadge(inboxCount: number, chatUnread: number) {
   const prevTotalRef = useRef<number | null>(null);
   const totalRef = useRef<number>(0);
+  // ★ 2026-09-04 (Irene: "앱을 닫지도 않고 접어만 놔도 앱에 표시되던 숫자 알림이 없어져")
+  //   아래 visibility 재적용이 **카운트가 도착하기 전에도** 0 을 적용해 배지를 지웠다.
+  //   순서: 앱 시작(카운트 0, prevTotal=0 기록) → 백그라운드에서 푸시 도착(배지 3) →
+  //   앞으로 나옴 → visibilitychange → applyBadge(0) → Badge.clear().
+  //   "아직 모른다(0)" 와 "확인해보니 0 이다" 는 다른 상태다. 실제 갱신을 한 번이라도
+  //   받은 뒤에만 재적용한다. 재적용의 원래 목적(SW 가 남긴 stale 배지 덮어쓰기)은 유지된다.
+  const hasRealUpdateRef = useRef(false);
 
   useEffect(() => {
     const total = (inboxCount || 0) + (chatUnread || 0);
@@ -57,6 +64,7 @@ export function useGlobalBadge(inboxCount: number, chatUnread: number) {
     // 변경 시 즉시 setAppBadge — 마크 리드 직후 dock 즉시 갱신 보장.
     if (prevTotalRef.current === total) return;
     prevTotalRef.current = total;
+    hasRealUpdateRef.current = true;   // 실제 갱신을 받았다 — 이제 0 도 신뢰할 수 있다
     applyBadge(total);
   }, [inboxCount, chatUnread]);
 
@@ -64,7 +72,8 @@ export function useGlobalBadge(inboxCount: number, chatUnread: number) {
   // setAppBadge 했다 하더라도 client active 되면 즉시 정답 값으로 덮어쓰기.
   useEffect(() => {
     const reapply = () => {
-      if (document.visibilityState === 'visible' && prevTotalRef.current !== null) {
+      // 실제 갱신 전에는 손대지 않는다 — 0 은 "없다" 가 아니라 "아직 모른다" 이다.
+      if (document.visibilityState === 'visible' && hasRealUpdateRef.current) {
         applyBadge(totalRef.current);
       }
     };
