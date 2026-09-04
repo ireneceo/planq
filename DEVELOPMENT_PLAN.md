@@ -1,8 +1,53 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-04 (Opus 5, 1M) — **v1.48.8 운영 배포 · 커밋 2건 · 운영 피드백 9건 정리** — 주제는 **"올린 장부와 내린 장부가 달랐다"** 였다. ①**앱 아이콘 배지**가 "아예 없어진다"는 재신고를 운영 숫자로 갈랐다 — 그 시점 채팅 안읽음 0 · 인박스 확인필요 0 · **안 읽은 알림 17건**. 배지를 세우는 것은 알림인데 앱이 배지를 내릴 때 세던 것은 인박스+채팅이었다. 그래서 앱을 여는 순간 0 이 계산돼 `Badge.clear()` 가 **정상 동작으로** 불렸다. `notifications.read_at IS NULL` 단일 원천으로 고정하고, "아직 모른다(0)" 와 "확인해보니 0" 을 값 추측이 아니라 `loaded` 신호로 갈랐다. ②**#404** 업무 첨부가 이름을 누르면 곧장 내려받았다 — Q File 은 이미 `PreviewArea` 로 여는데 업무 첨부만 규칙이 갈라져 있었다. ③**#405** 탭 저장 키에 워크스페이스가 없어 전 워크스페이스가 탭 한 벌을 공유했다. ④**#403** 반복 업무 적용 범위 물음이 **업무 상세에만** 있었다(8/31 수정 → 9/3 재신고의 이유). ⑤**#406** 은 화면을 좌표로 재서 고쳤다 — 폰에서 셀렉트 표시글자만 16px 로 튀고(자동확대 방지 바닥값이 표시 슬롯까지 걸려 있었다), 헤더 아이콘이 32 대 44 로 어긋났으며(전 페이지 공통), 메일 목록 상단 세 줄이 화면의 48% 를 먹었다. ⑥**#353 · #233 · #379 는 이미 구현돼 있었다** — 실 HTTP 와 운영 데이터로 확인했다(운영에 Drive watch 채널이 살아 있고 Drive 유래 파일 43건). **장부만 열려 있었다.**
+> **최종 업데이트:** 2026-09-04 (Opus 5, 1M) — **운영 배포 4회(v1.48.8~11) · 운영 피드백 14건 → 3건** — ①**앱 배지**: 사라지는 신고를 고치면서 내가 **정의를 알림 수로 갈아치웠다.** 요청받은 적 없는 변경이었고 좌측 메뉴 2 · 아이콘 17 이 됐다. `3679ce3d` 의 정본(인박스+Q Talk)으로 되돌리고, 진짜 결함 하나만 남겼다 — **앱을 열 때마다 카운트 도착 전에 `clearAppBadge()` 가 먼저 불리고 있었다**(대조군으로 확정). 지난번 수정이 안 먹힌 이유도 여기서 드러났다: 그건 첫 마운트 한 번만 막았다. ②**보관기간**: 방침이 약속한 플랜별 기간을 코드가 한 곳에서도 읽지 않았다(`plans.js` 읽는 코드 0곳, `AuditLog.destroy` 0곳 = 영구 보관). Fable 설계로 **래칫 업**(기록 시점 약속과 현재 플랜 중 긴 쪽)을 도입해 다운그레이드 절벽을 원천 차단하고, 1단계는 **삭제 0**으로 냈다. 운영 리포트 2회 0건 확인 후 실삭제를 켰다. ③**`paginatedResponse` 가 추가 키를 버리고 있었다** — 호출부가 넘기던 `retention_days` 가 한 번도 나간 적이 없어 화면은 요금제와 무관하게 30 을 단언했다. ④**휴지통 복원이 껍데기를 돌려줬다** — Q info 는 검색 청크를, Q docs 는 첨부를 휴지통행 **전에** 하드 삭제하고 있었다. ⑤#233·#343·#379 를 "큰 3건" 이라 보고했는데 **셋 다 이미 구현돼 있었다**(운영에 Drive watch 채널 생존·Drive 유래 파일 43건). 장부만 열려 있었다. ⑥운영 FCM 을 켜 안드로이드 알림이 나간다.
 
-## ✅ 완료: v1.48.8 — 배지 단일 장부 · 운영 피드백 정리 (2026-09-04 배포)
+## ✅ 완료: v1.48.8~11 — 피드백 정리 · 배지 원복 · 보관기간 이행 (2026-09-04)
+
+### 배포별
+
+| 버전 | 내용 |
+|---|---|
+| v1.48.8 | #403 반복 적용범위(진입점 3곳 통일) · #404 첨부 열기 · #405 탭 워크스페이스 분리 · #406 모바일 정리 · #360 표 진입로 · #343 뱃지 정합 |
+| v1.48.9 | 배지 규칙 원복 + 앱 열 때 배지를 먼저 지우던 것 |
+| v1.48.10 | 보관기간 이행 1단계(삭제 0) · 운영 FCM |
+| v1.48.11 | 휴지통 복원 온전성 |
+
+### 대조군으로 증명한 것
+
+| 무엇 | 가드 없음 | 가드 있음 |
+|---|---|---|
+| 앱 배지 첫 로드 | `clear` → `set 35` | `set 35` |
+| 휴지통 복원 후 청크 | **0** | 1 |
+| 보관기간 삭제(dev) | — | 후보 165 → 삭제 165 → 재실행 0(멱등) |
+
+### 보관기간 — 운영 실측
+
+pro 휴지통 90일·감사 3년 / enterprise 365일·7년 / starter 14일·90일. 지금까지는 **전 요금제 30일 고정**이었다.
+운영 백필: 감사 222건 워크스페이스 귀속 복원(post 212·task 10) · 스탬프 967 · NULL 226 → 4.
+실삭제 켠 뒤 삭제 **0건** — Fable 예측과 일치.
+
+### 남은 것
+
+- **assetlinks 지문** — Play Console 앱 서명 SHA-256 (업로드 키 아님)
+- **iOS 배포 범위** 결정
+- 피드백 3건 — 전부 Q Sale 계열
+
+### 수정된 파일
+- `dev-backend/services/{retentionPolicy,retentionPurge,auditService,uploadCleanup}.js` (신규 2)
+- `dev-backend/routes/{files,file_trash,content_trash,posts,kb,tasks,task_tags,projects,notifications}.js`
+- `dev-backend/models/{AuditLog,File,Post,KbDocument}.js` · `middleware/errorHandler.js` · `server.js`
+- `dev-backend/scripts/{backfill-audit-retention,backfill-trash-purge-after,retention-report}.js` (신규 3)
+- `dev-frontend/src/hooks/{useGlobalBadge,useInboxCount,useNotifications}.ts` · `stores/tabStore.ts`
+- `dev-frontend/src/components/Common/{AttachmentPreviewDrawer,PlanQSelect,PushPromptBanner}.tsx`
+- `dev-frontend/src/utils/taskSeries.ts` · `services/{files,posts}.ts` · `locales/{ko,en}/legal.json`
+- `scripts/{health-check,guard-invariants,schema-snapshot.json}`
+
+---
+
+## 이전 기록
+
+## ✅ 완료: v1.48.8 상세 (2026-09-04)
 
 **주제: "배지를 올린 것과 내린 것이 서로 다른 장부를 봤다."**
 
