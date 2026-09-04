@@ -103,7 +103,7 @@ workflows:
   # ─────────────────────────────────────────────────────────────────────
   android-play:
     name: PlanQ Android — Play (운영 planq.kr)
-    instance_type: linux_x2
+    instance_type: mac_mini_m2   # linux_x2 는 유료 플랜 전용 — 현재 요금제에서 거부된다(2026-09-04 실측)
     max_build_duration: 60
     environment:
       android_signing:
