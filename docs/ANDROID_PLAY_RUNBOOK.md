@@ -1,6 +1,6 @@
 # 안드로이드 · 구글플레이 출시 런북
 
-**최종 갱신 2026-09-03.** 이 문서는 "다음에 무엇을 어디서 어떻게" 만 적는다.
+**최종 갱신 2026-09-04.** 이 문서는 "다음에 무엇을 어디서 어떻게" 만 적는다.
 이미 끝난 것을 다시 하라고 안내하지 않기 위해 **끝난 것 / 남은 것**을 나눠 둔다.
 
 ---
@@ -23,60 +23,17 @@
 | AI asset declaration | **Don't label assets** (생성형 AI 이미지 없음) |
 | 스토어 자산 | `/opt/planq/store-assets/` — 아이콘 512×512 · 피처 1024×500 · 폰 6장 1080×1920 · tab7 6장 1920×1080 · tab10 6장 2560×1440 |
 | 앱 내 결제 표면 봉쇄 | `dev-frontend/src/utils/purchase.ts` — 네이티브에서 구매 버튼·모달·유도문구 전부 미노출 |
+| **Firebase 등록** | 2026-09-04 완료 — 프로젝트 `PlanQ` / ID `planq-48cf7` / 번호 `463247676987`. **애널리틱스 끔** |
+| **FCM 서버 설정** | `dev-backend/secrets/fcm-service-account.json`(600) + `.env` 2줄. OAuth 토큰 발급 성공, 발송 경로 `404 unregistered` 로 확인 |
+| **`google-services.json`** | `dev-frontend/android/app/` (644). 두 파일 모두 `.gitignore` 등재 |
 
 ---
 
-## 남은 것 ① — Firebase 등록 (Irene, 브라우저)
+## 남은 것 — AAB 빌드와 릴리즈
 
-**왜 필요한가:** 안드로이드 푸시 알림은 FCM 을 거친다. 이 두 파일이 없으면 빌드는 되지만
-**알림이 한 통도 안 간다**(에러 없이 조용히 skip 된다 — `services/fcm_sender.js` `isFcmConfigured()`).
-iOS 는 APNs 로 따로 가므로 영향 없다.
+> Firebase 는 2026-09-04 에 끝났다. 서버는 알림을 보낼 수 있는 상태이고,
+> **실제 도착 확인은 앱을 기기에 설치한 뒤에만 가능하다**(기기 토큰이 그때 생긴다).
 
-### 1. 프로젝트 만들기
-
-1. **https://console.firebase.google.com** 접속 — **Play Console 과 같은 구글 계정**으로 로그인
-2. **`프로젝트 만들기`** 클릭
-3. 프로젝트 이름: **`PlanQ`** → `계속`
-4. **"이 프로젝트에서 Google 애널리틱스 사용 설정"** 토글을 **끈다** → `프로젝트 만들기`
-   > ★ 반드시 꺼야 한다. Play Data safety 에 **"분석 목적 수집 없음 · 광고 ID 사용 안 함"** 으로
-   > 신고했다. 애널리틱스를 켜면 그 신고가 거짓이 된다.
-
-### 2. 안드로이드 앱 등록 → `google-services.json`
-
-1. 프로젝트 개요 화면 가운데의 **안드로이드 아이콘**(초록 로봇) 클릭
-2. **Android 패키지 이름**: **`app.planq`** ← 정확히 이 값 (`capacitor.config.ts` `appId`, `android/app/build.gradle` `applicationId`)
-3. 앱 닉네임: `PlanQ Android` (선택)
-4. 디버그 서명 인증서 SHA-1: **비워 둔다** (구글 로그인을 네이티브로 안 쓴다)
-5. `앱 등록` → 다음 화면에서 **`google-services.json 다운로드`** 클릭
-6. 그 뒤 "Firebase SDK 추가" / "다음 단계" 안내는 **전부 건너뛴다** — Capacitor 가 이미 처리한다
-
-### 3. 서버용 서비스 계정 키
-
-1. 왼쪽 위 **톱니바퀴** → **`프로젝트 설정`**
-2. 상단 **`서비스 계정`** 탭
-3. **`새 비공개 키 생성`** → 확인 팝업에서 **`키 생성`** → JSON 파일이 내려온다
-
-### 4. 두 파일 전달
-
-| 파일 | 어디로 |
-|---|---|
-| `google-services.json` | `/opt/planq/dev-frontend/android/app/google-services.json` |
-| 서비스 계정 JSON | `/opt/planq/dev-backend/secrets/fcm-service-account.json` (권한 600) |
-
-**서비스 계정 JSON 을 채팅에 붙여넣지 말 것** — 개인키가 들어 있다.
-서버에 올려두고 경로만 알려주거나 파일로 전달한다.
-
-전달 후 lua 가 할 일 (사람 손 불필요):
-```bash
-# .env 두 줄 (dev-backend/.env · 운영도 같이)
-FCM_SERVICE_ACCOUNT_PATH=/opt/planq/dev-backend/secrets/fcm-service-account.json
-FCM_PROJECT_ID=<서비스계정 JSON 의 project_id>
-```
-그 뒤 `pm2 restart planq-dev-backend` → 실제 발송 테스트(`push_logs` 에 `sent` 확인).
-
----
-
-## 남은 것 ② — AAB 빌드와 릴리즈
 
 1. **Codemagic** 에서 워크플로 **`android-play`** 실행 (키스토어 `planq_upload` 등록돼 있음)
 2. Play Console → **Test and release** → 트랙 선택 → **`새 버전 만들기`** → AAB 업로드

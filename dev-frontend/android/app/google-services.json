@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "463247676987",
+    "project_id": "planq-48cf7",
+    "storage_bucket": "planq-48cf7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:463247676987:android:b69c6badd36857e399ae1e",
+        "android_client_info": {
+          "package_name": "app.planq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTdk14gPcGbysF_IJ-DGAfvDC-NWl3iik"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -43,10 +43,31 @@ if (fs.existsSync(ASSETLINKS)) {
   }
 }
 
-// FCM — 없으면 안드로이드 푸시가 **전혀** 가지 않는다. 빌드는 되므로 경고로만.
+// FCM — 없으면 안드로이드 푸시가 **전혀** 가지 않는다.
+//   Gradle 은 파일이 없으면 `logger.info` 한 줄 남기고 플러그인을 건너뛴다 —
+//   빌드는 초록불로 성공하고 알림만 죽는 조용한 실패다. Play 빌드(--expect-prod)에서는 막는다.
+//   Codemagic 은 git 저장소를 받아 빌드하므로 이 파일은 **커밋되어 있어야 한다**
+//   (비밀이 아니다 — APK 에 그대로 실려 나가고 설치본에서 추출된다).
 const GS = path.join(ROOT, 'dev-frontend/android/app/google-services.json');
-if (!fs.existsSync(GS)) {
-  warn.push('google-services.json 이 없습니다 — 안드로이드 OS 푸시 알림이 전혀 도착하지 않습니다.');
+const gsMissing = !fs.existsSync(GS);
+let gsProblem = gsMissing ? 'google-services.json 이 없습니다' : null;
+if (!gsMissing) {
+  try {
+    const gs = JSON.parse(fs.readFileSync(GS, 'utf8'));
+    const pkgs = (gs.client || []).map((c) => c.client_info.android_client_info.package_name);
+    if (!pkgs.includes(cfg.appId)) {
+      gsProblem = `google-services.json 의 패키지(${pkgs.join(', ') || '없음'})가 appId(${cfg.appId})와 다릅니다`;
+    } else {
+      console.log('  FCM project:', (gs.project_info || {}).project_id, '/ package:', pkgs.join(', '));
+    }
+  } catch (e) {
+    gsProblem = `google-services.json 을 읽을 수 없습니다 (${e.message})`;
+  }
+}
+if (gsProblem) {
+  const msg = gsProblem + ' — 안드로이드 OS 푸시 알림이 전혀 도착하지 않습니다.';
+  if (process.argv.includes('--expect-prod')) fail.push(msg);
+  else warn.push(msg);
 }
 
 // 버전 — Play 는 같은 versionCode 재업로드를 거부한다. 사람이 눈으로 보게 찍어준다.
