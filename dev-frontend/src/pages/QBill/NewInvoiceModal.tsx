@@ -90,6 +90,14 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   // 프로젝트 연결 — 프로젝트에서 발행 시 invoice.project_id 로 저장 + 그 프로젝트 채팅방 탐색
   const [projectId, setProjectId] = useState<number | null>(null);
   const [projectName, setProjectName] = useState<string>('');
+  // #211 ② — 이 프로젝트의 직전 청구 항목 · 기록된 시간. 청구서를 **처음부터 타이핑하지 않게** 한다.
+  //   ★ 직전 단가를 시간당 단가로 쓰지 않는다 — 이 팀의 청구는 월정액이라 그 값은 '월 사용료'다
+  //     (운영 실측: 모든 항목이 수량 1 × 단가). 시간은 별도 항목으로 **덧붙이고 단가는 사람이 친다.**
+  const [draft, setDraft] = useState<{
+    last_invoice: { id: number; title: string | null } | null;
+    last_items: { description: string; detail: string; quantity: number; unit_price: number }[];
+    time: { hours: number; tasks_total: number; tasks_with_time: number };
+  } | null>(null);
   // 외부 고객 직접 입력 (초대 없이 청구) — 운영 #1. 'client'=기존 고객 선택, 'external'=이름+이메일 직접
   const [recipientMode, setRecipientMode] = useState<'client' | 'external'>('client');
   const [extName, setExtName] = useState('');
@@ -370,6 +378,50 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   })), [sourceCandidates]);
 
   // ─── 액션 ───
+  // 프로젝트가 정해지면 초안 재료를 가져온다. 실패는 조용히 무시 — 없으면 안 보여주면 그만이다.
+  useEffect(() => {
+    let alive = true;
+    if (!projectId) { setDraft(null); return; }
+    (async () => {
+      try {
+        // 이 파일은 apiFetch 를 동적 import 로 쓴다(위 effect 들과 같은 방식).
+        const { apiFetch } = await import('../../contexts/AuthContext');
+        const r = await apiFetch(`/api/projects/${projectId}/billing-draft`);
+        if (!r.ok) { if (alive) setDraft(null); return; }
+        const j = await r.json();
+        if (alive) setDraft(j?.success ? j.data : null);
+      } catch { if (alive) setDraft(null); }
+    })();
+    return () => { alive = false; };
+  }, [projectId]);
+
+  /** 직전 청구 항목을 그대로 채운다(월정액 반복 청구). 비어 있던 첫 행은 버린다. */
+  const applyLastItems = () => {
+    if (!draft?.last_items?.length) return;
+    const rows = draft.last_items.map((it, i) => ({
+      id: Date.now() + i, description: it.description, detail: it.detail,
+      quantity: it.quantity, unit_price: it.unit_price,
+    }));
+    setItems(prev => {
+      const kept = prev.filter(x => x.description.trim() || x.unit_price > 0);
+      return [...kept, ...rows];
+    });
+  };
+
+  /** 기록된 시간을 항목 한 줄로 덧붙인다. **단가는 비워 둔다** — 사람이 정한다. */
+  const applyTimeItem = () => {
+    const h = draft?.time?.hours || 0;
+    if (h <= 0) return;
+    setItems(prev => {
+      const kept = prev.filter(x => x.description.trim() || x.unit_price > 0);
+      return [...kept, {
+        id: Date.now(),
+        description: t('newInvoice.draft.timeItemDesc', { defaultValue: '작업 시간' }) as string,
+        detail: '', quantity: h, unit_price: 0,
+      }];
+    });
+  };
+
   const addItem = () => setItems(arr => [...arr, { id: Date.now(), description: '', detail: '', quantity: 1, unit_price: 0 }]);
   const updateItem = (id: number, patch: Partial<Item>) =>
     setItems(arr => arr.map(it => it.id === id ? { ...it, ...patch } : it));
@@ -768,6 +820,33 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                 {t('newInvoice.items.addRow')}
               </AddRow>
             </SectionLabelRow>
+            {/* #211 ② — 시간과 직전 청구가 여기까지 오지 못하고 있었다(운영: invoices 에 시간 참조 0건).
+                기록률을 같이 보여주는 이유: 실제시간이 든 업무가 26% 뿐이라 숫자만 주면
+                **실제보다 적게 청구**하게 된다(memory feedback_actual_hours_focus_only). */}
+            {draft && (draft.last_items.length > 0 || draft.time.hours > 0) && (
+              <DraftBar>
+                {draft.last_items.length > 0 && (
+                  <DraftBtn type="button" onClick={applyLastItems}>
+                    {t('newInvoice.draft.useLast', { defaultValue: '직전 청구 항목 불러오기' })}
+                    <DraftMeta>{draft.last_items.length}건</DraftMeta>
+                  </DraftBtn>
+                )}
+                {draft.time.hours > 0 && (
+                  <DraftBtn type="button" onClick={applyTimeItem}>
+                    {t('newInvoice.draft.useTime', { defaultValue: '기록된 시간 추가' })}
+                    <DraftMeta>{draft.time.hours}h</DraftMeta>
+                  </DraftBtn>
+                )}
+                {draft.time.hours > 0 && (
+                  <DraftNote>
+                    {t('newInvoice.draft.coverage', {
+                      defaultValue: '업무 {{total}}건 중 {{with}}건에만 시간이 기록돼 있습니다 — 실제보다 적을 수 있습니다',
+                      total: draft.time.tasks_total, with: draft.time.tasks_with_time,
+                    })}
+                  </DraftNote>
+                )}
+              </DraftBar>
+            )}
             <ItemTable>
               <ItemHead>
                 <ItemHeadCell style={{ width: 28 }}>#</ItemHeadCell>
@@ -1209,6 +1288,23 @@ const Input = styled.input`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
   &:disabled { background: #F8FAFC; color: #94A3B8; cursor: not-allowed; }
 `;
+const DraftBar = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 0 0 10px; padding: 10px 12px;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 8px;
+`;
+const DraftBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 36px; padding: 0 12px; border-radius: 6px;
+  border: 1px solid #14B8A6; background: #fff; color: #0F766E;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer;
+  &:hover { background: #CCFBF1; }
+`;
+const DraftMeta = styled.span`font-size: 0.75rem; font-weight: 500; color: #64748B;`;
+const DraftNote = styled.div`
+  flex-basis: 100%; font-size: 0.75rem; line-height: 1.5; color: #64748B;
+`;
+
 // 항목 상세내용 (운영 #2) — 작은 회색 보조 입력, 자동 높이
 const DetailInput = styled.textarea`
   width: 100%; padding: 5px 10px; font-size: 0.75rem; color: #64748B;

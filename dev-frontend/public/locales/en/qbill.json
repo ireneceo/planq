@@ -551,7 +551,13 @@
       "deliverPublicOnly": "Public link only (manual delivery)"
     },
     "editTitle": "Edit Invoice",
-    "projectLinked": "This invoice will be linked to the project"
+    "projectLinked": "This invoice will be linked to the project",
+    "draft": {
+      "useLast": "Reuse last invoice items",
+      "useTime": "Add recorded time",
+      "timeItemDesc": "Work hours",
+      "coverage": "Time is recorded on {{with}} of {{total}} tasks — the total may be understated"
+    }
   },
   "payments": {
     "title": "Payments",

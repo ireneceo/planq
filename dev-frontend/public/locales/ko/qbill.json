@@ -551,7 +551,13 @@
       "deliverPublicOnly": "공개 링크만 생성 (수동 전달)"
     },
     "editTitle": "청구서 편집",
-    "projectLinked": "이 청구서는 프로젝트에 연결됩니다"
+    "projectLinked": "이 청구서는 프로젝트에 연결됩니다",
+    "draft": {
+      "useLast": "직전 청구 항목 불러오기",
+      "useTime": "기록된 시간 추가",
+      "timeItemDesc": "작업 시간",
+      "coverage": "업무 {{total}}건 중 {{with}}건에만 시간이 기록돼 있습니다 — 실제보다 적을 수 있습니다"
+    }
   },
   "payments": {
     "title": "결제 추적",
