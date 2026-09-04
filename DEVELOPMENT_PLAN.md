@@ -1,6 +1,107 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-03 (Opus 5, 1M) — **계정 삭제 안내 페이지 운영 배포 · 커밋 3건 · Fable 게이트 2회(FAIL 1 → 수정 → PASS 1)** — 주제는 **"200 은 열렸다는 뜻이 아니고, 내가 쓴 문구는 코드가 하는 일과 다르다"** 였다. ①구글플레이가 요구하는 **앱을 깔지 않고도 계정 삭제를 요청할 수 있는 공개 주소**(`/account-deletion`)를 만들어 배포했다. ②그 문구를 코드와 한 줄씩 대조했더니 **여섯 곳이 사실과 달랐다** — "구글 로그인 계정은 이메일 인증코드"(없는 절차, OAuth 는 지금도 400) · "IP 주소가 삭제된다"(익명화가 `audit_logs.ip_address` 를 안 건드리는데 같은 페이지 4항은 "30일~7년 보관" 이라 **자기모순**) · "외부 연동 즉시 해제"(요청 시점엔 토큰을 안 지운다) · "감사 로그는 기간이 지나면 삭제"(**지우는 코드가 0곳**, 영구 보관 중) · "휴지통 7~90일"(코드는 세 파일 모두 **30일 고정**) · "메시지 개별 삭제"(실제로는 마스킹). ③**Fable 게이트가 배포를 세웠다** — 캐시 없는 첫 방문에서 `/account-deletion`·`/privacy`·`/terms` 가 **15번 중 15번 "Something went wrong"** 이었다. i18n 리소스 도착 전 `t(...,{returnObjects:true})` 가 키 문자열을 주는데 `.map` 을 걸어서였고, **`/privacy`·`/terms` 는 2026-04-22 부터 그 상태**였다. 가입 화면과 푸터에서 링크되는 페이지다. ④**양성 대조군이 판정을 갈랐다** — 수정본 15/15 통과만으로는 하니스가 무뎌진 것과 구별이 안 되어, 운영의 미수정 `/privacy` 로 같은 하니스를 돌려 **4/5 크래시**를 확인하고서야 증명이 됐다. ⑤**정본이 두 곳이면 갈라진다** — 두 법적 페이지가 서로 다른 사람을 개인정보보호책임자로 적고 있었고(김미정 vs 이수민), 폐기된 슬로건이 CLAUDE.md 에 남아 **피처 그래픽에 그대로 박혔다**. 둘 다 원천을 하나로 묶었다.
+> **최종 업데이트:** 2026-09-04 (Opus 5, 1M) — **운영 배포 2회 · 커밋 9건 · Fable 게이트 2회(PASS 2)** — 주제는 **"만들어 놓고 연결하지 않으면 없는 것과 같다"** 였다. ①안드로이드를 **Play 내부 테스트까지** 올렸다(versionCode 15 · targetSdk 36 · 서명 확인 통과). 그 과정에서 **빌드는 초록불인데 조용히 죽는 결함 5건**이 연달아 나왔다 — `google-services.json` 이 저장소에 없어 알림 없는 AAB 가 나갈 뻔했고(Gradle 은 `logger.info` 한 줄만 남긴다), `build.gradle` 에 서명 설정이 없어 **서명 없는 AAB** 가 나올 수 있었고(Play 는 업로드에서 거부한다), macOS `sed -i` 문법 차이로 versionCode 치환이 죽었고, Play 연동이 없어 `get-latest-build-number` 가 **조용히 0** 을 줘 versionCode 가 영원히 1 이었다. 각각에 가드를 붙여 다시 못 지나가게 했다(가드는 전부 깨뜨려 확인). ②**런북의 낡은 기록이 나를 틀리게 만들었다** — 8/24 자 "APNs 미설정" 을 그대로 옮겨 **"iOS 푸시가 안 갑니다" 라고 운영에 반해 보고**했다. 운영 실측은 `push_logs` host=`apns` **sent 87건, 당일 05:01**. Irene 이 바로잡았다. ③그 대조 중에 진짜 미완이 나왔다 — 운영 `assetlinks.json` 지문이 **플레이스홀더 그대로**라 링크를 눌러도 안드로이드 앱이 안 열린다. ④**앱 받는 길이 없었다** — `/app` 라우트는 있는데 앱 어디에서도 링크가 0곳이었고, 버튼은 TestFlight 로 가면서 `Get it on the App Store` 라고 적혀 있었다. ⑤**iOS 앱을 고객처럼 새로 설치하자 5건이 쏟아졌다** — 그중 핵심은 `require` **한 줄 누락**이었다. `nativeReturnUrl` 을 import 하지 않은 채 호출해 ReferenceError → catch → 로그인 화면. 운영 에러 로그에 신고 시각과 같은 예외 3건이 남아 있었다(09:03:41 · 09:05:15 · 09:06:31 UTC). `7c452d04`(8/25) 이후 **11일간** 네이티브 구글 로그인이 죽어 있었다. ⑥**재설치가 가려져 있던 것을 드러냈다** — 앱에 남아 있던 `i18nextLng`·세션이 지워지자 "처음 오는 사람이 보는 화면" 이 처음 보였다. 어제 법적 페이지와 같은 계열이다.
+
+## ✅ 완료: iOS 앱 — 고객처럼 새로 설치하자 드러난 5건 (2026-09-04 배포)
+
+**주제: "import 한 줄이 없으면 기능은 조용히 죽는다."**
+
+Irene 이 TestFlight 로 앱을 **지우고 새로 받은 뒤** 신고한 것들이다. 내부 테스트 때는
+앱에 옛 상태(언어 설정·세션 쿠키)가 남아 있어 전부 가려져 있었다.
+
+### 완료된 작업
+
+| # | 증상 | 원인 | 상태 |
+|---|---|---|:--:|
+| 1 | 구글 로그인 끝나고 **다시 로그인 화면** | `routes/auth_oauth.js` 에 `require('../utils/nativeReturn')` **없음** → `nativeReturnUrl(` 호출이 ReferenceError → catch → `/login?oauth_error=…`. `external_connections.js` 동일 | ✅ |
+| 2 | 시스템 브라우저 창이 **안 닫힘** | iOS SFSafariViewController 는 **302 로 온 커스텀 스킴을 무시**한다. 주석의 "항상 앱으로 넘어간다" 는 측정된 사실이 아니었다 | ✅ |
+| 3 | 기존 회원 구글 **연결 전후가 엉망** | 연결 확인 분기에 네이티브가 없어 **웹 경로로 302** → 확인 화면이 시스템 브라우저에 뜨고 세션 쿠키가 거기 심긴다 | ✅ |
+| 4 | **앱만 영어** ("Sign in") | iOS 번들 `CFBundleDevelopmentRegion: en` · 지역화 선언 없음 → WKWebView `navigator.language` 가 기기 언어와 무관하게 `en` | ✅ |
+| 5 | 로고 상단 잘림 · 색이 덮음 | 안전영역 띠를 `z-index: 98` 로 콘텐츠 **위에** 그림. 헤더 없는 화면만 피해(아래쪽은 8/27 에 같은 이유로 -1) | ✅ |
+| 6 | 접어두면 **배지 숫자 사라짐** | 카운트 도착 전의 0 을 "없다" 로 읽어 `Badge.clear()` | ✅ |
+
+**2번 해결:** 302 대신 작은 HTML 을 돌려주고 그 안에서 `location.replace('planq://…')`.
+자동 이동이 막히는 환경을 위해 **사용자가 누를 수 있는 링크**도 남긴다 — 버튼이 없으면
+사용자가 할 수 있는 일은 창을 닫는 것뿐이다.
+
+**4번 해결:** Capacitor Device 로 기기 언어를 직접 읽어 보정. **앱은 운영 웹을 띄우는
+껍데기라 웹 배포만으로 반영된다**(재빌드 불필요). Info.plist 도 함께 고쳐 다음 빌드에 싣는다.
+
+### Fable 게이트가 증명한 것
+
+- **운영 에러 로그에 `ReferenceError: nativeReturnUrl is not defined` 3건** —
+  2026-09-04 09:03:41 · 09:05:15 · 09:06:31 UTC, **신고 시각과 일치**
+- `git log -S`: `7c452d04`(2026-08-25 08:59 UTC)에서 호출을 넣으며 import 를 빠뜨림 → **11일**
+  (내가 "한 번도 동작한 적 없다" 고 한 것은 과장이었다 — Fable 이 정정)
+- **양성 대조군으로 HEAD 버그 재현** — z-index 98 로 되돌리니 로고 상단 픽셀이 `#115E59`,
+  배지 훅은 데이터 도착 전 `clear` 호출. 하니스가 무딘 것이 아님을 증명
+- 일회용 code 평문 노출 판단: purpose 고정 JWT · 2분 · jti 1회성(재사용 401 실증) ·
+  HTTPS · `no-store` · 302 였어도 Location 헤더에 같은 값 → **허용**
+- 웹 회귀 0: 웹에서는 언어 보정이 아무 일도 안 하고, `--pq-safe-top` 이 0 이라 여백 변화 없음
+
+### 운영 실측 (배포 후)
+
+| 확인 | 결과 |
+|---|---|
+| 착지 페이지 (운영에서 실행) | **200 HTML** · `planq://` 링크 · 폴백 버튼 (302 아님) |
+| 웹 새 방문자(ko-KR) | `lng: ko` · "로그인" · 크래시 0 · pageerror 0 |
+| 네이티브 에뮬(노치 47px) | `::before` z-index **-1** · 로고 top **76** → 노치 아래, 안 잘림 |
+
+### 남은 것 (비차단)
+
+- **연결 확인으로 만든 세션은 30일** — `OauthConnectConfirmPage` POST 가 `X-Client-Kind` 를
+  안 보내 `client_kind='web'`. `native-exchange`(365일)와 불일치
+- **"설치 화면으로 이동" 을 누르면 애플의 TestFlight 안내가 뜬다** — 문구에서 TestFlight 를
+  다 걷어내서 예고가 없다. App Store 정식 출시 결정과 함께 정리할 항목
+
+---
+
+## ✅ 완료: 안드로이드 — Play 내부 테스트까지 (2026-09-04)
+
+**주제: "빌드가 초록불인 것은 올릴 수 있다는 뜻이 아니다."**
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|---|---|:--:|
+| Firebase 등록 | 프로젝트 `planq-48cf7` · 앱 `app.planq` · **애널리틱스 끔**(Data safety 신고 정합) | ✅ |
+| 개발서버 FCM | 서비스계정 키 배치(600) + `.env`. 구글에서 **실제 OAuth 토큰 발급 성공**, 발송 경로 `404 unregistered` 로 확인 | ✅ |
+| 업로드 키스토어 | RSA 4096 · 27년 · 서버 사본(`/opt/planq/secrets/`, 700/600) · Codemagic 등록 | ✅ |
+| AAB 빌드 → 내부 테스트 배포 | versionCode 15 · targetSdk 36 · 서명 확인 통과 · 테스터 등록 · 설치 링크 | ✅ |
+
+### 빌드가 초록불로 통과시킬 뻔한 것 5건 (전부 가드 추가)
+
+1. **`google-services.json` 이 저장소에 없었다** — Codemagic 은 git 에서 받는다. 없으면
+   Gradle 이 `logger.info` 한 줄 남기고 넘어가 **알림이 죽은 AAB 가 성공으로 나온다.**
+   → 파일을 커밋(비밀 아님, APK 에 그대로 실린다) + Play 빌드에서 **실패로 승격**
+2. **`build.gradle` 에 서명 설정이 없었다** — 키스토어를 등록해도 Gradle 이 모른다.
+   → `signingConfigs.release` + 빌드 끝에 `jarsigner -verify`(산출물로 판정)
+3. **`linux_x2` 는 유료 플랜 전용** — 무료는 macOS 만. iOS 빌드가 돌던 것이 근거였다
+4. **macOS `sed -i` 는 백업 확장자를 필수 인자로 받는다** — GNU 문법이 Mac 에서 죽었다.
+   임시파일 경유 + 치환 확인
+5. **`get-latest-build-number` 가 조용히 0 을 준다** — Play 연동이 없으면 실패하는데
+   `|| echo 0` 이 정상값처럼 받아 versionCode 가 **영원히 1**. → Codemagic 빌드번호와 큰 쪽
+
+### 남은 것
+
+- **운영서버 FCM 미설정** — `.env` 는 rsync 제외라 배포로 안 따라간다.
+  `bash /opt/planq/scripts/setup-prod-fcm.sh` (Irene 실행). 안 하면 **안드로이드 알림 0통**
+- **`assetlinks.json` 지문이 플레이스홀더** — 링크를 눌러도 앱이 안 열린다.
+  넣을 값은 업로드 키가 아니라 **Play App Signing 의 SHA-256**
+- Play **프로덕션 승격** — 같은 번들(15)을 그대로. 재빌드 불필요
+
+### 수정된 파일
+- `dev-backend/routes/{auth_oauth,external_connections}.js` · `utils/nativeReturn.js`
+- `dev-frontend/src/{i18n.ts,index.css}` · `components/NativeBridge.tsx` · `hooks/useGlobalBadge.ts`
+- `dev-frontend/src/pages/{Login/LoginPage,Register/RegisterPage,Landing/HomePage}.tsx`
+- `dev-frontend/src/components/Landing/LandingLayout.tsx` · `public/locales/{ko,en}/{landing,common,appdownload}.json`
+- `dev-frontend/{android/**,ios/App/App/Info.plist}` · `codemagic.yaml` · `scripts/{android-beta-check.js,setup-prod-fcm.sh}`
+- `docs/{ANDROID_PLAY_RUNBOOK,IOS_BETA_RUNBOOK}.md`
+
+---
+
+## 이전 기록
+
 
 ## ✅ 완료: 앱을 깔지 않고도 계정 삭제를 요청할 수 있다 — 스토어 공개 안내 페이지 (2026-09-03 배포)
 
