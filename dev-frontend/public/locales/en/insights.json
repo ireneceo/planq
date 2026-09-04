@@ -108,7 +108,10 @@
       "utilization": "Utilization",
       "issued": "Issued amount",
       "activeProjects": "Active projects",
-      "newClients": "New clients"
+      "newClients": "New clients",
+      "firstResponse": "First response time",
+      "firstResponseSamples": "Median across {{n}} client messages",
+      "firstResponseEmpty": "No client messages in this period"
     },
     "chart": {
       "trend": {
@@ -323,5 +326,13 @@
       "failed": "Failed"
     }
   },
-  "foreignLabel": "FX"
+  "foreignLabel": "FX",
+  "duration": {
+    "under1m": "under 1 min",
+    "min": "{{n}} min",
+    "hour": "{{h}} hr",
+    "hourMin": "{{h}} hr {{m}} min",
+    "day": "{{d}} d",
+    "dayHour": "{{d}} d {{h}} hr"
+  }
 }

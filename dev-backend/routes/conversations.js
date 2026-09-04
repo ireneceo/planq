@@ -1426,7 +1426,24 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
       await ConversationParticipant.destroy({ where: { conversation_id: convId }, transaction: t });
       // 4. task_candidates
       await TaskCandidate.destroy({ where: { conversation_id: convId }, transaction: t });
-      // 5. conversation 본체
+      // 5. 남은 참조 정리 — 이게 없어서 **삭제가 400(ERR_FK) 로 조용히 막혔다**(2026-09-04).
+      //    conversations 를 참조하는 테이블은 7개인데 여기서 정리하던 것은 3개뿐이었다.
+      //    운영 실측: 게스트링크가 붙은 방 1개 · 업무가 붙은 방 3개가 삭제 불가 상태였다.
+      //
+      //    성격이 갈린다 —
+      //    ① guest_links 는 **이 대화방에 들어오는 열쇠**다. 방이 사라지면 의미가 없고
+      //       컬럼도 NOT NULL 이라 지운다. 자식(kind='personal', parent_link_id 자기참조)을
+      //       먼저 지워야 자기참조 FK 에 걸리지 않는다.
+      //    ② tasks·posts·documents 는 **각자 사는 것**이다. 대화방에서 만들어졌을 뿐이라
+      //       같이 지우면 사용자의 업무·문서가 대화방 정리 한 번에 사라진다. 연결만 끊는다.
+      const { GuestLink, Task, Post, Document } = require('../models');
+      await GuestLink.destroy({ where: { conversation_id: convId, kind: 'personal' }, transaction: t });
+      await GuestLink.destroy({ where: { conversation_id: convId }, transaction: t });
+      for (const M of [Task, Post, Document]) {
+        if (!M) continue;
+        await M.update({ conversation_id: null }, { where: { conversation_id: convId }, transaction: t });
+      }
+      // 6. conversation 본체
       await conv.destroy({ transaction: t });
       await t.commit();
     } catch (e) {

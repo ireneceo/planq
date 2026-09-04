@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { fetchTab, type RangePreset, type StatsSegment } from '../../../services/insights';
 import {
   InsightRow, InsightCard, InsightStripe, InsightBody, InsightTitle, InsightValue, InsightHint, InsightAction,
-  KpiGrid, KpiCard, KpiLabel, KpiValueBig,
+  KpiGrid, KpiCard, KpiLabel, KpiValueBig, KpiHint,
   SectionLabel, SectionRow, DownloadBtn, DownloadIcon, ChartCard, ChartEmpty,
   SkeletonGrid, SkeletonCard, ErrorBanner,
   fmtMoney, fmtNum, fmtPct, CurrencyBreakdown,
@@ -22,9 +23,25 @@ interface Data {
     issued: { value: number | null; by_currency?: Record<string, number> };
     active_projects: { value: number | null };
     new_clients: { value: number | null };
+    /** #211 ④ — 고객이 말을 걸고 우리가 답하기까지(중앙값, 분). 표본 없으면 value=null */
+    first_response_minutes?: { value: number | null; samples?: number };
   };
   trend: { month: string; revenue: number; profit: number }[];
   insights: { severity: string; title: string; value: string; hint?: string; action_label?: string; action_link?: string }[];
+}
+
+/** 분 → 사람이 읽는 시간. 그대로 두면 "64743분" 이 화면에 나온다.
+ *  문구는 t() 로 — 시간 단위 표기는 언어마다 다르다(4시간/4 hr). */
+function fmtDuration(min: number | null | undefined, t: TFunction): string {
+  if (min == null) return '—';
+  if (min < 1) return t('duration.under1m');
+  if (min < 60) return t('duration.min', { n: Math.round(min) });
+  if (min < 60 * 24) {
+    const h = Math.floor(min / 60); const m = Math.round(min % 60);
+    return m ? t('duration.hourMin', { h, m }) : t('duration.hour', { h });
+  }
+  const d = Math.floor(min / (60 * 24)); const h = Math.round((min % (60 * 24)) / 60);
+  return h ? t('duration.dayHour', { d, h }) : t('duration.day', { d });
 }
 
 const OverviewTab: React.FC<{ businessId: number; range: RangePreset; segment?: StatsSegment }> = ({ businessId, range, segment = 'client' }) => {
@@ -72,6 +89,17 @@ const OverviewTab: React.FC<{ businessId: number; range: RangePreset; segment?: 
         <KpiCard><KpiLabel>{t('overview.kpi.issued', '발행 청구액')}</KpiLabel><KpiValueBig>{fmtMoney(data.kpis.issued.value, home)}</KpiValueBig><CurrencyBreakdown map={data.kpis.issued.by_currency} label={foreignLabel} /></KpiCard>
         <KpiCard><KpiLabel>{t('overview.kpi.activeProjects', '활성 프로젝트')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.active_projects.value)}</KpiValueBig></KpiCard>
         <KpiCard><KpiLabel>{t('overview.kpi.newClients', '신규 고객')}</KpiLabel><KpiValueBig>{fmtNum(data.kpis.new_clients.value)}</KpiValueBig></KpiCard>
+        {/* #211 ④ — "0분" 과 "잰 적이 없다" 는 다른 상태다. 표본 수를 같이 보여주고,
+            표본이 없으면 왜 비었는지 말한다(빈 값만 두면 고장으로 읽힌다). */}
+        <KpiCard>
+          <KpiLabel>{t('overview.kpi.firstResponse', '첫 응답 시간')}</KpiLabel>
+          <KpiValueBig>{fmtDuration(data.kpis.first_response_minutes?.value, t)}</KpiValueBig>
+          <KpiHint>
+            {data.kpis.first_response_minutes?.samples
+              ? t('overview.kpi.firstResponseSamples', '고객 문의 {{n}}건 기준 (중앙값)', { n: data.kpis.first_response_minutes.samples })
+              : t('overview.kpi.firstResponseEmpty', '이 기간에 고객 문의가 없었습니다')}
+          </KpiHint>
+        </KpiCard>
       </KpiGrid>
 
       <SectionRow>

@@ -108,7 +108,10 @@
       "utilization": "가동률",
       "issued": "발행 청구액",
       "activeProjects": "활성 프로젝트",
-      "newClients": "신규 고객"
+      "newClients": "신규 고객",
+      "firstResponse": "첫 응답 시간",
+      "firstResponseSamples": "고객 문의 {{n}}건 기준 (중앙값)",
+      "firstResponseEmpty": "이 기간에 고객 문의가 없었습니다"
     },
     "chart": {
       "trend": {
@@ -323,5 +326,13 @@
       "failed": "생성 실패"
     }
   },
-  "foreignLabel": "외화"
+  "foreignLabel": "외화",
+  "duration": {
+    "under1m": "1분 미만",
+    "min": "{{n}}분",
+    "hour": "{{h}}시간",
+    "hourMin": "{{h}}시간 {{m}}분",
+    "day": "{{d}}일",
+    "dayHour": "{{d}}일 {{h}}시간"
+  }
 }

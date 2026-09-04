@@ -371,6 +371,70 @@ function buildTaskInsights({ kpis, scatter, aiTrend, sources }) {
 // Overview 탭 — 사업 전체 맥박
 //   매출(수금) / 영업이익 추정 / 가동률 / 실현율 / 활성 프로젝트 / 신규 고객
 // ──────────────────────────────────────────────
+
+// ──────────────────────────────────────────────
+// 첫 응답 시간 (#211 ④) — 고객이 말을 걸고 우리가 답하기까지
+// ──────────────────────────────────────────────
+// 왜 이 지표인가: PlanQ 의 값은 "고객 요청이 실행으로 이어진다" 는 것이다. 그 첫 관문이 응답이고,
+//   응답이 늦으면 뒤의 모든 기능이 의미를 잃는다. 그런데 여태 이 숫자를 아무도 안 봤다.
+//
+// 정의 — 고객 대화방에서 **팀이 아닌 사람**(고객·게스트)의 메시지가 온 뒤
+//   **팀 멤버**의 첫 메시지까지 걸린 시간. 이미 답을 기다리는 중이면 새 고객 메시지로 갱신하지
+//   않는다(연달아 온 세 줄은 한 번의 기다림이다). 팀이 먼저 말한 것은 응답이 아니라 발신이라 센다.
+//
+// ★ 발신자 구분은 `business_members` 소속 여부로 한다. messages 에는 sender_id 만 있고
+//   고객·게스트도 그림자 User 로 들어오므로, "우리 편인가" 를 멤버십으로 판정하는 것이
+//   유일하게 갈라지지 않는 술어다.
+//
+// 중앙값을 쓴다 — 평균은 휴가·야간 한 건에 통째로 끌려간다.
+async function computeFirstResponse(businessId, period) {
+  const { Conversation, Message, BusinessMember } = require('../models');
+  const fromDt = new Date(period.from + ' 00:00:00');
+  const toDt = new Date(period.to + ' 23:59:59');
+
+  const convs = await Conversation.findAll({
+    where: { business_id: businessId, channel_type: 'customer' },
+    attributes: ['id'], raw: true,
+  });
+  if (!convs.length) return { median_minutes: null, samples: 0 };
+
+  const members = await BusinessMember.findAll({
+    where: { business_id: businessId }, attributes: ['user_id'], raw: true,
+  });
+  const teamIds = new Set(members.map((m) => m.user_id).filter(Boolean));
+  if (!teamIds.size) return { median_minutes: null, samples: 0 };
+
+  const msgs = await Message.findAll({
+    where: {
+      conversation_id: convs.map((c) => c.id),
+      created_at: { [Op.between]: [fromDt, toDt] },
+    },
+    attributes: ['conversation_id', 'sender_id', 'created_at'],
+    order: [['conversation_id', 'ASC'], ['created_at', 'ASC']],
+    raw: true,
+  });
+
+  const waiting = new Map();          // conversation_id → 고객이 말을 건 시각
+  const deltas = [];
+  for (const m of msgs) {
+    const isTeam = teamIds.has(m.sender_id);
+    const at = new Date(m.created_at).getTime();
+    if (!isTeam) {
+      // 이미 기다리는 중이면 갱신하지 않는다 — 연달아 온 줄은 한 번의 기다림이다.
+      if (!waiting.has(m.conversation_id)) waiting.set(m.conversation_id, at);
+    } else if (waiting.has(m.conversation_id)) {
+      const started = waiting.get(m.conversation_id);
+      waiting.delete(m.conversation_id);
+      const min = (at - started) / 60000;
+      if (min >= 0) deltas.push(min);
+    }
+    // 팀이 먼저 말한 경우(waiting 없음)는 응답이 아니라 발신 — 세지 않는다.
+  }
+  if (!deltas.length) return { median_minutes: null, samples: 0 };
+  deltas.sort((a, b) => a - b);
+  return { median_minutes: Number(percentile(deltas, 50).toFixed(1)), samples: deltas.length };
+}
+
 async function buildOverviewTab(businessId, period) {
   const { Invoice, InvoicePayment, Project, Client, OverheadItem } = require('../models');
 
@@ -488,6 +552,8 @@ async function buildOverviewTab(businessId, period) {
     hint: '청구서/업무를 등록하시면 분석이 시작됩니다',
   });
 
+  const firstResponse = await computeFirstResponse(businessId, period);
+
   return {
     period: { from: period.from, to: period.to, label: period.label },
     home_currency: home,
@@ -498,6 +564,11 @@ async function buildOverviewTab(businessId, period) {
       issued: { value: Math.round(issued), prev: null, delta_pct: null, by_currency: issuedForeign },
       active_projects: { value: activeProjects, prev: null, delta_pct: null },
       new_clients: { value: newClients, prev: null, delta_pct: null },
+      // #211 ④ — 고객이 말을 걸고 우리가 답하기까지(중앙값, 분). 표본이 없으면 null 이다
+      //   ("0분" 과 "잰 적이 없다" 는 다른 상태다 — 화면이 그렇게 구분해 보여야 한다).
+      first_response_minutes: {
+        value: firstResponse.median_minutes, prev: null, delta_pct: null, samples: firstResponse.samples,
+      },
     },
     trend,
     insights: insights.slice(0, 3),
@@ -1242,6 +1313,7 @@ async function buildReportsTab(businessId) {
 module.exports = {
   buildTasksTab,
   buildOverviewTab,
+  computeFirstResponse,
   buildProfitTab,
   buildTeamTab,
   buildFinanceTab,
