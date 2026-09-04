@@ -16,6 +16,8 @@ const {
   ProjectWorkstream, Post, Document, Department, Team, TaskLink, ProjectStage, ProjectLink,
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+// 같은 실제 파일이 direct·chat 두 줄로 보이던 것을 접는다(2026-09-04). 술어는 한 곳.
+const { dedupeFileRows } = require('../utils/dedupeFileRows');
 const { serializeMessageAttachments } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { CLIENT_VISIBLE_MESSAGE_WHERE } = require('../utils/messageVisibility');
@@ -3278,6 +3280,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       results.push({
         id: `direct-${f.id}`,
         source: 'direct',
+        file_path_key: f.file_path || null,   // 중복 접기 기준(실제 파일)
         file_name: f.file_name,
         file_size: Number(f.file_size),
         mime_type: f.mime_type,
@@ -3339,6 +3342,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         results.push({
           id: `chat-${a.id}`,
           source: 'chat',
+          file_path_key: a.file_path || null,   // 중복 접기 기준(실제 파일)
           file_name: a.file_name,
           file_size: Number(a.file_size),
           mime_type: a.mime_type,
@@ -3442,9 +3446,11 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     }
 
     results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+    // 채팅으로 올린 파일은 File·MessageAttachment 양쪽에 행이 생겨 두 줄로 보였다 — 접는다.
+    const merged = dedupeFileRows(results);
     // 사이클 N+50 — merged results 인메모리 슬라이스 (pagination 응답 형식 정합)
-    const total = results.length;
-    const sliced = results.slice(offset, offset + limit);
+    const total = merged.length;
+    const sliced = merged.slice(offset, offset + limit);
     // 업로더/발신자 이름 = 워크스페이스 표시명 (flat uploader_name 은 helper 대상 밖이라 계정명 누출 → 표시명 맵으로 후처리. 카나리 크롤 검출 2026-07-06)
     const nameMap = await getMemberNameMap(bizId, sliced.map((r) => r.uploader_id));
     for (const r of sliced) { const dn = r.uploader_id && nameMap.get(Number(r.uploader_id)); if (dn && dn.name) r.uploader_name = dn.name; }
@@ -3490,6 +3496,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
       results.push({
         id: `direct-${f.id}`,
         source: 'direct',
+        file_path_key: f.file_path || null,   // 중복 접기 기준(실제 파일)
         file_name: f.file_name,
         file_size: Number(f.file_size),
         mime_type: f.mime_type,
@@ -3539,6 +3546,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         results.push({
           id: `chat-${a.id}`,
           source: 'chat',
+          file_path_key: a.file_path || null,   // 중복 접기 기준(실제 파일)
           file_name: a.file_name,
           file_size: Number(a.file_size),
           mime_type: a.mime_type,
@@ -3665,10 +3673,12 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
     // 5) meeting (Q Note) 자료는 별도 스토리지 — 현재 연동 미구현, 빈 배열 (추후 확장)
 
     results.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+    // 워크스페이스 all-files 와 **같은 술어**로 접는다(사본 금지 — 두 화면이 다르게 보이면 안 된다).
+    const merged = dedupeFileRows(results);
     // 업로더/발신자 이름 = 워크스페이스 표시명 (flat uploader_name 계정명 누출 fix, 2026-07-06)
-    const nameMap = await getMemberNameMap(bizId, results.map((r) => r.uploader_id));
-    for (const r of results) { const dn = r.uploader_id && nameMap.get(Number(r.uploader_id)); if (dn && dn.name) r.uploader_name = dn.name; }
-    successResponse(res, results);
+    const nameMap = await getMemberNameMap(bizId, merged.map((r) => r.uploader_id));
+    for (const r of merged) { const dn = r.uploader_id && nameMap.get(Number(r.uploader_id)); if (dn && dn.name) r.uploader_name = dn.name; }
+    successResponse(res, merged);
   } catch (error) {
     next(error);
   }

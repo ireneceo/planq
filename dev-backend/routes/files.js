@@ -1204,8 +1204,16 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
     //   실패 시 원본 폴백(false 반환)까지 포함이라 여기 붙이는 것은 추가 위험이 없다.
     //   ?w= 없는 기존 호출(내려받기 등)은 **완전히 그대로** 원본을 받는다.
     if (await require('../services/imageResize').maybeServeResized(req, res, absPath, file.mime_type)) return;
-    res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
-    if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
+    // ★ 2026-09-04 — 여기가 `?inline=1` 을 **통째로 무시**하고 있었다.
+    //   같은 라우트의 Drive 갈래는 applyFileResponseHeaders 를 부르는데 로컬 갈래만 빠져 있어서,
+    //   로컬에 저장된 PDF 는 언제나 `attachment` 로 나갔다 — 앱 안에서 열리지 않는다
+    //   (Irene: "pdf 왜 미리보기 안돼?").
+    //   판정(안전한 형식만 inline)은 services/fileServing 한 곳이다. 여기서 직접 헤더를 만들면
+    //   그 게이트를 우회하게 되고, 실제로 우회하고 있었다.
+    require('../services/fileServing').applyFileResponseHeaders(res, file, {
+      inline: String(req.query.inline || '') === '1',
+      disposition: `inline; filename*=UTF-8''${encodeURIComponent(file.file_name)}`,
+    });
     return res.sendFile(absPath);
   } catch (error) {
     next(error);
