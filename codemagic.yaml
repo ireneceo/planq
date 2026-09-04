@@ -131,7 +131,15 @@ workflows:
           LATEST=$(google-play get-latest-build-number --package-name "$PACKAGE_NAME" 2>/dev/null || echo 0)
           NEXT=$((LATEST + 1))
           echo "versionCode → $NEXT"
-          sed -i "s/versionCode .*/versionCode $NEXT/" app/build.gradle
+          # macOS 의 sed 는 -i 뒤에 백업 확장자를 **필수 인자로** 요구한다. GNU 문법
+          # (`sed -i "s/.../"`)을 그대로 쓰면 치환식이 확장자로 먹히고 파일명이 스크립트로
+          # 해석돼 `command a expects \ followed by text` 로 죽는다(2026-09-04 실측).
+          # 빌드 머신이 Linux 였다가 Mac 으로 바뀌면서 드러났다 — 임시파일 방식은 양쪽에서 같다.
+          sed "s/versionCode .*/versionCode $NEXT/" app/build.gradle > build.gradle.tmp
+          mv build.gradle.tmp app/build.gradle
+          # 치환이 실제로 됐는지 확인한다. 조용히 빗나가면 Play 가 같은 versionCode 를 거부한다.
+          grep -q "versionCode $NEXT" app/build.gradle || { echo "FAIL — versionCode 치환 실패"; grep -n versionCode app/build.gradle; exit 1; }
+          grep -n "versionCode" app/build.gradle
       - name: AAB 빌드
         script: |
           cd dev-frontend/android
