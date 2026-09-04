@@ -213,10 +213,10 @@ self.addEventListener('notificationclick', (event) => {
   } catch { /* invalid URL — rawLink 그대로 사용 */ }
 
   event.waitUntil((async () => {
-    // ★ 클릭했다고 배지를 지우지 않는다. 배지는 이제 **안 읽은 알림 수**라,
-    //   17건 중 1건을 눌렀는데 0 으로 만들면 나머지 16건이 사라진 것처럼 보인다.
-    //   배지를 쓰는 곳은 클라이언트 useGlobalBadge 하나뿐이고, 창이 앞으로 나오면
-    //   visibilitychange 에서 서버가 준 정확한 값으로 다시 그린다.
+    // 클릭 시 badge clear
+    try {
+      if ('clearAppBadge' in self.navigator) await self.navigator.clearAppBadge();
+    } catch { /* silent */ }
 
     const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     // 1) 같은 origin 에 열린 창이 있으면 navigate + focus 시도. navigate 실패하면 다음 fallback.

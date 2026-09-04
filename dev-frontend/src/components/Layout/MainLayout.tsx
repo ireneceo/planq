@@ -23,7 +23,7 @@ import { isTabsBeta } from '../../utils/tabsBeta';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
 import { useAdminInboxCounts } from '../../hooks/useAdminInboxCounts';
-import { useNotificationCountState } from '../../hooks/useNotifications';
+import { useNotificationCount } from '../../hooks/useNotifications';
 import NotificationDropdown from '../Common/NotificationDropdown';
 import { useWhatsNew } from '../../hooks/useWhatsNew';
 import WhatsNewDropdown from '../Common/WhatsNewDropdown';
@@ -901,7 +901,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
   // N+63 — 알림 feed (Activity Feed) 미읽음 카운트. 확인필요 (Action Queue) 와 분리.
-  const { count: notifCount, loaded: notifLoaded } = useNotificationCountState();
+  const notifCount = useNotificationCount();
   const [notifOpen, setNotifOpen] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
   // #194 — 제품 공지/체인지로그 "새 소식" (사이드바 메가폰 + 드로어)
@@ -918,10 +918,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     });
   };
   const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
-  // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — **안 읽은 알림 수** 단일 원천.
-  //   배지를 올리는 것도 내리는 것도 같은 장부(notifications)를 본다. 옛 공식(인박스+채팅)은
-  //   푸시가 세워 둔 배지를 앱 열자마자 0 으로 계산해 지웠다 — useGlobalBadge.ts 주석 참조.
-  useGlobalBadge(notifCount, notifLoaded);
+  // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — **인박스(확인 필요) + Q Talk 안읽음**.
+  //   2026-05-08 Irene 피드백으로 정해진 규칙이다("앱 열면 뱃지 숫자가 사라짐. 실제로 봐야 사라지는 게 맞아").
+  //   좌측 메뉴에 뜨는 그 두 숫자와 같다. 알림 수가 아니고, Q Mail·Q Bill 을 더하지도 않는다
+  //   (Q Bill 은 확인 필요에 이미 포함돼 있어 더하면 두 번 세어진다).
+  //
+  //   ★ 세 번째 인자 `loaded` 만 2026-09-04 에 더했다 — 규칙 변경이 아니라 **0 의 뜻을 가리는 것**이다.
+  //     "아직 안 불러온 0" 에 배지를 지워서 앱을 접어만 놔도 숫자가 사라지던 것을 막는다.
+  useGlobalBadge(inboxCount, talkUnreadCount, inboxCounts.loaded);
 
   // 로그인 직후 자동 push 구독 시도 (Slack 패턴 — granted 면 조용히, default 면 7일 1회 prompt)
   useEffect(() => {

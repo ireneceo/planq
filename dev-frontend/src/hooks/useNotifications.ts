@@ -82,6 +82,11 @@ export function useNotificationCountState(): { count: number; loaded: boolean } 
   return { count, loaded };
 }
 
+/** 숫자만 필요한 곳(헤더 종 아이콘) 용 얇은 래퍼. */
+export function useNotificationCount(): number {
+  return useNotificationCountState().count;
+}
+
 
 // 알림 list (dropdown / 페이지 공용)
 interface UseNotificationsOptions {

@@ -1,26 +1,18 @@
-// 앱 아이콘 배지 — **안 읽은 알림 수** 하나만 센다.
+// 앱 아이콘 배지 — **좌측 메뉴에 뜨는 숫자와 같은 것**을 센다: 인박스(확인 필요) + Q Talk 안읽음.
 //
-// ★ 2026-09-05 (Irene: "앱에 알림 표시 없어지는 거 똑같아. 앱 내리면 없어져버려" / "뱃지가 아예 없어져")
-//   운영 실측이 원인을 확정했다. 그 시점 Irene 계정은
-//     채팅 안읽음(참여방·ws1) = 0 · 인박스 확인필요 = 0 · **안 읽은 알림 = 17건**
-//   그런데 배지가 세던 것은 `인박스 + 채팅` 이었다. 그래서 푸시가 띄워 놓은 배지를
-//   앱이 열리자마자 0 으로 계산해 `Badge.clear()` 로 지웠다.
-//   **배지를 올린 장부(알림)와 내리는 장부(인박스+채팅)가 서로 달랐다.**
-//   알림이 17건 와 있는데 "아예 없어진" 것이 정확히 이 모양이다.
+// ★ 2026-09-04 정정. 이 자리를 한 번 "안 읽은 알림 수" 로 바꿨다가 되돌린다.
+//   Irene: "좌측 메뉴에 나오는 기준이어야 하는데 알림숫자가 나와. 알림은 쓸데없이 많이 오는 건데."
+//   실측이 그대로였다 — 그 시점 좌측 메뉴는 **확인 필요 2**, 앱 아이콘은 **17** 이었다.
+//   알림은 정보 통지라 많이 오고, 아이콘의 숫자는 **처리할 일의 수**여야 한다. 정의를 바꾼 것은
+//   요청이 아니라 내 판단이었고 틀렸다. 데스크탑 dock 이 쓰던 기준이 정본이다.
 //
-//   → 단일 원천을 `notifications.read_at IS NULL` 로 고정한다. 배지를 올리는 푸시는
-//     `notify()` 가 보내고, 그 **같은 호출이 알림 행도 만든다**(inbox 채널). 올리는 것과
-//     내리는 것이 같은 행을 센다. 백엔드 push payload 의 badge 도 같은 공식으로 맞췄다
-//     (routes/notifications.js) — 공식이 두 벌이면 이미 갈라져 있다.
+// 그때 얻은 것 중 유지하는 것 — **0 의 뜻을 값으로 추측하지 않는다.**
+//   "아직 안 불러왔다(0)" 에서 지우면 푸시가 세워 둔 숫자가 앱을 열자마자 사라지고,
+//   "불러왔더니 0 이다" 에서 안 지우면 다 처리했는데 숫자가 남는다. `loaded` 로 가른다.
+//   (2026-09-04 Irene: "앱을 닫지도 않고 접어만 놔도 숫자가 없어져" 의 원인이 앞쪽이었다.)
 //
-//   인박스(확인 필요)·채팅 안읽음은 **각자의 사이드바 뱃지를 그대로 유지**한다. 배지에 합산하지
-//   않는 이유: 업무 배정 하나가 알림 1건 + 확인필요 1건을 동시에 만들어 **2 로 뜨는데 열면 1건**이
-//   된다(같은 함정을 채팅 안읽음에서 이미 겪었다 — conversations.js `me/unread-total-all` 주석).
-//
-// 이전 이력 (그대로 유효한 것):
-//   - 첫 마운트 시 0 은 "없다" 가 아니라 "아직 모른다" — SW/APNs 가 세운 배지를 지우지 않는다.
-//   - visibility/focus 복귀 시 최신값으로 재적용 — SW push 가 남긴 stale 배지 덮어쓰기
-//     (사이클 N+22). 단 **실제 갱신을 한 번이라도 받은 뒤에만**.
+// 백엔드 푸시 payload 의 badge 도 **같은 공식**이다 (routes/notifications.js).
+//   공식이 두 벌이면 이미 갈라져 있다 — 잠금화면 숫자와 앱 안 숫자가 달라진다.
 import { isNativeApp } from '../services/native';
 import { useEffect, useRef } from 'react';
 
@@ -48,13 +40,11 @@ async function applyBadge(count: number) {
 }
 
 /**
- * @param unreadNotifications 안 읽은 알림 수 (useNotificationCountState — 전 워크스페이스)
- * @param loaded 그 수를 서버에서 실제로 받았는가. **값으로 추측하지 않는다** —
- *   `false` 인 동안의 0 은 "아직 모른다" 라 배지를 건드리지 않고, `true` 인 0 은
- *   "확인해보니 없다" 라 배지를 지운다. 옛 코드는 이 둘을 값 하나로 구별하려다,
- *   다 읽어도 배지가 남거나 앱을 열자마자 배지가 사라지는 양쪽 회귀를 오갔다.
+ * @param inboxCount   확인 필요 건수 (좌측 메뉴의 그 숫자)
+ * @param chatUnread   Q Talk 안 읽음 (좌측 메뉴의 그 숫자)
+ * @param loaded       두 값을 서버에서 실제로 받았는가. false 인 동안의 0 은 "아직 모른다" 다.
  */
-export function useGlobalBadge(unreadNotifications: number, loaded: boolean) {
+export function useGlobalBadge(inboxCount: number, chatUnread: number, loaded: boolean) {
   const prevTotalRef = useRef<number | null>(null);
   const totalRef = useRef<number>(0);
   const loadedRef = useRef(false);
@@ -62,13 +52,15 @@ export function useGlobalBadge(unreadNotifications: number, loaded: boolean) {
   useEffect(() => {
     loadedRef.current = loaded;
     if (!loaded) return;               // 아직 모른다 — 푸시가 세운 배지를 그대로 둔다
-    const total = unreadNotifications || 0;
+    const total = (inboxCount || 0) + (chatUnread || 0);
     totalRef.current = total;
     if (prevTotalRef.current === total) return;
     prevTotalRef.current = total;
     applyBadge(total);
-  }, [unreadNotifications, loaded]);
+  }, [inboxCount, chatUnread, loaded]);
 
+  // visibility / focus 복귀 시 최신값으로 재적용 — SW push 가 background 에서 남긴 stale 배지 덮어쓰기
+  //   (사이클 N+22). 단 값을 실제로 받은 뒤에만.
   useEffect(() => {
     const reapply = () => {
       if (document.visibilityState === 'visible' && loadedRef.current) {

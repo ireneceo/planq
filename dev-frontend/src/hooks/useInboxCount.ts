@@ -6,31 +6,24 @@ import { fetchTodo } from '../services/dashboard';
 import { useAuth } from '../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../services/socket';
 
-export interface InboxCounts { total: number; bill: number; mail: number }
+export interface InboxCounts { total: number; bill: number; mail: number; /** 서버에서 실제로 받았는가 — 앱 배지가 0 의 뜻을 값으로 추측하지 않게 한다. */ loaded: boolean }
 export function useInboxCount(businessId: number | null | undefined): InboxCounts {
-  const [count, setCount] = useState<InboxCounts>({ total: 0, bill: 0, mail: 0 });
+  const [count, setCount] = useState<InboxCounts>({ total: 0, bill: 0, mail: 0, loaded: false });
   const localCleanupRef = useRef<(() => void) | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!businessId || !user) { setCount({ total: 0, bill: 0, mail: 0 }); return; }
+    if (!businessId || !user) { setCount({ total: 0, bill: 0, mail: 0, loaded: false }); return; }
     let cancelled = false;
 
     const refresh = async () => {
       try {
-        // #343 — "확인 필요" 뱃지는 **그 뱃지를 눌러 도착하는 화면과 같은 수**여야 한다.
-        //   TodoPage 는 이미 `fetchTodo()` 를 워크스페이스 인자 없이 불러 전 워크스페이스를
-        //   보여주는데(백엔드 /dashboard/todo 가 business_id 없으면 member·client 양쪽의 모든
-        //   워크스페이스를 워크스페이스 라벨과 함께 집계한다), 뱃지만 현재 워크스페이스를
-        //   세고 있었다. 뱃지 3인데 열면 7건이 나오는 상태다.
-        //   Irene #343: "확인필요에 다른 워크스페이스 것도 나오게 ... 해당 워크스페이스라고
-        //   알려주고 클릭하면 그리로 이동" — 화면은 그렇게 하고 있었고 뱃지만 어긋나 있었다.
-        const all = await fetchTodo();
-        // Q Bill · Q Mail 메뉴 뱃지는 **그 메뉴가 현재 워크스페이스 화면**이라 워크스페이스 것만 센다.
-        //   여기까지 전 워크스페이스로 세면 눌러서 도착한 화면에 없는 건수가 뜬다 — 같은 함정의 반대편.
-        const mine = businessId ? await fetchTodo(businessId) : all;
-        if (!cancelled) setCount({ total: all.total || 0, bill: mine.billCount || 0, mail: mine.mailReplyCount || 0 });
-      } catch { /* silent */ }
+        // ★ 워크스페이스 범위를 **바꾸지 않는다.** 잠깐 전 워크스페이스 합계로 바꿨다가 되돌렸다 —
+        //   푸시가 계산하는 배지(routes/notifications.js)는 현재 워크스페이스만 세므로, 여기만
+        //   넓히면 두 숫자가 갈라지고 푸시가 도착할 때 배지를 덮어쓴다. 같은 범위를 유지한다.
+        const r = await fetchTodo(businessId);
+        if (!cancelled) setCount({ total: r.total || 0, bill: r.billCount || 0, mail: r.mailReplyCount || 0, loaded: true });
+      } catch { /* silent — 실패는 0 건이 아니다. loaded 를 세우지 않는다 */ }
     };
 
     refresh();
