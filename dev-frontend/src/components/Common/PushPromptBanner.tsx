@@ -213,9 +213,21 @@ const Banner = styled.div`
     margin-bottom: 12px;
     gap: 8px;
   }
+  /* ★ #406 (2026-09-04) — 한 번 더 조인다. 폰 실측에서 이 배너가 **78px** 를 먹고 있었고,
+     메일 화면은 헤더 56 + 배너 78 + 패널헤더 56 + 탭 43 + 검색·필터 52 를 지나야 첫 메일이 나왔다
+     (667px 중 285px). Irene: "정작 중요한 메일 내용 나오는 영역이 좁아."
+     넛지 자체는 남긴다 — 아이폰 웹에서는 앱을 깔아야 알림이 오고, 그것을 알릴 자리가 여기뿐이다.
+     대신 아이콘과 여백만 줄여 한 줄 높이로 만든다(78 → 약 52). 문구·동작·닫기는 그대로다. */
+  @media (max-width: 640px) {
+    padding: 8px 36px 8px 10px;
+    margin-bottom: 8px;
+  }
 `;
 const BellIcon = styled.div`
   width: 36px; height: 36px; flex-shrink: 0;
+  /* #406 — 폰에서는 아이콘도 줄인다. 36 은 터치 타겟 기준이지만 이건 **누르는 것이 아니라
+     표시**라 그 기준이 걸리지 않는다(누르는 것은 닫기 버튼과 CTA 다). */
+  @media (max-width: 640px) { width: 24px; height: 24px; font-size: 0.875rem; }
   display: flex; align-items: center; justify-content: center;
   background: #FFEDD5;
   color: #C2410C;
