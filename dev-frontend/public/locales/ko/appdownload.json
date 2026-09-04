@@ -3,7 +3,8 @@
   "subtitle": "업무 알림을 놓치지 마세요. 모바일 앱으로 실시간 알림을 받습니다.",
   "ios": {
     "label": "iPhone · iPad",
-    "cta": "iPhone에 설치"
+    "cta": "iPhone에 설치",
+    "viaTestFlight": "설치는 Apple 의 TestFlight 앱을 거칩니다."
   },
   "android": {
     "label": "Android",

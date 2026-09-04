@@ -9,6 +9,12 @@ import { isNativeApp } from '../../services/native';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
+/** 이 주소가 Apple TestFlight 인가 — 안내 문구를 주소에서 파생시키기 위한 판정. */
+function viaTestFlight(url: string | null): boolean {
+  if (!url) return false;
+  try { return new URL(url).hostname === 'testflight.apple.com'; } catch { return false; }
+}
+
 function detectPlatform(): Platform {
   if (typeof navigator === 'undefined') return 'desktop';
   const ua = navigator.userAgent || '';
@@ -59,7 +65,13 @@ export default function DownloadAppPage() {
       <PlatIcon>{p === 'ios' ? <AppleGlyph /> : <AndroidGlyph />}</PlatIcon>
       <PlatLabel>{t(`${p}.label`)}</PlatLabel>
       {url ? (
-        <PrimaryBtn href={url} target="_blank" rel="noopener noreferrer">{t(`${p}.cta`)}</PrimaryBtn>
+        <>
+          <PrimaryBtn href={url} target="_blank" rel="noopener noreferrer">{t(`${p}.cta`)}</PrimaryBtn>
+          {/* 링크가 App Store 가 아니면 무엇을 거치는지 미리 알린다. 문구를 박지 않고
+              **주소에서 파생**시켜, 나중에 App Store 주소로 바꾸면 이 줄이 저절로 사라진다.
+              (2026-09-04 — TestFlight 언급을 전부 걷었더니 사용자가 예고 없이 그 화면을 만났다) */}
+          {viaTestFlight(url) && <ViaHint>{t('ios.viaTestFlight')}</ViaHint>}
+        </>
       ) : (
         <ComingSoon>{t('comingSoon')}</ComingSoon>
       )}
@@ -146,6 +158,9 @@ const PrimaryBtn = styled.a`
 const ComingSoon = styled.div`
   padding: 11px 14px; border-radius: 8px; font-size: 0.8125rem; font-weight: 500;
   color: #64748B; background: #F1F5F9; width: 100%;
+`;
+const ViaHint = styled.div`
+  margin-top: 8px; font-size: 0.75rem; line-height: 1.5; color: #94A3B8; text-align: center;
 `;
 const DesktopHint = styled.div` font-size: 0.8125rem; font-weight: 500; color: #64748B; margin-bottom: 12px; `;
 const UrlHint = styled.div` font-size: 0.8125rem; color: #64748B; margin-top: 8px; `;

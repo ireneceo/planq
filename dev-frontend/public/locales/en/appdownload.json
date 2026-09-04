@@ -3,7 +3,8 @@
   "subtitle": "Never miss a work notification. Get real-time alerts with the mobile app.",
   "ios": {
     "label": "iPhone · iPad",
-    "cta": "Install on iPhone"
+    "cta": "Install on iPhone",
+    "viaTestFlight": "Installs through Apple's TestFlight app."
   },
   "android": {
     "label": "Android",

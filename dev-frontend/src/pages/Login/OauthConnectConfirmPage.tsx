@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { detectClientKind } from '../../services/native';
 
 interface ConnectInfo {
   existing_user: { id: number; email: string; name: string; avatar_url: string | null };
@@ -42,11 +43,15 @@ const OauthConnectConfirmPage: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
+      // ★ client_kind 를 반드시 보낸다. 안 보내면 백엔드가 'web'(30일)로 잡아,
+      //   앱에서 이 경로로 만든 세션만 30일 뒤 로그아웃된다(다른 로그인 경로는 365일).
+      //   2026-09-04 Fable 지적.
+      const clientKind = detectClientKind();
       const r = await fetch('/api/auth/google/connect-confirm', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Client-Kind': clientKind },
         credentials: 'include',
-        body: JSON.stringify({ token, action: 'connect' }),
+        body: JSON.stringify({ token, action: 'connect', client_kind: clientKind }),
       });
       const j = await r.json();
       if (j.success && j.data.action === 'connected') {

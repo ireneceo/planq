@@ -31,3 +31,29 @@ export async function openExternalUrl(url: string): Promise<void> {
     window.location.href = url;
   }
 }
+
+/**
+ * 클라이언트 종류 — 백엔드가 refresh_token TTL 을 정하는 데 쓴다
+ * (pwa/ios/android = 365일 · web = 30일 sliding).
+ *
+ * ★ 단일 원천이다. 2026-09-04 이전에는 `contexts/AuthContext.tsx` 안에만 있었고,
+ *   구글 "연결 확인"(`OauthConnectConfirmPage`)은 이 값을 **아예 안 보냈다.**
+ *   그래서 앱에서 그 경로로 만든 세션만 `web`(30일)로 잡혀, 다른 로그인 경로(365일)와
+ *   달랐다. 판정을 복사하면 반드시 갈라진다 — 세션을 만드는 곳은 전부 여기를 부른다.
+ */
+export const detectClientKind = (): 'pwa' | 'web' | 'ios' | 'android' => {
+  if (typeof window === 'undefined') return 'web';
+  try {
+    // 네이티브 우선 — WebView 안에서도 display-mode 가 standalone 일 수 있다.
+    if (isNativeApp()) {
+      const p = nativePlatform();
+      if (p === 'ios' || p === 'android') return p;
+    }
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    return standalone ? 'pwa' : 'web';
+  } catch {
+    return 'web';
+  }
+};
