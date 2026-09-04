@@ -3,11 +3,11 @@
   "subtitle": "업무 알림을 놓치지 마세요. 모바일 앱으로 실시간 알림을 받습니다.",
   "ios": {
     "label": "iPhone · iPad",
-    "cta": "App Store에서 받기"
+    "cta": "iPhone에 설치"
   },
   "android": {
     "label": "Android",
-    "cta": "Android 앱 받기"
+    "cta": "Android에 설치"
   },
   "comingSoon": "출시 준비 중이에요 · 곧 제공됩니다",
   "desktop": {

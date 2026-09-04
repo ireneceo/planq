@@ -3,11 +3,11 @@
   "subtitle": "Never miss a work notification. Get real-time alerts with the mobile app.",
   "ios": {
     "label": "iPhone · iPad",
-    "cta": "Get it on the App Store"
+    "cta": "Install on iPhone"
   },
   "android": {
     "label": "Android",
-    "cta": "Get the Android app"
+    "cta": "Install on Android"
   },
   "comingSoon": "Coming soon",
   "desktop": {

@@ -163,6 +163,10 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterLink to="/service">{t('nav.service')}</FooterLink>
               <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
               <FooterLink to="/wiki">{t('nav.help')}</FooterLink>{/* F7 — Q위키 도움말 */}
+              {/* 앱 다운로드 — `/app` 라우트는 있었지만 **앱 어디에서도 링크가 없어**
+                  주소를 아는 사람만 닿을 수 있었다(2026-09-04 Irene 신고: "아이폰 다운로드가 안 나와").
+                  만들어 놓고 진입점을 안 붙이면 없는 기능과 같다. */}
+              <FooterLink to="/app">{t('nav.app')}</FooterLink>
               {betaOn && <FooterLink to="/beta">{t('nav.beta')}</FooterLink>}
             </FooterCol>
             <FooterCol>

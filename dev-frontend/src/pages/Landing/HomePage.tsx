@@ -77,7 +77,11 @@ const HomePage: React.FC = () => {
               이것이었다(앱 이름 불일치 · 목적 불명확). Google Calendar 연동도 여기서 한 번만
               밝힌다 — 아래 기능 소개와 중복하지 않는다.
               ★ 2026-09-03 Irene 지시로 히어로(메인 배너)에서 이 자리로 옮겼다. 지우지 말 것. */}
-          <Reveal as="p"><PurposeStatement>{t('hero.purpose', 'PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다. Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다.')}</PurposeStatement></Reveal>
+          <Reveal as="p"><PurposeStatement>
+            {t('hero.purpose1', 'PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다.')}
+            <br />
+            {t('hero.purpose2', 'Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다.')}
+          </PurposeStatement></Reveal>
           <Reveal>
             <ValueCards>
               {[1, 2, 3].map((n, i) => (
@@ -337,14 +341,17 @@ const HeroCta = styled(Link)`
 // 서비스명 + 목적 한 문장. 히어로 시각 위계를 건드리지 않도록 CTA 아래 작은 보조 문단으로 둔다.
 const PurposeStatement = styled.p`
   margin: 0 0 8px;
-  max-width: 720px;
-  font-size: 0.9375rem;
+  /* ★ Irene 지시 — **두 줄**(문장당 한 줄). 720px 로는 첫 문장이 접혀 세 줄이 된다.
+     컨테이너 폭을 다 쓰게 두고, 폰트를 조금 줄여 한국어 첫 문장(84자)이 한 줄에 들어가게 한다.
+     좁은 화면에서는 접히는 게 정상 — 데스크탑에서 두 줄이면 된다. */
+  max-width: 100%;
+  font-size: 0.875rem;
   line-height: 1.8;
   color: #64748B;
   text-align: left;          /* Irene 지시 — 가운데 정렬 금지 */
   word-break: keep-all;
   @media (max-width: 640px) {
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
   }
 `;
 

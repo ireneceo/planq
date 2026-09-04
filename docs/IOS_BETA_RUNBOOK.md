@@ -4,7 +4,11 @@
 > 설계는 `docs/NATIVE_APP_PLAN.md`(Fable 검수본)가 정본. 이 문서는 **실행 순서만** 담는다.
 > 앱스토어 정식 출시는 하지 않는다 — TestFlight 외부 테스터(최대 10,000명)까지가 이번 범위.
 
-## 0. 지금 상태 (2026-08-24 실측)
+## 0. 지금 상태 (2026-09-04 실측 — 아래 표는 **측정한 날짜의 사실**만 적는다)
+
+> ★ 2026-09-04 사고: 이 표의 8/24 자 ❌ 3건이 그 뒤 해결됐는데 갱신되지 않아,
+>   Opus 가 "iOS 푸시가 안 갑니다" 라고 **운영에 반해 보고**했다. Irene 이 바로잡았다.
+>   런북은 한 번 쓰고 두는 문서가 아니다 — 상태 표는 **볼 때마다 실측으로 대조**한다.
 
 | 항목 | 상태 |
 |---|---|
@@ -13,9 +17,9 @@
 | 결제 진입 숨김 (3.1.1) | ✅ `canPurchaseInApp()` — 구매 표면 7곳 차단 |
 | APNs 발송 백엔드 | ✅ `services/apns_sender.js` (미설정이면 skip, 서버는 정상 기동) |
 | 네이티브 푸시 등록 | ✅ `nativePush.ts` → `POST /api/push/subscribe-native` → `push_subscriptions.device_token` |
-| **APNs `.p8` / 운영 env** | ❌ 미설정 (`APNS_*` 0건) — **푸시 안 감** |
-| **Apple Team ID** | ❌ AASA 2곳 미치환 — **Universal Links 안 됨** |
-| **AASA Content-Type** | ❌ 운영 nginx 가 `application/octet-stream` (dev 는 정상) |
+| **APNs `.p8` / 운영 env** | ✅ 설정 완료 (`/opt/planq/secrets/AuthKey_*.p8`, 2026-08-24) — **푸시 실제로 감**: `push_logs` host=`apns` sent 87건, 최근 2026-09-04 |
+| **Apple Team ID** | ✅ 치환됨 — 운영 AASA `appIDs: ["H2HW8BHXNW.app.planq"]` |
+| **AASA Content-Type** | ✅ 운영 `application/json` |
 
 **베타 자체는 위 3개 없이도 가능하다.** 없으면 푸시와 링크-앱-열기만 빠진 앱이 된다.
 
