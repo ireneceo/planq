@@ -11,20 +11,9 @@ import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import StandardModal from '../Common/StandardModal';
 import ActionButton from '../Common/ActionButton';
+// 타입·유효 판정은 guestLink.ts 단일 원천 (배너와 같은 술어를 써야 한다).
+import { isLiveGuestLink, type GuestLink as Link } from './guestLink';
 
-type Link = {
-  id: number; guest_name: string; token_hint: string; can_write: boolean;
-  expires_at: string; last_used_at: string | null; message_count: number; revoked_at: string | null;
-  /** 이 링크로 **답글 알림을 신청한 사람들** (#259 A안). 링크가 아니라 링크에 딸린 사람이다.
-   *  ★ 이 이름을 대화 메시지 옆에 쓰지 않는다 — 링크는 메일로 전달될 수 있고, 전달받은
-   *    제3자의 글이 확인된 사람의 글로 보인다(#259 에서 이미 난 사고와 같은 모양). */
-  contacts?: Contact[];
-};
-type Contact = {
-  id: number; name: string | null; email: string | null;
-  verified_at: string | null; unsubscribed_at: string | null;
-  last_used_at: string | null; last_notified_at: string | null; revoked_at: string | null;
-};
 
 export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed }: {
   businessId: number; conversationId: number; clientName: string;
@@ -47,7 +36,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/guest-links`);
     if (!r.ok) return;
     const j = await r.json();
-    if (j.success) setLinks((j.data || []).filter((l: Link) => !l.revoked_at));
+    if (j.success) setLinks((j.data || []).filter(isLiveGuestLink));
   }, [businessId, conversationId]);
 
   useEffect(() => { if (open) { setFresh(null); setCopied(false); setErr(null); load(); } }, [open, load]);

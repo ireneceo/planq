@@ -232,13 +232,44 @@ export function setTabScope(next: string | null) {
     try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* 무시 */ }
   }
   state = loaded;
-  // 새 범위에 탭이 하나도 없으면 **지금 보고 있는 화면**을 첫 탭으로 세운다.
-  //   안 하면 화면은 떠 있는데 탭 막대가 비어 있다 — TabMirror 의 location effect 는
-  //   경로가 더 바뀌기 전엔 다시 돌지 않으므로 그 상태가 그대로 남는다.
-  if (state.tabs.length === 0 && typeof window !== 'undefined') {
+  // ★ 복원된 탭이 **지금 있는 자리**를 이기면 안 된다 (2026-09-04 회귀).
+  //   증상: Irene "Q talk 메뉴가 클릭이 안돼". 주소는 /talk 인데 화면은 대시보드였다.
+  //   순서가 원인이다 — 부팅 때는 워크스페이스를 아직 모르므로 applyBootPath 가
+  //   **범위 없는 키**에 `/talk` 탭을 쓴다. 그 직후 setTabScope 가 범위 키(`::b5`)의
+  //   지난 탭(대시보드)을 불러와 state 를 통째로 갈아끼우면서 그 탭이 사라졌다.
+  //   저장소 실측으로 확인: `planq_tabs_v1` = /talk, `planq_tabs_v1::b5` = /dashboard,
+  //   화면·주소 모두 대시보드.
+  //   영향은 메뉴 하나가 아니다 — **주소로 들어오는 모든 경로**(알림 링크·공유 링크·
+  //   주소 입력·앱 딥링크)가 마지막 탭으로 튕긴다.
+  //   그래서 범위를 갈아끼운 뒤 현재 위치와 활성 탭을 반드시 맞춘다.
+  if (typeof window !== 'undefined') {
     const here = window.location.pathname + (window.location.search || '');
-    const id = newId();
-    state = { tabs: [{ id, kind: kindOfPath(here), title: '', path: here, alive: true, lastActiveAt: Date.now() }], activeId: id, mirror: true };
+    const act = activeTab(state);
+    const mismatched = !act || identityOfPath(act.path) !== identityOfPath(here);
+    if (state.tabs.length === 0) {
+      // 새 범위가 비었으면 지금 화면을 첫 탭으로. 안 하면 화면은 떠 있는데 탭 막대가 빈다.
+      const id = newId();
+      state = { tabs: [{ id, kind: kindOfPath(here), title: '', path: here, alive: true, lastActiveAt: Date.now() }], activeId: id, mirror: true };
+    } else if (mismatched) {
+      // 같은 종류의 탭이 있으면 그 탭을 지금 경로로 (탭이 쌓이지 않게), 없으면 새로 연다.
+      const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(here));
+      if (owner) {
+        state = {
+          ...state,
+          tabs: state.tabs.map((t) => (t.id === owner.id
+            ? { ...t, path: here, alive: true, lastActiveAt: Date.now() }
+            : t)),
+          activeId: owner.id,
+        };
+      } else {
+        const id = newId();
+        state = {
+          ...state,
+          tabs: [...state.tabs, { id, kind: kindOfPath(here), title: '', path: here, alive: true, lastActiveAt: Date.now() }],
+          activeId: id,
+        };
+      }
+    }
   }
   persist();                      // 새 범위 키에 즉시 확정
   emit();

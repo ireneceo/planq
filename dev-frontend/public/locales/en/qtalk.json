@@ -526,5 +526,11 @@
   "workbench": {
     "loadFailed": "Could not load the workbench",
     "retry": "Retry"
+  },
+  "guestPrompt": {
+    "title": "Your client can't see this conversation yet",
+    "desc": "Send a link and they can join the conversation and view files — no sign-in needed.",
+    "cta": "Send client link",
+    "later": "Not now"
   }
 }

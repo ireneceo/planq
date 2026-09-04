@@ -29,6 +29,7 @@ import { PanelBackButton } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction } from '../../utils/imeKey';
 import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
+import GuestLinkPrompt from '../../components/QTalk/GuestLinkPrompt';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
@@ -1336,6 +1337,17 @@ const ChatPanel: React.FC<Props> = ({
             </BannerCloseBtn>
           </CandidatesBanner>
         </CandidatesBannerWrap>
+      )}
+
+      {/* 고객 진입 안내 — 이 방에 살아 있는 링크가 없으면 "고객이 아직 못 들어옵니다".
+          조건은 헤더의 GuestLinkButton 과 **같다**(고객방 · 내가 고객 아님 · businessId).
+          링크 유무만 배너가 따로 본다 — 판정은 components/QTalk/guestLink.ts 단일 원천. */}
+      {activeConv?.channel_type === 'customer' && !isClient && businessId && (
+        <GuestLinkPrompt
+          businessId={businessId}
+          conversationId={activeConv.id}
+          clientName={activeConv.client?.name || activeConv.name}
+        />
       )}
 
       {/* 메시지 흐름 */}
