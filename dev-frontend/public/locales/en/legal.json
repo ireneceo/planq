@@ -276,7 +276,7 @@
       "title": "6. Deleting some data without closing your account",
       "items": [
         "Files, documents and notes can be deleted individually inside the app while keeping your account. A deleted chat message is replaced with 'Deleted message' so its content is no longer visible",
-        "Emptying the trash deletes immediately; files left in the trash are deleted automatically after 30 days",
+        "Deleting permanently from the trash removes it right away; files left in the trash are also deleted automatically once your plan’s retention period passes",
         "For anything else, email help@planq.kr and tell us what you would like removed"
       ]
     },

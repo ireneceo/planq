@@ -511,7 +511,7 @@
     "confirmDelete": {
       "title": "Delete this file?",
       "desc": "This cannot be undone",
-      "descTrash": "The file moves to the trash. You can restore it within 30 days."
+      "descTrash": "Deleted files move to the trash. You can restore them within the period set by your plan."
     },
     "bulk": {
       "enter": "Select",
