@@ -53,24 +53,34 @@ Play 가 업로드에서 거부한다. 그래서 빌드 마지막에 `jarsigner 
 
 ---
 
-## ★ 링크로 앱 열기 (App Links) — 아직 안 됨
+## 링크로 앱 열기 (App Links) — **2026-09-04 지문 반영 완료**
 
-2026-09-04 실측: 운영 `https://planq.kr/.well-known/assetlinks.json` 의 지문이
-**`__ANDROID_SHA256_CERT__` 플레이스홀더 그대로**다. 이 상태면 planq.kr 링크를 눌러도
+한동안 운영 `https://planq.kr/.well-known/assetlinks.json` 의 지문이
+**`__ANDROID_SHA256_CERT__` 플레이스홀더 그대로**였다. 그 상태에서는 planq.kr 링크를 눌러도
 앱이 안 열리고 브라우저로 떨어진다(알림 클릭·초대 링크 전부).
 
 **넣어야 할 값은 우리 업로드 키의 지문이 아니다.** Play App Signing 을 쓰면 구글이
 자기 키로 다시 서명하므로, 기기가 검증하는 지문은 **구글의 앱 서명 키** 것이다.
 
-1. Play Console → **App integrity** → `App signing` → **SHA-256 certificate fingerprint** 복사
-2. 개발서버에서:
+1. Play Console → **아래 주소로 직접 이동** (2026-09-04 실측 — 메뉴에서는 찾을 수 없다):
+   ```
+   https://play.google.com/console/u/0/developers/6744981296049524067/app/4976093901725030057/keymanagement
+   ```
+   > 개편으로 위치가 바뀌었다. `App integrity` 는 "Protected with Play 로 옮겨졌다" 고만 하고,
+   > `Protected with Play` · `Automatic protection` · `Advanced settings` 어디에도 서명 키가 없다.
+   > 메뉴로 찾으려다 세 번 헛짚었다 — **주소로 간다.**
+2. **`앱 서명 키 인증서`(App signing key certificate)** → `Classical key` → **SHA-256** 복사
+3. 개발서버에서:
    ```bash
    node /opt/planq/scripts/android-set-cert.js <SHA256>
    cd /opt/planq/dev-frontend && npm run build
    ```
-3. `/배포` 후 확인: `curl -s https://planq.kr/.well-known/assetlinks.json`
+4. `/배포` 후 확인: `curl -s https://planq.kr/.well-known/assetlinks.json`
 
 > 참고로 업로드 키 지문은 `33:E1:4E:15:…:C1:EC` 다 — **이걸 넣으면 안 된다.**
+>
+> **2026-09-04 적용 완료** — 앱 서명 키 SHA-256 `6B:F7:56:2E:…:E7:4B:D2` 를 넣었다.
+> 안드로이드는 **설치 시점**에 이 파일을 검증하므로, 이미 깔린 앱은 재설치해야 반영된다.
 
 ---
 

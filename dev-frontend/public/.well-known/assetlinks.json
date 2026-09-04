@@ -1,10 +1,14 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "app.planq",
-      "sha256_cert_fingerprints": ["__ANDROID_SHA256_CERT__"]
+      "sha256_cert_fingerprints": [
+        "6B:F7:56:2E:6C:A2:DA:8B:BA:99:DD:28:16:5A:D3:E0:D5:88:EF:14:2D:04:FC:55:9A:4A:3B:FB:E6:E7:4B:D2"
+      ]
     }
   }
 ]
