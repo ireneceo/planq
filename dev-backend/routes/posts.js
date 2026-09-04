@@ -236,6 +236,12 @@ router.get('/', authenticateToken, async (req, res, next) => {
     else if (req.query.project_id) where.project_id = Number(req.query.project_id);
     if (req.query.category) where.category = String(req.query.category);
     if (req.query.mine === '1') where.author_id = req.user.id;
+    // #360 — 종류 필터. 표(kind='table')는 문서 안에 있어서 **찾아갈 진입로가 없었다**
+    //   (Irene: "행 누적은 되는데 목록 진입로가 없고 문서 안에 종속된다").
+    //   화이트리스트로만 받는다 — 임의 문자열은 무시하고 전체를 준다(빈 목록보다 낫다).
+    if (['doc', 'table', 'brief', 'template'].includes(String(req.query.kind))) {
+      where.kind = String(req.query.kind);
+    }
 
     // 통합 검색: 제목·본문·카테고리·프로젝트명 모두 매칭
     const include = [
@@ -309,13 +315,15 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
 
     const all = await Post.findAll({
       where: scopeWhere,
-      attributes: ['id', 'category', 'project_id', 'author_id'],
+      attributes: ['id', 'category', 'project_id', 'author_id', 'kind'],
       include: [{ model: Project, attributes: ['id', 'name', 'color'], required: false }],
     });
     const catMap = new Map();
     const projMap = new Map();
     let myCount = 0;
+    let tableCount = 0;      // #360 — 표 진입로의 건수 배지
     for (const p of all) {
+      if (p.kind === 'table') tableCount++;
       if (p.category) catMap.set(p.category, (catMap.get(p.category) || 0) + 1);
       if (p.project_id && p.Project) {
         const cur = projMap.get(p.project_id);
@@ -352,6 +360,7 @@ router.get('/meta', authenticateToken, async (req, res, next) => {
     successResponse(res, {
       total: all.length,
       myCount,
+      tableCount,
       categories: Array.from(catMap.entries())
         .map(([name, count]) => ({ id: catIdByName.get(name) ?? null, name, count }))
         .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),

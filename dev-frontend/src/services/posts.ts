@@ -76,6 +76,8 @@ export interface PostListFilter {
   query?: string;
   category?: string;
   mine?: boolean;
+  /** #360 — 종류 필터. 'table' 이면 표만. 표는 문서 안에 있어 목록 진입로가 없었다. */
+  docKind?: 'doc' | 'table' | 'brief' | 'template';
 }
 // 사이클 N+55 — auto-paginate. N+50 백엔드 cap (posts default 200 / max 500,
 // personal-vault default 200 / max 500) 적용 시 1 page 부족할 수 있음. 5 page 자동 누적.
@@ -109,6 +111,7 @@ export async function fetchPosts(businessId: number, filter: PostListFilter = {}
   if (filter.query) baseParams.set('q', filter.query);
   if (filter.category) baseParams.set('category', filter.category);
   if (filter.mine) baseParams.set('mine', '1');
+  if (filter.docKind) baseParams.set('kind', filter.docKind);
   // N+55 — auto-paginate (workspace posts 2000+ 누적 가능)
   return fetchPostsAllPages((page, limit) => {
     const p = new URLSearchParams(baseParams);
@@ -121,6 +124,8 @@ export async function fetchPosts(businessId: number, filter: PostListFilter = {}
 export interface PostsMeta {
   total: number;
   myCount: number;
+  /** #360 — 표(kind='table') 건수. 표 진입로 배지에 쓴다. */
+  tableCount?: number;
   /** id 는 마스터에 등록된 분류에만 있다 — 문서에만 남은 옛 값은 null(수정·삭제 대상 아님) */
   categories: Array<{ id: number | null; name: string; count: number }>;
   projects: Array<{ id: number; name: string; color: string | null; count: number }>;

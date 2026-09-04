@@ -108,15 +108,21 @@ function buildStyles(
   /* ★ 폰에서는 1rem(16px) 아래로 내려가지 않는다 — iOS 가 16px 미만 입력칸에 포커스하면
      화면을 스스로 확대한다(viewport 의 maximum-scale 을 걷어냈으므로 크기로 막아야 한다).
      react-select 의 내부 input 은 **인라인 `font: inherit`** 라 어떤 stylesheet 규칙도
-     못 이긴다 — 그래서 index.css 가 아니라 **부모 슬롯들**을 여기서 올린다
-     (Fable 게이트 지적: 검색 input 이 13px 로 남아 있었다). */
+     못 이긴다 — 그래서 index.css 가 아니라 그 부모 슬롯(valueContainer)까지 같이 올린다
+     (Fable 게이트 지적: 검색 input 이 13px 로 남아 있었다).
+
+     ★ #406 (Irene 2026-09-03): "셀렉트에 나오는 글자는 왜 커? 어떤 글자들이 안맞게 큰 느낌 나고"
+     이 바닥값을 control·placeholder·singleValue 에까지 걸어 두어, **폰에서 셀렉트의 표시 글자만
+     16px 로 튀었다.** 주변 라벨·본문은 13~14px 인데 값만 커서 줄이 어긋나 보인다.
+     자동확대는 **포커스된 input** 에만 걸린다 — 값을 그리는 span 은 아무리 작아도 확대를
+     유발하지 않는다. 그래서 바닥값은 input 과 그 컨테이너에만 남기고 표시 슬롯에서는 걷는다.
+     (16px input 은 36px control 안에 그대로 들어간다 — 16×1.2 + 패딩 4 = 23px < 36px.) */
   const phoneFloor = { '@media (max-width: 640px)': { fontSize: `max(1rem, ${fontSize})` } };
   const optionPadding = density === 'compact' ? '5px 10px' : '10px 12px';
 
   return {
     control: (base, state) => ({
       ...base,
-      ...phoneFloor,
       minHeight,
       backgroundColor: state.isDisabled ? '#F8FAFC' : C.white,
       borderColor: hasError
@@ -143,13 +149,11 @@ function buildStyles(
     }),
     placeholder: (base) => ({
       ...base,
-      ...phoneFloor,
       color: C.neutral400,
       fontSize,
     }),
     singleValue: (base) => ({
       ...base,
-      ...phoneFloor,
       color: C.neutral900,
       fontSize,
     }),

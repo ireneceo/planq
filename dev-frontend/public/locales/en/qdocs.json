@@ -638,7 +638,8 @@
     "mine": "Mine",
     "filterBy": "Filter by this category",
     "addCategory": "Add category",
-    "newCategoryPlaceholder": "Name (Enter)"
+    "newCategoryPlaceholder": "Name (Enter)",
+    "tables": "Tables"
   },
   "revision": {
     "title": "Change history",

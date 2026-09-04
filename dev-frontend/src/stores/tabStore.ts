@@ -33,6 +33,16 @@ const MAX_ALIVE = 4;
 const OPEN_MAX = 10;   // 열린 탭 소프트캡 — 초과 시 최오래 비활성 탭 자동 close
 const STORAGE_KEY = 'planq_tabs_v1';
 
+// ★ #405 (Irene 2026-09-03): "플랫폼관리자로 갔는데 워크스페이스 워프로랩에서 열어놓은 탭이
+//   다 그대로 있어. 워크스페이스 바뀌어도 탭들 그대로 남아있고 막 섞이고 있는 거 아니야?"
+//   저장 키에 워크스페이스가 없어서 **모든 워크스페이스가 탭 목록 한 벌을 공유**했다.
+//   워크스페이스 전환은 페이지를 새로 띄우지 않고(AuthContext.switchWorkspace 는 setUser 만
+//   한다) 메모리 상태가 그대로 남으므로, 앞 워크스페이스의 탭이 그대로 보였고 그 위에서
+//   연 탭이 뒤섞여 저장됐다.
+//   → 키를 워크스페이스별로 가른다. 전환 시 앞 것을 그 키에 저장하고 새 키를 불러온다.
+let tabScope: string | null = null;
+const scoped = (base: string) => (tabScope ? `${base}::${tabScope}` : base);
+
 // ── kind ↔ path 매핑 ──────────────────────────────────────────
 // path prefix → kind (긴 것 우선). projectDetail 은 id별 복수 탭 허용.
 const PREFIX_KIND: Array<[RegExp, TabKind]> = [
@@ -129,16 +139,16 @@ function getSnapshot(): TabState { return state; }
 
 function persist() {
   const payload = JSON.stringify({ tabs: state.tabs, activeId: state.activeId });
-  try { sessionStorage.setItem(STORAGE_KEY, payload); } catch { /* quota·비허용 무시 */ }
+  try { sessionStorage.setItem(scoped(STORAGE_KEY), payload); } catch { /* quota·비허용 무시 */ }
   // 복원 스냅샷 — 마지막으로 쓴 창의 것이 남는다(last-writer-wins). "지난번 그대로" 에는 충분하다.
   //   단일 페이지 모드(폰·탭 opt-out)는 쓰지 않는다 — 탭 1개짜리로 데스크탑 스냅샷을 지운다.
   if (!isRestoreCapable()) return;
-  try { localStorage.setItem(RESTORE_KEY, payload); } catch { /* quota·비허용 무시 */ }
+  try { localStorage.setItem(scoped(RESTORE_KEY), payload); } catch { /* quota·비허용 무시 */ }
 }
 function load(): TabState {
   // ① 이 창의 살아있는 상태 (새로고침·같은 창 내 이동)
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(scoped(STORAGE_KEY));
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs)) return { tabs: j.tabs, activeId: j.activeId ?? null, mirror: true };
@@ -148,7 +158,7 @@ function load(): TabState {
   //    alive 는 되살리지 않는다: 한 번에 전 탭을 마운트하면 첫 화면이 느려지고 LRU 도 즉시 터진다.
   //    활성 탭만 살아나고 나머지는 suspend 상태로 서 있다가 누르면 깨어난다(기존 LRU 동작 그대로).
   try {
-    const raw = isRestoreCapable() ? localStorage.getItem(RESTORE_KEY) : null;
+    const raw = isRestoreCapable() ? localStorage.getItem(scoped(RESTORE_KEY)) : null;
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs) && j.tabs.length) {
@@ -192,6 +202,59 @@ function newId() { return `t${Date.now().toString(36)}_${(idSeq++).toString(36)}
 let pendingSwitch: { id: string; path: string } | null = null;
 let navigateDelegate: ((path: string) => void) | null = null;
 export function setTabNavigator(fn: ((path: string) => void) | null) { navigateDelegate = fn; }
+
+/**
+ * 탭 저장 범위를 워크스페이스로 가른다 (#405).
+ *
+ * @param next 워크스페이스 식별자. 플랫폼 관리자처럼 워크스페이스가 없는 자리는 별도 문자열
+ *   (예: 'admin'). null 이면 아직 모른다는 뜻이라 **아무 것도 하지 않는다** — 로그인 부트 중
+ *   잠깐 비는 순간에 탭을 날리지 않기 위해서다.
+ *
+ * 전환 절차: ①지금 화면의 탭을 **앞 범위 키에** 저장 → ②새 범위의 탭을 불러옴 → ③구독자 통지.
+ * 첫 지정 때 새 범위가 비어 있으면 범위 없이 저장돼 있던 옛 탭을 그대로 물려받는다
+ * (한 번만 — 그러지 않으면 기존 사용자의 탭이 이 변경 한 번에 전부 사라진다).
+ */
+export function setTabScope(next: string | null) {
+  if (next === null || next === tabScope) return;
+  const legacyRaw = (() => {
+    try { return sessionStorage.getItem(STORAGE_KEY); } catch { return null; }
+  })();
+  persist();                      // 앞 범위 키에 현재 상태를 남긴다
+  const prev = tabScope;
+  tabScope = next;
+  let loaded = load();
+  // 최초 도입 이관 — 범위 없이 저장돼 있던 탭을 첫 워크스페이스가 물려받는다.
+  if (prev === null && loaded.tabs.length === 0 && legacyRaw) {
+    try {
+      const j = JSON.parse(legacyRaw);
+      if (Array.isArray(j.tabs) && j.tabs.length) loaded = { tabs: j.tabs, activeId: j.activeId ?? null, mirror: true };
+    } catch { /* 무시 */ }
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* 무시 */ }
+  }
+  state = loaded;
+  // 새 범위에 탭이 하나도 없으면 **지금 보고 있는 화면**을 첫 탭으로 세운다.
+  //   안 하면 화면은 떠 있는데 탭 막대가 비어 있다 — TabMirror 의 location effect 는
+  //   경로가 더 바뀌기 전엔 다시 돌지 않으므로 그 상태가 그대로 남는다.
+  if (state.tabs.length === 0 && typeof window !== 'undefined') {
+    const here = window.location.pathname + (window.location.search || '');
+    const id = newId();
+    state = { tabs: [{ id, kind: kindOfPath(here), title: '', path: here, alive: true, lastActiveAt: Date.now() }], activeId: id, mirror: true };
+  }
+  persist();                      // 새 범위 키에 즉시 확정
+  emit();
+}
+
+/** 플랫폼 관리자 모드인가 — 워크스페이스가 아니라 경로로 판정되는 가상 컨텍스트.
+ *  WorkspaceSwitcher 도 **이 함수를 부른다**. 같은 술어를 각자 적어 두면 반드시 갈라진다. */
+export function isAdminContext(pathname: string): boolean {
+  return pathname.startsWith('/admin');
+}
+
+/** 탭 범위 식별자. null = 아직 모른다(부트 중) — setTabScope 가 무시한다. */
+export function tabScopeOf(pathname: string, businessId: number | null | undefined): string | null {
+  if (isAdminContext(pathname)) return 'admin';
+  return businessId ? `b${businessId}` : null;
+}
 
 // 트리 스왑 후 각 탭 pane 의 MemoryRouter navigate 통로 (mirror 모드에선 navigateDelegate 우선).
 const paneNavigators = new Map<string, (path: string) => void>();

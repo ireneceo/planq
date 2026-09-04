@@ -23,12 +23,13 @@ import { isTabsBeta } from '../../utils/tabsBeta';
 import { useTimezones } from '../../hooks/useTimezones';
 import { useInboxCount } from '../../hooks/useInboxCount';
 import { useAdminInboxCounts } from '../../hooks/useAdminInboxCounts';
-import { useNotificationCount } from '../../hooks/useNotifications';
+import { useNotificationCountState } from '../../hooks/useNotifications';
 import NotificationDropdown from '../Common/NotificationDropdown';
 import { useWhatsNew } from '../../hooks/useWhatsNew';
 import WhatsNewDropdown from '../Common/WhatsNewDropdown';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
+import { setTabScope, tabScopeOf } from '../../stores/tabStore';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useAppShellLock } from '../../hooks/useAppShellLock';
 import { mediaTablet } from '../../theme/breakpoints';
@@ -138,6 +139,10 @@ const HeaderActions = styled.div`
 const BellButton = styled.button`
   position: relative;
   width: 32px; height: 32px;
+  /* #406 — 폰에서는 44×44. 같은 헤더 줄의 닫기 버튼(MobileCloseButton)이 44 라
+     32 로 두면 나란한 아이콘의 높이가 눈에 띄게 어긋난다(실측: 알림 32px ↔ 메뉴 닫기 44px,
+     전 페이지 공통). 터치 타겟 최소치(44)도 이쪽이 맞다 — CLAUDE.md 반응형 원칙 2. */
+  ${mediaTablet} { width: 44px; height: 44px; }
   background: transparent;
   border: none;
   cursor: pointer; padding: 0;
@@ -163,6 +168,10 @@ const BellBadge = styled.span`
    옛 circle bg 두 개 무거움 → 심플 transparent. chevron nudge 시인성 유지. */
 const SidebarToggleButton = styled.button`
   width: 32px; height: 32px;
+  /* #406 — 폰에서는 44×44. 같은 헤더 줄의 닫기 버튼(MobileCloseButton)이 44 라
+     32 로 두면 나란한 아이콘의 높이가 눈에 띄게 어긋난다(실측: 알림 32px ↔ 메뉴 닫기 44px,
+     전 페이지 공통). 터치 타겟 최소치(44)도 이쪽이 맞다 — CLAUDE.md 반응형 원칙 2. */
+  ${mediaTablet} { width: 44px; height: 44px; }
   background: transparent;
   border: none;
   cursor: pointer; padding: 0;
@@ -834,6 +843,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
+  // #405 — 탭은 워크스페이스별로 따로 보관한다. 워크스페이스를 바꾸거나 플랫폼 관리자로
+  //   들어가면 그 범위의 탭으로 갈아 끼운다 (앞 범위 것은 그 키에 그대로 남는다).
+  //   전환이 페이지 리로드 없이 일어나므로(AuthContext.switchWorkspace) 여기서 명시적으로 건다.
+  useEffect(() => {
+    setTabScope(tabScopeOf(location.pathname, user?.business_id ?? null));
+  }, [location.pathname, user?.business_id]);
+
   // 운영 #397 — "모바일에서 비용재무에 들어가면 위에부터 열리는게 아니라 아래에 열려."
   //   스크롤 컨테이너가 body 가 아니라 이 PageScroll 이라 **화면을 바꿔도 스크롤이 그대로 남는다.**
   //   앞 화면에서 아래까지 내려 봤으면 다음 화면이 그 위치에서 열린다 — 사용자에겐 "잘못 열린다".
@@ -885,7 +901,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
   // N+63 — 알림 feed (Activity Feed) 미읽음 카운트. 확인필요 (Action Queue) 와 분리.
-  const notifCount = useNotificationCount();
+  const { count: notifCount, loaded: notifLoaded } = useNotificationCountState();
   const [notifOpen, setNotifOpen] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
   // #194 — 제품 공지/체인지로그 "새 소식" (사이드바 메가폰 + 드로어)
@@ -902,9 +918,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     });
   };
   const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
-  // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — 인박스 + 채팅 합산 단일 적용.
-  // 둘 중 하나라도 > 0 이면 표시. 사용자가 실제로 봐서 둘 다 0 될 때까지 안 사라짐.
-  useGlobalBadge(inboxCount, talkUnreadCount);
+  // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — **안 읽은 알림 수** 단일 원천.
+  //   배지를 올리는 것도 내리는 것도 같은 장부(notifications)를 본다. 옛 공식(인박스+채팅)은
+  //   푸시가 세워 둔 배지를 앱 열자마자 0 으로 계산해 지웠다 — useGlobalBadge.ts 주석 참조.
+  useGlobalBadge(notifCount, notifLoaded);
 
   // 로그인 직후 자동 push 구독 시도 (Slack 패턴 — granted 면 조용히, default 면 7일 1회 prompt)
   useEffect(() => {

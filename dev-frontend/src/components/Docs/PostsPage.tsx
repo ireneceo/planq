@@ -71,7 +71,9 @@ import { isEnterAction } from '../../utils/imeKey';
 type FilterSel =
   | { kind: 'all' }
   | { kind: 'project'; projectId: number }
-  | { kind: 'category'; name: string };
+  | { kind: 'category'; name: string }
+  /** #360 — 표만 모아 보는 진입로. 표는 문서 안에 있어 여태 찾아갈 길이 없었다. */
+  | { kind: 'tables' };
 
 export type PostsScope =
   | { type: 'workspace'; businessId: number }
@@ -379,12 +381,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         return;
       }
       // 필터를 API 파라미터로 변환
-      const apiFilter: { projectId?: number | null; query?: string; category?: string; mine?: boolean } = {
+      const apiFilter: { projectId?: number | null; query?: string; category?: string; mine?: boolean; docKind?: 'doc' | 'table' | 'brief' | 'template' } = {
         query: query || undefined,
       };
       if (scope.type === 'project') apiFilter.projectId = scope.projectId;
       if (filter.kind === 'project') apiFilter.projectId = filter.projectId;
       else if (filter.kind === 'category') apiFilter.category = filter.name;
+      else if (filter.kind === 'tables') apiFilter.docKind = 'table';
 
       const list = await fetchPosts(scope.businessId, apiFilter);
       setRows(list);
@@ -1380,6 +1383,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <span />
                   <AtName>{t('filter.all', '전체') as string}</AtName>
                   <AtCount>{meta.total}</AtCount>
+                  <span />
+                </AtRow>
+                {/* #360 — 표 진입로. 누적 기록(표)을 문서 목록에서 바로 찾아갈 수 있게 한다. */}
+                <AtRow $selected={filter.kind === 'tables'}
+                  onClick={() => setFilter(filter.kind === 'tables' ? { kind: 'all' } : { kind: 'tables' })}>
+                  <span />
+                  <AtName>{t('filter.tables', '표') as string}</AtName>
+                  <AtCount>{meta.tableCount ?? ''}</AtCount>
                   <span />
                 </AtRow>
                 {meta.categories.map(c => (

@@ -235,48 +235,20 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
   if (!skip.has('push') && await isAllowed(userId, businessId, eventKind, 'push')) {
     try {
       const { sendPushToUser } = require('../services/push_service');
-      // badge — 인박스(확인 필요) + 채팅 unread 합산. frontend useGlobalBadge 와 동일 정의.
-      // 모든 알림 위치(dock 뱃지·사이드바·인박스 페이지) 가 이 합산값으로 통일.
-      // 실패해도 push 는 발송 (badge 는 활성 클라이언트가 정확하게 덮어씀).
+      // badge — **안 읽은 알림 수** 단일 원천 (frontend useGlobalBadge 와 같은 공식).
+      //   ★ 2026-09-05: 여기서 세던 것은 `인박스 확인필요 + 채팅 unread` 였고, 앱이 배지를
+      //   내릴 때 쓰는 장부와 달랐다. 운영 실측 — Irene 계정 채팅 0 · 인박스 0 인데
+      //   **안 읽은 알림 17건**. 그래서 푸시가 띄운 배지를 앱이 열리자마자 0 으로 지웠다
+      //   ("뱃지가 아예 없어져"). 올리는 쪽과 내리는 쪽이 같은 행을 세게 고정한다.
+      //   위 inbox 채널이 이 알림 행을 **이미 만든 뒤**라 방금 온 알림도 포함된다.
+      //   부수 효과로 localhost 자기호출(1.5s 타임아웃)이 사라져 발송 경로가 짧아진다.
+      //   채팅 unread 를 여기 더하지 않는 이유: 새 메시지도 notify() 를 거쳐 알림 행이
+      //   생기므로 더하면 한 사건이 2 로 세어진다.
       let badge;
       try {
-        if (businessId) {
-          const { sequelize } = require('../config/database');
-          // 1. 채팅 unread total (모든 conversation)
-          const [chatRows] = await sequelize.query(
-            `SELECT COUNT(m.id) AS cnt
-               FROM messages m
-               LEFT JOIN conversation_participants cp
-                 ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
-              INNER JOIN conversations c ON c.id = m.conversation_id AND c.business_id = :bid
-              WHERE m.sender_id != :uid
-                AND (m.is_deleted IS NULL OR m.is_deleted = 0)
-                AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)`,
-            { replacements: { uid: userId, bid: businessId } }
-          );
-          const chatUnread = Number(chatRows[0]?.cnt || 0);
-          // 2. 인박스 total — /api/dashboard/todo 와 같은 정의 (cross-workspace 합산)
-          //    여기선 single biz 컨텍스트라 그 biz 의 인박스 항목만 fetch.
-          let inboxTotal = 0;
-          try {
-            // dashboard 의 todo endpoint 호출 — 같은 backend 라 localhost loopback.
-            // **timeout 1.5s 강제** — hang 시 push 발송 전체가 지연되던 회귀 차단.
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 1500);
-            try {
-              const fetchRes = await fetch(`http://localhost:${process.env.PORT || 3003}/api/dashboard/todo?business_id=${businessId}`, {
-                signal: controller.signal,
-                headers: { Authorization: `Bearer ${require('jsonwebtoken').sign({id:userId,email:'sys@planq',platform_role:'business_member'}, process.env.JWT_SECRET, {expiresIn:'10s'})}` }
-              });
-              const j = await fetchRes.json();
-              if (j.success) inboxTotal = Number(j.data?.total || 0);
-            } finally {
-              clearTimeout(timer);
-            }
-          } catch (e) { /* timeout / fetch 실패 — chatUnread 만 사용 */ }
-          badge = chatUnread + inboxTotal;
-        }
-      } catch { /* badge 계산 실패해도 push 자체는 보냄 */ }
+        const { Notification } = require('../models');
+        badge = await Notification.count({ where: { user_id: userId, read_at: null } });
+      } catch { /* badge 계산 실패해도 push 자체는 보냄 (배지 미포함 = OS 가 기존값 유지) */ }
       const r = await sendPushToUser(userId, {
         title: title || 'PlanQ',
         body: body || '',

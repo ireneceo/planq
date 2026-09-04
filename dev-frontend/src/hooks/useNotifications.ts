@@ -33,20 +33,26 @@ export interface NotificationItem {
   actor?: { id: number; name: string; name_localized?: string | null } | null;
 }
 
-// 미읽음 카운트만 가벼운 hook — 사이드바 종 모양 badge 용.
-export function useNotificationCount(): number {
+// 미읽음 카운트 — 사이드바 종 모양 badge + OS 앱 아이콘 배지 공용.
+//
+// ★ `loaded` 를 같이 돌려준다. 앱 아이콘 배지는 **0 을 두 가지로 구분해야** 하기 때문이다.
+//   "아직 안 불러왔다(0)" 에서 배지를 지우면 푸시가 세워 둔 숫자가 앱을 열자마자 사라지고,
+//   "불러왔더니 0 이다" 에서 안 지우면 다 읽었는데 숫자가 남는다. 값으로 추측하지 않는다.
+export function useNotificationCountState(): { count: number; loaded: boolean } {
   const { user } = useAuth();
   const [count, setCount] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!user) { setCount(0); return; }
+    if (!user) { setCount(0); setLoaded(false); return; }
     let cancelled = false;
 
     const refresh = async () => {
       try {
         const r = await apiFetch('/api/notifications/unread-count');
         const j = await r.json();
-        if (!cancelled && j.success) setCount(Number(j.data?.count) || 0);
+        if (!cancelled && j.success) { setCount(Number(j.data?.count) || 0); setLoaded(true); }
+      // 실패는 0 건이 아니다 — loaded 를 세우지 않아야 배지가 제 값을 잃지 않는다.
       } catch { /* silent */ }
     };
     refresh();
@@ -62,7 +68,7 @@ export function useNotificationCount(): number {
     // 공유 소켓 (services/socket) — multi-device 동기화. notification:* 는 user room 자동 join.
     const offNew = onSocket('notification:new', () => refresh());
     const offRead = onSocket('notification:read', () => refresh());
-    const offReadAll = onSocket('notification:read-all', () => setCount(0));
+    const offReadAll = onSocket('notification:read-all', () => { setCount(0); setLoaded(true); });
 
     return () => {
       cancelled = true;
@@ -73,8 +79,9 @@ export function useNotificationCount(): number {
     };
   }, [user?.id]);
 
-  return count;
+  return { count, loaded };
 }
+
 
 // 알림 list (dropdown / 페이지 공용)
 interface UseNotificationsOptions {

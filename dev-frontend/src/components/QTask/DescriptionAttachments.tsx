@@ -7,6 +7,7 @@
 // 권한: description 편집 권한 (작성자/owner/admin) — 사이클 N+5 책임선 일치.
 
 import { downloadBlob } from '../../utils/download';
+import AttachmentPreviewDrawer from '../Common/AttachmentPreviewDrawer';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -49,6 +50,8 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
   // 문서 첨부는 그 문서만 미리보기로 연다 (화면 전체 이동 X).
   const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
+  // #404 — 파일 첨부는 열어서 보여주고, 내려받기는 그 안에서 고르게 한다.
+  const [filePreview, setFilePreview] = useState<AttachmentRow | null>(null);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -116,7 +119,7 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
     } catch { /* silent */ }
   };
 
-  const downloadFile = async (att: AttachmentRow) => {
+  const downloadFile = async (att: { download_url: string; original_name: string }) => {
     try {
       const r = await apiFetch(att.download_url);
       if (!r.ok) return;
@@ -159,7 +162,7 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
             ) : (
               <FileChip key={a.id}>
                 <FileChipBody type="button"
-                  onClick={() => { if (isDoc) setDocPreview({ id: a.post_id as number, title: a.original_name }); else void downloadFile(a); }}
+                  onClick={() => { if (isDoc) setDocPreview({ id: a.post_id as number, title: a.original_name }); else setFilePreview(a); }}
                   title={a.original_name}>
                   <FileChipExt>{ext}</FileChipExt>
                   <FileChipName>{a.original_name}</FileChipName>
@@ -177,6 +180,12 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
       {docPreview && (
         <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />
       )}
+      <AttachmentPreviewDrawer
+        attachment={filePreview}
+        businessId={businessId || 0}
+        onClose={() => setFilePreview(null)}
+        onDownload={(a) => void downloadFile(a)}
+      />
 
       {canEdit && (
         <>

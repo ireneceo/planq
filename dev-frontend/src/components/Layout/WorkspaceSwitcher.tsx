@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { isAdminContext } from '../../stores/tabStore';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -85,7 +86,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   //   그 문을 닫아버리면 사용자는 CS 로만 복구된다. 0개일 때는 숨기지 말고 **만들기로 안내**한다.
   const noWorkspace = workspaces.length === 0 && user.platform_role !== 'platform_admin';
 
-  const isAdminMode = location.pathname.startsWith('/admin');
+  const isAdminMode = isAdminContext(location.pathname);
   const isPlatformAdmin = user.platform_role === 'platform_admin';
   const activeWs = workspaces.find((w) => w.is_active) || workspaces[0] || null;
 

@@ -1,6 +1,7 @@
 // Q mail 화면 스타일 — MailPage.tsx 에서 분리 (god-file 가드: 컴포넌트 파일 800줄 상한).
 // 동작 코드와 표현을 나눠 두면 화면 로직을 읽을 때 스타일 400줄을 스크롤하지 않아도 된다.
 import styled from 'styled-components';
+import { mediaPhone } from '../../theme/breakpoints';
 
 // ─────────────────────────────────────────────
 // styles
@@ -128,6 +129,27 @@ export const SearchClear = styled.button`
 export const FilterToggleRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 4px 12px 6px;
+`;
+/** 폰에서 **검색 줄 + 필터 줄을 한 줄로** 묶는 껍데기 (#406).
+ *
+ *  Irene 2026-09-03: "메일 상세 상단엔 필터들이 세줄이나 차지해서 정작 중요한 메일 내용
+ *  나오는 영역이 좁아." 375×667 실측 — 폴더 탭(y190) · 검색(y241) · 필터(y285) 세 줄을 지나
+ *  **첫 메일이 y=323**, 즉 화면의 48% 를 상단이 먹었다.
+ *
+ *  데스크탑은 세로로 쌓던 그대로다(`display: contents` — 이 껍데기가 레이아웃에 끼어들지
+ *  않아 자식이 원래 부모의 자식처럼 배치된다). 폰에서만 가로 한 줄이 된다. */
+export const ListControls = styled.div`
+  display: contents;
+  ${mediaPhone} {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-right: 12px;
+    /* 검색칸이 남는 폭을 먹고 필터 버튼은 제 크기를 지킨다 — flex-wrap 은 쓰지 않는다
+       (감싸면 두 줄로 되돌아가 고치려던 것이 그대로 남는다). */
+    > *:first-child { flex: 1 1 auto; min-width: 0; margin: 8px 0 8px 16px; }
+    > *:last-child { flex: 0 0 auto; padding: 0; }
+  }
 `;
 export const FilterToggleBtn = styled.button`
   display: inline-flex; align-items: center; gap: 5px;

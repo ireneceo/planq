@@ -60,6 +60,8 @@ import { usePanelStack } from '../../hooks/usePanelStack';
 import { askCue } from '../../utils/cueAsk';
 import { isEnterAction } from '../../utils/imeKey';
 import ImportanceChip from '../../components/QTask/ImportanceChip';
+import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/SeriesScopeDialog';
+import { needsSeriesScope } from '../../utils/taskSeries';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -256,6 +258,8 @@ const QTaskPage:React.FC=()=>{
   //   서버 값이 오면 그대로 덮어쓴다. 캐시는 표시를 앞당길 뿐 진실의 원천이 아니다.
   const taskCacheKey=cacheKey('qtask',myId,bizId);
   const[allTasks,setAllTasks]=useState<TaskRow[]>(()=>readCache<TaskRow[]>(cacheKey('qtask',myId,bizId))??[]);
+  // #403 — 목록에서 반복 시리즈의 공유 값을 바꿀 때 적용 범위를 묻는다 (업무 상세와 같은 규칙).
+  const [seriesAsk, setSeriesAsk] = useState<{ taskId: number; patch: Record<string, unknown> } | null>(null);
   const[members,setMembers]=useState<MemberOption[]>(()=>readCache<MemberOption[]>(cacheKey('qtask-members',myId,bizId))??[]);
   const[aiOpen,setAiOpen]=useState(false);
   const[tplSelOpen,setTplSelOpen]=useState(false);
@@ -2307,11 +2311,18 @@ const QTaskPage:React.FC=()=>{
                                 const revert = () => setAllTasks(prev => prev.map(tt => tt.id===task.id
                                   ? { ...tt, assignee_id: prevAssigneeId, assignee: prevAssignee }
                                   : tt));
-                                // apiFetch 는 non-2xx 에 throw 안 함 — .catch 만 두면 403(권한)에 revert 가 안 터진다(거짓 성공).
-                                apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, {
-                                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ assignee_id: uid }),
-                                }).then(r => { if (!r.ok) revert(); }).catch(revert);
+                                // #403 — 담당자는 반복 시리즈가 공유하는 값이다. 목록에서 바꿀 때도
+                                //   업무 상세와 **같은 물음**을 거친다(적용 범위를 안 물으면 그 회차에만 저장된다).
+                                if (needsSeriesScope(task, { assignee_id: uid })) {
+                                  revert();   // 범위를 고른 뒤에 적용한다 — 미리 칠해두면 취소가 거짓 저장으로 남는다
+                                  setSeriesAsk({ taskId: task.id, patch: { assignee_id: uid } });
+                                } else {
+                                  // apiFetch 는 non-2xx 에 throw 안 함 — .catch 만 두면 403(권한)에 revert 가 안 터진다(거짓 성공).
+                                  apiFetch(`/api/tasks/by-business/${bizId}/${task.id}`, {
+                                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ assignee_id: uid }),
+                                  }).then(r => { if (!r.ok) revert(); }).catch(revert);
+                                }
                               }
                             }}
                             options={members.map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')}))} />
@@ -2937,6 +2948,20 @@ const QTaskPage:React.FC=()=>{
           onDuplicated={(newId)=>{ openDetail(newId); load(); }}
         />
       )}
+      <SeriesScopeDialog
+        open={!!seriesAsk}
+        variant="content"
+        onClose={() => setSeriesAsk(null)}
+        onPick={(scope: SeriesScope) => {
+          const ask = seriesAsk;
+          setSeriesAsk(null);
+          if (!ask || !bizId) return;
+          apiFetch(`/api/tasks/by-business/${bizId}/${ask.taskId}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...ask.patch, series_scope: scope }),
+          }).then(r => { if (r.ok) load(); }).catch(() => { /* 실패 시 목록 그대로 — 화면은 원래 값 */ });
+        }}
+      />
       {/* ── 탭별 기본 패널 — 항상 렌더. 상세 드로어는 position:fixed로 덮음. ── */}
       {isNarrow && rightOverlayOpen && <RightPanelBackdrop onClick={()=>setRightOverlayOpen(false)} />}
       {isNarrow && !detailTaskId && (

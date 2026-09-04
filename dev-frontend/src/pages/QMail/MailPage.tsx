@@ -139,6 +139,7 @@ import {
   SearchIcon,
   SearchInput,
   SearchRow,
+  ListControls,
   Spinner,
   StarSpan,
   TabCount,
@@ -1790,44 +1791,46 @@ const MailPage: React.FC = () => {
           ))}
         </FolderTabs>
         {/* 탭 다음 검색 — Q docs 식 전폭 단독 줄. */}
-        <SearchRow>
-          <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </SearchIcon>
-          <SearchInput
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-            placeholder={t('search.placeholder', { defaultValue: '메일 검색 (제목·내용·보낸사람)' }) as string}
-            aria-label={t('search.placeholder', { defaultValue: '메일 검색' }) as string}
-          />
-          {searchQ && (
-            <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
-          )}
-        </SearchRow>
-        {/* 운영 #213 — 필터가 상시 펼쳐져 세로 공간을 크게 먹고 있었다. 기본 접힘 + 토글.
-            ★ 접었을 때 적용 중인 필터가 몇 개인지 반드시 보여준다 — 안 보이면 "왜 목록이 이상하지" 가 된다.
-            ★ 일괄 액션(모두 확인완료 등)은 필터가 아니므로 접힘 밖에 둔다. 같이 숨기면 기능이 사라진다. */}
-        <FilterToggleRow>
-          <FilterToggleBtn type="button" aria-expanded={filtersOpen}
-            onClick={() => { const v = !filtersOpen; setFiltersOpen(v); try { localStorage.setItem('planq.mail.filtersOpen', v ? '1' : '0'); } catch { /* private mode */ } }}>
-            <FilterChevron $open={filtersOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></FilterChevron>
-            {t('filters.toggle', { defaultValue: '필터' }) as string}
-            {activeFilterCount > 0 && <FilterCount>{activeFilterCount}</FilterCount>}
-          </FilterToggleBtn>
-          {bulkAction && folderCounts[folder] > 0 && (
-            <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy} title={bulkAction.label}
-              onClick={bulkConfirm ? doBulk : armBulk}>
-              {!bulkBusy && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-              )}
-              <span>{bulkBusy
-                ? (t('bulk.working', { defaultValue: '처리 중…' }) as string)
-                : bulkConfirm
-                  ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: folderCounts[folder] }) as string)
-                  : bulkAction.label}</span>
-            </BulkAction>
-          )}
-        </FilterToggleRow>
+        <ListControls>
+          <SearchRow>
+            <SearchIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </SearchIcon>
+            <SearchInput
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              placeholder={t('search.placeholder', { defaultValue: '메일 검색 (제목·내용·보낸사람)' }) as string}
+              aria-label={t('search.placeholder', { defaultValue: '메일 검색' }) as string}
+            />
+            {searchQ && (
+              <SearchClear type="button" onClick={() => setSearchQ('')} aria-label={t('search.clear', { defaultValue: '검색 지우기' }) as string}>×</SearchClear>
+            )}
+          </SearchRow>
+          {/* 운영 #213 — 필터가 상시 펼쳐져 세로 공간을 크게 먹고 있었다. 기본 접힘 + 토글.
+              ★ 접었을 때 적용 중인 필터가 몇 개인지 반드시 보여준다 — 안 보이면 "왜 목록이 이상하지" 가 된다.
+              ★ 일괄 액션(모두 확인완료 등)은 필터가 아니므로 접힘 밖에 둔다. 같이 숨기면 기능이 사라진다. */}
+          <FilterToggleRow>
+            <FilterToggleBtn type="button" aria-expanded={filtersOpen}
+              onClick={() => { const v = !filtersOpen; setFiltersOpen(v); try { localStorage.setItem('planq.mail.filtersOpen', v ? '1' : '0'); } catch { /* private mode */ } }}>
+              <FilterChevron $open={filtersOpen} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></FilterChevron>
+              {t('filters.toggle', { defaultValue: '필터' }) as string}
+              {activeFilterCount > 0 && <FilterCount>{activeFilterCount}</FilterCount>}
+            </FilterToggleBtn>
+            {bulkAction && folderCounts[folder] > 0 && (
+              <BulkAction type="button" $confirm={bulkConfirm} disabled={bulkBusy} title={bulkAction.label}
+                onClick={bulkConfirm ? doBulk : armBulk}>
+                {!bulkBusy && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                )}
+                <span>{bulkBusy
+                  ? (t('bulk.working', { defaultValue: '처리 중…' }) as string)
+                  : bulkConfirm
+                    ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: folderCounts[folder] }) as string)
+                    : bulkAction.label}</span>
+              </BulkAction>
+            )}
+          </FilterToggleRow>
+        </ListControls>
         {/* 계정(이메일주소) 선택 — 같은 줄. */}
         {filtersOpen && accounts.length >= 1 && (
           <AcctFilterRow>

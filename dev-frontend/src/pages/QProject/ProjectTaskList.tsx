@@ -78,6 +78,8 @@ import {
 } from '../../services/projectCanvas';
 import { isEnterAction } from '../../utils/imeKey';
 import ImportanceChip from '../../components/QTask/ImportanceChip';
+import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/SeriesScopeDialog';
+import { needsSeriesScope } from '../../utils/taskSeries';
 
 export interface TaskRow {
   id: number; project_id: number | null; business_id: number;
@@ -278,18 +280,42 @@ const ProjectTaskList: React.FC<Props> = ({
   });
   const sorted = sortTasks(tasks);
 
+  // #403 — 반복 시리즈가 공유하는 값을 목록에서 바로 고칠 때도 **적용 범위를 먼저 묻는다.**
+  //   업무 상세에만 물음이 붙어 있어서, 같은 값을 목록에서 고치면 아무 것도 묻지 않고
+  //   그 회차에만 저장됐다(Irene: "지금 각각 저장되는 것 같아").
+  const [seriesAsk, setSeriesAsk] = useState<{ taskId: number; patch: Record<string, unknown>; variant: 'content' | 'recurrence' } | null>(null);
+
   // 운영 #279 — 여러 필드는 한 번의 PUT 으로. 기간을 두 번 쏘면 경쟁 + 부분 저장이 난다.
-  const saveFields = async (taskId: number, patch: Record<string, unknown>) => {
+  const saveFields = async (taskId: number, patch: Record<string, unknown>, scope?: SeriesScope) => {
     const row = tasks.find((t) => t.id === taskId) as Record<string, unknown> | undefined;
+    if (!scope && needsSeriesScope(row as { recurrence_rule?: string | null; recurrence_parent_id?: number | null } | undefined, patch)) {
+      const isRecurPatch = Object.prototype.hasOwnProperty.call(patch, 'recurrence_rule');
+      setSeriesAsk({ taskId, patch, variant: isRecurPatch ? 'recurrence' : 'content' });
+      return;
+    }
     const prevVals: Record<string, unknown> = {};
     for (const k of Object.keys(patch)) prevVals[k] = row?.[k];
     onLocalUpdate(taskId, patch as Partial<TaskRow>);
-    const r = await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
+    const body = scope ? { ...patch, series_scope: scope } : patch;
+    const r = await apiFetch(`/api/tasks/by-business/${businessId}/${taskId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (!r.ok) { onLocalUpdate(taskId, prevVals as Partial<TaskRow>); return; }  // 실패 시 낙관적 되돌림(assignGroup 패턴)
     // #206 — status 전이는 백엔드가 Focus 세션을 전환/종료한다. 위젯 30초 폴링을 기다리지 않게 즉시 동기화.
     if (patch.status !== undefined) { try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ } }
   };
   const saveField = async (taskId: number, field: string, value: unknown) => saveFields(taskId, { [field]: value });
+  // 두 렌더 경로(그룹 모드·플랫 모드)가 **같은 다이얼로그**를 쓴다 — 한쪽에만 달면 그쪽에서만 묻는다.
+  const seriesDialog = (
+    <SeriesScopeDialog
+      open={!!seriesAsk}
+      variant={seriesAsk?.variant ?? 'content'}
+      onClose={() => setSeriesAsk(null)}
+      onPick={(scope) => {
+        const ask = seriesAsk;
+        setSeriesAsk(null);
+        if (ask) void saveFields(ask.taskId, ask.patch, scope);
+      }}
+    />
+  );
   // 운영 #279 — 백엔드 FIELD_RULES.due_date/start_date 와 같은 집합 (담당자/작성자/owner/admin).
   const canEditDatesFor = (t: { created_by?: number | null; assignee_id?: number | null }) => (
     t.created_by === myId || t.assignee_id === myId || isOwnerOrAdmin
@@ -753,6 +779,7 @@ const ProjectTaskList: React.FC<Props> = ({
           </AddGroupBtn>
         )}
         {tasks.length === 0 && !addingGroup && <EmptyMsg>{t('list.empty', '업무가 없습니다')}</EmptyMsg>}
+        {seriesDialog}
       </>
     );
   }
@@ -763,6 +790,7 @@ const ProjectTaskList: React.FC<Props> = ({
       {colRow}
       {sorted.map(renderTaskRow)}
       {sorted.length === 0 && <EmptyMsg>{t('list.empty', '업무가 없습니다')}</EmptyMsg>}
+      {seriesDialog}
     </>
   );
 };

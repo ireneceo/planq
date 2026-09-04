@@ -50,6 +50,7 @@ import { CheckIcon } from '../Common/Icons';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import SeriesScopeDialog, { type SeriesScope } from './SeriesScopeDialog';
+import { isSeriesTask, needsSeriesScope } from '../../utils/taskSeries';
 import { isEnterAction } from '../../utils/imeKey';
 
 export interface DrawerTaskPatch {
@@ -578,8 +579,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   //   ★ #353 ⑤ 중요도도 시리즈가 공유한다. **백엔드에만 넣고 여기 빠뜨리면 도달할 수 없다** —
   //     화면이 "어디까지 반영할지" 를 묻지 않고 항상 단건 저장해, 부모에서 긴급으로 바꿔도
   //     회차는 전부 그대로다(Fable 실측). 두 목록은 반드시 같이 움직인다.
-  const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours', 'priority_level'];
-  const isSeries = !!(detailTask?.recurrence_rule || detailTask?.recurrence_parent_id);
+  const isSeries = isSeriesTask(detailTask);
   const [seriesAsk, setSeriesAsk] = useState<Record<string, unknown> | null>(null);
   // 무엇을 고치는 중인지에 따라 물어야 할 선택지가 다르다 (내용 3가지 / 반복 주기 2가지).
   const [seriesAskVariant, setSeriesAskVariant] = useState<'content' | 'recurrence'>('content');
@@ -592,7 +592,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     //     단, 켜는 첫 순간(아직 시리즈가 아님)은 물을 것이 없으므로 isSeries 로 걸러진다.
     if (!scope && isSeries) {
       const isRecurPatch = Object.prototype.hasOwnProperty.call(patch, 'recurrence_rule');
-      if (isRecurPatch || Object.keys(patch).some((k) => SERIES_FIELDS.includes(k))) {
+      if (needsSeriesScope(detailTask, patch)) {
         setSeriesAskVariant(isRecurPatch ? 'recurrence' : 'content');
         setSeriesAsk(patch);
         return;

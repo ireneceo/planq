@@ -381,7 +381,9 @@
     "delete": "삭제",
     "cancel": "취소",
     "docTag": "문서",
-    "docKind": "Q docs 문서"
+    "docKind": "Q docs 문서",
+    "previewAria": "첨부파일 미리보기",
+    "download": "다운로드"
   },
   "calendar": {
     "today": "오늘",

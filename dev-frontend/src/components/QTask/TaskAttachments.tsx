@@ -8,6 +8,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import AttachmentField from '../Common/AttachmentField';
 import { useImageLightbox } from '../Common/ImageLightbox';
+import AttachmentPreviewDrawer from '../Common/AttachmentPreviewDrawer';
 
 type AttachRow = {
   id: number;
@@ -65,6 +66,8 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
   // 문서 첨부는 그 문서만 미리보기로 연다 (화면 전체 이동 X).
   const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
+  // #404 — 파일 첨부는 **열어서 보여주고**, 내려받기는 그 안에서 고르게 한다.
+  const [filePreview, setFilePreview] = useState<AttachRow | null>(null);
   const imageRows = visibleRows.filter(r => r.mime_type?.startsWith('image/') && r.preview_url);
   const lightboxItems = imageRows.map(r => ({ src: r.preview_url as string, alt: r.original_name }));
 
@@ -114,15 +117,19 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
     if (j.success) setRows(prev => prev.filter(x => x.id !== id));
   };
 
-  const download = async (row: AttachRow) => {
-    // 문서(post) 첨부는 파일이 아니다 — 앱 안 탭으로 그 문서를 연다.
-    if (row.post_id) { setDocPreview({ id: row.post_id, title: row.original_name }); return; }
-    // 브라우저에서 그냥 링크 열기 — 서버가 Content-Disposition 으로 다운로드 강제
+  const download = async (row: { download_url: string; original_name: string }) => {
     try {
       const r = await apiFetch(row.download_url);
       const blob = await r.blob();
       await downloadBlob(blob, row.original_name);
     } catch { /* silent */ }
+  };
+
+  // 첨부를 **연다**. 문서(post)는 문서 미리보기로, 파일은 파일 미리보기 드로어로.
+  //   내려받기는 드로어 안에서 고른다 — 누르자마자 내려받지 않는다(#404).
+  const openAttachment = (row: AttachRow) => {
+    if (row.post_id) { setDocPreview({ id: row.post_id, title: row.original_name }); return; }
+    setFilePreview(row);
   };
 
   return (
@@ -165,7 +172,7 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
                     ) : (
                       <FileIcon>{r.post_id ? (t('attachments.docTag', { defaultValue: '문서' }) as string) : extIcon(r.original_name)}</FileIcon>
                     )}
-                    <Meta onClick={() => download(r)}>
+                    <Meta onClick={() => openAttachment(r)}>
                       <Name>{r.original_name}</Name>
                       <Sub>{r.post_id ? (t('attachments.docKind', { defaultValue: 'Q docs 문서' }) as string) : fmtSize(r.file_size)} · {r.uploader?.name || '-'}{!pickerOpen ? ` · ${new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</Sub>
                     </Meta>
@@ -193,6 +200,12 @@ export default function TaskAttachments({ taskId, onChangeCount }: Props) {
       {docPreview && (
         <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />
       )}
+      <AttachmentPreviewDrawer
+        attachment={filePreview}
+        businessId={businessId}
+        onClose={() => setFilePreview(null)}
+        onDownload={(a) => download(a)}
+      />
       {pickerOpen && (
         <PickerInline>
           {/* 인라인 추가 폼과 동일 — 별도 submit/cancel 버튼 없음.
