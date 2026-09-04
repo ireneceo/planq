@@ -1,0 +1,48 @@
+{
+  "version": "1.48.8",
+  "date": "2026-09-04",
+  "items": [
+    {
+      "ko": { "title": "앱 아이콘의 알림 숫자가 사라지지 않습니다",
+        "body": "앱을 열었다 내리면 아이콘의 숫자가 통째로 사라지던 문제를 고쳤습니다. 숫자를 띄우는 것은 알림인데 숫자를 지우는 쪽은 다른 것을 세고 있어서, 읽지 않은 알림이 남아 있어도 0으로 계산돼 지워지고 있었습니다. 이제 이 숫자는 '아직 읽지 않은 알림 수' 하나이며, 알림을 실제로 확인해야 줄어듭니다. 알림 하나를 눌렀다고 나머지까지 사라지지도 않습니다." },
+      "en": { "title": "The badge on the app icon no longer disappears",
+        "body": "Opening the app and putting it away used to wipe the number on the icon. The badge was raised by notifications but cleared by a different count, so it computed zero and erased itself even while unread notifications were waiting. The badge is now one thing — your unread notifications — and it only goes down when you actually read them. Opening one notification no longer clears the rest." }
+    },
+    {
+      "ko": { "title": "업무 첨부파일을 눌러 바로 열어 봅니다",
+        "body": "업무의 첨부파일은 이름을 누르면 곧바로 내려받기가 시작돼, 내용을 확인하려면 매번 파일을 받아야 했습니다. 이제 누르면 앱 안에서 열립니다. 이미지·PDF·문서·표·텍스트를 그 자리에서 보고, 필요할 때만 아래 내려받기 버튼을 쓰시면 됩니다. 의뢰 내용에 붙인 첨부도 같습니다." },
+      "en": { "title": "Task attachments open instead of downloading",
+        "body": "Clicking an attachment name used to start a download, so checking what was inside meant saving the file every time. Attachments now open inside the app — images, PDFs, documents, tables and text — with a download button if you still want the file. Attachments on the request side behave the same way." }
+    },
+    {
+      "ko": { "title": "탭이 워크스페이스별로 따로 보관됩니다",
+        "body": "워크스페이스를 바꾸거나 플랫폼 관리자로 들어가도 앞서 열어 둔 탭이 그대로 남아 서로 섞이고 있었습니다. 이제 탭은 워크스페이스마다 따로 보관됩니다. 다른 워크스페이스로 가면 그곳에서 열어 두었던 탭으로 바뀌고, 돌아오면 하던 탭이 그대로 있습니다." },
+      "en": { "title": "Tabs are kept separately for each workspace",
+        "body": "Switching workspaces — or going into platform admin — used to leave the previous tabs open and mixed together. Tabs are now stored per workspace: move to another workspace and you get that workspace's own tabs, and coming back restores the ones you were working in." }
+    },
+    {
+      "ko": { "title": "반복 업무는 목록에서 고쳐도 적용 범위를 묻습니다",
+        "body": "반복되는 업무의 담당자나 내용을 업무 상세에서 고칠 때는 '이 업무만 / 지금부터 / 전체' 를 물었지만, 목록에서 바로 고치면 아무 것도 묻지 않고 그 회차에만 저장됐습니다. 이제 어느 화면에서 고치든 같은 물음이 뜹니다." },
+      "en": { "title": "Recurring tasks ask about scope from lists too",
+        "body": "Changing the owner or content of a recurring task from the detail panel asked whether to apply it to this one, from now on, or all — but editing the same value straight from a list saved silently to that single occurrence. The question now appears wherever you make the change." }
+    },
+    {
+      "ko": { "title": "'확인 필요' 숫자가 화면과 같아졌습니다",
+        "body": "왼쪽 메뉴의 '확인 필요' 숫자는 지금 워크스페이스 것만 세고, 눌러서 들어간 화면은 참여 중인 모든 워크스페이스를 보여주고 있었습니다. 숫자와 목록이 서로 달랐습니다. 이제 숫자도 화면과 같은 범위를 세며, 항목마다 어느 워크스페이스 것인지 함께 표시됩니다." },
+      "en": { "title": "The \"Needs review\" count matches the screen",
+        "body": "The sidebar count only looked at your current workspace while the page it opens shows every workspace you belong to, so the number and the list disagreed. The count now covers the same range as the page, and each item shows which workspace it came from." }
+    },
+    {
+      "ko": { "title": "Q docs 에서 표만 모아 볼 수 있습니다",
+        "body": "표는 문서 안에 들어 있어서, 한 번 만들고 나면 다시 찾아갈 길이 없었습니다. 매일·매주 행을 쌓아 가는 기록일수록 불편했습니다. 이제 Q docs 목록 왼쪽에 '표' 가 있어 표만 건수와 함께 모아 볼 수 있습니다." },
+      "en": { "title": "Q docs can show just your tables",
+        "body": "Tables live inside documents, so once created there was no way back to them — which hurt most for logs you add rows to every day or week. The Q docs sidebar now has a Tables entry that lists them all with a count." }
+    },
+    {
+      "ko": { "title": "모바일 화면을 정리했습니다",
+        "body": "휴대폰에서 선택 상자의 글자만 유독 크게 보이던 것을 주변 글자와 맞췄고, 나란히 놓인 버튼들의 높이가 서로 달라 어긋나 보이던 것도 통일했습니다. 메일 목록 위쪽을 차지하던 줄이 하나 줄어 메일이 더 많이 보입니다." },
+      "en": { "title": "Mobile screens tidied up",
+        "body": "On phones the text inside select boxes was noticeably larger than everything around it, and buttons sitting side by side had different heights. Both now line up. The mail list also gives back a row of header space, so more mail fits on screen." }
+    }
+  ]
+}
