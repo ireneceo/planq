@@ -1,37 +1,51 @@
 {
-  "working_on": ["앱 아이콘 배지 — 규칙 원복 + 실제 신고(앱 열면 사라짐) 수정"],
+  "working_on": ["보관기간 이행 1단계 — 스탬프·귀속·백필·리포트(삭제 동작 변화 0)"],
   "in_progress": [],
   "completed": [
-    { "title": "배지 규칙을 정본으로 되돌림", "verified": "opus_only",
-      "detail": "앞 배포에서 배지 정의를 '안 읽은 알림 수' 로 바꿨다. 요청받지 않은 규칙 변경이었고 틀렸다 — 실측에서 좌측 메뉴는 확인 필요 2, 앱 아이콘은 17 이었다. 정본(3679ce3d, 2026-05-08 결정)인 인박스(확인 필요) + Q Talk 안읽음 으로 복구. routes/notifications.js 와 public/sw.js 는 원본과 diff 0. useInboxCount 워크스페이스 범위도 원복 — 푸시 계산과 범위가 갈라지면 푸시 도착 시 배지를 덮어쓴다." },
-    { "title": "앱을 열 때마다 배지를 먼저 지우던 것", "verified": "opus_only",
-      "detail": "대조군으로 확정. 가드를 빼고 같은 하니스를 돌리면 첫 로드에 clear 가 불리고(그 뒤 set 35), 가드가 있으면 set 35 만 불린다. 푸시가 세운 배지를 앱이 켜지면서 스스로 지우고 그 다음에 실제 숫자를 칠하던 것 — 열었다 바로 접으면 지운 채로 남는다. 지난번 수정(hasRealUpdateRef)은 첫 마운트 한 번만 막아서 못 잡았다. 수정: useInboxCount 가 loaded 를 같이 돌려주고, 값을 실제로 받은 뒤에만 배지를 칠한다." }
+    { "title": "보관기간 단일 원천 — 요금제 값을 코드가 읽는다", "verified": "fable_pass",
+      "detail": "방침이 약속한 플랜별 보관기간을 코드가 한 곳에서도 읽지 않았다(plans.js 를 읽는 코드 0곳, AuditLog.destroy 0곳 = 영구 보관). 30 이라는 숫자가 세 파일에 각자 박혀 있었다. services/retentionPolicy.js 로 모으고 files·file_trash·content_trash·uploadCleanup 이 그것만 본다. dev 실측: pro 90일 · basic 30일 · starter 14일 · free 7일로 실제로 갈린다." },
+    { "title": "다운그레이드 절벽 — 래칫 업으로 원천 차단", "verified": "fable_pass",
+      "detail": "각 행의 수명 = 기록 시점에 약속한 기간과 현재 플랜 기간 중 긴 쪽. Pro(3년)에서 Free(30일)로 내려가도 3년치가 지워지지 않는다. 소급 삭제가 설계상 발생하지 않아 유예·경고가 필요 없다. 대조군 6항목 통과(2024년 기록 + 현재 30일 플랜 → 삭제 불가 확인)." },
+    { "title": "fail-closed — 모르면 보존", "verified": "opus_only",
+      "detail": "getPlan() 은 미지 코드에 starter(90일), getBusinessPlan() 은 비즈니스 없으면 free(30일)를 준다 — 둘 다 모르는 상태가 곧 삭제다. retentionPolicy 는 PLANS[code] 를 직접 찾고 못 찾으면 건너뛴다. 삭제된 워크스페이스도 비켜간다. 건너뛴 사유를 세어 리포트에 남긴다." },
+    { "title": "감사 기록이 워크스페이스 없이 쌓이던 것", "verified": "opus_only",
+      "detail": "posts.js logAudit 6곳 중 4곳 + task_tags + projects 가 businessId 를 안 넘겨, 워크스페이스 데이터가 플랫폼 행으로 위장됐다(운영 232행). 그 상태로는 보관기간 판정 자체가 불가능하다. 백필 전에 쓰기측을 먼저 고쳤다." },
+    { "title": "paginatedResponse 가 추가 키를 버리고 있었다", "verified": "opus_only",
+      "detail": "{limit,page,offset} 만 구조분해해서 호출부가 같이 넘기던 retention_days 가 한 번도 나간 적이 없었다. 프론트는 못 받은 채 30 을 화면에 단언하고 있었다(요금제와 무관하게). 만들어 놓고 읽는 곳이 없는 게 아니라 보내는 쪽에서 조용히 버려졌다." },
+    { "title": "운영 FCM 설정 완료", "verified": "opus_only",
+      "detail": "안드로이드 푸시가 나가지 않던 원인. .env 는 rsync 제외라 배포로 안 따라간다. 키 배치 + .env 설정 + 재시작 후 구글 실제 인증 통과(발송 경로 404 unregistered = 토큰만 없음). 이제 안드로이드 알림이 나간다." }
   ],
   "behavior_changes": [
-    "앱 아이콘 숫자의 뜻이 v1.48.8 이전으로 돌아간다 — 확인 필요 + Q Talk 안읽음. Q mail·Q bill 은 더하지 않는다(Q bill 은 확인 필요에 이미 포함).",
-    "좌측 '확인 필요' 숫자가 다시 현재 워크스페이스 기준이다(v1.48.8 에서 전 워크스페이스로 넓혔던 것을 원복)."
+    "휴지통 보관기간이 요금제별로 갈린다 — 지금까지 전 요금제 30일 고정이었다. Starter 14 · Basic 30 · Pro 90 · Enterprise 365.",
+    "휴지통 화면의 보관 문구가 그 워크스페이스의 실제 기간을 보여준다(서버가 못 주면 문구를 숨긴다 — 거짓 숫자를 단언하지 않는다).",
+    "개인정보처리방침 문구 변경 — 휴지통 14~365일 · 감사 90일~7년 · '플랜을 낮추더라도 이미 쌓인 기록의 보관기간은 줄지 않습니다'.",
+    "감사 로그 자동 삭제는 **아직 꺼져 있다**. RETENTION_PURGE_APPLY 를 켜야 실제로 지운다."
   ],
   "issues": [],
   "blocked_on_human": [
-    "개인정보 보관기간 이행 — Fable 설계 조건부 GO. 조건 1(래칫 업: 플랜을 낮춰도 이미 쌓인 기록의 수명은 줄지 않음)이 개인정보처리방침 문구 변경을 수반해 Irene 승인 필요.",
-    "안드로이드 assetlinks.json 지문 미치환 — Play App Signing SHA-256 필요.",
-    "운영 FCM 미설정 — bash scripts/setup-prod-fcm.sh (안 하면 안드로이드 알림 0통).",
+    "감사 로그 실제 삭제 켜기 — 운영 리포트(04:00 UTC 회차)가 실측과 두 번 이상 맞은 뒤 .env 에 RETENTION_PURGE_APPLY=1. 운영은 이 설계로 지워질 행이 0건이라 리포트가 0 으로 나오는 것이 정상이다.",
+    "안드로이드 assetlinks.json 지문 — Play Console > 앱 서명 의 SHA-256 이 필요하다(업로드 키 아님). 받으면 node scripts/android-set-cert.js <지문> → 배포.",
     "iOS 배포 범위(TestFlight 유지 대 App Store 정식) 결정 대기."
   ],
-  "migrations": [],
+  "migrations": [
+    "audit_logs.retain_until DATETIME NULL + idx_audit_biz_retain(business_id, retain_until)",
+    "files.purge_after / posts.purge_after / kb_documents.purge_after DATETIME NULL",
+    "배포 후 백필: node scripts/backfill-audit-retention.js --apply · node scripts/backfill-trash-purge-after.js --apply (둘 다 멱등, dry-run 기본)"
+  ],
   "check_areas": [
-    "앱 아이콘 숫자가 좌측 메뉴 '확인 필요' 와 같은지",
-    "알림이 온 뒤 앱을 열었다 접어도 숫자가 남는지",
-    "데스크탑 dock 숫자도 같은지"
+    "휴지통 화면에 그 워크스페이스의 보관기간이 맞게 뜨는지",
+    "04:00 UTC 회차가 돌고 /admin/audit-logs 에 retention.report 가 남는지",
+    "안드로이드 기기에서 알림이 실제로 오는지"
   ],
   "backlog": [
+    "휴지통 인접 결함 2건 — kb.js 가 휴지통행 전에 청크를 하드 삭제(복원하면 검색 안 되는 문서), posts.js 가 첨부를 하드 삭제(복원하면 첨부 없는 문서). posts/kb 자동 영구삭제는 이걸 고친 뒤에.",
     "#381 · #382 Q Sale — 별도 사이클",
-    "#259 — A안 배포 완료, 잔여(영업 유입 연결)는 Q Sale 범위",
-    "휴지통 인접 결함 2건 — kb.js:877 청크 하드삭제 · posts.js:1009 첨부 하드삭제 (복원해도 내용이 빈 문서가 된다)"
+    "Fable 권고(#211) — 도달(운영 서명 0건·게스트링크 1건) · 시간→청구 경로 · 고객용 외부 프로젝트 페이지 · 첫응답시간 지표"
   ],
   "tooling_health": [
-    "npm run build EXIT 0 · 배지 대조군 검사(가드 제거 시 clear 재현) 통과",
-    "운영 피드백 미처리 14건 → 3건 (남은 셋은 전부 Q Sale 계열)"
+    "health-check 41/41 (보관기간 3항목 신설 — 쓰기측 누락 0 · 회차+모드 노출 · 양성 카나리 후보1→삭제1→잔여0)",
+    "불변식 가드 32/32 · npm run build EXIT 0",
+    "dev 삭제 실증: 6051행 → 165건 삭제 → 재실행 후보 0(멱등)"
   ],
   "undeployed": []
 }
