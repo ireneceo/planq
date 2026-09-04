@@ -70,6 +70,25 @@ if (gsProblem) {
   else warn.push(msg);
 }
 
+// targetSdk — Play 는 매년 최소 target API 를 올리고, 미달이면 **업로드 자체를 거부**한다.
+//   2026-09-04 실사례: targetSdk 35 로 올렸다가 "must target at least API level 36" 로 거부.
+//   빌드는 성공한 뒤 업로드에서 막히므로, 빌드 시점에 먼저 세운다.
+//   ★ Play 요구치가 오르면 이 상수를 같이 올린다.
+const PLAY_MIN_TARGET_SDK = 36;
+const VARS = path.join(ROOT, 'dev-frontend/android/variables.gradle');
+if (fs.existsSync(VARS)) {
+  const v = fs.readFileSync(VARS, 'utf8');
+  const target = Number((v.match(/targetSdkVersion\s*=\s*(\d+)/) || [])[1]);
+  const compile = Number((v.match(/compileSdkVersion\s*=\s*(\d+)/) || [])[1]);
+  console.log(`  targetSdk: ${target} / compileSdk: ${compile}`);
+  if (!(target >= PLAY_MIN_TARGET_SDK)) {
+    fail.push(`targetSdk 가 ${target} 입니다 — Play 는 최소 ${PLAY_MIN_TARGET_SDK} 를 요구하며 업로드를 거부합니다.`);
+  }
+  if (compile < target) {
+    fail.push(`compileSdk(${compile}) 가 targetSdk(${target}) 보다 낮습니다 — Gradle 이 빌드를 거부합니다.`);
+  }
+}
+
 // 버전 — Play 는 같은 versionCode 재업로드를 거부한다. 사람이 눈으로 보게 찍어준다.
 if (fs.existsSync(GRADLE)) {
   const g = fs.readFileSync(GRADLE, 'utf8');

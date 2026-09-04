@@ -7,7 +7,9 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.7.2'
+        // AGP 8.7 은 compileSdk 36 을 모른다. Play 가 targetSdk 36 을 요구해(2026-09-04 거부)
+        //   같이 올렸다. 8.10.x 의 최소 Gradle 은 8.11.1 — 래퍼가 이미 8.11.1 이라 그대로 둔다.
+        classpath 'com.android.tools.build:gradle:8.10.1'
         classpath 'com.google.gms:google-services:4.4.2'
 
         // NOTE: Do not place your application dependencies here; they belong
