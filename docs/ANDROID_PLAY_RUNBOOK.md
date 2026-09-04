@@ -29,6 +29,25 @@
 
 ---
 
+## ★ 테스터 설치 전에 반드시 — 운영서버 FCM 설정
+
+Play 빌드는 **운영(`https://planq.kr`)** 을 바라본다. 운영 백엔드에 FCM 설정이 없으면
+`isFcmConfigured()` 가 false 라 **안드로이드 알림이 에러 없이 0통**이다(2026-09-04 확인: 없음).
+
+- **키 파일** — rsync 제외 목록에 `secrets/` 가 없다. **다음 배포 때 자동으로 따라간다.**
+- **`.env` 두 줄** — `.env` 는 rsync 제외다. **손으로 넣어야 한다.** 배포로 따라가지 않는다.
+
+```bash
+ssh irene@87.106.78.146
+printf 'FCM_PROJECT_ID=planq-48cf7\nFCM_SERVICE_ACCOUNT_PATH=/opt/planq/backend/secrets/fcm-service-account.json\n' >> /opt/planq/backend/.env
+chmod 600 /opt/planq/backend/secrets/fcm-service-account.json
+pm2 restart planq-backend --update-env
+```
+
+확인: 운영에서 `node -e "require('dotenv').config();console.log(require('./services/fcm_sender').isFcmConfigured())"` → `true`.
+
+---
+
 ## 남은 것 — AAB 빌드와 릴리즈
 
 > Firebase 는 2026-09-04 에 끝났다. 서버는 알림을 보낼 수 있는 상태이고,
