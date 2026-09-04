@@ -377,6 +377,68 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 //
 // 커서 페이징 — 여러 원장을 병합한 스트림이라 offset/count 가 정확할 수 없다.
 //   `?before=ISO` 이전 것만 소스별로 뽑아 병합한다. has_more 는 "가득 찼는가" 로만 판단한다.
+// ── 청구서 초안 재료 (#211 ②) ────────────────────────────────────────────────
+// 청구서를 만들 때 "이 프로젝트에서 무엇을 청구했었나 / 시간이 얼마나 쌓였나" 를 준다.
+//
+// 왜 이 모양인가 (2026-09-04 운영 실측):
+//   ① 이 팀의 청구는 **시간당이 아니라 월정액**이다 — 실제 항목이 전부 `수량 1 × 단가 390,000`.
+//      그래서 "직전 항목 그대로 불러오기" 가 가장 자주 쓰일 길이고, 시간은 **덧붙이는 항목**이다.
+//      직전 단가를 시간당 단가로 쓰면 390,000원/시간이 된다 — 절대 그렇게 쓰지 않는다.
+//   ② 기록된 시간은 **실제보다 적다.** 운영 업무 262건 중 실제시간이 든 것은 69건(26%)뿐이고,
+//      자동 산정 근거는 포커스 타이머 하나뿐이라 안 쓰면 0 이다(memory feedback_actual_hours_focus_only).
+//      숫자만 주면 사용자가 그대로 청구해 **적게 받는다.** 그래서 `tasks_with_time / tasks_total` 을
+//      같이 실어 화면이 "얼마나 기록됐는지" 를 함께 말하게 한다.
+router.get('/:id/billing-draft', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { Invoice, InvoiceItem, Task } = require('../models');
+
+    // 직전 청구서의 항목 — 같은 프로젝트, 가장 최근 것
+    const lastInvoice = await Invoice.findOne({
+      where: { business_id: project.business_id, project_id: project.id },
+      order: [['id', 'DESC']],
+      attributes: ['id', 'title', 'currency', 'created_at'],
+    });
+    let lastItems = [];
+    if (lastInvoice) {
+      const rows = await InvoiceItem.findAll({
+        where: { invoice_id: lastInvoice.id },
+        order: [['sort_order', 'ASC'], ['id', 'ASC']],
+        attributes: ['description', 'detail', 'quantity', 'unit_price'],
+        raw: true,
+      });
+      lastItems = rows.map((r) => ({
+        description: r.description || '',
+        detail: r.detail || '',
+        quantity: Number(r.quantity || 0),
+        unit_price: Number(r.unit_price || 0),
+      }));
+    }
+
+    // 기록된 시간 — 합계와 **적용 범위**를 함께
+    const tasks = await Task.findAll({
+      where: { project_id: project.id },
+      attributes: ['actual_hours'],
+      raw: true,
+    });
+    const withTime = tasks.filter((t) => Number(t.actual_hours) > 0);
+    const hours = withTime.reduce((a, t) => a + Number(t.actual_hours || 0), 0);
+
+    return successResponse(res, {
+      last_invoice: lastInvoice
+        ? { id: lastInvoice.id, title: lastInvoice.title, currency: lastInvoice.currency, created_at: lastInvoice.created_at }
+        : null,
+      last_items: lastItems,
+      time: {
+        hours: Number(hours.toFixed(1)),
+        tasks_total: tasks.length,
+        tasks_with_time: withTime.length,
+      },
+    });
+  } catch (err) { next(err); }
+});
+
 router.get('/:id/history', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);

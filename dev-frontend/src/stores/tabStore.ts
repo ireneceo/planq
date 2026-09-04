@@ -231,7 +231,18 @@ export function setTabScope(next: string | null) {
     } catch { /* 무시 */ }
     try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* 무시 */ }
   }
-  state = loaded;
+  // ★ mirror 는 **저장소에서 읽을 값이 아니라 실행 모드**다 (2026-09-04 회귀).
+  //   Irene: "데스크탑 앱에서 좌측 메뉴가 다 안눌려."
+  //   ModeGate 가 탭 모드 진입 때 `setMirror(false)` 로 꺼두는데, load() 는 어떤 경로로도
+  //   `mirror: true` 를 돌려준다. 그래서 setTabScope 가 state 를 갈아끼우는 순간 미러가
+  //   **되살아났고**, 탭 모드에는 TabMirror 가 없어 navigateDelegate 가 null 이라
+  //   `navigateActive` 가 매번 아무 일도 안 하고 끝났다 —
+  //       if (state.mirror) { if (navigateDelegate) …; return; }   ← 침묵
+  //   탭 막대는 setActive(paneNavigators) 를 써서 멀쩡했고, 사이드바(ChromeLink →
+  //   navigateActive)만 죽었다. 신고와 정확히 일치한다.
+  //   isTabsSpike() 는 데스크탑 기본 ON 이라 **로그인 데스크탑 전원**이 대상이었다.
+  const runtimeMirror = state.mirror;
+  state = { ...loaded, mirror: runtimeMirror };
   // ★ 복원된 탭이 **지금 있는 자리**를 이기면 안 된다 (2026-09-04 회귀).
   //   증상: Irene "Q talk 메뉴가 클릭이 안돼". 주소는 /talk 인데 화면은 대시보드였다.
   //   순서가 원인이다 — 부팅 때는 워크스페이스를 아직 모르므로 applyBootPath 가
@@ -249,7 +260,7 @@ export function setTabScope(next: string | null) {
     if (state.tabs.length === 0) {
       // 새 범위가 비었으면 지금 화면을 첫 탭으로. 안 하면 화면은 떠 있는데 탭 막대가 빈다.
       const id = newId();
-      state = { tabs: [{ id, kind: kindOfPath(here), title: '', path: here, alive: true, lastActiveAt: Date.now() }], activeId: id, mirror: true };
+      state = { tabs: [{ id, kind: kindOfPath(here), title: '', path: here, alive: true, lastActiveAt: Date.now() }], activeId: id, mirror: runtimeMirror };
     } else if (mismatched) {
       // 같은 종류의 탭이 있으면 그 탭을 지금 경로로 (탭이 쌓이지 않게), 없으면 새로 연다.
       const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(here));
@@ -304,8 +315,13 @@ export const tabStore = {
   navigateActive(path: string) {
     if (state.mirror) { if (navigateDelegate) navigateDelegate(path); return; } // location→seedFromPath 가 store 갱신
     const id = state.activeId;
-    if (id) { this.setTabPath(id, path); const nav = paneNavigators.get(id); if (nav) nav(path); }
-    else this.newTab(path);
+    if (!id) { this.newTab(path); return; }
+    this.setTabPath(id, path);
+    const nav = paneNavigators.get(id);
+    if (nav) { nav(path); return; }
+    // pane 이 아직/이미 없다 — 아무 일도 안 일어나는 것보다 새 탭으로라도 착지시킨다.
+    //   "눌렀는데 반응 없음" 은 사용자에게 고장과 구별되지 않는다.
+    this.newTab(path);
   },
 
   // 알림·새 소식 드롭다운처럼 **하던 일 위에 얹히는** 진입점 전용.
