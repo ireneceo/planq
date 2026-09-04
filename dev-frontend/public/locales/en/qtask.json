@@ -657,11 +657,12 @@
       "label": "Revert",
       "tip": "Revert to previous status"
     },
-    "kbSave": "Save to KB",
-    "kbSaving": "Saving…",
-    "kbSaved": "Saved to KB ✓",
-    "kbSaveHint": "Save this deliverable to the workspace knowledge base — Cue uses it when answering",
-    "recurDescHint": "This description is copied into every occurrence. Write each occurrence’s output in its own body."
+    "kbSave": "Add to Cue knowledge",
+    "kbSaving": "Adding…",
+    "kbSaved": "Added to Cue knowledge",
+    "kbSaveHint": "Adds this deliverable to Cue's knowledge so Cue can reference it in future answers.",
+    "recurDescHint": "This description is copied into every occurrence. Write each occurrence’s output in its own body.",
+    "kbErr": "Couldn't add it. Please try again in a moment."
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",
@@ -1341,7 +1342,6 @@
   },
   "deliv": {
     "title": "Deliverable history",
-    "hint": "Each time you send a review request, that version of the deliverable is kept.",
     "empty": "No versions yet. Send a review request and that deliverable will be kept here.",
     "loading": "Loading…",
     "approved": "Approved",
@@ -1355,7 +1355,11 @@
       "generic": "Could not load the history",
       "load_failed": "Could not load the history",
       "restore_failed": "Could not restore"
-    }
+    },
+    "stateRecorded": "Recorded as v{{n}}",
+    "stateNext": "Sending a review request records it as v{{n}}",
+    "stateNone": "Not recorded as a version yet",
+    "stateFirst": "Sending a review request records it as v1"
   },
   "loadError": {
     "title": "Couldn't load your tasks",

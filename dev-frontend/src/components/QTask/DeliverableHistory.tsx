@@ -42,7 +42,6 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
   const { t } = useTranslation('qtask');
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<Version[]>([]);
-  const [currentRound, setCurrentRound] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [bodyCache, setBodyCache] = useState<Record<number, string>>({});
@@ -58,11 +57,14 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
       const j = await r.json();
       if (!j?.success) { setErr('load_failed'); return; }
       setVersions(j.data?.versions || []);
-      setCurrentRound(j.data?.current_round ?? null);
     } catch { setErr('load_failed'); } finally { setLoading(false); }
   }, [taskId]);
 
-  useEffect(() => { if (open) load(); }, [open, load]);
+  // ★ 2026-09-04 — 펼쳐야만 읽던 것을 **마운트 시** 읽는다.
+  //   Irene: "결과물이 버전별로 어떻게 되는 건지 전혀 모르겠어. 이미 저장되어 있는데 어쩌라는 거야?"
+  //   접힌 상태에서는 회차 번호도 규칙도 안 보였다 — 규칙 설명이 접힌 본문 **안**에 있었기 때문이다.
+  //   목록은 본문을 싣지 않아 가볍다(설계 주석 참조). 상태를 먼저 보여주고 상세는 펼칠 때 읽는다.
+  useEffect(() => { load(); }, [load]);
   // 업무가 바뀌면 접고 비운다 — 옛 업무의 회차가 잠깐 보이는 것을 막는다
   useEffect(() => { setOpen(false); setExpanded(null); setBodyCache({}); setVersions([]); }, [taskId]);
 
@@ -93,17 +95,37 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
       : o === 'revision' ? t('deliv.revision', '수정요청')
         : t('deliv.pending', '검토 대기');
 
+  const last = versions[0] || null;   // 목록은 최신순
+
   return (
     <Wrap>
+      {/* 상태 한 줄 — 접혀 있어도 보인다. 규칙을 설명하지 않고 **지금 상태와 다음 행동**을 말한다. */}
+      <StatusLine>
+        {last ? (
+          <>
+            <strong>{t('deliv.stateRecorded', 'v{{n}} 로 기록됨', { n: last.round })}</strong>
+            <Sep aria-hidden="true">·</Sep>
+            {outcomeLabel(last.outcome)}
+            <Sep aria-hidden="true">·</Sep>
+            {t('deliv.stateNext', '확인 요청을 보내면 v{{n}} 로 남습니다', { n: last.round + 1 })}
+          </>
+        ) : (
+          <>
+            <strong>{t('deliv.stateNone', '아직 회차로 기록되지 않았습니다')}</strong>
+            <Sep aria-hidden="true">·</Sep>
+            {t('deliv.stateFirst', '확인 요청을 보내면 v1 로 남습니다')}
+          </>
+        )}
+      </StatusLine>
+
       <Toggle type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}>
         <Caret $open={open} aria-hidden="true">▸</Caret>
         {t('deliv.title', '결과물 이력')}
-        {currentRound ? <RoundPill>v{currentRound}</RoundPill> : null}
+        {versions.length ? <RoundPill>{versions.length}</RoundPill> : null}
       </Toggle>
 
       {open && (
         <Body>
-          <Hint>{t('deliv.hint', '"확인 요청 보내기" 를 누른 시점의 결과물이 회차로 남습니다.')}</Hint>
           {loading && <Muted>{t('deliv.loading', '불러오는 중…')}</Muted>}
           {err && <ErrLine>{t(`deliv.err.${err}`, t('deliv.err.generic', '이력을 불러오지 못했습니다'))}</ErrLine>}
           {!loading && !err && versions.length === 0 && (
@@ -148,6 +170,12 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
   );
 };
 
+const StatusLine = styled.div`
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+  margin: 10px 0 6px; font-size: 0.8125rem; line-height: 1.6; color: #475569;
+  strong { color: #0F172A; font-weight: 700; }
+`;
+const Sep = styled.span`color: #CBD5E1;`;
 const Wrap = styled.div`margin-top:10px;`;
 const Toggle = styled.button`
   display:inline-flex;align-items:center;gap:6px;height:2.25rem;padding:0 10px;
@@ -168,7 +196,6 @@ const Body = styled.div`
   display:flex;flex-direction:column;gap:8px;margin-top:6px;padding:10px 12px;
   background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
 `;
-const Hint = styled.div`font-size:0.75rem;color:#94A3B8;line-height:1.5;`;
 const Muted = styled.div`font-size:0.78125rem;color:#64748B;`;
 const ErrLine = styled.div`font-size:0.78125rem;color:#DC2626;`;
 const Row = styled.div`

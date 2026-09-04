@@ -222,6 +222,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   // KNOWLEDGE_LOOP 축1 — 결과물 KB 저장 (Cue 리서치 결과 등 되먹임, 사람 게이트)
   const [kbSaving, setKbSaving] = useState(false);
   const [kbSaved, setKbSaved] = useState(false);
+  const [kbErr, setKbErr] = useState(false);
   const [reviewers, setReviewers] = useState<ReviewerRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [reviewPolicy, setReviewPolicy] = useState<'all'|'any'>('all');
@@ -525,6 +526,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     const text = (tmp.textContent || '').trim();
     if (!text) return;
     setKbSaving(true);
+    setKbErr(false);
     try {
       const r = await apiFetch(`/api/businesses/${bizId}/kb/documents`, {
         method: 'POST',
@@ -532,8 +534,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         body: JSON.stringify({ title: detailTask.title, body: text.slice(0, 20000), categories: ['업무 결과물'] }),
       });
       const j = await r.json();
-      if (r.ok && j.success) setKbSaved(true);
-    } catch { /* ignore */ } finally { setKbSaving(false); }
+      // apiFetch 는 throw 하지 않는다 — 실패를 잡지 않으면 사용자는 성공한 줄 안다.
+      if (r.ok && j.success) setKbSaved(true); else setKbErr(true);
+    } catch { setKbErr(true); } finally { setKbSaving(false); }
   }, [detailTask, bizId, kbSaving, kbSaved]);
 
   // #105 — 포커스 일시정지/재개 시 "실제" 시간 즉시 반영.
@@ -2181,11 +2184,20 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               <SectionTitle>
                 {t('detail.body', '결과물')}
                 {!canEditBody && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
+                {/* ★ 2026-09-04 — 이름이 "KB에 저장" 이라 (1) KB 가 뭔지 모르고
+                    (2) 바로 옆 에디터의 자동저장과 "저장" 이 겹쳐 무엇이 저장되는지 헷갈렸다.
+                    Irene: "KB에 저장이라는 거 뭔지 모른다고 전에 말했는데 아직도 이름도 그대로네."
+                    → 이름에 **어디로 가고 무엇에 쓰이는지**를 담는다. '저장' 이라는 말은 쓰지 않는다. */}
                 {myWsRole !== 'client' && !!detailTask.body && (
-                  <KbSaveBtn type="button" disabled={kbSaving || kbSaved} onClick={saveBodyToKb}
-                    title={t('detail.kbSaveHint', '이 결과물을 워크스페이스 지식 베이스(KB)에 저장 — Cue 가 답변에 활용') as string}>
-                    {kbSaved ? t('detail.kbSaved', 'KB 저장됨 ✓') : kbSaving ? t('detail.kbSaving', '저장 중…') : t('detail.kbSave', 'KB에 저장')}
-                  </KbSaveBtn>
+                  <>
+                    <KbSaveBtn type="button" disabled={kbSaving || kbSaved} onClick={saveBodyToKb}
+                      title={t('detail.kbSaveHint', '이 결과물을 Cue 지식에 넣습니다. 다음부터 Cue 가 답변할 때 참고합니다.') as string}>
+                      {kbSaved ? t('detail.kbSaved', 'Cue 지식에 추가됨')
+                        : kbSaving ? t('detail.kbSaving', '추가하는 중…')
+                          : t('detail.kbSave', 'Cue 지식에 추가')}
+                    </KbSaveBtn>
+                    {kbErr && <KbErrText>{t('detail.kbErr', '추가하지 못했습니다. 잠시 후 다시 시도해 주세요.')}</KbErrText>}
+                  </>
                 )}
               </SectionTitle>
               <RichEditor value={detailTask.body || ''}
@@ -2506,6 +2518,9 @@ const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;
 const SectionTitle = styled.h4`font-size:0.75rem;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;
   body[data-popout='1'] &{margin-bottom:6px;}`;
 const ReadOnlyHint = styled.span`font-size:0.6875rem;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
+const KbErrText = styled.span`
+  margin-left: 8px; font-size: 0.75rem; color: #B91C1C;
+`;
 const KbSaveBtn = styled.button`
   all:unset;cursor:pointer;margin-left:auto;
   font-size:0.6875rem;font-weight:600;color:#0F766E;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;padding:2px 10px;
