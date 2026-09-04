@@ -136,6 +136,24 @@ workflows:
         script: |
           cd dev-frontend/android
           ./gradlew bundleRelease
+      - name: 서명 확인 — 서명 없는 AAB 는 Play 가 거부한다
+        script: |
+          # build.gradle 에 signingConfig 가 없거나 키스토어가 안 붙으면 Gradle 은
+          # 아무 말 없이 **서명 없는 AAB** 를 내놓는다. 빌드는 초록불이고 거절은
+          # 며칠 뒤 Play Console 에서 처음 알게 된다. 여기서 즉시 세운다.
+          set -e
+          cd dev-frontend/android
+          AAB=$(ls app/build/outputs/bundle/release/*.aab | head -1)
+          echo "검사 대상: $AAB"
+          if jarsigner -verify "$AAB" | grep -q "jar verified"; then
+            echo "OK — 서명됨"
+          else
+            echo "FAIL — AAB 가 서명되지 않았습니다."
+            echo "  확인: Codemagic 키스토어 reference 'planq_upload' 등록 여부"
+            echo "  확인: dev-frontend/android/app/build.gradle 의 signingConfigs.release"
+            jarsigner -verify "$AAB" | head -5
+            exit 1
+          fi
     artifacts:
       - dev-frontend/android/app/build/outputs/**/*.aab
       - dev-frontend/android/app/build/outputs/**/mapping.txt

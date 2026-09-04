@@ -29,6 +29,30 @@
 
 ---
 
+## ★ 업로드 키스토어 (한 번만 · 없으면 빌드가 즉시 실패)
+
+2026-09-04 첫 Android 빌드가 이것 때문에 실패했다 —
+`No keystores with reference 'planq_upload' were found`.
+이 문서에 "등록돼 있음" 이라고 적혀 있었지만 **만든 적이 없었다.**
+
+**Codemagic UI** → 팀 이름 → `Settings` → `Code signing identities` → `Android keystores`
+→ **`Generate keystore`**(파일 업로드가 아니라 생성)
+
+| 칸 | 값 |
+|---|---|
+| **Reference name** | **`planq_upload`** — codemagic.yaml `android_signing` 이 이 이름을 찾는다 |
+| Key alias | `planq` |
+| Validity | 30년 이상 |
+
+**파일로 내려받아 옮기지 않는다.** Codemagic 이 만들어 보관하게 한다.
+이 키를 잃으면 앱 업데이트를 올릴 수 없다(Play 지원팀 통한 업로드 키 재설정만 남는다).
+
+키스토어만으로는 부족하다 — `app/build.gradle` 의 `signingConfigs.release` 가 `CM_*`
+환경변수를 읽어야 한다(2026-09-04 추가). 없으면 **서명 없는 AAB 가 초록불로 나오고**
+Play 가 업로드에서 거부한다. 그래서 빌드 마지막에 `jarsigner -verify` 단계를 뒀다.
+
+---
+
 ## ★ 테스터 설치 전에 반드시 — 운영서버 FCM 설정
 
 Play 빌드는 **운영(`https://planq.kr`)** 을 바라본다. 운영 백엔드에 FCM 설정이 없으면
@@ -54,7 +78,9 @@ pm2 restart planq-backend --update-env
 > **실제 도착 확인은 앱을 기기에 설치한 뒤에만 가능하다**(기기 토큰이 그때 생긴다).
 
 
-1. **Codemagic** 에서 워크플로 **`android-play`** 실행 (키스토어 `planq_upload` 등록돼 있음)
+1. **Codemagic** 에서 워크플로 **`android-play`** 실행
+   > ★ 워크플로 목록에 iOS 와 Android 두 개가 있다. **`PlanQ Android — Play`** 를 고른다.
+   > 빌드가 시작되면 `Machine:` 이 `Linux` 인지 확인 — `Mac mini` 면 iOS 를 고른 것이다.
 2. Play Console → **Test and release** → 트랙 선택 → **`새 버전 만들기`** → AAB 업로드
 3. **국가 및 지역** 선택
 4. 검토 → **제출**
