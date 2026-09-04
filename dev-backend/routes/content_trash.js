@@ -136,6 +136,15 @@ router.delete('/:businessId/:kind/:id/purge', authenticateToken, checkBusinessAc
   try {
     const t = await loadTarget(req, res); if (!t) return;
     const snapshot = { title: t.row.title };
+    // 딸린 것들은 **여기서** 지운다. 휴지통행 시점에 지우면 복원해도 속이 빈 문서가 된다
+    //   (Q info 는 검색 청크, Q docs 는 첨부). 영구삭제는 되돌릴 수 없으니 여기가 맞는 자리다.
+    if (t.kind === 'kb') {
+      const { KbChunk } = require('../models');
+      await KbChunk.destroy({ where: { kb_document_id: t.row.id } });
+    } else {
+      const { PostAttachment } = require('../models');
+      await PostAttachment.destroy({ where: { post_id: t.row.id } });
+    }
     await t.row.destroy({ force: true });
     require('../services/auditService').logAudit(req, {
       action: t.kind === 'post' ? 'post.purge' : 'kb.document_purge',

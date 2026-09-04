@@ -873,7 +873,11 @@ router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, 
       return errorResponse(res, 'forbidden_delete — owner/admin 또는 작성자만 삭제할 수 있습니다.', 403);
     }
 
-    await KbChunk.destroy({ where: { kb_document_id: doc.id } });
+    // ★ 청크는 여기서 지우지 않는다. 여긴 **휴지통행**이지 영구삭제가 아니다.
+    //   지워 버리면 복원해도 검색에 안 걸리는 껍데기 문서가 된다 — 사용자에게는 복원이 실패한 것과 같다.
+    //   휴지통에 있는 동안 검색에 새지도 않는다: 청크 조회가 KbDocument(paranoid)를
+    //   `required: true` 로 조인하므로 soft delete 된 문서의 청크는 자동으로 빠진다
+    //   (services/kb_service.js). 실제 제거는 영구삭제 경로(routes/content_trash.js)가 한다.
     // 휴지통 보관 만료일을 삭제 시점에 박는다 — 화면이 이 날짜를 보여주므로 나중에
     //   플랜이 낮아져도 앞당기지 않는다(retentionPolicy 래칫 업). 못 읽으면 NULL.
     try {

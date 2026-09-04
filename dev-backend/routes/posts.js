@@ -1010,7 +1010,9 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
       return errorResponse(res, '작성자 또는 오너만 문서를 삭제할 수 있습니다', 403);
     }
     const snapshot = { title: post.title, category: post.category, status: post.status, project_id: post.project_id };
-    await PostAttachment.destroy({ where: { post_id: post.id } });
+    // ★ 첨부는 여기서 지우지 않는다. 여긴 휴지통행이다 — 지우면 복원해도 첨부가 사라진 문서가 된다.
+    //   첨부 조회는 문서를 거치므로 휴지통에 있는 동안 노출되지 않는다.
+    //   실제 제거는 영구삭제 경로(routes/content_trash.js)가 한다.
     // 휴지통 보관 만료일을 삭제 시점에 박는다 — 화면이 이 날짜를 보여주므로 나중에
     //   플랜이 낮아져도 앞당기지 않는다(retentionPolicy 래칫 업). 못 읽으면 NULL.
     try {
