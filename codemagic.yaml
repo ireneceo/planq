@@ -127,9 +127,18 @@ workflows:
       - name: 빌드 번호 (Play 최신 +1)
         script: |
           cd dev-frontend/android
-          # Play 는 같은 versionCode 재업로드를 거부한다. 이미 올라간 것보다 1 크게 잡는다.
+          # Play 는 같은 versionCode 재업로드를 거부한다. 이미 올라간 것보다 크게 잡는다.
+          #
+          # ★ `get-latest-build-number` 는 Codemagic 의 Google Play 연동이 없으면 **조용히
+          #   실패해 0 을 준다**(우리 계정은 미연동). 그러면 NEXT 가 영원히 1 로 고정되어,
+          #   몇 번을 다시 빌드해도 `Version code 1 has already been used` 가 반복된다
+          #   (2026-09-04 실측). 그래서 Codemagic 이 워크플로마다 증가시키는
+          #   PROJECT_BUILD_NUMBER 와 **큰 쪽**을 쓴다 — 연동이 생기면 그쪽이 자동으로 이긴다.
           LATEST=$(google-play get-latest-build-number --package-name "$PACKAGE_NAME" 2>/dev/null || echo 0)
-          NEXT=$((LATEST + 1))
+          CANDIDATE=$((LATEST + 1))
+          NEXT=${PROJECT_BUILD_NUMBER:-1}
+          if [ "$CANDIDATE" -gt "$NEXT" ]; then NEXT=$CANDIDATE; fi
+          echo "Play 최신=$LATEST / Codemagic 빌드번호=${PROJECT_BUILD_NUMBER:-?} → 채택 $NEXT"
           echo "versionCode → $NEXT"
           # macOS 의 sed 는 -i 뒤에 백업 확장자를 **필수 인자로** 요구한다. GNU 문법
           # (`sed -i "s/.../"`)을 그대로 쓰면 치환식이 확장자로 먹히고 파일명이 스크립트로
