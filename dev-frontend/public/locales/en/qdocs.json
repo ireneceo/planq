@@ -702,5 +702,8 @@
     "unknown": "Unknown"
   },
   "revertEdit": "Undo this edit",
-  "doneEditing": "Done"
+  "doneEditing": "Done",
+  "trash": {
+    "retentionDays": "You can restore within {{count}} days of deleting"
+  }
 }

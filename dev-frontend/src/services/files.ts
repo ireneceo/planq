@@ -441,18 +441,20 @@ export interface TrashedFile {
 export interface TrashPage {
   items: TrashedFile[];
   total: number;
-  retentionDays: number;
+  /** 이 워크스페이스의 휴지통 보관기간(일). null = 서버가 판단 못 함 → 화면은 보관 문구를 숨긴다.
+   *  30 같은 숫자를 폴백으로 두면 요금제와 다른 값을 사용자에게 단언하게 된다. */
+  retentionDays: number | null;
 }
 
 export async function fetchTrash(businessId: number, opts?: { projectId?: number }): Promise<TrashPage> {
   const q = opts?.projectId ? `&project_id=${opts.projectId}` : '';
   const r = await apiFetch(`/api/files/${businessId}/trash?limit=200${q}`);
   const j = await r.json();
-  if (!r.ok || !j.success) return { items: [], total: 0, retentionDays: 30 };
+  if (!r.ok || !j.success) return { items: [], total: 0, retentionDays: null };
   return {
     items: (j.data || []) as TrashedFile[],
     total: j.pagination?.total ?? (j.data || []).length,
-    retentionDays: j.pagination?.retention_days ?? 30,
+    retentionDays: j.pagination?.retention_days ?? null,
   };
 }
 

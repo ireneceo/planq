@@ -225,9 +225,14 @@ const Banner = styled.div`
 `;
 const BellIcon = styled.div`
   width: 36px; height: 36px; flex-shrink: 0;
-  /* #406 — 폰에서는 아이콘도 줄인다. 36 은 터치 타겟 기준이지만 이건 **누르는 것이 아니라
-     표시**라 그 기준이 걸리지 않는다(누르는 것은 닫기 버튼과 CTA 다). */
-  @media (max-width: 640px) { width: 24px; height: 24px; font-size: 0.875rem; }
+  /* #406 — 폰에서는 아이콘 상자를 없애고 글자 앞의 이모지처럼 흘린다.
+     px 높이를 새로 박지 않는다 — 컨트롤 높이 토큰(36/40/44) 밖의 숫자가 늘면 가드가 잡고,
+     그 숫자가 늘어나는 것을 막는 것이 그 가드의 일이다. 여긴 누르는 것이 아니라 표시다. */
+  @media (max-width: 640px) {
+    width: auto; height: auto; padding: 0;
+    background: none; border-radius: 0;
+    font-size: 1rem; line-height: 1;
+  }
   display: flex; align-items: center; justify-content: center;
   background: #FFEDD5;
   color: #C2410C;

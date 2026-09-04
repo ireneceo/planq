@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-09-03",
+  "_generated": "2026-09-04",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -58,7 +58,8 @@
       "old_value",
       "new_value",
       "ip_address",
-      "created_at"
+      "created_at",
+      "retain_until"
     ],
     "bill_events": [
       "id",
@@ -899,7 +900,8 @@
       "deleted_by",
       "purged_at",
       "origin_provider",
-      "drive_md5"
+      "drive_md5",
+      "purge_after"
     ],
     "focus_sessions": [
       "id",
@@ -1208,7 +1210,8 @@
       "vlevel",
       "target_member_ids",
       "security_level",
-      "deleted_at"
+      "deleted_at",
+      "purge_after"
     ],
     "kb_pinned_faqs": [
       "id",
@@ -1558,7 +1561,8 @@
       "target_member_ids",
       "share_expires_at",
       "security_level",
-      "deleted_at"
+      "deleted_at",
+      "purge_after"
     ],
     "project_clients": [
       "id",

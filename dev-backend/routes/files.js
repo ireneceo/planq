@@ -1129,11 +1129,22 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
 //   쿼터는 **삭제 시점에 즉시 반환**한다(현행 유지). Free 1GB 인 제품에서 "지웠는데 용량이
 //   안 준다" 는 즉시 막힘으로 이어진다 — Dropbox 모델. 실제 디스크는 보존기간(TRASH_RETENTION_DAYS)
 //   만큼 더 쓰지만 자동 정리 cron 이 상한을 잡는다.
-const TRASH_RETENTION_DAYS = 30;
+//
+//   ★ 보관기간은 여기 상수로 두지 않는다. 30 이라는 숫자가 이 파일·content_trash.js·
+//     uploadCleanup.js 세 곳에 각자 박혀 있었고, 정작 요금제가 약속한
+//     `plans.js trash_retention_days` 는 **아무도 읽지 않았다**. 정의는
+//     services/retentionPolicy.js 한 곳에만 있다.
 
 async function trashFile(file, req, transaction) {
-  file.deleted_at = new Date();
+  const deletedAt = new Date();
+  file.deleted_at = deletedAt;
   file.deleted_by = req?.user?.id ?? null;
+  // 삭제 시점에 약속한 영구삭제 날짜를 박아 둔다 — 화면이 사용자에게 이 날짜를 보여주므로
+  //   나중에 플랜이 낮아져도 앞당기지 않는다. 못 읽으면 NULL(= 현재 플랜 기간만 적용).
+  try {
+    const { stampFor } = require('../services/retentionPolicy');
+    file.purge_after = await stampFor(file.business_id, 'trash', deletedAt);
+  } catch { file.purge_after = null; }
   await file.save({ transaction });
 
   // 쿼터 반환 (자체 스토리지만 쿼터 사용) — 바이트는 남지만 사용자 한도에서는 즉시 빠진다.
@@ -1491,4 +1502,3 @@ module.exports.getOrCreateUsage = getOrCreateUsage;
 module.exports.applyMemberDisplayName = applyMemberDisplayName;
 module.exports.broadcastFile = broadcastFile;
 module.exports.isRestorable = isRestorable;
-module.exports.TRASH_RETENTION_DAYS = TRASH_RETENTION_DAYS;

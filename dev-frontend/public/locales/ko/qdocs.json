@@ -702,5 +702,8 @@
     "unknown": "알 수 없음"
   },
   "revertEdit": "이번 편집 되돌리기",
-  "doneEditing": "편집 완료"
+  "doneEditing": "편집 완료",
+  "trash": {
+    "retentionDays": "삭제 후 {{count}}일 안에는 되돌릴 수 있어요"
+  }
 }

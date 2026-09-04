@@ -17,15 +17,17 @@ const { Post, KbDocument, User, BusinessMember } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, postListWhereByLevel } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { resolveRetention, isExpired, effectiveExpiry } = require('../services/retentionPolicy');
 
 const router = express.Router();
 
-/** 파일 휴지통과 같은 보관 기간 — 두 값이 갈라지면 사용자가 규칙을 두 개 외워야 한다. */
-const TRASH_RETENTION_DAYS = 30;
-
-function isRestorable(deletedAt) {
+/** 파일 휴지통과 **같은 보관 기간** — 두 값이 갈라지면 사용자가 규칙을 두 개 외워야 한다.
+ *  숫자를 여기 박지 않는다. 정의는 services/retentionPolicy.js 한 곳이다(요금제 값을 읽는다).
+ *  @param purgeAfter 삭제 당시 약속한 날짜(컬럼). 없으면 현재 플랜 기간만 적용.
+ *  @param retentionDays 현재 플랜 기간. null 이면 판단 불가 → **복원 가능**으로 둔다(보존 쪽). */
+function isRestorable(deletedAt, purgeAfter, retentionDays) {
   if (!deletedAt) return false;
-  return (Date.now() - new Date(deletedAt).getTime()) < TRASH_RETENTION_DAYS * 86400 * 1000;
+  return !isExpired(purgeAfter, deletedAt, retentionDays);
 }
 
 /** 삭제·복원·영구삭제 권한 — posts 의 DELETE 라우트와 **같은 규칙**(작성자 또는 owner/admin). */
@@ -70,20 +72,27 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
       limit, offset,
     });
 
+    // 이 워크스페이스의 보관기간. 못 읽으면 null — 판단 불가라 복원 가능으로 두고(보존 쪽),
+    //   화면은 보관 문구를 숨긴다.
+    const retTrash = await resolveRetention(businessId, 'trash');
+    const retentionDays = retTrash.ok ? retTrash.days : null;
+
     const items = [
       ...posts.map((p) => ({
         kind: 'post', id: p.id, title: p.title || '(제목 없음)',
         deleted_at: p.deleted_at, author: p.author ? { id: p.author.id, name: p.author.name } : null,
-        restorable: isRestorable(p.deleted_at),
+        restorable: isRestorable(p.deleted_at, p.purge_after, retentionDays),
+        purge_after: (effectiveExpiry(p.purge_after, p.deleted_at, retentionDays) || null)?.toISOString?.() ?? null,
       })),
       ...kb.map((d) => ({
         kind: 'kb', id: d.id, title: d.title || '(제목 없음)',
         deleted_at: d.deleted_at, author: null,
-        restorable: isRestorable(d.deleted_at),
+        restorable: isRestorable(d.deleted_at, d.purge_after, retentionDays),
+        purge_after: (effectiveExpiry(d.purge_after, d.deleted_at, retentionDays) || null)?.toISOString?.() ?? null,
       })),
     ].sort((a, b) => new Date(b.deleted_at) - new Date(a.deleted_at));
 
-    return paginatedResponse(res, items, items.length, { limit, page, offset });
+    return paginatedResponse(res, items, items.length, { limit, page, offset, retention_days: retentionDays });
   } catch (err) { next(err); }
 });
 
@@ -108,7 +117,10 @@ async function loadTarget(req, res) {
 router.post('/:businessId/:kind/:id/restore', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const t = await loadTarget(req, res); if (!t) return;
-    if (!isRestorable(t.row.deleted_at)) return errorResponse(res, 'retention_expired', 400);
+    const retRestore = await resolveRetention(Number(t.row.business_id), 'trash');
+    if (!isRestorable(t.row.deleted_at, t.row.purge_after, retRestore.ok ? retRestore.days : null)) {
+      return errorResponse(res, 'retention_expired', 400);
+    }
     await t.row.restore();
     require('../services/auditService').logAudit(req, {
       action: t.kind === 'post' ? 'post.restore' : 'kb.document_restore',
@@ -135,4 +147,3 @@ router.delete('/:businessId/:kind/:id/purge', authenticateToken, checkBusinessAc
 });
 
 module.exports = router;
-module.exports.TRASH_RETENTION_DAYS = TRASH_RETENTION_DAYS;

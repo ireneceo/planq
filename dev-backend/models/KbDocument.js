@@ -225,6 +225,11 @@ KbDocument.init({
     allowNull: false,
     defaultValue: 'general',
   },
+  // 휴지통에서 언제 영구 삭제되는가 (삭제 시점 플랜 기준으로 약속한 날짜).
+  //   화면이 사용자에게 이 날짜를 보여준다 — 나중에 플랜이 낮아져도 **앞당기지 않는다**
+  //   (services/retentionPolicy.js effectiveExpiry 가 현재 플랜과 비교해 긴 쪽을 쓴다).
+  //   NULL = 약속을 보여준 적 없음 → 현재 플랜 기간만 적용.
+  purge_after: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize,
   tableName: 'kb_documents',

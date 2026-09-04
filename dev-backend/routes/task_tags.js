@@ -255,6 +255,7 @@ router.put('/:id/tags', authenticateToken, async (req, res, next) => {
     const [row] = await attachTagsTo([{ id: task.id }], task.business_id);
     logAudit(req, {
       action: 'task.tags_update', targetType: 'task', targetId: task.id,
+      businessId: task.business_id,
       oldValue: { tag_ids: before }, newValue: { tag_ids: after },
     });
     // 실시간 (CLAUDE.md §16 b) — 리스트·팝아웃이 태그 칩을 즉시 갱신한다.

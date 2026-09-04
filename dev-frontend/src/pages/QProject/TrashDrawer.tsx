@@ -43,7 +43,9 @@ const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, on
 
   const [items, setItems] = useState<TrashedFile[]>([]);
   const [total, setTotal] = useState(0);
-  const [retentionDays, setRetentionDays] = useState(30);
+  // null = 아직 모른다/서버가 판단 못 함. 그때는 보관 문구를 그리지 않는다 —
+  //   거짓 숫자를 보여주느니 아무 것도 안 보여준다(요금제마다 기간이 다르다).
+  const [retentionDays, setRetentionDays] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -110,10 +112,12 @@ const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, on
           {!loading && <HeadCount>{total}</HeadCount>}
         </DetailDrawer.Header>
         <DetailDrawer.Body>
-          <Notice>
-            {(t('docs.trash.retention', '{{days}}일이 지나면 자동으로 비워집니다. 그 전까지는 되돌릴 수 있습니다.') as string)
-              .replace('{{days}}', String(retentionDays))}
-          </Notice>
+          {retentionDays != null && (
+            <Notice>
+              {(t('docs.trash.retention', '{{days}}일이 지나면 자동으로 비워집니다. 그 전까지는 되돌릴 수 있습니다.') as string)
+                .replace('{{days}}', String(retentionDays))}
+            </Notice>
+          )}
           {err && <ErrorBar role="alert">{err}</ErrorBar>}
           {loading ? (
             <Dim data-testid="trash-loading">{(t('docs.trash.loading', '불러오는 중…') as string)}</Dim>

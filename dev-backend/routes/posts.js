@@ -540,6 +540,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
         action: 'post.create',
         targetType: 'post',
         targetId: post.id,
+        businessId: post.business_id,
         newValue: { title: post.title, category: post.category, status: post.status, project_id: post.project_id },
       });
       broadcastPost(req, full, 'post:new');
@@ -609,6 +610,7 @@ router.post('/:id/follow-up', authenticateToken, async (req, res, next) => {
       action: 'post.follow_up.create',
       targetType: 'post',
       targetId: post.id,
+      businessId: post.business_id,
       newValue: { kind, mode, parent_post_id: parent.id, title },
     });
 
@@ -747,6 +749,7 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
       action: 'post.brief.create',
       targetType: 'post',
       targetId: result.post.id,
+      businessId: result.post.business_id,
       newValue: {
         title: result.post.title,
         view_kind: result.brief_meta?.view_kind,
@@ -913,6 +916,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         action: isPromotion ? 'post.create' : 'post.update',
         targetType: 'post',
         targetId: post.id,
+        businessId: post.business_id,
         oldValue: oldSnapshot,
         newValue: { ...oldSnapshot, ...patch, content_json: undefined, content_text: undefined },  // 본문은 audit 에 안 담음 (revision 별도)
       });
@@ -1007,6 +1011,13 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
     }
     const snapshot = { title: post.title, category: post.category, status: post.status, project_id: post.project_id };
     await PostAttachment.destroy({ where: { post_id: post.id } });
+    // 휴지통 보관 만료일을 삭제 시점에 박는다 — 화면이 이 날짜를 보여주므로 나중에
+    //   플랜이 낮아져도 앞당기지 않는다(retentionPolicy 래칫 업). 못 읽으면 NULL.
+    try {
+      const { stampFor } = require('../services/retentionPolicy');
+      const pa = await stampFor(post.business_id, 'trash');
+      if (pa) await post.update({ purge_after: pa });
+    } catch { /* 스탬프 실패가 삭제를 막지 않는다 */ }
     const snapForBroadcast = { id: post.id, business_id: post.business_id, project_id: post.project_id };
     await post.destroy();
     require('../services/auditService').logAudit(req, {

@@ -15,7 +15,8 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { attachWorkspaceScope, fileListWhereByLevel } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { purgeFile } = require('../services/filePurge');
-const { canMutateFile, getOrCreateUsage, applyMemberDisplayName, broadcastFile, isRestorable, TRASH_RETENTION_DAYS } = require('./files');
+const { canMutateFile, getOrCreateUsage, applyMemberDisplayName, broadcastFile, isRestorable } = require('./files');
+const { resolveRetention, effectiveExpiry } = require('../services/retentionPolicy');
 const planEngine = require('../services/plan');
 
 const router = express.Router();
@@ -41,6 +42,11 @@ router.get('/:businessId/trash', authenticateToken, attachWorkspaceScope(), asyn
     if (req.query.project_id) where.project_id = req.query.project_id;
 
     const { limit, page, offset } = parsePagination(req, { defaultLimit: 200, maxLimit: 500 });
+    // 이 워크스페이스의 보관기간 — 못 읽으면 null 이고, 화면은 그때 보관 문구를 숨긴다
+    //   (거짓 숫자를 보여주느니 아무 것도 안 보여준다).
+    const ret = await resolveRetention(Number(req.params.businessId), 'trash');
+    const retentionDays = ret.ok ? ret.days : null;
+
     const { rows, count } = await File.findAndCountAll({
       where,
       include: [
@@ -56,13 +62,14 @@ router.get('/:businessId/trash', authenticateToken, attachWorkspaceScope(), asyn
       // 복구 가능 여부를 **행마다 정직하게** 실는다. 옛 삭제분은 바이트가 이미 사라졌다 —
       //   눌러도 안 되는 버튼을 주지 않기 위해 화면이 이 값으로 버튼을 끈다.
       j.restorable = isRestorable(r);
-      j.purge_after = r.deleted_at
-        ? new Date(new Date(r.deleted_at).getTime() + TRASH_RETENTION_DAYS * 86400000).toISOString()
-        : null;
+      // 영구삭제 예정일 — 삭제 당시 약속(purge_after)과 현재 플랜 기간 중 **긴 쪽**.
+      //   플랜이 낮아져도 화면에 보여준 날짜를 앞당기지 않는다(retentionPolicy 래칫 업).
+      const exp = effectiveExpiry(r.purge_after, r.deleted_at, retentionDays);
+      j.purge_after = exp ? exp.toISOString() : null;
       return j;
     });
     await applyMemberDisplayName(items, req.params.businessId, ['uploader', 'deleter']);
-    return paginatedResponse(res, items, count, { limit, page, offset, retention_days: TRASH_RETENTION_DAYS });
+    return paginatedResponse(res, items, count, { limit, page, offset, retention_days: retentionDays });
   } catch (error) { next(error); }
 });
 

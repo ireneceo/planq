@@ -7,7 +7,8 @@
 //
 // 계약은 파일 휴지통(QProject/TrashDrawer)과 같게 둔다 — 사용자가 규칙을 두 개 외우지 않게:
 //   · 복원 가능 여부는 **서버가 판정**해서 준다(restorable). 눌러도 안 되는 버튼을 주지 않는다.
-//   · 보관 30일. 지난 것은 목록에 남되 복원 버튼이 잠긴다(조용히 사라지지 않게).
+//   · 보관기간은 **요금제에서 온다**(services/retentionPolicy.js). 지난 것은 목록에 남되
+//     복원 버튼이 잠긴다(조용히 사라지지 않게). 30 을 화면에 박지 않는다 — 플랜마다 다르다.
 //   · 공용 DetailDrawer 사용(반응형 3구간·Esc·포커스 트랩·스크롤 잠금 내장).
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
@@ -35,11 +36,17 @@ const ContentTrashDrawer: React.FC<Props> = ({ open, businessId, onClose, onChan
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [purgeTarget, setPurgeTarget] = useState<TrashedContent | null>(null);
+  // null = 서버가 판단 못 함 → 보관 문구를 그리지 않는다(요금제마다 기간이 다르다).
+  const [retentionDays, setRetentionDays] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!open || !businessId) return;
     setLoading(true); setError(null);
-    try { setRows(await fetchContentTrash(businessId)); }
+    try {
+      const page = await fetchContentTrash(businessId);
+      setRows(page.items);
+      setRetentionDays(page.retentionDays);
+    }
     finally { setLoading(false); }
   }, [open, businessId]);
   useEffect(() => { void load(); }, [load]);
@@ -71,7 +78,9 @@ const ContentTrashDrawer: React.FC<Props> = ({ open, businessId, onClose, onChan
         ariaLabel={t('trash.title', { defaultValue: '휴지통' }) as string}>
         <DetailDrawer.Header onClose={onClose}>
           <HeadTitle>{t('trash.title', { defaultValue: '휴지통' })}</HeadTitle>
-          <HeadHint>{t('trash.retention', { defaultValue: '삭제 후 30일 안에는 되돌릴 수 있어요' })}</HeadHint>
+          {retentionDays != null && (
+            <HeadHint>{t('trash.retentionDays', { count: retentionDays, defaultValue: '삭제 후 {{count}}일 안에는 되돌릴 수 있어요' }) as string}</HeadHint>
+          )}
         </DetailDrawer.Header>
         <DetailDrawer.Body>
           {error && <ErrLine>{error}</ErrLine>}

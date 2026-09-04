@@ -794,6 +794,7 @@ router.post('/conversations/:id/unlink', authenticateToken, async (req, res, nex
       action: 'conversation.unlink_project',
       targetType: 'conversation',
       targetId: conv.id,
+      businessId: conv.business_id,
       oldValue: { project_id: prevProjectId },
       newValue: { project_id: null },
     });

@@ -681,6 +681,11 @@ setTimeout(() => {
     .catch((e) => console.warn('[cue-recovery boot] failed', e.message));
 }, 120000);
 
+// 보관기간 만료 정리 cron (매일 04:00 UTC) — 기본은 **리포트**다.
+//   RETENTION_PURGE_APPLY=1 이 없으면 한 행도 지우지 않고 대상만 센다.
+//   자정 체인에 넣지 않는다(운영 백업 03:30 UTC 뒤여야 되돌리기 창이 생긴다).
+const { initRetentionCron } = require('./services/retentionPurge');
+initRetentionCron();
 // 주간 보고 자동 박제 cron (매시간 0분)
 const { initWeeklyReviewCron } = require('./services/weeklyReviewCron');
 initWeeklyReviewCron();

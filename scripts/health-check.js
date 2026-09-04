@@ -43,7 +43,7 @@ const path = require('path');
 //   안 적으면 test() 가 등록 시점에 죽는다(fail-closed).
 const CATEGORIES = [
   'infra', 'auth', 'security', 'qnote', 'voice', 'external',
-  'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly',
+  'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly', 'retention',
 ];
 
 const args = process.argv.slice(2);
@@ -966,6 +966,68 @@ function defineCalendarLinkTests() {
 //   **배포 후에도 0건**이었다 — dev 검증은 전부 통과한 채로.
 //   (memory feedback_dev_cannot_reproduce_prod_schema — 스키마·타입이 어긋나면 dev 검증이 전부 거짓 통과)
 //   ★ 이 검사는 "우리 DB 가 지금 무엇을 주는가" 를 **실측**한다. 코드 모양이 아니라 값의 타입을 본다.
+// ── 보관기간 (Fable 설계 게이트 2026-09-04) ─────────────────────────────────
+//   fail-closed 는 값을 잘못 읽어도 **조용하다**. 그래서 침묵을 세는 검사를 둔다.
+//   ① 쓰기측이 살아 있는가 — 새 감사 행에 스탬프·워크스페이스가 붙는가
+//   ② 회차가 도는가 + 지금 모드가 무엇인가(report 를 초록으로 오독하지 않게 이름에 모드를 찍는다)
+//   ③ 양성 대조군 — 판정기가 실제로 지울 수 있는지 스스로 증명한다
+function defineRetentionTests() {
+  const dbEval = (body) => {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();(async()=>{${body}})().catch(e=>{process.stdout.write('<<'+JSON.stringify({err:e.message}));process.exit(0);});"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 60000 },
+    );
+    return JSON.parse(out.slice(out.indexOf('<<') + 2));
+  };
+
+  test('retention', '감사 기록 쓰기측 — 새 행에 보관 스탬프·워크스페이스가 붙는다', async () => {
+    const r = dbEval(
+      `const{sequelize}=require('./config/database');`
+      + `const{RETENTION_ROLLOUT_AT:R}=require('./services/retentionPolicy');`
+      + `const[a]=await sequelize.query(\\"SELECT COUNT(*) c FROM audit_logs WHERE created_at > :r AND retain_until IS NULL\\",{replacements:{r:R}});`
+      + `const[b]=await sequelize.query(\\"SELECT COUNT(*) c FROM audit_logs WHERE created_at > :r AND business_id IS NULL AND target_type IN ('post','task','conversation')\\",{replacements:{r:R}});`
+      + `process.stdout.write('<<'+JSON.stringify({noStamp:Number(a[0].c),orphan:Number(b[0].c)}));process.exit(0);`);
+    if (r.err) throw new Error(r.err);
+    if (r.noStamp > 0) throw new Error(`도입 이후 감사 행 ${r.noStamp}건에 retain_until 이 없다 — 스탬프 경로가 끊겼다(그 행들은 영구 보관된다)`);
+    if (r.orphan > 0) throw new Error(`도입 이후 감사 행 ${r.orphan}건이 워크스페이스 없이 기록됐다 — 보관기간 판정이 불가능하다`);
+    return '스탬프 누락 0 · 워크스페이스 누락 0';
+  });
+
+  test('retention', '보관기간 회차 — 최근 48시간 안에 돌았고 모드가 무엇인가', async () => {
+    const r = dbEval(
+      `const{sequelize}=require('./config/database');`
+      + `const[a]=await sequelize.query(\\"SELECT action, created_at FROM audit_logs WHERE action LIKE 'retention.%' AND created_at > DATE_SUB(NOW(), INTERVAL 48 HOUR) ORDER BY id DESC LIMIT 1\\");`
+      + `process.stdout.write('<<'+JSON.stringify({row:a[0]||null}));process.exit(0);`);
+    if (r.err) throw new Error(r.err);
+    if (!r.row) return '최근 48시간 회차 없음 (cron 미가동이거나 방금 배포 — 다음 04:00 UTC 확인)';
+    return `모드=${String(r.row.action).replace('retention.', '')} · ${String(r.row.created_at).slice(0, 19)}`;
+  });
+
+  test('retention', '양성 대조군 — 만료된 합성 행 1건을 실제로 지우는가', async () => {
+    const r = dbEval(
+      `const{sequelize}=require('./config/database');`
+      + `const{runRetentionPurge}=require('./services/retentionPurge');`
+      + `const[bz]=await sequelize.query(\\"SELECT id FROM businesses WHERE deleted_at IS NULL ORDER BY id LIMIT 1\\");`
+      + `if(!bz.length){process.stdout.write('<<'+JSON.stringify({skip:'워크스페이스 없음'}));process.exit(0);}`
+      + `const b=bz[0].id;`
+      + `await sequelize.query(\\"DELETE FROM audit_logs WHERE action='retention.canary'\\");`   /* 앞 회차 잔여 정리 — 카나리가 제 뒷정리를 해야 다음 회차가 거짓 실패하지 않는다 */
+      + `await sequelize.query(\\"INSERT INTO audit_logs (business_id,action,target_type,target_id,created_at,retain_until) VALUES (:b,'retention.canary','retention',NULL,DATE_SUB(NOW(), INTERVAL 3000 DAY),DATE_SUB(NOW(), INTERVAL 1 DAY))\\",{replacements:{b}});`
+      + `const before=await runRetentionPurge({apply:false});`
+      + `const cand=(before.audit.businesses.find(x=>x.business_id===b)||{}).candidates||0;`
+      + `const applied=await runRetentionPurge({apply:true});`
+      + `const del=(applied.audit.businesses.find(x=>x.business_id===b)||{}).deleted||0;`
+      + `const[left]=await sequelize.query(\\"SELECT COUNT(*) c FROM audit_logs WHERE action='retention.canary'\\");`
+      + `process.stdout.write('<<'+JSON.stringify({cand,del,left:Number(left[0].c)}));process.exit(0);`);
+    if (r.err) throw new Error(r.err);
+    if (r.skip) return r.skip;
+    if (r.cand < 1) throw new Error('만료 행을 심었는데 후보가 0 — 판정기가 지울 대상을 못 본다');
+    if (r.del < 1) throw new Error(`후보 ${r.cand} 인데 삭제 0 — 삭제 경로가 죽어 있다`);
+    if (r.left !== 0) throw new Error(`카나리 행이 ${r.left}건 남았다 — 술어가 대상을 놓친다`);
+    return `후보 ${r.cand} → 삭제 ${r.del} → 잔여 0`;
+  });
+}
+
 function defineDateOnlyTests() {
   test('dateonly', 'DATEONLY 비교 전 정규화 (dev/운영 타입 차이)', async () => {
     // ★ DB 조회는 백엔드 cwd 의 별도 프로세스로 — 이 스크립트에는 DB 환경변수가 없다(다른 검사와 동일 패턴).
@@ -1146,6 +1208,7 @@ async function runTests(allTests, category) {
   defineCalendarLinkTests();
   defineRealtimeTests();
   defineDateOnlyTests();
+  defineRetentionTests();
 
   const allPass = await runTests(tests, opts.category);
   process.exit(allPass ? 0 : 1);

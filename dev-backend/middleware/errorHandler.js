@@ -45,7 +45,15 @@ function parsePagination(req, { defaultLimit = 200, maxLimit = 500 } = {}) {
   return { limit, page, offset };
 }
 
-function paginatedResponse(res, data, total, { limit, page, offset }, statusCode = 200) {
+/**
+ * 목록 응답 표준. 네 번째 인자의 **추가 키는 pagination 에 그대로 실린다.**
+ *
+ * ★ 2026-09-04 — 여기서 `{ limit, page, offset }` 만 구조분해하고 있었다. 그래서 호출부가
+ *   같이 넘기던 `retention_days` 가 **한 번도 나간 적이 없고**, 프론트는 그 값을 못 받아
+ *   30 이라는 폴백을 화면에 단언하고 있었다(요금제와 무관하게). 만들어 놓고 읽는 곳이 없는
+ *   것이 아니라, 보내는 쪽에서 조용히 버려지고 있었다.
+ */
+function paginatedResponse(res, data, total, { limit, page, offset, ...extra }, statusCode = 200) {
   const arrLen = Array.isArray(data) ? data.length : 0;
   return res.status(statusCode).json({
     success: true,
@@ -56,6 +64,7 @@ function paginatedResponse(res, data, total, { limit, page, offset }, statusCode
       page,
       offset,
       has_more: (offset + arrLen) < (Number(total) || 0),
+      ...extra,
     },
   });
 }

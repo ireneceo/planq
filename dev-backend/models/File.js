@@ -162,6 +162,14 @@ File.init({
     type: DataTypes.DATE,
     allowNull: true
   },
+  // 휴지통에서 언제 영구 삭제되는가 (삭제 시점 플랜 기준으로 약속한 날짜).
+  //   화면이 사용자에게 이 날짜를 보여준다 — 그러므로 나중에 플랜이 낮아져도 **앞당기지 않는다**
+  //   (services/retentionPolicy.js effectiveExpiry 가 현재 플랜과 비교해 긴 쪽을 쓴다).
+  //   NULL = 약속을 보여준 적 없음 → 현재 플랜 기간만 적용.
+  purge_after: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
   // 휴지통 — 누가 지웠는가. 복구 화면에 "누가 언제" 를 보여주고, 감사에도 쓴다.
   //   옛 행은 NULL 이다(그때는 기록하지 않았다) — 표시할 때 '알 수 없음' 으로 낮춘다.
   deleted_by: {

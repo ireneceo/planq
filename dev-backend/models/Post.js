@@ -71,6 +71,11 @@ Post.init({
   //   운영 반영: scripts/migrate-posts-datetime-ms.js (멱등 ALTER)
   createdAt: { type: DataTypes.DATE(3), allowNull: false, field: 'created_at' },
   updatedAt: { type: DataTypes.DATE(3), allowNull: false, field: 'updated_at' },
+  // 휴지통에서 언제 영구 삭제되는가 (삭제 시점 플랜 기준으로 약속한 날짜).
+  //   화면이 사용자에게 이 날짜를 보여준다 — 나중에 플랜이 낮아져도 **앞당기지 않는다**
+  //   (services/retentionPolicy.js effectiveExpiry 가 현재 플랜과 비교해 긴 쪽을 쓴다).
+  //   NULL = 약속을 보여준 적 없음 → 현재 플랜 기간만 적용.
+  purge_after: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize, tableName: 'posts', timestamps: true, underscored: true,
   // 휴지통 (Irene 2026-08-31: "잘못해서 삭제하고 문제되면 책임여부 문제")

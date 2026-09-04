@@ -552,11 +552,17 @@ export interface TrashedContent {
   restorable: boolean;
 }
 
-export async function fetchContentTrash(businessId: number): Promise<TrashedContent[]> {
+/** 휴지통 목록 + 이 워크스페이스의 보관기간.
+ *  retentionDays 가 null 이면 서버가 판단 못 한 것 — 화면은 보관 문구를 **숨긴다**.
+ *  30 같은 숫자를 폴백으로 두면 요금제와 다른 값을 사용자에게 단언하게 된다. */
+export async function fetchContentTrash(
+  businessId: number,
+): Promise<{ items: TrashedContent[]; retentionDays: number | null }> {
   const r = await apiFetch(`/api/content-trash/${businessId}?limit=300`);
-  if (!r.ok) return [];
+  if (!r.ok) return { items: [], retentionDays: null };
   const j = await r.json();
-  return j.success ? (j.data as TrashedContent[]) : [];
+  if (!j.success) return { items: [], retentionDays: null };
+  return { items: j.data as TrashedContent[], retentionDays: j.pagination?.retention_days ?? null };
 }
 
 export async function restoreContent(businessId: number, kind: 'post' | 'kb', id: number): Promise<boolean> {

@@ -874,6 +874,13 @@ router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, 
     }
 
     await KbChunk.destroy({ where: { kb_document_id: doc.id } });
+    // 휴지통 보관 만료일을 삭제 시점에 박는다 — 화면이 이 날짜를 보여주므로 나중에
+    //   플랜이 낮아져도 앞당기지 않는다(retentionPolicy 래칫 업). 못 읽으면 NULL.
+    try {
+      const { stampFor } = require('../services/retentionPolicy');
+      const pa = await stampFor(doc.business_id, 'trash');
+      if (pa) await doc.update({ purge_after: pa });
+    } catch { /* 스탬프 실패가 삭제를 막지 않는다 */ }
     const snapForBroadcast = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id };
     await doc.destroy();
 

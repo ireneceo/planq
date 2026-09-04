@@ -16,18 +16,49 @@
 const { Op } = require('sequelize');
 const logger = require('../lib/logger');
 
+// ★ 2026-09-04 — 보관기간을 요금제에서 읽도록 옮기는 중이다. **1단계는 삭제 동작을 바꾸지 않는다.**
+//   `RETENTION_PURGE_APPLY=1` 이 없으면 오늘과 완전히 같은 30일 술어로 지우고, 플랜 기준으로는
+//   무엇이 달라지는지 **델타만 센다**(would_purge_earlier / would_keep_longer).
+//   운영 리포트가 실측과 맞는 것을 확인한 뒤 플래그를 켜면 그때부터 플랜 기준으로 지운다.
+const LEGACY_DAYS = 30;
+
 async function runUploadCleanup(today = new Date()) {
   const { File } = require('../models');
+  const { resolveRetention, isExpired } = require('./retentionPolicy');
+  const applyPlan = process.env.RETENTION_PURGE_APPLY === '1';
   const cutoff = new Date(today);
-  cutoff.setDate(today.getDate() - 30);
+  cutoff.setDate(today.getDate() - LEGACY_DAYS);
 
-  const expired = await File.findAll({
-    where: {
-      deleted_at: { [Op.ne]: null, [Op.lt]: cutoff },
-      purged_at: null,
-    },
-    limit: 500,  // 한 번에 너무 많이 삭제 안 하게 (운영 디스크 IO 보호)
+  // 후보를 넓게 가져와 워크스페이스별 보관기간으로 판정한다(플랜 기준이 30일보다 길 수도 짧을 수도 있다).
+  const candidates = await File.findAll({
+    where: { deleted_at: { [Op.ne]: null }, purged_at: null },
+    limit: 2000,
+    order: [['deleted_at', 'ASC']],
   });
+
+  const retCache = new Map();
+  const retFor = async (bizId) => {
+    if (!retCache.has(bizId)) retCache.set(bizId, await resolveRetention(bizId, 'trash'));
+    return retCache.get(bizId);
+  };
+
+  const delta = { would_purge_earlier: 0, would_keep_longer: 0, skipped: {} };
+  const expired = [];
+  for (const f of candidates) {
+    const legacyDue = new Date(f.deleted_at) < cutoff;
+    const ret = await retFor(f.business_id);
+    if (!ret.ok) {
+      // 못 읽으면 보존 — 사유를 센다. 레거시 술어로는 지울 수 있어도 플랜 기준은 판단 불가다.
+      delta.skipped[ret.reason] = (delta.skipped[ret.reason] || 0) + 1;
+      if (!applyPlan && legacyDue) expired.push(f);
+      continue;
+    }
+    const planDue = isExpired(f.purge_after, f.deleted_at, ret.days, today);
+    if (planDue && !legacyDue) delta.would_purge_earlier += 1;
+    if (!planDue && legacyDue) delta.would_keep_longer += 1;
+    if (applyPlan ? planDue : legacyDue) expired.push(f);
+    if (expired.length >= 500) break;   // 한 번에 너무 많이 삭제 안 하게 (운영 디스크 IO 보호)
+  }
 
   const { sequelize } = require('../config/database');
   const { purgeFile } = require('./filePurge');
@@ -44,7 +75,8 @@ async function runUploadCleanup(today = new Date()) {
       logger.warn({ file_id: f.id, err: e.message }, 'trash purge failed');
     }
   }
-  return { scanned: expired.length, removed, failed };
+  // 델타 — 플랜 기준으로 바꾸면 무엇이 달라지는가. 플래그를 켜기 전에 이 숫자를 본다.
+  return { scanned: expired.length, removed, failed, mode: applyPlan ? 'plan' : 'legacy_30d', delta };
 }
 
 module.exports = { runUploadCleanup };
