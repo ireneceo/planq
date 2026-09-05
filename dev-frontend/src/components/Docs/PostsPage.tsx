@@ -285,6 +285,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   먼저 돌기 때문이다(실측). 그래서 여기 받아 두었다가 기준선을 이 값으로 잡는다.
   //   기준선을 에디터의 렌즈로 재는 것이 핵심이다 — 사람의 입력 여부를 판정하지 않는다.
   const pendingNormalizedRef = useRef<unknown>(null);
+  // AI 가 써 준 본문으로 새 문서를 시작했는가. 진입 시드는 보통 "변경" 이 아니지만(빈 문서·템플릿만
+  //   열고 닫아도 초안이 쌓이지 않게), **AI 생성은 사용자가 비용(Cue)을 써서 만든 결과물**이다.
+  //   손대지 않고 다른 문서를 눌렀다고 사라지면 안 된다 — 시드 시점에 초안으로 박제한다.
+  //   (2026-09-05 Fable 지적: 이 경로는 시드가 HTML 문자열이고 에디터 emit 은 JSON 이라 여태
+  //    늘 "변경됨" 으로 잡혀 저장돼 왔다. 사용자는 "AI 문서는 남는다" 를 경험해 왔다.)
+  const aiSeedRef = useRef(false);
   // ★ 자동저장 발화 기준은 "마지막으로 서버에 쓴 값" 이어야 한다 (편집 진입 스냅샷이 아니라).
   //   진입 스냅샷만 보면, 한 글자만 고쳐도 그 뒤로 **영원히 changed=true** 라
   //   저장이 끝나 autoState 가 바뀔 때마다 effect 가 다시 2초 타이머를 걸어 **자동저장이 자기를 재예약**한다.
@@ -582,6 +588,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setActiveId(null);
     setDetail(null);
     setMode('new'); beginEditSession();
+    aiSeedRef.current = true;          // ↓ 세션 effect 가 이것을 보고 초안 저장을 예약한다
     setTitleDraft(title);
     setContentDraft(bodyHtml as unknown);
     setCategoryDraft(filter.kind === 'category' ? filter.name : '');
@@ -785,7 +792,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       lastSavedRef.current = null;
       baseUpdatedAtRef.current = detail?.updated_at ?? null;
       autoDraftIdRef.current = mode === 'new' ? null : (detail?.id ?? null);
-      autoDirtyRef.current = false;
+      // 보통은 깨끗한 상태로 시작하지만, AI 시드는 그 자체가 지킬 값이다(위 aiSeedRef 참조).
+      autoDirtyRef.current = aiSeedRef.current;
+      aiSeedRef.current = false;
       setAutoState('idle');
       setAutoErr(null);
     } else {
