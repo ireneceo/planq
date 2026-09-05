@@ -1383,6 +1383,21 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       return errorResponse(res, `forbidden_fields:${denied.join(',')}`, 403);
     }
 
+    // ── 결과물 본문은 **편집 상태에서만** 바뀐다 (결과물 버전 재설계, 2026-09-05) ──────────
+    //   검토 중(reviewing)에 본문이 바뀌면 **컨펌하는 사람이 본 것과 승인한 것이 달라진다.**
+    //   완료·취소 뒤에 바뀌면 박제해 둔 버전과 현재 본문이 소리 없이 갈린다.
+    //   다시 쓰려면 화면의 "수정본 작성하기(v{n+1})" 로 상태를 편집 모드로 되돌린 뒤 쓴다 —
+    //   그 버튼이 곧 새 버전의 시작점이고, 이전 버전은 이미 박제되어 남는다.
+    //   ★ 같은 요청이 편집 상태로 되돌리면(재개) 허용한다. 그리고 편집 상태에서 제출로 넘어가며
+    //     본문을 같이 보내는 것도 허용한다 — 마지막 타이핑을 버리지 않기 위한 경로다.
+    //   ★ 판정은 services/taskTransition 한 곳에 있다 — 여기서 목록을 다시 적으면 반드시 갈라진다.
+    const { canEditBodyInStatus } = require('../services/taskTransition');
+    if (updates.body !== undefined
+        && !canEditBodyInStatus(task.status)
+        && !(updates.status !== undefined && canEditBodyInStatus(updates.status))) {
+      return errorResponse(res, `body_locked:${task.status}`, 409);
+    }
+
     // ── 반복 규칙은 **시리즈의 것**이다 — 회차에서 바꿔도 부모에 적용한다 ──────────
     //   Irene: "반복설정을 바꿀 수가 없어. 처음 업무에서만 수정되는 것 같은데."
     //   판단은 services/taskSeriesRecurrence 한 곳에 있다(라우트마다 흩어지면 반드시 갈라진다).

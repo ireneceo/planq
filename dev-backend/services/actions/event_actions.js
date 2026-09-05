@@ -147,6 +147,14 @@ async function createEvent(actor, params = {}) {
     }
   }
 
+  // ★ 지정 수신자는 **이 워크스페이스 소속**만 남긴다. 클라이언트가 준 정수를 그대로 저장하면
+  //   알림이 다른 워크스페이스 사람에게 나간다(Fable 게이트 2026-09-05 F1 실측).
+  //   판정은 middleware/access_scope 한 곳 — 수정 라우트·알림 크론도 같은 함수를 부른다.
+  const { filterWorkspaceMemberIds } = require('../../middleware/access_scope');
+  const targetMemberIds = Array.isArray(params.targetMemberIds)
+    ? await filterWorkspaceMemberIds(businessId, params.targetMemberIds)
+    : null;
+
   const t = await sequelize.transaction();
   let event;
   try {
@@ -180,7 +188,7 @@ async function createEvent(actor, params = {}) {
       // 일정 단위 구글 연동 체크 — 팀/개인 각각, 기본 ON ("디폴트는 다 연동 체크" 유지).
       gcal_sync_workspace: params.gcalSyncWorkspace === undefined ? true : !!params.gcalSyncWorkspace,
       gcal_sync_personal: params.gcalSyncPersonal === undefined ? true : !!params.gcalSyncPersonal,
-      target_member_ids: Array.isArray(params.targetMemberIds) ? params.targetMemberIds.map(Number).filter(Boolean) : null,
+      target_member_ids: targetMemberIds,
       target_client_ids: Array.isArray(params.targetClientIds) ? params.targetClientIds.map(Number).filter(Boolean) : null,
       created_by: subjectId,
       created_via: params.createdVia || null,   // provenance 표시 전용(예: 'cue')

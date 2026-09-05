@@ -559,7 +559,9 @@
       "revertDisabled": "Revert used",
       "approvedOf": "{{n}} of {{total}} approved",
       "approvePlaceholder": "Any comment for the assignee? (optional)",
-      "submitNotePlaceholder": "Anything to tell the reviewer? (optional — also posted as a comment)"
+      "submitNotePlaceholder": "Anything to tell the reviewer? (optional — also posted as a comment)",
+      "reviseNew": "Write revision (v{{n}})",
+      "revisePlain": "Write revision"
     },
     "delete": {
       "button": "Delete task",
@@ -662,7 +664,16 @@
     "kbSaved": "Added to Cue knowledge",
     "kbSaveHint": "Adds this deliverable to Cue's knowledge so Cue can reference it in future answers.",
     "recurDescHint": "This description is copied into every occurrence. Write each occurrence’s output in its own body.",
-    "kbErr": "Couldn't add it. Please try again in a moment."
+    "kbErr": "Couldn't add it. Please try again in a moment.",
+    "bodyEditing": "Editing — saved automatically. Submitting for review records this as v{{n}}.",
+    "bodyVerTip": "Rounds recorded so far by submitting for review",
+    "bodyLocked": {
+      "reviewing": "Locked while under review, so reviewers approve exactly what they read.",
+      "external": "Locked while awaiting external confirmation. Release it to edit again.",
+      "canceled": "This task was canceled. The deliverable is kept as it was.",
+      "completed": "Completed deliverable. To keep working, start a revision — this version stays as it is."
+    },
+    "bodyEditingPlain": "Editing — saved automatically. Submitting for review records this as a version."
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",
@@ -1341,25 +1352,23 @@
     "recurInstanceNote": "This occurrence was generated from a repeating task. Changing the repeat here applies to the whole series."
   },
   "deliv": {
-    "title": "Deliverable history",
-    "empty": "No versions yet. Send a review request and that deliverable will be kept here.",
     "loading": "Loading…",
     "approved": "Approved",
     "revision": "Changes requested",
     "pending": "Awaiting review",
     "revisionNote": "Changes requested",
-    "noSnapshot": "This round predates version keeping, so there is no saved content.",
-    "restore": "Restore this version",
-    "restoring": "Restoring…",
+    "noSnapshot": "This version predates deliverable snapshots, so no content was kept.",
+    "restore": "Load this version",
+    "restoring": "Loading…",
     "err": {
       "generic": "Could not load the history",
       "load_failed": "Could not load the history",
-      "restore_failed": "Could not restore"
+      "restore_failed": "Could not load that version"
     },
-    "stateRecorded": "Recorded as v{{n}}",
-    "stateNext": "Sending a review request records it as v{{n}}",
-    "stateNone": "Not recorded as a version yet",
-    "stateFirst": "Sending a review request records it as v1"
+    "pastTitle": "Past versions",
+    "lastHint": "Latest v{{n}} · {{outcome}}",
+    "emptyShort": "No version submitted yet.",
+    "restoreHint": "What you have now is kept as a copy before this version replaces it."
   },
   "loadError": {
     "title": "Couldn't load your tasks",

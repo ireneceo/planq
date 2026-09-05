@@ -40,6 +40,25 @@ const { dateStrInTz, ymd } = require('../utils/datetime');
  *     일정이 "어제" 로 걸러졌다(Fable 실측 2026-09-05). 날짜는 tz 로 계산해 놓고 경계만 UTC 로
  *     쓰면 그 아홉 시간이 조용히 사라진다.
  */
+/**
+ * 이 사용자가 **볼 수 있는** 일정의 where. 워크스페이스가 여럿이면 각각의 술어를 OR 로 잇는다.
+ *
+ * 판정은 middleware/access_scope.calendarListWhere 한 곳이다 — 캘린더 목록 화면이 쓰는 그 함수다.
+ * 여기서 `business_id IN (...)` 만 보던 동안 **동료의 개인(L1) 일정이 오늘의 리뷰에 떴다**
+ * (Fable 게이트 2026-09-05 F2 실측: owner 의 personal/L1 일정이 member 의 리뷰 today_events 에 노출).
+ *
+ * @returns {Promise<object|null>} 볼 수 있는 것이 하나도 없으면 null (호출부가 블록을 건너뛴다)
+ */
+async function visibleCalendarWhere(userId, bizIds) {
+  const { calendarListWhere } = require('../middleware/access_scope');
+  const parts = [];
+  for (const b of bizIds) {
+    const w = await calendarListWhere(userId, b);
+    if (w) parts.push(w);       // null = 그 워크스페이스에서 볼 일정 없음(고객 등)
+  }
+  return parts.length > 0 ? { [Op.or]: parts } : null;
+}
+
 function startOfDayUtc(dateStr, timeZone) {
   const probe = new Date(`${dateStr}T00:00:00Z`);
   const asLocal = new Date(probe.toLocaleString('en-US', { timeZone }));
@@ -263,20 +282,30 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
     } catch (e) { /* 대화 없음 */ }
 
     // ④ 일정 — 어제 이후 만들어지거나 바뀐, 오늘 이후의 일정
+    //   ★ **볼 수 있는 일정만.** 여기가 `business_id IN` 만 보던 동안 동료의 개인(L1) 일정
+    //     제목이 남의 리뷰에 떴다(Fable 게이트 2026-09-05 F2 실측).
+    //     목록 라우트와 **같은 술어**(calendarListWhere)를 쓴다 — 베끼면 반드시 갈라진다.
+    const calListWhere = await visibleCalendarWhere(userId, bizIds);
     try {
+      if (!calListWhere) throw new Error('no_calendar_scope');
       const evs = await CalendarEvent.findAll({
         where: {
-          business_id: { [Op.in]: bizIds },
-          updated_at: { [Op.gte]: since },
-          start_at: { [Op.gte]: todayStart },
+          // calendarListWhere 가 business_id + 노출 등급(vlevel)까지 담은 술어다.
+          [Op.and]: [calListWhere, {
+            updated_at: { [Op.gte]: since },
+            start_at: { [Op.gte]: todayStart },
+          }],
         },
         order: [['start_at', 'ASC']], limit: 6,
-        attributes: ['id', 'title', 'start_at', 'updated_at', 'created_at'],
+        // ★ Sequelize **속성명**은 createdAt/updatedAt 이다(컬럼명은 created_at). snake 로 읽으면
+        //   `undefined` 가 나오고, `at: undefined` 는 정렬에서 Invalid Date 로 맨 뒤에 밀려
+        //   상위 12개 자르기에서 **일정이 통째로 사라진다** — 오류 없이 산출물만 0인 경로였다.
+        attributes: ['id', 'title', 'start_at', 'updatedAt', 'createdAt'],
       });
       evs.forEach((e) => changes.push({
         kind: 'event', id: e.id, title: e.title,
-        detail_key: String(e.created_at) === String(e.updated_at) ? 'event_new' : 'event_changed',
-        at: e.updated_at, start_at: e.start_at, link: `/calendar?event=${e.id}`,
+        detail_key: String(e.createdAt) === String(e.updatedAt) ? 'event_new' : 'event_changed',
+        at: e.updatedAt, start_at: e.start_at, link: `/calendar?event=${e.id}`,
       }));
     } catch (e) { /* 캘린더 없음 */ }
 
@@ -340,13 +369,16 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
     //   반복 일정은 마스터 1행이라 여기서 펼친다 — 안 펼치면 매주 회의가 영영 안 뜬다.
     const todayEvents = [];
     try {
+      if (!calListWhere) throw new Error('no_calendar_scope');
       const evs = await CalendarEvent.findAll({
         where: {
-          business_id: { [Op.in]: bizIds },
-          [Op.or]: [
-            { start_at: { [Op.gte]: todayStart, [Op.lt]: tomorrowStart } },
-            { rrule: { [Op.ne]: null }, start_at: { [Op.lt]: tomorrowStart } },
-          ],
+          // 위와 같은 술어 — business_id 와 노출 등급을 함께 본다.
+          [Op.and]: [calListWhere, {
+            [Op.or]: [
+              { start_at: { [Op.gte]: todayStart, [Op.lt]: tomorrowStart } },
+              { rrule: { [Op.ne]: null }, start_at: { [Op.lt]: tomorrowStart } },
+            ],
+          }],
         },
         order: [['start_at', 'ASC']], limit: 50,
         attributes: ['id', 'title', 'start_at', 'all_day', 'location', 'rrule', 'exception_dates'],
@@ -374,6 +406,12 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
       todayEvents.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
     } catch (e) { /* 캘린더 없음 */ }
 
+    // ★ 같은 일정을 두 줄로 보여주지 않는다 — 오늘 만든 오늘 일정은 '오늘 일정' 과
+    //   '그 사이 움직인 것' 양쪽에 걸렸다(Fable 게이트 2026-09-05 F4 실측).
+    //   더 구체적인 쪽(오늘 일정, 시각·장소가 있다)을 남기고 움직임 목록에서 뺀다.
+    const todayEventIds = new Set(todayEvents.map((e) => e.id));
+    const movedDeduped = moved.filter((c) => !(c.kind === 'event' && todayEventIds.has(c.id)));
+
     return successResponse(res, {
       counts: {
         projects_active: projectsActive,
@@ -386,7 +424,7 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
         inbound,      // 밖에서 온 것 (메일·채팅)
         urgent,       // 지금 급한 것 (지연·오늘 마감) + overdue_days
         blocking,     // 나를 기다리는 컨펌
-        moved,          // 그 사이 움직인 것 (업무 상태·일정) — 참고
+        moved: movedDeduped,   // 그 사이 움직인 것 (업무 상태·일정) — 오늘 일정과 중복 제거
         today_events: todayEvents.slice(0, 8),   // 오늘 시작하는 일정 (반복 펼침 포함)
       },
       today,

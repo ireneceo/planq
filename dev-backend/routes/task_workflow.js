@@ -77,13 +77,19 @@ router.post('/:id/ack', authenticateToken, async (req, res, next) => {
 
 // ─────────────────────────────────────────────
 // POST /api/tasks/:id/submit-review — 담당자 컨펌 요청 (라운드 시작)
-// Body: { note?: string }
+// Body: { note?: string, body?: string }
+//   ★ `body` 는 **제출 시점의 결과물 본문**이다. 화면이 자동저장을 기다리지 않고 제출해도
+//     마지막 타이핑이 박제본에서 빠지지 않게 같이 받아 한 트랜잭션에 쓴다.
 // ─────────────────────────────────────────────
 router.post('/:id/submit-review', authenticateToken, async (req, res, next) => {
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
-    const result = await actions.submitReview(task, actorFrom(req), { note: req.body?.note || null });
+    const result = await actions.submitReview(task, actorFrom(req), {
+      note: req.body?.note || null,
+      // undefined 면 종전대로 서버의 현재 body 를 박제한다(옛 클라이언트 호환).
+      ...(typeof req.body?.body === 'string' ? { body: req.body.body } : {}),
+    });
     return sendResult(res, result, (t) => successResponse(res, t.toJSON()));
   } catch (err) { next(err); }
 });

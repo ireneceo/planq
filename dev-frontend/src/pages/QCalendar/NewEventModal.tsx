@@ -5,6 +5,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import type { CalendarEvent, EventCategory, EventVisibility } from './types';
 import { CATEGORY_OPTIONS } from './categoryColors';
 import { toDateKey } from './dateUtils';
+import { reminderOptions, REMINDER_NONE } from './reminderOptions';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CreateDrawer from '../../components/Common/CreateDrawer';
 import CalendarPicker from '../../components/Common/CalendarPicker';
@@ -78,29 +79,26 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   //   종일 일정은 분 단위가 의미 없어 옵션 세트를 바꾼다(크론이 종일은 09:00 을 기준으로 잡는다).
   //   ★ PlanQSelect 의 value 는 string|number 라 null 을 못 쓴다 — "알림 없음" 은 센티넬(-1)로 두고
   //     서버로 보낼 때 null 로 바꾼다. 서버에서 null = 사용자가 고른 "없음", undefined = 안 보냄(기본 1일 전).
-  const REMINDER_NONE = -1;
   const [reminderMinutes, setReminderMinutes] = useState<number>(1440);
+  // 참석자 — **알림을 받을 당사자**. Irene: "당사자들은 일정을 알게 알림 보내야지."
+  //   여태 등록 화면에 참석자 칸이 없어, 공개 범위를 '특정 멤버'(L2)로 좁히지 않는 한
+  //   알림이 만든 사람에게만 갔다(Fable 게이트 2026-09-05 · 1차 필수).
+  //   참석자는 공개 범위와 다른 축이다 — 전체 공개 일정에도 "이 사람들이 온다" 가 있다.
+  //   수락/거절이 달리는 유일한 구조라 알림 대상의 정본이기도 하다.
+  const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
 
   // 종일이면 분 단위가 의미 없다 — 옵션 세트를 바꾼다(크론이 종일은 시작일 09:00 을 기준으로 잡는다).
-  const reminderOptions = useMemo(() => (allDay
-    ? [
-      { value: 1440, label: t('form.reminderDay1', { defaultValue: '1일 전 (오전 9시)' }) as string },
-      { value: 2880, label: t('form.reminderDay2', { defaultValue: '2일 전 (오전 9시)' }) as string },
-      { value: 1, label: t('form.reminderSameDay', { defaultValue: '당일 아침 (오전 9시)' }) as string },
-      { value: REMINDER_NONE, label: t('form.reminderNone', { defaultValue: '알림 없음' }) as string },
-    ]
-    : [
-      { value: 1440, label: t('form.reminderDay1Plain', { defaultValue: '1일 전' }) as string },
-      { value: 60, label: t('form.reminderHour1', { defaultValue: '1시간 전' }) as string },
-      { value: 30, label: t('form.reminderMin30', { defaultValue: '30분 전' }) as string },
-      { value: 10, label: t('form.reminderMin10', { defaultValue: '10분 전' }) as string },
-      { value: REMINDER_NONE, label: t('form.reminderNone', { defaultValue: '알림 없음' }) as string },
-    ]), [allDay, t]);
+  //   목록과 라벨은 상세 드로어와 **같은 모듈**에서 온다(reminderOptions.ts) — 각자 들고 있던
+  //   동안 드로어가 같은 값을 "1440분 전" 이라 불렀고 여기 옵션 둘은 드로어에 아예 없었다.
+  const reminderOpts = useMemo(
+    () => reminderOptions(allDay, reminderMinutes, t),
+    [allDay, reminderMinutes, t],
+  );
 
   // 종일↔시간 전환 시 없는 옵션이 남지 않게 — 목록에 없으면 기본(1일 전)으로 되돌린다.
   useEffect(() => {
-    if (!reminderOptions.some(o => o.value === reminderMinutes)) setReminderMinutes(1440);
-  }, [reminderOptions, reminderMinutes]);
+    if (!reminderOpts.some(o => o.value === reminderMinutes)) setReminderMinutes(1440);
+  }, [reminderOpts, reminderMinutes]);
 
   // 이미 지난 알림인가 — 내일 회의를 오늘 늦게 만들면 "1일 전" 시각은 과거다. 조용히 안 가면 고장으로 보인다.
   const reminderPassed = useMemo(() => {
@@ -270,6 +268,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       // N+66 — 통합 visibility
       vlevel: vis.vlevel,
       target_member_ids: ser.target_member_ids,
+      attendees: attendeeIds.map((id) => ({ user_id: id })),
       target_client_ids: vis.variant === 'L4' ? ser.client_ids : [],
     } as unknown as Partial<CalendarEvent>);
     // #242 — 실패 경로에서 submitting 이 영영 안 풀려 버튼이 잠기던 것. 성공 시엔 모달이 사라지므로 무해.
@@ -382,10 +381,33 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
           </Field>
 
           <Field>
+            <Label>{t('form.attendees', { defaultValue: '참석자' }) as string}</Label>
+            <PlanQSelect
+              isMulti isSearchable
+              menuPlacement="auto"
+              placeholder={t('form.attendeesPh', { defaultValue: '함께할 사람을 고르세요' }) as string}
+              value={attendeeIds.map((id) => {
+                const m = members.find((x) => x.user_id === id);
+                return { value: String(id), label: m ? m.name : `User #${id}` };
+              })}
+              options={members.map((m) => ({ value: String(m.user_id), label: m.name }))}
+              onChange={(opts) => {
+                const ids: number[] = [];
+                if (Array.isArray(opts)) for (const o of opts) {
+                  const n = Number((o as { value: string }).value);
+                  if (n) ids.push(n);
+                }
+                setAttendeeIds(ids);
+              }}
+            />
+            <TzHint>{t('form.attendeesHint', { defaultValue: '고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다.' }) as string}</TzHint>
+          </Field>
+
+          <Field>
             <Label>{t('form.reminder', { defaultValue: '알림' }) as string}</Label>
             <PlanQSelect
-              value={reminderOptions.find(o => o.value === reminderMinutes) || reminderOptions[0]}
-              options={reminderOptions}
+              value={reminderOpts.find(o => o.value === reminderMinutes) || reminderOpts[0]}
+              options={reminderOpts}
               onChange={(o) => setReminderMinutes(Number((o as { value: number } | null)?.value ?? REMINDER_NONE))}
               isSearchable={false}
             />

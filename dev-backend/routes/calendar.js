@@ -34,7 +34,7 @@ function broadcastEvent(req, event, eventName = 'event:updated') {
 }
 
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, isMemberOrAbove, getUserScope, calendarListWhere } = require('../middleware/access_scope');
+const { attachWorkspaceScope, isMemberOrAbove, getUserScope, calendarListWhere, filterWorkspaceMemberIds } = require('../middleware/access_scope');
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
 // 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
@@ -554,8 +554,10 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       else if (['L1','L2','L3','L4'].includes(req.body.vlevel)) updates.vlevel = req.body.vlevel;
     }
     if (req.body.target_member_ids !== undefined) {
+      // ★ 생성 라우트와 **같은 함수**로 소속을 확인한다 — 여기만 빠지면 수정으로 넣어 새게 된다
+      //   (Fable 게이트 2026-09-05 F1: 다른 워크스페이스 사용자에게 일정 알림이 실제로 나갔다).
       updates.target_member_ids = Array.isArray(req.body.target_member_ids)
-        ? req.body.target_member_ids.map(Number).filter(Boolean) : null;
+        ? await filterWorkspaceMemberIds(event.business_id, req.body.target_member_ids, { transaction: t }) : null;
     }
     if (req.body.target_client_ids !== undefined) {
       updates.target_client_ids = Array.isArray(req.body.target_client_ids)

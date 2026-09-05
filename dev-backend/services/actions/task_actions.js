@@ -714,7 +714,7 @@ async function ack(task, actor) {
 }
 
 /** 담당자가 결과물을 제출하고 컨펌 라운드를 시작한다 */
-async function submitReview(task, actor, { note = null } = {}) {
+async function submitReview(task, actor, { note = null, body = undefined } = {}) {
   if (!(await isAssignee(task, actor.userId))) return fail('only_assignee', 403);
   if (['completed', 'canceled'].includes(task.status)) return fail('task_closed');
   // #206 보류는 "일이 멈춤"의 선언 — 우회 전진 금지. 해제 후 진행한다.
@@ -725,9 +725,14 @@ async function submitReview(task, actor, { note = null } = {}) {
   const reviewers = await TaskReviewer.count({ where: { task_id: task.id } });
   if (reviewers === 0) return fail('no_reviewers_add_first');
 
+  // ★ 제출 시점의 본문을 **같이** 받아 한 트랜잭션에 쓴다.
+  //   전에는 화면의 자동저장(PUT)과 제출(POST)이 경합해 **마지막 타이핑이 박제본에서 빠질 수** 있었다
+  //   (자동저장은 2초 debounce 인데 제출이 그것을 기다리지 않았다 — Fable 설계 게이트 2026-09-05).
+  //   `submitForReview` 는 이미 `bodyUpdates` 를 받아 status 전이와 함께 커밋하고 그 값을 박제한다.
   const r = await submitForReview({
     task, actorUserId: actor.userId, actorRole: 'assignee',
     actingForUserId: actor.onBehalfOfUserId || null, note,
+    ...(body !== undefined ? { bodyUpdates: { body } } : {}),
   });
   if (!r.ok) return fail(r.reason);
 
@@ -979,6 +984,12 @@ async function restoreDeliverable(task, actor, { versionId }) {
   const bm = await BusinessMember.findOne({ where: { business_id: task.business_id, user_id: userId } });
   const canEditBody = assignee || actor.platformRole === 'platform_admin' || bm?.role === 'admin';
   if (!canEditBody) return fail('forbidden_fields:body', 403);
+
+  // 되돌리기도 **본문 쓰기**다 — PUT 라우트와 같은 문을 지나야 한다.
+  //   이 검사가 없으면 컨펌 중·완료된 업무의 결과물을 이 경로로 우회해 바꿀 수 있다
+  //   (버튼은 화면에서 감췄지만, 감춘 버튼은 가드가 아니다).
+  const { canEditBodyInStatus } = require('../taskTransition');
+  if (!canEditBodyInStatus(task.status)) return fail(`body_locked:${task.status}`, 409);
 
   const v = await TaskDeliverableVersion.findOne({ where: { id: versionId, task_id: task.id } });
   if (!v) return fail('version_not_found', 404);

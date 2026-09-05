@@ -423,6 +423,16 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   };
 
   const debouncedRef = useRef<{ [key: string]: number }>({});
+  // 결과물 에디터에 **지금 떠 있는** 본문. 자동저장은 2초 debounce 라, 마지막 타이핑 직후
+  //   "확인 요청" 을 누르면 서버의 body 는 아직 옛것이고 그 옛것이 버전으로 박제된다.
+  //   그래서 제출할 때 이 값을 같이 보낸다(서버가 한 트랜잭션에 저장+박제한다).
+  const bodyDraftRef = useRef<string | null>(null);
+  // 결과물 박제 목록의 마지막 회차. **목록이 정본**이다 — `review_round`(컨펌 라운드 수)는
+  //   되돌리기가 만든 백업 회차를 세지 않아 "다음은 v3" 이라 해놓고 v4 가 되는 어긋남이 난다.
+  //   DeliverableHistory 가 목록을 읽을 때마다 알려준다.
+  //   **-1 = 모름**(아직 못 읽었거나 읽기에 실패). 모르는 동안에는 번호를 아예 말하지 않는다 —
+  //   근사치를 쓰던 때 짧게나마 틀린 번호가 떴다(Fable 게이트 2026-09-05).
+  const [lastDeliverableRound, setLastDeliverableRound] = useState<number>(-1);
 
   // ── 리사이즈 핸들 ──
   const [localWidth, setLocalWidth] = useState<number>(width ?? 560);
@@ -484,6 +494,15 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       const dr = await res.json().catch(() => null);
       if (!dr || dr.success === false) { setDetailStatus('error'); return; }
       setDetailTask(dr.data);
+      // 서버 본문을 새로 받았으니 에디터 초안 기억도 버린다 — 안 버리면 옛 초안이
+      //   다음 제출에 실려 서버가 방금 준 본문을 되돌린다.
+      bodyDraftRef.current = null;
+      // ★ 여기서 회차 번호를 비우지 않는다. `loadDetail` 은 되돌리기·워크플로 액션마다 불리는데,
+      //   그때마다 -1 로 떨어지면 방금 읽은 목록의 값(정본)을 버린다 — 되돌리기 직후 칩이
+      //   v4 에서 옛 값으로 떨어지고, 그 상태로 제출하면 화면이 말한 번호와 실제가 갈렸다
+      //   (Fable 재게이트 2026-09-05 실측). 목록 조회가 **실패**했을 때만 -1 로 떨어진다
+      //   (DeliverableHistory 가 알린다).
+      //   비우는 것은 **업무가 바뀔 때만** — 아래 taskId 이펙트가 한다.
       // #206 — 서버 값으로 배너 사유 draft 동기화. 사용자가 타이핑 중인 값을 덮지 않도록
       //   로드/재로드 시점에만 맞춘다 (AutoSave 가 저장 후 detail 을 다시 읽는 경로 포함).
       setHoldReasonDraft(dr.data?.hold_reason || '');
@@ -508,6 +527,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setDeleteConfirmOpen(false); setDeleting(false);
     setWeekFocusH(0);
     setKbSaving(false); setKbSaved(false);
+    // 다른 업무를 열면 옛 업무의 회차 번호가 잠깐 보이지 않게 비운다(목록을 다시 읽을 때까지).
+    setLastDeliverableRound(-1);
     loadDetail(taskId);
     // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너용). 본인 세션만 집계.
     (async () => {
@@ -821,9 +842,22 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const actAck = () => callAction('/ack');
   // #271 — 메시지를 곁들인 확인 요청. 백엔드가 note 를 이력 + 댓글 양쪽에 남긴다.
   const submitReviewWithNote = async () => {
+    if (!detailTask) return;
     const note = submitNote.trim();
-    const r = await callAction('/submit-review', 'POST', note ? { note } : undefined);
-    if (r?.success) { setSubmitOpen(false); setSubmitNote(''); }
+    // ★ 대기 중인 본문 자동저장을 **먼저 거둔다.** 그대로 두면 제출로 status 가 reviewing 이 된 뒤에
+    //   뒤늦은 PUT 이 날아가 서버 가드(body_locked)에 막히고, 화면엔 이유 없는 "저장 실패" 만 뜬다.
+    const bodyKey = `${detailTask.id}:body`;
+    if (debouncedRef.current[bodyKey]) {
+      window.clearTimeout(debouncedRef.current[bodyKey]);
+      delete debouncedRef.current[bodyKey];
+    }
+    const draft = bodyDraftRef.current;
+    const payload: Record<string, unknown> = {};
+    if (note) payload.note = note;
+    // 손댄 적이 있을 때만 보낸다 — 안 건드렸으면 서버의 현재 본문이 정답이다.
+    if (draft !== null && draft !== (detailTask.body || '')) payload.body = draft;
+    const r = await callAction('/submit-review', 'POST', Object.keys(payload).length ? payload : undefined);
+    if (r?.success) { setSubmitOpen(false); setSubmitNote(''); bodyDraftRef.current = null; }
   };
   const actCancelReview = () => callAction('/cancel-review');
   const actComplete = () => callAction('/complete');
@@ -1114,6 +1148,24 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const canEditTags = iAmCreator || iAmAssignee || iAmWsOwner || myWsRole === 'admin';
           const canEditDescription = iAmCreator || iAmWsOwner;
           const canEditBody = iAmAssignee || isPlatformAdmin;
+          // ── 결과물은 **상태에 따라 쓰기/읽기가 갈린다** (2026-09-05 재설계) ────────────
+          //   Irene: "입력란에 있는게 굳이 아래에 버전으로 또 있는 이유가 뭐야? … 그냥 결과물에
+          //           새버전 결과물 입력하기 눌러서 새입력란이 보여야지. 기존 거 저장하고."
+          //   같은 칸이 늘 열려 있으니 "지금 쓰는 것" 과 "이미 낸 것" 이 구별되지 않았다.
+          //   → 컨펌 중·외부 확인 중·닫힌 뒤에는 **읽기**로 두고, 다시 쓰려면 버튼으로 새 회차를 연다.
+          //   ★ 서버 가드(routes/tasks.js `body_locked`)와 **같은 집합**이어야 한다 —
+          //     갈라지면 화면은 열려 있는데 저장은 409 로 막히는 "저장 실패" 가 된다.
+          const bodyEditable = canEditBody
+            && ['not_started', 'waiting', 'in_progress', 'revision_requested', 'on_hold'].includes(detailTask.status);
+          // ★ **모르는 번호는 말하지 않는다.** 예전엔 목록을 읽기 전 `review_round`(컨펌 라운드 수)로
+          //   근사했는데, 되돌리기 백업 회차를 안 세는 값이라 잠깐이지만 **틀린 번호**가 떴다
+          //   (Fable 게이트 2026-09-05 실측: 30ms 동안 v3 → 실제 v5). 근사치를 없애고,
+          //   목록을 읽기 전에는 번호 없는 문구를 쓴다. 정본은 언제나 박제 목록이다.
+          const roundKnown = lastDeliverableRound >= 0;
+          const shownRound = lastDeliverableRound;
+          const nextVersionNo = lastDeliverableRound + 1;
+          // 완료된 업무를 이어서 고치는 유일한 문 = 새 회차 시작(actStart). 취소된 업무는 열지 않는다.
+          const reviseAvailable = canEditBody && detailTask.status === 'completed';
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
           // 운영 #279 — 기간(착수·마감). 여태 이 플래그가 **아예 없어서** 담당자에게 편집 가능한
           //   UI 를 열어두고 저장 시점에 403 "저장 실패" 만 띄웠다. 백엔드 FIELD_RULES.due_date/
@@ -2183,6 +2235,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             <Section>
               <SectionTitle>
                 {t('detail.body', '결과물')}
+                {roundKnown && shownRound > 0 && (
+                  <BodyVerChip title={t('detail.bodyVerTip', '지금까지 남긴 결과물 회차') as string}>
+                    v{shownRound}
+                  </BodyVerChip>
+                )}
                 {!canEditBody && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
                 {/* ★ 2026-09-04 — 이름이 "KB에 저장" 이라 (1) KB 가 뭔지 모르고
                     (2) 바로 옆 에디터의 자동저장과 "저장" 이 겹쳐 무엇이 저장되는지 헷갈렸다.
@@ -2200,18 +2257,53 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </>
                 )}
               </SectionTitle>
+              {/* 지금 이 칸이 무엇인지 한 줄로 말한다 — 규칙 설명이 아니라 **상태와 다음 동작**. */}
+              {bodyEditable ? (
+                <BodyModeLine>
+                  {roundKnown
+                    ? t('detail.bodyEditing', '작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 v{{n}} 로 남습니다.', { n: nextVersionNo })
+                    : t('detail.bodyEditingPlain', '작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 회차로 남습니다.')}
+                </BodyModeLine>
+              ) : canEditBody ? (
+                <BodyLockBar>
+                  <BodyLockText>
+                    {detailTask.status === 'reviewing'
+                      ? t('detail.bodyLocked.reviewing', '확인 요청 중이라 잠겨 있습니다. 컨펌하는 사람이 본 내용과 달라지지 않게 합니다.')
+                      : detailTask.status === 'external_review'
+                        ? t('detail.bodyLocked.external', '외부 확인 중이라 잠겨 있습니다. 해제하면 다시 쓸 수 있습니다.')
+                        : detailTask.status === 'canceled'
+                          ? t('detail.bodyLocked.canceled', '취소된 업무입니다. 결과물은 남긴 그대로 보관됩니다.')
+                          : t('detail.bodyLocked.completed', '완료된 결과물입니다. 이어서 고치려면 수정본을 시작하세요 — 지금 내용은 그대로 남습니다.')}
+                  </BodyLockText>
+                  {reviseAvailable && (
+                    <ActionSecondary onClick={actStart} disabled={actionBusy} data-testid="task-body-revise">
+                      {roundKnown
+                        ? t('detail.actions.reviseNew', '수정본 작성하기 (v{{n}})', { n: nextVersionNo })
+                        : t('detail.actions.revisePlain', '수정본 작성하기')}
+                    </ActionSecondary>
+                  )}
+                </BodyLockBar>
+              ) : null}
+              {/* 하니스가 **결과물 입력란만** 집어 보게 표식을 단다 — 같은 화면에 의뢰 명세
+                  에디터가 하나 더 있어서, 표식 없이는 둘을 구별 못 해 잠금 검사가 거짓이 된다. */}
+              <div data-testid="task-body-editor">
               <RichEditor value={detailTask.body || ''}
-                onChange={(html) => debouncedSave('body', html, 2000)}
-                onBlur={(html) => flushDebounced('body', html)}
+                onChange={(html) => { bodyDraftRef.current = html; debouncedSave('body', html, 2000); }}
+                onBlur={(html) => { bodyDraftRef.current = html; flushDebounced('body', html); }}
                 placeholder={t('detail.bodyPlaceholder', '업무 결과물을 작성하세요.  / 입력 시 블록 추가')}
                 uploadUrl={`/api/tasks/${detailTask.id}/attachments?context=description`}
                 minHeight={260}
-                readOnly={!canEditBody} />
+                readOnly={!bodyEditable} />
+              </div>
               {/* #271·#307 — 회차 이력. 백엔드는 2026-08-22 부터 "확인 요청" 시점 결과물을 박제해
                   왔는데 화면이 없어 사용자에게는 아무것도 달라지지 않은 것으로 보였다. */}
+              {/* 이력의 "가져오기" 는 **쓰기 상태일 때만** 낸다. 읽기 상태에서 눌러봐야 서버가
+                  막고(body_locked), 무엇보다 "닫힌 결과물이 조용히 바뀌는" 문이 되어선 안 된다. */}
               <DeliverableHistory
                 taskId={detailTask.id}
-                canRestore={canEditBody}
+                canRestore={bodyEditable}
+                onRoundsLoaded={setLastDeliverableRound}
+                reloadKey={`${detailTask.status}:${detailTask.review_round ?? 0}`}
                 onRestored={() => { void loadDetail(detailTask.id); }} />
             </Section>
 
@@ -2518,6 +2610,24 @@ const Section = styled.div`border-bottom:1px solid #F1F5F9;padding:12px 14px;
 const SectionTitle = styled.h4`font-size:0.75rem;font-weight:700;color:#0F172A;margin:0 0 8px;display:flex;align-items:center;gap:8px;
   body[data-popout='1'] &{margin-bottom:6px;}`;
 const ReadOnlyHint = styled.span`font-size:0.6875rem;font-weight:500;color:#94A3B8;background:#F1F5F9;border-radius:10px;padding:2px 8px;`;
+// 결과물 회차 칩 — 제목 옆에 지금까지 남긴 회차를 붙인다(이력을 펼치지 않아도 보이게).
+const BodyVerChip = styled.span`
+  font-size:0.6875rem;font-weight:700;color:#0F766E;background:#CCFBF1;
+  border-radius:10px;padding:2px 8px;
+`;
+// 쓰기 상태 한 줄 — 무엇이 저장되고 어디로 남는지.
+const BodyModeLine = styled.div`
+  margin:2px 0 6px;font-size:0.75rem;line-height:1.5;color:#64748B;
+`;
+// 읽기 상태 띠 — 왜 잠겼는지와, 다시 쓰는 문을 같은 줄에 둔다.
+const BodyLockBar = styled.div`
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin:2px 0 8px;padding:8px 12px;
+  background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
+`;
+const BodyLockText = styled.span`
+  flex:1 1 220px;min-width:0;font-size:0.78125rem;line-height:1.5;color:#475569;
+`;
 const KbErrText = styled.span`
   margin-left: 8px; font-size: 0.75rem; color: #B91C1C;
 `;

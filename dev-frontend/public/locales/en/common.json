@@ -1003,5 +1003,23 @@
   "reportProblem": {
     "link": "Report this",
     "retry": "Try again"
+  },
+  "visibility": {
+    "workspace": "Whole workspace",
+    "workspaceHint": "Everyone — owner and members — can see it",
+    "project": "A specific project",
+    "projectHint": "Only members of that project can see it",
+    "projectPick": "Choose a project",
+    "projectPh": "Select a project",
+    "members": "Specific members",
+    "membersHint": "Only the members you choose can see it (rate sheets, internal accounts, and the like)",
+    "memberPick": "Choose members",
+    "memberPh": "Select members",
+    "client": "Specific customers",
+    "clientHint": "The customers you choose, plus your team, can see it",
+    "clientPick": "Choose customers",
+    "clientPh": "Select customers",
+    "private": "Only me",
+    "privateHint": "Only you can see it (personal vault)"
   }
 }

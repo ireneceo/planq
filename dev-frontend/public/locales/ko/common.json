@@ -1003,5 +1003,23 @@
   "reportProblem": {
     "link": "이 문제 신고",
     "retry": "다시 시도"
+  },
+  "visibility": {
+    "workspace": "전체 워크스페이스",
+    "workspaceHint": "오너·멤버 모두 볼 수 있어요",
+    "project": "특정 프로젝트",
+    "projectHint": "그 프로젝트 멤버만 볼 수 있어요",
+    "projectPick": "프로젝트 선택",
+    "projectPh": "프로젝트를 선택하세요",
+    "members": "특정 멤버",
+    "membersHint": "선택한 멤버만 볼 수 있어요 (단가표·내부 계정 등)",
+    "memberPick": "멤버 선택",
+    "memberPh": "멤버 선택",
+    "client": "특정 고객 (다중 가능)",
+    "clientHint": "선택한 고객(들)과 우리 팀이 볼 수 있어요",
+    "clientPick": "고객 선택",
+    "clientPh": "고객을 선택하세요",
+    "private": "나만 보기",
+    "privateHint": "본인만 볼 수 있어요 (개인 보관함)"
   }
 }

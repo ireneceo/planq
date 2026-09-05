@@ -559,7 +559,9 @@
       "revertDisabled": "취소 사용함",
       "approvedOf": "{{total}}명 중 {{n}}명 승인",
       "approvePlaceholder": "담당자에게 남길 코멘트가 있나요? (선택)",
-      "submitNotePlaceholder": "컨펌자에게 남길 말이 있나요? (선택 — 댓글로도 남습니다)"
+      "submitNotePlaceholder": "컨펌자에게 남길 말이 있나요? (선택 — 댓글로도 남습니다)",
+      "reviseNew": "수정본 작성하기 (v{{n}})",
+      "revisePlain": "수정본 작성하기"
     },
     "delete": {
       "button": "업무 삭제",
@@ -662,7 +664,16 @@
     "kbSaved": "Cue 지식에 추가됨",
     "kbSaveHint": "이 결과물을 Cue 지식에 넣습니다. 다음부터 Cue 가 답변할 때 참고합니다.",
     "recurDescHint": "이 설명은 매 회차에 함께 생성됩니다. 회차별 결과물은 각 회차의 본문에 작성하세요.",
-    "kbErr": "추가하지 못했습니다. 잠시 후 다시 시도해 주세요."
+    "kbErr": "추가하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "bodyEditing": "작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 v{{n}} 로 남습니다.",
+    "bodyVerTip": "지금까지 확인 요청으로 남긴 회차",
+    "bodyLocked": {
+      "reviewing": "확인 요청 중이라 잠겨 있습니다. 컨펌하는 사람이 본 내용과 달라지지 않게 합니다.",
+      "external": "외부 확인 중이라 잠겨 있습니다. 해제하면 다시 쓸 수 있습니다.",
+      "canceled": "취소된 업무입니다. 결과물은 남긴 그대로 보관됩니다.",
+      "completed": "완료된 결과물입니다. 이어서 고치려면 수정본을 시작하세요 — 지금 내용은 그대로 남습니다."
+    },
+    "bodyEditingPlain": "작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 회차로 남습니다."
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",
@@ -1341,25 +1352,23 @@
     "recurInstanceNote": "이 회차는 반복 업무에서 자동으로 만들어졌어요. 여기서 반복 설정을 바꾸면 시리즈 전체에 적용됩니다."
   },
   "deliv": {
-    "title": "결과물 이력",
-    "empty": "아직 제출된 회차가 없습니다. 확인 요청을 보내면 그 시점 결과물이 여기 남습니다.",
     "loading": "불러오는 중…",
     "approved": "승인됨",
     "revision": "수정요청",
     "pending": "검토 대기",
     "revisionNote": "수정요청",
-    "noSnapshot": "이 회차는 결과물 박제 기능이 생기기 전이라 본문이 없습니다.",
-    "restore": "이 회차 내용으로 되돌리기",
-    "restoring": "되돌리는 중…",
+    "noSnapshot": "이 버전은 결과물 보관 기능이 생기기 전이라 본문이 없습니다.",
+    "restore": "이 버전 내용 불러오기",
+    "restoring": "불러오는 중…",
     "err": {
       "generic": "이력을 불러오지 못했습니다",
       "load_failed": "이력을 불러오지 못했습니다",
-      "restore_failed": "되돌리지 못했습니다"
+      "restore_failed": "그 버전을 불러오지 못했습니다"
     },
-    "stateRecorded": "v{{n}} 로 기록됨",
-    "stateNext": "확인 요청을 보내면 v{{n}} 로 남습니다",
-    "stateNone": "아직 회차로 기록되지 않았습니다",
-    "stateFirst": "확인 요청을 보내면 v1 로 남습니다"
+    "pastTitle": "지난 버전",
+    "lastHint": "최근 v{{n}} · {{outcome}}",
+    "emptyShort": "아직 제출한 버전이 없습니다.",
+    "restoreHint": "지금 쓰던 내용은 한 벌 보관된 뒤 이 버전으로 바뀝니다."
   },
   "loadError": {
     "title": "업무를 불러오지 못했습니다",

@@ -15,6 +15,7 @@ import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { ProvenanceBadge } from '../../components/Common/SourceHint';
 import { formatRRuleLabel } from '../../utils/recurrence';
 import { isEnterAction } from '../../utils/imeKey';
+import { reminderOptions, reminderLabel, REMINDER_NONE } from './reminderOptions';
 
 // 30분 스텝 시간 옵션 — NewEventModal 과 동일 패턴
 const TIME_OPTIONS = (() => {
@@ -100,6 +101,8 @@ const EventDrawer: React.FC<Props> = ({
 
   // 편집 권한: 작성자 또는 owner (백엔드 PUT 라우트와 일치)
   const canEdit = !!event && (event.created_by === myUserId || myBusinessRole === 'owner');
+  // 저장된 알림 설정(분). 목록·읽기 표시가 **같은 값**을 보게 한 곳에서 꺼낸다.
+  const curReminder = (event as (CalendarEvent & { reminder_minutes?: number | null }) | null)?.reminder_minutes ?? null;
 
   // local controlled state — props 변경 시 sync. 자동저장 도중 server 응답 덮어쓰기로 인한
   // 입력 깜빡임 방지를 위해 event.id 가 바뀔 때 + 핵심 필드 명시적 변경 시에만 reset.
@@ -487,7 +490,7 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
-        {/* N+63 — 임박 알림 (reminder_minutes). 5분/10분/15분/30분/1시간/1일 + 없음 */}
+        {/* N+63 — 임박 알림 (reminder_minutes). 값과 말은 reminderOptions.ts 한곳에서 정한다. */}
         <Section>
           <SectionIcon>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -497,22 +500,17 @@ const EventDrawer: React.FC<Props> = ({
           </SectionIcon>
           <SectionBody>
             <MutedSmall>{t('drawer.reminder', '임박 알림')}</MutedSmall>
+            {/* 종일 일정은 기준이 시작일 09:00 이라 목록이 다르다 — 등록 모달과 같은 규칙. */}
             {canEdit ? (
               <AutoSaveField type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
                 <PlanQSelect
                   size="sm"
                   isClearable
                   placeholder={t('drawer.reminderNone', '알림 없음') as string}
-                  options={[
-                    { value: 5, label: t('drawer.reminderMin', { count: 5, defaultValue: '{{count}}분 전' }) as string },
-                    { value: 10, label: t('drawer.reminderMin', { count: 10, defaultValue: '{{count}}분 전' }) as string },
-                    { value: 15, label: t('drawer.reminderMin', { count: 15, defaultValue: '{{count}}분 전' }) as string },
-                    { value: 30, label: t('drawer.reminderMin', { count: 30, defaultValue: '{{count}}분 전' }) as string },
-                    { value: 60, label: t('drawer.reminderHour', { count: 1, defaultValue: '{{count}}시간 전' }) as string },
-                    { value: 1440, label: t('drawer.reminderDay', { count: 1, defaultValue: '{{count}}일 전' }) as string },
-                  ]}
-                  value={(event as CalendarEvent & { reminder_minutes?: number | null }).reminder_minutes
-                    ? { value: (event as CalendarEvent & { reminder_minutes?: number | null }).reminder_minutes!, label: '' }
+                  options={reminderOptions(!!event.all_day, curReminder, t)
+                    .filter((o) => o.value !== REMINDER_NONE)}
+                  value={curReminder != null
+                    ? { value: curReminder, label: reminderLabel(curReminder, !!event.all_day, t) }
                     : null}
                   onChange={(opt) => {
                     const v = opt ? Number((opt as { value: number }).value) : null;
@@ -523,8 +521,10 @@ const EventDrawer: React.FC<Props> = ({
               </AutoSaveField>
             ) : (
               <Plain>
-                {(event as CalendarEvent & { reminder_minutes?: number | null }).reminder_minutes
-                  ? t('drawer.reminderMin', { count: (event as CalendarEvent & { reminder_minutes?: number }).reminder_minutes })
+                {/* ★ 저장된 분(分)을 그대로 "{{count}}분 전" 에 넣으면 **"1440분 전"** 이 된다.
+                    등록 모달과 같은 함수로 말한다(reminderOptions.ts). */}
+                {curReminder != null
+                  ? reminderLabel(curReminder, !!event.all_day, t)
                   : t('drawer.reminderNone', '알림 없음')}
               </Plain>
             )}

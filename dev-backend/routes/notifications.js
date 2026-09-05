@@ -127,9 +127,25 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
     //   지금은 7ms 라 미룬다. 합치려면 두 곳이 같은 attributes 를 쓰게 해야 하는데,
     //   그 김에 email 분기의 조건이 바뀌면 여기와 갈라진다 — 별건으로 다룬다.
   } catch { /* 조회 실패로 알림 전체를 막지 않는다 */ }
+  // 수신자 언어는 한 번만 읽고 제목·본문·버튼이 같이 쓴다.
+  //   `body`/`ctaLabel` 을 **함수**로 주면 언어를 받아 만든다 — notifyMany 로 여러 명에게 보낼 때
+  //   각자의 언어로 나간다(문자열로 주면 종전대로 그대로 쓴다, 옛 호출부 무변경).
+  //   Fable 게이트 2026-09-05: 일정 알림 본문 "1일 전"·버튼 "일정 보기" 가 수신자 언어와 무관하게
+  //   한국어로 나갔다 — 제목만 현지화되어 한 알림 안에서 언어가 섞였다.
+  let _lang = null;
+  const langOf = async () => {
+    if (_lang === null) {
+      try { _lang = await require('../services/notifyTitle').recipientLang(userId); }
+      catch { _lang = 'ko'; }
+    }
+    return _lang;
+  };
+  if (typeof body === 'function') body = body(await langOf());
+  if (typeof ctaLabel === 'function') ctaLabel = ctaLabel(await langOf());
+
   if (titleSpec && titleSpec.feature && titleSpec.action) {
     try {
-      const { buildTitle, recipientLang, FEATURES, ACTIONS } = require('../services/notifyTitle');
+      const { buildTitle, FEATURES, ACTIONS } = require('../services/notifyTitle');
       // ★ buildTitle 은 미지 feature/action 에 **throw 하지 않고 빈 문자열**을 돌려준다.
       //   그대로 대입하면 오타 하나로 제목 없는 알림이 조용히 나간다(catch 로는 못 잡는다).
       //   그래서 ① 표에 있는지 먼저 확인하고 ② 결과가 비면 기존 title 을 지키고 ③ 오타를 로그로 드러낸다.
@@ -141,7 +157,7 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         console.warn('[notify titleSpec] 미등록 키 — services/notifyTitle.js 표에 추가할 것:',
           titleSpec.feature, titleSpec.action, '→ 기존 title 유지');
       } else {
-        const built = buildTitle({ ...titleSpec, lang: await recipientLang(userId) });
+        const built = buildTitle({ ...titleSpec, lang: await langOf() });
         if (built && built.trim()) title = built;
       }
     } catch (e) { console.warn('[notify titleSpec]', e.message); }   // 실패해도 기존 title 로 진행

@@ -179,6 +179,17 @@ export default function RichEditor({
     currentValueRef.current = value;
   }, [value, editor]);
 
+  // ★ `editable` 은 useEditor **초기화 때 한 번만** 읽힌다. 나중에 readOnly 가 바뀌어도
+  //   ProseMirror 의 contenteditable 은 그대로라, 툴바만 사라지고 **본문은 계속 쳐졌다**
+  //   (반대로 잠긴 상태로 열린 글은 권한이 생겨도 영영 안 써졌다).
+  //   상태에 따라 결과물 입력란이 잠기고 풀리는 흐름(업무 결과물 v2 재설계)에서 실제로 드러났다:
+  //   "수정본 작성하기" 를 눌러 진행 중으로 돌아와도 입력란이 잠긴 채였다(실브라우저 실측).
+  useEffect(() => {
+    if (!editor) return;
+    if (editor.isEditable === !readOnly) return;
+    editor.setEditable(!readOnly);
+  }, [readOnly, editor]);
+
   // 업로드만 하고 **URL 을 돌려준다** — 삽입 위치가 다른 호출부(#342 base64 치환)가 재사용한다.
   const uploadImageForUrl = async (file: File): Promise<string | null> => {
     const url = uploadUrlRef.current;

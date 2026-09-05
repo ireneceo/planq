@@ -409,6 +409,48 @@ async function calendarListWhere(userId, businessId, scope) {
   };
 }
 
+/**
+ * 워크스페이스 **지정 수신자** id 를 실제 소속 멤버로만 좁힌다.
+ *
+ * Fable 게이트 2026-09-05 F1 실측: 캘린더 일정의 `target_member_ids` 는 클라이언트가 준 정수를
+ * 그대로 저장했고(쓰기 두 곳), 알림 크론도 소속을 안 봤다. 그래서 **다른 워크스페이스 사용자에게
+ * 일정 제목·장소가 인박스·메일·푸시로 나갔다**(user 15 는 biz 3 전용인데 biz 5 알림 수신 확인).
+ * 정수 id 는 추측 가능하므로 "몰라서 못 넣는다" 는 방어가 아니다.
+ *
+ * 쓰는 쪽과 보내는 쪽이 **같은 함수**를 지나야 한다 — 한쪽만 고치면 옛 행이 그대로 새고,
+ * 술어를 베껴 두면 반드시 갈라진다(memory feedback_comment_lies_predicate_drifts).
+ *
+ * @returns {Promise<number[]>} 입력 순서를 지킨, 중복 없는 소속 멤버 id 배열
+ */
+async function filterWorkspaceMemberIds(businessId, ids, opts = {}) {
+  const wanted = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter(Boolean))];
+  if (wanted.length === 0) return [];
+  const rows = await BusinessMember.findAll({
+    where: {
+      business_id: businessId,
+      user_id: { [Op.in]: wanted },
+      // 해제된 멤버십은 소속이 아니다 — getUserScope 와 같은 조건.
+      removed_at: null,
+      // Cue(ai) 는 사람이 아니다 — 알림을 받을 인박스가 없다.
+      role: { [Op.ne]: 'ai' },
+    },
+    attributes: ['user_id'],
+    transaction: opts.transaction,
+  });
+  const allowed = new Set(rows.map((r) => r.user_id));
+
+  // ★ owner 는 BusinessMember 행 **없이** businesses.owner_id 로만 owner 인 경우가 있다
+  //   (운영 #14/#36 — getUserScope 가 같은 fallback 을 갖는다). 이 갈래를 빠뜨리면
+  //   일정 생성자인 owner 가 걸러져 **알림이 통째로 안 나간다** — 조용히 0건이 되는 실패다.
+  const missing = wanted.filter((id) => !allowed.has(id));
+  if (missing.length > 0) {
+    const biz = await Business.findByPk(businessId, { attributes: ['owner_id'], transaction: opts.transaction });
+    if (biz?.owner_id && missing.includes(biz.owner_id)) allowed.add(biz.owner_id);
+  }
+
+  return wanted.filter((id) => allowed.has(id));
+}
+
 async function canAccessInvoice(userId, invoice, scope) {
   if (!invoice) return false;
   if (!scope) scope = await getUserScope(userId, invoice.business_id);
@@ -726,6 +768,7 @@ module.exports = {
   invoiceListWhere,
   isInvoiceVisibleToClient,   // #274 — PDF·정정·증빙 등 다른 소비처가 같은 술어를 쓰게
   calendarListWhere,
+  filterWorkspaceMemberIds,
   canAccessInvoice,
   postListWhere,
   canAccessPost,

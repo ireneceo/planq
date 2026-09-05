@@ -30,10 +30,16 @@
 const cron = require('node-cron');
 const { Op } = require('sequelize');
 const { CalendarEvent, CalendarEventAttendee, Business } = require('../models');
+const { filterWorkspaceMemberIds } = require('../middleware/access_scope');
 
-/** 사람 말로 — "1440분 전" 같은 기계 말을 내보내지 않는다. */
-function humanizeLead(minutes, lang = 'ko') {
+/**
+ * 사람 말로 — "1440분 전" 같은 기계 말을 내보내지 않는다.
+ * @param {boolean} allDay 종일 일정은 기준이 시작일 09:00 이라, 하루 안쪽(540분 미만) 설정은
+ *   "1분 전" 이 아니라 **"당일 아침"** 이다. 화면 옵션 라벨("당일 아침 (오전 9시)")과 같은 말을 쓴다.
+ */
+function humanizeLead(minutes, lang = 'ko', allDay = false) {
   const en = lang === 'en';
+  if (allDay && minutes < 1440) return en ? 'on the morning of' : '당일 아침';
   if (minutes % 1440 === 0) {
     const d = minutes / 1440;
     return en ? `${d} day${d > 1 ? 's' : ''} before` : `${d}일 전`;
@@ -42,7 +48,7 @@ function humanizeLead(minutes, lang = 'ko') {
     const h = minutes / 60;
     return en ? `${h} hour${h > 1 ? 's' : ''} before` : `${h}시간 전`;
   }
-  return en ? `${minutes} minutes before` : `${minutes}분 전`;
+  return en ? `${minutes} minute${minutes > 1 ? 's' : ''} before` : `${minutes}분 전`;
 }
 
 /**
@@ -51,25 +57,37 @@ function humanizeLead(minutes, lang = 'ko') {
  *   여기서만 다르게 계산하면 화면에 보이는 회차와 알림이 갈린다.
  * @returns {Date|null} 앞으로 올 회차. 없으면 null(끝난 반복·과거 단일)
  */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function nextOccurrence(ev, now) {
   const start = new Date(ev.start_at);
-  if (!ev.rrule) return start > now ? start : null;
+  // ★ **종일 일정은 하루가 끝날 때까지 아직 오지 않은 일정이다.**
+  //   종일의 start_at 은 그날 자정이라, "당일 아침 9시" 알림(08:59)을 보낼 시점에는
+  //   `start_at > now` 로 보면 이미 지나간 일정이 되어 후보에서 통째로 빠졌다 —
+  //   즉 종일의 `reminder_minutes < 540` 은 **전부 죽은 경로**였다.
+  //   모달의 "당일 아침 (오전 9시)" 옵션(value 1)이 여기에 해당한다.
+  //   (Fable 게이트 2026-09-05 F3 실측: 단일·반복 모두 4/4·3/3 미발송.)
+  const graceMs = ev.all_day ? DAY_MS : 0;
+  const stillAhead = (d) => d.getTime() + graceMs > now.getTime();
+
+  if (!ev.rrule) return stillAhead(start) ? start : null;
   try {
     const { rrulestr } = require('rrule');
     const rule = rrulestr(ev.rrule, { dtstart: start });
     const except = new Set((Array.isArray(ev.exception_dates) ? ev.exception_dates : [])
       .map((d) => new Date(d).toISOString().slice(0, 10)));
-    let cursor = now;
+    // 종일은 오늘 회차(오늘 자정)가 지금보다 앞서 있으므로 커서를 하루 뒤로 물린다.
+    let cursor = new Date(now.getTime() - graceMs);
     for (let i = 0; i < 20; i++) {          // 예외가 연달아도 스무 번이면 충분하다
       const next = rule.after(cursor, false);
       if (!next) return null;
-      if (!except.has(next.toISOString().slice(0, 10))) return next;
+      if (!except.has(next.toISOString().slice(0, 10))) return stillAhead(next) ? next : null;
       cursor = next;
     }
     return null;
   } catch {
     // rrule 을 못 읽으면 반복을 포기하고 단일로 다룬다 — 조용히 아무것도 안 보내지 않는다.
-    return start > now ? start : null;
+    return stillAhead(start) ? start : null;
   }
 }
 
@@ -106,6 +124,9 @@ async function runCalendarReminderCron() {
         [Op.or]: [
           { start_at: { [Op.gt]: now } },     // 아직 안 시작한 단일 일정
           { rrule: { [Op.ne]: null } },       // 반복 마스터 — 다음 회차를 따로 계산한다
+          // 종일은 시작이 그날 자정이라 아침 알림 시점엔 이미 과거다 — 하루치를 더 본다.
+          //   nextOccurrence 가 같은 유예(DAY_MS)로 최종 판정하므로 여기선 후보만 넓힌다.
+          { all_day: true, start_at: { [Op.gt]: new Date(now.getTime() - DAY_MS) } },
         ],
       },
       include: [{
@@ -137,6 +158,12 @@ async function runCalendarReminderCron() {
       if (ev.reminder_sent_at && new Date(ev.reminder_sent_at) >= remindAt) { skipped++; continue; }
 
       // 수신자 — 생성자 ∪ 멤버 attendee(declined 제외) ∪ 지정 멤버.
+      //
+      // ★ **소속을 여기서 다시 확인한다.** 쓰기측을 고쳐도 이미 저장된 옛 행에는 남의 워크스페이스
+      //   id 가 들어 있을 수 있고, 그 행은 아무도 다시 저장하지 않는다 — 보내는 쪽이 마지막 문이다.
+      //   Fable 게이트 2026-09-05 F1 실측: biz 3 전용 사용자에게 biz 5 일정 알림이 실제로 나갔다
+      //   (인박스 행 생성 + 메일 발송 시도). 정수 id 는 추측 가능하다.
+      //   판정은 middleware/access_scope.filterWorkspaceMemberIds — 쓰기 두 곳과 같은 함수다.
       const ids = new Set();
       for (const a of (ev.attendees || [])) {
         if (a.user_id && a.response !== 'declined') ids.add(a.user_id);
@@ -145,7 +172,7 @@ async function runCalendarReminderCron() {
         if (uid) ids.add(Number(uid));
       }
       if (ev.created_by) ids.add(ev.created_by);
-      const memberIds = [...ids];
+      const memberIds = await filterWorkspaceMemberIds(ev.business_id, [...ids]);
 
       if (memberIds.length === 0) {
         // 받을 사람이 없으면 의미가 없다. 마킹해 다음 회차부터 다시 보게 둔다.
@@ -155,7 +182,7 @@ async function runCalendarReminderCron() {
       }
       try {
         const wsName = biz?.brand_name || biz?.name || null;
-        const startLocal = new Date(occurrence).toLocaleString('ko-KR', {
+        const startLocalIn = (lang) => new Date(occurrence).toLocaleString(lang === 'en' ? 'en-US' : 'ko-KR', {
           timeZone: tz,
           dateStyle: 'short',
           ...(ev.all_day ? {} : { timeStyle: 'short' }),
@@ -165,10 +192,12 @@ async function runCalendarReminderCron() {
           businessId: ev.business_id,
           eventKind: 'event',
           titleSpec: { feature: 'calendar', action: 'calendar_soon', subject: ev.title },
-          // ★ 사람 말로. "1440분 전 알림" 이 나가던 자리다.
-          body: `${startLocal} · ${humanizeLead(ev.reminder_minutes)}${ev.location ? ` · ${ev.location}` : ''}`,
+          // ★ 사람 말로, **수신자 언어로**. "1440분 전 알림" 이 나가던 자리다.
+          //   함수로 주면 notify 가 수신자 언어를 넣어 부른다 — 제목만 현지화되어
+          //   한 알림 안에서 언어가 섞이던 것을 막는다(Fable 게이트 2026-09-05).
+          body: (lang) => `${startLocalIn(lang)} · ${humanizeLead(ev.reminder_minutes, lang, !!ev.all_day)}${ev.location ? ` · ${ev.location}` : ''}`,
           link: `${appUrl}/calendar?event=${ev.id}`,
-          ctaLabel: '일정 보기',
+          ctaLabel: (lang) => (lang === 'en' ? 'View event' : '일정 보기'),
           workspaceName: wsName,
           // ★ 회차별로 다른 tag — 같으면 OS 알림이 서로 덮어써 마지막 하나만 남는다.
           tag: `event:${ev.id}:${Math.floor(occurrence.getTime() / 60000)}`,

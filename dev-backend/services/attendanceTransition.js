@@ -12,7 +12,7 @@
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const {
-  AttendanceDay, AttendanceEvent, Business, AuditLog, User, FocusSession,
+  AttendanceDay, AttendanceEvent, Business, User, FocusSession,
 } = require('../models');
 const { dateStrInTz, ymd } = require('../utils/datetime');
 
@@ -138,18 +138,21 @@ function broadcast(day) {
   } catch (e) { console.warn('[attendance broadcast]', e.message); }
 }
 
+// ★ 감사 기록은 **한 입구로만** 쓴다(services/auditService).
+//   여기서 AuditLog.create 를 직접 부르던 동안 이 경로의 행에는 보관 스탬프(retain_until)가
+//   안 붙었다 — 다른 행은 플랜 기간이 지나면 정리되는데 이 행들만 영구 보관으로 남는다.
+//   헬스체크 [retention] 항목이 그것을 잡았다(2026-09-05: attendance.clock_in 1건).
 async function audit({ action, day, actorUserId, oldValue, newValue }) {
-  try {
-    await AuditLog.create({
-      user_id: actorUserId,
-      business_id: day.business_id,
-      action,
-      target_type: 'attendance_day',
-      target_id: day.id,
-      old_value: oldValue || null,
-      new_value: newValue || null,
-    });
-  } catch (e) { console.warn('[attendance audit]', e.message); }
+  const { createAuditLog } = require('./auditService');
+  createAuditLog({
+    action,
+    targetType: 'attendance_day',
+    targetId: day.id,
+    userId: actorUserId,
+    businessId: day.business_id,
+    oldValue: oldValue || null,
+    newValue: newValue || null,
+  });
 }
 
 /**
@@ -403,17 +406,16 @@ async function undoAutoClockIn({ businessId, userId }) {
   const snapshot = { work_date: ymd(day.work_date), clock_in_at: day.clock_in_at, source: 'auto_focus' };
   await AttendanceEvent.destroy({ where: { attendance_day_id: day.id } });
   await day.destroy();
-  try {
-    await AuditLog.create({
-      user_id: userId,
-      business_id: businessId,
-      action: 'attendance.undo_auto_clock_in',
-      target_type: 'attendance_day',
-      target_id: day.id,
-      old_value: snapshot,
-      new_value: null,
-    });
-  } catch (e) { console.warn('[attendance undo audit]', e.message); }
+  // 같은 입구로 — 보관 스탬프가 붙는다(위 audit() 주석 참조).
+  require('./auditService').createAuditLog({
+    action: 'attendance.undo_auto_clock_in',
+    targetType: 'attendance_day',
+    targetId: day.id,
+    userId,
+    businessId,
+    oldValue: snapshot,
+    newValue: null,
+  });
   // 화면(다른 기기 포함)이 즉시 미출근으로 돌아가게.
   const io = getIO();
   if (io) {

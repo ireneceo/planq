@@ -280,6 +280,54 @@ function checkParity() {
   const r = ratchet('parity_keys', current);
   const detail = r.fails.length ? [...r.fails, ...samples] : (opts.verbose ? samples : []);
   report('parity', `ko/en 키 패리티 래칫 (불일치 ${r.curTotal}키 / 베이스 ${r.baseTotal}키)`, r.fails.length === 0, detail);
+
+  // (4) **양쪽 다 없는 키** — 래칫.
+  //   (3) 은 ko↔en 을 서로 비교하므로 **둘 다 없는 키는 영원히 못 잡는다.** 그런 키는 코드의
+  //   `defaultValue`(한국어)로 떨어져 **영어 사용자 화면에 한국어가 그대로 뜬다** — 오류도 경고도 없다.
+  //   2026-09-05 Fable 게이트가 잡은 실사례: 일정 등록 모달의 참석자 안내 두 줄이 en 화면에 한국어.
+  //   그때 (3) 은 초록이었다. 그래서 여기서 **사전에 아예 없는 키**를 따로 센다.
+  const srcRoot = `${ROOT}/dev-frontend/src`;
+  const dict = {};
+  for (const f of koFiles) {
+    try { dict[f.replace('.json', '')] = JSON.parse(read(path.join(koDir, f))); } catch { /* (3) 이 이미 보고 */ }
+  }
+  const lookup = (o, k) => k.split('.').reduce((a, part) => ((a && typeof a === 'object') ? a[part] : undefined), o);
+  // 복수형은 i18next 가 `_one`/`_other` 접미사로 저장한다 — 어느 쪽이든 있으면 있는 키다.
+  const has = (d, k) => lookup(d, k) !== undefined
+    || lookup(d, `${k}_one`) !== undefined || lookup(d, `${k}_other`) !== undefined;
+  const tsFiles = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const fp = path.join(d, e.name);
+      if (e.isDirectory()) walk(fp);
+      else if (/\.tsx?$/.test(e.name)) tsFiles.push(fp);
+    }
+  })(srcRoot);
+  const missingByFile = {};
+  const missSamples = [];
+  for (const f of tsFiles) {
+    const src = read(f);
+    // 파일이 선언한 네임스페이스로만 판정한다 — 여러 ns 를 섞어 쓰는 파일은 건너뛴다(오탐 방지).
+    const nsAll = [...src.matchAll(/useTranslation\(\s*'([a-z_]+)'/g)].map((m) => m[1]);
+    if (nsAll.length !== 1) continue;
+    const d = dict[nsAll[0]];
+    if (!d) continue;
+    let n = 0;
+    for (const m of src.matchAll(/\bt\(\s*'([a-zA-Z0-9_.]+)'/g)) {
+      const k = m[1];
+      if (has(d, k)) continue;
+      // `t('key', { ns: 'common' })` 처럼 **다른 네임스페이스를 지정한 호출**이 있다 —
+      //   파일이 선언한 ns 만 보면 그런 키를 "없다" 고 잘못 센다(Fable 재게이트 지적).
+      //   어느 사전에든 있으면 통과시킨다. 잡는 것은 "**어디에도 없는 키**" 다.
+      if (Object.values(dict).some((other) => has(other, k))) continue;
+      n++;
+      if (missSamples.length < 10) missSamples.push(`${rel(f)}: 사전에 없는 키 "${nsAll[0]}:${k}"`);
+    }
+    if (n > 0) missingByFile[rel(f)] = n;
+  }
+  const r2 = ratchet('parity_missing_keys', missingByFile);
+  const detail2 = r2.fails.length ? [...r2.fails, ...missSamples] : (opts.verbose ? missSamples : []);
+  report('parity', `ko/en 양쪽 다 없는 t() 키 래칫 (현재 ${r2.curTotal} / 베이스 ${r2.baseTotal})`, r2.fails.length === 0, detail2);
 }
 
 // ═══════════════════════════════════════════════

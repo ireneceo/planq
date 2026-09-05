@@ -85,6 +85,16 @@ const HOLD_FROM = [
 ];
 const EXTERNAL_FROM = ['in_progress', 'reviewing', 'revision_requested', 'external_review'];
 
+// 결과물 본문(tasks.body)을 **고칠 수 있는 상태**. 여기가 단일 원천이다 (2026-09-05 결과물 버전 재설계).
+//   컨펌 중(reviewing)·외부 확인 중(external_review)에는 밖에서 누가 그 내용을 보고 있다 —
+//   그 사이 본문이 바뀌면 **읽은 것과 승인한 것이 달라진다.**
+//   완료·취소는 이미 회차로 박제된 결과라, 조용히 덮이면 버전 기록이 거짓이 된다.
+//   다시 쓰려면 화면의 "수정본 작성하기(v{n+1})" 로 편집 상태로 돌아온 뒤 쓴다.
+//   ★ 이 목록을 고치면 프론트 TaskDetailDrawer 의 `bodyEditable` 도 같이 고쳐야 한다
+//     (게이트 술어는 서버·프론트 양쪽이 같아야 한다 — 갈라지면 화면은 열려 있는데 저장이 409 다).
+const BODY_EDIT_STATUSES = ['not_started', 'waiting', 'in_progress', 'revision_requested', 'on_hold'];
+function canEditBodyInStatus(status) { return BODY_EDIT_STATUSES.includes(status); }
+
 // opts: { fromStatus, transaction }
 //   fromStatus 를 넘기면 on_hold/external_review 진입 가능 여부까지 검사한다.
 //   넘기지 않으면 from 검사는 건너뛴다 (호출부가 이미 상태를 확정한 경우).
@@ -183,9 +193,14 @@ async function submitForReview({
       });
       attachmentIds = atts.map(a => a.id);
     } catch (e) { /* 첨부 조회 실패가 제출을 막지 않는다 — 본문 박제가 본질이다 */ }
+    // ★ 회차 번호는 **박제 목록의 최대치 +1** 로 붙인다. `review_round`(컨펌 라운드 수)를 쓰면
+    //   되돌리기가 만든 백업 회차(max+1)와 번호가 겹쳐 목록에 **v2 가 두 줄** 나온다
+    //   (Fable 게이트 2026-09-05 실측). 같은 값을 두 공식으로 구하면 반드시 갈라진다.
+    //   컨펌 라운드는 task.review_round 그대로 두고, 여기서는 목록의 번호만 정한다.
+    const maxRound = await TaskDeliverableVersion.max('round', { where: { task_id: task.id }, transaction: t });
     await TaskDeliverableVersion.create({
       task_id: task.id,
-      round: newRound,
+      round: (Number(maxRound) || 0) + 1,
       body: bodySnapshot ?? null,
       attachment_ids: attachmentIds,
       submitted_by: actorUserId || null,
@@ -286,6 +301,8 @@ module.exports = {
   getIO,
   broadcastTask,
   canEnterStatus,
+  canEditBodyInStatus,
+  BODY_EDIT_STATUSES,
   submitForReview,
   cancelReview,
   REVIEW_STATUSES,

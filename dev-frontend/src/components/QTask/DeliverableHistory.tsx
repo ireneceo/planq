@@ -37,9 +37,22 @@ interface Props {
   canRestore: boolean;
   /** 되돌린 뒤 상세를 다시 읽어오게 한다 */
   onRestored: () => void;
+  /**
+   * 목록을 읽을 때마다 **지금까지의 마지막 회차 번호**를 알린다(없으면 0).
+   * 입력란 위의 "v{n} 로 남습니다" 안내가 이 값을 써야 목록과 어긋나지 않는다 —
+   * `review_round`(컨펌 라운드 수)는 되돌리기 백업 회차를 세지 않아 값이 갈린다.
+   */
+  onRoundsLoaded?: (lastRound: number) => void;
+  /**
+   * 이 값이 바뀌면 목록을 **다시 읽는다.** 확인 요청·취소 같은 워크플로 액션은 회차를 늘리는데,
+   * 드로어를 닫지 않으면 목록이 그대로라 화면이 옛 번호를 말했다
+   * (Fable 3차 게이트 2026-09-05: 제출→취소 뒤 "v3 로 남습니다" 인데 실제로는 v4 가 됐다).
+   * 호출부가 상태·회차를 담은 문자열을 넘긴다.
+   */
+  reloadKey?: string;
 }
 
-const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored }) => {
+const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored, onRoundsLoaded, reloadKey }) => {
   const { t } = useTranslation('qtask');
   const [open, setOpen] = useState(false);
   const [versions, setVersions] = useState<Version[]>([]);
@@ -51,21 +64,30 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
+    // ★ 못 읽었으면 **모른다고 알린다.** 실패 분기가 조용하면 드로어가 직전 회차 번호를
+    //   그대로 들고 있어, 그 사이 늘어난 회차를 모른 채 "v2 로 남습니다" 라고 말한다
+    //   (Fable 4차 게이트 2026-09-05 실측: 실제로는 v3 이 됐다).
+    //   -1 = 모름 → 호출부는 번호 없는 문구로 떨어진다.
+    const fail = (code: string) => { setErr(code); onRoundsLoaded?.(-1); };
     try {
       const r = await apiFetch(`/api/tasks/${taskId}/deliverable-versions`);
       // apiFetch 는 throw 하지 않는다 — res.ok 를 직접 봐야 실패가 조용히 성공으로 안 보인다
-      if (!r.ok) { setErr('load_failed'); return; }
+      if (!r.ok) { fail('load_failed'); return; }
       const j = await r.json();
-      if (!j?.success) { setErr('load_failed'); return; }
-      setVersions(j.data?.versions || []);
-    } catch { setErr('load_failed'); } finally { setLoading(false); }
-  }, [taskId]);
+      if (!j?.success) { fail('load_failed'); return; }
+      const list: Version[] = j.data?.versions || [];
+      setVersions(list);
+      onRoundsLoaded?.(list.length ? Math.max(...list.map((v) => v.round)) : 0);
+    } catch { fail('load_failed'); } finally { setLoading(false); }
+  }, [taskId, onRoundsLoaded]);
 
   // ★ 2026-09-04 — 펼쳐야만 읽던 것을 **마운트 시** 읽는다.
   //   Irene: "결과물이 버전별로 어떻게 되는 건지 전혀 모르겠어. 이미 저장되어 있는데 어쩌라는 거야?"
   //   접힌 상태에서는 회차 번호도 규칙도 안 보였다 — 규칙 설명이 접힌 본문 **안**에 있었기 때문이다.
   //   목록은 본문을 싣지 않아 가볍다(설계 주석 참조). 상태를 먼저 보여주고 상세는 펼칠 때 읽는다.
-  useEffect(() => { load(); }, [load]);
+  //   워크플로 액션(확인 요청·취소·승인) 뒤에도 다시 읽는다 — 그 액션들이 회차를 늘린다.
+  //   ★ 이펙트를 **하나로** 둔다. 둘로 나눴더니 마운트마다 같은 목록을 두 번 읽었다.
+  useEffect(() => { load(); }, [load, reloadKey]);
   // 업무가 바뀌면 접고 비운다 — 옛 업무의 회차가 잠깐 보이는 것을 막는다
   useEffect(() => { setOpen(false); setExpanded(null); setBodyCache({}); setVersions([]); }, [taskId]);
 
@@ -100,38 +122,29 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
 
   return (
     <Wrap>
-      {/* 상태 한 줄 — 접혀 있어도 보인다. 규칙을 설명하지 않고 **지금 상태와 다음 행동**을 말한다. */}
-      <StatusLine>
-        {last ? (
-          <>
-            <strong>{t('deliv.stateRecorded', 'v{{n}} 로 기록됨', { n: last.round })}</strong>
-            <Sep aria-hidden="true">·</Sep>
-            {outcomeLabel(last.outcome)}
-            <Sep aria-hidden="true">·</Sep>
-            {t('deliv.stateNext', '확인 요청을 보내면 v{{n}} 로 남습니다', { n: last.round + 1 })}
-          </>
-        ) : (
-          <>
-            <strong>{t('deliv.stateNone', '아직 회차로 기록되지 않았습니다')}</strong>
-            <Sep aria-hidden="true">·</Sep>
-            {t('deliv.stateFirst', '확인 요청을 보내면 v1 로 남습니다')}
-          </>
-        )}
-      </StatusLine>
+      {/* ★ 2026-09-05 — "다음에 무엇이 되는가" 는 **입력란 위 한 줄**로 옮겼다.
+          같은 말을 여기서 또 하니 위아래가 같은 내용을 두 번 말하는 꼴이었고,
+          Irene 에게는 "입력란에 있는 게 왜 또 아래에 버전으로 있느냐" 로 읽혔다.
+          여기는 **지나간 것만** 다룬다. 아직 아무것도 없으면 접는 버튼도 내지 않는다. */}
+      {versions.length === 0 ? (
+        (!loading && !err) ? <Muted>{t('deliv.emptyShort', '아직 제출한 버전이 없습니다.')}</Muted> : null
+      ) : (
+        <Toggle type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}>
+          <Caret $open={open} aria-hidden="true">▸</Caret>
+          {t('deliv.pastTitle', '지난 버전')}
+          <RoundPill>{versions.length}</RoundPill>
+          {last && <LastHint>{t('deliv.lastHint', '최근 v{{n}} · {{outcome}}', { n: last.round, outcome: outcomeLabel(last.outcome) })}</LastHint>}
+        </Toggle>
+      )}
 
-      <Toggle type="button" onClick={() => setOpen(v => !v)} aria-expanded={open}>
-        <Caret $open={open} aria-hidden="true">▸</Caret>
-        {t('deliv.title', '결과물 이력')}
-        {versions.length ? <RoundPill>{versions.length}</RoundPill> : null}
-      </Toggle>
+      {/* ★ 오류는 **접혀 있어도** 보여야 한다. 펼친 사람만 볼 수 있게 두면, 목록을 못 읽은 것과
+          "회차가 없는 것" 이 화면에서 구별되지 않는다. */}
+      {err && !open && <ErrLine>{t(`deliv.err.${err}`, t('deliv.err.generic', '이력을 불러오지 못했습니다'))}</ErrLine>}
 
       {open && (
         <Body>
           {loading && <Muted>{t('deliv.loading', '불러오는 중…')}</Muted>}
           {err && <ErrLine>{t(`deliv.err.${err}`, t('deliv.err.generic', '이력을 불러오지 못했습니다'))}</ErrLine>}
-          {!loading && !err && versions.length === 0 && (
-            <Muted>{t('deliv.empty', '아직 제출된 회차가 없습니다. 확인 요청을 보내면 그 시점 결과물이 여기 남습니다.')}</Muted>
-          )}
 
           {versions.map(v => (
             <Row key={v.id}>
@@ -154,12 +167,17 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
                     : bodyCache[v.id] === undefined
                       ? <Muted>{t('deliv.loading', '불러오는 중…')}</Muted>
                       : <Rendered dangerouslySetInnerHTML={{ __html: sanitizeRichText(bodyCache[v.id]) }} />}
+                  {/* 쓰기 상태일 때만 낸다. 읽기 상태(컨펌 중·완료)에서는 서버가 막고(body_locked),
+                      무엇보다 닫힌 결과물이 조용히 바뀌는 문이 되어선 안 된다. */}
                   {canRestore && v.has_body && (
-                    <RestoreBtn type="button" disabled={busyId === v.id} onClick={() => restore(v)}>
-                      {busyId === v.id
-                        ? t('deliv.restoring', '되돌리는 중…')
-                        : t('deliv.restore', '이 회차 내용으로 되돌리기')}
-                    </RestoreBtn>
+                    <>
+                      <RestoreBtn type="button" disabled={busyId === v.id} onClick={() => restore(v)}>
+                        {busyId === v.id
+                          ? t('deliv.restoring', '불러오는 중…')
+                          : t('deliv.restore', '이 버전 내용 불러오기')}
+                      </RestoreBtn>
+                      <Muted>{t('deliv.restoreHint', '지금 쓰던 내용은 한 벌 보관된 뒤 이 버전으로 바뀝니다.')}</Muted>
+                    </>
                   )}
                 </Preview>
               )}
@@ -171,12 +189,9 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
   );
 };
 
-const StatusLine = styled.div`
-  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-  margin: 10px 0 6px; font-size: 0.8125rem; line-height: 1.6; color: #475569;
-  strong { color: #0F172A; font-weight: 700; }
+const LastHint = styled.span`
+  font-size:0.75rem;font-weight:500;color:#94A3B8;
 `;
-const Sep = styled.span`color: #CBD5E1;`;
 const Wrap = styled.div`margin-top:10px;`;
 const Toggle = styled.button`
   display:inline-flex;align-items:center;gap:6px;height:2.25rem;padding:0 10px;
@@ -232,7 +247,17 @@ const NoteBlock: React.FC<{ text: string; label?: string; tone?: 'revision' }> =
   const [open, setOpen] = useState(false);
   // 접을 만큼 긴가 — 줄 수와 글자 수 둘 다 본다(한 줄 2,000자짜리도 있다).
   const long = text.length > 220 || text.split('\n').length > 4;
-  const html = sanitizeRichText(markdownToHtml(text) || '');
+  // ★ `markdownToHtml` 은 **마크다운 신호가 없으면 null 을 돌려준다**(utils/markdownPaste.ts).
+  //   `|| ''` 로 받으면 평문 메모·수정요청 사유가 통째로 **빈 칸**이 된다 — 운영 사유 53건 중
+  //   대부분이 평문이라 사실상 전부 사라진다(Fable 게이트 2026-09-05 F5 실측).
+  //   마크다운이 아니면 **escape 한 평문 + 줄바꿈 보존**으로 그린다. 지우지 않는다.
+  const md = markdownToHtml(text);
+  const html = md !== null
+    ? sanitizeRichText(md)
+    : sanitizeRichText(
+        text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/\r\n|\r|\n/g, '<br />'),
+      );
   return (
     <NoteWrap $tone={tone}>
       {label && <NoteLabel $tone={tone}>{label}</NoteLabel>}
