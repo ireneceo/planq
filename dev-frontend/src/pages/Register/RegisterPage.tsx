@@ -487,6 +487,8 @@ const RegisterPage: React.FC = () => {
 
           <BottomLinks>
             {t('register.hasAccount')} <Link to="/login">{t('register.signIn')}</Link>
+            {/* 로그인 화면과 같은 이유 — 좁은 화면에서는 왼쪽 브랜드 패널이 숨어 홈으로 갈 길이 없다. */}
+            <span style={{ marginLeft: 10 }}><Link to="/">{t('register.backHome', { defaultValue: '← PlanQ 홈으로' }) as string}</Link></span>
           </BottomLinks>
         </RightSection>
       </RegisterBox>

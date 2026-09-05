@@ -7,6 +7,7 @@ import { extOf, isImage, isVideo, isAudio, requestMediaUrl, type ProjectFile } f
 import { objectUrlFromApi } from '../../../utils/download';
 import { apiFetch } from '../../../contexts/AuthContext';
 import { marked } from 'marked';
+import { listZip, type ZipEntry } from '../../../utils/zipList';
 import DOMPurify from 'dompurify';
 
 // 이미지 리사이즈 파라미터 — DocsTab 과 같은 규칙(원본 URL 에 ?w= 를 덧붙인다).
@@ -48,8 +49,32 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
     })();
     return () => { alive = false; };
   }, [kind, file.download_url]);
+  // ── zip — 안에 무엇이 들었는지 목록만 (압축 해제 없음, utils/zipList)
+  const isZip = file.mime_type === 'application/zip' || ext === 'zip';
+  const [zip, setZip] = useState<ZipEntry[] | null>(null);
+  const [zipErr, setZipErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isZip || !file.download_url || file.download_url === '#') { setZip(null); return; }
+    let alive = true;
+    setZip(null); setZipErr(null);
+    (async () => {
+      // 목록을 보려면 중앙 디렉터리가 필요한데 그것은 파일 **끝**에 있다. 통째로 받는 대신
+      //   상한을 둔다 — 큰 압축파일까지 받아 오면 모바일에서 그대로 멈춘다.
+      if ((file.file_size || 0) > ZIP_LIST_MAX) { if (alive) setZipErr('too_big'); return; }
+      try {
+        const r = await apiFetch(file.download_url);
+        if (!r.ok) { if (alive) setZipErr('failed'); return; }
+        const buf = await r.arrayBuffer();
+        const res = listZip(buf);
+        if (!alive) return;
+        if (res.ok) setZip(res.entries); else setZipErr(res.reason);
+      } catch { if (alive) setZipErr('failed'); }
+    })();
+    return () => { alive = false; };
+  }, [isZip, file.download_url, file.file_size]);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfFailed, setPdfFailed] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
   useEffect(() => {
     if (!isPdf || !file.download_url || file.download_url === '#') { setPdfUrl(null); return; }
     let alive = true;
@@ -87,14 +112,16 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
       );
   }
 
-  if (isImage(file.mime_type, file.file_name) && hasValidUrl(file.preview_url)) {
+  if (isImage(file.mime_type, file.file_name) && hasValidUrl(file.preview_url) && !imgFailed) {
     // 클릭 시 원본(파라미터 없는 preview_url)으로 확대 라이트박스
     const full = file.preview_url!;
     return (
       <>
         <PreviewImageBtn type="button" onClick={() => openLightbox([{ src: full, alt: file.file_name }], 0)}
           title={t('docs.preview.zoom', '클릭하여 확대') as string}>
-          <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} />
+          {/* ★ 안 보이면 **왜 안 보이는지** 말한다. svg 처럼 서버가 안전을 위해 inline 을 막는
+              형식은 여기서 조용히 깨진 채 빈 칸으로 남아 있었다(운영 3건). */}
+          <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} onError={() => setImgFailed(true)} />
         </PreviewImageBtn>
         {lightbox}
       </>
@@ -114,6 +141,32 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
     if (kind === 'csv') return <PreviewTableWrap><CsvTable text={text} /></PreviewTableWrap>;
     return <PreviewCode>{text}</PreviewCode>;
   }
+  if (isZip) {
+    if (zipErr) {
+      return (
+        <PreviewFallback>
+          <PvExtCircle>ZIP</PvExtCircle>
+          <PvFallbackHint>{zipErr === 'too_big'
+            ? (t('docs.preview.zipTooBig', { defaultValue: '압축 파일이 커서 목록을 읽지 않았습니다. 내려받아 확인해 주세요.' }) as string)
+            : (t('docs.preview.zipUnreadable', { defaultValue: '압축 파일 목록을 읽을 수 없습니다. 내려받아 확인해 주세요.' }) as string)}</PvFallbackHint>
+        </PreviewFallback>
+      );
+    }
+    if (zip === null) return <PreviewLoading>{t('docs.preview.loadingText', { defaultValue: '여는 중…' }) as string}</PreviewLoading>;
+    return (
+      <PreviewTableWrap>
+        <ZipHead>{t('docs.preview.zipCount', { n: zip.length, defaultValue: '압축 파일 안 {{n}}개' }) as string}</ZipHead>
+        <ZipList>
+          {zip.map((e, i) => (
+            <ZipRow key={`${e.name}-${i}`}>
+              <ZipName $dir={e.dir}>{e.name}</ZipName>
+              {!e.dir && <ZipSize>{formatZipSize(e.size)}</ZipSize>}
+            </ZipRow>
+          ))}
+        </ZipList>
+      </PreviewTableWrap>
+    );
+  }
   if (isPdf && hasValidUrl(file.download_url) && !pdfFailed) {
     if (!pdfUrl) return <PreviewLoading>{t('docs.preview.loadingMedia', '재생 준비 중…')}</PreviewLoading>;
     return <PreviewIframe src={pdfUrl} title={file.file_name} />;
@@ -121,7 +174,9 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
   return (
     <PreviewFallback>
       <PvExtCircle>{extOf(file.file_name).toUpperCase() || '—'}</PvExtCircle>
-      <PvFallbackHint>{textErr
+      <PvFallbackHint>{imgFailed
+        ? (t('docs.preview.imageBlocked', { defaultValue: '이 형식은 안전을 위해 앱 안에서 열지 않습니다. 내려받아 확인해 주세요.' }) as string)
+        : textErr
         ? (t('docs.preview.tooLargeOrFailed', { defaultValue: '이 파일은 앱에서 열기에 너무 크거나 열 수 없습니다. 내려받아 확인해 주세요.' }) as string)
         : (t('docs.preview.fallbackHint', '미리보기는 다운로드 후 확인 가능합니다') as string)}</PvFallbackHint>
     </PreviewFallback>
@@ -159,6 +214,23 @@ function viewerKindOf(mime: string | null, ext: string): 'html' | 'markdown' | '
   if (m.startsWith('text/')) return 'text';
   return null;
 }
+
+// zip 목록을 읽기 위해 받아올 최대 크기 — 중앙 디렉터리가 파일 끝이라 통째로 받아야 한다.
+const ZIP_LIST_MAX = 20 * 1024 * 1024;
+const formatZipSize = (n: number): string => {
+  if (!n) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+  return `${(n / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+};
+const ZipHead = styled.div`font-size:0.75rem;font-weight:700;color:#334155;padding:8px 10px;border-bottom:1px solid #E2E8F0;`;
+const ZipList = styled.div`max-height:360px;overflow:auto;`;
+const ZipRow = styled.div`display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid #F1F5F9;&:last-child{border-bottom:none;}`;
+const ZipName = styled.div<{ $dir: boolean }>`
+  flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:0.75rem;color:${p => (p.$dir ? '#0F766E' : '#0F172A')};font-weight:${p => (p.$dir ? 600 : 400)};
+`;
+const ZipSize = styled.div`flex:0 0 auto;font-size:0.6875rem;color:#94A3B8;`;
 
 const TEXT_EXTS = new Set([
   'txt', 'log', 'json', 'xml', 'yml', 'yaml', 'ini', 'conf', 'env', 'sql',

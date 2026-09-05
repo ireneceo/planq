@@ -47,6 +47,13 @@ const PqCodeBlock = CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'pl
 interface Props {
   value: unknown | null;         // Tiptap JSON
   onChange: (json: unknown) => void;
+  /**
+   * 에디터가 준비된 직후 **한 번** — 이 값이 곧 "고치지 않은 상태" 의 에디터 표현이다.
+   *   에디터는 스키마 기본값(TextAlign 의 textAlign:null 등)을 붙이므로 서버가 준 값과 다르다.
+   *   그 차이를 변경으로 세면 **열기만 해도 저장이 나간다**. onCreate 는 사용자 입력보다
+   *   반드시 먼저 오므로, 포커스 같은 추측치로 가릴 필요가 없다(2026-09-05).
+   */
+  onReady?: (json: unknown) => void;
   placeholder?: string;
   editable?: boolean;
   businessId?: number;           // 사이클 N+9 — 이미지 업로드 시 File 테이블 등록용
@@ -112,10 +119,13 @@ function distributeTableColumnsEvenly(editor: Editor): boolean {
   return true;
 }
 
-const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = true, businessId, projectId, borderless = false, compact = false }) => {
+const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, editable = true, businessId, projectId, borderless = false, compact = false }) => {
   const { t } = useTranslation('qdocs');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // useEditor 옵션은 생성 시점 값으로 굳는다 — 최신 콜백을 ref 로 붙든다.
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -144,6 +154,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
     // ★ `editor.isFocused` 로 "사람이 친 것" 을 가리려 하지 말 것 — TipTap 의 focus() 는
     //   rAF 로 지연돼(@tiptap/core) 툴바 클릭이 isFocused=false 로 도착한다. 그것으로 거르면
     //   툴바로만 한 편집이 통째로 유실된다(2026-09-05 Fable 실측, 데스크탑 Chrome/Firefox/Edge).
+    onCreate: ({ editor }) => onReadyRef.current?.(editor.getJSON()),
     onUpdate: ({ editor }) => onChange(editor.getJSON()),
     editorProps: {
       handlePaste: (view, event) => {

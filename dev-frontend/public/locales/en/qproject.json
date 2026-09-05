@@ -500,7 +500,12 @@
       "unsupported": "Preview not supported for this format. Download to view.",
       "fallbackHint": "Preview available after download",
       "zoom": "Click to zoom",
-      "loadingMedia": "Preparing playback…"
+      "loadingMedia": "Preparing playback…",
+      "zipCount": "{{n}} items in archive",
+      "zipTooBig": "Archive is too large to list here. Download it to check.",
+      "zipUnreadable": "Could not read the archive listing. Download it to check.",
+      "imageBlocked": "This format is not opened inside the app for safety. Download it to view.",
+      "openInNewTab": "Open in new tab"
     },
     "wsUpload": {
       "title": "Which project should these go to?",

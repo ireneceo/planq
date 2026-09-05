@@ -24,7 +24,8 @@ import {
   fetchWorkspaceFolders, createWorkspaceFolder,
   createShareLink, bulkDownloadZip, updateFileVisibility, updateFileSecurityLevel,
   formatBytes, extOf, isImage,
-  type ProjectFile, type FileSource, type FileFolder, parseFileId } from '../../services/files';
+  type ProjectFile, type FileSource, type FileFolder, parseFileId, canOpenInNewTab } from '../../services/files';
+import { objectUrlFromApi } from '../../utils/download';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -402,6 +403,7 @@ const DocsTab: React.FC<Props> = (props) => {
   const [shareLinkInfo, setShareLinkInfo] = useState<{ url: string; expires: string } | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [opening, setOpening] = useState(false);   // 새 탭 열기 중 (중복 클릭 가드)
   // 단건 다운로드 — 인증 fetch + "받는 중…" 표시 (링크 방식은 401 이라 못 쓴다)
   const dl = useFileDownload();
 
@@ -903,6 +905,44 @@ const DocsTab: React.FC<Props> = (props) => {
                     </svg>
                   </HeaderIconBtn>
                   )}
+                  {/* ★ "열기" — 내려받지 않고 원본을 새 탭에서 본다 (Irene 2026-08-31 "오픈기능이 필요해").
+                    * 팝업 차단을 피하려면 **클릭과 같은 틱에** 탭을 열어야 한다. 그래서 빈 탭을 먼저 열고,
+                    * 인증 fetch 로 받은 blob 주소를 나중에 넣는다(다운로드 라우트는 Bearer 를 요구해
+                    * 링크로 직접 걸면 401 이다). noopener 를 주면 핸들이 null 이라 넣을 곳이 없어진다.
+                    * 서버가 attachment 로만 내보내는 형식(html·svg 등)에는 버튼을 두지 않는다 —
+                    * 눌러도 다운로드가 시작될 뿐이다(services/files.ts canOpenInNewTab). */}
+                  {canOpenInNewTab(preview) && (() => {
+                  const openLabel = t('docs.preview.openInNewTab', '새 탭에서 열기') as string;
+                  return (
+                  <HeaderIconBtn type="button"
+                    data-testid="file-preview-open"
+                    disabled={opening}
+                    onClick={async () => {
+                      if (opening) return;
+                      if (preview.storage_provider === 'gdrive' && preview.external_url) {
+                        window.open(preview.external_url, '_blank', 'noopener,noreferrer');
+                        return;
+                      }
+                      const w = window.open('', '_blank');
+                      if (!w) { dl.start(preview.download_url, preview.file_name); return; }  // 팝업이 막히면 내려받기로
+                      setOpening(true);
+                      try {
+                        const url = await objectUrlFromApi(`${preview.download_url}${preview.download_url.includes('?') ? '&' : '?'}inline=1`);
+                        w.location.href = url;
+                        // blob 주소는 이 문서가 살아 있는 동안 유효해야 한다 — 새 탭이 읽고 난 뒤 회수.
+                        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+                      } catch {
+                        w.close();
+                        dl.start(preview.download_url, preview.file_name);
+                      } finally { setOpening(false); }
+                    }}
+                    title={openLabel} aria-label={openLabel}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                      <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                    </svg>
+                  </HeaderIconBtn>
+                  ); })()}
                   {/* ★ 여기는 원래 `<a href download>` 였다 — 그 라우트는 Bearer 헤더를 요구해서
                     * 링크로는 100% 401 이었다(실측). 인증 fetch 로 받고, 받는 동안 상태를 보여준다. */}
                   {(() => { const dlLabel = tr('docs.download', '다운로드'); return (

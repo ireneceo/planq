@@ -75,6 +75,11 @@ const LeftSection = styled.div`
   }
 `;
 
+const BrandHome = styled(Link)`
+  display: inline-block;
+  border-radius: 8px;
+  &:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+`;
 const BrandLogo = styled.img`
   width: 100%;
   max-width: 200px;
@@ -496,7 +501,11 @@ const LoginPage: React.FC = () => {
     <Container>
       <LoginBox>
         <LeftSection>
-          <BrandLogo src="/planQ-slogan_white.svg" alt="PlanQ" />
+          {/* ★ 로고는 홈으로 가는 길이다 (Irene 2026-09-05 "로그인 페이지에서 다시 홈으로 갈 수가 없어").
+              왼쪽 패널은 좁은 화면에서 숨으므로 아래 BottomLinks 에도 같은 길을 둔다. */}
+          <BrandHome to="/" aria-label="PlanQ">
+            <BrandLogo src="/planQ-slogan_white.svg" alt="PlanQ" />
+          </BrandHome>
           <BrandDescription>
             {t('brand.description')}
           </BrandDescription>
@@ -606,6 +615,8 @@ const LoginPage: React.FC = () => {
           <BottomLinks>
             <span>{t('login.noAccount')} <Link to="/register">{t('login.signUp')}</Link></span>
             <span><Link to="/forgot-password">{t('login.forgotPassword', '비밀번호를 잊으셨나요?')}</Link></span>
+            {/* 좁은 화면에서는 왼쪽 브랜드 패널이 숨는다 — 홈으로 가는 길을 여기에도 둔다. */}
+            <span><Link to="/">{t('login.backHome', { defaultValue: '← PlanQ 홈으로' }) as string}</Link></span>
           </BottomLinks>
         </RightSection>
       </LoginBox>

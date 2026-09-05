@@ -500,7 +500,12 @@
       "unsupported": "미리보기를 지원하지 않는 형식입니다. 다운로드하여 확인하세요.",
       "fallbackHint": "미리보기는 다운로드 후 확인 가능합니다",
       "zoom": "클릭하여 확대",
-      "loadingMedia": "재생 준비 중…"
+      "loadingMedia": "재생 준비 중…",
+      "zipCount": "압축 파일 안 {{n}}개",
+      "zipTooBig": "압축 파일이 커서 목록을 읽지 않았습니다. 내려받아 확인해 주세요.",
+      "zipUnreadable": "압축 파일 목록을 읽을 수 없습니다. 내려받아 확인해 주세요.",
+      "imageBlocked": "이 형식은 안전을 위해 앱 안에서 열지 않습니다. 내려받아 확인해 주세요.",
+      "openInNewTab": "새 탭에서 열기"
     },
     "wsUpload": {
       "title": "어느 프로젝트에 업로드할까요?",

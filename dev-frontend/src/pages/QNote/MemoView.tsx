@@ -155,6 +155,19 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   };
 
   const dirtyRef = useRef(false);
+  // ★ "안 고친 상태" 의 표현은 둘이다 — 서버가 준 값과, 에디터가 스키마 기본값을 붙여 내놓은 값.
+  //   둘 중 어느 쪽이든 그대로면 저장하지 않는다. 이게 없으면 **메모를 열기만 해도 저장이 나가**
+  //   수정일이 오늘로 바뀐다(Q docs 와 같은 사고, 2026-09-05).
+  //   정규화본은 PostEditor 의 onReady(=onCreate)가 알려준다 — 포커스 같은 추측치를 쓰지 않는다.
+  const baseDocRef = useRef<string | null>(JSON.stringify(parseBodyToDoc(session ? session.body : (prefillText || null))));
+  const normDocRef = useRef<string | null>(null);
+  const savedOnceRef = useRef(false);
+  const isUnchanged = useCallback((next: unknown) => {
+    const j = JSON.stringify(next);
+    if (j === baseDocRef.current) return true;
+    // 정규화본 예외는 **첫 저장 전까지만** — 저장 뒤에는 되돌린 것도 반영돼야 한다.
+    return !savedOnceRef.current && j === normDocRef.current;
+  }, []);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<number | null>(sessionId);
   sessionIdRef.current = sessionId;
@@ -165,7 +178,11 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   const didInitRef = useRef(false);
   useEffect(() => {
     if (!didInitRef.current) { didInitRef.current = true; return; }
-    setDoc(parseBodyToDoc(session?.body));
+    const nextDoc = parseBodyToDoc(session?.body);
+    baseDocRef.current = JSON.stringify(nextDoc);
+    normDocRef.current = null;
+    savedOnceRef.current = false;
+    setDoc(nextDoc);
     setSessionId(session?.id ?? null);
     setSaveState(session ? 'saved' : 'idle');
     setSavedAt(session ? Date.now() : null);
@@ -182,6 +199,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
         const updated = await updateSession(sessionIdRef.current, { title, body: bodyJson } as any);
         setSavedAt(Date.now()); setSaveState('saved');
         dirtyRef.current = false;
+        baseDocRef.current = bodyJson; savedOnceRef.current = true;
         onUpdated(updated);
         return updated;
       }
@@ -195,6 +213,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
       setSessionId(created.id);
       setSavedAt(Date.now()); setSaveState('saved');
       dirtyRef.current = false;
+      baseDocRef.current = bodyJson; savedOnceRef.current = true;
       onCreated(created);
       return created;
     } catch (e) {
@@ -384,11 +403,11 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           {/* #127 — 풀블리드: 외곽 박스 제거하고 편집기가 영역 전체를 차지 */}
           <PostEditor
             value={doc}
-            /* ★ 여기서 "사람이 친 것만" 으로 거르지 말 것 — TipTap 의 focus() 는 rAF 로 지연돼
+            /* ★ "사람이 친 것만" 을 포커스로 거르지 않는다 — TipTap 의 focus() 는 rAF 로 지연돼
                툴바 클릭이 isFocused=false 로 도착하고, 그 편집이 통째로 유실된다(2026-09-05 실측).
-               열기만 해도 한 번 저장되는 것은 Q docs 처럼 **기준선을 에디터 값으로 잡는 방식**으로
-               따로 고친다 — 유실보다 헛저장이 낫다. */
-            onChange={(next) => { dirtyRef.current = true; setDoc(next); }}
+               대신 **값을 비교**한다: 기준선(서버본·정규화본) 중 어느 쪽과도 다르면 진짜 편집이다. */
+            onChange={(next) => { if (!isUnchanged(next)) dirtyRef.current = true; setDoc(next); }}
+            onReady={(json) => { normDocRef.current = JSON.stringify(json); }}
             placeholder={t('memoPopup.bodyPlaceholder') as string}
             editable
             businessId={businessId}

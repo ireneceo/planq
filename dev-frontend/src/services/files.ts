@@ -14,6 +14,25 @@ export interface ProjectContext {
   color?: string | null;
 }
 
+/**
+ * 이 파일을 **새 탭에서 원본 그대로** 열 수 있는가.
+ *
+ *   서버의 `services/fileServing.js` `isSafeInline()` 을 그대로 비춘 술어다 —
+ *   액티브 콘텐츠(html·svg·xml·js…)는 서버가 언제나 `attachment` 로 내보내므로
+ *   새 탭을 열어 봐야 다운로드가 시작될 뿐이다(2026-09-02 `.html` 렌더 사고로 만든 게이트).
+ *   ★ 서버 쪽을 고치면 여기도 같이 고친다. 두 술어가 갈라지면 "열기" 가 거짓말이 된다.
+ */
+export function canOpenInNewTab(f: Pick<ProjectFile, 'mime_type' | 'file_name' | 'storage_provider' | 'external_url'>): boolean {
+  // 외부 클라우드 원본은 그쪽 뷰어로 연다.
+  if (f.storage_provider === 'gdrive' && f.external_url) return true;
+  const ext = (f.file_name.split('.').pop() || '').toLowerCase();
+  if (['html', 'htm', 'xhtml', 'shtml', 'svg', 'svgz', 'xml', 'js', 'mjs', 'mhtml', 'mht', 'eml', 'htc', 'xsl', 'xslt'].includes(ext)) return false;
+  const m = (f.mime_type || '').toLowerCase().split(';')[0].trim();
+  if (['text/html', 'image/svg+xml', 'application/xhtml+xml', 'text/xml', 'application/xml', 'text/javascript', 'application/javascript', 'message/rfc822'].includes(m)) return false;
+  return m.startsWith('image/') || m.startsWith('video/') || m.startsWith('audio/')
+    || m === 'application/pdf' || m === 'text/plain';
+}
+
 export interface ProjectFile {
   id: string;              // 'direct-12' / 'chat-45' / 'task-7' / 'meeting-3'
   source: FileSource;

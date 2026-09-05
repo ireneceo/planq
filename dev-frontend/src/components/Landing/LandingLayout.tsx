@@ -27,6 +27,10 @@ const NAV_ITEMS: { to: string; key: string }[] = [
   { to: '/about', key: 'nav.about' },
   { to: '/contact', key: 'nav.contact' },
   { to: '/wiki', key: 'nav.help' },   // F7 — Q위키(도움말) 공개 진입
+  // ★ 앱 다운로드는 **푸터에만** 있었다 (Irene 2026-09-05, 안드로이드 태블릿:
+  //   "앱다운로드를 어디서 해? 도저히 모르겠어"). 폰·태블릿에서 랜딩에 온 사람이
+  //   가장 먼저 찾는 것이라 상단 내비(+모바일 시트)에 둔다.
+  { to: '/app', key: 'nav.app' },
 ];
 
 const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => {
