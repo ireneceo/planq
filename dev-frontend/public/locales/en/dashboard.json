@@ -162,11 +162,13 @@
       "inbound": "From clients & outside",
       "urgent": "Move on these now",
       "blocking": "Waiting on you",
-      "moved": "Moved since yesterday"
+      "moved": "Moved since yesterday",
+      "todayEvents": "Today's schedule"
     },
     "overdueDays": "{{n}} days past due",
     "dueTodayShort": "due today",
     "blockingWhy": "Blocked until you approve",
-    "nothing": "No new context since yesterday"
+    "nothing": "No new context since yesterday",
+    "allDay": "All day"
   }
 }

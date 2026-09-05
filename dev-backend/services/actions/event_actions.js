@@ -165,9 +165,16 @@ async function createEvent(actor, params = {}) {
       meeting_url: finalMeetingUrl,
       meeting_provider: finalMeetingProvider,
       gcal_event_id: finalGcalEventId,
-      reminder_minutes: Number.isFinite(Number(params.reminderMinutes)) && Number(params.reminderMinutes) > 0
-        ? Math.min(10080, Number(params.reminderMinutes))  // max 1주 (7 * 24 * 60)
-        : null,
+      // ★ 기본값 **1일 전**(2026-09-05). 여태 기본이 없어서 운영 일정 20건 중 3건만 알림이 켜져
+      //   있었고 **알림이 한 번도 나간 적이 없다**(Fable 실측). 만드는 사람이 매번 고르게 두면
+      //   아무도 안 고른다 — 기본을 켜고, 끄고 싶으면 끄게 한다.
+      //   ★ `null` 은 **사용자가 고른 "알림 없음"** 이다(드로어가 그렇게 보낸다). undefined(값을 안 보냄)
+      //     와 구분해야 해서 모델 defaultValue 를 쓰지 않는다 — 모델에 두면 그 구분이 사라진다.
+      reminder_minutes: params.reminderMinutes === undefined
+        ? 1440
+        : (Number.isFinite(Number(params.reminderMinutes)) && Number(params.reminderMinutes) > 0
+          ? Math.min(10080, Number(params.reminderMinutes))  // max 1주 (7 * 24 * 60)
+          : null),
       visibility: evVisibility,
       vlevel: evVlevel,
       // 일정 단위 구글 연동 체크 — 팀/개인 각각, 기본 ON ("디폴트는 다 연동 체크" 유지).

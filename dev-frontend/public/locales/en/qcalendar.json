@@ -125,7 +125,17 @@
     "gcalTeamHint": "Goes to the Google account connected to this workspace.",
     "gcalTeamBlocked": "Private events cannot be added to the team calendar.",
     "gcalPersonal": "Add to my Google Calendar",
-    "gcalPersonalHint": "Goes only to the Google account you connected."
+    "gcalPersonalHint": "Goes only to the Google account you connected.",
+    "reminder": "Reminder",
+    "reminderDay1": "1 day before (9 AM)",
+    "reminderDay2": "2 days before (9 AM)",
+    "reminderSameDay": "Morning of (9 AM)",
+    "reminderDay1Plain": "1 day before",
+    "reminderHour1": "1 hour before",
+    "reminderMin30": "30 minutes before",
+    "reminderMin10": "10 minutes before",
+    "reminderNone": "No reminder",
+    "reminderPassed": "The reminder time has already passed, so no reminder will be sent."
   },
   "button": {
     "create": "Create event",

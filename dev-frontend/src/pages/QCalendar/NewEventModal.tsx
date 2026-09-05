@@ -73,6 +73,44 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
 
   const [allDay, setAllDay] = useState(initialAllDay === true);
   const [category, setCategory] = useState<EventCategory>('meeting');
+  // ★ 알림 기본값 **1일 전**. 여태 만들면서 정할 수가 없어(이 모달에 항목 자체가 없었다)
+  //   운영 일정 20건 중 3건만 켜져 있었고 **알림이 한 번도 안 나갔다**(Fable 실측 2026-09-05).
+  //   종일 일정은 분 단위가 의미 없어 옵션 세트를 바꾼다(크론이 종일은 09:00 을 기준으로 잡는다).
+  //   ★ PlanQSelect 의 value 는 string|number 라 null 을 못 쓴다 — "알림 없음" 은 센티넬(-1)로 두고
+  //     서버로 보낼 때 null 로 바꾼다. 서버에서 null = 사용자가 고른 "없음", undefined = 안 보냄(기본 1일 전).
+  const REMINDER_NONE = -1;
+  const [reminderMinutes, setReminderMinutes] = useState<number>(1440);
+
+  // 종일이면 분 단위가 의미 없다 — 옵션 세트를 바꾼다(크론이 종일은 시작일 09:00 을 기준으로 잡는다).
+  const reminderOptions = useMemo(() => (allDay
+    ? [
+      { value: 1440, label: t('form.reminderDay1', { defaultValue: '1일 전 (오전 9시)' }) as string },
+      { value: 2880, label: t('form.reminderDay2', { defaultValue: '2일 전 (오전 9시)' }) as string },
+      { value: 1, label: t('form.reminderSameDay', { defaultValue: '당일 아침 (오전 9시)' }) as string },
+      { value: REMINDER_NONE, label: t('form.reminderNone', { defaultValue: '알림 없음' }) as string },
+    ]
+    : [
+      { value: 1440, label: t('form.reminderDay1Plain', { defaultValue: '1일 전' }) as string },
+      { value: 60, label: t('form.reminderHour1', { defaultValue: '1시간 전' }) as string },
+      { value: 30, label: t('form.reminderMin30', { defaultValue: '30분 전' }) as string },
+      { value: 10, label: t('form.reminderMin10', { defaultValue: '10분 전' }) as string },
+      { value: REMINDER_NONE, label: t('form.reminderNone', { defaultValue: '알림 없음' }) as string },
+    ]), [allDay, t]);
+
+  // 종일↔시간 전환 시 없는 옵션이 남지 않게 — 목록에 없으면 기본(1일 전)으로 되돌린다.
+  useEffect(() => {
+    if (!reminderOptions.some(o => o.value === reminderMinutes)) setReminderMinutes(1440);
+  }, [reminderOptions, reminderMinutes]);
+
+  // 이미 지난 알림인가 — 내일 회의를 오늘 늦게 만들면 "1일 전" 시각은 과거다. 조용히 안 가면 고장으로 보인다.
+  const reminderPassed = useMemo(() => {
+    if (reminderMinutes === REMINDER_NONE || !startDate) return false;
+    try {
+      const base = new Date(`${startDate}T${allDay ? '09:00' : (startTime || '09:00')}`);
+      if (Number.isNaN(base.getTime())) return false;
+      return base.getTime() - reminderMinutes * 60000 < Date.now();
+    } catch { return false; }
+  }, [reminderMinutes, startDate, startTime, allDay]);
   const [visibility, setVisibility] = useState<EventVisibility>('business');
   // N+66 — 통합 visibility 5단계
   const [vis, setVis] = useState<VisibilityValue>({
@@ -216,6 +254,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       end_at: eISO,
       all_day: allDay,
       category,
+      reminder_minutes: reminderMinutes === REMINDER_NONE ? null : reminderMinutes,
       visibility,  // backend hook 가 vlevel 우선 처리하므로 backward-compat
       project_id: finalProjectId,
       meeting_url: meetingUrl.trim() || null,
@@ -340,6 +379,20 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
                 </CategoryBtn>
               ))}
             </CategoryRow>
+          </Field>
+
+          <Field>
+            <Label>{t('form.reminder', { defaultValue: '알림' }) as string}</Label>
+            <PlanQSelect
+              value={reminderOptions.find(o => o.value === reminderMinutes) || reminderOptions[0]}
+              options={reminderOptions}
+              onChange={(o) => setReminderMinutes(Number((o as { value: number } | null)?.value ?? REMINDER_NONE))}
+              isSearchable={false}
+            />
+            {/* 규칙을 설명하지 않고 **지금 상태**만 말한다 — 이미 지난 시각이면 안 간다(구글도 같다). */}
+            {reminderPassed && (
+              <TzHint>{t('form.reminderPassed', { defaultValue: '알림 시각이 이미 지나 이 일정은 알림이 가지 않습니다.' }) as string}</TzHint>
+            )}
           </Field>
 
           <Field>

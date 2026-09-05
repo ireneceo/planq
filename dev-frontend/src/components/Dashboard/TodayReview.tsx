@@ -29,7 +29,8 @@ interface ReviewChange {
   at: string; start_at?: string; link: string;
 }
 interface ReviewFocus { id: number; title: string; why: string; due_date?: string | null; link: string; overdue_days?: number; }
-interface ReviewBlocks { inbound: ReviewChange[]; urgent: ReviewFocus[]; blocking: ReviewFocus[]; moved: ReviewChange[]; }
+interface ReviewEvent { id: number; title: string; start_at: string; all_day: boolean; location: string | null; link: string; }
+interface ReviewBlocks { inbound: ReviewChange[]; urgent: ReviewFocus[]; blocking: ReviewFocus[]; moved: ReviewChange[]; today_events?: ReviewEvent[]; }
 interface ReviewData { counts: ReviewCounts; blocks: ReviewBlocks; today?: string; }
 
 interface Props { businessId: number | null; refreshKey?: number; }
@@ -113,6 +114,29 @@ const TodayReview: React.FC<Props> = ({ businessId, refreshKey }) => {
           {/* ★ 2026-08-24 교정 (Irene: "아래 전체 나오는 알림이랑 뭐가 달라?")
               엔티티 종류별 목록이 아니라 **맥락 블록**이다. 각 줄은 "무엇이 있었고 그래서 뭘 봐야 하나" 를
               한 줄로 말한다. 비어 있는 블록은 아예 그리지 않는다 — 빈 제목만 늘어놓으면 목록이 된다. */}
+          {/* ★ 오늘 일정 — **오늘 시작하는 것**. '그 사이 움직인 것' 과 다르다:
+              그 블록은 어제 이후 만들어지거나 바뀐 것이라 **며칠 전 잡아둔 오늘 회의가 안 뜬다**
+              (Fable 실측 2026-09-05). 아침에 가장 먼저 알고 싶은 것이라 맨 위에 둔다. */}
+          {b && (b.today_events?.length || 0) > 0 && (
+            <Section>
+              <SecTitle>{t('review.blk.todayEvents', { defaultValue: '오늘 일정' }) as string}</SecTitle>
+              <List>
+                {(b.today_events || []).map((e) => (
+                  // 다른 행과 **같은 부품**을 쓴다 — 이 줄만 새로 만들면 리뷰 안에서 모양이 갈라진다.
+                  <CtxRow key={`ev-${e.id}`}>
+                    <CtxTop>
+                      <KindTag $kind="event">{e.all_day
+                        ? t('review.allDay', { defaultValue: '종일' }) as string
+                        : new Date(e.start_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</KindTag>
+                      <RowLink to={e.link}>{e.title}</RowLink>
+                      {e.location && <RowWhy>{e.location}</RowWhy>}
+                    </CtxTop>
+                  </CtxRow>
+                ))}
+              </List>
+            </Section>
+          )}
+
           {b && b.inbound.length > 0 && (
             <Section>
               <SecTitle>{t('review.blk.inbound', '고객·외부에서 온 것')}</SecTitle>
@@ -165,7 +189,7 @@ const TodayReview: React.FC<Props> = ({ businessId, refreshKey }) => {
             </Section>
           )}
 
-          {b && !b.inbound.length && !b.urgent.length && !b.blocking.length && !b.moved.length && (
+          {b && !b.inbound.length && !b.urgent.length && !b.blocking.length && !b.moved.length && !(b.today_events?.length) && (
             <Section><Quiet>{t('review.nothing', '어제 이후 새로 볼 맥락이 없어요')}</Quiet></Section>
           )}
         </Body>

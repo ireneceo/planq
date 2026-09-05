@@ -125,7 +125,17 @@
     "gcalTeamHint": "워크스페이스에 연결된 구글 계정의 캘린더에 올라갑니다.",
     "gcalTeamBlocked": "비공개 일정은 팀 캘린더에 올릴 수 없습니다.",
     "gcalPersonal": "내 구글 캘린더에 올리기",
-    "gcalPersonalHint": "내가 연결한 구글 계정의 캘린더에만 올라갑니다."
+    "gcalPersonalHint": "내가 연결한 구글 계정의 캘린더에만 올라갑니다.",
+    "reminder": "알림",
+    "reminderDay1": "1일 전 (오전 9시)",
+    "reminderDay2": "2일 전 (오전 9시)",
+    "reminderSameDay": "당일 아침 (오전 9시)",
+    "reminderDay1Plain": "1일 전",
+    "reminderHour1": "1시간 전",
+    "reminderMin30": "30분 전",
+    "reminderMin10": "10분 전",
+    "reminderNone": "알림 없음",
+    "reminderPassed": "알림 시각이 이미 지나 이 일정은 알림이 가지 않습니다."
   },
   "button": {
     "create": "일정 만들기",

@@ -34,6 +34,19 @@ const { myAssignedWeekWhere } = require('../services/weekTaskSet');
 // 'YYYY-MM-DD' (서버 로컬 기준). 리뷰는 "오늘" 이 축이라 tz 를 워크스페이스에서 읽는다.
 const { dateStrInTz, ymd } = require('../utils/datetime');
 
+/**
+ * `YYYY-MM-DD` 의 그 날 0시를 **워크스페이스 시간대**로 해석해 UTC 시각으로 돌려준다.
+ *   ★ `new Date('2026-09-05T00:00:00')` 는 **서버 로컬(UTC)** 0시다. 그래서 KST 00~09시 시작
+ *     일정이 "어제" 로 걸러졌다(Fable 실측 2026-09-05). 날짜는 tz 로 계산해 놓고 경계만 UTC 로
+ *     쓰면 그 아홉 시간이 조용히 사라진다.
+ */
+function startOfDayUtc(dateStr, timeZone) {
+  const probe = new Date(`${dateStr}T00:00:00Z`);
+  const asLocal = new Date(probe.toLocaleString('en-US', { timeZone }));
+  const asUtc = new Date(probe.toLocaleString('en-US', { timeZone: 'UTC' }));
+  return new Date(probe.getTime() + (asUtc.getTime() - asLocal.getTime()));
+}
+
 const MAX_CHANGES = 12;   // 브리핑이라 길면 안 읽는다 — 상위만
 const MAX_FOCUS = 5;
 
@@ -83,8 +96,11 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
     const today = dateStrInTz(new Date(), tz);
     const { monday, sunday } = weekRange(today);
     const tomorrow = new Date(new Date(`${today}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10);
+    // 오늘/내일 0시 — **워크스페이스 시간대 기준**. 서버 UTC 0시로 자르면 새벽 일정이 어제로 밀린다.
+    const todayStart = startOfDayUtc(today, tz);
+    const tomorrowStart = new Date(todayStart.getTime() + 86400000);
     // "어제 이후" = 24시간이 아니라 **어제 0시부터**. 아침에 열었을 때 어제 저녁 일이 빠지면 안 된다.
-    const since = new Date(new Date(`${today}T00:00:00Z`).getTime() - 86400000);
+    const since = new Date(todayStart.getTime() - 86400000);
 
     // ── 숫자 ────────────────────────────────────────────────
     const [projectsActive, todayTasks, approvals, dueSoon] = await Promise.all([
@@ -252,7 +268,7 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
         where: {
           business_id: { [Op.in]: bizIds },
           updated_at: { [Op.gte]: since },
-          start_at: { [Op.gte]: new Date(`${today}T00:00:00`) },
+          start_at: { [Op.gte]: todayStart },
         },
         order: [['start_at', 'ASC']], limit: 6,
         attributes: ['id', 'title', 'start_at', 'updated_at', 'created_at'],
@@ -317,6 +333,47 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
       });
     const blocking = focus.filter((f) => f.why === 'approval');
 
+    // ── 오늘 일정 — **오늘 시작하는 것**. 위 'moved' 블록과 다르다.
+    //   moved 는 "그 사이 **움직인** 일정" 이라 며칠 전에 잡아 둔 오늘 회의는 들어가지 않는다
+    //   (Fable 실측: 일정의 created/updated 를 3일 전으로 바꾸자 리뷰에서 사라졌다).
+    //   사람이 아침에 알고 싶은 것은 "오늘 뭐 있지" 다.
+    //   반복 일정은 마스터 1행이라 여기서 펼친다 — 안 펼치면 매주 회의가 영영 안 뜬다.
+    const todayEvents = [];
+    try {
+      const evs = await CalendarEvent.findAll({
+        where: {
+          business_id: { [Op.in]: bizIds },
+          [Op.or]: [
+            { start_at: { [Op.gte]: todayStart, [Op.lt]: tomorrowStart } },
+            { rrule: { [Op.ne]: null }, start_at: { [Op.lt]: tomorrowStart } },
+          ],
+        },
+        order: [['start_at', 'ASC']], limit: 50,
+        attributes: ['id', 'title', 'start_at', 'all_day', 'location', 'rrule', 'exception_dates'],
+      });
+      for (const e of evs) {
+        let at = new Date(e.start_at);
+        if (e.rrule) {
+          // 오늘 회차가 있는지 — 없으면 목록에 넣지 않는다.
+          try {
+            const { rrulestr } = require('rrule');
+            const occ = rrulestr(e.rrule, { dtstart: new Date(e.start_at) })
+              .between(todayStart, tomorrowStart, true);
+            const except = new Set((Array.isArray(e.exception_dates) ? e.exception_dates : [])
+              .map((d) => new Date(d).toISOString().slice(0, 10)));
+            const hit = occ.find((o) => !except.has(o.toISOString().slice(0, 10)));
+            if (!hit) continue;
+            at = hit;
+          } catch { continue; }
+        } else if (at < todayStart || at >= tomorrowStart) continue;
+        todayEvents.push({
+          id: e.id, title: e.title, start_at: at, all_day: !!e.all_day,
+          location: e.location || null, link: `/calendar?event=${e.id}`,
+        });
+      }
+      todayEvents.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
+    } catch (e) { /* 캘린더 없음 */ }
+
     return successResponse(res, {
       counts: {
         projects_active: projectsActive,
@@ -329,7 +386,8 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
         inbound,      // 밖에서 온 것 (메일·채팅)
         urgent,       // 지금 급한 것 (지연·오늘 마감) + overdue_days
         blocking,     // 나를 기다리는 컨펌
-        moved,        // 그 사이 움직인 것 (업무 상태·일정) — 참고
+        moved,          // 그 사이 움직인 것 (업무 상태·일정) — 참고
+        today_events: todayEvents.slice(0, 8),   // 오늘 시작하는 일정 (반복 펼침 포함)
       },
       today,
       generated_at: new Date(),

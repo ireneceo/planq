@@ -14,6 +14,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
+import { markdownToHtml } from '../../utils/markdownPaste';
 
 type Outcome = 'approved' | 'revision' | 'pending';
 
@@ -141,9 +142,9 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored })
                 <When>{new Date(v.submitted_at).toLocaleString()}</When>
               </RowHead>
 
-              {v.note && <SubmitNote>{v.note}</SubmitNote>}
+              {v.note && <NoteBlock text={v.note} />}
               {v.outcome === 'revision' && v.outcome_note && (
-                <RevisionNote>{t('deliv.revisionNote', '수정요청')}: {v.outcome_note}</RevisionNote>
+                <NoteBlock text={v.outcome_note} label={t('deliv.revisionNote', '수정요청') as string} tone="revision" />
               )}
 
               {expanded === v.id && (
@@ -214,13 +215,70 @@ const Badge = styled.span<{ $o: Outcome }>`
   background:${p => (p.$o === 'approved' ? '#DCFCE7' : p.$o === 'revision' ? '#FEE2E2' : '#F1F5F9')};
   color:${p => (p.$o === 'approved' ? '#166534' : p.$o === 'revision' ? '#B91C1C' : '#64748B')};
 `;
+/**
+ * 메모·수정요청 사유 — **쓴 그대로 읽히게** 그린다.
+ *
+ *   Irene 2026-09-05: "업무결과물에 이렇게 표시되는게 뭐야? 엉망인데?"
+ *   운영 실측(수정요청 사유 53건): 최대 **2,378자** · **줄바꿈 포함 22건(42%)**.
+ *   그런데 `<div>` 기본값(white-space: normal)이라 **줄바꿈이 전부 사라져** 한 덩어리가 됐고,
+ *   접지도 않아 이력 한 줄이 화면을 다 먹었다. 목록 표시로 쓸 수 없는 상태였다.
+ *
+ *   ① 마크다운으로 쓴 사람이 많다(`###`·`*`·`>`) — 파일 미리보기와 **같은 파이프라인**으로
+ *      렌더한다(marked → sanitize). 마크다운이 아니면 문단 그대로 나온다.
+ *   ② 길면 접는다. 규칙을 설명하지 않고 **지금 상태와 다음 동작**만 버튼에 쓴다.
+ */
+const NoteBlock: React.FC<{ text: string; label?: string; tone?: 'revision' }> = ({ text, label, tone }) => {
+  const { t } = useTranslation('qtask');
+  const [open, setOpen] = useState(false);
+  // 접을 만큼 긴가 — 줄 수와 글자 수 둘 다 본다(한 줄 2,000자짜리도 있다).
+  const long = text.length > 220 || text.split('\n').length > 4;
+  const html = sanitizeRichText(markdownToHtml(text) || '');
+  return (
+    <NoteWrap $tone={tone}>
+      {label && <NoteLabel $tone={tone}>{label}</NoteLabel>}
+      <NoteBody $clamped={long && !open} dangerouslySetInnerHTML={{ __html: html }} />
+      {long && (
+        <NoteToggle type="button" onClick={() => setOpen(v => !v)}>
+          {open ? t('deliv.noteFold', { defaultValue: '접기' }) as string
+                : t('deliv.noteMore', { defaultValue: '더 보기' }) as string}
+        </NoteToggle>
+      )}
+    </NoteWrap>
+  );
+};
+
+const NoteWrap = styled.div<{ $tone?: 'revision' }>`
+  display:flex;flex-direction:column;gap:4px;
+  padding:${p => (p.$tone === 'revision' ? '8px 10px' : '2px 0')};
+  background:${p => (p.$tone === 'revision' ? '#FEF2F2' : 'transparent')};
+  border-radius:8px;
+`;
+const NoteLabel = styled.div<{ $tone?: 'revision' }>`
+  font-size:0.6875rem;font-weight:700;
+  color:${p => (p.$tone === 'revision' ? '#B91C1C' : '#94A3B8')};
+`;
+// 마크다운 결과를 그린다. 접힘은 **줄 수**로 자른다 — 글자 수로 자르면 표·목록이 중간에서 끊긴다.
+const NoteBody = styled.div<{ $clamped: boolean }>`
+  font-size:0.78125rem;line-height:1.55;color:#475569;
+  word-break:break-word;
+  ${p => (p.$clamped ? 'display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;' : '')}
+  p{margin:0 0 6px;}
+  p:last-child{margin-bottom:0;}
+  ul,ol{margin:0 0 6px;padding-left:18px;}
+  li{margin:1px 0;}
+  h1,h2,h3,h4{font-size:0.8125rem;font-weight:700;color:#334155;margin:8px 0 4px;}
+  blockquote{margin:4px 0;padding-left:8px;border-left:2px solid #E2E8F0;color:#64748B;}
+  code{background:#F1F5F9;padding:1px 4px;border-radius:4px;}
+  table{width:100%;border-collapse:collapse;}
+  td,th{border:1px solid #E2E8F0;padding:3px 5px;}
+`;
+const NoteToggle = styled.button`
+  align-self:flex-start;border:none;background:none;padding:0;
+  font-size:0.75rem;font-weight:700;color:#0D9488;cursor:pointer;text-decoration:underline;
+`;
+
 const Who = styled.span`font-size:0.78125rem;color:#475569;`;
 const When = styled.span`font-size:0.75rem;color:#94A3B8;margin-left:auto;`;
-const SubmitNote = styled.div`font-size:0.78125rem;color:#475569;line-height:1.5;`;
-const RevisionNote = styled.div`
-  font-size:0.78125rem;color:#B91C1C;line-height:1.5;
-  padding:6px 10px;background:#FEF2F2;border-radius:8px;
-`;
 const Preview = styled.div`
   display:flex;flex-direction:column;gap:10px;margin-top:4px;padding:10px;
   background:#fff;border:1px solid #E2E8F0;border-radius:8px;
