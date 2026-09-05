@@ -687,6 +687,22 @@ const ARTICLES = [
       note('AI 초안은 참고용 제안입니다. 실제 추진과제는 항상 사용자가 확정합니다.', 'The AI draft is a suggestion for reference; you always confirm the actual workstreams.'),
     ] },
 
+  { cat: 'qproject', slug: 'project-external-view-link', visibility: 'authenticated', linked_route: '/projects', est: 2,
+    title: t('고객에게 프로젝트를 링크로 보여주기', 'Share a project with a client by link'),
+    summary: t('로그인 없이 진행 상황·업무를 보고 문의할 수 있는 외부 열람 링크', 'An external link that shows progress and tasks — and takes questions — without signing in'),
+    body: [
+      p('프로젝트 상단의 링크 아이콘으로 **외부 열람 링크**를 만들면, 고객은 로그인 없이 개요(진행 단계·업무 진행률)·업무 목록·대화 세 가지를 봅니다. 링크를 만드는 것은 멤버만 할 수 있어요.',
+        'Create an external view link with the link icon at the top of a project. Your client then sees three tabs — overview (stages, progress), task list, and chat — without signing in. Only members can create the link.'),
+      s('프로젝트 화면 상단의 링크 아이콘을 누르고 "링크 만들기"를 선택합니다. 주소는 그때 한 번만 보이니 바로 복사·전달하세요.',
+        'Press the link icon at the top of the project and choose "Create link". The address is shown only once, so copy or send it right away.'),
+      s('문의를 받고 싶지 않으면 "문의 보내기 허용"을 끄고 만듭니다. 받는 사람은 보기만 합니다.',
+        'Turn off "Allow replies" before creating if you only want them to read. The recipient can then only view.'),
+      s('링크가 살아 있는 동안 아이콘에 초록 점이 붙습니다 — 지금 이 프로젝트가 밖에서 열려 있다는 뜻이에요. 모달에서 언제든 회수할 수 있고, 회수하면 즉시 닫힙니다.',
+        'A green dot on the icon means a link is live — the project is currently open to the outside. You can revoke it any time in the modal, and it closes immediately.'),
+      note('업무의 설명·예상시간·실제시간, 담당자 이메일, 문서·파일은 이 링크로 나가지 않습니다. 나가는 것은 업무 제목·상태·진행률·기간과 담당자 표시명까지입니다. 완료된 프로젝트나 보관된 대화방에는 링크를 만들 수 없어요.',
+        'Task descriptions, estimates, logged hours, assignee emails, documents, and files are not exposed through this link. What goes out is the task title, status, progress, dates, and the assignee display name. Links cannot be created for finished projects or archived chat rooms.'),
+    ] },
+
   // ── Insights ──
   { cat: 'insights', slug: 'insights-overview', visibility: 'authenticated', linked_route: '/stats/overview', est: 2,
     title: t('통계 한눈에 보기', 'Insights at a glance'),

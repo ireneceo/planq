@@ -224,6 +224,34 @@ POST   /api/cloud/webhook/:provider          외부 변경 수신
 
 ## 7. UI 규칙
 
+### 7.0 미리보기와 "열기" — 무엇이 앱 안에서 열리나 (2026-09-05 갱신)
+
+정본은 `pages/QProject/docs/PreviewArea.tsx` 하나다(Q File·프로젝트 파일·업무 첨부가 같이 쓴다).
+
+| 종류 | 앱 안 미리보기 | "새 탭에서 열기" |
+|---|---|---|
+| 이미지(png·jpg·webp…) | 라이트박스 | ✅ |
+| 영상·음성 | 서명 URL 재생 | ✅ |
+| PDF | 인증 fetch → `blob:` iframe | ✅ |
+| HTML | **스크립트·동일출처·폼을 끈 sandbox iframe** | ❌ (서버가 언제나 attachment) |
+| CSV/TSV | 표(따옴표 안 구분자 존중) | ❌ |
+| 마크다운 | marked + DOMPurify | ❌ |
+| txt·log·json·xml·yml·sql·코드 | 본문 그대로 | `text/plain` 만 ✅ |
+| **zip** | **안 파일 목록**(`utils/zipList.ts` — 중앙 디렉터리만 파싱, 압축 해제 없음) | ❌ |
+| svg | ❌ — 액티브 콘텐츠라 서버가 inline 을 막는다. **왜 못 여는지 화면이 말한다**(onError 폴백) | ❌ |
+| 그 외(Office·hwp 등) | 폴백 안내 | ❌ |
+
+- **"열기" 버튼의 술어는 `services/files.ts canOpenInNewTab`** 한 곳. 서버 `services/fileServing.js isSafeInline`
+  을 비춘 것이라 **서버를 고치면 여기도 같이 고친다** — 갈라지면 "열기" 가 거짓말이 된다(눌러도 다운로드만 된다).
+- 팝업 차단을 피하려면 **클릭과 같은 틱에 빈 탭을 먼저 열고** 나중에 blob 주소를 넣는다.
+  다운로드 라우트는 Bearer 를 요구해 링크로 직접 걸면 401 이고, `noopener` 를 주면 핸들이 null 이라 넣을 곳이 없다.
+- zip 은 목록을 읽으려면 파일 **끝**(중앙 디렉터리)이 필요해 통째로 받는다 → **20MB 상한**.
+  넘거나 zip64·손상이면 같은 문구로 뭉개지 않고 각각의 이유를 말한다.
+- 이름 인코딩은 플래그 11번 비트로 가른다(UTF-8 / CP949). 우겨 읽으면 옛 윈도우 zip 의 한글이 전부 깨진다.
+
+> Office(docx·xlsx)는 **의도적으로 제외**했다 — 운영 실측 4건뿐이고, 열려면 서버 변환이 필요해 별건이다.
+> 운영 분포(2026-09-05): png 502 · pdf 126 · zip 60 · jpg 36 · 확장자 없음 49 · docx/xlsx 4.
+
 ### 7.1 DocsTab 컴포넌트 구조
 
 ```
