@@ -12,6 +12,7 @@ import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/Auto
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ProjectCanvas from './canvas/ProjectCanvas'; // 기본 탭 — 즉시 로드(로딩 플래시 없음)
+import ProjectShareLinkButton from './ProjectShareLinkButton';
 // 나머지 탭은 지연 로드(lazy) — 프로젝트 열 때 모든 탭 코드(+무거운 에디터 tiptap)를 한꺼번에
 // 받던 것을 탭 클릭 시점 로드로 분리. 초기 페이지 로드 대폭 경량화.
 const TasksTab = React.lazy(() => import('./TasksTab'));
@@ -679,11 +680,16 @@ const QProjectDetailPage: React.FC = () => {
             {t('header.openMail', '프로젝트 메일')}
             {mailCount === 0 && <BtnNone>{t('header.none', '없음')}</BtnNone>}
           </HeaderBtn>
-          {/* 외부 공유 링크 진입점은 **설계 확정 후** 붙인다 (2026-09-02).
-              Irene: "프로젝트 안 탭들 보는 그대로 프로젝트 링크 물어본건데?" — 지금 게스트 링크는
-              대화방이 필수(`guest_links.conversation_id` NOT NULL)라 누르면 채팅 링크가 나온다.
-              그 상태로 버튼만 두면 "이 버튼 왜 있어?" 가 반복된다. 설계: docs/PROJECT_EXTERNAL_VIEW_DESIGN.md
-              (컴포넌트 ProjectShareLinkButton·서버 guest-channel 라우트는 그대로 두고 진입점만 뗀다.) */}
+          {/* 외부 열람 링크 (설계 확정·1차 구현 2026-09-05, docs/PROJECT_EXTERNAL_VIEW_DESIGN.md).
+              고객(client)에게는 보이지 않는다 — 고객이 스스로 외부 링크의 문을 열면 안 된다
+              (서버도 403 으로 막지만, 누를 수 있는 버튼을 두지 않는 것이 먼저다). */}
+          {!isClient && project?.business_id && (
+            <ProjectShareLinkButton
+              projectId={Number(projectId)}
+              projectName={project?.name || ''}
+              businessId={Number(project.business_id)}
+            />
+          )}
           <BackBtn type="button" onClick={() => navigate('/projects')}>← {t('backToList', '목록')}</BackBtn>
         </HeaderActions>
       }

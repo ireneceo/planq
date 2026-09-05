@@ -18,14 +18,17 @@ Sitemap: https://planq.kr/sitemap.xml
 User-agent: GPTBot
 Disallow: /public/
 Disallow: /sign/
+Disallow: /g/
 
 User-agent: Google-Extended
 Disallow: /public/
 Disallow: /sign/
+Disallow: /g/
 
 User-agent: ClaudeBot
 Disallow: /public/
 Disallow: /sign/
+Disallow: /g/
 
 User-agent: CCBot
 Disallow: /

@@ -14,6 +14,7 @@ const {
   ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
   File, FileFolder, MessageAttachment, TaskAttachment,
   ProjectWorkstream, Post, Document, Department, Team, TaskLink, ProjectStage, ProjectLink,
+  GuestLink, PlatformSetting,
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 // 같은 실제 파일이 direct·chat 두 줄로 보이던 것을 접는다(2026-09-04). 술어는 한 곳.
@@ -28,6 +29,7 @@ const cueOrchestrator = require('../services/cue_orchestrator');
 // 업무 생성 술어 재사용 — 기본담당자 미리보기가 실제 배정과 같은 코드를 쓰게 한다
 const taskActions = require('../services/actions/task_actions');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
+const { serializeGuestLink } = require('../services/guest_link');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 
@@ -750,66 +752,108 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
 });
 
 // ============================================
-// POST /api/projects/:id/guest-channel — 게스트 링크를 걸 **고객 채널**을 찾거나 만든다
+// ── 프로젝트 외부 열람 링크 (docs/PROJECT_EXTERNAL_VIEW_DESIGN.md 1차) ─────────────
 //
-// Irene: "프로젝트마다도 링크 만들어서 공유할 수 있어? 볼 수 있게?"
-//   프로젝트에 별도 공유 토큰을 새로 만들지 않는다(Fable 판단). 이미 운영에 있는 게스트 링크가
-//   `project_id` 를 들고 개요를 화이트리스트로 내보내므로, **프로젝트 공유 = 그 프로젝트의
-//   고객 채널에 게스트 링크 발급**이다. 토큰 체계가 두 벌이 되면 `visibleToGuest` 술어도 두 벌이 된다.
+// Irene: "나는 프로젝트 안 탭들 보는 그대로 프로젝트 링크 물어본건데?"
+//   그래서 이 링크의 주인은 **프로젝트**다(대화는 탭 하나). 토큰 체계는 새로 만들지 않고
+//   이미 운영에 있는 게스트 링크를 쓰되 `scope='project'` 로 문을 넓힌다 —
+//   기존 채팅 링크(scope='conversation')는 프로젝트 탭 라우트에서 **404** 다(§2.2).
 //
-// ★ "있으면 그 방, 없으면 만든다" 는 판단을 **서버에 둔다.** 프론트가 목록을 받아 스스로 고르면
-//   화면마다 고르는 규칙이 갈라진다(이 저장소가 반복해서 데인 지점).
+// ★ 화면은 "링크를 만든다" 만 안다. 어느 방에 거는지는 서버가 정한다
+//   (services/project_channel.js — 옛 `guest-channel` 라우트의 본문이 그리로 갔다).
 // ★ 고객(client)은 부를 수 없다 — 고객이 스스로 외부 링크의 문을 열면 안 된다.
-router.post('/:id/guest-channel', authenticateToken, async (req, res, next) => {
+
+/** 발급 3종 fail-closed — 대화방 발급(guest_admin.js:100-118)과 **같은 술어**여야 한다. */
+async function assertGuestLinkIssuable(conv, businessId) {
+  if (conv.channel_type !== 'customer') return 'not_customer_channel';
+  if (conv.status === 'archived' || conv.archived_at) return 'conversation_archived';
+  const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
+  const bizRow = await Business.findByPk(businessId, { attributes: ['guest_links_enabled'] });
+  if (!platform || platform.guest_links_enabled !== true || !bizRow || bizRow.guest_links_enabled === false) {
+    return 'guest_links_disabled';
+  }
+  return null;
+}
+
+// GET — 이 프로젝트로 발급된 살아 있는 링크 목록
+router.get('/:id/guest-links', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const rows = await GuestLink.findAll({
+      where: { project_id: project.id, business_id: project.business_id, scope: 'project', revoked_at: null },
+      order: [['id', 'DESC']],
+      limit: 50,
+    });
+    return successResponse(res, rows.map(serializeGuestLink));
+  } catch (err) { next(err); }
+});
+
+// POST — 발급. **원문 토큰은 이 응답에만 1회** 나간다.
+router.post('/:id/guest-links', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
-    // 목록 라우트와 **같은 정렬**로 고른다 — 화면에 보이는 첫 고객 채널과 같아야 한다.
-    const existing = await Conversation.findOne({
-      where: { project_id: project.id, channel_type: 'customer', archived_at: null },
-      order: [['id', 'ASC']],
-    });
-    if (existing) {
-      return successResponse(res, {
-        business_id: project.business_id, conversation_id: existing.id,
-        title: existing.title || null, created: false,
-      });
+    // 링크가 걸릴 방 — 있으면 그 방, 없으면 만든다(판단은 서버에).
+    const { ensureProjectCustomerChannel } = require('../services/project_channel');
+    const { conversation: conv } = await ensureProjectCustomerChannel(project, req.user.id);
+
+    const blocked = await assertGuestLinkIssuable(conv, project.business_id);
+    if (blocked) return errorResponse(res, blocked, blocked === 'conversation_archived' ? 409 : 403);
+
+    // 고객은 선택이다 — 방에 붙어 있으면 그대로 쓰고(타임라인 연속성), 없으면 NULL.
+    //   요청 body 의 client_id 는 신뢰하지 않는다(테넌트 우회 차단).
+    let client = null;
+    if (conv.client_id) {
+      client = await Client.findOne({ where: { id: conv.client_id, business_id: project.business_id } });
     }
 
-    // 없으면 만든다 — 프로젝트 생성 시의 채널 생성과 **같은 기본값**(cue·자동추출 on).
-    const conv = await Conversation.create({
-      business_id: project.business_id,
-      project_id: project.id,
-      title: `${project.name} 고객`,
-      channel_type: 'customer',
-      cue_enabled: true,
-      auto_extract_enabled: true,
+    const { issueGuestLink } = require('../services/guest_link');
+    const { link, token } = await issueGuestLink({
+      businessId: project.business_id,
+      conversationId: conv.id,
+      projectId: project.id,
+      client,
+      createdBy: req.user.id,
+      canWrite: req.body?.can_write !== false,
+      guestName: req.body?.guest_name || null,
+      scope: 'project',
     });
-    // 참가자 — 프로젝트 멤버 + 만든 사람. 없으면 아무도 그 방을 못 본다.
-    const members = await ProjectMember.findAll({ where: { project_id: project.id }, attributes: ['user_id'] });
-    const ids = new Set(members.map((m) => m.user_id));
-    ids.add(req.user.id);
-    for (const uid of ids) {
-      await ConversationParticipant.findOrCreate({
-        where: { conversation_id: conv.id, user_id: uid },
-        defaults: { conversation_id: conv.id, user_id: uid },
-      });
-    }
-    // ★ createAuditLog 는 내부에서 setImmediate 로 던지고 **아무것도 반환하지 않는다**
-    //   (services/auditService). `.catch()` 를 붙이면 undefined 에 접근해 500 이 난다 — 실제로 났다.
-    try {
-      createAuditLog({
-        user_id: req.user.id, business_id: project.business_id,
-        action: 'create', entity_type: 'conversation', entity_id: conv.id,
-        new_value: { project_id: project.id, channel_type: 'customer', reason: 'guest_channel' },
-      });
-    } catch { /* 감사 실패가 채널 생성을 막지 않는다 */ }
+
+    createAuditLog({
+      user_id: req.user.id, business_id: project.business_id,
+      action: 'create', entity_type: 'guest_link', entity_id: link.id,
+      new_value: { scope: 'project', project_id: project.id, conversation_id: conv.id, can_write: link.can_write },
+    });
+
     return successResponse(res, {
-      business_id: project.business_id, conversation_id: conv.id,
-      title: conv.title, created: true,
+      ...serializeGuestLink(link),
+      // ★ 원문은 지금뿐이다. 화면이 이걸 놓치면 사용자는 링크를 다시 만들어야 한다.
+      url: `${process.env.APP_URL || 'https://dev.planq.kr'}/g/${token}`,
+    }, 'issued', 201);
+  } catch (err) { next(err); }
+});
+
+// DELETE — 회수. 즉시 모든 게스트 라우트가 404 가 된다.
+router.delete('/:id/guest-links/:linkId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    const link = await GuestLink.findOne({
+      where: { id: Number(req.params.linkId), project_id: project.id, business_id: project.business_id },
     });
+    if (!link) return errorResponse(res, 'not_found', 404);
+    if (!link.revoked_at) await link.update({ revoked_at: new Date() });
+    createAuditLog({
+      user_id: req.user.id, business_id: project.business_id,
+      action: 'delete', entity_type: 'guest_link', entity_id: link.id,
+      old_value: { scope: link.scope, project_id: project.id },
+    });
+    return successResponse(res, { id: link.id, revoked: true });
   } catch (err) { next(err); }
 });
 

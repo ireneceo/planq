@@ -15,14 +15,28 @@ import ActionButton from '../Common/ActionButton';
 import { isLiveGuestLink, type GuestLink as Link } from './guestLink';
 
 
-export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed }: {
+export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed, endpoints, lead, title }: {
   businessId: number; conversationId: number; clientName: string;
-  /** 프로젝트 헤더처럼 **다른 화면이 채널을 정해 준 뒤** 곧바로 열 때 (ProjectShareLinkButton). */
+  /** 프로젝트 헤더처럼 **다른 화면이 트리거를 그릴 때** 곧바로 열 때 (ProjectShareLinkButton). */
   autoOpen?: boolean;
   /** 모달이 닫힐 때 — 호출측이 자기 상태를 되돌린다. */
   onClosed?: () => void;
+  /**
+   * ★ 발급 주소만 갈아끼운다 — 모달·복사·공유·회수 UI 는 **한 벌**이어야 한다
+   *   (docs/PROJECT_EXTERNAL_VIEW_DESIGN §9). 프로젝트 링크는 여기에 프로젝트 라우트를 준다.
+   *   안 주면 종전대로 대화방 라우트 — 기존 호출부는 무변경으로 같은 동작이다.
+   */
+  endpoints?: { list: string; issue: string; revoke: (linkId: number) => string };
+  /** 모달 안내 문구·제목 — 링크가 여는 것이 다르면 문구도 달라야 한다(문구가 거짓말이 되지 않게). */
+  lead?: string;
+  title?: string;
 }) {
   const { t } = useTranslation('qtalk');
+  const api = endpoints || {
+    list: `/api/conversations/${businessId}/${conversationId}/guest-links`,
+    issue: `/api/conversations/${businessId}/${conversationId}/guest-links`,
+    revoke: (id: number) => `/api/conversations/${businessId}/${conversationId}/guest-links/${id}`,
+  };
   const [open, setOpen] = useState(!!autoOpen);
   const [links, setLinks] = useState<Link[]>([]);
   const [fresh, setFresh] = useState<string | null>(null);   // 방금 발급된 원문 URL
@@ -33,11 +47,13 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/guest-links`);
+    const r = await apiFetch(api.list);
     if (!r.ok) return;
     const j = await r.json();
     if (j.success) setLinks((j.data || []).filter(isLiveGuestLink));
-  }, [businessId, conversationId]);
+    // ★ deps 에 **주소**를 넣는다 — 어댑터로 주소가 갈리는데 deps 가 옛 키(businessId 등)면
+    //   프로젝트 모달이 대화방 목록을 들고 있게 된다(memory feedback_guard_variable_needs_deps).
+  }, [api.list]);
 
   useEffect(() => { if (open) { setFresh(null); setCopied(false); setErr(null); load(); } }, [open, load]);
 
@@ -45,7 +61,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     if (busy) return;
     setBusy(true);
     try {
-      const r = await apiFetch(`/api/conversations/${businessId}/${conversationId}/guest-links`, {
+      const r = await apiFetch(api.issue, {
         // 아무것도 보내지 않는다 — 고객은 서버가 **대화방에서** 읽는다.
         //   요청 body 의 client_id 를 서버가 믿으면 테넌트 우회 통로가 된다.
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -70,7 +86,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     if (busy) return;
     setBusy(true);
     try {
-      await apiFetch(`/api/conversations/${businessId}/${conversationId}/guest-links/${id}`, { method: 'DELETE' });
+      await apiFetch(api.revoke(id), { method: 'DELETE' });
       await load();
     } finally { setBusy(false); }
   };
@@ -105,11 +121,11 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
         </svg>
       </TriggerBtn>}
       {open && (
-        <StandardModal open onClose={() => { setOpen(false); onClosed?.(); }} title={t('guestLink.title', { defaultValue: '고객 링크' }) as string} size="md">
-          <Lead>{t('guestLink.lead', {
+        <StandardModal open onClose={() => { setOpen(false); onClosed?.(); }} title={title || (t('guestLink.title', { defaultValue: '고객 링크' }) as string)} size="md">
+          <Lead>{lead || (t('guestLink.lead', {
             defaultValue: '{{name}} 님이 로그인 없이 이 대화를 보고 답할 수 있는 링크입니다. 카톡·메일로 보내세요.',
             name: clientName,
-          })}</Lead>
+          }) as string)}</Lead>
 
           {fresh ? (
             <FreshBox>

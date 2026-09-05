@@ -28,6 +28,16 @@ GuestLink.init({
   business_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'businesses', key: 'id' } },
   // 열람·작성 범위 = 이 대화방 하나. 이 컬럼이 곧 피해 상한이다.
   conversation_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'conversations', key: 'id' } },
+  // ★ 이 링크가 여는 것의 **종류**. 파생 열쇠를 막는 축이다 (docs/PROJECT_EXTERNAL_VIEW_DESIGN §2.2).
+  //   'conversation' — 대화방 하나(지금까지의 채팅 링크). 프로젝트 탭 라우트는 **404**.
+  //   'project'      — 프로젝트 페이지(개요·업무·대화). 대화 탭은 같은 방을 그대로 쓴다.
+  //   기본값이 'conversation' 인 이유: **이미 나가 있는 링크가 조용히 넓어지면 안 된다.**
+  //   기존 행은 전부 conversation 으로 남고, 프로젝트 링크는 새로 발급해야만 생긴다.
+  scope: {
+    type: DataTypes.ENUM('conversation', 'project'),
+    allowNull: false,
+    defaultValue: 'conversation',
+  },
   // NULL 이면 프로젝트 개요 탭이 없다. 있으면 **화이트리스트 serializer** 로만 내보낸다.
   //   ★ projects.id 만 BIGINT 다(다른 테이블은 INT). 타입을 맞추지 않으면 FK 생성이
   //     "incompatible" 로 실패하고 **테이블 자체가 안 만들어진다**(실측).

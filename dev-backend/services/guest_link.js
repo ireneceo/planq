@@ -154,7 +154,28 @@ async function ensureShadowUser({ transaction } = {}) {
  *   사람 손 없이 이걸 부른다. UI 전용 로직으로 만들면 그때 다시 짜야 한다.
  * @returns {Promise<{ link, token, guestUser }>} token 은 **이때만** 원문으로 나간다.
  */
-async function issueGuestLink({ businessId, conversationId, projectId = null, client = null, createdBy, canWrite = true, guestName = null }) {
+/**
+ * 관리 화면용 직렬화 — **원문 토큰은 절대 담지 않는다**(저장하지도 않는다. token_hint 로만 식별).
+ *   ★ 한 곳에 둔다: 대화방 발급(guest_admin)과 프로젝트 발급(projects)이 각자 만들면
+ *     한쪽에만 필드가 붙어 화면이 갈라진다.
+ */
+function serializeGuestLink(l) {
+  return {
+    id: l.id,
+    scope: l.scope || 'conversation',
+    client_id: l.client_id,
+    guest_name: l.guest_name,
+    token_hint: l.token_hint,
+    can_write: !!l.can_write,
+    expires_at: l.expires_at,
+    last_used_at: l.last_used_at,
+    message_count: l.message_count,
+    revoked_at: l.revoked_at,
+    created_at: l.created_at,
+  };
+}
+
+async function issueGuestLink({ businessId, conversationId, projectId = null, client = null, createdBy, canWrite = true, guestName = null, scope = 'conversation' }) {
   // client 는 **선택**이다. 대화방에 고객이 붙어 있으면 기록해 두고(타임라인 연속성),
   //   없으면 NULL. 멤버에게 묻지 않는다 — 발급은 클릭 한 번이어야 한다.
   const guestUser = await ensureShadowUser();
@@ -177,6 +198,8 @@ async function issueGuestLink({ businessId, conversationId, projectId = null, cl
     // 멤버가 붙이는 메모용 이름. 화면 표시명이 아니다(그건 messages.meta.guest.name).
     guest_name: guestName ? String(guestName).slice(0, 100) : null,
     can_write: !!canWrite,
+    // ★ 기본은 대화방이다 — 부르는 쪽이 명시하지 않으면 넓어지지 않는다(fail-closed).
+    scope: scope === 'project' ? 'project' : 'conversation',
     expires_at: new Date(Date.now() + SLIDING_TTL_MS),
     created_by: createdBy,
   });
@@ -320,4 +343,5 @@ module.exports = {
   generateOtpCode, normalizeEmail, ensurePersonalLink, mintPersonalToken, personalTokenFor,
   promotePersonalIdentity,
   resolveGuestToken, ensureShadowUser, issueGuestLink,
+  serializeGuestLink,
 };

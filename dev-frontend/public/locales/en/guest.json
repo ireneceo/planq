@@ -50,7 +50,8 @@
     "tasks": "Tasks",
     "taskCount": "{{done}} / {{total}} done",
     "docs": "Shared documents",
-    "untitled": "Untitled"
+    "untitled": "Untitled",
+    "chatHint2": "Ask the team anything in the Chat tab."
   },
   "notify": {
     "cta": "Get notified when they reply?",
@@ -82,5 +83,28 @@
     "errFailed": "Something went wrong. Please try again shortly.",
     "errCodePlain": "That code doesn't match.",
     "unsubHint": "Tap “Turn off alerts” below and we'll stop emailing you."
+  },
+  "tabs": {
+    "aria": "Project tabs",
+    "overview": "Overview",
+    "tasks": "Tasks",
+    "chat": "Chat"
+  },
+  "task": {
+    "notStarted": "Not started",
+    "waiting": "Waiting",
+    "inProgress": "In progress",
+    "reviewing": "In review",
+    "revision": "Changes requested",
+    "completed": "Done",
+    "canceled": "Canceled"
+  },
+  "tasks": {
+    "failed": "Could not load tasks."
+  },
+  "proj": {
+    "active": "In progress",
+    "paused": "Paused",
+    "closed": "Done"
   }
 }

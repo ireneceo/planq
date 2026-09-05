@@ -9,23 +9,13 @@ const { authenticateToken } = require('../middleware/auth');
 const { attachWorkspaceScope, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
-const { issueGuestLink } = require('../services/guest_link');
+const { issueGuestLink, serializeGuestLink } = require('../services/guest_link');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
 /** 관리 화면용 직렬화 — **원문 토큰은 없다**(해시만 저장하므로 복원 불가). */
-const serialize = (l) => ({
-  id: l.id,
-  client_id: l.client_id,
-  guest_name: l.guest_name,
-  token_hint: l.token_hint,
-  can_write: !!l.can_write,
-  expires_at: l.expires_at,
-  last_used_at: l.last_used_at,
-  message_count: l.message_count,
-  revoked_at: l.revoked_at,
-  created_at: l.created_at,
-});
+// 직렬화는 services/guest_link.js 한 곳에 있다 — 프로젝트 발급 라우트와 같은 모양이어야 한다.
+const serialize = serializeGuestLink;
 
 /** 답글 알림을 신청한 사람 — **개별 회수**가 되어야 한다.
  *  ★ 이 이름을 대화 메시지 옆에 붙이지 말 것. 링크는 메일로 전달될 수 있고, 전달받은

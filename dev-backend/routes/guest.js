@@ -69,57 +69,37 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
           end_date: p.end_date || null,
         };
 
-        // ── 진행 상황 (2026-09-02) ────────────────────────────────────────
-        // Irene: "프로젝트마다도 링크 만들어서 공유할 수 있어? **볼 수 있게?**"
-        //   이름만 보이면 채팅 링크와 다를 게 없다. 다만 **숫자와 라벨만** 내보낸다 —
-        //   업무 제목·담당자·공수는 넣지 않는다(담당자·원가가 새는 문이다).
-        const { ProjectStage, Task, Post } = require('../models');
+        // ── 진행 상황 — **프로젝트 링크(scope='project')일 때만** ────────────────
+        //   ★ scope 를 안 보면 **이미 나가 있는 채팅 링크가 조용히 넓어진다**
+        //     (docs/PROJECT_EXTERNAL_VIEW_DESIGN.md §2.2). 채팅 링크는 예나 지금이나
+        //     프로젝트 이름·설명·상태·기간 5필드만 본다 — 그 화면의 문구가 다시 참이 된다.
+        //   숫자와 라벨만 내보낸다. 업무 제목·담당자는 업무 탭 라우트(/tasks)의 몫이다.
+        if (link.scope === 'project') {
+          const { ProjectStage, Task } = require('../models');
 
-        // 거래 단계 — 라벨·종류·상태만. linked_entity_id 같은 내부 키는 내보내지 않는다.
-        const stageRows = await ProjectStage.findAll({
-          where: { project_id: p.id },
-          attributes: ['order_index', 'kind', 'label', 'status'],
-          order: [['order_index', 'ASC']],
-          limit: 30,
-        });
-        project.stages = stageRows.map((s2) => ({
-          kind: s2.kind, label: s2.label, status: s2.status,
-        }));
+          // 거래 단계 — 라벨·종류·상태만. linked_entity_id 같은 내부 키는 내보내지 않는다.
+          const stageRows = await ProjectStage.findAll({
+            where: { project_id: p.id },
+            attributes: ['order_index', 'kind', 'label', 'status'],
+            order: [['order_index', 'ASC']],
+            limit: 30,
+          });
+          project.stages = stageRows.map((s2) => ({
+            kind: s2.kind, label: s2.label, status: s2.status,
+          }));
 
-        // 업무 — **숫자만**. 제목·담당자는 없다.
-        const [taskTotal, taskDone] = await Promise.all([
-          Task.count({ where: { project_id: p.id, business_id: link.business_id } }),
-          Task.count({ where: { project_id: p.id, business_id: link.business_id, status: 'completed' } }),
-        ]);
-        project.task_summary = { total: taskTotal, completed: taskDone };
-
-        // 문서 — **이미 외부로 공유된 것만**. 여기서 새로 열지 않는다:
-        //   vlevel L4(외부) + security_level general + 살아 있는 share_token.
-        //   즉 이 목록은 "이미 링크가 나가 있는 문서를 한자리에 모아 보여주는" 것이다.
-        const now = new Date();
-        const docRows = await Post.findAll({
-          where: {
-            project_id: p.id,
-            business_id: link.business_id,
-            vlevel: 'L4',
-            security_level: 'general',
-            share_token: { [Op.ne]: null },
-            deleted_at: null,
-            [Op.or]: [{ share_expires_at: null }, { share_expires_at: { [Op.gt]: now } }],
-          },
-          attributes: ['title', 'share_token', 'category', 'updatedAt'],
-          order: [['updatedAt', 'DESC']],
-          limit: 20,
-        });
-        project.docs = docRows.map((d) => ({
-          title: d.title || null,
-          category: d.category || null,
-          updated_at: d.updatedAt || null,
-          url: `/public/posts/${d.share_token}`,
-        }));
+          // 업무 — 개요에는 **숫자만**.
+          const [taskTotal, taskDone] = await Promise.all([
+            Task.count({ where: { project_id: p.id, business_id: link.business_id } }),
+            Task.count({ where: { project_id: p.id, business_id: link.business_id, status: 'completed' } }),
+          ]);
+          project.task_summary = { total: taskTotal, completed: taskDone };
+        }
       }
     }
     return successResponse(res, {
+      // ★ 화면이 이 값으로 프로젝트 페이지와 채팅 페이지를 가른다. 없으면 옛 링크가 옛 화면으로 간다.
+      scope: link.scope || 'conversation',
       guest_name: link.guest_name,
       can_write: !!link.can_write,
       // 계정 요청을 이미 보냈는가 — 화면이 배너를 "요청 보냄" 상태로 바꾼다.
@@ -162,6 +142,69 @@ router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000,
   } catch (err) { next(err); }
 });
 
+// ── GET /api/guest/:token/tasks ───────────────────────────────────────────
+//   프로젝트 링크의 **업무 탭**. docs/PROJECT_EXTERNAL_VIEW_DESIGN.md §3.2 화이트리스트.
+//
+// ★ scope='conversation'(채팅 링크) 토큰으로는 **404** 다 — 같은 프로젝트·같은 방이어도 갈린다.
+//   "토큰이 있으니 열어 준다" 가 아니라 "이 토큰이 여는 종류인가" 를 본다(파생 열쇠 차단).
+// ★ 자유 텍스트(description·body)는 **내보내지 않는다.** 그 필드에는 보안등급 축이 없어
+//   "걸리면 잠근다" 를 적용할 수 없다 — fail-closed 로 뺀다. 고객용 본문은 2차에
+//   `client_share_content` 로 따로 연다.
+// ★ 공수(estimated/actual)는 원가가 역산되므로 키 자체를 담지 않는다.
+router.get('/:token/tasks', guestLimiter('guest-tasks', { windowMs: 60 * 1000, max: 30 }), attachGuest, async (req, res, next) => {
+  try {
+    const { link } = req.guest;
+    if (link.scope !== 'project' || !link.project_id) return errorResponse(res, 'not_found', 404);
+    const { Task, Project } = require('../models');
+    // 테넌트 이중 검증 — 링크의 워크스페이스와 프로젝트가 어긋나면 없는 것으로 친다.
+    const project = await Project.findByPk(link.project_id, { attributes: ['id', 'business_id'] });
+    if (!project || project.business_id !== link.business_id) return errorResponse(res, 'not_found', 404);
+
+    const rows = await Task.findAll({
+      // ★ Task 에는 `deleted_at` 컬럼이 **없다**(모델 실측) — 넣으면 500 이 난다.
+      //   앱의 프로젝트 업무 목록도 project_id 로만 거른다(projects.js:1603).
+      where: { project_id: project.id, business_id: link.business_id },
+      // ★ attributes 를 나열한다 — 모델 전체를 읽고 delete 로 지우는 방식은 컬럼이 늘 때 샌다
+      //   (CLAUDE.md: 가릴 땐 화이트리스트).
+      attributes: ['id', 'title', 'status', 'progress_percent', 'start_date', 'due_date',
+        'completed_at', 'is_milestone', 'category', 'assignee_id'],
+      order: [['created_at', 'DESC']],
+      limit: 200,
+    });
+
+    // 담당자는 **워크스페이스 표시명만** (Irene 결정 §12-Q3). user_id·email 은 담지 않는다.
+    //   ★ getMemberNameMap 은 **워크스페이스 표시명을 따로 지정한 사람만** 담는다(실측:
+    //     name·name_localized 둘 다 없으면 건너뛴다). 그것만 쓰면 표시명을 안 정한 담당자가
+    //     전부 빈칸이 된다 — 계정 이름으로 떨어뜨린다. 이메일은 어느 쪽에서도 읽지 않는다.
+    const assigneeIds = [...new Set(rows.map((r) => r.assignee_id).filter(Boolean))];
+    const nameMap = new Map();
+    if (assigneeIds.length) {
+      const { getMemberNameMap } = require('../services/displayName');
+      const { User } = require('../models');
+      const [wsMap, users] = await Promise.all([
+        getMemberNameMap(link.business_id, assigneeIds),
+        User.findAll({ where: { id: assigneeIds }, attributes: ['id', 'name'], raw: true }),
+      ]);
+      for (const u of users) nameMap.set(u.id, u.name || null);
+      for (const [uid, v] of wsMap) if (v && v.name) nameMap.set(uid, v.name);
+    }
+
+    const list = rows.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      progress_percent: t.progress_percent ?? 0,
+      start_date: t.start_date || null,
+      due_date: t.due_date || null,
+      completed_at: t.completed_at || null,
+      is_milestone: !!t.is_milestone,
+      category: t.category || null,
+      assignee_name: t.assignee_id ? (nameMap.get(t.assignee_id) || null) : null,
+    }));
+    return successResponse(res, list);
+  } catch (err) { next(err); }
+});
+
 // ── POST /api/guest/:token/account-request ────────────────────────────────
 //   게스트가 "계정 요청하기" 를 누른다. **가입 화면으로 보내지 않는다** —
 //   초대 토큰 없이 가입하면 `routes/auth.js:216` 가 자기 워크스페이스를 새로 만들어
@@ -187,6 +230,10 @@ router.post('/:token/account-request',
     try {
       const { notifyMany } = require('./notifications');
       const { ConversationParticipant } = require('../models');
+      // 스코프 — 이 방(conversation)은 **링크가 정한다**(attachGuest 가 토큰 → link → 방).
+      //   링크에는 business_id 가 박혀 있으므로 이 목록은 그 워크스페이스 안이다.
+      //   참가자 테이블에는 business_id 컬럼이 없어 조건으로 다시 걸 수 없다 — 아래 알림도
+      //   conversation.business_id 로 보낸다.
       const parts = await ConversationParticipant.findAll({
         where: { conversation_id: conversation.id }, attributes: ['user_id', 'role'],
       });
