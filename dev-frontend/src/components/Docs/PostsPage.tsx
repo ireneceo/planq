@@ -15,6 +15,7 @@ import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
 import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
+import OverflowMenu from '../Common/OverflowMenu';
 import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
@@ -99,6 +100,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const { t } = useTranslation('qdocs');
   const { t: tErr } = useTranslation('errors');
   const { formatDate } = useTimeFormat();
+  // 목록의 날짜는 **수정일** 기준으로 정렬(서버 order: updated_at DESC)되는데, 화면에는 이름 없이
+  //   날짜만 찍혀 있었다. 그래서 오래전에 쓴 글을 한 번 고치면 "오늘 쓴 글" 로 읽힌다
+  //   (Irene 2026-09-05: "이 글은 아주 예전에 썼어. 그런데 왜 오늘 쓴 글로 나오지?").
+  //   정렬은 그대로 두고, **무슨 날짜인지 말하게** 한다 — 고친 적 없으면 작성일 그대로.
+  const listDate = useCallback((row: { created_at?: string | null; updated_at?: string | null }) => {
+    const created = row.created_at ? new Date(row.created_at).getTime() : 0;
+    const updated = row.updated_at ? new Date(row.updated_at).getTime() : 0;
+    // 생성 직후 몇 초 차이는 수정이 아니다(생성 트랜잭션·첨부 붙이기 등).
+    const edited = created > 0 && updated > created + 60 * 1000;
+    const shown = formatDate((edited ? row.updated_at : row.created_at) as string);
+    return edited ? (t('list.editedAt', { date: shown, defaultValue: '수정 {{date}}' }) as string) : shown;
+  }, [formatDate, t]);
 
   // 재진입 즉시 표시 — 같은 목록(범위+검색어+필터)이면 지난 결과로 먼저 그린다.
   //   검색어·필터를 키에 넣는 이유: 안 넣으면 "검색 결과가 잠깐 남아 있다가 바뀌는" 더 나쁜 화면이 된다.
@@ -196,11 +209,16 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       }
     }).catch(() => {});
   }, [visBizId]);
+  // ★ 공개 범위는 **모르면 가장 넓은 이름을 말하면 안 된다.**
+  //   옛 코드는 값을 못 읽으면 그대로 '워크스페이스' 로 떨어졌다 — 나만 보기 문서가 화면에서만
+  //   전체 공개로 보일 수 있는 방향이다(공개 범위 표시에서 이 방향의 오답이 제일 나쁘다).
+  //   알 수 없으면 알 수 없다고 말한다 (CLAUDE.md "알 수 없는 값은 보이게 렌더").
   const visLabel = (vl: string | null | undefined) => {
     if (vl === 'L1') return t('vis.L1', '나만') as string;
     if (vl === 'L2') return t('vis.L2', '팀') as string;
+    if (vl === 'L3') return t('vis.L3', '워크스페이스') as string;
     if (vl === 'L4') return t('vis.L4', '외부') as string;
-    return t('vis.L3', '워크스페이스') as string;
+    return t('vis.unknown', { defaultValue: '확인 필요' }) as string;
   };
   const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   const [mode, setMode] = useState<'view' | 'edit' | 'new'>('view');
@@ -262,6 +280,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   payload 에만 넣고 여기서 빼면, 프로젝트를 골라도 '바뀐 것 없음'으로 판정돼
   //   요청이 아예 안 나간다(2026-09-03 실측: 선택 후 4초 대기, PUT 0건).
   const editSnapshotRef = useRef<{ title: string; content: unknown; category: string; projectId: number | null } | null>(null);
+  // 편집 진입 후 **사용자가 본문을 건드렸는가**. 에디터는 마운트되면서 스키마 기본값
+  //   (TextAlign 의 textAlign:null 등)을 붙여 한 번 emit 한다 — 그것은 입력이 아니다.
+  //   이 구분이 없으면 **편집 버튼만 눌러도 자동저장이 나가** 옛 글의 수정일이 오늘로 바뀐다
+  //   (Irene 2026-09-05: "아주 예전에 썼는데 왜 오늘 쓴 글로 나오지?" — 운영 post #44 실측:
+  //    보낸 값과 저장본의 차이가 attrs:{textAlign:null} **하나뿐**이었다).
+  const contentTouchedRef = useRef(false);
   // ★ 자동저장 발화 기준은 "마지막으로 서버에 쓴 값" 이어야 한다 (편집 진입 스냅샷이 아니라).
   //   진입 스냅샷만 보면, 한 글자만 고쳐도 그 뒤로 **영원히 changed=true** 라
   //   저장이 끝나 autoState 가 바뀔 때마다 effect 가 다시 2초 타이머를 걸어 **자동저장이 자기를 재예약**한다.
@@ -761,6 +785,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       baseUpdatedAtRef.current = detail?.updated_at ?? null;
       autoDraftIdRef.current = mode === 'new' ? null : (detail?.id ?? null);
       autoDirtyRef.current = false;
+      contentTouchedRef.current = false;
       setAutoState('idle');
       setAutoErr(null);
     } else {
@@ -771,6 +796,18 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     // ★ deps 에 detail?.id 를 넣지 않는다 — 자동저장이 detail 을 갱신하면 세션이 리셋된다.
     //   진입 지점이 beginEditSession() 으로 editEpoch 를 올릴 때만 재초기화한다.
   }, [mode, editEpoch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 본문 변경 수신 — 에디터의 **정규화 emit** 은 기준선으로 흡수하고 변경으로 세지 않는다.
+  //   기준선을 서버 값(정규화 전)으로 잡으면 에디터의 렌즈와 달라 늘 "바뀐 것" 이 된다
+  //   (memory feedback_measure_with_same_lens_as_code · feedback_system_filled_not_user_input).
+  const handleContentChange = useCallback((next: unknown, meta?: { fromUser?: boolean }) => {
+    if (meta?.fromUser) contentTouchedRef.current = true;
+    else if (!contentTouchedRef.current && editSnapshotRef.current) {
+      // 아직 사람이 손대기 전 — 이 값이 곧 "고치지 않은 상태" 다.
+      editSnapshotRef.current = { ...editSnapshotRef.current, content: next };
+    }
+    setContentDraft(next);
+  }, []);
 
   // ── 충돌(stale) 빠져나오기 ────────────────────────────────────────
   //   "저장은 누가 해?"(Irene) — 둘이 같이 고치면 **나중에 저장한 사람 내용이 남는다**.
@@ -982,8 +1019,17 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (!editSnapshotRef.current) return;   // 편집 진입 스냅샷 전에는 발화 금지(초기 세팅이 dirty 로 잡히지 않게)
     // 마지막 저장분이 있으면 그것과 비교한다 — 없으면(아직 한 번도 저장 안 함) 진입 스냅샷과 비교.
     const snap = lastSavedRef.current || editSnapshotRef.current;
+    // ★ 본문은 **사람이 건드린 뒤에만** 변경으로 센다.
+    //   에디터는 마운트하면서 스키마 기본값(TextAlign 의 textAlign:null 등)을 붙여 한 번 emit 하는데,
+    //   그 emit 은 기준선(editSnapshotRef)이 잡히기 **전에** 온다(자식 effect 가 부모보다 먼저 돈다 — 실측
+    //   `[pq-change] snap=false`). 그래서 기준선은 서버 값(정규화 전)으로 잡히고 draft 는 정규화 뒤 값이라
+    //   **열자마자 영원히 "바뀐 것"** 이 된다. 결과: 편집 버튼만 눌러도 자동저장이 나가 옛 글의 수정일이
+    //   오늘로 바뀌고 목록 맨 위로 올라온다 (Irene 2026-09-05, 운영 post #44 — 저장본과의 차이가
+    //   attrs:{textAlign:null} 하나뿐이었다).
+    //   본문을 정말로 바꾸려면 에디터에 들어가야 하고(툴바 명령도 chain().focus() 로 포커스를 잡는다),
+    //   그 순간 handleContentChange 가 fromUser 로 표시한다.
     const changed = titleDraft !== snap.title
-      || JSON.stringify(contentDraft ?? null) !== JSON.stringify(snap.content ?? null)
+      || (contentTouchedRef.current && JSON.stringify(contentDraft ?? null) !== JSON.stringify(snap.content ?? null))
       || categoryDraft !== snap.category
       // 워크스페이스 화면에서만 프로젝트를 고를 수 있다 — 프로젝트 화면은 값이 고정이라 비교 대상이 아니다
       || (scope.type === 'workspace' && projectDraft !== snap.projectId);
@@ -1480,10 +1526,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                           워크스페이스 목록(RowPreview)과 같은 정보량으로 맞춘다 — 본문 두 줄 + 작성자. */}
                       {r.content_preview && <CardPreview>{r.content_preview}</CardPreview>}
                       <AtCardMeta>
-                        <span>{formatDate(r.updated_at)}</span>
+                        <span>{listDate(r)}</span>
                         {r.author?.name && <CardAuthor>{r.author.name}</CardAuthor>}
                         {r.category && <CategoryMini>#{r.category}</CategoryMini>}
-                        <RowVisChip $level={(r.vlevel as string) || 'L3'}>{visLabel(r.vlevel)}</RowVisChip>
+                        <RowVisChip $level={(r.vlevel as string) || ''}>{visLabel(r.vlevel)}</RowVisChip>
                       </AtCardMeta>
                     </AtCard>
                   ))}
@@ -1734,13 +1780,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 <RowMeta>
                   <span>{displayName(r.author, i18n.language) || '—'}</span>
                   <span>·</span>
-                  <span>{formatDate(r.updated_at)}</span>
+                  <span>{listDate(r)}</span>
                   {r.category && <CategoryMini>#{r.category}</CategoryMini>}
                   {r.project && (
                     <ProjectTag $color={r.project.color || '#14B8A6'}>{r.project.name}</ProjectTag>
                   )}
                   {/* N+72 — 리스트 행 공유 범위 표시 (사용자 호소) */}
-                  <RowVisChip $level={(r.vlevel as string) || 'L3'}>
+                  <RowVisChip $level={(r.vlevel as string) || ''}>
                     {visLabel(r.vlevel)}
                   </RowVisChip>
                   {r.share_token && <ShareMini title={t('share.publicHint', '공개 링크가 활성화됨') as string}>🔗</ShareMini>}
@@ -1772,6 +1818,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   maxLength={200}
                 />
               </TitleRow>
+            </PanelHeader>
+            {/* 편집 모드도 같은 두 밴드로 — 보기↔편집을 오갈 때 가로 실선이 위아래로 튀지 않게. */}
+            <DetailActionBar $end>
               <EditActions>
                 {/* #252 임시저장 상태 — 성공은 뱃지만(토스트 금지, CLAUDE.md 자동저장 규칙).
                     실패·충돌은 반드시 눈에 보여야 한다 — 조용히 죽으면 저장된 줄 알고 창을 닫는다. */}
@@ -1825,7 +1874,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   </PrimaryBtn>
                 )}
               </EditActions>
-            </PanelHeader>
+            </DetailActionBar>
             <Body>
               <MetaRow>
                 {/* ★ 카테고리 입력은 width:100% 라 행을 통째로 먹었고, 그래서 혼자 한 줄을 차지했다
@@ -1905,7 +1954,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     {tableDescOpen && (
                       <PostEditor
                         value={contentDraft}
-                        onChange={setContentDraft}
+                        onChange={handleContentChange}
                         businessId={scope.businessId}
                         projectId={scopeProjectId}
                         placeholder={t('tableDescPlaceholder', '표에 대한 설명을 입력하세요 (선택)') as string}
@@ -1927,7 +1976,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   )}
                   {/* 툴바를 위 MetaRow 회색 구분선에 바로 붙인다(Body gap 16 상쇄) — 편집 상단 여백 제거(Irene) */}
                   <div className="pq-fullbleed" style={{ marginTop: -16 }}>
-                    <PostEditor value={contentDraft} onChange={setContentDraft} businessId={scope.businessId} projectId={scopeProjectId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
+                    <PostEditor value={contentDraft} onChange={handleContentChange} businessId={scope.businessId} projectId={scopeProjectId} placeholder={t('contentPlaceholder', '본문을 작성하세요…') as string} borderless />
                   </div>
                 </>
               )}
@@ -1987,82 +2036,101 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 )}
               </PanelSubTitle>
               </TitleRow>
-              <EditActions>
-                {/* N+72-7 — 30년차 UX 재구성. 공개=visibility, 공유=share (외부). 자주 안 쓰는 액션은 IconBtn + 툴팁. */}
-                {/* 공개 chip 은 헤더에서 제거 — 아래 MetaBar 로 단일화(중복 제거, Irene). 헤더는 제목+액션 전용. */}
-                {/* ★ 2026-08-24 (Irene: "편집을 할 수 없다") — 편집은 여기서 **가장 자주 쓰는 액션**인데
-                    아이콘만이라 눈에 띄지 않았다. 공유·서명 받기는 글자 버튼인데 편집만 아이콘이었다.
-                    글자 버튼으로 올리고 맨 앞에 둔다. */}
-                {/* 변경 기록 — "저장 버튼 없이 항상 저장" 의 안전망(되돌리기). 편집 권한자에게만 의미가 있다. */}
-                <IconBtn type="button" data-testid="post-history" onClick={() => setHistoryOpen(true)}
-                  title={t('history.title', '변경 기록') as string} aria-label={t('history.title', '변경 기록') as string}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" />
-                  </svg>
-                </IconBtn>
+            </PanelHeader>
+            {/* ★ 액션을 헤더에서 **내려** 제목 아래 한 줄로 (Irene 2026-09-05:
+                "서브헤더에 버튼이 너무 많아. 제목이 보이지도 않아. 좌측 검색창 가로라인 맞춰서 헤더 2줄로").
+                실측(1440px): 헤더 920px 중 액션이 534px 을 먹고 제목 칸은 304px — 33% 였다.
+                밴드 높이는 좌측 검색줄과 같다(12 + 36 + 8) — 좌우 밑줄이 같은 y 에서 이어진다.
+                자주 쓰는 셋(편집·공유·서명 받기)만 남기고 나머지는 ⋯ 로 접는다. 접힌 쪽은
+                아이콘 전용이라 hover 해야 알 수 있었던 것들이라, 글자 라벨이 붙어 오히려 읽힌다. */}
+            <DetailActionBar>
+              <ActionsMain>
                 <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
                   title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   {t('edit', '편집')}
                 </EditBtn>
-                {/* Primary 액션 — 자주 쓰는 것 */}
-                <PrimaryBtn type="button" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
+                <PrimaryBtn type="button" data-testid="post-share" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                   {t('share.button', '공유')}
                 </PrimaryBtn>
-                <SignBtn type="button" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
+                <SignBtn type="button" data-testid="post-sign" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                   {t('sign.button', '서명 받기')}
                 </SignBtn>
-                {/* 3) IconBtn + 툴팁 — 가끔 쓰는 것 */}
-                <IconBtn type="button" onClick={() => sendToKnowledge(detail)} title={t('actions.sendToKnowledge', 'Q info 로 보내기 — Cue 가 답변 시 참조') as string} aria-label={t('actions.sendToKnowledge', 'Q info 로 보내기') as string} disabled={knowledgeBusy}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>
-                </IconBtn>
-                <IconBtn type="button" onClick={() => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); }} title={t('actions.saveAsTemplate', '템플릿으로 저장 — 다음 새 글 작성 시 검색해서 사용') as string} aria-label={t('actions.saveAsTemplate', '템플릿으로 저장') as string}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
-                </IconBtn>
-                {/* 운영 #225 — 서버 PDF 생성(GET /api/posts/:id/pdf)과 프론트 헬퍼(downloadPostPdf)가 이미 있는데
-                    **호출부가 한 곳도 없어** 화면에는 window.print() 만 있었다. 완성된 기능이 도달하지 못한 경우. */}
-                <IconBtn type="button" disabled={pdfBusy}
-                  onClick={async () => {
-                    if (pdfBusy) return;            // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
-                    setPdfBusy(true); setError(null);
-                    try { await downloadPostPdf(detail.id, detail.title); }
-                    catch (e) {
-                      // 서버가 보낸 사유가 있으면 그대로, 없으면 이 동작의 문구로. (apiFetch 는 throw 하지 않으므로
-                      //  downloadPostPdf 안에서 res.ok 를 보고 던진 Error 가 여기로 온다.)
-                      const msg = (e as Error)?.message;
-                      setError(msg && !/^HTTP \d+$/.test(msg) ? msg : (t('actions.pdfError', 'PDF 생성 실패') as string));
-                    }
-                    finally { setPdfBusy(false); }
-                  }}
-                  title={t('actions.downloadPdf', 'PDF 로 내려받기') as string} aria-label={t('actions.downloadPdf', 'PDF 로 내려받기') as string}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                </IconBtn>
-                {/* #225 — 워드. "워드, pdf, 엑셀 … 기본적으로 다운로드" 중 없던 것이 워드였다.
-                    같은 본문을 같은 권한으로 형식만 바꿔 준다. */}
-                <IconBtn type="button" disabled={docxBusy}
-                  onClick={async () => {
-                    if (docxBusy) return;
-                    setDocxBusy(true); setError(null);
-                    try { await downloadPostDocx(detail.id, detail.title); }
-                    catch (e) {
-                      const msg = (e as Error)?.message;
-                      setError(msg && !/^HTTP \d+$/.test(msg) ? msg : (t('actions.docxError', '워드 파일 생성 실패') as string));
-                    }
-                    finally { setDocxBusy(false); }
-                  }}
-                  title={t('actions.downloadDocx', '워드(.docx) 로 내려받기') as string} aria-label={t('actions.downloadDocx', '워드로 내려받기') as string}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13l1.5 5L12 14l2.5 4L16 13"/></svg>
-                </IconBtn>
-                <IconBtn type="button" onClick={() => window.print()} title={t('actions.print', 'PDF / 인쇄 (저장하려면 ‘대상: PDF로 저장’ 선택)') as string} aria-label={t('actions.print', 'PDF / 인쇄') as string}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                </IconBtn>
-                <IconBtn type="button" onClick={() => setDeleteTarget(detail)} title={t('delete', '삭제') as string} aria-label={t('delete', '삭제') as string} style={{ color: '#DC2626' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </IconBtn>
-              </EditActions>
-            </PanelHeader>
+              </ActionsMain>
+              {/* 가끔 쓰는 것 — 글자 라벨을 달아 메뉴로. 순서는 쓰는 빈도 순, 삭제만 구분선 뒤. */}
+              <OverflowMenu
+                label={t('actions.more', { defaultValue: '더보기' }) as string}
+                data-testid="post-more"
+                items={[
+                  {
+                    key: 'history', testId: 'post-history',
+                    label: t('history.title', '변경 기록') as string,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>,
+                    onClick: () => setHistoryOpen(true),
+                  },
+                  {
+                    key: 'knowledge', testId: 'post-send-knowledge',
+                    label: t('actions.menuSendToKnowledge', { defaultValue: 'Q info 로 보내기' }) as string,
+                    disabled: knowledgeBusy,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>,
+                    onClick: () => sendToKnowledge(detail),
+                  },
+                  {
+                    key: 'template', testId: 'post-save-template',
+                    label: t('actions.saveAsTemplate', '템플릿으로 저장') as string,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>,
+                    onClick: () => { setSaveTplName(detail.title); setSaveTplDesc(''); setSaveTplError(null); setSaveTplOpen(true); },
+                  },
+                  {
+                    key: 'pdf', testId: 'post-download-pdf',
+                    label: t('actions.downloadPdf', 'PDF 다운로드') as string,
+                    disabled: pdfBusy,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+                    onClick: () => {
+                      if (pdfBusy) return;            // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
+                      setPdfBusy(true); setError(null);
+                      void downloadPostPdf(detail.id, detail.title)
+                        .catch((e: unknown) => {
+                          // 서버가 보낸 사유가 있으면 그대로, 없으면 이 동작의 문구로.
+                          const msg = (e as Error)?.message;
+                          setError(msg && !/^HTTP \d+$/.test(msg) ? msg : (t('actions.pdfError', 'PDF 생성 실패') as string));
+                        })
+                        .finally(() => setPdfBusy(false));
+                    },
+                  },
+                  {
+                    key: 'docx', testId: 'post-download-docx',
+                    label: t('actions.menuDownloadDocx', { defaultValue: '워드로 내려받기' }) as string,
+                    disabled: docxBusy,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13l1.5 5L12 14l2.5 4L16 13"/></svg>,
+                    onClick: () => {
+                      if (docxBusy) return;
+                      setDocxBusy(true); setError(null);
+                      void downloadPostDocx(detail.id, detail.title)
+                        .catch((e: unknown) => {
+                          const msg = (e as Error)?.message;
+                          setError(msg && !/^HTTP \d+$/.test(msg) ? msg : (t('actions.docxError', '워드 파일 생성 실패') as string));
+                        })
+                        .finally(() => setDocxBusy(false));
+                    },
+                  },
+                  {
+                    key: 'print', testId: 'post-print',
+                    label: t('actions.menuPrint', { defaultValue: '인쇄' }) as string,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+                    onClick: () => window.print(),
+                  },
+                  {
+                    key: 'delete', testId: 'post-delete', dividerBefore: true, danger: true,
+                    label: t('delete', '삭제') as string,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+                    onClick: () => setDeleteTarget(detail),
+                  },
+                ]}
+              />
+            </DetailActionBar>
             <Body>
               <ViewMeta>
                 <MetaLeft>
@@ -2107,6 +2175,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 <SecurityLevelBadge level={detail.security_level} />
                 </MetaRight>
               </ViewMeta>
+              {/* ★ 보기 모드에는 오류 자리가 아예 없었다 — PDF·워드 생성 실패가 setError 로만 남고
+                  화면에는 아무 말도 안 나왔다(조용한 실패). 편집 모드와 같은 자리를 준다. */}
+              {error && <ErrorBar>{error}</ErrorBar>}
+              {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
               {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}
               {/* 운영 #338 — 긴 문서의 목차. 본문에서 파생하므로 옛 문서에서도 바로 뜬다.
                   제목이 2개 미만이면 스스로 아무것도 그리지 않는다. 인쇄에는 넣지 않는다
@@ -2619,12 +2691,6 @@ const TplSearchInput = styled.input`
   &:focus{outline:none;border-color:#14B8A6;}
   &::placeholder{color:#94A3B8;}
 `;
-const IconBtn = styled.button`
-  width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
-  background:#FFF;border:1px solid #E2E8F0;border-radius:8px;color:#475569;cursor:pointer;transition:border-color 0.15s,color 0.15s;
-  &:hover{border-color:#14B8A6;color:#0F766E;}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
-`;
 const PinDot = styled.span`
   display:inline-block;width:6px;height:6px;border-radius:50%;background:#F43F5E;margin-right:6px;flex:0 0 auto;
 `;
@@ -2787,8 +2853,9 @@ const RowVisChip = styled.span<{ $level: string }>`
   display: inline-flex; align-items: center;
   padding: 1px 7px; border-radius: 8px;
   font-size: 0.625rem; font-weight: 600;
-  background: ${p => p.$level === 'L1' ? '#F1F5F9' : p.$level === 'L2' ? '#FEF3C7' : p.$level === 'L4' ? '#FCE7F3' : '#CCFBF1'};
-  color: ${p => p.$level === 'L1' ? '#475569' : p.$level === 'L2' ? '#92400E' : p.$level === 'L4' ? '#9F1239' : '#0F766E'};
+  /* 알 수 없는 값(빈 값·새 등급)은 워크스페이스 색으로 칠하지 않는다 — 넓은 쪽으로 오해된다. */
+  background: ${p => p.$level === 'L1' ? '#F1F5F9' : p.$level === 'L2' ? '#FEF3C7' : p.$level === 'L4' ? '#FCE7F3' : p.$level === 'L3' ? '#CCFBF1' : '#FEE2E2'};
+  color: ${p => p.$level === 'L1' ? '#475569' : p.$level === 'L2' ? '#92400E' : p.$level === 'L4' ? '#9F1239' : p.$level === 'L3' ? '#0F766E' : '#B91C1C'};
 `;
 // N+72-7 — 본문↔표 사이 시각 간격 (사용자 호소 "들러붙어 보기 안좋아")
 const SectionGap = styled.div`
@@ -2867,6 +2934,32 @@ const TitleInput = styled.input`
 const EditActions = styled.div`
   display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
   @media (max-width: 640px) { gap: 6px; }
+`;
+// 상세 액션 줄 — 제목(PanelHeader 60px) **아래** 한 줄. (Irene 2026-09-05 "헤더 2줄로")
+//   ★ 세로 밴드를 좌측 리스트의 검색줄(SearchWrap: padding 12/8 + SearchBox 36px)과 **같게** 둔다.
+//     그래야 좌우의 옅은 밑줄이 같은 y 에서 이어진다 — 헤더 60px 정렬 계약과 같은 이유다.
+//     숫자를 바꾸려면 SearchWrap 과 함께 바꿔야 한다(한쪽만 바꾸면 선이 어긋난다).
+const DetailActionBar = styled.div<{ $end?: boolean }>`
+  box-sizing: border-box;
+  /* 12(위) + 36(SearchBox) + 8(아래) + 1(밑줄) = 57. 실측으로 맞춘 값 —
+     border-box 라 밑줄 1px 이 높이에 포함된다. 56 으로 두면 좌측 줄보다 1px 위에 선다. */
+  min-height: 57px;
+  padding: 12px 20px 8px;
+  border-bottom: 1px solid #F1F5F9;
+  background: #FFFFFF;
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  justify-content: ${p => (p.$end ? 'flex-end' : 'space-between')};
+  @media (max-width: 640px) {
+    padding: 10px 14px 8px;
+    gap: 6px;
+  }
+`;
+// 자주 쓰는 액션 — 본문 시작선에 맞춰 왼쪽에 둔다.
+//   버튼 높이는 이 줄에서 토큰 표준 36 으로 통일한다(좌측 검색 박스와 같은 높이 → 한 줄로 선다).
+const ActionsMain = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
+  > button { height: 36px; }
 `;
 // #252 임시저장 상태 표시 — AutoSaveField 의 뱃지 톤과 동일 (성공 회색 ✓ / 실패 붉은 !).
 const AutoSaveMark = styled.span<{ $tone: 'ok' | 'err' }>`

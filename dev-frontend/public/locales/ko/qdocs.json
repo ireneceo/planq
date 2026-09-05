@@ -210,7 +210,11 @@
     "sendToKnowledgeOk": "Q info 에 추가됐습니다 — 인덱싱 후 Cue 답변에 활용됩니다",
     "sendToKnowledgeErr": "추가 실패: {{msg}}",
     "downloadDocx": "워드(.docx) 로 내려받기",
-    "docxError": "워드 파일 생성 실패"
+    "docxError": "워드 파일 생성 실패",
+    "more": "더보기",
+    "menuSendToKnowledge": "Q info 로 보내기",
+    "menuDownloadDocx": "워드로 내려받기",
+    "menuPrint": "인쇄"
   },
   "project": {
     "docs": {
@@ -429,7 +433,8 @@
     "L1": "나만",
     "L2": "팀",
     "L3": "워크스페이스",
-    "L4": "외부"
+    "L4": "외부",
+    "unknown": "확인 필요"
   },
   "kind": {
     "label": "문서 형태",
@@ -621,7 +626,8 @@
     "empty": "아직 작성된 문서가 없습니다",
     "createFirst": "첫 문서 작성",
     "noContent": "내용 없음",
-    "loading": "로드 중..."
+    "loading": "로드 중...",
+    "editedAt": "수정 {{date}}"
   },
   "filepicker": {
     "attachTitle": "첨부할 파일 선택"

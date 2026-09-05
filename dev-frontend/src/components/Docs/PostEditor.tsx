@@ -46,7 +46,9 @@ const PqCodeBlock = CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'pl
 
 interface Props {
   value: unknown | null;         // Tiptap JSON
-  onChange: (json: unknown) => void;
+  /** meta.fromUser=false 면 **사용자 입력이 아니다** — 에디터가 붙인 기본 attrs(예: TextAlign 의
+   *  textAlign:null) 때문에 나는 emit 이다. 이걸 변경으로 세면 열기만 해도 저장이 나간다. */
+  onChange: (json: unknown, meta?: { fromUser: boolean }) => void;
   placeholder?: string;
   editable?: boolean;
   businessId?: number;           // 사이클 N+9 — 이미지 업로드 시 File 테이블 등록용
@@ -141,7 +143,8 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
     ],
     content: value as any,
     editable,
-    onUpdate: ({ editor }) => onChange(editor.getJSON()),
+    // ★ 포커스가 없으면 사람이 친 것일 수 없다 — 마운트 직후 스키마 정규화로 나는 emit 이다.
+    onUpdate: ({ editor }) => onChange(editor.getJSON(), { fromUser: editor.isFocused }),
     editorProps: {
       handlePaste: (view, event) => {
         // ★ #337 — 엑셀·구글시트·웹 표를 복사하면 클립보드에 **표(text/html)와 그림(image/png)이 같이** 담긴다.

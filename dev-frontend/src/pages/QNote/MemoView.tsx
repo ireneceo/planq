@@ -384,7 +384,9 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           {/* #127 — 풀블리드: 외곽 박스 제거하고 편집기가 영역 전체를 차지 */}
           <PostEditor
             value={doc}
-            onChange={(next) => { dirtyRef.current = true; setDoc(next); }}
+            /* ★ 에디터가 마운트하며 붙이는 기본 attrs 는 입력이 아니다 — 그걸 dirty 로 세면
+               열어보기만 해도 저장이 나가 수정일이 오늘로 바뀐다 (Q docs 와 같은 사고). */
+            onChange={(next, meta) => { if (meta?.fromUser) dirtyRef.current = true; setDoc(next); }}
             placeholder={t('memoPopup.bodyPlaceholder') as string}
             editable
             businessId={businessId}
