@@ -1,122 +1,109 @@
 # PlanQ 세션 상태
 
-**마지막 업데이트:** 2026-09-05 15:50 UTC
-**작업 상태:** 완료 (`/개발완료` 처리) · 운영 배포 5회 · 가드 3축 통과 · Fable 게이트 4회
-**최근 커밋:** `b0c0fef2` (푸시 완료) · 백업 `/opt/planq/backups/dev-daily/20260905/`
+**마지막 업데이트:** 2026-09-05 21:30 UTC
+**작업 상태:** 완료 (`/개발완료`) · **운영 배포 아직 안 함** · 가드 3축 통과 · Fable 게이트 6회
+**최근 커밋:** `17d313ad` (게스트 2차) · `ab2c22f0` (결과물·일정) · 그 앞 `97b2445f`·`aebd3bc7`·`ba009a7a`
 
 ---
 
-## ⚠️ 미완 — Fable 사후 게이트 (한도로 못 돌았다)
+## 🚚 다음 세션에서 **가장 먼저** 할 것 — 배포
 
-오늘 배포분 중 **두 커밋이 Fable 게이트를 안 거쳤다**(제 자체 검증만):
-- `05ba5d9f` AI 시드 보존 · `784017ef` 랜딩·파일·메모(zip·열기 버튼·메모 헛저장)
+**미배포 커밋 5건.** 특히 `97b2445f`(일정 알림)는 **Fable FAIL 판정을 받은 그 커밋**이라
+반드시 `ab2c22f0` 과 **같이** 나가야 한다 — 따로 배포하면 교차 테넌트 유출이 운영에 올라간다.
 
-사후 게이트를 걸었으나 **Fable 세션 한도(429)로 중단**(16:20 UTC 이후 재시도 가능).
-게이트 지문 검사는 **커밋 뒤라 초록**이다 — "변경 없음" 은 "검증했음" 이 아니다.
+```
+ba009a7a  게스트 2차 백엔드
+aebd3bc7  guest_project.js 분리
+97b2445f  일정 알림 (← FAIL, ab2c22f0 이 고침)
+ab2c22f0  결과물 버전 재설계 + 일정 알림 F1~F5 수정
+17d313ad  게스트 2차 화면 (문서·파일 탭 · auth-check)
+```
 
-**다음 세션에서 먼저 할 것:** `/fable-검증` 으로 위 두 커밋 사후 게이트.
+배포 시 함께:
+- **운영 위키 반영** — `ssh …prod "cd /opt/planq/backend && node seed-wiki-content.js"`
+  (`event-reminders` 아티클 신규 + `confirm-review` 갱신)
+- 스키마 변경 **없음** — 마이그레이션 불필요
+- 배포 직후 **운영 옛 프론트 청크 정리**(32,826개 / 571MB). rsync 가 mtime 을 새로 찍어
+  날짜로는 못 지운다 — 현재 index.html 이 참조하는 집합 기준으로 정리할 것
 
-기다리는 동안 **내가 직접 반증한 것**(Fable 게이트를 대체하지 않는다 — 오늘 내 검증이 이미 한 번
-거짓 통과했다. 다만 같은 항목을 두 번 재는 낭비는 줄이라고 남긴다):
+---
 
-| 반증 | 방법 | 결과 |
+## ⏭ 다음 섹션 작업 (Irene 지시)
+
+### 1. Q docs 상세를 **두 밴드**로 (Irene 2026-09-05, 설계 확정·미구현)
+> *"제목은 다 나와야겠다. ⋯ 이 점점점 메뉴만 위로 올리면 어때? 그리고 2, 3째줄 한줄로 맞추고
+> 버튼들은 우측 정렬이 맞겠는데."*
+
+**설계는 `CLAUDE.md` 페이지 레이아웃 표준 3) 아래에 표로 박아 두었다.** 요지:
+
+| 밴드 | 왼쪽 | 오른쪽 |
 |---|---|---|
-| 메모 **툴바 전용 편집**(오늘 유실과 같은 계열) | `page.mouse.click` 진짜 마우스 | ✅ DOM 변경 + **서버에 bulletList 저장** |
-| 메모 열기만 / 다른 메모로 이동 후 방치 | 쓰기 요청 카운트 | ✅ 둘 다 **0건**(헛저장 없음) |
-| zip **손상·zip 아님·빈 파일** | 3종 픽스처 업로드 후 실화면 | ✅ 각각 **"왜 못 읽는지"** 표시 · pageerror 0 |
-| zip **CP949 한글 파일명** | UTF-8 플래그 없는 zip 직접 생성 | ✅ 이름 안 깨지고 목록 표시 |
-| "열기" 술어가 서버와 갈라졌나 | 서버 `isSafeInline` 과 프론트 `canOpenInNewTab` 을 **같은 입력 17종**으로 대조 | ✅ **17/17 일치**(확장자와 mime 이 어긋난 업로드 2종 포함) · Drive 는 외부 뷰어 |
-| AI 시드 보존 / 빈 문서·템플릿 대조군 | 실브라우저(AI 응답만 가로챔) | ✅ 남음(draft) / 안 쌓임 |
+| 헤더 60px | 제목(**자르지 않는다**) | **⋯ 하나만** |
+| 메타 한 줄 | 작성자·날짜·분류·프로젝트 | 공개칩·공유·보안 + **[편집][공유][서명받기]** |
 
-**Fable 이 아직 안 본 것:** zip64·20MB 상한 실측 · `/app` 페이지가 안드로이드에서 보여주는
-빈 상태 문구가 정직한지 · 팝업 차단 시 다운로드 폴백 · 로그인/회원가입 홈 링크의 폰 폭 동작.
+- 실측 근거(1440px, 밴드 920px): 액션 254px(편집 71·공유 69·서명 98·⋯ 36).
+  전부 올리면 제목 몫 640px, **⋯ 만 올리면 872px**.
+- `DetailActionBar` 밴드는 없어진다. **보기·편집 두 모드를 같이** 바꿔야 한다(한쪽만 두 밴드면
+  모드 전환 때 가로 실선이 튄다). 편집 모드는 header(제목 입력) + MetaRow 우측에 저장 버튼.
+- 폰 390px 에서는 버튼 묶음이 메타 아래로 감기게 둔다.
+- ⚠️ 이번 세션에 절반 적용했다가 **되돌렸다**. 다시 할 때 `PostsPage.tsx` 의
+  `DetailActionBar`(보기 2043 부근 · 편집 1827 부근) 두 곳을 함께 본다.
 
----
+### 2. `auth-check` 를 부르는 화면이 **0곳** (Fable 지적)
+라우트(`routes/guest_auth.js`)만 들어갔다. 설계 §4.2 의 [로그인] / [계정 요청하기] /
+"앱에서 열기" 배너가 아직 없다 — 로그인한 사람이 링크를 눌러도 무인증 화면에 갇힌다.
+"만드는 링크 5곳, 읽는 곳 0곳" 계열이므로 다음 절단면에서 반드시 붙인다.
 
-## ⛳ 다음 세션 지시 (Irene, 2026-09-05)
+### 3. **닫힌 프로젝트의 기존 링크** 정책 — Irene 결정 필요
+"닫으면 발급은 막는다" 는 들어가 있다(409 `project_closed`). 이미 나가 있는 링크까지
+죽일지는 **고객 쪽에 보이는 동작이 달라져서** 확인이 필요하다.
 
-> **"다음 섹션에 Q sale 빼고 다 해. 제발 그만 남겨."**
-
-**Q Sale(#381·#382)만 빼고 남은 것 전부 끝낸다.** 순서:
-
-1. **외부 프로젝트 열람 링크 2차** — 문서·파일 탭 + 보안등급 잠금 + `auth-check`.
-   설계 `docs/PROJECT_EXTERNAL_VIEW_DESIGN.md` §8 두 번째 줄이 그대로 범위다(§12-Q1 승인 완료).
-   **무인증으로 문서 본문이 처음 나가는 지점 → 별도 Fable 게이트**(양성·음성 대조군 필수, §10).
-   Fable 이 1차 게이트에서 남긴 2차 숙제 둘:
-   - 계정 요청 배너를 프로젝트 화면에도 붙일 것(문서 잠금 시트가 같은 `account-request` 라우트를 쓴다)
-   - **닫힌 프로젝트의 *기존* 링크를 계속 열어둘지** 정책 결정("closed 면 발급도 막는다" 와 짝 맞추기)
-   - 승인 조건이던 **헤더 globe 칩**(§7.3)은 1차에서 teal 점으로 넣었다 — 2차에서 문구까지 확인
-2. **#259 답글** — 1차가 배포됐는데 신고 장부에 답글 0건. 답 없이 닫지 않는다(닫으려면 답이 먼저).
-3. **운영 옛 프론트 청크 정리** — 16,000여 개 누적. 위험 낮음(디스크).
-4. (남으면) 안드로이드 스토어 주소가 오면 `platform_settings.app_android_url` 반영.
+### 4. Q Sale (#381 · #382) — Irene 이 이번 범위에서 **제외**
+#381 본문에 "이걸 Q sale 이라고 할까?" 라고 직접 쓰여 있다. 운영 미처리 신고 3건 중 2건이 이것.
 
 ---
 
-## 이번 세션에 완료한 것 (배포 5회)
+## 이번 세션에 한 것
 
 | 커밋 | 내용 | Fable |
 |---|---|---|
-| `9a6062ae` | Q docs 상세 **헤더 2줄** + ⋯ 메뉴 · 자동저장 억제 · 목록 날짜 이름 · 공개범위 기본값 | FAIL(유실) |
-| `70bdd775` | **유실 회귀 긴급 수정** — 툴바로만 한 편집이 사라졌다 | **PASS** 15/15 |
-| `05ba5d9f` | AI 가 써 준 글이 손대지 않으면 사라지던 것 | 사후 게이트 |
-| `784017ef` | 로그인→홈 링크 · 랜딩 **앱 다운로드** · **zip 목록** · **새 탭에서 열기** · svg 폴백 · 메모 헛저장 | 사후 게이트 |
-| `c13156ca`→`395c53d5` | **#259 외부 프로젝트 열람 링크 1차** (FAIL 1 수정 포함) | FAIL → **PASS** |
+| `ab2c22f0` | 결과물 버전 재설계 · 일정 알림 F1~F5 · 가드 신규 | **5회(FAIL 4 → PASS)** |
+| `17d313ad` | 게스트 문서·파일 탭 · 본문 렌더러 공용화 · auth-check | **PASS**(보안 게이트) |
 
-**운영 ALTER 적용됨** — `guest_links.scope` ENUM 기본값 `conversation`(기존 링크 1건 그대로).
-배포 **전에** 멱등 스크립트로 적용했다 — 코드가 먼저 뜨면 컬럼이 없어 500 이 난다.
-**운영 위키 갱신** — `project-external-view-link` 아티클 추가(ko/en), `seed-wiki-content.js` 운영 실행 완료.
+### 결과물 버전 재설계
+- 상태로 편집/읽기를 가른다(편집 = not_started·waiting·in_progress·revision_requested·on_hold).
+  판정은 `services/taskTransition.canEditBodyInStatus` **한 곳** — PUT 라우트와 되돌리기가 같이 부른다.
+- 제출 시 **에디터의 현재 본문을 같이 보낸다**(자동저장 2초 debounce 와 경합해 마지막 타이핑이 빠졌다).
+- 회차 번호 = 박제 목록 `max+1` **단일 공식**. 화면은 **모르는 번호를 말하지 않는다**.
 
----
+### 일정 알림 (앞 커밋의 Fable FAIL 5건)
+- 교차 테넌트 유출 · 오늘의 리뷰 L1 노출 · 종일 당일 알림 미발송 · 중복 두 줄 · 평문 메모 빈 칸.
+- `filterWorkspaceMemberIds` 를 쓰기 2곳·크론 1곳이 지난다(**owner_id-only owner fallback 필수** —
+  안 넣으면 생성자가 걸러져 알림이 0건이 된다).
 
-## 이번 세션의 사고 둘 — 둘 다 내가 냈고 Fable 이 잡았다
-
-### ① 판정하려다 데이터를 잃었다 (`84df5200` → `70bdd775`)
-`editor.isFocused` 로 "사람이 친 것" 을 가렸는데, TipTap 의 `focus()` 는 rAF 로 지연된다.
-툴바 mousedown 이 blur 시킨 뒤 명령이 동기 dispatch → `onUpdate` 시점 `isFocused === false` →
-**툴바로만 한 편집이 전부 유실.** 기존 문서 편집엔 저장 버튼이 없어 복구 경로도 없었다.
-내 검증이 통과한 이유: `element.click()` 합성 클릭은 **mousedown 이 없다.**
-→ 판정을 없앴다. 비교는 언제나 하고 **기준선만** 바로잡는다(안 고친 본문의 두 표현 중 어느 쪽과 같아도 "안 고침", 첫 저장 전까지).
-
-### ② 복사한 판정이 죽은 코드가 됐다 (`c13156ca` → `395c53d5`)
-발급 fail-closed 3종을 복사했더니 프로젝트 쪽에서 "보관된 방" 분기가 **한 번도 실행되지 않았다** —
-채널 조회가 보관된 방을 안 봐서 판정에 도달하지 못했다. 결과: 닫은 프로젝트에 **201 + 고객채널 복제**.
-→ 판정을 한 함수로(두 라우트가 같은 것을 부른다) · 채널 조회가 보관까지 · 닫힌 프로젝트는 생성 전에 409.
-
-> 박제: `feedback_synthetic_click_has_no_mousedown` ·
-> `feedback_dont_judge_user_input_fix_the_baseline` · `feedback_comment_lies_predicate_drifts`(2번째 사례)
+### 이번 세션에 드러난 잠복 버그 (신고 없이 발견)
+- `today_review.js` 가 `updated_at`(속성명은 `updatedAt`)을 읽어 **undefined** → `at` 이 Invalid Date →
+  정렬 뒤로 밀려 **일정 변경이 상위 12건에서 통째로 잘려나갔다.**
+- `RichEditor` 의 `editable` 이 useEditor 초기화 때만 읽혀 **readOnly 변경이 반영되지 않았다.**
+- 근태 감사 기록이 `AuditLog.create` 를 직접 불러 `retain_until` 이 안 붙었다(헬스체크가 잡음).
 
 ---
 
-## Irene 몫으로 남은 것
+## 반복된 실패 — 다음 세션이 같은 것을 하지 않도록
 
-- **안드로이드 앱 다운로드가 아직 안 된다** — 운영 `platform_settings.app_android_url` 이 **null**.
-  Play 프로덕션(또는 공개 테스트) 승격 후 `https://play.google.com/store/apps/details?id=app.planq` 를
-  주면 관리자 설정에 넣는다. 상단 메뉴 "앱 다운로드" 진입로는 이미 운영에 나가 있다.
-- **iOS 배포 범위** — TestFlight 유지 vs App Store 정식
-- **"문서가 갑자기 워크스페이스 공개로 되어 있다" 는 어느 화면이었나** — 운영 `posts#44` 는
-  `vlevel='L1'` 그대로이고 목록·상세·모달 모두 "나만" 으로 나온다(재현 실패). 라벨 기본값을
-  '확인 필요' 로 바꿔 두었으니, 등급이 빠지는 경로였다면 이제 그렇게 드러난다.
-- (참고) 운영 `posts#44` 의 수정일은 8/5 23:54 로 되돌려 두었다. 변경 기록의 오늘자 v1 은 남아 있다 —
-  지울지는 미결.
+**Fable FAIL 4건이 전부 "화면이 말하는 회차 번호" 한 뿌리였다.** 매번 다른 경로였다:
+되돌리기 직후 → 워크플로 액션 뒤 → 목록 조회 실패 시. 근본은 **근사치를 쓴 것**이었고,
+근사를 없애고 "모르면 말하지 않는다" 로 바꾼 뒤에야 끝났다.
 
----
+**내 측정이 이번에도 여러 번 거짓말했다** (전부 코드가 아니라 검사가 틀림):
+- 픽스처를 **UTC 날짜**로 잡아 KST 기준 "어제" 에 심어 놓고 "차단됨" 으로 읽음
+- 응답 경로를 추측(`data.today_events`)해서 읽음 — 실제로는 `data.blocks.today_events`
+- 파일 잠금 규약을 잘못 기억해 멀쩡한 코드를 실패로 판정
+- **무인증 화면은 브라우저 언어(en)를 따르는데** 한국어 문구를 찾음
+- 링크·문서 행 모양을 **지어내서** 만듦 → 실제 발급 API·문자열 컬럼(`content_json`)이 정답
 
-## 이번 세션에 만진 주요 파일
-
-**백엔드** `routes/{guest,guest_admin,projects}.js` · `services/{guest_link,project_channel}.js` ·
-`models/GuestLink.js` · `scripts/migrate-guest-link-scope.js`(신규) · `seed-wiki-content.js`
-
-**프론트** `components/Docs/{PostsPage,PostEditor}.tsx` · `components/Common/OverflowMenu.tsx`(신규) ·
-`components/QTalk/GuestLinkButton.tsx` · `components/Landing/LandingLayout.tsx` ·
-`pages/Guest/{GuestConversationPage,GuestChatPanel,GuestProjectPage}.tsx`(뒤 둘 신규) ·
-`pages/QProject/{DocsTab,ProjectShareLinkButton,QProjectDetailPage}.tsx` · `pages/QProject/docs/PreviewArea.tsx` ·
-`pages/QNote/MemoView.tsx` · `pages/Login/LoginPage.tsx` · `pages/Register/RegisterPage.tsx` ·
-`utils/zipList.ts`(신규) · `services/files.ts` · `public/robots.txt` · locales ko/en
-
-**문서** `CLAUDE.md`(상세 액션 줄 표준 · guest_links.scope) · `dev-frontend/UI_DESIGN_GUIDE.md` §2.3 ·
-`docs/FILE_SYSTEM_DESIGN.md` §7.0(미리보기·열기 매트릭스) · `DEVELOPMENT_PLAN.md` ·
-`docs/dev-status/next.json` · `scripts/schema-snapshot.json` ·
-`dev-frontend/package.json`(빌드 heap 4096 → **5120**, tsc OOM. 8192 는 이 서버에서 abort)
+**작업 순서 사고 하나:** 감사 기록 1건을 고치려다 **과거 158행의 보관 스탬프를 함께 건드렸다.**
+152행을 NULL 로 되돌리고 실제 대상 1건만 남겼다(dev DB).
 
 ---
 

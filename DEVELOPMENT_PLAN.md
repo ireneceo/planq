@@ -2,6 +2,42 @@
 
 > **최종 업데이트:** 2026-09-05 (Opus 5, 1M) — **운영 배포 5회 · 커밋 8건** — 주제는 **"판정하려 들면 유실이 된다"** 였다. ①Q docs 상세 헤더가 액션 10개(534px)에 눌려 제목이 1440px 에서도 3분의 1만 썼다(1280px 에선 174px). 헤더를 두 밴드로 갈라 제목 줄과 액션 줄을 나누고, 액션 줄은 **좌측 검색줄과 같은 세로 밴드**로 맞춰 좌우 밑줄이 같은 y 에서 이어지게 했다(실측 247/247). 자주 쓰는 셋만 남기고 일곱은 ⋯ 로 접었다 — 접힌 것들은 아이콘 전용이라 hover 해야 뜻을 알던 것이라 글자 라벨이 붙어 오히려 읽힌다. ②**"예전에 쓴 글이 왜 오늘 글로 나오나"** 의 정체는 **편집 버튼만 눌러도 나가던 자동저장**이었다. 보낸 값과 저장본의 차이가 `attrs:{textAlign:null}` 하나뿐 — 정렬 확장(#363)이 붙인 기본값이다. ③**그 수정이 데이터 유실 회귀를 냈다.** "사람이 친 것만 저장" 을 `editor.isFocused` 로 판정했는데 TipTap 의 focus() 가 rAF 로 지연돼 **툴바로만 한 편집(글머리기호·표·굵게·이미지)이 전부 사라졌다.** 기존 문서 편집엔 저장 버튼이 없어 복구 경로도 없었다. **Fable 이 진짜 마우스 이벤트로 잡았고, 내 검증은 합성 click(mousedown 없음)이라 거짓 통과했다.** 판정을 없애고 기준선만 바로잡는 쪽으로 다시 냈다 — 틀려도 최악이 "안 바뀐 저장 한 번" 이지 유실이 아니다. ④AI 가 써 준 글이 손대지 않으면 사라지던 것도 Fable 지적으로 되돌렸다. 내 진단("헛저장 덕에 저장되던 것")이 틀렸다 — 시드는 HTML, emit 은 JSON 이라 이 경로는 늘 저장돼 왔다. ⑤공개 범위 라벨이 값을 모르면 '워크스페이스' 로 떨어지던 것을 '확인 필요' 로 바꿨다(넓은 쪽으로 오해되는 방향이었다).
 
+
+## ✅ 완료: 결과물 버전 재설계 · 일정 알림 정상화 · 외부 열람 링크 2차 (2026-09-05)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 결과물 버전 재설계 | 상태로 편집/읽기를 가르고, 완료 업무는 "수정본 작성하기(v{n+1})" 로 새 회차를 연다. 서버 가드 `body_locked` | ✅ |
+| 제출 시 본문 동봉 | 자동저장 debounce 와 경합해 **마지막 타이핑이 박제본에서 빠지던 것** | ✅ |
+| 회차 번호 단일 공식 | 박제 목록 `max+1`. `review_round` 로 구하면 되돌리기 백업과 겹쳐 v2 가 두 줄 | ✅ |
+| 모르는 번호는 안 말한다 | 목록을 못 읽었거나 실패하면 번호 없는 문구로. 근사치 제거 | ✅ |
+| 평문 메모 렌더 회귀 | `markdownToHtml` 은 마크다운이 아니면 null — 평문 사유가 빈 칸이었다 | ✅ |
+| RichEditor readOnly 반응 | `editable` 이 초기화 때만 읽혀 잠금 해제가 화면에 전달 안 됨 | ✅ |
+| 일정 알림 교차 테넌트 차단 | `target_member_ids` 무검증으로 **다른 워크스페이스 사용자에게 실제 발송**. 쓰기 2곳·크론 1곳이 한 함수를 지난다 | ✅ |
+| 오늘의 리뷰 L1 비노출 | 동료의 개인 일정이 남의 리뷰에 떴다 → 목록과 같은 술어 | ✅ |
+| 종일 "당일 아침" 알림 | 종일은 하루 유예 — `reminder_minutes<540` 이 전부 죽은 경로였다 | ✅ |
+| 일정 변경 목록 잠복 버그 | `updated_at` 이 undefined(속성명은 `updatedAt`) → 정렬 밀려 통째로 잘림 | ✅ |
+| 참석자 입력 · 알림 현지화 | 없으면 알림이 만든 사람에게만. 본문·버튼을 수신자 언어로 | ✅ |
+| 가드: 양쪽 다 없는 t() 키 | 기존 패리티는 ko↔en 상호 비교라 **둘 다 없는 키를 구조적으로 못 잡았다** | ✅ |
+| 외부 열람 링크 2차 | 문서·파일 탭 + 보안등급 잠금 + `auth-check`. 무인증 문서 본문 첫 노출 | ✅ |
+
+### 수정된 파일
+- 백엔드: `routes/{tasks,task_workflow,calendar,today_review,notifications,guest,guest_auth}.js` ·
+  `services/{taskTransition,calendarReminderCron,attendanceTransition}.js` ·
+  `services/actions/{task_actions,event_actions}.js` · `middleware/access_scope.js` · `seed-wiki-content.js`
+- 프론트: `components/QTask/{TaskDetailDrawer,DeliverableHistory}.tsx` · `components/Common/RichEditor.tsx` ·
+  `components/Docs/PostsPage.tsx` · `pages/Guest/{GuestProjectPage,GuestDocsTab,GuestFilesTab}.tsx` ·
+  `pages/QCalendar/{NewEventModal,EventDrawer,reminderOptions}.tsx` · `utils/postContentHtml.ts` · locales ko/en
+- 가드/문서: `scripts/guard-invariants.js` · `scripts/guards-baseline.json` · `CLAUDE.md`
+
+### Fable 게이트
+결과물·일정 **5회(FAIL 4 → PASS)** — 네 FAIL 모두 "화면이 말하는 회차 번호" 한 뿌리.
+게스트 2차 보안 게이트 **PASS** (설계 §10 전 13항목 실측).
+
+---
+
 ## ✅ 완료: #259 외부 프로젝트 열람 링크 1차 (2026-09-05 배포, Fable PASS)
 
 **주제: "복사한 판정은 한쪽에서 죽은 코드가 된다."**
