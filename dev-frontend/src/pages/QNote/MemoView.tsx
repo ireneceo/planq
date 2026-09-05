@@ -384,9 +384,11 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           {/* #127 — 풀블리드: 외곽 박스 제거하고 편집기가 영역 전체를 차지 */}
           <PostEditor
             value={doc}
-            /* ★ 에디터가 마운트하며 붙이는 기본 attrs 는 입력이 아니다 — 그걸 dirty 로 세면
-               열어보기만 해도 저장이 나가 수정일이 오늘로 바뀐다 (Q docs 와 같은 사고). */
-            onChange={(next, meta) => { if (meta?.fromUser) dirtyRef.current = true; setDoc(next); }}
+            /* ★ 여기서 "사람이 친 것만" 으로 거르지 말 것 — TipTap 의 focus() 는 rAF 로 지연돼
+               툴바 클릭이 isFocused=false 로 도착하고, 그 편집이 통째로 유실된다(2026-09-05 실측).
+               열기만 해도 한 번 저장되는 것은 Q docs 처럼 **기준선을 에디터 값으로 잡는 방식**으로
+               따로 고친다 — 유실보다 헛저장이 낫다. */
+            onChange={(next) => { dirtyRef.current = true; setDoc(next); }}
             placeholder={t('memoPopup.bodyPlaceholder') as string}
             editable
             businessId={businessId}

@@ -280,12 +280,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   payload 에만 넣고 여기서 빼면, 프로젝트를 골라도 '바뀐 것 없음'으로 판정돼
   //   요청이 아예 안 나간다(2026-09-03 실측: 선택 후 4초 대기, PUT 0건).
   const editSnapshotRef = useRef<{ title: string; content: unknown; category: string; projectId: number | null } | null>(null);
-  // 편집 진입 후 **사용자가 본문을 건드렸는가**. 에디터는 마운트되면서 스키마 기본값
-  //   (TextAlign 의 textAlign:null 등)을 붙여 한 번 emit 한다 — 그것은 입력이 아니다.
-  //   이 구분이 없으면 **편집 버튼만 눌러도 자동저장이 나가** 옛 글의 수정일이 오늘로 바뀐다
-  //   (Irene 2026-09-05: "아주 예전에 썼는데 왜 오늘 쓴 글로 나오지?" — 운영 post #44 실측:
-  //    보낸 값과 저장본의 차이가 attrs:{textAlign:null} **하나뿐**이었다).
-  const contentTouchedRef = useRef(false);
+  // 에디터가 마운트하며 붙이는 스키마 기본값(TextAlign 의 textAlign:null 등)으로 나는 첫 emit.
+  //   이 emit 은 **기준선(editSnapshotRef)이 잡히기 전에** 도착한다 — 자식 effect 가 부모보다
+  //   먼저 돌기 때문이다(실측). 그래서 여기 받아 두었다가 기준선을 이 값으로 잡는다.
+  //   기준선을 에디터의 렌즈로 재는 것이 핵심이다 — 사람의 입력 여부를 판정하지 않는다.
+  const pendingNormalizedRef = useRef<unknown>(null);
   // ★ 자동저장 발화 기준은 "마지막으로 서버에 쓴 값" 이어야 한다 (편집 진입 스냅샷이 아니라).
   //   진입 스냅샷만 보면, 한 글자만 고쳐도 그 뒤로 **영원히 changed=true** 라
   //   저장이 끝나 autoState 가 바뀔 때마다 effect 가 다시 2초 타이머를 걸어 **자동저장이 자기를 재예약**한다.
@@ -780,17 +779,19 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //        되돌리는 명시 PUT 이어야 한다(안 그러면 취소해도 남는다).
   useEffect(() => {
     if (mode === 'edit' || mode === 'new') {
+      // 기준선은 진입 시점의 draft. 에디터가 스키마 기본값을 붙여 내놓는 다른 표현은
+      //   pendingNormalizedRef 가 따로 들고 있다(둘 중 어느 쪽이 draft 에 남을지 순서가 보장되지 않는다).
       editSnapshotRef.current = { title: titleDraft, content: contentDraft, category: categoryDraft, projectId: projectDraft };
       lastSavedRef.current = null;
       baseUpdatedAtRef.current = detail?.updated_at ?? null;
       autoDraftIdRef.current = mode === 'new' ? null : (detail?.id ?? null);
       autoDirtyRef.current = false;
-      contentTouchedRef.current = false;
       setAutoState('idle');
       setAutoErr(null);
     } else {
       editSnapshotRef.current = null;
       lastSavedRef.current = null;
+      pendingNormalizedRef.current = null;
       autoDirtyRef.current = false;
     }
     // ★ deps 에 detail?.id 를 넣지 않는다 — 자동저장이 detail 을 갱신하면 세션이 리셋된다.
@@ -800,12 +801,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 본문 변경 수신 — 에디터의 **정규화 emit** 은 기준선으로 흡수하고 변경으로 세지 않는다.
   //   기준선을 서버 값(정규화 전)으로 잡으면 에디터의 렌즈와 달라 늘 "바뀐 것" 이 된다
   //   (memory feedback_measure_with_same_lens_as_code · feedback_system_filled_not_user_input).
-  const handleContentChange = useCallback((next: unknown, meta?: { fromUser?: boolean }) => {
-    if (meta?.fromUser) contentTouchedRef.current = true;
-    else if (!contentTouchedRef.current && editSnapshotRef.current) {
-      // 아직 사람이 손대기 전 — 이 값이 곧 "고치지 않은 상태" 다.
-      editSnapshotRef.current = { ...editSnapshotRef.current, content: next };
-    }
+  const handleContentChange = useCallback((next: unknown) => {
+    // 세션이 열리는 중(기준선 전)에 오는 값 = 에디터의 정규화본. **기준선의 또 다른 표현**으로 둔다.
+    //   기준선을 여기서 갈아치우지 않는다 — 그러면 진짜 편집이 "변경 없음" 이 되어 유실된다.
+    if (!editSnapshotRef.current) pendingNormalizedRef.current = next;
     setContentDraft(next);
   }, []);
 
@@ -1019,17 +1018,26 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (!editSnapshotRef.current) return;   // 편집 진입 스냅샷 전에는 발화 금지(초기 세팅이 dirty 로 잡히지 않게)
     // 마지막 저장분이 있으면 그것과 비교한다 — 없으면(아직 한 번도 저장 안 함) 진입 스냅샷과 비교.
     const snap = lastSavedRef.current || editSnapshotRef.current;
-    // ★ 본문은 **사람이 건드린 뒤에만** 변경으로 센다.
-    //   에디터는 마운트하면서 스키마 기본값(TextAlign 의 textAlign:null 등)을 붙여 한 번 emit 하는데,
-    //   그 emit 은 기준선(editSnapshotRef)이 잡히기 **전에** 온다(자식 effect 가 부모보다 먼저 돈다 — 실측
-    //   `[pq-change] snap=false`). 그래서 기준선은 서버 값(정규화 전)으로 잡히고 draft 는 정규화 뒤 값이라
-    //   **열자마자 영원히 "바뀐 것"** 이 된다. 결과: 편집 버튼만 눌러도 자동저장이 나가 옛 글의 수정일이
-    //   오늘로 바뀌고 목록 맨 위로 올라온다 (Irene 2026-09-05, 운영 post #44 — 저장본과의 차이가
-    //   attrs:{textAlign:null} 하나뿐이었다).
-    //   본문을 정말로 바꾸려면 에디터에 들어가야 하고(툴바 명령도 chain().focus() 로 포커스를 잡는다),
-    //   그 순간 handleContentChange 가 fromUser 로 표시한다.
+    // ★ 기준선은 **에디터가 내놓은 값**이어야 한다 (아래 pendingNormalizedRef 참조).
+    //   서버 값(정규화 전)으로 잡으면 에디터의 렌즈와 달라 열자마자 영원히 "바뀐 것" 이 되고,
+    //   편집 버튼만 눌러도 자동저장이 나가 옛 글의 수정일이 오늘로 바뀐다
+    //   (Irene 2026-09-05, 운영 문서 실측 — 차이가 attrs:{textAlign:null} 하나뿐이었다).
+    //   ★ 여기서 **변경을 세지 않는 조건을 걸면 안 된다.** 2026-09-05 실패 사례:
+    //   "사람이 포커스한 뒤에만" 으로 막았더니 TipTap 의 focus() 가 rAF 로 지연돼
+    //   툴바 클릭(글머리기호·표·굵게·이미지)이 전부 isFocused=false 로 도착했고,
+    //   그 편집이 통째로 유실됐다(Fable 실측). 기준선만 바로잡고 비교는 무조건 한다 —
+    //   틀려도 최악이 "안 바뀐 저장 한 번" 이지 유실이 아니다.
+    // 안 고친 본문에는 표현이 **둘** 있다: 서버가 준 값과, 에디터가 스키마 기본값을 붙여 내놓은 값.
+    //   둘 중 어느 쪽과 같아도 "고치지 않았다" 로 본다 — 어느 쪽이 draft 에 남을지는 진입 경로의
+    //   순서(startEdit 의 setContentDraft vs 에디터 마운트 emit)에 달려 있어 고정할 수 없다.
+    //   ★ 이 예외는 **첫 저장 전까지만** 쓴다. 한 번이라도 저장한 뒤에는 엄격 비교여야
+    //   "고쳤다가 되돌린" 것이 서버에 반영된다.
+    const draftJson = JSON.stringify(contentDraft ?? null);
+    const contentUnchanged = draftJson === JSON.stringify(snap.content ?? null)
+      || (lastSavedRef.current === null && pendingNormalizedRef.current !== null
+          && draftJson === JSON.stringify(pendingNormalizedRef.current));
     const changed = titleDraft !== snap.title
-      || (contentTouchedRef.current && JSON.stringify(contentDraft ?? null) !== JSON.stringify(snap.content ?? null))
+      || !contentUnchanged
       || categoryDraft !== snap.category
       // 워크스페이스 화면에서만 프로젝트를 고를 수 있다 — 프로젝트 화면은 값이 고정이라 비교 대상이 아니다
       || (scope.type === 'workspace' && projectDraft !== snap.projectId);

@@ -46,9 +46,7 @@ const PqCodeBlock = CodeBlockLowlight.configure({ lowlight, defaultLanguage: 'pl
 
 interface Props {
   value: unknown | null;         // Tiptap JSON
-  /** meta.fromUser=false 면 **사용자 입력이 아니다** — 에디터가 붙인 기본 attrs(예: TextAlign 의
-   *  textAlign:null) 때문에 나는 emit 이다. 이걸 변경으로 세면 열기만 해도 저장이 나간다. */
-  onChange: (json: unknown, meta?: { fromUser: boolean }) => void;
+  onChange: (json: unknown) => void;
   placeholder?: string;
   editable?: boolean;
   businessId?: number;           // 사이클 N+9 — 이미지 업로드 시 File 테이블 등록용
@@ -143,8 +141,10 @@ const PostEditor: React.FC<Props> = ({ value, onChange, placeholder, editable = 
     ],
     content: value as any,
     editable,
-    // ★ 포커스가 없으면 사람이 친 것일 수 없다 — 마운트 직후 스키마 정규화로 나는 emit 이다.
-    onUpdate: ({ editor }) => onChange(editor.getJSON(), { fromUser: editor.isFocused }),
+    // ★ `editor.isFocused` 로 "사람이 친 것" 을 가리려 하지 말 것 — TipTap 의 focus() 는
+    //   rAF 로 지연돼(@tiptap/core) 툴바 클릭이 isFocused=false 로 도착한다. 그것으로 거르면
+    //   툴바로만 한 편집이 통째로 유실된다(2026-09-05 Fable 실측, 데스크탑 Chrome/Firefox/Edge).
+    onUpdate: ({ editor }) => onChange(editor.getJSON()),
     editorProps: {
       handlePaste: (view, event) => {
         // ★ #337 — 엑셀·구글시트·웹 표를 복사하면 클립보드에 **표(text/html)와 그림(image/png)이 같이** 담긴다.
