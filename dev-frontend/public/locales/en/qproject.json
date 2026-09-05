@@ -827,6 +827,7 @@
     "errForbidden": "You do not have permission to create a share link for this project.",
     "errGeneric": "Could not prepare the client channel. Please try again shortly.",
     "projectLink": "External view link",
-    "projectLinkLead": "A link to view {{name}} progress and tasks — and ask questions — without signing in. Share it by chat or email."
+    "projectLinkLead": "A link to view {{name}} progress and tasks — and ask questions — without signing in. Share it by chat or email.",
+    "projectLinkLive": "External view link — currently open"
   }
 }

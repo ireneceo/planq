@@ -42,6 +42,9 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   const [fresh, setFresh] = useState<string | null>(null);   // 방금 발급된 원문 URL
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  // 문의 허용 — 기본 켬. 끄면 **읽기 전용 링크**다(설계 §5). 여태 화면에 없어서
+  //   열람 전용 링크를 만들 방법이 아예 없었다(2026-09-05 Fable 지적 D1).
+  const [canWrite, setCanWrite] = useState(true);
   // 서버가 거절한 이유를 화면이 말해야 한다. 여태 `if (!r.ok) return;` 이라 **눌러도 아무 일이
   //   안 일어났다** — 사용자에게는 "고장" 과 구별되지 않는다 (memory feedback_apifetch_no_throw_silent_save).
   const [err, setErr] = useState<string | null>(null);
@@ -62,10 +65,11 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     setBusy(true);
     try {
       const r = await apiFetch(api.issue, {
-        // 아무것도 보내지 않는다 — 고객은 서버가 **대화방에서** 읽는다.
+        // 고객(client_id)은 보내지 않는다 — 서버가 **대화방에서** 읽는다.
         //   요청 body 의 client_id 를 서버가 믿으면 테넌트 우회 통로가 된다.
+        //   보내는 것은 이 링크로 **문의까지 되게 할지**뿐이다.
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ can_write: canWrite }),
       });
       const j = await r.json().catch(() => ({} as { message?: string }));
       if (!r.ok) {
@@ -74,6 +78,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
           code === 'guest_links_disabled' ? t('guestLink.errDisabled', { defaultValue: '게스트 링크 기능이 꺼져 있습니다. 관리자에게 문의해 주세요.' }) as string
           : code === 'not_customer_channel' ? t('guestLink.errNotCustomer', { defaultValue: '고객 대화방에서만 만들 수 있습니다.' }) as string
           : code === 'conversation_archived' ? t('guestLink.errArchived', { defaultValue: '보관된 대화방에는 만들 수 없습니다.' }) as string
+          : code === 'project_closed' ? t('guestLink.errProjectClosed', { defaultValue: '완료된 프로젝트에는 만들 수 없습니다.' }) as string
           : t('guestLink.errGeneric', { defaultValue: '링크를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string,
         );
         return;
@@ -147,6 +152,16 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
           ) : (
             <>
               {err && <ErrNote role="alert">{err}</ErrNote>}
+              {/* 문의 허용 — 기본 켬. 끄면 읽기 전용 링크(설계 §5). 규칙을 설명하지 않고
+                  **꺼졌을 때 무엇이 되는지**만 한 줄로 말한다. */}
+              <WriteRow>
+                <WriteLabel>
+                  <input type="checkbox" checked={canWrite} data-testid="guest-link-canwrite"
+                    onChange={(e) => setCanWrite(e.target.checked)} />
+                  {t('guestLink.allowWrite', { defaultValue: '문의 보내기 허용' })}
+                </WriteLabel>
+                {!canWrite && <WriteNote>{t('guestLink.readOnlyNote', { defaultValue: '읽기 전용 링크 — 받는 사람은 보기만 합니다.' })}</WriteNote>}
+              </WriteRow>
               <ActionButton tone="primary" size="md" onClick={issue} loading={busy}>
                 {t('guestLink.issue', { defaultValue: '링크 만들기' })}
               </ActionButton>
@@ -216,6 +231,13 @@ const TriggerBtn = styled.button`
   &:hover{border-color:#0D9488;color:#0D9488;}
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
+const WriteRow = styled.div`display:flex;flex-direction:column;gap:4px;margin-bottom:10px;`;
+const WriteLabel = styled.label`
+  display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+  font-size:0.8125rem;color:#334155;
+  input{width:16px;aspect-ratio:1;accent-color:#14B8A6;cursor:pointer;}
+`;
+const WriteNote = styled.div`font-size:0.75rem;color:#94A3B8;padding-left:23px;`;
 const Lead = styled.p`font-size:0.875rem;color:#475569;line-height:1.6;margin:0 0 16px;`;
 const FreshBox = styled.div`border:1px solid #99F6E4;background:#F0FDFA;border-radius:8px;padding:14px;`;
 const FreshLabel = styled.div`font-size:0.8125rem;font-weight:700;color:#0F766E;margin-bottom:8px;`;

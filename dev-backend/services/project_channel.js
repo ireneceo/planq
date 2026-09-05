@@ -14,14 +14,27 @@ const { createAuditLog } = require('./auditService');
 /**
  * @param {object} project  Project 인스턴스 (business_id·id·name 필요)
  * @param {number} userId   요청자 — 새 방을 만들 때 참가자로 넣는다
- * @returns {Promise<{ conversation: object, created: boolean }>}
+ * @param {object} [opts]
+ * @param {boolean} [opts.createIfMissing=true] 방이 하나도 없을 때 만들 것인가
+ * @returns {Promise<{ conversation: object|null, created: boolean }>}
  */
-async function ensureProjectCustomerChannel(project, userId) {
+async function ensureProjectCustomerChannel(project, userId, { createIfMissing = true } = {}) {
   const existing = await Conversation.findOne({
     where: { project_id: project.id, channel_type: 'customer', archived_at: null },
     order: [['id', 'ASC']],
   });
   if (existing) return { conversation: existing, created: false };
+
+  // ★ **보관된 방도 찾는다.** 안 찾으면 "보관했다" 는 판정이 아예 도달하지 못하고
+  //   새 방이 생겨 버린다 — 멤버가 닫은 대화가 링크 한 번으로 되살아나고 고객채널이
+  //   복제된다(2026-09-05 Fable 실측: 닫힌 프로젝트에 201 + 채널 2개).
+  //   찾아서 그대로 돌려주면 호출측의 `assertGuestLinkIssuable` 이 409 로 막는다.
+  const archived = await Conversation.findOne({
+    where: { project_id: project.id, channel_type: 'customer' },
+    order: [['id', 'ASC']],
+  });
+  if (archived) return { conversation: archived, created: false };
+  if (!createIfMissing) return { conversation: null, created: false };
 
   // 없으면 만든다 — 프로젝트 생성 시의 채널 생성과 **같은 기본값**(cue·자동추출 on).
   const conv = await Conversation.create({

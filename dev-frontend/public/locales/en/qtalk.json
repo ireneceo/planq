@@ -521,7 +521,10 @@
     "contacts": "People getting reply alerts",
     "contactOn": "Alerts on",
     "contactOff": "Alerts off",
-    "contactPending": "Not verified"
+    "contactPending": "Not verified",
+    "allowWrite": "Allow replies",
+    "readOnlyNote": "View-only link — the recipient can only read.",
+    "errProjectClosed": "Cannot create a link for a finished project."
   },
   "workbench": {
     "loadFailed": "Could not load the workbench",

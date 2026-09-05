@@ -12,6 +12,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import GuestChatPanel from './GuestChatPanel';
+import GuestNotifySection from './GuestNotifySection';
 
 export type GuestProject = {
   name: string; description: string | null; status: string | null;
@@ -184,6 +185,9 @@ export default function GuestProjectPage({ token, project, canWrite, onGone }: P
       {/* 대화 탭은 **패널을 계속 붙여 둔다** — 탭을 오갈 때마다 다시 만들면 쓰던 글이 사라진다.
           보이지 않을 때는 폴링만 멈춘다(active=false). */}
       <ChatWrap $on={tab === 'chat'}>
+        {/* 답글 알림 신청 — 대화 화면과 **같은 부품**. 프로젝트 링크로 들어온 고객만
+            알림을 못 받는 일이 없게(설계 §7.1, 2026-09-05 Fable 지적 D3). */}
+        <GuestNotifySection token={token} onGone={onGone} />
         <GuestChatPanel token={token} canWrite={canWrite} active={tab === 'chat'} onGone={onGone} />
       </ChatWrap>
     </Wrap>
@@ -208,7 +212,7 @@ const Tab = styled.button<{ $on: boolean }>`
 `;
 // 배지 — 컨트롤이 아니라 표시다. 높이를 px 로 박지 않고 padding·line-height 로 잡는다.
 const Count = styled.span`
-  display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:1px 6px;line-height:16px;
+  display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:1px 6px;line-height:1.45;
   border-radius:999px;background:#F1F5F9;color:#475569;font-size:0.6875rem;font-weight:700;
 `;
 const Scroll = styled.div`

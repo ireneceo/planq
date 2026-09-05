@@ -9,7 +9,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { attachWorkspaceScope, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
-const { issueGuestLink, serializeGuestLink } = require('../services/guest_link');
+const { issueGuestLink, serializeGuestLink, assertGuestLinkIssuable } = require('../services/guest_link');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -86,25 +86,10 @@ router.post('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSc
     // ── fail-closed 3종 (S0) ─────────────────────────────────────────────
     //   여태 이 라우트는 **화면이 숨기는 것에만 의존**했다. 서버는 아무것도 안 봤다.
     //   화면 조건과 서버 술어가 갈리면, 갈린 쪽이 곧 우회로다.
-
-    // ① 내부 대화방에 링크를 내주면 **내부 대화가 통째로 밖으로 열린다.**
-    //    게스트 필터는 `is_internal`(메모 플래그)만 보므로 internal 방의 일반 대화는 다 보인다.
-    if (conv.channel_type !== 'customer') {
-      return errorResponse(res, 'not_customer_channel', 403);
-    }
-    // ② 보관된 방 — 끝난 대화를 다시 여는 링크는 만들 수 없다.
-    if (conv.status === 'archived') {
-      return errorResponse(res, 'conversation_archived', 409);
-    }
-    // ③ 킬스위치가 꺼져 있으면 **발급도 막는다.** 여태 발급은 201 이 났고 그 링크는
-    //    열리지 않았다 — 담당자가 죽은 주소를 고객에게 보내고 고객은 없는 페이지를 본다.
-    //    `resolveGuestToken` 과 같은 술어를 쓴다 (fail-closed: 못 읽으면 닫는다).
-    const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
-    const bizRow = await Business.findByPk(businessId, { attributes: ['guest_links_enabled'] });
-    if (!platform || platform.guest_links_enabled !== true
-        || !bizRow || bizRow.guest_links_enabled === false) {
-      return errorResponse(res, 'guest_links_disabled', 403);
-    }
+    //   ★ 판정은 services/guest_link.js 의 **한 함수**다 — 프로젝트 발급과 같은 것을 부른다.
+    //     복사해 두었더니 한쪽(프로젝트)에서 보관 검사가 죽은 코드가 됐다(2026-09-05).
+    const blocked = await assertGuestLinkIssuable(conv, businessId);
+    if (blocked) return errorResponse(res, blocked.code, blocked.status);
 
     // 고객은 **선택**이다 (2026-09-02). 멤버가 링크를 만들 때 아무것도 입력하지 않는다 —
     //   Irene: "왜 고객정보를 넣어야 해? 고객이 그냥 가볍게 들어와서 확인 및 소통".

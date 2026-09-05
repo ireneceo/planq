@@ -155,6 +155,32 @@ async function ensureShadowUser({ transaction } = {}) {
  * @returns {Promise<{ link, token, guestUser }>} token 은 **이때만** 원문으로 나간다.
  */
 /**
+ * 이 방에 게스트 링크를 낼 수 있는가 — **대화방 발급과 프로젝트 발급이 같은 함수를 부른다.**
+ *
+ *   ★ 전에는 두 라우트가 같은 검사를 **복사**해 갖고 있었고, 프로젝트 쪽에서는 그 검사가
+ *     **죽은 코드**였다(보관된 방을 찾지 않고 새 방을 만들어 버려 판정에 들어오지 못했다).
+ *     그래서 닫힌 프로젝트에 링크가 나가고 고객채널이 복제됐다(2026-09-05 Fable 실측).
+ *     "같은 술어" 는 주석으로 보장되지 않는다 — 같은 함수를 부르게 한다.
+ *
+ * @returns {Promise<null|{code: string, status: number}>} null 이면 발급 가능
+ */
+async function assertGuestLinkIssuable(conv, businessId) {
+  const { PlatformSetting, Business } = require('../models');
+  // ① 내부 대화방에 링크를 내주면 **내부 대화가 통째로 밖으로 열린다.**
+  if (!conv || conv.channel_type !== 'customer') return { code: 'not_customer_channel', status: 403 };
+  // ② 보관된 방 — 끝난 대화를 다시 여는 링크는 만들 수 없다.
+  if (conv.status === 'archived' || conv.archived_at) return { code: 'conversation_archived', status: 409 };
+  // ③ 킬스위치가 꺼져 있으면 **발급도 막는다.** 여태 발급은 201 이 났고 그 링크는 열리지 않았다 —
+  //    담당자가 죽은 주소를 고객에게 보내고 고객은 없는 페이지를 본다.
+  const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
+  const bizRow = await Business.findByPk(businessId, { attributes: ['guest_links_enabled'] });
+  if (!platform || platform.guest_links_enabled !== true || !bizRow || bizRow.guest_links_enabled === false) {
+    return { code: 'guest_links_disabled', status: 403 };
+  }
+  return null;
+}
+
+/**
  * 관리 화면용 직렬화 — **원문 토큰은 절대 담지 않는다**(저장하지도 않는다. token_hint 로만 식별).
  *   ★ 한 곳에 둔다: 대화방 발급(guest_admin)과 프로젝트 발급(projects)이 각자 만들면
  *     한쪽에만 필드가 붙어 화면이 갈라진다.
@@ -263,6 +289,10 @@ async function ensurePersonalLink({ parentLink, email, name = null, locale = nul
     business_id: parentLink.business_id,
     conversation_id: parentLink.conversation_id,
     project_id: parentLink.project_id,
+    // ★ 여는 범위는 부모를 **그대로 물려받는다.** 안 물려주면 프로젝트 링크로 받은 사람이
+    //   알림 메일의 개인 링크를 눌렀을 때 채팅 화면으로 떨어진다(좁아지는 쪽이라 누수는
+    //   아니지만, 받은 사람에게는 "그 화면이 안 나온다" 는 고장이다 — 2026-09-05 Fable 지적).
+    scope: parentLink.scope || 'conversation',
     client_id: parentLink.client_id,
     guest_user_id: parentLink.guest_user_id,   // 확인 전까지는 부모의 익명 신원
     email_verified_at: null,
@@ -344,4 +374,5 @@ module.exports = {
   promotePersonalIdentity,
   resolveGuestToken, ensureShadowUser, issueGuestLink,
   serializeGuestLink,
+  assertGuestLinkIssuable,
 };

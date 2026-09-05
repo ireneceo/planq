@@ -521,7 +521,10 @@
     "contacts": "답글 알림을 신청한 사람",
     "contactOn": "알림 켜짐",
     "contactOff": "알림 꺼짐",
-    "contactPending": "확인 안 됨"
+    "contactPending": "확인 안 됨",
+    "allowWrite": "문의 보내기 허용",
+    "readOnlyNote": "읽기 전용 링크 — 받는 사람은 보기만 합니다.",
+    "errProjectClosed": "완료된 프로젝트에는 만들 수 없습니다."
   },
   "workbench": {
     "loadFailed": "작업대 정보를 불러오지 못했습니다",

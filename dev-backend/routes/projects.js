@@ -29,7 +29,7 @@ const cueOrchestrator = require('../services/cue_orchestrator');
 // 업무 생성 술어 재사용 — 기본담당자 미리보기가 실제 배정과 같은 코드를 쓰게 한다
 const taskActions = require('../services/actions/task_actions');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
-const { serializeGuestLink } = require('../services/guest_link');
+const { serializeGuestLink, assertGuestLinkIssuable } = require('../services/guest_link');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 
@@ -763,18 +763,6 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
 //   (services/project_channel.js — 옛 `guest-channel` 라우트의 본문이 그리로 갔다).
 // ★ 고객(client)은 부를 수 없다 — 고객이 스스로 외부 링크의 문을 열면 안 된다.
 
-/** 발급 3종 fail-closed — 대화방 발급(guest_admin.js:100-118)과 **같은 술어**여야 한다. */
-async function assertGuestLinkIssuable(conv, businessId) {
-  if (conv.channel_type !== 'customer') return 'not_customer_channel';
-  if (conv.status === 'archived' || conv.archived_at) return 'conversation_archived';
-  const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
-  const bizRow = await Business.findByPk(businessId, { attributes: ['guest_links_enabled'] });
-  if (!platform || platform.guest_links_enabled !== true || !bizRow || bizRow.guest_links_enabled === false) {
-    return 'guest_links_disabled';
-  }
-  return null;
-}
-
 // GET — 이 프로젝트로 발급된 살아 있는 링크 목록
 router.get('/:id/guest-links', authenticateToken, async (req, res, next) => {
   try {
@@ -797,12 +785,17 @@ router.post('/:id/guest-links', authenticateToken, async (req, res, next) => {
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
-    // 링크가 걸릴 방 — 있으면 그 방, 없으면 만든다(판단은 서버에).
+    // ★ 닫힌 프로젝트에는 링크를 내지 않는다 — 멤버가 "끝났다" 고 표시한 것을 링크가 되살리면
+    //   그 자체가 사고다(2026-09-05 Fable 실측: closed 프로젝트에 201 + 새 고객채널 생성).
+    if (project.status === 'closed') return errorResponse(res, 'project_closed', 409);
+
+    // 링크가 걸릴 방 — 있으면 그 방(보관된 것도 포함), 하나도 없으면 만든다. 판단은 서버에.
     const { ensureProjectCustomerChannel } = require('../services/project_channel');
     const { conversation: conv } = await ensureProjectCustomerChannel(project, req.user.id);
 
+    // 발급 가능 판정은 대화방 발급과 **같은 함수**다(services/guest_link.js). 복사본을 두지 않는다.
     const blocked = await assertGuestLinkIssuable(conv, project.business_id);
-    if (blocked) return errorResponse(res, blocked, blocked === 'conversation_archived' ? 409 : 403);
+    if (blocked) return errorResponse(res, blocked.code, blocked.status);
 
     // 고객은 선택이다 — 방에 붙어 있으면 그대로 쓰고(타임라인 연속성), 없으면 NULL.
     //   요청 body 의 client_id 는 신뢰하지 않는다(테넌트 우회 차단).
