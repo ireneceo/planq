@@ -48,6 +48,8 @@ router.use(require('./guest_subscribe'));
 // 프로젝트 탭(업무·문서·파일) — scope='project' 링크만 여는 라우트. 파일이 갈라져 있어야
 //   "어느 라우트가 무엇을 여는가" 가 눈에 보인다(무인증 표면).
 router.use(require('./guest_project'));
+// 인증이 필요한 유일한 게스트 라우트 — Smart Routing(앱에서 열기). 파일로 갈라 둔다.
+router.use(require('./guest_auth'));
 
 // ── GET /api/guest/:token — 대화방 컨텍스트 ────────────────────────────────
 router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }), attachGuest, async (req, res, next) => {

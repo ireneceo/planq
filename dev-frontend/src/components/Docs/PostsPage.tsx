@@ -5,6 +5,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { postContentToHtml } from '../../utils/postContentHtml';
 import HelpDot from '../Common/HelpDot';
 import AiActionButton from '../Common/AiActionButton';
 import SlotFormModal from './SlotFormModal';
@@ -27,14 +28,6 @@ import DocToc from './DocToc';
 import PostTableGrid from './PostTableGrid';
 import { mapApiError } from '../../utils/apiError';
 import { useFileDownload } from '../../hooks/useFileDownload';
-import { generateHTML } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
-import Link from '@tiptap/extension-link';
-import Image from '@tiptap/extension-image';
-import { Table } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
 import {
   fetchPosts, fetchPost, fetchPostResult, createPost, updatePost, deletePost, StaleEditError,
   attachToPost, detachFromPost, fetchPostsMeta,
@@ -360,15 +353,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // 운영 #338 — 목차가 이동할 대상(렌더된 본문 컨테이너). 목차는 여기서 h1~h3 을 찾는다.
   const docBodyRef = useRef<HTMLDivElement>(null);
 
-  // content_json → HTML 변환 (TipTap headless)
-  const renderContentToHtml = useCallback((contentJson: unknown): string => {
-    if (!contentJson) return '';
-    try {
-      return generateHTML(contentJson as Record<string, unknown>, [
-        StarterKit, Link, Image, Table, TableRow, TableHeader, TableCell,
-      ]);
-    } catch { return ''; }
-  }, []);
+  // content_json → HTML 변환. 변환·정화는 utils/postContentHtml 한 곳 —
+  //   무로그인 열람 화면(GuestDocsTab)이 같은 함수를 쓴다.
+  const renderContentToHtml = useCallback((contentJson: unknown): string => postContentToHtml(contentJson), []);
 
   const filteredTemplates = useMemo(() => {
     const q = tplSearch.trim().toLowerCase();

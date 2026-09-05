@@ -4,15 +4,18 @@
 //   그래서 이 화면의 주인은 **프로젝트**고 대화는 탭 하나다(전에는 반대였다 —
 //   채팅 위에 정보 띠를 얹었더니 받는 사람에게는 그냥 채팅방이었다).
 //
-//   설계: docs/PROJECT_EXTERNAL_VIEW_DESIGN.md §7.1. 문서·파일 탭은 **2차**다 —
-//   무인증으로 문서 본문이 나가는 지점이라 게이트를 따로 통과시킨다. 1차에는 탭 자체가 없다
-//   (탭이 없다 = 라우트도 없다 = 가장 강한 차단).
+//   설계: docs/PROJECT_EXTERNAL_VIEW_DESIGN.md §7.1·§8. 2차에서 **문서·파일 탭**을 붙였다 —
+//   무인증으로 문서 본문이 나가는 지점이라 게이트를 따로 통과시킨 뒤 열었다.
+//   두 탭의 목록·잠금 규약은 서버(routes/guest_project.js)가 정한다: general 열림 /
+//   internal 자리는 보이고 잠김 / confidential 은 건수만 / L1 은 행 자체가 없다.
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import GuestChatPanel from './GuestChatPanel';
 import GuestNotifySection from './GuestNotifySection';
+import GuestDocsTab from './GuestDocsTab';
+import GuestFilesTab from './GuestFilesTab';
 
 export type GuestProject = {
   name: string; description: string | null; status: string | null;
@@ -34,8 +37,8 @@ type Props = {
   onGone: () => void;
 };
 
-type TabKey = 'overview' | 'tasks' | 'chat';
-const TABS: TabKey[] = ['overview', 'tasks', 'chat'];
+type TabKey = 'overview' | 'tasks' | 'docs' | 'files' | 'chat';
+const TABS: TabKey[] = ['overview', 'tasks', 'docs', 'files', 'chat'];
 
 export default function GuestProjectPage({ token, project, canWrite, onGone }: Props) {
   const { t } = useTranslation('guest');
@@ -118,6 +121,14 @@ export default function GuestProjectPage({ token, project, canWrite, onGone }: P
           {t('tabs.tasks', { defaultValue: '업무' })}
           {total > 0 && <Count>{total}</Count>}
         </Tab>
+        <Tab type="button" role="tab" aria-selected={tab === 'docs'} $on={tab === 'docs'}
+          data-testid="guest-tab-docs" onClick={() => setTab('docs')}>
+          {t('tabs.docs', { defaultValue: '문서' })}
+        </Tab>
+        <Tab type="button" role="tab" aria-selected={tab === 'files'} $on={tab === 'files'}
+          data-testid="guest-tab-files" onClick={() => setTab('files')}>
+          {t('tabs.files', { defaultValue: '파일' })}
+        </Tab>
         <Tab type="button" role="tab" aria-selected={tab === 'chat'} $on={tab === 'chat'}
           data-testid="guest-tab-chat" onClick={() => setTab('chat')}>
           {t('tabs.chat', { defaultValue: '대화' })}
@@ -181,6 +192,11 @@ export default function GuestProjectPage({ token, project, canWrite, onGone }: P
           )}
         </Scroll>
       )}
+
+      {/* 문서·파일은 **그 탭을 열 때 마운트**한다 — 안 보는 탭의 목록을 미리 받지 않는다.
+          (대화 탭만 예외: 쓰던 글을 지키려고 계속 붙여 둔다.) */}
+      {tab === 'docs' && <GuestDocsTab token={token} onGone={onGone} />}
+      {tab === 'files' && <GuestFilesTab token={token} onGone={onGone} />}
 
       {/* 대화 탭은 **패널을 계속 붙여 둔다** — 탭을 오갈 때마다 다시 만들면 쓰던 글이 사라진다.
           보이지 않을 때는 폴링만 멈춘다(active=false). */}

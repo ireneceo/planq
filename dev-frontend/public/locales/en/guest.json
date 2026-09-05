@@ -88,7 +88,9 @@
     "aria": "Project tabs",
     "overview": "Overview",
     "tasks": "Tasks",
-    "chat": "Chat"
+    "chat": "Chat",
+    "docs": "Documents",
+    "files": "Files"
   },
   "task": {
     "notStarted": "Not started",
@@ -106,5 +108,27 @@
     "active": "In progress",
     "paused": "Paused",
     "closed": "Done"
+  },
+  "close": "Close",
+  "docs": {
+    "failed": "Could not load the documents.",
+    "empty": "No documents have been shared yet.",
+    "lockedAria": "{{title}} — locked document",
+    "hiddenCount_one": "{{count}} document is not shown because it cannot be shared.",
+    "hiddenCount_other": "{{count}} documents are not shown because they cannot be shared.",
+    "lockedTitle": "This document is not open",
+    "lockedBody": "Only the team can view this one. Ask them in the chat tab if you need it."
+  },
+  "files": {
+    "failed": "Could not load the files.",
+    "empty": "No files have been shared yet.",
+    "download": "Download",
+    "loginNeeded": "Sign-in needed",
+    "hiddenCount_one": "{{count}} file is not shown because it cannot be shared.",
+    "hiddenCount_other": "{{count}} files are not shown because they cannot be shared.",
+    "lockedTitle": "This file is not open",
+    "lockedBody": "Only the team can download this one. Ask them in the chat tab if you need it.",
+    "loginTitle": "Sign-in needed",
+    "loginBody": "You need to sign in to download this file. Ask the team for an account in the chat tab."
   }
 }

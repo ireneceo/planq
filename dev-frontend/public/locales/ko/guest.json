@@ -88,7 +88,9 @@
     "aria": "프로젝트 탭",
     "overview": "개요",
     "tasks": "업무",
-    "chat": "대화"
+    "chat": "대화",
+    "docs": "문서",
+    "files": "파일"
   },
   "task": {
     "notStarted": "시작 전",
@@ -106,5 +108,27 @@
     "active": "진행 중",
     "paused": "일시 중지",
     "closed": "완료"
+  },
+  "close": "닫기",
+  "docs": {
+    "failed": "문서를 불러오지 못했습니다.",
+    "empty": "아직 공유된 문서가 없어요.",
+    "lockedAria": "{{title}} — 잠긴 문서",
+    "hiddenCount_one": "공개할 수 없는 문서 {{count}}건은 표시하지 않았어요.",
+    "hiddenCount_other": "공개할 수 없는 문서 {{count}}건은 표시하지 않았어요.",
+    "lockedTitle": "열 수 없는 문서",
+    "lockedBody": "이 문서는 담당자만 볼 수 있게 되어 있어요. 필요하시면 대화 탭에서 담당자에게 요청해 주세요."
+  },
+  "files": {
+    "failed": "파일을 불러오지 못했습니다.",
+    "empty": "아직 공유된 파일이 없어요.",
+    "download": "받기",
+    "loginNeeded": "로그인 필요",
+    "hiddenCount_one": "공개할 수 없는 파일 {{count}}건은 표시하지 않았어요.",
+    "hiddenCount_other": "공개할 수 없는 파일 {{count}}건은 표시하지 않았어요.",
+    "lockedTitle": "열 수 없는 파일",
+    "lockedBody": "이 파일은 담당자만 받을 수 있게 되어 있어요. 필요하시면 대화 탭에서 요청해 주세요.",
+    "loginTitle": "로그인이 필요해요",
+    "loginBody": "이 파일은 받으려면 로그인이 필요해요. 대화 탭에서 담당자에게 계정을 요청하실 수 있어요."
   }
 }
