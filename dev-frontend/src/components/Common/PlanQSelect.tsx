@@ -101,9 +101,23 @@ const rem = (px: number) => `${px / 16}rem`;
 function isCoarsePointer(): boolean {
   try { return window.matchMedia?.('(pointer: coarse)').matches ?? false; } catch { return false; }
 }
-// 항목이 이만큼 넘으면 검색이 없으면 못 고른다 — 그때는 터치에서도 켠다.
+// 항목이 이만큼 넘으면 검색 없이는 못 고른다 — 그때는 터치에서도 켠다(그 키보드는 사용자가 원한 것).
 const SEARCH_THRESHOLD = 15;
-function defaultSearchable(optionCount: number): boolean {
+
+/**
+ * 검색 입력을 열 것인가.
+ *
+ * ★ 터치에서는 **호출부가 명시로 켠 것도 상한을 둔다** (2026-09-06 실측으로 배운 것).
+ *   처음엔 "기본값만" 바꿨는데 `isSearchable` 을 **명시로 켜는 곳이 31 군데**라 거의 안 먹었다
+ *   (실측: 태블릿 coarse=true 인데 readOnly=false = 여전히 검색 가능 = 키보드가 올라온다).
+ *   Irene 의 요구는 "셀렉트는 원할 때 입력하게" 이므로, 정책은 컴포넌트가 쥐어야 한다.
+ *     · 명시 false → 그대로 false (54곳)
+ *     · 명시/기본 true → 데스크탑은 true, **터치는 항목이 많을 때만** true
+ *     · creatable → 입력해서 새로 만드는 것이 본질이라 **항상** true (막으면 기능이 죽는다)
+ */
+function resolveSearchable(explicit: boolean | undefined, optionCount: number, creatable: boolean): boolean {
+  if (explicit === false) return false;
+  if (creatable) return true;
   if (!isCoarsePointer()) return true;          // 데스크탑 — 종전 그대로
   return optionCount > SEARCH_THRESHOLD;
 }
@@ -334,7 +348,7 @@ function PlanQSelect<IsMulti extends boolean = false>(
          → 거친 포인터(pointer: coarse)면 기본 off. 다만 항목이 많으면 검색 없이 못 고르므로
            그때는 켠다(그 키보드는 사용자가 원한 것이다).
          ★ 호출부가 명시로 넘기면 그것이 이긴다 — 검색이 본질인 곳(담당자 고르기 등)은 그대로. */
-      isSearchable={rest.isSearchable ?? defaultSearchable(Array.isArray(rest.options) ? rest.options.length : 0)}
+      isSearchable={resolveSearchable(rest.isSearchable, Array.isArray(rest.options) ? rest.options.length : 0, creatable)}
       // 모달·드로어 내부에서 드롭다운이 푸터·컨테이너에 가려지는 문제 방지 —
       // document.body 로 포털 렌더. z-index 는 buildStyles.menuPortal 에서 처리.
       menuPortalTarget={rest.menuPortalTarget ?? (typeof document !== 'undefined' ? document.body : null)}
