@@ -41,8 +41,14 @@ setInterval(() => {
 // 네이티브 앱 OAuth: 시스템 브라우저 세션에 로그인해도 세션 쿠키가 앱 WebView 로 전달되지 않음.
 //   → callback 에서 일회용 code(2분, jti 단일사용) 발급 → 딥링크로 앱 복귀 → 앱이 WebView 컨텍스트에서
 //     /native-exchange 호출 → 그 응답이 refresh cookie 를 앱 WebView 에 심음. (H-2)
+// ★ 이 판단이 **왜** 참이 됐는지 로그에 남긴다 (2026-09-06).
+//   운영 안드로이드 태블릿에서 네이티브 복귀 페이지가 떴는데(= 이 함수가 true),
+//   운영 refresh_tokens 의 안드로이드 접속은 전부 일반 Chrome(client_kind='web') 이었다.
+//   쿠키는 `?client=native` 로만 심기고 10분 살아 있는데, **Custom Tab 은 Chrome 과 쿠키를
+//   공유**하므로 앱에서 한 번 시작한 흔적이 같은 브라우저의 다음 로그인에 남을 수 있다.
+//   추측을 확정하려면 UA 와 함께 기록이 있어야 한다.
 function isNativeOAuth(req) {
-  return req.cookies && req.cookies.oauth_native === '1';
+  return !!(req.cookies && req.cookies.oauth_native === '1');
 }
 function issueNativeOAuthCode(user) {
   const jti = `${user.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -309,6 +315,9 @@ router.get('/google/callback', async (req, res) => {
       res.clearCookie('oauth_native', { path: '/api/auth' });
       const code = issueNativeOAuthCode(user);
       // 302 가 아니라 HTML 착지 — SFSafariViewController 는 커스텀 스킴 **리다이렉트를 무시**한다.
+      logOauthFailure('auth/google callback', 'native_return(정상)', {
+        ...logCtx, note: 'oauth_native 쿠키로 네이티브 복귀 페이지를 냄',
+      });
       // ★ 앱이 없으면 커스텀 스킴은 막다른 길이다 — 같은 일회용 code 로 웹에서 이어갈 길을 같이 준다.
       return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' },
         { webFallbackUrl: `/api/auth/google/web-return?code=${encodeURIComponent(code)}` });

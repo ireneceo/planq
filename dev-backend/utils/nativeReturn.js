@@ -69,25 +69,29 @@ function sendNativeReturn(res, params = {}, opts = {}) {
     font-size:15px;font-weight:600;margin:0 0 10px}
   a.p{background:#115E59;color:#fff}
   a.s{background:#fff;color:#0F172A;border:1px solid #CBD5E1}
-  #fb{display:none}
-  #fb.on{display:block}
-  .h{font-size:13px;color:#64748B;margin:14px 0 0;line-height:1.6}
 </style></head><body><div class="c">
 <h1>PlanQ 로 돌아갑니다</h1>
-<p>잠시만 기다려 주세요. 화면이 바뀌지 않으면 아래 버튼을 눌러 주세요.</p>
-<a class="p" id="go" href="${safe}">PlanQ 앱으로 돌아가기</a>
-${webUrl ? `<div id="fb"><a class="s" id="web" href="${webUrl}">웹에서 계속하기</a>
-<p class="h">앱이 설치돼 있지 않으면 이쪽으로 이어서 사용하세요.</p></div>` : ''}
+<p id="msg">잠시만 기다려 주세요.</p>
+${webUrl ? `<a class="p" id="web" href="${webUrl}">이 브라우저에서 계속하기</a>` : ''}
+<a class="${webUrl ? 's' : 'p'}" id="go" href="${safe}">PlanQ 앱으로 돌아가기</a>
 </div><script>
-  // 즉시 이동 — SFSafariViewController 는 302 는 무시하지만 이 이동은 앱을 연다.
+  // 앱이 있으면 스킴이 먼저 낚아채 이 페이지는 백그라운드로 간다.
   try { location.replace(${JSON.stringify(url)}); } catch (e) {}
-  // 일부 환경은 첫 시도를 삼킨다. 짧게 한 번 더.
   setTimeout(function(){ try { location.href = ${JSON.stringify(url)}; } catch (e) {} }, 400);
-  // 스킴이 열렸으면 이 페이지는 백그라운드로 간다. 1.6초 뒤에도 보이면 = 앱이 없다.
-  setTimeout(function(){
-    var fb = document.getElementById('fb');
-    if (fb && document.visibilityState === 'visible') fb.className = 'on';
-  }, 1600);
+${webUrl ? `  // ★ 2026-09-06 — 앱이 없으면 스킴은 **막다른 길**이다(브라우저가 planq 를 호스트로 읽어
+  //   ERR_NAME_NOT_RESOLVED). 처음 고칠 때 폴백을 "1.6초 뒤에 뜨는 보조 버튼" 으로 뒀더니
+  //   Irene 이 그대로 큰 버튼(앱으로 돌아가기)을 다시 눌러 **같은 DNS 오류**를 봤다.
+  //   → 고르게 하지 말고 **자동으로 웹으로 넘어간다.** 앱이 열렸으면 이 페이지는 숨겨져 있으므로
+  //     visibility/focus 검사에서 걸러진다(그때는 넘어가지 않는다 — 일회용 code 를 뺏지 않게).
+  var done = false;
+  function toWeb() {
+    if (done) return;
+    if (document.visibilityState !== 'visible' || !document.hasFocus()) return;  // 앱이 떴다
+    done = true;
+    document.getElementById('msg').textContent = '앱이 없어 이 브라우저에서 이어갑니다…';
+    location.replace(${JSON.stringify(opts.webFallbackUrl)});
+  }
+  setTimeout(toWeb, 1800);` : ''}
 </script></body></html>`);
 }
 
