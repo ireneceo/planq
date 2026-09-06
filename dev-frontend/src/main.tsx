@@ -60,6 +60,13 @@ if (isNativeApp()) {
   //   조건이 정상인 기기에서는 결과가 옛 코드와 같다 = 회귀 0.
   const syncNativeInset = () => {
     try {
+      // ★ 이 판정은 **iOS 전용**이다 (2026-09-06 실기기: 갤럭시 탭 A8).
+      //   안드로이드에서는 상태바만 오버레이되고 **하단 내비게이션 바(48dp)는 창을 밀어낸다.**
+      //   그래서 screen.height - innerHeight ≈ 48 > 20 이 **항상** 성립해 `pq-native-inset` 이
+      //   붙었고, 그 클래스가 `--pq-safe-top` 을 0 으로 만들어 **상단 보정이 통째로 지워졌다.**
+      //   Irene: "바뀐게 없어" — 코드는 배포됐는데 이 한 줄이 매번 무효화하고 있었다.
+      //   원래 목적(옛 iOS 빌드가 contentInset:'automatic' 이라 이미 인셋된 경우)은 iOS 뿐이다.
+      if (nativePlatform() !== 'ios') return;
       if (document.body && document.body.getAttribute('data-keyboard-up') === '1') return;
       const screenH = window.screen && window.screen.height ? window.screen.height : 0;
       const innerH = window.innerHeight;
