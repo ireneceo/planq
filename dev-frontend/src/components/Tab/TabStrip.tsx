@@ -12,6 +12,7 @@ import { tabStore, type Tab, type TabKind } from '../../stores/tabStore';
 import { XIcon, PlusIcon } from '../Common/Icons';
 import { useAuth } from '../../contexts/AuthContext';
 import GlobalSearchModal from '../Common/GlobalSearchModal';
+import { mediaTablet } from '../../theme/breakpoints';
 
 // kind → layout ns nav 라벨 키 (사이드바와 동일 문구, 언어전환 재렌더 보장)
 const NAV_KEY: Record<TabKind, string> = {
@@ -21,7 +22,11 @@ const NAV_KEY: Record<TabKind, string> = {
   clients: 'nav.clients', bill: 'nav.qbill', other: 'nav.settings',
 };
 
-export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
+export default function TabStrip({ leftOffset = 0, onMenu }: {
+  leftOffset?: number;
+  /** 좁은 폭(사이드바가 드로어일 때) 사이드바 열기 — 탭바가 상단 크롬을 겸한다. */
+  onMenu?: () => void;
+}) {
   const tabs = useTabs();
   const active = useActiveTab();
   const { t } = useTranslation('layout');
@@ -63,7 +68,18 @@ export default function TabStrip({ leftOffset = 0 }: { leftOffset?: number }) {
   };
 
   return (
-    <Strip role="tablist" aria-label={t('tabs.strip', { defaultValue: '열린 탭' }) as string} data-testid="tabstrip" style={{ left: leftOffset }}>
+    <Strip role="tablist" aria-label={t('tabs.strip', { defaultValue: '열린 탭' }) as string} data-testid="tabstrip" $left={leftOffset}>
+      {/* ★ 사이드바가 도킹되지 않은 폭(태블릿)에서는 탭바가 **상단 크롬을 겸한다** —
+          모바일 헤더를 띄우지 않으므로(MainLayout) 사이드바를 여는 길이 여기 있어야 한다.
+          없으면 태블릿에서 좌측 메뉴에 영영 못 간다(2026-09-06).
+          ★ 노출 판정을 JS(leftOffset===0)로 하지 않는다 — sidebarW 는 뷰포트와 무관하게
+          60/240 이라 태블릿에서도 0 이 아니다. 사이드바가 드로어인지 도킹인지는 CSS 만 안다. */}
+      {onMenu && (
+        <MenuBtn type="button" onClick={onMenu} data-testid="tabstrip-menu"
+          aria-label={t('nav.expandSidebar', { defaultValue: '메뉴 열기' }) as string}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </MenuBtn>
+      )}
       <Scroll>
         {tabs.map((tab) => {
           const isActive = active?.id === tab.id;
@@ -139,15 +155,27 @@ const BackBtn = styled.button`
   &:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
   &:disabled { opacity: 0.28; cursor: default; }
 `;
-const Strip = styled.div`
-  position: fixed; top: 0; right: 0; z-index: 95;   /* left 는 inline(사이드바 폭) — 사이드바 오른쪽부터 */
+const Strip = styled.div<{ $left: number }>`
+  position: fixed; top: 0; right: 0; z-index: 95;   /* left 는 아래 $left(사이드바 폭) — 사이드바 오른쪽부터 */
   display: flex; align-items: stretch;              /* 탭이 위아래로 꽉 차게 */
   /* 높이 = 탭바(40) + 상태바 자리. 네이티브가 아니면 safe-top 이 0 이라 40px 그대로다.
      padding-top 으로 탭 내용을 상태바 아래로 내린다 — 배경(teal)은 상태바 뒤까지 이어진다. */
   box-sizing: border-box;
   height: var(--pq-chrome-top, 40px); padding: var(--pq-safe-top, 0px) 0 0;
   background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  left: ${p => p.$left}px;
   transition: left 0.25s ease;
+  /* 사이드바가 드로어로 접히는 폭에서는 밀 자리가 없다 — 밀면 왼쪽에 빈 띠가 남는다. */
+  ${mediaTablet} { left: 0; }
+`;
+const MenuBtn = styled.button`
+  flex-shrink: 0; display: none; align-items: center; justify-content: center;
+  width: 44px; align-self: stretch; padding: 0;
+  background: none; border: none; color: #CCFBF1; cursor: pointer;
+  &:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: -2px; }
+  /* 사이드바가 도킹된 폭에서는 사이드바 자체가 보이므로 이 버튼은 없다. */
+  ${mediaTablet} { display: inline-flex; }
 `;
 const Scroll = styled.div`
   display: flex; align-items: stretch; gap: 0; flex: 1; min-width: 0;

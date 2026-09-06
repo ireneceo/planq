@@ -611,7 +611,9 @@ const MainContent = styled.div<{ $marginLeft: number; $tabMode?: boolean }>`
   box-sizing: border-box;
   ${mediaTablet} {
     margin-left: 0; --pq-content-left: 0px;
-    padding-top: var(--pq-mobile-chrome, 56px);
+    /* 탭 모드면 위에서 이미 --pq-chrome-top(탭바+상태바)을 줬다 — 모바일 헤더 높이를 또 더하면
+       상단이 두 번 비어 내용이 96px 아래에서 시작한다(2026-09-06). */
+    ${p => (p.$tabMode ? '' : 'padding-top: var(--pq-mobile-chrome, 56px);')}
   }
 `;
 
@@ -625,14 +627,17 @@ const PageScroll = styled.div`
   -webkit-overflow-scrolling: touch;
 `;
 
-const MobileHeader = styled.div`
+const MobileHeader = styled.div<{ $tabMode?: boolean }>`
   display: none; position: fixed; top: 0; left: 0; right: 0;
   /* 상태바(노치) 영역만큼 안쪽으로 밀고, 그만큼 총 높이를 키운다. 웹·PWA 는 safe-area=0 이라 무변경. */
   height: var(--pq-mobile-chrome, 56px);
   padding-top: var(--pq-safe-top, 0px);
   background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 99; padding-left: 16px; padding-right: 16px; align-items: center; justify-content: space-between;
-  ${mediaTablet} { display: flex; }
+  /* ★ 탭이 켜지면 **탭바가 상단 크롬**이다 — 둘 다 띄우면 56+40=96px 이 된다
+     (2026-09-06 실측: 탭 A8 가로 960px 에서 모바일 헤더와 탭바가 동시에 떴다).
+     햄버거는 탭바로 옮겼다(TabStrip onMenu). 로고·대화 바로가기는 사이드바에 그대로 있다. */
+  ${mediaTablet} { display: ${p => (p.$tabMode ? 'none' : 'flex')}; }
 `;
 
 const HamburgerButton = styled.button`
@@ -1007,14 +1012,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   return (
     <LayoutContainer>
       {/* ⑥ 멀티탭 탭 스트립 — 사이드바 오른쪽부터(본문 영역 위). beta·데스크탑에서만. off 면 렌더 X(무회귀) */}
-      {tabMode && <TabStrip leftOffset={sidebarW} />}
+      {tabMode && <TabStrip leftOffset={sidebarW} onMenu={() => setSidebarOpen(true)} />}
       {/* N+63 — 알림 dropdown (사이드바 종 모양 trigger) */}
       <NotificationDropdown open={notifOpen} onClose={() => setNotifOpen(false)} anchorRef={bellRef} />
       {/* #194 — 제품 공지/체인지로그 새 소식 드로어 (사이드바 메가폰 trigger) */}
       {/* 운영 #306 — 우측 상세 드로어 → 알림과 같은 popover 드롭다운 */}
       <WhatsNewDropdown open={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} anchorRef={megaphoneRef}
         items={whatsNewItems} loading={whatsNewLoading} />
-      <MobileHeader>
+      <MobileHeader $tabMode={tabMode}>
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
         </HamburgerButton>

@@ -43,7 +43,10 @@ const SUITES = {
   aiopen: () => require('./canary-ai-open'),    // AI 진입 모달이 **눌러서 뜨는가** (early return 아래 훅 = React #310, 런타임에만 드러남)
   rowtags: () => require('./canary-row-tags'),  // 행 태그 버튼이 **눌리는가** (존재 검사로는 button-in-button 을 못 잡는다)     // 우하단 도크 FAB 도달성 — 겹침은 두 파일 CSS 가 합쳐진 뒤에만 존재(정적 검사 불가)
   toggles: () => require('./canary-toggles'),  // 자동저장 토글이 **눌러서 저장되는가** — API 직접 호출 테스트는 화면이 그 API 를 안 부르는 것을 못 잡는다
-  csp: () => require('./canary-csp'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
+  csp: () => require('./canary-csp'),
+  // 상단 크롬 9 뷰포트 — 탭 게이트·두 겹 여부·탭바 오프셋·사이드바 도달성. 세 CSS 파일이
+  // 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 안 잡힌다(2026-09-06 태블릿 96px 겹침).
+  tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };
 
