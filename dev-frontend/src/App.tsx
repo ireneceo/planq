@@ -42,6 +42,7 @@ const ForgotPasswordPage = lazy(() => import('./pages/Login/ForgotPasswordPage')
 const ResetPasswordPage = lazy(() => import('./pages/Login/ResetPasswordPage'));
 const VerifyEmailPage = lazy(() => import('./pages/Login/VerifyEmailPage'));
 const OAuthCallbackPage = lazy(() => import('./pages/Login/OAuthCallbackPage'));
+const NativeReturnPage = lazy(() => import('./pages/Login/NativeReturnPage'));
 const DownloadAppPage = lazy(() => import('./pages/DownloadApp/DownloadAppPage'));
 const OauthConnectConfirmPage = lazy(() => import('./pages/Login/OauthConnectConfirmPage'));
 const QNotePage = lazy(() => import('./pages/QNote/QNotePage'));
@@ -215,6 +216,9 @@ function ShellApp() {
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
+        {/* 앱 복귀 착지 — App Link(https)가 앱에 안 잡혔을 때 여기로 떨어진다.
+            이 라우트가 없으면 catch-all 이 잡아 랜딩으로 가고 일회용 code 가 사라진다. */}
+        <Route path="/oauth/native-return" element={<NativeReturnPage />} />
         <Route path="/app" element={<DownloadAppPage />} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/oauth/connect-confirm" element={<OauthConnectConfirmPage />} />

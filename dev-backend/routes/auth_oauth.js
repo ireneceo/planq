@@ -50,9 +50,13 @@ setInterval(() => {
 function isNativeOAuth(req) {
   return !!(req.cookies && req.cookies.oauth_native === '1');
 }
+// ★ 수명 2분 → 10분 (2026-09-06 운영). 2분은 **기계가 즉시 교환할 때만** 맞는 값이다.
+//   앱이 안 열려 복귀 페이지에 남으면 사람이 화면을 읽고 버튼을 누르는 데 그보다 오래 걸린다.
+//   Irene 실사례: "이걸 누르면 로그인 링크 만료래" → 로그 `web-return 실패 invalid_or_expired_code`.
+//   일회용(usedNativeCodes)이라 수명이 길어도 재사용은 못 한다 — 위험은 늘지 않는다.
 function issueNativeOAuthCode(user) {
   const jti = `${user.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  return jwt.sign({ uid: user.id, purpose: 'native_oauth', jti }, process.env.JWT_SECRET, { expiresIn: '2m' });
+  return jwt.sign({ uid: user.id, purpose: 'native_oauth', jti }, process.env.JWT_SECRET, { expiresIn: '10m' });
 }
 
 // slug 생성 (옛 /register 패턴)
@@ -318,9 +322,12 @@ router.get('/google/callback', async (req, res) => {
       logOauthFailure('auth/google callback', 'native_return(정상)', {
         ...logCtx, note: 'oauth_native 쿠키로 네이티브 복귀 페이지를 냄',
       });
-      // ★ 앱이 없으면 커스텀 스킴은 막다른 길이다 — 같은 일회용 code 로 웹에서 이어갈 길을 같이 준다.
-      return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' },
-        { webFallbackUrl: `/api/auth/google/web-return?code=${encodeURIComponent(code)}` });
+      // 앱을 여는 길 둘(스킴 → App Link) + 웹으로 끝내는 길 하나. 어느 쪽도 막다른 길이 아니다.
+      const origin = `${req.protocol}://${req.get('host')}`;
+      return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' }, {
+        appLinkUrl: `${origin}/oauth/native-return?code=${encodeURIComponent(code)}`,
+        webFallbackUrl: `/api/auth/google/web-return?code=${encodeURIComponent(code)}`,
+      });
     }
 
     // refresh_token cookie 발급 (옛 /login 패턴 정합) — AuthContext 가 mount 시 자동 refresh

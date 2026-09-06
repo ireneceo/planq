@@ -53,6 +53,13 @@ function sendNativeReturn(res, params = {}, opts = {}) {
   //   → **웹으로 이어가는 길을 항상 같이 준다.** 스킴 이동이 성공하면 이 페이지는 백그라운드로
   //     가므로, 잠시 뒤에도 화면이 보이면 = 앱이 없다는 뜻이라 그때 폴백을 크게 띄운다.
   const webUrl = opts.webFallbackUrl ? esc(opts.webFallbackUrl) : '';
+  // ★ 앱을 여는 길을 **둘** 준다 (2026-09-06).
+  //   ① planq:// 커스텀 스킴 — 스킴 핸들러가 등록된 빌드에서만 열린다. 없으면 브라우저가
+  //      `planq` 를 호스트로 읽어 ERR_NAME_NOT_RESOLVED("This site can't be reached").
+  //   ② https App Link — assetlinks.json 이 서빙되고 서명이 맞으면 앱이 가로챈다.
+  //      **안 잡혀도 실재하는 주소**라 SPA 의 /oauth/native-return 이 받아 로그인을 끝낸다.
+  //      즉 ②는 어느 쪽으로 가든 막다른 길이 아니다.
+  const appLink = opts.appLinkUrl ? esc(opts.appLinkUrl) : '';
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
   return res.status(200).send(`<!doctype html><html lang="ko"><head>
@@ -72,13 +79,19 @@ function sendNativeReturn(res, params = {}, opts = {}) {
 </style></head><body><div class="c">
 <h1>PlanQ 로 돌아갑니다</h1>
 <p id="msg">잠시만 기다려 주세요.</p>
-${webUrl ? `<a class="p" id="web" href="${webUrl}">이 브라우저에서 계속하기</a>` : ''}
-<a class="${webUrl ? 's' : 'p'}" id="go" href="${safe}">PlanQ 앱으로 돌아가기</a>
+<a class="p" id="go" href="${appLink || safe}">PlanQ 앱에서 열기</a>
+${webUrl ? `<a class="s" id="web" href="${webUrl}">이 브라우저에서 계속하기</a>` : ''}
 </div><script>
   // 앱이 있으면 스킴이 먼저 낚아채 이 페이지는 백그라운드로 간다.
   try { location.replace(${JSON.stringify(url)}); } catch (e) {}
   setTimeout(function(){ try { location.href = ${JSON.stringify(url)}; } catch (e) {} }, 400);
-${webUrl ? `  // ★ 2026-09-06 — 앱이 없으면 스킴은 **막다른 길**이다(브라우저가 planq 를 호스트로 읽어
+${appLink ? `  // 스킴이 안 먹었으면 App Link 로 한 번 더 — 앱이 가로채면 앱이 뜨고,
+  //   못 가로채도 실재하는 https 주소라 SPA 착지 페이지가 로그인을 끝낸다.
+  setTimeout(function(){
+    if (document.visibilityState !== 'visible') return;   // 앱이 이미 떴다
+    location.replace(${JSON.stringify(opts.appLinkUrl)});
+  }, 1400);` : ''}
+${webUrl && !appLink ? `  // ★ 2026-09-06 — 앱이 없으면 스킴은 **막다른 길**이다(브라우저가 planq 를 호스트로 읽어
   //   ERR_NAME_NOT_RESOLVED). 처음 고칠 때 폴백을 "1.6초 뒤에 뜨는 보조 버튼" 으로 뒀더니
   //   Irene 이 그대로 큰 버튼(앱으로 돌아가기)을 다시 눌러 **같은 DNS 오류**를 봤다.
   //   → 고르게 하지 말고 **자동으로 웹으로 넘어간다.** 앱이 열렸으면 이 페이지는 숨겨져 있으므로
@@ -86,7 +99,10 @@ ${webUrl ? `  // ★ 2026-09-06 — 앱이 없으면 스킴은 **막다른 길**
   var done = false;
   function toWeb() {
     if (done) return;
-    if (document.visibilityState !== 'visible' || !document.hasFocus()) return;  // 앱이 떴다
+    // ★ hasFocus() 를 쓰지 말 것 — **인앱 브라우저(Custom Tab)에서는 화면이 보여도 false** 가 나와
+    //   자동 이동이 통째로 막힌다(2026-09-06: Irene 이 그래서 수동으로 버튼을 눌렀고, 그때는
+    //   이미 코드가 만료돼 있었다). 앱이 열렸는지의 신호는 visibilityState 하나면 충분하다.
+    if (document.visibilityState !== 'visible') return;  // 앱이 떴다 — 코드를 뺏지 않는다
     done = true;
     document.getElementById('msg').textContent = '앱이 없어 이 브라우저에서 이어갑니다…';
     location.replace(${JSON.stringify(opts.webFallbackUrl)});

@@ -8,11 +8,23 @@ function safeDate(iso: string | Date): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-// 'YYYY-MM-DD' 또는 ISO 문자열을 받아 'M월 d일' 혹은 'MM/DD' 형태로 표시 (tz 기준)
+// 'M월 d일' — 단, **올해가 아니면 연도를 붙인다** ('2025년 9월 6일').
+//   Irene 2026-09-06: "문서 날짜 년도가 안나와도 되는 거야?"
+//   연도를 늘 붙이면 최근 항목이 시끄럽고, 아예 안 붙이면 **옛 문서가 언제 건지 알 수 없다**.
+//   같은 해면 생략하고 다른 해에만 붙이는 것이 표준(메일·문서 앱 공통)이라 양쪽을 다 만족한다.
+//   ★ 공용 포맷터다 — 목록·상세·카드가 모두 이걸 쓰므로 한 곳만 고치면 전부 일관된다.
 export function formatDate(iso: string | Date, tz: string, locale = 'ko-KR'): string {
   const d = safeDate(iso);
   if (!d) return '';
-  return new Intl.DateTimeFormat(locale, { timeZone: tz, month: 'short', day: 'numeric' }).format(d);
+  // '올해' 판정도 워크스페이스 tz 기준이어야 한다 — 로컬 연도로 비교하면 연말에 어긋난다.
+  const yearIn = (x: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(x);
+  const sameYear = yearIn(d) === yearIn(new Date());
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: tz,
+    ...(sameYear ? {} : { year: 'numeric' }),
+    month: 'short',
+    day: 'numeric',
+  }).format(d);
 }
 
 // 'HH:mm' 24h (tz 기준)

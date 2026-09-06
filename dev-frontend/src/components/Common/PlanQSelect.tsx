@@ -147,15 +147,28 @@ function buildStyles(
       padding: size === 'sm' ? '2px 12px' : size === 'lg' ? '8px 16px' : '4px 14px',
       fontSize,
     }),
+    // ★ 문구는 **감기지 않는다** — 좁으면 말줄임 (2026-09-06).
+    //   기본값은 white-space: normal 이라 한국어 플레이스홀더가 두 줄이 되고 컨트롤이
+    //   36 → 44px 로 자란다. 실측: Q Note 밴드에서 "프로젝트 연결 안 함" 이 156px 폭에서
+    //   "프로젝트 연결 안 / 함" 으로 감겨 밴드가 57 → 65px 이 됐다.
+    //   셀렉트가 제 문구를 감아 올리는 것은 어느 화면에서도 깨져 보인다 — 공용에서 막는다.
     placeholder: (base) => ({
       ...base,
       color: C.neutral400,
       fontSize,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      maxWidth: '100%',
     }),
     singleValue: (base) => ({
       ...base,
       color: C.neutral900,
       fontSize,
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      maxWidth: '100%',
     }),
     input: (base) => ({
       ...base,

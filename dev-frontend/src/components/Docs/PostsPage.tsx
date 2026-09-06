@@ -2140,9 +2140,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {detail.project.name}
                 </ProjectTag>
               )}
-              </MetaLeft>
-              <MetaRight>
-              {/* N+67 — visibility chip + 변경 modal */}
+              {/* ★ 공개 범위 칩은 **좌측 메타**에 둔다 (Irene 2026-09-06:
+                  "이 표시만 버튼들과 높이값이 다른데 좌측 날짜 뒤로 붙이는 거 어때?").
+                  우측은 36px 액션 버튼 줄이라 22px 칩 혼자 어긋나 보였다. 좌측은 작성자·날짜·
+                  분류·프로젝트가 모두 작은 메타라 높이가 맞는다. */}
               <VisibilityChip
                 type="button"
                 onClick={() => setVisModalOpen(true)}
@@ -2150,6 +2151,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               >
                 {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
               </VisibilityChip>
+              </MetaLeft>
+              <MetaRight>
               {detail.share_token && (
                 <ShareTag title={t('share.publicHint', '공개 링크가 활성화되어 있습니다') as string}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>

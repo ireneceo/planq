@@ -68,7 +68,7 @@ const MemoView = React.lazy(() => import('./MemoView'));
 import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
-import { PanelBackButton, PanelHeaderBar } from '../../components/Layout/PanelHeader';
+import { PanelBackButton, PanelHeaderBar, DetailMetaBar } from '../../components/Layout/PanelHeader';
 import { isEnterAction } from '../../utils/imeKey';
 
 /**
@@ -2935,32 +2935,6 @@ const QNotePage = () => {
                   <Badge>{t('page.phase.review')}</Badge>
                   <Badge>{t('page.sessionUtteranceCount', { count: activeSession.utterance_count })}</Badge>
                 </SessionMeta>
-                {/* 폰에서는 헤더에서 숨긴다 — 가장 후순위 정보인데 제목과 폭을 다툰다.
-                    (본문 상단의 분류/태그 편집 경로는 그대로 남는다) */}
-                <TaxonomyInHeader>
-                  <SessionTaxonomyBar
-                    sessionId={activeSession.id}
-                    category={activeSession.category ?? null}
-                    tags={activeSession.tags ?? null}
-                    editable={String(activeSession.user_id) === String(user?.id)}
-                    onChange={(patch) => patchTaxonomy(activeSession.id, patch)}
-                  />
-                  {/* 프로젝트·고객 연결 — 이게 없어서 회의록이 어느 일의 것인지 남지 않았다.
-                      분류·태그와 같은 성격(이 노트가 무엇에 속하는가)이라 같은 줄에 둔다. */}
-                  {businessId && (
-                    <SessionLinkBar
-                      session={activeSession}
-                      businessId={businessId}
-                      editable={String(activeSession.user_id) === String(user?.id)}
-                      onChange={(updated) => {
-                        setActiveSession(updated);
-                        setSessions((prev) => prev.map((x) => (x.id === updated.id
-                          ? { ...x, project_id: updated.project_id, client_id: updated.client_id }
-                          : x)));
-                      }}
-                    />
-                  )}
-                </TaxonomyInHeader>
               </HeaderLeft>
               <HeaderRight>
                 {/* N+88 — Q docs 문서 상세 상단과 통일: 공개 chip + 공유 Primary + IconBtn 클러스터 */}
@@ -2989,6 +2963,39 @@ const QNotePage = () => {
                 </QuestionChip>
               </HeaderRight>
             </MainHeader>
+            {/* ★ 밴드2 — 이 노트가 **무엇에 속하는가**(분류·태그·프로젝트·고객).
+                Irene 2026-09-06: "프로젝트 고객 연결이 이상하게 들어가 있어" / "제목 잘 안보이고".
+                여태 이것들이 헤더의 제목 칸(HeaderLeft) 안에 같이 들어가 제목과 폭을 다퉜다 —
+                CLAUDE.md 금지 항목(헤더 안에 여러 줄 쌓기) 그대로였다. 상세 두 밴드 계약대로
+                제목은 밴드1 에 혼자 두고, 속성은 밴드2 로 내린다. */}
+            <NoteMetaBand>
+              {/* 넘치면 감기지 않고 가로로 흘린다 — 태그가 늘 때마다 밴드가 두 줄이 되면
+                  "상세는 두 밴드" 계약이 데이터에 따라 조용히 깨진다. */}
+              <NoteMetaLeft>
+                <SessionTaxonomyBar
+                  sessionId={activeSession.id}
+                  category={activeSession.category ?? null}
+                  tags={activeSession.tags ?? null}
+                  editable={String(activeSession.user_id) === String(user?.id)}
+                  onChange={(patch) => patchTaxonomy(activeSession.id, patch)}
+                />
+                {/* 프로젝트·고객 연결 — 이게 없어서 회의록이 어느 일의 것인지 남지 않았다.
+                    분류·태그와 같은 성격(이 노트가 무엇에 속하는가)이라 같은 줄에 둔다. */}
+                {businessId && (
+                  <SessionLinkBar
+                    session={activeSession}
+                    businessId={businessId}
+                    editable={String(activeSession.user_id) === String(user?.id)}
+                    onChange={(updated) => {
+                      setActiveSession(updated);
+                      setSessions((prev) => prev.map((x) => (x.id === updated.id
+                        ? { ...x, project_id: updated.project_id, client_id: updated.client_id }
+                        : x)));
+                    }}
+                  />
+                )}
+              </NoteMetaLeft>
+            </NoteMetaBand>
 
             {/* #383 — 업로드한 녹음이 아직 변환 중일 때. 빈 화면을 내면 "고장" 으로 읽힌다
                 (memory feedback_fixed_but_unreachable: 기다림을 고장으로 읽는다).
@@ -3873,6 +3880,31 @@ const MainHeader = styled(PanelHeaderBar)`
 // 헤더 밴드 + 접기 손잡이를 함께 감싸는 자리. 손잡이는 absolute 라 레이아웃을 먹지 않는다.
 const HeaderBand = styled.div`position: relative;`;
 
+// 노트 상세 밴드2 — 규격은 공용 DetailMetaBar (좌우 패널 밑줄이 같은 y 에서 이어진다).
+const NoteMetaBand = styled(DetailMetaBar)`
+  justify-content: flex-start;
+  gap: 10px;
+`;
+const NoteMetaLeft = styled.div`
+  display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 0;
+  overflow-x: auto; scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  > * { flex-shrink: 0; }
+  /* ★ 밴드 안에서는 **감기지 않는다.** SessionTaxonomyBar 와 SessionLinkBar 는 각자 루트가
+     flex-wrap: wrap 이라 그대로 두면 밴드가 두 줄이 된다 — 2026-09-06 실측 **99px**(57 이어야).
+     태그가 늘거나 프로젝트·고객 이름이 길수록 더 벌어져, "상세는 두 밴드" 계약이 데이터에
+     따라 조용히 깨진다. 넘치면 감지 말고 가로로 흘린다(다른 밴드와 같은 처리). */
+  > * { flex-wrap: nowrap; }
+  /* 넘쳤다는 신호 — 스크롤바를 숨겼으므로 오른쪽 끝을 흐린다. 안 넘치면 빈 자리에 얹혀 안 보인다. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+  @media (max-width: 640px) {
+    flex-wrap: wrap; overflow-x: visible;
+    mask-image: none; -webkit-mask-image: none;
+    > * { flex-wrap: wrap; }
+  }
+`;
+
 /* 수평 엣지 바 — Q Note 헤더 높이 접기 (Q Talk 세로 엣지 바와 같은 디자인, 방향만 가로) */
 const HeaderEdgeHandle = styled.button`
   position: absolute;
@@ -4030,11 +4062,6 @@ const SessionTitleInput = styled.input`
   }
 `;
 
-const TaxonomyInHeader = styled.div`
-  min-width: 0;
-  overflow: hidden;
-  @media (max-width: 768px) { display: none; }
-`;
 
 const SessionMeta = styled.div`
   display: flex;
