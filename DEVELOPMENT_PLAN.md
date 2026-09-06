@@ -1,7 +1,41 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-05 (Opus 5, 1M) — **운영 배포 5회 · 커밋 8건** — 주제는 **"판정하려 들면 유실이 된다"** 였다. ①Q docs 상세 헤더가 액션 10개(534px)에 눌려 제목이 1440px 에서도 3분의 1만 썼다(1280px 에선 174px). 헤더를 두 밴드로 갈라 제목 줄과 액션 줄을 나누고, 액션 줄은 **좌측 검색줄과 같은 세로 밴드**로 맞춰 좌우 밑줄이 같은 y 에서 이어지게 했다(실측 247/247). 자주 쓰는 셋만 남기고 일곱은 ⋯ 로 접었다 — 접힌 것들은 아이콘 전용이라 hover 해야 뜻을 알던 것이라 글자 라벨이 붙어 오히려 읽힌다. ②**"예전에 쓴 글이 왜 오늘 글로 나오나"** 의 정체는 **편집 버튼만 눌러도 나가던 자동저장**이었다. 보낸 값과 저장본의 차이가 `attrs:{textAlign:null}` 하나뿐 — 정렬 확장(#363)이 붙인 기본값이다. ③**그 수정이 데이터 유실 회귀를 냈다.** "사람이 친 것만 저장" 을 `editor.isFocused` 로 판정했는데 TipTap 의 focus() 가 rAF 로 지연돼 **툴바로만 한 편집(글머리기호·표·굵게·이미지)이 전부 사라졌다.** 기존 문서 편집엔 저장 버튼이 없어 복구 경로도 없었다. **Fable 이 진짜 마우스 이벤트로 잡았고, 내 검증은 합성 click(mousedown 없음)이라 거짓 통과했다.** 판정을 없애고 기준선만 바로잡는 쪽으로 다시 냈다 — 틀려도 최악이 "안 바뀐 저장 한 번" 이지 유실이 아니다. ④AI 가 써 준 글이 손대지 않으면 사라지던 것도 Fable 지적으로 되돌렸다. 내 진단("헛저장 덕에 저장되던 것")이 틀렸다 — 시드는 HTML, emit 은 JSON 이라 이 경로는 늘 저장돼 왔다. ⑤공개 범위 라벨이 값을 모르면 '워크스페이스' 로 떨어지던 것을 '확인 필요' 로 바꿨다(넓은 쪽으로 오해되는 방향이었다).
+> **최종 업데이트:** 2026-09-06 (Opus 5, 1M) — **운영 배포 5회 · 커밋 15건 · 안드로이드 APK 1본** — 주제는 **"기준점을 숫자로 박으면 기기마다 어긋난다"** 였다. ①구글 로그인이 앱으로 못 돌아오던 것을 **기기코드 페어링**으로 열었다(딥링크 둘 다 실패해도 로그인이 끝난다). 첫 설계는 계정 탈취였다 — 비밀을 개시 링크로 받았다. 비밀을 **피해자 브라우저에서** 만들게 바꿔 벡터를 없앴다(Fable 3라운드). ②태블릿 상단 탭을 **세로에도** 켰다(900→550px). 켜자 모바일 헤더(56)와 탭바(40)가 같이 떠 96px 이 됐고, 탭바는 도킹되지도 않은 사이드바 폭만큼 밀려 있었다 — `sidebarW` 를 인라인 style 로 넘겨 미디어쿼리가 못 덮은 탓이다. ③**우측 상세패널이 헤더와 어긋나던 것**(Irene: "기준점 자체를 헤더 끝나는 위치에 맞추면 어떤 디바이스든 잘 맞지 않을까?") — 정확히 그 말대로였다. `--chrome-top` 이 `TABSTRIP_H`(40) 고정이라 안드로이드 상태바 24px 만큼 헤더를 파고들었다. 웹은 safe-top 0 이라 데스크탑에서는 영영 안 드러나는 종류다. ④"다른 우측패널도 다 봐야 하냐" 에 답하려 오버레이 **101개를 기계로 훑어** 우측 패널 8곳이 각자 값을 박아 둔 것을 찾았다 — 그중 하나가 세션 초반 신고 "우측패널 위에 PWA 나온다" 의 정체(배너 `top:16px`)였다. 기준선을 토큰 하나로 모으고 **가드로 재발을 막았다**(`--category=overlaytop`). ⑤**딥링크가 옛 탭의 쿼리에 덮여 엉뚱한 상세가 열리던 것** — `/tasks?task=A` 로 들어가면 주소가 `?task=B`(전에 보던 것)로 되돌아갔다. 탭 일치를 `identityOfPath`(화면 종류)로만 봐서 쿼리가 통째로 버려졌다. 프로젝트 상세만 멀쩡했던 이유는 id 가 경로 세그먼트라서다. ⑥검사기가 두 번 거짓말했다 — `keep-alive` 는 **하니스가 만든 세 번째 탭**을 앱 탓으로 신고했고, UI 규격 가드는 라벨과 달리 **토큰 40px 을 위반으로** 세고 있었다(781→738). 둘 다 숫자를 고치지 않고 재는 대상을 성질로 바꿨다.
 
+
+## ✅ 완료: 앱 복귀·태블릿 크롬·오버레이 기준선 (2026-09-06)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 상세 헤더 두 밴드 표준 | Q Mail·Q docs·Q Note 상세를 밴드1(60px 제목+⋯) + 밴드2(57px 메타+액션 3개)로 통일. 본문 시작 y 197→117 | ✅ 완료 |
+| 구글 로그인 앱 복귀 | 기기코드 페어링(`oauthPairing.js`) — 6자리를 **로그인을 마친 브라우저**에서 생성. 딥링크 둘 다 실패해도 로그인 완료 | ✅ 완료 |
+| Fable 사용 기준 | 판정식 `R=1 OR (S=1 AND F=0)` 을 CLAUDE.md 에 박제 (가역성·구조적 판단·자체 반증) | ✅ 완료 |
+| 태블릿 상단 탭 (가로+세로) | `TABS_MEDIA` 900→550px. 폰↔태블릿 사이가 폭 430↔550·높이 430↔552 로 양쪽 120px 여유 | ✅ 완료 |
+| 상단 크롬 한 겹 | 탭 모드면 모바일 헤더를 감추고 햄버거를 탭바로 이동(`tabstrip-menu`). 96px→40px | ✅ 완료 |
+| 탭바 오프셋 | `leftOffset` 인라인 style → `$left` prop + `mediaTablet` 로 0. 사이드바 드로어 폭에서 240px 밀리던 것 | ✅ 완료 |
+| 오버레이 기준선 통일 | `--pq-chrome-bottom`(크롬이 끝나는 y) + `belowTabs`/`belowChrome` 조각. 우측 패널 8곳 적용 | ✅ 완료 |
+| overlaytop 가드 (신규) | `position:fixed`+`right:0` styled 의 top 이 토큰 아니면 실패. 재발 차단 | ✅ 완료 |
+| 딥링크 → 엉뚱한 상세 | `setTabScope` 어긋남 판정을 identity → **경로 전체**로. owner 찾기는 identity 유지 | ✅ 완료 |
+| assetlinks 지문 | Play 앱 서명 키에 **업로드 키** 지문 추가 — Play 미승인 상태의 사이드로드 APK 는 검증이 구조적으로 불가능했다 | ✅ 완료 |
+| 안드로이드 APK | 로컬 릴리즈 빌드(JDK 21 + platform 36). `adjustResize` · 운영 URL 고정 · versionCode 100 | ✅ 완료 |
+| 검사기 2건 교정 | `keep-alive` 개수→성질(하니스가 만든 탭이 원인) · UI 규격 정규식이 토큰 40px 을 잡던 것(781→738) | ✅ 완료 |
+
+### 남은 것 (내일)
+- **`dev-backend/routes/auth_oauth.js` 610줄 — god-file 래칫 초과(45→46).** 라우트 분리 필요.
+  인증 경계라 **R=1 → Fable 게이트 필수**. 오늘 마무리 작업으로 하기엔 위험해 넘긴다.
+- iPad 실기기 확인(키보드 위 입력란) · Codemagic `android-play` 재빌드 · 운영 옛 청크 정리
+
+### 수정된 파일 (주요)
+- `dev-backend/services/oauthPairing.js` (신규) · `dev-backend/routes/auth_oauth.js` · `dev-backend/utils/nativeReturn.js`
+- `dev-frontend/src/components/Layout/{MainLayout,PanelHeader,PanelLayout}.tsx` · `components/Tab/TabStrip.tsx`
+- `dev-frontend/src/stores/tabStore.ts` · `src/theme/layout.ts` · `src/index.css` · `src/utils/tabsBeta.ts`
+- `dev-frontend/src/components/Auth/PairCodePrompt.tsx` (신규) · `components/Common/{ChipPopover,popoverAnchor}.ts(x)` (신규)
+- `dev-frontend/public/.well-known/assetlinks.json` · `android/app/{build.gradle,src/main/AndroidManifest.xml}`
+- `scripts/e2e/canary-tablet-chrome.js` (신규) · `scripts/e2e/{run,canary-tabs,canary-detail-open}.js` · `scripts/guard-invariants.js`
+
+---
 
 ## ✅ 완료: 결과물 버전 재설계 · 일정 알림 정상화 · 외부 열람 링크 2차 (2026-09-05)
 

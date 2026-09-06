@@ -1347,7 +1347,12 @@ function checkUiSpec() {
     const hdr = src.match(/const\s+(Header|HeaderBar|TopBar|PageHeader)\s*=\s*styled/g);
     if (hdr) { current.customHeaders += hdr.length; detail.customHeaders.push(`${r}(${hdr.length})`); }
     // ② 컨트롤 높이 하드코딩 — 토큰(36/40/44) 외의 값
-    const hs = src.match(/height:\s*(1[0-9]|2[0-9]|3[0-5]|3[7-9]|4[0-3])px/g);
+    // ★ 40 은 **토큰**이다(ActionButton sm 36 / md 40 / lg 44 — CLAUDE.md 사이클 N+18).
+    //   그런데 옛 패턴 `4[0-3]` 이 40 을 같이 잡아, 라벨("토큰 36/40/44 밖")과 정면으로
+    //   모순돼 있었다. 규격대로 md 40 을 쓴 새 코드가 위반으로 세어져 래칫이 올라간다
+    //   (2026-09-06: PairCodePrompt·ChipPopover·MailPage 의 40px 3건이 그렇게 잡혔다).
+    //   검사기가 규격을 지킨 코드를 벌하면 사람은 검사기를 끄게 된다.
+    const hs = src.match(/height:\s*(1[0-9]|2[0-9]|3[0-5]|3[7-9]|4[1-3])px/g);
     if (hs) current.controlHeights += hs.length;
     // ③ 리스트 글자 크기 — 12px 미만은 목록에서 읽기 어렵다(모바일에서 특히)
     const fs = src.match(/font-size:\s*(9|10|11)(\.[0-9])?px/g);
