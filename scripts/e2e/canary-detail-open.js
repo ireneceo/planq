@@ -32,6 +32,17 @@ const FB = `(() => {
   return vis ? vis.getAttribute('data-testid') : null;
 })()`;
 
+// ★ 침묵을 신고하기 전에 **주소가 밀렸는지** 먼저 말한다.
+//   2026-09-06: 이 카나리가 6건을 "아무 말도 없음(회귀)" 으로 신고했는데 진짜 원인은
+//   폴백이 아니라 **딥링크 쿼리가 옛 탭에 덮인 것**이었다(/tasks?task=99999901 로 들어가면
+//   주소가 /tasks?task=1600 으로 되돌아갔다 — tabStore.setTabScope 가 identity 로만 비교해서).
+//   그 화면은 요청받지 않은 항목을 멀쩡히 그리고 있었으니 폴백이 없는 게 당연했다.
+//   원인을 잘못 가리키는 실패 메시지는 다음 사람을 엉뚱한 곳으로 보낸다.
+async function drift(page, want) {
+  const now = await page.evaluate(() => location.pathname + location.search).catch(() => null);
+  return (now && now !== want) ? `  ※ 주소가 밀렸다: 요청 ${want} → 실제 ${now} (딥링크가 옛 탭에 덮였는지 보라)` : '';
+}
+
 // [라벨, URL 만들기, 유효 ID, 없는 ID, **남의 워크스페이스** ID]
 //   남의 워크스페이스 케이스는 Fable 이 필수로 지목했다 — 403 도 침묵으로 떨어지던 계열이다.
 //   dev 에 워크스페이스가 여러 개라 재현 가능하다(health-check 은 5·73 소속).
@@ -98,7 +109,7 @@ async function run() {
         if (f2 && f2 !== 'detail-fallback-loading') break;
       }
       f2 === 'detail-fallback-notfound' ? ok(`${label} 없는 ID → "찾을 수 없는 항목입니다"`)
-        : bad(`${label} 없는 ID → ${f2 || '아무 말도 없음(회귀)'}`);
+        : bad(`${label} 없는 ID → ${f2 || '아무 말도 없음(회귀)'}${await drift(page, mk(missing))}`);
 
       // ── 남의 워크스페이스 — 403 도 말을 해야 한다 (침묵 금지) ──
       if (foreign) {
@@ -113,7 +124,7 @@ async function run() {
         //   침묵(null)이나 영원한 로딩만 실패다.
         (f3 === 'detail-fallback-forbidden' || f3 === 'detail-fallback-notfound')
           ? ok(`${label} 남의 워크스페이스 → 말을 한다 (${f3.replace('detail-fallback-','')})`)
-          : bad(`${label} 남의 워크스페이스 → ${f3 || '아무 말도 없음(회귀)'}`);
+          : bad(`${label} 남의 워크스페이스 → ${f3 || '아무 말도 없음(회귀)'}${await drift(page, mk(foreign))}`);
       }
     }
   } finally { await browser.close(); }

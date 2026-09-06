@@ -256,7 +256,19 @@ export function setTabScope(next: string | null) {
   if (typeof window !== 'undefined') {
     const here = window.location.pathname + (window.location.search || '');
     const act = activeTab(state);
-    const mismatched = !act || identityOfPath(act.path) !== identityOfPath(here);
+    // ★ 비교는 **경로 전체**로 한다 — identity 로 비교하면 쿼리가 통째로 버려진다.
+    //   identityOfPath 는 화면 종류만 돌려준다(projectDetail 만 id 를 갖는다). 그래서
+    //   `/tasks?task=1600` 과 `/tasks?task=99999901` 이 둘 다 'task' 로 같아
+    //   **불일치 아님**으로 판정됐고, 복원된 탭의 옛 쿼리가 그대로 남아 주소를 되덮었다.
+    //   증상(2026-09-06 실측): 알림·공유 링크로 특정 업무·메일·문서를 열면, 그 화면 탭이
+    //   이미 열려 있을 때 **이전에 보던 항목**이 열린다.
+    //     /tasks?task=99999901 → /tasks?task=1600
+    //     /mail?…thread=99999901 → thread=5594   ·   /docs?post=99999901 → post=459
+    //   프로젝트 상세만 멀쩡했던 이유는 id 가 **경로 세그먼트**(/projects/p/:id)라
+    //   identity 에 들어가기 때문이다 — 쿼리로 여는 화면만 조용히 새고 있었다.
+    //   위 주석의 의도("복원된 탭이 지금 있는 자리를 이기면 안 된다")를 쿼리까지 지킨다.
+    //   owner 찾기는 종전대로 identity 로 둔다 — 그래야 탭이 쌓이지 않고 그 탭이 갱신된다.
+    const mismatched = !act || act.path !== here;
     if (state.tabs.length === 0) {
       // 새 범위가 비었으면 지금 화면을 첫 탭으로. 안 하면 화면은 떠 있는데 탭 막대가 빈다.
       const id = newId();
