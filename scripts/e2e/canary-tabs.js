@@ -68,18 +68,31 @@ async function run() {
     try {
       const hasHook = await page.evaluate(() => !!window.__pqTab);
       if (hasHook) {
+        // ★ **개수를 못박지 않는다.** 옛 판정은 `alive === 2` 였는데, 그 "2" 는 "여기 오기까지
+        //   탭이 딱 하나 생겼다" 는 전제였고 **이 하니스가 스스로 그 전제를 깼다**:
+        //   쿠키를 이동 전에 심어 `/login` 이 곧바로 `/dashboard` 로 튕기면서 탭이 하나 더
+        //   생긴다(2026-09-06 실측 — alive=3 = dashboard+task+talk, 셋 다 정상).
+        //   쿠키를 나중에 심으면 2 가 나온다. 즉 앱이 아니라 **오는 길**이 값을 바꿨다.
+        //   그래서 이 검사가 정말 뜻하는 것 — "새 탭이 기존 탭을 **죽이지 않고** 같이 산다" —
+        //   을 잰다: 직전 alive 수에서 정확히 +1, 그리고 **직전 활성 탭이 여전히 alive**.
+        const before = await page.evaluate(() => window.__pqTab.getSnapshot().tabs.filter((t) => t.alive).length);
+        const prevActiveId = await page.evaluate(() => window.__pqTab.getSnapshot().activeId);
         await page.evaluate(() => window.__pqTab.newTab('/talk'));
         await new Promise((r) => setTimeout(r, 2000));
-        const n = await page.evaluate(() => window.__pqTab.getSnapshot().tabs.filter((t) => t.alive).length);
+        const after = await page.evaluate(() => window.__pqTab.getSnapshot().tabs.filter((t) => t.alive).length);
+        const prevStillAlive = await page.evaluate((id) => {
+          const t = window.__pqTab.getSnapshot().tabs.find((x) => x.id === id);
+          return !!(t && t.alive);
+        }, prevActiveId);
         const firstId = await page.evaluate(() => window.__pqTab.getSnapshot().tabs[0].id);
         await page.evaluate((id) => window.__pqTab.setActive(id), firstId);
         await new Promise((r) => setTimeout(r, 1000));
         const noCrash = pageerrors.length === 0 && !CRASH_RE.test(await page.evaluate(() => document.body.innerText.slice(0, 200)));
-        ka.ok = n === 2 && noCrash;
-        ka.detail = `alive=${n} 전환후크래시=${!noCrash}`;
+        ka.ok = after === before + 1 && after >= 2 && prevStillAlive && noCrash;
+        ka.detail = `alive ${before}→${after} (기대 ${before + 1}) · 직전탭 alive=${prevStillAlive} · 전환후크래시=${!noCrash}`;
       } else ka.detail = '__pqTab 훅 없음';
     } catch (e) { ka.detail = e.message; }
-    results.push({ name: 'tabs:keep-alive(2탭 동시 alive·전환)', fail: ka.ok ? 0 : 1, fatal: 0, details: ka.ok ? [] : [ka.detail] });
+    results.push({ name: 'tabs:keep-alive(새 탭이 기존 탭을 죽이지 않는다·전환)', fail: ka.ok ? 0 : 1, fatal: 0, details: ka.ok ? [] : [ka.detail] });
 
     const hasHook = await page.evaluate(() => !!window.__pqTab);
 
