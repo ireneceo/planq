@@ -15,7 +15,9 @@ import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { plainToHtml } from '../../utils/plainToHtml';
 import type { VoiceHandoff } from '../../utils/voiceHandoff';
 import PageShell from '../../components/Layout/PageShell';
-import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle } from '../../components/Layout/PanelHeader';
+import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../../components/Layout/PanelHeader';
+import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
+import ChipPopover from '../../components/Common/ChipPopover';
 import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
@@ -54,10 +56,15 @@ import {
   FilterCount,
   AcctSelectWrap,
   AddLabelChip,
+  LabelPickList,
+  LabelPickEmpty,
+  PickerFilter,
+  PickerList,
+  PickerItem,
+  PickerHint,
   AiInstructionRow,
   AiInstructionInput,
   AiInstructionHint,
-  AssignWrap,
   ClipIcon,
   CloseBtn,
   ComposeBody,
@@ -78,13 +85,9 @@ import {
   CtrlBtn,
   CtxBackdrop,
   CtxResizeHandle,
-  DangerBtn,
-  DetailControls,
   DetailFooter,
   DetailHeaderLeft,
   DetailHeaderRight,
-  DetailLabels,
-  DetailToolbar,
   Empty,
   EmptyIcon,
   EmptyList,
@@ -124,8 +127,6 @@ import {
   MessagesScroll,
   MetaChip,
   FollowUpChip,
-  FollowUpPicker,
-  FollowUpLabel,
   NewLabelInput,
   NoAcctBtn,
   NoAcctHint,
@@ -966,29 +967,9 @@ const MailPage: React.FC = () => {
     } catch { setDetail(prev => (prev ? { ...prev, my_following: prevFollowing } : prev)); }
   }, [detail, businessId, loadCounts]);
 
-  // 담당 토글 (상세) — 본인 ↔ 해제
-  const toggleAssignMe = useCallback(async () => {
-    if (!detail || !businessId || !myUserId) return;
-    const mine = detail.assignee_user_id === myUserId;
-    const uid = mine ? null : myUserId;
-    const prevUid = detail.assignee_user_id; const prevName = detail.assignee_name;
-    setDetail(prev => (prev ? { ...prev, assignee_user_id: uid, assignee_name: mine ? null : (members.find(m => m.user_id === myUserId)?.name || null) } : prev));
-    try {
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/assign`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid }),
-      });
-      if (!r.ok) { setDetail(prev => (prev ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev)); return; }  // 실패 시 되돌림
-      loadCounts();
-    } catch { setDetail(prev => (prev ? { ...prev, assignee_user_id: prevUid, assignee_name: prevName } : prev)); }
-  }, [detail, businessId, myUserId, members, loadCounts]);
-
   const labelColor = useCallback((name: string) => labelMaster.find(l => l.name === name)?.color || '#14B8A6', [labelMaster]);
-  const assignOptions = useMemo(() => [
-    { value: 0, label: t('actions.unassigned', { defaultValue: '담당 없음' }) as string },
-    ...members.map(m => ({ value: m.user_id, label: m.name })),
-  ], [members, t]);
 
-  // 담당자 지정 (멤버 선택 — PlanQSelect)
+  // 담당자 지정 — 상세 밴드2 의 담당 칩 팝오버가 부른다(멤버 목록 버튼).
   const assignTo = useCallback(async (uid: number | null) => {
     if (!detail || !businessId) return;
     const prevUid = detail.assignee_user_id; const prevName = detail.assignee_name;
@@ -1003,6 +984,7 @@ const MailPage: React.FC = () => {
   }, [detail, businessId, members, loadCounts]);
 
   // 새 라벨 생성 (마스터 추가 후 현재 스레드에 적용)
+  const [assignQuery, setAssignQuery] = useState('');   // 담당자 팝오버 안 이름 필터
   const [newLabelName, setNewLabelName] = useState('');
   const [labelBusy, setLabelBusy] = useState(false);
   const createLabel = useCallback(async () => {
@@ -1116,6 +1098,40 @@ const MailPage: React.FC = () => {
       setErrorMsg((e as Error).message);
     }
   };
+
+  // 상세 헤더 ⋯ — **가끔 쓰는** 액션만 접는다. 자주 쓰는 셋(별표·팔로우·업무추출)은 밴드2 에 남는다.
+  //   ★ "답 없으면" 은 값이 하나뿐인 택일이라 셀렉트 대신 체크 항목으로 편다.
+  //     옛 구조는 라벨 + PlanQSelect 로 툴바에서 150px 를 상시 먹었고, 그것이 밴드가
+  //     3줄로 감기던 주된 원인이었다(실측 137px).
+  const detailMenuItems = useMemo<OverflowItem[]>(() => {
+    if (!detail) return [];
+    const cur = String(detail.follow_up_days ?? 'default');
+    const items: OverflowItem[] = [
+      {
+        key: 'spam',
+        label: detail.status === 'spam'
+          ? t('actions.notSpam', { defaultValue: '스팸 해제' }) as string
+          : t('actions.markSpam', { defaultValue: '스팸으로' }) as string,
+        onClick: () => { void onMarkSpam(); },
+        danger: detail.status !== 'spam',
+        testId: 'mail-detail-spam',
+      },
+    ];
+    FOLLOW_UP_OPTIONS(t).forEach((o, i) => {
+      items.push({
+        key: 'fu-' + o.value,
+        label: o.label,
+        checked: cur === o.value,
+        groupLabel: i === 0 ? (t('followUp.label', { defaultValue: '답 없으면' }) as string) : undefined,
+        dividerBefore: i === 0,
+        onClick: () => setFollowUpDays(detail.id, o.value === 'default' ? null : Number(o.value)),
+      });
+    });
+    return items;
+    // onMarkSpam 은 매 렌더 새로 만들어지는 평범한 함수라 deps 에 넣으면 메모가 무의미해진다.
+    //   detail.id·status·follow_up_days 가 바뀔 때만 다시 만들면 충분하다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [detail?.id, detail?.status, detail?.follow_up_days, t, setFollowUpDays]);
 
   // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
   const silentReload = useCallback(() => {
@@ -2317,6 +2333,11 @@ const MailPage: React.FC = () => {
                 onBack={viewportNarrow && activeId != null ? () => navigateToThread(null) : undefined}
                 backLabel={t('list.backToList', { defaultValue: '목록으로' }) as string}
               >
+                {/* ★ 밴드1 = **제목 자리**. 액션은 ⋯ 하나만 둔다 (CLAUDE.md 페이지 레이아웃 표준 3).
+                    Irene 2026-09-06: "이 영역의 모든 게 잘 정돈되어서 2줄에서 끝날 방법 없어?"
+                    실측(패널 600px): 옛 구조는 제목 60 + 액션·라벨 **137**(3줄로 감김) = 197px 를
+                    본문에서 빼앗았다. 짧은 메일이면 그 아래가 통째로 흰 바닥이 된다
+                    (= "흰 여백이 너무 많고 정작 내용은 적게 나온다" 신고와 같은 뿌리). */}
                 {/* #283 — 버튼과 제목을 한 Row 로 묶는다. PanelHeader 는 ≤640px 에서
                     flex-direction:column 이라 직계 자식으로 넣으면 제목 **위에 한 줄로 쌓인다**. */}
                 <DetailHeaderLeft>
@@ -2339,17 +2360,109 @@ const MailPage: React.FC = () => {
                   <PanelSubTitle data-testid="mail-detail-subject">{detail.subject || '(no subject)'}</PanelSubTitle>
                 </DetailHeaderLeft>
                 <DetailHeaderRight>
-                  {detail.message_count > 1 && <MetaChip>{t('messageCount', { defaultValue: '{{n}}개 메시지', n: detail.message_count }) as string}</MetaChip>}
-                  {detail.client && <MetaChip>{detail.client.display_name || detail.client.company_name}</MetaChip>}
-                  <DangerBtn type="button" onClick={onMarkSpam}>
-                    {detail.status === 'spam'
-                      ? t('actions.notSpam', { defaultValue: '스팸 해제' }) as string
-                      : t('actions.markSpam', { defaultValue: '스팸으로' }) as string}
-                  </DangerBtn>
+                  <OverflowMenu
+                    label={t('actions.more', { defaultValue: '더보기' }) as string}
+                    data-testid="mail-detail-more"
+                    items={detailMenuItems}
+                  />
                 </DetailHeaderRight>
               </PanelHeader>
-              <DetailToolbar>
-                <DetailControls>
+              {/* 밴드2 — 좌: 이 스레드의 **상태**(메시지 수·고객·담당·라벨) / 우: 자주 쓰는 액션 3개. */}
+              <DetailMetaBar>
+                <DetailMetaLeft>
+                  {detail.message_count > 1 && <MetaChip>{t('messageCount', { defaultValue: '{{n}}개 메시지', n: detail.message_count }) as string}</MetaChip>}
+                  {detail.client && <MetaChip>{detail.client.display_name || detail.client.company_name}</MetaChip>}
+                  {/* 담당자 — 값이 곧 칩이다. 고치는 셀렉트는 누를 때만 꺼낸다.
+                      옛 구조는 PlanQSelect 를 툴바에 그대로 세워 150px 를 상시 점유했다. */}
+                  <ChipPopover
+                    data-testid="mail-assign-chip"
+                    prefix={t('actions.assigneePrefix', { defaultValue: '담당' }) as string}
+                    label={detail.assignee_name || (t('actions.unassigned', { defaultValue: '담당 없음' }) as string)}
+                    active={!!detail.assignee_user_id}
+                    ariaLabel={t('actions.assignAria', { defaultValue: '담당자 지정' }) as string}
+                    width={260}
+                  >
+                    {(close) => (
+                      <>
+                        {/* ★ 여기에 PlanQSelect 를 쓰지 않는다 — 그 컴포넌트는 메뉴를
+                            document.body 로 **포털**한다(PlanQSelect.tsx:309). 팝오버의
+                            바깥클릭 판정은 자기 패널 안인지를 보므로, 포털된 옵션을 누르는 순간
+                            "바깥" 으로 읽혀 **선택되기 전에 팝오버가 닫힌다** — 눌러도 아무 일이
+                            일어나지 않는 컨트롤이 된다(memory feedback_ui_control_sends_nothing).
+                            멤버는 목록으로 직접 그린다. 많으면 위 입력으로 좁힌다. */}
+                        {members.length > 8 && (
+                          <PickerFilter
+                            value={assignQuery}
+                            onChange={(e) => setAssignQuery(e.target.value)}
+                            placeholder={t('actions.assignSearch', { defaultValue: '이름으로 찾기' }) as string}
+                            aria-label={t('actions.assignSearch', { defaultValue: '이름으로 찾기' }) as string}
+                          />
+                        )}
+                        <PickerList>
+                          <PickerItem
+                            type="button"
+                            $on={!detail.assignee_user_id}
+                            onClick={() => { assignTo(null); setAssignQuery(''); close(); }}
+                          >
+                            {t('actions.unassigned', { defaultValue: '담당 없음' }) as string}
+                          </PickerItem>
+                          {members
+                            .filter(m => !assignQuery.trim() || m.name.toLowerCase().includes(assignQuery.trim().toLowerCase()))
+                            .map(m => (
+                              <PickerItem
+                                key={m.user_id}
+                                type="button"
+                                $on={detail.assignee_user_id === m.user_id}
+                                data-testid={m.user_id === myUserId ? 'mail-assign-me' : undefined}
+                                /* 재클릭 토글 — 이미 담당인 사람을 다시 누르면 해제 (CLAUDE.md UI 규칙) */
+                                onClick={() => { assignTo(detail.assignee_user_id === m.user_id ? null : m.user_id); setAssignQuery(''); close(); }}
+                              >
+                                {m.name}
+                                {m.user_id === myUserId && <PickerHint>{t('actions.meShort', { defaultValue: '나' }) as string}</PickerHint>}
+                              </PickerItem>
+                            ))}
+                        </PickerList>
+                      </>
+                    )}
+                  </ChipPopover>
+                  {/* ★ '+ 라벨' 을 라벨칩들 **앞**에 둔다 — 이 칸은 넘치면 오른쪽부터
+                      스크롤 밖으로 나간다. 뒤에 두면 라벨 3개부터 붙이는 입구가 사라진다
+                      (2026-09-06 Fable 실측: 패널 600px·라벨 4개에서 보이는 폭 0). */}
+                  {/* 라벨 붙이기 — 마스터 전체를 상시 나열하지 않는다. 라벨이 늘수록 툴바가
+                      길어져 밴드가 조용히 두 줄, 세 줄이 되던 자리다. */}
+                  <ChipPopover
+                    data-testid="mail-label-chip"
+                    label={t('actions.addLabel', { defaultValue: '+ 라벨' }) as string}
+                    ariaLabel={t('actions.addLabelAria', { defaultValue: '라벨 붙이기' }) as string}
+                    width={260}
+                  >
+                    {() => (
+                      <>
+                        <LabelPickList>
+                          {labelMaster.filter(lm => !(detail.labels || []).includes(lm.name)).map(lm => (
+                            <AddLabelChip key={lm.name} type="button" $color={lm.color} onClick={() => toggleLabel(lm.name)}>+ {lm.name}</AddLabelChip>
+                          ))}
+                          {labelMaster.filter(lm => !(detail.labels || []).includes(lm.name)).length === 0 && (
+                            <LabelPickEmpty>{t('actions.noMoreLabels', { defaultValue: '붙일 라벨이 더 없습니다' }) as string}</LabelPickEmpty>
+                          )}
+                        </LabelPickList>
+                        <NewLabelInput
+                          value={newLabelName}
+                          disabled={labelBusy}
+                          onChange={(e) => setNewLabelName(e.target.value)}
+                          onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); createLabel(); } }}
+                          placeholder={t('actions.newLabel', { defaultValue: '+ 새 라벨' }) as string}
+                        />
+                      </>
+                    )}
+                  </ChipPopover>
+                  {(detail.labels || []).map(l => (
+                    <LabelChip key={l} $color={labelColor(l)} $clickable onClick={() => toggleLabel(l)} title={t('actions.removeLabel', { defaultValue: '라벨 제거' }) as string}>
+                      {l} ✕
+                    </LabelChip>
+                  ))}
+                </DetailMetaLeft>
+                <DetailMetaRight>
                   <CtrlBtn type="button" $on={detail.is_starred} onClick={() => patchThread(detail.id, { is_starred: !detail.is_starred })}>
                     {detail.is_starred ? '★' : '☆'} {t('actions.star', { defaultValue: '별표' }) as string}
                   </CtrlBtn>
@@ -2358,31 +2471,6 @@ const MailPage: React.FC = () => {
                       ? t('actions.following', { defaultValue: '팔로우 중' }) as string
                       : t('actions.follow', { defaultValue: '팔로우' }) as string}
                   </CtrlBtn>
-                  {/* #384 — "언제쯤까지 답 없으면 알려달라". 대화마다 다르게 정한다.
-                      판정은 백엔드 한 곳(services/mailFollowUp)이라 여기서 바꾸면
-                      목록 뱃지와 알림이 **함께** 움직인다. */}
-                  <FollowUpPicker>
-                    <FollowUpLabel>{t('followUp.label', { defaultValue: '답 없으면' }) as string}</FollowUpLabel>
-                    <PlanQSelect
-                      size="sm"
-                      isSearchable={false}
-                      value={FOLLOW_UP_OPTIONS(t).find(o => o.value === String(detail.follow_up_days ?? 'default')) || null}
-                      options={FOLLOW_UP_OPTIONS(t)}
-                      onChange={(opt) => {
-                        const v = (opt as { value: string } | null)?.value;
-                        if (v === undefined) return;
-                        setFollowUpDays(detail.id, v === 'default' ? null : Number(v));
-                      }}
-                      aria-label={t('followUp.aria', { defaultValue: '답장 없을 때 알림 기간' }) as string}
-                    />
-                  </FollowUpPicker>
-                  {myUserId && (
-                    <CtrlBtn type="button" $on={detail.assignee_user_id === myUserId} onClick={toggleAssignMe}>
-                      {detail.assignee_user_id === myUserId
-                        ? t('actions.assignedToMe', { defaultValue: '내 담당 ✓' }) as string
-                        : t('actions.assignMe', { defaultValue: '내가 담당' }) as string}
-                    </CtrlBtn>
-                  )}
                   {/* #263 — 업무추출 진입점. 여태 우측 맥락 패널 안에만 있어서, 패널을 접었거나
                       폰·태블릿에서 오버레이를 안 열면 진입점이 0개였다 (Irene: "업무추출이 제대로
                       버튼이 안뜨는 곳이 많아"). 상세 툴바에서 패널을 열고 추출까지 바로 건다. */}
@@ -2401,35 +2489,8 @@ const MailPage: React.FC = () => {
                   >
                     {t('actions.extractTasks', { defaultValue: '업무 추출' }) as string}
                   </CtrlBtn>
-                  <AssignWrap>
-                    <PlanQSelect
-                      size="sm"
-                      value={assignOptions.find(o => o.value === (detail.assignee_user_id || 0))}
-                      onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; assignTo(v > 0 ? v : null); }}
-                      options={assignOptions}
-                      isSearchable
-                      menuPlacement="bottom"
-                    />
-                  </AssignWrap>
-                </DetailControls>
-                <DetailLabels>
-                  {(detail.labels || []).map(l => (
-                    <LabelChip key={l} $color={labelColor(l)} $clickable onClick={() => toggleLabel(l)} title={t('actions.removeLabel', { defaultValue: '라벨 제거' }) as string}>
-                      {l} ✕
-                    </LabelChip>
-                  ))}
-                  {labelMaster.filter(lm => !(detail.labels || []).includes(lm.name)).map(lm => (
-                    <AddLabelChip key={lm.name} type="button" $color={lm.color} onClick={() => toggleLabel(lm.name)}>+ {lm.name}</AddLabelChip>
-                  ))}
-                  <NewLabelInput
-                    value={newLabelName}
-                    disabled={labelBusy}
-                    onChange={(e) => setNewLabelName(e.target.value)}
-                    onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); createLabel(); } }}
-                    placeholder={t('actions.newLabel', { defaultValue: '+ 새 라벨' }) as string}
-                  />
-                </DetailLabels>
-              </DetailToolbar>
+                </DetailMetaRight>
+              </DetailMetaBar>
               <MessagesScroll ref={scrollRef}>
                 <ThreadMessages
                   messages={displayMessages}

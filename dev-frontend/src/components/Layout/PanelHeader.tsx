@@ -30,7 +30,7 @@ type Props = {
 
 export default function PanelHeader({ children, className, onBack, backLabel }: Props) {
   return (
-    <Bar className={className}>
+    <PanelHeaderBar className={className}>
       {onBack && (
         <BackBtn type="button" onClick={onBack} aria-label={backLabel || '뒤로'} title={backLabel || '뒤로'}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -39,11 +39,20 @@ export default function PanelHeader({ children, className, onBack, backLabel }: 
         </BackBtn>
       )}
       {children}
-    </Bar>
+    </PanelHeaderBar>
   );
 }
 
-const Bar = styled.div`
+/**
+ * 헤더 밴드 자체 — 자식 계약(제목 칸은 줄어들 수 있고 액션 칸은 줄어들지 않는다)이 여기 있다.
+ * ★ 각자 다시 만들지 말고 이것을 상속한다(`styled(PanelHeaderBar)`). Q Note 가 이 규격을
+ *   베껴 만들었다가 2026-08-25·08-30 두 번의 수리를 못 받아 폰에서 헤더가 갈라졌다
+ *   (memory feedback_copied_component_drifts_extract_shell).
+ * ★ 자식은 **정확히 둘**(제목 칸 / 액션 칸)이어야 한다. 셋째를 넣으면 `:last-child` 계약이
+ *   그쪽으로 옮겨가 액션 칸이 flex-shrink 를 잃는다 — position:absolute 인 손잡이라도
+ *   선택자에는 걸린다. 그런 장식은 밴드 **밖**(감싸는 relative 요소)에 둔다.
+ */
+export const PanelHeaderBar = styled.div`
   height: 60px;            /* 좌측메뉴·콘텐츠 헤더와 픽셀 동일 — 헤더 밑줄(회색 라인) 정렬 */
   padding: 14px 20px;
   border-bottom: 1px solid #e2e8f0;
@@ -212,3 +221,91 @@ export function PanelBackButton({ onClick, label }: { onClick: () => void; label
     </BackBtn>
   );
 }
+
+/**
+ * DetailMetaBar — 상세 화면의 **두 번째 밴드**. 제목 헤더(60px) 바로 아래 한 줄.
+ *
+ * Irene 2026-09-05 "서브헤더에 버튼이 너무 많아. 제목이 보이지도 않아."
+ * Irene 2026-09-06 "이 영역의 모든 게 잘 정돈되어서 2줄에서 끝날 방법 없어?"
+ *
+ * 계약 — 상세 화면은 **밴드 2개로 끝낸다**:
+ *   밴드1 = PanelHeader(60px) — 제목(자르지 않는다) + ⋯ 하나
+ *   밴드2 = DetailMetaBar     — 좌: 메타·상태 칩 / 우: 자주 쓰는 액션 3개 이내 + ⋯
+ *   그 아래부터 본문.
+ *
+ * ★ 세로 밴드는 좌측 리스트의 **검색줄과 같게** 둔다 — padding 12px 20px 8px + 내용 36px
+ *   (= min-height 56px) + border-bottom #F1F5F9. 그래야 좌우 패널의 옅은 밑줄이 같은 y 에서
+ *   이어진다(헤더 60px 계약과 같은 이유).
+ * ★ 보기 모드와 편집 모드를 **둘 다** 이 구조로 만든다. 한쪽만 밴드 수가 다르면 모드를
+ *   오갈 때 가로 실선이 튄다.
+ * ★ 액션이 서너 개를 넘으면 헤더에 밀어넣지 말고 OverflowMenu(⋯) 로 접는다.
+ *   아이콘 전용 버튼을 늘리는 것은 자리를 먹으면서 뜻은 안 알려주는 최악의 조합이다.
+ */
+export const DetailMetaBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-sizing: border-box;
+  /* 12(위) + 36(좌측 검색 박스) + 8(아래) + 1(밑줄) = 57. 실측으로 맞춘 값 —
+     border-box 라 밑줄 1px 이 높이에 포함된다. 56 으로 두면 좌측 줄보다 1px 위에 선다.
+     숫자를 바꾸려면 좌측 리스트의 검색줄과 **함께** 바꿔야 한다. */
+  min-height: 57px;
+  padding: 12px 20px 8px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+  @media (max-width: 640px) {
+    /* ★ 폰에서는 **두 줄로 가른다** — 1행 메타, 2행 액션.
+       좌우가 space-between 으로 서로 폭을 다투면 칩이 음절 단위로 세로로 쪼개진다
+       (2026-09-06 Fable 실측: Q docs '공유 중' 태그가 "공/유/중" 3줄, '서명 받기' 버튼 14px 잘림).
+       폰은 드릴다운이라 옆에 나란히 설 패널이 없다 = **밑줄을 맞출 상대가 없다**.
+       그래서 57px 계약도 여기서는 풀고 내용만큼 자라게 둔다. */
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 0;
+    padding: 10px 14px 8px;
+    gap: 8px;
+    > * { width: 100%; }
+  }
+`;
+
+/** 밴드2 좌측 — 메타·상태 칩. 넘치면 **줄이 늘지 않고** 가로로 스크롤한다(밴드 높이 고정). */
+export const DetailMetaLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 0;
+  /* ★ flex-wrap 을 주지 않는다 — 라벨이 늘 때마다 밴드가 두 줄, 세 줄이 되면
+     "2줄에서 끝낸다" 는 계약이 데이터에 따라 조용히 깨진다. 대신 가로 스크롤로 흘린다. */
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+  > * { flex-shrink: 0; }
+  /* ★ 넘쳤다는 신호 — 스크롤바를 숨겼으므로 오른쪽 끝을 흐린다.
+     이 칸은 flex: 1 1 0 이라 내용이 들어맞을 때는 페이드가 **빈 자리**에 얹혀 보이지 않고,
+     넘칠 때만 마지막 칩 위에 걸린다. (Fable 지적: 라벨 3개부터 넘친 것을 알릴 신호가 0이었다) */
+  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+  /* 폰에서는 감긴다(밴드가 세로로 갈리므로 폭을 다툴 일이 없다) — 잘림 금지. */
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+`;
+
+/** 밴드2 우측 — 자주 쓰는 액션 3개 이내 + ⋯. 줄어들지 않는다. */
+export const DetailMetaRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  /* 폰: 액션이 한 줄에 안 들어가면 **감긴다**. shrink 0 인 채로 두면 마지막 버튼이 잘린다. */
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+`;

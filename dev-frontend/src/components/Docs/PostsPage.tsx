@@ -15,7 +15,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
-import PanelHeader, { PanelTitle, PanelSubTitle } from '../Layout/PanelHeader';
+import PanelHeader, { PanelTitle, PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../Layout/PanelHeader';
 import OverflowMenu from '../Common/OverflowMenu';
 import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
@@ -1822,12 +1822,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   maxLength={200}
                 />
               </TitleRow>
-            </PanelHeader>
-            {/* 편집 모드도 같은 두 밴드로 — 보기↔편집을 오갈 때 가로 실선이 위아래로 튀지 않게. */}
-            <DetailActionBar $end>
-              <EditActions>
-                {/* #252 임시저장 상태 — 성공은 뱃지만(토스트 금지, CLAUDE.md 자동저장 규칙).
-                    실패·충돌은 반드시 눈에 보여야 한다 — 조용히 죽으면 저장된 줄 알고 창을 닫는다. */}
+              <HeaderActions>
                 <AutoSaveMark
                   $tone={autoState === 'error' || autoState === 'stale' ? 'err' : 'ok'}
                   title={autoErr || undefined}
@@ -1844,22 +1839,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   {autoState === 'error' && `! ${t('autosave.failed', '임시저장 실패')}`}
                   {autoState === 'stale' && `! ${t('autosave.stale', '다른 사람이 수정함')}`}
                 </AutoSaveMark>
-                {autoState === 'stale' && (
-                  <StaleBar role="alert">
-                    <span>{t('autosave.staleBar', '다른 사람이 이 문서를 저장했습니다. 어떻게 할까요?')}</span>
-                    <StaleBtn type="button" onClick={() => { void resolveStaleReload(); }}>
-                      {t('autosave.staleReload', '최신 내용 가져오기')}
-                    </StaleBtn>
-                    <StaleBtn type="button" $danger onClick={() => { void resolveStaleOverwrite(); }}>
-                      {t('autosave.staleOverwrite', '내 수정으로 덮어쓰기')}
-                    </StaleBtn>
-                  </StaleBar>
-                )}
-                {leaveBlocked && (
-                  <LeaveBlockedNote role="alert">
-                    {t('autosave.leaveBlocked', '저장하지 못한 변경이 있어 이동하지 못했습니다. 저장하거나 취소해 주세요.')}
-                  </LeaveBlockedNote>
-                )}
                 {/* ★ 저장 버튼은 **새 문서에만** 둔다 (2026-08-25, Notion 방식으로 정렬).
                     기존 문서 편집은 치는 대로 저장되고, 나가는 순간 첨부까지 마무리된다
                     (leaveEditSession). 저장 버튼을 남겨두면 "임시저장인데 왜 저장돼?" 라는
@@ -1877,70 +1856,88 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     {t('doneEditing', '편집 완료')}
                   </PrimaryBtn>
                 )}
-              </EditActions>
-            </DetailActionBar>
-            <Body>
-              <MetaRow>
-                {/* ★ 카테고리 입력은 width:100% 라 행을 통째로 먹었고, 그래서 혼자 한 줄을 차지했다
-                    (Irene: "카테고리 창이 너무 심하게 길어. 혼자 있을 이유가 없는데").
-                    폭을 묶어 프로젝트·형태·공개·보안과 **한 줄**에 서게 한다. 좁아지면 자연히 접힌다. */}
-                <MetaField $basis={240}>
-                  <CategoryCombobox
-                    value={categoryDraft}
-                    onChange={setCategoryDraft}
-                    options={meta.categories.map(c => c.name)}
-                    placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드)') as string}
-                  />
+              </HeaderActions>
+            </PanelHeader>
+            {/* 저장 충돌·이동 차단 경고 — 상시 밴드가 아니라 있을 때만 뜬다.
+                밴드로 두면 평소에 빈 줄이 남아 상세가 3밴드가 된다. */}
+            {autoState === 'stale' && (
+              <StaleBar role="alert">
+                <span>{t('autosave.staleBar', '다른 사람이 이 문서를 저장했습니다. 어떻게 할까요?')}</span>
+                <StaleBtn type="button" onClick={() => { void resolveStaleReload(); }}>
+                  {t('autosave.staleReload', '최신 내용 가져오기')}
+                </StaleBtn>
+                <StaleBtn type="button" $danger onClick={() => { void resolveStaleOverwrite(); }}>
+                  {t('autosave.staleOverwrite', '내 수정으로 덮어쓰기')}
+                </StaleBtn>
+              </StaleBar>
+            )}
+            {leaveBlocked && (
+              <LeaveBlockedNote role="alert">
+                {t('autosave.leaveBlocked', '저장하지 못한 변경이 있어 이동하지 못했습니다. 저장하거나 취소해 주세요.')}
+              </LeaveBlockedNote>
+            )}
+            <MetaRow>
+              {/* ★ 카테고리 입력은 width:100% 라 행을 통째로 먹었고, 그래서 혼자 한 줄을 차지했다
+                  (Irene: "카테고리 창이 너무 심하게 길어. 혼자 있을 이유가 없는데").
+                  폭을 묶어 프로젝트·형태·공개·보안과 **한 줄**에 서게 한다. 좁아지면 자연히 접힌다. */}
+              <MetaField $basis={240}>
+                <CategoryCombobox
+                  value={categoryDraft}
+                  onChange={setCategoryDraft}
+                  options={meta.categories.map(c => c.name)}
+                  placeholder={t('categoryPlaceholder', '카테고리 (예: 매뉴얼, 가이드)') as string}
+                />
+              </MetaField>
+              {scope.type === 'workspace' && (
+                <MetaField $basis={200}>
+                <PlanQSelect
+                  size="sm"
+                  options={projectOptions}
+                  value={projectOptions.find(o => o.value === projectDraft) || null}
+                  onChange={(opt) => setProjectDraft(opt ? Number((opt as PlanQSelectOption).value) : null)}
+                  placeholder={t('share.linkage.noneProject', '프로젝트 연결 안 함') as string}
+                  isClearable
+                  isSearchable
+                />
                 </MetaField>
-                {scope.type === 'workspace' && (
-                  <MetaField $basis={200}>
-                  <PlanQSelect
-                    size="sm"
-                    options={projectOptions}
-                    value={projectOptions.find(o => o.value === projectDraft) || null}
-                    onChange={(opt) => setProjectDraft(opt ? Number((opt as PlanQSelectOption).value) : null)}
-                    placeholder={t('share.linkage.noneProject', '프로젝트 연결 안 함') as string}
-                    isClearable
-                    isSearchable
-                  />
+              )}
+              {/* N+72-7 — 문서 ↔ 표 타입 toggle (편집 모드에서 변경 가능). 표→문서: 데이터 있으면 confirm 모달 */}
+              {mode === 'edit' && detail && (
+                <KindToggle role="tablist" aria-label={t('kind.label', '문서 형태') as string}>
+                  <KindBtn type="button" role="tab" aria-selected={detail.kind !== 'table'} $active={detail.kind !== 'table'} onClick={() => changeKind('doc')}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    {t('kind.doc', '문서') as string}
+                  </KindBtn>
+                  <KindBtn type="button" role="tab" aria-selected={detail.kind === 'table'} $active={detail.kind === 'table'} onClick={() => changeKind('table')}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+                    {t('kind.table', '표') as string}
+                  </KindBtn>
+                </KindToggle>
+              )}
+              {/* 편집 메타 패리티 — 상세에서 바꾸던 공개·보안을 편집 모드에서도 같은 줄에서 수정(Irene) */}
+              {mode === 'edit' && detail && (
+                <>
+                  <VisibilityChip type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.change', { defaultValue: '공개 범위 변경' }) as string}>
+                    {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
+                  </VisibilityChip>
+                  <MetaField $basis={160}>
+                    <PlanQSelect
+                      size="sm" isClearable={false} isSearchable={false}
+                      value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
+                      options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
+                      onChange={async (o) => {
+                        const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
+                        try {
+                          const r = await updatePostSecurityLevel(detail.id, lv);
+                          setDetail(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null, vlevel: prev.vlevel === 'L4' ? 'L3' : prev.vlevel } : {}) } : prev);
+                        } catch { /* keep current on error */ }
+                      }}
+                    />
                   </MetaField>
-                )}
-                {/* N+72-7 — 문서 ↔ 표 타입 toggle (편집 모드에서 변경 가능). 표→문서: 데이터 있으면 confirm 모달 */}
-                {mode === 'edit' && detail && (
-                  <KindToggle role="tablist" aria-label={t('kind.label', '문서 형태') as string}>
-                    <KindBtn type="button" role="tab" aria-selected={detail.kind !== 'table'} $active={detail.kind !== 'table'} onClick={() => changeKind('doc')}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                      {t('kind.doc', '문서') as string}
-                    </KindBtn>
-                    <KindBtn type="button" role="tab" aria-selected={detail.kind === 'table'} $active={detail.kind === 'table'} onClick={() => changeKind('table')}>
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-                      {t('kind.table', '표') as string}
-                    </KindBtn>
-                  </KindToggle>
-                )}
-                {/* 편집 메타 패리티 — 상세에서 바꾸던 공개·보안을 편집 모드에서도 같은 줄에서 수정(Irene) */}
-                {mode === 'edit' && detail && (
-                  <>
-                    <VisibilityChip type="button" onClick={() => setVisModalOpen(true)} title={t('visibility.change', { defaultValue: '공개 범위 변경' }) as string}>
-                      {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
-                    </VisibilityChip>
-                    <MetaField $basis={160}>
-                      <PlanQSelect
-                        size="sm" isClearable={false} isSearchable={false}
-                        value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
-                        options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
-                        onChange={async (o) => {
-                          const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
-                          try {
-                            const r = await updatePostSecurityLevel(detail.id, lv);
-                            setDetail(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null, vlevel: prev.vlevel === 'L4' ? 'L3' : prev.vlevel } : {}) } : prev);
-                          } catch { /* keep current on error */ }
-                        }}
-                      />
-                    </MetaField>
-                  </>
-                )}
-              </MetaRow>
+                </>
+              )}
+            </MetaRow>
+            <Body>
               {error && <ErrorBar>{error}</ErrorBar>}
               {/* 다운로드 실패는 조용히 넘기지 않는다 — 이전엔 링크가 401 이어도 화면에 아무 말이 없었다 */}
               {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
@@ -2040,29 +2037,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 )}
               </PanelSubTitle>
               </TitleRow>
-            </PanelHeader>
-            {/* ★ 액션을 헤더에서 **내려** 제목 아래 한 줄로 (Irene 2026-09-05:
-                "서브헤더에 버튼이 너무 많아. 제목이 보이지도 않아. 좌측 검색창 가로라인 맞춰서 헤더 2줄로").
-                실측(1440px): 헤더 920px 중 액션이 534px 을 먹고 제목 칸은 304px — 33% 였다.
-                밴드 높이는 좌측 검색줄과 같다(12 + 36 + 8) — 좌우 밑줄이 같은 y 에서 이어진다.
-                자주 쓰는 셋(편집·공유·서명 받기)만 남기고 나머지는 ⋯ 로 접는다. 접힌 쪽은
-                아이콘 전용이라 hover 해야 알 수 있었던 것들이라, 글자 라벨이 붙어 오히려 읽힌다. */}
-            <DetailActionBar>
-              <ActionsMain>
-                <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
-                  title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  {t('edit', '편집')}
-                </EditBtn>
-                <PrimaryBtn type="button" data-testid="post-share" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                  {t('share.button', '공유')}
-                </PrimaryBtn>
-                <SignBtn type="button" data-testid="post-sign" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
-                  {t('sign.button', '서명 받기')}
-                </SignBtn>
-              </ActionsMain>
+              <HeaderActions>
               {/* 가끔 쓰는 것 — 글자 라벨을 달아 메뉴로. 순서는 쓰는 빈도 순, 삭제만 구분선 뒤. */}
               <OverflowMenu
                 label={t('actions.more', { defaultValue: '더보기' }) as string}
@@ -2134,51 +2109,78 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   },
                 ]}
               />
-            </DetailActionBar>
-            <Body>
-              <ViewMeta>
-                <MetaLeft>
-                <span>{displayName(detail.author, i18n.language) || '—'}</span>
-                <span>·</span>
-                <span>{formatDate(detail.created_at)}</span>
-                {detail.editor && detail.editor.id !== detail.author?.id && (
-                  <><span>·</span><span>{t('editedBy', '수정: {{name}}', { name: detail.editor.name })}</span></>
-                )}
-                {detail.category && (
-                  <CategoryTag
-                    type="button"
-                    onClick={() => setFilter({ kind: 'category', name: detail.category! })}
-                    title={t('filter.filterBy', '이 카테고리로 필터') as string}
-                  >
-                    #{detail.category}
-                  </CategoryTag>
-                )}
-                {detail.project && (
-                  <ProjectTag $color={detail.project.color || '#14B8A6'}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                    {detail.project.name}
-                  </ProjectTag>
-                )}
-                </MetaLeft>
-                <MetaRight>
-                {/* N+67 — visibility chip + 변경 modal */}
-                <VisibilityChip
+              </HeaderActions>
+            </PanelHeader>
+            {/* ★ 액션을 헤더에서 **내려** 제목 아래 한 줄로 (Irene 2026-09-05:
+                "서브헤더에 버튼이 너무 많아. 제목이 보이지도 않아. 좌측 검색창 가로라인 맞춰서 헤더 2줄로").
+                실측(1440px): 헤더 920px 중 액션이 534px 을 먹고 제목 칸은 304px — 33% 였다.
+                밴드 높이는 좌측 검색줄과 같다(12 + 36 + 8) — 좌우 밑줄이 같은 y 에서 이어진다.
+                자주 쓰는 셋(편집·공유·서명 받기)만 남기고 나머지는 ⋯ 로 접는다. 접힌 쪽은
+                아이콘 전용이라 hover 해야 알 수 있었던 것들이라, 글자 라벨이 붙어 오히려 읽힌다. */}
+            <ViewMeta>
+              <MetaLeft>
+              <span>{displayName(detail.author, i18n.language) || '—'}</span>
+              <span>·</span>
+              <span>{formatDate(detail.created_at)}</span>
+              {detail.editor && detail.editor.id !== detail.author?.id && (
+                <><span>·</span><span>{t('editedBy', '수정: {{name}}', { name: detail.editor.name })}</span></>
+              )}
+              {detail.category && (
+                <CategoryTag
                   type="button"
-                  onClick={() => setVisModalOpen(true)}
-                  title={t('visibility.change', { defaultValue: '공개 범위 변경' }) as string}
+                  onClick={() => setFilter({ kind: 'category', name: detail.category! })}
+                  title={t('filter.filterBy', '이 카테고리로 필터') as string}
                 >
-                  {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
-                </VisibilityChip>
-                {detail.share_token && (
-                  <ShareTag title={t('share.publicHint', '공개 링크가 활성화되어 있습니다') as string}>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
-                    {t('share.publicBadge', '공유 중')}
-                  </ShareTag>
-                )}
-                {/* D4 #62 — 보안등급 배지 (일반은 노이즈 0, 자동 숨김) */}
-                <SecurityLevelBadge level={detail.security_level} />
-                </MetaRight>
-              </ViewMeta>
+                  #{detail.category}
+                </CategoryTag>
+              )}
+              {detail.project && (
+                <ProjectTag $color={detail.project.color || '#14B8A6'}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                  {detail.project.name}
+                </ProjectTag>
+              )}
+              </MetaLeft>
+              <MetaRight>
+              {/* N+67 — visibility chip + 변경 modal */}
+              <VisibilityChip
+                type="button"
+                onClick={() => setVisModalOpen(true)}
+                title={t('visibility.change', { defaultValue: '공개 범위 변경' }) as string}
+              >
+                {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
+              </VisibilityChip>
+              {detail.share_token && (
+                <ShareTag title={t('share.publicHint', '공개 링크가 활성화되어 있습니다') as string}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
+                  {t('share.publicBadge', '공유 중')}
+                </ShareTag>
+              )}
+              {/* D4 #62 — 보안등급 배지 (일반은 노이즈 0, 자동 숨김) */}
+              <SecurityLevelBadge level={detail.security_level} />
+              {/* ★ 액션을 **메타 줄 오른쪽**으로 (Irene 2026-09-05: "점점점 메뉴만 위로 올리면 어때?
+                  그리고 2, 3째줄 한줄로 맞추고 버튼들은 우측 정렬이 맞겠는데").
+                  별도 액션 밴드(DetailActionBar)가 사라지고 상세는 **두 밴드**로 끝난다.
+                  실측(1440px): ⋯ 만 헤더에 남기면 제목 몫이 304px → 872px 이 된다. */}
+                <MetaActions>
+                <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
+                  title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  {t('edit', '편집')}
+                </EditBtn>
+                <PrimaryBtn type="button" data-testid="post-share" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  {t('share.button', '공유')}
+                </PrimaryBtn>
+                <SignBtn type="button" data-testid="post-sign" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+                  {t('sign.button', '서명 받기')}
+                </SignBtn>
+                </MetaActions>
+            
+              </MetaRight>
+            </ViewMeta>
+            <Body>
               {/* ★ 보기 모드에는 오류 자리가 아예 없었다 — PDF·워드 생성 실패가 setError 로만 남고
                   화면에는 아무 말도 안 나왔다(조용한 실패). 편집 모드와 같은 자리를 준다. */}
               {error && <ErrorBar>{error}</ErrorBar>}
@@ -2935,36 +2937,6 @@ const TitleInput = styled.input`
   font-size: 0.9375rem; font-weight: 700; color: #0F172A;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
-const EditActions = styled.div`
-  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-  @media (max-width: 640px) { gap: 6px; }
-`;
-// 상세 액션 줄 — 제목(PanelHeader 60px) **아래** 한 줄. (Irene 2026-09-05 "헤더 2줄로")
-//   ★ 세로 밴드를 좌측 리스트의 검색줄(SearchWrap: padding 12/8 + SearchBox 36px)과 **같게** 둔다.
-//     그래야 좌우의 옅은 밑줄이 같은 y 에서 이어진다 — 헤더 60px 정렬 계약과 같은 이유다.
-//     숫자를 바꾸려면 SearchWrap 과 함께 바꿔야 한다(한쪽만 바꾸면 선이 어긋난다).
-const DetailActionBar = styled.div<{ $end?: boolean }>`
-  box-sizing: border-box;
-  /* 12(위) + 36(SearchBox) + 8(아래) + 1(밑줄) = 57. 실측으로 맞춘 값 —
-     border-box 라 밑줄 1px 이 높이에 포함된다. 56 으로 두면 좌측 줄보다 1px 위에 선다. */
-  min-height: 57px;
-  padding: 12px 20px 8px;
-  border-bottom: 1px solid #F1F5F9;
-  background: #FFFFFF;
-  flex-shrink: 0;
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  justify-content: ${p => (p.$end ? 'flex-end' : 'space-between')};
-  @media (max-width: 640px) {
-    padding: 10px 14px 8px;
-    gap: 6px;
-  }
-`;
-// 자주 쓰는 액션 — 본문 시작선에 맞춰 왼쪽에 둔다.
-//   버튼 높이는 이 줄에서 토큰 표준 36 으로 통일한다(좌측 검색 박스와 같은 높이 → 한 줄로 선다).
-const ActionsMain = styled.div`
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;
-  > button { height: 36px; }
-`;
 // #252 임시저장 상태 표시 — AutoSaveField 의 뱃지 톤과 동일 (성공 회색 ✓ / 실패 붉은 !).
 const AutoSaveMark = styled.span<{ $tone: 'ok' | 'err' }>`
   font-size: 0.75rem; white-space: nowrap;
@@ -2982,23 +2954,28 @@ const DraftTag = styled.span`
 `;
 // 상세 메타 — 헤더 아래 한 줄 MetaBar. 좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안). (Irene)
 // 구분선은 좌우 끝까지(풀폭), 글자만 좌우 24px 안쪽.
-const ViewMeta = styled.div`
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+// 상세 밴드2 — 좌(작성자·날짜·분류·프로젝트) / 우(공개·공유·보안 + 액션 3).
+//   ★ 규격은 공용 DetailMetaBar 에서 온다. 여기서 padding·높이를 다시 쓰지 않는다 —
+//     각자 만들면 좌우 패널의 옅은 밑줄이 같은 y 에서 어긋난다(Q Note 가 그렇게 갈라졌다).
+//   2026-09-06: 옛 ViewMeta 는 **본문(Body) 안**에 있어 스크롤과 함께 사라졌고, 그 위에
+//     액션 전용 밴드가 따로 있어 상세가 3밴드였다. 메타를 밴드로 올리고 액션을 그 오른쪽에
+//     붙여 **두 밴드**로 끝낸다.
+const ViewMeta = styled(DetailMetaBar)`
   font-size: 0.75rem; color: #94A3B8;
-  padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
-  /* ★ 2026-08-25 (Irene: "Q 문서 상세도 가면 서브헤더 엉망이야. 완전 심해")
-     좌(작성자·날짜·분류·프로젝트) ↔ 우(공개·공유·보안) 를 space-between 으로 밀어 두고
-     양쪽 다 wrap 을 허용하면, 폰 폭에서는 두 덩어리가 서로 밀며 줄이 엉킨다.
-     폰에서는 **두 줄로 분리**한다 — 1행 정보, 2행 액션. 서로 폭을 다투지 않게. */
-  @media (max-width: 640px) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    > * { width: 100%; }
-  }
 `;
-const MetaLeft = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0;`;
-const MetaRight = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;`;
+const MetaLeft = styled(DetailMetaLeft)``;
+const MetaRight = styled(DetailMetaRight)``;
+// ★ 액션 버튼 묶음 — 36px (좌측 리스트의 검색 박스와 같은 리듬). 버튼 자체는 32px 이라 여기서 올린다.
+//   옛 액션 줄(ActionsMain)이 하던 일인데, 그 컴포넌트를 없애면서 규칙까지 사라져 32px 로 내려앉았다.
+//   ★ 규칙을 MetaRight 에 직접 걸면 안 된다 — **VisibilityChip 도 styled.button 이라**(아래 3013 부근)
+//     같이 잡혀 보기 36px / 편집 22px 로 갈라졌다 (2026-09-06 Fable 3차 P3).
+//     "칩은 span" 이라고 적었던 내 주석이 **거짓**이었다. 넓은 선택자 대신 **묶음으로 범위를 좁힌다.**
+const MetaActions = styled.span`
+  display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+  > button { height: 36px; }
+`;
+// 밴드1 우측 — ⋯ 하나만 선다.
+const HeaderActions = styled(DetailMetaRight)``;
 // D4 #62 — 보안등급 선택 행 (DocsTab files 패턴 정합)
 // 태그
 // 이모지 금지(UI_DESIGN_GUIDE §1.5) — feather 계열 stroke 아이콘으로 교체.
@@ -3025,9 +3002,15 @@ const MetaField = styled.div<{ $basis: number }>`
   @media (max-width: 640px) { flex-basis: 100%; max-width: none; }
 `;
 // 구분선 풀폭, 글자만 좌우 24px 안쪽.
+// 편집 모드 밴드2 — 분류·프로젝트·형태·공개·보안. 보기 모드의 ViewMeta 와 **같은 자리**라
+//   보기↔편집을 오갈 때 가로 실선이 위아래로 튀지 않는다.
+//   ★ 여기만 wrap 을 허용한다 — 폼 필드라 좁아지면 접혀야 입력이 가능하다. 그래서
+//     DetailMetaBar 를 상속하지 않고 밴드 크롬(padding·밑줄)만 같은 값으로 맞춘다.
 const MetaRow = styled.div`
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 0;
-  padding-bottom: 12px; border-bottom: 1px solid #F1F5F9;
+  box-sizing: border-box; min-height: 57px; padding: 12px 20px 8px; background: #FFFFFF;
+  border-bottom: 1px solid #F1F5F9; flex-shrink: 0;
+  @media (max-width: 640px) { padding: 10px 14px 8px; }
   /* ★ 칩·토글은 줄어들면 글자가 잘리므로 고정. 입력·셀렉트는 MetaField 가 스스로 줄어든다. */
   & > *:not(${MetaField}) { flex-shrink: 0; }
 `;

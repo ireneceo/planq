@@ -68,7 +68,7 @@ const MemoView = React.lazy(() => import('./MemoView'));
 import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
-import { PanelBackButton } from '../../components/Layout/PanelHeader';
+import { PanelBackButton, PanelHeaderBar } from '../../components/Layout/PanelHeader';
 import { isEnterAction } from '../../utils/imeKey';
 
 /**
@@ -2404,6 +2404,7 @@ const QNotePage = () => {
           <NewSessionWrap>
             <NewSessionBtn
               type="button"
+              data-testid="qnote-new"
               onClick={() => setNewNoteDropdownOpen(v => !v)}
               title={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
               aria-label={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
@@ -2445,7 +2446,7 @@ const QNotePage = () => {
                   setNewNoteDropdownOpen(false);
                   // 녹음 중 새 메모 생성은 activeSession 을 바꿔 심박을 흔든다 → 확인 후에만.
                   guardRecording(() => { void createMemoSession(); });
-                }}>
+                }} data-testid="qnote-new-memo">
                   <NewNoteItemTitle>{t('page.newNoteDropdown.memoLabel', { defaultValue: '메모' }) as string}</NewNoteItemTitle>
                   <NewNoteItemDesc>{t('page.newNoteDropdown.memoDesc', { defaultValue: '텍스트 · 코드블록 · 서식 지원' }) as string}</NewNoteItemDesc>
                 </NewNoteItem>
@@ -2696,6 +2697,7 @@ const QNotePage = () => {
                 </HeaderEdgeHandle>
               </CollapsedHeader>
             ) : (
+              <HeaderBand>
               <MainHeader>
                 <HeaderLeft>
                   {/* 표준 뒤로가기 — 좁은 화면에서 목록으로. 버튼은 ≤1024px 에서만 보인다(PanelHeader 계약) */}
@@ -2762,6 +2764,7 @@ const QNotePage = () => {
                     </>
                   )}
                 </HeaderRight>
+              </MainHeader>
                 <HeaderEdgeHandle
                   type="button"
                   onClick={toggleHeaderCollapsed}
@@ -2770,7 +2773,7 @@ const QNotePage = () => {
                 >
                   <HeaderEdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg></HeaderEdgeChevron>
                 </HeaderEdgeHandle>
-              </MainHeader>
+              </HeaderBand>
             )}
 
             {!headerCollapsed && (
@@ -3625,13 +3628,12 @@ const PopoverInputBtn = styled.button`
 // NEUTRAL: #FFFFFF #F8FAFC #F1F5F9 #E2E8F0 #CBD5E1 #94A3B8 #64748B #334155 #0F172A
 // ─────────────────────────────────────────────────────────
 
-const SidebarHeader = styled.div`
-  padding: 14px 20px;
-  min-height: 60px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #F1F5F9;
+// ★ 좌측 리스트 헤더도 공용 밴드를 상속한다 — 우측 상세 헤더와 **같은 y** 에 밑줄이 서야 한다.
+//   2026-09-06 실측: 여기만 `min-height: 60px` 이라 안쪽 32px 버튼 + padding 28 + 밑줄 1 = **61px**,
+//   우측 상세는 `height: 60px` 이라 60px — 좌우 회색 선이 1px 어긋나 있었다.
+//   (밑줄 색만 다르게 유지한다 — 리스트 쪽은 옅은 #F1F5F9.)
+const SidebarHeader = styled(PanelHeaderBar)`
+  border-bottom-color: #F1F5F9;
 `;
 
 const TitleGroup = styled.div`
@@ -3694,8 +3696,13 @@ const NewNoteItemDesc = styled.div`
   font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;
 `;
 
+// ★ 밴드2 규격 — 12(위) + 36(검색 박스) + 8(아래) + 1(밑줄) = 57.
+//   아래 padding 이 12 였어서 **61px**, 우측 상세의 밴드2(57)와 4px 어긋나 있었다
+//   (2026-09-06 Fable 실측: 좌 251 / 우 247). 숫자를 바꾸려면 DetailMetaBar 와 함께 바꿀 것.
 const SearchWrap = styled.div`
-  padding: 12px 20px 12px;
+  box-sizing: border-box;
+  min-height: 57px;
+  padding: 12px 20px 8px;
   border-bottom: 1px solid #F1F5F9;
   flex-shrink: 0;
 `;
@@ -3827,44 +3834,44 @@ const Dot = styled.span`
 
 /* Q Note 사이드바(세션 리스트) 접기 — Q Talk/Secondary 와 동일한 엣지 바 디자인 */
 
-const MainHeader = styled.div`
-  padding: 14px 20px;
-  min-height: 60px;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  position: relative;
-  /* ★ 표준 PanelHeader 와 같은 자식 계약 (components/Layout/PanelHeader.tsx).
-     제목 쪽은 줄어들 수 있어야 하고 액션 쪽은 줄어들면 안 된다. 이 두 줄이 없으면
-     "제목이 세로로 쌓이는" 계열 버그가 언제든 다시 난다 — 규격을 각자 만들지 않는다. */
-  > *:first-child { min-width: 0; flex-shrink: 1; }
-  > *:last-child { flex-shrink: 0; }
-  @media (max-width: 768px) {
-    padding: 10px 16px;
-    min-height: 48px;
-    gap: 8px;
-  }
-  /* ★ 2026-08-25 (Irene: "제목 제대로 나오고 버튼 나오려면 2행이어야 하겠는데")
-     폰에서는 제목과 액션이 한 줄에 다 설 수 없다 — 말줄임으로 잘리거나 버튼이 밀린다.
-     이 화면은 드릴다운이라 옆에 나란히 설 패널이 없다(= 60px 정렬 계약을 지킬 상대가 없다).
-     그래서 여기서만 2행으로 푼다: 1행 제목, 2행 액션. */
+// ★ 공용 PanelHeaderBar 를 상속한다 — 규격을 여기서 다시 쓰지 않는다.
+//   2026-09-06: 여태 여기에 규격을 **베껴** 두었고(주석에는 "표준과 같은 자식 계약" 이라고
+//   써 있었다) 그 사이 표준이 두 번 고쳐지는 동안 이쪽만 옛 규칙으로 남았다:
+//     · ≤640px `flex-direction: column`  — 표준은 2026-08-25 에 row 로 되돌렸다
+//       (Irene "버튼 2개뿐인데 2줄"). 좌우 패널의 밑줄이 폰에서만 어긋나 있었다.
+//     · `min-height: 0`                  — 표준은 56 하한(제목이 길면 헤더가 같이 자란다)
+//   Irene 2026-09-06 "노트는 틀어지네" 가 이것이다.
+//   position:relative 는 헤더 접기 손잡이(HeaderEdgeHandle)를 위한 것인데, 손잡이는
+//   밴드 **밖**(HeaderBand)으로 옮겼다 — 밴드 안에 두면 `:last-child` 계약을 가로채
+//   액션 칸이 flex-shrink 를 잃는다(버튼이 눌려 찌그러지던 자리).
+const MainHeader = styled(PanelHeaderBar)`
+  /* ★ 폰에서만 2행 — **이 화면만의 예외이고, 되돌리지 말 것.**
+     Irene 2026-08-25: "제목 제대로 나오고 버튼 나오려면 2행이어야 하겠는데."
+     이 화면은 드릴다운이라 옆에 나란히 설 패널이 없다 = 60px 정렬 계약을 지킬 상대가 없다.
+     녹음 상태에 따라 액션이 최대 3개(재개·일시정지·종료)까지 붙어서, 한 줄로 두면
+     제목 칸이 짜부라진다 — 2026-09-06 실측: 이 예외를 없앴더니 22자 제목이 **84px**(scrollW 286)
+     로 눌려 "모눈스터…" 만 남았다(Fable F3). 공용 규격을 상속하되 이 한 줄만 덮는다. */
   @media (max-width: 640px) {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    height: auto;
     min-height: 0;
+    gap: 8px;
     padding: 10px 12px;
+    /* ★ 공용 Bar 의 ≤640 자식 규칙(제목 칸에 flex: 1 1 0)을 **반드시 덮는다**.
+       그 규칙은 **가로 배치** 전제다 — 제목 칸이 남는 폭을 채우도록 basis 를 0 으로 둔다.
+       세로(column)로 바꾼 이 화면에서 basis 0 은 곧 **높이 0** 이라, 제목이 rect 로는 176×24 인데
+       부모가 높이 0 + overflow:hidden 이라 **한 픽셀도 그려지지 않았다**
+       (2026-09-06 Fable 재게이트 F3 — 나는 폭만 재고 "고쳤다" 고 보고했다.
+        memory feedback_measure_the_screen_not_innertext: 화면은 좌표로, 그리고 **보이는지**까지 재라). */
+    > *:not(button):not(:last-child) { flex: 0 0 auto; }
     > *:first-child { width: 100%; }
-    > *:last-child {
-      width: 100%;
-      justify-content: flex-end;
-      flex-wrap: wrap;
-    }
+    > *:last-child { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
   }
 `;
+
+// 헤더 밴드 + 접기 손잡이를 함께 감싸는 자리. 손잡이는 absolute 라 레이아웃을 먹지 않는다.
+const HeaderBand = styled.div`position: relative;`;
 
 /* 수평 엣지 바 — Q Note 헤더 높이 접기 (Q Talk 세로 엣지 바와 같은 디자인, 방향만 가로) */
 const HeaderEdgeHandle = styled.button`

@@ -64,12 +64,26 @@ export const FaqUsedBadge = styled.div`
 // 폴더 탭 (답변필요/인박스/내담당/팔로우/스팸/보관) — 좌측 상단 가로 탭
 export const FolderTabs = styled.div`
   display: flex; gap: 2px;
+  box-sizing: border-box;
   padding: 4px 6px 0;
   border-bottom: 1px solid #E2E8F0;
   overflow-x: auto;
   flex-shrink: 0;
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
+  /* ★ 넘쳤다는 신호 — 스크롤바를 숨겼으므로 오른쪽 끝을 흐린다.
+     2026-09-06 Fable 관찰: 1440px 에서 탭 줄(299px)에 609px 어치가 들어 있어
+     보낸메일·내담당·팔로우·스팸·보관 탭이 **아무 표시 없이** 숨어 있었다.
+     밴드2(DetailMetaLeft)와 같은 방식이라 두 곳의 넘침이 같은 모양으로 보인다. */
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  /* ★ 데스크탑에서만 57px — 우측 상세의 밴드2(DetailMetaBar)와 **같은 y** 에서 밑줄이 만난다.
+     실측(1440px, 2026-09-06): 이 줄이 43px 이라 좌 233 / 우 247 로 14px 어긋나 있었다.
+     탭은 기본 stretch 라 늘어난 높이를 채우고, 활성 표시 2px 은 밴드 밑줄 바로 위에 선다.
+     ★ 폰·태블릿에는 주지 않는다 — 패널이 하나씩만 보여 **이을 상대가 없고**, 여기서 높이를
+     키우면 2026-09-03 에 고친 "상단이 화면의 48%"(#406) 가 그대로 돌아온다.
+     같은 이유로 PanelHeader 도 폰에서만 60px 고정을 푼다. */
+  @media (min-width: 1025px) { min-height: 57px; }
 `;
 export const FolderTab = styled.button<{ $active: boolean }>`
   display: inline-flex; align-items: center; gap: 5px;
@@ -533,40 +547,27 @@ export const CtxResizeHandle = styled.div`
   &:active { background: rgba(20,184,166,0.4); }
   @media (max-width: 1024px) { display: none; }
 `;
-// 상세 부가 툴바 (컨트롤·라벨) — PanelHeader 아래 별도 줄
-export const DetailToolbar = styled.div`
-  padding: 12px 20px;
-  border-bottom: 1px solid #F1F5F9;
-  background: #FFFFFF;
-`;
-export const MetaChip = styled.span`
-  padding: 2px 8px;
-  background: #F1F5F9; color: #475569;
-  font-size: 0.6875rem; font-weight: 500;
-  border-radius: 999px;
-`;
-// M3-B — 상세 헤더 컨트롤 (별표/팔로우/담당) + 라벨
-export const DetailControls = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  margin-top: 0;
-`;
-// #384 — 후속 알림 기간 선택. 툴바의 알약들과 같은 높이(28)로 맞춰 한 줄에 얹힌다.
-export const FollowUpPicker = styled.div`display:flex;align-items:center;gap:6px;min-width:150px;`;
-export const FollowUpLabel = styled.span`font-size:0.75rem;color:#64748B;white-space:nowrap;`;
+// 밴드2 우측의 자주 쓰는 액션 (별표·팔로우·업무추출) — 알약 버튼.
 export const CtrlBtn = styled.button<{ $on: boolean }>`
   height: 28px; padding: 0 12px;
   border-radius: 999px;
   font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   border: 1px solid ${p => p.$on ? '#5EEAD4' : '#E2E8F0'};
   background: ${p => p.$on ? '#F0FDFA' : '#FFFFFF'};
   color: ${p => p.$on ? '#0F766E' : '#64748B'};
   transition: background 0.12s, border-color 0.12s;
   &:hover { border-color: #5EEAD4; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+  /* 폰 터치 타깃 — 반응형 원칙 최소 40 (밴드가 폰에서 두 줄로 갈리므로 키울 자리가 있다). */
+  @media (max-width: 640px) { height: 40px; padding: 0 14px; }
 `;
-export const DetailLabels = styled.div`
-  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+export const MetaChip = styled.span`
+  padding: 2px 8px;
+  background: #F1F5F9; color: #475569;
+  font-size: 0.6875rem; font-weight: 500;
+  border-radius: 999px;
 `;
 export const AddLabelChip = styled.button<{ $color: string }>`
   padding: 2px 10px; border-radius: 999px;
@@ -577,26 +578,55 @@ export const AddLabelChip = styled.button<{ $color: string }>`
   border: 1px dashed ${p => p.$color}88;
   &:hover { background: ${p => p.$color}12; }
 `;
+
+// 라벨 붙이기 팝오버 안의 후보 목록 — 여기서는 감싸도 된다(밴드가 아니라 팝오버라 자라도 무해).
+export const LabelPickList = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px;
+  max-height: 200px; overflow-y: auto;
+`;
+export const LabelPickEmpty = styled.div`
+  font-size: 0.75rem; color: #94A3B8; padding: 2px 2px 4px;
+`;
+
+// 팝오버 안의 고르기 목록 (담당자 등) — react-select 를 쓰지 않는 이유는 호출부 주석 참조
+// (포털된 메뉴는 팝오버의 "바깥클릭" 으로 읽혀 선택 전에 닫힌다).
+export const PickerFilter = styled.input`
+  width: 100%; box-sizing: border-box;
+  height: 30px; padding: 0 10px;
+  border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 0.75rem; color: #0F172A;
+  &::placeholder { color: #94A3B8; }
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
+`;
+export const PickerList = styled.div`
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 240px; overflow-y: auto;
+`;
+export const PickerItem = styled.button<{ $on?: boolean }>`
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border: none; border-radius: 6px;
+  background: ${p => (p.$on ? '#F0FDFA' : 'transparent')};
+  color: ${p => (p.$on ? '#0F766E' : '#0F172A')};
+  font-size: 0.8125rem; font-weight: ${p => (p.$on ? 600 : 500)};
+  text-align: left; cursor: pointer; white-space: nowrap;
+  &:hover { background: ${p => (p.$on ? '#CCFBF1' : '#F8FAFC')}; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: -2px; }
+  @media (max-width: 640px) { min-height: 44px; }
+`;
+export const PickerHint = styled.span`
+  margin-left: auto; padding-left: 10px;
+  font-size: 0.6875rem; font-weight: 600; color: #94A3B8;
+`;
+
+// 팝오버 안에서만 쓰인다 — 폭은 팝오버를 채운다(96px 고정은 툴바에 서 있던 시절의 값).
 export const NewLabelInput = styled.input`
-  height: 24px; padding: 0 10px;
+  height: 28px; padding: 0 10px;
   border: 1px dashed #CBD5E1; border-radius: 999px;
   font-size: 0.6875rem; color: #334155;
-  width: 96px;
+  width: 100%; box-sizing: border-box;
   &::placeholder { color: #94A3B8; }
   &:focus { outline: none; border-color: #14B8A6; border-style: solid; }
   &:disabled { opacity: 0.5; }
-`;
-export const AssignWrap = styled.div`
-  min-width: 150px;
-`;
-export const DangerBtn = styled.button`
-  margin-left: auto;
-  height: 28px; padding: 0 12px;
-  background: transparent; color: #B91C1C;
-  border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 0.75rem; font-weight: 600;
-  cursor: pointer;
-  &:hover { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
 `;
 // 메일 본문은 상세 패널(이미 카드) 안에서 또 카드로 감싸지 않는다 — 읽는 화면은 넓고 평평해야 한다.
 // 메시지끼리는 구분선으로만 나누고, 내가 보낸 메일은 좌측 민트 라인 + 옅은 배경으로만 구분한다.
@@ -881,9 +911,13 @@ export const HandledBadge = styled.span`
   border-radius: 999px; background: #F1F5F9; color: #94A3B8;
   font-size: 0.6875rem; font-weight: 700; line-height: 1;
 `;
-// 받은 주소 — 메시지 헤더 보조 줄
-export const MessageTo = styled.div`
-  margin-top: 2px; font-size: 0.6875rem; color: #94A3B8; font-weight: 500;
+// 받은 주소 — 발신자와 **같은 줄**에 인라인으로 붙는다.
+//   Irene 2026-09-06: "아래 주소랑 전체보기 전달도 나오니까 실제로 4행이나 내용을 못보는 영역이야."
+//   옛 구조는 block 이라 메시지마다 한 줄을 더 먹었다. 좁으면 자연스럽게 다음 줄로 감긴다.
+export const MessageTo = styled.span`
+  display: inline; margin-left: 8px;
+  font-size: 0.6875rem; color: #94A3B8; font-weight: 500;
+  &::before { content: '·'; margin-right: 8px; color: #CBD5E1; }
 `;
 // 보내는 주소가 하나뿐일 때 — 설정으로 가는 길
 export const FromManage = styled.button`

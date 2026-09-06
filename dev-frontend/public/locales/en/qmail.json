@@ -201,7 +201,15 @@
     "extractTasks": "Extract tasks",
     "extractTasksHint": "Pull action items out of this email as candidates",
     "markReplyNeeded": "Needs reply",
-    "markReplyNeededHint": "Move to Needs reply. You can continue handling it in the Needs reply tab."
+    "markReplyNeededHint": "Move to Needs reply. You can continue handling it in the Needs reply tab.",
+    "more": "More",
+    "assigneePrefix": "Owner",
+    "assignAria": "Assign owner",
+    "addLabel": "+ Label",
+    "addLabelAria": "Add a label",
+    "noMoreLabels": "No other labels to add",
+    "assignSearch": "Find by name",
+    "meShort": "Me"
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",

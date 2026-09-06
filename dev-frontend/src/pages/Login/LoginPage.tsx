@@ -386,6 +386,30 @@ const LoginPage: React.FC = () => {
   const [recoverPending, setRecoverPending] = useState(false);
   const [recovering, setRecovering] = useState(false);
 
+  // ★ OAuth 실패 사유를 **화면이 말한다** (2026-09-06).
+  //   서버는 실패하면 `/login?oauth_error=…` 로 보내고, 프론트도 세 곳(no_token·storage_failed·
+  //   native_exchange)에서 같은 파라미터를 붙인다. 그런데 **읽는 곳이 0곳**이라 로그인 화면이
+  //   아무 말 없이 되돌아왔다 — 사용자에겐 "그냥 안 됨" 이다
+  //   (memory feedback_produced_link_no_consumer: 만드는 곳 4곳, 읽는 곳 0곳).
+  //   ★ 서버 코드를 그대로 뿌리지 않는다 — 뜻 없는 영어 한 단어가 된다. 사유별 우리말/영어로.
+  useEffect(() => {
+    const code = new URLSearchParams(location.search).get('oauth_error');
+    if (!code) return;
+    const known: Record<string, string> = {
+      invalid_state: t('login.oauthErr.invalidState', { defaultValue: '로그인 시간이 초과됐어요. 다시 시도해 주세요.' }) as string,
+      access_denied: t('login.oauthErr.denied', { defaultValue: 'Google 로그인이 취소됐습니다.' }) as string,
+      email_not_verified: t('login.oauthErr.unverified', { defaultValue: '이메일이 확인되지 않은 Google 계정입니다.' }) as string,
+      code_already_used: t('login.oauthErr.used', { defaultValue: '이미 사용된 로그인 링크예요. 다시 시도해 주세요.' }) as string,
+      invalid_or_expired_code: t('login.oauthErr.expired', { defaultValue: '로그인 링크가 만료됐어요. 다시 시도해 주세요.' }) as string,
+      account_unavailable: t('login.oauthErr.unavailable', { defaultValue: '사용할 수 없는 계정입니다. 관리자에게 문의해 주세요.' }) as string,
+    };
+    setError(known[code] || (t('login.oauthErr.generic', { defaultValue: 'Google 로그인을 마치지 못했어요. 다시 시도해 주세요.' }) as string));
+    // 한 번 보여준 뒤 주소에서 지운다 — 새로고침 때마다 다시 뜨지 않게.
+    const next = new URLSearchParams(location.search);
+    next.delete('oauth_error');
+    navigate({ pathname: location.pathname, search: next.toString() }, { replace: true });
+  }, [location.search, location.pathname, navigate, t]);
+
   // dev 환경에서만 퀵로그인 패널 노출. 프로덕션(planq.kr)에서는 숨김.
   const isDev = typeof window !== 'undefined' && (
     window.location.hostname === 'dev.planq.kr' ||

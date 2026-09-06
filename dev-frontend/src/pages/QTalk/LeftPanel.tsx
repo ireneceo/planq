@@ -342,13 +342,18 @@ const Container = styled.aside<{ $mobileHidden?: boolean; $w?: number }>`
 //   좌우 패널의 밑줄이 같은 y 에서 이어지는 계약 — 값이 갈라지면 폰에서 단차가 보인다.
 const Header = styled.div`
   padding: 14px 20px;
-  min-height: 60px;
+  /* ★ min-height 가 아니라 **높이 60 고정**이어야 한다 — 안쪽 32px 버튼 + padding 28 + 밑줄 1
+     이면 min-height 로는 **61px** 이 되어 우측 패널(60)과 밑줄이 1px 어긋난다
+     (2026-09-06 실측: 좌 191 / 우 190. Q Note SidebarHeader 도 같은 이유로 갈라져 있었다).
+     폰은 드릴다운이라 이을 상대가 없어 하한(56)만 둔다. */
+  box-sizing: border-box;
+  height: 60px;
   border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  @media (max-width: 640px) { min-height: 56px; padding: 10px 14px; }
+  @media (max-width: 640px) { height: auto; min-height: 56px; padding: 10px 14px; }
 `;
 
 const HeaderTop = styled.div`

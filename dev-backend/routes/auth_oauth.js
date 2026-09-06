@@ -17,6 +17,9 @@ const googleOauthLogin = require('../services/google_oauth_login');
 // ★ 2026-09-04: 이 줄이 없어서 아래 호출이 ReferenceError 였다 —
 //   네이티브 구글 로그인이 catch 로 떨어져 **매번 웹 로그인 화면으로** 돌아갔다.
 const { sendNativeReturn } = require('../utils/nativeReturn');
+// ★ 2026-09-06 — 운영 pm2 로그에 OAuth 흔적이 **0줄**이었다. 실패해도 원인을 볼 수 없었다.
+//   external_connections.js 는 이미 이 헬퍼를 쓰고 있었는데 로그인 경로만 빠져 있었다.
+const { logOauthFailure } = require('../utils/oauthLog');
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
 const { helpers } = require('./auth');
 const { createRefreshTokenRow, generateAccessToken, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND, setSessionHint } = helpers;
@@ -170,18 +173,24 @@ router.get('/google/initiate', (req, res) => {
 router.get('/google/callback', async (req, res) => {
   try {
     const { code, state, error: oauthError } = req.query;
+    const logCtx = { ua: String(req.get('user-agent') || '').slice(0, 120), native: isNativeOAuth(req) || undefined };
     if (oauthError) {
+      logOauthFailure('auth/google callback', String(oauthError), logCtx);
       return res.redirect(302, buildRedirectTarget({ ok: false, error: oauthError }));
     }
     if (!code || !state) {
+      logOauthFailure('auth/google callback', 'invalid_request', logCtx);
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'invalid_request' }));
     }
     if (!googleOauthLogin.consumeState(String(state))) {
+      // 대개 ①서버 재시작으로 메모리 state 가 날아갔거나 ②콜백이 두 번 로드됐거나 ③5분 초과.
+      logOauthFailure('auth/google callback', 'invalid_state', logCtx);
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'invalid_state' }));
     }
 
     const profile = await googleOauthLogin.exchangeCodeForProfile(String(code));
     if (!profile.email_verified) {
+      logOauthFailure('auth/google callback', 'email_not_verified', logCtx);
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'email_not_verified' }));
     }
 
@@ -236,7 +245,8 @@ router.get('/google/callback', async (req, res) => {
         //   → 앱으로 먼저 돌아간 뒤, 앱 WebView 안에서 확인 화면을 연다. 그래야 쿠키가 앱에 심긴다.
         if (isNativeOAuth(req)) {
           res.clearCookie('oauth_native', { path: '/api/auth' });
-          return sendNativeReturn(res, { confirm: confirmToken });
+          return sendNativeReturn(res, { confirm: confirmToken },
+            { webFallbackUrl: `/oauth/connect-confirm?token=${encodeURIComponent(confirmToken)}` });
         }
         return res.redirect(302, `/oauth/connect-confirm?token=${confirmToken}&email=${encodeURIComponent(profile.email)}&existing_email=${encodeURIComponent(prospectUser.email)}&name=${encodeURIComponent(profile.name || '')}`);
       }
@@ -299,7 +309,9 @@ router.get('/google/callback', async (req, res) => {
       res.clearCookie('oauth_native', { path: '/api/auth' });
       const code = issueNativeOAuthCode(user);
       // 302 가 아니라 HTML 착지 — SFSafariViewController 는 커스텀 스킴 **리다이렉트를 무시**한다.
-      return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' });
+      // ★ 앱이 없으면 커스텀 스킴은 막다른 길이다 — 같은 일회용 code 로 웹에서 이어갈 길을 같이 준다.
+      return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' },
+        { webFallbackUrl: `/api/auth/google/web-return?code=${encodeURIComponent(code)}` });
     }
 
     // refresh_token cookie 발급 (옛 /login 패턴 정합) — AuthContext 가 mount 시 자동 refresh
@@ -315,6 +327,49 @@ router.get('/google/callback', async (req, res) => {
 //   이 요청은 앱 WebView 에서 오므로 issueSessionCookie 의 refresh cookie 가 WebView 에 심긴다.
 //   응답 후 앱은 window.location='/inbox' 로 리로드 → AuthContext bootstrap 이 cookie 로 자동 로그인.
 // POST /api/auth/google/native-exchange  { code, client_kind? }
+// GET /api/auth/google/web-return?code=... — **앱이 없을 때의 탈출구**.
+//
+// ★ 2026-09-06 운영 신고 (Irene, 안드로이드 태블릿): "로그인한 후 앱으로 돌아가기 버튼 누르면
+//   웹으로 가서 그냥 dns 에러나와. This site can't be reached."
+//   네이티브 복귀 페이지의 탈출구가 `planq://` **하나뿐**이었다. 안드로이드는 아직 Play 심사
+//   중이라 설치본이 없고, 스킴 핸들러가 없으면 브라우저가 `planq` 를 호스트로 해석해
+//   ERR_NAME_NOT_RESOLVED 를 낸다. **로그인은 서버에서 이미 끝났는데 세션만 못 받는 상태.**
+//
+// 그래서 같은 일회용 code 를 GET 으로 받아 **브라우저 세션을 심고** 앱으로 들여보낸다.
+// native-exchange(POST) 와 **같은 code·같은 단일사용 원장**을 쓴다 — 둘 중 하나만 성공한다.
+router.get('/google/web-return', async (req, res) => {
+  const fail = (reason) => {
+    logOauthFailure('auth/google web-return', reason, {
+      ua: String(req.get('user-agent') || '').slice(0, 120),
+    });
+    return res.redirect(302, buildRedirectTarget({ ok: false, error: reason }));
+  };
+  try {
+    const code = String(req.query.code || '');
+    if (!code) return fail('code_required');
+    let payload;
+    try {
+      payload = jwt.verify(code, process.env.JWT_SECRET);
+    } catch {
+      return fail('invalid_or_expired_code');
+    }
+    if (!payload || payload.purpose !== 'native_oauth' || !payload.uid || !payload.jti) {
+      return fail('invalid_code');
+    }
+    if (usedNativeCodes.has(payload.jti)) return fail('code_already_used');
+    usedNativeCodes.set(payload.jti, (payload.exp || Math.floor(Date.now() / 1000) + 120) * 1000);
+
+    const user = await User.findByPk(payload.uid);
+    if (!user || user.status !== 'active') return fail('account_unavailable');
+
+    await issueSessionCookie(req, res, user);
+    return res.redirect(302, buildRedirectTarget({ ok: true }));
+  } catch (e) {
+    console.error('[auth_oauth/web-return]', e);
+    return fail('exchange_failed');
+  }
+});
+
 router.post('/google/native-exchange', async (req, res) => {
   try {
     const { code, client_kind } = req.body || {};

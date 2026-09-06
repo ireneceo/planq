@@ -21,6 +21,7 @@ import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
 import { parseBodyToDoc, deriveTitleFromDoc, isDocEmpty } from '../../utils/qnoteBody';
 import VisibilityChip from '../../components/Common/VisibilityChip';
+import { PanelHeaderBar, DetailMetaBar } from '../../components/Layout/PanelHeader';
 import AiAssistButton from '../../components/Common/AiAssistButton';
 import type { VLevel } from '../../components/Common/VisibilityBadge';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
@@ -239,26 +240,14 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
 
   return (
     <Wrap>
+      {/* ★ 상세는 **두 밴드**로 끝낸다 (CLAUDE.md 페이지 레이아웃 표준 3).
+          2026-09-06 이전에는 제목·저장상태·분류/태그를 헤더 **안에 세로로 쌓아** 헤더가
+          60px 계약을 넘겼다 — 좌우 패널의 밑줄이 서로 다른 y 에 서서 "틀어져" 보인다
+          (Irene 2026-09-06 "노트는 틀어지네"). 표준의 금지 항목 그대로였다:
+          "헤더 안에 여러 줄(제목+부제) 쌓기 금지 — 부제/메타는 헤더 밖(아래)으로". */}
       <Header>
         <TitleArea>
           <Title>{titleDisplay}</Title>
-          <Status>
-            <Dot $tone={saveState} />
-            {saveState === 'saving' && (t('memoPopup.savingNow') as string)}
-            {saveState === 'saved' && timeAgo(t as any, savedAt)}
-            {saveState === 'error' && (t('memoPopup.errorRetry') as string)}
-            {saveState === 'idle' && !sessionId && (t('memoPopup.idleNew') as string)}
-          </Status>
-          {/* 운영 #54 — 메모 분류/태그 (음성 review 와 동일 컴포넌트) */}
-          {sessionId && session && (
-            <SessionTaxonomyBar
-              sessionId={sessionId}
-              category={session.category ?? null}
-              tags={session.tags ?? null}
-              editable
-              onChange={(patch) => onUpdated({ ...session, ...patch })}
-            />
-          )}
         </TitleArea>
         <HeaderActions>
           {/* N+88 — 메모도 공개 chip + 공유 (음성 review·Q docs 와 통일) */}
@@ -308,6 +297,26 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           </IconBtn>
         </HeaderActions>
       </Header>
+      {/* 밴드2 — 저장 상태와 분류/태그. 제목 줄에서 내려온 것들이다. */}
+      <MetaBand>
+        <Status>
+          <Dot $tone={saveState} />
+          {saveState === 'saving' && (t('memoPopup.savingNow') as string)}
+          {saveState === 'saved' && timeAgo(t as any, savedAt)}
+          {saveState === 'error' && (t('memoPopup.errorRetry') as string)}
+          {saveState === 'idle' && !sessionId && (t('memoPopup.idleNew') as string)}
+        </Status>
+        {/* 운영 #54 — 메모 분류/태그 (음성 review 와 동일 컴포넌트) */}
+        {sessionId && session && (
+          <SessionTaxonomyBar
+            sessionId={sessionId}
+            category={session.category ?? null}
+            tags={session.tags ?? null}
+            editable
+            onChange={(patch) => onUpdated({ ...session, ...patch })}
+          />
+        )}
+      </MetaBand>
 
       {/* N+88 — 메모 요약 (body 기반·영속). 저장된 메모일 때만. */}
       {sessionId && (
@@ -548,21 +557,17 @@ const MemoSummaryGenerate = styled.button`
 const MemoSummaryError = styled.div`
   font-size: 0.75rem; color: #B91C1C; margin-top: 8px; flex-basis: 100%;
 `;
-const Header = styled.div`
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 14px 20px;
-  border-bottom: 1px solid #E2E8F0;
-  background: #FFFFFF;
-  flex-shrink: 0;
-  min-height: 60px;
-  @media (max-width: 768px) {
-    padding: 10px 14px;
-    gap: 8px;
-  }
+// ★ 규격은 공용 PanelHeaderBar 에서 온다 — 여기서 60px·padding 을 다시 쓰지 않는다.
+//   각자 쓰면 반드시 갈라진다(Q Note 음성 세션 헤더가 그렇게 갈라져 있었다).
+const Header = styled(PanelHeaderBar)``;
+// 밴드2 — 규격은 공용 DetailMetaBar. 메타는 한 줄이고, 넘치면 가로로 흘린다.
+const MetaBand = styled(DetailMetaBar)`
+  justify-content: flex-start;
+  gap: 10px;
 `;
 const TitleArea = styled.div`
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column; gap: 4px;
+  flex: 1 1 0; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
 `;
 const Title = styled.h2`
   margin: 0;

@@ -2485,6 +2485,13 @@ const HeaderRight = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
+  /* ★ 액션 칸은 **줄어들지 않는다** (공용 PanelHeaderBar 의 자식 계약과 같은 규칙).
+     이 값이 없어서 폭이 좁아지면 제목과 액션이 같이 줄어들었고, 아이콘 버튼이 30px 아래로
+     눌렸다. 제목 쪽(HeaderLeft)이 flex:1 · min-width:0 이라 먼저 말줄임되는 것이 맞다.
+     ★ 이 헤더는 공용 PanelHeaderBar 를 상속하지 않는다 — 프로젝트 부제·모바일 채널 줄이
+     들어오면 자라야 해서 height 고정(60px)이 아니라 min-height 다. 그 예외는 유지하되,
+     자식 계약만 표준과 맞춘다. (2026-09-06) */
+  flex-shrink: 0;
 `;
 
 const IconBtn = styled.button`

@@ -41,9 +41,18 @@ function nativeReturnUrl(params = {}) {
  *   자동 이동이 막히는 환경을 위해 사용자가 직접 누를 수 있는 링크도 같이 남긴다
  *   (버튼이 없으면 사용자는 창을 닫는 것 말고 할 수 있는 일이 없다).
  */
-function sendNativeReturn(res, params = {}) {
+function sendNativeReturn(res, params = {}, opts = {}) {
   const url = nativeReturnUrl(params);
-  const safe = url.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  const safe = esc(url);
+  // ★ 2026-09-06 운영 실측 (Irene, 안드로이드 태블릿):
+  //   "로그인한 후 앱으로 돌아가기 버튼 누르면 웹으로 가서 그냥 dns 에러나와. This site can't be reached."
+  //   이 페이지의 탈출구가 **커스텀 스킴 하나뿐**이었다. 앱이 없거나(안드로이드는 Play 심사 중이라
+  //   설치본이 없다) 스킴 핸들러가 없으면 브라우저가 `planq` 를 **호스트 이름으로 해석**해
+  //   ERR_NAME_NOT_RESOLVED 를 낸다. 서버에서 로그인은 이미 성공했는데 세션을 받을 길이 막힌다.
+  //   → **웹으로 이어가는 길을 항상 같이 준다.** 스킴 이동이 성공하면 이 페이지는 백그라운드로
+  //     가므로, 잠시 뒤에도 화면이 보이면 = 앱이 없다는 뜻이라 그때 폴백을 크게 띄운다.
+  const webUrl = opts.webFallbackUrl ? esc(opts.webFallbackUrl) : '';
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
   return res.status(200).send(`<!doctype html><html lang="ko"><head>
@@ -53,20 +62,32 @@ function sendNativeReturn(res, params = {}) {
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
        font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;
        background:#F8FAFC;color:#0F172A;padding:24px;text-align:center}
-  .c{max-width:320px}
+  .c{max-width:340px}
   h1{font-size:17px;font-weight:700;margin:0 0 8px}
   p{font-size:14px;line-height:1.7;color:#475569;margin:0 0 20px}
-  a{display:inline-block;background:#115E59;color:#fff;text-decoration:none;
-    padding:14px 22px;border-radius:10px;font-size:15px;font-weight:600}
+  a{display:block;text-decoration:none;padding:14px 22px;border-radius:10px;
+    font-size:15px;font-weight:600;margin:0 0 10px}
+  a.p{background:#115E59;color:#fff}
+  a.s{background:#fff;color:#0F172A;border:1px solid #CBD5E1}
+  #fb{display:none}
+  #fb.on{display:block}
+  .h{font-size:13px;color:#64748B;margin:14px 0 0;line-height:1.6}
 </style></head><body><div class="c">
 <h1>PlanQ 로 돌아갑니다</h1>
 <p>잠시만 기다려 주세요. 화면이 바뀌지 않으면 아래 버튼을 눌러 주세요.</p>
-<a id="go" href="${safe}">PlanQ 앱으로 돌아가기</a>
+<a class="p" id="go" href="${safe}">PlanQ 앱으로 돌아가기</a>
+${webUrl ? `<div id="fb"><a class="s" id="web" href="${webUrl}">웹에서 계속하기</a>
+<p class="h">앱이 설치돼 있지 않으면 이쪽으로 이어서 사용하세요.</p></div>` : ''}
 </div><script>
   // 즉시 이동 — SFSafariViewController 는 302 는 무시하지만 이 이동은 앱을 연다.
   try { location.replace(${JSON.stringify(url)}); } catch (e) {}
   // 일부 환경은 첫 시도를 삼킨다. 짧게 한 번 더.
   setTimeout(function(){ try { location.href = ${JSON.stringify(url)}; } catch (e) {} }, 400);
+  // 스킴이 열렸으면 이 페이지는 백그라운드로 간다. 1.6초 뒤에도 보이면 = 앱이 없다.
+  setTimeout(function(){
+    var fb = document.getElementById('fb');
+    if (fb && document.visibilityState === 'visible') fb.className = 'on';
+  }, 1600);
 </script></body></html>`);
 }
 

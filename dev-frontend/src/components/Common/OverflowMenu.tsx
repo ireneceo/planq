@@ -8,9 +8,10 @@
 //   ★ 새로 만들지 말고 여기서 가져다 쓴다. 각자 styled 를 다시 선언하면 반드시 갈라진다
 //     (알림·새 소식 드롭다운이 그랬다 — components/Common/dropdownShell.ts 주석 참조).
 //   메뉴는 createPortal 로 body 에 띄운다 — 헤더의 overflow 에 잘리지 않게.
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
+import { usePopoverAnchor } from './popoverAnchor';
 
 export type OverflowItem = {
   key: string;
@@ -23,6 +24,10 @@ export type OverflowItem = {
   dividerBefore?: boolean;
   /** 하니스 selector — 인터랙티브 요소에 부여 (CLAUDE.md 운영 안정성 17) */
   testId?: string;
+  /** 택일 그룹의 현재 값 — 체크 표시가 붙는다 (기간 선택처럼 값이 하나뿐인 묶음) */
+  checked?: boolean;
+  /** 이 항목 **위에** 그룹 제목을 얹는다 (구분선 대신 무엇의 묶음인지 말한다) */
+  groupLabel?: string;
 };
 
 type Props = {
@@ -34,38 +39,7 @@ type Props = {
 };
 
 export default function OverflowMenu({ items, label, className, ...rest }: Props) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // 바깥 클릭 닫기
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      const tgt = e.target as Node;
-      if (wrapRef.current?.contains(tgt) || menuRef.current?.contains(tgt)) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  // Esc 닫기
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [open]);
-
-  // 좌표 — 트리거의 **오른쪽 끝에 맞춰** 편다. right 로 잡으면 메뉴 폭을 재지 않아도 된다.
-  useLayoutEffect(() => {
-    if (!open) { setPos(null); return; }
-    const r = wrapRef.current?.getBoundingClientRect();
-    if (!r) return;
-    setPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
-  }, [open]);
+  const { open, toggle, close, pos, wrapRef, panelRef } = usePopoverAnchor();
 
   if (items.length === 0) return null;
 
@@ -79,27 +53,37 @@ export default function OverflowMenu({ items, label, className, ...rest }: Props
         aria-expanded={open}
         aria-label={label}
         title={label}
-        onClick={() => setOpen(o => !o)}
+        onClick={toggle}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
         </svg>
       </Trigger>
       {open && pos && createPortal(
-        <Menu ref={menuRef} role="menu" style={{ top: pos.top, right: pos.right }}>
+        <Menu ref={panelRef} role="menu" style={{ top: pos.top, right: pos.right }}>
           {items.map(it => (
             <React.Fragment key={it.key}>
               {it.dividerBefore && <MenuDivider />}
+              {it.groupLabel && <MenuGroupLabel>{it.groupLabel}</MenuGroupLabel>}
               <MenuItem
                 type="button"
-                role="menuitem"
+                /* ★ 값이 하나뿐인 택일 묶음(예: "답 없으면" 기간)은 menuitemradio 다.
+                   menuitem 으로 두면 스크린리더가 **무엇이 선택돼 있는지 못 읽는다** —
+                   체크 표시는 눈에만 보이는 정보가 된다. */
+                role={it.checked !== undefined ? 'menuitemradio' : 'menuitem'}
+                aria-checked={it.checked !== undefined ? !!it.checked : undefined}
                 $danger={!!it.danger}
                 disabled={!!it.disabled}
                 data-testid={it.testId}
-                onClick={() => { setOpen(false); it.onClick(); }}
+                onClick={() => { close(); it.onClick(); }}
               >
                 {it.icon}
                 {it.label}
+                {it.checked && (
+                  <MenuCheck aria-hidden="true">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                  </MenuCheck>
+                )}
               </MenuItem>
             </React.Fragment>
           ))}
@@ -142,3 +126,12 @@ const MenuItem = styled.button<{ $danger?: boolean }>`
   @media (max-width: 640px){ min-height:44px; }
 `;
 const MenuDivider = styled.div`height:1px;background:#F1F5F9;margin:4px 0;`;
+// 택일 그룹 제목 — "답 없으면" 처럼 값이 하나뿐인 묶음이 무엇의 묶음인지 말한다.
+const MenuGroupLabel = styled.div`
+  padding:6px 12px 2px;font-size:0.6875rem;font-weight:700;color:#94A3B8;
+  letter-spacing:-0.1px;white-space:nowrap;
+`;
+// 체크는 항목 **오른쪽 끝**에 — 라벨 길이가 달라도 한 줄에 정렬된다.
+const MenuCheck = styled.span`
+  margin-left:auto;padding-left:14px;display:inline-flex;align-items:center;color:#0F766E;
+`;
