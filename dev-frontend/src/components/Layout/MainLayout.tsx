@@ -986,9 +986,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   // ★ 크롬 상단 오프셋 단일 원천 — 탭스트립은 브라우저 크롬이므로 앱 내부 오버레이(드로어·백드롭)가
   //   그 위를 덮으면 안 된다(#199). CSS 변수 하나로 계약화해 드로어들이 tabMode 를 알 필요가 없게 한다.
   //   모바일은 탭모드가 아니므로 0 — 기존 --vvh 키보드 계약과 충돌하지 않는다.
+  //
+  // ★★ 값을 **숫자로 계산하지 않고 토큰을 가리킨다** (2026-09-06, Irene: "우측패널로 업무상세
+  //    열면 가로 세로 모두 상단 헤더에 딱 안맞고 틀어져 … 기준점 자체를 헤더 끝나는 위치에 맞추면
+  //    어떤 디바이스든 어떤 사이즈든 잘 맞지 않을까?"). 정확히 그 말대로다.
+  //    옛 코드는 TABSTRIP_H(=40) 만 썼는데 탭바의 **실제** 높이는
+  //    --pq-chrome-top = 40 + 상태바(--pq-safe-top) 다. 네이티브 태블릿에서 상태바가 24px 라
+  //    드로어가 24px 위에서 시작해 탭바를 파고들었다(웹은 safe-top 0 이라 여태 안 드러났다).
+  //    var() 를 값으로 넣으면 **쓰이는 순간** 해석되므로, 상태바가 기기·회전마다 달라져도
+  //    드로어는 언제나 "크롬이 끝나는 자리" 에 선다. 숫자를 다시 넣지 말 것.
   useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty('--chrome-top', tabMode ? `${TABSTRIP_H}px` : '0px');
+    root.style.setProperty('--chrome-top', tabMode ? `var(--pq-chrome-top, ${TABSTRIP_H}px)` : '0px');
     return () => { root.style.setProperty('--chrome-top', '0px'); };
   }, [tabMode]);
 

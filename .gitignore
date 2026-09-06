@@ -39,3 +39,4 @@ q-note/test-*.py
 # APNs .p8 등 비밀 키 — 절대 커밋 금지 (2026-08-24)
 secrets/
 *.p8
+.toolchains/

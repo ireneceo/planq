@@ -10,6 +10,10 @@
 //   ② 상단 크롬이 **한 겹**인가 (탭바와 모바일 헤더가 동시에 뜨지 않는가)
 //   ③ 사이드바가 드로어인 폭에서 탭바가 x=0 인가 (밀리면 왼쪽에 빈 띠)
 //   ④ 사이드바로 가는 길이 항상 있는가 (드로어 폭 = 햄버거 / 도킹 폭 = 사이드바 자체)
+//   ⑤ 오버레이 기준선(--chrome-top)이 **크롬이 끝나는 자리**와 정확히 같은가
+//      (2026-09-06 Irene: "업무상세 열면 가로 세로 모두 상단 헤더에 딱 안맞고 틀어져").
+//      값이 40 으로 하드코딩돼 있어 상태바(safe-top)만큼 어긋났다 — 웹은 safe-top 0 이라
+//      데스크탑에서는 영영 안 드러난다. 그래서 **상태바가 있는 상태를 만들어** 잰다.
 const { launch, login, goto, sleep } = require('./lib/browser');
 
 const VIEWPORTS = [
@@ -41,7 +45,14 @@ function measure() {
     if (b.y === 0 && b.x === 0 && b.w >= window.innerWidth - 1 && b.h > 0 && b.h < 130
         && el.querySelector('button')) { header = b; break; }
   }
-  return { strip, menu, header, iw: window.innerWidth, ih: window.innerHeight };
+  // 오버레이 기준선을 **실제로 해석시켜** 잰다. custom property 의 getPropertyValue 는
+  // 'calc(...)' 같은 토큰을 그대로 주므로 px 비교가 안 된다 — 탐침을 띄워 좌표로 받는다.
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:0;width:1px;height:0;pointer-events:none;top:var(--chrome-top, 0px)';
+  document.body.appendChild(probe);
+  const chromeTopPx = Math.round(probe.getBoundingClientRect().y);
+  probe.remove();
+  return { strip, menu, header, chromeTopPx, iw: window.innerWidth, ih: window.innerHeight };
 }
 
 async function run() {
@@ -71,9 +82,46 @@ async function run() {
       if (stripOn && drawer && m.strip.x !== 0) bad.push(`탭바 x=${m.strip.x} — 드로어 폭인데 밀림`);
       if (drawer && !headerOn && !menuOn) bad.push('사이드바로 가는 길 없음 (헤더도 햄버거도 없다)');
       if (!drawer && menuOn) bad.push('도킹 폭인데 햄버거 노출');
+      // ⑤ 오버레이 기준선(--chrome-top) — **모드마다 기대값이 다르다. 둘 다 못 박는다.**
+      //   · 탭 모드(태블릿·데스크탑): 드로어는 탭바 **아래**에서 시작해야 한다. 탭바는 브라우저
+      //     크롬이라 앱 오버레이가 덮으면 안 된다(#199). 기준선 = 크롬이 끝나는 자리.
+      //   · 미러 모드(폰): 상세 드로어는 **전면**(width:100vw, CLAUDE.md 반응형 드로어 ≤640)
+      //     이라 기준선 0 이 맞다. 헤더 아래로 내리면 폰 상세가 좁아진다 — 여기를 "고치면"
+      //     Irene 이 확정한 iOS 기준을 깨는 것이다(2026-09-06 "테블릿 말하는 건데",
+      //     "모바일 망치지 말고"). 그래서 0 을 **기대값으로** 적어 둔다.
+      const chromeBottom = stripOn ? m.strip.y + m.strip.h : (headerOn ? m.header.y + m.header.h : 0);
+      const expectBaseline = v.tab ? chromeBottom : 0;
+      if (m.chromeTopPx !== expectBaseline) {
+        bad.push(`오버레이 기준선 ${m.chromeTopPx}px ≠ 기대 ${expectBaseline}px`
+          + (v.tab ? ` (크롬 끝 ${chromeBottom} — ${Math.abs(m.chromeTopPx - chromeBottom)}px 어긋나 헤더를 파고든다)`
+                   : ' (폰 상세는 전면이라 0 이어야 한다)'));
+      }
 
       // 좌표는 통과일 때도 남긴다 — 초록만 보고는 "무엇이 초록인지" 를 모른다.
-      const coords = `탭=${stripOn ? `y${m.strip.y} h${m.strip.h} x${m.strip.x}` : 'off'} · 헤더=${headerOn ? `h${m.header.h}` : 'off'} · 크롬=${chrome}px · 햄버거=${menuOn ? `x${m.menu.x} ${m.menu.w}×${m.menu.h}` : '-'}`;
+      const mkCoords = () => `탭=${stripOn ? `y${m.strip.y} h${m.strip.h} x${m.strip.x}` : 'off'} · 헤더=${headerOn ? `h${m.header.h}` : 'off'} · 크롬=${chrome}px · 햄버거=${menuOn ? `x${m.menu.x} ${m.menu.w}×${m.menu.h}` : '-'} · 기준선=${m.chromeTopPx}/${chromeBottom}${m.nativeNote ? ' · ' + m.nativeNote : ''}`;
+      // ★ 네이티브 모사 패스 — 브라우저는 --pq-safe-top 이 0 이라 이 계열 버그가 **재현되지 않는다**.
+      //   'pq-android' 를 붙이면 index.css 의 규칙이 상태바 자리(≥24px)를 실제로 만든다.
+      //   이 패스가 없으면 "기준선 40 = 크롬 끝 40" 으로 초록이 나오는데, 정작 기기에서는
+      //   기준선 40 · 크롬 끝 64 로 24px 어긋난다(Irene 신고 그대로).
+      let nativeBad = [];
+      if (v.tab) {
+        const nm = await page.evaluate((fn) => {
+          document.documentElement.classList.add('pq-android');
+          // eslint-disable-next-line no-eval
+          const r = eval('(' + fn + ')')();
+          document.documentElement.classList.remove('pq-android');
+          return r;
+        }, measure.toString());
+        const nStrip = nm.strip, nHeader = nm.header;
+        const nBottom = nStrip ? nStrip.y + nStrip.h : (nHeader ? nHeader.y + nHeader.h : 0);
+        if (!nStrip) nativeBad.push('네이티브 모사: 탭바 사라짐');
+        else if (nStrip.h <= m.strip.h) nativeBad.push(`네이티브 모사가 안 걸림 — 탭바 높이 ${nStrip.h} (상태바 자리가 안 생겼다)`);
+        else if (nm.chromeTopPx !== nBottom) nativeBad.push(`네이티브 기준선 ${nm.chromeTopPx}px ≠ 크롬 끝 ${nBottom}px (${Math.abs(nm.chromeTopPx - nBottom)}px 어긋남)`);
+        if (nativeBad.length) bad.push(...nativeBad);
+        else bad.length === 0 && (m.nativeNote = `네이티브 모사 탭바 h${nStrip.h} 기준선 ${nm.chromeTopPx} ✓`);
+      }
+
+      const coords = mkCoords();
       results.push({
         name: `tabletchrome:${v.n} ${v.w}×${v.h}`,
         fail: bad.length ? 1 : 0, fatal: 0,
