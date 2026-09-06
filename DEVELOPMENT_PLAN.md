@@ -22,11 +22,15 @@
 | 안드로이드 APK | 로컬 릴리즈 빌드(JDK 21 + platform 36). `adjustResize` · 운영 URL 고정 · versionCode 100 | ✅ 완료 |
 | 검사기 2건 교정 | `keep-alive` 개수→성질(하니스가 만든 탭이 원인) · UI 규격 정규식이 토큰 40px 을 잡던 것(781→738) | ✅ 완료 |
 
+| **운영 청크 정리** | 36,761개/636MB → 20,601개/**358MB**. `scripts/prune-prod-assets.sh` 신규 — mtime 이 아니라 **빌드 산출물에서 살아있는 목록을 계산**해 판정(안 바뀐 청크는 해시가 같아 살아 있는데 오래돼 보인다), 삭제 아닌 **격리** | ✅ 완료 |
 | **`auth_oauth.js` 분리** | 610줄 → 조립부 29 + `oauth/{core,login,pairing,connections}.js`. 라우터는 하나 그대로(등록 순서·마운트 무변경), 공유 Map 은 core 단독 소유. **Fable PASS** · god-file 46→45/45 · 가드 34/34 | ✅ 완료 |
 
 ### 남은 것 (내일)
 - Irene 태블릿 실기기 확인 반영 · iPad 확인(키보드 위 입력란)
-- Codemagic `android-play` 재빌드 · 운영 옛 청크 정리
+- Codemagic `android-play` 재빌드 (API 토큰 없어 트리거 불가 — Irene 실행)
+- 격리한 옛 청크(280M) 삭제 — 며칠 두고 이상 없으면 `--purge-quarantine`
+- 답 못 받은 기획 3건: 닫힌 프로젝트의 기존 게스트 링크 정책 · Q Note 메모 밴드 접기 ·
+  Q Talk 채팅 헤더 65px(부제가 헤더 안에 쌓여 60px 계약 초과)
 
 ### 수정된 파일 (주요)
 - `dev-backend/services/oauthPairing.js` (신규) · `dev-backend/routes/auth_oauth.js` · `dev-backend/utils/nativeReturn.js`
