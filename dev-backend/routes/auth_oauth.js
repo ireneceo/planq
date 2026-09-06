@@ -20,6 +20,12 @@ const { sendNativeReturn } = require('../utils/nativeReturn');
 // ★ 2026-09-06 — 운영 pm2 로그에 OAuth 흔적이 **0줄**이었다. 실패해도 원인을 볼 수 없었다.
 //   external_connections.js 는 이미 이 헬퍼를 쓰고 있었는데 로그인 경로만 빠져 있었다.
 const { logOauthFailure } = require('../utils/oauthLog');
+// 앱 세션 페어링 — 딥링크가 앱을 못 열 때의 통로. 설계·안전성은 services/oauthPairing.js 머리말.
+const oauthPairing = require('../services/oauthPairing');
+// 세션 발급 경로라 per-user(미인증이면 IP) 제한 (CLAUDE.md 운영 안정성 1).
+let perUserLimiter = null;
+try { ({ perUserLimiter } = require('../middleware/costGuard')); } catch { /* 없으면 무제한 — 라우트는 살아야 한다 */ }
+const limit = (name, max) => (perUserLimiter ? perUserLimiter(name, { windowMs: 60 * 1000, max }) : (req, res, next) => next());
 // 옛 /login 의 refresh_token cookie 패턴 재사용 (다중 디바이스 + sliding renewal 정합)
 const { helpers } = require('./auth');
 const { createRefreshTokenRow, generateAccessToken, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND, setSessionHint } = helpers;
@@ -172,7 +178,11 @@ router.get('/google/initiate', (req, res) => {
         sameSite: 'lax', path: '/api/auth', maxAge: 10 * 60 * 1000,
       });
     }
-    const { url } = googleOauthLogin.buildAuthUrl();
+    // 앱이 만든 **흐름 식별자**(비밀 아님)를 state 에 실어 콜백까지 나른다.
+    //   ★ 비밀(코드)은 절대 여기로 들어오지 않는다 — 첫 설계가 그렇게 했다가 ATO 가 됐다.
+    const pair = typeof req.query.pair === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(req.query.pair)
+      ? req.query.pair : null;
+    const { url } = googleOauthLogin.buildAuthUrl(pair);
     return res.redirect(302, url);
   } catch (e) {
     return res.redirect(302, buildRedirectTarget({ ok: false, error: e.message }));
@@ -192,11 +202,13 @@ router.get('/google/callback', async (req, res) => {
       logOauthFailure('auth/google callback', 'invalid_request', logCtx);
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'invalid_request' }));
     }
-    if (!googleOauthLogin.consumeState(String(state))) {
+    const stateEntry = googleOauthLogin.consumeStateEntry(String(state));
+    if (!stateEntry) {
       // 대개 ①서버 재시작으로 메모리 state 가 날아갔거나 ②콜백이 두 번 로드됐거나 ③5분 초과.
       logOauthFailure('auth/google callback', 'invalid_state', logCtx);
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'invalid_state' }));
     }
+    const pairId = stateEntry.challenge;   // state 가 나른 흐름 식별자
 
     const profile = await googleOauthLogin.exchangeCodeForProfile(String(code));
     if (!profile.email_verified) {
@@ -255,8 +267,15 @@ router.get('/google/callback', async (req, res) => {
         //   → 앱으로 먼저 돌아간 뒤, 앱 WebView 안에서 확인 화면을 연다. 그래야 쿠키가 앱에 심긴다.
         if (isNativeOAuth(req)) {
           res.clearCookie('oauth_native', { path: '/api/auth' });
-          return sendNativeReturn(res, { confirm: confirmToken },
-            { webFallbackUrl: `/oauth/connect-confirm?token=${encodeURIComponent(confirmToken)}` });
+          // ★ 이 분기는 **아직 로그인이 아니다** — "이 계정에 구글을 연결할까요?" 확인이 남았다.
+          //   코드 페어링을 붙일 수 없고(세션이 없다), 그래서 딥링크가 실패하면 갈 곳이 있어야 한다.
+          //   2026-09-06 Fable F-2: webFallbackUrl 을 없앤 뒤 이 호출부만 남아 **옵션이 조용히
+          //   버려지고** 링크가 planq:// 하나뿐인 막다른 길이 됐다(제목도 "로그인이 끝났습니다").
+          return sendNativeReturn(res, { confirm: confirmToken }, {
+            title: '계정 연결 확인이 필요합니다',
+            altUrl: `/oauth/connect-confirm?token=${encodeURIComponent(confirmToken)}`,
+            altLabel: '연결 확인하기',
+          });
         }
         return res.redirect(302, `/oauth/connect-confirm?token=${confirmToken}&email=${encodeURIComponent(profile.email)}&existing_email=${encodeURIComponent(prospectUser.email)}&name=${encodeURIComponent(profile.name || '')}`);
       }
@@ -324,9 +343,15 @@ router.get('/google/callback', async (req, res) => {
       });
       // 앱을 여는 길 둘(스킴 → App Link) + 웹으로 끝내는 길 하나. 어느 쪽도 막다른 길이 아니다.
       const origin = `${req.protocol}://${req.get('host')}`;
+      // ★ 앱에 입력할 6자리 — **이 브라우저 화면에서만** 생겨난다. 공격자가 남의 로그인을
+      //   자기 흐름에 붙여도 코드는 피해자 화면에 뜨므로 가져갈 수 없다.
+      const pairCode = oauthPairing.attach(pairId, user.id);
       return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' }, {
-        appLinkUrl: `${origin}/oauth/native-return?code=${encodeURIComponent(code)}`,
-        webFallbackUrl: `/api/auth/google/web-return?code=${encodeURIComponent(code)}`,
+        title: '로그인이 끝났습니다',
+        // 코드가 있으면 App Link 를 주지 않는다 — 자동 이동이 코드를 화면에서 지운다(F-1).
+        //   코드가 없는 흐름(앱이 pair 를 못 연 경우)에서만 App Link 사다리를 쓴다.
+        appLinkUrl: pairCode ? undefined : `${origin}/oauth/native-return?code=${encodeURIComponent(code)}`,
+        pairCode,
       });
     }
 
@@ -383,6 +408,47 @@ router.get('/google/web-return', async (req, res) => {
   } catch (e) {
     console.error('[auth_oauth/web-return]', e);
     return fail('exchange_failed');
+  }
+});
+
+// ─── 앱 세션 페어링 ────────────────────────────────────────────────
+// 딥링크(planq:// · App Link)가 앱을 열지 못하는 기기에서의 정본 경로.
+// 설계·안전성 논거는 services/oauthPairing.js 머리말에 있다 — 특히 **왜 비밀이 개시 링크로
+// 들어오면 안 되는지**(첫 설계의 ATO). 여기서는 얇게 통과시키기만 한다.
+
+// ① 앱(WebView)이 흐름을 연다. 응답의 pair_id 는 **비밀이 아니다**.
+router.post('/google/pair/start', limit('google-pair-start', 20), (req, res) => {
+  try {
+    return res.json({ success: true, data: { pair_id: oauthPairing.start() } });
+  } catch (e) {
+    console.error('[auth_oauth/pair-start]', e);
+    return res.status(500).json({ success: false, message: 'pair_start_failed' });
+  }
+});
+
+// ④ 앱이 pair_id + **사용자가 브라우저 화면에서 읽어 입력한 6자리**로 세션을 받아간다.
+router.post('/google/claim', limit('google-claim', 10), async (req, res) => {
+  try {
+    const { pair_id: pairId, code, client_kind } = req.body || {};
+    const r = oauthPairing.claim(pairId, code);
+    if (!r.ok) {
+      logOauthFailure('auth/google claim', r.reason, {
+        ua: String(req.get('user-agent') || '').slice(0, 120),
+      });
+      // 사유는 그대로 돌려준다 — 화면이 "코드가 틀렸다" 와 "만료됐다" 를 다르게 말해야 한다.
+      const status = r.reason === 'not_ready' ? 409 : (r.reason === 'bad_code' ? 401 : 404);
+      return res.status(status).json({ success: false, message: r.reason });
+    }
+    const user = await User.findByPk(r.uid);
+    if (!user || user.status !== 'active') {
+      return res.status(403).json({ success: false, message: 'account_unavailable' });
+    }
+    if (client_kind) req.body.client_kind = client_kind;
+    await issueSessionCookie(req, res, user);
+    return res.json({ success: true, data: { claimed: true } });
+  } catch (e) {
+    console.error('[auth_oauth/claim]', e);
+    return res.status(500).json({ success: false, message: 'claim_failed' });
   }
 });
 

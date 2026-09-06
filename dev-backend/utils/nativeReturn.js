@@ -52,14 +52,24 @@ function sendNativeReturn(res, params = {}, opts = {}) {
   //   ERR_NAME_NOT_RESOLVED 를 낸다. 서버에서 로그인은 이미 성공했는데 세션을 받을 길이 막힌다.
   //   → **웹으로 이어가는 길을 항상 같이 준다.** 스킴 이동이 성공하면 이 페이지는 백그라운드로
   //     가므로, 잠시 뒤에도 화면이 보이면 = 앱이 없다는 뜻이라 그때 폴백을 크게 띄운다.
-  const webUrl = opts.webFallbackUrl ? esc(opts.webFallbackUrl) : '';
-  // ★ 앱을 여는 길을 **둘** 준다 (2026-09-06).
-  //   ① planq:// 커스텀 스킴 — 스킴 핸들러가 등록된 빌드에서만 열린다. 없으면 브라우저가
-  //      `planq` 를 호스트로 읽어 ERR_NAME_NOT_RESOLVED("This site can't be reached").
-  //   ② https App Link — assetlinks.json 이 서빙되고 서명이 맞으면 앱이 가로챈다.
-  //      **안 잡혀도 실재하는 주소**라 SPA 의 /oauth/native-return 이 받아 로그인을 끝낸다.
-  //      즉 ②는 어느 쪽으로 가든 막다른 길이 아니다.
+  // ★ 브라우저용 "계속하기" 버튼은 두지 않는다 (Irene 2026-09-06: "없애. 완벽히 해").
+  //
+  // ★★ 코드가 있으면 **이 화면은 스스로 떠나지 않는다** (2026-09-06 Fable 재게이트 F-1):
+  //   앞 판은 1.4초 뒤 App Link 로 `location.replace` 했는데, 앱이 못 가로채면 그대로
+  //   브라우저가 SPA 로 넘어가 **코드가 화면에서 사라졌다**(실측 t=2.8s: code visible false).
+  //   딥링크가 실패하는 바로 그 기기가 코드를 가장 필요로 하는데 읽을 시간이 없었다.
+  //   주석에는 "못 가로채면 이 화면에 남는다" 고 써 있었다 — 자기 JS 와 모순이었다.
+  //   → 코드가 있으면 **자동 이동 금지**. 스킴 시도만 한다(실패해도 페이지가 남는다).
+  //     App Link 는 이 흐름에서 **아예 내보내지 않는다**(자동 이동도, 누를 버튼도 없다) —
+  //     떠나는 순간 코드를 잃기 때문이다. 앱을 여는 시도는 스킴 하나로 족하고, 그것이 실패해도
+  //     페이지가 남아 코드를 읽을 수 있다. 코드가 **없는** 흐름에서만 App Link 사다리를 쓴다.
   const appLink = opts.appLinkUrl ? esc(opts.appLinkUrl) : '';
+  const pairCode = opts.pairCode ? esc(opts.pairCode) : '';
+  // 화면 성격 — 로그인 복귀 / 연결 확인 / 연동 완료가 같은 제목을 쓰면 거짓말이 된다.
+  const title = esc(opts.title || 'PlanQ 로 돌아갑니다');
+  // 코드가 없는 흐름(연결 확인 등)의 **다른 길** — 없으면 막다른 길이 된다.
+  const altUrl = opts.altUrl ? esc(opts.altUrl) : '';
+  const altLabel = esc(opts.altLabel || '계속하기');
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
   return res.status(200).send(`<!doctype html><html lang="ko"><head>
@@ -71,43 +81,37 @@ function sendNativeReturn(res, params = {}, opts = {}) {
        background:#F8FAFC;color:#0F172A;padding:24px;text-align:center}
   .c{max-width:340px}
   h1{font-size:17px;font-weight:700;margin:0 0 8px}
-  p{font-size:14px;line-height:1.7;color:#475569;margin:0 0 20px}
+  p{font-size:14px;line-height:1.7;color:#475569;margin:0 0 18px}
   a{display:block;text-decoration:none;padding:14px 22px;border-radius:10px;
-    font-size:15px;font-weight:600;margin:0 0 10px}
-  a.p{background:#115E59;color:#fff}
+    background:#115E59;color:#fff;font-size:15px;font-weight:600;margin:0 0 12px}
   a.s{background:#fff;color:#0F172A;border:1px solid #CBD5E1}
+  .codebox{border:1px solid #CBD5E1;border-radius:12px;background:#fff;padding:16px 12px;margin:4px 0 12px}
+  .lbl{font-size:12px;color:#64748B;margin:0 0 6px}
+  .code{font-size:30px;font-weight:800;letter-spacing:6px;color:#0F172A;
+        font-variant-numeric:tabular-nums}
+  .hint{font-size:12px;color:#94A3B8;margin:8px 0 0;line-height:1.6}
 </style></head><body><div class="c">
-<h1>PlanQ 로 돌아갑니다</h1>
-<p id="msg">잠시만 기다려 주세요.</p>
-<a class="p" id="go" href="${appLink || safe}">PlanQ 앱에서 열기</a>
-${webUrl ? `<a class="s" id="web" href="${webUrl}">이 브라우저에서 계속하기</a>` : ''}
+<h1>${title}</h1>
+${pairCode ? `<div class="codebox">
+<p class="lbl">앱에 이 코드를 입력하세요</p>
+<div class="code">${pairCode.slice(0, 3)} ${pairCode.slice(3)}</div>
+<p class="hint">10분 동안 유효합니다. 다른 사람에게 알려주지 마세요.</p>
+</div>
+<p class="hint">앱이 저절로 열렸다면 이 화면은 닫으셔도 됩니다.</p>`
+: `<p>잠시만 기다려 주세요. 화면이 바뀌지 않으면 아래 버튼을 눌러 주세요.</p>`}
+${appLink && !pairCode ? `<a id="go" href="${appLink}">PlanQ 앱에서 열기</a>` : ''}
+${!appLink && !pairCode ? `<a id="go" href="${safe}">PlanQ 앱에서 열기</a>` : ''}
+${altUrl ? `<a class="s" id="alt" href="${altUrl}">${altLabel}</a>` : ''}
 </div><script>
-  // 앱이 있으면 스킴이 먼저 낚아채 이 페이지는 백그라운드로 간다.
+  // 스킴 시도 — **실패해도 이 페이지는 남는다**(핸들러가 없으면 이동 자체가 취소된다).
   try { location.replace(${JSON.stringify(url)}); } catch (e) {}
   setTimeout(function(){ try { location.href = ${JSON.stringify(url)}; } catch (e) {} }, 400);
-${appLink ? `  // 스킴이 안 먹었으면 App Link 로 한 번 더 — 앱이 가로채면 앱이 뜨고,
-  //   못 가로채도 실재하는 https 주소라 SPA 착지 페이지가 로그인을 끝낸다.
+${appLink && !pairCode ? `  // 코드가 없는 흐름에서만 App Link 로 한 번 더 자동 시도한다.
+  //   코드가 있으면 **자동 이동하지 않는다** — 떠나면 코드를 못 읽는다(F-1).
   setTimeout(function(){
-    if (document.visibilityState !== 'visible') return;   // 앱이 이미 떴다
+    if (document.visibilityState !== 'visible') return;
     location.replace(${JSON.stringify(opts.appLinkUrl)});
   }, 1400);` : ''}
-${webUrl && !appLink ? `  // ★ 2026-09-06 — 앱이 없으면 스킴은 **막다른 길**이다(브라우저가 planq 를 호스트로 읽어
-  //   ERR_NAME_NOT_RESOLVED). 처음 고칠 때 폴백을 "1.6초 뒤에 뜨는 보조 버튼" 으로 뒀더니
-  //   Irene 이 그대로 큰 버튼(앱으로 돌아가기)을 다시 눌러 **같은 DNS 오류**를 봤다.
-  //   → 고르게 하지 말고 **자동으로 웹으로 넘어간다.** 앱이 열렸으면 이 페이지는 숨겨져 있으므로
-  //     visibility/focus 검사에서 걸러진다(그때는 넘어가지 않는다 — 일회용 code 를 뺏지 않게).
-  var done = false;
-  function toWeb() {
-    if (done) return;
-    // ★ hasFocus() 를 쓰지 말 것 — **인앱 브라우저(Custom Tab)에서는 화면이 보여도 false** 가 나와
-    //   자동 이동이 통째로 막힌다(2026-09-06: Irene 이 그래서 수동으로 버튼을 눌렀고, 그때는
-    //   이미 코드가 만료돼 있었다). 앱이 열렸는지의 신호는 visibilityState 하나면 충분하다.
-    if (document.visibilityState !== 'visible') return;  // 앱이 떴다 — 코드를 뺏지 않는다
-    done = true;
-    document.getElementById('msg').textContent = '앱이 없어 이 브라우저에서 이어갑니다…';
-    location.replace(${JSON.stringify(opts.webFallbackUrl)});
-  }
-  setTimeout(toWeb, 1800);` : ''}
 </script></body></html>`);
 }
 

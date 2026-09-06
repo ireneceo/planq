@@ -46,6 +46,10 @@ function nativeReturnRedirect(res, { ok, provider, error }) {
     provider: provider || '',
     ok: ok ? '1' : '0',
     error: error ? String(error).slice(0, 120) : '',
+  }, {
+    // 제목은 흐름마다 다르다 — 연동 복귀에 "로그인이 끝났습니다" 가 붙으면 거짓말이 된다
+    // (2026-09-06 Fable 지적).
+    title: ok ? '연동이 끝났습니다' : '연동에 실패했습니다',
   });
 }
 

@@ -9,6 +9,7 @@
 import { useCallback, useEffect } from 'react';
 import { useChromeNav } from '../hooks/useChromeNav';
 import { isNativeApp, nativePlatform } from '../services/native';
+import { clearPair } from '../services/oauth';
 
 export default function NativeBridge() {
   const chromeNav = useChromeNav();
@@ -130,7 +131,13 @@ export default function NativeBridge() {
                     credentials: 'include',
                     body: JSON.stringify({ code, client_kind: nativePlatform() }),
                   });
-                  if (r.ok) { window.location.href = '/inbox'; return; }
+                  if (r.ok) {
+                    // ★ 딥링크로 들어왔으면 코드 페어링은 쓸 일이 없다 — 지우지 않으면 다음
+                    //   로그아웃 뒤에 코드 입력 모달이 떴다가 404 로 사라진다(2026-09-06 Fable 지적).
+                    clearPair();
+                    window.location.href = '/inbox';
+                    return;
+                  }
                 } catch { /* fall through */ }
                 window.location.href = '/login?oauth_error=native_exchange';
               }

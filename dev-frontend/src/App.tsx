@@ -13,6 +13,7 @@ import { isTabsSpike } from './utils/tabsBeta';
 import { tabStore } from './stores/tabStore';
 import { isNativeApp } from './services/native';
 import NativeBridge from './components/NativeBridge';
+import PairCodePrompt from './components/Auth/PairCodePrompt';
 import { installRoutePrefetch } from './lib/routePrefetch';
 import MainLayout from './components/Layout/MainLayout';
 
@@ -207,6 +208,8 @@ function ShellApp() {
   // 게스트 대화 표면 — 공개 표면 중에서도 **PlanQ 안내를 일절 띄우지 않는** 곳.
   const isGuestSurface = _loc.pathname.startsWith('/g/');
   const hideAppChrome = isPopout || isPublicSurface;
+  // 앱 로그인 마무리 프롬프트 — 이미 로그인돼 있으면 띄우지 않는다.
+  const { isAuthenticated: isAuthenticatedForPair } = useAuth();
   // 공개 표면의 Q helper 는 tabStore(useChromeNav) 가 아니라 RR navigate 로 이동해야 한다.
   // TabMirror 가 언마운트라 navigateDelegate 가 null → chrome nav 는 silent no-op (Fable 검증).
   const rrNavigate = useNavigate();
@@ -659,6 +662,9 @@ function ShellApp() {
         {!hideAppChrome && !isNativeApp() && <NotificationToaster />}
         {/* 딥링크/알림탭/OAuth 복귀 브리지 (웹/네이티브 공용, MOBILE_APP_DESIGN §5.4·§7.2) */}
         <NativeBridge />
+        {/* 앱 로그인 마무리 — 딥링크가 앱을 못 열었을 때 브라우저에 뜬 6자리로 세션을 받는다.
+            네이티브 + 진행 중인 페어링이 있을 때만 스스로 뜬다(내부 판정). */}
+        <PairCodePrompt authed={isAuthenticatedForPair} />
         {/* PWA/웹 전용 안내 배너 — 네이티브 앱에서는 숨김 (MOBILE_APP_DESIGN §6.6) */}
         {/* ★ 하단 설치 배너는 **하나만** 둔다 (2026-08-25).
             PwaInstallBanner(여기)와 InstallPromptBanner(MainLayout)가 서로 다른 사이클에 각자 만들어져

@@ -11,27 +11,33 @@ const crypto = require('crypto');
 
 const SCOPES = ['openid', 'email', 'profile'];
 
-// state 캐시 (CSRF) — 5분 만료
+// state 캐시 (CSRF) — 5분 만료. 값은 { exp, pair } — pair 는 앱 페어링 **흐름 식별자**다.
+//   ★ pair 는 비밀이 아니다(누가 알아도 무해). 비밀인 6자리 코드는 콜백이 만들어
+//     **그 브라우저 화면에만** 보여준다 — services/oauthPairing.js 머리말 참조.
 const stateCache = new Map();
 const STATE_TTL_MS = 5 * 60 * 1000;
 
-function genState() {
+function genState(pair) {
   const s = crypto.randomBytes(24).toString('base64url');
-  stateCache.set(s, Date.now() + STATE_TTL_MS);
+  stateCache.set(s, { exp: Date.now() + STATE_TTL_MS, pair: pair || null });
   // 청소 — 만료된 state 제거
-  for (const [k, exp] of stateCache.entries()) {
-    if (exp < Date.now()) stateCache.delete(k);
+  for (const [k, v] of stateCache.entries()) {
+    if (v.exp < Date.now()) stateCache.delete(k);
   }
   return s;
 }
 
-function consumeState(s) {
-  if (!s) return false;
-  const exp = stateCache.get(s);
-  if (!exp || exp < Date.now()) return false;
+/** state 를 소비하고 함께 실려온 pair 를 돌려준다. 유효하지 않으면 null. */
+function consumeStateEntry(s) {
+  if (!s) return null;
+  const v = stateCache.get(s);
+  if (!v || v.exp < Date.now()) return null;
   stateCache.delete(s);
-  return true;
+  return { exp: v.exp, challenge: v.pair };   // 호출부 이름 호환
 }
+
+// 참/거짓만 쓰던 옛 호출부 호환.
+function consumeState(s) { return !!consumeStateEntry(s); }
 
 function getRedirectUri() {
   // 우선순위: 명시 env > APP_BASE_URL > GOOGLE_REDIRECT_URI(gdrive/gcal 공유)의 origin > dev 폴백.
@@ -55,9 +61,9 @@ function newClient() {
 }
 
 // 1. authorization URL 생성 — frontend 가 사용자 redirect
-function buildAuthUrl() {
+function buildAuthUrl(pair) {
   const client = newClient();
-  const state = genState();
+  const state = genState(pair);
   const url = client.generateAuthUrl({
     access_type: 'online',           // refresh_token 안 받음 (로그인만 — 매번 새로)
     scope: SCOPES,
@@ -90,4 +96,4 @@ async function exchangeCodeForProfile(code) {
   };
 }
 
-module.exports = { buildAuthUrl, exchangeCodeForProfile, consumeState, getRedirectUri };
+module.exports = { buildAuthUrl, exchangeCodeForProfile, consumeState, consumeStateEntry, getRedirectUri };
