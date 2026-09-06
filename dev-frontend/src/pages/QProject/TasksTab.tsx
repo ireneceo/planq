@@ -21,6 +21,7 @@ import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { listWorkstreams, type Workstream } from '../../services/projectCanvas';
 import { useTranslation } from 'react-i18next';
 import { isEnterAction } from '../../utils/imeKey';
+import { belowTabs } from '../../theme/layout';
 
 type ViewMode = 'split' | 'list' | 'timeline' | 'calendar';
 
@@ -599,14 +600,16 @@ const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-rad
 const BottomAddLink = styled.button`margin-top:10px;padding:8px 14px;background:transparent;color:#94A3B8;border:none;font-size:0.8125rem;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
 const BottomAddSlot = styled.div`margin-top:16px;`;
 const AddBackdrop = styled.div`
-  position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);
+  position:fixed;left:0;right:0;bottom:0;${belowTabs};background:rgba(15, 23, 42, 0.08);
   z-index:39;
   animation:pqFadeIn 0.22s ease-out;
   @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const AddDrawer = styled.aside`
-  position:fixed;top:0;right:0;bottom:0;
+  position:fixed;right:0;bottom:0;
+  /* 기준선은 theme/layout 의 조각 하나로 — 각자 쓰면 갈라진다(2026-09-06 전수조사). */
+  ${belowTabs}
   width:min(520px, calc(100vw - 56px));
   background:#FFF;border-left:1px solid #E2E8F0;
   box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;

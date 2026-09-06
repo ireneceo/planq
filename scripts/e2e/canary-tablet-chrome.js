@@ -51,8 +51,12 @@ function measure() {
   probe.style.cssText = 'position:fixed;left:0;width:1px;height:0;pointer-events:none;top:var(--chrome-top, 0px)';
   document.body.appendChild(probe);
   const chromeTopPx = Math.round(probe.getBoundingClientRect().y);
+  // --pq-chrome-bottom = **상단 크롬이 끝나는 y**. 우측 곁패널 8곳이 전부 이 토큰(또는
+  // belowTabs/belowChrome 조각)을 가리키므로, 이 값이 맞으면 그 패널들이 다 맞는다.
+  probe.style.top = 'var(--pq-chrome-bottom, 0px)';
+  const chromeBottomPx = Math.round(probe.getBoundingClientRect().y);
   probe.remove();
-  return { strip, menu, header, chromeTopPx, iw: window.innerWidth, ih: window.innerHeight };
+  return { strip, menu, header, chromeTopPx, chromeBottomPx, iw: window.innerWidth, ih: window.innerHeight };
 }
 
 async function run() {
@@ -91,6 +95,11 @@ async function run() {
       //     "모바일 망치지 말고"). 그래서 0 을 **기대값으로** 적어 둔다.
       const chromeBottom = stripOn ? m.strip.y + m.strip.h : (headerOn ? m.header.y + m.header.h : 0);
       const expectBaseline = v.tab ? chromeBottom : 0;
+      // ⑥ --pq-chrome-bottom 은 **모드 불문** 크롬이 끝나는 자리여야 한다. 폰이면 모바일 헤더
+      //    아래, 탭 모드면 탭바 아래. Irene 이 말한 "어떤 디바이스든" 이 이 한 줄이다.
+      if (m.chromeBottomPx !== chromeBottom) {
+        bad.push(`--pq-chrome-bottom ${m.chromeBottomPx}px ≠ 크롬 끝 ${chromeBottom}px`);
+      }
       if (m.chromeTopPx !== expectBaseline) {
         bad.push(`오버레이 기준선 ${m.chromeTopPx}px ≠ 기대 ${expectBaseline}px`
           + (v.tab ? ` (크롬 끝 ${chromeBottom} — ${Math.abs(m.chromeTopPx - chromeBottom)}px 어긋나 헤더를 파고든다)`
@@ -98,7 +107,7 @@ async function run() {
       }
 
       // 좌표는 통과일 때도 남긴다 — 초록만 보고는 "무엇이 초록인지" 를 모른다.
-      const mkCoords = () => `탭=${stripOn ? `y${m.strip.y} h${m.strip.h} x${m.strip.x}` : 'off'} · 헤더=${headerOn ? `h${m.header.h}` : 'off'} · 크롬=${chrome}px · 햄버거=${menuOn ? `x${m.menu.x} ${m.menu.w}×${m.menu.h}` : '-'} · 기준선=${m.chromeTopPx}/${chromeBottom}${m.nativeNote ? ' · ' + m.nativeNote : ''}`;
+      const mkCoords = () => `탭=${stripOn ? `y${m.strip.y} h${m.strip.h} x${m.strip.x}` : 'off'} · 헤더=${headerOn ? `h${m.header.h}` : 'off'} · 크롬=${chrome}px · 햄버거=${menuOn ? `x${m.menu.x} ${m.menu.w}×${m.menu.h}` : '-'} · 기준선=${m.chromeTopPx} · 크롬끝토큰=${m.chromeBottomPx}/${chromeBottom}${m.nativeNote ? ' · ' + m.nativeNote : ''}`;
       // ★ 네이티브 모사 패스 — 브라우저는 --pq-safe-top 이 0 이라 이 계열 버그가 **재현되지 않는다**.
       //   'pq-android' 를 붙이면 index.css 의 규칙이 상태바 자리(≥24px)를 실제로 만든다.
       //   이 패스가 없으면 "기준선 40 = 크롬 끝 40" 으로 초록이 나오는데, 정작 기기에서는
@@ -117,6 +126,7 @@ async function run() {
         if (!nStrip) nativeBad.push('네이티브 모사: 탭바 사라짐');
         else if (nStrip.h <= m.strip.h) nativeBad.push(`네이티브 모사가 안 걸림 — 탭바 높이 ${nStrip.h} (상태바 자리가 안 생겼다)`);
         else if (nm.chromeTopPx !== nBottom) nativeBad.push(`네이티브 기준선 ${nm.chromeTopPx}px ≠ 크롬 끝 ${nBottom}px (${Math.abs(nm.chromeTopPx - nBottom)}px 어긋남)`);
+        else if (nm.chromeBottomPx !== nBottom) nativeBad.push(`네이티브 --pq-chrome-bottom ${nm.chromeBottomPx}px ≠ 크롬 끝 ${nBottom}px`);
         if (nativeBad.length) bad.push(...nativeBad);
         else bad.length === 0 && (m.nativeNote = `네이티브 모사 탭바 h${nStrip.h} 기준선 ${nm.chromeTopPx} ✓`);
       }

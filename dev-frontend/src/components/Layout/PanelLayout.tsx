@@ -104,7 +104,8 @@ export const Panel = styled.div<{
   ${(p) => (p.$overlay ? `
     @media (max-width: 1024px) {
       position: fixed;
-      top: 56px;            /* MainLayout 의 고정 모바일 헤더 */
+      /* ★ 56px 하드코딩이었다 — 상태바도 탭 모드도 모르는 숫자다(2026-09-06). */
+      top: var(--pq-chrome-bottom, 56px);
       right: 0; bottom: 0;
       width: min(400px, 92vw);
       z-index: 41;

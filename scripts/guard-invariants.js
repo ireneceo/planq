@@ -1678,6 +1678,46 @@ function checkStatusLabel() {
   report('statuslabel', `Cue 상태 라벨 ↔ 화면 문구 (${compared}개 대조) · 사용량 종류 ${kinds.length}종 라벨 · raw ENUM 유출`, bad.length === 0, bad);
 }
 
+
+// ═══════════════════════════════════════════════
+// overlaytop — 우측 패널·드로어의 상단 기준선은 토큰이어야 한다 (2026-09-06 박제)
+//   Irene: "다른 우측패널들도 다 체크해야 해? 컴포넌트 기본은 없어?"
+//   기본은 있다(components/Common/DetailDrawer). 그런데 직접 그린 우측 패널 7곳이
+//   각자 `top: 0` / `top: 56px` / `--pq-mobile-chrome` 로 갈라져 있었다 —
+//   태블릿 탭 모드에서 탭바를 파고들거나(0), 없는 헤더만큼 헛자리를 뒀다(56).
+//   화면을 하나씩 눈으로 확인하는 것은 답이 아니다. **갈라지는 것 자체를 막는다.**
+//
+//   대상: position:fixed + right:0 인 styled (= 우측에 붙는 패널·드로어).
+//   기준: top 이 --chrome-top / --pq-chrome-bottom 토큰이어야 한다.
+//   제외: 가운데 모달(inset:0 로 전면을 덮는 것)은 크롬을 덮는 게 맞다 — right:0 만으론
+//        모달도 걸리므로 left:0 이 같이 있으면(=전폭) 뺀다. 팝오버/드롭다운(top:100%,
+//        auto, calc, 50%)도 앵커가 다른 물건이라 뺀다.
+function checkOverlayTop() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const OK = /--chrome-top|--pq-chrome-bottom|\$\{belowTabs\}|\$\{belowChrome\}/;
+  const SKIP_TOP = /^(auto|50%|100%|calc\(|\$\{)/;
+  const hits = [];
+  for (const f of files) {
+    const src = read(f);
+    const re = /(?:export\s+)?const\s+(\w+)\s*=\s*styled[^`]*`([\s\S]*?)\n`;/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const [, name, body] = m;
+      if (!/position:\s*fixed/.test(body)) continue;
+      if (!/right:\s*0/.test(body)) continue;               // 우측에 붙는 것만
+      if (/left:\s*0/.test(body) && !/width:/.test(body)) continue; // 전폭 배경 = 모달류
+      if (OK.test(body)) continue;                            // 토큰 사용 — 통과
+      const tm = body.match(/top:\s*([^;\n]+)/);
+      if (!tm) continue;                                      // top 앵커 없음(bottom 시트 등)
+      const val = tm[1].trim();
+      if (SKIP_TOP.test(val)) continue;                       // 팝오버·드롭다운
+      const line = src.slice(0, m.index).split('\n').length;
+      hits.push(`${rel(f)}:${line}: ${name} → top: ${val.slice(0, 40)}`);
+    }
+  }
+  report('overlaytop', '우측 패널 상단 기준선이 토큰 (하드 게이트)', hits.length === 0, hits);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1709,6 +1749,7 @@ const CATEGORIES = {
   fileinline: checkFileInline,
   menuname: checkMenuName,
   statuslabel: checkStatusLabel,
+  overlaytop: checkOverlayTop,
 };
 
 try {

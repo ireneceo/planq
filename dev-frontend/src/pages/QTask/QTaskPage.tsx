@@ -62,6 +62,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import ImportanceChip from '../../components/QTask/ImportanceChip';
 import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/SeriesScopeDialog';
 import { needsSeriesScope } from '../../utils/taskSeries';
+import { belowTabs } from '../../theme/layout';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -4025,7 +4026,9 @@ const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
 // 평소도 명확히 보이게, hover 시 확실한 affordance, focus ring 강화.
 const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;border-left:1px solid #E2E8F0;display:flex;flex-direction:column;overflow:hidden;
   ${p=>p.$overlay?`
-    position:fixed;top:0;right:0;bottom:0;
+    position:fixed;right:0;bottom:0;
+    /* 기준선은 theme/layout 의 조각 하나로 — 각자 쓰면 갈라진다(2026-09-06 전수조사). */
+    ${belowTabs}
     width:${PANEL_WIDTH_CSS};
     z-index:50;
     box-shadow:-16px 0 40px rgba(15,23,42,0.14);
@@ -4038,7 +4041,7 @@ const RightPanel=styled.aside<{$w?:number;$overlay?:boolean}>`background:#FFF;bo
     @media(max-width:${RIGHT_PANEL_INLINE_MIN}px){display:none;}
   `}
 `;
-const RightPanelBackdrop=styled.div`position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
+const RightPanelBackdrop=styled.div`position:fixed;left:0;right:0;bottom:0;${belowTabs}background:rgba(15, 23, 42, 0.08);-webkit-z-index:45;animation:pqRpFade 0.22s ease-out;@keyframes pqRpFade{from{opacity:0;}to{opacity:1;}}@media (prefers-reduced-motion: reduce){animation:none;}`;
 const ResizeHandle=styled.div`position:absolute;top:0;left:-3px;width:6px;height:100%;cursor:col-resize;z-index:5;&:hover{background:rgba(20,184,166,0.2);}&:active{background:rgba(20,184,166,0.4);}`;
 const RightHeader=styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
 const RightTitle=styled.h2`font-size:0.8125rem;font-weight:700;color:#0F172A;margin:0;letter-spacing:-0.1px;`;

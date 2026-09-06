@@ -105,7 +105,9 @@ const Wrap = styled.aside`
   border-left: 1px solid #E2E8F0; background: #FFF;
   display: flex; flex-direction: column; overflow: hidden;
   @media (max-width: 1024px) {
-    position: fixed; top: var(--pq-mobile-chrome, 56px); right: 0; bottom: 0;
+    /* ★ 옛 값은 모바일 헤더 높이였다 — 탭 모드(태블릿)에서는 그 헤더가 없어 56px 이 헛자리다.
+       '크롬이 끝나는 자리' 토큰으로 바꾼다(2026-09-06). */
+    position: fixed; top: var(--pq-chrome-bottom, 56px); right: 0; bottom: 0;
     width: min(320px, 90vw); z-index: 140; box-shadow: -12px 0 32px rgba(15,23,42,0.14);
   }
   @media (max-width: 640px) { width: 100vw; box-shadow: none; border-left: none; }

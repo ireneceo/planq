@@ -547,7 +547,7 @@ const Container = styled.aside<{ $overlay?: boolean; $w?: number }>`
   position: relative;
   ${(p) => p.$overlay
     ? `
-      position: fixed; top: 0; right: 0; bottom: 0;
+      position: fixed; top: var(--chrome-top, 0px); right: 0; bottom: 0;
       width: ${PANEL_WIDTH_CSS};
       z-index: 50;
       box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14);

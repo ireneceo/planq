@@ -25,6 +25,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import ClientSubscriptions from './ClientSubscriptions';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { isEnterAction } from '../../utils/imeKey';
+import { belowTabs } from '../../theme/layout';
 
 type ClientStatus = 'invited' | 'active' | 'archived';
 
@@ -828,13 +829,16 @@ const ErrorBanner = styled.div`padding:12px 16px;background:#fef2f2;border:1px s
 
 // Drawer
 const DrawerBackdrop = styled.div`
-  position:fixed;inset:0;background:rgba(15, 23, 42, 0.08);
+  position:fixed;left:0;right:0;bottom:0;background:rgba(15, 23, 42, 0.08);
+  ${belowTabs}
   z-index:39;
   animation:fb 0.22s ease-out;@keyframes fb{from{opacity:0;}to{opacity:1;}}
   @media (prefers-reduced-motion: reduce){animation:none;}
 `;
 const Drawer = styled.aside`
-  position:fixed;top:0;right:0;bottom:0;
+  position:fixed;right:0;bottom:0;
+  /* 기준선은 theme/layout 의 조각 하나로 — 각자 쓰면 갈라진다(2026-09-06 전수조사). */
+  ${belowTabs}
   width:min(520px, calc(100vw - 56px));
   background:#FFF;border-left:1px solid #E2E8F0;
   box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;

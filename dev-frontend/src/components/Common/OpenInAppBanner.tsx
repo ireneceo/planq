@@ -86,7 +86,10 @@ const Wrap = styled.div`
   color: #FFFFFF;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   @media (min-width: 769px) {
-    top: 16px; right: 16px; left: auto;
+    /* ★ 옛 값은 top:16px 고정이라 **탭바 위에 떴다** (2026-09-06 Irene: "채팅 가로버전
+       우측패널 위에 PWA는 나오는데"). 크롬이 끝나는 자리에서 16px 띄운다.
+       좁은 폭(위의 top:0 전폭 배너)은 종전 그대로 — 폰 동작 무변화. */
+    top: calc(var(--pq-chrome-bottom, 0px) + 16px); right: 16px; left: auto;
     width: 360px;
     border-radius: 12px;
   }

@@ -42,6 +42,7 @@ import {
   type CueInfo,
 } from '../../services/workspace';
 import { isEnterAction } from '../../utils/imeKey';
+import { belowTabs } from '../../theme/layout';
 
 type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
 
@@ -398,10 +399,13 @@ const RoleBadge = styled.span<{ $role?: string }>`
 
 // ─── 멤버 상세 드로어 ───
 const MemberDrawerBackdrop = styled.div`
-  position: fixed; inset: 0; background: rgba(15,23,42,0.2); z-index: 90;
+  position: fixed; left: 0; right: 0; bottom: 0; ${belowTabs}
+  background: rgba(15,23,42,0.2); z-index: 90;
 `;
 const MemberDrawer = styled.aside`
-  position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 100vw;
+  position: fixed; right: 0; bottom: 0; width: 440px; max-width: 100vw;
+  /* 기준선은 theme/layout 의 조각 하나로 — 각자 쓰면 갈라진다(2026-09-06 전수조사). */
+  ${belowTabs}
   background: #FFFFFF; border-left: 1px solid #E2E8F0; box-shadow: -4px 0 16px rgba(0,0,0,0.06);
   z-index: 100; display: flex; flex-direction: column;
   @media (max-width: 1024px) { width: min(560px, 90vw); }

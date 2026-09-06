@@ -998,7 +998,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--chrome-top', tabMode ? `var(--pq-chrome-top, ${TABSTRIP_H}px)` : '0px');
-    return () => { root.style.setProperty('--chrome-top', '0px'); };
+    // --pq-chrome-bottom(= 상단 크롬이 끝나는 y)의 분기는 index.css 가 한다. 여기서는
+    // **같은 술어(tabMode)로 클래스만** 켠다 — 값을 두 번 계산하면 그 순간 갈라진다.
+    root.classList.toggle('pq-tabmode', !!tabMode);
+    return () => { root.style.setProperty('--chrome-top', '0px'); root.classList.remove('pq-tabmode'); };
   }, [tabMode]);
 
   // Secondary 접힘 — 아이콘 strip 모드 (완전 숨김 아님). localStorage 유지.

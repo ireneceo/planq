@@ -48,6 +48,17 @@ html, body {
   --pq-tabstrip: 40px;
   --pq-chrome-top: calc(var(--pq-tabstrip) + var(--pq-safe-top));
 
+  /* ★ --pq-chrome-bottom : **상단 크롬이 끝나는 y**. 우측 패널·드로어가 서는 기준선이다.
+     (2026-09-06 Irene: "기준점 자체를 헤더 끝나는 위치에 맞추면 어떤 디바이스든 어떤
+      사이즈든 잘 맞지 않을까?" — 맞다. 그래서 그 자리를 토큰 하나로 못 박는다.)
+     상단 크롬은 모드마다 다른 물건이다:
+       · 탭 모드(태블릿·데스크탑) = 탭바         → --pq-chrome-top
+       · 미러 모드 + 좁은 폭      = 모바일 헤더  → --pq-mobile-chrome
+       · 미러 모드 + 넓은 폭      = 없음         → 0
+     각 패널이 "지금 어느 모드지" 를 스스로 알아내면 반드시 갈라진다 — 여기서 한 번만 정한다.
+     판정은 **CSS 가** 한다. JS 상수로 넘기면 미디어쿼리가 못 덮는다(오늘 두 번 겪었다). */
+  --pq-chrome-bottom: 0px;
+
   /* ─── z-index 층 (단일 원천) ───────────────────────────────────────────
      왜 토큰인가: 값이 60종까지 갈라져 있었고 최댓값이 2147483000 이었다. 각자 "내가 제일 위"
      로 올린 결과라, 무엇이 무엇을 덮는지 코드로는 알 수 없었다. 실제 증상 —
@@ -73,6 +84,13 @@ html, body {
   --pq-z-modal: 300;
   --pq-z-toast: 3000;
 }
+
+/* --pq-chrome-bottom 분기 — html.pq-tabmode 는 MainLayout 이 붙인다(탭 렌더 여부와 같은 술어). */
+html.pq-tabmode { --pq-chrome-bottom: var(--pq-chrome-top); }
+@media (max-width: 1024px) {
+  html:not(.pq-tabmode) { --pq-chrome-bottom: var(--pq-mobile-chrome); }
+}
+
 
 /* 에디터 버블(표·이미지 편집 컨트롤) — TipTap 이 만드는 래퍼 div 에 붙는다.
    래퍼는 우리 컴포넌트가 아니라서 styled-components 로는 못 잡는다. className 으로만 닿는다. */
