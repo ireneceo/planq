@@ -142,7 +142,10 @@ const BackBtn = styled.button`
 const Strip = styled.div`
   position: fixed; top: 0; right: 0; z-index: 95;   /* left 는 inline(사이드바 폭) — 사이드바 오른쪽부터 */
   display: flex; align-items: stretch;              /* 탭이 위아래로 꽉 차게 */
-  height: 40px; padding: 0;                          /* 좌측 바짝(첫 탭 = 사이드바 끝) */
+  /* 높이 = 탭바(40) + 상태바 자리. 네이티브가 아니면 safe-top 이 0 이라 40px 그대로다.
+     padding-top 으로 탭 내용을 상태바 아래로 내린다 — 배경(teal)은 상태바 뒤까지 이어진다. */
+  box-sizing: border-box;
+  height: var(--pq-chrome-top, 40px); padding: var(--pq-safe-top, 0px) 0 0;
   background: #115E59; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   transition: left 0.25s ease;
 `;

@@ -81,6 +81,10 @@ const LayoutContainer = styled.div`
 
 const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode?: boolean }>`
   position: fixed; top: 0; left: 0;   /* 사이드바는 위→아래 통짜 (탭바가 덮지 않음). 탭바는 사이드바 오른쪽부터 */
+  /* 데스크탑/태블릿에서도 상태바 자리를 비운다 — 옛 규칙은 모바일 드로어(mediaTablet)에만 있어
+     태블릿 가로에서 로고가 시계·배터리에 겹쳤다 (2026-09-06). 웹은 safe-top 0 이라 무변화. */
+  padding-top: var(--pq-safe-top, 0px);
+  box-sizing: border-box;
   width: ${props => props.$isCollapsed ? `${SIDEBAR_W_COLLAPSED}px` : `${SIDEBAR_W_OPEN}px`};
   height: 100vh;
   background: linear-gradient(180deg, #115E59 0%, #134E4A 100%);
@@ -366,10 +370,10 @@ const InboxBadge = styled.span<{ $collapsed?: boolean }>`
 // ─────────────────────────────────────────────────────────────
 
 const SecondaryPanel = styled.aside<{ $sidebarW: number; $collapsed: boolean; $tabMode?: boolean }>`
-  position: fixed; top: ${props => (props.$tabMode ? TABSTRIP_H : 0)}px;
+  position: fixed; top: ${props => (props.$tabMode ? 'var(--pq-chrome-top, 40px)' : 'var(--pq-safe-top, 0px)')};
   left: ${props => props.$sidebarW}px;
   width: ${props => props.$collapsed ? SECONDARY_COLLAPSED_W : SECONDARY_W}px;
-  height: ${props => (props.$tabMode ? `calc(100vh - ${TABSTRIP_H}px)` : '100vh')};
+  height: ${props => (props.$tabMode ? 'calc(100vh - var(--pq-chrome-top, 40px))' : 'calc(100vh - var(--pq-safe-top, 0px))')};
   background: #FFFFFF;
   border-right: 1px solid #E2E8F0;
   z-index: 90;
@@ -581,7 +585,8 @@ const UserMenuItemBtn = styled.button<{ $danger?: boolean }>`${UserMenuItemBase}
 const MainContent = styled.div<{ $marginLeft: number; $tabMode?: boolean }>`
   margin-left: ${props => props.$marginLeft}px;
   /* ⑥ 멀티탭 — 탭바(fixed, 사이드바 오른쪽 top:0)만큼 본문 상단 여백 */
-  padding-top: ${props => (props.$tabMode ? TABSTRIP_H : 0)}px;
+  /* 탭 모드면 탭바+상태바, 아니면 상태바만 비운다. 웹은 safe-top 0 이라 종전과 같다. */
+  padding-top: ${props => (props.$tabMode ? 'var(--pq-chrome-top, 40px)' : 'var(--pq-safe-top, 0px)')};
   /* 콘텐츠 좌측 인셋(앱 네비 폭)을 CSS 변수로 노출 — 좌측 플로팅 패널 핸들이 뷰포트가 아닌
      콘텐츠 왼쪽 변 기준으로 붙도록(FloatingPanelToggle side='left'). 태블릿에선 네비가 오버레이라 0. */
   --pq-content-left: ${props => props.$marginLeft}px;
