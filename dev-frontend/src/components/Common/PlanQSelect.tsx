@@ -97,6 +97,17 @@ const rem = (px: number) => `${px / 16}rem`;
 // ─────────────────────────────────────────────────────────
 // 스타일 빌더
 // ─────────────────────────────────────────────────────────
+// 터치 기기 판정 — 마우스가 없는 환경(폰·태블릿). 데스크탑은 영향 0.
+function isCoarsePointer(): boolean {
+  try { return window.matchMedia?.('(pointer: coarse)').matches ?? false; } catch { return false; }
+}
+// 항목이 이만큼 넘으면 검색이 없으면 못 고른다 — 그때는 터치에서도 켠다.
+const SEARCH_THRESHOLD = 15;
+function defaultSearchable(optionCount: number): boolean {
+  if (!isCoarsePointer()) return true;          // 데스크탑 — 종전 그대로
+  return optionCount > SEARCH_THRESHOLD;
+}
+
 function buildStyles(
   size: 'sm' | 'md' | 'lg',
   hasError: boolean,
@@ -316,7 +327,14 @@ function PlanQSelect<IsMulti extends boolean = false>(
           : t('select.noOptions', { defaultValue: '옵션 없음' })
       }
       placeholder={rest.placeholder ?? t('select.placeholder', { defaultValue: '선택하기' })}
-      isSearchable={rest.isSearchable ?? true}
+      /* ★ 터치 기기에서는 **누르자마자 키보드가 올라오지 않는다** (2026-09-06 운영, Irene 태블릿:
+           "셀렉트에서 키보드가 다 올라와… 셀렉트는 원할 때 입력하게 해야 하지 않아?").
+         react-select 는 isSearchable 이면 열 때 텍스트 입력에 포커스를 준다 — 마우스에서는
+         공짜지만 폰·태블릿에서는 **화면 절반이 키보드로 덮인 채 목록을 골라야 한다.**
+         → 거친 포인터(pointer: coarse)면 기본 off. 다만 항목이 많으면 검색 없이 못 고르므로
+           그때는 켠다(그 키보드는 사용자가 원한 것이다).
+         ★ 호출부가 명시로 넘기면 그것이 이긴다 — 검색이 본질인 곳(담당자 고르기 등)은 그대로. */
+      isSearchable={rest.isSearchable ?? defaultSearchable(Array.isArray(rest.options) ? rest.options.length : 0)}
       // 모달·드로어 내부에서 드롭다운이 푸터·컨테이너에 가려지는 문제 방지 —
       // document.body 로 포털 렌더. z-index 는 buildStyles.menuPortal 에서 처리.
       menuPortalTarget={rest.menuPortalTarget ?? (typeof document !== 'undefined' ? document.body : null)}

@@ -86,6 +86,22 @@ html.pq-native-inset {
   --pq-safe-bottom: 0px;
 }
 
+/* ★ 안드로이드 — 안전영역을 **우리가 채운다** (2026-09-06 운영, Irene 태블릿:
+   "상단 디바이스 표시 날짜 같은게 우리 헤더라 바로 붙어버려. 세로 가로 다").
+
+   안드로이드 WebView 의 `env(safe-area-inset-top)` 은 **디스플레이 컷아웃(노치)에만** 값이
+   들어간다 — 노치 없는 태블릿에서는 0 이다. 그런데 targetSdk 36(Android 15+)은 edge-to-edge
+   가 강제라 콘텐츠가 상태바 아래로 들어간다. iOS 는 safe-area 가 채워져 이 문제가 없었다.
+   그래서 **상태바 표준 높이 24dp** 를 하한으로 깐다(컷아웃이 더 크면 max 가 그쪽을 쓴다).
+
+   ★ 이중 여백 걱정 없음 — WebView 가 이미 인셋된 기기는 main.tsx 의 syncNativeInset 이
+     `pq-native-inset` 을 붙여 이 값을 0 으로 되돌린다. 그 규칙이 **아래**에 오도록 순서 주의.
+   ★ 하단은 건드리지 않는다 — 제스처바(24dp)와 3버튼바(48dp)가 달라 하한을 잘못 잡으면
+     빈 띠가 생긴다. 하단 신고가 오면 그때 기기별로 잰다. */
+html.pq-android:not(.pq-native-inset) {
+  --pq-safe-top: max(env(safe-area-inset-top, 0px), 24px);
+}
+
 /* 안전영역(노치·홈 인디케이터·라운드 코너)을 **페이지가 직접 칠한다**.
    WebView 바탕이 그대로 비치면 그 자리가 흰색으로 남는다
    (Irene: "아이폰 끄트머리 라운드진 곳이 하얗게 나와", 2026-08-25).

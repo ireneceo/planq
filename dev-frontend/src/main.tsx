@@ -6,7 +6,7 @@ import './index.css'
 import { initFontScale } from './services/fontScale'
 import App from './App.tsx'
 import { bindPermissionSync } from './services/push.ts'
-import { isNativeApp } from './services/native'
+import { isNativeApp, nativePlatform } from './services/native'
 
 // Service Worker 등록 — Push 알림 + Share Target POST + PWA install 모두 SW 필요.
 // updateViaCache:'none' — 브라우저가 sw.js 자체를 캐시하지 않게 강제 (옛 SW 잔류 방지).
@@ -72,6 +72,17 @@ if (isNativeApp()) {
   requestAnimationFrame(() => requestAnimationFrame(syncNativeInset));   // 첫 레이아웃 뒤 재측정
   window.addEventListener('orientationchange', () => setTimeout(syncNativeInset, 300));
   window.addEventListener('resize', () => setTimeout(syncNativeInset, 150));
+  // ★ 안드로이드 표식 — CSS 가 안전영역을 **직접 채워야** 한다 (2026-09-06 운영, Irene 태블릿:
+  //   "상단 디바이스 표시 날짜 같은게 우리 헤더라 바로 붙어버려. 세로 가로 다").
+  //   안드로이드 WebView 는 `env(safe-area-inset-top)` 을 **디스플레이 컷아웃에만** 채운다 —
+  //   노치 없는 태블릿에서는 0 이다. 그런데 targetSdk 36(Android 15+)은 edge-to-edge 가
+  //   강제라 콘텐츠가 상태바 밑으로 들어간다. iOS 는 safe-area 가 채워져 안 보이던 문제다.
+  //   → 안드로이드에서는 우리가 **상태바 높이(24dp 표준)** 를 하한으로 깐다. 컷아웃이 더 크면
+  //     max() 가 그쪽을 쓴다. WebView 가 이미 인셋된 기기는 syncNativeInset 이
+  //     `pq-native-inset` 을 붙여 0 으로 되돌리므로 **이중 여백이 생기지 않는다.**
+  try {
+    if (nativePlatform() === 'android') document.documentElement.classList.add('pq-android');
+  } catch { /* 판정 불가 — 기본(iOS 계약) 유지 */ }
   import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
     // overlay=true — 상태바가 WebView 위에 겹친다. contentInset:'never' 와 한 쌍(edge-to-edge).
     //   이래야 헤더의 teal 이 상태바 뒤까지 이어지고 흰 띠가 사라진다.

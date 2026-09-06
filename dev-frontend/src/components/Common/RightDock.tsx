@@ -259,8 +259,16 @@ const FabWrap = styled.div<{ $onBottomBar?: boolean }>`
   }
   /* #86 — 키보드 올라온 동안엔 FAB 숨김 (입력 중 키보드 위에 어정쩡하게 떠 가리는 것 방지) */
   body[data-keyboard-up="1"] & { opacity: 0; pointer-events: none; visibility: hidden; }
-  /* Q Talk 모바일 — 채팅 입력바/전송버튼 침범 방지 (옛 MemoFab 정책 복원, N+93 통합 시 유실) */
-  ${p => p.$onBottomBar ? '@media (max-width: 640px) { display: none; }' : ''}
+  /* 하단 입력줄이 있는 상세 화면 — 입력바·전송버튼을 침범하지 않게 숨긴다.
+     ★ 2026-09-06 (Irene 안드로이드 태블릿): "채팅이랑 노트에 답변채팅 부분 버튼에 우측 하단
+       채팅 아이콘 남아있어. 이거 버튼 겹치기 조정하는 거 태블릿이든 데스크탑이든 통일해서
+       표시해야 하는 거 아니야?"
+       옛 규칙이 **≤640px(폰) 전용**이라 태블릿(641~1024)에는 안 걸렸다. 그런데 그 구간은
+       패널이 드릴다운(PANEL_BP.drilldown = 1024)이라 **폰과 똑같이 채팅이 화면 전체를 쓴다**
+       — 겹침 조건이 같은데 규칙만 폰에 걸려 있었다.
+       ≥1025 에서는 채팅이 가운데 패널이고 우측에 작업대가 있어 FAB 자리와 겹치지 않는다.
+       그래서 기준을 **드릴다운 폭과 같은 1024** 로 맞춘다 — 두 값은 같은 이유로 움직인다. */
+  ${p => p.$onBottomBar ? '@media (max-width: 1024px) { display: none; }' : ''}
 `;
 
 const Fab = styled.button<{ $expanded: boolean }>`

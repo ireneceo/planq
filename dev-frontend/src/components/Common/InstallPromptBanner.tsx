@@ -10,6 +10,7 @@
 //   - 사용자가 PWA 모드 (display-mode: standalone) 면 install 안내 자동 숨김
 
 import React, { useEffect, useState, useCallback } from 'react';
+import { isNativeApp } from '../../services/native';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { isPushSupported, getPushStatus, subscribe as subscribePush } from '../../services/push';
@@ -27,6 +28,11 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 const isStandalone = (): boolean => {
+  // ★ 네이티브 앱 안에서는 **설치 안내가 나올 이유가 없다** (2026-09-06 운영, Irene 태블릿:
+  //   "정작 채팅 가로버전 우측패널 위에 PWA는 나오는데").
+  //   Capacitor WebView 의 display-mode 는 standalone 이 아니라 **browser** 라 이 검사만으로는
+  //   못 걸렀다 — 앱을 이미 설치한 사람에게 "앱을 설치하세요" 가 뜬 셈이다.
+  if (isNativeApp()) return true;
   return (
     (typeof window !== 'undefined' &&
       window.matchMedia &&
