@@ -481,7 +481,7 @@
       "loading": "Loading...",
       "importing": "Importing...",
       "added": "Added",
-      "empty": "No Drive files are accessible to PlanQ. Open a file in Drive with \"Open with › PlanQ\" once and it will appear here.",
+      "empty": "Only Drive files created by PlanQ appear here. Files you made directly in Drive aren't visible to PlanQ under Google's permission model, so they won't be listed — upload those to PlanQ instead.",
       "notConnected": "This workspace has no Google Drive connected. An owner can connect it in Settings › Files & integrations.",
       "notConnectedPersonal": "Your personal Google Drive isn't connected. Connect it in Settings › Files & integrations.",
       "loadFailed": "Couldn't load your Drive files",

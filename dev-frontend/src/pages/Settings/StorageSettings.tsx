@@ -270,6 +270,23 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
         </NoticeText>
       </Notice>
 
+      {/* Drive 를 기준으로 일하겠다고 하셨을 때(Irene 2026-09-07) 실제로 무엇이 되고 안 되는지.
+          ★ "안 된다" 로 끝내지 않는다 — 되는 흐름을 같이 준다. 그리고 **왜** 안 되는지도 말한다:
+            "PlanQ 가 못 보는 것이지 연결이 끊긴 것이 아니다" 를 말해야 오늘 아침 같은 오해가 안 난다. */}
+      {gdriveConnected && !providers.gdrive.ingest?.active && (
+        <Notice data-testid="drive-first-notice">
+          <NoticeIcon aria-hidden>i</NoticeIcon>
+          <NoticeText>
+            <strong>{tr('storage.driveFirstTitle')}</strong>
+            <ul>
+              <li>{tr('storage.driveFirstOk')}</li>
+              <li>{tr('storage.driveFirstNo')}</li>
+              <li>{tr('storage.driveFirstHow')}</li>
+            </ul>
+          </NoticeText>
+        </Notice>
+      )}
+
       {/* PlanQ 자체 — 항상 "사용 중" (개인 보관함은 Drive 무관, 항상 자체) */}
       <ProviderCard $active={true}>
         <CardHead>

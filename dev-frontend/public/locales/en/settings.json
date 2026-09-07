@@ -280,7 +280,11 @@
       "recheckShared": "Checked — \"{{name}}\" in a shared (team) drive.",
       "recheckUnreachable": "Checked, but the Drive folder couldn't be read. PlanQ will find it again on the next upload.",
       "recheckFailed": "Couldn't check just now. Please try again."
-    }
+    },
+    "driveFirstTitle": "If you work Drive-first",
+    "driveFirstOk": "Shared files you upload in PlanQ (project, task and chat attachments) are stored in Drive, and you can open them straight in a Drive editor. Project folders are mirrored in Drive too.",
+    "driveFirstNo": "Files you create directly in Drive do not appear in PlanQ. Google only shows an app the files that app created — PlanQ can't see them; the connection isn't broken.",
+    "driveFirstHow": "So we recommend uploading in PlanQ and editing in Drive. Pulling in files that start in Drive would need Google's full Drive access, which requires Google's review."
   },
   "brand": {
     "sectionTitle": "Brand",

@@ -481,7 +481,7 @@
       "loading": "불러오는 중...",
       "importing": "가져오는 중...",
       "added": "추가됨",
-      "empty": "PlanQ 가 접근할 수 있는 드라이브 파일이 없습니다. Drive 에서 \"연결 앱으로 열기 › PlanQ\" 를 한 번 거치면 여기에 나타납니다.",
+      "empty": "여기에는 PlanQ 가 만든 Drive 파일만 보입니다. Drive 에서 직접 만드신 파일은 구글 권한 정책상 PlanQ 가 볼 수 없어 목록에 나오지 않습니다 — 그 파일은 PlanQ 에 올려 주세요.",
       "notConnected": "워크스페이스 Google Drive 가 연결돼 있지 않습니다. 오너가 설정 › 파일·외부 연동에서 연결할 수 있습니다.",
       "notConnectedPersonal": "개인 Google Drive 가 연결돼 있지 않습니다. 설정 › 파일·외부 연동에서 연결해 주세요.",
       "loadFailed": "드라이브 목록을 불러오지 못했습니다",

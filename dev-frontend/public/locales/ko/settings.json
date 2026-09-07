@@ -280,7 +280,11 @@
       "recheckShared": "확인했습니다 — 팀(공유) 드라이브의 \"{{name}}\" 폴더입니다.",
       "recheckUnreachable": "확인했지만 Drive 폴더를 읽지 못했습니다. 다음 업로드 때 자동으로 다시 찾습니다.",
       "recheckFailed": "확인하지 못했습니다. 잠시 후 다시 시도해 주세요."
-    }
+    },
+    "driveFirstTitle": "Drive 를 기준으로 쓰실 때",
+    "driveFirstOk": "PlanQ 에서 올린 공용 파일(프로젝트·업무·채팅 첨부)은 Drive 에 저장되고, Drive 편집기로 바로 열어 고칠 수 있습니다. 폴더 구조도 프로젝트별로 Drive 에 그대로 만들어집니다.",
+    "driveFirstNo": "반대로 Drive 에서 **직접** 만들거나 넣은 파일은 PlanQ 목록에 나타나지 않습니다. 구글이 앱에게 \"그 앱이 만든 파일\"만 보여주기 때문입니다 — PlanQ 가 못 보는 것이지 권한이 끊긴 것이 아닙니다.",
+    "driveFirstHow": "그래서 파일은 PlanQ 에서 올리고, 편집만 Drive 에서 하시는 흐름을 권합니다. Drive 에서 시작한 파일까지 자동으로 들어오게 하려면 구글의 전체 Drive 접근 권한이 필요하고, 그건 구글 심사를 거쳐야 합니다."
   },
   "brand": {
     "sectionTitle": "브랜드",
