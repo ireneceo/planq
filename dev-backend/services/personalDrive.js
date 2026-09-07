@@ -5,33 +5,14 @@
 // 기존 전체 파일 열람(drive.readonly)은 제한 권한·유료심사라 채택 안 함 (Irene 결정 2026-06-01).
 const { google } = require('googleapis');
 const personalOauth = require('./personalOauth');
+const gdrive = require('./gdrive');
 
-// 내 Drive 파일 list (최근 수정순). 외부 호출 — 10s timeout.
-async function listFiles(conn, { q, pageSize = 50, pageToken } = {}) {
+// 내 Drive 파일 list — 목록 구현은 gdrive.listDriveFiles 하나다(팀 드라이브와 공용).
+//   여기서 다시 짜면 한쪽에만 검색·페이지네이션·공유드라이브 지원이 남는다.
+async function listFiles(conn, opts = {}) {
   const auth = await personalOauth.getAuthedClient(conn);
   const drive = google.drive({ version: 'v3', auth });
-  const kw = q ? String(q).trim().slice(0, 100).replace(/'/g, "\\'") : null;
-  const query = kw ? `name contains '${kw}' and trashed=false` : 'trashed=false';
-  const resp = await drive.files.list({
-    q: query,
-    fields: 'nextPageToken, files(id, name, mimeType, size, modifiedTime, iconLink, webViewLink)',
-    orderBy: 'modifiedTime desc',
-    pageSize: Math.min(Math.max(parseInt(pageSize, 10) || 50, 1), 100),
-    pageToken: pageToken || undefined,
-    spaces: 'drive',
-  }, { timeout: 10000 });
-  return {
-    files: (resp.data.files || []).map(f => ({
-      id: f.id,
-      name: f.name,
-      mime_type: f.mimeType,
-      size: f.size ? Number(f.size) : null,
-      modified_at: f.modifiedTime,
-      icon_link: f.iconLink || null,
-      web_view_link: f.webViewLink || null,
-    })),
-    next_page_token: resp.data.nextPageToken || null,
-  };
+  return gdrive.listDriveFiles(drive, opts);
 }
 
 module.exports = { listFiles };

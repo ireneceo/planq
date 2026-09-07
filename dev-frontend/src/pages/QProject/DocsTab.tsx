@@ -33,6 +33,7 @@ import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TrashDrawer from './TrashDrawer';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut, PLANQ_FILE_MIME, isMovableInApp } from '../../hooks/useFileDragOut';
+import DriveImportSection from '../../components/Common/DriveImportSection';
 import { isEnterAction } from '../../utils/imeKey';
 
 export type DocScope =
@@ -201,8 +202,9 @@ const DocsTab: React.FC<Props> = (props) => {
     return () => { cancelled = true; };
   }, [projectId, businessId, isWorkspace, isPersonal, fileKey, reloadTick]);
 
-  // N+39 — PWA visibility 안전망 (socket 끊김 / background→foreground)
-  useVisibilityRefresh(useCallback(() => {
+  // 목록 다시 읽기 — visibility 복귀 안전망과 Drive 가져오기 직후가 **같은 함수**를 쓴다.
+  //   (한쪽만 고치면 "가져왔는데 목록에 안 보인다" 가 된다.)
+  const reload = useCallback(() => {
     if (!businessId) return;
     if (isPersonal) {
       import('../../services/files').then(({ fetchPersonalFiles }) => fetchPersonalFiles(businessId).then(fs => setFiles(fs)));
@@ -211,7 +213,10 @@ const DocsTab: React.FC<Props> = (props) => {
     } else {
       Promise.all([fetchProjectFiles(projectId), fetchFolders(projectId)]).then(([fs, fd]) => { setFiles(fs); setFolders(fd); });
     }
-  }, [businessId, projectId, isPersonal, isWorkspace]));
+  }, [businessId, projectId, isPersonal, isWorkspace]);
+
+  // N+39 — PWA visibility 안전망 (socket 끊김 / background→foreground)
+  useVisibilityRefresh(reload);
 
   // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
   // 다른 사용자가 파일 업로드/삭제/이동/visibility 변경 시 본인이 페이지 열고 있으면 즉시 보임.
@@ -497,6 +502,17 @@ const DocsTab: React.FC<Props> = (props) => {
     >
       {/* GDrive 연결 안내 / 연결 추천 (workspace · project 양쪽) */}
       {businessId > 0 && <CloudConnectNotice businessId={businessId} />}
+
+      {/* Drive 에서 가져오기 — 팀 드라이브가 기본, 개인 보관함에서만 내 Drive.
+          (Irene: "나는 팀 드라이브 중심으로 계속 요구한거고 … 개인 구글드라이브는 개인 것만") */}
+      {businessId > 0 && (
+        <DriveImportSection
+          businessId={businessId}
+          scope={isPersonal ? 'personal' : 'workspace'}
+          projectId={isPersonal ? null : (projectId || null)}
+          onImported={reload}
+        />
+      )}
 
       {/* 드롭 오버레이 (전역 드래그 중 표시) */}
       {dragOver && <DragOverlay>

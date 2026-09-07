@@ -123,9 +123,86 @@ async function createRootFolder(drive, businessName) {
       name: `PlanQ - ${businessName || 'workspace'}`,
       mimeType: 'application/vnd.google-apps.folder'
     },
-    fields: 'id, name, webViewLink'
-  });
+    fields: 'id, name, webViewLink', supportsAllDrives: true, });
   return res.data;
+}
+
+/**
+ * 워크스페이스 루트 폴더를 **보장한다** — 저장된 id 가 낡았으면 스스로 고친다.
+ *
+ * 2026-09-07 실사례: DB 의 root_folder_id·workspace_folder_id 가 **둘 다 404** 였다.
+ *   토큰은 멀쩡했고(about.get 정상, files.list 15건) 폴더도 살아 있었는데
+ *   **id 만 옛것**이었다(같은 이름의 폴더가 다른 id 로 존재). 화면에는 "연동이 끊겼다" 로 보인다.
+ *   Irene: "구글드라이브 자꾸 왜 끊겼다고 해? 제대로 연동해놨던 건데?" — 맞는 말이었다.
+ *
+ * 순서: ①저장된 id 가 살아 있으면 그대로 ②같은 이름 폴더를 찾아 재사용(가장 오래된 것)
+ *       ③그래도 없으면 새로 만든다. ②·③ 이면 토큰을 갱신한다.
+ * ★ drive.file scope 라 **앱이 만든 폴더만** 검색된다 — 그래서 ② 가 성립한다.
+ */
+/**
+ * 파일 목록 (첨부 선택용). 워크스페이스(팀) 드라이브와 개인 드라이브가 **같은 구현**을 쓴다 —
+ * 인증 클라이언트만 다르다. 베껴 두면 한쪽에만 검색이나 페이지네이션이 남는다.
+ * ★ drive.file scope — 앱이 만들었거나 사용자가 앱으로 연 파일만 보인다.
+ */
+async function listDriveFiles(drive, { q, pageSize = 50, pageToken, parentId } = {}) {
+  const kw = q ? String(q).trim().slice(0, 100).replace(/'/g, "\\'") : null;
+  const clauses = ['trashed=false'];
+  if (kw) clauses.push(`name contains '${kw}'`);
+  if (parentId) clauses.push(`'${parentId}' in parents`);
+  const resp = await drive.files.list({
+    q: clauses.join(' and '),
+    fields: 'nextPageToken, files(id, name, mimeType, size, modifiedTime, iconLink, webViewLink)',
+    orderBy: 'modifiedTime desc',
+    pageSize: Math.min(Math.max(parseInt(pageSize, 10) || 50, 1), 100),
+    pageToken: pageToken || undefined,
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  }, { timeout: 10000 });
+  return {
+    files: (resp.data.files || []).map((f) => ({
+      id: f.id,
+      name: f.name,
+      mime_type: f.mimeType,
+      size: f.size ? Number(f.size) : null,
+      modified_at: f.modifiedTime,
+      icon_link: f.iconLink || null,
+      web_view_link: f.webViewLink || null,
+    })),
+    next_page_token: resp.data.nextPageToken || null,
+  };
+}
+
+async function ensureRootFolder(drive, token, businessName) {
+  const name = `PlanQ - ${businessName || 'workspace'}`;
+
+  if (token.root_folder_id) {
+    try {
+      // supportsAllDrives — 공유(팀) 드라이브에 있는 폴더는 이것 없이는 무조건 404 다.
+      const r = await drive.files.get({
+        fileId: token.root_folder_id, fields: 'id, trashed', supportsAllDrives: true,
+      });
+      if (r.data && !r.data.trashed) return token.root_folder_id;
+    } catch { /* 404·권한 — 아래에서 되찾는다 */ }
+  }
+
+  let found = null;
+  try {
+    const q = `mimeType='application/vnd.google-apps.folder' and name='${String(name).replace(/'/g, "\\'")}' and trashed=false`;
+    const list = await drive.files.list({
+      q, fields: 'files(id, name, createdTime)', orderBy: 'createdTime', pageSize: 5,
+      supportsAllDrives: true, includeItemsFromAllDrives: true,
+    });
+    found = (list.data.files || [])[0] || null;   // 가장 오래된 것 = 원래 쓰던 폴더
+  } catch (e) {
+    console.warn('[gdrive] 루트 폴더 검색 실패:', e.message);
+  }
+
+  const folderId = found ? found.id : (await createRootFolder(drive, businessName)).id;
+  if (folderId !== token.root_folder_id) {
+    await token.update({ root_folder_id: folderId, last_error: null });
+    console.log(`[gdrive] 루트 폴더 ${found ? '재연결' : '신규 생성'} → ${folderId} (biz ${token.business_id})`);
+  }
+  return folderId;
 }
 
 /**
@@ -138,7 +215,8 @@ async function createFolder(drive, name, parentId) {
       mimeType: 'application/vnd.google-apps.folder',
       parents: parentId ? [parentId] : undefined
     },
-    fields: 'id, name, webViewLink'
+    fields: 'id, name, webViewLink',
+    supportsAllDrives: true,
   });
   return res.data;
 }
@@ -153,8 +231,7 @@ async function uploadFile(drive, { name, mimeType, body, parentId }) {
       parents: parentId ? [parentId] : undefined
     },
     media: { mimeType, body },
-    fields: 'id, name, size, mimeType, webViewLink, webContentLink, createdTime'
-  });
+    fields: 'id, name, size, mimeType, webViewLink, webContentLink, createdTime', supportsAllDrives: true, });
   return res.data;
 }
 
@@ -162,7 +239,7 @@ async function uploadFile(drive, { name, mimeType, body, parentId }) {
  * 파일 삭제
  */
 async function deleteFile(drive, fileId) {
-  await drive.files.delete({ fileId });
+  await drive.files.delete({ fileId, supportsAllDrives: true, });
 }
 
 /**
@@ -172,14 +249,13 @@ async function deleteFile(drive, fileId) {
 async function getFileMeta(drive, fileId) {
   const r = await drive.files.get({
     fileId,
-    fields: 'id, name, mimeType, size, webViewLink, webContentLink, trashed',
-  });
+    fields: 'id, name, mimeType, size, webViewLink, webContentLink, trashed', supportsAllDrives: true, });
   return r.data;
 }
 
 async function getFileStream(drive, fileId) {
   // alt=media → response.data 는 stream
-  const r = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
+  const r = await drive.files.get({ fileId, alt: 'media', supportsAllDrives: true, }, { responseType: 'stream' });
   return r.data;
 }
 
@@ -192,14 +268,13 @@ async function getFileStream(drive, fileId) {
  *   Drive 는 parents 배열이라 **옛 부모를 빼고 새 부모를 더한다**(복사가 아니다).
  */
 async function moveFile(drive, fileId, newParentId) {
-  const meta = await drive.files.get({ fileId, fields: 'parents' });
+  const meta = await drive.files.get({ fileId, fields: 'parents', supportsAllDrives: true, });
   const prev = (meta.data.parents || []).join(',');
   await drive.files.update({
     fileId,
     addParents: newParentId,
     ...(prev ? { removeParents: prev } : {}),
-    fields: 'id, parents',
-  });
+    fields: 'id, parents', supportsAllDrives: true, });
   return true;
 }
 
@@ -207,8 +282,7 @@ async function renameFile(drive, fileId, name) {
   const res = await drive.files.update({
     fileId,
     requestBody: { name },
-    fields: 'id, name'
-  });
+    fields: 'id, name', supportsAllDrives: true, });
   return res.data;
 }
 
@@ -229,7 +303,7 @@ async function ensureProjectFolder(drive, token, project) {
   if (project.gdrive_folder_id) {
     try {
       // 폴더 존재 여부 확인
-      await drive.files.get({ fileId: project.gdrive_folder_id, fields: 'id, trashed' });
+      await drive.files.get({ fileId: project.gdrive_folder_id, fields: 'id, trashed', supportsAllDrives: true, });
       return project.gdrive_folder_id;
     } catch {
       // 외부에서 삭제됨 → 재생성
@@ -249,14 +323,14 @@ async function ensureProjectFolder(drive, token, project) {
 async function ensureConversationsFolder(drive, token) {
   if (token.conversations_folder_id) {
     try {
-      const r = await drive.files.get({ fileId: token.conversations_folder_id, fields: 'id, trashed' });
+      const r = await drive.files.get({ fileId: token.conversations_folder_id, fields: 'id, trashed', supportsAllDrives: true, });
       if (r.data && !r.data.trashed) return token.conversations_folder_id;
     } catch { /* 재생성 */ }
   }
   // 같은 이름 폴더 검색 후 재사용 (컬럼 캐시 없을 때 폴백)
   try {
     const q = `'${token.root_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and name='Conversations' and trashed=false`;
-    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1 });
+    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1, supportsAllDrives: true, includeItemsFromAllDrives: true, });
     if (list.data.files && list.data.files.length > 0) {
       const id = list.data.files[0].id;
       try { await token.update({ conversations_folder_id: id }); } catch { /* 컬럼 없으면 silent */ }
@@ -275,7 +349,7 @@ async function ensureConversationsFolder(drive, token) {
 async function ensureQnoteRootFolder(drive, token) {
   if (token.qnote_folder_id) {
     try {
-      const r = await drive.files.get({ fileId: token.qnote_folder_id, fields: 'id, trashed' });
+      const r = await drive.files.get({ fileId: token.qnote_folder_id, fields: 'id, trashed', supportsAllDrives: true, });
       if (r.data && !r.data.trashed) return token.qnote_folder_id;
     } catch { /* 재생성 */ }
   }
@@ -293,7 +367,7 @@ async function ensureQnoteSessionFolder(drive, token, { sessionId, sessionTitle,
   const folderName = `${sessionDate ? sessionDate.slice(0, 10) + ' ' : ''}${sessionTitle || `세션 ${sessionId}`}`.slice(0, 150);
   try {
     const q = `'${qnoteRoot}' in parents and mimeType='application/vnd.google-apps.folder' and name='${folderName.replace(/'/g, "\\'")}' and trashed=false`;
-    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1 });
+    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1, supportsAllDrives: true, includeItemsFromAllDrives: true, });
     if (list.data.files && list.data.files.length > 0) return list.data.files[0].id;
   } catch { /* 권한/쿼리 실패 시 새로 만들기 */ }
   const folder = await createFolder(drive, folderName, qnoteRoot);
@@ -338,8 +412,7 @@ async function listChanges(drive, pageToken) {
   const res = await drive.changes.list({
     pageToken,
     fields: 'nextPageToken, newStartPageToken, changes(fileId, removed, time, '
-      + 'file(id, name, mimeType, modifiedTime, trashed, parents, md5Checksum, size, webViewLink))',
-  });
+      + 'file(id, name, mimeType, modifiedTime, trashed, parents, md5Checksum, size, webViewLink))', supportsAllDrives: true, includeItemsFromAllDrives: true, });
   return res.data;
 }
 
@@ -363,6 +436,8 @@ async function clearTokenError(token) {
 module.exports = {
   isConfigured,
   SCOPES,
+  ensureRootFolder,
+  listDriveFiles,
   recordTokenError,
   clearTokenError,
   buildAuthUrl,

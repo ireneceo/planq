@@ -43,6 +43,10 @@ interface Props {
   workspaceFiles?: ProjectFile[];
   /** 이 첨부가 속한 프로젝트 — Drive 에서 들일 때 노출 범위를 그 프로젝트에 맞춘다. */
   projectId?: number | null;
+  /** 어느 Drive 에서 가져올 수 있게 할 것인가. 기본 'workspace'(팀 드라이브).
+   *  개인 자리(개인 보관함)에서만 'personal' 을 넘긴다 — 공용 첨부에 개인 Drive 를 붙이면
+   *  멤버 사적 파일이 워크스페이스로 샌다(memory project_gdrive_policy). */
+  driveScope?: 'workspace' | 'personal';
   /** 워크스페이스 파일/문서 연결 검색을 숨긴다 — 업로드 드롭존만 필요한 화면용.
    *  (예: 피드백 이미지 첨부. 워크스페이스 파일을 붙일 이유가 없고, 목록 fetch 도 낭비다.)
    *  true 면 검색 UI 를 렌더하지 않고 파일·문서 목록 fetch 도 하지 않는다. */
@@ -56,6 +60,7 @@ const AttachmentField: React.FC<Props> = ({
   accept, uploadHint, uploadAcceptHint, searchPlaceholder, disabled,
   workspaceFiles: providedFiles,
   projectId = null,
+  driveScope = 'workspace',
   hideExistingSearch = false,
 }) => {
   // searchPostsPlaceholder is deprecated — 통합 검색에서는 searchPlaceholder 만 사용
@@ -214,10 +219,12 @@ const AttachmentField: React.FC<Props> = ({
         noOptionsMessage={() => (t('attach.noResults', '결과 없음') as string)}
       />
 
-      {/* 개인 Google Drive 에서 가져오기 — 들이면 "워크스페이스에 있는 파일" 과 같아지므로
-          기존-파일 선택에 그대로 더한다. 화면마다 붙이지 않고 여기 한 곳에 둔다. */}
+      {/* Google Drive 에서 가져오기 — **기본은 팀(워크스페이스) 드라이브**.
+          들이면 "워크스페이스에 있는 파일" 과 같아지므로 기존-파일 선택에 그대로 더한다.
+          화면마다 붙이지 않고 여기 한 곳에 둔다(Irene: "파일첨부 통합 컨포넌트에 다 추가"). */}
       <DriveImportSection
         businessId={businessId}
+        scope={driveScope}
         projectId={projectId}
         disabled={disabled}
         onImported={(fileId) => {

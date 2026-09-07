@@ -1,7 +1,13 @@
-// 개인 Google Drive 에서 골라 첨부 — 노션식 (Irene 2026-09-07)
+// Google Drive 에서 골라 첨부 — 노션식 (Irene 2026-09-07)
 //
 //   "파일첨부할 때 구글드라이브에서 가져와서 첨부하게 노션처럼도 기능 추가해 달라고 했는데
 //    이것도 파일첨부 통합 컨포넌트에 다 추가 못해?"
+//
+// ★ **기본은 팀(워크스페이스) 드라이브다.** Irene: *"나는 팀 드라이브 중심으로 계속 요구한거고 …
+//   개인 구글드라이브는 개인 것만이니까 제대로 이해하고 해."*
+//   공용 첨부에 개인 Drive 를 붙이면 멤버 사적 파일이 워크스페이스로 샌다 —
+//   memory `project_gdrive_policy`(옵션 B)가 막으려던 바로 그 사고다.
+//   개인 자리(개인 보관함)에서만 scope="personal" 로 넘긴다.
 //
 // 그래서 화면마다 붙이지 않고 **통합 컴포넌트(AttachmentField) 안에** 둔다 — 여기 한 번이면
 // 업무·문서·메일·채팅 첨부가 전부 같이 얻는다.
@@ -28,6 +34,8 @@ interface DriveFile {
 
 interface Props {
   businessId: number;
+  /** 어느 Drive 에서 가져오는가. 기본은 워크스페이스가 연결한 **팀 드라이브**. */
+  scope?: 'workspace' | 'personal';
   /** 프로젝트 첨부면 그 프로젝트로 들인다(노출 범위가 L2 가 된다). */
   projectId?: number | null;
   /** 들이기 성공 — 새로 만들어진 PlanQ File id */
@@ -35,7 +43,8 @@ interface Props {
   disabled?: boolean;
 }
 
-const DriveImportSection: React.FC<Props> = ({ businessId, projectId, onImported, disabled }) => {
+const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', projectId, onImported, disabled }) => {
+  const personal = scope === 'personal';
   const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -52,17 +61,17 @@ const DriveImportSection: React.FC<Props> = ({ businessId, projectId, onImported
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/me/drive/files?business_id=${businessId}${keyword ? `&q=${encodeURIComponent(keyword)}` : ''}`;
+      const url = `/api/drive/files?business_id=${businessId}&scope=${scope}${keyword ? `&q=${encodeURIComponent(keyword)}` : ''}`;
       const r = await apiFetch(url);
       // apiFetch 는 throw 하지 않는다 — ok 를 반드시 본다 (memory: apifetch_no_throw)
-      if (!r.ok) { setError(t('attach.drive.loadFailed', '드라이브 목록을 불러오지 못했습니다') as string); return; }
+      if (!r.ok) { setError(t('attach.drive.loadFailed') as string); return; }
       const j = await r.json();
       setConnected(!!j?.data?.connected);
       setFiles(j?.data?.files || []);
     } catch {
-      setError(t('attach.drive.loadFailed', '드라이브 목록을 불러오지 못했습니다') as string);
+      setError(t('attach.drive.loadFailed') as string);
     } finally { setLoading(false); }
-  }, [businessId, t]);
+  }, [businessId, scope, t]);
 
   useEffect(() => { if (open) void load(''); }, [open, load]);
 
@@ -78,10 +87,14 @@ const DriveImportSection: React.FC<Props> = ({ businessId, projectId, onImported
     setImportingId(f.id);
     setError(null);
     try {
-      const r = await apiFetch('/api/me/drive/import', {
+      const r = await apiFetch('/api/drive/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId, file_id: f.id, project_id: projectId || undefined }),
+        body: JSON.stringify({
+          business_id: businessId, file_id: f.id, scope,
+          // 개인 Drive 에서 온 것은 프로젝트로 못 넣는다(서버도 같은 술어로 막는다).
+          project_id: personal ? undefined : (projectId || undefined),
+        }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -89,17 +102,17 @@ const DriveImportSection: React.FC<Props> = ({ businessId, projectId, onImported
         const reason = String(j?.message || '');
         setError(
           reason.startsWith('google_native')
-            ? (t('attach.drive.nativeDoc', 'Google 문서·스프레드시트는 원본 파일이 없어 가져올 수 없습니다. Drive 에서 PDF·Office 로 내보낸 뒤 올려 주세요.') as string)
+            ? (t('attach.drive.nativeDoc') as string)
             : reason.startsWith('extension_not_allowed')
-              ? (t('attach.drive.extNotAllowed', '허용되지 않는 파일 형식입니다') as string)
+              ? (t('attach.drive.extNotAllowed') as string)
               : reason.startsWith('storage_quota_exceeded')
-                ? (t('attach.drive.quota', '저장공간이 가득 찼습니다') as string)
-                : (t('attach.drive.importFailed', '가져오지 못했습니다') as string),
+                ? (t('attach.drive.quota') as string)
+                : (t('attach.drive.importFailed') as string),
         );
         return;
       }
       const fileId = Number(j?.data?.file_id);
-      if (!fileId) { setError(t('attach.drive.importFailed', '가져오지 못했습니다') as string); return; }
+      if (!fileId) { setError(t('attach.drive.importFailed') as string); return; }
       setDoneIds(prev => new Set(prev).add(f.id));
       onImported(fileId);
     } finally { setImportingId(null); }
@@ -114,7 +127,9 @@ const DriveImportSection: React.FC<Props> = ({ businessId, projectId, onImported
           <path fill="#4285F4" d="M3.4 18.5 7.7 11h8.6l-4.3 7.5z" />
           <path fill="#FFCD40" d="M12 18.5h8.6l-4.3-7.5-4.3 7.5z" />
         </GDriveIcon>
-        <span>{t('attach.drive.title', 'Google Drive 에서 가져오기') as string}</span>
+        <span>{personal
+          ? (t('attach.drive.titlePersonal') as string)
+          : (t('attach.drive.title') as string)}</span>
         <Caret $open={open} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
           <polyline points="6 9 12 15 18 9" />
         </Caret>
@@ -123,18 +138,20 @@ const DriveImportSection: React.FC<Props> = ({ businessId, projectId, onImported
       {open && (
         <Panel>
           {connected === false ? (
-            <Hint>{t('attach.drive.notConnected', '개인 Google Drive 가 연결돼 있지 않습니다. 설정 › 파일·외부 연동에서 연결해 주세요.') as string}</Hint>
+            <Hint>{personal
+              ? (t('attach.drive.notConnectedPersonal') as string)
+              : (t('attach.drive.notConnected') as string)}</Hint>
           ) : (
             <>
               <SearchInput
                 value={q}
                 onChange={e => setQ(e.target.value)}
-                placeholder={t('attach.drive.search', '드라이브 파일 검색...') as string}
+                placeholder={t('attach.drive.search') as string}
                 disabled={disabled}
               />
-              {loading && <Hint>{t('attach.drive.loading', '불러오는 중...') as string}</Hint>}
+              {loading && <Hint>{t('attach.drive.loading') as string}</Hint>}
               {!loading && files.length === 0 && (
-                <Hint>{t('attach.drive.empty', 'PlanQ 가 접근할 수 있는 드라이브 파일이 없습니다. Drive 에서 "연결 앱으로 열기 › PlanQ" 를 한 번 거치면 여기에 나타납니다.') as string}</Hint>
+                <Hint>{t('attach.drive.empty') as string}</Hint>
               )}
               <List>
                 {files.map(f => {
@@ -145,9 +162,9 @@ const DriveImportSection: React.FC<Props> = ({ businessId, projectId, onImported
                       <RowName title={f.name}>{f.name}</RowName>
                       <RowMeta>
                         {importingId === f.id
-                          ? (t('attach.drive.importing', '가져오는 중...') as string)
+                          ? (t('attach.drive.importing') as string)
                           : done
-                            ? (t('attach.drive.added', '추가됨') as string)
+                            ? (t('attach.drive.added') as string)
                             : f.size ? `${Math.round(f.size / 1024)}KB` : ''}
                       </RowMeta>
                     </Row>

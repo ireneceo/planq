@@ -18,13 +18,13 @@ function absLocalPath(file) {
 async function ensureWorkspaceFilesFolder(drive, token) {
   if (token.workspace_folder_id) {
     try {
-      const r = await drive.files.get({ fileId: token.workspace_folder_id, fields: 'id, trashed' });
+      const r = await drive.files.get({ fileId: token.workspace_folder_id, fields: 'id, trashed', supportsAllDrives: true, });
       if (r.data && !r.data.trashed) return token.workspace_folder_id;
     } catch { /* 재생성 */ }
   }
   try {
     const q = `'${token.root_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and name='Workspace Files' and trashed=false`;
-    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1 });
+    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1, supportsAllDrives: true, includeItemsFromAllDrives: true, });
     if (list.data.files && list.data.files.length > 0) {
       const id = list.data.files[0].id;
       try { await token.update({ workspace_folder_id: id }); } catch { /* 컬럼 없으면 silent */ }
@@ -75,7 +75,7 @@ async function ensureFolderChainOnDrive(drive, token, folderId, rootId) {
   for (const row of chain) {
     if (row.gdrive_folder_id) {
       try {
-        const r = await drive.files.get({ fileId: row.gdrive_folder_id, fields: 'id, trashed' });
+        const r = await drive.files.get({ fileId: row.gdrive_folder_id, fields: 'id, trashed', supportsAllDrives: true, });
         if (r.data && !r.data.trashed) { parentDriveId = row.gdrive_folder_id; continue; }
       } catch { /* 외부에서 지워짐 → 다시 만든다 */ }
     }
