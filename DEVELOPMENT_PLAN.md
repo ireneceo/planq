@@ -27,9 +27,22 @@ Irene: *"구글드라이브 자꾸 왜 끊겼다고 해? 제대로 연동해놨�
 ### 신규 검사기
 `reviewnotify`(4 — 요청자≠컨펌자/==컨펌자 각각 **정확히 1건** + 문구 대조)
 
-### 운영 배포
-`8d7d7fc2` 15:04 — health OK · index.html 15:04:16 · 번들에 `nav-badge-task`·`x-planq-file`·`api/drive/import` 실존 확인.
-롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260907_145938/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
+### 운영 배포 2회
+| 커밋 | 시각 | 내용 | 검증 |
+|---|---|---|---|
+| `8d7d7fc2` | 15:04 (296s) | 배지 2건 · 파일 4종 · 드라이브 자가복구·팀드라이브 | 내부 health · 외부 HTTPS · PDF 11,821B · 번들에 `nav-badge-task`/`x-planq-file`/`api/drive/import` 실존 |
+| `59b0afb1` | 15:15 (309s) | 요청자 컨펌 알림 · 카나리 복구 | 내부 health · 외부 HTTPS · PDF OK · index.html 15:14:55 · 번들 해시 갱신 |
+
+롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260907_151004/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
+
+### 하니스가 거짓말을 하고 있었다 (gdrivesync 0/6 → 6/6)
+빨간불의 원인은 제품이 아니라 **카나리 자신**이었다. 두 가지가 겹쳤다:
+1. 카나리가 저장된 폴더 id 를 **날것으로** 썼다 — 앱은 `ensureRootFolder`·`ensureWorkspaceFilesFolder`
+   로 자가복구하는데 카나리만 원시 id 를 써서 혼자 404 였다.
+2. fixture 가 `storage_provider='gdrive'` 인데 `origin_provider` 를 안 적었다.
+   `isDriveMaster` 는 **origin_provider 만** 본다(`services/fileOrigin.js`) → 삭제 반영이 통째로 안 돌았다.
+   운영 데이터는 `gdrive/gdrive` 뿐이라 이 조합은 **만들어질 수 없는 fixture** 였다.
+→ **빨간 검사기를 끄기 전에, 그 검사기가 앱과 같은 경로를 타는지부터 본다.**
 
 ---
 
