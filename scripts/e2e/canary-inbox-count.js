@@ -103,6 +103,22 @@ async function run() {
     push('taskCount ≤ total (부분집합 계약)',
       (base.taskCount || 0) <= base.total,
       `task ${base.taskCount} / total ${base.total} — 확인필요는 메뉴 배지들의 합이므로 부분집합이어야`);
+
+    // ★ **숫자는 목록 상한에 잘리지 않는다** (2026-09-07 실측 사고).
+    //   collectMails 가 목록을 30건에서 끊는데 total 이 그 배열 길이라 숫자까지 잘렸다 —
+    //   확인 필요 35 인데 답장 필요 메일만 46 건이었다. "3건인데 2건" 과 같은 계열이다.
+    push('메일 배지가 total 을 넘지 않는다 (숫자가 안 잘린다)',
+      (base.mailReplyCount || 0) <= base.total,
+      `mail ${base.mailReplyCount} ≤ total ${base.total} — 넘으면 total 이 목록 상한에 잘린 것이다`);
+    push('bill 배지도 total 안에 있다',
+      (base.billCount || 0) <= base.total,
+      `bill ${base.billCount} ≤ total ${base.total}`);
+    push('가려진 건수를 정확히 알려준다',
+      typeof base.shown === 'number' && typeof base.hidden === 'number'
+        && base.shown + base.hidden === base.total
+        && base.shown === (base.items || []).length,
+      `shown ${base.shown} + hidden ${base.hidden} = ${base.total} · items ${(base.items || []).length}`
+        + ' — 화면이 "외 N건" 을 말할 근거다');
     const baseTask = base.taskCount || 0;
     const baseTotal = base.total;
 

@@ -319,6 +319,9 @@ const TodoPage: React.FC = () => {
                   /* 전체 탭에서는 업무·메일·서명·청구로 묶어 보여준다 (무엇에 대한 일인지 먼저 보인다).
                      한 카테고리만 보는 탭에서는 그 제목이 군더더기 → 우선순위(긴급·오늘…)로 묶는다. */
                   groupBy={activeTab === 'all' ? 'category' : 'priority'}
+                  /* 가려진 건수는 **전체 탭에서만** 말한다 — 다른 탭은 이미 자기 종류만 보고 있어
+                     "외 N건" 이 어느 종류의 것인지 알 수 없다. */
+                  hiddenCount={activeTab === 'all' ? (data?.hidden || 0) : 0}
                   hideHeader
                   loading={loading}
                   onOpenDrawer={handleOpenDrawer}

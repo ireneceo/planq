@@ -72,6 +72,10 @@ export interface TodoResponse {
   items: TodoItem[];
   counts: Record<TodoPriority, number>;
   total: number;
+  /** 목록에 담긴 수 (종류별 상한 적용 후). total 과 다를 수 있다. */
+  shown?: number;
+  /** 상한 때문에 목록에서 빠진 수 — 화면이 "외 N건" 을 말해야 한다. */
+  hidden?: number;
   taskCount?: number;  // Q Task 메뉴 뱃지 — 받은 요청·수정 요청·내가 컨펌·보낸 요청 (확인 필요 total 의 부분집합)
   billCount?: number;  // Q Bill 메뉴 뱃지 — 청구 관련 액션 대기 건수
   mailReplyCount?: number;  // Q mail 메뉴 뱃지 — 답변 필요 메일 (확인 필요 total 에는 합산 안 함)

@@ -251,7 +251,14 @@
       "waiting": "Importing files added directly in Drive is ready — we'll turn it on and let you know once Google's review completes.",
       "noFolder": "The Drive folder hasn't been created yet — upload a file once and it will appear."
     },
-    "scopeTwoWay": "Files added directly in Drive are imported into PlanQ when they live inside the workspace folder. Renames and deletions are reflected too."
+    "scopeTwoWay": "Files added directly in Drive are imported into PlanQ when they live inside the workspace folder. Renames and deletions are reflected too.",
+    "gdriveFolder": {
+      "myDrive": "Files go to \"{{name}}\" in the connected account's My Drive. To use a shared (team) drive, drag this folder into it in Drive, then press Re-check location below — access is kept and you don't need to reconnect.",
+      "shared": "Files go to \"{{name}}\" in a shared (team) drive.",
+      "unreachable": "Couldn't reach the Drive folder just now. PlanQ will find it again on the next upload.",
+      "open": "Open in Drive",
+      "recheck": "Re-check location"
+    }
   },
   "brand": {
     "sectionTitle": "Brand",

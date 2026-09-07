@@ -12,6 +12,13 @@ interface ProviderState {
   connected: boolean;
   account_email?: string;
   root_folder_id?: string;
+  /** PlanQ 폴더가 어디 있는가 — 서버가 Drive 에 직접 물어본 값. */
+  folder?: {
+    name?: string;
+    web_view_link?: string | null;
+    in_shared_drive?: boolean;
+    reachable?: boolean;
+  } | null;
   connected_at?: string;
   last_error?: string | null;
   needs_reconnect?: boolean;
@@ -316,6 +323,34 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             ? <StatusBadge $kind="inactive">{tr('storage.reconnectNeeded', '재연결 필요')}</StatusBadge>
             : <StatusBadge $kind="active">{tr('storage.active', '사용 중')}</StatusBadge>)}
         </CardHead>
+        {/* 저장 위치 — 팀(공유) 드라이브를 쓰려면 폴더를 옮기면 된다.
+            ★ 연결할 때 공유 드라이브를 **고르게 할 수는 없다** — `drive.file` 권한으로는 공유
+              드라이브 목록을 못 읽는다(실측: drives.list → insufficient authentication scopes).
+              대신 `drive.file` 은 **앱이 만든 파일을 계속 따라가므로** 사용자가 폴더를 옮기면
+              접근권이 유지된다. 그래서 "옮기고 → 여기서 확인" 이 성립한다. */}
+        {gdriveConnected && providers.gdrive.folder && !providers.gdrive.needs_reconnect && (
+          <FolderRow data-testid="gdrive-folder-location">
+            <FolderText>
+              {providers.gdrive.folder.reachable === false
+                ? tr('storage.gdriveFolder.unreachable')
+                : providers.gdrive.folder.in_shared_drive
+                  ? (t('storage.gdriveFolder.shared', { name: providers.gdrive.folder.name || '' }) as string)
+                  : (t('storage.gdriveFolder.myDrive', { name: providers.gdrive.folder.name || '' }) as string)}
+            </FolderText>
+            <FolderBtns>
+              {providers.gdrive.folder.web_view_link && (
+                <SmallBtn as="a" href={providers.gdrive.folder.web_view_link} target="_blank" rel="noreferrer">
+                  {tr('storage.gdriveFolder.open')} ↗
+                </SmallBtn>
+              )}
+              {/* 옮긴 뒤 바로 확인할 수 있어야 한다 — 확인할 방법이 없으면 "된 건가?" 로 남는다. */}
+              <SmallBtn type="button" data-testid="gdrive-folder-recheck"
+                disabled={loading} onClick={() => { void load(); }}>
+                {tr('storage.gdriveFolder.recheck')}
+              </SmallBtn>
+            </FolderBtns>
+          </FolderRow>
+        )}
         {/* #379 v2 — 역방향 인제스트 상태.
             ★ "아직 안 켜짐" 과 "고장" 은 다른 상태다. 같은 얼굴로 보여주면 사용자는 고장으로 읽는다.
               그리고 심사를 통과해도 **사용자가 다시 동의해야** 켜진다 — 그 사실을 여기서 말해준다.
@@ -566,6 +601,24 @@ const NoticeText = styled.div`
 `;
 const CardBody = styled.div`padding-top:4px;`;
 const CardActions = styled.div`display:flex;gap:8px;justify-content:flex-end;`;
+/* 저장 위치 줄 — 안내와 버튼이 한 줄에 못 들어가면 버튼이 아래로 감긴다(폰). */
+const FolderRow = styled.div`
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  margin-top:10px; padding:10px 12px; border-radius:10px; background:#F8FAFC;
+`;
+const FolderText = styled.p`
+  flex:1 1 240px; min-width:0; margin:0;
+  font-size:0.75rem; line-height:1.55; color:#475569;
+`;
+const FolderBtns = styled.div`display:flex; gap:6px; flex-shrink:0;`;
+const SmallBtn = styled.button`
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:6px 10px; border:1px solid #E2E8F0; border-radius:8px; background:#fff;
+  font-size:0.75rem; font-weight:600; color:#0F172A; cursor:pointer; text-decoration:none;
+  &:hover:not(:disabled){ border-color:#CBD5E1; background:#F1F5F9; }
+  &:disabled{ opacity:0.6; cursor:default; }
+  @media (hover: none), (max-width: 640px){ min-height:36px; }
+`;
 const UsageRow = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const UsageBar = styled.div`height:6px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
 const UsageFill = styled.div`height:100%;background:#14B8A6;transition:width 0.3s;`;

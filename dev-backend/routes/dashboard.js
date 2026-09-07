@@ -77,6 +77,14 @@ function safeToIso(dt) {
 /* ─────────────────────────────────────────────
    업무 집계 — 내가 담당 / 내가 컨펌자 / 내가 요청자(최종완료 대기)
    ──────────────────────────────────────────── */
+// 수집 상한 — **숫자를 자르지 않기 위한** 값이다(2026-09-07 박제).
+//   Irene: "다 해. 남기지 마."  직전까지 각 수집기가 30건에서 끊었는데 `total` 이 그 배열 길이라
+//   **숫자까지 같이 잘렸다.** 실측: 확인 필요 35 인데 답장 필요 메일만 46 건 — 16건이 안 보이고
+//   세어지지도 않았다. "3건인데 2건" 신고와 같은 계열이다(그때는 수집기 자체가 없었다).
+//   화면 배지는 99+ 로 끊으므로 120 이면 **표시 목적상 정확**하고 쿼리도 여전히 가볍다.
+//   목록은 아래 DISPLAY_CAP 으로 종류별로 자른다 — 자르는 것은 목록이지 숫자가 아니다.
+const COLLECT_LIMIT = 120;
+
 async function collectTasks(businessId, userId) {
   const items = [];
 
@@ -116,7 +124,7 @@ async function collectTasks(businessId, userId) {
     attributes: ['id', 'title', 'due_date', 'createdAt'],
     include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],
     order: [['due_date', 'ASC']],
-    limit: 30,
+    limit: COLLECT_LIMIT,
   });
   for (const t of unconfirmed) {
     const due = toIsoDateOnlyAsDate(t.due_date);
@@ -143,7 +151,7 @@ async function collectTasks(businessId, userId) {
     },
     attributes: ['id', 'title', 'due_date', 'updatedAt'],
     include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],
-    limit: 30,
+    limit: COLLECT_LIMIT,
   });
   for (const t of revisionReq) {
     const due = toIsoDateOnlyAsDate(t.due_date);
@@ -175,7 +183,7 @@ async function collectTasks(businessId, userId) {
       attributes: ['id', 'title', 'due_date'],
       include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     }],
-    limit: 30,
+    limit: COLLECT_LIMIT,
   });
   for (const r of pendingReviews) {
     const t = r.Task;
@@ -213,7 +221,7 @@ async function collectTasks(businessId, userId) {
     attributes: ['id', 'title', 'due_date', 'updatedAt'],
     include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     order: [['due_date', 'ASC']],
-    limit: 30,
+    limit: COLLECT_LIMIT,
   });
   for (const t of sentInReview) {
     if (myPendingReviewTaskIds.has(t.id)) continue;
@@ -264,7 +272,7 @@ async function collectEvents(businessId, userId) {
       { model: Project, attributes: ['id', 'name'], required: false },
     ],
     order: [['start_at', 'ASC']],
-    limit: 30,
+    limit: COLLECT_LIMIT,
   });
 
   const items = [];
@@ -329,7 +337,7 @@ async function collectLeaveApprovals(businessId, userRole, userId) {
   const pend = await LeaveRequest.findAll({
     where: { business_id: businessId, status: 'pending', user_id: { [Op.ne]: userId } },
     order: [['start_date', 'ASC']],
-    limit: 20,
+    limit: COLLECT_LIMIT,
   });
   if (pend.length === 0) return items;
   // ★ getMemberNameMap 은 **Map** 을 돌려준다 — 객체처럼 nameMap[id] 로 읽으면 언제나 undefined 라
@@ -381,7 +389,7 @@ async function collectInvites(userEmail) {
     },
     attributes: ['id', 'invite_email', 'business_id', 'createdAt'],
     include: [{ model: Business, attributes: ['id', 'name'], required: false }],
-    limit: 10,
+    limit: COLLECT_LIMIT,
   });
   for (const m of memberInvites) {
     items.push({
@@ -406,7 +414,7 @@ async function collectInvites(userEmail) {
     },
     attributes: ['id', 'invite_email', 'business_id', 'display_name', 'createdAt'],
     include: [{ model: Business, attributes: ['id', 'name'], required: false }],
-    limit: 10,
+    limit: COLLECT_LIMIT,
   });
   for (const c of clientInvites) {
     items.push({
@@ -455,7 +463,7 @@ async function collectCandidates(businessId, currentUserId, userRole) {
       },
     ],
     order: [['extracted_at', 'DESC']],
-    limit: 20,
+    limit: COLLECT_LIMIT,
   });
   const canAssign = userRole === 'owner' || userRole === 'admin';
   return cands.flatMap((c) => {
@@ -522,7 +530,7 @@ async function collectInvoices(businessId, userRole, userId) {
     },
     attributes: ['id', 'invoice_number', 'recipient_business_name', 'grand_total', 'paid_amount', 'due_date', 'status', 'currency', 'sent_at', 'createdAt'],
     order: [['due_date', 'ASC']],
-    limit: 20,
+    limit: COLLECT_LIMIT,
   });
   const items = [];
   for (const inv of invoices) {
@@ -572,7 +580,7 @@ async function collectSignatures(businessId, userEmail, userRole) {
       //   여기는 **필터가 아니다** — 받은 확인 요청도 이 목록에 나와야 한다.
       attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'expires_at', 'entity_type', 'entity_id', 'business_id', 'kind', 'createdAt'],
       order: [['expires_at', 'ASC']],
-      limit: 30,
+      limit: COLLECT_LIMIT,
     });
     // entity 제목 한 번에 fetch
     const postIds = [...new Set(myReqs.filter(r => r.entity_type === 'post').map(r => r.entity_id))];
@@ -629,7 +637,7 @@ async function collectSignatures(businessId, userEmail, userRole) {
       attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'rejected_at', 'rejected_reason', 'entity_type', 'entity_id', 'kind', 'comment', 'comment_at'],
       // 두 컬럼이 섞이므로 정렬도 합쳐서 본다 — rejected_at 만으로 정렬하면 의견 건이 항상 맨 뒤로 밀린다.
       order: [[literal('COALESCE(rejected_at, comment_at)'), 'DESC']],
-      limit: 10,
+      limit: COLLECT_LIMIT,
     });
     const rejPostIds = [...new Set(rejected.filter(r => r.entity_type === 'post').map(r => r.entity_id))];
     const rejPosts = rejPostIds.length
@@ -692,7 +700,7 @@ async function collectPaymentNotifies(businessId, userRole) {
     attributes: ['id', 'invoice_number', 'title', 'grand_total', 'paid_amount', 'currency', 'notify_paid_at', 'notify_payer_name', 'installment_mode'],
     include: [{ model: Client, attributes: ['display_name', 'biz_name', 'company_name'] }],
     order: [['notify_paid_at', 'DESC']],
-    limit: 20,
+    limit: COLLECT_LIMIT,
   });
   for (const inv of invoices) {
     if (inv.installment_mode === 'split') continue; // 분할은 회차 단위로
@@ -731,7 +739,7 @@ async function collectPaymentNotifies(businessId, userRole) {
       include: [{ model: Client, attributes: ['display_name', 'biz_name', 'company_name'] }],
     }],
     order: [['notify_paid_at', 'DESC']],
-    limit: 30,
+    limit: COLLECT_LIMIT,
   });
   for (const inst of insts) {
     if (!inst.Invoice) continue;
@@ -810,7 +818,7 @@ async function collectRecurringDrafts(businessId, userRole) {
     where: { business_id: businessId, status: 'draft', meta: { [Op.ne]: null } },
     attributes: ['id', 'invoice_number', 'title', 'grand_total', 'currency', 'meta', 'createdAt'],
     order: [['created_at', 'ASC']],
-    limit: 20,
+    limit: COLLECT_LIMIT,
   });
   const items = [];
   const now = Date.now();
@@ -869,7 +877,7 @@ async function collectMails(businessId, userId) {
       status: { [Op.in]: ['open', 'uncertain'] },
     },
     order: [['reply_needed_at', 'ASC']],
-    limit: 30,   // 오래 기다린 것부터. 전부 쏟아내면 인박스가 메일로 덮인다
+    limit: COLLECT_LIMIT,   // 오래 기다린 것부터. 전부 쏟아내면 인박스가 메일로 덮인다
   });
   if (!threads.length) return [];
 
@@ -1054,10 +1062,23 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     const counts = { urgent: 0, today: 0, waiting: 0, week: 0 };
     all.forEach(it => { counts[it.priority] += 1; });
 
+    // ── 목록만 자른다. 숫자는 자르지 않는다. ──
+    //   메일이 인박스를 덮지 않게 종류별 상한을 두는 것은 옛 의도 그대로다
+    //   ("전부 쏟아내면 인박스가 메일로 덮인다"). 달라진 것은 **그 상한이 배지 숫자까지
+    //   자르지 않는다**는 점이다 — total 은 자르기 전 값이다.
+    const DISPLAY_CAP = 30;
+    const shownByType = {};
+    const displayed = all.filter((it) => {
+      const n = (shownByType[it.type] || 0) + 1;
+      shownByType[it.type] = n;
+      return n <= DISPLAY_CAP;
+    });
+    const hiddenCount = all.length - displayed.length;
+
     // Q Task 메뉴 뱃지용 — Q Task 우측 패널이 세는 것과 같은 집합(받은 요청·수정 요청·내가 컨펌·보낸 요청).
     //   2026-09-07 Irene: "Q task 에 옆에 숫자알림 안떠. 3개 떠야지." — 다른 메뉴엔 다 있는데 여기만 없었다.
     //   ★ collectTasks 가 만든 것만 센다. 여기서 따로 세면 두 숫자가 갈라진다(#297 과 같은 계열).
-    const taskCount = all.filter(it => it.type === 'task').length;
+    const taskCount = all.filter(it => it.type === 'task').length;   // ★ all 로 센다 — displayed 로 세면 다시 잘린다
 
     // Q Bill 메뉴 뱃지용 — 청구 관련 액션 대기 건수 (발행 대기 정기 draft·증빙 발행·입금알림·결제 대기)
     const BILL_TYPES = new Set(['invoice', 'invoice_draft', 'tax_invoice', 'payment_notify']);
@@ -1117,7 +1138,14 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       }
     } catch (e) { console.warn('[todo] mailReplyCount', e.message); }
 
-    return successResponse(res, { items: all, counts, total: all.length, taskCount, billCount, billTabCounts, mailReplyCount, workspaces });
+    return successResponse(res, {
+      items: displayed,
+      counts,
+      total: all.length,          // ★ 진짜 개수 — 목록 상한과 무관하다
+      shown: displayed.length,
+      hidden: hiddenCount,        // 화면이 "외 N건" 을 말할 수 있게
+      taskCount, billCount, billTabCounts, mailReplyCount, workspaces,
+    });
   } catch (err) {
     return next(err);
   }

@@ -117,13 +117,17 @@ interface Props {
   groupBy?: 'priority' | 'category';
   /** 페이지가 이미 같은 제목을 달고 있으면 리스트 헤더는 중복 → 숨긴다 */
   hideHeader?: boolean;
+  /** 목록에 담기지 않은 건수 — 종류별 상한(30) 때문에 가려진 것.
+   *  ★ 숫자는 안 자르고 목록만 자르므로, 가려진 게 있으면 **반드시 말해야** 한다.
+   *    안 그러면 배지 51 · 목록 35 가 되어 사용자가 또 "숫자가 안 맞는다" 를 겪는다. */
+  hiddenCount?: number;
   onOpenDrawer?: (item: TodoItem) => void;
   onInviteAction?: (item: TodoItem, action: 'accept' | 'decline') => void;
   // 인박스 task_candidate 카드 클릭 시 inline 모달 (사이클 N+26)
   onOpenCandidate?: (item: TodoItem) => void;
 }
 
-const TodoList: React.FC<Props> = ({ items, loading, groupBy = 'priority', hideHeader, onOpenDrawer, onInviteAction, onOpenCandidate }) => {
+const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 'priority', hideHeader, onOpenDrawer, onInviteAction, onOpenCandidate }) => {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const fmt = useTimeFormat();
@@ -205,8 +209,13 @@ const TodoList: React.FC<Props> = ({ items, loading, groupBy = 'priority', hideH
       {!hideHeader && (
         <Header>
           <Title>{t('todo.title')}</Title>
-          <Count>{t('todo.count', { count: items.length })}</Count>
+          <Count>{t('todo.count', { count: items.length + hiddenCount })}</Count>
         </Header>
+      )}
+      {hiddenCount > 0 && (
+        <HiddenNote data-testid="todo-hidden-note">
+          {t('todo.hidden', { count: hiddenCount })}
+        </HiddenNote>
       )}
 
       {sections.map(sec => {
@@ -315,6 +324,16 @@ const Count = styled.span`
   font-size: 0.75rem;
   color: #64748B;
   font-weight: 500;
+`;
+/* 가려진 건수 안내 — 목록 위 한 줄. 배지 숫자와 목록 길이가 다른 이유를 여기서 설명한다. */
+const HiddenNote = styled.p`
+  margin: 0 0 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #F8FAFC;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #475569;
 `;
 
 

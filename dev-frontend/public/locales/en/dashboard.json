@@ -126,7 +126,8 @@
       "all": "All",
       "mine": "Mine",
       "waiting": "Waiting"
-    }
+    },
+    "hidden": "Showing up to 30 of each kind — {{count}} more not listed."
   },
   "review": {
     "title": "Today's review",
