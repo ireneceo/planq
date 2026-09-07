@@ -231,7 +231,7 @@
     },
     "gdrivePersonal": {
       "title": "내 개인 Google Drive",
-      "desc": "내 Drive 파일을 PlanQ 에서 **보기만** 합니다. 파일 저장은 PlanQ 에 됩니다."
+      "desc": "내 Drive 파일을 PlanQ 에서 보기만 합니다. 파일 저장은 PlanQ 에 됩니다."
     },
     "reconnectNeeded": "재연결 필요",
     "tokenError": "Google 인증이 만료되었습니다 — 다시 연결해 주세요",

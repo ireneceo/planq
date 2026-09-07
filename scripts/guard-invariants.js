@@ -1827,6 +1827,48 @@ function checkSharedDrive() {
   );
 }
 
+// ═══════════════════════════════════════════════
+// rawmarkup — 사용자에게 보이는 문구에 **마크다운·HTML 이 그대로** 들어가면 안 된다 (2026-09-07 박제)
+//   로케일 문자열은 그냥 텍스트로 렌더된다. `**강조**` 를 적으면 화면에 별표가 그대로 나온다.
+//   내가 설명을 쓰면서 습관적으로 넣었고, 운영에 그대로 나갔다(Irene 화면에서 발견).
+//   판정: 로케일 JSON 값에 `**…**` · `<b>` 같은 마크업이 있는가. 하드 게이트.
+//   ★ 예외: 화면이 <Trans> 로 파싱하는 키(i18nKey 로 쓰이는 것)는 태그가 정상이다 —
+//     그런 키는 이름에 `_html` 을 붙이기로 하고, 그것만 통과시킨다.
+// ═══════════════════════════════════════════════
+function checkRawMarkup() {
+  const bad = [];
+  let scanned = 0;
+  for (const lang of ['ko', 'en']) {
+    const dir = `${ROOT}/dev-frontend/public/locales/${lang}`;
+    let files = [];
+    try { files = fs.readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { continue; }
+    for (const f of files) {
+      let json;
+      try { json = JSON.parse(read(`${dir}/${f}`)); } catch { continue; }
+      const walk = (node, path) => {
+        if (typeof node === 'string') {
+          scanned++;
+          if (/_html$/.test(path)) return;            // <Trans> 로 파싱하는 키는 예외
+          if (/\*\*[^*]+\*\*/.test(node) || /<\/?(b|strong|i|em|u)>/i.test(node)) {
+            bad.push(`${lang}/${f}: ${path} — "${node.slice(0, 60)}"`);
+          }
+          return;
+        }
+        if (node && typeof node === 'object') {
+          for (const k of Object.keys(node)) walk(node[k], path ? `${path}.${k}` : k);
+        }
+      };
+      walk(json, '');
+    }
+  }
+  report(
+    'rawmarkup',
+    `사용자 문구에 날 마크업 없음 (하드 게이트 · 문자열 ${scanned}개)`,
+    bad.length === 0,
+    bad.length ? bad : ['로케일 문자열이 전부 평문이다'],
+  );
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1861,6 +1903,7 @@ const CATEGORIES = {
   overlaytop: checkOverlayTop,
   modalportal: checkModalPortal,
   sharedrive: checkSharedDrive,
+  rawmarkup: checkRawMarkup,
 };
 
 try {
