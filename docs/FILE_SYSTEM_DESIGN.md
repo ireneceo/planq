@@ -30,6 +30,15 @@
 | `task` | Q Task 업무 첨부 | 읽기만 (삭제는 원 업무에서) |
 | `meeting` | Q Note 회의 자료 | 읽기만 (삭제는 원 회의에서) |
 
+**출처는 배타적 폴더가 아니라 태그다 (2026-09-07).** 같은 실제 파일이 프로젝트에 직접 올라가
+있으면서 채팅에도 붙어 있을 수 있다. 목록은 **한 줄로 접되**(`utils/dedupeFileRows`,
+접는 기준은 `file_path`) 걸리는 출처를 **전부** `sources` 배열에 남긴다 — 화면은 그 배열로
+세고 거른다(`srcsOf(f)`). 남기는 행은 `direct` 다(공유 링크·공개범위·폴더가 그 행에만 달려 있다).
+
+> Irene 2026-09-07: *"이 폴더들은 그냥 태그같은 필터 기능 아니야? 겹쳐서 나와야지."*
+> 접으면서 출처를 잃으면 좌측 '채팅' 에서 그 파일이 사라진다 — 목록에서 사라지는 것은
+> 사용자에게 삭제와 구별되지 않는다. 회귀는 `node scripts/e2e/run.js --suite filesrc` 가 막는다.
+
 ### 1.3 폴더 시스템
 
 - **시스템 폴더 (자동)** — `/채팅`, `/업무`, `/회의` → 각 출처에서 자동 수집. 사용자 편집 불가
@@ -234,6 +243,14 @@ POST   /api/cloud/webhook/:provider          외부 변경 수신
 | 영상·음성 | 서명 URL 재생 | ✅ |
 | PDF | 인증 fetch → `blob:` iframe | ✅ |
 | HTML | **스크립트·동일출처·폼을 끈 sandbox iframe** | ❌ (서버가 언제나 attachment) |
+
+> **첨부 본문을 읽는 경로는 저장소를 몰라도 되게 한다 (2026-09-07).**
+> `services/attachmentStorage.readAttachmentBody()` 가 planq / gdrive / s3 를 단일 지점에서 가른다.
+> 라우트가 `fs.existsSync(file_path)` 로 직접 시작하면 **Drive 저장분은 언제나 404** 다 —
+> 그 컬럼에는 로컬 경로가 아니라 Drive 파일 ID 가 들어 있다. 실사례:
+> `GET /api/message-attachments/:id/download` 이 이 모양이라 채팅의 Drive 첨부가 전부
+> `file_missing` 이었고, 미리보기도 같은 라우트로 본문을 받으므로 화면에서는
+> "눌러도 아무 일이 없다" 로 보였다. 회귀는 `--suite chatattach`.
 | CSV/TSV | 표(따옴표 안 구분자 존중) | ❌ |
 | 마크다운 | marked + DOMPurify | ❌ |
 | txt·log·json·xml·yml·sql·코드 | 본문 그대로 | `text/plain` 만 ✅ |

@@ -8,11 +8,12 @@
 //
 //   **베끼지 않고 한 곳에서 뺀다.** 업무 첨부(TaskAttachments)와 의뢰 첨부
 //   (DescriptionAttachments)가 각자 드로어를 만들면 반드시 갈라진다.
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import DetailDrawer from './DetailDrawer';
 import ActionButton from './ActionButton';
+import { openDriveEditor } from '../../utils/driveEdit';
 import { PreviewArea } from '../../pages/QProject/docs/PreviewArea';
 import type { ProjectFile } from '../../services/files';
 
@@ -23,6 +24,10 @@ export interface PreviewAttachment {
   mime_type: string | null;
   download_url: string;
   preview_url: string | null;
+  /** 이 첨부의 원본 File 레코드 id — 있으면 Drive 편집기로 열 수 있다(없으면 편집 버튼을 감춘다). */
+  file_id?: number | null;
+  /** 서버가 판단한 "Drive 편집 가능" — 실제 권한은 여는 순간 서버가 다시 본다. */
+  drive_editable?: boolean;
 }
 
 interface Props {
@@ -56,6 +61,9 @@ function toProjectFile(a: PreviewAttachment): ProjectFile {
 
 const AttachmentPreviewDrawer: React.FC<Props> = ({ attachment, businessId, onClose, onDownload }) => {
   const { t } = useTranslation('common');
+  const [editing, setEditing] = useState(false);
+  const [editNote, setEditNote] = useState<string | null>(null);
+  const canEdit = !!attachment?.drive_editable && !!attachment?.file_id;
   return (
     <DetailDrawer
       open={!!attachment}
@@ -72,6 +80,29 @@ const AttachmentPreviewDrawer: React.FC<Props> = ({ attachment, businessId, onCl
             <PreviewArea file={toProjectFile(attachment)} businessId={businessId} />
           </DetailDrawer.Body>
           <DetailDrawer.Footer>
+            {/* Drive 에 있는 파일은 여기서 바로 고칠 수 있다 — 내려받아 고치고 다시 올리는 왕복을 없앤다.
+                자체 저장 파일에는 편집기가 없으므로 버튼 자체를 만들지 않는다(눌러도 안 되는 버튼 금지). */}
+            {canEdit && (
+              <ActionButton
+                tone="secondary"
+                data-testid="attachment-preview-edit"
+                disabled={editing}
+                onClick={async () => {
+                  if (editing) return;
+                  setEditing(true);
+                  setEditNote(null);
+                  const r = await openDriveEditor(businessId, attachment.file_id as number);
+                  if (!r.ok) {
+                    setEditNote(t('attachments.driveEditFailed', { defaultValue: '편집기를 열지 못했어요' }) as string);
+                  } else if (r.accessReason === 'no_google_account') {
+                    setEditNote(t('attachments.driveEditNoGoogle', { defaultValue: '이 계정의 이메일로는 편집 권한을 줄 수 없어요. 구글 계정으로 로그인한 뒤 다시 눌러 주세요.' }) as string);
+                  }
+                  setEditing(false);
+                }}
+              >
+                {t('attachments.driveEdit', { defaultValue: 'Drive 에서 편집' }) as string}
+              </ActionButton>
+            )}
             <ActionButton
               tone="secondary"
               data-testid="attachment-preview-download"
@@ -79,12 +110,18 @@ const AttachmentPreviewDrawer: React.FC<Props> = ({ attachment, businessId, onCl
             >
               {t('attachments.download', { defaultValue: '다운로드' }) as string}
             </ActionButton>
+            {editNote && <EditNote role="status">{editNote}</EditNote>}
           </DetailDrawer.Footer>
         </>
       )}
     </DetailDrawer>
   );
 };
+
+const EditNote = styled.div`
+  flex: 1 1 100%;
+  font-size: 0.75rem; color: #B45309; line-height: 1.5;
+`;
 
 const HeadTitle = styled.div`
   font-size: 1rem; font-weight: 700; color: #0F172A;

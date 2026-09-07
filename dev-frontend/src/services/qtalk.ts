@@ -293,6 +293,10 @@ export interface ApiMessageAttachment {
    *  ★ 프론트에서 id 로 URL 을 조립하지 말 것 — 옛 `/api/message-attachments/:id/raw` 는
    *    무인증 + 순차 정수 id 라 번호만 바꿔가며 **타 워크스페이스 채팅 이미지**가 열렸다. */
   preview_url?: string | null;
+  /** 원본 File 레코드 id — 미리보기에서 Drive 편집기를 여는 데 쓴다. */
+  file_id?: number | null;
+  /** 서버 판단: Drive 편집기로 열 수 있는 파일인가. 실제 권한은 여는 순간 서버가 다시 본다. */
+  drive_editable?: boolean;
 }
 
 export interface ApiTask {

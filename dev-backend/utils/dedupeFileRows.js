@@ -16,14 +16,26 @@
 // 남는 행으로 옮겨, 어디서 올라온 파일인지는 그대로 보이게 한다.
 const SOURCE_RANK = { direct: 0, chat: 1, task: 2, post: 3, meeting: 4 };
 
+//
+// ★ 2026-09-07 — 접는 것과 **분류를 잃는 것**은 다르다.
+//   Irene: "파일이 채팅에 있지만 프로젝트 연결된 채팅이면 그냥 프로젝트에만 들어가.
+//           채팅에도 나와야지. 이 폴더들은 그냥 태그같은 필터 기능 아니야? 겹쳐서 나와야지."
+//   접힌 행의 출처(채팅·업무·문서)가 통째로 사라져서, 좌측 '채팅' 을 눌렀을 때 그 파일이
+//   목록에 없었다. 출처는 **배타적 폴더가 아니라 태그**다 → 줄은 하나로 접되
+//   `sources` 에 **전부** 남긴다. 화면은 이 배열로 세고 거른다.
 function dedupeFileRows(rows) {
   const byPath = new Map();     // file_path → 남길 행
   const out = [];
+  const addSource = (row, src) => {
+    if (!src) return;
+    if (!Array.isArray(row.sources)) row.sources = row.source ? [row.source] : [];
+    if (!row.sources.includes(src)) row.sources.push(src);
+  };
   for (const r of rows) {
     const key = r && r.file_path_key;
-    if (!key) { out.push(r); continue; }   // 경로를 모르면 접지 않는다(잘못 접는 것보다 두 줄이 낫다)
+    if (!key) { addSource(r, r && r.source); out.push(r); continue; }   // 경로를 모르면 접지 않는다(잘못 접는 것보다 두 줄이 낫다)
     const kept = byPath.get(key);
-    if (!kept) { byPath.set(key, r); out.push(r); continue; }
+    if (!kept) { addSource(r, r.source); byPath.set(key, r); out.push(r); continue; }
     const keptRank = SOURCE_RANK[kept.source] ?? 9;
     const curRank = SOURCE_RANK[r.source] ?? 9;
     // 맥락은 잃지 않는다 — 남는 행에 없고 버리는 행에 있으면 옮긴다
@@ -34,6 +46,15 @@ function dedupeFileRows(rows) {
       const i = out.indexOf(kept);
       if (i >= 0) out[i] = r;
       byPath.set(key, r);
+    }
+    // 두 행의 출처를 **남는 행**에 합친다 — 어느 쪽이 이겼든 분류는 둘 다 유효하다.
+    addSource(winner, kept.source);
+    addSource(winner, r.source);
+    // 접힌 행의 맥락도 같이 들고 간다(대화방 이름·업무 제목이 여기 있다).
+    if (loser.context) {
+      if (!Array.isArray(winner.contexts)) winner.contexts = winner.context ? [winner.context] : [];
+      const dup = winner.contexts.some((c) => c && loser.context && c.kind === loser.context.kind && c.id === loser.context.id);
+      if (!dup) winner.contexts.push(loser.context);
     }
   }
   return out;

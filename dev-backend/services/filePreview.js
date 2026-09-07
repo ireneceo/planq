@@ -76,10 +76,15 @@ function serializeMessageAttachment(att) {
   if (!att) return att;
   const a = typeof att.toJSON === 'function' ? att.toJSON() : { ...att };
   const preview_url = previewUrlForMessageAttachment(a);
+  // Drive 편집기로 열 수 있는가 — 화면이 "편집" 버튼을 **보여줄지** 판단하는 데만 쓴다.
+  //   실제 권한은 여는 순간 `POST /api/files/:biz/:id/drive-edit` 가 다시 본다(canDownloadFile 단일 술어).
+  //   저장 경로(external_id)는 그대로 감춘 채 불리언만 내보낸다.
+  const drive_editable = a.storage_provider === 'gdrive' && !!(a.external_id || a.file_path) && !!a.file_id;
   delete a.file_path;
   delete a.external_id;
   delete a.storage_provider;
-  return preview_url ? { ...a, preview_url } : a;
+  const out = { ...a, drive_editable };
+  return preview_url ? { ...out, preview_url } : out;
 }
 
 /** 메시지 배열(평문 JSON)의 attachments 를 일괄 직렬화. 메시지 응답 경로 어디서나 이 함수만 부른다. */

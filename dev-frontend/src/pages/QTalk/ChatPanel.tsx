@@ -19,6 +19,7 @@ import PostPreviewModal from '../../components/Docs/PostPreviewModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
+import AttachmentPreviewDrawer, { type PreviewAttachment } from '../../components/Common/AttachmentPreviewDrawer';
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
@@ -112,6 +113,8 @@ const ChatPanel: React.FC<Props> = ({
 
   // 첨부 이미지 라이트박스 — 같은 메시지 안 이미지들이 갤러리로 묶임
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
+  // 채팅 첨부 미리보기 — 이미지 외(PDF·텍스트·CSV·마크다운·ZIP)는 공용 드로어로 연다.
+  const [previewAttach, setPreviewAttach] = useState<PreviewAttachment | null>(null);
 
   // Hangouts/Slack 패턴 — 그룹 헤더에서 풍부한 시각 표시
   //   오늘 → 14:18 / 어제 → 어제 14:18 / 7일내 → 월 14:18 / 그 외 → 5/3 14:18
@@ -1747,8 +1750,21 @@ const ChatPanel: React.FC<Props> = ({
                         />
                       </AttachImageBtn>
                     ) : (
+                      // ★ 2026-09-07 — 여태 비이미지는 **누르면 곧바로 내려받았다.**
+                      //   Q File·Q Mail 엔 PDF·텍스트 미리보기가 있는데 채팅만 없어서
+                      //   같은 파일이 화면마다 다르게 열렸다(Irene: "솔루션 전체에 미리보는게 불편해").
+                      //   → 공용 미리보기(AttachmentPreviewDrawer)를 그대로 쓴다. 내려받기는 그 안에 있다.
                       <AttachFileLink key={a.id} as="button" type="button" title={a.file_name}
-                        onClick={() => downloadAttachment(a.id, a.file_name)}>
+                        onClick={() => setPreviewAttach({
+                          id: a.id,
+                          original_name: a.file_name,
+                          file_size: a.file_size,
+                          mime_type: a.mime_type || null,
+                          download_url: `/api/message-attachments/${a.id}/download`,
+                          preview_url: a.preview_url || null,
+                          file_id: a.file_id ?? null,
+                          drive_editable: !!a.drive_editable,
+                        })}>
                         <AttachIcon>{a.file_name.split('.').pop()?.slice(0, 3).toUpperCase() || 'FILE'}</AttachIcon>
                         <AttachName>{a.file_name}</AttachName>
                         <AttachSize>{(a.file_size / 1024).toFixed(0)}KB</AttachSize>
@@ -2223,6 +2239,12 @@ const ChatPanel: React.FC<Props> = ({
 
       {/* 첨부 이미지 라이트박스 — 같은 메시지의 이미지들이 갤러리로 묶임 */}
       {imageLightbox}
+      <AttachmentPreviewDrawer
+        attachment={previewAttach}
+        businessId={Number(businessId)}
+        onClose={() => setPreviewAttach(null)}
+        onDownload={(a) => downloadAttachment(a.id, a.original_name)}
+      />
     </Container>
   );
 };

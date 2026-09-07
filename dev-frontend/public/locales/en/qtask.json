@@ -659,10 +659,10 @@
       "label": "Revert",
       "tip": "Revert to previous status"
     },
-    "kbSave": "Add to Cue knowledge",
+    "kbSave": "Add to Q info",
     "kbSaving": "Adding…",
-    "kbSaved": "Added to Cue knowledge",
-    "kbSaveHint": "Adds this deliverable to Cue's knowledge so Cue can reference it in future answers.",
+    "kbSaved": "Added to Q info",
+    "kbSaveHint": "Saves this result to Q info. Cue uses what's in Q info when answering.",
     "recurDescHint": "This description is copied into every occurrence. Write each occurrence’s output in its own body.",
     "kbErr": "Couldn't add it. Please try again in a moment.",
     "bodyEditing": "Editing — saved automatically. Submitting for review records this as v{{n}}.",

@@ -659,10 +659,10 @@
       "label": "되돌리기",
       "tip": "직전 단계로 되돌리기"
     },
-    "kbSave": "Cue 지식에 추가",
+    "kbSave": "Q info 에 추가",
     "kbSaving": "추가하는 중…",
-    "kbSaved": "Cue 지식에 추가됨",
-    "kbSaveHint": "이 결과물을 Cue 지식에 넣습니다. 다음부터 Cue 가 답변할 때 참고합니다.",
+    "kbSaved": "Q info 에 추가됨",
+    "kbSaveHint": "이 결과물을 Q info 에 넣습니다. Cue 가 답할 때 여기 있는 내용을 참고합니다.",
     "recurDescHint": "이 설명은 매 회차에 함께 생성됩니다. 회차별 결과물은 각 회차의 본문에 작성하세요.",
     "kbErr": "추가하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     "bodyEditing": "작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 v{{n}} 로 남습니다.",

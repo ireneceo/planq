@@ -79,6 +79,8 @@ const SUITES = {
   // 결과물을 **댓글이 아니라 회차로** 남길 수 있는가. 여태 버전이 생기는 문이
   //   "확인 요청" 하나뿐이라 중간 결과가 댓글로 갔다. 버튼 가시성 + 실제 박제 + 입력란 비움까지 잰다.
   delivver: () => require('./canary-deliverable-version'),
+  chatattach: () => require('./canary-chat-attach-download'),
+  filesrc: () => require('./canary-file-source-tags'),
   // rawkey — 번역 키가 화면에 그대로 나오는가. 정적 가드는 `t(\`status.${x}\`)` 같은 **동적 키**를
   //   구조적으로 못 본다(뒤가 런타임 값이라 대조할 대상이 없다). 판정을 화면으로 옮긴다.
   //   ★ 반증 완료(2026-09-07): 소스 로케일에서 status.* 를 지우고 **재빌드**하면 폰·데스크탑

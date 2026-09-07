@@ -2281,17 +2281,20 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </BodyVerChip>
                 )}
                 {!canEditBody && <ReadOnlyHint>{t('detail.readOnly', '읽기 전용')}</ReadOnlyHint>}
-                {/* ★ 2026-09-04 — 이름이 "KB에 저장" 이라 (1) KB 가 뭔지 모르고
+                {/* ★ 2026-09-07 — 이름은 **메뉴 이름 그대로** 쓴다: "Q info 에 추가".
+                    Irene: "큐 지식에 추가가 뭐야? 큐위키? 이름 다른 것 좀 쓰지마."
+                    'Cue 지식' 은 화면 어디에도 없는 지어낸 말이었다 — 가는 곳이 Q info 면 Q info 라고 쓴다.
+                    ★ 2026-09-04 — 이름이 "KB에 저장" 이라 (1) KB 가 뭔지 모르고
                     (2) 바로 옆 에디터의 자동저장과 "저장" 이 겹쳐 무엇이 저장되는지 헷갈렸다.
                     Irene: "KB에 저장이라는 거 뭔지 모른다고 전에 말했는데 아직도 이름도 그대로네."
                     → 이름에 **어디로 가고 무엇에 쓰이는지**를 담는다. '저장' 이라는 말은 쓰지 않는다. */}
                 {myWsRole !== 'client' && !!detailTask.body && (
                   <>
                     <KbSaveBtn type="button" disabled={kbSaving || kbSaved} onClick={saveBodyToKb}
-                      title={t('detail.kbSaveHint', '이 결과물을 Cue 지식에 넣습니다. 다음부터 Cue 가 답변할 때 참고합니다.') as string}>
-                      {kbSaved ? t('detail.kbSaved', 'Cue 지식에 추가됨')
-                        : kbSaving ? t('detail.kbSaving', '추가하는 중…')
-                          : t('detail.kbSave', 'Cue 지식에 추가')}
+                      title={t('detail.kbSaveHint') as string}>
+                      {kbSaved ? t('detail.kbSaved')
+                        : kbSaving ? t('detail.kbSaving')
+                          : t('detail.kbSave')}
                     </KbSaveBtn>
                     {kbErr && <KbErrText>{t('detail.kbErr', '추가하지 못했습니다. 잠시 후 다시 시도해 주세요.')}</KbErrText>}
                   </>

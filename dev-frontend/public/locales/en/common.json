@@ -383,7 +383,10 @@
     "docTag": "DOC",
     "docKind": "Q docs document",
     "previewAria": "Attachment preview",
-    "download": "Download"
+    "download": "Download",
+    "driveEdit": "Edit in Drive",
+    "driveEditFailed": "Couldn't open the editor",
+    "driveEditNoGoogle": "We can’t grant edit access to this email. Sign in with a Google account and try again."
   },
   "calendar": {
     "today": "Today",

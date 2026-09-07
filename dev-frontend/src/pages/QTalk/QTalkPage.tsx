@@ -165,12 +165,20 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
       source: m.ai_source ? { title: m.ai_source, section: '' } : undefined,
       processing_by: null,
     } : undefined,
-    attachments: (m.attachments || []).map(a => ({
     reactions: m.reactions || [],   // #138
+    // ★ 2026-09-07 — 여기서 **preview_url 을 떨어뜨리고 있었다.** 서버는 이미지 첨부에
+    //   preview_url 을 실어 보내는데(services/filePreview) 이 매퍼가 4개 필드만 옮겨서,
+    //   화면은 "미리보기 없음" 으로 판정하고 전부 파일 카드로 떨어뜨렸다.
+    //   Irene: "채팅에 이 첨부된 파일들 미리보기도 안돼." — PNG 두 장이 정확히 이 경로였다.
+    //   ★ `reactions` 도 첨부 객체 안에 잘못 들어가 있어 메시지에는 안 붙고 있었다(같이 바로잡음).
+    attachments: (m.attachments || []).map(a => ({
       id: a.id,
       file_name: a.file_name,
       file_size: a.file_size,
       mime_type: a.mime_type,
+      preview_url: a.preview_url ?? null,
+      file_id: a.file_id ?? null,
+      drive_editable: !!a.drive_editable,
     })),
     card: (() => {
       if (m.kind !== 'card' || !m.meta) return null;

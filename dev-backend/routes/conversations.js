@@ -1019,7 +1019,7 @@ router.get('/:businessId/:id/pinned', authenticateToken, attachWorkspaceScope(),
         { model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] },
         // file_path·storage_provider·external_id 는 미리보기 토큰 계산에 필요하다 —
         //   serializeMessageAttachments 가 응답에서 다시 제거한다(저장 경로를 내보내지 않는다).
-        { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_path', 'storage_provider', 'external_id'], required: false },
+        { model: MessageAttachment, as: 'attachments', attributes: ['id', 'file_name', 'file_size', 'mime_type', 'file_id', 'file_path', 'storage_provider', 'external_id'], required: false },
       ],
       order: [['pinned_at', 'DESC']],
       limit: 50,

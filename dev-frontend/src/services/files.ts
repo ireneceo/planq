@@ -36,6 +36,10 @@ export function canOpenInNewTab(f: Pick<ProjectFile, 'mime_type' | 'file_name' |
 export interface ProjectFile {
   id: string;              // 'direct-12' / 'chat-45' / 'task-7' / 'meeting-3'
   source: FileSource;
+  /** 이 파일이 걸리는 **모든** 출처. 출처는 배타적 폴더가 아니라 태그다 —
+   *  프로젝트에 직접 올라간 파일이 채팅에도 붙어 있으면 두 곳 모두에서 보여야 한다.
+   *  서버가 중복을 접으면서 합쳐 준다(utils/dedupeFileRows). 없으면 `[source]` 로 읽는다. */
+  sources?: FileSource[];
   file_name: string;
   file_size: number;
   mime_type: string | null;
@@ -45,6 +49,8 @@ export interface ProjectFile {
   download_url: string;
   preview_url?: string;
   context?: { kind: 'conversation' | 'task' | 'meeting'; id: number; label: string };
+  /** 접힌 행들이 들고 있던 맥락까지 합친 것 (대화방·업무 이름). */
+  contexts?: { kind: 'conversation' | 'task' | 'meeting'; id: number; label: string }[];
   project_context?: ProjectContext | null;
   folder_id: number | null;
   deletable: boolean;

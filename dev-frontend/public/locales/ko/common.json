@@ -383,7 +383,10 @@
     "docTag": "문서",
     "docKind": "Q docs 문서",
     "previewAria": "첨부파일 미리보기",
-    "download": "다운로드"
+    "download": "다운로드",
+    "driveEdit": "Drive 에서 편집",
+    "driveEditFailed": "편집기를 열지 못했어요",
+    "driveEditNoGoogle": "이 계정의 이메일로는 편집 권한을 줄 수 없어요. 구글 계정으로 로그인한 뒤 다시 눌러 주세요."
   },
   "calendar": {
     "today": "오늘",

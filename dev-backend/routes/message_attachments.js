@@ -235,12 +235,29 @@ router.get('/:id/download', authenticateToken, async (req, res, next) => {
     const allowed = await canAccessConversation(req.user.id, conv);
     if (!allowed) return errorResponse(res, 'forbidden', 403);
 
-    const abs = path.isAbsolute(att.file_path) ? att.file_path : path.join(__dirname, '..', att.file_path);
-    if (!fs.existsSync(abs)) return errorResponse(res, 'file_missing', 404);
+    // ★ 2026-09-07 — 여기는 **로컬 디스크만** 봤다. 그런데 Drive 에 저장된 채팅 첨부는
+    //   `file_path` 에 Drive 파일 ID 가 들어 있어서 `fs.existsSync` 가 항상 거짓이 되고
+    //   모든 요청이 404 `file_missing` 이 됐다(운영 실측: PDF 첨부 3건 전부 404).
+    //   화면에서는 "미리보기가 안 된다 / 눌러도 아무 일이 없다" 로 보인다 —
+    //   미리보기도 이 라우트로 본문을 받기 때문이다.
+    //   저장소 분기는 이미 단일 원천이 있다(services/attachmentStorage). 그것을 쓴다.
+    const body = await require('../services/attachmentStorage').readAttachmentBody({
+      storage_provider: att.storage_provider,
+      file_path: att.file_path,
+      external_id: att.external_id || att.file_path,   // 정본은 external_id, 옛 행은 file_path 에 Drive ID
+      business_id: conv.business_id,
+    });
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return res.redirect(body.redirect);
 
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(att.file_name)}`);
     if (att.mime_type) res.setHeader('Content-Type', att.mime_type);
-    fs.createReadStream(abs).pipe(res);
+    body.stream.on('error', (e) => {
+      console.error('[message_attachments] download stream error:', e.message);
+      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
+      else res.destroy();
+    });
+    body.stream.pipe(res);
   } catch (err) { next(err); }
 });
 

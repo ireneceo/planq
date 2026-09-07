@@ -135,7 +135,9 @@ export interface MockMessage {
   // preview_url — 서버가 계산해 주는 미리보기 주소(이미지일 때만).
   //   ★ id 로 URL 을 조립하지 말 것: 옛 `/api/message-attachments/:id/raw` 는 무인증 + 순차 정수 id 라
   //     번호만 바꿔가며 타 워크스페이스 채팅 이미지가 열렸다(2026-08-20 삭제).
-  attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null; preview_url?: string | null }[];
+  attachments?: { id: number; file_name: string; file_size: number; mime_type?: string | null; preview_url?: string | null;
+    /** 원본 File id — 미리보기에서 Drive 편집기를 여는 데 쓴다(없으면 편집 버튼을 감춘다). */
+    file_id?: number | null; drive_editable?: boolean }[];
   // #138 — 이모지 리액션 (백엔드가 메시지에 동봉)
   reactions?: { id: number; user_id: number; emoji: string }[];
   card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | null;

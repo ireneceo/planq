@@ -34,6 +34,7 @@ import TrashDrawer from './TrashDrawer';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut, PLANQ_FILE_MIME, isMovableInApp } from '../../hooks/useFileDragOut';
 import { isEnterAction } from '../../utils/imeKey';
+import { openDriveEditor } from '../../utils/driveEdit';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -261,7 +262,9 @@ const DocsTab: React.FC<Props> = (props) => {
     let myFiles = 0;
     const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0, post: 0 };
     for (const f of files) {
-      bySrc[f.source]++;
+      // ★ 출처는 태그다 — 한 파일이 채팅·업무 양쪽에 걸리면 양쪽에서 다 세어야 한다.
+      //   (Irene: "이 폴더들은 그냥 태그같은 필터 기능 아니야? 겹쳐서 나와야지.")
+      for (const s of srcsOf(f)) bySrc[s]++;
       if (f.source === 'direct') {
         if (f.project_context == null) myFiles++;
         if (f.folder_id == null) directRoot++;
@@ -277,7 +280,7 @@ const DocsTab: React.FC<Props> = (props) => {
     if (folderSel === 'direct') return files.filter(f => f.source === 'direct' && f.folder_id == null);
     if (typeof folderSel === 'string' && folderSel.startsWith('src:')) {
       const src = folderSel.slice(4) as FileSource;
-      return files.filter(f => f.source === src);
+      return files.filter(f => srcsOf(f).includes(src));
     }
     if (typeof folderSel === 'string' && folderSel.startsWith('proj:')) {
       const pid = Number(folderSel.slice(5));
@@ -466,24 +469,11 @@ const DocsTab: React.FC<Props> = (props) => {
     if (!parsed) return;
     setEditOpening(true);
     setEditNote(null);
-    const w = window.open('', '_blank', 'noopener,noreferrer');
-    try {
-      const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/drive-edit`, { method: 'POST' });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j?.data?.edit_url) {
-        if (w) w.close();
-        setEditNote(tr('docs.driveEdit.failed'));
-        return;
-      }
-      if (j.data.access_reason === 'no_google_account') {
-        setEditNote(tr('docs.driveEdit.noGoogleAccount'));
-      }
-      if (w) w.location.href = j.data.edit_url;
-      else window.open(j.data.edit_url, '_blank', 'noopener,noreferrer');
-    } catch {
-      if (w) w.close();
-      setEditNote(tr('docs.driveEdit.failed'));
-    } finally { setEditOpening(false); }
+    // 여는 절차는 공용(utils/driveEdit) — 채팅·업무 첨부 미리보기가 같은 함수를 쓴다.
+    const res = await openDriveEditor(businessId, parsed.id);
+    if (!res.ok) setEditNote(tr('docs.driveEdit.failed'));
+    else if (res.accessReason === 'no_google_account') setEditNote(tr('docs.driveEdit.noGoogleAccount'));
+    setEditOpening(false);
   }, [businessId, editOpening, tr]);
 
   // 폴더로 끌어다 놓기 (#파일 정리). 이동 API·권한은 일괄 이동(onMoveTo)과 같은 것을 쓴다.
@@ -858,7 +848,9 @@ const DocsTab: React.FC<Props> = (props) => {
                               />
                             )
                             : <FileExtIcon ext={extOf(f.file_name)} size={56} large />}
-                          <SourceTag $src={f.source}>{sourceShortLabel(f.source, tr)}</SourceTag>
+                          {srcsOf(f).map(sc => (
+                            <SourceTag key={sc} $src={sc}>{sourceShortLabel(sc, tr)}</SourceTag>
+                          ))}
                         </Thumb>
                       );
                     })()}
@@ -913,7 +905,9 @@ const DocsTab: React.FC<Props> = (props) => {
                       )}
                     </RowName>
                     <RowSrc>
-                      <SourcePill $src={f.source}>{sourceShortLabel(f.source, tr)}</SourcePill>
+                      {srcsOf(f).map(sc => (
+                        <SourcePill key={sc} $src={sc}>{sourceShortLabel(sc, tr)}</SourcePill>
+                      ))}
                       {isWorkspace && f.project_context ? (
                         <ProjectLink to={`/projects/p/${f.project_context.id}?tab=docs`} onClick={e => e.stopPropagation()}>
                           <ProjectDot $color={f.project_context.color || '#14B8A6'} />
@@ -1611,6 +1605,11 @@ function sortLabel(s: SortKey, t: (k: string, fb?: string) => string): string {
   if (s === 'name') return t('docs.sort.name', '이름 순');
   if (s === 'size') return t('docs.sort.size', '크기 순');
   return t('docs.sort.recent', '최근 순');
+}
+
+/** 이 파일이 걸리는 출처 전부. 서버가 접으면서 합쳐 주지만, 옛 응답에는 없을 수 있다. */
+function srcsOf(f: ProjectFile): FileSource[] {
+  return (f.sources && f.sources.length) ? f.sources : [f.source];
 }
 
 function sourceShortLabel(s: FileSource, t: (k: string, fb?: string) => string): string {

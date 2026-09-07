@@ -1033,6 +1033,28 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
       oldValue: { vlevel: prevVlevel, visibility: prevVisibility, project_id: prevProjectId, target_member_ids: prevTargetIds },
       newValue: { vlevel: level, visibility: level, project_id: nextProjectId, target_member_ids: nextTargetMemberIds },
     });
+
+    // ★ 2026-09-07 — 프로젝트를 바꾸면 Drive 자리도 따라가야 한다.
+    //   Irene: "어떤 파일을 프로젝트 연동하면 연동하는대로 폴더 이동되는 거 맞아?"
+    //   맞아야 하는데 **안 되고 있었다** — 폴더 이동 경로에만 Drive 반영이 있었고 여기엔 없었다.
+    //   그래서 프로젝트를 옮겨도 Drive 에선 옛 프로젝트 폴더에 그대로 남았다.
+    //   자리 계산은 업로드·이동·미러와 **같은 함수**를 쓴다.
+    if (file.gdrive_mirror_id && String(prevProjectId) !== String(nextProjectId)) {
+      setImmediate(async () => {
+        try {
+          const gd = require('../services/gdrive');
+          const mirror = require('../services/gdriveMirror');
+          const token = await gd.getTokenForBusiness(file.business_id);
+          if (!token || !token.root_folder_id) return;
+          const drive = await gd.getDriveClient(token);
+          const parentId = await mirror.resolveDriveParent(drive, token, {
+            projectId: nextProjectId, folderId: file.folder_id,
+          });
+          await gd.moveFile(drive, file.gdrive_mirror_id, parentId);
+        } catch (e) { console.warn('[project change] Drive 반영 실패:', e.message); }
+      });
+    }
+
     successResponse(res, { id: file.id, vlevel: level, visibility: level, project_id: nextProjectId, target_member_ids: nextTargetMemberIds });
   } catch (err) { next(err); }
 });
