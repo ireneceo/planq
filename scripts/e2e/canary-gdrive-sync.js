@@ -23,9 +23,17 @@ async function run() {
     drive = await gdrive.getDriveClient(token);
     const BIZ = token.business_id;
 
+    // ★ 저장된 폴더 id 를 **날것으로 쓰지 않는다.** 앱이 실제로 쓰는 보장 함수를 거친다 —
+    //   2026-09-07: 저장값이 낡아 404 가 났고, 나는 그것을 "연동이 끊겼다" 로 오진했다.
+    //   앱은 자가복구하는데 카나리만 원시 id 를 써서 혼자 빨간불이었다(하니스가 거짓말을 한 것).
+    const { Business } = require(path.join(BE, 'models'));
+    const bizRow = await Business.findByPk(token.business_id, { attributes: ['name', 'brand_name'] });
+    await gdrive.ensureRootFolder(drive, token, bizRow && (bizRow.brand_name || bizRow.name));
+    const parentId = await require(path.join(BE, 'services/gdriveMirror')).ensureWorkspaceFilesFolder(drive, token);
+
     const created = await gdrive.uploadFile(drive, {
       name: 'planq-canary-before.txt', mimeType: 'text/plain',
-      body: Readable.from([Buffer.from('canary')]), parentId: token.workspace_folder_id || undefined,
+      body: Readable.from([Buffer.from('canary')]), parentId,
     });
     driveFileId = created.id;
     const st = await drive.changes.getStartPageToken();
@@ -37,6 +45,10 @@ async function run() {
       business_id: BIZ, uploader_id: 5, file_name: 'planq-canary-before.txt',
       file_path: `gdrive:${driveFileId}`, file_size: 6, mime_type: 'text/plain',
       storage_provider: 'gdrive', external_id: driveFileId, external_url: created.webViewLink || null,
+      // ★ 정본 축을 반드시 같이 적는다 — `origin_provider` 가 비면 isDriveMaster 가 false 라
+      //   삭제·수정 반영이 통째로 안 돈다(services/fileOrigin.js). 운영 데이터는 gdrive/gdrive 뿐이라
+      //   이 조합(gdrive/NULL)은 **실제로 만들어질 수 없는 fixture** 였다 — 2026-09-07 실측.
+      origin_provider: 'gdrive',
       visibility: 'L3', vlevel: 'L3',
     });
     localId = local.id;
