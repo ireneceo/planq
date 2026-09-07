@@ -86,28 +86,48 @@ async function ensureFolderChainOnDrive(drive, token, folderId, rootId) {
   return parentDriveId;
 }
 
+/**
+ * **Drive 에서 이 파일이 놓일 자리** — 단일 판정 (2026-09-07).
+ *
+ * Irene: *"구글드라이브에 프로젝트별로 저장되어 있던데? 내가 폴더를 만들면 그건 무슨 기준인데?"*
+ *   기준이 두 개였다. 올릴 때는 프로젝트가, 옮길 때는 PlanQ 폴더가 자리를 정해서
+ *   같은 프로젝트 파일이 `프로젝트A/파일` 에도 `Workspace Files/내폴더/파일` 에도 갈렸다.
+ *   업로드·이동·미러 세 경로가 각자 계산하고 있었으니 갈라지는 게 당연했다 → **한 함수로 모은다.**
+ *
+ * 규칙 하나: `프로젝트 폴더(또는 Conversations/Workspace Files) / PlanQ 폴더 사슬 /`
+ *   즉 **PlanQ 에서 보는 트리가 곧 Drive 트리**다.
+ */
+async function resolveDriveParent(drive, token, { projectId = null, folderId = null, conversationId = null } = {}) {
+  let parentId;
+  if (projectId) {
+    const project = await Project.findByPk(projectId);
+    parentId = project
+      ? await gdrive.ensureProjectFolder(drive, token, project)
+      : await ensureWorkspaceFilesFolder(drive, token);
+  } else if (conversationId) {
+    parentId = await gdrive.ensureConversationsFolder(drive, token);
+  } else {
+    parentId = await ensureWorkspaceFilesFolder(drive, token);
+  }
+  // 폴더 사슬은 실패해도 업로드/이동을 막지 않는다 — 폴더는 정리를 위한 것이지 보관의 조건이 아니다.
+  //   그때는 상위 폴더에 놓인다(파일이 사라지지 않는다).
+  if (folderId) {
+    try {
+      parentId = await ensureFolderChainOnDrive(drive, token, folderId, parentId);
+    } catch (e) {
+      console.warn('[gdriveMirror] 폴더 매핑 실패 — 상위 폴더에 놓는다:', e.message);
+    }
+  }
+  return parentId;
+}
+
 // 부모 폴더 결정 → Drive 사본 업로드 → File 미러 컬럼 기록. drive/token 은 호출부 재사용.
 async function mirrorFile(file, token, drive) {
   const abs = absLocalPath(file);
   if (!abs || !fs.existsSync(abs)) throw new Error('local file missing: ' + (file.file_path || '?'));
-  let parentId;
-  if (file.project_id) {
-    const project = await Project.findByPk(file.project_id);
-    parentId = project
-      ? await gdrive.ensureProjectFolder(drive, token, project)
-      : await ensureWorkspaceFilesFolder(drive, token);
-  } else {
-    parentId = await ensureWorkspaceFilesFolder(drive, token);
-  }
-  // PlanQ 폴더에 들어 있으면 Drive 에도 **같은 자리**로. 여태 프로젝트 폴더 아니면
-  //   전부 'Workspace Files' 한 곳에 쏟아져, PlanQ 에서 정리한 폴더가 Drive 에선 없었다.
-  if (file.folder_id) {
-    try {
-      parentId = await ensureFolderChainOnDrive(drive, token, file.folder_id, parentId);
-    } catch (e) {
-      console.warn('[gdriveMirror] 폴더 매핑 실패 — 상위 폴더에 올린다:', e.message);
-    }
-  }
+  const parentId = await resolveDriveParent(drive, token, {
+    projectId: file.project_id, folderId: file.folder_id,
+  });
   const driveFile = await gdrive.uploadFile(drive, {
     name: file.file_name || path.basename(abs),
     mimeType: file.mime_type || 'application/octet-stream',
@@ -138,4 +158,4 @@ async function mirrorOnUpload(fileId, businessId) {
   }
 }
 
-module.exports = { ensureWorkspaceFilesFolder, ensureFolderChainOnDrive, isEligible, mirrorFile, mirrorOnUpload, absLocalPath };
+module.exports = { ensureWorkspaceFilesFolder, resolveDriveParent, ensureFolderChainOnDrive, isEligible, mirrorFile, mirrorOnUpload, absLocalPath };

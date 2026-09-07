@@ -654,13 +654,17 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
         const biz = await Business.findByPk(businessId, { attributes: ['name'] });
         await gdrive.ensureRootFolder(drive, cloudToken, biz && biz.name);
         // 부모 폴더 결정 — 프로젝트면 프로젝트 폴더, 채팅이면 "Conversations" 공통 폴더
-        let parentFolderId;
-        if (projectId) {
-          const project = await Project.findByPk(projectId);
-          parentFolderId = await gdrive.ensureProjectFolder(drive, cloudToken, project);
-        } else {
-          parentFolderId = await gdrive.ensureConversationsFolder(drive, cloudToken);
-        }
+        //
+        // ★ 2026-09-07 — 여기에 **PlanQ 폴더를 반영하지 않는 결함**이 있었다.
+        //   Irene: "구글드라이브에 프로젝트별로 저장되어 있던데? 내가 폴더를 만들면 그건 무슨 기준인데?
+        //           프로젝트 폴더랑 어떻게 처리되는 건데?"
+        //   기준이 **두 개** 였다: 올릴 때는 프로젝트가, 나중에 옮길 때는 PlanQ 폴더가 자리를 정했다.
+        //   그래서 같은 프로젝트 파일이 `프로젝트A/파일` 에도, `Workspace Files/내폴더/파일` 에도 갈렸다.
+        //   → 이제 **PlanQ 에서 보는 트리가 곧 Drive 트리**다: `프로젝트A/내폴더/파일`.
+        //   폴더 사슬 생성은 이동 경로가 쓰던 `ensureFolderChainOnDrive` 를 **그대로** 쓴다 —
+        //   같은 값을 두 공식으로 만들면 다시 갈라진다.
+        const parentFolderId = await require('../services/gdriveMirror')
+          .resolveDriveParent(drive, cloudToken, { projectId, folderId, conversationId });
         // 파일 업로드 (stream)
         const driveFile = await gdrive.uploadFile(drive, {
           name: decodeOriginalName(req.file.originalname),
@@ -953,8 +957,12 @@ router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, asy
           const token = await gdrive.getTokenForBusiness(file.business_id);
           if (!token || !token.root_folder_id) return;
           const drive = await gdrive.getDriveClient(token);
-          let parentId = await mirror.ensureWorkspaceFilesFolder(drive, token);
-          if (folderId) parentId = await mirror.ensureFolderChainOnDrive(drive, token, folderId, parentId);
+          // ★ 업로드·미러와 **같은 함수**로 자리를 정한다. 여기만 'Workspace Files' 를 기준으로
+          //   삼고 있어서, PlanQ 에서 폴더로 옮기면 Drive 에선 **프로젝트 폴더 밖으로 빠져나갔다**
+          //   (Irene 2026-09-07 지적의 실체). 이제 `프로젝트/폴더/` 로 같은 자리에 간다.
+          const parentId = await mirror.resolveDriveParent(drive, token, {
+            projectId: file.project_id, folderId,
+          });
           await gdrive.moveFile(drive, file.gdrive_mirror_id, parentId);
         } catch (e) { console.warn('[file move] Drive 반영 실패:', e.message); }
       });
