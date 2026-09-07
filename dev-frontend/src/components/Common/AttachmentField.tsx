@@ -17,6 +17,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { ChangeEvent, DragEvent } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import DriveImportSection from './DriveImportSection';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
 import { fetchWorkspaceFiles, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
@@ -40,6 +41,8 @@ interface Props {
   disabled?: boolean;
   // 호출부에서 파일 메타가 필요하면 받음 (선택). 안 주면 내부에서 fetch 한 결과로 표시.
   workspaceFiles?: ProjectFile[];
+  /** 이 첨부가 속한 프로젝트 — Drive 에서 들일 때 노출 범위를 그 프로젝트에 맞춘다. */
+  projectId?: number | null;
   /** 워크스페이스 파일/문서 연결 검색을 숨긴다 — 업로드 드롭존만 필요한 화면용.
    *  (예: 피드백 이미지 첨부. 워크스페이스 파일을 붙일 이유가 없고, 목록 fetch 도 낭비다.)
    *  true 면 검색 UI 를 렌더하지 않고 파일·문서 목록 fetch 도 하지 않는다. */
@@ -52,6 +55,7 @@ const AttachmentField: React.FC<Props> = ({
   includePosts = false, existingPostIds = [], onExistingPostIdsChange,
   accept, uploadHint, uploadAcceptHint, searchPlaceholder, disabled,
   workspaceFiles: providedFiles,
+  projectId = null,
   hideExistingSearch = false,
 }) => {
   // searchPostsPlaceholder is deprecated — 통합 검색에서는 searchPlaceholder 만 사용
@@ -208,6 +212,18 @@ const AttachmentField: React.FC<Props> = ({
           return String(option.label).toLowerCase().includes(q);
         }}
         noOptionsMessage={() => (t('attach.noResults', '결과 없음') as string)}
+      />
+
+      {/* 개인 Google Drive 에서 가져오기 — 들이면 "워크스페이스에 있는 파일" 과 같아지므로
+          기존-파일 선택에 그대로 더한다. 화면마다 붙이지 않고 여기 한 곳에 둔다. */}
+      <DriveImportSection
+        businessId={businessId}
+        projectId={projectId}
+        disabled={disabled}
+        onImported={(fileId) => {
+          if (existingFileIds.includes(fileId)) return;   // 같은 Drive 파일 두 번 눌러도 한 번만
+          onExistingFileIdsChange([...existingFileIds, fileId]);
+        }}
       />
       </>}
     </Wrap>

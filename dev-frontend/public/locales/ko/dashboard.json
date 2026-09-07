@@ -105,7 +105,8 @@
       "issue": "발행하기",
       "reply": "답장 대기",
       "doc_confirm": "확인 요청",
-      "doc_commented": "문서 의견 등록"
+      "doc_commented": "문서 의견 등록",
+      "awaiting_confirm": "컨펌 진행 중"
     },
     "relTime": {
       "now": "방금",

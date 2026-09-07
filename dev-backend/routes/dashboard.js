@@ -195,7 +195,44 @@ async function collectTasks(businessId, userId) {
     });
   }
 
-  // 3) 옛 '완료 피드백(done_feedback)' 대기 목록이 여기 있었다.
+  // 4) 내가 보낸 업무요청이 컨펌 단계에 들어와 있음 — 의뢰자에게 결과가 도착했다는 신호.
+  //    2026-09-07 Irene: "나한테 업무요청 온게 이렇게 3가지인데 확인필요에 2개만 나와."
+  //    Q Task 우측 패널은 이 버킷을 '보낸 업무요청' 으로 세는데 여기에는 수집기 자체가 없었다.
+  //    술어는 QTaskPage panelCounts.sent 와 같다 — 의뢰자(request_by 또는 내가 만들어 남에게 맡김)
+  //    + status='reviewing' + 내가 pending 컨펌자가 아님(그건 위 3) 이 이미 세므로 한 업무 = 한 버킷).
+  const myPendingReviewTaskIds = new Set(pendingReviews.map((r) => r.Task && r.Task.id).filter(Boolean));
+  const sentInReview = await Task.findAll({
+    where: {
+      business_id: businessId,
+      status: 'reviewing',
+      [Op.or]: [
+        { request_by_user_id: userId },
+        { created_by: userId, assignee_id: { [Op.ne]: userId, [Op.not]: null } },
+      ],
+    },
+    attributes: ['id', 'title', 'due_date', 'updatedAt'],
+    include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
+    order: [['due_date', 'ASC']],
+    limit: 30,
+  });
+  for (const t of sentInReview) {
+    if (myPendingReviewTaskIds.has(t.id)) continue;
+    const due = toIsoDateOnlyAsDate(t.due_date);
+    items.push({
+      id: `task-${t.id}-sent-review`,
+      type: 'task',
+      priority: bucketByDue(due) === 'week' ? 'waiting' : bucketByDue(due),
+      verb: 'awaiting_confirm',
+      subject: t.title,
+      context: t.assignee ? `담당: ${resolveName(t.assignee, nameMap)}` : null,
+      dueAt: due ? due.toISOString() : null,
+      createdAt: safeToIso(t.updatedAt),
+      actor: t.assignee ? { name: resolveName(t.assignee, nameMap) } : null,
+      drawer: { kind: 'task', id: t.id },
+    });
+  }
+
+  // 옛 '완료 피드백(done_feedback)' 대기 목록이 여기 있었다.
   //    그 단계는 2026-04-25 에 폐지됐다 — 컨펌 정책이 충족되면 곧바로 completed 로 전이한다.
   //    그래서 이 쿼리는 **항상 0건**이었다(죽은 코드). 요청자가 승인할 일은 컨펌자 승인(approve)으로 대체됐다.
 
@@ -1017,6 +1054,11 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     const counts = { urgent: 0, today: 0, waiting: 0, week: 0 };
     all.forEach(it => { counts[it.priority] += 1; });
 
+    // Q Task 메뉴 뱃지용 — Q Task 우측 패널이 세는 것과 같은 집합(받은 요청·수정 요청·내가 컨펌·보낸 요청).
+    //   2026-09-07 Irene: "Q task 에 옆에 숫자알림 안떠. 3개 떠야지." — 다른 메뉴엔 다 있는데 여기만 없었다.
+    //   ★ collectTasks 가 만든 것만 센다. 여기서 따로 세면 두 숫자가 갈라진다(#297 과 같은 계열).
+    const taskCount = all.filter(it => it.type === 'task').length;
+
     // Q Bill 메뉴 뱃지용 — 청구 관련 액션 대기 건수 (발행 대기 정기 draft·증빙 발행·입금알림·결제 대기)
     const BILL_TYPES = new Set(['invoice', 'invoice_draft', 'tax_invoice', 'payment_notify']);
     const billCount = all.filter(it => BILL_TYPES.has(it.type)).length;
@@ -1029,8 +1071,9 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     };
 
     // Q Mail 메뉴 뱃지용 — 답변 필요 메일 건수. Q Bill 과 같은 문법(메뉴 옆 뱃지).
-    //   ⚠️ total 에 합산하지 않는다 — "확인 필요" 는 '나에게 귀속된, 내가 완료할 수 있는 액션' 만 담는
-    //   신뢰 자산이다. 회사 공용 메일함은 담당자 미지정이 기본이라 멤버 전원 뱃지가 같은 메일로
+    //   ⚠️ total 에 합산하지 않는다 — "확인 필요" 는 '나에게 귀속된 건' 만 담는 신뢰 자산이다
+    //   (2026-09-07 부터 내가 보낸 요청의 컨펌 진행분도 포함 — 내 요청이라 나에게 귀속된다).
+    //   회사 공용 메일함은 담당자 미지정이 기본이라 멤버 전원 뱃지가 같은 메일로
     //   동시에 오르고, 한 명이 답장해도 나머지는 계속 노이즈를 본다 (공유 큐 ≠ 개인 처리함).
     //   담당자 지정(is_assigned)이 실사용되면 "내 담당 + 3일 경과" 부분집합만 확인 필요로 승격.
     let mailReplyCount = 0;
@@ -1074,7 +1117,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       }
     } catch (e) { console.warn('[todo] mailReplyCount', e.message); }
 
-    return successResponse(res, { items: all, counts, total: all.length, billCount, billTabCounts, mailReplyCount, workspaces });
+    return successResponse(res, { items: all, counts, total: all.length, taskCount, billCount, billTabCounts, mailReplyCount, workspaces });
   } catch (err) {
     return next(err);
   }

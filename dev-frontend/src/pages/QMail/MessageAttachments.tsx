@@ -13,10 +13,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
-import { downloadBlob } from '../../utils/download';
+import { downloadFromApi } from '../../utils/download';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { isNativeApp } from '../../services/native';
-import { Attachments, Attachment, AttachmentGroup, AttachDownloadBtn, AttachErr, ClipIcon } from './MailPage.styles';
+import { Attachments, Attachment, AttachmentGroup, AttachDownloadBtn, AttachDlPct, AttachErr, ClipIcon } from './MailPage.styles';
 
 export interface MailAttachment {
   id: number;
@@ -44,6 +44,8 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
   const { t } = useTranslation('qmail');
   const objUrlsRef = useRef<Map<number, string>>(new Map());
   const [attachErr, setAttachErr] = useState<Record<number, boolean>>({});
+  const [dlId, setDlId] = useState<number | null>(null);
+  const [dlPct, setDlPct] = useState<number | null>(null);
   const { open: openLightbox, lightbox } = useImageLightbox();
 
   const flagAttachErr = useCallback((attId: number) => {
@@ -68,15 +70,26 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
     return () => { map.forEach(u => URL.revokeObjectURL(u)); map.clear(); };
   }, []);
 
+  // 큰 첨부는 몇 초가 걸리는데 아무 표시가 없으면 "눌러도 안 된다" 로 읽힌다
+  //   (Irene: "다운로드 %로 답답함 없게"). 파일 목록·문서와 같은 경로(downloadFromApi)를 쓴다.
   const download = useCallback(async (a: MailAttachment) => {
     if (!a.file_id) return;
+    setDlId(a.id);
+    setDlPct(null);
     try {
-      const r = await apiFetch(`/api/files/${businessId}/${a.file_id}/download`);
-      if (!r.ok) throw new Error('download_failed');
-      await downloadBlob(await r.blob(), a.file_name || 'attachment');
+      await downloadFromApi(
+        `/api/files/${businessId}/${a.file_id}/download`,
+        a.file_name || 'attachment',
+        { onProgress: (p) => setDlPct(p.total && p.total > 0
+          ? Math.min(99, Math.floor((p.received / p.total) * 100))
+          : null) },
+      );
     } catch {
       // 여태 조용히 삼켜서, 실패해도 사용자는 아무 일도 안 일어난 화면만 봤다.
       flagAttachErr(a.id);
+    } finally {
+      setDlId(null);
+      setDlPct(null);
     }
   }, [businessId, flagAttachErr]);
 
@@ -140,10 +153,15 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
                   type="button"
                   data-testid="mail-attach-download"
                   onClick={() => download(a)}
+                  disabled={dlId !== null}
                   title={t('attachment.download', { defaultValue: '내려받기' }) as string}
                   aria-label={`${a.file_name} ${t('attachment.download', { defaultValue: '내려받기' })}`}
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                  {dlId === a.id ? (
+                    <AttachDlPct>{dlPct === null ? '…' : `${dlPct}%`}</AttachDlPct>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                  )}
                 </AttachDownloadBtn>
               )}
               {attachErr[a.id] && (

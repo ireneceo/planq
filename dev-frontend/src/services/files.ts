@@ -535,7 +535,11 @@ export async function revokeShareLink(businessId: number, fileId: string): Promi
 // 다중 파일 ZIP 다운로드 — 브라우저에서 직접 blob 처리.
 // composite ID (`direct-X`, `chat-X`, `task-X`) 를 그대로 백엔드로 전달 → 백엔드가 source 별 테이블에서 찾음.
 // gdrive 등 외부 파일·meeting/post 는 백엔드에서 제외.
-export async function bulkDownloadZip(businessId: number, fileIds: string[]): Promise<{ ok: boolean; skipped: number; message?: string }> {
+export async function bulkDownloadZip(
+  businessId: number,
+  fileIds: string[],
+  onProgress?: (p: { received: number; total: number | null }) => void,
+): Promise<{ ok: boolean; skipped: number; message?: string }> {
   // 지원 source 만 필터 (direct/chat/task) — meeting/post 는 후속
   const supportedIds = fileIds.filter(id => /^(direct|chat|task)-\d+$/.test(id));
   const skipped = fileIds.length - supportedIds.length;
@@ -550,7 +554,29 @@ export async function bulkDownloadZip(businessId: number, fileIds: string[]): Pr
     const j = await r.json().catch(() => ({}));
     return { ok: false, skipped, message: j.message || `http_${r.status}` };
   }
-  const blob = await r.blob();
+  // ZIP 은 서버가 만들면서 흘려보내므로 몇 초~수십 초가 걸린다. 아무 표시가 없으면
+  //   사용자는 고장으로 읽는다(Irene: "다운로드 %로 답답함 없게").
+  //   ★ 스트리밍 ZIP 은 Content-Length 가 없다 — 그때는 퍼센트 대신 받은 양을 보여준다.
+  const total = r.headers.get('content-length') ? Number(r.headers.get('content-length')) : null;
+  let blob: Blob;
+  if (onProgress && r.body && typeof r.body.getReader === 'function') {
+    const reader = r.body.getReader();
+    const chunks: BlobPart[] = [];
+    let received = 0;
+    onProgress({ received: 0, total });
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        chunks.push(value as unknown as BlobPart);
+        received += value.byteLength;
+        onProgress({ received, total });
+      }
+    }
+    blob = new Blob(chunks, { type: r.headers.get('content-type') || 'application/zip' });
+  } else {
+    blob = await r.blob();
+  }
   const today = new Date().toISOString().slice(0, 10);
   await downloadBlob(blob, `planq-files-${today}.zip`);
   return { ok: true, skipped };

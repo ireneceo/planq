@@ -473,7 +473,21 @@
     "noFiles": "결과 없음",
     "noResults": "결과 없음",
     "typeFile": "파일",
-    "typePost": "문서"
+    "typePost": "문서",
+    "drive": {
+      "title": "Google Drive 에서 가져오기",
+      "search": "드라이브 파일 검색...",
+      "loading": "불러오는 중...",
+      "importing": "가져오는 중...",
+      "added": "추가됨",
+      "empty": "PlanQ 가 접근할 수 있는 드라이브 파일이 없습니다. Drive 에서 \"연결 앱으로 열기 › PlanQ\" 를 한 번 거치면 여기에 나타납니다.",
+      "notConnected": "개인 Google Drive 가 연결돼 있지 않습니다. 설정 › 파일·외부 연동에서 연결해 주세요.",
+      "loadFailed": "드라이브 목록을 불러오지 못했습니다",
+      "importFailed": "가져오지 못했습니다",
+      "nativeDoc": "Google 문서·스프레드시트는 원본 파일이 없어 가져올 수 없습니다. Drive 에서 PDF·Office 로 내보낸 뒤 올려 주세요.",
+      "extNotAllowed": "허용되지 않는 파일 형식입니다",
+      "quota": "저장공간이 가득 찼습니다"
+    }
   },
   "installPrompt": {
     "title": "PlanQ 를 앱처럼 사용하기",
@@ -1027,5 +1041,9 @@
     "openSettings": "설정 열기",
     "openSettingsFailed": "설정을 열지 못했습니다. 기기 설정 > PlanQ > 알림에서 켜주세요.",
     "nativeDeniedDesc": "기기 설정 > PlanQ > 알림에서 허용해주세요. 소리가 안 들리면 같은 화면의 \"사운드\" 도 함께 켜주세요."
+  },
+  "lightbox": {
+    "original": "원본",
+    "viewOriginal": "원본 보기"
   }
 }

@@ -19,6 +19,17 @@ type CacheEntry = { url: string; until: number };
 const TTL_MS = 300 * 1000;
 const SAFETY_MS = 30 * 1000;
 
+/** 앱 안에서 폴더로 끌어 옮길 수 있는가 — services/files.moveFile 및 서버 canMutateFile 과 같은 술어.
+ *  ★ 드래그 아웃(OS 로 빼내기)과 **다른 조건**이다. 보안등급이 걸린 파일은 밖으로는 못 나가도
+ *    안에서 폴더 정리는 돼야 한다. 하나로 묶으면 "정리가 안 되는 파일" 이 생긴다. */
+export function isMovableInApp(f: ProjectFile): boolean {
+  return f.source === 'direct' && !!f.deletable;
+}
+
+/** 앱 내부 드래그 페이로드 — 폴더 행이 이 타입으로 드롭을 판정한다.
+ *  text/plain 으로 판정하면 브라우저 밖에서 끌어온 아무 텍스트나 파일 이동으로 읽힌다. */
+export const PLANQ_FILE_MIME = 'application/x-planq-file';
+
 /** 이 파일을 OS 로 끌어낼 수 있는가 — 백엔드 발급 조건과 같은 술어(프론트는 무의미한 요청을 줄인다). */
 export function isDraggableOut(f: ProjectFile): boolean {
   if (f.source !== 'direct') return false;                 // 채팅·업무 첨부는 후속(#228-b)
@@ -45,7 +56,15 @@ export function useFileDragOut(businessId: number | null | undefined) {
   }, [businessId]);
 
   const onDragStart = useCallback((f: ProjectFile, e: React.DragEvent) => {
-    if (!businessId || !isDraggableOut(f)) return;
+    if (!businessId) return;
+
+    // 앱 안에서 폴더로 옮기기 — 밖으로 못 빼내는 파일도 여기까지는 온다.
+    if (isMovableInApp(f)) {
+      try { e.dataTransfer.setData(PLANQ_FILE_MIME, f.id); } catch { /* 미지원 브라우저 */ }
+      e.dataTransfer.effectAllowed = isDraggableOut(f) ? 'copyMove' : 'move';
+    }
+
+    if (!isDraggableOut(f)) return;
     // 앱 안에서 쓰는 링크 — 채팅·메모에 떨어뜨렸을 때 남는 값이다.
     // 여기에 서명 URL 을 넣으면 5분 뒤 죽는 URL 과 사용자 ID 가 대화에 박제된다.
     const appLink = `${window.location.origin}/files?file=${f.id}`;
@@ -71,10 +90,11 @@ export function useFileDragOut(businessId: number | null | undefined) {
 
   /** 카드/행에 그대로 스프레드한다. */
   const getDragProps = useCallback((f: ProjectFile) => {
-    if (!isDraggableOut(f)) return {};
+    // 밖으로 빼낼 수 있거나(OS) 안에서 옮길 수 있으면(폴더) 끌 수 있다.
+    if (!isDraggableOut(f) && !isMovableInApp(f)) return {};
     return {
       draggable: true,
-      onPointerDown: () => prefetch(f),
+      onPointerDown: () => prefetch(f),   // 드래그 아웃 대상만 실제로 발급한다(prefetch 안에서 판정)
       onDragStart: (e: React.DragEvent) => onDragStart(f, e),
     };
   }, [prefetch, onDragStart]);

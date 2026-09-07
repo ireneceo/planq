@@ -105,7 +105,8 @@
       "issue": "Issue",
       "reply": "Reply due",
       "doc_confirm": "Confirmation requested",
-      "doc_commented": "Comment on document"
+      "doc_commented": "Comment on document",
+      "awaiting_confirm": "Confirmation in progress"
     },
     "relTime": {
       "now": "Just now",

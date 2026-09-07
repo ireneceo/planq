@@ -21,7 +21,6 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const personalOauth = require('../services/personalOauth');
 const googleScopes = require('../services/googleScopes');
 const personalCalendar = require('../services/personalCalendar');
-const personalDrive = require('../services/personalDrive');
 const { encrypt } = require('../services/encryption');
 const { logOauthFailure } = require('../utils/oauthLog');
 // ★ 2026-09-04: auth_oauth.js 와 같은 결함 — import 가 없어 호출 시 ReferenceError 였다.
@@ -434,32 +433,7 @@ router.delete('/me/email-accounts/:id', authenticateToken, async (req, res, next
   } catch (err) { next(err); }
 });
 
-// ─── Phase 4 — 개인 Google Drive 파일 목록 (읽기 전용) ──────
-// GET /api/me/drive/files?business_id=&q=&page_token=
-router.get('/me/drive/files', authenticateToken, async (req, res, next) => {
-  try {
-    const bizId = parseInt(req.query.business_id, 10);
-    if (!bizId) return errorResponse(res, 'business_id_required', 400);
-    if (!(await assertBusinessMember(req, bizId))) return errorResponse(res, 'no_business_access', 403);
-
-    const conn = await ExternalConnection.findOne({
-      where: {
-        owner_scope: 'user', user_id: req.user.id, business_id: bizId,
-        provider: 'google_drive', is_active: true,
-      },
-    });
-    if (!conn) return successResponse(res, { connected: false, files: [], next_page_token: null });
-
-    try {
-      const out = await personalDrive.listFiles(conn, { q: req.query.q, pageToken: req.query.page_token });
-      await conn.update({ last_sync_at: new Date(), last_sync_error: null, fail_count: 0 });
-      return successResponse(res, { connected: true, account_email: conn.account_email, ...out });
-    } catch (e) {
-      console.error('[me/drive/files] fetch failed conn=' + conn.id, e.message);
-      await conn.update({ last_sync_error: e.message, fail_count: (conn.fail_count || 0) + 1 }).catch(() => {});
-      return errorResponse(res, `drive_fetch_failed: ${e.message}`, 502);
-    }
-  } catch (err) { next(err); }
-});
+// 개인 Google Drive(목록·가져오기)는 routes/personal_drive.js 로 분리했다 — 경로는 그대로다.
+router.use(require('./personal_drive'));
 
 module.exports = router;

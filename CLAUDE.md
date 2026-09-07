@@ -709,6 +709,27 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
 
 ---
 
+## 파일 첨부는 **통합 컴포넌트 한 곳**에 넣는다 (2026-09-07 박제)
+
+> Irene: *"파일첨부할 때 구글드라이브에서 가져와서 첨부하게 노션처럼도 기능 추가해 달라고 했는데
+> 이것도 파일첨부 통합 컨포넌트에 다 추가 못해?"*
+
+첨부 입력은 `components/Common/AttachmentField.tsx` **하나**다(`FilePicker` 도 이것을 감싼다).
+새 공급원(드라이브·클립보드·URL 등)은 여기 한 곳에 넣는다 — 화면마다 붙이면 업무엔 있고 메일엔 없는
+상태가 된다. 현재 붙어 있는 것: 로컬 업로드 · 워크스페이스 기존 파일/문서 검색 ·
+**개인 Google Drive 가져오기**(`DriveImportSection`).
+
+- **Drive 에서 들인 것은 곧 PlanQ 파일이다** — 결과가 `existingFileIds` 에 그대로 들어가므로
+  호출부는 아무것도 안 바꿔도 된다. 미리보기·공유·보존이 자체 업로드와 완전히 같아진다.
+- **바이트를 우리가 쥔다.** `external_url`(Drive 링크)은 **연결한 구글 계정 본인에게만** 열린다
+  (우리는 `permissions.create` 를 한 번도 부르지 않는다). 링크로 때우면 팀원에게는 안 열린다 —
+  2026-09-03 에 공유 링크가 죽은 원인이 정확히 이것이다.
+- **들이는 구현은 `services/driveImport.js` 하나다.** 워크스페이스 미러(`gdriveIngest`)와
+  개인 첨부(`POST /me/drive/import`)가 같은 함수를 부른다. 베껴 두면 쿼터·dedup·감사 로그·
+  실시간 브로드캐스트가 한쪽에만 남는다. 허용 확장자 목록도 여기 하나뿐이다.
+- **drive.file scope** — PlanQ 가 만들었거나 사용자가 PlanQ 로 연 파일만 보인다. "내 드라이브에 있는데
+  여기 없다" 가 정상이므로 **화면이 그 이유를 말한다**(빈 목록에 안내 문구).
+
 ## 자동저장 (필수)
 
 - **저장이 필요한 모든 입력 폼은 AutoSaveField 컴포넌트를 사용**
@@ -922,6 +943,35 @@ import DetailDrawer from 'components/Common/DetailDrawer';
     - **모달/드로어 루트에 `aria-modal="true"`** — 하니스가 `[aria-modal="true"]` 로만 모달 스코핑(배경 입력 노이즈 차단). 비모달 배너에 `role="dialog"` 금지(→ `complementary`) — 스코핑 오염.
     - **모바일 키보드 가림 회귀 방지** — 키보드 업 시 인플로우 배너(push/install prompt 등)가 세로공간을 잠식하면 `overflow:hidden` 고정크롬(패널 하단 입력줄)이 뷰포트 밖으로 침몰, `ensureFocusedVisible` 이 구제 불가. `body[data-keyboard-up='1']` 계약으로 `@media(max-width:768px)` 게이트하에 억제. (max-width:768px 게이트 필수 — flag 는 세로축소만으로도 켜져 데스크탑 회귀).
     - **하니스 시뮬 함정 2가지** — ①CDP `setDeviceMetricsOverride` 에 `screenOrientation` 넣지 말 것 ②판정 후 `clearDeviceMetricsOverride` 쓰지 말 것(puppeteer viewport 까지 제거 → 데스크탑 환경 오탐). 상세·오탐 사례: `docs/qa/FEEDBACK_REGRESSIONS.md`, 설계 `docs/qa/INSPECTION_PLAYBOOK.md`.
+
+---
+
+## 숫자 배지 계약 — 확인 필요 = 메뉴 배지들의 **합** (2026-09-07 박제)
+
+> Irene: *"나한테 업무요청 온게 이렇게 3가지인데 확인필요에 2개만 나와.
+> 그리고 Q task 에 옆에 숫자알림 안떠. 3개 떠야지.
+> 확인필요는 다른 메뉴들 알림합친 숫자가 되는 거잖아. 아니야?"*
+
+사용자는 두 숫자를 **나란히 놓고 본다.** 어긋나면 어느 쪽이 틀렸는지 알 수 없어 둘 다 못 믿게 된다.
+
+### 규칙
+1. **메뉴 배지는 `GET /api/dashboard/todo` 가 만든 것만 쓴다.** 화면에서 따로 세지 않는다 —
+   같은 값의 공식이 두 벌이면 이미 갈라져 있다(#297 과 같은 계열).
+   응답 필드: `total`(확인 필요) ⊇ `taskCount` · `billCount` · (`mailReplyCount` 는 예외, 아래).
+2. **부분집합 계약** — 모든 메뉴 배지는 `total` 의 부분집합이다.
+   메뉴 배지에 세면서 `total` 에 안 세는 것을 만들지 마라. 그 순간 위 신고가 다시 온다.
+   예외는 **Q mail 뿐**이고 그 이유가 코드 주석에 적혀 있다(공유 큐 ≠ 개인 처리함).
+3. **한 업무 = 한 버킷.** 내가 pending 컨펌자이면서 동시에 요청자인 업무는 '확인 요청 받음' 으로만 센다.
+   두 곳에서 세면 배지가 목록보다 커진다.
+4. **새 항목 종류를 `collectTasks` 에 더하면 화면 라벨(`todo.verb.*`)을 ko/en 같이 만든다.**
+   안 그러면 목록에 동사 키가 그대로 노출된다(상태값 규약과 같은 사고).
+5. 회귀는 `node scripts/e2e/run.js --suite inboxcount` 가 막는다 —
+   서버 숫자 + **화면 배지 가시성** + 중복 계수 + 양성/음성 대조군.
+
+### 2026-09-07 실사례
+`collectTasks` 는 ①미확인 요청 ②수정 요청 ③내가 컨펌자 셋만 모으고
+**'보낸 업무요청(내 요청이 컨펌 단계)' 수집기가 아예 없었다.** Q Task 우측 패널은 그것을 세고
+사이드바는 안 세서 같은 화면에 3과 2가 동시에 떠 있었다. 그리고 Q Task 에는 배지 코드 자체가 없었다.
 
 ---
 

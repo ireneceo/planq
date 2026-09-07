@@ -774,6 +774,10 @@ export const AttachDownloadBtn = styled.button`
   /* 터치 환경에서 타겟 확보 — 반응형 원칙 2 (아이콘 버튼 최소 36) */
   @media (hover: none), (max-width: 640px) { width: 36px; height: 36px; }
 `;
+/* 진행률은 아이콘 자리 안에 들어간다 — 버튼 크기를 바꾸면 첨부 줄이 흔들린다. */
+export const AttachDlPct = styled.span`
+  font-size: 0.625rem; font-weight: 700; color: #0D9488; line-height: 1;
+`;
 export const AttachErr = styled.span`
   font-size: 0.6875rem; font-weight: 500; color: #B91C1C;
 `;

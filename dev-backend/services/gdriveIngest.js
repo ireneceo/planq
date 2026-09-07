@@ -16,21 +16,12 @@
 // ⑦ 업로더  — 연동한 사람(BusinessCloudToken.connected_by). 그 외 후보가 없다.
 //             화면에는 "연동" 임을 같이 표기해야 "내가 안 올린 파일이 내 이름으로" 신고를 막는다.
 // ⑧ Google 네이티브 문서(문서/시트/슬라이드)는 제외 — 바이트 다운로드가 불가하다(export 필요).
-const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
-const { sequelize } = require('../config/database');
-const { File, BusinessStorageUsage, GdriveSyncLog } = require('../models');
-const planEngine = require('./plan');
+const { File, GdriveSyncLog } = require('../models');
 const gdrive = require('./gdrive');
+// 확장자·네이티브 판정은 공용 모듈이 정본을 갖는다(목록이 두 벌이면 반드시 갈라진다).
+const { importDriveFile, ALLOWED_EXT, GOOGLE_NATIVE_PREFIX } = require('./driveImport');
 const { resolveAncestry, ensureFolderChain, newCache } = require('./gdriveTree');
-
-// CLAUDE.md 파일 저장 정책의 허용 확장자. Drive 엔 무엇이든 있으므로 같은 문을 통과시킨다.
-const ALLOWED_EXT = new Set([
-  'jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx',
-  'ppt', 'pptx', 'zip', 'txt',
-]);
-const GOOGLE_NATIVE_PREFIX = 'application/vnd.google-apps.';
 
 function extOf(name) {
   const e = path.extname(String(name || '')).replace('.', '').toLowerCase();
@@ -40,26 +31,6 @@ function extOf(name) {
 async function log(businessId, row) {
   try { await GdriveSyncLog.create({ business_id: businessId, direction: 'drive_to_planq', ...row }); }
   catch (e) { console.warn('[gdriveIngest] log 실패', e.message); }
-}
-
-function uploadPathFor(businessId) {
-  const ym = new Date().toISOString().slice(0, 7);
-  const dir = path.join(__dirname, '..', 'uploads', String(businessId), ym);
-  fs.mkdirSync(dir, { recursive: true });
-  return path.join(dir, crypto.randomUUID());
-}
-
-const { sha256OfFile } = require('../utils/fileHash');   // 해시 규칙 단일 원천
-
-async function downloadTo(drive, fileId, dest) {
-  const stream = await gdrive.getFileStream(drive, fileId);
-  await new Promise((resolve, reject) => {
-    const out = fs.createWriteStream(dest);
-    stream.on('error', reject);
-    out.on('error', reject);
-    out.on('finish', resolve);
-    stream.pipe(out);
-  });
 }
 
 /**
@@ -94,121 +65,24 @@ async function ingestOne(ctx, meta, cache) {
     return { action: 'skip', reason: anc.reason };
   }
 
-  // ③ 쿼터 — 내려받기 **전에** 메타의 크기로 먼저 본다. 큰 파일을 받아놓고 버리지 않게.
-  const size = Number(meta.size || 0);
-  const gate = await planEngine.can(businessId, 'upload_file', { size, external: false });
-  if (!gate.ok) {
-    await log(businessId, {
-      gdrive_file_id: driveId, action: 'skip', reason: gate.reason,
-      detail: { limit: gate.limit, current: gate.current, size },
-    });
-    // ⑤ 저장공간이 찼으면 배치를 멈춘다. 파일 크기 초과는 그 파일만의 문제라 계속 간다.
-    return { action: 'skip', reason: gate.reason, blocked: gate.reason === 'storage_quota_exceeded' };
-  }
-
-  // 폴더 체인 확보 (root 하위의 중간 폴더들을 PlanQ 에도 만든다)
+  // ③~⑥ 쿼터·내려받기·dedup·행 생성·브로드캐스트·감사는 **공용 구현**이 한다.
+  //   개인 Drive 첨부(POST /me/drive/import)도 같은 함수를 부른다 — 여기에 베껴 두면
+  //   한쪽에만 쿼터나 감사 로그가 남는 날이 온다.
   const folderId = await ensureFolderChain(businessId, uploaderId, anc.chain, anc.folderId);
-
-  // 바이트 내려받기
-  let temp = uploadPathFor(businessId);
-  try {
-    await downloadTo(drive, driveId, temp);
-  } catch (e) {
-    try { fs.unlinkSync(temp); } catch { /* noop */ }
-    await log(businessId, { gdrive_file_id: driveId, action: 'skip', reason: 'download_failed', detail: { message: String(e.message).slice(0, 200) } });
-    return { action: 'skip', reason: 'download_failed' };
+  const r = await importDriveFile(ctx, meta, { folderId, visibility: 'L3' });
+  if (!r.ok) {
+    await log(businessId, {
+      gdrive_file_id: driveId, action: 'skip', reason: r.reason, detail: r.detail || null,
+    });
+    return { action: 'skip', reason: r.reason, blocked: !!r.blocked };
   }
-  const actualSize = fs.statSync(temp).size;
-  const hash = await sha256OfFile(temp);
+  if (r.reason === 'already_ingested') return { action: 'skip', reason: 'already_ingested' };
 
-  const t = await sequelize.transaction();
-  let created = null;
-  try {
-    await BusinessStorageUsage.findOrCreate({
-      where: { business_id: businessId },
-      defaults: { business_id: businessId, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
-      transaction: t,
-    });
-    const usage = await BusinessStorageUsage.findOne({
-      where: { business_id: businessId }, lock: t.LOCK.UPDATE, transaction: t,
-    });
-
-    // ③ 커밋 시점 재검증 — 메타 크기와 실제 크기가 다를 수 있고, 그 사이 다른 업로드가 있었을 수 있다.
-    const limit = await planEngine.getLimit(businessId, 'storage_bytes');
-    if (limit !== Infinity && Number(usage.bytes_used) + actualSize > limit) {
-      await t.rollback();
-      fs.unlinkSync(temp);
-      await log(businessId, {
-        gdrive_file_id: driveId, action: 'skip', reason: 'storage_quota_exceeded',
-        detail: { limit, current: Number(usage.bytes_used), size: actualSize, at: 'commit' },
-      });
-      return { action: 'skip', reason: 'storage_quota_exceeded', blocked: true };
-    }
-
-    // dedup — 같은 바이트가 이미 있으면 물리 파일은 하나만 둔다(자체 업로드와 같은 규칙).
-    const existing = await File.findOne({
-      where: { business_id: businessId, content_hash: hash, deleted_at: null }, transaction: t,
-    });
-
-    const row = {
-      business_id: businessId,
-      folder_id: folderId,
-      uploader_id: uploaderId,
-      file_name: String(meta.name).slice(0, 255),
-      file_size: actualSize,
-      mime_type: meta.mimeType || 'application/octet-stream',
-      storage_provider: 'planq',        // 서빙 축 — 바이트는 우리가 가진다
-      origin_provider: 'gdrive',        // 정본 축 — 변경의 진실은 Drive 에 있다
-      external_id: driveId,
-      external_url: meta.webViewLink || null,
-      drive_md5: meta.md5Checksum || null,
-      content_hash: hash,               // sha256 전용 축
-      ref_count: 1,
-      // ⑥ 권위 컬럼 동시 기록 — 한쪽만 쓰면 default 로 새어 전 멤버에게 노출된다.
-      visibility: 'L3',
-      vlevel: 'L3',
-      security_level: 'general',
-    };
-
-    if (existing) {
-      fs.unlinkSync(temp);
-      await existing.increment('ref_count', { transaction: t });
-      created = await File.create({ ...row, file_path: existing.file_path }, { transaction: t });
-      // 물리 바이트가 늘지 않았으므로 쿼터도 증가시키지 않는다.
-    } else {
-      created = await File.create({ ...row, file_path: temp }, { transaction: t });
-      usage.bytes_used = Number(usage.bytes_used) + actualSize;
-      usage.file_count += 1;
-      await usage.save({ transaction: t });
-    }
-    await t.commit();
-    temp = null;
-  } catch (e) {
-    try { await t.rollback(); } catch { /* noop */ }
-    if (temp) { try { fs.unlinkSync(temp); } catch { /* noop */ } }
-    await log(businessId, { gdrive_file_id: driveId, action: 'skip', reason: 'ingest_error', detail: { message: String(e.message).slice(0, 200) } });
-    return { action: 'skip', reason: 'ingest_error' };
-  }
-
-  planEngine.invalidateBusinessCache(businessId);
-  await log(businessId, { gdrive_file_id: driveId, file_id: created.id, action: 'ingest', detail: { folder_id: folderId, size: actualSize } });
-
-  // 실시간 반영 (CLAUDE.md 운영 규칙 16) — 요청 컨텍스트가 없으므로 전역 io 핸들을 쓴다.
-  try {
-    const io = global.__planqIo || null;
-    if (io) io.to(`business:${businessId}`).emit('file:new', created.toJSON());
-  } catch { /* 브로드캐스트 실패가 인제스트를 죽이면 안 된다 */ }
-
-  // 감사 — 주체가 사람이 아니라 연동임을 남긴다.
-  //   ★ 요청 컨텍스트가 없으므로 req 를 받는 logAudit 가 아니라 createAuditLog 를 쓴다
-  //     (없는 함수를 부르면 catch 가 삼켜 감사 로그가 조용히 0건이 된다).
-  require('./auditService').createAuditLog({
-    action: 'file.ingest', targetType: 'file', targetId: created.id,
-    businessId, userId: uploaderId,
-    newValue: { source: 'gdrive', gdrive_file_id: driveId, actor: 'integration' },
+  await log(businessId, {
+    gdrive_file_id: driveId, file_id: r.file.id, action: 'ingest',
+    detail: { folder_id: folderId, size: r.file.file_size },
   });
-
-  return { action: 'ingest', fileId: created.id };
+  return { action: 'ingest', fileId: r.file.id };
 }
 
 /** 여러 건. 쿼터가 차면 그 자리에서 멈춘다(⑤). */

@@ -113,11 +113,16 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
   }
 
   if (isImage(file.mime_type, file.file_name) && hasValidUrl(file.preview_url) && !imgFailed) {
-    // 클릭 시 원본(파라미터 없는 preview_url)으로 확대 라이트박스
+    // 확대해도 **원본을 바로 받지 않는다** — 사진 한 장에 수 MB 를 받아 "한참 걸린다" 가 됐다
+    //   (Irene: "미리보기/원본보기 해서 원본용량으로 문제안생기게 어려워?").
+    //   먼저 1600px 리사이즈본을 띄우고, "원본 보기" 를 누르거나 확대하면 그때 원본을 받는다.
+    //   ★ 1600 은 서버의 ALLOWED_WIDTHS 최대값이다 — 더 큰 값을 적으면 조용히 1600 으로 스냅돼
+    //     "코드는 2048 이라는데 실제로는 1600" 인 거짓 주석이 된다.
     const full = file.preview_url!;
     return (
       <>
-        <PreviewImageBtn type="button" onClick={() => openLightbox([{ src: full, alt: file.file_name }], 0)}
+        <PreviewImageBtn type="button"
+          onClick={() => openLightbox([{ src: withW(full, 1600) || full, fullSrc: full, alt: file.file_name }], 0)}
           title={t('docs.preview.zoom', '클릭하여 확대') as string}>
           {/* ★ 안 보이면 **왜 안 보이는지** 말한다. svg 처럼 서버가 안전을 위해 inline 을 막는
               형식은 여기서 조용히 깨진 채 빈 칸으로 남아 있었다(운영 3건). */}

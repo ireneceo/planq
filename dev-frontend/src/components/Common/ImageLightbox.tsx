@@ -17,13 +17,19 @@
 // 키보드: Esc 닫기. ← / → 갤러리 이동 (다중 이미지일 때).
 // 백드롭 클릭 / 닫기 버튼 / 모바일 1-finger swipe-down 으로 닫기.
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { downloadBlob } from '../../utils/download';
 import styled from 'styled-components';
 import { createPortal } from 'react-dom';
 
 export interface LightboxItem {
+  /** 화면에 **먼저** 띄우는 것 — 리사이즈본(빠름). 없으면 원본이 곧 이것이다. */
   src: string;
   alt?: string;
+  /** 원본. 주면 "원본 보기" 버튼이 생기고, 확대하면 자동으로 여기로 올라간다.
+   *  ★ 원본을 처음부터 띄우면 사진 한 장에 수 MB 를 받는다 — Irene: "이미지 지금 여는데 한참걸려.
+   *    미리보기/원본보기 해서 원본용량으로 문제안생기게 어려워?" */
+  fullSrc?: string;
 }
 
 interface Props {
@@ -38,6 +44,7 @@ interface Props {
 }
 
 const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onClose }) => {
+  const { t } = useTranslation('common');
   // items 또는 src 정규화 — 둘 중 하나만 active
   const normalized: LightboxItem[] | null = useMemo(() => {
     if (items && items.length > 0) return items;
@@ -55,6 +62,9 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
 
   // 이미지 변경 시 zoom/pan 초기화
   useEffect(() => { setScale(1); setTranslate({ x: 0, y: 0 }); }, [idx, items, src]);
+  // 원본으로 올라갔는지 — 항목을 넘기면 다시 리사이즈본부터 시작한다.
+  const [showFull, setShowFull] = useState(false);
+  useEffect(() => { setShowFull(false); }, [idx, items, src]);
 
   const clampScale = (s: number) => Math.max(0.5, Math.min(s, 6));
   const zoomIn = useCallback(() => setScale(s => clampScale(s + 0.25)), []);
@@ -197,6 +207,8 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
   if (!normalized) return null;
 
   const current = normalized[safeIdx];
+  // 확대하면 원본으로 자동 승격 — 확대는 "자세히 보고 싶다" 는 뜻이라 리사이즈본으로는 뭉갠다.
+  const shownSrc = (showFull || scale > 1.01) && current.fullSrc ? current.fullSrc : current.src;
 
   const node = (
     <Backdrop
@@ -256,9 +268,19 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
         </>
       )}
 
+      {current.fullSrc && current.fullSrc !== current.src && (
+        <FullBtn type="button" data-testid="lightbox-full"
+          onClick={(e) => { e.stopPropagation(); setShowFull(true); }}
+          disabled={showFull || scale > 1.01}>
+          {showFull || scale > 1.01
+            ? (t('lightbox.original', { defaultValue: '원본' }) as string)
+            : (t('lightbox.viewOriginal', { defaultValue: '원본 보기' }) as string)}
+        </FullBtn>
+      )}
+
       <Img
-        key={current.src}
-        src={current.src}
+        key={shownSrc}
+        src={shownSrc}
         alt={current.alt || ''}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={onMouseDown}
@@ -414,6 +436,16 @@ const NavBtn = styled.button<{ $side: 'left' | 'right' }>`
     ${p => p.$side === 'left' ? 'left: 24px;' : 'right: 24px;'}
     width: 48px; height: 48px;
   }
+`;
+/* 원본 보기 — 닫기·이동 버튼과 겹치지 않게 좌하단. 안전영역을 침범하지 않는다. */
+const FullBtn = styled.button`
+  position:fixed;left:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:2;
+  padding:7px 12px;border:1px solid rgba(255,255,255,0.35);border-radius:999px;
+  background:rgba(15,23,42,0.62);color:#fff;font-size:0.75rem;font-weight:600;cursor:pointer;
+  backdrop-filter:blur(4px);
+  &:hover:not(:disabled){background:rgba(15,23,42,0.82);}
+  &:disabled{opacity:0.55;cursor:default;}
+  @media (hover: none), (max-width: 640px) { min-height: 40px; padding: 0 14px; }
 `;
 const IndexBadge = styled.div`
   position: absolute;

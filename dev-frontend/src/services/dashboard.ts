@@ -72,6 +72,7 @@ export interface TodoResponse {
   items: TodoItem[];
   counts: Record<TodoPriority, number>;
   total: number;
+  taskCount?: number;  // Q Task 메뉴 뱃지 — 받은 요청·수정 요청·내가 컨펌·보낸 요청 (확인 필요 total 의 부분집합)
   billCount?: number;  // Q Bill 메뉴 뱃지 — 청구 관련 액션 대기 건수
   mailReplyCount?: number;  // Q mail 메뉴 뱃지 — 답변 필요 메일 (확인 필요 total 에는 합산 안 함)
   workspaces?: TodoWorkspace[];

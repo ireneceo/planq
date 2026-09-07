@@ -473,7 +473,21 @@
     "noFiles": "No results",
     "noResults": "No results",
     "typeFile": "File",
-    "typePost": "Doc"
+    "typePost": "Doc",
+    "drive": {
+      "title": "Import from Google Drive",
+      "search": "Search Drive files...",
+      "loading": "Loading...",
+      "importing": "Importing...",
+      "added": "Added",
+      "empty": "No Drive files are accessible to PlanQ. Open a file in Drive with \"Open with › PlanQ\" once and it will appear here.",
+      "notConnected": "Your personal Google Drive isn't connected. Connect it in Settings › Files & integrations.",
+      "loadFailed": "Couldn't load your Drive files",
+      "importFailed": "Couldn't import this file",
+      "nativeDoc": "Google Docs/Sheets have no original file to import. Export to PDF or Office in Drive first.",
+      "extNotAllowed": "This file type isn't allowed",
+      "quota": "Storage is full"
+    }
   },
   "installPrompt": {
     "title": "Use PlanQ like an app",
@@ -1027,5 +1041,9 @@
     "openSettings": "Open Settings",
     "openSettingsFailed": "Couldn't open Settings. Go to Settings > PlanQ > Notifications and turn them on.",
     "nativeDeniedDesc": "Allow notifications in Settings > PlanQ > Notifications. If you hear nothing, turn on \"Sounds\" on the same screen."
+  },
+  "lightbox": {
+    "original": "Original",
+    "viewOriginal": "View original"
   }
 }

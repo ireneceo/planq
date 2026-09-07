@@ -914,6 +914,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const isAdminMode = location.pathname.startsWith('/admin');
   const inboxCounts = useInboxCount(user?.business_id ? Number(user.business_id) : null);
   const inboxCount = inboxCounts.total;
+  const taskMenuCount = inboxCounts.task;  // Q Task 메뉴 뱃지 — 받은 요청·수정 요청·내가 컨펌·보낸 요청
   const billMenuCount = inboxCounts.bill;  // Q Bill 메뉴 뱃지 — 청구 액션 대기 건수
   // Q mail 메뉴 뱃지 — 답변 필요 메일. "확인 필요"(total) 에는 합산하지 않는다:
   //   확인 필요는 '나에게 귀속된, 내가 완료할 수 있는 액션' 만 담는 신뢰 자산이고,
@@ -1332,7 +1333,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   <NavIcon $isCollapsed={isCollapsed}><IconTodo /></NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.inbox', '확인 필요')}</NavLabel>
                   {inboxCount > 0 && (
-                    <InboxBadge $collapsed={isCollapsed} aria-label={t('nav.inboxCount', { count: inboxCount, defaultValue: '미처리 {{count}}건' }) as string}>
+                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-inbox"
+                      aria-label={t('nav.inboxCount', { count: inboxCount, defaultValue: '미처리 {{count}}건' }) as string}>
                       {inboxCount > 99 ? '99+' : inboxCount}
                     </InboxBadge>
                   )}
@@ -1366,9 +1368,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     </NavItem>
                   )}
                   <NavItem to="/tasks" $isCollapsed={isCollapsed} $active={isActive('/tasks')}
-                    title={isCollapsed ? t('nav.task') : undefined}>
+                    title={isCollapsed ? `${t('nav.task')}${taskMenuCount > 0 ? ` (${taskMenuCount})` : ''}` : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}><IconTask /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.task')}</NavLabel>
+                    {taskMenuCount > 0 && (
+                      <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-task"
+                        aria-label={`${t('nav.task')} ${taskMenuCount}`}>
+                        {taskMenuCount > 99 ? '99+' : taskMenuCount}
+                      </InboxBadge>
+                    )}
                   </NavItem>
                   <NavItem to="/projects" $isCollapsed={isCollapsed} $active={isActive('/projects')}
                     title={isCollapsed ? t('nav.project') : undefined}>

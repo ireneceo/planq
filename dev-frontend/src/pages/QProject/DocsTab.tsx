@@ -32,7 +32,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TrashDrawer from './TrashDrawer';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
-import { useFileDragOut } from '../../hooks/useFileDragOut';
+import { useFileDragOut, PLANQ_FILE_MIME, isMovableInApp } from '../../hooks/useFileDragOut';
 import { isEnterAction } from '../../utils/imeKey';
 
 export type DocScope =
@@ -403,6 +403,7 @@ const DocsTab: React.FC<Props> = (props) => {
   const [shareLinkInfo, setShareLinkInfo] = useState<{ url: string; expires: string } | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [zipProgress, setZipProgress] = useState<{ received: number; total: number | null } | null>(null);
   const [opening, setOpening] = useState(false);   // 새 탭 열기 중 (중복 클릭 가드)
   // 단건 다운로드 — 인증 fetch + "받는 중…" 표시 (링크 방식은 401 이라 못 쓴다)
   const dl = useFileDownload();
@@ -427,16 +428,44 @@ const DocsTab: React.FC<Props> = (props) => {
   const onBulkDownload = useCallback(async () => {
     if (selectedDownloadable.length === 0) return;
     setDownloading(true);
+    setZipProgress(null);
     setShareError(null);
     try {
-      const r = await bulkDownloadZip(businessId, selectedDownloadable.map(f => f.id));
+      // 진행률을 흘려 받는다 — 스트리밍 ZIP 은 Content-Length 가 없어 퍼센트가 안 나오므로
+      //   그때는 받은 양(MB)을 보여준다. 아무 표시도 없는 "준비 중..." 이 가장 나쁘다.
+      const r = await bulkDownloadZip(businessId, selectedDownloadable.map(f => f.id), setZipProgress);
       if (!r.ok) {
         setShareError(t('docs.bulk.zipFailed', 'ZIP 다운로드 실패: {{msg}}', { msg: r.message || '' }));
       }
     } finally {
       setDownloading(false);
+      setZipProgress(null);
     }
   }, [selectedDownloadable, businessId, t]);
+
+  const zipProgressText = !zipProgress
+    ? t('docs.bulk.zipDownloading', '준비 중...')
+    : (zipProgress.total && zipProgress.total > 0
+      ? `${Math.min(99, Math.floor((zipProgress.received / zipProgress.total) * 100))}%`
+      : `${(zipProgress.received / (1024 * 1024)).toFixed(1)}MB`);
+
+  // 폴더로 끌어다 놓기 (#파일 정리). 이동 API·권한은 일괄 이동(onMoveTo)과 같은 것을 쓴다.
+  //   ★ 끄는 파일이 선택 안에 있으면 **선택 전체**를 옮긴다 — 10개를 고르고 하나를 끌었는데
+  //     그 하나만 가면 사용자는 나머지가 어디 갔는지 다시 찾아야 한다(탐색기와 같은 관습).
+  //   ★ 실패한 건은 화면에서도 안 옮긴다 — 서버가 거절했는데 화면만 옮기면 새로고침에 되돌아온다.
+  const onDropToFolder = useCallback(async (targetFolderId: number | null, draggedId: string) => {
+    const ids = selectedIds.has(draggedId)
+      ? files.filter(f => selectedIds.has(f.id) && isMovableInApp(f)).map(f => f.id)
+      : [draggedId];
+    const moved: string[] = [];
+    for (const id of ids) {
+      if (await moveFile(businessId, id, targetFolderId)) moved.push(id);
+    }
+    if (!moved.length) return;
+    const movedSet = new Set(moved);
+    setFiles(prev => prev.map(f => movedSet.has(f.id) ? { ...f, folder_id: targetFolderId } : f));
+    setSelectedIds(new Set());
+  }, [businessId, files, selectedIds]);
 
   const onMoveTo = useCallback(async (targetFolderId: number | null) => {
     for (const f of selectedDeletable) {
@@ -622,6 +651,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   const fd = await fetchWorkspaceFolders(businessId);
                   setFolders(fd);
                 }}
+                onDropFiles={onDropToFolder}
                 tr={tr}
               />
             </>
@@ -664,6 +694,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 });
                 await reorderFolder(id, direction);
               }}
+              onDropFiles={onDropToFolder}
               tr={tr}
             />
           )}
@@ -685,7 +716,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   disabled={selectedDownloadable.length === 0 || downloading}
                   onClick={onBulkDownload}>
                   {downloading
-                    ? t('docs.bulk.zipDownloading', '준비 중...')
+                    ? zipProgressText
                     : t('docs.bulk.zipDownload', 'ZIP 다운로드 ({{n}})', { n: selectedDownloadable.length })}
                 </BulkBtn>
                 <BulkBtn type="button"
@@ -857,6 +888,25 @@ const DocsTab: React.FC<Props> = (props) => {
                     <RowUp>{f.uploader_name}</RowUp>
                     <RowDate>{formatDate(f.uploaded_at)}</RowDate>
                     <RowAct>
+                      {/* 목록에서 바로 받기 — 전에는 미리보기를 열어야만 받을 수 있었다.
+                          진행률은 미리보기와 같은 훅(useFileDownload)이 만든다. */}
+                      {!selectMode && f.download_url && f.download_url !== '#' && (
+                        <IconBtn type="button"
+                          disabled={dl.downloading}
+                          title={dl.downloadingId === f.id ? (dl.progressText || '') : tr('docs.download')}
+                          aria-label={tr('docs.download')}
+                          onClick={e => { e.stopPropagation(); dl.start(f.download_url, f.file_name, f.id); }}>
+                          {dl.downloadingId === f.id ? (
+                            <DlPct>{dl.progressText}</DlPct>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7 10 12 15 17 10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                          )}
+                        </IconBtn>
+                      )}
                       {f.deletable && !selectMode && (
                         <IconBtn type="button" title={tr('docs.delete', '삭제')}
                           onClick={e => { e.stopPropagation(); setDeleteConfirm(f); }}>
@@ -1178,6 +1228,40 @@ export default DocsTab;
 
 // ─── 워크스페이스 모드: 프로젝트 그룹 ───
 
+// ─── 폴더 드롭 존 ───
+// 폴더 행이 여러 곳(프로젝트 루트 · 사용자 폴더 · 워크스페이스 트리)에 흩어져 있어
+// 각자 손으로 쓰면 반드시 갈라진다. 한 훅으로 묶어 그대로 스프레드한다.
+//   ★ 판정은 **전용 MIME** 으로만 한다 — text/plain 으로 받으면 브라우저 밖에서 끌어온
+//     아무 텍스트나 "파일 이동" 으로 읽힌다.
+function useFolderDrop(onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>) {
+  const [overKey, setOverKey] = useState<string | null>(null);
+  return (folderId: number | null) => {
+    if (!onDropFiles) return { dropProps: {}, over: false };
+    const key = String(folderId);
+    return {
+      over: overKey === key,
+      dropProps: {
+        onDragOver: (e: React.DragEvent) => {
+          // dragover 에서는 getData 가 빈 문자열이다 — types 로만 판정할 수 있다.
+          if (!Array.from(e.dataTransfer.types).includes(PLANQ_FILE_MIME)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (overKey !== key) setOverKey(key);
+        },
+        onDragLeave: () => setOverKey(k => (k === key ? null : k)),
+        onDrop: (e: React.DragEvent) => {
+          const id = e.dataTransfer.getData(PLANQ_FILE_MIME);
+          setOverKey(null);
+          if (!id) return;                 // 우리 것이 아니면 상위(업로드 드롭존)로 흘려보낸다
+          e.preventDefault();
+          e.stopPropagation();
+          void onDropFiles(folderId, id);
+        },
+      },
+    };
+  };
+}
+
 interface ProjectGroupsProps {
   projectGroups: Array<{ id: number; name: string; color?: string | null; count: number }>;
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
@@ -1252,10 +1336,13 @@ interface FolderTreeProps {
   onRename: (id: number, name: string) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   onReorder: (id: number, direction: 'up' | 'down') => Promise<void>;
+  /** 파일을 이 폴더로 끌어다 놓았을 때. 없으면 드롭 존 자체를 만들지 않는다. */
+  onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>;
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, projectName, selected, onSelect, onCreate, onRename, onDelete, onReorder, tr, foldersOnly }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, projectName, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, tr, foldersOnly }) => {
+  const folderDrop = useFolderDrop(onDropFiles);
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -1292,7 +1379,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
     const isLast = sibIdx === siblings.length - 1;
     return (
       <React.Fragment key={f.id}>
-        <FolderRow $selected={sel} style={{ paddingLeft: 8 + depth * 14 }}
+        <FolderRow $selected={sel} $dropOver={folderDrop(f.id).over} {...folderDrop(f.id).dropProps}
+          style={{ paddingLeft: 8 + depth * 14 }}
           onClick={() => onSelect(f.id)}>
           <FolderIconWrap $selected={sel}>{sel ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
           {renamingId === f.id ? (
@@ -1418,7 +1506,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         <TreeDivider />
 
         {/* 프로젝트 루트 — 프로젝트 이름이 곧 루트, 사용자 폴더 + 자동 수집 전부 하위 */}
-        <FolderRow $selected={selected === 'direct'} onClick={() => onSelect('direct')}>
+        <FolderRow $selected={selected === 'direct'} $dropOver={folderDrop(null).over} {...folderDrop(null).dropProps}
+          onClick={() => onSelect('direct')}>
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
           <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '내 업로드')}</FolderName>
           <FolderCount>{counts.bySrc.direct}</FolderCount>
@@ -1669,13 +1758,16 @@ const FilesArea = styled.div`display:flex;flex-direction:column;gap:10px;min-wid
 
 const TreeRoot = styled.div`display:flex;flex-direction:column;gap:1px;`;
 const TreeDivider = styled.div`height:1px;background:#F1F5F9;margin:6px 0;`;
-const FolderRow = styled.div<{ $selected?: boolean }>`
+const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean }>`
   display:grid;
   grid-template-columns:auto minmax(0,1fr) auto auto;
   align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px;
-  background:${p => p.$selected ? '#F0FDFA' : 'transparent'};
+  background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : 'transparent')};
   color:${p => p.$selected ? '#0F766E' : '#0F172A'};
-  &:hover{background:${p => p.$selected ? '#F0FDFA' : '#F8FAFC'};}
+  /* 끌어온 파일이 여기 떨어진다는 것을 **떨어뜨리기 전에** 알려준다.
+     안쪽 그림자로 그린다 — border 를 켜면 행 높이가 2px 튀어 목록이 흔들린다. */
+  box-shadow:${p => p.$dropOver ? 'inset 0 0 0 2px #14B8A6' : 'none'};
+  &:hover{background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : '#F8FAFC')};}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
 `;
 const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource }>`
@@ -1872,7 +1964,9 @@ const RowCtx = styled.span`font-size:0.6875rem;color:#64748B;white-space:nowrap;
 const RowSize = styled.div`font-size:0.75rem;color:#475569;`;
 const RowUp = styled.div`font-size:0.75rem;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
 const RowDate = styled.div`font-size:0.75rem;color:#64748B;`;
-const RowAct = styled.div`display:flex;justify-content:flex-end;`;
+const RowAct = styled.div`display:flex;justify-content:flex-end;align-items:center;gap:2px;`;
+/* 진행률은 아이콘 자리에 그대로 들어간다 — 행 폭이 바뀌면 목록 전체가 흔들린다. */
+const DlPct = styled.span`font-size:0.625rem;font-weight:700;color:#0D9488;min-width:26px;text-align:center;`;
 const IconBtn = styled.button`
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
   background:transparent;border:none;color:#94A3B8;border-radius:6px;cursor:pointer;
