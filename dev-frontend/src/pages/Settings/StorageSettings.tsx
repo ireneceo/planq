@@ -5,6 +5,7 @@ import { isNativeApp } from '../../services/native';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import DriveLocationPanel from '../../components/Settings/DriveLocationPanel';
 import { fetchStorageStatus, formatBytes, type StorageStatus } from '../../services/files';
 
 interface ProviderState {
@@ -54,13 +55,6 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
   const [planqStatus, setPlanqStatus] = useState<StorageStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<'gdrive' | 'gcal' | null>(null);
-  // 저장 위치 지정 (공유/팀 드라이브)
-  const [relocOpen, setRelocOpen] = useState(false);
-  const [relocValue, setRelocValue] = useState('');
-  const [relocBusy, setRelocBusy] = useState(false);
-  const [relocMsg, setRelocMsg] = useState<{ text: string; err: boolean } | null>(null);
-  /** 옮기기가 막혔을 때만 뜬다 — "그 위치에 새로 만들기" 는 사용자가 한 번 더 눌러야 한다. */
-  const [relocNeedCreate, setRelocNeedCreate] = useState(false);
   // #224 — 완료 신호가 오면 이쪽에서 팝업을 닫는다(팝업 자신은 COOP 로 close 가 거부될 수 있다).
   const popupRef = useRef<Window | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<'gdrive' | 'gcal' | null>(null);
@@ -118,55 +112,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
     } catch { setS3msg({ tone: 'err', text: tr('storage.s3.testFail', '연결 실패') }); }
     finally { setS3busy(false); }
   };
-  // 저장 위치 지정 — 성공/실패를 **둘 다 말한다.** 되돌아가는데 이유를 모르는 것이 이번 사고였다.
-  //   ★ allowCreate 는 **사용자가 다시 눌렀을 때만** true 다. 옮기기 실패에 자동으로 새로 만들면
-  //     전이 오류 한 번에 폴더가 둘로 갈라지고 옛 파일이 남겨진다(오늘 Fable 이 잡은 것과 같은 함정).
-  const applyRelocate = async (allowCreate = false) => {
-    if (relocBusy) return;                       // 중복 제출 가드
-    setRelocBusy(true);
-    setRelocMsg(null);
-    if (!allowCreate) setRelocNeedCreate(false);
-    try {
-      const r = await apiFetch(`/api/cloud/gdrive/${businessId}/root-folder`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location: relocValue.trim(), ...(allowCreate ? { allow_create: true } : {}) }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j?.data) {
-        const code = String(j?.message || '');
-        if (code.startsWith('move_failed_confirm_create')) {
-          // 옮기기가 막혔다 — 무엇을 대신 할 수 있는지 말하고 **한 번 더 묻는다.**
-          setRelocNeedCreate(true);
-          setRelocMsg({ err: true, text: tr('storage.gdriveFolder.moveBlocked') });
-          return;
-        }
-        setRelocMsg({
-          err: true,
-          text: code.startsWith('invalid_folder_location')
-            ? tr('storage.gdriveFolder.errBadLink')
-            : code.startsWith('folder_unusable')
-              ? tr('storage.gdriveFolder.errUnusable')
-              : code.startsWith('workspace_drive_not_connected')
-                ? tr('storage.gdriveFolder.errNotConnected')
-                : tr('storage.gdriveFolder.errGeneric'),
-        });
-        return;
-      }
-      setRelocNeedCreate(false);
-      // 'moved' = 기존 파일이 따라갔다 · 'created' = 새 폴더(옛 파일은 옛 자리에 남는다)
-      setRelocMsg({
-        err: false,
-        text: j.data.how === 'moved'
-          ? (t('storage.gdriveFolder.okMoved', { name: j.data.folder?.name || '' }) as string)
-          : (t('storage.gdriveFolder.okCreated', { name: j.data.folder?.name || '' }) as string),
-      });
-      setRelocValue('');
-      await load();                              // 위치 표시를 즉시 갱신
-    } catch {
-      setRelocMsg({ err: true, text: tr('storage.gdriveFolder.errGeneric') });
-    } finally { setRelocBusy(false); }
-  };
+
 
   const selectProvider = async (p: 'planq' | 'gdrive' | 's3') => {
     setS3busy(true); setS3msg(null);
@@ -385,65 +331,14 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
               드라이브 목록을 못 읽는다(실측: drives.list → insufficient authentication scopes).
               대신 `drive.file` 은 **앱이 만든 파일을 계속 따라가므로** 사용자가 폴더를 옮기면
               접근권이 유지된다. 그래서 "옮기고 → 여기서 확인" 이 성립한다. */}
+        {/* 저장 위치 — 팀(공유) 드라이브로 옮기기까지. components/Settings/DriveLocationPanel 로 분리했다
+            (2026-09-07, 이 파일이 842줄이 되어 컴포넌트 800줄 기준을 넘겼다). */}
         {gdriveConnected && providers.gdrive.folder && !providers.gdrive.needs_reconnect && (
-          <FolderRow data-testid="gdrive-folder-location">
-            <FolderText>
-              {providers.gdrive.folder.reachable === false
-                ? tr('storage.gdriveFolder.unreachable')
-                : providers.gdrive.folder.in_shared_drive
-                  ? (t('storage.gdriveFolder.shared', { name: providers.gdrive.folder.name || '' }) as string)
-                  : (t('storage.gdriveFolder.myDrive', { name: providers.gdrive.folder.name || '' }) as string)}
-            </FolderText>
-            <FolderBtns>
-              {providers.gdrive.folder.web_view_link && (
-                <SmallBtn as="a" href={providers.gdrive.folder.web_view_link} target="_blank" rel="noreferrer">
-                  {tr('storage.gdriveFolder.open')} ↗
-                </SmallBtn>
-              )}
-              {/* 옮긴 뒤 바로 확인할 수 있어야 한다 — 확인할 방법이 없으면 "된 건가?" 로 남는다. */}
-              <SmallBtn type="button" data-testid="gdrive-folder-recheck"
-                disabled={loading} onClick={() => { void load(); }}>
-                {tr('storage.gdriveFolder.recheck')}
-              </SmallBtn>
-              <SmallBtn type="button" data-testid="gdrive-folder-relocate-open"
-                onClick={() => { setRelocOpen((v) => !v); setRelocMsg(null); }}>
-                {tr('storage.gdriveFolder.relocate')}
-              </SmallBtn>
-            </FolderBtns>
-
-            {/* 저장 위치 지정 — Finder(드라이브 데스크톱)에서는 내 드라이브 → 공유 드라이브 이동이
-                소유권 이전이라 처리되지 않고 되돌아간다(Irene 2026-09-07). 관리 정책이 그 이동을
-                막고 있을 수도 있다. 그래서 앱이 대신 한다 — 옮기기가 막혀 있어도
-                **공유 드라이브 안에 새로 만드는 것**은 별개 동작이라 된다(실측). */}
-            {relocOpen && (
-              <RelocBox>
-                <RelocHelp>{tr('storage.gdriveFolder.relocateHelp')}</RelocHelp>
-                <RelocRow>
-                  <RelocInput
-                    data-testid="gdrive-folder-relocate-input"
-                    value={relocValue}
-                    onChange={(e) => setRelocValue(e.target.value)}
-                    placeholder={tr('storage.gdriveFolder.relocatePlaceholder')}
-                    disabled={relocBusy}
-                  />
-                  <SmallBtn type="button" data-testid="gdrive-folder-relocate-submit"
-                    disabled={relocBusy || !relocValue.trim()}
-                    onClick={() => { void applyRelocate(false); }}>
-                    {relocBusy ? tr('storage.gdriveFolder.relocating') : tr('storage.gdriveFolder.relocateApply')}
-                  </SmallBtn>
-                </RelocRow>
-                {relocMsg && <RelocMsg $err={relocMsg.err} role="status">{relocMsg.text}</RelocMsg>}
-                {relocNeedCreate && (
-                  <RelocRow>
-                    <SmallBtn type="button" data-testid="gdrive-folder-relocate-create"
-                      disabled={relocBusy} onClick={() => { void applyRelocate(true); }}>
-                      {tr('storage.gdriveFolder.createThere')}
-                    </SmallBtn>
-                  </RelocRow>
-                )}
-              </RelocBox>
-            )}
-          </FolderRow>
+          <DriveLocationPanel
+            businessId={businessId}
+            folder={providers.gdrive.folder}
+            onChanged={load}
+          />
         )}
         {/* #379 v2 — 역방향 인제스트 상태.
             ★ "아직 안 켜짐" 과 "고장" 은 다른 상태다. 같은 얼굴로 보여주면 사용자는 고장으로 읽는다.
@@ -695,38 +590,6 @@ const NoticeText = styled.div`
 `;
 const CardBody = styled.div`padding-top:4px;`;
 const CardActions = styled.div`display:flex;gap:8px;justify-content:flex-end;`;
-/* 저장 위치 줄 — 안내와 버튼이 한 줄에 못 들어가면 버튼이 아래로 감긴다(폰). */
-const FolderRow = styled.div`
-  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
-  margin-top:10px; padding:10px 12px; border-radius:10px; background:#F8FAFC;
-`;
-const FolderText = styled.p`
-  flex:1 1 240px; min-width:0; margin:0;
-  font-size:0.75rem; line-height:1.55; color:#475569;
-`;
-const FolderBtns = styled.div`display:flex; gap:6px; flex-shrink:0;`;
-const RelocBox = styled.div`flex-basis:100%; margin-top:8px;`;
-const RelocHelp = styled.p`margin:0 0 6px; font-size:0.75rem; line-height:1.55; color:#64748B;`;
-const RelocRow = styled.div`display:flex; gap:6px; flex-wrap:wrap;`;
-const RelocInput = styled.input`
-  flex:1 1 260px; min-width:0; padding:7px 10px;
-  border:1px solid #E2E8F0; border-radius:8px; background:#fff; color:#0F172A; font-size:0.8125rem;
-  /* 폰에서 16px 미만이면 iOS 가 화면을 확대한다 */
-  @media (max-width: 640px){ font-size:1rem; }
-  &:focus{ outline:none; border-color:#14B8A6; }
-`;
-const RelocMsg = styled.p<{ $err?: boolean }>`
-  flex-basis:100%; margin:6px 0 0; font-size:0.75rem; line-height:1.55;
-  color:${p => (p.$err ? '#B91C1C' : '#0F766E')};
-`;
-const SmallBtn = styled.button`
-  display:inline-flex; align-items:center; justify-content:center;
-  padding:6px 10px; border:1px solid #E2E8F0; border-radius:8px; background:#fff;
-  font-size:0.75rem; font-weight:600; color:#0F172A; cursor:pointer; text-decoration:none;
-  &:hover:not(:disabled){ border-color:#CBD5E1; background:#F1F5F9; }
-  &:disabled{ opacity:0.6; cursor:default; }
-  @media (hover: none), (max-width: 640px){ min-height:36px; }
-`;
 const UsageRow = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const UsageBar = styled.div`height:6px;background:#F1F5F9;border-radius:4px;overflow:hidden;`;
 const UsageFill = styled.div`height:100%;background:#14B8A6;transition:width 0.3s;`;
