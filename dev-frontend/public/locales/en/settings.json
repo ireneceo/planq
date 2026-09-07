@@ -257,7 +257,20 @@
       "shared": "Files go to \"{{name}}\" in a shared (team) drive.",
       "unreachable": "Couldn't reach the Drive folder just now. PlanQ will find it again on the next upload.",
       "open": "Open in Drive",
-      "recheck": "Re-check location"
+      "recheck": "Re-check location",
+      "relocate": "Set location",
+      "relocateHelp": "To keep files in a shared (team) drive, open that folder in Drive on the web and paste its address here. PlanQ moves its folder there, or creates one there if moving is blocked. In Finder (Drive for desktop) the move changes ownership and silently reverts — do it here instead.",
+      "relocatePlaceholder": "https://drive.google.com/drive/folders/... or folder ID",
+      "relocateApply": "Apply",
+      "relocating": "Applying...",
+      "okMoved": "Moved the \"{{name}}\" folder. Existing files moved with it.",
+      "okCreated": "Created \"{{name}}\" there. New uploads go to this location — older files stay where they were.",
+      "errBadLink": "Couldn't read that folder address. Open the folder in Drive and copy the address bar as-is.",
+      "errUnusable": "That location can't be used. Check that you're a Content manager or higher on that shared drive.",
+      "errNotConnected": "Google Drive isn't connected.",
+      "errGeneric": "Couldn't change the location. Please try again.",
+      "moveBlocked": "Couldn't move the existing folder there — your Google admin settings may block moving from My Drive to a shared drive. PlanQ can create a new folder there instead. New uploads would go to the new location; existing files stay where they are.",
+      "createThere": "Create a new folder there"
     }
   },
   "brand": {
