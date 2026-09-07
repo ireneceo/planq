@@ -80,8 +80,14 @@ async function importDriveFile(ctx, meta, opts = {}) {
 
   const driveId = meta.id;
   // 멱등 — 같은 Drive 파일을 두 번 들이지 않는다.
+  //   ★ 개인(L1) 파일은 **업로더까지** 키에 넣는다. 안 그러면 같은 Drive 파일을 다른 사람이 들일 때
+  //     남의 개인 파일 행을 그대로 돌려준다(Fable 사후 감사 2026-09-07 실측).
+  //     공용(L2·L3)은 워크스페이스 자산이라 한 벌이면 된다 — 종전대로.
   const already = await File.findOne({
-    where: { business_id: businessId, external_id: driveId, deleted_at: null },
+    where: {
+      business_id: businessId, external_id: driveId, deleted_at: null,
+      ...(visibility === 'L1' ? { uploader_id: uploaderId } : {}),
+    },
   });
   if (already) return { ok: true, reason: 'already_ingested', file: already };
 

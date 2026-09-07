@@ -648,8 +648,11 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
         const drive = await gdrive.getDriveClient(cloudToken);
         // ★ 루트 폴더를 **먼저 보장한다.** 저장된 id 가 낡으면(폴더를 옮기거나 다시 만들면 흔하다)
         //   그 아래 모든 호출이 404 로 죽고 화면에는 "연동이 끊겼다" 로 보인다 — 2026-09-07 실사례.
-        const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
-        await gdrive.ensureRootFolder(drive, cloudToken, biz && (biz.brand_name || biz.name));
+        // ★ 생성 키와 **같은 이름**을 넘긴다 — 연결 시 폴더는 `biz.name` 으로 만들어진다
+        //   (routes/cloud_oauth.js). brand_name 을 쓰면 다른 폴더를 가리켜 남의 것을 채갈 수 있다
+        //   (Fable 사후 감사 2026-09-07 실측).
+        const biz = await Business.findByPk(businessId, { attributes: ['name'] });
+        await gdrive.ensureRootFolder(drive, cloudToken, biz && biz.name);
         // 부모 폴더 결정 — 프로젝트면 프로젝트 폴더, 채팅이면 "Conversations" 공통 폴더
         let parentFolderId;
         if (projectId) {

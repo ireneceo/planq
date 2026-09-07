@@ -58,8 +58,8 @@ async function resolveDrive(req, bizId, scope) {
   // ★ 루트 폴더를 보장한다 — 저장된 id 가 낡으면 그 아래 전부 404 가 나고
   //   화면에는 "연동이 끊겼다" 로 보인다(2026-09-07 실사례: 폴더는 멀쩡했고 id 만 옛것이었다).
   try {
-    const biz = await Business.findByPk(bizId, { attributes: ['name', 'brand_name'] });
-    await gdrive.ensureRootFolder(drive, token, biz && (biz.brand_name || biz.name));
+    const biz = await Business.findByPk(bizId, { attributes: ['name'] });
+    await gdrive.ensureRootFolder(drive, token, biz && biz.name);
   } catch (e) {
     console.warn('[drive] 루트 폴더 보장 실패:', e.message);
   }
@@ -122,6 +122,12 @@ async function importHandler(req, res, next, forcedScope) {
     if (scope === 'personal' && projectId) {
       return errorResponse(res, 'personal_drive_cannot_target_project', 400);
     }
+
+    // ★ 형제 라우트(routes/files.js 업로드)와 **같은 판정**을 쓴다 — 여기만 빠져 있어
+    //   남의 워크스페이스 프로젝트 id 로도 들어왔다(Fable 사후 감사 2026-09-07).
+    const { isProjectInBusiness, isFolderInBusiness } = require('../services/fileScope');
+    if (!(await isProjectInBusiness(projectId, bizId))) return errorResponse(res, 'invalid_project_id', 400);
+    if (!(await isFolderInBusiness(folderId, bizId, projectId))) return errorResponse(res, 'invalid_folder_id', 400);
 
     const r = await resolveDrive(req, bizId, scope);
     if (!r.ok) return errorResponse(res, r.code, r.status);

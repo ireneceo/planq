@@ -228,38 +228,114 @@ async function listDriveFiles(drive, { q, pageSize = 50, pageToken, parentId } =
 }
 
 async function ensureRootFolder(drive, token, businessName) {
+  // 생성 키와 **같은 이름**을 쓴다. cloud_oauth 는 `biz.name` 으로 만드는데 여기서 brand_name 을
+  //   쓰면 서로 다른 폴더를 가리킨다 — Fable 실측: biz5 의 표시명으로 검색하니 **biz3 의 루트**가 잡혔다.
   const name = `PlanQ - ${businessName || 'workspace'}`;
 
   if (token.root_folder_id) {
     try {
-      // supportsAllDrives — 공유(팀) 드라이브에 있는 폴더는 이것 없이는 무조건 404 다.
       const r = await drive.files.get({
         fileId: token.root_folder_id, fields: 'id, trashed', supportsAllDrives: true,
       });
       if (r.data && !r.data.trashed) return token.root_folder_id;
-    } catch { /* 404·권한 — 아래에서 되찾는다 */ }
+    } catch (e) {
+      // ★ **404·삭제만 "낡음" 으로 본다.** 500·타임아웃·403(rate limit)에서 복구로 넘어가면
+      //   전이 장애 때 고객 Drive 에 두 번째 루트 폴더를 만들고 토큰을 덮어쓴다 —
+      //   되돌릴 수 없고, 이후 업로드는 빈 폴더로 간다(Fable 사후 감사 2026-09-07 지적).
+      if (!isNotFoundError(e)) throw e;
+    }
   }
 
+  // ── 되찾기 ──
+  //  ① 우리가 심어 둔 표식(appProperties)으로 — 이름과 무관하고 워크스페이스마다 고유하다.
+  //  ② 없으면 생성 키와 같은 이름으로. 단 **다른 워크스페이스가 이미 쓰는 폴더는 제외**한다.
+  const bizId = String(token.business_id);
   let found = null;
+  // 검색 실패(권한·네트워크)와 "정말 없음" 을 구별해야 한다 — 구별 못 하면 또 새로 만든다.
+  let searched = false;
   try {
-    const q = `mimeType='application/vnd.google-apps.folder' and name='${String(name).replace(/'/g, "\\'")}' and trashed=false`;
-    const list = await drive.files.list({
-      q, fields: 'files(id, name, createdTime, driveId)', orderBy: 'createdTime', pageSize: 5,
-      // ★ corpora:'allDrives' — 사용자가 PlanQ 폴더를 **공유(팀) 드라이브로 옮겨도** 찾아야 한다.
-      //   drive.file scope 는 "앱이 만든 파일" 을 계속 따라가므로 옮겨져도 접근권은 유지된다.
+    const byMark = await drive.files.list({
+      q: `appProperties has { key='planqBusinessId' and value='${escapeDriveQuery(bizId)}' } `
+        + `and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name, createdTime)', orderBy: 'createdTime', pageSize: 5,
       supportsAllDrives: true, includeItemsFromAllDrives: true, corpora: 'allDrives',
     });
-    found = (list.data.files || [])[0] || null;   // 가장 오래된 것 = 원래 쓰던 폴더
+    found = (byMark.data.files || [])[0] || null;
+    searched = true;
   } catch (e) {
-    console.warn('[gdrive] 루트 폴더 검색 실패:', e.message);
+    console.warn('[gdrive] 표식 검색 실패:', e.message);
   }
 
-  const folderId = found ? found.id : (await createRootFolder(drive, businessName)).id;
-  if (folderId !== token.root_folder_id) {
-    await token.update({ root_folder_id: folderId, last_error: null });
-    console.log(`[gdrive] 루트 폴더 ${found ? '재연결' : '신규 생성'} → ${folderId} (biz ${token.business_id})`);
+  if (!found) {
+    try {
+      const byName = await drive.files.list({
+        q: `name='${escapeDriveQuery(name)}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        fields: 'files(id, name, createdTime)', orderBy: 'createdTime', pageSize: 10,
+        supportsAllDrives: true, includeItemsFromAllDrives: true, corpora: 'allDrives',
+      });
+      const claimed = await claimedRootFolderIds(token.business_id);
+      found = (byName.data.files || []).find((f) => !claimed.has(f.id)) || null;
+      searched = true;
+    } catch (e) {
+      console.warn('[gdrive] 이름 검색 실패:', e.message);
+      searched = false;
+    }
   }
-  return folderId;
+
+  if (!found) {
+    // ★ 검색이 **성공했고 정말 없을 때만** 새로 만든다. 검색이 실패한 상태에서 만들면
+    //   멀쩡한 폴더를 두고 두 번째를 만드는 그 사고다.
+    if (!searched) throw new Error('drive_root_folder_lookup_failed');
+    const created = await createRootFolder(drive, businessName);
+    await token.update({ root_folder_id: created.id, last_error: null });
+    console.log(`[gdrive] 루트 폴더 신규 생성 → ${created.id} (biz ${bizId})`);
+    await stampBusinessMark(drive, created.id, bizId);
+    return created.id;
+  }
+
+  if (found.id !== token.root_folder_id) {
+    await token.update({ root_folder_id: found.id, last_error: null });
+    console.log(`[gdrive] 루트 폴더 재연결 → ${found.id} (biz ${bizId})`);
+  }
+  // 다음부터는 이름이 아니라 표식으로 찾는다(이름이 겹쳐도 안전).
+  await stampBusinessMark(drive, found.id, bizId);
+  return found.id;
+}
+
+/** Drive 검색 문자열 이스케이프 — `\` 를 먼저, 그다음 `'`.
+ *  순서를 바꾸면 넣은 백슬래시를 다시 이스케이프해 깨진다. `\` 를 안 막으면 Google 400 이 난다. */
+function escapeDriveQuery(v) {
+  return String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/** 404(또는 파일 없음) 인가 — 그 외 실패를 "낡음" 으로 오해하면 폴더를 남발한다. */
+function isNotFoundError(e) {
+  const code = e && (e.code || e.status || (e.response && e.response.status));
+  if (Number(code) === 404) return true;
+  return /File not found/i.test(String((e && e.message) || ''));
+}
+
+/** 다른 워크스페이스가 이미 루트로 쓰는 폴더 id 들 — 같은 계정에 여러 워크스페이스가 붙었을 때
+ *  이름만 보고 남의 폴더를 채가는 것을 막는다(Fable 실측 사례). */
+async function claimedRootFolderIds(exceptBusinessId) {
+  try {
+    const { BusinessCloudToken } = require('../models');
+    const rows = await BusinessCloudToken.findAll({
+      where: { provider: 'gdrive' }, attributes: ['business_id', 'root_folder_id'],
+    });
+    return new Set(rows
+      .filter((r) => r.root_folder_id && Number(r.business_id) !== Number(exceptBusinessId))
+      .map((r) => r.root_folder_id));
+  } catch { return new Set(); }
+}
+
+/** 폴더에 "이건 이 워크스페이스 것" 표식을 남긴다. 실패해도 흐름을 막지 않는다(다음 기회에 다시 시도). */
+async function stampBusinessMark(drive, fileId, bizId) {
+  try {
+    await drive.files.update({
+      fileId, requestBody: { appProperties: { planqBusinessId: String(bizId) } }, supportsAllDrives: true,
+    });
+  } catch (e) { console.warn('[gdrive] 표식 기록 실패:', e.message); }
 }
 
 /**
