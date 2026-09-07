@@ -42,55 +42,24 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ text: string; err: boolean } | null>(null);
   const [link, setLink] = useState<string | null>(null);
-  /** 옮기기가 막혔을 때만 뜬다 — "그 위치에 새로 만들기" 는 사용자가 한 번 더 눌러야 한다. */
-  const [needCreate, setNeedCreate] = useState(false);
-  const [recheckBusy, setRecheckBusy] = useState(false);
-  const [recheckMsg, setRecheckMsg] = useState<string | null>(null);
 
-  const doRecheck = async () => {
-    if (recheckBusy) return;
-    setRecheckBusy(true);
-    setRecheckMsg(null);
-    try {
-      const r = await apiFetch(`/api/cloud/status/${businessId}`);
-      const j = await r.json().catch(() => ({}));
-      const f = j?.data?.gdrive?.folder;
-      if (!r.ok || !f) { setRecheckMsg(tr('storage.gdriveFolder.recheckFailed')); return; }
-      setRecheckMsg(
-        f.reachable === false
-          ? tr('storage.gdriveFolder.recheckUnreachable')
-          : f.in_shared_drive
-            ? (t('storage.gdriveFolder.recheckShared', { name: f.name || '' }) as string)
-            : (t('storage.gdriveFolder.recheckMyDrive', { name: f.name || '' }) as string),
-      );
-      await onChanged();
-    } catch {
-      setRecheckMsg(tr('storage.gdriveFolder.recheckFailed'));
-    } finally { setRecheckBusy(false); }
-  };
 
-  //   ★ allowCreate 는 **사용자가 다시 눌렀을 때만** true 다. 옮기기 실패에 자동으로 새로 만들면
-  //     전이 오류 한 번에 폴더가 둘로 갈라지고 옛 파일이 남겨진다(2026-09-07 Fable 지적과 같은 함정).
-  const apply = async (allowCreate = false) => {
+  //   ★ 지정한 폴더를 **그대로** 저장 폴더로 쓴다. 그 안에 PlanQ 폴더를 또 만들지 않는다
+  //     (Irene: "지정한 폴더에 추가로 폴더를 만들면 안된다는 거잖아").
+  //     기존 내용물은 새 자리로 옮기고, 몇 개를 옮겼는지 화면이 말한다.
+  const apply = async () => {
     if (busy) return;                              // 중복 제출 가드
     setBusy(true);
     setMsg(null);
-    if (!allowCreate) setNeedCreate(false);
     try {
       const r = await apiFetch(`/api/cloud/gdrive/${businessId}/root-folder`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ location: value.trim(), ...(allowCreate ? { allow_create: true } : {}) }),
+        body: JSON.stringify({ location: value.trim() }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.data) {
         const code = String(j?.message || '');
-        if (code.startsWith('move_failed_confirm_create')) {
-          // 옮기기가 막혔다 — 무엇을 대신 할 수 있는지 말하고 **한 번 더 묻는다.**
-          setNeedCreate(true);
-          setMsg({ err: true, text: tr('storage.gdriveFolder.moveBlocked') });
-          return;
-        }
         setMsg({
           err: true,
           text: code.startsWith('invalid_folder_location')
@@ -103,10 +72,14 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
         });
         return;
       }
-      setNeedCreate(false);
       // 'moved' 기존 파일이 따라감 · 'reused' 이미 있던 우리 폴더 · 'created' 새로 만듦
-      const key = j.data.how === 'moved' ? 'okMoved' : j.data.how === 'reused' ? 'okReused' : 'okCreated';
-      setMsg({ err: false, text: t(`storage.gdriveFolder.${key}`, { name: j.data.folder?.name || '' }) as string });
+      // 몇 개를 옮겼는지 말한다 — "바꿨다" 만 하면 기존 파일이 어떻게 됐는지 알 수 없다.
+      setMsg({
+        err: false,
+        text: j.data.moved_all === false
+          ? (t('storage.gdriveFolder.okPartial', { n: j.data.moved || 0 }) as string)
+          : (t('storage.gdriveFolder.okChanged', { n: j.data.moved || 0 }) as string),
+      });
       setLink(j.data.folder?.web_view_link || null);
       setValue('');
       await onChanged();
@@ -130,17 +103,11 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
             {tr('storage.gdriveFolder.open')} ↗
           </SmallBtn>
         )}
-        <SmallBtn type="button" data-testid="gdrive-folder-recheck"
-          disabled={recheckBusy} onClick={() => { void doRecheck(); }}>
-          {recheckBusy ? tr('storage.gdriveFolder.rechecking') : tr('storage.gdriveFolder.recheck')}
-        </SmallBtn>
         <SmallBtn type="button" data-testid="gdrive-folder-relocate-open"
           onClick={() => { setOpen((v) => !v); setMsg(null); }}>
-          {tr('storage.gdriveFolder.relocate')}
+          {tr('storage.gdriveFolder.change')}
         </SmallBtn>
       </Btns>
-
-      {recheckMsg && <Msg data-testid="gdrive-folder-recheck-msg" role="status">{recheckMsg}</Msg>}
 
       {open && (
         <Box>
@@ -149,7 +116,6 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
           <Preview data-testid="gdrive-relocate-preview">
             {t('storage.gdriveFolder.preview', { name: folder.name || 'PlanQ' }) as string}
           </Preview>
-          <Warn>{tr('storage.gdriveFolder.nestWarn')}</Warn>
           <Row>
             <Input
               data-testid="gdrive-folder-relocate-input"
@@ -159,7 +125,7 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
               disabled={busy}
             />
             <SmallBtn type="button" data-testid="gdrive-folder-relocate-submit"
-              disabled={busy || !value.trim()} onClick={() => { void apply(false); }}>
+              disabled={busy || !value.trim()} onClick={() => { void apply(); }}>
               {busy ? tr('storage.gdriveFolder.relocating') : tr('storage.gdriveFolder.relocateApply')}
             </SmallBtn>
           </Row>
@@ -168,14 +134,6 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
             <Row>
               <SmallBtn as="a" href={link} target="_blank" rel="noreferrer" data-testid="gdrive-relocate-open">
                 {tr('storage.gdriveFolder.openToVerify')} ↗
-              </SmallBtn>
-            </Row>
-          )}
-          {needCreate && (
-            <Row>
-              <SmallBtn type="button" data-testid="gdrive-folder-relocate-create"
-                disabled={busy} onClick={() => { void apply(true); }}>
-                {tr('storage.gdriveFolder.createThere')}
               </SmallBtn>
             </Row>
           )}
@@ -198,7 +156,6 @@ const Preview = styled.p`
   background:#F0FDFA; border:1px solid #CCFBF1;
   font-size:0.75rem; line-height:1.55; color:#0F766E;
 `;
-const Warn = styled.p`margin:0 0 8px; font-size:0.75rem; line-height:1.55; color:#92400E;`;
 const Row = styled.div`display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;`;
 const Input = styled.input`
   flex:1 1 260px; min-width:0; padding:7px 10px;

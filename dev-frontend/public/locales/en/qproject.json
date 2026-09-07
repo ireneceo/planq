@@ -458,7 +458,7 @@
     },
     "cloud": {
       "connectedTitle": "Shared files are stored in Google Drive.",
-      "connectedBody": "Upload in PlanQ, edit in Drive. Files created directly in Drive won't appear in this list.",
+      "connectedBody": "Upload and organise files in PlanQ. Files created directly in Drive won't appear in this list.",
       "openDrive": "Open in Drive",
       "recommendTitle": "Connect Google Drive",
       "recommendDesc": "Keep shared files in Drive and save your storage quota.",

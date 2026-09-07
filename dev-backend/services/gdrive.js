@@ -243,6 +243,11 @@ async function ensureRootFolder(drive, token, businessName) {
       //   전이 장애 때 고객 Drive 에 두 번째 루트 폴더를 만들고 토큰을 덮어쓴다 —
       //   되돌릴 수 없고, 이후 업로드는 빈 폴더로 간다(Fable 사후 감사 2026-09-07 지적).
       if (!isNotFoundError(e)) throw e;
+      // ★ 404 라고 곧 "없는 폴더" 가 아니다. **사용자가 저장 위치로 지정한 폴더**는 우리가 만들지
+      //   않아서 `drive.file` 로 읽히지 않는다(실측). 그런데 그 안에 만들고 옮기는 것은 된다.
+      //   여기서 되찾기로 넘어가면 멀쩡한 저장 위치를 버리고 새 폴더를 만들어 버린다.
+      //   → 읽기 대신 **쓸 수 있는지**로 살아있음을 본다. 읽히기만 하고 못 쓰는 것보다 강한 검사다.
+      if (await canWriteInto(drive, token.root_folder_id)) return token.root_folder_id;
     }
   }
 
@@ -306,6 +311,32 @@ async function ensureRootFolder(drive, token, businessName) {
  *  순서를 바꾸면 넣은 백슬래시를 다시 이스케이프해 깨진다. `\` 를 안 막으면 Google 400 이 난다. */
 function escapeDriveQuery(v) {
   return String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/** 이 폴더 안에 만들 수 있는가 — **읽히지 않는 폴더**(사용자가 지정한 것)의 살아있음 판정.
+ *  임시 폴더를 만들었다 지운다. 실패하면 정말 못 쓰는 자리다.
+ *  ★ 404 경로에서만 부른다(드물다). 매번 부르면 스스로 rate limit 을 올린다.
+ *  ★ 이름을 점으로 시작해 사용자 눈에 잘 안 띄게 하고, 성공/실패와 무관하게 지운다. */
+async function canWriteInto(drive, folderId) {
+  let probeId = null;
+  try {
+    const r = await drive.files.create({
+      requestBody: {
+        name: '.planq-write-check', mimeType: 'application/vnd.google-apps.folder',
+        parents: [folderId],
+      },
+      fields: 'id', supportsAllDrives: true,
+    });
+    probeId = r.data.id;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (probeId) {
+      try { await drive.files.delete({ fileId: probeId, supportsAllDrives: true }); }
+      catch (e) { console.warn('[gdrive] 쓰기 확인용 임시 폴더 정리 실패:', e.message); }
+    }
+  }
 }
 
 /** 404(또는 파일 없음) 인가 — 그 외 실패를 "낡음" 으로 오해하면 폴더를 남발한다. */
@@ -572,6 +603,7 @@ module.exports = {
   ensureRootFolder,
   listDriveFiles,
   grantFileAccess,
+  canWriteInto,
   recordTokenError,
   clearTokenError,
   buildAuthUrl,
