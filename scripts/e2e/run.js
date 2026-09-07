@@ -50,6 +50,9 @@ const SUITES = {
   //   사이드바 안에서 그려진 모달이 우측 상세 패널 뒤로 깔리던 계열(2026-09-07 Irene 신고).
   //   정적 검사(guard --category=modalportal)는 "포털을 쓰는가" 만 본다 — 실제로 보이는지는 여기서.
   modaltop: () => require('./canary-modal-top'),
+  // 메일 본문 iframe 이 내용만큼 커지는가 — srcdoc 은 부모 CSP 를 물려받아서
+  //   인라인 스크립트가 조용히 죽으면 높이가 추정치에 고정된다(2026-09-07 운영 신고).
+  mailframe: () => require('./canary-mail-frame'),
   // 다른 기기에서 바꾼 것이 **보고 있는 화면에 즉시** 오는가 (CLAUDE.md §16).
   //   근태는 되는데 포커스만 소켓 리스너가 없어 30초 폴링에 의존하고 있었다 —
   //   같은 계열에서 한쪽만 빠지면 "어떤 건 되고 어떤 건 안 되는" 것으로 보인다. 둘을 같이 잰다.
@@ -62,13 +65,12 @@ const SUITES = {
   //   임시 platform_admin 계정으로 본다(기본 하니스 계정은 owner 라 옛 백도어를 안 밟아
   //   양성 대조군이 안 뒤집혔다 — 2026-09-07 실측).
   respline: () => require('./canary-responsibility-line'),
-  // rawkey — **아직 게이트에 붙이지 않는다.** 2026-09-07 작성했지만 양성 대조군이 뒤집히지 않았다:
-  //   서버가 주는 로케일에서 `status.active` 를 지우고 폰·데스크탑 둘 다 다시 재도 "노출 0" 이 나온다
-  //   (번들 안에 로케일 사본이 남아 있는 것으로 의심된다 — 소스에서 지우고 재빌드해야 갈린다).
-  //   실패할 수 없는 검사기를 게이트에 붙이면 영원히 초록이다
-  //   (memory feedback_canary_must_match_runner_contract · feedback_guard_must_be_falsified).
-  //   반증이 끝나면 이 줄의 주석을 풀 것. 단독 실행: node scripts/e2e/canary-rawkey.js
-  // rawkey: () => require('./canary-rawkey'),
+  // rawkey — 번역 키가 화면에 그대로 나오는가. 정적 가드는 `t(\`status.${x}\`)` 같은 **동적 키**를
+  //   구조적으로 못 본다(뒤가 런타임 값이라 대조할 대상이 없다). 판정을 화면으로 옮긴다.
+  //   ★ 반증 완료(2026-09-07): 소스 로케일에서 status.* 를 지우고 **재빌드**하면 폰·데스크탑
+  //     두 뷰포트 모두 `status.active` 를 잡는다. 앞서 안 뒤집힌 것은 빌드 산출물만 고치고
+  //     재빌드를 안 해서였다 — 대조군은 **소스에서** 만들어야 한다.
+  rawkey: () => require('./canary-rawkey'),
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };
