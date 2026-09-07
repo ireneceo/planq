@@ -7,6 +7,12 @@
 //   그래서 여기서는 숫자를 재지 않는다 — **그 좌표에서 실제로 무엇이 잡히는지**를 잰다.
 //   (memory feedback_measure_the_screen_not_innertext)
 const b = require('./lib/browser');
+// ★ 뒷정리는 **API 가 아니라 DB 로** 한다. 근태 라우트에는 per-user rate-limit 이 있어
+//   앞 스위트가 전이를 여러 번 하면 이 정리가 429 로 막힌다(2026-09-07 실측:
+//   break-end 429 · clock-out 429 · undo 429 → 알림이 남아 뒤 스위트의 클릭을 가로챘다).
+//   검사기의 원복이 앱의 보호장치에 걸려 실패하면, 그 검사기는 다른 검사를 망가뜨린다.
+require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
+const { sequelize } = require('/opt/planq/dev-backend/config/database');
 
 const TASK_ID = Number(process.env.E2E_MODAL_TASK || 1978);
 const BIZ_ID = Number(process.env.E2E_MODAL_BIZ || 5);
@@ -92,6 +98,7 @@ function probe() {
 async function run() {
   const raw = [];
   const results = [];
+  let earlyReturn = false;
   const { browser, page } = await b.launch();
   try {
     await b.login(page);
@@ -109,7 +116,14 @@ async function run() {
       msg: notice ? `PUT ${put.status} → auto_notice at=${notice.at} can_undo=${notice.can_undo}`
                   : `자동 출근 알림이 안 만들어졌다 (PUT ${put.status}, today=${JSON.stringify(today.body?.data?.state)})`,
     });
-    if (!notice) return { results, browser };
+    if (!notice) {
+      // ★ 러너 계약은 **배열**이다. 여기서 { results, browser } 를 돌려주던 잔재가 남아
+      //   'results is not iterable' FATAL 로 스위트 전체가 중단됐다(2026-09-07 실측 —
+      //   단독 실행에서는 이 경로를 안 타서 영영 안 드러났다).
+      //   memory feedback_canary_must_match_runner_contract 가 정확히 이 계열이다.
+      earlyReturn = true;
+      return results;
+    }
 
     for (const vp of VPS) {
       await page.setViewport({ width: vp.w, height: vp.h });
@@ -198,18 +212,41 @@ async function run() {
     }
   } finally {
     // ─── 원복 — 남의 데이터를 바꿔 놓고 끝내지 않는다 ───
-    await api(page, '/api/attendance/undo-auto-clock-in', { method: 'POST', body: JSON.stringify({ business_id: BIZ_ID }) }).catch(() => null);
+    //   ★ `undo-auto-clock-in` 은 **이벤트가 자동 출근 하나뿐일 때만** 통한다. 오늘 다른 이벤트가
+    //     이미 있으면 안 먹고, 그러면 30분 동안 이 모달이 모든 브라우저에 떠서
+    //     **뒤 스위트의 클릭을 가로챈다**(2026-09-07 실측: mailband·rowtags·aiopen 이 그것 때문에
+    //     빨간불이었다). clock_out 을 하나 얹으면 마지막 이벤트가 clock_in 이 아니게 되어 사라진다.
+    // 이 카나리가 만든 오늘 근태를 지운다(검사용 계정, dev 전용).
+    let leftover = null;
+    try {
+      const [rows] = await sequelize.query(
+        'SELECT id FROM attendance_days WHERE business_id = ? AND user_id = (SELECT id FROM users WHERE email = ?) AND work_date = CURDATE()',
+        { replacements: [BIZ_ID, 'health-check@planq.kr'] });
+      for (const r of rows) {
+        await sequelize.query('DELETE FROM attendance_events WHERE attendance_day_id = ?', { replacements: [r.id] });
+        await sequelize.query('DELETE FROM attendance_days WHERE id = ?', { replacements: [r.id] });
+      }
+      const [after] = await sequelize.query(
+        'SELECT COUNT(*) c FROM attendance_days WHERE user_id = (SELECT id FROM users WHERE email = ?) AND work_date = CURDATE()',
+        { replacements: ['health-check@planq.kr'] });
+      if (Number(after[0].c) > 0) leftover = `근태행 ${after[0].c}건 남음`;
+    } catch (e) { leftover = 'DB 정리 실패: ' + e.message; }
+    if (leftover) raw.push({ name: '정리: 자동출근 알림 잔존', ok: false, msg: `🔴 ${leftover} — 뒤 스위트를 가린다` });
+    // ★ 업무 상태 원복은 **브라우저를 닫기 전에**. 닫은 뒤에 부르면 page 가 죽어 조용히 실패한다
+    //   (그러면 task 1978 이 in_progress 로 남아 다음 실행의 준비가 어긋난다).
     await api(page, `/api/tasks/by-business/${BIZ_ID}/${TASK_ID}`, { method: 'PUT', body: JSON.stringify({ status: 'not_started' }) }).catch(() => null);
+    finish(raw, results);
+    void earlyReturn;
+    await browser.close().catch(() => null);
   }
-  return finish(raw, results, browser);
+  return results;
 }
 
 /** 러너 계약({ name, fail, details })으로 옮기고 브라우저를 닫는다 —
  *  단독 실행만 빨갛고 스위트는 영원히 초록이던 전례를 막는다
  *  (memory feedback_canary_must_match_runner_contract). */
-async function finish(raw, results, browser) {
+function finish(raw, results) {
   for (const r of raw) results.push({ name: r.name, fail: r.ok ? 0 : 1, details: [r.msg] });
-  await browser.close().catch(() => null);
   return results;
 }
 

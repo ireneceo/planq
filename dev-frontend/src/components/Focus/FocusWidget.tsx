@@ -13,6 +13,8 @@ import { useChromeNav } from '../../hooks/useChromeNav';
 import ChromeLink from '../Tab/ChromeLink';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useActivityTracker } from '../../hooks/useActivityTracker';
+import { onSocket } from '../../services/socket';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 
 interface FocusSession {
   id: number;
@@ -122,12 +124,26 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
     };
     window.addEventListener('inbox:refresh', onRefresh);
     window.addEventListener('focus:refresh', onRefresh);
+    // ★ 2026-09-07 — **다른 기기**에서 바꾼 것도 즉시 받는다 (CLAUDE.md §16 (c)).
+    //   Irene: "태블릿에서 좌측메뉴의 업무재개를 눌렀는데 pwa 데스크탑앱에서 바로 적용이 안되는데
+    //           시차가 1분은 있어보여."
+    //   여태 이 위젯에는 소켓 리스너가 **하나도 없었다** — 30초 폴링과 같은 탭 CustomEvent 뿐이라
+    //   기기를 넘으면 최대 30초(폴링이 어긋나면 그 이상) 옛 상태였다. 근태(attendance:updated)는
+    //   같은 계열인데 이미 broadcast 가 있어 529ms 에 반영된다(실측) — 포커스만 빠져 있었다.
+    //   룸은 서버가 연결 시 자동 join 하는 `user:{id}` 다(포커스는 개인 자원이라 워크스페이스로
+    //   뿌리지 않는다). 백엔드: routes/focus.js broadcastFocus.
+    const offSocket = onSocket('focus:updated', onRefresh);
     return () => {
       if (timer) window.clearTimeout(timer);
       window.removeEventListener('inbox:refresh', onRefresh);
       window.removeEventListener('focus:refresh', onRefresh);
+      offSocket();
     };
   }, [enabled, loadCurrent]);
+
+  // ★ §16 (d) 안전망 — PWA 가 백그라운드에 있는 동안 놓친 변경을 복귀 시 회복한다.
+  //   소켓이 끊긴 사이(모바일에서 흔하다)에 바뀐 것은 이벤트로 오지 않는다.
+  useVisibilityRefresh(loadCurrent);
 
   // baseline 갱신 — session.actual_seconds 가 server fetch 로 바뀔 때마다 그 시점을 기록.
   // 카운터는 baseline.actualSec + (Date.now - baseline.at) 으로 계산 (정확한 단조 증가).
@@ -286,7 +302,13 @@ const FocusWidget: React.FC<Props> = ({ isCollapsed, embedded }) => {
   const isIdle = session.auto_paused;
 
   return (
-    <Wrap $embedded={embedded} aria-live="polite">
+    // 하니스 표식 (CLAUDE.md §17) — "포커스가 돌고 있는가" 를 **좌표·텍스트 휴리스틱 없이** 집게 한다.
+    //   2026-09-07 실측: 텍스트로 찾으니 사이드바 시계(13:24)가 타이머로 잡혀 검사가 1ms 만에
+    //   거짓 통과했다. 상태는 값으로 내보낸다.
+    <Wrap $embedded={embedded} aria-live="polite"
+      data-testid="focus-widget"
+      data-focus-state={isIdle ? 'idle' : isPaused ? 'paused' : 'active'}
+      data-focus-task={session.task_id || ''}>
       {/* ★ 한 카드 안(embedded)에서는 점·상태 라벨을 그리지 않는다.
           위 근태 줄이 이미 "근무중" 을 말하고 있어서, 여기 또 점을 찍으면 상태가 두 개로 읽힌다
           (운영: "상태표시도 같이 나열할 수 있지 않아? 근무중이고 업무를 이걸 진행중인건데").

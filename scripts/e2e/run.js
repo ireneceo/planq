@@ -50,6 +50,10 @@ const SUITES = {
   //   사이드바 안에서 그려진 모달이 우측 상세 패널 뒤로 깔리던 계열(2026-09-07 Irene 신고).
   //   정적 검사(guard --category=modalportal)는 "포털을 쓰는가" 만 본다 — 실제로 보이는지는 여기서.
   modaltop: () => require('./canary-modal-top'),
+  // 다른 기기에서 바꾼 것이 **보고 있는 화면에 즉시** 오는가 (CLAUDE.md §16).
+  //   근태는 되는데 포커스만 소켓 리스너가 없어 30초 폴링에 의존하고 있었다 —
+  //   같은 계열에서 한쪽만 빠지면 "어떤 건 되고 어떤 건 안 되는" 것으로 보인다. 둘을 같이 잰다.
+  realtime: () => require('./canary-realtime'),
   // 상세 밴드2 — 폰에서 **몇 줄이고 칩이 성한가**. 줄 수만 보면 2026-09-06 의 음절분해 회귀를
   //   다시 부르고, 칩만 보면 "항상 2줄" 로 되돌아간다. 둘을 한 검사에 묶는다.
   mailband: () => require('./canary-detail-band'),
@@ -100,6 +104,9 @@ async function main() {
     totalFail += printSuite(suite.name || key, results);
   }
   console.log(`\n━━━ 총 실패: ${totalFail} ━━━`);
+  // ★ DB 풀은 **여기서 한 번만** 닫는다. 카나리가 각자 닫으면 뒤 스위트가
+  //   "connection manager was closed" 로 죽는다(2026-09-07 실측). 안 닫으면 프로세스가 안 끝난다.
+  try { require('/opt/planq/dev-backend/config/database').sequelize.close(); } catch { /* 안 쓴 실행 */ }
   process.exit(totalFail > 0 ? 1 : 0);
 }
 

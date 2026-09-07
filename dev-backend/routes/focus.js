@@ -14,6 +14,7 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const { Op } = require('sequelize');
 
 const { authenticateToken } = require('../middleware/auth');
+const { broadcastFocus, broadcastTaskUpdate } = require('../services/focusBroadcast');
 const { successResponse, errorResponse } = require('../utils/response');
 const {
   FocusSession, User, Task, TaskReviewer, AuditLog, Business,
@@ -90,23 +91,6 @@ async function loadTaskInfo(taskId) {
   return t ? { id: t.id, title: t.title, status: t.status, project_id: t.project_id } : null;
 }
 
-// 운영 #38: 포커스 측정시간이 actual_hours 에 반영된 직후 task:updated broadcast.
-// focus 라우트는 세션만 응답하므로, '실제' 시간(task.actual_hours)이 Q Task 리스트·드로어에
-// 새로고침 없이 보이려면 §16 (b) broadcast 가 필요 (start/pause/stop recompute 직후 호출).
-async function broadcastTaskUpdate(req, taskId) {
-  if (!taskId) return;
-  try {
-    const io = req.app.get('io');
-    if (!io) return;
-    const t = await Task.findByPk(taskId);
-    if (!t) return;
-    // #277 — 표시명 포함 직렬화 단일 지점 (raw toJSON 은 사람 정보가 없다).
-    const { serializeTaskForBroadcast } = require('../services/taskBroadcast');
-    const data = (await serializeTaskForBroadcast(t.id, t.business_id)) || t.toJSON();
-    if (t.project_id) io.to(`project:${t.project_id}`).emit('task:updated', data);
-    io.to(`business:${t.business_id}`).emit('task:updated', data);
-  } catch (e) { console.warn('[focus broadcastTaskUpdate]', e.message); }
-}
 
 // ─── GET /current ────────────────────────────────────────────────
 router.get('/current', authenticateToken, async (req, res, next) => {
@@ -125,6 +109,7 @@ router.get('/current', authenticateToken, async (req, res, next) => {
 // ─── POST /start ─────────────────────────────────────────────────
 // body: { business_id, task_id?: number }
 // 동작: 기존 active/paused 있으면 stop (end_reason='switch') → 새 session insert
+
 router.post('/start', authenticateToken, startStopLimiter, async (req, res, next) => {
   try {
     const user = await requireFocusEnabled(req, res);
@@ -187,6 +172,7 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
 
       const taskInfo = await loadTaskInfo(session.task_id);
       const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+      broadcastFocus(req, req.user.id, { state: session.state, task_id: session.task_id });
       return successResponse(res, serializeSession(session, taskInfo, taskAccum));
     } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }
@@ -216,6 +202,7 @@ router.post('/pause', authenticateToken, startStopLimiter, async (req, res, next
     await broadcastTaskUpdate(req, session.task_id);
     const taskInfo = await loadTaskInfo(session.task_id);
     const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    broadcastFocus(req, req.user.id, { state: session.state, task_id: session.task_id });
     return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });
@@ -245,6 +232,7 @@ router.post('/resume', authenticateToken, startStopLimiter, async (req, res, nex
     }).catch(() => null);
     const taskInfo = await loadTaskInfo(session.task_id);
     const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    broadcastFocus(req, req.user.id, { state: session.state, task_id: session.task_id });
     return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });
@@ -254,9 +242,19 @@ router.post('/resume', authenticateToken, startStopLimiter, async (req, res, nex
 router.post('/stop', authenticateToken, startStopLimiter, async (req, res, next) => {
   try {
     const { session_id, end_reason } = req.body;
+    // ★ 2026-09-07 — session_id 검증이 없어 **500** 이 났다:
+    //   `findOne({ where: { id: undefined } })` 를 Sequelize 가 던진다
+    //   ("WHERE parameter \"id\" has invalid \"undefined\" value"). 실측으로 잡았다.
+    //   빠뜨린 인자는 400 으로 말한다 — 서버 오류로 위장하면 부르는 쪽이 원인을 못 찾는다.
+    if (!session_id) return errorResponse(res, 'session_id_required', 400);
     const session = await FocusSession.findOne({ where: { id: session_id, user_id: req.user.id } });
     if (!session) return errorResponse(res, 'session_not_found', 404);
-    if (session.state === 'stopped') return successResponse(res, serializeSession(session, await loadTaskInfo(session.task_id)));
+    // ★ broadcast 는 **상태를 바꾼 뒤**에 한다. 여기서 먼저 쏘면 듣는 쪽이 곧바로 되읽어
+    //   아직 안 바뀐 상태를 가져간다(그러면 실시간인데 값이 옛것이다).
+    if (session.state === 'stopped') {
+      broadcastFocus(req, req.user.id, { state: session.state, task_id: session.task_id });
+      return successResponse(res, serializeSession(session, await loadTaskInfo(session.task_id)));
+    }
     let extraPause = 0;
     if (session.state === 'paused' && session.paused_at) {
       extraPause = Math.max(0, Math.floor((Date.now() - new Date(session.paused_at).getTime()) / 1000));
@@ -280,6 +278,7 @@ router.post('/stop', authenticateToken, startStopLimiter, async (req, res, next)
     }).catch(() => null);
     const taskInfo = await loadTaskInfo(session.task_id);
     const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    broadcastFocus(req, req.user.id, { state: session.state, task_id: session.task_id });
     return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });
@@ -316,6 +315,7 @@ router.post('/idle-discard', authenticateToken, async (req, res, next) => {
     }).catch(() => null);
     const taskInfo = await loadTaskInfo(session.task_id);
     const taskAccum = await sumStoppedFocusSeconds(session.task_id, req.user.id, session.id);
+    broadcastFocus(req, req.user.id, { state: session.state, task_id: session.task_id });
     return successResponse(res, serializeSession(session, taskInfo, taskAccum));
   } catch (err) { next(err); }
 });

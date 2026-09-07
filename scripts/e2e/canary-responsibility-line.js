@@ -88,10 +88,9 @@ async function run() {
       await sequelize.query('DELETE FROM users WHERE id = ?', { replacements: [tmpId] }).catch(() => null);
     }
     await browser.close().catch(() => null);
-    // ★ 2026-09-07 — **DB 풀을 닫는다.** 안 닫으면 이 카나리가 연결을 쥔 채 끝나고,
-    //   같은 실행의 뒤 스위트가 "Too many connections"(dev max_connections=50)로 죽는다.
-    //   실측: 전체 스위트 끝에서 FATAL. 검사기가 다른 검사를 죽이면 게이트 전체를 못 믿는다.
-    await sequelize.close().catch(() => null);
+    // ★ 여기서 풀을 닫지 않는다. `config/database` 는 **한 프로세스에 하나**라, 카나리가 닫으면
+    //   같은 실행의 뒤 스위트가 "ConnectionManager.getConnection was called after the connection
+    //   manager was closed" 로 죽는다(2026-09-07 실측). 닫는 것은 러너가 마지막에 한 번만 한다.
   }
   return results;
 }
