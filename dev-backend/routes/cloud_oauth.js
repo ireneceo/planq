@@ -184,6 +184,10 @@ router.get('/callback/gdrive', async (req, res) => {
           fields: 'files(id, name, createdTime)',
           orderBy: 'createdTime',
           pageSize: 1,
+          // 공유(팀) 드라이브로 옮겨진 옛 폴더도 찾아야 한다 — 없으면 404 라 매번 새로 만든다.
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+          corpora: 'allDrives',
         });
         if (list.data.files && list.data.files.length > 0) {
           folderId = list.data.files[0].id;

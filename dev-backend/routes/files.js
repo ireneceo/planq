@@ -839,6 +839,87 @@ async function canMutateFile(file, req) {
   return false;
 }
 
+// ─── 편집 열기 (Drive 문서) ───
+//
+// Irene: *"기본 문서들 편집 가능하게 열기기능 해주고 하기로 했지?"*
+//
+// 브라우저 안에 자체 Office 편집기를 넣는 것은 별개 제품이다. 대신 **바이트가 Drive 에 있는 파일**은
+// Drive 편집기(문서·스프레드시트·프레젠테이션)가 docx/xlsx/pptx 를 그대로 연다 — 그 문을 연다.
+//
+// ★ 핵심은 링크가 아니라 **권한**이다. `webViewLink` 는 연결한 구글 계정 본인에게만 열린다
+//   (우리는 여태 permissions.create 를 한 번도 안 불렀다). 그래서 팀원에게는 링크를 줘도
+//   "액세스 권한 필요" 만 떴다 — 2026-09-03 공유 링크가 죽은 것과 같은 원인이다.
+//   여기서 요청한 **본인에게만** writer 를 부여하고 링크를 돌려준다.
+//
+// 경계 (좁게 연다):
+//   · 고객(client)·게스트 제외 — 워크스페이스 멤버만
+//   · 파일 조회 권한(canAccessFileByLevel)을 이미 통과한 사람만
+//   · 개인 등급(L1) 파일 제외 — 남의 개인 파일을 Drive 로 열어 주면 안 된다
+//   · security_level='general' 만 — 외부 노출 게이트가 걸린 것은 열지 않는다
+//   · 바이트가 Drive 에 있는 파일만(storage_provider='gdrive' + external_id)
+//   · 권한 부여는 감사 로그에 남긴다(누가 언제 무엇을 열 수 있게 됐는지)
+router.post('/:businessId/:id/drive-edit', authenticateToken, checkBusinessAccess, attachWorkspaceScope(),
+  ...perUserDaily('drive-edit', { perMin: 20, perDay: 300 }), async (req, res, next) => {
+    try {
+      if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
+      const businessId = Number(req.params.businessId);
+      const file = await File.findOne({
+        where: { id: req.params.id, business_id: businessId, deleted_at: null },
+      });
+      if (!file) return errorResponse(res, 'File not found', 404);
+      // ★ 다운로드와 **같은 술어**를 쓴다(canDownloadFile 이 단일 원천). 여기만 따로 쓰면
+      //   "받을 수는 없는데 편집으로는 열리는" 구멍이 생긴다.
+      if (!(await canDownloadFile(req.scope, req.user.id, file))) {
+        return errorResponse(res, 'forbidden', 403);
+      }
+
+      if (file.storage_provider !== 'gdrive' || !file.external_id) {
+        // 자체 스토리지 파일은 Drive 편집기가 열 대상이 아니다. 왜 안 되는지 그대로 말한다.
+        return errorResponse(res, 'not_a_drive_file', 400);
+      }
+      const level = file.vlevel || file.visibility;
+      if (level === 'L1') return errorResponse(res, 'personal_file_not_editable', 403);
+      if (file.security_level && file.security_level !== 'general') {
+        return errorResponse(res, 'restricted_file', 403);
+      }
+
+      const token = await BusinessCloudToken.findOne({
+        where: { business_id: businessId, provider: 'gdrive' },
+      });
+      if (!token) return errorResponse(res, 'workspace_drive_not_connected', 400);
+
+      const drive = await gdrive.getDriveClient(token);
+      let meta;
+      try {
+        const r = await drive.files.get({
+          fileId: file.external_id, fields: 'id, name, webViewLink, mimeType', supportsAllDrives: true,
+        });
+        meta = r.data;
+      } catch (e) {
+        return errorResponse(res, `drive_file_unavailable: ${String(e.message).slice(0, 120)}`, 404);
+      }
+
+      const grant = await gdrive.grantFileAccess(drive, file.external_id, req.user.email, 'writer');
+      if (grant.granted) {
+        require('../services/auditService').createAuditLog({
+          action: 'file.drive_edit_grant', targetType: 'file', targetId: file.id,
+          businessId, userId: req.user.id,
+          newValue: { gdrive_file_id: file.external_id, role: 'writer', how: grant.reason },
+        });
+      }
+      // 링크는 항상 준다 — 권한 부여가 실패해도 이미 접근권이 있을 수 있고,
+      //   최소한 Drive 가 "액세스 요청" 을 띄워 준다. 다만 **왜 못 줬는지는 반드시 같이 말한다.**
+      const okAccess = grant.granted || grant.reason === 'already';
+      return successResponse(res, {
+        edit_url: meta.webViewLink || null,
+        file_name: meta.name,
+        access: okAccess ? (grant.granted ? grant.reason : 'already') : 'not_granted',
+        // 'no_google_account' 는 화면이 사용자 말로 풀어 설명해야 하는 사유다.
+        access_reason: okAccess ? null : grant.reason,
+      });
+    } catch (err) { next(err); }
+  });
+
 // ─── Move (폴더 이동) ───
 
 router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, async (req, res, next) => {

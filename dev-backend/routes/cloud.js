@@ -54,8 +54,41 @@ router.get('/status/:businessId', authenticateToken, checkBusinessAccess, async 
           recent_30d: recent,
         };
       }
+      // PlanQ 폴더가 **어디 있는가** — 내 드라이브인가, 공유(팀) 드라이브인가.
+      //   Irene 은 팀 드라이브 중심을 계속 요구했는데 화면이 위치를 말해 주지 않아
+      //   "제대로 적용됐는지" 를 확인할 방법이 없었다.
+      //   ★ drive.file scope 는 **앱이 만든 파일을 계속 따라간다** — 사용자가 폴더를
+      //     공유 드라이브로 끌어다 놓아도 접근권이 유지된다. 그래서 "옮기세요" 안내가 성립한다.
+      //   ★ 실패해도 설정 화면을 죽이지 않는다(연결 상태 자체는 이미 알고 있다).
+      let folder = null;
+      if (t.provider === 'gdrive' && t.root_folder_id) {
+        try {
+          const gd = require('../services/gdrive');
+          const drive = await gd.getDriveClient(t);
+          const r = await drive.files.get({
+            fileId: t.root_folder_id,
+            fields: 'id, name, driveId, webViewLink, trashed',
+            supportsAllDrives: true,
+          });
+          folder = {
+            id: r.data.id,
+            name: r.data.name,
+            web_view_link: r.data.webViewLink || null,
+            // driveId 가 있으면 공유(팀) 드라이브 안이다. 없으면 연결한 사람의 내 드라이브.
+            in_shared_drive: !!r.data.driveId,
+            trashed: !!r.data.trashed,
+            reachable: true,
+          };
+        } catch (e) {
+          // 404 는 "연결이 죽었다" 가 아니라 "가리키는 곳이 틀렸다" 일 수 있다 —
+          //   업로드·목록 경로의 ensureRootFolder 가 다음 사용 때 스스로 고친다.
+          folder = { reachable: false, reason: String(e.message).slice(0, 120) };
+        }
+      }
+
       statusMap[t.provider] = {
         ingest,
+        folder,
         connected: true,
         account_email: t.account_email,
         root_folder_id: t.root_folder_id,

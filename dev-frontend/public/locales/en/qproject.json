@@ -462,7 +462,10 @@
       "openDrive": "Open in Drive",
       "recommendTitle": "Connect Google Drive",
       "recommendDesc": "Keep shared files in Drive and save your storage quota.",
-      "connectCta": "Connect"
+      "connectCta": "Connect",
+      "inMyDrive": "Files go to \"{{name}}\" in the connected account's My Drive. To use a shared (team) drive, drag this folder into it in Drive — PlanQ keeps access and you don't need to reconnect.",
+      "inSharedDrive": "Files go to \"{{name}}\" in a shared (team) drive.",
+      "folderUnreachable": "Couldn't reach the Drive folder just now. PlanQ will find it again on the next upload — this usually means the folder was moved or recreated."
     },
     "source": {
       "all": "All",
@@ -615,6 +618,11 @@
     "folders": {
       "section": "FOLDERS",
       "empty": "Use + to create a folder"
+    },
+    "driveEdit": {
+      "open": "Edit in Drive",
+      "failed": "Couldn't open this file for editing. Please try again.",
+      "noGoogleAccount": "No Google account is linked to your email, so edit access couldn't be granted. Sign in with a Google account and use \"Request access\" on the Drive screen."
     }
   },
   "pinnedDoc": {

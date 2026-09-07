@@ -454,6 +454,39 @@ const DocsTab: React.FC<Props> = (props) => {
       ? `${Math.min(99, Math.floor((zipProgress.received / zipProgress.total) * 100))}%`
       : `${(zipProgress.received / (1024 * 1024)).toFixed(1)}MB`);
 
+  // 편집 열기 — Drive 에 바이트가 있는 파일을 Drive 편집기로 연다.
+  //   ★ 팝업 차단을 피하려면 **클릭과 같은 턴에** 창을 열어야 한다. 그래서 먼저 빈 창을 띄우고
+  //     서버 응답이 오면 그 창의 주소를 바꾼다(미리보기 '새 탭 열기' 와 같은 방식).
+  //   ★ 권한을 못 준 경우(구글 계정이 없는 주소 등)에도 링크는 열되 **왜 그런지 화면이 말한다** —
+  //     조용히 "액세스 권한 필요" 만 보면 사용자는 고장으로 읽는다.
+  const [editOpening, setEditOpening] = useState(false);
+  const [editNote, setEditNote] = useState<string | null>(null);
+  const openDriveEdit = useCallback(async (f: ProjectFile) => {
+    if (editOpening) return;                 // 중복 제출 가드
+    const parsed = parseFileId(f.id);
+    if (!parsed) return;
+    setEditOpening(true);
+    setEditNote(null);
+    const w = window.open('', '_blank', 'noopener,noreferrer');
+    try {
+      const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/drive-edit`, { method: 'POST' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.data?.edit_url) {
+        if (w) w.close();
+        setEditNote(tr('docs.driveEdit.failed'));
+        return;
+      }
+      if (j.data.access_reason === 'no_google_account') {
+        setEditNote(tr('docs.driveEdit.noGoogleAccount'));
+      }
+      if (w) w.location.href = j.data.edit_url;
+      else window.open(j.data.edit_url, '_blank', 'noopener,noreferrer');
+    } catch {
+      if (w) w.close();
+      setEditNote(tr('docs.driveEdit.failed'));
+    } finally { setEditOpening(false); }
+  }, [businessId, editOpening, tr]);
+
   // 폴더로 끌어다 놓기 (#파일 정리). 이동 API·권한은 일괄 이동(onMoveTo)과 같은 것을 쓴다.
   //   ★ 끄는 파일이 선택 안에 있으면 **선택 전체**를 옮긴다 — 10개를 고르고 하나를 끌었는데
   //     그 하나만 가면 사용자는 나머지가 어디 갔는지 다시 찾아야 한다(탐색기와 같은 관습).
@@ -755,6 +788,8 @@ const DocsTab: React.FC<Props> = (props) => {
           )}
           {shareError && <ErrorBar>{shareError}</ErrorBar>}
           {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
+          {/* 편집 열기 안내 — 링크는 열렸지만 권한을 못 준 경우까지 말한다(조용한 실패 금지). */}
+          {editNote && <ErrorBar data-testid="drive-edit-note" onClick={() => setEditNote(null)}>{editNote}</ErrorBar>}
           {shareLinkInfo && (
             <ShareLinkBar>
               <strong>{t('docs.bulk.shareCreated', '공유 링크 생성 — 클립보드에 복사됨')}</strong>
@@ -1009,6 +1044,19 @@ const DocsTab: React.FC<Props> = (props) => {
                     </svg>
                   </HeaderIconBtn>
                   ); })()}
+                  {/* 편집 열기 — 바이트가 Drive 에 있는 파일만. Drive 편집기가 docx/xlsx/pptx 를 그대로 연다.
+                    * ★ 링크만으로는 **연결 계정 본인에게만** 열린다 — 서버가 요청자에게 권한을 주고 링크를 준다. */}
+                  {preview.storage_provider === 'gdrive' && (
+                    <HeaderIconBtn type="button"
+                      data-testid="file-drive-edit"
+                      disabled={editOpening}
+                      onClick={() => openDriveEdit(preview)}
+                      title={tr('docs.driveEdit.open')} aria-label={tr('docs.driveEdit.open')}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      </svg>
+                    </HeaderIconBtn>
+                  )}
                   {/* ★ 여기는 원래 `<a href download>` 였다 — 그 라우트는 Bearer 헤더를 요구해서
                     * 링크로는 100% 401 이었다(실측). 인증 fetch 로 받고, 받는 동안 상태를 보여준다. */}
                   {(() => { const dlLabel = tr('docs.download', '다운로드'); return (

@@ -16,6 +16,14 @@ interface CloudStatus {
     connected: boolean;
     account_email?: string;
     root_folder_id?: string;
+    /** PlanQ 폴더가 어디 있는가 — 서버가 Drive 에 실제로 물어본 값. */
+    folder?: {
+      name?: string;
+      web_view_link?: string | null;
+      /** true = 공유(팀) 드라이브 안. false = 연결한 사람의 내 드라이브. */
+      in_shared_drive?: boolean;
+      reachable?: boolean;
+    } | null;
   };
 }
 
@@ -43,9 +51,13 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
 
   const gdrive = status?.gdrive;
   const connected = !!gdrive?.connected;
-  const driveLink = gdrive?.root_folder_id
-    ? `https://drive.google.com/drive/folders/${gdrive.root_folder_id}`
-    : null;
+  const folder = gdrive?.folder || null;
+  const driveLink = folder?.web_view_link
+    || (gdrive?.root_folder_id ? `https://drive.google.com/drive/folders/${gdrive.root_folder_id}` : null);
+  // 팀 드라이브를 쓰고 싶은데 폴더가 내 드라이브에 있으면 그 사실과 옮기는 법을 말해 준다.
+  //   ★ drive.file 권한은 **앱이 만든 파일을 계속 따라간다** — 폴더를 공유 드라이브로 끌어다 놓아도
+  //     PlanQ 접근권은 유지된다. 그래서 "옮기세요" 가 성립하고, 재연동도 필요 없다.
+  const inMyDrive = !!folder && folder.reachable !== false && folder.in_shared_drive === false;
 
   if (connected) {
     return (
@@ -59,6 +71,21 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
           <NoticeAction as="a" href={driveLink} target="_blank" rel="noreferrer">
             {t('docs.cloud.openDrive', { defaultValue: 'Drive 폴더 열기' })} ↗
           </NoticeAction>
+        )}
+        {folder?.reachable === false && (
+          <NoticeSub data-testid="cloud-folder-unreachable">
+            {t('docs.cloud.folderUnreachable')}
+          </NoticeSub>
+        )}
+        {folder?.in_shared_drive && (
+          <NoticeSub data-testid="cloud-folder-shared">
+            {t('docs.cloud.inSharedDrive', { name: folder.name || '' })}
+          </NoticeSub>
+        )}
+        {inMyDrive && (
+          <NoticeSub data-testid="cloud-folder-mydrive">
+            {t('docs.cloud.inMyDrive', { name: folder?.name || '' })}
+          </NoticeSub>
         )}
       </ConnectedNotice>
     );
@@ -77,6 +104,15 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
     </RecommendNotice>
   );
 };
+
+const NoticeSub = styled.p`
+  /* 안내 본문 아래 한 줄 — 줄바꿈해도 액션 버튼을 밀지 않도록 전체 폭을 차지한다. */
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: #475569;
+`;
 
 export default CloudConnectNotice;
 

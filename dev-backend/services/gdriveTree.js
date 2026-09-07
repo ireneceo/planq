@@ -95,7 +95,7 @@ async function resolveAncestry(drive, ctx, fileMeta, cache) {
     // 모르는 폴더 — Drive 에 물어본다. 못 읽으면 **밖**이다(fail-closed).
     let meta;
     try {
-      const r = await drive.files.get({ fileId: current, fields: 'id, name, parents, trashed, mimeType' });
+      const r = await drive.files.get({ fileId: current, fields: 'id, name, parents, trashed, mimeType', supportsAllDrives: true });
       meta = r.data;
     } catch (e) {
       const code = e?.code || e?.response?.status || 0;

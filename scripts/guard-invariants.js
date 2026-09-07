@@ -1771,6 +1771,62 @@ function checkModalPortal() {
   );
 }
 
+// ═══════════════════════════════════════════════
+// sharedrive — Drive API 호출은 **공유(팀) 드라이브를 볼 수 있어야** 한다 (2026-09-07 박제)
+//   Irene: "나는 팀 드라이브 중심으로 계속 요구한거고 그에 따라 기능이 제대로 적용되고"
+//
+//   Google Drive API v3 는 `supportsAllDrives` 가 없으면 공유 드라이브의 파일·폴더를
+//   **404 "File not found"** 로 준다. "권한 없음" 도 "토큰 만료" 도 아니고 **없는 것처럼** 응답한다.
+//   그래서 이 누락은 연결 문제로 오진되고(실제로 그랬다), 팀 드라이브 요구가 구조적으로 성립하지 않는다.
+//   2026-09-07 이전에는 이 파라미터가 코드 전체에 **한 군데도 없었다.**
+//
+//   판정: `drive.files.<op>({...})` · `drive.changes.list({...})` 첫 인자에 supportsAllDrives 가 있는가.
+//         list 계열은 includeItemsFromAllDrives 도 함께.
+//   ★ 하드 게이트 — 래칫이 아니다. 새 호출을 추가하면 그 자리에서 실패한다.
+// ═══════════════════════════════════════════════
+function checkSharedDrive() {
+  // ★ `dev-backend/test-*.js` 는 제외한다 — CLAUDE.md 검증 관례상 만들고 바로 지우는 임시
+  //   스크립트이고 .gitignore 에도 들어 있다. 제품 코드가 아닌 것으로 하드 게이트가 깨지면
+  //   진짜 위반이 묻힌다(2026-09-07: 검증 중이던 임시 파일 때문에 빨간불이 났다).
+  const files = walk(`${ROOT}/dev-backend`, ['.js'])
+    .filter((f) => !/node_modules/.test(f))
+    .filter((f) => !/\/dev-backend\/test-[^/]*\.js$/.test(f));
+  const bad = [];
+  let total = 0;
+  const re = /drive\.(files\.(?:create|get|list|update|delete)|changes\.list)\(\{/g;
+  for (const f of files) {
+    const src = read(f);
+    if (!/drive\.(files|changes)\./.test(src)) continue;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      // 첫 인자 객체를 중괄호 균형으로 잘라낸다
+      let depth = 1;
+      let j = m.index + m[0].length;
+      while (depth > 0 && j < src.length) {
+        if (src[j] === '{') depth++;
+        else if (src[j] === '}') depth--;
+        j++;
+      }
+      const body = src.slice(m.index + m[0].length, j - 1);
+      total++;
+      const isList = /list$/.test(m[1]);
+      const missing = [];
+      if (!/supportsAllDrives/.test(body)) missing.push('supportsAllDrives');
+      if (isList && !/includeItemsFromAllDrives/.test(body)) missing.push('includeItemsFromAllDrives');
+      if (missing.length) {
+        const line = src.slice(0, m.index).split('\n').length;
+        bad.push(`${rel(f)}:${line} drive.${m[1]} — ${missing.join(', ')} 누락 (공유 드라이브가 404 로 보인다)`);
+      }
+    }
+  }
+  report(
+    'sharedrive',
+    `Drive 호출 공유드라이브 지원 (하드 게이트 · 호출 ${total}곳)`,
+    bad.length === 0,
+    bad.length ? bad : [`전 호출이 supportsAllDrives 를 넘긴다`],
+  );
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1804,6 +1860,7 @@ const CATEGORIES = {
   statuslabel: checkStatusLabel,
   overlaytop: checkOverlayTop,
   modalportal: checkModalPortal,
+  sharedrive: checkSharedDrive,
 };
 
 try {

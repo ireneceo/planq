@@ -144,6 +144,61 @@ async function createRootFolder(drive, businessName) {
  * 인증 클라이언트만 다르다. 베껴 두면 한쪽에만 검색이나 페이지네이션이 남는다.
  * ★ drive.file scope — 앱이 만들었거나 사용자가 앱으로 연 파일만 보인다.
  */
+/**
+ * 이 파일을 **편집할 수 있게** 사람에게 권한을 준다 (2026-09-07).
+ *
+ * Irene: *"기본 문서들 편집 가능하게 열기기능 해주고 하기로 했지?"*
+ *
+ * 왜 권한 부여가 필요한가 — `webViewLink` 는 **연결한 구글 계정 본인에게만** 열린다.
+ *   우리는 여태 `permissions.create` 를 한 번도 부른 적이 없어서, 링크를 준 팀원은
+ *   "액세스 권한 필요" 만 봤다(2026-09-03 공유 링크가 죽은 것과 같은 원인).
+ * ★ `drive.file` scope 로도 **앱이 만든 파일**의 권한은 관리할 수 있다 — 그래서 이게 가능하다.
+ * ★ 알림 메일을 보내지 않는다(`sendNotificationEmail: false`). 우리가 부른 적 없는 외부 발송이
+ *   사용자 이름으로 나가면 안 된다.
+ * ★ 이미 권한이 있으면 아무것도 하지 않는다(멱등) — 부를 때마다 권한 행이 쌓이면 안 된다.
+ *
+ * @returns {{ granted: boolean, reason?: string }}
+ */
+async function grantFileAccess(drive, fileId, email, role = 'writer') {
+  const addr = String(email || '').trim().toLowerCase();
+  if (!addr || !addr.includes('@')) return { granted: false, reason: 'no_email' };
+  try {
+    const cur = await drive.permissions.list({
+      fileId, fields: 'permissions(id, emailAddress, role, type)', supportsAllDrives: true,
+    });
+    const mine = (cur.data.permissions || []).find(
+      (p) => String(p.emailAddress || '').toLowerCase() === addr,
+    );
+    // 이미 쓰기 이상이면 그대로 둔다. 읽기만 있으면 올려 준다.
+    if (mine && (mine.role === 'writer' || mine.role === 'owner' || mine.role === 'organizer')) {
+      return { granted: false, reason: 'already' };
+    }
+    if (mine) {
+      await drive.permissions.update({
+        fileId, permissionId: mine.id, requestBody: { role }, supportsAllDrives: true,
+      });
+      return { granted: true, reason: 'upgraded' };
+    }
+    await drive.permissions.create({
+      fileId,
+      requestBody: { type: 'user', role, emailAddress: addr },
+      sendNotificationEmail: false,
+      supportsAllDrives: true,
+    });
+    return { granted: true, reason: 'created' };
+  } catch (e) {
+    const msg = String(e.message || '');
+    // ★ 구글은 **구글 계정이 없는 주소**에는 권한을 못 준다(2026-09-07 실측):
+    //   "You are trying to invite … As there is no Google account associated with this email address…"
+    //   PlanQ 계정 이메일이 곧 구글 계정은 아니므로 흔한 경우다. 화면이 사용자 말로 설명해야 한다
+    //   — `drive_error:` 로 뭉뚱그리면 "안 열린다" 로만 보인다.
+    if (/no Google account/i.test(msg) || /not.*Google account/i.test(msg)) {
+      return { granted: false, reason: 'no_google_account' };
+    }
+    return { granted: false, reason: `drive_error: ${msg.slice(0, 120)}` };
+  }
+}
+
 async function listDriveFiles(drive, { q, pageSize = 50, pageToken, parentId } = {}) {
   const kw = q ? String(q).trim().slice(0, 100).replace(/'/g, "\\'") : null;
   const clauses = ['trashed=false'];
@@ -189,8 +244,10 @@ async function ensureRootFolder(drive, token, businessName) {
   try {
     const q = `mimeType='application/vnd.google-apps.folder' and name='${String(name).replace(/'/g, "\\'")}' and trashed=false`;
     const list = await drive.files.list({
-      q, fields: 'files(id, name, createdTime)', orderBy: 'createdTime', pageSize: 5,
-      supportsAllDrives: true, includeItemsFromAllDrives: true,
+      q, fields: 'files(id, name, createdTime, driveId)', orderBy: 'createdTime', pageSize: 5,
+      // ★ corpora:'allDrives' — 사용자가 PlanQ 폴더를 **공유(팀) 드라이브로 옮겨도** 찾아야 한다.
+      //   drive.file scope 는 "앱이 만든 파일" 을 계속 따라가므로 옮겨져도 접근권은 유지된다.
+      supportsAllDrives: true, includeItemsFromAllDrives: true, corpora: 'allDrives',
     });
     found = (list.data.files || [])[0] || null;   // 가장 오래된 것 = 원래 쓰던 폴더
   } catch (e) {
@@ -438,6 +495,7 @@ module.exports = {
   SCOPES,
   ensureRootFolder,
   listDriveFiles,
+  grantFileAccess,
   recordTokenError,
   clearTokenError,
   buildAuthUrl,

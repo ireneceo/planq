@@ -1,0 +1,60 @@
+{
+  "version": "1.48.12",
+  "date": "2026-09-07",
+  "items": [
+    {
+      "ko": { "title": "Q Task 메뉴 옆에 숫자가 뜹니다",
+        "body": "Q talk·Q mail·Q Bill 에는 있던 숫자 배지가 Q Task 에만 없었습니다. 이제 '받은 업무요청 · 확인 요청 받음 · 보낸 업무요청' 을 합한 수가 메뉴 옆에 뜹니다. 왼쪽 메뉴의 '확인 필요' 는 이 숫자를 포함한 합계라, 두 숫자가 서로 어긋나지 않습니다." },
+      "en": { "title": "Q Task now shows a count next to it",
+        "body": "Q talk, Q mail and Q Bill had a badge; Q Task did not. It now shows the total of requests received, approvals waiting on you, and requests you sent. The sidebar's Needs review includes that number, so the two no longer disagree." }
+    },
+    {
+      "ko": { "title": "내가 보낸 업무가 검토 단계에 오면 알려 드립니다",
+        "body": "담당자가 결과물을 올리고 컨펌을 요청하면 여태 컨펌하는 사람에게만 알림이 갔습니다. 정작 그 일을 요청한 사람은 결과가 온 것을 모르고 지나갔고, '확인 필요' 목록에도 잡히지 않았습니다. 이제 요청한 분에게도 알림이 가고 목록에도 올라옵니다. 요청한 분이 곧 컨펌하는 분이면 알림은 한 번만 갑니다." },
+      "en": { "title": "You're told when a task you requested reaches review",
+        "body": "When an assignee submitted their work, only the approvers were notified. The person who requested the task never heard that the result had arrived, and it did not appear in Needs review either. Both are fixed. If you are also the approver, you still get just one notification." }
+    },
+    {
+      "ko": { "title": "파일을 폴더로 끌어다 놓을 수 있습니다",
+        "body": "파일 목록에서 파일을 집어 왼쪽 폴더에 놓으면 그 폴더로 옮겨집니다. 여러 개를 고른 뒤 그중 하나를 끌면 고른 것이 모두 함께 갑니다. 목록에 다운로드 버튼도 생겼습니다 — 전에는 미리보기를 열어야만 받을 수 있었습니다." },
+      "en": { "title": "Drag files onto folders",
+        "body": "Pick up a file in the list and drop it on a folder in the sidebar to move it. If you had several selected and drag one of them, they all move together. The list also has a download button now — previously you had to open the preview to download." }
+    },
+    {
+      "ko": { "title": "받는 동안 몇 퍼센트인지 보입니다",
+        "body": "큰 파일이나 ZIP 을 받을 때 아무 표시가 없어 멈춘 것처럼 보였습니다. 이제 파일 목록·메일 첨부·ZIP 내려받기에서 진행률이 보입니다. 전체 크기를 서버가 알려주지 않는 경우에는 지금까지 받은 용량을 보여 줍니다." },
+      "en": { "title": "Downloads show how far along they are",
+        "body": "Large files and ZIPs gave no feedback, so they looked stuck. File lists, mail attachments and ZIP downloads now show progress — a percentage when the size is known, otherwise how much has arrived." }
+    },
+    {
+      "ko": { "title": "이미지가 훨씬 빨리 열립니다",
+        "body": "이미지를 크게 볼 때 원본을 통째로 받고 있어서 사진 한 장에 수 MB 를 기다려야 했습니다. 이제 화면에 맞춘 가벼운 이미지를 먼저 띄우고, '원본 보기' 를 누르거나 확대할 때만 원본을 받습니다." },
+      "en": { "title": "Images open much faster",
+        "body": "Opening an image full-size fetched the original file, so a single photo could mean waiting on several megabytes. A screen-sized version now loads first, and the original is fetched only when you choose View original or zoom in." }
+    },
+    {
+      "ko": { "title": "Google Drive 에서 파일을 가져와 첨부할 수 있습니다",
+        "body": "업무·문서·메일·채팅의 첨부 창에 'Drive 에서 가져오기' 가 생겼습니다. 워크스페이스에 연결된 팀 Drive 에서 파일을 고르면 PlanQ 로 들어와, 올린 파일과 똑같이 미리보기·공유·보관이 됩니다. 개인 Drive 는 개인 자리에서만 쓰입니다." },
+      "en": { "title": "Attach files straight from Google Drive",
+        "body": "Attachment panels in tasks, documents, mail and chat now offer Import from Drive. Files you pick from the workspace's team Drive come into PlanQ and behave exactly like uploaded files — preview, sharing and retention all work. Your personal Drive is used only in personal areas." }
+    },
+    {
+      "ko": { "title": "Drive 문서를 편집기로 바로 엽니다",
+        "body": "Drive 에 보관된 Word·Excel·PowerPoint 파일을 미리보기에서 'Drive 에서 편집' 으로 열 수 있습니다. 여는 순간 본인에게 편집 권한이 함께 부여됩니다. 계정 이메일에 연결된 Google 계정이 없으면 권한을 드릴 수 없어, 그 경우에는 화면이 이유를 알려 드립니다." },
+      "en": { "title": "Open Drive documents in an editor",
+        "body": "Word, Excel and PowerPoint files stored in Drive can be opened with Edit in Drive from the preview. Edit access is granted to you as it opens. If no Google account is linked to your email, access cannot be granted and the screen tells you why." }
+    },
+    {
+      "ko": { "title": "팀 Drive 연결이 스스로 복구됩니다",
+        "body": "Drive 폴더를 옮기거나 다시 만들면 PlanQ 가 옛 위치를 가리킨 채 '연결이 끊겼다' 처럼 보일 수 있었습니다. 이제 폴더를 이름으로 다시 찾아 스스로 연결하며, 다시 연동할 필요가 없습니다. 공유(팀) 드라이브에 둔 폴더도 정상 동작합니다 — 파일 화면 위쪽에서 지금 어디에 저장되는지 확인할 수 있습니다." },
+      "en": { "title": "The team Drive connection repairs itself",
+        "body": "Moving or recreating the Drive folder could leave PlanQ pointing at the old location, which looked like a broken connection. PlanQ now finds the folder again by name and reconnects on its own — no need to re-link. Folders kept in a shared (team) drive work too, and the files screen shows where your files are currently stored." }
+    },
+    {
+      "ko": { "title": "업무 설명과 결과물은 쓴 사람만 고칩니다",
+        "body": "업무 설명은 요청한 사람이, 결과물은 담당자가 씁니다. 관리자라도 남이 쓴 글을 직접 덮어쓰지 않습니다 — 고쳐야 할 것이 있으면 컨펌 반려로 담당자에게 돌려주면 되고, 그래야 무엇이 왜 바뀌었는지 기록에 남습니다. 삭제·이관 같은 관리 권한은 종전과 같습니다." },
+      "en": { "title": "Only the author edits a task's brief or result",
+        "body": "The brief belongs to whoever requested the task; the result belongs to the assignee. Admins no longer overwrite someone else's text — send it back for revision instead, so the change and its reason are recorded. Management actions such as delete and transfer are unchanged." }
+    }
+  ]
+}
