@@ -44,6 +44,9 @@ const ACTIONS = {
   task_assigned: { ko: '새 업무 배정', en: 'Assigned to you' },
   task_ack: { ko: '요청 확인함', en: 'Request acknowledged' },
   task_review_request: { ko: '컨펌 요청', en: 'Approval requested' },
+  // 요청자에게 — "내가 보낸 업무가 컨펌 단계에 들어왔다". 컨펌자에게 가는 task_review_request 와
+  //   **다른 말**이어야 한다. 요청자는 승인할 사람이 아니라 지켜보는 사람이다.
+  task_review_started: { ko: '컨펌 진행', en: 'Review started' },
   task_review_canceled: { ko: '컨펌 요청 취소', en: 'Approval request canceled' },
   task_approved: { ko: '컨펌 승인', en: 'Approved' },
   task_revision: { ko: '수정 요청', en: 'Changes requested' },

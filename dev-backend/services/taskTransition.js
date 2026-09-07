@@ -237,6 +237,29 @@ async function submitForReview({
     }).catch((e) => console.warn('[taskTransition notify]', e.message));
   }
 
+  // 요청자에게도 알린다 — 2026-09-07 Irene: "내가 보낸 업무가 도로 확인요청 왔을 때는 … 안나와."
+  //   여태 컨펌자에게만 갔다. 요청자는 자기가 시킨 일이 결과물까지 온 것을 **모르고 지나간다.**
+  //   ★ 컨펌자와 중복으로 울리지 않는다(요청자가 곧 컨펌자인 경우가 흔하다) — 그때는 위의
+  //     "컨펌 요청" 하나만 간다. 확인 필요 목록의 "한 업무 = 한 버킷" 과 같은 규칙이다.
+  //   ★ 본인이 낸 전이(담당자 == 요청자)에는 안 보낸다.
+  const requesterId = task.request_by_user_id
+    || (task.created_by && task.created_by !== task.assignee_id ? task.created_by : null);
+  if (requesterId && requesterId !== actorUserId && !reviewerIds.includes(requesterId)) {
+    const { notifyMany } = require('../routes/notifications');
+    const wsName = await workspaceName(task.business_id);
+    notifyMany({
+      userIds: [requesterId],
+      businessId: task.business_id,
+      eventKind: 'task',
+      titleSpec: { feature: 'task', action: 'task_review_started', subject: `"${task.title}"` },
+      body: `요청하신 "${task.title}" 이(가) 컨펌 단계에 들어왔습니다`,
+      link: taskLink(task.id),
+      ctaLabel: '보기',
+      workspaceName: wsName,
+      tag: `task:${task.id}`,
+    }).catch((e) => console.warn('[taskTransition notify requester]', e.message));
+  }
+
   return { ok: true, task, reviewerIds, round: newRound, actingForUserId, autoReviewerAdded };
 }
 
