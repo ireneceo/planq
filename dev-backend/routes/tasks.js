@@ -1315,8 +1315,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     // 필드별 권한 정책 (사이클 N+5 — PERMISSION_MATRIX §5.7 책임선 분리)
     //   - title/category   → 작성자 OR 담당자 OR workspace owner OR admin
-    //   - description (의뢰)→ 작성자 OR owner OR admin (담당자 빠짐 — 의뢰 명세는 발주자 영역)
-    //   - body (결과물)     → 담당자 OR admin (owner 빠짐 — 수행자 영역. 변경 필요 시 컨펌 반려 워크플로우로)
+    //   - description (의뢰)→ **작성자만.** 예외 없음
+    //   - body (결과물)     → **담당자만.** 예외 없음
     //   - status            → 담당자 OR 작성자 OR owner OR admin
     //   - assignee/due/start/recurrence → 작성자 OR owner OR admin
     //   - project_id        → owner OR admin (큰 결정)
@@ -1335,8 +1335,18 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     const FIELD_RULES = {
       title: () => isCreator || isAssignee || isOwnerOrAdmin,
-      description: () => isCreator || isOwnerOrAdmin,                 // 담당자 빠짐 (의뢰자 영역)
-      body: () => isAssignee || isPlatformAdmin || isWsAdmin,         // owner 빠짐, admin 백도어 (수행자 영역, §5.7)
+      // ★ 2026-09-07 (Irene: "작성자가 아니면 업무설명을 수정못하게 하고, 결과물은 담당자만
+      //   작성하게 해야 하는데 지금 내가 관리자라서 다 되거든. 관리자도 안되어야 하지?"
+      //   그리고 "owner든 admin이든 누구든 그 기준이 맞는 거 아냐?")
+      //   **책임선에는 직급 예외를 두지 않는다.** 옛 규칙은 description 에 owner/admin 을,
+      //   body 에 admin·platform_admin 을 백도어로 남겨 뒀는데, 그러면
+      //     ① 의뢰 명세를 발주자가 아닌 사람이 바꿔도 이력에 "누가 왜" 가 안 남고
+      //     ② 결과물을 수행자가 아닌 사람이 고쳐 놓고 그 사람에게 컨펌을 요구하게 된다.
+      //   결과물을 바꿔야 하면 **컨펌 반려(revision_requested)** 로 담당자에게 돌려준다 —
+      //   그 문이 이미 있고, 그래야 바뀐 사실이 원장에 남는다.
+      //   ★ 삭제·이관 같은 **운영 권한**은 종전대로 owner/admin 이다(그건 책임선이 아니라 관리 행위).
+      description: () => isCreator,
+      body: () => isAssignee,
       category: () => isCreator || isAssignee || isOwnerOrAdmin,
       // #353 ⑤ 중요도 — "이 일이 얼마나 중요한가" 는 의뢰자·수행자 **둘 다** 말할 수 있다.
       //   description(의뢰자 전용)·body(수행자 전용) 어느 배타축도 아니라 title/category 와 같은 집합.

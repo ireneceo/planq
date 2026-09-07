@@ -76,6 +76,13 @@ const Panel = styled.div`
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
   @media (max-width: 768px) {
     width: 100%; height: 100%; border-radius: 0;
+    /* ★ 2026-09-07 (Irene: "전체보기 하면 모바일에서 상단 안나와서 닫을 수가없어")
+       백드롭이 inset:0 이라 이 패널은 **상태바 밑에서 시작**했다. 헤더가 60px 인데
+       상태바가 24~47px 을 먹으면 닫기 버튼(세로 중앙 y≈30)이 그 아래로 들어간다.
+       아래쪽만 safe 를 주고 위쪽을 뺀 탓 — 안전영역은 원시 env() 가 아니라
+       토큰으로, 그리고 **양쪽 다** 준다(memory feedback_safe_area_token_not_raw_env).
+       브라우저는 --pq-safe-top 이 0 이라 이 계열이 웹에서는 재현되지 않는다. */
+    padding-top: var(--pq-safe-top, 0px);
     padding-bottom: var(--pq-safe-bottom, 0px);
   }
 `;

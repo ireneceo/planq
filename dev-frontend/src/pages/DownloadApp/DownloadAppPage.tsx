@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { isNativeApp } from '../../services/native';
+import LandingLayout from '../../components/Landing/LandingLayout';
 
 type Platform = 'ios' | 'android' | 'desktop';
 
@@ -78,7 +79,13 @@ export default function DownloadAppPage() {
     </Platform_>
   );
 
+  // ★ 2026-09-07 — 웹에서는 **사이트 껍데기(LandingLayout)를 쓴다.**
+  //   여태 이 페이지만 헤더·푸터 없는 낱장이라, 여기로 들어온 사람은 기능·요금제·문의로
+  //   갈 문이 없었다(Irene: "화면상으로는 앱페이지가 웹에 맞는데?" — 그 앱 페이지가
+  //   LandingLayout 을 쓰던 쪽이다). 네이티브 앱 안(위 inApp 분기)에서는 마케팅 헤더를
+  //   띄우지 않으므로 이 아래에만 씌운다.
   return (
+    <LandingLayout transparentTop={false}>
     <Screen>
       <Card>
         <Brand>PlanQ</Brand>
@@ -107,6 +114,7 @@ export default function DownloadAppPage() {
         <WebLink href="/">{t('webContinue')}</WebLink>
       </Card>
     </Screen>
+    </LandingLayout>
   );
 }
 
@@ -123,7 +131,9 @@ const AndroidGlyph = () => (
 );
 
 const Screen = styled.div`
-  min-height: 100vh; min-height: 100dvh;
+  /* ★ 사이트 헤더 아래에 들어가므로 뷰포트 전체 높이를 잡지 않는다 —
+     100dvh 를 그대로 두면 헤더 높이만큼 넘쳐 페이지 아래에 빈 띠가 생긴다. */
+  min-height: 60vh;
   display: flex; align-items: center; justify-content: center;
   background: #F8FAFC; padding: 24px;
   padding-bottom: calc(24px + var(--pq-safe-bottom, 0px));

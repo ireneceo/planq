@@ -1723,6 +1723,54 @@ function checkOverlayTop() {
   report('overlaytop', '우측 패널 상단 기준선이 토큰 (하드 게이트)', hits.length === 0, hits);
 }
 
+// ═══════════════════════════════════════════════
+// modalportal — 전면 모달은 **body 로 포털**해야 한다 (2026-09-07 박제)
+//   Irene: "이게 우측패널 뒤로 떠. 모든 팝업은 무조건 최상위 아니야?
+//           팝업이 기본 컴포넌트로 사용안된 곳들이 있어?"
+//
+//   z-index 숫자는 **조상이 층(stacking context)을 만들지 않았을 때만** 최상위다.
+//   사이드바는 `position:fixed; z-index:100` 이고 태블릿 이하에서는 `transform` 까지 걸린다
+//   (MainLayout.tsx Sidebar). 그 안에서 그려진 z-index 1100 모달은
+//     · 데스크탑 — 사이드바의 100 층에 갇혀 업무 상세 드로어(130) **뒤로** 깔리고
+//     · 태블릿·폰 — transform 이 containing block 이 되어 백드롭이 사이드바(240px) 안에 그려진다.
+//       사이드바가 닫혀 있으면 화면 밖이라 **한 픽셀도 안 보인다.**
+//   숫자를 올려서 될 일이 아니라 **층 밖으로 나가야** 한다 → createPortal(document.body).
+//
+//   대상: position:fixed + 전면(inset:0 또는 top/left/right/bottom 이 모두 0) + z-index 지정.
+//   판정: 그 styled 를 가진 파일이 createPortal 을 쓰는가.
+//   래칫 — 기존 부채는 동결, **증가만 실패**. (2026-09-07 최초 동결 시점 65개)
+// ═══════════════════════════════════════════════
+function checkModalPortal() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const src = read(f);
+    if (/createPortal/.test(src)) continue;          // 포털 쓰는 파일 — 통과
+    let n = 0;
+    const re = /(?:export\s+)?const\s+(\w+)\s*=\s*styled[^`]*`([\s\S]*?)\n`;/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const [, name, body] = m;
+      if (!/position:\s*fixed/.test(body)) continue;
+      const full = /inset:\s*0/.test(body)
+        || (/top:\s*0/.test(body) && /left:\s*0/.test(body) && /right:\s*0/.test(body) && /bottom:\s*0/.test(body));
+      if (!full) continue;
+      if (!/z-index:\s*\d/.test(body)) continue;      // 층을 주장하지 않는 것은 배경 장식
+      n++;
+      if (samples.length < 8) samples.push(`${rel(f)}: ${name}`);
+    }
+    if (n) current[rel(f)] = n;
+  }
+  const r = ratchet('modalportal', current, samples);
+  report(
+    'modalportal',
+    `전면 모달 body 포털 래칫 (미포털 ${r.curTotal} / 동결 ${r.baseTotal}${r.improved ? ` · 개선 ${r.improved}` : ''})`,
+    r.fails.length === 0,
+    r.fails.length ? r.fails : r.sampleLines.slice(0, 3),
+  );
+}
+
 const CATEGORIES = {
   mock: checkMock,
   i18n: checkI18n,
@@ -1755,6 +1803,7 @@ const CATEGORIES = {
   menuname: checkMenuName,
   statuslabel: checkStatusLabel,
   overlaytop: checkOverlayTop,
+  modalportal: checkModalPortal,
 };
 
 try {

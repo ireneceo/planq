@@ -682,7 +682,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   표→문서: 빈 표면 자유, 컬럼/행 있으면 ConfirmDialog (force_kind_change=true)
   //   문서→표: 자유 (빈 q_record 자동 생성)
   // 문서 본문을 AI 추출 모달로 넘길 때의 페이로드 (#284)
-  const [aiIngest, setAiIngest] = useState<{ text: string; postId: number } | null>(null);
+  const [aiIngest, setAiIngest] = useState<{ text: string; postId: number; title: string } | null>(null);
   const [pendingKindChange, setPendingKindChange] = useState<'doc' | 'table' | null>(null);
 
   const doKindChange = async (newKind: 'doc' | 'table', force = false) => {
@@ -750,7 +750,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       });
       const j = await r.json();
       if (r.ok && j.success && j.data?.text) {
-        setAiIngest({ text: j.data.text, postId: post.id });
+        // ★ 2026-09-07 — 서버가 주는 title 을 **버리지 않는다.** 여태 본문만 넘겨서 AI 는
+        //   이 글이 무엇에 관한 것인지 모른 채 항목을 나눴다(Irene: "문서 상세를 보고 인포 만들어야지").
+        setAiIngest({ text: j.data.text, postId: post.id, title: j.data.title || post.title || '' });
       } else {
         setKnowledgeMsg(t('actions.sendToKnowledgeErr', '추가 실패: {{msg}}', { msg: j.message || 'error' }) as string);
       }
@@ -1372,22 +1374,36 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const isProject = scope.type === 'project';
   const projId = scope.type === 'project' ? scope.projectId : null;
   const [projSort, setProjSort] = useState<'recent' | 'name'>('recent');
-  const PIN_KEY = projId ? `qproject_pinned_docs_${projId}` : null;
-  const [pinnedIds, setPinnedIds] = useState<number[]>(() => {
-    if (!PIN_KEY) return [];
-    try { const r = JSON.parse(localStorage.getItem(PIN_KEY) || '[]'); return Array.isArray(r) ? r.filter((x) => typeof x === 'number') : []; } catch { return []; }
-  });
-  const togglePin = useCallback((id: number) => {
-    if (!PIN_KEY) return;
-    setPinnedIds(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
-      try {
-        localStorage.setItem(PIN_KEY, JSON.stringify(next));
-        window.dispatchEvent(new CustomEvent('qproject-pinned-changed', { detail: { projectId: projId } }));
-      } catch { /* ignore */ }
-      return next;
-    });
-  }, [PIN_KEY, projId]);
+  // ★ 2026-09-07 — 핀은 **서버(사람 단위)** 가 정본이다. 옛 localStorage 는
+  //   기기를 바꾸면 사라져서, 데스크탑에서 올린 탭이 폰에서 안 보였다
+  //   (Irene: "모바일에서는 안나와. 나와야지"). 저장소는 usePinnedDocTabs 와 같은 곳이다 —
+  //   두 벌을 두면 어느 쪽이 진실인지 갈린다.
+  const [pinnedIds, setPinnedIds] = useState<number[]>([]);
+  useEffect(() => {
+    if (!projId) { setPinnedIds([]); return; }
+    let alive = true;
+    (async () => {
+      const r = await apiFetch(`/api/projects/${projId}/pinned-docs`);
+      if (!r.ok || !alive) return;
+      const j = await r.json().catch(() => null);
+      if (alive && j?.success) setPinnedIds((j.data || []).map((x: { post_id: number }) => x.post_id));
+    })();
+    return () => { alive = false; };
+  }, [projId]);
+  const togglePin = useCallback(async (id: number) => {
+    if (!projId) return;
+    const on = pinnedIds.includes(id);
+    // 낙관적 갱신 — 실패하면 서버 값으로 되돌린다.
+    setPinnedIds(prev => (on ? prev.filter(x => x !== id) : [...prev, id]));
+    const r = await apiFetch(
+      on ? `/api/projects/${projId}/pinned-docs/${id}` : `/api/projects/${projId}/pinned-docs`,
+      on
+        ? { method: 'DELETE' }
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ post_id: id }) },
+    );
+    if (!r.ok) { setPinnedIds(prev => (on ? [...prev, id] : prev.filter(x => x !== id))); return; }
+    window.dispatchEvent(new CustomEvent('qproject-pinned-changed', { detail: { projectId: projId } }));
+  }, [projId, pinnedIds]);
 
   return (
     <Layout $collapsed={sidebarCollapsed} $projectFull={isProject} $hasDetail={!!detail || isEditing} $listW={listWidth}>
@@ -2534,6 +2550,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           businessId={businessId}
           initialText={aiIngest.text}
           sourcePostId={aiIngest.postId}
+          sourceTitle={aiIngest.title}
           onClose={() => setAiIngest(null)}
           onSaved={() => {
             setAiIngest(null);

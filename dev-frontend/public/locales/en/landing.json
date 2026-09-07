@@ -3,7 +3,7 @@
     "features": "Features",
     "pricing": "Pricing",
     "blog": "Insights",
-    "about": "Company",
+    "about": "Brand Story",
     "contact": "Contact",
     "help": "Help",
     "login": "Sign in",
@@ -11,7 +11,6 @@
     "toApp": "My workspace",
     "menu": "Menu",
     "service": "Services",
-    "beta": "App",
     "app": "Get the app"
   },
   "hero": {
@@ -666,12 +665,10 @@
     }
   },
   "aboutPage": {
-    "eyebrow": "OUR STORY",
-    "title1": "Built from 15 years",
-    "title2": "of remote collaboration.",
-    "sub": "PlanQ wasn't born from theory. It was born from practice.",
-    "quote": "Working remotely with global clients for over 15 years, I've used Slack, Notion, Google Workspace, and Asana. I learned through years of experience that more tools means less efficiency, and that what's most needed is 'cognitively clear structure'.",
-    "cite": "Why PlanQ exists",
+    "eyebrow": "BRAND STORY",
+    "title1": "Irene's PlanQ is still ing...",
+    "sub": "PlanQ was born on the floor, not in a theory.",
+    "cite": "The PlanQ brand story",
     "mission": {
       "eyebrow": "MISSION",
       "title": "Work, just work.",
@@ -726,6 +723,57 @@
       "sub": "Try PlanQ free for 14 days.",
       "primary": "Start free",
       "secondary": "Contact us"
+    },
+    "story": {
+      "blocks": [
+        {
+          "text": "In my late twenties I joined what I thought was a mid-sized company. It turned out I was employee number one at a legal entity being spun off. I had sold myself as someone who could do the work of ten, and that was exactly the seat I was hired into. For the six months it took to finish the spin-off, I had no benefits and did every odd job there was."
+        },
+        {
+          "text": "“Isn't this a scam?”",
+          "pull": true
+        },
+        {
+          "text": "But I was fine with it, because the work was fascinating. As the founder's right hand I was trusted with everything, and I got to do the work of ten. We were so deep in it that we lost track of time, and in barely three years the company had grown past fifty people and three million dollars in exports."
+        },
+        {
+          "text": "I built every team — production, order management, customer support, shipping, planning — and organizing their work taught me as much through failure as success. Gathering opinions was hard, and more than once I made busy people's work more complicated in the name of structure. But I was good at reading how work actually happened, and removing unnecessary work while building process kept paying off."
+        },
+        {
+          "text": "Later, as head of new business, I got us to where we could run two or three ventures at once. That meant learning management, finance and accounting too, and it gave me a working understanding of an entire organization. Through all of it, one question never left me."
+        },
+        {
+          "text": "“How do we talk as little as possible and still do exactly the work that matters?”",
+          "pull": true
+        },
+        {
+          "text": "Working more and more closely with engineering teams, I started using issue trackers built around projects. Listing the work, sorting by priority and importance, even estimating how long each piece would take — I thought I had found the answer."
+        },
+        {
+          "text": "“Plan the week, then focus on what truly has to happen today.”",
+          "pull": true
+        },
+        {
+          "text": "Shipping ran on today's shipping list. Orders, production and customer teams organized everything except genuine emergencies into planned work and work due today, so that all anyone had to look at was [today's to-do]. That alone produced real results."
+        },
+        {
+          "text": "I also went after unnecessary work directly. Moving a file into a server folder advanced the task stage and assigned the right person automatically, so whoever managed files never had to click anything. Scanning a barcode on an outgoing item moved its stage, stamped the date, and closed out every task attached to it."
+        },
+        {
+          "text": "Before founding my own company I worked as a PM at a development agency, building systems and ERPs, and I folded all of that into how I plan products. After founding it, I built for fully remote work by making a system that doesn't need to be administered — people plan their own work and manage their own time."
+        },
+        {
+          "text": "One hour of meetings per week was the motto.",
+          "pull": true
+        },
+        {
+          "text": "I never doubted the people; I worried whether revenue would keep growing without me in the middle of it. That worry was gone within six months of going fully remote. Given complete ownership of their hours and their work, people simply got it done — wherever they were, whenever they worked."
+        },
+        {
+          "text": "In the end, outstanding results assume good people, and become possible when the system underneath them is sound. I studied entrepreneurship for my master's and I'm writing on the same subject in my DBA — the question of how work gets managed has never let go of me."
+        }
+      ],
+      "closing": "My work to keep work from becoming a burden isn't finished, and PlanQ sits on that road. PlanQ is a work management platform that connects tasks and projects, people and time, clients and billing. The way I kept searching for on the floor — we are building it into a tool."
     }
   },
   "contactPage": {

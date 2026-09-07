@@ -25,7 +25,10 @@
     "notePhActive": "e.g. Design approved, starting work",
     "notePhClosed": "e.g. Final deliverables handed over",
     "noteHint": "This is kept in the history and status log.",
-    "confirm": "Change"
+    "confirm": "Change",
+    "active": "Active",
+    "paused": "Paused",
+    "closed": "Closed"
   },
   "stats": {
     "tasks": "Tasks",

@@ -282,12 +282,20 @@ const QProjectPage: React.FC = () => {
     >
       {/* #183 — 필터 행 (헤더 아래, 다른 페이지 레이아웃처럼). 좁은 화면에서 줄바꿈. */}
       <FilterBar>
-        <SearchBox
-          value={query}
-          onChange={setQuery}
-          placeholder={t('filter.searchPlaceholder') as string}
-          width={240}
-        />
+        <SearchSlot>
+          <SearchBox
+            value={query}
+            onChange={setQuery}
+            placeholder={t('filter.searchPlaceholder') as string}
+            width={240}
+          />
+        </SearchSlot>
+        {/* ★ 2026-09-07 (Irene: "지금 메뉴명 아래로 모바일에서는 4줄이 헤더랑 필터야.
+            이거 2-3줄로 정돈 되겠는데 안될까?") — 폰에서 이 줄이 wrap 이라 세그 2개 + 셀렉트 2개가
+            제각각 줄을 넘겨 3줄이 됐다. 검색만 자기 줄로 두고 나머지는 **가로로 흘린다**
+            (밴드2 와 같은 처방 — CLAUDE.md "넘치면 가로로 흘린다"). 폰 합계 3줄:
+            제목줄 · 보기/새프로젝트 줄 · 검색 줄 … 이 아니라 검색+필터로 묶어 3줄. */}
+        <FilterScroll>
         <FilterSeg role="tablist" aria-label={t('filter.searchPlaceholder') as string}>
           {(['active', 'paused', 'closed', 'all'] as StatusFilter[]).map((s) => (
             <FilterSegBtn key={s} type="button" $active={statusFilter === s}
@@ -337,6 +345,7 @@ const QProjectPage: React.FC = () => {
               onChange={(opt) => opt && setGroupBy((opt as { value: string }).value as typeof groupBy)} />
           </SelectWrap>
         )}
+        </FilterScroll>
       </FilterBar>
       <NewProjectModal
         businessId={user?.business_id || 0}
@@ -855,7 +864,32 @@ const CalendarView: React.FC<{
 const FilterBar = styled.div`
   display:flex;align-items:center;flex-wrap:wrap;gap:8px;
   margin-bottom:16px;
-  @media(max-width:640px){ gap:6px; }
+  @media(max-width:640px){ gap:6px; margin-bottom:12px; }
+`;
+/** 검색칸 — 데스크탑은 종전 폭(240), 폰에서는 자기 줄 전폭. */
+const SearchSlot = styled.div`
+  flex:0 0 auto;
+  @media(max-width:640px){
+    flex:1 1 100%;
+    > label { width:100%; }
+  }
+`;
+/** 나머지 필터 — 폰에서 한 줄에 담고 넘치면 가로 스크롤(줄이 늘지 않는다). */
+const FilterScroll = styled.div`
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;
+  @media(max-width:640px){
+    flex:1 1 100%;
+    gap:6px;
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:none;
+    &::-webkit-scrollbar{ display:none; }
+    /* 넘쳤다는 신호 — 스크롤바를 숨겼으니 오른쪽 끝을 흐린다(Q Mail FolderTabs 와 같은 방식). */
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
+    > * { flex:0 0 auto; }
+  }
 `;
 const NewProjectCta = styled.button`
   display:inline-flex;align-items:center;justify-content:center;gap:6px;

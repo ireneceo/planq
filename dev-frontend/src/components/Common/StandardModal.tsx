@@ -16,6 +16,7 @@
 //     본문
 //   </StandardModal>
 import React from 'react';
+import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -54,6 +55,12 @@ const Footer = styled.div`
   border-top: 1px solid #F1F5F9;
   background: #fff;
   flex-shrink: 0;
+  /* ★ Dialog 의 14px 라운드를 흰 사각 배경으로 덮어 **아래만 각지게** 보이던 것
+     (Irene 2026-09-07: "라운드가 위에만 있고 아래는 라운드가 없어서"). 헤더는 배경이
+     없어 Dialog 의 라운드가 그대로 보이므로 위만 둥글었다. Dialog 에 overflow:hidden 을
+     주면 안쪽 팝오버까지 잘리므로 **마지막 조각만 같은 값으로 깎는다.** */
+  border-radius: 0 0 14px 14px;
+  @media (max-width: 640px) { border-radius: 0; }
 `;
 
 const StandardModal: React.FC<Props> & {
@@ -76,7 +83,16 @@ const StandardModal: React.FC<Props> & {
   });
   const bodyContent = hasStructuredChild ? children : <Body>{children}</Body>;
 
-  return (
+  // ★ 2026-09-07 — **모달은 body 로 포털한다.**
+  //   z-index 1100 은 "조상이 층을 만들지 않았을 때만" 최상위다. 사이드바는
+  //   `position:fixed; z-index:100` 이고 태블릿 이하에서는 `transform` 까지 걸린다
+  //   (MainLayout.tsx Sidebar). 그 안에서 그려진 이 모달은
+  //     · 데스크탑: 사이드바의 100 층에 갇혀 업무 상세 드로어(z-index 130) **뒤로** 깔리고
+  //     · 태블릿·폰: transform 이 containing block 이 되어 백드롭이 사이드바(240px) 안에 그려진다
+  //       — 사이드바가 닫혀 있으면(translateX(-100%)) 화면 밖이라 **아예 안 보인다.**
+  //   (Irene 2026-09-07: "이게 우측패널 뒤로 떠. 모든 팝업은 무조건 최상위 아니야?")
+  //   숫자를 올려서 될 일이 아니다 — 층 밖으로 나가야 한다.
+  const tree = (
     <Backdrop onClick={() => closeOnBackdrop && onClose()}>
       <Dialog
         $maxWidth={SIZE_MAP[size]}
@@ -99,6 +115,7 @@ const StandardModal: React.FC<Props> & {
       </Dialog>
     </Backdrop>
   );
+  return typeof document === 'undefined' ? tree : createPortal(tree, document.body);
 };
 
 StandardModal.Body = Body;

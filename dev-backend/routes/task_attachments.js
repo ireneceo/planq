@@ -62,14 +62,13 @@ async function loadTaskAndGuard(req, res) {
   return task;
 }
 
-// description 첨부 권한 = description 편집 권한 (사이클 N+5 책임선)
-//   = 작성자(created_by) / owner / admin. 담당자 빠짐 (의뢰자 영역).
-async function canEditDescriptionAttach(task, userId, platformRole) {
-  if (platformRole === 'platform_admin') return true;
-  if (task.created_by === userId) return true;
-  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: task.business_id } });
-  if (bm && bm.role === 'owner') return true;
-  return false;
+// description 첨부 권한 = description 편집 권한 (PERMISSION_MATRIX §5.7 책임선)
+//   ★ 2026-09-07 — **작성자만.** owner·admin·platform_admin 예외를 걷었다.
+//   `routes/tasks.js` FIELD_RULES.description 과 **같은 술어**여야 한다 — 갈라지면
+//   "본문은 못 고치는데 첨부는 붙는" 반쪽 권한이 생긴다
+//   (memory feedback_predicate_must_match_both_sides).
+async function canEditDescriptionAttach(task, userId /* , platformRole */) {
+  return task.created_by === userId;
 }
 
 // ============================================
@@ -97,13 +96,13 @@ router.post('/:taskId/attachments',
       const context = ['description', 'description_attach', 'comment'].includes(req.query.context) ? req.query.context : 'task';
       const commentId = context === 'comment' ? Number(req.query.commentId || 0) || null : null;
       if (context === 'comment' && !commentId) return errorResponse(res, 'commentId_required', 400);
-      // description_attach: 의뢰자 영역 = 작성자/owner/admin 만 (담당자 빠짐)
+      // description_attach: 의뢰자 영역 = **작성자만** (2026-09-07 — owner/admin 예외 걷음)
       if (context === 'description_attach') {
         const ok = await canEditDescriptionAttach(req._task, req.user.id, req.user.platform_role);
         if (!ok) {
           // 업로드된 임시 파일 정리
           try { fs.unlinkSync(req.file.path); } catch { /* ignore */ }
-          return errorResponse(res, 'only_creator_or_owner_can_attach_description', 403);
+          return errorResponse(res, 'only_creator_can_attach_description', 403);
         }
       }
 
@@ -251,7 +250,7 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
     if (context === 'comment' && !commentId) return errorResponse(res, 'comment_id required', 400);
     if (context === 'description_attach') {
       const ok = await canEditDescriptionAttach(req._task, req.user.id, req.user.platform_role);
-      if (!ok) return errorResponse(res, 'only_creator_or_owner_can_attach_description', 403);
+      if (!ok) return errorResponse(res, 'only_creator_can_attach_description', 403);
     }
 
     const files = await File.findAll({

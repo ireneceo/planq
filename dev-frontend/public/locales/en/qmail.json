@@ -205,9 +205,9 @@
     "more": "More",
     "assigneePrefix": "Owner",
     "assignAria": "Assign owner",
-    "addLabel": "+ Label",
-    "addLabelAria": "Add a label",
-    "noMoreLabels": "No other labels to add",
+    "addLabel": "+ Tag",
+    "addLabelAria": "Add a tag",
+    "noMoreLabels": "No other tags to add",
     "assignSearch": "Find by name",
     "meShort": "Me"
   },

@@ -212,7 +212,10 @@
     "fileHint": "텍스트·마크다운·CSV·JSON·HTML 파일을 떨어뜨리면 내용을 입력칸에 채웁니다",
     "fileLoaded": "{{count}}개 파일을 불러왔습니다.",
     "fileUnsupported": "{{names}} 은(는) 아직 읽지 못합니다. 텍스트·마크다운·CSV·JSON·HTML 만 지원합니다 — 내용을 복사해 붙여넣어 주세요.",
-    "noCategory": "미분류"
+    "noCategory": "미분류",
+    "titleFromPost": "인포로 보내기 — {{title}}",
+    "titleFromPostPlain": "인포로 보내기",
+    "hintFromPost": "이 문서를 Q info 항목으로 나눕니다. 항목마다 제목·분류·값(가격·연락처·기한 등)을 뽑아 두면 나중에 찾아 쓸 수 있습니다. 원문 정보만 사용 — 새 정보는 만들지 않습니다."
   },
   "csv": {
     "secretMasked": "(비밀값 — 내보내지 않음)"

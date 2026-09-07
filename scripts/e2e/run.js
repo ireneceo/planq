@@ -46,6 +46,25 @@ const SUITES = {
   csp: () => require('./canary-csp'),
   // 상단 크롬 9 뷰포트 — 탭 게이트·두 겹 여부·탭바 오프셋·사이드바 도달성. 세 CSS 파일이
   // 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 안 잡힌다(2026-09-06 태블릿 96px 겹침).
+  // 모달이 **어떤 층 안에서도 최상위로 보이는가** — z-index 숫자는 조상이 층을 만들면 무의미하다.
+  //   사이드바 안에서 그려진 모달이 우측 상세 패널 뒤로 깔리던 계열(2026-09-07 Irene 신고).
+  //   정적 검사(guard --category=modalportal)는 "포털을 쓰는가" 만 본다 — 실제로 보이는지는 여기서.
+  modaltop: () => require('./canary-modal-top'),
+  // 상세 밴드2 — 폰에서 **몇 줄이고 칩이 성한가**. 줄 수만 보면 2026-09-06 의 음절분해 회귀를
+  //   다시 부르고, 칩만 보면 "항상 2줄" 로 되돌아간다. 둘을 한 검사에 묶는다.
+  mailband: () => require('./canary-detail-band'),
+  // 업무 책임선이 **화면에서도** 지켜지는가 — description=작성자만 / body=담당자만.
+  //   서버만 막으면 화면은 열려 있고 저장만 403 이 되는 "저장 실패" 가 된다.
+  //   임시 platform_admin 계정으로 본다(기본 하니스 계정은 owner 라 옛 백도어를 안 밟아
+  //   양성 대조군이 안 뒤집혔다 — 2026-09-07 실측).
+  respline: () => require('./canary-responsibility-line'),
+  // rawkey — **아직 게이트에 붙이지 않는다.** 2026-09-07 작성했지만 양성 대조군이 뒤집히지 않았다:
+  //   서버가 주는 로케일에서 `status.active` 를 지우고 폰·데스크탑 둘 다 다시 재도 "노출 0" 이 나온다
+  //   (번들 안에 로케일 사본이 남아 있는 것으로 의심된다 — 소스에서 지우고 재빌드해야 갈린다).
+  //   실패할 수 없는 검사기를 게이트에 붙이면 영원히 초록이다
+  //   (memory feedback_canary_must_match_runner_contract · feedback_guard_must_be_falsified).
+  //   반증이 끝나면 이 줄의 주석을 풀 것. 단독 실행: node scripts/e2e/canary-rawkey.js
+  // rawkey: () => require('./canary-rawkey'),
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };

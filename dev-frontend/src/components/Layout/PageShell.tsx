@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import styled from 'styled-components';
 import { useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import UserChip from './UserChip';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 
@@ -22,6 +23,16 @@ type Props = {
   count?: number | string;          // 제목 우측에 보여줄 카운트 배지 (선택)
   helpDot?: ReactNode;              // 제목 옆 도움말 ⓘ (HelpDot 컴포넌트 권장)
   actions?: ReactNode;              // 헤더 우측 영역 (검색·버튼 등)
+  /**
+   * 뒤로 가기 — 제목 **왼쪽**에 붙는 표준 화살표. PanelHeader.onBack 과 같은 자리·같은 모양.
+   * ★ 2026-09-07 (Irene: "프로젝트 들어간 다음 뒤로가기 안나와" · "우측패널은 돌아가기 있고
+   *   닫기도 나온다. 이게 좋겠네. 다 통일하는 거.")
+   *   여태 각 페이지가 "← 목록" 버튼을 **액션 줄 맨 끝**에 달았다. 폰에서는 그 줄이 가로로
+   *   흘러서 맨 끝이 화면 밖으로 나간다 — 돌아갈 문이 사라진 것처럼 보인다.
+   *   제목 왼쪽은 어떤 폭에서도 잘리지 않는 자리다.
+   */
+  onBack?: () => void;
+  backLabel?: string;
   children: ReactNode;
   bodyPadding?: string;             // 본문 padding 커스터마이즈가 필요할 때만
   embedded?: boolean;               // N+30 — PageShell-in-PageShell 회귀 차단. true 면 헤더/Page wrap 없이 children 만 렌더. PersonalVaultPage 같은 부모 PageShell 안에서 KnowledgePage 등 자체 PageShell 컴포넌트 마운트 시 사용.
@@ -32,6 +43,8 @@ export default function PageShell({
   count,
   helpDot,
   actions,
+  onBack,
+  backLabel,
   children,
   bodyPadding,
   embedded,
@@ -46,6 +59,7 @@ export default function PageShell({
   //   ★ DOM 을 양쪽에 두고 CSS 로 숨기지 않는다 — 숨은 쪽의 입력·testid 를 검사기와 사용자가
   //     집을 수 있어 "눌러도 아무 일 없는" 유령이 생긴다. 한 곳에만 렌더한다.
   const isPhone = useMediaQuery('(max-width: 640px)');
+  const { t } = useTranslation('common');
 
   // 운영 #397 — "모바일에서 비용재무에 들어가면 위에부터 열리는게 아니라 아래에 열려."
   //   스크롤은 body 가 아니라 아래 Body 가 가진다. 그런데 /stats/profit → /stats/finance 처럼
@@ -65,6 +79,15 @@ export default function PageShell({
     <Page>
       <Header>
         <HeaderLeft>
+          {onBack && (
+            <BackArrow type="button" onClick={onBack}
+              aria-label={backLabel || (t('back', { defaultValue: '뒤로' }) as string)}
+              title={backLabel || (t('back', { defaultValue: '뒤로' }) as string)}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </BackArrow>
+          )}
           <TitleGroup>
             <Title>{title}</Title>
             {helpDot}
@@ -85,6 +108,20 @@ export default function PageShell({
 }
 
 // ─────────────────────────────────────────────
+/** 제목 왼쪽 뒤로가기 — PanelHeader.BackBtn 과 같은 규격(터치 타깃 폰 40). */
+const BackArrow = styled.button`
+  flex-shrink: 0;
+  width: 36px; height: 36px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 8px;
+  color: #64748b; cursor: pointer;
+  /* 글리프 크기는 rem (CLAUDE.md UI 가이드 §0 — px 금지). 1.25rem = 20px 로 PanelHeader 뒤로가기와 같다. */
+  svg { width: 1.25rem; height: 1.25rem; }
+  &:hover { background: #f1f5f9; color: #0f172a; }
+  &:focus-visible { outline: 2px solid rgba(20,184,166,0.4); outline-offset: 2px; }
+  @media (max-width: 640px) { width: 40px; height: 40px; margin-left: -8px; }
+`;
+
 const Page = styled.div`
   display: flex;
   flex-direction: column;

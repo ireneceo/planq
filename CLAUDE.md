@@ -439,8 +439,11 @@ router.get('/', authenticateToken, async (req, res, next) => {
 > **Q Task 시간/진행율 권한 (2026-04-25):** `estimated_hours / actual_hours / progress_percent` 는 **담당자만 입력 가능**. 비담당자가 PATCH/PUT 시 `only_assignee_can_edit_hours` 403. 프론트는 `assignee_id !== myId` 시 input disabled (회색·점선·spinner 숨김). 다른 역할은 read-only 참고.
 >
 > **Q Task 본문 필드 책임선 분리 (2026-05-10, 사이클 N+5):** PERMISSION_MATRIX §5.7 정식 박제.
-> - **description (의뢰 명세)** → 작성자/owner/admin (담당자 빠짐). 담당자는 코멘트로 보충
-> - **body (결과물)** → 담당자/admin (owner 빠짐 — 결과물에 owner 가 손대고 싶으면 컨펌 반려 워크플로우로)
+> - **description (의뢰 명세)** → **작성자만.** owner·admin·platform_admin 예외 없음 (2026-09-07 Irene:
+>   "owner든 admin이든 누구든 그 기준이 맞는 거 아냐?"). 담당자는 코멘트로 보충
+> - **body (결과물)** → **담당자만.** 예외 없음. 결과물을 바꿔야 하면 **컨펌 반려(revision_requested)** 로
+>   담당자에게 돌려준다 — 그래야 바뀐 사실이 원장에 남는다. 직급으로 덮어쓰면 남지 않는다
+> - ★ 삭제·프로젝트 이관 같은 **운영 권한**은 종전대로 owner/admin — 그건 책임선이 아니라 관리 행위다
 > - **title/category** → 작성자/담당자/owner/admin
 > - **DELETE task** → owner/admin. 작성자는 댓글·이력·리뷰어 0건 신생 task 만 (실수 정정용)
 > - 프론트엔드: `TaskDetailDrawer.tsx` `canEditTitle/canEditDescription/canEditBody` 3분기. 권한 없으면 RichEditor `readOnly` + 섹션 옆 회색 "읽기 전용" 뱃지
@@ -453,7 +456,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
 > **사이클 N+6/N+7 — v1.5.3 (2026-05-11):** 진행률 sync + reviewer 분기 + 관련업무·description 첨부 + 시간 자동 누적 + 모바일 UX. commit `1031409`.
 >
 > - **task_links 테이블 (양방향, a < b 강제)** — 관련 업무 링크. `routes/tasks.js` GET/POST/DELETE links + GET search. workspace 격리, cross-workspace 차단. 자기 자신·중복 차단. UI: `RelatedTasksSection.tsx` (description 섹션 안)
-> - **TaskAttachment.context ENUM 'description_attach' 신설** — 의뢰자 영역 댓글식 첨부. 권한 = description 편집 권한 (작성자/owner/admin, 담당자 빠짐). `DescriptionAttachments.tsx` (FilePicker 패턴, uploads + 기존 파일·문서 link)
+> - **TaskAttachment.context ENUM 'description_attach' 신설** — 의뢰자 영역 댓글식 첨부. 권한 = description 편집 권한 (**작성자만** — 2026-09-07 부터 owner/admin 예외 없음). `DescriptionAttachments.tsx` (FilePicker 패턴, uploads + 기존 파일·문서 link)
 > - **Task.actual_source ENUM('auto','user')** — 시간 자동 누적 vs 사용자 입력 구분. `services/taskActualHours.js` recomputeActualHoursFromHistory + TaskStatusHistory afterCreate hook. in_progress 진입~이탈 라운드 합산. 사용자 직접 입력 시 'user' 자동 전환 + 자동 누적 정지
 > - **reviewer 가드 (PUT 라우트)** — reviewer 0명이면 status='reviewing'/'revision_requested' 차단 (400 `no_reviewers_assigned`). 100% 자동 completed 도 reviewer ≥ 1 시 차단 (in_progress 유지, "확인 요청 보내기" 명시 클릭 필요)
 > - **진행률 ↔ status 양방향 sync (PATCH + PUT 단일 진실 원천)** — `routes/tasks.js` PUT 에 progress → status 자동 전환 분기 추가. completed → active 전환 시 progress 100 → 90 자동 / completed 진입 시 progress < 100 이면 자동 100. frontend QTaskPage.saveField 의 이중 PUT 호출 제거

@@ -77,9 +77,16 @@ const Chip = styled.button<{ $on: boolean; $open: boolean }>`
   &:hover{border-color:#5EEAD4;}
   &:focus-visible{outline:2px solid #5EEAD4;outline-offset:2px;}
   /* 폰 터치 타깃 — 반응형 원칙 최소 40 */
-  @media (max-width: 640px){height:40px;max-width:100%;padding:0 10px 0 12px;}
+  /* ★ 2026-09-07 (Irene: "셀렉트나 선택버튼이 왜 이렇게 글자크기에 안맞게 커? 높이도 높고")
+     — 높이만 40 으로 올리고 글자는 12px 로 둬서 칩 안이 텅 비어 보였다. 같은 밴드의
+     CtrlBtn 과 **같은 값**(36 / 13px)으로 맞춘다 — 한쪽만 고치면 밴드 안에서 다시 갈린다. */
+  @media (max-width: 640px){height:36px;max-width:100%;padding:0 10px 0 12px;font-size:0.8125rem;}
 `;
-const ChipPrefix = styled.span`color:#94A3B8;font-weight:500;flex-shrink:0;`;
+// ★ 2026-09-07 — 폰에서는 접두어를 접는다. "담당 담당 없음" 처럼 접두어와 값이 같은 말을
+//   두 번 하는 경우가 있고(35px), 그 35px 이 밴드2 를 한 줄에서 두 줄로 넘긴다.
+//   접근성 이름(aria-label)은 그대로라 화면낭독기는 무엇을 여는 칩인지 계속 안다.
+const ChipPrefix = styled.span`color:#94A3B8;font-weight:500;flex-shrink:0;
+  @media (max-width: 640px){ display:none; }`;
 // 값은 길면 줄인다 — 칩이 자라서 줄을 밀어내지 않게.
 const ChipValue = styled.span`min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
 const ChipCaret = styled.span<{ $open: boolean }>`

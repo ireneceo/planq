@@ -454,7 +454,7 @@
     "remove": "Remove",
     "uploading": "Uploading...",
     "error": {
-      "notPermitted": "You do not have permission to attach files to the description",
+      "notPermitted": "Only the requester (task creator) can attach files to the description",
       "disallowedExt": "File type not allowed",
       "tooLarge": "File too large",
       "failed": "Upload failed"

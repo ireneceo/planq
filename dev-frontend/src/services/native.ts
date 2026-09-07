@@ -57,3 +57,39 @@ export const detectClientKind = (): 'pwa' | 'web' | 'ios' | 'android' => {
     return 'web';
   }
 };
+
+/**
+ * OS 의 **이 앱 알림 설정**을 연다.
+ *
+ * ★ 2026-09-07 (Irene: "다른 직원이 아이폰에서 앱을 새로 깔았는데 알림소리가 안온대.
+ *   알림설정으로 유도하는 거 봤어?") — 권한이 거부(denied)되면 앱은 다시 물어볼 수 없다.
+ *   iOS 는 한 번 거부하면 `requestPermissions()` 가 **아무 창도 안 띄우고 그대로 denied 를 준다.**
+ *   그때 화면이 "기기 설정에서 허용해주세요" 라고 글로만 말하면, 사용자는 설정 앱을 뒤져야 한다.
+ *   문을 만든다.
+ *
+ * ★ 소리는 권한과 **다른 스위치**다 — 알림이 허용돼도 iOS 설정에서 '사운드' 가 꺼져 있으면
+ *   배너만 뜨고 소리가 없다. JS 로는 그 상태를 읽을 수 없으므로, 같은 문으로 보내 눈으로 확인하게 한다.
+ *   (memory feedback_ios_push_presentation_device_state)
+ *
+ * @returns 열었으면 true. 웹이거나 플러그인이 못 열면 false — **부르는 쪽이 폴백 문구를 띄운다.**
+ */
+export async function openAppNotificationSettings(): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  try {
+    // iOS: 'app-settings:' 가 이 앱의 설정 화면으로 간다.
+    // Android: 앱 상세 설정으로 가는 스킴이 없어 push 플러그인이 제공하는 창을 쓴다.
+    if (nativePlatform() === 'ios') {
+      // ★ `@capacitor/app` 7.x 에는 openUrl 이 없다(빌드 에러로 확인). 새 플러그인을 넣지 않고,
+      //   WKWebView 가 **모르는 스킴을 OS 로 넘기는** 성질을 쓴다 — `app-settings:` 는
+      //   iOS 가 이 앱의 설정 화면으로 해석한다. 실패해도 화면은 그대로다(문구 폴백).
+      window.location.href = 'app-settings:';
+      return true;
+    }
+    // Android 는 앱 설정으로 가는 표준 URL 스킴이 없다. 전용 플러그인이 필요한데
+    // 이 프로젝트에는 설치돼 있지 않으므로 **여는 척하지 않는다** — false 를 주고
+    // 부르는 쪽이 경로를 글로 안내한다(눌러도 아무 일 없는 버튼을 만들지 않는다).
+    return false;
+  } catch {
+    return false;
+  }
+}

@@ -399,8 +399,6 @@ const QTaskPage:React.FC=()=>{
   const[sortDir,setSortDir]=useState<SortDir>('asc');
 
   // Inline edit
-  const[editingTitle,setEditingTitle]=useState<number|null>(null);
-  const[titleDraft,setTitleDraft]=useState('');
   const[addingTask,setAddingTask]=useState(false);
   // 인라인(=표 하단 행 추가) 모드 여부. true=표 아래에서 폼 / false=우측 패널 폼
   const[addInline,setAddInline]=useState(false);
@@ -917,15 +915,6 @@ const QTaskPage:React.FC=()=>{
     }catch{}
   };
 
-  const saveTitle=async(taskId:number,title:string)=>{
-    const task=allTasks.find(t=>t.id===taskId);
-    if(!task)return;
-    try{
-      const r=await apiFetch(`/api/tasks/by-business/${bizId}/${taskId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
-      if(!r.ok)return;  // 실패 시 낙관적 title 적용 금지
-      setAllTasks(prev=>prev.map(t=>t.id===taskId?{...t,title}:t));
-    }catch{}
-  };
 
   // 프로젝트 옵션 — 워크스페이스 전체 프로젝트 (active) 직접 fetch.
   // 이전 구현: allTasks 에서 distinct → 업무 없는 신규 프로젝트가 드롭다운에 안 떠 검색 불가능.
@@ -1039,7 +1028,7 @@ const QTaskPage:React.FC=()=>{
         //     의뢰 명세(업무 설명)에 딸린 자료이지 수행자가 낸 결과물이 아니다.
         //     'task' 로 붙이면 상세 드로어의 **업무 결과물** 아래에 렌더된다
         //     (Irene: "업무추가할 때 넣은 첨부파일이 업무결과물 넣는 곳 아래로 붙어").
-        //     권한도 이쪽이 맞다 — description_attach 는 작성자/owner/admin 이고 생성자는 곧 작성자다.
+        //     권한도 이쪽이 맞다 — description_attach 는 **작성자만**이고 생성자는 곧 작성자다.
         //     결과물 첨부는 상세 드로어의 TaskAttachments 가 계속 'task' 로 붙인다(무변경).
         //   ★ 문서(post)도 같이 보낸다 — 여태 고른 문서는 **아무 데도 가지 않았다**
         //     (아래 3) 자리에 TODO 만 남아 있었다). 첨부했다고 믿는데 조용히 사라졌다.
@@ -2083,7 +2072,6 @@ const QTaskPage:React.FC=()=>{
                 const prog=task.progress_percent||0;
                 const _due=task.due_date?task.due_date.slice(0,10):'';
                 const dColor=(!_due||task.status==='completed'||task.status==='canceled')?'default':(_due<todayStr?'overdue':(_due===todayStr?'today':'default'));
-                const isEditing=editingTitle===task.id;
                 const isDelayed=task.due_date&&task.due_date.slice(0,10)<today&&task.status!=='completed'&&task.status!=='canceled';
 
                 return(
@@ -2093,6 +2081,8 @@ const QTaskPage:React.FC=()=>{
                       // 빈 공간 클릭 → 상세 드로어 오픈. 인터랙티브 요소는 제외 (그 요소가 자체 핸들러 실행)
                       const tgt=e.target as HTMLElement;
                       if(tgt.closest('button,a,input,select,textarea,[role="button"],[data-dropdown]'))return;
+                      // 재클릭 토글 (CLAUDE.md UI 규칙) — 행 끝 화살표가 하던 일을 여기서 이어받는다.
+                      if(detailTaskId===task.id){closeDetail();return;}
                       openDetail(task.id);
                     }}
                     style={{cursor:'pointer'}}>
@@ -2162,17 +2152,14 @@ const QTaskPage:React.FC=()=>{
                         }
                         return <CheckSpacer aria-hidden="true" />;
                       })()}
-                      {isEditing?(
-                        <TitleInput autoFocus value={titleDraft} onChange={e=>setTitleDraft(e.target.value)}
-                          onClick={e=>e.stopPropagation()}
-                          onMouseDown={e=>e.stopPropagation()}
-                          onBlur={()=>{if(titleDraft.trim())saveTitle(task.id,titleDraft.trim());setEditingTitle(null);}}
-                          onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();if(e.key==='Escape')setEditingTitle(null);}} />
-                      ):(<>
+                      {(<>
                         {task.has_unread && <UnreadDot title={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string} />}
-                        <TaskTitle role="button" $done={task.status==='completed'}
-                          onClick={(e)=>{e.stopPropagation();setEditingTitle(task.id);setTitleDraft(task.title);}}
-                          title={t('list.titleClickEdit','클릭하여 업무명 수정') as string}>
+                        {/* ★ 2026-09-07 (Irene: "Q task 리스트 모든 디바이스 모든 곳에서 제목 편집기능
+                            없애고 클릭하면 다 업무상세 나오게 해줘.") — 제목 클릭은 **상세를 연다.**
+                            같은 자리에서 어떤 때는 편집칸이 열리고 어떤 때는 상세가 열리면 무엇을 누른
+                            것인지 알 수 없다. 제목 수정은 상세 한 곳에서 한다(그쪽이 권한 판정도 한다).
+                            여기서 stopPropagation 을 하지 않는다 — 행의 onClick(openDetail)이 처리한다. */}
+                        <TaskTitle $done={task.status==='completed'}>
                           {task.title}
                         </TaskTitle>
                         {/* #353 ⑤ 중요도 — 높음·긴급만 그린다. 보통까지 그리면 배경 소음이 된다. */}
@@ -2280,15 +2267,10 @@ const QTaskPage:React.FC=()=>{
                         셀 폭을 넘기면 맨 끝의 이 버튼부터 잘려 나갔다 — 상세를 여는 유일한 버튼인데
                         가로 스크롤로도 닿지 못했다(실측: 리스트 폭이 좁아지면 31px 밖으로 나감).
                         고정폭 칸으로 빼면 업무명 셀이 대신 줄어들어 버튼은 항상 남는다. */}
-                    <TCell $w="32px" $center>
-                      <DetailBtn
-                        $active={detailTaskId===task.id}
-                        data-testid="task-open-detail"
-                        onClick={e=>{e.stopPropagation();if(detailTaskId===task.id)closeDetail();else openDetail(task.id);}}
-                        title={t('detail.open','Open detail')}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-                      </DetailBtn>
-                    </TCell>
+                    {/* ★ 2026-09-07 (Irene: "리스트에 > 이거 없어도 돼") — 행 끝 화살표를 없앴다.
+                        행 전체가 이미 상세를 여는 버튼이고(위 TRow onClick), 제목 클릭도 같은 일을 한다.
+                        같은 일을 하는 세 번째 표적은 자리만 먹는다. 재클릭 토글(열린 행을 다시 눌러 닫기)은
+                        행 onClick 이 이어받는다. */}
                     {scope==='workspace' && (
                       <TCell $w="140px" $hideBelow={768} style={{overflow:'visible'}}>
                         {/* D1 후속 — 담당자 소속(부서·팀)은 hover tooltip 으로 (행 밀집 노이즈 0) */}
@@ -3791,7 +3773,6 @@ const TaskTitle=styled.span<{$done?:boolean}>`font-size:0.875rem;font-weight:600
 const CarriedBadge=styled.span`flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;font-size:0.625rem;font-weight:700;color:#475569;background:#F1F5F9;border-radius:10px;letter-spacing:-0.2px;cursor:help;`;
 // 안 읽은 업무 활동(댓글·변경) 점 (운영 #5)
 const UnreadDot=styled.span`flex-shrink:0;width:7px;height:7px;border-radius:50%;background:#F43F5E;margin-right:2px;align-self:center;`;
-const TitleInput=styled.input`flex:1;font-size:0.875rem;font-weight:500;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:2px 8px;border-radius:6px;font-family:inherit;height:24px;box-sizing:border-box;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:700;
   border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{opacity:0.8;}':''}
@@ -4118,7 +4099,6 @@ const CandTitle=styled.div`font-size:0.75rem;font-weight:600;color:#9F1239;margi
 // Period row (right panel)
 
 // Detail button on task row
-const DetailBtn=styled.button<{$active?:boolean}>`display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:${p=>p.$active?'#F43F5E':'transparent'};border:1px solid ${p=>p.$active?'#F43F5E':'transparent'};border-radius:6px;color:${p=>p.$active?'#FFF':'#94A3B8'};cursor:pointer;flex-shrink:0;transition:all 0.15s;&:hover{background:${p=>p.$active?'#E11D48':'#F1F5F9'};color:${p=>p.$active?'#FFF':'#0F766E'};border-color:${p=>p.$active?'#E11D48':'#E2E8F0'};}`;
 const IBody=styled.div`font-size:0.75rem;color:#1E293B;line-height:1.4;`;
 const IMeta=styled.div`font-size:0.625rem;color:#94A3B8;margin-top:2px;`;
 

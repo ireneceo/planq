@@ -71,6 +71,17 @@ const Input = styled.input`
   font-size:0.8125rem;color:#0F172A;
   &::placeholder{color:#94A3B8;}
   &:disabled{cursor:not-allowed;}
+  /* ★ 2026-09-07 (Irene: "업무검색만 글자가 크게 안내 되고 있어 … 다른 필터랑 글자크기
+     혼자 달라서 정돈 안되어 보여") — index.css 의 폰 규칙이 모든 input 을 16px 로 올린다
+     (iOS 가 16px 미만 입력칸에 포커스하면 화면을 스스로 확대하기 때문. viewport 의
+     maximum-scale 을 걷어낸 대가라 이 바닥값은 **건드리지 않는다**).
+     그런데 옆의 PlanQSelect 는 표시 슬롯이 <div> 라 13px 로 남는다 — 실측 16 vs 13.
+     자동확대는 **포커스된 입력의 글자 크기**로 결정되므로, 안내문(placeholder)만 이웃과
+     같은 13px 로 낮춘다. PlanQSelect 가 singleValue·placeholder 에서 바닥값을 걷어낸 것과
+     같은 처방이다(PlanQSelect.tsx:145 주석). */
+  @media (max-width: 640px) {
+    &::placeholder{ font-size:0.8125rem; }
+  }
 `;
 const ClearBtn = styled.button`
   width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;

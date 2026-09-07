@@ -212,7 +212,10 @@
     "fileHint": "Drop a text, Markdown, CSV, JSON or HTML file to fill the box with its contents",
     "fileLoaded": "Loaded {{count}} file(s).",
     "fileUnsupported": "{{names}} cannot be read yet. Only text, Markdown, CSV, JSON and HTML are supported — please paste the contents instead.",
-    "noCategory": "Uncategorized"
+    "noCategory": "Uncategorized",
+    "titleFromPost": "Send to Q info — {{title}}",
+    "titleFromPostPlain": "Send to Q info",
+    "hintFromPost": "Split this document into Q info entries. Pulling out each entry’s title, category and values (price, contact, deadline) makes them findable later. Uses only what the original says — nothing is invented."
   },
   "csv": {
     "secretMasked": "(secret — not exported)"

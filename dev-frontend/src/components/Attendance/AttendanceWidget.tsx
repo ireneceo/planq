@@ -50,15 +50,57 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
 
   if (!bizId || a.loading) return null;
 
+  // ★ 2026-09-07 — 자동 출근 알림은 **접힘 분기보다 위**에서 만든다.
+  //   여태 이 모달이 아래 'isCollapsed' early return **뒤**에 있어서, 사이드바가 접혀 있으면
+  //   아예 렌더되지 않았다 → 확인이 기록되지 않고, 나중에 펼치는 순간 그제야 떴다.
+  //   알림은 위젯의 배치와 무관하게 한 번은 떠야 한다.
+  //   #208 — 시스템이 대신 바꾼 상태는 **말없이 두지 않는다.**
+  //   나중에 기록을 보고 "내가 언제 출근을 눌렀지?" 가 되면 그 기록 전체를 못 믿게 된다.
+  //   ★ 2026-08-24 (Irene) — 옛 방식은 사이드바에 **계속 남는 인라인 배너**였다.
+  //     "이런 멘트가 계속 좌측메뉴에 남아있을 필요가 있어? 그냥 팝업으로 알리고 확인하고 닫게 해야지."
+  //     근무시간 계산에 관계된 변경이라 **한 번은 반드시 보게** 하되, 확인하면 사라져야 한다.
+  //     → 모달로 한 번 알리고, 확인한 회차는 localStorage 에 박제해 새로고침해도 다시 뜨지 않는다
+  //       (컴포넌트 state 만으로는 새로고침마다 되살아났다).
+  const autoModal = (
+  <StandardModal
+    open={showAutoModal}
+    onClose={closeAutoNotice}
+    title={t('widget.autoClockedInTitle', { defaultValue: '출근으로 기록했어요' }) as string}
+    size="sm"
+    footer={(
+      <AutoModalFooter>
+        {a.autoNotice?.can_undo && (
+          <ActionButton tone="secondary" size="sm" onClick={() => { void a.undoAuto(); closeAutoNotice(); }}>
+            {t('widget.undoAuto')}
+          </ActionButton>
+        )}
+        <ActionButton tone="primary" size="sm" onClick={closeAutoNotice} data-testid="attn-auto-ok">
+          {t('widget.autoOk', { defaultValue: '확인' }) as string}
+        </ActionButton>
+      </AutoModalFooter>
+    )}
+  >
+    <AutoModalBody>
+      <div>{t('widget.autoClockedIn')}</div>
+      {a.autoNotice?.can_undo && (
+        <AutoModalHint>{t('widget.autoUndoHint', { defaultValue: '잘못 기록됐다면 지금 되돌릴 수 있어요.' }) as string}</AutoModalHint>
+      )}
+    </AutoModalBody>
+  </StandardModal>
+  );
+
   const state = a.state;
   const dark = variant === 'sidebar';
 
   if (isCollapsed) {
     const key = state || 'none';
     return (
-      <CollapsedDot title={t(`state.${key}`) as string} aria-label={t(`state.${key}`) as string}>
-        <DotInner $state={state} />
-      </CollapsedDot>
+      <>
+        <CollapsedDot title={t(`state.${key}`) as string} aria-label={t(`state.${key}`) as string}>
+          <DotInner $state={state} />
+        </CollapsedDot>
+        {autoModal}
+      </>
     );
   }
 
@@ -117,38 +159,7 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
           </Secondary>
         )}
       </Actions>
-      {/* #208 — 시스템이 대신 바꾼 상태는 **말없이 두지 않는다.**
-          나중에 기록을 보고 "내가 언제 출근을 눌렀지?" 가 되면 그 기록 전체를 못 믿게 된다.
-          ★ 2026-08-24 (Irene) — 옛 방식은 사이드바에 **계속 남는 인라인 배너**였다.
-            "이런 멘트가 계속 좌측메뉴에 남아있을 필요가 있어? 그냥 팝업으로 알리고 확인하고 닫게 해야지."
-            근무시간 계산에 관계된 변경이라 **한 번은 반드시 보게** 하되, 확인하면 사라져야 한다.
-            → 모달로 한 번 알리고, 확인한 회차는 localStorage 에 박제해 새로고침해도 다시 뜨지 않는다
-              (컴포넌트 state 만으로는 새로고침마다 되살아났다). */}
-      <StandardModal
-        open={showAutoModal}
-        onClose={closeAutoNotice}
-        title={t('widget.autoClockedInTitle', { defaultValue: '출근으로 기록했어요' }) as string}
-        size="sm"
-        footer={(
-          <AutoModalFooter>
-            {a.autoNotice?.can_undo && (
-              <ActionButton tone="secondary" size="sm" onClick={() => { void a.undoAuto(); closeAutoNotice(); }}>
-                {t('widget.undoAuto')}
-              </ActionButton>
-            )}
-            <ActionButton tone="primary" size="sm" onClick={closeAutoNotice} data-testid="attn-auto-ok">
-              {t('widget.autoOk', { defaultValue: '확인' }) as string}
-            </ActionButton>
-          </AutoModalFooter>
-        )}
-      >
-        <AutoModalBody>
-          <div>{t('widget.autoClockedIn')}</div>
-          {a.autoNotice?.can_undo && (
-            <AutoModalHint>{t('widget.autoUndoHint', { defaultValue: '잘못 기록됐다면 지금 되돌릴 수 있어요.' }) as string}</AutoModalHint>
-          )}
-        </AutoModalBody>
-      </StandardModal>
+      {autoModal}
     </Wrap>
   );
 };

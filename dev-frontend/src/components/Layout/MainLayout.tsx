@@ -752,6 +752,17 @@ const AccordionGroupLabel = styled.div`
 const IconDashboard = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>);
 const IconTodo = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>);
 const IconTalk = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>);
+// ★ 2026-09-07 (Irene: "모바일 우측 상단에 나오는 채팅아이콘은 우측 하단이랑 모양 다르게
+//   동그란 느낌의 말풍선으로 해줘") — 우하단 도크 FAB(RightDock IconDock)이 위 사각 말풍선과
+//   **같은 path** 라, 폰에서 채팅 입구가 두 개인데 생김새가 똑같아 어느 쪽이 무엇인지 구별되지
+//   않았다. 상단은 둥근 말풍선으로 가른다. 도크 쪽은 그대로 둔다(그쪽이 기준점이다).
+const IconTalkRound = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="11" r="8" />
+    <path d="M8.2 18.1 5 21.5l4.6-1.7" />
+  </svg>
+);
 const IconTask = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>);
 const IconProject = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>);
 const IconCalendar = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>);
@@ -1055,7 +1066,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               : (t('nav.talk') as string)}
             title={t('nav.talk') as string}
           >
-            <IconTalk />
+            <IconTalkRound />
             {talkUnreadCount > 0 && (
               <MobileHeaderBadge>{talkUnreadCount > 99 ? '99+' : talkUnreadCount}</MobileHeaderBadge>
             )}

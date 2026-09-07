@@ -5,6 +5,9 @@ import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
 
+/** 브랜드 스토리 문단 — `pull' 이면 강조 문장(원문의 작은따옴표 대사). */
+type StoryBlock = { text: string; pull?: boolean };
+
 const VALUES = ['simplicity', 'execution', 'evidence'] as const;
 const MILESTONES = [0, 1, 2, 3] as const;
 
@@ -21,20 +24,35 @@ const AboutPage: React.FC = () => {
     <LandingLayout transparentTop={false}>
       <SubHero>
         <Container>
-          <Eyebrow>{t('aboutPage.eyebrow', 'OUR STORY')}</Eyebrow>
-          <Title>{t('aboutPage.title1', '15년의 원격 협업 경험에서')}<br />{t('aboutPage.title2', '만들어졌습니다.')}</Title>
-          <Sub>{t('aboutPage.sub', 'PlanQ는 이론이 아닌 실전에서 태어났습니다.')}</Sub>
+          <Eyebrow>{t('aboutPage.eyebrow')}</Eyebrow>
+          <Title>{t('aboutPage.title1')}</Title>
+          <Sub>{t('aboutPage.sub')}</Sub>
         </Container>
       </SubHero>
 
+      {/* ★ 2026-09-07 — 여기는 **실제 브랜드 스토리**다 (운영 Q docs "PlanQ 브랜드 스토리").
+          여태 "15년 넘게 글로벌 클라이언트와 원격으로…" 같은 지어낸 문장이 실존 인물의
+          말인 것처럼 인용문으로 걸려 있었다. 사람 이야기를 지어내지 않는다 —
+          정본은 문서 한 곳이고, 화면은 그것을 옮긴다.
+          본문은 i18n JSON 의 배열(aboutPage.story.paras)로 두어 문단이 늘어도 코드가 안 바뀐다.
+          pull 은 문단 사이에 끼우는 강조 문장(원문의 작은따옴표 대사). */}
       <StorySection>
         <Container>
-          <Reveal>
-            <StoryQuote>
-              <QuoteText>{t('aboutPage.quote', '15년 넘게 글로벌 클라이언트와 원격으로 일하면서 슬랙, 노션, 구글 워크스페이스, 아사나를 모두 써봤습니다. 도구가 많아질수록 효율이 떨어진다는 것을, 가장 필요한 건 \'인지적으로 명확한 구조\'라는 것을 수년간의 경험에서 배웠습니다.')}</QuoteText>
-              <QuoteCite>— {t('aboutPage.cite', 'PlanQ를 만든 이유')}</QuoteCite>
-            </StoryQuote>
-          </Reveal>
+          <StoryBody>
+            {(t('aboutPage.story.blocks', { returnObjects: true }) as StoryBlock[]).map((blk, i) => (
+              <Reveal key={i}>
+                {blk.pull
+                  ? <StoryPull>{blk.text}</StoryPull>
+                  : <StoryPara>{blk.text}</StoryPara>}
+              </Reveal>
+            ))}
+            <Reveal>
+              <StoryQuote>
+                <QuoteText>{t('aboutPage.story.closing')}</QuoteText>
+                <QuoteCite>— {t('aboutPage.cite')}</QuoteCite>
+              </StoryQuote>
+            </Reveal>
+          </StoryBody>
         </Container>
       </StorySection>
 
@@ -128,6 +146,22 @@ const StorySection = styled.section`
   padding: 64px 0 96px; background: #FFFFFF;
   .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.7s ease-out, transform 0.7s ease-out; }
   .reveal.in { opacity: 1; transform: none; }
+`;
+const StoryBody = styled.div`
+  max-width: 720px; margin: 0 auto;
+`;
+const StoryPara = styled.p`
+  margin: 0 0 20px; font-size: 1.0625rem; line-height: 1.9; color: #334155;
+  word-break: keep-all;
+  @media (max-width: 640px) { font-size: 1rem; line-height: 1.8; margin-bottom: 16px; }
+`;
+/** 원문에서 작은따옴표로 떠 있던 문장 — 읽는 흐름의 쉼표 역할이라 크게 띄운다. */
+const StoryPull = styled.p`
+  margin: 32px 0; padding: 0 0 0 18px;
+  border-left: 3px solid #14B8A6;
+  font-size: 1.25rem; font-weight: 700; line-height: 1.7; color: #0F172A;
+  word-break: keep-all;
+  @media (max-width: 640px) { font-size: 1.0625rem; margin: 24px 0; }
 `;
 const StoryQuote = styled.div`
   padding: 56px 64px;

@@ -341,13 +341,19 @@ sync_database() {
   #   항상 500** 이었다(2026-08-29 운영 실측). sync-database 는 기존 컬럼의 NULL 허용을 안 바꾼다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-candidate-nullable-conv.js 2>&1 | tail -5"
 
+  # 2026-09-07 — 프로젝트 문서 탭 핀(project_pinned_docs). localStorage → 서버 이관.
+  #   ★ **코드보다 먼저 돈다** — 테이블이 없으면 /api/projects/:id/pinned-docs 가 500 이다
+  #     (guest_links.scope 때와 같은 계열). 스크립트는 멱등(있으면 아무것도 안 함).
+  log "Creating project_pinned_docs table..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-pinned-docs.js 2>&1 | tail -5"
+
   # 운영 #360 — 연결 post 가 없는 표(q_record)는 화면에서 열 길이 없다.
   #   Q record 메뉴 폐지 후 표를 여는 통로는 post(kind=table) 뿐인데, POST /api/records 가
   #   post 없이 표만 만들 수 있어 운영에 도달 불가 표가 생겼다(#12 "앱 스토어 개발자 계정", 행 15).
   #   가시성(vlevel·target_member_ids)은 원본 표에서 그대로 옮기므로 더 넓게 보이지 않는다.
   log "Backfilling orphan record posts (#360)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-orphan-record-posts.js --apply 2>&1 | tail -8"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup / candidate-null)"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup / candidate-null / project-pinned-docs)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."
@@ -628,8 +634,24 @@ publish_release_note() {
   if [ -z "$VER" ]; then warn "  버전을 읽지 못함 — 릴리즈 노트 건너뜀"; return 0; fi
   NOTE="/opt/planq/docs/release-notes/v${VER}.json"
   if [ ! -f "$NOTE" ]; then
-    warn "  v${VER} 릴리즈 노트 없음 — 사용자에게 이번 배포가 고지되지 않습니다"
-    dim  "  (작성 위치: docs/release-notes/v${VER}.json — ko/en 짝 필수)"
+    # ★ 2026-09-07 — 여태 여기서 그냥 돌아갔다. 버전은 며칠씩 안 오르는데 배포는 하루 여러 번이라,
+    #   대부분의 배포가 **아무것도 남기지 않았다** — "새 소식" 이 8건에 멈춘 이유다
+    #   (Irene: "내용이 빈약한데 자동업데이트 배포하면서 하는 거 아니였어?").
+    #   → 커밋 범위에서 **미발행 초안**을 만들어 올린다. 발행은 사람이 문구를 다듬은 뒤에 한다
+    #     (커밋 제목은 개발자 언어다 — 그대로 사용자에게 내보내지 않는다).
+    local DRAFT="/tmp/rn-draft-v${VER}.json"
+    if node /opt/planq/dev-backend/scripts/make-release-note-draft.js "${LAST_REMOTE:-}" HEAD "$VER" --out "$DRAFT" 2>&1 | sed 's/^/    /'; then
+      if [ "$DRY_RUN" = true ]; then dim "  [dry] 초안 업로드 (미발행)"; return 0; fi
+      if scp $SSH_OPTS -q "$DRAFT" "$PROD_HOST:/tmp/rn-draft.json"          && prod_run "cd $PROD_BE && node scripts/publish-release-note.js /tmp/rn-draft.json"; then
+        success "릴리즈 노트 **초안** 생성 (미발행) — /admin 에서 다듬어 발행하세요"
+      else
+        warn "  초안 업로드 실패 — 배포 자체는 정상"
+      fi
+      prod_run "rm -f /tmp/rn-draft.json" > /dev/null 2>&1 || true
+      rm -f "$DRAFT"
+    else
+      dim "  사용자에게 보일 변경(feat/fix/perf)이 없어 초안 없음"
+    fi
     return 0
   fi
   if [ "$DRY_RUN" = true ]; then dim "  [dry] scp $NOTE + publish-release-note.js --publish"; return 0; fi

@@ -16,6 +16,9 @@ import AttachmentField from '../Common/AttachmentField';
 import PostPreviewModal from '../Docs/PostPreviewModal';
 import { useImageLightbox } from '../Common/ImageLightbox';
 
+/** 서버가 내는 '권한 없음' 코드 — 옛 이름도 같이 받는다(2026-09-07 개명). */
+const NOT_PERMITTED = new Set(['only_creator_can_attach_description', 'only_creator_or_owner_can_attach_description']);
+
 interface AttachmentRow {
   id: number;
   context: string;
@@ -81,7 +84,10 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
         if (!ur.ok) {
           const uj = await ur.json().catch(() => null);
           const code = uj?.message || 'upload_failed';
-          if (code === 'only_creator_or_owner_can_attach_description') setErrMsg(t('descAttach.error.notPermitted', { defaultValue: '의뢰자 영역 첨부 권한이 없습니다' }) as string);
+          // 서버 코드가 바뀌어도 문구가 사라지지 않게 **둘 다** 받는다.
+          //   2026-09-07: owner 예외를 걷으면서 'only_creator_or_owner_…' → 'only_creator_…' 로 바뀌었다.
+          //   코드 문자열이 갈리면 사용자는 이유 대신 "업로드 실패" 만 본다.
+          if (NOT_PERMITTED.has(code)) setErrMsg(t('descAttach.error.notPermitted', { defaultValue: '의뢰 명세 첨부는 작성자만 할 수 있습니다' }) as string);
           else if (code === 'disallowed_extension') setErrMsg(t('descAttach.error.disallowedExt', { defaultValue: '허용되지 않는 파일 형식' }) as string);
           else if (code === 'file_too_large') setErrMsg(t('descAttach.error.tooLarge', { defaultValue: '파일이 너무 큽니다' }) as string);
           else setErrMsg(t('descAttach.error.failed', { defaultValue: '업로드 실패' }) as string);
@@ -97,8 +103,8 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
         });
         if (!lr.ok) {  // upload 분기와 동일하게 link 실패도 표면화 + picker 유지(거짓 첨부 방지)
           const lj = await lr.json().catch(() => null);
-          setErrMsg(lj?.message === 'only_creator_or_owner_can_attach_description'
-            ? (t('descAttach.error.notPermitted', { defaultValue: '의뢰자 영역 첨부 권한이 없습니다' }) as string)
+          setErrMsg(NOT_PERMITTED.has(lj?.message)
+            ? (t('descAttach.error.notPermitted', { defaultValue: '의뢰 명세 첨부는 작성자만 할 수 있습니다' }) as string)
             : (t('descAttach.error.failed', { defaultValue: '첨부 실패' }) as string));
           setSubmitting(false);
           return;

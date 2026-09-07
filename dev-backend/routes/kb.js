@@ -1172,10 +1172,20 @@ const SYSTEM_PROMPT_INGEST = `너는 PlanQ Knowledge Base 자료 정리 도우�
 6. title: 원문 첫 줄 또는 핵심 명사구. 50자 이내. 예: "기율법무법인 링크드인 계정" "Mary 전화번호".
 7. body: 원문 그대로 (오타/공백만 정리). 줄바꿈 \\n 그대로 유지.
 
-8. **주소·연락처 같은 값은 body 에 묻지 말고 fields 로 뺀다** (운영 신고 2026-09-03).
-   URL·이메일·전화번호·담당자·계정 ID 처럼 **뒤에 다시 찾아 쓸 값**은 body 문장이 아니라
-   "fields" 의 이름-값으로 넣는다. 이름은 원문에 쓰인 말 그대로("블로그", "대표번호", "담당자").
+8. **뒤에 다시 찾아 쓸 값은 body 에 묻지 말고 반드시 fields 로 뺀다** (운영 신고 2026-09-03 · 2026-09-07).
+   Q info 는 읽는 글이 아니라 **찾아 쓰는 DB** 다. 값이 문장 속에 있으면 나중에 못 찾는다.
+   fields 로 빼야 하는 것 — 원문에 있는 것만:
+     · 연락 수단: URL·이메일·전화번호·주소·담당자·계정 ID
+     · **금액·단가·비용** ("RM 350", "1,200,000원", "페이지당 30"), 통화 기호·단위 그대로
+     · **수량·규격·기간** ("3~5년", "최근 6~12개월", "A4 10페이지", "2일 이내")
+     · **기한·날짜·조건** ("7일 이내 전액 환불", "매월 15일")
+   이름은 원문에 쓰인 말 그대로 쓴다("블로그", "대표번호", "담당자", "가격", "기간", "환불 기한").
    예: {"fields": {"블로그": "https://blog.naver.com/kalis001"}}
+   예: {"title": "Vin Design 회사소개서 디자인", "fields": {"가격": "RM 1,500", "분량": "12페이지"}}
+   ★ **fields 가 하나도 없는 항목은 의심하라.** 가격표·체크리스트·연락처처럼 값이 있는 원문인데
+     fields 가 비어 있으면 값을 body 에 묻은 것이다. 값이 정말 없을 때만 fields 를 비운다.
+     (2026-09-07 실측 사고: 서비스 가격표 14항목을 뽑았는데 **fields 가 전부 0개** 라 가격이
+      전부 문장 속에 묻혔다. 나중에 "그 디자인 얼마였지" 를 못 찾는다.)
 
 9. **한 줄에 하나씩 나열된 목록은 줄마다 다른 항목이다.**
    "-A 블로그: https://... / -B 블로그: https://..." 처럼 **서로 다른 대상**이 각자의 값을 갖고
@@ -1183,6 +1193,20 @@ const SYSTEM_PROMPT_INGEST = `너는 PlanQ Knowledge Base 자료 정리 도우�
    (실제 사고: 변호사 두 곳의 블로그 주소를 한 항목으로 뭉쳐 링크가 본문에 묻혔다.)
    반대로 **같은 대상의 여러 속성**(한 서비스의 ID·비밀번호·URL)은 1개 항목 + fields 여러 개다.
    기준은 "나중에 이걸 따로 찾을 일이 있는가" — 따로 찾을 것이면 따로 만든다.
+
+9-1. **한 항목의 body 안에 같은 종류의 값이 2개 이상 있으면 그것은 여러 항목이다.**
+   가격이 두 개 이상, 전화번호가 두 개 이상, 주소가 두 개 이상 — 전부 쪼개라.
+   특히 **가격표·요금표**는 줄(또는 규격)마다 한 항목이다. 업체·규격·옵션이 다르면 다른 항목이다.
+   (2026-09-07 실측 사고: "인쇄물 디자인 – 페이지당 가격 정리" 한 항목에 업체 3곳 · 가격 10개 이상이
+    669자 body 로 뭉쳐 들어갔다. 그 안의 "A4 8페이지 RM 500" 을 나중에 찾을 방법이 없다.
+    올바른 결과는 업체×규격마다 항목 1개 + fields{가격, 규격, 업체} 다.)
+   ★ **규격·옵션마다 가격이 따로면 규격마다 항목이다.** "A4 4페이지 RM 350 / A4 8페이지 RM 500"
+     은 두 항목이다(제목에 업체와 규격을 같이 적어 구별한다: "Vin Design 회사소개서 A4 8페이지",
+     fields{가격: "RM 500", 규격: "A4 8페이지", 업체: "Vin Design"}).
+     한 항목의 body 에 "RM" 이 두 번 이상 보이면 아직 덜 쪼갠 것이다.
+   ★ 소제목("🖨 인쇄물 디자인 – 페이지당 가격 정리")은 **항목이 아니라 묶음 이름**이다.
+     소제목만으로 항목을 만들지 말고, 그 아래 각 줄로 항목을 만들되 제목에 묶음 이름을 붙여
+     구별되게 한다(예: "Vin Design 회사소개서 A4 8페이지").
 
 답변 형식 — **반드시 다음 중 하나**:
 - 단일 항목이면: { "items": [{ "title": "...", "body": "...", "categories": ["manual"], "tags": [...], "fields": { "블로그": "https://..." } }] }
@@ -1214,7 +1238,7 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = parseInt(req.params.businessId, 10);
-    const { text, source_language } = req.body || {};
+    const { text, source_language, source_title } = req.body || {};
     if (!text || typeof text !== 'string' || !text.trim()) {
       return errorResponse(res, 'text_required', 400);
     }
@@ -1231,9 +1255,19 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
       return errorResponse(res, 'openai_key_missing', 503);
     }
 
+    // ★ 2026-09-07 — 출처 문서의 **제목을 맥락으로 준다** (Irene: "문서 상세를 보고 인포 만들어야지").
+    //   프론트가 서버가 돌려준 title 을 버리고 본문만 보내고 있었다. 제목은 그 글이 무엇에 관한
+    //   것인지 말하는 가장 짧은 단서라, 없으면 분류·항목명이 헛나간다.
+    //   ★ 제목을 **본문으로 쓰지 않는다** — 원문 보존 원칙(규칙 1)을 지키려면 맥락과 내용을 가른다.
+    const titleHint = String(source_title || '').trim().slice(0, 200);
     const messages = [
       { role: 'system', content: await buildIngestPrompt(businessId) },
-      { role: 'user', content: `[입력 언어 힌트: ${source_language || 'auto'}]\n\n${cleanText}` },
+      {
+        role: 'user',
+        content: `[입력 언어 힌트: ${source_language || 'auto'}]`
+          + (titleHint ? `\n[출처 문서 제목: ${titleHint}] — 분류·항목명을 정할 때 참고만 하고, 본문에 없는 내용을 만들지 마.` : '')
+          + `\n\n${cleanText}`,
+      },
     ];
 
     // kb_extract — 원문 보존이 핵심이라 temperature 0.1 (레지스트리 값). 옛 호출부엔 타임아웃이
@@ -1270,7 +1304,11 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
     //   #316 — **항목(custom_columns/custom_values)을 통과시킨다.** 여태 title/body/category/tags 4개만
     //          남겨서, 표형 자료를 넣어도 항목이 만들어지지 않고 body 덩어리로 뭉쳤다.
     //   #320 — 카테고리를 legacy ENUM 6종으로 강제하지 않는다(자유 문자열 40자). 저장 시 마스터 upsert.
-    const AI_MAX = 20;
+    // ★ 2026-09-07 — 20 → 60. 가격표·체크리스트를 **줄 단위로 쪼개라** 고 프롬프트를 조인 결과
+    //   한 문서에서 나오는 항목 수가 늘었다. 상한이 20 이면 조인 만큼 조용히 잘린다
+    //   (잘린 사실은 truncated 로 알리지만, 사용자는 "왜 일부만 들어왔지" 를 겪는다).
+    //   60 은 화면 검수(사용자가 하나씩 확인)로도 감당되는 상한이고, 저장은 batch 한 번이다.
+    const AI_MAX = 60;
     const parsedTotal = candidates.filter(c => c && typeof c === 'object' && c.title).length;
     const normalized = candidates
       // body 없이 항목만 있는 후보도 살린다 (#332 와 같은 이유 — 항목 위주 자료가 핵심 용도)

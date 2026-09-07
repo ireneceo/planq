@@ -403,11 +403,6 @@ export const ThreadPreview = styled.div`
 export const ThreadRow1Right = styled.span`
   display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
 `;
-export const StarSpan = styled.span<{ $on: boolean }>`
-  font-size: 0.875rem; line-height: 1; cursor: pointer;
-  color: ${p => p.$on ? '#F59E0B' : '#CBD5E1'};
-  &:hover { color: ${p => p.$on ? '#D97706' : '#94A3B8'}; }
-`;
 export const RowLabels = styled.div`
   display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;
 `;
@@ -560,14 +555,19 @@ export const CtrlBtn = styled.button<{ $on: boolean }>`
   transition: background 0.12s, border-color 0.12s;
   &:hover { border-color: #5EEAD4; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
-  /* 폰 터치 타깃 — 반응형 원칙 최소 40 (밴드가 폰에서 두 줄로 갈리므로 키울 자리가 있다). */
-  @media (max-width: 640px) { height: 40px; padding: 0 14px; }
+  /* 폰 터치 타깃. ★ 2026-09-07 (Irene: "셀렉트나 선택버튼이 왜 이렇게 글자크기에 안맞게 커?
+     높이도 높고") — 높이만 40 으로 올리고 글자는 12px 로 둬서 **칩 안이 텅 비어** 보였다.
+     높이를 반응형 원칙의 현재 타깃(36)으로 낮추고 글자를 13px 로 올려 비율을 맞춘다.
+     둘 중 하나만 고치면 같은 어긋남이 반대쪽으로 남는다. */
+  @media (max-width: 640px) { height: 36px; padding: 0 12px; font-size: 0.8125rem; }
 `;
-export const MetaChip = styled.span`
+export const MetaChip = styled.span<{ $hidePhone?: boolean }>`
   padding: 2px 8px;
   background: #F1F5F9; color: #475569;
   font-size: 0.6875rem; font-weight: 500;
   border-radius: 999px;
+  /* 좁은 폰에서 밴드2 를 한 줄로 지키기 위해 자리를 내주는 칩. 정보는 아래 메시지 목록이 대신한다. */
+  ${p => p.$hidePhone ? '@media (max-width: 420px) { display: none; }' : ''}
 `;
 export const AddLabelChip = styled.button<{ $color: string }>`
   padding: 2px 10px; border-radius: 999px;

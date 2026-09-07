@@ -1021,5 +1021,11 @@
     "clientPh": "고객을 선택하세요",
     "private": "나만 보기",
     "privateHint": "본인만 볼 수 있어요 (개인 보관함)"
+  },
+  "back": "뒤로",
+  "pushPrompt": {
+    "openSettings": "설정 열기",
+    "openSettingsFailed": "설정을 열지 못했습니다. 기기 설정 > PlanQ > 알림에서 켜주세요.",
+    "nativeDeniedDesc": "기기 설정 > PlanQ > 알림에서 허용해주세요. 소리가 안 들리면 같은 화면의 \"사운드\" 도 함께 켜주세요."
   }
 }

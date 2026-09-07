@@ -50,6 +50,7 @@ const TaskTag = require('./TaskTag');
 const TaskTagLink = require('./TaskTagLink');
 const ProjectStatusOption = require('./ProjectStatusOption');
 const ProjectStage = require('./ProjectStage');
+const ProjectPinnedDoc = require('./ProjectPinnedDoc');
 const ProjectWorkstream = require('./ProjectWorkstream');
 const ProjectLink = require('./ProjectLink');
 const ProjectProcessColumn = require('./ProjectProcessColumn');
@@ -378,6 +379,11 @@ ProjectClient.belongsTo(Client, { foreignKey: 'client_id' });
 ProjectClient.belongsTo(User, { as: 'contactUser', foreignKey: 'contact_user_id' });
 Project.hasMany(ProjectClient, { as: 'projectClients', foreignKey: 'project_id' });
 
+// ProjectPinnedDoc — 프로젝트 상세에 사람이 올려둔 문서 탭 (2026-09-07, localStorage → 서버)
+ProjectPinnedDoc.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+ProjectPinnedDoc.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
+ProjectPinnedDoc.belongsTo(Post, { as: 'post', foreignKey: 'post_id', onDelete: 'CASCADE' });
+
 // ProjectStage — 거래 시퀀스 (Phase D+1)
 ProjectStage.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
 Project.hasMany(ProjectStage, { as: 'stages', foreignKey: 'project_id' });
@@ -568,6 +574,7 @@ module.exports = {
   TaskTagLink,
   ProjectStatusOption,
   ProjectStage,
+  ProjectPinnedDoc,
   ProjectWorkstream,
   ProjectLink,
   ProjectProcessColumn,

@@ -14,7 +14,7 @@ const {
   ProjectStatusOption, ProjectProcessColumn, ProjectProcessPart,
   File, FileFolder, MessageAttachment, TaskAttachment,
   ProjectWorkstream, Post, Document, Department, Team, TaskLink, ProjectStage, ProjectLink,
-  GuestLink, PlatformSetting,
+  GuestLink, PlatformSetting, ProjectPinnedDoc,
 } = require('../models');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 // 같은 실제 파일이 direct·chat 두 줄로 보이던 것을 접는다(2026-09-04). 술어는 한 곳.
@@ -368,6 +368,70 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
         is_me: Number(resolvedUserId) === Number(req.user.id),
       },
     });
+  } catch (err) { next(err); }
+});
+
+// ─── 문서 탭 핀 (#프로젝트 상세) ─────────────────────────────────────────
+//   ★ 2026-09-07 — 여태 브라우저 localStorage 였다. 데스크탑에서 올린 탭이 폰에서는 없어서
+//     사용자에게는 **기능이 없는 것**으로 보였다(Irene: "모바일에서는 안나와. 나와야지").
+//     사람 단위로 서버에 둔다 — 어느 기기에서 열어도 같고, 남의 탭 줄은 바꾸지 않는다.
+//   접근 판정은 프로젝트 조회와 **같은 함수**(loadProjectOrForbidden)를 지난다. 사본을 만들지 않는다.
+
+// GET /:id/pinned-docs — 내가 이 프로젝트에 올려둔 문서 탭
+router.get('/:id/pinned-docs', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const rows = await ProjectPinnedDoc.findAll({
+      where: { user_id: req.user.id, project_id: project.id },
+      order: [['order_index', 'ASC'], ['id', 'ASC']],
+    });
+    // 지워진 문서·다른 워크스페이스로 옮겨간 문서는 탭에서 뺀다(죽은 탭을 남기지 않는다).
+    const ids = rows.map((r) => r.post_id);
+    const posts = ids.length
+      ? await Post.findAll({
+          where: { id: { [Op.in]: ids }, business_id: project.business_id, deleted_at: null },
+          attributes: ['id', 'title'],
+        })
+      : [];
+    const titleById = new Map(posts.map((p) => [p.id, p.title]));
+    const live = rows.filter((r) => titleById.has(r.post_id));
+    return successResponse(res, live.map((r) => ({
+      post_id: r.post_id,
+      title: titleById.get(r.post_id) || null,
+      order_index: r.order_index,
+    })));
+  } catch (err) { next(err); }
+});
+
+// POST /:id/pinned-docs { post_id } — 탭으로 올리기 (멱등)
+router.post('/:id/pinned-docs', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const postId = Number(req.body?.post_id);
+    if (!postId) return errorResponse(res, 'post_id required', 400);
+    // ★ 문서가 **이 프로젝트의 워크스페이스 것**인지 서버가 확인한다 — id 를 그대로 믿지 않는다.
+    const post = await Post.findOne({ where: { id: postId, business_id: project.business_id, deleted_at: null }, attributes: ['id'] });
+    if (!post) return errorResponse(res, 'post not found', 404);
+    const max = await ProjectPinnedDoc.max('order_index', { where: { user_id: req.user.id, project_id: project.id } });
+    await ProjectPinnedDoc.findOrCreate({
+      where: { user_id: req.user.id, project_id: project.id, post_id: postId },
+      defaults: { order_index: Number.isFinite(max) ? Number(max) + 1 : 0 },
+    });
+    return successResponse(res, { post_id: postId });
+  } catch (err) { next(err); }
+});
+
+// DELETE /:id/pinned-docs/:postId — 탭에서 내리기
+router.delete('/:id/pinned-docs/:postId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    await ProjectPinnedDoc.destroy({
+      where: { user_id: req.user.id, project_id: project.id, post_id: Number(req.params.postId) },
+    });
+    return successResponse(res, { post_id: Number(req.params.postId) });
   } catch (err) { next(err); }
 });
 

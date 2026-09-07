@@ -291,8 +291,17 @@ async function canFinancialAction(user, businessId, projectId) {
 | **DELETE task** ★ | △ (타인 관여 0건만) | - | - | - | ● | - | - | ● |
 
 ★ **사이클 N+5 정식 정책 (2026-05-10) + 2026-07-10 코드 실측 정합:**
-- **body (결과물)** — 담당자 본인 영역. owner 도 못 만짐. owner 가 결과물을 고치고 싶으면 **컨펌 반려 (revision_requested)** 워크플로우로 풀어야 함. admin 만 운영 감사 백도어. (`routes/tasks.js:1127`)
-- **description (의뢰 명세)** — 발주자(작성자/요청자/owner) 영역. 담당자는 코멘트로 보충. 의뢰 명세를 담당자가 임의 수정 금지. (`routes/tasks.js:1126`)
+- **body (결과물)** — **담당자만.** 2026-09-07 부터 owner·admin·platform_admin 예외가 **전부 없다**
+  (Irene: "결과물은 담당자만 작성하게 해야 하는데 지금 내가 관리자라서 다 되거든. 관리자도 안되어야 하지?"
+   / "owner든 admin이든 누구든 그 기준이 맞는 거 아냐?"). 결과물을 바꿔야 하면 **컨펌 반려
+  (revision_requested)** 로 담당자에게 돌려준다 — 그 문이 이미 있고, 그래야 바뀐 사실이 원장에 남는다.
+  직급으로 덮어쓰면 "누가 왜 고쳤는지" 가 남지 않고, 수행자가 자기가 안 쓴 결과물로 컨펌을 받게 된다.
+  (`routes/tasks.js` FIELD_RULES.body = `isAssignee`)
+- **description (의뢰 명세)** — **작성자만.** 같은 이유로 owner·admin 예외를 걷었다. 담당자는 코멘트로
+  보충한다. (`routes/tasks.js` FIELD_RULES.description = `isCreator`,
+  첨부는 `routes/task_attachments.js canEditDescriptionAttach` — **같은 술어**)
+- ★ **책임선 ≠ 관리 권한.** 삭제·프로젝트 이관·상태 되돌리기 같은 **운영 행위**는 종전대로 owner/admin 이다.
+  바뀐 것은 "누가 그 칸의 내용을 쓰는가" 뿐이다.
 - **DELETE task** — owner/admin. 작성자는 **"타인의 관여" 0건**일 때만 (실수 정정용 안전핀). 운영 #14 완화: 본인 자동 status_history·본인 댓글은 잠금 사유에서 제외 — 타인 댓글/타인 상태변경/타인 리뷰어가 1건이라도 있으면 403 (`routes/tasks.js:1342-1356`).
 - **project_id 이관** — 운영 #42 (2026-06-16) 정책 완화: owner/admin 전용이었으나 **담당자·작성자도 허용** ("내 업무 정리" — 초기 분류·재분류 일관, `routes/tasks.js:1136-1139`).
 - **status 직접 PUT** — 담당자/작성자/owner/admin (`routes/tasks.js:1129`). 단 reviewer 가드: reviewer 0명이면 `reviewing`/`revision_requested` 진입 400 `no_reviewers_assigned` (`routes/tasks.js:1081-1086`).

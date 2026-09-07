@@ -9,7 +9,11 @@ import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
 
 // #194 — 'updates'(제품 소식·체인지로그) 탭 추가. /changelog → /insights?category=updates 로 착지.
-const CATEGORIES = ['all', 'updates', 'guide-video', 'brand-video', 'how-to', 'insights', 'cases'] as const;
+// ★ 2026-09-07 IA 정리 (Irene 승인) — 'how-to' 탭을 뺐다. 사용법은 **도움말(/wiki) 한 곳**이다.
+//   같은 글이 두 메뉴에 뜨면 사용자는 뭐가 다른지 찾다가 둘 다 눌러 본다.
+//   서버도 같은 판정을 한다(routes/blog.js BLOG_EXCLUDED_CATEGORIES) — 탭만 지우면
+//   "탭은 없는데 전체에는 나오는" 반쪽이 된다.
+const CATEGORIES = ['all', 'updates', 'guide-video', 'brand-video', 'insights', 'cases'] as const;
 type Category = typeof CATEGORIES[number];
 
 export interface BlogPostCard {

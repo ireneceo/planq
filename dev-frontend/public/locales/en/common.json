@@ -1021,5 +1021,11 @@
     "clientPh": "Select customers",
     "private": "Only me",
     "privateHint": "Only you can see it (personal vault)"
+  },
+  "back": "Back",
+  "pushPrompt": {
+    "openSettings": "Open Settings",
+    "openSettingsFailed": "Couldn't open Settings. Go to Settings > PlanQ > Notifications and turn them on.",
+    "nativeDeniedDesc": "Allow notifications in Settings > PlanQ > Notifications. If you hear nothing, turn on \"Sounds\" on the same screen."
   }
 }

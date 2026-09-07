@@ -19,14 +19,17 @@ interface CompanyInfo {
   support_email: string | null;
 }
 
-const NAV_ITEMS: { to: string; key: string }[] = [
+// ★ `newTab: true` — 도움말은 **읽으면서 하던 일을 이어가는** 참고 자료다 (Irene 2026-09-07:
+//   "따로 헬프데스크처럼 쓰는 거야? 그럼 새창으로 열어야지"). 보던 페이지를 덮지 않는다.
+//   앱 안의 진입점도 같은 계약이다(CLAUDE.md "하던 일 위에 얹히는 진입점은 새 탭").
+const NAV_ITEMS: { to: string; key: string; newTab?: boolean }[] = [
   { to: '/features', key: 'nav.features' },
   { to: '/pricing', key: 'nav.pricing' },
   { to: '/service', key: 'nav.service' },   // 업무체계 설계·구축 서비스 (2026-08-24)
   { to: '/insights', key: 'nav.blog' },
   { to: '/about', key: 'nav.about' },
   { to: '/contact', key: 'nav.contact' },
-  { to: '/wiki', key: 'nav.help' },   // F7 — Q위키(도움말) 공개 진입
+  { to: '/wiki', key: 'nav.help', newTab: true },   // F7 — Q위키(도움말) 공개 진입
   // ★ 앱 다운로드는 **푸터에만** 있었다 (Irene 2026-09-05, 안드로이드 태블릿:
   //   "앱다운로드를 어디서 해? 도저히 모르겠어"). 폰·태블릿에서 랜딩에 온 사람이
   //   가장 먼저 찾는 것이라 상단 내비(+모바일 시트)에 둔다.
@@ -40,11 +43,6 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [company, setCompany] = useState<CompanyInfo | null>(null);
-  // 앱 베타 링크가 실제로 있을 때만 메뉴를 노출한다.
-  //   ★ 링크가 비어 있으면 /beta 는 "준비 중" 만 보여준다 — 그 상태로 메뉴를 걸면
-  //     눌러도 아무것도 못 받는 죽은 진입점이 된다(memory feedback_produced_link_no_consumer).
-  //   값은 /beta 페이지가 쓰는 것과 **같은 엔드포인트**를 본다(따로 만들면 갈라진다).
-  const [betaOn, setBetaOn] = useState(false);
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
@@ -59,15 +57,6 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   }, []);
 
   useEffect(() => {
-    let alive = true;
-    fetch('/api/platform/beta')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (alive) setBetaOn(!!(j?.data?.ios_url || j?.data?.android_url)); })
-      .catch(() => { /* 실패하면 메뉴를 안 보여준다 — 모르면 닫는 쪽 */ });
-    return () => { alive = false; };
-  }, []);
-
-  useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 60);
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -77,7 +66,10 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   // transparentTop=true 면 hero(다크) 위에서 transparent + 흰 텍스트, scroll 후 white background.
   // transparentTop=false 면 항상 white (서브 페이지 — 처음부터 라이트).
   const isTransparent = transparentTop && !scrolled && !mobileOpen;
-  const navItems = betaOn ? [...NAV_ITEMS, { to: '/beta', key: 'nav.beta' }] : NAV_ITEMS;
+  // ★ 2026-09-07 — "앱"(/beta) 메뉴를 없앴다. "앱 다운로드"(/app) 와 **같은 페이지**였다
+  //   (같은 platform_settings 값 하나를 읽어 같은 스토어로 보낸다). 메뉴가 둘이면
+  //   사용자는 뭐가 다른지 찾다가 둘 다 눌러 본다. /beta 주소는 /app 으로 보낸다(App.tsx).
+  const navItems = NAV_ITEMS;
 
   // #196 — 게스트가 언어를 바꿀 수단이 랜딩에 없었다. i18n detection 은 localStorage → navigator 라
   //   브라우저가 한국어면 영어 사용자가 영어 랜딩에 닿을 방법이 아예 없다. LegalPage 의 KO·EN
@@ -101,7 +93,8 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
 
           <DesktopNav>
             {navItems.map(item => (
-              <NavItem key={item.to} to={item.to} $light={isTransparent}>{t(item.key)}</NavItem>
+              <NavItem key={item.to} to={item.to} $light={isTransparent}
+                {...(item.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{t(item.key)}</NavItem>
             ))}
           </DesktopNav>
 
@@ -135,7 +128,8 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
         {mobileOpen && (
           <MobileSheet>
             {navItems.map(item => (
-              <MobileNavItem key={item.to} to={item.to}>{t(item.key)}</MobileNavItem>
+              <MobileNavItem key={item.to} to={item.to}
+                {...(item.newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{t(item.key)}</MobileNavItem>
             ))}
             <MobileDivider />
             {langSwitch(false)}
@@ -166,12 +160,11 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterLink to="/pricing">{t('nav.pricing')}</FooterLink>
               <FooterLink to="/service">{t('nav.service')}</FooterLink>
               <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
-              <FooterLink to="/wiki">{t('nav.help')}</FooterLink>{/* F7 — Q위키 도움말 */}
+              <FooterLink to="/wiki" target="_blank" rel="noopener noreferrer">{t('nav.help')}</FooterLink>{/* F7 — Q위키 도움말 (새 탭) */}
               {/* 앱 다운로드 — `/app` 라우트는 있었지만 **앱 어디에서도 링크가 없어**
                   주소를 아는 사람만 닿을 수 있었다(2026-09-04 Irene 신고: "아이폰 다운로드가 안 나와").
                   만들어 놓고 진입점을 안 붙이면 없는 기능과 같다. */}
               <FooterLink to="/app">{t('nav.app')}</FooterLink>
-              {betaOn && <FooterLink to="/beta">{t('nav.beta')}</FooterLink>}
             </FooterCol>
             <FooterCol>
               <FooterTitle>{t('footer.company', 'COMPANY')}</FooterTitle>

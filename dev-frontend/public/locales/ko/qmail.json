@@ -205,9 +205,9 @@
     "more": "더보기",
     "assigneePrefix": "담당",
     "assignAria": "담당자 지정",
-    "addLabel": "+ 라벨",
-    "addLabelAria": "라벨 붙이기",
-    "noMoreLabels": "붙일 라벨이 더 없습니다",
+    "addLabel": "+ 태그",
+    "addLabelAria": "태그 붙이기",
+    "noMoreLabels": "붙일 태그가 더 없습니다",
     "assignSearch": "이름으로 찾기",
     "meShort": "나"
   },

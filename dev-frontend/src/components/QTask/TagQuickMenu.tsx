@@ -64,15 +64,38 @@ const TagQuickMenu: React.FC<Props> = ({ taskId, bizId, dict, value, disabled, o
   }, [open]);
 
   // 좌표 — 트리거의 viewport 기준. 화면 아래/오른쪽으로 넘치면 접어 올린다.
+  //
+  // ★ 2026-09-07 (Irene: "+ 태그다는 건 모바일에서 제대로 작동해야 해. 위치가 올라가고
+  //   키보드 열리면 제대로.") — 두 가지가 틀려 있었다.
+  //   ① 넘침 판정에 `window.innerHeight` 를 썼다. **iOS 는 키보드가 올라와도 이 값이 안 변한다** —
+  //      실제로 보이는 높이는 `visualViewport.height` 다. 그래서 "아래에 자리가 있다" 고 판단해
+  //      아래로 폈고, 그 자리는 키보드 밑이라 안 보였다.
+  //   ② 좌표를 **열릴 때 한 번만** 쟀다. 이 메뉴는 열리자마자 입력칸에 포커스를 준다(30ms 뒤) →
+  //      키보드가 그 **다음에** 올라온다. 한 번만 재면 항상 키보드 이전 화면 기준이다.
+  //   → 보이는 뷰포트로 재고, 그 뷰포트가 바뀔 때마다 다시 잰다.
   useLayoutEffect(() => {
     if (!open) { setPos(null); return; }
-    const r = wrapRef.current?.getBoundingClientRect();
-    if (!r) return;
-    const W = 240, H = 300;
-    setPos({
-      top: r.bottom + 4 + H > window.innerHeight ? Math.max(8, r.top - H - 4) : r.bottom + 4,
-      left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)),
-    });
+    const measure = () => {
+      const r = wrapRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const W = 240, H = 300;
+      const vv = window.visualViewport;
+      // 보이는 영역의 아래 끝(뷰포트 좌표계). 키보드가 올라오면 이 값이 줄어든다.
+      const visibleBottom = vv ? vv.height + vv.offsetTop : window.innerHeight;
+      const visibleTop = vv ? vv.offsetTop : 0;
+      const below = r.bottom + 4;
+      const fitsBelow = below + H <= visibleBottom;
+      setPos({
+        top: fitsBelow ? below : Math.max(visibleTop + 8, Math.min(r.top - H - 4, visibleBottom - H - 8)),
+        left: Math.max(8, Math.min(r.left, window.innerWidth - W - 8)),
+      });
+    };
+    measure();
+    const vv = window.visualViewport;
+    if (!vv) return;
+    vv.addEventListener('resize', measure);
+    vv.addEventListener('scroll', measure);
+    return () => { vv.removeEventListener('resize', measure); vv.removeEventListener('scroll', measure); };
   }, [open]);
 
   const selectedIds = value.map(v => v.id);
@@ -211,7 +234,9 @@ const Field = styled.input`
   &:focus { border-color: #5EEAD4; box-shadow: 0 0 0 2px rgba(94,234,212,0.25); }
 `;
 const ScrollArea = styled.div`
-  margin-top: 6px; max-height: 220px; overflow-y: auto;
+  /* ★ 목록이 보이는 영역을 넘지 않게 — 키보드가 올라오면 220px 도 넘칠 수 있다.
+     --vvh 는 main.tsx 가 visualViewport.height 로 계속 sync 하는 값이다. */
+  margin-top: 6px; max-height: min(220px, calc(var(--vvh, 100vh) - 220px)); overflow-y: auto;
   display: flex; flex-direction: column; gap: 2px;
 `;
 const Item = styled.button<{ $on: boolean }>`

@@ -1128,8 +1128,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const iAmRequesterOrOwner = myRoles.includes('requester');
           // 사이클 N+5 — PERMISSION_MATRIX §5.7 책임선 분리:
           //   title/category    → 작성자/담당자/owner/admin
-          //   description (의뢰)→ 작성자/owner/admin (담당자 빠짐)
-          //   body (결과물)     → 담당자/admin (owner 빠짐, admin 만 감사 백도어)
+          //   description (의뢰)→ **작성자만** (2026-09-07 — 직급 예외 없음)
+          //   body (결과물)     → **담당자만** (2026-09-07 — 직급 예외 없음)
           const iAmCreator = detailTask.created_by === myId;
           const myWsRole = (user?.workspaces || []).find(w => w.business_id === bizId)?.role
             || (user?.business_id === bizId ? user?.business_role : null);
@@ -1146,8 +1146,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           // #250 — 태그는 "이 업무가 무엇에 관한 것인가" 라 title/category 축(의뢰자+수행자 둘 다).
           //   백엔드 routes/task_tags.js `PUT /:id/tags` 분기와 미러다.
           const canEditTags = iAmCreator || iAmAssignee || iAmWsOwner || myWsRole === 'admin';
-          const canEditDescription = iAmCreator || iAmWsOwner;
-          const canEditBody = iAmAssignee || isPlatformAdmin;
+          // ★ 2026-09-07 — **책임선에는 직급 예외가 없다** (Irene: "owner든 admin이든 누구든
+          //   그 기준이 맞는 거 아냐?"). 서버 FIELD_RULES.description/body 와 같은 술어다 —
+          //   갈라지면 화면은 열려 있는데 저장이 403 이 되거나(또는 그 반대) 한다.
+          //   ★ 이 값이 바뀌면 아래 "확인 요청 중이라 잠겨 있습니다" 안내도 담당자에게만 보인다.
+          //     그 문구는 담당자에게 하는 말인데 여태 platform_admin 에게도 떴다(Irene 신고).
+          const canEditDescription = iAmCreator;
+          const canEditBody = iAmAssignee;
           // ── 결과물은 **상태에 따라 쓰기/읽기가 갈린다** (2026-09-05 재설계) ────────────
           //   Irene: "입력란에 있는게 굳이 아래에 버전으로 또 있는 이유가 뭐야? … 그냥 결과물에
           //           새버전 결과물 입력하기 눌러서 새입력란이 보여야지. 기존 거 저장하고."

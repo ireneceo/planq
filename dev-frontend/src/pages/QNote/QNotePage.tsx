@@ -315,6 +315,17 @@ const QNotePage = () => {
   const [reSummarizeOpen, setReSummarizeOpen] = useState(false);
   // ★ 2026-08-25 (Irene: "모든 곳에서 요약생성한 거 접었다 폈다할 수 있어야지")
   //   긴 요약이 원문을 밀어낸다. 접힘 여부는 기기에 기억한다(매번 다시 접지 않게).
+  // 업무 추출 밴드 접기 — 요약과 같은 규칙(사람이 접으면 기억한다).
+  const [tasksCollapsed, setTasksCollapsed] = useState<boolean>(() => {
+    try { return localStorage.getItem('qnote_tasks_collapsed') === '1'; } catch { return false; }
+  });
+  const toggleTasksCollapsed = useCallback(() => {
+    setTasksCollapsed((v) => {
+      const next = !v;
+      try { localStorage.setItem('qnote_tasks_collapsed', next ? '1' : '0'); } catch { /* quota */ }
+      return next;
+    });
+  }, []);
   const [summaryCollapsed, setSummaryCollapsed] = useState<boolean>(() => {
     try { return localStorage.getItem('qnote_summary_collapsed') === '1'; } catch { return false; }
   });
@@ -563,16 +574,6 @@ const QNotePage = () => {
   const blockCounterRef = useRef(0);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const stickToBottomRef = useRef(true);
-  const [headerCollapsed, setHeaderCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem('qnote_header_collapsed') === '1'; } catch { return false; }
-  });
-  const toggleHeaderCollapsed = useCallback(() => {
-    setHeaderCollapsed((v) => {
-      const next = !v;
-      try { localStorage.setItem('qnote_header_collapsed', next ? '1' : '0'); } catch { /* quota */ }
-      return next;
-    });
-  }, []);
 
   const handleTranscriptScroll = useCallback(() => {
     const el = transcriptRef.current;
@@ -942,7 +943,9 @@ const QNotePage = () => {
       const isUpload = detail.capture_mode === 'upload';
       const nextPhase: Phase =
         isUpload ? 'review' :
-        detail.status === 'completed' ? 'review' :
+        // ★ 2026-09-07 — 'ended' 도 끝난 것이다. 목록 라벨과 **같은 집합**이어야 한다 —
+        //   한쪽만 알면 목록에는 "완료" 인데 상세에는 녹음 버튼이 뜨는 어긋남이 난다.
+        (detail.status === 'completed' || detail.status === 'ended') ? 'review' :
         hasUtterances ? 'paused' :
         detail.status === 'prepared' ? 'prepared' : 'paused';
       setPhase(nextPhase);
@@ -2490,8 +2493,16 @@ const QNotePage = () => {
                  session.status === 'processing' ? t('page.sessionStatus.processing') :
                  session.status === 'failed' ? t('page.sessionStatus.failed') :
                  session.status === 'paused' ? t('page.sessionStatus.paused') :
-                 session.status === 'completed' ? t('page.sessionStatus.completed') :
-                 session.status === 'prepared' ? t('page.sessionStatus.prepared') : t('page.sessionStatus.pending'));
+                 // ★ 2026-09-07 — 'ended' 를 넣는다. q-note 는 종료된 세션을 'ended' 로도 쓰는데
+                 //   (services/database.py:126 "share 활성화 조건: status='ended'") 이 사슬에 없어
+                 //   **기본값 '대기' 로 떨어졌다** — 끝난 노트가 목록에서 "대기" 로 보였다.
+                 //   CLAUDE.md 2026-08-30 사고와 같은 뿌리이고, 그때 상세 phase 만 고치고
+                 //   **목록 라벨은 못 고친 채 남아 있었다**(오늘 코드로 확인).
+                 (session.status === 'completed' || session.status === 'ended') ? t('page.sessionStatus.completed') :
+                 session.status === 'prepared' ? t('page.sessionStatus.prepared') :
+                 // ★ 모르는 값은 **보이게** 렌더한다. '대기' 로 삼키면 다음에 상태가 늘 때
+                 //   또 조용히 틀린다(CLAUDE.md "알 수 없는 값은 보이게 렌더").
+                 (session.status ? String(session.status) : t('page.sessionStatus.pending')));
             // Q Task 파스텔 pill 팔레트와 통일 (bg / fg 2톤)
             const statusStyle: { bg: string; fg: string } = isTextMemo
               ? { bg: '#F0FDFA', fg: '#0F766E' }   // teal — text 메모 표식 (MemoFab 와 같은 톤)
@@ -2499,7 +2510,7 @@ const QNotePage = () => {
                  session.status === 'processing' ? { bg: '#FEF3C7', fg: '#92400E' } :
                  session.status === 'failed' ? { bg: '#FEE2E2', fg: '#B91C1C' } :
                  session.status === 'paused' ? { bg: '#FEF3C7', fg: '#92400E' } :
-                 session.status === 'completed' ? { bg: '#E2E8F0', fg: '#475569' } :
+                 (session.status === 'completed' || session.status === 'ended') ? { bg: '#E2E8F0', fg: '#475569' } :
                  session.status === 'prepared' ? { bg: '#CCFBF1', fg: '#0F766E' } :
                  { bg: '#F1F5F9', fg: '#64748B' });
             const participants = session.participants || [];
@@ -2653,50 +2664,14 @@ const QNotePage = () => {
 
         {showRecordingUI && activeSession && activeSession.input_type !== 'text' && (
           <>
-            {headerCollapsed ? (
-              <CollapsedHeader>
-                <CollapsedTitle onClick={() => setEditingTitle(true)} title={t('page.header.editTitleHint')}>
-                  {activeSession.title}
-                </CollapsedTitle>
-                {phase === 'recording' && <Badge>{t('page.phase.recording')}</Badge>}
-                {phase === 'paused' && <Badge>{t('page.phase.paused')}</Badge>}
-                {phase === 'prepared' && <Badge>{t('page.phase.prepared')}</Badge>}
-                <CollapsedSpacer />
-                {phase === 'recording' && (
-                  <>
-                    <IconBtn onClick={pauseRecording} title={t('page.controls.pause')} aria-label={t('page.controls.pause')}>
-                      <StopIcon size={14} />
-                    </IconBtn>
-                    <IconBtn $danger onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
-                      <PowerIcon size={14} />
-                    </IconBtn>
-                  </>
-                )}
-                {phase === 'paused' && (
-                  <>
-                    <IconBtn $primary onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.resume')} aria-label={t('page.controls.resume')}>
-                      <MicIcon size={14} />
-                    </IconBtn>
-                    <IconBtn $danger onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
-                      <PowerIcon size={14} />
-                    </IconBtn>
-                  </>
-                )}
-                {phase === 'prepared' && (
-                  <IconBtn $primary onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
-                    <MicIcon size={14} />
-                  </IconBtn>
-                )}
-                <HeaderEdgeHandle
-                  type="button"
-                  onClick={toggleHeaderCollapsed}
-                  aria-label={t('page.header.expand')}
-                  title={t('page.header.expand')}
-                >
-                  <HeaderEdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg></HeaderEdgeChevron>
-                </HeaderEdgeHandle>
-              </CollapsedHeader>
-            ) : (
+            {/* ★ 2026-09-07 — **헤더 접기를 없앴다.**
+                Irene: "1줄인 헤더에 왜 접기가 나와? 접으면 아이콘되고 펼치면 글자나오는 버튼 차이
+                말고 안보여. 접기를 요청한 건 요약내용이 있을 경우 본문을 볼 수 없기 때문이었어.
+                요약이랑 업무추출영역 말한거였어."
+                한 줄짜리 헤더를 접어 봐야 라벨이 아이콘이 될 뿐 얻는 세로 공간이 거의 없었다.
+                접기는 요약·업무 두 밴드로 옮겼다(위). */}
+            {(
+
               <HeaderBand>
               <MainHeader>
                 <HeaderLeft>
@@ -2765,35 +2740,13 @@ const QNotePage = () => {
                   )}
                 </HeaderRight>
               </MainHeader>
-                <HeaderEdgeHandle
-                  type="button"
-                  onClick={toggleHeaderCollapsed}
-                  aria-label={t('page.header.collapse')}
-                  title={t('page.header.collapse')}
-                >
-                  <HeaderEdgeChevron><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg></HeaderEdgeChevron>
-                </HeaderEdgeHandle>
               </HeaderBand>
             )}
 
-            {!headerCollapsed && (
-              <ParticipantBar>
-                <ParticipantBarLabel>{t('page.participantBar.label', { count: (activeSession.participants?.length ?? 0) + 1 })}</ParticipantBarLabel>
-                <ParticipantPill key="self">{t('page.participantBar.self')}</ParticipantPill>
-                {(activeSession.participants || []).map((p, i) => (
-                  <ParticipantPill key={i}>
-                    {p.name}
-                    {p.role && <ParticipantPillRole>{p.role}</ParticipantPillRole>}
-                  </ParticipantPill>
-                ))}
-                <SelfModeGroup>
-                  <SelfModeLabel>{t('page.selfMode.label', '내 발화')}</SelfModeLabel>
-                  <SelfModeBtn $active={selfMode === 'skip'} onClick={() => setSelfMode('skip')} title={t('page.selfMode.skipTitle', '내 발화는 아예 처리 안 함 (가장 빠름)')}>{t('page.selfMode.skip', '처리 안 함')}</SelfModeBtn>
-                  <SelfModeBtn $active={selfMode === 'hide'} onClick={() => setSelfMode('hide')} title={t('page.selfMode.hideTitle', '내 발화는 녹음·저장하되 화면에서 숨김')}>{t('page.selfMode.hide', '숨김')}</SelfModeBtn>
-                  <SelfModeBtn $active={selfMode === 'show'} onClick={() => setSelfMode('show')} title={t('page.selfMode.showTitle', '내 발화도 다 보여줌')}>{t('page.selfMode.show', '보기')}</SelfModeBtn>
-                </SelfModeGroup>
-              </ParticipantBar>
-            )}
+            {/* ★ 2026-09-07 — 여기 있던 참여자 바를 **지웠다.** 아래 요약·업무 밴드 다음에
+                같은 바가 한 번 더 그려지고 있었다(실측: '<ParticipantBar>' 2회). 헤더 접기를
+                없애면서 '{!headerCollapsed && …}' 가드가 사라지자 중복이 그대로 드러난다.
+                정본은 아래 하나 — "녹음 transcript 바로 위" 가 이 바의 자리다. */}
 
             {liveError && <ErrorBar>{liveError}</ErrorBar>}
             {liveNotice && <NoticeBar>{liveNotice}</NoticeBar>}
@@ -3014,7 +2967,9 @@ const QNotePage = () => {
                 <SummaryToggle type="button" onClick={toggleSummary}
                   aria-expanded={!summaryCollapsed}
                   disabled={!activeSession.summary_full}>
-                  <SummaryCaret $open={!summaryCollapsed} aria-hidden="true">▸</SummaryCaret>
+                  <SummaryCaret $open={!summaryCollapsed} aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                  </SummaryCaret>
                   <SummaryHeadTitle>{t('page.summary.title', '요약')}</SummaryHeadTitle>
                 </SummaryToggle>
                 {activeSession.summary_full && (
@@ -3052,12 +3007,11 @@ const QNotePage = () => {
                 </ReSummarizeRow>
               )}
               {summaryError && <SummaryError>{summaryError}</SummaryError>}
+              {/* ★ 2026-09-07 (Irene: "닫으면 요약 펼치기라는 불필요한 버튼이 나오네.
+                  다시 화살표 누르면 되는 건데.") — 접힌 자리에 **또 하나의 버튼**을 두지 않는다.
+                  여는 문은 제목 옆 화살표 하나다. 접히면 그냥 접힌 채로 둔다. */}
               {activeSession.summary_full ? (
-                summaryCollapsed ? (
-                  <SummaryCollapsedHint type="button" onClick={toggleSummary}>
-                    {t('page.summary.expand', '요약 펼치기')}
-                  </SummaryCollapsedHint>
-                ) : (
+                summaryCollapsed ? null : (
                 <>
                   {(activeSession.summary_key_points || []).length > 0 && (
                     <SummaryPoints>
@@ -3079,14 +3033,25 @@ const QNotePage = () => {
 
             {/* N+88 — 업무 추출 (transcript → 후보 → 등록). TaskCandidateCard 통일 재사용. */}
             <TasksSection>
+              {/* ★ 2026-09-07 — 요약과 **같은 접기**를 여기에도 둔다.
+                  Irene: "접기를 요청한 건 요약내용이 있을 경우 본문을 볼 수 없기 때문이었어.
+                  요약이랑 업무추출영역 말한거였어." 본문(전사)을 보려면 이 두 밴드가 접혀야 한다.
+                  여는 문은 제목 옆 화살표 하나 — 요약과 같은 컴포넌트를 쓴다(모양이 갈리지 않게). */}
               <SummaryHead>
-                <SummaryHeadTitle>{t('page.tasks.title', '업무')}</SummaryHeadTitle>
+                <SummaryToggle type="button" onClick={toggleTasksCollapsed}
+                  aria-expanded={!tasksCollapsed}
+                  disabled={noteTasks.candidates.length === 0}>
+                  <SummaryCaret $open={!tasksCollapsed} aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                  </SummaryCaret>
+                  <SummaryHeadTitle>{t('page.tasks.title', '업무')}</SummaryHeadTitle>
+                </SummaryToggle>
                 <SummaryRegenBtn type="button" onClick={noteTasks.extract} disabled={noteTasks.extracting}>
                   {noteTasks.extracting ? t('page.tasks.extracting', '추출 중...') : t('page.tasks.extract', '업무 추출')}
                 </SummaryRegenBtn>
               </SummaryHead>
               {noteTasks.error && <SummaryError>{noteTasks.error}</SummaryError>}
-              {noteTasks.candidates.length > 0 ? (
+              {tasksCollapsed && noteTasks.candidates.length > 0 ? null : noteTasks.candidates.length > 0 ? (
                 <TaskCandidateList>
                   {noteTasks.candidates.map((c) => {
                     const cd: CandidateData = {
@@ -3852,6 +3817,11 @@ const Dot = styled.span`
 //   밴드 **밖**(HeaderBand)으로 옮겼다 — 밴드 안에 두면 `:last-child` 계약을 가로채
 //   액션 칸이 flex-shrink 를 잃는다(버튼이 눌려 찌그러지던 자리).
 const MainHeader = styled(PanelHeaderBar)`
+  /* ★ 제목이 두 줄이 되면 밴드도 같이 자란다 — 고정 60px 이면 둘째 줄이 잘린다.
+     하한은 그대로 60(좌우 밑줄 정렬), 위로만 늘어난다. */
+  height: auto;
+  min-height: 60px;
+  align-items: center;
   /* ★ 폰에서만 2행 — **이 화면만의 예외이고, 되돌리지 말 것.**
      Irene 2026-08-25: "제목 제대로 나오고 버튼 나오려면 2행이어야 하겠는데."
      이 화면은 드릴다운이라 옆에 나란히 설 패널이 없다 = 60px 정렬 계약을 지킬 상대가 없다.
@@ -3906,61 +3876,17 @@ const NoteMetaLeft = styled.div`
 `;
 
 /* 수평 엣지 바 — Q Note 헤더 높이 접기 (Q Talk 세로 엣지 바와 같은 디자인, 방향만 가로) */
-const HeaderEdgeHandle = styled.button`
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translate(-50%, 50%);
-  width: 60px; height: 8px;
-  padding: 0; border: none;
-  background: #CBD5E1;
-  border-radius: 4px;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
-  transition: width 0.15s ease, height 0.15s ease, background 0.15s ease;
-  display: flex; align-items: center; justify-content: center;
-  &::before { content: ''; position: absolute; top: -8px; bottom: -8px; left: -10px; right: -10px; }
-  &:hover { width: 72px; height: 14px; background: #14B8A6; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-`;
-const HeaderEdgeChevron = styled.span`
-  display: flex; align-items: center; justify-content: center;
-  color: #64748B;
-  svg { width: 10px; height: 10px; }
-  ${HeaderEdgeHandle}:hover & { color: #FFFFFF; }
-`;
 
-const CollapsedHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  position: relative;
-  padding: 4px 16px;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  min-height: 36px;
-`;
 
-const CollapsedTitle = styled.h2`
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #0f172a;
-  margin: 0;
-  cursor: text;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 40%;
-  &:hover { color: #475569; }
-`;
 
-const CollapsedSpacer = styled.div`
-  flex: 1;
-`;
 
 const BtnLabel = styled.span`
-  @media (max-width: 768px) {
+  /* ★ 2026-09-07 — 접히는 폭을 768 → 1100 으로 올렸다. Irene: "버튼들 아이콘으로만 써서
+     공간확보하던지 아래에 배치해야 하는지 판단해서 제목 잘리지 않게 보완해줘."
+     3컬럼 레이아웃이라 이 패널은 1440px 화면에서도 실폭 600~700px 이다 —
+     라벨 3개(재개·일시정지·종료)가 200px 넘게 먹어 제목 칸을 짜부라뜨린다.
+     아이콘에는 title·aria-label 이 그대로 붙어 있어 뜻은 사라지지 않는다. */
+  @media (max-width: 1100px) {
     display: none;
   }
 `;
@@ -4015,7 +3941,8 @@ const HeaderLeft = styled.div`
   flex-wrap: nowrap;
   min-width: 0;
   flex: 1 1 auto;
-  overflow: hidden;
+  /* ★ 2026-09-07 — 'overflow: hidden' 을 걷었다. 제목이 두 줄로 자라는데 이 칸이
+     자르고 있으면 둘째 줄이 안 보인다(= 제목이 여전히 "다 안 나온다"). */
 `;
 
 const HeaderRight = styled.div`
@@ -4037,9 +3964,18 @@ const SessionTitle = styled.h2`
      한 글자씩 세로로 쌓인다. 같은 Q Note 안에서도 메모 상세(MemoView Title)와 공통 PanelSubTitle 은
      이 방어가 있어 멀쩡했다 — 음성 세션 헤더만 4월 목업 이후 그 수리를 못 받았다. */
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* ★ 2026-09-07 (Irene: "제목이 다 안나와. 제목은 상세에서는 다 나와야 해.")
+     여태 'nowrap + ellipsis' 라 긴 제목이 "모눈스터…" 로 잘렸다. 상세 화면에서 제목은
+     **그 화면이 무엇인지**를 말하는 유일한 글자다 — 자르지 않는다(CLAUDE.md 밴드1 계약:
+     "제목 (자르지 않는다)").
+     ★ 대신 2026-08-25 회귀(한 글자씩 세로로 쌓임)를 다시 부르지 않아야 한다. 그 원인은
+       flex item 의 min-content 가 한국어에서 **한 글자 폭**이라는 것이었다.
+       'word-break: keep-all' 이 min-content 를 **어절 단위**로 올려 그 사고를 막는다.
+       (nowrap 을 지우는 대신 이 한 줄로 방어한다 — 자르지 않으면서 세로로도 안 쌓인다.) */
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 `;
 
 const SessionTitleInput = styled.input`
@@ -4399,16 +4335,15 @@ const SummaryToggle = styled.button`
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 const SummaryCaret = styled.span<{ $open: boolean }>`
-  display: inline-block; font-size: 0.75rem; color: #94A3B8;
+  /* ★ 2026-09-07 — 옛 '▸' 텍스트는 폰트마다 크기가 달라 아주 작게 보였다
+     (Irene: "요약에 이상하게 화살표 작게 나오고"). 이 화살표가 **요약을 여는 유일한 문**이라
+     손가락으로 누를 크기(24)와 또렷한 굵기를 갖는다. */
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; margin-left: -4px;
+  color: #64748B;
+  svg { width: 1rem; height: 1rem; }
   transition: transform .15s;
   transform: rotate(${p => (p.$open ? '90deg' : '0deg')});
-`;
-const SummaryCollapsedHint = styled.button`
-  align-self: flex-start; padding: 6px 10px; margin-top: 2px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 0.78125rem; color: #475569; cursor: pointer;
-  &:hover { background: #F1F5F9; }
-  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 
 const SummaryHead = styled.div`

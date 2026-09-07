@@ -38,6 +38,12 @@ interface Props {
   initialText?: string;
   /** 어느 문서에서 왔는가 — 저장되는 항목마다 출처로 남겨 서로 참조하게 한다 (#284 두 번째 요청). */
   sourcePostId?: number;
+  /** 출처 문서 제목 — **AI 에게 맥락으로 넘기고 화면 제목에도 쓴다.**
+   *  ★ 2026-09-07 (Irene: "제목이 문서에서 갈 때는 AI 로 자동 추가가 아니라 인포로 보내기로
+   *    나와야지 그리고 문서 상세를 보고 인포 만들어야지") — 서버(import-from-post)는 이미
+   *    title 을 돌려주는데 프론트가 **버리고 본문만** 넘기고 있었다. 제목은 그 문서가 무엇에
+   *    관한 것인지를 말하는 가장 짧은 단서라, 없으면 AI 가 분류·항목명을 헛짚는다. */
+  sourceTitle?: string;
   /** 어느 범위에 저장하는가. 프로젝트>정보 탭이 이 모달을 그대로 재사용한다 (Irene 2026-09-03).
    *  ★ 여태 'workspace' 로 못 박혀 있어서, 프로젝트에서 열어도 워크스페이스 자료로 저장됐을 것이다.
    *    범위를 인자로 받는 이유가 그것이다 — 모달을 한 벌 더 만들면 프롬프트·검수 화면이 갈라진다. */
@@ -57,7 +63,9 @@ const TruncBox = styled.div`
   font-size: 0.75rem; line-height: 1.5;
 `;
 
-const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initialText, sourcePostId, scope = 'workspace', projectId }) => {
+const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initialText, sourcePostId, sourceTitle, scope = 'workspace', projectId }) => {
+  /** 문서에서 왔는가 — 왔으면 이 모달은 "인포로 보내기" 이지 "AI 로 자동 추가" 가 아니다. */
+  const fromPost = !!sourcePostId;
   // ★ 워크스페이스에 **실제로 등록된** 카테고리를 쓴다 (Irene 2026-09-03: "카테고리 등록된대로 안 떠").
   //   여태 legacy 6종을 화면에도 프롬프트에도 박아 놔서, 사용자가 만든 카테고리는 어디에도 없었다.
   //   Q info 목록 화면과 **같은 엔드포인트**를 본다 — 사본을 만들면 갈라진다.
@@ -155,7 +163,7 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initia
       const r = await apiFetch(`/api/businesses/${businessId}/kb/ai-ingest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim(), source_language: sourceLanguage }),
+        body: JSON.stringify({ text: text.trim(), source_language: sourceLanguage, source_title: sourceTitle || undefined }),
       });
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error(j.message || 'analysis_failed');
@@ -221,11 +229,15 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initia
 
   return (
     <Backdrop onClick={onClose}>
-      <Dialog onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('aiIngest.title', 'AI 자동 추가') as string}>
+      <Dialog onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={(fromPost ? t('aiIngest.titleFromPostPlain', { defaultValue: '인포로 보내기' }) : t('aiIngest.title', 'AI 자동 추가')) as string}>
         <Header>
           <Title>
             <SparkleIcon size={16} />
-            {t('aiIngest.title', 'AI 로 자동 추가')}
+            {fromPost
+              ? (sourceTitle
+                  ? t('aiIngest.titleFromPost', { defaultValue: '인포로 보내기 — {{title}}', title: sourceTitle })
+                  : t('aiIngest.titleFromPostPlain', { defaultValue: '인포로 보내기' }))
+              : t('aiIngest.title', 'AI 로 자동 추가')}
           </Title>
           <CloseBtn type="button" onClick={onClose} aria-label="Close">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -236,7 +248,9 @@ const KbAiIngestModal: React.FC<Props> = ({ businessId, onClose, onSaved, initia
           {step === 'input' && (
             <>
               <Hint>
-                {t('aiIngest.hint', '회의록·매뉴얼·이메일 같은 자유 텍스트를 붙여넣으면 AI 가 토픽별로 분리하고 카테고리·태그를 자동 추출합니다. 원문 정보만 사용 — 새 정보는 만들지 않습니다.')}
+                {fromPost
+                  ? t('aiIngest.hintFromPost', { defaultValue: '이 문서를 Q info 항목으로 나눕니다. 항목마다 제목·분류·값(가격·연락처·기한 등)을 뽑아 두면 나중에 찾아 쓸 수 있습니다. 원문 정보만 사용 — 새 정보는 만들지 않습니다.' })
+                  : t('aiIngest.hint', '회의록·매뉴얼·이메일 같은 자유 텍스트를 붙여넣으면 AI 가 토픽별로 분리하고 카테고리·태그를 자동 추출합니다. 원문 정보만 사용 — 새 정보는 만들지 않습니다.')}
               </Hint>
               <Field>
                 <Label>{t('aiIngest.text', '내용')}</Label>

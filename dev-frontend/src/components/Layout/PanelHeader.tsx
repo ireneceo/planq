@@ -256,17 +256,22 @@ export const DetailMetaBar = styled.div`
   border-bottom: 1px solid #f1f5f9;
   flex-shrink: 0;
   @media (max-width: 640px) {
-    /* ★ 폰에서는 **두 줄로 가른다** — 1행 메타, 2행 액션.
-       좌우가 space-between 으로 서로 폭을 다투면 칩이 음절 단위로 세로로 쪼개진다
-       (2026-09-06 Fable 실측: Q docs '공유 중' 태그가 "공/유/중" 3줄, '서명 받기' 버튼 14px 잘림).
-       폰은 드릴다운이라 옆에 나란히 설 패널이 없다 = **밑줄을 맞출 상대가 없다**.
-       그래서 57px 계약도 여기서는 풀고 내용만큼 자라게 둔다. */
-    flex-direction: column;
-    align-items: stretch;
+    /* ★ 폰에서는 **줄을 강제로 가르지 않고 감긴다**(2026-09-07).
+       옛 규칙은 'flex-direction: column' 이라 내용이 짧아도 **항상 두 줄**이었다.
+       Irene 2026-09-07: "별표를 빼면 이런 기능들 1줄이 되니 큰 문제 없을 듯 해."
+       실제로 별표를 걷고 컨트롤을 36px 로 줄이자 한 줄에 들어가는데, column 이 그걸 막고 있었다.
+
+       ★ 2026-09-06 에 column 으로 바꾼 이유(칩이 "공/유/중" 으로 음절 분해)는 그대로 막는다 —
+         그건 'space-between' + shrink 경쟁이 원인이었다. 'flex-wrap: wrap' 은 폭이 모자라면
+         **줄을 넘길 뿐 짜부라뜨리지 않는다.** 두 칸에 'flex-shrink: 0' 을 주어 압축 자체를 없앤다.
+         들어가면 한 줄, 안 들어가면 두 줄 — 데이터에 따라 정직하게 움직인다.
+       (검증: canary-mail-band 가 폰 3폭에서 칩 높이·줄 수·잘림을 좌표로 잰다.) */
+    flex-wrap: wrap;
+    align-items: center;
     min-height: 0;
     padding: 10px 14px 8px;
     gap: 8px;
-    > * { width: 100%; }
+    > * { flex-shrink: 0; }
   }
 `;
 
@@ -288,8 +293,10 @@ export const DetailMetaLeft = styled.div`
      넘칠 때만 마지막 칩 위에 걸린다. (Fable 지적: 라벨 3개부터 넘친 것을 알릴 신호가 0이었다) */
   mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
-  /* 폰에서는 감긴다(밴드가 세로로 갈리므로 폭을 다툴 일이 없다) — 잘림 금지. */
+  /* 폰: 감긴다 — 잘림 금지. 'flex: 0 1 auto' 로 두어 남는 폭만 차지하고,
+     안 들어가면 오른쪽 액션 묶음이 다음 줄로 내려간다(칩을 압축하지 않는다). */
   @media (max-width: 640px) {
+    flex: 0 1 auto;
     flex-wrap: wrap;
     overflow-x: visible;
     mask-image: none;
@@ -303,9 +310,11 @@ export const DetailMetaRight = styled.div`
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  /* 폰: 액션이 한 줄에 안 들어가면 **감긴다**. shrink 0 인 채로 두면 마지막 버튼이 잘린다. */
+  /* 폰: 액션이 한 줄에 안 들어가면 **통째로 다음 줄로 내려간다**(밴드가 wrap 이므로).
+     안에서 또 감기는 것도 허용한다 — 액션이 4개 이상이면 그쪽이 낫다. */
   @media (max-width: 640px) {
     flex-wrap: wrap;
     justify-content: flex-end;
+    margin-left: auto;
   }
 `;

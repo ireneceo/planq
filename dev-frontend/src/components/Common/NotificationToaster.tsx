@@ -179,6 +179,8 @@ export default function NotificationToaster() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   // message:new 가 conv room + business room 양쪽으로 도착해 같은 메시지가 중복 토스트 되는 것 차단 (운영 #25)
   const seenMsgRef = useRef<Map<number, number>>(new Map());
+  /** 이미 띄운 알림 행 id — 세션 내 재수신 차단 (2026-09-07 운영 5회 중복). */
+  const seenNotifRef = useRef<Map<string, number>>(new Map());
   // #206 — task:updated payload 에 from_status 가 없어 "해제"를 판정할 수 없다.
   //   직전 상태를 클라가 기억해 전이 방향을 만든다 (세션 한정, 메모리만).
   const prevTaskStatusRef = useRef<Map<number, string>>(new Map());
@@ -258,6 +260,23 @@ export default function NotificationToaster() {
   };
 
   const add = useCallback((toast: Omit<Toast, 'id' | 'ts'>) => {
+    // ★ 2026-09-07 (Irene, 운영 PWA: "검토 요청-K-DINE 오픈 준비리스트 알림이 5번 넘게
+    //   우측 상단에 떴어") — DB 에는 그 알림이 **한 행뿐**이었다(운영 실측). 즉 같은 알림이
+    //   여러 번 **수신**된 것이다(소켓 재연결·이벤트 소스 중복).
+    //   아래의 dedup 은 ①화면에 남아 있는 토스트와만 비교하고 ②5초 창이라, 재연결 간격이
+    //   그보다 길면 매번 새 토스트가 된다. 알림 행 id 는 **그 사건의 유일한 이름**이므로,
+    //   id 가 있는 건 세션 내 한 번만 띄운다(시간창 없음).
+    //   ★ 채팅은 여기 걸지 않는다 — 같은 방에서 같은 내용("네")이 다시 올 수 있고, 그쪽은
+    //     이미 message id 기준 seenMsgRef 가 담당한다.
+    if (toast.notificationId != null) {
+      const key = `n:${toast.notificationId}`;
+      if (seenNotifRef.current.has(key)) return;
+      seenNotifRef.current.set(key, Date.now());
+      if (seenNotifRef.current.size > 500) {
+        const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+        for (const [k, ts] of seenNotifRef.current) if (ts < cutoff) seenNotifRef.current.delete(k);
+      }
+    }
     // ★ Irene 정책 (2026-05-08): 사운드는 항상 울려야 함 — 새 메시지 인지.
     //   토스트는 활성 conv / 같은 페이지면 skip (이미 보고 있어서 시각 노이즈).
     //   사이클 N+16-C — 추가로 chat channel pref OFF 면 skip (전수조사 fix).

@@ -8,7 +8,7 @@ import ChromeLink from '../Tab/ChromeLink';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { usePushStatus } from '../../hooks/usePushStatus';
-import { isNativeApp } from '../../services/native';
+import { isNativeApp, nativePlatform, openAppNotificationSettings } from '../../services/native';
 import { nativePushStatus } from '../../services/nativePush';
 
 const SESSION_DISMISS_KEY = 'pq_push_prompt_dismiss_session';
@@ -103,11 +103,24 @@ export default function PushPromptBanner() {
             ? t('pushPrompt.nativeDeniedTitle', { defaultValue: '알림이 꺼져 있어요' }) as string
             : t('pushPrompt.title', '디바이스 알림이 꺼져 있어요') as string}</Title>
           <Desc>{denied
-            ? t('pushPrompt.nativeDeniedDesc', { defaultValue: '기기 설정 > PlanQ > 알림에서 허용해주세요.' }) as string
+            ? t('pushPrompt.nativeDeniedDesc', { defaultValue: '기기 설정 > PlanQ > 알림에서 허용해주세요. 소리가 안 들리면 같은 화면의 "사운드" 도 함께 켜주세요.' }) as string
             : t('pushPrompt.desc', 'PlanQ 를 안 보고 있을 때도 새 메시지·업무 알림을 받으려면 켜주세요.') as string}</Desc>
           {err && <Err>{err}</Err>}
         </Body>
-        {!denied && (
+        {/* ★ 2026-09-07 (Irene: "알림설정으로 유도하는 거 봤어?") — 거부된 뒤에는 앱이 다시 물어볼 수
+            없다(iOS 는 창조차 안 뜬다). 글로만 "설정에서 허용해주세요" 라고 두면 사용자가 설정 앱을
+            뒤져야 한다. iOS 는 그 화면으로 바로 보낸다. 못 여는 플랫폼에서는 **버튼을 만들지 않고**
+            경로를 글로 남긴다(눌러도 아무 일 없는 버튼 금지). */}
+        {denied ? (
+          nativePlatform() === 'ios' && (
+            <CtaBtn type="button" disabled={busy} onClick={async () => {
+              const ok = await openAppNotificationSettings();
+              if (!ok) setErr(t('pushPrompt.openSettingsFailed', { defaultValue: '설정을 열지 못했습니다. 기기 설정 > PlanQ > 알림에서 켜주세요.' }) as string);
+            }}>
+              {t('pushPrompt.openSettings', { defaultValue: '설정 열기' }) as string}
+            </CtaBtn>
+          )
+        ) : (
           <CtaBtn type="button" onClick={nativeEnable} disabled={busy}>
             {busy ? t('pushPrompt.enabling', '켜는 중…') as string : t('pushPrompt.enable', '지금 켜기') as string}
           </CtaBtn>

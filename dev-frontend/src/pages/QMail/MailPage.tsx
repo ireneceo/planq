@@ -71,7 +71,6 @@ import {
   ComposeBtn,
   ComposeField,
   ComposeFoot,
-  ComposeHead,
   ComposeInput,
   ComposeLabel,
   ComposeFull,
@@ -142,7 +141,6 @@ import {
   SearchRow,
   ListControls,
   Spinner,
-  StarSpan,
   TabCount,
   ThreadItem,
   ThreadList,
@@ -261,9 +259,11 @@ const FOLDERS: Array<{ key: Folder; defaultLabel: string }> = [
   //   술어는 서버 단일 원천 — services/mailFolders.js. 여기에 사본을 만들지 말 것.
   { key: 'uncertain', defaultLabel: '확인 권장' },
   { key: 'all', defaultLabel: '전체' },          // 스팸·보관 뺀 모든 메일 (자동·마케팅 포함)
+  // ★ 2026-09-07 (Irene: "팔로우탭 순서는 전체탭 옆으로. 그 다음 보낸메일")
+  //   앞 세 탭이 "내가 뭔가 해야 하는 것" 이고, 팔로우는 그 다음으로 자주 본다.
+  { key: 'following', defaultLabel: '팔로우' },
   { key: 'sent', defaultLabel: '보낸메일' },      // #186 — 내가 마지막으로 보낸(outbound) 스레드
   { key: 'marketing', defaultLabel: '자동·마케팅' },
-  { key: 'following', defaultLabel: '팔로우' },
   { key: 'spam', defaultLabel: '스팸' },
   { key: 'archived', defaultLabel: '보관' },
 ];
@@ -836,10 +836,11 @@ const MailPage: React.FC = () => {
     } catch { /* 실패 시 silentReload 로 복원 */ silentReloadRef.current?.(); }
   }, [businessId, loadCounts]);
 
-  const toggleStar = useCallback((e: React.MouseEvent, th: Thread) => {
-    e.stopPropagation();
-    patchThread(th.id, { is_starred: !th.is_starred });
-  }, [patchThread]);
+  // ★ 2026-09-07 — **별표를 화면에서 걷어냈다.** 정렬에 전혀 관여하지 않아(목록은 언제나
+  //   last_message_at DESC · routes/email_threads.js:245) "상단고정" 이 아니었고, 남는 쓸모는
+  //   "별표만 보기" 필터 하나뿐이었다. 그 일은 태그가 이미 더 잘 한다
+  //   (Irene: "별표는 삭제하고 태그별로 하는 게 나을 듯 해").
+  //   `is_starred` 컬럼과 PUT 경로는 **그대로 둔다** — 기존 값이 살아 있어야 되돌릴 때 복구된다.
 
   // 답변 필요 해제 — 밖(Gmail·맥 메일)에서 이미 답장했거나 답장이 불필요한 메일
   const [dismissingId, setDismissingId] = useState<number | null>(null);
@@ -1099,7 +1100,7 @@ const MailPage: React.FC = () => {
     }
   };
 
-  // 상세 헤더 ⋯ — **가끔 쓰는** 액션만 접는다. 자주 쓰는 셋(별표·팔로우·업무추출)은 밴드2 에 남는다.
+  // 상세 헤더 ⋯ — **가끔 쓰는** 액션만 접는다. 자주 쓰는 둘(팔로우·업무 추출)은 밴드2 에 남는다.
   //   ★ "답 없으면" 은 값이 하나뿐인 택일이라 셀렉트 대신 체크 항목으로 편다.
   //     옛 구조는 라벨 + PlanQSelect 로 툴바에서 150px 를 상시 먹었고, 그것이 밴드가
   //     3줄로 감기던 주된 원인이었다(실측 137px).
@@ -2006,14 +2007,6 @@ const MailPage: React.FC = () => {
                           <ClipIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></ClipIcon>
                         </ListClip>
                       )}
-                      <StarSpan
-                        role="button"
-                        aria-label={mt.is_starred
-                          ? t('actions.unstar', { defaultValue: '별표 해제' }) as string
-                          : t('actions.star', { defaultValue: '별표' }) as string}
-                        $on={mt.is_starred}
-                        onClick={(e) => toggleStar(e, mt)}
-                      >{mt.is_starred ? '★' : '☆'}</StarSpan>
                       <ThreadTime>{formatTimeAgo(mt.last_message_at)}</ThreadTime>
                     </ThreadRow1Right>
                   </ThreadRow1>
@@ -2170,7 +2163,12 @@ const MailPage: React.FC = () => {
           {/* 운영 #283 — 이 플로팅 버튼은 상세 **제목 위에 겹쳐** 그려져 "메일 상세 상단이 잘린" 것처럼
               보였다. 상세일 때는 아래 PanelHeader 안 인라인 버튼이 대신하고, 여기서는 작성·빈 상태에서만
               띄운다(그 두 화면에는 헤더가 없어 목록 복귀 수단이 사라지면 안 된다). */}
-          {sidebarCollapsed && (composeOpen || !detail) && (
+          {/* ★ 2026-09-07 (Irene: "아이콘이 제목에 들러붙었어") — 작성 화면에서는 이 떠 있는 버튼을
+              쓰지 않는다. `position:absolute; top:16px; left:12px` 이라 ComposeHead 의 제목(y≈14,
+              left 20) 바로 위에 겹쳐 앉았다. 작성 화면에는 헤더가 있으므로 **헤더 안 뒤로가기**가
+              그 일을 한다 — 상세와 같은 모양(돌아가기 + 닫기)이 된다.
+              헤더가 없는 빈 상태에서만 남긴다(목록으로 돌아갈 수단이 사라지면 안 된다). */}
+          {sidebarCollapsed && !detail && !composeOpen && (
             <ExpandBtn
               type="button"
               data-testid="mail-list-expand"
@@ -2184,10 +2182,17 @@ const MailPage: React.FC = () => {
           {composeOpen ? (
             /* 메일 작성 — 중앙 패널 풀페이지(센터모달 폐기, Fable 승인). 좌측 리스트 유지·맥락패널 숨김. */
             <ComposeFull>
-              <ComposeHead>
+              {/* ★ 2026-09-07 — 상세와 **같은 밴드1**(PanelHeader 60px)로 통일한다.
+                  Irene: "우측패널은 돌아가기 있고 닫기도 나온다. 이게 좋겠네. 다 통일하는 거."
+                  좁은 화면에서 목록이 접혀 있을 때만 돌아가기를 띄운다 — 데스크탑은 목록이
+                  이미 옆에 있어 돌아갈 곳이 없다. */}
+              <PanelHeader
+                onBack={sidebarCollapsed ? () => setSidebarCollapsed(false) : undefined}
+                backLabel={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
+              >
                 <ComposeTitle>{t('compose.new', { defaultValue: '새 메일' }) as string}</ComposeTitle>
                 <CloseBtn type="button" onClick={closeCompose} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>✕</CloseBtn>
-              </ComposeHead>
+              </PanelHeader>
               <ComposeBody>
                 {composeFromOptions.length > 1 && (
                   <ComposeField>
@@ -2368,9 +2373,13 @@ const MailPage: React.FC = () => {
                 </DetailHeaderRight>
               </PanelHeader>
               {/* 밴드2 — 좌: 이 스레드의 **상태**(메시지 수·고객·담당·라벨) / 우: 자주 쓰는 액션 3개. */}
-              <DetailMetaBar>
+              <DetailMetaBar data-testid="detail-meta-bar">
                 <DetailMetaLeft>
-                  {detail.message_count > 1 && <MetaChip>{t('messageCount', { defaultValue: '{{n}}개 메시지', n: detail.message_count }) as string}</MetaChip>}
+                  {/* ★ 2026-09-07 — 좁은 폰에서는 감춘다. 밴드2 를 한 줄로 만들려면 여기서 자리를
+                      내줘야 하는데(실측 390px: 좌 243 + 우 145 = 388 > 쓸 수 있는 362), 이 칩이
+                      **가장 덜 필요한 정보**다 — 바로 아래 메시지들이 그 수만큼 실제로 나열된다.
+                      액션(담당·태그·팔로우·업무추출)을 줄이는 것보다 이쪽이 낫다. */}
+                  {detail.message_count > 1 && <MetaChip $hidePhone>{t('messageCount', { defaultValue: '{{n}}개 메시지', n: detail.message_count }) as string}</MetaChip>}
                   {detail.client && <MetaChip>{detail.client.display_name || detail.client.company_name}</MetaChip>}
                   {/* 담당자 — 값이 곧 칩이다. 고치는 셀렉트는 누를 때만 꺼낸다.
                       옛 구조는 PlanQSelect 를 툴바에 그대로 세워 150px 를 상시 점유했다. */}
@@ -2432,8 +2441,8 @@ const MailPage: React.FC = () => {
                       길어져 밴드가 조용히 두 줄, 세 줄이 되던 자리다. */}
                   <ChipPopover
                     data-testid="mail-label-chip"
-                    label={t('actions.addLabel', { defaultValue: '+ 라벨' }) as string}
-                    ariaLabel={t('actions.addLabelAria', { defaultValue: '라벨 붙이기' }) as string}
+                    label={t('actions.addLabel', { defaultValue: '+ 태그' }) as string}
+                    ariaLabel={t('actions.addLabelAria', { defaultValue: '태그 붙이기' }) as string}
                     width={260}
                   >
                     {() => (
@@ -2443,7 +2452,7 @@ const MailPage: React.FC = () => {
                             <AddLabelChip key={lm.name} type="button" $color={lm.color} onClick={() => toggleLabel(lm.name)}>+ {lm.name}</AddLabelChip>
                           ))}
                           {labelMaster.filter(lm => !(detail.labels || []).includes(lm.name)).length === 0 && (
-                            <LabelPickEmpty>{t('actions.noMoreLabels', { defaultValue: '붙일 라벨이 더 없습니다' }) as string}</LabelPickEmpty>
+                            <LabelPickEmpty>{t('actions.noMoreLabels', { defaultValue: '붙일 태그가 더 없습니다' }) as string}</LabelPickEmpty>
                           )}
                         </LabelPickList>
                         <NewLabelInput
@@ -2451,21 +2460,18 @@ const MailPage: React.FC = () => {
                           disabled={labelBusy}
                           onChange={(e) => setNewLabelName(e.target.value)}
                           onKeyDown={(e) => { if (isEnterAction(e)) { e.preventDefault(); createLabel(); } }}
-                          placeholder={t('actions.newLabel', { defaultValue: '+ 새 라벨' }) as string}
+                          placeholder={t('actions.newLabel', { defaultValue: '+ 새 태그' }) as string}
                         />
                       </>
                     )}
                   </ChipPopover>
                   {(detail.labels || []).map(l => (
-                    <LabelChip key={l} $color={labelColor(l)} $clickable onClick={() => toggleLabel(l)} title={t('actions.removeLabel', { defaultValue: '라벨 제거' }) as string}>
+                    <LabelChip key={l} $color={labelColor(l)} $clickable onClick={() => toggleLabel(l)} title={t('actions.removeLabel', { defaultValue: '태그 제거' }) as string}>
                       {l} ✕
                     </LabelChip>
                   ))}
                 </DetailMetaLeft>
                 <DetailMetaRight>
-                  <CtrlBtn type="button" $on={detail.is_starred} onClick={() => patchThread(detail.id, { is_starred: !detail.is_starred })}>
-                    {detail.is_starred ? '★' : '☆'} {t('actions.star', { defaultValue: '별표' }) as string}
-                  </CtrlBtn>
                   <CtrlBtn type="button" $on={!!detail.my_following} onClick={toggleFollow}>
                     {detail.my_following
                       ? t('actions.following', { defaultValue: '팔로우 중' }) as string

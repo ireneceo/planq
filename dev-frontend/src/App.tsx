@@ -116,7 +116,6 @@ const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
 const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
 const LandingService = lazy(() => import('./pages/Landing/ServicePage'));
 const LandingAbout = lazy(() => import('./pages/Landing/AboutPage'));
-const LandingBeta = lazy(() => import('./pages/Landing/BetaPage'));
 const LandingContact = lazy(() => import('./pages/Landing/ContactPage'));
 const LandingBlog = lazy(() => import('./pages/Landing/BlogPage'));
 const LandingBlogPost = lazy(() => import('./pages/Landing/BlogPostPage'));
@@ -230,7 +229,11 @@ function ShellApp() {
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
         {/* 앱 베타 받기 — 공개. 네이티브 앱 안에서는 의미가 없으므로(이미 앱이다) 마케팅 리다이렉트. */}
-        <Route path="/beta" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBeta />} />
+        {/* ★ 2026-09-07 — `/beta` 와 `/app` 이 **같은 일을 하는 두 페이지**였다.
+            둘 다 platform_settings 의 app_ios_url/app_android_url 하나를 읽어 스토어로 보낸다
+            (Irene: "웹에 앱다운로드와 앱 두 페이지가 있어. 이게 뭐야? 하나만 나와야지").
+            `/app` 하나로 모으고 옛 주소는 그리로 보낸다 — 이미 나간 링크가 죽지 않게 라우트는 남긴다. */}
+        <Route path="/beta" element={<Navigate to="/app" replace />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         {/* 계정 삭제 안내 — 스토어(구글플레이·애플)가 요구하는 공개 주소. 로그인 없이 열려야 한다. */}
         <Route path="/account-deletion" element={<AccountDeletion />} />

@@ -377,6 +377,15 @@ async function autoClockInNotice(day) {
     const last = events[events.length - 1];
     if (last.kind !== 'clock_in' || last.source !== 'auto_focus') return null;
     const age = Date.now() - new Date(last.at).getTime();
+    // ★ 2026-09-07 — **되돌릴 수 있는 동안만 묻는다.**
+    //   여태 이 판정에 시간 제한이 없어서, 자동 출근 하나가 그날 마지막 이벤트로 남아 있는 한
+    //   `/api/attendance/today` 가 **하루 종일** 같은 알림을 내려줬다. 화면이 그 모달을 못 그리는
+    //   상태(사이드바 접힘·닫힌 드로어 안)에 있으면 "확인" 이 기록되지 않아, 몇 시간 뒤 렌더 분기가
+    //   바뀌는 순간 아무 맥락 없이 튀어나온다 — 사용자에게는 "누른 적도 없는데 왜 뜨지" 다
+    //   (Irene 2026-09-07. 운영 실측: 12:30:36 자동 출근 1건이 오후 내내 대기 중이었다).
+    //   30분이 지나면 되돌리기가 없어 물을 것도 없다. 그 뒤의 정보는 위젯의 '근무중 · 출근 시각'과
+    //   근태 페이지 타임라인의 '자동 출근'(source=auto_focus)이 계속 들고 있다.
+    if (age > AUTO_UNDO_WINDOW_MS) return null;
     return {
       source: 'auto_focus',
       at: last.at,

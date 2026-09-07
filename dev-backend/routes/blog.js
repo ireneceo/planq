@@ -9,7 +9,15 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 // 운영 #289 — 'updates'(제품 업데이트 내역)는 같은 help_articles 를 쓰지만 **랜딩 인사이트가 아니다**.
 //   What's New 드로어(routes/whats_new.js)가 그 카테고리를 단독으로 읽는다.
 //   여기서 빼지 않으면 카테고리 미지정 목록(/insights)에 업데이트 공지가 섞여 나간다.
-const BLOG_EXCLUDED_CATEGORIES = ['updates'];
+//   ★ 2026-09-07 IA 정리 (Irene 승인) — **사용법은 도움말 한 곳에서만 본다.**
+//     `how-to` 15건은 이미 help_categories 에 정확히 배치돼 `/wiki` 에서 보이고 있었다.
+//     그런데 blog_category='how-to' 라 **같은 글이 `/insights` 에도** 떴다 —
+//     사용자에게는 "사용가이드가 도움말 아니야?"(Irene) 로 읽힌다. 옮길 데이터는 없고,
+//     인사이트에서 빼기만 하면 된다.
+//   ★ 반대로 `updates`(제품 소식 8건)는 **인사이트로 들여보낸다.** 여태 What's New 드로어만
+//     읽어서, 인사이트에는 칼럼 3건뿐이라 비어 보였다("내용이 빈약한데" — Irene).
+//     드로어는 자기 엔드포인트(routes/whats_new.js)를 그대로 쓴다 — 두 곳에서 보이는 것이 맞다.
+const BLOG_EXCLUDED_CATEGORIES = ['how-to'];
 
 const BLOG_WHERE = {
   blog_published_at: { [Op.ne]: null },

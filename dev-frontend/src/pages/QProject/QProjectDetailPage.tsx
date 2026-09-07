@@ -41,7 +41,6 @@ import {
   PinnedDocLoading,
   PinnedDocEmpty,
   PinnedDocInfo,
-  BackBtn,
   TabBar,
   TabFallback,
   Tab,
@@ -690,9 +689,13 @@ const QProjectDetailPage: React.FC = () => {
               businessId={Number(project.business_id)}
             />
           )}
-          <BackBtn type="button" onClick={() => navigate('/projects')}>← {t('backToList', '목록')}</BackBtn>
         </HeaderActions>
       }
+      /* ★ 2026-09-07 (Irene: "프로젝트 들어간 다음 뒤로가기 안나와") — 여태 "← 목록" 이
+         액션 줄 **맨 끝**에 있었다. 폰에서 PageShell 은 액션을 헤더 아래 자기 줄로 내리는데,
+         그 줄이 가로로 흘러 맨 끝(=뒤로가기)이 화면 밖에 남았다. 제목 왼쪽으로 옮긴다. */
+      onBack={() => navigate('/projects')}
+      backLabel={t('backToList', '목록') as string}
     >
       <TabBar>
         {/* 탭 순서 (사이클 N+14): 문서 다음에 정보(Q info), 상세정보(메타)는 마지막 */}
