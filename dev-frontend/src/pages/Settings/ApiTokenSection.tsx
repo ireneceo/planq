@@ -77,10 +77,15 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
           placeholder={t('apitoken.namePh', '토큰 이름 (예: Claude Code)') as string}
           maxLength={120}
         />
-        <ActionButton tone="primary" size="sm" onClick={create} loading={creating}>
+        {/* ★ 이름 없이 발급하면 목록이 "(이름 없음)" 뿐이라 나중에 어느 것을 회수할지 못 고른다
+            (Irene 2026-09-07). 서버도 400 name_required 로 막는다 — 같은 규칙을 화면이 먼저 말한다. */}
+        <ActionButton tone="primary" size="sm" onClick={create} loading={creating}
+          disabled={!name.trim()}
+          title={!name.trim() ? (t('apitoken.nameRequired') as string) : undefined}>
           {t('apitoken.create', '토큰 발급')}
         </ActionButton>
       </CreateRow>
+      {!name.trim() && <Hint>{t('apitoken.nameRequired') as string}</Hint>}
       {error && <ErrLine>! {error}</ErrLine>}
 
       {issued && (
@@ -110,7 +115,9 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
                   {r.last_used_at ? ` · ${t('apitoken.lastUsed', '최근 사용')} ${String(r.last_used_at).slice(0, 10)}` : ` · ${t('apitoken.neverUsed', '미사용')}`}
                 </ItemMeta>
               </div>
-              <ActionButton tone="danger" size="sm" onClick={() => revoke(r.id)}>
+              <ActionButton tone="danger" size="sm" onClick={() => revoke(r.id)}
+                title={t('apitoken.revokeHint') as string}
+                aria-label={`${r.name || ''} ${t('apitoken.revoke', '회수')}`}>
                 {t('apitoken.revoke', '회수')}
               </ActionButton>
             </Item>
@@ -122,6 +129,7 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
 };
 
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin-top: 28px; padding-top: 24px; border-top: 1px solid #e2e8f0;`;
+const Hint = styled.p`margin: -4px 0 0; font-size: 0.75rem; color: #64748B;`;
 const Title = styled.h3`font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0;`;
 const Desc = styled.p`font-size: 0.8125rem; color: #64748b; margin: 0; line-height: 1.5;`;
 const CreateRow = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap;`;

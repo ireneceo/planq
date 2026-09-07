@@ -615,5 +615,9 @@
     "envWeb": "Web / PWA",
     "envInset": "App · inset (old build · screen {{sh}} / view {{vh}})",
     "envFull": "App · fullscreen (screen {{sh}} / view {{vh}})"
+  },
+  "apitoken": {
+    "nameRequired": "Give the token a name — it's the only way to tell tokens apart when revoking.",
+    "revokeHint": "Revokes this token. Any external tool using it loses access immediately."
   }
 }

@@ -236,12 +236,17 @@ const HeaderRight = styled.div`
 
 const Body = styled.div`
   padding: 20px;
+  /* ★ 우측 하단 떠 있는 버튼(RightDock FAB · Cue FAB)이 **마지막 줄을 덮지 않게** 자리를 비운다.
+     Irene 2026-09-07: "우측 하단 채팅아이콘 때문에 버튼 글자 보지도 못하고 누르지도 못해."
+     FAB 은 52px + 아래 여백 16px 이므로 그보다 넉넉히 둔다. 페이지마다 따로 주면 반드시 빠지는
+     화면이 생기므로 **여기 한 곳**에서 준다(스크롤 여유일 뿐 시각적 부작용은 없다). */
+  padding-bottom: 88px;
   /* 폰 — 본문 여백을 줄여 가로 공간을 확보한다. 탭바처럼 음수 마진으로 이 여백을 상쇄하는
      자식들이 있으므로(QProjectDetailPage.styles TabBar) 값이 갈라지면 레이아웃이 밖으로 밀린다.
      여기와 그 음수 마진은 항상 같은 값이어야 한다. */
   /* 폰 — 스크롤 콘텐츠 자체는 인디케이터 밑까지 흐르되, 마지막 항목이 그 밑에 깔려 안 읽히지 않도록
      스크롤 여유만 인셋만큼 더 준다(앱 셸이 자리를 비우는 방식과 다르다 — MainLayout 주석 참조). */
-  @media (max-width: 640px) { padding: 14px; padding-bottom: calc(14px + var(--pq-safe-bottom, 0px)); }
+  @media (max-width: 640px) { padding: 14px; padding-bottom: calc(88px + var(--pq-safe-bottom, 0px)); }
   flex: 1;
   min-width: 0;
   /* N+29 — 본문만 스크롤. flex 자식 안에서 overflow-y:auto 가 동작하려면 min-height:0 필수 (flex hack). */

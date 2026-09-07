@@ -20,7 +20,10 @@ function serialize(t) {
     last_used_at: t.last_used_at,
     expires_at: t.expires_at,
     revoked_at: t.revoked_at,
-    created_at: t.created_at,
+    // ★ Sequelize 인스턴스의 속성명은 **createdAt** 이다(underscored 는 DB 컬럼 이름일 뿐).
+    //   `t.created_at` 은 undefined 라 화면에 "발급 undefined" 로 나왔다(2026-09-07 Irene 신고).
+    //   toJSON 전역 override 가 매핑해 주지만 여기는 인스턴스를 직접 읽으므로 해당 없다.
+    created_at: t.createdAt || t.created_at || null,
   };
 }
 
@@ -49,9 +52,12 @@ router.get('/', authenticateToken, async (req, res, next) => {
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.body?.business_id);
-    const name = (req.body?.name || '').toString().trim().slice(0, 120) || null;
+    // 이름은 **필수**다 — 토큰이 여러 개면 어느 것을 회수할지 구분할 단서가 이름뿐이다.
+    //   비워서 발급하면 목록이 "(이름 없음)" 뿐이라 아무것도 못 고른다(2026-09-07 Irene 신고).
+    const name = (req.body?.name || '').toString().trim().slice(0, 120);
     const expiresDays = Number(req.body?.expires_days);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
+    if (!name) return errorResponse(res, 'name_required', 400);
     if (!(await assertMember(req, businessId))) return errorResponse(res, 'forbidden', 403);
 
     const biz = await Business.findByPk(businessId, { attributes: ['id'] });
