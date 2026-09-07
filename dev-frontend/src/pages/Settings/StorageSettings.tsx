@@ -281,7 +281,6 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             <ul>
               <li>{tr('storage.driveFirstOk')}</li>
               <li>{tr('storage.driveFirstNo')}</li>
-              <li>{tr('storage.driveFirstHow')}</li>
             </ul>
           </NoticeText>
         </Notice>

@@ -458,14 +458,15 @@
     },
     "cloud": {
       "connectedTitle": "Shared files are stored in Google Drive.",
-      "connectedBody": "Files created or deleted directly in Drive won't appear in PlanQ.",
+      "connectedBody": "Upload in PlanQ, edit in Drive. Files created directly in Drive won't appear in this list.",
       "openDrive": "Open in Drive",
       "recommendTitle": "Connect Google Drive",
       "recommendDesc": "Keep shared files in Drive and save your storage quota.",
       "connectCta": "Connect",
-      "inMyDrive": "Files go to \"{{name}}\" in the connected account's My Drive. To use a shared (team) drive, drag this folder into it in Drive — PlanQ keeps access and you don't need to reconnect.",
-      "inSharedDrive": "Files go to \"{{name}}\" in a shared (team) drive.",
-      "folderUnreachable": "Couldn't reach the Drive folder just now. PlanQ will find it again on the next upload — this usually means the folder was moved or recreated."
+      "inMyDrive": "Stored in: My Drive › {{name}}",
+      "inSharedDrive": "Stored in: Team drive › {{name}}",
+      "folderUnreachable": "Couldn't check the Drive folder right now. PlanQ will find it again on the next upload.",
+      "changeLocation": "Change location"
     },
     "source": {
       "all": "All",

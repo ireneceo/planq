@@ -85,6 +85,9 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
         {inMyDrive && (
           <NoticeSub data-testid="cloud-folder-mydrive">
             {t('docs.cloud.inMyDrive', { name: folder?.name || '' })}
+            {' · '}
+            {/* 긴 설명 대신 **바꾸러 가는 문**을 준다 — 배너는 지금 상태만 말한다. */}
+            <SubLink to="/business/settings/storage">{t('docs.cloud.changeLocation')}</SubLink>
           </NoticeSub>
         )}
       </ConnectedNotice>
@@ -105,6 +108,10 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
   );
 };
 
+const SubLink = styled(Link)`
+  color:#0F766E;font-weight:700;text-decoration:none;
+  &:hover{text-decoration:underline;}
+`;
 const NoticeSub = styled.p`
   /* 안내 본문 아래 한 줄 — **자기 줄을 차지한다**(부모가 wrap 이라 성립).
      min-width:0 이 없으면 긴 문장이 flex 기본 규칙에 눌려 옆 칸을 밀어낸다. */

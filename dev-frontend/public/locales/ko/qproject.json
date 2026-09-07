@@ -458,14 +458,15 @@
     },
     "cloud": {
       "connectedTitle": "공용 파일은 Google Drive 에 저장됩니다.",
-      "connectedBody": "Drive 에서 직접 만들거나 지운 파일은 PlanQ 에 반영되지 않습니다.",
+      "connectedBody": "올리는 것은 PlanQ 에서, 편집은 Drive 에서 하세요. Drive 에서 직접 만든 파일은 여기 목록에 나오지 않습니다.",
       "openDrive": "Drive 폴더 열기",
       "recommendTitle": "Google Drive 연결",
       "recommendDesc": "공용 파일을 Drive 에 보관해 저장 용량을 아낄 수 있어요.",
       "connectCta": "연결 설정",
-      "inMyDrive": "지금은 연결한 계정의 \"내 드라이브\" 안 \"{{name}}\" 폴더에 저장됩니다. 팀(공유) 드라이브로 쓰려면 Drive 에서 이 폴더를 원하는 공유 드라이브로 끌어다 놓으세요 — PlanQ 접근 권한은 그대로 유지되고 다시 연결할 필요 없습니다.",
-      "inSharedDrive": "팀(공유) 드라이브의 \"{{name}}\" 폴더에 저장됩니다.",
-      "folderUnreachable": "Drive 폴더를 지금 확인하지 못했습니다. 다음 업로드 때 자동으로 다시 찾습니다 — 보통 폴더를 옮기거나 다시 만들었을 때입니다."
+      "inMyDrive": "저장 위치: 내 드라이브 › {{name}}",
+      "inSharedDrive": "저장 위치: 팀 드라이브 › {{name}}",
+      "folderUnreachable": "지금 Drive 폴더를 확인하지 못했습니다. 다음 업로드 때 자동으로 다시 찾습니다.",
+      "changeLocation": "저장 위치 바꾸기"
     },
     "source": {
       "all": "전체",
