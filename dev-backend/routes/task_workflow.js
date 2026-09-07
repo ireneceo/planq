@@ -199,6 +199,37 @@ router.post('/:id/complete', authenticateToken, async (req, res, next) => {
 });
 
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+// POST /api/tasks/:id/deliverable-versions — **지금 결과물을 한 버전으로 남긴다**
+//
+// Irene 2026-09-07: *"업무상세 결과물에 새버전 결과 추가버튼 만들어달라고.
+//   자꾸 직원이 댓글에 달잖아. 결과물을 추가해서 계속 남기는 걸 알기 쉽게 해달라니까."*
+//
+// 여태 버전이 생기는 문은 **"확인 요청 보내기" 하나뿐**이었다(services/taskTransition.submitForReview).
+// 그래서 중간 결과를 남길 자리가 없어 담당자가 **댓글**에 결과물을 붙였다 — 그러면 무엇이
+// 결과물이고 무엇이 대화인지 섞이고, 버전 이력에도 안 남는다.
+//
+// 규칙(기존 박제와 같게 유지):
+//   · **버전은 명시적으로 만든다.** 저장할 때마다 박제하면 수십 개가 되어 "무엇이 제출본인가" 가 흐려진다.
+//   · 회차 번호는 **박제 목록의 최대치 +1** — review_round 로 구하면 되돌리기 백업과 번호가 겹친다.
+//   · 첨부는 id 만 담는다(파일 복제 X).
+//   · 결과물은 담당자만 쓴다 — 책임선에 직급 예외 없음(FIELD_RULES.body 와 같은 술어).
+// Body: { note?: string, start_new?: boolean }  start_new=true 면 남긴 뒤 입력란을 비운다.
+// ─────────────────────────────────────────────
+router.post('/:id/deliverable-versions', authenticateToken, async (req, res, next) => {
+  try {
+    const task = await loadTaskOrFail(req.params.id, res);
+    if (!task) return;
+    if (!(await canAccessTask(task, req.user.id))) return errorResponse(res, 'forbidden', 403);
+    // 라우트는 파싱·응답만 — 권한·트랜잭션·박제·감사·broadcast 는 행동 계층이 한다.
+    const result = await actions.saveDeliverableVersion(task, actorFrom(req), {
+      note: req.body?.note || null,
+      startNew: req.body?.start_new === true,
+    });
+    return sendResult(res, result, (v) => successResponse(res, v, 'created', 201));
+  } catch (err) { next(err); }
+});
+
 // GET /api/tasks/:id/deliverable-versions — 회차별 결과물 이력 (#271·#307)
 //   결과물이 tasks.body 한 칸이라 다시 제출하면 이전 것이 덮이던 것 → 제출 시점마다 박제한 이력.
 //   권한은 업무 상세와 같다(loadTaskOrFail 이 접근 검사를 이미 지난다).

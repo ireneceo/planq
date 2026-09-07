@@ -673,7 +673,13 @@
       "canceled": "This task was canceled. The deliverable is kept as it was.",
       "completed": "Completed deliverable. To keep working, start a revision — this version stays as it is."
     },
-    "bodyEditingPlain": "Editing — saved automatically. Submitting for review records this as a version."
+    "bodyEditingPlain": "Editing — saved automatically. Submitting for review records this as a version.",
+    "newVersion": "Save this and start a new one (v{{n}})",
+    "newVersionPlain": "Save this and start a new one",
+    "newVersionSaving": "Saving…",
+    "newVersionHint": "Saves the current result as one version and clears the editor. Saved versions stay in the history below — no need to put results in comments.",
+    "newVersionEmpty": "Write the result first, then you can save it.",
+    "newVersionFailed": "Couldn't save it as a version. Please try again."
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",

@@ -106,8 +106,10 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
 };
 
 const NoticeSub = styled.p`
-  /* 안내 본문 아래 한 줄 — 줄바꿈해도 액션 버튼을 밀지 않도록 전체 폭을 차지한다. */
+  /* 안내 본문 아래 한 줄 — **자기 줄을 차지한다**(부모가 wrap 이라 성립).
+     min-width:0 이 없으면 긴 문장이 flex 기본 규칙에 눌려 옆 칸을 밀어낸다. */
   flex-basis: 100%;
+  min-width: 0;
   margin: 6px 0 0;
   font-size: 0.75rem;
   line-height: 1.55;
@@ -119,11 +121,14 @@ export default CloudConnectNotice;
 const baseNotice = `
   display: flex;
   align-items: flex-start;
+  /* ★ 모든 폭에서 감긴다. 데스크탑에서만 wrap 이 없었던 탓에, 아래 줄(NoticeSub)이
+     같은 행에 끼어 **첫 칸이 길게 늘어지고 전체가 한 줄로 뭉갰다**
+     (Irene 2026-09-07: "첫 열이 길게 늘어져서 엉망이야"). */
+  flex-wrap: wrap;
   gap: 10px;
   padding: 10px 14px;
   border-radius: 10px;
   margin-bottom: 12px;
-  @media (max-width: 640px) { flex-wrap: wrap; }
 `;
 const ConnectedNotice = styled.div`
   ${baseNotice}

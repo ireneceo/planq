@@ -17,7 +17,6 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { ChangeEvent, DragEvent } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import DriveImportSection from './DriveImportSection';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
 import { fetchWorkspaceFiles, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
@@ -41,12 +40,6 @@ interface Props {
   disabled?: boolean;
   // 호출부에서 파일 메타가 필요하면 받음 (선택). 안 주면 내부에서 fetch 한 결과로 표시.
   workspaceFiles?: ProjectFile[];
-  /** 이 첨부가 속한 프로젝트 — Drive 에서 들일 때 노출 범위를 그 프로젝트에 맞춘다. */
-  projectId?: number | null;
-  /** 어느 Drive 에서 가져올 수 있게 할 것인가. 기본 'workspace'(팀 드라이브).
-   *  개인 자리(개인 보관함)에서만 'personal' 을 넘긴다 — 공용 첨부에 개인 Drive 를 붙이면
-   *  멤버 사적 파일이 워크스페이스로 샌다(memory project_gdrive_policy). */
-  driveScope?: 'workspace' | 'personal';
   /** 워크스페이스 파일/문서 연결 검색을 숨긴다 — 업로드 드롭존만 필요한 화면용.
    *  (예: 피드백 이미지 첨부. 워크스페이스 파일을 붙일 이유가 없고, 목록 fetch 도 낭비다.)
    *  true 면 검색 UI 를 렌더하지 않고 파일·문서 목록 fetch 도 하지 않는다. */
@@ -59,8 +52,6 @@ const AttachmentField: React.FC<Props> = ({
   includePosts = false, existingPostIds = [], onExistingPostIdsChange,
   accept, uploadHint, uploadAcceptHint, searchPlaceholder, disabled,
   workspaceFiles: providedFiles,
-  projectId = null,
-  driveScope = 'workspace',
   hideExistingSearch = false,
 }) => {
   // searchPostsPlaceholder is deprecated — 통합 검색에서는 searchPlaceholder 만 사용
@@ -219,19 +210,17 @@ const AttachmentField: React.FC<Props> = ({
         noOptionsMessage={() => (t('attach.noResults', '결과 없음') as string)}
       />
 
-      {/* Google Drive 에서 가져오기 — **기본은 팀(워크스페이스) 드라이브**.
-          들이면 "워크스페이스에 있는 파일" 과 같아지므로 기존-파일 선택에 그대로 더한다.
-          화면마다 붙이지 않고 여기 한 곳에 둔다(Irene: "파일첨부 통합 컨포넌트에 다 추가"). */}
-      <DriveImportSection
-        businessId={businessId}
-        scope={driveScope}
-        projectId={projectId}
-        disabled={disabled}
-        onImported={(fileId) => {
-          if (existingFileIds.includes(fileId)) return;   // 같은 Drive 파일 두 번 눌러도 한 번만
-          onExistingFileIdsChange([...existingFileIds, fileId]);
-        }}
-      />
+      {/* ★ 2026-09-07 — "Drive 에서 가져오기" 를 **뺐다.**
+          Irene: "팀 드라이브에서 가져오기는 무슨 말이야? 팀 드라이브에 있는게 여기 Q file에
+                  있는 거 아니야? 누르면 또 Q file에 있는 것들이 나와?"
+          맞는 말이다. `drive.file` 권한은 **우리가 만든 파일만** 보여주는데, 워크스페이스 공용
+          파일은 이미 우리가 Drive 에 올린 것들이다 → 목록이 곧 Q File 목록이라 **같은 파일을
+          다시 가져오는** 꼴이었다. 개인 Drive 도 같은 한계라 마찬가지다.
+          진짜 필요한 것("사용자가 Drive 에 직접 올린 파일 가져오기")은 우리가 만들지 않은 파일을
+          읽어야 해서 Google Picker(콘솔 API 키) 또는 전체 Drive 권한(구글 심사)이 필요하다.
+          그때까지 **없는 기능처럼 보이는 버튼을 두지 않는다** — 눌러 보고 실망하는 것이 더 나쁘다.
+          서버 라우트(POST /api/drive/import)와 DriveImportSection 은 그대로 둔다: Picker 가
+          붙는 순간 그대로 쓴다. */}
       </>}
     </Wrap>
   );

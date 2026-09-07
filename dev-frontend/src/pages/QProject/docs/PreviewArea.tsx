@@ -188,9 +188,26 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
   );
 };
 
-const PreviewImageBtn = styled.button`display:block;width:100%;padding:0;border:none;background:none;cursor:zoom-in;`;
-const PreviewImage = styled.img`width:100%;max-height:420px;object-fit:contain;background:#F8FAFC;border-radius:10px;`;
-const PreviewIframe = styled.iframe`width:100%;height:420px;border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;`;
+/* ★ 2026-09-07 — 옛 규칙은 `width:100%` + `object-fit:contain` 이었다. 그러면 **세로 사진**이
+   가로로 늘어난 상자 안에서 위아래만 맞춰져, 그림은 작고 좌우가 온통 회색이 됐다
+   (Irene: "미리보기는 보통 짧은 쪽 기준으로 보이게 해야 하는 거 아니야?").
+   → 그림을 늘이지 않고 **짧은 쪽이 상자에 닿을 때까지만** 키운다(max-width/max-height + auto).
+     상자는 그림을 감싸고 가운데 정렬한다 — 가로 사진도 세로 사진도 같은 규칙으로 자연스럽다. */
+const PreviewImageBtn = styled.button`
+  display:flex;align-items:center;justify-content:center;
+  width:100%;padding:0;border:none;background:#F8FAFC;border-radius:10px;cursor:zoom-in;
+  /* 상자 높이는 화면에 따라 — 작은 화면에서 420px 고정은 너무 크고, 큰 화면에선 너무 작았다. */
+  max-height:min(60vh, 560px);
+  overflow:hidden;
+`;
+const PreviewImage = styled.img`
+  max-width:100%;max-height:min(60vh, 560px);
+  width:auto;height:auto;display:block;border-radius:10px;
+`;
+const PreviewIframe = styled.iframe`
+  width:100%;height:min(70vh, 720px);
+  border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;
+`;
 const PreviewVideo = styled.video`
   width:100%;max-height:56vh;background:#000;border-radius:10px;display:block;
 `;

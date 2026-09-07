@@ -714,6 +714,70 @@ async function ack(task, actor) {
 }
 
 /** 담당자가 결과물을 제출하고 컨펌 라운드를 시작한다 */
+/**
+ * 지금 결과물을 **한 회차로 남긴다** (Irene 2026-09-07).
+ *   "업무상세 결과물에 새버전 결과 추가버튼 만들어달라고. 자꾸 직원이 댓글에 달잖아."
+ * 여태 회차가 생기는 문은 submitReview 하나뿐이라 중간 결과를 남길 자리가 없었고,
+ * 그래서 담당자가 **댓글**에 결과물을 붙였다 — 결과물과 대화가 섞이고 이력에도 안 남는다.
+ *
+ * 규칙은 submitReview 의 박제와 같게 유지한다:
+ *   · 회차 번호는 **박제 목록의 최대치 +1**(review_round 로 구하면 되돌리기 백업과 겹친다)
+ *   · 첨부는 id 만 담는다(파일 복제 X)
+ *   · 결과물은 담당자만 — 책임선에 직급 예외 없음
+ *   · startNew 면 **같은 트랜잭션에서** 본문을 비운다(나뉘면 한쪽만 반영된 상태가 생긴다)
+ */
+async function saveDeliverableVersion(task, actor, { note = null, startNew = false } = {}) {
+  if (!(await isAssignee(task, actor.userId))) return fail('only_assignee', 403);
+  // 컨펌 중·닫힌 업무에서는 결과물이 잠긴다(routes/tasks.js body_locked 와 같은 집합).
+  const OPEN = ['not_started', 'waiting', 'in_progress', 'revision_requested', 'on_hold'];
+  if (!OPEN.includes(task.status)) return fail('body_locked', 409);
+
+  // 빈 결과물은 회차로 남기지 않는다 — 목록만 늘고 뜻이 없다.
+  const plain = String(task.body || '').replace(/<[^>]*>/g, '').trim();
+  if (!plain) return fail('empty_body', 400);
+
+  const { TaskDeliverableVersion, TaskAttachment } = require('../../models');
+  let attachmentIds = null;
+  try {
+    const atts = await TaskAttachment.findAll({
+      where: { task_id: task.id, context: 'task' }, attributes: ['id'],
+    });
+    attachmentIds = atts.map((a) => a.id);
+  } catch { /* 첨부 조회 실패가 박제를 막지 않는다 — 본문이 본질이다 */ }
+
+  const t = await sequelize.transaction();
+  let created;
+  try {
+    const maxRound = await TaskDeliverableVersion.max('round', { where: { task_id: task.id }, transaction: t });
+    created = await TaskDeliverableVersion.create({
+      task_id: task.id,
+      round: (Number(maxRound) || 0) + 1,
+      body: task.body,
+      attachment_ids: attachmentIds,
+      submitted_by: actor.userId || null,
+      note: note ? String(note).slice(0, 1000) : null,
+    }, { transaction: t });
+    if (startNew) await task.update({ body: '' }, { transaction: t });
+    await t.commit();
+  } catch (e) {
+    await t.rollback();
+    throw e;
+  }
+
+  createAuditLog({
+    action: 'task.deliverable_version', targetType: 'task', targetId: task.id,
+    businessId: task.business_id, userId: actor.userId,
+    newValue: { round: created.round, start_new: startNew, note },
+  });
+  // 다른 기기·다른 사람 화면에도 즉시 (CLAUDE.md §16) — 전이 경로와 같은 함수를 쓴다.
+  try {
+    await task.reload();
+    broadcastTask(task, 'task:updated', actor.userId);
+  } catch (e) { console.warn('[saveDeliverableVersion broadcast]', e.message); }
+
+  return done({ id: created.id, round: created.round, start_new: startNew });
+}
+
 async function submitReview(task, actor, { note = null, body = undefined } = {}) {
   if (!(await isAssignee(task, actor.userId))) return fail('only_assignee', 403);
   if (['completed', 'canceled'].includes(task.status)) return fail('task_closed');
@@ -1343,6 +1407,7 @@ async function setPolicy(task, actor, { policy } = {}) {
 }
 
 module.exports = {
+  saveDeliverableVersion,
   // 행동 — 생성
   createTask, createComment,
   // 행동 — 전이

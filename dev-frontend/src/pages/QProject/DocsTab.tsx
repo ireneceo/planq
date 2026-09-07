@@ -33,7 +33,6 @@ import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TrashDrawer from './TrashDrawer';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut, PLANQ_FILE_MIME, isMovableInApp } from '../../hooks/useFileDragOut';
-import DriveImportSection from '../../components/Common/DriveImportSection';
 import { isEnterAction } from '../../utils/imeKey';
 
 export type DocScope =
@@ -535,17 +534,6 @@ const DocsTab: React.FC<Props> = (props) => {
     >
       {/* GDrive 연결 안내 / 연결 추천 (workspace · project 양쪽) */}
       {businessId > 0 && <CloudConnectNotice businessId={businessId} />}
-
-      {/* Drive 에서 가져오기 — 팀 드라이브가 기본, 개인 보관함에서만 내 Drive.
-          (Irene: "나는 팀 드라이브 중심으로 계속 요구한거고 … 개인 구글드라이브는 개인 것만") */}
-      {businessId > 0 && (
-        <DriveImportSection
-          businessId={businessId}
-          scope={isPersonal ? 'personal' : 'workspace'}
-          projectId={isPersonal ? null : (projectId || null)}
-          onImported={reload}
-        />
-      )}
 
       {/* 드롭 오버레이 (전역 드래그 중 표시) */}
       {dragOver && <DragOverlay>
@@ -1541,10 +1529,15 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
           <TreeDivider />
           <SectionRow>
             <FolderSectionLabel>{tr('docs.folders.section')}</FolderSectionLabel>
-            {/* ★ 항상 보이는 버튼 — 선택했을 때만 나타나면 "폴더를 어디서 만드는지" 알 수 없다 */}
-            <FolderMiniBtn type="button" data-testid="folder-new"
-              title={tr('docs.folder.new')} aria-label={tr('docs.folder.new')}
-              onClick={() => startCreate(null)}><PlusSvg size={12} /></FolderMiniBtn>
+            {/* ★ 항상 보이는 버튼 — 선택했을 때만 나타나면 "폴더를 어디서 만드는지" 알 수 없다.
+                ★ 2026-09-07 — 12px `+` 아이콘 하나뿐이라 있어도 못 찾았다
+                  (Irene: "여전히 폴더만들기가 없는데 폴더 관리가 안되는 거야?").
+                  아이콘 전용 버튼은 자리는 먹고 뜻은 안 알려준다 → **글자를 붙인다.** */}
+            <FolderNewBtn type="button" data-testid="folder-new"
+              title={tr('docs.folder.new')} onClick={() => startCreate(null)}>
+              <PlusSvg size={11} />
+              <span>{tr('docs.folder.new')}</span>
+            </FolderNewBtn>
           </SectionRow>
           {createRow}
           {rootFolders.length === 0 && creatingParent !== null && (
@@ -1576,9 +1569,10 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
           <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '내 업로드')}</FolderName>
           <FolderCount>{counts.bySrc.direct}</FolderCount>
           <FolderActions $visible onClick={e => e.stopPropagation()}>
-            <FolderMiniBtn type="button" data-testid="folder-new" title={tr('docs.folder.new', '새 폴더')} aria-label={tr('docs.folder.new', '새 폴더')} onClick={() => startCreate(null)}>
-              <PlusSvg size={12} />
-            </FolderMiniBtn>
+            <FolderNewBtn type="button" data-testid="folder-new" title={tr('docs.folder.new')} onClick={() => startCreate(null)}>
+              <PlusSvg size={11} />
+              <span>{tr('docs.folder.new')}</span>
+            </FolderNewBtn>
           </FolderActions>
         </FolderRow>
         {creatingParent === null && (
@@ -1866,6 +1860,15 @@ const EmptyHint = styled.div`
 `;
 const FolderActions = styled.div<{ $visible?: boolean }>`
   display:flex;gap:2px;opacity:${p => p.$visible ? 1 : 0};transition:opacity .1s;flex-shrink:0;
+`;
+/* 폴더 만들기 — 글자를 같이 보여준다. 아이콘만 두면 "폴더 관리가 안 되는" 것으로 읽힌다. */
+const FolderNewBtn = styled.button`
+  display:inline-flex;align-items:center;gap:4px;flex-shrink:0;
+  padding:3px 8px;border:1px solid #E2E8F0;border-radius:999px;background:#fff;
+  font-size:0.6875rem;font-weight:700;color:#0F766E;cursor:pointer;
+  &:hover{background:#F0FDFA;border-color:#99F6E4;}
+  /* 터치 타겟 — 토큰(36/40/44) 안에서. */
+  @media (hover: none), (max-width: 640px){ min-height:36px; padding:0 10px; }
 `;
 const FolderMiniBtn = styled.button<{ $danger?: boolean }>`
   width:22px;height:22px;display:flex;align-items:center;justify-content:center;

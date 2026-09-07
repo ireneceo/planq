@@ -673,7 +673,13 @@
       "canceled": "취소된 업무입니다. 결과물은 남긴 그대로 보관됩니다.",
       "completed": "완료된 결과물입니다. 이어서 고치려면 수정본을 시작하세요 — 지금 내용은 그대로 남습니다."
     },
-    "bodyEditingPlain": "작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 회차로 남습니다."
+    "bodyEditingPlain": "작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 회차로 남습니다.",
+    "newVersion": "이 결과 남기고 새로 쓰기 (v{{n}})",
+    "newVersionPlain": "이 결과 남기고 새로 쓰기",
+    "newVersionSaving": "남기는 중…",
+    "newVersionHint": "지금 결과물을 한 회차로 남기고 입력란을 비웁니다. 남긴 회차는 아래 이력에서 언제든 다시 볼 수 있습니다 — 결과물을 댓글에 적지 않아도 됩니다.",
+    "newVersionEmpty": "결과물을 작성한 뒤에 남길 수 있습니다.",
+    "newVersionFailed": "회차로 남기지 못했습니다. 잠시 후 다시 시도해 주세요."
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",

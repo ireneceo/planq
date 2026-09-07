@@ -681,6 +681,38 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     saveField(field, value);
   };
 
+  // ── 결과물을 한 회차로 남기고 새로 쓰기 (Irene 2026-09-07) ──────────────────
+  //   "업무상세 결과물에 새버전 결과 추가버튼 만들어달라고. 자꾸 직원이 댓글에 달잖아."
+  //   여태 버전이 생기는 문이 **"확인 요청 보내기" 하나뿐**이라, 중간 결과를 남길 자리가 없어
+  //   담당자가 댓글에 결과물을 붙였다 — 그러면 무엇이 결과물이고 무엇이 대화인지 섞인다.
+  //   ★ 자동저장은 2초 debounce 다. 누르기 직전 타이핑이 서버에 아직 없을 수 있으므로 먼저 flush 한다
+  //     (제출 경로가 body 를 같이 보내는 것과 같은 이유 — 마지막 타이핑이 박제본에서 빠지면 안 된다).
+  const [newVerBusy, setNewVerBusy] = useState(false);
+  const saveAsNewVersion = async () => {
+    if (newVerBusy || !detailTask) return;
+    setNewVerBusy(true);
+    try {
+      const draft = bodyDraftRef.current;
+      if (draft !== null && draft !== undefined) flushDebounced('body', draft);
+      await new Promise((r) => window.setTimeout(r, 400));   // flush 가 서버에 닿을 여유
+      const r = await apiFetch(`/api/tasks/${detailTask.id}/deliverable-versions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_new: true }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        setActionError(String(j?.message || '').startsWith('empty_body')
+          ? (t('detail.newVersionEmpty') as string)
+          : (t('detail.newVersionFailed') as string));
+        return;
+      }
+      bodyDraftRef.current = '';
+      await loadDetail(detailTask.id);
+    } catch {
+      setActionError(t('detail.newVersionFailed') as string);
+    } finally { setNewVerBusy(false); }
+  };
+
   // 상태 변경 — progress+status 같이 쓰는 로직은 QTaskPage 와 동일
   const changeStatus = async (newStatus: string) => {
     if (!detailTask) return;
@@ -1162,6 +1194,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           //     갈라지면 화면은 열려 있는데 저장은 409 로 막히는 "저장 실패" 가 된다.
           const bodyEditable = canEditBody
             && ['not_started', 'waiting', 'in_progress', 'revision_requested', 'on_hold'].includes(detailTask.status);
+          // 빈 결과물을 회차로 남기지 않는다(서버도 400 empty_body 로 막는다 — 같은 규칙).
+          //   HTML 태그를 걷어낸 실제 글자로 판정한다: `<p></p>` 는 비어 있는 것이다.
+          const hasBodyText = String(detailTask.body || '').replace(/<[^>]*>/g, '').trim().length > 0;
           // ★ **모르는 번호는 말하지 않는다.** 예전엔 목록을 읽기 전 `review_round`(컨펌 라운드 수)로
           //   근사했는데, 되돌리기 백업 회차를 안 세는 값이라 잠깐이지만 **틀린 번호**가 떴다
           //   (Fable 게이트 2026-09-05 실측: 30ms 동안 v3 → 실제 v5). 근사치를 없애고,
@@ -2265,9 +2300,26 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {/* 지금 이 칸이 무엇인지 한 줄로 말한다 — 규칙 설명이 아니라 **상태와 다음 동작**. */}
               {bodyEditable ? (
                 <BodyModeLine>
-                  {roundKnown
-                    ? t('detail.bodyEditing', '작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 v{{n}} 로 남습니다.', { n: nextVersionNo })
-                    : t('detail.bodyEditingPlain', '작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 회차로 남습니다.')}
+                  <span>
+                    {roundKnown
+                      ? t('detail.bodyEditing', '작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 v{{n}} 로 남습니다.', { n: nextVersionNo })
+                      : t('detail.bodyEditingPlain', '작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 회차로 남습니다.')}
+                  </span>
+                  {/* ★ 2026-09-07 Irene: "업무상세 결과물에 새버전 결과 추가버튼 만들어달라고.
+                      자꾸 직원이 댓글에 달잖아." — 여태 버전이 생기는 문이 "확인 요청" 하나뿐이라
+                      중간 결과를 남길 자리가 없어 **댓글**로 갔다. 여기서 바로 남기고 새로 쓴다. */}
+                  <NewVerBtn type="button" data-testid="task-body-new-version"
+                    disabled={newVerBusy || !hasBodyText}
+                    title={hasBodyText
+                      ? (t('detail.newVersionHint') as string)
+                      : (t('detail.newVersionEmpty') as string)}
+                    onClick={saveAsNewVersion}>
+                    {newVerBusy
+                      ? (t('detail.newVersionSaving') as string)
+                      : roundKnown
+                        ? (t('detail.newVersion', { n: nextVersionNo }) as string)
+                        : (t('detail.newVersionPlain') as string)}
+                  </NewVerBtn>
                 </BodyModeLine>
               ) : canEditBody ? (
                 <BodyLockBar>
@@ -2622,7 +2674,19 @@ const BodyVerChip = styled.span`
 `;
 // 쓰기 상태 한 줄 — 무엇이 저장되고 어디로 남는지.
 const BodyModeLine = styled.div`
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   margin:2px 0 6px;font-size:0.75rem;line-height:1.5;color:#64748B;
+`;
+/* 이 결과를 한 회차로 남기고 입력란을 비우는 버튼. 안내 문장과 같은 줄에 두어
+   "지금 쓰는 것"과 "남기는 것"의 관계가 한눈에 보이게 한다. */
+const NewVerBtn = styled.button`
+  flex-shrink:0;
+  padding:5px 10px;border:1px solid #99F6E4;border-radius:999px;background:#F0FDFA;
+  font-size:0.75rem;font-weight:700;color:#0F766E;cursor:pointer;
+  &:hover:not(:disabled){background:#CCFBF1;}
+  &:disabled{opacity:0.5;cursor:default;}
+  /* 터치 타겟 — 토큰(36/40/44) 안에서. 32 는 규격 밖이고 손가락에도 작다. */
+  @media (hover: none), (max-width: 640px){ min-height:36px; }
 `;
 // 읽기 상태 띠 — 왜 잠겼는지와, 다시 쓰는 문을 같은 줄에 둔다.
 const BodyLockBar = styled.div`
