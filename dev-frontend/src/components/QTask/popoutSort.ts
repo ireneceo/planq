@@ -67,6 +67,27 @@ export function buildQuickChoices(view: string, tasks: ChoiceSourceTask[]): Arra
   return [...m].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
 }
 
+/**
+ * 퀵애드 선택지 — **사전(워크스페이스 전체)** 을 먼저 쓰고, 없으면 목록에서 모은다.
+ *
+ * ★ 2026-09-08 두 신고가 같은 뿌리였다.
+ *   Irene: *"프로젝트별에서는 프로젝트 선택 나오는데 태그별에는 왜 태그선택 안나와?"* /
+ *          *"프로젝트 선택에 왜 모든 프로젝트가 안나와? 스크롤되면서 다 나와야지."*
+ *   `buildQuickChoices` 는 **지금 목록에 등장한 것**만 모은다. 목록은 '오늘/이번 주 내 업무'라
+ *   워크스페이스의 일부만 나온다 — 태그는 0개가 되어 셀렉터가 아예 안 떴고(실측),
+ *   프로젝트는 8개 중 1개만 나왔다(실측). 고르는 대상은 워크스페이스가 정본이다.
+ */
+export function buildQuickChoicesFromDict(
+  view: string,
+  tasks: ChoiceSourceTask[],
+  tagDict: Array<{ id: number; name: string }>,
+  projectDict: Array<{ id: number; name: string }>,
+): Array<{ value: string; label: string }> {
+  const dict = view === 'tag' ? tagDict : view === 'project' ? projectDict : null;
+  if (dict && dict.length) return dict.map((d) => ({ value: String(d.id), label: d.name }));
+  return buildQuickChoices(view, tasks);
+}
+
 // ── 사용자가 고르는 정렬 (2026-09-08) ─────────────────────────────────
 //
 // Irene: *"팝아웃에서 업무리스트 소팅 기능이 없어. … 셀렉트항목으로 소팅하게 해줄래?

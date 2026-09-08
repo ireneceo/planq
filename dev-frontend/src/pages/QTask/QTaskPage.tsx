@@ -2,7 +2,7 @@ import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } fr
 import { SkeletonList } from '../../components/Common/Skeleton';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { listRowTitleCss } from '../../theme/tokens';
+import { listRowTitleCss, CONTROL } from '../../theme/tokens';
 import { createTaskTag } from '../../components/QTask/createTaskTag';
 import { useTranslation } from 'react-i18next';
 import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
@@ -1995,7 +1995,20 @@ const QTaskPage:React.FC=()=>{
               </div>
             )}
             {/* #250 — 태그 사전 관리(이름 변경·삭제). 필터 옆에 두는 이유: 사용자가 태그 목록을
-                보는 바로 그 자리다. 생성은 업무 상세의 TagPicker 가 담당한다. */}
+                보는 바로 그 자리다.
+                ★ 2026-09-08 (Irene: "만들어져 있는 태그를 삭제는 못하는데? … 어디서 삭제하게 해?")
+                  모달은 만들어져 있었는데 **여기서 여는 버튼이 없었다** — 행의 태그 메뉴에서만
+                  열려서, 위쪽에서 태그를 고르던 사람은 지울 길이 없었다.
+                  이 주석은 "필터 옆에 둔다" 라고 적혀 있었지만 버튼은 사라져 있었다
+                  (memory: feedback_completed_but_dead_features — 만든 기능에 문이 없으면 없는 기능이다).
+                ★ 셀렉트 안에 X 를 넣지 않는다 — 고르는 동작과 지우는 동작이 1px 차이로 붙으면
+                  잘못 눌러 태그가 사라진다. 모달은 **몇 개 업무에서 빠지는지**를 보여주고 지운다. */}
+            {tagDict.length>0&&(
+              <TagManageBtn type="button" onClick={()=>setTagManageOpen(true)}
+                title={t('tags.manageHint','태그 이름 변경·삭제') as string}>
+                {t('tags.manage','태그 관리')}
+              </TagManageBtn>
+            )}
             {/* 팝아웃 열기 — 여태 우하단 도크에만 있어서 정작 업무 화면에서 여는 길이 없었다 (Irene) */}
             <OpenTaskPopoutButton />
             {/* 헤더의 '태그 관리' 버튼은 제거했다 (Irene 2026-08-24) — 행의 + 메뉴 하단에서 연다.
@@ -3716,6 +3729,15 @@ const BottomAddLink=styled.button`margin:10px 14px 20px;padding:6px 0;background
 const FilterBar=styled.div`display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #F1F5F9;background:#FFF;flex-wrap:wrap;`;
 
 const ColRow=styled.div`display:flex;align-items:center;gap:6px;padding:6px 14px;border-bottom:1px solid #E2E8F0;background:#F8FAFC;position:sticky;top:0;z-index:1;min-width:520px;@media(max-width:640px){min-width:0;padding:6px 10px;}`;
+// 태그 필터 셀렉트(PlanQSelect size="sm" = CONTROL.sm)와 **같은 높이**로 둔다.
+// 손으로 34 를 적었더니 옆 셀렉트(36)보다 2px 낮아 한 줄에서 밑선이 어긋났다. 토큰을 쓴다.
+const TagManageBtn=styled.button`
+  height:${CONTROL.sm}px;padding:0 10px;flex-shrink:0;
+  border:1px solid #E2E8F0;border-radius:8px;background:#fff;
+  font-size:0.75rem;font-weight:600;color:#64748B;font-family:inherit;cursor:pointer;
+  white-space:nowrap;
+  &:hover{border-color:#CBD5E1;color:#0F172A;}
+`;
 const Col=styled.span<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:number;$compactBelow?:number;$wCompact?:string}>`
   box-sizing:border-box;
   ${p=>p.$flex

@@ -54,6 +54,7 @@ import {
   PrioGapHint,
   WaitDot,
   Wrap,
+  PopoutTagManageBtn,
 } from './TaskPopoutView.styles';
 
 import { inTodaySet } from '../../utils/todayTaskSet';
@@ -70,13 +71,14 @@ import TagQuickMenu from './TagQuickMenu';
 import { quickActionFor, type QuickAction } from './popoutQuickAction';
 import { useQuickAction } from './useQuickAction';   // 행 퀵액션 실행(낙관 반영·행 단위 잠금)
 import { useTaskTagDict } from './useTaskTagDict';
+import TagManageModal from './TagManageModal';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
 import { usePopoutQuickAdd } from './usePopoutQuickAdd';
 import { createTaskTag } from './createTaskTag';
 // ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
 //   (정본 사슬은 그대로 살아 있고, 이 화면은 '고른 정렬 → 사슬' 순서로만 본다).
-import { buildQuickChoices, bySelectedSort, type PopoutSortKey, cmpNullLast } from './popoutSort';
+import { buildQuickChoicesFromDict, bySelectedSort, type PopoutSortKey, cmpNullLast } from './popoutSort';
 import PopoutSortSelect, { usePopoutSort } from './PopoutSortSelect';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 import ImportanceChip from './ImportanceChip';
@@ -152,7 +154,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   }, [wsTz]);
 
   const [tasks, setTasks] = useState<PopoutTask[]>([]);
-  const { dict: tagDict, add: addTagToDict } = useTaskTagDict(bizId);
+  const { dict: tagDict, add: addTagToDict, reload: reloadTagDict } = useTaskTagDict(bizId);
+  // 태그 사전 관리(이름 변경·삭제) — 리스트와 **같은 모달**을 쓴다(모양이 갈리지 않게).
+  const [tagManageOpen, setTagManageOpen] = useState(false);
   /** /my-week 가 준 이번 주 월요일(YYYY-MM-DD). 퀵애드의 planned_week_start 정합 원천. */
   const [weekStart, setWeekStart] = useState<string | null>(null);
   const [members, setMembers] = useState<DrawerMemberOption[]>([]);
@@ -375,27 +379,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     ? 'due' : viewMode;
 
   // #309 — 선택지 계산은 popoutSort 로 절출(순수 함수). 규칙 설명도 그 파일에 있다.
-  // ★ 2026-09-08 (Irene: "프로젝트별에서는 프로젝트 선택 나오는데 태그별에는 왜 태그선택 안나와?")
-  //   `buildQuickChoices` 는 **지금 목록에 등장한** 태그만 모은다. 그래서 목록의 업무에 태그가
-  //   하나도 안 붙어 있으면 선택지가 0개 → 셀렉터 자체가 안 나온다.
-  //   칩은 이미 **워크스페이스 태그 사전**을 기준으로 뜨고 있어서(hasAnyTag), 화면에는
-  //   '태그별' 칩은 있는데 고를 태그는 없는 상태가 됐다. 두 기준을 사전 하나로 맞춘다.
-  //   (프로젝트는 사전이 없어 종전대로 목록 기준 — 신고도 그쪽은 잘 된다고 했다.)
-  const quickChoices = useMemo(() => {
-    if (effView === 'tag') {
-      const fromDict = tagDict.map((tg) => ({ value: String(tg.id), label: tg.name }));
-      return fromDict.length ? fromDict : buildQuickChoices(effView, tasks);
-    }
-    if (effView === 'project') {
-      // ★ 2026-09-08 (Irene: "프로젝트 선택에 왜 모든 프로젝트가 안나와? 스크롤되면서 다 나와야지.")
-      //   태그와 같은 사고였다 — 선택지를 **지금 목록에 등장한** 프로젝트에서만 모았다.
-      //   목록은 '오늘/이번 주 내 업무' 라 워크스페이스 프로젝트의 일부만 나온다.
-      //   워크스페이스 전체를 싣는다(길면 셀렉트가 스크롤한다 — 그건 PlanQSelect 가 한다).
-      const fromWs = projectDict.map((p) => ({ value: String(p.id), label: p.name }));
-      return fromWs.length ? fromWs : buildQuickChoices(effView, tasks);
-    }
-    return buildQuickChoices(effView, tasks);
-  }, [effView, tasks, tagDict, projectDict]);
+  // 선택지 규칙은 popoutSort.buildQuickChoicesFromDict 한 곳 — 사전이 정본이다(2026-09-08 신고 2건).
+  const quickChoices = useMemo(() => buildQuickChoicesFromDict(effView, tasks, tagDict, projectDict),
+    [effView, tasks, tagDict, projectDict]);
   // 마감일별 기본값 — 이 탭이 뜻하는 날(오늘). 보기 기준이 바뀌면 다시 오늘로 되돌린다.
   useEffect(() => { setQuickDue(todayStr); setQuickStart(''); }, [todayStr, effView]);
 
@@ -596,11 +582,20 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           groupLabel={t('popout.viewLabel', '보기 기준') as string}
           /* 완료 가리기 — 태그별·마감일별 칩과 **같은 줄** 오른쪽 끝 (Irene 2026-08-24) */
           trailing={(openTasks.length > 0 || doneTasks.length > 0) ? (
+            <>
+            {/* 2026-09-08 — 만드는 문(퀵애드)만 있고 **지우는 문이 없었다**. 리스트와 같은 모달을 쓴다. */}
+            {effView === 'tag' && tagDict.length > 0 && (
+              <PopoutTagManageBtn type="button" onClick={() => setTagManageOpen(true)}
+                title={t('tags.manageHint', '태그 이름 변경·삭제') as string}>
+                {t('tags.manage', '태그 관리') as string}
+              </PopoutTagManageBtn>
+            )}
             <DoneFilterLabel>
               <input type="checkbox" checked={hideDone} data-testid="task-popout-hide-done"
                 onChange={(e) => setHideDone(e.target.checked)} />
               {t('popout.hideDoneFilter', { count: doneTasks.length, defaultValue: '완료 가리기 ({{count}})' })}
             </DoneFilterLabel>
+            </>
           ) : null}
           labels={{
             tag: t('popout.viewTag', '태그별'),
@@ -619,6 +614,13 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           )}
         />
       )}
+      <TagManageModal
+        bizId={bizId}
+        open={tagManageOpen}
+        onClose={() => setTagManageOpen(false)}
+        dict={tagDict}
+        onChanged={() => { void reloadTagDict(); void silentLoad(); }}
+      />
       <Body>
         {loading && <Center>{t('popout.loading', '불러오는 중…')}</Center>}
 

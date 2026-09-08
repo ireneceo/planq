@@ -1351,7 +1351,8 @@
     "quickEmpty": "아직 태그가 없습니다. 이름을 입력해 만들어 보세요.",
     "saveFailed": "태그를 저장하지 못했습니다",
     "maxPerTask": "업무당 태그는 최대 {{count}}개입니다",
-    "manageHint": "이름 변경 · 삭제"
+    "manageHint": "태그 이름 변경·삭제",
+    "manage": "태그 관리"
   },
   "series": {
     "title": "반복 업무 수정",

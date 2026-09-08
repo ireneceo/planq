@@ -253,6 +253,16 @@ export const PrioGapHint = styled.div`
 `;
 // 완료 가리기 — Q Task 리스트의 HideCheck 와 같은 감각(작은 체크박스 + 라벨).
 //   보기 칩 줄 위에 놓아 "무엇을 보여줄지" 를 먼저 정하고 "어떻게 나열할지" 로 넘어가게 한다.
+// 태그 사전 관리 진입 — 칩 줄 오른쪽, 완료 가리기 옆. 칩과 같은 높이(28)로 줄을 안 흔든다.
+// 칩 줄에 서는 보조 버튼. 규격을 다시 적지 않고 같은 줄의 GoMainBtn 을 **상속**한다 —
+// 손으로 베끼면 갈라진다(2026-09-08: 높이만 따로 적었다가 규격 래칫에 걸렸다).
+// 칩 줄이라 모서리만 알약으로 바꾼다.
+export const PopoutTagManageBtn = styled(GoMainBtn)`
+  margin-right: 8px; padding: 0 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem; color: #64748B;
+  &:hover { border-color:#CBD5E1; color:#0F172A; }
+`;
 export const DoneFilterLabel = styled.label`
   display:inline-flex; align-items:center; gap:6px; cursor:pointer;
   font-size:0.75rem; font-weight:600; color:#64748B; user-select:none;

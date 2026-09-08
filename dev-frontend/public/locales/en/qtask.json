@@ -1351,7 +1351,8 @@
     "quickEmpty": "No tags yet. Type a name to create one.",
     "saveFailed": "Could not save tags",
     "maxPerTask": "Up to {{count}} tags per task",
-    "manageHint": "Rename · delete"
+    "manageHint": "Rename or delete tags",
+    "manage": "Manage tags"
   },
   "series": {
     "title": "Edit repeating task",
