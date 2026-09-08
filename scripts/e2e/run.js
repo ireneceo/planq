@@ -85,6 +85,7 @@ const SUITES = {
   crashreport: () => require('./canary-crash-report'),
   officetext: () => require('./canary-office-text'),
   qnotecue: () => require('./canary-qnote-cue'),
+  reviewentry: () => require('./canary-review-entry'),
   mailbrief: () => require('./canary-mail-brief'),
   mailplain: () => require('./canary-mail-plaintext'),
   seriesscope: () => require('./canary-series-scope'),

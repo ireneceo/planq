@@ -1415,6 +1415,28 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const seriesRecur = require('../services/taskSeriesRecurrence');
     const seriesRuleChange = seriesRecur.extractSeriesRuleChange(task, updates);
 
+    // ── 확인 요청(reviewing) 진입은 **행동 계층 한 곳**을 지난다 (2026-09-08 운영 신고) ──────
+    //   Irene: *"확인요청 받음 상태인데 왜 수정요청 보내는 란이 안나와?"*
+    //   여기서 status 컬럼만 'reviewing' 으로 써 버리면 **새 라운드의 부수효과가 통째로 빠진다**:
+    //     · 컨펌자 state 리셋(pending)  · review_round +1  · history `review_submit`  · 알림
+    //   운영 실측(task #257): 담당자가 상태 드롭다운으로 reviewing 을 골라
+    //   `status_change revision_requested → reviewing` 만 남았고, 컨펌자 행은 9월 4일의
+    //   `revision` 그대로였다. 그래서 컨펌자에게는 이미 결정한 화면(= 수정요청 칸 없음)이 뜨고,
+    //   담당자는 reviewing 이라 본문이 잠겨 **양쪽 다 아무것도 못 하는 상태**가 됐다.
+    //   같은 워크스페이스의 #224 는 "확인 요청 보내기" 버튼을 써서 정상이었다 —
+    //   즉 갈린 것은 작성자 여부가 아니라 **어느 문으로 들어왔는가**였다.
+    //   (memory: feedback_workflow_routes_bypass_side_effects)
+    if (updates.status === 'reviewing' && task.status !== 'reviewing') {
+      const { submitForReview } = require('../services/taskTransition');
+      const bodyUpdates = updates.body !== undefined ? { body: updates.body } : {};
+      const out = await submitForReview({ task, actorUserId: myId, bodyUpdates });
+      if (!out.ok) return errorResponse(res, out.reason, out.reason === 'no_reviewers_assigned' ? 400 : 409);
+      // 상태·본문은 전이가 이미 썼다 — 아래 update 가 라운드를 되돌리지 않게 뺀다.
+      delete updates.status;
+      delete updates.body;
+      await task.reload();
+    }
+
     await task.update(updates);
 
     const ruleRes = await seriesRecur.applySeriesRuleChange({
