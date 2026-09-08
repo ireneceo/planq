@@ -172,5 +172,34 @@
     "blockingWhy": "Blocked until you approve",
     "nothing": "No new context since yesterday",
     "allDay": "All day"
+  },
+  "onboarding": {
+    "title": "Get started",
+    "subtitle": "Four steps and PlanQ completes its loop.",
+    "progress": "{{done}}/{{total}}",
+    "dismiss": "Don't show again",
+    "do": "Do it",
+    "howto": "How to",
+    "step": {
+      "invite_client": {
+        "label": "Invite a client",
+        "why": "Conversations and tasks start with a client.",
+        "wikiQuery": "Invite a client"
+      },
+      "start_conversation": {
+        "label": "Start a conversation",
+        "why": "Requests arrive in conversations, and tasks are born there.",
+        "wikiQuery": "Start a conversation"
+      },
+      "create_task": {
+        "label": "Create your first task",
+        "why": "Once it has an assignee and a due date, it gets tracked.",
+        "wikiQuery": "Create a task and assign an owner"
+      },
+      "enable_notifications": {
+        "label": "Turn on notifications",
+        "why": "New messages and deadlines reach you even when PlanQ is closed."
+      }
+    }
   }
 }

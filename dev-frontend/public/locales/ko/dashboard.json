@@ -172,5 +172,34 @@
     "blockingWhy": "내가 컨펌해야 진행돼요",
     "nothing": "어제 이후 새로 볼 맥락이 없어요",
     "allDay": "종일"
+  },
+  "onboarding": {
+    "title": "시작하기",
+    "subtitle": "네 가지만 하면 PlanQ 가 한 바퀴 돕니다.",
+    "progress": "{{done}}/{{total}}",
+    "dismiss": "다시 보지 않기",
+    "do": "하기",
+    "howto": "사용법",
+    "step": {
+      "invite_client": {
+        "label": "고객 초대하기",
+        "why": "고객이 있어야 대화도 업무도 시작됩니다.",
+        "wikiQuery": "고객 초대하기"
+      },
+      "start_conversation": {
+        "label": "대화 시작하기",
+        "why": "요청은 대화에서 옵니다. 여기서 업무가 만들어집니다.",
+        "wikiQuery": "대화 시작하기"
+      },
+      "create_task": {
+        "label": "첫 업무 만들기",
+        "why": "담당자와 마감을 정하면 그때부터 추적됩니다.",
+        "wikiQuery": "업무 만들고 담당자 정하기"
+      },
+      "enable_notifications": {
+        "label": "알림 켜기",
+        "why": "PlanQ 를 안 보고 있어도 새 메시지와 마감이 도착합니다."
+      }
+    }
   }
 }

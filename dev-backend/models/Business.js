@@ -248,6 +248,11 @@ Business.init({
   default_vat_rate: { type: DataTypes.DECIMAL(4, 3), defaultValue: 0.100 },
   // 청구서 기본 결제 기한 (발행일 + N일)
   default_due_days: { type: DataTypes.INTEGER, defaultValue: 14, comment: '청구서 기본 결제 기한 (일)' },
+  // 온보딩 안내 카드를 사용자가 직접 닫은 시각. NULL = 아직 안 닫음.
+  // ★ 단계별 '완료' 는 여기 저장하지 않는다 — 실제 데이터(고객·대화·업무·알림)로 매번 판정한다.
+  //   완료 플래그를 따로 들면 데이터와 갈라져서, 고객을 지웠는데도 완료로 남는다.
+  //   저장이 필요한 것은 "안 할래" 라는 사람의 의사 하나뿐이다.
+  onboarding_dismissed_at: { type: DataTypes.DATE, allowNull: true, comment: '온보딩 카드 닫은 시각' },
   // #259 — 워크스페이스 킬스위치. 끄면 이 워크스페이스의 유효 게스트 링크가 전부 404.
   guest_links_enabled: {
     type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true,

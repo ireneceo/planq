@@ -1651,4 +1651,26 @@ router.put('/:businessId/me/profile', authenticateToken, checkBusinessAccess, as
   } catch (err) { next(err); }
 });
 
+// ─── 온보딩 안내 (신규 워크스페이스) ───
+// 판정·권한은 services/onboarding.js 한 곳이다 — 라우트는 문만 연다.
+// GET  /api/businesses/:businessId/onboarding          → 자격 없으면 data: null
+// PUT  /api/businesses/:businessId/onboarding/dismiss  → { dismissed: true|false }
+router.get('/:businessId/onboarding', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const { getOnboardingState } = require('../services/onboarding');
+    const state = await getOnboardingState({ businessId: req.params.businessId, userId: req.user.id });
+    return successResponse(res, state);
+  } catch (err) { next(err); }
+});
+
+router.put('/:businessId/onboarding/dismiss', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const { setOnboardingDismissed } = require('../services/onboarding');
+    const dismissed = req.body?.dismissed !== false;   // 기본은 닫기. false 면 되살리기.
+    const ok = await setOnboardingDismissed({ businessId: req.params.businessId, userId: req.user.id, dismissed });
+    if (!ok) return errorResponse(res, 'not_allowed', 403);
+    return successResponse(res, { dismissed });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

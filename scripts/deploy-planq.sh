@@ -258,6 +258,9 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-native.js 2>&1 | tail -10"
   # Q Bill 결제 원장 — invoice_payments.installment_id (매출 통계 원천). 코드보다 먼저.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-invoice-payment-installment.js 2>&1 | tail -10"
+  # 온보딩 안내 카드 — businesses.onboarding_dismissed_at. businesses 는 키가 많아
+  # Sequelize alter 가 죽은 전례가 있어 sync 에 맡기지 않는다(조용히 죽으면 기능 전멸).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-onboarding-dismissed.js 2>&1 | tail -10"
   # 계정 삭제(회원 탈퇴) 스키마 — users/businesses/business_members 컬럼.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-account-deletion.js 2>&1 | tail -10"
   # #203/#207 Q Mail 알림 — notification_prefs/notifications ENUM 확장 + email_accounts.notify_scope.
