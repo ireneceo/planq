@@ -30,8 +30,16 @@ const Input = styled.input`
   &[readonly] { background: #F8FAFC; color: #94A3B8; }
 `;
 /* 입력이 주인공이라 셀렉터는 좁게 둔다. 고정폭 대신 상한만 걸어 좁은 팝아웃에서도 줄어든다. */
+// ★ 2026-09-08 (Irene: "태그선택이랑 프로젝트 선택 영역이 너무 좁아. 조금만 길이가 나오게 하고
+//   고정 좀 해. 둘 다 같게. … 태그를 입력하면 갑자기 태그선택란이 줄어들어. 왜 고정 안되고 줄어들어?")
+//   `flex: 0 1 auto` 였다 — 기준이 **내용**이고 줄어들 수도 있어서, react-select 에 글자를 치면
+//   입력 폭이 바뀌며 칸이 같이 흔들렸다. 고르는 칸은 흔들릴 이유가 없다.
+//   → 고정 폭 하나로 못 박는다. 태그·프로젝트·마감일 **세 컨트롤이 같은 폭**이라
+//     보기 기준을 바꿔도 줄이 튀지 않는다(폭은 Q task 리스트 '기간' 열 100 보다 약간 넓은 120).
+const OPT_W = 120;
 const OptWrap = styled.div`
-  flex: 0 1 auto; min-width: 84px; max-width: 40%;
+  flex: 0 0 ${OPT_W}px;
+  width: ${OPT_W}px;
 `;
 const AddBtn = styled.button`
   flex-shrink: 0; height: 34px; padding: 0 12px;
