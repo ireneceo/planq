@@ -3,6 +3,7 @@ import { SkeletonList } from '../../components/Common/Skeleton';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { listRowTitleCss, CONTROL } from '../../theme/tokens';
+import { escapeConsumedByOverlay } from '../../hooks/useEscapeStack';
 import { createTaskTag } from '../../components/QTask/createTaskTag';
 import { useTranslation } from 'react-i18next';
 import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
@@ -834,6 +835,12 @@ const QTaskPage:React.FC=()=>{
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      // ★ 열려 있던 드롭다운의 몫인 Esc 는 여기서 받지 않는다 (2026-09-08 실측).
+      //   드로어 안 셀렉트를 열고 Esc 를 한 번 누르면 드롭다운만 닫히면 될 것이 **드로어까지 닫혔다.**
+      //   이 화면은 Esc 를 **세 곳**에서 듣고 있었다 — 여기 · TaskDetailDrawer 의 손수 단
+      //   window 리스너 · 공용 useEscapeStack. 앞의 둘은 중첩 계약도 이 사실도 몰랐다.
+      //   판정은 베끼지 않고 **같은 함수**를 부른다.
+      if (escapeConsumedByOverlay(e)) return;
       if (addingTask) { setAddingTask(false); resetNewTask(); return; }
       if (detailTaskId) { closeDetail(); return; }
     };

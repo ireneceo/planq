@@ -572,12 +572,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     return () => window.removeEventListener('focus:refresh', onFocusRefresh);
   }, [taskId, loadDetail]);
 
-  // Esc 닫기 + 상태 드롭다운 외부 클릭
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // ★ Esc 닫기는 **위 useEscapeStack(!!taskId, onClose) 한 곳**이다 (2026-09-08).
+  //   여기에 window keydown 을 하나 더 달아 두어 같은 Esc 를 둘이 받았다. 그 손으로 단 쪽은
+  //   ① 중첩 계약을 모른다 — 위에 모달이 떠 있어도 뒤의 드로어까지 같이 닫혔다
+  //   ② 안쪽 컨트롤이 이미 쓴 Esc 인지 안 본다 — 드로어 안 셀렉트를 열고 Esc 를 한 번 누르면
+  //     드롭다운만 닫히면 될 것이 **드로어까지 닫혔다**(실측 재현).
+  //   공용 훅은 둘 다 지킨다. 그래서 이 중복을 지운다 — 남겨두면 훅을 고쳐도 여기서 우회된다.
+  // 상태 드롭다운 외부 클릭
   useEffect(() => {
     if (!statusOpen) return;
     const close = (e: MouseEvent | KeyboardEvent) => {

@@ -81,13 +81,22 @@ const OnboardingCard: React.FC<{ businessId: number | null }> = ({ businessId })
   };
 
   if (!state || state.dismissed) return null;
-  if (state.done_count >= state.total) return null;   // 다 했으면 조용히 사라진다
+
+  // ★ 알림 안내 배너가 이미 떠 있으면 '알림 켜기' 줄은 양보한다 (2026-09-08).
+  //   같은 행동을 같은 화면에서 두 번 시킨다. 양보 방향은 저장소의 기존 규칙을 그대로 따른다 —
+  //   InstallPromptBanner 가 PushPromptBanner 에게 양보할 때 쓰는 바로 그 플래그다.
+  //   배너를 접으면(7일 안 보기) 이 줄이 다시 나온다 — 켜는 길이 사라지지는 않는다.
+  const bannerUp = typeof document !== 'undefined' && document.body.dataset.pushPromptVisible === '1';
+  const steps = bannerUp ? state.steps.filter((s) => s.key !== 'enable_notifications') : state.steps;
+  const total = steps.length;
+  const done = steps.filter((s) => s.done).length;
+  if (total === 0 || done >= total) return null;   // 다 했으면 조용히 사라진다
 
   return (
     <Card role="region" aria-label={t('onboarding.title', '시작하기') as string}>
       <Head>
         <Title>{t('onboarding.title', '시작하기')}</Title>
-        <Progress>{t('onboarding.progress', '{{done}}/{{total}}', { done: state.done_count, total: state.total })}</Progress>
+        <Progress>{t('onboarding.progress', '{{done}}/{{total}}', { done, total })}</Progress>
         <Spacer />
         <TextBtn type="button" onClick={dismiss} disabled={busy}>
           {t('onboarding.dismiss', '다시 보지 않기')}
@@ -95,7 +104,7 @@ const OnboardingCard: React.FC<{ businessId: number | null }> = ({ businessId })
       </Head>
       <Sub>{t('onboarding.subtitle', '네 가지만 하면 PlanQ 가 한 바퀴 돕니다.')}</Sub>
       <List>
-        {state.steps.map((s) => {
+        {steps.map((s) => {
           const meta = STEP_META[s.key];
           return (
             <Item key={s.key} $done={s.done}>
