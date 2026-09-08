@@ -1,0 +1,12 @@
+{
+  "version": "1.48.14",
+  "date": "2026-09-08",
+  "items": [
+    {
+      "ko": { "title": "워크스페이스를 바꾸면 상단 탭도 그 워크스페이스의 것으로 바뀝니다",
+        "body": "워크스페이스를 옮기거나 플랫폼 관리자로 들어가도 앞에서 보던 탭이 그대로 따라오던 것을 고쳤습니다. 탭은 워크스페이스마다 따로 기억되고, 돌아오면 그 워크스페이스에서 열어두었던 탭이 그대로 있습니다. 관리자 화면의 탭이 워크스페이스 목록에 남거나, 워크스페이스 화면이 관리자 쪽에 서 있는 일도 없어집니다. 지금까지 섞여 저장돼 있던 탭은 다음에 그 화면을 열 때 자동으로 정리되므로, 따로 하실 일은 없습니다." },
+      "en": { "title": "Switching workspaces now switches the tabs at the top",
+        "body": "Tabs from the workspace you were just in used to follow you into another workspace — and into Platform Admin. Tabs are now remembered per workspace: come back and you find exactly the tabs you left open there. An admin screen no longer lingers in a workspace's tab bar, and a workspace screen no longer sits in the admin one. Tabs that were already stored mixed together are cleaned up the next time you open that screen, so there is nothing for you to do." }
+    }
+  ]
+}
