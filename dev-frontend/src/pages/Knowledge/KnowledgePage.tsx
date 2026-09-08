@@ -1806,7 +1806,18 @@ const DrawerTitleEdit: React.FC<{
     try { await updateKnowledge(businessId, docId, { title: draft.trim() }); onSaved(draft.trim()); } catch { /* skip */ }
   };
   if (!editing) {
-    return <DrawerTitle onClick={() => setEditing(true)} title={t('inline.editHint', '클릭해서 편집') as string}>{initialValue}</DrawerTitle>;
+    // title 속성에 **전체 제목**을 담는다 — 한 줄로 자른 뒤에도 원문을 확인할 수 있어야 한다.
+    //   편집 안내는 접근성 라벨로 남긴다(툴팁 자리는 제목이 쓴다).
+    return (
+      <DrawerTitle
+        onClick={() => setEditing(true)}
+        title={initialValue}
+        role="button"
+        tabIndex={0}
+        aria-label={`${initialValue} — ${t('inline.editHint', '클릭해서 편집')}`}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(true); } }}
+      >{initialValue}</DrawerTitle>
+    );
   }
   return (
     <DrawerTitleInput
@@ -2313,6 +2324,14 @@ const ValueLink = styled.a`
   color: #0F766E; font-weight: 500; font-size: 0.8125rem; text-decoration: none;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   &:hover { text-decoration: underline; }
+  /* ★ 2026-09-08 (Irene: "리스트에서는 링크 클릭도 안돼") — 링크는 눌리고 있었다.
+     실측 183x**16px**. 그 줄이 속한 행에는 상세를 여는 click 이 걸려 있어서, 폰에서
+     손가락이 조금만 빗나가면 행이 먼저 먹고 **상세가 열린다** — 사용자에겐 "링크가 안 눌린다".
+     보이는 크기는 그대로 두고 **누를 수 있는 자리만** 넓힌다(음수 여백으로 레이아웃 불변).
+     같은 방식이 고객 목록 이름칸(ClientsPage NameCell)에 이미 쓰이고 있다. */
+  padding: 6px 4px;
+  margin: -6px -4px;
+  @media (max-width: 640px) { padding: 11px 4px; margin: -11px -4px; }
 `;
 const InlineInput = styled.input<{ $err?: boolean }>`
   height: 22px; padding: 0 6px;
@@ -2632,6 +2651,15 @@ const DrawerTitle = styled.div`
   font-size: 1rem; font-weight: 700; color: #0F172A;
   cursor: text; padding: 4px 8px; border-radius: 6px;
   &:hover { background: #F0FDFA; }
+  /* ★ 2026-09-08 (Irene: "인포 상세 헤더가 잘려서 되돌아가는 것도 안되고")
+     제목이 길면 헤더 안에서 여러 줄로 쌓여 밴드가 부풀었다 —
+     실측(폰 390px): 제목이 3줄 80px, **헤더가 111px**(규격 60). 데스크탑도 87px.
+     헤더 안에 줄을 쌓지 않는다(페이지 레이아웃 표준). 한 줄 + 말줄임으로 두고,
+     전체 제목은 hover/길게누르기의 title 로 본다. 고칠 때는 눌러서 입력칸으로 바꾼다. */
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 const DrawerSections = styled.div`display: flex; flex-direction: column; gap: 20px; padding: 20px;`;
 const DrawerSection = styled.div`display: flex; flex-direction: column; gap: 8px;`;

@@ -394,10 +394,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   };
   const byTagRule = byGroup(repTag);
   const byProjectRule = byGroup(repProject);
-  // ★ 2026-09-08 (Irene: "태그별 프로젝트별, 마감별 이었는데 전체가 왜나와. 기존대로 마감별로 넣어줘.")
-  //   잠깐 '전체'(그룹 없음)로 바꿨던 것을 되돌린다 — **라벨과 동작을 같이** 되돌려야 한다.
-  //   마감일이 먼저고, 같은 날짜 안쪽 순서만 고른 정렬이 정한다.
-  //   (그래야 두 컨트롤이 각자 뜻을 갖는다: 칩=무엇 기준으로 나열 / 셀렉트=그 안쪽 순서)
+  // 2026-09-08 — 잠깐 '전체'(그룹 없음)로 바꿨던 것을 '마감일별' 로 되돌린다.
+  //   라벨과 동작을 **같이** 되돌려야 문구가 거짓말을 하지 않는다: 마감일이 먼저,
+  //   같은 날짜 안쪽만 고른 정렬이 정한다(칩=나열 기준 / 셀렉트=그 안쪽 순서).
   const byDueRule = (a: PopoutTask, b: PopoutTask): number =>
     cmpNullLast(a.due_date, b.due_date) || innerSort(a, b) || (a.id - b.id);
 
@@ -606,10 +605,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           labels={{
             tag: t('popout.viewTag', '태그별'),
             project: t('popout.viewProject', '프로젝트별'),
-            /* ★ 2026-09-08 Irene: "태그별 프로젝트별, 마감별 이었는데 전체가 왜나와.
-               기존대로 마감별로 넣어줘." — 라벨을 되돌리면서 **동작도 같이 되돌린다.**
-               라벨만 '마감일별' 로 두고 실제로는 고른 정렬대로 나열하면 문구가 거짓말이 된다. */
-            due: t('popout.viewDue', '마감일별'),
+            due: t('popout.viewDue', '마감일별'),   // 동작도 같이 되돌렸다 — byDueRule 주석 참조
           }}
           /* 정렬 — 이 저장소의 셀렉트 표준은 PlanQSelect 다(raw <select> 는 health-check 가 막는다).
              같은 팝아웃 안 퀵애드도 이것을 쓰므로 별도 창에서도 메뉴가 정상 동작한다. */
