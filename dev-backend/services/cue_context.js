@@ -484,21 +484,24 @@ const FILE_TEXT_MAX_CHARS = 1500;
     const hints = detectDomainHints(query);
     const { Post, File: FileModel, EmailThread } = require('../models');
     const { postListWhereByLevel, fileListWhereByLevel } = require('../middleware/access_scope');
-    if (hints.docs) {
-      try {
-        const base = { [Op.and]: [postListWhereByLevel(scope), { status: { [Op.ne]: 'draft' } }] };
-        const hit = await Post.findAll({
-          where: { [Op.and]: [base, likeAny(['title'], terms)] },
-          attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
-          order: [['updated_at', 'DESC']], limit: 5,
-        });
-        out.posts = hit.length ? hit : await Post.findAll({
-          where: base, attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
-          order: [['updated_at', 'DESC']], limit: 8,
-        });
-      } catch (e) { void e; }
-    }
-    if (hints.files) {
+    // ★ 2026-09-08 — 여기 있던 `if (hints.docs)` 게이트를 **이름 검색에서는 걷었다.**
+    //   "계약서 금액 얼마야?" 처럼 **어휘를 안 쓴 질문**에서 문서를 아예 안 찾고 있었다
+    //   (Irene: "워크스페이스에 최적화된 모든 걸 아는 직원이어야지").
+    //   비용이 드는 것은 **최근 목록 폴백** 쪽이다 — 그건 질문이 그 영역을 가리킬 때만 싣는다.
+    //   이름이 실제로 맞은 것은 어휘와 무관하게 관련 있는 자료다.
+    try {
+      const base = { [Op.and]: [postListWhereByLevel(scope), { status: { [Op.ne]: 'draft' } }] };
+      const hit = await Post.findAll({
+        where: { [Op.and]: [base, likeAny(['title'], terms)] },
+        attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
+        order: [['updated_at', 'DESC']], limit: 5,
+      });
+      out.posts = hit.length ? hit : (hints.docs ? await Post.findAll({
+        where: base, attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
+        order: [['updated_at', 'DESC']], limit: 8,
+      }) : []);
+    } catch (e) { void e; }
+    {
       try {
         // ★ deleted_at: null 필수 — 이 술어는 soft-delete 를 모른다. 빼면 지운 파일이 답변에 부활한다.
         const base = { [Op.and]: [fileListWhereByLevel(scope), { deleted_at: null }] };
@@ -509,10 +512,10 @@ const FILE_TEXT_MAX_CHARS = 1500;
           attributes: FILE_ATTRS,
           order: [['created_at', 'DESC']], limit: 5,
         });
-        out.files = hit.length ? hit : await FileModel.findAll({
+        out.files = hit.length ? hit : (hints.files ? await FileModel.findAll({
           where: base, attributes: FILE_ATTRS,
           order: [['created_at', 'DESC']], limit: 8,
-        });
+        }) : []);
 
         // #227 — **이름으로 찾은 상위 몇 건만** 본문을 읽는다.
         //   여태 제목만 실어서 "파일 내용 알려줘" 에 Cue 가 "열어볼 수 없습니다" 라고 답했다.
@@ -530,7 +533,7 @@ const FILE_TEXT_MAX_CHARS = 1500;
         }
       } catch (e) { void e; }
     }
-    if (hints.mail) {
+    {
       try {
         const { accessibleAccountIds } = require('./mailIdentity');
         const acctIds = await accessibleAccountIds(businessId, scope.userId);
@@ -541,10 +544,10 @@ const FILE_TEXT_MAX_CHARS = 1500;
             attributes: ['id', 'subject', 'status', 'reply_needed', 'last_message_at'],
             order: [['last_message_at', 'DESC']], limit: 4,
           });
-          out.mail = hit.length ? hit : await EmailThread.findAll({
+          out.mail = hit.length ? hit : (hints.mail ? await EmailThread.findAll({
             where: base, attributes: ['id', 'subject', 'status', 'reply_needed', 'last_message_at'],
             order: [['last_message_at', 'DESC']], limit: 6,
-          });
+          }) : []);
         }
       } catch (e) { void e; }
     }
@@ -952,7 +955,12 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
       kb.pinned_faqs.slice(0, 2).forEach(f => parts.push(`- FAQ: ${snip(f.question, 80)} → ${snip(f.answer, 200)}`));
     }
     if (kb.kb_chunks?.length) {
-      kb.kb_chunks.slice(0, 3).forEach(c => parts.push(`- ${c.document_title}${c.section_title ? ` / ${c.section_title}` : ''}: ${snip(c.snippet, 200)}`));
+      // 출처를 밝힌다 — 파일 본문에서 온 조각이면 "파일" 이라고 말해야 Cue 가
+      //   "OO 파일에 이렇게 적혀 있습니다" 로 답할 수 있다(그냥 인용하면 근거가 없어 보인다).
+      kb.kb_chunks.slice(0, 3).forEach(c => {
+        const from = c.source_type === 'file' ? '파일 ' : '';
+        parts.push(`- ${from}${c.document_title}${c.section_title ? ` / ${c.section_title}` : ''}: ${snip(c.snippet, 200)}`);
+      });
     }
   }
 
@@ -1040,12 +1048,20 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
     if (i >= 0) { uncovered.splice(i, 1); covered.push(label); }
   };
   movedByHint(`문서(${M.docs})`, overview?.counts?.docs != null || matches?.posts?.length);
-  movedByHint(`파일(${M.file})`, overview?.counts?.files != null || matches?.files?.length);
+  // 파일은 이름으로 찾았거나(matches.files) **본문 색인에서 걸렸을 때도**(kb 청크의 출처가 file)
+  //   조회한 것이다 — 후자를 안 세면 내용으로 답해 놓고 "파일은 못 본다" 고 말하는 모순이 생긴다.
+  const kbFileHits = (kb?.kb_chunks || []).filter((c) => c.source_type === 'file');
+  movedByHint(`파일(${M.file})`, overview?.counts?.files != null || matches?.files?.length || kbFileHits.length);
   // #227 — **본문까지 읽은 턴**에만 그렇게 선언한다. 이름만 본 턴에 "내용도 봤다" 고 하면
   //   Cue 가 읽지도 않은 파일을 아는 척한다 — 그게 다음 신고다.
   //   반대로 정말 읽었으면 그 사실을 말해야 사용자가 답을 믿을 수 있다.
-  if (matches?.fileTexts?.length) {
-    covered.push(`파일 본문(${matches.fileTexts.length}건 — 이름이 일치한 파일만, 형식은 텍스트·PDF 한정)`);
+  if (matches?.fileTexts?.length || kbFileHits.length) {
+    // 두 경로가 있다: 이름이 맞은 파일을 **그 자리에서 읽은 것**과, 업로드 때 **색인해 둔 본문**에서
+    //   내용으로 걸린 것. 몇 건을 어떤 경로로 봤는지 그대로 말한다 — 뭉뚱그리면 다음 신고가 된다.
+    const parts2 = [];
+    if (matches?.fileTexts?.length) parts2.push(`이름이 맞은 ${matches.fileTexts.length}건을 직접 읽음`);
+    if (kbFileHits.length) parts2.push(`내용 색인에서 ${kbFileHits.length}건`);
+    covered.push(`파일 본문(${parts2.join(' · ')} — 형식은 텍스트·PDF 한정)`);
   }
   movedByHint(`메일(${M.qmail})`, !!overview?.counts?.mail || matches?.mail?.length || !!thread);
   if (thread) covered.push(`보고 있는 메일 스레드 본문(최근 ${thread.messages?.length || 0}통)`);

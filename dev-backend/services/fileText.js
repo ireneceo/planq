@@ -17,6 +17,9 @@ const path = require('path');
 // 한 파일에서 뽑을 최대 길이. 호출부가 더 짧게 자를 수 있다(Cue 는 건당 1,500자).
 const DEFAULT_MAX = 50_000;
 
+// 외부 저장소에서 본문 추출용으로 받아 올 최대 바이트. 통째로 받을 이유가 없다.
+const REMOTE_FETCH_MAX_BYTES = 20 * 1024 * 1024;
+
 // 같은 파일을 반복해 읽지 않는다. 물리 파일은 UUID + content_hash 로 **불변**이라
 //   해시가 같으면 내용도 같다 — 캐시가 stale 해질 수 없다.
 const CACHE_MAX = 60;
@@ -34,15 +37,62 @@ function cacheSet(key, val) {
   while (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value);
 }
 
+/** HTML → 읽을 수 있는 글. routes/kb.js 의 import 경로와 같은 규칙(스타일·스크립트 먼저 제거). */
+function stripHtml(html) {
+  return String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** 이 파일에서 본문을 뽑을 수 있는가 — 화면이 "왜 못 읽는지" 를 말할 수 있게 이유를 함께 준다. */
 function extractability(fileRow) {
   if (!fileRow || !fileRow.file_path) return { ok: false, reason: 'no_path' };
-  // 외부 연동 파일은 우리 디스크에 없다. 커버리지 선언에 그대로 반영해야 Cue 가 거짓말하지 않는다.
-  if (fileRow.storage_provider !== 'planq') return { ok: false, reason: 'external_storage' };
+  // ★ 2026-09-08 — 여기서 `storage_provider !== 'planq'` 를 막고 있었다. 그런데 워크스페이스가
+  //   Drive 를 연결하면 새 파일은 전부 `gdrive` 로 저장된다 — 운영 실측 46건이 **한 글자도**
+  //   Cue 에게 안 읽혔다. 오류도 안 나고 그냥 빈 문자열이라 아무도 몰랐다.
+  //   저장소는 읽는 쪽이 신경 쓸 일이 아니다 — `services/attachmentStorage.readAttachmentBody`
+  //   가 planq/gdrive/s3 를 이미 단일 지점에서 가른다. 그것을 쓴다.
+  //   (같은 계열 사고: memory `feedback_storage_branch_single_source`)
   const mime = String(fileRow.mime_type || '').toLowerCase();
+  // HTML 은 태그를 벗겨야 쓸 만한 본문이 된다 — 안 벗기면 style/script 덩어리가 그대로 색인돼
+  //   검색이 태그에 걸리고 임베딩도 쓰레기를 학습한다(수동 "파일 → Q info" 경로는 이미 벗기고 있었다).
+  if (mime === 'text/html' || mime === 'application/xhtml+xml') return { ok: true, kind: 'html' };
   if (mime.startsWith('text/') || mime === 'application/json') return { ok: true, kind: 'text' };
   if (mime === 'application/pdf') return { ok: true, kind: 'pdf' };
   return { ok: false, reason: 'unsupported_type' };   // docx/xlsx 등은 아직
+}
+
+/** 저장소와 무관하게 파일 바이트를 가져온다. 못 가져오면 null (예외 아님). */
+async function readFileBuffer(fileRow) {
+  const provider = fileRow.storage_provider || 'planq';
+  if (provider === 'planq') {
+    const abs = path.isAbsolute(fileRow.file_path)
+      ? fileRow.file_path
+      : path.resolve(__dirname, '..', fileRow.file_path);
+    if (!fs.existsSync(abs)) return null;
+    return fs.readFileSync(abs);
+  }
+  // 외부 저장소 — 서버가 워크스페이스 토큰으로 받아서 흘려준다.
+  const body = await require('./attachmentStorage').readAttachmentBody({
+    storage_provider: provider,
+    file_path: fileRow.file_path,
+    external_id: fileRow.external_id || fileRow.file_path,
+    business_id: fileRow.business_id,
+  });
+  if (!body.ok || !body.stream) return null;    // redirect(S3 presign)는 여기서 읽지 않는다
+  const chunks = [];
+  let bytes = 0;
+  for await (const c of body.stream) {
+    chunks.push(c);
+    bytes += c.length;
+    // 본문 추출용이라 통째로 받을 이유가 없다 — 상한을 넘으면 거기서 끊는다.
+    if (bytes > REMOTE_FETCH_MAX_BYTES) { body.stream.destroy(); break; }
+  }
+  return Buffer.concat(chunks);
 }
 
 /**
@@ -55,22 +105,29 @@ async function extractFileText(fileRow, opts = {}) {
   const can = extractability(fileRow);
   if (!can.ok) return '';
 
-  const abs = path.isAbsolute(fileRow.file_path)
-    ? fileRow.file_path
-    : path.resolve(__dirname, '..', fileRow.file_path);
-  if (!fs.existsSync(abs)) return '';
-
+  // 캐시는 **바이트를 받기 전**에 본다 — Drive 왕복을 매번 하지 않기 위해서다.
   const key = `${fileRow.content_hash || fileRow.file_path}:${can.kind}`;
   const hit = cacheGet(key);
   if (hit !== undefined) return hit.slice(0, maxChars);
 
+  let buf = null;
+  try {
+    buf = await readFileBuffer(fileRow);
+  } catch (e) {
+    console.warn('[fileText] 본문 가져오기 실패:', fileRow.id, e.message);
+    return '';
+  }
+  if (!buf) return '';
+
   let text = '';
   try {
     if (can.kind === 'text') {
-      text = fs.readFileSync(abs, 'utf-8').slice(0, DEFAULT_MAX);
+      text = buf.toString('utf-8').slice(0, DEFAULT_MAX);
+    } else if (can.kind === 'html') {
+      text = stripHtml(buf.toString('utf-8')).slice(0, DEFAULT_MAX);
     } else if (can.kind === 'pdf') {
       const { PDFParse } = require('pdf-parse');
-      const parser = new PDFParse({ data: fs.readFileSync(abs) });
+      const parser = new PDFParse({ data: buf });
       try {
         const r = await parser.getText();
         text = String(r?.text || '').slice(0, DEFAULT_MAX);
@@ -87,4 +144,4 @@ async function extractFileText(fileRow, opts = {}) {
   return text.slice(0, maxChars);
 }
 
-module.exports = { extractFileText, extractability, DEFAULT_MAX };
+module.exports = { extractFileText, extractability, readFileBuffer, DEFAULT_MAX };

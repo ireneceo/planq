@@ -230,6 +230,16 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
       }];
     }
 
+    // 자동 색인된 파일 본문은 **목록에 넣지 않는다.** Cue 가 내용으로 찾으라고 넣어 둔 것이지
+    //   사람이 관리할 자료가 아니다 — 섞으면 Q info 가 파일 수백 건으로 도배된다.
+    //   사람이 직접 보낸 "파일 → Q info" 는 이 표식이 없으므로 그대로 보인다.
+    //   보고 싶으면 ?include_auto=1.
+    if (String(req.query.include_auto || '') !== '1') {
+      const hideAuto = sequelize.literal("(JSON_EXTRACT(custom_values, '$.auto_indexed') IS NULL OR JSON_EXTRACT(custom_values, '$.auto_indexed') <> true)");
+      if (Array.isArray(where[Op.and])) where[Op.and].push(hideAuto);
+      else where[Op.and] = [hideAuto];
+    }
+
     // 사이클 N+50 — SaaS readiness cap
     const rawLimit = Number(req.query.limit);
     const safeLimit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 2000) : 1000;

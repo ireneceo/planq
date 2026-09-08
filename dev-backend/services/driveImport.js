@@ -187,6 +187,10 @@ async function importDriveFile(ctx, meta, opts = {}) {
     if (io) io.to(`business:${businessId}`).emit('file:new', created.toJSON());
   } catch { /* 브로드캐스트 실패가 인제스트를 죽이면 안 된다 */ }
 
+  // 들여온 파일도 업로드와 똑같이 본문을 색인한다 — 경로에 따라 Cue 가 아는 파일과
+  //   모르는 파일이 갈리면 사용자는 "어떤 건 알고 어떤 건 모른다" 로 겪는다.
+  require('./fileIndex').indexOnUpload(created.id);
+
   require('./auditService').createAuditLog({
     action: 'file.ingest', targetType: 'file', targetId: created.id,
     businessId, userId: uploaderId,

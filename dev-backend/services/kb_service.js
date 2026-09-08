@@ -240,7 +240,7 @@ async function hybridSearch(businessId, query, opts = {}) {
     order: [['id', 'DESC']],
     include: [{
       model: KbDocument,
-      attributes: ['title', 'id', 'category', 'scope', 'project_id', 'client_id'],
+      attributes: ['title', 'id', 'category', 'scope', 'project_id', 'client_id', 'source_type', 'source_file_id'],
       where: effectiveDocWhere,
       required: true,
     }]
@@ -278,6 +278,10 @@ async function hybridSearch(businessId, query, opts = {}) {
         document_id: c.kb_document_id,
         document_title: c.KbDocument?.title || '',
         category: c.KbDocument?.category,
+        // 어디서 온 자료인지 — 화면·프롬프트가 "파일 OO 에서" 라고 말할 수 있어야 한다.
+        //   출처를 안 실으면 Cue 가 파일 내용을 인용하면서 어느 파일인지 못 밝힌다.
+        source_type: c.KbDocument?.source_type || null,
+        source_file_id: c.KbDocument?.source_file_id || null,
         section_title: c.section_title,
         snippet: String(c.content).slice(0, 300)
       });

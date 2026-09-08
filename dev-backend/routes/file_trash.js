@@ -119,6 +119,8 @@ router.post('/:businessId/:id/restore', authenticateToken, checkBusinessAccess, 
       targetId: file.id,
       newValue: { name: file.file_name, size: Number(file.file_size) || 0 },
     });
+    // 되살렸으면 Cue 도 다시 알아야 한다 — 삭제 때 걷은 본문 색인을 되돌린다.
+    require('../services/fileIndex').indexOnUpload(file.id);
     // 목록에 되살아난 것이 **다른 사람 화면에도** 즉시 보여야 한다 (CLAUDE.md §16).
     broadcastFile(req, { id: file.id, business_id: file.business_id, project_id: file.project_id }, 'file:new');
     successResponse(res, { id: file.id }, 'File restored');

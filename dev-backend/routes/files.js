@@ -800,6 +800,9 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
       // GDrive 미러 — 워크스페이스 연결 시 로컬 저장 파일을 Drive 사본으로 (best-effort, 응답 블로킹 X).
       //   storage_provider 는 planq 유지 → 서빙 무영향. 실패해도 파일은 로컬에 안전. L1 개인은 owner 본인만.
       setImmediate(() => require('../services/gdriveMirror').mirrorOnUpload(file.id, businessId));
+      // 본문 색인 — Cue 가 **이름을 몰라도 내용으로** 이 파일을 찾을 수 있게 한다.
+      //   가시성은 파일의 것을 그대로 옮기고, 개인(L1)·기밀은 색인하지 않는다(services/fileIndex).
+      require('../services/fileIndex').indexOnUpload(file.id);
       // 사이클 N+51 — audit. 파일 업로드 (스토리지 mutation + visibility 결정)
       require('../services/auditService').logAudit(req, {
         action: 'file.upload',
@@ -1039,6 +1042,11 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
     //   맞아야 하는데 **안 되고 있었다** — 폴더 이동 경로에만 Drive 반영이 있었고 여기엔 없었다.
     //   그래서 프로젝트를 옮겨도 Drive 에선 옛 프로젝트 폴더에 그대로 남았다.
     //   자리 계산은 업로드·이동·미러와 **같은 함수**를 쓴다.
+    // 색인 문서의 scope 도 같이 옮긴다 — 프로젝트를 바꿨는데 Cue 는 옛 프로젝트 사람에게만
+    //   보이거나(또는 반대로) 하는 어긋남이 생긴다. 본문은 그대로 두고 자리만 고친다.
+    if (String(prevProjectId) !== String(nextProjectId)) {
+      setImmediate(() => { require('../services/fileIndex').indexFile(file.id).catch(() => {}); });
+    }
     if (file.gdrive_mirror_id && String(prevProjectId) !== String(nextProjectId)) {
       setImmediate(async () => {
         try {
@@ -1264,6 +1272,10 @@ async function trashFile(file, req, transaction) {
     file.purge_after = await stampFor(file.business_id, 'trash', deletedAt);
   } catch { file.purge_after = null; }
   await file.save({ transaction });
+
+  // 색인 회수 — 목록에서 지운 파일이 **Cue 답변에는 남아 있으면** 지운 것이 아니다
+  //   (memory: feedback_delete_needs_all_surfaces). 복구하면 다시 색인된다.
+  setImmediate(() => { require('../services/fileIndex').removeFileIndex(file.id, file.business_id).catch(() => {}); });
 
   // 쿼터 반환 (자체 스토리지만 쿼터 사용) — 바이트는 남지만 사용자 한도에서는 즉시 빠진다.
   if (file.storage_provider === 'planq') {
