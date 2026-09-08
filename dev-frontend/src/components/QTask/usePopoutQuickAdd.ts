@@ -5,7 +5,8 @@
 //   퀵애드는 "무엇을 고르고(보기 기준별) 무엇으로 만드는가" 하나의 이야기라 경계가 분명하다.
 //
 // 계약: 화면은 상태와 함수만 받아 그린다. 기본값 결정(오늘·이번 주)은 여기 있다.
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { listProjects } from '../../services/qtalk';
 import { apiFetch } from '../../contexts/AuthContext';
 
 export interface UsePopoutQuickAddArgs {
@@ -25,6 +26,22 @@ export function usePopoutQuickAdd({
   // ★ 마감일별 보기의 날짜 칸. **quickAdd 보다 위에** 둔다 — 아래에 두면 useCallback 의
   //   의존성 배열이 렌더 시점에 이 값을 읽어 TDZ ReferenceError 가 난다.
   const [quickDue, setQuickDue] = useState('');
+  // 기간(시작~마감) — 마감일별 보기에서 Q task 와 같은 캘린더로 고른다.
+  const [quickStart, setQuickStart] = useState('');
+  // 워크스페이스 프로젝트 사전 — 퀵애드 선택지의 정본.
+  //   Irene: "프로젝트 선택에 왜 모든 프로젝트가 안나와? 스크롤되면서 다 나와야지."
+  //   태그와 같은 사고였다: 선택지를 **지금 목록에 등장한** 프로젝트에서만 모았다.
+  //   목록은 '오늘/이번 주 내 업무' 라 일부만 나온다(dev 실측: 워크스페이스 8개 중 목록엔 1개).
+  const [projectDict, setProjectDict] = useState<Array<{ id: number; name: string }>>([]);
+  useEffect(() => {
+    if (!bizId) return;
+    let alive = true;
+    listProjects(bizId)
+      .then((rows) => { if (alive) setProjectDict(rows.map((pj) => ({ id: pj.id, name: pj.name }))); })
+      .catch(() => { /* 선택지가 없어도 화면은 살아 있어야 한다 */ });
+    return () => { alive = false; };
+  }, [bizId]);
+
 
   const quickAdd = useCallback(async (title: string): Promise<boolean> => {
     if (!bizId) return false;
@@ -32,6 +49,8 @@ export function usePopoutQuickAdd({
     //   null 로 보내면 주간 술어를 못 넘겨 방금 만든 업무가 화면에서 사라진다.
     if (popTab === 'week' && !weekStart) return false;
     const quickDueEff = (viewMode === 'due' && quickDue) ? quickDue : todayStr;
+    // 시작일은 고른 경우에만 보낸다 — 안 고르면 종전대로 마감일만 있는 업무다.
+    const quickStartEff = (viewMode === 'due' && quickStart) ? quickStart : undefined;
     try {
       const res = await apiFetch('/api/tasks', {
         method: 'POST',
@@ -48,6 +67,7 @@ export function usePopoutQuickAdd({
           ...(popTab === 'today'
             ? { due_date: quickDueEff, planned_week_start: weekStart || undefined }
             : { due_date: quickDueEff, planned_week_start: weekStart }),
+          ...(quickStartEff ? { start_date: quickStartEff } : {}),
           // #309 — 프로젝트별로 보고 있으면 그 프로젝트로 바로 만든다.
           ...(viewMode === 'project' && quickPick ? { project_id: Number(quickPick) } : {}),
         }),
@@ -75,6 +95,6 @@ export function usePopoutQuickAdd({
     } catch {
       return false;
     }
-  }, [bizId, myId, popTab, todayStr, weekStart, silentLoad, viewMode, quickPick, quickDue]);
-  return { quickPick, setQuickPick, quickDue, setQuickDue, quickAdd };
+  }, [bizId, myId, popTab, todayStr, weekStart, silentLoad, viewMode, quickPick, quickDue, quickStart]);
+  return { quickPick, setQuickPick, quickDue, setQuickDue, quickStart, setQuickStart, quickAdd, projectDict };
 }

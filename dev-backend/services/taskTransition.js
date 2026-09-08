@@ -197,15 +197,27 @@ async function submitForReview({
     //   되돌리기가 만든 백업 회차(max+1)와 번호가 겹쳐 목록에 **v2 가 두 줄** 나온다
     //   (Fable 게이트 2026-09-05 실측). 같은 값을 두 공식으로 구하면 반드시 갈라진다.
     //   컨펌 라운드는 task.review_round 그대로 두고, 여기서는 목록의 번호만 정한다.
-    const maxRound = await TaskDeliverableVersion.max('round', { where: { task_id: task.id }, transaction: t });
-    await TaskDeliverableVersion.create({
-      task_id: task.id,
-      round: (Number(maxRound) || 0) + 1,
-      body: bodySnapshot ?? null,
-      attachment_ids: attachmentIds,
-      submitted_by: actorUserId || null,
-      note: note ? String(note).slice(0, 1000) : null,
-    }, { transaction: t });
+    // ★ 2026-09-08 (Irene: "내가 수정요청으로 남긴게 버전 1로 들어가 있어. 이게 뭐야?
+    //   결과물은 담당자가 보고할 때 업무결과 정리할 때만 하는 거잖아.")
+    //   **결과물이 없으면 회차를 만들지 않는다.** 여태는 본문이 비어 있어도 박제해서,
+    //   확인 요청에 쪽지만 남긴 것이 '결과물 v1' 로 남았다(운영 실측 task#319 v1 —
+    //   body=null, note="루아 추가로 네이버 블로그 링크 좀 주세요"). 회차 목록은 **결과물의
+    //   이력**이지 대화 기록이 아니다. 쪽지는 이미 이력(TaskStatusHistory)과 댓글로 남는다.
+    //   ★ 첨부만 있고 본문이 없는 제출은 결과물로 본다 — 파일이 곧 산출물인 업무가 있다.
+    //   판정 기준은 `saveDeliverableVersion` 의 `empty_body` 와 같다(태그를 걷은 실제 글자).
+    const plainSnapshot = String(bodySnapshot || '').replace(/<[^>]*>/g, '').trim();
+    const hasDeliverable = !!plainSnapshot || (attachmentIds && attachmentIds.length > 0);
+    if (hasDeliverable) {
+      const maxRound = await TaskDeliverableVersion.max('round', { where: { task_id: task.id }, transaction: t });
+      await TaskDeliverableVersion.create({
+        task_id: task.id,
+        round: (Number(maxRound) || 0) + 1,
+        body: bodySnapshot ?? null,
+        attachment_ids: attachmentIds,
+        submitted_by: actorUserId || null,
+        note: note ? String(note).slice(0, 1000) : null,
+      }, { transaction: t });
+    }
     await t.commit();
   } catch (e) {
     await t.rollback();

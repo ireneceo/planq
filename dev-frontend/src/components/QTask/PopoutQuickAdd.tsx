@@ -10,7 +10,7 @@
 // TaskPopoutView 가 크므로 여기로 절출했다(god-file 래칫).
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
-import SingleDateField from '../Common/SingleDateField';
+import CalendarPicker from '../Common/CalendarPicker';
 import PlanQSelect from '../Common/PlanQSelect';
 
 const Wrap = styled.form`
@@ -35,12 +35,24 @@ const Input = styled.input`
 //   `flex: 0 1 auto` 였다 — 기준이 **내용**이고 줄어들 수도 있어서, react-select 에 글자를 치면
 //   입력 폭이 바뀌며 칸이 같이 흔들렸다. 고르는 칸은 흔들릴 이유가 없다.
 //   → 고정 폭 하나로 못 박는다. 태그·프로젝트·마감일 **세 컨트롤이 같은 폭**이라
-//     보기 기준을 바꿔도 줄이 튀지 않는다(폭은 Q task 리스트 '기간' 열 100 보다 약간 넓은 120).
-const OPT_W = 120;
+//     보기 기준을 바꿔도 줄이 튀지 않는다. 폭은 176 — 120 은 여전히 좁다는 신고를 받아 넓혔다
+//     (프로젝트 이름·태그 이름이 잘리지 않고, 기간 '09/09 ~ 09/12' 가 한 줄에 들어간다).
+const OPT_W = 176;
 const OptWrap = styled.div`
   flex: 0 0 ${OPT_W}px;
   width: ${OPT_W}px;
 `;
+// Q task 리스트의 기간 트리거와 같은 톤 — 팝아웃만 다른 모양이 되지 않게.
+const DateTrigger = styled.button<{ $empty?: boolean }>`
+  width: 100%; height: 34px; padding: 0 10px;
+  border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF;
+  font-size: 0.8125rem; font-family: inherit; font-weight: 500;
+  color: ${(p) => (p.$empty ? '#94A3B8' : '#0F172A')};
+  text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  &:hover { border-color: #CBD5E1; }
+  &:focus-visible { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.12); }
+`;
+const fmtMd = (v: string) => (v ? v.slice(5).replace('-', '/') : '');
 const AddBtn = styled.button`
   flex-shrink: 0; height: 34px; padding: 0 12px;
   border: 1px solid #99F6E4; border-radius: 8px;
@@ -75,9 +87,13 @@ export interface QuickAddOption {
  *  보기 기준이 '마감일별' 이면 고를 것이 목록이 아니라 **날짜**다. 셀렉트로는 표현할 수 없어
  *  별도 모양으로 받는다. 네이티브 date 입력은 쓰지 않는다(저장소 표준 = SingleDateField). */
 export interface QuickAddDateOption {
-  value: string;                 // 'YYYY-MM-DD'
-  onChange: (v: string) => void;
+  /** 시작일 · 마감일 — Q task 리스트의 '기간' 과 **같은 캘린더**(CalendarPicker)를 쓴다.
+   *  Irene: "마감일 선택은 원래 Q task 기간이랑 같게 캘린더 기간선택 되는 통일된 동일한 캘린더 쓰라고". */
+  start: string;
+  due: string;
+  onChange: (start: string, due: string) => void;
   ariaLabel: string;
+  placeholder: string;
 }
 
 export interface PopoutQuickAddProps {
@@ -97,6 +113,8 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
   const [value, setValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [dateOpen, setDateOpen] = useState(false);
+  const dateAnchor = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const submit = async () => {
@@ -164,12 +182,22 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
         )}
         {dateOption && (
           <OptWrap>
-            <SingleDateField
-              size="sm"
-              value={dateOption.value}
-              onChange={dateOption.onChange}
-              width="100%"
-            />
+            <DateTrigger ref={dateAnchor} type="button" aria-label={dateOption.ariaLabel}
+              $empty={!dateOption.start && !dateOption.due}
+              onClick={() => setDateOpen((v) => !v)}>
+              {dateOption.start || dateOption.due
+                ? (dateOption.start && dateOption.due && dateOption.start !== dateOption.due
+                  ? `${fmtMd(dateOption.start)} ~ ${fmtMd(dateOption.due)}`
+                  : fmtMd(dateOption.due || dateOption.start))
+                : dateOption.placeholder}
+            </DateTrigger>
+            {dateOpen && (
+              <CalendarPicker isOpen anchorRef={dateAnchor}
+                startDate={dateOption.start || dateOption.due}
+                endDate={dateOption.due || dateOption.start}
+                onRangeSelect={(a, b) => dateOption.onChange(a || '', b || '')}
+                onClose={() => setDateOpen(false)} />
+            )}
           </OptWrap>
         )}
         <AddBtn type="submit" disabled={submitting || !value.trim()} data-testid="task-popout-quickadd-submit">

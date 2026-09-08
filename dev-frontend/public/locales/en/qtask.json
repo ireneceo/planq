@@ -223,7 +223,8 @@
     "cancel": "Cancel",
     "assigneeResolvedMe": "Assignee: {{name}} (me)",
     "assigneeResolvedChain": "Assignee: {{name}} (project default)",
-    "tags": "Tags"
+    "tags": "Tags",
+    "dateRangePlaceholder": "Pick a date range"
   },
   "recur": {
     "toggle": "Repeat",

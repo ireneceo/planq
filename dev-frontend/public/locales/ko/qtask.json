@@ -265,7 +265,8 @@
     "cancel": "취소",
     "assigneeResolvedMe": "담당자: {{name}} (나)",
     "assigneeResolvedChain": "담당자: {{name}} (프로젝트 기본)",
-    "tags": "태그"
+    "tags": "태그",
+    "dateRangePlaceholder": "기간 선택"
   },
   "recur": {
     "toggle": "반복하기",

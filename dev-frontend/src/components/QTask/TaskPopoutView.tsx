@@ -237,7 +237,7 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //   보기 기준이 바뀌면 고르는 대상도 바뀐다(태그별↔태그 / 프로젝트별↔프로젝트).
   //   기준이 바뀌면 이전 선택은 의미가 없으므로 아래 effect 에서 비운다.
   // 퀵애드 상태·생성은 usePopoutQuickAdd 로 뽑았다 (god-file 래칫 — 800줄).
-  const { quickPick, setQuickPick, quickDue, setQuickDue, quickAdd } = usePopoutQuickAdd({
+  const { quickPick, setQuickPick, quickDue, setQuickDue, quickStart, setQuickStart, quickAdd, projectDict } = usePopoutQuickAdd({
     bizId, myId, popTab, todayStr, weekStart, viewMode, silentLoad,
   });
 
@@ -362,7 +362,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //   목록이 비어도 살아있는 컨트롤이다. 사전 로드 전엔 옛 기준으로 OR.
   const hasAnyTag = useMemo(() => tagDict.length > 0 || tasks.some((tk) => (tk.tags?.length || 0) > 0),
     [tagDict.length, tasks]);
-  const hasAnyProject = useMemo(() => tasks.some((tk) => !!tk.Project?.name), [tasks]);
+  // ★ 칩도 **사전** 기준이어야 한다 — 선택지를 워크스페이스 전체로 넓혔는데 칩만 목록 기준이면
+  //   프로젝트가 붙은 업무가 목록에 없을 때 **칩이 없어 그 선택지에 닿을 수조차 없다**
+  //   (태그가 정확히 그랬다: 칩은 사전, 선택지는 목록 → 칩은 있는데 고를 게 없었다. 이번엔 그 반대).
+  const hasAnyProject = useMemo(() => projectDict.length > 0 || tasks.some((tk) => !!tk.Project?.name),
+    [projectDict.length, tasks]);
   // 선택지에 없는 보기(태그 0개인데 'tag' 가 기억돼 있는 등)로 굳어 있으면 마감일별로 코어스한다.
   //   ★ 칩이 사라진 보기가 유효한 채로 남으면 사용자가 되돌릴 수단이 없다.
   //   ★ 정렬·그룹헤더·칩 하이라이트가 **모두 이 값 하나**를 봐야 한다 — viewMode 를 직접 읽는 소비처가
@@ -382,10 +386,18 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       const fromDict = tagDict.map((tg) => ({ value: String(tg.id), label: tg.name }));
       return fromDict.length ? fromDict : buildQuickChoices(effView, tasks);
     }
+    if (effView === 'project') {
+      // ★ 2026-09-08 (Irene: "프로젝트 선택에 왜 모든 프로젝트가 안나와? 스크롤되면서 다 나와야지.")
+      //   태그와 같은 사고였다 — 선택지를 **지금 목록에 등장한** 프로젝트에서만 모았다.
+      //   목록은 '오늘/이번 주 내 업무' 라 워크스페이스 프로젝트의 일부만 나온다.
+      //   워크스페이스 전체를 싣는다(길면 셀렉트가 스크롤한다 — 그건 PlanQSelect 가 한다).
+      const fromWs = projectDict.map((p) => ({ value: String(p.id), label: p.name }));
+      return fromWs.length ? fromWs : buildQuickChoices(effView, tasks);
+    }
     return buildQuickChoices(effView, tasks);
-  }, [effView, tasks, tagDict]);
+  }, [effView, tasks, tagDict, projectDict]);
   // 마감일별 기본값 — 이 탭이 뜻하는 날(오늘). 보기 기준이 바뀌면 다시 오늘로 되돌린다.
-  useEffect(() => { setQuickDue(todayStr); }, [todayStr, effView]);
+  useEffect(() => { setQuickDue(todayStr); setQuickStart(''); }, [todayStr, effView]);
 
   // 기준이 바뀌면 이전 선택은 뜻이 달라진다(태그 id 를 프로젝트로 쓸 수 없다) → 비운다.
   useEffect(() => { setQuickPick(''); }, [effView]);
@@ -565,9 +577,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             } : {}),
           } : null}
           dateOption={effView === 'due' ? {
-            value: quickDue,
-            onChange: setQuickDue,
+            start: quickStart,
+            due: quickDue,
+            onChange: (a: string, b: string) => { setQuickStart(a); setQuickDue(b || a); },
             ariaLabel: t('popout.quickAddDueAria', '추가할 업무의 마감일') as string,
+            placeholder: t('add.dateRangePlaceholder', '기간 선택') as string,
           } : null}
         />
       )}
