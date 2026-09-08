@@ -23,6 +23,11 @@
 //   컨텍스트 마크다운 자체가 한국어 고정이라 ko 만 싣는다(영어 답은 LLM 이 옮긴다).
 
 const LABELS = {
+  // 근태 상태 (attendance_days.state) — Cue 가 근태를 읽기 시작하면서 추가 (2026-09-08).
+  //   raw ENUM 이 고객·사용자 답변에 그대로 나가면 안 된다(2026-09-03 사고와 같은 계열).
+  attendance: { working: '근무 중', on_break: '휴게 중', done: '퇴근' },
+  // 휴가 신청 상태 (leave_requests.status)
+  leave: { pending: '승인 대기', approved: '승인됨', rejected: '반려됨', canceled: '취소됨' },
   // clients.json status.*
   client: {
     active: '활성',

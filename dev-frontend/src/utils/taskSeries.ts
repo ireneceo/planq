@@ -13,7 +13,16 @@
  *  날짜(start_date/due_date)는 회차마다 다른 것이 정상이라 여기 없다. */
 export const TASK_SERIES_FIELDS = [
   'title', 'description', 'category', 'assignee_id', 'estimated_hours', 'priority_level',
+  // ★ 2026-09-08 — 백엔드는 이 둘도 전파하는데 여기 없어서 화면이 묻지 않고 단건 저장했다.
+  //   "백엔드에만 넣고 여기 빠뜨리면 도달할 수 없다" 는 #353 과 같은 계열이다.
+  //   두 목록이 어긋나지 않는지는 `--suite seriesscope` 가 대조한다.
+  'workstream_id', 'is_milestone',
 ];
+
+/** 업무 본문 필드가 아니라 **별도 엔드포인트**로 저장되는 시리즈 공유 내용.
+ *  태그·컨펌자·컨펌정책이 여기다 — 사용자에게는 이것도 똑같은 "내용" 이라
+ *  같은 물음(어디까지 반영할까요)을 지나야 한다. */
+export const TASK_SERIES_SIDE_CHANNELS = ['tags', 'reviewers', 'review_policy'] as const;
 
 /** 이 업무가 반복 시리즈에 속하는가 (부모이거나 회차이거나). */
 export function isSeriesTask(task: { recurrence_rule?: string | null; recurrence_parent_id?: number | null } | null | undefined): boolean {

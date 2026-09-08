@@ -353,14 +353,45 @@ router.post('/:id/deliverable-versions/:vid/restore', authenticateToken, async (
 // POST /api/tasks/:id/reviewers — 컨펌자 추가
 // Body: { user_id }
 // ─────────────────────────────────────────────
+
+// ── 반복업무 시리즈 범위 적용 (2026-09-08) ──────────────────────────────
+//   Irene: "업무가 반복된다는 건 내용도 반복관리가 되어야 하잖아."
+//   컨펌자·컨펌정책은 회차마다 달라야 할 이유가 없는 **시리즈의 성질**인데, 이 라우트들에는
+//   범위 개념이 아예 없어서 제목·담당자만 전체에 반영되고 컨펌자는 이 회차에만 남았다.
+//   대상 산출은 PUT·태그와 **같은 함수**(services/taskSeriesScope)를 부른다.
+//
+//   ★ 다른 회차에도 **행동 계층을 그대로 태운다** — 권한·감사·브로드캐스트가 회차마다 필요하다.
+//     여기서 DB 를 직접 건드리면 그 셋이 통째로 빠진다(memory: feedback_workflow_routes_bypass_side_effects).
+//     한 회차가 실패해도 나머지는 진행하고, 몇 건에 적용됐는지 응답에 싣는다.
+async function applyToSeries(req, task, run) {
+  const { seriesTargetIds } = require('../services/taskSeriesScope');
+  const { ids, scope } = await seriesTargetIds(task, req.body?.series_scope);
+  const others = ids.filter((id) => id !== task.id);
+  let applied = 1;
+  for (const id of others) {
+    try {
+      const t = await Task.findOne({ where: { id, business_id: task.business_id } });
+      if (!t) continue;
+      const r = await run(t);
+      if (r && r.ok !== false) applied += 1;
+    } catch (e) {
+      console.warn('[task_workflow] 시리즈 적용 실패 (task', id, '):', e.message);
+    }
+  }
+  return { scope, applied };
+}
+
 router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
     const result = await actions.addReviewer(task, actorFrom(req), { userId: req.body?.user_id });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
+    const series = await applyToSeries(req, task,
+      (t) => actions.addReviewer(t, actorFrom(req), { userId: req.body?.user_id }));
     const json = result.data;
-    return successResponse(res, (await isClientUser(task, req.user.id)) ? serializeTaskForClient(json) : json);
+    const out = (await isClientUser(task, req.user.id)) ? serializeTaskForClient(json) : json;
+    return successResponse(res, { ...(out.toJSON ? out.toJSON() : out), series_scope: series.scope, series_applied: series.applied });
   } catch (err) { next(err); }
 });
 
@@ -372,6 +403,12 @@ router.delete('/:id/reviewers/:userId', authenticateToken, async (req, res, next
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
     const result = await actions.removeReviewer(task, actorFrom(req), { userId: req.params.userId });
+    if (result.ok !== false) {
+      // 컨펌자를 뺄 때도 같은 범위를 쓴다 — 넣을 때만 전체에 적용되면 목록이 어긋난 채 남는다.
+      //   ★ DELETE 는 body 를 잘 안 보내므로 쿼리스트링도 받는다.
+      await applyToSeries({ body: { series_scope: req.body?.series_scope || req.query?.series_scope } }, task,
+        (t) => actions.removeReviewer(t, actorFrom(req), { userId: req.params.userId }));
+    }
     return sendResult(res, result, (data) => successResponse(res, data));
   } catch (err) { next(err); }
 });
@@ -386,6 +423,8 @@ router.patch('/:id/policy', authenticateToken, async (req, res, next) => {
     if (!task) return;
     const result = await actions.setPolicy(task, actorFrom(req), { policy: req.body?.review_policy });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
+    // 컨펌 정책도 회차마다 다를 이유가 없다 — 컨펌자와 같은 축이다.
+    await applyToSeries(req, task, (t) => actions.setPolicy(t, actorFrom(req), { policy: req.body?.review_policy }));
     const json = result.data.toJSON();
     return successResponse(res, (await isClientUser(task, req.user.id)) ? serializeTaskForClient(json) : json);
   } catch (err) { next(err); }

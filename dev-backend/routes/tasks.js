@@ -1435,27 +1435,24 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     //   series_scope: 'single'(기본·기존 동작) | 'future'(이 회차 이후) | 'all'(전 회차)
     //   ★ 전파 대상은 "시리즈가 공유하는 내용"뿐이다. 회차마다 달라야 하는 값
     //     (status·진행률·실적시간·마감일·결과물 body·완료시각)은 절대 건드리지 않는다.
-    const seriesScope = String(req.body.series_scope || 'single').toLowerCase();
+    //   ★ 대상 산출은 services/taskSeriesScope 한 함수다 — 태그·컨펌자 라우트가 **같은 함수**를
+    //     부른다. 여기에만 두면 "제목은 전체에 반영되는데 태그는 이 회차만" 처럼 갈라진다.
+    const seriesScopeSvc = require('../services/taskSeriesScope');
+    const seriesScope = seriesScopeSvc.normalizeScope(req.body.series_scope);
     let seriesApplied = 0;
-    if (seriesScope === 'future' || seriesScope === 'all') {
+    if (seriesScope !== 'single') {
       //   #353 ⑤ — 중요도도 시리즈 전체에 전파한다. "이 정기업무가 중요하다" 는 회차가 아니라
       //   시리즈의 성질이다(제목·담당자와 같은 축).
-      const SERIES_FIELDS = ['title', 'description', 'category', 'assignee_id', 'estimated_hours', 'workstream_id', 'is_milestone', 'priority_level'];
       const propagate = {};
-      for (const f of SERIES_FIELDS) if (updates[f] !== undefined) propagate[f] = updates[f];
+      for (const f of seriesScopeSvc.SERIES_CONTENT_FIELDS) if (updates[f] !== undefined) propagate[f] = updates[f];
       if (Object.keys(propagate).length > 0) {
-        const parentId = task.recurrence_parent_id || task.id;
-        const where = {
-          business_id: businessId,
-          id: { [Op.ne]: task.id },
-          status: { [Op.notIn]: ['canceled'] },
-          [Op.or]: [{ id: parentId }, { recurrence_parent_id: parentId }],
-        };
-        if (seriesScope === 'future' && task.due_date) {
-          // 이 회차 이후 = 마감일이 같거나 뒤인 회차. 부모(템플릿)는 앞으로 생길 회차의 원본이므로 항상 포함한다.
-          where[Op.and] = [{ [Op.or]: [{ id: parentId }, { due_date: { [Op.gte]: task.due_date } }] }];
+        const { ids } = await seriesScopeSvc.seriesTargetIds(task, seriesScope);
+        const others = ids.filter((id) => id !== task.id);
+        if (others.length) {
+          seriesApplied = (await Task.update(propagate, {
+            where: { business_id: businessId, id: { [Op.in]: others } },
+          }))[0] || 0;
         }
-        seriesApplied = (await Task.update(propagate, { where }))[0] || 0;
       }
     }
 

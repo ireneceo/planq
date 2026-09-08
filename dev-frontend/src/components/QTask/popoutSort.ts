@@ -9,6 +9,7 @@ export interface SortableTask {
   due_date?: string | null;
   priority_order?: number | null;
   status?: string;
+  created_at?: string | null;
 }
 // 완료·취소는 읽을 순서의 끝이다. 정본(services/taskPriority.js CLOSED)과 같은 집합.
 const CLOSED_STATUSES = ['completed', 'canceled'];
@@ -64,4 +65,51 @@ export function buildQuickChoices(view: string, tasks: ChoiceSourceTask[]): Arra
     return [];
   }
   return [...m].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+// ── 사용자가 고르는 정렬 (2026-09-08) ─────────────────────────────────
+//
+// Irene: *"팝아웃에서 업무리스트 소팅 기능이 없어. … 셀렉트항목으로 소팅하게 해줄래?
+//   최신등록순, 이름순, 업무단계순, 이렇게 넣고 기본은 최신등록순으로 하고
+//   태그별, 프로젝트별로 표시될 때는 그 소항목 아래에서 이 순서로 나오게 해줘."*
+//
+// 그래서 이 비교자는 **그룹 안에서** 쓰인다 — 그룹 키 비교가 먼저고, 같은 그룹이면 이 순서다.
+// 우선순위 사슬(bySortRule)은 그대로 남는다: 완전 동률일 때의 마지막 tie-break 으로만 쓴다.
+export type PopoutSortKey = 'recent' | 'name' | 'stage';
+export const POPOUT_SORT_KEYS: PopoutSortKey[] = ['recent', 'name', 'stage'];
+
+/** 업무 단계 순서 — 화면에서 읽는 진행 순서 그대로.
+ *  ★ 목록에 없는 새 status 는 **맨 끝이 아니라 중간(99)** 에 두지 않는다. 끝(999)에 두고,
+ *    그 값이 실제로 생기면 여기 같이 추가한다(상태값 규약: 새 값이 조용히 기본값으로 떨어지면 버그다). */
+const STAGE_ORDER: Record<string, number> = {
+  not_started: 0, waiting: 1, in_progress: 2, reviewing: 3, revision_requested: 4,
+  external_review: 5, on_hold: 6, completed: 7, canceled: 8,
+};
+function stageRank(t: SortableTask): number {
+  const v = STAGE_ORDER[String(t.status || '')];
+  return v === undefined ? 999 : v;
+}
+
+export function bySelectedSort(key: PopoutSortKey) {
+  return (a: SortableTask, b: SortableTask): number => {
+    if (key === 'name') {
+      const c = (a.title || '').localeCompare(b.title || '');
+      if (c !== 0) return c;
+    } else if (key === 'stage') {
+      const c = stageRank(a) - stageRank(b);
+      if (c !== 0) return c;
+    } else {
+      // 최신등록순 — created_at 내림차순. 값이 없으면 id 로 대신한다(등록 순서와 같은 방향).
+      const ta = a.created_at ? Date.parse(a.created_at) : NaN;
+      const tb = b.created_at ? Date.parse(b.created_at) : NaN;
+      if (Number.isFinite(ta) && Number.isFinite(tb)) {
+        if (tb !== ta) return tb - ta;
+      } else {
+        const c = (b.id || 0) - (a.id || 0);
+        if (c !== 0) return c;
+      }
+    }
+    // 고른 기준이 같으면 기존 사슬로 — 두 화면의 순서가 갈리지 않게 한다.
+    return bySortRule(a, b);
+  };
 }

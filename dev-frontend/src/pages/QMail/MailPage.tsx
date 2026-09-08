@@ -704,6 +704,14 @@ const MailPage: React.FC = () => {
   }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, captureAnchor, t]);
 
   // 무한스크롤 — 다음 페이지 append
+  //
+  // ★ 2026-09-08 (Irene: "어떤 주소로 온 메일 다보기 하니까 Too many requests")
+  //   여기가 **주소 모드를 몰랐다.** 첫 로드는 주소 라우트로 가는데 다음 페이지부터는
+  //   폴더 라우트(`?folder=all&page=2…`)를 불렀다. 그래서
+  //     ① 그 주소와 무관한 메일이 목록에 섞여 붙고,
+  //     ② hasMore 가 **폴더 전체 기준**이라 수천 건짜리 메일함에서는 끝나지 않아
+  //        센티넬이 계속 보이고 → 페이지 요청이 줄줄이 나가 rate limit(600/분)에 닿았다.
+  //   목록을 여는 두 경로가 갈라져 있으면 반드시 이런 식으로 어긋난다 — 같은 분기를 쓴다.
   const loadMore = useCallback(async () => {
     if (!businessId || loadingMore || !hasMore) return;
     setLoadingMore(true);
@@ -711,19 +719,30 @@ const MailPage: React.FC = () => {
       const next = pageRef.current + 1;
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
-      const r = await apiFetch(`/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=${next}${acctQ}${qP}${filterQuery()}`);
+      const url = addressMode
+        ? `/api/businesses/${businessId}/email-addresses/${encodeURIComponent(addressMode)}/threads?limit=${PAGE_SIZE}&page=${next}`
+        : `/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=${next}${acctQ}${qP}${filterQuery()}`;
+      const r = await apiFetch(url);
       const j = await r.json();
       if (j.success) {
         const fresh: Thread[] = j.data || [];
+        let added = 0;
         setThreads(prev => {
           const seen = new Set(prev.map(t => t.id));
-          return [...prev, ...fresh.filter(t => !seen.has(t.id))];
+          const add = fresh.filter(t => !seen.has(t.id));
+          added = add.length;
+          return [...prev, ...add];
         });
         pageRef.current = next;
-        setHasMore(!!j.pagination?.has_more);
+        // ★ 새로 붙은 행이 0 이면 **여기서 멈춘다.** 서버가 has_more 를 참으로 주더라도
+        //   더 못 받는 상태이고, 그대로 두면 센티넬이 계속 보여 같은 요청이 무한히 나간다
+        //   (이번 429 의 실제 모양). "더 있다" 는 서버 말과 "더 받았다" 는 사실은 다르다.
+        setHasMore(added > 0 && !!j.pagination?.has_more);
+      } else {
+        setHasMore(false);   // 실패를 무한 재시도로 바꾸지 않는다
       }
-    } catch { /* silent — 다음 스크롤에 재시도 */ } finally { setLoadingMore(false); }
-  }, [businessId, folder, accountFilter, qDebounced, filterQuery, loadingMore, hasMore]);
+    } catch { setHasMore(false); } finally { setLoadingMore(false); }
+  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, loadingMore, hasMore]);
 
   // 메일 계정 목록 (회사/개인 그룹 + unread)
   const loadAccounts = useCallback(async () => {

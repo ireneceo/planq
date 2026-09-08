@@ -707,7 +707,111 @@ async function getWorkspaceOverview({ businessId, scope, businessTimezone, audie
 }
 
 // ── 마크다운 합성 — system prompt 에 주입
-function composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone , sched, thread = null, viewingConversation = false }) {
+
+// ─────────────────────────────────────────────────────────────
+// 근태·휴가 스냅샷 (2026-09-08) — Irene: *"cue가 워크스페이스 정보를 탄탄하게 소통해줘야 해."*
+//
+//   여태 커버리지 선언에 '근태·휴가' 가 **못 본 영역**으로 남아 있었다. 그래서 "나 오늘 몇 시에
+//   출근했지?" "휴가 며칠 남았어?" 에 Cue 가 "그 영역은 못 봅니다" 로만 답했다.
+//
+//   ★ 권한: Cue 는 **위임자 권한으로만** 움직인다(memory: project_agent_permission_model).
+//     본인 근태·휴가는 본인 것이라 그대로 싣고, 팀 현황은 **멤버 이상일 때 인원 수와 이름까지**
+//     (같은 워크스페이스 안에서 오늘 누가 근무 중인지는 근태 화면이 이미 보여주는 정보다).
+//     고객(client)에게는 아무것도 싣지 않는다.
+//   ★ 잔여 연차는 `services/leaveTransition.getBalance` 를 **그대로 부른다** — 화면·API 와
+//     같은 공식이어야 한다(같은 값의 공식이 두 벌이면 이미 갈라져 있다).
+async function getHrSnapshot({ businessId, userId, scope, businessTimezone }) {
+  if (!userId || !scope || scope.isClient) return null;
+  const isMemberish = !!(scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin);
+  if (!isMemberish) return null;
+  try {
+    const { AttendanceDay, LeaveRequest, User } = require('../models');
+    const today = todayStr(businessTimezone);
+    const out = { today, me: {}, team: null };
+
+    const mine = await AttendanceDay.findOne({
+      where: { business_id: businessId, user_id: userId, work_date: today },
+      attributes: ['state', 'clock_in_at', 'clock_out_at', 'work_total_sec', 'break_total_sec'],
+    });
+    out.me.attendance = mine
+      ? {
+        state: mine.state, clock_in_at: mine.clock_in_at, clock_out_at: mine.clock_out_at,
+        work_minutes: Math.round((mine.work_total_sec || 0) / 60),
+      }
+      : null;   // null = **아직 출근 기록이 없다.** "없다" 와 "못 본다" 는 다르다.
+
+    try {
+      const L = require('./leaveTransition');
+      if (typeof L.getBalance === 'function') {
+        out.me.leave_balance = await L.getBalance(businessId, userId, new Date().getFullYear());
+      }
+    } catch (e) { void e; }
+
+    out.me.leave_requests = (await LeaveRequest.findAll({
+      where: {
+        business_id: businessId, user_id: userId,
+        [Op.or]: [{ status: 'pending' }, { end_date: { [Op.gte]: today } }],
+      },
+      attributes: ['id', 'status', 'leave_type', 'unit', 'start_date', 'end_date', 'days_charged'],
+      order: [['start_date', 'ASC']], limit: 5,
+    })).map((r) => r.toJSON());
+
+    // 팀 오늘 현황 — 누가 근무 중이고 누가 휴가인지. 인원만 세면 "누구에게 물어보면 되나" 에 못 답한다.
+    const working = await AttendanceDay.findAll({
+      where: { business_id: businessId, work_date: today, state: { [Op.in]: ['working', 'on_break'] } },
+      attributes: ['user_id', 'state'],
+      // ★ 이 연관에는 alias 가 없다(models/index.js: `AttendanceDay.belongsTo(User)`).
+      //   `as: 'user'` 를 쓰면 그 자리에서 예외가 나고, 이 함수는 catch 로 조용히 null 을 돌려준다 —
+      //   그러면 "근태를 못 본다" 가 되어 고치기 전과 구별되지 않는다.
+      include: [{ model: User, attributes: ['id', 'name'], required: false }],
+      limit: 30,
+    });
+    const onLeave = await LeaveRequest.findAll({
+      where: {
+        business_id: businessId, status: 'approved',
+        start_date: { [Op.lte]: today }, end_date: { [Op.gte]: today },
+      },
+      attributes: ['user_id'],
+      include: [{ model: User, attributes: ['id', 'name'], required: false }],
+      limit: 30,
+    });
+    out.team = {
+      working: working.map((w) => ({ name: w.User ? w.User.name : null, state: w.state })).filter((x) => x.name),
+      on_leave: onLeave.map((l) => (l.User ? l.User.name : null)).filter(Boolean),
+    };
+    return out;
+  } catch (e) {
+    console.warn('[cue_context] getHrSnapshot 실패:', e.message);
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// 주간 보고서 스냅샷 — 가장 최근에 **박제된** 워크스페이스 주간보고.
+//   ★ 박제 안 된 주는 싣지 않는다. 확정되지 않은 숫자를 Cue 가 인용하면 그게 곧 오정보다.
+async function getWeeklyReportSnapshot({ businessId, scope }) {
+  if (!scope || scope.isClient) return null;
+  const isMemberish = !!(scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin);
+  if (!isMemberish) return null;
+  try {
+    const { BusinessWeeklyReport } = require('../models');
+    const r = await BusinessWeeklyReport.findOne({
+      where: { business_id: businessId, finalized_at: { [Op.ne]: null } },
+      attributes: ['week_start', 'week_end', 'executive_summary', 'finalized_at'],
+      order: [['week_start', 'DESC']],
+    });
+    if (!r) return null;
+    return {
+      week_start: r.week_start, week_end: r.week_end,
+      summary: r.executive_summary ? String(r.executive_summary).slice(0, 800) : null,
+    };
+  } catch (e) {
+    console.warn('[cue_context] getWeeklyReportSnapshot 실패:', e.message);
+    return null;
+  }
+}
+
+function composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone , sched, thread = null, hr = null, weekly = null, viewingConversation = false }) {
   const parts = [];
 
   // #61 — 워크스페이스 현황 (권한 스코프, 일반 질문 대응). 맨 위에 전체 그림.
@@ -949,6 +1053,49 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
     }
   }
 
+  // ── 근태·휴가 (내부 사람에게만) ─────────────────────────────
+  //   ★ "기록이 없다" 와 "못 본다" 를 구별해서 쓴다. 조회했는데 비어 있으면 그렇게 말해야
+  //     사용자가 "아직 출근 안 찍었구나" 를 알 수 있다.
+  if (hr) {
+    parts.push(`\n## 근태·휴가 (오늘 ${hr.today})`);
+    const at = hr.me?.attendance;
+    // ★ 시각은 **워크스페이스 시간대**로 쓴다. `toISOString()` 은 UTC 라 한국 워크스페이스에서
+    //   11:56 출근이 02:56 으로 답해진다(실측). 사용자는 그 숫자를 그대로 믿는다.
+    const hhmm = (v) => {
+      if (!v) return '-';
+      try {
+        return new Date(v).toLocaleTimeString('en-GB', {
+          timeZone: businessTimezone || 'Asia/Seoul', hour12: false, hour: '2-digit', minute: '2-digit',
+        });
+      } catch { return new Date(v).toISOString().slice(11, 16); }
+    };
+    parts.push(at
+      ? `- 나: ${label('attendance', at.state) || at.state} · 출근 ${hhmm(at.clock_in_at)}`
+        + `${at.clock_out_at ? ` · 퇴근 ${hhmm(at.clock_out_at)}` : ''}`
+        + ` · 근무 ${Math.floor((at.work_minutes || 0) / 60)}시간 ${(at.work_minutes || 0) % 60}분`
+      : '- 나: 오늘 출근 기록 없음 (조회함 — 데이터가 없는 것이지 못 본 것이 아니다)');
+    const bal = hr.me?.leave_balance;
+    if (bal && typeof bal === 'object') {
+      const remain = bal.remaining ?? bal.balance ?? bal.remain;
+      if (remain != null) parts.push(`- 내 연차 잔여: ${remain}일`);
+    }
+    if (hr.me?.leave_requests?.length) {
+      hr.me.leave_requests.forEach((r) => parts.push(
+        `- 내 휴가 ${r.start_date}~${r.end_date} (${label('leave', r.status) || r.status}, ${r.days_charged}일)`));
+    }
+    if (hr.team?.working?.length) {
+      parts.push(`- 오늘 근무 중: ${hr.team.working.map((w) => w.name + (w.state === 'on_break' ? '(휴게)' : '')).join(', ')}`);
+    }
+    if (hr.team?.on_leave?.length) parts.push(`- 오늘 휴가: ${hr.team.on_leave.join(', ')}`);
+  }
+
+  // ── 주간 보고서 (박제된 것만) ────────────────────────────────
+  if (weekly) {
+    parts.push(`\n## 주간 보고서 (${weekly.week_start} ~ ${weekly.week_end}, 박제본)`);
+    if (weekly.summary) parts.push(weekly.summary);
+    else parts.push('- 요약이 비어 있음 (보고서는 박제돼 있다)');
+  }
+
   if (kb?.has_results) {
     parts.push(`\n## 회사 자료 (${M.qinfo})`);
     if (kb.pinned_faqs?.length) {
@@ -1031,9 +1178,14 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
 
   // 8. KNOWLEDGE_LOOP 축1 — 팀이 확정한 워크스페이스 지식 카드 (active 만)
   const knowledgeP = require('./cueKnowledge').buildKnowledgeBlock(businessId).catch(() => '');
+  // 9. 근태·휴가 / 주간 보고서 (2026-09-08) — 커버리지에 '못 봄' 으로 남아 있던 두 영역.
+  //    Irene: "cue가 워크스페이스 정보를 탄탄하게 소통해줘야 해."
+  //    둘 다 내부 사람에게만 싣는다(고객 대화방 경로에서는 null 로 떨어진다).
+  const hrP = getHrSnapshot({ businessId, userId, scope, businessTimezone }).catch(() => null);
+  const weeklyP = getWeeklyReportSnapshot({ businessId, scope }).catch(() => null);
 
-  const [history, project, client, userSnap, kb, matches, overview, knowledgeBlock, sched, thread] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP, overviewP, knowledgeP, schedP, threadP]);
-  let markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone, sched, thread, viewingConversation: !!conversationId && audience === 'internal' });
+  const [history, project, client, userSnap, kb, matches, overview, knowledgeBlock, sched, thread, hr, weekly] = await Promise.all([historyP, projectP, clientP, userP, kbP, matchesP, overviewP, knowledgeP, schedP, threadP, hrP, weeklyP]);
+  let markdown = composeMarkdown({ history, project, client, kb, userSnap, matches, overview, businessTimezone, sched, thread, hr, weekly, viewingConversation: !!conversationId && audience === 'internal' });
   if (knowledgeBlock) markdown = `${knowledgeBlock}\n\n${markdown}`;
   // ★ 커버리지는 **이번 요청에서 실제로 조회한 것** 기준(Fable A-6).
   //   개인 일정을 조회한 턴에만 '조회함' 으로 옮긴다 — 안 옮기면 선언이 데이터와 어긋나고,
@@ -1066,6 +1218,11 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
   movedByHint(`메일(${M.qmail})`, !!overview?.counts?.mail || matches?.mail?.length || !!thread);
   if (thread) covered.push(`보고 있는 메일 스레드 본문(최근 ${thread.messages?.length || 0}통)`);
   movedByHint('고객 활동 이력', client?.timeline?.length);
+  // 근태·휴가 / 주간 보고서 — **이번 턴에 실제로 실었을 때만** 옮긴다.
+  //   조회했는데 기록이 없는 것("아직 출근 안 했다")과 못 보는 것은 다르다 —
+  //   hr 객체가 있으면 조회한 것이다(안에 값이 없어도).
+  movedByHint('근태·휴가', !!hr);
+  movedByHint('주간 보고서', !!weekly);
   if (sched) {
     // 업무 마감일은 조회했으면 조회한 것 (내부 데이터라 항상 성립)
     covered.push('업무 마감일');
@@ -1090,6 +1247,7 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
 //   ⚠️ getWorkspaceOverview / getWorkspaceMatches 의 audience 기본값도 'client_facing' 이다.
 //      재포장하는 쪽이 인자를 안 넘기면 스태프 전용 정보(고객 명단·재무)는 자동으로 빠진다.
 module.exports = {
+  getHrSnapshot, getWeeklyReportSnapshot,
   buildCueContext,
   getWorkspaceOverview, getWorkspaceMatches, getClientSnapshot, getProjectSnapshot,
   COVERED_DOMAINS, UNCOVERED_DOMAINS, coverageBlock,

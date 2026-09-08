@@ -1315,7 +1315,12 @@
     "hideDoneFilter": "완료 가리기 ({{count}})",
     "openBtn": "오늘 내 업무",
     "openBtnHint": "오늘·이번 주 내 업무를 별도 창으로 — 창 안의 핀을 누르면 항상 위로 고정됩니다",
-    "countSummary": "업무 {{n}}건, 요청 {{r}}건"
+    "countSummary": "업무 {{n}}건, 요청 {{r}}건",
+    "sortLabel": "정렬",
+    "sortRecent": "최신등록순",
+    "sortName": "이름순",
+    "sortStage": "업무단계순",
+    "viewAll": "전체"
   },
   "tags": {
     "new": "새 태그",

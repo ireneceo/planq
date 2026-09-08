@@ -247,16 +247,31 @@ router.put('/:id/tags', authenticateToken, async (req, res, next) => {
       return successResponse(res, { id: task.id, tags: row.tags });
     }
 
+    // ★ 2026-09-08 — 태그도 "내용" 이다. 여태 이 라우트에는 범위 개념이 없어서, 제목은 시리즈
+    //   전체에 반영되는데 태그만 이 회차에 남았다(Irene: "업무가 반복된다는 건 내용도
+    //   반복관리가 되어야 하잖아"). 대상 산출은 PUT 과 **같은 함수**를 부른다.
+    const { seriesTargetIds } = require('../services/taskSeriesScope');
+    const { ids: targetIds, scope: appliedScope } = await seriesTargetIds(task, req.body.series_scope);
+
     const toAdd = after.filter(id => !before.includes(id));
     const toRemove = before.filter(id => !after.includes(id));
-    if (toRemove.length) await TaskTagLink.destroy({ where: { task_id: task.id, tag_id: { [Op.in]: toRemove } } });
-    if (toAdd.length) await TaskTagLink.bulkCreate(toAdd.map(tag_id => ({ task_id: task.id, tag_id })));
+    for (const tid of targetIds) {
+      // 회차마다 기존 태그가 다를 수 있다 — **이번에 뺀 것만 빼고 넣은 것만 넣는다.**
+      //   통째로 덮으면 어떤 회차에만 달아 둔 태그가 조용히 사라진다.
+      if (toRemove.length) await TaskTagLink.destroy({ where: { task_id: tid, tag_id: { [Op.in]: toRemove } } });
+      if (toAdd.length) {
+        const have = (await TaskTagLink.findAll({ where: { task_id: tid, tag_id: { [Op.in]: toAdd } }, attributes: ['tag_id'] }))
+          .map((l) => l.tag_id);
+        const missing = toAdd.filter((id) => !have.includes(id));
+        if (missing.length) await TaskTagLink.bulkCreate(missing.map(tag_id => ({ task_id: tid, tag_id })));
+      }
+    }
 
     const [row] = await attachTagsTo([{ id: task.id }], task.business_id);
     logAudit(req, {
       action: 'task.tags_update', targetType: 'task', targetId: task.id,
       businessId: task.business_id,
-      oldValue: { tag_ids: before }, newValue: { tag_ids: after },
+      oldValue: { tag_ids: before }, newValue: { tag_ids: after, series_scope: appliedScope, applied_to: targetIds.length },
     });
     // 실시간 (CLAUDE.md §16 b) — 리스트·팝아웃이 태그 칩을 즉시 갱신한다.
     const io = req.app.get('io');

@@ -33,6 +33,23 @@ class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    // ★ 2026-09-08 (Irene: "이렇게 에러가 나는 건 우리가 미리 미리 몰라?")
+    //   여태 몰랐다 — 크래시는 화면만 갈아 끼우고 서버엔 흔적이 없었다. 사용자가 신고 버튼을
+    //   눌러 글을 써 줘야만 알 수 있었고, 안 쓰면 **어느 화면인지조차** 못 물어봤다.
+    //   경로와 메시지만 조용히 남긴다. 실패해도 무시한다 — 보고가 화면을 두 번 죽이면 안 된다.
+    try {
+      const body = JSON.stringify({
+        route: typeof window !== 'undefined' ? window.location.pathname + window.location.search : '',
+        message: String(error && error.message || error).slice(0, 300),
+        component: String((info && (info as { componentStack?: string }).componentStack) || '').split('\n').slice(0, 3).join(' | ').slice(0, 200),
+        build: (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BUILD_ID || '',
+      });
+      void fetch('/api/client-errors', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body, keepalive: true,
+      }).catch(() => undefined);
+    } catch { /* 보고 실패는 무시 */ }
+
     if (isChunkLoadError(error)) {
       const KEY = 'pq_chunk_reload_at';
       try {

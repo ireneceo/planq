@@ -43,10 +43,13 @@ export interface PopoutViewChipsProps {
   groupLabel: string;
   /** 줄 오른쪽에 붙일 것(완료 가리기 체크박스 등). 칩이 없어도 이것만 있으면 줄은 그린다. */
   trailing?: React.ReactNode;
+  /** 줄 왼쪽 맨 앞에 붙일 것(정렬 셀렉트). **칩이 하나뿐이어도** 이것만 있으면 줄을 그린다 —
+   *  정렬은 보기 기준과 다른 축이라, 태그·프로젝트가 없는 워크스페이스에서도 필요하다. */
+  leading?: React.ReactNode;
 }
 
 const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
-  value, onChange, hasAnyTag, hasAnyProject, labels, groupLabel, trailing,
+  value, onChange, hasAnyTag, hasAnyProject, labels, groupLabel, trailing, leading,
 }) => {
   const opts: PopoutView[] = [
     ...(hasAnyTag ? ['tag' as const] : []),
@@ -55,9 +58,10 @@ const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
   ];
   // 선택지가 'due' 하나뿐이면 고를 것이 없다 — 죽은 컨트롤을 내지 않는다.
   //   단 trailing(완료 가리기)이 있으면 그건 별개 컨트롤이라 줄을 유지한다.
-  if (opts.length < 2 && !trailing) return null;
+  if (opts.length < 2 && !trailing && !leading) return null;
   return (
     <Row role="group" aria-label={groupLabel}>
+      {leading}
       {(opts.length >= 2 ? opts : []).map((o) => (
         <Chip
           key={o}

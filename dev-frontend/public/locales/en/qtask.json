@@ -1315,7 +1315,12 @@
     "hideDoneFilter": "Hide completed ({{count}})",
     "openBtn": "My tasks today",
     "openBtnHint": "Open my today/this-week tasks in a separate window — pin it inside to keep it on top",
-    "countSummary": "{{n}} tasks, {{r}} requests"
+    "countSummary": "{{n}} tasks, {{r}} requests",
+    "sortLabel": "Sort",
+    "sortRecent": "Newest first",
+    "sortName": "By name",
+    "sortStage": "By stage",
+    "viewAll": "All"
   },
   "tags": {
     "new": "New tag",

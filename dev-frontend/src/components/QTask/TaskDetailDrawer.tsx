@@ -607,6 +607,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [seriesAsk, setSeriesAsk] = useState<Record<string, unknown> | null>(null);
   // 무엇을 고치는 중인지에 따라 물어야 할 선택지가 다르다 (내용 3가지 / 반복 주기 2가지).
   const [seriesAskVariant, setSeriesAskVariant] = useState<'content' | 'recurrence'>('content');
+  // 태그는 본문 필드가 아니라 별도 엔드포인트라 patch 와 따로 보관한다(같은 다이얼로그를 쓴다).
+  const [seriesTagAsk, setSeriesTagAsk] = useState<number[] | null>(null);
 
   const saveFields = async (patch: Record<string, unknown>, scope?: SeriesScope) => {
     if (!detailTask) return;
@@ -644,14 +646,21 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const saveField = async (field: string, value: unknown) => saveFields({ [field]: value });
   // #250 태그 저장 — 전용 엔드포인트다(PUT by-business 는 tag_ids 를 받지 않는다).
   //   응답의 tags 로 state 를 맞춘다 — 서버가 사전순 정렬해 돌려주므로 대표 태그가 [0] 로 고정된다.
-  const saveTags = async (tagIds: number[]) => {
+  const saveTags = async (tagIds: number[], scope?: SeriesScope) => {
     if (!detailTask || tagSaving) return;   // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
+    // ★ 태그도 시리즈가 공유하는 "내용" 이다. 여태 이 경로만 범위를 안 물어서
+    //   제목은 전체에 반영되는데 태그는 이 회차에만 남았다(Irene 2026-09-08).
+    if (!scope && isSeries) {
+      setSeriesAskVariant('content');
+      setSeriesTagAsk(tagIds);
+      return;
+    }
     setTagSaving(true);
     setSaveStatusTemp('saving');
     try {
       const r = await apiFetch(`/api/tasks/${detailTask.id}/tags`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tag_ids: tagIds }),
+        body: JSON.stringify(scope ? { tag_ids: tagIds, series_scope: scope } : { tag_ids: tagIds }),
       });
       if (!r.ok) throw new Error('save_failed');   // apiFetch 는 throw 안 함 — res.ok 필수
       const j = await r.json();
@@ -2519,10 +2528,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     </Drawer>
     {/* 반복 업무 편집 범위 — 이 회차만 / 이후 모두 / 전체 (Q 캘린더와 같은 규칙) */}
     <SeriesScopeDialog
-      open={!!seriesAsk}
+      open={!!seriesAsk || !!seriesTagAsk}
       variant={seriesAskVariant}
       onClose={() => {
         setSeriesAsk(null);
+        setSeriesTagAsk(null);
         // 취소 — 화면 state 는 이미 새 값으로 바뀌어 있다(선택 즉시 반영해야 미리보기가 된다).
         //   서버는 안 바뀌었으므로 **정본 규칙에서 다시 읽어** 되돌린다. 안 그러면 화면만
         //   바뀐 채 남아 사용자는 저장된 줄 안다(다시 열면 되돌아가는 유령 편집).
@@ -2533,7 +2543,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         setRecurEndCount(String(parsed.endCount));
         setRecurEndUntil(parsed.endUntil || '');
       }}
-      onPick={(scope) => { const patch = seriesAsk; setSeriesAsk(null); if (patch) void saveFields(patch, scope); }}
+      onPick={(scope) => {
+        const patch = seriesAsk; const tagIds = seriesTagAsk;
+        setSeriesAsk(null); setSeriesTagAsk(null);
+        if (tagIds) { void saveTags(tagIds, scope); return; }
+        if (patch) void saveFields(patch, scope);
+      }}
     />
     {detailTask && (
       <ShareModal

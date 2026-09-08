@@ -72,7 +72,10 @@ import { useQuickAction } from './useQuickAction';   // 행 퀵액션 실행(낙
 import { useTaskTagDict } from './useTaskTagDict';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
-import { bySortRule, buildQuickChoices, cmpNullLast } from './popoutSort';
+// ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
+//   (정본 사슬은 그대로 살아 있고, 이 화면은 '고른 정렬 → 사슬' 순서로만 본다).
+import { buildQuickChoices, bySelectedSort, type PopoutSortKey } from './popoutSort';
+import PopoutSortSelect, { usePopoutSort } from './PopoutSortSelect';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 import ImportanceChip from './ImportanceChip';
 
@@ -177,6 +180,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     return tab === 'today' ? 'tag' : 'due';
   };
   const [viewMode, setViewMode] = useState<PopoutView>(() => readView(popTab));
+  // 정렬 — 탭별로 기억된다. 상태·저장은 PopoutSortSelect 로 절출(god-file 래칫).
+  //   그룹(태그별·프로젝트별)은 그대로 두고 **그 안쪽 순서**를 이 값이 정한다.
+  const { sortKey, setSortKey } = usePopoutSort(popTab);
   // 탭이 바뀌면 그 탭이 기억한 보기로 갈아탄다(없으면 그 탭의 디폴트).
   useEffect(() => { setViewMode(readView(popTab)); }, [popTab]);   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { try { localStorage.setItem(VIEW_KEY(popTab), viewMode); } catch { /* ignore */ } }, [popTab, viewMode]);
@@ -364,6 +370,14 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //     번호의 정본은 서버 재인덱스 집합이고, 보기 옵션이 번호에 닿으면 안 된다
   //     (QTaskPage 의 weekSet/filtered 분리와 같은 원칙. 이 저장소가 한 번 당한 사고다).
   //     따라서 태그순에서는 칩 번호가 행 순서와 어긋나 보일 수 있는데, 그게 정상이다.
+  // 그룹 안쪽(또는 그룹이 없을 때 전체)의 순서 — 사용자가 고른 값 하나가 정한다.
+  const innerSort = useMemo(() => bySelectedSort(sortKey), [sortKey]);
+  const SORT_LABELS: Record<PopoutSortKey, string> = {
+    recent: t('popout.sortRecent', '최신등록순') as string,
+    name: t('popout.sortName', '이름순') as string,
+    stage: t('popout.sortStage', '업무단계순') as string,
+  };
+
   const repTag = (tk: PopoutTask) => (tk.tags && tk.tags.length > 0 ? tk.tags[0].name : null);
   const repProject = (tk: PopoutTask) => (tk.Project?.name || null);
 
@@ -376,15 +390,15 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
       const c = ka.localeCompare(kb);
       if (c !== 0) return c;
     }
-    return bySortRule(a, b);
+    return innerSort(a, b);
   };
   const byTagRule = byGroup(repTag);
   const byProjectRule = byGroup(repProject);
-  // 마감일별 — 원문 "마감일별 보기". 마감이 앞선 순서가 **먼저** 오는 것이 이 라벨의 뜻이므로
-  //   due 를 1순위로 둔다(bySortRule 은 우선순위가 1순위라 라벨과 어긋난다).
-  //   동률 tie-break 은 기존 사슬을 그대로 이어 두 화면의 순서가 갈리지 않게 한다.
-  const byDueRule = (a: PopoutTask, b: PopoutTask): number =>
-    cmpNullLast(a.due_date, b.due_date) || bySortRule(a, b) || (a.id - b.id);
+  // ★ 2026-09-08 — 셋째 칩은 이제 **'전체'(그룹 없음)** 다. 옛 '마감일별' 은 라벨이 곧 정렬이라
+  //   새로 생긴 정렬 셀렉트와 두 개의 정렬 규칙이 공존하게 된다(Irene: "마감일별 필터는 필요없겠네").
+  //   그룹을 안 나눌 때는 고른 정렬이 그대로 전체 순서다 — 눌러도 아무 일이 없는 컨트롤을 만들지 않는다.
+  //   viewMode 값('due')은 그대로 둔다 — 이미 저장된 사용자 선택을 깨뜨리지 않기 위해서다.
+  const byDueRule = (a: PopoutTask, b: PopoutTask): number => innerSort(a, b) || (a.id - b.id);
 
   // '태그별' 노출 기준 = **워크스페이스 태그 사전**. 목록 기준으로 재면 태그 붙은 업무가 완료되는
   //   순간 칩이 사라져 "기능이 없어졌다" 로 읽힌다(Irene 2026-08-23). 행에서 바로 붙일 수 있는 지금은
@@ -413,9 +427,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     popTab === 'week' ? true : inTodaySet(tk as never, todayStr, myId, effTz, includeDone)
   ), [popTab, todayStr, myId, effTz]);
   const openTasks = useMemo(
-    () => tasks.filter((tk) => !CLOSED.includes(tk.status) && inTab(tk, false)).sort(sortRule), [tasks, viewMode, inTab]);   // eslint-disable-line react-hooks/exhaustive-deps
+    () => tasks.filter((tk) => !CLOSED.includes(tk.status) && inTab(tk, false)).sort(sortRule), [tasks, viewMode, sortKey, inTab]);   // eslint-disable-line react-hooks/exhaustive-deps
   const doneTasks = useMemo(
-    () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, viewMode, inTab]);    // eslint-disable-line react-hooks/exhaustive-deps
+    () => tasks.filter((tk) => CLOSED.includes(tk.status) && inTab(tk, true)).sort(sortRule), [tasks, viewMode, sortKey, inTab]);    // eslint-disable-line react-hooks/exhaustive-deps
   const visible = showDone ? [...openTasks, ...doneTasks] : openTasks;
   // 헤더 카운트 — 보이는 행을 담당자 기준으로 가른다(메인 리스트 summary 와 같은 정의).
   const mineCount = useMemo(() => visible.filter((tk) => tk.assignee_id === myId).length, [visible, myId]);
@@ -591,8 +605,18 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           labels={{
             tag: t('popout.viewTag', '태그별'),
             project: t('popout.viewProject', '프로젝트별'),
-            due: t('popout.viewDue', '마감일별'),
+            due: t('popout.viewAll', '전체'),
           }}
+          /* 정렬 — 이 저장소의 셀렉트 표준은 PlanQSelect 다(raw <select> 는 health-check 가 막는다).
+             같은 팝아웃 안 퀵애드도 이것을 쓰므로 별도 창에서도 메뉴가 정상 동작한다. */
+          leading={(
+            <PopoutSortSelect
+              value={sortKey}
+              onChange={setSortKey}
+              labels={SORT_LABELS}
+              ariaLabel={t('popout.sortLabel', '정렬') as string}
+            />
+          )}
         />
       )}
       <Body>
