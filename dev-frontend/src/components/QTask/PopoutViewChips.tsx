@@ -16,6 +16,12 @@ const Row = styled.div`
      목록을 조금만 올려도 첫 행이 칩에 딱 붙어 "고정된 줄" 로 안 읽힌다(Irene 2026-08-23).
      아래 Body(목록)의 padding-top 은 **스크롤과 함께 밀려 올라가므로** 그 몫을 대신하지 못한다. */
   display: flex; gap: 6px; padding: 8px 12px;
+  /* ★ 2026-09-08 (Irene: "태그별, 프로젝트별, 마감일별 이랑 완료가리기 체크박스가
+     가운데 높이값에서 가운데정렬되게 해줘.")
+     align-items 가 없어 기본값 stretch 였다 — 높이가 고정된 칩(28px)은 위에 붙고,
+     높이가 없는 완료 가리기 라벨은 줄 높이만큼 늘어나 **같은 가운데선에 안 놓였다.**
+     한 줄 안의 컨트롤은 같은 중심선에 둔다. */
+  align-items: center;
   flex-shrink: 0;
   border-bottom: 1px solid #F1F5F9;
 `;

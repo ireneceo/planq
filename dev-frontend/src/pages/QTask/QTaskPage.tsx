@@ -2,7 +2,7 @@ import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } fr
 import { SkeletonList } from '../../components/Common/Skeleton';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { listRowTitleCss } from '../../theme/tokens';
+import { listRowTitleCss, tapTargetCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
 import { useAuth } from '../../contexts/AuthContext';
@@ -3802,7 +3802,8 @@ const StatusOption=styled.button<{$bg:string;$fg:string;$active?:boolean}>`
   &:hover{background:${p=>p.$bg};}
 `;
 const PrioNum=styled.button<{$active?:boolean;$disabled?:boolean}>`
-  width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+  ${tapTargetCss}
+  width:24px;height:24px;
   font-size:0.75rem;font-weight:800;border-radius:50%;transition:all 0.15s;
   cursor:${p=>p.$disabled?'default':'pointer'};
   ${p=>p.$disabled?`

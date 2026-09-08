@@ -11,6 +11,7 @@ import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { downloadBlob } from '../../utils/download';
 import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
+import { tapTargetCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
@@ -2534,8 +2535,8 @@ const KB_LIST_COLS = 'minmax(160px, 1.6fr) minmax(220px, 2.6fr) auto minmax(90px
 const RowChk = styled.div`display:flex; align-items:center; justify-content:center;`;
 const RowAct = styled.div`display:flex; justify-content:flex-end;`;
 const IconBtn = styled.button`
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
+  ${tapTargetCss}
+  width: 28px; height: 28px;   /* 보이는 크기 — 위 규격이 최소치를 올린다 */
   background: transparent; border: none; color: #94A3B8;
   border-radius: 6px; cursor: pointer;
   &:hover { background: #FEE2E2; color: #DC2626; }

@@ -22,7 +22,8 @@
 //
 // 사용:
 //   node scripts/fix-series-miss-policy.js              # 미리보기
-//   node scripts/fix-series-miss-policy.js --apply      # 실제 적용
+//   node scripts/fix-series-miss-policy.js --apply      # 실제 적용 (고른 시리즈만)
+//   node scripts/fix-series-miss-policy.js --all --apply  # 모든 반복 시리즈를 auto_skip 으로
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
@@ -30,19 +31,29 @@ const { Task } = require('../models');
 const { skipMissedOccurrences } = require('../services/recurringTaskGenerator');
 
 const APPLY = process.argv.includes('--apply');
+// ★ 2026-09-08 (Irene: "응. 넘겨 자동으로 넘기기로 해줘. 모든 반복업무 자동으로 넘어가게 해줘.")
+//   기본은 종전대로 **사용자가 고른 시리즈만**(회차에 auto_skip 이 찍힌 것). 없는 의도를 지어내지 않는다.
+//   `--all` 은 그 판단을 Irene 이 직접 내린 경우다 — 워크스페이스의 **모든 반복 시리즈**를 auto_skip 으로.
+const ALL = process.argv.includes('--all');
 
 async function main() {
-  // ① 자식에 auto_skip 이 찍힌 시리즈 찾기
-  const kids = await Task.findAll({
-    where: { recurrence_parent_id: { [Op.ne]: null }, miss_policy: 'auto_skip' },
-    attributes: ['id', 'recurrence_parent_id'],
-  });
-  const parentIds = [...new Set(kids.map((k) => k.recurrence_parent_id))];
-  console.log(`회차에 auto_skip 이 찍힌 행 ${kids.length}건 · 그 시리즈 ${parentIds.length}개`);
-
-  const parents = parentIds.length
-    ? await Task.findAll({ where: { id: { [Op.in]: parentIds } } })
-    : [];
+  let parents;
+  if (ALL) {
+    // 반복 시리즈 = 규칙을 든 부모 행(회차는 규칙이 없다). 명시 지시로 전부 auto_skip.
+    parents = await Task.findAll({
+      where: { recurrence_rule: { [Op.ne]: null }, recurrence_parent_id: null },
+    });
+    console.log(`--all — 반복 시리즈 ${parents.length}개 전부를 auto_skip 으로`);
+  } else {
+    // ① 자식에 auto_skip 이 찍힌 시리즈 찾기
+    const kids = await Task.findAll({
+      where: { recurrence_parent_id: { [Op.ne]: null }, miss_policy: 'auto_skip' },
+      attributes: ['id', 'recurrence_parent_id'],
+    });
+    const parentIds = [...new Set(kids.map((k) => k.recurrence_parent_id))];
+    console.log(`회차에 auto_skip 이 찍힌 행 ${kids.length}건 · 그 시리즈 ${parentIds.length}개`);
+    parents = parentIds.length ? await Task.findAll({ where: { id: { [Op.in]: parentIds } } }) : [];
+  }
 
   let raised = 0;
   for (const p of parents) {
