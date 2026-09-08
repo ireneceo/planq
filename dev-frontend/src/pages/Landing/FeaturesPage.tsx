@@ -34,9 +34,20 @@ const FeatureShot: React.FC<{ k: QKey; alt: string }> = ({ k, alt }) => {
 };
 const WORKSPACE = ['project', 'calendar', 'docs', 'mail'] as const;
 const AI_GROUP = ['cue', 'insights', 'notifications'] as const;
-const FOUNDATION = ['security', 'i18n', 'gdrive', 'billing'] as const;
+// 2026-09-08 — 실제로 있는데 이 페이지에 없던 것 3가지를 채웠다(조직·권한 / 데이터 주권 / 모바일).
+//   ★ 없는 기능을 적지 않는다 — 넷 다 코드로 실존을 확인하고 넣었다:
+//     org      → routes/org.js · models/Department·Team · middleware/menu_permission (11메뉴×3레벨)
+//     data     → routes/export.js (내 데이터·워크스페이스 내보내기) · routes/account_deletion.js
+//     mobile   → public/manifest.json + sw.js + web-push (설치형 PWA·푸시)
+//   앱스토어 배포는 아직이므로 "앱 다운로드" 가 아니라 **설치형 PWA** 로 적는다
+//   (memory: feedback_dont_instruct_what_we_didnt_build — 없는 절차를 안내하지 않는다).
+const FOUNDATION = ['security', 'i18n', 'gdrive', 'billing', 'org', 'data', 'mobile'] as const;
 // #146 — 빠진 기능 추가: 통합 인박스·고객관리·전자서명·Q위키·개인 보관함·업무보고·포커스·회의록
-const MORE = ['inbox', 'clients', 'signature', 'wiki', 'vault', 'reports', 'focus', 'meeting'] as const;
+// 2026-09-08 — 근태·휴가 / 게스트 링크 추가. 둘 다 운영에서 도는 기능인데 페이지에만 없었다:
+//   attendance → routes/attendance.js(출근·휴게·퇴근·정정요청) + routes/leave.js(부여·신청·승인)
+//   guest      → models/GuestLink(scope·expires_at·revoked_at·OTP) + routes/guest*.js
+const MORE = ['inbox', 'clients', 'signature', 'wiki', 'vault', 'reports', 'focus', 'meeting',
+  'attendance', 'guest'] as const;
 
 const FeaturesPage: React.FC = () => {
   const { t } = useTranslation('landing');

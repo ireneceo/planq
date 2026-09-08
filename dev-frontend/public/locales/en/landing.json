@@ -393,7 +393,7 @@
     "foundation": {
       "tag": "FOUNDATION",
       "title": "Trustworthy foundation",
-      "desc": "Korea-hosted, multi-tenant isolated, multilingual, with external integrations. Built to operational standards from day one.",
+      "desc": "Korean data centre and tenant isolation, org permissions, data export, mobile install — built to production standards from day one.",
       "security": {
         "name": "Security · multi-tenant",
         "lead": "JWT (Access 15min + Refresh 7d) · enforced WHERE business_id isolation · audit log · Helmet · CORS · rate limits · SSRF protection."
@@ -409,12 +409,24 @@
       "billing": {
         "name": "Stripe payments · tax invoice tracking",
         "lead": "Bank-transfer first + card payment (Stripe) second + tax invoice tracking (issued externally, marked here). 4-stage cron (overdue / recurring / report)."
+      },
+      "org": {
+        "name": "Org & permissions",
+        "lead": "Your workspace sets its own departments, teams and per-menu access."
+      },
+      "data": {
+        "name": "Your data, yours",
+        "lead": "Export or delete your own data and the workspace data at any time."
+      },
+      "mobile": {
+        "name": "Mobile",
+        "lead": "Install it to the home screen and get push notifications like a native app."
       }
     },
     "more": {
       "tag": "MORE",
       "title": "It's all in here, too",
-      "desc": "From a unified inbox to e-signatures and work reports — the tools you need are already inside.",
+      "desc": "Unified inbox, e-signature, work reports — plus attendance, leave and guest links for clients. Already inside.",
       "inbox": {
         "name": "Unified inbox (Needs attention)",
         "lead": "Emails, tasks and requests that need a reply, gathered in one place so nothing slips.",
@@ -486,6 +498,24 @@
           "1": "Auto question detection + answer drafts",
           "2": "A fully private space only you can access"
         }
+      },
+      "attendance": {
+        "name": "Attendance & leave",
+        "lead": "Clock-in through leave approval — inside the workspace, no extra tool.",
+        "bullets": [
+          "Clock in, break, clock out — hours tallied automatically",
+          "Wrong record? Request a correction — the approval is logged",
+          "Grant, check balance, request, approve or decline leave"
+        ]
+      },
+      "guest": {
+        "name": "Guest links",
+        "lead": "Clients walk in through one link — no sign-up, no login.",
+        "bullets": [
+          "Open a conversation or a project by link — no account needed",
+          "Each link carries its own scope (conversation / project)",
+          "Expiry, one-time passcode, revoke whenever you want"
+        ]
       }
     },
     "cta": {
