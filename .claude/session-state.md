@@ -1,6 +1,7 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-09-08 (Opus 5, 1M)
-**작업 상태:** 배포 완료 — **v1.48.13** · commit `8739f05c` · 20260908_064239
+**작업 상태:** 배포 완료 (Irene 이석 — 남은 것은 다음 세션에서 이어서)
+**배포:** — **v1.48.13** · commit `8739f05c` · 20260908_064239
 
 ### 이번 배포에 들어간 것
 1. **Cue 가 파일을 내용으로 찾아 답한다** — 업로드 시 본문 색인(`services/fileIndex`).
@@ -20,17 +21,29 @@
 `chatattach` 2/2 · `filesrc` 4/4 · `fileindex` 8/8 · `mailbrief` 11/11 ·
 `mailplain` 8/8 · `seriesscope` 8/8 · `admincrawl` 16/16
 
-### 다음 할 일
+### ▶ 다음 세션 **첫 작업** (Irene 지시 2026-09-08)
+**Drive 폴더 트리 이관 dry-run 을 먼저 보여준다.** 실행하지 말고 결과만 보고한다.
+
+```bash
+ssh irene@87.106.78.146 "cd /opt/planq/backend && node scripts/migrate-drive-folder-tree.js"
+```
+- dry-run 이 기본이다. `--apply` 는 **Irene 이 결과를 보고 승인한 뒤에만.**
+- 보고할 것: 옮길 파일 몇 건 · 어디서 어디로 · 건너뛰는 것과 그 사유.
+- 로그는 `/tmp/planq-drive-tree-*.json` 에 남는다.
+- 배경: 파일의 Drive 자리를 정하는 규칙이 세 곳으로 갈라져 있던 것을
+  `services/gdriveMirror.resolveDriveParent` 한 함수로 모았고(2026-09-07),
+  그 규칙으로 **기존 파일을 다시 배치**하는 것이 이 스크립트다.
+  스크립트가 앱과 같은 함수를 쓰므로 이관 결과가 앱 동작과 갈라지지 않는다.
+
+### 그 다음 (Irene: "지금 남은 거 다음에 다 하자")
 1. **플랫폼 관리자 React #185 재현** — dev 16화면 + 항목 클릭 모두 정상이고 운영 위키(66)·
    개발현황(52) 데이터도 구조가 깨끗해 재현 실패. 이번 배포의 자동 크래시 보고가 살아 있으니
    Irene 이 그 화면에 한 번 더 들어가면 `pm2 logs planq-prod-backend | grep client-crash` 에
    경로·컴포넌트가 남는다 → 그걸로 고친다
-2. **기존 파일 Drive 폴더 트리 이관** — `dev-backend/scripts/migrate-drive-folder-tree.js`
-   (dry-run 기본, `--apply`). 운영 실행 미완
-3. **docx·xlsx 본문 추출** — 운영에 4건뿐이라 후순위(지금은 텍스트·PDF·HTML만)
-4. **Q Note 회의록을 Cue 범위로** — 별도 서비스(FastAPI)라 내부 호출 설계 필요.
+2. **docx·xlsx 본문 추출** — 운영에 4건뿐이라 후순위(지금은 텍스트·PDF·HTML만)
+3. **Q Note 회의록을 Cue 범위로** — 별도 서비스(FastAPI)라 내부 호출 설계 필요.
    본인 것만 읽어야 한다(개인 도구 L1 정책)
-5. **Q Sale 사이클 1** — Irene 이 명시적으로 제외해 둔 것
+4. **Q Sale 사이클 1** — Irene 이 명시적으로 제외해 둔 것
 
 ---
 
