@@ -91,6 +91,7 @@ async function run() {
       message: 'Minified React error #185; canary probe',
       component: 'at Xy | at Zw | at Route',
       stack: `at t (https://dev.planq.kr/assets/AdminWikiPage-CANARY.js:5:1234)`,
+      trail: '17:13:40 /inbox #nav-badge-task → 17:13:45 /inbox a:플랫폼 관리자',
       build: 'canary',
     };
     const send = (headers) => fetch(`${API}/api/client-errors`, {
@@ -117,6 +118,10 @@ async function run() {
     push('⑤ 서버 로그에 경로와 스택이 남는다',
       !!line && line.includes('AdminWikiPage-CANARY.js'),
       line ? line.slice(-200) : '로그에서 못 찾음');
+    // ⑦ 직전 조작(빵부스러기)이 같이 실려 온다 — 이것이 없으면 "어디서" 만 알고 재현을 못 한다.
+    push('⑦ 직전 조작이 서버 로그에 남는다',
+      !!line && line.includes('플랫폼 관리자') && line.includes('nav-badge-task'),
+      line && line.includes('trail') ? 'trail 있음' : 'trail 없음');
 
     // ④ ErrorBoundary 가 인증 계약을 타는가 — 소스 계약 검사.
     //    ①은 "엔드포인트가 산다" 를 증명할 뿐이다. 화면 쪽이 bare fetch 로 되돌아가면
@@ -128,6 +133,12 @@ async function run() {
       usesApiFetch && !bareFetch,
       `apiFetch=${usesApiFetch} · bareFetch=${bareFetch}`);
     push('⑥ 스택 필드를 실어 보낸다', /stack:\s*frames\(/.test(src), `stack 필드 ${/stack:\s*frames\(/.test(src)}`);
+    // ⑧ 화면 쪽 계약 — ErrorBoundary 가 trail 을 싣고, 수집기가 값 있는 요소의 글자를 안 읽는다.
+    const trailSrc = fs.readFileSync('/opt/planq/dev-frontend/src/utils/crashTrail.ts', 'utf-8');
+    push('⑧ ErrorBoundary 가 trail 을 싣는다', /trail:\s*getCrashTrail\(/.test(src), `trail 필드 ${/trail:\s*getCrashTrail\(/.test(src)}`);
+    push('⑨ 값이 든 요소의 글자는 담지 않는다 (음성 대조군)',
+      /isContentEditable/.test(trailSrc) && /tag === 'input' \|\| tag === 'textarea'/.test(trailSrc),
+      '입력 요소는 태그명만 남긴다');
   } catch (e) {
     push('카나리 실행', false, String((e && e.message) || e));
   } finally {

@@ -37,6 +37,9 @@ router.post('/', authenticateToken, ...limiter, async (req, res) => {
     //   `AdminWikiPage-XXXX.js:5:1234` 한 줄로 파일이 특정된다.
     component: cap(b.component, 600),
     stack: cap(b.stack, 600),
+    // ★ 직전 조작 — "어디서" 만으로는 재현을 못 했다. 무엇을 눌렀는지가 있어야 좁힌다.
+    //   값이 든 요소(input·textarea·contenteditable)의 글자는 프론트가 아예 안 담는다.
+    trail: cap(b.trail, 600),
     build: cap(b.build, 60),
     ua: cap(req.get('user-agent'), 160),
   }));

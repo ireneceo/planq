@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { openFeedback } from '../../utils/feedbackOpen';
+import { getCrashTrail } from '../../utils/crashTrail';
 
 interface Props {
   children: React.ReactNode;
@@ -59,6 +60,8 @@ class ErrorBoundary extends React.Component<Props, State> {
         message: String((error && error.message) || error).slice(0, 300),
         component: frames((info as { componentStack?: string } | undefined)?.componentStack, 10, 600),
         stack: frames(error && error.stack, 6, 600),
+        // 무엇을 눌렀을 때 죽었는가 — 경로·컴포넌트만으로는 재현을 못 했다(2026-09-08 세 번 실패).
+        trail: getCrashTrail(600),
         build: (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BUILD_ID || '',
       };
       void (async () => {
