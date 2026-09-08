@@ -44,6 +44,18 @@ const logArg = (args.find((a) => a.startsWith('--log=')) || '').split('=')[1];
     if (!token.root_folder_id) { console.log(`biz ${token.business_id}: 루트 폴더 없음 — 건너뜀`); continue; }
     const drive = await gdrive.getDriveClient(token);
 
+    // 파일 → 대화방 축 복원 (한 번에 읽어 map 으로 둔다 — 파일마다 쿼리하면 수백 번이 된다)
+    const convRows = await sequelize.query(
+      `SELECT ma.file_id AS file_id, MIN(m.conversation_id) AS conversation_id
+         FROM message_attachments ma
+         JOIN messages m ON m.id = ma.message_id
+        WHERE ma.file_id IS NOT NULL AND m.conversation_id IS NOT NULL
+        GROUP BY ma.file_id`,
+      { type: sequelize.QueryTypes.SELECT },
+    );
+    const convByFileId = new Map(convRows.map((r) => [Number(r.file_id), Number(r.conversation_id)]));
+    console.log(`biz ${token.business_id}: 대화방에 붙은 파일 ${convByFileId.size}건 (그 자리는 Conversations 다)`);
+
     const files = await File.findAll({
       where: { business_id: token.business_id, deleted_at: null },
       attributes: ['id', 'file_name', 'project_id', 'folder_id', 'gdrive_mirror_id', 'storage_provider', 'external_id'],
@@ -59,8 +71,17 @@ const logArg = (args.find((a) => a.startsWith('--log=')) || '').split('=')[1];
       try {
         // ★ 앱이 쓰는 것과 **같은 함수**로 목표 자리를 구한다. 여기서 따로 계산하면
         //   정리 결과가 앱의 규칙과 또 갈라진다.
+        //
+        // ★★ 2026-09-08 — 같은 함수를 부르는 것만으로는 부족했다. **같은 입력**을 줘야 한다.
+        //   업로드 경로(routes/files.js)는 `conversationId` 를 같이 넘겨 채팅 파일을
+        //   `Conversations` 폴더에 둔다. 그런데 여기서는 안 넘겨서 목표가 `Workspace Files` 로
+        //   계산됐고, 그 결과 **앱이 일부러 넣어 둔 자리에서 도로 빼내는** 이동이 생겼다.
+        //   운영 dry-run 실측: 옮길 21건 중 **19건이 이것**이었다(Conversations → Workspace Files).
+        //   `files` 테이블에는 대화방 축이 없다 — `message_attachments.file_id → messages`
+        //   로 이어서 복원한다(첨부는 File 과 MessageAttachment 양쪽에 행이 생긴다).
         want = await mirror.resolveDriveParent(drive, token, {
           projectId: f.project_id, folderId: f.folder_id,
+          conversationId: convByFileId.get(f.id) || null,
         });
       } catch (e) {
         failed += 1;
