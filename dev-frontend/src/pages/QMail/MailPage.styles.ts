@@ -1,7 +1,7 @@
 // Q mail 화면 스타일 — MailPage.tsx 에서 분리 (god-file 가드: 컴포넌트 파일 800줄 상한).
 // 동작 코드와 표현을 나눠 두면 화면 로직을 읽을 때 스타일 400줄을 스크롤하지 않아도 된다.
 import styled from 'styled-components';
-import { listRowTitleCss, tapTargetCss } from '../../theme/tokens';
+import { listRowTitleCss } from '../../theme/tokens';
 import { mediaPhone } from '../../theme/breakpoints';
 
 // ─────────────────────────────────────────────
@@ -417,8 +417,8 @@ export const OverdueChip = styled.span`
 `;
 // 리스트 행의 처리 버튼 — 확인 완료 · 스팸 · 답변 불필요. 높이·정렬을 하나로 고정한다.
 export const RowBtn = styled.button<{ $danger?: boolean }>`
-  ${tapTargetCss}
-  height: 24px; padding: 0 8px; flex-shrink: 0;   /* 보이는 높이 — 위 규격이 최소치를 올린다 */
+  height: 24px; padding: 0 8px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
   font-size: 0.6875rem; font-weight: 600; line-height: 1;
   color: ${(p) => (p.$danger ? '#94A3B8' : '#64748B')};
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px;

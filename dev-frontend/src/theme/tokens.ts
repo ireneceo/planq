@@ -50,26 +50,6 @@ export const LIST_ROW = {
  *     주석으로 "규격: LIST_ROW" 라고 적어 둔 것은 검증되지 않는다 — 값을 **가져다 써야** 한다.
  *   굵기를 따로 쓰는 곳(안 읽은 메일 700)은 이 조각 뒤에 `font-weight` 를 덮어쓴다.
  */
-/**
- * 목록 행 **안**에 있는 작은 컨트롤의 누를 자리. 보이는 크기는 그대로 두고 타깃만 규격으로.
- *
- * ★ 2026-09-08 (Irene: "맞지 않는 사이즈 있으면 키워야지. 통일을 해. 디자인에 맞는 사이즈로.")
- *   행에는 상세를 여는 click 이 걸려 있어서, 폰에서 손가락이 조금만 빗나가면 **행이 먼저 먹는다**.
- *   실측(390px)으로 규격(36) 미달 4곳: Q info 삭제 28 · Q task 우선순위 24 · 태그 붙이기 20 ·
- *   Q mail 답변 불필요 24.
- *   ★ 겹쳐 덮는 방식(::after 오버레이·음수 여백)은 쓰지 않는다 — 이웃 컨트롤의 클릭을
- *     가로챌 수 있다. 버튼 **자체의 최소 크기**만 규격으로 올린다(그림은 안쪽에 가운데 정렬).
- *     행 높이는 30~160px 이라 36 은 그대로 들어가고, 가로도 행 끝이라 여유가 있다.
- *   규격 출처: CLAUDE.md 반응형 기본 원칙 2 (아이콘 버튼 최소 36×36, 폰은 40).
- */
-export const tapTargetCss = `
-  min-width: 36px;
-  min-height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  @media (max-width: 640px) { min-width: 40px; min-height: 40px; }
-`;
 
 export const listRowTitleCss = `
   font-size: ${LIST_ROW.titleSize.desktop / 16}rem;

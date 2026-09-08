@@ -12,7 +12,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
-import { tapTargetCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import type { TaskTagLite } from './TagChips';
@@ -210,8 +209,8 @@ const Wrap = styled.span`
   position: relative; display: inline-flex; align-items: center; flex-shrink: 0;
 `;
 const Trigger = styled.button<{ $open: boolean }>`
-  ${tapTargetCss}
   width: 20px; height: 20px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
   background: ${p => (p.$open ? '#F0FDFA' : 'transparent')};
   border: 1px dashed ${p => (p.$open ? '#5EEAD4' : '#CBD5E1')}; border-radius: 4px;
   color: ${p => (p.$open ? '#0F766E' : '#94A3B8')};
