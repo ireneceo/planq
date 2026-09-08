@@ -140,6 +140,15 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  // ★ 2026-09-08 운영 신고 #408 (Irene: "모르고 인포에 있는 타임인터넷 정보를 삭제했어.
+  //   삭제할 때 더 그냥 삭제되네? 데이터들 삭제할 때 물어보고 삭제해도 되돌리기 있어야 하는 거 아니야?")
+  //   항목 × 는 **항목과 그 값을 같이** 지우고 곧바로 자동저장한다. 값은 custom_values(JSON)
+  //   안에 있어서 휴지통도 없고 감사 기록에도 옛 값이 안 남는다 — 즉 **되돌릴 자리가 없다**.
+  //   실제로 그렇게 사라진 자료를 운영 DB·휴지통·당일 백업에서 못 찾았다.
+  //   → 값이 들어 있는 항목만 확인을 받는다. 빈 항목은 종전대로 바로 지운다(실수 정정에 마찰 X).
+  //   ★ 지우는 동작 자체를 담는다 — `saveCols` 는 렌더 스코프 안에 있어서 다이얼로그에서
+  //     못 부른다. 삭제 로직을 여기 한 번 더 적으면 두 벌이 되어 반드시 갈라진다.
+  const [confirmRemoveCol, setConfirmRemoveCol] = useState<{ name: string; value: string; run: () => void } | null>(null);
   // ★ 목록을 못 불러온 것과 "자료가 없는 것" 은 다른 상태다. 여태는 실패해도 빈 상태가 떠서
   //   사용자가 **자료가 사라졌다** 고 읽었다(운영 500 재현으로 실측).
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1172,10 +1181,16 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                               type="button"
                               title={t('drawer.removeColumn', '항목 삭제') as string}
                               onClick={() => {
-                                const next = cols.filter((_, i) => i !== idx);
-                                const vals = { ...(detail.custom_values || {}) };
-                                delete vals[col.id];
-                                saveCols(next, vals);
+                                const remove = () => {
+                                  const next = cols.filter((_, i) => i !== idx);
+                                  const vals = { ...(detail.custom_values || {}) };
+                                  delete vals[col.id];
+                                  saveCols(next, vals);
+                                };
+                                const cur = String((detail.custom_values || {})[col.id] ?? '').trim();
+                                // 지우면 되돌릴 수 없다 — 값이 있으면 무엇을 잃는지 보여주고 묻는다.
+                                if (cur) { setConfirmRemoveCol({ name: col.name || '', value: cur, run: remove }); return; }
+                                remove();
                               }}
                             >×</RemoveColBtn>
                           </DrawerColHeadRow>
@@ -1508,6 +1523,26 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         title={t('drawer.delete') as string}
         message={t('drawer.deleteConfirm') as string}
         confirmText={t('drawer.delete') as string}
+        cancelText={t('modal.cancel') as string}
+        variant="danger"
+      />
+
+      {/* ─── 항목 삭제 확인 (#408) — 값이 든 항목은 되돌릴 수 없다 ─── */}
+      <ConfirmDialog
+        isOpen={confirmRemoveCol !== null}
+        onClose={() => setConfirmRemoveCol(null)}
+        onConfirm={() => {
+          const c = confirmRemoveCol;
+          setConfirmRemoveCol(null);
+          c?.run();
+        }}
+        title={t('drawer.removeColumn', '항목 삭제') as string}
+        message={t('drawer.removeColumnConfirm', {
+          defaultValue: '"{{name}}" 항목과 값 "{{value}}" 을(를) 지웁니다. 되돌릴 수 없습니다.',
+          name: confirmRemoveCol?.name || '',
+          value: (confirmRemoveCol?.value || '').slice(0, 60),
+        }) as string}
+        confirmText={t('drawer.removeColumn', '항목 삭제') as string}
         cancelText={t('modal.cancel') as string}
         variant="danger"
       />

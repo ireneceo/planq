@@ -109,9 +109,10 @@
     "reindex": "Reindex",
     "close": "Close",
     "catSaveErr": "Failed to save category",
-    "removeColumn": "Remove item",
+    "removeColumn": "Remove field",
     "newColumn": "New item",
-    "colType": "Field type"
+    "colType": "Field type",
+    "removeColumnConfirm": "This removes the field \"{{name}}\" and its value \"{{value}}\". It cannot be undone."
   },
   "row": {
     "delete": "Delete"

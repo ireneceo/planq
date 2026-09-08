@@ -111,7 +111,8 @@
     "catSaveErr": "카테고리 저장 실패",
     "removeColumn": "항목 삭제",
     "newColumn": "새 항목",
-    "colType": "항목 형식"
+    "colType": "항목 형식",
+    "removeColumnConfirm": "\"{{name}}\" 항목과 값 \"{{value}}\" 을(를) 지웁니다. 되돌릴 수 없습니다."
   },
   "row": {
     "delete": "삭제"
