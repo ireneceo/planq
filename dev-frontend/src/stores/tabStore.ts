@@ -43,6 +43,33 @@ const STORAGE_KEY = 'planq_tabs_v1';
 let tabScope: string | null = null;
 const scoped = (base: string) => (tabScope ? `${base}::${tabScope}` : base);
 
+// ★ 2026-09-08 (Irene: "플랫폼관리자랑 다른 워크스페이스 갈 때 … 상단 탭이 해당 워크스페이스나
+//   플랫폼관리자 기준으로 바뀌어야 해." / 앞서 "다른 워크스페이스 만들어서 갔는데도 워프로랩 탭
+//   열려있던게 나와.")
+//   키를 범위별로 가른 것(#405)만으로는 부족했다 — **기록이 전환보다 앞서** 있었다.
+//   경로가 먼저 바뀌면 그 순간의 범위(=옛 범위)에 새 경로가 탭으로 박히고, 그 **다음에**
+//   MainLayout 의 effect 가 setTabScope 를 건다. 실측(2026-09-08):
+//       planq_tabs_v1::b5 = ["/talk","/tasks","/files","/admin/dashboard"]   ← 관리자 탭이 남았다
+//   그래서 워크스페이스로 돌아오면 관리자 탭이 같이 열려 있었다. 저장 키만 보면 갈라져 있어
+//   정상으로 보인다 — 새는 곳은 **키 안의 내용**이다.
+//   → 범위를 **기록 시점에** 결정한다. 경로 하나로 정해지는 것(/admin)은 경로가, 나머지는
+//     마지막으로 알려진 워크스페이스가 정한다. effect 는 그대로 두되(워크스페이스 전환처럼
+//     경로가 안 바뀌는 변화가 있다) 더 이상 유일한 문이 아니다.
+let scopeBizId: number | null = null;
+/** MainLayout 이 알려주는 현재 워크스페이스. 범위 판정의 두 입력 중 하나(다른 하나는 경로). */
+export function setTabScopeBusiness(id: number | null) { scopeBizId = id; }
+/** 이 경로를 기록하기 전에 범위를 맞춘다. 범위를 모르면(부트 중) 아무 것도 하지 않는다.
+ *  @returns 범위를 실제로 갈아끼웠는가. **true 면 호출부는 여기서 끝낸다** —
+ *    setTabScope 가 새 범위에서 이 경로의 탭을 이미 열고 활성화했기 때문이다.
+ *    계속 진행하면 같은 경로의 탭이 하나 더 생긴다(실측: ::admin=["/admin/dashboard","/admin/dashboard"] —
+ *    새로 만든 탭에는 아직 pane 이 없어 navigateActive 의 마지막 `newTab` 폴백까지 흘렀다). */
+function ensureScopeFor(path: string): boolean {
+  const next = tabScopeOf((path || '/').split('?')[0], scopeBizId);
+  if (!next || next === tabScope) return false;
+  setTabScope(next, path);
+  return true;
+}
+
 // ── kind ↔ path 매핑 ──────────────────────────────────────────
 // path prefix → kind (긴 것 우선). projectDetail 은 id별 복수 탭 허용.
 const PREFIX_KIND: Array<[RegExp, TabKind]> = [
@@ -223,7 +250,7 @@ export function setTabNavigator(fn: ((path: string) => void) | null) { navigateD
  * 첫 지정 때 새 범위가 비어 있으면 범위 없이 저장돼 있던 옛 탭을 그대로 물려받는다
  * (한 번만 — 그러지 않으면 기존 사용자의 탭이 이 변경 한 번에 전부 사라진다).
  */
-export function setTabScope(next: string | null) {
+export function setTabScope(next: string | null, here?: string) {
   if (next === null || next === tabScope) return;
   const legacyRaw = (() => {
     try { return sessionStorage.getItem(STORAGE_KEY); } catch { return null; }
@@ -261,6 +288,9 @@ export function setTabScope(next: string | null) {
   //   isTabsSpike() 는 데스크탑 기본 ON 이라 **로그인 데스크탑 전원**이 대상이었다.
   const runtimeMirror = state.mirror;
   state = { ...loaded, mirror: runtimeMirror };
+  // 범위가 갈렸으면 앞 범위에서 기다리던 전환 표식은 의미가 없다 — 남기면 새 범위의 첫
+  //   location 역보고를 통째로 삼킨다(그 표식의 탭 id 는 이제 존재하지 않는다).
+  pendingSwitch = null;
   // ★ 복원된 탭이 **지금 있는 자리**를 이기면 안 된다 (2026-09-04 회귀).
   //   증상: Irene "Q talk 메뉴가 클릭이 안돼". 주소는 /talk 인데 화면은 대시보드였다.
   //   순서가 원인이다 — 부팅 때는 워크스페이스를 아직 모르므로 applyBootPath 가
@@ -272,7 +302,9 @@ export function setTabScope(next: string | null) {
   //   주소 입력·앱 딥링크)가 마지막 탭으로 튕긴다.
   //   그래서 범위를 갈아끼운 뒤 현재 위치와 활성 탭을 반드시 맞춘다.
   if (typeof window !== 'undefined') {
-    const here = window.location.pathname + (window.location.search || '');
+    // ★ `here` 는 **이제부터 기록할 경로**다. 호출부(ensureScopeFor)가 아는 값을 그대로 쓴다 —
+    //   location 이 아직 안 바뀐 시점(탭 모드 pane 내비)에도 맞게 정렬되도록.
+    const hereNow = here || (window.location.pathname + (window.location.search || ''));
     const act = activeTab(state);
     // ★ 비교는 **경로 전체**로 한다 — identity 로 비교하면 쿼리가 통째로 버려진다.
     //   identityOfPath 는 화면 종류만 돌려준다(projectDetail 만 id 를 갖는다). 그래서
@@ -286,19 +318,19 @@ export function setTabScope(next: string | null) {
     //   identity 에 들어가기 때문이다 — 쿼리로 여는 화면만 조용히 새고 있었다.
     //   위 주석의 의도("복원된 탭이 지금 있는 자리를 이기면 안 된다")를 쿼리까지 지킨다.
     //   owner 찾기는 종전대로 identity 로 둔다 — 그래야 탭이 쌓이지 않고 그 탭이 갱신된다.
-    const mismatched = !act || act.path !== here;
+    const mismatched = !act || act.path !== hereNow;
     if (state.tabs.length === 0) {
       // 새 범위가 비었으면 지금 화면을 첫 탭으로. 안 하면 화면은 떠 있는데 탭 막대가 빈다.
       const id = newId();
-      state = { tabs: [{ id, kind: kindOfPath(here), title: '', path: here, alive: true, lastActiveAt: Date.now() }], activeId: id, mirror: runtimeMirror };
+      state = { tabs: [{ id, kind: kindOfPath(hereNow), title: '', path: hereNow, alive: true, lastActiveAt: Date.now() }], activeId: id, mirror: runtimeMirror };
     } else if (mismatched) {
       // 같은 종류의 탭이 있으면 그 탭을 지금 경로로 (탭이 쌓이지 않게), 없으면 새로 연다.
-      const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(here));
+      const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(hereNow));
       if (owner) {
         state = {
           ...state,
           tabs: state.tabs.map((t) => (t.id === owner.id
-            ? { ...t, path: here, alive: true, lastActiveAt: Date.now() }
+            ? { ...t, path: hereNow, alive: true, lastActiveAt: Date.now() }
             : t)),
           activeId: owner.id,
         };
@@ -306,7 +338,7 @@ export function setTabScope(next: string | null) {
         const id = newId();
         state = {
           ...state,
-          tabs: [...state.tabs, { id, kind: kindOfPath(here), title: '', path: here, alive: true, lastActiveAt: Date.now() }],
+          tabs: [...state.tabs, { id, kind: kindOfPath(hereNow), title: '', path: hereNow, alive: true, lastActiveAt: Date.now() }],
           activeId: id,
         };
       }
@@ -344,6 +376,7 @@ export const tabStore = {
 
   // 브라우저 탭 모델 — 현재(활성) 탭의 경로를 바꾼다(안으로 들어가도 새 탭 X). 사이드바/본문 링크 내비.
   navigateActive(path: string) {
+    if (ensureScopeFor(path)) { if (state.mirror && navigateDelegate) navigateDelegate(path); return; }
     if (state.mirror) { if (navigateDelegate) navigateDelegate(path); return; } // location→seedFromPath 가 store 갱신
     const id = state.activeId;
     if (!id) { this.newTab(path); return; }
@@ -361,6 +394,7 @@ export const tabStore = {
   //   같은 화면이 이미 열려 있으면 새로 만들지 않고 그 탭으로 간다 — 탭이 무한정 쌓이지 않게.
   //   미러 모드(단일 탭·모바일)에서는 탭 개념이 없으므로 종전대로 이동한다.
   openInNewTab(path: string) {
+    if (ensureScopeFor(path)) { if (state.mirror && navigateDelegate) navigateDelegate(path); return; }
     if (state.mirror) { if (navigateDelegate) navigateDelegate(path); return; }
     const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(path));
     if (owner) {
@@ -375,6 +409,8 @@ export const tabStore = {
 
   // 새 탭 — 같은 페이지도 중복 허용. '+' / 새탭 드롭다운. OPEN_MAX 초과면 최오래 비활성 탭 close.
   newTab(path = '/dashboard') {
+    // 범위가 갈렸으면 그 범위에 이 경로의 탭이 이미 섰다 — 여기서 또 만들면 중복이다.
+    if (ensureScopeFor(path)) { if (state.mirror && navigateDelegate) navigateDelegate(path); return; }
     const now = Date.now();
     let tabs = state.tabs;
     if (tabs.length >= OPEN_MAX) {
@@ -391,6 +427,7 @@ export const tabStore = {
   //   explicit=true 는 알림/공유 딥링크 — 언제나 그 경로가 이긴다.
   //   그 밖에 "복원으로 시작 + 앱이 연 기본 경로(start_url)" 면 마지막 위치를 유지한다.
   applyBootPath(path: string, opts?: { explicit?: boolean }) {
+    if (ensureScopeFor(path)) { bootRestorePending = false; return; }
     const restored = bootRestorePending;
     bootRestorePending = false;
     const act = activeTab(state);
@@ -491,6 +528,8 @@ export const tabStore = {
   // 미러 모드 location→store 단일 소스 — 활성 탭 path 갱신(없으면 생성). dedup 안 함(브라우저 탭 모델:
   //   탭 안에서 더 깊이 들어가면 새 탭 만들지 않고 그 탭의 경로만 바뀐다).
   seedFromPath(path: string) {
+    // ★ 범위를 **먼저** 맞춘다. 안 그러면 이 경로가 옛 범위의 탭으로 박힌다(위 ensureScopeFor 주석).
+    if (ensureScopeFor(path)) { bootRestorePending = false; return; }
     const now = Date.now();
     const act = state.activeId ? state.tabs.find((t) => t.id === state.activeId) : null;
     // 부팅 1회 — 복원 스냅샷으로 시작한 뒤의 첫 location 은 "사용자의 이동" 이 아니라 "앱이 연 경로" 다.

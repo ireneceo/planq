@@ -339,6 +339,16 @@ export type ApiFetchOptions = RequestInit & { retryOnNetworkError?: boolean };
 //   "수 초를 덮는다" 는 원래 의도를 값이 못 따라가고 있었으므로 여유를 준다(총 6초).
 const NET_RETRY_DELAYS_MS = [600, 1800, 3600];
 
+// ★ 2026-09-08 운영 실측 — 재시도가 **사고를 키운다**.
+//   콘솔에 net::ERR_INSUFFICIENT_RESOURCES 가 수백 줄 찍혔다: 화면 여러 개가 동시에 붙어
+//   같은 엔드포인트를 수십 번 부르는 상태에서 브라우저 연결 슬롯이 먼저 고갈됐다.
+//   그때 실패 1건마다 3번을 더 보내면 압력이 4배가 된다 — 전형적인 재시도 폭풍이고,
+//   내가 재시도 사다리를 늘리면서 그 폭풍을 키웠다.
+//   그래서 **이미 많이 날아가 있으면 재시도하지 않는다.** 재기동 순단(요청 몇 개)에는 그대로 듣고,
+//   폭주 상황(요청 수십 개)에서는 조용히 한 번만 보내고 끝낸다.
+const RETRY_INFLIGHT_LIMIT = 12;
+let inFlight = 0;
+
 const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Response> => {
   // 폭주 차단 중 — 네트워크로 내보내지 않고 즉시 실패 응답을 만든다(호출부는 !r.ok 로 처리).
   if (circuitOpen(url)) {
@@ -369,7 +379,11 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
   const method = String(init.method || 'GET').toUpperCase();
   const mayRetry = retryOnNetworkError ?? (method === 'GET' || method === 'HEAD');
   const startedAt = Date.now();
-  const send = () => fetch(url, { ...init, headers, credentials: 'include' /* HttpOnly cookie 전송 */ });
+  const send = async () => {
+    inFlight += 1;
+    try { return await fetch(url, { ...init, headers, credentials: 'include' /* HttpOnly cookie 전송 */ }); }
+    finally { inFlight -= 1; }
+  };
 
   // 재기동 창은 **두 얼굴로 온다.** (2026-09-08 운영 신고 "플랫폼 대시보드 — Failed to fetch")
   //   ① 아무도 안 받는다 → fetch 가 throw 한다("Failed to fetch")
@@ -399,7 +413,9 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
     }
     // 정말 오프라인이면 기다릴 이유가 없다 — 끊긴 사람을 6초 세워두지 않는다.
     const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-    if (offline || attempt >= NET_RETRY_DELAYS_MS.length - 1) {
+    // 연결이 이미 몰려 있으면 재시도가 곧 폭풍이다(위 설명). 한 번만 보내고 끝낸다.
+    const flooded = inFlight >= RETRY_INFLIGHT_LIMIT;
+    if (offline || flooded || attempt >= NET_RETRY_DELAYS_MS.length - 1) {
       if (netErr) { noteFailure(url); throw netErr; }
       break;   // 502/504 를 끝내 못 넘겼다 — 응답을 그대로 돌려준다(호출부가 상태로 판단)
     }

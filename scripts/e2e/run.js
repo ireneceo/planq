@@ -96,6 +96,9 @@ const SUITES = {
   //     두 뷰포트 모두 `status.active` 를 잡는다. 앞서 안 뒤집힌 것은 빌드 산출물만 고치고
   //     재빌드를 안 해서였다 — 대조군은 **소스에서** 만들어야 한다.
   rawkey: () => require('./canary-rawkey'),
+  // 상단 탭이 **지금 있는 자리**의 것만인가 — 워크스페이스·플랫폼 관리자 전환(2026-09-08 신고).
+  //   저장 키가 갈려 있어도 **키 안의 내용**이 섞이던 계열이라 키 존재 검사로는 안 잡힌다.
+  scopetabs: () => require('./canary-scope-tabs'),
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };

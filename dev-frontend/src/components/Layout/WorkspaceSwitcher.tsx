@@ -170,6 +170,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
     <Container ref={containerRef}>
       <Trigger
         type="button"
+        data-testid="ws-switcher-trigger"
         $multiple={!collapsed}
         $collapsed={!!collapsed}
         $admin={isAdminMode}
@@ -224,6 +225,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
                   <MenuItem
                     key={w.business_id}
                     type="button"
+                    data-testid={`ws-switcher-item-${w.business_id}`}
                     $current={!!isCurrent}
                     disabled={isBusy}
                     onClick={() => handleSwitchWs(w)}
@@ -267,6 +269,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
               <MenuLabel>{t('switcher.adminSection', '시스템')}</MenuLabel>
               <MenuItem
                 type="button"
+                data-testid="ws-switcher-admin"
                 $current={isAdminMode}
                 $admin
                 onClick={handleSwitchAdmin}

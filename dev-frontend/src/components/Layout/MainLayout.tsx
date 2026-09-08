@@ -29,7 +29,7 @@ import { useWhatsNew } from '../../hooks/useWhatsNew';
 import WhatsNewDropdown from '../Common/WhatsNewDropdown';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
-import { setTabScope, tabScopeOf } from '../../stores/tabStore';
+import { setTabScope, setTabScopeBusiness, tabScopeOf } from '../../stores/tabStore';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useAppShellLock } from '../../hooks/useAppShellLock';
 import { mediaTablet } from '../../theme/breakpoints';
@@ -872,7 +872,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   // #405 — 탭은 워크스페이스별로 따로 보관한다. 워크스페이스를 바꾸거나 플랫폼 관리자로
   //   들어가면 그 범위의 탭으로 갈아 끼운다 (앞 범위 것은 그 키에 그대로 남는다).
   //   전환이 페이지 리로드 없이 일어나므로(AuthContext.switchWorkspace) 여기서 명시적으로 건다.
+  //   ★ 2026-09-08 — effect 는 **유일한 문이 아니다.** 경로가 먼저 바뀌고 이 effect 가 나중에
+  //   돌기 때문에, 그 사이에 기록된 탭이 옛 범위에 박혔다(관리자 탭이 워크스페이스 목록에 남던 것).
+  //   그래서 store 가 기록 시점에 스스로 범위를 정할 수 있도록 워크스페이스를 먼저 알려준다.
+  //   이 effect 는 경로가 안 바뀌는 변화(워크스페이스 전환·로그인 완료)를 위해 그대로 둔다.
+  setTabScopeBusiness(user?.business_id ?? null);   // 렌더 중 동기 — effect 보다 먼저 필요하다
   useEffect(() => {
+    setTabScopeBusiness(user?.business_id ?? null);
     setTabScope(tabScopeOf(location.pathname, user?.business_id ?? null));
   }, [location.pathname, user?.business_id]);
 
