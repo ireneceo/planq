@@ -73,6 +73,7 @@ import { useTaskTagDict } from './useTaskTagDict';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
 import { usePopoutQuickAdd } from './usePopoutQuickAdd';
+import { createTaskTag } from './createTaskTag';
 // ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
 //   (정본 사슬은 그대로 살아 있고, 이 화면은 '고른 정렬 → 사슬' 순서로만 본다).
 import { buildQuickChoices, bySelectedSort, type PopoutSortKey, cmpNullLast } from './popoutSort';
@@ -552,6 +553,16 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             ariaLabel: effView === 'tag'
               ? (t('popout.quickAddTagAria', '추가할 업무의 태그') as string)
               : (t('popout.quickAddProjectAria', '추가할 업무의 프로젝트') as string),
+            // 태그만 만들 수 있다 — 프로젝트는 여기서 만들 것이 아니다(설정·멤버가 딸린 자원).
+            ...(effView === 'tag' ? {
+              onCreate: (name: string) => { void (async () => {
+                const tag = await createTaskTag(bizId, name);
+                if (!tag) return;
+                addTagToDict(tag);          // 사전에 넣어야 다음에도 고를 수 있다
+                setQuickPick(String(tag.id));
+              })(); },
+              createLabel: (name: string) => t('tags.createNamed', { name, defaultValue: "'{{name}}' 태그 만들기" }) as string,
+            } : {}),
           } : null}
           dateOption={effView === 'due' ? {
             value: quickDue,

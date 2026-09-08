@@ -3,6 +3,7 @@ import { SkeletonList } from '../../components/Common/Skeleton';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { listRowTitleCss } from '../../theme/tokens';
+import { createTaskTag } from '../../components/QTask/createTaskTag';
 import { useTranslation } from 'react-i18next';
 import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
 import { useAuth } from '../../contexts/AuthContext';
@@ -1964,11 +1965,29 @@ const QTaskPage:React.FC=()=>{
                 onChange={(v)=>setStatusFilter((v as {value?:string})?.value||'')}
                 options={STATUS_CODES.filter(k=>k!=='task_requested'&&k!=='done_feedback').map(k=>({value:k,label:t(`status.${k}.observer`,k)}))} />
             </div>
-            {/* #250 태그 필터 — isClearable 이 "전체"(CLAUDE.md 필터 규칙). 태그가 없는 워크스페이스엔
-                죽은 컨트롤을 두지 않는다. ★ 보기 옵션이라 우선순위 정본 집합에는 관여하지 않는다. */}
-            {tagDict.length>0&&(
+            {/* #250 태그 필터 — isClearable 이 "전체"(CLAUDE.md 필터 규칙).
+                ★ 2026-09-08 — 여태 `tagDict.length>0` 으로 가렸다("죽은 컨트롤을 두지 않는다").
+                  그런데 **여기서 태그를 만들 수 있게 되면서** 그 전제가 깨졌다: 태그가 0개일 때
+                  컨트롤을 숨기면 **첫 태그를 만들 길이 없다**(실측: 사전 0개 → 필터도 팝아웃 칩도
+                  안 뜸 → Irene 이 말한 "태그 없으면 추가" 가 구조적으로 불가능).
+                  이제 이 컨트롤은 비어 있어도 살아 있다 — 고르거나, 만들거나.
+                ★ 보기 옵션이라 우선순위 정본 집합에는 관여하지 않는다. */}
+            {(
               <div style={{minWidth:150}}>
+                {/* ★ 2026-09-08 (Irene: "Q task에서도 전체리스트에 있는 태그선택란에서도 만들게 하면 안돼?")
+                    여태 생성은 업무 상세·행 메뉴에만 있어서, 태그를 새로 만들려면 업무를 하나 열어야 했다.
+                    고르는 자리에서 바로 만든다. 만드는 규칙은 createTaskTag 한 곳이다.
+                    ★ 만든 직후 그 태그로 필터가 걸리므로 목록은 0건이 된다 — 방금 만든 태그가 붙은
+                      업무는 아직 없으니 그게 사실이다. 빈 목록 문구가 그대로 설명한다. */}
                 <PlanQSelect size="sm" isClearable maxMenuHeight={280}
+                  creatable
+                  formatCreateLabel={(name:string)=>t('tags.createNamed',{name,defaultValue:"'{{name}}' 태그 만들기"}) as string}
+                  onCreateOption={(name)=>{void (async()=>{
+                    const tag=await createTaskTag(bizId,name);
+                    if(!tag)return;
+                    setTagDict(prev=>prev.some(g=>g.id===tag.id)?prev:[...prev,{...tag,usage_count:0}].sort((a,b)=>a.name.localeCompare(b.name)));
+                    setTagFilter(tag.id);
+                  })();}}
                   placeholder={t('filter.allTags','전체 태그')}
                   value={tagFilter==null?null:{value:String(tagFilter),label:tagDict.find(g=>g.id===tagFilter)?.name||'-'}}
                   onChange={(v)=>setTagFilter((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
@@ -2054,8 +2073,10 @@ const QTaskPage:React.FC=()=>{
           <TableHScroll>
           <ColRow>
             {(tab==='week'||tab==='today') && <Col $w="30px" $center onClick={()=>handleSort('priority_order')} data-tour="qtask-priority" title={t('tab.priorityWeeklyHint','주간 우선순위 번호 — 오늘 탭에서는 번호가 건너뛸 수 있어요') as string}>#{sortIcon('priority_order')}</Col>}
-            <Col $w="64px" $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
-            <Col $flex onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
+            {/* ★ 여덟 열 중 이 둘만 좌측이었다(실측: 나머지는 전부 center) — Irene: "프로젝트랑
+                업무도 열의 중앙정렬 해줘". 헤더 라벨만 가운데다. 업무명 자체는 좌측 그대로. */}
+            <Col $w="64px" $center $hideBelow={640} onClick={()=>handleSort('title')}>{t('col.project','Project')}</Col>
+            <Col $flex $center onClick={()=>handleSort('title')}>{t('col.task','Task')} {sortIcon('title')}</Col>
             {scope==='workspace' && <Col $w="90px" $hideBelow={768}>{t('col.assignee','담당자')}</Col>}
             <Col $w="68px" $center $hideBelow={640} onClick={()=>handleSort('status')}>{t('col.status','Status')} {sortIcon('status')}</Col>
             <Col $w="62px" $center $hideBelow={900} onClick={()=>handleSort('estimated_hours')}>{t('col.est','Est(h)')} {sortIcon('estimated_hours')}</Col>
@@ -2097,7 +2118,12 @@ const QTaskPage:React.FC=()=>{
                         </PrioNum>
                       </TCell>
                     )}
-                    <TCell $w="80px" $hideBelow={640}>
+                    {/* ★ 2026-09-08 (Irene: "프로젝트 영역에 조금만 가로 열을 줄여줘 아주 조금.
+                        그리고 업무 항목이 업무명 위에 나와야 하는데 왜 이상한 위치에 있어?")
+                        헤더는 64px 인데 행은 80px 이었다 — 16px 차이가 뒤 열을 전부 밀어서
+                        '업무' 헤더가 업무명 위에 안 왔다(실측 1440px: 헤더 340 / 업무명 356).
+                        좁은 쪽(헤더)에 맞춘다 — 줄이는 것과 줄 맞추는 것이 같은 수정이다. */}
+                    <TCell $w="64px" $hideBelow={640}>
                       <ProjLabel>{task.Project?.name||'-'}</ProjLabel>
                     </TCell>
                     <TCell $flex>
@@ -3710,7 +3736,12 @@ const TCell=styled.div<{$w?:string;$flex?:boolean;$center?:boolean;$hideBelow?:n
   ${p=>p.$flex
     // #249 — 업무명 셀 최소폭 상향(180→240). 배지들이 shrink 불가라 180px 에서는
     //   업무명 몫이 20~30px(한글 1~2자)까지 압사했다.
-    ? 'flex:1 1 0;min-width:240px;display:flex;align-items:center;gap:6px;overflow:hidden;'
+    // ★ 2026-09-08 (Irene: "체크박스랑 우측에 나오는 항목명 사이 간격을 좀 줄여줘.
+    //   너무 넓은 여백이 있어서 하나의 묶인 느낌이 아니야.")
+    //   실측 1440px: 체크박스 끝 399 → 제목 420 = **21px** (간격 6 + 안읽음점 자리 7 + 여백 2 + 간격 6).
+    //   간격을 4 로 줄이고 점 자리에서 여백을 뺀다 → 14px. 점 자리는 없애지 않는다 —
+    //   없애면 오늘 아침에 맞춘 제목 좌측선이 다시 행마다 어긋난다.
+    ? 'flex:1 1 0;min-width:240px;display:flex;align-items:center;gap:4px;overflow:hidden;'
     : `flex:0 0 ${p.$w||'auto'};width:${p.$w||'auto'};overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
   ${p=>p.$hideBelow?`@media (max-width: ${p.$hideBelow}px){display:none;}`:''}
@@ -3782,10 +3813,10 @@ const TaskTitle=styled.span<{$done?:boolean}>`${listRowTitleCss}color:#0F172A;cu
 // WORK_FLOW §6 — 이월 배지 (차분·비강조, slate)
 const CarriedBadge=styled.span`flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;font-size:0.625rem;font-weight:700;color:#475569;background:#F1F5F9;border-radius:10px;letter-spacing:-0.2px;cursor:help;`;
 // 안 읽은 업무 활동(댓글·변경) 점 (운영 #5)
-const UnreadDot=styled.span`flex-shrink:0;width:7px;height:7px;border-radius:50%;background:#F43F5E;margin-right:2px;align-self:center;`;
+const UnreadDot=styled.span`flex-shrink:0;width:6px;height:6px;border-radius:50%;background:#F43F5E;align-self:center;`;
 // 안 읽음 점도 **자리는 항상 차지한다** — 체크박스 자리지기와 같은 이유다.
 //   점이 있는 행만 제목이 9px 밀리면 좌측선이 데이터에 따라 흔들린다.
-const UnreadDotSpacer=styled.span`flex-shrink:0;width:7px;height:7px;margin-right:2px;display:inline-block;`;
+const UnreadDotSpacer=styled.span`flex-shrink:0;width:6px;height:6px;display:inline-block;`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:700;
   border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{opacity:0.8;}':''}

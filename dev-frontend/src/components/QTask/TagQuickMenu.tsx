@@ -11,6 +11,7 @@
 //   ★ 실패는 조용히 넘기지 않는다 — apiFetch 는 throw 하지 않으므로 res.ok 를 본다.
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { createTaskTag } from './createTaskTag';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -126,13 +127,9 @@ const TagQuickMenu: React.FC<Props> = ({ taskId, bizId, dict, value, disabled, o
     if (!name || busy || !bizId) return;
     setBusy(true); setErr(null);
     try {
-      const r = await apiFetch('/api/tasks/tags', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: bizId, name }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || !j?.success) { setErr(j?.message || (t('tags.createFailed', '태그를 만들지 못했습니다') as string)); return; }
-      const tag = j.data as TaskTagLite;
+      // 만드는 규칙은 createTaskTag 한 곳 — 팝아웃 퀵애드·목록 필터도 같은 함수를 쓴다.
+      const tag = await createTaskTag(bizId, name);
+      if (!tag) { setErr(t('tags.createFailed', '태그를 만들지 못했습니다') as string); return; }
       onDictAdd(tag);
       setQ('');
       setBusy(false);

@@ -57,6 +57,10 @@ export interface QuickAddOption {
   /** 미지정 상태의 표시 문구 (예: "태그 없음") */
   placeholder: string;
   ariaLabel: string;
+  /** ★ 2026-09-08 (Irene: "태그선택에서 태그 없으면 추가되게 하면 안돼?")
+   *  주면 입력창에서 바로 만들 수 있게 된다. 안 주면 종전대로 고르기만 한다. */
+  onCreate?: (name: string) => void;
+  createLabel?: (name: string) => string;
 }
 
 /** ★ 2026-09-08 (Irene: "마감일별에는 마감날짜 넣게 해주고 캘린더. 필터별로 맞춰서 나오게 해줘.")
@@ -137,6 +141,9 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
             <PlanQSelect
               size="sm"
               isClearable
+              creatable={!!option.onCreate}
+              onCreateOption={option.onCreate}
+              formatCreateLabel={option.createLabel ? (v: string) => option.createLabel!(v) : undefined}
               aria-label={option.ariaLabel}
               placeholder={option.placeholder}
               value={option.value
