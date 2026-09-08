@@ -1912,6 +1912,29 @@ router.post('/:businessId/email-threads/:id/summarize',
   }
 );
 
+// ─── 메일 브리프 — 요약 + 검증 + 지금 어느 순간인가 ───
+//   Irene 2026-09-08: "번역 옆에 메일 요약 및 검증이 나와서 누르면 … 실제 메일이 어떤 상황인지
+//     믿어도 되는지 그리고 연결된 프로젝트나 고객이 있다면 추가로 어느 순간인지 알려줄 수 있어?"
+//   ★ 검증(trust)·맥락(links)·상황(situation)은 **LLM 없이** 원장과 헤더로만 만든다.
+//     LLM 이 죽어도 그 세 가지는 그대로 나온다(요약만 비고 ai_error 로 알린다).
+//   POST 인 이유: 요약에 LLM 이 붙어 비용이 나간다 — 캐시 가능한 GET 처럼 보이면 안 된다.
+router.post('/:businessId/email-threads/:id/brief',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  ...perUserDaily('mail-brief', { perMin: 12, perDay: 200 }),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const thread = await accessibleThread(req);
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const biz = await Business.findByPk(businessId, { attributes: ['default_language'] });
+      const language = (req.body || {}).language || biz?.default_language || 'ko';
+      const brief = await require('../services/mailBrief').buildBrief({ businessId, thread, language });
+      if (brief.error === 'no_messages') return errorResponse(res, 'no_messages', 400);
+      return successResponse(res, brief);
+    } catch (err) { next(err); }
+  }
+);
+
 // ─── 이슈 (project_issues, email_thread_id 스코프) ───
 router.get('/:businessId/email-threads/:id/issues',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),

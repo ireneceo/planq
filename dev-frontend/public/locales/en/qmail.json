@@ -584,5 +584,45 @@
     "mail_image_not_image": "The body contains a non-image file placed as a picture, so it cannot be sent. Please send that file as an attachment.",
     "mail_image_forbidden": "The body contains an image you do not have access to. Another person’s private file cannot be attached to an email.",
     "mail_image_generic": "The images in the body could not be attached to this email."
+  },
+  "brief": {
+    "open": "Summary & check",
+    "close": "Close summary",
+    "loading": "Checking…",
+    "failed": "Can't check right now",
+    "summaryTitle": "Summary",
+    "contextTitle": "Related work",
+    "nextTitle": "Next steps",
+    "aiUnavailable": "The summary isn't available right now. The checks below still stand.",
+    "client": "Client: {{name}}",
+    "project": "Project: {{name}}",
+    "stageNow": "currently at «{{label}}»",
+    "invoiceOwed": "Outstanding {{number}} — {{amount}}",
+    "openTask": "Open task: {{title}}",
+    "trust": {
+      "ok": "Nothing unusual",
+      "caution": "Worth a look",
+      "danger": "Warning signs"
+    },
+    "situation": {
+      "line": "{{count}} messages · last one {{days}} days ago",
+      "replyNeeded": "reply needed"
+    },
+    "signal": {
+      "outbound": "You sent this message",
+      "sender_history": "You've exchanged {{detail}} messages with this address before",
+      "first_contact": "First time hearing from this address ({{detail}})",
+      "known_client": "A registered client — {{detail}}",
+      "display_name_mismatch": "The sender name says your company but the domain doesn't match — {{detail}}",
+      "link_mismatch": "A link's visible address differs from where it actually goes — {{detail}}",
+      "attachment_risk": "There's an executable attachment — {{detail}}",
+      "bulk_mail": "A bulk mailing, not a message written to you",
+      "external_spam_flag": "The mail server flagged this as spam",
+      "marked_spam": "This thread is classified as spam",
+      "spam_score": "High spam score ({{detail}})",
+      "auth_pass": "Sender authentication passed ({{detail}})",
+      "auth_fail": "Sender authentication failed — {{detail}}",
+      "auth_unknown": "No sender authentication data, so this couldn't be checked"
+    }
   }
 }

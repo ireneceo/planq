@@ -19,6 +19,8 @@ import MailBodyFullscreen from './MailBodyFullscreen';
 //   서버에도 킬스위치가 따로 있다(QMAIL_FORWARD_ENABLED) — 되돌릴 땐 서버 쪽이 정본이다.
 const FORWARD_ENABLED = true;
 import MessageAttachments from './MessageAttachments';
+import MailBriefPanel, { type MailBrief } from './MailBriefPanel';
+import { apiFetch } from '../../contexts/AuthContext';
 import MailMessageBody from './MailMessageBody';
 import AddressMenu from '../../components/Mail/AddressMenu';   // #261 주소 클릭 메뉴
 import { buildMailSrcDoc, type QuoteFoldLabels } from './mailSrcDoc';
@@ -81,6 +83,31 @@ export default function ThreadMessages(p: Props) {
   // 운영 #260 — 좁은 패널에서 읽기 답답한 메일을 화면 전체로 펼쳐 읽는다.
   const [fullMsgId, setFullMsgId] = React.useState<number | null>(null);
   const fullMsg = messages.find((x) => x.id === fullMsgId) || null;
+
+  // ── 메일 브리프 (요약 · 검증 · 지금 어느 순간인가) ──
+  //   스레드 단위 값이지만 버튼은 각 메시지의 번역 줄에 둔다 — Irene 이 가리킨 자리가 거기다.
+  //   결과는 스레드에 하나만 두고 **어느 메시지에서 열었는지**만 기억한다(같은 스레드를 두 번 요약하지 않는다).
+  const [brief, setBrief] = React.useState<MailBrief | null>(null);
+  const [briefOpenFor, setBriefOpenFor] = React.useState<number | null>(null);
+  const [briefLoading, setBriefLoading] = React.useState(false);
+  const [briefError, setBriefError] = React.useState(false);
+  const loadBrief = React.useCallback(async (msgId: number) => {
+    setBriefLoading(true); setBriefError(false);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${threadId}/brief`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
+      });
+      // apiFetch 는 throw 하지 않는다 — 상태를 직접 본다(안 보면 실패가 빈 화면으로 남는다).
+      if (!r.ok) { setBriefError(true); return; }
+      const j = await r.json();
+      if (!j?.data) { setBriefError(true); return; }
+      setBrief(j.data as MailBrief);
+      setBriefOpenFor(msgId);
+    } catch { setBriefError(true); }
+    finally { setBriefLoading(false); }
+  }, [businessId, threadId]);
+  // 스레드가 바뀌면 앞 스레드의 브리프를 들고 있지 않는다 — 다른 메일의 판정이 남으면 그게 오정보다.
+  React.useEffect(() => { setBrief(null); setBriefOpenFor(null); setBriefError(false); }, [threadId]);
   return (
     <>
       {messages.map((m) => {
@@ -266,10 +293,28 @@ export default function ThreadMessages(p: Props) {
               <TransLoading>{t('translate.loading', { defaultValue: '번역 중…' }) as string}</TransLoading>
             )}
             {msgTrans[m.id]?.error && <TransErr>{t('translate.error', { defaultValue: '번역할 수 없습니다' }) as string}</TransErr>}
+            {/* 요약·검증 — 번역과 같은 자리, 같은 방식(누르면 아래에 펼쳐진다).
+                Irene 2026-09-08: "번역 옆에 메일 요약 및 검증이 나와서 누르면 번역 처럼 …" */}
+            <TransBtn type="button"
+              data-testid="mail-brief-open"
+              disabled={briefLoading}
+              onClick={() => {
+                if (briefOpenFor === m.id) { setBriefOpenFor(null); return; }   // 재클릭 토글
+                if (brief) { setBriefOpenFor(m.id); return; }                   // 이미 만든 것은 다시 안 만든다
+                loadBrief(m.id);
+              }}>
+              {briefLoading
+                ? (t('brief.loading', { defaultValue: '확인 중…' }) as string)
+                : briefOpenFor === m.id
+                  ? (t('brief.close', { defaultValue: '요약·확인 닫기' }) as string)
+                  : (t('brief.open', { defaultValue: '요약·확인' }) as string)}
+            </TransBtn>
+            {briefError && <TransErr>{t('brief.failed', { defaultValue: '지금은 확인할 수 없어요' }) as string}</TransErr>}
           </TransBar>
           {msgTrans[m.id]?.showing && msgTrans[m.id]?.text && (
             <TransBody>{msgTrans[m.id]!.text}</TransBody>
           )}
+          {briefOpenFor === m.id && brief && <MailBriefPanel brief={brief} />}
           <MessageAttachments businessId={businessId} attachments={m.attachments} />
           </>}
         </MessageCard>

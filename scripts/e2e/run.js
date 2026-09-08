@@ -82,6 +82,7 @@ const SUITES = {
   chatattach: () => require('./canary-chat-attach-download'),
   filesrc: () => require('./canary-file-source-tags'),
   fileindex: () => require('./canary-file-index'),
+  mailbrief: () => require('./canary-mail-brief'),
   // rawkey — 번역 키가 화면에 그대로 나오는가. 정적 가드는 `t(\`status.${x}\`)` 같은 **동적 키**를
   //   구조적으로 못 본다(뒤가 런타임 값이라 대조할 대상이 없다). 판정을 화면으로 옮긴다.
   //   ★ 반증 완료(2026-09-07): 소스 로케일에서 status.* 를 지우고 **재빌드**하면 폰·데스크탑

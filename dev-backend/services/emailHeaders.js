@@ -59,6 +59,10 @@ const TRIAGE_HEADER_KEYS = [
   // 외부 스팸 필터 점수 — 여태 저장하지 않아 **재판정 경로에선 스팸 점수가 눈을 감고** 자체 규칙으로만
   //   판정했다. 인입 경로를 평문 객체로 정규화하면 이 키들을 같이 옮겨야 그 신호가 죽지 않는다.
   'x-spam-score', 'x-spamd-bar', 'x-spam-status', 'x-spam-flag',
+  // 발신 인증 결과 — "이 메일 믿어도 되나" 판정의 가장 직접적인 근거인데 여태 버리고 있었다.
+  //   ★ 옛 메일에는 없다. 없는 것을 통과로 세지 말고 **"모른다"** 로 표시한다
+  //     (services/mailBrief 의 auth_unknown 신호).
+  'authentication-results', 'received-spf', 'reply-to', 'return-path',
 ];
 
 /** 수집 시점 — mailparser 헤더에서 판정용 키만 골라 평문 객체로. 없으면 null (빈 객체 X:

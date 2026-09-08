@@ -25,8 +25,24 @@
 - 운영 실측: `message_attachments` #36(PDF)·#37·#38(PNG) 전부 `storage_provider='gdrive'`,
   PNG 공개 경로는 운영에서 **200 · image/png · 75,027바이트** 정상 (문제는 프론트 매퍼였다)
 
+### 배포 후 추가 작업 (7차 — **미배포**)
+- **Cue 가 파일을 내용으로 찾아 답한다** — 업로드 시 본문을 색인(`services/fileIndex`).
+  스키마 무변경(`kb_documents.source_type='file'` + `source_file_id` 재사용).
+  같이 고친 것: `fileText` 가 Drive 저장분을 못 읽던 것(운영 46건) · HTML 태그 제거 ·
+  질문에 "파일/문서/메일" 어휘가 없으면 그 영역을 아예 안 뒤지던 게이트.
+  기밀·개인(L1)은 색인하지 않고, 삭제하면 색인도 걷는다. 자동 색인분은 Q info 목록에서 감춘다.
+  **실 HTTP 검증**: 파일 본문에만 있는 무작위 코드를 Cue 가 정확히 답했다(이름은 안 댔다).
+  기존 파일 백필 = `dev-backend/scripts/backfill-file-index.js`(dry-run 기본, `--apply --limit`).
+- **메일 요약·검증** — 메일 상세의 번역 줄에 "요약·확인". 누르면 아래에 펼쳐진다.
+  요약(LLM) + **검증(LLM 아님 — 결정적 신호만)** + 연결된 고객·프로젝트·현재 단계·미수금·열린 업무.
+  신호: 발신 이력 · 등록 고객 · 표시이름↔도메인 사칭 · 링크 위장 · 위험 첨부 · 대량발송 ·
+  스팸 점수 · 발신 인증(없으면 "모른다"). `authentication-results` 등 헤더를 이제부터 보관한다.
+- 신규 카나리 2종 — `--suite fileindex` 8/8 · `--suite mailbrief` 11/11(실브라우저 포함)
+
 ### 다음 할 일
-1. **운영 배포** — Irene 이 `/배포` 라고 말하면 즉시. 이번 수정은 전부 운영 신고분이라 배포해야 닫힌다
+1. **운영 배포** — Irene 이 `/배포` 라고 말하면 즉시. 6차는 배포 완료(커밋 a93cf31d),
+   **7차(Cue 파일 색인 · 메일 요약·검증)는 아직 운영에 없다.**
+   배포 후 운영에서 `node scripts/backfill-file-index.js --apply --limit 50` 로 옛 파일부터 색인.
 2. **Cue 가 파일 내용으로 답하기** — 지금은 `hints.files`(파일 어휘가 있을 때) + **파일명 일치** 상위 3건만
    본문을 읽는다. 내용 검색을 하려면 색인이 필요한데 `kb_documents.source_type` 에 이미 `'file'` 이
    있고 `source_file_id` 컬럼도 있어 **스키마 변경 없이** KbDocument 경로로 넣을 수 있다.
