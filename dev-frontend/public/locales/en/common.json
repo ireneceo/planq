@@ -1050,5 +1050,13 @@
   "lightbox": {
     "original": "Original",
     "viewOriginal": "View original"
+  },
+  "adminUsers": {
+    "systemTip": "Not a human account — it has no mailbox, so verification does not apply",
+    "kindCue": "System",
+    "kindGuest": "Guest",
+    "col": {
+      "verifiedTip": "Whether they clicked the verification link sent at signup"
+    }
   }
 }

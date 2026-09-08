@@ -333,8 +333,11 @@ function noteSuccess(url: string): void { failLog.delete(circuitKey(url)); }
 //   서버는 곧 정상으로 돌아오므로, 조회는 잠깐 뒤 다시 보내면 사용자가 끊김을 아예 못 느낀다.
 //   재시도로 못 덮는 것(쓰기 요청·긴 AI 호출)은 문구와 [다시 시도]가 받는다.
 export type ApiFetchOptions = RequestInit & { retryOnNetworkError?: boolean };
-// 재기동 창(수 초)을 덮도록 두 번, 점점 늦게. 그 이상은 진짜 네트워크 문제로 본다.
-const NET_RETRY_DELAYS_MS = [600, 1800];
+// 재기동 창(수 초)을 덮도록 점점 늦게. 그 이상은 진짜 네트워크 문제로 본다.
+// ★ 2026-09-08 실측: dev 에서 `pm2 reload` 한 번의 **끊긴 구간이 2.4초**였다 —
+//   옛 사다리(600+1800=2.4초)와 정확히 같아서 덮느냐 마느냐가 동전 던지기였다.
+//   "수 초를 덮는다" 는 원래 의도를 값이 못 따라가고 있었으므로 여유를 준다(총 6초).
+const NET_RETRY_DELAYS_MS = [600, 1800, 3600];
 
 const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Response> => {
   // 폭주 차단 중 — 네트워크로 내보내지 않고 즉시 실패 응답을 만든다(호출부는 !r.ok 로 처리).
@@ -365,39 +368,42 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
   // 기본값 — GET(및 method 미지정)은 멱등하므로 자동 재시도. 쓰기는 명시할 때만.
   const method = String(init.method || 'GET').toUpperCase();
   const mayRetry = retryOnNetworkError ?? (method === 'GET' || method === 'HEAD');
-  let response: Response;
   const startedAt = Date.now();
   const send = () => fetch(url, { ...init, headers, credentials: 'include' /* HttpOnly cookie 전송 */ });
-  try {
-    response = await send();
-  } catch (e) {
-    // ★ 진단 근거를 남긴다. 이 실패는 **서버에 닿지 못한 것**이라 서버 로그엔 아무것도 안 남는다 —
-    //   여기서 안 남기면 "가끔 네트워크 오류가 난다" 가 영원히 추적 불가능한 신고로만 존재한다.
-    const el = Date.now() - startedAt;
-    console.warn(`[apiFetch] 요청이 완료되지 못함: ${circuitKey(url)} · ${el}ms · ${(e as Error).name}: ${(e as Error).message} · online=${navigator.onLine} · ${new Date().toISOString()}`);
-    if (mayRetry) {
-      // 순단 한 번으로 기능 전체가 실패하지 않게 다시 보낸다(멱등 요청만 여기 온다).
-      //   ★ 성공한 응답을 지역 변수에 담아 **한 번만** response 에 대입한다 —
-      //     루프 안에서 직접 대입하면 컴파일러가 "대입 전 사용" 으로 본다(TS2454).
-      let retried: Response | null = null;
-      let lastErr: unknown = e;
-      for (const delay of NET_RETRY_DELAYS_MS) {
-        await new Promise((r) => setTimeout(r, delay));
-        try {
-          retried = await send();
-          console.warn(`[apiFetch] 재시도 성공(${delay}ms 뒤): ${circuitKey(url)}`);
-          break;
-        } catch (e2) { lastErr = e2; }
+
+  // 재기동 창은 **두 얼굴로 온다.** (2026-09-08 운영 신고 "플랫폼 대시보드 — Failed to fetch")
+  //   ① 아무도 안 받는다 → fetch 가 throw 한다("Failed to fetch")
+  //   ② nginx 는 살아 있고 upstream(node)만 죽었다 → **502/504 + HTML 본문**
+  //   옛 코드는 ①만 다시 보냈다. 그래서 ②는 그대로 호출부에 내려가 r.json() 이 HTML 을 씹고
+  //   "Unexpected token '<'" 로 화면에 떨어졌다(양성 대조군으로 재현함).
+  //   ★ 503 은 **일부러 제외한다** — 점검 모드와 위 폭주 차단이 쓰는 코드다. 다시 보내면
+  //     점검 중이라는 사실을 6초 동안 감추게 된다.
+  const isGatewayDown = (st: number) => st === 502 || st === 504;
+  let response!: Response;
+  let netErr: unknown = null;
+  for (let attempt = 0; ; attempt++) {
+    netErr = null;
+    try {
+      response = await send();
+      if (!mayRetry || !isGatewayDown(response.status)) {
+        if (attempt > 0) console.warn(`[apiFetch] 재시도 성공(${attempt}번째): ${circuitKey(url)}`);
+        break;
       }
-      if (!retried) {
-        noteFailure(url);
-        throw lastErr;
-      }
-      response = retried;
-    } else {
-      noteFailure(url);        // 네트워크 자체 실패(ERR_INSUFFICIENT_RESOURCES 등)도 폭주 신호다
-      throw e;
+    } catch (e) {
+      netErr = e;
+      // ★ 진단 근거를 남긴다. 이 실패는 **서버에 닿지 못한 것**이라 서버 로그엔 아무것도 안 남는다 —
+      //   여기서 안 남기면 "가끔 네트워크 오류가 난다" 가 영원히 추적 불가능한 신고로만 존재한다.
+      const el = Date.now() - startedAt;
+      console.warn(`[apiFetch] 요청이 완료되지 못함: ${circuitKey(url)} · ${el}ms · ${(e as Error).name}: ${(e as Error).message} · online=${navigator.onLine} · ${new Date().toISOString()}`);
+      if (!mayRetry) { noteFailure(url); throw e; }   // 쓰기 요청은 재전송이 중복 생성이 된다
     }
+    // 정말 오프라인이면 기다릴 이유가 없다 — 끊긴 사람을 6초 세워두지 않는다.
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (offline || attempt >= NET_RETRY_DELAYS_MS.length - 1) {
+      if (netErr) { noteFailure(url); throw netErr; }
+      break;   // 502/504 를 끝내 못 넘겼다 — 응답을 그대로 돌려준다(호출부가 상태로 판단)
+    }
+    await new Promise((r) => setTimeout(r, NET_RETRY_DELAYS_MS[attempt]));
   }
   if (response.ok) noteSuccess(url);
   else if (response.status >= 500) noteFailure(url);   // 5xx 반복 = 서버가 못 주는 것 — 계속 때리지 않는다

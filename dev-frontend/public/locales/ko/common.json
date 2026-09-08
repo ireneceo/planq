@@ -1050,5 +1050,13 @@
   "lightbox": {
     "original": "원본",
     "viewOriginal": "원본 보기"
+  },
+  "adminUsers": {
+    "systemTip": "사람 계정이 아닙니다 — 메일박스가 없어 인증 대상이 아닙니다",
+    "kindCue": "시스템",
+    "kindGuest": "게스트",
+    "col": {
+      "verifiedTip": "가입 시 보낸 이메일 인증 링크를 눌렀는지"
+    }
   }
 }

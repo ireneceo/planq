@@ -18,6 +18,9 @@ interface UserRow {
   platform_role: 'platform_admin' | 'user';
   status: 'active' | 'suspended' | 'deleted';
   email_verified_at: string | null;
+  /** 사람이 아닌 계정 — Cue AI 팀원 / 게스트 링크 그림자. 메일박스가 없어 영영 미인증이다. */
+  is_ai?: boolean;
+  is_guest?: boolean;
   created_at: string;
   last_login_at: string | null;
 }
@@ -92,7 +95,9 @@ const AdminUsersPage = () => {
               <Th>{t('adminUsers.col.email', '이메일')}</Th>
               <Th>{t('adminUsers.col.name', '이름')}</Th>
               <Th>{t('adminUsers.col.role', '역할')}</Th>
-              <Th>{t('adminUsers.col.verified', '인증')}</Th>
+              <Th title={t('adminUsers.col.verifiedTip', '가입 시 보낸 이메일 인증 링크를 눌렀는지') as string}>
+                {t('adminUsers.col.verified', '인증')}
+              </Th>
               <Th>{t('adminUsers.col.created', '가입')}</Th>
               <Th>{t('adminUsers.col.lastLogin', '최근 로그인')}</Th>
               <Th>{t('adminUsers.col.actions', '액션')}</Th>
@@ -109,7 +114,15 @@ const AdminUsersPage = () => {
                   </RoleTag>
                   {u.status !== 'active' && <StatusTag>{u.status}</StatusTag>}
                 </Td>
-                <Td>{u.email_verified_at ? '✓' : <UnverifiedTag>{t('adminUsers.unverified', '미인증')}</UnverifiedTag>}</Td>
+                <Td>
+                  {u.is_ai || u.is_guest
+                    ? <SystemTag title={t('adminUsers.systemTip', '사람 계정이 아닙니다 — 메일박스가 없어 인증 대상이 아닙니다') as string}>
+                        {u.is_ai ? t('adminUsers.kindCue', '시스템') : t('adminUsers.kindGuest', '게스트')}
+                      </SystemTag>
+                    : u.email_verified_at
+                      ? '✓'
+                      : <UnverifiedTag>{t('adminUsers.unverified', '미인증')}</UnverifiedTag>}
+                </Td>
                 <Td>{tf.formatDate(u.created_at)}</Td>
                 <Td>{u.last_login_at ? tf.formatDate(u.last_login_at) : '—'}</Td>
                 <Td>
@@ -152,6 +165,12 @@ const StatusTag = styled.span`
   display: inline-block; margin-left: 4px; padding: 2px 8px;
   background: #FEF2F2; color: #B91C1C; border: 1px solid #FECACA;
   border-radius: 999px; font-size: 0.6875rem; font-weight: 600;
+`;
+// 사람이 아닌 계정 — 경고색(노랑)을 쓰지 않는다. 조치할 것이 없는 정상 상태다.
+const SystemTag = styled.span`
+  display: inline-block; padding: 2px 6px;
+  background: #F1F5F9; color: #64748B; border: 1px solid #E2E8F0;
+  border-radius: 4px; font-size: 0.6875rem; font-weight: 600; cursor: help;
 `;
 const UnverifiedTag = styled.span`
   display: inline-block; padding: 2px 6px;

@@ -34,7 +34,9 @@
       "audit": "Audit log",
       "announcement": "Announcement banner",
       "updates": "Publish product update"
-    }
+    },
+    "serverBusy": "The server did not respond (a redeploy may be in progress)",
+    "retry": "Retry"
   },
   "billing": {
     "title": "Billing settings",

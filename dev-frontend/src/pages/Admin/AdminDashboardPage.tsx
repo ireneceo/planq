@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import { apiFetch } from '../../contexts/AuthContext';
 import { fmtKRW, fmtNum } from '../Insights/components';
+import { CONTROL } from '../../theme/tokens';
 
 interface Overview {
   businesses: { total: number; new_30d: number };
@@ -23,16 +24,27 @@ const AdminDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
+  // ★ 2026-09-08 (Irene: "플랫폼 관리자 가니까 이래 … Failed to fetch")
+  //   배포 창(운영 PM2 fork 모드 재기동)에 걸리면 이 요청이 서버에 못 닿는다.
+  //   apiFetch 가 재시도로 대부분 덮지만, 그래도 못 넘겼을 때 **막다른 골목을 두지 않는다** —
+  //   다시 시도 버튼을 준다. 그리고 502/504 는 본문이 HTML 이라 r.json() 이 먼저 터진다:
+  //   상태부터 보고 사람 말로 바꾼다("Unexpected token '<'" 를 사용자에게 보이지 않는다).
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     let alive = true;
     setLoading(true);
     apiFetch('/api/admin/overview')
-      .then((r) => r.json())
+      .then(async (r) => {
+        if (!r.ok) throw new Error(r.status >= 500
+          ? (t('dashboard.serverBusy', '서버가 응답하지 못했습니다 (재배포 중일 수 있습니다)') as string)
+          : `HTTP ${r.status}`);
+        return r.json();
+      })
       .then((j) => { if (!alive) return; if (j.success) { setData(j.data); setErr(null); } else setErr(j.message || 'failed'); })
       .catch((e) => { if (alive) setErr(e?.message || 'failed'); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, []);
+  }, [reloadKey, t]);
 
   const maxSignup = data ? Math.max(1, ...data.signups.map((s) => s.count)) : 1;
   const planEntries = data ? Object.entries(data.subscriptions.by_plan).sort((a, b) => b[1] - a[1]) : [];
@@ -43,7 +55,12 @@ const AdminDashboardPage: React.FC = () => {
       {loading ? (
         <KpiGrid>{[0, 1, 2, 3, 4, 5].map((i) => <SkeletonCard key={i} />)}</KpiGrid>
       ) : err ? (
-        <ErrorBox>{t('dashboard.error', '데이터를 불러오지 못했습니다')} — {err}</ErrorBox>
+        <ErrorBox>
+          <span>{t('dashboard.error', '데이터를 불러오지 못했습니다')} — {err}</span>
+          <RetryBtn type="button" onClick={() => setReloadKey((k) => k + 1)}>
+            {t('dashboard.retry', '다시 시도')}
+          </RetryBtn>
+        </ErrorBox>
       ) : data ? (
         <>
           <KpiGrid>
@@ -162,6 +179,14 @@ const SkeletonCard = styled.div`
 `;
 const ErrorBox = styled.div`
   background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 12px; padding: 16px; font-size: 0.8125rem; color: #B91C1C;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+`;
+const RetryBtn = styled.button`
+  flex-shrink: 0; height: ${CONTROL.sm}px; padding: 0 12px;
+  border: 1px solid #FCA5A5; border-radius: 8px; background: #FFFFFF;
+  font-size: 0.75rem; font-weight: 700; font-family: inherit; color: #B91C1C; cursor: pointer;
+  &:hover { background: #FEE2E2; }
+  &:focus-visible { outline: 2px solid rgba(185,28,28,0.5); outline-offset: 2px; }
 `;
 const Row = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;

@@ -783,7 +783,11 @@ router.get('/users', async (req, res, next) => {
     const limit = Math.min(Number(req.query.limit) || 100, 500);
     const rows = await User.findAll({
       where, limit,
-      attributes: ['id', 'email', 'name', 'username', 'platform_role', 'status', 'email_verified_at', 'created_at', 'last_login_at'],
+      // ★ 2026-09-08 (Irene: "이메일 인증 안한 고객은 왜 있어?")
+      //   미인증 14명 중 8명이 사람이 아니었다 — Cue AI 팀원 7 + 게스트 그림자 1.
+      //   이들은 메일박스 자체가 없어서 **영원히 미인증**이다. 화면이 그걸 '고객'으로 보여주면
+      //   운영자가 없는 문제를 쫓게 된다. 판정은 새로 만들지 않고 사칭 차단이 쓰는 컬럼을 그대로 내린다.
+      attributes: ['id', 'email', 'name', 'username', 'platform_role', 'status', 'email_verified_at', 'created_at', 'last_login_at', 'is_ai', 'is_guest'],
       order: [['created_at', 'DESC']],
     });
     return successResponse(res, rows.map(r => r.toJSON()));
