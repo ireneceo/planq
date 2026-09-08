@@ -164,6 +164,24 @@ function isAppRelaunch(): boolean {
 // manifest start_url + 루트 — 앱이 스스로 여는 기본 경로(사용자 의도 아님).
 const RELAUNCH_DEFAULT = new Set(['/', '/inbox']);
 
+// ★ 2026-09-08 후속 — **이미 저장된 오염은 코드가 안 지운다.**
+//   기록 순서를 고쳐도(위 ensureScopeFor) 그 전에 섞여 저장된 목록은 그대로 남는다.
+//   Irene 은 배포 뒤에도 같은 것을 본다: "여전히 다른 워크스페이스에서 탭이 리셋 안돼."
+//   그래서 **읽는 순간** 이 범위의 것이 아닌 탭은 버린다. 경로만으로 갈리는 축
+//   (관리자 ↔ 워크스페이스)만 판정한다 — 워크스페이스끼리는 경로가 같으므로 키가 이미 가른다.
+function belongsToScope(path: string, scope: string | null): boolean {
+  if (!scope) return true;                       // 범위를 모르면 판단하지 않는다(부트 중)
+  return isAdminContext((path || '/').split('?')[0]) === (scope === 'admin');
+}
+function scrub(tabs: Tab[], activeId: string | null): { tabs: Tab[]; activeId: string | null } {
+  const kept = tabs.filter((t) => belongsToScope(t.path, tabScope));
+  if (kept.length === tabs.length) return { tabs, activeId };
+  // 활성 탭이 버려졌으면 남은 것 중 마지막으로. 다 버려졌으면 비운다 —
+  //   setTabScope 의 정렬이 지금 화면을 첫 탭으로 세운다(빈 탭 막대가 되지 않는다).
+  const stillThere = kept.some((t) => t.id === activeId);
+  return { tabs: kept, activeId: stillThere ? activeId : (kept.length ? kept[kept.length - 1].id : null) };
+}
+
 // ── 외부 store 구현 ───────────────────────────────────────────
 let state: TabState = load();
 const listeners = new Set<() => void>();
@@ -187,7 +205,7 @@ function load(): TabState {
     const raw = sessionStorage.getItem(scoped(STORAGE_KEY));
     if (raw) {
       const j = JSON.parse(raw);
-      if (Array.isArray(j.tabs)) return { tabs: j.tabs, activeId: j.activeId ?? null, mirror: true };
+      if (Array.isArray(j.tabs)) { const c = scrub(j.tabs, j.activeId ?? null); return { ...c, mirror: true }; }
     }
   } catch { /* 무시 */ }
   // ② 앱을 새로 켠 경우 — 지난번 스냅샷으로 복원한다(#340).
@@ -198,10 +216,12 @@ function load(): TabState {
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs) && j.tabs.length) {
-        const activeId = j.activeId ?? null;
-        const tabs = j.tabs.map((tb: Tab) => ({ ...tb, alive: tb.id === activeId }));
-        bootRestorePending = true;   // 첫 경로 확정 때 앱이 연 기본 경로로 덮이지 않게 (applyBootPath/seedFromPath)
-        return { tabs, activeId, mirror: true };
+        const c = scrub(j.tabs, j.activeId ?? null);
+        const tabs = c.tabs.map((tb: Tab) => ({ ...tb, alive: tb.id === c.activeId }));
+        if (tabs.length) {
+          bootRestorePending = true;   // 첫 경로 확정 때 앱이 연 기본 경로로 덮이지 않게 (applyBootPath/seedFromPath)
+          return { tabs, activeId: c.activeId, mirror: true };
+        }
       }
     }
   } catch { /* 무시 */ }
@@ -272,7 +292,7 @@ export function setTabScope(next: string | null, here?: string) {
   if (prev === null && !legacyMigrated() && loaded.tabs.length === 0 && legacyRaw) {
     try {
       const j = JSON.parse(legacyRaw);
-      if (Array.isArray(j.tabs) && j.tabs.length) loaded = { tabs: j.tabs, activeId: j.activeId ?? null, mirror: true };
+      if (Array.isArray(j.tabs) && j.tabs.length) loaded = { ...scrub(j.tabs, j.activeId ?? null), mirror: true };
     } catch { /* 무시 */ }
     try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* 무시 */ }
   }

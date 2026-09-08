@@ -135,6 +135,32 @@ async function run() {
     push('④ 워크스페이스 전환 중 에러 0', errs.length === 0 && failed.length === 0 && !CRASH_RE.test(s4.body),
       `pageerror ${errs.length} ${JSON.stringify(errs.slice(0, 2))} · 요청실패 ${failed.length} ${JSON.stringify(failed.slice(0, 3))}` +
       (CRASH_RE.test(s4.body) ? ` · 🔴 화면: ${JSON.stringify(s4.body.slice(0, 120))}` : ''));
+    // ⑤ **이미 저장된 오염**도 지워지는가 (배포만으로는 안 사라지는 부분).
+    //   기록 순서를 고쳐도 그 전에 섞여 저장된 목록은 브라우저에 그대로 남는다 —
+    //   사용자는 배포 뒤에도 같은 것을 본다("여전히 탭이 리셋 안돼"). 읽는 순간 버려야 한다.
+    errs.length = 0; failed.length = 0;
+    const seeded = await page.evaluate((biz) => {
+      const inject = (store, key, path) => {
+        const raw = store.getItem(key);
+        if (!raw) return false;
+        const j = JSON.parse(raw);
+        j.tabs.push({ id: 'polluted_' + path, kind: 'other', title: '', path, alive: false, lastActiveAt: Date.now() });
+        store.setItem(key, JSON.stringify(j));
+        return true;
+      };
+      const a = inject(sessionStorage, `planq_tabs_v1::b${biz}`, '/admin/dashboard');
+      const b2 = inject(localStorage, `planq_tabs_v1_restore::b${biz}`, '/admin/users');
+      return { session: a, restore: b2 };
+    }, B);
+    await page.goto(b.BASE + '/talk', { waitUntil: 'domcontentloaded' });
+    await b.sleep(4000);
+    const s5 = await snap(page);
+    const bAfter = s5.store[`planq_tabs_v1::b${B}`] || [];
+    push('⑤ 이미 저장돼 있던 남의 범위 탭이 읽는 순간 지워진다',
+      seeded.session && bAfter.length > 0 && !bAfter.some((p) => p.startsWith('/admin')),
+      `주입 ${JSON.stringify(seeded)} → ::b${B} = ${JSON.stringify(bAfter)} · 화면 탭 ${JSON.stringify(s5.tabs)}`);
+    push('⑤ 청소 중 에러 0', errs.length === 0 && failed.length === 0 && !CRASH_RE.test(s5.body),
+      `pageerror ${errs.length} ${JSON.stringify(errs.slice(0, 2))} · 요청실패 ${failed.length} ${JSON.stringify(failed.slice(0, 3))}`);
   } catch (e) {
     results.push({ name: 'scope-tabs:하니스', error: true, fatal: 1, details: [e.message] });
   } finally {
