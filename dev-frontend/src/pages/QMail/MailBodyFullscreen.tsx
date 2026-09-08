@@ -7,6 +7,7 @@
 // 보안: 원본과 **같은 sandbox 조합**을 쓴다(allow-scripts, same-origin 없음).
 //   여기서 sandbox 를 느슨하게 하면 정화·격리 계약이 이 경로에서만 깨진다.
 import React, { useRef } from 'react';
+import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -52,7 +53,9 @@ const MailBodyFullscreen: React.FC<Props> = ({ open, onClose, title, subtitle, s
         <Body>
           {srcDoc
             ? <Frame sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox" srcDoc={srcDoc} title={title || 'mail'} />
-            : <PlainText>{text || (t('detail.noContent', { defaultValue: '(내용 없음)' }) as string)}</PlainText>}
+            /* 평문도 링크는 눌려야 한다 — 상세와 **같은 함수**를 쓴다(진입점마다 갈라지면
+               "여기선 되는데 저기선 안 된다" 가 된다). */
+            : <PlainText>{text ? linkify(text) : (t('detail.noContent', { defaultValue: '(내용 없음)' }) as string)}</PlainText>}
         </Body>
       </Panel>
     </Backdrop>,

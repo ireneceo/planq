@@ -1,3 +1,4 @@
+import { linkifyEscapedHtml } from '../../utils/linkify';
 // 메일 본문을 **별도 브라우저 창**으로 연다 (Irene 2026-08-24)
 //   "이메일에서 내용 전체보기는 팝업으로 열리면 마찬가지로 솔루션 창 안까지만 보이잖아.
 //    웹용처럼 새로 열려야지. 웹 미리보기 처럼."
@@ -31,7 +32,8 @@ export function openMailWindow(opts: {
 
   const body = opts.srcDoc
     ? `<iframe id="pq-body" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>`
-    : `<pre class="plain">${esc(opts.text || '')}</pre>`;
+    // escape 뒤에 링크를 건다 — 순서가 바뀌면 우리가 넣은 태그가 escape 되거나 본문 태그가 살아난다.
+    : `<pre class="plain">${linkifyEscapedHtml(esc(opts.text || ''))}</pre>`;
 
   win.document.open();
   win.document.write(`<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8">

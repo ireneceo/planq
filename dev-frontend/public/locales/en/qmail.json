@@ -441,7 +441,10 @@
     "toAddr": "Received at",
     "noContent": "(no content)",
     "fullView": "Open full screen",
-    "fullViewShort": "Full view"
+    "fullViewShort": "Full view",
+    "copyBody": "Copy content",
+    "copied": "Copied",
+    "copyFailed": "Couldn't copy"
   },
   "bulk": {
     "markAllRead": "Mark all read",

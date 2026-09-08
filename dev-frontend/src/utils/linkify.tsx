@@ -45,3 +45,18 @@ export function renderTextWithLinks(text: string, opts: Options = {}): React.Rea
   if (lastIdx < text.length) parts.push(...seg(text.slice(lastIdx), `s-${lastIdx}`));
   return parts.length > 0 ? parts : [text];
 }
+
+/**
+ * **이미 HTML escape 된** 평문 안의 URL 을 `<a>` 로 감싼다 — HTML 문자열을 조립하는 곳
+ * (새 창으로 여는 메일 본문 등)이 쓴다. 정규식은 위 `LINK_RE` 하나를 공유한다.
+ *
+ * ★ 반드시 **escape 뒤에** 부른다. escape 전에 부르면 우리가 넣은 태그까지 escape 되거나,
+ *   본문에 있던 `<script>` 가 살아남는다. 인자 이름을 `escaped` 로 둔 이유다.
+ *   (`&` 는 `&amp;` 로 바뀌어 있는데 href 안의 `&amp;` 는 브라우저가 `&` 로 해석하므로 안전하다.)
+ */
+export function linkifyEscapedHtml(escaped: string): string {
+  if (!escaped) return escaped;
+  LINK_RE.lastIndex = 0;
+  return escaped.replace(LINK_RE, (url) =>
+    `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+}

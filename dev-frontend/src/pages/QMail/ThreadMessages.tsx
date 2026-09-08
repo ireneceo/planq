@@ -21,6 +21,8 @@ const FORWARD_ENABLED = true;
 import MessageAttachments from './MessageAttachments';
 import MailBriefPanel, { type MailBrief } from './MailBriefPanel';
 import { apiFetch } from '../../contexts/AuthContext';
+import { renderTextWithLinks as linkify } from '../../utils/linkify';
+import { copyMailBody, useMailBodySelectionScope } from './useMailBodyCopy';
 import MailMessageBody from './MailMessageBody';
 import AddressMenu from '../../components/Mail/AddressMenu';   // #261 주소 클릭 메뉴
 import { buildMailSrcDoc, type QuoteFoldLabels } from './mailSrcDoc';
@@ -83,6 +85,11 @@ export default function ThreadMessages(p: Props) {
   // 운영 #260 — 좁은 패널에서 읽기 답답한 메일을 화면 전체로 펼쳐 읽는다.
   const [fullMsgId, setFullMsgId] = React.useState<number | null>(null);
   const fullMsg = messages.find((x) => x.id === fullMsgId) || null;
+  // ⌘A 를 커서가 있는 메일 본문 안으로 한정한다 (본문 밖에서는 손대지 않는다).
+  useMailBodySelectionScope();
+  // 복사 결과는 **버튼 글자로만** 알린다 — 성공 토스트는 금지(CLAUDE.md).
+  const [copiedId, setCopiedId] = React.useState<number | null>(null);
+  const [copyFailedId, setCopyFailedId] = React.useState<number | null>(null);
 
   // ── 메일 브리프 (요약 · 검증 · 지금 어느 순간인가) ──
   //   스레드 단위 값이지만 버튼은 각 메시지의 번역 줄에 둔다 — Irene 이 가리킨 자리가 거기다.
@@ -193,6 +200,24 @@ export default function ThreadMessages(p: Props) {
               {/* ★ 2026-08-24 (Irene) — "전체보기는 웹 미리보기처럼 새 창으로 열려야지."
                   앱 안 모달은 아무리 키워도 앱 창을 못 벗어난다. 진짜 창으로 연다.
                   팝업이 차단되면 기존 모달로 폴백해 기능이 죽지 않게 한다. */}
+              {/* 내용 복사 — Irene: "복사해서 어디 보내고 싶어도 … 모든 곳이 다 걸리네."
+                  HTML 메일이면 서식과 평문을 같이 올린다(문서에 붙이면 서식, 메모장에 붙이면 글자). */}
+              <MsgForwardBtn type="button"
+                data-testid="mail-copy-body"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const ok = await copyMailBody({ html: m.body_html, text: m.body_text });
+                  if (ok) { setCopyFailedId(null); setCopiedId(m.id); window.setTimeout(() => setCopiedId((c) => (c === m.id ? null : c)), 2000); }
+                  else { setCopiedId(null); setCopyFailedId(m.id); window.setTimeout(() => setCopyFailedId((c) => (c === m.id ? null : c)), 3000); }
+                }}
+                title={t('detail.copyBody', { defaultValue: '내용 복사' }) as string}
+                aria-label={t('detail.copyBody', { defaultValue: '내용 복사' }) as string}>
+                {copiedId === m.id
+                  ? (t('detail.copied', { defaultValue: '복사됨' }) as string)
+                  : copyFailedId === m.id
+                    ? (t('detail.copyFailed', { defaultValue: '복사 실패' }) as string)
+                    : (t('detail.copyBody', { defaultValue: '내용 복사' }) as string)}
+              </MsgForwardBtn>
               <MsgForwardBtn type="button" onClick={(e) => {
                 e.stopPropagation();
                 const sub = m.direction === 'outbound'
@@ -248,7 +273,13 @@ export default function ThreadMessages(p: Props) {
               foldLabels={foldLabels}
             />
           ) : (
-            <MessageBodyText>{m.body_text || '(no content)'}</MessageBodyText>
+            <MessageBodyText data-mail-body="1">
+              {/* ★ 2026-09-08 — 평문 메일(body_html 없음)은 여태 **URL 이 그냥 글자**였다.
+                  운영 실측: message #3517 은 body_html 이 NULL 이고 본문에 초대 링크가 있는데
+                  누를 수가 없었다(Irene 신고). HTML 메일에만 링크가 있어서 같은 메일함 안에서
+                  규칙이 갈렸다 → 채팅·댓글과 **같은 함수**(utils/linkify)를 쓴다. */}
+              {linkify(m.body_text || '') }
+            </MessageBodyText>
           )}
           {/* #184 — 번역하기 / 원본 보기 토글 (언어 선택). 답장 원문 언어는 #153에서 처리됨. */}
           <TransBar>
