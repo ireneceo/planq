@@ -15,6 +15,28 @@
 | 동시 alive 탭 | **LRU 4개** (그 이상은 suspend=언마운트+스냅샷) | 메모리·소켓·리렌더 상한. 탭 스트립엔 4개 초과 표시 가능하되 살아있는 건 ≤4 |
 | 탭 대상 페이지(화이트리스트) | Q Talk / Q Task / Q Note / Q docs / Q Calendar / Q Bill / Projects / Project 상세 / Files / Clients / Dashboard / Inbox | 업무 멀티태스킹 컨텍스트 |
 | 탭 비대상(항상 단일·교체) | 설정 / admin / 프로필 / 공개(`/public/*`)·마케팅 | keep-alive 가치 없음, 리스크만 |
+| **탭 보관 범위** | **워크스페이스별 + 플랫폼 관리자 별도** (`planq_tabs_v1::b{id}` · `::admin`) | #405. 워크스페이스마다 탭 목록이 따로 산다 |
+
+### 0.1 범위 계약 — 범위는 **기록 시점에** 정해진다 (2026-09-08)
+
+키를 가르는 것만으로는 부족했다. **기록이 전환보다 앞서면 키 안의 내용이 섞인다.**
+경로가 먼저 바뀌면 그 순간의 범위(=옛 범위)에 새 경로가 탭으로 박히고, 그 다음에
+effect 가 범위를 갈아끼웠다 — 키만 보면 갈라져 있어 정상으로 보인다.
+
+실측(대조군 빌드): `::b5=["/talk","/tasks","/admin/dashboard"]` · `::admin=["/files"]`,
+그리고 그 상태의 플랫폼 관리자 화면은 **에러 화면**이었다.
+
+| 규칙 | 구현 |
+|---|---|
+| 범위는 **기록 전에** store 가 스스로 정한다 | `tabStore.ensureScopeFor(path)` — 모든 기록 진입점(`seedFromPath`·`applyBootPath`·`navigateActive`·`openInNewTab`·`newTab`) 첫 줄 |
+| 두 입력 | **경로**(`/admin` → `admin`) + **현재 워크스페이스**(`setTabScopeBusiness`, MainLayout 이 렌더 중 동기로 알려준다) |
+| 범위를 갈아끼웠으면 **호출부는 끝낸다** | `ensureScopeFor` 가 `true` 를 돌려주면 return — 계속 진행하면 같은 경로 탭이 하나 더 생긴다(새 탭엔 pane 이 없어 `newTab` 폴백까지 흐른다) |
+| effect 는 남기되 **유일한 문이 아니다** | 경로가 안 바뀌는 변화(워크스페이스 전환·로그인 완료)를 위해 `MainLayout` effect 유지 |
+| **읽을 때 남의 범위 탭은 버린다** | `scrub`/`belongsToScope` — 이미 섞여 저장된 것은 코드가 안 지운다. sessionStorage·복원 스냅샷·옛 무범위 이관분 3경로 |
+| 판정 축 | 경로만으로 갈리는 축(관리자 ↔ 워크스페이스)만 본다. 워크스페이스끼리는 경로가 같으므로 **키가 이미 가른다** |
+
+**회귀 검사:** `node scripts/e2e/run.js --suite scopetabs` (13/13) — 범위별 키의 **내용** +
+화면 탭 막대 + 전환 중 에러를 같이 본다. 키 존재 검사로는 이 계열이 안 잡힌다.
 
 ---
 

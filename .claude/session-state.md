@@ -1,6 +1,6 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-09-08 22:10 UTC (Opus 5, 1M)
-**작업 상태:** 배포 완료 · 작업 트리 깨끗 · Irene 오늘 마감
+**작업 상태:** **완료** (/개발완료 처리) · 진행 중인 작업 없음
 **배포:** **v1.48.14** · commit `d38f123c` · 20260908_213958 (287초, EXIT 0)
 **백업(운영):** `/opt/planq/backups/20260908_213958`
 **롤백:** `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260908_213958/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
@@ -113,3 +113,28 @@ f7bbcc97 fix(tabs): 워크스페이스·플랫폼 관리자를 바꿔도 앞의 
 health-check 41/41 · guard-invariants 37/38(미통과 1건 문서 신선도 경고 전용) ·
 build EXIT 0 / error TS 0 · scopetabs 13/13 · tabs 7/7 · tabtitle 3/3 ·
 tabletchrome 9/9 · admincrawl 16/16 · tenant 9/9 · l1 4/4
+
+
+---
+
+## 복구 가이드
+
+새 Claude 세션 시작 시 아래 내용을 붙여넣으세요:
+
+```
+이전 세션 이어서 작업하고 싶어.
+/opt/planq/.claude/session-state.md 읽어줘.
+```
+
+## /개발완료 처리 기록 (2026-09-08)
+- 0단계 가드 3축: health-check EXIT 0 (41/41) · guard-invariants EXIT 0 (37/38) · e2e tenant EXIT 0 (9/9)
+- 0-F Fable 게이트: `✅ 소스 미커밋 변경 없음` — **단, 이건 스킬이 경고한 거짓 초록이다**
+  (지문은 미커밋 diff 에 묶여 있어 커밋 후엔 조용히 통과한다). 실제로는 안 돌렸다(토큰 없음).
+  CLAUDE.md 판정식으로는 **R=0 · F=1 → 자체 검증 대상**이라 위반은 아니다.
+  Fable 이 봐야 할 축(격리 판정 축)은 `docs/FABLE_GATE_QUEUE.md` 3번에 올려 뒀다.
+- Q위키 커버리지: `wiki-coverage-check.js` ⛔ 0 (통과). **아티클 추가는 안 했다** —
+  기존 동작의 버그픽스라 새 메뉴·화면·흐름이 없고, 탭 막대를 설명하는 아티클이 애초에 없다(§4 스킵).
+  ★ 이 스크립트를 `/opt/planq` 에서 돌리면 .env 를 못 읽어 **아무 검사도 안 하고 EXIT 0** 이 된다.
+    반드시 `cd dev-backend` 후 실행할 것.
+- 문서: `DEVELOPMENT_PLAN.md`(날짜 + 완료 섹션) · `docs/MULTITAB_DESIGN.md` §0.1 범위 계약 신설 ·
+  memory 2건(`feedback_scope_key_split_but_content_mixed` 신규 · `feedback_guard_must_be_falsified` 7항 추가)
