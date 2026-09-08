@@ -412,17 +412,18 @@ router.post('/register', async (req, res, next) => {
     //   ★ 발급 지점을 하나라도 빼면 그 로그인 방식 사용자 전원이 (Stage 2 게이트 후) 이미지를 잃는다.
     setImageCookie(res, user);
 
+    // ★ 2026-09-08 — 여기서 user 객체를 **손으로 다시 만들면서 workspaces 를 빼먹고 있었다.**
+    //   WorkspaceSwitcher 는 /api/businesses 가 아니라 이 응답의 user.workspaces 를 렌더한다
+    //   (위 getUserWithBusiness 주석의 계약). 빈 배열이면 '워크스페이스 없음 · 눌러서 새로 만들기'.
+    //   그래서 **가입 직후 첫 화면이 방금 만든 워크스페이스를 없다고 말했다**(재현 2/2).
+    //   로그인하면 정상으로 보였다 — 로그인은 이 함수를 쓰기 때문이다.
+    //   신규 고객이 보는 맨 첫 장면이라 두 벌로 두지 않는다. 로그인과 **같은 함수**를 부른다.
+    //   초대 가입(business 없음)도 같이 좋아진다 — 고객으로 합류한 워크스페이스가 그대로 실린다.
+    const userData = await getUserWithBusiness(user.id);
+
     successResponse(res, {
       token: accessToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        platform_role: user.platform_role,
-        business_id: business ? business.id : null,
-        business_name: business ? business.name : null,
-        business_role: business ? 'owner' : null,
-      }
+      user: userData,
     }, 'Registration successful', 201);
 
     // 플랫폼 관리자 알림 + 회원가입 이메일 인증 메일 — fan-out 비동기 (응답 지연 X)
