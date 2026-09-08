@@ -1,50 +1,51 @@
 {
   "working_on": [
-    "메일 본문 높이(CSP 회귀) · Q info 규격별 분해 · 검사기 반증 마무리"
+    "Cue 가 파일 내용으로 답하기 — 색인 경로·비용 게이트 설계 (Irene 확인 대기)"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "메일 본문 아래 130px 빈 여백 — CSP 가 높이 보고 스크립트를 막고 있었다",
+      "title": "채팅 첨부 미리보기 — 매퍼가 preview_url 을 버리고 있었다",
       "verified": "opus_only",
-      "detail": "Irene: \"이 내용 아래에 130-135px 정도 빈 여백 … 첨부파일 있는 것만 이런 것 같아.\" 원인은 첨부가 아니었다. srcdoc iframe 은 **부모의 CSP 를 물려받는데** 2026-09-02 에 들어온 script-src 'self' 가 높이 보고용 **인라인 스크립트를 전부 차단**하고 있었다(실측 콘솔 로그). postMessage 가 한 번도 안 나가니 부모는 글자 수 추정치에 iframe 을 고정했고, 본문 텍스트가 없는 알림 메일은 추정치가 최소값 200px 로 떨어져 **636px 짜리 내용이 200px 상자**에 담겼다. 첨부 있는 메일에서 두드러진 이유는 그 아래 첨부 줄이 붙어 경계가 눈에 띄어서다. CSP 를 푸는 것은 오답(저장형 XSS 방어) — 스크립트를 /mail-frame.js 로 빼서 'self' 로 통과시켰다. 실측: 200 → 636px, CSP 위반 0. 인용문 접기도 같은 파일로 합쳐 첫 보고가 접힌 높이가 되게 했다."
+      "detail": "Irene: \"채팅에 이 첨부된 파일들 미리보기도 안돼.\" 서버는 이미지 첨부에 preview_url 을 정확히 실어 보내고 있었고 운영 URL 도 200 · image/png · 75,027바이트로 응답했다. 그런데 QTalkPage.apiMessageToMock 이 첨부를 옮길 때 id/file_name/file_size/mime_type 네 개만 복사해서, 화면은 '미리보기 없음' 으로 판정하고 전부 파일 카드로 떨어뜨렸다. 응답을 확인하고 정상이라고 판정하면 이 계열은 100% 빠져나간다 — 값을 화면까지 따라가야 한다. 같은 객체 리터럴에 reactions 가 첨부 안에 잘못 들어가 있어 메시지 반응도 안 붙고 있었다(같이 교정)."
     },
     {
-      "title": "Q info 가격표를 규격 단위로 나눈다",
+      "title": "Drive 에 저장된 채팅 첨부는 다운로드·미리보기가 언제나 404 였다",
       "verified": "opus_only",
-      "detail": "프롬프트에 실패 사례를 그대로 넣었다(업체·규격마다 항목 1개 + fields{업체,규격,가격}). 운영 문서 실측: 세션 시작 시 14항목·값 0 → **25항목·값 18**. 남은 '값 2개' 는 'RM 500 → RM 62.5/페이지' 처럼 같은 가격의 두 표기라 정상이다."
+      "detail": "GET /api/message-attachments/:id/download 이 fs.existsSync(file_path) 로 시작하는데, 외부 저장분은 그 컬럼에 로컬 경로가 아니라 Drive 파일 ID 가 들어 있어 검사가 언제나 거짓 → 404 file_missing. 미리보기도 이 라우트로 본문을 받으므로 사용자에게는 '눌러도 아무 일이 없다' 로 보여 다운로드 버그와 구별되지 않는다. 저장소 분기는 이미 단일 원천(services/attachmentStorage.readAttachmentBody)이 있었는데 이 라우트만 옛 방식으로 남아 있었다. 운영 대상: message_attachments #36(PDF) #37 #38(PNG) 전부 storage_provider='gdrive'."
     },
     {
-      "title": "번역 키 노출 검사기 반증 완료 · 게이트 등록",
+      "title": "미리보기 안에서 Drive 편집 — 공용 드로어 한 곳",
       "verified": "opus_only",
-      "detail": "앞서 대조군이 안 뒤집힌 것은 **빌드 산출물만 고치고 재빌드를 안 해서**였다. 소스 로케일에서 status.* 를 지우고 재빌드하니 폰·데스크탑 두 뷰포트가 모두 `status.active` 를 잡았다. 대조군은 소스에서 만들어야 한다. 이제 게이트(--suite rawkey)에 붙였다."
+      "detail": "Irene: \"미리보기에 편집하기 있어서 편집도 할 수 있다고 한거 맞지?\" AttachmentPreviewDrawer 는 채팅·업무 첨부·의뢰 첨부가 같이 쓰므로 한 곳만 고치면 전부에 먹는다. 편집기를 여는 절차는 Q File 안에 있던 것을 utils/driveEdit.ts 로 빼서 같은 함수를 부르게 했다(베끼면 갈라진다). 자체 저장 파일에는 편집기가 없으므로 버튼 자체를 만들지 않는다 — 서버가 drive_editable 불리언만 내려주고 저장 경로는 그대로 감춘다. 실제 권한은 여는 순간 drive-edit 라우트가 canDownloadFile 로 다시 본다."
     },
     {
-      "title": "Q Note 전수 점검",
+      "title": "파일 목록의 출처는 배타적 폴더가 아니라 태그다",
       "verified": "opus_only",
-      "detail": "목록·상세를 기계로 훑었다 — 번역 키 노출 0 · 이름 없는 버튼 0 · '요약 펼치기'/헤더 접기 잔존 0 · 제목 잘림 없음(white-space normal) · 런타임 오류 0(401 은 하니스 초기 부팅 건)."
+      "detail": "Irene: \"파일이 채팅에 있지만 프로젝트 연결된 채팅이면 그냥 프로젝트에만 들어가. 채팅에도 나와야지. 이 폴더들은 그냥 태그같은 필터 기능 아니야? 겹쳐서 나와야지.\" 9/4 에 '한 파일이 두 줄로 보인다' 를 고치며 같은 실제 파일의 direct/chat/task 행을 접었는데, 접으면서 버리는 행의 출처를 통째로 잃어서 좌측 '채팅' 에서 그 파일이 사라졌다. 목록에서 사라지는 것은 사용자에게 삭제와 구별되지 않는다. 줄은 하나로 접되(공유·폴더가 direct 행에만 달려 있다) sources 에 전부 남기고, 화면은 그 배열로 세고 거르고 칩도 걸린 만큼 보여준다."
     }
   ],
   "behavior_changes": [
-    "메일 본문이 내용만큼 펼쳐집니다. 알림 메일처럼 짧은 글 아래에 빈 칸이 남던 것이 사라집니다."
+    "채팅의 비이미지 첨부는 이제 곧바로 내려받지 않고 미리보기 드로어로 열린다(내려받기는 그 안에 있다). Q File·Q Mail 과 같은 규칙이 됐다.",
+    "Q File 좌측 출처(채팅·업무·회의·문서) 개수가 겹치는 파일만큼 늘어난다 — 배타적 분할이 아니라 태그이므로 합이 전체보다 클 수 있다. 이것이 의도된 값이다."
   ],
-  "issues": [
-    "Q info — 아주 긴 가격표는 60항목 상한에 닿을 수 있습니다(닿으면 화면이 잘렸다고 알립니다)."
-  ],
+  "issues": [],
   "blocked_on_human": [
-    "실기기 확인 — 메일 상세 빈 여백 해소 · 태블릿↔데스크탑 업무재개"
+    "Cue 가 업로드된 파일을 내용으로 검색해 답하려면 색인이 필요하다. kb_documents.source_type 에 이미 'file' 이 있고 source_file_id 컬럼도 있어 스키마 변경 없이 넣을 수 있지만, 업로드마다 임베딩 비용이 나가므로 한도 설계(플랜별 상한·파일 크기 컷·수동 on/off)를 Irene 이 정해야 착수한다."
   ],
   "migrations": [],
   "check_areas": [
-    "메일 본문이 잘리지 않고 다 보이는지(특히 긴 뉴스레터)",
-    "Q info 로 보낸 가격표가 규격별로 찾아 쓸 만한지"
+    "Q Talk — PDF·PNG 첨부를 눌러 미리보기가 열리는지, 그 안에서 내려받기와 'Drive 에서 편집' 이 도는지",
+    "Q File — 프로젝트 파일이 채팅에도 붙어 있을 때 좌측 '채팅' 에서도 보이는지, 행에 출처 칩이 둘 이상 붙는지"
   ],
   "backlog": [
-    "Q Note 기능 확장(전수 점검은 완료, 신규 기능은 별건)"
+    "기존 파일의 Drive 폴더 트리 이관 — dev-backend/scripts/migrate-drive-folder-tree.js (dry-run 기본, --apply). dev 는 옮길 것 0건이고 운영 실행이 남아 있다.",
+    "Q Sale 사이클 1 — Irene 이 명시적으로 제외해 둔 것"
   ],
   "tooling_health": [
-    "불변식 가드 35/35 · health-check 41/41",
-    "e2e 13스위트 106항목 실패 0 (mailframe·rawkey 신규 등록)"
+    "health-check 41/41 · guard-invariants 38/38 · e2e tenant 실패 0 · 프론트 빌드 EXIT 0 (error TS 0)",
+    "신규 카나리 2종 — --suite chatattach 2/2 · --suite filesrc 4/4. 둘 다 옛 구현을 되살려 판정이 뒤집히는 것까지 확인했다(양방향 반증).",
+    "회귀 확인: inboxcount 15/15 · reviewnotify 4/4 · gdrivesync 6/6 · folderdnd 4/4 · delivver 4/4"
   ],
   "undeployed": []
 }
