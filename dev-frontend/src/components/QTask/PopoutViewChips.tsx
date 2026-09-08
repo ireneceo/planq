@@ -60,8 +60,12 @@ const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
   //   단 trailing(완료 가리기)이 있으면 그건 별개 컨트롤이라 줄을 유지한다.
   if (opts.length < 2 && !trailing && !leading) return null;
   return (
+    // ★ 2026-09-08 (Irene: "태그별, 프로젝트별, 마감일별 ☐완료가리기(0) 이게 좌측정렬.
+    //   그 다음 우측으로 소팅 넣어줘. 최신등록순 나오는 거. 이것만 우측 정렬.")
+    //   여태 정렬 셀렉트(leading)가 맨 앞이고 완료 가리기가 오른쪽 끝이었다 —
+    //   같은 성격(무엇을 볼지)인 칩과 완료 가리기가 갈라져 있었다.
+    //   보기 기준 셋 + 완료 가리기를 **왼쪽에 모으고**, 정렬만 오른쪽 끝으로 민다.
     <Row role="group" aria-label={groupLabel}>
-      {leading}
       {(opts.length >= 2 ? opts : []).map((o) => (
         <Chip
           key={o}
@@ -72,7 +76,8 @@ const PopoutViewChips: React.FC<PopoutViewChipsProps> = ({
           onClick={() => onChange(o)}
         >{labels[o]}</Chip>
       ))}
-      {trailing && <Trailing>{trailing}</Trailing>}
+      {trailing}
+      {leading && <Trailing>{leading}</Trailing>}
     </Row>
   );
 };

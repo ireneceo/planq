@@ -2036,7 +2036,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           </>
         ) : detail ? (
           <>
-            <PanelHeader>
+            <StickyPanelHeader>
               <TitleRow>
                 <MobileBackBtn $always={isProject} type="button" onClick={() => setDetail(null)} aria-label={t('back', '뒤로') as string}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -2126,7 +2126,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 ]}
               />
               </HeaderActions>
-            </PanelHeader>
+            </StickyPanelHeader>
             {/* ★ 액션을 헤더에서 **내려** 제목 아래 한 줄로 (Irene 2026-09-05:
                 "서브헤더에 버튼이 너무 많아. 제목이 보이지도 않아. 좌측 검색창 가로라인 맞춰서 헤더 2줄로").
                 실측(1440px): 헤더 920px 중 액션이 534px 을 먹고 제목 칸은 304px — 33% 였다.
@@ -2929,8 +2929,23 @@ const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>
   /* 모바일에서 문서 미선택 시 Content 숨기고 리스트만 표시 */
   @media (max-width: 900px) {
     display: ${p => p.$hasDetail ? 'flex' : 'none'};
-    /* 모바일: 헤더+본문 함께 스크롤 */
+    /* 모바일: 헤더+본문 함께 스크롤 (세로 공간을 본문에 돌려주려는 의도) */
     overflow-y: auto;
+  }
+`;
+// ★ 2026-09-08 (Irene: "문서 상세로 가면 스크롤이 서브헤더에도 적용돼.
+//   서브헤더 제목 나오는 곳 까지는 스티키되어 있어야 해.")
+//   위 규칙 때문에 좁은 폭에서는 **Content 자체**가 스크롤 컨테이너가 되어, 제목 밴드까지
+//   같이 올라갔다. 스크롤을 내리면 지금 보고 있는 문서가 무엇인지 화면에서 사라진다.
+//   ★ 스크롤 구조는 바꾸지 않는다(본문에 세로 공간을 주려던 의도는 그대로다) —
+//     **제목 밴드만** 그 컨테이너 안에서 붙여 둔다. 메타/액션 줄은 종전대로 같이 흐른다
+//     ("제목 나오는 곳 **까지**" — 그 이상을 붙이면 좁은 화면에서 본문 자리를 또 뺏는다).
+const StickyPanelHeader = styled(PanelHeader)`
+  @media (max-width: 900px) {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #fff;
   }
 `;
 const Body = styled.div`

@@ -74,7 +74,7 @@ import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
 // ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
 //   (정본 사슬은 그대로 살아 있고, 이 화면은 '고른 정렬 → 사슬' 순서로만 본다).
-import { buildQuickChoices, bySelectedSort, type PopoutSortKey } from './popoutSort';
+import { buildQuickChoices, bySelectedSort, type PopoutSortKey, cmpNullLast } from './popoutSort';
 import PopoutSortSelect, { usePopoutSort } from './PopoutSortSelect';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 import ImportanceChip from './ImportanceChip';
@@ -394,11 +394,12 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   };
   const byTagRule = byGroup(repTag);
   const byProjectRule = byGroup(repProject);
-  // ★ 2026-09-08 — 셋째 칩은 이제 **'전체'(그룹 없음)** 다. 옛 '마감일별' 은 라벨이 곧 정렬이라
-  //   새로 생긴 정렬 셀렉트와 두 개의 정렬 규칙이 공존하게 된다(Irene: "마감일별 필터는 필요없겠네").
-  //   그룹을 안 나눌 때는 고른 정렬이 그대로 전체 순서다 — 눌러도 아무 일이 없는 컨트롤을 만들지 않는다.
-  //   viewMode 값('due')은 그대로 둔다 — 이미 저장된 사용자 선택을 깨뜨리지 않기 위해서다.
-  const byDueRule = (a: PopoutTask, b: PopoutTask): number => innerSort(a, b) || (a.id - b.id);
+  // ★ 2026-09-08 (Irene: "태그별 프로젝트별, 마감별 이었는데 전체가 왜나와. 기존대로 마감별로 넣어줘.")
+  //   잠깐 '전체'(그룹 없음)로 바꿨던 것을 되돌린다 — **라벨과 동작을 같이** 되돌려야 한다.
+  //   마감일이 먼저고, 같은 날짜 안쪽 순서만 고른 정렬이 정한다.
+  //   (그래야 두 컨트롤이 각자 뜻을 갖는다: 칩=무엇 기준으로 나열 / 셀렉트=그 안쪽 순서)
+  const byDueRule = (a: PopoutTask, b: PopoutTask): number =>
+    cmpNullLast(a.due_date, b.due_date) || innerSort(a, b) || (a.id - b.id);
 
   // '태그별' 노출 기준 = **워크스페이스 태그 사전**. 목록 기준으로 재면 태그 붙은 업무가 완료되는
   //   순간 칩이 사라져 "기능이 없어졌다" 로 읽힌다(Irene 2026-08-23). 행에서 바로 붙일 수 있는 지금은
@@ -605,7 +606,10 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
           labels={{
             tag: t('popout.viewTag', '태그별'),
             project: t('popout.viewProject', '프로젝트별'),
-            due: t('popout.viewAll', '전체'),
+            /* ★ 2026-09-08 Irene: "태그별 프로젝트별, 마감별 이었는데 전체가 왜나와.
+               기존대로 마감별로 넣어줘." — 라벨을 되돌리면서 **동작도 같이 되돌린다.**
+               라벨만 '마감일별' 로 두고 실제로는 고른 정렬대로 나열하면 문구가 거짓말이 된다. */
+            due: t('popout.viewDue', '마감일별'),
           }}
           /* 정렬 — 이 저장소의 셀렉트 표준은 PlanQSelect 다(raw <select> 는 health-check 가 막는다).
              같은 팝아웃 안 퀵애드도 이것을 쓰므로 별도 창에서도 메뉴가 정상 동작한다. */
