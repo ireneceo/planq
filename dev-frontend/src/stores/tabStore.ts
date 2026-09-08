@@ -90,6 +90,15 @@ export function identityOfPath(path: string): string {
 //   → 이중 저장. 살아있는 상태는 창별(sessionStorage), **복원용 스냅샷만** 공유(localStorage).
 //     새로 켠 창은 sessionStorage 가 비어 있으므로 그때만 스냅샷을 씨앗으로 쓴다.
 const RESTORE_KEY = `${STORAGE_KEY}_restore`;
+/** 옛 무범위 탭 이관을 이미 끝냈는가. **localStorage** 에 둔다 —
+ *  세션/모듈 변수는 새로고침마다 초기화돼 "최초 1회" 를 보장하지 못한다(2026-09-08 회귀). */
+const MIGRATED_KEY = `${STORAGE_KEY}_scoped`;
+function legacyMigrated(): boolean {
+  try { return localStorage.getItem(MIGRATED_KEY) === '1'; } catch { return true; }
+}
+function markLegacyMigrated(): void {
+  try { localStorage.setItem(MIGRATED_KEY, '1'); } catch { /* 비허용 무시 */ }
+}
 
 // ★ 2026-08-27 — 이 상수는 반드시 `let state = load()` **위**에 있어야 한다.
 //   load() 는 함수 선언이라 호이스팅되지만 여기 const 는 TDZ 라, 아래에 두면 load() 안에서
@@ -224,7 +233,16 @@ export function setTabScope(next: string | null) {
   tabScope = next;
   let loaded = load();
   // 최초 도입 이관 — 범위 없이 저장돼 있던 탭을 첫 워크스페이스가 물려받는다.
-  if (prev === null && loaded.tabs.length === 0 && legacyRaw) {
+  //
+  // ★ 2026-09-08 (Irene: "플랫폼 관리자나 다른 워크스페이스가 탭이 같이 열려. 워크스페이스나
+  //   플랫폼관리자를 바꾸면 상단탭이 그 워크스페이스나 플랫폼관리자 탭이 나와야지")
+  //   `prev === null` 을 "최초 1회" 로 읽은 것이 틀렸다. tabScope 는 **모듈 변수**라
+  //   페이지가 새로 뜰 때마다 null 로 돌아간다. 그리고 범위를 알기 전(부트)에는 저장이
+  //   무범위 키로 가므로, 새 범위에 처음 들어갈 때마다 **직전에 보던 탭을 그대로 물려받았다.**
+  //   계측 실측: `call next=admin cur=null tabs=/tasks|/talk|/talk|/admin/dashboard`
+  //   → 워크스페이스를 바꿔도, 플랫폼 관리자로 들어가도 앞의 탭이 따라왔다.
+  //   "한 번만" 은 브라우저에 남는 표시로만 보장된다. 세션 변수로는 못 한다.
+  if (prev === null && !legacyMigrated() && loaded.tabs.length === 0 && legacyRaw) {
     try {
       const j = JSON.parse(legacyRaw);
       if (Array.isArray(j.tabs) && j.tabs.length) loaded = { tabs: j.tabs, activeId: j.activeId ?? null, mirror: true };
@@ -294,6 +312,7 @@ export function setTabScope(next: string | null) {
       }
     }
   }
+  markLegacyMigrated();           // 이관은 여기서 끝. 다음 범위 전환은 물려받지 않는다.
   persist();                      // 새 범위 키에 즉시 확정
   emit();
 }
