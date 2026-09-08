@@ -17,15 +17,26 @@ const { sequelize } = require('../config/database');
     const ids = [...new Set(moves.filter((m) => m.business_id === biz).flatMap((m) => [...String(m.from || '').split(',').filter(Boolean), m.to]))];
     for (const id of ids) {
       if (cache.has(id)) continue;
+      // ★ 조상 탐색 실패가 **이미 얻은 이름을 버리면 안 된다** (2026-09-08 실측: 부모 사슬 끝이
+      //   공유(팀) 드라이브 루트 `0A…` 라 files.get 이 404 → 21건 전부 "못 읽음" 으로 뭉갰다).
+      //   루트는 files.get 으로 못 읽는다(drives.get 은 우리 scope 밖). 거기서 멈추고 표시만 한다.
+      let name = null;
       try {
-        const r = await drive.files.get({ fileId: id, fields: 'id,name,parents', supportsAllDrives: true });
-        let name = r.data.name; let p = r.data.parents && r.data.parents[0]; let depth = 0;
-        while (p && depth < 3) {
-          const pr = await drive.files.get({ fileId: p, fields: 'id,name,parents', supportsAllDrives: true });
-          name = `${pr.data.name}/${name}`; p = pr.data.parents && pr.data.parents[0]; depth += 1;
+        const r = await drive.files.get({ fileId: id, fields: 'id,name,parents,driveId', supportsAllDrives: true });
+        name = r.data.name;
+        let pid = r.data.parents && r.data.parents[0];
+        let depth = 0;
+        while (pid && depth < 4) {
+          if (/^0A/.test(pid)) { name = `[공유 드라이브]/${name}`; break; }
+          try {
+            const pr = await drive.files.get({ fileId: pid, fields: 'id,name,parents', supportsAllDrives: true });
+            name = `${pr.data.name}/${name}`;
+            pid = pr.data.parents && pr.data.parents[0];
+          } catch { name = `…/${name}`; break; }   // 더 못 올라가면 거기까지만
+          depth += 1;
         }
-        cache.set(id, name);
-      } catch (e) { cache.set(id, `(못 읽음: ${e.message.slice(0, 40)})`); }
+      } catch (e) { name = `(못 읽음: ${e.message.slice(0, 40)})`; }
+      cache.set(id, name);
     }
   }
   const grouped = new Map();
