@@ -236,5 +236,9 @@
     "billingPhone": "연락처",
     "projects": "프로젝트",
     "invitedAt": "초대일"
-  }
+  },
+  "emptyTitle": "고객을 초대해 보세요",
+  "emptyDesc": "고객이 있어야 대화가 열리고, 거기서 업무와 청구까지 이어집니다.",
+  "emptyHowto": "사용법",
+  "emptyWikiQuery": "고객 초대하기"
 }

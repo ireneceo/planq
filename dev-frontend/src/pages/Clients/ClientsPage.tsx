@@ -18,6 +18,8 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CreateDrawer from '../../components/Common/CreateDrawer';
+import EmptyState from '../../components/Common/EmptyState';
+import { askCue } from '../../utils/cueAsk';
 import PartnerKindBadge, { usePartnerKindLabel } from '../../components/Common/PartnerKindBadge';
 import { downloadRowsAsCsv } from '../../utils/csv';   // #225
 import PageShell from '../../components/Layout/PageShell';
@@ -402,8 +404,35 @@ export default function ClientsPage() {
     >
       {loading && <Empty>{t('loading')}</Empty>}
       {error && <ErrorBanner>{error}</ErrorBanner>}
+      {/* 검색 결과가 없는 것과 **아직 아무도 없는 것**은 다른 상태다.
+          앞은 검색어를 고치면 되고, 뒤는 이 화면에서 할 일이 하나도 시작되지 않은 것이다.
+          ★ 2026-09-08 온보딩 — 신규 워크스페이스가 도착하는 첫 화면인데 회색 한 줄뿐이었다.
+            Q task·Q talk 는 이미 공용 EmptyState 로 "왜 + 다음 행동" 을 준다. 같은 것을 쓴다
+            (새로 그리면 갈라진다). CTA 는 헤더 버튼과 **같은 함수**를 부른다. */}
       {!loading && !error && filtered.length === 0 && (
-        <Empty>{query ? t('noResults') : t('empty')}</Empty>
+        query ? <Empty>{t('noResults')}</Empty> : (
+          <EmptyState
+            icon={
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            }
+            title={t('emptyTitle', '고객을 초대해 보세요')}
+            description={t('emptyDesc', '고객이 있어야 대화가 열리고, 거기서 업무와 청구까지 이어집니다.')}
+            ctaLabel={isAdmin ? (t('invite') as string) : undefined}
+            ctaTestId="clients-empty-invite"
+            ctaIcon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            }
+            onCta={isAdmin ? () => setInviteOpen(true) : undefined}
+            secondaryCtaLabel={t('emptyHowto', '사용법') as string}
+            onSecondaryCta={() => askCue(t('emptyWikiQuery', '고객 초대하기') as string, 'wiki')}
+          />
+        )
       )}
 
       {!loading && !error && filtered.length > 0 && (

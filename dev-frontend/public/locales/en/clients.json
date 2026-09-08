@@ -236,5 +236,9 @@
     "billingPhone": "Phone",
     "projects": "Projects",
     "invitedAt": "Invited"
-  }
+  },
+  "emptyTitle": "Invite your first client",
+  "emptyDesc": "A client opens a conversation, and tasks and billing follow from there.",
+  "emptyHowto": "How to",
+  "emptyWikiQuery": "Invite a client"
 }
