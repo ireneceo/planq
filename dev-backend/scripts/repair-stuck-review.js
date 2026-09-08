@@ -60,15 +60,17 @@ async function main() {
       );
       const nextRound = (t.review_round || 0) + 1;
       await Task.update({ review_round: nextRound }, { where: { id: t.id }, transaction: tx });
+      // ★ 이력은 **있었던 일 그대로** 적는다. `review_submit` 으로 적으면 담당자가 그때
+      //   제출한 것처럼 보여 원장이 거짓말을 한다 — 실제로 일어난 일은 우리가 한 복구다.
+      //   화면의 상태 라벨 분기는 `status_change` 만 읽으므로 새 사건 종류를 만들지도 않는다.
       await TaskStatusHistory.create({
         task_id: t.id,
-        event_type: 'review_submit',
+        event_type: 'status_change',
         from_status: 'reviewing',
         to_status: 'reviewing',
-        actor_user_id: t.assignee_id || null,
-        actor_role: 'assignee',
+        actor_user_id: null,
         round: nextRound,
-        note: '갇힌 컨펌 라운드 복구 — 상태 드롭다운으로 확인 요청되어 컨펌자 리셋이 빠져 있었다',
+        note: '갇힌 컨펌 라운드 복구 — 상태 드롭다운으로 확인 요청되어 지난 라운드의 컨펌 결정이 남아 있었다',
       }, { transaction: tx });
       await tx.commit();
       fixed += 1;

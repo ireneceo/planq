@@ -11,14 +11,16 @@
 //                   컨펌자에겐 "이미 결정함" 화면(수정요청 칸 없음), 담당자는 reviewing 이라
 //                   본문 잠김 = **양쪽 다 아무것도 못 하는 상태**
 //
-//   여태 PUT 은 status 컬럼만 썼다. 그러면 새 라운드의 부수효과가 통째로 빠진다 —
-//   컨펌자 리셋 · review_round +1 · `review_submit` 이력 · 알림
-//   (memory: feedback_workflow_routes_bypass_side_effects).
+//   고치는 것은 **딱 하나**다 — 지난 라운드의 결정이 새 라운드에 남지 않게 하는 것.
+//   ★ "확인 요청 보내기" 버튼이 하는 다른 일(결과물 회차 박제·알림·`review_submit` 이력)은
+//     드롭다운 경로에 **끌어오지 않는다.** 신고와 무관하고, 안 하던 일이 갑자기 생기면
+//     보고되지 않은 곳에서 새 문제가 난다(회차가 저절로 쌓이는 것 같은).
+//     ③이 그 선을 지키는 음성 대조군이다.
 //
 //   재는 계약:
 //     ① 드롭다운(PUT)으로 들어가도 컨펌자 state 가 **pending** 으로 리셋된다
-//     ② review_round 가 +1 된다
-//     ③ 이력이 `review_submit` 으로 남는다 (status_change 아님)
+//     ② 지난 라운드 결정이 있었으면 review_round 가 +1 된다
+//     ③ 음성 대조군 — 결과물 회차가 **저절로 생기지 않는다** (범위를 넘지 않았다는 증거)
 //     ④ 음성 대조군 — 컨펌자가 0명이면 PUT 도 막힌다(400)
 //     ⑤ 음성 대조군 — reviewing 이 아닌 전이(in_progress)는 리셋하지 않는다
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
@@ -83,20 +85,20 @@ async function run() {
       { replacements: [id], type: sequelize.QueryTypes.SELECT }))[0];
     const revOf = async (id) => (await sequelize.query('SELECT state, action_at FROM task_reviewers WHERE task_id=?',
       { replacements: [id], type: sequelize.QueryTypes.SELECT }))[0];
-    const lastHist = async (id) => (await sequelize.query(
-      'SELECT event_type, from_status, to_status FROM task_status_history WHERE task_id=? ORDER BY id DESC LIMIT 1',
-      { replacements: [id], type: sequelize.QueryTypes.SELECT }))[0];
+    const verCount = async (id) => Number((await sequelize.query(
+      'SELECT COUNT(*) c FROM task_deliverable_versions WHERE task_id=?',
+      { replacements: [id], type: sequelize.QueryTypes.SELECT }))[0].c);
 
-    const t1 = await rowOf(tid); const r1 = await revOf(tid); const h1 = await lastHist(tid);
+    const t1 = await rowOf(tid); const r1 = await revOf(tid); const v1 = await verCount(tid);
     push('① 드롭다운(PUT)으로 들어가도 컨펌자가 pending 으로 리셋된다',
       res.status === 200 && r1 && r1.state === 'pending',
       `HTTP ${res.status} · 컨펌자 state=${r1 && r1.state} (pending 이어야 한다 — revision 이면 신고 재현)`);
-    push('② review_round 가 +1 된다',
+    push('② 지난 라운드 결정이 있었으므로 review_round 가 +1 된다',
       t1 && Number(t1.review_round) === 3,
       `round=${t1 && t1.review_round} (3 이어야 한다)`);
-    push('③ 이력이 review_submit 으로 남는다 (status_change 아님)',
-      h1 && h1.event_type === 'review_submit' && h1.to_status === 'reviewing',
-      `${h1 && h1.event_type} ${h1 && h1.from_status}→${h1 && h1.to_status}`);
+    push('③ 결과물 회차가 저절로 생기지 않는다 (음성 대조군 — 범위를 넘지 않았다)',
+      v1 === 0,
+      `회차 ${v1}건 (0 이어야 한다 — 생기면 드롭다운이 제출 버튼 흉내를 낸 것)`);
 
     // ④ 음성 대조군 — 컨펌자 0명
     const tid2 = await mkTask(false);

@@ -1415,26 +1415,29 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const seriesRecur = require('../services/taskSeriesRecurrence');
     const seriesRuleChange = seriesRecur.extractSeriesRuleChange(task, updates);
 
-    // ── 확인 요청(reviewing) 진입은 **행동 계층 한 곳**을 지난다 (2026-09-08 운영 신고) ──────
+    // ── 확인 요청(reviewing) 으로 되돌아올 때 컨펌자를 새 라운드로 되돌린다 (2026-09-08 신고) ──
     //   Irene: *"확인요청 받음 상태인데 왜 수정요청 보내는 란이 안나와?"*
-    //   여기서 status 컬럼만 'reviewing' 으로 써 버리면 **새 라운드의 부수효과가 통째로 빠진다**:
-    //     · 컨펌자 state 리셋(pending)  · review_round +1  · history `review_submit`  · 알림
+    //
     //   운영 실측(task #257): 담당자가 상태 드롭다운으로 reviewing 을 골라
-    //   `status_change revision_requested → reviewing` 만 남았고, 컨펌자 행은 9월 4일의
-    //   `revision` 그대로였다. 그래서 컨펌자에게는 이미 결정한 화면(= 수정요청 칸 없음)이 뜨고,
+    //   `status_change revision_requested → reviewing` 만 남았고, **컨펌자 행은 9월 4일의
+    //   `revision` 그대로**였다. 그래서 컨펌자에게는 이미 결정한 화면(= 수정요청 칸 없음)이 뜨고,
     //   담당자는 reviewing 이라 본문이 잠겨 **양쪽 다 아무것도 못 하는 상태**가 됐다.
-    //   같은 워크스페이스의 #224 는 "확인 요청 보내기" 버튼을 써서 정상이었다 —
-    //   즉 갈린 것은 작성자 여부가 아니라 **어느 문으로 들어왔는가**였다.
-    //   (memory: feedback_workflow_routes_bypass_side_effects)
+    //   같은 워크스페이스의 #224 는 컨펌자가 pending 이라 정상이었다.
+    //
+    //   ★ **여기서 고치는 것은 딱 그것 하나다** — 지난 라운드의 결정이 새 라운드에 남지 않게 하는 것.
+    //     "확인 요청 보내기" 버튼(taskTransition.submitForReview)이 하는 다른 일들
+    //     (결과물 회차 박제·알림·`review_submit` 이력)은 **여기서 하지 않는다.**
+    //     그것들은 이 신고와 무관하고, 드롭다운으로 상태만 바꾸던 기존 동작을 바꾸면
+    //     보고되지 않은 곳에서 새 문제가 난다(회차가 저절로 쌓이는 것 같은).
+    //   ★ 컨펌자 0명 진입 차단은 위 `canEnterStatus` 가 이미 하고 있다 — 손대지 않는다.
     if (updates.status === 'reviewing' && task.status !== 'reviewing') {
-      const { submitForReview } = require('../services/taskTransition');
-      const bodyUpdates = updates.body !== undefined ? { body: updates.body } : {};
-      const out = await submitForReview({ task, actorUserId: myId, bodyUpdates });
-      if (!out.ok) return errorResponse(res, out.reason, out.reason === 'no_reviewers_assigned' ? 400 : 409);
-      // 상태·본문은 전이가 이미 썼다 — 아래 update 가 라운드를 되돌리지 않게 뺀다.
-      delete updates.status;
-      delete updates.body;
-      await task.reload();
+      const { TaskReviewer } = require('../models');
+      const [resetCount] = await TaskReviewer.update(
+        { state: 'pending', reverted_once: false, action_at: null },
+        { where: { task_id: task.id, state: { [Op.ne]: 'pending' } } },
+      );
+      // 지난 라운드의 결정이 실제로 있었을 때만 라운드가 넘어간 것이다.
+      if (resetCount > 0) updates.review_round = (task.review_round || 0) + 1;
     }
 
     await task.update(updates);
