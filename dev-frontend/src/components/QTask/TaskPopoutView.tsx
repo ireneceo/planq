@@ -72,6 +72,7 @@ import { useQuickAction } from './useQuickAction';   // 행 퀵액션 실행(낙
 import { useTaskTagDict } from './useTaskTagDict';
 import PopoutViewChips, { type PopoutView } from './PopoutViewChips';
 import PopoutQuickAdd from './PopoutQuickAdd';
+import { usePopoutQuickAdd } from './usePopoutQuickAdd';
 // ★ bySortRule 은 이제 여기서 직접 안 쓴다 — bySelectedSort 가 마지막 tie-break 으로 그것을 부른다
 //   (정본 사슬은 그대로 살아 있고, 이 화면은 '고른 정렬 → 사슬' 순서로만 본다).
 import { buildQuickChoices, bySelectedSort, type PopoutSortKey, cmpNullLast } from './popoutSort';
@@ -234,55 +235,10 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   // #309 — "할일 입력할 때 태그/프로젝트도 같이 고를 수 있게".
   //   보기 기준이 바뀌면 고르는 대상도 바뀐다(태그별↔태그 / 프로젝트별↔프로젝트).
   //   기준이 바뀌면 이전 선택은 의미가 없으므로 아래 effect 에서 비운다.
-  const [quickPick, setQuickPick] = useState('');
-
-  const quickAdd = useCallback(async (title: string): Promise<boolean> => {
-    if (!bizId) return false;
-    // 이번 주 탭인데 아직 weekStart 를 못 받았으면 만들지 않는다 —
-    //   null 로 보내면 주간 술어를 못 넘겨 방금 만든 업무가 화면에서 사라진다.
-    if (popTab === 'week' && !weekStart) return false;
-    try {
-      const res = await apiFetch('/api/tasks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_id: bizId,
-          title,
-          assignee_id: myId,                                   // 이 팝아웃은 내 업무 목록이다
-          //   ★ 이번 주 탭에도 마감일을 넣는다(Irene) — 주차 버킷만 있고 날짜가 없으면
-          //     "기간" 칸이 빈 채로 태어나 목록·정렬·지연 판정이 전부 이 업무를 비껴간다.
-          //     주간 술어는 planned_week_start 로, 오늘 술어는 due_date 로 각각 통과한다.
-          ...(popTab === 'today'
-            ? { due_date: todayStr, planned_week_start: weekStart || undefined }
-            : { due_date: todayStr, planned_week_start: weekStart }),
-          // #309 — 프로젝트별로 보고 있으면 그 프로젝트로 바로 만든다.
-          ...(viewMode === 'project' && quickPick ? { project_id: Number(quickPick) } : {}),
-        }),
-      });
-      // apiFetch 는 throw 하지 않는다 — res.ok 를 반드시 본다 (memory: apifetch_no_throw)
-      if (!res.ok) return false;
-      const json = await res.json();
-      if (!json.success) return false;
-      // #309 — 태그는 생성 API 가 안 받는다. 전용 경로로 이어 붙인다(QTaskPage 와 같은 계약).
-      //   ★ 태그 부여가 실패해도 업무는 이미 만들어졌다 — 되돌리지 않고 목록만 갱신한다.
-      //     (apiFetch 는 throw 하지 않으므로 res.ok 를 본다.)
-      const newId = json.data?.id;
-      if (viewMode === 'tag' && quickPick && newId) {
-        try {
-          const tagRes = await apiFetch(`/api/tasks/${newId}/tags`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tag_ids: [Number(quickPick)] }),
-          });
-          if (!tagRes.ok) console.warn('[popout quickadd tags] HTTP', tagRes.status);
-        } catch (err) { console.warn('[popout quickadd tags]', err); }
-      }
-      await silentLoad();     // 서버 fresh 로 덮어쓴다(부분 merge 금지)
-      return true;
-    } catch {
-      return false;
-    }
-  }, [bizId, myId, popTab, todayStr, weekStart, silentLoad, viewMode, quickPick]);
+  // 퀵애드 상태·생성은 usePopoutQuickAdd 로 뽑았다 (god-file 래칫 — 800줄).
+  const { quickPick, setQuickPick, quickDue, setQuickDue, quickAdd } = usePopoutQuickAdd({
+    bizId, myId, popTab, todayStr, weekStart, viewMode, silentLoad,
+  });
 
   // ── 퀵액션 (체크박스 완료처리) ─────────────────────────────
   // 중복 제출 가드는 전역 1건 — 더블클릭도, 다른 행 연타도 요청 1회 (UI_DESIGN_GUIDE §1.8).
@@ -414,7 +370,21 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
     ? 'due' : viewMode;
 
   // #309 — 선택지 계산은 popoutSort 로 절출(순수 함수). 규칙 설명도 그 파일에 있다.
-  const quickChoices = useMemo(() => buildQuickChoices(effView, tasks), [effView, tasks]);
+  // ★ 2026-09-08 (Irene: "프로젝트별에서는 프로젝트 선택 나오는데 태그별에는 왜 태그선택 안나와?")
+  //   `buildQuickChoices` 는 **지금 목록에 등장한** 태그만 모은다. 그래서 목록의 업무에 태그가
+  //   하나도 안 붙어 있으면 선택지가 0개 → 셀렉터 자체가 안 나온다.
+  //   칩은 이미 **워크스페이스 태그 사전**을 기준으로 뜨고 있어서(hasAnyTag), 화면에는
+  //   '태그별' 칩은 있는데 고를 태그는 없는 상태가 됐다. 두 기준을 사전 하나로 맞춘다.
+  //   (프로젝트는 사전이 없어 종전대로 목록 기준 — 신고도 그쪽은 잘 된다고 했다.)
+  const quickChoices = useMemo(() => {
+    if (effView === 'tag') {
+      const fromDict = tagDict.map((tg) => ({ value: String(tg.id), label: tg.name }));
+      return fromDict.length ? fromDict : buildQuickChoices(effView, tasks);
+    }
+    return buildQuickChoices(effView, tasks);
+  }, [effView, tasks, tagDict]);
+  // 마감일별 기본값 — 이 탭이 뜻하는 날(오늘). 보기 기준이 바뀌면 다시 오늘로 되돌린다.
+  useEffect(() => { setQuickDue(todayStr); }, [todayStr, effView]);
 
   // 기준이 바뀌면 이전 선택은 뜻이 달라진다(태그 id 를 프로젝트로 쓸 수 없다) → 비운다.
   useEffect(() => { setQuickPick(''); }, [effView]);
@@ -582,6 +552,11 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
             ariaLabel: effView === 'tag'
               ? (t('popout.quickAddTagAria', '추가할 업무의 태그') as string)
               : (t('popout.quickAddProjectAria', '추가할 업무의 프로젝트') as string),
+          } : null}
+          dateOption={effView === 'due' ? {
+            value: quickDue,
+            onChange: setQuickDue,
+            ariaLabel: t('popout.quickAddDueAria', '추가할 업무의 마감일') as string,
           } : null}
         />
       )}

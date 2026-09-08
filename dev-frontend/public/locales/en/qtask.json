@@ -1327,7 +1327,8 @@
     "sortRecent": "Newest first",
     "sortName": "By name",
     "sortStage": "By stage",
-    "viewAll": "All"
+    "viewAll": "All",
+    "quickAddDueAria": "Due date for the new task"
   },
   "tags": {
     "new": "New tag",

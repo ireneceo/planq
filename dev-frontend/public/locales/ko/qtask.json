@@ -1327,7 +1327,8 @@
     "sortRecent": "최신등록순",
     "sortName": "이름순",
     "sortStage": "업무단계순",
-    "viewAll": "전체"
+    "viewAll": "전체",
+    "quickAddDueAria": "추가할 업무의 마감일"
   },
   "tags": {
     "new": "새 태그",

@@ -10,6 +10,7 @@
 // TaskPopoutView 가 크므로 여기로 절출했다(god-file 래칫).
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
+import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 
 const Wrap = styled.form`
@@ -58,6 +59,15 @@ export interface QuickAddOption {
   ariaLabel: string;
 }
 
+/** ★ 2026-09-08 (Irene: "마감일별에는 마감날짜 넣게 해주고 캘린더. 필터별로 맞춰서 나오게 해줘.")
+ *  보기 기준이 '마감일별' 이면 고를 것이 목록이 아니라 **날짜**다. 셀렉트로는 표현할 수 없어
+ *  별도 모양으로 받는다. 네이티브 date 입력은 쓰지 않는다(저장소 표준 = SingleDateField). */
+export interface QuickAddDateOption {
+  value: string;                 // 'YYYY-MM-DD'
+  onChange: (v: string) => void;
+  ariaLabel: string;
+}
+
 export interface PopoutQuickAddProps {
   /** 제목으로 업무를 만든다. 성공하면 true. (기본값 결정은 호출측 = 탭 문맥의 몫) */
   onAdd: (title: string) => Promise<boolean>;
@@ -67,9 +77,11 @@ export interface PopoutQuickAddProps {
   /** #309 — "태그별로 되어 있으면 태그선택을 옵션으로, 프로젝트별이면 프로젝트를".
       보기 기준이 바뀌면 호출측이 다른 option 을 넘긴다. 여기서는 그리기만 한다. */
   option?: QuickAddOption | null;
+  /** 마감일별 보기에서 쓰는 날짜 칸. option 과 **동시에 오지 않는다**(보기 기준은 하나다). */
+  dateOption?: QuickAddDateOption | null;
 }
 
-const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, addLabel, errorText, option }) => {
+const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, addLabel, errorText, option, dateOption }) => {
   const [value, setValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -132,6 +144,16 @@ const PopoutQuickAdd: React.FC<PopoutQuickAddProps> = ({ onAdd, placeholder, add
                 : null}
               onChange={(v) => option.onChange((v as { value?: string } | null)?.value || '')}
               options={option.choices}
+            />
+          </OptWrap>
+        )}
+        {dateOption && (
+          <OptWrap>
+            <SingleDateField
+              size="sm"
+              value={dateOption.value}
+              onChange={dateOption.onChange}
+              width="100%"
             />
           </OptWrap>
         )}
