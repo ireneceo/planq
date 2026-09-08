@@ -756,8 +756,13 @@ const IconTalk = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="no
 //   동그란 느낌의 말풍선으로 해줘") — 우하단 도크 FAB(RightDock IconDock)이 위 사각 말풍선과
 //   **같은 path** 라, 폰에서 채팅 입구가 두 개인데 생김새가 똑같아 어느 쪽이 무엇인지 구별되지
 //   않았다. 상단은 둥근 말풍선으로 가른다. 도크 쪽은 그대로 둔다(그쪽이 기준점이다).
+// ★ 2026-09-08 (Irene: "모바일에서 우측 상단에 채팅아이콘 q talk로 가는 거 왜 이렇게 조그만해?
+//   박싱된 사이즈에 좀 차게 키울 수 없어?") — 누르는 상자는 44×44 로 맞아 있었는데
+//   **글리프만 17px** 이라 상자 안에서 떠 보였다(실측: 옆 사이드바 버튼 24, 알림 16).
+//   상자는 그대로 두고 글자만 키운다 — 22 면 44 상자에 어울리고 터치 타깃은 그대로다.
+//   (이 아이콘은 모바일 헤더 전용이다 — 사이드바 메뉴의 16px 아이콘들과는 쓰임이 다르다.)
 const IconTalkRound = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <circle cx="12" cy="11" r="8" />
     <path d="M8.2 18.1 5 21.5l4.6-1.7" />

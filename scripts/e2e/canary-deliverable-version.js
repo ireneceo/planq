@@ -80,10 +80,28 @@ async function run() {
       { replacements: [taskId], type: sequelize.QueryTypes.SELECT });
 
     // ② 눌러서 실제로 회차가 남는가
+    //   ★ 2026-09-08 — 응답 상태를 **같이** 잰다. 여태 부수효과(행 생성·입력란 비움)만 재서
+    //     `ReferenceError: createAuditLog is not defined` 로 **500** 이 나는데도 초록이었다:
+    //     그 예외는 트랜잭션 **커밋 뒤**에 터져 행은 이미 남고 화면만 "남기지 못했습니다" 였다.
+    //     Irene 신고 원문이 정확히 그 문구다. 성공 경로를 안 태우면 검사는 거짓말을 한다
+    //     (memory: feedback_code_move_needs_success_path · feedback_guard_must_be_falsified).
+    const posts = [];
+    page.on('response', (r) => {
+      if (r.request().method() === 'POST' && /\/deliverable-versions$/.test(r.url())) posts.push(r.status());
+    });
     if (seen.found && seen.visible && !seen.disabled) {
       await page.click('[data-testid="task-body-new-version"]');
       await b.sleep(3500);
     }
+    push('POST 응답이 2xx 다 (부수효과만 보면 500 을 놓친다)',
+      posts.length === 1 && posts[0] >= 200 && posts[0] < 300,
+      `응답 ${JSON.stringify(posts)} — 기대 [201]`);
+    const onScreenErr = await page.evaluate(() => {
+      const txt = document.body.innerText || '';
+      const hit = ['회차로 남기지 못했습니다', 'Could not save', '남기지 못했'].find((m) => txt.includes(m));
+      return hit || null;
+    });
+    push('화면에 실패 문구가 뜨지 않는다', !onScreenErr, onScreenErr ? `문구: "${onScreenErr}"` : '없음');
     const after = await sequelize.query(
       'SELECT round, body FROM task_deliverable_versions WHERE task_id = ? ORDER BY round DESC',
       { replacements: [taskId], type: sequelize.QueryTypes.SELECT });

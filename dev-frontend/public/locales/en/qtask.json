@@ -665,7 +665,7 @@
     "kbSaveHint": "Saves this result to Q info. Cue uses what's in Q info when answering.",
     "recurDescHint": "This description is copied into every occurrence. Write each occurrence’s output in its own body.",
     "kbErr": "Couldn't add it. Please try again in a moment.",
-    "bodyEditing": "Editing — saved automatically. Submitting for review records this as v{{n}}.",
+    "bodyEditing": "Writing v{{n}} · saved automatically — it stays as-is when you request review.",
     "bodyVerTip": "Rounds recorded so far by submitting for review",
     "bodyLocked": {
       "reviewing": "Locked while under review, so reviewers approve exactly what they read.",
@@ -674,12 +674,19 @@
       "completed": "Completed deliverable. To keep working, start a revision — this version stays as it is."
     },
     "bodyEditingPlain": "Editing — saved automatically. Submitting for review records this as a version.",
-    "newVersion": "Save this and start a new one (v{{n}})",
-    "newVersionPlain": "Save this and start a new one",
+    "newVersion": "Save as new version (v{{n}})",
+    "newVersionPlain": "Save as new version",
     "newVersionSaving": "Saving…",
-    "newVersionHint": "Saves the current result as one version and clears the editor. Saved versions stay in the history below — no need to put results in comments.",
+    "newVersionHint": "Files what you wrote as v{{cur}} and clears the box so you can write v{{next}}. Saved rounds stay in the history below — no need to paste results into comments.",
     "newVersionEmpty": "Write the result first, then you can save it.",
-    "newVersionFailed": "Couldn't save it as a version. Please try again."
+    "newVersionFailed": "Couldn't save it as a version. Please try again.",
+    "newVersionFailedReason": "Could not save this round — {{why}}",
+    "newVersionWhy": {
+      "only_assignee": "only the assignee can save a result",
+      "body_locked": "the result is locked in this status",
+      "empty_body": "write the result first",
+      "server": "the server could not process it. Please try again shortly"
+    }
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",

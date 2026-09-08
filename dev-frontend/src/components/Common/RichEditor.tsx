@@ -10,7 +10,6 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import Underline from '@tiptap/extension-underline';
 // 표 (#151) — 여태 RichEditor 에는 표 확장이 없어서 업무 본문·메일·지식에 표를 **넣을 수도 볼 수도** 없었다.
 // (문서 에디터 PostEditor 에는 있었다 — 같은 앱인데 화면마다 되고 안 됐다.)
 import { Table } from '@tiptap/extension-table';
@@ -91,7 +90,11 @@ export default function RichEditor({
       }),
       TaskList,
       TaskItem.configure({ nested: true }),
-      Underline,
+      // ★ Underline 을 따로 넣지 않는다 — StarterKit v3 가 이미 포함한다.
+      //   따로 넣으면 콘솔에 `Duplicate extension names found: ['underline']` 가 에디터를
+      //   그릴 때마다 쌓이고(2026-09-08 Irene 신고), 같은 이름의 mark 가 둘이라 스키마가
+      //   어느 쪽 규칙을 쓰는지 보장되지 않는다. `toggleUnderline()` 명령은 그대로 있다.
+      //   (link 는 이미 같은 이유로 `StarterKit.configure({ link: false })` 로 끄고 우리 설정을 쓴다.)
       // ★ class 'pq-table' 는 장식이 아니라 **계약**이다.
       //   메일 발송 시 services/emailHtmlInline.js 가 이 클래스가 붙은 표에만 테두리를 인라인으로
       //   심는다(메일 클라이언트는 <style> 을 대부분 버린다). 클래스가 없으면 그 코드가 걸릴

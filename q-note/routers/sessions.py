@@ -3,6 +3,7 @@ import csv
 import io
 import json
 import os
+import re
 import socket
 import uuid
 import ipaddress
@@ -75,6 +76,115 @@ async def internal_sessions_by_entity(
     )
     rows = await cur.fetchall()
     return success([dict(r) for r in rows])
+
+
+# ─── Cue 가 **내 회의록**을 읽는다 (2026-09-08) ───────────────────────────────
+#   Irene: "Q sale 빼고 다 해줘." — 남겨 둔 것 중 하나. Cue 는 업무·문서·파일·메일까지
+#   읽으면서 **회의에서 정한 것**만 못 읽었다. 정작 "그때 뭐라고 했더라" 가 가장 자주 묻는 것이다.
+#
+# ★ 범위는 **본인 것뿐이다. 예외 없음.**
+#   Q Note 는 사적 공간이다(PERMISSION_MATRIX §5.8 · memory feedback_qnote_personal_tool).
+#   owner 도 admin 도 platform_admin 도 남의 노트를 못 읽는다 — 여기 `user_id` 조건이
+#   그 정책의 **집행 지점**이다. 이 조건을 넓히는 순간 Q Note 는 사적 공간이 아니게 된다.
+#   그래서 workspace 노트(L2·L3)라도 **남의 것은 안 준다** — 연결했다는 것과
+#   남이 읽어도 된다는 것은 다르다(`/internal/by-entity` 가 L1 을 빼는 것과 같은 이유,
+#   방향만 반대다).
+#
+# ★ 부르는 쪽도 좁다: Node `services/qnoteContext.js` → `cue_context` 가
+#   **`personalScope='self'` 이고 `audience='internal'` 일 때만** 부른다.
+#   즉 답이 **묻는 사람 화면에만** 뜨는 경로(Q helper 드로어)뿐이다.
+#   대화방에 게시되는 Cue 답변(cue_orchestrator)은 이 경로를 절대 타지 않는다.
+@router.get('/internal/search')
+async def internal_search_my_sessions(
+    business_id: int = Query(...),
+    user_id: int = Query(...),
+    q: str = Query(...),
+    limit: int = Query(4, ge=1, le=10),
+    snippet_chars: int = Query(700, ge=100, le=2000),
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  """질문과 겹치는 **본인** 노트 몇 건 + 그 근처 발췌."""
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+
+  # 낱말 추출 — 2자 미만은 버린다(한 글자 LIKE 는 전부 걸린다). 상한 6.
+  terms = [w for w in re.split(r'[\s,.;:!?()\[\]{}"\'`/\\]+', (q or '').lower()) if len(w) >= 2][:6]
+  if not terms:
+    return success([])
+
+  # 조사 절단 — Node 쪽 `queryTerms` 와 같은 취지. 여기서만 안 하면 한국어 질문이 늘 0건이다.
+  extra = []
+  for w in terms:
+    for pcl in ('에서', '으로', '에게', '까지', '부터', '이랑', '하고', '의', '은', '는', '이', '가', '을', '를', '와', '과', '도', '에'):
+      if len(w) > len(pcl) and w.endswith(pcl):
+        stem = w[: -len(pcl)]
+        if len(stem) >= 2 and stem not in terms and stem not in extra:
+          extra.append(stem)
+        break
+  terms = (terms + extra)[:10]
+
+  FIELDS = ('title', 'summary_full', 'summary_key_points', 'body', 'brief', 'keywords')
+  # 필드 × 낱말 조합. 컬럼명은 **위 고정 튜플**에서만 오고 값은 전부 바인딩이다 — 결합 금지.
+  clauses = []
+  params: list = [business_id, user_id]
+  for f in FIELDS:
+    for t in terms:
+      clauses.append(f'LOWER(IFNULL({f}, \'\')) LIKE ?')
+      params.append(f'%{t}%')
+
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cur = await db.execute(
+      'SELECT id, title, created_at, status, capture_mode, project_id, visibility, '
+      '       summary_full, summary_key_points, body, brief '
+      'FROM sessions '
+      'WHERE business_id = ? AND user_id = ? AND (' + ' OR '.join(clauses) + ') '
+      'ORDER BY created_at DESC LIMIT ?',
+      tuple(params + [limit]),
+    )
+    rows = [dict(r) for r in await cur.fetchall()]
+
+    # 제목·요약에 없으면 **발화**에서 찾는다 — 회의는 요약보다 말에 남는 것이 많다.
+    if not rows:
+      ucl = ' OR '.join(['LOWER(u.original_text) LIKE ?'] * len(terms))
+      cur = await db.execute(
+        'SELECT s.id, s.title, s.created_at, s.status, s.capture_mode, s.project_id, s.visibility, '
+        '       s.summary_full, s.summary_key_points, s.body, s.brief '
+        'FROM sessions s JOIN utterances u ON u.session_id = s.id '
+        'WHERE s.business_id = ? AND s.user_id = ? AND (' + ucl + ') '
+        'GROUP BY s.id ORDER BY s.created_at DESC LIMIT ?',
+        tuple([business_id, user_id] + [f'%{t}%' for t in terms] + [limit]),
+      )
+      rows = [dict(r) for r in await cur.fetchall()]
+
+    out = []
+    for r in rows:
+      # 발췌는 **요약 우선**이다 — 전사 원문은 길고 잡음이 많아 프롬프트 예산을 그냥 태운다.
+      text = ''
+      for key in ('summary_full', 'summary_key_points', 'body', 'brief'):
+        v = r.get(key)
+        if v and str(v).strip():
+          text = str(v).strip()
+          break
+      if not text:
+        ucur = await db.execute(
+          'SELECT original_text FROM utterances WHERE session_id = ? '
+          'AND (' + ' OR '.join(['LOWER(original_text) LIKE ?'] * len(terms)) + ') '
+          'ORDER BY id ASC LIMIT 12',
+          tuple([r['id']] + [f'%{t}%' for t in terms]),
+        )
+        text = '\n'.join(x[0] for x in await ucur.fetchall() if x[0])
+      out.append({
+        'id': r['id'],
+        'title': r.get('title') or 'Untitled Session',
+        'created_at': r.get('created_at'),
+        'status': r.get('status'),
+        'capture_mode': r.get('capture_mode'),
+        'project_id': r.get('project_id'),
+        'snippet': (text or '')[:snippet_chars],
+      })
+  return success(out)
 
 
 @router.get('/internal/export')

@@ -149,6 +149,9 @@ interface TaskDetail {
   series_recurrence_rule?: string | null;
   /** 시리즈 첫 회차일 — RRULE 의 기준일(DTSTART). 회차 날짜로 규칙을 다시 만들면 시리즈가 통째로 옮겨간다. */
   series_due_date?: string | null;
+  /** 못 한 회차 정책 — **시리즈 값**이다. 회차 자신의 `miss_policy` 는 아무도 읽지 않는다
+   *  (정리 엔진은 부모 것만 본다). 회차에서는 반드시 이 값을 보여주고 이 값을 고쳐야 한다. */
+  series_miss_policy?: 'carry' | 'auto_skip' | null;
 }
 
 export interface DrawerProjectOption { id: number; name: string; }
@@ -634,10 +637,17 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       // ★ 회차에서 바꾼 반복 규칙은 **이 행이 아니라 시리즈 부모**에 저장된다.
       //   그대로 이 행에 써 넣으면 화면은 저장된 것처럼 보이는데 다시 열면 되돌아간다
       //   (그 값을 서버가 이 행에 준 적이 없다). 회차에서는 시리즈 필드에 반영한다.
-      const localPatch = (detailTask.recurrence_parent_id
-        && Object.prototype.hasOwnProperty.call(patch, 'recurrence_rule'))
-        ? { ...patch, recurrence_rule: null, series_recurrence_rule: patch.recurrence_rule }
-        : patch;
+      let localPatch: Record<string, unknown> = patch;
+      if (detailTask.recurrence_parent_id) {
+        if (Object.prototype.hasOwnProperty.call(patch, 'recurrence_rule')) {
+          localPatch = { ...localPatch, recurrence_rule: null, series_recurrence_rule: patch.recurrence_rule };
+        }
+        // ★ 2026-09-08 — `miss_policy` 도 같다. 서버가 이 값을 **시리즈 부모**에 쓰므로,
+        //   회차 행에 그대로 써 넣으면 다시 열었을 때 옛 값으로 되돌아간 것처럼 보인다.
+        if (Object.prototype.hasOwnProperty.call(patch, 'miss_policy')) {
+          localPatch = { ...localPatch, miss_policy: null, series_miss_policy: patch.miss_policy };
+        }
+      }
       setDetailTask(prev => prev ? { ...prev, ...localPatch } as TaskDetail : prev);
       onPatch?.({ id: detailTask.id, ...patch } as DrawerTaskPatch);
       setSaveStatusTemp('saved');
@@ -709,10 +719,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         body: JSON.stringify({ start_new: true }),
       });
       if (!r.ok) {
+        // ★ 2026-09-08 — 여태 `empty_body` 말고는 전부 "잠시 후 다시 시도해 주세요" 한 문구였다.
+        //   그래서 서버가 **500(`createAuditLog is not defined`)** 을 내던 동안에도 화면은
+        //   "잠시 후 다시" 라고만 말했고, 몇 번을 다시 눌러도 같은 결과였다 —
+        //   사용자에게는 원인을 알 길이 없었다(Irene 신고 원문이 그 문구다).
+        //   이제 **무엇이 막았는지**를 말한다(UI_DESIGN_GUIDE 0-B — 못 하면 말을 한다).
         const j = await r.json().catch(() => ({}));
-        setActionError(String(j?.message || '').startsWith('empty_body')
-          ? (t('detail.newVersionEmpty') as string)
-          : (t('detail.newVersionFailed') as string));
+        const code = String(j?.message || '').split(':')[0];
+        if (code === 'empty_body') { setActionError(t('detail.newVersionEmpty') as string); return; }
+        const knownWhy = ['only_assignee', 'body_locked'].includes(code) ? code : 'server';
+        setActionError(t('detail.newVersionFailedReason', {
+          why: t(`detail.newVersionWhy.${knownWhy}`) as string,
+        }) as string);
         return;
       }
       bodyDraftRef.current = '';
@@ -1212,7 +1230,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           //   목록을 읽기 전에는 번호 없는 문구를 쓴다. 정본은 언제나 박제 목록이다.
           const roundKnown = lastDeliverableRound >= 0;
           const shownRound = lastDeliverableRound;
+          // ★ 2026-09-08 Irene: "뒤에 버전 붙이면 새것이 이 버전 같잖아. 그럼 다음 새로 생성될
+          //   버전이 붙어야지. v2. 그리고 입력란 버전이 지금 무슨 버전인지 알아야하고."
+          //   그래서 번호를 **둘로 나눈다**:
+          //     · `nextVersionNo`  = 지금 입력란에 쓰는 것이 남으면 될 번호  → 입력란이 이걸 말한다
+          //     · `afterSaveVersionNo` = 남긴 **뒤에 새로 쓰게 될** 번호      → 버튼이 이걸 단다
+          //   하나로 쓰면 버튼의 (v1)이 "지금 것이 v1" 인지 "새것이 v1" 인지 구별되지 않는다.
           const nextVersionNo = lastDeliverableRound + 1;
+          const afterSaveVersionNo = nextVersionNo + 1;
           // 완료된 업무를 이어서 고치는 유일한 문 = 새 회차 시작(actStart). 취소된 업무는 열지 않는다.
           const reviseAvailable = canEditBody && detailTask.status === 'completed';
           const canEditRecurrence = iAmCreator || iAmWsOwner;  // 백엔드 FIELD_RULES와 일치
@@ -1856,7 +1881,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       { value: 'carry', label: t('recur.missCarry', '못 한 회차는 그대로 남기기') as string },
                       { value: 'auto_skip', label: t('recur.missSkip', '못 한 회차는 자동으로 넘기기') as string },
                     ];
-                    const cur = detailTask.miss_policy || 'carry';
+                    // ★ 회차에서는 **시리즈 값**을 보여준다. 회차 자신의 miss_policy 는 아무도 읽지 않는다 —
+                    //   그 값을 보여주면 사용자는 시리즈가 'carry' 인데 'auto_skip' 으로 보고 있게 된다
+                    //   (운영에서 정확히 그 상태였다: 자식 12건 auto_skip · 부모 7개 전부 carry).
+                    const cur = (detailTask.recurrence_parent_id
+                      ? detailTask.series_miss_policy
+                      : detailTask.miss_policy) || 'carry';
                     return (
                       <PlanQSelect size="sm"
                         isDisabled={!canEditRecurrence}
@@ -2314,7 +2344,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <BodyModeLine>
                   <span>
                     {roundKnown
-                      ? t('detail.bodyEditing', '작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 v{{n}} 로 남습니다.', { n: nextVersionNo })
+                      ? t('detail.bodyEditing', 'v{{n}} 작성 중 · 자동 저장됩니다 — 확인 요청을 보내면 이대로 남습니다.', { n: nextVersionNo })
                       : t('detail.bodyEditingPlain', '작성 중 — 자동 저장됩니다. 확인 요청을 보내면 이 내용이 회차로 남습니다.')}
                   </span>
                   {/* ★ 2026-09-07 Irene: "업무상세 결과물에 새버전 결과 추가버튼 만들어달라고.
@@ -2323,13 +2353,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <NewVerBtn type="button" data-testid="task-body-new-version"
                     disabled={newVerBusy || !hasBodyText}
                     title={hasBodyText
-                      ? (t('detail.newVersionHint') as string)
+                      ? (t('detail.newVersionHint', { cur: nextVersionNo, next: afterSaveVersionNo }) as string)
                       : (t('detail.newVersionEmpty') as string)}
                     onClick={saveAsNewVersion}>
                     {newVerBusy
                       ? (t('detail.newVersionSaving') as string)
                       : roundKnown
-                        ? (t('detail.newVersion', { n: nextVersionNo }) as string)
+                        ? (t('detail.newVersion', { n: afterSaveVersionNo }) as string)
                         : (t('detail.newVersionPlain') as string)}
                   </NewVerBtn>
                 </BodyModeLine>

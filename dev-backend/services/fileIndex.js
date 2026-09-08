@@ -139,11 +139,22 @@ async function removeFileIndex(fileId, businessId = null) {
   try {
     const where = { source_type: 'file', source_file_id: fileId };
     if (businessId) where.business_id = businessId;
-    const docs = await KbDocument.findAll({ where });
+    // ★ `paranoid: false` — 옛 코드가 soft-delete 로 남겨 둔 자동 색인 행까지 걷는다.
+    //   기본 조회는 그 행들을 **아예 못 봐서**, 지우려 해도 0건이 나오고 FK 는 계속 걸려 있었다.
+    const docs = await KbDocument.findAll({ where, paranoid: false });
     for (const d of docs) {
       // 청크는 KbDocument FK 로 매달려 있다 — 문서를 지우면 같이 정리된다(kb_service 와 같은 경로).
       await require('../models').KbChunk.destroy({ where: { kb_document_id: d.id } }).catch(() => {});
-      await d.destroy();
+      // ★ 2026-09-08 — `KbDocument` 는 paranoid 다. 그냥 `destroy()` 하면 **행이 남는다**:
+      //     · 파일을 되살릴 때 `findDocFor` 가 soft-deleted 행을 못 봐서 **새 문서를 또 만든다**
+      //       (같은 파일에 색인 문서가 계속 쌓인다)
+      //     · `files.id` 를 참조하는 FK 가 살아 있어 파일 행을 영영 못 지운다(실측: 카나리 정리 실패)
+      //     · 사람이 만들지 않은 파생물이 Q info **휴지통에 쌓인다**
+      //   자동 색인분은 파일에서 언제든 다시 만들어지는 **파생물**이다 — 되살릴 것이 없다.
+      //   반대로 사람이 고른 "파일 → Q info" 문서는 사용자 자산이므로 종전대로 휴지통으로 보낸다
+      //   (memory: feedback_no_user_asset_mutation · feedback_soft_delete_without_trash_ui).
+      const auto = d.custom_values && d.custom_values.auto_indexed === true;
+      await d.destroy(auto ? { force: true } : undefined);
     }
     return docs.length;
   } catch (e) {

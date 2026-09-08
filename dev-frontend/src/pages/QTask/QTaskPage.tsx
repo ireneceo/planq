@@ -2,6 +2,7 @@ import React, { Fragment, useState, useEffect, useCallback, useMemo, useRef } fr
 import { SkeletonList } from '../../components/Common/Skeleton';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
+import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
 import { useAuth } from '../../contexts/AuthContext';
@@ -2153,7 +2154,9 @@ const QTaskPage:React.FC=()=>{
                         return <CheckSpacer aria-hidden="true" />;
                       })()}
                       {(<>
-                        {task.has_unread && <UnreadDot title={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string} />}
+                        {task.has_unread
+                          ? <UnreadDot title={t('list.hasUnread', { defaultValue: '새 활동(댓글·변경) — 열면 사라집니다' }) as string} />
+                          : <UnreadDotSpacer aria-hidden="true" />}
                         {/* ★ 2026-09-07 (Irene: "Q task 리스트 모든 디바이스 모든 곳에서 제목 편집기능
                             없애고 클릭하면 다 업무상세 나오게 해줘.") — 제목 클릭은 **상세를 연다.**
                             같은 자리에서 어떤 때는 편집칸이 열리고 어떤 때는 상세가 열리면 무엇을 누른
@@ -3741,7 +3744,14 @@ const DelayChip=styled.button`
   transition:background 120ms ease,color 120ms ease;
   &:hover{background:#E2E8F0;color:#0F172A;}
 `;
-const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;`;
+// ★ 2026-09-08 (Irene: "체크박스가 있던 없던 업무이름이 좌측정렬 맞춰줘")
+//   `width/height` 만 맞추고 **margin 을 안 껐다.** 브라우저 기본 `<input type=checkbox>` 는
+//   `margin: 3px 3px 3px 4px` 이라 실제 차지하는 폭이 15 가 아니라 22 였다 —
+//   자리지기(CheckSpacer)는 15 라서 제목 좌측선이 **7px** 어긋났다
+//   (실측 1440px: 체크박스 행 x=412 / 자리지기 행 x=405).
+//   자리지기를 22 로 늘려 맞추지 않는다 — 기본 margin 은 브라우저마다 달라서 또 갈라진다.
+//   상자 하나만 남기고 간격은 행의 gap 이 만든다.
+const TaskCheck=styled.input`accent-color:#0D9488;cursor:pointer;width:15px;height:15px;flex-shrink:0;margin:0;`;
 // 체크박스를 내주지 않는 행의 자리 유지 — 안 그리면 제목 좌측선이 행마다 어긋난다.
 const CheckSpacer=styled.span`width:15px;height:15px;flex-shrink:0;display:inline-block;`;
 // 저장 실패 배너 — UI_DESIGN_GUIDE §1.3 (에러는 인라인, alert 금지)
@@ -3768,11 +3778,14 @@ const QTaskInlineInput=styled.input`flex:1;min-width:0;padding:4px 8px;height:26
 //   상세버튼)가 전부 flex-shrink:0 이라, 셀이 좁아지면 그것들이 폭을 먼저 다 먹고 업무명에
 //   1~2글자만 남았다("노트북에서 1, 2글자만 보여"). 성장 + 최소폭 바닥을 줘서
 //   "업무명 > 장식 배지" 우선순위를 강제한다 — 셀의 overflow:hidden 이 뒤쪽 배지부터 잘라낸다.
-const TaskTitle=styled.span<{$done?:boolean}>`font-size:0.875rem;font-weight:600;@media(max-width:640px){font-size:0.9375rem;}color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
+const TaskTitle=styled.span<{$done?:boolean}>`${listRowTitleCss}color:#0F172A;cursor:text;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1 1 auto;min-width:96px;${p=>p.$done&&'text-decoration:line-through;color:#94A3B8;'}&:hover{color:#0F766E;}`;
 // WORK_FLOW §6 — 이월 배지 (차분·비강조, slate)
 const CarriedBadge=styled.span`flex-shrink:0;display:inline-flex;align-items:center;padding:1px 7px;font-size:0.625rem;font-weight:700;color:#475569;background:#F1F5F9;border-radius:10px;letter-spacing:-0.2px;cursor:help;`;
 // 안 읽은 업무 활동(댓글·변경) 점 (운영 #5)
 const UnreadDot=styled.span`flex-shrink:0;width:7px;height:7px;border-radius:50%;background:#F43F5E;margin-right:2px;align-self:center;`;
+// 안 읽음 점도 **자리는 항상 차지한다** — 체크박스 자리지기와 같은 이유다.
+//   점이 있는 행만 제목이 9px 밀리면 좌측선이 데이터에 따라 흔들린다.
+const UnreadDotSpacer=styled.span`flex-shrink:0;width:7px;height:7px;margin-right:2px;display:inline-block;`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:700;
   border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{opacity:0.8;}':''}

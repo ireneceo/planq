@@ -624,6 +624,17 @@
       "open": "Edit in Drive",
       "failed": "Couldn't open this file for editing. Please try again.",
       "noGoogleAccount": "No Google account is linked to your email, so edit access couldn't be granted. Sign in with a Google account and use \"Request access\" on the Drive screen."
+    },
+    "cueRead": {
+      "label": "Cue access",
+      "ok": "Cue reads this file",
+      "unsupported_type": "Cue cannot read this format",
+      "unsupported_office": "Not readable — save as .docx / .xlsx / .pptx and Cue will read it",
+      "restricted": "Not sent to AI because the security level is not General",
+      "personal": "Personal files are not indexed",
+      "too_large": "Larger than 8MB — not indexed",
+      "empty_text": "No readable text found",
+      "other": "Cue cannot read this file"
     }
   },
   "pinnedDoc": {

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import { type MockProject, type MockConversation } from './types';
 import { useAuth } from '../../contexts/AuthContext';
@@ -531,7 +532,9 @@ const ChatTop = styled.div`
 `;
 
 const ChatName = styled.div<{ $active: boolean }>`
-  font-size: 0.8125rem;
+  /* 규격은 theme/tokens.listRowTitleCss 하나다 — 숫자를 여기 다시 적지 않는다.
+     여태 0.8125rem 고정이라 폰에서 Q mail·Q task(15px)보다 2px 작았다(실측). */
+  ${listRowTitleCss}
   font-weight: ${(p) => (p.$active ? 700 : 600)};
   color: #0F172A;
   white-space: nowrap;

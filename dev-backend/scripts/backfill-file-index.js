@@ -12,7 +12,8 @@
 //   ★ 운영에서는 `dev-backend/scripts/` 아래 경로로 돈다(rsync 는 dev-backend 만 보낸다).
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 const { sequelize } = require('../config/database');
-const { File } = require('../models');
+const { Op } = require('sequelize');
+const { File, KbDocument, KbChunk } = require('../models');
 const fileIndex = require('../services/fileIndex');
 
 const argv = process.argv.slice(2);
@@ -41,6 +42,26 @@ async function main() {
     const existing = await fileIndex.findDocFor(f.id, f.business_id);
     if (existing) { buckets.set('already', (buckets.get('already') || 0) + 1); continue; }
     todo.push(f);
+  }
+
+  // ── 옛 자동 색인 잔재 정리 (멱등) ───────────────────────────────────────────
+  //   `KbDocument` 는 paranoid 라, 예전 `removeFileIndex` 의 `destroy()` 는 행을 **남겼다**.
+  //   그 행들은 ① Q info 휴지통에 파생물로 쌓이고 ② `files.id` FK 를 붙잡고 있으며
+  //   ③ 파일을 되살릴 때 `findDocFor` 가 못 봐서 **같은 파일에 문서가 또 생긴다**.
+  //   자동 색인분은 파일에서 언제든 다시 만들어지는 파생물이라 되살릴 것이 없다 — 완전히 걷는다.
+  //   (사람이 만든 "파일 → Q info" 문서는 auto_indexed 표식이 없어 여기 걸리지 않는다.)
+  const staleWhere = { source_type: 'file', deleted_at: { [Op.ne]: null } };
+  if (BUSINESS) staleWhere.business_id = BUSINESS;
+  const stale = (await KbDocument.findAll({ where: staleWhere, paranoid: false }))
+    .filter((d) => d.custom_values && d.custom_values.auto_indexed === true);
+  if (stale.length) {
+    console.log(`── 옛 자동 색인 잔재 ${stale.length}건 ${APPLY ? '정리' : '(dry-run — 그대로 둠)'} ──`);
+    if (APPLY) {
+      for (const d of stale) {
+        await KbChunk.destroy({ where: { kb_document_id: d.id } }).catch(() => {});
+        await d.destroy({ force: true });
+      }
+    }
   }
 
   console.log('── 대상 집계 ──');

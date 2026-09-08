@@ -23,7 +23,11 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { sanitizeRichText } from './sanitizeHtml';
 
 /** 편집기와 **같은 확장 목록**. 여기서만 늘린다. */
-const EXTENSIONS = [StarterKit, Link, Image, Table, TableRow, TableHeader, TableCell];
+//   ★ `link: false` — StarterKit v3 가 Link 를 자체 포함한다. 그대로 두고 우리 Link 를 또 넣으면
+//     같은 이름의 mark 가 둘이 되어(`Duplicate extension names found: ['link']`) 어느 규칙으로
+//     직렬화될지 보장되지 않는다. 편집기(PostEditor·RichEditor)와 **같은 처리**를 여기도 한다 —
+//     이 파일은 서버로 보낼 HTML 을 만드는 곳이라, 갈라지면 저장본이 화면과 달라진다.
+const EXTENSIONS = [StarterKit.configure({ link: false }), Link, Image, Table, TableRow, TableHeader, TableCell];
 
 /**
  * 변환만 한다(정화 없음). 서버로 보낼 HTML 은 이 함수를 쓴다.

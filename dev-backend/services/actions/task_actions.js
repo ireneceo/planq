@@ -764,9 +764,13 @@ async function saveDeliverableVersion(task, actor, { note = null, startNew = fal
     throw e;
   }
 
-  createAuditLog({
+  // ★ 2026-09-08 — 여기가 `createAuditLog(...)` 였다. **이 파일에 없는 이름**이라
+  //   `ReferenceError` 로 500 이 났다(운영 실측 `POST /api/tasks/330/deliverable-versions` 500 ×2).
+  //   더 나쁜 것은 **회차 행은 이미 커밋된 뒤**라, 사용자에게는 "회차로 남기지 못했습니다" 라고
+  //   말하면서 실제로는 남았다는 점이다. 이 파일의 감사 헬퍼는 `audit(actor, entry)` 하나다.
+  audit(actor, {
     action: 'task.deliverable_version', targetType: 'task', targetId: task.id,
-    businessId: task.business_id, userId: actor.userId,
+    businessId: task.business_id,
     newValue: { round: created.round, start_new: startNew, note },
   });
   // 다른 기기·다른 사람 화면에도 즉시 (CLAUDE.md §16) — 전이 경로와 같은 함수를 쓴다.

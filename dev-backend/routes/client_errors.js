@@ -31,7 +31,12 @@ router.post('/', authenticateToken, ...limiter, async (req, res) => {
     business_id: Number(b.business_id) || null,
     route: cap(b.route, 200),
     message: cap(b.message, 300),
-    component: cap(b.component, 200),
+    // ★ 2026-09-08 (2차) — 운영은 minify 다. 화면 경로만 알아도 **어느 컴포넌트인지**는 못 짚는다.
+    //   componentStack 은 상위 10 프레임(600자), error.stack 은 상위 6 프레임(600자)까지 받는다.
+    //   소스맵은 배포하지 않는다(웹 루트에 올리면 소스 유출) — 대신 **청크 이름이 화면 이름**이라
+    //   `AdminWikiPage-XXXX.js:5:1234` 한 줄로 파일이 특정된다.
+    component: cap(b.component, 600),
+    stack: cap(b.stack, 600),
     build: cap(b.build, 60),
     ua: cap(req.get('user-agent'), 160),
   }));

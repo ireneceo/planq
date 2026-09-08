@@ -624,6 +624,17 @@
       "open": "Drive 에서 편집",
       "failed": "편집으로 열지 못했습니다. 잠시 후 다시 시도해 주세요.",
       "noGoogleAccount": "이 계정 이메일에 연결된 Google 계정이 없어 편집 권한을 드리지 못했습니다. Google 계정으로 로그인한 뒤 Drive 화면에서 \"액세스 요청\"을 눌러 주세요."
+    },
+    "cueRead": {
+      "label": "Cue 읽기",
+      "ok": "내용을 읽습니다",
+      "unsupported_type": "이 형식은 내용을 읽지 못합니다",
+      "unsupported_office": "이 형식은 못 읽습니다 — .docx·.xlsx·.pptx 로 저장하면 읽힙니다",
+      "restricted": "보안등급이 일반이 아니어서 AI 에 넣지 않습니다",
+      "personal": "개인 파일은 색인하지 않습니다",
+      "too_large": "8MB 가 넘어 색인하지 않습니다",
+      "empty_text": "읽을 수 있는 글이 없습니다",
+      "other": "내용을 읽지 못합니다"
     }
   },
   "pinnedDoc": {

@@ -132,6 +132,27 @@ async function run() {
     push('태그 — 범위를 안 주면 이 회차만 (음성 대조군)',
       tr2.status === 200 && Number(after[0].n) === rows.length - 1,
       `status=${tr2.status} · 남은 연결 ${after[0].n}건 (${rows.length - 1} 이어야 한다)`);
+    // ⑦ 못 한 회차 정책 — **시리즈 값**이다 (2026-09-08 신고).
+    //   Irene: "저장하지 말고 넘기기 설정해도 안바뀌고 있어."
+    //   화면은 열려 있는 **회차**에서 이 값을 고치는데, 정리 엔진
+    //   (`recurringTaskGenerator.skipMissedOccurrences`)은 **부모의** 값만 읽는다.
+    //   여태 회차 행에 저장돼서 아무 일도 일어나지 않았다 —
+    //   운영 실측: 자식 12건 auto_skip · 그 부모 7개는 전부 carry · 지난 미수행 22건.
+    //   여기서 재는 것: 회차에서 고쳐도 **부모가 바뀌고**, 회차 행은 오염되지 않는다.
+    const missOf = async (id) => (await sequelize.query(
+      'SELECT miss_policy FROM tasks WHERE id = ?',
+      { replacements: [id], type: sequelize.QueryTypes.SELECT }))[0].miss_policy;
+    const beforeParent = await missOf(pid);
+    r = await put(instIds[1], { miss_policy: 'auto_skip' });
+    const afterParent = await missOf(pid);
+    const afterChild = await missOf(instIds[1]);
+    push('miss_policy — 회차에서 고쳐도 **부모(시리즈)** 에 저장된다',
+      r.status === 200 && afterParent === 'auto_skip',
+      `status=${r.status} · 부모 ${beforeParent} → ${afterParent} (auto_skip 이어야 한다)`);
+    push('miss_policy — 회차 행은 오염되지 않는다 (음성 대조군)',
+      afterChild !== 'auto_skip',
+      `회차 miss_policy=${afterChild} — auto_skip 이면 옛 버그(아무도 안 읽는 자리에 저장)`);
+
   } catch (e) {
     push('카나리 실행', false, String((e && e.message) || e));
   } finally {

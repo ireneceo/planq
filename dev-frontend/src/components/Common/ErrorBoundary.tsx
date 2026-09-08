@@ -36,18 +36,40 @@ class ErrorBoundary extends React.Component<Props, State> {
     // ★ 2026-09-08 (Irene: "이렇게 에러가 나는 건 우리가 미리 미리 몰라?")
     //   여태 몰랐다 — 크래시는 화면만 갈아 끼우고 서버엔 흔적이 없었다. 사용자가 신고 버튼을
     //   눌러 글을 써 줘야만 알 수 있었고, 안 쓰면 **어느 화면인지조차** 못 물어봤다.
-    //   경로와 메시지만 조용히 남긴다. 실패해도 무시한다 — 보고가 화면을 두 번 죽이면 안 된다.
+    //
+    // ★★ 2026-09-08 (2차) — **이 보고는 여태 한 건도 서버에 닿지 않았다.**
+    //   `credentials: 'include'` 만 붙이고 보냈는데 `/api/client-errors` 는 `authenticateToken`
+    //   이고 그 미들웨어는 **Authorization 헤더만** 읽는다(쿠키는 refresh 전용) →
+    //   전부 `401 no_token`. 실측: 무인증 POST = 401 `no_token`, 운영 로그 `client-crash` **0건**.
+    //   "보고를 만들었다" 와 "보고가 도착한다" 는 다르다(memory: feedback_produced_link_no_consumer /
+    //   feedback_unwired_guard_is_no_guard). 그래서 **앱과 같은 인증 계약**을 쓴다 —
+    //   `apiFetch` 는 능동 refresh → Authorization 부착 → 401 이면 refresh 후 1회 재시도까지 한다.
+    //   순환 import 를 만들지 않으려고 동적 import 로 부른다(utils/download.ts 와 같은 패턴).
+    //
+    //   그리고 **스택을 더 싣는다.** 운영은 minify 라 `#185` 같은 코드만 오면 화면은 알아도
+    //   무엇이 죽었는지는 못 짚는다. 소스맵은 배포하지 않지만(빌드 `sourcemap:false` — 웹 루트에
+    //   올라가면 소스가 그대로 새어 나간다) **청크 이름이 곧 화면 이름**이다
+    //   (`AdminWikiPage-XXXX.js:5:1234`) — error.stack 상위 프레임만 있어도 파일이 특정된다.
+    //   실패해도 무시한다 — 보고가 화면을 두 번 죽이면 안 된다.
     try {
-      const body = JSON.stringify({
+      const frames = (v: unknown, n: number, cap: number) => String(v || '')
+        .split('\n').map((l) => l.trim()).filter(Boolean).slice(0, n).join(' | ').slice(0, cap);
+      const payload = {
         route: typeof window !== 'undefined' ? window.location.pathname + window.location.search : '',
-        message: String(error && error.message || error).slice(0, 300),
-        component: String((info && (info as { componentStack?: string }).componentStack) || '').split('\n').slice(0, 3).join(' | ').slice(0, 200),
+        message: String((error && error.message) || error).slice(0, 300),
+        component: frames((info as { componentStack?: string } | undefined)?.componentStack, 10, 600),
+        stack: frames(error && error.stack, 6, 600),
         build: (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_BUILD_ID || '',
-      });
-      void fetch('/api/client-errors', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body, keepalive: true,
-      }).catch(() => undefined);
+      };
+      void (async () => {
+        try {
+          const { apiFetch } = await import('../../contexts/AuthContext');
+          await apiFetch('/api/client-errors', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        } catch { /* 보고 실패는 무시 — 화면을 두 번 죽이지 않는다 */ }
+      })();
     } catch { /* 보고 실패는 무시 */ }
 
     if (isChunkLoadError(error)) {

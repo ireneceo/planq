@@ -5,6 +5,7 @@
 // 삭제는 드로어 맨 아래 Danger 블록 (확인 모달).
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
+import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
@@ -800,10 +801,8 @@ const Tr = styled.tr<{ $selected?: boolean }>`
 `;
 const Td = styled.td`padding:12px 16px;color:#0f172a;vertical-align:middle;strong{font-weight:600;}`;
 const NameCell = styled.strong`
-  /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15 · 600 */
-  font-size:0.875rem;
-  font-weight:600;
-  @media (max-width: 640px) { font-size: 0.9375rem; }
+  /* 규격: theme/tokens.listRowTitleCss */
+  ${listRowTitleCss}
   display:inline-block; padding:2px 6px; margin:-2px -6px; border-radius:4px;
   cursor:pointer; transition:background 0.12s;
   &:hover{ background:#F1F5F9; }

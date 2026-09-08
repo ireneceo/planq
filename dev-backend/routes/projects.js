@@ -19,6 +19,17 @@ const {
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 // 같은 실제 파일이 direct·chat 두 줄로 보이던 것을 접는다(2026-09-04). 술어는 한 곳.
 const { dedupeFileRows } = require('../utils/dedupeFileRows');
+
+// Cue 가 이 파일 **내용**을 읽는가 — 판정은 `services/fileIndex.indexability` **한 함수**다.
+//   화면이 따로 계산하면 반드시 갈라진다(같은 값의 공식이 두 벌이면 이미 갈라져 있다).
+//   화면은 이 값으로 "Cue가 내용을 읽습니다 / 이 형식은 못 읽습니다" 한 줄을 말한다 —
+//   안 그러면 "왜 이 파일은 못 찾아?" 가 다음 신고가 된다.
+function cueReadOf(f) {
+  try {
+    const can = require('../services/fileIndex').indexability(f);
+    return can.ok ? { ok: true } : { ok: false, reason: can.reason };
+  } catch { return undefined; }
+}
 const { serializeMessageAttachments } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { CLIENT_VISIBLE_MESSAGE_WHERE } = require('../utils/messageVisibility');
@@ -3409,6 +3420,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         // 검색용 메타 — 이 둘이 빠지면 편집해도 목록·검색에는 옛 값만 남는다
         description: f.description,
         tags: f.tags || [],
+        cue_read: cueReadOf(f),
       });
     }
 
@@ -3622,6 +3634,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         project_id: f.project_id,
         description: f.description,
         tags: f.tags || [],
+        cue_read: cueReadOf(f),
       });
     }
 

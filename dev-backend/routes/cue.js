@@ -296,6 +296,10 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             // 내부 화면(Q helper 드로어)에서 본인이 보는 답변 — 스태프 전용 정보 주입 허용.
             // 기본값은 좁은 쪽(client_facing)이라 **여기서만 명시적으로 넓힌다**.
             audience: 'internal',
+            // ★ 이 답은 **묻는 사람의 Q helper 드로어에만** 뜬다 — 그래서 개인 자료
+            //   (내 Q Note 회의록)를 실을 수 있는 유일한 경로다. 대화방에 게시되는
+            //   cue_orchestrator 는 이 값을 넘기지 않는다(기본값 'none' = 안 싣는다).
+            personalScope: 'self',
             scope,
           });
           if (ctx.markdown) ctxBlock += `\n\n# 워크스페이스 현황\n${ctx.markdown}`;

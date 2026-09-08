@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
@@ -67,6 +68,22 @@ interface Props {
 }
 
 /** 업로드 큐 한 건 */
+/** Cue 읽기 상태 한 줄. 이유는 서버가 준 `reason` 그대로 옮긴다 —
+ *  화면이 판정을 다시 하면 서버와 갈라진다. 옛 바이너리(.doc·.xls·.ppt)는
+ *  **무엇을 하면 읽히는지**까지 말해 준다(형식만 바꾸면 되는 일이다). */
+function cueReadText(f: ProjectFile, t: TFunction): string {
+  const cr = f.cue_read;
+  if (!cr) return '';
+  if (cr.ok) return t('docs.cueRead.ok', '내용을 읽습니다') as string;
+  const ext = String(f.file_name || '').toLowerCase().split('.').pop() || '';
+  if (cr.reason === 'unsupported_type' && ['doc', 'xls', 'ppt'].includes(ext)) {
+    return t('docs.cueRead.unsupported_office', '이 형식은 못 읽습니다 — .docx·.xlsx·.pptx 로 저장하면 읽힙니다') as string;
+  }
+  const known = ['unsupported_type', 'restricted', 'personal', 'too_large', 'empty_text'];
+  const key = known.includes(String(cr.reason)) ? cr.reason : 'other';
+  return t(`docs.cueRead.${key}`, t('docs.cueRead.other', '내용을 읽지 못합니다')) as string;
+}
+
 const DocsTab: React.FC<Props> = (props) => {
   const scope: DocScope = props.scope
     || (props.projectId && props.businessId
@@ -1093,6 +1110,13 @@ const DocsTab: React.FC<Props> = (props) => {
                 {preview.context && <MetaItem>
                   <MetaKey>{t('docs.col.context', '출처')}</MetaKey><MetaVal>{preview.context.label}</MetaVal>
                 </MetaItem>}
+                {/* Cue 가 이 파일 내용을 읽는지 — 안 읽으면 **왜 안 읽는지**까지 한 줄로.
+                    이 줄이 없으면 "왜 이 파일은 못 찾아?" 가 다음 신고가 된다
+                    (memory: feedback_rules_must_be_explained_briefly). */}
+                {preview.cue_read && <MetaItem>
+                  <MetaKey>{t('docs.cueRead.label', 'Cue 읽기')}</MetaKey>
+                  <CueReadVal $ok={preview.cue_read.ok}>{cueReadText(preview, t)}</CueReadVal>
+                </MetaItem>}
               </MetaList>
               {/* N+67 — 공개 범위 변경 UI (source='direct' 인 파일만 변경 가능. 채팅/업무 첨부는 상위 visibility 따름) */}
               {preview.source === 'direct' && (
@@ -2072,6 +2096,12 @@ const SecHint = styled.div`font-size: 0.6875rem; color: #94A3B8; margin-top: 6px
 const MetaItem = styled.div`display:flex;align-items:flex-start;gap:10px;font-size:0.8125rem;`;
 const MetaKey = styled.div`flex:0 0 74px;font-size:0.6875rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.3px;padding-top:2px;`;
 const MetaVal = styled.div`color:#0F172A;word-break:break-all;`;
+// Cue 읽기 — 읽으면 본문색, 못 읽으면 한 톤 죽인 회색. 상태 색을 버튼처럼 칠하지 않는다
+//   (읽기 전용 정보다 — UI_DESIGN_GUIDE 1.7).
+const CueReadVal = styled(MetaVal)<{ $ok: boolean }>`
+  color: ${(p) => (p.$ok ? '#0F172A' : '#64748B')};
+  word-break: keep-all;
+`;
 
 // Buttons
 const SecondaryBtn = styled.button`

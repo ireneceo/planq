@@ -63,6 +63,10 @@ export interface ProjectFile {
   // N+67 — visibility 필드 (source='direct' 일 때만 변경 가능)
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
+  /** Cue 가 이 파일 **내용**을 읽는가. 판정은 서버의 `services/fileIndex.indexability`
+   *  한 함수다 — 화면에서 다시 계산하지 않는다(공식이 두 벌이면 이미 갈라져 있다).
+   *  `source='direct'` 인 행에만 실려 온다(첨부만 있는 행은 판정 근거가 없다). */
+  cue_read?: { ok: boolean; reason?: string };
   project_id?: number | null;
   // 검색용 메타 — 파일명만으로 못 찾는 자료(영상·스캔본)를 위해
   description?: string | null;

@@ -28,11 +28,27 @@ function asDateOnly(v) {
  * @returns {{rule: string|null}|undefined} 빼낸 값 (부모였으면 undefined — 그대로 저장하면 된다)
  */
 function extractSeriesRuleChange(task, updates) {
-  if (updates.recurrence_rule === undefined || !task.recurrence_parent_id) return undefined;
-  const out = { rule: updates.recurrence_rule };
-  delete updates.recurrence_rule;
-  delete updates.next_occurrence_at;
-  return out;
+  if (!task.recurrence_parent_id) return undefined;      // 부모면 그대로 저장하면 된다
+  const out = {};
+  if (updates.recurrence_rule !== undefined) {
+    out.rule = updates.recurrence_rule;
+    delete updates.recurrence_rule;
+    delete updates.next_occurrence_at;
+  }
+  // ★ 2026-09-08 — `miss_policy` 도 **시리즈 값**이다. 여태 이 문을 안 거치고 열려 있는
+  //   회차 행에 그대로 저장됐는데, 정리 엔진(`recurringTaskGenerator.skipMissedOccurrences`)은
+  //   **부모의** 값만 읽는다. 그래서 사용자가 회차에서 "못 한 회차는 자동으로 넘기기" 를 골라도
+  //   아무 일도 일어나지 않았다 — 화면은 저장됐다고 하고 동작만 안 바뀐다.
+  //   운영 실측(2026-09-08): 자식 회차 12건에 `auto_skip` 이 찍혀 있는데 그 부모 7개는 전부
+  //   `carry` 였고, 지난 미수행 회차 22건이 계속 목록에 떴다.
+  //   Irene: *"저장하지 말고 넘기기 설정해도 안바뀌고 있어. 반복업무 같은 내용으로 저장하게 안돼?"*
+  //   ★ 옛 코드의 주석은 이미 "시리즈 부모에만 의미가 있다" 라고 적혀 있었다 —
+  //     주석이 규칙을 말하고 코드가 안 지키면, 주석은 검증되지 않는다.
+  if (updates.miss_policy !== undefined) {
+    out.missPolicy = updates.miss_policy;
+    delete updates.miss_policy;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /**
@@ -54,8 +70,15 @@ async function applySeriesRuleChange({
   if (seriesRuleChange) {
     // 부모 기준 재검사 — 회차 행의 created_by 가 부모와 다를 수 있다(이관·복사 경로).
     if (!(isOwnerOrAdmin || String(parent.created_by) === String(actorId))) {
-      return { ok: false, code: 'forbidden_fields:recurrence_rule', http: 403 };
+      const f = seriesRuleChange.rule !== undefined ? 'recurrence_rule' : 'miss_policy';
+      return { ok: false, code: `forbidden_fields:${f}`, http: 403 };
     }
+    // 못 한 회차 정책 — 시리즈 값이므로 **부모에** 쓴다. 규칙 변경과 독립이다(둘 다 올 수도 있다).
+    if (seriesRuleChange.missPolicy !== undefined) {
+      await parent.update({ miss_policy: seriesRuleChange.missPolicy });
+    }
+  }
+  if (seriesRuleChange && seriesRuleChange.rule !== undefined) {
     if (!seriesRuleChange.rule) {
       await parent.update({ recurrence_rule: null, next_occurrence_at: null });
     } else {

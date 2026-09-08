@@ -15,7 +15,7 @@
 //     <ListRow.Side>{badges}</ListRow.Side>
 //   </ListRow>
 import styled, { css } from 'styled-components';
-import { LIST_ROW, CONTROL } from '../../theme/tokens';
+import { LIST_ROW, CONTROL, listRowTitleCss } from '../../theme/tokens';
 
 const Root = styled.div<{ $selected?: boolean; $muted?: boolean; $accent?: string }>`
   display: flex;
@@ -45,13 +45,11 @@ const Main = styled.div`
 `;
 
 const Title = styled.div`
-  font-size: ${LIST_ROW.titleSize.desktop / 16}rem;
-  font-weight: ${LIST_ROW.titleWeight};
+  ${listRowTitleCss}
   color: #0F172A;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  @media (max-width: 640px) { font-size: ${LIST_ROW.titleSize.phone / 16}rem; }
 `;
 
 const Meta = styled.div`

@@ -40,6 +40,22 @@ export const LIST_ROW = {
   selectedBg: '#F0FDFA',
 } as const;
 
+/**
+ * 목록 행 **제목**의 글자 규격. styled 안에 그대로 보간해 쓴다.
+ *
+ * ★ 2026-09-08 (Irene: "모바일에서 q talk 리스트 제목이랑 q note 리스트 제목이 너무 글자가 작아.
+ *   q mail이랑 q task가 좀 큰데 이게 적합한 것 같아. 통일해줘. 반응형도 왜 통일이 안되었어?")
+ *   ─ 규격은 여기 하나였는데 화면마다 **숫자를 베껴 적어** 두어서, 폰 분기를 안 적은 곳만
+ *     13px 로 남아 있었다(실측 390px: Q talk 13 · Q note 메모 13 · Q mail 15 · Q task 15).
+ *     주석으로 "규격: LIST_ROW" 라고 적어 둔 것은 검증되지 않는다 — 값을 **가져다 써야** 한다.
+ *   굵기를 따로 쓰는 곳(안 읽은 메일 700)은 이 조각 뒤에 `font-weight` 를 덮어쓴다.
+ */
+export const listRowTitleCss = `
+  font-size: ${LIST_ROW.titleSize.desktop / 16}rem;
+  font-weight: ${LIST_ROW.titleWeight};
+  @media (max-width: 640px) { font-size: ${LIST_ROW.titleSize.phone / 16}rem; }
+`;
+
 /** 본문 여백 — PageShell Body 와 그것을 상쇄하는 자식(탭바 등)이 같은 값을 써야 한다. */
 export const BODY_PAD = { desktop: 20, phone: 14 } as const;
 

@@ -1,6 +1,7 @@
 // Q mail 화면 스타일 — MailPage.tsx 에서 분리 (god-file 가드: 컴포넌트 파일 800줄 상한).
 // 동작 코드와 표현을 나눠 두면 화면 로직을 읽을 때 스타일 400줄을 스크롤하지 않아도 된다.
 import styled from 'styled-components';
+import { listRowTitleCss } from '../../theme/tokens';
 import { mediaPhone } from '../../theme/breakpoints';
 
 // ─────────────────────────────────────────────
@@ -374,8 +375,8 @@ export const ThreadTime = styled.span`
 `;
 export const ThreadSubject = styled.div<{ $unread: boolean }>`
   display: flex; align-items: center; gap: 6px;
-  /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15. 굵기는 안 읽은 메일만 700 으로 강조. */
-  font-size: 0.875rem;
+  /* 규격: theme/tokens.listRowTitleCss. 굵기만 덮어쓴다(안 읽은 메일 700). */
+  ${listRowTitleCss}
   font-weight: ${p => p.$unread ? 700 : 600};
   color: #0F172A;
   margin-bottom: 2px;

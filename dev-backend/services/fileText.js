@@ -63,7 +63,26 @@ function extractability(fileRow) {
   if (mime === 'text/html' || mime === 'application/xhtml+xml') return { ok: true, kind: 'html' };
   if (mime.startsWith('text/') || mime === 'application/json') return { ok: true, kind: 'text' };
   if (mime === 'application/pdf') return { ok: true, kind: 'pdf' };
-  return { ok: false, reason: 'unsupported_type' };   // docx/xlsx 등은 아직
+  // ★ 2026-09-08 — 워드·엑셀·파워포인트. 여태 `unsupported_type` 이라 **한 글자도** 안 읽혔다.
+  //   계약서·견적서가 대개 이 형식이라 가장 물어볼 만한 파일이 정확히 사각지대였다.
+  //   구현은 `services/officeText.js` (ZIP+XML — 새 의존성 없음).
+  const office = officeKind(mime, fileRow.file_name);
+  if (office) return { ok: true, kind: office };
+  return { ok: false, reason: 'unsupported_type' };   // .doc/.xls(옛 바이너리)·이미지·압축 등
+}
+
+// OOXML 판별. mime 을 먼저 믿되 **확장자로도 받는다** — 모바일·일부 브라우저 업로드가
+//   `application/octet-stream` 으로 올려서, mime 만 보면 같은 파일이 기기에 따라 읽히고 안 읽힌다.
+const OFFICE_MIME = {
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+};
+const OFFICE_EXT = { docx: 'docx', xlsx: 'xlsx', pptx: 'pptx' };
+function officeKind(mime, fileName) {
+  if (OFFICE_MIME[mime]) return OFFICE_MIME[mime];
+  const ext = String(fileName || '').toLowerCase().split('.').pop();
+  return OFFICE_EXT[ext] || null;
 }
 
 /** 저장소와 무관하게 파일 바이트를 가져온다. 못 가져오면 null (예외 아님). */
@@ -125,6 +144,8 @@ async function extractFileText(fileRow, opts = {}) {
       text = buf.toString('utf-8').slice(0, DEFAULT_MAX);
     } else if (can.kind === 'html') {
       text = stripHtml(buf.toString('utf-8')).slice(0, DEFAULT_MAX);
+    } else if (can.kind === 'docx' || can.kind === 'xlsx' || can.kind === 'pptx') {
+      text = require('./officeText').extractOfficeText(buf, can.kind).slice(0, DEFAULT_MAX);
     } else if (can.kind === 'pdf') {
       const { PDFParse } = require('pdf-parse');
       const parser = new PDFParse({ data: buf });

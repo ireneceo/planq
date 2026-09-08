@@ -115,10 +115,18 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
 
 const Row = styled.div`
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  /* ★ 2026-09-08 (Irene: "모바일에서 q note 에서 상단 부분에 너무 높아.
+     프로젝트 고객 연결하는 걸 한행으로 할까?") — 폰에서는 두 칸의 최소폭(140+140+간격)이
+     화면 폭을 넘겨 **두 줄로 감겼다**. 상단이 그만큼 높아지고, 그 높이는 본문(전사)에서 뺏은 것이다.
+     폰에서는 감지 않고 둘이 화면을 반씩 나눠 갖게 한다. */
+  @media (max-width: 640px) { flex-wrap: nowrap; }
 `;
 const Field = styled.div`
   /* 고정 px 대신 최소·최대 — 좁아지면 접힌다 */
   flex: 1 1 160px; min-width: 140px; max-width: 240px;
+  /* 폰: 최소폭을 풀어야 두 칸이 한 줄에 들어간다. min-width:0 이 없으면 flex 아이템이
+     내용 폭 아래로 안 줄어들어(기본 min-width:auto) nowrap 이 넘쳐 흐른다. */
+  @media (max-width: 640px) { flex: 1 1 0; min-width: 0; max-width: none; }
 `;
 const ReadChip = styled.span`
   font-size: 0.75rem; color: #475569; background: #F1F5F9;

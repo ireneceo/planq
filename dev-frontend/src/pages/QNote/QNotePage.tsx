@@ -12,6 +12,7 @@ import { purchaseCopyKeys } from '../../utils/purchase';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import styled from 'styled-components';
+import { listRowTitleCss } from '../../theme/tokens';
 import StartMeetingModal from './StartMeetingModal';
 import AudioUploadModal from './AudioUploadModal';
 import { getDefaultLanguageFromBrowser } from '../../constants/languages';
@@ -2964,9 +2965,13 @@ const QNotePage = () => {
             {/* N+88 — 인라인 영속 요약. 항상 표시, 비었으면 생성 CTA. */}
             <SummarySection>
               <SummaryHead>
+                {/* ★ 2026-09-08 (Irene: "업무추출은 접고 닫고 제대로 될거 아니면 실제 내용을
+                    전체보기 있던지 해야하지 않아? 제대로 내용을 볼 수가 없어.")
+                    여태 **내용이 없으면 접기 버튼이 비활성**이었다. 그런데 자리를 먹는 것은
+                    내용이 아니라 밴드(빈 안내 + 생성 버튼)다 — 접을 수 없으니 폰에서 본문(전사)이
+                    계속 밀렸다. 비어 있어도 접을 수 있게 한다. */}
                 <SummaryToggle type="button" onClick={toggleSummary}
-                  aria-expanded={!summaryCollapsed}
-                  disabled={!activeSession.summary_full}>
+                  aria-expanded={!summaryCollapsed}>
                   <SummaryCaret $open={!summaryCollapsed} aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                   </SummaryCaret>
@@ -3010,8 +3015,8 @@ const QNotePage = () => {
               {/* ★ 2026-09-07 (Irene: "닫으면 요약 펼치기라는 불필요한 버튼이 나오네.
                   다시 화살표 누르면 되는 건데.") — 접힌 자리에 **또 하나의 버튼**을 두지 않는다.
                   여는 문은 제목 옆 화살표 하나다. 접히면 그냥 접힌 채로 둔다. */}
-              {activeSession.summary_full ? (
-                summaryCollapsed ? null : (
+              {summaryCollapsed ? null : activeSession.summary_full ? (
+                (
                 <>
                   {(activeSession.summary_key_points || []).length > 0 && (
                     <SummaryPoints>
@@ -3039,8 +3044,7 @@ const QNotePage = () => {
                   여는 문은 제목 옆 화살표 하나 — 요약과 같은 컴포넌트를 쓴다(모양이 갈리지 않게). */}
               <SummaryHead>
                 <SummaryToggle type="button" onClick={toggleTasksCollapsed}
-                  aria-expanded={!tasksCollapsed}
-                  disabled={noteTasks.candidates.length === 0}>
+                  aria-expanded={!tasksCollapsed}>
                   <SummaryCaret $open={!tasksCollapsed} aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
                   </SummaryCaret>
@@ -3051,7 +3055,7 @@ const QNotePage = () => {
                 </SummaryRegenBtn>
               </SummaryHead>
               {noteTasks.error && <SummaryError>{noteTasks.error}</SummaryError>}
-              {tasksCollapsed && noteTasks.candidates.length > 0 ? null : noteTasks.candidates.length > 0 ? (
+              {tasksCollapsed ? null : noteTasks.candidates.length > 0 ? (
                 <TaskCandidateList>
                   {noteTasks.candidates.map((c) => {
                     const cd: CandidateData = {
@@ -3662,7 +3666,9 @@ const NewNoteItem = styled.button`
   & + & { border-top: 1px solid #F1F5F9; }
 `;
 const NewNoteItemTitle = styled.div`
-  font-size: 0.8125rem; font-weight: 600; color: #0F172A;
+  /* 규격은 theme/tokens.listRowTitleCss 하나다 (전엔 0.8125rem 고정 — 폰에서 2px 작았다). */
+  ${listRowTitleCss}
+  color: #0F172A;
 `;
 const NewNoteItemDesc = styled.div`
   font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;
@@ -3763,10 +3769,7 @@ const SessDelConfirm = styled.button`
 `;
 
 const SessionItemTitle = styled.div`
-  /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15 · 600 */
-  font-size: 0.875rem;
-  font-weight: 600;
-  @media (max-width: 640px) { font-size: 0.9375rem; }
+  ${listRowTitleCss}
   color: #0F172A;
   white-space: nowrap;
   overflow: hidden;
