@@ -289,11 +289,10 @@
     "register": "Add task",
     "reject": "Dismiss",
     "unassigned": "Unassigned",
-    "summaryTitle": "Summary",
-    "summarize": "Summarize",
-    "resummarize": "Re-summarize",
+    "summaryTitle": "Key points",
+    "summarize": "Create key points",
     "summarizing": "Summarizing…",
-    "summaryHint": "AI summarizes long threads into key points.",
+    "summaryHint": "AI condenses the whole thread. To judge this one email, use “Check this email” below the body.",
     "issuesTitle": "Issues",
     "issuePh": "Write an issue… (⌘/Ctrl+Enter to save)",
     "notesTitle": "Notes",
@@ -313,7 +312,9 @@
     "notesTitleProject": "Project notes",
     "summaryFailed": "Could not generate a summary. Please try again in a moment.",
     "cueTitle": "Ask Cue",
-    "cueEmpty": "Ask about this email. You can add tasks and events here too."
+    "cueEmpty": "Ask about this email. You can add tasks and events here too.",
+    "refreshSummary": "Update with new mail",
+    "summaryUpToDate": "Up to date"
   },
   "accounts": {
     "all": "All mailboxes",
@@ -558,7 +559,7 @@
     "backToList": "Back to list"
   },
   "followUp": {
-    "label": "If no reply",
+    "label": "Remind me if they don’t reply",
     "aria": "Reminder delay when there is no reply",
     "opt": {
       "default": "In 3 days (default)",
@@ -589,8 +590,8 @@
     "mail_image_generic": "The images in the body could not be attached to this email."
   },
   "brief": {
-    "open": "Summary & check",
-    "close": "Close summary",
+    "open": "Check this email",
+    "close": "Close check",
     "loading": "Checking…",
     "failed": "Can't check right now",
     "summaryTitle": "Summary",

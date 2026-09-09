@@ -761,11 +761,15 @@ const IconTalk = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="no
 //   **글리프만 17px** 이라 상자 안에서 떠 보였다(실측: 옆 사이드바 버튼 24, 알림 16).
 //   상자는 그대로 두고 글자만 키운다 — 22 면 44 상자에 어울리고 터치 타깃은 그대로다.
 //   (이 아이콘은 모바일 헤더 전용이다 — 사이드바 메뉴의 16px 아이콘들과는 쓰임이 다르다.)
+// ★ 2026-09-09 (Irene: "모바일 우측 상단의 채팅아이콘 넣은 거, 좌측 메뉴 데스크탑앱에 나오는
+//   Cue 앞에 있는 채팅아이콘으로 해줘. 지금 건 이상해.")
+//   옛 모양은 원 + **떨어진 꼬리 획**이라 말풍선으로 읽히지 않았다. 사이드바 Cue 버튼(CueIconSvg)과
+//   **같은 path** 를 쓴다 — 모양이 한 벌이어야 같은 것으로 읽힌다(베끼지 말고 같은 상수를 공유한다).
+const TALK_BUBBLE_PATH = 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z';
 const IconTalkRound = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <circle cx="12" cy="11" r="8" />
-    <path d="M8.2 18.1 5 21.5l4.6-1.7" />
+    <path d={TALK_BUBBLE_PATH} />
   </svg>
 );
 const IconTask = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>);
@@ -1183,7 +1187,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               aria-label={t('nav.askCue', 'Cue 에게 묻기') as string}
             >
               <CueIconSvg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                <path d={TALK_BUBBLE_PATH} />
               </CueIconSvg>
               <CueLabel>{t('nav.cue', 'Cue')}</CueLabel>
             </CueTrigger>

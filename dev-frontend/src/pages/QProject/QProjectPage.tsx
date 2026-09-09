@@ -1126,7 +1126,7 @@ const ConfirmBackdrop = styled.div`
 const ConfirmModal = styled.div`
   background:#FFFFFF; border-radius:12px; padding:24px; max-width:400px; width:100%;
   box-shadow:0 10px 40px rgba(0,0,0,0.15);
-  @media (max-width: 640px) { margin-top:60px; max-height:calc(100vh - 100px); overflow-y:auto; }
+  @media (max-width: 640px) { margin-top:var(--pq-chrome-bottom, 60px); max-height:calc(100vh - var(--pq-chrome-bottom, 60px) - 40px); overflow-y:auto; }
 `;
 const ConfirmTitle = styled.h3`margin:0 0 8px; font-size:1rem; font-weight:700; color:#0F172A;`;
 const ConfirmBody = styled.p`margin:0 0 20px; font-size:0.8125rem; color:#475569; line-height:1.5;`;

@@ -656,13 +656,27 @@ export const MessageHeader = styled.div<{ $clickable?: boolean }>`
   display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
   padding: 16px 0 8px;
   background: transparent;
+  /* ★ 2026-09-09 (Irene: "메일 보낸 사람, 받은 주소 부분이 데스탑에서 한줄이다가 반응형에 따라
+     바로 떨어져야지 한자씩 엔터쳐지니 이상하고", "좁아지면 보낸 주소 받은 주소 아래로 먼저
+     떨어져야지 계속 1행이다가 모바일에서는 레이아웃도 나가버려.")
+     원인: wrap 이 없고 좌측 칸에 flex-basis·min-width 가 없었다. 우측 액션만 flex-shrink:0 이라
+     좁아지면 **좌측이 min-content 까지 짜부라졌고**, 메일 주소는 끊을 자리가 없어 한 글자씩 쌓였다.
+     → 줄로 감기게 한다. 좌측은 flex-basis 를 주어 "들어가면 한 줄, 안 들어가면 통째로 다음 줄"
+       (memory feedback_flex_wrap_basis_not_content — 감김은 basis 로 정한다, content 로 정하면 안 된다). */
+  flex-wrap: wrap;
   ${p => p.$clickable && `
     cursor: pointer;
     &:hover { background: #F8FAFC; }
     &:focus-visible { outline: 2px solid #F43F5E; outline-offset: -2px; border-radius: 6px; }
   `}
 `;
-export const MsgHeaderRight = styled.div`display: flex; align-items: center; gap: 10px; flex-shrink: 0;`;
+export const MsgHeaderRight = styled.div`
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  /* 좁아지면 **통째로** 다음 줄로 내려가 오른쪽에 붙는다(버튼을 짜부라뜨리지 않는다).
+     안에서 또 감기는 것도 허용 — 액션이 5개라 한 줄에 다 안 들어가는 폭이 있다. */
+  margin-left: auto;
+  @media (max-width: 640px) { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+`;
 
 // 접힌 메시지의 한 줄 미리보기 (#262 M2) — 스레드를 열면 최신만 펼쳐지고 과거는 이 줄로 남는다.
 export const MsgCollapsedPreview = styled.div`
@@ -722,6 +736,12 @@ export const MsgForwardBtn = styled.button`
 `;
 export const MessageFrom = styled.div`
   font-size: 0.8125rem; font-weight: 600; color: #0F172A;
+  /* 280px 이상 남으면 같은 줄, 모자라면 이 칸이 한 줄을 통째로 쓰고 액션이 아래로 내려간다. */
+  flex: 1 1 280px;
+  min-width: 0;
+  /* 긴 주소는 **단어 단위로** 끊는다. 이 속성이 없으면 끊을 자리가 없는 주소가 칸을 밀어
+     가로 스크롤(모바일 좌우 흔들림)을 만든다. anywhere 는 마지막 보루다. */
+  overflow-wrap: anywhere;
 `;
 export const MessageTime = styled.div`
   font-size: 0.6875rem; color: #94A3B8;
@@ -736,6 +756,10 @@ export const MessageBodyFrame = styled.iframe`
 export const MessageBodyText = styled.div`
   padding: 4px 0 8px;
   font-size: 0.875rem; color: #334155;
+  /* ★ pre-wrap 은 **긴 낱말을 끊지 않는다** — 끊을 자리 없는 URL 하나가 칸을 밀어
+     모바일에서 본문이 좌우로 흔들리던 원인(Irene 2026-09-09). 폭을 못 넘게 잠근다. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
   font-family: -apple-system, sans-serif;
   line-height: 1.6;
@@ -923,6 +947,13 @@ export const MessageTo = styled.span`
   display: inline; margin-left: 8px;
   font-size: 0.6875rem; color: #94A3B8; font-weight: 500;
   &::before { content: '·'; margin-right: 8px; color: #CBD5E1; }
+  /* 폰 — "받은 주소" 는 **자기 줄**로 내린다. 보낸 사람과 한 줄에 이어 붙이면 둘 다 잘린다.
+     자기 줄이 되면 가운뎃점 구분자는 뜻이 없으므로 같이 없앤다. */
+  @media (max-width: 640px) {
+    display: block; margin-left: 0; margin-top: 2px;
+    overflow-wrap: anywhere;
+    &::before { content: none; margin-right: 0; }
+  }
 `;
 // 보내는 주소가 하나뿐일 때 — 설정으로 가는 길
 export const FromManage = styled.button`
@@ -999,4 +1030,17 @@ export const AddressBannerClose = styled.button`
   background: #fff; border: 1px solid #C7D2FE; border-radius: 6px; cursor: pointer;
   font-size: 0.75rem; font-weight: 600; color: #4338CA;
   &:hover { background: #E0E7FF; }
+`;
+
+// "이 주소로 새 메일" 로 열었을 때 — 손대지 않고 남겨 둔 임시저장이 있다는 알림.
+//   경고가 아니라 안심시키는 문장이므로 중립 톤(회색)이다.
+export const KeptDraftNote = styled.div`
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #475569;
 `;

@@ -530,9 +530,31 @@ async function summarizeThread(businessId, { subject, threadText, language = 'ko
   const usage = await checkUsageLimit(businessId);
   if (usage.over) return { error: 'usage_limit_exceeded', usage };
   const lang = language === 'en' ? 'English' : 'Korean';
-  const systemPrompt = `You summarize an email thread for the team. Write in ${lang}, 3-5 short bullet lines. `
-    + `Capture only what's in the thread: the customer's request/situation, key decisions or commitments, and the next action needed. `
-    + `Do NOT invent facts, prices, or dates. No greeting, no preamble — just the bullets (each line starts with "- ").`;
+  // ★ 2026-09-09 (Irene: "메일 내용을 보면 내가 답변 받은 거야. 결국 고객이 나이고 그들의 안내가
+  //   아이린이거든. 요약에서 주체를 고객이라고 하는 게 상황에 맞지 않는 명칭 같아서.")
+  //   옛 프롬프트는 "the customer's request/situation" 이라고 **상대를 고객으로 가정**했다.
+  //   우리가 물건을 파는 쪽인지 사는 쪽인지 전사에는 안 적혀 있다 — 모델이 추측해서 역할을
+  //   뒤집었다("고객이 결제 연기를 요청함" ← 실제로는 우리가 요청한 쪽). 역할어를 **금지**하고
+  //   전사에 적힌 이름(`우리 팀` / 보낸 사람 이름)만 쓰게 한다.
+  //   그리고 Irene 이 지적한 두 가지를 더 뽑는다: ①날짜·금액·기한을 **원문 그대로** ②우리가 할 일.
+  //   ("관리팀 검토 후 일회성 예외로 승인됨" 처럼 본문에 없는 문장이 실제로 붙어 나왔다.)
+  const labels = language === 'en'
+    ? { facts: 'Key figures', todo: 'What we need to do', ball: 'The other side is next to act.' }
+    : { facts: '핵심 값', todo: '우리가 할 일', ball: '다음 차례는 상대입니다.' };
+  const systemPrompt = `You summarize an email thread for the team. Write in ${lang}.\n`
+    + `Output, in this order, skipping any section that has nothing:\n`
+    + `1) 3-5 short bullet lines of what actually happened, in order. Each line starts with "- ".\n`
+    + `2) A line "${labels.facts}: " listing every date, deadline, amount, and reference number stated `
+    + `in the thread, copied verbatim. Skip this line entirely if the thread states none.\n`
+    + `3) A line "${labels.todo}: " with what OUR SIDE must do next and by when. `
+    + `If nothing is required from us, write exactly "${labels.ball}"\n\n`
+    + `Hard rules:\n`
+    + `- Refer to each side ONLY by the label used in the transcript ("우리 팀" / the sender's name). `
+    + `NEVER assign a role such as "고객", "customer", "vendor", or "the client". The transcript does not `
+    + `say who sells to whom, and guessing reverses the meaning of the whole summary.\n`
+    + `- Write only what is stated. Do not add causes, approvals, reviews, or decisions that are not `
+    + `written in the thread, even if they would make the story coherent.\n`
+    + `- No greeting, no preamble, no closing remark.`;
   const userPrompt = `Email thread${subject ? ` (subject: ${subject})` : ''}:\n\n${(threadText || '').slice(0, 6000)}\n\nSummarize.`;
   const result = await callLLM(MODEL_MINI, [
     { role: 'system', content: systemPrompt },

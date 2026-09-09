@@ -171,7 +171,15 @@ async function run() {
 
   for (const path of PAGES) {
     try {
-      await page.goto(b.BASE + path, { waitUntil: 'networkidle2', timeout: 45000 });
+      // ★ 맨 `networkidle2` 를 쓰면 **멀쩡한 화면에서 거짓 실패**가 난다 (2026-09-09 실측).
+      //   43페이지를 한 세션에서 연달아 도는 동안 소켓·썸네일 때문에 네트워크가 조용해지지 않아
+      //   45초를 넘기는데, **실패하는 페이지가 실행마다 바뀐다**(stats/overview·business/members →
+      //   projects?tab=docs → bills·business/settings). 각각을 단독으로 재면 1.3~2.0초 · API 24~29건이다.
+      //   그래서 lib/browser 의 goto 를 쓴다 — idle 을 기다려 보되 못 기다리면 domcontentloaded 로
+      //   내려가고 내용이 붙을 때까지 기다린다. 진짜 빈 화면은 아래 sticky 판정에 그대로 잡힌다.
+      //   ※ 이 노이즈에 가려져 있던 **진짜 결함**은 따로 잡아 고쳤다 — 프로젝트 파일 탭이 한 번
+      //     진입에 API 1,219건을 쏘아 커넥션 풀 20/20 을 묶고 있었다(DocsTab scope 객체 dep).
+      await b.goto(page, path);
       await new Promise(r => setTimeout(r, 1600));
       const rows = await probe(page);
       pagesChecked += 1;

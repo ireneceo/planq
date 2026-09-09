@@ -25,7 +25,7 @@ export const Dialog = styled.div`
   max-height: calc(100vh - 40px);
   @media (max-width: 640px) {
     max-width: none; border-radius: 0;
-    margin-top: 60px; max-height: calc(100vh - 60px); max-height: calc(100dvh - 60px);
+    margin-top: var(--pq-chrome-bottom, 60px); max-height: calc(100vh - var(--pq-chrome-bottom, 60px)); max-height: calc(100dvh - var(--pq-chrome-bottom, 60px));
   }
 `;
 export const DTitle = styled.div`padding: 18px 20px 8px; font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;

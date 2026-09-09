@@ -85,10 +85,28 @@ function cueReadText(f: ProjectFile, t: TFunction): string {
 }
 
 const DocsTab: React.FC<Props> = (props) => {
-  const scope: DocScope = props.scope
-    || (props.projectId && props.businessId
-      ? { type: 'project', projectId: props.projectId, businessId: props.businessId }
-      : { type: 'workspace', businessId: props.businessId! });
+  // ★ scope 는 **매 렌더마다 새 객체가 되면 안 된다** — 아래 useEffect 의 dep 이다.
+  //   2026-09-09 실측(프로젝트 > 파일 탭 1회 진입): 렌더마다 새 객체 → effect 재실행 →
+  //   3개 fetch 의 setState 가 다시 렌더를 불러 **API 1,219건**이 나갔다
+  //   (`/businesses/:id/members` 398 · `/clients/:id` 398 · `/projects?business_id` 397).
+  //   결과로 Sequelize 커넥션 풀이 20/20 으로 묶여 **다음 화면의 요청 3건이 45초를 기다렸고**
+  //   (실측: files → docs 탭 이동 45,083ms), 일반 rate-limit(600/분)도 한 번에 태운다.
+  //   → dep 은 **원시값으로만** 잡는다. 호출부가 `scope={{...}}` 인라인이어도 안전하다
+  //     (memory feedback_props_useMemo).
+  const sType: DocScope['type'] = props.scope
+    ? props.scope.type
+    : (props.projectId && props.businessId ? 'project' : 'workspace');
+  const sBiz = props.scope ? props.scope.businessId : props.businessId;
+  const sProj = props.scope
+    ? (props.scope.type === 'project' ? props.scope.projectId : undefined)
+    : props.projectId;
+  const scope: DocScope = useMemo(() => (
+    sType === 'project'
+      ? { type: 'project', projectId: sProj as number, businessId: sBiz as number }
+      : sType === 'personal'
+        ? { type: 'personal', businessId: sBiz as number }
+        : { type: 'workspace', businessId: sBiz as number }
+  ), [sType, sBiz, sProj]);
   const isWorkspace = scope.type === 'workspace';
   const isPersonal = scope.type === 'personal';   // N+30 개인 보관함 모드
   const projectId = scope.type === 'project' ? scope.projectId : 0;
@@ -1831,7 +1849,9 @@ const Split = styled.div<{ $single?: boolean }>`
 `;
 const FolderTreePanel = styled.div`
   background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:6px;
-  position:sticky;top:8px;
+  /* ★ components/Docs/assetTabLayout.ts 의 같은 이름 styled 와 **같은 계약**을 읽는다
+     (프로젝트 탭 안에서는 탭 막대 아래, 워크스페이스에서는 8px). */
+  position:sticky;top:var(--pq-tab-sticky-top, 8px);
   max-height:calc(100vh - 180px);overflow-y:auto;
   @media (max-width: 900px){ position:static;max-height:none; }
 `;
@@ -2136,7 +2156,7 @@ const Dialog = styled.div`
   display:flex;flex-direction:column;overflow:hidden;max-height:80vh;
   @media (max-width: 640px) {
     max-width:none;max-height:none;border-radius:0;
-    margin-top:60px;height:calc(100vh - 60px);height:calc(100dvh - 60px);
+    margin-top:var(--pq-chrome-bottom, 60px);height:calc(100vh - var(--pq-chrome-bottom, 60px));height:calc(100dvh - var(--pq-chrome-bottom, 60px));
   }
 `;
 const DTitle = styled.div`padding:18px 20px 10px;font-size:0.9375rem;font-weight:700;color:#0F172A;`;

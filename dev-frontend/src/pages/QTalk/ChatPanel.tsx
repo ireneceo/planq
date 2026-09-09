@@ -2,7 +2,7 @@ import { openPopout } from '../../utils/pinHost';
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { downloadBlob } from '../../utils/download';
 import { createPortal } from 'react-dom';
-import styled, { css } from 'styled-components';
+import styled from 'styled-components';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { useTranslation } from 'react-i18next';
 import { STATUS_COLOR, type StatusCode } from '../../utils/taskLabel';
@@ -26,7 +26,7 @@ import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션 (메시지에 다는 것)
 import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모지 (보내는 것)
-import { PanelBackButton } from '../../components/Layout/PanelHeader';
+import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction } from '../../utils/imeKey';
 import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
@@ -62,7 +62,10 @@ interface Props {
   onLoadOlder?: () => void;
   hasMoreOlder?: boolean;
   loadingOlder?: boolean;
-  /** N+93 — 팝아웃/분리 창 embedded 모드: 헤더 1줄 유지, 모바일 전용 UI 숨김 */
+  /** N+93 — 팝아웃/분리 창 embedded 모드.
+   *  ★ 2026-09-09 부터 **헤더에는 영향이 없다** — 헤더가 두 밴드 표준으로 통일되어
+   *    팝아웃도 같은 구조를 쓴다(모드마다 밴드 수가 다르면 창을 옮길 때 가로 실선이 튄다).
+   *    호출부 호환을 위해 prop 은 남긴다. */
   embedded?: boolean;
   /** 팝아웃 창의 핀(항상 위) 버튼. **좁은 폭에서만** 그린다 —
    *  넓은 폭에서는 리스트 헤더(LeftPanel)에 이미 있어 둘로 보인다.
@@ -101,7 +104,7 @@ const ChatPanel: React.FC<Props> = ({
   onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onOpenSettings,
   candidatesCount,
   onOpenNewChat, onMobileBack, mobileHidden = false, pinSlot,
-  onLoadOlder, hasMoreOlder = false, loadingOlder = false, embedded = false,
+  onLoadOlder, hasMoreOlder = false, loadingOlder = false,
 }) => {
   const { t } = useTranslation('qtalk');
   const navigate = useNavigate();
@@ -1079,11 +1082,9 @@ const ChatPanel: React.FC<Props> = ({
             {onMobileBack && (
               <PanelBackButton onClick={onMobileBack} label={t('chat.back', '리스트로 돌아가기') as string} />
             )}
-            <HeaderTitleBlock $embedded={embedded}>
-              <ChatNameRow>
-                <ChatName $editable={false}>{project.name}</ChatName>
-              </ChatNameRow>
-            </HeaderTitleBlock>
+            <ChatNameRow>
+              <ChatName $editable={false}>{project.name}</ChatName>
+            </ChatNameRow>
           </HeaderLeft>
         </HeaderBar>
         <EmptyState
@@ -1140,109 +1141,47 @@ const ChatPanel: React.FC<Props> = ({
     >
       {dragOver && <DropOverlay>{t('chat.dropHere', '여기에 놓아 업로드') as string}</DropOverlay>}
       {/* 헤더: 채팅방 이름이 주인공, 프로젝트는 서브라벨 */}
-      <HeaderBar>
+      {/* ★ 상세 헤더는 **두 밴드**로 끝낸다 (CLAUDE.md 페이지 레이아웃 표준 3).
+          2026-09-09 Irene: "모바일에서 Q talk 채팅창 상세 가면 좌측 내용이 2-3줄로 길어지는데
+          고객링크 만드는 아이콘을 설정이랑 같이 배치하고 다른 거 정리해서 2줄이 최대 되게.
+          제목 옆에 아이콘들, 그 아래 정보관련 정보들 나열하게. 데스크탑에서도 고객링크 아이콘이
+          혼자 네모박스 있고 좌측에 있어서 이상해 보이기도 해."
+          옛 구조는 제목 칸 **안에** 이름줄·소속줄·모바일 채널줄을 세로로 쌓아 폰에서 3줄이었고,
+          고객링크 버튼이 제목 옆에 끼어 있어 액션인데 제목처럼 보였다.
+          → 밴드1 = 제목 + 액션 아이콘(핀·팝아웃·고객링크·설정) · 밴드2 = 정보(분류·소속·고객·다른 채널).
+          ★ 규격은 각자 쓰지 않는다 — 밴드1은 PanelHeaderBar, 밴드2는 DetailMetaBar 를 **상속**한다.
+            이 파일은 여태 그 둘을 안 쓰고 손으로 다시 써서 좌우 패널 밑줄이 어긋나 있었다. */}
+      <HeaderBar data-testid="chat-header-band1">
         <HeaderLeft>
           {onMobileBack && (
             <PanelBackButton onClick={onMobileBack} label={t('chat.back', '리스트로 돌아가기') as string} />
           )}
-          {/* 리스트 열기 버튼은 두지 않는다 — ≥1025px 는 PanelEdgeHandle(경계선),
-              ≤1024px 는 MobileBackBtn(리스트로 돌아가기)이 이미 담당한다.
-              여기에 맨 chevron 을 더하면 접힘 상태에서 화살표가 둘로 보인다. */}
-          <HeaderTitleBlock $embedded={embedded}>
-            {editingName ? (
-              <ChatNameInput
-                autoFocus
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={commitNameEdit}
-                onKeyDown={(e) => {
-                  if (isEnterAction(e)) { e.preventDefault(); commitNameEdit(); }
-                  if (e.key === 'Escape') { setNameDraft(activeConv.name); setEditingName(false); }
-                }}
-              />
-            ) : (
-              <ChatNameRow>
-                <ChatName
-                  onClick={() => !isClient && setEditingName(true)}
-                  title={!isClient ? t('chat.rename', '클릭해서 이름 수정') : undefined}
-                  $editable={!isClient}
-                >
-                  {channelLabel(activeConv.name)}
-                </ChatName>
-                {/* '내부' 는 default 라 라벨 X — '고객' 만 강조 (B2B 시각 패턴).
-                    고객이 연결돼 있으면 이름을 눌러 그 고객의 통합 타임라인(채팅·메일·업무·청구)으로 간다. */}
-                {/* #259 — 고객 대화방에만. 로그인 없이 이 대화를 보고 답할 수 있는 링크를 만든다.
-                    내부 대화방에는 붙이지 않는다 — 내부 대화를 밖으로 여는 버튼이 되면 안 된다.
-                    ★ `activeConv.client` 조건은 뺐다 (2026-09-02). 고객이 연결 안 된 고객 대화방이
-                      운영에 절반이었고, 그 방에서는 버튼이 아예 안 보여 Irene 이 "어디에 고객 이름
-                      있는 줄이 있냐" 고 물었다. 링크는 **사람이 아니라 방**에 붙는다.
-                    ★ 서버(`routes/guest_admin.js`)가 같은 술어를 fail-closed 로 다시 본다 —
-                      화면 조건만으로 막으면 갈린 쪽이 곧 우회로다. */}
-                {activeConv.channel_type === 'customer' && !isClient && businessId && (
-                  <GuestLinkButton
-                    businessId={businessId}
-                    conversationId={activeConv.id}
-                    clientName={activeConv.client?.name || activeConv.name} />
-                )}
-                {activeConv.channel_type === 'customer' && (
-                  activeConv.client ? (
-                    <CustomerLink
-                      type="button"
-                      onClick={() => navigate(`/business/clients/${activeConv.client!.id}/timeline`)}
-                      title={t('chat.openClientTimeline', '{{name}} 의 통합 타임라인 열기', { name: activeConv.client.name }) as string}
-                    >
-                      {activeConv.client.name}
-                      <span aria-hidden>›</span>
-                    </CustomerLink>
-                  ) : (
-                    <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>
-                  )
-                )}
-              </ChatNameRow>
-            )}
-            {project && (
-              <ProjectSublabel>
-                <SublabelIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </SublabelIcon>
-                <span>{t('chat.inProject', '소속')}:</span>
-                <ProjectLink>{project.name}</ProjectLink>
-              </ProjectSublabel>
-            )}
-            {/* 모바일 전용 채널 빠른 전환 — 채팅방 이름 아래 (embedded 팝아웃은 1줄 유지 위해 숨김) */}
-            {!embedded && channels.length > 1 && (
-              <MobileChannelRow>
-                {channels.filter((c) => c.id !== activeConv.id).map((c) => (
-                  <QuickSwitchBtn key={c.id} onClick={() => onSelectConversation(c.id)} title={c.name}>
-                    <QuickHash $type={c.channel_type}>
-                      {c.channel_type === 'customer' ? '#' : '·'}
-                    </QuickHash>
-                    {channelLabel(c.name)}
-                    {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
-                  </QuickSwitchBtn>
-                ))}
-              </MobileChannelRow>
-            )}
-          </HeaderTitleBlock>
+          {editingName ? (
+            <ChatNameInput
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitNameEdit}
+              onKeyDown={(e) => {
+                if (isEnterAction(e)) { e.preventDefault(); commitNameEdit(); }
+                if (e.key === 'Escape') { setNameDraft(activeConv.name); setEditingName(false); }
+              }}
+            />
+          ) : (
+            <ChatNameRow>
+              <ChatName
+                onClick={() => !isClient && setEditingName(true)}
+                title={!isClient ? t('chat.rename', '클릭해서 이름 수정') : undefined}
+                $editable={!isClient}
+              >
+                {channelLabel(activeConv.name)}
+              </ChatName>
+            </ChatNameRow>
+          )}
         </HeaderLeft>
         <HeaderRight>
           {/* 좁은 폭(단일 컬럼)에서만 — 리스트가 숨어도 핀에 닿을 수 있어야 한다 */}
           {pinSlot && <NarrowPinSlot>{pinSlot}</NarrowPinSlot>}
-          {/* 같은 프로젝트의 다른 채널 빠른 전환 — breadcrumb 대체 */}
-          {channels.length > 1 && (
-            <ChannelQuickSwitch>
-              {channels.filter((c) => c.id !== activeConv.id).map((c) => (
-                <QuickSwitchBtn key={c.id} onClick={() => onSelectConversation(c.id)} title={c.name}>
-                  <QuickHash $type={c.channel_type}>
-                    {c.channel_type === 'customer' ? '#' : '·'}
-                  </QuickHash>
-                  {channelLabel(c.name)}
-                  {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
-                </QuickSwitchBtn>
-              ))}
-            </ChannelQuickSwitch>
-          )}
-          {/* (Q helper ? 헤더 버튼 제거 — 우하단 공통 위젯과 중복. Irene 요청 2026-06-16) */}
           {/* N+93 (#9) — 새 창으로 분리 (데스크탑앱 밖에서 채팅). 이미 팝아웃 창이면 숨김. */}
           {window.location.pathname !== '/talk-popout' && (
             <PopoutBtn
@@ -1256,19 +1195,70 @@ const ChatPanel: React.FC<Props> = ({
               </svg>
             </PopoutBtn>
           )}
+          {/* #259 — 고객 대화방에만. 로그인 없이 이 대화를 보고 답할 수 있는 링크를 만든다.
+              내부 대화방에는 붙이지 않는다 — 내부 대화를 밖으로 여는 버튼이 되면 안 된다.
+              ★ `activeConv.client` 조건은 뺐다 (2026-09-02). 고객이 연결 안 된 고객 대화방이
+                운영에 절반이었고, 그 방에서는 버튼이 아예 안 보였다. 링크는 **사람이 아니라 방**에 붙는다.
+              ★ 서버(`routes/guest_admin.js`)가 같은 술어를 fail-closed 로 다시 본다.
+              ★ 자리는 **액션 칸**이다 (2026-09-09) — 제목 옆에 두면 제목의 일부처럼 읽힌다. */}
+          {activeConv.channel_type === 'customer' && !isClient && businessId && (
+            <GuestLinkButton
+              businessId={businessId}
+              conversationId={activeConv.id}
+              clientName={activeConv.client?.name || activeConv.name} />
+          )}
           {!isClient && onOpenSettings && (
-            <IconBtn type="button" onClick={onOpenSettings} title={t('chat.openSettings', '채팅 설정') as string} aria-label={t('chat.openSettings', '채팅 설정') as string}>
+            <IconBtn type="button" data-testid="chat-open-settings" onClick={onOpenSettings} title={t('chat.openSettings', '채팅 설정') as string} aria-label={t('chat.openSettings', '채팅 설정') as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
               </svg>
             </IconBtn>
           )}
-          {/* 작업대 열기 버튼은 두지 않는다 — 표준 핸들이 전 구간을 이미 덮는다.
-              ≥1201px: PanelEdgeHandle(경계선) · ≤1200px: FloatingPanelToggle(뷰포트 변).
-              여기에 맨 chevron 을 하나 더 두면 접힘 상태에서 화살표가 둘로 보인다. */}
+          {/* 작업대 열기 버튼은 두지 않는다 — 표준 핸들이 전 구간을 이미 덮는다. */}
         </HeaderRight>
       </HeaderBar>
+
+      {/* 밴드2 — **정보만**. 액션은 위 밴드에 있다.
+          내용이 비는 대화방(소속·고객·형제 채널 없음)에서도 분류 칩이 남아 밴드 수가 **데이터에 따라
+          달라지지 않는다** — 방을 옮길 때 본문 시작 y 가 튀면 그게 곧 "정돈 안 돼 보임" 이다. */}
+      <ChatMetaBar data-testid="chat-header-band2">
+        <DetailMetaLeft>
+          {activeConv.channel_type === 'customer'
+            ? <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>
+            : <InternalTag>{t('channelBadge.internal', '내부')}</InternalTag>}
+          {activeConv.channel_type === 'customer' && activeConv.client && (
+            <CustomerLink
+              type="button"
+              onClick={() => navigate(`/business/clients/${activeConv.client!.id}/timeline`)}
+              title={t('chat.openClientTimeline', '{{name}} 의 통합 타임라인 열기', { name: activeConv.client.name }) as string}
+            >
+              {activeConv.client.name}
+              <span aria-hidden>›</span>
+            </CustomerLink>
+          )}
+          {project && (
+            <ProjectSublabel>
+              <SublabelIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </SublabelIcon>
+              <span>{t('chat.inProject', '소속')}:</span>
+              <ProjectLink>{project.name}</ProjectLink>
+            </ProjectSublabel>
+          )}
+          {/* 같은 프로젝트의 다른 채널로 가는 링크 — 폭에 따라 두 벌로 갈라져 있던 것을 하나로 합쳤다
+              (옛 ChannelQuickSwitch=데스크탑 · MobileChannelRow=폰. 같은 것이 두 군데 있으면 갈라진다). */}
+          {channels.filter((c) => c.id !== activeConv.id).map((c) => (
+            <QuickSwitchBtn key={c.id} onClick={() => onSelectConversation(c.id)} title={c.name}>
+              <QuickHash $type={c.channel_type}>
+                {c.channel_type === 'customer' ? '#' : '·'}
+              </QuickHash>
+              {channelLabel(c.name)}
+              {c.unread_count > 0 && <QuickBadge>{c.unread_count}</QuickBadge>}
+            </QuickSwitchBtn>
+          ))}
+        </DetailMetaLeft>
+      </ChatMetaBar>
 
       {/* 사이클 N+16-E — 핀 공지 영역 (Slack 패턴). 1개 이상 핀 시 헤더 아래 노란 액센트 바.
           접힘: "📌 공지 N개" 한 줄. 펴짐: 핀 메시지 리스트, 클릭 시 본문으로 스크롤 + 잠시 강조. */}
@@ -2273,21 +2263,12 @@ const Container = styled.main<{ $mobileHidden?: boolean }>`
 
 
 
-const HeaderBar = styled.div`
-  min-height: 60px;
-  padding: 14px 20px;
-  border-bottom: 1px solid #E2E8F0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-shrink: 0;
-  @media (max-width: 640px) {
-    padding: 8px 12px;
-    gap: 8px;
-    min-height: 56px;
-  }
-`;
+// ★ 공용 규격을 **상속**한다 (2026-09-09). 여태 손으로 다시 써서 좌우 패널 밑줄이 어긋나 있었다
+//   — 좌측 리스트 헤더는 60px, 이 헤더는 min-height 라 내용에 따라 61·74px 로 자랐다.
+//   제목 아래 정보는 밴드2(ChatMetaBar)로 내렸으므로 이 밴드는 자랄 이유가 없다.
+const HeaderBar = styled(PanelHeaderBar)``;
+// 밴드2 — DetailMetaBar 상속. 정보만 담는다(액션은 밴드1).
+const ChatMetaBar = styled(DetailMetaBar)``;
 
 // 좁은 폭 전용 핀 자리 — 넓은 폭에서는 리스트 헤더의 핀과 중복되므로 숨긴다.
 const NarrowPinSlot = styled.span`
@@ -2295,23 +2276,6 @@ const NarrowPinSlot = styled.span`
   ${mediaTablet} { display: inline-flex; align-items: center; }
 `;
 
-const HeaderTitleBlock = styled.div<{ $embedded?: boolean }>`
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  flex: 1;
-  gap: 10px;
-  flex-wrap: nowrap;
-  /* 모바일에서는 정보 많을 때 줄바꿈 — 채팅 이름 / 고객·소속·메타 분리.
-     N+93 — embedded(팝아웃 좁은 폭)은 1줄 유지(이름 · 소속 인라인). 모바일 column 분기 끔. */
-  ${(p) => !p.$embedded && css`
-    @media (max-width: 640px) {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 2px;
-    }
-  `}
-`;
 
 const ChatNameRow = styled.div`
   display: flex;
@@ -2381,6 +2345,17 @@ const CustomerLink = styled.button`
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
   span { font-size: 0.8125rem; line-height: 1; }
 `;
+// 내부 대화방 분류 칩 — 밴드2 가 비지 않게 하는 기준 칩. 고객 칩과 같은 모양·중립 색.
+const InternalTag = styled.span`
+  padding: 1px 7px;
+  background: #F1F5F9;
+  color: #475569;
+  font-size: 0.625rem;
+  font-weight: 700;
+  border-radius: 10px;
+  letter-spacing: 0.2px;
+  flex-shrink: 0;
+`;
 const CustomerTag = styled.span`
   padding: 1px 7px;
   background: rgba(244, 63, 94, 0.10);
@@ -2431,26 +2406,8 @@ const ProjectLink = styled.button`
   &:hover { text-decoration: underline; color: #0F766E; }
 `;
 
-const ChannelQuickSwitch = styled.div`
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  /* 모바일에서는 MobileChannelBar로 별도 표시 */
-  @media (max-width: 640px) {
-    display: none;
-  }
-`;
 
 /* 모바일 전용 채널 빠른 전환 — 채팅방 이름 아래 인라인 */
-const MobileChannelRow = styled.div`
-  display: none;
-  @media (max-width: 640px) {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    margin-top: 4px;
-  }
-`;
 
 const QuickSwitchBtn = styled.button`
   display: flex;

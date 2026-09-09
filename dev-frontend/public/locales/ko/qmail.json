@@ -289,11 +289,10 @@
     "register": "업무 등록",
     "reject": "무시",
     "unassigned": "담당 미지정",
-    "summaryTitle": "요약",
-    "summarize": "요약 생성",
-    "resummarize": "다시 요약",
+    "summaryTitle": "주요 내용",
+    "summarize": "주요 내용 만들기",
     "summarizing": "요약 중…",
-    "summaryHint": "긴 스레드를 AI가 핵심만 요약해요.",
+    "summaryHint": "스레드 전체를 AI가 핵심만 정리해요. 이 메일 하나를 판단하려면 본문 아래 “이 메일 확인”을 쓰세요.",
     "issuesTitle": "이슈",
     "issuePh": "이슈 작성... (⌘/Ctrl+Enter 저장)",
     "notesTitle": "메모",
@@ -313,7 +312,9 @@
     "notesTitleProject": "프로젝트 메모",
     "summaryFailed": "요약을 만들지 못했어요. 잠시 후 다시 시도해 주세요.",
     "cueTitle": "Cue 에게 묻기",
-    "cueEmpty": "이 메일 내용을 그대로 물어보세요. 업무·일정 추가도 여기서 됩니다."
+    "cueEmpty": "이 메일 내용을 그대로 물어보세요. 업무·일정 추가도 여기서 됩니다.",
+    "refreshSummary": "새 메일 반영",
+    "summaryUpToDate": "최신 상태"
   },
   "accounts": {
     "all": "메일 전체",
@@ -558,7 +559,7 @@
     "backToList": "목록으로"
   },
   "followUp": {
-    "label": "답 없으면",
+    "label": "상대가 답장하지 않으면 알려주기",
     "aria": "답장 없을 때 알림 기간",
     "opt": {
       "default": "3일 뒤(기본)",
@@ -589,8 +590,8 @@
     "mail_image_generic": "본문 이미지를 메일에 실을 수 없습니다."
   },
   "brief": {
-    "open": "요약·확인",
-    "close": "요약·확인 닫기",
+    "open": "이 메일 확인",
+    "close": "이 메일 확인 닫기",
     "loading": "확인 중…",
     "failed": "지금은 확인할 수 없어요",
     "summaryTitle": "요약",

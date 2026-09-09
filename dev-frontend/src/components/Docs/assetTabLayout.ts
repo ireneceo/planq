@@ -18,7 +18,10 @@ export const Split = styled.div`
 `;
 export const FolderTreePanel = styled.div`
   background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:6px;
-  position:sticky;top:8px;
+  /* ★ 붙는 자리는 **스크롤 컨테이너가 정한다** — 프로젝트 탭 안에서는 탭 막대 아래로 내려야 한다.
+     워크스페이스 범위(/docs · /files)에는 탭 막대가 없어 폴백 8px 이 그대로 쓰인다.
+     선언 위치·실측: QProjectDetailPage.styles.ts 의 tabStickyTop 주석. */
+  position:sticky;top:var(--pq-tab-sticky-top, 8px);
   max-height:calc(100vh - 180px);overflow-y:auto;
   @media (max-width: 900px){ position:static;max-height:none; }
 `;

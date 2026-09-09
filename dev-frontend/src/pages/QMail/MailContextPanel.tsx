@@ -22,6 +22,8 @@ interface ThreadLite {
   id: number;
   triage?: string | null;
   ai_summary?: string | null;
+  ai_summary_at?: string | null;
+  last_message_at?: string | null;
   client?: { id: number; display_name?: string; company_name?: string } | null;
   project?: { id: number; name?: string } | null;
 }
@@ -85,6 +87,15 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   const canExtract = !thread.triage || thread.triage === 'human' || thread.triage === 'unknown';
   // 요약 (AI 스레드 요약 — Phase A 의 channel-summary 와 다름)
   const [aiSummary, setAiSummary] = useState<string | null>(thread.ai_summary || null);
+  // 요약을 만든 시각보다 **뒤에 온 메일**이 있으면 다시 만들 이유가 있다. 없으면 버튼을 잠근다 —
+  //   같은 입력에 같은 답을 주는 버튼은 누를 때마다 사용량만 태운다.
+  const [aiSummaryAt, setAiSummaryAt] = useState<string | null>(thread.ai_summary_at || null);
+  const summaryStale = useMemo(() => {
+    if (!aiSummary || !aiSummaryAt) return true;
+    const last = thread.last_message_at;
+    if (!last) return false;
+    return new Date(last).getTime() > new Date(aiSummaryAt).getTime();
+  }, [aiSummary, aiSummaryAt, thread.last_message_at]);
   const [sumBusy, setSumBusy] = useState(false);
   const [sumError, setSumError] = useState<string | null>(null);  // #179 — 요약 실패 표면화
   // 이슈 / 노트
@@ -98,6 +109,13 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   const [busy, setBusy] = useState(false);
   // 업무 리스트 갱신 신호 — 한 줄 등록·후보 승격 후 즉시 반영
   const [tasksKey, setTasksKey] = useState(0);
+  // ★ 2026-09-09 (Irene: “업무후보 탭이 있는 건 업무추출버튼 나오는데 업무 추출도 못하네?
+  //   그리고 없으면 없다고 알아야 하는데 버튼 누른 후 상황바뀌는 게 없어.”)
+  //   추출은 돌고 있었다 — 결과(후보 또는 “찾지 못했어요”)를 **접힌 몸통 안**에 넣었을 뿐이다.
+  //   후보가 0건이면 섹션이 닫힌 채라(defaultOpen={candidates.length > 0}) 헤더의 버튼만 보이고,
+  //   눌러도 화면이 그대로였다. → 누른 뒤에는 **반드시 편다**. 결과를 못 보면 안 한 것과 같다
+  //   (memory feedback_backend_done_ui_missing).
+  const [candOpen, setCandOpen] = useState<boolean | null>(null);   // null = 아직 사용자가 안 건드림
   // 담당자 후보 — Cue(AI) 제외. 이 경로엔 Cue 자동 실행 트리거가 없어서 배정하면 좀비 업무가 된다
   //   (백엔드도 같은 이유로 플래너 풀에서 제외한다 — routes/tasks.js).
   const taskMembers = useMemo(
@@ -156,7 +174,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   // 기존 pending 업무 후보 로드 (스레드 전환 시)
   useEffect(() => {
     let alive = true;
-    setCandidates([]); setExtractMsg(null);
+    setCandidates([]); setExtractMsg(null); setCandOpen(null);
     (async () => {
       try {
         const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/task-candidates`);
@@ -170,6 +188,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   const extract = useCallback(async () => {
     if (extractBusy) return;
     setExtractBusy(true); setExtractMsg(null);
+    setCandOpen(true);      // 결과를 볼 자리를 먼저 연다 — 0건이어도 “없다”가 보여야 한다
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/extract-tasks`, { method: 'POST' });
       const j = await r.json();
@@ -227,6 +246,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
   useEffect(() => {
     let alive = true;
     setAiSummary(thread.ai_summary || null);
+    setAiSummaryAt(thread.ai_summary_at || null);
     (async () => {
       try {
         const [ri, rn] = await Promise.all([
@@ -248,7 +268,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/summarize`, { method: 'POST' });
       const j = await r.json();
       // #179 — 여태 실패(503/429/네트워크)해도 조용히 죽어 "무반응"으로 보였다. 실패를 표면화한다.
-      if (j.success) setAiSummary(j.data?.ai_summary || null);
+      if (j.success) { setAiSummary(j.data?.ai_summary || null); setAiSummaryAt(j.data?.ai_summary_at || new Date().toISOString()); }
       else setSumError(j.message || 'failed');
     } catch { setSumError('network'); }
     finally { setSumBusy(false); }
@@ -288,9 +308,15 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
 
   return (
     <Wrap>
-      {/* 요약 — 긴 스레드를 먼저 파악 (읽기 보조) */}
+      {/* ★ 2026-09-09 (Irene: “요약확인이랑 우측 요약생성이랑 차이가 뭘까 … 버튼에서 다르게 할까?
+          아니면 주요내용 요약이라고 할까? 그리고 다시요약이 의미가 있어? 계속 누르면 뭘 다르게 해?”)
+          두 기능은 **역할이 다르다**. 통일하지 않고 이름으로 가른다:
+            · 본문 아래 “이 메일 확인”  = 이 메일을 **판단**한다 (요약 + 스팸점수·발신인증·주고받은 횟수)
+            · 여기 “주요 내용”          = 스레드 전체를 **읽는다**
+          “다시 요약” 은 없앴다 — 같은 입력에 같은 답이라 누를 이유가 없었다. 스레드에 새 메일이
+          들어왔을 때만 뜻이 있으므로 그때만 “새 메일 반영” 으로 바뀐다. */}
       <WorkbenchSection
-        title={t('context.summaryTitle', { defaultValue: '요약' }) as string}
+        title={t('context.summaryTitle', { defaultValue: '주요 내용' }) as string}
         action={(
           <AiAssistButton
             onClick={summarize}
@@ -301,8 +327,10 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
               </svg>
             )}
             label={sumBusy ? t('context.summarizing', { defaultValue: '요약 중…' }) as string
-              : aiSummary ? t('context.resummarize', { defaultValue: '다시 요약' }) as string
-              : t('context.summarize', { defaultValue: '요약 생성' }) as string}
+              : !aiSummary ? t('context.summarize', { defaultValue: '주요 내용 만들기' }) as string
+              : summaryStale ? t('context.refreshSummary', { defaultValue: '새 메일 반영' }) as string
+              : t('context.summaryUpToDate', { defaultValue: '최신 상태' }) as string}
+            disabled={!!aiSummary && !summaryStale}
             title={t('context.summaryHint', { defaultValue: '긴 스레드를 AI가 핵심만 요약해요.' }) as string}
           />
         )}
@@ -344,7 +372,8 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
       <WorkbenchSection
         title={t('context.tasksTitle', { defaultValue: '업무 후보' }) as string}
         count={candidates.length}
-        defaultOpen={candidates.length > 0}
+        open={candOpen ?? (candidates.length > 0 || !!extractMsg)}
+        onToggle={() => setCandOpen((v) => !(v ?? (candidates.length > 0 || !!extractMsg)))}
         action={canExtract ? (
           <AiAssistButton
             onClick={extract}

@@ -923,7 +923,7 @@ const Dialog = styled.div`
   box-shadow:0 20px 50px rgba(15,23,42,.2);display:flex;flex-direction:column;overflow:hidden;
   @media (max-width: 640px) {
     max-width:none;border-radius:0;
-    margin-top:60px;max-height:calc(100vh - 60px);max-height:calc(100dvh - 60px);
+    margin-top:var(--pq-chrome-bottom, 60px);max-height:calc(100vh - var(--pq-chrome-bottom, 60px));max-height:calc(100dvh - var(--pq-chrome-bottom, 60px));
     overflow-y:auto;
   }
 `;

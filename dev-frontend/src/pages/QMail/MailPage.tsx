@@ -160,6 +160,7 @@ import {
   AcctManageIcon,
   BulkAction,
   FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
+  KeptDraftNote,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -288,14 +289,38 @@ export function toAddrList(list: Array<string | { name?: string; email: string }
 //   원문 언어를 글자로 추정해 **원문과 다른 언어**를 기본값으로 준다.
 //   ★ LLM 호출 전이라 서버의 detected_language 를 쓸 수 없다 — 문자 종류로 충분히 갈린다.
 //     정확한 판별이 목적이 아니라 "같은 언어로 번역하기" 를 막는 것이 목적이다.
-function guessLangFromText(text?: string | null): string {
-  const t = String(text || '').slice(0, 400);
-  if (!t.trim()) return '';
-  if (/[\uAC00-\uD7A3]/.test(t)) return 'ko';                    // 한글
-  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(t)) return 'ja';       // 히라가나·가타카나
-  if (/[\u4E00-\u9FFF]/.test(t)) return 'zh';                    // 한자 (일본어는 위에서 먼저 걸림)
-  if (/[A-Za-z]/.test(t)) return 'en';
-  return '';
+// ★ 2026-09-09 (Irene: "메일 내용이 영어인데 번역 선택에 영어로 나오고 있어. 메일내용이 영어면
+//   한국어(유저설정언어), 한국어면 영어를 기본으로 해달라고 했는데.")
+//   규칙(pickTranslateTarget)은 맞았는데 **원문 판별이 틀렸다.** 옛 구현의 두 구멍:
+//   ① **첫 문자 종류가 이긴다** — 앞 400자 안에 한글이 한 글자만 있어도(서명·인용·"안녕하세요")
+//      영어 본문이 'ko' 로 판정돼, 기본 대상이 **영어**로 뒤집혔다. 그게 이 신고의 모양이다.
+//   ② **HTML 전용 메일은 body_text 가 비어** '' 를 내고 UI 언어로 떨어졌다.
+//   → 첫 일치가 아니라 **글자 수를 센다**, 그리고 본문이 비면 HTML 에서 글자를 꺼낸다.
+//   목적은 정밀 판별이 아니라 "같은 언어로 번역하기" 와 "뒤집힌 기본값" 을 막는 것이다.
+function stripHtmlToText(html?: string | null): string {
+  return String(html || '')
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z#0-9]+;/gi, ' ');
+}
+function guessLangFromText(text?: string | null, html?: string | null): string {
+  // 본문이 비면 HTML 에서 꺼낸다. 2,000자면 서명 한 줄에 휘둘리지 않는다.
+  const raw = (String(text || '').trim() ? String(text) : stripHtmlToText(html)).slice(0, 2000);
+  if (!raw.trim()) return '';
+  const count = (re: RegExp) => (raw.match(re) || []).length;
+  const scores: Array<[string, number]> = [
+    ['ko', count(/[\uAC00-\uD7A3]/g)],
+    ['ja', count(/[\u3040-\u309F\u30A0-\u30FF]/g)],
+    ['zh', count(/[\u4E00-\u9FFF]/g)],
+    ['en', count(/[A-Za-z]/g)],
+  ];
+  scores.sort((a, b) => b[1] - a[1]);
+  const [topLang, topN] = scores[0];
+  if (topN === 0) return '';
+  // 일본어는 한자를 섞어 쓰므로, 가나가 조금이라도 있으면 zh 가 아니라 ja 다.
+  const kana = scores.find(([l]) => l === 'ja')?.[1] || 0;
+  if (topLang === 'zh' && kana > 0) return 'ja';
+  return topLang;
 }
 // 원문 언어와 UI 언어를 보고 "번역할 만한" 대상을 고른다.
 //   원문 ≠ UI 언어면 UI 언어로(내가 읽으려는 것). 같으면 영어로, 원문이 영어면 UI 언어로.
@@ -466,6 +491,15 @@ const MailPage: React.FC = () => {
     Object.values(transAbortRef.current).forEach(ac => ac.abort());
     transAbortRef.current = {};
   }, []);
+  // ★ 2026-09-09 (Irene: "번역하기는 나갔다 들어오면 저장되어 있을 필요 없지 않아?")
+  //   번역은 **지금 이 메일을 읽기 위한 한 번짜리 보조**다. 스레드를 옮기면 버린다.
+  //   (요약은 반대다 — ThreadMessages 가 스레드별로 들고 있는다.)
+  useEffect(() => {
+    Object.values(transAbortRef.current).forEach(ac => ac.abort());
+    transAbortRef.current = {};
+    setMsgTrans({});
+    setTransLangByMsg({});
+  }, [detail?.id]);
   const [members, setMembers] = useState<MailMember[]>([]);
   // 메일 검색 (제목·미리보기·본문) — 300ms 디바운스
   const [searchQ, setSearchQ] = useState('');
@@ -1137,21 +1171,29 @@ const MailPage: React.FC = () => {
         testId: 'mail-detail-spam',
       },
     ];
-    FOLLOW_UP_OPTIONS(t).forEach((o, i) => {
-      items.push({
-        key: 'fu-' + o.value,
-        label: o.label,
-        checked: cur === o.value,
-        groupLabel: i === 0 ? (t('followUp.label', { defaultValue: '답 없으면' }) as string) : undefined,
-        dividerBefore: i === 0,
-        onClick: () => setFollowUpDays(detail.id, o.value === 'default' ? null : Number(o.value)),
+    // ★ 2026-09-09 (Irene: "... 메뉴의 3일 뒤, 7일 뒤, 14일 뒤... 이게 뭐야? 답 없으면이 누가?
+    //   받은 메일에서 이게 무슨 알림인지 이해가 안가.")
+    //   이 기능(#384)은 **내가 보낸 메일에 상대가 답을 안 하면 나에게 알리는** 것이다.
+    //   ① 그런데 마지막 메시지가 '받은 메일' 인 스레드에도 똑같이 떴다 — 거기서는 답을 기다리는 쪽이
+    //      내가 아니라 상대라 뜻이 없다. **내가 마지막으로 보낸 스레드에만** 보인다.
+    //   ② 라벨이 "답 없으면" 이라 **누가 누구를 기다리는지** 가 빠져 있었다. 문장으로 말한다.
+    if (detail.last_message_direction === 'outbound') {
+      FOLLOW_UP_OPTIONS(t).forEach((o, i) => {
+        items.push({
+          key: 'fu-' + o.value,
+          label: o.label,
+          checked: cur === o.value,
+          groupLabel: i === 0 ? (t('followUp.label', { defaultValue: '상대가 답장하지 않으면 알려주기' }) as string) : undefined,
+          dividerBefore: i === 0,
+          onClick: () => setFollowUpDays(detail.id, o.value === 'default' ? null : Number(o.value)),
+        });
       });
-    });
+    }
     return items;
     // onMarkSpam 은 매 렌더 새로 만들어지는 평범한 함수라 deps 에 넣으면 메모가 무의미해진다.
     //   detail.id·status·follow_up_days 가 바뀔 때만 다시 만들면 충분하다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail?.id, detail?.status, detail?.follow_up_days, t, setFollowUpDays]);
+  }, [detail?.id, detail?.status, detail?.follow_up_days, detail?.last_message_direction, t, setFollowUpDays]);
 
   // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
   const silentReload = useCallback(() => {
@@ -1469,6 +1511,12 @@ const MailPage: React.FC = () => {
   // #261 — 주소를 누르면 할 수 있는 일들. 행동의 주인은 이 페이지다(메뉴는 표시만 한다).
   //   "이 주소의 메일 보기" 는 **보관된 것도 포함**해서 찾는다 — 운영에서 못 찾은 메일이
   //   실은 보관함에 있었기 때문이다(#261 실측).
+  // "이 주소로 새 메일" 로 열렸는지. 열릴 때 한 번만 쓰이고 닫히면 비워진다.
+  //   ref 인 이유: addressActions 는 [businessId] 로만 메모돼 있어 state 를 읽으면 낡은 값을 본다.
+  const composeFreshToRef = useRef<string | null>(null);
+  // 그 경로에서 **건드리지 않고 남겨 둔** 초안이 있으면 화면이 그렇게 말한다 —
+  //   말하지 않으면 사용자는 "내가 쓰던 메일이 날아갔나" 로 읽는다.
+  const [keptDraftNotice, setKeptDraftNotice] = useState(false);
   const addressActions = React.useMemo(() => ({
     onViewMail: (email: string) => {
       const nsp = new URLSearchParams(window.location.search);
@@ -1477,13 +1525,28 @@ const MailPage: React.FC = () => {
       setSp(nsp, { replace: false });
     },
     onCompose: (email: string) => {
+      // ★ 2026-09-09 (Irene: "이 주소로 새메일 눌러도 전에 쓰던 임시저장된 메일이 그대로 나와.")
+      //   compose 를 열면 서버 초안(`/email-drafts`)을 불러 폼을 채우는데, 그 복원이 방금 고른
+      //   **주소까지 덮어썼다.** "이 주소로 새 메일" 은 받는 사람을 지목한 명시적 의도다 —
+      //   초안 복원이 그것을 이길 수 없다.
+      //   → 이 경로는 **빈 폼 + 그 주소**로 연다. 초안은 서버에 그대로 두므로(지우지 않는다)
+      //     상단 '새 메일' 로 열면 종전대로 이어 쓸 수 있다.
+      composeFreshToRef.current = email;
       setCTo(email);
+      setCSubject('');
+      setCBody('');
+      setCFileIds([]);
+      setCUploads([]);
+      setFwdFromMsgId(null);
       setComposeOpen(true);
     },
     onSaveClient: (email: string, name?: string | null) => {
       // 고객 등록 화면으로 넘긴다 — 여기서 조용히 만들지 않는다.
       //   고객은 청구·프로젝트가 붙는 자산이라 사용자가 내용을 보고 확정해야 한다.
-      navigate(`/clients?new=1&email=${encodeURIComponent(email)}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
+      // ★ 경로가 `/clients` 로 틀려 있었다 (2026-09-09). 실제 라우트는 `/business/clients` 라
+      //   폴백(`path="*"`)에 걸려 **받은메일함으로 튕겼다** — 사용자에게는 "눌러도 아무 일이 없다".
+      //   받는 쪽(ClientsPage)이 new·email·name 을 읽어 등록 폼을 채워 여는 것도 같이 넣었다.
+      navigate(`/business/clients?new=1&email=${encodeURIComponent(email)}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
     },
     onBlock: async (email: string) => {
       if (!businessId) return;
@@ -1598,6 +1661,16 @@ const MailPage: React.FC = () => {
       const d = j?.data;
       let hadSubject = false;
       let restoredBody = '';
+      // ★ "이 주소로 새 메일" 로 열렸으면 초안을 **폼에 적용하지 않는다** (2026-09-09).
+      //   받는 사람을 지목한 명시적 의도가 초안 복원보다 앞선다. 초안은 서버에 그대로 둔다 —
+      //   지우면 쓰다 만 메일을 말없이 날리는 것이 되므로, 대신 남아 있다고 화면이 말한다.
+      if (composeFreshToRef.current) {
+        const hasContent = !!(d && ((d.subject || '').trim() || !isEmptyHtml(d.body_html || '')
+          || (Array.isArray(d.attachment_file_ids) && d.attachment_file_ids.length)));
+        setKeptDraftNotice(hasContent);
+        composeDraftReady.current = true;
+        return;
+      }
       if (d) {
         if (Array.isArray(d.to_emails) && d.to_emails.length) setCTo(toAddrList(d.to_emails).join(', '));
         if (d.subject) { setCSubject(d.subject); hadSubject = true; }
@@ -1704,6 +1777,7 @@ const MailPage: React.FC = () => {
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
     setFwdFromMsgId(null); setFwdAttachCount(0);
+    composeFreshToRef.current = null; setKeptDraftNotice(false);
     pendingVoiceRef.current = null; composeVoiceUntouched.current = false;
   };
   // 전달 시작 — compose 모달을 전달 모드로 열고 제목/인용본문 prefill
@@ -1800,7 +1874,7 @@ const MailPage: React.FC = () => {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
               </AcctManageIcon>
             )}
-            <ComposeBtn type="button" data-testid="mail-compose-open" onClick={() => { setComposeOpen(true); if (viewportNarrow) setSidebarCollapsed(true); }} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
+            <ComposeBtn type="button" data-testid="mail-compose-open" onClick={() => { composeFreshToRef.current = null; setKeptDraftNotice(false); setComposeOpen(true); if (viewportNarrow) setSidebarCollapsed(true); }} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
               </svg>
@@ -2213,6 +2287,13 @@ const MailPage: React.FC = () => {
                 <CloseBtn type="button" onClick={closeCompose} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>✕</CloseBtn>
               </PanelHeader>
               <ComposeBody>
+                {/* 남겨 둔 초안이 있다는 것을 화면이 말한다 — 말하지 않으면 "쓰던 메일이 날아갔나" 가 된다.
+                    지운 것이 아니므로 상단 '새 메일' 로 열면 그대로 이어 쓸 수 있다. */}
+                {keptDraftNotice && (
+                  <KeptDraftNote role="status">
+                    {t('compose.keptDraft', { defaultValue: '쓰던 임시저장 메일은 그대로 있습니다. 위 “새 메일” 로 열면 이어 쓸 수 있어요.' }) as string}
+                  </KeptDraftNote>
+                )}
                 {composeFromOptions.length > 1 && (
                   <ComposeField>
                     <ComposeLabel>{t('compose.fromAddress') as string}</ComposeLabel>

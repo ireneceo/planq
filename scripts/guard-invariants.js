@@ -1958,6 +1958,54 @@ function checkNavMenu() {
   report('navmenu', `메뉴 라벨 키가 ko/en 양쪽에 있다 (하드 게이트 · ${keys.size}개)`, missing.length === 0, missing);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// chromeoffset — 모바일 전면 모달이 상단 크롬을 **숫자로** 비키면 안 된다 (2026-09-09 박제)
+//   Irene: "설정들어가면 상단이 모바일에서 잘려. 모든 페이지 통일된 레이아웃 컴포넌트 아니야?
+//           상단 헤더 모바일에서 잘리는 문제를 내가 찾아내서 하나 하나 수정하고 있는 이유가 뭐야?"
+//   이유는 **12곳이 각자 `60px` 을 적어 뒀기** 때문이다(실측 전수).
+//   진짜 크롬 높이는 `--pq-mobile-chrome = --pq-mobile-header(56) + --pq-safe-top` 이다.
+//   브라우저는 safe-top 이 0 이라 60 과 56 의 차이가 4px 뿐 — **앱에서만** 상태바(24px)만큼
+//   잘린다. 그래서 모든 브라우저 검사를 통과하며 운영까지 갔다.
+//   → 기준선은 토큰(`--pq-chrome-bottom`) 하나다. 숫자를 다시 적으면 여기서 막는다.
+//
+//   판정: styled 본문에 `margin-top: Npx`(N=48~96) 가 있고, **같은 N 으로 뷰포트 높이를 깎는
+//        calc** 가 같이 있으면 = "크롬 아래에 서서 남은 높이를 채운다" 는 뜻이다(랜딩 페이지의
+//        단순 섹션 여백은 이 짝이 없어 걸리지 않는다). `position:fixed` + `top: 56|60px` 도 같이 본다.
+function checkChromeOffset() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const OK = /--pq-chrome-bottom|--pq-mobile-chrome|--chrome-top|\$\{belowTabs\}|\$\{belowChrome\}/;
+  const hits = [];
+  for (const f of files) {
+    const src = read(f);
+    const re = /(?:export\s+)?const\s+(\w+)\s*=\s*styled[^`]*`([\s\S]*?)\n`;/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const [, name, body] = m;
+      const line = () => src.slice(0, m.index).split('\n').length;
+      // ① 크롬 아래 + 남은 높이 채우기 짝
+      let mt;
+      const mtRe = /margin-top:\s*(\d{2})px/g;
+      while ((mt = mtRe.exec(body)) !== null) {
+        const n = Number(mt[1]);
+        if (n < 48 || n > 96) continue;
+        // ★ `[^)]*` 로 쓰면 **안 된다** — `calc(var(--vvh, 100vh) - 60px)` 처럼 var() 가 중첩되면
+        //   첫 `)` 에서 멈춰 못 잡는다(2026-09-09 양성 대조군에서 거짓 통과로 드러났다).
+        //   선언 하나(`;` 전)를 넘지 않는 범위에서 비탐욕 매칭한다.
+        const pair = new RegExp(`calc\\([^;]{0,120}?(?:100vh|100dvh|--vvh)[^;]{0,120}?-\\s*${n}px`);
+        if (!pair.test(body)) continue;
+        if (OK.test(body)) continue;
+        hits.push(`${rel(f)}:${line()}: ${name} → margin-top: ${n}px + calc(100vh - ${n}px) (토큰 --pq-chrome-bottom 을 쓸 것)`);
+      }
+      // ② 고정 배치가 크롬 높이를 숫자로 anchor
+      if (/position:\s*fixed/.test(body) && !OK.test(body)) {
+        const tm = body.match(/top:\s*(56|60)px/);
+        if (tm) hits.push(`${rel(f)}:${line()}: ${name} → top: ${tm[1]}px (토큰 --pq-chrome-bottom 을 쓸 것)`);
+      }
+    }
+  }
+  report('chromeoffset', '모바일 모달 상단 기준선이 토큰 (하드 게이트)', hits.length === 0, hits);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   canary: checkCanaryContract,
@@ -1992,6 +2040,7 @@ const CATEGORIES = {
   menuname: checkMenuName,
   statuslabel: checkStatusLabel,
   overlaytop: checkOverlayTop,
+  chromeoffset: checkChromeOffset,
   modalportal: checkModalPortal,
   sharedrive: checkSharedDrive,
   rawmarkup: checkRawMarkup,

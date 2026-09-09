@@ -11,7 +11,7 @@ import ChromeLink from '../Tab/ChromeLink';
 // ★ 등장 효과는 index.css 의 `[data-popover]` 계약이 준다. 여기서는 속성만 기본값으로 붙인다 —
 //   호출부가 잊어버려도 껍데기를 쓰면 자동으로 따라온다(각자 애니메이션을 다시 쓰지 않게).
 export const Popover = styled.div.attrs<{ 'data-popover'?: string }>({ 'data-popover': 'true' })`
-  position: fixed; top: 60px; left: 16px;
+  position: fixed; top: var(--pq-chrome-bottom, 60px); left: 16px;
   width: 360px; max-width: calc(100vw - 32px); max-height: 70vh;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);

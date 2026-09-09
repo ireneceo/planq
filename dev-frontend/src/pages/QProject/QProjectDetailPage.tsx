@@ -47,6 +47,7 @@ import {
   InfoBody,
   OverviewDesc,
   ProjectDocsWrap,
+  ProjectFilesWrap,
   EditGrid,
   EditField,
   EditLabel,
@@ -1126,7 +1127,12 @@ const QProjectDetailPage: React.FC = () => {
           </Card>
         </InfoBody>
       )}
-      {tab === 'files' && <DocsTab projectId={projectId} businessId={project.business_id} />}
+      {/* ProjectFilesWrap — 탭 안 sticky 기준선만 선언한다(레이아웃 영향 없음). 문서 탭과 같은 값. */}
+      {tab === 'files' && (
+        <ProjectFilesWrap>
+          <DocsTab projectId={projectId} businessId={project.business_id} />
+        </ProjectFilesWrap>
+      )}
       {tab === 'docs' && (
         <ProjectDocsWrap>
           <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />

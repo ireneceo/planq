@@ -75,11 +75,42 @@ export const Tab = styled.button<{$active:boolean}>`
 export const InfoBody = styled.div`display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:16px;@media (max-width:900px){grid-template-columns:1fr;}`;
 // #96 — PostsPage(Layout height:100%) 를 프로젝트 탭에 임베드. 경계 높이 부여 → 내부 사이드바·그리드 자체 스크롤.
 //   상단 네비(64)+PageShell 헤더(60)+Body padding+TabBar 보정. Body padding(20) 상쇄 위해 음수 마진.
+// ★ 탭 안의 sticky 자식은 **탭 막대 아래**에 붙어야 한다 (2026-09-09).
+//   TabBar 는 PageShell Body 안에서 sticky(top:-20px) 이고, 탭 내용의 sticky 자식들은 같은
+//   스크롤포트를 공유한다 — 그래서 `top:8px` 같은 자기 값을 쓰면 탭 막대 **뒤로 깔린다**.
+//   실측(1440×900, /projects/p/239?tab=docs, 스크롤 후): 탭 막대 190~236 · 좌측 카테고리 패널이
+//   210 에 붙어 `elementFromPoint` 가 탭 막대("개요")를 집었다 = 26px 가 한 픽셀도 안 보였다.
+//   → 기준선을 **값 하나**로 둔다. 자식은 `var(--pq-tab-sticky-top, 8px)` 로 읽고,
+//     워크스페이스 범위(/docs · /files — 탭 막대가 없다)에서는 폴백 8px 이 그대로 쓰인다.
+//   46px = 탭 막대 실측 높이(패딩 12×2 + 13px 글자 + 하단 보더 1). -20px = TabBar 의 sticky top.
+//   어긋나면 `node scripts/e2e/run.js --suite sticky` 가 "covered" 로 잡는다(그 검사가 이걸 찾아냈다).
+// 탭 막대 높이 — 아래 두 계산이 **같은 값**에서 나온다. 따로 적으면 갈라진다.
+export const TABBAR_H = '46px';
+export const tabStickyTop = `calc(${TABBAR_H} - 20px + 8px)`;
+
+// ★ 문서 탭에는 --pq-tab-sticky-top 을 주지 **않는다** (2026-09-09 실측으로 정정).
+//   문서 탭의 좌측 패널은 PostsPage 자신의 Body(overflow-y:auto)를 스크롤포트로 삼는다 —
+//   그 Body 는 이미 탭 막대 **아래**에서 시작하므로(실측 top 236 = 탭 막대 끝) 8px 이 맞다.
+//   여기에 34px 을 주면 그 패널이 실제로 붙을 때 26px 헛자리가 생긴다.
+//   문서 탭에서 패널이 탭 막대에 잠기던 것은 sticky 가 아니라 **래퍼 높이**가 원인이었다 —
+//   아래 max-height 로 고쳤다.
 export const ProjectDocsWrap = styled.div`
   height: calc(100vh - 210px);
+  /* ★ 2026-09-09 — 이 높이 공식이 **보이는 영역보다 커서** 바깥(PageShell Body)이 스크롤됐고,
+     그 스크롤이 문서 탭 좌측 패널을 탭 막대 뒤로 끌고 들어갔다
+     (실측 1440×900: 래퍼 690px vs 본문 가시영역 602px → 94px 스크롤 → 26px 잠김).
+     100% 는 스크롤 컨테이너의 **콘텐츠 박스 높이**로 풀리므로, 거기서 탭 막대만큼 빼면
+     바깥이 스크롤될 이유가 없어진다. height 선언은 그대로 두어 짧은 화면에서의 동작을 안 바꾼다
+     — max 만 씌운다. 회귀는 e2e sticky 스위트가 좌표로 잡는다.
+     ※ styled 템플릿 안 주석에 백틱을 쓰면 템플릿이 끊긴다 — 오늘 두 번 겪었다. */
+  max-height: calc(100% - ${TABBAR_H});
   min-height: 460px;
   margin: -20px;
   @media (max-width: 768px) { height: calc(100vh - 180px); margin: -16px; }
+`;
+// 파일 탭 — 기준선만 선언한다(레이아웃 영향 없는 블록). 문서 탭과 **같은 값**을 쓴다.
+export const ProjectFilesWrap = styled.div`
+  --pq-tab-sticky-top: ${tabStickyTop};
 `;
 export const EditGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:12px;`;
 export const EditField = styled.div`display:flex;flex-direction:column;gap:4px;`;

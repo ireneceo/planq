@@ -409,7 +409,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       setRows(list);
       if (plain) writeCache(postsKey, list);
     } finally { setLoading(false); }
-  }, [scope, query, filter, postsKey]);
+    // ★ dep 은 **원시값으로만** — `scope` 는 호출부가 `scope={{...}}` 인라인으로 넘겨
+    //   부모가 한 번 렌더될 때마다 새 객체가 되고, 그때마다 문서 목록을 다시 받았다.
+    //   같은 계열이 DocsTab 에서는 **자기 렌더로도** 새 객체가 되어 API 1,219건 폭주가 났다
+    //   (2026-09-09 실측 · memory feedback_props_useMemo).
+  }, [scope.type, scope.businessId, scopeProjectId, query, filter, postsKey]);
 
   const loadMeta = useCallback(async () => {
     const m = await fetchPostsMeta(scope.businessId, scopeProjectId);

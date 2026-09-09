@@ -8,7 +8,7 @@ import styled from 'styled-components';
 import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useDetailParam } from '../../hooks/useDetailParam';
@@ -151,6 +151,24 @@ export default function ClientsPage() {
   const [inviteKind, setInviteKind] = useState<'customer' | 'vendor' | 'freelancer' | 'other'>('customer');
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  // ★ 2026-09-09 — 메일 상세의 주소 메뉴 "고객으로 저장" 이 여기로 보낸다.
+  //   그 링크는 **읽는 곳이 0곳**이었다(memory feedback_produced_link_no_consumer):
+  //   보내는 경로도 `/clients` 로 틀려 있어(실제 라우트는 `/business/clients`) 폴백에 걸려
+  //   **받은메일함으로 튕겼고**, 설령 도착했어도 이 페이지가 파라미터를 안 읽어 아무 일도 없었다.
+  //   → 여기서 받아 등록 폼을 **채워서** 연다. 쿼리는 한 번 쓰고 지운다(새로고침·공유 시 재실행 방지).
+  const [sp, setSp] = useSearchParams();
+  useEffect(() => {
+    if (sp.get('new') !== '1') return;
+    const email = sp.get('email') || '';
+    const name = sp.get('name') || '';
+    setInviteEmail(email);
+    if (name) setInviteName(name);
+    setInviteOpen(true);
+    const nsp = new URLSearchParams(sp);
+    nsp.delete('new'); nsp.delete('email'); nsp.delete('name');
+    setSp(nsp, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp]);
 
   // 삭제 모달
   const [deleteTarget, setDeleteTarget] = useState<ClientRow | null>(null);

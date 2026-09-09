@@ -361,7 +361,7 @@ const Modal = styled.div`
   display:flex;flex-direction:column;gap:10px;
   @media (max-width: 640px) {
     width:100%;max-width:none;max-height:none;border-radius:0;
-    margin-top:60px;height:calc(100vh - 60px);height:calc(100dvh - 60px);
+    margin-top:var(--pq-chrome-bottom, 60px);height:calc(100vh - var(--pq-chrome-bottom, 60px));height:calc(100dvh - var(--pq-chrome-bottom, 60px));
   }
 `;
 const ModalTitle = styled.h3`margin:0;font-size:1rem;font-weight:700;color:#0F172A;`;

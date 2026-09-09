@@ -55,7 +55,7 @@ interface Props {
   translateMsg: (msgId: number, threadId: number, targetLang?: string) => void;
   transLangByMsg: Record<number, string>;
   setTransLangByMsg: React.Dispatch<React.SetStateAction<Record<number, string>>>;
-  guessLangFromText: (t?: string | null) => string;
+  guessLangFromText: (t?: string | null, html?: string | null) => string;
   pickTranslateTarget: (source: string, ui: string) => string;
   uiLang: string;
   cancelTranslate: (msgId: number) => void;
@@ -114,11 +114,31 @@ export default function ThreadMessages(p: Props) {
     finally { setBriefLoading(false); }
   }, [businessId, threadId]);
   // 스레드가 바뀌면 앞 스레드의 브리프를 들고 있지 않는다 — 다른 메일의 판정이 남으면 그게 오정보다.
-  React.useEffect(() => { setBrief(null); setBriefOpenFor(null); setBriefError(false); }, [threadId]);
+  // ★ 2026-09-09 (Irene: "번역하기는 나갔다 들어오면 저장되어 있을 필요 없지 않아? 오히려
+  //   요약/확인을 하면 그대로 남아 있어야 하는데 다시 날라가.")
+  //   두 기능이 정확히 **뒤바뀌어** 있었다 — 요약은 스레드를 뜨면 버리고(LLM 을 다시 태운다),
+  //   번역은 계속 남았다. 요약은 이 세션 동안 스레드별로 들고 있는다.
+  //   (ref 라서 렌더에 영향이 없고, 새로고침하면 사라진다 — 서버에 저장하는 것이 아니다.)
+  const briefCache = React.useRef<Map<number, { brief: MailBrief; openFor: number | null }>>(new Map());
+  React.useEffect(() => {
+    setBriefError(false);
+    const cached = briefCache.current.get(threadId);
+    if (cached) { setBrief(cached.brief); setBriefOpenFor(cached.openFor); return; }
+    setBrief(null); setBriefOpenFor(null);
+  }, [threadId]);
+  // 열고 닫은 상태까지 같이 기억한다 — 열어 뒀는데 닫힌 채 돌아오면 "날아간" 것으로 읽힌다.
+  React.useEffect(() => {
+    if (brief) briefCache.current.set(threadId, { brief, openFor: briefOpenFor });
+  }, [threadId, brief, briefOpenFor]);
   return (
     <>
+      {/* ★ 2026-09-09 (Irene: "내용을 위로 접는 아이콘은 왜 있는지 모르겠네.")
+          접기는 **여러 통이 쌓인 스레드**에서 과거 메일을 접어 두기 위한 것이다(Gmail 관례).
+          한 통뿐인 스레드에서는 접을 상대가 없어 "본문을 숨기는 버튼" 으로만 읽힌다 —
+          그 화면에서는 손잡이를 만들지 않는다(헤더 클릭도 끈다). */}
       {messages.map((m) => {
         const open = expandedMsgIds.has(m.id);
+        const collapsible = messages.length > 1;
         return (
         <MessageCard
           key={m.id}
@@ -133,14 +153,14 @@ export default function ThreadMessages(p: Props) {
             data-message-id={m.id}
             data-direction={m.direction}
             data-expanded={open ? '1' : '0'}
-            $clickable
-            onClick={() => toggleMsg(m.id)}
+            $clickable={collapsible}
+            onClick={collapsible ? () => toggleMsg(m.id) : undefined}
           >
             <MessageFrom
-              role="button"
-              tabIndex={0}
-              aria-expanded={open}
-              onKeyDown={(e) => { if (isEnterAction(e) || e.key === ' ') { e.preventDefault(); toggleMsg(m.id); } }}
+              role={collapsible ? 'button' : undefined}
+              tabIndex={collapsible ? 0 : undefined}
+              aria-expanded={collapsible ? open : undefined}
+              onKeyDown={collapsible ? (e) => { if (isEnterAction(e) || e.key === ' ') { e.preventDefault(); toggleMsg(m.id); } } : undefined}
             >
               {/* 운영 #220 — 팀 주소는 여러 사람이 함께 쓴다. 전부 "나" 로 보이면 누가 답했는지 알 수 없다.
                   내가 보낸 것만 "나", 다른 팀원이 보냈으면 그 사람 표시명을 적는다(워크스페이스 프로필 우선).
@@ -182,9 +202,11 @@ export default function ThreadMessages(p: Props) {
               {/* #272 — "접힌상태랑 아닌 상태 구별 안되고 글자가 잘리는 것처럼 보여버려".
                   아이콘 하나로 상태를 말한다(Gmail 관례). aria-expanded 는 위 MessageFrom 이 이미 갖고 있어
                   여기서는 장식으로 두고 스크린리더에는 숨긴다 — 같은 상태를 두 번 읽지 않게. */}
-              <MsgChevron $open={open} aria-hidden="true">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-              </MsgChevron>
+              {collapsible && (
+                <MsgChevron $open={open} aria-hidden="true">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+                </MsgChevron>
+              )}
               {/* 발송 상태 — 나간 메일만. 'sent'(정상)는 표시하지 않는다(잡음). 문제 있을 때만 드러낸다. */}
               {m.direction === 'outbound' && m.delivery_status && m.delivery_status !== 'sent' && (
                 <DeliveryChip
@@ -283,7 +305,7 @@ export default function ThreadMessages(p: Props) {
           )}
           {/* #184 — 번역하기 / 원본 보기 토글 (언어 선택). 답장 원문 언어는 #153에서 처리됨. */}
           <TransBar>
-            <TransSelect value={transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text), uiLang)}
+            <TransSelect value={transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text, m.body_html), uiLang)}
               onChange={(e) => setTransLangByMsg((p) => ({ ...p, [m.id]: e.target.value }))}
               aria-label={t('translate.langLabel', { defaultValue: '번역 언어' }) as string}>
               <option value="ko">{t('translate.lang.ko') as string}</option>
@@ -311,7 +333,7 @@ export default function ThreadMessages(p: Props) {
               <TransBtn type="button"
                 onClick={() => {
                   // 이 메시지의 실효 대상 언어 — 사용자가 고른 값이 없으면 원문에서 추정한 기본값.
-                  const target = transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text), uiLang);
+                  const target = transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text, m.body_html), uiLang);
                   const cached = msgTrans[m.id];
                   if (cached?.text && cached.lang === target) {
                     setMsgTrans(prev => ({ ...prev, [m.id]: { ...cached, showing: true } }));
@@ -337,8 +359,8 @@ export default function ThreadMessages(p: Props) {
               {briefLoading
                 ? (t('brief.loading', { defaultValue: '확인 중…' }) as string)
                 : briefOpenFor === m.id
-                  ? (t('brief.close', { defaultValue: '요약·확인 닫기' }) as string)
-                  : (t('brief.open', { defaultValue: '요약·확인' }) as string)}
+                  ? (t('brief.close', { defaultValue: '이 메일 확인 닫기' }) as string)
+                  : (t('brief.open', { defaultValue: '이 메일 확인' }) as string)}
             </TransBtn>
             {briefError && <TransErr>{t('brief.failed', { defaultValue: '지금은 확인할 수 없어요' }) as string}</TransErr>}
           </TransBar>
