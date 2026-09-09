@@ -1,0 +1,39 @@
+{
+  "working_on": [
+    "무인증 공개 응답이 화면이 안 쓰는 것까지 싣고 있지 않은가 — 같은 계열 전수 확인"
+  ],
+  "in_progress": [],
+  "completed": [
+    {
+      "title": "공개 문서 링크가 **서명자 이메일·IP·손글씨 서명**을 그대로 내보내고 있었다",
+      "verified": "opus_only",
+      "detail": "오늘 Q info(#408)에서 배운 것 — 가릴 때는 지울 것을 열거하지 말고 남길 것만 남긴다 — 을 같은 계열이 더 있는지 전수로 확인했다. 무인증 공개 라우트 중 toJSON() 뒤에 지울 것을 열거하는 곳은 GET /api/docs/public/:token 하나뿐이었고(나머지는 전부 명시 payload, 다른 하나는 인증된 admin 라우트) 그 하나가 새고 있었다. 링크만 가진 익명 방문자에게 나가던 것: signature_data 의 signer_email·signed_ip·note·signature_image(최대 200KB) · ai_prompt(문서 생성에 쓴 내부 프롬프트) · business_id/client_id/project_id/conversation_id/task_id/quote_id/invoice_id · security_level · search_text. 화면(PublicDocPage)이 실제로 그리는 것은 제목·본문·서명자 이름·동의 여부뿐이다 — 화면에 안 그려진다고 안 나간 것이 아니다. → 화이트리스트로 바꾸고, 서명은 '누가 동의했는가'까지만(signer_name·accept) 내보낸다. ★ 운영 노출은 없었다: 현재 공개 공유 중인 문서 0건·서명된 문서 0건(공유 해제분 포함)으로 잠복 결함이었다. routes/signature_public.js 도 이메일·서명 이미지를 공개로 내보내지만 그것은 서명자 본인에게 이메일로 보낸 개인 링크라 의도된 동작이어서 손대지 않았다."
+    }
+  ],
+  "behavior_changes": [
+    "공유 링크로 문서를 여는 화면은 지금까지와 똑같이 보인다 — 응답에만 실려 나가던 값(서명자 이메일·IP·서명 이미지 등)이 빠졌다. 그 값들은 워크스페이스 안에서 종전대로 볼 수 있다."
+  ],
+  "issues": [],
+  "blocked_on_human": [
+    "Fable 토큰 — 대기 4건. docs/FABLE_GATE_QUEUE.md",
+    "활성 워크스페이스 축을 서버가 강제할지 — 지금 판정 축은 '활성' 이 아니라 '멤버인가' 다. Irene 결정 필요",
+    "Q sale 설계 v2 승인 + 남은 결정 3건(§15) — 미처리 신고 #381·#382 가 여기 묶여 있다",
+    "로컬 main 이 origin/main 보다 앞서 있다 — 푸시할지 Irene 결정",
+    "운영 백업 15개 약 7.7G (디스크 110G 여유라 급하지 않음)"
+  ],
+  "migrations": [],
+  "check_areas": [
+    "문서를 공유 링크로 열었을 때 종전과 똑같이 보이는지(제목·본문·서명자 이름·동의 여부)",
+    "워크스페이스 안에서는 서명자 이메일·IP·서명 이미지가 종전대로 보이는지"
+  ],
+  "backlog": [
+    "게스트 링크 라우트(routes/guest.js visibleToGuest)도 같은 방식으로 응답 raw 확인",
+    "Q Sale — Irene 이 명시적으로 제외"
+  ],
+  "tooling_health": [
+    "신규 카나리 --suite publicpayload 10/10 — 렌더가 아니라 **응답 raw 문자열**을 스캔한다. 값뿐 아니라 '있으면 안 되는 이름'(signed_ip·ai_prompt·security_level·내부 FK)도 같이 보므로 **컬럼이 늘어도** 잡는다. Q docs·Q info 두 공개 표면을 한 카나리로 덮고 음성 대조군(화면이 쓰는 것은 나가야 한다)을 같이 잰다",
+    "★ 양성 대조군 — 옛 코드(toJSON + delete 2개)로 되돌려 재기동하니 7건이 빨간불이었고 이메일·메모·서명이미지는 실제 값이 응답에 찍혔다. 원복 후 14/14",
+    "--suite qinfoundo 9/9 · health-check 41/41 · 불변식 가드 37/38(미통과 1 = 문서 신선도 경고 전용)"
+  ],
+  "undeployed": []
+}
