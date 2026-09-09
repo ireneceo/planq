@@ -441,8 +441,7 @@
   "detail": {
     "toAddr": "받은 주소",
     "noContent": "(내용 없음)",
-    "fullView": "전체 화면으로 보기",
-    "fullViewShort": "전체보기",
+    "fullView": "새 창으로 크게 보기",
     "copyBody": "내용 복사",
     "copied": "복사됨",
     "copyFailed": "복사 실패"

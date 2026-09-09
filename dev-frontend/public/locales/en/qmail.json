@@ -441,8 +441,7 @@
   "detail": {
     "toAddr": "Received at",
     "noContent": "(no content)",
-    "fullView": "Open full screen",
-    "fullViewShort": "Full view",
+    "fullView": "Open in a new window",
     "copyBody": "Copy content",
     "copied": "Copied",
     "copyFailed": "Couldn't copy"

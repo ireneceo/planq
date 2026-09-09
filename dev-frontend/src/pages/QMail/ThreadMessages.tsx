@@ -20,6 +20,7 @@ import MailBodyFullscreen from './MailBodyFullscreen';
 const FORWARD_ENABLED = true;
 import MessageAttachments from './MessageAttachments';
 import MailBriefPanel, { type MailBrief } from './MailBriefPanel';
+import VisuallyHidden from '../../components/Common/VisuallyHidden';
 import { apiFetch } from '../../contexts/AuthContext';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { copyMailBody, useMailBodySelectionScope } from './useMailBodyCopy';
@@ -29,7 +30,7 @@ import { buildMailSrcDoc, type QuoteFoldLabels } from './mailSrcDoc';
 import { openMailWindow } from './openMailWindow';
 import {
   MessageCard, MessageHeader, MessageFrom, MessageTo, MsgHeaderRight, MsgCollapsedPreview, MsgChevron,
-  MessageTime, MsgForwardBtn, DeliveryChip, MessageBodyText,
+  MessageTime, MsgIconBtn, DeliveryChip, MessageBodyText,
   TransBar, TransSelect, TransBtn, TransLoading, TransErr, TransBody,
 } from './MailPage.styles';
 import { isEnterAction } from '../../utils/imeKey';
@@ -224,23 +225,40 @@ export default function ThreadMessages(p: Props) {
                   팝업이 차단되면 기존 모달로 폴백해 기능이 죽지 않게 한다. */}
               {/* 내용 복사 — Irene: "복사해서 어디 보내고 싶어도 … 모든 곳이 다 걸리네."
                   HTML 메일이면 서식과 평문을 같이 올린다(문서에 붙이면 서식, 메모장에 붙이면 글자). */}
-              <MsgForwardBtn type="button"
+              {/* 내용 복사 — 겹친 사각형은 "복사" 의 정착된 아이콘이다.
+                  ★ 다만 이 버튼만은 **결과를 글자로 말하고 있었다**("복사됨"/"복사 실패").
+                    아이콘으로 바꾸면서 그 피드백을 없애면 정확히 Irene 이 반복해 신고한
+                    "눌러도 아무 일이 없는 컨트롤" 이 된다 → 글리프를 ✓ / ! 로 바꾸고
+                    aria-live 로 읽어 준다. 자리는 안 먹고 결과는 남는다. */}
+              <MsgIconBtn type="button"
                 data-testid="mail-copy-body"
+                $tone={copiedId === m.id ? 'ok' : copyFailedId === m.id ? 'err' : undefined}
                 onClick={async (e) => {
                   e.stopPropagation();
                   const ok = await copyMailBody({ html: m.body_html, text: m.body_text });
                   if (ok) { setCopyFailedId(null); setCopiedId(m.id); window.setTimeout(() => setCopiedId((c) => (c === m.id ? null : c)), 2000); }
                   else { setCopiedId(null); setCopyFailedId(m.id); window.setTimeout(() => setCopyFailedId((c) => (c === m.id ? null : c)), 3000); }
                 }}
-                title={t('detail.copyBody', { defaultValue: '내용 복사' }) as string}
-                aria-label={t('detail.copyBody', { defaultValue: '내용 복사' }) as string}>
-                {copiedId === m.id
+                title={copiedId === m.id
                   ? (t('detail.copied', { defaultValue: '복사됨' }) as string)
                   : copyFailedId === m.id
                     ? (t('detail.copyFailed', { defaultValue: '복사 실패' }) as string)
                     : (t('detail.copyBody', { defaultValue: '내용 복사' }) as string)}
-              </MsgForwardBtn>
-              <MsgForwardBtn type="button" onClick={(e) => {
+                aria-label={t('detail.copyBody', { defaultValue: '내용 복사' }) as string}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {copiedId === m.id
+                    ? <polyline points="20 6 9 17 4 12" />
+                    : copyFailedId === m.id
+                      ? <><line x1="12" y1="8" x2="12" y2="13" /><line x1="12" y1="17" x2="12" y2="17" /><circle cx="12" cy="12" r="9" /></>
+                      : <><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></>}
+                </svg>
+              </MsgIconBtn>
+              {/* 결과는 눈으로도 보이지만 스크린리더에도 들려야 한다 */}
+              <VisuallyHidden role="status" aria-live="polite">
+                {copiedId === m.id ? (t('detail.copied', { defaultValue: '복사됨' }) as string)
+                  : copyFailedId === m.id ? (t('detail.copyFailed', { defaultValue: '복사 실패' }) as string) : ''}
+              </VisuallyHidden>
+              <MsgIconBtn type="button" data-testid="mail-fullview" onClick={(e) => {
                 e.stopPropagation();
                 const sub = m.direction === 'outbound'
                   ? `${(m.sent_by_user_id && myUserId && m.sent_by_user_id !== myUserId && m.sent_by_name) ? m.sent_by_name : (t('me', { defaultValue: '나' }) as string)} <${accountEmail}>`
@@ -253,10 +271,17 @@ export default function ThreadMessages(p: Props) {
                 });
                 if (!opened) setFullMsgId(m.id);
               }}
-                title={t('detail.fullView', { defaultValue: '전체 화면으로 보기' }) as string}
-                aria-label={t('detail.fullView', { defaultValue: '전체 화면으로 보기' }) as string}>
-                {t('detail.fullViewShort', { defaultValue: '전체보기' }) as string}
-              </MsgForwardBtn>
+                title={t('detail.fullView', { defaultValue: '새 창으로 크게 보기' }) as string}
+                aria-label={t('detail.fullView', { defaultValue: '새 창으로 크게 보기' }) as string}>
+                {/* 상자 밖 화살표 = "새 창으로 연다" 의 웹 공통 관례.
+                    ★ 이 아이콘이 옛 글자보다 **더 정확하다** — 버튼 이름은 "전체 화면으로 보기"
+                      였는데 실제 동작은 openMailWindow, 즉 **진짜 새 창**이다(팝업이 막히면 모달 폴백).
+                      동작을 그리는 아이콘으로 바꾸면서 문구도 동작에 맞췄다. */}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M15 3h6v6" /><path d="M10 14 21 3" />
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                </svg>
+              </MsgIconBtn>
               {/* ★ 2026-08-24 (Irene 지시) — 전달 기능 **일시 차단**.
                   원문 HTML 을 리치 에디터에 통과시키는 구조라 표·인라인 스타일이 재해석되어
                   레이아웃이 깨지고(라운드 박스) cid: 이미지가 유실된다. 서버가 원문을 그대로
@@ -265,11 +290,14 @@ export default function ThreadMessages(p: Props) {
                   "엉망인 기능을 고객이 보면 안 된다" — 오픈 전까지 진입을 막고 Fable 이 설계·검증한다.
                   되살릴 때: 이 블록의 FORWARD_ENABLED 를 true 로. 근거는 FABLE_VERIFY_QUEUE §5. */}
               {FORWARD_ENABLED && (
-                <MsgForwardBtn type="button" onClick={(e) => { e.stopPropagation(); startForward(m); }}
+                <MsgIconBtn type="button" data-testid="mail-forward" onClick={(e) => { e.stopPropagation(); startForward(m); }}
                   title={t('forward.button', { defaultValue: '전달' }) as string}
                   aria-label={t('forward.button', { defaultValue: '전달' }) as string}>
-                  {t('forward.button', { defaultValue: '전달' }) as string}
-                </MsgForwardBtn>
+                  {/* 오른쪽으로 꺾이는 화살표 = 전달. Gmail·Outlook·Apple Mail 이 모두 같은 모양을 쓴다 */}
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="15 17 20 12 15 7" /><path d="M4 18v-2a4 4 0 0 1 4-4h12" />
+                  </svg>
+                </MsgIconBtn>
               )}
             </MsgHeaderRight>
           </MessageHeader>

@@ -734,6 +734,24 @@ export const MsgForwardBtn = styled.button`
   transition: background 0.15s, border-color 0.15s;
   &:hover { background: #F0FDFA; border-color: #99F6E4; color: #0F766E; }
 `;
+// ★ 2026-09-09 — 메시지 헤더의 액션 3개(내용 복사·새 창·전달)를 아이콘으로 접는다.
+//   Irene: "우측에 내용 접는 아이콘부터 시간표시, 내용복사 전체보기 전달도 반응형이 제대로
+//           안되고 있어" → "적합한 아이콘이라면 그렇게 하자."
+//   글자 버튼 3개는 ~200px 를 상시 먹어 좁은 폭에서 시간·상태 칩과 자리를 다퉜다.
+//   셋 다 메일 클라이언트/웹의 **정착된 아이콘**이 있어 뜻을 잃지 않는다(판정 근거는 호출부 주석).
+//   36×36 — CLAUDE.md 반응형 원칙 2(아이콘 버튼 최소 36×36) + UISPEC 가드 토큰(36/40/44).
+//   글리프는 16px 이고 나머지는 터치 여백이다.
+export const MsgIconBtn = styled.button<{ $tone?: 'ok' | 'err' }>`
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; border-radius: 8px; cursor: pointer;
+  color: ${p => (p.$tone === 'ok' ? '#0F766E' : p.$tone === 'err' ? '#DC2626' : '#64748B')};
+  transition: background 0.15s, color 0.15s;
+  /* 결과 색(성공 teal · 실패 red)은 hover 가 덮지 않는다 — 덮으면 마우스를 올린 채
+     누른 사람에게는 결과 색이 안 보인다(실측: 복사 직후 색이 hover 값으로 나왔다). */
+  &:hover { background: #F1F5F9; color: ${p => (p.$tone === 'ok' ? '#0F766E' : p.$tone === 'err' ? '#DC2626' : '#0F172A')}; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
+`;
 export const MessageFrom = styled.div`
   font-size: 0.8125rem; font-weight: 600; color: #0F172A;
   /* 280px 이상 남으면 같은 줄, 모자라면 이 칸이 한 줄을 통째로 쓰고 액션이 아래로 내려간다. */
