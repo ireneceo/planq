@@ -34,6 +34,7 @@ function broadcastPost(req, post, event = 'post:updated') {
 }
 
 // 에디터 인라인 이미지 저장 경로
+const { resolveEditorImage } = require('../services/editorImage');
 const EDITOR_IMG_DIR = path.join(__dirname, '..', 'uploads', 'editor-images');
 if (!fs.existsSync(EDITOR_IMG_DIR)) fs.mkdirSync(EDITOR_IMG_DIR, { recursive: true });
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']);
@@ -1224,34 +1225,21 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
 router.get('/editor-image/:filename', async (req, res) => {
   try {
     const filename = String(req.params.filename || '');
-    // path traversal 방어
-    if (!/^[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i.test(filename)) {
-      return errorResponse(res, 'invalid_filename', 400);
-    }
-    const fp = path.join(EDITOR_IMG_DIR, filename);
-
-    // ★ LIKE 는 접미사 매칭이라 짧은 값으로 남의 파일이 걸린다 — basename 정확 일치까지 본다.
-    //   (files.js public-image 가 같은 함정을 같은 방식으로 막았다. 규칙을 갈라 두지 말 것.)
-    const row = await File.findOne({
-      where: { file_path: { [Op.like]: `%editor-images/${filename}` }, deleted_at: null },
-    });
-    const file = row && path.basename(row.file_path) === filename ? row : null;
-    if (!file) return errorResponse(res, 'not_found', 404);
-    if (file.security_level && file.security_level !== 'general') {
-      // 대외비·내부용은 무인증 경로로 절대 내보내지 않는다 (/drag · gdriveMirror 와 같은 술어).
-      return errorResponse(res, 'not_found', 404);   // 존재 은닉
-    }
-    // image/* 만 — HTML/JS 를 inline 으로 흘리면 XSS 가 된다 (public-image 와 같은 계약).
-    const { isRenderableImage } = require('../services/filePreview');
-    if (!isRenderableImage(file.mime_type)) return errorResponse(res, 'not_public_image', 403);
+    // ★ 2026-09-09 — 판정을 `services/editorImage` 로 뽑았다. PDF 렌더러가 같은 이미지를
+    //   서버에서 읽어 data: 로 심어야 하는데(이미지가 PDF 에서 전부 사라진 신고),
+    //   여기 있던 검사를 저쪽에 **베끼면** 지운 이미지·대외비 이미지가 한쪽으로만 새게 된다.
+    //   주석으로 "같은 술어" 라고 적는 대신 **같은 함수**를 부른다.
+    //   (파일명 정규식 · File 행 근거 · deleted_at · security_level · 렌더 가능한 MIME · 실존)
+    const resolved = await resolveEditorImage(filename);
+    if (!resolved) return errorResponse(res, 'not_found', 404);   // 존재 은닉
+    const { file, absPath: fp } = resolved;
     // 보안 Stage 1 — 막지 않고 계측만 (Stage 2 에서 게이트).
     {
       const { resolveImageViewerDetailed, auditWouldDeny } = require('../middleware/imageViewer');
       auditWouldDeny(file, resolveImageViewerDetailed(req), 'posts/editor-image', req);
     }
 
-    if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
-    const mime = file.mime_type;   // 확장자 추측이 아니라 DB 가 아는 실제 타입
+    const mime = file.mime_type;   // 확장자 추측이 아니라 DB 가 아는 실제 타입 (resolveEditorImage 가 실존까지 확인했다)
     if (await require('../services/imageResize').maybeServeResized(req, res, fp, mime)) return; // #97 ?w= 리사이즈
     require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: mime, file_name: file.file_name }, { inline: true });
     res.sendFile(fp);

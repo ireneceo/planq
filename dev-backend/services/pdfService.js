@@ -70,6 +70,22 @@ function isBrowserDeadError(err) {
 }
 
 async function renderPdfFromHtml(html, opts = {}) {
+  // ★ 2026-09-09 — 아래 요청 차단(SSRF)은 **우리 이미지까지** 끊고 있었다.
+  //   `absolutizeSrc` 가 만든 loopback 주소도 차단 대상이라, 2026-09-02 이후 모든 PDF 에서
+  //   에디터 이미지가 전부 사라졌다("문서에서 다운로드 했는데 이미지가 하나도 안나와").
+  //   차단은 그대로 두고 — 브라우저가 가져오게 하지 않고 **서버가 읽어 data: 로 심는다.**
+  //   여기 한 곳에 두는 이유: 이 렌더러를 부르는 경로가 넷이다(문서·게시글·청구서·KB).
+  //   호출부마다 넣으면 반드시 한쪽이 빠진다.
+  try {
+    const { inlineEditorImages } = require('./pdfInlineImages');
+    const r = await inlineEditorImages(html);
+    if (r.inlined || r.skipped) {
+      console.log(`[pdf] 이미지 인라인 ${r.inlined}장 (건너뜀 ${r.skipped}장 · ${Math.round(r.bytes / 1024)}KB)`);
+    }
+    html = r.html;
+  } catch (e) {
+    console.warn('[pdf] 이미지 인라인 실패 — 이미지 없이 계속:', e.message);
+  }
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     let page;
