@@ -149,7 +149,7 @@
   "schemacol": {},
   "uispec": {
     "customHeaders": 36,
-    "controlHeights": 703,
+    "controlHeights": 705,
     "listFontSizes": 0,
     "fixedMinWidth": 0
   },
@@ -286,11 +286,6 @@
     "dev-frontend/src/pages/Signatures/ReceivedSignaturesList.tsx": 1
   },
   "autosave": {
-    "dev-frontend/src/pages/Admin/ProviderCreditCard.tsx": 1,
-    "dev-frontend/src/pages/Attendance/AdminFixDrawer.tsx": 1,
-    "dev-frontend/src/pages/Attendance/CorrectDayModal.tsx": 1,
-    "dev-frontend/src/pages/Profile/ProfileIntegrationsPage.tsx": 1,
-    "dev-frontend/src/pages/QMail/MailContextPanel.tsx": 1,
     "dev-frontend/src/pages/QMail/MailPage.tsx": 4,
     "dev-frontend/src/pages/QProject/ProcessPartsTab.tsx": 3,
     "dev-frontend/src/pages/QProject/ProjectTaskList.tsx": 2,

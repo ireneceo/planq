@@ -5,11 +5,12 @@
 //
 // Phase 1 — read/list + 옛 OAuth 연결 (Google 로그인) display.
 // Phase 2~: 개인 Google Calendar / Gmail / Drive 직접 등록 (옛 OAuth 인프라 재사용 + owner_scope='user')
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { startAuthRedirect, startAuthPopup } from '../../services/oauth';
 import { isNativeApp } from '../../services/native';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
+import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -260,11 +261,21 @@ const ProfileIntegrationsPage: React.FC = () => {
   }, [load, t]);
 
   // 개인 캘린더 쓰기 동기화 on/off — 연결(is_active)은 유지, 밀어넣기만 멈춘다.
-  const togglePersonalSync = async (id: number | string, next: boolean) => {
+  // ★ 2026-09-09 — 자동저장 ✓ 를 붙인다. 래퍼가 onSave 를 부르므로 컨트롤이 저장까지 하면
+  //   두 번 나간다 → flip(화면만) / persistSync(저장) 로 가른다. 최신값은 ref 로 읽는다.
+  const personalConnsRef = useRef<typeof personalConns>([]);
+  personalConnsRef.current = personalConns;
+  const flipPersonalSync = (id: number | string) => {
     if (typeof id === 'string') return;
     setErrorMsg(null);
     // 낙관적 반영 — 실패하면 load() 가 서버 값으로 되돌린다(거짓 성공 방지).
-    setPersonalConns(prev => prev.map(c => (c.id === id ? { ...c, sync_enabled: next } : c)));
+    setPersonalConns(prev => prev.map(c => (c.id === id ? { ...c, sync_enabled: c.sync_enabled === false } : c)));
+  };
+  const persistPersonalSync = async (id: number | string) => {
+    if (typeof id === 'string') return;
+    const cur = personalConnsRef.current.find(c => c.id === id);
+    if (!cur) return;
+    const next = cur.sync_enabled !== false;
     try {
       const r = await apiFetch(`/api/me/external-connections/${id}/sync`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -274,6 +285,7 @@ const ProfileIntegrationsPage: React.FC = () => {
     } catch (e) {
       setErrorMsg((e as Error).message);
       await load();
+      throw e;                       // 던져야 래퍼가 ! 를 띄운다
     }
   };
 
@@ -391,13 +403,25 @@ const ProfileIntegrationsPage: React.FC = () => {
                       busy={connProvider === 'google_calendar'}
                     />
                   )}
+                  {/* ★ 네이티브 체크박스였다 — ✓ 뱃지(22px)가 13px 컨트롤을 덮는다.
+                      근태 설정과 같은 표준 스위치로 바꾸고 그 옆에 뱃지를 둔다.
+                      ★ 이 주석을 아래 `&& (` **안쪽**에 두면 표현식이 둘이 되어 빌드가 깨진다
+                        (JSX 주석도 표현식이다 — 2026-09-09 실제로 깨뜨렸다). */}
                   {(!c.permission_status || c.permission_status === 'ok' || c.permission_status === 'error') && (
                     <SyncToggle>
-                      <input
-                        type="checkbox"
-                        checked={c.sync_enabled !== false}
-                        onChange={(e) => togglePersonalSync(c.id, e.target.checked)}
-                      />
+                      <AutoSaveField type="toggle" onSave={() => persistPersonalSync(c.id)}>
+                        <SyncSwitch
+                          type="button" role="switch"
+                          aria-checked={c.sync_enabled !== false}
+                          aria-label={t('integrations.calendarSyncOn') as string}
+                          $on={c.sync_enabled !== false}
+                          onClick={() => flipPersonalSync(c.id)}
+                        >
+                          <SyncTrack $on={c.sync_enabled !== false}>
+                            <SyncKnob $on={c.sync_enabled !== false} />
+                          </SyncTrack>
+                        </SyncSwitch>
+                      </AutoSaveField>
                       <span>{t('integrations.calendarSyncOn') as string}</span>
                     </SyncToggle>
                   )}
@@ -539,7 +563,22 @@ const ConnIcon = styled.div`font-size: 1.5rem;`;
 const ConnInfo = styled.div`flex: 1; display: flex; flex-direction: column; gap: 2px;`;
 const ConnTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
 const ConnSub = styled.div`font-size: 0.75rem; color: #475569;`;
-const SyncToggle = styled.label`display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:0.75rem;color:#475569;cursor:pointer;`;
+const SyncToggle = styled.div`display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:0.75rem;color:#475569;`;
+// 표준 스위치 — 누르는 상자 36×36(규격), 보이는 트랙 36×20. 근태 설정과 같은 모양.
+const SyncSwitch = styled.button<{ $on: boolean }>`
+  width:36px;height:36px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  border:none;background:transparent;cursor:pointer;padding:0;
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;border-radius:8px;}
+`;
+const SyncTrack = styled.span<{ $on: boolean }>`
+  display:block;width:36px;height:20px;border-radius:999px;
+  background:${(p)=>(p.$on?'#14B8A6':'#CBD5E1')};transition:background .15s;
+`;
+const SyncKnob = styled.span<{ $on: boolean }>`
+  display:block;width:16px;height:16px;border-radius:50%;margin-top:2px;background:#FFF;
+  box-shadow:0 1px 2px rgba(15,23,42,.2);
+  transform:translateX(${(p)=>(p.$on?'18px':'2px')});transition:transform .15s;
+`;
 const ReconnectHint = styled.div`display:flex;align-items:center;gap:6px;margin-top:4px;font-size:0.75rem;color:#B45309;flex-wrap:wrap;`;
 const LinkBtnInline = styled.button`background:none;border:none;padding:0;font-size:0.75rem;font-weight:600;color:#0F766E;cursor:pointer;text-decoration:underline;&:hover{color:#134E4A;}&:disabled{color:#94A3B8;cursor:default;text-decoration:none;}`;
 // 권한 상태 뱃지 — StorageSettings 의 StatusBadge 와 같은 형태(높이·radius·타이포).

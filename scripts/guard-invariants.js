@@ -2044,8 +2044,12 @@ function checkAutoSave() {
     if (/\/\/\s*autosave-exempt:/.test(src)) continue;
     const saves = (src.match(/method:\s*'(PUT|PATCH)'/g) || []).length;
     if (!saves) continue;                                           // 저장 자체가 없다
-    // 명시적 저장/제출 버튼 — 있으면 자동저장 화면이 아니다
+    // 명시적 저장/제출 버튼 — 있으면 자동저장 화면이 아니다.
+    //   ★ 처음엔 **글자**(저장/Save)만 봤다 — 라벨이 t() 로 되어 있으면 소스에 그 글자가 없어
+    //     저장 버튼이 있는 화면(AdminFixDrawer·ProviderCreditCard)까지 위반으로 셌다.
+    //     버튼이 부르는 **함수 이름**으로도 본다. 검사기 구멍은 예외 주석으로 덮지 않고 검사기를 고친다.
     if (/(저장하기|저장<\/|>\s*저장\s*<|'저장'|"저장"|Save<\/|>\s*Save\s*<|type="submit")/.test(src)) continue;
+    if (/onClick=\{\s*(?:\(\)\s*=>\s*)?(?:void\s+)?(submit|save|handleSave|handleSubmit|onSubmit)\b/.test(src)) continue;
     // 변경 즉시 저장인가 — 컨트롤의 change/click 이 저장 경로로 이어지는가
     const changeDriven =
       /on(Change|Blur)=\{/.test(src) ||

@@ -8,6 +8,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import AutoSaveField from '../../components/Common/AutoSaveField';
 import TaskCandidateCard, { type RegisterOverrides } from '../../components/Common/TaskCandidateCard';
 import AiAssistButton from '../../components/Common/AiAssistButton';
 import NoteThread from '../../components/Common/NoteThread';
@@ -160,16 +161,28 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
     if (!clientId) { setSummary(null); lastClientRef.current = null; }
   }, [clientId, loadSummary]);
 
-  const link = useCallback(async (patch: { client_id?: number | null; project_id?: number | null }) => {
-    if (busy) return;
+  // ★ 2026-09-09 — 고르면 즉시 저장되는데 **저장됐다는 표시가 없었다.**
+  //   AutoSaveField 계약에 맞춰 가른다 — 래퍼가 onSave 를 부르므로 컨트롤이 저장까지 하면 두 번 나간다.
+  //     · stageLink = 보낼 값을 모아 둔다(화면 값은 서버 응답으로 갱신된다 — onLinked)
+  //     · persistLink = 래퍼가 부르는 실제 저장. 실패는 던져야 ! 가 뜬다.
+  const pendingLinkRef = useRef<{ client_id?: number | null; project_id?: number | null } | null>(null);
+  const stageLink = (patch: { client_id?: number | null; project_id?: number | null }) => {
+    pendingLinkRef.current = { ...(pendingLinkRef.current || {}), ...patch };
+  };
+  const persistLink = useCallback(async () => {
+    const patch = pendingLinkRef.current;
+    pendingLinkRef.current = null;
+    if (!patch) return;
     setBusy(true);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
       });
-      if ((await r.json()).success) onLinked();
+      const j = await r.json();
+      if (!j.success) throw new Error(j.message || 'save_failed');
+      onLinked();
     } finally { setBusy(false); }
-  }, [busy, businessId, thread.id, onLinked]);
+  }, [businessId, thread.id, onLinked]);
 
   // 기존 pending 업무 후보 로드 (스레드 전환 시)
   useEffect(() => {
@@ -462,18 +475,22 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
 
       {/* 프로젝트 */}
       <WorkbenchSection title={t('context.project', { defaultValue: '프로젝트' }) as string} static>
-        <PlanQSelect size="sm" isSearchable isDisabled={busy}
-          value={projectOptions.find(o => o.value === (projectId || 0))}
-          onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ project_id: v > 0 ? v : null }); }}
-          options={projectOptions} menuPlacement="top" />
+        <AutoSaveField type="select" onSave={persistLink}>
+          <PlanQSelect size="sm" isSearchable isDisabled={busy}
+            value={projectOptions.find(o => o.value === (projectId || 0))}
+            onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; stageLink({ project_id: v > 0 ? v : null }); }}
+            options={projectOptions} menuPlacement="top" />
+        </AutoSaveField>
       </WorkbenchSection>
 
       {/* 고객 — 연결하면 그 고객의 채널 활동 + 통합 타임라인 */}
       <WorkbenchSection title={t('context.client', { defaultValue: '고객' }) as string} static>
-        <PlanQSelect size="sm" isSearchable isDisabled={busy}
-          value={clientOptions.find(o => o.value === (clientId || 0))}
-          onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; link({ client_id: v > 0 ? v : null }); }}
-          options={clientOptions} menuPlacement="top" />
+        <AutoSaveField type="select" onSave={persistLink}>
+          <PlanQSelect size="sm" isSearchable isDisabled={busy}
+            value={clientOptions.find(o => o.value === (clientId || 0))}
+            onChange={(opt: unknown) => { const v = (opt as { value?: number } | null)?.value || 0; stageLink({ client_id: v > 0 ? v : null }); }}
+            options={clientOptions} menuPlacement="top" />
+        </AutoSaveField>
         {clientId && (
           sumLoading ? (
             <WorkbenchEmptyRow>{t('context.loading', { defaultValue: '불러오는 중…' }) as string}</WorkbenchEmptyRow>
