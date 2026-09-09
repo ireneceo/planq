@@ -353,10 +353,17 @@ async function generateClientSummary(clientId) {
   });
   if (!messages.length) return null;
 
+  // ★ #407 — 여기도 채팅 원문이 외부 LLM 으로 나간다. 같은 함수로 가린다(두 벌 금지).
+  const { maskSecrets, maskNotice } = require('./secretMask');
+  let maskedCount = 0;
   const historyText = messages.reverse()
-    .map(m => `${m.is_ai ? 'Cue' : 'User'}: ${m.content}`)
+    .map(m => {
+      const r = maskSecrets(m.content || '');
+      maskedCount += r.masked;
+      return `${m.is_ai ? 'Cue' : 'User'}: ${r.text}`;
+    })
     .join('\n')
-    .slice(0, 6000);
+    .slice(0, 6000) + maskNotice(maskedCount);
 
   const result = await callLLM(MODEL_MINI, [
     {

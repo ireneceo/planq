@@ -24,6 +24,7 @@ const {
   SignatureRequest,
 } = require('../models');
 const kbService = require('./kb_service');
+const { maskSecrets, maskNotice } = require('./secretMask');
 const { taskListWhere, invoiceListWhere, calendarListWhere, isMemberOrAbove } = require('../middleware/access_scope');
 
 // ─────────────────────────────────────────────────────────────
@@ -1014,10 +1015,20 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
     parts.push(viewingConversation
       ? '\n## 지금 보고 있는 대화방 (시간 순) — "이 대화/여기/이 방" 은 이것을 가리킨다'
       : '\n## 직전 대화 흐름 (시간 순)');
+    // ★ #407 — 채팅 원문이 **외부 LLM 프롬프트로** 나가는 자리다.
+    //   비밀번호·키로 보이는 값을 가리고, 가렸다는 사실을 프롬프트에 밝힌다
+    //   (안 밝히면 모델이 가림 문자열을 값으로 읽고 답에 옮겨 적는다).
+    //   ※ 이것은 채팅을 비밀번호 보관소로 만드는 장치가 아니다 — 저장은 여전히 평문이고
+    //     워크스페이스 멤버는 그 방을 읽는다. 여기서 막는 것은 **반출** 하나뿐이다.
+    let maskedCount = 0;
     history.forEach(m => {
       const who = m.is_ai ? 'Cue' : (m.sender?.name || '사용자');
-      parts.push(`- ${who}: ${snip(m.content, 200)}`);
+      const r = maskSecrets(snip(m.content, 200));
+      maskedCount += r.masked;
+      parts.push(`- ${who}: ${r.text}`);
     });
+    const notice = maskNotice(maskedCount);
+    if (notice) parts.push(notice);
   }
 
   if (matches) {
