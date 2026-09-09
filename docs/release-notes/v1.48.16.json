@@ -1,0 +1,30 @@
+{
+  "version": "1.48.16",
+  "date": "2026-09-09",
+  "items": [
+    {
+      "ko": { "title": "다른 워크스페이스의 탭이 더는 따라오지 않습니다",
+        "body": "워크스페이스를 옮겼는데 앞 워크스페이스에서 열어두었던 문서 탭이 그대로 남아 있던 문제를 고쳤습니다. 이제 탭은 만들어진 자리를 기억하고, 다른 워크스페이스에서 열면 그 자리의 탭만 보입니다. 이미 섞여 저장돼 있던 탭도 그 화면을 다음에 열 때 자동으로 정리되므로 따로 하실 일은 없습니다." },
+      "en": { "title": "Tabs from another workspace no longer follow you",
+        "body": "A document tab you left open in one workspace could still be sitting there after you switched to another. Tabs now remember where they were created, so you only ever see the tabs that belong to the workspace you are in. Tabs that were already stored mixed together are cleaned up the next time you open that screen — there is nothing for you to do." }
+    },
+    {
+      "ko": { "title": "문서를 내려받으면 본문 이미지가 함께 나옵니다",
+        "body": "PDF 로 내려받은 문서에서 본문에 넣은 이미지가 하나도 보이지 않던 문제를 고쳤습니다. 보안 설정이 이미지까지 막고 있었습니다. 외부 사이트에서 가져온 이미지는 종전대로 포함되지 않습니다." },
+      "en": { "title": "Images now appear in downloaded documents",
+        "body": "Images placed in a document body were missing from the downloaded PDF — a security setting was blocking them along with everything else. They now render. Images hotlinked from outside sites are still left out, as before." }
+    },
+    {
+      "ko": { "title": "앱을 껐다 켜면 마지막으로 보던 화면으로 돌아옵니다",
+        "body": "데스크탑 앱을 다시 켜면 늘 '확인 필요' 화면에서 시작하던 문제를 고쳤습니다. 이제 지난번에 보던 곳으로 돌아옵니다." },
+      "en": { "title": "Reopening the app returns you to where you left off",
+        "body": "The desktop app always started on the Needs attention screen instead of restoring your last location. It now takes you back where you were." }
+    },
+    {
+      "ko": { "title": "탭 열기 목록의 메뉴 이름이 제대로 나옵니다",
+        "body": "상단 탭의 + 로 여는 목록에서 몇몇 메뉴가 이름 대신 내부 표시로 나오던 문제를 고쳤습니다(주간 추세·내 문의·피드백 등)." },
+      "en": { "title": "Menu names show correctly in the tab picker",
+        "body": "A few entries in the list opened by + on the tab bar showed an internal key instead of the menu name (Weekly trends, My inquiries & feedback, and others)." }
+    }
+  ]
+}
