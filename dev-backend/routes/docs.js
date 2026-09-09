@@ -825,9 +825,33 @@ router.get('/public/:token', async (req, res, next) => {
       });
     }
     if (!doc.viewed_at) await doc.update({ viewed_at: new Date(), status: 'viewed' });
-    const safe = doc.toJSON();
-    delete safe.created_by;
-    delete safe.updated_by;
+    // ★ 가릴 때는 **지울 것을 열거하지 말고 남길 것만 남긴다**(화이트리스트).
+    //   여태 `toJSON()` 에서 created_by·updated_by 둘만 지우고 나머지를 통째로 내보냈다.
+    //   그래서 링크만 가진 익명 방문자에게 이런 것들이 같이 나갔다(2026-09-09 실측):
+    //     · signature_data.signer_email  — 서명자 이메일
+    //     · signature_data.signed_ip     — 서명자 IP 주소
+    //     · signature_data.note / signature_image — 서명 메모와 손글씨 이미지
+    //     · ai_prompt                    — 이 문서를 만들 때 쓴 내부 프롬프트
+    //     · business_id·client_id·project_id·conversation_id·task_id·quote_id·invoice_id
+    //     · security_level · search_text
+    //   화면(PublicDocPage)이 실제로 그리는 것은 제목·본문·서명자 이름·동의 여부뿐이다.
+    //   열거 방식은 컬럼이 늘 때마다 조용히 새므로 같은 사고가 반복된다
+    //   (오늘 Q info 공개 응답에서 고친 것과 **같은 계열**이다 — #408).
+    const sig = doc.signature_data && typeof doc.signature_data === 'object' ? doc.signature_data : null;
+    const safe = {
+      id: doc.id,
+      title: doc.title,
+      status: doc.status,
+      kind: doc.kind,
+      body_html: doc.body_html,
+      body_json: doc.body_json,
+      signed_at: doc.signed_at,
+      // 서명은 "누가 동의했는가" 까지만. 이메일·IP·메모·서명 이미지는 워크스페이스 안에서만 본다.
+      signature_data: sig ? { signer_name: sig.signer_name || null, accept: !!sig.accept } : null,
+      share_token: doc.share_token,
+      share_expires_at: doc.share_expires_at,
+      DocumentTemplate: doc.DocumentTemplate || null,
+    };
     return successResponse(res, safe);
   } catch (e) { next(e); }
 });

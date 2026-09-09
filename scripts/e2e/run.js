@@ -103,6 +103,9 @@ const SUITES = {
   //   값은 원래 지워지지 않고 있었다(머지 저장) — 없던 것은 그 값을 꺼낼 화면이다.
   //   그래서 라우트가 아니라 박스가 실제로 보이는지·버튼이 눌리는지를 본다. 음성 대조군 포함.
   qinfoundo: () => require('./canary-qinfo-undo'),
+  // 무인증 공개 응답이 화면이 안 쓰는 것까지 싣고 있지 않은가 (2026-09-09).
+  //   렌더가 아니라 **응답 raw** 를 스캔한다 — 보이지 않는 것과 나가지 않는 것은 다르다.
+  publicpayload: () => require('./canary-public-payload'),
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };
