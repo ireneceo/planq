@@ -489,7 +489,10 @@
     "draftSaveFailed": "작성 중인 내용을 저장하지 못해 폼을 닫지 않았습니다. 잠시 후 다시 시도하거나 내용을 복사해 두세요.",
     "forwardBlocksNav": "전달 메일은 임시저장되지 않습니다. 보내거나 닫은 뒤에 다른 메일로 이동해 주세요.",
     "badEmail": "{{addr}} — 형식이 이메일이 아닙니다",
-    "removeRecipient": "{{addr}} 삭제"
+    "removeRecipient": "{{addr}} 삭제",
+    "draftSaving": "임시저장 중…",
+    "draftSaved": "임시저장됨",
+    "draftFailed": "임시저장 실패 — 보내기 전에 내용을 복사해 두세요"
   },
   "attachment": {
     "preview": "미리보기",

@@ -131,7 +131,7 @@
     "dev-frontend/src/pages/QBill/NewInvoiceModal.tsx": 1498,
     "dev-frontend/src/pages/QBill/PublicInvoicePage.tsx": 1182,
     "dev-frontend/src/pages/QCalendar/EventDrawer.tsx": 1272,
-    "dev-frontend/src/pages/QMail/MailPage.tsx": 2861,
+    "dev-frontend/src/pages/QMail/MailPage.tsx": 2901,
     "dev-frontend/src/pages/QNote/QNotePage.tsx": 4965,
     "dev-frontend/src/pages/QNote/StartMeetingModal.tsx": 2155,
     "dev-frontend/src/pages/QProject/DocsTab.tsx": 2189,
@@ -286,7 +286,6 @@
     "dev-frontend/src/pages/Signatures/ReceivedSignaturesList.tsx": 1
   },
   "autosave": {
-    "dev-frontend/src/pages/QMail/MailPage.tsx": 4,
     "dev-frontend/src/pages/QProject/ProcessPartsTab.tsx": 3,
     "dev-frontend/src/pages/QProject/ProjectTaskList.tsx": 2,
     "dev-frontend/src/pages/QProject/QProjectPage.tsx": 1,

@@ -1062,3 +1062,13 @@ export const KeptDraftNote = styled.div`
   line-height: 1.5;
   color: #475569;
 `;
+
+// 초안 자동저장 상태줄 — 폼 전체가 저장 대상이라 ✓ 뱃지 대신 줄로 말한다.
+//   실패는 **무엇을 해야 하는지**까지 말한다(내용 복사) — "실패" 만 띄우면 사용자가 할 일이 없다.
+export const DraftStatusLine = styled.span<{ $err?: boolean }>`
+  display: inline-flex; align-items: center;
+  margin-right: auto;
+  font-size: 0.6875rem; line-height: 1.4;
+  color: ${p => (p.$err ? '#B45309' : '#94A3B8')};
+  font-weight: ${p => (p.$err ? 600 : 500)};
+`;

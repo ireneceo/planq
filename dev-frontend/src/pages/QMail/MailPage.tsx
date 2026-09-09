@@ -1,3 +1,7 @@
+// autosave-exempt: ✓ 뱃지 대신 **상태줄**로 말한다(DraftStatusLine).
+//   초안 저장의 대상은 컨트롤 하나가 아니라 **폼 전체**(받는사람·제목·본문·첨부)라,
+//   어느 칸에 배지를 붙여도 "이 칸이 저장됐다" 는 거짓이 된다. 폼 단위는 줄이 맞다(Q docs 와 같은 모양).
+//   실패도 말한다 — 여태 `.catch(() => {})` 로 삼켜서 쓰던 글이 저장 안 돼도 아무 표시가 없었다.
 // Q mail M2 — 인박스 read-only UI (사이클 N+75-D 박제)
 //
 // 3컬럼 구조 (Q_MAIL_SPEC §4.1 정합):
@@ -161,6 +165,7 @@ import {
   BulkAction,
   FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
   KeptDraftNote,
+  DraftStatusLine,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -1298,6 +1303,22 @@ const MailPage: React.FC = () => {
     setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
   }, [activeId]);
 
+  // ★ 2026-09-09 — 초안 자동저장의 **결과**를 화면이 말한다
+  //   (Irene: "저장된 거 바로 바로 알게 ... 다 통일해줘").
+  //   여기는 ✓ 뱃지를 쓰지 않는다 — 저장 대상이 컨트롤 하나가 아니라 **폼 전체**(받는사람·제목·
+  //   본문·첨부)라, 어느 칸에 배지를 붙여도 거짓이 된다. 폼 단위는 상태줄이 맞다(Q docs 와 같은 모양).
+  //   ★ 실패를 반드시 말한다 — 두 저장 모두 `.catch(() => {})` 로 삼키고 있었다.
+  //     쓰던 글이 저장 안 돼도 아무 말이 없으면, 창을 닫는 순간 사라진다.
+  type DraftStatus = 'idle' | 'saving' | 'saved' | 'error';
+  const [composeDraftStatus, setComposeDraftStatus] = useState<DraftStatus>('idle');
+  const [replyDraftStatus, setReplyDraftStatus] = useState<DraftStatus>('idle');
+  // 두 컴포저가 **같은 문구**를 쓴다 — 베껴 두면 한쪽만 고쳐진다.
+  const draftStatusText = (st: DraftStatus) => (
+    st === 'saving' ? (t('compose.draftSaving', { defaultValue: '임시저장 중…' }) as string)
+      : st === 'saved' ? (t('compose.draftSaved', { defaultValue: '임시저장됨' }) as string)
+      : st === 'error' ? (t('compose.draftFailed', { defaultValue: '임시저장 실패 — 보내기 전에 내용을 복사해 두세요' }) as string)
+      : ''
+  );
   // 임시저장(reply) — 답장 컴포저 열 때 해당 스레드 초안 복원 + 1.5s 디바운스 자동저장. 발송 시 삭제.
   const replyDraftReady = useRef(false);
   useEffect(() => {
@@ -1314,11 +1335,16 @@ const MailPage: React.FC = () => {
   useEffect(() => {
     if (!replyOpen || !businessId || !activeId || !replyDraftReady.current) return;
     if (isEmptyHtml(replyHtml) && !replyFileIds.length) return;
-    const tid = setTimeout(() => {
-      apiFetch(`/api/businesses/${businessId}/email-drafts`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ thread_id: activeId, body_html: replyHtml, attachment_file_ids: replyFileIds }),
-      }).catch(() => {});
+    const tid = setTimeout(async () => {
+      setReplyDraftStatus('saving');
+      try {
+        // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
+        const r = await apiFetch(`/api/businesses/${businessId}/email-drafts`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ thread_id: activeId, body_html: replyHtml, attachment_file_ids: replyFileIds }),
+        });
+        setReplyDraftStatus(r.ok ? 'saved' : 'error');
+      } catch { setReplyDraftStatus('error'); }
     }, 1500);
     return () => clearTimeout(tid);
   }, [replyOpen, businessId, activeId, replyHtml, replyFileIds]);
@@ -1703,11 +1729,15 @@ const MailPage: React.FC = () => {
     // 음성이 심어놓은 상태 그대로면 아직 사용자의 글이 아니다 — 서버 초안을 덮어쓰지 않는다.
     if (composeVoiceUntouched.current) return;
     if (!cTo.trim() && !cSubject.trim() && isEmptyHtml(cBody) && !cFileIds.length) return;
-    const tid = setTimeout(() => {
-      apiFetch(`/api/businesses/${businessId}/email-drafts`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to_emails: cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean), subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId }),
-      }).catch(() => {});
+    const tid = setTimeout(async () => {
+      setComposeDraftStatus('saving');
+      try {
+        const r = await apiFetch(`/api/businesses/${businessId}/email-drafts`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to_emails: cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean), subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId }),
+        });
+        setComposeDraftStatus(r.ok ? 'saved' : 'error');
+      } catch { setComposeDraftStatus('error'); }
     }, 1500);
     return () => clearTimeout(tid);
   }, [composeOpen, fwdFromMsgId, businessId, cTo, cSubject, cBody, cFileIds, cAccountId]);
@@ -1780,7 +1810,7 @@ const MailPage: React.FC = () => {
   const closeCompose = () => {
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
     setFwdFromMsgId(null); setFwdAttachCount(0);
-    composeFreshToRef.current = null; setKeptDraftNotice(false);
+    composeFreshToRef.current = null; setKeptDraftNotice(false); setComposeDraftStatus('idle');
     pendingVoiceRef.current = null; composeVoiceUntouched.current = false;
   };
   // 전달 시작 — compose 모달을 전달 모드로 열고 제목/인용본문 prefill
@@ -2277,7 +2307,7 @@ const MailPage: React.FC = () => {
           )}
           {composeOpen ? (
             /* 메일 작성 — 중앙 패널 풀페이지(센터모달 폐기, Fable 승인). 좌측 리스트 유지·맥락패널 숨김. */
-            <ComposeFull>
+            <ComposeFull data-testid="mail-compose-panel">
               {/* ★ 2026-09-07 — 상세와 **같은 밴드1**(PanelHeader 60px)로 통일한다.
                   Irene: "우측패널은 돌아가기 있고 닫기도 나온다. 이게 좋겠네. 다 통일하는 거."
                   좁은 화면에서 목록이 접혀 있을 때만 돌아가기를 띄운다 — 데스크탑은 목록이
@@ -2332,7 +2362,7 @@ const MailPage: React.FC = () => {
                 </ComposeField>
                 <ComposeField>
                   <ComposeLabel>{t('compose.subject', { defaultValue: '제목' }) as string}</ComposeLabel>
-                  <ComposeInput value={cSubject} onChange={(e) => { markComposeTouched(); setCSubject(e.target.value); }} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
+                  <ComposeInput data-testid="mail-compose-subject" value={cSubject} onChange={(e) => { markComposeTouched(); setCSubject(e.target.value); }} placeholder={t('compose.subjectPh', { defaultValue: '제목을 입력하세요' }) as string} />
                 </ComposeField>
                 {/* #221 — 새 메일도 AI 로 쓴다. 생성 결과에는 markComposeTouched() 를 부르지 않는다 —
                     시스템이 채운 값이라, 사용자가 손대지 않고 닫아도 단일 초안 row 가 덮어써진다. */}
@@ -2394,6 +2424,11 @@ const MailPage: React.FC = () => {
               </ComposeBody>
               <ComposeFoot>
                 {/* 좌측부터 [보내기][취소] — 답장 컴포저와 같은 자리. 화면마다 순서가 다르면 손이 헷갈린다. */}
+                {composeDraftStatus !== 'idle' && (
+                  <DraftStatusLine $err={composeDraftStatus === 'error'} role="status">
+                    {draftStatusText(composeDraftStatus)}
+                  </DraftStatusLine>
+                )}
                 <ActionButton tone="primary" size="md" loading={cSending} onClick={sendCompose}>
                   {t('compose.send', { defaultValue: '보내기' }) as string}
                 </ActionButton>
@@ -2775,6 +2810,11 @@ const MailPage: React.FC = () => {
                     />
                     {/* 버튼 자리는 고정 — 좌측부터 [보내기] [AI] [취소]. 답장창을 열고 닫아도 좌우가 뒤바뀌지 않는다.
                         (여태 AI 가 왼쪽, 보내기/취소가 오른쪽 끝이라 열 때마다 위치가 바뀌어 보였다) */}
+                    {replyDraftStatus !== 'idle' && (
+                      <DraftStatusLine $err={replyDraftStatus === 'error'} role="status">
+                        {draftStatusText(replyDraftStatus)}
+                      </DraftStatusLine>
+                    )}
                     <ComposerActions>
                       <ActionButton tone="primary" size="md" loading={sending} onClick={sendReply}>
                         {t('reply.send', { defaultValue: '보내기' }) as string}

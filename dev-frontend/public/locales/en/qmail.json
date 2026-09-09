@@ -489,7 +489,10 @@
     "draftSaveFailed": "Could not save your draft, so the form stayed open. Try again in a moment, or copy your text somewhere safe.",
     "forwardBlocksNav": "Forwarded mail is not auto-saved. Send or close it before opening another message.",
     "badEmail": "{{addr}} — not a valid email",
-    "removeRecipient": "Remove {{addr}}"
+    "removeRecipient": "Remove {{addr}}",
+    "draftSaving": "Saving draft…",
+    "draftSaved": "Draft saved",
+    "draftFailed": "Draft not saved — copy your text before sending"
   },
   "attachment": {
     "preview": "Preview",
