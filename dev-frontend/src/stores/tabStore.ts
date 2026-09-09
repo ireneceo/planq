@@ -20,6 +20,17 @@ export interface Tab {
   path: string;          // 이 탭의 현재 location path+search (단일 원천, 직렬화 가능)
   alive: boolean;        // true=마운트 유지, false=suspend
   lastActiveAt: number;  // LRU
+  /** 이 탭이 **어느 자리에서 만들어졌는가** (`b<워크스페이스id>` 또는 `admin`).
+   *
+   *  ★ 2026-09-09 운영 신고 (Irene): *"운영서버에서 테스트 워크스페이스 가면 워프로랩 문서인
+   *    'DB 서버 신규 / 솔루션용' 이게 열려있어. 내가 닫지 않아도 안나와야 하는 거잖아"*
+   *
+   *  키를 워크스페이스별로 가르고(#405) 기록 순서를 고쳐도(v1.48.14) 이것이 남았다.
+   *  이유: 청소(`belongsToScope`)가 **경로만** 봤다 — `/docs?post=12` 는 어느 워크스페이스에서든
+   *  "이 범위 것" 으로 판정된다(관리자냐 아니냐만 갈랐다). 그래서 **한 번 섞여 들어온 탭은
+   *  걸러낼 방법이 아예 없었다.** 탭이 자기가 어디서 왔는지 모르기 때문이다.
+   *  → 만들 때 도장을 찍고, 읽을 때 도장이 다르면 버린다. 도장이 없는 옛 탭은 종전 규칙으로 본다. */
+  scope?: string | null;
   indicator?: 'recording' | null; // Q Note 녹음 등 상태 dot (비영속)
 }
 
@@ -190,12 +201,16 @@ const RELAUNCH_DEFAULT = new Set(['/', '/inbox']);
 //   Irene 은 배포 뒤에도 같은 것을 본다: "여전히 다른 워크스페이스에서 탭이 리셋 안돼."
 //   그래서 **읽는 순간** 이 범위의 것이 아닌 탭은 버린다. 경로만으로 갈리는 축
 //   (관리자 ↔ 워크스페이스)만 판정한다 — 워크스페이스끼리는 경로가 같으므로 키가 이미 가른다.
-function belongsToScope(path: string, scope: string | null): boolean {
+function belongsToScope(tab: Tab, scope: string | null): boolean {
   if (!scope) return true;                       // 범위를 모르면 판단하지 않는다(부트 중)
-  return isAdminContext((path || '/').split('?')[0]) === (scope === 'admin');
+  // ★ 도장이 있으면 그것이 답이다 — 경로로는 `/docs?post=12` 가 어느 워크스페이스 문서인지
+  //   알 수 없다. 남의 자리에서 온 탭은 여기서 버려진다(운영 신고 2026-09-09).
+  if (tab.scope) return tab.scope === scope;
+  // 도장이 없는 옛 탭(이 변경 이전에 저장된 것)은 종전 규칙 — 최소한 관리자/워크스페이스는 가른다.
+  return isAdminContext((tab.path || '/').split('?')[0]) === (scope === 'admin');
 }
 function scrub(tabs: Tab[], activeId: string | null): { tabs: Tab[]; activeId: string | null } {
-  const kept = tabs.filter((t) => belongsToScope(t.path, tabScope));
+  const kept = tabs.filter((t) => belongsToScope(t, tabScope));
   if (kept.length === tabs.length) return { tabs, activeId };
   // 활성 탭이 버려졌으면 남은 것 중 마지막으로. 다 버려졌으면 비운다 —
   //   setTabScope 의 정렬이 지금 화면을 첫 탭으로 세운다(빈 탭 막대가 되지 않는다).
@@ -213,6 +228,12 @@ function getSnapshot(): TabState { return state; }
 
 
 function persist() {
+  // ★ 범위를 모르는 창(부팅 직후)에서는 **아무 데도 쓰지 않는다.**
+  //   여태는 `scoped()` 가 무범위 키로 떨어져, 그 창에 떠 있던 탭이 **워크스페이스 공용 통**에
+  //   쌓였다. 다음 부팅이 그 통을 먼저 읽으면 남의 워크스페이스 탭이 그대로 떠오른다 —
+  //   운영 신고("테스트 워크스페이스에 워프로랩 문서 탭이 열려있어")의 통로가 이것이다.
+  //   범위는 곧 정해지고(setTabScope) 그때 그 범위 키에 확정되므로 잃는 것이 없다.
+  if (!tabScope) return;
   const payload = JSON.stringify({ tabs: state.tabs, activeId: state.activeId });
   try { sessionStorage.setItem(scoped(STORAGE_KEY), payload); } catch { /* quota·비허용 무시 */ }
   // 복원 스냅샷 — 마지막으로 쓴 창의 것이 남는다(last-writer-wins). "지난번 그대로" 에는 충분하다.
@@ -222,8 +243,10 @@ function persist() {
 }
 function load(): TabState {
   // ① 이 창의 살아있는 상태 (새로고침·같은 창 내 이동)
+  //   ★ 범위를 모르면 읽지 않는다 — 무범위 키는 워크스페이스 공용이라 남의 탭이 섞여 있다.
+  //     (아래 ② 복원은 lastScope 로 **범위를 특정해서** 읽으므로 그것만 예외다.)
   try {
-    const raw = sessionStorage.getItem(scoped(STORAGE_KEY));
+    const raw = tabScope ? sessionStorage.getItem(scoped(STORAGE_KEY)) : null;
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs)) { const c = scrub(j.tabs, j.activeId ?? null); return { ...c, mirror: true }; }
@@ -381,7 +404,7 @@ export function setTabScope(next: string | null, here?: string) {
     if (state.tabs.length === 0) {
       // 새 범위가 비었으면 지금 화면을 첫 탭으로. 안 하면 화면은 떠 있는데 탭 막대가 빈다.
       const id = newId();
-      state = { tabs: [{ id, kind: kindOfPath(hereNow), title: '', path: hereNow, alive: true, lastActiveAt: Date.now() }], activeId: id, mirror: runtimeMirror };
+      state = { tabs: [{ id, kind: kindOfPath(hereNow), title: '', path: hereNow, alive: true, lastActiveAt: Date.now(), scope: tabScope }], activeId: id, mirror: runtimeMirror };
     } else if (mismatched) {
       // 같은 종류의 탭이 있으면 그 탭을 지금 경로로 (탭이 쌓이지 않게), 없으면 새로 연다.
       const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(hereNow));
@@ -397,7 +420,7 @@ export function setTabScope(next: string | null, here?: string) {
         const id = newId();
         state = {
           ...state,
-          tabs: [...state.tabs, { id, kind: kindOfPath(hereNow), title: '', path: hereNow, alive: true, lastActiveAt: Date.now() }],
+          tabs: [...state.tabs, { id, kind: kindOfPath(hereNow), title: '', path: hereNow, alive: true, lastActiveAt: Date.now(), scope: tabScope }],
           activeId: id,
         };
       }
@@ -477,7 +500,7 @@ export const tabStore = {
       if (victim) tabs = tabs.filter((t) => t.id !== victim.id);
     }
     const id = newId();
-    tabs = [...tabs, { id, kind: kindOfPath(path), title: '', path, alive: true, lastActiveAt: now }];
+    tabs = [...tabs, { id, kind: kindOfPath(path), title: '', path, alive: true, lastActiveAt: now, scope: tabScope }];
     set({ tabs: applyLru(tabs, id), activeId: id });
     if (state.mirror && navigateDelegate) navigateDelegate(path);
   },
@@ -614,7 +637,7 @@ export const tabStore = {
       set({ tabs: state.tabs.map((t) => (t.id === act.id ? { ...t, path, kind: kindOfPath(path), lastActiveAt: now } : t)) });
     } else {
       const id = newId();
-      set({ tabs: [...state.tabs, { id, kind: kindOfPath(path), title: '', path, alive: true, lastActiveAt: now }], activeId: id });
+      set({ tabs: [...state.tabs, { id, kind: kindOfPath(path), title: '', path, alive: true, lastActiveAt: now, scope: tabScope }], activeId: id });
     }
   },
 };

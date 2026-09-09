@@ -76,13 +76,27 @@ async function run() {
     await dp.setViewport({ width: 1440, height: 900 });
     await b.goto(dp, '/tasks');
     await b.sleep(3000);
-    const deskSnap = await dp.evaluate(() => { try { return localStorage.getItem('planq_tabs_v1_restore'); } catch { return null; } });
+    // ★ 2026-09-09 — 키 하나를 박아 두면 저장 배치가 바뀔 때 **제품이 아니라 카나리가** 빨간불이 된다.
+    //   실제로 그랬다: 워크스페이스 섞임(운영 신고)을 막으려고 **무범위 통에는 일부러 안 쓰게** 했더니
+    //   여기가 터졌다. 스냅샷은 `planq_tabs_v1_restore::b5` 에 정상 저장되고 있었다.
+    //   의도("데스크탑은 스냅샷을 쓴다")는 그대로 두고, **어느 복원 키든 탭이 들어 있으면 통과**로 본다.
+    const deskSnap = await dp.evaluate(() => {
+      try {
+        for (let i = 0; i < localStorage.length; i += 1) {
+          const k = localStorage.key(i);
+          if (!k || !k.startsWith('planq_tabs_v1_restore')) continue;
+          const v = localStorage.getItem(k) || '';
+          try { if ((JSON.parse(v).tabs || []).length > 0) return `${k} = ${v.slice(0, 80)}`; } catch { /* */ }
+        }
+      } catch { /* */ }
+      return null;
+    });
     await dp.close();
 
     results.push({
       name: 'cold-start/데스크탑은 스냅샷을 쓴다 (양성 대조군)',
       ok: !!deskSnap,
-      msg: deskSnap ? '데스크탑에서는 복원 스냅샷이 그대로 저장된다'
+      msg: deskSnap ? `데스크탑에서는 복원 스냅샷이 그대로 저장된다 (${deskSnap})`
                     : '🔴 데스크탑에서도 스냅샷이 안 써진다 — #340 복원 기능을 죽였다',
     });
 

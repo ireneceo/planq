@@ -111,6 +111,9 @@ const SUITES = {
   //     게다가 반환이 배열이 아니라 러너 계약도 안 맞았고, 안 보이는 입력창을 클릭해 죽고 있었다.
   //     셋 다 고쳤다 — 가드는 있는데 부르는 곳이 없으면 없는 가드다.
   hangulime: () => require('./canary-hangul-ime'),
+  // 남의 워크스페이스 탭이 떠오르지 않는가 (운영 신고 2026-09-09).
+  //   경로만 보는 청소로는 /docs?post=12 가 어느 워크스페이스 것인지 알 수 없다 — 도장으로 본다.
+  tabforeign: () => require('./canary-tab-foreign'),
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };
