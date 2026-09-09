@@ -842,6 +842,19 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
         patch.custom_values = { ...existing, ...req.body.custom_values };
       }
     }
+    // #408 — **지우려면 지우라고 말해야 한다.**
+    //   위가 머지라서 키를 빼고 보내는 것으로는 값이 안 지워진다. 그 성질 덕분에 실수로
+    //   지운 값이 살아남아 복구할 수 있었지만(운영 doc#36), 반대로 "완전 삭제" 를 표현할
+    //   방법이 아예 없었다. 지울 키를 명시적으로 받는다.
+    if (Array.isArray(req.body.custom_values_unset) && req.body.custom_values_unset.length) {
+      const base = (patch.custom_values && typeof patch.custom_values === 'object')
+        ? { ...patch.custom_values }
+        : ((doc.custom_values && typeof doc.custom_values === 'object') ? { ...doc.custom_values } : {});
+      for (const key of req.body.custom_values_unset.slice(0, 50)) {
+        if (typeof key === 'string') delete base[key];
+      }
+      patch.custom_values = base;
+    }
     if (req.body.read_policy !== undefined && ['all', 'owner'].includes(req.body.read_policy)) {
       patch.read_policy = req.body.read_policy;
     }
@@ -1726,6 +1739,18 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
     if (checkShareExpiry(doc, res)) return;
     const v = await verifySharePassword(doc, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    // #408 — 공개(무인증) 응답에는 **살아 있는 항목의 값만** 싣는다.
+    //   custom_values 는 머지 저장이라 지운 항목의 값이 그대로 남아 있다(운영 doc#36 실측).
+    //   통째로 내보내면 화면에 안 그려질 뿐 **응답 JSON 에는 지운 값이 실려 나간다** —
+    //   보이지 않는 것과 나가지 않는 것은 다르다.
+    //   ★ 가릴 때는 지울 것을 열거하지 말고 남길 것만 남긴다(화이트리스트).
+    //     예약키(auto_indexed 등)와 고아 값이 자동으로 빠진다.
+    const pubCols = Array.isArray(doc.custom_columns) ? doc.custom_columns : [];
+    const rawVals = (doc.custom_values && typeof doc.custom_values === 'object') ? doc.custom_values : {};
+    const pubVals = {};
+    for (const c of pubCols) {
+      if (c && c.id && Object.prototype.hasOwnProperty.call(rawVals, c.id)) pubVals[c.id] = rawVals[c.id];
+    }
     const payload = {
       id: doc.id,
       title: doc.title,
@@ -1738,8 +1763,8 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
       shared_at: doc.shared_at,
       created_at: doc.createdAt,
       updated_at: doc.updatedAt,
-      custom_columns: Array.isArray(doc.custom_columns) ? doc.custom_columns : [],
-      custom_values: doc.custom_values && typeof doc.custom_values === 'object' ? doc.custom_values : {},
+      custom_columns: pubCols,
+      custom_values: pubVals,
     };
     await applyMemberDisplayNameOne(payload, doc.business_id, ['uploader']);
     return successResponse(res, payload);

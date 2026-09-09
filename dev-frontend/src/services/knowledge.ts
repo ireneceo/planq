@@ -116,6 +116,8 @@ export async function updateKnowledge(businessId: number, docId: number, patch: 
   project_id: number | null; client_id: number | null;
   custom_columns: Array<{ id: string; name: string; type: string; show_in_list?: boolean; options?: string[] }>;
   custom_values: Record<string, unknown>;
+  // #408 — custom_values 는 서버에서 머지된다. 키를 지우려면 명시해야 한다.
+  custom_values_unset: string[];
   read_policy: 'all' | 'owner';
   client_ids: number[];
   tags: string[];

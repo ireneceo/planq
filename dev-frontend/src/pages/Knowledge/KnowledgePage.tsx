@@ -104,6 +104,59 @@ function stripHtmlPreview(html: string): string {
   return text.length > 120 ? text.slice(0, 120) + '…' : text;
 }
 
+/* -----------------------------------------------------------------------------
+   #408 - 지운 항목을 **되돌릴 자리**.
+
+   Irene: *"모르고 인포에 있는 타임인터넷 정보를 삭제했어. ... 삭제해도 되돌리기 있어야
+   하는 거 아니야? 모르고 삭제한 거 다시 돌려주라."*
+
+   ★ 값은 사실 지워지지 않고 있었다. 저장 라우트가 custom_values 를 **머지**하므로
+     (routes/kb.js - `{ ...existing, ...req.body.custom_values }`) 프론트가 키를 빼고 보내도
+     DB 에는 그대로 남는다. 실제로 운영 doc#36 "TIME Internet" 에서 지워진 값 2개를
+     고아 키로 찾아냈다(2026-09-09). 앞선 판단 "어디에도 없다" 는 틀렸다 -
+     custom_columns 만 보고 custom_values 를 안 봤기 때문이다.
+   -> 없었던 것은 저장이 아니라 **그 값을 다시 꺼낼 화면**이다. 그것을 만든다.
+
+   지울 때 정의(이름·형식)를 `__removed_cols` 에 적어 두고 값은 남긴다.
+   ★ 표시 경로는 전부 custom_columns 를 순회한다(리스트·검색·공개 페이지) - 지운 항목은
+     그 어디에도 안 나오고 오직 아래 "삭제된 항목" 에만 보인다.
+   ----------------------------------------------------------------------------- */
+export const KB_RESERVED_VALUE_KEYS = new Set(['auto_indexed', '__removed_cols']);
+
+type RemovedColMeta = { id: string; name?: string; type?: string; removed_at?: string };
+
+/** 이름을 못 살릴 때의 임시 이름 - id 접미사. **추론이라는 사실을 화면이 같이 말한다.** */
+function inferNameFromColId(id: string): string {
+  const tail = id.includes('_') ? id.slice(id.indexOf('_') + 1) : id;
+  return tail || id;
+}
+
+/**
+ * 되돌릴 수 있는 항목 = custom_values 에 값은 있는데 custom_columns 에 없는 키.
+ * 예약키는 뺀다. 지운 정의가 있으면 그 이름·형식을 쓰고, 없으면(이 기능 이전 데이터) 추론한다.
+ */
+function collectRemovedCols(
+  cols: Array<{ id: string }>,
+  values: Record<string, unknown> | null | undefined,
+): Array<{ id: string; name: string; type: string; value: string; inferred: boolean }> {
+  const vals = (values && typeof values === 'object') ? (values as Record<string, unknown>) : {};
+  const meta = Array.isArray(vals.__removed_cols) ? (vals.__removed_cols as RemovedColMeta[]) : [];
+  const live = new Set(cols.map(c => c.id));
+  return Object.keys(vals)
+    .filter(k => !KB_RESERVED_VALUE_KEYS.has(k) && !live.has(k))
+    .filter(k => String(vals[k] ?? '').trim() !== '')
+    .map(k => {
+      const m = meta.find(x => x && x.id === k);
+      return {
+        id: k,
+        name: (m && m.name) ? m.name : inferNameFromColId(k),
+        type: (m && m.type) ? m.type : 'text',
+        value: String(vals[k]),
+        inferred: !(m && m.name),
+      };
+    });
+}
+
 const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 'workspace' }) => {
   const { t } = useTranslation('knowledge');
   const { t: tErr } = useTranslation('errors');
@@ -149,6 +202,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   //   ★ 지우는 동작 자체를 담는다 — `saveCols` 는 렌더 스코프 안에 있어서 다이얼로그에서
   //     못 부른다. 삭제 로직을 여기 한 번 더 적으면 두 벌이 되어 반드시 갈라진다.
   const [confirmRemoveCol, setConfirmRemoveCol] = useState<{ name: string; value: string; run: () => void } | null>(null);
+  // 되돌릴 자리에서의 **완전 삭제** - 이번에는 정말 되돌릴 수 없다(머지 저장이라 서버가 키를 지워야 한다).
+  const [confirmPurgeCol, setConfirmPurgeCol] = useState<{ name: string; value: string; run: () => void } | null>(null);
   // ★ 목록을 못 불러온 것과 "자료가 없는 것" 은 다른 상태다. 여태는 실패해도 빈 상태가 떠서
   //   사용자가 **자료가 사라졌다** 고 읽었다(운영 500 재현으로 실측).
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1113,9 +1168,11 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
               {(() => {
                 const cols = Array.isArray(detail.custom_columns) ? detail.custom_columns : [];
                 // custom_columns 배열을 통째로 PATCH + 로컬 state 갱신 (단일 착지점)
-                const saveCols = async (nextCols: typeof cols, nextVals?: Record<string, unknown>) => {
-                  const payload: { custom_columns: typeof cols; custom_values?: Record<string, unknown> } = { custom_columns: nextCols };
+                const saveCols = async (nextCols: typeof cols, nextVals?: Record<string, unknown>, unset?: string[]) => {
+                  const payload: { custom_columns: typeof cols; custom_values?: Record<string, unknown>; custom_values_unset?: string[] } = { custom_columns: nextCols };
                   if (nextVals) payload.custom_values = nextVals;
+                  // 서버는 custom_values 를 머지한다 - 키를 빼서 보내면 남는다. 지울 것은 명시한다(#408).
+                  if (unset && unset.length) payload.custom_values_unset = unset;
                   try { await updateKnowledge(businessId, detail.id, payload); }
                   catch { return; }  // 실패 시 로컬 state 안 바꿈 (낙관 갱신 취소)
                   setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, custom_columns: nextCols, ...(nextVals ? { custom_values: nextVals } : {}) } : x));
@@ -1183,8 +1240,16 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                               onClick={() => {
                                 const remove = () => {
                                   const next = cols.filter((_, i) => i !== idx);
-                                  const vals = { ...(detail.custom_values || {}) };
-                                  delete vals[col.id];
+                                  // ★ 값을 지우지 않는다 - 아래 "삭제된 항목" 이 이 값을 되돌린다.
+                                  //   지운 정의를 같이 적어 두어야 되돌릴 때 이름·형식이 그대로 살아난다.
+                                  //   (안 적어 두면 옛 데이터처럼 id 에서 이름을 추론해야 한다.)
+                                  const vals = { ...(detail.custom_values || {}) } as Record<string, unknown>;
+                                  const prevRemoved = Array.isArray(vals.__removed_cols)
+                                    ? (vals.__removed_cols as RemovedColMeta[]) : [];
+                                  vals.__removed_cols = [
+                                    ...prevRemoved.filter(r => r && r.id !== col.id),
+                                    { id: col.id, name: col.name, type: col.type, removed_at: new Date().toISOString() },
+                                  ].slice(-30);
                                   saveCols(next, vals);
                                 };
                                 const cur = String((detail.custom_values || {})[col.id] ?? '').trim();
@@ -1220,6 +1285,68 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                         }}
                       >+ {t('modal.addColumn', '항목 추가')}</AddColBtn>
                     </DrawerCustomList>
+                    {/* --- 삭제된 항목 (#408) - 되돌릴 자리 ---
+                        값은 custom_values 에 남아 있다(서버가 머지 저장). 여기서만 보이고,
+                        되돌리면 항목이 그대로 살아난다. 완전 삭제는 한 번 더 묻는다. */}
+                    {(() => {
+                      const removed = collectRemovedCols(cols, detail.custom_values as Record<string, unknown>);
+                      if (removed.length === 0) return null;
+                      return (
+                        <RemovedColsBox>
+                          <RemovedColsHead>
+                            {t('drawer.removedCols', { defaultValue: '삭제된 항목' }) as string}
+                            <RemovedColsCount>{removed.length}</RemovedColsCount>
+                          </RemovedColsHead>
+                          <RemovedColsHint>
+                            {t('drawer.removedColsHint', { defaultValue: '되돌리면 값이 그대로 살아납니다.' }) as string}
+                          </RemovedColsHint>
+                          {removed.map(r => (
+                            <RemovedColRow key={r.id}>
+                              <RemovedColMain>
+                                <RemovedColName>
+                                  {r.name}
+                                  {r.inferred && (
+                                    <InferredTag title={t('drawer.inferredNameHint', { defaultValue: '지울 때 이름을 남기지 않아 항목 이름을 복구하지 못했습니다. 되돌린 뒤 바꿔주세요.' }) as string}>
+                                      {t('drawer.inferredName', { defaultValue: '이름 추정' }) as string}
+                                    </InferredTag>
+                                  )}
+                                </RemovedColName>
+                                <RemovedColValue>{r.value}</RemovedColValue>
+                              </RemovedColMain>
+                              <RemovedColActions>
+                                <RestoreColBtn
+                                  type="button"
+                                  onClick={() => {
+                                    const vals = { ...(detail.custom_values || {}) } as Record<string, unknown>;
+                                    const prevRemoved = Array.isArray(vals.__removed_cols)
+                                      ? (vals.__removed_cols as RemovedColMeta[]) : [];
+                                    vals.__removed_cols = prevRemoved.filter(x => x && x.id !== r.id);
+                                    saveCols([...cols, { id: r.id, name: r.name, type: r.type, show_in_list: true }], vals);
+                                  }}
+                                >{t('drawer.restoreCol', { defaultValue: '되돌리기' }) as string}</RestoreColBtn>
+                                <PurgeColBtn
+                                  type="button"
+                                  onClick={() => setConfirmPurgeCol({
+                                    name: r.name,
+                                    value: r.value,
+                                    run: () => {
+                                      // ★ 서버가 머지하므로 키를 빼서 보내는 것으로는 안 지워진다.
+                                      //   지우려면 지우라고 말해야 한다 -> custom_values_unset.
+                                      const vals = { ...(detail.custom_values || {}) } as Record<string, unknown>;
+                                      const prevRemoved = Array.isArray(vals.__removed_cols)
+                                        ? (vals.__removed_cols as RemovedColMeta[]) : [];
+                                      vals.__removed_cols = prevRemoved.filter(x => x && x.id !== r.id);
+                                      delete vals[r.id];
+                                      saveCols(cols, vals, [r.id]);
+                                    },
+                                  })}
+                                >{t('drawer.purgeCol', { defaultValue: '완전 삭제' }) as string}</PurgeColBtn>
+                              </RemovedColActions>
+                            </RemovedColRow>
+                          ))}
+                        </RemovedColsBox>
+                      );
+                    })()}
                   </DrawerSection>
                 );
               })()}
@@ -1538,11 +1665,31 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
         }}
         title={t('drawer.removeColumn', '항목 삭제') as string}
         message={t('drawer.removeColumnConfirm', {
-          defaultValue: '"{{name}}" 항목과 값 "{{value}}" 을(를) 지웁니다. 되돌릴 수 없습니다.',
+          defaultValue: '"{{name}}" 항목을 지웁니다. 값 "{{value}}" 은 아래 "삭제된 항목" 에 남아 되돌릴 수 있습니다.',
           name: confirmRemoveCol?.name || '',
           value: (confirmRemoveCol?.value || '').slice(0, 60),
         }) as string}
         confirmText={t('drawer.removeColumn', '항목 삭제') as string}
+        cancelText={t('modal.cancel') as string}
+        variant="danger"
+      />
+
+      {/* --- 완전 삭제 확인 (#408) - 되돌릴 자리에서 값을 정말 지운다 --- */}
+      <ConfirmDialog
+        isOpen={confirmPurgeCol !== null}
+        onClose={() => setConfirmPurgeCol(null)}
+        onConfirm={() => {
+          const c = confirmPurgeCol;
+          setConfirmPurgeCol(null);
+          c?.run();
+        }}
+        title={t('drawer.purgeCol', { defaultValue: '완전 삭제' }) as string}
+        message={t('drawer.purgeColConfirm', {
+          defaultValue: '"{{name}}" 의 값 "{{value}}" 을(를) 완전히 지웁니다. 이번에는 되돌릴 수 없습니다.',
+          name: confirmPurgeCol?.name || '',
+          value: (confirmPurgeCol?.value || '').slice(0, 60),
+        }) as string}
+        confirmText={t('drawer.purgeCol', { defaultValue: '완전 삭제' }) as string}
         cancelText={t('modal.cancel') as string}
         variant="danger"
       />
@@ -2028,6 +2175,63 @@ const DrawerColValueRow = styled.div`
   display: flex; align-items: center; gap: 6px; min-width: 0; width: 100%;
   & > *:first-child { flex: 1 1 auto; min-width: 0; }
   & > *:not(:first-child) { flex-shrink: 0; }
+`;
+
+/* --- 삭제된 항목 (#408) ---
+   지운 항목의 값은 서버 머지 저장 덕에 살아 있다. 그 값을 **꺼낼 자리**가 여기다.
+   항목 목록과 섞이면 지운 것이 안 지워진 것처럼 보이므로 회색 박스로 분리한다.
+   폰(<=640)에서 액션이 좁아지지 않게 값줄 아래로 감긴다. */
+const RemovedColsBox = styled.div`
+  margin-top: 10px; padding: 10px; border-radius: 8px;
+  background: #F8FAFC; border: 1px dashed #CBD5E1;
+`;
+const RemovedColsHead = styled.div`
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.72rem; font-weight: 700; color: #64748B;
+`;
+const RemovedColsCount = styled.span`
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #E2E8F0; color: #475569; font-size: 0.68rem; font-weight: 700;
+`;
+const RemovedColsHint = styled.div`
+  margin: 4px 0 8px; font-size: 0.68rem; color: #94A3B8; line-height: 1.5;
+`;
+const RemovedColRow = styled.div`
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 7px 0; border-top: 1px solid #E2E8F0;
+  @media (max-width: 640px) { flex-wrap: wrap; }
+`;
+const RemovedColMain = styled.div`flex: 1 1 auto; min-width: 0;`;
+const RemovedColName = styled.div`
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  font-size: 0.72rem; font-weight: 600; color: #475569;
+`;
+const InferredTag = styled.span`
+  padding: 1px 5px; border-radius: 4px; background: #FEF3C7; color: #92400E;
+  font-size: 0.62rem; font-weight: 700; cursor: help;
+`;
+const RemovedColValue = styled.div`
+  margin-top: 2px; font-size: 0.72rem; color: #334155;
+  overflow-wrap: anywhere; line-height: 1.5;
+`;
+const RemovedColActions = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  @media (max-width: 640px) { width: 100%; }
+`;
+const RestoreColBtn = styled.button`
+  min-height: 28px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #14B8A6; background: #fff; color: #0F766E;
+  font-size: 0.7rem; font-weight: 700; white-space: nowrap;
+  &:hover { background: #F0FDFA; }
+  @media (max-width: 640px) { min-height: 36px; flex: 1 1 auto; }
+`;
+const PurgeColBtn = styled.button`
+  min-height: 28px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #E2E8F0; background: #fff; color: #94A3B8;
+  font-size: 0.7rem; font-weight: 600; white-space: nowrap;
+  &:hover { background: #FEF2F2; border-color: #DC2626; color: #DC2626; }
+  @media (max-width: 640px) { min-height: 36px; flex: 1 1 auto; }
 `;
 
 // ─── 인라인 셀 편집 — 리스트 행의 커스텀 항목 클릭 시 그 자리에서 수정 ───

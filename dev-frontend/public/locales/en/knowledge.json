@@ -112,7 +112,14 @@
     "removeColumn": "Remove field",
     "newColumn": "New item",
     "colType": "Field type",
-    "removeColumnConfirm": "This removes the field \"{{name}}\" and its value \"{{value}}\". It cannot be undone."
+    "removeColumnConfirm": "This removes the field \"{{name}}\". Its value \"{{value}}\" stays under \"Removed fields\" below and can be restored.",
+    "removedCols": "Removed fields",
+    "removedColsHint": "Restoring brings the value back as it was.",
+    "restoreCol": "Restore",
+    "purgeCol": "Delete permanently",
+    "purgeColConfirm": "This permanently deletes the value \"{{value}}\" of \"{{name}}\". This one cannot be undone.",
+    "inferredName": "name guessed",
+    "inferredNameHint": "The field name was not stored when it was removed, so it could not be recovered. Rename it after restoring."
   },
   "row": {
     "delete": "Delete"
