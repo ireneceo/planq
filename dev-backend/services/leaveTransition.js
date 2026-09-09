@@ -70,6 +70,15 @@ async function getBalance(businessId, userId, year) {
     if (r.status === 'approved') used += d; else pending += d;
   }
   const round = (n) => Math.round(n * 10) / 10;
+  // ★ 2026-09-09 — `daily_work_hours` 를 같이 내보낸다.
+  //   신청 화면이 "이번 신청은 며칠짜리인가" 를 미리 보여주려면 이 값이 필요하다
+  //   (computeDaysCharged 가 시간 단위를 이 값으로 나눈다 — 8 고정이 아니다).
+  //   같은 나눗셈을 화면이 8 로 다시 적으면 하루 6시간 근무자에게 **거짓 안내**가 나간다
+  //   (memory feedback_same_value_multiple_formulas). 값을 주고 규칙을 공유한다.
+  const bm = await BusinessMember.findOne({
+    where: { business_id: businessId, user_id: userId, removed_at: null },
+    attributes: ['daily_work_hours'],
+  });
   return {
     year: y,
     granted: round(granted),
@@ -77,6 +86,7 @@ async function getBalance(businessId, userId, year) {
     pending: round(pending),
     remaining: round(granted - used),
     remaining_after_pending: round(granted - used - pending),
+    daily_work_hours: Number(bm?.daily_work_hours) || 8,
   };
 }
 

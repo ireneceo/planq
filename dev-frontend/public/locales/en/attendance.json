@@ -89,7 +89,15 @@
     "grantDays": "Days",
     "grantNote": "Note",
     "grantSubmit": "Grant",
-    "grantHint": "Use a negative number to correct. Grants are appended, never overwritten."
+    "grantHint": "Use a negative number to correct. Grants are appended, never overwritten.",
+    "balance": {
+      "remaining": "Paid leave left",
+      "days": "{{count}} day(s)",
+      "detail": "Granted {{granted}} · Used {{used}} · Pending {{pending}}",
+      "thisRequest": "This request counts as {{days}} day(s)",
+      "short": "{{days}} day(s) short. Request unpaid leave, or ask an admin to grant more.",
+      "none": "No paid leave granted for this year. An admin can grant it in Settings > Attendance."
+    }
   },
   "team": {
     "presence": "Today",

@@ -161,8 +161,10 @@ const AttendancePage: React.FC = () => {
   return (
     <PageShell title={t('page.title')}>
       <Tabs role="tablist">
-        <TabBtn role="tab" $on={tab === 'my'} onClick={() => setTab('my')}>{t('tabs.my')}</TabBtn>
-        <TabBtn role="tab" $on={tab === 'leave'} onClick={() => setTab('leave')}>{t('tabs.leave')}</TabBtn>
+        {/* 표식은 하니스가 탭을 기계적으로 여는 근거 (CLAUDE.md 운영 안정성 17).
+            없으면 검사기가 글자로 찾다가 못 찾아 **거짓 FAIL** 을 낸다 — 실제로 한 번 났다. */}
+        <TabBtn role="tab" data-testid="attendance-tab-my" $on={tab === 'my'} onClick={() => setTab('my')}>{t('tabs.my')}</TabBtn>
+        <TabBtn role="tab" data-testid="attendance-tab-leave" $on={tab === 'leave'} onClick={() => setTab('leave')}>{t('tabs.leave')}</TabBtn>
 
       </Tabs>
 

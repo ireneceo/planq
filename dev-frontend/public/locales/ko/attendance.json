@@ -89,7 +89,15 @@
     "grantDays": "부여 일수",
     "grantNote": "사유",
     "grantSubmit": "부여",
-    "grantHint": "정정은 음수로 입력하면 됩니다. 부여 이력은 지워지지 않고 쌓입니다."
+    "grantHint": "정정은 음수로 입력하면 됩니다. 부여 이력은 지워지지 않고 쌓입니다.",
+    "balance": {
+      "remaining": "남은 유급 휴가",
+      "days": "{{count}}일",
+      "detail": "부여 {{granted}}일 · 사용 {{used}}일 · 신청 중 {{pending}}일",
+      "thisRequest": "이번 신청은 {{days}}일로 계산됩니다",
+      "short": "{{days}}일이 모자랍니다. 무급으로 신청하거나 관리자에게 휴가 부여를 요청하세요.",
+      "none": "올해 부여받은 유급 휴가가 없습니다. 관리자가 설정 > 근태에서 부여할 수 있어요."
+    }
   },
   "team": {
     "presence": "오늘 현황",
