@@ -3,11 +3,12 @@
 // focus_enabled / focus_idle_min / focus_auto_pause_min / focus_daily_prompt 4개 설정.
 // 자동 저장 (debounce) — AutoSaveField 패턴. 변경 즉시 ✓ 뱃지.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../Common/PlanQSelect';
+import AutoSaveField from '../Common/AutoSaveField';
 
 interface Settings {
   focus_enabled: boolean;
@@ -19,7 +20,6 @@ interface Settings {
 const FocusSettingsCard: React.FC = () => {
   const { t } = useTranslation('focus');
   const [s, setS] = useState<Settings | null>(null);
-  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,21 +41,28 @@ const FocusSettingsCard: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const save = async (patch: Partial<Settings>, key: string) => {
-    setSavingKey(key);
-    try {
-      const r = await apiFetch('/api/focus/settings', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      });
-      const j = await r.json();
-      if (j.success) {
-        setS(prev => prev ? { ...prev, ...j.data } : prev);
-        // N+63 — 즉시 반영. 사이드바 FocusWidget 가 setting fetch 1회만 하므로
-        // toggle 변경 후 새로고침 없이 위젯 표시/숨김 + 옵션 변경 즉시 반영.
-        window.dispatchEvent(new CustomEvent('focus:settings-changed', { detail: j.data }));
-      }
-    } finally { setSavingKey(null); }
+  // ★ 2026-09-09 — 자동저장 ✓ 를 붙인다. 래퍼가 onSave 를 부르므로 컨트롤 쪽에서 저장까지
+  //   하면 **두 번 나간다** → stage(화면만) / persist(저장) 로 가른다. 최신값은 ref 로 읽는다.
+  //   실패는 던진다 — 여태 `if (j.success)` 로 삼켜서, 저장이 안 돼도 화면은 바뀐 채였다.
+  const pendingRef = useRef<Partial<Settings>>({});
+  const stage = (patch: Partial<Settings>) => {
+    pendingRef.current = { ...pendingRef.current, ...patch };
+    setS(prev => (prev ? { ...prev, ...patch } : prev));
+  };
+  const persist = async () => {
+    const patch = pendingRef.current;
+    pendingRef.current = {};
+    if (!Object.keys(patch).length) return;
+    const r = await apiFetch('/api/focus/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    const j = await r.json();
+    if (!j.success) throw new Error(j.message || 'save_failed');
+    setS(prev => prev ? { ...prev, ...j.data } : prev);
+    // N+63 — 즉시 반영. 사이드바 FocusWidget 가 setting fetch 1회만 하므로
+    // toggle 변경 후 새로고침 없이 위젯 표시/숨김 + 옵션 변경 즉시 반영.
+    window.dispatchEvent(new CustomEvent('focus:settings-changed', { detail: j.data }));
   };
 
   if (!s) return null;
@@ -71,15 +78,16 @@ const FocusSettingsCard: React.FC = () => {
           <ToggleLabel>{t('settings.enabled')}</ToggleLabel>
           <ToggleHint>{t('settings.enabledHint')}</ToggleHint>
         </ToggleBody>
-        <Switch
-          role="switch" aria-checked={s.focus_enabled}
-          $active={s.focus_enabled}
-          onClick={() => save({ focus_enabled: !s.focus_enabled }, 'enabled')}
-          disabled={savingKey === 'enabled'}
-          type="button"
-        >
-          <SwitchKnob $active={s.focus_enabled} />
-        </Switch>
+        <AutoSaveField type="toggle" onSave={persist}>
+          <Switch
+            role="switch" aria-checked={s.focus_enabled}
+            $active={s.focus_enabled}
+            onClick={() => stage({ focus_enabled: !s.focus_enabled })}
+            type="button"
+          >
+            <SwitchKnob $active={s.focus_enabled} />
+          </Switch>
+        </AutoSaveField>
       </ToggleRow>
 
       {/* 활성 시에만 보이는 추가 옵션 */}
@@ -91,15 +99,17 @@ const FocusSettingsCard: React.FC = () => {
               <FieldHint>{t('settings.idleMinHint')}</FieldHint>
             </FieldLabel>
             <FieldControl>
+              <AutoSaveField type="select" onSave={persist}>
               <PlanQSelect
                 value={{ value: String(s.focus_idle_min), label: t('settings.minutes', { n: s.focus_idle_min }) as string }}
                 onChange={(opt) => {
                   const v = Number((opt as { value: string } | null)?.value);
-                  if (Number.isFinite(v)) save({ focus_idle_min: v }, 'idle');
+                  if (Number.isFinite(v)) stage({ focus_idle_min: v });
                 }}
                 options={[5, 10, 15, 20, 30, 45, 60].map(n => ({ value: String(n), label: t('settings.minutes', { n }) as string }))}
                 size="md"
               />
+              </AutoSaveField>
             </FieldControl>
           </FieldRow>
 
@@ -109,15 +119,17 @@ const FocusSettingsCard: React.FC = () => {
               <FieldHint>{t('settings.autoPauseMinHint')}</FieldHint>
             </FieldLabel>
             <FieldControl>
+              <AutoSaveField type="select" onSave={persist}>
               <PlanQSelect
                 value={{ value: String(s.focus_auto_pause_min), label: t('settings.minutes', { n: s.focus_auto_pause_min }) as string }}
                 onChange={(opt) => {
                   const v = Number((opt as { value: string } | null)?.value);
-                  if (Number.isFinite(v)) save({ focus_auto_pause_min: v }, 'autopause');
+                  if (Number.isFinite(v)) stage({ focus_auto_pause_min: v });
                 }}
                 options={[15, 30, 45, 60, 90, 120].map(n => ({ value: String(n), label: t('settings.minutes', { n }) as string }))}
                 size="md"
               />
+              </AutoSaveField>
             </FieldControl>
           </FieldRow>
 
@@ -126,15 +138,16 @@ const FocusSettingsCard: React.FC = () => {
               <ToggleLabel>{t('settings.dailyPrompt')}</ToggleLabel>
               <ToggleHint>{t('settings.dailyPromptHint')}</ToggleHint>
             </ToggleBody>
-            <Switch
-              role="switch" aria-checked={s.focus_daily_prompt}
-              $active={s.focus_daily_prompt}
-              onClick={() => save({ focus_daily_prompt: !s.focus_daily_prompt }, 'prompt')}
-              disabled={savingKey === 'prompt'}
-              type="button"
-            >
-              <SwitchKnob $active={s.focus_daily_prompt} />
-            </Switch>
+            <AutoSaveField type="toggle" onSave={persist}>
+              <Switch
+                role="switch" aria-checked={s.focus_daily_prompt}
+                $active={s.focus_daily_prompt}
+                onClick={() => stage({ focus_daily_prompt: !s.focus_daily_prompt })}
+                type="button"
+              >
+                <SwitchKnob $active={s.focus_daily_prompt} />
+              </Switch>
+            </AutoSaveField>
           </ToggleRow>
 
         </SubOptions>

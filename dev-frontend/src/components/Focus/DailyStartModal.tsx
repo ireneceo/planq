@@ -1,3 +1,5 @@
+// autosave-exempt: 자동저장이 아니다 — "오늘 다시 보지 않기" 는 모달을 **닫을 때** 반영된다.
+//   체크하는 순간 저장하면 마음을 바꿔 닫지 않아도 이미 꺼진다.
 // DailyStartModal — 로그인 후 첫 진입 시 "오늘 시작" 안내 모달 (사이클 N+26 Phase 2)
 //
 // 트리거 조건 (TodoPage 또는 Dashboard 에서 mount):

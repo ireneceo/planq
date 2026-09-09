@@ -1,3 +1,5 @@
+// autosave-exempt: 자동저장이 아니다 — "블로그 발행/해제" 는 명시적 액션 버튼이고,
+//   결과·실패 사유를 자체 에러 줄로 말한다(공개+발행 조건 안내 포함).
 // Q위키 (Q Wiki) 관리 — Platform Admin (A1/A2).
 //   좌측 글 목록(카테고리 필터·검색·새 글) / 우측 편집기(메타 + 블록 에디터 + 발행·캡처·미리보기·삭제).
 //   카테고리 관리 모달. 본문은 plain-text 블록(text/heading/step/callout/image) — body_ko/body_en 병렬.

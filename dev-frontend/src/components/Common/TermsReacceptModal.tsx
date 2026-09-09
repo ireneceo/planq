@@ -1,3 +1,5 @@
+// autosave-exempt: 자동저장이 아니다 — 동의 체크는 제출 버튼("동의하고 계속")을 여는 게이트이고,
+//   저장은 그 버튼을 눌러야 나간다. 동의를 체크만 해도 저장되면 오히려 사고다.
 // 약관 변경 시 재동의 모달 — current_terms_version != user.terms_version 일 때 자동 노출
 // 동의 시 PUT /api/users/:id 의 terms_accepted_at + terms_version 갱신
 // 랜딩 페이지(/, /features, /pricing 등)에서는 표시 안 함 — 앱 영역에서만 노출

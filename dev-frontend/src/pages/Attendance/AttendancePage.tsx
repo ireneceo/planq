@@ -2,13 +2,14 @@
 //
 // 탭 3개. "팀 관리" 는 owner/admin 에게만 보인다 — 남의 근무시간은 관리 목적으로만 열린다(§6).
 // 신청·부여는 제출형 폼이라 저장 버튼을 쓴다(자동저장 예외 — 청구서 작성과 같은 분류).
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import ErrorBoundary from '../../components/Common/ErrorBoundary';
 import ActionButton from '../../components/Common/ActionButton';
+import AutoSaveField from '../../components/Common/AutoSaveField';
 import AttendanceWidget from '../../components/Attendance/AttendanceWidget';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { ATTENDANCE_REFRESH_EVENT, formatHours, type AttendanceDay } from '../../hooks/useAttendance';
@@ -89,13 +90,23 @@ const AttendancePage: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const saveAutoClockIn = async (next: boolean) => {
-    setAutoClockIn(next);                       // 즉시 반영 — 토글은 기다림이 없어야 한다
+  // ★ 2026-09-09 — 자동저장 ✓ 를 붙인다. 래퍼가 onSave 를 부르므로 여기서 저장까지 하면
+  //   **두 번 나간다** → flip(화면만) / persistAutoClockIn(저장) 으로 가른다.
+  //   최신값은 클로저가 아니라 ref 로 읽는다(클릭으로 이미 뒤집힌 값을 저장해야 한다).
+  const autoClockInRef = useRef<boolean | null>(null);
+  autoClockInRef.current = autoClockIn;
+  const flipAutoClockIn = () => setAutoClockIn((v) => !v);
+  const persistAutoClockIn = async () => {
+    const next = autoClockInRef.current;
+    if (next === null) return;
     const r = await apiFetch('/api/attendance/settings', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ auto_clock_in_on_focus: next }),
     });
-    if (!r.ok) setAutoClockIn(!next);           // 실패하면 되돌린다(거짓 성공 금지)
+    if (!r.ok) {
+      setAutoClockIn(!next);                    // 실패하면 되돌린다(거짓 성공 금지)
+      throw new Error('save_failed');           // 던져야 래퍼가 ! 를 띄운다
+    }
   };
   useVisibilityRefresh(silentLoad);
 
@@ -224,12 +235,24 @@ const AttendancePage: React.FC = () => {
           )}
           {autoClockIn !== null && (
             <SettingRow>
-              <SettingCheck
-                type="checkbox" id="attn-auto-clockin"
-                checked={autoClockIn}
-                onChange={(e) => saveAutoClockIn(e.target.checked)}
-              />
-              <SettingText htmlFor="attn-auto-clockin">
+              {/* ★ 네이티브 체크박스(16px)였다 — ✓ 뱃지(22px)가 컨트롤을 통째로 덮어
+                  "저장됨" 을 보여주려다 무엇을 켰는지 안 보이는 상태가 된다.
+                  워크스페이스 설정과 **같은 표준 스위치**로 바꾸고 그 옆에 뱃지를 둔다
+                  (Irene 확인: 모양이 바뀌는 것을 알고 승인). */}
+              <AutoSaveField type="toggle" onSave={persistAutoClockIn}>
+                <SettingSwitch
+                  type="button" role="switch" id="attn-auto-clockin"
+                  aria-checked={!!autoClockIn}
+                  aria-labelledby="attn-auto-clockin-label"
+                  $on={!!autoClockIn}
+                  onClick={flipAutoClockIn}
+                >
+                  <SettingTrack $on={!!autoClockIn}>
+                    <SettingKnob $on={!!autoClockIn} />
+                  </SettingTrack>
+                </SettingSwitch>
+              </AutoSaveField>
+              <SettingText id="attn-auto-clockin-label" onClick={flipAutoClockIn}>
                 <b>{t('settings.autoClockIn')}</b>
                 <span>{t('settings.autoClockInHint')}</span>
               </SettingText>
@@ -359,10 +382,29 @@ const SettingRow = styled.div`
   margin-top: 16px; padding: 12px 14px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
 `;
-const SettingCheck = styled.input`
-  width: 16px; height: 16px; margin-top: 2px; accent-color: #F43F5E; cursor: pointer; flex-shrink: 0;
+// 표준 스위치 — 보이는 트랙은 다른 설정 화면과 같은 36×20 이지만,
+//   **누르는 상자는 36×36** 이다(CLAUDE.md 반응형 원칙 2 + UISPEC 토큰 36/40/44).
+//   ★ 처음엔 버튼 자체를 20px 로 썼다가 UISPEC 래칫이 702→703 으로 잡았다.
+//     베이스라인을 올리지 않고 규격에 맞췄다 — 터치 타깃도 같이 커진다.
+//   네이티브 체크박스(16px)를 대체한다: 뱃지(22px)가 컨트롤을 통째로 덮던 문제.
+const SettingSwitch = styled.button<{ $on: boolean }>`
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer; padding: 0;
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; border-radius: 8px; }
 `;
-const SettingText = styled.label`
+const SettingTrack = styled.span<{ $on: boolean }>`
+  display: block; width: 36px; height: 20px; border-radius: 999px;
+  background: ${(p) => (p.$on ? '#14B8A6' : '#CBD5E1')};
+  transition: background 0.15s;
+`;
+const SettingKnob = styled.span<{ $on: boolean }>`
+  display: block; width: 16px; height: 16px; border-radius: 50%; margin-top: 2px;
+  background: #FFFFFF; box-shadow: 0 1px 2px rgba(15,23,42,.2);
+  transform: translateX(${(p) => (p.$on ? '18px' : '2px')});
+  transition: transform 0.15s;
+`;
+const SettingText = styled.div`
   display: flex; flex-direction: column; gap: 2px; cursor: pointer;
   b { font-size: 0.8125rem; font-weight: 600; color: #0F172A; }
   span { font-size: 0.6875rem; color: #64748B; line-height: 1.45; }

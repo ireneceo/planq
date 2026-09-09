@@ -1,3 +1,5 @@
+// autosave-exempt: 자동저장이 아니다 — 일시정지/재개는 액션 버튼(busyId 로 잠금)이고,
+//   구독 등록 폼에는 별도 저장 버튼이 있다.
 // 고객 정기 구독청구 — ClientsPage 드로어 임베드 (사이클 N+83).
 //   목록 + 인라인 "구독 시작" 폼 + 일시정지/재개/해지/지금 청구. popup-on-popup 회피(드로어 안 인라인 확장).
 import React, { useCallback, useEffect, useState } from 'react';
