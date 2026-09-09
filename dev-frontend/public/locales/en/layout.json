@@ -151,7 +151,12 @@
     "announcement": "Announcement banner",
     "askCue": "Ask Cue",
     "back": "Back",
-    "devStatus": "Dev status"
+    "devStatus": "Dev status",
+    "statsWeekly": "Weekly trends",
+    "myFeedback": "My inquiries & feedback",
+    "inquiries": "Inquiry inbox",
+    "adminNotifications": "My notification settings",
+    "adminAuditLogs": "Audit logs"
   },
   "user": {
     "profile": "My Profile",

@@ -1914,9 +1914,54 @@ function checkCanaryContract() {
     orphan.map((o) => `${o}.js 가 run.js SUITES 에 없다 — 등록하거나 의도적 예외로 명시할 것`));
 }
 
+// ═══════════════════════════════════════════════
+// navmenu — **메뉴 이름이 화면에 키로 노출되지 않는가** (2026-09-09 신설)
+//
+//   운영 신고 (Irene 2026-09-09): "탭 열기에서 어떤 메뉴들이 이름 제대로 안나오고 nav.으로 나와."
+//   실제로 `navMenus.ts` 의 labelKey 5개가 ko·en **양쪽에 다** 없었다
+//   (statsWeekly · myFeedback · inquiries · adminNotifications · adminAuditLogs).
+//
+//   ★ 왜 여태 아무도 몰랐나 —
+//     · 사이드바(MainLayout)는 같은 키를 `t(key, '기본문구')` 로 불러 **defaultValue 가 가려 줬다.**
+//       그래서 사이드바는 멀쩡해 보이고 통합검색(탭 열기)만 raw 키가 나왔다.
+//     · ko/en **양쪽 다** 없으면 parity(ko↔en 대조) 검사는 통과한다. 한쪽만 없을 때만 잡힌다.
+//     · "양쪽 다 없는 t() 키" 래칫은 이미 500건대 부채를 동결 중이라 5개가 묻혔다.
+//   → 그래서 **사용자에게 이름으로 보이는 메뉴 키만** 따로, 하드 게이트로 본다.
+// ═══════════════════════════════════════════════
+function checkNavMenu() {
+  const navPath = `${ROOT}/dev-frontend/src/config/navMenus.ts`;
+  if (!fs.existsSync(navPath)) { report('navmenu', 'navMenus.ts 존재', false, [navPath]); return; }
+  const src = read(navPath);
+
+  const keys = new Set();
+  for (const m of src.matchAll(/labelKey:\s*'([^']+)'/g)) keys.add(m[1]);
+  for (const m of src.matchAll(/^\s*[a-z]+:\s*'(nav\.[^']+)',/gm)) keys.add(m[1]);
+
+  const flat = (obj, prefix, out) => {
+    for (const [k, v] of Object.entries(obj)) {
+      const key = prefix ? `${prefix}.${k}` : k;
+      if (v && typeof v === 'object' && !Array.isArray(v)) flat(v, key, out);
+      else out.add(key);
+    }
+    return out;
+  };
+
+  const missing = [];
+  for (const lang of ['ko', 'en']) {
+    const f = `${ROOT}/dev-frontend/public/locales/${lang}/layout.json`;
+    if (!fs.existsSync(f)) { missing.push(`${lang}/layout.json 없음`); continue; }
+    let have;
+    try { have = flat(JSON.parse(read(f)), '', new Set()); }
+    catch (e) { missing.push(`${lang}/layout.json 파싱 실패: ${e.message.slice(0, 60)}`); continue; }
+    for (const k of keys) if (!have.has(k)) missing.push(`${lang}: ${k} 없음 — 화면에 "${k}" 가 그대로 찍힌다`);
+  }
+  report('navmenu', `메뉴 라벨 키가 ko/en 양쪽에 있다 (하드 게이트 · ${keys.size}개)`, missing.length === 0, missing);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   canary: checkCanaryContract,
+  navmenu: checkNavMenu,
   i18n: checkI18n,
   parity: checkParity,
   fontpx: checkFontPx,

@@ -151,7 +151,12 @@
     "announcement": "공지 배너",
     "askCue": "Cue 에게 묻기",
     "back": "뒤로",
-    "devStatus": "개발 현황"
+    "devStatus": "개발 현황",
+    "statsWeekly": "주간 추세",
+    "myFeedback": "내 문의·피드백",
+    "inquiries": "문의 인박스",
+    "adminNotifications": "내 알림 설정",
+    "adminAuditLogs": "감사 로그"
   },
   "user": {
     "profile": "내 프로필",
