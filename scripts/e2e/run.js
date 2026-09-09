@@ -99,6 +99,10 @@ const SUITES = {
   // 상단 탭이 **지금 있는 자리**의 것만인가 — 워크스페이스·플랫폼 관리자 전환(2026-09-08 신고).
   //   저장 키가 갈려 있어도 **키 안의 내용**이 섞이던 계열이라 키 존재 검사로는 안 잡힌다.
   scopetabs: () => require('./canary-scope-tabs'),
+  // 지운 Q info 항목을 **화면에서** 되돌릴 수 있는가 (운영 #408).
+  //   값은 원래 지워지지 않고 있었다(머지 저장) — 없던 것은 그 값을 꺼낼 화면이다.
+  //   그래서 라우트가 아니라 박스가 실제로 보이는지·버튼이 눌리는지를 본다. 음성 대조군 포함.
+  qinfoundo: () => require('./canary-qinfo-undo'),
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };

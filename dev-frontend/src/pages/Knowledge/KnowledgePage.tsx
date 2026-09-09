@@ -1292,7 +1292,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                       const removed = collectRemovedCols(cols, detail.custom_values as Record<string, unknown>);
                       if (removed.length === 0) return null;
                       return (
-                        <RemovedColsBox>
+                        <RemovedColsBox data-testid="qinfo-removed-cols">
                           <RemovedColsHead>
                             {t('drawer.removedCols', { defaultValue: '삭제된 항목' }) as string}
                             <RemovedColsCount>{removed.length}</RemovedColsCount>
@@ -1316,6 +1316,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                               <RemovedColActions>
                                 <RestoreColBtn
                                   type="button"
+                                  data-testid={`qinfo-restore-${r.id}`}
                                   onClick={() => {
                                     const vals = { ...(detail.custom_values || {}) } as Record<string, unknown>;
                                     const prevRemoved = Array.isArray(vals.__removed_cols)
@@ -1326,6 +1327,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                                 >{t('drawer.restoreCol', { defaultValue: '되돌리기' }) as string}</RestoreColBtn>
                                 <PurgeColBtn
                                   type="button"
+                                  data-testid={`qinfo-purge-${r.id}`}
                                   onClick={() => setConfirmPurgeCol({
                                     name: r.name,
                                     value: r.value,
@@ -2191,7 +2193,7 @@ const RemovedColsHead = styled.div`
 `;
 const RemovedColsCount = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  min-width: 18px; padding: 2px 6px; border-radius: 9px;
   background: #E2E8F0; color: #475569; font-size: 0.68rem; font-weight: 700;
 `;
 const RemovedColsHint = styled.div`
@@ -2220,18 +2222,18 @@ const RemovedColActions = styled.div`
   @media (max-width: 640px) { width: 100%; }
 `;
 const RestoreColBtn = styled.button`
-  min-height: 28px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  min-height: 36px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
   border: 1px solid #14B8A6; background: #fff; color: #0F766E;
   font-size: 0.7rem; font-weight: 700; white-space: nowrap;
   &:hover { background: #F0FDFA; }
-  @media (max-width: 640px) { min-height: 36px; flex: 1 1 auto; }
+  @media (max-width: 640px) { flex: 1 1 auto; }
 `;
 const PurgeColBtn = styled.button`
-  min-height: 28px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+  min-height: 36px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
   border: 1px solid #E2E8F0; background: #fff; color: #94A3B8;
   font-size: 0.7rem; font-weight: 600; white-space: nowrap;
   &:hover { background: #FEF2F2; border-color: #DC2626; color: #DC2626; }
-  @media (max-width: 640px) { min-height: 36px; flex: 1 1 auto; }
+  @media (max-width: 640px) { flex: 1 1 auto; }
 `;
 
 // ─── 인라인 셀 편집 — 리스트 행의 커스텀 항목 클릭 시 그 자리에서 수정 ───

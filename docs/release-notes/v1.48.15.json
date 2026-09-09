@@ -1,0 +1,18 @@
+{
+  "version": "1.48.15",
+  "date": "2026-09-09",
+  "items": [
+    {
+      "ko": { "title": "Q info 에서 지운 항목을 되돌릴 수 있습니다",
+        "body": "값이 들어 있는 항목을 지우면 이제 상세 화면의 '삭제된 항목' 에 남습니다. 되돌리기를 누르면 항목 이름과 값이 그대로 살아나고, 정말 지울 생각이면 거기서 '완전 삭제' 를 한 번 더 누르면 됩니다. 이 기능이 생기기 전에 지운 항목도 값이 남아 있으면 같은 자리에 나타나니 그대로 되돌리시면 됩니다 — 다만 그때는 항목 이름까지는 남지 않아 '이름 추정' 으로 표시되므로, 되돌린 뒤 이름만 바꿔 주세요." },
+      "en": { "title": "Removed fields in Q info can be brought back",
+        "body": "Removing a field that holds a value now keeps it under \"Removed fields\" in the detail panel. Restore brings the field name and its value back exactly as they were, and if you really meant to delete it, \"Delete permanently\" there does that. Fields you removed before this change also show up there whenever their value is still around, so you can restore them the same way — those were stored without their field name, so they appear with a guessed name for you to rename after restoring." }
+    },
+    {
+      "ko": { "title": "항목을 지우면 공유 링크와 검색에서도 같이 사라집니다",
+        "body": "지금까지는 항목을 지워도 그 값이 자동으로 만들어진 본문에 남아, 공유 링크로 연 화면과 검색 결과에는 계속 보였습니다. 이제 항목을 지우면 그 값이 본문과 검색에서도 함께 빠집니다. 직접 쓰신 본문은 그대로 둡니다." },
+      "en": { "title": "Removing a field now also clears it from share links and search",
+        "body": "Until now a removed field's value stayed in the automatically generated body text, so it kept showing up on shared links and in search results. Removing a field now clears its value from the body and the search index as well. Body text you wrote yourself is left untouched." }
+    }
+  ]
+}
