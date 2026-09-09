@@ -4,8 +4,9 @@
 // 워크스페이스용 NotificationSettings 와 분리된 이유:
 //   - business_id NULL 로 저장 (cross-workspace 영향 X)
 //   - platform_admin 만 의미 있는 이벤트 (inquiry) 만 노출 — 워크스페이스 이벤트 섞이면 혼란
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -31,7 +32,6 @@ const AdminNotificationsPage: React.FC = () => {
   const { t } = useTranslation('common');
   const [matrix, setMatrix] = useState<Matrix | null>(null);
   const [loading, setLoading] = useState(true);
-  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,27 +62,34 @@ const AdminNotificationsPage: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const toggle = async (event: EventKind, channel: Channel) => {
-    if (!matrix) return;
-    const current = matrix[event][channel];
-    const next = !current;
-    const key = `${event}-${channel}`;
-    setSavingKey(key);
-    setMatrix({ ...matrix, [event]: { ...matrix[event], [channel]: next } });
-    try {
-      const r = await apiFetch('/api/notifications/prefs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        // business_id 안 보냄 → NULL row (platform-wide)
-        body: JSON.stringify({ event_kind: event, channel, enabled: next }),
-      });
-      const j = await r.json();
-      if (!j.success) throw new Error(j.message || 'save_failed');
-    } catch (e) {
-      setMatrix({ ...matrix, [event]: { ...matrix[event], [channel]: current } });
-      setError((e as Error).message);
-    } finally {
-      setSavingKey(null);
+  // ★ 2026-09-09 — 워크스페이스 알림 설정(NotificationSettings)과 **같은 화면 모양**인데
+  //   여기만 저장 표시가 없었다. 같은 것은 같은 방식으로 — AutoSaveField 계약에 맞춰 가른다.
+  //     · flip    = 눌린 즉시 화면만
+  //     · persist = 래퍼가 300ms 뒤 부르는 실제 저장(실패는 던져야 ! 뱃지가 뜬다)
+  //   최신값은 클로저가 아니라 ref 로 읽는다 — 클릭으로 이미 뒤집힌 값을 저장해야 한다.
+  const matrixRef = useRef<typeof matrix>(null);
+  matrixRef.current = matrix;
+
+  const flip = (event: EventKind, channel: Channel) => {
+    setMatrix((m) => (m ? { ...m, [event]: { ...m[event], [channel]: !m[event][channel] } } : m));
+  };
+
+  const persist = async (event: EventKind, channel: Channel) => {
+    const m = matrixRef.current;
+    if (!m) return;
+    const next = m[event][channel];
+    setError(null);
+    const r = await apiFetch('/api/notifications/prefs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      // business_id 안 보냄 → NULL row (platform-wide)
+      body: JSON.stringify({ event_kind: event, channel, enabled: next }),
+    });
+    const j = await r.json();
+    if (!j.success) {
+      setMatrix((cur) => (cur ? { ...cur, [event]: { ...cur[event], [channel]: !next } } : cur));
+      setError(j.message || 'save_failed');
+      throw new Error(j.message || 'save_failed');
     }
   };
 
@@ -125,17 +132,18 @@ const AdminNotificationsPage: React.FC = () => {
               </EventCell>
               {CHANNELS.map(ch => {
                 const enabled = matrix[ev][ch];
-                const saving = savingKey === `${ev}-${ch}`;
                 return (
                   <ToggleCell key={ch}>
-                    <Switch
-                      type="button" role="switch" aria-checked={enabled}
-                      $on={enabled} $saving={saving}
-                      onClick={() => toggle(ev, ch)}
-                      title={enabled ? 'ON' : 'OFF'}
-                    >
-                      <SwitchKnob $on={enabled} />
-                    </Switch>
+                    <AutoSaveField type="toggle" onSave={() => persist(ev, ch)}>
+                      <Switch
+                        type="button" role="switch" aria-checked={enabled}
+                        $on={enabled}
+                        onClick={() => flip(ev, ch)}
+                        title={enabled ? 'ON' : 'OFF'}
+                      >
+                        <SwitchKnob $on={enabled} />
+                      </Switch>
+                    </AutoSaveField>
                   </ToggleCell>
                 );
               })}
@@ -163,11 +171,11 @@ const EventCell = styled.div`padding: 14px 16px;`;
 const EventLabel = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A;`;
 const EventDesc = styled.div`font-size: 0.75rem; color: #64748B; margin-top: 4px;`;
 const ToggleCell = styled.div`padding: 14px 16px; display: flex; justify-content: center;`;
-const Switch = styled.button<{ $on: boolean; $saving: boolean }>`
+// $saving 은 없앴다 — 저장 중 표시는 AutoSaveField 스피너가 맡는다(한 곳에서).
+const Switch = styled.button<{ $on: boolean }>`
   width: 40px; height: 22px; border-radius: 11px;
   background: ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
   border: none; cursor: pointer; position: relative; padding: 0;
-  opacity: ${p => p.$saving ? 0.5 : 1};
   transition: background 0.15s;
 `;
 const SwitchKnob = styled.div<{ $on: boolean }>`

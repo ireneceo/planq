@@ -286,7 +286,6 @@
     "dev-frontend/src/pages/Signatures/ReceivedSignaturesList.tsx": 1
   },
   "autosave": {
-    "dev-frontend/src/pages/Admin/AdminNotificationsPage.tsx": 1,
     "dev-frontend/src/pages/Admin/AdminWikiPage.tsx": 1,
     "dev-frontend/src/pages/Admin/ProviderCreditCard.tsx": 1,
     "dev-frontend/src/pages/Attendance/AdminFixDrawer.tsx": 1,
