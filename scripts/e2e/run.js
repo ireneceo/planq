@@ -60,6 +60,7 @@ const SUITES = {
   // 상세 밴드2 — 폰에서 **몇 줄이고 칩이 성한가**. 줄 수만 보면 2026-09-06 의 음절분해 회귀를
   //   다시 부르고, 칩만 보면 "항상 2줄" 로 되돌아간다. 둘을 한 검사에 묶는다.
   mailband: () => require('./canary-detail-band'),
+  crash185: () => require('./canary-crash-185'),
   chromeoffset: () => require('./canary-chrome-offset'),
   // 업무 책임선이 **화면에서도** 지켜지는가 — description=작성자만 / body=담당자만.
   //   서버만 막으면 화면은 열려 있고 저장만 403 이 되는 "저장 실패" 가 된다.
