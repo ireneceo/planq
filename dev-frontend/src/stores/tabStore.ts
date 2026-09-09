@@ -120,6 +120,27 @@ const RESTORE_KEY = `${STORAGE_KEY}_restore`;
 /** 옛 무범위 탭 이관을 이미 끝냈는가. **localStorage** 에 둔다 —
  *  세션/모듈 변수는 새로고침마다 초기화돼 "최초 1회" 를 보장하지 못한다(2026-09-08 회귀). */
 const MIGRATED_KEY = `${STORAGE_KEY}_scoped`;
+/** 마지막으로 쓰던 범위. **부팅 때 어느 스냅샷을 읽을지** 정하는 데만 쓴다.
+ *
+ *  ★ 2026-09-09 — 데스크탑 "마지막 위치로 복원"(#340)이 죽어 있었다.
+ *    저장은 범위 키(`…_restore::b5`)에 하는데, 부팅 시점에는 워크스페이스를 아직 몰라
+ *    (`tabScope === null`) **무범위 키(`…_restore`)를 읽었다.** 그 키는 비어 있어서
+ *    복원이 통째로 건너뛰어지고 앱이 start_url(/inbox)에 그대로 섰다.
+ *    실측 덤프:
+ *      planq_tabs_v1_restore      = {"tabs":[],"activeId":null}   ← 읽는 곳(빈 값)
+ *      planq_tabs_v1_restore::b5  = [{"path":"/tasks"}]           ← 저장되는 곳
+ *    → 마지막 범위를 적어 두고, 부팅의 **복원 단계에서만** 그 범위의 스냅샷을 읽는다.
+ *    범위가 실제로 정해지면(setTabScope) 그 범위의 목록으로 다시 맞춰지므로,
+ *    다른 워크스페이스로 들어간 경우에도 그 목록이 남지 않는다(#405 계약 유지).
+ */
+const LAST_SCOPE_KEY = `${STORAGE_KEY}_lastscope`;
+function lastScope(): string | null {
+  try { return localStorage.getItem(LAST_SCOPE_KEY); } catch { return null; }
+}
+function rememberScope(v: string | null) {
+  if (!v) return;
+  try { localStorage.setItem(LAST_SCOPE_KEY, v); } catch { /* 무시 */ }
+}
 function legacyMigrated(): boolean {
   try { return localStorage.getItem(MIGRATED_KEY) === '1'; } catch { return true; }
 }
@@ -212,7 +233,11 @@ function load(): TabState {
   //    alive 는 되살리지 않는다: 한 번에 전 탭을 마운트하면 첫 화면이 느려지고 LRU 도 즉시 터진다.
   //    활성 탭만 살아나고 나머지는 suspend 상태로 서 있다가 누르면 깨어난다(기존 LRU 동작 그대로).
   try {
-    const raw = isRestoreCapable() ? localStorage.getItem(scoped(RESTORE_KEY)) : null;
+    // ★ 범위를 아직 모르는 **부팅 시점**에도 복원이 되어야 한다. 그때는 마지막으로 쓰던
+    //   범위의 스냅샷을 읽는다(위 LAST_SCOPE_KEY 주석). 범위를 알면 종전대로 그 범위를 쓴다.
+    const restoreScope = tabScope || lastScope();
+    const restoreKey = restoreScope ? `${RESTORE_KEY}::${restoreScope}` : RESTORE_KEY;
+    const raw = isRestoreCapable() ? localStorage.getItem(restoreKey) : null;
     if (raw) {
       const j = JSON.parse(raw);
       if (Array.isArray(j.tabs) && j.tabs.length) {
@@ -278,6 +303,7 @@ export function setTabScope(next: string | null, here?: string) {
   persist();                      // 앞 범위 키에 현재 상태를 남긴다
   const prev = tabScope;
   tabScope = next;
+  rememberScope(next);            // 다음 부팅이 어느 스냅샷을 읽을지 (복원 단계 전용)
   let loaded = load();
   // 최초 도입 이관 — 범위 없이 저장돼 있던 탭을 첫 워크스페이스가 물려받는다.
   //
@@ -338,7 +364,20 @@ export function setTabScope(next: string | null, here?: string) {
     //   identity 에 들어가기 때문이다 — 쿼리로 여는 화면만 조용히 새고 있었다.
     //   위 주석의 의도("복원된 탭이 지금 있는 자리를 이기면 안 된다")를 쿼리까지 지킨다.
     //   owner 찾기는 종전대로 identity 로 둔다 — 그래야 탭이 쌓이지 않고 그 탭이 갱신된다.
-    const mismatched = !act || act.path !== hereNow;
+    // ★ 2026-09-09 — 데스크탑 "마지막 위치로 복원"(#340)이 여기서 죽고 있었다.
+    //   앱을 껐다 켜면 순서가 이렇다:
+    //     ① 부팅 load() — 아직 워크스페이스를 몰라 복원 스냅샷을 읽고 bootRestorePending 을 세운다
+    //     ② applyBootPath('/inbox') → ensureScopeFor 가 범위를 b5 로 갈아끼운다
+    //     ③ 그 setTabScope 안의 아래 정렬이 "지금 경로(/inbox)" 를 활성 탭으로 만들어
+    //        **복원된 /tasks 를 덮는다** → 앱은 늘 /inbox 에 선다(카나리 실측).
+    //   위 주석의 규칙("복원된 탭이 지금 있는 자리를 이기면 안 된다", 2026-09-04)은 그대로 옳다 —
+    //   주소로 들어온 경로가 마지막 탭에 튕기면 안 되기 때문이다. 그 규칙을 깎지 않고,
+    //   **앱이 스스로 연 기본 경로(start_url)로 재시작한 경우만** 예외로 둔다.
+    //   그 세 조건은 applyBootPath 가 이미 쓰던 것과 같다 — 판정을 두 벌로 만들지 않는다.
+    const relaunchRestore = bootRestorePending
+      && RELAUNCH_DEFAULT.has((hereNow || '/').split('?')[0])
+      && isAppRelaunch();
+    const mismatched = !relaunchRestore && (!act || act.path !== hereNow);
     if (state.tabs.length === 0) {
       // 새 범위가 비었으면 지금 화면을 첫 탭으로. 안 하면 화면은 떠 있는데 탭 막대가 빈다.
       const id = newId();
@@ -447,17 +486,24 @@ export const tabStore = {
   //   explicit=true 는 알림/공유 딥링크 — 언제나 그 경로가 이긴다.
   //   그 밖에 "복원으로 시작 + 앱이 연 기본 경로(start_url)" 면 마지막 위치를 유지한다.
   applyBootPath(path: string, opts?: { explicit?: boolean }) {
-    if (ensureScopeFor(path)) { bootRestorePending = false; return; }
+    // ★ 2026-09-09 — 여기서 `bootRestorePending = false; return;` 로 끝내는 바람에
+    //   복원 의도가 **범위를 맞추는 순간 버려졌다.** 범위 전환 안의 load() 가 복원 스냅샷을
+    //   다시 읽어 표식을 세워도, 바로 다음 줄에서 지워지고 주소는 /inbox 에 남았다.
+    //   → 범위는 맞추되(그게 이 줄의 원래 목적이다) **복원 판정은 그대로 이어서 한다.**
+    const swapped = ensureScopeFor(path);
     const restored = bootRestorePending;
     bootRestorePending = false;
     const act = activeTab(state);
-    if (!act) { this.newTab(path || '/dashboard'); return; }
+    if (!act) { if (!swapped) this.newTab(path || '/dashboard'); return; }
     // 앱(PWA·네이티브)이 스스로 연 기본 경로일 때만 마지막 위치가 이긴다.
     //   브라우저에서 /inbox 를 직접 연 것은 사용자의 명시 의도라 복원이 이겨선 안 된다(음성 대조군).
     if (!opts?.explicit && restored && RELAUNCH_DEFAULT.has((path || '/').split('?')[0]) && isAppRelaunch()) {
       if (state.mirror && navigateDelegate) navigateDelegate(act.path);  // 주소를 마지막 위치로
       return;
     }
+    // 범위를 갈아끼웠으면 setTabScope 가 이미 이 경로의 탭을 열고 활성화했다 —
+    //   계속 진행하면 같은 경로의 탭이 하나 더 생긴다(2026-09-08 실측).
+    if (swapped) return;
     // 같은 종류의 탭이 이미 있으면 그 탭을 그 경로로 (탭이 실행 때마다 쌓이지 않게)
     const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(path));
     if (!owner) { this.newTab(path); return; }
