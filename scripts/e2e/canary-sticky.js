@@ -90,7 +90,13 @@ async function probe(page) {
   }, SCROLL_BY);
 }
 
-(async () => {
+// ★ 2026-09-09 — 이 파일은 단독 실행형 IIFE 였는데 run.js SUITES 에 **등록돼 있었다.**
+//   그래서 `--suite all` 이 이 줄에서 `FATAL suite.run is not a function` 으로 죽었고,
+//   그 뒤 스위트는 하나도 안 돌았다. 게다가 require 만으로 IIFE 가 브라우저를 띄우고
+//   끝에서 process.exit 까지 불러 러너를 통째로 끌 수 있는 구조였다.
+//   → 러너 계약({name, run} · run 은 결과 **배열** 반환)에 맞춘다. 단독 실행도 그대로 된다.
+async function run() {
+  const out = [];
   const { browser, page } = await b.launch({});
   await page.setViewport({ width: 1440, height: 900 });
   await b.login(page);
@@ -192,5 +198,29 @@ async function probe(page) {
     for (const f of fails) console.log(`  - ${f.path} · ${f.el} (top:${f.top}) → ${f.verdict}: ${f.detail}`);
   }
   await browser.close();
-  process.exit(fails.length ? 1 : 0);
-})().catch(e => { console.error('[sticky] 크래시', e.message); process.exit(2); });
+
+  // 러너에 넘길 판정 — 커버리지도 **항목으로** 남긴다.
+  //   "0건" 이 정상인지 아무것도 안 본 것인지 구별되어야 한다.
+  out.push({
+    name: 'sticky/검사한 sticky 요소가 1개 이상',
+    fail: stickyChecked > 0 ? 0 : 1,
+    details: [`페이지 ${pagesChecked}/${PAGES.length} · sticky ${stickyChecked}개 판정 · 건너뜀 ${skipped}개 · 못 닿는 곳 ${OUT_OF_REACH}곳(토큰 필요)`],
+  });
+  out.push({
+    name: 'sticky/가려지거나 안 붙는 서브헤더 0건',
+    fail: fails.length ? 1 : 0,
+    details: fails.length
+      ? fails.map((f) => `${f.path} · ${f.el} (top:${f.top}) → ${f.verdict}: ${f.detail}`)
+      : ['0건'],
+  });
+  return out;
+}
+
+module.exports = { name: 'sticky — 서브헤더가 실제로 붙어 있는가', run };
+
+if (require.main === module) {
+  run().then((rs) => {
+    rs.forEach((x) => console.log((x.fail ? '❌' : '✅'), x.name, '—', (x.details || []).join(' | ')));
+    process.exit(rs.some((x) => x.fail) ? 1 : 0);
+  }).catch((e) => { console.error('[sticky] 크래시', e.message); process.exit(2); });
+}

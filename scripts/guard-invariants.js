@@ -1869,8 +1869,54 @@ function checkRawMarkup() {
   );
 }
 
+// ═══════════════════════════════════════════════
+// canary — **등록된 카나리가 러너 계약을 지키는가** (2026-09-09 신설)
+//
+//   `--suite all` 이 애초에 완주한 적이 없었다. `canary-sticky` 가 단독 실행형 IIFE 인데
+//   SUITES 에 등록돼 있어서, 러너가 `suite.run()` 을 부르는 순간
+//   `FATAL suite.run is not a function` 으로 죽고 **그 뒤 스위트가 하나도 안 돌았다.**
+//   그래서 같은 시기에 `canary-hangul-ime` 이 등록조차 안 된 채 방치된 것도 아무도 몰랐다.
+//   (한글 자모분리는 운영 #299·#389 로 두 번 신고된 계열이다.)
+//
+//   ★ 정적으로만 본다 — require 하면 IIFE 형 파일이 **브라우저를 띄우고 process.exit 까지**
+//     부를 수 있다. 검사기가 검사 대상을 실행시키면 안 된다.
+// ═══════════════════════════════════════════════
+function checkCanaryContract() {
+  const runPath = `${ROOT}/scripts/e2e/run.js`;
+  if (!fs.existsSync(runPath)) { report('canary', 'e2e run.js 존재', false, [runPath]); return; }
+  const runJs = read(runPath);
+  const re = /^\s{2}([a-zA-Z0-9_]+):\s*\(\)\s*=>\s*require\('\.\/([a-zA-Z0-9-]+)'\)/gm;
+  const rows = [];
+  let m;
+  while ((m = re.exec(runJs)) !== null) rows.push({ key: m[1], file: m[2] });
+
+  const bad = [];
+  for (const r of rows) {
+    const f = `${ROOT}/scripts/e2e/${r.file}.js`;
+    if (!fs.existsSync(f)) { bad.push(`${r.key} → ${r.file}.js 파일 없음`); continue; }
+    const src = read(f);
+    if (!/module\.exports\s*=\s*\{[\s\S]{0,300}?\brun\b/.test(src)) {
+      bad.push(`${r.key} → ${r.file}.js 가 { run } 을 export 하지 않는다 — --suite all 이 여기서 FATAL 로 죽는다`);
+    }
+  }
+  report('canary', `등록 카나리가 러너 계약 준수 (하드 게이트 · ${rows.length}개)`, bad.length === 0, bad);
+
+  // 파일은 있는데 등록이 없으면 **영영 안 돈다.** 의도적 예외만 허용한다.
+  //   · canary-ai-routine-fields — LLM 을 실제 호출해 Cue 쿼터를 쓴다(주석에 명시). 단독 실행 전용
+  //   · canary-chat-emoji        — 단독 실행형(IIFE, exit 0/1). 러너 계약을 안 쓴다
+  const KNOWN_STANDALONE = new Set(['canary-ai-routine-fields', 'canary-chat-emoji']);
+  const files = fs.readdirSync(`${ROOT}/scripts/e2e`)
+    .filter((f) => /^canary-.*\.js$/.test(f))
+    .map((f) => f.replace(/\.js$/, ''));
+  const registered = new Set(rows.map((r) => r.file));
+  const orphan = files.filter((f) => !registered.has(f) && !KNOWN_STANDALONE.has(f));
+  report('canary', '등록 안 된 카나리 없음 (있으면 한 번도 안 돈다)', orphan.length === 0,
+    orphan.map((o) => `${o}.js 가 run.js SUITES 에 없다 — 등록하거나 의도적 예외로 명시할 것`));
+}
+
 const CATEGORIES = {
   mock: checkMock,
+  canary: checkCanaryContract,
   i18n: checkI18n,
   parity: checkParity,
   fontpx: checkFontPx,
