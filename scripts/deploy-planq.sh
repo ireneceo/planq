@@ -10,6 +10,7 @@
 #   ./deploy-planq.sh --dry-run    # 미리보기 (rsync -n + 실제 명령 출력만)
 #   ./deploy-planq.sh --skip-build # 백엔드만 (긴급 hotfix)
 #   ./deploy-planq.sh --skip-qnote # Q Note 제외
+#   ./deploy-planq.sh --skip-gates # 게이트 건너뜀 (장애 대응 hotfix 전용 — 평소 쓰지 말 것)
 #
 # 사전 조건 (운영서버 1회 셋업, 이미 완료):
 #   1) /opt/planq/{backend,frontend-build,q-note,logs,uploads} mkdir
@@ -51,6 +52,7 @@ AUTO_MODE=false
 DRY_RUN=false
 SKIP_BUILD=false
 SKIP_QNOTE=false
+SKIP_GATES=false
 
 for arg in "$@"; do
   case "$arg" in
@@ -58,6 +60,7 @@ for arg in "$@"; do
     --dry-run)    DRY_RUN=true ;;
     --skip-build) SKIP_BUILD=true ;;
     --skip-qnote) SKIP_QNOTE=true ;;
+    --skip-gates) SKIP_GATES=true ;;
     *) echo "Unknown arg: $arg"; exit 1 ;;
   esac
 done
@@ -139,6 +142,39 @@ preflight_check() {
     if [ "$AUTO_MODE" = false ] && [ "$DRY_RUN" = false ]; then
       read -p "그래도 진행? (yes/no): " ANS
       [ "$ANS" = "yes" ] || { error "취소"; exit 1; }
+    fi
+  fi
+
+  # 6) 코드 게이트 — **여기서 막지 않으면 아무 데서도 안 막는다** (2026-09-09 신설)
+  #
+  #   여태 배포 스크립트에는 품질 게이트가 **하나도** 없었다. health-check 도 불변식 가드도
+  #   사람이 기억해야만 돌았고, 기억 못 하면 그대로 운영에 나갔다.
+  #   "게이트에 안 붙은 가드는 없는 가드" 다 — 가드를 50개 만들어도 부르는 곳이 없으면 0개다.
+  #
+  #   ★ 둘 다 실패 시 non-zero 를 준다는 것을 확인하고 붙였다(장식용 게이트 방지):
+  #     · health-check      process.exit(allPass ? 0 : 1)
+  #     · guard-invariants  process.exit(fail === 0 ? 0 : 1)
+  #       (실측 반증: `height: 22px` 위반을 심으니 EXIT 1, 원복하니 EXIT 0)
+  #
+  #   느린 실브라우저 카나리는 여기 넣지 않는다 — 배포마다 수 분이 붙으면 --skip-gates 가
+  #   습관이 되고, 그러면 게이트가 다시 0개가 된다. 여기는 **빠른 두 개만**.
+  if [ "$SKIP_GATES" = true ]; then
+    warn "코드 게이트 건너뜀 (--skip-gates) — 장애 대응이 아니라면 쓰지 말 것"
+  else
+    log "코드 게이트 실행 중 (health-check · 불변식 가드)..."
+    if node /opt/planq/scripts/health-check.js > /tmp/deploy-gate-health.log 2>&1; then
+      success "health-check 통과"
+    else
+      error "health-check 실패 — 배포 중단. 자세히: tail -40 /tmp/deploy-gate-health.log"
+      tail -15 /tmp/deploy-gate-health.log
+      exit 1
+    fi
+    if node /opt/planq/scripts/guard-invariants.js > /tmp/deploy-gate-guard.log 2>&1; then
+      success "불변식 가드 통과"
+    else
+      error "불변식 가드 실패 — 배포 중단. 자세히: tail -40 /tmp/deploy-gate-guard.log"
+      tail -15 /tmp/deploy-gate-guard.log
+      exit 1
     fi
   fi
 }
