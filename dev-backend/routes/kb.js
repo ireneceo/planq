@@ -122,6 +122,29 @@ function normalizeCandidateFields(c) {
   return { columns, values };
 }
 
+/**
+ * #332 — 항목만 있는 정보의 색인 본문을 항목에서 합성한다. **공식은 여기 하나뿐이다.**
+ *   ★ secret 타입 항목의 값은 절대 넣지 않는다 — 색인 본문은 임베딩·번역 API 로 나간다(#318).
+ *     항목명(라벨)만 남겨 "이 정보에 비밀번호 항목이 있다" 까지는 검색되게 한다.
+ *   생성(POST)과 항목 변경(PUT) 이 같은 함수를 부른다 — 베껴 두면 반드시 갈라진다.
+ *   항목이 하나도 없으면 '' 을 돌려준다(부르는 쪽이 판단한다).
+ */
+function synthesizeBodyFromColumns(title, customColumns, customValues) {
+  const cols = Array.isArray(customColumns) ? customColumns : [];
+  const vals = (customValues && typeof customValues === 'object') ? customValues : {};
+  const lines = [];
+  for (const c of cols) {
+    if (!c || !c.id) continue;
+    const raw = vals[c.id];
+    if (raw == null || String(raw).trim() === '') continue;
+    const label = String(c.name || c.id).trim();
+    if (c.type === 'secret') lines.push(label);            // 라벨만 — 값 제외
+    else lines.push(`${label}: ${String(raw).trim()}`);
+  }
+  if (lines.length === 0) return '';
+  return `${String(title || '').trim()}\n${lines.join('\n')}`;
+}
+
 async function upsertKbCategories(businessId, categories) {
   if (!Array.isArray(categories) || categories.length === 0) return;
   for (const name of categories) {
@@ -363,18 +386,8 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
     //   ★ secret 타입 항목의 **값은 절대 넣지 않는다** — 색인 본문은 임베딩·번역 API 로 나간다(#318).
     //     항목명(라벨)만 남겨 "이 정보에 비밀번호 항목이 있다" 까지는 검색되게 한다.
     if (!mergedBody.trim() && custom_values && typeof custom_values === 'object') {
-      const cols = Array.isArray(custom_columns) ? custom_columns : [];
-      const lines = [];
-      for (const c of cols) {
-        if (!c || !c.id) continue;
-        const raw = custom_values[c.id];
-        if (raw == null || String(raw).trim() === '') continue;
-        const label = String(c.name || c.id).trim();
-        if (c.type === 'secret') lines.push(label);            // 라벨만 — 값 제외
-        else lines.push(`${label}: ${String(raw).trim()}`);
-      }
       // 항목이 전부 secret 이어도 제목만으로 색인해 등록은 가능하게 한다.
-      if (lines.length > 0) mergedBody = `${String(title).trim()}\n${lines.join('\n')}`;
+      mergedBody = synthesizeBodyFromColumns(title, custom_columns, custom_values) || mergedBody;
     }
 
     if (!mergedBody.trim()) return errorResponse(res, 'no_indexable_content', 400);
@@ -873,7 +886,32 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
       patch.attached_post_ids = Array.isArray(req.body.attached_post_ids)
         ? req.body.attached_post_ids.map(Number).filter(Boolean) : null;
     }
+    // #408 — 항목을 지웠는데 **그 값이 본문에 남아 있었다.**
+    //   생성 때 본문이 비어 있으면 서버가 항목들로 본문을 합성해 둔다(#332). 그 본문은
+    //   공개 공유 응답과 검색 색인으로 나가므로, 항목만 지우면 화면에서는 사라지는데
+    //   본문에는 그대로 남아 계속 노출된다(2026-09-09 실측 — 공개 응답 body 에서 확인).
+    //   ★ 사용자가 직접 고친 본문은 건드리지 않는다. **지금 본문이 옛 항목들의 합성 결과와
+    //     글자까지 같을 때만** = 기계가 만들고 아무도 손대지 않았을 때만 다시 계산한다.
+    //   ★ 본문이 바뀌면 색인도 다시 만든다 — 안 그러면 검색에는 지운 값이 계속 산다.
+    let bodyResynced = false;
+    if (patch.body === undefined
+        && (patch.custom_columns !== undefined || patch.custom_values !== undefined)) {
+      const prevSynth = synthesizeBodyFromColumns(doc.title, doc.custom_columns, doc.custom_values);
+      if (prevSynth && String(doc.body || '') === prevSynth) {
+        const nextTitle = (patch.title !== undefined) ? patch.title : doc.title;
+        const nextCols = (patch.custom_columns !== undefined) ? patch.custom_columns : doc.custom_columns;
+        const nextVals = (patch.custom_values !== undefined) ? patch.custom_values : doc.custom_values;
+        // 항목이 다 지워졌으면 제목만 남긴다 — 본문을 빈 값으로 만들면 색인할 것이 사라진다.
+        const nextBody = synthesizeBodyFromColumns(nextTitle, nextCols, nextVals) || String(nextTitle || '').trim();
+        if (nextBody && nextBody !== String(doc.body || '')) { patch.body = nextBody; bodyResynced = true; }
+      }
+    }
     await doc.update(patch);
+    if (bodyResynced) {
+      kbService.indexDocument(doc.id).catch(err => {
+        console.error('[kb] resync reindex failed', doc.id, err.message);
+      });
+    }
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
       action: 'kb.document_update',
