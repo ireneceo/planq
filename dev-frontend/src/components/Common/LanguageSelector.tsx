@@ -1,3 +1,4 @@
+// autosave-exempt: 고른 즉시 **화면 언어가 통째로 바뀌는 것**이 곧 결과다. 그 위에 ✓ 를 얹으면 잡음이다.
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';

@@ -1,3 +1,4 @@
+// autosave-exempt: 자동저장이 아니다 — 지식 카드 승인/거절은 액션 버튼이고, 추가 폼에는 등록 버튼이 있다.
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드 관리 (설정 > Cue 탭)
 //   자동 채굴 제안(pending) 수락/거절 + 직접 추가/삭제. active 카드만 Cue 답변에 주입된다.
 import React, { useCallback, useEffect, useState } from 'react';

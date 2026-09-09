@@ -1,11 +1,12 @@
 // 알림 설정 매트릭스 (Phase E4)
 // 이벤트 × 채널 × On/Off — 사용자 본인 (워크스페이스 컨텍스트)
 import { isNativeApp } from '../../services/native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { InboxIcon, ChatIcon, MailIcon } from '../../components/Common/Icons';
+import AutoSaveField from '../../components/Common/AutoSaveField';
 import PwaInstallSection from './PwaInstallSection';
 import WeeklyReviewAutoSection from '../../components/QTask/WeeklyReviewAutoSection';
 
@@ -48,7 +49,6 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
   const [matrix, setMatrix] = useState<Matrix | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!businessId) return;
@@ -67,31 +67,39 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
     return () => { cancelled = true; };
   }, [businessId]);
 
-  const toggle = async (event: EventKind, channel: Channel) => {
-    if (!matrix) return;
-    const current = matrix[event][channel];
-    const next = !current;
-    const key = `${event}-${channel}`;
-    setSavingKey(key);
-    // 낙관적 업데이트
-    setMatrix({ ...matrix, [event]: { ...matrix[event], [channel]: next } });
-    try {
-      const r = await apiFetch('/api/notifications/prefs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId, event_kind: event, channel, enabled: next }),
-      });
-      const j = await r.json();
-      if (!j.success) throw new Error(j.message || 'save_failed');
-      // 사이클 N+16-C — Toaster 캐시 무효화 (chat channel 검사 즉시 반영).
-      window.dispatchEvent(new Event('planq:notif-prefs-changed'));
-    } catch (e) {
-      // 실패 시 원복
-      setMatrix({ ...matrix, [event]: { ...matrix[event], [channel]: current } });
-      setError((e as Error).message);
-    } finally {
-      setSavingKey(null);
+  // ★ 2026-09-09 — 토글은 즉시 저장되는데 **저장됐다는 표시가 없었다**
+  //   (Irene: "자동저장되는 체크아이콘 표시 없는 곳이 너무 많아. 특히 설정들. 중요한데").
+  //   AutoSaveField(type="toggle")가 ✓/스피너/! 를 그려 주므로 그 계약에 맞춰 둘로 가른다:
+  //     · flip   = 눌린 즉시 화면만 바꾼다(낙관적). 여기서 저장하면 래퍼와 **두 번** 나간다.
+  //     · persist= 래퍼가 300ms 뒤 부르는 실제 저장. 실패하면 되돌린다.
+  //   persist 는 클로저가 아니라 **ref 로 최신 값**을 읽는다 — 클릭으로 이미 뒤집힌 값을
+  //   저장해야 하는데 클로저의 matrix 는 뒤집기 전 값이다.
+  const matrixRef = useRef<typeof matrix>(null);
+  matrixRef.current = matrix;
+
+  const flip = (event: EventKind, channel: Channel) => {
+    setMatrix((m) => (m ? { ...m, [event]: { ...m[event], [channel]: !m[event][channel] } } : m));
+  };
+
+  const persist = async (event: EventKind, channel: Channel) => {
+    const m = matrixRef.current;
+    if (!m) return;
+    const next = m[event][channel];
+    setError(null);
+    const r = await apiFetch('/api/notifications/prefs', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_id: businessId, event_kind: event, channel, enabled: next }),
+    });
+    const j = await r.json();
+    if (!j.success) {
+      // 실패 시 원복 — 화면이 서버와 다른 값을 보여주면 안 된다
+      setMatrix((cur) => (cur ? { ...cur, [event]: { ...cur[event], [channel]: !next } } : cur));
+      setError(j.message || 'save_failed');
+      throw new Error(j.message || 'save_failed');   // 래퍼가 ! 뱃지를 띄우려면 던져야 한다
     }
+    // 사이클 N+16-C — Toaster 캐시 무효화 (chat channel 검사 즉시 반영).
+    window.dispatchEvent(new Event('planq:notif-prefs-changed'));
   };
 
   if (loading) return <Loading>{t('common.loading', '불러오는 중...')}</Loading>;
@@ -135,20 +143,22 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
               </EventCell>
               {CHANNELS.map(ch => {
                 const enabled = matrix[ev][ch];
-                const saving = savingKey === `${ev}-${ch}`;
                 return (
                   <ToggleCell key={ch}>
-                    <Switch
-                      type="button"
-                      role="switch"
-                      aria-checked={enabled}
-                      $on={enabled}
-                      $saving={saving}
-                      onClick={() => toggle(ev, ch)}
-                      title={enabled ? t('common.on', 'ON') as string : t('common.off', 'OFF') as string}
-                    >
-                      <SwitchKnob $on={enabled} />
-                    </Switch>
+                    {/* 래퍼가 click 을 받아 300ms 뒤 persist 를 부르고 ✓/스피너/! 를 그린다.
+                        계약대로 래퍼 안에는 **저장 대상 컨트롤만** 둔다. */}
+                    <AutoSaveField type="toggle" onSave={() => persist(ev, ch)}>
+                      <Switch
+                        type="button"
+                        role="switch"
+                        aria-checked={enabled}
+                        $on={enabled}
+                        onClick={() => flip(ev, ch)}
+                        title={enabled ? t('common.on', 'ON') as string : t('common.off', 'OFF') as string}
+                      >
+                        <SwitchKnob $on={enabled} />
+                      </Switch>
+                    </AutoSaveField>
                   </ToggleCell>
                 );
               })}
@@ -475,12 +485,12 @@ const EventCell = styled.div`padding: 14px 14px; display: flex; flex-direction: 
 const EventLabel = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const EventDesc = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.4;`;
 const ToggleCell = styled.div`padding: 14px 0; display: flex; align-items: center; justify-content: center;`;
-const Switch = styled.button<{ $on: boolean; $saving: boolean }>`
+// $saving 은 없앴다 — 저장 중 표시는 AutoSaveField 의 스피너가 맡는다(한 곳에서).
+const Switch = styled.button<{ $on: boolean }>`
   width: 36px; height: 20px; border-radius: 999px; border: none;
   background: ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
   position: relative; cursor: pointer;
   transition: background 0.15s;
-  opacity: ${p => p.$saving ? 0.6 : 1};
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 const SwitchKnob = styled.span<{ $on: boolean }>`

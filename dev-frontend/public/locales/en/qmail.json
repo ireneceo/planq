@@ -517,8 +517,8 @@
     "appliesNone": "No company mailbox is connected in this workspace. Register the domain in the workspace that has the mailbox."
   },
   "quoteFold": {
-    "show": "⋯ Show previous conversation",
-    "hide": "Hide previous conversation"
+    "show": "Show previous conversation ▾",
+    "hide": "Hide previous conversation ▴"
   },
   "authDiag": {
     "title": "Domain authentication (sending reputation)",

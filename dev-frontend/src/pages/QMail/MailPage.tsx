@@ -1755,9 +1755,12 @@ const MailPage: React.FC = () => {
   );
   // 인용 접기 토글 문구 — iframe 안에서는 t() 를 쓸 수 없어 문자열로 넘긴다.
   //   객체 신원이 매 렌더 바뀌면 srcDoc memo 가 깨지므로 useMemo 로 고정한다.
+  //   ★ 점 세 개(⋯)를 쓰지 않는다 (2026-09-09). 같은 화면에서 ⋯ 는 **오버플로 메뉴**를 뜻하는데
+  //     이 토글이 같은 글자를 "더 있다" 는 뜻으로 써서 두 가지가 섞였다
+  //     (Irene: "... 아이콘도 왜 점점점인지 이해가 안가네"). 펼침/접힘은 방향(▾▴)으로 말한다.
   const foldLabels = useMemo(() => ({
-    show: t('quoteFold.show', { defaultValue: '⋯ 이전 대화 보기' }) as string,
-    hide: t('quoteFold.hide', { defaultValue: '이전 대화 숨기기' }) as string,
+    show: t('quoteFold.show', { defaultValue: '이전 대화 보기 ▾' }) as string,
+    hide: t('quoteFold.hide', { defaultValue: '이전 대화 숨기기 ▴' }) as string,
   }), [t]);
 
   // 전달할 원문 — 미리보기에 쓴다. detail.messages 에서 그 메시지를 찾는다.

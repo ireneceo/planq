@@ -2006,6 +2006,57 @@ function checkChromeOffset() {
   report('chromeoffset', '모바일 모달 상단 기준선이 토큰 (하드 게이트)', hits.length === 0, hits);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// autosave — 바뀌면 바로 저장하는 입력란은 **저장됐다고 말해야** 한다 (2026-09-09 박제)
+//   Irene: "우리 자동저장인데 입력란들 자동저장되는 체크아이콘 표시 없는 곳이 너무 많아.
+//           특히 설정들. 중요한데. 입력란 컴포넌트 같은 거 다 통일해서 사용하는 거 아니야?
+//           왜 각각 따로 되고 안되고 그래?"
+//   이유: `AutoSaveField` 는 **입력란이 아니라 감싸는 껍데기**다. 아무것도 강제하지 않아
+//   새 입력란의 기본값이 "✓ 없음" 이고, 만든 사람이 기억했는지에 따라 갈렸다
+//   (실측: 19개 파일은 감쌌고 설정 화면 다수는 안 감쌌다 — 60px 하드코딩과 같은 모양이다).
+//   저장은 되는데 화면이 아무 말을 안 하면 사용자는 저장됐는지 알 수 없다 —
+//   memory feedback_ui_control_sends_nothing 과 같은 계열의, 더 조용한 버전이다.
+//
+//   판정: 한 파일이 ① 변경 즉시 저장(PUT/PATCH)을 하고 ② 명시적 저장/제출 버튼이 없고
+//        ③ `<AutoSaveField` 가 하나도 없으면 위반. 래칫이라 기존 부채는 동결되고 증가만 실패한다.
+//   제외: 저장 버튼이 있는 폼(청구서처럼 복잡한 폼은 버튼 허용 — CLAUDE.md 자동저장 예외),
+//        읽기 전용 화면, 한 번짜리 액션(발급·삭제·연결 해제).
+function checkAutoSave() {
+  const files = [
+    ...walk(`${ROOT}/dev-frontend/src/pages`, ['.tsx']),
+    ...walk(`${ROOT}/dev-frontend/src/components`, ['.tsx']),
+  ];
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const src = read(f);
+    const r = rel(f);
+    if (/<AutoSaveField/.test(src)) continue;                       // 감쌌으면 통과
+    // ★ 의도적 예외는 **코드에 이유와 함께** 선언한다 — 베이스라인에 조용히 묻지 않는다.
+    //   `// autosave-exempt: <이유>` 한 줄. 리뷰에서 이유가 보이고, 이유가 사라지면 다시 걸린다.
+    //   (실측 false positive: 적용 버튼이 있는 화면, 선택 자체가 결과인 화면 — 아래 사용처 참조)
+    if (/\/\/\s*autosave-exempt:/.test(src)) continue;
+    const saves = (src.match(/method:\s*'(PUT|PATCH)'/g) || []).length;
+    if (!saves) continue;                                           // 저장 자체가 없다
+    // 명시적 저장/제출 버튼 — 있으면 자동저장 화면이 아니다
+    if (/(저장하기|저장<\/|>\s*저장\s*<|'저장'|"저장"|Save<\/|>\s*Save\s*<|type="submit")/.test(src)) continue;
+    // 변경 즉시 저장인가 — 컨트롤의 change/click 이 저장 경로로 이어지는가
+    const changeDriven =
+      /on(Change|Blur)=\{/.test(src) ||
+      /role="switch"/.test(src) ||
+      /<(Toggle|Switch)[\s>]/.test(src);
+    if (!changeDriven) continue;
+    current[r] = saves;
+    if (samples.length < 12) samples.push(`${r}: PUT/PATCH ${saves}건인데 ✓ 뱃지(AutoSaveField)가 없다`);
+  }
+  const rt = ratchet('autosave', current, samples);
+  report('autosave', `자동저장 ✓ 표시 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+  if (rt.fails.length === 0 && rt.improved > 0) {
+    report('autosave', `부채 ${rt.improved}개 파일 감소 — --update-baseline 으로 조이기 권장`, true, []);
+  }
+}
+
 const CATEGORIES = {
   mock: checkMock,
   canary: checkCanaryContract,
@@ -2041,6 +2092,7 @@ const CATEGORIES = {
   statuslabel: checkStatusLabel,
   overlaytop: checkOverlayTop,
   chromeoffset: checkChromeOffset,
+  autosave: checkAutoSave,
   modalportal: checkModalPortal,
   sharedrive: checkSharedDrive,
   rawmarkup: checkRawMarkup,

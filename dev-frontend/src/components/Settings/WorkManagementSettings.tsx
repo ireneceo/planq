@@ -3,9 +3,10 @@
 // 주간 보고 자동 확정 요일·시각 (owner/admin 만 PUT).
 // 권한 매트릭스의 weekly_team 메뉴는 PermissionsSettings 에서 관리 (분리).
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import AutoSaveField from '../Common/AutoSaveField';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../Common/PlanQSelect';
 
@@ -23,7 +24,6 @@ const DOW_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 const WorkManagementSettings: React.FC<Props> = ({ businessId, isAdmin }) => {
   const { t } = useTranslation('settings');
   const [s, setS] = useState<Settings | null>(null);
-  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,17 +38,30 @@ const WorkManagementSettings: React.FC<Props> = ({ businessId, isAdmin }) => {
     return () => { cancelled = true; };
   }, [businessId]);
 
-  const save = async (patch: Partial<Settings>, key: string) => {
+  // ★ 2026-09-09 — 바꾸면 바로 저장되는데 **저장됐다는 표시가 없었다**
+  //   (Irene: "자동저장되는 체크아이콘 표시 없는 곳이 너무 많아. 특히 설정들").
+  //   AutoSaveField 계약에 맞춰 둘로 가른다 — 래퍼가 300ms 뒤 persist 를 부르므로
+  //   컨트롤 쪽에서 저장까지 하면 **두 번** 나간다.
+  //     · stage   = 화면만 먼저 바꾸고 보낼 값을 모아 둔다
+  //     · persist = 래퍼가 부르는 실제 저장. 실패하면 던져야 ! 뱃지가 뜬다.
+  const pendingRef = useRef<Partial<Settings>>({});
+  const stage = (patch: Partial<Settings>) => {
     if (!isAdmin) return;
-    setSavingKey(key);
-    try {
-      const r = await apiFetch(`/api/businesses/${businessId}/weekly-finalize`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
-      });
-      const j = await r.json();
-      if (j.success) setS(prev => prev ? { ...prev, ...j.data } : prev);
-    } finally { setSavingKey(null); }
+    pendingRef.current = { ...pendingRef.current, ...patch };
+    setS(prev => (prev ? { ...prev, ...patch } : prev));
+  };
+  const persist = async () => {
+    if (!isAdmin) return;
+    const patch = pendingRef.current;
+    pendingRef.current = {};
+    if (!Object.keys(patch).length) return;
+    const r = await apiFetch(`/api/businesses/${businessId}/weekly-finalize`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    const j = await r.json();
+    if (!j.success) throw new Error(j.message || 'save_failed');
+    setS(prev => prev ? { ...prev, ...j.data } : prev);
   };
 
   if (!s) return null;
@@ -78,14 +91,16 @@ const WorkManagementSettings: React.FC<Props> = ({ businessId, isAdmin }) => {
           <FieldLabel>{t('workManagement.autoFinalize.enabled', '자동 확정 활성')}</FieldLabel>
           <FieldHint>{t('workManagement.autoFinalize.enabledHint', '꺼두면 자동 생성을 멈춰요. 수동으로 "이번 주 확정" 버튼은 그대로 사용 가능.')}</FieldHint>
         </Field>
-        <Switch
-          role="switch" aria-checked={s.weekly_finalize_enabled} type="button"
-          $on={s.weekly_finalize_enabled}
-          disabled={!isAdmin || savingKey === 'enabled'}
-          onClick={() => save({ weekly_finalize_enabled: !s.weekly_finalize_enabled }, 'enabled')}
-        >
-          <Knob $on={s.weekly_finalize_enabled} />
-        </Switch>
+        <AutoSaveField type="toggle" onSave={persist}>
+          <Switch
+            role="switch" aria-checked={s.weekly_finalize_enabled} type="button"
+            $on={s.weekly_finalize_enabled}
+            disabled={!isAdmin}
+            onClick={() => stage({ weekly_finalize_enabled: !s.weekly_finalize_enabled })}
+          >
+            <Knob $on={s.weekly_finalize_enabled} />
+          </Switch>
+        </AutoSaveField>
       </Row>
 
       {s.weekly_finalize_enabled && (
@@ -96,16 +111,18 @@ const WorkManagementSettings: React.FC<Props> = ({ businessId, isAdmin }) => {
               <FieldHint>{t('workManagement.autoFinalize.dowHint', '지난 주 데이터를 이 요일 기준으로 확정합니다 (default: 월요일).')}</FieldHint>
             </Field>
             <Control>
-              <PlanQSelect
-                value={{ value: String(s.weekly_finalize_dow), label: t(`workManagement.dow.${DOW_KEYS[s.weekly_finalize_dow]}`) as string }}
-                onChange={(opt) => {
-                  const v = Number((opt as { value: string } | null)?.value);
-                  if (Number.isFinite(v)) save({ weekly_finalize_dow: v }, 'dow');
-                }}
-                options={DOW_KEYS.map((k, i) => ({ value: String(i), label: t(`workManagement.dow.${k}`) as string }))}
-                size="md"
-                isDisabled={!isAdmin || savingKey === 'dow'}
-              />
+              <AutoSaveField type="select" onSave={persist}>
+                <PlanQSelect
+                  value={{ value: String(s.weekly_finalize_dow), label: t(`workManagement.dow.${DOW_KEYS[s.weekly_finalize_dow]}`) as string }}
+                  onChange={(opt) => {
+                    const v = Number((opt as { value: string } | null)?.value);
+                    if (Number.isFinite(v)) stage({ weekly_finalize_dow: v });
+                  }}
+                  options={DOW_KEYS.map((k, i) => ({ value: String(i), label: t(`workManagement.dow.${k}`) as string }))}
+                  size="md"
+                  isDisabled={!isAdmin}
+                />
+              </AutoSaveField>
             </Control>
           </Row>
 
@@ -115,16 +132,18 @@ const WorkManagementSettings: React.FC<Props> = ({ businessId, isAdmin }) => {
               <FieldHint>{t('workManagement.autoFinalize.hourHint', '워크스페이스 timezone 기준 (default: 자정 직후 00시).')}</FieldHint>
             </Field>
             <Control>
-              <PlanQSelect
-                value={{ value: String(s.weekly_finalize_hour), label: `${String(s.weekly_finalize_hour).padStart(2, '0')}:00` }}
-                onChange={(opt) => {
-                  const v = Number((opt as { value: string } | null)?.value);
-                  if (Number.isFinite(v)) save({ weekly_finalize_hour: v }, 'hour');
-                }}
-                options={Array.from({ length: 24 }, (_, i) => ({ value: String(i), label: `${String(i).padStart(2, '0')}:00` }))}
-                size="md"
-                isDisabled={!isAdmin || savingKey === 'hour'}
-              />
+              <AutoSaveField type="select" onSave={persist}>
+                <PlanQSelect
+                  value={{ value: String(s.weekly_finalize_hour), label: `${String(s.weekly_finalize_hour).padStart(2, '0')}:00` }}
+                  onChange={(opt) => {
+                    const v = Number((opt as { value: string } | null)?.value);
+                    if (Number.isFinite(v)) stage({ weekly_finalize_hour: v });
+                  }}
+                  options={Array.from({ length: 24 }, (_, i) => ({ value: String(i), label: `${String(i).padStart(2, '0')}:00` }))}
+                  size="md"
+                  isDisabled={!isAdmin}
+                />
+              </AutoSaveField>
             </Control>
           </Row>
         </SubOptions>
