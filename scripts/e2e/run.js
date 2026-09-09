@@ -106,6 +106,11 @@ const SUITES = {
   // 무인증 공개 응답이 화면이 안 쓰는 것까지 싣고 있지 않은가 (2026-09-09).
   //   렌더가 아니라 **응답 raw** 를 스캔한다 — 보이지 않는 것과 나가지 않는 것은 다르다.
   publicpayload: () => require('./canary-public-payload'),
+  // 한글 IME 조합 — 자모가 분리되던 운영 #299·#389 계열.
+  //   ★ 파일은 2026-08 부터 있었는데 **여기 등록이 빠져 한 번도 안 돌았다**(2026-09-09 발견).
+  //     게다가 반환이 배열이 아니라 러너 계약도 안 맞았고, 안 보이는 입력창을 클릭해 죽고 있었다.
+  //     셋 다 고쳤다 — 가드는 있는데 부르는 곳이 없으면 없는 가드다.
+  hangulime: () => require('./canary-hangul-ime'),
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };

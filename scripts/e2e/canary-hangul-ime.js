@@ -71,19 +71,47 @@ async function probe(page, label, url, selector, opener, jolt) {
     const ok = await opener(page);
     if (!ok) return { label, skipped: '입력창을 열지 못함' };
   }
-  const el = await page.$(selector);
-  if (!el) return { label, skipped: `selector 없음: ${selector}` };
+  // ★ 2026-09-09 — 여기서 검사기가 통째로 죽고 있었다("Node is either not clickable or not
+  //   an Element"). `page.$` 는 **화면에 안 그려진 첫 번째 매치**도 그대로 준다(폭 0·display:none·
+  //   화면 밖). 그걸 클릭하면 puppeteer 가 던지고, 그 순간 뒤의 probe 도 양성 대조군도 못 돈다.
+  //   → 매치 중 **실제로 보이는 것**을 고르고, 화면 안으로 넣은 뒤 좌표로 누른다.
+  //   ★ 못 찾으면 던지지 않고 이유를 적어 skipped 로 돌린다. 단 skipped 는 통과가 아니다 —
+  //     아래에서 "검사 0개" 를 실패로 판정하는 규칙이 그대로 남아 있다.
+  const box = await page.evaluate((sel) => {
+    const nodes = Array.from(document.querySelectorAll(sel));
+    for (let i = 0; i < nodes.length; i += 1) {
+      const n = nodes[i];
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || n.disabled || n.readOnly) continue;
+      n.scrollIntoView({ block: 'center', inline: 'nearest' });
+      const r = n.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8) continue;
+      const cx = Math.round(r.left + r.width / 2);
+      const cy = Math.round(r.top + r.height / 2);
+      const hit = document.elementFromPoint(cx, cy);
+      if (!hit || !(hit === n || n.contains(hit) || hit.contains(n))) continue;
+      n.setAttribute('data-pq-ime-probe', '1');
+      return { idx: i, cx, cy };
+    }
+    return null;
+  }, selector);
+  if (!box) return { label, skipped: `보이는 입력창 없음: ${selector}` };
+  const probeSel = '[data-pq-ime-probe="1"]';
 
   const client = await page.target().createCDPSession();
-  await el.click();
+  await page.mouse.click(box.cx, box.cy);   // 합성 click 금지 — mousedown 이 없다
   await sleep(200);
   await imeType(page, client, jolt);
   await sleep(300);
   const value = await page.evaluate((s) => {
     const n = document.querySelector(s);
     return n ? (n.value !== undefined ? n.value : n.textContent) : null;
-  }, selector);
+  }, probeSel);
   await client.detach();
+  await page.evaluate((s) => {
+    const n = document.querySelector(s);
+    if (n) n.removeAttribute('data-pq-ime-probe');
+  }, probeSel);
 
   return { label, value, broken: isBroken(value), ok: value === FULL };
 }
@@ -136,10 +164,18 @@ async function run() {
   // ★ 양성 대조군 — **검사기가 깨진 것을 잡을 수 있는지 먼저 증명한다.**
   //   조합 중 value 를 되쓰는 입력창을 즉석에서 만들어 넣는다. 여기서 '깨짐' 이 안 나오면
   //   위의 PASS 들은 "안 깨졌다" 가 아니라 "검사기가 아무것도 못 본다" 는 뜻이다.
+  // ★ 2026-09-09 — run.js 는 **배열**을 기대한다(`printSuite` 가 r.name/r.fail/r.details 를 읽는다).
+  //   여태 이 카나리만 `{name, pass, detail}` 을 돌려줘서, 등록해 두었더라도 러너에서 깨졌을 것이다.
+  //   (그래서였는지 애초에 run.js 에 등록조차 안 돼 있었다 — 한 번도 안 돈 가드였다.)
+  const out = [];
+  const push = (name, ok, details) => out.push({ name, fail: ok ? 0 : 1, details: [details] });
+
   if (!control || !control.broken) {
     console.log('  ⚠ 양성 대조군이 안 깨졌다 — 검사기를 믿을 수 없다.');
-    return { name: 'hangul-ime', pass: false, detail: '검사기 반증 실패' };
+    push('양성 대조군이 깨짐을 잡는다', false, '검사기 반증 실패 — 아래 PASS 는 믿을 수 없다');
+    return out;
   }
+  push('양성 대조군이 깨짐을 잡는다(검사기 유효)', true, `일부러 깨뜨린 입력 → "${control.value}"`);
 
   const tested = results.filter(r => !r.skipped);
   const broken = tested.filter(r => r.broken);
@@ -151,16 +187,21 @@ async function run() {
     const mark = r.ok ? '✓' : (r.broken ? '✗ 자모분리' : '△ 불일치');
     console.log(`  ${mark} ${r.label} — 기대 "${FULL}" / 실제 "${r.value}"`);
   }
-  if (!tested.length) {
-    console.log('  ⚠ 검사한 입력창이 0개 — 통과가 아니라 검사 실패다.');
-    return { name: 'hangul-ime', pass: false, detail: '대상 0개' };
+  // 검사 0개는 통과가 아니다 — "아무것도 못 봤다" 와 "멀쩡하다" 를 구분한다.
+  push('검사한 입력창이 1개 이상', tested.length > 0, `검사 ${tested.length}개 · 건너뜀 ${results.length - tested.length}개`);
+  for (const r of results) {
+    if (r.skipped) continue;   // 건너뜀은 위 커버리지 항목이 대변한다
+    push(`자모가 분리되지 않는다 — ${r.label}`, !r.broken, `기대 "${FULL}" / 실제 "${r.value}"`);
   }
-  return { name: 'hangul-ime', pass: broken.length === 0, detail: `${broken.length}/${tested.length} 깨짐` };
+  return out;
 }
 
 module.exports = { name: '한글 IME 조합', run };
 
 if (require.main === module) {
-  run().then(r => { console.log('\n' + (r.pass ? '✓ PASS' : '✗ FAIL') + ' — ' + r.detail); process.exit(r.pass ? 0 : 1); })
-    .catch(e => { console.error('검사기 자체 오류:', e.message); process.exit(2); });
+  run().then((rs) => {
+    console.log('');
+    rs.forEach((x) => console.log((x.fail ? '❌' : '✅'), x.name, '—', (x.details || []).join(' ')));
+    process.exit(rs.some((x) => x.fail || x.fatal) ? 1 : 0);
+  }).catch(e => { console.error('검사기 자체 오류:', e.message); process.exit(2); });
 }
