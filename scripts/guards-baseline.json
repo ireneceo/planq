@@ -141,7 +141,7 @@
     "dev-frontend/src/pages/QTalk/ChatPanel.tsx": 3715,
     "dev-frontend/src/pages/QTalk/QTalkPage.tsx": 1994,
     "dev-frontend/src/pages/QTalk/RightPanel.tsx": 869,
-    "dev-frontend/src/pages/QTask/QTaskPage.tsx": 4181,
+    "dev-frontend/src/pages/QTask/QTaskPage.tsx": 4214,
     "dev-frontend/src/pages/Settings/EmailAccountSettings.tsx": 967,
     "dev-frontend/src/pages/Settings/PlanSettings.tsx": 1077,
     "dev-frontend/src/pages/Settings/WorkspaceSettingsPage.tsx": 2107
@@ -298,7 +298,6 @@
     "dev-frontend/src/pages/QProject/ProcessPartsTab.tsx": 3,
     "dev-frontend/src/pages/QProject/ProjectTaskList.tsx": 2,
     "dev-frontend/src/pages/QProject/QProjectPage.tsx": 1,
-    "dev-frontend/src/pages/QTask/QTaskPage.tsx": 8,
     "dev-frontend/src/components/Common/TermsReacceptModal.tsx": 1,
     "dev-frontend/src/components/Focus/DailyStartModal.tsx": 1,
     "dev-frontend/src/components/Focus/FocusSettingsCard.tsx": 1,

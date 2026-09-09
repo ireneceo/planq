@@ -6,6 +6,7 @@ import { listRowTitleCss, CONTROL } from '../../theme/tokens';
 import { escapeConsumedByOverlay } from '../../hooks/useEscapeStack';
 import { createTaskTag } from '../../components/QTask/createTaskTag';
 import { useTranslation } from 'react-i18next';
+import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/AutoSaveField';
 import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
 import { useAuth } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
@@ -1631,6 +1632,19 @@ const QTaskPage:React.FC=()=>{
     if(field==='participation_rate')setCapacity(prev=>({...prev,rate:value,weekly:Math.round(prev.daily*prev.days*value*10)/10}));
     if(field==='weekly_holidays')setHolidayDays(value);
   };
+  // ★ 2026-09-09 — 저장 표시를 붙인다(Irene 확인: "계산 건드리는 거 아니면 더 좋은 거면 해").
+  //   계산식·집합·라벨·축은 **한 글자도 안 건드린다**(memory feedback_capacity_graph_frozen).
+  //   같이 고친 것: 실패해도 **조용히 되돌리기만** 했다 — 사용자는 저장이 안 된 것을 모른 채
+  //   화면 값이 슬쩍 되돌아가는 것만 봤다. 이제 던져서 래퍼가 ! 를 띄운다.
+  //   ※ 이 입력들은 onChange 가 아니라 **onBlur** 로 저장한다(값을 안 바꿨는데 덮어쓰던 사고 때문).
+  //     그래서 래퍼의 자식 onChange 가로채기가 안 먹는다 → ref.triggerSave() 로 직접 부른다.
+  const capSaveRefs = {
+    daily: useRef<AutoSaveHandle>(null),
+    days: useRef<AutoSaveHandle>(null),
+    hol: useRef<AutoSaveHandle>(null),
+    rate: useRef<AutoSaveHandle>(null),
+  };
+  const pendingCapRef = useRef<{ field: string; value: number } | null>(null);
   const saveCapacity=async(field:string,value:number)=>{
     if(!bizId)return;
     const prevCap={...capacity}, prevHol=holidayDays;
@@ -1640,7 +1654,7 @@ const QTaskPage:React.FC=()=>{
       if(!memberId){                                // 캐시가 없을 때만 1회 조회
         const mr=await(await apiFetch(`/api/businesses/${bizId}/members`)).json();
         const me=mr.data?.find((m:{user_id:number;id:number})=>m.user_id===myId);
-        if(!me){ setCapacity(prevCap); setHolidayDays(prevHol); return; }
+        if(!me){ setCapacity(prevCap); setHolidayDays(prevHol); throw new Error('member_not_found'); }
         memberId=me.id; myMemberIdRef.current=me.id;
       }
       const r=await apiFetch(`/api/businesses/${bizId}/members/${memberId}/work-hours`,{
@@ -1648,8 +1662,19 @@ const QTaskPage:React.FC=()=>{
         body:JSON.stringify({[field]:value}),
       });
       // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다(memory: apifetch_no_throw).
-      if(!r.ok){ setCapacity(prevCap); setHolidayDays(prevHol); }
-    }catch{ setCapacity(prevCap); setHolidayDays(prevHol); }
+      if(!r.ok){ setCapacity(prevCap); setHolidayDays(prevHol); throw new Error('save_failed'); }
+    }catch(e){ setCapacity(prevCap); setHolidayDays(prevHol); throw e; }
+  };
+  // 래퍼가 부른다 — 마지막으로 blur 된 칸의 값을 보낸다(한 번에 한 칸만 편집된다).
+  const persistCapacity=async()=>{
+    const p=pendingCapRef.current;
+    if(!p)return;
+    pendingCapRef.current=null;
+    await saveCapacity(p.field,p.value);
+  };
+  const stageCapacity=(field:string,value:number,ref:React.RefObject<AutoSaveHandle|null>)=>{
+    pendingCapRef.current={field,value};
+    ref.current?.triggerSave();
   };
 
   // ★ #254 — 그래프의 정본 집합. **filtered 파생 금지**: 검색어를 치거나 "완료 가리기" 를 켜면
@@ -3129,42 +3154,50 @@ const QTaskPage:React.FC=()=>{
                           key 가 없던 이 둘(하루·영업일)이 정확히 신고된 칸이다 → 값 기반 key 로 재mount.
                           ★ 더 심각했던 것: onBlur 은 값을 안 바꿔도 발화한다 — 8 이 찍힌 칸을 클릭했다
                           나가기만 해도 DB 의 4 를 8 로 **덮어썼다**. 그래서 실제 변경일 때만 저장한다. */}
-                      <CapFieldInput key={`daily-${capacity.daily}`} type="number" step="0.5" min="1" max="24"
+                      <AutoSaveField ref={capSaveRefs.daily} type="select" debounceMs={0} onSave={persistCapacity}>
+                      <CapFieldInput key={`daily-${capacity.daily}`} data-testid="capacity-daily" type="number" step="0.5" min="1" max="24"
                         defaultValue={capacity.daily||8}
                         onBlur={e=>{const v=Number(e.target.value);
                           if(!Number.isFinite(v)||v<=0){(e.target as HTMLInputElement).value=String(capacity.daily||8);return;}
                           if(v===capacity.daily)return;   // 안 바꿨으면 저장하지 않는다
-                          saveCapacity('daily_work_hours',v);}}
+                          stageCapacity('daily_work_hours',v,capSaveRefs.daily);}}
                         onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
+                      </AutoSaveField>
                     </CapSettingsField>
                     <CapSettingsField>
                       <CapFieldLabel>{t('capacity.days','영업일')}</CapFieldLabel>
-                      <CapFieldInput key={`days-${capacity.days}`} type="number" step="1" min="1" max="7"
+                      <AutoSaveField ref={capSaveRefs.days} type="select" debounceMs={0} onSave={persistCapacity}>
+                      <CapFieldInput key={`days-${capacity.days}`} data-testid="capacity-days" type="number" step="1" min="1" max="7"
                         defaultValue={capacity.days||5}
                         onBlur={e=>{const v=Number(e.target.value);
                           if(!Number.isFinite(v)||v<=0){(e.target as HTMLInputElement).value=String(capacity.days||5);return;}
                           if(v===capacity.days)return;
-                          saveCapacity('weekly_work_days',v);}}
+                          stageCapacity('weekly_work_days',v,capSaveRefs.days);}}
                         onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
+                      </AutoSaveField>
                     </CapSettingsField>
                     <CapSettingsField>
                       <CapFieldLabel>{t('capacity.holidays','휴일')}</CapFieldLabel>
-                      <CapFieldInput key={`hol-${holidayDays}`} type="number" step="1" min="0" max="5" defaultValue={holidayDays}
+                      <AutoSaveField ref={capSaveRefs.hol} type="select" debounceMs={0} onSave={persistCapacity}>
+                      <CapFieldInput key={`hol-${holidayDays}`} data-testid="capacity-holidays" type="number" step="1" min="0" max="5" defaultValue={holidayDays}
                         onBlur={e=>{const v=Math.max(0,Number(e.target.value)||0);
-                          if(v===holidayDays)return; saveCapacity('weekly_holidays',v);}}
+                          if(v===holidayDays)return; stageCapacity('weekly_holidays',v,capSaveRefs.hol);}}
                         onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
+                      </AutoSaveField>
                     </CapSettingsField>
                     {/* 실작업률 — 근무시간 중 회의·잡무 제외하고 실제 업무에 쓰는 비율(%). 백엔드 participation_rate(0~1). */}
                     <CapSettingsField>
                       <CapFieldLabel title={t('capacity.participationHint','회의·잡무를 뺀, 근무시간 중 실제 업무에 쓰는 비율. 예: 회의가 많으면 85') as string}>{t('capacity.participation','실작업률 %')}</CapFieldLabel>
-                      <CapFieldInput key={`rate-${capacity.rate}`} type="number" step="5" min="10" max="100"
+                      <AutoSaveField ref={capSaveRefs.rate} type="select" debounceMs={0} onSave={persistCapacity}>
+                      <CapFieldInput key={`rate-${capacity.rate}`} data-testid="capacity-rate" type="number" step="5" min="10" max="100"
                         defaultValue={Math.round((capacity.rate||1)*100)}
                         title={t('capacity.participationHint','회의·잡무를 뺀, 근무시간 중 실제 업무에 쓰는 비율. 예: 회의가 많으면 85') as string}
                         onBlur={e=>{const v=Math.max(10,Math.min(100,Math.round(Number(e.target.value)||100)));
                           (e.target as HTMLInputElement).value=String(v);
                           if(Math.abs(v/100-(capacity.rate||1))<0.0001)return;   // 안 바꿨으면 저장 안 함
-                          saveCapacity('participation_rate',v/100);}}
+                          stageCapacity('participation_rate',v/100,capSaveRefs.rate);}}
                         onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
+                      </AutoSaveField>
                     </CapSettingsField>
                   </CapSettingsRow>
                   <CapFormulaHint>
