@@ -386,6 +386,14 @@ sync_database() {
   log "Creating project_pinned_docs table..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-pinned-docs.js 2>&1 | tail -5"
 
+  # 2026-09-09 — 휴가 **종류**(leave_grants/leave_requests.category ENUM 4종).
+  #   Irene: "관리자가 멤버에게 휴가 연차나 등등 종류별로 제공하는 거 어떻게 줘?"
+  #   ★ **코드보다 먼저 돈다** — 모델이 category 를 선언하므로 컬럼 없이 새 코드가 뜨면
+  #     휴가 부여·잔여 조회가 Unknown column 으로 죽는다(project_pinned_docs 와 같은 계열).
+  #   기존 행은 DEFAULT 'annual' 로 채워진다(지금까지 부여한 것은 전부 연차였다). 멱등.
+  log "Adding leave category columns..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-leave-category.js 2>&1 | tail -8"
+
   # 운영 #360 — 연결 post 가 없는 표(q_record)는 화면에서 열 길이 없다.
   #   Q record 메뉴 폐지 후 표를 여는 통로는 post(kind=table) 뿐인데, POST /api/records 가
   #   post 없이 표만 만들 수 있어 운영에 도달 불가 표가 생겼다(#12 "앱 스토어 개발자 계정", 행 15).
