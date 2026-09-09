@@ -1,0 +1,116 @@
+{
+  "version": "1.48.17",
+  "date": "2026-09-09",
+  "items": [
+    {
+      "ko": {
+        "title": "휴가를 연차·병가·경조사로 나눠 부여합니다",
+        "body": "여태 휴가 부여는 '그 해 며칠' 하나뿐이라 연차와 병가를 구분할 수 없었습니다. 이제 설정 > 근태에서 종류를 골라 부여하고, 잔여도 종류별로 따로 계산됩니다. 병가를 써도 연차가 줄지 않습니다. 지금까지 부여해 두신 휴가는 전부 연차로 남습니다."
+      },
+      "en": {
+        "title": "Grant leave by type — annual, sick, family event",
+        "body": "Leave used to be a single pool of days per year, so annual and sick leave could not be told apart. You can now pick a type when granting in Settings > Attendance, and each type keeps its own balance. Using sick leave no longer eats into annual leave. Everything granted so far stays as annual leave."
+      }
+    },
+    {
+      "ko": {
+        "title": "휴가를 신청할 때 남은 일수가 보입니다",
+        "body": "신청 화면에 남은 휴가와 이번 신청이 며칠로 계산되는지 나옵니다. 모자라면 신청하는 자리에서 알려드립니다. 예전에는 신청은 되고 승인 단계에서야 부족한 것이 드러났습니다. 시간 단위 휴가는 본인의 하루 근무시간을 기준으로 환산됩니다."
+      },
+      "en": {
+        "title": "See your remaining leave while requesting",
+        "body": "The request form now shows your remaining balance and how many days this request will use, and tells you right there if it is short. Previously a request could be submitted and only fail at approval. Hourly leave is converted using your own daily working hours."
+      }
+    },
+    {
+      "ko": {
+        "title": "저장되었다는 표시가 설정 화면 전반에 생겼습니다",
+        "body": "알림 설정, 업무 관리 설정, 근태, 메일 서명 등에서 값을 바꾸면 저장됐다는 ✓ 가 뜹니다. 저장에 실패하면 실패했다고 알려드립니다. 예전에는 조용히 되돌아가기만 해서 저장이 안 된 것을 알 수 없었습니다."
+      },
+      "en": {
+        "title": "Saved-confirmation now appears across settings",
+        "body": "Notification settings, work management, attendance and mail signature now show a ✓ when a change is saved, and tell you when a save fails. Previously a failed save quietly reverted the value with no explanation."
+      }
+    },
+    {
+      "ko": {
+        "title": "메일을 쓰는 동안 임시저장 상태가 보입니다",
+        "body": "새 메일과 답장을 쓰는 동안 '임시저장됨' 이 표시됩니다. 저장이 실패하면 보내기 전에 내용을 복사해 두시라고 알려드립니다."
+      },
+      "en": {
+        "title": "Draft status while writing mail",
+        "body": "Compose and reply now show when your draft has been saved, and warn you to copy your text if a save fails."
+      }
+    },
+    {
+      "ko": {
+        "title": "모바일 앱에서 설정 창 위쪽이 잘리지 않습니다",
+        "body": "앱에서 채팅 설정·전체 검색 등 전면 창을 열면 제목 부분이 상태표시줄에 가려지던 문제를 고쳤습니다. 화면 종류와 기기에 관계없이 같은 기준으로 맞춥니다."
+      },
+      "en": {
+        "title": "Full-screen dialogs are no longer clipped in the app",
+        "body": "In the mobile app, opening chat settings or global search could hide the dialog title behind the status bar. All such dialogs now align to the same baseline on every device."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q talk 채팅 상세 화면이 정돈됐습니다",
+        "body": "제목 줄에는 제목과 아이콘(핀·새 창·고객 링크·설정)만, 그 아래 줄에 분류·고객·소속 프로젝트·다른 채널이 정리돼 보입니다. 휴대폰에서 세 줄까지 늘어나던 것이 두 줄로 줄었습니다."
+      },
+      "en": {
+        "title": "A tidier chat detail header in Q talk",
+        "body": "The title row now holds the title and its icons (pin, pop-out, customer link, settings), and a second row carries the channel type, customer, project and sibling channels. On phones the header no longer stretches to three rows."
+      }
+    },
+    {
+      "ko": {
+        "title": "메일 화면이 좁은 폭에서 제대로 접힙니다",
+        "body": "보낸 사람·받은 주소가 좁은 화면에서 글자 단위로 쪼개지던 것과, 모바일에서 본문이 좌우로 흔들리던 것을 고쳤습니다. 메시지의 내용 복사·새 창·전달은 아이콘으로 바뀌어 자리를 덜 차지합니다."
+      },
+      "en": {
+        "title": "Mail lays out correctly on narrow screens",
+        "body": "Sender and recipient addresses no longer break one character at a time, and the message body no longer shifts sideways on mobile. Copy, open-in-new-window and forward are now icons, taking about half the space."
+      }
+    },
+    {
+      "ko": {
+        "title": "메일 요약이 누가 누구인지 바르게 씁니다",
+        "body": "받은 메일을 요약할 때 상대를 무조건 '고객' 이라고 부르던 문제를 고쳤습니다. 이제 실제 이름으로 쓰고, 날짜·금액·기한을 따로 뽑아 주며, 우리가 할 일을 구분해 보여줍니다. 본문에 없는 내용은 덧붙이지 않습니다."
+      },
+      "en": {
+        "title": "Mail summaries get the roles right",
+        "body": "Summaries used to call the other party \"the customer\" regardless of who was who. They now use the actual names, pull out dates, amounts and deadlines separately, and state what our side needs to do — without adding anything the thread does not say."
+      }
+    },
+    {
+      "ko": {
+        "title": "채팅에 쓴 비밀번호가 AI 로 넘어가지 않습니다",
+        "body": "Cue 가 대화를 참고할 때 비밀번호·인증키·카드번호처럼 보이는 값을 가린 뒤 전달합니다. 다만 채팅은 비밀 보관 용도가 아닙니다 — 중요한 값은 Q info 의 비밀 항목에 두시는 편이 안전합니다."
+      },
+      "en": {
+        "title": "Passwords typed in chat are not sent to the AI",
+        "body": "When Cue reads a conversation, values that look like passwords, API keys or card numbers are masked first. Chat is still not a vault, though — keep sensitive values in Q info's secret fields."
+      }
+    },
+    {
+      "ko": {
+        "title": "메일 주소 메뉴의 '고객으로 저장' 이 동작합니다",
+        "body": "주소를 눌러 '고객으로 저장' 을 고르면 받은메일함으로 튕기던 문제를 고쳤습니다. 이제 고객 등록 화면이 이름과 주소가 채워진 채로 열립니다. '이 주소로 새 메일' 도 그 주소로 빈 메일이 열립니다(쓰던 임시저장은 그대로 남습니다)."
+      },
+      "en": {
+        "title": "\"Save as client\" in the address menu now works",
+        "body": "Choosing \"Save as client\" from an address used to bounce you back to the inbox. It now opens the client form with the name and address filled in. \"New mail to this address\" also opens a fresh message addressed to them, leaving your existing draft untouched."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 파일 탭이 빨라졌습니다",
+        "body": "파일 탭에 들어갈 때 불필요한 요청이 대량으로 나가 서버가 잠시 붙잡히고, 그 뒤 다른 화면으로 옮길 때 멈춘 것처럼 보이던 문제를 고쳤습니다."
+      },
+      "en": {
+        "title": "The project Files tab is faster",
+        "body": "Opening the Files tab fired a large number of redundant requests that tied up the server, which made the next screen appear to hang. That is fixed."
+      }
+    }
+  ]
+}
