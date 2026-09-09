@@ -96,8 +96,16 @@
       "detail": "Granted {{granted}} · Used {{used}} · Pending {{pending}}",
       "thisRequest": "This request counts as {{days}} day(s)",
       "short": "{{days}} day(s) short. Request unpaid leave, or ask an admin to grant more.",
-      "none": "No paid leave granted for this year. An admin can grant it in Settings > Attendance."
-    }
+      "none": "No {{cat}} granted this year. An admin can grant it in Settings > Attendance.",
+      "remainingOf": "{{cat}} left"
+    },
+    "category": {
+      "annual": "Annual",
+      "sick": "Sick",
+      "family": "Family event",
+      "other": "Other"
+    },
+    "categoryLabel": "Leave type"
   },
   "team": {
     "presence": "Today",

@@ -96,8 +96,16 @@
       "detail": "부여 {{granted}}일 · 사용 {{used}}일 · 신청 중 {{pending}}일",
       "thisRequest": "이번 신청은 {{days}}일로 계산됩니다",
       "short": "{{days}}일이 모자랍니다. 무급으로 신청하거나 관리자에게 휴가 부여를 요청하세요.",
-      "none": "올해 부여받은 유급 휴가가 없습니다. 관리자가 설정 > 근태에서 부여할 수 있어요."
-    }
+      "none": "올해 부여받은 {{cat}} 가 없습니다. 관리자가 설정 > 근태에서 부여할 수 있어요.",
+      "remainingOf": "남은 {{cat}}"
+    },
+    "category": {
+      "annual": "연차",
+      "sick": "병가",
+      "family": "경조사",
+      "other": "기타"
+    },
+    "categoryLabel": "휴가 종류"
   },
   "team": {
     "presence": "오늘 현황",

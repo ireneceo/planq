@@ -26,7 +26,7 @@ const isManager = (scope) => !!(scope.isOwner || scope.isAdmin || scope.isPlatfo
 
 function serializeRequest(r) {
   return {
-    id: r.id, user_id: r.user_id, leave_type: r.leave_type, unit: r.unit,
+    id: r.id, user_id: r.user_id, leave_type: r.leave_type, category: r.category || 'annual', unit: r.unit,
     start_date: ymd(r.start_date), end_date: ymd(r.end_date), half_kind: r.half_kind,
     hours: r.hours === null ? null : Number(r.hours),
     days_charged: Number(r.days_charged || 0),
@@ -52,7 +52,7 @@ router.get('/grants', authenticateToken, async (req, res, next) => {
       where, order: [['year', 'DESC'], ['id', 'DESC']], limit, offset,
     });
     return paginatedResponse(res, rows.map((g) => ({
-      id: g.id, user_id: g.user_id, year: g.year, days: Number(g.days),
+      id: g.id, user_id: g.user_id, year: g.year, category: g.category || 'annual', days: Number(g.days),
       note: g.note, granted_by: g.granted_by, created_at: g.created_at,
     })), count, { limit, page, offset });
   } catch (err) { next(err); }
@@ -64,18 +64,23 @@ router.post('/grants', authenticateToken, async (req, res, next) => {
     const scope = await requireMember(req, res, businessId);
     if (!scope) return;
     if (!isManager(scope)) return errorResponse(res, 'forbidden', 403);
-    const { user_id, year, days, note } = req.body;
+    const { user_id, year, days, note, category } = req.body;
     if (!user_id || !year || days === undefined || days === null) return errorResponse(res, 'invalid_payload', 400);
+    // ★ 종류는 화이트리스트로만 — 모르는 값이 들어오면 연차로 떨어뜨리지 않고 **거절**한다.
+    //   조용히 기본값으로 떨어뜨리면 병가를 준 줄 알았는데 연차가 늘어난다
+    //   (memory feedback_unknown_state_silent_default).
+    const cat = category === undefined || category === null ? 'annual' : String(category);
+    if (!L.LEAVE_CATEGORIES.includes(cat)) return errorResponse(res, 'invalid_leave_category', 400);
     // 음수 허용 — 정정은 기존 row 를 고치는 게 아니라 반대 부호 row 를 얹는 것이다(원장식).
     const grant = await LeaveGrant.create({
-      business_id: businessId, user_id: Number(user_id), year: Number(year),
+      business_id: businessId, user_id: Number(user_id), year: Number(year), category: cat,
       days: Number(days), note: (note || '').slice(0, 300) || null, granted_by: req.user.id,
     });
     await AuditLog.create({
       user_id: req.user.id, business_id: businessId, action: 'leave.grant',
       entity_type: 'leave_grant', entity_id: grant.id, new_value: grant.toJSON(),
     }).catch(() => null);
-    return successResponse(res, { id: grant.id, days: Number(grant.days) }, null, 201);
+    return successResponse(res, { id: grant.id, days: Number(grant.days), category: grant.category }, null, 201);
   } catch (err) { next(err); }
 });
 
@@ -88,7 +93,9 @@ router.get('/balance', authenticateToken, async (req, res, next) => {
     const targetUser = req.query.user_id ? Number(req.query.user_id) : req.user.id;
     if (targetUser !== req.user.id && !isManager(scope)) return errorResponse(res, 'forbidden', 403);
     const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
-    return successResponse(res, await L.getBalance(businessId, targetUser, year));
+    const cat = req.query.category ? String(req.query.category) : null;
+    if (cat && !L.LEAVE_CATEGORIES.includes(cat)) return errorResponse(res, 'invalid_leave_category', 400);
+    return successResponse(res, await L.getBalance(businessId, targetUser, year, cat));
   } catch (err) { next(err); }
 });
 

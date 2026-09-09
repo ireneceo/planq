@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-09-05",
+  "_generated": "2026-09-09",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -266,7 +266,8 @@
       "billing_exempt_note",
       "billing_exempt_set_by",
       "billing_exempt_set_at",
-      "guest_links_enabled"
+      "guest_links_enabled",
+      "onboarding_dismissed_at"
     ],
     "calendar_event_attendees": [
       "id",
@@ -1250,7 +1251,8 @@
       "note",
       "granted_by",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "category"
     ],
     "leave_requests": [
       "id",
@@ -1271,7 +1273,8 @@
       "canceled_by",
       "canceled_at",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "category"
     ],
     "mail_sender_rules": [
       "id",
@@ -1628,6 +1631,15 @@
       "vlevel",
       "target_member_ids",
       "email_thread_id"
+    ],
+    "project_pinned_docs": [
+      "id",
+      "user_id",
+      "project_id",
+      "post_id",
+      "order_index",
+      "created_at",
+      "updated_at"
     ],
     "project_process_columns": [
       "id",

@@ -8,6 +8,7 @@ import DetailDrawer from '../../components/Common/DetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
 import styled from 'styled-components';
 import { Field, FieldLabel, NumInput, TextArea, ErrorBar } from './shared';
+import { LEAVE_CATEGORY_KEYS, type LeaveCategory } from './leaveCategory';
 
 // ─── 신청 드로어 ────────────────────────────────────────────────
 export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; bizId: number; onDone: () => Promise<void> }> =
@@ -15,6 +16,8 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
   const { t } = useTranslation('attendance');
   const today = new Date().toISOString().slice(0, 10);
   const [leaveType, setLeaveType] = useState<'paid' | 'unpaid'>('paid');
+  // ★ 2026-09-09 — 휴가 **종류**. 잔여는 이 종류의 부여분에서만 깎인다.
+  const [category, setCategory] = useState<LeaveCategory>('annual');
   const [unit, setUnit] = useState<'full_day' | 'half_day' | 'hours'>('full_day');
   const [halfKind, setHalfKind] = useState<'am' | 'pm'>('am');
   const [hours, setHours] = useState('2');
@@ -35,12 +38,13 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
     if (!open || !bizId) return;
     let alive = true;
     const year = Number(start.slice(0, 4)) || new Date().getFullYear();
-    apiFetch(`/api/leave/balance?business_id=${bizId}&year=${year}`)
+    // ★ **고른 종류의** 잔여를 묻는다. 전 종류 합을 보여주면 병가 잔여로 연차가 되는 줄 안다.
+    apiFetch(`/api/leave/balance?business_id=${bizId}&year=${year}&category=${category}`)
       .then((r) => r.json())
       .then((j) => { if (alive && j?.success) setBalance(j.data); })
       .catch(() => { /* 잔여를 못 불러도 신청 자체는 막지 않는다 */ });
     return () => { alive = false; };
-  }, [open, bizId, start]);
+  }, [open, bizId, start, category]);
 
   // 이번 신청이 며칠인가 — 서버 `computeDaysCharged` 와 **같은 규칙**이어야 한다.
   //   ★ 시간 단위는 8 로 나누는 것이 아니라 **그 사람의 하루 근무시간**으로 나눈다.
@@ -73,7 +77,7 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
       const r = await apiFetch('/api/leave/requests', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          business_id: bizId, leave_type: leaveType, unit,
+          business_id: bizId, leave_type: leaveType, category, unit,
           start_date: start, end_date: unit === 'full_day' ? end : start,
           half_kind: unit === 'half_day' ? halfKind : undefined,
           hours: unit === 'hours' ? Number(hours) : undefined,
@@ -111,7 +115,7 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
         {balance && (
           <BalanceBox $warn={insufficient}>
             <BalanceRow>
-              <span>{t('leave.balance.remaining', { defaultValue: '남은 유급 휴가' }) as string}</span>
+              <span>{t('leave.balance.remainingOf', { cat: t(`leave.category.${category}`), defaultValue: '남은 {{cat}}' }) as string}</span>
               <strong>{t('leave.balance.days', { count: balance.remaining, defaultValue: '{{count}}일' }) as string}</strong>
             </BalanceRow>
             <BalanceSub>
@@ -142,11 +146,19 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
           <BalanceBox>
             <BalanceSub>
               {t('leave.balance.none', {
-                defaultValue: '올해 부여받은 유급 휴가가 없습니다. 관리자가 설정 > 근태에서 부여할 수 있어요.',
+                cat: t(`leave.category.${category}`),
+                defaultValue: '올해 부여받은 {{cat}} 가 없습니다. 관리자가 설정 > 근태에서 부여할 수 있어요.',
               }) as string}
             </BalanceSub>
           </BalanceBox>
         )}
+        <Field>
+          <FieldLabel>{t('leave.categoryLabel', { defaultValue: '휴가 종류' }) as string}</FieldLabel>
+          <PlanQSelect size="md"
+            options={LEAVE_CATEGORY_KEYS.map((c) => ({ value: c, label: t(`leave.category.${c}`) as string }))}
+            value={{ value: category, label: t(`leave.category.${category}`) as string }}
+            onChange={(o) => setCategory(((o as { value: string })?.value as LeaveCategory) || 'annual')} />
+        </Field>
         <Field>
           <FieldLabel>{t('leave.type')}</FieldLabel>
           <PlanQSelect size="md" options={typeOpts}

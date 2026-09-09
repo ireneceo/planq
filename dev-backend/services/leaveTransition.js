@@ -44,22 +44,39 @@ async function computeDaysCharged(req_, businessId, userId) {
   return daysBetween(req_.start_date, req_.end_date);
 }
 
-/** 그 해 잔여 — 전부 파생. `{granted, used, pending, remaining}` */
-async function getBalance(businessId, userId, year) {
+/** 휴가 종류 — 부여·신청·잔여가 모두 이 축으로 갈린다.
+ *  ★ 유급/무급(leave_type)과 **다른 축**이다. 종류는 "무슨 휴가냐", leave_type 은 "잔여를 깎느냐". */
+const LEAVE_CATEGORIES = ['annual', 'sick', 'family', 'other'];
+
+/** 그 해 잔여 — 전부 파생.
+ *  반환: `{ granted, used, pending, remaining, ... , by_category: { annual: {...}, ... } }`
+ *  ★ 최상위 값은 **전 종류 합**이다(옛 호출부 호환). 실제 판정은 종류별 값으로 한다 —
+ *    합으로 판정하면 병가를 쓰다 연차가 사라진다.
+ */
+async function getBalance(businessId, userId, year, category = null) {
   const y = Number(year) || new Date().getFullYear();
+  const grantWhere = { business_id: businessId, user_id: userId, year: y };
+  if (category) grantWhere.category = category;
   const grants = await LeaveGrant.findAll({
-    where: { business_id: businessId, user_id: userId, year: y },
-    attributes: ['days'],
+    where: grantWhere,
+    attributes: ['days', 'category'],
   });
   const granted = grants.reduce((s, g) => s + Number(g.days || 0), 0);
+  const grantedByCat = {};
+  for (const c of LEAVE_CATEGORIES) grantedByCat[c] = 0;
+  for (const g of grants) grantedByCat[g.category || 'annual'] += Number(g.days || 0);
+  const reqWhere = {
+    business_id: businessId, user_id: userId, leave_type: 'paid',
+    status: { [Op.in]: ['approved', 'pending'] },
+    start_date: { [Op.between]: [`${y}-01-01`, `${y}-12-31`] },
+  };
+  if (category) reqWhere.category = category;
   const reqs = await LeaveRequest.findAll({
-    where: {
-      business_id: businessId, user_id: userId, leave_type: 'paid',
-      status: { [Op.in]: ['approved', 'pending'] },
-      start_date: { [Op.between]: [`${y}-01-01`, `${y}-12-31`] },
-    },
-    attributes: ['status', 'days_charged', 'unit', 'start_date', 'end_date', 'hours'],
+    where: reqWhere,
+    attributes: ['status', 'days_charged', 'unit', 'start_date', 'end_date', 'hours', 'category'],
   });
+  const usedByCat = {}, pendingByCat = {};
+  for (const c of LEAVE_CATEGORIES) { usedByCat[c] = 0; pendingByCat[c] = 0; }
   let used = 0, pending = 0;
   for (const r of reqs) {
     // pending 은 아직 days_charged 가 0 이다(승인 시 박제). 안내용으로 그 자리에서 추정한다 —
@@ -67,7 +84,9 @@ async function getBalance(businessId, userId, year) {
     const d = r.status === 'approved'
       ? Number(r.days_charged || 0)
       : await computeDaysCharged(r, businessId, userId);
-    if (r.status === 'approved') used += d; else pending += d;
+    const cat = r.category || 'annual';
+    if (r.status === 'approved') { used += d; usedByCat[cat] += d; }
+    else { pending += d; pendingByCat[cat] += d; }
   }
   const round = (n) => Math.round(n * 10) / 10;
   // ★ 2026-09-09 — `daily_work_hours` 를 같이 내보낸다.
@@ -79,6 +98,16 @@ async function getBalance(businessId, userId, year) {
     where: { business_id: businessId, user_id: userId, removed_at: null },
     attributes: ['daily_work_hours'],
   });
+  const byCategory = {};
+  for (const c of LEAVE_CATEGORIES) {
+    byCategory[c] = {
+      granted: round(grantedByCat[c]),
+      used: round(usedByCat[c]),
+      pending: round(pendingByCat[c]),
+      remaining: round(grantedByCat[c] - usedByCat[c]),
+      remaining_after_pending: round(grantedByCat[c] - usedByCat[c] - pendingByCat[c]),
+    };
+  }
   return {
     year: y,
     granted: round(granted),
@@ -87,6 +116,7 @@ async function getBalance(businessId, userId, year) {
     remaining: round(granted - used),
     remaining_after_pending: round(granted - used - pending),
     daily_work_hours: Number(bm?.daily_work_hours) || 8,
+    by_category: byCategory,
   };
 }
 
@@ -165,6 +195,11 @@ async function createRequest({ businessId, userId, payload, actorUserId }) {
   const unit = payload.unit || 'full_day';
   if (!['full_day', 'half_day', 'hours'].includes(unit)) throw new LeaveError('invalid_unit');
   const leaveType = payload.leave_type === 'unpaid' ? 'unpaid' : 'paid';
+  // 안 보내면 연차(기존 동작). 보냈는데 모르는 값이면 **거절**한다 —
+  //   조용히 연차로 떨어뜨리면 병가를 신청한 줄 알았는데 연차가 깎인다.
+  if (payload.category !== undefined && payload.category !== null
+      && !LEAVE_CATEGORIES.includes(payload.category)) throw new LeaveError('invalid_leave_category');
+  const category = payload.category || 'annual';
   const start = payload.start_date;
   const end = unit === 'full_day' ? (payload.end_date || payload.start_date) : payload.start_date;
   if (!start || !end) throw new LeaveError('date_required');
@@ -183,7 +218,7 @@ async function createRequest({ businessId, userId, payload, actorUserId }) {
 
   const request = await LeaveRequest.create({
     business_id: businessId, user_id: userId,
-    leave_type: leaveType, unit,
+    leave_type: leaveType, category, unit,
     start_date: start, end_date: end,
     half_kind: unit === 'half_day' ? payload.half_kind : null,
     hours: unit === 'hours' ? Number(payload.hours) : null,
@@ -207,7 +242,9 @@ async function approve({ requestId, actorUserId, decideNote }) {
     const charged = await computeDaysCharged(request, request.business_id, request.user_id);
     if (request.leave_type === 'paid') {
       const year = Number(ymd(request.start_date).slice(0, 4));
-      const bal = await getBalance(request.business_id, request.user_id, year);
+      // ★ **그 종류의** 잔여로 검사한다. 전 종류 합으로 보면 병가 잔여로 연차가 승인된다.
+      const cat = request.category || 'annual';
+      const bal = await getBalance(request.business_id, request.user_id, year, cat);
       if (bal.remaining < charged) throw new LeaveError('insufficient_leave_balance');
     }
     await request.update({
@@ -259,6 +296,6 @@ async function cancel({ requestId, actorUserId, isManager }) {
 }
 
 module.exports = {
-  LeaveError, getBalance, computeDaysCharged, daysBetween,
+  LeaveError, getBalance, computeDaysCharged, daysBetween, LEAVE_CATEGORIES,
   createRequest, approve, reject, cancel,
 };

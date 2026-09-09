@@ -16,6 +16,16 @@ LeaveGrant.init({
   user_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
   /** 부여 연도 (워크스페이스 tz 기준) */
   year: { type: DataTypes.INTEGER, allowNull: false },
+  /** ★ 휴가 **종류** (2026-09-09) — 유급/무급(결제 축)과 **다른 축**이다. 섞지 말 것.
+   *  · leave_type(paid/unpaid) = 잔여를 깎느냐
+   *  · category(annual/sick/family/other) = 무슨 휴가냐
+   *  잔여는 **종류별로** 따로 계산된다. 연차 15일과 병가 5일을 한 통에 넣으면
+   *  병가를 쓰다 연차가 사라진다(Irene: "종류별로 제공하는 거 어떻게 줘?").
+   *  기존 행은 전부 'annual' 로 남는다 — 지금까지 부여한 것은 전부 연차였다. */
+  category: {
+    type: DataTypes.ENUM('annual', 'sick', 'family', 'other'),
+    allowNull: false, defaultValue: 'annual',
+  },
   /** 부여 일수. 0.5 단위 허용, 정정을 위해 음수 허용 */
   days: { type: DataTypes.DECIMAL(4, 1), allowNull: false },
   note: { type: DataTypes.STRING(300), allowNull: true },

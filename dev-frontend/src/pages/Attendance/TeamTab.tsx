@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import { LEAVE_CATEGORY_KEYS, type LeaveCategory } from './leaveCategory';
 import SingleDateField from '../../components/Common/SingleDateField';
 import { apiFetch } from '../../contexts/AuthContext';
 import { formatHours, type AttendanceDay } from '../../hooks/useAttendance';
@@ -28,6 +29,10 @@ export const TeamTab: React.FC<{
   const pending = allRequests.filter((r) => r.status === 'pending');
   const [grantUser, setGrantUser] = useState<number | null>(null);
   const [grantDays, setGrantDays] = useState('15');
+  // ★ 2026-09-09 — 휴가 **종류** (Irene: "종류별로 제공하는 거 어떻게 줘?").
+  //   유급/무급(신청의 leave_type)과 **다른 축**이다 — 이건 "무슨 휴가냐" 다.
+  //   잔여도 종류별로 따로 계산된다(서버 getBalance). 안 고르면 연차 = 지금까지의 동작.
+  const [grantCategory, setGrantCategory] = useState<LeaveCategory>('annual');
   const [grantNote, setGrantNote] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -37,7 +42,7 @@ export const TeamTab: React.FC<{
     try {
       const r = await apiFetch('/api/leave/grants', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: bizId, user_id: grantUser, year, days: Number(grantDays), note: grantNote }),
+        body: JSON.stringify({ business_id: bizId, user_id: grantUser, year, days: Number(grantDays), category: grantCategory, note: grantNote }),
       });
       if (r.ok) { setGrantNote(''); await onReload(); }
     } finally { setSaving(false); }
@@ -87,6 +92,13 @@ export const TeamTab: React.FC<{
             value={grantUser ? { value: grantUser, label: nameOf(grantUser) } : null}
             onChange={(opt) => setGrantUser(opt ? Number((opt as { value: number }).value) : null)}
             placeholder={t('team.member') as string}
+          />
+          <PlanQSelect
+            size="sm"
+            options={LEAVE_CATEGORY_KEYS.map((c) => ({ value: c, label: t(`leave.category.${c}`) as string }))}
+            value={{ value: grantCategory, label: t(`leave.category.${grantCategory}`) as string }}
+            onChange={(opt) => setGrantCategory(((opt as { value: string } | null)?.value as LeaveCategory) || 'annual')}
+            aria-label={t('leave.categoryLabel', { defaultValue: '휴가 종류' }) as string}
           />
           <NumInput type="number" step="0.5" value={grantDays} onChange={(e) => setGrantDays(e.target.value)}
             aria-label={t('leave.grantDays') as string} />
