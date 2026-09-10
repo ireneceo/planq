@@ -1,0 +1,48 @@
+{
+  "version": "1.48.21",
+  "date": "2026-09-10",
+  "items": [
+    {
+      "ko": { "title": "팝아웃 내 업무의 진행 버튼이 지금 상태를 제대로 말합니다",
+        "body": "시작 전, 진행 중, 잠시 멈춤이 아이콘과 색으로 갈립니다. 전에는 '재개할 일'과 '아직 시작도 안 한 일'이 똑같은 ▶ 로 보였습니다. 업무 상세에서 쓰는 것과 같은 말·같은 색을 씁니다. 멈춘 일을 다시 켤 때도 이어서 재개되어, 측정한 시간이 갈라지지 않습니다. 버튼 자리도 태그 버튼 앞 고정 자리로 옮겨 행마다 제목 위치가 흔들리지 않습니다." },
+      "en": { "title": "The start button in the pop-out task list now shows the real state",
+        "body": "Not started, running and paused are now distinct icons and colours. Before, a task waiting to be resumed looked identical to one never started. It uses the same wording and colours as the task detail view, and resuming a paused task continues the same session instead of starting a new one, so tracked time stays in one piece. The button also moved to a fixed slot before the tag button, so titles line up across rows." }
+    },
+    {
+      "ko": { "title": "업무명 옆 폴더 아이콘이 이제 눌립니다",
+        "body": "프로젝트 업무 목록에서 업무명 옆 폴더 모양 버튼은 '업무 그룹 이동'입니다. 누르면 메뉴가 열리고 있었지만 셀에 가려 한 픽셀도 그려지지 않아, 아무 반응이 없는 것처럼 보였습니다. 이제 메뉴가 제대로 뜨고 그룹을 옮길 수 있습니다." },
+      "en": { "title": "The folder icon next to a task name works now",
+        "body": "In the project task list, the folder button beside a task name moves it to another work group. The menu was in fact opening, but it was clipped by the cell and never drew a single pixel, so the button looked dead. It now appears and you can move the task." }
+    },
+    {
+      "ko": { "title": "AI로 업무를 추가할 때 그룹을 정할 수 있습니다",
+        "body": "미리보기 카드에서 업무마다 그룹을 직접 고릅니다. AI가 제안한 이름이 기존 그룹과 맞으면 미리 선택되고, 맞는 그룹이 없으면 그 이름으로 새 그룹을 만들 수 있습니다. 전에는 이름이 글자까지 똑같을 때만 배치되어, 그룹이 하나도 없는 프로젝트에서는 만들어진 업무가 전부 '그룹 없음'으로 떨어졌습니다." },
+      "en": { "title": "You can set the work group when adding tasks with AI",
+        "body": "Pick a group per task right in the preview. If the name the AI suggests matches an existing group it is preselected, and if nothing matches you can create a group with that name. Previously a task landed in a group only when the name matched character for character, so in a project with no groups yet everything fell into 'No group'." }
+    },
+    {
+      "ko": { "title": "메일이 고객과 프로젝트에 자동으로 연결됩니다",
+        "body": "주고받은 메일이 고객과 프로젝트에 스스로 붙습니다. 프로젝트에 초대한 주소로 온 메일은 고객과 프로젝트가 한 번에 정해지고, 고객으로 등록한 주소는 고객이 정해집니다. 그 고객이 프로젝트 하나에만 속해 있으면 프로젝트까지 이어집니다. 받은 메일뿐 아니라 보낸 메일도, 새 대화뿐 아니라 이미 있던 대화도 연결됩니다. 한 고객이 여러 프로젝트에 걸쳐 있으면 자동으로 정하지 않고 사람이 고르게 둡니다. 손으로 걸어 둔 연결은 자동이 덮지 않습니다." },
+      "en": { "title": "Mail now links itself to clients and projects",
+        "body": "Threads attach themselves to the right client and project. Mail from an address you invited to a project settles both at once; an address registered on a client settles the client, and if that client belongs to exactly one project the project follows. This covers mail you send as well as mail you receive, and existing threads as well as new ones. When a client spans several projects nothing is guessed — you choose. Links you set by hand are never overwritten." }
+    },
+    {
+      "ko": { "title": "프로젝트 메일 버튼이 그 프로젝트의 메일만 보여줍니다",
+        "body": "메일 화면이 이미 열려 있는 상태에서 다른 프로젝트의 '프로젝트 메일'을 누르면 필터가 걸리지 않아 메일함 전체가 보이곤 했습니다. 이제 어느 프로젝트에서 눌러도 그 프로젝트의 메일만 나옵니다." },
+      "en": { "title": "The project mail button shows only that project's mail",
+        "body": "If the mail screen was already open, opening 'Project mail' from a different project left the filter off and showed the whole mailbox. It now filters correctly whichever project you come from." }
+    },
+    {
+      "ko": { "title": "외부 열람 링크 화면과 회수 안내를 정리했습니다",
+        "body": "링크로 여는 화면의 글줄 폭을 제한해 넓은 화면에서도 읽기 편해졌고, 날짜가 보는 분의 표기로 나옵니다. 링크 관리 팝업의 문구도 바꿨습니다 — '지금 열려 있는 링크'와 만료일, '아직 아무도 열지 않음', 그리고 '회수'는 '링크 닫기'가 되었습니다. 누르기 전에 무슨 일이 일어나는지(그 주소로 들어오던 분이 바로 막히고, 다시 열 수 없으며, 주고받은 내용은 남는다는 것) 먼저 알려드립니다. 답글 알림을 신청한 분들이 링크 목록에 섞여 보이던 것도 고쳤습니다." },
+      "en": { "title": "The external view page and the link controls read properly now",
+        "body": "Text in shared pages now has a comfortable reading width on wide screens, and dates appear in the reader's own format. The link panel wording changed too: 'Links open right now' with an expiry date, 'No one has opened it yet', and Revoke is now Close link — with a clear note of what happens before you press it (anyone using that address loses access at once, it cannot be reopened, and the messages stay). People who signed up for reply notifications no longer appear mixed in with the links." }
+    },
+    {
+      "ko": { "title": "팝업 아래쪽 모서리가 둥글게 나옵니다",
+        "body": "일부 팝업이 위쪽만 둥글고 아래쪽은 각져 보였습니다. 창 안 마지막 줄의 흰 배경이 모서리를 덮고 있었던 것이 원인입니다." },
+      "en": { "title": "Dialog corners are rounded at the bottom again",
+        "body": "Some dialogs looked rounded on top but square at the bottom. The white footer inside was painting over the rounded corner." }
+    }
+  ]
+}
