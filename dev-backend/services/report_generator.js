@@ -11,6 +11,9 @@ const crypto = require('crypto');
 
 const { Report, Business } = require('../models');
 const stats = require('./stats');
+// 인사이트는 stats.js 에서 **코드+원시값**으로 온다. PDF·박제본은 프론트 t() 가 닿지 않으므로
+// 여기서 워크스페이스 기본 언어로 해석한다 (services/statsInsights.js 헤더 참조).
+const { localizeTab } = require('./statsInsights');
 const { renderPdfFromHtml } = require('./pdfService');
 const { reportPdfHtml } = require('./pdfTemplates');
 
@@ -96,7 +99,7 @@ async function ensureReportsDir(businessId) {
 async function generateReport({ businessId, kind = 'monthly', period: customPeriod = null, generatedBy = null }) {
   const period = customPeriod || computePeriod(kind);
   const business = await Business.findByPk(businessId, {
-    attributes: ['id', 'name', 'brand_name', 'legal_name'],
+    attributes: ['id', 'name', 'brand_name', 'legal_name', 'default_language'],
   });
   if (!business) throw new Error(`business ${businessId} not found`);
 
@@ -117,6 +120,14 @@ async function generateReport({ businessId, kind = 'monthly', period: customPeri
     const tabs = await collectTabs(businessId, period);
 
     // 3) 인사이트 통합 — overview 우선 + tasks/profit/team/finance 보조
+    //    ★ 문자열로 만드는 것은 여기 한 번뿐이다. 보고서는 워크스페이스 기본 언어로 남는다
+    //      (PDF 는 박제라 나중에 다시 번역할 수 없다 — 알림 제목과 같은 이유).
+    const reportLang = business.default_language || 'ko';
+    for (const k of ['overview', 'tasks', 'profit', 'team', 'finance']) {
+      // localizeTab 하나로 인사이트 + 지출 카테고리 라벨을 같이 해석한다
+      // (PDF 표가 `project_saas` 같은 내부 코드를 그대로 찍고 있었다).
+      if (tabs[k]) tabs[k] = localizeTab(tabs[k], reportLang);
+    }
     const allInsights = [
       ...(tabs.overview.insights || []),
       ...(tabs.tasks.insights || []),
@@ -125,6 +136,9 @@ async function generateReport({ businessId, kind = 'monthly', period: customPeri
       ...(tabs.finance.insights || []),
     ];
     // urgent → warning → info 순으로 정렬, 중복 제거 후 상위 6개만 보관
+    //   ★ 키는 **해석된 제목**이다 — 코드로 묶으면 탭마다 다른 코드를 쓰는
+    //     '데이터 누적 중' 자리표시자가 3장 그대로 남는다(실측). 보고서는 "같아 보이는 카드"
+    //     를 한 장으로 줄이는 게 목적이라 사람이 읽는 제목이 맞는 키다.
     const sevRank = { urgent: 0, warning: 1, info: 2 };
     const dedup = new Map();
     for (const ins of allInsights) {

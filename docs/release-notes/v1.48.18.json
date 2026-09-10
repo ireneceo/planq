@@ -1,0 +1,60 @@
+{
+  "version": "1.48.18",
+  "date": "2026-09-10",
+  "items": [
+    {
+      "ko": { "title": "아이폰 알림에 소리 설정이 생깁니다",
+        "body": "아이폰 설정 > 알림 > PlanQ 에 '사운드' 항목 자체가 없어서 알림이 소리 없이 오곤 했습니다. 앱이 아이콘 숫자를 칠할 때마다 알림 권한을 '숫자만' 으로 다시 요청하고 있었고, iOS 는 맨 처음 요청한 항목 집합을 그대로 고정합니다. 이제 숫자는 알림 권한을 이미 받은 뒤에만 칠하고, 권한 요청은 소리를 포함해서 합니다. ★ 이미 설치된 아이폰은 iOS 가 항목을 나중에 늘려주지 않습니다 — 앱을 지웠다 다시 설치하시면 '사운드' 가 보입니다." },
+      "en": { "title": "iPhone notifications now have a Sound setting",
+        "body": "Settings > Notifications > PlanQ had no Sounds row at all, so alerts often arrived silently. Every time the app painted the icon badge it re-requested notification permission for the badge alone, and iOS locks in whichever set you ask for first. The badge is now painted only after notification permission is granted, and the permission request includes sound. Note: iOS will not add the row to an already-installed app — delete and reinstall PlanQ to see Sounds." }
+    },
+    {
+      "ko": { "title": "채팅방을 열면 맨 아래 최신 메시지부터 보입니다",
+        "body": "방을 열었을 때 중간쯤에 걸려 있거나, 새 메시지가 와도 따라 내려가지 않는 일이 있었습니다. '지금 맨 아래를 보고 있는가' 를 시간·스크롤 방향·거리 세 가지로 각각 추측하다 서로 어긋난 것이 원인이었습니다. 이제 그 판단이 하나의 상태이고, 위로 올려 옛 대화를 읽는 중이면 새 메시지가 와도 화면을 끌어내리지 않습니다. 다시 맨 아래로 내려오면 자동 따라가기가 살아납니다." },
+      "en": { "title": "Opening a chat lands on the newest message",
+        "body": "Rooms sometimes opened part-way up the history, or stopped following new messages. Three separate guesses — elapsed time, scroll direction, and distance — were each deciding whether you were at the bottom, and they disagreed. That is now a single state. If you have scrolled up to read older messages, new ones no longer yank the view down; scroll back to the bottom and auto-follow resumes." }
+    },
+    {
+      "ko": { "title": "결과물 컨펌이 해당 회차에만 붙습니다",
+        "body": "결과물을 여러 번 올려 컨펌을 주고받으면, 승인이나 수정 요청이 엉뚱한 회차에 붙어 어느 버전에 대한 판단인지 알 수 없었습니다. 버전 번호와 컨펌 라운드를 서로 다른 두 곳에서 세고 있었습니다. 이제 회차가 결과물에 기록되어, 각 승인·수정 요청이 자기 회차에만 남습니다. 지난 기록도 회차를 채워 넣었습니다." },
+      "en": { "title": "Deliverable approvals stay on their own round",
+        "body": "When a deliverable went through several rounds of review, approvals and change requests could attach to the wrong version, so it was unclear which one a decision referred to. The version number and the review round were counted in two different places. The round is now recorded on the deliverable itself, so each approval or change request stays with its own round. Existing history was backfilled." }
+    },
+    {
+      "ko": { "title": "메일 규칙이 이미 받은 메일에도 적용됩니다",
+        "body": "규칙을 만들어도 그 뒤에 오는 메일에만 적용되어, 이미 쌓여 있는 메일은 손으로 정리해야 했습니다. 이제 규칙을 저장하면 기존 메일에도 소급 적용되고, 규칙을 지우면 그 규칙 때문에 붙은 판정만 되돌립니다. 설정 화면이 네 칸의 판정 기준을 설명하고, 저장 전에 '이 규칙이 몇 건에 적용되는지' 를 미리 보여줍니다." },
+      "en": { "title": "Mail rules now apply to mail you already received",
+        "body": "A new rule only affected mail that arrived afterwards, leaving the existing inbox to be sorted by hand. Saving a rule now applies it to existing mail too, and deleting a rule reverts only the verdicts that rule caused. The settings screen explains what each of the four fields decides, and shows how many messages a rule will affect before you save it." }
+    },
+    {
+      "ko": { "title": "답장을 미뤄 둔 메일이 '답변 필요' 에 남습니다",
+        "body": "지금은 답할 수 없어 짧게 회신만 해 두면, 답장을 보냈다는 이유로 목록에서 빠져 잊히곤 했습니다. 답장 화면 맨 아래 '임시 답변' 을 체크하면(기본은 꺼져 있습니다) 그 메일이 답변 필요에 그대로 남고 목록에 '임시답변' 표시가 붙습니다. 자동 재판정이 이 표시를 지우지 않습니다." },
+      "en": { "title": "A holding reply keeps the mail in Needs reply",
+        "body": "If you sent a short holding note because you could not answer yet, the mail dropped out of the list simply because you had replied — and got forgotten. There is now a Holding reply checkbox at the bottom of the reply screen (off by default). Tick it and the thread stays in Needs reply with a Holding badge, and automatic re-triage will not clear it." }
+    },
+    {
+      "ko": { "title": "통계 — 완료 건수가 실제와 맞고, 카드 줄이 어긋나지 않습니다",
+        "body": "업무 탭의 완료 건수가 '그 기간에 만들어진 업무' 안에서만 세어져, 기간 전에 시작해 이 기간에 끝낸 업무가 통째로 빠져 있었습니다(개요의 가동률은 완료 시점으로 세고 있어 두 탭의 숫자가 서로 달랐습니다). 이제 두 탭이 같은 기준을 씁니다. 카드도 열 개수를 고정하지 않고 카드 수에 맞춰 배치해, 마지막 줄에 빈 칸이 남지 않습니다." },
+      "en": { "title": "Insights — completed counts are correct, and card rows line up",
+        "body": "The Tasks tab counted completions only among tasks created inside the period, so work that started earlier and finished inside it was missing entirely — while the Overview tab measured utilization by completion date, so the two tabs disagreed. Both now use the same basis. Cards are also laid out by how many there are instead of a fixed column count, so the last row no longer ends with gaps." }
+    },
+    {
+      "ko": { "title": "영어로 쓰시면 통계와 알림 카드도 영어로 나옵니다",
+        "body": "언어를 English 로 바꿔도 통계 화면의 인사이트 카드와 대시보드 상단 알림 카드는 한국어로 남아 있었고, 금액도 통화와 상관없이 '원' 이 붙었습니다. 이 문구들은 서버가 만들어 보내는 것이라 화면 번역이 닿지 않았습니다. 이제 보시는 분의 언어로 만들어지고, 금액은 청구서의 통화대로(₩ · $ · € · ¥), 시각은 설정하신 시간대로 표시됩니다. 경영보고서 PDF 도 같습니다." },
+      "en": { "title": "Insight and alert cards now follow your language",
+        "body": "Switching to English left the insight cards on the statistics screens and the alert cards at the top of the dashboard in Korean, and amounts carried a Korean currency word regardless of the actual currency. Those strings were built on the server, where in-app translation could not reach them. They are now produced in your language, amounts use the invoice's own currency (₩ · $ · € · ¥), and times use your timezone. The same applies to the management report PDF." }
+    },
+    {
+      "ko": { "title": "업무 팝아웃에서 바로 시작·중지, 검색으로 연 항목은 목록에서 보입니다",
+        "body": "팝아웃으로 띄운 내 업무를 시작하거나 잠시 멈추려면 본 화면으로 돌아가야 했습니다. 이제 팝아웃 카드에서 바로 시작·중지할 수 있고 경과 시간도 보입니다. 그리고 검색 결과에서 항목을 열면 그 행이 선택은 되어 있는데 화면 밖에 있어 어느 것을 열었는지 알 수 없던 것도, 이제 목록이 그 행까지 스크롤해 보여줍니다." },
+      "en": { "title": "Start and pause from the task pop-out; search results scroll into view",
+        "body": "Starting or pausing a task you had popped out meant going back to the main screen. The pop-out card now has start and pause controls and shows elapsed time. And when you opened an item from search, the row was selected but sat outside the visible area, so you could not tell which one had opened — the list now scrolls that row into view." }
+    },
+    {
+      "ko": { "title": "문서 링크를 SNS 에 붙일 때 최신 제목이 보이게",
+        "body": "제목을 고친 뒤 링크를 카카오톡·슬랙 등에 붙이면 옛 제목이 그대로 뜨곤 했습니다. 서버는 최신 제목을 주고 있었고, 각 서비스가 예전에 읽은 내용을 캐시해 둔 것이 원인이라 우리 쪽에서 지울 수 없습니다. 공유 모달에 'SNS용 링크 복사' 를 넣었습니다 — 이 링크를 쓰시면 새 주소로 인식해 최신 제목을 다시 읽어 갑니다." },
+      "en": { "title": "Sharing a document link to social apps shows the current title",
+        "body": "After renaming a document, pasting its link into KakaoTalk, Slack and similar apps often still showed the old title. The server was already returning the new title — each service had cached what it read earlier, and we cannot clear their caches. The share dialog now offers Copy link for social sharing, which produces a link those services treat as new and re-read." }
+    }
+  ]
+}

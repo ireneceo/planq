@@ -17,6 +17,9 @@ const {
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const stats = require('../services/stats');
+// 인사이트 카드 문구는 서버가 **수신자 언어로** 해석한다 (services/statsInsights.js 헤더 참조).
+// stats.js 는 코드+원시값만 담고, 문자열이 되는 곳은 여기 한 곳이다.
+const { localizeTab } = require('../services/statsInsights');
 const { getMemberNameMap } = require('../services/displayName');
 
 // 기간 파싱 — ?from=YYYY-MM-DD&to=YYYY-MM-DD or ?range=30d|90d|month|prev-month|quarter
@@ -53,6 +56,12 @@ function parsePeriod(q) {
       return { from: toIso(t), to: toIso(today), label: 'Last 30 days' };
     }
   }
+}
+
+// 탭 응답 — 인사이트 문구를 요청자 언어로 해석해서 내려준다.
+//   ★ successResponse 를 직접 부르지 말 것. 한 라우트라도 빼먹으면 그 탭만 한국어가 된다.
+function sendTab(req, res, data) {
+  return successResponse(res, localizeTab(data, req.user?.language));
 }
 
 // 같은 길이의 직전 기간 — 비교 모드 (compare=prev)
@@ -153,7 +162,7 @@ router.get('/:businessId/tasks', authenticateToken, checkBusinessAccess, async (
     }
 
     const result = stats.buildTasksTab({ tasks, aiByTask, period, prevAgg });
-    return successResponse(res, result);
+    return sendTab(req, res, result);
   } catch (err) { next(err); }
 });
 
@@ -169,7 +178,7 @@ router.get('/:businessId/overview', authenticateToken, checkBusinessAccess, asyn
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildOverviewTab(req.businessId, period, parseSegment(req.query));
-    return successResponse(res, data);
+    return sendTab(req, res, data);
   } catch (err) { next(err); }
 });
 
@@ -178,7 +187,7 @@ router.get('/:businessId/profit', authenticateToken, checkBusinessAccess, async 
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildProfitTab(req.businessId, period, parseSegment(req.query));
-    return successResponse(res, data);
+    return sendTab(req, res, data);
   } catch (err) { next(err); }
 });
 
@@ -187,7 +196,7 @@ router.get('/:businessId/team', authenticateToken, checkBusinessAccess, async (r
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildTeamTab(req.businessId, period, parseSegment(req.query));
-    return successResponse(res, data);
+    return sendTab(req, res, data);
   } catch (err) { next(err); }
 });
 
@@ -196,7 +205,7 @@ router.get('/:businessId/finance', authenticateToken, checkBusinessAccess, async
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildFinanceTab(req.businessId, period, parseSegment(req.query));
-    return successResponse(res, data);
+    return sendTab(req, res, data);
   } catch (err) { next(err); }
 });
 
@@ -204,7 +213,9 @@ router.get('/:businessId/finance', authenticateToken, checkBusinessAccess, async
 router.get('/:businessId/reports', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const data = await stats.buildReportsTab(req.businessId);
-    return successResponse(res, data);
+    // 지금은 insights 가 없지만 **경계는 하나로 유지한다** — 나중에 카드가 붙었을 때
+    // 이 탭만 한국어로 남는 것을 막는다.
+    return sendTab(req, res, data);
   } catch (err) { next(err); }
 });
 

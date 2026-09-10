@@ -8,6 +8,9 @@
 //   5) 받은 서명 요청 (만료 임박)
 const { Op } = require('sequelize');
 const { Task, TaskReviewer, CalendarEvent, Invoice, SignatureRequest, Client } = require('../models');
+// 카드 문구는 **여기서 만들지 않는다** — 코드+원시값만 담고 routes/insights.js 가
+// 보는 사람의 언어·타임존으로 해석한다 (services/statsInsights.js 헤더 참조).
+const { cueCard, num, money, text, dateOnly, eventList, party } = require('./statsInsights');
 
 async function buildInsights({ userId, businessId, userRole, userEmail }) {
   if (!userId || !businessId) return [];
@@ -26,14 +29,11 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
     },
   });
   if (overdueTasks >= 3) {
-    insights.push({
+    insights.push(cueCard('cue_overdue_tasks', { count: num(overdueTasks) }, {
       id: `overdue_tasks_${overdueTasks}`,
       kind: 'overdue_tasks',
       severity: overdueTasks >= 8 ? 'urgent' : 'warning',
-      title: `지연 업무 ${overdueTasks}건이 쌓여 있어요`,
-      body: `마감이 지난 미완료 업무 ${overdueTasks}건. Q Task 의 지연 뱃지 클릭으로 빠르게 갱신할 수 있어요.`,
-      action: { label: 'Q Task 열기', link: '/tasks' },
-    });
+    }));
   }
 
   // 2) 24h 내 일정
@@ -48,16 +48,17 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
   });
   if (upcomingEvents.length > 0) {
     const next = upcomingEvents[0];
-    insights.push({
-      id: `upcoming_event_${next.id}`,
-      kind: 'upcoming_event',
-      severity: 'today',
-      title: upcomingEvents.length === 1
-        ? `다가오는 일정: ${next.title}`
-        : `24시간 안에 일정 ${upcomingEvents.length}건`,
-      body: upcomingEvents.map(e => `· ${e.title} (${new Date(e.start_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short' })})`).join('\n'),
-      action: { label: '캘린더 열기', link: '/calendar' },
-    });
+    // ★ 날짜 문자열을 여기서 만들지 않는다 — 옛 코드는 'ko-KR' + 'Asia/Seoul' 을 박아 둬서
+    //   다른 지역·언어 사용자에게 남의 시간대로 보였다. 해석은 보는 사람 기준으로 한 번.
+    insights.push(cueCard(
+      upcomingEvents.length === 1 ? 'cue_upcoming_event_one' : 'cue_upcoming_events',
+      {
+        name: text(next.title),
+        count: num(upcomingEvents.length),
+        list: eventList(upcomingEvents.map((e) => ({ title: e.title, start_at: e.start_at }))),
+      },
+      { id: `upcoming_event_${next.id}`, kind: 'upcoming_event' },
+    ));
   }
 
   // 3) 컨펌 대기 (내가 reviewer 인 pending task)
@@ -74,14 +75,9 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
     }],
   });
   if (pendingReviews >= 5) {
-    insights.push({
-      id: `pending_reviews_${pendingReviews}`,
-      kind: 'pending_reviews',
-      severity: 'warning',
-      title: `컨펌 대기 ${pendingReviews}건`,
-      body: '내가 컨펌해야 할 업무가 쌓이고 있어요. 인박스에서 빠르게 처리하세요.',
-      action: { label: '확인 필요 열기', link: '/inbox' },
-    });
+    insights.push(cueCard('cue_pending_reviews', { count: num(pendingReviews) }, {
+      id: `pending_reviews_${pendingReviews}`, kind: 'pending_reviews',
+    }));
   }
 
   // 4) 미수금 — 고객이 기한까지 결제하지 않은 청구서 (owner/admin)
@@ -101,11 +97,6 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
     // 미수 잔액 > 0 인 건만 (부분 결제 후 잔액)
     const unpaid = overdueList.filter(inv => Number(inv.grand_total || 0) > Number(inv.paid_amount || 0));
     if (unpaid.length > 0) {
-      const fmtAmount = (amt, cur) => {
-        const n = Number(amt || 0);
-        const sym = { USD: '$', EUR: '€', JPY: '¥', CNY: '¥' }[cur];
-        return sym ? `${sym}${n.toLocaleString('en-US')}` : `${n.toLocaleString('ko-KR')}원`;
-      };
       // 고객명 채우기 (recipient_business_name 없으면 Client 에서)
       const first = unpaid[0];
       let firstName = first.recipient_business_name || '';
@@ -119,17 +110,17 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
         ? (typeof rawDue === 'string' ? rawDue.slice(0, 10) : new Date(rawDue).toISOString().slice(0, 10))
         : '';
       const firstOwed = Number(first.grand_total || 0) - Number(first.paid_amount || 0);
-      const body = unpaid.length === 1
-        ? `${firstName ? `${firstName} 님에게 ` : '고객에게 '}청구한 ${fmtAmount(firstOwed, first.currency)}이 결제 기한(${firstDue})을 지났는데 아직 입금되지 않았어요. 입금을 확인했다면 입금 처리하고, 아니면 결제 독촉을 보내세요. (워크스페이스 구독료가 아니라 고객에게 청구한 금액이에요.)`
-        : `고객에게 청구한 금액 중 결제 기한이 지난 미입금 청구서가 ${unpaid.length}건 있어요. 입금 확인 또는 결제 독촉이 필요해요. (워크스페이스 구독료와는 별개예요.)`;
-      insights.push({
-        id: `overdue_invoices_${unpaid.length}`,
-        kind: 'overdue_invoices',
-        severity: 'urgent',
-        title: `미입금 청구서 ${unpaid.length}건 (미수금)`,
-        body,
-        action: { label: '미수금 관리', link: '/bills?tab=invoices' },
-      });
+      insights.push(cueCard(
+        unpaid.length === 1 ? 'cue_overdue_invoice_one' : 'cue_overdue_invoices',
+        {
+          count: num(unpaid.length),
+          amount: money(firstOwed, first.currency || 'KRW'),
+          due: dateOnly(firstDue),
+          // 이름을 모를 때의 총칭·호칭('님')은 party() 가 언어별로 처리한다.
+          who: party(firstName),
+        },
+        { id: `overdue_invoices_${unpaid.length}`, kind: 'overdue_invoices' },
+      ));
     }
   }
 
@@ -143,14 +134,9 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
       },
     });
     if (expSoon > 0) {
-      insights.push({
-        id: `signature_expiring_${expSoon}`,
-        kind: 'signature_expiring',
-        severity: 'urgent',
-        title: `서명 만료 임박 ${expSoon}건`,
-        body: '24시간 안에 만료되는 서명 요청이 있어요. 즉시 서명하지 않으면 다시 보내달라고 요청해야 합니다.',
-        action: { label: '받은 서명 보기', link: '/docs?tab=received-signatures' },
-      });
+      insights.push(cueCard('cue_signature_expiring', { count: num(expSoon) }, {
+        id: `signature_expiring_${expSoon}`, kind: 'signature_expiring',
+      }));
     }
   }
 

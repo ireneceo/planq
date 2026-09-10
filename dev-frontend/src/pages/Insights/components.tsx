@@ -1,6 +1,7 @@
 // Insights 통계 탭들의 공통 styled 컴포넌트.
 import React from 'react';
 import styled from 'styled-components';
+import i18n from '../../i18n';
 
 // 인사이트 박스 — 가로 풀폭 1col, 안에서 가로 inline (제목 · 값 · 힌트 · 액션)
 // 좌우 여백 최소화 (Irene 피드백 2026-04-30)
@@ -212,8 +213,17 @@ export const DownloadIcon = () => (
 //   맞다. 옛 구현은 만원 단위로 **반올림**했다: 434,000원 → "43만원"(4,000원 증발),
 //   125,000,000원 → "1.3억원". 돈은 요약해서 보여줄 값이 아니다 — 사용자가 장부와 대조하는 숫자다.
 //   축약이 필요한 자리가 생기면 compact 를 명시적으로 켤 것(기본은 언제나 정확값).
+// ★ '원' 은 한국어 단어다 — 영어로 보는 사용자에게는 통화 기호로 쓴다(₩1,234,567).
+//   실측(2026-09-10): 언어를 en 으로 바꿔도 KPI 가 "0원" 으로 남아, 바로 위 인사이트 카드만
+//   영어이고 그 아래 숫자는 한국어인 화면이 됐다. 억/만원 축약도 같은 이유로 ko 에서만 쓴다.
+const isEn = () => (i18n.language || 'ko').slice(0, 2) === 'en';
+
 export const fmtKRW = (v: number | null | undefined, opts?: { compact?: boolean }): string => {
   if (v == null || isNaN(v)) return '—';
+  if (isEn()) {
+    // en 은 축약하지 않는다 — '억/만' 은 번역할 단위가 아니라 세는 방식 자체가 다르다
+    return `₩${Math.round(v).toLocaleString('en-US')}`;
+  }
   if (opts?.compact) {
     if (Math.abs(v) >= 100000000) return `${(v / 100000000).toFixed(1)}억원`;
     if (Math.abs(v) >= 10000) return `${(v / 10000).toFixed(0)}만원`;

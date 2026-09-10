@@ -6,6 +6,10 @@
 const { Op, fn, col, literal } = require('sequelize');
 const { Task, TaskEstimation, sequelize } = require('../models');
 const { getMemberCostMap, computeLaborCost } = require('./memberCost');
+// 인사이트 카드 문구는 **여기서 만들지 않는다** — 코드+원시값만 담고
+// 응답 경계(routes/stats.js · report_generator.js)가 수신자 언어로 해석한다.
+// 이유와 계약은 services/statsInsights.js 헤더 참조.
+const { ins, money, num, hours: hoursFmt, expenseCat } = require('./statsInsights');
 
 // MAPE = mean of |est - actual| / actual (0 < actual)
 // 단일값 0 div 가드, 그 외 task 평균
@@ -326,14 +330,10 @@ function buildTaskInsights({ kpis, scatter, aiTrend, sources }) {
     const top = avgs[0];
     const bot = avgs[avgs.length - 1];
     if (top.avg - bot.avg > 30) {
-      out.push({
-        severity: 'warning',
-        title: '공수 정확도 편차 큼',
-        value: `${top.name} ${top.avg.toFixed(0)}% · ${bot.name} ${bot.avg.toFixed(0)}%`,
-        hint: '카테고리별 강점·약점 분석으로 배정 최적화',
-        action_label: 'People 탭에서 보기',
-        action_link: '/insights?tab=people',
-      });
+      out.push(ins('task_accuracy_spread', {
+        top: top.name, topPct: top.avg.toFixed(0),
+        bottom: bot.name, bottomPct: bot.avg.toFixed(0),
+      }));
     }
   }
 
@@ -344,35 +344,18 @@ function buildTaskInsights({ kpis, scatter, aiTrend, sources }) {
     if (first.ai_mape != null && last.ai_mape != null && first.ai_mape > last.ai_mape) {
       const fromPct = (first.ai_mape * 100).toFixed(0);
       const toPct = (last.ai_mape * 100).toFixed(0);
-      out.push({
-        severity: 'info',
-        title: 'AI 추정 정확도 향상',
-        value: `MAPE ${fromPct}% → ${toPct}%`,
-        hint: '신규 업무 견적 시 AI 추정값 신뢰도 ↑',
-      });
+      out.push(ins('task_ai_accuracy_up', { from: fromPct, to: toPct }));
     }
   }
 
   // (3) qtalk_extract 출처 task 의 리드타임 — 추후 mapping 필요 (placeholder)
   if (sources.qtalk_extract > 0) {
-    out.push({
-      severity: 'info',
-      title: '대화 추출 업무',
-      value: `${sources.qtalk_extract}건 자동 등록`,
-      hint: 'Q Talk 메시지에서 자동 추출된 업무',
-      action_label: '대화 보기',
-      action_link: '/talk',
-    });
+    out.push(ins('task_from_chat', { count: num(sources.qtalk_extract) }));
   }
 
   // 인사이트 부족할 때 placeholder 보충
   if (out.length === 0) {
-    out.push({
-      severity: 'info',
-      title: '데이터 누적 중',
-      value: '30일 이상 누적되면 인사이트가 더 정확해져요',
-      hint: '업무를 5건 이상 등록·완료하시면 분석이 시작됩니다',
-    });
+    out.push(ins('task_collecting'));
   }
 
   return out.slice(0, 3);
@@ -546,22 +529,10 @@ async function buildOverviewTab(businessId, period) {
   }
 
   const insights = [];
-  if (overdue > 0) insights.push({
-    severity: 'urgent', title: '연체 청구', value: `${overdue.toLocaleString()}원`,
-    hint: '미수금 회수 우선', action_label: '청구서 보기', action_link: '/bills',   // SPA 라우트는 /bills — '/qbill' 은 존재하지 않아 catch-all 로 대시보드에 튕겼다
-  });
-  if (utilization != null && utilization > 100) insights.push({
-    severity: 'warning', title: '가동률 초과', value: `${utilization.toFixed(0)}%`,
-    hint: '초과 근무 누적 위험', action_label: '팀 보기', action_link: '/stats/team',
-  });
-  if (newClients > 0) insights.push({
-    severity: 'info', title: '신규 고객', value: `${newClients}건`,
-    hint: '관계 강화 시점', action_label: '고객 보기', action_link: '/business/clients',
-  });
-  if (insights.length === 0) insights.push({
-    severity: 'info', title: '데이터 누적 중', value: '30일 이상 누적 시 더 정확',
-    hint: '청구서/업무를 등록하시면 분석이 시작됩니다',
-  });
+  if (overdue > 0) insights.push(ins('overview_overdue', { amount: money(overdue, home) }));
+  if (utilization != null && utilization > 100) insights.push(ins('overview_over_utilization', { pct: utilization.toFixed(0) }));
+  if (newClients > 0) insights.push(ins('overview_new_clients', { count: num(newClients) }));
+  if (insights.length === 0) insights.push(ins('overview_collecting'));
 
   const firstResponse = await computeFirstResponse(businessId, period);
 
@@ -772,15 +743,12 @@ async function buildProfitTab(businessId, period, segment = 'client') {
       total_cost: Math.round(r.labor_cost + r.direct_cost),
     })).sort((a, b) => b.total_cost - a.total_cost);
     const invInsights = [];
-    if (internalRows.length > 0) invInsights.push({
-      severity: 'info', title: '내부 투자 시간',
-      value: `${internalInvestment.total_hours}h`,
-      hint: `${internalInvestment.project_count}개 내부 프로젝트 · 원가 ${internalInvestment.total_cost.toLocaleString()}원`,
-    });
-    else invInsights.push({
-      severity: 'info', title: '내부 프로젝트 없음',
-      value: '자체 투자 업무를 내부 프로젝트로 표시', hint: '프로젝트 설정에서 "내부 프로젝트" 토글',
-    });
+    if (internalRows.length > 0) invInsights.push(ins('profit_internal_investment', {
+      hours: hoursFmt(internalInvestment.total_hours),
+      count: num(internalInvestment.project_count),
+      cost: money(internalInvestment.total_cost, home),
+    }));
+    else invInsights.push(ins('profit_no_internal'));
     return {
       period: { from: period.from, to: period.to, label: period.label },
       segment,
@@ -799,28 +767,20 @@ async function buildProfitTab(businessId, period, segment = 'client') {
   const overrunRows = clientRows.filter((r) => r.est_hours > 0 && r.hours > r.est_hours * 1.5);
 
   const insights = [];
-  if (negativeMargin > 0) insights.push({
-    severity: 'urgent', title: '마진 음수 프로젝트',
-    value: `${negativeMargin}건`, hint: '즉시 검토 필요',
-    action_label: '아래 표 확인', action_link: '/stats/profit',
-  });
+  if (negativeMargin > 0) insights.push(ins('profit_negative_margin', { count: num(negativeMargin) }));
   if (overrunRows.length > 0) {
     const top = overrunRows[0];
     const ratio = ((top.hours / top.est_hours - 1) * 100).toFixed(0);
-    insights.push({
-      severity: 'warning', title: '견적 초과', value: `${top.name} +${ratio}%`,
-      hint: `${top.est_hours}h → ${top.hours}h`,
-    });
+    insights.push(ins('profit_estimate_overrun', {
+      name: top.name, ratio,
+      est: hoursFmt(top.est_hours), actual: hoursFmt(top.hours),
+    }));
   }
-  if (avgProfitPerHour != null) insights.push({
-    severity: 'info', title: 'Profit per Hour 평균',
-    value: `${Math.round(avgProfitPerHour).toLocaleString()}원/h`,
-    hint: avgProfitPerHour > 90000 ? '목표 달성' : '단가 인상 검토',
-  });
-  if (insights.length === 0) insights.push({
-    severity: 'info', title: '데이터 누적 중',
-    value: '프로젝트 수금·비용 기록 후 표시', hint: '청구서·비용 입력하시면 분석 시작',
-  });
+  if (avgProfitPerHour != null) insights.push(ins(
+    avgProfitPerHour > 90000 ? 'profit_per_hour_good' : 'profit_per_hour_low',
+    { amount: money(Math.round(avgProfitPerHour), home) },
+  ));
+  if (insights.length === 0) insights.push(ins('profit_collecting'));
 
   // ── 고객사 단위 집계 (#211) ──────────────────────────────────────
   //   프로젝트 행만 있으면 "이 고객사가 남는 장사인가" 를 눈으로 합산해야 한다.
@@ -878,13 +838,10 @@ async function buildProfitTab(businessId, period, segment = 'client') {
     complete: totalUncostedHours === 0,
   };
   if (!laborCostCoverage.complete) {
-    insights.unshift({
-      severity: 'warning',
-      title: '인건비가 불완전합니다',
-      value: `${laborCostCoverage.uncosted_hours}h 제외`,
-      hint: `단가가 입력되지 않은 멤버 ${laborCostCoverage.uncosted_member_count}명의 시간이 인건비에서 빠졌습니다. 실제 이익은 이보다 낮습니다.`,
-      action_label: '단가 입력', action_link: '/business/members',
-    });
+    insights.unshift(ins('profit_labor_cost_incomplete', {
+      hours: hoursFmt(laborCostCoverage.uncosted_hours),
+      count: num(laborCostCoverage.uncosted_member_count),
+    }));
   }
 
   // 내부 계산용 필드는 응답에서 제거 (user id 유출 방지)
@@ -928,7 +885,7 @@ function emptyProfitTab(period, segment = 'client') {
         internal_projects: { value: 0 }, internal_hours: { value: 0 }, internal_cost: { value: 0 },
       },
       table: [],
-      insights: [{ severity: 'info', title: '내부 프로젝트 없음', value: '자체 투자 업무를 내부 프로젝트로 표시', hint: '프로젝트 설정에서 "내부 프로젝트" 토글' }],
+      insights: [ins('profit_no_internal')],
     };
   }
   return {
@@ -941,7 +898,7 @@ function emptyProfitTab(period, segment = 'client') {
     // #211 — shape 를 본 응답과 맞춘다. 없으면 프론트가 undefined 를 만난다.
     by_client: [],
     labor_cost_coverage: { uncosted_member_count: 0, uncosted_hours: 0, complete: true },
-    insights: [{ severity: 'info', title: '프로젝트 없음', value: '신규 프로젝트 등록 후 분석 시작' }],
+    insights: [ins('profit_no_projects')],
   };
 }
 
@@ -1084,24 +1041,16 @@ async function buildTeamTab(businessId, period, segment = 'client') {
   const sortedByAcc = [...rows].filter((r) => r.accuracy_pct != null && r.completed_tasks >= 3).sort((a, b) => (b.accuracy_pct || 0) - (a.accuracy_pct || 0));
 
   const insights = [];
-  if (sortedByRev.length > 0) insights.push({
-    severity: 'info', title: '인당 매출 1위',
-    value: `${sortedByRev[0].name} ${sortedByRev[0].revenue_share.toLocaleString()}원`,
-    hint: '시간 비중 가중 분배',
-  });
-  if (overUtil.length > 0) insights.push({
-    severity: 'urgent', title: '가동률 초과 직원',
-    value: `${overUtil.map((r) => r.name).join(', ')} (${overUtil[0].utilization_pct}%)`,
-    hint: '초과근무 위험 — 업무 재배정 검토',
-  });
-  if (sortedByAcc.length > 0) insights.push({
-    severity: 'info', title: '추정 정확도 1위',
-    value: `${sortedByAcc[0].name} ${sortedByAcc[0].accuracy_pct}%`,
-    hint: `Bias ${sortedByAcc[0].bias_pct}%`,
-  });
-  if (insights.length === 0) insights.push({
-    severity: 'info', title: '데이터 누적 중', value: '완료 업무가 쌓이면 직원 비교 분석',
-  });
+  if (sortedByRev.length > 0) insights.push(ins('team_top_revenue', {
+    name: sortedByRev[0].name, amount: money(sortedByRev[0].revenue_share, home),
+  }));
+  if (overUtil.length > 0) insights.push(ins('team_over_utilization', {
+    names: overUtil.map((r) => r.name).join(', '), pct: overUtil[0].utilization_pct,
+  }));
+  if (sortedByAcc.length > 0) insights.push(ins('team_top_accuracy', {
+    name: sortedByAcc[0].name, pct: sortedByAcc[0].accuracy_pct, bias: sortedByAcc[0].bias_pct,
+  }));
+  if (insights.length === 0) insights.push(ins('team_collecting'));
 
   // 가동률 분포 (히스토그램용 카테고리 카운트)
   const utilBuckets = { under60: 0, normal: 0, over90: 0, over100: 0 };
@@ -1218,26 +1167,16 @@ async function buildFinanceTab(businessId, period, segment = 'client') {
   })).sort((a, b) => b.amount - a.amount);
 
   const insights = [];
-  if (margin != null && margin < 0) insights.push({
-    severity: 'urgent', title: '마진 음수', value: `${margin.toFixed(1)}%`,
-    hint: '비용 > 매출 — 즉시 검토',
-  });
-  else if (margin != null && margin < 10) insights.push({
-    severity: 'warning', title: '낮은 마진', value: `${margin.toFixed(1)}%`,
-    hint: '비용 절감 또는 단가 인상 검토',
-  });
-  if (receivable > 0) insights.push({
-    severity: 'warning', title: '미수금', value: `${receivable.toLocaleString()}원`,
-    hint: `${overdueInvoices.length}건 미결제`,
-    action_label: '청구서 보기', action_link: '/bills',   // SPA 라우트는 /bills — '/qbill' 은 존재하지 않아 catch-all 로 대시보드에 튕겼다
-  });
-  if (expensesByCategory.length > 0) insights.push({
-    severity: 'info', title: '지출 1위',
-    value: `${expensesByCategory[0].category} ${expensesByCategory[0].amount.toLocaleString()}원`,
-  });
-  if (insights.length === 0) insights.push({
-    severity: 'info', title: '데이터 누적 중', value: '청구서·비용 등록 후 분석 시작',
-  });
+  if (margin != null && margin < 0) insights.push(ins('finance_negative_margin', { pct: margin.toFixed(1) }));
+  else if (margin != null && margin < 10) insights.push(ins('finance_low_margin', { pct: margin.toFixed(1) }));
+  if (receivable > 0) insights.push(ins('finance_receivable', {
+    amount: money(receivable, home), count: num(overdueInvoices.length),
+  }));
+  if (expensesByCategory.length > 0) insights.push(ins('finance_top_expense', {
+    category: expenseCat(expensesByCategory[0].category),
+    amount: money(expensesByCategory[0].amount, home),
+  }));
+  if (insights.length === 0) insights.push(ins('finance_collecting'));
 
   // 12개월 매출·비용·이익 추이 (Overview 매출추이와 상보 — Finance 는 비용 분해 강조)
   const ym = (x) => new Date(x).toISOString().slice(0, 7);

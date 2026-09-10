@@ -420,7 +420,7 @@ function reportPdfHtml({ period, business, generatedAt, tabs }) {
 
   const expenseRows = (fn.expenses_by_category || []).slice(0, 8).map((r) => `
     <tr>
-      <td>${escapeHtml(r.category)}</td>
+      <td>${escapeHtml(r.category_label || r.category)}</td>
       <td class="num">${fmtKRW(r.amount)}</td>
     </tr>
   `).join('');

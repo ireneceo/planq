@@ -2067,6 +2067,141 @@ function checkAutoSave() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// statstext — 통계 인사이트 문구는 **서버 카탈로그 한 곳**에만 있다 (2026-09-10 박제)
+//   `services/stats.js` 가 카드 문구를 한국어 문자열로 완성해 응답에 실었고, 프론트는 그것을
+//   그대로 그렸다 → 영어 사용자에게 한국어. i18n 가드(`--category=i18n`)는 `dev-frontend/src`
+//   만 walk 하므로 **백엔드 문자열은 영영 안 잡히는 사각지대**였다.
+//   같은 계열: services/notifyTitle.js(알림 제목) — 그 선례를 따른다.
+//
+//   하드 게이트(래칫 아님) — 0 에서 시작했으니 0 을 지킨다.
+//     ① stats.js 의 인사이트 필드에 문자열 리터럴 금지 (코드+원시값만)
+//     ② stats.js 가 쓰는 code 가 카탈로그에 전부 있어야
+//     ③ 카탈로그 ko/en 필드·보간 변수 일치 + en 에 한국어 없음
+//     ④ 탭 라우트가 sendTab 을 거쳐야 — 하나라도 빼먹으면 그 탭만 한국어가 된다
+function checkStatsText() {
+  const bad = [];
+  const statsPath = `${ROOT}/dev-backend/services/stats.js`;
+  const routePath = `${ROOT}/dev-backend/routes/stats.js`;
+  const catPath = `${ROOT}/dev-backend/services/statsInsights.js`;
+  const cuePath = `${ROOT}/dev-backend/services/insights.js`;
+  const cueRoutePath = `${ROOT}/dev-backend/routes/insights.js`;
+  const src = read(statsPath);
+  const route = read(routePath);
+  const cueSrc = read(cuePath);
+  const cueRoute = read(cueRoutePath);
+
+  // ① 카드 문구 리터럴 잔존 — 통계 인사이트 · Cue 능동 카드 둘 다
+  const litScan = (text, rel_, fields) => {
+    text.split('\n').forEach((ln, i) => {
+      if (/^\s*(\/\/|\*)/.test(ln)) return;
+      const re = new RegExp(`\\b(${fields})\\s*:\\s*[\`'"]`);
+      if (re.test(ln)) bad.push(`${rel_}:${i + 1}: 카드 문구를 직접 만들었다 → 카탈로그(statsInsights.js)로`);
+    });
+  };
+  litScan(src, 'dev-backend/services/stats.js', 'title|value|hint|action_label');
+  litScan(cueSrc, 'dev-backend/services/insights.js', 'title|body|label');
+
+  // ②③ 카탈로그
+  let CAT = null;
+  let CUE = null;
+  try { CAT = require(catPath).CATALOG; CUE = require(catPath).CUE_CATALOG; }
+  catch (e) { bad.push(`statsInsights.js 로드 실패: ${e.message}`); }
+  if (CUE) {
+    const cueUsed = new Set([...cueSrc.matchAll(/cueCard\(\s*'([a-z0-9_]+)'/g)].map((m) => m[1]));
+    for (const m of cueSrc.matchAll(/\?\s*'([a-z0-9_]+)'\s*:\s*'([a-z0-9_]+)'/g)) {
+      if (CUE[m[1]]) cueUsed.add(m[1]);
+      if (CUE[m[2]]) cueUsed.add(m[2]);
+    }
+    for (const code of cueUsed) if (!CUE[code]) bad.push(`insights.js 가 쓰는 cue code '${code}' 가 카탈로그에 없다`);
+    if (!/localizeCueCards\(/.test(cueRoute)) {
+      bad.push('dev-backend/routes/insights.js: localizeCueCards 를 안 거친다 → Cue 카드가 언제나 한국어');
+    }
+  }
+  if (CAT) {
+    const used = new Set([...src.matchAll(/ins\(\s*'([a-z0-9_]+)'/g)].map((m) => m[1]));
+    // 삼항으로 고른 코드 (ins(cond ? 'a' : 'b', …))
+    for (const m of src.matchAll(/\?\s*'([a-z0-9_]+)'\s*:\s*'([a-z0-9_]+)'/g)) {
+      if (CAT[m[1]]) used.add(m[1]);
+      if (CAT[m[2]]) used.add(m[2]);
+    }
+    for (const code of used) if (!CAT[code]) bad.push(`stats.js 가 쓰는 code '${code}' 가 카탈로그에 없다`);
+    for (const [code, e] of Object.entries({ ...CAT, ...(CUE || {}) })) {
+      if (!e.ko || !e.en) { bad.push(`카탈로그 ${code}: ko/en 한쪽이 없다`); continue; }
+      const kk = Object.keys(e.ko).sort().join(',');
+      const ek = Object.keys(e.en).sort().join(',');
+      if (kk !== ek) bad.push(`카탈로그 ${code}: 필드 불일치 ko[${kk}] vs en[${ek}]`);
+      for (const f of Object.keys(e.ko)) {
+        const vars = (x) => [...String(x || '').matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort().join(',');
+        if (vars(e.ko[f]) !== vars(e.en[f])) bad.push(`카탈로그 ${code}.${f}: 보간 변수 불일치`);
+      }
+      if (/[가-힣]/.test(JSON.stringify(e.en))) bad.push(`카탈로그 ${code}: en 안에 한국어가 있다`);
+    }
+  }
+
+  // ③-B 전수 렌더 — 정적 대조만으로는 "보간이 실제로 풀리는가" 를 못 본다.
+  //     보간 변수는 ko 문구에서 **자동 수집**한다 → 새 코드를 추가해도 이 검사가 저절로 따라온다
+  //     (테스트 파라미터 목록을 손으로 관리하면 그것부터 낡는다).
+  if (CAT) {
+    try {
+      const si = require(catPath);
+      const all = [
+        ...Object.entries(CAT).map(([c, e]) => [c, e, 'stats']),
+        ...Object.entries(CUE || {}).map(([c, e]) => [c, e, 'cue']),
+      ];
+      for (const [code, e, kind] of all) {
+        const vars = new Set();
+        for (const f of Object.keys(e.ko || {})) {
+          for (const m of String(e.ko[f]).matchAll(/\{\{(\w+)\}\}/g)) vars.add(m[1]);
+        }
+        const params = {};
+        for (const v of vars) params[v] = si.text('X');
+        for (const lang of ['ko', 'en']) {
+          const r = kind === 'cue'
+            ? si.localizeCueCards([si.cueCard(code, params, { id: 'x' })], lang, 'Asia/Seoul')[0]
+            : si.localizeInsights([si.ins(code, params)], lang)[0];
+          const shown = [r.title, r.value, r.body, r.hint, r.action_label, r.action && r.action.label]
+            .filter(Boolean).join(' | ');
+          if (/\{\{/.test(shown)) bad.push(`카탈로그 ${code}[${lang}]: 보간이 안 풀린다 → ${shown}`);
+          if (!r.title || !(r.value || r.body)) bad.push(`카탈로그 ${code}[${lang}]: title/본문이 빈다`);
+          // value 에는 사람 이름·프로젝트명이 들어오므로 제외 — 문구 칸만 본다
+          if (lang === 'en' && /[가-힣]/.test([r.title, r.body, r.hint, r.action_label, r.action && r.action.label].filter(Boolean).join(' '))) {
+            bad.push(`카탈로그 ${code}[en]: 렌더 결과에 한국어 → ${shown}`);
+          }
+        }
+      }
+    } catch (e) { bad.push(`전수 렌더 실패: ${e.message}`); }
+  }
+
+  // ③-C 카드의 이동 링크가 **앱 화면**에 붙는가
+  //     ★ "라우트가 존재하는가" 로는 부족하다 — 옛 `'/insights?tab=people'` 은 라우트가
+  //       존재했지만 그건 **공개 마케팅 블로그**(LandingBlog)라 누르면 앱 밖으로 튕겼다.
+  //       그래서 ProtectedRoute 로 선언된 경로만 인정한다.
+  if (CAT || CUE) {
+    const app = read(`${ROOT}/dev-frontend/src/App.tsx`);
+    const guarded = [];
+    for (const m of app.matchAll(/<Route\s+path="([^"]+)"\s+element=\{([^]*?)\/>/g)) {
+      if (/ProtectedRoute/.test(m[2])) guarded.push(m[1]);
+    }
+    const hits = (p_) => guarded.some((r) => new RegExp(`^${r.replace(/:[^/]+/g, '[^/]+').replace(/\*/g, '.*')}$`).test(p_.split('?')[0]));
+    const links = new Set();
+    for (const e of Object.values(CAT || {})) if (e.action_link) links.add(e.action_link);
+    for (const e of Object.values(CUE || {})) if (e.link) links.add(e.link);
+    if (guarded.length < 10) bad.push(`App.tsx 에서 ProtectedRoute 경로를 ${guarded.length}개밖에 못 읽었다 — 검사기가 눈이 먼 상태다`);
+    else for (const l of links) if (!hits(l)) bad.push(`카드 링크 '${l}' 가 앱 화면(ProtectedRoute)에 없다 — 누르면 앱 밖으로 나간다`);
+  }
+
+  // ④ 탭 라우트가 해석 경계를 거치는가
+  for (const m of route.matchAll(/const (?:data|result) = (?:await )?stats\.build\w+Tab\([^;]*;\s*\n\s*return (\w+)\(/g)) {
+    if (m[1] !== 'sendTab') {
+      const line = route.slice(0, m.index).split('\n').length;
+      bad.push(`dev-backend/routes/stats.js:${line}: 탭 응답이 sendTab 을 안 거친다 → 그 탭만 한국어가 된다`);
+    }
+  }
+
+  report('statstext', '서버 카드 문구 단일 원천 — 통계 + Cue (하드 게이트)', bad.length === 0, bad);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   canary: checkCanaryContract,
@@ -2106,6 +2241,7 @@ const CATEGORIES = {
   modalportal: checkModalPortal,
   sharedrive: checkSharedDrive,
   rawmarkup: checkRawMarkup,
+  statstext: checkStatsText,
 };
 
 try {

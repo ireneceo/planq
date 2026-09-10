@@ -18,7 +18,9 @@ interface Data {
   home_currency?: string;
   kpis: Record<string, { value: number | null; by_currency?: Record<string, number> }>;
   cost_trend?: { month: string; revenue: number; cost: number; profit: number }[];
-  expenses_by_category: { category: string; amount: number }[];
+  // category 는 내부 코드(rent·project_travel…), category_label 은 서버가 요청자 언어로 붙인 라벨.
+  // 코드를 그대로 그리면 화면에 `project_saas` 가 보인다 — 표시는 언제나 label 우선.
+  expenses_by_category: { category: string; amount: number; category_label?: string }[];
   insights: { severity: string; title: string; value: string; hint?: string; action_label?: string; action_link?: string }[];
 }
 
@@ -42,6 +44,8 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
 
   const home = data.home_currency || 'KRW';
   const foreignLabel = t('foreignLabel', '외화') as string;
+  // 라벨이 없는 옛 응답(배포 전 캐시)도 화면이 비지 않게 코드로 떨어진다.
+  const expenseRows = data.expenses_by_category.map((r) => ({ ...r, category_label: r.category_label || r.category }));
 
   return (
     <>
@@ -95,9 +99,9 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
           <ChartEmpty>{t('finance.chart.expenses.empty', '비용·고정비를 등록하면 표시됩니다')}</ChartEmpty>
         ) : (
           <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={data.expenses_by_category.slice(0, 10)} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
+            <BarChart data={expenseRows.slice(0, 10)} margin={{ top: 16, right: 24, bottom: 8, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-              <XAxis dataKey="category" tick={{ fontSize: '0.6875rem', fill: '#64748B' }} />
+              <XAxis dataKey="category_label" tick={{ fontSize: '0.6875rem', fill: '#64748B' }} />
               <YAxis tick={{ fontSize: '0.6875rem', fill: '#64748B' }} tickFormatter={(v) => fmtMoney(v, home)} />
               <Tooltip formatter={(v) => fmtMoney(typeof v === 'number' ? v : Number(v), home)} />
               <Bar dataKey="amount" name={t('finance.chart.expenses.bar', '금액') as string} fill="#F43F5E" />
@@ -109,8 +113,8 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
       <SectionRow style={{ marginTop: 24 }}>
         <SectionLabel>{t('finance.table.title', '카테고리별 상세')}</SectionLabel>
         <DownloadBtn type="button" disabled={data.expenses_by_category.length === 0}
-          onClick={() => downloadRowsAsCsv(`finance_${data.period.from}_${data.period.to}.csv`, data.expenses_by_category, [
-            { key: 'category', header: t('finance.col.category', '카테고리') as string },
+          onClick={() => downloadRowsAsCsv(`finance_${data.period.from}_${data.period.to}.csv`, expenseRows, [
+            { key: 'category_label', header: t('finance.col.category', '카테고리') as string },
             { key: 'amount', header: t('finance.col.amount', '금액') as string },
           ])}>
           <DownloadIcon /> {t('download.csv', 'CSV (Excel)')}
@@ -128,9 +132,9 @@ const FinanceTab: React.FC<{ businessId: number; range: RangePreset; segment?: S
               </Tr>
             </thead>
             <tbody>
-              {data.expenses_by_category.map((r) => (
+              {expenseRows.map((r) => (
                 <Tr key={r.category}>
-                  <Td>{r.category}</Td>
+                  <Td>{r.category_label}</Td>
                   <Td $num>{fmtMoney(r.amount, home)}</Td>
                 </Tr>
               ))}

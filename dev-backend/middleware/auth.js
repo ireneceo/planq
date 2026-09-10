@@ -88,6 +88,13 @@ const authenticateToken = async (req, res, next) => {
       email: user.email,
       name: user.name,
       platform_role: user.platform_role,
+      // 표시 언어 — 서버가 만드는 사용자 노출 문자열(통계 인사이트 카드 등)의 해석 기준.
+      //   ★ 여태 실려 있지 않아 `req.user.language` 를 읽는 곳(routes/posts.js:477 등)이
+      //     전부 undefined 를 받아 **언제나 한국어**로 떨어졌다.
+      language: user.language || 'ko',
+      // 타임존 — 서버가 사람에게 보여줄 시각을 만들 때의 기준.
+      //   services/insights.js 가 'Asia/Seoul' 을 박아 두고 있었다.
+      timezone: user.timezone || null,
       // 활성 워크스페이스 — 여태 여기에 안 실려 `req.user.active_business_id` 를 읽는 라우트가
       // 전부 undefined 를 받았다(Cue 는 그 탓에 워크스페이스 전환을 못 따라가고 첫 멤버십에 고정).
       //   ⚠️ 이 값은 "사용자가 마지막으로 고른 워크스페이스" 일 뿐 권한 근거가 아니다.
@@ -138,6 +145,8 @@ const optionalAuth = async (req, res, next) => {
         email: user.email,
         name: user.name,
         platform_role: user.platform_role,
+        language: user.language || 'ko',
+        timezone: user.timezone || null,
         // authenticateToken 과 같은 모양으로 유지 — 두 생성자가 갈라지면
         // "어느 미들웨어를 탔느냐" 에 따라 라우트 동작이 달라진다.
         active_business_id: user.active_business_id || null,
