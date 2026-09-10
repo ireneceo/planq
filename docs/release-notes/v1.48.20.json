@@ -1,0 +1,18 @@
+{
+  "version": "1.48.20",
+  "date": "2026-09-10",
+  "items": [
+    {
+      "ko": { "title": "아이폰 앱에서 구글 로그인이 끝까지 됩니다",
+        "body": "앱에서 구글 로그인을 하면 6자리 코드가 뜨는 화면에서 멈춰, 앱으로 돌아갈 방법이 없었습니다. 안드로이드는 자동으로 앱이 열려 문제가 없었지만 아이폰은 그 자동 열기가 동작하지 않는데, 화면에 '앱으로 돌아가기' 버튼마저 없었던 것이 원인입니다. 이제 코드가 뜨는 화면에 버튼이 함께 나오고, 무엇을 하면 되는지 1·2·3 순서로 안내합니다. 버튼이 동작하지 않는 기기를 위해 창을 닫는 방법도 같이 적었습니다." },
+      "en": { "title": "Google sign-in now completes in the iPhone app",
+        "body": "Signing in with Google inside the app stopped at the screen showing a 6-digit code, with no way back to the app. Android was fine because it reopens the app automatically, but iPhone does not support that jump — and the screen had no Return to app button either. The button is back, and the screen now walks through what to do in three numbered steps, including how to close the window on devices where the button does not work." }
+    },
+    {
+      "ko": { "title": "휴대폰에서 메일 본문이 화면 안에 들어옵니다",
+        "body": "보낸 사람이 넓은 폭으로 만든 메일(가로 750px 등)을 휴대폰에서 열면 내용이 화면 밖으로 밀려나, 왼쪽은 비어 있고 표나 글이 오른쪽으로 잘려 보였습니다. 이제 화면 폭에 맞게 자동으로 축소해 전체가 보입니다. 너무 작아져서 읽기 어려울 정도면 축소하지 않고, 대신 내용이 왼쪽부터 시작하도록 맞춥니다. 컴퓨터에서 보는 화면은 이전과 완전히 같습니다." },
+      "en": { "title": "Mail bodies now fit your phone screen",
+        "body": "Mail built at a fixed wide layout (750px and similar) used to spill off the side on a phone — the left half sat empty while tables and text were cut off on the right. Such mail is now scaled down to fit, so you see the whole thing. When scaling would make the text too small to read, it is left at full size but aligned to the left edge instead. Desktop rendering is unchanged." }
+    }
+  ]
+}
