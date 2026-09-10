@@ -1599,8 +1599,26 @@ router.put('/:businessId/email-threads/:id',
       if (typeof b.is_starred === 'boolean') patch.is_starred = b.is_starred;
       if (Array.isArray(b.labels)) patch.labels = b.labels.map(s => String(s).slice(0, 50)).filter(Boolean).slice(0, 20);
       if (b.status && ['open', 'archived'].includes(b.status)) patch.status = b.status;
-      if ('client_id' in b) patch.client_id = b.client_id ? Number(b.client_id) : null;
-      if ('project_id' in b) patch.project_id = b.project_id ? Number(b.project_id) : null;
+      // ★ 2026-09-10 — 여기서 받은 id 가 **이 워크스페이스 것인지 확인하지 않고 있었다.**
+      //   읽기는 business_id 로 막혀 있어 남의 데이터가 새어 나가지는 않지만, 남의(또는 없는)
+      //   프로젝트·고객 id 가 그대로 저장돼 스레드가 어디에도 안 걸린 상태가 된다.
+      //   "새 문은 형제 문의 검사를 그대로 가져와야" — 연결을 거는 쪽에서 소속을 확인한다.
+      if ('client_id' in b) {
+        const cid = b.client_id ? Number(b.client_id) : null;
+        if (cid) {
+          const owned = await Client.count({ where: { id: cid, business_id: businessId } });
+          if (!owned) return errorResponse(res, 'client_not_in_workspace', 400);
+        }
+        patch.client_id = cid;
+      }
+      if ('project_id' in b) {
+        const pid = b.project_id ? Number(b.project_id) : null;
+        if (pid) {
+          const owned = await Project.count({ where: { id: pid, business_id: businessId } });
+          if (!owned) return errorResponse(res, 'project_not_in_workspace', 400);
+        }
+        patch.project_id = pid;
+      }
       if (!Object.keys(patch).length) return errorResponse(res, 'no_fields', 400);
       await thread.update(patch);
       broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, ...patch });

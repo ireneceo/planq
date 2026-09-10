@@ -453,6 +453,15 @@ const MailPage: React.FC = () => {
   const [labelFilter, setLabelFilter] = useState<string>('');
   // 프로젝트 필터 — URL(?project=)로도 받는다. 프로젝트 화면에서 "프로젝트 메일" 로 바로 올 수 있게.
   const [projectFilter, setProjectFilter] = useState<number>(() => Number(sp.get('project')) || 0);
+  // ★ 2026-09-10 (Irene: "프로젝트 메일 버튼 누르면 이상한 리스트업 되고 있어")
+  //   초기값으로만 URL 을 읽으면 **이 화면이 이미 떠 있을 때** 프로젝트가 바뀌어도 필터가 안 걸린다.
+  //   탭은 keep-alive 라 언마운트되지 않는다(TabPane 은 display:none 으로 살려 둔다) — 그래서
+  //   다른 프로젝트에서 "프로젝트 메일" 을 눌러도 **필터 없는 메일함 전체**가 그대로 보였다.
+  //   URL 이 곧 이 화면의 상태다 — 바뀌면 따라간다.
+  useEffect(() => {
+    const next = Number(sp.get('project')) || 0;
+    setProjectFilter((prev) => (prev === next ? prev : next));
+  }, [sp]);
   const [projectOpts, setProjectOpts] = useState<Array<{ id: number; name: string }>>([]);
   const [frameH, setFrameH] = useState<Record<number, number>>({});
   // #184 — 메시지별 번역 상태 (원본보기/번역하기 토글). target 기본 = UI 언어.
