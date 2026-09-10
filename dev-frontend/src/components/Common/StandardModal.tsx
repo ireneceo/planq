@@ -18,6 +18,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
+import { modalFooterRadius } from './modalShell';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 
@@ -59,8 +60,7 @@ const Footer = styled.div`
      (Irene 2026-09-07: "라운드가 위에만 있고 아래는 라운드가 없어서"). 헤더는 배경이
      없어 Dialog 의 라운드가 그대로 보이므로 위만 둥글었다. Dialog 에 overflow:hidden 을
      주면 안쪽 팝오버까지 잘리므로 **마지막 조각만 같은 값으로 깎는다.** */
-  border-radius: 0 0 14px 14px;
-  @media (max-width: 640px) { border-radius: 0; }
+  ${modalFooterRadius}
 `;
 
 const StandardModal: React.FC<Props> & {

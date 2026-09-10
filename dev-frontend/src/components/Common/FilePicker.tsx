@@ -7,6 +7,7 @@
 // 변경 (2026-05-03): 탭 두 개 → 한 화면 통합. AttachmentField 컴포넌트 재사용.
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
+import { modalFooterRadius } from './modalShell';
 import { useTranslation } from 'react-i18next';
 import DetailDrawer from './DetailDrawer';
 import AttachmentField from './AttachmentField';
@@ -221,4 +222,6 @@ const Footer = styled.div`
   display: flex; gap: 8px; align-items: center;
   padding: 14px 22px; border-top: 1px solid #F1F5F9;
   flex-shrink: 0; background: #fff;
+  /* 하단 라운드 — 배경이 껍데기 라운드를 덮지 않게. 규격은 Common/modalShell 하나다. */
+  ${modalFooterRadius}
 `;

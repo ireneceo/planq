@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { modalFooterRadius } from '../Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import { aiGenerateDoc, KIND_LABELS_KO, KIND_LABEL_KEYS, type DocKind } from '../../services/docs';
 import { createBrief } from '../../services/posts';
@@ -647,6 +648,8 @@ const Footer = styled.div`
   padding: 12px 22px 18px;
   flex-shrink: 0;
   border-top: 1px solid #F1F5F9; background: #fff;
+  /* 하단 라운드 — 배경이 껍데기 라운드를 덮지 않게. 규격은 Common/modalShell 하나다. */
+  ${modalFooterRadius}
 `;
 const PrimaryBtn = styled.button<{ $accent?: boolean }>`
   display: inline-flex; align-items: center;

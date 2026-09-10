@@ -14,6 +14,7 @@
 // styled 토큰은 PostAiModal 과 동일 (Backdrop/Dialog/Header/Tabs/Field/Footer).
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { modalFooterRadius } from '../../components/Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -214,6 +215,8 @@ const Footer = styled.div`
   padding: 12px 22px 18px;
   flex-shrink: 0;
   border-top: 1px solid #F1F5F9; background: #FFFFFF;
+  /* 하단 라운드 — 배경이 껍데기 라운드를 덮지 않게. 규격은 Common/modalShell 하나다. */
+  ${modalFooterRadius}
 `;
 const PrimaryBtn = styled.button`
   padding: 9px 18px; font-size: 0.8125rem; font-weight: 700; color: #FFFFFF;

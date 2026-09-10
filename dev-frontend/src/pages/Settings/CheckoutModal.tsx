@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { modalFooterRadius } from '../../components/Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import { checkout, notifyPaymentPaid, startStripeCheckout, type PlanCode, type BillingCycle, type PlanDef, type TaxInvoiceInput } from '../../services/plan';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -478,6 +479,8 @@ const Footer = styled.div`
   display: flex; justify-content: flex-end; gap: 8px;
   padding: 14px 20px; border-top: 1px solid #F1F5F9;
   flex-shrink: 0; background: #fff;
+  /* 하단 라운드 — 배경이 껍데기 라운드를 덮지 않게. 규격은 Common/modalShell 하나다. */
+  ${modalFooterRadius}
 `;
 const PrimaryBtn = styled.button`
   padding: 10px 20px; background: #0D9488; color: #FFFFFF;

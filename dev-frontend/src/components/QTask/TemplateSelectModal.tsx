@@ -7,6 +7,7 @@
 //   3) [적용] 클릭 → POST /api/task-templates/:id/apply → task 일괄 생성
 import { useEffect, useState, useMemo } from 'react';
 import styled from 'styled-components';
+import { modalFooterRadius } from '../Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
 import PlanQSelect from '../Common/PlanQSelect';
@@ -610,6 +611,8 @@ const Footer = styled.div`
   padding: 12px 22px 18px;
   flex-shrink: 0;
   border-top: 1px solid #F1F5F9; background: #fff;
+  /* 하단 라운드 — 배경이 껍데기 라운드를 덮지 않게. 규격은 Common/modalShell 하나다. */
+  ${modalFooterRadius}
 `;
 const ListToolbar = styled.div`
   display: flex; align-items: center; gap: 12px;

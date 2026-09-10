@@ -1802,6 +1802,59 @@ function checkModalPortal() {
 }
 
 // ═══════════════════════════════════════════════
+// modalradius — 팝업 **마지막 조각**이 껍데기의 하단 라운드를 덮으면 안 된다 (2026-09-10 박제)
+//   Irene: "지금 팝업들이 하단에 라운드가 없어졌어. 사각라운드 다 나와야 하는데
+//           하단만 직각으로 된 팝업 컴포넌트 있으면 맞춰서 라운드 줘."
+//
+//   구조가 늘 같다 — Dialog 가 14px 라운드를 그리고, 그 안 **마지막 자식**(Footer/액션 줄)이
+//   흰 사각 배경이라 라운드를 덮는다. 헤더는 배경이 없어 **위만 둥글게** 보인다.
+//   2026-09-07 에 StandardModal 하나를 고쳤는데 **복사본 7개가 그 수리를 못 받아** 사흘 만에
+//   같은 신고가 돌아왔다(memory feedback_copied_component_drifts_extract_shell).
+//
+//   Dialog 에 overflow:hidden 을 주면 안쪽 팝오버·셀렉트 메뉴가 같이 잘리므로 쓰지 않는다.
+//   정본은 components/Common/modalShell.ts 의 `modalFooterRadius` 하나다.
+//
+//   판정: 파일이 라운드 있는 모달 껍데기(border-radius + max-width + flex column)를 선언하면서,
+//         배경 + border-top 을 가진 푸터류 styled 에 라운드 규격이 없으면 위반.
+//   하드 게이트 — 부채를 0 으로 만들고 시작하므로 래칫이 아니다.
+// ═══════════════════════════════════════════════
+function checkModalRadius() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.tsx']);
+  const bad = [];
+  let shells = 0;
+  for (const f of files) {
+    const src = read(f);
+    const decls = [];
+    const re = /(?:export\s+)?const\s+(\w+)\s*=\s*styled\.?(\w+)?[^`]*`([\s\S]*?)\n`;/g;
+    let m;
+    while ((m = re.exec(src))) decls.push({ name: m[1], tag: m[2] || '', body: m[3] });
+    // 라운드 있는 팝업 껍데기가 있는 파일만 본다 (전면 모달 컨테이너 모양)
+    const shell = decls.find((d) => /border-radius:\s*\d+px/.test(d.body)
+      && /max-width:/.test(d.body)
+      && /flex-direction:\s*column/.test(d.body)
+      && !/(?<!-)padding:\s*[^;]*\d/.test(d.body)          // padding 있으면 푸터가 모서리에 안 닿는다
+      && !/overflow(-[xy])?:\s*(hidden|auto|scroll|clip)/.test(d.body));  // 껍데기가 이미 자르면 안전(auto/scroll 도 모서리를 자른다)
+    if (!shell) continue;
+    shells++;
+    for (const d of decls) {
+      if (!/Footer|Actions|BottomBar/i.test(d.name)) continue;
+      // 표 셀·행은 팝업의 마지막 자식이 아니다 — 이름만 Footer 인 것들(2026-09-10 거짓 양성 1건).
+      if (/^(td|th|tr|tbody|tfoot|thead|table)$/.test(d.tag)) continue;
+      if (!/background:\s*(#|rgb|white)/.test(d.body)) continue;   // 배경이 없으면 라운드를 못 덮는다
+      if (!/border-top/.test(d.body)) continue;                     // 하단 줄이 아닌 것 제외
+      if (/modalFooterRadius|border-radius/.test(d.body)) continue;  // 규격 있음 — 통과
+      bad.push(`${rel(f)}: ${d.name} — ${shell.name}(라운드)의 하단을 흰 배경이 덮는다. modalShell 의 modalFooterRadius 를 붙일 것`);
+    }
+  }
+  report(
+    'modalradius',
+    `팝업 하단 라운드 (하드 게이트 · 라운드 껍데기 ${shells}곳)`,
+    bad.length === 0,
+    bad.length ? bad : ['마지막 조각이 껍데기 라운드를 덮는 곳 없음'],
+  );
+}
+
+// ═══════════════════════════════════════════════
 // sharedrive — Drive API 호출은 **공유(팀) 드라이브를 볼 수 있어야** 한다 (2026-09-07 박제)
 //   Irene: "나는 팀 드라이브 중심으로 계속 요구한거고 그에 따라 기능이 제대로 적용되고"
 //
@@ -2265,6 +2318,7 @@ function checkAuditEntry() {
 
 const CATEGORIES = {
   mock: checkMock,
+  modalradius: checkModalRadius,
   canary: checkCanaryContract,
   navmenu: checkNavMenu,
   i18n: checkI18n,
