@@ -28,6 +28,8 @@ import {
   List,
   MetaChip,
   MetaDue,
+  FocusSlot,
+  FocusTime,
   PrioBtn,
   PrioChip,
   PrioSlot,
@@ -597,6 +599,9 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
               const rc = Number(tk.reviewer_count ?? 0) || 0;
               const qa = quickActionFor(tk.status, rc, tk.assignee_id === myId);
               const busy = busyIds.has(tk.id);
+              // 시간 측정 상태 — 상세(TaskFocusBar)와 **같은 판정·같은 숫자**를 쓴다(hooks/useFocusControl).
+              const focusState = focus.stateFor(tk);
+              const focusMin = focus.minutesFor(tk);
               const groupColor = tk.tags && tk.tags.length > 0 ? tk.tags[0].color : null;
               // ★ Row 는 div 다. 체크박스 버튼과 본문 버튼은 **형제** — 중첩하면 button-in-button 이 되어
               //   HTML 상 무효이고 브라우저가 클릭 타깃을 임의로 접는다(stopPropagation 으로 못 막는다).
@@ -612,16 +617,6 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                   <RowInner>
                     <RowLead>
                       <PopoutQuickAction taskId={tk.id} qa={qa} busy={busy} onAction={(id, action) => runAction(id, `/${action}`)} onOpenDetail={handleRow} />
-                      {/* 시작/중지 — 내 업무이고 열려 있을 때만. 상세에 들어가지 않고 지금 하는 일을 켠다. */}
-                      {focus.canFocus(tk) && (
-                        <PopoutFocusButton
-                          taskId={tk.id}
-                          running={focus.runningTaskId === tk.id}
-                          busy={focus.busyTaskId === tk.id}
-                          minutes={focus.runningMinutes}
-                          onToggle={() => { void focus.toggle(tk); }}
-                        />
-                      )}
                     </RowLead>
                     {/* 우선순위 슬롯 — #250 "우선순위 관리도 여기서도 해야 해".
                         ★ RowMain(button) **밖 형제**여야 한다. 안에 넣으면 button-in-button 이라
@@ -687,21 +682,45 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                         {typeof tk.progress_percent === 'number' && tk.progress_percent > 0 && (
                           <MetaChip>{tk.progress_percent}%</MetaChip>
                         )}
+                        {/* 이 업무에 쌓인 시간 — 컨트롤 옆이 아니라 **메타 줄**이다.
+                            버튼 옆에 두면 도는 행만 넓어져 행 끝 열이 다시 어긋난다. */}
+                        {focusMin > 0 && (
+                          <FocusTime $tone={focusState === 'active' ? 'active' : 'paused'}>
+                            {t('popout.act.running', '{{n}}분', { n: focusMin })}
+                          </FocusTime>
+                        )}
                       </RowMeta>
                     </RowMain>
                     {/* Irene 2026-08-23 — 리스트에서도 태그를 붙이고 뗀다.
                         ★ RowMain(button) **밖 형제**여야 한다. 안에 넣으면 button-in-button 이라
                           클릭이 행 열기로 접혀 버튼이 죽는다(위 PrioSlot·RowLead 와 같은 이유).
                         권한은 백엔드 PUT /:id/tags 의 canEdit 집합과 같은 축. */}
-                    {canEditTagsFor(tk) && (
-                      <TagSlot>
+                    {/* 시간 측정 — 태그 버튼 **바로 앞** 고정 자리 (Irene 2026-09-10:
+                        "열이 안맞아서 이상해. 그냥 뒤쪽 태그추가하는 버튼 앞에 배치해").
+                        낼 수 없는 행에도 빈 슬롯을 남긴다 — 안 그러면 행마다 태그 버튼의
+                        가로 위치가 달라져 눈이 어지럽다(2026-08-24 에 태그 + 를 옮긴 이유와 같다). */}
+                    <FocusSlot>
+                      {focus.canFocus(tk) && (
+                        <PopoutFocusButton
+                          taskId={tk.id}
+                          state={focusState}
+                          autoPaused={focus.autoPausedFor(tk)}
+                          busy={focus.busyTaskId === tk.id}
+                          onToggle={() => { void focus.toggle(tk); }}
+                        />
+                      )}
+                    </FocusSlot>
+                    {/* 태그 슬롯도 **항상** 그린다(내용만 권한으로 가른다) — 권한은 행마다 다르다
+                        (작성자·담당자·owner/admin). 조건부로 지우면 그 행만 폭이 줄어 끝 열이 어긋난다. */}
+                    <TagSlot>
+                      {canEditTagsFor(tk) && (
                         <TagQuickMenu
                           taskId={tk.id} bizId={bizId} dict={tagDict} value={tk.tags || []}
                           onDictAdd={addTagToDict}
                           onSaved={(tags) => setTasks((prev) => prev.map((x) => (x.id === tk.id ? { ...x, tags } : x)))}
                         />
-                      </TagSlot>
-                    )}
+                      )}
+                    </TagSlot>
                   </RowInner>
                   {rowErr?.id === tk.id && (
                     <RowErr role="alert" data-testid="task-popout-row-error">{rowErr.msg}</RowErr>

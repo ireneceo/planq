@@ -123,30 +123,47 @@ export const CheckBtn = styled.button<{ $checked?: boolean; $locked?: boolean }>
 `;
 /* 시작/중지 — 팝아웃에서만 낸다 (2026-09-10 Irene: "굳이 상세 안들어가고 일을 알 수 있잖아.
    Q task에서는 리스트에 너무 많은 걸 보여주니 불필요해 보이는데 팝아웃은 있으면 좋을 것 같아").
-   퀵액션 슬롯과 같은 36px 규격 — 행 높이가 달라지지 않는다. */
-export const FocusBtn = styled.button<{ $running?: boolean }>`
+   퀵액션 슬롯과 같은 36px 규격 — 행 높이가 달라지지 않는다.
+
+   ★ 색은 **상세(Focus/TaskFocusBar 의 TONE)** 와 같은 값을 쓴다. 처음엔 반대로 칠해져 있었다 —
+     진행 중을 호박색, 안 하는 중을 청록으로 뒀는데 상세는 정확히 그 반대다. 같은 업무를 두 화면이
+     다른 색으로 말하면 색이 뜻을 잃는다. */
+export const FocusBtn = styled.button<{ $tone: 'active' | 'paused' | 'idle' }>`
   width: 36px; height: 36px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   padding: 0; border: 0; background: transparent;
   cursor: pointer; position: relative;
-  color: ${({ $running }) => ($running ? '#B45309' : '#0F766E')};
+  color: ${({ $tone }) => ($tone === 'active' ? '#0F766E' : $tone === 'paused' ? '#B45309' : '#64748B')};
   &::before {
     /* 장식용 링 — 36px 버튼 안쪽으로 5px 들여 그린다. (높이를 손으로 적으면 UISPEC 래칫이 오른다) */
     content: ''; position: absolute; inset: 5px; border-radius: 50%;
     box-sizing: border-box;
-    border: 1px solid ${({ $running }) => ($running ? '#FCD34D' : '#CBD5E1')};
-    background: ${({ $running }) => ($running ? '#FEF3C7' : 'transparent')};
+    border: 1px solid ${({ $tone }) => ($tone === 'active' ? '#14B8A6' : $tone === 'paused' ? '#FCD34D' : '#CBD5E1')};
+    background: ${({ $tone }) => ($tone === 'active' ? '#F0FDFA' : $tone === 'paused' ? '#FFFBEB' : 'transparent')};
     transition: background 0.12s, border-color 0.12s;
   }
-  &:hover:not(:disabled)::before { border-color: ${({ $running }) => ($running ? '#D97706' : '#0F766E')}; background: ${({ $running }) => ($running ? '#FDE68A' : '#F0FDFA')}; }
+  &:hover:not(:disabled)::before {
+    border-color: ${({ $tone }) => ($tone === 'active' ? '#0D9488' : $tone === 'paused' ? '#D97706' : '#0F766E')};
+    background: ${({ $tone }) => ($tone === 'active' ? '#CCFBF1' : $tone === 'paused' ? '#FDE68A' : '#F0FDFA')};
+  }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 0; border-radius: 50%; }
   &:disabled { cursor: default; opacity: 0.5; }
   > svg { position: relative; z-index: 1; }
 `;
-/* 진행 중인 업무의 경과 시간 — 숫자 하나면 충분하다(초 단위 재렌더 금지, 분만 센다). */
-export const FocusTime = styled.span`
-  font-size: 0.6875rem; font-weight: 700; color: #B45309;
-  font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: 2px;
+/* 시간 측정 슬롯 — 행 끝 고정 자리. **버튼이 없는 행에도 자리를 남긴다.**
+   Irene 2026-09-10: "열이 안맞아서 이상해. 그냥 뒤쪽 태그추가하는 버튼 앞에 배치해."
+   앞쪽(RowLead)에 조건부로 달아 두면 낼 수 있는 행과 없는 행의 제목 시작점이 달라진다 —
+   PrioSlot 을 만든 이유와 같다("부여 버튼과 폭이 같아야 제목 좌측선이 안 흔들린다"). */
+export const FocusSlot = styled.span`
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+`;
+/* 이 업무에 쌓인 시간 — **메타 줄**에 둔다. 컨트롤 옆에 두면 도는 행만 넓어져 다시 열이 어긋난다.
+   숫자 하나면 충분하다(초 단위 재렌더 금지, 분만 센다). */
+export const FocusTime = styled.span<{ $tone: 'active' | 'paused' }>`
+  font-size: 0.6875rem; font-weight: 700;
+  color: ${({ $tone }) => ($tone === 'active' ? '#0F766E' : '#B45309')};
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 `;
 
 export const SubmitBtn = styled.button`
@@ -206,9 +223,12 @@ export const RowTop = styled.div`
 // 태그 슬롯 — RowMain(button) **밖 형제**. 안에 넣으면 button-in-button 이라 HTML 상 무효이고
 //   브라우저가 클릭 타깃을 임의로 접는다(위 RowMain 주석과 같은 이유 — 실제로 그렇게 넣었다가
 //   팝아웃에서만 태그 버튼이 안 눌렸다, Irene 2026-08-23).
+/* ★ 폭을 못 박는다 — 이 슬롯은 권한이 없는 행에서는 **비어 있다**(TaskPopoutView 참조).
+   내용에 맡기면 그 행만 좁아져 행 끝 열이 어긋난다. 값은 TagQuickMenu 의 Trigger 규격과 같다. */
 export const TagSlot = styled.span`
-  flex-shrink: 0;
-  display: inline-flex; align-items: center;
+  width: 20px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  @media (max-width: 640px) { width: 32px; }
 `;
 export const PrioSlot = styled.span`
   width: 28px; height: 36px; flex-shrink: 0;
