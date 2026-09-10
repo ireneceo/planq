@@ -101,9 +101,12 @@ const PublicPageShell: React.FC<Props> = ({
 
 export default PublicPageShell;
 
-/** 로딩·빈 상태 — 화면마다 4벌로 갈라져 있던 것. */
+/** 로딩·빈 상태 — 화면마다 4벌로 갈라져 있던 것.
+ *  ★ `flex-direction: column` 이어야 한다. 옛 `Center` 들이 그랬는데 행으로 만들었더니
+ *    제목과 힌트가 **나란히** 그려졌다(2026-09-10 Fable 실측: 제목 left 24 / 힌트 left 220). */
 export const PublicCenter = styled.div`
-  min-height: 60vh; display: flex; align-items: center; justify-content: center;
+  min-height: 60vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
   color: #64748B; font-size: 0.875rem; text-align: center; padding: 24px;
 `;
 /** 문서 위의 워크스페이스 이름 — 6벌이 완전히 같은 값이었다. */
@@ -139,7 +142,10 @@ const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean; $cen
     /* 앱형은 내부가 스크롤한다 — 100dvh 여야 iOS 툴바가 바닥 입력줄을 안 먹는다.
        (100vh 는 주소창 높이를 포함해 실제보다 크다) */
     ? css`display: flex; flex-direction: column; height: 100dvh;`
-    : css`min-height: 100vh; padding: 0 0 40px 0;`)}
+    /* ★ 좌우 20px 는 **전 폭에서** 보장한다. 옛 카드형 `Wrap` 이 `padding: 40px 20px` 였는데
+       여기서 좌우를 빼먹어 태블릿(768)에서 820·920 카드가 화면 끝에 붙었다
+       (2026-09-10 Fable 실측 L=0/R=0). 폰은 Frame 의 `margin:16px` 이 맡는다. */
+    : css`min-height: 100vh; padding: 0 20px 40px;`)}
   /* 짧은 상태 카드(만료·비밀번호)는 **세로 가운데**가 맞다. 위에 붙이면 화면이 비어 보인다. */
   ${({ $center }) => $center && css`
     display: flex; align-items: center; justify-content: center;

@@ -10,7 +10,6 @@ import {
 } from '../Insights/components';
 import ReportContent from '../../components/QTask/report/ReportContent';
 import PublicPageShell, { PublicCenter, PublicWorkspaceLabel } from '../../components/Layout/PublicPageShell';
-import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import type { ReportSnapshot } from '../../services/reportUnit';
 
 interface UnitView {
@@ -39,18 +38,20 @@ const PublicReportPage = () => {
   const [data, setData] = useState<RollupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [expired, setExpired] = useState<{ at: string | null } | null>(null);
   const [dim, setDim] = useState<'project' | 'member'>('project');
 
+  // ★ 이 화면에는 만료 분기가 없다 — **서버가 만료를 내지 않기 때문이다.**
+  //   `report_shares` 에는 만료 컬럼이 아예 없고(`id·business_id·token·period_*·dim·created_by·
+  //   last_viewed_at·created_at·updated_at`), `routes/reports.js` 의 공개 라우트는 404
+  //   `share_not_found` 만 낸다. 다른 공유(문서·업무·파일 …)와 달리 **통합보고서 공유 링크는
+  //   만료되지 않는다** — 한 번 나간 링크가 영구히 열린다. 별건으로 다룰 문제다.
+  //   (2026-09-10: 여기 410 분기를 넣었다가 되돌렸다. 서버가 절대 보내지 않는 응답을 처리하는
+  //    죽은 코드였고, 커밋 메시지에 "서버가 share_expired 를 준다" 고 **잘못 적었다**.)
   const fetchReport = useCallback(async () => {
-    setLoading(true); setError(false); setExpired(null);
+    setLoading(true); setError(false);
     try {
       const r = await fetch(`/api/reports/public/integrated/${token}`);
       const j = await r.json();
-      // ★ 이 화면은 **410 을 아예 처리하지 않았다** — 서버가 "만료됐다" 를 줘도 화면은
-      //   "찾을 수 없음" 으로 뭉갰다. 사용자에게는 링크가 잘못된 것과 구별되지 않는다.
-      //   다른 공개 화면 8곳이 이미 쓰는 ExpiredShareLink 로 보낸다.
-      if (r.status === 410 && j.code === 'share_expired') { setExpired({ at: j.expired_at || null }); return; }
       if (!r.ok || !j.success) throw new Error();
       setData(j.data);
       setDim(j.data?.dim === 'member' ? 'member' : 'project');
@@ -60,7 +61,6 @@ const PublicReportPage = () => {
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
   if (loading) return <PublicCenter>{t('publicReport.loading', { defaultValue: '불러오는 중…' }) as string}</PublicCenter>;
-  if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (error || !data) return (
     <PublicPageShell layout="card" width="sm" brand={false}>
       <Hint>{t('publicReport.notFound', { defaultValue: '보고서를 찾을 수 없거나 공유가 해제되었습니다.' }) as string}</Hint>

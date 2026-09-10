@@ -92,13 +92,6 @@ const PublicPostPage: React.FC = () => {
         </>
       )}
     >
-      <PromoBar className="no-print">
-        <PromoText>{t('public.promoCopy', '업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진')}</PromoText>
-        <PromoLink href="https://planq.kr" target="_blank" rel="noreferrer">
-          {t('public.promoCta', '플랜큐 바로가기')} <span aria-hidden="true">→</span>
-        </PromoLink>
-      </PromoBar>
-
       <>
         <PublicTitle>{post.title}</PublicTitle>
         <PublicMeta>
@@ -127,23 +120,6 @@ const PublicPostPage: React.FC = () => {
 
 export default PublicPostPage;
 
-const PromoBar = styled.div`
-  display: flex; align-items: center; gap: 14px;
-  padding: 9px 24px; background: #F0FDFA; border-bottom: 1px solid #99F6E4;
-  font-size: 0.75rem; color: #475569; line-height: 1.5;
-  @media (max-width: 640px) { padding: 9px 16px; gap: 10px; flex-wrap: wrap; }
-  @media print { display: none !important; }
-`;
-const PromoText = styled.span`
-  flex: 1; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  @media (max-width: 640px) { white-space: normal; }
-`;
-const PromoLink = styled.a`
-  flex-shrink: 0; color: #0F766E; font-weight: 700; text-decoration: none; white-space: nowrap;
-  &:hover { color: #115E59; text-decoration: underline; }
-  span { margin-left: 4px; }
-`;
 const AttachTitle = styled.h3`font-size:0.8125rem;font-weight:700;color:#334155;margin:0;`;
 const AttachRow = styled.div`font-size:0.8125rem;`;
 const AttachLink = styled.a`

@@ -1,5 +1,5 @@
 // 공유 KB(인포) 문서 미리보기 — /public/kb/:token
-// 문서 공개 페이지(PublicPostPage)와 동일한 레이아웃 (Toolbar + PromoBar + DocFrame).
+// 문서 공개 페이지(PublicPostPage)와 동일한 레이아웃 — 지금은 components/Layout/PublicPageShell 이 그린다.
 import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import PublicPageShell, { PublicCenter, PublicWorkspaceLabel, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';

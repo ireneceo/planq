@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import PublicPageShell, { PublicCenter } from '../../components/Layout/PublicPageShell';
 import GuestNotifySection from './GuestNotifySection';
 import GuestChatPanel from './GuestChatPanel';
 import GuestProjectPage, { type GuestProject } from './GuestProjectPage';
@@ -90,30 +91,26 @@ export default function GuestConversationPage() {
 
   if (gone) {
     return (
-      <Center>
-        <Card>
-          <H1>{t('expired.title', { defaultValue: '링크가 만료되었습니다' })}</H1>
-          <P>{t('expired.body', { defaultValue: '오래 사용하지 않아 링크가 닫혔습니다. 담당자가 다음 안내 메일을 보내면 새 링크가 함께 도착합니다.' })}</P>
-        </Card>
-      </Center>
+      <PublicPageShell layout="card" width="sm" brand={false} center print={false}>
+        <H1>{t('expired.title', { defaultValue: '링크가 만료되었습니다' })}</H1>
+        <P>{t('expired.body', { defaultValue: '오래 사용하지 않아 링크가 닫혔습니다. 담당자가 다음 안내 메일을 보내면 새 링크가 함께 도착합니다.' })}</P>
+      </PublicPageShell>
     );
   }
   if (!ctx) {
     // 스피너가 끝나지 않는 것은 사용자에게 고장이다 — 실패했으면 그렇게 말하고 손잡이를 준다.
     if (loadErr) {
       return (
-        <Center>
-          <Card>
-            <P>{t('loadFailed', { defaultValue: '대화를 불러오지 못했습니다. 연결을 확인하고 다시 시도해 주세요.' })}</P>
-            <RetryBtn type="button" data-testid="guest-retry"
-              onClick={() => { setLoadErr(false); void load(); }}>
-              {t('retry', { defaultValue: '다시 시도' })}
-            </RetryBtn>
-          </Card>
-        </Center>
+        <PublicPageShell layout="card" width="sm" brand={false} center print={false}>
+          <P>{t('loadFailed', { defaultValue: '대화를 불러오지 못했습니다. 연결을 확인하고 다시 시도해 주세요.' })}</P>
+          <RetryBtn type="button" data-testid="guest-retry"
+            onClick={() => { setLoadErr(false); void load(); }}>
+            {t('retry', { defaultValue: '다시 시도' })}
+          </RetryBtn>
+        </PublicPageShell>
       );
     }
-    return <Center><P>{t('loading', { defaultValue: '불러오는 중…' })}</P></Center>;
+    return <PublicCenter>{t('loading', { defaultValue: '불러오는 중…' })}</PublicCenter>;
   }
 
   // ── 프로젝트 링크 — 화면의 주인이 프로젝트다(대화는 탭 하나).
@@ -133,11 +130,12 @@ export default function GuestConversationPage() {
   //    (Irene: "나는 프로젝트 안 탭들 보는 그대로 프로젝트 링크 물어본건데?").
   //    프로젝트 이름은 제목 한 줄로만 남는다.
   return (
-    <Wrap>
-      <Head>
-        <Title>{ctx.project ? ctx.project.name : (ctx.conversation.title || t('defaultTitle', { defaultValue: '대화' }))}</Title>
-        {ctx.client_name && <Sub>{ctx.client_name}</Sub>}
-      </Head>
+    <PublicPageShell
+      layout="app"
+      print={false}
+      title={ctx.project ? ctx.project.name : (ctx.conversation.title || t('defaultTitle', { defaultValue: '대화' }))}
+      subtitle={ctx.client_name || undefined}
+    >
       {/* 답글 알림 신청 (#259 A안) — 등록은 선택이고, 닫으면 이 브라우저에서 다시 안 뜬다. */}
       <GuestNotifySection token={token || ''} onGone={() => setGone(true)} />
       {/* 헤더 아래 1줄 — 고정하지 않는다(본문과 함께 밀려 올라감). */}
@@ -169,16 +167,10 @@ export default function GuestConversationPage() {
         </Banner>
       )}
       <GuestChatPanel token={token || ''} canWrite={!!ctx.can_write} onGone={() => setGone(true)} />
-    </Wrap>
+    </PublicPageShell>
   );
 }
 
-const Wrap = styled.div`display:flex;flex-direction:column;height:100dvh;background:#f8fafc;`;
-const Head = styled.div`min-height:60px;padding:14px 20px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;`;
-const Title = styled.div`font-size:1.125rem;font-weight:700;letter-spacing:-0.2px;color:#0f172a;`;
-const Sub = styled.div`font-size:0.8125rem;color:#64748b;margin-top:2px;`;
-const Center = styled.div`min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;`;
-const Card = styled.div`max-width:420px;text-align:center;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:28px 24px;`;
 const H1 = styled.h1`margin:0 0 10px;font-size:1.125rem;font-weight:700;color:#0f172a;`;
 const P = styled.p`margin:0;font-size:0.875rem;line-height:1.6;color:#64748b;`;
 const RetryBtn = styled.button`

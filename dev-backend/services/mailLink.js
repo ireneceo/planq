@@ -143,7 +143,10 @@ async function linkThread(thread, { addresses, transaction = null } = {}) {
   //   이 프로젝트를 채우면 고객과 프로젝트가 **서로 다른 고객의 것**이 된다 —
   //   프로젝트 메일 목록에 남의 고객 스레드가 뜬다(2026-09-10 Fable 게이트 재현).
   //   고객이 이미 정해져 있으면 그 고객의 초대 기록일 때만 쓴다.
-  const inviteUsable = invite && (!have.client_id || have.client_id === invite.clientId);
+  //   ★ `===` 로 두면 한쪽이 문자열일 때(예: 라우트가 req.body 값을 그대로 넘길 때) 같은 고객인데도
+  //     다르다고 읽어 초대 기록을 버린다 — 조용히 sole_project 로 떨어진다(2026-09-10 Fable 지적).
+  //     지금 호출부 3곳은 전부 Sequelize INTEGER 라 도달 불가하지만, 타입이 섞이는 순간 틀어진다.
+  const inviteUsable = invite && (!have.client_id || Number(have.client_id) === Number(invite.clientId));
   if (inviteUsable) {
     if (!have.client_id) patch.client_id = invite.clientId;
     if (!have.project_id) patch.project_id = invite.projectId;
