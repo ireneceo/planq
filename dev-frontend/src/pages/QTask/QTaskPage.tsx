@@ -2753,7 +2753,7 @@ const QTaskPage:React.FC=()=>{
               </DescEditorWrap>
               {/* 첨부 토글 + 인라인 펼침 (panel 과 동일) */}
               <AttachToggleRow>
-                <AttachToggleBtn type="button" onClick={()=>setShowAttachInline(v=>!v)}>
+                <AttachToggleBtn type="button" data-testid="task-add-attach" onClick={()=>setShowAttachInline(v=>!v)}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                   {showAttachInline ? t('add.attachHide','파일·문서 첨부 닫기') : t('add.attachShow','파일·문서 첨부')}
                   {(newUploads.length+newExistingFileIds.length+newExistingPostIds.length)>0 &&
@@ -3640,7 +3640,7 @@ const QTaskPage:React.FC=()=>{
                 />
               </DescEditorWrap>
               <AttachToggleRow>
-                <AttachToggleBtn type="button" onClick={()=>setShowAttachPanel(v=>!v)}>
+                <AttachToggleBtn type="button" data-testid="task-panel-attach" onClick={()=>setShowAttachPanel(v=>!v)}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                   {showAttachPanel ? t('add.attachHide','파일·문서 첨부 닫기') : t('add.attachShow','파일·문서 첨부')}
                   {(newUploads.length+newExistingFileIds.length+newExistingPostIds.length)>0 &&

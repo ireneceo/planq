@@ -484,14 +484,19 @@
       "loading": "Loading...",
       "importing": "Importing...",
       "added": "Added",
-      "empty": "Only Drive files created by PlanQ appear here. Files you made directly in Drive aren't visible to PlanQ under Google's permission model, so they won't be listed — upload those to PlanQ instead.",
+      "empty": "The list below shows only files already opened with PlanQ. For files you created in Drive yourself, use Browse Drive above to pick them.",
       "notConnected": "This workspace has no Google Drive connected. An owner can connect it in Settings › Files & integrations.",
       "notConnectedPersonal": "Your personal Google Drive isn't connected. Connect it in Settings › Files & integrations.",
       "loadFailed": "Couldn't load your Drive files",
       "importFailed": "Couldn't import this file",
       "nativeDoc": "Google Docs/Sheets have no original file to import. Export to PDF or Office in Drive first.",
       "extNotAllowed": "This file type isn't allowed",
-      "quota": "Storage is full"
+      "quota": "Storage is full",
+      "pickerOpen": "Browse Drive",
+      "pickerOpening": "Opening...",
+      "pickerFailed": "Could not open the Drive file picker. Please try again in a moment.",
+      "pickerBlocked": "Your browser blocked the Google script. An ad blocker or a corporate firewall is the usual cause.",
+      "pickerUnavailable": "Drive browsing is not configured on this server. The list below shows only files already opened with PlanQ."
     }
   },
   "installPrompt": {

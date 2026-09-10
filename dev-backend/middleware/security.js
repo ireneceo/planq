@@ -128,13 +128,17 @@ const cspMiddleware = (req, res, next) => {
   //   ★ frame-ancestors 도 'none' 금지 — 핀 PiP 가 앱 자신을 iframe 으로 띄운다(pinHost.ts:538).
   const cspDirectives = [
     "default-src 'self'",
-    "script-src 'self'",
+    // ★ apis.google.com — Google Picker(`js/api.js`). Picker 는 외부 스크립트가 **필수**라
+    //   'self' 만 두면 **에러 하나 없이 조용히 죽는다**(2026-09-02 srcdoc CSP 사고와 같은 모양:
+    //   스크립트가 안 돌아 높이가 추정치에 고정됐다). 도메인은 이 하나만 연다.
+    "script-src 'self' https://apis.google.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
     "media-src 'self' data: blob:",
     "connect-src 'self' blob: https: wss:",
-    "frame-src 'self' blob: data:",
+    // docs/drive.google.com — Picker UI 자체가 iframe 이다.
+    "frame-src 'self' blob: data: https://docs.google.com https://drive.google.com",
     "worker-src 'self' blob:",
     "frame-ancestors 'self'",
     "base-uri 'self'",

@@ -59,7 +59,7 @@ cat > "$SNIPPET" <<'EOF'
 # PlanQ 앱 화면(HTML·정적) 보안 헤더 — scripts/apply-nginx-security-headers.sh 가 관리한다.
 #   ★ add_header 는 블록마다 상속이 끊긴다. 새 location 을 만들면 이 include 도 같이 넣을 것.
 #   ★ CSP 값은 dev-backend/middleware/security.js 의 cspMiddleware 와 동일하게 유지한다.
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' blob: https: wss:; frame-src 'self' blob: data:; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' blob: https: wss:; frame-src 'self' blob: data: https://docs.google.com https://drive.google.com; worker-src 'self' blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
 add_header X-Frame-Options "SAMEORIGIN" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;

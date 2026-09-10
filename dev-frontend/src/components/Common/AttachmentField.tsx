@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
 import { fetchWorkspaceFiles, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
+import DriveImportSection from './DriveImportSection';
 
 interface Props {
   businessId: number;
@@ -44,6 +45,12 @@ interface Props {
    *  (예: 피드백 이미지 첨부. 워크스페이스 파일을 붙일 이유가 없고, 목록 fetch 도 낭비다.)
    *  true 면 검색 UI 를 렌더하지 않고 파일·문서 목록 fetch 도 하지 않는다. */
   hideExistingSearch?: boolean;
+  /** 프로젝트 첨부면 그 프로젝트로 들인다 — Drive 에서 가져온 파일의 노출 범위(L2)를 정한다. */
+  projectId?: number | null;
+  /** 어느 Drive 인가. 기본은 워크스페이스가 연결한 **팀 드라이브**.
+   *  개인 자리(개인 보관함)에서만 'personal'. 공용 첨부에 개인 Drive 를 붙이면
+   *  멤버 사적 파일이 워크스페이스로 샌다 (memory `project_gdrive_policy` 옵션 B). */
+  driveScope?: 'workspace' | 'personal';
 }
 
 const AttachmentField: React.FC<Props> = ({
@@ -53,6 +60,8 @@ const AttachmentField: React.FC<Props> = ({
   accept, uploadHint, uploadAcceptHint, searchPlaceholder, disabled,
   workspaceFiles: providedFiles,
   hideExistingSearch = false,
+  projectId = null,
+  driveScope = 'workspace',
 }) => {
   // searchPostsPlaceholder is deprecated — 통합 검색에서는 searchPlaceholder 만 사용
   const { t } = useTranslation('common');
@@ -210,17 +219,24 @@ const AttachmentField: React.FC<Props> = ({
         noOptionsMessage={() => (t('attach.noResults', '결과 없음') as string)}
       />
 
-      {/* ★ 2026-09-07 — "Drive 에서 가져오기" 를 **뺐다.**
-          Irene: "팀 드라이브에서 가져오기는 무슨 말이야? 팀 드라이브에 있는게 여기 Q file에
-                  있는 거 아니야? 누르면 또 Q file에 있는 것들이 나와?"
-          맞는 말이다. `drive.file` 권한은 **우리가 만든 파일만** 보여주는데, 워크스페이스 공용
-          파일은 이미 우리가 Drive 에 올린 것들이다 → 목록이 곧 Q File 목록이라 **같은 파일을
-          다시 가져오는** 꼴이었다. 개인 Drive 도 같은 한계라 마찬가지다.
-          진짜 필요한 것("사용자가 Drive 에 직접 올린 파일 가져오기")은 우리가 만들지 않은 파일을
-          읽어야 해서 Google Picker(콘솔 API 키) 또는 전체 Drive 권한(구글 심사)이 필요하다.
-          그때까지 **없는 기능처럼 보이는 버튼을 두지 않는다** — 눌러 보고 실망하는 것이 더 나쁘다.
-          서버 라우트(POST /api/drive/import)와 DriveImportSection 은 그대로 둔다: Picker 가
-          붙는 순간 그대로 쓴다. */}
+      {/* ★ 2026-09-10 — Drive 를 **다시 넣었다.** 2026-09-07 에 뺀 이유가 해소됐다.
+          그때 Irene: "팀 드라이브에서 가져오기는 무슨 말이야? … 누르면 또 Q file에 있는 것들이 나와?"
+          맞는 말이었다 — `drive.file` 은 우리가 만든 파일만 보여주니 목록이 곧 Q File 목록이었다.
+          Google Picker 가 그 한계를 푼다: 사용자가 Picker 에서 고르는 행위 자체가 접근을 열어,
+          **Drive 에 직접 올린 파일**을 전체 권한 없이 가져온다.
+          들여온 결과는 `existingFileIds` 에 그대로 들어가므로 호출부는 아무것도 안 바꿔도 된다 —
+          미리보기·공유·보존이 자체 업로드와 완전히 같아진다(CLAUDE.md "첨부는 통합 컴포넌트 한 곳"). */}
+      <DriveImportSection
+        businessId={businessId}
+        scope={driveScope}
+        projectId={projectId}
+        disabled={disabled}
+        onImported={(fileId) => {
+          // 중복 방지 — 같은 파일을 두 번 고르면 칩이 두 개가 된다.
+          if (existingFileIds.includes(fileId)) return;
+          onExistingFileIdsChange([...existingFileIds, fileId]);
+        }}
+      />
       </>}
     </Wrap>
   );

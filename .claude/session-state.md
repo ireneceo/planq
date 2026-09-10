@@ -34,6 +34,53 @@
 iOS 는 최초 인증의 옵션 집합을 고정하므로 이미 설치된 앱에는 항목을 늘려주지 않는다.
 **배포는 끝났으니 지금 재설치하면 된다**(순서가 반대면 옛 JS 가 다시 배지-only 로 세운다).
 
+---
+
+## 이어서 한 것 — Google Picker (2026-09-10, **미커밋·미배포**)
+
+**"코드 0줄" 이 아니었다.** 두 벽이 있었고 Irene 이 표준 방식을 골랐다.
+
+- **CSP** — Picker 는 `https://apis.google.com/js/api.js` 가 필수인데 `script-src 'self'` 였다.
+  두 벌(nginx snippet · middleware/security.js) 다 넓혔다 + Picker UI iframe 을 위해
+  `frame-src` 에 docs/drive.google.com.
+- **토큰** — Picker 는 브라우저에서 access token 을 요구한다. `GET /api/drive/picker-token`
+  신설: 목록·가져오기와 **같은 함수**(resolveDrive)로 연결 판정, access token 만(refresh 절대 금지),
+  만료 60분, 감사 로그, per-user rate limit(분 10 / 일 200).
+- **scope 는 걸림돌이 아니었다** — `drive.file` 로 충분하다. Picker 에서 고르는 행위가
+  접근을 여는 것이 Picker 의 요점이다. Drive 전체 권한·구글 재심사 **불필요** →
+  2026-08-19 "캘린더만으로 검증 제출" 결정과 충돌 없음.
+- **AttachmentField 에 Drive 를 다시 넣었다** — 2026-09-07 에 뺀 이유(목록이 곧 Q File 목록)가
+  해소됐다. 들여온 결과는 `existingFileIds` 로 들어가 호출부 무변경.
+- **문구도 같이 고쳤다** — `attach.drive.empty` 가 "PlanQ 가 볼 수 없습니다" 라고 **단언**하고
+  있었다. 동작이 바뀌었으니 그대로 뒀으면 화면이 거짓말을 한다.
+
+### ★ Irene 이 해야 하는 것 — nginx 헤더 적용 (이거 없으면 기능이 안 돈다)
+```
+sudo /opt/planq/scripts/apply-nginx-security-headers.sh dev
+```
+lua 에게 sudo 가 없다. **적용 전에는 Picker 가 CSP 에 막힌다**(실측 확인함 — 다만
+조용히 죽지 않고 "브라우저가 구글 스크립트를 차단했습니다" 를 화면에 띄운다).
+운영 배포 때도 `... prod` 로 같이 적용해야 한다.
+
+### 검증
+- picker-token 실 HTTP — 무인증 401 · 타 워크스페이스 403 · rate limit 429 · **refresh/시크릿 유출 0건**
+  (응답 raw 전수 스캔) · 발급된 토큰이 **구글에 실제로 통한다**(drive/v3/about 200) · 12/12
+- 실브라우저 — Drive 섹션 렌더 · 버튼 431×40 가려짐 없음 · 누르면 **이유를 말한다**
+  (CSP 콘솔 차단 1건 = 양성 대조군) · 4/4
+- 감사 경로 — retain_until 채워짐(2027-09-10) · 토큰 미기록 · 테스트 행 원복 · 6/6
+- health 41/41 · 가드 43/44 · 빌드 EXIT 0 / error TS 0
+
+### ★ 이번에 내가 만든 회귀 — 헬스체크가 잡았다
+`AuditLog.create` 를 **직접** 불러 `retain_until` 스탬프와 `maskSensitive` 를 통째로 건너뛰었다.
+그 행들은 **영구 보관**된다. 감사 기록의 입구는 `services/auditService.js` 하나다(logAudit).
+→ 고쳤고, **정적 가드 신설** `--category=auditentry`(래칫, 반증 확인).
+
+### ⚠️ 드러난 기존 부채 — 손대지 않았다
+같은 방식으로 직접 만드는 곳이 **9파일 22건** 더 있다(admin·tasks·focus·leave·
+personal_calendar·addonBilling·admin_credits·cue_task_executor·leaveTransition).
+그 행들도 영구 보관된다. 래칫으로 **동결만** 했다 — 9파일 리팩터는 Picker 와 무관한 별도 스코프라
+Irene 판단이 필요하다.
+
 ### 다음
 1. 남은 것: 프로젝트 "주요 이슈" 자동화(설계·승인 필요) · Google Picker(코드 0줄) ·
    좁은 데스크탑 카드 최소폭 실측 · 발행인데 `issued_at` 없는 청구서(운영 0건/dev 2건)

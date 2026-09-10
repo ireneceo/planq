@@ -21,6 +21,7 @@ const { perUserDaily } = require('../middleware/costGuard');
 const personalOauth = require('../services/personalOauth');
 const gdrive = require('../services/gdrive');
 const { importDriveFile } = require('../services/driveImport');
+const { logAudit } = require('../services/auditService');
 
 // external_connections 의 같은 이름 헬퍼와 **같은 술어**여야 한다.
 //   (여기서 느슨해지면 목록은 막히는데 가져오기는 열리는 식으로 갈라진다.)
@@ -33,7 +34,10 @@ async function assertBusinessMember(req, bizId) {
 /**
  * 요청의 scope 로 Drive 클라이언트를 만든다. 목록과 가져오기가 **같은 함수**를 부른다 —
  * 두 곳이 갈라지면 "목록엔 보이는데 가져오면 없다" 가 된다.
- * @returns {{ ok:true, drive, scope, label } | { ok:false, code, status }}
+ * @returns {{ ok:true, drive, auth, scope, label } | { ok:false, code, status }}
+ *
+ * ★ `auth` 도 같이 돌려준다 — Picker 토큰 라우트가 **이 함수를 그대로** 부르게 하기 위해서다.
+ *   토큰 발급이 자기만의 연결 판정을 갖게 두면 "목록은 막히는데 Picker 는 열린다" 가 된다.
  */
 async function resolveDrive(req, bizId, scope) {
   if (scope === 'personal') {
@@ -46,7 +50,7 @@ async function resolveDrive(req, bizId, scope) {
     if (!conn) return { ok: false, code: 'personal_drive_not_connected', status: 400 };
     const auth = await personalOauth.getAuthedClient(conn);
     return {
-      ok: true, scope: 'personal', label: conn.account_email || null,
+      ok: true, scope: 'personal', label: conn.account_email || null, auth,
       drive: require('googleapis').google.drive({ version: 'v3', auth }),
     };
   }
@@ -54,7 +58,8 @@ async function resolveDrive(req, bizId, scope) {
   // workspace — 워크스페이스가 연결한 팀/공용 Drive
   const token = await BusinessCloudToken.findOne({ where: { business_id: bizId, provider: 'gdrive' } });
   if (!token) return { ok: false, code: 'workspace_drive_not_connected', status: 400 };
-  const drive = await gdrive.getDriveClient(token);
+  const auth = await gdrive.getAuthClient(token);
+  const drive = require('googleapis').google.drive({ version: 'v3', auth });
   // ★ 루트 폴더를 보장한다 — 저장된 id 가 낡으면 그 아래 전부 404 가 나고
   //   화면에는 "연동이 끊겼다" 로 보인다(2026-09-07 실사례: 폴더는 멀쩡했고 id 만 옛것이었다).
   try {
@@ -63,7 +68,7 @@ async function resolveDrive(req, bizId, scope) {
   } catch (e) {
     console.warn('[drive] 루트 폴더 보장 실패:', e.message);
   }
-  return { ok: true, scope: 'workspace', label: token.account_email || null, drive, token };
+  return { ok: true, scope: 'workspace', label: token.account_email || null, drive, token, auth };
 }
 
 function parseScope(v) {
@@ -172,6 +177,68 @@ async function importHandler(req, res, next, forcedScope) {
     });
   } catch (err) { next(err); }
 }
+
+// ─── Picker 토큰 ───────────────────────────────────────
+// GET /api/drive/picker-token?business_id=&scope=workspace|personal
+//
+// 왜 이런 문이 필요한가
+//   `drive.file` 로는 **PlanQ 가 만들었거나 사용자가 PlanQ 로 연 파일만** 보인다. 그래서
+//   "내 드라이브에 있는데 목록에 없다" 가 정상이었고, 그것이 이 기능의 실제 한계였다.
+//   Google Picker 는 그 한계를 푸는 **정식 경로**다 — 사용자가 Picker 에서 고른 파일은
+//   그 순간 "사용자가 이 앱으로 열었다" 로 간주되어 `drive.file` 로 접근이 열린다.
+//   즉 Drive **전체 권한(Restricted·구글 심사)** 없이 목적을 이룬다. 2026-08-19 결정
+//   (구글 검증을 캘린더만으로 제출)과 충돌하지 않는다 — 새 동의를 요청하지 않는다.
+//
+// 무엇을 내주는가 — **access token 만**, 그것도 그 순간치다.
+//   ★ refresh token 은 절대 내보내지 않는다. 그것이 나가면 사용자의 Drive 가
+//     기한 없이 열린다 — access token 은 한 시간이면 죽는다.
+//   ★ 연결 판정은 목록·가져오기와 **같은 함수**(resolveDrive)다. 여기서 따로 판정하면
+//     "목록은 막히는데 Picker 는 열린다" 가 된다.
+//   ★ 브라우저에 토큰을 내주는 일은 흔적이 남아야 한다 → AuditLog.
+router.get('/drive/picker-token', authenticateToken,
+  ...perUserDaily('drive-picker-token', { perMin: 10, perDay: 200 }),
+  async (req, res, next) => {
+    try {
+      const bizId = parseInt(req.query.business_id, 10);
+      if (!bizId) return errorResponse(res, 'business_id_required', 400);
+      if (!(await assertBusinessMember(req, bizId))) return errorResponse(res, 'no_business_access', 403);
+
+      const scope = parseScope(req.query.scope);
+      const r = await resolveDrive(req, bizId, scope);
+      // 연결이 없는 것은 오류가 아니다 — 목록 라우트와 같은 모양으로 알린다.
+      if (!r.ok) return successResponse(res, { connected: false, scope, reason: r.code });
+
+      // getAccessToken() 은 만료됐으면 refresh 로 새로 받아온다(저장은 on('tokens') 훅이 한다).
+      let token = null;
+      let expiresAt = null;
+      try {
+        const got = await r.auth.getAccessToken();
+        token = got && (typeof got === 'string' ? got : got.token);
+        const exp = r.auth.credentials && r.auth.credentials.expiry_date;
+        expiresAt = exp ? new Date(exp).toISOString() : null;
+      } catch (e) {
+        console.error(`[drive/picker-token] ${scope} token failed biz=${bizId}`, e.message);
+        return errorResponse(res, 'drive_token_failed', 502);
+      }
+      if (!token) return errorResponse(res, 'drive_token_failed', 502);
+
+      // ★ `AuditLog.create` 를 직접 부르지 않는다 — 감사 기록의 입구는 auditService 하나다.
+      //   거기가 **보관기간 스탬프(retain_until)와 민감값 마스킹**을 한다. 직접 만들면 둘 다
+      //   건너뛰어 그 행이 영구 보관된다(2026-09-10 헬스체크 `retention` 이 실제로 잡았다).
+      //   ★ 토큰 자체는 기록하지 않는다 — 감사 로그가 비밀값 보관소가 되면 안 된다.
+      logAudit(req, {
+        action: 'drive_picker_token_issued',
+        targetType: 'external_connection',
+        businessId: bizId,
+        newValue: { scope, account_email: r.label || null, expires_at: expiresAt },
+      });
+
+      return successResponse(res, {
+        connected: true, scope, account_email: r.label || null,
+        access_token: token, expires_at: expiresAt,
+      });
+    } catch (err) { next(err); }
+  });
 
 router.post('/drive/import', authenticateToken, ...perUserDaily('drive-import', { perMin: 20, perDay: 500 }),
   (req, res, next) => importHandler(req, res, next, null));

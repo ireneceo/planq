@@ -16,13 +16,20 @@
 //       (POST /api/me/drive/import) 그 id 를 기존-파일 선택에 더한다. 즉 결과물은
 //       "이미 워크스페이스에 있는 파일" 과 완전히 같아진다 — 미리보기·공유·보존이 그대로 된다.
 //
-// ★ drive.file scope 라 **PlanQ 가 만들었거나 사용자가 PlanQ 에 열어 준 파일만** 보인다.
+// ★ drive.file scope 라 **목록에는** PlanQ 가 만들었거나 사용자가 PlanQ 에 열어 준 파일만 보인다.
 //   전체 열람(drive.readonly)은 제한 권한·유료 심사라 채택하지 않았다(Irene 결정 2026-06-01).
-//   그래서 "내 드라이브에 있는데 여기 없다" 가 정상일 수 있고, 화면이 그 이유를 말해야 한다.
+//
+// ★ 2026-09-10 — 그 한계를 **Google Picker** 로 풀었다. 'Drive 에서 찾아보기' 를 누르면
+//   구글이 만든 파일 선택 창이 뜨고, 거기서 고르는 행위 자체가 "이 앱으로 열었다" 가 되어
+//   그 파일에 접근이 열린다. 즉 **전체 권한 없이** 사용자가 Drive 에 직접 올린 파일도 가져온다.
+//   목록(아래)은 그대로 둔다 — 이미 PlanQ 로 연 파일은 검색이 더 빠르다.
+//   ★ 동작이 바뀌었으므로 **문구도 같이 바꿨다**(attach.drive.empty 가 "볼 수 없다" 라고
+//     단언하고 있었다 — 그대로 뒀으면 화면이 거짓말을 한다).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { openGoogleDrivePicker, pickerConfigured } from '../../utils/googlePicker';
 
 interface DriveFile {
   id: string;
@@ -45,7 +52,8 @@ interface Props {
 
 const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', projectId, onImported, disabled }) => {
   const personal = scope === 'personal';
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
+  const [picking, setPicking] = useState(false);
   const [open, setOpen] = useState(false);
   const [connected, setConnected] = useState<boolean | null>(null);
   const [files, setFiles] = useState<DriveFile[]>([]);
@@ -82,40 +90,83 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
     return () => { if (debounce.current) clearTimeout(debounce.current); };
   }, [q, open, load]);
 
+  // 실패 이유를 사용자의 말로 — 목록과 Picker **두 경로가 같은 문구**를 쓴다.
+  //   (여기가 갈라지면 같은 실패에 다른 안내가 뜬다.)
+  const reasonText = useCallback((reason: string) => (
+    reason.startsWith('google_native')
+      ? (t('attach.drive.nativeDoc') as string)
+      : reason.startsWith('extension_not_allowed')
+        ? (t('attach.drive.extNotAllowed') as string)
+        : reason.startsWith('storage_quota_exceeded')
+          ? (t('attach.drive.quota') as string)
+          : (t('attach.drive.importFailed') as string)
+  ), [t]);
+
+  /** Drive file id 하나를 PlanQ File 로 들인다. 목록·Picker 가 **같은 함수**를 부른다. */
+  const importById = useCallback(async (driveFileId: string): Promise<boolean> => {
+    const r = await apiFetch('/api/drive/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        business_id: businessId, file_id: driveFileId, scope,
+        // 개인 Drive 에서 온 것은 프로젝트로 못 넣는다(서버도 같은 술어로 막는다).
+        project_id: personal ? undefined : (projectId || undefined),
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    // apiFetch 는 throw 하지 않는다 — ok 를 반드시 본다 (memory: apifetch_no_throw)
+    if (!r.ok) { setError(reasonText(String(j?.message || ''))); return false; }
+    const fileId = Number(j?.data?.file_id);
+    if (!fileId) { setError(t('attach.drive.importFailed') as string); return false; }
+    setDoneIds(prev => new Set(prev).add(driveFileId));
+    onImported(fileId);
+    return true;
+  }, [businessId, scope, personal, projectId, onImported, reasonText, t]);
+
   const importOne = async (f: DriveFile) => {
     if (importingId || disabled) return;      // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
     setImportingId(f.id);
     setError(null);
+    try { await importById(f.id); } finally { setImportingId(null); }
+  };
+
+  // ─── Picker ────────────────────────────────────────────
+  //   목록에 안 보이는 파일(사용자가 Drive 에 직접 올린 것)을 고르는 유일한 길이다.
+  //   ★ 실패를 삼키지 않는다 — 눌렀는데 아무 일도 안 일어나는 것이 가장 나쁘다
+  //     (CSP 로 스크립트가 막히면 정확히 그 모양이 된다).
+  const openPicker = async () => {
+    if (picking || disabled || !businessId) return;
+    setPicking(true);
+    setError(null);
     try {
-      const r = await apiFetch('/api/drive/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_id: businessId, file_id: f.id, scope,
-          // 개인 Drive 에서 온 것은 프로젝트로 못 넣는다(서버도 같은 술어로 막는다).
-          project_id: personal ? undefined : (projectId || undefined),
-        }),
-      });
+      const r = await apiFetch(`/api/drive/picker-token?business_id=${businessId}&scope=${scope}`);
+      if (!r.ok) { setError(t('attach.drive.pickerFailed') as string); return; }
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        // 왜 안 되는지 화면이 말한다 — 조용히 아무 일도 안 일어나는 것이 가장 나쁘다.
-        const reason = String(j?.message || '');
-        setError(
-          reason.startsWith('google_native')
-            ? (t('attach.drive.nativeDoc') as string)
-            : reason.startsWith('extension_not_allowed')
-              ? (t('attach.drive.extNotAllowed') as string)
-              : reason.startsWith('storage_quota_exceeded')
-                ? (t('attach.drive.quota') as string)
-                : (t('attach.drive.importFailed') as string),
-        );
+      if (!j?.data?.connected) {
+        setConnected(false);
+        setError(personal
+          ? (t('attach.drive.notConnectedPersonal') as string)
+          : (t('attach.drive.notConnected') as string));
         return;
       }
-      const fileId = Number(j?.data?.file_id);
-      if (!fileId) { setError(t('attach.drive.importFailed') as string); return; }
-      setDoneIds(prev => new Set(prev).add(f.id));
-      onImported(fileId);
-    } finally { setImportingId(null); }
+      const picked = await openGoogleDrivePicker({
+        accessToken: String(j.data.access_token),
+        locale: i18n.language,
+        multiple: true,
+      });
+      if (picked.length === 0) return;               // 취소 — 조용히 돌아간다
+      for (const p of picked) {
+        const ok = await importById(p.id);
+        if (!ok) break;                              // 이유는 이미 화면에 떴다
+      }
+      // Picker 로 연 파일은 이제 목록에도 보인다 — 열려 있으면 새로 읽는다.
+      if (open) void load(q);
+    } catch (e) {
+      const code = e instanceof Error ? e.message : '';
+      setError(code === 'picker_script_blocked'
+        ? (t('attach.drive.pickerBlocked') as string)
+        : (t('attach.drive.pickerFailed') as string));
+    } finally { setPicking(false); }
   };
 
   return (
@@ -143,6 +194,18 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
               : (t('attach.drive.notConnected') as string)}</Hint>
           ) : (
             <>
+              {/* ★ 목록보다 **위**에 둔다 — 목록에 없는 파일을 찾으러 온 사람이 먼저 만나야 한다.
+                  키가 없으면 버튼을 숨기지 않고 이유를 말한다(숨기면 "왜 없지" 가 된다). */}
+              {pickerConfigured() ? (
+                <PickerBtn type="button" onClick={openPicker}
+                  data-testid="attach-drive-picker" disabled={disabled || picking}>
+                  {picking
+                    ? (t('attach.drive.pickerOpening') as string)
+                    : (t('attach.drive.pickerOpen') as string)}
+                </PickerBtn>
+              ) : (
+                <Hint>{t('attach.drive.pickerUnavailable') as string}</Hint>
+              )}
               <SearchInput
                 value={q}
                 onChange={e => setQ(e.target.value)}
@@ -197,6 +260,15 @@ const Caret = styled.svg<{ $open: boolean }>`
 `;
 const Panel = styled.div`
   margin-top:8px;padding:10px;border:1px solid #E2E8F0;border-radius:8px;background:#F8FAFC;
+`;
+// Secondary 톤 (UI_DESIGN_GUIDE §1.7 — 상태 색을 버튼 배경에 칠하지 않는다)
+const PickerBtn = styled.button`
+  display:block;width:100%;margin-bottom:8px;
+  padding:8px 10px;border:1px solid #CBD5E1;border-radius:8px;background:#fff;
+  font-size:0.8125rem;font-weight:600;color:#0F172A;cursor:pointer;
+  &:hover:not(:disabled){border-color:#94A3B8;background:#F1F5F9;}
+  &:disabled{opacity:0.6;cursor:default;}
+  @media (hover: none), (max-width: 640px) { min-height: 40px; }
 `;
 const SearchInput = styled.input`
   width:100%;padding:7px 10px;border:1px solid #E2E8F0;border-radius:6px;

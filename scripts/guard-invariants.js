@@ -1464,7 +1464,31 @@ function checkCsp() {
       if (fa && fa.trim() === "'self'" && xfo !== 'SAMEORIGIN') bad.push(`${label} X-Frame-Options(${xfo}) 가 frame-ancestors('self') 와 어긋난다 — SAMEORIGIN 이어야 한다`);
     }
   }
-  report('csp', `CSP 두 벌 일치 + XFO 짝 (지시문 ${nginxCsp ? nginxCsp.split(';').length : 0}개)`, bad.length === 0, bad);
+  // ★ 프론트가 **실제로 로드하는 외부 스크립트**가 CSP 에 열려 있는가.
+  //   막히면 예외도 로그도 없이 **아무 일도 안 일어난다** — 2026-09-02 srcdoc 사고와 같은 모양이라
+  //   사람 눈으로는 "기능이 안 되네" 로만 보인다. 코드가 부르는 도메인을 소스에서 뽑아 대조한다.
+  if (nginxCsp && backendCsp) {
+    const feFiles = [
+      ...walk(`${ROOT}/dev-frontend/src/utils`, ['.ts', '.tsx']),
+      ...walk(`${ROOT}/dev-frontend/src/components`, ['.ts', '.tsx']),
+    ];
+    const needed = new Map();   // origin → 그것을 부르는 파일
+    for (const f of feFiles) {
+      const src = read(f);
+      // `script.src = 'https://x/y'` 또는 상수로 선언된 외부 .js
+      for (const m of src.matchAll(/['"`](https:\/\/[a-z0-9.-]+)\/[^'"`]*\.js[^'"`]*['"`]/gi)) {
+        if (!needed.has(m[1])) needed.set(m[1], rel(f));
+      }
+    }
+    const scriptSrc = (nginxCsp.match(/script-src\s+([^;]+)/) || [])[1] || '';
+    for (const [origin, where] of needed) {
+      if (!scriptSrc.includes(origin)) {
+        bad.push(`${where}: 외부 스크립트 ${origin} 를 로드하는데 CSP script-src 에 없다 — 에러 없이 조용히 죽는다`);
+      }
+    }
+  }
+
+  report('csp', `CSP 두 벌 일치 + XFO 짝 + 외부 스크립트 대조 (지시문 ${nginxCsp ? nginxCsp.split(';').length : 0}개)`, bad.length === 0, bad);
 }
 
 // ── 업로드 바이트 inline 서빙 ───────────────────────────────────────────────
@@ -2202,6 +2226,43 @@ function checkStatsText() {
   report('statstext', '서버 카드 문구 단일 원천 — 통계 + Cue (하드 게이트)', bad.length === 0, bad);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// auditentry — 감사 기록의 입구는 **services/auditService.js 하나** (2026-09-10 박제)
+//   `AuditLog.create()` 를 직접 부르면 두 가지를 통째로 건너뛴다:
+//     ① `retain_until` 스탬프 → 그 행은 **영구 보관**된다(보관기간 약속이 조용히 깨진다)
+//     ② `maskSensitive()`    → 비밀값이 감사 로그에 그대로 남을 수 있다
+//   2026-09-10 실사례: Picker 토큰 라우트에 감사 로그를 넣으면서 `AuditLog.create` 를 직접
+//   불렀고, health-check 의 `retention` 이 "도입 이후 3건에 retain_until 이 없다" 로 잡았다.
+//   ★ 그건 **사후** 검사다 — 그 경로가 한 번이라도 불려야 드러난다. 여기서 정적으로 막는다.
+//   래칫이라 기존 부채(9파일 22건)는 동결되고 **증가만 실패**한다.
+//   예외: auditService.js 자신과 retentionPurge.js(보관 정책을 직접 다루는 곳).
+function checkAuditEntry() {
+  const EXEMPT = new Set(['dev-backend/services/auditService.js', 'dev-backend/services/retentionPurge.js']);
+  const files = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/middleware`, ['.js']),
+  ];
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const r = rel(f);
+    if (EXEMPT.has(r)) continue;
+    const src = read(f);
+    let n = 0;
+    src.split('\n').forEach((ln, i) => {
+      if (/^\s*(\/\/|\*)/.test(ln)) return;          // 주석은 세지 않는다
+      if (!/\bAuditLog\.create\s*\(/.test(ln)) return;
+      n += 1;
+      if (samples.length < 12) samples.push(`${r}:${i + 1}: AuditLog.create 직접 호출 → auditService 의 logAudit/createAuditLog 를 쓸 것 (retain_until·마스킹)`);
+    });
+    if (n) current[r] = n;
+  }
+  const rt = ratchet('auditentry', current, samples);
+  report('auditentry', `감사 기록 입구 단일화 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
 const CATEGORIES = {
   mock: checkMock,
   canary: checkCanaryContract,
@@ -2242,6 +2303,7 @@ const CATEGORIES = {
   sharedrive: checkSharedDrive,
   rawmarkup: checkRawMarkup,
   statstext: checkStatsText,
+  auditentry: checkAuditEntry,
 };
 
 try {

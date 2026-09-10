@@ -92,7 +92,10 @@ async function exchangeCodeForTokens(code) {
  * 저장된 토큰으로 Drive 클라이언트 구성
  * 만료 시 자동 갱신 + DB 업데이트
  */
-async function getDriveClient(token) {
+// OAuth2 클라이언트만 따로 — Picker 는 **브라우저에서** access token 을 요구하므로
+//   drive 클라이언트가 아니라 auth 자체가 필요하다. 토큰 갱신 저장 로직이 두 벌이 되면
+//   한쪽만 갱신을 저장해 다른 쪽이 만료 토큰을 계속 쓴다 → 여기 하나로 둔다.
+async function getAuthClient(token) {
   const client = newOAuth2Client();
   // 저장은 암호화. 옛 평문 행은 읽는 순간 암호문으로 재저장된다(지연 백필).
   const { accessToken, refreshToken } = await cloudTokenCrypto.readTokenPair(token);
@@ -111,7 +114,11 @@ async function getDriveClient(token) {
       if (Object.keys(update).length > 0) await token.update(update);
     } catch (e) { console.error('[gdrive] token refresh save failed:', e.message); }
   });
-  return google.drive({ version: 'v3', auth: client });
+  return client;
+}
+
+async function getDriveClient(token) {
+  return google.drive({ version: 'v3', auth: await getAuthClient(token) });
 }
 
 /**
@@ -610,6 +617,7 @@ module.exports = {
   parseState,
   exchangeCodeForTokens,
   getDriveClient,
+  getAuthClient,
   createRootFolder,
   createFolder,
   uploadFile,
