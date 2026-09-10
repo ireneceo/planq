@@ -47,13 +47,16 @@ export default function QBillPage() {
   //   백엔드(routes/invoices.js)는 마킹 4경로 전부 socket 으로 inbox:refresh 를 쏘고 있었는데,
   //   여기서는 **window CustomEvent 만** 듣고 있었다. 같은 페이지의 TaxInvoicesTab 은 socket 을 들어
   //   리스트는 갱신되는데 그 위 탭 뱃지만 멈춰 있었다 (CLAUDE.md §16 채널 불일치).
+  // ★ **현재 워크스페이스만.** business_id 를 안 붙이면 서버가 속한 워크스페이스를 전부 합친다
+  //   (routes/dashboard.js) — Q Bill 탭 뱃지에 남의 워크스페이스 청구 건이 섞였다.
   const loadCounts = useCallback(async () => {
     try {
-      const r = await apiFetch('/api/dashboard/todo');
+      const bizId = user?.business_id ? Number(user.business_id) : null;
+      const r = await apiFetch(`/api/dashboard/todo${bizId ? `?business_id=${bizId}` : ''}`);
       const j = await r.json();
       if (aliveRef.current && j.success) setTodoCounts(j.data?.billTabCounts || {});
     } catch { /* 뱃지는 부가 — 실패해도 화면은 동작 */ }
-  }, []);
+  }, [user?.business_id]);
   useEffect(() => {
     aliveRef.current = true;
     loadCounts();

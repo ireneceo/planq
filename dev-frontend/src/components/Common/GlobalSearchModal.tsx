@@ -18,6 +18,13 @@ import { useChromeLocation } from '../../hooks/useChromeNav';
 import { tabStore } from '../../stores/tabStore';
 
 interface Props {
+  /**
+   * 지금 어느 범위인가 — 'admin' 이면 **관리자 메뉴만** 내고 워크스페이스 데이터 검색을 하지 않는다.
+   * ★ 이 인자가 없던 동안, 관리자 화면의 탭 `+` 목록에 Q Talk·확인 필요 같은 워크스페이스 메뉴가
+   *   섞여 나왔고 누르는 순간 탭 범위가 워크스페이스로 넘어가 **남의 워크스페이스 탭 목록**이
+   *   되살아났다(Irene 2026-09-10). 검색도 직전 워크스페이스 id 로 나가고 있었다.
+   */
+  scope?: 'admin' | 'workspace';
   open: boolean;
   onClose: () => void;
   businessId: number;
@@ -61,7 +68,7 @@ const CAT_BADGE_COLOR: Record<Category, string> = {
 // #210 — 메뉴 매칭 정규화: 대소문자·공백·중점 무시("q mail" → "qmail", "Q Bill" → "qbill")
 const normalize = (s: string) => s.toLowerCase().replace(/[\s·.]/g, '');
 
-const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavigate }) => {
+const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavigate, scope }) => {
   const { t } = useTranslation('common');
   const { t: tNav } = useTranslation('layout');   // #210 — 메뉴 라벨은 사이드바와 같은 layout ns 키
   const { user } = useAuth();
@@ -121,6 +128,9 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   //   깜빡인다) ③ 늦게 도착한 옛 응답이 새 결과를 덮어쓰지 않게 세대 번호로 차단.
   const reqSeq = useRef(0);
   useEffect(() => {
+    // 관리자 범위에서는 워크스페이스 데이터를 검색하지 않는다 — 그 화면에서 열 수 있는 것이
+    //   아니고, business_id 는 직전 워크스페이스 것이라 남의 데이터를 보여주게 된다.
+    if (scope === 'admin') { setResult({}); setLoading(false); return; }
     if (!query.trim()) { setResult({}); setLoading(false); return; }
     setLoading(true);
     const seq = ++reqSeq.current;
@@ -134,7 +144,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
       setLoading(false);
     }, 120);
     return () => clearTimeout(timer);
-  }, [query, businessId]);
+  }, [query, businessId, scope]);
 
   // ★ 검색 결과와 '최근 항목' 은 **같은 변환기**를 쓴다. 두 벌로 만들면 한쪽만 링크가 바뀌어
   //   "검색으로 열면 되는데 최근에서 열면 안 되는" 상태가 된다.
@@ -157,8 +167,8 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   // #210 — 메뉴(페이지) 이동 결과. 검색어가 없으면 전체 메뉴 목록(= '+' 로 새 탭 열 때 메뉴 고르기),
   //         있으면 메뉴 이름·별칭·경로 매칭. 사이드바와 같은 역할 조건(config/navMenus)을 쓴다.
   const menus = useMemo(
-    () => visibleNavMenus({ businessRole: user?.business_role, isPlatformAdmin: user?.platform_role === 'platform_admin' }),
-    [user?.business_role, user?.platform_role],
+    () => visibleNavMenus({ businessRole: user?.business_role, isPlatformAdmin: user?.platform_role === 'platform_admin', scope }),
+    [user?.business_role, user?.platform_role, scope],
   );
   const menuLabel = React.useCallback((m: NavMenuEntry) => tNav(m.labelKey) as string, [tNav]);
   // 검색 동의어는 언어별 콘텐츠 — locales layout `nav.searchAliases.<key>` (쉼표 구분, 없으면 빈 값)

@@ -12,6 +12,7 @@ import { tabStore, type Tab, type TabKind } from '../../stores/tabStore';
 import { XIcon, PlusIcon } from '../Common/Icons';
 import { useAuth } from '../../contexts/AuthContext';
 import GlobalSearchModal from '../Common/GlobalSearchModal';
+import { adminLabelKeyForPath } from '../../config/navMenus';
 import { mediaTablet } from '../../theme/breakpoints';
 
 // kind → layout ns nav 라벨 키 (사이드바와 동일 문구, 언어전환 재렌더 보장)
@@ -19,7 +20,7 @@ const NAV_KEY: Record<TabKind, string> = {
   dashboard: 'nav.dashboard', inbox: 'nav.inbox', talk: 'nav.talk', mail: 'nav.qmail',
   task: 'nav.task', project: 'nav.project', projectDetail: 'nav.project', calendar: 'nav.calendar',
   note: 'nav.note', docs: 'nav.docs', info: 'nav.qinfo', files: 'nav.file',
-  clients: 'nav.clients', bill: 'nav.qbill', other: 'nav.settings',
+  clients: 'nav.clients', bill: 'nav.qbill', admin: 'nav.sectionAdmin', other: 'nav.settings',
 };
 
 export default function TabStrip({ leftOffset = 0, onMenu }: {
@@ -33,6 +34,8 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : 0;
   const [searchOpen, setSearchOpen] = useState(false); // + → 통합검색(새 탭으로 열기)
+  // 지금 탭 스트립이 서 있는 범위 — 활성 탭의 kind 로 판정한다(경로의 단일 원천은 탭이다).
+  const isAdminScope = active?.kind === 'admin';
   // 뒤로 가기 — 데스크탑(탭 모드)에도 있어야 한다. 모바일 헤더에만 두었더니 데스크탑에선
   //   버튼이 없어 "계속 안해?" 라는 말을 들었다 (Irene 2026-08-31). 갈 곳 있을 때만 뜬다.
   const { canGoBack, goBack } = usePaneBack();
@@ -45,7 +48,13 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
   }, [active?.id]);
 
   if (tabs.length === 0) return null;
-  const label = (tab: Tab) => tab.title || (t(NAV_KEY[tab.kind], { defaultValue: tab.kind }) as string);
+  // 관리자 탭 이름은 **사이드바와 같은 표**(ADMIN_MENUS)에서 온다 — 화면이 스스로 제목을
+  //   심게 하면 빠뜨린 화면만 조용히 "설정" 이 된다. 표를 읽으면 메뉴를 늘릴 때 같이 따라온다.
+  const label = (tab: Tab) => {
+    if (tab.title) return tab.title;
+    const adminKey = tab.kind === 'admin' ? adminLabelKeyForPath(tab.path) : null;
+    return t(adminKey || NAV_KEY[tab.kind], { defaultValue: tab.kind }) as string;
+  };
 
   // #5 — 그 탭에 열린 모달/드로어(aria-modal)가 있으면 탭을 닫지 않는다. 대신 그 탭을 활성화해
   //   사용자가 열어둔 패널을 보고 직접 닫게 한다("마음대로 닫히지 않게", Irene).
@@ -138,7 +147,10 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
       </BackBtn>
 
       {/* + = 통합검색. 결과 클릭 = 새 탭으로 열기(navigate 대신 newTab 주입) */}
+      {/* ★ 범위를 넘긴다. 안 넘기면 관리자 화면에서 워크스페이스 메뉴가 목록에 섞이고,
+          그걸 누르는 순간 tabStore 가 범위를 워크스페이스로 갈아끼워 남의 탭 목록이 열린다. */}
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} businessId={bizId}
+        scope={isAdminScope ? 'admin' : 'workspace'}
         onNavigate={(to) => tabStore.newTab(to)} />
     </Strip>
   );

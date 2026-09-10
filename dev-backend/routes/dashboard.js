@@ -569,10 +569,18 @@ async function collectSignatures(businessId, userEmail, userRole) {
   const now = new Date();
   const oneDayMs = 24 * 60 * 60 * 1000;
 
-  // 내가 서명자 — 모든 워크스페이스에서 받은 서명 요청 (이메일 기준)
-  if (userEmail) {
+  // 내가 서명자로 지정된 요청 — **이 워크스페이스의 것만.**
+  // ★ 2026-09-10 격리 수리: 예전엔 `signer_email` 만 걸고 `businessId` 를 **받아 놓고 안 썼다.**
+  //   결과가 둘이었다 —
+  //   ① `?business_id=` 를 제대로 붙여 불러도(사이드바 배지가 그렇게 부른다) 이 수집기 하나가
+  //      남의 워크스페이스 서명요청을 얹었다. 나머지 수집기 9개는 전부 business_id 를 건다.
+  //   ② 여러 워크스페이스를 도는 모드에서는 **같은 행이 워크스페이스 수만큼 중복 계수**됐다
+  //      (id 가 `sign-recv-<id>` 로 워크스페이스 축이 없고, 합칠 때 중복 제거가 없다).
+  //      dev 실측: 서명요청 1건이 total 에 3번. CLAUDE.md 숫자 배지 계약 §3 "한 업무 = 한 버킷" 위반.
+  if (userEmail && businessId) {
     const myReqs = await SignatureRequest.findAll({
       where: {
+        business_id: businessId,
         signer_email: userEmail,
         status: { [Op.in]: ['sent', 'viewed'] },
       },

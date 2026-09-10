@@ -24,6 +24,7 @@ const KIND_ICON: Record<TabKind, IconComp> = {
   files: FolderIcon,
   clients: ClientsIcon,
   info: BookIcon,
+  admin: SettingsIcon,
   other: SettingsIcon,
 };
 

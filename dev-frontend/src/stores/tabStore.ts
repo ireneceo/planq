@@ -11,7 +11,11 @@ import { isTabsSpike } from '../utils/tabsBeta';
 
 export type TabKind =
   | 'dashboard' | 'inbox' | 'talk' | 'task' | 'note' | 'docs' | 'calendar'
-  | 'bill' | 'mail' | 'project' | 'projectDetail' | 'files' | 'clients' | 'info' | 'other';
+  | 'bill' | 'mail' | 'project' | 'projectDetail' | 'files' | 'clients' | 'info'
+  // 플랫폼 관리자 화면. 워크스페이스 kind 와 **반드시 갈라야 한다** — 예전엔 /admin 이
+  // PREFIX_KIND 에 없어 전부 'other' 로 떨어졌고, 그 결과 ①탭 이름이 언제나 "설정" 이었으며
+  // ②identity 가 다 같아 관리자 화면을 새로 열 때마다 **기존 관리자 탭을 덮어썼다.**
+  | 'admin' | 'other';
 
 export interface Tab {
   id: string;
@@ -84,6 +88,7 @@ function ensureScopeFor(path: string): boolean {
 // ── kind ↔ path 매핑 ──────────────────────────────────────────
 // path prefix → kind (긴 것 우선). projectDetail 은 id별 복수 탭 허용.
 const PREFIX_KIND: Array<[RegExp, TabKind]> = [
+  [/^\/admin/, 'admin'],
   [/^\/projects\/p\//, 'projectDetail'],
   [/^\/projects/, 'project'],
   [/^\/tasks/, 'task'],
@@ -114,6 +119,9 @@ export function identityOfPath(path: string): string {
     const m = path.match(/^\/projects\/p\/(\d+)/);
     return m ? `projectDetail:${m[1]}` : 'projectDetail';
   }
+  // 관리자 화면은 **화면마다 별개의 탭**이다. 사용자·워크스페이스·결제는 서로 다른 일이라
+  // 하나로 합치면 방금 보던 화면이 사라진다. (kind 하나로 묶었을 때 실제로 그랬다.)
+  if (kind === 'admin') return `admin:${(path || '').split('?')[0]}`;
   return kind;
 }
 
@@ -210,6 +218,14 @@ function belongsToScope(tab: Tab, scope: string | null): boolean {
   return isAdminContext((tab.path || '/').split('?')[0]) === (scope === 'admin');
 }
 function scrub(tabs: Tab[], activeId: string | null): { tabs: Tab[]; activeId: string | null } {
+  // ★ kind 는 **경로에서 나오는 파생값**이다. 저장된 값을 그대로 믿으면, 매핑을 고쳐도
+  //   이미 열려 있던 탭은 옛 kind 를 들고 있어 고친 티가 안 난다 — 2026-09-10 에 `/admin` 을
+  //   PREFIX_KIND 에 넣고도 기존 탭은 계속 'other'(라벨 "설정")로 남을 뻔했다.
+  //   경로가 원본이므로 읽을 때마다 다시 계산한다.
+  tabs = tabs.map((t) => {
+    const k = kindOfPath(t.path || '/');
+    return k === t.kind ? t : { ...t, kind: k, title: '' };
+  });
   const kept = tabs.filter((t) => belongsToScope(t, tabScope));
   if (kept.length === tabs.length) return { tabs, activeId };
   // 활성 탭이 버려졌으면 남은 것 중 마지막으로. 다 버려졌으면 비운다 —

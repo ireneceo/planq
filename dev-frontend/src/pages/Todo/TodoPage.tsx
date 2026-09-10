@@ -59,8 +59,10 @@ const TodoPage: React.FC = () => {
   };
 
   // 재진입 즉시 표시 — 지난 응답이 있으면 그것으로 그리고 시작한다(스피너 없이). 곧 아래 load()
-  //   가 서버 값으로 덮어쓴다. 인박스는 cross-workspace 라 워크스페이스 축이 'all' 이다.
-  const inboxKey = cacheKey('inbox', user?.id, 'all');
+  //   가 서버 값으로 덮어쓴다.
+  // ★ 캐시 축은 **워크스페이스**다. 예전엔 'all' 이라 한 벌뿐이어서, 워크스페이스를 바꿔도
+  //   **직전 워크스페이스의 인박스가 먼저 그려졌다**(load 가 덮어쓰기 전까지). 신고 그대로다.
+  const inboxKey = cacheKey('inbox', user?.id, bizId);
   const [data, setData] = useState<TodoResponse | null>(() => readCache<TodoResponse>(inboxKey) ?? null);
   const [loading, setLoading] = useState(() => !hasCache(inboxKey));
   const [err, setErr] = useState<string | null>(null);
@@ -83,15 +85,20 @@ const TodoPage: React.FC = () => {
 
   // silent=true 이면 skeleton 으로 되돌리지 않고 백그라운드 교체만. 드로어 내부 수정 후
   // 리스트를 업데이트할 때 뒤 리스트가 "깜빡"이지 않도록.
-  // **cross-workspace** — 사용자가 속한 모든 워크스페이스의 알림 통합. 항목별 workspace 라벨 부착됨.
+  // ★ **현재 워크스페이스만.** 예전엔 인자 없이 불러 서버가 속한 워크스페이스를 **전부 합쳤다**
+  //   (routes/dashboard.js — business_id 생략 = cross-workspace 집계). 그래서 사이드바 배지
+  //   (useInboxCount → fetchTodo(businessId), 현재 워크스페이스만)와 이 목록이 **다른 범위**를
+  //   보고 있었고, 같은 화면에 두 숫자가 어긋나 있었다(CLAUDE.md 숫자 배지 계약 위반).
+  //   Irene 2026-09-10: *"확인필요도 워크스페이스별로 다르게 나와야지. 절대 서로 데이터를
+  //   공유하는게 아닌데."* — 범위의 정본은 **현재 워크스페이스**다.
   const load = useCallback((opts?: { silent?: boolean }) => {
     // 캐시로 이미 그려 놓았으면 skeleton 으로 되돌리지 않는다 — 그러면 "매번 로딩" 이 그대로다.
     if (!opts?.silent && !hasCache(inboxKey)) setLoading(true);
-    fetchTodo()
+    fetchTodo(bizId ?? undefined)
       .then(res => { setData(res); writeCache(inboxKey, res); setErr(null); })
       .catch(e => { setErr(e.message || 'Failed'); })
       .finally(() => { if (!opts?.silent) setLoading(false); });
-  }, [inboxKey]);
+  }, [inboxKey, bizId]);
 
   // 오늘의 업무 리뷰도 같은 신호로 갱신한다 — 리스트만 새로 그리고 리뷰가 옛 숫자를 들고 있으면
   //   같은 화면에서 두 숫자가 어긋난다(CLAUDE.md §16 실시간 반영).
@@ -102,8 +109,9 @@ const TodoPage: React.FC = () => {
 
   // 실시간 sync — 워크스페이스 socket room 의 task/candidate/invoice 변경 받으면 silentLoad.
   // 사용자: "확인필요도 반영되는 족족 실시간으로 변경되어야 해"
-  // **cross-workspace** — 인박스는 사용자가 속한 모든 워크스페이스의 알림을 통합. 따라서
-  // socket join 도 default bizId 한 곳이 아니라 data.workspaces 의 모든 business room 에 join.
+  // socket join 은 data.workspaces 를 따라간다 — 이제 현재 워크스페이스 한 곳이다.
+  // (목록이 다른 워크스페이스를 안 그리므로 그쪽 이벤트를 들을 이유도 없다 —
+  //  memory `feedback_background_refresh_must_not_repaint`: 안 그리는 자원의 이벤트는 듣지 않는다.)
   const joinedRoomsRef = useRef<Set<number>>(new Set());
   useEffect(() => {
     if (!user) return;

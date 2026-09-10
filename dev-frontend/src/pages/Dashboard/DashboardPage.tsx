@@ -54,13 +54,16 @@ const DashboardPage: React.FC = () => {
   const [events, setEvents] = useState<CalEventLite[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
 
+  // ★ **현재 워크스페이스만.** 인자 없이 부르면 서버가 속한 워크스페이스를 전부 합친다
+  //   (routes/dashboard.js). 대시보드의 "확인 필요" 는 사이드바 배지·인박스와 **같은 숫자**여야
+  //   하고, 그 범위는 현재 워크스페이스다.
   const reloadTodo = useCallback(() => {
     setTodoLoading(true);
-    fetchTodo()
+    fetchTodo(bizId ?? undefined)
       .then(setTodo)
       .catch(() => setTodo(null))
       .finally(() => setTodoLoading(false));
-  }, []);
+  }, [bizId]);
   useEffect(() => { reloadTodo(); }, [reloadTodo]);
 
   // N+39-2 — 실시간 동기화 + PWA visibility 안전망
