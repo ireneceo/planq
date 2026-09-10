@@ -3,6 +3,7 @@
 // 기능: 본문 표시 + 인쇄(PDF)
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
+import PublicPageShell, { PublicCenter, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
@@ -66,31 +67,31 @@ const PublicPostPage: React.FC = () => {
       .catch(() => { /* silent */ });
   }, [token, post]);
 
-  if (loading) return <Center>{t('public.loading', '문서 로드 중...')}</Center>;
+  if (loading) return <PublicCenter>{t('public.loading', '문서 로드 중...')}</PublicCenter>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   //   ★ 서버 코드(not_found 등)를 그대로 뿌리지 않는다 — 사용자에게는 뜻 없는 영어 한 단어로 보인다
   //     (Irene 2026-08-31: 죽은 공유 링크를 열었더니 무엇이 잘못됐는지 알 수 없었다).
   //     원인은 셋 다 같은 결과다: 문서가 지워졌거나 · 공유를 중지했거나 · 링크가 만료됐다.
   if (err || !post) return (
-    <Center>
+    <PublicCenter>
       <div>{t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</div>
       <SubHint>{t('public.notFoundHint', '문서가 삭제됐거나 공유가 중지된 링크입니다. 보낸 분께 새 링크를 요청해 주세요.')}</SubHint>
-    </Center>
+    </PublicCenter>
   );
 
   return (
-    <Page>
-      <Toolbar className="no-print">
-        <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
-        <ToolbarSpacer />
-        {appUrl && (
-          <PrintBtn type="button" onClick={() => navigate(appUrl)} style={{ background: '#14B8A6', color: '#FFFFFF', border: 'none' }}>
-            {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
-          </PrintBtn>
-        )}
-        <PrintBtn type="button" onClick={() => window.open(`/api/posts/public/${token}/pdf`, '_blank')}>{t('public.downloadPdf', 'PDF 다운로드')}</PrintBtn>
-      </Toolbar>
-
+    <PublicPageShell promo
+      actions={(
+        <>
+          {appUrl && (
+            <PublicBtn type="button" onClick={() => navigate(appUrl)} style={{ background: '#14B8A6', color: '#FFFFFF', border: 'none' }}>
+              {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
+            </PublicBtn>
+          )}
+          <PublicBtn type="button" onClick={() => window.open(`/api/posts/public/${token}/pdf`, '_blank')}>{t('public.downloadPdf', 'PDF 다운로드')}</PublicBtn>
+        </>
+      )}
+    >
       <PromoBar className="no-print">
         <PromoText>{t('public.promoCopy', '업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진')}</PromoText>
         <PromoLink href="https://planq.kr" target="_blank" rel="noreferrer">
@@ -98,11 +99,11 @@ const PublicPostPage: React.FC = () => {
         </PromoLink>
       </PromoBar>
 
-      <DocFrame data-print-area>
-        <DocTitle>{post.title}</DocTitle>
-        <DocMeta>
+      <>
+        <PublicTitle>{post.title}</PublicTitle>
+        <PublicMeta>
           {post.author?.name || '—'} · {new Date(post.created_at).toLocaleDateString('ko-KR')}
-        </DocMeta>
+        </PublicMeta>
         <PostEditor value={post.content_json} onChange={() => {}} editable={false} borderless />
 
         {post.attachments && post.attachments.length > 0 && (
@@ -119,31 +120,13 @@ const PublicPostPage: React.FC = () => {
             ))}
           </AttachSection>
         )}
-      </DocFrame>
-    </Page>
+      </>
+    </PublicPageShell>
   );
 };
 
 export default PublicPostPage;
 
-const Page = styled.div`
-  min-height: 100vh; background: #F8FAFC; padding: 0 0 40px 0;
-  @media print { background: #FFF; padding: 0; }
-`;
-const Toolbar = styled.div`
-  display: flex; align-items: center; gap: 8px; padding: 12px 24px;
-  background: #FFF; border-bottom: 1px solid #E2E8F0;
-  position: sticky; top: 0; z-index: 10;
-  @media print { display: none !important; }
-`;
-const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
-const ToolbarSpacer = styled.div`flex:1;`;
-const PrintBtn = styled.button`
-  display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
-  border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
-`;
 const PromoBar = styled.div`
   display: flex; align-items: center; gap: 14px;
   padding: 9px 24px; background: #F0FDFA; border-bottom: 1px solid #99F6E4;
@@ -161,21 +144,6 @@ const PromoLink = styled.a`
   &:hover { color: #115E59; text-decoration: underline; }
   span { margin-left: 4px; }
 `;
-const DocFrame = styled.article`
-  max-width: 820px; margin: 32px auto; background: #FFF; border: 1px solid #E2E8F0;
-  border-radius: 12px; padding: 48px 56px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-  font-size: 0.875rem; line-height: 1.7; color: #0F172A;
-  @media print {
-    border: none; box-shadow: none; padding: 0; margin: 0; max-width: 100%;
-  }
-  @media (max-width: 640px) { padding: 24px 20px; margin: 16px; }
-`;
-const DocTitle = styled.h1`font-size:1.5rem;font-weight:700;color:#0F172A;margin:0 0 6px 0;`;
-const DocMeta = styled.div`font-size:0.75rem;color:#64748B;margin:0 0 24px 0;`;
-const AttachSection = styled.section`
-  margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0;
-  display: flex; flex-direction: column; gap: 8px;
-`;
 const AttachTitle = styled.h3`font-size:0.8125rem;font-weight:700;color:#334155;margin:0;`;
 const AttachRow = styled.div`font-size:0.8125rem;`;
 const AttachLink = styled.a`
@@ -185,4 +153,8 @@ const AttachLink = styled.a`
 const SubHint = styled.div`
   margin-top: 8px; font-size: 0.8125rem; color: #94A3B8; line-height: 1.5;
 `;
-const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:0.875rem;`;
+
+const AttachSection = styled.section`
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0;
+  display: flex; flex-direction: column; gap: 8px;
+`;

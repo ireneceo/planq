@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import PublicPageShell, { PublicCenter, PublicWorkspaceLabel, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 
@@ -61,47 +62,41 @@ const PublicKbBundlePage = () => {
     [selectedId, data]
   );
 
-  if (loading) return <Center>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</Center>;
+  if (loading) return <PublicCenter>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</PublicCenter>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (error || !data) return (
-    <Center>
+    <PublicCenter>
       <div style={{ textAlign: 'center' }}>
         <ErrorTitle>{t('public.notFound', { defaultValue: '링크가 만료되었거나 없는 항목입니다' }) as string}</ErrorTitle>
         <Hint>{t('public.notFoundHint', { defaultValue: '링크 작성자에게 다시 받으세요.' }) as string}</Hint>
       </div>
-    </Center>
+    </PublicCenter>
   );
 
   const heading = data.title || data.category || (t('public.kb.bundleTitle', { defaultValue: '공유 자료' }) as string);
 
   return (
-    <Page>
-      <Toolbar className="no-print">
-        <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
-        <ToolbarSpacer />
-        {selected && (
-          <PlainBtn type="button" onClick={() => setSelectedId(null)}>
-            ← {t('public.kb.backToList', { defaultValue: '목록으로' }) as string}
-          </PlainBtn>
-        )}
-        <PrimaryBtn type="button" onClick={() => window.open('https://planq.kr', '_blank')}>
-          {t('public.promoCta', { defaultValue: '플랜큐 바로가기' }) as string}
-        </PrimaryBtn>
-      </Toolbar>
-
-      <PromoBar className="no-print">
-        <PromoText>{t('public.promoCopy', { defaultValue: '업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진' }) as string}</PromoText>
-        <PromoLink href="https://planq.kr" target="_blank" rel="noreferrer">
-          {t('public.promoCta', { defaultValue: '플랜큐 바로가기' }) as string} <span aria-hidden="true">→</span>
-        </PromoLink>
-      </PromoBar>
-
-      <DocFrame>
+    <PublicPageShell
+      promo
+      actions={(
+        <>
+          {selected && (
+            <PublicBtn type="button" onClick={() => setSelectedId(null)}>
+              ← {t('public.kb.backToList', { defaultValue: '목록으로' }) as string}
+            </PublicBtn>
+          )}
+          <PublicBtn $primary type="button" onClick={() => window.open('https://planq.kr', '_blank')}>
+            {t('public.promoCta', { defaultValue: '플랜큐 바로가기' }) as string}
+          </PublicBtn>
+        </>
+      )}
+    >
+      <>
         {!selected ? (
           <>
-            {data.workspace && <WorkspaceLabel>{data.workspace.name}</WorkspaceLabel>}
-            <DocTitle>{heading}</DocTitle>
-            <DocMeta>{t('public.kb.bundleCount', { count: data.count, defaultValue: '{{count}}개 자료' }) as string}</DocMeta>
+            {data.workspace && <PublicWorkspaceLabel>{data.workspace.name}</PublicWorkspaceLabel>}
+            <PublicTitle>{heading}</PublicTitle>
+            <PublicMeta>{t('public.kb.bundleCount', { count: data.count, defaultValue: '{{count}}개 자료' }) as string}</PublicMeta>
 
             {data.documents.length === 0 ? (
               <Hint>{t('public.kb.bundleEmpty', { defaultValue: '공유된 자료가 없습니다.' }) as string}</Hint>
@@ -128,11 +123,11 @@ const PublicKbBundlePage = () => {
             <BackInline type="button" onClick={() => setSelectedId(null)}>
               ← {t('public.kb.backToList', { defaultValue: '목록으로' }) as string}
             </BackInline>
-            <DocTitle>{selected.title}</DocTitle>
-            <DocMeta>
+            <PublicTitle>{selected.title}</PublicTitle>
+            <PublicMeta>
               {selected.categories?.length > 0 && selected.categories.map((c) => <SourcePill key={c}>{c}</SourcePill>)}
               {selected.file_name && <span>{selected.file_name}</span>}
-            </DocMeta>
+            </PublicMeta>
             {selected.body ? (
               <Body dangerouslySetInnerHTML={{ __html: toHtml(selected.body) }} />
             ) : (
@@ -140,71 +135,13 @@ const PublicKbBundlePage = () => {
             )}
           </>
         )}
-      </DocFrame>
-    </Page>
+      </>
+    </PublicPageShell>
   );
 };
 
 export default PublicKbBundlePage;
 
-const Page = styled.div`min-height: 100vh; background: #F8FAFC; padding: 0 0 40px 0;`;
-const Toolbar = styled.div`
-  display: flex; align-items: center; gap: 8px; padding: 12px 24px;
-  background: #FFF; border-bottom: 1px solid #E2E8F0;
-  position: sticky; top: 0; z-index: 10;
-`;
-const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
-const ToolbarSpacer = styled.div`flex:1;`;
-const PrimaryBtn = styled.button`
-  display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #FFFFFF;
-  border: none; border-radius: 8px; background: #14B8A6; cursor: pointer;
-  &:hover { background: #0D9488; }
-`;
-const PlainBtn = styled.button`
-  display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
-  border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
-`;
-const PromoBar = styled.div`
-  display: flex; align-items: center; gap: 14px;
-  padding: 9px 24px; background: #F0FDFA; border-bottom: 1px solid #99F6E4;
-  font-size: 0.75rem; color: #475569; line-height: 1.5;
-  @media (max-width: 640px) { padding: 9px 16px; gap: 10px; flex-wrap: wrap; }
-`;
-const PromoText = styled.span`
-  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  @media (max-width: 640px) { white-space: normal; }
-`;
-const PromoLink = styled.a`
-  flex-shrink: 0; color: #0F766E; font-weight: 700; text-decoration: none; white-space: nowrap;
-  &:hover { color: #115E59; text-decoration: underline; }
-  span { margin-left: 4px; }
-`;
-const DocFrame = styled.article`
-  max-width: 820px; margin: 32px auto; background: #FFF; border: 1px solid #E2E8F0;
-  border-radius: 12px; padding: 40px 48px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-  color: #0F172A;
-  @media (max-width: 640px) { padding: 24px 20px; margin: 16px; }
-`;
-const WorkspaceLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
-const DocTitle = styled.h1`font-size: 1.5rem; font-weight: 700; color: #0F172A; margin: 0 0 6px 0; line-height: 1.3;`;
-const DocMeta = styled.div`display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.75rem; color: #64748B; margin: 0 0 20px 0;`;
-const SourcePill = styled.span`display: inline-flex; padding: 3px 10px; font-size: 0.6875rem; font-weight: 700; border-radius: 999px; background: #F0FDFA; color: #0F766E;`;
-const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const Row = styled.button`
-  display: grid; grid-template-columns: 28px 1fr 18px; gap: 12px; align-items: center;
-  width: 100%; text-align: left; cursor: pointer;
-  padding: 14px 16px; background: #FFF; border: 1px solid #E2E8F0; border-radius: 10px;
-  transition: border-color 0.15s, background 0.15s;
-  &:hover { border-color: #14B8A6; background: #F0FDFA; }
-`;
-const RowIndex = styled.div`
-  width: 24px; height: 24px; border-radius: 999px;
-  display: flex; align-items: center; justify-content: center;
-  background: #F0FDFA; color: #0F766E; font-size: 0.75rem; font-weight: 700;
-`;
 const RowMain = styled.div`min-width: 0;`;
 const RowTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A; line-height: 1.4;`;
 const RowCats = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;`;
@@ -233,4 +170,17 @@ const Body = styled.div`
 `;
 const Hint = styled.div`font-size: 0.8125rem; color: #94A3B8; padding: 12px 0;`;
 const ErrorTitle = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
-const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:0.875rem;`;
+const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const Row = styled.button`
+  display: grid; grid-template-columns: 28px 1fr 18px; gap: 12px; align-items: center;
+  width: 100%; text-align: left; cursor: pointer;
+  padding: 14px 16px; background: #FFF; border: 1px solid #E2E8F0; border-radius: 10px;
+  transition: border-color 0.15s, background 0.15s;
+  &:hover { border-color: #14B8A6; background: #F0FDFA; }
+`;
+const RowIndex = styled.div`
+  width: 24px; height: 24px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: #F0FDFA; color: #0F766E; font-size: 0.75rem; font-weight: 700;
+`;
+const SourcePill = styled.span`display: inline-flex; padding: 3px 10px; font-size: 0.6875rem; font-weight: 700; border-radius: 999px; background: #F0FDFA; color: #0F766E;`;

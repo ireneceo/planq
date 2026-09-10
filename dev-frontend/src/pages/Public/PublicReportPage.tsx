@@ -9,6 +9,8 @@ import {
   KpiGrid, KpiCard, KpiLabel, KpiValueBig, KpiHint, SectionLabel, ChartCard,
 } from '../Insights/components';
 import ReportContent from '../../components/QTask/report/ReportContent';
+import PublicPageShell, { PublicCenter, PublicWorkspaceLabel } from '../../components/Layout/PublicPageShell';
+import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import type { ReportSnapshot } from '../../services/reportUnit';
 
 interface UnitView {
@@ -37,13 +39,18 @@ const PublicReportPage = () => {
   const [data, setData] = useState<RollupData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [expired, setExpired] = useState<{ at: string | null } | null>(null);
   const [dim, setDim] = useState<'project' | 'member'>('project');
 
   const fetchReport = useCallback(async () => {
-    setLoading(true); setError(false);
+    setLoading(true); setError(false); setExpired(null);
     try {
       const r = await fetch(`/api/reports/public/integrated/${token}`);
       const j = await r.json();
+      // ★ 이 화면은 **410 을 아예 처리하지 않았다** — 서버가 "만료됐다" 를 줘도 화면은
+      //   "찾을 수 없음" 으로 뭉갰다. 사용자에게는 링크가 잘못된 것과 구별되지 않는다.
+      //   다른 공개 화면 8곳이 이미 쓰는 ExpiredShareLink 로 보낸다.
+      if (r.status === 410 && j.code === 'share_expired') { setExpired({ at: j.expired_at || null }); return; }
       if (!r.ok || !j.success) throw new Error();
       setData(j.data);
       setDim(j.data?.dim === 'member' ? 'member' : 'project');
@@ -52,17 +59,22 @@ const PublicReportPage = () => {
   }, [token]);
   useEffect(() => { fetchReport(); }, [fetchReport]);
 
-  if (loading) return <Wrap><Card><Hint>{t('publicReport.loading', { defaultValue: '불러오는 중…' }) as string}</Hint></Card></Wrap>;
-  if (error || !data) return <Wrap><Card><Hint>{t('publicReport.notFound', { defaultValue: '보고서를 찾을 수 없거나 공유가 해제되었습니다.' }) as string}</Hint></Card></Wrap>;
+  if (loading) return <PublicCenter>{t('publicReport.loading', { defaultValue: '불러오는 중…' }) as string}</PublicCenter>;
+  if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
+  if (error || !data) return (
+    <PublicPageShell layout="card" width="sm" brand={false}>
+      <Hint>{t('publicReport.notFound', { defaultValue: '보고서를 찾을 수 없거나 공유가 해제되었습니다.' }) as string}</Hint>
+    </PublicPageShell>
+  );
 
   const s = data.stats || {};
   const units = dim === 'project' ? (data.projects || []) : (data.members || []);
   const periodLabel = `${data.period_start || ''}${data.period_type === 'monthly' ? ` · ${t('publicReport.monthly', { defaultValue: '월간' })}` : ` · ${t('publicReport.weekly', { defaultValue: '주간' })}`}`;
 
   return (
-    <Wrap>
-      <Card>
-        {data.workspace_name && <WorkspaceLabel>{data.workspace_name}</WorkspaceLabel>}
+    <PublicPageShell layout="card" width="xl" brand={false}>
+      <>
+        {data.workspace_name && <PublicWorkspaceLabel>{data.workspace_name}</PublicWorkspaceLabel>}
         <Title>{t('publicReport.title', { defaultValue: '통합 보고서' }) as string}</Title>
         <Period>{periodLabel}</Period>
 
@@ -105,25 +117,13 @@ const PublicReportPage = () => {
         ))}
 
         <Footer>{t('publicReport.footer', { defaultValue: 'PlanQ 로 작성된 보고서' }) as string}</Footer>
-      </Card>
-    </Wrap>
+      </>
+    </PublicPageShell>
   );
 };
 
 export default PublicReportPage;
 
-const Wrap = styled.div`
-  min-height: 100vh; background: #F8FAFC;
-  display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px;
-  @media (max-width: 640px) { padding: 16px; }
-`;
-const Card = styled.div`
-  width: 100%; max-width: 920px;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px;
-  padding: 28px 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  @media (max-width: 640px) { padding: 20px 16px; }
-`;
-const WorkspaceLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
 const Title = styled.h1`font-size: 1.375rem; font-weight: 800; color: #0F172A; margin: 0 0 4px; line-height: 1.3;`;
 const Period = styled.div`font-size: 0.8125rem; color: #64748B; margin-bottom: 20px;`;
 const Hint = styled.div`font-size: 0.875rem; color: #94A3B8; padding: 32px 8px; text-align: center;`;

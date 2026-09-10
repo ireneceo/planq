@@ -164,10 +164,53 @@ async function linkThread(thread, { addresses, transaction = null } = {}) {
   return { changed: true, client_id: patch.client_id ?? have.client_id, project_id: patch.project_id ?? have.project_id, via };
 }
 
+/**
+ * 주소 여러 개 → **그 주소로 알아볼 수 있는 고객 행들.** 목록 화면용(주소별 보기).
+ *
+ * ★ 왜 여기 있나 (2026-09-10 Fable 게이트 지적): `routes/email_addresses.js` 가 같은 판정을
+ *   손으로 다시 쓰고 있었고, 주석은 "emailImapCron.matchClient 와 **같은 필드**를 본다" 고
+ *   말하는데 실제로는 **별칭(email_aliases)을 안 봤다.** 그래서 메일은 고객으로 붙는데
+ *   그 화면에서는 "고객 아님" 으로 보이는 어긋남이 생긴다.
+ *   주석으로 "같은 술어" 를 약속하지 말고 **같은 함수를 부르게** 한다.
+ *
+ * @returns {Promise<Map<string, {id:number, name:string|null}>>} 주소(소문자) → 고객
+ */
+async function findClientsByAddresses(businessId, addresses) {
+  const out = new Map();
+  const addrs = normalizeAddresses(addresses);
+  if (!addrs.length) return out;
+  const rows = await Client.findAll({
+    where: {
+      business_id: businessId,
+      [Op.or]: [
+        { invite_email: { [Op.in]: addrs } },
+        { billing_contact_email: { [Op.in]: addrs } },
+      ],
+    },
+    attributes: ['id', 'invite_email', 'billing_contact_email', 'display_name', 'company_name'],
+  });
+  const label = (c) => c.display_name || c.company_name || null;
+  for (const c of rows) {
+    for (const e of [c.invite_email, c.billing_contact_email]) {
+      if (e) out.set(norm(e), { id: c.id, name: label(c) });
+    }
+  }
+  // 별칭은 완전일치 검색을 주소별로 한 번씩 — 위에서 이미 잡힌 것은 건너뛴다.
+  for (const a of addrs) {
+    if (out.has(a)) continue;
+    const id = await matchClientByAddresses(businessId, [a]);
+    if (!id) continue;
+    const c = await Client.findByPk(id, { attributes: ['id', 'display_name', 'company_name'] });
+    if (c) out.set(a, { id: c.id, name: label(c) });
+  }
+  return out;
+}
+
 module.exports = {
   normalizeAddresses,
   matchByProjectInvite,
   matchClientByAddresses,
+  findClientsByAddresses,
   resolveSoleProject,
   linkThread,
 };

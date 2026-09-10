@@ -2,6 +2,7 @@
 // 문서 공개 페이지(PublicPostPage)와 동일한 레이아웃 (Toolbar + PromoBar + DocFrame).
 import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
+import PublicPageShell, { PublicCenter, PublicWorkspaceLabel, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getAccessToken } from '../../contexts/AuthContext';
@@ -66,16 +67,16 @@ const PublicKbDocumentPage = () => {
 
   // N+95 — 자동 redirect 없음 (PublicPostPage 와 동일). 로그인 사용자는 Toolbar 의 'PlanQ 에서 보기' 명시 클릭.
 
-  if (loading) return <Center>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</Center>;
+  if (loading) return <PublicCenter>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</PublicCenter>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (needPw) return <SharePasswordPrompt onSubmit={fetchDoc} busy={pwBusy} error={pwError} />;
   if (error || !doc) return (
-    <Center>
+    <PublicCenter>
       <div style={{ textAlign: 'center' }}>
         <ErrorTitle>{t('public.notFound', { defaultValue: '링크가 만료되었거나 없는 항목입니다' }) as string}</ErrorTitle>
         <Hint>{t('public.notFoundHint', { defaultValue: '링크 작성자에게 다시 받으세요.' }) as string}</Hint>
       </div>
-    </Center>
+    </PublicCenter>
   );
 
   const isAuthed = !!getAccessToken();
@@ -84,36 +85,29 @@ const PublicKbDocumentPage = () => {
   const updatedStr = doc.updated_at ? new Date(doc.updated_at).toLocaleDateString('ko-KR') : null;
 
   return (
-    <Page>
-      <Toolbar className="no-print">
-        <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
-        <ToolbarSpacer />
-        {/* 문서 공개 페이지와 동일한 2버튼: (로그인 시) PlanQ 앱에서 열기 + PDF 다운로드 */}
-        {isAuthed && (
-          <PrimaryBtn type="button" onClick={() => navigate(`/info?doc=${doc.id}`)}>
-            {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
-          </PrimaryBtn>
-        )}
-        <PlainBtn type="button" onClick={() => window.open(`/api/kb-documents/public/by-token/${token}/pdf`, '_blank')}>
-          {t('public.downloadPdf', { defaultValue: 'PDF 다운로드' }) as string}
-        </PlainBtn>
-      </Toolbar>
-
-      <PromoBar className="no-print">
-        <PromoText>{t('public.promoCopy', { defaultValue: '업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진' }) as string}</PromoText>
-        <PromoLink href="https://planq.kr" target="_blank" rel="noreferrer">
-          {t('public.promoCta', { defaultValue: '플랜큐 바로가기' }) as string} <span aria-hidden="true">→</span>
-        </PromoLink>
-      </PromoBar>
-
-      <DocFrame>
-        {doc.workspace && <WorkspaceLabel>{doc.workspace.name}</WorkspaceLabel>}
-        <DocTitle>{doc.title}</DocTitle>
-        <DocMeta>
+    <PublicPageShell promo
+      actions={(
+        <>
+          {/* 문서 공개 페이지와 동일한 2버튼: (로그인 시) PlanQ 앱에서 열기 + PDF 다운로드 */}
+          {isAuthed && (
+            <PublicBtn $primary type="button" onClick={() => navigate(`/info?doc=${doc.id}`)}>
+              {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
+            </PublicBtn>
+          )}
+          <PublicBtn type="button" onClick={() => window.open(`/api/kb-documents/public/by-token/${token}/pdf`, '_blank')}>
+            {t('public.downloadPdf', { defaultValue: 'PDF 다운로드' }) as string}
+          </PublicBtn>
+        </>
+      )}
+    >
+      <>
+        {doc.workspace && <PublicWorkspaceLabel>{doc.workspace.name}</PublicWorkspaceLabel>}
+        <PublicTitle>{doc.title}</PublicTitle>
+        <PublicMeta>
           {createdStr && <span>{t('public.kb.created', { defaultValue: '작성' }) as string} {createdStr}</span>}
           {updatedStr && updatedStr !== createdStr && <span>· {t('public.kb.updated', { defaultValue: '수정' }) as string} {updatedStr}</span>}
           {doc.file_name && <span>· {doc.file_name}</span>}
-        </DocMeta>
+        </PublicMeta>
 
         {doc.body && (
           <Body dangerouslySetInnerHTML={{ __html: toHtml(doc.body) }} />
@@ -148,65 +142,25 @@ const PublicKbDocumentPage = () => {
         {!doc.body && (doc.custom_columns || []).length === 0 && (
           <Hint>{t('public.kb.noBody', { defaultValue: '본문이 비어 있습니다.' }) as string}</Hint>
         )}
-      </DocFrame>
-    </Page>
+      </>
+    </PublicPageShell>
   );
 };
 
 export default PublicKbDocumentPage;
 
-const Page = styled.div`
-  min-height: 100vh; background: #F8FAFC; padding: 0 0 40px 0;
-  @media print { background: #FFF; padding: 0; }
+const Hint = styled.div`font-size: 0.8125rem; color: #94A3B8; padding: 12px 0;`;
+const ErrorTitle = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
+const CustomRow = styled.div`
+  display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 8px 16px; align-items: baseline;
+  @media (max-width: 560px) { grid-template-columns: 1fr; gap: 2px; }
 `;
-const Toolbar = styled.div`
-  display: flex; align-items: center; gap: 8px; padding: 12px 24px;
-  background: #FFF; border-bottom: 1px solid #E2E8F0;
-  position: sticky; top: 0; z-index: 10;
-  @media print { display: none !important; }
-`;
-const Brand = styled.img`display:block;width:120px;height:auto;user-select:none;`;
-const ToolbarSpacer = styled.div`flex:1;`;
-const PrimaryBtn = styled.button`
-  display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 0.8125rem; font-weight: 700; color: #FFFFFF;
-  border: none; border-radius: 8px; background: #14B8A6; cursor: pointer;
-  &:hover { background: #0D9488; }
-`;
-const PlainBtn = styled.button`
-  display: inline-flex; align-items: center; min-height: 44px;
-  padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
-  border: 1px solid #E2E8F0; border-radius: 8px; background: #FFF; cursor: pointer;
-  &:hover { border-color: #14B8A6; color: #0F766E; }
-`;
-const PromoBar = styled.div`
-  display: flex; align-items: center; gap: 14px;
-  padding: 9px 24px; background: #F0FDFA; border-bottom: 1px solid #99F6E4;
-  font-size: 0.75rem; color: #475569; line-height: 1.5;
-  @media (max-width: 640px) { padding: 9px 16px; gap: 10px; flex-wrap: wrap; }
-  @media print { display: none !important; }
-`;
-const PromoText = styled.span`
-  flex: 1; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  @media (max-width: 640px) { white-space: normal; }
-`;
-const PromoLink = styled.a`
-  flex-shrink: 0; color: #0F766E; font-weight: 700; text-decoration: none; white-space: nowrap;
-  &:hover { color: #115E59; text-decoration: underline; }
-  span { margin-left: 4px; }
-`;
-const DocFrame = styled.article`
-  max-width: 820px; margin: 32px auto; background: #FFF; border: 1px solid #E2E8F0;
-  border-radius: 12px; padding: 48px 56px; box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-  font-size: 0.875rem; line-height: 1.7; color: #0F172A;
-  @media (max-width: 640px) { padding: 24px 20px; margin: 16px; }
-`;
-const WorkspaceLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
-const DocTitle = styled.h1`font-size: 1.5rem; font-weight: 700; color: #0F172A; margin: 0 0 6px 0; line-height: 1.3;`;
-const DocMeta = styled.div`
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-  font-size: 0.75rem; color: #64748B; margin: 0 0 24px 0;
+const CustomLabel = styled.div`font-size: 0.8125rem; font-weight: 700; color: #334155; word-break: keep-all;`;
+const CustomValue = styled.div`font-size: 0.875rem; color: #334155; line-height: 1.6; overflow-wrap: anywhere; word-break: break-word;`;
+const CustomLink = styled.a`
+  font-size: 0.875rem; color: #0D9488; line-height: 1.6; text-decoration: underline;
+  overflow-wrap: anywhere; word-break: break-word;
+  &:hover { color: #0F766E; }
 `;
 const Body = styled.div`
   font-size: 0.875rem; color: #334155; line-height: 1.7;
@@ -223,22 +177,7 @@ const Body = styled.div`
   & td, & th { border: 1px solid #E2E8F0; padding: 8px 10px; }
   & blockquote { border-left: 3px solid #14B8A6; padding: 4px 12px; background: #F0FDFA; border-radius: 0 6px 6px 0; color: #475569; }
 `;
-const Hint = styled.div`font-size: 0.8125rem; color: #94A3B8; padding: 12px 0;`;
-const ErrorTitle = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
-const Center = styled.div`min-height:60vh;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:0.875rem;`;
-// 사용자 정의 항목 (label + value/link) — 반응형: 넓으면 label|value 2열, 좁으면 세로 스택
 const CustomSection = styled.div`
   margin-top: 24px; padding-top: 20px; border-top: 1px solid #E2E8F0;
   display: flex; flex-direction: column; gap: 12px;
-`;
-const CustomRow = styled.div`
-  display: grid; grid-template-columns: minmax(140px, 220px) 1fr; gap: 8px 16px; align-items: baseline;
-  @media (max-width: 560px) { grid-template-columns: 1fr; gap: 2px; }
-`;
-const CustomLabel = styled.div`font-size: 0.8125rem; font-weight: 700; color: #334155; word-break: keep-all;`;
-const CustomValue = styled.div`font-size: 0.875rem; color: #334155; line-height: 1.6; overflow-wrap: anywhere; word-break: break-word;`;
-const CustomLink = styled.a`
-  font-size: 0.875rem; color: #0D9488; line-height: 1.6; text-decoration: underline;
-  overflow-wrap: anywhere; word-break: break-word;
-  &:hover { color: #0F766E; }
 `;

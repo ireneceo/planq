@@ -18,7 +18,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse } = require('../utils/response');
 const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { EmailMessage, EmailThread, MailSenderRule, Client } = require('../models');
+const { EmailMessage, EmailThread, MailSenderRule } = require('../models');
 const { accessibleAccountIds } = require('../services/mailIdentity');
 const { sequelize } = require('../config/database');
 
@@ -94,27 +94,11 @@ router.get('/', authenticateToken, checkBusinessAccess, requireMenu('qmail', 're
 
     // 고객으로 이미 저장돼 있는지 · 규칙(차단·분류)이 걸려 있는지 — 화면이 "할 수 있는 일"을 결정한다.
     const emails = [...acc.keys()];
-    // 고객 매칭은 emailImapCron.matchClient 와 **같은 필드**를 본다 — 두 벌로 갈라지면
-    //   "메일은 고객으로 붙었는데 이 화면엔 고객이 아니라고 나오는" 어긋남이 생긴다.
-    const clients = emails.length
-      ? await Client.findAll({
-        where: {
-          business_id: businessId,
-          [Op.or]: [
-            { invite_email: { [Op.in]: emails } },
-            { billing_contact_email: { [Op.in]: emails } },
-          ],
-        },
-        attributes: ['id', 'invite_email', 'billing_contact_email', 'display_name', 'company_name'],
-      })
-      : [];
-    const clientBy = new Map();
-    for (const c of clients) {
-      const label = c.display_name || c.company_name || null;
-      for (const e of [c.invite_email, c.billing_contact_email]) {
-        if (e) clientBy.set(norm(e), { id: c.id, name: label });
-      }
-    }
+    // 고객 매칭은 services/mailLink.js 의 **같은 함수**가 한다.
+    //   ★ 여기 손으로 쓴 판정이 있었고 주석은 "같은 필드를 본다" 고 말했지만 **별칭을 안 봤다**
+    //     (2026-09-10 Fable 게이트 지적). 그래서 메일은 고객으로 붙는데 이 화면에서는
+    //     "고객 아님" 으로 보였다. 술어를 주석으로 약속하지 않는다 — 같은 함수를 부른다.
+    const clientBy = await require('../services/mailLink').findClientsByAddresses(businessId, emails);
     const rules = await MailSenderRule.findAll({
       where: { business_id: businessId },
       attributes: ['id', 'pattern', 'pattern_type', 'verdict'],

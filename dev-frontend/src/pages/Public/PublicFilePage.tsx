@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
+import PublicPageShell, { PublicCenter, PublicWorkspaceLabel } from '../../components/Layout/PublicPageShell';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 
 interface FilePreview {
@@ -103,15 +104,15 @@ const PublicFilePage = () => {
     };
   }, [file?.preview_kind, inlineUrlEarly]);
 
-  if (loading) return <Wrap><Card><Hint>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</Hint></Card></Wrap>;
+  if (loading) return <PublicCenter>{t('public.loading', { defaultValue: '불러오는 중...' }) as string}</PublicCenter>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   if (needPw) return <SharePasswordPrompt onSubmit={fetchFile} busy={pwBusy} error={pwError} />;
   if (error || !file) return (
-    <Wrap><Card>
+    <PublicPageShell layout="card" width="sm" brand={false}>
       <ErrorTitle>{t('public.notFound', { defaultValue: '링크가 만료되었거나 없는 항목입니다' }) as string}</ErrorTitle>
       <Hint>{t('public.notFoundHint', { defaultValue: '링크 작성자에게 다시 받으세요.' }) as string}</Hint>
       <CTA href="/" type="button">{t('public.goHome', { defaultValue: 'PlanQ 홈으로' }) as string}</CTA>
-    </Card></Wrap>
+    </PublicPageShell>
   );
 
   const isAuthed = !!getAccessToken();
@@ -120,9 +121,9 @@ const PublicFilePage = () => {
 
 
   return (
-    <Wrap>
-      <Card>
-        {file.workspace && <WorkspaceLabel>{file.workspace.name}</WorkspaceLabel>}
+    <PublicPageShell layout="card" width="lg" brand={false}>
+      <>
+        {file.workspace && <PublicWorkspaceLabel>{file.workspace.name}</PublicWorkspaceLabel>}
         <FileTitle>{file.file_name}</FileTitle>
         <MetaRow>
           <MetaItem>{formatSize(file.file_size)}</MetaItem>
@@ -168,25 +169,13 @@ const PublicFilePage = () => {
           )}
         </CTAArea>
         <Footer>{t('public.poweredBy', { defaultValue: 'PlanQ — 일이 일이 되지 않게' }) as string}</Footer>
-      </Card>
-    </Wrap>
+      </>
+    </PublicPageShell>
   );
 };
 
 export default PublicFilePage;
 
-const Wrap = styled.div`
-  min-height: 100vh; background: #F8FAFC;
-  display: flex; align-items: flex-start; justify-content: center; padding: 40px 20px;
-  @media (max-width: 640px) { padding: 16px; }
-`;
-const Card = styled.div`
-  width: 100%; max-width: 720px;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px;
-  padding: 28px 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  @media (max-width: 640px) { padding: 20px 16px; }
-`;
-const WorkspaceLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;`;
 const FileTitle = styled.h1`font-size: 1.25rem; font-weight: 700; color: #0F172A; margin: 0 0 12px; line-height: 1.3; word-break: break-all;`;
 const MetaRow = styled.div`display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 20px;`;
 const MetaItem = styled.span`font-size: 0.75rem; color: #64748B;`;
