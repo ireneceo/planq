@@ -115,7 +115,10 @@ export const KpiGrid: React.FC<{ children?: React.ReactNode; $cols?: number }> =
   );
 };
 
-export const KpiCard = styled.div`
+// data-kpi-card — 검사기가 **코드와 같은 렌즈로** 집기 위한 표식.
+//   구조 휴리스틱(자식 수·높이 범위)으로 잡으면 엉뚱한 요소를 재고, 그러면 모든 뷰포트에서
+//   같은 값이 나와도 이상한 줄 모른다(2026-09-10 실제로 1680px 에서도 114px 이 나왔다).
+export const KpiCard = styled.div.attrs({ 'data-kpi-card': '' } as Record<string, string>)`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 16px; display: flex; flex-direction: column; gap: 4px;
   min-width: 0;  /* grid child 가 콘텐츠 min-size 밑으로 줄 수 있게 (오버플로우 차단) */

@@ -200,4 +200,31 @@ Invoice.init({
   ],
 });
 
+// ─── 발행 시각 보장 ────────────────────────────────────────────────────────
+// `issued_at` 은 "언제 발행했는가" 이고, **발행 청구액 집계의 기준축**이다
+// (services/stats.js: `where issued_at between …`). 비어 있으면 그 청구서는
+// 금액이 멀쩡한데도 통계에서 **조용히 빠진다**.
+//
+// 여태 이 값을 채우는 곳이 흩어져 있었다:
+//   · POST /:id/send        → 채운다
+//   · PATCH /:id/status     → `status==='sent' && !sent_at` 일 때만 → **sent_at 이 이미 있으면 안 채운다**
+//   · overdue_handler       → status 만 바꾼다
+//   · unmark-paid           → status 만 되돌린다
+// 그래서 "draft 를 벗어났는데 발행 시각이 없는" 행이 생긴다(dev 실측 2건, 운영 0건).
+// 같은 값의 공식이 여러 벌이면 이미 갈라져 있다 → **여기 한 곳에서 보장**한다.
+//
+// ★ 시각은 `new Date()` 가 아니라 sent_at → created_at 순으로 고른다.
+//   옛 행을 아무 이유로 저장할 때 '지금' 을 박으면 **과거 발행분이 이번 달 매출로 옮겨간다.**
+// ★ canceled 는 제외 — 발행하지 않고 취소할 수 있다.
+// ★ 인스턴스 훅이라 `Model.update(...)` 같은 bulk 에는 걸리지 않는다. 현재 status 를 bulk 로
+//   바꾸는 경로는 없다(확인함). 생기면 `individualHooks: true` 를 주거나 여기에 bulk 훅을 더할 것.
+const ISSUED_STATES = ['sent', 'partially_paid', 'paid', 'overdue'];
+
+Invoice.addHook('beforeSave', (invoice) => {
+  if (!ISSUED_STATES.includes(invoice.status)) return;
+  if (invoice.issued_at) return;
+  invoice.issued_at = invoice.sent_at
+    || invoice.get('created_at') || invoice.createdAt || new Date();
+});
+
 module.exports = Invoice;
