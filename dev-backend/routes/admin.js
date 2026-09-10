@@ -1,6 +1,7 @@
 // Platform Admin 전용 라우트 — 결제 연동 전 임시 플랜 수동 조정 / 체험 연장 / 이력 조회
 // 모든 엔드포인트는 authenticateToken + requireRole('platform_admin') 이중 체크
 const express = require('express');
+const { writeAudit } = require('../services/auditService');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { Business, BusinessMember, User, BusinessPlanHistory, PlatformSetting, Subscription, Payment } = require('../models');
@@ -379,7 +380,7 @@ router.put('/businesses/:id/billing-exempt', async (req, res, next) => {
     planEngine.invalidateBusinessCache(id);
 
     const { AuditLog } = require('../models');
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id,
       business_id: id,
       action: 'business.billing_exempt',
@@ -811,7 +812,7 @@ router.post('/users/:id/impersonate', async (req, res, next) => {
       process.env.JWT_SECRET,
       { expiresIn: '30m' }
     );
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id, business_id: null,
       action: 'user.impersonate',
       target_type: 'User', target_id: target.id,
@@ -871,7 +872,7 @@ router.get('/users/:id/data-export', async (req, res, next) => {
       FeedbackItem.findAll({ where: { user_id: target.id } }),
     ]);
 
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id, business_id: null,
       action: 'user.data_export',
       target_type: 'User', target_id: target.id,

@@ -1,4 +1,5 @@
 const express = require('express');
+const { writeAudit } = require('../services/auditService');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
 const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, TaskLink, Client, ProjectClient, AuditLog } = require('../models');
@@ -766,7 +767,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         workstreamsCreated++;
         // ★ 이 파일의 감사 기록은 AuditLog.create 직접 호출이다(createAuditLog 헬퍼를 import 하지 않는다).
         //   헬퍼를 그냥 부르면 이 분기만 ReferenceError 로 죽는데, 문법검사·빌드는 전부 통과한다.
-        await AuditLog.create({
+        await writeAudit({
           user_id: req.user.id, business_id,
           action: 'project.workstream_create', target_type: 'ProjectWorkstream', target_id: ws.id,
           new_value: { title, project_id, via: 'ai_routine_confirm' },
@@ -940,7 +941,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         });
         if (isNew) {
           linked += 1;
-          await AuditLog.create({
+          await writeAudit({
             user_id: req.user.id, business_id,
             action: 'task_link.added', target_type: 'TaskLink', target_id: link.id,
             new_value: { source_task_id: a, target_task_id: b, via: 'ai_create_confirm' },
@@ -2725,7 +2726,7 @@ router.post('/:id/links', authenticateToken, async (req, res, next) => {
         link_type: 'related',
         created_by: req.user.id,
       });
-      await AuditLog.create({
+      await writeAudit({
         user_id: req.user.id,
         business_id: source.business_id,
         action: 'task_link.added',
@@ -2756,7 +2757,7 @@ router.delete('/:id/links/:targetId', authenticateToken, async (req, res, next) 
     if (!link) return errorResponse(res, 'link_not_found', 404);
 
     await link.destroy();
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id,
       business_id: source.business_id,
       action: 'task_link.removed',

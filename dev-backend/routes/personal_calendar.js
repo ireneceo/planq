@@ -5,6 +5,7 @@
 //
 // ★ 사적 공간: 모든 라우트가 **연결 소유자 본인**만 통과한다. owner·admin 백도어 없음.
 const express = require('express');
+const { writeAudit } = require('../services/auditService');
 const { Op } = require('sequelize');
 const router = express.Router();
 const { ExternalConnection, BusinessMember, CalendarEvent } = require('../models');
@@ -163,7 +164,7 @@ router.patch('/me/calendar/events/:connId/:gcalEventId',
       // 감사 로그 — **내용은 남기지 않는다.** 개인 일정 제목·본문이 워크스페이스 감사 화면에
       //   남으면 사적 공간 침해다. 무엇을 바꿨는지(필드명)까지만 기록한다.
       const { AuditLog } = require('../models');
-      await AuditLog.create({
+      await writeAudit({
         user_id: req.user.id,
         business_id: bizId,
         action: 'personal_calendar.event_update',
@@ -195,7 +196,7 @@ router.delete('/me/calendar/events/:connId/:gcalEventId',
         throw e;
       }
       const { AuditLog } = require('../models');
-      await AuditLog.create({
+      await writeAudit({
         user_id: req.user.id,
         business_id: bizId,
         action: 'personal_calendar.event_delete',

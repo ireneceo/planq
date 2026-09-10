@@ -6,6 +6,7 @@
 // ★ 잔여는 저장하지 않는다 — 부여 합 − 승인된 사용 합. 컬럼으로 두면 취소·정정 때마다
 //   맞춰 고쳐야 하고, 한 번 어긋나면 아무도 원인을 못 찾는다.
 const { Op } = require('sequelize');
+const { writeAudit } = require('./auditService');
 const { sequelize } = require('../config/database');
 const {
   LeaveRequest, LeaveGrant, BusinessMember, Business, AuditLog, User,
@@ -122,7 +123,7 @@ async function getBalance(businessId, userId, year, category = null) {
 
 async function audit({ action, request, actorUserId, oldValue, newValue }) {
   try {
-    await AuditLog.create({
+    await writeAudit({
       user_id: actorUserId,
       business_id: request.business_id,
       action,

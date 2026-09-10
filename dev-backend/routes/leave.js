@@ -3,6 +3,7 @@
 // 상태를 바꾸는 일은 전부 services/leaveTransition.js 로 넘긴다. 이 파일은 권한과 입출력만 맡는다
 //   — 라우트가 직접 status 를 고치기 시작하면 알림·감사·잔여 검사가 경로마다 갈라진다.
 const express = require('express');
+const { writeAudit } = require('../services/auditService');
 const router = express.Router();
 const { Op } = require('sequelize');
 
@@ -76,7 +77,7 @@ router.post('/grants', authenticateToken, async (req, res, next) => {
       business_id: businessId, user_id: Number(user_id), year: Number(year), category: cat,
       days: Number(days), note: (note || '').slice(0, 300) || null, granted_by: req.user.id,
     });
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id, business_id: businessId, action: 'leave.grant',
       entity_type: 'leave_grant', entity_id: grant.id, new_value: grant.toJSON(),
     }).catch(() => null);

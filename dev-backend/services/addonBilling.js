@@ -13,6 +13,7 @@
 // 정기 갱신은 다음 사이클 (plan 정기 결제 cron 에 active add-on 합산) — 본 사이클은 일회성 청구만.
 
 const { Op } = require('sequelize');
+const { writeAudit } = require('./auditService');
 const { sequelize } = require('../config/database');
 const { Business, Payment, Subscription, BusinessMember, User, AuditLog } = require('../models');
 const { ADDONS, getAddon } = require('../config/plans');
@@ -99,7 +100,7 @@ async function requestAddon({ businessId, addonCode, quantity = 1, userId, taxIn
     }, { transaction: t });
 
     // 3. AuditLog
-    await AuditLog.create({
+    await writeAudit({
       user_id: userId || null,
       business_id: businessId,
       action: 'addon_request_created',
@@ -168,7 +169,7 @@ async function markAddonPaid({ paymentId, markedByUserId, payerName, payerMemo, 
       ...taxFields,
     }, { transaction: t });
 
-    await AuditLog.create({
+    await writeAudit({
       user_id: markedByUserId || null,
       business_id: pay.business_id,
       action: 'addon_payment_paid',
@@ -216,7 +217,7 @@ async function cancelAddon({ businessId, addonCode, quantity, userId }) {
   await biz.update({ [addon.field]: next });
   try { planEngine.invalidateBusinessCache(businessId); } catch { /* noop */ }
 
-  await AuditLog.create({
+  await writeAudit({
     user_id: userId || null,
     business_id: businessId,
     action: 'addon_canceled',

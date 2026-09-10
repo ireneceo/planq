@@ -8,6 +8,7 @@
 //   - heartbeat rate-limit (분당 60), start/stop (분당 10)
 
 const express = require('express');
+const { writeAudit } = require('../services/auditService');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
@@ -155,7 +156,7 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
         await broadcastTaskUpdate(req, existing.task_id);
       }
 
-      await AuditLog.create({
+      await writeAudit({
         user_id: req.user.id,
         business_id: Number(business_id),
         action: 'focus.start',
@@ -191,7 +192,7 @@ router.post('/pause', authenticateToken, startStopLimiter, async (req, res, next
       paused_at: new Date(),
       auto_paused: reason === 'auto_idle',
     });
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id, business_id: session.business_id,
       action: reason === 'auto_idle' ? 'focus.auto_pause' : 'focus.pause',
       entity_type: 'focus_session', entity_id: session.id,
@@ -224,7 +225,7 @@ router.post('/resume', authenticateToken, startStopLimiter, async (req, res, nex
       auto_paused: false,
       last_activity_at: new Date(),
     });
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id, business_id: session.business_id,
       action: 'focus.resume',
       entity_type: 'focus_session', entity_id: session.id,
@@ -270,7 +271,7 @@ router.post('/stop', authenticateToken, startStopLimiter, async (req, res, next)
       await recomputeActualHours(session.task_id).catch(() => null);
       await broadcastTaskUpdate(req, session.task_id);
     }
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id, business_id: session.business_id,
       action: 'focus.stop',
       entity_type: 'focus_session', entity_id: session.id,
@@ -307,7 +308,7 @@ router.post('/idle-discard', authenticateToken, async (req, res, next) => {
     if (!session) return errorResponse(res, 'session_not_found', 404);
     if (session.state === 'stopped') return errorResponse(res, 'already_stopped', 400);
     await session.update({ pause_total_sec: session.pause_total_sec + Math.floor(sec) });
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user.id, business_id: session.business_id,
       action: 'focus.idle_discard',
       entity_type: 'focus_session', entity_id: session.id,

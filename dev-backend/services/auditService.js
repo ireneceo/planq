@@ -44,13 +44,49 @@ async function stampRetainUntil(businessId) {
   } catch { return null; }   // 스탬프 실패가 감사 기록 자체를 막으면 안 된다. NULL = 보존.
 }
 
-function logAudit(req, { action, targetType, targetId = null, oldValue = null, newValue = null, businessId = null, userId = null }) {
+/**
+ * 감사 행을 **실제로 쓰는 단일 지점** — 스탬프(retain_until)와 마스킹이 여기 한 곳에 있다.
+ * 호출부는 아래 셋 중 하나를 쓴다. `AuditLog.create` 를 직접 부르면 둘 다 건너뛴다
+ * (가드 `--category=auditentry` 가 막는다).
+ *
+ *   writeAudit(opts)      — **await 하고 실패를 던진다.** 반드시 남아야 하는 기록
+ *                            (대리 로그인·데이터 내보내기처럼 안 남으면 안 되는 것).
+ *   createAuditLog(opts)  — fire-and-forget. 본 작업을 막지 않는다.
+ *   logAudit(req, opts)   — createAuditLog + req 에서 ip/user/business 를 알아서 채운다.
+ */
+async function writeAudit(opts = {}, options = undefined) {
+  // ★ 두 번째 인자는 Sequelize options 를 **그대로** 넘긴다 — 특히 `{ transaction }`.
+  //   삼키면 감사 행이 트랜잭션 **밖**에 써져, 본 작업이 롤백돼도 기록만 남는다
+  //   (없던 일이 원장에 있는 상태). addonBilling 이 실제로 트랜잭션 안에서 부른다.
+  const { AuditLog } = require('../models');
+  const bizId = opts.businessId ?? opts.business_id ?? null;
+  const old_value = opts.oldValue ?? opts.old_value ?? null;
+  const new_value = opts.newValue ?? opts.new_value ?? null;
+  return AuditLog.create({
+    user_id: opts.userId ?? opts.user_id ?? null,
+    acting_for_user_id: opts.actingForUserId ?? opts.acting_for_user_id ?? null,
+    business_id: bizId,
+    action: opts.action,
+    target_type: opts.targetType ?? opts.target_type ?? opts.entity_type,
+    target_id: opts.targetId ?? opts.target_id ?? opts.entity_id ?? null,
+    old_value: old_value ? maskSensitive(old_value) : null,
+    new_value: new_value ? maskSensitive(new_value) : null,
+    ip_address: opts.ipAddress ?? opts.ip_address ?? null,
+    retain_until: await stampRetainUntil(bizId),
+  }, options);
+}
+
+function logAudit(req, { action, targetType, targetId = null, oldValue = null, newValue = null, businessId = null, userId = null, actingForUserId = null }) {
   setImmediate(async () => {
     try {
       const { AuditLog } = require('../models');
       const bizId = businessId ?? req?.businessId ?? req?.body?.business_id ?? req?.params?.businessId ?? null;
       await AuditLog.create({
         user_id: userId ?? req?.user?.id ?? null,
+        // on-behalf-of — Cue 처럼 위임받아 행동할 때 그 권한의 원소유자.
+        //   ★ 이 필드를 흘리면 "누구 권한으로 한 일인가" 가 원장에서 사라진다
+        //     (project_agent_permission_model 의 핵심). 헬퍼가 반드시 실어 나른다.
+        acting_for_user_id: actingForUserId ?? null,
         business_id: bizId,
         action,
         target_type: targetType,
@@ -88,6 +124,7 @@ function createAuditLog(opts = {}) {
       const bizId = opts.businessId ?? opts.business_id ?? null;
       await AuditLog.create({
         user_id: opts.userId ?? opts.user_id ?? null,
+        acting_for_user_id: opts.actingForUserId ?? opts.acting_for_user_id ?? null,
         business_id: bizId,
         action,
         target_type: targetType,
@@ -103,4 +140,5 @@ function createAuditLog(opts = {}) {
   });
 }
 
-module.exports = { logAudit, createAuditLog };
+module.exports = {
+  writeAudit, logAudit, createAuditLog };

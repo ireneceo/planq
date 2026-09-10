@@ -291,15 +291,5 @@
     "dev-frontend/src/pages/QProject/QProjectPage.tsx": 1,
     "dev-frontend/src/components/QTask/TagQuickMenu.tsx": 1
   },
-  "auditentry": {
-    "dev-backend/routes/admin.js": 3,
-    "dev-backend/routes/admin_credits.js": 1,
-    "dev-backend/routes/focus.js": 5,
-    "dev-backend/routes/leave.js": 1,
-    "dev-backend/routes/personal_calendar.js": 2,
-    "dev-backend/routes/tasks.js": 4,
-    "dev-backend/services/addonBilling.js": 3,
-    "dev-backend/services/cue_task_executor.js": 1,
-    "dev-backend/services/leaveTransition.js": 1
-  }
+  "auditentry": {}
 }

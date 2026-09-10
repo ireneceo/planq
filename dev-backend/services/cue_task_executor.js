@@ -16,6 +16,7 @@
 //   5) 실패 시 status 유지 + audit 로그
 
 const { Task, Business, Message, Conversation, User, AuditLog } = require('../models');
+const { writeAudit } = require('./auditService');
 const { getUserScope, canAccessConversation, canAccessTask, kbDocumentsListWhereByLevel } = require('../middleware/access_scope');
 const { submitForReview } = require('./taskTransition');
 
@@ -54,7 +55,7 @@ function htmlWrap(text) {
 
 // 감사 로그 — Cue 의 모든 기록은 위임자(acting_for)를 함께 남긴다.
 function audit({ task, cueUserId, actingForUserId, action, value }) {
-  return AuditLog.create({
+  return writeAudit({
     user_id: cueUserId,
     acting_for_user_id: actingForUserId || null,
     business_id: task.business_id,

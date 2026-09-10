@@ -5,6 +5,7 @@
 //   콘솔에서 본 잔액을 기준선으로 넣으면 우리 원장 소비를 빼서 예상 잔액·소진 예상일을 만든다.
 //   충전할 때마다 새 잔액을 다시 넣는 것이 정상 운용 — 그래야 추정 오차가 리셋된다.
 const express = require('express');
+const { writeAudit } = require('../services/auditService');
 const router = express.Router();
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -73,7 +74,7 @@ router.put('/provider-credits/:provider', async (req, res, next) => {
     row.updated_by_user_id = req.user ? req.user.id : null;
     await row.save();
 
-    await AuditLog.create({
+    await writeAudit({
       user_id: req.user ? req.user.id : null,
       action: 'update',
       entity_type: 'provider_credit',
