@@ -28,12 +28,19 @@ const LIMIT = Number((process.argv.find((a) => a.startsWith('--limit=')) || '').
   let scanned = 0, changed = 0;
   const via = { project_invite: 0, client_address: 0, sole_project: 0 };
   const BATCH = 200;
-  for (let offset = 0; ; offset += BATCH) {
+  // ★ **keyset 으로 걷는다(offset 금지).** 조건이 `client_id IS NULL OR project_id IS NULL` 인데
+  //   `--apply` 는 그 조건을 만족시켜 행을 결과집합에서 **빼낸다**. offset 으로 걸으면 빠진 만큼
+  //   다음 배치가 건너뛰어 1회 실행이 전수를 못 훑는다 — 실측(2026-09-10 Fable): 1회차 뒤
+  //   2회차에 추가 변경이 119건 더 나왔다. 마지막으로 본 id 부터 이어 가면 그 구멍이 없다.
+  let lastId = 0;
+  for (;;) {
     const rows = await EmailThread.findAll({
-      where, order: [['id', 'ASC']], limit: BATCH, offset,
+      where: { ...where, id: { [Op.gt]: lastId } },
+      order: [['id', 'ASC']], limit: BATCH,
       attributes: ['id', 'business_id', 'client_id', 'project_id'],
     });
     if (!rows.length) break;
+    lastId = rows[rows.length - 1].id;
     for (const th of rows) {
       scanned++;
       // 이 스레드에 등장한 주소 — from 이 가장 강한 신호라 앞에 둔다.
@@ -62,7 +69,7 @@ const LIMIT = Number((process.argv.find((a) => a.startsWith('--limit=')) || '').
       }
       if (LIMIT && scanned >= LIMIT) break;
     }
-    if (rows.length < BATCH || (LIMIT && scanned >= LIMIT)) break;
+    if (LIMIT && scanned >= LIMIT) break;
   }
 
   console.log(`  · 훑음 ${scanned}건 → 연결 ${changed}건`);

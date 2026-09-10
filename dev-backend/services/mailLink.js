@@ -77,9 +77,19 @@ async function matchClientByAddresses(businessId, addresses) {
   //   따옴표를 바꾸다 백슬래시를 못 막아 인젝션이었던 전례).
   for (const a of addresses) {
     try {
+      // ★ `JSON_SEARCH` 의 검색 문자열은 **LIKE 패턴이다.** 주소를 그대로 넘기면
+      //   `a_b@d` 가 별칭 `axb@d` 에 걸리고 `%@d` 는 전부에 걸린다 — "완전일치만" 이라는
+      //   이 파일의 불변식이 여기서만 깨져 있었다(2026-09-10 Fable 게이트 실측).
+      //   그래서 `%`·`_`·`\` 를 이스케이프하고 escape_char 를 넘긴다.
+      // ★ 그리고 JSON 문자열 비교는 **binary** 라 대소문자를 가린다. 주소는 이미 소문자로
+      //   정규화돼 오므로 저장된 별칭 쪽도 소문자로 맞춰서 본다.
+      const pattern = a.replace(/[\\%_]/g, (m) => `\\${m}`);
       const [rows] = await sequelize.query(
-        `SELECT id FROM clients WHERE business_id = ? AND JSON_SEARCH(email_aliases, 'one', ?) IS NOT NULL LIMIT 1`,
-        { replacements: [businessId, a] },
+        `SELECT id FROM clients
+          WHERE business_id = ? AND email_aliases IS NOT NULL
+            AND JSON_SEARCH(CAST(LOWER(CAST(email_aliases AS CHAR)) AS JSON), 'one', ?, '\\\\') IS NOT NULL
+          LIMIT 1`,
+        { replacements: [businessId, pattern] },
       );
       if (rows[0]) return rows[0].id;
     } catch (e) {
@@ -129,7 +139,12 @@ async function linkThread(thread, { addresses, transaction = null } = {}) {
   let via = null;
 
   const invite = await matchByProjectInvite(businessId, addrs);
-  if (invite) {
+  // ★ 초대 기록은 **그 고객의** 프로젝트를 말한다. 사람이 이미 다른 고객을 걸어 둔 스레드에
+  //   이 프로젝트를 채우면 고객과 프로젝트가 **서로 다른 고객의 것**이 된다 —
+  //   프로젝트 메일 목록에 남의 고객 스레드가 뜬다(2026-09-10 Fable 게이트 재현).
+  //   고객이 이미 정해져 있으면 그 고객의 초대 기록일 때만 쓴다.
+  const inviteUsable = invite && (!have.client_id || have.client_id === invite.clientId);
+  if (inviteUsable) {
     if (!have.client_id) patch.client_id = invite.clientId;
     if (!have.project_id) patch.project_id = invite.projectId;
     via = invite.via;
