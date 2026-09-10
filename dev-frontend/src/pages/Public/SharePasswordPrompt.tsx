@@ -4,6 +4,7 @@
 // 입력 → onSubmit(pw) 호출. 부모가 fetch 재시도.
 import { useState } from 'react';
 import styled from 'styled-components';
+import PublicPageShell from '../../components/Layout/PublicPageShell';
 import { useTranslation } from 'react-i18next';
 
 interface Props {
@@ -24,8 +25,8 @@ const SharePasswordPrompt: React.FC<Props> = ({ onSubmit, busy, error }) => {
   };
 
   return (
-    <Wrap>
-      <Card>
+    <PublicPageShell layout="card" width="sm" brand={false} center print={false}>
+      <Inner>
         <Icon>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -59,23 +60,17 @@ const SharePasswordPrompt: React.FC<Props> = ({ onSubmit, busy, error }) => {
               : t('public.password.submit', { defaultValue: '확인' }) as string}
           </Submit>
         </Form>
-      </Card>
-    </Wrap>
+      </Inner>
+    </PublicPageShell>
   );
 };
 
 export default SharePasswordPrompt;
 
-const Wrap = styled.div`
-  min-height: 100vh; background: #F8FAFC;
-  display: flex; align-items: center; justify-content: center; padding: 40px 20px;
-`;
-const Card = styled.div`
-  width: 100%; max-width: 420px;
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 14px;
-  padding: 32px 28px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-  text-align: center;
-`;
+// 옛 Card 가 갖고 있던 것 중 **껍데기가 대신 못 하는 것**만 남긴다 — 가운데 정렬.
+//   폭·배경·테두리·라운드·그림자는 PublicPageShell 의 card 레이아웃이 준다.
+const Inner = styled.div`text-align: center;`;
+
 const Icon = styled.div`color: #14B8A6; margin-bottom: 12px; display: flex; justify-content: center;`;
 const Title = styled.h1`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0 0 6px;`;
 const Sub = styled.p`font-size: 0.75rem; color: #64748B; margin: 0 0 20px;`;

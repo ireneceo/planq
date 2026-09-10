@@ -6,10 +6,15 @@
 // 백엔드 응답 형식 (share_helper.checkShareExpiry):
 //   { success: false, code: 'share_expired', message: '...', expired_at: '...' }
 
+// ★ 2026-09-10 — 여기서 `useTimeFormat` 을 쓰고 있었는데 그 훅은 내부에서 **`useAuth()` 를 부른다**
+//   (hooks/useTimeFormat.ts). 즉 **무로그인 화면이 인증 컨텍스트를 구독**하고 있었고, 같은 만료일이
+//   로그인한 사람에게는 워크스페이스 타임존, 익명 방문자에게는 브라우저 타임존으로 다르게 보였다.
+//   공개 화면의 날짜는 보는 사람 로케일이면 충분하다 → utils/dateFormat.ts 의 formatPublicDate.
 import React from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { formatPublicDate } from '../../utils/dateFormat';
+import PublicPageShell from '../Layout/PublicPageShell';
 
 interface Props {
   expiredAt?: string | null;
@@ -18,11 +23,10 @@ interface Props {
 
 const ExpiredShareLink: React.FC<Props> = ({ expiredAt, entityLabel }) => {
   const { t } = useTranslation('common');
-  const { formatDate } = useTimeFormat();
 
   return (
-    <Wrap>
-      <Card>
+    <PublicPageShell layout="card" width="sm" brand={false} center print={false}>
+      <Inner>
         <IconWrap aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
@@ -39,7 +43,7 @@ const ExpiredShareLink: React.FC<Props> = ({ expiredAt, entityLabel }) => {
         {expiredAt && (
           <Meta>
             {t('expired.expiredOn', {
-              date: formatDate(expiredAt),
+              date: formatPublicDate(expiredAt),
               defaultValue: '만료일: {{date}}',
             })}
           </Meta>
@@ -49,28 +53,17 @@ const ExpiredShareLink: React.FC<Props> = ({ expiredAt, entityLabel }) => {
             defaultValue: '공유한 분에게 새 링크를 요청하세요.',
           })}
         </Hint>
-      </Card>
-    </Wrap>
+      </Inner>
+    </PublicPageShell>
   );
 };
 
 export default ExpiredShareLink;
 
-const Wrap = styled.div`
-  min-height: 100vh;
-  display: flex; align-items: center; justify-content: center;
-  background: #F8FAFC;
-  padding: 24px;
-`;
-const Card = styled.div`
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 14px;
-  padding: 32px 28px;
-  max-width: 420px; width: 100%;
-  text-align: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-`;
+// 옛 Card 가 갖고 있던 것 중 **껍데기가 대신 못 하는 것**만 남긴다 — 가운데 정렬.
+//   폭·배경·테두리·라운드·그림자는 PublicPageShell 의 card 레이아웃이 준다.
+const Inner = styled.div`text-align: center;`;
+
 const IconWrap = styled.div`
   width: 56px; height: 56px;
   display: inline-flex; align-items: center; justify-content: center;

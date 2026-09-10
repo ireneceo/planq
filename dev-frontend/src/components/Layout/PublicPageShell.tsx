@@ -47,6 +47,8 @@ interface Props {
   promo?: boolean;
   /** 인쇄 시 크롬을 감춘다 (document 기본 true) */
   print?: boolean;
+  /** 짧은 상태 카드(만료·비밀번호)를 **세로 가운데**에 둔다. */
+  center?: boolean;
   /** 인쇄되는 영역인가 — `index.css` 의 `[data-print-area]` 계약. document 레이아웃 기본 true.
    *  이 표시가 없으면 인쇄 시 **본문이 통째로 안 보인다**(그 CSS 가 나머지를 visibility:hidden 한다). */
   printArea?: boolean;
@@ -55,14 +57,14 @@ interface Props {
 
 const PublicPageShell: React.FC<Props> = ({
   layout = 'document', width = 'lg', fill = false,
-  brand, title, subtitle, actions, headerMeta, promo = false, print = true, printArea, children,
+  brand, title, subtitle, actions, headerMeta, promo = false, print = true, printArea, center = false, children,
 }) => {
   const { t } = useTranslation();
   const showBrand = brand ?? (layout !== 'app');
   const showHeader = showBrand || !!title || !!actions || !!headerMeta;
 
   return (
-    <Page $layout={layout} $fill={fill} $print={print}>
+    <Page $layout={layout} $fill={fill} $print={print} $center={center}>
       {showHeader && (
         <Toolbar $print={print} $app={layout === 'app'}>
           {showBrand && <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />}
@@ -131,13 +133,19 @@ export const PublicBtn = styled.button<{ $primary?: boolean }>`
   &:disabled { opacity: 0.5; cursor: default; }
 `;
 
-const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean }>`
+const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean; $center: boolean }>`
   background: #F8FAFC;
   ${({ $layout, $fill }) => ($fill || $layout === 'app'
     /* 앱형은 내부가 스크롤한다 — 100dvh 여야 iOS 툴바가 바닥 입력줄을 안 먹는다.
        (100vh 는 주소창 높이를 포함해 실제보다 크다) */
     ? css`display: flex; flex-direction: column; height: 100dvh;`
     : css`min-height: 100vh; padding: 0 0 40px 0;`)}
+  /* 짧은 상태 카드(만료·비밀번호)는 **세로 가운데**가 맞다. 위에 붙이면 화면이 비어 보인다. */
+  ${({ $center }) => $center && css`
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 20px;
+    > * { margin-top: 0; margin-bottom: 0; }
+  `}
   ${({ $print }) => $print && css`@media print { background: #FFF; padding: 0; }`}
 `;
 const Toolbar = styled.div<{ $print: boolean; $app: boolean }>`

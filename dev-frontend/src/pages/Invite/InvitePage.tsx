@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
+import PublicPageShell from '../../components/Layout/PublicPageShell';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -90,22 +91,22 @@ const InvitePage: React.FC = () => {
     return '';
   };
 
-  if (loading) return <Wrapper><Card><Message>{t('invite.loading', '초대 정보를 불러오는 중...')}</Message></Card></Wrapper>;
+  if (loading) return <PublicPageShell layout="card" width="sm" brand={false} center print={false}><Inner><Message>{t('invite.loading', '초대 정보를 불러오는 중...')}</Message></Inner></PublicPageShell>;
   if (error) return (
-    <Wrapper>
-      <Card>
+    <PublicPageShell layout="card" width="sm" brand={false} center print={false}>
+      <Inner>
         <Logo src="/planQ-slogan_color.svg" alt="PlanQ" />
         <ErrorText>{errorLabel(error)}</ErrorText>
         <ActionBtn onClick={() => navigate('/login')}>{t('invite.goLogin', '로그인 페이지로')}</ActionBtn>
-      </Card>
-    </Wrapper>
+      </Inner>
+    </PublicPageShell>
   );
   if (!info) return null;
 
   if (info.already_linked) {
     return (
-      <Wrapper>
-        <Card>
+      <PublicPageShell layout="card" width="sm" brand={false} center print={false}>
+        <Inner>
           <Logo src="/planQ-slogan_color.svg" alt="PlanQ" />
           <Title>{info.workspace_name}</Title>
           {info.project_name && <Subtitle>{info.project_name}</Subtitle>}
@@ -113,14 +114,14 @@ const InvitePage: React.FC = () => {
           <ActionBtn onClick={() => navigate(info.type === 'workspace_member' ? '/dashboard' : '/talk')}>
             {t('invite.goToApp', 'PlanQ 로 이동')}
           </ActionBtn>
-        </Card>
-      </Wrapper>
+        </Inner>
+      </PublicPageShell>
     );
   }
 
   return (
-    <Wrapper>
-      <Card>
+    <PublicPageShell layout="card" width="sm" brand={false} center print={false}>
+      <Inner>
         <Logo src="/planQ-slogan_color.svg" alt="PlanQ" />
         <Title>{info.workspace_name}</Title>
         <Subtitle>{subtitleKey(info.type)}</Subtitle>
@@ -144,31 +145,15 @@ const InvitePage: React.FC = () => {
             </SecondaryBtn>
           </>
         )}
-      </Card>
-    </Wrapper>
+      </Inner>
+    </PublicPageShell>
   );
 };
 
 export default InvitePage;
 
-const Wrapper = styled.div`
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #F8FAFC;
-  padding: 24px;
-`;
-
-const Card = styled.div`
-  background: #FFFFFF;
-  border-radius: 16px;
-  padding: 40px 32px;
-  max-width: 400px;
-  width: 100%;
-  text-align: center;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-`;
+// 옛 Card 가 갖고 있던 것 중 **껍데기가 대신 못 하는 것**만 — 가운데 정렬.
+const Inner = styled.div`text-align: center;`;
 
 const Logo = styled.img`
   display: block;
