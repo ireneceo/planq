@@ -140,6 +140,7 @@ const ReceiptCorrection = require('./ReceiptCorrection');
 const ClientSubscription = require('./ClientSubscription');
 // ─── Refresh Token (다중 디바이스 세션) ───
 const RefreshToken = require('./RefreshToken');
+const EphemeralToken = require('./EphemeralToken');
 const ApiToken = require('./ApiToken');
 const FocusSession = require('./FocusSession');
 
@@ -655,6 +656,7 @@ module.exports = {
   InvoiceStatusHistory,
   ReceiptCorrection,
   RefreshToken,
+  EphemeralToken,
   ApiToken,
   FocusSession,
 };

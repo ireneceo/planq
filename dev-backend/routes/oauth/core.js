@@ -17,16 +17,39 @@ const { helpers } = require('../auth');
 const { createRefreshTokenRow, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND, setSessionHint } = helpers;
 
 // connect-confirm token 임시 저장 (5분 만료, in-memory)
+//   ★ 이것도 재시작에 사라진다 — 사라지면 연결 확인이 "만료됨" 으로 뜬다.
+//     아래 usedNativeCodes 와 같은 이유로 DB 로 옮겨야 하지만, 외부 연동 경로라
+//     별도 검증이 필요해 이번 범위에서 제외했다(2026-09-10). 남은 일이다.
 const confirmStash = new Map();
-// 네이티브 OAuth 일회용 code 사용 이력 (jti → exp). 재사용(replay) 차단. 2분 후 정리.
-const usedNativeCodes = new Map();
+
+// ── 네이티브 OAuth 일회용 code 재사용(replay) 차단 원장 ──────────────────────
+// ★ 2026-09-10 — 메모리 Map 에서 **DB 로** 옮겼다 (Fable 게이트 지적).
+//   재시작하면 "이미 쓴 code" 기록이 사라져 **JWT 만료(2분)까지 재사용 창이 다시 열렸다.**
+//   배포는 하루에도 여러 번 한다. 그리고 cluster 로 바뀌면 프로세스마다 원장이 갈라져
+//   replay 차단이 아예 성립하지 않는다.
+//   ★ jti 는 비밀이 아니다(이미 쓴 표식일 뿐) — payload 없이 키만 남긴다.
+const ephemeral = require('../../services/ephemeralStore');
+const USED_CODE_KIND = 'oauth_used_code';
+
+/**
+ * **"이 code 를 지금 처음 쓴다" 를 원자적으로 주장한다.** 처음이면 true, 이미 쓰였으면 false.
+ *
+ * ★ 2026-09-10 Fable FAIL — 예전엔 `has()` 로 검사하고 `set()` 으로 표시하는 **두 문장**이었다.
+ *   그 사이에 창이 있어 **같은 jti 로 동시에 두 번 교환하면 둘 다 통과했다**(실측: issued 2회)
+ *   = replay 차단이 성립하지 않았다. UNIQUE(kind, token_key) 가 원자성을 주므로 한 문장으로 만든다.
+ *   JWT 자체가 만료되면 더 볼 필요가 없으므로 그 시각까지만 보관한다.
+ */
+async function claimNativeCodeOnce(jti, expMs) {
+  const ttl = Math.max(1000, Number(expMs) - Date.now());
+  return ephemeral.setIfAbsent(USED_CODE_KIND, String(jti), null, ttl);
+}
+
+// 만료 정리 — ephemeral 쪽은 자기 sweeper 가 돈다. 여기 타이머는 confirmStash 만 본다.
+ephemeral.startSweeper();
 setInterval(() => {
   const now = Date.now();
   for (const [k, v] of confirmStash.entries()) {
     if (v.exp < now) confirmStash.delete(k);
-  }
-  for (const [k, exp] of usedNativeCodes.entries()) {
-    if (exp < now) usedNativeCodes.delete(k);
   }
 }, 30000);
 
@@ -151,7 +174,7 @@ async function issueSessionCookie(req, res, user) {
 }
 
 module.exports = {
-  confirmStash, usedNativeCodes,
+  confirmStash, claimNativeCodeOnce,
   isNativeOAuth, issueNativeOAuthCode, generateSlug, setupNewWorkspace,
   buildRedirectTarget, issueSessionCookie,
 };

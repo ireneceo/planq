@@ -400,6 +400,11 @@ sync_database() {
   log "Linking deliverable versions to review rounds..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-deliverable-review-round.js 2>&1 | tail -8"
 
+  # ephemeral_tokens — OAuth 짧은 수명 상태를 메모리에서 DB 로 (2026-09-10)
+  #   ★ 코드보다 **먼저** 돌아야 한다. 테이블이 없으면 앱 로그인 라우트가 500 이 난다.
+  log "  Creating ephemeral_tokens (OAuth 상태 저장소)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-ephemeral-tokens.js 2>&1 | tail -6"
+
   # 운영 #360 — 연결 post 가 없는 표(q_record)는 화면에서 열 길이 없다.
   #   Q record 메뉴 폐지 후 표를 여는 통로는 post(kind=table) 뿐인데, POST /api/records 가
   #   post 없이 표만 만들 수 있어 운영에 도달 불가 표가 생겼다(#12 "앱 스토어 개발자 계정", 행 15).

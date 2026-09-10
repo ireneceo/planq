@@ -8,7 +8,7 @@ const { sendNativeReturn } = require('../../utils/nativeReturn');
 const { logOauthFailure } = require('../../utils/oauthLog');
 const oauthPairing = require('../../services/oauthPairing');
 const {
-  confirmStash, usedNativeCodes, isNativeOAuth, issueNativeOAuthCode,
+  confirmStash, claimNativeCodeOnce, isNativeOAuth, issueNativeOAuthCode,
   setupNewWorkspace, buildRedirectTarget, issueSessionCookie,
 } = require('./core');
 
@@ -194,7 +194,7 @@ router.get('/google/callback', async (req, res) => {
       const origin = `${req.protocol}://${req.get('host')}`;
       // ★ 앱에 입력할 6자리 — **이 브라우저 화면에서만** 생겨난다. 공격자가 남의 로그인을
       //   자기 흐름에 붙여도 코드는 피해자 화면에 뜨므로 가져갈 수 없다.
-      const pairCode = oauthPairing.attach(pairId, user.id);
+      const pairCode = await oauthPairing.attach(pairId, user.id);
       return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' }, {
         title: '로그인이 끝났습니다',
         // ★ App Link 는 **코드가 있어도 준다.** 막아야 하는 것은 *자동 이동*(코드를 읽기 전에
@@ -252,8 +252,10 @@ router.get('/google/web-return', async (req, res) => {
     if (!payload || payload.purpose !== 'native_oauth' || !payload.uid || !payload.jti) {
       return fail('invalid_code');
     }
-    if (usedNativeCodes.has(payload.jti)) return fail('code_already_used');
-    usedNativeCodes.set(payload.jti, (payload.exp || Math.floor(Date.now() / 1000) + 120) * 1000);
+    // 검사와 표시를 **한 문장**으로 — 두 문장이면 동시 요청이 둘 다 통과한다(2026-09-10 Fable).
+    if (!(await claimNativeCodeOnce(payload.jti, (payload.exp || Math.floor(Date.now() / 1000) + 120) * 1000))) {
+      return fail('code_already_used');
+    }
 
     const user = await User.findByPk(payload.uid);
     if (!user || user.status !== 'active') return fail('account_unavailable');
