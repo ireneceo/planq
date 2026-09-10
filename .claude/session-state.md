@@ -81,6 +81,40 @@ personal_calendar·addonBilling·admin_credits·cue_task_executor·leaveTransiti
 그 행들도 영구 보관된다. 래칫으로 **동결만** 했다 — 9파일 리팩터는 Picker 와 무관한 별도 스코프라
 Irene 판단이 필요하다.
 
+---
+
+## 이어서 한 것 (2026-09-10, 미배포 커밋 3건)
+
+### ✅ 감사 기록의 입구를 하나로 — **21건이 스탬프 없이 영구 보관되고 있었다**
+`AuditLog.create()` 직접 호출은 `retain_until` 스탬프와 `maskSensitive` 를 통째로 건너뛴다.
+Picker 작업 중 **내가 같은 실수를 해서 health-check 가 잡았고**, 훑어 보니 9파일 21건이 그 상태였다.
+`services/auditService.js` 에 **await 가능한 입구** `writeAudit(opts, options)` 를 추가하고 전부 옮겼다
+(호출부가 전부 `await` 이었으므로 **동작 불변** — fire-and-forget 으로 바꿨으면 CLAUDE.md 가
+"AuditLog 강제" 라고 박제한 impersonate 의 보장이 사라진다).
+
+단순 치환이었으면 조용히 깨졌을 것 셋:
+- **`acting_for_user_id` 를 헬퍼가 안 받았다** — Cue 위임자 기록이 사라질 뻔
+- **2번째 인자(Sequelize options)를 삼키고 있었다** — addonBilling 2곳이 `{ transaction: t }` 를 넘긴다.
+  삼키면 본 작업이 롤백돼도 감사 행만 남는다(없던 일이 원장에 있는 상태)
+- **`routes/admin.js` 에 import 가 안 들어갔다** — 문법검사·빌드·부팅 전부 통과하고 **그 분기만 죽는다**.
+  실 HTTP 로 태워서 잡았다(`tasks.js` 주석이 정확히 그 경고를 하고 있었다)
+
+신규 래칫 가드 `--category=auditentry` — **0 으로 조였다**(반증 확인).
+
+### ✅ 발행인데 발행시각(`issued_at`)이 없는 청구서
+비면 금액이 멀쩡해도 **발행 청구액 통계에서 조용히 빠진다.** 백필 대상이 아니라 **쓰기측**이 문제였다 —
+채우는 술어가 4곳에 흩어져 있고 그중 하나는 `sent_at` 이 이미 있으면 안 채운다.
+→ `models/Invoice.js` `beforeSave` 훅 한 곳에서 보장(draft·canceled 제외).
+★ 시각은 `new Date()` 가 아니라 **sent_at → created_at** — '지금' 을 박으면 과거 발행분이
+이번 달 매출로 옮겨간다. 실측 #79 는 6/13 으로, #11(canceled)은 NULL 유지. 양방향 반증 6/6.
+
+### ✅ 좁은 데스크탑 카드 최소폭 — **이상 없음으로 확정**
+1025px 최소 174px · 1280px 259px · 1680px 291~392px, 가로 스크롤 0.
+★ 처음엔 구조 휴리스틱이 엉뚱한 요소를 집어 **1680px 에서도 114px** 이 나왔다.
+`KpiCard` 에 `data-kpi-card` 표식을 달아 코드와 같은 렌즈로 재게 했다.
+★ 그 과정에서 **빌드가 EXIT 2 인데 검사기가 "카드 0개" 를 25/25 초록으로 셌다** —
+빈 결과를 통과로 세지 않도록 고쳤다.
+
 ### 다음
 1. 남은 것: 프로젝트 "주요 이슈" 자동화(설계·승인 필요) · Google Picker(코드 0줄) ·
    좁은 데스크탑 카드 최소폭 실측 · 발행인데 `issued_at` 없는 청구서(운영 0건/dev 2건)
