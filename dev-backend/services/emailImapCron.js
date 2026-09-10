@@ -119,32 +119,10 @@ async function findOrCreateThread({ businessId, accountId, parsed, fromEmail }) 
   return { thread: newThread, isNew: true };
 }
 
-// client 매칭 — invite_email / billing_contact_email exact or aliases JSON contains
+// client 매칭 — 술어는 services/mailLink.js 하나다. 여기서 다시 쓰면 갈라진다
+//   (실제로 갈라져 있었다: 이쪽은 from 만 봤고 발송 경로는 아예 안 봤다).
 async function matchClient(businessId, fromEmail) {
-  const { Op } = require('sequelize');
-  const exact = await Client.findOne({
-    where: {
-      business_id: businessId,
-      [Op.or]: [
-        { invite_email: fromEmail },
-        { billing_contact_email: fromEmail },
-      ],
-    },
-    attributes: ['id'],
-  });
-  if (exact) return exact.id;
-  // aliases — JSON_SEARCH. client 매칭은 부가 정보 — 어떤 실패도 메시지 저장을 막으면 안 됨
-  try {
-    const { sequelize } = require('../config/database');
-    const [rows] = await sequelize.query(
-      `SELECT id FROM clients WHERE business_id = ? AND JSON_SEARCH(email_aliases, 'one', ?) IS NOT NULL LIMIT 1`,
-      { replacements: [businessId, fromEmail] }
-    );
-    return rows[0] ? rows[0].id : null;
-  } catch (e) {
-    console.warn('[emailImapCron] client alias match skipped:', e.message);
-    return null;
-  }
+  return require('./mailLink').matchClientByAddresses(businessId, [String(fromEmail || '').toLowerCase().trim()].filter(Boolean));
 }
 
 // attachment File 자동 저장 (visibility=L3, folder 'Email Attachments')
@@ -471,15 +449,28 @@ async function syncOne(account, opts = {}) {
           fromEmail,
         });
 
-        // client 매칭 (신규 thread 일 때만)
-        let clientId = thread.client_id || null;
-        if (isNew && fromEmail) {
-          clientId = await matchClient(account.business_id, fromEmail);
-        }
-
         // message insert
         const toEmails = (parsed.to && parsed.to.value) ? parsed.to.value.map(v => ({ email: v.address, name: v.name })) : [];
         const ccEmails = (parsed.cc && parsed.cc.value) ? parsed.cc.value.map(v => ({ email: v.address, name: v.name })) : null;
+
+        // 고객·프로젝트 연결 — 술어는 services/mailLink.js **하나**다.
+        //   ★ 2026-09-10 이전에는 여기서 `matchClient(from)` 만 불렀다. 그래서
+        //     ①신규 스레드만 ②받은 메일만 ③발신자 주소만 봤고, 프로젝트는 **아예 안 걸었다**.
+        //     이제 to/cc 까지 보고, 값이 비어 있으면 기존 스레드도 뒤늦게 채운다
+        //     (고객을 나중에 등록한 경우가 실제로 많다). 이미 있는 값은 덮지 않는다.
+        const linkAddrs = [
+          fromEmail,
+          ...toEmails.map((x) => x && x.email),
+          ...((ccEmails || []).map((x) => x && x.email)),
+        ];
+        let clientId = thread.client_id || null;
+        try {
+          const linked = await require('./mailLink').linkThread(thread, { addresses: linkAddrs });
+          clientId = linked.client_id ?? clientId;
+        } catch (e) {
+          // 연결은 부가 정보다 — 어떤 실패도 메일 저장을 막으면 안 된다(옛 matchClient 와 같은 원칙).
+          console.warn('[emailImapCron] linkThread', e.message);
+        }
 
         // 이 메일이 **우리 쪽 어느 주소**로 왔는지 스레드에 박아둔다(별칭별 보기의 기반).
         //   이미 값이 있으면 덮지 않는다 — 대화의 최초 착지 주소가 그 대화의 성격이다.

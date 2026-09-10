@@ -1,0 +1,158 @@
+// 메일 ↔ 고객·프로젝트 **연결 술어 단일 원천**.
+//
+// ★ 왜 생겼나 (2026-09-10)
+//   Irene: "프로젝트에 연결된 프로젝트 메일 버튼 누르면 이상한 리스트업 되고 있어.
+//           프로젝트나 고객이 메일에 자동연결 되는 거 맞지?"
+//   아니었다. 실측 — dev `email_threads` 4,879건 중 `project_id` 연결 **0건**, `client_id` **1건**.
+//     · `project_id` 를 쓰는 코드가 **저장소에 0곳**(사람이 우측 패널에서 손으로 거는 것뿐)
+//     · `client_id` 자동 매칭은 있었지만 **받은 메일 + 새 스레드 + 발신자 주소**일 때만 돌았다.
+//       우리가 보낸 메일은 수신자가 고객이어도 안 걸리고, 고객을 나중에 등록하면 기존 스레드는
+//       영영 안 붙는다. 그래서 두 화면(프로젝트 메일·고객 타임라인)이 늘 비어 있었다.
+//
+// ★ 방향 (Irene 2026-09-10): *"둘다 연결해야 하는 거잖아. 프로젝트 중심이지만 고객을 누르면
+//   고객 페이지에 고객 이메일 다 나와야지."*
+//     · 프로젝트 메일 = `project_id` 가 걸린 것만
+//     · 고객 페이지   = `client_id` 로 그 고객의 메일 **전부** (프로젝트 무관)
+//
+// ★ 매칭은 **주소 완전일치만.** 부분일치를 허용하면 `a@b.com` 이 `xa@b.com` 에 붙는 식으로
+//   조용히 오배치된다 — 남의 고객 메일이 남의 프로젝트에 뜨는 것은 되돌리기 어려운 사고다.
+//   못 찾으면 **미배치가 옳다**(담당자 매칭·워크스트림 매칭과 같은 규칙).
+const { Op } = require('sequelize');
+const { Client, ProjectClient, Project } = require('../models');
+const { sequelize } = require('../config/database');
+
+const norm = (v) => String(v || '').toLowerCase().trim();
+
+/** 주소 목록에서 유효한 것만 소문자로. 중복 제거하되 **순서는 지킨다**(앞이 더 강한 신호다). */
+function normalizeAddresses(list) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of (Array.isArray(list) ? list : [list])) {
+    // "이름 <a@b.com>" 형태도 받는다
+    const m = /<([^>]+)>/.exec(String(raw || ''));
+    const a = norm(m ? m[1] : raw);
+    if (!a || !a.includes('@') || seen.has(a)) continue;
+    seen.add(a);
+    out.push(a);
+  }
+  return out;
+}
+
+/**
+ * **1순위 — 프로젝트 초대 주소.** `project_clients.contact_email` 은 "이 사람을 이 프로젝트에
+ * 초대했다" 는 기록이므로 고객과 프로젝트를 **한 번에** 확정한다. 추측이 아니라 사실이다.
+ */
+async function matchByProjectInvite(businessId, addresses) {
+  if (!addresses.length) return null;
+  const rows = await ProjectClient.findAll({
+    where: { contact_email: { [Op.in]: addresses } },
+    include: [{ model: Project, attributes: ['id', 'business_id'], required: true }],
+    attributes: ['project_id', 'client_id', 'contact_email'],
+  });
+  const mine = rows.filter((r) => r.Project && Number(r.Project.business_id) === Number(businessId) && r.client_id);
+  if (!mine.length) return null;
+  // 주소 순서(from → to → cc)대로 가장 앞선 것을 고른다.
+  for (const a of addresses) {
+    const hit = mine.find((r) => norm(r.contact_email) === a);
+    if (hit) return { clientId: hit.client_id, projectId: hit.project_id, via: 'project_invite' };
+  }
+  return null;
+}
+
+/** **2순위 — 고객 등록 주소.** 초대 기록이 없어도 고객은 알 수 있다. 프로젝트는 별도 판정. */
+async function matchClientByAddresses(businessId, addresses) {
+  if (!addresses.length) return null;
+  const exact = await Client.findOne({
+    where: {
+      business_id: businessId,
+      [Op.or]: [
+        { invite_email: { [Op.in]: addresses } },
+        { billing_contact_email: { [Op.in]: addresses } },
+      ],
+    },
+    attributes: ['id', 'invite_email', 'billing_contact_email'],
+  });
+  if (exact) return exact.id;
+  // 별칭 — JSON_SEARCH. ★ 값은 **반드시 바인딩**한다(같은 파일 계열의 옛 코드가 손으로
+  //   따옴표를 바꾸다 백슬래시를 못 막아 인젝션이었던 전례).
+  for (const a of addresses) {
+    try {
+      const [rows] = await sequelize.query(
+        `SELECT id FROM clients WHERE business_id = ? AND JSON_SEARCH(email_aliases, 'one', ?) IS NOT NULL LIMIT 1`,
+        { replacements: [businessId, a] },
+      );
+      if (rows[0]) return rows[0].id;
+    } catch (e) {
+      console.warn('[mailLink] alias match skipped:', e.message);
+      break;   // 별칭 검색이 불가하면 더 돌 이유가 없다
+    }
+  }
+  return null;
+}
+
+/**
+ * 고객이 정해졌을 때의 프로젝트 — **정확히 하나일 때만** 건다.
+ *
+ * ★ 여럿이면 걸지 않는다. 같은 고객이 프로젝트 두 개에 걸쳐 있을 때 아무 쪽에나 붙이면
+ *   프로젝트 메일 목록이 조용히 오염되고, 사용자는 왜 그 메일이 거기 있는지 알 길이 없다.
+ *   그럴 때는 사람이 우측 맥락 패널에서 고른다(그 경로는 이미 있다).
+ */
+async function resolveSoleProject(businessId, clientId) {
+  if (!clientId) return null;
+  const rows = await ProjectClient.findAll({
+    where: { client_id: clientId },
+    include: [{ model: Project, attributes: ['id', 'business_id'], required: true }],
+    attributes: ['project_id'],
+  });
+  const ids = [...new Set(rows
+    .filter((r) => r.Project && Number(r.Project.business_id) === Number(businessId))
+    .map((r) => r.project_id))];
+  return ids.length === 1 ? ids[0] : null;
+}
+
+/**
+ * 스레드에 연결을 **채운다**. 이미 값이 있으면 건드리지 않는다 —
+ * 사람이 손으로 건 것을 자동이 뒤엎으면 그 결정이 사라진다.
+ *
+ * @param {object} thread  EmailThread 인스턴스 (또는 {id, business_id, client_id, project_id})
+ * @param {string[]} addresses  이 스레드에 등장한 주소들. **from → to → cc 순서**로 넘길 것.
+ * @returns {{changed: boolean, client_id: number|null, project_id: number|null, via: string|null}}
+ */
+async function linkThread(thread, { addresses, transaction = null } = {}) {
+  if (!thread) return { changed: false, client_id: null, project_id: null, via: null };
+  const businessId = Number(thread.business_id);
+  const have = { client_id: thread.client_id || null, project_id: thread.project_id || null };
+  if (have.client_id && have.project_id) return { changed: false, ...have, via: null };
+
+  const addrs = normalizeAddresses(addresses);
+  const patch = {};
+  let via = null;
+
+  const invite = await matchByProjectInvite(businessId, addrs);
+  if (invite) {
+    if (!have.client_id) patch.client_id = invite.clientId;
+    if (!have.project_id) patch.project_id = invite.projectId;
+    via = invite.via;
+  } else {
+    const clientId = have.client_id || await matchClientByAddresses(businessId, addrs);
+    if (clientId) {
+      if (!have.client_id) { patch.client_id = clientId; via = 'client_address'; }
+      if (!have.project_id) {
+        const pid = await resolveSoleProject(businessId, clientId);
+        if (pid) { patch.project_id = pid; via = via || 'sole_project'; }
+      }
+    }
+  }
+
+  if (!Object.keys(patch).length) return { changed: false, ...have, via: null };
+  if (typeof thread.update === 'function') await thread.update(patch, transaction ? { transaction } : undefined);
+  return { changed: true, client_id: patch.client_id ?? have.client_id, project_id: patch.project_id ?? have.project_id, via };
+}
+
+module.exports = {
+  normalizeAddresses,
+  matchByProjectInvite,
+  matchClientByAddresses,
+  resolveSoleProject,
+  linkThread,
+};

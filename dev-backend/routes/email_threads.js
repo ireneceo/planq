@@ -1186,6 +1186,14 @@ router.post('/:businessId/email-compose',
         last_message_at: now, last_message_direction: 'outbound', last_message_preview: preview,
         participants: composeParticipants,
       });
+      // 고객·프로젝트 연결 — **우리가 보낸 메일도 걸어야 한다.**
+      //   여태 발송 경로에는 매칭이 아예 없어서, 수신자가 고객이어도 스레드가 어디에도 안 걸렸다.
+      //   술어는 services/mailLink.js 하나(받은 메일 경로와 같은 함수).
+      try {
+        await require('../services/mailLink').linkThread(thread, {
+          addresses: [...toList, ...(Array.isArray(cc) ? cc : [])],
+        });
+      } catch (e) { console.warn('[mail/compose] linkThread', e.message); }
       const outMsg = await EmailMessage.create({
         thread_id: thread.id, business_id: businessId, direction: 'outbound',
         message_id: sendResult.messageId || `<planq-compose-${thread.id}-${now.getTime()}@planq>`,
@@ -1323,6 +1331,14 @@ router.post('/:businessId/email-threads/:id/forward',
         last_message_at: now, last_message_direction: 'outbound', last_message_preview: preview,
         participants: fwdParticipants,
       });
+      // 고객·프로젝트 연결 — **우리가 보낸 메일도 걸어야 한다.**
+      //   여태 발송 경로에는 매칭이 아예 없어서, 수신자가 고객이어도 스레드가 어디에도 안 걸렸다.
+      //   술어는 services/mailLink.js 하나(받은 메일 경로와 같은 함수).
+      try {
+        await require('../services/mailLink').linkThread(thread, {
+          addresses: [...toList, ...(Array.isArray(cc) ? cc : [])],
+        });
+      } catch (e) { console.warn('[mail/fwd] linkThread', e.message); }
       const outMsg = await EmailMessage.create({
         thread_id: thread.id, business_id: businessId, direction: 'outbound',
         message_id: sendResult.messageId || `<planq-fwd-${thread.id}-${now.getTime()}@planq>`,
