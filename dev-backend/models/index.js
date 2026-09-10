@@ -143,6 +143,7 @@ const RefreshToken = require('./RefreshToken');
 const EphemeralToken = require('./EphemeralToken');
 const ApiToken = require('./ApiToken');
 const FocusSession = require('./FocusSession');
+const ScheduleBatch = require('./ScheduleBatch');
 
 // ============================================
 // 글로벌 toJSON override — createdAt/updatedAt → created_at/updated_at
@@ -659,6 +660,7 @@ module.exports = {
   EphemeralToken,
   ApiToken,
   FocusSession,
+  ScheduleBatch,
 };
 
 // Q record associations
@@ -787,6 +789,12 @@ User.hasMany(ApiToken, { as: 'apiTokens', foreignKey: 'user_id' });
 FocusSession.belongsTo(User, { foreignKey: 'user_id', onDelete: 'CASCADE' });
 FocusSession.belongsTo(Business, { foreignKey: 'business_id' });
 FocusSession.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'SET NULL' });
+// ScheduleBatch — 일정 일괄 수정의 되돌리기 원장(2026-09-10).
+//   프로젝트가 지워지면 그 원장도 의미가 없다 → CASCADE.
+ScheduleBatch.belongsTo(Project, { foreignKey: 'project_id', onDelete: 'CASCADE' });
+ScheduleBatch.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
+Project.hasMany(ScheduleBatch, { as: 'scheduleBatches', foreignKey: 'project_id' });
+
 User.hasMany(FocusSession, { as: 'focusSessions', foreignKey: 'user_id' });
 Task.hasMany(FocusSession, { as: 'focusSessions', foreignKey: 'task_id' });
 

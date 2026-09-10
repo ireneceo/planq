@@ -47,14 +47,9 @@ function toDateOnlyStr(d) {
   return d.toISOString().slice(0, 10);
 }
 
-/** DATEONLY 값을 'YYYY-MM-DD' 로 정규화. 문자열이 오든 Date 가 오든 같은 결과.
- *  dev/운영이 서로 다른 타입을 주므로 **비교 전에 반드시 이 함수를 통과시킨다.** */
-function dateOnlyOf(v) {
-  if (!v) return null;
-  if (typeof v === 'string') return v.slice(0, 10);
-  const d = v instanceof Date ? v : new Date(v);
-  return Number.isNaN(d.getTime()) ? null : toDateOnlyStr(d);
-}
+// DATEONLY 정규화는 utils/dateOnly.js **한 곳**이다 — 여기 지역 선언으로 두었더니
+//   다른 곳(services/actions/task_actions.js)이 그것을 못 쓰고 손으로 다시 써서 틀렸다.
+const { dateOnlyOf } = require('../utils/dateOnly');
 
 // rrule 표준 + dtstart 합쳐서 다음 occurrence 계산.
 // generatedCount: 이미 만들어진 occurrences 수 (parent 1 + 인스턴스 수). COUNT 도달 체크용.

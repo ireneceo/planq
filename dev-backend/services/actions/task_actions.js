@@ -33,6 +33,7 @@ const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../displa
 // 위임 주체 해석 + 메뉴 쓰기 권한 — event/document 생성 액션과 공유 (services/actions/_subject.js).
 //   resolveSubject: Cue 는 위임자 권한으로만 · assertMenuWrite: qtask/qcalendar/qdocs='none' 봉합.
 const { resolveSubject, assertMenuWrite, fail, done } = require('./_subject');
+const { dateOnlyOf } = require('../../utils/dateOnly');
 
 // #353 ⑤ 중요도 허용값 — models/Task.js 의 ENUM 과 **같은 순서·같은 값**이어야 한다.
 //   갈라지면 한쪽만 아는 값이 생기고, 그 값은 저장 시점에 조용히 떨어진다.
@@ -1410,10 +1411,103 @@ async function setPolicy(task, actor, { policy } = {}) {
   return done(task);
 }
 
+/**
+ * 일정(시작·마감) 수정 — **일괄 수정이 지나는 문.**
+ *
+ * ★ 왜 액션인가: 여태 날짜는 `routes/tasks.js` PUT 이 직접 썼고 행동 계층에 필드 수정이 없었다
+ *   (`updateTask` 0건). 일괄 수정을 새 라우트에서 직접 UPDATE 하면 이력·알림·소켓이 그 경로에만
+ *   빠진다 — 이 파일 머리말이 기록한 사고와 같은 모양이다.
+ *
+ * ★ 권한: 날짜는 **담당자·의뢰자·owner/admin** 이 바꾼다(canChangeStatus 와 같은 집합).
+ *   시간·진행률과 달리 담당자 전용이 아니다 — 일정은 의뢰자도 조정한다.
+ * ★ `actual_hours` 는 **절대** 건드리지 않는다. 근거는 포커스 타이머뿐이다.
+ * ★ 완료·취소된 업무는 기본 거절 — 지난 일정을 소급하면 걸린 시간 기록이 거짓이 된다.
+ *
+ * @returns {{ok:true, data:{before, after}} | {ok:false, code, http}}
+ */
+async function updateSchedule(task, actor, { start_date, due_date, allowClosed = false } = {}) {
+  if (!(await canChangeStatus(task, actor))) return fail('forbidden_fields:schedule', 403);
+  if (!allowClosed && ['completed', 'canceled'].includes(task.status)) return fail('task_closed');
+
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const norm = (v) => {
+    if (v === undefined) return undefined;
+    if (v === null || v === '') return null;
+    const x = String(v).slice(0, 10);
+    return DATE_RE.test(x) ? x : false;      // false = 형식 오류
+  };
+  const s = norm(start_date);
+  const e = norm(due_date);
+  if (s === false || e === false) return fail('invalid_date');
+  if (s === undefined && e === undefined) return fail('no_fields');
+
+  // ★ DATEONLY 는 환경에 따라 문자열로도 Date 로도 온다 — `String(v).slice(0,10)` 은
+  //   Date 가 오는 순간 "Sat Oct 1" 이 되어 비교가 항상 거짓이 된다(2026-09-10 실측).
+  //   정규화는 utils/dateOnly.js 한 곳을 쓴다.
+  const before = {
+    start_date: dateOnlyOf(task.start_date),
+    due_date: dateOnlyOf(task.due_date),
+  };
+  const after = {
+    start_date: s === undefined ? before.start_date : s,
+    due_date: e === undefined ? before.due_date : e,
+  };
+  // 마감이 시작보다 빠를 수는 없다 — 화면이 막더라도 서버가 다시 본다.
+  if (after.start_date && after.due_date && after.due_date < after.start_date) {
+    return fail('due_before_start');
+  }
+  if (before.start_date === after.start_date && before.due_date === after.due_date) {
+    return done({ before, after, changed: false });
+  }
+
+  const patch = {};
+  if (s !== undefined) patch.start_date = s;
+  if (e !== undefined) patch.due_date = e;
+
+  const t = await sequelize.transaction();
+  try {
+    await task.update(patch, { transaction: t });
+    // ★ 이벤트 이름을 **새로 짓지 않는다.** `due_change` 가 이미 정본이다 —
+    //   화면 라벨(qtask detail.history.event.due_change, ko/en 둘 다 있다)과
+    //   services/event_stream.js:334 가 그 값을 프로젝트 사건으로 읽고 있다.
+    //   여기서 'schedule_change' 같은 새 값을 만들면 라벨이 없어 화면에 **키가 그대로 노출**되고
+    //   이벤트 스트림에서도 조용히 빠진다(memory: 새 상태값이 기본값으로 떨어지면 안 열린다로 보인다).
+    //   ★ from_status/to_status 는 비운다 — revertStatus 가 `from_status IS NOT NULL` 인 최신 행으로
+    //     되돌릴 곳을 찾으므로, 채우면 상태 되돌리기가 날짜 변경 지점으로 잘못 간다.
+    await logHistory({
+      taskId: task.id, eventType: 'due_change',
+      actorUserId: actor.userId,
+      note: `${before.start_date || '—'}~${before.due_date || '—'} → ${after.start_date || '—'}~${after.due_date || '—'}`,
+      transaction: t,
+    });
+    await t.commit();
+  } catch (err) { await t.rollback(); throw err; }
+
+  await task.reload();
+  broadcastTask(task, 'task:updated', actor.userId);
+
+  // CLAUDE.md §13 — 일정이 바뀌면 **기다리는 사람에게도** 알린다.
+  //   담당자만 알리면 의뢰자는 마감이 밀린 것을 모르고 지나간다
+  //   (memory feedback_notify_watcher_not_only_actor).
+  try {
+    const wsName = await workspaceName(task.business_id);
+    notifyStatusAudience(task, actor, {
+      title: task.title,
+      action: 'task_due_changed',
+      body: `${after.start_date || '—'} ~ ${after.due_date || '—'}`,
+      wsName,
+    });
+  } catch (err) { console.warn('[task_actions updateSchedule notify]', err.message); }
+
+  return done({ before, after, changed: true });
+}
+
 module.exports = {
   saveDeliverableVersion,
   // 행동 — 생성
   createTask, createComment,
+  // 행동 — 일정(시작·마감) 수정. 일괄 수정이 지나는 문.
+  updateSchedule,
   // 행동 — 전이
   ack, submitReview, cancelReview, complete,
   approve, requestRevision, revertReviewerState,

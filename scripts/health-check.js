@@ -1047,12 +1047,27 @@ function defineDateOnlyTests() {
     if (info.err) throw new Error(`DB 조회 실패: ${info.err}`);
     if (info.kind === 'null') return '검사할 due_date 행 없음 (건너뜀)';
 
-    // 정규화 함수가 두 타입을 같은 결과로 만드는가
-    const src = fs.readFileSync('/opt/planq/dev-backend/services/recurringTaskGenerator.js', 'utf8');
-    const m = src.match(/function dateOnlyOf[\s\S]*?\n}/);
-    if (!m) throw new Error('recurringTaskGenerator.dateOnlyOf 가 없다 — 정규화 없이 비교하면 운영에서만 깨진다');
-    // eslint-disable-next-line no-eval
-    const norm = eval('(function(){function toDateOnlyStr(d){return d.toISOString().slice(0,10);}\n' + m[0] + '\nreturn dateOnlyOf;})()');
+    // 정규화 함수가 두 타입을 같은 결과로 만드는가.
+    //   ★ 2026-09-10 — 이 검사가 소스를 **정규식으로 긁어 eval** 하고 있었다. 그래서 함수를
+    //     `utils/dateOnly.js` 로 옮기자 검사가 "함수가 없다" 며 죽었다. 검사가 **구현 위치**에
+    //     묶여 있으면 정리를 할 때마다 빨간불이 난다. 이제 모듈을 그대로 require 한다 —
+    //     실제 코드가 쓰는 것과 **같은 함수**를 재는 것이므로 더 정확하기도 하다.
+    let norm;
+    try {
+      ({ dateOnlyOf: norm } = require('/opt/planq/dev-backend/utils/dateOnly'));
+    } catch (e) {
+      throw new Error(`utils/dateOnly.dateOnlyOf 를 못 불러왔다 — 정규화 없이 비교하면 운영에서만 깨진다 (${e.message})`);
+    }
+    if (typeof norm !== 'function') throw new Error('utils/dateOnly.dateOnlyOf 가 함수가 아니다');
+    // 실제 소비처가 그 함수를 쓰고 있는가 (지역 사본으로 되돌아가면 다시 갈라진다)
+    const users = ['/opt/planq/dev-backend/services/recurringTaskGenerator.js',
+                   '/opt/planq/dev-backend/services/actions/task_actions.js'];
+    for (const f of users) {
+      if (!fs.readFileSync(f, 'utf8').includes("require('../utils/dateOnly')")
+        && !fs.readFileSync(f, 'utf8').includes("require('../../utils/dateOnly')")) {
+        throw new Error(`${f.split('/').pop()} 가 utils/dateOnly 를 쓰지 않는다 — 정규화가 다시 갈라졌다`);
+      }
+    }
     const a1 = norm('2026-08-28');
     const a2 = norm(new Date('2026-08-28T00:00:00.000Z'));
     if (a1 !== '2026-08-28' || a2 !== '2026-08-28') throw new Error(`정규화 불일치 — string→${a1} / Date→${a2}`);

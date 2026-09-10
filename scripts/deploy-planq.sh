@@ -400,6 +400,12 @@ sync_database() {
   log "Linking deliverable versions to review rounds..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-deliverable-review-round.js 2>&1 | tail -8"
 
+  # schedule_batches — 일정 일괄 수정의 되돌리기 원장 (2026-09-10)
+  #   ★ 코드보다 **먼저** 돈다. 테이블이 없으면 일정 수정 라우트가 500 이다
+  #     (project_pinned_docs·guest_links.scope 와 같은 계열). 멱등.
+  log "  Creating schedule_batches (일정 수정 되돌리기 원장)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-schedule-batches.js 2>&1 | tail -5"
+
   # ephemeral_tokens — OAuth 짧은 수명 상태를 메모리에서 DB 로 (2026-09-10)
   #   ★ 코드보다 **먼저** 돌아야 한다. 테이블이 없으면 앱 로그인 라우트가 500 이 난다.
   log "  Creating ephemeral_tokens (OAuth 상태 저장소)..."
