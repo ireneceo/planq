@@ -452,6 +452,9 @@ app.use('/api/app-download', require('./routes/app_download')); // 공개 — �
 app.use('/api/platform', require('./routes/platform_public')); // 공개 — 랜딩 푸터 사업자 정보 (전자상거래법 표시의무)
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/projects', require('./routes/project_process'));
+// 일정 일괄 수정 — `/:id/schedule/*`. projects.js 의 `/:id` 핸들러보다 **경로가 깊어** 가려지지 않는다
+//   (Express 는 세그먼트 단위로 맞춘다). 순서를 바꿀 일이 생기면 router.stack 덤프로 확인할 것.
+app.use('/api/projects', require('./routes/schedule_edit'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/users', require('./routes/account_deletion'));
 app.use('/api/businesses', require('./routes/businesses'));

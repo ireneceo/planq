@@ -47,24 +47,10 @@ const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 // ============================================
 // 공통 미들웨어: 워크스페이스 접근 확인 (BusinessMember 기준)
 // ============================================
-async function requireBusinessMember(userId, businessId) {
-  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
-  return bm; // null / BusinessMember
-}
-
-async function loadProjectOrForbidden(projectId, userId) {
-  const project = await Project.findByPk(projectId);
-  if (!project) return { error: { code: 404, message: 'project_not_found' } };
-  // 워크스페이스 멤버 여부 (owner/member)
-  const bm = await requireBusinessMember(userId, project.business_id);
-  if (bm) return { project, role: bm.role };
-  // 또는 프로젝트 참여 고객
-  const pc = await ProjectClient.findOne({
-    where: { project_id: project.id, contact_user_id: userId },
-  });
-  if (pc) return { project, role: 'client' };
-  return { error: { code: 403, message: 'not_project_member' } };
-}
+// 접근 판정은 services/projectAccess.js **한 곳**이다 — 여기 지역 선언으로 두었더니
+//   새 라우트가 export 를 못 써서 손으로 다시 쓸 수밖에 없는 상태였다(2026-09-10).
+//   호출부 64곳은 그대로 이 이름을 쓴다.
+const { loadProjectOrForbidden, requireBusinessMember } = require('../services/projectAccess');
 
 // 독립 대화(project_id null) scope 체크 — 워크스페이스 멤버여야 접근 가능.
 // 반환: { conversation, role } 또는 { error }. role 은 'owner'|'member'.

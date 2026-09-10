@@ -118,20 +118,25 @@ function compressToTarget(tasks, targetDue, { businessDays = true } = {}) {
  *   자동으로 섞으면 사용자가 시키지 않은 결정을 우리가 내리는 것이고, 그것은 되돌리기 어렵다.
  *   대신 **경고로 보고**해서 사람이 보고 판단하게 한다.
  *
- * @param {Array} after  [{id, title, start_date, due_date, order_index?}]
+ * ★ 판정 기준은 **원래 일정 순서의 보존**이다. `tasks` 에는 프로젝트 내 순서 컬럼이 없다
+ *   (`priority_order` 는 주간 랭킹이라 뜻이 다르다 — 그것을 순서로 쓰면 경고가 거짓이 된다).
+ *   그래서 "바꾸기 전에 A 가 B 보다 먼저 시작했다면, 바꾼 뒤에도 그래야 한다" 로 본다.
+ *
+ * @param {Array} pairs [{id, title, before:{start_date,due_date}, after:{...}}]
  * @returns {Array} [{id, title, reason}]
  */
-function detectOrderBreaks(after) {
+function detectOrderBreaks(pairs) {
+  const rows = (pairs || []).filter((p) => p.before && p.after
+    && toUTC(p.before.start_date) !== null && toUTC(p.after.start_date) !== null);
+  // 원래 시작일 순서로 세운다 — 같은 날이면 id 로 안정 정렬(결과가 실행마다 달라지면 안 된다).
+  rows.sort((a, b) => (toUTC(a.before.start_date) - toUTC(b.before.start_date)) || (a.id - b.id));
   const warns = [];
-  const rows = (after || [])
-    .filter((t) => toUTC(t.start_date) !== null && toUTC(t.due_date) !== null)
-    .slice()
-    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
   for (let i = 1; i < rows.length; i++) {
     const prev = rows[i - 1];
     const cur = rows[i];
-    if (toUTC(cur.start_date) < toUTC(prev.start_date)) {
-      warns.push({ id: cur.id, title: cur.title, reason: 'starts_before_previous' });
+    // 원래 먼저였던 것이 뒤로 밀렸는가
+    if (toUTC(cur.after.start_date) < toUTC(prev.after.start_date)) {
+      warns.push({ id: cur.id, title: cur.title, reason: 'order_reversed' });
     }
   }
   return warns;
