@@ -9,7 +9,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { attachWorkspaceScope, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
-const { issueGuestLink, serializeGuestLink, assertGuestLinkIssuable } = require('../services/guest_link');
+const { issueGuestLink, serializeGuestLink, serializeGuestContact, assertGuestLinkIssuable } = require('../services/guest_link');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -17,23 +17,9 @@ const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 // 직렬화는 services/guest_link.js 한 곳에 있다 — 프로젝트 발급 라우트와 같은 모양이어야 한다.
 const serialize = serializeGuestLink;
 
-/** 답글 알림을 신청한 사람 — **개별 회수**가 되어야 한다.
- *  ★ 이 이름을 대화 메시지 옆에 붙이지 말 것. 링크는 메일로 전달될 수 있고, 전달받은
- *    제3자의 글이 **확인된 사람의 글로 보인다**(#259 에서 이미 난 사고와 같은 모양).
- *    메시지 표시명의 원천은 언제나 messages.meta.guest.name 박제다.
- */
-const serializeContact = (l) => ({
-  id: l.id,
-  name: l.contact_name,
-  email: l.contact_email,
-  verified_at: l.email_verified_at,
-  unsubscribed_at: l.unsubscribed_at,
-  last_used_at: l.last_used_at,
-  last_used_ip: l.last_used_ip,
-  last_notified_at: l.last_notified_at,
-  revoked_at: l.revoked_at,
-  created_at: l.created_at,
-});
+// 사람 직렬화는 services/guest_link.js 의 serializeGuestContact 하나다 —
+//   프로젝트 경로(routes/projects.js)와 **같은 함수**를 부른다. 베껴 두면 갈라진다(실제로 갈라졌다).
+const serializeContact = serializeGuestContact;
 
 // GET — 이 대화방의 링크 목록
 router.get('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {

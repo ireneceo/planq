@@ -40,7 +40,7 @@ const cueOrchestrator = require('../services/cue_orchestrator');
 // 업무 생성 술어 재사용 — 기본담당자 미리보기가 실제 배정과 같은 코드를 쓰게 한다
 const taskActions = require('../services/actions/task_actions');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
-const { serializeGuestLink, assertGuestLinkIssuable } = require('../services/guest_link');
+const { serializeGuestLink, serializeGuestContact, assertGuestLinkIssuable } = require('../services/guest_link');
 const { todayInTz, mondayOfDateStr, addDaysStr } = require('../utils/datetime');
 const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 
@@ -866,10 +866,9 @@ router.get('/:id/guest-links', authenticateToken, async (req, res, next) => {
     const byParent = new Map();
     for (const k of kids) {
       if (!byParent.has(k.parent_link_id)) byParent.set(k.parent_link_id, []);
-      byParent.get(k.parent_link_id).push({
-        id: k.id, email: k.guest_email || null, name: k.guest_name || null,
-        last_used_at: k.last_used_at, message_count: k.message_count,
-      });
+      // ★ 직렬화도 **한 함수**다 — 여기서 손으로 다시 쓰다가 없는 컬럼(guest_email)을 읽어
+      //   사람 칸이 전원 빈 값으로 나갔다(2026-09-10 Fable 게이트 지적).
+      byParent.get(k.parent_link_id).push(serializeGuestContact(k));
     }
     return successResponse(res, rows.map((l) => ({ ...serializeGuestLink(l), contacts: byParent.get(l.id) || [] })));
   } catch (err) { next(err); }

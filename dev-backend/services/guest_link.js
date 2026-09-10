@@ -197,7 +197,9 @@ function serializeGuestLink(l) {
     last_used_at: l.last_used_at,
     message_count: l.message_count,
     revoked_at: l.revoked_at,
-    created_at: l.created_at,
+    // ★ Sequelize 속성명은 **createdAt** 이다(underscored:true 는 컬럼명만 바꾼다).
+    //   `l.created_at` 은 언제나 undefined 라 JSON 에서 통째로 빠진다 — 오류 없이 조용히 사라진다.
+    created_at: l.createdAt ?? l.created_at,
   };
 }
 
@@ -378,6 +380,36 @@ async function mintPersonalToken(link) {
  *
  * @returns {{ ok: boolean, already?: boolean, link?: object }}
  */
+/**
+ * 답글 알림을 신청한 **사람** 한 명 — 링크가 아니다.
+ *
+ * ★ 2026-09-10 — 프로젝트 경로가 이 직렬화를 손으로 다시 쓰면서 **없는 컬럼**(`guest_email`)을
+ *   읽고 `guest_name`(personal 행에서는 언제나 null)을 썼다. 응답은 200 인데 화면의
+ *   "답글 알림을 신청한 사람" 칸이 전원 `—` / 빈 이메일 / "확인 안 됨" 으로 나갔다.
+ *   실제 컬럼은 contact_name · contact_email · email_verified_at 이다.
+ *   같은 값의 공식을 두 벌 두지 않는다 — 회수(revokeGuestLink)와 같은 원칙.
+ *
+ * ★ 이 이름을 대화 메시지 옆에 붙이지 말 것. 링크는 메일로 전달될 수 있고, 전달받은
+ *   제3자의 글이 **확인된 사람의 글로 보인다**(#259 에서 이미 난 사고와 같은 모양).
+ *   메시지 표시명의 원천은 언제나 messages.meta.guest.name 박제다.
+ */
+function serializeGuestContact(l) {
+  return {
+    id: l.id,
+    name: l.contact_name,
+    email: l.contact_email,
+    verified_at: l.email_verified_at,
+    unsubscribed_at: l.unsubscribed_at,
+    last_used_at: l.last_used_at,
+    last_used_ip: l.last_used_ip,
+    last_notified_at: l.last_notified_at,
+    revoked_at: l.revoked_at,
+    // ★ Sequelize 속성명은 **createdAt** 이다(underscored:true 는 컬럼명만 바꾼다).
+    //   `l.created_at` 은 언제나 undefined 라 JSON 에서 통째로 빠진다 — 오류 없이 조용히 사라진다.
+    created_at: l.createdAt ?? l.created_at,
+  };
+}
+
 async function revokeGuestLink(link, { userId }) {
   if (!link) return { ok: false };
   if (link.revoked_at) return { ok: true, already: true, link };
@@ -400,6 +432,7 @@ async function revokeGuestLink(link, { userId }) {
 
 module.exports = {
   revokeGuestLink,
+  serializeGuestContact,
   SLIDING_TTL_MS, hashToken, generateToken, visibleToGuest,
   OTP_TTL_MS, OTP_MAX_ATTEMPTS, OTP_LOCK_MS, NOTIFY_COOLDOWN_MS,
   generateOtpCode, normalizeEmail, ensurePersonalLink, mintPersonalToken, personalTokenFor,

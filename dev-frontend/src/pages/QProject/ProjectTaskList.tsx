@@ -4,7 +4,6 @@
 //   그룹 헤더(색·인라인 이름·카운트·진행바·▲▼·삭제) + "(그룹 없음)" + 인라인 추가 그룹
 //   + 행별 그룹 드롭다운 + 드래그 핸들. 캔버스↔업무리스트 단일 진실 원천(project_workstreams) 양방향 동기화.
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
@@ -42,7 +41,6 @@ import {
   GroupMenu,
   GroupMenuHint,
   GroupMenuItem,
-  GroupMoveBtn,
   GroupMoveWrap,
   GroupPct,
   GroupTitle,
@@ -68,6 +66,7 @@ import {
 } from './ProjectTaskList.styles';
 
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
+import GroupMoveMenu from './GroupMoveMenu';
 import { GanttHeader, GanttRowTrack, GanttBar, useGanttScrollSync, type GanttRange } from '../../components/Common/GanttTrack';
 import { STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { StatusGlyph } from '../../components/Common/Icons';
@@ -200,7 +199,6 @@ const ProjectTaskList: React.FC<Props> = ({
   //     같은 셀 안의 TaskRowActionMenu 는 이 사실을 알고 이미 createPortal 을 쓴다(그 파일 3행 주석).
   //     셀에 `overflow: visible` 을 주는 쪽은 제목 말줄임 계약(#236·#249)을 깨므로 쓰지 않는다.
   const [groupMenu, setGroupMenu] = useState<{ taskId: number; top: number; left: number } | null>(null);
-  const groupMenuTaskId = groupMenu?.taskId ?? null;
   const dateRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   // ─── 그룹(워크스트림) 모드 상태 ───
@@ -225,14 +223,14 @@ const ProjectTaskList: React.FC<Props> = ({
 
   // 모든 인라인 드롭다운(그룹 이동·헤더 ⋯·상태·담당자) 바깥 클릭/Esc 닫기 — data-dropdown 내부 클릭은 유지.
   useEffect(() => {
-    if (groupMenuTaskId == null && headerMenuGroupId == null && statusOpenId == null && assigneeOpenId == null) return;
+    if (groupMenu == null && headerMenuGroupId == null && statusOpenId == null && assigneeOpenId == null) return;
     const closeAll = () => { setGroupMenu(null); setHeaderMenuGroupId(null); setStatusOpenId(null); setAssigneeOpenId(null); };
     const onClick = (e: MouseEvent) => { if ((e.target as HTMLElement)?.closest('[data-dropdown]')) return; closeAll(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAll(); };
     window.addEventListener('click', onClick);
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('click', onClick); window.removeEventListener('keydown', onKey); };
-  }, [groupMenuTaskId, headerMenuGroupId, statusOpenId, assigneeOpenId]);
+  }, [groupMenu, headerMenuGroupId, statusOpenId, assigneeOpenId]);
 
   // D2-b (#66) — 이 프로젝트에 참여한 외부 파트너(담당자 후보). 멤버와 합쳐 인라인 picker 에 노출.
   const [externals, setExternals] = useState<{ user_id: number; name: string; kind: string }[]>([]);
@@ -474,30 +472,17 @@ const ProjectTaskList: React.FC<Props> = ({
               {isDelayed && <DelayBadge>{t('status.delayed', '지연')}</DelayBadge>}
               <Spacer />
               {grouped && (
-                <GroupMoveWrap>
-                  <GroupMoveBtn data-dropdown aria-label={t('list.group.moveTo', '그룹 이동') as string} title={t('list.group.moveTo', '그룹 이동') as string}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (groupMenuTaskId === task.id) { setGroupMenu(null); return; }
-                      const r = e.currentTarget.getBoundingClientRect();
-                      setGroupMenu({ taskId: task.id, top: r.bottom + 4, left: r.left });
-                    }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>
-                  </GroupMoveBtn>
-                  {groupMenu?.taskId === task.id && createPortal((
-                    <GroupMenu data-dropdown $floating style={{ top: groupMenu.top, left: groupMenu.left }} onClick={e => e.stopPropagation()}>
-                      {[...(workstreams || [])].sort((a, b) => a.order_index - b.order_index).map((w, i) => (
-                        <GroupMenuItem key={w.id} $active={(task.workstream_id ?? null) === w.id} onClick={() => assignGroup(task, w.id)}>
-                          <GroupDot style={{ background: wsColor(w, i) }} />{w.title}
-                        </GroupMenuItem>
-                      ))}
-                      <GroupMenuItem $active={(task.workstream_id ?? null) === null} onClick={() => assignGroup(task, null)}>
-                        <GroupDot style={{ background: '#CBD5E1' }} />{t('list.group.none', '(그룹 없음)')}
-                      </GroupMenuItem>
-                    </GroupMenu>
-                  ), document.body)}
-                </GroupMoveWrap>
+                <GroupMoveMenu
+                  taskId={task.id}
+                  currentWorkstreamId={task.workstream_id ?? null}
+                  workstreams={workstreams || []}
+                  openAt={groupMenu}
+                  onOpen={setGroupMenu}
+                  onAssign={(wsId) => assignGroup(task, wsId)}
+                  colorOf={wsColor}
+                  label={t('list.group.moveTo', '그룹 이동') as string}
+                  noneLabel={t('list.group.none', '(그룹 없음)') as string}
+                />
               )}
               <DetailBtn $active={selectedId === task.id} onClick={e => { e.stopPropagation(); onOpen(task.id); }} title={t('listRow.detailTitle', '상세 보기') as string}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="9 18 15 12 9 6" /></svg>
