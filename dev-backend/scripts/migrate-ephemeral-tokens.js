@@ -24,11 +24,22 @@ const { sequelize } = require('../config/database');
         await sequelize.query('ALTER TABLE ephemeral_tokens ADD COLUMN attempts INT NOT NULL DEFAULT 0');
         console.log('  ✅ attempts 컬럼 추가');
       }
+      // kind ENUM 확장도 멱등하게 — 2026-09-10 'oauth_state'(OAuth CSRF state 를 메모리에서 DB 로).
+      //   ★ 코드가 먼저 뜨면 ENUM 에 없는 값 INSERT 가 실패해 **모든 구글 로그인 시작이 500** 이 된다.
+      //     그래서 이 스크립트는 배포에서 재시작보다 먼저 돈다(deploy-planq.sh sync_database).
+      const [kindCol] = await sequelize.query(
+        "SELECT COLUMN_TYPE AS t FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name='ephemeral_tokens' AND column_name='kind'",
+      );
+      const kindType = String((kindCol[0] && kindCol[0].t) || '');
+      if (!kindType.includes("'oauth_state'")) {
+        await sequelize.query("ALTER TABLE ephemeral_tokens MODIFY COLUMN kind ENUM('oauth_pair','oauth_used_code','oauth_confirm','oauth_state') NOT NULL");
+        console.log("  ✅ kind ENUM 에 'oauth_state' 추가");
+      }
     } else {
       await sequelize.query(`
         CREATE TABLE ephemeral_tokens (
           id INT NOT NULL AUTO_INCREMENT,
-          kind ENUM('oauth_pair','oauth_used_code','oauth_confirm') NOT NULL,
+          kind ENUM('oauth_pair','oauth_used_code','oauth_confirm','oauth_state') NOT NULL,
           token_key VARCHAR(191) NOT NULL,
           payload JSON NULL,
           attempts INT NOT NULL DEFAULT 0,

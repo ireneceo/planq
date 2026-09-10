@@ -81,6 +81,7 @@ function androidIntentUrl(params = {}, fallbackUrl) {
  *   webUrl      앱 없이 **이 브라우저에서** 끝내는 URL (web-return). Android intent 의 fallback 으로도 쓴다
  *   altUrl/altLabel  코드 없는 흐름의 다른 길 (연결 확인 페이지 등)
  *   userAgent   플랫폼 판정용. 없으면 res.req 에서 읽는다
+ *   message     제목 아래 한 줄(실패 사유 등). 있으면 플랫폼 힌트 대신 이것을 보여준다
  */
 function sendNativeReturn(res, params = {}, opts = {}) {
   const url = nativeReturnUrl(params);
@@ -99,9 +100,11 @@ function sendNativeReturn(res, params = {}, opts = {}) {
   const web = webUrl ? esc(webUrl) : '';
   const primaryLabel = esc(opts.primaryLabel || 'PlanQ 계속하기');
   // 플랫폼별 한 줄 안내 — iOS 는 시스템 확인 창이 한 번 뜬다.
-  const hint = isIos
+  const platformHint = isIos
     ? '확인 창이 뜨면 ‘열기’ 를 누르세요.'
     : (isAndroid ? '잠시 뒤 앱이 열리지 않으면 아래 버튼을 누르세요.' : '아래 버튼을 누르면 앱이 열립니다.');
+  // 실패 착지(params.error)는 사유를 먼저 말하고, 앱으로 돌아가는 힌트를 뒤에 붙인다.
+  const hint = opts.message ? `${opts.message} ${platformHint}` : platformHint;
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
   return res.status(200).send(`<!doctype html><html lang="ko"><head>

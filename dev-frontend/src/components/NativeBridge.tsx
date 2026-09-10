@@ -117,6 +117,15 @@ export default function NativeBridge() {
               // ★ 2026-09-04 — 기존 회원의 구글 "연결 확인". 서버가 앱으로 먼저 돌려보내고
               //   확인 화면은 **앱 WebView 안에서** 연다(세션 쿠키가 앱에 심겨야 하므로).
               //   시스템 브라우저에서 확인시키면 쿠키가 거기 심겨 앱은 계속 로그인 화면에 머문다.
+              // ★ 2026-09-10 — 로그인 **실패**도 앱으로 돌아온다(서버 failLogin). 페어링을 지우고
+              //   로그인 화면이 사유를 말하게 한다. 이게 없으면 팝오버를 닫은 뒤 앱이 6자리 코드를
+              //   묻는다 — 로그인은 시작도 안 됐는데(Irene: "번호를 어쩌라는 건지").
+              const loginError = u.searchParams.get('error');
+              if (loginError) {
+                clearPair();
+                window.location.href = `/login?oauth_error=${encodeURIComponent(loginError)}`;
+                return;
+              }
               const confirmToken = u.searchParams.get('confirm');
               if (confirmToken) {
                 window.location.href = `/oauth/connect-confirm?token=${encodeURIComponent(confirmToken)}`;

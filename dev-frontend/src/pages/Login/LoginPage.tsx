@@ -402,6 +402,9 @@ const LoginPage: React.FC = () => {
       code_already_used: t('login.oauthErr.used', { defaultValue: '이미 사용된 로그인 링크예요. 다시 시도해 주세요.' }) as string,
       invalid_or_expired_code: t('login.oauthErr.expired', { defaultValue: '로그인 링크가 만료됐어요. 다시 시도해 주세요.' }) as string,
       account_unavailable: t('login.oauthErr.unavailable', { defaultValue: '사용할 수 없는 계정입니다. 관리자에게 문의해 주세요.' }) as string,
+      account_suspended: t('login.oauthErr.unavailable', { defaultValue: '사용할 수 없는 계정입니다. 관리자에게 문의해 주세요.' }) as string,
+      native_exchange: t('login.oauthErr.nativeExchange', { defaultValue: '앱으로 로그인 정보를 넘기지 못했어요. 다시 시도해 주세요.' }) as string,
+      invalid_request: t('login.oauthErr.generic', { defaultValue: 'Google 로그인을 마치지 못했어요. 다시 시도해 주세요.' }) as string,
     };
     setError(known[code] || (t('login.oauthErr.generic', { defaultValue: 'Google 로그인을 마치지 못했어요. 다시 시도해 주세요.' }) as string));
     // 한 번 보여준 뒤 주소에서 지운다 — 새로고침 때마다 다시 뜨지 않게.

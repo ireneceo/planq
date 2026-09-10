@@ -28,10 +28,24 @@ async function openNativeBrowser(url: string): Promise<void> {
 //   ★ 비밀(코드)은 개시 링크로 들어가지 않는다 — 첫 설계가 그렇게 했다가 계정 탈취가 됐다
 //     (dev-backend/services/oauthPairing.js 머리말).
 const PAIR_KEY = 'planq.oauth.pair';
+// 서버 pair TTL 과 같다(services/oauthPairing.js TTL_MS). 그보다 오래된 흐름은 서버에도 없다.
+const PAIR_TTL_MS = 10 * 60 * 1000;
 
-/** 앱이 코드 입력을 띄워야 하는지 — 진행 중인 페어링이 있으면 그 id. */
+/**
+ * 앱이 코드 입력을 띄워야 하는지 — 진행 중인 페어링이 있으면 그 id.
+ * ★ 2026-09-10 — 시각을 같이 저장하고 **10분 지난 것은 없는 것으로** 본다. 여태는 지우는 길이
+ *   성공/취소뿐이라, 팝오버를 그냥 닫고 며칠 뒤 앱을 켜도 "코드를 입력하세요" 가 떴다.
+ */
 export function pendingPairId(): string | null {
-  try { return localStorage.getItem(PAIR_KEY); } catch { return null; }
+  try {
+    const raw = localStorage.getItem(PAIR_KEY);
+    if (!raw) return null;
+    let id: string | null = null; let at = 0;
+    if (raw.startsWith('{')) { const j = JSON.parse(raw) as { id?: string; at?: number }; id = j.id || null; at = Number(j.at) || 0; }
+    // 옛 형식(문자열만) — 나이를 알 수 없으니 만료로 본다(한 번만 겪는다).
+    if (!id || !at || Date.now() - at > PAIR_TTL_MS) { localStorage.removeItem(PAIR_KEY); return null; }
+    return id;
+  } catch { return null; }
 }
 export function clearPair(): void {
   try { localStorage.removeItem(PAIR_KEY); } catch { /* private mode */ }
@@ -66,7 +80,7 @@ export async function startAuthRedirect(url: string): Promise<void> {
       const j = await r.json();
       const pairId = j?.data?.pair_id;
       if (pairId) {
-        localStorage.setItem(PAIR_KEY, pairId);
+        localStorage.setItem(PAIR_KEY, JSON.stringify({ id: pairId, at: Date.now() }));
         withPair += (url.includes('?') ? '&' : '?') + 'pair=' + encodeURIComponent(pairId);
       }
     } catch { /* 페어링 없이 딥링크만으로 진행 */ }

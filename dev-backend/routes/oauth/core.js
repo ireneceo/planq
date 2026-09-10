@@ -16,20 +16,34 @@ const { cookieSecure } = require('../../services/authTokens');
 const { helpers } = require('../auth');
 const { createRefreshTokenRow, generateRefreshToken, resolveClientKind, TTL_MS_BY_KIND, setSessionHint } = helpers;
 
-// connect-confirm token 임시 저장 (5분 만료, in-memory)
-//   ★ 이것도 재시작에 사라진다 — 사라지면 연결 확인이 "만료됨" 으로 뜬다.
-//     아래 usedNativeCodes 와 같은 이유로 DB 로 옮겨야 하지만, 외부 연동 경로라
-//     별도 검증이 필요해 이번 범위에서 제외했다(2026-09-10). 남은 일이다.
-const confirmStash = new Map();
-
-// ── 네이티브 OAuth 일회용 code 재사용(replay) 차단 원장 ──────────────────────
-// ★ 2026-09-10 — 메모리 Map 에서 **DB 로** 옮겼다 (Fable 게이트 지적).
-//   재시작하면 "이미 쓴 code" 기록이 사라져 **JWT 만료(2분)까지 재사용 창이 다시 열렸다.**
-//   배포는 하루에도 여러 번 한다. 그리고 cluster 로 바뀌면 프로세스마다 원장이 갈라져
-//   replay 차단이 아예 성립하지 않는다.
-//   ★ jti 는 비밀이 아니다(이미 쓴 표식일 뿐) — payload 없이 키만 남긴다.
+// connect-confirm token — "이 계정에 구글을 연결할까요?" 확인 사이를 잇는 5분짜리 토큰.
+//   ★ 2026-09-10 — 메모리 `Map`(confirmStash) 에서 `ephemeral_tokens`(kind='oauth_confirm') 로.
+//     배포 재시작마다 사라져 확인 화면이 "만료됨" 으로 떨어졌다. 소비는 `consume`(삭제 건수) 로
+//     1회용을 원자화한다 — 옛 `get → delete` 두 문장은 동시 요청이 둘 다 통과한다.
 const ephemeral = require('../../services/ephemeralStore');
 const USED_CODE_KIND = 'oauth_used_code';
+const CONFIRM_KIND = 'oauth_confirm';
+const CONFIRM_TTL_MS = 5 * 60 * 1000;
+
+/** 확인 토큰을 만든다(값은 user_id·구글 프로필 조각 — 비밀 아님). 토큰 문자열을 돌려준다. */
+async function stashConfirm(data) {
+  const token = require('crypto').randomBytes(24).toString('base64url');
+  await ephemeral.set(CONFIRM_KIND, token, data || null, CONFIRM_TTL_MS);
+  return token;
+}
+/** 확인 화면이 보여줄 정보 — 읽기만 한다(소비하지 않는다). 없거나 만료면 null. */
+async function peekConfirm(token) {
+  if (!token || typeof token !== 'string' || token.length > 191) return null;
+  const row = await ephemeral.get(CONFIRM_KIND, token);
+  return row ? (row.payload || null) : null;
+}
+/** 확인/취소가 눌리면 **한 번만** 소비한다. 동시에 둘이 오면 한쪽만 payload 를 받는다. */
+async function consumeConfirm(token) {
+  const payload = await peekConfirm(token);
+  if (!payload) return null;
+  const removed = await ephemeral.consume(CONFIRM_KIND, token);
+  return removed === 1 ? payload : null;
+}
 
 /**
  * **"이 code 를 지금 처음 쓴다" 를 원자적으로 주장한다.** 처음이면 true, 이미 쓰였으면 false.
@@ -44,14 +58,8 @@ async function claimNativeCodeOnce(jti, expMs) {
   return ephemeral.setIfAbsent(USED_CODE_KIND, String(jti), null, ttl);
 }
 
-// 만료 정리 — ephemeral 쪽은 자기 sweeper 가 돈다. 여기 타이머는 confirmStash 만 본다.
+// 만료 정리는 ephemeralStore 의 sweeper 한 곳이 한다(pair·used_code·confirm·state 전부).
 ephemeral.startSweeper();
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of confirmStash.entries()) {
-    if (v.exp < now) confirmStash.delete(k);
-  }
-}, 30000);
 
 // 네이티브 앱 OAuth: 시스템 브라우저 세션에 로그인해도 세션 쿠키가 앱 WebView 로 전달되지 않음.
 //   → callback 에서 일회용 code(2분, jti 단일사용) 발급 → 딥링크로 앱 복귀 → 앱이 WebView 컨텍스트에서
@@ -174,7 +182,7 @@ async function issueSessionCookie(req, res, user) {
 }
 
 module.exports = {
-  confirmStash, claimNativeCodeOnce,
+  stashConfirm, peekConfirm, consumeConfirm, claimNativeCodeOnce,
   isNativeOAuth, issueNativeOAuthCode, generateSlug, setupNewWorkspace,
   buildRedirectTarget, issueSessionCookie,
 };

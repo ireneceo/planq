@@ -5,7 +5,7 @@ const { authenticateToken } = require('../../middleware/auth');
 // CLAUDE.md — 모든 GET list 는 parsePagination + paginatedResponse (unbounded 응답 차단).
 //   `data` 는 여전히 배열이라 기존 화면(ProfileIntegrationsPage 가 r2.data 를 그대로 쓴다)은 무변경.
 const { parsePagination, paginatedResponse } = require('../../middleware/errorHandler');
-const { confirmStash, issueSessionCookie } = require('./core');
+const { peekConfirm, consumeConfirm, issueSessionCookie } = require('./core');
 
 module.exports = function registerConnectionRoutes(router) {
 // ─── N+70 Task 62 — Connect Confirm 흐름 + Settings API ─────────
@@ -15,16 +15,17 @@ module.exports = function registerConnectionRoutes(router) {
 // 3. 사용자가 "예 연결" 클릭 → POST /api/auth/google/connect-confirm
 
 // GET /api/auth/google/connect-confirm/info?token=...
-router.get('/google/connect-confirm/info', (req, res) => {
-  const token = String(req.query.token || '');
-  const stash = confirmStash.get(token);
-  if (!stash || stash.exp < Date.now()) {
-    return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
-  }
-  // user lookup
-  User.findByPk(stash.user_id, { attributes: ['id', 'email', 'name', 'avatar_url'] }).then(u => {
+router.get('/google/connect-confirm/info', async (req, res) => {
+  try {
+    const token = String(req.query.token || '');
+    // 읽기만 한다 — 확인 화면이 몇 번 새로고침돼도 토큰은 남아 있어야 한다. 소비는 POST 가 한다.
+    const stash = await peekConfirm(token);
+    if (!stash) {
+      return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
+    }
+    const u = await User.findByPk(stash.user_id, { attributes: ['id', 'email', 'name', 'avatar_url'] });
     if (!u) return res.status(404).json({ success: false, message: 'user_not_found' });
-    res.json({
+    return res.json({
       success: true,
       data: {
         existing_user: { id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url },
@@ -35,18 +36,20 @@ router.get('/google/connect-confirm/info', (req, res) => {
         },
       },
     });
-  }).catch(e => res.status(500).json({ success: false, message: e.message }));
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message });
+  }
 });
 
 // POST /api/auth/google/connect-confirm  body: { token, action: 'connect' | 'cancel' }
 router.post('/google/connect-confirm', async (req, res) => {
   try {
     const { token, action } = req.body || {};
-    const stash = confirmStash.get(String(token));
-    if (!stash || stash.exp < Date.now()) {
+    // ★ 한 문장으로 소비한다(삭제 건수 원자화) — 연결 버튼이 두 번 눌려도 한 번만 붙는다.
+    const stash = await consumeConfirm(String(token || ''));
+    if (!stash) {
       return res.status(400).json({ success: false, message: 'invalid_or_expired_token' });
     }
-    confirmStash.delete(token);
     if (action !== 'connect') {
       return res.json({ success: true, data: { action: 'cancelled' } });
     }
@@ -104,12 +107,16 @@ router.get('/oauth-connections', authenticateToken, async (req, res) => {
 });
 
 // POST /api/auth/oauth-connections/google/initiate — 로그인된 사용자가 Settings 에서 Google 연결 시작
-router.post('/oauth-connections/google/initiate', authenticateToken, (req, res) => {
+router.post('/oauth-connections/google/initiate', authenticateToken, async (req, res) => {
   // state 에 user_id 추가 — callback 에서 분기 2 거치지 않고 직접 연결
   // 단순화 — 기존 initiate 그대로 사용. callback 시 email 매칭으로 attach.
   // 향후: state encode user_id 로 명시 attach
-  const { url } = googleOauthLogin.buildAuthUrl();
-  res.json({ success: true, data: { auth_url: url } });
+  try {
+    const { url } = await googleOauthLogin.buildAuthUrl();
+    res.json({ success: true, data: { auth_url: url } });
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'initiate_failed' });
+  }
 });
 
 // DELETE /api/auth/oauth-connections/:id — 본인 연결 해제

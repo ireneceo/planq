@@ -8,13 +8,13 @@ const { sendNativeReturn } = require('../../utils/nativeReturn');
 const { logOauthFailure } = require('../../utils/oauthLog');
 const oauthPairing = require('../../services/oauthPairing');
 const {
-  confirmStash, claimNativeCodeOnce, isNativeOAuth, issueNativeOAuthCode,
+  stashConfirm, claimNativeCodeOnce, isNativeOAuth, issueNativeOAuthCode,
   setupNewWorkspace, buildRedirectTarget, issueSessionCookie,
 } = require('./core');
 
 module.exports = function registerLoginRoutes(router) {
 // 1. Google OAuth 시작
-router.get('/google/initiate', (req, res) => {
+router.get('/google/initiate', async (req, res) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID) {
       return res.redirect(302, buildRedirectTarget({ ok: false, error: 'GOOGLE_CLIENT_ID 미설정' }));
@@ -31,12 +31,35 @@ router.get('/google/initiate', (req, res) => {
     //   ★ 비밀(코드)은 절대 여기로 들어오지 않는다 — 첫 설계가 그렇게 했다가 ATO 가 됐다.
     const pair = typeof req.query.pair === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(req.query.pair)
       ? req.query.pair : null;
-    const { url } = googleOauthLogin.buildAuthUrl(pair);
+    const { url } = await googleOauthLogin.buildAuthUrl(pair);
     return res.redirect(302, url);
   } catch (e) {
     return res.redirect(302, buildRedirectTarget({ ok: false, error: e.message }));
   }
 });
+
+// 로그인 실패 착지 — **네이티브 흐름이면 복귀 페이지**, 웹이면 /login?oauth_error= (종전).
+//   ★ 2026-09-10 — 여태 네이티브 실패도 `/login?oauth_error=` 로 302 했다. 그 주소는 **시스템 브라우저
+//     (팝오버) 안의 웹 로그인 화면**이라, 취소·만료 한 번에 사용자는 팝오버 안 로그인 페이지에 갇혔고
+//     팝오버를 닫으면 앱은 6자리 코드를 물었다(로그인은 시작도 안 됐는데). 실패도 앱으로 돌려보내
+//     앱이 **왜 실패했는지 말하게** 한다 — NativeBridge 가 `error` 를 받아 페어링을 지우고
+//     /login?oauth_error= 로 간다.
+function failLogin(req, res, reason) {
+  const code = String(reason || 'oauth_failed').slice(0, 64);
+  if (!isNativeOAuth(req)) return res.redirect(302, buildRedirectTarget({ ok: false, error: code }));
+  res.clearCookie('oauth_native', { path: '/api/auth' });
+  const MSG = {
+    access_denied: 'Google 로그인이 취소됐습니다.',
+    invalid_state: '로그인 시간이 초과됐습니다. 앱에서 다시 시도해 주세요.',
+    email_not_verified: '이메일이 확인되지 않은 Google 계정입니다.',
+    account_suspended: '사용할 수 없는 계정입니다. 관리자에게 문의해 주세요.',
+  };
+  return sendNativeReturn(res, { error: code }, {
+    title: '로그인을 마치지 못했습니다',
+    message: MSG[code] || 'Google 로그인을 마치지 못했습니다. 앱에서 다시 시도해 주세요.',
+    userAgent: req.get('user-agent'),
+  });
+}
 
 // 2. Google OAuth callback — CSP 정합 (inline script X, fragment redirect)
 router.get('/google/callback', async (req, res) => {
@@ -45,24 +68,24 @@ router.get('/google/callback', async (req, res) => {
     const logCtx = { ua: String(req.get('user-agent') || '').slice(0, 120), native: isNativeOAuth(req) || undefined };
     if (oauthError) {
       logOauthFailure('auth/google callback', String(oauthError), logCtx);
-      return res.redirect(302, buildRedirectTarget({ ok: false, error: oauthError }));
+      return failLogin(req, res, oauthError);
     }
     if (!code || !state) {
       logOauthFailure('auth/google callback', 'invalid_request', logCtx);
-      return res.redirect(302, buildRedirectTarget({ ok: false, error: 'invalid_request' }));
+      return failLogin(req, res, 'invalid_request');
     }
-    const stateEntry = googleOauthLogin.consumeStateEntry(String(state));
+    const stateEntry = await googleOauthLogin.consumeStateEntry(String(state));
     if (!stateEntry) {
       // 대개 ①서버 재시작으로 메모리 state 가 날아갔거나 ②콜백이 두 번 로드됐거나 ③5분 초과.
       logOauthFailure('auth/google callback', 'invalid_state', logCtx);
-      return res.redirect(302, buildRedirectTarget({ ok: false, error: 'invalid_state' }));
+      return failLogin(req, res, 'invalid_state');
     }
     const pairId = stateEntry.challenge;   // state 가 나른 흐름 식별자
 
     const profile = await googleOauthLogin.exchangeCodeForProfile(String(code));
     if (!profile.email_verified) {
       logOauthFailure('auth/google callback', 'email_not_verified', logCtx);
-      return res.redirect(302, buildRedirectTarget({ ok: false, error: 'email_not_verified' }));
+      return failLogin(req, res, 'email_not_verified');
     }
 
     const { Op } = require('sequelize');
@@ -97,16 +120,14 @@ router.get('/google/callback', async (req, res) => {
       });
       if (prospectUser) {
         // 연결 확인 페이지로 redirect — 사용자 명시 동의 필요
-        // confirm token 5분 in-memory (간단)
-        const confirmToken = require('crypto').randomBytes(24).toString('base64url');
-        confirmStash.set(confirmToken, {
+        // confirm token 5분 — ephemeral_tokens(kind=oauth_confirm). 재시작에도 남는다(2026-09-10).
+        const confirmToken = await stashConfirm({
           user_id: prospectUser.id,
           provider: 'google',
           subject: profile.google_sub,
           email: profile.email,
           display_name: profile.name,
           picture: profile.picture,
-          exp: Date.now() + 5 * 60 * 1000,
         });
         // ★ 2026-09-04 — 네이티브 분기가 없어서 이 경로가 **앱에서 막혀 있었다.**
         //   기존 회원이 구글로 로그인하면(= 아직 연결 안 된 계정) 여기로 오는데, 웹 경로로
@@ -180,7 +201,8 @@ router.get('/google/callback', async (req, res) => {
     }
 
     if (user.status !== 'active') {
-      return res.redirect(302, buildRedirectTarget({ ok: false, error: 'account_suspended' }));
+      logOauthFailure('auth/google callback', 'account_suspended', logCtx);
+      return failLogin(req, res, 'account_suspended');
     }
 
     // 네이티브 앱: 시스템 브라우저에 쿠키를 심지 말고, 일회용 code 를 딥링크로 앱에 전달 (H-2).
@@ -214,7 +236,7 @@ router.get('/google/callback', async (req, res) => {
     return res.redirect(302, buildRedirectTarget({ ok: true, isNewUser }));
   } catch (e) {
     console.error('[auth_oauth/google/callback]', e);
-    return res.redirect(302, buildRedirectTarget({ ok: false, error: e.message || 'oauth_failed' }));
+    return failLogin(req, res, 'oauth_failed');
   }
 });
 

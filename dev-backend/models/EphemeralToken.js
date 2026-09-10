@@ -29,7 +29,7 @@ EphemeralToken.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   // 용도. 새 용도를 더할 때 ENUM 을 늘린다 — 아무 문자열이나 받으면 무엇이 들었는지 알 수 없다.
   kind: {
-    type: DataTypes.ENUM('oauth_pair', 'oauth_used_code', 'oauth_confirm'),
+    type: DataTypes.ENUM('oauth_pair', 'oauth_used_code', 'oauth_confirm', 'oauth_state'),
     allowNull: false,
   },
   // 조회 키. pairId · jti · confirm token 등. **비밀이 아닌 것만** 여기 온다.

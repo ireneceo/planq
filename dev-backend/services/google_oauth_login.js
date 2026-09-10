@@ -11,33 +11,39 @@ const crypto = require('crypto');
 
 const SCOPES = ['openid', 'email', 'profile'];
 
-// state 캐시 (CSRF) — 5분 만료. 값은 { exp, pair } — pair 는 앱 페어링 **흐름 식별자**다.
+// state (CSRF) — 5분 만료. 값은 { pair } — pair 는 앱 페어링 **흐름 식별자**다.
 //   ★ pair 는 비밀이 아니다(누가 알아도 무해). 비밀인 6자리 코드는 콜백이 만들어
 //     **그 브라우저 화면에만** 보여준다 — services/oauthPairing.js 머리말 참조.
-const stateCache = new Map();
+//
+// ★ 2026-09-10 — 메모리 `Map` 에서 `ephemeral_tokens`(kind='oauth_state') 로 옮겼다.
+//   배포(PM2 reload)마다 Map 이 비어, 그 순간 Google 동의 화면에 있던 사용자는 돌아와서
+//   전부 `invalid_state` 를 받았다 — 4개 환경(웹·PWA·iOS·Android) 공통, 사용자에게는
+//   "가끔 로그인이 안 된다". state 는 CSRF 방어이므로 **1회용 원자성**을 지킨다:
+//   payload 는 먼저 읽되, 소비 권리는 `consume`(삭제 건수 === 1)이 가른다 — 콜백이 두 번
+//   로드돼도 한쪽만 통과한다.
+const ephemeral = require('./ephemeralStore');
+const STATE_KIND = 'oauth_state';
 const STATE_TTL_MS = 5 * 60 * 1000;
 
-function genState(pair) {
+async function genState(pair) {
   const s = crypto.randomBytes(24).toString('base64url');
-  stateCache.set(s, { exp: Date.now() + STATE_TTL_MS, pair: pair || null });
-  // 청소 — 만료된 state 제거
-  for (const [k, v] of stateCache.entries()) {
-    if (v.exp < Date.now()) stateCache.delete(k);
-  }
+  await ephemeral.set(STATE_KIND, s, { pair: pair || null }, STATE_TTL_MS);
   return s;
 }
 
-/** state 를 소비하고 함께 실려온 pair 를 돌려준다. 유효하지 않으면 null. */
-function consumeStateEntry(s) {
-  if (!s) return null;
-  const v = stateCache.get(s);
-  if (!v || v.exp < Date.now()) return null;
-  stateCache.delete(s);
-  return { exp: v.exp, challenge: v.pair };   // 호출부 이름 호환
+/** state 를 **한 번만** 소비하고 함께 실려온 pair 를 돌려준다. 유효하지 않거나 이미 쓰였으면 null. */
+async function consumeStateEntry(s) {
+  if (!s || typeof s !== 'string' || s.length > 191) return null;
+  const row = await ephemeral.get(STATE_KIND, s);        // 만료면 null(행도 지운다)
+  if (!row) return null;
+  const pair = (row.payload && row.payload.pair) || null;
+  const removed = await ephemeral.consume(STATE_KIND, s);  // 동시 콜백 — 1 을 받은 쪽만 유효
+  if (removed !== 1) return null;
+  return { exp: new Date(row.expires_at).getTime(), challenge: pair };   // 호출부 이름 호환
 }
 
 // 참/거짓만 쓰던 옛 호출부 호환.
-function consumeState(s) { return !!consumeStateEntry(s); }
+async function consumeState(s) { return !!(await consumeStateEntry(s)); }
 
 function getRedirectUri() {
   // 우선순위: 명시 env > APP_BASE_URL > GOOGLE_REDIRECT_URI(gdrive/gcal 공유)의 origin > dev 폴백.
@@ -61,9 +67,9 @@ function newClient() {
 }
 
 // 1. authorization URL 생성 — frontend 가 사용자 redirect
-function buildAuthUrl(pair) {
+async function buildAuthUrl(pair) {
   const client = newClient();
-  const state = genState(pair);
+  const state = await genState(pair);
   const url = client.generateAuthUrl({
     access_type: 'online',           // refresh_token 안 받음 (로그인만 — 매번 새로)
     scope: SCOPES,
