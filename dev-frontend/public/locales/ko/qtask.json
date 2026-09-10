@@ -1214,7 +1214,9 @@
       "no_recurrence": "{{n}}건에 반복 규칙이 없습니다",
       "instruction_short": "{{n}}건의 지침이 {{min}}자 미만입니다 — 필요하면 직접 보완하세요",
       "no_area_assignment": "영역 {{n}}개가 제안됐지만 업무가 어느 영역에도 배치되지 않았습니다 — 확정하면 영역 없이 만들어집니다"
-    }
+    },
+    "workstreamNone": "그룹 없음",
+    "workstreamCreate": "'{{name}}' 새 그룹으로 만들기"
   },
   "bar": {
     "resumeTitle": "이 업무 진행 중",
@@ -1295,10 +1297,8 @@
       "errNetwork": "연결에 실패했습니다",
       "needSubmit": "확인 요청이 필요해요 — 눌러서 상세에서 보내기",
       "start": "업무 시작",
-      "stop": "업무 중지",
-      "startTip": "시작 — 이 업무로 시간을 측정합니다",
-      "stopTip": "중지 — 시간 측정을 멈춥니다",
-      "running": "{{n}}분"
+      "running": "{{n}}분",
+      "notStarted": "아직 시작 전"
     },
     "priorityN": "우선순위 {{n}}",
     "prioritySet": "우선순위 지정",

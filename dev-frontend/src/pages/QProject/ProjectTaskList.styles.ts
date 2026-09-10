@@ -75,7 +75,17 @@ export const NameChip = styled.span<{$type:'from'|'to'|'observer'}>`
 // 그룹 이동 (행별 드롭다운)
 export const GroupMoveWrap = styled.div`position:relative;flex-shrink:0;`;
 export const GroupMoveBtn = styled.button`display:inline-flex;align-items:center;gap:1px;height:24px;padding:0 5px;background:transparent;border:1px solid transparent;border-radius:6px;color:#94A3B8;cursor:pointer;&:hover{background:#F1F5F9;color:#0F766E;border-color:#E2E8F0;}`;
-export const GroupMenu = styled.div`position:absolute;top:100%;left:0;z-index:120;min-width:160px;max-height:240px;overflow-y:auto;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;margin-top:4px;`;
+// $floating — **body 로 포털될 때** 쓴다. 행의 업무명 셀은 overflow:hidden 이라
+//   절대배치 메뉴가 통째로 잘린다(2026-09-10 "눌러도 반응이 없는데" 의 정체).
+//   그때는 조상 좌표계를 못 쓰므로 viewport 기준(fixed)으로 세운다.
+//   그룹 헤더의 ⋯ 메뉴는 자르는 조상이 없어 종전대로 absolute 를 쓴다.
+export const GroupMenu = styled.div<{ $floating?: boolean }>`
+  ${({ $floating }) => ($floating
+    ? 'position:fixed;z-index:9000;'
+    : 'position:absolute;top:100%;left:0;z-index:120;margin-top:4px;')}
+  min-width:160px;max-height:240px;overflow-y:auto;background:#FFF;border:1px solid #E2E8F0;
+  border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.12);padding:4px;
+`;
 export const GroupMenuItem = styled.button<{$active?:boolean;$danger?:boolean}>`
   display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;font-size:0.75rem;text-align:left;border:none;border-radius:6px;cursor:pointer;
   background:${p=>p.$active?'#F0FDFA':'transparent'};

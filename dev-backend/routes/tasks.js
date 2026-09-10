@@ -721,6 +721,17 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       if (!hint || !wsByName.size) return null;
       return wsByName.get(String(hint).replace(/\s+/g, '').toLowerCase()) || null;
     };
+    // 사용자가 미리보기에서 **직접 고른** 그룹 id. 이름 힌트보다 우선한다 — 사람 > AI.
+    //   ★ 2026-09-10 (Irene: "AI로 업무추가 하면서 그룹도 정의되어야지. 빠졌어.")
+    //     수동 추가 3경로(드로어 폼·그룹 인라인·행 아래 quick-add)는 전부 **id 를 보내는데**
+    //     AI 경로만 이름 문자열(workstream_hint)에 기대고 있었다. 프로젝트에 그룹이 하나도 없으면
+    //     LLM 에게 줄 이름 목록이 비어 힌트가 항상 null 이라 **100% 미배치**였다.
+    //   반드시 이 프로젝트의 것이어야 한다 — 남의 프로젝트 id 를 꽂는 것을 여기서 끊는다.
+    const wsIdSet = new Set(wsByName.values());
+    const pickedWorkstream = (raw) => {
+      const id = Number(raw);
+      return Number.isInteger(id) && wsIdSet.has(id) ? id : null;
+    };
 
     // ── #354 루틴 확정 ① 영역(워크스트림) 먼저 착지 ──────────────────────────
     //   순서가 고정이다: 영역 → 업무 → 링크. 업무가 workstream_id 를 들고 태어나야
@@ -866,9 +877,10 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         // #354 — 루틴 모드는 영역 인덱스로 **id 직결**한다. 이름 왕복 매칭은 방금 만든 영역을
         //   문자열로 다시 찾는 셈이라 정규화가 한 톨만 어긋나도 미배치가 된다.
         //   루틴이 아니면 종전대로 이름 힌트 매칭(하위호환).
+        //   우선순위: 루틴 영역 id 직결 > **사용자가 고른 그룹** > 이름 힌트 매칭(하위호환).
         workstreamId: (isRoutineConfirm && Number.isInteger(c.area_ref) && areaIdxToWsId.has(c.area_ref))
           ? areaIdxToWsId.get(c.area_ref)
-          : matchWorkstream(c.workstream_hint),
+          : (pickedWorkstream(c.workstream_id) ?? matchWorkstream(c.workstream_hint)),
         // #353 ⑤ — **여기가 값이 죽던 지점이다.** LLM 은 low/normal/high/urgent 를 내고
         //   후보 JSON 이 프론트까지 살아서 오는데, 확정할 때 이 한 줄이 없어서 매번 버려졌다.
         //   사용자가 카드에서 고쳐 보낸 값이 있으면 그것이 우선이다(사람 > AI).

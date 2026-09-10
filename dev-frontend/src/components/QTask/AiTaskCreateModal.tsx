@@ -1,14 +1,16 @@
 // AI 업무 추가 모달 — /docs (PostAiModal) 와 1:1 동일 디자인.
 // Backdrop + Dialog + Header + Body + FormActions 전부 PostAiModal 패턴 복제.
 // 자연어 한 줄 → AI 가 다중 업무 분해 → 미리보기 → 일괄 확정.
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
+import { modalFooterRadius } from '../Common/modalShell';
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
 import PlanQSelect from '../Common/PlanQSelect';
 import SingleDateField from '../Common/SingleDateField';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
+import { listWorkstreams, createWorkstream } from '../../services/projectCanvas';
 import AiCandidateCard, { type AiCandidate } from './AiCandidateCard';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
 import AiAreaBlock, { type AiArea } from './AiAreaBlock';
@@ -57,6 +59,31 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(projectId || null);
+  // 이 프로젝트의 업무그룹 — 미리보기 카드에서 **고를 수 있게** 실어 준다.
+  //   ★ 2026-09-10 (Irene: "AI로 업무추가 하면서 그룹도 정의되어야지. 빠졌어.")
+  //     서버는 이름 힌트가 기존 그룹과 정확히 같을 때만 배치했고, 프로젝트에 그룹이 없으면
+  //     LLM 에게 줄 이름 자체가 없어 늘 미분류였다. 목록을 줘서 사람이 정하게 한다.
+  const [workstreams, setWorkstreams] = useState<{ id: number; title: string }[]>([]);
+  useEffect(() => {
+    if (!open || !selectedProjectId) { setWorkstreams([]); return; }
+    let dead = false;
+    listWorkstreams(selectedProjectId)
+      .then((ws) => { if (!dead) setWorkstreams(ws.map((w) => ({ id: w.id, title: w.title }))); })
+      .catch(() => { /* 못 불러오면 칩만 보인다 — 고르기가 없을 뿐 흐름은 막지 않는다 */ });
+    return () => { dead = true; };
+  }, [open, selectedProjectId]);
+
+  // 새 그룹 만들기 — **기존 라우트**를 그대로 쓴다(소속·권한 검사를 물려받는다).
+  const handleCreateGroup = useCallback(async (title: string) => {
+    if (!selectedProjectId) return null;
+    try {
+      const made = await createWorkstream(selectedProjectId, { title });
+      const lite = { id: made.id, title: made.title };
+      setWorkstreams((prev) => (prev.some((w) => w.id === lite.id) ? prev : [...prev, lite]));
+      return lite;
+    } catch { return null; }
+  }, [selectedProjectId]);
+
   const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().slice(0, 10));
   // AI 템플릿 추천 — input 단계에서 prompt debounce 매칭
   const [recMatch, setRecMatch] = useState<TemplateMatch | null>(null);
@@ -168,7 +195,16 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
         setStage('input');
         return;
       }
-      const list: Candidate[] = (j.data?.candidates || []).map((c: Candidate) => ({ ...c, selected: true }));
+      // 힌트 이름이 기존 그룹과 맞으면 **미리 골라 둔다** — 사용자가 매번 같은 선택을 반복할 이유가 없다.
+      //   비교 규칙은 서버(routes/tasks.js matchWorkstream)와 같다: 공백·대소문자만 무시.
+      const wsNorm = new Map(workstreams.map((w) => [w.title.replace(/\s+/g, '').toLowerCase(), w.id]));
+      const list: Candidate[] = (j.data?.candidates || []).map((c: Candidate) => ({
+        ...c,
+        selected: true,
+        workstream_id: c.workstream_hint
+          ? (wsNorm.get(String(c.workstream_hint).replace(/\s+/g, '').toLowerCase()) ?? null)
+          : null,
+      }));
       if (list.length === 0) {
         setError(t('ai.noCandidates', '업무를 추출하지 못했어요. 더 구체적으로 입력해 주세요.') as string);
         setStage('input');
@@ -423,6 +459,8 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                     baseDate={baseDate}
                     onChange={(patch) => updateCand(c.idx, patch)}
                     hasProject={!!selectedProjectId}
+                    workstreams={workstreams}
+                    onCreateGroup={handleCreateGroup}
                   />
                 ))}
               </CardList>
@@ -518,6 +556,8 @@ const Footer = styled.div`
   padding: 12px 22px 18px;
   flex-shrink: 0;
   border-top: 1px solid #F1F5F9; background: #fff;
+  /* 하단 라운드 — 배경이 껍데기 라운드를 덮지 않게. 규격은 Common/modalShell 하나다. */
+  ${modalFooterRadius}
 `;
 const AIForm = styled.div`display:flex;flex-direction:column;gap:14px;`;
 const AIDesc = styled.div`font-size:0.75rem;color:#64748B;line-height:1.5;`;

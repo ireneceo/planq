@@ -1214,7 +1214,9 @@
       "no_recurrence": "{{n}} tasks have no recurrence rule",
       "instruction_short": "{{n}} guides are under {{min}} characters — fill them in yourself if needed",
       "no_area_assignment": "{{n}} areas were proposed but no task was assigned to any of them — they will be created without an area"
-    }
+    },
+    "workstreamNone": "No group",
+    "workstreamCreate": "Create '{{name}}' as a new group"
   },
   "bar": {
     "resumeTitle": "In progress",
@@ -1295,10 +1297,8 @@
       "errNetwork": "Connection failed",
       "needSubmit": "Needs a review request — tap to open details and send",
       "start": "Start work",
-      "stop": "Stop work",
-      "startTip": "Start — track time on this task",
-      "stopTip": "Stop — pause time tracking",
-      "running": "{{n}}m"
+      "running": "{{n}}m",
+      "notStarted": "Not started yet"
     },
     "priorityN": "Priority {{n}}",
     "prioritySet": "Set priority",

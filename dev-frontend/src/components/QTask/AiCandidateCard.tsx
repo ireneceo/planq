@@ -30,6 +30,11 @@ export interface AiCandidate {
   instruction_truncated?: boolean;
   /** #353 ② — 업무그룹(워크스트림) 이름 힌트. 확정 시 서버가 이 프로젝트 그룹과 대조해 배치한다. */
   workstream_hint?: string | null;
+  /** 사용자가 미리보기에서 **직접 고른** 그룹 id. 이름 힌트보다 우선한다(사람 > AI).
+   *  ★ 2026-09-10 — 여태 이 값이 없어 AI 로 만든 업무가 거의 항상 "(그룹 없음)" 으로 떨어졌다.
+   *    수동 추가 경로들은 전부 id 를 보내는데 AI 경로만 이름 문자열에 기대고 있었고,
+   *    프로젝트에 그룹이 하나도 없으면 LLM 에게 줄 이름이 없어 힌트가 늘 비었다. */
+  workstream_id?: number | null;
   /** #354 루틴 설계 — 이 업무가 속한 영역의 0-base 번호. 확정 시 이름이 아니라 **id 로 직결**한다.
    *  범위 밖이면 서버가 null 로 떨어뜨리고 area_ref_dropped 로 알린다(조용히 버리지 않는다). */
   area_ref?: number | null;
@@ -54,6 +59,7 @@ export interface AiCandidate {
 }
 
 export interface AiCardMember { user_id: number; name: string; }
+export interface AiCardWorkstream { id: number; title: string; }
 
 // 날짜 헬퍼 (UTC 기준 — 표시용). 모달·바 공통 사용.
 export function addDaysISO(baseISO: string, days: number): string {
@@ -74,9 +80,18 @@ interface Props {
   /** 프로젝트가 선택돼 있는가 — 담당자 미지정 시 서버가 프로젝트 기본담당자/PM 에게 배정한다.
    *  이 값에 따라 안내 문구가 달라져야 한다 (틀린 약속 금지). */
   hasProject?: boolean;
+  /** 이 프로젝트의 업무그룹(워크스트림). 목록이 있어야 **고를 수 있다** — 없으면 칩만 보인다. */
+  workstreams?: AiCardWorkstream[];
+  /** 힌트 이름으로 새 그룹 만들기. 만든 그룹을 돌려주면 그 자리에서 선택된다.
+   *  ★ 생성은 반드시 기존 라우트(POST /api/projects/:id/workstreams)를 통한다 —
+   *    여기서 새 문을 내면 그 라우트의 소속·권한 검사를 우회하게 된다. */
+  onCreateGroup?: (title: string) => Promise<AiCardWorkstream | null>;
 }
 
-export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false }: Props) {
+// 셀렉트에서 '새로 만들기' 를 나타내는 자리표 — 실제 id 와 섞이지 않게 숫자가 아닌 값을 쓴다.
+const NEW_GROUP = '__new__';
+
+export default function AiCandidateCard({ candidate: c, members, baseDate, onChange, hasProject = false, workstreams = [], onCreateGroup }: Props) {
   const { t } = useTranslation('qtask');
   // 정기 루틴 선택지 — raw <select> 금지 규칙에 따라 PlanQSelect 로 그린다 (health-check 항목).
   // 운영 #263 — 담당자 이름 해석의 단일 규칙.
@@ -90,6 +105,17 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
     d.setUTCDate(d.getUTCDate() + (c.due_offset_days || 0));
     return d.toISOString().slice(0, 10);
   }, [baseDate, c.due_offset_days]);
+  // 힌트 이름이 기존 그룹과 안 맞는가 — 맞으면 만들 필요가 없다(같은 이름이 두 벌 생기는 것을 막는다).
+  //   비교 규칙은 서버(routes/tasks.js matchWorkstream)와 **같아야** 한다: 공백·대소문자만 무시.
+  const norm = (v: string) => v.replace(/\s+/g, '').toLowerCase();
+  const hintUnmatched = !!c.workstream_hint
+    && !workstreams.some((w) => norm(w.title) === norm(c.workstream_hint as string))
+    && !!onCreateGroup;
+  const createFromHint = async () => {
+    if (!onCreateGroup || !c.workstream_hint) return;
+    const made = await onCreateGroup(c.workstream_hint);
+    if (made) onChange({ workstream_id: made.id });
+  };
   const unknownLabel = t('ai.assigneeUnknown', '알 수 없는 담당자') as string;
   const assigneeLabel = (uid: number) =>
     members.find(m => m.user_id === uid)?.name || c.assignee_display_name || unknownLabel;
@@ -217,11 +243,36 @@ export default function AiCandidateCard({ candidate: c, members, baseDate, onCha
             </RecurWrap>
           </MetaItem>
         ))}
-        {c.workstream_hint && (
+        {/* 업무그룹 — **여기서 고른다.** 종전에는 AI 가 낸 이름을 읽기 전용 칩으로 보여만 줘서
+            이름이 기존 그룹과 글자까지 같지 않으면 그대로 미분류로 떨어졌다.
+            그룹이 아직 하나도 없으면 고를 것이 없으므로 힌트 칩만 두고, 힌트가 있으면
+            그 이름으로 만들 수 있게 한다(생성은 기존 라우트를 통한다). */}
+        {(workstreams.length > 0 || c.workstream_hint) && (
           <MetaItem>
-            <GroupChip title={c.workstream_hint}>
-              {t('ai.workstreamChip', '그룹 {{name}}', { name: c.workstream_hint })}
-            </GroupChip>
+            <MetaIcon>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+            </MetaIcon>
+            {workstreams.length > 0 ? (
+              <PlanQSelect size="sm" isClearable
+                placeholder={t('ai.workstreamNone', '그룹 없음') as string}
+                value={(() => {
+                  const w = workstreams.find((x) => x.id === c.workstream_id);
+                  return w ? { value: String(w.id), label: w.title } : null;
+                })()}
+                onChange={(v) => {
+                  const raw = (v as { value?: string })?.value;
+                  if (raw === NEW_GROUP) { void createFromHint(); return; }
+                  onChange({ workstream_id: raw ? Number(raw) : null });
+                }}
+                options={[
+                  ...workstreams.map((w) => ({ value: String(w.id), label: w.title })),
+                  ...(hintUnmatched ? [{ value: NEW_GROUP, label: t('ai.workstreamCreate', "'{{name}}' 새 그룹으로 만들기", { name: c.workstream_hint }) as string }] : []),
+                ]} />
+            ) : (
+              <GroupChip title={c.workstream_hint || ''}>
+                {t('ai.workstreamChip', '그룹 {{name}}', { name: c.workstream_hint })}
+              </GroupChip>
+            )}
           </MetaItem>
         )}
         {/* #237 — "완료로 추가". AI 가 오해했으면 사람이 여기서 정정한다. */}

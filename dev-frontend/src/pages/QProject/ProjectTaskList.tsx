@@ -4,6 +4,7 @@
 //   그룹 헤더(색·인라인 이름·카운트·진행바·▲▼·삭제) + "(그룹 없음)" + 인라인 추가 그룹
 //   + 행별 그룹 드롭다운 + 드래그 핸들. 캔버스↔업무리스트 단일 진실 원천(project_workstreams) 양방향 동기화.
 import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
@@ -191,7 +192,15 @@ const ProjectTaskList: React.FC<Props> = ({
   const [statusOpenId, setStatusOpenId] = useState<number | null>(null);
   const [dateOpenId, setDateOpenId] = useState<number | null>(null);
   const [assigneeOpenId, setAssigneeOpenId] = useState<number | null>(null);
-  const [groupMenuTaskId, setGroupMenuTaskId] = useState<number | null>(null);  // 행별 그룹 이동 드롭다운
+  // 행별 그룹 이동 드롭다운 — **좌표를 같이 들고 있다.**
+  //   ★ 2026-09-10 (Irene: "업무명 이름 옆에 폴더모양과 아래로 된 화살표는 뭐야? 아무리 눌러도 반응이 없는데?")
+  //     메뉴는 열리고 있었다. 다만 업무명 셀(TCell $flex2)이 `overflow: hidden` 이라
+  //     `top:100%` 로 셀 **아래**에 뜨는 절대배치 메뉴가 통째로 잘려 한 픽셀도 안 그려졌다.
+  //     사용자에게는 "눌러도 아무 일이 없다" 와 구별되지 않는다.
+  //     같은 셀 안의 TaskRowActionMenu 는 이 사실을 알고 이미 createPortal 을 쓴다(그 파일 3행 주석).
+  //     셀에 `overflow: visible` 을 주는 쪽은 제목 말줄임 계약(#236·#249)을 깨므로 쓰지 않는다.
+  const [groupMenu, setGroupMenu] = useState<{ taskId: number; top: number; left: number } | null>(null);
+  const groupMenuTaskId = groupMenu?.taskId ?? null;
   const dateRefs = useRef<Record<number, HTMLButtonElement | null>>({});
 
   // ─── 그룹(워크스트림) 모드 상태 ───
@@ -217,7 +226,7 @@ const ProjectTaskList: React.FC<Props> = ({
   // 모든 인라인 드롭다운(그룹 이동·헤더 ⋯·상태·담당자) 바깥 클릭/Esc 닫기 — data-dropdown 내부 클릭은 유지.
   useEffect(() => {
     if (groupMenuTaskId == null && headerMenuGroupId == null && statusOpenId == null && assigneeOpenId == null) return;
-    const closeAll = () => { setGroupMenuTaskId(null); setHeaderMenuGroupId(null); setStatusOpenId(null); setAssigneeOpenId(null); };
+    const closeAll = () => { setGroupMenu(null); setHeaderMenuGroupId(null); setStatusOpenId(null); setAssigneeOpenId(null); };
     const onClick = (e: MouseEvent) => { if ((e.target as HTMLElement)?.closest('[data-dropdown]')) return; closeAll(); };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeAll(); };
     window.addEventListener('click', onClick);
@@ -324,9 +333,9 @@ const ProjectTaskList: React.FC<Props> = ({
   // 업무 → 그룹 이동 (드롭다운·드래그 공용). 실패 시 optimistic 되돌림.
   const assignGroup = async (task: TaskRow, wsId: number | null) => {
     const prev = task.workstream_id ?? null;
-    if (prev === wsId) { setGroupMenuTaskId(null); return; }
+    if (prev === wsId) { setGroupMenu(null); return; }
     onLocalUpdate(task.id, { workstream_id: wsId });
-    setGroupMenuTaskId(null);
+    setGroupMenu(null);
     try {
       const r = await apiFetch(`/api/tasks/by-business/${businessId}/${task.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -467,12 +476,17 @@ const ProjectTaskList: React.FC<Props> = ({
               {grouped && (
                 <GroupMoveWrap>
                   <GroupMoveBtn data-dropdown aria-label={t('list.group.moveTo', '그룹 이동') as string} title={t('list.group.moveTo', '그룹 이동') as string}
-                    onClick={(e) => { e.stopPropagation(); setGroupMenuTaskId(groupMenuTaskId === task.id ? null : task.id); }}>
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (groupMenuTaskId === task.id) { setGroupMenu(null); return; }
+                      const r = e.currentTarget.getBoundingClientRect();
+                      setGroupMenu({ taskId: task.id, top: r.bottom + 4, left: r.left });
+                    }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="6 9 12 15 18 9"/></svg>
                   </GroupMoveBtn>
-                  {groupMenuTaskId === task.id && (
-                    <GroupMenu data-dropdown onClick={e => e.stopPropagation()}>
+                  {groupMenu?.taskId === task.id && createPortal((
+                    <GroupMenu data-dropdown $floating style={{ top: groupMenu.top, left: groupMenu.left }} onClick={e => e.stopPropagation()}>
                       {[...(workstreams || [])].sort((a, b) => a.order_index - b.order_index).map((w, i) => (
                         <GroupMenuItem key={w.id} $active={(task.workstream_id ?? null) === w.id} onClick={() => assignGroup(task, w.id)}>
                           <GroupDot style={{ background: wsColor(w, i) }} />{w.title}
@@ -482,7 +496,7 @@ const ProjectTaskList: React.FC<Props> = ({
                         <GroupDot style={{ background: '#CBD5E1' }} />{t('list.group.none', '(그룹 없음)')}
                       </GroupMenuItem>
                     </GroupMenu>
-                  )}
+                  ), document.body)}
                 </GroupMoveWrap>
               )}
               <DetailBtn $active={selectedId === task.id} onClick={e => { e.stopPropagation(); onOpen(task.id); }} title={t('listRow.detailTitle', '상세 보기') as string}>
