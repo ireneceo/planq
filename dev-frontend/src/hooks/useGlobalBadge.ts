@@ -21,7 +21,18 @@ interface NavigatorBadge {
   clearAppBadge?: () => Promise<void>;
 }
 
-async function applyBadge(count: number) {
+/**
+ * 배지를 실제로 적용했는가를 **돌려준다.**
+ *
+ * ★ 2026-09-10 (Irene: "앱설치 다시 했더니 앱 닫으면 알림 숫자 없어지는 문제 다시 생겼어")
+ *   반환값이 없던 탓에 호출부가 **적용 실패를 성공으로 기록**했다. 재설치 직후 순서가 이렇다:
+ *     ① 앱 시작 — 푸시 권한이 아직 **미결정** → 아래 분기가 조용히 return (배지 안 세워짐)
+ *     ② 호출부는 `prevTotalRef = total` 을 이미 적어 둔다
+ *     ③ 사용자가 권한을 허용 — 그런데 total 이 그대로라 `prevTotalRef === total` 로 걸려
+ *        **다시 부르지 않는다** → 그 실행 동안 배지가 영영 안 세워진다
+ *   그래서 **적용에 성공했을 때만** 호출부가 기록하게 한다.
+ */
+async function applyBadge(count: number): Promise<boolean> {
   try {
     // 네이티브 앱: WebView 는 navigator.setAppBadge 미지원 → Badge 플러그인으로 아이콘 배지 제어(M-2).
     if (isNativeApp()) {
@@ -34,19 +45,23 @@ async function applyBadge(count: number) {
       //   → 푸시 권한이 이미 granted 일 때만 배지를 건드린다. 권한이 없으면 배지도 의미가 없다.
       const { PushNotifications } = await import('@capacitor/push-notifications');
       const perm = await PushNotifications.checkPermissions().catch(() => null);
-      if (perm?.receive !== 'granted') return;
+      if (perm?.receive !== 'granted') return false;   // 아직 못 세운다 — 기록하지 않는다
       const { Badge } = await import('@capawesome/capacitor-badge');
       if (count > 0) await Badge.set({ count });
       else await Badge.clear();
-      return;
+      return true;
     }
     const nav = navigator as Navigator & NavigatorBadge;
     if (count > 0 && typeof nav.setAppBadge === 'function') {
-      nav.setAppBadge(count).catch(() => null);
-    } else if (count === 0 && typeof nav.clearAppBadge === 'function') {
-      nav.clearAppBadge().catch(() => null);
+      await nav.setAppBadge(count).catch(() => null);
+      return true;
     }
-  } catch { /* unsupported — silent */ }
+    if (count === 0 && typeof nav.clearAppBadge === 'function') {
+      await nav.clearAppBadge().catch(() => null);
+      return true;
+    }
+    return false;                                       // 이 브라우저는 배지를 지원하지 않는다
+  } catch { return false; /* unsupported — silent */ }
 }
 
 /**
@@ -65,16 +80,19 @@ export function useGlobalBadge(inboxCount: number, chatUnread: number, loaded: b
     const total = (inboxCount || 0) + (chatUnread || 0);
     totalRef.current = total;
     if (prevTotalRef.current === total) return;
-    prevTotalRef.current = total;
-    applyBadge(total);
+    // ★ **성공했을 때만** 기록한다. 실패(권한 미결정 등)를 성공으로 적으면 같은 값이 유지되는 한
+    //   다시 시도하지 않아 배지가 영영 안 세워진다(applyBadge 주석 참조).
+    void applyBadge(total).then((ok) => { if (ok) prevTotalRef.current = total; });
   }, [inboxCount, chatUnread, loaded]);
 
   // visibility / focus 복귀 시 최신값으로 재적용 — SW push 가 background 에서 남긴 stale 배지 덮어쓰기
   //   (사이클 N+22). 단 값을 실제로 받은 뒤에만.
+  //   ★ 이 재적용이 위 실패의 **회복 경로**이기도 하다 — 권한을 뒤늦게 허용하고 앱으로 돌아오면
+  //     여기서 다시 시도한다. 성공하면 prevTotalRef 도 맞춰 둔다.
   useEffect(() => {
     const reapply = () => {
       if (document.visibilityState === 'visible' && loadedRef.current) {
-        applyBadge(totalRef.current);
+        void applyBadge(totalRef.current).then((ok) => { if (ok) prevTotalRef.current = totalRef.current; });
       }
     };
     document.addEventListener('visibilitychange', reapply);
