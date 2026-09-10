@@ -142,24 +142,14 @@ const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean; $cen
     /* 앱형은 내부가 스크롤한다 — 100dvh 여야 iOS 툴바가 바닥 입력줄을 안 먹는다.
        (100vh 는 주소창 높이를 포함해 실제보다 크다) */
     ? css`display: flex; flex-direction: column; height: 100dvh;`
-    /* ★ 좌우 여백은 **한 곳만 준다.**
-       · 태블릿~데스크탑 — 여기서 20px. 이게 없어서 768 에서 820·920 카드가 화면 끝에 붙었다
-         (2026-09-10 Fable 실측 L=0/R=0).
-       · 폰(≤640) — **여기서 0.** `Frame` 의 `margin:16px` 이 맡는다.
-         고칠 때 이 분기를 안 둬서 16+20=**36px** 이 됐다(이관 전 16px → 2.25배).
-         주석에는 "폰은 Frame 이 맡는다" 고 써 놓고 코드는 그렇지 않았다 — 같은 라운드에
-         Fable 이 다시 잡았다. 주석이 아니라 **코드가** 그렇게 되어 있어야 한다. */
-    : css`
-      min-height: 100vh; padding: 0 20px 40px;
-      @media (max-width: 640px) { padding-left: 0; padding-right: 0; }
-    `)}
-  /* 짧은 상태 카드(만료·비밀번호)는 **세로 가운데**가 맞다. 위에 붙이면 화면이 비어 보인다. */
+    : css`min-height: 100vh; padding-bottom: 40px;`)}
+  /* ★ 좌우 여백을 **여기서 주지 않는다.** 한 번 그렇게 했다가 sticky 흰 툴바가 그 안으로
+     들어가 양옆에 회색 홈이 생겼다(2026-09-10 Fable 실측: post@1440 툴바 L20/R20).
+     툴바·홍보 띠는 **전폭**이어야 하고, 여백은 본문(Frame)이 스스로 가진다. */
   ${({ $center }) => $center && css`
+    /* 짧은 상태 카드(만료·비밀번호·초대)는 **세로 가운데**가 맞다 — 위에 붙이면 화면이 비어 보인다. */
     display: flex; align-items: center; justify-content: center;
-    padding: 24px 20px;
-    /* 폰은 위와 같은 이유로 좌우 0 — Frame 의 margin:16px 이 맡는다. */
-    @media (max-width: 640px) { padding: 24px 0; }
-    > * { margin-top: 0; margin-bottom: 0; }
+    padding-top: 24px; padding-bottom: 24px;
   `}
   ${({ $print }) => $print && css`@media print { background: #FFF; padding: 0; }`}
 `;
@@ -201,7 +191,16 @@ const PromoLink = styled.a`
   span { margin-left: 4px; }
 `;
 const Frame = styled.div<{ $layout: string; $w: string; $print: boolean }>`
-  max-width: ${({ $w }) => $w};
+  /* ★ **폭과 여백을 여기가 함께 정한다.**
+     · width: min(100% - 2*gutter, 토큰) — 좁으면 여백을 남기고, 넓으면 토큰에서 멈춘다.
+       margin: auto 가 가운데로 보낸다.
+     · width 를 안 주면 center 변형에서 Page 가 display:flex(row) 라 **flex 아이템이
+       내용 크기로 쪼그라든다** — 카드 폭이 420 이 아니라 197~354px 이 됐다(2026-09-10 Fable 실측).
+       이관 전 카드들은 전부 width:100% + max-width:4xx 였다. 그 계약을 여기서 되살린다.
+     · 여백을 Page 가 아니라 여기가 가지므로 툴바·홍보 띠는 전폭을 유지한다.
+     ★ 이 주석에 백틱을 쓰지 말 것 — styled 템플릿이 거기서 끊긴다(저장소에 박제된 함정). */
+  width: min(100% - 40px, ${({ $w }) => $w});
+  flex-shrink: 0;
   margin: ${({ $layout }) => ($layout === 'card' ? '40px auto' : '32px auto')};
   ${({ $layout }) => ($layout === 'document' ? css`
     background: #FFF; border: 1px solid #E2E8F0; border-radius: 12px;
@@ -212,7 +211,12 @@ const Frame = styled.div<{ $layout: string; $w: string; $print: boolean }>`
     padding: 28px 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
   `)}
   ${({ $print }) => $print && css`
-    @media print { border: none; box-shadow: none; padding: 0; margin: 0; max-width: 100%; }
+    @media print { border: none; box-shadow: none; padding: 0; margin: 0; max-width: 100%; width: 100%; }
   `}
-  @media (max-width: 640px) { padding: 24px 20px; margin: 16px; }
+  @media (max-width: 640px) {
+    /* 폰은 16px — 이관 전 값이다. */
+    width: min(100% - 32px, ${({ $w }) => $w});
+    padding: 24px 20px;
+    margin-top: 16px; margin-bottom: 16px;
+  }
 `;
