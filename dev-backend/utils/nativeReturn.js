@@ -93,21 +93,27 @@ function sendNativeReturn(res, params = {}, opts = {}) {
 </style></head><body><div class="c">
 <h1>${title}</h1>
 ${pairCode ? `<div class="codebox">
-<p class="lbl">앱에 이 코드를 입력하세요</p>
+<p class="lbl">1. 이 코드를 기억하세요</p>
 <div class="code">${pairCode.slice(0, 3)} ${pairCode.slice(3)}</div>
 <p class="hint">10분 동안 유효합니다. 다른 사람에게 알려주지 마세요.</p>
 </div>
-<p class="hint">앱이 저절로 열렸다면 이 화면은 닫으셔도 됩니다.</p>`
+<p>2. 아래 버튼을 눌러 앱으로 돌아가세요. (버튼이 안 되면 이 창을 닫으세요 — 위로 쓸어내리거나 '완료')</p>
+<p class="hint">3. 앱에 뜨는 칸에 코드를 입력하면 로그인이 끝납니다.</p>`
 : `<p>잠시만 기다려 주세요. 화면이 바뀌지 않으면 아래 버튼을 눌러 주세요.</p>`}
-${appLink && !pairCode ? `<a id="go" href="${appLink}">PlanQ 앱에서 열기</a>` : ''}
-${!appLink && !pairCode ? `<a id="go" href="${safe}">PlanQ 앱에서 열기</a>` : ''}
+${appLink ? `<a id="go" href="${appLink}">PlanQ 앱으로 돌아가기</a>` : ''}
+${!appLink ? `<a id="go" href="${safe}">PlanQ 앱으로 돌아가기</a>` : ''}
 ${altUrl ? `<a class="s" id="alt" href="${altUrl}">${altLabel}</a>` : ''}
 </div><script>
   // 스킴 시도 — **실패해도 이 페이지는 남는다**(핸들러가 없으면 이동 자체가 취소된다).
+  //   ★ iOS 의 SFSafariViewController 는 커스텀 스킴 **리다이렉트를 무시**한다(이 파일 머리말).
+  //     그래서 iOS 에서는 이 자동 시도가 아무 일도 하지 않고, **사람이 버튼을 눌러야** 한다.
+  //     안드로이드는 여기서 앱이 열린다 — 그 차이가 "안드로이드는 되는데 아이폰은 안 된다" 였다.
   try { location.replace(${JSON.stringify(url)}); } catch (e) {}
   setTimeout(function(){ try { location.href = ${JSON.stringify(url)}; } catch (e) {} }, 400);
-${appLink && !pairCode ? `  // 코드가 없는 흐름에서만 App Link 로 한 번 더 자동 시도한다.
-  //   코드가 있으면 **자동 이동하지 않는다** — 떠나면 코드를 못 읽는다(F-1).
+${appLink && !pairCode ? `  // 코드가 없는 흐름에서만 App Link 로 한 번 더 **자동** 시도한다.
+  //   코드가 있으면 자동 이동하지 않는다 — 떠나면 코드를 못 읽는다(F-1).
+  //   ★ 막는 것은 **자동 이동**이지 버튼이 아니다. 2026-09-06 에 버튼까지 같이 없앴다가
+  //     iOS 가 막다른 길이 됐다(아래 주석 참조).
   setTimeout(function(){
     if (document.visibilityState !== 'visible') return;
     location.replace(${JSON.stringify(opts.appLinkUrl)});

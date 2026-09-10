@@ -197,9 +197,15 @@ router.get('/google/callback', async (req, res) => {
       const pairCode = oauthPairing.attach(pairId, user.id);
       return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' }, {
         title: '로그인이 끝났습니다',
-        // 코드가 있으면 App Link 를 주지 않는다 — 자동 이동이 코드를 화면에서 지운다(F-1).
-        //   코드가 없는 흐름(앱이 pair 를 못 연 경우)에서만 App Link 사다리를 쓴다.
-        appLinkUrl: pairCode ? undefined : `${origin}/oauth/native-return?code=${encodeURIComponent(code)}`,
+        // ★ App Link 는 **코드가 있어도 준다.** 막아야 하는 것은 *자동 이동*(코드를 읽기 전에
+        //   화면이 떠나는 것, F-1)이지 **버튼**이 아니다. 2026-09-06 에 둘을 같이 없앴더니
+        //   iOS 가 막다른 길이 됐다 — SFSafariViewController 는 커스텀 스킴 리다이렉트를
+        //   무시하므로 자동 이동이 안 되고, 버튼마저 없으면 앱으로 돌아갈 길이 **하나도 없다.**
+        //   안드로이드는 스킴 자동 이동이 먹어서 멀쩡했다.
+        //   (Irene 2026-09-10: "안드로이드랑 아이폰이랑 다른 것 같은데?
+        //    안드로이드 바뀌면서 아이폰 안되게 된 것 같아." — 정확한 진단이었다.)
+        //   자동 이동 억제는 utils/nativeReturn.js 의 `appLink && !pairCode` 조건이 계속 맡는다.
+        appLinkUrl: `${origin}/oauth/native-return?code=${encodeURIComponent(code)}`,
         pairCode,
       });
     }
