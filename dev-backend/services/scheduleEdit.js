@@ -156,3 +156,84 @@ module.exports = {
   // 테스트·검증에서 쓰는 내부 헬퍼 (경계 반증용)
   _toUTC: toUTC, _fromUTC: fromUTC, DAY,
 };
+
+// ─────────────────────────────────────────────────────────────────
+// 자연어 → 연산. **LLM 을 쓰지 않는다.**
+//
+// ★ 왜 규칙 기반인가: 이 해석의 결과가 곧 **날짜를 바꾸는 명령**이다. LLM 이 "2주" 를
+//   14 로 읽었는지 20 으로 읽었는지 사용자는 알 수 없고, 우리도 매번 달라지는 것을 반증할 수 없다.
+//   여기서는 결정적이어야 하고, 못 알아들으면 **조용히 추측하지 말고 모른다고 답해야** 한다
+//   (화면이 직접 입력 컨트롤로 떨어뜨린다).
+//   AI 의 값은 "무엇을 바꿀지 고르는 것" 이 아니라 미리보기를 사람이 읽는 데 있다.
+// ─────────────────────────────────────────────────────────────────
+
+// 낱말이 **단위까지 품은 것**(일주일·한달)과 **수만 뜻하는 것**(한·두·세)을 구분한다.
+//   구분 없이 두면 "일주일 뒤로" 에서 7 을 읽고 문맥의 '주' 를 또 곱해 **49일**이 된다
+//   (2026-09-10 실측). 날짜를 조용히 틀리게 하는 종류라 규칙을 명시적으로 쓴다.
+const FIXED_DAYS = { 하루: 1, 이틀: 2, 사흘: 3, 나흘: 4, 닷새: 5, 엿새: 6, 일주일: 7, 이주일: 14, 한달: 30, 한달간: 30 };
+const BARE_NUM = { 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6 };
+
+/**
+ * @param {string} text 사용자가 입력한 말
+ * @param {string} today 'YYYY-MM-DD' — 연도 없는 날짜의 기준
+ * @returns {{op:'shift', params:{days:number}} | {op:'compress', params:{target_due:string}} | null}
+ *          **null 이면 못 알아들은 것이다.** 추측하지 않는다 — 화면이 직접 입력으로 떨어뜨린다.
+ */
+function parseIntent(text, today) {
+  const s = String(text || '').trim();
+  if (!s || s === 'null' || s === 'undefined') return null;
+
+  // ① 절대 날짜 목표 — "10/31 마감에 맞춰", "2026-10-31 까지"
+  const iso = /(\d{4})[-./](\d{1,2})[-./](\d{1,2})/.exec(s);
+  const md = !iso && /(\d{1,2})\s*[/월]\s*(\d{1,2})\s*일?/.exec(s);
+  if (iso || md) {
+    const base = toUTC(today) ?? Date.now();
+    const y = iso ? Number(iso[1]) : new Date(base).getUTCFullYear();
+    const mo = Number(iso ? iso[2] : md[1]);
+    const da = Number(iso ? iso[3] : md[2]);
+    if (mo >= 1 && mo <= 12 && da >= 1 && da <= 31) {
+      const target = `${y}-${String(mo).padStart(2, '0')}-${String(da).padStart(2, '0')}`;
+      // 실재하는 날짜인가 (2월 31일 같은 것을 걸러낸다)
+      if (toUTC(target) !== null && fromUTC(toUTC(target)) === target) {
+        return { op: 'compress', params: { target_due: target } };
+      }
+    }
+    return null;                              // 날짜처럼 보이는데 말이 안 되면 **모른다**
+  }
+
+  // ② 상대 이동 — 방향을 **명시적으로** 읽는다. 모르면 null.
+  const back = /(뒤로|늦|미루|미뤄|연기|밀어|밀기|뒤)/.test(s);
+  const fwd = /(앞당|당겨|당기|앞으로|줄여|줄이|앞)/.test(s);
+  if (back === fwd) return null;              // 둘 다이거나 둘 다 아니면 모른다
+
+  let days = null;
+
+  // ②-a 숫자 + 단위 — "2주", "3일", "1개월"
+  const numM = /(\d+)\s*(일|주일|주|개월|달)/.exec(s);
+  if (numM) {
+    const n = Number(numM[1]);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const u = numM[2];
+    days = /주/.test(u) ? n * 7 : (/개월|달/.test(u) ? n * 30 : n);
+  } else {
+    // ②-b 단위를 품은 낱말 — 문맥의 단위를 **다시 곱하지 않는다**
+    for (const [w, v] of Object.entries(FIXED_DAYS)) {
+      if (s.includes(w)) { days = v; break; }
+    }
+    // ②-c 수만 뜻하는 낱말 — 이때만 문맥에서 단위를 읽는다
+    if (days === null) {
+      for (const [w, v] of Object.entries(BARE_NUM)) {
+        if (!s.includes(w)) continue;
+        if (/주/.test(s)) days = v * 7;
+        else if (/개월|달/.test(s)) days = v * 30;
+        else if (/일/.test(s)) days = v;
+        else return null;                     // 단위를 모르면 **추측하지 않는다**
+        break;
+      }
+    }
+  }
+  if (!Number.isFinite(days) || days <= 0) return null;
+  return { op: 'shift', params: { days: back ? days : -days } };
+}
+
+module.exports.parseIntent = parseIntent;

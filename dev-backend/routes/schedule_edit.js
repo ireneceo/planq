@@ -125,7 +125,20 @@ router.post('/:id/schedule/preview', authenticateToken,
       if (error) return errorResponse(res, error.message, error.code);
       if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
-      const { op, params, prompt, include_closed: includeClosed } = req.body || {};
+      const body = req.body || {};
+      const { prompt, include_closed: includeClosed } = body;
+      let { op, params } = body;
+
+      // 말로 온 것은 **규칙 기반**으로 읽는다(services/scheduleEdit.parseIntent).
+      //   ★ LLM 을 쓰지 않는 이유: 이 해석의 결과가 곧 날짜를 바꾸는 명령이다. "2주" 를 14 로
+      //     읽었는지 20 으로 읽었는지 사용자는 알 수 없고 매번 달라지는 것을 반증할 수도 없다.
+      //     못 알아들으면 **추측하지 않고** `unparsed` 를 돌려준다 — 화면이 직접 입력으로 떨어뜨린다.
+      if (!op && prompt) {
+        const intent = S.parseIntent(prompt, dateOnlyOf(new Date()));
+        if (!intent) return errorResponse(res, 'unparsed', 400);
+        op = intent.op; params = intent.params;
+      }
+
       const ctx = await loadTargets(project, { includeClosed: !!includeClosed });
       const plan = buildPlan(op, ctx.targets, params);
       if (plan.error) return errorResponse(res, plan.error, 400);
