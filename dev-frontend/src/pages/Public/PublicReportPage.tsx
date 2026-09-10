@@ -62,7 +62,8 @@ const PublicReportPage = () => {
 
   if (loading) return <PublicCenter>{t('publicReport.loading', { defaultValue: '불러오는 중…' }) as string}</PublicCenter>;
   if (error || !data) return (
-    <PublicPageShell layout="card" width="sm" brand={false}>
+    /* 다른 상태 카드(만료·비번·초대·게스트만료)와 같이 **세로 가운데**. 이것만 위에 붙어 있었다. */
+    <PublicPageShell layout="card" width="sm" brand={false} center print={false}>
       <Hint>{t('publicReport.notFound', { defaultValue: '보고서를 찾을 수 없거나 공유가 해제되었습니다.' }) as string}</Hint>
     </PublicPageShell>
   );

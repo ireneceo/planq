@@ -142,14 +142,23 @@ const Page = styled.div<{ $layout: string; $fill: boolean; $print: boolean; $cen
     /* 앱형은 내부가 스크롤한다 — 100dvh 여야 iOS 툴바가 바닥 입력줄을 안 먹는다.
        (100vh 는 주소창 높이를 포함해 실제보다 크다) */
     ? css`display: flex; flex-direction: column; height: 100dvh;`
-    /* ★ 좌우 20px 는 **전 폭에서** 보장한다. 옛 카드형 `Wrap` 이 `padding: 40px 20px` 였는데
-       여기서 좌우를 빼먹어 태블릿(768)에서 820·920 카드가 화면 끝에 붙었다
-       (2026-09-10 Fable 실측 L=0/R=0). 폰은 Frame 의 `margin:16px` 이 맡는다. */
-    : css`min-height: 100vh; padding: 0 20px 40px;`)}
+    /* ★ 좌우 여백은 **한 곳만 준다.**
+       · 태블릿~데스크탑 — 여기서 20px. 이게 없어서 768 에서 820·920 카드가 화면 끝에 붙었다
+         (2026-09-10 Fable 실측 L=0/R=0).
+       · 폰(≤640) — **여기서 0.** `Frame` 의 `margin:16px` 이 맡는다.
+         고칠 때 이 분기를 안 둬서 16+20=**36px** 이 됐다(이관 전 16px → 2.25배).
+         주석에는 "폰은 Frame 이 맡는다" 고 써 놓고 코드는 그렇지 않았다 — 같은 라운드에
+         Fable 이 다시 잡았다. 주석이 아니라 **코드가** 그렇게 되어 있어야 한다. */
+    : css`
+      min-height: 100vh; padding: 0 20px 40px;
+      @media (max-width: 640px) { padding-left: 0; padding-right: 0; }
+    `)}
   /* 짧은 상태 카드(만료·비밀번호)는 **세로 가운데**가 맞다. 위에 붙이면 화면이 비어 보인다. */
   ${({ $center }) => $center && css`
     display: flex; align-items: center; justify-content: center;
     padding: 24px 20px;
+    /* 폰은 위와 같은 이유로 좌우 0 — Frame 의 margin:16px 이 맡는다. */
+    @media (max-width: 640px) { padding: 24px 0; }
     > * { margin-top: 0; margin-bottom: 0; }
   `}
   ${({ $print }) => $print && css`@media print { background: #FFF; padding: 0; }`}
