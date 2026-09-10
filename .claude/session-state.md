@@ -76,7 +76,7 @@ lua 에게 sudo 가 없다. **적용 전에는 Picker 가 CSP 에 막힌다**(�
 → 고쳤고, **정적 가드 신설** `--category=auditentry`(래칫, 반증 확인).
 
 ### ⚠️ 드러난 기존 부채 — 손대지 않았다
-같은 방식으로 직접 만드는 곳이 **9파일 22건** 더 있다(admin·tasks·focus·leave·
+같은 방식으로 직접 만드는 곳이 **9파일 21건** 더 있었다 (내가 처음 쓴 22건은 주석 줄을 함께 센 것 — Fable 이 실측으로 정정했다)(admin·tasks·focus·leave·
 personal_calendar·addonBilling·admin_credits·cue_task_executor·leaveTransition).
 그 행들도 영구 보관된다. 래칫으로 **동결만** 했다 — 9파일 리팩터는 Picker 와 무관한 별도 스코프라
 Irene 판단이 필요하다.

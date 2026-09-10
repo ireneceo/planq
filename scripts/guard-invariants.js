@@ -2234,7 +2234,7 @@ function checkStatsText() {
 //   2026-09-10 실사례: Picker 토큰 라우트에 감사 로그를 넣으면서 `AuditLog.create` 를 직접
 //   불렀고, health-check 의 `retention` 이 "도입 이후 3건에 retain_until 이 없다" 로 잡았다.
 //   ★ 그건 **사후** 검사다 — 그 경로가 한 번이라도 불려야 드러난다. 여기서 정적으로 막는다.
-//   래칫이라 기존 부채(9파일 22건)는 동결되고 **증가만 실패**한다.
+//   래칫이라 기존 부채(9파일 21건 — 2026-09-10 에 전부 갚아 0)는 동결되고 **증가만 실패**한다.
 //   예외: auditService.js 자신과 retentionPurge.js(보관 정책을 직접 다루는 곳).
 function checkAuditEntry() {
   const EXEMPT = new Set(['dev-backend/services/auditService.js', 'dev-backend/services/retentionPurge.js']);

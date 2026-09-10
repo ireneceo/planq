@@ -571,6 +571,29 @@ restart_server() {
 }
 
 # ──────────────────────────────────────────
+# nginx 보안헤더 스크립트 전달 (2026-09-10, Fable 게이트 지적)
+# ──────────────────────────────────────────
+#   rsync 는 `dev-backend/` 만 보낸다 → **운영에 scripts/ 가 없다**(실측: No such file).
+#   그래서 CSP 를 바꿔도 운영에 적용할 방법이 서버에 없었다. 파일이라도 보내 둔다.
+#   ★ 적용 자체는 root 가 필요하고 운영 계정은 sudo 비번을 묻는다 — 자동화 불가.
+#     그래서 verify 단계가 **라이브 헤더를 실제로 재서** 안 맞으면 크게 알린다.
+sync_nginx_headers() {
+  local SRC=/opt/planq/scripts/apply-nginx-security-headers.sh
+  [ -f "$SRC" ] || return 0
+  if [ "$DRY_RUN" = true ]; then
+    dim "  [dry] scp apply-nginx-security-headers.sh → $PROD_HOST:/opt/planq/scripts/"
+    return 0
+  fi
+  ssh $SSH_OPTS "$PROD_HOST" "mkdir -p /opt/planq/scripts" > /dev/null 2>&1
+  if scp $SSH_OPTS -q "$SRC" "$PROD_HOST:/opt/planq/scripts/" 2>/dev/null; then
+    ssh $SSH_OPTS "$PROD_HOST" "chmod +x /opt/planq/scripts/apply-nginx-security-headers.sh" > /dev/null 2>&1
+    success "nginx 보안헤더 스크립트 전달됨 (적용은 sudo 필요)"
+  else
+    warn "nginx 보안헤더 스크립트 전달 실패 — 수동 scp 필요"
+  fi
+}
+
+# ──────────────────────────────────────────
 # Reload nginx (운영서버, sudo 필요 — sudoers NOPASSWD 또는 사전 승인)
 # ──────────────────────────────────────────
 reload_nginx() {
@@ -617,7 +640,48 @@ verify_deployment() {
     warn "외부 HTTPS 미응답 — DNS propagation 또는 SSL 미발급 (운영 1차 진입 시 정상)"
   fi
 
-  # 3) PDF 렌더 실호출 (#253 재발 검출)
+  # 3) 라이브 CSP 대조 (2026-09-10, Fable 게이트 지적)
+  #    저장소의 두 벌(nginx snippet · middleware/security.js)이 일치해도 **운영에 적용되지 않았으면**
+  #    아무 소용이 없다. `csp` 가드는 파일만 비교하므로 라이브가 낡아도 초록이다.
+  #    실제 사례: Picker 가 apis.google.com 스크립트를 요구하는데 운영 헤더는 `script-src 'self'` 라
+  #    버튼은 뜨고 눌러도 안 열린다. 여기서 재지 않으면 아무도 모른다.
+  #    ★ `add_header` **줄에서만** 뽑는다 — 그냥 grep 하면 위쪽 주석의 `script-src 'self'` 를
+  #      집어 라이브와 영영 다르다(거짓 경보). 가드 checkCsp 와 같은 렌즈를 쓴다.
+  #    ★ 한 지시문(script-src)만 보지 않는다 — **헤더 전체**를 비교한다.
+  #      Fable 게이트 지적(2026-09-10): 지금 운영은 `frame-src` 도 낡아 Picker iframe 이 막히는데
+  #      script-src 만 보면 그건 안 잡힌다. 나중에 frame-src 만 바뀌면 이 검사는 초록이 된다.
+  EXPECT_CSP=$(grep -o 'add_header Content-Security-Policy "[^"]*"' /opt/planq/scripts/apply-nginx-security-headers.sh \
+    | head -1 | sed 's/^add_header Content-Security-Policy "//; s/"$//')
+  LIVE_CSP=$(curl -sI --max-time 8 "https://$PROD_DOMAIN/" 2>/dev/null \
+    | grep -i '^content-security-policy:' | head -1 | sed 's/^[^:]*: *//; s/\r$//')
+  if [ -n "$EXPECT_CSP" ] && [ -n "$LIVE_CSP" ] && [ "$EXPECT_CSP" != "$LIVE_CSP" ]; then
+    echo ""
+    echo -e "${RED}!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!${NC}"
+    echo -e "${RED}  운영 nginx 보안헤더가 낡았습니다 — 코드와 라이브가 다릅니다${NC}"
+    # 전체 문자열 두 줄은 눈으로 못 읽는다 — **어긋난 지시문만** 짚는다.
+    diff <(printf '%s' "$EXPECT_CSP" | tr ';' '\n' | sed 's/^ *//') \
+         <(printf '%s' "$LIVE_CSP"   | tr ';' '\n' | sed 's/^ *//') 2>/dev/null \
+      | grep -E '^[<>]' | while read -r L; do
+          case "$L" in
+            '<'*) echo -e "${RED}    코드에만: ${L#< }${NC}" ;;
+            '>'*) echo -e "${RED}    운영에만: ${L#> }${NC}" ;;
+          esac
+        done
+    echo -e "${RED}  → 운영서버에서 실행해야 합니다(root 필요):${NC}"
+    echo -e "${RED}    sudo /opt/planq/scripts/apply-nginx-security-headers.sh prod${NC}"
+    echo -e "${RED}  적용 전까지 그 헤더에 의존하는 기능(예: Drive 찾아보기)은 동작하지 않습니다${NC}"
+    echo -e "${RED}!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!${NC}"
+    echo ""
+    CSP_CHECK_RESULT="MISMATCH"
+  elif [ -n "$LIVE_CSP" ]; then
+    success "운영 CSP 라이브 일치 ($LIVE_CSP)"
+    CSP_CHECK_RESULT="OK"
+  else
+    warn "운영 CSP 헤더를 읽지 못했습니다 — 수동 확인 필요"
+    CSP_CHECK_RESULT="UNKNOWN"
+  fi
+
+  # 4) PDF 렌더 실호출 (#253 재발 검출)
   #    운영에만 헤드리스 Chrome 공유 라이브러리가 없어 PDF 6개 기능이 동시에 죽었던 계열.
   #    dev 는 라이브러리가 있어 코드 검증으로는 영원히 안 잡힌다 — 운영에서 1바이트 만들어봐야 안다.
   #    키는 운영 .env 에서 **운영 호스트 내부에서만** 추출 (dev 로 넘어오지 않게).
@@ -875,6 +939,7 @@ show_summary() {
   echo "  Backup:    $BACKUP_DIR (on prod)"
   echo ""
   echo "  PDF 렌더:  ${PDF_CHECK_RESULT:-미실행}"
+  echo "  운영 CSP:  ${CSP_CHECK_RESULT:-미실행}"
   echo ""
   echo "  Production:"
   echo "    https://$PROD_DOMAIN/api/health"
@@ -919,6 +984,7 @@ main() {
   deploy_frontend
   sync_qnote
   restart_server
+  sync_nginx_headers
   reload_nginx
   verify_deployment
   publish_release_note

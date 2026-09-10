@@ -496,7 +496,8 @@
       "pickerOpening": "Opening...",
       "pickerFailed": "Could not open the Drive file picker. Please try again in a moment.",
       "pickerBlocked": "Your browser blocked the Google script. An ad blocker or a corporate firewall is the usual cause.",
-      "pickerUnavailable": "Drive browsing is not configured on this server. The list below shows only files already opened with PlanQ."
+      "pickerUnavailable": "Drive browsing is not configured on this server. The list below shows only files already opened with PlanQ.",
+      "pickerCspBlocked": "A setting on this server is blocking the Drive picker. This is not something you can fix — please let an administrator know (security headers need updating)."
     }
   },
   "installPrompt": {

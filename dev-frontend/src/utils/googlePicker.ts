@@ -30,22 +30,48 @@ export function pickerConfigured(): boolean {
 
 let scriptPromise: Promise<void> | null = null;
 
+/**
+ * 스크립트가 안 뜬 이유를 **가른다.**
+ *   `picker_csp_blocked`    — 우리 서버의 CSP 가 막았다 (nginx 헤더가 낡음). **우리 잘못이다.**
+ *   `picker_script_blocked` — 그 밖 (광고 차단 확장·사내 방화벽·네트워크)
+ *
+ * ★ 이 구분이 없으면 화면이 거짓말을 한다 — 서버 설정이 원인인데 "광고 차단 확장이 원인일 수
+ *   있습니다" 라고 안내하면 사용자는 자기 브라우저를 뒤지다 포기한다(2026-09-10 Fable 지적).
+ *   브라우저는 CSP 위반을 `securitypolicyviolation` 이벤트로 알려주므로 그것으로 가른다.
+ */
 function loadApiJs(): Promise<void> {
   if (scriptPromise) return scriptPromise;
   scriptPromise = new Promise<void>((resolve, reject) => {
+    let cspBlocked = false;
+    const onViolation = (e: SecurityPolicyViolationEvent) => {
+      if (e.violatedDirective?.startsWith('script-src') && String(e.blockedURI || '').includes('apis.google.com')) {
+        cspBlocked = true;
+      }
+    };
+    document.addEventListener('securitypolicyviolation', onViolation);
+    // 위반 이벤트는 error 보다 늦게 올 수 있다 — 한 틱 기다렸다가 판정한다.
+    const fail = () => {
+      setTimeout(() => {
+        document.removeEventListener('securitypolicyviolation', onViolation);
+        scriptPromise = null;
+        reject(new Error(cspBlocked ? 'picker_csp_blocked' : 'picker_script_blocked'));
+      }, 0);
+    };
+    const done = () => { document.removeEventListener('securitypolicyviolation', onViolation); resolve(); };
+
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${API_JS}"]`);
     if (existing) {
-      if ((window as any).gapi) { resolve(); return; }
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('picker_script_blocked')));
+      if ((window as any).gapi) { done(); return; }
+      existing.addEventListener('load', done);
+      existing.addEventListener('error', fail);
       return;
     }
     const el = document.createElement('script');
     el.src = API_JS;
     el.async = true;
-    el.onload = () => resolve();
+    el.onload = done;
     // CSP 로 막히면 여기로 온다 — 조용히 두지 않고 호출부가 문구를 띄우게 던진다.
-    el.onerror = () => { scriptPromise = null; reject(new Error('picker_script_blocked')); };
+    el.onerror = fail;
     document.head.appendChild(el);
   });
   return scriptPromise;

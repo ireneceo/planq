@@ -163,9 +163,15 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
       if (open) void load(q);
     } catch (e) {
       const code = e instanceof Error ? e.message : '';
-      setError(code === 'picker_script_blocked'
-        ? (t('attach.drive.pickerBlocked') as string)
-        : (t('attach.drive.pickerFailed') as string));
+      // ★ 원인을 사용자 탓으로 돌리지 않는다 — 서버 CSP 가 막은 것과 사용자 환경(광고차단·방화벽)이
+      //   막은 것은 **할 일이 다르다.** 전자는 우리가 고칠 일이라 그렇게 말한다.
+      setError(
+        code === 'picker_csp_blocked'
+          ? (t('attach.drive.pickerCspBlocked') as string)
+          : code === 'picker_script_blocked'
+            ? (t('attach.drive.pickerBlocked') as string)
+            : (t('attach.drive.pickerFailed') as string),
+      );
     } finally { setPicking(false); }
   };
 
