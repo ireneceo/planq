@@ -25,6 +25,8 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 이 페어링으로는 더 진행할 수 없다(만료·횟수 초과) — 입력을 막고 '다시 로그인' 만 남긴다.
+  const [dead, setDead] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +46,7 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
 
-  const close = useCallback(() => { clearPair(); setOpen(false); setCode(''); setErr(null); }, []);
+  const close = useCallback(() => { clearPair(); setOpen(false); setCode(''); setErr(null); setDead(false); }, []);
   // CLAUDE.md 드로어 접근성 — 세 훅은 필수. (2026-09-06 Fable 지적)
   useEscapeStack(open, close);
   useBodyScrollLock(open);
@@ -64,7 +66,10 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
       expired_or_unknown: t('pair.errExpired', { defaultValue: '코드가 만료됐습니다. 다시 로그인해 주세요.' }) as string,
     };
     setErr(msg[r.reason || ''] || (t('pair.errGeneric', { defaultValue: '로그인을 마치지 못했습니다.' }) as string));
-    if (r.reason === 'too_many_attempts' || r.reason === 'expired_or_unknown') setOpen(false);
+    // ★ 되돌릴 수 없는 실패(만료·횟수 초과)여도 **모달을 닫지 않는다.** 2026-09-10 이전엔 여기서
+    //   닫아 버려 사유가 화면에 한 번도 안 보였다 — Irene(아이폰): "그 번호를 넣으라는 곳에 넣었더니
+    //   반응이 없어". 사유를 보여주고 '다시 로그인' 으로 흐름을 정리하게 한다(아래 dead 판정).
+    if (r.reason === 'too_many_attempts' || r.reason === 'expired_or_unknown') { setDead(true); setCode(''); }
   }, [busy, code, t]);
 
   if (!open) return null;
@@ -72,8 +77,8 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
     <Backdrop role="dialog" aria-modal="true" aria-label={t('pair.title', { defaultValue: '로그인 마무리' }) as string}>
       <Card ref={cardRef}>
         <Title>{t('pair.title', { defaultValue: '로그인 마무리' }) as string}</Title>
-        <Desc>{t('pair.desc', { defaultValue: '브라우저 화면에 표시된 6자리 코드를 입력해 주세요.' }) as string}</Desc>
-        <CodeInput
+        <Desc>{t('pair.desc', { defaultValue: '로그인 창의 ‘앱이 열리지 않나요?’ 아래에 있는 6자리 코드를 입력해 주세요.' }) as string}</Desc>
+        {!dead && <CodeInput
           ref={inputRef}
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -82,14 +87,20 @@ const PairCodePrompt: React.FC<{ authed: boolean }> = ({ authed }) => {
           autoComplete="one-time-code"
           maxLength={6}
           placeholder="000000"
-          aria-label={t('pair.desc', { defaultValue: '브라우저 화면에 표시된 6자리 코드' }) as string}
-        />
+          aria-label={t('pair.codeLabel', { defaultValue: '6자리 코드' }) as string}
+        />}
         {err && <ErrText role="alert">{err}</ErrText>}
-        <Primary type="button" disabled={busy || code.length !== 6} onClick={() => void submit()}>
-          {busy ? (t('pair.submitting', { defaultValue: '확인 중…' }) as string)
-                : (t('pair.submit', { defaultValue: '로그인 완료' }) as string)}
-        </Primary>
-        <Ghost type="button" onClick={close}>{t('pair.cancel', { defaultValue: '취소' }) as string}</Ghost>
+        {dead ? (
+          <Primary type="button" onClick={close}>{t('pair.retryLogin', { defaultValue: '다시 로그인' }) as string}</Primary>
+        ) : (
+          <>
+            <Primary type="button" disabled={busy || code.length !== 6} onClick={() => void submit()}>
+              {busy ? (t('pair.submitting', { defaultValue: '확인 중…' }) as string)
+                    : (t('pair.submit', { defaultValue: '로그인 완료' }) as string)}
+            </Primary>
+            <Ghost type="button" onClick={close}>{t('pair.cancel', { defaultValue: '취소' }) as string}</Ghost>
+          </>
+        )}
       </Card>
     </Backdrop>
   );

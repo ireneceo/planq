@@ -15,6 +15,7 @@
 //   수신부: dev-frontend `components/NativeBridge.tsx` 의 appUrlOpen — https 경로와 커스텀 스킴
 //   양쪽을 모두 인식한다(알림 딥링크는 여전히 Universal Link 를 쓴다).
 const NATIVE_SCHEME = 'planq';
+const ANDROID_PACKAGE = 'app.planq';   // capacitor.config.ts appId · android/app/build.gradle applicationId
 
 /** `planq://oauth/native-return?...` 절대 URL 생성. params 는 객체. */
 function nativeReturnUrl(params = {}) {
@@ -25,6 +26,20 @@ function nativeReturnUrl(params = {}) {
   }
   const q = qs.toString();
   return `${NATIVE_SCHEME}://oauth/native-return${q ? `?${q}` : ''}`;
+}
+
+/**
+ * Android 용 intent URL — Chrome(Custom Tab 포함)이 **설치된 앱이 있으면 앱을, 없으면
+ * `browser_fallback_url` 을** 연다. 스킴 링크를 그냥 누르면 앱이 없을 때 `planq` 를 호스트로
+ * 읽어 ERR_NAME_NOT_RESOLVED 가 났다(2026-09-06 안드로이드 태블릿 실측). intent 는 그 분기를
+ * 브라우저가 대신 한다.
+ */
+function androidIntentUrl(params = {}, fallbackUrl) {
+  const scheme = nativeReturnUrl(params);                      // planq://oauth/native-return?…
+  const rest = scheme.slice(`${NATIVE_SCHEME}://`.length);     // oauth/native-return?…
+  let extras = `scheme=${NATIVE_SCHEME};package=${ANDROID_PACKAGE}`;
+  if (fallbackUrl) extras += `;S.browser_fallback_url=${encodeURIComponent(fallbackUrl)}`;
+  return `intent://${rest}#Intent;${extras};end`;
 }
 
 /**
@@ -40,36 +55,53 @@ function nativeReturnUrl(params = {}) {
  *   해결: 302 대신 아주 작은 HTML 을 돌려주고 그 안에서 `location.replace('planq://…')`.
  *   자동 이동이 막히는 환경을 위해 사용자가 직접 누를 수 있는 링크도 같이 남긴다
  *   (버튼이 없으면 사용자는 창을 닫는 것 말고 할 수 있는 일이 없다).
+ *
+ * ★★ 2026-09-10 — 버튼이 **https App Link** 를 가리키던 것이 iOS 를 망가뜨렸다 (Irene 아이폰:
+ *   "이 버튼으로 돌아가면 번호 안눌러도 로그인이 되는데… 팝업이 열린 상태야. 닫으면 다시
+ *   로그인화면이 뒤에 있던게 나와"). 운영 refresh_tokens 실측: 그 순간 만들어진 세션의 UA 가
+ *   `iPhone … Version/26.6.1`(= SFSafariViewController) 이고 client_kind=web 이었다.
+ *   원인: iOS 는 **지금 보고 있는 도메인과 같은 도메인의 Universal Link 를 탭해도 앱을 열지
+ *   않는다**(브라우저 안 이동으로 처리). 그래서 버튼이 팝오버 안에서 SPA→web-return 으로 흘러
+ *   **팝오버 안에 웹 세션**을 심었고, 뒤의 앱은 아무것도 못 받았다. Android Chrome 도 같은 사이트
+ *   안 이동에는 App Link 를 안 건다. 즉 https 링크는 **어느 플랫폼에서도 앱을 열지 못한다** —
+ *   그것이 여는 것은 언제나 브라우저 세션이다.
+ *   → 앱을 여는 1차 버튼은 **iOS: 커스텀 스킴**(사용자 탭이면 SFSVC 가 "PlanQ에서 열기" 를 띄운다),
+ *     **Android: intent://**(앱 있으면 앱, 없으면 fallback). https 는 "앱 없이 브라우저에서 계속"
+ *     이라는 **명시적 선택지**로만 남긴다. 자동으로 https 로 떠나는 코드는 없다(F-1 도 그대로 지킨다:
+ *     코드가 있는 화면은 스스로 떠나지 않는다).
+ *   → 문구에서 "앱으로 돌아가기" 를 뺐다 — 팝오버는 앱 위에 떠 있어 사용자에겐 여기가 곧 앱이다
+ *     (Irene: "앱으로 돌아가기 버튼은 말이 안돼. 여기가 앱인데").
+ *   → 6자리 코드는 **접어 둔다**("앱이 열리지 않나요?"). 대부분은 버튼 한 번으로 끝나야 하고,
+ *     코드는 스킴 탭까지 실패한 기기의 마지막 길이다.
+ *
+ * @param {object} params  planq:// 쿼리 (code · new · confirm · kind …)
+ * @param {object} opts
+ *   title       화면 제목 (흐름마다 다르다 — 로그인/연결 확인/연동 완료)
+ *   pairCode    6자리 (로그인 흐름에서만). 있으면 접힌 코드 블록을 그린다
+ *   webUrl      앱 없이 **이 브라우저에서** 끝내는 URL (web-return). Android intent 의 fallback 으로도 쓴다
+ *   altUrl/altLabel  코드 없는 흐름의 다른 길 (연결 확인 페이지 등)
+ *   userAgent   플랫폼 판정용. 없으면 res.req 에서 읽는다
  */
 function sendNativeReturn(res, params = {}, opts = {}) {
   const url = nativeReturnUrl(params);
   const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  const safe = esc(url);
-  // ★ 2026-09-06 운영 실측 (Irene, 안드로이드 태블릿):
-  //   "로그인한 후 앱으로 돌아가기 버튼 누르면 웹으로 가서 그냥 dns 에러나와. This site can't be reached."
-  //   이 페이지의 탈출구가 **커스텀 스킴 하나뿐**이었다. 앱이 없거나(안드로이드는 Play 심사 중이라
-  //   설치본이 없다) 스킴 핸들러가 없으면 브라우저가 `planq` 를 **호스트 이름으로 해석**해
-  //   ERR_NAME_NOT_RESOLVED 를 낸다. 서버에서 로그인은 이미 성공했는데 세션을 받을 길이 막힌다.
-  //   → **웹으로 이어가는 길을 항상 같이 준다.** 스킴 이동이 성공하면 이 페이지는 백그라운드로
-  //     가므로, 잠시 뒤에도 화면이 보이면 = 앱이 없다는 뜻이라 그때 폴백을 크게 띄운다.
-  // ★ 브라우저용 "계속하기" 버튼은 두지 않는다 (Irene 2026-09-06: "없애. 완벽히 해").
-  //
-  // ★★ 코드가 있으면 **이 화면은 스스로 떠나지 않는다** (2026-09-06 Fable 재게이트 F-1):
-  //   앞 판은 1.4초 뒤 App Link 로 `location.replace` 했는데, 앱이 못 가로채면 그대로
-  //   브라우저가 SPA 로 넘어가 **코드가 화면에서 사라졌다**(실측 t=2.8s: code visible false).
-  //   딥링크가 실패하는 바로 그 기기가 코드를 가장 필요로 하는데 읽을 시간이 없었다.
-  //   주석에는 "못 가로채면 이 화면에 남는다" 고 써 있었다 — 자기 JS 와 모순이었다.
-  //   → 코드가 있으면 **자동 이동 금지**. 스킴 시도만 한다(실패해도 페이지가 남는다).
-  //     App Link 는 이 흐름에서 **아예 내보내지 않는다**(자동 이동도, 누를 버튼도 없다) —
-  //     떠나는 순간 코드를 잃기 때문이다. 앱을 여는 시도는 스킴 하나로 족하고, 그것이 실패해도
-  //     페이지가 남아 코드를 읽을 수 있다. 코드가 **없는** 흐름에서만 App Link 사다리를 쓴다.
-  const appLink = opts.appLinkUrl ? esc(opts.appLinkUrl) : '';
+  const ua = String(opts.userAgent || (res.req && typeof res.req.get === 'function' && res.req.get('user-agent')) || '');
+  const isIos = /iPhone|iPad|iPod/i.test(ua);
+  const isAndroid = /Android/i.test(ua);
+  const webUrl = opts.webUrl ? String(opts.webUrl) : '';
+  // 1차(앱 열기) 링크 — 플랫폼별. 그 외(데스크탑 등)는 스킴.
+  const primaryHref = isAndroid ? androidIntentUrl(params, webUrl || undefined) : url;
+  const primary = esc(primaryHref);
   const pairCode = opts.pairCode ? esc(opts.pairCode) : '';
-  // 화면 성격 — 로그인 복귀 / 연결 확인 / 연동 완료가 같은 제목을 쓰면 거짓말이 된다.
   const title = esc(opts.title || 'PlanQ 로 돌아갑니다');
-  // 코드가 없는 흐름(연결 확인 등)의 **다른 길** — 없으면 막다른 길이 된다.
   const altUrl = opts.altUrl ? esc(opts.altUrl) : '';
   const altLabel = esc(opts.altLabel || '계속하기');
+  const web = webUrl ? esc(webUrl) : '';
+  const primaryLabel = esc(opts.primaryLabel || 'PlanQ 계속하기');
+  // 플랫폼별 한 줄 안내 — iOS 는 시스템 확인 창이 한 번 뜬다.
+  const hint = isIos
+    ? '확인 창이 뜨면 ‘열기’ 를 누르세요.'
+    : (isAndroid ? '잠시 뒤 앱이 열리지 않으면 아래 버튼을 누르세요.' : '아래 버튼을 누르면 앱이 열립니다.');
   res.set('Content-Type', 'text/html; charset=utf-8');
   res.set('Cache-Control', 'no-store');
   return res.status(200).send(`<!doctype html><html lang="ko"><head>
@@ -79,46 +111,44 @@ function sendNativeReturn(res, params = {}, opts = {}) {
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
        font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Segoe UI",sans-serif;
        background:#F8FAFC;color:#0F172A;padding:24px;text-align:center}
-  .c{max-width:340px}
+  .c{max-width:340px;width:100%}
   h1{font-size:17px;font-weight:700;margin:0 0 8px}
   p{font-size:14px;line-height:1.7;color:#475569;margin:0 0 18px}
-  a{display:block;text-decoration:none;padding:14px 22px;border-radius:10px;
+  a.btn{display:block;text-decoration:none;padding:14px 22px;border-radius:10px;
     background:#115E59;color:#fff;font-size:15px;font-weight:600;margin:0 0 12px}
-  a.s{background:#fff;color:#0F172A;border:1px solid #CBD5E1}
-  .codebox{border:1px solid #CBD5E1;border-radius:12px;background:#fff;padding:16px 12px;margin:4px 0 12px}
-  .lbl{font-size:12px;color:#64748B;margin:0 0 6px}
-  .code{font-size:30px;font-weight:800;letter-spacing:6px;color:#0F172A;
-        font-variant-numeric:tabular-nums}
-  .hint{font-size:12px;color:#94A3B8;margin:8px 0 0;line-height:1.6}
+  a.s{display:block;text-decoration:none;padding:12px 18px;border-radius:10px;
+    background:#fff;color:#0F172A;border:1px solid #CBD5E1;font-size:14px;font-weight:600;margin:0 0 12px}
+  details{margin-top:18px;text-align:left;border-top:1px solid #E2E8F0;padding-top:12px}
+  summary{cursor:pointer;font-size:13px;color:#475569;font-weight:600;text-align:center;list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:' ▾';color:#94A3B8}
+  details[open] summary::after{content:' ▴'}
+  .step{font-size:13px;color:#475569;line-height:1.7;margin:12px 0 6px}
+  .codebox{border:1px solid #CBD5E1;border-radius:12px;background:#fff;padding:14px 12px;margin:6px 0 10px;text-align:center}
+  .code{font-size:30px;font-weight:800;letter-spacing:6px;color:#0F172A;font-variant-numeric:tabular-nums}
+  .hint{font-size:12px;color:#94A3B8;margin:6px 0 0;line-height:1.6;text-align:center}
 </style></head><body><div class="c">
 <h1>${title}</h1>
-${pairCode ? `<div class="codebox">
-<p class="lbl">1. 이 코드를 기억하세요</p>
-<div class="code">${pairCode.slice(0, 3)} ${pairCode.slice(3)}</div>
-<p class="hint">10분 동안 유효합니다. 다른 사람에게 알려주지 마세요.</p>
-</div>
-<p>2. 아래 버튼을 눌러 앱으로 돌아가세요. (버튼이 안 되면 이 창을 닫으세요 — 위로 쓸어내리거나 '완료')</p>
-<p class="hint">3. 앱에 뜨는 칸에 코드를 입력하면 로그인이 끝납니다.</p>`
-: `<p>잠시만 기다려 주세요. 화면이 바뀌지 않으면 아래 버튼을 눌러 주세요.</p>`}
-${appLink ? `<a id="go" href="${appLink}">PlanQ 앱으로 돌아가기</a>` : ''}
-${!appLink ? `<a id="go" href="${safe}">PlanQ 앱으로 돌아가기</a>` : ''}
+<p>${esc(hint)}</p>
+<a class="btn" id="go" href="${primary}">${primaryLabel}</a>
 ${altUrl ? `<a class="s" id="alt" href="${altUrl}">${altLabel}</a>` : ''}
+${pairCode || web ? `<details id="more">
+<summary>앱이 열리지 않나요?</summary>
+${pairCode ? `<p class="step">① 이 창을 닫으세요(‘완료’ 또는 아래로 쓸어내리기). PlanQ 에 뜨는 칸에 이 코드를 입력하면 로그인이 끝납니다.</p>
+<div class="codebox"><div class="code">${pairCode.slice(0, 3)} ${pairCode.slice(3)}</div>
+<p class="hint">10분 동안 유효합니다. 다른 사람에게 알려주지 마세요.</p></div>` : ''}
+${web ? `<p class="step">${pairCode ? '②' : ''} 앱 없이 쓰려면 이 브라우저에서 계속할 수 있습니다.</p>
+<a class="s" id="web" href="${web}">이 브라우저에서 계속</a>` : ''}
+</details>` : ''}
 </div><script>
-  // 스킴 시도 — **실패해도 이 페이지는 남는다**(핸들러가 없으면 이동 자체가 취소된다).
-  //   ★ iOS 의 SFSafariViewController 는 커스텀 스킴 **리다이렉트를 무시**한다(이 파일 머리말).
-  //     그래서 iOS 에서는 이 자동 시도가 아무 일도 하지 않고, **사람이 버튼을 눌러야** 한다.
-  //     안드로이드는 여기서 앱이 열린다 — 그 차이가 "안드로이드는 되는데 아이폰은 안 된다" 였다.
+  // 스킴 자동 시도 — **실패해도 이 페이지는 남는다**(핸들러가 없으면 이동 자체가 취소된다).
+  //   Android Custom Tab 은 여기서 앱이 열린다. iOS 의 SFSafariViewController 는 JS 가 시작한
+  //   커스텀 스킴 이동을 무시하므로 **사람이 위 버튼을 눌러야** 한다(그 탭은 연다).
+  //   ★ https 로 자동 이동하는 코드는 두지 않는다 — 같은 도메인이라 어느 플랫폼에서도 앱을 열지
+  //     못하고, 이 팝오버 안에 웹 세션만 심는다(2026-09-10 실측). 코드가 있는 화면은 떠나지 않는다(F-1).
   try { location.replace(${JSON.stringify(url)}); } catch (e) {}
   setTimeout(function(){ try { location.href = ${JSON.stringify(url)}; } catch (e) {} }, 400);
-${appLink && !pairCode ? `  // 코드가 없는 흐름에서만 App Link 로 한 번 더 **자동** 시도한다.
-  //   코드가 있으면 자동 이동하지 않는다 — 떠나면 코드를 못 읽는다(F-1).
-  //   ★ 막는 것은 **자동 이동**이지 버튼이 아니다. 2026-09-06 에 버튼까지 같이 없앴다가
-  //     iOS 가 막다른 길이 됐다(아래 주석 참조).
-  setTimeout(function(){
-    if (document.visibilityState !== 'visible') return;
-    location.replace(${JSON.stringify(opts.appLinkUrl)});
-  }, 1400);` : ''}
 </script></body></html>`);
 }
 
-module.exports = { NATIVE_SCHEME, nativeReturnUrl, sendNativeReturn };
+module.exports = { NATIVE_SCHEME, ANDROID_PACKAGE, nativeReturnUrl, androidIntentUrl, sendNativeReturn };

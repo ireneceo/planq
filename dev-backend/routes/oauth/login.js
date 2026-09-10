@@ -124,6 +124,7 @@ router.get('/google/callback', async (req, res) => {
             title: '계정 연결 확인이 필요합니다',
             altUrl: `/oauth/connect-confirm?token=${encodeURIComponent(confirmToken)}`,
             altLabel: '연결 확인하기',
+            userAgent: req.get('user-agent'),
           });
         }
         return res.redirect(302, `/oauth/connect-confirm?token=${confirmToken}&email=${encodeURIComponent(profile.email)}&existing_email=${encodeURIComponent(prospectUser.email)}&name=${encodeURIComponent(profile.name || '')}`);
@@ -197,15 +198,13 @@ router.get('/google/callback', async (req, res) => {
       const pairCode = await oauthPairing.attach(pairId, user.id);
       return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' }, {
         title: '로그인이 끝났습니다',
-        // ★ App Link 는 **코드가 있어도 준다.** 막아야 하는 것은 *자동 이동*(코드를 읽기 전에
-        //   화면이 떠나는 것, F-1)이지 **버튼**이 아니다. 2026-09-06 에 둘을 같이 없앴더니
-        //   iOS 가 막다른 길이 됐다 — SFSafariViewController 는 커스텀 스킴 리다이렉트를
-        //   무시하므로 자동 이동이 안 되고, 버튼마저 없으면 앱으로 돌아갈 길이 **하나도 없다.**
-        //   안드로이드는 스킴 자동 이동이 먹어서 멀쩡했다.
-        //   (Irene 2026-09-10: "안드로이드랑 아이폰이랑 다른 것 같은데?
-        //    안드로이드 바뀌면서 아이폰 안되게 된 것 같아." — 정확한 진단이었다.)
-        //   자동 이동 억제는 utils/nativeReturn.js 의 `appLink && !pairCode` 조건이 계속 맡는다.
-        appLinkUrl: `${origin}/oauth/native-return?code=${encodeURIComponent(code)}`,
+        // ★ https App Link 는 **주지 않는다** — 같은 도메인이라 iOS(SFSafariViewController)·Android(Chrome)
+        //   어느 쪽도 앱을 열지 못하고 팝오버 안에 웹 세션만 심었다(2026-09-10 운영 실측: 그 세션의
+        //   UA 가 SFSVC, client_kind=web). 앱을 여는 길은 utils/nativeReturn.js 가 플랫폼별로 고른다
+        //   (iOS 스킴 탭 · Android intent://). web-return 은 "앱 없이 이 브라우저에서 계속" 이라는
+        //   명시적 선택지로만 노출된다(Android intent 의 fallback 도 이것).
+        webUrl: `${origin}/api/auth/google/web-return?code=${encodeURIComponent(code)}`,
+        userAgent: req.get('user-agent'),
         pairCode,
       });
     }
