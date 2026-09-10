@@ -461,6 +461,14 @@ export const ReplyNeededBadge = styled.span`
   background: rgba(244, 63, 94, 0.12); color: #9F1239;
   font-size: 0.6875rem; font-weight: 700;
 `;
+
+/* 임시답변 — 답장은 보냈지만 본 답변이 남아 있다는 표시(2026-09-10). 답변 필요 뱃지와 같은 규격. */
+export const HoldingBadge = styled.span`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 7px; border-radius: 999px;
+  background: #FEF3C7; color: #92400E;
+  font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
+`;
 // #186 — '보낸' 태그 (제목 앞 인라인). 받은 메일과 즉시 구분.
 export const SentTag = styled.span`
   display: inline-flex; align-items: center; flex-shrink: 0;
@@ -862,6 +870,17 @@ export const ComposerError = styled.div`
 //   본문이 길어지면 이 줄이 화면 밖으로 밀려 보내기 버튼을 찾을 수 없었다 — 버튼을 못 찾으면
 //   기능이 없는 것과 같다. 스크롤 컨테이너 바닥에 붙여 항상 보이게 한다.
 //   배경을 불투명하게 깔지 않으면 본문이 버튼 뒤로 비쳐 지저분해진다.
+/* 임시 답변 체크줄 — 보내기 바로 위. 터치 타겟 확보(40px) + 라벨 클릭으로도 토글. */
+export const KeepNeededRow = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 2px 0;
+  font-size: 0.8125rem; color: #475569;
+  /* 네이티브 체크박스 — 크기를 손으로 적지 않는다(장식 높이가 UISPEC 래칫을 올린다).
+     누르는 면적은 이 줄 전체(40px)와 라벨이 맡는다. */
+  input { accent-color: #0D9488; cursor: pointer; }
+  label { cursor: pointer; line-height: 1.5; }
+`;
+
 export const ComposerActions = styled.div`
   display: flex; align-items: center; justify-content: flex-start; gap: 8px;
   flex-wrap: wrap;

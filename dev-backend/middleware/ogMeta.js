@@ -66,7 +66,10 @@ function escapeHtml(s) {
 // indexable: 기본은 false — 이 함수가 만드는 HTML 은 대부분 **공유 토큰 페이지**이고,
 //   그런 링크가 색인되면 의도치 않은 영구 공개가 된다. 찾아오라고 발행한 공개 글(인사이트)만
 //   호출부가 true 를 준다.
-function buildHtml({ url, title, description, image, siteName, bodyParagraphs, indexable }) {
+// ★ 2026-09-10 — `updatedAt` 은 **제목이 바뀐 사실을 크롤러에 알리는 유일한 표준 신호**다.
+//   (SNS 미리보기 캐시는 우리가 못 지운다 — 링크 주소가 바뀌어야 다시 읽는다. 공유 모달의
+//    'SNS용 링크 복사' 가 그 일을 한다. 여기 시각은 다시 읽으러 온 크롤러에게 주는 근거다.)
+function buildHtml({ url, title, description, image, siteName, bodyParagraphs, indexable, updatedAt }) {
   const t = escapeHtml(title || 'PlanQ');
   const d = escapeHtml(description || '');
   const img = escapeHtml(image || '');
@@ -87,6 +90,7 @@ function buildHtml({ url, title, description, image, siteName, bodyParagraphs, i
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:url" content="${u}">
+${updatedAt ? `<meta property="og:updated_time" content="${escapeHtml(updatedAt)}">\n<meta property="article:modified_time" content="${escapeHtml(updatedAt)}">\n` : ''}
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${t}">
 <meta name="twitter:description" content="${d}">
@@ -119,7 +123,7 @@ async function resolvePostShare(token, settings) {
     const { Post } = require('../models');
     const post = await Post.findOne({
       where: { share_token: token, status: 'published' },
-      attributes: ['id', 'title', 'content_text', 'content_json', 'category', 'share_expires_at'],
+      attributes: ['id', 'title', 'content_text', 'content_json', 'category', 'share_expires_at', 'updated_at'],
     });
     if (!post) return null;
     if (isShareExpired(post)) return null;
@@ -135,6 +139,8 @@ async function resolvePostShare(token, settings) {
     if (!bodyParagraphs.length && post.content_text) bodyParagraphs = [String(post.content_text)];
     return {
       title: `${baseTitle} — ${post.title || (post.category || '문서')}`,
+      // 제목이 언제 바뀌었는지 — 다시 읽으러 온 크롤러에게 주는 근거(buildHtml 주석)
+      updatedAt: post.updated_at ? new Date(post.updated_at).toISOString() : null,
       description: preview || settings?.seo_description || `${post.category || '문서'} - PlanQ 에서 공유한 문서입니다.`,
       image: settings?.og_image_url || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`,
       siteName: settings?.brand || 'PlanQ',

@@ -126,7 +126,7 @@ const ReportsTab: React.FC<{ businessId: number; range: RangePreset }> = ({ busi
             <SkeletonGrid>{[0, 1, 2, 3].map((i) => <SkeletonCard key={i} />)}</SkeletonGrid>
           ) : rollup ? (
             <>
-              <KpiGrid $cols={4}>
+              <KpiGrid>
                 <KpiCard><KpiLabel>{t('reports.integrated.completed', '완료 업무')}</KpiLabel><KpiValueBig>{fmtNum(rollup.summary.completed_in_period)}</KpiValueBig></KpiCard>
                 <KpiCard><KpiLabel>{t('reports.integrated.inProgress', '진행 중')}</KpiLabel><KpiValueBig>{fmtNum(rollup.summary.in_progress)}</KpiValueBig></KpiCard>
                 <KpiCard><KpiLabel>{t('reports.integrated.overdue', '지연')}</KpiLabel><KpiValueBig>{fmtNum(rollup.summary.overdue)}</KpiValueBig></KpiCard>

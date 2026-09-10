@@ -464,7 +464,9 @@
       "descOn": "Currently public. Unchecking revokes the link immediately.",
       "descOff": "Check to generate an unguessable URL. Only people you share it with can view it without logging in.",
       "copy": "Copy URL",
-      "copied": "Copied"
+      "copied": "Copied",
+      "copySns": "Copy link for social",
+      "snsHint": "Social platforms cache the link preview per URL. After changing the title, use this link so they fetch it again."
     },
     "email": {
       "tab": "Email",

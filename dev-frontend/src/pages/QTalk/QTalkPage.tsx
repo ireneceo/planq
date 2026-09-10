@@ -22,6 +22,7 @@ import {
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { mapApiError } from '../../utils/apiError';
@@ -340,6 +341,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   const initialCandidateId = Number(initialParams.get('candidate')) || null;
   const [activeProjectId, setActiveProjectId] = useState<number | null>(initialProject);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(initialConv);
+  // 알림·검색으로 연 대화는 **좌측 목록에서도 보여야** 한다 (hooks/useRevealSelectedRow)
+  useRevealSelectedRow(activeConversationId);
   // ★ 운영 신고 (Irene, 2026-08-28): "Talk 메시지 왔는데 좌측메뉴에 숫자가 안생겼어. 나는 다른 곳에 있는데."
   //   멀티탭은 keep-alive 라 뒤에 있는 Q Talk 탭도 계속 살아서 소켓을 듣는다. 그런데 읽음 판정이
   //   `document.visibilityState` 였다 — 그건 **브라우저 창** 기준이라 뒤 앱탭에서도 'visible' 이다.

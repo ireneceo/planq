@@ -1293,7 +1293,12 @@
       "errForbiddenRevert": "You don't have permission to revert",
       "errGeneric": "Could not complete the action",
       "errNetwork": "Connection failed",
-      "needSubmit": "Needs a review request — tap to open details and send"
+      "needSubmit": "Needs a review request — tap to open details and send",
+      "start": "Start work",
+      "stop": "Stop work",
+      "startTip": "Start — track time on this task",
+      "stopTip": "Stop — pause time tracking",
+      "running": "{{n}}m"
     },
     "priorityN": "Priority {{n}}",
     "prioritySet": "Set priority",

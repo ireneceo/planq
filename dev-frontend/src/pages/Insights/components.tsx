@@ -1,4 +1,5 @@
 // Insights 통계 탭들의 공통 styled 컴포넌트.
+import React from 'react';
 import styled from 'styled-components';
 
 // 인사이트 박스 — 가로 풀폭 1col, 안에서 가로 inline (제목 · 값 · 힌트 · 액션)
@@ -60,12 +61,58 @@ export const InsightAction = styled.div`
   flex-shrink: 0; margin-left: auto;
 `;
 
-export const KpiGrid = styled.div<{ $cols?: number }>`
+const KpiGridBase = styled.div<{ $cols: number; $span: number; $cols3: number; $span3: number; $span2: number }>`
   /* minmax(0,1fr): 트랙이 콘텐츠보다 못 줄어 가로 오버플로우 나던 것 차단 (긴 문구 대응) */
-  display: grid; grid-template-columns: repeat(${(p) => p.$cols || 6}, minmax(0, 1fr)); gap: 12px; margin-bottom: 28px;
-  @media (max-width: 1024px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  @media (max-width: 560px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  display: grid; grid-template-columns: repeat(${(p) => p.$cols}, minmax(0, 1fr)); gap: 12px; margin-bottom: 28px;
+  /* 마지막 줄에 한두 장만 남으면 **남은 칸을 채운다.** 빈 칸을 남기면 그것이 바로
+     "1행 6개, 2행 1개" 로 보이던 그 모양이다(Irene 2026-09-10). */
+  & > *:last-child { grid-column: span ${(p) => p.$span}; }
+  /* 좁은 데스크탑 — 4열이면 카드가 127px 까지 줄어 금액이 카드를 넘친다(실측 1025px).
+     열을 3으로 줄이고 마지막 줄은 다시 채운다. */
+  @media (max-width: 1320px) {
+    grid-template-columns: repeat(${(p) => p.$cols3}, minmax(0, 1fr));
+    & > *:last-child { grid-column: span ${(p) => p.$span3}; }
+  }
+  @media (max-width: 1024px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    & > *:last-child { grid-column: span ${(p) => p.$span2}; }
+  }
 `;
+
+/**
+ * 카드 수에 맞는 **균형 잡힌 열 수**. 한 행 상한은 폭에 따라 4 또는 3이다.
+ *
+ * ★ 2026-09-10 (Irene): "개요페이지에 위에 카드형 통계가 1행은 6개, 2행은 1개 있는 것처럼
+ *   엉망인 ui/ux 없게 해주고. 숫자 다 잘리게 6개나 넣지 말고 가로사이즈에 맞게 갯수 맞춰."
+ *   실측(1440px): 개요 [6+1] · 팀 [6+2]. 열 수가 **6 고정**이라 카드 수와 무관했고,
+ *   6열이면 카드 폭이 190px 로 좁아 금액이 두 줄로 접혔다.
+ *   → 행 수를 먼저 정하고(ceil(n/상한)) 그 행에 고르게 나눈다: 6→3+3 · 7→4+3 · 8→4+4 · 5→3+2.
+ *   호출부는 아무것도 안 넘긴다 — 카드 수를 화면이 세면 두 곳이 갈라질 일이 없다.
+ */
+function balancedCols(n: number, maxPerRow: number): number {
+  if (n <= 1) return 1;
+  const rows = Math.ceil(n / maxPerRow);
+  return Math.min(n, Math.ceil(n / rows));
+}
+/** 마지막 카드가 남은 칸까지 차지할 폭 (딱 떨어지면 1) */
+function lastSpan(n: number, cols: number): number {
+  if (cols <= 1) return 1;
+  const rest = n % cols;
+  return rest === 0 ? 1 : cols - rest + 1;
+}
+
+export const KpiGrid: React.FC<{ children?: React.ReactNode; $cols?: number }> = ({ children, $cols }) => {
+  const n = React.Children.toArray(children).filter(Boolean).length;
+  const cols = $cols || balancedCols(n, 4);
+  const cols3 = Math.min(cols, balancedCols(n, 3));
+  return (
+    <KpiGridBase
+      $cols={cols} $span={lastSpan(n, cols)}
+      $cols3={cols3} $span3={lastSpan(n, cols3)}
+      $span2={lastSpan(n, 2)}
+    >{children}</KpiGridBase>
+  );
+};
 
 export const KpiCard = styled.div`
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
@@ -74,7 +121,13 @@ export const KpiCard = styled.div`
 `;
 
 export const KpiLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #64748B; text-transform: uppercase; letter-spacing: 0.4px; word-break: keep-all;`;
-export const KpiValueBig = styled.div`font-size: 1.5rem; font-weight: 700; color: #0F172A; line-height: 1.1; word-break: break-word;`;
+/* 숫자는 **접지도 자르지도 않는다** — 폭이 좁으면 글자 크기가 줄어든다.
+   (Irene 2026-09-10: "숫자 다 잘리게 6개나 넣지 말고". 접히면 금액이 두 줄로 쪼개져 읽기 어렵고,
+    ellipsis 로 자르면 값이 거짓이 된다. tabular-nums 로 자리도 고정한다.) */
+export const KpiValueBig = styled.div`
+  font-size: clamp(1.125rem, 1.35vw, 1.5rem); font-weight: 700; color: #0F172A; line-height: 1.15;
+  white-space: nowrap; font-variant-numeric: tabular-nums; letter-spacing: -0.3px;
+`;
 export const KpiHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 
 export const SectionLabel = styled.h2`

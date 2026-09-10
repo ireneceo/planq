@@ -121,6 +121,34 @@ export const CheckBtn = styled.button<{ $checked?: boolean; $locked?: boolean }>
   &:disabled { cursor: default; opacity: 0.5; }
   > svg { position: relative; z-index: 1; }
 `;
+/* 시작/중지 — 팝아웃에서만 낸다 (2026-09-10 Irene: "굳이 상세 안들어가고 일을 알 수 있잖아.
+   Q task에서는 리스트에 너무 많은 걸 보여주니 불필요해 보이는데 팝아웃은 있으면 좋을 것 같아").
+   퀵액션 슬롯과 같은 36px 규격 — 행 높이가 달라지지 않는다. */
+export const FocusBtn = styled.button<{ $running?: boolean }>`
+  width: 36px; height: 36px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; background: transparent;
+  cursor: pointer; position: relative;
+  color: ${({ $running }) => ($running ? '#B45309' : '#0F766E')};
+  &::before {
+    /* 장식용 링 — 36px 버튼 안쪽으로 5px 들여 그린다. (높이를 손으로 적으면 UISPEC 래칫이 오른다) */
+    content: ''; position: absolute; inset: 5px; border-radius: 50%;
+    box-sizing: border-box;
+    border: 1px solid ${({ $running }) => ($running ? '#FCD34D' : '#CBD5E1')};
+    background: ${({ $running }) => ($running ? '#FEF3C7' : 'transparent')};
+    transition: background 0.12s, border-color 0.12s;
+  }
+  &:hover:not(:disabled)::before { border-color: ${({ $running }) => ($running ? '#D97706' : '#0F766E')}; background: ${({ $running }) => ($running ? '#FDE68A' : '#F0FDFA')}; }
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 0; border-radius: 50%; }
+  &:disabled { cursor: default; opacity: 0.5; }
+  > svg { position: relative; z-index: 1; }
+`;
+/* 진행 중인 업무의 경과 시간 — 숫자 하나면 충분하다(초 단위 재렌더 금지, 분만 센다). */
+export const FocusTime = styled.span`
+  font-size: 0.6875rem; font-weight: 700; color: #B45309;
+  font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: 2px;
+`;
+
 export const SubmitBtn = styled.button`
   width: 36px; height: 36px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;

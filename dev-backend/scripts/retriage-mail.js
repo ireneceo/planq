@@ -45,7 +45,7 @@ const APPLY = process.argv.includes('--apply');
         { reply_needed_reason: null },
         // #200 — 'replied'(우리가 답장함) 추가. 여태 답장 라우트가 reason 을 null 로 지워서
         //   이미 답장한 스레드가 재판정 때마다 답변 필요로 **되살아났다**.
-        { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled', 'rule', 'replied'] } },
+        { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled', 'rule', 'replied', 'holding'] } },
       ],
     },
     order: [['id', 'ASC']],

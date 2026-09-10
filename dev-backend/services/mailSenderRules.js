@@ -259,18 +259,43 @@ async function maybePromoteDomain(businessId, addr, userId) {
 async function restoreThreadsForRule(businessId, ruleId, verdict) {
   if (!businessId || !ruleId) return 0;
 
-  // 규칙이 "답장 불필요/마케팅" 으로 내렸던 판정 → 다시 답변 필요로 되돌린다
-  const [restored] = await EmailThread.update(
-    { reply_needed: true, reply_needed_reason: 'rule_removed', rule_id: null },
-    {
-      where: {
-        business_id: businessId,
-        rule_id: ruleId,
-        reply_needed_reason: 'rule',
-        status: { [Op.notIn]: ['spam', 'archived'] },
-      },
-    }
-  );
+  // ★ 2026-09-10 — 되돌리기는 **규칙이 한 일의 반대**여야 한다.
+  //   여태 verdict 와 무관하게 전부 `reply_needed = true` 로 올렸다. 숨긴 규칙(no_reply·marketing·
+  //   spam)에는 맞지만, **확인 권장으로 올린 규칙(review)** 을 지우면 답변 필요가 아니었던 메일이
+  //   답변 필요로 새로 켜진다 — 지우는 행동이 목록을 늘리는 꼴이다(숫자 배지 계약도 깨진다).
+  //   소급 적용(applyRuleToExisting)이 생겨 review 규칙이 수백 건에 rule_id 를 남기므로,
+  //   이 구분 없이는 규칙 하나를 지웠다가 답변 필요가 폭증한다.
+  const hidWork = ['no_reply', 'marketing', 'spam'].includes(verdict);
+  let restored = 0;
+  if (hidWork) {
+    // 규칙이 "답장 불필요/마케팅/스팸" 으로 숨겼던 것 → 다시 답변 필요로 되돌린다
+    const [n] = await EmailThread.update(
+      { reply_needed: true, reply_needed_reason: 'rule_removed', rule_id: null },
+      {
+        where: {
+          business_id: businessId,
+          rule_id: ruleId,
+          reply_needed_reason: 'rule',
+          status: { [Op.notIn]: ['spam', 'archived'] },
+        },
+      }
+    );
+    restored = n || 0;
+  } else {
+    // 올린 규칙(review·always_reply) → 올린 것만 내린다. 답변 필요를 새로 켜지 않는다.
+    const [n] = await EmailThread.update(
+      { status: 'open', uncertain_reason: null, reply_needed: false, reply_needed_reason: 'rule_removed', rule_id: null },
+      {
+        where: {
+          business_id: businessId,
+          rule_id: ruleId,
+          reply_needed_reason: 'rule',
+          status: { [Op.notIn]: ['spam', 'archived'] },
+        },
+      }
+    );
+    restored = n || 0;
+  }
 
   // 스팸 규칙이 스팸함으로 보낸 것 → 인박스로 되돌린다
   if (verdict === 'spam') {
@@ -287,6 +312,94 @@ async function restoreThreadsForRule(businessId, ruleId, verdict) {
   );
 
   return restored || 0;
+}
+
+/**
+ * 이 규칙에 **걸리는 기존 스레드**를 찾는다 (미리보기·소급 적용 공용).
+ *
+ * ★ 2026-09-10 (Irene): "메일이 자동발송이어도 실제 운영하고 있는 에어비앤비 알림메일이나
+ *   우리가 운영중인 곳의 문의메일 알림 … [확인권장]에 넣어줘야지."
+ *   규칙을 만들 수는 있었지만 **이미 받은 메일에는 아무 일도 일어나지 않았다** — 삭제할 때는
+ *   되돌리는데(restoreThreadsForRule) 추가할 때는 소급이 없었다. 그래서 규칙을 만들어도
+ *   에어비앤비 알림은 자동·마케팅 폴더에 그대로 있었다. 만드는 문과 되돌리는 문을 대칭으로 만든다.
+ *
+ * ★ 사람이 이미 판단한 것은 건드리지 않는다 — "답변 완료"(dismissed)·"확인 완료"(handled)·
+ *   보관(archived). 재판정 스크립트(scripts/retriage-mail.js)와 같은 기준이다.
+ */
+async function threadsMatchingRule(businessId, rule, { limit = 1000 } = {}) {
+  if (!businessId || !rule || !rule.pattern) return [];
+  const pattern = String(rule.pattern).toLowerCase();
+  const type = rule.pattern_type || 'address';
+  const field = rule.match_field || (type === 'keyword' ? 'any' : 'from');
+
+  const threadWhere = {
+    business_id: businessId,
+    status: { [Op.notIn]: ['archived'] },
+    [Op.or]: [
+      { reply_needed_reason: null },
+      { reply_needed_reason: { [Op.notIn]: ['dismissed', 'handled'] } },
+    ],
+  };
+
+  // 문구 규칙이 제목만 볼 때는 스레드 제목으로 바로 좁힌다(메시지 조인 불필요).
+  const like = `%${pattern}%`;
+  let msgWhere = { direction: 'inbound' };
+  if (type === 'address') msgWhere.from_email = pattern;
+  else if (type === 'domain') msgWhere.from_email = { [Op.like]: `%@${pattern}` };
+  else if (field === 'from') msgWhere.from_email = { [Op.like]: like };
+  else if (field === 'subject') msgWhere.subject = { [Op.like]: like };
+  else if (field === 'body') msgWhere.body_text = { [Op.like]: like };
+  else msgWhere[Op.or] = [{ subject: { [Op.like]: like } }, { body_text: { [Op.like]: like } }, { from_email: { [Op.like]: like } }];
+
+  const rows = await EmailThread.findAll({
+    where: threadWhere,
+    include: [{ model: EmailMessage, as: 'messages', required: true, where: msgWhere, attributes: [] }],
+    attributes: ['id', 'subject', 'status', 'reply_needed', 'triage', 'rule_id'],
+    order: [['last_message_at', 'DESC']],
+    limit,
+    subQuery: false,
+    group: ['EmailThread.id'],
+  });
+  return rows;
+}
+
+/**
+ * 규칙이 스레드에 남기는 **결과 필드**. applyRules(신규 메일)의 switch 와 같은 뜻을 스레드 컬럼으로 옮긴 것.
+ *   두 곳이 갈라지면 "새로 온 메일과 이미 있던 메일이 다른 폴더에 있는" 상태가 된다.
+ */
+function threadFieldsForVerdict(verdict, thread, ruleId) {
+  const base = { rule_id: ruleId };
+  switch (verdict) {
+    case 'review':      // 확인 권장으로 올린다 — 답장 상대는 없지만 눈으로 봐야 하는 것
+      return { ...base, status: 'uncertain', uncertain_reason: 'rule', reply_needed: false, reply_needed_reason: 'rule' };
+    case 'always_reply':
+      return { ...base, reply_needed: true, reply_needed_reason: 'rule', status: thread.status === 'spam' ? 'open' : thread.status };
+    case 'no_reply':
+      return { ...base, reply_needed: false, reply_needed_reason: 'rule', triage: thread.triage === 'spam' ? 'spam' : 'automated' };
+    case 'marketing':
+      return { ...base, triage: 'marketing', status: 'open', reply_needed: false, reply_needed_reason: 'rule', uncertain_reason: null };
+    case 'spam':
+      return { ...base, status: 'spam', reply_needed: false, reply_needed_reason: 'rule' };
+    default:
+      return null;
+  }
+}
+
+/** 규칙을 **이미 받은 메일에 소급 적용**한다. @returns {{matched:number, changed:number}} */
+async function applyRuleToExisting(businessId, rule) {
+  const rows = await threadsMatchingRule(businessId, rule);
+  let changed = 0;
+  for (const th of rows) {
+    const fields = threadFieldsForVerdict(rule.verdict, th, rule.id);
+    if (!fields) continue;
+    if (rule.mark_important) fields.is_starred = true;
+    // 이미 같은 상태면 건드리지 않는다(멱등) — 갱신 시각만 흔들리면 목록 정렬이 이유 없이 바뀐다.
+    const same = Object.entries(fields).every(([k, v]) => th[k] === v || (k === 'rule_id' && th.rule_id === v));
+    if (same) continue;
+    await th.update(fields);
+    changed++;
+  }
+  return { matched: rows.length, changed };
 }
 
 /** 학습 신호 — "스팸으로" 2회 → 도메인 spam 규칙 */
@@ -358,6 +471,9 @@ async function onReplySent({ businessId, toEmails }) {
 module.exports = {
   findRuleFor,
   restoreThreadsForRule,
+  threadsMatchingRule,
+  applyRuleToExisting,
+  threadFieldsForVerdict,
   applyRules,
   onDismissReply,
   onMarkSpam,

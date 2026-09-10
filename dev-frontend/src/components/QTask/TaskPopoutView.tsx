@@ -42,6 +42,8 @@ import {
   RowMain,
   RowMeta,
   RowTitle,
+  FocusBtn,
+  FocusTime,
   RowTop,
   Slot,
   Spin,
@@ -129,6 +131,108 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
   //   여태 팝아웃은 담당자·작성자만 봐서, owner 인데도 "내가 컨펌자로 들어간 남의 업무" 행에는
   //   버튼이 아예 안 떴다 — 백엔드는 허용하는데 화면이 막고 있던 것(Irene 2026-08-23 "팝아웃에서
   //   여전히 안되는데"). 메인 리스트(canEditDatesFor)는 이미 owner/admin 을 포함하고 있었다.
+  // ── 업무 시작/중지 (2026-09-10) ────────────────────────────────────────────────
+  //   Irene: "팝아웃 Q task에 업무 시작 중지 아이콘 넣어서 적용시키면 어때?
+  //           굳이 상세 안들어가고 일을 알 수 있잖아."
+  //   ★ 시간의 근거는 **포커스 타이머 하나**다(memory feedback_actual_hours_focus_only).
+  //     그래서 상세의 TaskFocusBar 와 **같은 API**(/api/focus/*)를 부른다 — 새 개념을 만들지 않는다.
+  //   ★ "시작" 은 상태도 같이 옮긴다. 포커스만 켜면 목록에는 여전히 '대기'로 보여
+  //     같은 화면 안에서 두 가지를 말하게 된다(진행 중인데 대기).
+  const [focusEnabled, setFocusEnabled] = useState<boolean | null>(null);
+  const [focusSession, setFocusSession] = useState<{ id: number; task_id: number | null; state: string; started_at?: string } | null>(null);
+  const [focusBusy, setFocusBusy] = useState<number | null>(null);
+  const [focusTick, setFocusTick] = useState(0);
+
+  const loadFocus = useCallback(async () => {
+    try {
+      const r = await apiFetch('/api/focus/current');
+      const j = await r.json();
+      setFocusSession(j.success ? (j.data || null) : null);
+    } catch { /* 조용히 — 시작/중지는 부가 기능이다 */ }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await apiFetch('/api/focus/settings');
+        const j = await r.json();
+        if (!cancelled) setFocusEnabled(j.success ? !!j.data.focus_enabled : false);
+      } catch { if (!cancelled) setFocusEnabled(false); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!focusEnabled) return;
+    loadFocus();
+    // 다른 창(상세·포커스 위젯)에서 시작/중지해도 여기 표시가 따라가야 한다.
+    const onRefresh = () => loadFocus();
+    window.addEventListener('focus:refresh', onRefresh);
+    window.addEventListener('focus', onRefresh);
+    document.addEventListener('visibilitychange', onRefresh);
+    const id = window.setInterval(loadFocus, 30000);
+    return () => {
+      window.removeEventListener('focus:refresh', onRefresh);
+      window.removeEventListener('focus', onRefresh);
+      document.removeEventListener('visibilitychange', onRefresh);
+      window.clearInterval(id);
+    };
+  }, [focusEnabled, loadFocus]);
+
+  // 경과 표시는 **분 단위**로만 센다 — 초마다 목록 전체를 다시 그릴 이유가 없다.
+  useEffect(() => {
+    if (!focusSession || focusSession.state !== 'active') return;
+    const id = window.setInterval(() => setFocusTick((n) => n + 1), 30000);
+    return () => window.clearInterval(id);
+  }, [focusSession?.id, focusSession?.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const runningTaskId = focusSession && focusSession.state === 'active' ? focusSession.task_id : null;
+  const runningMinutes = useMemo(() => {
+    if (!focusSession || focusSession.state !== 'active' || !focusSession.started_at) return 0;
+    void focusTick;
+    return Math.max(0, Math.floor((Date.now() - new Date(focusSession.started_at).getTime()) / 60000));
+  }, [focusSession, focusTick]);
+
+  const toggleFocus = useCallback(async (tk: PopoutTask) => {
+    if (focusBusy) return;
+    setFocusBusy(tk.id);
+    try {
+      if (runningTaskId === tk.id && focusSession) {
+        const r = await apiFetch('/api/focus/pause', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: focusSession.id, reason: 'manual' }),
+        });
+        const j = await r.json();
+        if (j.success) setFocusSession(j.data || null);
+      } else {
+        const r = await apiFetch('/api/focus/start', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task_id: tk.id, business_id: bizId }),
+        });
+        const j = await r.json();
+        if (j.success) setFocusSession(j.data || null);
+        // autosave-exempt: 시작 버튼은 **액션**이다(입력값 저장이 아니다).
+        //   ✓ 배지를 붙일 입력란이 없고, 결과는 행의 상태 칩과 타이머로 즉시 보인다.
+        // 아직 시작 전 상태면 진행중으로 같이 옮긴다 — 목록이 두 가지를 말하지 않게.
+        if (j.success && (tk.status === 'not_started' || tk.status === 'waiting')) {
+          await apiFetch(`/api/tasks/by-business/${bizId}/${tk.id}`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'in_progress' }),
+          }).catch(() => null);
+          await load();
+        }
+      }
+      try { window.dispatchEvent(new CustomEvent('focus:refresh')); } catch { /* noop */ }
+    } catch { /* 실패는 다음 폴링이 정리한다 */ }
+    finally { setFocusBusy(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusBusy, runningTaskId, focusSession, bizId]);
+
+  const canFocus = useCallback((tk: PopoutTask) => (
+    !!focusEnabled && tk.assignee_id === myId && !CLOSED.includes(tk.status) && tk.status !== 'reviewing'
+  ), [focusEnabled, myId]);
+
   const canEditTagsFor = useCallback((t: { created_by?: number | null; assignee_id?: number | null }) => (
     t.created_by === myId || t.assignee_id === myId
     || user?.business_role === 'owner' || user?.business_role === 'admin'
@@ -677,7 +781,35 @@ const TaskPopoutView: React.FC<TaskPopoutViewProps> = ({ pinSlot }) => {
                   $dim={CLOSED.includes(tk.status)}
                 >
                   <RowInner>
-                    <RowLead>{renderQuickAction(tk, qa, busy)}</RowLead>
+                    <RowLead>
+                      {renderQuickAction(tk, qa, busy)}
+                      {/* 시작/중지 — 내 업무이고 열려 있을 때만. 상세에 들어가지 않고 지금 하는 일을 켠다. */}
+                      {canFocus(tk) && (
+                        <FocusBtn
+                          type="button"
+                          $running={runningTaskId === tk.id}
+                          disabled={focusBusy === tk.id}
+                          data-testid="task-popout-focus"
+                          aria-pressed={runningTaskId === tk.id}
+                          aria-label={runningTaskId === tk.id
+                            ? t('popout.act.stop', '업무 중지') as string
+                            : t('popout.act.start', '업무 시작') as string}
+                          title={runningTaskId === tk.id
+                            ? t('popout.act.stopTip', '중지 — 시간 측정을 멈춥니다') as string
+                            : t('popout.act.startTip', '시작 — 이 업무로 시간을 측정합니다') as string}
+                          onClick={(e) => { e.stopPropagation(); void toggleFocus(tk); }}
+                        >
+                          {runningTaskId === tk.id ? (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                          ) : (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.53.85l10-6.5a1 1 0 0 0 0-1.7l-10-6.5A1 1 0 0 0 8 5.5z" /></svg>
+                          )}
+                        </FocusBtn>
+                      )}
+                      {runningTaskId === tk.id && runningMinutes > 0 && (
+                        <FocusTime>{t('popout.act.running', '{{n}}분', { n: runningMinutes }) as string}</FocusTime>
+                      )}
+                    </RowLead>
                     {/* 우선순위 슬롯 — #250 "우선순위 관리도 여기서도 해야 해".
                         ★ RowMain(button) **밖 형제**여야 한다. 안에 넣으면 button-in-button 이라
                           HTML 상 무효이고 브라우저가 클릭 타깃을 임의로 접는다(위 397 주석과 같은 이유).

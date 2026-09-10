@@ -109,9 +109,20 @@ async function aggregateTaskCounts(businessId, period) {
 // Tasks & Time 탭 — 메인 빌더
 // ──────────────────────────────────────────────
 function buildTasksTab({ tasks, aiByTask, period, prevAgg }) {
-  // 분류 — 완료된 task 만 시간 분석 의미 있음 (actual 기록 가능성)
-  const completed = tasks.filter((t) => t.status === 'completed' && t.completed_at);
-  const all = tasks;
+  // ★ 2026-09-10 — **"이 기간에 완료" 는 완료 시각으로 센다.**
+  //   여태 라우트가 `created_at` 으로만 업무를 가져와, 기간 **이전에 만들어졌지만 이 기간에 끝난**
+  //   업무가 완료 수에서 통째로 빠졌다(dev 실측: 완료 1건인데 KPI 는 0).
+  //   같은 화면의 개요 탭 가동률은 `completed_at` 기준이라(아래 buildOverview) 두 탭이 같은 낱말을
+  //   다른 공식으로 세고 있었다 — 비교 기간 집계 헬퍼(prevAgg)는 이미 completed_at 기준이었다.
+  //   생성(created)·깔때기·출처·카테고리는 종전대로 **이 기간에 만들어진 것**만 본다.
+  const inPeriod = (v) => {
+    if (!v) return false;
+    const d = new Date(v).getTime();
+    return d >= new Date(period.from + 'T00:00:00').getTime()
+      && d <= new Date(period.to + 'T23:59:59').getTime();
+  };
+  const completed = tasks.filter((t) => t.status === 'completed' && inPeriod(t.completed_at));
+  const all = tasks.filter((t) => inPeriod(t.created_at));
 
   // ── KPI ────────────────────────────────────
   const completedCount = completed.length;

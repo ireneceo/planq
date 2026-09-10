@@ -9,6 +9,7 @@ import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useDetailParam } from '../../hooks/useDetailParam';
@@ -130,6 +131,8 @@ export default function ClientsPage() {
 
   // 드로어
   const [activeId, setActiveId] = useState<number | null>(null);
+  // 검색·딥링크로 연 고객은 **목록에서도 보여야** 한다 (hooks/useRevealSelectedRow)
+  useRevealSelectedRow(activeId);
   // ★ 딥링크 소생 — `/business/clients?client=N` 은 전역검색이 만들지만 **읽는 곳이 0곳**이었다.
   //   즉 검색 결과에서 고객을 눌러도 항상 아무 일도 안 일어났다 (2026-08-30 실측).
   useDetailParam('client', { activeId, onOpen: setActiveId });
@@ -477,7 +480,7 @@ export default function ClientsPage() {
                 const isEditingName = editingCell?.id === c.id && editingCell?.field === 'display_name';
                 const isEditingCompany = editingCell?.id === c.id && editingCell?.field === 'company_name';
                 return (
-                  <Tr key={c.id} data-client-row={c.id} $selected={isSelected} onClick={() => setActiveId((prev) => prev === c.id ? null : c.id)}>
+                  <Tr key={c.id} data-client-row={c.id} data-row-id={c.id} $selected={isSelected} onClick={() => setActiveId((prev) => prev === c.id ? null : c.id)}>
                     <Td>
                       <LetterAvatar name={name} src={c.user?.avatar_url || null} size={32} variant={isSelected ? 'active' : 'neutral'} />
                     </Td>

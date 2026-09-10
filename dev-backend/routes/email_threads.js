@@ -889,6 +889,11 @@ router.post('/:businessId/email-threads/:id/messages',
       const businessId = Number(req.params.businessId);
       const threadId = Number(req.params.id);
       const { body_html, to, cc, bcc, attachment_file_ids } = req.body || {};
+      // ★ 2026-09-10 (Irene): "답변필요에도 답변을 지금 하더라도 남겨놔야 해서 다시 답변을 해야 할
+      //   수도 있어. 예를 들면 제가 곧 답변드리겠습니다. 이렇게 보내고 답변 보낼 준비 해야 할 수도."
+      //   보낸 것이 **임시 답변**이면 공은 아직 우리에게 있다 → 답변 필요에 남긴다.
+      //   기본은 꺼짐이다(체크한 사람만) — 모든 답장이 남으면 목록이 곧 전체 메일이 된다.
+      const keepReplyNeeded = req.body?.keep_reply_needed === true;
       if (!body_html || !String(body_html).trim()) return errorResponse(res, 'body_required', 400);
 
       const acctIds = await accessibleAccountIds(businessId, req.user.id);
@@ -1044,8 +1049,11 @@ router.post('/:businessId/email-threads/:id/messages',
       );
 
       await thread.update({
-        reply_needed: false,
-        reply_needed_reason: 'replied',
+        // 임시 답변이면 답변 필요를 **끄지 않는다.** reason 을 'holding' 으로 박아 두면
+        //   ① 재판정(scripts/retriage-mail.js)이 건드리지 않고(사용자의 판단이다)
+        //   ② 목록이 "왜 아직 남아 있는지" 를 말할 수 있다(임시답변 칩).
+        reply_needed: keepReplyNeeded,
+        reply_needed_reason: keepReplyNeeded ? 'holding' : 'replied',
         last_message_at: now,
         last_message_direction: 'outbound',
         last_message_preview: preview,
@@ -1064,7 +1072,8 @@ router.post('/:businessId/email-threads/:id/messages',
 
       broadcastMail(req, businessId, 'mail:updated', {
         thread_id: threadId,
-        reply_needed: false,
+        reply_needed: keepReplyNeeded,
+        reply_needed_reason: keepReplyNeeded ? 'holding' : 'replied',
         last_message_at: now,
         last_message_direction: 'outbound',
         last_message_preview: preview,

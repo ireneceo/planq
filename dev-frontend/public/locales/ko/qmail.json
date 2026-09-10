@@ -168,7 +168,9 @@
     "awaitingReply_one": "응답 없음 {{count}}일",
     "awaitingReply_other": "응답 없음 {{count}}일",
     "attachments_one": "첨부 {{count}}개",
-    "attachments_other": "첨부 {{count}}개"
+    "attachments_other": "첨부 {{count}}개",
+    "holding": "임시답변",
+    "holdingHint": "임시 답변을 보냈고, 아직 본 답변이 남아 있습니다"
   },
   "translate": {
     "langLabel": "번역 언어",
@@ -255,7 +257,8 @@
     "dismissHint": "답장하지 않아도 되는 메일입니다. 확인 권장으로 내려갑니다.",
     "aiInstructionRequired": "이미 초안이 있어요. 어떻게 고칠지 요청을 적어 주세요.",
     "aliasHelp": "이 고객은 {{addr}} 주소로 메일을 보냈습니다. 답장도 그 주소에서 발송됩니다.",
-    "aiEchoed": "받은 메일을 되풀이하는 초안만 나왔어요. 어떤 답을 보내고 싶은지 아래에 적어 주세요."
+    "aiEchoed": "받은 메일을 되풀이하는 초안만 나왔어요. 어떤 답을 보내고 싶은지 아래에 적어 주세요.",
+    "keepNeeded": "보낸 뒤에도 “답변 필요” 에 남겨두기 (임시 답변)"
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
@@ -381,7 +384,33 @@
     "placeholderKeyword": "예: 계약서, 세금계산서, 견적",
     "addFailedKeyword": "두 글자 이상 입력해 주세요. 너무 짧으면 관계없는 메일까지 걸립니다.",
     "markImportant": "이 규칙에 걸리면 별표(중요) 표시",
-    "importantTag": "중요"
+    "importantTag": "중요",
+    "how": {
+      "title": "PlanQ 가 받은 메일을 나누는 기준",
+      "replyLabel": "답변 필요",
+      "reply": "사람이 우리 주소로 보낸 문의·회신, 고객·멤버가 직접 쓴 메일",
+      "reviewLabel": "확인 권장",
+      "review": "답장할 상대는 없지만 봐야 하는 것. 자동발송이어도 결제·입금·증빙·보고서·서명·로그인 코드·발송 실패는 여기로 올립니다",
+      "autoLabel": "자동·마케팅",
+      "auto": "수신거부 링크가 달린 대량 발송, (광고) 표기, 주문·배송 알림",
+      "spamLabel": "스팸",
+      "spam": "스팸 판정을 받은 메일",
+      "note": "기계는 우리가 무엇을 운영하는지 모릅니다 — 에어비앤비 예약 알림, 우리 웹사이트 문의 알림, 같은 업계 소식처럼 \"자동발송이지만 우리에겐 중요한 것\" 은 아래에서 규칙으로 알려주세요. 규칙은 이미 받은 메일에도 바로 적용됩니다."
+    },
+    "preset": {
+      "label": "예시로 시작",
+      "airbnb": "운영 중인 숙소·플랫폼 알림 (예: airbnb.com)",
+      "siteInquiry": "우리 사이트 문의 알림 (문구: 문의)",
+      "industry": "업계 소식·도움되는 정보 (도메인으로)",
+      "siteInquiryPattern": "문의"
+    },
+    "preview": "몇 건인지 보기",
+    "previewCount": "지금 받은 메일 {{n}}{{more}}건이 이 조건에 걸립니다",
+    "previewNone": "지금 받은 메일 중 이 조건에 걸리는 것은 없습니다. 규칙은 앞으로 오는 메일에만 적용됩니다.",
+    "previewFailed": "조건을 확인하지 못했습니다. 주소·도메인 형식이나 문구 길이를 확인해 주세요.",
+    "appliedCount": "이미 받은 메일 {{n}}건을 \"{{where}}\" 로 옮겼습니다",
+    "appliedNone": "규칙을 저장했습니다. 앞으로 오는 메일부터 적용됩니다.",
+    "noSubject": "(제목 없음)"
   },
   "filters": {
     "allLabels": "태그 전체",

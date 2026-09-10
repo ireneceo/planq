@@ -203,6 +203,7 @@ const LeftPanel: React.FC<Props> = ({
             <ChatRow
               key={c.id}
               data-qtalk-chat={c.id}
+              data-row-id={c.id}
               $active={isActive}
               onClick={() => onSelectConversation(p.id, c.id)}
             >

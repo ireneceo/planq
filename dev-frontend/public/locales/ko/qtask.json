@@ -1293,7 +1293,12 @@
       "errForbiddenRevert": "되돌릴 권한이 없습니다",
       "errGeneric": "처리하지 못했습니다",
       "errNetwork": "연결에 실패했습니다",
-      "needSubmit": "확인 요청이 필요해요 — 눌러서 상세에서 보내기"
+      "needSubmit": "확인 요청이 필요해요 — 눌러서 상세에서 보내기",
+      "start": "업무 시작",
+      "stop": "업무 중지",
+      "startTip": "시작 — 이 업무로 시간을 측정합니다",
+      "stopTip": "중지 — 시간 측정을 멈춥니다",
+      "running": "{{n}}분"
     },
     "priorityN": "우선순위 {{n}}",
     "prioritySet": "우선순위 지정",

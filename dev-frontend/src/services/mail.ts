@@ -161,7 +161,7 @@ export async function listMailRules(businessId: number): Promise<MailSenderRule[
 export async function addMailRule(
   businessId: number, pattern: string, verdict: MailSenderRule['verdict'],
   opts: { pattern_type?: 'address' | 'domain' | 'keyword'; match_field?: MailSenderRule['match_field']; mark_important?: boolean } = {},
-): Promise<MailSenderRule> {
+): Promise<MailSenderRule & { applied?: { matched: number; changed: number } }> {
   const r = await apiFetch(`/api/businesses/${businessId}/mail-rules`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -169,7 +169,27 @@ export async function addMailRule(
   });
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'failed');
-  return j.data as MailSenderRule;
+  return j.data as MailSenderRule & { applied?: { matched: number; changed: number } };
+}
+
+/** 저장 전 미리보기 — 이 조건에 지금 걸리는 메일 수와 예시 (2026-09-10) */
+export interface MailRulePreview {
+  matched: number;
+  capped: boolean;
+  samples: Array<{ id: number; subject: string | null; status: string; reply_needed: boolean }>;
+}
+export async function previewMailRule(
+  businessId: number, pattern: string,
+  opts: { pattern_type?: 'address' | 'domain' | 'keyword'; match_field?: MailSenderRule['match_field'] } = {},
+): Promise<MailRulePreview> {
+  const r = await apiFetch(`/api/businesses/${businessId}/mail-rules/preview`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pattern, ...opts }),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'failed');
+  return j.data as MailRulePreview;
 }
 
 export async function deleteMailRule(businessId: number, ruleId: number): Promise<void> {

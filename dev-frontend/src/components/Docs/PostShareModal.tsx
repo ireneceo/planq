@@ -28,6 +28,7 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
   const navigate = useNavigate();
   const [shareToken, setShareToken] = useState<string | null>(post.share_token);
   const [shareUrl, setShareUrl] = useState<string | null>(post.share_url);
+  const [snsCopied, setSnsCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [tab, setTab] = useState<Tab>('email');
@@ -124,6 +125,22 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
+    } catch {/* noop */}
+  };
+
+  // ★ 2026-09-10 (Irene): "이런 링크 붙여서 SNS에 붙이면 수정된 제목이 반영 안되고 있어."
+  //   실측(운영 링크, facebookexternalhit): **서버는 지금 제목을 그대로 준다**
+  //   (og:title = "…ver.02", 문서 updated_at 과 일치). 옛 제목을 들고 있는 것은 SNS 쪽 캐시다 —
+  //   카카오·페이스북·링크드인은 URL 을 키로 미리보기를 캐시하고 우리가 지울 수 없다.
+  //   우리가 할 수 있는 것은 **키를 바꾸는 것**뿐이다: 링크 뒤에 판올림 표식을 붙이면
+  //   그 SNS 에게는 새 URL 이라 다시 읽어 간다. 열리는 문서는 같다(쿼리는 무시된다).
+  const copySnsUrl = async () => {
+    if (!shareUrl) return;
+    const fresh = `${shareUrl}${shareUrl.includes('?') ? '&' : '?'}v=${Date.now().toString(36)}`;
+    try {
+      await navigator.clipboard.writeText(fresh);
+      setSnsCopied(true);
+      setTimeout(() => setSnsCopied(false), 1600);
     } catch {/* noop */}
   };
 
@@ -267,6 +284,18 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
                 )}
               </CopyBtn>
             </UrlCard>
+          )}
+          {isPublic && (
+            <SnsRow>
+              <SnsHint>
+                {t('share.link.snsHint', 'SNS 는 미리보기(제목·설명)를 링크 주소별로 저장해 둡니다. 제목을 고친 뒤 다시 올릴 때는 아래 링크를 쓰면 새로 읽어 갑니다.')}
+              </SnsHint>
+              <CopyBtn type="button" onClick={copySnsUrl}>
+                {snsCopied
+                  ? t('share.link.copied', '복사됨')
+                  : t('share.link.copySns', 'SNS용 링크 복사')}
+              </CopyBtn>
+            </SnsRow>
           )}
         </Section>
 
@@ -462,6 +491,16 @@ const AttachScopeAction = styled.button`
 `;
 const AttachScopeError = styled.div`
   margin-top: 6px; font-size: 0.6875rem; color: #B45309;
+`;
+
+const SnsRow = styled.div`
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 8px; padding: 10px 12px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+`;
+const SnsHint = styled.div`
+  flex: 1 1 240px; min-width: 0;
+  font-size: 0.75rem; line-height: 1.55; color: #64748B;
 `;
 
 const UrlCard = styled.div`

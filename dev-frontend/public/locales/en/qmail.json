@@ -168,7 +168,9 @@
     "awaitingReply_one": "No reply for 1 day",
     "awaitingReply_other": "No reply for {{count}} days",
     "attachments_one": "{{count}} attachment",
-    "attachments_other": "{{count}} attachments"
+    "attachments_other": "{{count}} attachments",
+    "holding": "Holding reply",
+    "holdingHint": "A holding reply was sent; the real answer is still pending"
   },
   "translate": {
     "langLabel": "Translation language",
@@ -255,7 +257,8 @@
     "dismissHint": "No reply required. It moves to Needs review.",
     "aiInstructionRequired": "You already have a draft. Tell AI how to revise it.",
     "aliasHelp": "This customer wrote to {{addr}}. Your reply will also be sent from that address.",
-    "aiEchoed": "The draft only repeated the email you received. Tell us below what you want to say."
+    "aiEchoed": "The draft only repeated the email you received. Tell us below what you want to say.",
+    "keepNeeded": "Keep in “Needs reply” after sending (holding reply)"
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -381,7 +384,33 @@
     "placeholderKeyword": "e.g. contract, invoice, quote",
     "addFailedKeyword": "Enter at least two characters — shorter terms catch unrelated mail.",
     "markImportant": "Star (mark important) when this rule matches",
-    "importantTag": "Important"
+    "importantTag": "Important",
+    "how": {
+      "title": "How PlanQ sorts incoming mail",
+      "replyLabel": "Needs reply",
+      "reply": "Questions and replies people sent to our address, and mail written by clients or teammates",
+      "reviewLabel": "Worth a look",
+      "review": "No one to reply to, but you should see it. Even automated mail is raised here for payments, receipts, reports, signatures, login codes and delivery failures",
+      "autoLabel": "Automated & marketing",
+      "auto": "Bulk mail with unsubscribe links, ad-labelled mail, order and shipping notices",
+      "spamLabel": "Spam",
+      "spam": "Mail judged to be spam",
+      "note": "PlanQ does not know what you run. Tell it below — Airbnb booking alerts, your own site's contact-form notices, industry news: automated mail that matters to you. A rule applies to mail you already received, too."
+    },
+    "preset": {
+      "label": "Start from an example",
+      "airbnb": "Alerts from a platform you operate (e.g. airbnb.com)",
+      "siteInquiry": "Contact-form notices from your site (keyword)",
+      "industry": "Industry news and useful info (by domain)",
+      "siteInquiryPattern": "inquiry"
+    },
+    "preview": "See how many",
+    "previewCount": "{{n}}{{more}} mails you already have match this",
+    "previewNone": "Nothing you already have matches. The rule will apply to mail from now on.",
+    "previewFailed": "Could not check the condition. Check the address/domain format or keyword length.",
+    "appliedCount": "Moved {{n}} existing mails to “{{where}}”",
+    "appliedNone": "Rule saved. It applies to mail from now on.",
+    "noSubject": "(no subject)"
   },
   "filters": {
     "allLabels": "All tags",

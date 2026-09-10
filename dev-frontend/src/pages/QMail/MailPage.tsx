@@ -81,6 +81,8 @@ import {
   ComposeTitle,
   Composer,
   ComposerActions,
+  KeepNeededRow,
+  HoldingBadge,
   ComposerError,
   ComposerFrom,
   ComposerHint,
@@ -200,6 +202,8 @@ interface Thread {
   status: string;
   reply_needed: boolean;
   reply_needed_at?: string | null;
+  /** 'holding' = 임시 답변을 보내고 답변 필요에 남겨 둔 것 (2026-09-10) */
+  reply_needed_reason?: string | null;
   rule_id?: number | null;        // 학습 규칙으로 분류된 스레드 (몰래 걸러지지 않도록 화면에 표시)
   is_starred: boolean;
   unread_count: number;
@@ -1245,6 +1249,10 @@ const MailPage: React.FC = () => {
   const [cSignature, setCSignature] = useState(true);
   // #262 — 이 발송에만 서명 빼기. 계정 설정(signature_enabled)은 건드리지 않는다.
   const [replySignature, setReplySignature] = useState(true);
+  // ★ 2026-09-10 (Irene): "제가 곧 답변드리겠습니다" 처럼 **임시 답변**을 보내는 경우가 있다.
+  //   그때는 답장을 보냈어도 답변 필요에 남아 있어야 한다. 기본은 꺼짐 — 체크한 사람만.
+  //   (모든 답장을 남기면 답변 필요 목록이 곧 전체 메일이 되어 숫자가 뜻을 잃는다.)
+  const [keepReplyNeeded, setKeepReplyNeeded] = useState(false);
   const [sending, setSending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
@@ -1488,7 +1496,7 @@ const MailPage: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         // 3상태 — null 이면 **키를 생략**해 서버가 "받은 주소로" 결정하게 한다(JSON.stringify 가 undefined 키를 뺀다).
         //   0 은 사용자가 계정 주소를 직접 고른 경우에만 나간다.
-        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId === null ? undefined : fromAliasId, signature: replySignature }),
+        body: JSON.stringify({ body_html: replyHtml, attachment_file_ids: fileIds, from_alias_id: fromAliasId === null ? undefined : fromAliasId, signature: replySignature, keep_reply_needed: keepReplyNeeded }),
       });
       const j = await r.json();
       if (!j.success) throw new Error(mailErrorText(j.message) || (t('reply.sendFailed', { defaultValue: '발송 실패' }) as string));
@@ -1503,7 +1511,7 @@ const MailPage: React.FC = () => {
         sent_at: j.data?.sent_at ?? pending.sent_at,
       }));
       apiFetch(`/api/businesses/${businessId}/email-drafts?thread_id=${threadId}`, { method: 'DELETE' }).catch(() => {});
-      setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]);
+      setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setKeepReplyNeeded(false);
       // 권위 동기화(서명·표 인라인 반영)는 배경에서 — 화면을 막지 않는다.
       loadDetail(threadId);
       loadList();
@@ -2176,6 +2184,13 @@ const MailPage: React.FC = () => {
                       {t('replyNeededBadge', { defaultValue: '답변 필요' }) as string}
                     </ReplyNeededBadge>
                   )}
+                  {/* ★ 2026-09-10 — **임시 답변**으로 남겨둔 것. 목록이 "왜 아직 여기 있는지" 를 말해야 한다.
+                      이 표시가 없으면 다음 날 그 메일을 보고 답장을 했는지 안 했는지 또 알 수 없다. */}
+                  {mt.reply_needed && mt.reply_needed_reason === 'holding' && (
+                    <HoldingBadge title={t('thread.holdingHint', { defaultValue: '임시 답변을 보냈고, 아직 본 답변이 남아 있습니다' }) as string}>
+                      {t('thread.holding', { defaultValue: '임시답변' }) as string}
+                    </HoldingBadge>
+                  )}
                   {/* 학습된 규칙으로 자동 분류된 메일임을 밝힌다 — 사용자 모르게 걸러지면 안 된다.
                       규칙은 설정 > 메일 계정 > 메일 분류 규칙에서 확인·삭제할 수 있다. */}
                   {mt.rule_id && (
@@ -2815,6 +2830,18 @@ const MailPage: React.FC = () => {
                         {draftStatusText(replyDraftStatus)}
                       </DraftStatusLine>
                     )}
+                    {/* 임시 답변 — 보내도 답변 필요에 남긴다. 기본 꺼짐(위 keepReplyNeeded 주석). */}
+                    <KeepNeededRow>
+                      <input
+                        type="checkbox" id="mail-keep-reply-needed"
+                        checked={keepReplyNeeded}
+                        onChange={(e) => setKeepReplyNeeded(e.target.checked)}
+                        disabled={sending}
+                      />
+                      <label htmlFor="mail-keep-reply-needed">
+                        {t('reply.keepNeeded', { defaultValue: '보낸 뒤에도 “답변 필요” 에 남겨두기 (임시 답변)' }) as string}
+                      </label>
+                    </KeepNeededRow>
                     <ComposerActions>
                       <ActionButton tone="primary" size="md" loading={sending} onClick={sendReply}>
                         {t('reply.send', { defaultValue: '보내기' }) as string}

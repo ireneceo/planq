@@ -41,6 +41,7 @@ import CreateDrawer from '../../components/Common/CreateDrawer';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
+import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import { formatHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
 import HelpDot from '../../components/Common/HelpDot';
 import { displayName } from '../../utils/displayName';
@@ -285,6 +286,8 @@ const QTaskPage:React.FC=()=>{
     const q=new URLSearchParams(location.search).get('task');
     return q?Number(q):null;
   });
+  // 검색·알림으로 연 업무는 **목록에서도 보여야** 한다 (hooks/useRevealSelectedRow)
+  useRevealSelectedRow(detailTaskId);
   // ★ 2·3단 단일 계약(hooks/usePanelStack). 자체 useIsNarrow 판정을 여기로 흡수한다 —
   //   분기점이 페이지마다 흩어져 있어 화면마다 동작이 달랐다(Irene, 2026-08-25).
   //   Q Task 작업대는 넓어야 쓸모 있어 3단 상한만 1366 으로 올린다(계약 안에서).
@@ -2143,7 +2146,7 @@ const QTaskPage:React.FC=()=>{
 
                 return(
                   <Fragment key={task.id}>
-                  <TRow data-task-row data-qtask-row={task.id} $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}
+                  <TRow data-task-row data-qtask-row={task.id} data-row-id={task.id} $done={task.status==='completed'} $delayed={!!isDelayed} $selected={detailTaskId===task.id}
                     onClick={(e)=>{
                       // 빈 공간 클릭 → 상세 드로어 오픈. 인터랙티브 요소는 제외 (그 요소가 자체 핸들러 실행)
                       const tgt=e.target as HTMLElement;
@@ -2924,7 +2927,7 @@ const QTaskPage:React.FC=()=>{
                           const isDelayed=task.due_date&&task.due_date.slice(0,10)<todayStr&&task.status!=='completed'&&task.status!=='canceled';
                           const myRole=primaryPerspective(getRoles(task,myId));
                           return (
-                            <KanbanCard key={task.id} data-task-row $delayed={!!isDelayed} $done={task.status==='completed'} $selected={detailTaskId===task.id} onClick={()=>openDetail(task.id)}>
+                            <KanbanCard key={task.id} data-task-row data-row-id={task.id} $delayed={!!isDelayed} $done={task.status==='completed'} $selected={detailTaskId===task.id} onClick={()=>openDetail(task.id)}>
                               {isDelayed&&<KanbanDelayBadge>{t('status.delayed','Delayed')}</KanbanDelayBadge>}
                               {task.Project?.name&&<KanbanProject>{task.Project.name}</KanbanProject>}
                               <KanbanTitle>

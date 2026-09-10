@@ -96,9 +96,13 @@ router.get('/:businessId/tasks', authenticateToken, checkBusinessAccess, async (
     const compare = req.query.compare === 'prev';
     const prev = compare ? prevPeriod(period) : null;
 
+    // ★ 2026-09-10 — 생성 **또는 완료**가 기간 안이면 가져온다.
+    //   여태 `created_at` 만 봐서 "기간 전에 만들어져 이 기간에 끝난 업무" 가 통계에 아예 안 들어왔다
+    //   (완료 수 0, 리드타임 표본 0). 어느 KPI 가 어느 집합을 쓰는지는 buildTasksTab 이 가른다.
+    const between = { [Op.between]: [period.from + ' 00:00:00', period.to + ' 23:59:59'] };
     const where = {
       business_id: businessId,
-      created_at: { [Op.between]: [period.from + ' 00:00:00', period.to + ' 23:59:59'] },
+      [Op.or]: [{ created_at: between }, { completed_at: between }],
     };
     if (req.query.assignee_id) where.assignee_id = Number(req.query.assignee_id);
     if (req.query.category) where.category = String(req.query.category);

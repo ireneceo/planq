@@ -2,6 +2,7 @@
 // 레이아웃 패턴: Q Note 와 동일 (Sidebar + Content 2컬럼 + PanelHeader)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -129,10 +130,12 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     }
     return { kind: 'all' };
   });
+  // 검색·딥링크로 연 문서는 **목록에서도 보여야** 한다 (hooks/useRevealSelectedRow 주석)
   const [activeId, setActiveId] = useState<number | null>(() => {
     const v = Number(searchParams.get('post'));
     return Number.isFinite(v) && v > 0 ? v : null;
   });
+  useRevealSelectedRow(activeId);
 
   // N+42 — Q Note 정리하기 → 정식 문서 승격 (?prefill_brief=text 으로 진입). 마운트 시 한 번만.
   useEffect(() => {
@@ -1532,7 +1535,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               ) : (
                 <AtGrid>
                   {[...filtered].sort((a, b) => projSort === 'name' ? a.title.localeCompare(b.title) : 0).map(r => (
-                    <AtCard key={r.id} data-testid="docs-card" $selected={activeId === r.id} onClick={() => { void selectPost(r.id); }}>
+                    <AtCard key={r.id} data-testid="docs-card" data-row-id={r.id} $selected={activeId === r.id} onClick={() => { void selectPost(r.id); }}>
                       <RowPinBtn type="button" $on={pinnedIds.includes(r.id)} onClick={(e) => { e.stopPropagation(); togglePin(r.id); }}
                         aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
                         title={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14l-1.7-2.6a2 2 0 0 1-.3-1.1V7a2 2 0 0 1 2-2H5a2 2 0 0 1 2 2v6.3a2 2 0 0 1-.3 1.1L5 17z"/></svg></RowPinBtn>
@@ -1777,6 +1780,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 key={r.id}
                 data-testid="docs-row"
                 data-post-id={r.id}
+                data-row-id={r.id}
                 $active={activeId === r.id}
                 $project={isProject}
                 onClick={() => { void selectPost(activeId === r.id ? null : r.id); }}
@@ -2171,8 +2175,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               >
                 {t('visibility.label', { defaultValue: '공개' }) as string}: {visLabel(detail.vlevel)}
               </VisibilityChip>
-              </MetaLeft>
-              <MetaRight>
+              {/* ★ 2026-09-10 (Irene): "공유 중 이런 표시도 왼쪽으로 공개: 팀 옆으로 가야지.
+                  왜 오른쪽에 붙어있어?" — 공개 범위 칩을 좌측으로 옮긴 2026-09-06 과 **같은 이유**다.
+                  우측은 36px 액션 버튼 줄이고 이건 22px 상태 칩이라 혼자 높이가 어긋난다.
+                  게다가 "공개: 팀" 과 "공유 중" 은 같은 것(누가 볼 수 있는가)을 말하므로 붙어 있어야
+                  한 눈에 읽힌다. 보안등급 배지도 같은 성격이라 함께 옮긴다. */}
               {detail.share_token && (
                 <ShareTag title={t('share.publicHint', '공개 링크가 활성화되어 있습니다') as string}>
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 2 }}><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
@@ -2181,6 +2188,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               )}
               {/* D4 #62 — 보안등급 배지 (일반은 노이즈 0, 자동 숨김) */}
               <SecurityLevelBadge level={detail.security_level} />
+              </MetaLeft>
+              <MetaRight>
               {/* ★ 액션을 **메타 줄 오른쪽**으로 (Irene 2026-09-05: "점점점 메뉴만 위로 올리면 어때?
                   그리고 2, 3째줄 한줄로 맞추고 버튼들은 우측 정렬이 맞겠는데").
                   별도 액션 밴드(DetailActionBar)가 사라지고 상세는 **두 밴드**로 끝난다.

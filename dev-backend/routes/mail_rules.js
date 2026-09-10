@@ -42,6 +42,40 @@ router.get('/:businessId/mail-rules',
   }
 );
 
+// POST /:businessId/mail-rules/preview — **저장하지 않고** 이 조건에 걸리는 메일을 세어 본다.
+//   ★ 2026-09-10 (Irene): "구체적으로 조건을 구성하는 걸 선택하게 하면 어때?"
+//     조건을 고르게 하려면 그 조건이 **무엇을 잡는지** 보여야 한다. 규칙을 만든 뒤 폴더를
+//     열어 확인하는 것은 되돌리기 비용이 큰 확인 방식이다(수백 건이 옮겨진 뒤에 안다).
+router.post('/:businessId/mail-rules/preview',
+  authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
+  async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const rules = require('../services/mailSenderRules');
+      const raw = String(req.body?.pattern || '').trim().toLowerCase();
+      const wantKeyword = String(req.body?.pattern_type || '') === 'keyword';
+      if (wantKeyword && raw.length < 2) return errorResponse(res, 'keyword_too_short', 400);
+      let patternType = 'keyword';
+      if (!wantKeyword) {
+        const addr = rules.normalizeEmail(raw);
+        const isDomain = !addr && /^[^@\s]+\.[^@\s]+$/.test(raw);
+        if (!addr && !isDomain) return errorResponse(res, 'invalid_pattern', 400);
+        patternType = addr ? 'address' : 'domain';
+      }
+      const matchField = ['from', 'subject', 'body', 'any'].includes(String(req.body?.match_field || ''))
+        ? String(req.body.match_field) : (wantKeyword ? 'any' : 'from');
+      const rows = await rules.threadsMatchingRule(businessId, {
+        pattern: raw, pattern_type: patternType, match_field: matchField,
+      }, { limit: 200 });
+      return successResponse(res, {
+        matched: rows.length,
+        capped: rows.length >= 200,   // 200 에서 끊었다 — "정확히 200" 이라고 말하지 않는다
+        samples: rows.slice(0, 5).map((t) => ({ id: t.id, subject: t.subject, status: t.status, reply_needed: !!t.reply_needed })),
+      });
+    } catch (err) { next(err); }
+  }
+);
+
 router.post('/:businessId/mail-rules',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
   async (req, res, next) => {
@@ -73,7 +107,15 @@ router.post('/:businessId/mail-rules',
           source: 'manual',
           evidence: { added_by: req.user.id, added_at: new Date() },
         });
-        return successResponse(res, { id: created.id, pattern: created.pattern, pattern_type: 'keyword', match_field: matchField, verdict, mark_important: markImportant }, null, 201);
+        // 이미 받은 메일에도 적용한다 — 삭제(되돌리기)와 대칭. 아래 주소·도메인 분기와 같은 함수.
+        const appliedKw = await rules.applyRuleToExisting(businessId, created).catch((e) => {
+          console.warn('[mail-rules] 소급 적용 실패:', e.message); return { matched: 0, changed: 0 };
+        });
+        if (appliedKw.changed > 0) broadcastMail(req, businessId, 'mail:updated', { bulk: true, rule_applied: created.id });
+        return successResponse(res, {
+          id: created.id, pattern: created.pattern, pattern_type: 'keyword', match_field: matchField,
+          verdict, mark_important: markImportant, applied: appliedKw,
+        }, null, 201);
       }
       // 주소 또는 도메인
       const addr = rules.normalizeEmail(raw);
@@ -93,7 +135,16 @@ router.post('/:businessId/mail-rules',
         },
       });
       if (!created && rule.verdict !== verdict) await rule.update({ verdict, source: 'manual' });
-      return successResponse(res, rule.toJSON(), created ? '규칙을 추가했습니다' : '규칙을 갱신했습니다');
+      if (markImportant && !rule.mark_important) await rule.update({ mark_important: true });
+      // 이미 받은 메일에도 적용한다.
+      //   ★ 여태 없던 문이다 — 규칙을 만들어도 **에어비앤비 알림은 자동·마케팅 폴더에 그대로** 있었다.
+      //     삭제는 되돌리는데 추가는 소급이 없어, 사용자가 보기에 "만들었는데 아무 일도 안 일어난다".
+      const applied = await rules.applyRuleToExisting(businessId, rule).catch((e) => {
+        console.warn('[mail-rules] 소급 적용 실패:', e.message); return { matched: 0, changed: 0 };
+      });
+      if (applied.changed > 0) broadcastMail(req, businessId, 'mail:updated', { bulk: true, rule_applied: rule.id });
+      return successResponse(res, { ...rule.toJSON(), applied },
+        created ? '규칙을 추가했습니다' : '규칙을 갱신했습니다');
     } catch (err) { next(err); }
   }
 );
