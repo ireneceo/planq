@@ -1377,7 +1377,6 @@
     "approved": "Approved",
     "revision": "Changes requested",
     "pending": "Awaiting review",
-    "revisionNote": "Changes requested",
     "noSnapshot": "This version predates deliverable snapshots, so no content was kept.",
     "restore": "Load this version",
     "restoring": "Loading…",
@@ -1389,7 +1388,8 @@
     "pastTitle": "Past versions",
     "lastHint": "Latest v{{n}} · {{outcome}}",
     "emptyShort": "No version submitted yet.",
-    "restoreHint": "What you have now is kept as a copy before this version replaces it."
+    "restoreHint": "What you have now is kept as a copy before this version replaces it.",
+    "savedOnly": "Saved draft"
   },
   "loadError": {
     "title": "Couldn't load your tasks",

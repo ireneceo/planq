@@ -792,7 +792,18 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     if (s && !s.connected) s.connect();
     if (activeConversationId) {
       qtalkApi.listConversationMessages(activeConversationId).then(msgs => {
-        setMessages(prev => ({ ...prev, [activeConversationId]: msgs.map(apiMessageToMock) }));
+        const fresh = msgs.map(apiMessageToMock);
+        setMessages(prev => {
+          // 최신 창(50건)은 **서버 값이 정본**이다 (편집·삭제 반영 — feedback_visibility_refresh_server_fresh).
+          // ★ 2026-09-10 — 다만 그 창보다 **더 과거로 이미 불러온 것은 버리지 않는다.**
+          //   통째 교체는 목록을 짧게 만들고(과거 페이지 유실) 스크롤 위치가 목록 중간을 가리키게 했다
+          //   (알림을 눌러 앱을 열면 "이상한 위치"). 창 밖의 옛 메시지는 앞에 그대로 둔다.
+          const existing = prev[activeConversationId] || [];
+          if (fresh.length === 0) return { ...prev, [activeConversationId]: existing };
+          const oldestFreshId = fresh[0].id;
+          const older = existing.filter((m) => m.id < oldestFreshId);
+          return { ...prev, [activeConversationId]: older.length ? [...older, ...fresh] : fresh };
+        });
         setHistoryLoaded(prev => ({ ...prev, [activeConversationId]: true }));
       }).catch(() => null);
     }

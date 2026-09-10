@@ -14,19 +14,19 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
-import { markdownToHtml } from '../../utils/markdownPaste';
 
 type Outcome = 'approved' | 'revision' | 'pending';
 
 interface Version {
   id: number;
   round: number;
-  note: string | null;
+  /** 이 회차가 제출된 컨펌 라운드. 제출본이 아니면 null(담당자 저장본·되돌리기 백업) */
+  review_round: number | null;
+  submitted: boolean;
   attachment_ids: number[];
   has_body: boolean;
   body_len: number;
   outcome: Outcome;
-  outcome_note: string | null;
   submitted_at: string;
   submitter: { id: number; name: string } | null;
 }
@@ -133,7 +133,10 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored, o
           <Caret $open={open} aria-hidden="true">▸</Caret>
           {t('deliv.pastTitle', '지난 버전')}
           <RoundPill>{versions.length}</RoundPill>
-          {last && <LastHint>{t('deliv.lastHint', '최근 v{{n}} · {{outcome}}', { n: last.round, outcome: outcomeLabel(last.outcome) })}</LastHint>}
+          {last && <LastHint>{t('deliv.lastHint', '최근 v{{n}} · {{outcome}}', {
+            n: last.round,
+            outcome: last.submitted ? outcomeLabel(last.outcome) : t('deliv.savedOnly', '저장본'),
+          })}</LastHint>}
         </Toggle>
       )}
 
@@ -150,16 +153,19 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored, o
             <Row key={v.id}>
               <RowHead type="button" onClick={() => toggleBody(v)} aria-expanded={expanded === v.id}>
                 <VLabel>v{v.round}</VLabel>
-                <Badge $o={v.outcome}>{outcomeLabel(v.outcome)}</Badge>
+                <Badge $o={v.submitted ? v.outcome : 'pending'}>
+                  {v.submitted ? outcomeLabel(v.outcome) : t('deliv.savedOnly', '저장본')}
+                </Badge>
                 <Who>{v.submitter?.name || '—'}</Who>
                 <When>{new Date(v.submitted_at).toLocaleString()}</When>
               </RowHead>
 
-              {v.note && <NoteBlock text={v.note} />}
-              {v.outcome === 'revision' && v.outcome_note && (
-                <NoteBlock text={v.outcome_note} label={t('deliv.revisionNote', '수정요청') as string} tone="revision" />
-              )}
-
+              {/* ★ 2026-09-10 — 제출 메모·수정요청 글을 여기 싣지 않는다.
+                  Irene: "결과물 버전은 댓글내용이 들어가면 안돼. 결과물을 남기는 것과
+                  실시간으로 댓글로 소통하는 건 다른 목적이야."
+                  그 글은 전부 댓글로 남아 있다(제출·수정요청이 TaskComment 를 같이 만든다) —
+                  같은 말을 두 곳에 두면 어느 쪽이 정본인지 알 수 없어진다.
+                  이 카드는 **결과물**만 다룬다: 회차 · 결과 · 제출자 · 시각 · 본문. */}
               {expanded === v.id && (
                 <Preview>
                   {!v.has_body
@@ -230,77 +236,12 @@ const Badge = styled.span<{ $o: Outcome }>`
   background:${p => (p.$o === 'approved' ? '#DCFCE7' : p.$o === 'revision' ? '#FEE2E2' : '#F1F5F9')};
   color:${p => (p.$o === 'approved' ? '#166534' : p.$o === 'revision' ? '#B91C1C' : '#64748B')};
 `;
-/**
- * 메모·수정요청 사유 — **쓴 그대로 읽히게** 그린다.
- *
- *   Irene 2026-09-05: "업무결과물에 이렇게 표시되는게 뭐야? 엉망인데?"
- *   운영 실측(수정요청 사유 53건): 최대 **2,378자** · **줄바꿈 포함 22건(42%)**.
- *   그런데 `<div>` 기본값(white-space: normal)이라 **줄바꿈이 전부 사라져** 한 덩어리가 됐고,
- *   접지도 않아 이력 한 줄이 화면을 다 먹었다. 목록 표시로 쓸 수 없는 상태였다.
- *
- *   ① 마크다운으로 쓴 사람이 많다(`###`·`*`·`>`) — 파일 미리보기와 **같은 파이프라인**으로
- *      렌더한다(marked → sanitize). 마크다운이 아니면 문단 그대로 나온다.
- *   ② 길면 접는다. 규칙을 설명하지 않고 **지금 상태와 다음 동작**만 버튼에 쓴다.
+/*
+ * 2026-09-10 — 메모·수정요청 사유 렌더(NoteBlock)를 여기서 걷었다.
+ *   Irene: "결과물 버전은 댓글내용이 들어가면 안돼."
+ *   그 글들은 댓글 흐름에 그대로 있다(제출·수정요청이 TaskComment 를 같이 만든다).
+ *   마크다운·접기 렌더가 필요하면 댓글 쪽 컴포넌트를 쓴다 — 이 카드는 결과물만 다룬다.
  */
-const NoteBlock: React.FC<{ text: string; label?: string; tone?: 'revision' }> = ({ text, label, tone }) => {
-  const { t } = useTranslation('qtask');
-  const [open, setOpen] = useState(false);
-  // 접을 만큼 긴가 — 줄 수와 글자 수 둘 다 본다(한 줄 2,000자짜리도 있다).
-  const long = text.length > 220 || text.split('\n').length > 4;
-  // ★ `markdownToHtml` 은 **마크다운 신호가 없으면 null 을 돌려준다**(utils/markdownPaste.ts).
-  //   `|| ''` 로 받으면 평문 메모·수정요청 사유가 통째로 **빈 칸**이 된다 — 운영 사유 53건 중
-  //   대부분이 평문이라 사실상 전부 사라진다(Fable 게이트 2026-09-05 F5 실측).
-  //   마크다운이 아니면 **escape 한 평문 + 줄바꿈 보존**으로 그린다. 지우지 않는다.
-  const md = markdownToHtml(text);
-  const html = md !== null
-    ? sanitizeRichText(md)
-    : sanitizeRichText(
-        text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/\r\n|\r|\n/g, '<br />'),
-      );
-  return (
-    <NoteWrap $tone={tone}>
-      {label && <NoteLabel $tone={tone}>{label}</NoteLabel>}
-      <NoteBody $clamped={long && !open} dangerouslySetInnerHTML={{ __html: html }} />
-      {long && (
-        <NoteToggle type="button" onClick={() => setOpen(v => !v)}>
-          {open ? t('deliv.noteFold', { defaultValue: '접기' }) as string
-                : t('deliv.noteMore', { defaultValue: '더 보기' }) as string}
-        </NoteToggle>
-      )}
-    </NoteWrap>
-  );
-};
-
-const NoteWrap = styled.div<{ $tone?: 'revision' }>`
-  display:flex;flex-direction:column;gap:4px;
-  padding:${p => (p.$tone === 'revision' ? '8px 10px' : '2px 0')};
-  background:${p => (p.$tone === 'revision' ? '#FEF2F2' : 'transparent')};
-  border-radius:8px;
-`;
-const NoteLabel = styled.div<{ $tone?: 'revision' }>`
-  font-size:0.6875rem;font-weight:700;
-  color:${p => (p.$tone === 'revision' ? '#B91C1C' : '#94A3B8')};
-`;
-// 마크다운 결과를 그린다. 접힘은 **줄 수**로 자른다 — 글자 수로 자르면 표·목록이 중간에서 끊긴다.
-const NoteBody = styled.div<{ $clamped: boolean }>`
-  font-size:0.78125rem;line-height:1.55;color:#475569;
-  word-break:break-word;
-  ${p => (p.$clamped ? 'display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;' : '')}
-  p{margin:0 0 6px;}
-  p:last-child{margin-bottom:0;}
-  ul,ol{margin:0 0 6px;padding-left:18px;}
-  li{margin:1px 0;}
-  h1,h2,h3,h4{font-size:0.8125rem;font-weight:700;color:#334155;margin:8px 0 4px;}
-  blockquote{margin:4px 0;padding-left:8px;border-left:2px solid #E2E8F0;color:#64748B;}
-  code{background:#F1F5F9;padding:1px 4px;border-radius:4px;}
-  table{width:100%;border-collapse:collapse;}
-  td,th{border:1px solid #E2E8F0;padding:3px 5px;}
-`;
-const NoteToggle = styled.button`
-  align-self:flex-start;border:none;background:none;padding:0;
-  font-size:0.75rem;font-weight:700;color:#0D9488;cursor:pointer;text-decoration:underline;
-`;
 
 const Who = styled.span`font-size:0.78125rem;color:#475569;`;
 const When = styled.span`font-size:0.75rem;color:#94A3B8;margin-left:auto;`;

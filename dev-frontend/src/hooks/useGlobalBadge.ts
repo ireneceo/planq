@@ -25,6 +25,16 @@ async function applyBadge(count: number) {
   try {
     // 네이티브 앱: WebView 는 navigator.setAppBadge 미지원 → Badge 플러그인으로 아이콘 배지 제어(M-2).
     if (isNativeApp()) {
+      // ★ 2026-09-10 — **배지 플러그인이 알림 권한의 첫 요청자가 되면 소리가 영영 빠진다.**
+      //   `Badge.set/clear` 는 호출마다 내부적으로 권한을 요청하는데(BadgePlugin.swift:64,100)
+      //   그 요청이 `requestAuthorization(options: .badge)` — **배지 하나뿐**이다(Badge.swift:27).
+      //   iOS 는 최초 인증 시점의 옵션 집합을 고정하고 나중에 넓혀도 늘려주지 않으므로,
+      //   이 호출이 먼저 나가면 그 기기에는 `Sounds` 항목 자체가 생기지 않는다
+      //   (Irene 아이폰 실증: 알림은 오는데 설정에 Sounds 가 없음, 2026-09-10).
+      //   → 푸시 권한이 이미 granted 일 때만 배지를 건드린다. 권한이 없으면 배지도 의미가 없다.
+      const { PushNotifications } = await import('@capacitor/push-notifications');
+      const perm = await PushNotifications.checkPermissions().catch(() => null);
+      if (perm?.receive !== 'granted') return;
       const { Badge } = await import('@capawesome/capacitor-badge');
       if (count > 0) await Badge.set({ count });
       else await Badge.clear();

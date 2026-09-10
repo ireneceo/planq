@@ -212,6 +212,7 @@ async function submitForReview({
       await TaskDeliverableVersion.create({
         task_id: task.id,
         round: (Number(maxRound) || 0) + 1,
+        review_round: newRound,   // 승인/수정요청은 **이 라운드**로 붙는다 (목록 번호와 별개)
         body: bodySnapshot ?? null,
         attachment_ids: attachmentIds,
         submitted_by: actorUserId || null,

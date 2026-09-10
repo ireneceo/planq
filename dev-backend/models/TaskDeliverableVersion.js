@@ -24,6 +24,17 @@ TaskDeliverableVersion.init({
   },
   /** 이 결과물이 제출된 컨펌 라운드 (tasks.review_round 와 같은 값) */
   round: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  /**
+   * 이 회차가 **어느 컨펌 라운드의 제출본인가** (`tasks.review_round` / `task_status_history.round`).
+   * 제출이 아닌 회차(담당자가 그냥 남긴 저장본·되돌리기 직전 백업)는 NULL.
+   *
+   * ★ 2026-09-10 — 왜 컬럼이 필요한가: 위 `round` 는 **목록 번호**(max+1)이고 컨펌 라운드는
+   *   별개로 증가한다(빈 제출·갇힌 라운드 복구·취소는 라운드만 소모한다). 두 숫자를 `==` 로
+   *   맞춰 승인/수정요청을 붙이던 목록 API 는 어긋난 순간부터 **최신 수정요청을 옛 버전에**
+   *   달았다(운영 task#257 실측: 버전 1·2·3·4 ↔ 라운드 1·2·4·5).
+   *   같은 값을 두 공식으로 구하지 않고, 제출 시점에 라운드를 **적어 둔다**.
+   */
+  review_round: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null },
   /** 제출 시점의 결과물 본문 스냅샷 */
   body: { type: DataTypes.TEXT('long'), allowNull: true },
   /** 제출 시점에 붙어 있던 첨부 id 들 — 파일 자체는 복제하지 않는다(용량·삭제 정합) */

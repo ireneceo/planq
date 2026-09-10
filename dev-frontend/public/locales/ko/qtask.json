@@ -1377,7 +1377,6 @@
     "approved": "승인됨",
     "revision": "수정요청",
     "pending": "검토 대기",
-    "revisionNote": "수정요청",
     "noSnapshot": "이 버전은 결과물 보관 기능이 생기기 전이라 본문이 없습니다.",
     "restore": "이 버전 내용 불러오기",
     "restoring": "불러오는 중…",
@@ -1389,7 +1388,8 @@
     "pastTitle": "지난 버전",
     "lastHint": "최근 v{{n}} · {{outcome}}",
     "emptyShort": "아직 제출한 버전이 없습니다.",
-    "restoreHint": "지금 쓰던 내용은 한 벌 보관된 뒤 이 버전으로 바뀝니다."
+    "restoreHint": "지금 쓰던 내용은 한 벌 보관된 뒤 이 버전으로 바뀝니다.",
+    "savedOnly": "저장본"
   },
   "loadError": {
     "title": "업무를 불러오지 못했습니다",

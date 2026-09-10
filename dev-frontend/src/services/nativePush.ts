@@ -26,8 +26,14 @@ export async function registerNative(): Promise<{ ok: boolean; reason?: string }
   }
 
   let perm = await PushNotifications.checkPermissions();
-  if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
-    perm = await PushNotifications.requestPermissions();
+  // ★ 2026-09-10 — `granted` 여도 **한 번은 요청을 통과시킨다.**
+  //   iOS 의 옵션 집합(alert/sound/badge)은 최초 인증 때 고정되고, `checkPermissions` 는
+  //   `authorizationStatus` 만 돌려주므로 **소리 없이 granted 인 상태를 우리는 구별할 수 없다.**
+  //   여태는 granted 면 건너뛰어서, 다른 플러그인이 세운 좁은 인증(배지만)을 넓힐 기회가 없었다.
+  //   이미 인증된 기기에서는 프롬프트 없이 즉시 반환되므로(Apple 규정) 부작용이 없다.
+  //   이 호출이 플러그인 구현 `requestAuthorization([.alert, .sound, .badge])` 하나뿐인 정본이다.
+  if (perm.receive !== 'denied') {
+    perm = await PushNotifications.requestPermissions().catch(() => perm);
   }
   if (perm.receive !== 'granted') return { ok: false, reason: 'permission_denied' };
 

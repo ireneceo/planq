@@ -250,25 +250,28 @@ router.get('/:id/deliverable-versions', authenticateToken, async (req, res, next
     //   routes/post_revisions.js). 본문은 아래 단건 조회로 그 회차를 열 때만 가져온다.
     const rows = await TaskDeliverableVersion.findAll({
       where: { task_id: task.id },
-      attributes: ['id', 'round', 'note', 'attachment_ids', 'submitted_by', 'created_at',
+      attributes: ['id', 'round', 'review_round', 'note', 'attachment_ids', 'submitted_by', 'created_at',
         [require('sequelize').fn('CHAR_LENGTH', require('sequelize').col('body')), 'body_len']],
       include: [{ model: User, as: 'submitter', attributes: ['id', 'name', 'name_localized'], required: false }],
       order: [['round', 'DESC'], ['id', 'DESC']],
     });
 
     // 회차별 결과(승인/수정요청) — 사용자가 알고 싶은 건 "무엇이 반려된 버전인가" 다.
-    //   approve·revision 이력은 round 를 들고 있다(task_status_history.round).
+    //   approve·revision 이력은 **컨펌 라운드**를 들고 있다(task_status_history.round).
+    // ★ 2026-09-10 — 이 맵의 키는 컨펌 라운드이므로 **버전의 `review_round`** 로만 찾는다.
+    //   목록 번호(`round`)로 찾던 옛 코드는 두 숫자가 어긋난 순간부터 남의 결과를 달았다
+    //   (운영 task#257: 버전 3 에 09-08 수정요청, 아직 검토 대기인 버전 4 에 09-09 수정요청).
     const outcomes = await TaskStatusHistory.findAll({
       where: { task_id: task.id, event_type: ['approve', 'revision'] },
-      attributes: ['event_type', 'round', 'note', 'created_at'],
+      attributes: ['event_type', 'round', 'created_at'],
       order: [['created_at', 'ASC']],
     });
     const byRound = new Map();
     for (const h of outcomes) {
       if (h.round == null) continue;
-      const cur = byRound.get(h.round) || { approved: 0, revision: 0, lastNote: null, at: null };
+      const cur = byRound.get(h.round) || { approved: 0, revision: 0, at: null };
       if (h.event_type === 'approve') cur.approved += 1;
-      else { cur.revision += 1; cur.lastNote = h.note || cur.lastNote; }
+      else cur.revision += 1;
       cur.at = h.created_at;
       byRound.set(h.round, cur);
     }
@@ -278,17 +281,25 @@ router.get('/:id/deliverable-versions', authenticateToken, async (req, res, next
     return successResponse(res, {
       current_round: task.review_round ?? null,
       versions: items.map(j => {
-        const o = byRound.get(j.round);
+        // 제출본만 컨펌 결과를 가진다. 저장본·되돌리기 백업은 review_round 가 NULL 이다.
+        const submitted = j.review_round != null;
+        const o = submitted ? byRound.get(j.review_round) : null;
         return {
           id: j.id,
           round: j.round,
-          note: j.note,
+          // ★ 2026-09-10 — 제출 메모(note)·수정요청 글(outcome_note)은 **내려보내지 않는다.**
+          //   Irene: "결과물 버전은 댓글내용이 들어가면 안돼. 결과물을 남기는 것과 실시간으로
+          //   댓글로 소통하는 건 다른 목적이야." 그 글은 전부 댓글로도 남는다
+          //   (submitReview·requestRevision 이 TaskComment 를 같이 만든다 — 운영 #257 실측
+          //   버전 메모 = 댓글 #186, 수정요청 4건 = 댓글 #188·192·199·203).
+          //   컬럼은 감사 목적으로 그대로 두고, 화면에는 결과물만 보낸다.
+          review_round: j.review_round ?? null,
+          submitted,
           attachment_ids: Array.isArray(j.attachment_ids) ? j.attachment_ids : [],
           // 본문 유무 — #271 이전 회차는 스냅샷이 없다. 화면이 "고장" 으로 보이지 않게 구분해 준다.
           has_body: Number(j.body_len || 0) > 0,
           body_len: Number(j.body_len || 0),
           outcome: o ? (o.revision > 0 ? 'revision' : (o.approved > 0 ? 'approved' : 'pending')) : 'pending',
-          outcome_note: o ? o.lastNote : null,
           submitted_at: j.created_at,
           submitter: j.submitter ? { id: j.submitter.id, name: j.submitter.name } : null,
         };
@@ -312,7 +323,7 @@ router.get('/:id/deliverable-versions/:vid', authenticateToken, async (req, res,
     });
     if (!v) return errorResponse(res, 'version_not_found', 404);
     return successResponse(res, {
-      id: v.id, round: v.round, body: v.body, note: v.note,
+      id: v.id, round: v.round, body: v.body,   // note 는 대화(댓글)의 것이다 — 위 목록 라우트 주석
       attachment_ids: Array.isArray(v.attachment_ids) ? v.attachment_ids : [],
       submitted_at: v.created_at,
     });

@@ -696,6 +696,7 @@ const ChatPanel: React.FC<Props> = ({
     setStagedPostIds([]);
     setStagedPostMeta({});
     setUploadingFiles([]);
+    pinBottomRef.current = true;   // 내가 보냈으면 언제나 바닥 (고정이 풀려 있었어도 다시 고정)
     scrollToBottom();
     // 사이클 N+15-B + N+17 — 전송 후 키보드 유지 (Hangouts/iMessage 패턴).
     // iOS Safari 는 value reset + reflow 만으로 dismiss 하는 케이스가 있어 명시적 focus 재호출.
@@ -779,6 +780,23 @@ const ChatPanel: React.FC<Props> = ({
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
   const scrollKey = (convId: number | null | undefined) => convId ? `qtalk_scroll_${convId}` : null;
 
+  // ★ 2026-09-10 — **바닥 고정은 하나의 술어다.**
+  //   Irene: "채팅방 열면 무조건 딱 가장 아래 최신댓글이 보여야 하는데. 이건 다양한 디바이스에서
+  //   다양한 상황에서 계속 그래."
+  //   여태 바닥 추적 판정이 세 갈래로 흩어져 있었고 전부 **추정**이었다:
+  //     ① 진입 후 2.5초 시간창 — 이미지·번역·폰트가 그 뒤에 자리잡으면 그대로 위에 남는다
+  //     ② `grew`(높이가 늘 때만) — 목록이 **줄어들면** 아무 보정이 없다. 알림을 눌러 앱이
+  //        포그라운드로 오면 visibility 복원이 메시지를 최신 50개로 통째 교체하는데(QTalkPage),
+  //        과거를 불러온 방은 목록이 짧아지고 scrollTop 은 남아 **목록 중간**을 가리켰다
+  //     ③ `distance < 240` — 교체 직후의 distance 는 옛 스크롤 위치에 대한 값이라 뜻이 없다
+  //   → 판정을 하나로 바꾼다. **진입하면 고정(pin), 사용자가 손으로 올리면 해제, 손으로 바닥에
+  //     돌아오면 다시 고정.** 고정된 동안에는 시간·증감·거리를 보지 않고 언제나 바닥이다.
+  //   ★ 해제는 **사용자 제스처가 있었을 때만** 한다. 프로그램 스크롤·콘텐츠 증감이 만드는
+  //     scroll 이벤트로 풀리면 진입 순간에 고정이 풀려 같은 버그가 돌아온다.
+  const pinBottomRef = React.useRef(true);
+  const userGestureAtRef = React.useRef(0);
+  const markUserScrollGesture = React.useCallback(() => { userGestureAtRef.current = Date.now(); }, []);
+
   const scrollToBottom = React.useCallback((smooth = true) => {
     const doIt = () => {
       const sentinel = messagesEndRef.current;
@@ -815,15 +833,11 @@ const ChatPanel: React.FC<Props> = ({
     const ro = new ResizeObserver(() => {
       const cur = list.scrollHeight;
       if (cur === lastSize) return;
-      const grew = cur > lastSize;
       lastSize = cur;
-      if (!grew) return;
-      // 과거 메시지 prepend 로 인한 높이 증가는 바닥 yank 금지 (위 읽던 위치 유지)
+      // 과거 메시지 prepend 로 인한 높이 변화는 바닥 yank 금지 (위 읽던 위치 유지)
       if (Date.now() - lastPrependAtRef.current < 800) return;
-      // N+33 — 진입 후 2.5초 force-stick. 비동기 콘텐츠(이미지/번역/Cue 카드) 로딩으로
-      // list height 폭증 시 distance > 240 라도 무조건 바닥. 사용자 호소 fix.
-      const elapsedSinceEnter = Date.now() - enteredAtRef.current;
-      if (elapsedSinceEnter < 2500) { scrollToBottom(false); return; }
+      // 고정 중이면 늘었든 줄었든 바닥이다 — 시간창·증감 판정 없음(위 pinBottomRef 주석).
+      if (pinBottomRef.current) { scrollToBottom(false); return; }
       const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
       if (distance < 240) scrollToBottom(false);
     });
@@ -831,17 +845,12 @@ const ChatPanel: React.FC<Props> = ({
     // 자식 변화도 감지 (메시지 카드 추가/제거)
     const mo = new MutationObserver(() => {
       const cur = list.scrollHeight;
-      if (cur !== lastSize) {
-        const grew = cur > lastSize;
-        lastSize = cur;
-        if (grew) {
-          if (Date.now() - lastPrependAtRef.current < 800) return; // 과거 prepend 직후 바닥 yank 금지
-          const elapsedSinceEnter = Date.now() - enteredAtRef.current;
-          if (elapsedSinceEnter < 2500) { scrollToBottom(false); return; }
-          const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-          if (distance < 240) scrollToBottom(false);
-        }
-      }
+      if (cur === lastSize) return;
+      lastSize = cur;
+      if (Date.now() - lastPrependAtRef.current < 800) return; // 과거 prepend 직후 바닥 yank 금지
+      if (pinBottomRef.current) { scrollToBottom(false); return; }
+      const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
+      if (distance < 240) scrollToBottom(false);
     });
     mo.observe(list, { childList: true, subtree: true });
     return () => { ro.disconnect(); mo.disconnect(); };
@@ -864,6 +873,7 @@ const ChatPanel: React.FC<Props> = ({
       // 더해 보정 — 안 그러면 distance>240 이라 키보드 열릴 때 바닥 스크롤이 스킵됨.
       // (clientHeight 가 아직 안 줄었을 수도 있어 RAF 로 layout settle 후 측정.)
       requestAnimationFrame(() => {
+        if (pinBottomRef.current) { scrollToBottom(false); return; }
         const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
         if (distance < 240 + shrinkAmount) scrollToBottom(false);
       });
@@ -891,6 +901,12 @@ const ChatPanel: React.FC<Props> = ({
       }
       // 사이클 N+15-E — 바닥 거리 측정 → floating 버튼 토글.
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+      // 바닥 고정 해제/재고정 — **사용자가 직접 스크롤한 직후에만** 판정한다.
+      //   프로그램 스크롤(smooth 애니메이션 중간 프레임)·콘텐츠 증감이 만든 이벤트로 풀리면
+      //   진입 순간에 고정이 풀려 "맨 아래가 아닌 곳" 이 그대로 돌아온다.
+      if (Date.now() - userGestureAtRef.current < 1200) {
+        pinBottomRef.current = distance <= 240;
+      }
       setShowScrollToBottom((cur) => {
         const next = distance > 240;
         // 바닥 근처로 돌아가면 pending count 도 리셋
@@ -906,14 +922,12 @@ const ChatPanel: React.FC<Props> = ({
   // useLayoutEffect 로 변경 — paint 전에 ref reset + 같은 phase 의 scroll useLayoutEffect 가 fresh false 값으로 즉시 scrollToBottom 호출.
   const initialScrolledRef = React.useRef(false);
   const prevMessageCount = React.useRef(0);
-  // N+33 — 진입 후 force-stick 윈도우. 진입 직후 2.5초 동안 ResizeObserver/MutationObserver 가
-  // distance 임계치 무시하고 무조건 바닥 추적. 이미지/번역 박스/Cue 카드 같은 비동기 콘텐츠가
-  // 늘어나면서 distance > 240 으로 자동 따라가기가 끊겨 "마지막 채팅 안 보임" 회귀 차단.
-  const enteredAtRef = React.useRef(0);
   React.useLayoutEffect(() => {
     initialScrolledRef.current = false;
     prevMessageCount.current = 0;
-    enteredAtRef.current = Date.now();
+    // 진입 = 바닥 고정. (옛 2.5초 force-stick 윈도우를 대신한다 — 시간이 아니라 상태다.)
+    pinBottomRef.current = true;
+    userGestureAtRef.current = 0;
     setShowScrollToBottom(false);
     setPendingNewCount(0);
     // 진입 시점 last_read freeze — 이후 markRead 가 서버 값을 올려도 구분선 위치는 고정.
@@ -948,17 +962,27 @@ const ChatPanel: React.FC<Props> = ({
       return;
     }
 
+    // ★ 고정 중이면 **목록이 어떻게 바뀌었든** 바닥이다.
+    //   개수가 줄거나 그대로인 교체(visibility 복원의 최신 50개 통째 교체)도 여기로 들어온다 —
+    //   여태 `next > prev` 만 봐서 그 경우 아무 보정이 없었고, 알림을 눌러 앱을 열면
+    //   옛 scrollTop 이 짧아진 목록의 중간을 가리켰다.
+    if (pinBottomRef.current) {
+      scrollToBottom(next > prev ? true : false);
+      return;
+    }
+
     if (next > prev) {
       // 새 메시지 도착 — 본인이 보낸 메시지면 무조건 바닥, 타인 메시지면 sticky-to-bottom (가까울 때만)
       const last = convMessages[convMessages.length - 1];
       const isMine = user && last && Number(last.sender_id) === Number(user.id);
       const list = messageListRef.current;
-      if (isMine || !list) { scrollToBottom(); return; }
+      if (isMine || !list) { pinBottomRef.current = true; scrollToBottom(); return; }
       const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
       // NEAR_BOTTOM 240px 통일 — ResizeObserver(자동추적)·handleScrollSave(버튼 노출)와 동일 임계.
       // 옛 120px 불일치: 150px 거리에 타인 메시지 → 이 분기는 pending +1, 동시에 RO(240)는 바닥 스크롤
       // → "바닥인데 새 메시지 뱃지" 모순. 같은 임계로 통일해 둘 중 하나만 동작.
       if (distance < 240) {
+        pinBottomRef.current = true;
         scrollToBottom();
       } else {
         // 사이클 N+15-E — 사용자가 위로 스크롤 중일 때 새 타인 메시지 도착: pending count +1.
@@ -977,6 +1001,7 @@ const ChatPanel: React.FC<Props> = ({
     if (!lastMsgTranslationKey) return;
     const list = messageListRef.current;
     if (!list) return;
+    if (pinBottomRef.current) { scrollToBottom(false); return; }
     const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
     // NEAR_BOTTOM 240px 통일 (번역 박스 추가로 높이 늘어도 바닥 근처면 따라가기)
     if (distance < 240) scrollToBottom();
@@ -1347,7 +1372,16 @@ const ChatPanel: React.FC<Props> = ({
       {/* data-testid — #245 가로 잠금 카나리가 이 영역을 확정적으로 집는다 (CLAUDE.md §17).
           휴리스틱(가장 큰 스크롤러 등)으로 찾으면 ChatPanel 이 안 뜬 상태에서 좌측 대화 리스트를
           대신 굴려 **거짓 PASS** 가 난다 — 실제로 그렇게 났다. */}
-      <MessageList ref={messageListRef} data-testid="qtalk-messages" onScroll={handleScrollSave}>
+      {/* 제스처 표식 — 바닥 고정을 푸는 것은 **사람의 스크롤**뿐이다(pinBottomRef 주석).
+          휠·터치·스크롤바 드래그 셋만 표식하면 프로그램 스크롤과 구별된다. */}
+      <MessageList
+        ref={messageListRef}
+        data-testid="qtalk-messages"
+        onScroll={handleScrollSave}
+        onWheel={markUserScrollGesture}
+        onTouchMove={markUserScrollGesture}
+        onMouseDown={markUserScrollGesture}
+      >
         {/* 과거 메시지 무한 로드 — 상단 로딩 인디케이터 */}
         {loadingOlder && convMessages.length > 0 && (
           <OlderLoadingRow aria-live="polite">
@@ -1959,7 +1993,7 @@ const ChatPanel: React.FC<Props> = ({
       {showScrollToBottom && (
         <ScrollToBottomBtn
           type="button"
-          onClick={() => { scrollToBottom(); setPendingNewCount(0); }}
+          onClick={() => { pinBottomRef.current = true; scrollToBottom(); setPendingNewCount(0); }}
           aria-label={t('chat.scrollToBottom', '맨 아래로') as string}
           title={t('chat.scrollToBottom', '맨 아래로') as string}
         >

@@ -116,6 +116,10 @@ const SUITES = {
   // 남의 워크스페이스 탭이 떠오르지 않는가 (운영 신고 2026-09-09).
   //   경로만 보는 청소로는 /docs?post=12 가 어느 워크스페이스 것인지 알 수 없다 — 도장으로 본다.
   tabforeign: () => require('./canary-tab-foreign'),
+  // 채팅방을 열면 마지막 메시지가 **눈에 보이는가** (2026-09-10 신고: "이상한 위치로 데려가").
+  //   바닥 고정 판정이 시간창·증감방향 같은 추정이라 조건이 어긋나면 조용히 풀렸다.
+  //   스크롤 호출 여부가 아니라 좌표·가시성으로 재고, 위로 올린 뒤에는 안 끌어내리는지도 본다.
+  chatbottom: () => require('./canary-chat-bottom'),
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };

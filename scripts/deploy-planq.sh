@@ -394,6 +394,12 @@ sync_database() {
   log "Adding leave category columns..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-leave-category.js 2>&1 | tail -8"
 
+  # 운영 #257 — 결과물 회차의 승인/수정요청이 **남의 라운드**에 붙어 있었다(버전 번호 ≠ 컨펌 라운드).
+  #   제출 시점의 컨펌 라운드를 회차 행에 적어 두고(review_round), 백필로 옛 행도 잇는다.
+  #   ★ **코드보다 먼저 돈다** — 모델이 컬럼을 선언하므로 없으면 회차 목록 조회가 500 이 된다. 멱등.
+  log "Linking deliverable versions to review rounds..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-deliverable-review-round.js 2>&1 | tail -8"
+
   # 운영 #360 — 연결 post 가 없는 표(q_record)는 화면에서 열 길이 없다.
   #   Q record 메뉴 폐지 후 표를 여는 통로는 post(kind=table) 뿐인데, POST /api/records 가
   #   post 없이 표만 만들 수 있어 운영에 도달 불가 표가 생겼다(#12 "앱 스토어 개발자 계정", 행 15).
