@@ -93,8 +93,10 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
   // 실패 이유를 사용자의 말로 — 목록과 Picker **두 경로가 같은 문구**를 쓴다.
   //   (여기가 갈라지면 같은 실패에 다른 안내가 뜬다.)
   const reasonText = useCallback((reason: string) => (
-    reason.startsWith('google_native')
-      ? (t('attach.drive.nativeDoc') as string)
+    reason.startsWith('google_export_too_large')
+      ? (t('attach.drive.exportTooLarge') as string)
+      : reason.startsWith('google_native')
+        ? (t('attach.drive.nativeDoc') as string)
       : reason.startsWith('extension_not_allowed')
         ? (t('attach.drive.extNotAllowed') as string)
         : reason.startsWith('storage_quota_exceeded')

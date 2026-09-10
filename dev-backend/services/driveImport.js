@@ -25,6 +25,41 @@ const ALLOWED_EXT = new Set([
 ]);
 const GOOGLE_NATIVE_PREFIX = 'application/vnd.google-apps.';
 
+// Google 네이티브 문서 → 우리가 보관할 형식 (2026-09-10)
+//
+// ★ 왜 (Irene): Picker 로 Google 문서를 고르면 "원본 파일이 없어 가져올 수 없습니다" 로 거절했다.
+//   *"이게 무슨 기능이야? 검색해서 추가도 못하면 뭐하려 검색해서 선택하는게 있는 거지?"*
+//   네이티브 문서는 원본 바이트가 없는 게 맞지만 **변환해서 받을 수 있다**(files.export).
+//
+// ★ 어떤 형식으로 — **Office 형식**을 고른다. PDF 는 보기만 되고 편집이 막힌다.
+//   docx·xlsx·pptx 는 우리 허용 확장자에 이미 있고, 받는 사람이 그대로 편집할 수 있다.
+//   그림(drawing)만 대응 Office 형식이 없어 PDF 다.
+// ★ 이름에 확장자를 **붙인다** — Google 문서 이름에는 확장자가 없다("English Study with Mike").
+//   안 붙이면 우리 확장자 검사에 걸리고, 내려받은 뒤에도 무슨 파일인지 알 수 없다.
+const GOOGLE_EXPORT = {
+  'application/vnd.google-apps.document': {
+    mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx',
+  },
+  'application/vnd.google-apps.spreadsheet': {
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx',
+  },
+  'application/vnd.google-apps.presentation': {
+    mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx',
+  },
+  'application/vnd.google-apps.drawing': { mime: 'application/pdf', ext: 'pdf' },
+};
+
+/** 이 네이티브 문서를 변환해서 들일 수 있는가. 못 하면 null(폼·사이트·지도 등). */
+function exportSpecFor(mimeType) {
+  return GOOGLE_EXPORT[String(mimeType || '')] || null;
+}
+
+/** 변환해서 받을 때의 파일명 — 확장자가 없거나 다르면 붙인다. */
+function exportNameFor(name, ext) {
+  const base = String(name || 'document').trim();
+  return base.toLowerCase().endsWith(`.${ext}`) ? base : `${base}.${ext}`;
+}
+
 function extOf(name) {
   const i = String(name || '').lastIndexOf('.');
   return i < 0 ? '' : String(name).slice(i + 1).toLowerCase();
@@ -37,8 +72,11 @@ function uploadPathFor(businessId) {
   return path.join(dir, crypto.randomUUID());
 }
 
-async function downloadTo(drive, fileId, dest) {
-  const stream = await gdrive.getFileStream(drive, fileId);
+async function downloadTo(drive, fileId, dest, exportMime) {
+  // exportMime 이 있으면 **변환해서** 받는다(Google 네이티브 문서).
+  const stream = exportMime
+    ? await gdrive.exportFileStream(drive, fileId, exportMime)
+    : await gdrive.getFileStream(drive, fileId);
   await new Promise((resolve, reject) => {
     const out = fs.createWriteStream(dest);
     stream.on('error', reject);
@@ -51,9 +89,12 @@ async function downloadTo(drive, fileId, dest) {
 /** 들일 수 있는 파일인가 — 내려받기 **전에** 판정한다(큰 파일을 받아놓고 버리지 않게). */
 function checkEligible(meta) {
   if (!meta || !meta.id) return { ok: false, reason: 'no_file_id' };
-  // Google 네이티브 문서(문서·스프레드시트)는 원본 바이트가 없다.
+  // Google 네이티브 문서 — 원본 바이트는 없지만 **변환해서** 받을 수 있는 것들이 있다.
   if (String(meta.mimeType || '').startsWith(GOOGLE_NATIVE_PREFIX)) {
-    return { ok: false, reason: 'google_native' };
+    const spec = exportSpecFor(meta.mimeType);
+    // 폼·사이트·지도처럼 대응 형식이 없는 것만 거절한다.
+    if (!spec) return { ok: false, reason: 'google_native' };
+    return { ok: true, exportMime: spec.mime, exportName: exportNameFor(meta.name, spec.ext) };
   }
   if (!ALLOWED_EXT.has(extOf(meta.name))) return { ok: false, reason: 'extension_not_allowed' };
   return { ok: true };
@@ -103,10 +144,17 @@ async function importDriveFile(ctx, meta, opts = {}) {
 
   let temp = uploadPathFor(businessId);
   try {
-    await downloadTo(drive, driveId, temp);
+    // 네이티브 문서면 변환해서 받는다(eligible.exportMime). 아니면 원본 그대로.
+    await downloadTo(drive, driveId, temp, eligible.exportMime);
   } catch (e) {
     try { fs.unlinkSync(temp); } catch { /* noop */ }
-    return { ok: false, reason: 'download_failed', detail: { message: String(e.message).slice(0, 200) } };
+    // ★ Google 은 export 를 **10MB** 로 제한한다 — 그 실패는 "다운로드 실패" 가 아니라
+    //   사용자가 할 일이 다른 상황이라 따로 알린다(Drive 에서 직접 내보내 올려야 한다).
+    const msg = String(e && e.message || '');
+    if (eligible.exportMime && /too large|exportSizeLimitExceeded|exceeds the maximum/i.test(msg)) {
+      return { ok: false, reason: 'google_export_too_large' };
+    }
+    return { ok: false, reason: 'download_failed', detail: { message: msg.slice(0, 200) } };
   }
   const actualSize = fs.statSync(temp).size;
   const hash = await sha256OfFile(temp);
@@ -144,9 +192,11 @@ async function importDriveFile(ctx, meta, opts = {}) {
       project_id: projectId,
       folder_id: folderId,
       uploader_id: uploaderId,
-      file_name: String(meta.name).slice(0, 255),
+      // 변환해서 들였으면 **변환본의 이름·형식**을 적는다 — 원본 이름에는 확장자가 없고
+      //   mime 이 google-apps 로 남으면 미리보기·다운로드가 그 형식으로 열리지 않는다.
+      file_name: String(eligible.exportName || meta.name).slice(0, 255),
       file_size: actualSize,
-      mime_type: meta.mimeType || 'application/octet-stream',
+      mime_type: eligible.exportMime || meta.mimeType || 'application/octet-stream',
       storage_provider: 'planq',        // 서빙 축 — 바이트는 우리가 가진다
       origin_provider: 'gdrive',        // 정본 축 — 변경의 진실은 Drive 에 있다
       external_id: driveId,
@@ -200,4 +250,7 @@ async function importDriveFile(ctx, meta, opts = {}) {
   return { ok: true, file: created };
 }
 
-module.exports = { importDriveFile, checkEligible, ALLOWED_EXT, GOOGLE_NATIVE_PREFIX };
+module.exports = {
+  importDriveFile, checkEligible, ALLOWED_EXT, GOOGLE_NATIVE_PREFIX,
+  exportSpecFor, exportNameFor, GOOGLE_EXPORT,
+};

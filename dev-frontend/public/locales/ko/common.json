@@ -478,18 +478,18 @@
     "typeFile": "파일",
     "typePost": "문서",
     "drive": {
-      "title": "팀 드라이브에서 가져오기",
+      "title": "Google Drive 에서 가져오기",
       "titlePersonal": "내 Google Drive 에서 가져오기",
       "search": "드라이브 파일 검색...",
       "loading": "불러오는 중...",
       "importing": "가져오는 중...",
       "added": "추가됨",
-      "empty": "아래 목록에는 PlanQ 로 연 파일만 보입니다. Drive 에서 직접 만드신 파일은 위의 'Drive 에서 찾아보기' 로 고르시면 가져올 수 있습니다.",
+      "empty": "아래 목록에는 PlanQ 로 연 파일만 보입니다. 내 드라이브·공유 드라이브의 다른 파일은 위의 'Drive 에서 찾아보기' 로 고르시면 가져올 수 있습니다.",
       "notConnected": "워크스페이스 Google Drive 가 연결돼 있지 않습니다. 오너가 설정 › 파일·외부 연동에서 연결할 수 있습니다.",
       "notConnectedPersonal": "개인 Google Drive 가 연결돼 있지 않습니다. 설정 › 파일·외부 연동에서 연결해 주세요.",
       "loadFailed": "드라이브 목록을 불러오지 못했습니다",
       "importFailed": "가져오지 못했습니다",
-      "nativeDoc": "Google 문서·스프레드시트는 원본 파일이 없어 가져올 수 없습니다. Drive 에서 PDF·Office 로 내보낸 뒤 올려 주세요.",
+      "nativeDoc": "Google 설문지·사이트 등은 문서 형식으로 바꿀 수 없어 가져올 수 없습니다. Drive 에서 PDF 로 내보낸 뒤 올려 주세요.",
       "extNotAllowed": "허용되지 않는 파일 형식입니다",
       "quota": "저장공간이 가득 찼습니다",
       "pickerOpen": "Drive 에서 찾아보기",
@@ -497,7 +497,8 @@
       "pickerFailed": "Drive 파일 선택 창을 열지 못했습니다. 잠시 후 다시 시도해 주세요.",
       "pickerBlocked": "브라우저가 구글 스크립트를 차단했습니다. 광고 차단 확장이나 사내 방화벽이 원인일 수 있습니다.",
       "pickerUnavailable": "이 서버에는 Drive 찾아보기가 설정돼 있지 않습니다. 아래 목록에는 PlanQ 로 연 파일만 보입니다.",
-      "pickerCspBlocked": "이 서버 설정 때문에 Drive 창을 열 수 없습니다. 사용자 문제가 아니니 관리자에게 알려 주세요 (보안 헤더 적용 필요)."
+      "pickerCspBlocked": "이 서버 설정 때문에 Drive 창을 열 수 없습니다. 사용자 문제가 아니니 관리자에게 알려 주세요 (보안 헤더 적용 필요).",
+      "exportTooLarge": "문서가 너무 커서 변환할 수 없습니다(구글 제한 10MB). Drive 에서 직접 내보낸 뒤 올려 주세요."
     }
   },
   "installPrompt": {

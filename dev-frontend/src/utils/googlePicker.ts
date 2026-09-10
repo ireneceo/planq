@@ -114,16 +114,27 @@ export async function openGoogleDrivePicker(opts: OpenPickerOptions): Promise<Pi
 
   const P = google.picker;
   return new Promise<PickedFile[]>((resolve) => {
-    const view = new P.DocsView(P.ViewId.DOCS)
+    // ★ 2026-09-10 (Irene): *"구글드라이브가 팀드라이브에서 가져오기로 되서 **공유드라이브만 열려.
+    //   내 드라이브에서는 아무것도 선택 못해?**"*
+    //   `setEnableDrives(true)` 를 준 **뷰 하나만** 두면 그 뷰가 공유 드라이브 쪽으로 열려
+    //   내 드라이브가 갈 곳이 없다. 뷰는 Picker 왼쪽의 **탭**이므로 셋을 나란히 둔다.
+    const myDrive = new P.DocsView(P.ViewId.DOCS)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false)
+      .setOwnedByMe(false);            // 내 드라이브 = 내 것 + 나에게 공유된 것
+    const sharedDrives = new P.DocsView(P.ViewId.DOCS)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false)
       .setEnableDrives(true);          // 공유(팀) 드라이브
+    const recent = new P.DocsView(P.ViewId.RECENTLY_PICKED);
 
     const builder = new P.PickerBuilder()
       .setAppId(import.meta.env.VITE_GOOGLE_APP_ID)
       .setOAuthToken(opts.accessToken)
       .setDeveloperKey(import.meta.env.VITE_GOOGLE_PICKER_API_KEY)
-      .addView(view)
+      .addView(myDrive)
+      .addView(sharedDrives)
+      .addView(recent)
       .enableFeature(P.Feature.SUPPORT_DRIVES)
       .setCallback((data: any) => {
         if (data[P.Response.ACTION] === P.Action.PICKED) {

@@ -431,6 +431,19 @@ async function getFileStream(drive, fileId) {
 }
 
 /**
+ * Google 네이티브 문서(문서·스프레드시트·프레젠테이션)를 **변환해서** 받는다.
+ *
+ * ★ 왜 (Irene 2026-09-10): Picker 로 Google 문서를 고르면 "원본 파일이 없어 가져올 수 없습니다"
+ *   로 거절했다. *"검색해서 추가도 못하면 뭐하려 검색해서 선택하는게 있는 거지?"* — 맞는 말이다.
+ *   네이티브 문서는 `alt=media` 로 못 받지만 **`files.export` 로는 받을 수 있다.**
+ *   ★ 한계: Google 이 export 를 **10MB** 로 제한한다. 더 크면 여기서 실패하고 호출부가 안내한다.
+ */
+async function exportFileStream(drive, fileId, exportMime) {
+  const r = await drive.files.export({ fileId, mimeType: exportMime }, { responseType: 'stream' });
+  return r.data;
+}
+
+/**
  * 폴더 이름 변경
  */
 /**
@@ -626,6 +639,7 @@ module.exports = {
   moveFile,
   getFileMeta,
   getFileStream,
+  exportFileStream,
   getTokenForBusiness,
   ensureProjectFolder,
   ensureConversationsFolder,
