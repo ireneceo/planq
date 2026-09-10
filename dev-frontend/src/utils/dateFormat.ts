@@ -73,3 +73,22 @@ export function formatTimeAgo(iso: string | Date, tz: string, locale = 'ko-KR', 
   if (dayDiff === 1) return tr('time.yesterday');
   return formatDate(d, tz, locale);
 }
+
+/**
+ * 공개(무로그인) 화면의 **날짜 한 개** — 보는 사람의 로케일로.
+ *
+ * ★ 왜 여기 있나: 같은 함수가 pages/Public/PublicTaskPage.tsx 안에 지역 선언돼 있었고,
+ *   게스트 화면(pages/Guest)은 그 수리를 못 받아 `String(d).slice(0,10)` 로 **ISO 원문**을
+ *   그대로 내보내고 있었다(#99b 와 같은 회귀, 2026-09-10 재발). 베껴 두면 또 갈라진다.
+ *
+ * 워크스페이스 타임존을 쓰지 않는다 — 공개 화면에는 그 맥락이 없고, 날짜만 보여주므로
+ * 기기 로케일이면 충분하다. 시각까지 필요하면 formatDateTime(tz) 을 쓸 것.
+ */
+export function formatPublicDate(v?: string | Date | null): string {
+  if (!v) return '';
+  const raw = typeof v === 'string' ? `${v.slice(0, 10)}T00:00:00` : v;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return String(v);
+  const locale = typeof navigator !== 'undefined' && navigator.language.startsWith('en') ? 'en-US' : 'ko-KR';
+  return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(d);
+}

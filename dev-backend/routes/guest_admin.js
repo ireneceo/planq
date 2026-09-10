@@ -136,18 +136,11 @@ router.delete('/:businessId/:id/guest-links/:linkId', authenticateToken, attachW
       where: { id: Number(req.params.linkId), business_id: businessId, conversation_id: Number(req.params.id) },
     });
     if (!link) return errorResponse(res, 'not_found', 404);
-    if (link.revoked_at) return successResponse(res, serialize(link), 'already_revoked');
-    await link.update({ revoked_at: new Date(), revoked_by: req.user.id });
-    // ★ 부모를 회수하면 **자식(개인 링크)도 같이 닫는다.** 읽는 쪽(resolveGuestToken)이
-    //   부모를 보므로 이미 닫히지만, 행에 흔적을 남겨야 목록·30일 삭제 타이머가
-    //   "언제 닫혔는지" 를 안다. 상태를 파생으로만 두면 그 시각을 아무도 모른다.
-    if (link.kind === 'shared') {
-      await GuestLink.update(
-        { revoked_at: link.revoked_at, revoked_by: req.user.id },
-        { where: { parent_link_id: link.id, revoked_at: null } },
-      );
-    }
-    try { require('../services/guest_notify').invalidateGuestCache(link.conversation_id); } catch { /* 캐시일 뿐이다 */ }
+    // 회수 본체는 services/guest_link.js 의 revokeGuestLink 하나다 —
+    //   프로젝트 경로(routes/projects.js)와 **같은 함수**를 부른다. 베껴 두면 반드시 갈라진다.
+    const { revokeGuestLink } = require('../services/guest_link');
+    const r = await revokeGuestLink(link, { userId: req.user.id });
+    if (r.already) return successResponse(res, serialize(link), 'already_revoked');
     createAuditLog({
       userId: req.user.id, businessId,
       action: 'guest_link.revoke', targetType: 'GuestLink', targetId: link.id,

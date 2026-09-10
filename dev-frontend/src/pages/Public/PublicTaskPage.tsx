@@ -13,15 +13,12 @@ import { getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
+import { formatPublicDate } from '../../utils/dateFormat';
 
 // #99b — 공개 페이지 날짜는 보는 사람 로케일로. (여태 '2026-07-11' 원본 문자열이 그대로 노출)
-function fmtDate(v?: string | null): string {
-  if (!v) return '—';
-  const d = new Date(`${String(v).slice(0, 10)}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return String(v);
-  const locale = typeof navigator !== 'undefined' && navigator.language.startsWith('en') ? 'en-US' : 'ko-KR';
-  return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(d);
-}
+//   ★ 2026-09-10 — 여기 지역 선언으로 두었더니 게스트 화면이 이 수리를 못 받았다.
+//     utils/dateFormat.ts 한 곳으로 옮긴다. 빈 값 표시(—)만 이 화면의 규칙이라 여기서 감싼다.
+const fmtDate = (v?: string | null): string => (v ? formatPublicDate(v) : '—');
 
 interface TaskPreview {
   id: number;

@@ -6,6 +6,8 @@
 // ★ 원문 토큰은 **발급 응답에만** 있다(서버는 해시만 저장). 이 화면이 놓치면 다시 만들어야 하므로
 //   발급 직후 바로 보여주고 복사·공유를 그 자리에서 끝낸다.
 import { useCallback, useEffect, useState } from 'react';
+import ConfirmDialog from '../Common/ConfirmDialog';
+import { formatPublicDate } from '../../utils/dateFormat';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -87,11 +89,22 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     } finally { setBusy(false); }
   };
 
+  // 닫기 전에 **무슨 일이 일어나는지** 먼저 말한다.
+  //   Irene 2026-09-10: "회수 누르면 뭐가 어떻게 되지? 링크 삭제야?"
+  //   실제 동작은 삭제가 아니라 revoked_at 마킹이고, 그 즉시 그 주소로 들어오던 사람이 막힌다.
+  //   되살리는 경로가 없으므로 되돌릴 수 없는 행동이다 — 확인 없이 한 번에 실행하면 안 된다.
+  const [confirmId, setConfirmId] = useState<{ id: number; kind: 'link' | 'person' } | null>(null);
   const revoke = async (id: number) => {
     if (busy) return;
     setBusy(true);
+    setErr(null);
     try {
-      await apiFetch(api.revoke(id), { method: 'DELETE' });
+      const r = await apiFetch(api.revoke(id), { method: 'DELETE' });
+      const j = await r.json().catch(() => ({ success: r.ok }));
+      // ★ 여태 응답을 **아예 안 봤다.** 403/404 여도 조용히 목록만 다시 불러서,
+      //   실패했는데 사용자는 아무 일도 안 일어난 것으로만 보였다.
+      if (!j.success) { setErr(t('guestLink.revokeFailed', { defaultValue: '닫지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string); return; }
+      setConfirmId(null);
       await load();
     } finally { setBusy(false); }
   };
@@ -170,20 +183,27 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
 
           {links.length > 0 && (
             <ListBox>
-              <ListTitle>{t('guestLink.active', { defaultValue: '살아 있는 링크' })}</ListTitle>
+              <ListTitle>{t('guestLink.active', { defaultValue: '지금 열려 있는 링크' })}</ListTitle>
               {links.map((l) => (
                 <Row key={l.id}>
                   <RowMain>
-                    <Hint>…{l.token_hint}</Hint>
+                    {/* 토큰 **앞** 6자다. 여태 `…Fq-386` 으로 그려 접미사처럼 보였고,
+                        그래서 보낸 주소(planq.kr/g/Fq-386…)와 눈으로 대조할 수 없었다. */}
+                    <Hint>/g/{l.token_hint}…</Hint>
                     <Meta>
+                      {/* "살아 있다" 가 무슨 뜻인지 **날짜로** 말한다 — expires_at 은 서버가 이미
+                          내려주는데 화면이 쓰지 않고 있었다. 만료는 열 때마다 뒤로 밀린다. */}
+                      {l.expires_at && t('guestLink.until', { defaultValue: '{{d}}까지 열림', d: formatPublicDate(l.expires_at) })}
+                      {l.expires_at && ' · '}
                       {l.last_used_at
-                        ? t('guestLink.lastUsed', { defaultValue: '마지막 사용 {{d}}', d: String(l.last_used_at).slice(0, 10) })
-                        : t('guestLink.neverUsed', { defaultValue: '아직 사용 안 함' })}
+                        ? t('guestLink.lastUsed', { defaultValue: '마지막 열람 {{d}}', d: formatPublicDate(l.last_used_at) })
+                        : t('guestLink.neverUsed', { defaultValue: '아직 아무도 열지 않음' })}
+                      {!l.can_write && ` · ${t('guestLink.readOnly', { defaultValue: '읽기 전용' })}`}
                       {l.message_count > 0 && ` · ${t('guestLink.msgs', { defaultValue: '{{n}}건 작성', n: l.message_count })}`}
                     </Meta>
                   </RowMain>
-                  <RevokeBtn type="button" onClick={() => revoke(l.id)} disabled={busy}>
-                    {t('guestLink.revoke', { defaultValue: '회수' })}
+                  <RevokeBtn type="button" onClick={() => setConfirmId({ id: l.id, kind: 'link' })} disabled={busy}>
+                    {t('guestLink.close', { defaultValue: '링크 닫기' })}
                   </RevokeBtn>
                 </Row>
               ))}
@@ -206,8 +226,9 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
                               : t('guestLink.contactPending', { defaultValue: '확인 안 됨' })}
                           </Meta>
                         </RowMain>
-                        <RevokeBtn type="button" onClick={() => revoke(c.id)} disabled={busy}>
-                          {t('guestLink.revoke', { defaultValue: '회수' })}
+                        {/* 같은 라벨을 쓰면 안 된다 — 이건 링크가 아니라 **이 사람**의 접근을 끊는다. */}
+                        <RevokeBtn type="button" onClick={() => setConfirmId({ id: c.id, kind: 'person' })} disabled={busy}>
+                          {t('guestLink.cutPerson', { defaultValue: '접근 끊기' })}
                         </RevokeBtn>
                       </Row>
                     )))}
@@ -217,6 +238,24 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
           )}
         </StandardModal>
       )}
+      {/* 되돌릴 수 없는 행동이라 **누르기 전에** 무슨 일이 일어나는지 말한다.
+          Irene 2026-09-10: "회수 누르면 뭐가 어떻게 되지? 링크 삭제야?" — 삭제가 아니다. */}
+      <ConfirmDialog
+        isOpen={!!confirmId}
+        variant="danger"
+        onClose={() => setConfirmId(null)}
+        onConfirm={() => { if (confirmId) void revoke(confirmId.id); }}
+        title={confirmId?.kind === 'person'
+          ? (t('guestLink.cutPersonTitle', { defaultValue: '이 사람의 접근을 끊을까요?' }) as string)
+          : (t('guestLink.closeTitle', { defaultValue: '이 링크를 닫을까요?' }) as string)}
+        message={confirmId?.kind === 'person'
+          ? (t('guestLink.cutPersonBody', { defaultValue: '이 사람은 지금 바로 들어올 수 없게 되고 알림도 멈춥니다. 다시 열 수 없어 새로 초대해야 합니다. 주고받은 내용은 그대로 남습니다.' }) as string)
+          : (t('guestLink.closeBody', { defaultValue: '이 주소로 들어오던 사람이 지금 바로 못 들어옵니다. 다시 열 수 없고 새 링크를 만들어야 합니다. 주고받은 대화와 파일은 그대로 남습니다.' }) as string)}
+        confirmText={confirmId?.kind === 'person'
+          ? (t('guestLink.cutPerson', { defaultValue: '접근 끊기' }) as string)
+          : (t('guestLink.close', { defaultValue: '링크 닫기' }) as string)}
+        cancelText={t('common:cancel', { defaultValue: '취소' }) as string}
+      />
     </>
   );
 }

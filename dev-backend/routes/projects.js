@@ -844,12 +844,34 @@ router.get('/:id/guest-links', authenticateToken, async (req, res, next) => {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    // ★ **shared 만 링크다.** 답글 알림을 신청한 사람마다 자식 행(kind='personal')이 생기고,
+    //   그 행은 부모의 project_id·scope 를 그대로 물려받는다(services/guest_link.js ensurePersonalLink).
+    //   여기 kind 필터가 없어서 **사람이 링크로 둔갑해** 목록에 섞였다 — 힌트가 '------' 인 행이
+    //   그것이다(Irene 2026-09-10: "그 아래 코드 같은 건 뭐지?").
+    //   대화방 경로(routes/guest_admin.js)는 같은 이유로 이미 kind:'shared' 를 걸고 있었다.
     const rows = await GuestLink.findAll({
-      where: { project_id: project.id, business_id: project.business_id, scope: 'project', revoked_at: null },
+      where: { project_id: project.id, business_id: project.business_id, scope: 'project', kind: 'shared', revoked_at: null },
       order: [['id', 'DESC']],
       limit: 50,
     });
-    return successResponse(res, rows.map(serializeGuestLink));
+    // 알림 신청자는 **링크가 아니라 사람**으로 따로 싣는다(대화방 경로와 동형).
+    //   안 실으면 화면의 "답글 알림을 신청한 사람" 칸이 프로젝트에서는 영영 비어 있다.
+    const kids = rows.length
+      ? await GuestLink.findAll({
+        where: { parent_link_id: rows.map((r) => r.id), kind: 'personal', revoked_at: null },
+        order: [['id', 'ASC']],
+        limit: 200,
+      })
+      : [];
+    const byParent = new Map();
+    for (const k of kids) {
+      if (!byParent.has(k.parent_link_id)) byParent.set(k.parent_link_id, []);
+      byParent.get(k.parent_link_id).push({
+        id: k.id, email: k.guest_email || null, name: k.guest_name || null,
+        last_used_at: k.last_used_at, message_count: k.message_count,
+      });
+    }
+    return successResponse(res, rows.map((l) => ({ ...serializeGuestLink(l), contacts: byParent.get(l.id) || [] })));
   } catch (err) { next(err); }
 });
 
@@ -915,13 +937,19 @@ router.delete('/:id/guest-links/:linkId', authenticateToken, async (req, res, ne
       where: { id: Number(req.params.linkId), project_id: project.id, business_id: project.business_id },
     });
     if (!link) return errorResponse(res, 'not_found', 404);
-    if (!link.revoked_at) await link.update({ revoked_at: new Date() });
-    createAuditLog({
-      user_id: req.user.id, business_id: project.business_id,
-      action: 'delete', entity_type: 'guest_link', entity_id: link.id,
-      old_value: { scope: link.scope, project_id: project.id },
-    });
-    return successResponse(res, { id: link.id, revoked: true });
+    // ★ 회수는 services/guest_link.js 의 **한 함수**가 한다 — 여기서 다시 쓰면 갈라진다.
+    //   실제로 갈라져 있었다: revoked_by 미기록 · 자식(개인) 링크 동반 회수 누락 · 캐시 무효화 누락 ·
+    //   감사 action 이 'delete'(대화방 경로는 'guest_link.revoke').
+    const { revokeGuestLink } = require('../services/guest_link');
+    const r = await revokeGuestLink(link, { userId: req.user.id });
+    if (!r.already) {
+      createAuditLog({
+        userId: req.user.id, businessId: project.business_id,
+        action: 'guest_link.revoke', targetType: 'GuestLink', targetId: link.id,
+        oldValue: { revoked_at: null }, newValue: { revoked_at: link.revoked_at, scope: link.scope, project_id: project.id },
+      });
+    }
+    return successResponse(res, { id: link.id, revoked: true }, r.already ? 'already_revoked' : 'revoked');
   } catch (err) { next(err); }
 });
 

@@ -367,7 +367,39 @@ async function mintPersonalToken(link) {
   return token;
 }
 
+/**
+ * 게스트 링크 회수 — **단일 지점.**
+ *
+ * ★ 2026-09-10 — 대화방(routes/guest_admin.js)과 프로젝트(routes/projects.js)가 각자 구현하고 있었고
+ *   프로젝트 쪽이 넷을 빠뜨렸다: `revoked_by` 미기록 · **자식(개인) 링크 동반 회수 안 함** ·
+ *   캐시 무효화 안 함 · 감사 action 이 'delete'(다른 쪽은 'guest_link.revoke').
+ *   발급 판정은 이미 assertGuestLinkIssuable 한 함수로 모아 두었는데 회수만 갈라져 있었다.
+ *   "같은 술어" 를 주석으로 약속하지 말고 **같은 함수를 부르게** 한다.
+ *
+ * @returns {{ ok: boolean, already?: boolean, link?: object }}
+ */
+async function revokeGuestLink(link, { userId }) {
+  if (!link) return { ok: false };
+  if (link.revoked_at) return { ok: true, already: true, link };
+  const at = new Date();
+  await link.update({ revoked_at: at, revoked_by: userId || null });
+  // ★ 부모를 회수하면 **자식(개인 링크)도 같이 닫는다.** 읽는 쪽(resolveGuestToken)이
+  //   부모를 보므로 이미 닫히지만, 행에 흔적을 남겨야 목록·30일 삭제 타이머가
+  //   "언제 닫혔는지" 를 안다. 상태를 파생으로만 두면 그 시각을 아무도 모른다.
+  if (link.kind === 'shared') {
+    await GuestLink.update(
+      { revoked_at: at, revoked_by: userId || null },
+      { where: { parent_link_id: link.id, revoked_at: null } },
+    );
+  }
+  if (link.conversation_id) {
+    try { require('./guest_notify').invalidateGuestCache(link.conversation_id); } catch { /* 캐시일 뿐이다 */ }
+  }
+  return { ok: true, already: false, link };
+}
+
 module.exports = {
+  revokeGuestLink,
   SLIDING_TTL_MS, hashToken, generateToken, visibleToGuest,
   OTP_TTL_MS, OTP_MAX_ATTEMPTS, OTP_LOCK_MS, NOTIFY_COOLDOWN_MS,
   generateOtpCode, normalizeEmail, ensurePersonalLink, mintPersonalToken, personalTokenFor,

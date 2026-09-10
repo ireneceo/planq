@@ -9,6 +9,7 @@
 //   두 탭의 목록·잠금 규약은 서버(routes/guest_project.js)가 정한다: general 열림 /
 //   internal 자리는 보이고 잠김 / confidential 은 건수만 / L1 은 행 자체가 없다.
 import { useCallback, useEffect, useState } from 'react';
+import { formatPublicDate } from '../../utils/dateFormat';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -69,10 +70,11 @@ export default function GuestProjectPage({ token, project, canWrite, onGone }: P
   }, [token, onGone]);
   useEffect(() => { if (tab === 'tasks' && tasks === null) void loadTasks(); }, [tab, tasks, loadTasks]);
 
+  // 날짜는 **보는 사람 로케일**로. 여태 ISO 원문(`2026-09-10`)을 그대로 내보내고 있었다 —
+  //   공개 화면에서 이미 한 번 고친 회귀(#99b)인데 게스트 화면만 그 수리를 못 받았다.
   const period = (a: string | null, b: string | null) => {
-    const f = (d: string | null) => (d ? String(d).slice(0, 10) : '');
     if (!a && !b) return '';
-    return `${f(a)} ~ ${f(b)}`.trim();
+    return `${formatPublicDate(a)} ~ ${formatPublicDate(b)}`.trim();
   };
   const done = project.task_summary?.completed ?? 0;
   const total = project.task_summary?.total ?? 0;
@@ -210,13 +212,30 @@ export default function GuestProjectPage({ token, project, canWrite, onGone }: P
   );
 }
 
+// 읽는 폭의 상한 — **이 화면에는 상한이 아예 없었다.**
+//   Irene 2026-09-10: "너무 심하게 내용이 허접하고 정돈 안되어 보여."
+//   미디어쿼리도 max-width 도 0건이라 1920px 데스크탑에서 설명·업무 목록이 화면 폭 전체로
+//   늘어났다. 한 줄이 200자를 넘으면 눈이 다음 줄 첫머리를 못 찾는다 — 내용이 아니라
+//   **줄 길이** 문제다. 채팅 탭만 말풍선에 상한이 있어서 탭을 옮길 때마다 규칙이 바뀌었다.
+const READ_W = '880px';
 const Wrap = styled.div`display:flex;flex-direction:column;height:100dvh;background:#f8fafc;`;
-const Head = styled.div`min-height:60px;padding:14px 20px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;`;
+const Head = styled.div`
+  min-height:60px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;
+  padding:14px 20px;
+  @media (max-width:640px){ padding:12px 16px; }
+  > div { width:100%; max-width:${READ_W}; margin:0 auto; }
+`;
 const Title = styled.div`font-size:1.125rem;font-weight:700;letter-spacing:-0.2px;color:#0f172a;`;
 const Sub = styled.div`font-size:0.8125rem;color:#64748b;margin-top:2px;`;
 const TabBar = styled.div`
-  display:flex;gap:2px;background:#fff;border-bottom:1px solid #e2e8f0;padding:0 12px;flex-shrink:0;
+  display:flex;gap:2px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;
   overflow-x:auto;-webkit-overflow-scrolling:touch;
+  /* 탭도 본문과 같은 기둥에 세운다 — 안 그러면 탭은 화면 끝, 글은 가운데가 된다. */
+  padding:0 12px;
+  > * { flex-shrink:0; }
+  justify-content:flex-start;
+  &::after { content:''; }
+  @media (min-width:${READ_W}) { padding-left:calc((100% - ${READ_W}) / 2 + 12px); padding-right:calc((100% - ${READ_W}) / 2 + 12px); }
 `;
 const Tab = styled.button<{ $on: boolean }>`
   display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
@@ -233,6 +252,8 @@ const Count = styled.span`
 `;
 const Scroll = styled.div`
   flex:1;min-height:0;overflow-y:auto;padding:16px 20px;
+  @media (max-width:640px){ padding:14px 16px; }
+  > div, > p, > section { width:100%; max-width:${READ_W}; margin-left:auto; margin-right:auto; }
   display:flex;flex-direction:column;gap:14px;
 `;
 const OvDesc = styled.p`margin:0;font-size:0.8125rem;color:#475569;line-height:1.55;white-space:pre-wrap;`;
