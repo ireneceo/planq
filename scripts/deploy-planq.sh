@@ -659,14 +659,23 @@ verify_deployment() {
     echo -e "${RED}!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!${NC}"
     echo -e "${RED}  운영 nginx 보안헤더가 낡았습니다 — 코드와 라이브가 다릅니다${NC}"
     # 전체 문자열 두 줄은 눈으로 못 읽는다 — **어긋난 지시문만** 짚는다.
-    diff <(printf '%s' "$EXPECT_CSP" | tr ';' '\n' | sed 's/^ *//') \
-         <(printf '%s' "$LIVE_CSP"   | tr ';' '\n' | sed 's/^ *//') 2>/dev/null \
-      | grep -E '^[<>]' | while read -r L; do
-          case "$L" in
-            '<'*) echo -e "${RED}    코드에만: ${L#< }${NC}" ;;
-            '>'*) echo -e "${RED}    운영에만: ${L#> }${NC}" ;;
-          esac
-        done
+    #   ★★ `|| true` 가 **반드시** 있어야 한다. `diff` 는 차이가 있으면 **exit 1**,
+    #      `grep` 은 매치가 없으면 **exit 1** 이다. 스크립트가 `set -euo pipefail` 이라
+    #      그 1 이 배포를 그 자리에서 **죽인다.** 2026-09-10 실제로 그렇게 죽어서
+    #      릴리즈노트·개발현황 발행·update_record 가 통째로 건너뛰어졌다
+    #      (코드·프론트·PM2 는 이미 착지한 뒤라 운영은 멀쩡했다 — 그래서 더 안 보인다).
+    #      **알리려고 넣은 검사가 배포를 깨뜨리면 안 된다.**
+    {
+      diff <(printf '%s' "$EXPECT_CSP" | tr ';' '\n' | sed 's/^ *//') \
+           <(printf '%s' "$LIVE_CSP"   | tr ';' '\n' | sed 's/^ *//') 2>/dev/null \
+        | grep -E '^[<>]' \
+        | while read -r L; do
+            case "$L" in
+              '<'*) echo -e "${RED}    코드에만: ${L#< }${NC}" ;;
+              '>'*) echo -e "${RED}    운영에만: ${L#> }${NC}" ;;
+            esac
+          done
+    } || true
     echo -e "${RED}  → 운영서버에서 실행해야 합니다(root 필요):${NC}"
     echo -e "${RED}    sudo /opt/planq/scripts/apply-nginx-security-headers.sh prod${NC}"
     echo -e "${RED}  적용 전까지 그 헤더에 의존하는 기능(예: Drive 찾아보기)은 동작하지 않습니다${NC}"
