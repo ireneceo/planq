@@ -58,6 +58,40 @@ function disposeBrowser(b) {
   Promise.resolve().then(() => b.close()).catch(() => {}).finally(() => { clearTimeout(timer); kill(); });
 }
 
+// ★ 공유 브라우저는 **쓰는 요청이 남아 있으면 닫지 않는다** (Fable 2026-09-11 재검증 FAIL).
+//   위 disposeBrowser 를 실패한 요청이 곧바로 부르자, 같은 브라우저로 동시에 렌더하던 **다른 요청들이
+//   'Navigating frame was detached' 로 한꺼번에 죽었다**(동시 5건 중 1건 타임아웃 → 1/5 성공).
+//   타임아웃은 부하 때 나서 동시 요청과 겹친다 — 누수를 없앤 대가로 연쇄 실패를 만든 것이었다.
+//   그래서 "은퇴" 시킨다: 싱글톤에서 빼 새 요청은 새 브라우저로 가고, 은퇴한 브라우저는 **렌더가 다 끝나면** 닫힌다.
+//   이미 끊긴 브라우저는 기다릴 것이 없어 바로 끝낸다. 렌더가 행에 걸려 끝나지 않으면 상한 뒤 끝낸다.
+const inflight = new Map();   // browser → 진행 중 렌더 수
+const retired = new Set();
+const RETIRE_MAX_MS = 90000;  // protocolTimeout(60s) + 여유
+
+function isConnected(b) {
+  if (!b) return false;
+  return typeof b.connected === 'boolean' ? b.connected : (typeof b.isConnected === 'function' ? b.isConnected() : false);
+}
+function retainBrowser(b) { if (b) inflight.set(b, (inflight.get(b) || 0) + 1); }
+function releaseBrowser(b) {
+  if (!b) return;
+  const n = (inflight.get(b) || 0) - 1;
+  if (n > 0) { inflight.set(b, n); return; }
+  inflight.delete(b);
+  if (retired.has(b)) { retired.delete(b); disposeBrowser(b); }
+}
+function retireBrowser(b) {
+  if (!b) return;
+  if (!isConnected(b) || !(inflight.get(b) > 0)) {
+    retired.delete(b); inflight.delete(b); disposeBrowser(b);
+    return;
+  }
+  if (retired.has(b)) return;
+  retired.add(b);
+  const t = setTimeout(() => { if (retired.has(b)) { retired.delete(b); inflight.delete(b); disposeBrowser(b); } }, RETIRE_MAX_MS);
+  if (t.unref) t.unref();
+}
+
 async function getBrowser() {
   if (browserPromise) {
     let b = null;
@@ -68,8 +102,8 @@ async function getBrowser() {
         : (typeof b.isConnected === 'function' ? b.isConnected() : true);
       if (b && alive) return b;
     } catch { /* launch 실패 캐시 — 아래서 재시도 */ }
-    // 끊긴 브라우저도 프로세스는 남아 있을 수 있다 — 끝내고 새로 띄운다
-    disposeBrowser(b);
+    // 끊긴 브라우저도 프로세스는 남아 있을 수 있다 — 끝내고 새로 띄운다(끊겼으면 retireBrowser 가 바로 끝낸다)
+    if (b) retireBrowser(b);
     browserPromise = null;
   }
   browserPromise = launch().catch((err) => {
@@ -83,7 +117,9 @@ async function getBrowser() {
 // (BASE_CSS 인라인이라 networkidle0 는 즉시 충족 → content 타임아웃 거의 없음)
 function isBrowserDeadError(err) {
   const m = String((err && err.message) || err || '');
-  return /Target closed|Session closed|Connection closed|Protocol error|disconnected|Timed out|browser has disconnected/i.test(m);
+  // 'detached' — 브라우저가 실제로 죽으면 진행 중이던 다른 렌더는 'Navigating frame was detached' 로 끝난다.
+  //   목록에 없어서 재시도 없이 500 이었다(Fable 2026-09-11) — 새 브라우저로 한 번 더 시도할 가치가 있다.
+  return /Target closed|Session closed|Connection closed|Protocol error|disconnected|Timed out|browser has disconnected|detached/i.test(m);
 }
 
 async function renderPdfFromHtml(html, opts = {}) {
@@ -106,8 +142,10 @@ async function renderPdfFromHtml(html, opts = {}) {
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     let page;
+    let browser = null;
     try {
-      const browser = await getBrowser();
+      browser = await getBrowser();
+      retainBrowser(browser);   // 렌더가 끝날 때까지 이 브라우저를 닫지 않는다(finally 에서 release)
       page = await browser.newPage();
       // ★ 렌더 대상 HTML 에는 **사용자가 쓴 본문**이 들어간다(문서·게시글·청구서 body_html).
       //   그대로 두면 <img src="http://127.0.0.1:3003/…"> 한 줄로 **서버측 요청 위조**가 되고,
@@ -144,15 +182,16 @@ async function renderPdfFromHtml(html, opts = {}) {
       lastErr = err;
       // 브라우저 죽음 → 싱글톤 강제 리셋 후 1회 재시도. 그 외(또는 2번째)는 throw.
       if (attempt === 0 && isBrowserDeadError(err)) {
-        // 참조만 지우면 살아 있는 Chrome 이 영구히 남는다(위 disposeBrowser 주석) — 끝내고 새로 띄운다
-        const stale = activeBrowser;
-        browserPromise = null; activeBrowser = null;
-        disposeBrowser(stale);
+        // 참조만 지우면 살아 있는 Chrome 이 영구히 남는다(disposeBrowser 주석), 곧바로 닫으면 동시 렌더가 죽는다(retireBrowser 주석).
+        //   이 요청이 쓰던 브라우저가 아직 싱글톤이면 **은퇴** — 새 요청은 새 브라우저로, 이 브라우저는 렌더가 다 끝나면 닫힌다.
+        //   이미 다른 요청이 교체했으면 건드리지 않는다.
+        if (browser && activeBrowser === browser) { browserPromise = null; activeBrowser = null; retireBrowser(browser); }
         continue;
       }
       throw err;
     } finally {
       if (page) await page.close().catch(() => {});
+      releaseBrowser(browser);
     }
   }
   throw lastErr;
@@ -160,6 +199,8 @@ async function renderPdfFromHtml(html, opts = {}) {
 
 // Graceful shutdown
 async function closeBrowser() {
+  for (const b of retired) disposeBrowser(b);
+  retired.clear(); inflight.clear();
   if (!browserPromise) return;
   try {
     const b = await browserPromise;
@@ -168,4 +209,4 @@ async function closeBrowser() {
   browserPromise = null; activeBrowser = null;
 }
 
-module.exports = { renderPdfFromHtml, closeBrowser, getBrowser };
+module.exports = { renderPdfFromHtml, closeBrowser, getBrowser, retainBrowser, releaseBrowser };

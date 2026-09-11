@@ -14,7 +14,7 @@ const path = require('path');
 const crypto = require('crypto');
 const HelpArticle = require('../models/HelpArticle');
 const File = require('../models/File');
-const { getBrowser } = require('./pdfService');
+const { getBrowser, retainBrowser, releaseBrowser } = require('./pdfService');
 
 const FRONTEND_URL = (process.env.WIKI_FRONTEND_URL || 'https://dev.planq.kr').replace(/\/+$/, '');
 const BACKEND_URL = (process.env.WIKI_BACKEND_URL || 'http://127.0.0.1:3003').replace(/\/+$/, '');
@@ -103,6 +103,8 @@ async function captureArticleScreenshot(articleId) {
 
   const browser = await getBrowser();
   const page = await browser.newPage();
+  // 캡처 중에는 공유 브라우저를 닫지 않게 — PDF 쪽이 은퇴시켜도 이 캡처가 끝날 때까지 기다린다(pdfService retireBrowser)
+  retainBrowser(browser);
   try {
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 2 });
     const url = new URL(FRONTEND_URL);
@@ -128,6 +130,7 @@ async function captureArticleScreenshot(articleId) {
     return { ok: true, file_id: file.id };
   } finally {
     await page.close().catch(() => {});
+    releaseBrowser(browser);
   }
 }
 
