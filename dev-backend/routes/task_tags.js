@@ -18,6 +18,7 @@ const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 const { assertMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { Task, TaskTag, TaskTagLink } = require('../models');
@@ -65,7 +66,10 @@ async function attachTagsTo(rows, businessId) {
 }
 
 async function requireMember(req, res) {
-  const businessId = Number(req.body?.business_id || req.query?.business_id || req.user.active_business_id);
+  // 범위: 명시값 → 창의 워크스페이스(X-Workspace-Id). 추측하지 않는다(middleware/workspaceContext).
+  const wsScope = requestScope(req, req.body?.business_id || req.query?.business_id);
+  if (wsScope.stale) { staleResponse(res, wsScope); return null; }
+  const businessId = Number(wsScope.businessId);
   if (!businessId) { errorResponse(res, 'business_id required', 400); return null; }
   if (!(await assertMemberOrAbove(req.user.id, businessId, req.user.platform_role))) {
     errorResponse(res, 'forbidden', 403); return null;

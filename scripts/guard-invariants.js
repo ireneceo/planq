@@ -2349,6 +2349,11 @@ function checkWsScope() {
         n += 1;
         if (samples.length < 14) samples.push(`${r}:${i + 1}: active_business_id 직접 읽기 → 명시 business_id(멤버십 검증) 또는 요청 워크스페이스`);
       }
+      // ①-B 정본 사본(req.workspaceCanonical)은 판정 모듈 한 곳만 읽는다 — 다른 곳이 읽으면 이름만 바꾼 추측이다
+      if (/\.workspaceCanonical\b(?!\s*=[^=])/.test(ln) && r !== 'dev-backend/middleware/workspaceContext.js' && !exempt(i)) {
+        n += 1;
+        if (samples.length < 14) samples.push(`${r}:${i + 1}: workspaceCanonical 직접 읽기 → requestScope(req, 명시값) 사용`);
+      }
       // ② 첫 멤버십 폴백 — findOne 뒤 6줄 안에 order id ASC 가 있고 business_id 조건이 없다
       if (/\bBusinessMember\.findOne\s*\(/.test(ln) && !exempt(i)) {
         const win = lines.slice(i, i + 7).join('\n');

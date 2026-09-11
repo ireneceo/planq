@@ -112,6 +112,28 @@ let accessToken: string | null = null;
 // 클라이언트 종류 감지는 services/native.ts 단일 원천 (세션 만드는 곳이 여러 곳이라 사본 금지).
 
 export const getAccessToken = () => accessToken;
+
+// 이 창이 믿는 워크스페이스 — 모든 인증 요청에 `X-Workspace-Id` 로 싣는다 (WORKSPACE_SCOPE_DESIGN C2).
+//   ★ apiFetch 는 모듈 함수라 React 상태를 못 읽는다 → accessToken 처럼 **모듈 변수로 미러**한다.
+//   값을 바꾸는 곳은 AuthProvider 의 setUser **한 곳**(모든 user 갱신이 그곳을 지난다). 효과(useEffect)로
+//   맞추면 자식 화면의 첫 요청이 부모 effect 보다 먼저 나가 헤더 없이 간다(React effect 는 자식부터 돈다).
+let requestWorkspaceId: number | null = null;
+export const getRequestWorkspaceId = () => requestWorkspaceId;
+// 같은 출처로 가는 요청에만 싣는다 — 제3자 주소에 워크스페이스 번호를 흘리지 않는다.
+const isSameOrigin = (url: string): boolean => {
+  if (url.startsWith('/')) return !url.startsWith('//');
+  try { return new URL(url, window.location.href).origin === window.location.origin; } catch { return false; }
+};
+// 서버가 "이 창은 옛 워크스페이스다"(409 workspace_stale)라고 하면 WorkspaceSyncGuard 가 전환을 따라간다.
+const signalWorkspaceStale = async (res: Response): Promise<void> => {
+  if (res.status !== 409) return;
+  try {
+    const j = await res.clone().json();
+    if (j?.code === 'workspace_stale' && Number(j.business_id) > 0) {
+      window.dispatchEvent(new CustomEvent('planq:workspace-stale', { detail: { business_id: Number(j.business_id) } }));
+    }
+  } catch { /* 본문이 JSON 이 아니면 무시 */ }
+};
 // 사칭(impersonate) 모드에서 token swap 할 때만 export. 일반 흐름은 register/login/refresh 가 내부에서 호출.
 export const _impersonateSetAccessToken = (token: string | null) => {
   accessToken = token;
@@ -374,6 +396,9 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
   if (accessToken && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
+  if (accessToken && requestWorkspaceId && !headers.has('X-Workspace-Id') && isSameOrigin(url)) {
+    headers.set('X-Workspace-Id', String(requestWorkspaceId));
+  }
 
   const { retryOnNetworkError, ...init } = options;
   // 기본값 — GET(및 method 미지정)은 멱등하므로 자동 재시도. 쓰기는 명시할 때만.
@@ -431,7 +456,12 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
     if (r.ok) {
       const retryHeaders = new Headers(options.headers || {});
       retryHeaders.set('Authorization', `Bearer ${accessToken}`);
-      return fetch(url, { ...init, headers: retryHeaders, credentials: 'include' });
+      if (requestWorkspaceId && !retryHeaders.has('X-Workspace-Id') && isSameOrigin(url)) {
+        retryHeaders.set('X-Workspace-Id', String(requestWorkspaceId));
+      }
+      const retried = await fetch(url, { ...init, headers: retryHeaders, credentials: 'include' });
+      await signalWorkspaceStale(retried);
+      return retried;
     }
     // refresh 실패 = 세션이 끝났다. 여기서 응답을 그대로 돌려주면 호출자(예: 확인필요/인박스
     //   fetchTodo)가 백엔드 원문("Access token required")을 화면에 렌더해 사용자가 로그인
@@ -457,6 +487,8 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
       }
     } catch { /* noop */ }
   }
+  // 409 workspace_stale — 다른 창·기기에서 워크스페이스가 바뀌었다. 호출자는 그대로 응답 받음.
+  if (!isAuthEndpoint) await signalWorkspaceStale(response);
 
   return response;
 };
@@ -487,6 +519,7 @@ function xhrSend(url: string, body: FormData, token: string | null, opts?: ApiUp
     xhr.open('POST', url, true);
     xhr.withCredentials = true;             // HttpOnly refresh 쿠키 — apiFetch 의 credentials:'include' 와 동일
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    if (token && requestWorkspaceId && isSameOrigin(url)) xhr.setRequestHeader('X-Workspace-Id', String(requestWorkspaceId));
 
     if (opts?.onProgress) {
       xhr.upload.onprogress = (e) => {
@@ -547,6 +580,7 @@ const apiUpload = async (url: string, body: FormData, opts?: ApiUploadOptions): 
       }
     } catch { /* noop */ }
   }
+  await signalWorkspaceStale(res);
   return res;
 };
 
@@ -557,7 +591,12 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
+  // 모든 user 갱신이 지나는 한 곳 — 요청 헤더 사본(requestWorkspaceId)을 **렌더보다 먼저** 맞춘다(위 C2 주석).
+  const setUser = useCallback((next: User | null) => {
+    requestWorkspaceId = next?.business_id ? Number(next.business_id) : null;
+    setUserState(next);
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

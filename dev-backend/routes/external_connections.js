@@ -18,6 +18,7 @@ const {
 } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 const personalOauth = require('../services/personalOauth');
 const googleScopes = require('../services/googleScopes');
 const personalCalendar = require('../services/personalCalendar');
@@ -131,8 +132,11 @@ router.get('/businesses/:businessId/external-connections', authenticateToken, ch
 router.get('/me/external-connections', authenticateToken, async (req, res, next) => {
   try {
     const where = { user_id: req.user.id, owner_scope: 'user' };
-    if (req.query.business_id) {
-      const bizId = parseInt(req.query.business_id, 10);
+    // 범위: 명시값 → 창의 워크스페이스(X-Workspace-Id) → (헤더 없는 옛 번들만) 조건 없음(설계 §2)
+    const wsScope = requestScope(req, req.query.business_id, { legacy: 'aggregate' });
+    if (wsScope.stale) return staleResponse(res, wsScope);
+    if (wsScope.businessId) {
+      const bizId = Number(wsScope.businessId);
       // 멤버십 검증
       const bm = await BusinessMember.findOne({ where: { user_id: req.user.id, business_id: bizId } });
       if (!bm && req.user.platform_role !== 'platform_admin') {

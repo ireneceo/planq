@@ -10,6 +10,7 @@ const {
   LeaveRequest,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 const { authenticateToken } = require('../middleware/auth');
 const { getMemberNameMap } = require('../services/displayName');
 
@@ -985,8 +986,11 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const isPlatformAdmin = req.user.platform_role === 'platform_admin';
-    const qBusinessId = parseInt(req.query.business_id, 10);
-    const oneBusinessId = Number.isFinite(qBusinessId) ? qBusinessId : null;
+    // 범위: 명시값 → 창의 워크스페이스(X-Workspace-Id) → (헤더 없는 옛 번들만) 전 워크스페이스 합산.
+    //   ★ 여태 인자가 없으면 무조건 합산이라, 범위를 빠뜨린 호출이 조용히 남의 워크스페이스까지 셌다(규칙 5).
+    const wsScope = requestScope(req, req.query.business_id, { legacy: 'aggregate' });
+    if (wsScope.stale) return staleResponse(res, wsScope);
+    const oneBusinessId = wsScope.businessId ? Number(wsScope.businessId) : null;
     const { getUserScope } = require('../middleware/access_scope');
 
     // business_id 가 명시되면 그 워크스페이스만 (권한 검증 후), 아니면 사용자가 속한 **모든** 워크스페이스 cross-workspace 집계

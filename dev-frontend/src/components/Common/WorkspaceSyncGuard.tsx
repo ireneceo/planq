@@ -69,6 +69,19 @@ const WorkspaceSyncGuard: React.FC = () => {
     };
   }, [user?.id, apply]);
 
+  // ④ 서버가 "이 창은 옛 워크스페이스" 라고 답했다(409 workspace_stale — 전파 이벤트를 놓친 창).
+  //   apiFetch/apiUpload 가 응답을 보고 쏜다. 판정은 ①② 와 같은 apply(보류·루프 안전망 포함).
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const onStale = (ev: Event) => {
+      const bid = Number((ev as CustomEvent<{ business_id?: number }>).detail?.business_id);
+      if (!bid || bid === bizRef.current) return;
+      apply(bid);
+    };
+    window.addEventListener('planq:workspace-stale', onStale);
+    return () => window.removeEventListener('planq:workspace-stale', onStale);
+  }, [user?.id, apply]);
+
   // ③ 사본이 조용히 바뀐 경우 — 첫 값은 기준선으로만 기억한다(부팅), 계정이 바뀌면 기준선을 새로 잡는다
   const seenRef = useRef<{ uid: number | null; biz: number | null }>({ uid: null, biz: null });
   useEffect(() => {

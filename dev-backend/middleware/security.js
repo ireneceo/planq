@@ -234,7 +234,8 @@ const setupSecurity = (app) => {
     // X-Client-Kind: PWA standalone vs 데스크탑 브라우저 구분 (refresh_token TTL 결정).
     //                 누락 시 모든 디바이스가 'web' (30d) 으로 처리되어 PWA 365d 미적용.
     // X-Internal-Api-Key: Q Note (Python) → Node 내부 호출용. CORS 통과 필요.
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Kind', 'X-Internal-Api-Key']
+    // X-Workspace-Id: 창이 믿는 워크스페이스 (WORKSPACE_SCOPE_DESIGN C2 — middleware/workspaceContext).
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Kind', 'X-Internal-Api-Key', 'X-Workspace-Id']
   }));
 
   // Rate Limiting — 전체 API

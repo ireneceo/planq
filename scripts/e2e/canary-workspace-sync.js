@@ -134,6 +134,47 @@ async function run() {
     const r = await fetch(`${API}/api/auth/switch-workspace`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${imp}` }, body: JSON.stringify({ business_id: A }) });
     const [[s4]] = await sequelize.query('SELECT active_business_id FROM users WHERE id=?', { replacements: [USER] });
     push('④ 사칭 중 전환 403 · 정본 그대로', r.status === 403 && Number(s4.active_business_id) === B, `status=${r.status} 정본=${s4.active_business_id}`);
+
+    // ⑥ 전파를 놓친 창 — 서버가 409 workspace_stale 로 알리면 따라간다 (설계 단계 3~5, 2026-09-11)
+    //   정본만 A 로 바꾸고 emit 은 하지 않는다(이벤트 유실 재현). 메인 창은 여전히 B 를 믿는다.
+    //   메인 창의 확인필요 조회(/api/dashboard/todo?business_id=) 에서 **범위만 지워** 서버가 헤더로 채우게 한다
+    //   → 헤더 B ≠ 정본 A → 409 → apiFetch → WorkspaceSyncGuard 가 A 로 재부팅.
+    //   ★ 음성 대조군을 먼저 — 정본이 B 일 때 같은 조작은 200 이고 재부팅이 없어야 한다(재부팅이 409 때문임을 증명).
+    await main.bringToFront();
+    await b.goto(main, '/talk');
+    await b.sleep(2500);
+    const wsHeaders = [];
+    let stripScope = false;
+    await main.setRequestInterception(true);
+    main.on('request', (rq) => {
+      const u = rq.url();
+      if (u.includes('/api/')) { const h = rq.headers()['x-workspace-id']; if (h) wsHeaders.push(Number(h)); }
+      if (stripScope && /\/api\/dashboard\/todo\?business_id=\d+/.test(u)) {
+        return rq.continue({ url: u.replace(/\?business_id=\d+&?/, '?') });
+      }
+      return rq.continue();
+    });
+    const kick = () => main.evaluate(() => { window.dispatchEvent(new CustomEvent('inbox:refresh')); window.dispatchEvent(new Event('focus')); });
+    stripScope = true;
+    wsHeaders.length = 0;
+    const t6a = await timeOrigin(main);
+    await kick();
+    await b.sleep(5000);
+    push('⑥ 대조군: 헤더 == 정본이면 범위를 지워도 재부팅 0 · 요청에 X-Workspace-Id=B',
+      (await timeOrigin(main)) === t6a && wsHeaders.length > 0 && wsHeaders.every((h) => h === B),
+      `재부팅=${(await timeOrigin(main)) !== t6a} · 헤더=${[...new Set(wsHeaders)].join(',') || '없음'}`);
+
+    await sequelize.query('UPDATE users SET active_business_id=? WHERE id=?', { replacements: [A, USER] });
+    const t6b = await timeOrigin(main);
+    await kick();
+    const followed = await waitFor(async () => (await timeOrigin(main)) !== t6b, 10000);
+    stripScope = false;
+    wsHeaders.length = 0;
+    await b.sleep(3500);
+    push('⑥ 정본만 바뀐 창(이벤트 유실) — 409 를 받고 A 로 따라간다 · 이후 요청 헤더 A',
+      followed && wsHeaders.length > 0 && wsHeaders.every((h) => h === A),
+      `재부팅=${followed} (${main.url().replace(b.BASE, '')}) · 이후 헤더=${[...new Set(wsHeaders)].join(',') || '없음'}`);
+    await main.setRequestInterception(false).catch(() => null);
   } catch (e) {
     results.push({ name: 'canary-workspace-sync', fail: 0, fatal: 1, details: ['FATAL ' + e.message] });
   } finally {

@@ -106,6 +106,10 @@ const authenticateToken = async (req, res, next) => {
       impersonator: decoded.impersonator || null,
     };
 
+    // 창이 믿는 워크스페이스(X-Workspace-Id)를 정본과 대조해 req 에 싣는다 — 설계 C2·C3 (middleware/workspaceContext)
+    try { require('./workspaceContext').observe(req, user.active_business_id); }
+    catch (e) { console.warn('[authenticateToken workspaceContext]', e.message); }
+
     // ★ 삭제된 워크스페이스 차단 — **인증 요청의 단일 관문** (Fable 치명-4).
     //   워크스페이스 접근 판정이 attachWorkspaceScope / getUserScope / 라우트 인라인
     //   `BusinessMember.findOne` 세 갈래로 갈라져 있어, 인라인 쪽(40여 파일)이 삭제된
@@ -154,6 +158,7 @@ const optionalAuth = async (req, res, next) => {
         // "어느 미들웨어를 탔느냐" 에 따라 라우트 동작이 달라진다.
         active_business_id: user.active_business_id || null,
       };
+      try { require('./workspaceContext').observe(req, user.active_business_id); } catch { /* 관찰 실패 무시 */ }
     }
   } catch (_) {
     // 무효 토큰 → 게스트로 계속

@@ -12,6 +12,7 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 const { resolvePeriod, reindexPriorities, togglePriority } = require('../services/taskPriority');
 const { logAudit } = require('../services/auditService');
 
@@ -42,7 +43,10 @@ async function broadcastChanged(req, tasks) {
 //   client 는 제외한다: my-week 우선순위는 client 에게 존재하지 않는 개념이다
 //   (tasks.js 의 assertBusinessAccess 는 client 도 통과시키므로 그걸 쓰면 안 된다 — Fable 조건 7).
 async function prepare(req, res) {
-  const businessId = Number(req.body.business_id || req.user.active_business_id);
+  // 범위: 명시값 → 창의 워크스페이스(X-Workspace-Id). 추측하지 않는다(middleware/workspaceContext).
+  const wsScope = requestScope(req, req.body.business_id);
+  if (wsScope.stale) { staleResponse(res, wsScope); return null; }
+  const businessId = Number(wsScope.businessId);
   if (!businessId) { errorResponse(res, 'business_id required', 400); return null; }
   if (!(await assertMemberOrAbove(req.user.id, businessId, req.user.platform_role))) {
     errorResponse(res, 'forbidden', 403); return null;

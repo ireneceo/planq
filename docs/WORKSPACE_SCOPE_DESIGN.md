@@ -13,6 +13,13 @@
 그래서 판정 문을 서버 한 곳에 둔다: `GET /api/entity-workspace/:kind/:id`(멤버 이상일 때 business_id 만 · 메일은 접근 가능 계정만 · 그 외 전부 404) + FE `findOtherWorkspaceOf` · `useDirectDetail` · `DetailFallbackDrawer`.
 자료정리 뷰어(`/docs/brief/:id`)는 URL 에 워크스페이스가 없는 문이라 **남의 글을 실제로 그리고 있었다** → `isOtherWorkspace`.
 곁들여: 통합검색 표 셀·Q info 항목 값의 **비밀 칸 매칭 제외**를 한 판정(`matchesNonSecretCell`)으로.
+**단계 3~5 (2026-09-11 3차):** C2 헤더(`apiFetch`·`apiUpload`, 같은 출처만, 사본은 `setUser` 한 곳에서 렌더 전 미러) ·
+C3 관찰(`middleware/workspaceContext.observe` — authed/header/no_header/stale/mismatch/legacy 카운터 1시간 요약 + 사용자·경로별 10분 1회 로그) ·
+**C5 추측 제거 + 409** — 추측 11곳(tasks my-week/month/year/backlog · task_templates 2 · task_priority · task_tags · posts editor-image · cue resolveBusinessId·질문 로그)
++ 합산 모드 3곳(dashboard/todo · today-review · me/external-connections)이 `requestScope` 한 함수를 쓴다. 헤더≠정본이면 409 `workspace_stale`(+정본 id) →
+프론트 `planq:workspace-stale` → `WorkspaceSyncGuard` ④ 가 ①② 와 같은 apply. **설계와 달라진 점:** 단계 4·5 를 관찰 1~2일 뒤로 미루는 대신,
+헤더가 **없는** 요청(옛 번들)만 종전 동작으로 남겨 한 번에 넣었다 — 옛 번들을 깨지 않는다는 원래 이유를 분기 하나로 지키고, 소진은 `legacy` 카운터로 판정한다.
+미포함: Q3 `workspace_mismatch` 409(관찰만) · Q5 보류 중 읽기 정지 · internal user-project-ids · `onWorkspaceSocket`(C7).
 > ★ 발견(미수리): q-note 는 JWT 의 `businessId` 클레임으로 워크스페이스를 읽는데 Node access token 에는 그 클레임이 없다 → q-note 쪽 L3/L4 같은 워크스페이스 공유 분기가 비소유자에게 **항상 불통**(`q-note/middleware/auth.py:22`, `services/authTokens.js:70`).
 
 > **단계 2 에서 카나리가 잡은 결함 2건 (2026-09-11)**

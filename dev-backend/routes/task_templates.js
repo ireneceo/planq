@@ -13,6 +13,7 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const { TaskTemplate, TaskTemplateItem, BusinessMember } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 const { embedText, blobToFloats, cosineSimilarity } = require('../services/kb_service');
 const { recomputeTemplateEmbedding } = require('../services/templateEmbedding');
 
@@ -44,7 +45,10 @@ const recommendLimiter = rateLimit({
 // ==========================================
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
-    const businessId = Number(req.query.business_id || req.user.active_business_id);
+    // 범위: 명시값 → 창의 워크스페이스(X-Workspace-Id). 추측하지 않는다(middleware/workspaceContext).
+    const wsScope = requestScope(req, req.query.business_id);
+    if (wsScope.stale) return staleResponse(res, wsScope);
+    const businessId = Number(wsScope.businessId);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
 
     if (!(await ensureMember(req.user.id, businessId, req.user.platform_role))) {
@@ -76,7 +80,9 @@ router.get('/', authenticateToken, async (req, res, next) => {
 // ==========================================
 router.post('/recommend', authenticateToken, recommendLimiter, async (req, res, next) => {
   try {
-    const businessId = Number(req.body?.business_id || req.user.active_business_id);
+    const wsScope = requestScope(req, req.body?.business_id);
+    if (wsScope.stale) return staleResponse(res, wsScope);
+    const businessId = Number(wsScope.businessId);
     const prompt = String(req.body?.prompt || '').trim();
     if (!businessId) return errorResponse(res, 'business_id required', 400);
     if (!(await ensureMember(req.user.id, businessId, req.user.platform_role))) {

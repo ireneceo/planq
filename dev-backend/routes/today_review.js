@@ -24,6 +24,7 @@ const router = express.Router();
 const { Op, literal, fn, col } = require('sequelize');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 const {
   Task, Project, TaskStatusHistory, TaskReviewer, User,
   EmailThread, EmailAccount, Conversation, ConversationParticipant, Message,
@@ -103,8 +104,10 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const isPlatformAdmin = req.user.platform_role === 'platform_admin';
-    const q = parseInt(req.query.business_id, 10);
-    const oneBusinessId = Number.isFinite(q) ? q : null;
+    // 범위: 명시값 → 창의 워크스페이스(X-Workspace-Id) → (헤더 없는 옛 번들만) 합산 — dashboard/todo 와 같은 규칙
+    const wsScope = requestScope(req, req.query.business_id, { legacy: 'aggregate' });
+    if (wsScope.stale) return staleResponse(res, wsScope);
+    const oneBusinessId = wsScope.businessId ? Number(wsScope.businessId) : null;
 
     const workspaces = await myWorkspaces(userId, oneBusinessId, isPlatformAdmin);
     if (!workspaces.length) {

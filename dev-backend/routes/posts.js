@@ -15,6 +15,7 @@ const { decodeOriginalName, buildContentDisposition } = require('../services/fil
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, postListWhereByLevel, canAccessPostByLevel, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 const { sendPostShareEmail } = require('../services/emailService');
 const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
@@ -1112,10 +1113,11 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
       const url = `/api/posts/editor-image/${req.file.filename}?w=1600`;
       // ★ 운영 #378 잔여 — business_id 가 없으면 **File 행 없이** 통과시키던 자리다.
       //   그렇게 올라간 이미지는 본문에는 보이는데 파일 메뉴 어디에도 없다(운영 실측 9건).
-      //   옛 번들이 안 보내도 토큰의 **활성 워크스페이스**로 착지시킨다 — 조용한 결손보다 낫다.
-      //   ★ active_business_id 는 권한 근거가 아니다(멤버 해제 후 stale 가능) —
-      //     바로 아래 assertMember 가 그 판정을 한다. 여기서는 "어디에 담을지" 만 정한다.
-      const businessId = Number(req.body?.business_id || req.query?.business_id || req.user?.active_business_id || 0);
+      //   명시값이 없으면 **창의 워크스페이스**(X-Workspace-Id)에 담는다 — 추측하지 않는다(middleware/workspaceContext).
+      //   ★ 범위는 권한 근거가 아니다 — 바로 아래 assertMember 가 그 판정을 한다. 여기서는 "어디에 담을지" 만 정한다.
+      const wsScope = requestScope(req, req.body?.business_id || req.query?.business_id);
+      if (wsScope.stale) return staleResponse(res, wsScope);
+      const businessId = Number(wsScope.businessId || 0);
       if (!businessId) {
         // 워크스페이스를 끝내 못 정하면 등록할 곳이 없다. 조용히 넘기지 말고 로그를 남긴다.
         console.warn('[editor-image] business_id 없음 — File 미등록 (user', req.user?.id, ')');

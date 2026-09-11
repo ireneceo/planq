@@ -6,6 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { requestScope, staleResponse } = require('../middleware/workspaceContext');
 
 // LLM 호출은 게이트웨이 단일 지점을 지난다 (services/llm.js).
 const { callLLM, isEnabled } = require('../services/llm');
@@ -75,6 +76,10 @@ function guestQuestionHash(q) {
 //          authenticateToken 의 workspaceAliveCheck 도 걸리지 않는다. 여기가 유일한 관문.
 //     ② 그 워크스페이스에 살아있는 멤버십 또는 활성 Client 자격이 있을 것
 //     ③ 위가 실패하면 첫 멤버십 폴백 — 이 폴백도 삭제본은 제외
+// ★ 2026-09-11 (WORKSPACE_SCOPE_DESIGN 단계 5) — 정본을 기본값으로 쓰지 않는다. 창의 워크스페이스(X-Workspace-Id)로
+//   채우고, 창이 옛 워크스페이스면 `{ stale }` 을 돌려 호출부가 409 로 답한다(다른 창에서 막 전환했는데
+//   이 창의 Cue 가 새 워크스페이스에 업무를 만들고 과금하던 구멍). 클라 business_id 는 여전히 받지 않는다.
+// @returns {Promise<{ businessId: number|null, stale?: object }>}
 async function resolveBusinessId(req) {
   const { BusinessMember, Business, Client } = require('../models');
   const alive = async (bizId) => {
@@ -82,20 +87,25 @@ async function resolveBusinessId(req) {
     const biz = await Business.findByPk(bizId, { attributes: ['id', 'deleted_at'] });
     return !!biz && !biz.deleted_at;
   };
-
-  const active = req.user.active_business_id;
-  if (await alive(active)) {
+  const usable = async (bizId) => {
+    if (!(await alive(bizId))) return false;
     const isMember = await BusinessMember.findOne({
-      where: { user_id: req.user.id, business_id: active, removed_at: null },
+      where: { user_id: req.user.id, business_id: bizId, removed_at: null },
       attributes: ['id'],
     });
     const isClient = isMember ? null : await Client.findOne({
-      where: { user_id: req.user.id, business_id: active, status: 'active' },
+      where: { user_id: req.user.id, business_id: bizId, status: 'active' },
       attributes: ['id'],
     });
-    if (isMember || isClient) return active;
-  }
+    return !!(isMember || isClient);
+  };
 
+  const wsScope = requestScope(req, undefined);
+  if (wsScope.stale) return { businessId: null, stale: wsScope };
+  if (wsScope.businessId && await usable(wsScope.businessId)) return { businessId: wsScope.businessId };
+  if (wsScope.source !== 'legacy') return { businessId: null };
+
+  // 옛 번들(헤더 없음) 전용 — 종전 폴백 그대로. workspaceContext 의 legacy 가 0 이 되면 아래를 지운다.
   // 폴백 — 가장 오래된 멤버십부터, 살아있는 워크스페이스가 나올 때까지
   const rows = await BusinessMember.findAll({
     where: { user_id: req.user.id, removed_at: null },
@@ -103,9 +113,9 @@ async function resolveBusinessId(req) {
     attributes: ['business_id'],
   });
   for (const r of rows) {
-    if (await alive(r.business_id)) return r.business_id;
+    if (await alive(r.business_id)) return { businessId: r.business_id };
   }
-  return null;
+  return { businessId: null };
 }
 
 // KNOWLEDGE_LOOP 축2 — Q helper 질문 로그. 실패해도 응답 흐름은 막지 않는다.
@@ -204,7 +214,8 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     //     resolveBusinessId 로 실제 워크스페이스를 잡으면서 비로소 작동한다.
     const finalModeForGate = mode === 'workspace' ? 'workspace' : 'qhelper';
     if (finalModeForGate === 'workspace') {
-      const bizId = await resolveBusinessId(req);
+      const { businessId: bizId, stale } = await resolveBusinessId(req);
+      if (stale) return staleResponse(res, stale);
       if (bizId) {
         const planEngine = require('../services/plan');
         const planCan = await planEngine.can(bizId, 'use_cue', { actions: 1 });
@@ -227,7 +238,8 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     // workspace 모드만 워크스페이스 데이터 컨텍스트 주입 (격리)
     if (finalMode === 'workspace') {
       try {
-        const businessId = await resolveBusinessId(req);
+        // (stale 은 위 쿼터 게이트에서 이미 409 로 끝났다 — 같은 workspace 모드)
+        const { businessId } = await resolveBusinessId(req);
         if (businessId) {
           const { buildCueContext } = require('../services/cue_context');
           const { getUserScope } = require('../middleware/access_scope');
@@ -402,7 +414,8 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     if (finalMode === 'qhelper') {
       logId = await logHelpQuestion({
         user_id: req.user.id,
-        business_id: req.user.active_business_id || null,
+        // 질문 로그의 워크스페이스 — 창의 워크스페이스(추측 안 함). 로그용이라 stale 이면 비운다.
+        business_id: requestScope(req, undefined).businessId || null,
         mode: 'qhelper',
         question: q,
         lang: String(req.body.lang || 'ko').slice(0, 5),
@@ -431,7 +444,8 @@ router.post('/execute-action', authenticateToken, ...helpLimiter, async (req, re
 
     // businessId 는 인증 컨텍스트에서 서버가 도출 (클라 business_id 불신). 행동 계층이 멤버십 재검증.
     //   ★ 여태 active 가 안 실려 **첫 멤버십 워크스페이스에 생성·과금**되고 있었다 — 전환해도 그대로.
-    const businessId = await resolveBusinessId(req);
+    const { businessId, stale } = await resolveBusinessId(req);
+    if (stale) return staleResponse(res, stale);
     if (!businessId) return errorResponse(res, 'no_workspace', 400);
 
     // 플랜 쿼터 — 실행이 유일한 계량점(제안 /help 는 무과금)
