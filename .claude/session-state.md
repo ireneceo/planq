@@ -67,7 +67,9 @@
   수리(미커밋): seriesAskMetaRef(물음이 가리키는 업무) · saveFields 가 지금 보이는 업무(taskIdPropRef) 아니면 묻지 않고 그 업무 로컬 본 · onPick/onClose 도 meta 기준 · parkSeriesRef 가 물음도 옮기고 닫음 · flush·pagehide 가 parkSeriesRef 호출 · RichEditor key=업무 id · `listLeaveBlockers` 한 함수(AuthContext·Guard 공용) · 가드: 초안 API 호출 인자 안 kind 문자열 전부 대조 + draftStore 도 대조 · 카나리 ⑧-전환·⑧-물음(S2 픽스처)
   **커밋 `57d45f89`** · **❌ Fable 재검증 FAIL**(PDF 만) — 입력 초안 결함 1·2·가드 반증·로그아웃 확인창·격리·Picker 전부 PASS. 남은 결함: 누수 수정 disposeBrowser 를 실패 요청이 곧바로 불러 **동시 렌더 연쇄 실패**(5건 중 1건 타임아웃 → 1/5)
   수리(미커밋): pdfService 은퇴(refcount) — retainBrowser/releaseBrowser/retireBrowser(렌더 다 끝나면 닫음·끊겼으면 즉시·90초 상한) · isBrowserDeadError 에 detached · wikiScreenshot retain/release
-  검증: in-process 동시 5건 5/5·옛 Chrome 렌더 후 종료·SIGKILL 중 3/3 · 대조군 57d45f89 연쇄 실패 재현 · 08f39490 누수 재현 · dev 재시작·실라우트 단건+동시6 전부 200·자식 Chrome 1 · health 41/41 → **문서·커밋 → Fable 재검증**
+  검증: in-process 동시 5건 5/5·옛 Chrome 렌더 후 종료·SIGKILL 중 3/3 · 대조군 57d45f89 연쇄 실패 재현 · 08f39490 누수 재현 · dev 재시작·실라우트 단건+동시6 전부 200·자식 Chrome 1 · health 41/41
+  **커밋 `f208323c`** · **✅ Fable PASS**(08f39490..f208323c — Picker·라운드 2·FAIL 수리·PDF 은퇴 전부) · by:fable 마커 기록
+  Fable 이 남긴 후속(비차단): ① wikiScreenshot `retainBrowser` 를 `newPage` 앞으로 한 줄 ② **선행 결함: 유휴 ≥180초 뒤 첫 PDF 34.5초**(newPage waitForTarget 30s → 교체 — 9개 누적의 진짜 발생원 추정, --single-process/--proxy-server 의심) ③ closeBrowser 가 shutdown 훅에 없음 → PM2 재시작마다 고아 Chrome(06:54 고아 1개 남음). 운영 배포는 Irene "배포" 명령 때(q-note 재시작 포함)
   ✅ 수리 검증: leavesave **15/15**(⑧-전환·⑧-물음) · drafts 28/28 · toggles 6/6 · PDF 누수 수정본 5/5 + 양성 대조군(수정 전) FAIL · dev 백엔드 재시작·누수 Chrome 9개 정리·health 41/41 · guard EXIT 0 · 문서(DEVELOPMENT_PLAN·설계 §2-3·CLAUDE.md)·메모리(feedback_singleton_reset_must_dispose) 반영 → **커밋 → Fable 재검증(297ef407 + 59ec48de + 이번 수리·PDF 누수)**
   진행(이전): guard EXIT 0 · build EXIT 0 · **가드 반증 통과** — task-description·task-body 등록 줄을 각각 지우면 draft 가드 EXIT 1(TaskDetailDrawer:478 삼항 적발) · 원복 cmp 동일
   ★ 체인이 **메모리 부족으로 시스템 kill**(leavesave 시작 직후). 원인: 부모 없는 헤드리스 Chrome 잔재 ~10개(26분~4시간, 스왑 3.5GB — 앞선 끊긴 검사·프로브들). draftKinds.ts 는 백업과 동일 확인. PPID 1 인 puppeteer Chrome 만 정리 후 카나리 3종 재실행 중 → 문서·커밋 → **Fable 재검증**
