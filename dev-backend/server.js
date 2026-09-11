@@ -750,7 +750,20 @@ taskExtractorScheduler.setIo(io);
 taskExtractorScheduler.initCronFallback();
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('Shutting down...');
-  server.close(() => process.exit(0));
-});
+// ★ PM2 는 멈출·재시작할 때 기본 **SIGINT** 를 보낸다 — SIGTERM 만 받으면 이 정리를 한 번도 안 탔다.
+//   PDF 용 헤드리스 Chrome 을 **먼저 끝까지** 닫는다. 안 닫으면 재시작마다 백엔드 없는 Chrome 이 남는다(Fable 2026-09-11).
+//   PM2 kill_timeout(5000ms) 안에 끝나도록 4초 뒤에는 강제로 나간다(socket.io 연결이 server.close 를 붙잡을 수 있다).
+let shuttingDown = false;
+const shutdown = (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Shutting down... (${signal})`);
+  const force = setTimeout(() => process.exit(0), 4000);
+  if (force.unref) force.unref();
+  Promise.resolve()
+    .then(() => require('./services/pdfService').closeBrowser())
+    .catch((e) => console.warn('[shutdown] PDF 브라우저 정리 실패:', e.message))
+    .finally(() => server.close(() => process.exit(0)));
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

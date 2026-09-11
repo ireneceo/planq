@@ -102,9 +102,17 @@ async function captureArticleScreenshot(articleId) {
   const { refreshToken, cookieName } = await loginForCapture(email, password);
 
   const browser = await getBrowser();
-  const page = await browser.newPage();
   // 캡처 중에는 공유 브라우저를 닫지 않게 — PDF 쪽이 은퇴시켜도 이 캡처가 끝날 때까지 기다린다(pdfService retireBrowser)
+  // ★ newPage **앞에서** 잡는다 — 뒤에서 잡으면 newPage 를 기다리는 창에 PDF 가 은퇴·dispose 해 캡처가
+  //   'Connection closed' 로 죽었다(Fable 2026-09-11 재현). newPage 가 실패하면 바로 놓는다.
   retainBrowser(browser);
+  let page;
+  try {
+    page = await browser.newPage();
+  } catch (e) {
+    releaseBrowser(browser);
+    throw e;
+  }
   try {
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 2 });
     const url = new URL(FRONTEND_URL);

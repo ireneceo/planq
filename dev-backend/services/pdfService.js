@@ -28,8 +28,11 @@ async function launch() {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
-      '--single-process',
-      '--no-zygote',
+      // ★ `--single-process` 를 쓰지 않는다 (2026-09-11 실측). 그 모드의 Chrome 은 **유휴 3분쯤 뒤 새 페이지를 못 만든다** —
+      //   newPage 가 30초 기다리다 'Timed out after waiting 30000ms' 로 실패하고, 그 뒤 요청도 계속 실패한다.
+      //   그래서 한동안 쉬던 서버의 첫 PDF 가 34.5초 걸렸고(교체 후 재시도), 교체 전 코드에서는 그때마다 Chrome 이
+      //   하나씩 누수됐다(dev 9개). 같은 조건 200초 유휴 대조: single-process 30초 실패 · 이 옵션만 빼면 82ms · 프록시 옵션은 무관.
+      //   멀티프로세스라 하위 프로세스가 생긴다 — disposeBrowser 가 본체를 죽이면 하위도 끝나는지 검증했다.
       // ★ prefetch·preload·WebSocket 은 request 인터셉션을 지나친다(Fable 실측).
       //   죽은 프록시로 **바깥을 통째로 끊는다** — 루프백도 프록시를 거치게 해서 예외를 없앤다.
       //   문서에 필요한 것은 setContent 로 넣은 인라인 CSS 와 data: URI 뿐이라 잃는 것이 없다.
@@ -49,13 +52,17 @@ async function launch() {
 //   처럼 **브라우저가 살아 있어도 나는 에러**를 죽음으로 친다 — 그때마다 살아 있는 Chrome 하나가 참조 없이 영구히 남았다.
 //   dev 실측: 백엔드 자식 헤드리스 Chrome 9개(26분~4시간)가 쌓여 스왑 3.5GB, 검사 체인이 메모리 부족으로 kill 됐다.
 //   close() 는 행 걸린 브라우저에서 돌아오지 않을 수 있어 상한을 두고, 넘기면 프로세스를 직접 죽인다.
+// 끝났을 때(닫혔거나 상한 뒤 죽였을 때) resolve 한다 — 서버 종료(closeBrowser)는 이것을 **기다려야** 한다.
+//   기다리지 않으면 프로세스가 먼저 나가 Chrome 이 남는다. 다른 호출부는 기다리지 않아도 된다.
 function disposeBrowser(b) {
-  if (!b) return;
+  if (!b) return Promise.resolve();
   const proc = typeof b.process === 'function' ? b.process() : null;
   const kill = () => { try { if (proc && proc.exitCode === null && !proc.killed) proc.kill('SIGKILL'); } catch { /* noop */ } };
-  const timer = setTimeout(kill, 3000);
-  if (timer.unref) timer.unref();
-  Promise.resolve().then(() => b.close()).catch(() => {}).finally(() => { clearTimeout(timer); kill(); });
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => { kill(); resolve(); }, 3000);
+    if (timer.unref) timer.unref();
+    Promise.resolve().then(() => b.close()).catch(() => {}).finally(() => { clearTimeout(timer); kill(); resolve(); });
+  });
 }
 
 // ★ 공유 브라우저는 **쓰는 요청이 남아 있으면 닫지 않는다** (Fable 2026-09-11 재검증 FAIL).
@@ -198,15 +205,15 @@ async function renderPdfFromHtml(html, opts = {}) {
 }
 
 // Graceful shutdown
+// 서버 종료용 — 싱글톤과 은퇴분을 **끝까지** 닫는다(각 최대 3초 뒤 SIGKILL)
 async function closeBrowser() {
-  for (const b of retired) disposeBrowser(b);
+  const all = [...retired];
   retired.clear(); inflight.clear();
-  if (!browserPromise) return;
-  try {
-    const b = await browserPromise;
-    disposeBrowser(b);
-  } catch { /* ignore */ }
+  if (browserPromise) {
+    try { all.push(await browserPromise); } catch { /* launch 실패 — 닫을 것이 없다 */ }
+  }
   browserPromise = null; activeBrowser = null;
+  await Promise.all(all.map((b) => disposeBrowser(b)));
 }
 
 module.exports = { renderPdfFromHtml, closeBrowser, getBrowser, retainBrowser, releaseBrowser };
