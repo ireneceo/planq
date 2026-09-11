@@ -287,12 +287,16 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
     finally { setSumBusy(false); }
   }, [sumBusy, businessId, thread.id]);
 
-  const addIssue = useCallback(async (body: string) => {
-    if (!body.trim() || iaBusy) return; setIaBusy(true);
+  // ★ 성공 여부를 돌려준다 — NoteThread 는 true 일 때만 쓰던 초안을 비운다(실패·처리 중이면 글이 남아야 한다).
+  const addIssue = useCallback(async (body: string): Promise<boolean> => {
+    if (!body.trim() || iaBusy) return false; setIaBusy(true);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/issues`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
-      const j = await r.json(); if (j.success) setIssues(p => [...p, j.data]);
-    } finally { setIaBusy(false); }
+      const j = await r.json().catch(() => null);
+      if (!j?.success) return false;
+      setIssues(p => [...p, j.data]);
+      return true;
+    } catch { return false; } finally { setIaBusy(false); }
   }, [iaBusy, businessId, thread.id]);
 
   const deleteIssue = useCallback(async (id: number) => {
@@ -300,12 +304,15 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
     if ((await r.json()).success) setIssues(p => p.filter(x => x.id !== id));
   }, [businessId, thread.id]);
 
-  const addNote = useCallback(async (body: string, visibility: 'internal' | 'personal') => {
-    if (!body.trim() || iaBusy) return; setIaBusy(true);
+  const addNote = useCallback(async (body: string, visibility: 'internal' | 'personal'): Promise<boolean> => {
+    if (!body.trim() || iaBusy) return false; setIaBusy(true);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${thread.id}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, visibility }) });
-      const j = await r.json(); if (j.success) setNotes(p => [...p, j.data]);
-    } finally { setIaBusy(false); }
+      const j = await r.json().catch(() => null);
+      if (!j?.success) return false;
+      setNotes(p => [...p, j.data]);
+      return true;
+    } catch { return false; } finally { setIaBusy(false); }
   }, [iaBusy, businessId, thread.id]);
 
   const deleteNote = useCallback(async (id: number) => {
@@ -446,7 +453,10 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           formatTime={formatTimeAgo}
           onAdd={addIssue}
           onDelete={deleteIssue}
-          draftKey={`planq:draft:mail-issue:${myUserId || 0}:${thread.id}`}
+          draftKind="mail-issue"
+          draftEntityId={thread.id}
+          draftBizId={businessId}
+          draftLegacyKey={`planq:draft:mail-issue:${myUserId || 0}:${thread.id}`}
           emptyText={t('context.issuesEmpty', { defaultValue: '아직 이슈가 없습니다' }) as string}
           placeholder={t('context.issuePh', { defaultValue: '이슈 작성... (⌘/Ctrl+Enter 저장)' }) as string}
         />
@@ -467,7 +477,10 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           formatTime={formatTimeAgo}
           onAdd={addNote}
           onDelete={deleteNote}
-          draftKey={`planq:draft:mail-note:${myUserId || 0}:${thread.id}`}
+          draftKind="mail-note"
+          draftEntityId={thread.id}
+          draftBizId={businessId}
+          draftLegacyKey={`planq:draft:mail-note:${myUserId || 0}:${thread.id}`}
           emptyText={t('context.notesEmpty', { defaultValue: '아직 메모가 없습니다' }) as string}
           placeholder={t('context.notePh', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string}
         />

@@ -783,6 +783,19 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
   **토글 5곳이 눌러도 저장을 안 했다**(운영 점검 모드 포함). 회귀는 `--suite toggles` 가 눌러서 잡는다.
 - 상세: `dev-frontend/UI_DESIGN_GUIDE.md` 섹션 7
 
+## 입력 초안 — 쓰다 만 글은 남는다 (2026-09-11 박제)
+
+> Irene: *"업무상세에서 수정요청에 내용 남기거나 댓글에 내용 남기거나 하다가 나가면 다 날라가는데 모든 입력란은 임시저장 되어 있게 못해?"*
+
+서버에 즉시 저장하지 않는 자유 텍스트(댓글·수정요청·승인·확인요청·보류 사유·메모)는 **`hooks/useDraftText` + `useDraftKey(kind, entityId, bizId)` 한 벌**이다.
+- **kind 는 `hooks/draftKinds.ts` 등록제** — 키 문자열(`planq:draft:…`)을 손으로 쓰지 않는다. 사칭 중·정지 중·정보 부족이면 키는 null(=보존 안 함).
+- 정본 = **편집 시각이 큰 쪽**. 빈 값은 삭제가 아니라 툼스톤. 같은 문서의 keep-alive 탭끼리는 `planq:draft-written` 이벤트로만 서로를 안다(storage 이벤트는 자기 문서에 안 온다).
+- **비우는 곳은 제출 성공·명시 취소뿐.** 대상 전환 이펙트에서 `clear()` 하지 않는다 — 그 순간 키는 **떠나는 대상** 것이다(업무를 바꾸면 수정요청 메모가 지워졌다).
+- **제출 핸들러는 성공 여부를 돌려준다** — `NoteThread.onAdd: Promise<boolean>`. 실패를 삼키는 핸들러 뒤에서 무조건 비우면 저장 실패가 곧 글 삭제다.
+- 로그아웃은 그 사용자 초안을 지우고, 다른 사용자로 로그인하면 앞 사람 초안을 지운다. 비밀번호 등 민감 입력에는 쓰지 않는다(가드 HARD).
+- 가드 `node scripts/guard-invariants.js --category=draft` · 카나리 `node scripts/e2e/run.js --suite drafts`. 설계 `docs/DRAFT_PERSISTENCE_DESIGN.md`.
+- 서버 자동저장 입력(AutoSaveField)의 "나갈 때 확정 저장" 은 **라운드 1B**(미구현).
+
 ## 반응형 기본 원칙 (신규 코드 작성 시)
 
 본격 반응형 스프린트는 기능 완성 후 진행 예정이지만, **신규 컴포넌트는 아래 3원칙을 지켜 작성**해야 나중 리팩토링 비용이 줄어든다.

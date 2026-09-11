@@ -23,6 +23,7 @@ import {
 } from '../../services/qnote';
 import type { QAPair, QNoteDocument } from '../../services/qnote';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { draftStorageKey } from '../../services/draftStore';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import { fetchWorkspaceFiles } from '../../services/files';
 import { mapApiError } from '../../utils/apiError';
@@ -173,7 +174,10 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
   const [meetingAnswerLength, setMeetingAnswerLength] = useState<'short' | 'medium' | 'long'>('medium');
 
   // 초안 자동저장 (localStorage) — 모달 닫아도 입력 보존
-  const DRAFT_KEY = 'qnote_meeting_draft_v1';
+  //   ★ 2026-09-11 — 키에 사용자·워크스페이스 축(services/draftStore.draftStorageKey). 옛 키 `qnote_meeting_draft_v1` 은
+  //     축이 없어 공용 PC·워크스페이스 전환 때 남의 초안이 복원됐다 — 이관하지 않고 로그인 시 정리된다.
+  //     저장 형식은 draftStore v2(`{v:2, value, editedAt}`) — 부팅 만료 청소가 형식을 알아보게.
+  const DRAFT_KEY = draftStorageKey('qnote-meeting-start', user?.id, user?.business_id, 'new') || '';
   // 초안 유효 기간 — 24시간. 그 이상 지난 것은 오늘의 의도가 아니다.
   const DRAFT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
   const [draftRestored, setDraftRestored] = useState(false);
@@ -261,9 +265,10 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
 
     // 저장된 초안 복원 시도
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
+      const raw = DRAFT_KEY ? localStorage.getItem(DRAFT_KEY) : null;
       if (raw) {
-        const d = JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        const d = parsed && parsed.v === 2 ? { ...(parsed.value || {}), savedAt: parsed.editedAt } : parsed;
         // ★ 오래된 초안은 버린다. 초안은 "쓰다가 멈춘 것을 이어서" 를 위한 것이지
         //   **며칠 전 설정이 오늘 회의의 언어·번역을 계속 정하라는 뜻이 아니다.**
         //   실제로 계정 언어가 한국어인데 세션이 영어로 시작된 사례를 조사하다 이 창구를 발견했다
@@ -314,7 +319,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
 
   // 초안 자동 저장 — 필드 변경 시 debounce 500ms. 편집 모드는 저장 안 함.
   useEffect(() => {
-    if (!open || editMode) return;
+    if (!open || editMode || !DRAFT_KEY) return;
     const handle = setTimeout(() => {
       try {
         const draft = {
@@ -332,7 +337,7 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
         const hasAny = title || brief || participants.length ||
           pastedContext || urls.length || priorityQAs.length || meetingAnswerStyle;
         if (hasAny) {
-          localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+          localStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 2, value: draft, editedAt: draft.savedAt }));
           hasDraftRef.current = true;
         } else {
           localStorage.removeItem(DRAFT_KEY);

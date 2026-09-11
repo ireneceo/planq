@@ -2370,7 +2370,162 @@ function checkWsScope() {
     rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// draft — 쓰다 만 글은 나가도 남는다 (2026-09-11, docs/DRAFT_PERSISTENCE_DESIGN.md D-C4 · D-C6)
+//   Irene: "모든 입력란은 임시저장 되어 있게 못해?"
+//   ① [HARD] kind 는 hooks/draftKinds.ts 등록표에 있는 것만 · 쓰는 파일은 그 kind 의 owners 에 있어야
+//   ② [HARD] `planq:draft:` 키를 손으로 쓰지 않는다(옛 키 이관 legacyKey 만 예외) — 키가 두 벌이면 사용자·워크스페이스 축이 갈라진다
+//   ③ [HARD] 비밀번호 입력이 있는 화면·민감 화면 목록에는 초안 장치를 붙이지 않는다(`// draft-sensitive-reviewed: <이유>` 로만 해제)
+//   ④ [LOCK] 업무 상세 6입력이 초안에 연결돼 있다(1A 대상이 셈에 잡히는지 — 커버리지)
+//   ⑤ [RATCHET] 자유 텍스트 입력(styled.textarea·긴 input·RichEditor·contentEditable)에 초안 표식이 없으면 부채.
+//      표식 = 태그 안 `…Draft.bind` / `data-draft-kind` · 바로 위 `// draft-exempt: <이유>` · `<AutoSaveField>` 의 자식(서버 자동저장)
+//   ★ styled 정의는 **이름으로 해석**한다 — `<RevisionInput` 은 글자로는 textarea 가 아니다. import 한 정의(adminModalKit 등)도 따라간다.
+function checkDraft() {
+  const SRC = `${ROOT}/dev-frontend/src`;
+  const srel = (f) => f.replace(SRC + '/', '');
+  const files = walk(SRC, ['.tsx', '.ts']);
+  const srcOf = new Map(files.map((f) => [f, read(f)]));
+  const hard = [];
+
+  const kinds = {};
+  for (const m of (srcOf.get(`${SRC}/hooks/draftKinds.ts`) || '').matchAll(/^\s*'([a-z0-9-]+)':\s*\{[^\n]*?owners:\s*\[([^\]]*)\]/gm)) {
+    kinds[m[1]] = [...m[2].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  }
+  if (Object.keys(kinds).length === 0) hard.push('hooks/draftKinds.ts 등록표를 읽지 못했다 — 검사기 파싱 실패(이 초록은 거짓이다)');
+
+  const isCommentLine = (ln) => /^\s*(\/\/|\*|\/\*|\{\s*\/\*)/.test(ln);
+  const lineStart = (src, i) => src.lastIndexOf('\n', i - 1) + 1;
+  const lineAt = (src, i) => { const s = lineStart(src, i); const e = src.indexOf('\n', i); return src.slice(s, e < 0 ? src.length : e); };
+  const lineNo = (src, i) => src.slice(0, i).split('\n').length;
+  // JSX 여는 태그 끝 — 중괄호 안의 `=>`·문자열 안의 `>` 는 끝이 아니다
+  const openTag = (src, start) => {
+    let depth = 0; let q = null;
+    for (let i = start + 1; i < src.length && i < start + 4000; i++) {
+      const ch = src[i];
+      if (q) { if (ch === '\\') i++; else if (ch === q) q = null; continue; }
+      if (ch === '"' || ch === "'" || ch === '`') q = ch;
+      else if (ch === '{') depth++;
+      else if (ch === '}') depth--;
+      else if (ch === '>' && depth === 0) return src.slice(start, i + 1);
+    }
+    return src.slice(start, start + 400);
+  };
+
+  // styled 정의 → 'textarea' | 'input' | { base }
+  const DEF_RE = /^(?:export\s+)?const\s+([A-Z]\w*)\s*=\s*styled(?:\.(textarea|input)\b|\(\s*([A-Z]\w*)\s*\)(?:\.attrs[^\n]*?as:\s*['"](textarea|input)['"])?)/gm;
+  const localDefs = new Map();
+  let nDefs = 0;
+  for (const [f, src] of srcOf) {
+    const defs = new Map();
+    for (const m of src.matchAll(DEF_RE)) {
+      if (m[2] || m[4]) { defs.set(m[1], m[2] || m[4]); nDefs++; } else if (m[3]) defs.set(m[1], { base: m[3] });
+    }
+    localDefs.set(f, defs);
+  }
+  const resolveImport = (from, spec) => {
+    if (!spec.startsWith('.')) return null;
+    const p = path.resolve(path.dirname(from), spec);
+    return [p, `${p}.ts`, `${p}.tsx`, `${p}/index.ts`, `${p}/index.tsx`].find((x) => srcOf.has(x)) || null;
+  };
+  const typeOf = (f, name, seen = new Set()) => {
+    if (seen.has(`${f}#${name}`)) return null;
+    seen.add(`${f}#${name}`);
+    const d = localDefs.get(f)?.get(name);
+    if (typeof d === 'string') return d;
+    if (d && d.base) return typeOf(f, d.base, seen);
+    for (const m of srcOf.get(f).matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)) {
+      for (const part of m[1].split(',')) {
+        const [orig, alias] = part.trim().replace(/^type\s+/, '').split(/\s+as\s+/);
+        if (orig && (alias || orig) === name) { const t = resolveImport(f, m[2]); return t ? typeOf(t, orig, seen) : null; }
+      }
+    }
+    return null;
+  };
+
+  const TARGETS = ['task-comment-input', 'task-comment-edit', 'task-revision-note', 'task-approve-note', 'task-submit-note', 'task-hold-reason'];
+  const DRAWER = 'components/QTask/TaskDetailDrawer.tsx';
+  const markedTestids = new Set();
+  const cov = { uses: 0, marked: 0, autosave: 0, exempt: 0 };
+  const current = {};
+  const samples = [];
+  const judge = (src, r, idx, tag, label, st) => {
+    cov.uses++;
+    const above = src.slice(Math.max(0, lineStart(src, idx) - 300), idx).split('\n').slice(-4).join('\n');
+    if (/Draft\.bind\b|\bdraft\.bind\b|data-draft-kind/.test(tag)) {
+      cov.marked++;
+      const tid = /data-testid="([^"]+)"/.exec(tag);
+      if (tid) markedTestids.add(`${r}#${tid[1]}`);
+      return;
+    }
+    if (/draft-exempt:/.test(above) || /draft-exempt:/.test(tag)) { cov.exempt++; return; }
+    if (st.inAutoSave(idx)) { cov.autosave++; return; }
+    st.debt++;
+    if (samples.length < 12) samples.push(`${r}:${lineNo(src, idx)}: <${label}> 초안 표식 없음 → useDraftText(...).bind 또는 // draft-exempt: <이유>`);
+  };
+  for (const [f, src] of srcOf) {
+    if (!f.endsWith('.tsx')) continue;
+    const r = srel(f);
+    const opens = [...src.matchAll(/<AutoSaveField\b/g)].map((m) => m.index);
+    const closes = [...src.matchAll(/<\/AutoSaveField>/g)].map((m) => m.index);
+    const st = { debt: 0, inAutoSave: (i) => opens.filter((x) => x < i).length > closes.filter((x) => x < i).length };
+    const cache = new Map();
+    for (const m of src.matchAll(/<(textarea|input|RichEditor|[A-Z]\w*)\b/g)) {
+      const name = m[1];
+      if (isCommentLine(lineAt(src, m.index))) continue;
+      let kind = name === 'textarea' || name === 'input' ? name : name === 'RichEditor' ? 'rich' : null;
+      if (!kind) { if (!cache.has(name)) cache.set(name, typeOf(f, name)); kind = cache.get(name); }
+      if (!kind) continue;
+      const tag = openTag(src, m.index);
+      if (kind === 'input') {
+        const ml = /maxLength=\{?\s*(\d+)/.exec(tag);
+        if (!(ml && Number(ml[1]) >= 200) && !/\brows=/.test(tag)) continue;
+        if (/type=["'](checkbox|radio|number|date|time|file|color|range|hidden|password|email|url|tel)["']/.test(tag)) continue;
+      }
+      if (kind === 'rich' && /\sreadOnly(\s|\/|>|=\{true\})/.test(tag)) continue;
+      judge(src, r, m.index, tag, name, st);
+    }
+    for (const m of src.matchAll(/\scontentEditable(?=[\s=>/])/g)) {
+      if (isCommentLine(lineAt(src, m.index))) continue;
+      const start = src.lastIndexOf('<', m.index);
+      judge(src, r, start, openTag(src, start), 'contentEditable', st);
+    }
+    if (st.debt) current[r] = st.debt;
+  }
+
+  const KIND_RES = [/useDraftKey\(\s*'([^']+)'/g, /draftStorageKey\(\s*'([^']+)'/g, /draftKind="([^"]+)"/g, /draftKind=\{\s*'([^']+)'\s*\}/g, /draftKind\s*\?\?\s*'([^']+)'/g];
+  const SENSITIVE = new Set(['pages/Login/LoginPage.tsx', 'pages/Register/RegisterPage.tsx', 'pages/Login/ResetPasswordPage.tsx',
+    'pages/Public/SharePasswordPrompt.tsx', 'pages/Profile/AccountDeletionSection.tsx']);
+  for (const [f, src] of srcOf) {
+    const r = srel(f);
+    if (r === 'hooks/draftKinds.ts' || r === 'services/draftStore.ts') continue;
+    src.split('\n').forEach((ln, i) => {
+      if (isCommentLine(ln)) return;
+      for (const re of KIND_RES) {
+        for (const m of ln.matchAll(re)) {
+          if (!kinds[m[1]]) hard.push(`${r}:${i + 1}: 등록 안 된 초안 kind '${m[1]}' → hooks/draftKinds.ts 에 등록(리뷰 지점)`);
+          else if (!kinds[m[1]].includes(r)) hard.push(`${r}:${i + 1}: kind '${m[1]}' 의 owners 에 이 파일이 없다`);
+        }
+      }
+      if (/planq:draft:/.test(ln) && !/legacyKey|LegacyKey/.test(ln)) hard.push(`${r}:${i + 1}: 초안 키를 손으로 썼다 → useDraftKey / draftStorageKey`);
+    });
+    if (r.startsWith('hooks/') || r.startsWith('services/')) continue;
+    const sensitive = SENSITIVE.has(r) || /type=\{?[^>\n]{0,80}['"]password['"]/.test(src);
+    if (sensitive && /useDraftKey|useDraftText|useLocalDraft|DraftTextarea|DraftInput|draftStorageKey/.test(src) && !/draft-sensitive-reviewed:/.test(src)) {
+      hard.push(`${r}: 비밀번호·민감 입력이 있는 화면에 초안 장치 — 입력이 브라우저 저장소에 남는다(// draft-sensitive-reviewed: <이유> 로만 해제)`);
+    }
+  }
+
+  report('draft', `초안 kind 등록제 · 손으로 쓴 키 · 민감 화면 (${hard.length}건)`, hard.length === 0, hard);
+  const miss = TARGETS.filter((t) => !markedTestids.has(`${DRAWER}#${t}`));
+  report('draft', `업무 상세 6입력 초안 연결 (${TARGETS.length - miss.length}/${TARGETS.length})`, miss.length === 0,
+    miss.map((t) => `${DRAWER} data-testid="${t}": 초안 표식이 붙은 입력이 없다`));
+  const rt = ratchet('draft', current, samples);
+  report('draft', `자유 텍스트 초안 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal}) · 커버리지 정의 ${nDefs} · 사용 ${cov.uses} · 표식 ${cov.marked} · 자동저장 자식 ${cov.autosave} · 예외 ${cov.exempt}`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
 const CATEGORIES = {
+  draft: checkDraft,
   wsscope: checkWsScope,
   mock: checkMock,
   modalradius: checkModalRadius,

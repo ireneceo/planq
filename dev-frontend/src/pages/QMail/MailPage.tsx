@@ -42,7 +42,8 @@ import { displayName, type NameLocalizable } from '../../utils/displayName';
 import HighlightText from '../../components/Common/HighlightText';
 import MatchReason from '../../components/Common/MatchReason';
 import type { SearchMatchInfo } from '../../utils/searchMatch';
-import { useLocalDraft } from '../../hooks/useLocalDraft';
+import { useLocalDraft, useDraftKey } from '../../hooks/useLocalDraft';
+import { migrateLegacyDraft } from '../../services/draftStore';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import EmptyState from '../../components/Common/EmptyState';
 import AiActionButton from '../../components/Common/AiActionButton';
@@ -1677,9 +1678,10 @@ const MailPage: React.FC = () => {
   //   스키마 변경 없이 이탈 차단을 없애고 다시 열면 복원된다.
   //   ★ 한계: 이 브라우저에만 남는다(서버 초안처럼 다른 기기로 따라가지 않는다). 전달은 원본 메일이
   //     있는 자리에서 이어 쓰는 흐름이라 수용 가능한 절충으로 본다.
-  const fwdDraftKey = fwdFromMsgId && user?.id ? `qmail-fwd-${user.id}-${fwdFromMsgId}` : '';
+  //   ★ 2026-09-11 — 키는 useDraftKey 한 곳(사용자·워크스페이스·메일). 옛 `qmail-fwd-{uid}-{msgId}` 는 열 때 한 번 옮긴다.
+  const fwdDraftKey = useDraftKey('mail-forward', fwdFromMsgId || null, businessId) || '';
   const fwdDraft = useLocalDraft({
-    key: fwdDraftKey || 'qmail-fwd-none',
+    key: fwdDraftKey,
     value: { to: cTo, subject: cSubject, body: cBody, fileIds: cFileIds, accountId: cAccountId },
     debounceMs: 800,
     enabled: !!fwdDraftKey && composeOpen,
@@ -1695,6 +1697,7 @@ const MailPage: React.FC = () => {
   useEffect(() => {
     if (!composeOpen || !fwdDraftKey || fwdRestoredRef.current === fwdDraftKey) return;
     fwdRestoredRef.current = fwdDraftKey;
+    if (user?.id && fwdFromMsgId) migrateLegacyDraft(`qmail-fwd-${user.id}-${fwdFromMsgId}`, fwdDraftKey, user.id);
     let r: { value: { to: string; subject: string; body: string; fileIds: number[]; accountId: number | null } } | null = null;
     try {
       const raw = localStorage.getItem(fwdDraftKey);

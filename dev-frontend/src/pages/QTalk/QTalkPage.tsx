@@ -1535,7 +1535,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   };
 
   // 청크 4: 메모 추가
-  const handleAddNote = async (body: string, visibility: 'personal' | 'internal') => {
+  // ★ 성공 여부를 돌려준다 — NoteThread 는 true 일 때만 쓰던 초안을 비운다(실패하면 글이 남아야 한다).
+  const handleAddNote = async (body: string, visibility: 'personal' | 'internal'): Promise<boolean> => {
     try {
       let created: qtalkApi.ApiNote;
       if (activeProjectId) {
@@ -1544,11 +1545,13 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       } else if (activeConversationId) {
         created = await qtalkApi.addConvNote(activeConversationId, body, visibility);
       } else {
-        return;
+        return false;
       }
       setNotes((prev) => [apiNoteToMock(created), ...prev]);
+      return true;
     } catch (err: unknown) {
       showNotice(t('page.noteAddFailed', { msg: mapApiError(err, tErr) }));
+      return false;
     }
   };
 

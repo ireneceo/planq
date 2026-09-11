@@ -3,6 +3,10 @@ import type { ReactNode } from 'react';
 import i18n from '../i18n';
 import { detectClientKind } from '../services/native';
 import { clearPageCache } from '../lib/pageCache';
+import {
+  purgeDraftsNotOwnedBy, purgeDraftsOf, setDraftOwner, sweepExpiredDrafts, setDraftsSuppressed,
+  DRAFT_OWNER_KEY,
+} from '../services/draftStore';
 import { markSwitching, broadcastWorkspaceSwitch } from '../services/workspaceSync';
 
 // ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
@@ -112,6 +116,21 @@ let accessToken: string | null = null;
 // 클라이언트 종류 감지는 services/native.ts 단일 원천 (세션 만드는 곳이 여러 곳이라 사본 금지).
 
 export const getAccessToken = () => accessToken;
+
+// 사칭 중인가 — 액세스 토큰의 `impersonator` 클레임(서명 검증은 서버 몫, 여기선 판정만) 또는 사칭 대기 표식.
+//   초안 장치(hooks/useDraftText)가 사칭 창에서 대상 사용자 이름으로 관리자 브라우저에 글을 남기지 않게 한다.
+export function isImpersonatingNow(): boolean {
+  try { if (window.sessionStorage.getItem('impersonate_pending')) return true; } catch { /* noop */ }
+  const tk = accessToken;
+  if (!tk) return false;
+  try {
+    const part = tk.split('.')[1];
+    if (!part) return false;
+    const json = decodeURIComponent(atob(part.replace(/-/g, '+').replace(/_/g, '/')).split('')
+      .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    return !!JSON.parse(json)?.impersonator;
+  } catch { return false; }
+}
 
 // 이 창이 믿는 워크스페이스 — 모든 인증 요청에 `X-Workspace-Id` 로 싣는다 (WORKSPACE_SCOPE_DESIGN C2).
 //   ★ apiFetch 는 모듈 함수라 React 상태를 못 읽는다 → accessToken 처럼 **모듈 변수로 미러**한다.
@@ -835,9 +854,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = async () => {
+    const leavingUserId = user?.id;
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     } catch { /* ignore */ }
+    // 초안 — 정지(이후 언마운트 flush 가 다시 쓰지 않게) → 그 사람 초안 삭제 → 센티널 비움(같은 사람의 옛 탭·팝아웃도 멈춤)
+    //   docs/DRAFT_PERSISTENCE_DESIGN.md D-C5. 공용 PC 에서 다음 사람에게 쓰던 글이 남지 않게.
+    setDraftsSuppressed(true);
+    purgeDraftsOf(leavingUserId);
+    setDraftOwner('');
     clearPageCache();   // 다음 사용자에게 남의 목록이 한 프레임도 비치지 않게
     setUser(null);
     setAccessToken(null);
@@ -867,6 +892,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // user.language 가 DB 에 설정돼있으면 화면 언어 자동 적용 (서버 = source of truth).
   // 새 디바이스 로그인 / 다른 브라우저 로그인 시 자동 적용. 사용자가 프로필에서 변경하면
+  // ─── 초안 정리 — 정체가 확정되는 **한 곳** (docs/DRAFT_PERSISTENCE_DESIGN.md D-C5) ───
+  //   login·register·OAuth(부팅 checkSession)·사칭 종료·부팅 복원이 모두 여기를 지난다.
+  //   로그인 함수에만 두면 세션 만료 뒤 다른 사람 로그인·OAuth 경로가 빠진다.
+  const draftSweptRef = useRef(false);
+  const draftPrevUserRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!draftSweptRef.current) { draftSweptRef.current = true; sweepExpiredDrafts(); }
+    if (!user?.id) return;                 // 로그아웃·만료는 logout() 이 처리
+    if (isImpersonatingNow()) return;      // 사칭 창은 관리자 본인 초안을 지우거나 다른 탭을 멈추지 않는다
+    setDraftsSuppressed(false);
+    if (draftPrevUserRef.current !== String(user.id)) {
+      draftPrevUserRef.current = String(user.id);
+      purgeDraftsNotOwnedBy(user.id);
+      setDraftOwner(user.id);
+    }
+  }, [user?.id]);
+  // 다른 탭에서 사용자가 바뀌면(센티널) 이 탭은 초안 저장을 멈춘다 — 같은 사람이 재로그인하면 풀린다(양방향)
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== DRAFT_OWNER_KEY || !user?.id || isImpersonatingNow()) return;
+      setDraftsSuppressed(String(e.newValue ?? '') !== String(user.id));
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [user?.id]);
+
   // PUT /api/users/:id 가 user.language 를 갱신 → 이 effect 가 새 언어로 다시 changeLanguage.
   useEffect(() => {
     if (!user?.language) return;

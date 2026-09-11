@@ -43,7 +43,8 @@ interface Props {
   onAddIssue: (body: string) => void;
   onUpdateIssue: (id: number, body: string) => void;
   onDeleteIssue: (id: number) => void;
-  onAddNote: (body: string, visibility: 'personal' | 'internal') => void;
+  /** 성공하면 true — 쓰던 메모 초안은 true 일 때만 비운다 */
+  onAddNote: (body: string, visibility: 'personal' | 'internal') => Promise<boolean>;
   onToggleTask: (id: number) => void;
   // 작업대(N+? 통합) — 한 줄 등록 · 업무 추출 · 3분류 리스트
   businessId?: number | null;
@@ -435,7 +436,10 @@ const RightPanel: React.FC<Props> = ({
                 canChooseVisibility={!isClient}
                 formatTime={formatTimeAgo}
                 onAdd={(body, visibility) => onAddNote(body, visibility)}
-                draftKey={`planq:draft:qtalk-note:${myUserId}:${project ? `p${project.id}` : `c${activeConversationId || 0}`}`}
+                draftKind="qtalk-note"
+                draftEntityId={project ? `p${project.id}` : (activeConversationId ? `c${activeConversationId}` : null)}
+                draftBizId={businessId}
+                draftLegacyKey={`planq:draft:qtalk-note:${myUserId}:${project ? `p${project.id}` : `c${activeConversationId || 0}`}`}
                 emptyText={t('right.notes.empty', '아직 메모가 없습니다') as string}
                 placeholder={t('right.notes.placeholder', '메모 작성... (⌘/Ctrl+Enter 저장)') as string}
                 renderMeta={(n) => {

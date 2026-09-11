@@ -35,7 +35,8 @@ import {
 } from '../../utils/recurrence';
 import type { TFunction } from 'i18next';
 import AttachmentField from '../Common/AttachmentField';
-import { useDraftText } from '../../hooks/useLocalDraft';
+import { useDraftText, useDraftKey } from '../../hooks/useDraftText';
+import DraftRestoredNote from '../Common/DraftRestoredNote';
 import CueTip from '../Common/CueTip';
 import { useImageLightbox } from '../Common/ImageLightbox';
 import TaskFocusBar from '../Focus/TaskFocusBar';
@@ -316,9 +317,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   // 운영 #367 — 쓰다 만 댓글은 업무별로 남는다. 드로어를 닫거나 다른 업무로 옮겨도
   //   그 업무로 돌아오면 되살아난다. (업무가 아직 안 정해졌으면 보존 대상 아님)
-  const commentDraft = useDraftText(detailTask ? `planq:draft:task-comment:${user?.id || 0}:${detailTask.id}` : null);
+  //   ★ 2026-09-11 — 키는 useDraftKey 한 곳(사용자·워크스페이스·업무). 옛 키(워크스페이스 축 없음)는 한 번 옮기고 지운다.
+  const commentDraft = useDraftText(useDraftKey('task-comment', detailTask?.id, bizId), {
+    legacyKey: detailTask && user?.id ? `planq:draft:task-comment:${user.id}:${detailTask.id}` : null,
+  });
   const newComment = commentDraft.text;
-  const setNewComment = commentDraft.setText;
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
   const [commentPickerOpen, setCommentPickerOpen] = useState(false);
   const [commentExistingFileIds, setCommentExistingFileIds] = useState<number[]>([]);
@@ -342,7 +345,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   }, [taskId, duplicating, onDuplicated]);
   // 댓글 편집/삭제 — 본인 댓글만 (메시지 정책과 동일)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null);
-  const [editingCommentDraft, setEditingCommentDraft] = useState('');
+  // 댓글 수정 초안 — 수정형(edit): 원문(base)이 다른 곳에서 바뀌었으면 옛 초안을 버린다(DRAFT_PERSISTENCE_DESIGN D-C1d)
+  const editingCommentBase = editingCommentId != null
+    ? ((detailTask?.comments || []).find((cm) => cm.id === editingCommentId)?.content || '')
+    : null;
+  const editCommentDraft = useDraftText(useDraftKey('task-comment-edit', editingCommentId, bizId), { base: editingCommentBase });
+  const editingCommentDraft = editCommentDraft.text;
   const [commentMenuFor, setCommentMenuFor] = useState<number | null>(null);
 
   useEffect(() => {
@@ -363,10 +371,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     if (r.ok) {
       const j = await r.json();
       setDetailTask(prev => prev ? { ...prev, comments: (prev.comments || []).map(cm => cm.id === editingCommentId ? { ...cm, content: j.data?.content || trimmed } : cm) } : prev);
+      editCommentDraft.clear();
       setEditingCommentId(null);
-      setEditingCommentDraft('');
     }
-  }, [detailTask, editingCommentId, editingCommentDraft]);
+  }, [detailTask, editingCommentId, editingCommentDraft, editCommentDraft]);
 
   const deleteComment = useCallback(async (commentId: number) => {
     if (!detailTask) return;
@@ -377,20 +385,25 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   }, [detailTask]);
 
   const [revisionOpen, setRevisionOpen] = useState(false);
-  const [revisionNote, setRevisionNote] = useState('');
+  // 수정요청 사유·승인 코멘트·확인요청 메모·보류 사유 — 쓰다 나가도 남는다(업무별 초안). 제출·취소 때만 비운다.
+  const revisionDraft = useDraftText(useDraftKey('task-revision-note', detailTask?.id, bizId));
+  const revisionNote = revisionDraft.text;
   const [approveOpen, setApproveOpen] = useState(false);   // #112c — 승인 코멘트 인라인 폼
   const [holdFormOpen, setHoldFormOpen] = useState(false); // #206 — 보류 사유 인라인 폼 (팝업 위 팝업 금지)
-  const [holdReason, setHoldReason] = useState('');
+  const holdDraft = useDraftText(useDraftKey('task-hold-reason', detailTask?.id, bizId));
+  const holdReason = holdDraft.text;
   const [holdReasonDraft, setHoldReasonDraft] = useState('');  // #206 — 배너 안 사후 편집(AutoSave)
   // #206 §2-10 — 보류 확정 후 [보류 해제]로 포커스 이동.
   //   ref 플래그로는 안 된다: 플래그 세팅이 callAction 의 setState 커밋보다 늦어 effect 가 이미 지나가고,
   //   소비되지 않은 플래그가 남아 **다음에 연 다른 업무의 포커스를 훔친다**.
   //   틱 state 는 그 자체가 새 커밋을 만들므로 배너 커밋 이후 실행이 보장되고 잔존 상태도 없다.
-  const [approveNote, setApproveNote] = useState('');
+  const approveDraft = useDraftText(useDraftKey('task-approve-note', detailTask?.id, bizId));
+  const approveNote = approveDraft.text;
   // 운영 #271 — 확인 요청에도 메시지를 같이 남긴다. 승인 폼(#112c)과 같은 인라인 확장 패턴.
   //   비워도 그대로 요청된다(선택 입력).
   const [submitOpen, setSubmitOpen] = useState(false);
-  const [submitNote, setSubmitNote] = useState('');
+  const submitDraft = useDraftText(useDraftKey('task-submit-note', detailTask?.id, bizId));
+  const submitNote = submitDraft.text;
   // #112 — 수정요청에 참고 파일 첨부 (일반 댓글 첨부와 동일 인프라: context='comment')
   const [revisionFiles, setRevisionFiles] = useState<File[]>([]);
   const [revisionPickerOpen, setRevisionPickerOpen] = useState(false);
@@ -537,7 +550,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     //   옛 키로 확정 저장하고 새 키의 초안을 읽어 넣는다. 여기서 건드리지 않는다.
     setCommentFiles([]);
     setCommentExistingFileIds([]); setCommentExistingPostIds([]); setCommentPickerOpen(false);
-    setRevisionOpen(false); setRevisionNote('');
+    // ★ 수정요청 메모도 여기서 비우지 않는다 — 위 댓글과 같은 이유. 이 이펙트가 도는 순간 초안 키는 아직
+    //   **떠나는 업무** 것이라 clear() 가 그 업무의 메모를 지웠다(드로어를 연 채 다른 업무를 누르면 쓰던 사유가 사라짐).
+    //   폼은 `revisionOpen || revisionNote` 로 그려지므로 초안이 있는 업무로 돌아오면 열린 채 보인다.
+    setRevisionOpen(false);
     setAddReviewerOpen(false); setPendingReviewerAdd(null);
     setDeleteConfirmOpen(false); setDeleting(false);
     setWeekFocusH(0);
@@ -883,7 +899,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     const reason = holdReason.trim();
     const r = await callAction('/hold', 'POST', reason ? { reason } : undefined);
     if (r?.success) {
-      setHoldFormOpen(false); setHoldReason('');
+      setHoldFormOpen(false); holdDraft.clear();
       // 접근성(설계 §2-10) — 눌렀던 [보류] 버튼이 사라지면 focus trap 이 첫 tabbable("돌아가기")로
       //   회수해 키보드 사용자가 위치를 잃는다. 새로 나타난 배너의 [보류 해제]로 옮겨 맥락을 잇는다.
       //   ★ 이 드로어는 보류 성공 직후 언마운트→재마운트된다(실측 +5ms 소멸 / +55ms 재생성).
@@ -929,7 +945,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     // 손댄 적이 있을 때만 보낸다 — 안 건드렸으면 서버의 현재 본문이 정답이다.
     if (draft !== null && draft !== (detailTask.body || '')) payload.body = draft;
     const r = await callAction('/submit-review', 'POST', Object.keys(payload).length ? payload : undefined);
-    if (r?.success) { setSubmitOpen(false); setSubmitNote(''); bodyDraftRef.current = null; }
+    if (r?.success) { setSubmitOpen(false); submitDraft.clear(); bodyDraftRef.current = null; }
   };
   const actCancelReview = () => callAction('/cancel-review');
   const actComplete = () => callAction('/complete');
@@ -938,7 +954,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const submitApprove = async () => {
     const note = approveNote.trim();
     const r = await callAction('/reviewers/me/approve', 'POST', note ? { note } : undefined);
-    if (r?.success) { setApproveOpen(false); setApproveNote(''); }
+    if (r?.success) { setApproveOpen(false); approveDraft.clear(); }
   };
   const actRevert = () => callAction('/reviewers/me/revert');
   const actStart = async () => {
@@ -994,7 +1010,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         await refreshAfterAction();  // 첨부 반영 위해 댓글 스레드 재조회
       } catch { setActionError(t('attach.failed', '첨부를 올리지 못했습니다. 댓글에서 다시 첨부해 주세요.') as string); }
     }
-    setRevisionOpen(false); setRevisionNote('');
+    setRevisionOpen(false); revisionDraft.clear();
     setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionPickerOpen(false);
   };
   const addReviewer = async (userId: number) => {
@@ -1940,25 +1956,25 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <ActionCardTitle>{t('detail.actions.assigneeTitle', 'As assignee')}</ActionCardTitle>
                 {ackAvailable && <ActionPrimary onClick={actAck} disabled={actionBusy}>{t('detail.actions.ack', 'Acknowledge request')}</ActionPrimary>}
                 {startAvailable && <ActionPrimary onClick={actStart} disabled={actionBusy}>{resumeFromRevision ? t('detail.actions.resume', 'Resume work') : t('detail.actions.start', 'Start working')}</ActionPrimary>}
-                {submitAvailable && (submitOpen ? (
+                {submitAvailable && ((submitOpen || !!submitNote) ? (
                   <RevisionForm>
                     <RevisionInput
                       data-testid="task-submit-note"
                       placeholder={t('detail.actions.submitNotePlaceholder', '컨펌자에게 남길 말이 있나요? (선택 — 댓글로도 남습니다)') as string}
-                      value={submitNote}
+                      {...submitDraft.bind}
                       maxLength={2000}
-                      onChange={e => setSubmitNote(e.target.value)}
                       autoFocus
                     />
+                    <DraftRestoredNote draft={submitDraft} />
                     <RevisionRow>
-                      <ActionSecondary onClick={() => { setSubmitOpen(false); setSubmitNote(''); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                      <ActionSecondary onClick={() => { setSubmitOpen(false); submitDraft.clear(); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
                       <ActionPrimary onClick={submitReviewWithNote} disabled={actionBusy} data-testid="task-submit-confirm">
                         {detailTask.status === 'revision_requested' ? t('detail.actions.resubmitReview', 'Resubmit after revision') : t('detail.actions.submitReview', 'Submit for review')}
                       </ActionPrimary>
                     </RevisionRow>
                   </RevisionForm>
                 ) : (
-                  <ActionPrimary onClick={() => setSubmitOpen(true)} disabled={actionBusy}>
+                  <ActionPrimary onClick={() => setSubmitOpen(true)} disabled={actionBusy} data-testid="task-submit-open">
                     {detailTask.status === 'revision_requested' ? t('detail.actions.resubmitReview', 'Resubmit after revision') : t('detail.actions.submitReview', 'Submit for review')}
                   </ActionPrimary>
                 ))}
@@ -1973,26 +1989,28 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {reviewerCanAct && <ActionCard>
                 <ActionCardTitle>{t('detail.actions.reviewerTitle', 'My actions (reviewer)')}</ActionCardTitle>
                 {myReviewer?.state === 'pending' && <>
-                  {approveOpen ? (
+                  {(approveOpen || !!approveNote) ? (
                     <RevisionForm>
                       <RevisionInput
+                        data-testid="task-approve-note"
                         placeholder={t('detail.actions.approvePlaceholder', 'Any comment for the assignee? (optional)') as string}
-                        value={approveNote}
-                        onChange={e => setApproveNote(e.target.value)}
+                        {...approveDraft.bind}
                         autoFocus
                       />
+                      <DraftRestoredNote draft={approveDraft} />
                       <RevisionRow>
-                        <ActionSecondary onClick={() => { setApproveOpen(false); setApproveNote(''); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                        <ActionSecondary onClick={() => { setApproveOpen(false); approveDraft.clear(); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
                         <ActionPrimary onClick={submitApprove} disabled={actionBusy}>{t('detail.actions.approve', 'Approve')}</ActionPrimary>
                       </RevisionRow>
                     </RevisionForm>
                   ) : (
-                    <ActionPrimary onClick={() => setApproveOpen(true)} disabled={actionBusy}>{t('detail.actions.approve', 'Approve')}</ActionPrimary>
+                    <ActionPrimary onClick={() => setApproveOpen(true)} disabled={actionBusy} data-testid="task-approve-open">{t('detail.actions.approve', 'Approve')}</ActionPrimary>
                   )}
-                  {revisionOpen ? (
+                  {(revisionOpen || !!revisionNote) ? (
                     <RevisionForm>
-                      <RevisionInput placeholder={t('detail.actions.revisionPlaceholder', 'What needs to change? (required)')}
-                        value={revisionNote} onChange={e => setRevisionNote(e.target.value)} autoFocus />
+                      <RevisionInput data-testid="task-revision-note" placeholder={t('detail.actions.revisionPlaceholder', 'What needs to change? (required)')}
+                        {...revisionDraft.bind} autoFocus />
+                      <DraftRestoredNote draft={revisionDraft} />
                       {/* #112 — 참고 파일 첨부 (수정 방향을 파일로 전달). 인라인 picker, popup-on-popup 금지. */}
                       {revisionPickerOpen && (
                         <CmtPickerInline>
@@ -2019,12 +2037,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           onClick={() => setRevisionPickerOpen(v => !v)}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                         </CmtAttachBtn>
-                        <ActionSecondary onClick={() => { setRevisionOpen(false); setRevisionNote(''); setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionPickerOpen(false); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
+                        <ActionSecondary onClick={() => { setRevisionOpen(false); revisionDraft.clear(); setRevisionFiles([]); setRevisionExistingFileIds([]); setRevisionPickerOpen(false); }}>{t('common.cancel', 'Cancel')}</ActionSecondary>
                         <ActionDanger onClick={submitRevision} disabled={actionBusy || !revisionNote.trim()}>{t('detail.actions.submitRevision', 'Send revision')}</ActionDanger>
                       </RevisionRow>
                     </RevisionForm>
                   ) : (
-                    <ActionDanger onClick={() => setRevisionOpen(true)} disabled={actionBusy}>{t('detail.actions.requestRevision', 'Request revision')}</ActionDanger>
+                    <ActionDanger onClick={() => setRevisionOpen(true)} disabled={actionBusy} data-testid="task-revision-open">{t('detail.actions.requestRevision', 'Request revision')}</ActionDanger>
                   )}
                 </>}
                 {myReviewer && myReviewer.state !== 'pending' && <ActionHintRow>
@@ -2043,18 +2061,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 *   맨 아래(삭제 앞)로 내리면 N+63 에서 이미 겪은 "인라인 확장이 스크롤 밖으로
                 *   나가 안 보이는" 회귀 + 파괴/비파괴 액션 경계 붕괴가 재발한다. */}
               {(holdAvailable || externalAvailable || externalLocked) && (
-                holdFormOpen ? (
+                (holdFormOpen || !!holdReason) ? (
                   <RevisionForm>
                     <RevisionInput
                       data-testid="task-hold-reason"
                       placeholder={t('hold.reasonPlaceholder', 'Reason (optional)') as string}
-                      value={holdReason}
+                      {...holdDraft.bind}
                       maxLength={500}
-                      onChange={e => setHoldReason(e.target.value)}
                       autoFocus
                     />
+                    <DraftRestoredNote draft={holdDraft} />
                     <RevisionRow>
-                      <ActionSecondary onClick={() => { setHoldFormOpen(false); setHoldReason(''); }}>{t('hold.cancel', 'Cancel')}</ActionSecondary>
+                      <ActionSecondary onClick={() => { setHoldFormOpen(false); holdDraft.clear(); }}>{t('hold.cancel', 'Cancel')}</ActionSecondary>
                       <ActionPrimary onClick={actHold} disabled={actionBusy} data-testid="task-hold-confirm">
                         {t('hold.confirm', 'Confirm hold')}
                       </ActionPrimary>
@@ -2128,7 +2146,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <strong>{c.author?.name}</strong>
                     <span>{c.createdAt?.slice(5, 16).replace('T', ' ')}</span>
                     {c.author?.id === myId && (
-                      <CommentMoreBtn type="button"
+                      <CommentMoreBtn type="button" data-testid="task-comment-more"
                         title={t('detail.commentMenu', { defaultValue: '편집/삭제' }) as string}
                         aria-label={t('detail.commentMenu', { defaultValue: '편집/삭제' }) as string}
                         onClick={(e) => { e.stopPropagation(); setCommentMenuFor(commentMenuFor === c.id ? null : c.id); }}>
@@ -2137,7 +2155,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     )}
                     {commentMenuFor === c.id && (
                       <CommentMenu onClick={(e) => e.stopPropagation()}>
-                        <CommentMenuBtn type="button" onClick={() => { setEditingCommentId(c.id); setEditingCommentDraft(c.content || ''); setCommentMenuFor(null); }}>
+                        <CommentMenuBtn type="button" data-testid="task-comment-edit-open" onClick={() => { setEditingCommentId(c.id); setCommentMenuFor(null); }}>
                           {t('detail.commentEdit', { defaultValue: '편집' }) as string}
                         </CommentMenuBtn>
                         <CommentMenuBtn type="button" $danger onClick={() => { deleteComment(c.id); setCommentMenuFor(null); }}>
@@ -2149,16 +2167,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   {editingCommentId === c.id ? (
                     <CommentEditWrap>
                       <CommentEditArea
-                        autoFocus value={editingCommentDraft}
-                        onChange={(e) => setEditingCommentDraft(e.target.value)}
+                        autoFocus
+                        data-testid="task-comment-edit"
+                        {...editCommentDraft.bind}
                         onKeyDown={(e) => {
                           if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitEditComment(); }
-                          if (e.key === 'Escape') { setEditingCommentId(null); setEditingCommentDraft(''); }
+                          if (e.key === 'Escape') { editCommentDraft.clear(); setEditingCommentId(null); }
                         }}
                         rows={3}
                       />
+                      <DraftRestoredNote draft={editCommentDraft} />
                       <CommentEditActions>
-                        <CommentEditCancel type="button" onClick={() => { setEditingCommentId(null); setEditingCommentDraft(''); }}>
+                        <CommentEditCancel type="button" onClick={() => { editCommentDraft.clear(); setEditingCommentId(null); }}>
                           {t('common.cancel', '취소')}
                         </CommentEditCancel>
                         <CommentEditSave type="button" onClick={submitEditComment} disabled={!editingCommentDraft.trim()}>
@@ -2219,10 +2239,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </CommentItem>
               ))}
               <CommentComposer>
-                <CommentInput value={newComment} placeholder={t('detail.writeCommentPaste', '댓글 입력 · 이미지 붙여넣기(Cmd/Ctrl+V) 가능') as string}
-                  onChange={e => setNewComment(e.target.value)}
+                <CommentInput data-testid="task-comment-input" {...commentDraft.bind} placeholder={t('detail.writeCommentPaste', '댓글 입력 · 이미지 붙여넣기(Cmd/Ctrl+V) 가능') as string}
                   onPaste={handleCommentPaste}
                   onKeyDown={e => { if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addComment(); } }} />
+                <DraftRestoredNote draft={commentDraft} />
                 {/* 인라인 첨부 picker — popup-on-popup 금지. 같은 영역에서 펼침. */}
                 {commentPickerOpen && (
                   <CmtPickerInline>
@@ -2252,7 +2272,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     onClick={() => setCommentPickerOpen(v => !v)}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                   </CmtAttachBtn>
-                  <CommentSend onClick={addComment}
+                  <CommentSend onClick={addComment} data-testid="task-comment-send"
                     disabled={commentSending || (!newComment.trim() && commentFiles.length === 0 && commentExistingFileIds.length === 0 && commentExistingPostIds.length === 0)}>
                     {commentSending ? t('detail.sending', '전송 중...') : t('detail.send', 'Send')}
                   </CommentSend>

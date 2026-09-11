@@ -1105,5 +1105,12 @@
     "col": {
       "verifiedTip": "Whether they clicked the verification link sent at signup"
     }
+  },
+  "draft": {
+    "restored": "Restored your unsent text",
+    "clear": "Clear",
+    "replaced": "Updated with newer text from another window",
+    "baseChanged": "The original changed elsewhere, so your saved draft was discarded",
+    "dismiss": "Dismiss"
   }
 }

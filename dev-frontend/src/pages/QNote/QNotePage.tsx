@@ -2324,7 +2324,8 @@ const QNotePage = () => {
                   <CollapseBtn onClick={handleBtnClick}>
                     {isCollapsed ? t('page.question.showAnswer') : t('page.question.hideAnswer')}
                   </CollapseBtn>
-                ) : (
+                ) : activeSession && String(activeSession.user_id) === String(user?.id) && (
+                  // 답변 찾기는 쓰기(owner_only) — 공유받아 보는 사람에게는 눌러도 403 인 버튼을 보이지 않는다
                   <FindAnswerBtn
                     onClick={handleBtnClick}
                     disabled={ad?.loading}

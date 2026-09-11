@@ -1581,7 +1581,7 @@ async def upload_document(
 async def _sync_to_drive(*, business_id, session_id, session_title, session_date, document_id, local_path, file_name, mime_type):
   """Q Note 업로드 후 Node 백엔드의 /api/cloud/qnote/sync 호출 — 해당 워크스페이스가 Drive 연동된 경우에만 실제 업로드됨."""
   import httpx
-  node_url = os.environ.get('PLANQ_NODE_BASE_URL', 'http://localhost:3003')
+  node_url = _node_base()  # Node 주소는 billing_client._node_base() 한 곳
   api_key = os.environ.get('INTERNAL_API_KEY')
   if not api_key:
     return  # 환경변수 미설정 → 스킵
@@ -1616,7 +1616,7 @@ async def link_workspace_file_to_session(
   user: dict = Depends(get_current_user)
 ):
   import httpx
-  node_url = os.environ.get('PLANQ_NODE_BASE_URL', 'http://localhost:3003')
+  node_url = _node_base()  # Node 주소는 billing_client._node_base() 한 곳
   api_key = os.environ.get('INTERNAL_API_KEY')
   if not api_key:
     raise HTTPException(status_code=500, detail='internal_api_key_not_configured')
