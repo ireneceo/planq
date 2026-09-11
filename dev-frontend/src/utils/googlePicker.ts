@@ -153,6 +153,8 @@ export async function openGoogleDrivePicker(opts: OpenPickerOptions): Promise<Pi
     if (opts.multiple) builder.enableFeature(P.Feature.MULTISELECT_ENABLED);
     if (opts.locale) builder.setLocale(opts.locale.slice(0, 2) === 'en' ? 'en' : 'ko');
 
+    // ★ 쌓임 순서는 index.css 의 `.picker-dialog(-bg)` 규칙이 정한다 — Picker 기본 z(1000·1001)는 앱 모달(1100)보다
+    //   낮아 모달 안 첨부에서 뒤에 깔렸다(2026-09-11). 구글이 클래스 이름을 바꾸면 그 규칙도 같이 본다.
     builder.build().setVisible(true);
   });
 }

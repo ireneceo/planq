@@ -11,6 +11,15 @@ html {
   font-size: calc(16px * var(--planq-font-scale, 1));
 }
 
+/* ── Google Drive 파일 선택 창(Google Picker)은 앱 오버레이 위에 뜬다 (2026-09-11) ──────────────
+   Irene: "구글드라이브 파일첨부에 있는 기능이 팝업에 있을 경우 드라이브 창이 팝업 뒤로 떠버리네. 파일 선택이 안돼."
+   Picker 는 body 에 `.picker-dialog-bg`(iframe+div, z 1000) · `.picker-dialog`(z 1001) 를 붙인다(실브라우저 실측,
+   인라인 z-index 없음). 앱 모달은 1100 · 드로어·라이트박스는 9000~99999 라, 첨부를 모달 안에서 열면
+   **Picker 가 뒤에 깔려 누를 수 없었다.** Picker 는 사용자가 방금 부른 최상위 작업이므로 모든 앱 오버레이 위,
+   새 빌드 안내(BuildVersionGuard 2147483000) 아래에 둔다. 띄우는 곳은 utils/googlePicker.ts 한 곳. */
+.picker-dialog-bg { z-index: 2147482000 !important; }
+.picker-dialog { z-index: 2147482001 !important; }
+
 html, body {
   margin: 0;
   padding: 0;

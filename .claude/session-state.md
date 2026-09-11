@@ -49,7 +49,13 @@
 - 재빌드 EXIT 0 / error TS 0 · **leavesave 7/7**(⑥-설명 판정 DB + keepalive 차단 대조군 뒤집힘 · 메모 정리 2건) · **toggles 6/0**
 - 가드 `autosavekey` 신설 · 베이스 52 · 반증 key 붙이면 51 통과 / key 없는 칸 넣으면 53 FAIL · 원복 cmp 동일 · 전체 guard EXIT 0
 - **drafts 회귀 1차 FATAL** — ⑩2 까지 18 PASS 뒤 ⑩3 `null.focus()`(full goto 뒤 댓글 입력칸 없음). ⑩3 에 url·화면 진단 추가 → **재실행 28/28**(같은 순서 — leavesave 로그아웃 뒤). 재현 안 됨 · 원인 미확정 · 진단은 남김
-- health-check 41/41 · DEVELOPMENT_PLAN 1B 기록 완료 → **1B 커밋 → 1A+1B Fable 한 번**
+- health-check 41/41 · DEVELOPMENT_PLAN 1B 기록 완료 → **1B 커밋 `08f39490` 완료**
+- **🐛 Irene 새 신고(2026-09-11)** "구글드라이브 파일첨부에 있는 기능이 팝업에 있을 경우 드라이브 창이 팝업 뒤로 떠버리네. 파일 선택이 안돼."
+  원인 확정(실브라우저 DOM 실측): Google Picker 가 body 에 `.picker-dialog-bg`(iframe+div, z 1000, absolute) · `.picker-dialog`(z 1001) 를 붙인다, 인라인 z 없음. 앱 모달 1100 · 드로어/오버레이 9000~99999 → 뒤에 깔림. 모달 backdrop 클릭·useFocusTrap(Tab 만)·TaskDetailDrawer document click(댓글 메뉴만)은 무관.
+  ✅ 수정 완료: `index.css` 두 클래스 2147482000/2147482001 !important · `googlePicker.ts` 주석 → build EXIT 0 / error TS 0 · 실브라우저 4/4(덮개 1100·99999 위 Picker + 대조군 뒤집힘) · guard EXIT 0 · 자체 검증(F=1 UI 쌓임) · 커밋 예정. 실제 구글 계정 첨부 끝단은 Irene dev 확인 필요
+- **✅ Fable PASS (1A+1B, 08740629..08f39490)** — 차단 0 · 격리 누수 0 · 유실 회귀 0 · 중복 0 · 가드 양방향 반증. drafts 추가 2회 ⑩3 재현 0. 마커 by:fable 기록.
+  결함 A(설계 미구현·회귀 아님, 라운드 2 필수): 시리즈 설명 입력 직후 새로고침/로그아웃 → 어디에도 안 남음(`TaskDetailDrawer.tsx:386 if (p.series) continue` · draftKinds 에 task-description/task-body 없음 · keepaliveFetch 60KB 초과 조용히 false). 운영 반영 시 `pm2 restart planq-qnote` 필요(sessions.py 1줄)
+- (이전) ⏳ Fable 게이트 진행 중 — 범위 08740629..08f39490(1A+1B 한 번). PASS 면 `/fable-검증` 절차대로 `.claude/.fable-gate.json` by:fable 마커 · FAIL 이면 마커 금지하고 지적 수정 후 재검증. 판정 중에는 빌드·e2e·소스 수정 금지(같은 dev 빌드·계정을 쓴다)
 - 카나리 잔여 0 · user5 이름 원복 확인 · 문서: CLAUDE.md 자동저장 절(나갈 때 확정 저장) · DRAFT_PERSISTENCE_DESIGN §2-2 작성 완료 · DEVELOPMENT_PLAN 1B 는 drafts 결과 뒤
 - 곁에서 본 것(미조치): planq-dev-backend 가 1분마다 google_calendar external_connections 조회를 "DB Query Error" 로 로그
 남은 1B 항목: 반복 업무 설명 로컬 edit 폴백 · AutoSaveField key 규칙 가드 · `--suite toggles`

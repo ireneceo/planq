@@ -161,7 +161,7 @@ R=1(사용자 글 유실 비가역 · 교차 노출) · S=1. **라운드 1A(초�
 
 ## 2. 적용 순서 — 두 게이트
 **라운드 1A(초안 장치)** — ① D-C1a 동기화 규칙(+카나리 ④·④-충돌·양성 대조군) ② D-C1b/c 키·등록제·이관·사칭 null·kind TTL · `useLocalDraft` 규칙 ③ D-C5 정체 확정 청소·센티널·부팅 TTL ④ D-C2 업무 상세 6입력(댓글 수정 edit 모드, 보류 사유 DraftInput) ⑤ D-C4·D-C6 draft 가드 · 카나리 ①~④·⑦(로그아웃 제외분)~⑨ · 곁들여 QNotePage `FindAnswerBtn` 비소유자 숨김(Fable 비차단 경고)
-**라운드 1B(나갈 때 저장) — 1A 머지 뒤에만** — AutoSaveField pending·순차·key 규칙 가드(useAuth 파생 포함)·`data-form-dirty` · flush 프로토콜(로그아웃·switchWorkspace·원격 재부팅) · 메일 reason · Q Note 메모 · 업무 설명·결과물 pagehide keepalive + edit 폴백(시리즈 제외) · 로그아웃 단일 실행·순서 ①~⑤ · 카나리 ⑤·⑥·⑦ 로그아웃분·⑩-6~9·12 · `--suite toggles` · 가드: `task-description`/`task-body` 미등록이면 1B 빌드 FAIL
+**라운드 1B(나갈 때 저장) — 1A 머지 뒤에만** — AutoSaveField pending·순차·key 규칙 가드(useAuth 파생 포함)·`data-form-dirty` · flush 프로토콜(로그아웃·switchWorkspace·원격 재부팅) · 메일 reason · Q Note 메모 · 업무 설명·결과물 pagehide keepalive(★ **edit 폴백 — 시리즈·60KB 초과 · `task-description`/`task-body` kind · ⑩9 · ⑩12 는 라운드 2 로 이연**. Fable 2026-09-11 결함 A: 시리즈 설명 입력 직후 새로고침·로그아웃하면 어디에도 안 남는다 — 유실 창은 변경 전과 같고 넓어지지 않았다) · 로그아웃 단일 실행·순서 ①~⑤ · 카나리 ⑤·⑥·⑦ 로그아웃분·⑩-6~9·12 · `--suite toggles` · 가드: `task-description`/`task-body` 미등록이면 1B 빌드 FAIL
 **라운드 2** — 나머지 자유 텍스트 사용처 래칫 감소 · 공개 화면 토큰 축(`guest:name:{토큰 원문}` 교정) · AutoSaveField flush 실패 로컬 폴백 · 첨부 확장 검토
 
 ## 2-1. 라운드 1A 구현 노트 (2026-09-11)
