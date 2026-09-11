@@ -42,14 +42,39 @@ font-size: 0.8125rem;    /* 13px */
 ```tsx
 import DetailFallback from 'components/Common/DetailFallback';
 import { useDetailResource } from 'hooks/useDetailResource';
-// status: 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error'
+import { isOtherWorkspace } from 'utils/workspaceMatch';
+// status: 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error' | 'other_workspace'
 <DetailFallback status={status} onRetry={retry} onBack={close} />
+
+// 2026-09-11 — id 로 불러온 항목이 지금 워크스페이스 것이 아니면 **내용을 그리지 않고** 전환 안내
+if (isOtherWorkspace(entity.business_id, user.business_id)) { setOtherBiz(entity.business_id); setStatus('other_workspace'); return; }
+<DetailFallback status="other_workspace" businessId={otherBiz} />   // 소속이면 "○○(으)로 전환해서 열기"
 ```
 
 - **`apiFetch` 는 throw 하지 않는다** — 반드시 `r.status` 를 본다
 - 상세 URL 파라미터는 `hooks/useDetailParam` 하나로 — 화면마다 만들면 갈라지고,
   안 만든 화면은 **딥링크가 죽는다**(실제로 파일·고객이 그랬다)
 - 카나리 `node scripts/e2e/run.js --suite detailopen` 가 지킨다 — **침묵이 실패**
+- **다른 워크스페이스 항목은 배너를 얹지 말고 내용 자체를 안 그린다** — 한 화면 한 워크스페이스(CLAUDE.md 워크스페이스 단일 정본 계약).
+  적용: 업무 드로어 · 프로젝트 · 문서 · Q Note · 메모 · Q Talk. 새 상세 화면도 같은 두 줄
+
+## 0-B-2. 검색 결과는 **왜 떴는지** 보여준다 (2026-09-11)
+
+Irene: *"검색된 단어 키워드 색상 표시해서 알게 해줘. 모든 검색 결과에서 동일하게 적용해."*
+
+```tsx
+import HighlightText from 'components/Common/HighlightText';   // <mark> — dangerouslySetInnerHTML 금지
+import MatchReason from 'components/Common/MatchReason';       // "본문에서 찾음 · …발췌…" 한 줄
+import { pickMatch } from 'utils/searchMatch';                 // 서버와 같은 매칭 규칙(NFC·공백무시·토큰 ≤4)
+
+<Title><HighlightText text={row.title} query={q} /></Title>
+{(() => { const hit = pickMatch([{ field: 'title', text: row.title, shown: true }, { field: 'body', text: row.body }], q);
+  return hit && !hit.shown ? <MatchReason field={hit.field} snippet={hit.snippet} query={q} /> : null; })()}
+```
+
+- 행에 **보이는 칸**은 강조만, **안 보이는 칸**(본문·발신자·태그·프로젝트명)에서 맞았으면 `MatchReason`
+- 서버 검색은 `match: { field, snippet }` 을 준다 — 본문 원문·secret 값은 절대 싣지 않는다
+- 매칭 규칙을 화면에서 따로 만들지 않는다 — 서버와 어긋나면 결과는 떴는데 아무것도 안 칠해진다
 
 ---
 
