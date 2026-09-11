@@ -92,6 +92,8 @@ const ARTICLES = [
       s('업종·기본 정보를 입력하면 첫 화면으로 이동합니다.', 'Fill in your industry and basic info to land on the home screen.'),
       note('한 계정으로 여러 워크스페이스에 참여할 수 있고, 좌측 상단에서 전환합니다.',
         'One account can belong to multiple workspaces — switch between them from the top-left selector.'),
+      note('한 화면에는 지금 워크스페이스의 내용만 보입니다. 알림(종)도 지금 워크스페이스 알림과 플랫폼 공지만 보이고, 다른 워크스페이스의 업무·일정·메일·청구서 링크를 열면 "전환해서 열기" 안내가 뜹니다.',
+        'Each screen shows only the current workspace. The bell lists only this workspace\'s notifications plus platform notices, and opening a link to another workspace\'s task, event, email or invoice shows a "Switch to open" notice instead of its content.'),
     ] },
   { cat: 'attendance', slug: 'clock-in-out', visibility: 'authenticated', linked_route: '/attendance', est: 2,
     title: t('출퇴근 기록하기', 'Clock in and out'),
