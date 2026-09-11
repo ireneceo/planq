@@ -1,10 +1,10 @@
-# 입력 임시저장 — 설계 v2
+# 입력 임시저장 — 설계 v3
 
 > Irene 2026-09-11: *"업무상세에서 수정요청에 내용 남기거나 댓글에 내용 남기거나 하다가 나가면 다 날라가는데 **모든 입력란은 임시저장** 되어 있게 못해?"*
 > 같은 날: *"고치는 걸 왜 자꾸 단편적으로 해? 구조 자체를 … 제대로 적용해서 수정해야지"*
 
-**상태: v2 — Fable 설계 게이트 v1 FAIL(치명 1 · 중요 9 · 경미 7) 전부 반영 · 재게이트 대기 · 미구현.**
-R=1(사용자 글 유실은 되돌릴 수 없다 · 초안이 다른 사용자/워크스페이스로 새면 격리 위반) · S=1.
+**상태: v3 — Fable 설계 게이트 v1 FAIL(치명 T1…) · v2 FAIL(치명 C1 · 중요 I1~I8 · 경미 m-a~m-g) 반영 · 재게이트 대기 · 미구현.**
+R=1(사용자 글 유실 비가역 · 교차 노출) · S=1. **라운드를 1A(초안 장치) · 1B(자동저장 나갈 때 저장) 두 게이트로 나눈다**(서로 의존 없음, 각 게이트는 한 번에).
 
 ---
 
@@ -12,125 +12,117 @@ R=1(사용자 글 유실은 되돌릴 수 없다 · 초안이 다른 사용자/�
 
 | 분류 | 개수 | 판정 술어 / 내용 |
 |---|---:|---|
-| 자유 텍스트 입력 정의 | `styled.textarea` 59 정의/47파일 · 리터럴 `<textarea` 29 · `<RichEditor` 11 | `grep -rE "styled\.textarea|<textarea|<RichEditor"` — 규모는 이 술어로 잰다(옛 "~67곳·17화면" 은 재현 불가라 폐기) |
-| 손으로 쓴 초안 키 `planq:draft:` | **4곳 — 전부 bizId 없음** | `TaskDetailDrawer.tsx:319 task-comment` · `MailContextPanel.tsx:449 mail-issue` · `:470 mail-note` · `QTalk/RightPanel.tsx:438 qtalk-note`(NoteThread 경유) |
-| `useLocalDraft` 키 | 1 | `MailPage.tsx:1680 qmail-fwd-{userId}-{msgId}` (접두가 달라 청소 대상 밖) |
-| 직접 구현 | 2 | `StartMeetingModal.tsx:176 qnote_meeting_draft_v1`(사용자·워크스페이스 축 없음, TTL 24h — 의도) · `GuestChatPanel.tsx:43 guest:name:{토큰 원문}` |
-| `AutoSaveField` | **125 사용 · 24 파일** | AdminPlatformSettings 21 · WorkspaceSettings 20 · QBill Settings 15 … — D-C3 공용 변경의 폭발 반경 |
-| 서버 초안 | 2 | 메일 새 메일·답장 |
-| 민감 입력 | 21 | 비밀번호(리터럴·삼항 `type={show?'text':'password'}` 포함)·IMAP/SMTP·S3 키·Stripe 비밀키·웹훅·계좌번호 |
+| 자유 텍스트 입력 정의 | `styled.textarea` 59 정의/47파일 · 대소문자 구분 리터럴 `<textarea` **1** · `<RichEditor` 11 | `grep -rE "styled\.textarea"` · `grep -rE "<textarea"`(대소문자 구분) · `grep -r "<RichEditor"` (옛 "29" 는 `-i` 셈이라 styled 사용처와 중복) |
+| 손으로 쓴 초안 키 `planq:draft:` | 4곳 · 전부 bizId 없음 | `TaskDetailDrawer.tsx:319 task-comment` · `MailContextPanel.tsx:449 mail-issue` · `:470 mail-note`(둘 다 uid 가 `myUserId || 0`) · `QTalk/RightPanel.tsx:438 qtalk-note` |
+| `useLocalDraft` 키 | 1 | `MailPage.tsx:1680 qmail-fwd-{userId}-{msgId}` — value-effect cleanup(`useLocalDraft.ts:66-71`)이 타이머만 지워 ✕ 닫기에 마지막 800ms 유실 |
+| 직접 구현 | 2 | `StartMeetingModal.tsx:176 qnote_meeting_draft_v1`(TTL 24h 의도) · `GuestChatPanel.tsx:43 guest:name:{토큰 원문}` |
+| `AutoSaveField` | 125 사용 · 24 파일 | |
+| 민감 입력 | 21 | 비밀번호(리터럴·삼항)·IMAP/SMTP·S3·Stripe·계좌 |
 
-**keep-alive 사실(치명 T1 의 전제):** `components/Tab/TabPane.tsx` — 비활성 탭은 `display:none` 으로 **마운트 유지**.
-`TaskDetailDrawer` 는 QTaskPage·TodoPage·TasksTab·QCalendarPage·TaskPopoutView 5곳에 마운트되고 팝아웃 창·PiP 는 별도 문서다.
-→ **같은 초안 키를 든 인스턴스가 한 창 안에서도 여럿 동시에 산다.**
+**keep-alive(치명의 전제):** `TabPane.tsx:50-52` 비활성 탭 `display:none` 마운트 유지. **탭 전환은 `visibilitychange`·`focus` 를 내지 않고**, `storage` 이벤트는 **자기 문서에 오지 않는다.** `TaskDetailDrawer` 마운트 5곳(QTaskPage·TodoPage·TasksTab·QCalendarPage·TaskPopoutView) + 팝아웃 창·PiP(별도 문서).
 
-**신고 화면(업무 상세 `TaskDetailDrawer.tsx`) 자유 텍스트 — 실제 마크업**
-| 입력 | 상태(줄) | 마크업 | 저장 |
-|---|---|---|---|
-| 댓글 본문 | `commentDraft` 319 | `CommentInput` 3060 (styled.textarea) | `useDraftText` — 키에 bizId 없음 · 첨부 안 남음 |
-| 댓글 수정 | `editingCommentDraft` 345 | `CommentEditArea` 3041 | 없음 |
-| 수정요청 사유 | `revisionNote` 380 | `RevisionInput` 3008 | 없음 |
-| 승인 코멘트 | `approveNote` 389 | `RevisionInput` | 없음 |
-| 확인요청 메모 | `submitNote` 393 | `RevisionInput` | 없음 |
-| 보류 사유 | `holdReason` 383 | `HoldReasonInput` 2797 **styled.input** (maxLength 500) | 없음 (사후 편집 `holdReasonDraft` 384 는 AutoSaveField 1523 — 무키) |
+**업무 상세 자유 텍스트** — 댓글 `commentDraft` 319(`CommentInput` 3060) · 댓글 수정 `editingCommentDraft` 345(`CommentEditArea` 3041) · 수정요청 `revisionNote` 380 · 승인 `approveNote` 389 · 확인요청 `submitNote` 393(셋 다 `RevisionInput` 3008) · 보류 사유 `holdReason` 383(`HoldReasonInput` 2797 styled.input — `maxLength` 는 **사용처**에) · 보류 사유 사후 편집 `holdReasonDraft` 384(AutoSaveField 1523 안, 서버 자동저장 — 로컬 초안 대상 아님). 드로어의 워크스페이스는 props `bizId`(162).
 
-**조용한 유실 — 확인됨**
-- `AutoSaveField.tsx:113` 언마운트 cleanup = `clearTimers()` 만 → debounce 안에 닫으면 마지막 입력 소실.
-- 메일 `MailPage.tsx` 초안 effect cleanup(1382·1775) `clearTimeout` 만 · `closeCompose`(1843) 가 상태를 비움. 단 `sendCompose`(1896) 는 `DELETE email-drafts` 후 `closeCompose()`, 답장은 1538 DELETE 후 전환.
-- `MemoView.tsx:225-229` — `QNotePage.tsx:2684 key={s-${id}}` 로 세션 전환 시 언마운트 → 유실 실재.
-- `MemoPopup.tsx` — `handleClose`(591-598)·`startNew`(583-589)는 이미 dirty 면 persist. 구멍은 **handleClose 를 안 거치는 언마운트**(스탠드얼론 창 닫기·라우트 이탈·탭 LRU 정지)뿐.
-- 업무 설명·결과물 `debouncedSave`(697-705) — **드로어 닫기**에는 저장됨(클로저가 detailTask id 로 PUT). **새로고침·탭 닫기·pagehide** 에는 타이머가 페이지와 함께 죽고 onBlur flush(2108·2405)도 안 불려 마지막 ≤2초 유실.
-- `AutoSaveField` 는 저장 대상이 바뀌어도 언마운트되지 않는 자리가 있다 — 드로어는 5곳 어디서도 task 로 `key` 되지 않음 · 1523 무키 → 대기 타이머가 새 렌더의 `saveRef.current` 로 발사.
-- `useDraftText.flush`(`useLocalDraft.ts:127-130`) 는 **dirty 판정 없이** 쓰고, 빈 값이면 `removeItem`(104).
+**조용한 유실** — `AutoSaveField.tsx:113` cleanup = `clearTimers()` 만 · 메일 초안 effect cleanup(1382·1775) `clearTimeout` 만, `closeCompose` 1843, `sendCompose` 함수 1866 안 1896 `DELETE email-drafts` 후 `closeCompose()`, 답장 1538 DELETE 후 전환 · `MemoView.tsx:225-229`(QNotePage 2684 `key={s-${id}}` 로 세션 전환 시 언마운트) · `MemoPopup` handleClose(591-598) 밖 언마운트 · 업무 설명·결과물 `debouncedSave`(697-705) 는 드로어 닫기엔 저장되나 **새로고침·탭 닫기**엔 ≤2초 유실 · `useDraftText.flush`(`useLocalDraft.ts:127-130`) dirty 판정 없음, 빈 값이면 `removeItem`(104).
 
-**정리의 구멍** — `logout`(`AuthContext.tsx:837-846`) 은 `clearPageCache()` 만 · 세션 만료(766-772 → goLogin)·다른 탭 로그아웃·강제 종료는 logout 을 안 탄다 · 사칭 창(`impersonate_pending`)은 대상 userId 로 관리자 브라우저에 초안을 남기고 `exitImpersonation` 은 청소 없음.
+**로그아웃 실제 순서** — `AuthContext.tsx:837-846`: `await fetch(logout)` → `setAccessToken(null)`(동기) → `clearPageCache()` → `goLogin()`. **토큰이 먼저 사라지고** 그 뒤 언마운트가 온다.
+**정체가 정해지는 경로** — `login()` · `register()`(824) · OAuth(`OAuthCallbackPage.tsx:29` 가 hash 토큰 후 `location.replace` → 부팅 `checkSession` 691·711·718) · 사칭 종료(`ImpersonateBanner.tsx:47` 토큰 교체 후 이동).
+**사칭** — `impersonator` 는 **JWT 클레임**이고 `useAuth().user` 에 없다(`ImpersonateBanner.tsx:33` 이 토큰을 디코드해 읽음, `sessionStorage.impersonate_pending`).
+**워크스페이스 전환** — `AuthContext.switchWorkspace` 는 **먼저 `setUser(새 business_id)` 로 다시 렌더**(910)하고, 호출부가 그 뒤 `window.location.href = '/talk'`(`WorkspaceSwitcher.tsx:124·136·156`)로 이동한다. 이동 전 그 짧은 창에 대기 중인 AutoSaveField 타이머가 **새 렌더의 `saveRef`(새 bizId URL)로 발사될 여지가 있다** → D-C3 `key` 규칙이 bizId 를 대상에 포함하는 것은 필요하다(키가 바뀌면 언마운트 flush 가 옛 bizId 로 먼저 저장). 원격 전환(`WorkspaceSyncGuard rebootForWorkspace`)은 setUser 없이 바로 재부팅.
+**같은 브라우저 멀티 계정** — access 토큰은 메모리, refresh 는 공유 쿠키라 두 사용자가 동시에 로그인돼 있을 수 없다. 예외: ⓐ 사칭 창 ⓑ 앞 사용자 탭이 ≤15분 옛 토큰으로 살아 있음.
 
 ---
 
 ## 1. 계약
 
-### D-C1. 초안 장치는 하나 — `useDraftText` 정본 + **dirty 규칙** + 키 등록제
+### D-C1. 초안 장치 — `useDraftText` 정본 + 동기화 규칙 + 키 등록제
 
-**(a) dirty 규칙 — 치명 T1 대응, 모든 적용의 선행 조건**
-- 인스턴스는 `dirtyRef` 를 가진다: 마지막 read(마운트·키 전환·재읽기) 이후 **`setText` 가 불렸을 때만** true.
-- flush(키 전환·언마운트·pagehide·visibilitychange:hidden)는 **dirty 인 인스턴스만** 쓴다. **빈 값 삭제도 dirty 일 때만.** 쓰고 나면 dirty=false.
-- non-dirty 인스턴스는 `visibilitychange:visible` · `focus` · 같은 키의 `storage` 이벤트에서 **다시 읽는다**(다른 탭·팝아웃이 쓴 초안을 이 인스턴스가 보여준다).
-- 제출 성공 `clear()` 는 명시 동작이라 dirty 와 무관하게 지운다.
+**(a) 동기화 규칙 (치명 T1·C1)**
+- `writeDraftText(key, value)` 는 저장 뒤 **같은 문서에** `window.dispatchEvent(new CustomEvent('planq:draft-written', { detail: { key, savedAt } }))` 를 낸다. 인스턴스는 `storage`(다른 창)와 이 이벤트(같은 창) **둘 다** 듣는다.
+- 인스턴스 상태: `dirtyRef`(마지막 read 이후 `setText` 가 불렸나) · `lastEditAtRef`(마지막 `setText` 시각).
+  - **dirty 는 read(마운트·키 전환·재읽기)와 `clear()` 에서만 내려간다. debounce 쓰기는 dirty 를 내리지 않는다.**
+- **정본 = 편집 시각이 큰 쪽.**
+  - flush(키 전환·언마운트·pagehide·visibility hidden·debounce)는 dirty 일 때만 쓰고, **저장본 `savedAt > lastEditAt` 이면 쓰지 않는다**(더 새 글을 옛 글로 덮지 않는다). 빈 값 삭제도 같은 조건.
+  - 이벤트 수신 시 `savedAt > lastEditAt` 이고 그 입력란이 `document.activeElement` 가 **아니면 dirty 여도** 다시 읽는다. 포커스 중인 입력란은 남의 쓰기로 바뀌지 않는다.
+- **`clear()`**(제출 성공)는 키를 지우고 이벤트를 `savedAt: null` 로 낸다 — 받은 인스턴스는 **dirty 여도 비운다**(제출은 명시 동작).
+- 수용 한계: 두 곳에서 동시에 편집하면 **마지막 편집이 이긴다.**
 
-**(b) 키는 `useDraftKey(kind, entityId)` 한 함수 + `hooks/draftKinds.ts` 등록제**
-- 키 `planq:draft:{kind}:{userId}:{bizId}:{entityId}`. `userId`·`bizId` 는 `useAuth()` 에서, **둘 중 하나라도 없거나 사칭 중(`impersonator`)이면 null**(=보존 안 함).
-- `draftKinds.ts`: `{ kind: { ttlMs, mode: 'append'|'edit', owners: [파일] } }` — 등록되지 않은 kind 는 가드 FAIL. TTL 은 **kind 별**(회의 시작 24h 유지, 기본 7일).
-- `useLocalDraft` 도 키를 `useDraftKey` 로 받는다(장치가 둘이어도 **키와 청소는 하나**).
+**(b) 키 — `useDraftKey(kind, entityId, bizId?)` 한 함수 + `hooks/draftKinds.ts` 등록제**
+- 키 `planq:draft:{kind}:{userId}:{bizId}:{entityId}`. `bizId` 는 **엔티티의 business_id 가 있으면 그것**(드로어 props `bizId`), 없을 때만 `user.business_id`.
+- null(=보존 안 함): userId·bizId 중 하나라도 없음 · **사칭 중** — `AuthContext` 가 `isImpersonating`(액세스 토큰 `impersonator` 클레임 디코드 또는 `sessionStorage.impersonate_pending`)을 노출하고 그것이 정본 · `draftsSuppressed`(D-C5).
+- `draftKinds.ts`: `{ kind: { ttlMs, mode: 'append'|'edit', owners: [파일] } }` — 등록 외 kind 는 가드 FAIL. TTL kind 별(기본 7일, `qnote-meeting-start` 24h).
+- `useLocalDraft` 도 `useDraftKey` 로 키를 받고 **같은 동기화 규칙 + `enabled` true→false 전환·언마운트 시 flush**(I6).
 
-**(c) 옛 키 이관 표** — 새 키가 비었을 때 한 번 읽어 옮기고 지운다
-| 옛 키 | 새 kind |
-|---|---|
-| `planq:draft:task-comment:{uid}:{taskId}` | `task-comment` |
-| `planq:draft:mail-issue:…` (MailContextPanel:449) | `mail-issue` |
-| `planq:draft:mail-note:…` (:470) | `mail-note` |
-| `planq:draft:qtalk-note:…` (RightPanel:438) | `qtalk-note` |
-| `qmail-fwd-{uid}-{msgId}` | `mail-forward` |
-| `qnote_meeting_draft_v1` | `qnote-meeting-start` (TTL 24h) — 옛 값은 사용자 축이 없어 **이관하지 않고 삭제** |
+**(c) 옛 키 이관** — 새 키가 비었을 때 한 번 읽어 옮기고 지운다
+| 옛 키 | 새 kind | 비고 |
+|---|---|---|
+| `planq:draft:task-comment:{uid}:{taskId}` | `task-comment` | |
+| `planq:draft:mail-issue:{uid}:…` | `mail-issue` | **uid `0` 이면 이관 없이 삭제** |
+| `planq:draft:mail-note:{uid}:…` | `mail-note` | uid `0` 이면 삭제 |
+| `planq:draft:qtalk-note:…` | `qtalk-note` | |
+| `qmail-fwd-{uid}-{msgId}` | `mail-forward` | |
+| `qnote_meeting_draft_v1` | — | 사용자 축 없음 → 이관 없이 삭제 |
 
-**(d) 수정형(`mode:'edit'`) 초안** — `{ value, base, savedAt }`. 복원 시 서버 현재값 ≠ `base` 면 **버리고** `common:draft.baseChanged` 한 줄("다른 곳에서 바뀌어 임시저장본을 버렸어요"). 댓글 수정이 해당.
+**(d) 수정형(`mode:'edit'`)** — `{ value, base, savedAt }`. 열 때: 서버값 == `value` → 조용히 삭제 / 서버값 == `base` → 복원 줄 / 그 외 → 버리고 `common:draft.baseChanged`. 댓글 수정 · 업무 설명·결과물 새로고침 폴백(D-C3) 이 해당.
 
 ### D-C2. 자유 텍스트 입력은 공용 껍데기로
-- `components/Common/DraftTextarea.tsx`(textarea 래퍼) · `DraftInput`(긴 사유 input) — `draftKind`·`entityId` prop. RichEditor 자유 텍스트는 훅 직접이되 `useDraftKey` 경유.
-- 복원은 보이게: `common:draft.restored` "임시저장된 내용을 불러왔어요 · 지우기" / "Restored your unsent text · Clear". 복원만으로 서버 자동저장을 부르지 않는다.
-- 첨부: 텍스트만. 이미 서버 파일인 첨부만 `attachments: number[]` — **제출 전 존재 재확인**(지워졌으면 뺀다).
-- 수용하는 한계: 다른 기기에서 제출한 뒤 이 기기에 초안이 남는다(중복 제출 가능) — 복원 줄이 보이므로 사람이 판단한다.
+- `components/Common/DraftTextarea.tsx` · `DraftInput`(긴 사유 input) — `draftKind`·`entityId`·`bizId`. RichEditor 자유 텍스트는 훅 직접이되 `useDraftKey` 경유.
+- 복원은 보이게: `common:draft.restored` "임시저장된 내용을 불러왔어요 · 지우기" / "Restored your unsent text · Clear". **복원만으로 서버 저장을 부르지 않는다.**
+- 첨부: 텍스트만 + 이미 서버 파일인 id 만(`attachments: number[]`) — 제출 전 존재 재확인.
+- 수용 한계: 다른 기기에서 제출한 뒤 이 기기에 초안이 남는다(복원 줄로 사람이 판단).
 
-### D-C3. 자동저장이 있는 곳도 **나갈 때 확정 저장**
+### D-C3. 자동저장이 있는 곳도 **나갈 때 확정 저장** (라운드 1B)
 - **AutoSaveField**
-  - 대기 판정은 타이머 존재가 아니라 `pendingRef`(입력 후 저장 전). 언마운트 cleanup 에서 pending 이면 `saveRef.current()` 즉시 호출(실패는 콘솔).
-  - inflight 중 새 입력 → **완료 후 한 번 더 저장(체인)**. 건너뛰지 않는다.
-  - **저장 대상이 바뀌는 자리의 AutoSaveField 는 `key={entityId}`** — 가드 `--category=autosave` 에 규칙 추가(드로어 안 AutoSaveField 무키 = 위반). 그래야 대상 전환이 언마운트 flush 로 옛 대상에 저장된다.
-  - 125곳 공용 변경 → `--suite toggles` · autosave e2e 필수 재실행.
-- **메일** — `closeCompose(reason)`: `'user'`(✕·취소)만 `dirtyRef` 기준 PUT 선발사, `'sent'`·`'discard'` 는 발사 없이 비운다. 답장 스레드 전환도 같은 규칙(보낸 뒤 전환 = sent).
-- **Q Note** — `MemoView` 언마운트(세션 전환 key 리마운트 포함) dirty 면 persist · `MemoPopup` 은 handleClose 밖 언마운트에서 dirty 면 persist.
-- **업무 설명·결과물 `debouncedSave`** — `pagehide` 에서 대기분을 `fetch(…, { keepalive: true })` 로 flush. 드로어 닫기는 종전(이미 저장됨).
-- 로그아웃 순서: `logout` 은 서버 POST 를 await 한 뒤 언마운트되므로 flush 는 **아직 유효한 토큰으로 성공한다** — 허용(쓰던 글을 저장하는 것이 맞다).
+  - `pendingRef`(입력 후 저장 전) 기준. 언마운트 cleanup 에서 pending 이면 즉시 `saveRef.current()`. 실패는 `console.warn`(로컬 폴백은 라운드 2 검토).
+  - **inflight 중에는 새 발사를 완료 뒤로 미룬다**(동시 2 PUT 금지 — 옛 값이 나중에 착지할 수 있다). 완료 뒤 pending 이면 한 번 더.
+  - **`key` 규칙(기계 판정)**: `<AutoSaveField` 가 있는 파일에서 `method: 'PUT'|'PATCH'` 호출 URL 템플릿의 `${…}` 식별자 집합 S(예 `detailTask.id`·`bizId`·`businessId`)를 뽑는다. S 에 `useState`·props·`useParams` 에서 오는 식별자가 하나라도 있으면 그 파일의 **모든** `<AutoSaveField` 는 `key={…}` 안에 S 원소 이름을 포함해야 한다. 양성 대조군: `TaskDetailDrawer.tsx:1523` 의 key 를 지우면 FAIL.
+- **메일** — `closeCompose(reason)`: `'user'`(✕·취소)만 `dirtyRef` 기준 PUT 선발사, `'sent'`·`'discard'` 는 발사 없이 비운다. 답장 스레드 전환도 같은 규칙.
+- **Q Note** — `MemoView` 언마운트 dirty 면 persist · `MemoPopup` handleClose 밖 언마운트 dirty 면 persist.
+- **업무 설명·결과물 새로고침** — `pagehide` 에서
+  ① **raw `fetch(url, { method:'PATCH'|'PUT', keepalive:true, headers:{ Authorization:`Bearer ${getAccessToken()}`, 'Content-Type':'application/json' }, body })`**(apiFetch 는 `tryRefresh` 를 먼저 await 할 수 있어 문서가 죽기 전에 디스패치가 안 된다 · 엔티티 id 라우트라 `X-Workspace-Id` 불필요 · 401 재시도 불가)
+  ② **동시에** `mode:'edit'` 로컬 초안 `task-description`/`task-body` `{ value, base: 마지막 서버값, savedAt }` 을 남긴다(본문 크기 무관)
+  ③ 본문 60KB 초과면 ①을 생략하고 ②만(Chrome keepalive 64KB 상한). 다음 열기 때 D-C1d 판정.
+- **로그아웃 순서(I2)** — `logout()`:
+  ① `window.dispatchEvent(new Event('planq:drafts:flush'))` → AutoSaveField pending·`debouncedSave`·메일 dirty 가 **토큰이 살아 있는 동안** 저장하고, 각자 Promise 를 등록 → `await Promise.allSettled`(상한 3초)
+  ② 서버 logout POST
+  ③ 모듈 플래그 `draftsSuppressed = true`(이후 로컬 flush·`useDraftKey` 모두 no-op/null)
+  ④ 그 사용자 로컬 초안 키 삭제
+  ⑤ 토큰 null · `goLogin()`
 
-### D-C4. 민감 입력은 초안 대상이 아니다 — 등록제 + 기계 판정
-- 등록되지 않은 kind 는 쓸 수 없다(D-C1b). 가드:
-  ① 등록 외 kind → FAIL
-  ② `type=` 속성값에 `'password'` 문자열이 들어간 파일(리터럴·삼항 모두) 또는 `sensitiveFiles` 목록(LoginPage·RegisterPage·ResetPasswordPage·AccountDeletionSection·SharePasswordPrompt·ShareModal·IMAP/SMTP·S3·Stripe·계좌 설정)에서 `useDraftKey`/`DraftTextarea`/`DraftInput` → FAIL (`// draft-sensitive-reviewed: <이유>` 로만 해제)
-  ③ 양성 대조군: LoginPage 에 `useDraftKey` 한 줄을 심으면 FAIL 이어야 한다.
+### D-C4. 민감 입력 — 등록제 + 기계 판정
+① 등록 외 kind → FAIL
+② `type=` 속성값에 `'password'` 문자열이 들어간 파일(리터럴·삼항) 또는 `sensitiveFiles` 목록 파일에서 `useDraftKey`/`DraftTextarea`/`DraftInput` → FAIL (`// draft-sensitive-reviewed: <이유>` 로만 해제)
+③ 양성 대조군: LoginPage 에 `useDraftKey` 한 줄 → FAIL
 
-### D-C5. 정리
-- **로그인 성공 시**: `planq:draft:*` 중 userId ≠ 새 사용자인 키 + 옛 키(`qnote_meeting_draft_v1`·`qmail-fwd-*` 중 타 사용자) 전부 삭제 — 세션 만료·다른 사람 로그인·강제 종료 경로가 여기서 닫힌다.
-- **로그아웃**: 그 사용자 초안 삭제(공용 PC). **세션 만료 자체는 지우지 않는다**(같은 사람이 재로그인해 이어 쓴다).
-- **부팅 1회**: kind 별 TTL 지난 키 삭제.
-- **quota**: 쓰기 실패 → 만료 청소 1회 후 재시도 → 그래도 실패면 조용히 포기(입력은 막지 않는다).
+### D-C5. 정리 (라운드 1A)
+- **정체 확정 한 곳**: `AuthProvider` 의 `useEffect([user?.id])` 에서 `prevId !== user.id` 이면 — `planq:draft:*` 중 userId ≠ 현재 사용자 키 삭제 + `planq:draft:owner` 센티널을 현재 userId 로 갱신. (부팅 복원·login·register·OAuth·사칭 종료가 모두 지나간다)
+- 다른 탭은 `storage` 로 센티널을 받아 **자기 userId ≠ owner 면 `draftsSuppressed = true`**(ⓑ 옛 토큰 탭이 청소 뒤 다시 쓰는 것 차단). ⓑ 탭이 청소 전에 앞 사용자 키에 쓰는 것은 누수가 아니다(허용).
+- 로그아웃: D-C3 순서 ④. 세션 만료 자체는 지우지 않는다(같은 사람이 재로그인).
+- 부팅 1회: kind 별 TTL 지난 키 삭제. quota: 만료 청소 1회 후 재시도 → 실패면 조용히 포기(입력은 막지 않는다).
 
 ### D-C6. 가드 · 카나리
-**가드 `--category=draft` (래칫 + 하드)**
-- 술어: `styled.textarea` / `styled(X).attrs({as:'textarea'})` / `styled.input` 중 `maxLength≥200` 또는 `rows` 있는 것 / `contentEditable` 정의를 **컴포넌트명으로 해석**해 JSX 사용처를 센다 + 리터럴 `<textarea`·`<RichEditor`. 초안 표식(`DraftTextarea`/`DraftInput`/`useDraftKey`/`// draft-exempt: <이유>`)이 없으면 부채.
-- 손으로 쓴 `planq:draft:` 문자열(=`useDraftKey` 우회) 부채.
-- **커버리지 출력**(정의 n · 사용 m · 표식 k). 라운드 1 대상 6개가 **실제로 셈에 잡히는지** 출력으로 확인.
-- 양성 대조군: 표식 없는 `RevisionInput` 사용 1곳 추가 → 래칫 FAIL · D-C4 ③.
+**가드 `--category=draft`**
+- 술어: `styled.textarea`·`styled(X).attrs({as:'textarea'})` 정의를 컴포넌트명으로 해석해 JSX 사용처를 센다 · `styled.input` 정의는 **JSX 사용처의** `maxLength≥200` 또는 `rows` 로 판정 · `contentEditable` · 리터럴 `<textarea`·`<RichEditor`. 초안 표식(`DraftTextarea`/`DraftInput`/`useDraftKey`/`// draft-exempt: <이유>`)이 없으면 부채. **`<AutoSaveField>` 의 자식은 통과**(서버 자동저장).
+- 손으로 쓴 `planq:draft:` 문자열 부채 · 등록 외 kind FAIL · D-C4 ②
+- **커버리지 출력**(정의 n · 사용 m · 표식 k) — 라운드 1A 대상 6개(업무 상세)가 셈에 잡히는지 출력으로 확인
+- 양성 대조군: 표식 없는 `RevisionInput` 사용 1곳 추가 → 래칫 FAIL · D-C4 ③ · D-C3 key 규칙(1523 key 제거 → FAIL)
 
-**카나리 `--suite drafts`** (실브라우저, 폰·데스크탑)
-① 업무 상세 6입력 입력 → 드로어 닫기 → 다시 열기 → **보이는지**(좌표·elementFromPoint) + 복원 줄
-② 제출 성공 후 비어 있음 · 제출 실패(4xx)면 남음
-③ 다른 업무 전환 섞임 0 · 다른 사용자/워크스페이스 안 보임 · 같은 사용자·워크스페이스로 돌아오면 보임(양성)
-④ **T1 음성 대조군** — 같은 업무를 두 alive 탭(또는 메인+팝아웃)에 열고 한쪽만 입력 → 다른 쪽 전환·닫기 → 초안 남음
-⑤ AutoSaveField 입력 0.5초 뒤 닫기 → PUT 1건 · **본문 == 마지막 입력값** · 대상 전환 직후 PUT 옛 entity 1건 / 새 entity 0건
-⑥ 메일 — 입력 후 ✕ → 서버 초안 반영 · **입력 후 1초 안에 보내기 → 서버 초안 0건** · Q Note 메모 입력 직후 세션 전환 → 반영 · 업무 설명 입력 직후 새로고침 → 반영
-⑦ 로그아웃 → 그 사용자 초안 키 0(`useLocalDraft` 키 포함) · 다른 사람 로그인 → 앞 사람 키 0 · 민감 입력 페이지 입력 → 저장소 값 없음
-⑧ 댓글 수정 초안 — 다른 세션이 원문 수정 → 복원 안 함 + baseChanged 줄
-+ `--suite toggles` 재실행
+**카나리 `--suite drafts`(신설) + `--suite toggles`(기존)** — 실브라우저, 폰·데스크탑
+- ① 업무 상세 6입력 입력 → 닫기 → 다시 열기 → 보이는지(좌표·elementFromPoint) + 복원 줄 · 복원만으로 3초 내 PUT 0건
+- ② 제출 성공 후 비어 있음 · 제출 실패(4xx)면 남음
+- ③ 다른 업무 섞임 0 · 다른 사용자/워크스페이스 안 보임 · 같은 사용자·워크스페이스로 돌아오면 보임(양성)
+- ④ **(a) 같은 창 keep-alive 두 탭 (b) 메인+팝아웃 — 둘 다**: 한쪽만 입력 → 다른 쪽 전환·닫기 → 초안 남음 · **양성 대조군: 동기화 규칙을 끈 빌드에서 ④ FAIL**
+- ④-충돌: 두 인스턴스 모두 입력 → 나중 편집이 남음 · 포커스 중 입력란은 남의 쓰기로 안 바뀜 · 한쪽 제출 → 다른 쪽 비워짐
+- ⑤ (1B) AutoSaveField 입력 0.5초 뒤 닫기 → PUT 1 · 본문 == 마지막 입력 · 대상 전환 직후 옛 entity 1 / 새 entity 0 · 느린 첫 PUT 중 재입력 → 2번째 PUT 은 첫 응답 뒤, 서버 최종값 == 마지막 입력 · 로그아웃 직전 pending → PUT 200 1건
+- ⑥ (1B) 메일 ✕ → 서버 초안 반영 · **입력 1초 안 보내기 → 서버 초안 0** · 전달 폼 입력 0.3초 뒤 ✕ → 다시 열기 복원 · Q Note 메모 입력 직후 세션 전환 → 반영 · 업무 설명 입력 직후 새로고침 → 반영 · 설명 >64KB 입력 직후 새로고침 → 로컬 edit 초안 복원 줄
+- ⑦ 로그아웃 → 그 사용자 키 0(`useLocalDraft` 포함) · login·register·OAuth 경로로 다른 사람 로그인 → 앞 사람 키 0 · 사칭 창 입력 → `planq:draft:*` 0 · 민감 입력 페이지 입력 → **모든** localStorage/sessionStorage 값에 입력 문자열 부재
+- ⑧ 댓글 수정 초안 — 원문이 다른 세션에서 바뀜 → 복원 안 함 + baseChanged 줄
+- ⑨ 이관: 옛 키 심기 → 열기 → 새 키에 값·옛 키 삭제 · uid `0` 옛 키는 삭제만 · 부팅 TTL: 만료 삭제·미만료 유지 · quota: 저장소 채운 뒤 입력 → 예외 없음
 
-## 2. 적용 순서 (한 라운드 = 한 번의 Fable 게이트)
-**라운드 1** (순서 고정)
-1. D-C1a dirty 규칙(T1) — 훅 수정 + 카나리 ④
-2. D-C1b/c 키 등록제·`useDraftKey`·이관 표 · 사칭 null · kind 별 TTL
-3. D-C5 로그인/로그아웃/부팅 청소
-4. D-C3 — AutoSaveField pending·체인·`key` 규칙 · 메일 reason 분기 · Q Note 메모 · 업무 설명·결과물 pagehide keepalive
-5. D-C2 업무 상세 6입력(수정형 댓글 수정 포함, 보류 사유는 DraftInput)
-6. D-C4 · D-C6 가드(커버리지·양성 대조군) · 카나리 ①~⑧ · toggles
-
-**라운드 2** — 나머지 자유 텍스트 사용처 래칫 감소 · 공개 화면 토큰 축(`guest:name:{토큰 원문}` 교정 포함) · 첨부 확장 검토
+## 2. 적용 순서 — 두 게이트
+**라운드 1A(초안 장치)** — ① D-C1a 동기화 규칙(+카나리 ④·④-충돌·양성 대조군) ② D-C1b/c 키·등록제·이관·사칭 null·kind TTL · `useLocalDraft` 규칙 ③ D-C5 정체 확정 청소·센티널·부팅 TTL ④ D-C2 업무 상세 6입력(댓글 수정 edit 모드, 보류 사유 DraftInput) ⑤ D-C4·D-C6 draft 가드 · 카나리 ①~④·⑦(로그아웃 제외분)~⑨ · 곁들여 QNotePage `FindAnswerBtn` 비소유자 숨김(Fable 비차단 경고)
+**라운드 1B(나갈 때 저장)** — AutoSaveField pending·순차·key 규칙 가드 · 메일 reason · Q Note 메모 · 업무 설명·결과물 pagehide keepalive + edit 폴백 · 로그아웃 순서 ①~⑤ · 카나리 ⑤·⑥·⑦ 로그아웃분 · `--suite toggles`
+**라운드 2** — 나머지 자유 텍스트 사용처 래칫 감소 · 공개 화면 토큰 축(`guest:name:{토큰 원문}` 교정) · AutoSaveField flush 실패 로컬 폴백 · 첨부 확장 검토
 
 ## 3. 기본값
-- 첨부: 텍스트만(서버 파일 id 만, 제출 전 재확인) · 보존: kind 별(기본 7일, 회의 시작 24h)
+- 첨부: 텍스트만(서버 파일 id 만, 제출 전 재확인) · 보존: kind 별(기본 7일, 회의 시작 24h) · 동시 편집: 마지막 편집 승

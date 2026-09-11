@@ -1,50 +1,44 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-09-11 14:15 UTC (Opus 5, 1M)
-**작업 상태:** ✅ 완료 — **워크스페이스 단일 정본 단계 3~5** · Fable PASS · **운영 배포 `e6f2aab0`**(14:05 UTC, v1.48.21 유지, 백업 `/opt/planq/backups/20260911_140457`) · /저장 · /개발완료
-**Git:** 코드 `01d3c207` + dev-status `e6f2aab0` 푸시 · 게이트 마커 = `01d3c207` by fable · dev 백업 `/opt/planq/backups/dev-daily/20260911`
+**마지막 업데이트:** 2026-09-11 15:35 UTC (Opus 5, 1M)
+**작업 상태:** 🔄 진행중 — **입력 임시저장 구조화 설계 v2** Fable 재게이트 대기 (구현 전)
+**Git:** HEAD `64a327f7` 푸시됨 · 게이트 마커 = `64a327f7` by fable · 미커밋 소스 0
+**운영:** 마지막 배포 `e6f2aab0`(14:05 UTC) — **`64a327f7`(Q Note 권한·403 통일·템플릿 저장)은 미배포**
 
-### 진행 중인 작업
-- 없음 (관찰만: 운영 로그 `pm2 logs planq-prod-backend | grep wsctx` — 1시간 요약의 `legacy` 소진 추이)
+### 진행 중인 작업 — 입력 임시저장 구조화 (Irene "해" — 권장 순서 5번)
+- 설계 `docs/DRAFT_PERSISTENCE_DESIGN.md` **v2** — v1 Fable 설계 게이트 FAIL(치명 T1 · 중요 M1~M9 · 경미 m1~m7) 전부 반영, 재게이트 진행 중
+- 핵심: **T1** `useDraftText` flush 가 dirty 판정 없이 쓰고 빈 값이면 삭제 → keep-alive 탭·팝아웃의 같은 키 인스턴스가 남의 초안을 지운다 → dirty 규칙 · non-dirty 재읽기
+- 라운드 1 순서: dirty 규칙 → `useDraftKey`+`draftKinds` 등록제·이관 6키·사칭 null·kind 별 TTL → 로그인/로그아웃/부팅 청소 → AutoSaveField pending·체인·`key={entityId}` 가드 · 메일 closeCompose(reason) · Q Note 메모 · 업무 설명/결과물 pagehide keepalive → 업무 상세 6입력 → 가드(커버리지·양성 대조군)·카나리 ①~⑧·toggles
+- 다음: 재게이트 PASS → 라운드 1 구현 · FAIL → 설계 반영
 
 ### 완료된 작업 (이번 세션)
-**1. 워크스페이스 격리 2차** `33c870f9` — Fable PASS · 운영 `1aa8f4c7`
-- 검색 secret 칸 매칭 제외 · Q7 알림 종 = 현재 워크스페이스 + 플랫폼 공지 · Q6 상세 7곳(`/api/entity-workspace` · `useDirectDetail` · `DetailFallbackDrawer` · 자료정리 뷰어 누수)
-
-**2. Q위키 워크스페이스 안내** `de408c61` — Fable PASS · 운영 `ccaa8efe` + 운영 seed
-
-**3. 워크스페이스 단일 정본 단계 3~5** `01d3c207` — Fable PASS · 운영 `e6f2aab0`
-- C2 `X-Workspace-Id` — `contexts/AuthContext.tsx`(모듈 변수 `requestWorkspaceId` 를 `setUser` 래퍼에서 렌더 전 미러 · apiFetch 첫 요청/401 재시도 · apiUpload · 같은 출처만 · 409 → `planq:workspace-stale`)
-- C3 신규 `dev-backend/middleware/workspaceContext.js` — `observe` · `requestScope(req, 명시값, {legacy})` · `staleResponse` · `[wsctx] summary/stale/mismatch/legacy` 로그
-- C5 추측 11곳 + 합산 3곳 → `requestScope` (tasks my-week/month/year/backlog · task_templates · task_priority · task_tags · posts editor-image · cue · dashboard/todo · today-review · me/external-connections)
-- `WorkspaceSyncGuard` ④ stale 리스너 · CORS `X-Workspace-Id` · 가드 wsscope `workspaceCanonical` 규칙 + 베이스라인 11→0 · 카나리 wssync ⑥
-- **설계 이탈:** 관찰 1~2일 대기 대신 헤더 없는 요청(옛 번들)만 종전 동작 — Fable 이 "옛 번들 종전 바이트 동일" 로 안전 판정
-- 검증: Fable probe 104 · 실HTTP 23/23 · e2e wssync(⑥)·inboxcount·tenant·detailopen·scopetabs 실패 0 · guard EXIT 0(양성 대조군) · health 41/41 · build EXIT 0
-- **운영 실측:** 내부 관리자 계정 읽기 요청 — 헤더 없음 200 · 헤더==정본 200 · 헤더≠정본 409 `workspace_stale` · `[wsctx] legacy`·`stale` 로그 기록 확인
-
----
+1. **워크스페이스 격리 2차** `33c870f9` — 검색 secret 칸 · Q7 알림 종 · Q6 상세 7곳 — Fable PASS · 운영 `1aa8f4c7`
+2. **Q위키 워크스페이스 안내** `de408c61` — 운영 `ccaa8efe`
+3. **워크스페이스 단계 3~5** `01d3c207` — X-Workspace-Id · requestScope · 409 workspace_stale · 추측 11곳+합산 3곳 제거 — Fable PASS · 운영 `e6f2aab0` · 운영 실측(헤더 없음 200 / 같음 200 / 다름 409)
+4. **Q Note 권한·격리** `64a327f7` — Fable PASS(재검증, 1차 FAIL 2건 수리) · **미배포**
+   - L3/L4 공유가 실제로 열림(토큰에 없는 businessId 클레임 비교 → Node internal business-membership)
+   - `_load_session_or_403` 기본값 write(생성자만), 읽기 GET 4곳만 `access='read'`
+   - 세션 목록 shared/all 소속 확인(기존 누수 — 비소속·고객·해제 멤버에게 L3 세션·share_token 노출) · 토큰 필드 제거
+   - internal project-membership·user-project-ids 해제 멤버 제외(L2)
+   - all-tasks·today-review 403 통일 · PostsPage 템플릿 저장(localStorage 빈 토큰 401) → apiFetch
+   - ★ 배포 시 `planq-prod-qnote` 재시작 필수 · 운영 q-note `.env` 와 Node `.env` 의 INTERNAL_API_KEY 일치 확인(불일치면 L3 공유·shared 목록이 비소유자 전원 403 — "생성은 되는데 공유가 안 열림")
 
 ### 다음 할 일
-**A. 워크스페이스 (마무리)**
-1. **운영 `[wsctx] summary` 의 `legacy` 가 0 이 되면** `middleware/workspaceContext.js` requestScope ④ 분기 + `cue.js resolveBusinessId` 첫 멤버십 폴백 삭제 (1~2일 관찰)
-2. Q3 `workspace_mismatch` 409 — `mismatch` 로그로 교차 조회 화면 분류 후
-3. Q5 보류 중 읽기 정지 · `onWorkspaceSocket`(C7) · internal user-project-ids
-4. `today-review` · `projects/workspace/:id/all-tasks` 비소속 200 빈 응답 → 403 통일
-5. q-note JWT `businessId` 클레임 → Q Note L3/L4 공유 불통(`q-note/middleware/auth.py:22`, `services/authTokens.js:70`)
-6. Fable 경고: cue/help qhelper 모드 stale 검사 없음(데이터 미주입) · PostsPage.tsx:2519 raw fetch 헤더 없음 · editor-image 409/403 시 업로드 파일 디스크 잔존(기존)
+**A. 지금 흐름**
+1. 입력 임시저장 설계 재게이트 → 라운드 1 구현 → Fable 게이트
+2. `64a327f7` 배포(Irene 지시 시) — 배포 후 운영 `business-membership` internal 호출 `{member:true}` + L3 세션 멤버 GET 200 실측
+3. Fable 비차단 경고: QNotePage `FindAnswerBtn` 이 비소유자에게 보임(누르면 403) → 읽기 모드 숨김 — 임시저장 라운드 1 에 묶기
 
-**B. 입력·화면**
-7. **입력 임시저장 구조화** — `docs/DRAFT_PERSISTENCE_DESIGN.md` (R=1·S=1 → 설계부터 Fable)
-8. 도크 Q note [메모 | 음성메모] 탭 · 검색 강조 잔여 · AI 일정 수정 화면 · GuestChatPanel 바닥 고정
+**B. 워크스페이스 — 운영 관찰 뒤**
+4. `[wsctx] summary` legacy 0 → 옛 번들 분기 삭제 · Q3 mismatch 409 · Q5 보류 중 읽기 정지 · onWorkspaceSocket(C7)
+5. today-review 소속 0 사용자 헤더-only 요청 200 빈 응답(no_canonical 합산) · list_sessions scope=mine 소속 미검사(본인 행만, 설계 판단)
 
-**C. 사람 차례 (Irene)**
-9. iOS 앱 재빌드(Codemagic `ios-testflight`) · 운영 피드백 #409·#410 답글
-10. 판단 대기 — platform_admin 비소속 워크스페이스 알림 범위 · 관리자 모드 알림 벨 범위 · PublicSignPage 이메일 선노출 · 보고서 공유 링크 무만료
+**C. 입력·화면**
+6. 도크 Q note [메모 | 음성메모] 탭 · 검색 강조 잔여 · AI 일정 수정 화면 · GuestChatPanel 바닥 고정 · PairCodePrompt/설치 배너 2개
 
-### 주요 변경사항
-- 서버는 범위 인자 없는 요청을 추측으로 채우지 않는다 — 창이 옛 워크스페이스면 409, 창은 따라간다
-- 스키마 변경 없음 · 공개 표면 변경 없음
+**D. Irene 차례**
+7. iOS 앱 재빌드 · #409·#410 답글 · 판단: platform_admin 비소속 알림 범위 · 관리자 모드 알림 벨 · PublicSignPage 이메일 선노출 · 보고서 공유 링크 무만료 · 운영 메일 백필·백로그
 
 ---
 
