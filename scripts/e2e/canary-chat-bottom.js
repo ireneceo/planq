@@ -193,6 +193,179 @@ async function run() {
           `과거 로드 후 ${afterOlder}건 → 복원 후 ${count}건`);
       }
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // ⑤~⑩ — 2026-09-11 운영 #409 · #410 + Irene:
+    //   #409 "모바일 채팅에서 대화할 때 바로 바로 쳐지는대로 화면스크롤이 안돼"
+    //   #410 "누가 보내든 새 메시지 올라오면 안정적이게 화면이 위로 이동해야 하는데"
+    //   Irene "알림왔을 때 채팅 가면 바로 가장 아래 … 키보드는 열지 말자.
+    //          보통 말하려고 할 때 알아서 클릭하지 않아?"
+    //   ★ 여태 이 카나리는 **들어가서 바라보기만** 했다 — 치지도, 보내지도, 알림 경로를 밟지도
+    //     않았다. 그래서 위 신고 셋이 전부 초록 아래로 지나갔다.
+    const INPUT_SEL = '[data-testid="qtalk-input"], textarea[enterkeyhint="send"]';
+    const SEND_SEL = '[data-testid="qtalk-send"], textarea[enterkeyhint="send"] + button';
+    const inputFocused = (sel) => { const el = document.querySelector(sel); return !!el && document.activeElement === el; };
+    const inputHeight = (sel) => { const el = document.querySelector(sel); return el ? Math.round(el.getBoundingClientRect().height) : 0; };
+    const lastText = () => {
+      const items = document.querySelectorAll('[data-testid="qtalk-messages"] [data-msg-id]');
+      return items.length ? (items[items.length - 1].innerText || '') : '';
+    };
+    const TOUCH_VIEWPORTS = [
+      { key: '터치폰 375×667', vp: { width: 375, height: 667, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } },
+      { key: '터치태블릿 820×1180', vp: { width: 820, height: 1180, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } },
+    ];
+    // 소켓 도착 경로 — 로그인 rate-limit 을 먹지 않게 토큰을 직접 서명한다(같은 사람, 다른 연결).
+    const jwt = require('/opt/planq/dev-backend/node_modules/jsonwebtoken');
+    const apiToken = jwt.sign({ id: OWNER }, process.env.JWT_SECRET, { expiresIn: '10m' });
+    const API = process.env.E2E_API || 'http://127.0.0.1:3003';
+    const openConv = async () => {
+      await b.goto(page, `/talk?conv=${convId}`);
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="qtalk-messages"] [data-msg-id]').length > 0,
+        { timeout: 20000 },
+      ).catch(() => null);
+      await b.sleep(1200);
+    };
+    const listCenter = () => page.evaluate(() => {
+      const l = document.querySelector('[data-testid="qtalk-messages"]');
+      if (!l) return null;
+      const r = l.getBoundingClientRect();
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    });
+
+    for (const { key, vp } of TOUCH_VIEWPORTS) {
+      await page.setViewport(vp);
+      await openConv();
+
+      // ⑤ 터치 기기는 방에 들어가도 입력란에 포커스를 주지 않는다 (= 키보드가 안 뜬다)
+      const touchMq = await page.evaluate(() => matchMedia('(hover: none) and (pointer: coarse)').matches);
+      const f0 = await page.evaluate(inputFocused, INPUT_SEL);
+      push(`${key} · 진입 시 키보드 안 띄움`, touchMq && !f0, `터치판정=${touchMq} 입력란포커스=${f0}`);
+
+      // ⑥ 줄이 늘어 입력란이 자라도 마지막 메시지가 입력란 바로 위에 붙어 있다 (#409)
+      await page.click(INPUT_SEL);
+      const h0 = await page.evaluate(inputHeight, INPUT_SEL);
+      // ★ 기준은 "지금 쉬고 있는 바닥거리" 다 — 목록 아래 여백 때문에 바닥에 붙어 있어도 0 이 아닐 수 있다.
+      //   절대값(≤4)으로 쟀더니 옛 코드가 쉬는 자리(15px)부터 빨간불이 떴다(판정 기계 오류, 2026-09-11 실측).
+      const rest0 = (await page.evaluate(MEASURE)).distance ?? 0;
+      let worst = 0; let hidden = 0; const trail = [];
+      for (let i = 1; i <= 4; i++) {
+        await page.keyboard.type(`canary line ${i}`);
+        await page.keyboard.down('Shift'); await page.keyboard.press('Enter'); await page.keyboard.up('Shift');
+        await b.sleep(200);
+        const m = await page.evaluate(MEASURE);
+        worst = Math.max(worst, m.distance ?? 9999);
+        if (!m.visible) hidden++;
+        trail.push(m.distance);
+      }
+      const h1 = await page.evaluate(inputHeight, INPUT_SEL);
+      const grew = h1 - h0 >= 30;   // 검사기가 실제로 입력란을 키웠는가 — 안 자랐으면 아무것도 안 잰 것이다
+      push(`${key} · 타이핑 중 마지막 메시지 유지`, grew && hidden === 0 && worst <= rest0 + 4,
+        `입력란 ${h0}→${h1}px(자람=${grew}) · 쉬는 바닥거리=${rest0} · 줄마다=[${trail.join(',')}] · 가림 ${hidden}회`);
+      await page.keyboard.down('Control'); await page.keyboard.press('KeyA'); await page.keyboard.up('Control');
+      await page.keyboard.press('Backspace');
+      await b.sleep(250);
+
+      // ⑦⑧ 공통 — **프레임마다** 바닥거리를 적는다.
+      //   몇 번 찍어 보는 것으로는 "올라가다 멈춘다" 를 못 본다: 부드러운 스크롤은 수십 ms 안에
+      //   끝나 버려 60ms 샘플에는 이미 도착해 있다. 새 메시지가 붙은 뒤 **한 프레임이라도** 쉬는
+      //   자리보다 떨어져 그려졌다면 사용자는 그 움직임을 본다.
+      const startRec = (needle, ms) => {
+        const l = document.querySelector('[data-testid="qtalk-messages"]');
+        window.__chatRec = [];
+        if (!l) return;
+        const t0 = performance.now();
+        const tick = () => {
+          const it = l.querySelectorAll('[data-msg-id]');
+          const has = it.length > 0 && (it[it.length - 1].innerText || '').includes(needle);
+          window.__chatRec.push({ d: Math.round(l.scrollHeight - l.scrollTop - l.clientHeight), has });
+          if (performance.now() - t0 < ms) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      };
+      const judgeRec = (rec, rest) => {
+        const withMsg = rec.filter((f) => f.has);
+        const lag = withMsg.filter((f) => f.d > rest + 4);
+        return { frames: withMsg.length, lag: lag.length, maxD: withMsg.reduce((a, f) => Math.max(a, f.d), 0) };
+      };
+      // ★ 프레임 기록만으로는 **옛 코드도 초록**이었다(2026-09-11 반증 실측) — 헤드리스는 짧은
+      //   smooth 스크롤을 중간 프레임 없이 끝낸다. 그래서 **기전**을 같이 센다:
+      //   따라가기에 smooth 가 걸리는가 · 목록 안 요소에 scrollIntoView 를 거는가(조상까지 굴린다).
+      //   둘 다 실기기(iOS)에서 "올라가다 멈춘다" 의 재료이고, 헤드리스에서도 참/거짓이 갈린다.
+      const instrScroll = () => {
+        window.__scrollCalls = { smooth: 0, intoViewInList: 0 };
+        if (window.__scrollInstr) return;
+        window.__scrollInstr = true;
+        const list = () => document.querySelector('[data-testid="qtalk-messages"]');
+        const oSIV = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function (a) {
+          const l = list();
+          if (l && l.contains(this)) window.__scrollCalls.intoViewInList++;
+          if (a && typeof a === 'object' && a.behavior === 'smooth') window.__scrollCalls.smooth++;
+          return oSIV.apply(this, arguments);
+        };
+        const oST = Element.prototype.scrollTo;
+        Element.prototype.scrollTo = function (a) {
+          if (a && typeof a === 'object' && a.behavior === 'smooth') window.__scrollCalls.smooth++;
+          return oST.apply(this, arguments);
+        };
+      };
+
+      // ⑦ 내가 보내면 **곧바로** 바닥 — 부드러운 스크롤이 중간에 걸려 있지 않다 (#410)
+      const sendText = `canary send ${vp.width}-${Date.now() % 100000}`;
+      await page.keyboard.type(sendText);
+      await b.sleep(300);
+      const rest1 = (await page.evaluate(MEASURE)).distance ?? 0;
+      await page.evaluate(instrScroll);
+      await page.evaluate(startRec, sendText, 900);
+      await page.click(SEND_SEL);
+      await b.sleep(1100);
+      const j7 = judgeRec(await page.evaluate(() => window.__chatRec || []), rest1);
+      const c7 = await page.evaluate(() => window.__scrollCalls);
+      const m7 = await page.evaluate(MEASURE);
+      push(`${key} · 보내면 즉시 바닥`, j7.frames > 0 && j7.lag === 0 && m7.visible && c7.smooth === 0 && c7.intoViewInList === 0,
+        `쉬는 바닥거리=${rest1} · 보낸 글 프레임 ${j7.frames} 중 떨어져 그려진 ${j7.lag} (최대 ${j7.maxD}px) · smooth ${c7.smooth}회 · 목록 scrollIntoView ${c7.intoViewInList}회 · 끝 보임=${m7.visible}`);
+
+      // ⑧ 다른 연결(소켓)로 도착한 새 메시지도 따라간다 (#410 "누가 보내든")
+      const sockText = `canary socket ${vp.width}-${Date.now() % 100000}`;
+      const rest2 = (await page.evaluate(MEASURE)).distance ?? 0;
+      await page.evaluate(instrScroll);
+      await page.evaluate(startRec, sockText, 3500);
+      const r = await fetch(`${API}/api/projects/conversations/${convId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiToken}` },
+        body: JSON.stringify({ content: sockText }),
+      }).catch((e) => ({ ok: false, status: e.message }));
+      await b.sleep(3700);
+      const j8 = judgeRec(await page.evaluate(() => window.__chatRec || []), rest2);
+      const c8 = await page.evaluate(() => window.__scrollCalls);
+      const m8 = await page.evaluate(MEASURE);
+      push(`${key} · 소켓 도착 메시지도 바닥`, r.ok && j8.frames > 0 && j8.lag === 0 && m8.visible && c8.smooth === 0 && c8.intoViewInList === 0,
+        `POST=${r.status} · 쉬는 바닥거리=${rest2} · 도착 프레임 ${j8.frames} 중 떨어져 그려진 ${j8.lag} (최대 ${j8.maxD}px) · smooth ${c8.smooth}회 · 목록 scrollIntoView ${c8.intoViewInList}회 · 끝 보임=${m8.visible}`);
+
+      // ⑨ 알림 탭 — 입력 중이고 위로 올려 둔 상태에서 알림을 누르면: 키보드를 내리고 바닥으로
+      await page.click(INPUT_SEL);
+      const c = await listCenter();
+      if (c) { await page.mouse.move(c.x, c.y); await page.mouse.wheel({ deltaY: -1500 }); await b.sleep(600); }
+      const beforeTap = await page.evaluate(MEASURE);
+      const focusedBefore = await page.evaluate(inputFocused, INPUT_SEL);
+      await page.evaluate((id) => window.dispatchEvent(
+        new CustomEvent('planq:navigate', { detail: { path: `/talk?conv=${id}` } }),
+      ), convId);
+      await b.sleep(1200);
+      const afterTap = await page.evaluate(MEASURE);
+      const focusedAfter = await page.evaluate(inputFocused, INPUT_SEL);
+      const prepared = focusedBefore && beforeTap.distance > 240;   // 준비 상태를 실제로 만들었는가
+      push(`${key} · 알림 탭 → 키보드 내림 + 바닥`, prepared && !focusedAfter && afterTap.visible,
+        `준비(포커스=${focusedBefore}, 바닥거리=${beforeTap.distance}) → 탭 후 포커스=${focusedAfter} 바닥거리=${afterTap.distance} 보임=${afterTap.visible}`);
+    }
+
+    // ⑩ 대조군 — 마우스 기기(데스크탑)는 종전대로 들어가자마자 칠 수 있다.
+    //    이게 없으면 "어디서도 포커스 안 줌" 같은 둔한 코드도 ⑤ 를 통과한다.
+    await page.setViewport({ width: 1440, height: 900 });
+    await openConv();
+    const fd = await page.evaluate(inputFocused, INPUT_SEL);
+    push('데스크탑 1440×900 · 진입 시 입력란 포커스(대조군)', fd, `입력란포커스=${fd}`);
   } catch (e) {
     results.push({ name: 'canary-chat-bottom', fail: 0, fatal: 1, details: ['FATAL ' + e.message] });
   } finally {

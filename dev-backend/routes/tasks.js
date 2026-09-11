@@ -1163,10 +1163,27 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     if (title !== undefined) updates.title = title;
     if (description !== undefined) updates.description = description;
     if (body !== undefined) updates.body = body;
-    if (start_date !== undefined) updates.start_date = start_date;
+    // ★ 날짜 입력 정규화 (2026-09-11 Fable 게이트 W2) — 여태 받은 값을 그대로 DATEONLY 에 넣어
+    //   `due_date: ''` 가 **500** `Incorrect date value: 'Invalid date'` 였다. 화면의 "지우기" 가
+    //   빈 문자열을 보내면 저장 실패 뱃지만 뜨고 이유는 안 보였다.
+    //   '' · null → 비움(null) / 'YYYY-MM-DD…' → 앞 10자리 / 그 외·없는 날짜(2월 31일) → 400 으로 **이유를** 돌려준다.
+    //   DB 가 조용히 다른 날로 굴리지 않게 달력 왕복으로 확인한다.
+    const normDateInput = (v) => {
+      if (v === null || v === '') return { ok: true, value: null };
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
+      if (!m) return { ok: false };
+      const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+      if (d.getUTCFullYear() !== Number(m[1]) || d.getUTCMonth() !== Number(m[2]) - 1 || d.getUTCDate() !== Number(m[3])) return { ok: false };
+      return { ok: true, value: `${m[1]}-${m[2]}-${m[3]}` };
+    };
+    for (const [field, raw] of [['start_date', start_date], ['due_date', due_date], ['planned_week_start', planned_week_start]]) {
+      if (raw === undefined) continue;
+      const n = normDateInput(raw);
+      if (!n.ok) return errorResponse(res, `invalid_date:${field}`, 400);
+      updates[field] = n.value;
+    }
     if (assignee_id !== undefined) updates.assignee_id = assignee_id;
     if (status !== undefined) updates.status = status;
-    if (due_date !== undefined) updates.due_date = due_date;
     if (estimated_hours !== undefined) updates.estimated_hours = estimated_hours;
     if (actual_hours !== undefined) {
       updates.actual_hours = actual_hours;
@@ -1174,7 +1191,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     }
     if (progress_percent !== undefined) updates.progress_percent = progress_percent;
     if (category !== undefined) updates.category = category;
-    if (planned_week_start !== undefined) updates.planned_week_start = planned_week_start;
+    // (planned_week_start 는 위 날짜 정규화 루프가 넣는다 — 여기서 원본을 다시 쓰면 정규화가 덮인다)
     // #353 ⑤ 중요도 — ENUM 밖 값은 **400 으로 돌려준다.** 조용히 떨구면 사용자는 저장된 줄 안다.
     //   (miss_policy 는 조용히 무시하는 옛 방식인데, 그건 내부 정책 값이고 이건 사용자가 고르는 값이다.)
     //   null·'' 은 "미지정으로 되돌리기" 다.
@@ -1323,6 +1340,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     // 변경 사항 스냅샷 (history 기록용) — update 직전에 비교
     const prev = {
       status: task.status, assignee_id: task.assignee_id, due_date: task.due_date,
+      start_date: task.start_date,
       title: task.title, project_id: task.project_id,
     };
 
@@ -1543,6 +1561,17 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     }
 
     // 단계이동·주요 필드 변경 history 기록 (워크플로우 외 직접 PUT 도 추적)
+    // ★ 2026-09-11 (Fable 게이트 경고 ①) — **일정(시작·마감) 변경은 행동 계층과 같은 함수**가 이력·알림을 남긴다.
+    //   여태 여기는 마감이 바뀔 때만 이력을 적고 시작일만 바뀌면 아무것도 안 남겼다 — 일괄 수정
+    //   (task_actions.updateSchedule)과 같은 "일정 변경" 이 문에 따라 원장에 남기도 하고 안 남기도 했다.
+    //   판정은 **요청에 필드가 있었나가 아니라 값이 실제로 바뀌었나**. DATEONLY 는 문자열·Date 둘 다로
+    //   오므로 비교 전에 dateOnlyOf 를 거친다(String().slice 는 Date 에서 "Sat Oct 1" 이 된다).
+    const { dateOnlyOf } = require('../utils/dateOnly');
+    const schedBefore = { start_date: dateOnlyOf(prev.start_date), due_date: dateOnlyOf(prev.due_date) };
+    const schedAfter = { start_date: dateOnlyOf(task.start_date), due_date: dateOnlyOf(task.due_date) };
+    const schedChange = (schedBefore.start_date !== schedAfter.start_date || schedBefore.due_date !== schedAfter.due_date)
+      ? { before: schedBefore, after: schedAfter }
+      : null;
     try {
       const actorId = req.user.id;
       const fmtDate = (d) => (d ? String(d).slice(0, 10) : '—');
@@ -1564,9 +1593,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
           note: `${nm(fromU)} → ${nm(toU)}`,
         });
       }
-      if (updates.due_date !== undefined && String(updates.due_date) !== String(prev.due_date)) {
-        events.push({ event_type: 'due_change', note: `${fmtDate(prev.due_date)} → ${fmtDate(updates.due_date)}` });
-      }
+      // (일정 이력은 아래 schedChange — taskActions.logScheduleChange 가 남긴다)
       if (updates.title !== undefined && updates.title !== prev.title) {
         events.push({ event_type: 'title_change', note: `${prev.title} → ${updates.title}` });
       }
@@ -1586,6 +1613,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
           task_id: task.id, actor_user_id: actorId, ...e,
         })));
       }
+      if (schedChange) await taskActions.logScheduleChange(task, actorFrom(req), schedChange);
     } catch (e) {
       // history 기록 실패는 전체 PUT 을 깨뜨리지 않도록 silent (로그만)
       console.warn('[task PUT] history record failed:', e.message);
@@ -1644,23 +1672,11 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
           link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
         }).catch((e) => console.warn('[notify reassign]', e.message));
       }
-      // 운영 #279 — 기간(마감) 변경 알림.
-      //   담당자에게 마감 편집을 열었으므로, 발주자가 "내가 준 마감이 조용히 밀린" 상태를 겪으면 안 된다.
-      //   이력(TaskStatusHistory event_type='due_change')은 위에서 이미 남는다 — 여기서는 알림만.
-      //   방향: 바꾼 사람이 담당자면 요청자에게, 요청자/owner 면 담당자에게. 본인 제외.
-      if (updates.due_date !== undefined && String(updates.due_date) !== String(prev.due_date)) {
-        const fmt = (d) => (d ? String(d).slice(0, 10) : '—');
-        const requesterId = task.request_by_user_id || task.created_by;
-        const targetId = (req.user.id === task.assignee_id) ? requesterId : task.assignee_id;
-        if (targetId && targetId !== req.user.id) {
-          notify({
-            userId: targetId, businessId: task.business_id, eventKind: 'task',
-            titleSpec: { feature: 'task', action: 'task_due_changed', subject: `"${task.title}"` },
-            body: `"${task.title}" — ${fmt(prev.due_date)} → ${fmt(updates.due_date)}`,
-            link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
-          }).catch((e) => console.warn('[notify due_change]', e.message));
-        }
-      }
+      // 운영 #279 — 기간(시작·마감) 변경 알림.
+      //   담당자에게 기간 편집을 열었으므로, 발주자가 "내가 준 마감이 조용히 밀린" 상태를 겪으면 안 된다.
+      //   ★ 2026-09-11 — 일괄 수정과 **같은 함수**(담당자 + 의뢰자, 바꾼 본인 제외). 여태 여기만
+      //     "한 방향 한 사람" 이라, owner 가 바꾸면 의뢰자는 몰랐고 시작일 변경은 아무에게도 안 갔다.
+      if (schedChange) taskActions.notifyScheduleChange(task, actorFrom(req), schedChange);
       // 상태 변경
       if (updates.status !== undefined && updates.status !== prev.status) {
         const newStatus = updates.status;

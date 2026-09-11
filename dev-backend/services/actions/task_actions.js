@@ -1425,7 +1425,59 @@ async function setPolicy(task, actor, { policy } = {}) {
  *
  * @returns {{ok:true, data:{before, after}} | {ok:false, code, http}}
  */
-async function updateSchedule(task, actor, { start_date, due_date, allowClosed = false } = {}) {
+const scheduleRangeText = (r) => `${(r && r.start_date) || '—'}~${(r && r.due_date) || '—'}`;
+
+/**
+ * 일정이 바뀐 **뒤의 이력** — `due_change` 1행.
+ *
+ * ★ 2026-09-11 (Fable 게이트 경고 ①) — 일괄 수정(updateSchedule)과 화면 편집(routes/tasks.js PUT)이
+ *   **같은 함수**를 부른다. 여태 PUT 은 마감이 바뀔 때만 이력을 남기고 시작일만 바뀌면 아무것도
+ *   남기지 않았다 — 같은 "일정 변경" 이 문에 따라 원장에 남기도 하고 안 남기도 했다
+ *   (memory feedback_comment_lies_predicate_drifts — 주석으로 약속하지 말고 같은 함수를 부르게).
+ * ★ 이벤트 이름을 **새로 짓지 않는다.** `due_change` 가 정본이다 — 화면 라벨
+ *   (qtask detail.history.event.due_change)과 services/event_stream.js 가 그 값을 읽는다.
+ * ★ from_status/to_status 는 비운다 — revertStatus 가 `from_status IS NOT NULL` 인 최신 행으로
+ *   되돌릴 곳을 찾으므로, 채우면 상태 되돌리기가 날짜 변경 지점으로 잘못 간다.
+ */
+function logScheduleChange(task, actor, { before, after, transaction = null } = {}) {
+  return logHistory({
+    taskId: task.id, eventType: 'due_change',
+    actorUserId: actor.userId,
+    note: `${scheduleRangeText(before)} → ${scheduleRangeText(after)}`,
+    transaction,
+  });
+}
+
+/**
+ * 일정이 바뀐 **뒤의 알림** — 담당자 + 의뢰자(바꾼 본인 제외). 트랜잭션 **밖에서** 부른다.
+ * CLAUDE.md §13 — 일정이 바뀌면 **기다리는 사람에게도** 알린다
+ * (memory feedback_notify_watcher_not_only_actor).
+ */
+async function notifyScheduleChange(task, actor, { before, after } = {}) {
+  try {
+    const wsName = await workspaceName(task.business_id);
+    // ★ 제목은 **무엇이 바뀌었는지** 대로 — 시작일만 바뀌었는데 "마감일 변경" 이면 거짓이다
+    //   (2026-09-11 Fable 게이트 W1. memory feedback_new_behavior_makes_copy_lie).
+    const dueChanged = (before && before.due_date) !== (after && after.due_date);
+    const startChanged = (before && before.start_date) !== (after && after.start_date);
+    const action = dueChanged && startChanged ? 'task_schedule_changed'
+      : dueChanged ? 'task_due_changed'
+        : 'task_start_changed';
+    notifyStatusAudience(task, actor, {
+      title: task.title,
+      action,
+      body: `"${task.title}" — ${scheduleRangeText(before)} → ${scheduleRangeText(after)}`,
+      wsName,
+    });
+  } catch (err) { console.warn('[task_actions notifyScheduleChange]', err.message); }
+}
+
+/**
+ * @param {object} opts
+ * @param {boolean} [opts.notify=true]  false 면 업무별 알림을 보내지 않는다 — 일괄 수정은
+ *   받는 사람당 요약 1통을 따로 보낸다(업무마다 보내면 수백 통이 된다).
+ */
+async function updateSchedule(task, actor, { start_date, due_date, allowClosed = false, notify = true } = {}) {
   if (!(await canChangeStatus(task, actor))) return fail('forbidden_fields:schedule', 403);
   if (!allowClosed && ['completed', 'canceled'].includes(task.status)) return fail('task_closed');
 
@@ -1474,12 +1526,7 @@ async function updateSchedule(task, actor, { start_date, due_date, allowClosed =
     //   이벤트 스트림에서도 조용히 빠진다(memory: 새 상태값이 기본값으로 떨어지면 안 열린다로 보인다).
     //   ★ from_status/to_status 는 비운다 — revertStatus 가 `from_status IS NOT NULL` 인 최신 행으로
     //     되돌릴 곳을 찾으므로, 채우면 상태 되돌리기가 날짜 변경 지점으로 잘못 간다.
-    await logHistory({
-      taskId: task.id, eventType: 'due_change',
-      actorUserId: actor.userId,
-      note: `${before.start_date || '—'}~${before.due_date || '—'} → ${after.start_date || '—'}~${after.due_date || '—'}`,
-      transaction: t,
-    });
+    await logScheduleChange(task, actor, { before, after, transaction: t });
     await t.commit();
   } catch (err) { await t.rollback(); throw err; }
 
@@ -1489,15 +1536,7 @@ async function updateSchedule(task, actor, { start_date, due_date, allowClosed =
   // CLAUDE.md §13 — 일정이 바뀌면 **기다리는 사람에게도** 알린다.
   //   담당자만 알리면 의뢰자는 마감이 밀린 것을 모르고 지나간다
   //   (memory feedback_notify_watcher_not_only_actor).
-  try {
-    const wsName = await workspaceName(task.business_id);
-    notifyStatusAudience(task, actor, {
-      title: task.title,
-      action: 'task_due_changed',
-      body: `${after.start_date || '—'} ~ ${after.due_date || '—'}`,
-      wsName,
-    });
-  } catch (err) { console.warn('[task_actions updateSchedule notify]', err.message); }
+  if (notify) await notifyScheduleChange(task, actor, { before, after });
 
   return done({ before, after, changed: true });
 }
@@ -1506,8 +1545,8 @@ module.exports = {
   saveDeliverableVersion,
   // 행동 — 생성
   createTask, createComment,
-  // 행동 — 일정(시작·마감) 수정. 일괄 수정이 지나는 문.
-  updateSchedule,
+  // 행동 — 일정(시작·마감) 수정. 일괄 수정이 지나는 문. 이력·알림은 화면 편집(PUT)도 같은 함수를 부른다.
+  updateSchedule, logScheduleChange, notifyScheduleChange,
   // 행동 — 전이
   ack, submitReview, cancelReview, complete,
   approve, requestRevision, revertReviewerState,

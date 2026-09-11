@@ -31,11 +31,18 @@ import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction } from '../../utils/imeKey';
 import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
 import GuestLinkPrompt from '../../components/QTalk/GuestLinkPrompt';
+import { isNativeApp } from '../../services/native';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
 const draftKey = (userId: string | number | undefined, convId: number | null | undefined) =>
   `qtalk_draft_${userId || 0}_${convId}`;
+
+// 터치 기기 — 손가락으로 쓰는 기기. 판정은 **한 곳**이다(탭-툴바 · 진입 포커스 · 알림 탭이 같이 쓴다).
+//   `(hover: none)` 하나만 보면 헤드리스 데스크탑도 참이 된다(2026-09-11 실측) —
+//   거친 포인터까지 같이 본다. 앱 껍데기는 기기와 무관하게 터치다.
+const isTouchDevice = () =>
+  (typeof window !== 'undefined' && window.matchMedia('(hover: none) and (pointer: coarse)').matches) || isNativeApp();
 
 interface Props {
   project: MockProject | null;
@@ -337,9 +344,26 @@ const ChatPanel: React.FC<Props> = ({
   const fitTextarea = React.useCallback(() => {
     const el = textInputRef.current;
     if (!el) return;
-    const floor = window.matchMedia('(max-width: 1024px)').matches ? MIN_H_PHONE : MIN_H;
+    // ★ 2026-09-11 운영 #409 "대화할 때 쳐지는대로 화면스크롤이 안돼" — 목록 위치를 **같이** 잡는다.
+    //   높이를 'auto' 로 접었다 펴는 순간 목록이 잠깐 커지며 브라우저가 scrollTop 을 깎고(clamp),
+    //   다시 펴지면 깎인 만큼 마지막 메시지가 입력란 뒤로 들어간다. 여러 줄일 때 **한 글자마다** 그랬다.
+    //   아래 ResizeObserver 는 scrollHeight 만 비교해서 이 변화(목록 높이만 줄어듦)를 못 봤다.
+    //   → 고정 중이면 바닥에, 아니면 보던 위치에 되돌려 놓는다. (ref 는 아래에서 선언 — 호출 시점엔 있다)
+    const list = messageListRef.current;
+    const prevTop = list ? list.scrollTop : 0;
+    const narrow = window.matchMedia('(max-width: 1024px)').matches;
+    const floor = narrow ? MIN_H_PHONE : MIN_H;
+    // ★ 2026-09-11 — 키보드가 올라온 폰에서 입력란이 **보이는 높이의 28%** 를 넘지 않는다.
+    //   고정 120px 이면 가시 높이 337px(키보드 up) 에서 헤더 두 밴드 + 입력줄이 열을 채워
+    //   목록이 패딩(32px)만 남고, 넘친 10px 만큼 입력란 아랫단이 키보드 뒤로 들어갔다
+    //   (caret 카나리 실측: MAIN scrollHeight 291 > 281, overflow:hidden). 카톡도 몇 줄 뒤엔 안에서 스크롤한다.
+    const vvH = window.visualViewport?.height ?? window.innerHeight;
+    const cap = narrow ? Math.max(floor, Math.min(MAX_H, Math.floor(vvH * 0.28))) : MAX_H;
     el.style.height = 'auto';
-    el.style.height = `${Math.max(floor, Math.min(el.scrollHeight, MAX_H))}px`;
+    el.style.height = `${Math.max(floor, Math.min(el.scrollHeight, cap))}px`;
+    if (!list) return;
+    if (pinBottomRef.current) list.scrollTop = list.scrollHeight;
+    else list.scrollTop = prevTop;
   }, []);
   React.useLayoutEffect(() => {
     const el = textInputRef.current;
@@ -359,7 +383,7 @@ const ChatPanel: React.FC<Props> = ({
       window.visualViewport?.removeEventListener('resize', measure);
     };
   }, [fitTextarea]);
-  // 활성 대화방 변경 시 자동 포커스 (모바일에서는 키보드 자동 펼치지 않도록 skip)
+  // 활성 대화방 변경 시 자동 포커스 — **마우스 기기에서만**. 터치 기기는 키보드를 대신 띄우지 않는다.
   React.useEffect(() => {
     if (!activeConversationId) return;
     const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches;
@@ -370,7 +394,16 @@ const ChatPanel: React.FC<Props> = ({
       const vv = window.visualViewport;
       document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
     }
-    if (isMobile) return;
+    // ★ 2026-09-11 Irene: "알람왔을 때 가면 키보드는 열지 말자. 보통 말하려고 할 때 알아서 클릭하지 않아?"
+    //   카톡·행아웃도 방에 들어가면 키보드가 닫혀 있다. 여태 판정이 **폭(≤640)** 이라 태블릿은 자동
+    //   포커스를 받았고, 폰은 skip 만 할 뿐 **이전 방에서 쥐고 있던 포커스를 놓지 않았다** —
+    //   ChatPanel 은 방을 바꿔도 다시 마운트되지 않아 입력란이 그대로 포커스를 들고 있고, 알림으로
+    //   다른 방에 들어가도 키보드가 따라 올라왔다. 판정을 기기 성격(터치)으로 바꾸고, 쥔 포커스를 놓는다.
+    if (isTouchDevice()) {
+      const el = textInputRef.current;
+      if (el && document.activeElement === el) el.blur();
+      return;
+    }
     // N+93 — 채팅방 진입 시 바로 타이핑 가능하게 입력란 자동 포커스 (클릭 불필요).
     //   옛 코드: 80ms 1회 — 메시지 로딩으로 textarea 가 아직 mount 안 됐으면 ref null → no-op (포커스 실패).
     //   새 코드: mount 될 때까지 50ms 간격 재시도(최대 ~600ms) 후 1회 포커스. 사용자가 이미 다른 곳을
@@ -432,7 +465,6 @@ const ChatPanel: React.FC<Props> = ({
   // N+93 — 터치(hover:none) tap-to-reveal: 탭한 메시지만 액션 툴바 노출 (평소엔 0개 → 글 안 가림).
   //   데스크탑은 hover 동작이라 무관(이 state 미사용). 대화 전환·바깥 탭 시 해제.
   const [activeToolbarMsgId, setActiveToolbarMsgId] = useState<number | null>(null);
-  const isTouchDevice = () => typeof window !== 'undefined' && window.matchMedia('(hover: none)').matches;
   // 사이클 N+16-F — 더보기 메뉴는 anchor 함께 저장 → portal 렌더 + fixed 좌표
   const [moreMenu, setMoreMenu] = useState<{ msgId: number; anchorEl: HTMLElement } | null>(null);
   const moreMenuMsgId = moreMenu?.msgId ?? null;
@@ -774,9 +806,8 @@ const ChatPanel: React.FC<Props> = ({
   const prependPendingRef = React.useRef<{ h: number; t: number } | null>(null);
   // 과거 로드 직후 ResizeObserver/MutationObserver 가 바닥으로 끌어내리는 경합 차단 (타임스탬프 가드).
   const lastPrependAtRef = React.useRef(0);
-  // 메시지 리스트 끝의 sentinel — scrollHeight 계산 없이 "마지막 메시지 다음 위치"로 정확히 스크롤.
-  // 이미지 / 번역 / 카드 같은 비동기 콘텐츠가 나중에 추가되어 scrollHeight 가 변동해도 sentinel
-  // 자체가 끝에 있어 항상 바닥을 가리킴.
+  // 메시지 리스트 끝의 sentinel. ★ 2026-09-11 부터 **스크롤에는 쓰지 않는다** — scrollIntoView 가
+  //   조상 스크롤러까지 굴려 모바일에서 튀었다(scrollToBottom 주석). 목록 끝 표식으로만 남긴다.
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
   const scrollKey = (convId: number | null | undefined) => convId ? `qtalk_scroll_${convId}` : null;
 
@@ -797,67 +828,61 @@ const ChatPanel: React.FC<Props> = ({
   const userGestureAtRef = React.useRef(0);
   const markUserScrollGesture = React.useCallback(() => { userGestureAtRef.current = Date.now(); }, []);
 
-  const scrollToBottom = React.useCallback((smooth = true) => {
+  // ★ 2026-09-11 운영 #410 "메시지가 딱 딱 안올라가. 누가 보내든 새 메시지 올라오면 안정적이게"
+  //   따라가는 스크롤은 **즉시**다. 여태 기본값이 smooth 였고 방식이 sentinel.scrollIntoView 였다:
+  //   ① 부드러운 스크롤 도중에 옵티미스틱→서버 id 교체·RO·MO 가 즉시 스크롤을 또 걸어 애니메이션이
+  //      중간에 끊기거나 되감겼다 — 사용자에게는 "올라가다 멈춘다".
+  //   ② scrollIntoView 는 **조상 스크롤러까지** 굴린다. 모바일 앱 셸은 main.tsx 가 그 조상 스크롤을
+  //      scrollTo(0,0) 으로 되돌리므로 한 번 더 튄다.
+  //   카톡·행아웃도 새 메시지는 애니메이션 없이 바닥에 붙는다. smooth 는 사용자가 누른 "↓" 버튼만 쓴다.
+  //   그리고 **목록 자신만** 굴린다(scrollTop 직접 — 브라우저가 최대값으로 자른다).
+  const scrollToBottom = React.useCallback((smooth = false) => {
     const doIt = () => {
-      const sentinel = messagesEndRef.current;
       const el = messageListRef.current;
-      if (sentinel) {
-        // scrollIntoView block:'end' 가 가장 신뢰성 높음 — 이미지 미로드 상태에서도 sentinel 위치는 정확.
-        try {
-          sentinel.scrollIntoView({ block: 'end', inline: 'nearest', behavior: smooth ? 'smooth' : 'auto' });
-          return;
-        } catch { /* 구형 브라우저 fallback */ }
-      }
       if (!el) return;
-      const target = el.scrollHeight - el.clientHeight;
       if (smooth && typeof el.scrollTo === 'function') {
-        el.scrollTo({ top: target, behavior: 'smooth' });
+        el.scrollTo({ top: el.scrollHeight - el.clientHeight, behavior: 'smooth' });
       } else {
-        el.scrollTop = target;
+        el.scrollTop = el.scrollHeight;
       }
     };
     // useLayoutEffect 안에서 호출 시 DOM commit 직후 layout phase 라 즉시 호출 가능 —
     // 옛 코드는 RAF x 2 지연으로 "첫 paint top 0 → 2 frame 후 bottom 점프" 회귀 발생.
     // 박제: 사이클 N+12 — 채팅방 진입 시 위에 갔다 옴 회귀. 비동기 콘텐츠 보정은 ResizeObserver 가 별도 처리.
     doIt();
-    // 후속 보정 1회 — 이미지/번역 박스가 nextTick 에 추가될 때 sentinel 따라가기.
-    window.requestAnimationFrame(doIt);
+    // 후속 보정 1회 — 이미지/번역 박스가 nextTick 에 추가될 때 따라가기. (smooth 는 애니메이션을 끊지 않게 1회만)
+    if (!smooth) window.requestAnimationFrame(doIt);
   }, []);
 
-  // 콘텐츠 크기 변화 감지 — 이미지 / 번역 박스 / 카드 같은 비동기 로드로 리스트 높이가 늘어날 때
-  // 사용자가 바닥 근처에 있다면 자동으로 다시 바닥. (멀리 위에 있다면 그대로 둠)
+  // 크기 변화 감지 — 이미지 / 번역 박스 / 카드 같은 비동기 로드로 내용이 늘거나,
+  // 입력란·첨부 칩·키보드 때문에 **목록 창 자체가 줄 때** 고정 중이면 바닥을 유지한다.
   React.useEffect(() => {
     const list = messageListRef.current;
     if (!list || typeof ResizeObserver === 'undefined') return;
-    let lastSize = 0;
-    const ro = new ResizeObserver(() => {
-      const cur = list.scrollHeight;
-      if (cur === lastSize) return;
-      lastSize = cur;
+    // ★ 2026-09-11 (#409) — 비교 키에 clientHeight 를 넣는다. scrollHeight 만 보면 입력란이 자라
+    //   **목록 창만 줄어든** 경우 값이 같아 여기서 돌아가 버렸고, 마지막 메시지가 입력란 뒤로 들어갔다.
+    let lastKey = '';
+    const onSizeChange = () => {
+      const key = `${list.scrollHeight}:${list.clientHeight}`;
+      if (key === lastKey) return;
+      lastKey = key;
       // 과거 메시지 prepend 로 인한 높이 변화는 바닥 yank 금지 (위 읽던 위치 유지)
       if (Date.now() - lastPrependAtRef.current < 800) return;
       // 고정 중이면 늘었든 줄었든 바닥이다 — 시간창·증감 판정 없음(위 pinBottomRef 주석).
-      if (pinBottomRef.current) { scrollToBottom(false); return; }
+      if (pinBottomRef.current) { scrollToBottom(); return; }
       const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-      if (distance < 240) scrollToBottom(false);
-    });
+      if (distance < 240) scrollToBottom();
+    };
+    const ro = new ResizeObserver(onSizeChange);
     ro.observe(list);
     // 자식 변화도 감지 (메시지 카드 추가/제거)
-    const mo = new MutationObserver(() => {
-      const cur = list.scrollHeight;
-      if (cur === lastSize) return;
-      lastSize = cur;
-      if (Date.now() - lastPrependAtRef.current < 800) return; // 과거 prepend 직후 바닥 yank 금지
-      if (pinBottomRef.current) { scrollToBottom(false); return; }
-      const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-      if (distance < 240) scrollToBottom(false);
-    });
+    const mo = new MutationObserver(onSizeChange);
     mo.observe(list, { childList: true, subtree: true });
     return () => { ro.disconnect(); mo.disconnect(); };
   }, [scrollToBottom]);
 
-  // 모바일 키보드 펼침 시 마지막 메시지 가림 방지 — visualViewport 가 60px 이상 줄면(키보드 up)
-  // 바닥 근처였다면 즉시(instant) 바닥으로. smooth 금지(N+28 진동 회귀). 멀리 위면 그대로 둠.
+  // 모바일 키보드 펼침 시 마지막 메시지 가림 방지 — 고정 중이면 뷰포트가 어떻게 바뀌든 즉시 바닥.
+  // 고정이 풀려 있으면 60px 이상 줄 때(키보드 up)만 바닥 근처 판정. smooth 금지(N+28 진동 회귀).
   React.useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
     const vv = window.visualViewport;
@@ -865,6 +890,7 @@ const ChatPanel: React.FC<Props> = ({
     const onResize = () => {
       const shrinkAmount = prevH - vv.height;
       prevH = vv.height;
+      if (pinBottomRef.current) { requestAnimationFrame(() => scrollToBottom()); return; }
       if (shrinkAmount < 60) return; // 키보드 up 만 (toolbar 흔들림 무시)
       const list = messageListRef.current;
       if (!list) return;
@@ -880,6 +906,37 @@ const ChatPanel: React.FC<Props> = ({
     };
     vv.addEventListener('resize', onResize);
     return () => vv.removeEventListener('resize', onResize);
+  }, [scrollToBottom]);
+
+  // ★ 2026-09-11 Irene: "알림왔을 때 채팅 가면 바로 가장 아래 나오는 것도 해주고 … 키보드는 열지 말자"
+  //   알림 탭은 `planq:navigate`(nativePush → NativeBridge) 로 온다. 이미 그 방을 보고 있었다면
+  //   activeConv 가 안 바뀌어 진입 초기화(pin 재설정)가 돌지 않는다 — 위로 올려 둔 채 그대로였다.
+  //   그래서 이 문을 직접 듣는다: 고정을 되살리고 바닥으로, 터치 기기면 쥐고 있던 포커스를 놓는다.
+  //   그리고 앱이 **뒤로 갈 때** 터치 기기에서는 포커스를 놓는다 — iOS 는 앱이 다시 앞으로 올 때
+  //   포커스가 남아 있으면 JS 가 알림 탭을 받기도 전에 키보드부터 올린다.
+  React.useEffect(() => {
+    const releaseInput = () => {
+      if (!isTouchDevice()) return;
+      const el = textInputRef.current;
+      if (el && document.activeElement === el) el.blur();
+    };
+    const onNavigate = (e: Event) => {
+      const path = String((e as CustomEvent<{ path?: string }>).detail?.path || '');
+      if (!path.includes('/talk')) return;
+      pinBottomRef.current = true;
+      userGestureAtRef.current = 0;
+      setShowScrollToBottom(false);
+      setPendingNewCount(0);
+      releaseInput();
+      requestAnimationFrame(() => scrollToBottom());
+    };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') releaseInput(); };
+    window.addEventListener('planq:navigate', onNavigate);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('planq:navigate', onNavigate);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [scrollToBottom]);
 
   // 스크롤 위치 localStorage 저장 (throttled via rAF) + floating "↓" 버튼 노출 결정.
@@ -967,7 +1024,7 @@ const ChatPanel: React.FC<Props> = ({
     //   여태 `next > prev` 만 봐서 그 경우 아무 보정이 없었고, 알림을 눌러 앱을 열면
     //   옛 scrollTop 이 짧아진 목록의 중간을 가리켰다.
     if (pinBottomRef.current) {
-      scrollToBottom(next > prev ? true : false);
+      scrollToBottom();
       return;
     }
 
@@ -1753,8 +1810,9 @@ const ChatPanel: React.FC<Props> = ({
                           onLoad={() => {
                             const list = messageListRef.current;
                             if (!list) return;
+                            if (pinBottomRef.current) { scrollToBottom(); return; }
                             const distance = list.scrollHeight - list.scrollTop - list.clientHeight;
-                            if (distance < 240) scrollToBottom(false);
+                            if (distance < 240) scrollToBottom();
                           }}
                           onError={(e) => {
                             // 미리보기 실패 — 파일 카드 형태로 in-place 교체. 깨진 아이콘 X.
@@ -1993,7 +2051,7 @@ const ChatPanel: React.FC<Props> = ({
       {showScrollToBottom && (
         <ScrollToBottomBtn
           type="button"
-          onClick={() => { pinBottomRef.current = true; scrollToBottom(); setPendingNewCount(0); }}
+          onClick={() => { pinBottomRef.current = true; scrollToBottom(true); setPendingNewCount(0); }}
           aria-label={t('chat.scrollToBottom', '맨 아래로') as string}
           title={t('chat.scrollToBottom', '맨 아래로') as string}
         >
@@ -2117,6 +2175,7 @@ const ChatPanel: React.FC<Props> = ({
           />
           <TextInput
             ref={textInputRef}
+            data-testid="qtalk-input"
             value={input}
             onChange={(e) => {
               const v = e.target.value;
@@ -2172,6 +2231,7 @@ const ChatPanel: React.FC<Props> = ({
           />
           <SendBtn
             type="button"
+            data-testid="qtalk-send"
             disabled={
               uploadingFiles.some(x => !x.error) ||
               (!input.trim() && stagedExistingIds.length === 0 && stagedPostIds.length === 0)

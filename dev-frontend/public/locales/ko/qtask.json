@@ -651,7 +651,7 @@
         "policy_change": "컨펌 정책 변경",
         "status_change": "단계 변경",
         "assignee_change": "담당자 변경",
-        "due_change": "마감일 변경",
+        "due_change": "일정 변경",
         "title_change": "업무명 변경",
         "project_change": "프로젝트 이관"
       }

@@ -651,7 +651,7 @@
         "policy_change": "changed approval rule",
         "status_change": "changed status",
         "assignee_change": "changed assignee",
-        "due_change": "changed due date",
+        "due_change": "changed schedule",
         "title_change": "renamed task",
         "project_change": "moved project"
       }

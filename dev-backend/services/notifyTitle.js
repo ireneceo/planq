@@ -52,6 +52,12 @@ const ACTIONS = {
   task_revision: { ko: '수정 요청', en: 'Changes requested' },
   task_completed: { ko: '완료', en: 'Completed' },
   task_due_changed: { ko: '마감일 변경', en: 'Due date changed' },
+  // 무엇이 바뀌었는지대로 부른다(task_actions.notifyScheduleChange). 시작일만 바뀌었는데
+  // "마감일 변경" 이라고 보내면 제목이 거짓이 된다(2026-09-11 Fable 게이트 W1).
+  task_start_changed: { ko: '시작일 변경', en: 'Start date changed' },
+  task_schedule_changed: { ko: '일정 변경', en: 'Schedule changed' },
+  // 프로젝트 일정 일괄 수정 — 업무마다 한 통씩 보내면 수백 통이 된다. 받는 사람당 요약 1통.
+  task_schedule_bulk_changed: { ko: '일정 일괄 변경', en: 'Schedule updated' },
   task_comment: { ko: '새 댓글', en: 'New comment' },
   task_mention: { ko: '멘션', en: 'Mentioned you' },
   task_hold: { ko: '보류', en: 'On hold' },

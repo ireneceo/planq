@@ -815,7 +815,7 @@
       "task.revision": "Changes requested",
       "task.revert": "Reverted",
       "task.assignee_change": "Assignee changed",
-      "task.due_change": "Due date changed",
+      "task.due_change": "Schedule changed",
       "task.project_change": "Moved to another project",
       "task.on_hold": "Task on hold",
       "qnote.created": "Meeting note linked"

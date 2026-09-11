@@ -7,8 +7,31 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        hideWebFormAccessoryBar()
         return true
+    }
+
+    // ── 키보드 위 ▲ ▼ ✓ 줄(폼 액세서리 바) 제거 (2026-09-11) ──
+    // Irene: "키보드 올라오면 왜 위아래 화살표랑 우측에 체크 있는 기능이 나와? 다른 앱은 안나오는데
+    //         이게 키보드 위에 붙어서 채팅내용을 더 못 보게 하는데."
+    // 그 줄은 WKWebView 가 입력란마다 붙이는 것이다(네이티브 앱 입력란에는 없다). 웹 코드로는 못 끈다.
+    //
+    // ★ @capacitor/keyboard 플러그인을 쓰지 않는 이유: 그 플러그인은 load 때 WKWebView 자신의
+    //   키보드 옵저버를 **떼어낸다**(removeObserver:self.webView ...). 그러면 키보드가 떠도
+    //   visualViewport 가 줄지 않아, 채팅·모달이 기대는 --vvh(main.tsx) 가 통째로 멈춘다.
+    //   resize:'native' 로 대신하면 키보드 애니메이션 + 0.2초 뒤에야 웹뷰가 줄어 입력란이 잠깐 가린다.
+    //   우리가 원하는 것은 **바 하나만** 없애는 것이다 — 그 부분(inputAccessoryView → nil)만 가져온다.
+    private func hideWebFormAccessoryBar() {
+        guard let cls = NSClassFromString("WKContentView") else { return }
+        let sel = #selector(getter: UIResponder.inputAccessoryView)
+        guard let original = class_getInstanceMethod(cls, sel) else { return }
+        let block: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+        let imp = imp_implementationWithBlock(unsafeBitCast(block, to: AnyObject.self))
+        // WKContentView 가 직접 구현하고 있으면 그 구현만 바꾸고, 상속받고 있으면 이 클래스에만 덧붙인다
+        // (상위 UIResponder 를 바꾸면 앱의 모든 응답자에 번진다).
+        if !class_addMethod(cls, sel, imp, method_getTypeEncoding(original)) {
+            method_setImplementation(original, imp)
+        }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

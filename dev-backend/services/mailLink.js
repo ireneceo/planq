@@ -51,10 +51,19 @@ async function matchByProjectInvite(businessId, addresses) {
   });
   const mine = rows.filter((r) => r.Project && Number(r.Project.business_id) === Number(businessId) && r.client_id);
   if (!mine.length) return null;
-  // 주소 순서(from → to → cc)대로 가장 앞선 것을 고른다.
+  // 주소 순서(from → to → cc)대로 가장 앞선 주소를 본다.
+  // ★ 2026-09-11 (Fable 게이트 경고) — 같은 주소가 **프로젝트 여럿**에 초대돼 있으면 여태 DB 순서상
+  //   첫 행에 붙였다. 아래 resolveSoleProject 의 "여럿이면 걸지 않는다" 규칙을 이 경로만 우회하고
+  //   있었고, 연결은 sticky(이미 값이 있으면 안 덮는다)라 한 번 붙으면 사람이 손으로만 뗄 수 있다.
+  //   → 그 주소가 가리키는 **고객이 하나일 때만** 고객을 확정하고, **프로젝트도 하나일 때만** 건다.
+  //     고객이 여럿이면 초대 기록으로는 판정하지 않는다(null → 고객 등록 주소 판정으로 내려간다).
   for (const a of addresses) {
-    const hit = mine.find((r) => norm(r.contact_email) === a);
-    if (hit) return { clientId: hit.client_id, projectId: hit.project_id, via: 'project_invite' };
+    const hits = mine.filter((r) => norm(r.contact_email) === a);
+    if (!hits.length) continue;
+    const clientIds = [...new Set(hits.map((r) => Number(r.client_id)))];
+    if (clientIds.length !== 1) return null;
+    const projectIds = [...new Set(hits.map((r) => Number(r.project_id)))];
+    return { clientId: clientIds[0], projectId: projectIds.length === 1 ? projectIds[0] : null, via: 'project_invite' };
   }
   return null;
 }
@@ -149,7 +158,8 @@ async function linkThread(thread, { addresses, transaction = null } = {}) {
   const inviteUsable = invite && (!have.client_id || Number(have.client_id) === Number(invite.clientId));
   if (inviteUsable) {
     if (!have.client_id) patch.client_id = invite.clientId;
-    if (!have.project_id) patch.project_id = invite.projectId;
+    // 초대 주소가 프로젝트 여럿을 가리키면 projectId 가 null 이다 — 프로젝트는 비워 둔다(사람이 고른다).
+    if (!have.project_id && invite.projectId) patch.project_id = invite.projectId;
     via = invite.via;
   } else {
     const clientId = have.client_id || await matchClientByAddresses(businessId, addrs);
