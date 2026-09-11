@@ -55,7 +55,14 @@
   ✅ 수정 완료: `index.css` 두 클래스 2147482000/2147482001 !important · `googlePicker.ts` 주석 → build EXIT 0 / error TS 0 · 실브라우저 4/4(덮개 1100·99999 위 Picker + 대조군 뒤집힘) · guard EXIT 0 · 자체 검증(F=1 UI 쌓임) · 커밋 예정. 실제 구글 계정 첨부 끝단은 Irene dev 확인 필요
 - **✅ Fable PASS (1A+1B, 08740629..08f39490)** — 차단 0 · 격리 누수 0 · 유실 회귀 0 · 중복 0 · 가드 양방향 반증. drafts 추가 2회 ⑩3 재현 0. 마커 by:fable 기록.
   결함 A(설계 미구현·회귀 아님, 라운드 2 필수): 시리즈 설명 입력 직후 새로고침/로그아웃 → 어디에도 안 남음(`TaskDetailDrawer.tsx:386 if (p.series) continue` · draftKinds 에 task-description/task-body 없음 · keepaliveFetch 60KB 초과 조용히 false). 운영 반영 시 `pm2 restart planq-qnote` 필요(sessions.py 1줄)
-- (이전) ⏳ Fable 게이트 진행 중 — 범위 08740629..08f39490(1A+1B 한 번). PASS 면 `/fable-검증` 절차대로 `.claude/.fable-gate.json` by:fable 마커 · FAIL 이면 마커 금지하고 지적 수정 후 재검증. 판정 중에는 빌드·e2e·소스 수정 금지(같은 dev 빌드·계정을 쓴다)
+- (이전) ⏳ Fable 게이트 진행 중
+
+### 🔄 입력 초안 라운드 2 — 결함 A (Irene "1번 해" · 로그아웃 시 "로그아웃 전에 확인" 선택)
+- Drive Picker CSS `297ef407` 은 **라운드 2 Fable 에 묶는다**(docs/FABLE_GATE_QUEUE.md §8 기록)
+- 사실: `TASK_SERIES_FIELDS` 에 description 은 있고 **body 는 없다** → 범위 선택 대상은 설명뿐. 반복 업무는 **드로어 닫기만으로도** 설명이 사라지고 있었고, 업무 전환 뒤 늦은 범위 물음이 **새 업무에 저장**될 수 있었다
+- 구현(미커밋): draftStore(label·series·listDraftRecords·parseDraftKey biz/entity) · draftKinds `task-description`/`task-body`(edit) · pendingSaves `LOGOUT_BLOCKED_EVENT` · AuthContext.logout(flush 뒤 series 초안 있으면 멈춤 · `discardUnsaved`) · TaskDetailDrawer(pending base/title · series 는 flush·언마운트·업무 전환·pagehide 에서 로컬 본 · 일반은 pagehide keepalive+로컬 백업 · 다시 열면 D-C1d 복원 줄 · 저장 성공 시 로컬 본 삭제) · `components/Common/LeaveDecisionGuard.tsx`(App 루트 · 범위 골라 저장 — 서버 원문==base 일 때만 · 버리고 로그아웃 · 취소 · 전부 저장되면 로그아웃 이어감) · i18n common draft.leave* ko/en · 카나리 leavesave ⑧(새로고침 복원·지우기) ⑨(확인창·취소·범위 저장→로그아웃) + 재로그인 뒤 ⑦
+- guard EXIT 0 · build EXIT 0 · **leavesave 13/13**(첫 실행 ⑨ 3 FAIL = 범위 물음 취소 시 유실 구멍 → 로컬 본으로 넘겨 수리 · SeriesScopeDialog testid) · drafts 27/28(⑩2 간헐) → 재실행 28/28
+- 문서 반영(CLAUDE.md 입력 초안 절 · 설계 §2-3 · DEVELOPMENT_PLAN) → **라운드 2 커밋 → Fable 라운드 2(라운드 2 + 297ef407 묶음)** — 범위 08740629..08f39490(1A+1B 한 번). PASS 면 `/fable-검증` 절차대로 `.claude/.fable-gate.json` by:fable 마커 · FAIL 이면 마커 금지하고 지적 수정 후 재검증. 판정 중에는 빌드·e2e·소스 수정 금지(같은 dev 빌드·계정을 쓴다)
 - 카나리 잔여 0 · user5 이름 원복 확인 · 문서: CLAUDE.md 자동저장 절(나갈 때 확정 저장) · DRAFT_PERSISTENCE_DESIGN §2-2 작성 완료 · DEVELOPMENT_PLAN 1B 는 drafts 결과 뒤
 - 곁에서 본 것(미조치): planq-dev-backend 가 1분마다 google_calendar external_connections 조회를 "DB Query Error" 로 로그
 남은 1B 항목: 반복 업무 설명 로컬 edit 폴백 · AutoSaveField key 규칙 가드 · `--suite toggles`

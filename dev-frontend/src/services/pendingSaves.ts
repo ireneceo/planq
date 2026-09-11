@@ -8,6 +8,8 @@
 // 자기 저장을 등록한다(리스너는 마운트된 것만 — 순서 무관). 부르는 쪽은 **상한 안에서만** 기다린다.
 // 상한을 넘기면 기다리지 않고 진행한다 — 네트워크 때문에 로그아웃·전환이 멈추면 안 된다.
 export const PENDING_SAVES_FLUSH_EVENT = 'planq:drafts:flush';
+/** 로그아웃이 멈췄다 — 범위를 골라야 저장되는 글(반복 업무 설명)이 남았다. LeaveDecisionGuard 가 연다 */
+export const LOGOUT_BLOCKED_EVENT = 'planq:logout-blocked';
 
 export interface PendingSavesFlushDetail {
   waitUntil: (p: Promise<unknown>) => void;

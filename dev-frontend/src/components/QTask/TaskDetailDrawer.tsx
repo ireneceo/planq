@@ -10,9 +10,10 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
-import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { apiFetch, useAuth, isImpersonatingNow } from '../../contexts/AuthContext';
 import { onFlushPendingSaves } from '../../services/pendingSaves';
 import { keepaliveJson } from '../../services/keepaliveFetch';
+import { draftStorageKey, readDraftRecord, writeDraftRecord, clearDraftRecord } from '../../services/draftStore';
 import { formatDate } from '../../utils/dateFormat';
 import CalendarPicker from '../Common/CalendarPicker';
 import SingleDateField from '../Common/SingleDateField';
@@ -448,16 +449,33 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   //   드로어를 닫는 것은 괜찮다(타이머가 살아 있어 늦게라도 나간다). 사라지는 것은 **로그아웃**(토큰이 먼저 지워져 401)과
   //   **창 닫기·새로고침**(문서가 먼저 죽는다) — 값을 따로 들고 있다가 그 순간 보낸다.
   //   series — 반복 업무의 공유 필드는 범위를 물어야 해 보내지 않는다(물을 화면이 없다 — 로컬 폴백은 다음 라운드).
-  const pendingFieldsRef = useRef<{ [key: string]: { taskId: number; field: string; value: unknown; series: boolean } }>({});
+  type PendingField = { taskId: number; field: string; value: unknown; series: boolean; base: string; title: string };
+  const pendingFieldsRef = useRef<{ [key: string]: PendingField }>({});
   const flushFieldsRef = useRef<(keepalive: boolean) => Promise<unknown>>(() => Promise.resolve());
+  // 반복 업무 설명(범위를 물어야 해 서버로 못 보냄)을 로컬 초안으로 옮긴다 — exceptTaskId 는 그대로 둘 업무
+  const parkSeriesRef = useRef<(exceptTaskId?: number) => void>(() => {});
   useEffect(() => {
     const off = onFlushPendingSaves((waitUntil) => {
       if (Object.keys(pendingFieldsRef.current).length) waitUntil(flushFieldsRef.current(false));
     });
     const onPageHide = () => { void flushFieldsRef.current(true); };
     window.addEventListener('pagehide', onPageHide);
-    return () => { off(); window.removeEventListener('pagehide', onPageHide); };
+    // ★ 드로어가 닫혀도 일반 필드는 타이머가 살아 늦게라도 나간다. 반복 업무 설명은 늦게 터지면 **닫힌 드로어**에
+    //   범위 물음을 띄우려다 아무 일도 없이 사라졌다(라운드 2 결함 A) — 닫히는 순간 로컬로 옮긴다.
+    return () => { off(); window.removeEventListener('pagehide', onPageHide); parkSeriesRef.current(); };
   }, []);
+  // 설명·결과물의 로컬 본 키 — 사칭 창은 남기지 않는다(초안 규칙과 같다)
+  const fieldDraftKey = (field: 'description' | 'body', taskId: number) =>
+    (isImpersonatingNow() ? null : draftStorageKey(field === 'body' ? 'task-body' : 'task-description', user?.id, bizId, taskId));
+  const parkFieldDraft = (p: PendingField) => {
+    if (p.field !== 'description' && p.field !== 'body') return;
+    const k = fieldDraftKey(p.field, p.taskId);
+    if (!k) return;
+    writeDraftRecord(k, String(p.value ?? ''), Date.now(), { base: p.base, label: p.title, series: p.series });
+  };
+  // 다시 열었을 때 — 떠나며 남긴 설명·결과물 로컬 본 (D-C1d: 서버==본 → 조용히 삭제 / 서버==원문 → 복원 줄 / 그 외 → 버리고 알림)
+  type FieldDraftState = { value: string; key: string; state: 'restored' | 'baseChanged'; hidden?: boolean };
+  const [fieldDrafts, setFieldDrafts] = useState<{ description?: FieldDraftState; body?: FieldDraftState }>({});
   // 결과물 에디터에 **지금 떠 있는** 본문. 자동저장은 2초 debounce 라, 마지막 타이핑 직후
   //   "확인 요청" 을 누르면 서버의 body 는 아직 옛것이고 그 옛것이 버전으로 박제된다.
   //   그래서 제출할 때 이 값을 같이 보낸다(서버가 한 트랜잭션에 저장+박제한다).
@@ -556,7 +574,33 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     }
   }, [loadWorkflow]);
 
+  // 떠난 뒤 다시 열었을 때 — 설명·결과물 로컬 본 판정(D-C1d). 같은 업무를 다시 읽을 때(loadDetail)는 돌지 않는다.
   useEffect(() => {
+    const task = detailTask;
+    if (!task) { setFieldDrafts({}); return; }
+    const norm = (s: string) => s.replace(/<p>\s*<\/p>/gi, '').trim();
+    const next: { description?: FieldDraftState; body?: FieldDraftState } = {};
+    for (const field of ['description', 'body'] as const) {
+      const k = fieldDraftKey(field, task.id);
+      const rec = k ? readDraftRecord<string>(k) : null;
+      if (!k || !rec || rec.cleared || typeof rec.value !== 'string') continue;
+      const server = String(task[field] || '');
+      if (norm(rec.value) === norm(server)) { try { localStorage.removeItem(k); } catch { /* noop */ } continue; }
+      if (rec.base !== undefined && norm(rec.base) === norm(server)) {
+        next[field] = { value: rec.value, key: k, state: 'restored' };
+        if (field === 'body') bodyDraftRef.current = rec.value;   // 확인 요청이 복원본을 같이 보내게
+      } else {
+        try { localStorage.removeItem(k); } catch { /* noop */ }
+        next[field] = { value: '', key: k, state: 'baseChanged' };
+      }
+    }
+    setFieldDrafts(next);
+  }, [detailTask?.id]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    // 떠나는 업무에 걸려 있던 반복 업무 설명은 로컬로 — 늦게 터지면 새로 연 업무 화면에서 범위를 묻고
+    //   그 선택이 **새 업무**에 저장될 수 있었다(saveFields 가 지금 업무를 쓴다)
+    parkSeriesRef.current(taskId);
     setDetailTask(null);
     setReviewers([]); setHistory([]);
     setEditingTitle(false); setStatusOpen(false);
@@ -695,6 +739,13 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       }
       setDetailTask(prev => prev ? { ...prev, ...localPatch } as TaskDetail : prev);
       onPatch?.({ id: detailTask.id, ...patch } as DrawerTaskPatch);
+      // 서버에 들어갔으니 떠나며 남긴 로컬 본은 버린다(다시 열 때 복원 줄이 뜨지 않게 · 로그아웃 확인창에 안 걸리게)
+      for (const f of ['description', 'body'] as const) {
+        if (!Object.prototype.hasOwnProperty.call(patch, f)) continue;
+        const k = fieldDraftKey(f, detailTask.id);
+        if (k && readDraftRecord(k)) clearDraftRecord(k);
+        setFieldDrafts((prev) => (prev[f] ? { ...prev, [f]: undefined } : prev));
+      }
       setSaveStatusTemp('saved');
     } catch { setSaveStatusTemp('error'); }
   };
@@ -730,7 +781,12 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     if (!detailTask) return;
     const key = `${detailTask.id}:${field}`;
     if (debouncedRef.current[key]) window.clearTimeout(debouncedRef.current[key]);
-    pendingFieldsRef.current[key] = { taskId: detailTask.id, field, value, series: isSeries && needsSeriesScope(detailTask, { [field]: value }) };
+    pendingFieldsRef.current[key] = {
+      taskId: detailTask.id, field, value,
+      series: isSeries && needsSeriesScope(detailTask, { [field]: value }),
+      base: String((detailTask as unknown as Record<string, unknown>)[field] ?? ''),
+      title: detailTask.title || '',
+    };
     debouncedRef.current[key] = window.setTimeout(() => {
       delete pendingFieldsRef.current[key];
       saveField(field, value);
@@ -743,13 +799,56 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     for (const [key, p] of Object.entries(pendingFieldsRef.current)) {
       if (debouncedRef.current[key]) { window.clearTimeout(debouncedRef.current[key]); delete debouncedRef.current[key]; }
       delete pendingFieldsRef.current[key];
-      if (p.series) continue;
+      // 반복 업무 설명 — 범위를 물을 화면이 없으니 서버로 보내지 않고 로컬에 남긴다(다시 열면 복원 · 로그아웃이면 확인창)
+      if (p.series) { parkFieldDraft(p); continue; }
       const url = `/api/tasks/by-business/${bizId}/${p.taskId}`;
       const patch = { [p.field]: p.value };
-      if (keepalive) keepaliveJson(url, 'PUT', patch);
+      // 창이 사라지는 순간은 도착 보장이 없다(60KB 초과면 아예 못 보낸다) — 로컬 백업을 같이 남긴다.
+      //   서버에 들어갔으면 다시 열 때 "서버 == 본" 으로 조용히 지워진다.
+      if (keepalive) { keepaliveJson(url, 'PUT', patch); parkFieldDraft(p); }
       else sends.push(apiFetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }).catch(() => null));
     }
     return Promise.all(sends);
+  };
+  parkSeriesRef.current = (exceptTaskId) => {
+    for (const [key, p] of Object.entries(pendingFieldsRef.current)) {
+      if (!p.series || (exceptTaskId != null && p.taskId === exceptTaskId)) continue;
+      if (debouncedRef.current[key]) { window.clearTimeout(debouncedRef.current[key]); delete debouncedRef.current[key]; }
+      delete pendingFieldsRef.current[key];
+      parkFieldDraft(p);
+    }
+    // 범위 물음이 떠 있는 채로 떠난다(드로어 닫힘·업무 전환) — 그 설명도 사라지지 않게
+    if (detailTask && seriesAsk && (exceptTaskId == null || detailTask.id !== exceptTaskId)) parkAskedDescription(seriesAsk);
+  };
+  // 범위 물음에 걸린 설명을 로컬 본으로 — 취소하거나 답하지 않고 떠나면 **에디터에만 보이고 어디에도 없는** 글이 된다.
+  //   (라운드 2 카나리 ⑨ 가 잡았다: 설명을 쓰다 다른 곳을 누르면 blur 저장이 범위를 묻고, 거기서 취소하면 그대로 유실)
+  const parkAskedDescription = (patch: Record<string, unknown>) => {
+    if (!detailTask || !Object.prototype.hasOwnProperty.call(patch, 'description')) return;
+    const value = String(patch.description ?? '');
+    const p: PendingField = {
+      taskId: detailTask.id, field: 'description', value, series: true,
+      base: String(detailTask.description ?? ''), title: detailTask.title || '',
+    };
+    parkFieldDraft(p);
+    const k = fieldDraftKey('description', detailTask.id);
+    // 에디터가 보여 주는 글 == 로컬 본 이 되게 복원 상태로 둔다(알림 줄은 방금 사용자가 한 일이라 숨김)
+    if (k) setFieldDrafts((prev) => ({ ...prev, description: { value, key: k, state: 'restored', hidden: true } }));
+  };
+  // 복원 줄 — DraftRestoredNote 가 받는 모양으로
+  const fieldDraftNote = (field: 'description' | 'body') => {
+    const d = fieldDrafts[field];
+    return {
+      restored: d?.state === 'restored' && !d.hidden,
+      replaced: false,
+      baseChanged: d?.state === 'baseChanged' && !d.hidden,
+      text: d?.value || '',
+      clear: () => {
+        if (d) clearDraftRecord(d.key);
+        if (field === 'body') bodyDraftRef.current = null;
+        setFieldDrafts((prev) => ({ ...prev, [field]: undefined }));
+      },
+      dismissNotice: () => setFieldDrafts((prev) => (prev[field] ? { ...prev, [field]: { ...prev[field]!, hidden: true } } : prev)),
+    };
   };
   const flushDebounced = (field: string, value: unknown) => {
     if (!detailTask) return;
@@ -2155,7 +2254,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
               <DescEditorWrap data-testid="task-desc-editor">
                 <RichEditor
-                  value={detailTask.description || ''}
+                  value={fieldDrafts.description?.state === 'restored' ? fieldDrafts.description.value : (detailTask.description || '')}
                   onChange={(html) => debouncedSave('description', html, 2000)}
                   onBlur={(html) => flushDebounced('description', html)}
                   placeholder={t('detail.descPlaceholder', '업무 설명 — 이미지 붙여넣기·드래그 지원') as string}
@@ -2164,6 +2263,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   readOnly={!canEditDescription}
                 />
               </DescEditorWrap>
+              {fieldDrafts.description && <DraftRestoredNote draft={fieldDraftNote('description')} />}
               {/* description 영역 첨부 (의뢰자 자료) — 결과물(body) 영역 첨부와 분리. 권한 = description 편집 권한. */}
               <DescriptionAttachments taskId={detailTask.id} businessId={bizId} canEdit={canEditDescription} myId={myId} />
               {/* 관련 업무 링크 — description 컨텍스트의 일부. 양쪽이 봐야 할 정보라 책임선 무관 workspace 멤버 누구나 편집. */}
@@ -2454,7 +2554,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {/* 하니스가 **결과물 입력란만** 집어 보게 표식을 단다 — 같은 화면에 의뢰 명세
                   에디터가 하나 더 있어서, 표식 없이는 둘을 구별 못 해 잠금 검사가 거짓이 된다. */}
               <div data-testid="task-body-editor">
-              <RichEditor value={detailTask.body || ''}
+              <RichEditor value={fieldDrafts.body?.state === 'restored' ? fieldDrafts.body.value : (detailTask.body || '')}
                 onChange={(html) => { bodyDraftRef.current = html; debouncedSave('body', html, 2000); }}
                 onBlur={(html) => { bodyDraftRef.current = html; flushDebounced('body', html); }}
                 placeholder={t('detail.bodyPlaceholder', '업무 결과물을 작성하세요.  / 입력 시 블록 추가')}
@@ -2462,6 +2562,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 minHeight={260}
                 readOnly={!bodyEditable} />
               </div>
+              {fieldDrafts.body && <DraftRestoredNote draft={fieldDraftNote('body')} />}
               {/* #271·#307 — 회차 이력. 백엔드는 2026-08-22 부터 "확인 요청" 시점 결과물을 박제해
                   왔는데 화면이 없어 사용자에게는 아무것도 달라지지 않은 것으로 보였다. */}
               {/* 이력의 "가져오기" 는 **쓰기 상태일 때만** 낸다. 읽기 상태에서 눌러봐야 서버가
@@ -2629,6 +2730,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       open={!!seriesAsk || !!seriesTagAsk}
       variant={seriesAskVariant}
       onClose={() => {
+        // 설명을 고치다 범위 물음을 취소했다 — 서버엔 안 갔고 에디터에만 남는다. 로컬 본으로 옮겨
+        //   다시 열면 복원·로그아웃이면 확인창에 걸리게 한다(조용히 사라지지 않게)
+        if (seriesAsk) parkAskedDescription(seriesAsk);
         setSeriesAsk(null);
         setSeriesTagAsk(null);
         // 취소 — 화면 state 는 이미 새 값으로 바뀌어 있다(선택 즉시 반영해야 미리보기가 된다).

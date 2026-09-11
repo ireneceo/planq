@@ -56,6 +56,7 @@ async function run() {
   let browser = null;
   let origName = null;
   let taskId = null;
+  let seriesId = null;
   const stamp = String(Date.now()).slice(-6);
   try {
     [{ name: origName }] = await q('SELECT name FROM users WHERE id=?', [USER]);
@@ -64,6 +65,10 @@ async function run() {
     taskId = (await sequelize.query(
       'INSERT INTO tasks (business_id, title, status, assignee_id, created_by, description, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)',
       { replacements: [BIZ, 'leave-canary T', 'in_progress', USER, USER, '<p>leave-canary 원래 설명</p>', now, now] }))[0];
+    // 반복 업무(시리즈 부모) — 설명은 적용 범위를 물어야 저장된다(라운드 2 결함 A)
+    seriesId = (await sequelize.query(
+      'INSERT INTO tasks (business_id, title, status, assignee_id, created_by, description, recurrence_rule, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+      { replacements: [BIZ, 'leave-canary S', 'in_progress', USER, USER, '<p>leave-canary 반복 원래</p>', 'FREQ=WEEKLY', now, now] }))[0];
 
     const launched = await b.launch();
     browser = launched.browser;
@@ -209,6 +214,99 @@ async function run() {
       }
     }
 
+    // ── ⑧ 반복 업무 설명 — 입력 0.5초 뒤 새로고침: 서버로 안 나간다(범위를 물어야 함) · 로컬 본 · 다시 열면 복원 줄 · 지우기 ──
+    const seriesKey = `planq:draft:task-description:${USER}:${BIZ}:${seriesId}`;
+    const isSeriesDescPut = (r) => r.method === 'PUT' && r.url === `/api/tasks/by-business/${BIZ}/${seriesId}` && r.body.includes(stamp);
+    const visibleText = (sel) => page.evaluate((s) => {
+      const el = [...document.querySelectorAll(s)].find((e) => e.getClientRects().length > 0);
+      return el ? el.textContent : null;
+    }, sel).catch(() => null);
+    await b.goto(page, `/tasks?task=${seriesId}`);
+    if (!(await waitFor(async () => !!(await handleOf(page, DESC)), 15000))) {
+      push('⑧ 반복 업무 설명 새로고침', false, '반복 업무 설명 편집기를 못 찾음 — 계측 불가');
+    } else {
+      await b.sleep(600);
+      const since = reqs.length;
+      await typeAtEnd(page, DESC, ` 반복${stamp}`);
+      await b.sleep(500);
+      await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => null);
+      await waitFor(async () => !!(await handleOf(page, DESC)), 15000);
+      await b.sleep(1500);
+      const puts = reqs.slice(since).filter(isSeriesDescPut).length;
+      const [{ description: sd }] = await q('SELECT description FROM tasks WHERE id=?', [seriesId]);
+      const rec = await page.evaluate((k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }, seriesKey);
+      const shown = String(await visibleText(DESC) || '').includes(stamp);
+      const note = !!(await handleOf(page, SEL('draft-note')));
+      push('⑧ 반복 업무 설명 새로고침 — 서버 PUT 0 · DB 불변 · 로컬 본(series) · 다시 열면 복원되어 보인다 + 복원 줄',
+        puts === 0 && !String(sd).includes(stamp) && !!rec && rec.series === true && String(rec.value).includes(stamp) && shown && note,
+        `PUT=${puts} DB포함=${String(sd).includes(stamp)} 로컬=${rec ? `series=${rec.series}` : 'null'} 화면=${shown} 복원줄=${note}`);
+      const cleared = await click(page, SEL('draft-clear'));
+      await b.sleep(800);
+      const afterText = String(await visibleText(DESC) || '');
+      const afterRec = await page.evaluate((k) => localStorage.getItem(k), seriesKey);
+      push('⑧ 복원 줄 "지우기" — 원래 설명으로 돌아가고 로컬 본 삭제',
+        cleared && !afterText.includes(stamp) && afterText.includes('반복 원래') && afterRec === null,
+        `클릭=${cleared} 화면원래=${afterText.includes('반복 원래')} 로컬=${afterRec}`);
+    }
+
+    // ── ⑨ 반복 업무 설명을 쓰다 로그아웃 — 멈추고 확인창 · 취소는 그대로 · 범위 골라 저장하면 로그아웃이 이어진다 ──
+    const isLogoutPost = (r) => r.method === 'POST' && r.url === '/api/auth/logout';
+    if (!(await waitFor(async () => !!(await handleOf(page, DESC)), 8000))) {
+      push('⑨ 로그아웃 확인창', false, '반복 업무 설명 편집기를 못 찾음 — 계측 불가');
+    } else {
+      const since = reqs.length;
+      await typeAtEnd(page, DESC, ` 반복2${stamp}`);
+      await b.sleep(500);
+      // ★ 실제 흐름: 사용자 메뉴를 누르면 설명 에디터가 blur 되고, 반복 업무라 **범위 물음이 먼저 뜬다**.
+      //   (첫 실행: 이 창이 메뉴를 가려 로그아웃이 눌리지 않았다 — 그리고 여기서 취소하면 글이 어디에도 없었다)
+      await click(page, SEL('user-menu-open'));
+      const askShown = await waitFor(async () => !!(await handleOf(page, SEL('series-scope-cancel'))), 5000);
+      if (askShown) await click(page, SEL('series-scope-cancel'));
+      await b.sleep(600);
+      const parked = await page.evaluate((k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }, seriesKey);
+      const stillShown = String(await visibleText(DESC) || '').includes(`반복2${stamp}`);
+      push('⑨ 범위 물음 취소 — 쓴 설명이 로컬 본(series)으로 남고 에디터에도 그대로',
+        askShown && !!parked && parked.series === true && String(parked.value).includes(`반복2${stamp}`) && stillShown,
+        `범위물음=${askShown} 로컬=${parked ? `series=${parked.series}` : 'null'} 에디터=${stillShown}`);
+      await page.keyboard.press('Escape');   // 열려 있을 수 있는 사용자 메뉴 닫기
+      await b.sleep(300);
+      const openLogout = async () => {
+        if (!(await handleOf(page, SEL('user-menu-logout')))) {
+          if (!(await click(page, SEL('user-menu-open')))) return false;
+        }
+        if (!(await waitFor(async () => !!(await handleOf(page, SEL('user-menu-logout'))), 3000))) return false;
+        return click(page, SEL('user-menu-logout'));
+      };
+      await openLogout();
+      const dlg1 = await waitFor(async () => !!(await handleOf(page, SEL('leave-decision'))), 8000);
+      const post1 = reqs.slice(since).filter(isLogoutPost).length;
+      const onApp1 = !page.url().includes('/login');
+      push('⑨ 반복 업무 설명을 쓰다 로그아웃 — 로그아웃이 멈추고 확인창 · 로그아웃 POST 0',
+        dlg1 && post1 === 0 && onApp1, `확인창=${dlg1} 로그아웃POST=${post1} 앱에남음=${onApp1}`);
+      await click(page, SEL('leave-cancel'));
+      await b.sleep(800);
+      const gone = !(await handleOf(page, SEL('leave-decision')));
+      const post2 = reqs.slice(since).filter(isLogoutPost).length;
+      const recKept = !!(await page.evaluate((k) => localStorage.getItem(k), seriesKey));
+      push('⑨ 확인창 취소 — 닫히고 로그아웃 안 나감 · 로컬 본 유지', gone && post2 === 0 && recKept, `닫힘=${gone} 로그아웃POST=${post2} 로컬=${recKept}`);
+      await openLogout();
+      const dlg2 = await waitFor(async () => !!(await handleOf(page, SEL('leave-decision'))), 8000);
+      const picked = dlg2 && (await click(page, SEL('leave-scope-single')));
+      await b.sleep(200);
+      const saved = picked && (await click(page, SEL('leave-save')));
+      await waitFor(async () => page.url().includes('/login'), 12000);
+      await b.sleep(1000);
+      const seq = reqs.slice(since);
+      const putIdx = seq.findIndex((r) => r.method === 'PUT' && r.url === `/api/tasks/by-business/${BIZ}/${seriesId}` && r.body.includes(`반복2${stamp}`) && r.body.includes('"series_scope":"single"'));
+      const logoutIdx = seq.findIndex(isLogoutPost);
+      const logoutN = seq.filter(isLogoutPost).length;
+      const [{ description: sd2 }] = await q('SELECT description FROM tasks WHERE id=?', [seriesId]);
+      push('⑨ 범위(이 회차만) 골라 저장 — series_scope PUT 뒤 로그아웃 POST 1 · 서버 반영',
+        !!saved && putIdx >= 0 && logoutIdx > putIdx && logoutN === 1 && String(sd2).includes(`반복2${stamp}`),
+        `확인창=${dlg2} 선택=${picked} 저장클릭=${saved} PUT순번=${putIdx} 로그아웃순번=${logoutIdx} 로그아웃수=${logoutN} DB반영=${String(sd2).includes(`반복2${stamp}`)}`);
+      await b.login(page);   // ⑦ 이 이어서 로그인 상태를 쓴다
+    }
+
     // ── ⑦ 로그아웃 — 대기 중 저장이 로그아웃 POST 보다 먼저 · 이중 클릭에도 POST 1 (맨 마지막) ──
     await b.goto(page, '/profile');
     if (!(await waitFor(async () => !!(await probe(page, NAME)), 15000))) {
@@ -238,11 +336,12 @@ async function run() {
   } finally {
     if (browser) await browser.close().catch(() => null);
     if (origName != null) await q('UPDATE users SET name=? WHERE id=?', [origName, USER]).catch(() => null);
-    if (taskId) {
+    for (const id of [taskId, seriesId].filter(Boolean)) {
       for (const t of ['task_comments', 'task_reviewers', 'task_status_history', 'task_attachments']) {
-        await q(`DELETE FROM ${t} WHERE task_id=?`, [taskId]).catch(() => null);
+        await q(`DELETE FROM ${t} WHERE task_id=?`, [id]).catch(() => null);
       }
-      await q('DELETE FROM tasks WHERE id=?', [taskId]).catch(() => null);
+      await q('DELETE FROM tasks WHERE recurrence_parent_id=?', [id]).catch(() => null);
+      await q('DELETE FROM tasks WHERE id=?', [id]).catch(() => null);
     }
   }
   return results;

@@ -234,3 +234,25 @@ Fable 설계 게이트 산출물이 이미 있다(942줄, v2). 상태는 **"Iren
 2. `optionalAuth` 와 `authenticateToken` 두 생성자가 여전히 **같은 모양**인가
 3. PDF 보고서·박제본(`reports.insights`)이 워크스페이스 기본 언어로 남는 것이 맞는 결정인가
 
+---
+
+## 8. Drive 파일 선택 창 쌓임 순서 (2026-09-11, commit `297ef407`, 미배포) — **입력 초안 라운드 2 Fable 에 묶는다**
+
+**판정: R=0 · S=0 · F=1 → 자체 검증.** CSS 한 곳, 되돌리기 쉽고 좌표로 참/거짓이 갈린다.
+Stop 훅은 커밋마다 by:fable 마커를 요구해 한 번 막았다 — Irene 결정(2026-09-11 "1번 해"):
+**따로 올리지 않고 입력 초안 라운드 2 Fable 라운드에 같이 넣는다.** (`unavailable` 마커는 쓰지 않았다 — Fable 은 띄울 수 있었다)
+
+### 무엇을 만들었나
+- `dev-frontend/src/index.css` — `.picker-dialog-bg` 2147482000 · `.picker-dialog` 2147482001 `!important`
+  (Google Picker 기본 1000·1001 < 앱 모달 1100 · 드로어·라이트박스 9000~99999. BuildVersionGuard 2147483000 아래)
+- `utils/googlePicker.ts` — 주석 한 줄(규칙 위치)
+
+### 자체 검증 (Fable 미검증)
+- 실브라우저(로그인 없이 /login, 실제 Google Picker): 덮개 z 1100·99999 위 Picker 중앙 elementFromPoint = `IFRAME.picker-dialog-frame` · 규칙 무력화 대조군 뒤집힘 — 4/4
+- build EXIT 0 / error TS 0 · guard-invariants EXIT 0
+
+### Fable 이 봐야 할 것
+1. 실제 첨부 모달 안(FilePicker·메일 작성·업무 드로어)에서 Picker 를 열어 **골라서 첨부까지** 되는가 — 서버에서 구글 계정 선택 끝단은 못 쟀다
+2. 2147482000 이 다른 최상위 요소(BuildVersionGuard·토스트·드롭다운 포털)와 부딪히지 않는가
+3. Picker 가 열려 있는 동안 모달의 포커스 트랩·Esc 스택이 Picker 조작을 방해하지 않는가
+

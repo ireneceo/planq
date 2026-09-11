@@ -39,24 +39,24 @@ const SeriesScopeDialog: React.FC<Props> = ({ open, onPick, onClose, variant = '
           ? t('series.recurDesc', '이 반복은 시리즈 전체가 함께 씁니다. 새 주기를 어디부터 적용할까요?')
           : t('series.desc', '이 업무는 반복됩니다. 어디까지 반영할까요?')}</Desc>
         {!isRecur && (
-          <Opt type="button" onClick={() => onPick('single')}>
+          <Opt type="button" onClick={() => onPick('single')} data-testid="series-scope-single">
             <OptName>{t('series.single', '이 회차만')}</OptName>
             <OptHint>{t('series.singleHint', '다른 회차는 그대로 둡니다')}</OptHint>
           </Opt>
         )}
-        <Opt type="button" onClick={() => onPick('future')}>
+        <Opt type="button" onClick={() => onPick('future')} data-testid="series-scope-future">
           <OptName>{isRecur ? t('series.recurFuture', '이 회차 이후') : t('series.future', '이 회차 이후 모두')}</OptName>
           <OptHint>{isRecur
             ? t('series.recurFutureHint', '이 회차부터 새 주기로 다시 잡습니다. 지난 회차는 그대로 둡니다')
             : t('series.futureHint', '지난 회차는 기록으로 남깁니다')}</OptHint>
         </Opt>
-        <Opt type="button" onClick={() => onPick('all')}>
+        <Opt type="button" onClick={() => onPick('all')} data-testid="series-scope-all">
           <OptName>{isRecur ? t('series.recurAll', '앞으로 전부') : t('series.all', '전체 회차')}</OptName>
           <OptHint>{isRecur
             ? t('series.recurAllHint', '오늘 이후의 아직 시작 안 한 회차를 모두 새 주기로 다시 잡습니다')
             : t('series.allHint', '지난 회차까지 같은 내용으로 맞춥니다')}</OptHint>
         </Opt>
-        <Cancel type="button" onClick={onClose}>{t('series.cancel', '취소')}</Cancel>
+        <Cancel type="button" onClick={onClose} data-testid="series-scope-cancel">{t('series.cancel', '취소')}</Cancel>
       </Card>
     </Backdrop>
   );

@@ -4,11 +4,11 @@ import i18n from '../i18n';
 import { detectClientKind } from '../services/native';
 import { clearPageCache } from '../lib/pageCache';
 import {
-  purgeDraftsNotOwnedBy, purgeDraftsOf, setDraftOwner, sweepExpiredDrafts, setDraftsSuppressed,
+  purgeDraftsNotOwnedBy, purgeDraftsOf, setDraftOwner, sweepExpiredDrafts, setDraftsSuppressed, listDraftRecords,
   DRAFT_OWNER_KEY,
 } from '../services/draftStore';
 import { markSwitching, broadcastWorkspaceSwitch } from '../services/workspaceSync';
-import { flushPendingSaves } from '../services/pendingSaves';
+import { flushPendingSaves, LOGOUT_BLOCKED_EVENT } from '../services/pendingSaves';
 
 // ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
 //   쓰면 안 된다(트리 스왑 후 첫 렌더 크래시). 세션 종료(로그아웃·토큰만료) 이동은 window.location 로.
@@ -94,8 +94,9 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string, remember?: boolean) => Promise<boolean>;
   register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean; invite_token?: string }) => Promise<boolean>;
-  /** flush:false — 계정 삭제 뒤처럼 대기 중인 자동저장을 보내면 안 되는 경우 */
-  logout: (opts?: { flush?: boolean }) => Promise<void>;
+  /** flush:false — 계정 삭제 뒤처럼 대기 중인 자동저장을 보내면 안 되는 경우(확인도 건너뛴다)
+   *  discardUnsaved — 로그아웃 확인창에서 "버리고 로그아웃" 을 고른 경우 */
+  logout: (opts?: { flush?: boolean; discardUnsaved?: boolean }) => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   refreshUser: () => Promise<void>;
   hasRole: (...roles: string[]) => boolean;
@@ -857,13 +858,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 로그아웃은 한 번만 돈다 — 이중 클릭·여러 경로가 겹쳐도 저장·POST·삭제가 두 번 나가지 않게 (D-C3 I2)
   const logoutInFlightRef = useRef<Promise<void> | null>(null);
-  const logout = (opts?: { flush?: boolean }): Promise<void> => {
+  const logout = (opts?: { flush?: boolean; discardUnsaved?: boolean }): Promise<void> => {
     if (logoutInFlightRef.current) return logoutInFlightRef.current;
     const run = (async () => {
       const leavingUserId = user?.id;
       // ① 토큰이 살아 있는 동안 대기 중인 자동저장부터 보낸다(services/pendingSaves — 상한 3초, 넘기면 진행).
       //   여태는 입력 직후 로그아웃하면 debounce 에 걸린 입력이 타이머와 함께 사라졌다.
       if (opts?.flush !== false) await flushPendingSaves();
+      // ② 범위를 골라야 저장되는 글(반복 업무 설명)이 남았으면 **멈추고 묻는다** — 아래 ④ 가 그 사람 초안을 지우므로
+      //   그대로 가면 조용히 사라진다. Irene 2026-09-11 결정: "로그아웃 전에 확인" (components/Common/LeaveDecisionGuard)
+      if (opts?.flush !== false && !opts?.discardUnsaved) {
+        const blockers = listDraftRecords<string>(['task-description'], leavingUserId).filter((d) => d.record.series);
+        if (blockers.length) {
+          try { window.dispatchEvent(new CustomEvent(LOGOUT_BLOCKED_EVENT, { detail: { count: blockers.length } })); } catch { /* noop */ }
+          return;
+        }
+      }
       try {
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
       } catch { /* ignore */ }

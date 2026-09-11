@@ -1111,6 +1111,17 @@
     "clear": "Clear",
     "replaced": "Updated with newer text from another window",
     "baseChanged": "The original changed elsewhere, so your saved draft was discarded",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "leaveTitle": "You have unsaved recurring task descriptions",
+    "leaveDesc": "A recurring task's description is saved only after you choose how far to apply it. Save or discard it, then sign out.",
+    "leaveUntitled": "Task #{{id}}",
+    "leaveScope": "Apply to",
+    "leaveSave": "Save",
+    "leaveSaving": "Saving…",
+    "leaveSaved": "Saved",
+    "leaveChanged": "The description changed elsewhere, so it was not overwritten. Please check the task.",
+    "leaveFailed": "Couldn't save. Please try again.",
+    "leaveDiscard": "Discard and sign out",
+    "leaveCancel": "Cancel"
   }
 }

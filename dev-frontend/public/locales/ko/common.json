@@ -1111,6 +1111,17 @@
     "clear": "지우기",
     "replaced": "다른 창의 더 새 글로 바뀌었어요",
     "baseChanged": "다른 곳에서 원문이 바뀌어 임시저장본을 버렸어요",
-    "dismiss": "닫기"
+    "dismiss": "닫기",
+    "leaveTitle": "저장하지 않은 반복 업무 설명이 있어요",
+    "leaveDesc": "반복 업무의 설명은 어디까지 반영할지 골라야 저장돼요. 저장하거나 버린 뒤 로그아웃할 수 있어요.",
+    "leaveUntitled": "업무 #{{id}}",
+    "leaveScope": "적용 범위",
+    "leaveSave": "저장",
+    "leaveSaving": "저장 중…",
+    "leaveSaved": "저장했어요",
+    "leaveChanged": "그 사이 다른 곳에서 설명이 바뀌어 덮어쓰지 않았어요. 업무에서 확인해 주세요.",
+    "leaveFailed": "저장하지 못했어요. 다시 시도해 주세요.",
+    "leaveDiscard": "버리고 로그아웃",
+    "leaveCancel": "취소"
   }
 }

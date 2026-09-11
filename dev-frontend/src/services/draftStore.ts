@@ -11,6 +11,10 @@ export interface DraftRecord<T = unknown> {
   editedAt: number;
   cleared?: boolean;
   base?: string;
+  /** 사람이 알아볼 이름(예: 업무 제목) — 로그아웃 확인창이 목록으로 보여준다 */
+  label?: string;
+  /** 서버에 보내려면 반복 업무 적용 범위를 먼저 골라야 한다 — 로그아웃 전에 확인한다(LeaveDecisionGuard) */
+  series?: boolean;
 }
 
 export const DRAFT_PREFIX = 'planq:draft:';
@@ -41,12 +45,27 @@ export function draftStorageKey(kind: string, userId: unknown, bizId: unknown, e
   return `${DRAFT_PREFIX}${kind}:${safe(uid)}:${safe(biz)}:${safe(ent)}`;
 }
 
-/** `planq:draft:{kind}:{uid}:…` 에서 kind·uid */
-export function parseDraftKey(key: string): { kind: string; uid: string } | null {
+/** `planq:draft:{kind}:{uid}:{biz}:{entity}` 에서 kind·uid·biz·entity (옛 키는 biz·entity 가 비어 있을 수 있다) */
+export function parseDraftKey(key: string): { kind: string; uid: string; biz: string; entity: string } | null {
   if (!key.startsWith(DRAFT_PREFIX) || key === DRAFT_OWNER_KEY) return null;
   const parts = key.slice(DRAFT_PREFIX.length).split(':');
   if (parts.length < 2) return null;
-  return { kind: parts[0], uid: parts[1] };
+  return { kind: parts[0], uid: parts[1], biz: parts[2] ?? '', entity: parts.slice(3).join(':') };
+}
+
+/** 한 사용자의 특정 종류 초안을 모아 본다 — 키를 손으로 조립하지 않는다(로그아웃 확인창) */
+export function listDraftRecords<T = unknown>(kinds: string[], userId: unknown): Array<{ key: string; kind: string; biz: string; entity: string; record: DraftRecord<T> }> {
+  const me = String(userId ?? '');
+  const out: Array<{ key: string; kind: string; biz: string; entity: string; record: DraftRecord<T> }> = [];
+  if (!me) return out;
+  for (const k of allKeys()) {
+    const p = parseDraftKey(k);
+    if (!p || p.uid !== me || !kinds.includes(p.kind)) continue;
+    const rec = readDraftRecord<T>(k);
+    if (!rec || rec.cleared) continue;
+    out.push({ key: k, kind: p.kind, biz: p.biz, entity: p.entity, record: rec });
+  }
+  return out;
 }
 
 function ttlOf(key: string): number {
@@ -95,10 +114,12 @@ function setItemWithSweep(key: string, json: string): boolean {
 }
 
 /** 편집 시각을 박아 쓴다. 빈 문자열도 지우지 않고 툼스톤으로 쓴다(남의 삭제가 내 글을 비우지 않게). */
-export function writeDraftRecord<T = unknown>(key: string, value: T, editedAt: number, extra?: { base?: string }): boolean {
+export function writeDraftRecord<T = unknown>(key: string, value: T, editedAt: number, extra?: { base?: string; label?: string; series?: boolean }): boolean {
   if (suppressed) return false;
   const record: DraftRecord<T> = { v: 2, value, editedAt };
   if (extra && typeof extra.base === 'string') record.base = extra.base;
+  if (extra && typeof extra.label === 'string' && extra.label) record.label = extra.label;
+  if (extra && extra.series) record.series = true;
   const ok = setItemWithSweep(key, JSON.stringify(record));
   if (ok) emit(key, record as DraftRecord);
   return ok;

@@ -807,7 +807,13 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
 - **제출 핸들러는 성공 여부를 돌려준다** — `NoteThread.onAdd: Promise<boolean>`. 실패를 삼키는 핸들러 뒤에서 무조건 비우면 저장 실패가 곧 글 삭제다.
 - 로그아웃은 그 사용자 초안을 지우고, 다른 사용자로 로그인하면 앞 사람 초안을 지운다. 비밀번호 등 민감 입력에는 쓰지 않는다(가드 HARD).
 - 가드 `node scripts/guard-invariants.js --category=draft` · 카나리 `node scripts/e2e/run.js --suite drafts`. 설계 `docs/DRAFT_PERSISTENCE_DESIGN.md`.
-- 서버 자동저장 입력(AutoSaveField)의 "나갈 때 확정 저장" 은 **라운드 1B**(미구현).
+- 서버 자동저장 입력(AutoSaveField)의 "나갈 때 확정 저장" 은 아래 **자동저장 절**(라운드 1B).
+- **범위를 골라야 저장되는 글(반복 업무 설명)은 서버로 못 보낸 채 떠나면 로컬 본**(`task-description`, `series:true`) —
+  드로어 닫기·업무 전환·**범위 물음 취소**·새로고침 모두. 다시 열면 D-C1d 복원 줄(원문이 바뀌었으면 버리고 알림).
+  **로그아웃은 멈추고 묻는다**(`components/Common/LeaveDecisionGuard`, App 루트 — Irene 2026-09-11 결정). 그 창의 저장은
+  **서버 원문 == 초안을 쓰기 시작할 때의 원문**일 때만 한다(그 사이 누가 고쳤으면 덮어쓰지 않는다). 카나리 `leavesave` ⑧⑨.
+  ★ 반복 업무 설명은 blur 가 곧 범위 물음이다 — 사용자가 다른 곳을 누르면 **먼저 범위 창이 뜬다**. 여기서 취소한 글이
+  어디에도 남지 않던 구멍을 카나리 ⑨ 가 잡았다. 새 저장 경로가 "물음 → 취소" 를 거치면 그 값도 로컬 본으로 넘긴다.
 
 ## 반응형 기본 원칙 (신규 코드 작성 시)
 
