@@ -1,9 +1,9 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-09-11 13:25 UTC (Opus 5, 1M)
-**작업 상태:** ✅ 완료 — **운영 배포 `1aa8f4c7`** (13:19 UTC, v1.48.21 유지) · Fable PASS · /저장 · /개발완료
-**Git:** HEAD `1aa8f4c7` (소스 미커밋 0) · 게이트 마커 = `33c870f9` by fable · 운영 백업 `/opt/planq/backups/20260911_131359`
+**마지막 업데이트:** 2026-09-11 13:35 UTC (Opus 5, 1M)
+**작업 상태:** ✅ 완료 — **운영 배포 `1aa8f4c7`**(13:19, 코드) + **`ccaa8efe`**(13:26, Q위키 안내 · 운영 seed 실행 · ko/en 반영 확인) · v1.48.21 유지 · Fable PASS ×2 · /저장 · /개발완료
+**Git:** HEAD 푸시 완료(origin/main) · 게이트 마커 = `de408c61` by fable · 운영 백업 `/opt/planq/backups/20260911_132610` · dev 백업 `/opt/planq/backups/dev-daily/20260911`
 
 ### 진행 중인 작업
 - 없음
