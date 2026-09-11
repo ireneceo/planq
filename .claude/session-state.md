@@ -1,57 +1,50 @@
 # PlanQ 세션 상태
 
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-09-11 13:35 UTC (Opus 5, 1M)
-**작업 상태:** ✅ 완료 — **운영 배포 `1aa8f4c7`**(13:19, 코드) + **`ccaa8efe`**(13:26, Q위키 안내 · 운영 seed 실행 · ko/en 반영 확인) · v1.48.21 유지 · Fable PASS ×2 · /저장 · /개발완료
-**Git:** HEAD 푸시 완료(origin/main) · 게이트 마커 = `de408c61` by fable · 운영 백업 `/opt/planq/backups/20260911_132610` · dev 백업 `/opt/planq/backups/dev-daily/20260911`
+**마지막 업데이트:** 2026-09-11 14:15 UTC (Opus 5, 1M)
+**작업 상태:** ✅ 완료 — **워크스페이스 단일 정본 단계 3~5** · Fable PASS · **운영 배포 `e6f2aab0`**(14:05 UTC, v1.48.21 유지, 백업 `/opt/planq/backups/20260911_140457`) · /저장 · /개발완료
+**Git:** 코드 `01d3c207` + dev-status `e6f2aab0` 푸시 · 게이트 마커 = `01d3c207` by fable · dev 백업 `/opt/planq/backups/dev-daily/20260911`
 
 ### 진행 중인 작업
-- 없음
+- 없음 (관찰만: 운영 로그 `pm2 logs planq-prod-backend | grep wsctx` — 1시간 요약의 `legacy` 소진 추이)
 
-### 완료된 작업 (이번 세션 — 워크스페이스 격리 2차)
-**커밋 `33c870f9`** — Fable PASS · 운영 배포 `1aa8f4c7`
-1. **통합검색 secret 칸 매칭 제외** — 표 셀 검색이 values JSON 통째 LIKE 후보를 그대로 결과로 써 비밀 칸 값·칸 id 로도 표가 떴다.
-   `routes/search.js matchesNonSecretCell` 한 판정을 표 셀·Q info 항목 값이 같이 쓴다. 판정은 SQL 보다 넓어지지 않게(원자 = JSON 표기, 공백만 제거).
-2. **Q7 알림(종) = 현재 워크스페이스 + 플랫폼 공지** — `routes/notifications.js notificationScope`(인자 없음 = 플랫폼 공지만 · 비소속 403 · read-all 소켓에 범위) ·
-   `hooks/useNotifications.ts`(범위 한 곳) · `NotificationToaster.tsx`(남의 워크스페이스 알림 토스트 안 함)
-3. **Q6 상세 7곳** — 캘린더·메일·Q info·파일·청구서·고객은 URL 에 현재 워크스페이스를 넣어 불러 **새지 않고 404**(= 침묵/"찾을 수 없음")였다.
-   신규 `GET /api/entity-workspace/:kind/:id`(`routes/entity_workspace.js` — 멤버 이상일 때 business_id 만, 메일은 접근 가능 계정만, 그 외 전부 404) ·
-   `utils/workspaceMatch.findOtherWorkspaceOf` · 신규 `hooks/useDirectDetail.ts` · 신규 `components/Common/DetailFallbackDrawer.tsx`.
-   자료정리 뷰어(`/docs/brief/:id`)는 **남의 글을 실제로 그리고 있었다** → `isOtherWorkspace`. 캘린더 범위 밖 일정·필터 밖 청구서도 id 로 직접 열린다.
-   `QCalendarPage` god-file 래칫 → URL 헬퍼 `calendarUrl.ts` 분리(베이스라인 조정 없음). i18n common `detail.ariaLabel`.
-4. 카나리 `canary-detail-open.js` — "내 다른 워크스페이스" 7화면 × 폰·태블릿·데스크탑 + 없는 id + 현재 워크스페이스 음성 대조군(active_business_id 73↔5 원복)
+### 완료된 작업 (이번 세션)
+**1. 워크스페이스 격리 2차** `33c870f9` — Fable PASS · 운영 `1aa8f4c7`
+- 검색 secret 칸 매칭 제외 · Q7 알림 종 = 현재 워크스페이스 + 플랫폼 공지 · Q6 상세 7곳(`/api/entity-workspace` · `useDirectDetail` · `DetailFallbackDrawer` · 자료정리 뷰어 누수)
 
-**검증:** Fable PASS(①~④) · 실HTTP 21/21(검색·알림) · 15/15(entity-workspace) · e2e detailopen·tenant·wssync 실패 0(3폭 21/21) · health 41/41 · guard EXIT 0 · build EXIT 0/error TS 0
-**배포 검증:** DEPLOY_EXIT 0 · planq.kr health 200 · PM2 online · 운영 `/api/entity-workspace` 무인증 401 · 새 코드 도달 확인 · 개발 현황 id=80
-**문서:** CLAUDE.md(워크스페이스 계약 4·7) · UI_DESIGN_GUIDE.md 0-B · WORKSPACE_SCOPE_DESIGN.md(단계 6 2차) · docs/dev-status/next.json
+**2. Q위키 워크스페이스 안내** `de408c61` — Fable PASS · 운영 `ccaa8efe` + 운영 seed
 
-**같은 날 앞선 배포:** `4aa971ef`(06:06, 모바일 채팅 바닥 고정) · `85261888`(08:42, 워크스페이스 단일 정본 단계 0~2 + 신고 8건)
+**3. 워크스페이스 단일 정본 단계 3~5** `01d3c207` — Fable PASS · 운영 `e6f2aab0`
+- C2 `X-Workspace-Id` — `contexts/AuthContext.tsx`(모듈 변수 `requestWorkspaceId` 를 `setUser` 래퍼에서 렌더 전 미러 · apiFetch 첫 요청/401 재시도 · apiUpload · 같은 출처만 · 409 → `planq:workspace-stale`)
+- C3 신규 `dev-backend/middleware/workspaceContext.js` — `observe` · `requestScope(req, 명시값, {legacy})` · `staleResponse` · `[wsctx] summary/stale/mismatch/legacy` 로그
+- C5 추측 11곳 + 합산 3곳 → `requestScope` (tasks my-week/month/year/backlog · task_templates · task_priority · task_tags · posts editor-image · cue · dashboard/todo · today-review · me/external-connections)
+- `WorkspaceSyncGuard` ④ stale 리스너 · CORS `X-Workspace-Id` · 가드 wsscope `workspaceCanonical` 규칙 + 베이스라인 11→0 · 카나리 wssync ⑥
+- **설계 이탈:** 관찰 1~2일 대기 대신 헤더 없는 요청(옛 번들)만 종전 동작 — Fable 이 "옛 번들 종전 바이트 동일" 로 안전 판정
+- 검증: Fable probe 104 · 실HTTP 23/23 · e2e wssync(⑥)·inboxcount·tenant·detailopen·scopetabs 실패 0 · guard EXIT 0(양성 대조군) · health 41/41 · build EXIT 0
+- **운영 실측:** 내부 관리자 계정 읽기 요청 — 헤더 없음 200 · 헤더==정본 200 · 헤더≠정본 409 `workspace_stale` · `[wsctx] legacy`·`stale` 로그 기록 확인
 
 ---
 
 ### 다음 할 일
-> Irene 강조: "워크스페이스별로 데이터 새는 것, 채팅사용 불편한 거, 팝아웃이 워크스페이스별로 안바뀌는 거 — 운영상 문제가 커" · "절대 데이터 새면 안돼"
-
-**A. 워크스페이스 격리 마무리**
-1. **단계 3~5** — apiFetch `X-Workspace-Id` 관찰 → 409 `workspace_stale`(목록·집계만) → 추측 폴백 제거(wsscope 베이스 11: cue.js 2 · tasks.js 4 · task_templates 2 · posts · task_priority · task_tags · dashboard/today-review 합산 모드 · cue resolveBusinessId)
-2. `today-review` · `projects/workspace/:id/all-tasks` 비소속 200 빈 응답 → 403 통일
-3. q-note JWT `businessId` 클레임 없음 → Q Note L3/L4 공유 불통(`q-note/middleware/auth.py:22`, `services/authTokens.js:70`)
-4. 소켓 `onWorkspaceSocket` 헬퍼(설계 C7) · ClientTimelinePage 폴백 없음(URL 범위라 누수는 아님)
-5. 발견만: ChromeOverlays 에 PairCodePrompt 없음 · 탭 모드 설치 배너 2개
+**A. 워크스페이스 (마무리)**
+1. **운영 `[wsctx] summary` 의 `legacy` 가 0 이 되면** `middleware/workspaceContext.js` requestScope ④ 분기 + `cue.js resolveBusinessId` 첫 멤버십 폴백 삭제 (1~2일 관찰)
+2. Q3 `workspace_mismatch` 409 — `mismatch` 로그로 교차 조회 화면 분류 후
+3. Q5 보류 중 읽기 정지 · `onWorkspaceSocket`(C7) · internal user-project-ids
+4. `today-review` · `projects/workspace/:id/all-tasks` 비소속 200 빈 응답 → 403 통일
+5. q-note JWT `businessId` 클레임 → Q Note L3/L4 공유 불통(`q-note/middleware/auth.py:22`, `services/authTokens.js:70`)
+6. Fable 경고: cue/help qhelper 모드 stale 검사 없음(데이터 미주입) · PostsPage.tsx:2519 raw fetch 헤더 없음 · editor-image 409/403 시 업로드 파일 디스크 잔존(기존)
 
 **B. 입력·화면**
-6. **입력 임시저장 구조화** — `docs/DRAFT_PERSISTENCE_DESIGN.md` (R=1·S=1 → 설계부터 Fable)
-7. **도크 Q note [메모 | 음성메모] 탭** — QNotePage 녹음 엔진 공용 훅 추출
-8. 검색 강조 잔여 — AttachmentField 기존 파일 선택 · PostsPage 템플릿 검색 · 위키 발췌 · Q Task 폰 프로젝트 칸
-9. AI 일정 수정 화면(`pages/QProject/ScheduleEditModal.tsx`)
-10. `pages/Guest/GuestChatPanel.tsx` 채팅 바닥 고정 계약 미적용
-11. `whats_new_reads.user_id` FK 없음(무해) · 따옴표 들어간 표 셀 값 검색 불가(기존, JSON 이스케이프)
+7. **입력 임시저장 구조화** — `docs/DRAFT_PERSISTENCE_DESIGN.md` (R=1·S=1 → 설계부터 Fable)
+8. 도크 Q note [메모 | 음성메모] 탭 · 검색 강조 잔여 · AI 일정 수정 화면 · GuestChatPanel 바닥 고정
 
 **C. 사람 차례 (Irene)**
-12. **iOS 앱 재빌드**(Codemagic `ios-testflight`) — 키보드 위 ▲▼✓ 줄 제거는 앱 번들에만
-13. 운영 피드백 #409·#410 답글(답글 없어 장부 done 0건) · 실기기 채팅 확인
-14. 판단 대기 — **platform_admin 이 비소속 워크스페이스에도 알림 범위·entity-workspace 판정이 열리는 것**(Fable 경고, assertWorkspaceAccess 기존 계약) · 관리자 모드 알림 벨 범위 · PublicSignPage 이메일 선노출 · 보고서 공유 링크 무만료
-15. 운영 메일 자동연결 백필 · 백로그(프로젝트 주요 이슈 자동화 · #407 · #381/#382 · Finance 고정비 UI)
+9. iOS 앱 재빌드(Codemagic `ios-testflight`) · 운영 피드백 #409·#410 답글
+10. 판단 대기 — platform_admin 비소속 워크스페이스 알림 범위 · 관리자 모드 알림 벨 범위 · PublicSignPage 이메일 선노출 · 보고서 공유 링크 무만료
+
+### 주요 변경사항
+- 서버는 범위 인자 없는 요청을 추측으로 채우지 않는다 — 창이 옛 워크스페이스면 409, 창은 따라간다
+- 스키마 변경 없음 · 공개 표면 변경 없음
 
 ---
 
