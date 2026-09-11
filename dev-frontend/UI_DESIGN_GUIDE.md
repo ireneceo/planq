@@ -56,7 +56,15 @@ if (isOtherWorkspace(entity.business_id, user.business_id)) { setOtherBiz(entity
   안 만든 화면은 **딥링크가 죽는다**(실제로 파일·고객이 그랬다)
 - 카나리 `node scripts/e2e/run.js --suite detailopen` 가 지킨다 — **침묵이 실패**
 - **다른 워크스페이스 항목은 배너를 얹지 말고 내용 자체를 안 그린다** — 한 화면 한 워크스페이스(CLAUDE.md 워크스페이스 단일 정본 계약).
-  적용: 업무 드로어 · 프로젝트 · 문서 · Q Note · 메모 · Q Talk. 새 상세 화면도 같은 두 줄
+  적용: 업무 드로어 · 프로젝트 · 문서 · Q Note · 메모 · Q Talk · 자료정리. 새 상세 화면도 같은 두 줄
+- **URL 에 현재 워크스페이스를 넣어 부르는 상세는 404 가 온다** — 그때 "찾을 수 없음" 전에 한 번 묻는다:
+  ```tsx
+  if (r.status === 404) { const other = await findOtherWorkspaceOf('invoice', id, bizId); setStatus(other ? 'other_workspace' : 'not_found'); }
+  // 목록에서 골라 여는 화면(캘린더·청구서)은 한 벌로:
+  const direct = useDirectDetail<ApiInvoice>('invoice', selectedId, url, bizId, loading || !!listed);
+  <DetailFallbackDrawer state={direct} onClose={close} />
+  ```
+  적용: 캘린더 · 메일 · Q info · 파일 · 청구서 · 고객. 서버 판정은 `/api/entity-workspace/:kind/:id` 한 곳(내용 없이 business_id 만)
 
 ## 0-B-2. 검색 결과는 **왜 떴는지** 보여준다 (2026-09-11)
 

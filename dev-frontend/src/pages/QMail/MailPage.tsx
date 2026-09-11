@@ -24,6 +24,7 @@ import OverflowMenu, { type OverflowItem } from '../../components/Common/Overflo
 import ChipPopover from '../../components/Common/ChipPopover';
 import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
+import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 import { PanelGridLayout, CollapsibleSidebar, SidebarBackdrop, Panel } from '../../components/Layout/PanelLayout';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -407,6 +408,8 @@ const MailPage: React.FC = () => {
   useTabTitle(detail?.subject);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
+  // Q6 — 다른 워크스페이스 스레드를 id 로 열었을 때 그 워크스페이스(전환 안내용)
+  const [threadOtherBiz, setThreadOtherBiz] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   // 우측 맥락 패널 — 리사이즈 + 접기 (Q Task 패턴 통일). localStorage 저장 · ⌘/ · Ctrl+\
   const [rightWidth, setRightWidth] = useState<number>(() => {
@@ -1093,7 +1096,14 @@ const MailPage: React.FC = () => {
       // ★ 실패를 삼키지 않는다 (2026-08-30). 여태는 `if (j.success)` 만 처리해서
       //   404·403·429·500 이 전부 아래 **"메일에서 시작해 보세요" 온보딩**으로 떨어졌다 —
       //   알림을 눌러 들어온 사용자에게 그 문구는 거짓말이다.
-      if (r.status === 404) { setDetailStatus('not_found'); setDetail(null); return; }
+      if (r.status === 404) {
+        // Q6 — URL 이 현재 워크스페이스라 다른 워크스페이스 스레드는 404 다. 내 다른 워크스페이스 것이면 "찾을 수 없음" 이 거짓말이다.
+        const other = await findOtherWorkspaceOf('email_thread', id, businessId);
+        setDetail(null);
+        setThreadOtherBiz(other);
+        setDetailStatus(other ? 'other_workspace' : 'not_found');
+        return;
+      }
       if (r.status === 403) { setDetailStatus('forbidden'); setDetail(null); return; }
       if (!r.ok) { setDetailStatus('error'); setDetail(null); return; }
       const j = await r.json().catch(() => null);
@@ -2482,10 +2492,11 @@ const MailPage: React.FC = () => {
               <SkelCard><SkelLine $w="38%" /><SkelLine /><SkelLine $w="86%" /></SkelCard>
               <SkelCard><SkelLine $w="44%" /><SkelLine /><SkelLine $w="72%" /></SkelCard>
             </DetailSkeleton>
-          ) : !detail && (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error') ? (
+          ) : !detail && (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error' || detailStatus === 'other_workspace') ? (
             /* 상세를 못 불러온 것 — "아직 안 골랐음"(아래 온보딩)과 **다른 상태**다. */
             <DetailFallback
               status={detailStatus}
+              businessId={threadOtherBiz}
               onRetry={activeId ? () => { void loadDetail(activeId); } : undefined}
               onBack={viewportNarrow ? () => navigateToThread(null) : undefined}
             />

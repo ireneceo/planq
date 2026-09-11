@@ -33,6 +33,18 @@ export interface NotificationItem {
   actor?: { id: number; name: string; name_localized?: string | null } | null;
 }
 
+// ★ Q7 (Irene 2026-09-11) — 종의 목록·숫자·모두 읽음은 **현재 워크스페이스 + 플랫폼 공지** 만.
+//   범위는 여기서 **한 번** 붙인다(4 소비처가 모두 이 훅을 지난다). 서버는 인자가 없으면 플랫폼 공지만 준다.
+const scopeQs = (bizId: number | null): string => (bizId ? `business_id=${bizId}` : '');
+const withScope = (path: string, bizId: number | null): string => {
+  const qs = scopeQs(bizId);
+  return qs ? `${path}${path.includes('?') ? '&' : '?'}${qs}` : path;
+};
+// 소켓 payload 가 다른 워크스페이스 것이면 이 창의 종과 무관하다(플랫폼 공지 = business_id null 은 통과).
+const isOtherScope = (payloadBiz: unknown, bizId: number | null): boolean => (
+  payloadBiz != null && Number(payloadBiz) !== bizId
+);
+
 // 미읽음 카운트 — 사이드바 종 모양 badge + OS 앱 아이콘 배지 공용.
 //
 // ★ `loaded` 를 같이 돌려준다. 앱 아이콘 배지는 **0 을 두 가지로 구분해야** 하기 때문이다.
@@ -40,6 +52,7 @@ export interface NotificationItem {
 //   "불러왔더니 0 이다" 에서 안 지우면 다 읽었는데 숫자가 남는다. 값으로 추측하지 않는다.
 export function useNotificationCountState(): { count: number; loaded: boolean } {
   const { user } = useAuth();
+  const bizId = user?.business_id ? Number(user.business_id) : null;
   const [count, setCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -49,7 +62,7 @@ export function useNotificationCountState(): { count: number; loaded: boolean } 
 
     const refresh = async () => {
       try {
-        const r = await apiFetch('/api/notifications/unread-count');
+        const r = await apiFetch(withScope('/api/notifications/unread-count', bizId));
         const j = await r.json();
         if (!cancelled && j.success) { setCount(Number(j.data?.count) || 0); setLoaded(true); }
       // 실패는 0 건이 아니다 — loaded 를 세우지 않아야 배지가 제 값을 잃지 않는다.
@@ -66,9 +79,13 @@ export function useNotificationCountState(): { count: number; loaded: boolean } 
     window.addEventListener('notification:refresh', onLocal);
 
     // 공유 소켓 (services/socket) — multi-device 동기화. notification:* 는 user room 자동 join.
-    const offNew = onSocket('notification:new', () => refresh());
+    const offNew = onSocket<{ business_id?: number | null }>('notification:new', (p) => {
+      if (isOtherScope(p?.business_id, bizId)) return;
+      refresh();
+    });
     const offRead = onSocket('notification:read', () => refresh());
-    const offReadAll = onSocket('notification:read-all', () => { setCount(0); setLoaded(true); });
+    // 모두 읽음은 범위가 있다 — 0 으로 덮지 않고 내 범위로 다시 센다(플랫폼 공지만 읽은 창이 워크스페이스 숫자를 지우지 않게).
+    const offReadAll = onSocket('notification:read-all', () => refresh());
 
     return () => {
       cancelled = true;
@@ -77,7 +94,7 @@ export function useNotificationCountState(): { count: number; loaded: boolean } 
       window.removeEventListener('notification:refresh', onLocal);
       offNew(); offRead(); offReadAll();
     };
-  }, [user?.id]);
+  }, [user?.id, bizId]);
 
   return { count, loaded };
 }
@@ -97,6 +114,7 @@ interface UseNotificationsOptions {
 export function useNotifications(opts: UseNotificationsOptions = {}) {
   const { limit = 20, unreadOnly = false, autoRefresh = true } = opts;
   const { user } = useAuth();
+  const bizId = user?.business_id ? Number(user.business_id) : null;
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -106,12 +124,13 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
     try {
       const qs = new URLSearchParams({ limit: String(limit) });
       if (unreadOnly) qs.set('unread_only', 'true');
+      if (bizId) qs.set('business_id', String(bizId));
       const r = await apiFetch(`/api/notifications?${qs}`);
       const j = await r.json();
       if (j.success) setItems(j.data || []);
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [user, limit, unreadOnly]);
+  }, [user, limit, unreadOnly, bizId]);
 
   useEffect(() => {
     if (!user) { setItems([]); return; }
@@ -122,15 +141,18 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
     window.addEventListener('notification:refresh', onLocal);
 
     // 공유 소켓 (services/socket) — notification:* 는 user room 자동 join.
-    const offNew = onSocket('notification:new', () => refresh());
+    const offNew = onSocket<{ business_id?: number | null }>('notification:new', (p) => {
+      if (isOtherScope(p?.business_id, bizId)) return;
+      refresh();
+    });
     const offRead = onSocket('notification:read', () => refresh());
-    const offReadAll = onSocket('notification:read-all', () => setItems(prev => prev.map(it => ({ ...it, read_at: it.read_at || new Date().toISOString() }))));
+    const offReadAll = onSocket('notification:read-all', () => refresh());
 
     return () => {
       window.removeEventListener('notification:refresh', onLocal);
       offNew(); offRead(); offReadAll();
     };
-  }, [user?.id, autoRefresh, refresh]);
+  }, [user?.id, bizId, autoRefresh, refresh]);
 
   const markRead = useCallback(async (id: number) => {
     try {
@@ -142,11 +164,13 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
 
   const markAllRead = useCallback(async () => {
     try {
-      await apiFetch('/api/notifications/read-all', { method: 'POST' });
+      // ★ apiFetch 는 throw 하지 않는다 — 실패(403 등)면 화면을 읽음으로 바꾸지 않는다.
+      const r = await apiFetch(withScope('/api/notifications/read-all', bizId), { method: 'POST' });
+      if (!r.ok) return;
       setItems(prev => prev.map(it => ({ ...it, read_at: it.read_at || new Date().toISOString() })));
       window.dispatchEvent(new CustomEvent('notification:refresh'));
     } catch { /* silent */ }
-  }, []);
+  }, [bizId]);
 
   return { items, loading, refresh, markRead, markAllRead };
 }

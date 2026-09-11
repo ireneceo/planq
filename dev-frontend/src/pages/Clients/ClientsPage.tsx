@@ -31,6 +31,9 @@ import ClientSubscriptions from './ClientSubscriptions';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { isEnterAction } from '../../utils/imeKey';
 import { belowTabs } from '../../theme/layout';
+import DetailFallback from '../../components/Common/DetailFallback';
+import type { DetailStatus } from '../../hooks/useDetailResource';
+import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 
 type ClientStatus = 'invited' | 'active' | 'archived';
 
@@ -139,6 +142,8 @@ export default function ClientsPage() {
   useDetailParam('client', { activeId, onOpen: setActiveId });
   useBodyScrollLock(activeId != null);
   const [activeDetail, setActiveDetail] = useState<ClientRow | null>(null);
+  const [clientDetailStatus, setClientDetailStatus] = useState<DetailStatus>('idle');
+  const [clientOtherBiz, setClientOtherBiz] = useState<number | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -222,14 +227,31 @@ export default function ClientsPage() {
   // 드로어 상세 로드
   useEffect(() => {
     setResendDone(false);
-    if (!activeId) { setActiveDetail(null); setHistory([]); setHistoryLoaded(false); setHistoryOpen(false); return; }
+    if (!activeId) { setActiveDetail(null); setHistory([]); setHistoryLoaded(false); setHistoryOpen(false); setClientDetailStatus('idle'); return; }
     let cancelled = false;
+    setClientDetailStatus('loading');
+    // ★ 실패를 삼키지 않는다(UI_DESIGN_GUIDE 0-B). 여태는 `if (j.success)` 만 봐서 404·403·500 이면
+    //   드로어가 아예 안 떠 "눌러도 아무 일 없음" 이었다. Q6 — 404 면 내 다른 워크스페이스 고객인지 묻는다.
     (async () => {
+      const fail = (status: DetailStatus, other: number | null = null) => {
+        if (cancelled) return;
+        setActiveDetail(null); setClientOtherBiz(other); setClientDetailStatus(status);
+      };
       try {
         const res = await apiFetch(`/api/clients/${businessId}/${activeId}`);
-        const j = await res.json();
-        if (!cancelled && j.success) setActiveDetail(j.data);
-      } catch { /* ignore */ }
+        if (cancelled) return;
+        if (res.status === 404) {
+          const other = await findOtherWorkspaceOf('client', activeId, businessId);
+          fail(other ? 'other_workspace' : 'not_found', other);
+          return;
+        }
+        if (res.status === 403) { fail('forbidden'); return; }
+        const j = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!res.ok || !j?.success) { fail('error'); return; }
+        setActiveDetail(j.data);
+        setClientDetailStatus('ready');
+      } catch { fail('error'); }
     })();
     return () => { cancelled = true; };
   }, [activeId, businessId]);
@@ -544,6 +566,25 @@ export default function ClientsPage() {
           </Table>
         </TableWrap>
       )}
+
+      {/* 상세를 못 불러왔을 때 — 이유를 말한다(Q6 다른 워크스페이스 포함) */}
+      {activeId && !activeDetail && (clientDetailStatus === 'not_found' || clientDetailStatus === 'forbidden'
+        || clientDetailStatus === 'error' || clientDetailStatus === 'other_workspace') && (<>
+        <DrawerBackdrop onClick={() => setActiveId(null)} />
+        <Drawer data-testid="client-detail-fallback" role="dialog" aria-modal="true"
+                aria-label={t('common:detail.ariaLabel', '상세') as string}>
+          <DrawerHeader>
+            <DrawerBack onClick={() => setActiveId(null)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
+              {t('drawer.back', '목록')}
+            </DrawerBack>
+            <DrawerClose onClick={() => setActiveId(null)} aria-label={t('drawer.close', '닫기') as string}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </DrawerClose>
+          </DrawerHeader>
+          <DetailFallback status={clientDetailStatus} businessId={clientOtherBiz} onBack={() => setActiveId(null)} />
+        </Drawer>
+      </>)}
 
       {/* 우측 드로어 */}
       {activeId && activeDetail && (<>

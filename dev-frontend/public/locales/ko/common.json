@@ -1043,6 +1043,7 @@
   },
   "detail": {
     "loading": "불러오는 중…",
+    "ariaLabel": "상세",
     "retry": "다시 시도",
     "backToList": "목록으로",
     "notfound": {

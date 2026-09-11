@@ -98,6 +98,43 @@ function columnValueSnippet(columns, values, q) {
   return null;
 }
 
+// 셀 값 → 판정용 원자 문자열들. 구조값(배열·객체)은 안의 원시값까지 편다.
+//   각 원자는 **SQL 이 보는 JSON 표기 그대로**(이스케이프 포함) — 아래 판정이 SQL 후보 조건보다 넓어지지 않게.
+const cellAtoms = (raw, out = []) => {
+  if (raw == null) return out;
+  if (Array.isArray(raw)) { for (const x of raw) cellAtoms(x, out); return out; }
+  if (typeof raw === 'object') { for (const x of Object.values(raw)) cellAtoms(x, out); return out; }
+  out.push(JSON.stringify(String(raw)).slice(1, -1));
+  return out;
+};
+
+// ★ 표 셀·Q info 항목 값 검색의 **단일 판정** (#334 → 2026-09-11 표 분기까지).
+//   SQL 은 values JSON 을 통째로 LIKE 해 **후보만** 좁힌다 — 거기엔 비밀 칸 값과 칸 id(JSON 키)가 섞여 있다.
+//   결과에 올리는 것은 **비밀이 아닌 칸** 하나라도 SQL 과 같은 규칙(부분일치 / 공백 제거 부분일치)으로 맞을 때뿐이다.
+//   판정 규칙을 SQL 보다 넓히지 않는다 — 넓히면 비밀 칸이 후보로 끌어온 행이 비밀 아닌 칸의 느슨한 규칙으로
+//   통과해, "결과가 뜨는가" 가 다시 비밀 값에 좌우된다.
+//   호출부는 SQL 에 두 조건(`LIKE :like` · `REPLACE(…,' ','') LIKE :likeSq`)을 **둘 다** 건다.
+function matchesNonSecretCell(columns, values, q) {
+  const cols = Array.isArray(columns) ? columns : [];
+  const vals = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
+  const secretIds = new Set(cols.filter((c) => c && c.type === 'secret').map((c) => String(c.id)));
+  const needle = q.toLowerCase();
+  const needleSquashed = q.replace(/\s+/g, '').toLowerCase();
+  for (const [colId, raw] of Object.entries(vals)) {
+    if (secretIds.has(String(colId))) continue;
+    for (const atom of cellAtoms(raw)) {
+      const v = atom.toLowerCase();
+      if (!v) continue;
+      if (needle && v.includes(needle)) return true;
+      if (needleSquashed && v.replace(/ /g, '').includes(needleSquashed)) return true;
+    }
+  }
+  return false;
+}
+
+// 판정 전 후보 행 상한 — 비밀 칸에서만 맞은 행이 자리를 먹어 정상 결과를 밀어내지 않을 만큼.
+const CELL_CANDIDATE_ROWS = 500;
+
 // GET /api/search/recent?business_id=X&limit=5
 //   운영 #305 — "검색이랑 상단 탭 열 때 최신글이나 문서 등 이런거 보여주는 거 기본 아니야? 검색 전에."
 //   빈 검색창은 아무것도 못 하는 화면이었다. 열자마자 **최근에 손댄 것**을 보여주면
@@ -226,17 +263,35 @@ router.get('/', authenticateToken, async (req, res, next) => {
           attributes: ['id', 'title', 'category', 'project_id', 'kind', 'content_text'],
           limit, order: [relevance('title'), ['updated_at', 'DESC']],
         }).catch(() => []);
-        // 2) 표 셀 검색 — kind='table' 인 post 의 연결 q_record_rows.values 에서 LIKE
+        // 2) 표 셀 검색 — kind='table' 인 post 의 연결 q_record_rows.values
+        //   ★ 2026-09-11: 옛 코드는 SQL 후보(values JSON 통째 LIKE)를 **그대로 결과로** 썼다.
+        //     그래서 **비밀 칸 값으로 검색해도 그 표가 떴다** — 값은 안 보여도 "이 값을 가진 표가 있다" 가 샌다
+        //     (Q info 항목 검색 #334 와 같은 구멍). 칸 id(JSON 키 "c1a2…")로도 걸렸다.
+        //     후보는 칸 정의(q_records.columns)와 같이 읽고 matchesNonSecretCell 로 판정한다.
+        //     정의가 없는 표는 어느 칸이 비밀인지 모르므로 INNER JOIN 으로 뺀다(fail-closed).
         const tableSql =
-          'SELECT DISTINCT p.id, p.title, p.category, p.project_id, p.kind, p.updated_at ' +
-          'FROM posts p JOIN q_record_rows r ON r.q_record_id = p.q_record_id ' +
+          'SELECT p.id AS post_id, qr.columns AS cols, r.`values` AS vals ' +
+          'FROM posts p ' +
+          'JOIN q_records qr ON qr.id = p.q_record_id AND qr.business_id = :bid ' +
+          'JOIN q_record_rows r ON r.q_record_id = p.q_record_id ' +
           // paranoid 는 raw SQL 에 안 걸린다 — 지운 문서가 검색에 뜨지 않게 손으로 건다
           'WHERE p.business_id = :bid AND p.deleted_at IS NULL AND p.kind = \'table\' ' +
-          'AND LOWER(CAST(r.`values` AS CHAR)) LIKE LOWER(:like) ' +
-          `ORDER BY p.updated_at DESC LIMIT ${Number(limit)}`;
-        const tableMatches = await sequelize.query(tableSql,
-          { replacements: { bid: businessId, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }
+          'AND (LOWER(CAST(r.`values` AS CHAR)) LIKE LOWER(:like) ' +
+          "OR REPLACE(LOWER(CAST(r.`values` AS CHAR)), ' ', '') LIKE LOWER(:likeSq)) " +
+          `ORDER BY p.updated_at DESC, p.id, r.position LIMIT ${CELL_CANDIDATE_ROWS}`;
+        const tableRows = await sequelize.query(tableSql,
+          { replacements: { bid: businessId, like: `%${qEsc}%`, likeSq: `%${qSquashed}%` }, type: sequelize.QueryTypes.SELECT }
         ).catch(err => { console.error('[search] table cell match err:', err.message); return []; });
+        // 판정 통과한 표만, 처음 맞은 순서(최신 수정순)대로. 스니펫도 같은 행에서(비밀 칸 제외 — columnValueSnippet).
+        const cellSnippetByPost = new Map();
+        const tableMatches = [];
+        for (const row of tableRows) {
+          const cols = asObj(row.cols);
+          const vals = asObj(row.vals);
+          if (!matchesNonSecretCell(cols, vals, q)) continue;
+          if (!cellSnippetByPost.has(row.post_id)) { tableMatches.push({ id: row.post_id }); cellSnippetByPost.set(row.post_id, null); }
+          if (!cellSnippetByPost.get(row.post_id)) cellSnippetByPost.set(row.post_id, columnValueSnippet(cols, vals, q));
+        }
         // ★ raw SQL 은 `business_id` 만 걸고 **가시등급(postWhere)을 안 본다.**
         //   실측(2026-09-02 보안감사): 이 분기로 고객·평멤버에게 **L3 워크스페이스 전용 문서**와
         //   **참여하지 않은 프로젝트의 표**가 나왔다(셀 값 "아마존 계정" 등).
@@ -267,6 +322,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
             { field: 'content', text: p.content_text },
           ], q);
           delete p.content_text;
+        }
+        for (const p of out) {
+          if (p.match || p.kind !== 'table' || !cellSnippetByPost.has(p.id)) continue;
+          p.match = { field: 'table', snippet: cellSnippetByPost.get(p.id) };
         }
         const needTable = out.filter((p) => !p.match && p.kind === 'table').map((p) => p.id);
         if (needTable.length > 0) {
@@ -339,29 +398,16 @@ router.get('/', authenticateToken, async (req, res, next) => {
           'SELECT id, title, category, scope, custom_columns, custom_values FROM kb_documents ' +
           // paranoid 는 raw SQL 에 안 걸린다 — 지운 정보가 검색에 뜨지 않게 손으로 건다
           'WHERE business_id = :bid AND deleted_at IS NULL ' +
-          'AND (custom_values IS NOT NULL AND LOWER(CAST(custom_values AS CHAR)) LIKE LOWER(:like)) ' +
-          `ORDER BY updated_at DESC LIMIT ${Number(limit) * 3}`,
-          { replacements: { bid: businessId, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }
+          'AND custom_values IS NOT NULL AND (LOWER(CAST(custom_values AS CHAR)) LIKE LOWER(:like) ' +
+          "OR REPLACE(LOWER(CAST(custom_values AS CHAR)), ' ', '') LIKE LOWER(:likeSq)) " +
+          `ORDER BY updated_at DESC LIMIT ${CELL_CANDIDATE_ROWS}`,
+          { replacements: { bid: businessId, like: `%${qEsc}%`, likeSq: `%${qSquashed}%` }, type: sequelize.QueryTypes.SELECT }
         ).catch(err => { console.error('[search] kb val err:', err.message); return []; });
 
-        const needle = q.toLowerCase();
-        const needleSquashed = q.replace(/\s+/g, '').toLowerCase();
-        const valHits = rawValHits.filter((row) => {
-          const cols = asObj(row.custom_columns) || [];
-          const vals = asObj(row.custom_values) || {};
-          const secretIds = new Set(
-            (Array.isArray(cols) ? cols : []).filter((c) => c && c.type === 'secret').map((c) => String(c.id)),
-          );
-          // 비밀 아닌 항목 중 하나라도 맞으면 통과. 전부 secret 에서만 맞았으면 제외.
-          for (const [colId, raw] of Object.entries(vals)) {
-            if (secretIds.has(String(colId))) continue;
-            const v = String(raw == null ? '' : raw).toLowerCase();
-            if (!v) continue;
-            if (v.includes(needle)) return true;
-            if (needleSquashed && v.replace(/\s+/g, '').includes(needleSquashed)) return true;
-          }
-          return false;
-        }).map(({ custom_columns: cc, custom_values: cv, ...rest }) => ({
+        // 비밀 아닌 항목 중 하나라도 맞으면 통과. 전부 secret 에서만 맞았으면 제외 — 표 셀과 같은 판정 한 곳.
+        const valHits = rawValHits.filter((row) => (
+          matchesNonSecretCell(asObj(row.custom_columns), asObj(row.custom_values), q)
+        )).map(({ custom_columns: cc, custom_values: cv, ...rest }) => ({
           ...rest,
           // 스니펫도 **비밀이 아닌 칸에서만** — 위 필터와 같은 기준(columnValueSnippet 이 secret 을 건너뛴다)
           match: { field: 'value', snippet: columnValueSnippet(asObj(cc), asObj(cv), q) },

@@ -8,6 +8,9 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import DetailDrawer from '../../components/Common/DetailDrawer';
+import DetailFallbackDrawer from '../../components/Common/DetailFallbackDrawer';
+import type { DetailStatus } from '../../hooks/useDetailResource';
+import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 import ShareModal from '../../components/Common/ShareModal';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -154,14 +157,40 @@ const DocsTab: React.FC<Props> = (props) => {
   //   "없음" 안내는 다음 커밋의 공통 폴백이 담당한다.
   const openFileId = props.openFileId ?? null;
   const openedFileRef = useRef<number | null>(null);
+  // Q6 — 목록에 없는 ?file= 는 **이유를 말한다**(여태 "그대로 둔다" 로 미뤄져 아무 일도 안 일어났다).
+  //   ① 내 다른 워크스페이스 파일이면 전환 안내 — 그러면 이 목록에는 영영 안 온다(바로 판정).
+  //   ② 아니면 "찾을 수 없음" — 단 **새로 받은 목록**으로 확인한 뒤에만(캐시로 먼저 그린 목록은 낡았을 수 있다).
+  const [missingFile, setMissingFile] = useState<{ id: number; status: DetailStatus; otherBiz: number | null } | null>(null);
+  const probedFileRef = useRef<number | null>(null);
+  const firstFilesRef = useRef(true);
+  const [filesFresh, setFilesFresh] = useState(false);
   useEffect(() => {
-    if (!openFileId) { openedFileRef.current = null; return; }
+    if (firstFilesRef.current) { firstFilesRef.current = false; return; }
+    setFilesFresh(true);
+  }, [files]);
+  useEffect(() => {
+    if (!openFileId) { openedFileRef.current = null; probedFileRef.current = null; setMissingFile(null); return; }
     if (openedFileRef.current === openFileId) return;
     // ★ 목록의 id 는 `direct-123` 같은 **합성 문자열**이다 (#390 에서 Number('direct-N')=NaN
     //   사고가 난 그 축). 딥링크의 숫자 id 와 맞추려면 반드시 parseFileId 로 푼다.
     const hit = files.find((f) => parseFileId(f.id)?.id === openFileId);
-    if (hit) { openedFileRef.current = openFileId; setPreview(hit); }
-  }, [openFileId, files]);
+    if (hit) { openedFileRef.current = openFileId; setMissingFile(null); setPreview(hit); return; }
+    if (probedFileRef.current !== openFileId) {
+      const want = openFileId;
+      probedFileRef.current = want;
+      void findOtherWorkspaceOf('file', want, scope.businessId).then((other) => {
+        if (other && probedFileRef.current === want) setMissingFile({ id: want, status: 'other_workspace', otherBiz: other });
+      });
+    }
+    if (filesFresh && !loading && !loadError) {
+      setMissingFile((cur) => (cur && cur.id === openFileId ? cur : { id: openFileId, status: 'not_found', otherBiz: null }));
+    }
+  }, [openFileId, files, filesFresh, loading, loadError, scope.businessId]);
+  const closeMissingFile = useCallback(() => {
+    setMissingFile(null);
+    props.onOpenFileChange?.(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.onOpenFileChange]);
 
   // 상세 열림/닫힘을 오너에 알려 URL 을 맞춘다 (새로고침·공유에서 맥락 유지)
   const notifyOpen = props.onOpenFileChange;
@@ -1013,6 +1042,9 @@ const DocsTab: React.FC<Props> = (props) => {
           )}
         </FilesArea>
       </Split>
+
+      {/* Q6 — ?file= 를 못 열었을 때 이유를 말한다(다른 워크스페이스 포함) */}
+      <DetailFallbackDrawer state={preview ? null : missingFile} onClose={closeMissingFile} />
 
       {/* 미리보기 드로어 */}
       <DetailDrawer open={!!preview} onClose={() => setPreview(null)} width={480} ariaLabel={tr('docs.preview.aria', '파일 미리보기')}>

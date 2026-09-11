@@ -54,6 +54,108 @@ const CASES = [
   ['프로젝트', (id)=>`/projects/p/${id}`,             196,  99999901, null],
 ];
 
+// ── 내 다른 워크스페이스 (Q6 · 2026-09-11) ─────────────────────────────────────────────
+//   캘린더·메일·Q info·파일·청구서·고객 상세는 URL 에 현재 워크스페이스를 넣어 부르므로 **내가 소속된
+//   두 번째 워크스페이스** 항목도 404 가 되어 "찾을 수 없음"(또는 침묵)이었다. 이제는 내용 없이 전환 안내가 떠야 한다.
+//   자료정리(/docs/brief/:id)는 반대로 **남의 내용을 그리고 있었다**(URL 에 워크스페이스가 없는 문).
+//   재는 법: 계정의 현재 워크스페이스를 비어 있는 73 으로 두고, 5 의 실제 항목을 연다 → other-workspace-notice 가 **보이는가**.
+//   ★ 음성 대조군 ① 없는 id 는 notice 가 아니라 notfound ② 현재 워크스페이스를 5 로 되돌리면 같은 주소에 notice 가 **없다**
+//     (판정기가 늘 참이 아님을 증명). 폰·태블릿·데스크탑 세 폭 모두.
+//   ★ 끝나면 active_business_id 를 원래 값으로 되돌리고 만든 일정을 지운다(wssync 와 같은 계정을 쓴다).
+require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env', quiet: true });
+const { sequelize } = require('/opt/planq/dev-backend/config/database');
+const OW_USER = 5;
+const OW_HOME = 5;   // 항목이 있는 워크스페이스
+const OW_AWAY = 73;  // 계정이 소속된 다른(빈) 워크스페이스
+const VIEWPORTS = [
+  { label: '데스크탑', vp: { width: 1440, height: 900 } },
+  { label: '태블릿', vp: { width: 820, height: 1180 } },
+  { label: '폰', vp: { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } },
+];
+// 보이는 notice 만 — 크기 + 뷰포트 안 + 그 자리에서 실제로 맨 위(elementFromPoint)
+const NOTICE = `(() => !![...document.querySelectorAll('[data-testid="other-workspace-notice"]')].find((e) => {
+  const r = e.getBoundingClientRect();
+  if (r.width < 40 || r.height < 20 || r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) return false;
+  const cx = Math.min(innerWidth - 1, Math.max(0, r.left + r.width / 2));
+  const cy = Math.min(innerHeight - 1, Math.max(0, r.top + Math.min(r.height / 2, 30)));
+  const hit = document.elementFromPoint(cx, cy);
+  return !!hit && (hit === e || e.contains(hit));
+}))()`;
+
+async function waitEval(page, expr, pred, tries = 16) {
+  let v = null;
+  for (let i = 0; i < tries; i++) {
+    await sleep(700);
+    v = await page.evaluate(expr).catch(() => null);
+    if (pred(v)) break;
+  }
+  return v;
+}
+
+async function otherWorkspaceCases(page) {
+  const one = async (sql, rep = {}) => (await sequelize.query(sql, { replacements: rep, type: sequelize.QueryTypes.SELECT }))[0] || null;
+  const { accessibleAccountIds } = require('/opt/planq/dev-backend/services/mailIdentity');
+  const { CalendarEvent } = require('/opt/planq/dev-backend/models');
+  const acct = (await accessibleAccountIds(OW_HOME, OW_USER)).map(Number);
+  const start = new Date(Date.now() + 86400000);
+  const ev = await CalendarEvent.create({
+    business_id: OW_HOME, title: '[카나리] 다른 워크스페이스 일정', start_at: start, end_at: new Date(start.getTime() + 3600000),
+    created_by: OW_USER, vlevel: 'L3', visibility: 'business', gcal_sync_workspace: false, gcal_sync_personal: false,
+  });
+  const ids = {
+    thread: acct.length ? (await one(`SELECT id FROM email_threads WHERE business_id = :b AND account_id IN (${acct.join(',')}) ORDER BY id DESC LIMIT 1`, { b: OW_HOME }))?.id : null,
+    doc: (await one('SELECT id FROM kb_documents WHERE business_id = :b AND deleted_at IS NULL ORDER BY id DESC LIMIT 1', { b: OW_HOME }))?.id,
+    file: (await one('SELECT id FROM files WHERE business_id = :b AND deleted_at IS NULL ORDER BY id DESC LIMIT 1', { b: OW_HOME }))?.id,
+    invoice: (await one('SELECT id FROM invoices WHERE business_id = :b ORDER BY id DESC LIMIT 1', { b: OW_HOME }))?.id,
+    client: (await one('SELECT id FROM clients WHERE business_id = :b ORDER BY id DESC LIMIT 1', { b: OW_HOME }))?.id,
+    brief: (await one("SELECT id FROM posts WHERE business_id = :b AND deleted_at IS NULL AND category = 'brief' ORDER BY id DESC LIMIT 1", { b: OW_HOME }))?.id,
+  };
+  // [라벨, URL, 없는 id 대조군을 볼지]
+  const cases = [
+    ['캘린더', (id) => `/calendar?event=${id}`, ev.id, true],
+    ['메일', (id) => `/mail?folder=all&thread=${id}`, ids.thread, false],
+    ['Q info', (id) => `/info?doc=${id}`, ids.doc, false],
+    ['파일', (id) => `/files?file=${id}`, ids.file, true],
+    ['청구서', (id) => `/bills?tab=invoices&invoice=${id}`, ids.invoice, true],
+    ['고객', (id) => `/business/clients?client=${id}`, ids.client, true],
+    ['자료정리', (id) => `/docs/brief/${id}`, ids.brief, false],
+  ];
+  const [[orig]] = await sequelize.query('SELECT active_business_id FROM users WHERE id = ?', { replacements: [OW_USER] });
+  try {
+    await sequelize.query('UPDATE users SET active_business_id = ? WHERE id = ?', { replacements: [OW_AWAY, OW_USER] });
+    for (const { label: vpLabel, vp } of VIEWPORTS) {
+      await page.setViewport(vp);
+      for (const [label, mk, id, checkMissing] of cases) {
+        if (!id) { console.log(`  ${label} 다른 워크스페이스 표본 없음 — 건너뜀`); continue; }
+        await goto(page, mk(id));
+        const seen = await waitEval(page, NOTICE, (v) => v === true);
+        seen ? ok(`[${vpLabel}] ${label} 내 다른 워크스페이스 항목 → 전환 안내가 보인다`)
+          : bad(`[${vpLabel}] ${label} 내 다른 워크스페이스 항목 → 안내 없음 (폴백: ${await page.evaluate(FB)})${await drift(page, mk(id))}`);
+        if (checkMissing && vpLabel === '데스크탑') {
+          await goto(page, mk(99999901));
+          const f = await waitEval(page, FB, (v) => v && v !== 'detail-fallback-loading');
+          const n = await page.evaluate(NOTICE);
+          (f === 'detail-fallback-notfound' && !n) ? ok(`${label} 없는 ID → "찾을 수 없음"(전환 안내 아님)`)
+            : bad(`${label} 없는 ID → ${f || '아무 말도 없음'} · notice=${n}${await drift(page, mk(99999901))}`);
+        }
+      }
+    }
+    // 음성 대조군 — 현재 워크스페이스를 항목의 워크스페이스로 되돌리면 같은 주소에 안내가 **없어야** 한다
+    await sequelize.query('UPDATE users SET active_business_id = ? WHERE id = ?', { replacements: [OW_HOME, OW_USER] });
+    await page.setViewport(VIEWPORTS[0].vp);
+    for (const [label, mk, id] of cases.filter((c) => ['캘린더', '청구서', '고객', '자료정리'].includes(c[0]))) {
+      if (!id) continue;
+      await goto(page, mk(id));
+      await sleep(4000);
+      const n = await page.evaluate(NOTICE);
+      !n ? ok(`대조군: 현재 워크스페이스 항목(${label}) → 안내 없음`) : bad(`대조군: 현재 워크스페이스 항목(${label})인데 전환 안내가 떴다`);
+    }
+  } finally {
+    await sequelize.query('UPDATE users SET active_business_id = ? WHERE id = ?', { replacements: [orig.active_business_id, OW_USER] });
+    await CalendarEvent.destroy({ where: { id: ev.id } }).catch(() => null);
+  }
+}
+
 async function run() {
   const { browser, page } = await launch({ mobile: false });
   try {
@@ -127,6 +229,8 @@ async function run() {
           : bad(`${label} 남의 워크스페이스 → ${f3 || '아무 말도 없음(회귀)'}${await drift(page, mk(foreign))}`);
       }
     }
+
+    await otherWorkspaceCases(page);
   } finally { await browser.close(); }
   return results;
 }

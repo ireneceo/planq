@@ -27,26 +27,16 @@ import { listProjects } from '../../services/qtalk';
 import { taskToEvent, isTaskEvent, isPersonalEvent, personalToEvent, TASK_EVENT_ID_OFFSET } from './taskToEvent';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { apiFetch } from '../../contexts/AuthContext';
+import DetailFallbackDrawer from '../../components/Common/DetailFallbackDrawer';
+import { useDirectDetail } from '../../hooks/useDirectDetail';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { todayInTz, detectBrowserTz } from '../../utils/timezones';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { mapApiError } from '../../utils/apiError';
 
-// ─── URL 싱크 ───
-// #133 — 폰(≤640)에서 무파라미터 진입 시 기본 뷰를 agenda(리스트)로. 명시 ?view= 있으면 항상 존중.
-const defaultView = (): CalendarViewMode =>
-  (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches) ? 'agenda' : 'month';
-
-const readUrl = (search: string) => {
-  const p = new URLSearchParams(search);
-  const view = (p.get('view') || defaultView()) as CalendarViewMode;
-  const dateStr = p.get('date');
-  const eventId = p.get('event') ? Number(p.get('event')) : null;
-  const scope = (p.get('scope') || 'all') as CalendarScope;
-  const date = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
-  return { view, date, eventId, scope };
-};
+// ─── URL 싱크 ─── (calendarUrl.ts)
+import { readUrl } from './calendarUrl';
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
@@ -312,10 +302,14 @@ const QCalendarPage: React.FC = () => {
     return merged;
   }, [events, taskEvents, personalEvents, personalConnected, showPersonal, scope, myUserId]);
 
-  const selectedEvent = useMemo(
+  const listedEvent = useMemo(
     () => (selectedEventId != null ? events.find((e) => e.id === selectedEventId) || null : null),
     [events, selectedEventId]
   );
+  // Q6 — 불러온 날짜 범위에 없는 ?event=(알림·검색 링크)는 그 id 로 직접 묻는다 — 여태 아무 일도 안 일어났다.
+  const directEvent = useDirectDetail<CalendarEvent>('event', selectedEventId,
+    selectedEventId != null && bizId ? `/api/calendar/by-business/${bizId}/${selectedEventId}` : null, bizId, !!listedEvent);
+  const selectedEvent = listedEvent || directEvent?.data || null;
 
   // 헤더 타이틀
   const headerTitle = useMemo(() => {
@@ -657,6 +651,7 @@ const QCalendarPage: React.FC = () => {
           personalCalWritable={personalConnected && personalCanWrite}
         />
       )}
+      <DetailFallbackDrawer state={directEvent} onClose={() => setSelectedEventId(null)} />
 
       <PersonalEventDrawerHost
         selectedId={selectedPersonalId}

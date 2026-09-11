@@ -545,6 +545,8 @@ app.use('/api/posts', require('./routes/post_revisions'));
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/records', require('./routes/records'));
 app.use('/api/search', require('./routes/search'));
+// Q6 — 현재 워크스페이스에서 404 인 상세 id 가 내 다른 워크스페이스 것인지(business_id 만) — 인증 필수, 새 접두사라 순서 간섭 없음
+app.use('/api/entity-workspace', require('./routes/entity_workspace'));
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/client-subscriptions', require('./routes/client_subscriptions'));
 app.use('/api/docs', require('./routes/docs'));

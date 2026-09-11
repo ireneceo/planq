@@ -321,12 +321,35 @@ async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, bo
 // N+63 — 인앱 알림 feed 라우트 (Notification 테이블)
 // ─────────────────────────────────────────────
 
-// GET /api/notifications?unread_only=true&limit=20&before=ISO
+// ★ Q7 (Irene 2026-09-11) — 알림(종) 목록·안읽음 수·모두 읽음 = **현재 워크스페이스 + 플랫폼 공지**(business_id NULL).
+//   옛 코드는 user_id 만 걸어 같은 사람의 **다른 워크스페이스 알림이 한 종에 섞였다**(한 창 한 워크스페이스 계약 위반).
+//   범위는 부르는 쪽이 `business_id` 로 넘긴다 — 서버는 추측하지 않는다(docs/WORKSPACE_SCOPE_DESIGN.md C5).
+//   넘기지 않으면 **플랫폼 공지만**: 가장 좁은 쪽으로 떨어진다. 옛 번들은 새로고침 전까지 덜 보일 뿐 섞이지 않고,
+//   워크스페이스가 없는 플랫폼 관리자도 이 모드다. 세 라우트가 이 함수 **하나**를 쓴다(수와 목록이 갈라지지 않게).
+//   단건 읽음(PATCH /:id/read)은 id+user_id 로 주소되는 요청이라 범위를 보지 않는다(설계 C3).
+async function notificationScope(req) {
+  const { Op } = require('sequelize');
+  const { assertWorkspaceAccess } = require('../middleware/access_scope');
+  const raw = req.query.business_id != null ? req.query.business_id : req.body?.business_id;
+  if (raw == null || raw === '') return { where: { user_id: req.user.id, business_id: null }, businessId: null };
+  const businessId = Number(raw);
+  if (!Number.isInteger(businessId) || businessId <= 0) return { status: 400 };
+  if (!(await assertWorkspaceAccess(req.user.id, businessId, req.user.platform_role))) return { status: 403 };
+  return {
+    where: { user_id: req.user.id, [Op.or]: [{ business_id: businessId }, { business_id: null }] },
+    businessId,
+  };
+}
+const scopeError = (res, status) => errorResponse(res, status === 403 ? 'forbidden' : 'invalid business_id', status);
+
+// GET /api/notifications?business_id=X&unread_only=true&limit=20&before=ISO
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
     const { Notification, User } = require('../models');
     const limit = Math.min(Number(req.query.limit) || 30, 100);
-    const where = { user_id: req.user.id };
+    const sc = await notificationScope(req);
+    if (sc.status) return scopeError(res, sc.status);
+    const where = sc.where;
     if (String(req.query.unread_only) === 'true') where.read_at = null;
     if (req.query.before) {
       const d = new Date(req.query.before);
@@ -342,11 +365,13 @@ router.get('/', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/notifications/unread-count
+// GET /api/notifications/unread-count?business_id=X
 router.get('/unread-count', authenticateToken, async (req, res, next) => {
   try {
     const { Notification } = require('../models');
-    const n = await Notification.count({ where: { user_id: req.user.id, read_at: null } });
+    const sc = await notificationScope(req);
+    if (sc.status) return scopeError(res, sc.status);
+    const n = await Notification.count({ where: { ...sc.where, read_at: null } });
     return successResponse(res, { count: n });
   } catch (err) { next(err); }
 });
@@ -369,17 +394,20 @@ router.patch('/:id/read', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/notifications/read-all
+// POST /api/notifications/read-all?business_id=X — 그 범위(현재 워크스페이스 + 플랫폼 공지)만 읽음
 router.post('/read-all', authenticateToken, async (req, res, next) => {
   try {
     const { Notification } = require('../models');
+    const sc = await notificationScope(req);
+    if (sc.status) return scopeError(res, sc.status);
     const [affected] = await Notification.update(
       { read_at: new Date() },
-      { where: { user_id: req.user.id, read_at: null } }
+      { where: { ...sc.where, read_at: null } }
     );
     try {
+      // 범위를 싣는다 — 받는 창은 숫자를 0 으로 만들지 않고 자기 범위로 다시 센다(다른 워크스페이스 창을 0 으로 덮지 않게).
       const io = req.app.get('io');
-      if (io) io.to(`user:${req.user.id}`).emit('notification:read-all');
+      if (io) io.to(`user:${req.user.id}`).emit('notification:read-all', { business_id: sc.businessId });
     } catch { /* skip */ }
     return successResponse(res, { affected });
   } catch (err) { next(err); }

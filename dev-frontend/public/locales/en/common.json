@@ -1043,6 +1043,7 @@
   },
   "detail": {
     "loading": "Loading…",
+    "ariaLabel": "Details",
     "retry": "Try again",
     "backToList": "Back to list",
     "notfound": {

@@ -1067,10 +1067,18 @@ import DetailDrawer from 'components/Common/DetailDrawer';
    어느 한 트리에만 두면 데스크탑 메인 창(TabAppShell)에서 안 돈다(2026-09-11 실측). 회귀: `--suite wssync`.
 4. **id 로 여는 상세는 항목의 워크스페이스를 확인한다.** 엔티티 라우트는 항목 자기 워크스페이스 권한만 보므로(설계 C3)
    화면이 막는다 — `utils/workspaceMatch.isOtherWorkspace` + `DetailFallback status="other_workspace" businessId=…`
-   (내용은 그리지 않고 전환 안내만). 새 상세 화면도 같은 두 줄을 넣는다. 미적용: 캘린더·메일·Q info·파일·청구·고객(다음 라운드).
+   (내용은 그리지 않고 전환 안내만). 새 상세 화면도 같은 두 줄을 넣는다.
+   ★ **문이 두 종류다 (2026-09-11 2차).** URL 에 워크스페이스가 **없는** 문(`/api/tasks/:id`·`/api/posts/:id`)은 남의 내용을 200 으로 준다 → 위 두 줄.
+   URL 에 **현재 워크스페이스를 넣는** 문(캘린더·메일·Q info·파일·청구·고객)은 새지 않는 대신 **404** 라 "찾을 수 없음"(또는 침묵)이 된다 →
+   404 를 받으면 `findOtherWorkspaceOf(kind, id, 현재)` 로 **서버 한 곳**(`GET /api/entity-workspace/:kind/:id` — 멤버 이상·business_id 만·그 외 전부 404)에 묻는다.
+   목록에서 골라 여는 화면은 `hooks/useDirectDetail` + `components/Common/DetailFallbackDrawer` 한 벌로(베끼지 않는다). 회귀: `--suite detailopen` 3폭.
 5. **워크스페이스 간 전환은 보던 경로를 새 범위 탭에 싣지 않는다**(`tabStore.setTabScope`). 키가 갈려도 **내용**이 섞이면 누수다.
 6. **격리 점검은 두 축으로 나눠 판정한다** — ①비소속자(남의 워크스페이스, 403) ②같은 사람의 다른 워크스페이스 섞임(화면).
    200 을 곧 누수로 단정하지 말고 응답 id 를 DB 와 대조한다(today-review 비소속 200 은 빈 응답이었다).
+7. **알림(종)은 현재 워크스페이스 + 플랫폼 공지만** (Q7, 2026-09-11) — `/api/notifications{,/unread-count,/read-all}?business_id=` 세 라우트가
+   `notificationScope` **한 함수**를 쓴다(수와 목록이 갈라지지 않게). 인자가 없으면 **플랫폼 공지만** — 가장 좁은 쪽으로 떨어진다.
+   화면은 `hooks/useNotifications` 한 곳에서 범위를 붙이고, 토스터는 남의 워크스페이스 `notification:new` 를 띄우지 않는다.
+   ★ 모두 읽음 소켓은 범위를 싣는다 — 받는 창은 0 으로 덮지 말고 자기 범위로 다시 센다.
 
 ### 같은 날 박제한 술어 단일 원천
 - **컨펌 단계** — `services/reviewStage.js stageWhere/inStage/stageOf` · `utils/reviewStage.ts inReviewStage`.

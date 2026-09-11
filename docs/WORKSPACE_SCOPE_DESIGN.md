@@ -8,6 +8,11 @@
 **상태: v2 — Fable 설계 게이트 v1 FAIL(2026-09-11) 필수 수정 반영 · Q4·Q7 Irene 결정 완료.**
 **진행: 단계 0 ✅ · 단계 1 ✅(실HTTP 10/10 · wsscope 래칫 베이스 11 · 양성 대조군 확인) · 단계 2 구현 완료(카나리 `--suite wssync` 6/6 · 루프 안전망 대조군 2/2) · 단계 0~2 Fable PASS·커밋 `a276a321`.
 단계 6 일부 선행(2026-09-11, 미커밋): **Q6 상세 전환 안내** — `DetailFallback status='other_workspace'` + `OtherWorkspaceNotice` + `utils/workspaceMatch` 를 업무 드로어·프로젝트 상세·문서·Q Note 세션·메모 팝아웃에 적용 · **탭 범위 섞임 수리**(`tabStore.setTabScope` 워크스페이스 간 전환은 현재 경로를 새 범위에 싣지 않음) · 전환기 숫자 제거(Irene 결정). 남음: Q Talk 대화(서버가 대화의 워크스페이스를 안 줌) · Q7 알림 현재 워크스페이스만 · 단계 3~5.**
+**단계 6 2차(2026-09-11):** **Q7 알림 구현**(`routes/notifications.js notificationScope` — 목록·안읽음 수·모두 읽음 = 현재 + 플랫폼 공지, 인자 없음 = 플랫폼 공지만 · 비소속 403 · 토스터 필터) ·
+**Q6 나머지 7화면** — 감사 결과 캘린더·메일·Q info·파일·청구·고객은 URL 에 현재 워크스페이스를 넣어 불러 **새지 않고 404** 였다(설계 §0 의 "200 을 준다" 는 이 6곳엔 틀린 전제).
+그래서 판정 문을 서버 한 곳에 둔다: `GET /api/entity-workspace/:kind/:id`(멤버 이상일 때 business_id 만 · 메일은 접근 가능 계정만 · 그 외 전부 404) + FE `findOtherWorkspaceOf` · `useDirectDetail` · `DetailFallbackDrawer`.
+자료정리 뷰어(`/docs/brief/:id`)는 URL 에 워크스페이스가 없는 문이라 **남의 글을 실제로 그리고 있었다** → `isOtherWorkspace`.
+곁들여: 통합검색 표 셀·Q info 항목 값의 **비밀 칸 매칭 제외**를 한 판정(`matchesNonSecretCell`)으로.
 > ★ 발견(미수리): q-note 는 JWT 의 `businessId` 클레임으로 워크스페이스를 읽는데 Node access token 에는 그 클레임이 없다 → q-note 쪽 L3/L4 같은 워크스페이스 공유 분기가 비소유자에게 **항상 불통**(`q-note/middleware/auth.py:22`, `services/authTokens.js:70`).
 
 > **단계 2 에서 카나리가 잡은 결함 2건 (2026-09-11)**

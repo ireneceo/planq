@@ -9,6 +9,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
+import DetailFallback from '../../components/Common/DetailFallback';
+import { useAuth } from '../../contexts/AuthContext';
+import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import { fetchPost, fetchPostChildren, createFollowUp, type PostDetail, type FollowUpChild } from '../../services/posts';
 
 interface BriefMeta {
@@ -44,18 +47,24 @@ const BriefViewerPage = () => {
   const [children, setChildren] = useState<FollowUpChild[]>([]);
   const [followUpBusy, setFollowUpBusy] = useState<'manual' | 'ai' | null>(null);
   const [followUpError, setFollowUpError] = useState<string | null>(null);
+  const { user } = useAuth();
+  // Q6 — /api/posts/:id 는 URL 에 워크스페이스가 없어 **다른 워크스페이스 글도 200** 이다(실제로 그려지고 있었다).
+  //   그 워크스페이스를 기억하고 내용 대신 전환 안내를 그린다.
+  const [otherBiz, setOtherBiz] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
     fetchPost(Number(id))
       .then((p) => {
+        if (p && isOtherWorkspace(p.business_id, user?.business_id)) { setOtherBiz(Number(p.business_id)); setPost(null); return; }
+        setOtherBiz(null);
         setPost(p);
         const meta = (p as PostDetail & { brief_meta?: BriefMeta }).brief_meta;
         if (meta?.view_kind) setView(meta.view_kind);
       })
       .finally(() => setLoading(false));
     fetchPostChildren(Number(id)).then(setChildren).catch(() => null);
-  }, [id]);
+  }, [id, user?.business_id]);
 
   const handleFollowUp = async (mode: 'manual' | 'ai') => {
     if (!post || !meta || followUpBusy) return;
@@ -88,6 +97,13 @@ const BriefViewerPage = () => {
 
   if (loading) {
     return <PageShell title={t('brief.loading', '불러오는 중...')}><Skeleton /></PageShell>;
+  }
+  if (otherBiz) {
+    return (
+      <PageShell title={t('page.title', 'Q docs')}>
+        <DetailFallback status="other_workspace" businessId={otherBiz} />
+      </PageShell>
+    );
   }
   if (!post || !meta) {
     return (

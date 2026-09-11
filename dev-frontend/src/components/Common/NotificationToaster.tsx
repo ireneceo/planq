@@ -359,6 +359,9 @@ export default function NotificationToaster() {
       // 배너 2번 방지: 채팅류(message/mention)는 message:new(socket) 가 토스트 담당.
       //   notification:new 까지 토스트하면 같은 채팅이 2번 뜸 → 여기선 채팅류 skip (비채팅만 토스트).
       if (row.event_kind === 'message' || row.event_kind === 'mention' || row.event_kind === 'comment_mention') return;
+      // ★ Q7 — 다른 워크스페이스 알림은 이 창에 띄우지 않는다(종 목록과 같은 범위). 플랫폼 공지(null)는 통과.
+      //   raw 이벤트(task:*, message:new)는 이미 현재 워크스페이스 룸만 join 해서 오므로, 새는 문은 이것 하나다.
+      if (row.business_id != null && Number(row.business_id) !== bizId) return;
       const link = notificationRowToToastLink(row);
       const typeMap: Record<string, Toast['type']> = {
         message: 'message', mention: 'message', comment_mention: 'message',

@@ -11,6 +11,8 @@ import {
   type ApiInvoice, type InvoiceStatus,
 } from '../../services/invoices';
 import InvoiceDetailDrawer from './InvoiceDetailDrawer';
+import DetailFallbackDrawer from '../../components/Common/DetailFallbackDrawer';
+import { useDirectDetail } from '../../hooks/useDirectDetail';
 import NewInvoiceModal from './NewInvoiceModal';
 import { ChipBar, Chip, ChipCount } from '../../components/QBill/FilterChips';
 import HighlightText from '../../components/Common/HighlightText';
@@ -147,7 +149,11 @@ export default function InvoicesTab() {
     navigate(`${location.pathname}${sp.toString() ? `?${sp.toString()}` : ''}`, { replace: true });
   }, [location, navigate]);
 
-  const selectedInvoice = selectedId ? invoices.find(i => i.id === selectedId) || null : null;
+  const listedInvoice = selectedId ? invoices.find(i => i.id === selectedId) || null : null;
+  // Q6 — 목록에 없는 ?invoice=(다른 워크스페이스·삭제·권한)는 그 id 로 직접 묻는다 — 여태 드로어가 null 이라 아무 일도 안 일어났다.
+  const directInvoice = useDirectDetail<ApiInvoice>('invoice', selectedId,
+    selectedId && businessId ? `/api/invoices/${businessId}/${selectedId}` : null, businessId, loading || !!listedInvoice);
+  const selectedInvoice = listedInvoice || directInvoice?.data || null;
 
   return (
     <Wrap>
@@ -298,6 +304,9 @@ export default function InvoicesTab() {
           })}
         </List>
       )}
+
+      {/* Q6 — 목록에 없는 ?invoice= 를 못 열었을 때 이유를 말한다 */}
+      <DetailFallbackDrawer state={directInvoice} onClose={closeDetail} />
 
       {/* 우측 상세 Drawer */}
       <InvoiceDetailDrawer

@@ -17,6 +17,7 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import DetailFallback from '../../components/Common/DetailFallback';
 import CategoryTree, { Split, MainArea } from '../../components/Common/CategoryTree';
 import type { DetailStatus } from '../../hooks/useDetailResource';
+import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
@@ -195,6 +196,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [bundleCopied, setBundleCopied] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
+  // Q6 — 다른 워크스페이스 문서를 id 로 열었을 때 그 워크스페이스(전환 안내용)
+  const [docOtherBiz, setDocOtherBiz] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   // ★ 2026-09-08 운영 신고 #408 (Irene: "모르고 인포에 있는 타임인터넷 정보를 삭제했어.
   //   삭제할 때 더 그냥 삭제되네? 데이터들 삭제할 때 물어보고 삭제해도 되돌리기 있어야 하는 거 아니야?")
@@ -414,7 +417,15 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       try {
         const r = await apiFetch(`/api/businesses/${businessId}/kb/documents/${detailId}`);
         if (cancelled) return;
-        if (r.status === 404) { setDetailStatus('not_found'); setDetail(null); return; }
+        if (r.status === 404) {
+          // Q6 — URL 이 현재 워크스페이스라 다른 워크스페이스 문서는 404 다. 내 다른 워크스페이스 것인지 묻는다.
+          const other = await findOtherWorkspaceOf('kb_doc', detailId, businessId);
+          if (cancelled) return;
+          setDetail(null);
+          setDocOtherBiz(other);
+          setDetailStatus(other ? 'other_workspace' : 'not_found');
+          return;
+        }
         if (r.status === 403) { setDetailStatus('forbidden'); setDetail(null); return; }
         if (!r.ok) { setDetailStatus('error'); setDetail(null); return; }
         const j = await r.json().catch(() => null);
@@ -1039,6 +1050,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                404·403·500 에서도 **영원히 로딩** 처럼 보였다 (2026-08-30). */
             <DetailFallback
               status={detailLoading || detailStatus === 'ready' ? 'loading' : detailStatus === 'idle' ? 'loading' : detailStatus}
+              businessId={docOtherBiz}
               onRetry={() => { const id = detailId; setDetailId(null); setTimeout(() => setDetailId(id), 0); }}
               onBack={() => setDetailId(null)}
             />
