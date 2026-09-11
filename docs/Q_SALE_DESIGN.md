@@ -824,6 +824,8 @@ Q sale 상세 좌측 최상단(§5.3) · Q mail·Q Talk 우측 패널 고객 섹
 
 ## 12. 새 메뉴가 유발하는 횡단 작업 — 12항목 전수 (파일:줄 · 1차 필수/미룸)
 
+> ★ 2026-09-11: 이 표의 줄 번호는 절반가량 낡았고, 4번(배지 합산)·12번(ENUM 2건)은 이후 계약과 충돌한다 — **§16 이 이 표를 덮는다.**
+
 | # | 영역 | 지금 있는 것 (실측) | Q sale 이 해야 할 것 | 1차 |
 |---|---|---|---|---|
 | 1 | **알림** | `notify/notifyMany` `routes/notifications.js:105,296` · `isAllowed :70-83`(row 없음=ON) · ENUM `NotificationPref.js:31-43` · 설정 매트릭스 `NotificationSettings.tsx:24-30 EVENTS` 하드코딩 + 라벨 i18n `:133-134` · 아이콘 `NotificationTypeIcon.tsx:50-66` · 링크 테이블 **짝** `services/notification_link.js:22-47` ↔ `utils/notificationLink.ts:17-42` · 드롭다운 새 탭 `NotificationDropdown.tsx:49-52` | ENUM 끝 `sale` append(마이그레이션) · `EVENTS` 에 `'sale'` · eventLabel/Desc ko/en · 아이콘 case · **두 링크 테이블에 `client`/`client_interaction → /sale/:id` 동시 추가** · `NOTIFY_LOCKED`(guard-invariants.js:357-369) 에 `routes/sale.js` 등록 | **필수** |
@@ -903,6 +905,63 @@ Q sale 상세 좌측 최상단(§5.3) · Q mail·Q Talk 우측 패널 고객 섹
 1. **문의 고객 별도 상한의 배수** — 정식 한도 × 3 으로 두었다(Free 3→9 · Basic 5→15 · Pro 20→60). 주요 이슈 아니면 이대로 진행.
 2. **히스토리 요약 자동 갱신 시점** — 요청 시 + 통화 처리 완료 + 단계 자동 상향, 세 가지로 좁혔다(§10.3). 메일 도착마다 자동으로 하지 않는 것에 동의하는지.
 3. **고객 관리(`/business/clients`) 메뉴** — Q sale 과 같은 clients 의 두 뷰로 **둘 다 유지**(사업자·세금 정보는 고객 관리, 영업은 Q sale). 하나로 합치기를 원하면 사이클 2 에서 고객 관리를 Q sale 의 "정보" 탭으로 흡수하는 안을 낸다.
+
+---
+
+## 16. 구현 직전 갱신 (2026-09-11) — §12·부록을 지금 코드와 대조한 결과
+
+기준 커밋 `6868dc1b`(이 문서의 마지막 수정) 이후 소스 커밋 261건. **§12·부록의 줄 번호는 약 절반이 옮겨졌다 — 구현 때는 줄이 아니라 심볼로 찾는다.**
+아래는 줄 이동이 아니라 **설계 내용이 바뀌어야 하는 것**만 적는다. 이 절이 §3.7·§12·§13 과 어긋나면 이 절이 이긴다.
+
+### 16.1 설계 결정 수정 — 이후 생긴 계약과 충돌하던 것
+
+| # | 원래 설계 | 충돌한 계약·사실 | 수정 |
+|---|---|---|---|
+| U1 | §12-4 "Q sale 배지는 인박스 `total` 에 합산 안 함", §12-2 `counts.sale` | CLAUDE.md 숫자 배지 계약(2026-09-07): **메뉴 배지 ⊆ total, 예외는 Q mail 하나**(`dashboard.js` "확인 필요는 나에게 귀속된 건만"). `counts` 는 이제 우선순위 버킷(urgent/today/waiting/week) 전용이고 메뉴 배지는 `taskCount`·`billCount` 형식 필드다 | **`collectSale` 은 나에게 귀속된 항목만 모은다** → 예외가 필요 없어 `total` 에 합산, 응답 필드 `saleCount`. 귀속은 **한 함수 `saleOwnerWhere`** (Fable 2026-09-11 보강):<br>① `assigned_member_id = 나`<br>② 담당자가 없거나 **지금 멤버가 아닌**(`removed_at` 있음) 고객은 owner·admin 에게 — 멤버 제거 라우트(`businesses.js DELETE /:id/members/:memberId`)는 `removed_at` 만 찍고 `assigned_member_id` 를 안 비워, 퇴사자 담당 문의가 **아무 배지에도 안 뜬다**. 술어로 막고, 제거 시 NULL 처리도 같이<br>③ **qsale 메뉴 권한 none 이면 `[]`** — 수집기가 메뉴 레벨을 안 보면 total 에는 들고 링크는 403·사이드바 배지는 숨겨져 두 숫자가 갈라진다(§4.5 같은 술어)<br>**한 항목 = 한 버킷:** '답 안 한 문의' 는 이미 메일 스레드(`collectMails` 가 reply_needed 로 셈)·업무·일정에 걸린 문의를 빼고 전화·직접 등록·게스트 출처만. `WHERE business_id` 필수(합산 모드 중복 계수 금지). 목록 항목은 `/sale/:id` 링크(TodoPage drawer 타입 무변경). 라벨 `todo.verb.sale_*` ko/en. 앱 아이콘·푸시 배지(`notifications.js` 가 `/todo` total 을 서버에서 계산)는 total 을 따라간다. 워크스페이스 비멤버 platform_admin 은 단일 워크스페이스 모드에서 admin 으로 취급돼 미지정 문의가 뜬다 — 기존 수집기와 같은 성질, 주석 한 줄. 회귀: `--suite inboxcount` 에 `nav-badge-sale` + 퇴사 담당·qsale none 대조군 |
+| U2 | §3.1 SQL `MODIFY status ENUM(...,'prospect') NOT NULL DEFAULT 'invited'` | dev `clients.status` 는 **NULL 허용**. NULL 성질·순서를 바꾸면 메타데이터 변경이 아니라 테이블 복사 | **현재 Type 문자열 끝에만 붙이고 NULL·DEFAULT 는 그대로.** `ALGORITHM=INPLACE, LOCK=NONE` 명시 — **값 순서가 바뀌는** 변경이면 MySQL 이 거부해 멈춘다(Fable 실측). ★ NULL→NOT NULL 은 INPLACE 로도 허용(재빌드)돼 이 옵션이 막아주지 않는다 — NULL 보존은 SQL 문 자체로 지킨다 |
+| U3 | §12-12 ENUM append 2건(clients.status · notification_prefs.event_kind) | **`notifications.event_kind` 도 ENUM** 이고, 두 알림 테이블의 값 **순서가 다르다**(`share_expiry` 위치). 한 목록을 두 테이블에 쓰면 순서 변경 = 복사 | **3건.** 테이블마다 `SHOW COLUMNS` 의 현재 Type 을 읽어 끝에 `sale` 을 붙인다(한 목록 공유 금지). 두 모델(`Notification.js`·`NotificationPref.js`) 끝에도 같은 순서로 append — 배포 체인은 **sync(alter)가 마이그레이션보다 먼저** 돈다(`deploy-planq.sh sync_database`). 모델 순서가 DB 와 다르면 sync 가 먼저 순서를 바꾸려 든다. 운영은 `scripts/migrate-qsale.js --dry` → 실행을 **코드 배포 전에** 수동 선행, 체인 줄은 마지막 멱등 마이그레이션 뒤. 패턴 = `dev-backend/scripts/migrate-task-hold-status.js`(경로 정정: 루트 `scripts/` 아님). **Fable 실측**(Sequelize 6.37.8, 임시 복제 테이블): 모델 순서 = DB 순서 + 끝 append 면 sync 가 ALGORITHM 없이 `CHANGE … ENUM(…,'sale')` 을 내고 MySQL 8.0 이 메타데이터로 처리 → **운영에선 sync 가 먼저 끝내고 migrate 는 no-op 백스톱**(sync 는 실패를 삼키므로 백스톱이 필요하다). ★ 모델 순서를 틀리면 sync 가 **거부 없이 COPY 로 조용히** 돈다 → 구현 게이트: `schemacol` 스냅샷 가드가 ENUM **순서**까지 비교하는지 확인하고, 안 하면 추가 |
+| U4 | §13.1 prospect 소비처 6표면 | `services/onboarding.js` 가 `Client.count({business_id})` 로 "고객 초대" 단계를 판정 — 문의만 넣어도 온보딩이 완료된다 | 소비처 **7표면**. onboarding 은 `status ≠ 'prospect'` |
+| U5 | §12-9 `clients.status.prospect` i18n | 가드 `statuslabel`(하드) — `services/cueLabels.js` 의 `client.<status>` 와 `locales/ko/clients.json status.*` 문구가 같아야 한다 | 두 곳 같이 |
+| U6 | §7.2 "`_load_session_or_403` 술어는 바뀌지 않는다" | 2026-09-11 에 `access='write'` 가 생겼다 — visibility 는 **보기만** 열고 쓰기·LLM 실행은 생성자만 | 사이클 3 재게이트 항목에 추가: sale_call 세션의 요약 재생성·삭제는 생성자 권한이 아니라 **internal 키가드 경로**로만(팀원이 생성자 대신 누르는 경로를 새로 열지 않는다) |
+| U7 | §13 롤백 `status prospect→invited` | invited 는 "초대됨" 라벨이 거짓이고 정식 고객 한도에 들어가 롤백 직후 `clients_quota_exceeded` 가 날 수 있다(Fable) | 롤백은 **`prospect→archived`**(지금도 활성 목록에 안 보인다). 마이그레이션 헤더의 롤백 SQL 도 이것으로 |
+
+### 16.2 §12 에 없던 횡단 요건 — 사이클 1 필수
+
+| 계약·가드 | Q sale 이 할 것 |
+|---|---|
+| **워크스페이스 단일 정본** | `routes/sale.js` 목록·집계는 URL 에 `:biz` 를 넣고 `checkBusinessAccess`. 범위 인자 없는 라우트를 만들지 않는다(만들면 `requestScope`+`staleResponse`). `active_business_id` 읽기 금지(`wsscope`). `/sale/:clientId` 상세는 API 가 URL 에 워크스페이스를 넣으므로 **404 → `findOtherWorkspaceOf('client', id)`**(`entity_workspace.js` KINDS 에 client 이미 있음) → `DetailFallback status="other_workspace"`. `--suite detailopen` 의 다른 워크스페이스 케이스에 `/sale/:id` 행 |
+| **탭 범위** | `TabKind 'sale'` = `tabStore` PREFIX_KIND + `TabStrip` NAV_KEY + `tabIcon` KIND_ICON(둘 다 `Record<TabKind>` — 빠지면 빌드 실패). 고객별 복수 탭 허용(`identityOfPath` 에 projectDetail 선례). 메뉴는 `visibleNavMenus({scope})` 경유 |
+| **메뉴 이름 하드 가드** | navMenus features 에 넣으면 `services/cueMenus.js CUE_MENUS` 에 navKey `qsale`(`menuname`), `layout.json` ko/en `nav.qsale`(`navmenu`) |
+| **알림** | `notifyTitle.js` FEATURES/ACTIONS 에 sale ko/en + `titleSpec` 사용(푸시·메일 제목 번역). 모든 notify 에 `businessId`(빠지면 플랫폼 공지로 취급 — `notificationScope`). 링크 `/sale/:id` 는 App.tsx 라우트 대장에 먼저(`spalink`) |
+| **입력 초안·자동저장** | 상담 기록 메모·종결 사유·요약 직접 수정은 `draftKinds.ts` 등록(`draft`) 또는 `// draft-exempt:`. 즉시 저장 입력은 AutoSaveField + clientId 로 대상이 바뀌는 칸은 `key`(`autosave`·`autosavekey`). debounce 편집기는 `useLeaveSave` |
+| **감사** | `AuditLog.create` 직접 금지 — `createAuditLog` 만(`auditentry`) |
+| **상세 2밴드** | `/sale/:clientId` 상단 = `PanelHeader`(⋯ 하나) + `DetailMetaBar`. 단계·담당자 칩은 `ChipPopover`(PlanQSelect 금지). `uispec`·`overlaytop`·`modalportal`·`chromeoffset` 래칫 |
+| **비용·행동 계층** | 요약 라우트 파일을 `COSTGUARD_LOCKED` 에 등록, LLM 은 `services/llm.js` 게이트웨이로만(`llmgateway`). "다음 할 일 = Task" 생성은 `services/actions` 생성 계층(`createlayer`) |
+| **테넌트 래칫** | routes 의 `findAll` 에 `business_id` 조건이 보여야 한다(`tenant`) |
+| **게스트 링크** | "고객으로 저장" 은 발급·회수 판정을 `guest_link.js assertGuestLinkIssuable`·`revokeGuestLink` 한 곳으로. "게스트 API 응답 키 변경 0" 은 `publicpayload` 카나리로 잰다 |
+| **검색** | 고객 결과 링크를 `/sale/:id` 로 바꿀 때 `match{field,snippet}` 유지, snippet 에 상담 기록 원문 금지 |
+| **배포 코드 게이트** | health-check·guard-invariants 전체가 배포를 막는다. 새 카나리는 `run()` export(`canary`). 경로 하드코딩 카나리(collapsed·sticky·rawkey·csp)에 `/sale` 추가 |
+
+### 16.3 뜻이 바뀐 근거 (줄 이동은 제외)
+
+- `routes/insights.js:9-239` — 파일이 34줄(작성 때부터 틀린 참조). 인사이트 집계는 사이클 4 에서 다시 찾는다.
+- `models/GuestLink.js:163,166,183` — 작성 때 78줄(틀린 참조). `visibleToGuest` 는 `services/guest_link.js` 로 이동.
+- `dashboard.js` 수집기 9 → 11(+collectMails, +collectLeaveApprovals), `/todo` 범위는 `requestScope(…,{legacy:'aggregate'})`, 409 `workspace_stale`.
+- `NOTIFY_LOCKED`·`BROADCAST_LOCKED` 는 guard-invariants.js 에서 약 50줄 아래로 이동, NOTIFY 는 10파일.
+- 고객 메뉴·통계 아코디언은 `MainLayout` 에 **두 벌**(아코디언 + Secondary 패널) — 사이드바 항목도 두 곳.
+- `scripts/e2e/run.js` 스위트 약 95개, `health-check` CATEGORIES 14개.
+
+### 16.4 §13 사이클 1 을 셋으로 쪼갠다 (Fable 2026-09-11)
+U1~U5·16.2 를 더하면 사이클 1 안에 **되돌리는 방법이 서로 다른 세 덩어리**가 섞인다 — 한도 술어(돈 인접·기존 숫자 변동) · LLM 요약(새 비용 표면) · total 합산(모든 사용자의 배지 숫자 변동).
+
+| 사이클 | 범위 | 그 자체의 쓸모 | 되돌리기 |
+|---|---|---|---|
+| **1a 문의가 보인다** | clients ALTER + `client_stage_history`·`client_interactions` + `clientAccess.js` + `/sale` 목록·상세 + 단계 변경·기록 추가 + 고객으로 저장·문의 추가·초대 승격 + prospect 소비처 7표면(U4·U5) + 16.2 전부 + U2·U3 마이그레이션(ENUM 3건을 **한 번의 운영 ALTER** 로 — 알림 값은 1b 가 쓴다) + 한도: **기존 계수 술어에서 prospect 만 빼고 `prospects_max` 추가**(archived 포함 여부는 옛 동작 그대로 — 바꿀지는 실측 뒤 따로 결정) | 게스트·메일·전화 문의를 한 곳에서 단계별로 보고 기록한다. 게스트와 정식 고객이 구별된다 | 코드 + `prospect→archived`(U7) |
+| **1b 확인 필요·배지** | U1 `collectSale`·`saleOwnerWhere` + 멤버 제거 시 `assigned_member_id` NULL + notify `eventKind 'sale'` 배선·설정 매트릭스 + `inboxcount` 대조군 | 답 안 한 문의·다음 할 일 없음이 배지로 온다 | 코드만 |
+| **1c 요약·연결** | §10 히스토리 요약 + Q mail·Q Talk 패널 배지·요약 2줄·링크 + 답장 초안·업무 추출 버튼 + 다음 할 일=Task·일정 잡기 | 고객마다 요약이 있고 넘기기·되돌아오기가 된다 | 코드만 |
+
+U6 은 사이클 3 게이트 항목이다. 사이클 2·3·4 는 그대로.
+ENUM 실측(2026-09-11, **dev·운영 동일** — 운영은 SSH 읽기, MySQL 8.0.46): `clients.status enum('invited','active','archived') NULL DEFAULT 'invited'` · `notifications.event_kind` 19값(`share_expiry` 가 10번째) · `notification_prefs.event_kind` 19값(`share_expiry` 가 16번째) · 둘 다 NOT NULL. 운영 행수 clients 5 · notifications 1,720 · notification_prefs 16.
 
 ---
 
