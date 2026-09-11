@@ -24,7 +24,7 @@ from services.voice_fingerprint import (
 )
 from services.answer_service import find_answer, translate_answer_text
 from services.llm_service import generate_vocabulary_list
-from services.billing_client import check_membership
+from services.billing_client import check_membership, _node_base
 from services.rate_limit import rate_limit
 from services.qa_generator import generate_qa_for_session, generate_qa_for_document, log_task_exception as qa_log_task_exception
 
@@ -673,7 +673,10 @@ async def _belongs_to_business(kind: str, entity_id: int, business_id: int) -> b
   if not internal_key or not entity_id or not business_id:
     return False
   path = 'client-in-business' if kind == 'client' else 'project-in-business'
-  node_base = os.environ.get('PLANQ_BACKEND_URL', 'http://localhost:3003')
+  # ★ 2026-09-11 — Node 주소는 billing_client._node_base() **한 곳**에서 정한다.
+  #   여기만 PLANQ_BACKEND_URL(기본 3003)을 따로 읽어, 운영(.env 는 PLANQ_NODE_BASE_URL · Node 는 3004)에서
+  #   프로젝트 멤버(L2)·프로젝트/고객 소속·내 프로젝트 목록 조회가 **늘 연결 실패 → 거부**였다. dev 는 Node 가 3003 이라 안 보였다.
+  node_base = _node_base()
   try:
     async with httpx.AsyncClient(timeout=2.0) as client:
       r = await client.get(
@@ -700,7 +703,10 @@ async def _is_user_in_project(user_id: int, project_id: int) -> bool:
   internal_key = os.environ.get('INTERNAL_API_KEY')
   if not internal_key:
     return False
-  node_base = os.environ.get('PLANQ_BACKEND_URL', 'http://localhost:3003')
+  # ★ 2026-09-11 — Node 주소는 billing_client._node_base() **한 곳**에서 정한다.
+  #   여기만 PLANQ_BACKEND_URL(기본 3003)을 따로 읽어, 운영(.env 는 PLANQ_NODE_BASE_URL · Node 는 3004)에서
+  #   프로젝트 멤버(L2)·프로젝트/고객 소속·내 프로젝트 목록 조회가 **늘 연결 실패 → 거부**였다. dev 는 Node 가 3003 이라 안 보였다.
+  node_base = _node_base()
   try:
     async with httpx.AsyncClient(timeout=2.0) as client:
       r = await client.get(
@@ -1192,7 +1198,10 @@ async def _get_user_project_ids(user_id: int, business_id: int) -> list:
   internal_key = os.environ.get('INTERNAL_API_KEY')
   if not internal_key:
     return []
-  node_base = os.environ.get('PLANQ_BACKEND_URL', 'http://localhost:3003')
+  # ★ 2026-09-11 — Node 주소는 billing_client._node_base() **한 곳**에서 정한다.
+  #   여기만 PLANQ_BACKEND_URL(기본 3003)을 따로 읽어, 운영(.env 는 PLANQ_NODE_BASE_URL · Node 는 3004)에서
+  #   프로젝트 멤버(L2)·프로젝트/고객 소속·내 프로젝트 목록 조회가 **늘 연결 실패 → 거부**였다. dev 는 Node 가 3003 이라 안 보였다.
+  node_base = _node_base()
   try:
     async with httpx.AsyncClient(timeout=2.0) as client:
       r = await client.get(
