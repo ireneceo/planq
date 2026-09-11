@@ -318,6 +318,12 @@
   },
   "cancel": "Cancel",
   "close": "Close",
+  "otherWorkspace": {
+    "title": "This item belongs to the {{name}} workspace",
+    "noAccessTitle": "This item can't be opened in the current workspace",
+    "desc": "Each screen shows one workspace at a time. Switch to that workspace to open it.",
+    "switch": "Switch to {{name}} and open"
+  },
   "workspaceSync": {
     "banner": "Your workspace was changed in another window or device",
     "apply": "Switch now"
@@ -469,7 +475,36 @@
     "askCue": "Ask Cue: \"{{q}}\"",
     "askCueHint": "Get the answer right here",
     "cueContinue": "Continue in the Cue panel",
-    "cueClear": "Clear and back to search"
+    "cueClear": "Clear and back to search",
+    "matchedInLabel": "Found in {{field}}",
+    "matchedIn": {
+      "title": "title",
+      "name": "name",
+      "body": "body",
+      "content": "content",
+      "description": "description",
+      "summary": "summary",
+      "memo": "memo",
+      "sender": "sender",
+      "recipient": "recipient",
+      "subject": "subject",
+      "message": "message",
+      "label": "label",
+      "tag": "tag",
+      "category": "category",
+      "attachment": "attachment",
+      "file_name": "file name",
+      "email": "email",
+      "phone": "phone",
+      "company": "company",
+      "client": "client",
+      "author": "author",
+      "project": "project",
+      "table": "table cell",
+      "value": "field value",
+      "number": "number",
+      "url": "URL"
+    }
   },
   "attach": {
     "uploadHint": "Drag files here or click to browse",

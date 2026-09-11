@@ -36,6 +36,7 @@ import { StatusGlyph } from '../../components/Common/Icons';
 import RichEditor from '../../components/Common/RichEditor';
 import AttachmentField from '../../components/Common/AttachmentField';
 import SearchBox from '../../components/Common/SearchBox';
+import HighlightText from '../../components/Common/HighlightText';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
 import CreateDrawer from '../../components/Common/CreateDrawer';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -68,6 +69,7 @@ import ImportanceChip from '../../components/QTask/ImportanceChip';
 import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/SeriesScopeDialog';
 import { needsSeriesScope } from '../../utils/taskSeries';
 import { belowTabs } from '../../theme/layout';
+import { inReviewStage } from '../../utils/reviewStage';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -88,6 +90,8 @@ type SortDir = 'asc' | 'desc';
 interface TaskRow {
   id: number; title: string; description: string | null; status: string;
   hold_reason?: string | null;   // #206 — 보류 사유(리스트 title·칸반 카드 표시)
+  /** 보류·외부컨펌 직전 상태 — 리스트업 판정 전용(utils/reviewStage). 화면에 표시하지 않는다. */
+  hold_prev_status?: string | null;
   has_unread?: boolean;
   priority_order: number | null; start_date: string | null; due_date: string | null;
   /** #353 ⑤ 중요도 — 주간 랭킹 priority_order 와 다른 것. */
@@ -1278,7 +1282,8 @@ const QTaskPage:React.FC=()=>{
     //   한쪽만 고치면 우선순위 번호가 화면마다 갈린다.
     if(t.status==='external_review'&&(t.request_by_user_id===myId||t.created_by===myId))return true;
     const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
-    if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested'))return true;
+    // ★ 2026-09-11 — 컨펌 단계에서 외부컨펌으로 넘어간 것도 남긴다(서버 weekTaskSet 미러, utils/reviewStage).
+    if(myRev&&myRev.state==='pending'&&inReviewStage(t))return true;
     // 내가 관여한 이번 주 완료 (리스트에서는 "완료 가리기" OFF 일 때만, 번호 정본에서는 항상)
     if(includeDone && isDone){
       const involved =
@@ -1515,7 +1520,8 @@ const QTaskPage:React.FC=()=>{
       }
       // 내가 컨펌자(reviewer)이고 pending — 컨펌해야 할 일 (확인 요청 받음)
       const myRev=t.reviewers?.find(rv=>rv.user_id===myId);
-      if(myRev&&myRev.state==='pending'&&(t.status==='reviewing'||t.status==='revision_requested')){
+      //   ★ 외부컨펌으로 넘어간 컨펌 단계 포함 — 확인필요 collectTasks 3) 과 같은 술어(utils/reviewStage)
+      if(myRev&&myRev.state==='pending'&&inReviewStage(t)){
         review++; reviewList.push(t);
       }
       // 내가 요청자(requester)이고 status=reviewing — 내가 의뢰한 것의 컨펌 진행
@@ -1523,7 +1529,7 @@ const QTaskPage:React.FC=()=>{
       // '보낸 업무요청'(sent)에 중복 표시하지 않는다 (한 업무 = 한 버킷). 컨펌자가 아니거나
       // 이미 내 컨펌을 끝낸(approved/revision) 경우에만 내가 의뢰한 것을 watching 으로 표시.
       const isRequester=(t.request_by_user_id===myId)||(t.created_by===myId&&t.assignee_id!=null&&t.assignee_id!==myId);
-      if(isRequester&&t.status==='reviewing'){
+      if(isRequester&&inReviewStage(t,['reviewing'])){   // 외부컨펌으로 넘어간 컨펌 진행도 포함(collectTasks 4) 미러)
         if(!myRev||myRev.state!=='pending'){sent++;sentList.push(t);}
       }
     }
@@ -2172,7 +2178,7 @@ const QTaskPage:React.FC=()=>{
                         '업무' 헤더가 업무명 위에 안 왔다(실측 1440px: 헤더 340 / 업무명 356).
                         좁은 쪽(헤더)에 맞춘다 — 줄이는 것과 줄 맞추는 것이 같은 수정이다. */}
                     <TCell $w="64px" $hideBelow={640}>
-                      <ProjLabel>{task.Project?.name||'-'}</ProjLabel>
+                      <ProjLabel>{task.Project?.name ? <HighlightText text={task.Project.name} query={search} /> : '-'}</ProjLabel>
                     </TCell>
                     <TCell $flex>
                       <TaskRowActionMenu
@@ -2237,7 +2243,7 @@ const QTaskPage:React.FC=()=>{
                             것인지 알 수 없다. 제목 수정은 상세 한 곳에서 한다(그쪽이 권한 판정도 한다).
                             여기서 stopPropagation 을 하지 않는다 — 행의 onClick(openDetail)이 처리한다. */}
                         <TaskTitle $done={task.status==='completed'}>
-                          {task.title}
+                          <HighlightText text={task.title} query={search} />
                         </TaskTitle>
                         {/* #353 ⑤ 중요도 — 높음·긴급만 그린다. 보통까지 그리면 배경 소음이 된다. */}
                         <ImportanceChip level={task.priority_level} />
@@ -2929,9 +2935,9 @@ const QTaskPage:React.FC=()=>{
                           return (
                             <KanbanCard key={task.id} data-task-row data-row-id={task.id} $delayed={!!isDelayed} $done={task.status==='completed'} $selected={detailTaskId===task.id} onClick={()=>openDetail(task.id)}>
                               {isDelayed&&<KanbanDelayBadge>{t('status.delayed','Delayed')}</KanbanDelayBadge>}
-                              {task.Project?.name&&<KanbanProject>{task.Project.name}</KanbanProject>}
+                              {task.Project?.name&&<KanbanProject><HighlightText text={task.Project.name} query={search} /></KanbanProject>}
                               <KanbanTitle>
-                                {task.title}
+                                <HighlightText text={task.title} query={search} />
                                 {(() => {
                                   if(task.assignee_id===myId&&(task.source==='internal_request'||task.source==='qtalk_extract')&&task.requester?.name){
                                     return <NameChip $type="from">{displayName(task.requester, i18nClient.language)}</NameChip>;

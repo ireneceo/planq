@@ -133,11 +133,11 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
           due_date: { [Op.lte]: today },
         },
       }),
-      // 승인 필요 = 내가 pending 컨펌자인 확인요청 업무
+      // 승인 필요 = 내가 pending 컨펌자인 확인요청 업무 (외부컨펌으로 넘어간 것 포함 — services/reviewStage)
       Task.count({
         where: {
           business_id: { [Op.in]: bizIds },
-          status: { [Op.in]: ['reviewing', 'revision_requested'] },
+          [Op.and]: [require('../services/reviewStage').stageWhere()],
           id: { [Op.in]: literal(`(SELECT task_id FROM task_reviewers WHERE user_id = ${Number(userId)} AND state = 'pending')`) },
         },
       }),
@@ -328,7 +328,7 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
     const focusApprovals = await Task.findAll({
       where: {
         business_id: { [Op.in]: bizIds },
-        status: { [Op.in]: ['reviewing', 'revision_requested'] },
+        [Op.and]: [require('../services/reviewStage').stageWhere()],   // 외부컨펌으로 넘어간 컨펌 단계 포함
         id: { [Op.in]: literal(`(SELECT task_id FROM task_reviewers WHERE user_id = ${Number(userId)} AND state = 'pending')`) },
       },
       order: [['due_date', 'ASC']], limit: MAX_FOCUS,

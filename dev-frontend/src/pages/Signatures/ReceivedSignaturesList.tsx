@@ -13,6 +13,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import HighlightText from '../../components/Common/HighlightText';
 
 interface ReceivedSignature {
   id: number;
@@ -168,7 +169,7 @@ export default function ReceivedSignaturesTab() {
                   <StatusDot $status={status} />
                 </CardLeft>
                 <CardBody>
-                  <CardTitle>{it.entity_title}</CardTitle>
+                  <CardTitle><HighlightText text={it.entity_title} query={q} /></CardTitle>
                   <CardMeta>
                     <StatusPill $status={status}>{t(`received.statusFull.${status}`, status)}</StatusPill>
                     {it.workspace && <WsChip>{it.workspace.brand_name}</WsChip>}

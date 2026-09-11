@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { isEnterAction } from '../../utils/imeKey';
+import HighlightText from '../../components/Common/HighlightText';
 
 interface DriveFile {
   id: string;
@@ -34,6 +35,8 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  // 지금 목록을 만든 검색어 — 검색은 Enter 로만 나가므로, 입력 중인 글자로 칠하면 옛 목록에 엉뚱한 표시가 된다.
+  const [shownQ, setShownQ] = useState('');
 
   const load = useCallback(async (query?: string) => {
     setLoading(true); setError(null);
@@ -47,6 +50,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
       setConnected(!!j.data.connected);
       setAccountEmail(j.data.account_email || null);
       setFiles(j.data.files || []);
+      setShownQ(query || '');
     } catch (e) {
       setError((e as Error).message);
     } finally { setLoading(false); }
@@ -86,7 +90,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
           {files.map((f) => (
             <Row key={f.id} href={f.web_view_link || undefined} target="_blank" rel="noopener noreferrer" $clickable={!!f.web_view_link}>
               {f.icon_link ? <Icon src={f.icon_link} alt="" /> : <IconFallback>📄</IconFallback>}
-              <FileName>{f.name}</FileName>
+              <FileName><HighlightText text={f.name} query={shownQ} /></FileName>
               <FileMeta>{formatSize(f.size)} · {formatDate(f.modified_at)}</FileMeta>
             </Row>
           ))}

@@ -85,6 +85,9 @@
       "revise": "Revise",
       "requestRevise": "Request revision"
     },
+    "stage": {
+      "external_review": "Awaiting external approval"
+    },
     "verb": {
       "ack": "Acknowledge",
       "confirm": "Awaiting approval",

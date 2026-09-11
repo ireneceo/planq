@@ -38,6 +38,9 @@ import MailContextPanel, { requestExtractTasks } from './MailContextPanel';
 import RecipientInput from './RecipientInput';
 import { useInlineCidImages } from './useInlineCidImages';
 import { displayName, type NameLocalizable } from '../../utils/displayName';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import type { SearchMatchInfo } from '../../utils/searchMatch';
 import { useLocalDraft } from '../../hooks/useLocalDraft';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
 import EmptyState from '../../components/Common/EmptyState';
@@ -210,6 +213,9 @@ interface Thread {
   message_count: number;
   attachment_count?: number;      // #215-I — 열기 전 첨부 유무 인지 (0 = 없음)
   labels: string[];
+  // 2026-09-11 — 검색 중일 때만 서버가 채운다: 어디서 맞았나(field) + 행에 안 보이면 주변 문장(snippet).
+  //   서버 정본 services/mailSearchMatch.js
+  match?: SearchMatchInfo | null;
   //   owner_user_id: 이 스레드가 붙은 계정의 주인. null 이면 워크스페이스 공용, 값이 있으면 개인메일.
   //   본문 인라인 이미지 등급을 계정 목록 조회 없이 정하기 위해 서버가 같이 내려준다(#378 후속).
   account: { id: number; email: string; display_name?: string | null; owner_user_id?: number | null } | null;
@@ -2137,9 +2143,12 @@ const MailPage: React.FC = () => {
                           (account.display_name)을 그려서 PlanQ 알림이 내 계정명으로 보였다.
                           연결된 고객 이름도 발신자를 가리면 안 된다 — 고객 연결은 별도 칩으로 표시된다. */}
                       {/* #164 — 이름이 없을 땐 전체 이메일 주소 대신 @ 앞 로컬 파트만 축약 표시(리스트 노이즈 감소). */}
-                      {mt.counterpart?.name || mt.client?.display_name || mt.client?.company_name
-                        || (mt.counterpart?.email || mt.account?.email || '').split('@')[0]
-                        || '(unknown)'}
+                      <HighlightText
+                        query={qDebounced}
+                        text={mt.counterpart?.name || mt.client?.display_name || mt.client?.company_name
+                          || (mt.counterpart?.email || mt.account?.email || '').split('@')[0]
+                          || '(unknown)'}
+                      />
                     </ThreadSender>
                     <ThreadRow1Right>
                       {/* #215-I — 첨부 유무. 개수는 그리지 않고 aria/title 로만 (좁은 행 — Gmail 관례) */}
@@ -2163,9 +2172,14 @@ const MailPage: React.FC = () => {
                     {folder !== 'sent' && mt.last_message_direction === 'outbound' && (
                       <SentTag>{t('thread.sent', { defaultValue: '보낸' }) as string}</SentTag>
                     )}
-                    {mt.subject || '(no subject)'}
+                    <HighlightText text={mt.subject || '(no subject)'} query={qDebounced} />
                   </ThreadSubject>
-                  {mt.last_message_preview && <ThreadPreview>{mt.last_message_preview}</ThreadPreview>}
+                  {mt.last_message_preview && <ThreadPreview><HighlightText text={mt.last_message_preview} query={qDebounced} /></ThreadPreview>}
+                  {/* 2026-09-11 — 검색은 스레드의 **모든 메시지**(본문·제목·보낸 사람)를 본다. 행에 안 보이는 곳에서
+                      맞았으면 서버가 준 주변 문장을 한 줄로 보여 "왜 떴는지" 를 알린다(services/mailSearchMatch). */}
+                  {qDebounced && mt.match?.snippet && (
+                    <MatchReason field={mt.match.field} snippet={mt.match.snippet} query={qDebounced} />
+                  )}
                   {/* 후속 조치 신호 — "봤나" 대신 "움직여야 하나" 에 답한다. 발송 실패는 별개로 구분. */}
                   {mt.follow_up && (
                     mt.follow_up.kind === 'delivery_problem' ? (
@@ -2295,7 +2309,7 @@ const MailPage: React.FC = () => {
                   )}
                   {mt.labels && mt.labels.length > 0 && (
                     <RowLabels>
-                      {mt.labels.map(l => <LabelChip key={l} $color={labelColor(l)}>{l}</LabelChip>)}
+                      {mt.labels.map(l => <LabelChip key={l} $color={labelColor(l)}><HighlightText text={l} query={qDebounced} /></LabelChip>)}
                     </RowLabels>
                   )}
                 </ThreadItem>

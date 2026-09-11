@@ -137,7 +137,8 @@ function setupGlobalEvents(userId: string | number): () => void {
 // businessId 를 주면 그 워크스페이스의 안 읽음만, 안 주면 전 워크스페이스 합계.
 //   사이드바의 Q talk 배지는 반드시 businessId 를 준다 — 지금 보고 있는 워크스페이스의 채팅 리스트에
 //   표시가 하나도 없는데 배지만 39 이면 "어느 방을 봐야 하는지" 알 수 없다 (숫자와 화면이 어긋남).
-//   다른 워크스페이스의 안 읽음은 워크스페이스 전환 UI(useUnreadByBusiness)가 보여준다.
+//   다른 워크스페이스의 안 읽음은 **어디에도 숫자로 보이지 않는다** — 2026-09-11 Irene:
+//   "워크스페이스 선택하는 곳에는 알림숫자 필요없어" 로 전환기 숫자를 걷었다(useUnreadByBusiness 사용처 0).
 export function useUnreadTotal(businessId?: number | null): number {
   const pick = useCallback(
     (s: AllResponse) => (businessId ? (s.by_business[businessId] ?? 0) : s.total),

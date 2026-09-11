@@ -14,7 +14,7 @@ const PAGE = 20;   // 한 번에 보여줄 건수
 const WhatsNewPage: React.FC = () => {
   const { t, i18n } = useTranslation('common');
   const lang = (i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko';
-  const { items, loading, markSeen } = useWhatsNew();
+  const { items, loading, markSeen, markRead } = useWhatsNew();
   // ★ 알림 전체보기와 **같은 도구**를 준다 (Irene 2026-08-31 "새소식에는 전체/미읽음 이런 거
   //   없어도 돼? 모두 읽음 표시 하거나"). 한쪽에만 있으면 다른 물건처럼 보인다.
   const [newOnly, setNewOnly] = useState(false);
@@ -23,15 +23,17 @@ const WhatsNewPage: React.FC = () => {
   const [sp, setSp] = useSearchParams();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  // 페이지를 여는 것 자체가 "봤다" 다 — 메가폰 배지를 여기서도 내린다(드롭다운과 같은 규칙).
-  useEffect(() => { markSeen(); }, [markSeen]);
+  // ★ 2026-09-11 Irene: "알림이랑 똑같이 해." — 페이지를 여는 것만으로는 읽음이 아니다(옛: 열자마자 markSeen).
+  //   글을 펼쳐 본 것만 읽음, 전부는 상단 [모두 읽음] 으로. 알림 전체보기와 같은 규칙.
 
-  // 드롭다운에서 특정 글을 눌러 들어온 경우 그 글을 펼친 상태로 시작한다.
+  // 드롭다운에서 특정 글을 눌러 들어온 경우 그 글을 펼친 상태로 시작한다(= 그 글은 읽음).
   //   ★ 펼침 상태만 세팅하고 ?post= 는 지우지 않는다 — 새로고침·공유 시 같은 글이 열려야 한다.
   const focusSlug = sp.get('post');
   useEffect(() => {
-    if (focusSlug) setExpanded((p) => ({ ...p, [focusSlug]: true }));
-  }, [focusSlug]);
+    if (!focusSlug) return;
+    setExpanded((p) => ({ ...p, [focusSlug]: true }));
+    if (items.some((it) => it.slug === focusSlug && it.is_new)) void markRead(focusSlug);
+  }, [focusSlug, items, markRead]);
 
   const blockText = (b: WhatsNewBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || '';
   const blockCap = (b: WhatsNewBlock) => (lang === 'en' ? b.caption_en : b.caption_ko) || b.caption_ko || b.caption_en || '';
@@ -54,6 +56,8 @@ const WhatsNewPage: React.FC = () => {
   });
 
   const toggle = (slug: string) => {
+    // 펼쳐 보는 것 = 그 글을 읽은 것(알림 항목 클릭과 같은 규칙). 접을 때는 아무것도 바꾸지 않는다.
+    if (!expanded[slug] && items.some((it) => it.slug === slug && it.is_new)) void markRead(slug);
     setExpanded((p) => ({ ...p, [slug]: !p[slug] }));
     // 접었으면 ?post= 도 같이 내린다 — URL 이 화면과 어긋나면 새로고침에 되살아난다.
     if (focusSlug === slug && expanded[slug]) {

@@ -98,7 +98,8 @@
       "cuePrefill": "Tell me how chat types, auto-extract, and translation work in Q talk"
     },
     "preview": {
-      "you": "You"
+      "you": "You",
+      "empty": "No messages yet"
     },
     "expand": "Open list",
     "newChat": "New chat",

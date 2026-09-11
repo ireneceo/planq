@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import PageShell from '../../components/Layout/PageShell';
+import HighlightText from '../../components/Common/HighlightText';
 import { fetchWikiCategories, fetchWikiArticles, type WikiCategory, type WikiArticleSummary } from '../../services/wiki';
 import { mediaPhone } from '../../theme/breakpoints';
 
@@ -128,8 +129,9 @@ export default function WikiPage() {
               {articles.map((a) => (
                 <ArtCard key={a.id} onClick={() => openArticle(a.slug)}>
                   <ArtCat>{a.category?.title || catById.get(a.category_id)?.title || ''}</ArtCat>
-                  <ArtTitle>{a.title}</ArtTitle>
-                  {a.summary && <ArtSummary>{a.summary}</ArtSummary>}
+                  {/* 검색은 FULLTEXT + 의미 검색 — 글자로 맞은 부분만 칠해진다(의미로만 맞은 글은 칠할 곳이 없다) */}
+                  <ArtTitle><HighlightText text={a.title} query={query} /></ArtTitle>
+                  {a.summary && <ArtSummary><HighlightText text={a.summary} query={query} /></ArtSummary>}
                   {a.est_minutes ? <ArtMeta>{t('page.minutes', { count: a.est_minutes })}</ArtMeta> : null}
                 </ArtCard>
               ))}

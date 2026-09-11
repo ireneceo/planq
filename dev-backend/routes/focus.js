@@ -379,7 +379,7 @@ router.get('/daily-prompt-items', authenticateToken, async (req, res, next) => {
       where: { user_id: userId, state: 'pending' },
       include: [{
         model: Task,
-        where: { business_id: businessId, status: { [Op.in]: ['reviewing', 'revision_requested'] } },
+        where: { business_id: businessId, [Op.and]: [require('../services/reviewStage').stageWhere()] },   // 외부컨펌으로 넘어간 컨펌 단계 포함
         attributes: ['id', 'title', 'status', 'due_date', 'progress_percent', 'business_id', 'project_id'],
         required: true,
       }],

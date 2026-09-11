@@ -566,6 +566,26 @@ if (session.task_id) {
 
 추가 규칙:
 - **pending reviewer**: 내가 컨펌 대기(state=pending) 인 `reviewing`/`revision_requested` 업무는 담당자가 아니어도 표시.
+- **외부컨펌(external_review)은 단계 표시다 — 리스트업 조건을 바꾸지 않는다** (2026-09-11 Irene 확정).
+  > *"확인요청 받은 거 외부컨펌 눌렀는데 이번 주 나의 업무리스트에서 아주 사라졌어. … 리스트에서 안 없어지게 하고
+  > 확인필요에도 그냥 안 없어지게 하고 단계만 표시해두자. 리스트업 조건은 확인요청 받은 상태나 내가 업무처리해야 하는
+  > 상태 그대로 두고."*
+  - 외부컨펌에 들어갈 때 직전 상태가 `hold_prev_status` 에 남는다. **목록 판정은 그 직전 상태로 한다** —
+    컨펌 단계(reviewing·revision_requested)에서 외부컨펌으로 넘어간 업무는 여전히 그 컨펌자·의뢰자·담당자의 목록에 있다.
+  - 표시는 상태 칩 "외부컨펌중"(Q Task 목록) · 확인필요 카드의 단계 칩(`todo.stage.external_review`). 할 일 동사(승인 대기·수정 재제출…)는 그대로.
+  - 역할별 결과:
+
+    | 외부컨펌 직전 | 담당자 | pending 컨펌자 | 의뢰자·작성자 |
+    |---|---|---|---|
+    | in_progress 등 활성 | 이번 주 ✅ | — | 이번 주 ✅ (#375) |
+    | reviewing | 이번 주 ✅ | 이번 주 ✅ · 확인필요 "승인 대기" + 외부컨펌중 | 이번 주 ✅ · 확인필요 "컨펌 진행 중" + 외부컨펌중 |
+    | revision_requested | 이번 주 ✅ · 확인필요 "수정 재제출" + 외부컨펌중 | 이번 주 ✅ · 확인필요 "승인 대기" + 외부컨펌중 | 이번 주 ✅ |
+
+  - **술어 단일 원천**: 서버 `services/reviewStage.js stageWhere()` · 프론트 `utils/reviewStage.ts inReviewStage()`.
+    쓰는 곳 — `weekTaskSet.myWeekWhere` · `dashboard.collectTasks`(2·3·4) · `today_review`(승인 필요 수·오늘 집중) · `focus`(확인 요청 받음) ·
+    `insights`(컨펌 대기) · `QTaskPage` weekSet·panelCounts. `status IN ('reviewing','revision_requested')` 를 새로 손으로 쓰지 않는다
+    (7곳에 복사돼 있어 외부컨펌을 누르는 순간 전부에서 사라졌다 — 운영 task 352).
+  - on_hold(보류)는 이 규칙의 대상이 아니다 — 보류는 종전대로 이번 주 무대에서 퇴장.
 - **완료 가리기 토글(hideCompletedInWeek)** OFF(기본): 내가 관여(담당/요청/작성/리뷰)한 **이번 주 완료**도 표시. ON 이면 완료 숨김.
 - **정렬**: 완료/취소는 항상 맨 아래.
 - **그래프 점선 종점(weekTotalEst)** = 위 규칙으로 추려진 이번 주 리스트의 예측시간 총합 → 옛 backlog 가 빠져 현실적 baseline.

@@ -8,6 +8,9 @@ import PageShell from '../../components/Layout/PageShell';
 import SearchBox from '../../components/Common/SearchBox';
 import EmptyState from '../../components/Common/EmptyState';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 
 type PayStatus = 'all' | 'paid' | 'pending' | 'failed' | 'refunded' | 'canceled';
@@ -217,17 +220,23 @@ const AdminPaymentsPage = () => {
           <List>
             {items.map((p) => {
               const c = statusColor(p.status);
+              // 서버 검색은 워크스페이스 name·brand_name(= 표시 이름)·slug — slug 는 행에 없다
+              const hit = pickMatch([
+                { field: 'name', text: p.business?.name, shown: true },
+                { field: 'url', text: p.business?.slug },
+              ], search);
               return (
                 <Row key={p.id}>
                   <RowLeft>
                     <RowTop>
-                      <BizName>{p.business?.name || `(workspace ${p.business?.id})`}</BizName>
+                      <BizName>{p.business?.name ? <HighlightText text={p.business.name} query={search} /> : `(workspace ${p.business?.id})`}</BizName>
                       <StatusBadge $bg={c.bg} $fg={c.fg}>{statusLabel(p.status)}</StatusBadge>
                       {/* 비매출(내부·테스터) 행 표시 — 합계와 목록이 대조되게 (운영 #275) */}
                       {p.is_revenue === false && (
                         <StatusBadge $bg="#F0FDFA" $fg="#0F766E">{t('payments.nonRevenueBadge', '비매출')}</StatusBadge>
                       )}
                     </RowTop>
+                    {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
                     <RowMeta>
                       <Tag>{p.subscription?.plan_code} · {p.cycle === 'monthly' ? t('subs.monthly', '월간') : t('subs.yearly', '연간')}</Tag>
                       <Tag>{methodLabel(p.method)}</Tag>

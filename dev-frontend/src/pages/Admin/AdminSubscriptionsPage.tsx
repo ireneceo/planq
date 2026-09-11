@@ -9,6 +9,9 @@ import PageShell from '../../components/Layout/PageShell';
 import SearchBox from '../../components/Common/SearchBox';
 import EmptyState from '../../components/Common/EmptyState';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 
 type SubStatus = 'all' | 'active' | 'pending' | 'past_due' | 'grace' | 'demoted' | 'canceled';
@@ -191,10 +194,16 @@ const AdminSubscriptionsPage = () => {
               const c = statusColor(s.status);
               const notified = !!s.pending_payment?.notify_paid_at;
               const exempt = !!s.business?.billing_exempt;
+              // 서버 검색은 워크스페이스 name·brand_name·slug — slug 는 행에 없다
+              const hit = pickMatch([
+                { field: 'name', text: s.business?.name, shown: true },
+                { field: 'url', text: s.business?.slug },
+              ], search);
               return (
                 <Row key={s.id} $notified={notified}>
                   <RowLeft>
-                    <BizName>{s.business?.name || `(workspace ${s.business?.id})`}</BizName>
+                    <BizName>{s.business?.name ? <HighlightText text={s.business.name} query={search} /> : `(workspace ${s.business?.id})`}</BizName>
+                    {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
                     <RowMeta>
                       <PlanBadge>{s.plan_code} · {s.cycle === 'monthly' ? t('subs.monthly', '월간') : t('subs.yearly', '연간')}</PlanBadge>
                       {/* 면제 워크스페이스는 옛 상태 라벨(강등/연체)이 **현재 사실이 아니다**.

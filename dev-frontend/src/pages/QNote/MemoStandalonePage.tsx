@@ -14,6 +14,8 @@ import PinHolderView from '../../components/Common/PinHolderView';
 import { usePinHost } from '../../utils/pinHost';
 import { getSession } from '../../services/qnote';
 import { useAuth } from '../../contexts/AuthContext';
+import DetailFallback from '../../components/Common/DetailFallback';
+import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import { markPopoutWindow } from '../../utils/popout';
 import { useAppShellLock } from '../../hooks/useAppShellLock';
 
@@ -29,6 +31,9 @@ const MemoStandalonePage: React.FC = () => {
 
   const [businessId, setBusinessId] = useState<number | null>(user?.business_id ?? null);
   const [loadError, setLoadError] = useState(false);
+  // 다른 워크스페이스 메모 — 옛 동작은 **그 메모의 워크스페이스로 조용히 갈아탔다**(창 하나만). 한 창 한 워크스페이스 원칙에
+  //   어긋나고 메인 창과 다른 워크스페이스로 저장·검색이 돌았다 → 내용 대신 전환 안내(WORKSPACE_SCOPE_DESIGN Q6).
+  const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
 
   // #84 — 다른 팝아웃 페이지(talk/task/note/help)와 동일하게 창 단위 팝아웃 마커를 남긴다.
   //   여태 빠져 있어서, 이 창 안에서 다른 라우트로 이동하면 우하단 FAB·토스터가 되살아났다.
@@ -45,6 +50,8 @@ const MemoStandalonePage: React.FC = () => {
     getSession(sessionId)
       .then((s) => {
         if (cancelled) return;
+        if (isOtherWorkspace(s.business_id, user?.business_id)) { setOtherWsBizId(Number(s.business_id)); return; }
+        setOtherWsBizId(null);
         setBusinessId(s.business_id);
         document.title = (s.title || (t('memoPopup.title') as string));
       })
@@ -52,6 +59,7 @@ const MemoStandalonePage: React.FC = () => {
     return () => { cancelled = true; };
   }, [sessionId, t]);
 
+  if (otherWsBizId) return <DetailFallback status="other_workspace" businessId={otherWsBizId} />;
   if (!sessionId || loadError || !businessId) {
     return <CenterMsg>{t('memoPopup.searchEmpty') as string}</CenterMsg>;
   }

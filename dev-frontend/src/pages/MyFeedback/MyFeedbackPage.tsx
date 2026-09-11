@@ -8,6 +8,9 @@ import { useSearchParams } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import PageShell from '../../components/Layout/PageShell';
 import SearchBox from '../../components/Common/SearchBox';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import ActionButton from '../../components/Common/ActionButton';
 import { formatDate } from '../../utils/dateFormat';
@@ -196,6 +199,12 @@ const MyFeedbackPage = () => {
           ) : (
             filtered.map(th => {
               const tone = STATUS_TONE[th.status] || STATUS_TONE.pending;
+              // 목록엔 제목만 보인다 — 본문·답변·후속 글에서 찾았으면 어디서 찾았는지 한 줄로 (threadText 와 같은 필드)
+              const hit = search.trim() ? pickMatch([
+                { field: 'title', text: th.title, shown: true },
+                { field: 'body', text: th.body },
+                { field: 'message', text: [th.admin_response, ...th.replies.flatMap(r => [r.body, r.admin_response])] },
+              ], search) : null;
               return (
                 <ListRow key={th.id} $active={selectedId === th.id} type="button" onClick={() => select(th.id)}>
                   <RowTop>
@@ -203,7 +212,8 @@ const MyFeedbackPage = () => {
                     <Status $bg={tone.bg} $fg={tone.fg}>{statusLabel(th.status)}</Status>
                     {th.awaiting_reply && <AwaitDot title={t('myFeedback.awaiting') as string} />}
                   </RowTop>
-                  <RowTitle>{th.title}</RowTitle>
+                  <RowTitle><HighlightText text={th.title} query={search} /></RowTitle>
+                  {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
                   <RowMeta>
                     <span>{formatDate(th.last_activity_at || th.created_at, tz)}</span>
                     {th.replies.length > 0 && <ReplyCount>+{th.replies.length}</ReplyCount>}

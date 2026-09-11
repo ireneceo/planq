@@ -26,7 +26,29 @@
   - 카나리가 잡은 결함 2건 수리: ①가드가 ShellApp 에만 있어 **데스크탑 탭 모드 창 무반응** → App 루트 마운트 ②10초 캡이 **빠른 왕복 A→B→A 를 막음** → 같은 대상 10초·다른 대상 30초 4회. 루프 안전망 대조군 2/2
   - 카나리 하니스 수리 2건: 뒤에 있는 탭 click 멈춤(bringToFront) · keep-alive 숨은 입력란(보이는 것만)
   - 발견만(검증 중이라 미수리): ChromeOverlays 에 PairCodePrompt 없음 · 탭 모드에서 설치 배너 2개(MainLayout InstallPromptBanner + ChromeOverlays PwaInstallBanner)
-- ⏳ **Fable 재게이트 진행 중** (설계 v2 + 단계 0~2 + Q Note·도크 묶음) — Fable 중간: health 41/41 · guard EXIT 0 · wsscope 반증 · e2e 51/0 · 실HTTP 17/17 · wssync 독립 실행 대기 → PASS 면 커밋 → 마커 → 단계 3(헤더 관찰 모드)
+- ✅ **Fable PASS → 커밋 `a276a321` + 마커** (설계 v2 + 단계 0~2 + Q Note·도크)
+- ⏳ **다음 묶음 (미커밋, 구현 중 — Fable 한 라운드로)** — Irene 같은 날 신고 7건:
+  1. 메일 답변필요 누락(Joanne Low) — `emailTriage.js` 무료메일 자기참조 회신 위조 오판 + 영어 요청 관용구. 운영 3,206통 시뮬 오승격 0 · 양성 2/2
+  2. 채팅 알림 눌러도 옛 위치 — `withJumpToLatest` + QTalkPage `jump` 신호 + ChatPanel 재고정. 실브라우저 5/5
+  3. 전환기 숫자 제거 — 실브라우저 ✅
+  4. 외부컨펌 시 목록·확인필요에서 사라짐 — `services/reviewStage.js`·`utils/reviewStage.ts` 단일 술어(7곳) + 단계 칩. 실HTTP 12/12 · 실브라우저 3/3 · 문서 WORK_FLOW §5·TASK_HOLD §4
+  5. 다른 워크스페이스 노트 탭 — Q6 전환 안내 5화면 + tabStore 범위 섞임 (실브라우저 스크립트 준비, 빌드 대기)
+  6. 새 소식 열면 전부 읽음 — `whats_new_reads` 신설(개별 읽음) + [모두 읽음]. 실HTTP 7/7 (dev 테이블 생성됨, 운영은 배포 sync)
+  7. Q Talk 목록 프로젝트명/마지막 말 혼재 — 빈 방은 "아직 대화가 없어요"
+  8. 검색 키워드 강조 + 왜 걸렸는지 — 서브에이전트 구현 중(공용 HighlightText·MatchReason·서버 match 스니펫)
+  - ✅ build13 EXIT 0 · 실브라우저 otherws 8/8 · whatsnew-talk 5/5 · chatjump 5/5 · batch12 3/3 · e2e 8종 실패 0(✅99) · guard 전체 EXIT 0(45/46)
+  - ⏳ Fable 묶음 검증 중 → PASS 시 커밋 → 마커 → **배포(Irene 지시)** → /저장 → /개발완료
+
+### ▶ 다음 세션에서 이어갈 것 (Irene 2026-09-11: "지금 남은 거 다음 섹션에서 할테니 제대로 저장해")
+1. **Q7 알림(종) 목록 = 현재 워크스페이스만** + 플랫폼 공지 — 결정 완료(설계 WORKSPACE_SCOPE_DESIGN Q7), 미구현. 지금은 다른 워크스페이스 알림이 섞인다.
+2. **워크스페이스 단계 3~5** — apiFetch `X-Workspace-Id` 관찰 모드 → 409 `workspace_stale`(목록·집계 라우트만, 엔티티 라우트 제외) → 추측 폴백 제거(wsscope 베이스 11: cue.js 2 · tasks.js 4 · task_templates 2 · posts · task_priority · task_tags · dashboard/today-review 합산 모드 · cue resolveBusinessId). 설계 docs/WORKSPACE_SCOPE_DESIGN.md
+3. **입력 임시저장 구조화** — docs/DRAFT_PERSISTENCE_DESIGN.md (AutoSaveField 언마운트 flush 먼저 → useDraftText 정본·키 user+biz+entity → 업무상세 6입력 → 민감 입력 차단·가드·e2e). R=1·S=1 설계부터 Fable.
+4. **도크 Q note [메모 | 음성메모] 탭** — QNotePage 녹음 엔진 추출 필요.
+5. 검색 강조 미적용 잔여 — AttachmentField 기존 파일 선택(PlanQSelect 옵션 커스텀) · PostsPage 템플릿 검색 · 위키 발췌(API 없음) · Q Task 폰 프로젝트 칸 이유줄.
+6. 기존 결함 — ① **통합검색 표 셀이 secret 칸 값으로도 문서를 띄움**(Fable 실측 `match.field=table`, 값은 미노출 — `routes/search.js` 표 분기에 KB valHits 와 같은 secret-only 제외, **다음 라운드 필수**) ② q-note JWT 에 businessId 클레임 없음 → Q Note L3/L4 공유 불통 ③ AI 일정 수정 화면(ScheduleEditModal) 미구현 ④ `whats_new_reads.user_id` FK 없음(계정 삭제 시 고아행, 무해).
+6-b. **Q6 미적용 상세 6곳**(Fable 지적) — 캘린더 `?event=` · Q Mail `?thread=` · Q info `?doc=` · Q File `?file=` · 청구서 `?invoice=` · 고객 `?client=` → 같은 `DetailFallback other_workspace` 로. 비소속자 누수는 아님(같은 사람의 다른 워크스페이스 항목).
+6-c. 계약 비일관 — `today-review` · `projects/workspace/:id/all-tasks` 가 비소속이면 403 대신 200 빈 응답(누수 아님).
+7. 사람 차례 — iOS 앱 재빌드(Codemagic, 키보드 ▲▼✓ 줄 제거) · 운영 피드백 #409·#410 답글.
 - 🆕 Irene: "업무상세에서 수정요청·댓글 쓰다가 나가면 다 날라가는데 모든 입력란은 임시저장 되어 있게 못해?" → **구조로**
   - ✅ 감사 완료 → 설계 초안 **`docs/DRAFT_PERSISTENCE_DESIGN.md`**: 쓰다 나가면 사라지는 입력 ~67곳/17화면 · 업무상세 수정요청 사유·확인요청 메모·승인 코멘트·보류 사유·댓글 수정·댓글 첨부 저장 없음(댓글 본문만 useDraftText)
   - 조용한 유실: **AutoSaveField 언마운트 시 debounce 취소만(저장 안 함)** ~13곳 · 메일 초안 닫기/전환 1.5초 · Q Note 메모 1초

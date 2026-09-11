@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
+import HighlightText from '../../components/Common/HighlightText';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import AttachmentField from '../../components/Common/AttachmentField';
@@ -225,10 +226,10 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
             <List>
               {filtered.map(d => (
                 <Row key={d.id} $active={detailId === d.id} onClick={() => setDetailId(prev => prev === d.id ? null : d.id)}>
-                  <RowTitle>{d.title}</RowTitle>
+                  <RowTitle><HighlightText text={d.title} query={search} /></RowTitle>
                   <RowMeta>
                     {/* 다중 카테고리 표시 — 단수만 그리면 AI 가 배열로 저장한 문서에 칩이 안 뜬다 */}
-                    {catsOf(d).map(c => <CategoryChip key={c}>{t(`category.${c}`, c) as string}</CategoryChip>)}
+                    {catsOf(d).map(c => <CategoryChip key={c}><HighlightText text={t(`category.${c}`, c) as string} query={search} /></CategoryChip>)}
                     {d.chunk_count > 0 && <span>· chunk {d.chunk_count}</span>}
                   </RowMeta>
                 </Row>

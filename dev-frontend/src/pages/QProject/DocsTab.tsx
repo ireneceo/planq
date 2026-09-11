@@ -14,6 +14,9 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import VisibilityBadge from '../../components/Common/VisibilityBadge';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import SearchBox from '../../components/Common/SearchBox';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import { useUploadQueue, UploadQueuePanel } from './docs/UploadQueue';
 import FileMetaEditor from './docs/FileMetaEditor';
 import PreviewArea from './docs/PreviewArea';
@@ -852,6 +855,12 @@ const DocsTab: React.FC<Props> = (props) => {
             <Grid>
               {visible.map(f => {
                 const checked = selectedIds.has(f.id);
+                // 파일명에 없으면 설명·태그 중 어디서 찾았는지 한 줄로 알려준다 (필터 술어와 같은 순서)
+                const hit = query.trim() ? pickMatch([
+                  { field: 'file_name', text: f.file_name, shown: true },
+                  { field: 'description', text: f.description },
+                  { field: 'tag', text: f.tags || [] },
+                ], query) : null;
                 return (
                   <Card key={f.id} $selected={checked} data-testid="file-card"
                     {...(selectMode ? {} : getDragProps(f))}
@@ -889,7 +898,10 @@ const DocsTab: React.FC<Props> = (props) => {
                         </Thumb>
                       );
                     })()}
-                    <CardName title={f.file_name}>{f.file_name}</CardName>
+                    <CardName title={f.file_name}><HighlightText text={f.file_name} query={query} /></CardName>
+                    {hit && !hit.shown && (
+                      <CardReason><MatchReason field={hit.field} snippet={hit.snippet} query={query} /></CardReason>
+                    )}
                     {/* 공유 범위 (Irene 2026-08-31): "리스트에 … 공유범위가 같이 표시되어야 맞는 것 같은데?"
                         누가 올렸는지는 보이는데 **누가 볼 수 있는지**는 안 보였다. 파일 목록에서
                         가장 알고 싶은 것이 그것이다(특히 개인 보관함에서 L1 인지 눈으로 확인). */}
@@ -920,6 +932,11 @@ const DocsTab: React.FC<Props> = (props) => {
               </ListHead>
               {visible.map(f => {
                 const checked = selectedIds.has(f.id);
+                const hit = query.trim() ? pickMatch([
+                  { field: 'file_name', text: f.file_name, shown: true },
+                  { field: 'description', text: f.description },
+                  { field: 'tag', text: f.tags || [] },
+                ], query) : null;
                 return (
                   <ListRow key={f.id} $selected={checked}
                     $selectMode={selectMode}
@@ -930,7 +947,10 @@ const DocsTab: React.FC<Props> = (props) => {
                     </RowChk>}
                     <RowName>
                       <FileExtIcon ext={extOf(f.file_name)} size={32} />
-                      <RowNameText title={f.file_name}>{f.file_name}</RowNameText>
+                      <RowNameStack>
+                        <RowNameText title={f.file_name}><HighlightText text={f.file_name} query={query} /></RowNameText>
+                        {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={query} />}
+                      </RowNameStack>
                       {/* #379 — Drive 에서 사본을 지우면 원본은 그대로 두고 미러만 끊는다.
                           알려주지 않으면 사용자는 "드라이브에 없는데 왜 여기 있지" 를 설명할 수 없다. */}
                       {f.gdrive_unmirrored && (
@@ -2063,6 +2083,9 @@ const ListRow = styled.div<{ $selected?: boolean; $selectMode?: boolean }>`
 const RowChk = styled.div`display:flex;justify-content:center;`;
 const RowName = styled.div`display:flex;align-items:center;gap:10px;min-width:0;`;
 const RowNameText = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
+// 검색 매칭 이유 줄(파일명 아래)을 위한 세로 묶음 — 이유가 없으면 RowNameText 하나라 모양이 같다
+const RowNameStack = styled.div`display:flex;flex-direction:column;min-width:0;flex:0 1 auto;`;
+const CardReason = styled.div`padding:0 10px;min-width:0;`;
 // #379 — Drive 사본이 끊긴 상태 표시. 경고가 아니라 **사실 고지**라 회색 톤(원본은 멀쩡하다).
 const UnmirrorTag = styled.span`
   flex-shrink:0; padding:1px 6px; border-radius:4px;

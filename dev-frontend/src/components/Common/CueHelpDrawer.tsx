@@ -14,6 +14,7 @@ import { FEEDBACK_OPEN_EVENT, describeContext, type FeedbackOpenDetail, type Fee
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import AttachmentField from './AttachmentField';
+import HighlightText from './HighlightText';
 import { formatDate } from '../../utils/dateFormat';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { mapApiError } from '../../utils/apiError';
@@ -591,8 +592,8 @@ const CueHelpDrawer: React.FC<{
                 {wikiSearchResults.length > 0 ? (
                   wikiSearchResults.map((a) => (
                     <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/wiki/a/${a.slug}`)}>
-                      <WikiCardTitle>{a.title}</WikiCardTitle>
-                      {a.summary && <WikiCardSummary>{a.summary}</WikiCardSummary>}
+                      <WikiCardTitle><HighlightText text={a.title} query={wikiSearch} /></WikiCardTitle>
+                      {a.summary && <WikiCardSummary><HighlightText text={a.summary} query={wikiSearch} /></WikiCardSummary>}
                     </WikiContextCard>
                   ))
                 ) : (

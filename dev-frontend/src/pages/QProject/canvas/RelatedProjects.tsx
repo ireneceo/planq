@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../../contexts/AuthContext';
 import { PlusIcon, SearchIcon } from '../../../components/Common/Icons';
+import HighlightText from '../../../components/Common/HighlightText';
 import {
   getRelatedProjects, linkProject, unlinkProject, type RelatedProject,
 } from '../../../services/projectTimeline';
@@ -84,7 +85,7 @@ export default function RelatedProjects({ projectId, businessId, refreshSignal, 
             <ResultList>
               {results.map((c) => (
                 <ResultRow key={c.id} type="button" disabled={busy} onClick={() => doLink(c.id)}>
-                  <ResultName>{c.name}</ResultName>
+                  <ResultName><HighlightText text={c.name} query={query} /></ResultName>
                   <PlusIcon size={14} />
                 </ResultRow>
               ))}

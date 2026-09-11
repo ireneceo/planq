@@ -196,6 +196,7 @@ const DashboardPage: React.FC = () => {
                 <RowSubject>{item.subject}</RowSubject>
                 <RowMeta>
                   {t(`todo.verb.${item.verb}`, item.verb)}
+                  {item.stage === 'external_review' && <Dim>· {t('todo.stage.external_review', '외부컨펌중')}</Dim>}
                   {item.context && <Dim>· {item.context}</Dim>}
                 </RowMeta>
               </RowMain>

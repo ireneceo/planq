@@ -56,6 +56,9 @@ import {
   PowerIcon,
 } from '../../components/Common/Icons';
 import SharedEmptyState from '../../components/Common/EmptyState';
+import DetailFallback from '../../components/Common/DetailFallback';
+import { isOtherWorkspace } from '../../utils/workspaceMatch';
+import HighlightText from '../../components/Common/HighlightText';
 import SearchBoxCommon from '../../components/Common/SearchBox';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { deriveMemoPreview } from '../../utils/qnoteBody';
@@ -288,6 +291,8 @@ const QNotePage = () => {
   const [sessionQuery, setSessionQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');  // 운영 #54
   const [activeSession, setActiveSession] = useState<QNoteSession | null>(null);
+  // 다른 워크스페이스 노트를 /notes/:id 로 열었을 때 그 워크스페이스 — 내용 대신 전환 안내(WORKSPACE_SCOPE_DESIGN Q6)
+  const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
   // 탭 이름 = 열려 있는 회의 제목
   useTabTitle(activeSession?.title);
   // ★ 2·3단 레이아웃 단일 계약 (hooks/usePanelStack). 페이지마다 각자 만든 모바일 규칙을
@@ -894,6 +899,16 @@ const QNotePage = () => {
       const detail = await getSession(sessionId);
       // eslint-disable-next-line no-console
       console.log(`[QNOTE-TIMING] ${Math.round(performance.now() - _t0)}ms getSession done (${detail.utterances?.length || 0} utt)`);
+      // ★ 2026-09-11 (WORKSPACE_SCOPE_DESIGN Q6) — q-note 는 **본인 세션이면** 워크스페이스를 가리지 않고 돌려준다.
+      //   Irene: "테스트 워크스페이스에 여전히 워프로랩 탭이 열려. 빠른 녹음 9/11 … 리스트엔 아무것도 없는데."
+      //   옛 탭(/notes/52)이 새 워크스페이스에서 열려 목록은 비었는데 상세에 남의 노트가 그려졌다 → 내용 대신 전환 안내.
+      if (isOtherWorkspace(detail.business_id, businessId)) {
+        setActiveSession(null);
+        setPhase('empty');
+        setOtherWsBizId(Number(detail.business_id));
+        return;
+      }
+      setOtherWsBizId(null);
       setActiveSession(detail);
       speakersRef.current = detail.speakers || [];
       // 운영 #400 — "상세에서 돌아갔을 때 … 뒤로가기가 통일 안 되었어."
@@ -2546,7 +2561,7 @@ const QNotePage = () => {
                 onClick={() => handleSessionClick(session.id)}
               >
                 <SessionItemRow>
-                  <SessionItemTitle>{session.title}</SessionItemTitle>
+                  <SessionItemTitle><HighlightText text={session.title} query={sessionQuery} /></SessionItemTitle>
                   <SessionStatusBadge style={{ background: statusStyle.bg, color: statusStyle.fg }}>{statusLabel}</SessionStatusBadge>
                   <SessionDelBtn type="button"
                     onClick={(e) => { e.stopPropagation(); setSessionDeleteConfirmId(session.id); }}
@@ -2621,7 +2636,11 @@ const QNotePage = () => {
         {/* 사이클 N+17 — 빈 상태 (메모 작성 중 X + 활성 세션 X).
             활성 text 메모가 있으면 숨김 — eager 생성 시 phase 는 voice 기준 empty 라
             빈 상태(노트 시작 안내)가 메모 에디터 위에 겹쳐 뜨던 회귀 fix (Irene). */}
-        {phase === 'empty' && !composingMemo && activeSession?.input_type !== 'text' && (
+        {/* 다른 워크스페이스 노트를 주소·옛 탭으로 열었다 — 내용 대신 전환 안내 (WORKSPACE_SCOPE_DESIGN Q6) */}
+        {otherWsBizId && !activeSession && !composingMemo && (
+          <DetailFallback status="other_workspace" businessId={otherWsBizId} />
+        )}
+        {phase === 'empty' && !composingMemo && !otherWsBizId && activeSession?.input_type !== 'text' && (
           <SharedEmptyState
             icon={<MicIcon size={36} />}
             title={t('page.empty.title')}

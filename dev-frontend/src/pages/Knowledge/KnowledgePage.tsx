@@ -24,6 +24,9 @@ import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import SearchBox from '../../components/Common/SearchBox';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import AttachmentField from '../../components/Common/AttachmentField';
@@ -931,11 +934,19 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                    )}
                    {/* 제목 — 읽기 전용. 클릭하면 우측 패널이 열리고 거기서 편집 (#143) */}
                    <ColTitleArea>
-                     <RowTitleText>{d.title}</RowTitleText>
-                     {/* #187 — 본문 미리보기 (HTML 제거 + 한 줄 말줄임). 리스트에서 내용 감 잡게. */}
-                     {d.body && stripHtmlPreview(d.body) && (
-                       <RowBodyPreview>{stripHtmlPreview(d.body)}</RowBodyPreview>
-                     )}
+                     <RowTitleText><HighlightText text={d.title} query={search} /></RowTitleText>
+                     {/* #187 — 본문 미리보기 (HTML 제거 + 한 줄 말줄임). 리스트에서 내용 감 잡게.
+                         검색 중 제목엔 없고 본문에서 찾았으면 — 첫 줄 대신 **찾은 자리**를 같은 한 줄로 보여준다
+                         (첫 줄 미리보기는 말줄임에 가려 매칭어가 안 보일 수 있다). */}
+                     {(() => {
+                       const kbHit = search.trim() ? pickMatch([
+                         { field: 'title', text: d.title, shown: true },
+                         { field: 'body', text: d.body },
+                       ], search) : null;
+                       if (kbHit && !kbHit.shown) return <MatchReason field={kbHit.field} snippet={kbHit.snippet} query={search} />;
+                       const preview = d.body ? stripHtmlPreview(d.body) : '';
+                       return preview ? <RowBodyPreview><HighlightText text={preview} query={search} /></RowBodyPreview> : null;
+                     })()}
                    </ColTitleArea>
 
                    {/* 가운데: 커스텀 항목 — 클릭하면 값 복사 (#143) */}

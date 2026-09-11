@@ -6,6 +6,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
+import HighlightText from '../../components/Common/HighlightText';
 import { useReveal } from '../../hooks/useReveal';
 
 // #194 — 'updates'(제품 소식·체인지로그) 탭 추가. /changelog → /insights?category=updates 로 착지.
@@ -111,8 +112,8 @@ const BlogPage: React.FC = () => {
                   <PostCardLink key={p.slug} to={`/insights/${p.slug}`}>
                     <PreviewCard as="div">
                       <PreviewBadge>{t(`blogPage.categories.${p.blog_category || 'insights'}`, p.blog_category || '')}</PreviewBadge>
-                      <PreviewItemTitle>{pick(p, 'title')}</PreviewItemTitle>
-                      {pick(p, 'summary') && <PreviewItemDesc>{pick(p, 'summary')}</PreviewItemDesc>}
+                      <PreviewItemTitle><HighlightText text={pick(p, 'title')} query={query} /></PreviewItemTitle>
+                      {pick(p, 'summary') && <PreviewItemDesc><HighlightText text={pick(p, 'summary')} query={query} /></PreviewItemDesc>}
                       <PostMeta>
                         <span>{new Date(p.published_at).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                         {p.est_minutes ? <span>· {t('blogPage.readMinutes', '{{n}}분', { n: p.est_minutes })}</span> : null}

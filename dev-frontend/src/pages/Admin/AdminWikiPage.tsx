@@ -10,6 +10,9 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import SearchBox from '../../components/Common/SearchBox';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import ActionButton from '../../components/Common/ActionButton';
 import StandardModal from '../../components/Common/StandardModal';
@@ -247,7 +250,14 @@ const AdminWikiPage = ({ mode = 'help' }: { mode?: 'help' | 'blog' }) => {
           ) : articles.length === 0 ? (
             <Empty>{t('adminWiki.empty') as string}</Empty>
           ) : (
-            articles.map(a => (
+            articles.map(a => {
+              // 서버 검색은 title_ko·title_en·slug — 영문 제목은 행에 없다
+              const hit = pickMatch([
+                { field: 'title', text: a.title_ko, shown: true },
+                { field: 'url', text: a.slug, shown: true },
+                { field: 'title', text: a.title_en },
+              ], search);
+              return (
               <ListRow key={a.id} $active={selectedId === a.id} type="button" onClick={() => openArticle(a.id)}>
                 <RowTop>
                   <CatChip>{a.category?.title_ko || catTitle(a.category_id)}</CatChip>
@@ -256,10 +266,12 @@ const AdminWikiPage = ({ mode = 'help' }: { mode?: 'help' | 'blog' }) => {
                     : <Badge $bg="#F1F5F9" $fg="#64748B">{t('adminWiki.draft') as string}</Badge>}
                   {a.visibility === 'public' && <Badge $bg="#DBEAFE" $fg="#1E40AF">{t('adminWiki.visPublicShort') as string}</Badge>}
                 </RowTop>
-                <RowTitle>{a.title_ko}</RowTitle>
-                <RowSlug>/{a.slug}</RowSlug>
+                <RowTitle><HighlightText text={a.title_ko} query={search} /></RowTitle>
+                <RowSlug>/<HighlightText text={a.slug} query={search} /></RowSlug>
+                {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
               </ListRow>
-            ))
+              );
+            })
           )}
         </ListPane>
 

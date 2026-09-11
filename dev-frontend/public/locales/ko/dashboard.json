@@ -85,6 +85,9 @@
       "revise": "수정하기",
       "requestRevise": "수정요청"
     },
+    "stage": {
+      "external_review": "외부컨펌중"
+    },
     "verb": {
       "ack": "요청 확인",
       "confirm": "승인 대기",

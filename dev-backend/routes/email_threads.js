@@ -30,6 +30,8 @@ const { folderWhere, sentOrder, BULK_FOLDERS } = require('../services/mailFolder
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
 const { outgoingIdentityFor, accessibleAccountIds } = require('../services/mailIdentity');
 const { serializeThreadRow, resolveRecipientNames } = require('../services/mailSerialize');
+// 검색 결과의 "왜 걸렸나" (match: { field, snippet }) — 2026-09-11
+const { attachMailMatches } = require('../services/mailSearchMatch');
 
 // 발신 별칭 id 파싱 — **0 은 "계정 주소 명시 선택"이고 미지정이 아니다.**
 //   `from_alias_id || null` 로 뭉개면 서버가 기본별칭으로 덮어써, 화면은 help@ 를 보여주는데
@@ -326,6 +328,14 @@ router.get('/:businessId/email-threads',
       const data = rows.map(t => serializeThreadRow(t, {
         folder, senderByThread, lastOutByThread, attachCountByThread, nameByEmail,
       }));
+
+      // 2026-09-11 — "왜 이 메일이 검색에 걸렸나". 행마다 match: { field, snippet }.
+      //   이 페이지 행(= 위 계정 격리를 통과한 스레드)만 본다. 규칙·쿼리는 services/mailSearchMatch.
+      //   설명을 못 만들어도 목록은 그대로 나가야 한다 — 실패는 로그만 남기고 match 없이 보낸다.
+      if (q && String(q).trim() && data.length > 0) {
+        await attachMailMatches(data, { query: String(q).trim().slice(0, 100), businessId })
+          .catch((err) => { console.error('[email-threads] search match err:', err.message); });
+      }
 
       return paginatedResponse(res, data, count, { limit, page, offset });
     } catch (err) { next(err); }

@@ -200,6 +200,16 @@ const STRONG_REQUEST = new RegExp([
   '\\bcould you\\b', '\\bcan you\\b', '\\bwould you\\b', '\\bplease (send|share|review|confirm|advise|let us know)\\b',
   '\\brequest for\\b', '\\bquotation?\\b', '\\binquiry\\b', '\\bproposal\\b',
   '\\blooking forward to your (reply|response)\\b', '\\bawaiting your\\b',
+  // 2026-09-11 Irene: "Ms Joanne Low 가 보낸 거 답변을 꼭 해야 하는 내용인데 답변필요에 배치가 안되었어"
+  //   말레이시아·영국식 업무 영어 관용구가 목록에 없어 요청으로 안 잡혔다
+  //   ("Kindly vet through and let me know if there are amendments" · "for your perusal and comments").
+  //   ★ 'let me know' 단독은 넣지 않는다 — 콜드메일 상투구("let me know if you're interested")까지 잡힌다.
+  //   운영 3,206통 시뮬레이션: 이 관용구만으로 뒤집히는 판정 0건(오승격 0) · 양성 대조군 2/2.
+  '\\bkindly (vet|review|check|confirm|advise|revert|reply|respond|provide|send|arrange|prepare|sign|let (me|us) know)\\b',
+  '\\bplease (revert|advise|vet|sign|check and confirm)\\b',
+  '\\bfor your (perusal|review|comments?|approval|confirmation|signature|vetting)\\b',
+  '\\blet (me|us) know if (there (are|is)|you (have|need|agree))\\b',
+  '\\bdraft (agreement|contract|tenancy agreement)\\b',
 ].join('|'), 'i');
 
 function hasStrongRequest(subject, bodyText) {
@@ -302,6 +312,10 @@ const BUSINESS_RELEVANT = new RegExp([
   '\\bcontinue your\\b', '\\bpending (approval|review|action)\\b',
 ].join('|'), 'i');
 
+// 무료 메일 제공자 — Message-ID 도메인을 **제공자**가 발급한다(발신자가 아니다). isForgedReplyRef 의 자기참조 판정이
+//   이 발신자에게는 증거가 되지 않는다(needsReply ① 주석 참조).
+const FREE_MAIL_DOMAIN = /^(gmail\.com|googlemail\.com|outlook\.com|hotmail\.com|live\.com|msn\.com|yahoo\.[a-z.]+|ymail\.com|icloud\.com|me\.com|mac\.com|aol\.com|proton(mail)?\.(me|com)|naver\.com|daum\.net|hanmail\.net|kakao\.com|nate\.com)$/;
+
 // 우리 플랫폼이 보낸 알림인가 (PlanQ 업무 안내·컨펌 요청 등) — 자동 발송이지만 우리 일 그 자체다
 function isFromOurPlatform(fromEmail) {
   const f = String(fromEmail || '').toLowerCase();
@@ -381,7 +395,14 @@ function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatch
   //      부활한다. 실측: 콜드메일 발송기 2곳(주석에 위조 실사례로 박제된 바로 그 도메인)이 ④로
   //      승격됐다. 위조가 증명된 발송기에 물음표 하나로 답변 필요를 줄 이유가 없다 → 하드스톱.
   if (isThreadReply(headers)) {
-    return !isForgedReplyRef(headers, fromEmail);
+    if (!isForgedReplyRef(headers, fromEmail)) return true;
+    // ★ 2026-09-11 — 무료 메일(Gmail 등) 발신자의 "자기참조" 는 위조 증거가 아니다.
+    //   Gmail 의 Message-ID 는 `@mail.gmail.com` 이라 발신자 도메인(gmail.com)의 하위로 읽혀
+    //   **자기 앞 메일에 이어 쓴 정상 후속**("Further to the above …")이 전부 위조로 하드스톱됐다 —
+    //   아는 상대여도 답변 필요에 못 올라왔다(Joanne Low 실사례, 운영 id 3711).
+    //   ID 도메인은 발신자가 아니라 **메일 제공자**가 발급하므로 자작 여부를 가를 수 없다 → 회신 신호로도,
+    //   위조로도 쓰지 않고 **새 메일처럼** 아래 ③④ 로 판정한다. 자체 도메인 발송기의 위조는 종전대로 하드스톱.
+    if (!FREE_MAIL_DOMAIN.test(String(fromEmail || '').toLowerCase().split('@')[1] || '')) return false;
   }
 
   if (isAutomated(headers, fromEmail, ownEmails)) return false;                          // 자동 발송

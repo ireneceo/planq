@@ -73,7 +73,8 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
       model: Task,
       required: true,
       attributes: [],
-      where: { business_id: businessId, status: { [Op.in]: ['reviewing', 'revision_requested'] } },
+      // 외부컨펌으로 넘어간 컨펌 단계도 포함 — services/reviewStage 단일 원천 (확인필요 수집기와 같은 술어)
+      where: { business_id: businessId, [Op.and]: [require('./reviewStage').stageWhere()] },
     }],
   });
   if (pendingReviews >= 5) {

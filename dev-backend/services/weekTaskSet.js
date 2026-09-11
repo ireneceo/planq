@@ -87,8 +87,10 @@ function myWeekWhere(uid, businessId, monday, sunday, opts = {}) {
       myAssignedWeekWhere(id, monday, sunday, opts),
       // 내가 pending 컨펌자인 활성 업무 — 날짜 무관 (메인 filtered 의 myRev pending 분기 미러).
       //   담당자가 아니어도 "내가 행동해야 하는 것"이라 이번 주 무대에 오른다.
+      //   ★ 2026-09-11 — 컨펌 단계에서 외부컨펌으로 넘어간 업무도 남긴다(services/reviewStage). 컨펌자가 외부컨펌을
+      //     누르는 순간 자기 목록에서 사라졌다(운영 task 352). 외부컨펌은 단계 표시이지 리스트업 조건이 아니다.
       {
-        status: { [Op.in]: ['reviewing', 'revision_requested'] },
+        [Op.and]: [require('./reviewStage').stageWhere()],
         id: { [Op.in]: literal(`(SELECT task_id FROM task_reviewers WHERE user_id = ${id} AND state = 'pending')`) },
       },
       // 운영 #375 — "내가 외부컨펌 누르면 그냥 업무리스트에 있어야 해. …컨펌 완료시점을 관리하는

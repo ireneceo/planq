@@ -942,17 +942,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const [notifOpen, setNotifOpen] = useState(false);
   const bellRef = useRef<HTMLButtonElement>(null);
   // #194 — 제품 공지/체인지로그 "새 소식" (사이드바 메가폰 + 드로어)
-  const { items: whatsNewItems, unreadCount: whatsNewUnread, loading: whatsNewLoading, markSeen: markWhatsNewSeen } = useWhatsNew();
+  const { items: whatsNewItems, unreadCount: whatsNewUnread, loading: whatsNewLoading, markSeen: markWhatsNewSeen, markRead: markWhatsNewRead } = useWhatsNew();
   const [whatsNewOpen, setWhatsNewOpen] = useState(false);
   // 운영 #306 — 드롭다운은 아이콘 아래에 뜬다. 바깥 클릭 판정에 그 아이콘이 필요하다.
   const megaphoneRef = useRef<HTMLButtonElement>(null);
-  // 재클릭 토글 (공통 UI 규칙) — 알림 종과 같은 동작. 열 때만 "봤다" 로 표시한다.
+  // 재클릭 토글 (공통 UI 규칙) — 알림 종과 같은 동작.
+  //   ★ 2026-09-11 Irene: "드롭다운하면 알림처럼 모두 읽음 표시 나오게 해야지 그냥 왜 다 읽은 걸로 돼? 알림이랑 똑같이 해."
+  //     열기만 해서는 읽음이 되지 않는다 — 항목을 누르면 그것만, [모두 읽음] 을 누르면 전부(WhatsNewDropdown).
   const openWhatsNew = () => {
-    setWhatsNewOpen((prev) => {
-      if (prev) return false;
-      markWhatsNewSeen();
-      return true;
-    });
+    setWhatsNewOpen((prev) => !prev);
   };
   const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
   // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — **인박스(확인 필요) + Q Talk 안읽음**.
@@ -1057,7 +1055,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
       {/* #194 — 제품 공지/체인지로그 새 소식 드로어 (사이드바 메가폰 trigger) */}
       {/* 운영 #306 — 우측 상세 드로어 → 알림과 같은 popover 드롭다운 */}
       <WhatsNewDropdown open={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} anchorRef={megaphoneRef}
-        items={whatsNewItems} loading={whatsNewLoading} />
+        items={whatsNewItems} loading={whatsNewLoading}
+        onMarkAllRead={markWhatsNewSeen} onItemRead={markWhatsNewRead} />
       <MobileHeader $tabMode={tabMode}>
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />

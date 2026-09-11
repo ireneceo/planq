@@ -12,7 +12,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../contexts/AuthContext';
 
-export type DetailStatus = 'idle' | 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error';
+// other_workspace — 불러오긴 했지만 **지금 워크스페이스의 항목이 아니다**(utils/workspaceMatch). 내용 대신 전환 안내.
+export type DetailStatus = 'idle' | 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error' | 'other_workspace';
 
 type Options<T> = {
   /** null 이면 아무것도 하지 않는다(상세 닫힘) */

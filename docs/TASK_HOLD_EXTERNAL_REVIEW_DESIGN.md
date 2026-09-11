@@ -95,6 +95,11 @@ tasks.hold_reason      VARCHAR(500) NULL  — 보류 사유 (선택). 해제 시
 
 원칙: **on_hold = 이번 주 무대에서 퇴장, 전체 무대에 주차. external_review = 이번 주 무대에 잔류** (담당자가 외부를 채근할 책임이 남는다 — "마감 책임 = 담당자 끝까지").
 
+> **2026-09-11 보완 — 외부컨펌은 담당자만의 잔류가 아니다. "단계 표시" 이고 리스트업 조건을 바꾸지 않는다.**
+> 운영 신고(Irene, task 352): 컨펌자가 확인요청 받은 업무에서 외부컨펌을 누르자 **이번 주 목록·확인필요에서 모두 사라졌다.**
+> 아래 표의 잔류 규칙이 담당자(·#375 의뢰자) 분기에만 있었고, 컨펌자 분기·확인필요 수집기는 `status IN (reviewing, revision_requested)` 만 봤다.
+> → 목록 판정은 `hold_prev_status`(외부컨펌 직전 상태)로 한다. 규칙 표·술어 단일 원천은 `WORK_FLOW_DESIGN.md §5` 추가 규칙 참조.
+
 | 지점 | 파일:라인 | 변경 |
 |------|-----------|------|
 | 이번 주 내 업무 (server) | `routes/tasks.js:117` `Op.in ['in_progress','reviewing','revision_requested','waiting']` | + `'external_review'`. on_hold 미추가(제외) |

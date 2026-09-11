@@ -24,8 +24,10 @@ import VisibilityBadge from '../Common/VisibilityBadge';
 import { createSession, updateSession, getSession, listMyRecentMemos } from '../../services/qnote';
 import type { QNoteSession } from '../../services/qnote';
 import {
-  parseBodyToDoc, deriveTitleFromDoc, deriveMemoPreview, isDocEmpty,
+  parseBodyToDoc, deriveTitleFromDoc, deriveMemoPreview, isDocEmpty, extractPlainText,
 } from '../../utils/qnoteBody';
+import HighlightText from '../Common/HighlightText';
+import { makeSnippet } from '../../utils/searchMatch';
 
 // 사이클 N+17 — RichEditor 도입 (TipTap). lazy 로 첫 메모 작성 시점에만 받음.
 // vendor-tiptap (417KB) + vendor-highlight (162KB) 가 lazy chunk 로 떨어져 첫 로드 부담 0.
@@ -682,10 +684,21 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
                     $active={m.id === sessionId}
                     onClick={() => switchTo(m.id)}
                   >
-                    <DropdownTitle>{m.title || 'Untitled'}</DropdownTitle>
+                    <DropdownTitle><HighlightText text={m.title || 'Untitled'} query={searchQuery} /></DropdownTitle>
                     <DropdownMeta>
                       {fmtDate(m.updated_at)}
-                      {m.body && ` · ${deriveMemoPreview(m.body, 60)}`}
+                      {/* 2026-09-11 — 검색은 제목·본문에서 맞는다(q-note). 본문 매칭이면 앞 60자 대신 매칭 주변 60자로 "왜 떴는지" */}
+                      {m.body && (
+                        <>
+                          {' · '}
+                          <HighlightText
+                            query={searchQuery}
+                            text={(searchQuery.trim()
+                              && makeSnippet(extractPlainText(m.body), searchQuery, { before: 12, max: 60, plain: true })?.display)
+                              || deriveMemoPreview(m.body, 60)}
+                          />
+                        </>
+                      )}
                     </DropdownMeta>
                   </DropdownItem>
                 ))

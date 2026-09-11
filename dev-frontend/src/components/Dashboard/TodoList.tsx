@@ -254,6 +254,10 @@ const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 
                         <PriorityChip $priority={it.priority}>{t(`todo.priority.${it.priority}`)}</PriorityChip>
                       )}
                       <Verb>{t(`todo.verb.${it.verb}`, { defaultValue: it.verb })}</Verb>
+                      {/* 외부컨펌은 할 일을 바꾸지 않는다 — 단계만 알린다 (Irene 2026-09-11) */}
+                      {it.stage === 'external_review' && (
+                        <StageChip data-testid="todo-stage-external-review">{t('todo.stage.external_review', '외부컨펌중')}</StageChip>
+                      )}
                       <Subject>{it.subject}</Subject>
                     </CardLine1>
                     <CardLine2>
@@ -451,6 +455,19 @@ const Verb = styled.span`
   padding: 1px 6px;
   border-radius: 4px;
   flex-shrink: 0;
+`;
+
+// 단계 칩 — 외부컨펌중. 할 일(Verb)과 구별되게 중립 회색(Q Task 상태 색 external_review 와 같은 톤).
+const StageChip = styled.span`
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #475569;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  padding: 0 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  white-space: nowrap;
 `;
 
 const Subject = styled.span`

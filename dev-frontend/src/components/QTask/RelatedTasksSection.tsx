@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
+import HighlightText from '../Common/HighlightText';
 
 interface LinkedTask {
   id: number;
@@ -178,7 +179,7 @@ const RelatedTasksSection: React.FC<Props> = ({ taskId, businessId, canEdit }) =
                   const isClosed = r.status === 'completed' || r.status === 'canceled';
                   return (
                     <ResultItem key={r.id} type="button" onClick={() => link(r)} disabled={submitting} $closed={isClosed}>
-                      <ResultTitle>{r.title}</ResultTitle>
+                      <ResultTitle><HighlightText text={r.title} query={searchQ} /></ResultTitle>
                       {r.Project?.name && <ResultMeta>{r.Project.name}</ResultMeta>}
                     </ResultItem>
                   );

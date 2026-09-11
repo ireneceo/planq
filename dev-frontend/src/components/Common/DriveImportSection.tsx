@@ -26,6 +26,7 @@
 //   ★ 동작이 바뀌었으므로 **문구도 같이 바꿨다**(attach.drive.empty 가 "볼 수 없다" 라고
 //     단언하고 있었다 — 그대로 뒀으면 화면이 거짓말을 한다).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import HighlightText from './HighlightText';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -58,6 +59,8 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
   const [connected, setConnected] = useState<boolean | null>(null);
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [q, setQ] = useState('');
+  // 지금 목록을 만든 검색어 — 하이라이트는 입력 중인 글자가 아니라 이 값으로 칠한다(디바운스 사이 어긋남 방지).
+  const [shownQ, setShownQ] = useState('');
   const [loading, setLoading] = useState(false);
   const [importingId, setImportingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +79,7 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
       const j = await r.json();
       setConnected(!!j?.data?.connected);
       setFiles(j?.data?.files || []);
+      setShownQ(keyword);
     } catch {
       setError(t('attach.drive.loadFailed') as string);
     } finally { setLoading(false); }
@@ -230,7 +234,7 @@ const DriveImportSection: React.FC<Props> = ({ businessId, scope = 'workspace', 
                   return (
                     <Row key={f.id} type="button" onClick={() => !done && importOne(f)}
                       disabled={disabled || done || importingId !== null}>
-                      <RowName title={f.name}>{f.name}</RowName>
+                      <RowName title={f.name}><HighlightText text={f.name} query={shownQ} /></RowName>
                       <RowMeta>
                         {importingId === f.id
                           ? (t('attach.drive.importing') as string)

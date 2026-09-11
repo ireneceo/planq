@@ -15,7 +15,7 @@ import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
-import { notificationRowToToastLink, type NotificationFullRow } from '../../utils/notificationLink';
+import { notificationRowToToastLink, withJumpToLatest, type NotificationFullRow } from '../../utils/notificationLink';
 import NotificationTypeIcon from './NotificationTypeIcon';
 
 interface Toast {
@@ -575,7 +575,7 @@ export default function NotificationToaster() {
           $type={toast.type}
           onClick={() => {
             // N+73 — toast.link 가 항상 정확 (Toaster 자체 link OR notification:new full row OR resolveNotificationLink fallback)
-            navigate(toast.link || '/notifications');
+            navigate(withJumpToLatest(toast.link || '/notifications'));
             dismiss(toast.id);  // dismiss 가 mark-read 까지 처리
           }}
           role="alert"

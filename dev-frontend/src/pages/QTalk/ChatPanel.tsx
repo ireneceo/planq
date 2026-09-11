@@ -79,6 +79,9 @@ interface Props {
    *  ★ 이게 없으면 520px 팝아웃에서 대화를 열자마자 리스트가 숨어 **핀이 사라진다**
    *    (Fable 검증 중 발견: "창을 1024 넘게 넓혀야 핀이 나온다"). */
   pinSlot?: React.ReactNode;
+  /** 값이 바뀔 때마다 최신 메시지로 내리고 바닥에 고정한다 — 알림으로 들어온 진입(같은 대화가 이미 열려 있어도).
+   *  QTalkPage 가 주소의 일회용 `jump` 표식을 보고 올린다(utils/notificationLink withJumpToLatest). */
+  jumpToLatestSignal?: number;
 }
 
 // 채널 표시명 — **가공하지 않는다.**
@@ -111,7 +114,7 @@ const ChatPanel: React.FC<Props> = ({
   onSendMessage, onCueDraftSend, onCueDraftReject, onRenameConversation, onOpenSettings,
   candidatesCount,
   onOpenNewChat, onMobileBack, mobileHidden = false, pinSlot,
-  onLoadOlder, hasMoreOlder = false, loadingOlder = false,
+  onLoadOlder, hasMoreOlder = false, loadingOlder = false, jumpToLatestSignal = 0,
 }) => {
   const { t } = useTranslation('qtalk');
   const navigate = useNavigate();
@@ -990,6 +993,19 @@ const ChatPanel: React.FC<Props> = ({
     // 진입 시점 last_read freeze — 이후 markRead 가 서버 값을 올려도 구분선 위치는 고정.
     setFrozenLastRead(activeConv?.my_last_read_at || null);
   }, [activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 알림으로 들어온 진입 — **같은 대화가 이미 열려 있어도** 최신 메시지로 내리고 바닥에 고정한다.
+  //   2026-09-11 Irene: "채팅 알림 눌러서 가면 새로 온 거 위에 전에 이미 본 기준으로 위치가 잡혀".
+  //   위 진입 리셋은 대화 id 가 바뀔 때만 돌아, keep-alive 탭에 그 대화가 열려 있으면 옛 자리에 섰다.
+  //   useLayoutEffect — 첫 페인트가 옛 위치로 그려진 뒤 점프하지 않게(운영 안정성 규칙 12).
+  React.useLayoutEffect(() => {
+    if (!jumpToLatestSignal) return;
+    pinBottomRef.current = true;
+    userGestureAtRef.current = 0;
+    setPendingNewCount(0);
+    setShowScrollToBottom(false);
+    scrollToBottom(false);
+  }, [jumpToLatestSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 메시지 렌더 시 스크롤 처리
   // - 초기 로드: localStorage 에 저장된 위치 복원 (없으면 바닥)

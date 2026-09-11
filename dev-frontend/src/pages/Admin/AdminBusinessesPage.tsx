@@ -20,6 +20,7 @@ import {
   Field, FLabel, FValue, FHelp, PlanOptions, PlanOption,
   DateTrigger, DatePH, TextArea, PrimaryBtn, SecondaryBtn, ExemptBadge,
 } from './adminModalKit';
+import HighlightText from '../../components/Common/HighlightText';
 import {
   fetchAdminBusinesses,
   fetchAdminBusinessDetail,
@@ -268,7 +269,7 @@ export default function AdminBusinessesPage() {
             aria-current={activeId === row.id ? 'true' : undefined}
           >
             <RowMain>
-              <RowTitle>{row.name}</RowTitle>
+              <RowTitle><HighlightText text={row.name} query={query} /></RowTitle>
               <RowMeta>
                 <PlanBadge $code={row.plan}>
                   {t(`list.planBadge.${row.plan}`)}
@@ -291,7 +292,7 @@ export default function AdminBusinessesPage() {
                   <StateBadge $tone="danger">{t('list.expired')}</StateBadge>
                 )}
                 <Dim>{t('list.member', { count: row.member_count })}</Dim>
-                <Dim>{row.slug}</Dim>
+                <Dim><HighlightText text={row.slug} query={query} /></Dim>
               </RowMeta>
             </RowMain>
           </Row>

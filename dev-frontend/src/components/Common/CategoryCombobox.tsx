@@ -6,6 +6,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { isEnterAction } from '../../utils/imeKey';
+import HighlightText from './HighlightText';
 
 interface Props {
   value: string;
@@ -95,7 +96,7 @@ const CategoryCombobox: React.FC<Props> = ({ value, onChange, options, placehold
               onMouseEnter={() => setHighlightIdx(i)}
               onMouseDown={e => { e.preventDefault(); pick(o); }}
             >
-              <ItemText>#{o}</ItemText>
+              <ItemText>#<HighlightText text={o} query={value} /></ItemText>
               {o === value.trim() && <CurrentMark>✓</CurrentMark>}
             </Item>
           ))}

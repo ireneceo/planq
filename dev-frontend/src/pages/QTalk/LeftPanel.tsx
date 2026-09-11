@@ -2,6 +2,9 @@ import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import styled from 'styled-components';
 import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import { type MockProject, type MockConversation } from './types';
 import { useAuth } from '../../contexts/AuthContext';
 import HelpDot from '../../components/Common/HelpDot';
@@ -214,10 +217,20 @@ const LeftPanel: React.FC<Props> = ({
               />
               <ChatBody>
                 <ChatTop>
-                  <ChatName $active={isActive}>{c.name}</ChatName>
+                  <ChatName $active={isActive}><HighlightText text={c.name} query={query} /></ChatName>
                   {c.channel_type === 'customer' && <CustomerTag>{t('channelBadge.customer', '고객')}</CustomerTag>}
                 </ChatTop>
-                {/* 사이클 N+15-D — WhatsApp 패턴 마지막 대화 한 줄. preview 있으면 우선, 없으면 프로젝트명 fallback. */}
+                {/* 검색 — 행에 안 보이는 칸(프로젝트·고객사)에서 걸렸으면 왜 걸렸는지 한 줄 (공용 MatchReason) */}
+                {query.trim() && (() => {
+                  const hit = pickMatch([
+                    { field: 'title', text: c.name, shown: true },
+                    { field: 'message', text: c.last_message_preview?.content, shown: true },
+                    { field: 'project', text: p.name },
+                    { field: 'company', text: (p as { client_company?: string | null }).client_company },
+                  ], query);
+                  return hit && !hit.shown ? <MatchReason field={hit.field} snippet={hit.snippet} query={query} /> : null;
+                })()}
+                {/* 사이클 N+15-D — WhatsApp 패턴 마지막 대화 한 줄. preview 있으면 우선, 없으면 "아직 대화가 없어요". */}
                 {c.last_message_preview ? (
                   <LastMessagePreview $unread={c.unread_count > 0 && !isActive}>
                     {c.last_message_preview.sender_id === Number(user?.id || 0) ? (
@@ -227,10 +240,13 @@ const LeftPanel: React.FC<Props> = ({
                     ) : c.channel_type === 'customer' || (p && p.id < 0) ? null : (
                       <PreviewSenderTag>{c.last_message_preview.sender_name || ''}: </PreviewSenderTag>
                     )}
-                    <PreviewText>{c.last_message_preview.content}</PreviewText>
+                    <PreviewText><HighlightText text={c.last_message_preview.content} query={query} /></PreviewText>
                   </LastMessagePreview>
                 ) : (
-                  <ProjectName>{p.name}</ProjectName>
+                  // ★ 2026-09-11 Irene: "어떤 건 마지막 채팅내용이 나오는데 어떤 건 그냥 프로젝트 이름이 나와. 뭐가 맞아?"
+                  //   이 줄은 **마지막 대화** 자리다. 대화가 아직 없는 방만 프로젝트명으로 떨어져 같은 자리가 두 뜻을 가졌다
+                  //   (운영 실측: 워크스페이스 1 의 활성 대화 15개 중 메시지 0건인 4개). 없으면 없다고 말한다.
+                  <ProjectName>{t('left.preview.empty', '아직 대화가 없어요')}</ProjectName>
                 )}
               </ChatBody>
               {!isActive && c.unread_count > 0 && <Unread>{c.unread_count}</Unread>}

@@ -59,7 +59,9 @@ export function useWhatsNew() {
     };
   }, [user?.id, refresh]);
 
-  // 패널 열람 → 워터마크 갱신 (badge 소거). 실패해도 로컬 상태는 정리.
+  // "모두 읽음" — 워터마크 갱신 (badge 소거). 실패해도 로컬 상태는 정리.
+  //   ★ 2026-09-11 Irene: "드롭다운하면 알림처럼 모두 읽음 표시 나오게 해야지 그냥 왜 다 읽은 걸로 돼?"
+  //     옛 호출부(MainLayout)는 **드롭다운을 여는 순간** 이걸 불렀다. 이제 사용자가 누를 때만 부른다.
   const markSeen = useCallback(async () => {
     setUnreadCount(0);
     setItems(prev => prev.map(it => ({ ...it, is_new: false })));
@@ -67,5 +69,19 @@ export function useWhatsNew() {
     catch { /* silent — 다음 refresh 에서 정합 */ }
   }, []);
 
-  return { items, unreadCount, loading, refresh, markSeen };
+  // 개별 읽음 — 알림의 항목 클릭과 같다. 이미 읽은 것은 요청하지 않는다.
+  const markRead = useCallback(async (slug: string) => {
+    let changed = false;
+    setItems(prev => prev.map(it => {
+      if (it.slug !== slug || !it.is_new) return it;
+      changed = true;
+      return { ...it, is_new: false };
+    }));
+    setUnreadCount(c => Math.max(0, c - 1));
+    if (!changed) { void refresh(); return; }
+    try { await apiFetch(`/api/whats-new/${encodeURIComponent(slug)}/read`, { method: 'POST' }); }
+    catch { /* silent — 다음 refresh 에서 정합 */ }
+  }, [refresh]);
+
+  return { items, unreadCount, loading, refresh, markSeen, markRead };
 }

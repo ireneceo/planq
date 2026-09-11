@@ -17,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import type { TaskTagLite } from './TagChips';
 import { isEnterAction } from '../../utils/imeKey';
+import HighlightText from '../Common/HighlightText';
 
 interface Props {
   taskId: number;
@@ -169,7 +170,7 @@ const TagQuickMenu: React.FC<Props> = ({ taskId, bizId, dict, value, disabled, o
               return (
                 <Item key={tg.id} type="button" $on={on} disabled={busy} onClick={() => toggle(tg.id)}>
                   <Dot $color={tg.color || '#64748B'} />
-                  <Name>{tg.name}</Name>
+                  <Name><HighlightText text={tg.name} query={q} /></Name>
                   {on && (
                     <Check viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></Check>
                   )}

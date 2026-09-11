@@ -398,12 +398,13 @@ export async function listConversationMessages(conversationId: number): Promise<
 export async function listConversationMessagesPaged(
   conversationId: number,
   limit = 50,
-): Promise<{ messages: ApiMessage[]; hasMore: boolean }> {
+): Promise<{ messages: ApiMessage[]; hasMore: boolean; businessId: number | null }> {
   const res = await apiFetch(`/api/projects/conversations/${conversationId}/messages?limit=${limit}`);
-  let body: { success: boolean; data?: ApiMessage[]; has_more?: boolean; message?: string } | null = null;
+  let body: { success: boolean; data?: ApiMessage[]; has_more?: boolean; conversation_business_id?: number | null; message?: string } | null = null;
   try { body = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
   if (!res.ok || !body?.success) throw new Error(body?.message || `HTTP ${res.status}`);
-  return { messages: body.data || [], hasMore: !!body.has_more };
+  // businessId — 이 대화의 워크스페이스(서버가 권한 통과 후 알려준다). 화면이 다른 워크스페이스 대화를 가려낸다.
+  return { messages: body.data || [], hasMore: !!body.has_more, businessId: body.conversation_business_id ?? null };
 }
 
 // 과거 메시지 무한 로드 — beforeId 보다 오래된 limit 개 (시간순 ASC). hasMore=더 있음.

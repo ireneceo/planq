@@ -1,6 +1,12 @@
 // 통합 검색 — 워크스페이스 모든 도메인을 한 번에 검색.
 // GET /api/search?business_id=X&q=...&limit=10
 //   결과: { tasks, posts, records, files, conversations, knowledge, clients, projects }
+//   각 결과에 `match: { field, snippet } | null` — "왜 이 결과가 여기 있는가" (2026-09-11).
+//     field   = 맞은 필드 (title·description·content·category·table·file_name·name·company·email·body·value)
+//     snippet = 그 필드가 목록 행에 **안 보일 때만** 매칭 주변 평문 창(≤160자). 보이면 null.
+//     규칙: utils/searchMatch.js — 프론트 하이라이트(utils/searchMatch.ts)와 같은 정규식.
+//     ★ 본문 전체는 응답에 싣지 않는다(스니펫 계산에 쓴 컬럼은 내보내기 전에 뺀다).
+//     ★ 비밀(secret) 항목 값에서는 스니펫을 만들지 않는다.
 // 권한: 사용자 scope 기준 — client 격리 + project 멤버 한정 + KB 차단 등.
 const express = require('express');
 const router = express.Router();
@@ -15,6 +21,7 @@ const {
   assertWorkspaceAccess, taskListWhere, fileListWhereByLevel, postListWhereByLevel,
   conversationListWhere,
 } = require('../middleware/access_scope');
+const { pickMatch, makeSnippet, textMatches, toPlainText } = require('../utils/searchMatch');
 
 
 // ─────────────────────────────────────────────────────────────
@@ -56,6 +63,39 @@ async function buildScopedWheres(userId, businessId, platformRole) {
     postWhere: deny(postListWhereByLevel(scope)),
     convWhere: deny(await conversationListWhere(userId, businessId, scope)),
   };
+}
+
+const asObj = (v) => {
+  if (!v) return null;
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch { return null; }
+};
+
+// 셀·항목 값 → 검색용 평문. 배열(multi_select)은 쉼표로, 객체는 버린다(구조값에서 문장을 지어내지 않는다).
+const cellText = (raw) => {
+  if (raw == null) return '';
+  if (Array.isArray(raw)) return raw.filter((x) => x != null && typeof x !== 'object').join(', ');
+  if (typeof raw === 'object') return '';
+  return String(raw);
+};
+
+// { 항목명: 값 } 에서 **비밀이 아닌** 첫 매칭 → "항목명: …값…" 스니펫. 없으면 null.
+//   columns: [{ id, name, type }] — type==='secret' 인 칸은 후보에서 뺀다.
+function columnValueSnippet(columns, values, q) {
+  const cols = Array.isArray(columns) ? columns : [];
+  const vals = values && typeof values === 'object' ? values : {};
+  const secretIds = new Set(cols.filter((c) => c && c.type === 'secret').map((c) => String(c.id)));
+  const nameOf = new Map(cols.filter(Boolean).map((c) => [String(c.id), c.name || c.label || '']));
+  for (const [colId, raw] of Object.entries(vals)) {
+    if (secretIds.has(String(colId))) continue;
+    const text = toPlainText(cellText(raw));
+    if (!text || !textMatches(text, q)) continue;
+    const name = nameOf.get(String(colId)) || '';
+    const sn = makeSnippet(text, q, { plain: true, max: name ? Math.max(40, 150 - name.length) : 158 });
+    const body = sn ? sn.display : text.slice(0, 150);
+    return name ? `${name}: ${body}` : body;
+  }
+  return null;
 }
 
 // GET /api/search/recent?business_id=X&limit=5
@@ -173,7 +213,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const [tasks, posts, records, files, conversations, knowledge, clients, projects] = await Promise.all([
       Task.findAll({
         where: { ...taskWhere, [Op.and]: [{ [Op.or]: [...likeAny('title'), { description: like }] }] },
-        attributes: ['id', 'title', 'status', 'project_id'],
+        // description 은 **스니펫 계산에만** 쓰고 응답 전에 뺀다(아래 match 후처리).
+        attributes: ['id', 'title', 'status', 'project_id', 'description'],
         limit, order: [relevance('title'), ...TASK_ORDER],
       }).catch(() => []),
       // Post: 기본 (title/content/category) + table kind 면 q_record_rows.values 도 매치
@@ -181,11 +222,11 @@ router.get('/', authenticateToken, async (req, res, next) => {
         // 1) 기본 매치
         const basicMatches = await Post.findAll({
           where: { ...postWhere, [Op.and]: [{ [Op.or]: [...likeAny('title'), { content_text: like }, { category: like }] }] },
-          attributes: ['id', 'title', 'category', 'project_id', 'kind'],
+          // content_text 는 스니펫 계산에만 — 응답 전에 뺀다
+          attributes: ['id', 'title', 'category', 'project_id', 'kind', 'content_text'],
           limit, order: [relevance('title'), ['updated_at', 'DESC']],
         }).catch(() => []);
         // 2) 표 셀 검색 — kind='table' 인 post 의 연결 q_record_rows.values 에서 LIKE
-        const { QRecord, QRecordRow } = require('../models');
         const tableSql =
           'SELECT DISTINCT p.id, p.title, p.category, p.project_id, p.kind, p.updated_at ' +
           'FROM posts p JOIN q_record_rows r ON r.q_record_id = p.q_record_id ' +
@@ -215,7 +256,43 @@ router.get('/', authenticateToken, async (req, res, next) => {
         const seen = new Set(basicMatches.map(m => m.id));
         const merged = [...basicMatches.map(m => m.toJSON ? m.toJSON() : m)];
         for (const m of allowedTable) if (!seen.has(m.id)) { merged.push(m.toJSON ? m.toJSON() : m); seen.add(m.id); }
-        return merged.slice(0, limit);
+        const out = merged.slice(0, limit);
+
+        // 3) match — 제목·분류는 행에 보인다. 본문은 스니펫. 표 셀은 **권한 필터를 통과한 문서만**,
+        //    그 문서의 셀에서 비밀이 아닌 첫 매칭 값을 스니펫으로.
+        for (const p of out) {
+          p.match = pickMatch([
+            { field: 'title', text: p.title, shown: true },
+            { field: 'category', text: p.category, shown: true },
+            { field: 'content', text: p.content_text },
+          ], q);
+          delete p.content_text;
+        }
+        const needTable = out.filter((p) => !p.match && p.kind === 'table').map((p) => p.id);
+        if (needTable.length > 0) {
+          const cellRows = await sequelize.query(
+            'SELECT p.id AS post_id, qr.columns AS cols, r.`values` AS vals ' +
+            'FROM posts p ' +
+            'JOIN q_records qr ON qr.id = p.q_record_id AND qr.business_id = :bid ' +
+            'JOIN q_record_rows r ON r.q_record_id = p.q_record_id ' +
+            'WHERE p.business_id = :bid AND p.deleted_at IS NULL AND p.id IN (:ids) ' +
+            'AND LOWER(CAST(r.`values` AS CHAR)) LIKE LOWER(:like) ' +
+            'ORDER BY p.id, r.position LIMIT 200',
+            { replacements: { bid: businessId, ids: needTable, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }
+          ).catch((err) => { console.error('[search] table snippet err:', err.message); return []; });
+          const snipByPost = new Map();
+          for (const row of cellRows) {
+            if (snipByPost.get(row.post_id)) continue;
+            const sn = columnValueSnippet(asObj(row.cols), asObj(row.vals), q);
+            if (sn) snipByPost.set(row.post_id, sn);
+          }
+          for (const p of out) {
+            if (p.match || p.kind !== 'table') continue;
+            // 비밀 칸에서만 맞았으면 스니펫 없이 "표 셀" 만 — 값을 내보내지 않는다.
+            p.match = { field: 'table', snippet: snipByPost.get(p.id) || null };
+          }
+        }
+        return out;
       })().catch(() => []),
       // #359 — 폐지된 "Q record" 잔재. 검색에서 뺀다.
       //   Q record 메뉴는 이미 폐지돼 Q docs 의 표(kind='table')로 흡수됐다(App.tsx:122, /records → /docs).
@@ -240,10 +317,20 @@ router.get('/', authenticateToken, async (req, res, next) => {
         const baseHits = await KbDocument.findAll({
           // business_id 명시 — kbWhere 에 이미 있지만 이 쿼리만 봐도 경계가 보여야 한다
           where: { ...kbWhere, business_id: businessId, [Op.and]: [{ [Op.or]: [...likeAny('title'), { body: like }] }] },
-          attributes: ['id', 'title', 'category', 'scope'],
+          // body 는 스니펫 계산에만 — 응답 전에 뺀다
+          attributes: ['id', 'title', 'category', 'scope', 'body'],
           limit, order: [relevance('title'), ['updated_at', 'DESC']],
         }).catch(() => []);
-        if (isClient) return baseHits;
+        const withMatch = (m) => {
+          const o = m.toJSON ? m.toJSON() : { ...m };
+          o.match = pickMatch([
+            { field: 'title', text: o.title, shown: true },
+            { field: 'body', text: o.body },
+          ], q);
+          delete o.body;
+          return o;
+        };
+        if (isClient) return baseHits.map(withMatch);
         // #334 — 항목 값 검색. custom_values JSON 을 통째로 CAST 해 LIKE 하면
         //   **비밀번호·API 키 문자열로 검색해도 그 정보가 결과에 뜬다.**
         //   SQL 로 후보만 좁히고, 어떤 항목에서 맞았는지는 여기서 판정한다 —
@@ -257,11 +344,6 @@ router.get('/', authenticateToken, async (req, res, next) => {
           { replacements: { bid: businessId, like: `%${qEsc}%` }, type: sequelize.QueryTypes.SELECT }
         ).catch(err => { console.error('[search] kb val err:', err.message); return []; });
 
-        const asObj = (v) => {
-          if (!v) return null;
-          if (typeof v === 'object') return v;
-          try { return JSON.parse(v); } catch { return null; }
-        };
         const needle = q.toLowerCase();
         const needleSquashed = q.replace(/\s+/g, '').toLowerCase();
         const valHits = rawValHits.filter((row) => {
@@ -279,9 +361,13 @@ router.get('/', authenticateToken, async (req, res, next) => {
             if (needleSquashed && v.replace(/\s+/g, '').includes(needleSquashed)) return true;
           }
           return false;
-        }).map(({ custom_columns: _c, custom_values: _v, ...rest }) => rest);
+        }).map(({ custom_columns: cc, custom_values: cv, ...rest }) => ({
+          ...rest,
+          // 스니펫도 **비밀이 아닌 칸에서만** — 위 필터와 같은 기준(columnValueSnippet 이 secret 을 건너뛴다)
+          match: { field: 'value', snippet: columnValueSnippet(asObj(cc), asObj(cv), q) },
+        }));
         const seen = new Set(baseHits.map(m => m.id));
-        const merged = [...baseHits.map(m => m.toJSON ? m.toJSON() : m)];
+        const merged = baseHits.map(withMatch);
         for (const m of valHits) if (!seen.has(m.id)) { merged.push(m); seen.add(m.id); }
         return merged.slice(0, limit);
       })().catch(() => []),
@@ -307,15 +393,58 @@ router.get('/', authenticateToken, async (req, res, next) => {
     ]);
 
     const toPlain = (m) => (m && typeof m.toJSON === 'function') ? m.toJSON() : m;
+
+    // ── match 후처리 — 후보 순서 = 우선순위. 행에 보이는 필드를 앞에 둔다. ──
+    const taskOut = tasks.map((m) => {
+      const { description, ...rest } = toPlain(m);
+      rest.match = pickMatch([
+        { field: 'title', text: rest.title, shown: true },
+        { field: 'description', text: description },
+      ], q);
+      return rest;
+    });
+    const fileOut = files.map((m) => {
+      const o = toPlain(m);
+      o.match = pickMatch([{ field: 'file_name', text: o.file_name, shown: true }], q);
+      return o;
+    });
+    const convOut = conversations.map((m) => {
+      const o = toPlain(m);
+      // 목록은 display_name || title 을 그린다 — 안 그려진 쪽에서 맞았으면 그 이름을 스니펫으로.
+      const shownName = o.display_name || o.title;
+      o.match = pickMatch([
+        { field: 'title', text: shownName, shown: true },
+        { field: 'title', text: o.display_name ? o.title : null },
+      ], q);
+      return o;
+    });
+    const clientOut = clients.map((m) => {
+      const o = toPlain(m);
+      const shownName = o.display_name || o.company_name;
+      o.match = pickMatch([
+        { field: 'name', text: shownName, shown: true },
+        { field: 'company', text: o.display_name ? o.company_name : null },
+        // 이메일은 목록의 보조줄에 **맞은 주소**를 그린다 — snippet 에 그 주소 전체를 싣는다.
+        { field: 'email', text: o.invite_email },
+        { field: 'email', text: o.billing_contact_email },
+      ], q);
+      return o;
+    });
+    const projectOut = projects.map((m) => {
+      const o = toPlain(m);
+      o.match = pickMatch([{ field: 'name', text: o.name, shown: true }], q);
+      return o;
+    });
+
     successResponse(res, {
-      tasks: tasks.map(toPlain),
+      tasks: taskOut,
       posts: posts.map(toPlain),
       records: records.map(toPlain),
-      files: files.map(toPlain),
-      conversations: conversations.map(toPlain),
+      files: fileOut,
+      conversations: convOut,
       knowledge: knowledge.map(toPlain),
-      clients: clients.map(toPlain),
-      projects: projects.map(toPlain),
+      clients: clientOut,
+      projects: projectOut,
     });
   } catch (err) { next(err); }
 });

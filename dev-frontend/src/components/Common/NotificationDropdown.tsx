@@ -8,7 +8,7 @@ import {
 } from './dropdownShell';
 import { useNotifications, type NotificationItem } from '../../hooks/useNotifications';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
-import { resolveNotificationLink } from '../../utils/notificationLink';
+import { resolveNotificationLink, withJumpToLatest } from '../../utils/notificationLink';
 import NotificationTypeIcon from './NotificationTypeIcon';
 import { tabStore } from '../../stores/tabStore';
 
@@ -49,7 +49,7 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => 
     // N+73 — Toaster 와 같은 라우팅 helper 사용. link 누락 시 entity_type/event_kind fallback.
     // 보던 탭을 덮지 않는다 — 알림은 하던 일 위에 얹히는 진입점이다
     //   (Irene: "드롭다운에서 갑자기 탭 내용 바뀌면 하던 일 문제될 것 같아").
-    tabStore.openInNewTab(resolveNotificationLink(item));
+    tabStore.openInNewTab(withJumpToLatest(resolveNotificationLink(item)));
     onClose();
   };
 

@@ -5,10 +5,13 @@
 //   혼자만 우측 상세 드로어로 열렸다. 같은 자리·같은 동작이어야 사용자가 배우지 않는다.
 //   → NotificationDropdown 과 **같은 popover 구조**를 그대로 쓴다(디자인 단일 원천).
 //   콘텐츠 원천은 종전과 같다 (/api/whats-new · hooks/useWhatsNew).
+//
+// ★ 2026-09-11 Irene: "스피커도 드롭다운하면 알림처럼 모두 읽음 표시 나오게 해야지 그냥 왜 다 읽은 걸로 돼? 알림이랑 똑같이 해."
+//   읽음 규칙도 알림과 같다 — 여는 것만으로는 읽음이 아니다. 항목을 누르면 그것만, [모두 읽음] 은 전부.
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Popover, Header, HeaderTitle, List, Loading, Empty, EmptyIcon, EmptyTitle, EmptyHint,
+  Popover, Header, HeaderTitle, HeaderAction, List, Loading, Empty, EmptyIcon, EmptyTitle, EmptyHint,
   ItemLink, ItemIcon, ItemBody, ItemTitle, ItemDesc, ItemMeta, UnreadDot, Footer, FooterLink,
 } from './dropdownShell';
 import type { WhatsNewItem } from '../../hooks/useWhatsNew';
@@ -19,9 +22,13 @@ interface Props {
   anchorRef: React.RefObject<HTMLElement | null>;
   items: WhatsNewItem[];
   loading: boolean;
+  /** [모두 읽음] — 알림 드롭다운의 markAllRead 와 같은 자리 */
+  onMarkAllRead: () => void;
+  /** 항목을 눌러 열 때 그 항목만 읽음 */
+  onItemRead: (slug: string) => void;
 }
 
-const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, loading }) => {
+const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, loading, onMarkAllRead, onItemRead }) => {
   const { t, i18n } = useTranslation('common');
   const lang = (i18n.language || 'ko').slice(0, 2) === 'en' ? 'en' : 'ko';
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -48,11 +55,17 @@ const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, lo
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+  const hasUnread = items.some((it) => it.is_new);
 
   return (
     <Popover ref={popoverRef} role="menu" aria-label={t('whatsNew.title', '새 소식') as string}>
       <Header>
         <HeaderTitle>{t('whatsNew.title', '새 소식')}</HeaderTitle>
+        {hasUnread && (
+          <HeaderAction type="button" onClick={onMarkAllRead} data-testid="whatsnew-mark-all-read">
+            {t('notifications.markAllRead', '모두 읽음')}
+          </HeaderAction>
+        )}
       </Header>
       <List>
         {loading && items.length === 0 ? (
@@ -71,7 +84,13 @@ const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, lo
           items.slice(0, 8).map((it) => (
             // 알림과 **같은 구조** — 아이콘 | (제목·요약·날짜) | 안읽음 점. 두 드롭다운이 다르게
             //   생기면 사용자는 매번 다시 배운다. 열기는 새 탭(보던 화면을 덮지 않는다).
-            <ItemLink key={it.slug} to={`/whats-new?post=${encodeURIComponent(it.slug)}`} newTab onClick={onClose} $unread={it.is_new}>
+            <ItemLink
+              key={it.slug}
+              to={`/whats-new?post=${encodeURIComponent(it.slug)}`}
+              newTab
+              onClick={() => { if (it.is_new) onItemRead(it.slug); onClose(); }}
+              $unread={it.is_new}
+            >
               <ItemIcon aria-hidden="true">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M3 11l18-5v12L3 14v-3z" />

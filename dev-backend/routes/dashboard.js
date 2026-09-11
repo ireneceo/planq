@@ -121,7 +121,7 @@ async function collectTasks(businessId, userId) {
       // #206 — 보류된 요청으로 담당자를 채근하지 않는다 (보류는 "일이 멈춤"의 합의)
       status: { [Op.notIn]: ['completed', 'canceled', 'on_hold'] },
     },
-    attributes: ['id', 'title', 'due_date', 'createdAt'],
+    attributes: ['id', 'title', 'due_date', 'createdAt', 'status'],
     include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],
     order: [['due_date', 'ASC']],
     limit: COLLECT_LIMIT,
@@ -130,6 +130,7 @@ async function collectTasks(businessId, userId) {
     const due = toIsoDateOnlyAsDate(t.due_date);
     items.push({
       id: `task-${t.id}-ack`,
+      stage: require('../services/reviewStage').stageOf(t),
       type: 'task',
       priority: bucketByDue(due),
       verb: 'ack',
@@ -142,14 +143,15 @@ async function collectTasks(businessId, userId) {
     });
   }
 
-  // 2) 수정 요청 받음 — 내 담당 + revision_requested
+  // 2) 수정 요청 받음 — 내 담당 + revision_requested (그 단계에서 외부컨펌으로 넘어간 것 포함 — 단계만 표시)
+  const { stageWhere, stageOf } = require('../services/reviewStage');
   const revisionReq = await Task.findAll({
     where: {
       business_id: businessId,
       assignee_id: userId,
-      status: 'revision_requested',
+      [Op.and]: [stageWhere('revision_requested')],
     },
-    attributes: ['id', 'title', 'due_date', 'updatedAt'],
+    attributes: ['id', 'title', 'due_date', 'updatedAt', 'status'],
     include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],
     limit: COLLECT_LIMIT,
   });
@@ -157,6 +159,7 @@ async function collectTasks(businessId, userId) {
     const due = toIsoDateOnlyAsDate(t.due_date);
     items.push({
       id: `task-${t.id}-revise`,
+      stage: stageOf(t),
       type: 'task',
       priority: due && due < new Date() ? 'urgent' : 'today',
       verb: 'revise',
@@ -179,8 +182,9 @@ async function collectTasks(businessId, userId) {
     include: [{
       model: Task,
       required: true,
-      where: { business_id: businessId, status: { [Op.in]: ['reviewing', 'revision_requested'] } },
-      attributes: ['id', 'title', 'due_date'],
+      // ★ 2026-09-11 — 외부컨펌으로 넘어간 컨펌 단계도 남긴다(단계만 표시). services/reviewStage 단일 원천.
+      where: { business_id: businessId, [Op.and]: [require('../services/reviewStage').stageWhere()] },
+      attributes: ['id', 'title', 'due_date', 'status'],
       include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     }],
     limit: COLLECT_LIMIT,
@@ -191,6 +195,7 @@ async function collectTasks(businessId, userId) {
     const due = toIsoDateOnlyAsDate(t.due_date);
     items.push({
       id: `task-${t.id}-review`,
+      stage: stageOf(t),
       type: 'task',
       priority: bucketByDue(due) === 'week' ? 'waiting' : bucketByDue(due),
       verb: 'confirm',
@@ -212,13 +217,14 @@ async function collectTasks(businessId, userId) {
   const sentInReview = await Task.findAll({
     where: {
       business_id: businessId,
-      status: 'reviewing',
+      // 컨펌 단계에서 외부컨펌으로 넘어간 것도 남긴다(단계만 표시) — services/reviewStage
+      [Op.and]: [stageWhere('reviewing')],
       [Op.or]: [
         { request_by_user_id: userId },
         { created_by: userId, assignee_id: { [Op.ne]: userId, [Op.not]: null } },
       ],
     },
-    attributes: ['id', 'title', 'due_date', 'updatedAt'],
+    attributes: ['id', 'title', 'due_date', 'updatedAt', 'status'],
     include: [{ model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false }],
     order: [['due_date', 'ASC']],
     limit: COLLECT_LIMIT,
@@ -228,6 +234,7 @@ async function collectTasks(businessId, userId) {
     const due = toIsoDateOnlyAsDate(t.due_date);
     items.push({
       id: `task-${t.id}-sent-review`,
+      stage: stageOf(t),
       type: 'task',
       priority: bucketByDue(due) === 'week' ? 'waiting' : bucketByDue(due),
       verb: 'awaiting_confirm',

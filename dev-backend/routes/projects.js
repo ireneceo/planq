@@ -1474,7 +1474,9 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
     //     고객 본인처럼 보인다 (#259 회귀). 상세 경로와 같은 함수·같은 순서.
     maskDeletedMessages(result);
     // data 는 기존과 동일하게 메시지 배열 (호출처 무변경). has_more 만 추가 (무한 스크롤 업 판별용).
-    return res.json({ success: true, data: result, has_more: hasMore });
+    // conversation_business_id — 이 대화의 워크스페이스. 권한은 위에서 이미 통과했으므로 새로 드러나는 것은 없다.
+    //   2026-09-11 (WORKSPACE_SCOPE_DESIGN Q6) 화면이 "지금 워크스페이스 대화인가" 를 판정하는 근거(QTalkPage).
+    return res.json({ success: true, data: result, has_more: hasMore, conversation_business_id: conv.business_id });
   } catch (err) { next(err); }
 });
 

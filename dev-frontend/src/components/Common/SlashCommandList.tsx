@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next';
 import type { SuggestionProps } from '@tiptap/suggestion';
 import type { SlashItem } from './SlashCommand';
 import { isEnterAction } from '../../utils/imeKey';
+import HighlightText from './HighlightText';
 
 const SlashCommandList = forwardRef<unknown, SuggestionProps<SlashItem>>((props, ref) => {
-  const { items, command } = props;
+  const { items, command, query } = props;
   const { t } = useTranslation('common');
   const [index, setIndex] = useState(0);
 
@@ -46,7 +47,7 @@ const SlashCommandList = forwardRef<unknown, SuggestionProps<SlashItem>>((props,
           onClick={() => selectItem(i)}>
           <Icon>{it.icon || '·'}</Icon>
           <Meta>
-            <Title>{t(it.titleKey, { defaultValue: it.title })}</Title>
+            <Title><HighlightText text={t(it.titleKey, { defaultValue: it.title }) as string} query={query} /></Title>
             {it.descKey && <Desc>{t(it.descKey, { defaultValue: it.description })}</Desc>}
           </Meta>
         </Item>

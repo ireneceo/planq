@@ -98,7 +98,8 @@
       "cuePrefill": "Q talk 의 채팅 종류, 자동 추출, 번역 표시가 어떻게 작동하는지 알려줘"
     },
     "preview": {
-      "you": "나"
+      "you": "나",
+      "empty": "아직 대화가 없어요"
     },
     "expand": "리스트 열기",
     "newChat": "새 대화",

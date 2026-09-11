@@ -17,6 +17,7 @@ import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import SearchBox from '../../components/Common/SearchBox';
+import HighlightText from '../../components/Common/HighlightText';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CreateDrawer from '../../components/Common/CreateDrawer';
 import EmptyState from '../../components/Common/EmptyState';
@@ -496,7 +497,7 @@ export default function ClientsPage() {
                         <NameWrap>
                           <NameCell role={isAdmin ? 'button' : undefined}
                             onClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.display_name || c.user?.name || ''); setEditingCell({ id: c.id, field: 'display_name' }); }}>
-                            {name}
+                            <HighlightText text={name} query={query} />
                           </NameCell>
                           {c.kind && c.kind !== 'customer' && (
                             <PartnerKindBadge kind={c.kind} />
@@ -515,11 +516,11 @@ export default function ClientsPage() {
                       ) : (
                         <CompanyCell role={isAdmin ? 'button' : undefined}
                           onClick={(e) => { if (!isAdmin) return; e.stopPropagation(); setEditDraft(c.company_name || ''); setEditingCell({ id: c.id, field: 'company_name' }); }}>
-                          {c.company_name || <Muted>—</Muted>}
+                          {c.company_name ? <HighlightText text={c.company_name} query={query} /> : <Muted>—</Muted>}
                         </CompanyCell>
                       )}
                     </Td>
-                    <Td>{c.user?.email || <Muted>—</Muted>}</Td>
+                    <Td>{c.user?.email ? <HighlightText text={c.user.email} query={query} /> : <Muted>—</Muted>}</Td>
                     <Td>{c.user?.phone || <Muted>—</Muted>}</Td>
                     <Td>
                       <StatusPill style={{ background: sStyle.bg, color: sStyle.fg }}>{t(`status.${st}`)}</StatusPill>

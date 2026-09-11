@@ -16,6 +16,9 @@ import { useCueChat, cueActionDeepLink } from '../../hooks/useCueChat';
 import CueTurnList from './CueTurnList';
 import { useChromeLocation } from '../../hooks/useChromeNav';
 import { tabStore } from '../../stores/tabStore';
+import HighlightText from './HighlightText';
+import MatchReason from './MatchReason';
+import type { SearchMatchInfo } from '../../utils/searchMatch';
 
 interface Props {
   /**
@@ -42,17 +45,29 @@ interface Hit {
   sub?: string;        // 서브 라벨 (카테고리 등)
   to: string;          // 라우트
   type: Category;
+  // 2026-09-11 — 서버가 준 "왜 걸렸나". 행에 안 보이는 필드에서 맞았을 때만 사유 줄을 그린다.
+  match?: SearchMatchInfo | null;
 }
 
+type WithMatch = { match?: SearchMatchInfo | null };
 interface SearchResult {
-  tasks?: Array<{ id: number; title: string; status?: string; project_id?: number | null }>;
-  posts?: Array<{ id: number; title: string; category?: string | null; project_id?: number | null }>;
-  files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null }>;
-  conversations?: Array<{ id: number; title?: string; display_name?: string; project_id?: number | null }>;
-  knowledge?: Array<{ id: number; title: string; category?: string | null; scope?: string }>;
-  clients?: Array<{ id: number; display_name?: string; company_name?: string; email?: string }>;
-  projects?: Array<{ id: number; name: string; status?: string }>;
+  tasks?: Array<{ id: number; title: string; status?: string; project_id?: number | null } & WithMatch>;
+  posts?: Array<{ id: number; title: string; category?: string | null; project_id?: number | null } & WithMatch>;
+  files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null } & WithMatch>;
+  conversations?: Array<{ id: number; title?: string; display_name?: string; project_id?: number | null } & WithMatch>;
+  knowledge?: Array<{ id: number; title: string; category?: string | null; scope?: string } & WithMatch>;
+  // ★ clients 에는 `email` 컬럼이 없다 — 서버는 invite_email / billing_contact_email 을 준다.
+  //   옛 코드가 x.email 을 읽어 보조줄이 늘 비어 있었다(이메일로 찾아도 어느 주소인지 안 보였다).
+  clients?: Array<{ id: number; display_name?: string; company_name?: string; invite_email?: string | null; billing_contact_email?: string | null } & WithMatch>;
+  projects?: Array<{ id: number; name: string; status?: string } & WithMatch>;
 }
+
+// 행에 이미 보이는 필드 — 여기서 맞았으면 하이라이트로 충분(사유 줄 없음).
+//   clients 의 email 은 보조줄에 **맞은 주소**를 그리므로 보이는 필드로 친다.
+const SHOWN_FIELDS: Record<Category, string[]> = {
+  tasks: ['title'], posts: ['title', 'category'], files: ['file_name'],
+  conversations: ['title'], knowledge: ['title'], clients: ['name', 'email'], projects: ['name'],
+};
 
 // 카테고리 라벨 i18n fallback (ko) — 표시는 t('search.cat.<key>') 로
 const CAT_LABEL_KO: Record<Category, string> = {
@@ -151,13 +166,18 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   const toHits = React.useCallback((r: SearchResult): Hit[] => {
     const h: Hit[] = [];
     // #206 — status 를 raw 로 내보내면 `on_hold` 같은 snake_case 가 사용자에게 그대로 노출된다.
-    (r.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : undefined, to: `/tasks?task=${x.id}`, type: 'tasks' }));
-    (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts' }));
-    (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files' }));
-    (r.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations' }));
-    (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/knowledge?doc=${x.id}`, type: 'knowledge' }));
-    (r.clients || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub: x.email || undefined, to: `/business/clients?client=${x.id}`, type: 'clients' }));
-    (r.projects || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.status, to: `/projects/p/${x.id}`, type: 'projects' }));
+    (r.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : undefined, to: `/tasks?task=${x.id}`, type: 'tasks', match: x.match }));
+    (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts', match: x.match }));
+    (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files', match: x.match }));
+    (r.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations', match: x.match }));
+    (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/knowledge?doc=${x.id}`, type: 'knowledge', match: x.match }));
+    (r.clients || []).forEach(x => {
+      // 보조줄 = **맞은 이메일**(검색어가 이메일에서 맞았을 때) · 아니면 초대 주소 · 청구 담당 주소
+      const matchedEmail = x.match?.field === 'email' ? x.match.snippet : null;
+      const email = matchedEmail || x.invite_email || x.billing_contact_email || undefined;
+      h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub: email, to: `/business/clients?client=${x.id}`, type: 'clients', match: x.match });
+    });
+    (r.projects || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.status, to: `/projects/p/${x.id}`, type: 'projects', match: x.match }));
     return h;
   }, [t]);   // #206 — 상태 라벨 i18n → 언어 전환 시 재계산
 
@@ -266,7 +286,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
                 <Hit key={`menu-${m.key}`} type="button" data-testid={`gsearch-menu-${m.key}`} onClick={() => goto(m.to)}>
                   <TypeBadge $color="#0F766E">{tNav(SECTION_LABEL_KEY[m.section]) as string}</TypeBadge>
                   <HitMain>
-                    <HitTitle>{menuLabel(m)}</HitTitle>
+                    <HitTitle><HighlightText text={menuLabel(m)} query={query} /></HitTitle>
                     <HitSub>{m.to}</HitSub>
                   </HitMain>
                 </Hit>
@@ -300,15 +320,26 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
           ) : (
             <>
               <GroupTitle>{t('search.results', { defaultValue: '검색 결과' }) as string}</GroupTitle>
-              {allHits.map(h => (
-                <Hit key={`${h.type}-${h.id}`} type="button" onClick={() => goto(h.to)}>
-                  <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] })}</TypeBadge>
-                  <HitMain>
-                    <HitTitle>{h.title}</HitTitle>
-                    {h.sub && <HitSub>{h.sub}</HitSub>}
-                  </HitMain>
-                </Hit>
-              ))}
+              {allHits.map(h => {
+                // "왜 이 결과인가" — 서버 match 계약: snippet 이 있으면 행에 안 보이는 곳에서 맞은 것.
+                //   snippet 이 없으면 보이는 필드(하이라이트로 충분)거나, 값을 내보낼 수 없는 곳(비밀 표 셀)이다 —
+                //   후자는 필드 이름만 알린다. 고객 이메일은 보조줄에 맞은 주소를 그리므로 사유 줄을 생략한다.
+                const m = h.match;
+                const field = m ? String(m.field) : '';
+                const showReason = !!m && (m.snippet
+                  ? !(h.type === 'clients' && field === 'email')
+                  : !SHOWN_FIELDS[h.type].includes(field));
+                return (
+                  <Hit key={`${h.type}-${h.id}`} type="button" onClick={() => goto(h.to)} data-testid="gsearch-hit">
+                    <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] })}</TypeBadge>
+                    <HitMain>
+                      <HitTitle><HighlightText text={h.title} query={query} /></HitTitle>
+                      {h.sub && <HitSub><HighlightText text={h.sub} query={query} /></HitSub>}
+                      {showReason && m && <MatchReason field={field} snippet={m.snippet} query={query} />}
+                    </HitMain>
+                  </Hit>
+                );
+              })}
             </>
           )}
         </Results>

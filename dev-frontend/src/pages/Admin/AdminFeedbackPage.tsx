@@ -9,6 +9,9 @@ import { Tabs, Tab, Badge } from '../../components/Common/TabComponents';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import EmptyState from '../../components/Common/EmptyState';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 
 type Status = 'pending' | 'reviewing' | 'done' | 'wontfix';
@@ -147,16 +150,28 @@ const AdminFeedbackPage = () => {
         />
        ) : (
         <List>
-          {filtered.map(it => (
+          {filtered.map(it => {
+            const shownBody = (it.body || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+            // 서버 검색은 title·body — 행에는 본문 앞 80자만 보인다. 제목이나 뒷부분에서 맞았으면 이유를 붙인다.
+            const hit = pickMatch([
+              { field: 'content', text: shownBody, shown: true },
+              { field: 'title', text: it.title },
+              { field: 'content', text: it.body },
+            ], search);
+            return (
             <Row key={it.id} $active={detailId === it.id} onClick={() => setDetailId(prev => prev === it.id ? null : it.id)}>
               <CatChip $cat={it.category}>{t(`qhelper.fbCat.${it.category}`)}</CatChip>
               {it.priority === 'high' && <UrgentChip>{t('adminFeedback.urgent', '긴급')}</UrgentChip>}
-              <RowTitle>{(it.body || '').replace(/\s+/g, ' ').trim().slice(0, 80) || `#${it.id}`}</RowTitle>
+              <RowTitle>
+                {shownBody ? <HighlightText text={shownBody} query={search} /> : `#${it.id}`}
+                {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
+              </RowTitle>
               <RowMeta>
                 {it.user?.name || `#${it.user_id}`} · {new Date(it.created_at).toLocaleDateString()}
               </RowMeta>
             </Row>
-          ))}
+            );
+          })}
         </List>
        )}
 

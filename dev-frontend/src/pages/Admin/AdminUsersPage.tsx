@@ -7,6 +7,9 @@ import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import SearchBox from '../../components/Common/SearchBox';
 import EmptyState from '../../components/Common/EmptyState';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch, getAccessToken, useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
@@ -104,10 +107,20 @@ const AdminUsersPage = () => {
             </tr>
           </thead>
           <tbody>
-            {rows.map(u => (
+            {rows.map(u => {
+              // 서버 검색은 email·name·username — username 은 표에 없으니 맞았을 때만 이유를 붙인다
+              const hit = pickMatch([
+                { field: 'email', text: u.email, shown: true },
+                { field: 'name', text: u.name, shown: true },
+                { field: 'name', text: u.username },
+              ], search);
+              return (
               <Row key={u.id}>
-                <Td><EmailText>{u.email}</EmailText></Td>
-                <Td>{u.name || '—'}</Td>
+                <Td><EmailText><HighlightText text={u.email} query={search} /></EmailText></Td>
+                <Td>
+                  {u.name ? <HighlightText text={u.name} query={search} /> : '—'}
+                  {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
+                </Td>
                 <Td>
                   <RoleTag $admin={u.platform_role === 'platform_admin'}>
                     {u.platform_role === 'platform_admin' ? t('adminUsers.roleAdmin', '관리자') : t('adminUsers.roleUser', '사용자')}
@@ -138,7 +151,8 @@ const AdminUsersPage = () => {
                   </ActionRow>
                 </Td>
               </Row>
-            ))}
+              );
+            })}
           </tbody>
         </Table>
       )}

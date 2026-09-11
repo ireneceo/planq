@@ -8,20 +8,28 @@
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { DetailStatus } from '../../hooks/useDetailResource';
+import OtherWorkspaceNotice from './OtherWorkspaceNotice';
 
 type Props = {
   status: DetailStatus;
   onRetry?: () => void;
   onBack?: () => void;
+  /** status='other_workspace' 일 때 그 항목의 워크스페이스 — 소속이면 "전환해서 열기" 를 준다 */
+  businessId?: number | null;
 };
 
 /** ready·idle 이면 아무것도 그리지 않는다 — 호출부가 그대로 감싸 쓸 수 있게. */
-export default function DetailFallback({ status, onRetry, onBack }: Props) {
+export default function DetailFallback({ status, onRetry, onBack, businessId }: Props) {
   const { t } = useTranslation('common');
   if (status === 'ready' || status === 'idle') return null;
 
   if (status === 'loading') {
     return <Wrap data-testid="detail-fallback-loading"><Dim>{t('detail.loading')}</Dim></Wrap>;
+  }
+
+  // 2026-09-11 (WORKSPACE_SCOPE_DESIGN Q6) — 다른 워크스페이스 항목은 **내용을 그리지 않고** 전환 안내만.
+  if (status === 'other_workspace') {
+    return <OtherWorkspaceNotice businessId={businessId} />;
   }
 
   const kind = status === 'not_found' ? 'notfound' : status === 'forbidden' ? 'forbidden' : 'error';

@@ -13,6 +13,7 @@ import {
 import InvoiceDetailDrawer from './InvoiceDetailDrawer';
 import NewInvoiceModal from './NewInvoiceModal';
 import { ChipBar, Chip, ChipCount } from '../../components/QBill/FilterChips';
+import HighlightText from '../../components/Common/HighlightText';
 
 type Filter = InvoiceStatus | 'all';
 
@@ -234,12 +235,12 @@ export default function InvoicesTab() {
               onClick={() => openDetail(inv.id)}
             >
               <ColNum>
-                <Num>{inv.invoice_number}</Num>
+                <Num><HighlightText text={inv.invoice_number} query={query} /></Num>
                 <Issued>{inv.issued_at ? inv.issued_at.split('T')[0] : '—'}</Issued>
               </ColNum>
               <ColClient>
                 {client ? (
-                  <ClientName>{client.display_name || client.biz_name || client.company_name || '—'}</ClientName>
+                  <ClientName><HighlightText text={client.display_name || client.biz_name || client.company_name || '—'} query={query} /></ClientName>
                 ) : (
                   <ClientName>
                     {inv.recipient_business_name || inv.recipient_email || '—'}
@@ -250,7 +251,7 @@ export default function InvoicesTab() {
                 )}
               </ColClient>
               <ColTitle>
-                <TitleText>{inv.title}</TitleText>
+                <TitleText><HighlightText text={inv.title} query={query} /></TitleText>
               </ColTitle>
               <ColAmt>
                 <Amt>{formatMoney(inv.grand_total, inv.currency)}</Amt>

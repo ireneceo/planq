@@ -13,6 +13,9 @@ import ModalActionButton from '../Common/ModalActionButton';
 import PlanQSelect from '../Common/PlanQSelect';
 import SingleDateField from '../Common/SingleDateField';
 import SearchBox from '../Common/SearchBox';
+import HighlightText from '../Common/HighlightText';
+import MatchReason from '../Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 
@@ -350,11 +353,20 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                     <CategoryCount>{list.length}</CategoryCount>
                   </CategoryTitle>
                   <Grid>
-                    {list.map(tpl => (
+                    {list.map(tpl => {
+                      // 필터는 이름·설명·분류(코드값)를 본다. 분류에서만 맞았으면 카드에 그 이유를 한 줄로 적는다
+                      //   — 분류 이름은 위 섹션 제목에 이미 보이므로 스니펫은 붙이지 않는다.
+                      const hit = search.trim() ? pickMatch([
+                        { field: 'name', text: tpl.name, shown: true },
+                        { field: 'description', text: tpl.description, shown: true },
+                        { field: 'category', text: tpl.category },
+                      ], search) : null;
+                      return (
                       <CardWrap key={tpl.id}>
                         <Card type="button" onClick={() => openDetail(tpl)}>
-                          <CardName>{tpl.name}</CardName>
-                          {tpl.description && <CardDesc>{tpl.description}</CardDesc>}
+                          <CardName><HighlightText text={tpl.name} query={search} /></CardName>
+                          {tpl.description && <CardDesc><HighlightText text={tpl.description} query={search} /></CardDesc>}
+                          {hit && !hit.shown && <MatchReason field={hit.field} query={search} />}
                           <CardMeta>
                             <span>{t('tpl.itemCount', '{{n}} 항목', { n: tpl.task_count, defaultValue: `${tpl.task_count} 항목` })}</span>
                             {tpl.total_duration_days > 0 && <span>·</span>}
@@ -380,7 +392,8 @@ export default function TemplateSelectModal({ open, onClose, businessId, project
                           </ConfirmRow>
                         )}
                       </CardWrap>
-                    ))}
+                      );
+                    })}
                   </Grid>
                 </CategorySection>
               ))}

@@ -11,6 +11,9 @@ import { todayInTz, addDaysStr, detectBrowserTz } from '../../utils/timezones';
 import { colorForProject, lightenColor } from '../../utils/projectColors';
 import NewProjectModal, { type ProjectFormData } from '../QTalk/NewProjectModal';
 import SearchBox from '../../components/Common/SearchBox';
+import HighlightText from '../../components/Common/HighlightText';
+import MatchReason from '../../components/Common/MatchReason';
+import { pickMatch } from '../../utils/searchMatch';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -392,9 +395,9 @@ const QProjectPage: React.FC = () => {
           )}
         </EmptyState>
       ) : view === 'list' ? (
-        <ListView projects={sortedProjects} groupBy={groupBy} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
+        <ListView projects={sortedProjects} query={query} groupBy={groupBy} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
       ) : view === 'timeline' ? (
-        <TimelineView projects={sortedProjects} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
+        <TimelineView projects={sortedProjects} query={query} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
       ) : (
         <CalendarView projects={sortedProjects} todayStr={todayStr} t={t} />
       )}
@@ -426,7 +429,9 @@ const ListView: React.FC<{
   t: (k: string, o?: Record<string, unknown>) => string;
   onOpen: (projectId: number) => void;
   onStatusChange: (id: number, next: 'active' | 'paused' | 'closed') => Promise<void>;
-}> = ({ projects, groupBy = 'none', formatDate, t, onOpen, onStatusChange }) => {
+  /** 검색어 — 카드 하이라이트·매칭 이유 줄에만 쓴다(필터는 부모 visibleProjects 가 이미 했다) */
+  query?: string;
+}> = ({ projects, groupBy = 'none', formatDate, t, onOpen, onStatusChange, query = '' }) => {
   const { t: tl, i18n } = useTranslation('qproject');
   const lang = i18n.language;
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
@@ -460,12 +465,30 @@ const ListView: React.FC<{
     return [...map.values()];
   })();
 
+  // 카드에 안 보이는 필드(멤버 이름·고객 담당자)에서 찾았으면 한 줄로 알려준다.
+  //   visibleProjects 필터 술어와 같은 필드·같은 순서 — 보이는 필드를 앞에 둔다.
+  const projectHit = (p: ProjectWithStats) => (query.trim() ? pickMatch([
+    { field: 'title', text: p.name, shown: true },
+    { field: 'description', text: p.description, shown: true },
+    { field: 'company', text: p.client_company, shown: true },
+    { field: 'name', text: (p.projectMembers || []).flatMap((m) => {
+      const u = m.User;
+      if (!u) return [];
+      return [
+        u.display_name, u.name,
+        ...(u.display_name_localized ? Object.values(u.display_name_localized) : []),
+        ...(u.name_localized ? Object.values(u.name_localized) : []),
+      ];
+    }) },
+    { field: 'client', text: (p.projectClients || []).map((c) => c.contact_name) },
+  ], query) : null);
+
   const renderCard = (p: ProjectWithStats) => (
       <ProjectCard key={p.id} onClick={() => onOpen(p.id)} role="button" tabIndex={0}
         onKeyDown={(e) => { if (isEnterAction(e)) onOpen(p.id); }}
         style={{ borderLeft: `4px solid ${colorForProject(p)}` }}>
         <CardHead>
-          <CardTitle>{p.name}</CardTitle>
+          <CardTitle><HighlightText text={p.name} query={query} /></CardTitle>
           <CardHeadRight>
             <StatusBadge $bg={STATUS_COLOR[p.status]?.bg} $fg={STATUS_COLOR[p.status]?.fg}>
               {t(`status.${p.status}`)}
@@ -497,8 +520,14 @@ const ListView: React.FC<{
             </MenuWrap>
           </CardHeadRight>
         </CardHead>
-        {p.client_company && <ClientLine>🏢 {p.client_company}</ClientLine>}
-        {p.description && <Description>{p.description}</Description>}
+        {p.client_company && <ClientLine>🏢 <HighlightText text={p.client_company} query={query} /></ClientLine>}
+        {p.description && <Description><HighlightText text={p.description} query={query} /></Description>}
+        {(() => {
+          const hit = projectHit(p);
+          return hit && !hit.shown
+            ? <CardReasonRow><MatchReason field={hit.field} snippet={hit.snippet} query={query} /></CardReasonRow>
+            : null;
+        })()}
 
         <BottomStack>
         {/* 진행률 — 시각 우위 */}
@@ -628,7 +657,8 @@ const TimelineView: React.FC<{
   todayStr: string;
   t: (k: string, o?: Record<string, unknown>) => string;
   onOpen: (projectId: number) => void;
-}> = ({ projects, todayStr, t, onOpen }) => {
+  query?: string;
+}> = ({ projects, todayStr, t, onOpen, query = '' }) => {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const toggleExpand = (id: number) => {
     setExpanded((prev) => {
@@ -724,7 +754,7 @@ const TimelineView: React.FC<{
                 <ProjectNameBtn type="button" onClick={() => onOpen(p.id)}
                   onKeyDown={(e) => { if (isEnterAction(e)) onOpen(p.id); }}
                   style={{ borderLeft: `3px solid ${color}` }}>
-                  <strong>{p.name}</strong>
+                  <strong><HighlightText text={p.name} query={query} /></strong>
                   <small>{p.progressPercent}%</small>
                 </ProjectNameBtn>
               </TimelineRowLabel>
@@ -1016,6 +1046,7 @@ const StatusBadge = styled.span<{ $bg?: string; $fg?: string }>`
 `;
 const ClientLine = styled.div`font-size: 0.75rem; color: #64748B; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 4px;`;
 const Description = styled.div`font-size: 0.8125rem; color: #475569; line-height: 1.5; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;`;
+const CardReasonRow = styled.div`margin-bottom: 8px; min-width: 0;`;
 
 // ─── Progress block ───
 const ProgressBlock = styled.div`display: flex; flex-direction: column; gap: 6px;`;

@@ -3,6 +3,7 @@
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
 import { downloadBlob } from '../../utils/download';
 import DetailFallback from '../Common/DetailFallback';
+import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
@@ -221,6 +222,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const [detailTask, setDetailTask] = useState<TaskDetail | null>(null);
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
+  // 다른 워크스페이스 업무를 id 로 열었을 때 그 워크스페이스 — 내용 대신 전환 안내(DetailFallback other_workspace)
+  const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
   const [weekFocusH, setWeekFocusH] = useState(0);  // WORK_FLOW §6-B — 이번 주 포커스 시간(이월 배너)
   // KNOWLEDGE_LOOP 축1 — 결과물 KB 저장 (Cue 리서치 결과 등 되먹임, 사람 게이트)
   const [kbSaving, setKbSaving] = useState(false);
@@ -486,6 +489,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     //   apiFetch 는 throw 하지 않으므로 r.status 를 본다
     //   (memory feedback_apifetch_no_throw_silent_save).
     setDetailStatus('loading');
+    setOtherWsBizId(null);
     try {
       const [res] = await Promise.all([
         apiFetch(`/api/tasks/${id}/detail`),
@@ -496,6 +500,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       if (!res.ok) { setDetailStatus('error'); return; }
       const dr = await res.json().catch(() => null);
       if (!dr || dr.success === false) { setDetailStatus('error'); return; }
+      // ★ 2026-09-11 (WORKSPACE_SCOPE_DESIGN Q6) — 서버는 **그 업무의 워크스페이스** 권한만 본다. 알림·딥링크·옛 탭으로
+      //   다른 워크스페이스 업무가 열리면 지금 워크스페이스 화면에 남의 업무가 그려졌다. 내용 대신 전환 안내.
+      if (isOtherWorkspace(dr.data?.business_id, user?.business_id)) {
+        setDetailTask(null);
+        setOtherWsBizId(Number(dr.data.business_id));
+        setDetailStatus('other_workspace');
+        return;
+      }
       setDetailTask(dr.data);
       // 서버 본문을 새로 받았으니 에디터 초안 기억도 버린다 — 안 버리면 옛 초안이
       //   다음 제출에 실려 서버가 방금 준 본문을 되돌린다.
@@ -1175,6 +1187,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         {!detailTask ? (
           <DetailFallback
             status={detailStatus === 'ready' ? 'loading' : detailStatus}
+            businessId={otherWsBizId}
             onRetry={taskId ? () => { void loadDetail(taskId); } : undefined}
             onBack={onClose}
           />

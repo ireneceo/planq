@@ -416,11 +416,21 @@ export function setTabScope(next: string | null, here?: string) {
     const relaunchRestore = bootRestorePending
       && RELAUNCH_DEFAULT.has((hereNow || '/').split('?')[0])
       && isAppRelaunch();
-    const mismatched = !relaunchRestore && (!act || act.path !== hereNow);
+    // ★ 2026-09-11 — **워크스페이스 → 워크스페이스** 로 범위가 바뀔 때는 "지금 경로" 를 새 범위에 싣지 않는다.
+    //   Irene: "테스트 워크스페이스에 여전히 워프로랩 탭이 열려. 빠른 녹음 9/11 … 리스트엔 아무것도 없는데."
+    //   위 정렬은 **주소로 들어온 경로**(알림·공유 링크·부팅)를 지키려는 것인데, 워크스페이스 전환 순간의 주소는
+    //   **앞 워크스페이스의 화면**(/notes/52)이다. 그걸 새 범위의 첫 탭·같은 종류 탭에 덮어써 새 워크스페이스 탭 목록에
+    //   남의 노트가 박혔다(memory feedback_scope_key_split_but_content_mixed 와 같은 계열 — 키는 갈렸는데 내용이 섞임).
+    //   → 호출부가 경로를 명시하지 않은(here 없음) 워크스페이스 간 전환은 정렬을 건너뛰고, 비었으면 전환기 착지(/talk)로.
+    //   부팅(prev=null)·관리자 ↔ 워크스페이스(경로가 범위를 정하는 전환)는 종전대로 정렬한다.
+    const WS_SCOPE = /^b\d+$/;
+    const workspaceSwap = !here && prev !== null && WS_SCOPE.test(String(prev)) && WS_SCOPE.test(next);
+    const landing = workspaceSwap ? '/talk' : hereNow;
+    const mismatched = !workspaceSwap && !relaunchRestore && (!act || act.path !== hereNow);
     if (state.tabs.length === 0) {
       // 새 범위가 비었으면 지금 화면을 첫 탭으로. 안 하면 화면은 떠 있는데 탭 막대가 빈다.
       const id = newId();
-      state = { tabs: [{ id, kind: kindOfPath(hereNow), title: '', path: hereNow, alive: true, lastActiveAt: Date.now(), scope: tabScope }], activeId: id, mirror: runtimeMirror };
+      state = { tabs: [{ id, kind: kindOfPath(landing), title: '', path: landing, alive: true, lastActiveAt: Date.now(), scope: tabScope }], activeId: id, mirror: runtimeMirror };
     } else if (mismatched) {
       // 같은 종류의 탭이 있으면 그 탭을 지금 경로로 (탭이 쌓이지 않게), 없으면 새로 연다.
       const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(hereNow));

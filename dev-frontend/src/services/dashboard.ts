@@ -45,6 +45,8 @@ export interface TodoWorkspace {
 }
 
 export interface TodoItem {
+  /** 단계 표시 — 외부컨펌이면 'external_review'. 할 일(verb)·리스트업 조건은 바꾸지 않는다(services/reviewStage). */
+  stage?: 'external_review' | null;
   id: string;                    // 타입 접두어 포함: "task-42", "event-7", "invite-12", "mention-103"
   type: TodoType;
   priority: TodoPriority;

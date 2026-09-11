@@ -19,6 +19,7 @@ const { sendPostShareEmail } = require('../services/emailService');
 const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 const { broadcastFile } = require('../services/fileBroadcast');   // 파일 실시간 반영 단일 원천 (#378)
+const { pickMatch } = require('../utils/searchMatch');   // 검색 결과 "왜 걸렸나" (2026-09-11)
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -287,6 +288,23 @@ router.get('/', authenticateToken, async (req, res, next) => {
     });
     // 워크스페이스 표시명 우선 (author/editor) — 계정 이름 노출 방지
     const items = rows.map(r => serialize(r));
+    // 2026-09-11 — "왜 이 문서가 검색에 걸렸나". 행마다 match: { field, snippet }.
+    //   제목·분류는 행에 보인다(snippet null). 본문은 목록 미리보기가 **앞 200자**라 뒤쪽에서 맞으면
+    //   안 보인다 → 매칭 주변 창을 준다(화면은 미리보기 자리에 그 창을 그린다).
+    //   프로젝트명은 프로젝트 안 목록에서 태그가 안 보이므로 이름을 스니펫으로 싣는다.
+    //   규칙: utils/searchMatch.js (프론트 하이라이트와 같은 정규식).
+    if (req.query.q) {
+      const qStr = String(req.query.q).normalize('NFC');
+      rows.forEach((r, i) => {
+        const projectName = (r.Project && r.Project.name) || (items[i].project && items[i].project.name) || null;
+        items[i].match = pickMatch([
+          { field: 'title', text: r.title, shown: true },
+          { field: 'category', text: r.category, shown: true },
+          { field: 'content', text: r.content_text },
+          { field: 'project', text: projectName },
+        ], qStr);
+      });
+    }
     await applyMemberDisplayName(items, businessId, ['author', 'editor']);
     return paginatedResponse(res, items, count, { limit, page, offset });
   } catch (err) { next(err); }

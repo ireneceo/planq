@@ -16,6 +16,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import SearchBox from '../Common/SearchBox';
+import HighlightText from '../Common/HighlightText';
+import MatchReason from '../Common/MatchReason';
 import PanelHeader, { PanelTitle, PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../Layout/PanelHeader';
 import OverflowMenu from '../Common/OverflowMenu';
 import AttachmentField from '../Common/AttachmentField';
@@ -39,6 +41,7 @@ import {
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
 import DetailFallback from '../Common/DetailFallback';
+import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { listTemplates, aiGenerateDoc, type DocTemplate, type DocKind, KIND_LABELS_KO } from '../../services/docs';
@@ -176,6 +179,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   }, [searchParams]);
   const [detail, setDetail] = useState<PostDetail | null>(null);
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
+  // 다른 워크스페이스 문서를 ?post= 로 열었을 때 그 워크스페이스 — 내용 대신 전환 안내(DetailFallback other_workspace)
+  const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
   // 탭 이름 = 열려 있는 문서 이름 (목록만 보는 중이면 null → 'Q docs' 로 복귀).
   //   ★ 워크스페이스 scope 일 때만 — 이 컴포넌트는 프로젝트 상세(DocsTab)·개인 보관함 안에도
   //     임베드된다. 거기서도 제목을 쓰면 그 화면의 주인(프로젝트명)을 덮어써 지운다.
@@ -483,6 +488,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       // ★ 실패 이유를 잃지 않는다 — 여태 fetchPost 는 404·403·500 을 전부 null 로 뭉갰고,
       //   화면은 목록만 남긴 채 **아무 말도 하지 않았다** (2026-08-30).
       const { status: st, data: d } = await fetchPostResult(activeId);
+      // ★ 2026-09-11 (WORKSPACE_SCOPE_DESIGN Q6) — 서버는 문서 **자기** 워크스페이스 권한만 본다. 옛 탭·딥링크로
+      //   다른 워크스페이스 문서가 열리면 지금 워크스페이스 화면에 남의 문서가 그려졌다 → 내용 대신 전환 안내.
+      if (!cancelled && d && isOtherWorkspace((d as { business_id?: number | null }).business_id, scope.businessId)) {
+        setOtherWsBizId(Number((d as { business_id?: number | null }).business_id));
+        setDetail(null);
+        setDetailStatus('other_workspace');
+        return;
+      }
+      if (!cancelled) setOtherWsBizId(null);
       if (!cancelled) {
         setDetailStatus(st);
         setDetail(d);
@@ -1548,13 +1562,20 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                             {t('autosave.draftBadge', '임시저장')}
                           </DraftTag>
                         )}
-                        {r.title}
+                        <HighlightText text={r.title} query={query} />
                       </AtCardName>
                       {/* 운영 (Irene 2026-08-28): "리스트에 나오는 내용이 제목만나오면 다인가?
                           내용살짝 보여주거나 해야하는 거 아니야? 아니면 다른 정보라도?"
                           content_preview(200자)는 목록 API 가 이미 주고 있었고 카드만 안 그렸다.
-                          워크스페이스 목록(RowPreview)과 같은 정보량으로 맞춘다 — 본문 두 줄 + 작성자. */}
-                      {r.content_preview && <CardPreview>{r.content_preview}</CardPreview>}
+                          워크스페이스 목록(RowPreview)과 같은 정보량으로 맞춘다 — 본문 두 줄 + 작성자.
+                          2026-09-11 — 검색 중 본문에서 맞았으면 목록 행과 같이 매칭 주변 문장을 그린다. */}
+                      {query && r.match?.field === 'content' && r.match.snippet
+                        ? <CardPreview><HighlightText text={r.match.snippet} query={query} /></CardPreview>
+                        : r.content_preview && <CardPreview><HighlightText text={r.content_preview} query={query} /></CardPreview>}
+                      {/* 프로젝트 안 카드에는 프로젝트 태그가 없다 — 프로젝트 이름으로 맞았으면 그 사유를 한 줄로 */}
+                      {query && r.match?.field === 'project' && (
+                        <MatchReason field="project" snippet={r.match.snippet} query={query} />
+                      )}
                       <AtCardMeta>
                         <span>{listDate(r)}</span>
                         {r.author?.name && <CardAuthor>{r.author.name}</CardAuthor>}
@@ -1805,16 +1826,20 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                       {t('autosave.draftBadge', '임시저장')}
                     </DraftTag>
                   )}
-                  {r.title}
+                  <HighlightText text={r.title} query={query} />
                 </RowTitle>
-                {r.content_preview && <RowPreview>{r.content_preview}</RowPreview>}
+                {/* 2026-09-11 — 검색 중 본문에서 맞았으면 미리보기 자리에 **매칭 주변 문장**을 그린다.
+                    미리보기는 앞 200자라 뒤쪽에서 맞은 문서는 "왜 떴는지" 가 안 보였다. (서버 match 계약: routes/posts.js) */}
+                {query && r.match?.field === 'content' && r.match.snippet
+                  ? <RowPreview data-testid="docs-row-snippet"><HighlightText text={r.match.snippet} query={query} /></RowPreview>
+                  : r.content_preview && <RowPreview><HighlightText text={r.content_preview} query={query} /></RowPreview>}
                 <RowMeta>
                   <span>{displayName(r.author, i18n.language) || '—'}</span>
                   <span>·</span>
                   <span>{listDate(r)}</span>
-                  {r.category && <CategoryMini>#{r.category}</CategoryMini>}
+                  {r.category && <CategoryMini>#<HighlightText text={r.category} query={query} /></CategoryMini>}
                   {r.project && (
-                    <ProjectTag $color={r.project.color || '#14B8A6'}>{r.project.name}</ProjectTag>
+                    <ProjectTag $color={r.project.color || '#14B8A6'}><HighlightText text={r.project.name} query={query} /></ProjectTag>
                   )}
                   {/* N+72 — 리스트 행 공유 범위 표시 (사용자 호소) */}
                   <RowVisChip $level={(r.vlevel as string) || ''}>
@@ -2287,10 +2312,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               )}
             </Body>
           </>
-        ) : (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error') ? (
+        ) : (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error' || detailStatus === 'other_workspace') ? (
           /* 못 불러온 것 — "아직 안 골랐음"(아래 온보딩)과 **다른 상태**다 (2026-08-30) */
           <DetailFallback
             status={detailStatus}
+            businessId={otherWsBizId}
             onRetry={activeId ? () => setActiveId((v) => v) : undefined}
             onBack={() => setActiveId(null)}
           />

@@ -11,6 +11,7 @@ import NewProjectModal, { type ProjectFormData } from './NewProjectModal';
 import NewChatModal, { type NewChatFormData } from './NewChatModal';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import DetailFallback from '../../components/Common/DetailFallback';
+import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import { PanelLayout } from '../../components/Layout/PanelLayout';
 import ChatSettingsModal from './ChatSettingsModal';
 import i18n from '../../i18n';
@@ -307,6 +308,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 히스토리 로드 완료 여부 — '메시지 배열 존재'와 분리 추적. socket message:new 가 미로드 대화에
   // 1건짜리 배열을 만들어도(=배열은 존재하나 히스토리는 미로드) 전체 히스토리 로드를 막지 않도록 하는 안전핀.
   const [historyLoaded, setHistoryLoaded] = useState<Record<number, boolean>>({});
+  // 다른 워크스페이스 대화를 주소·알림·옛 탭으로 열었을 때 — 그 대화 id 와 워크스페이스 (WORKSPACE_SCOPE_DESIGN Q6)
+  const [otherWsConv, setOtherWsConv] = useState<{ convId: number; bizId: number } | null>(null);
   const [tasks, setTasks] = useState<MockTask[]>([]);
   const [notes, setNotes] = useState<MockNote[]>([]);
   const [issues, setIssues] = useState<MockIssue[]>([]);
@@ -387,6 +390,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeProjectId, activeConversationId]);
 
+  // 알림으로 들어온 진입 신호 — 값이 바뀔 때마다 ChatPanel 이 최신 메시지로 내린다(같은 대화여도).
+  const [jumpToLatestSignal, setJumpToLatestSignal] = useState(0);
+
   // URL 의 conv/project 가 외부 변경 시 (글로벌 검색·인박스 등에서 navigate) 동기화
   useEffect(() => {
     if (embedded) return;
@@ -399,6 +405,15 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     const p = Number(sp.get('project')) || null;
     if (c !== activeConversationId) setActiveConversationId(c);
     if (p !== activeProjectId) setActiveProjectId(p);
+    // ★ 2026-09-11 — 알림을 눌러 들어왔다(`jump` 일회용 표식). 같은 대화가 이미 열려 있으면 위 두 줄은
+    //   아무것도 안 바꾸고, ChatPanel 의 진입 바닥 고정도 돌지 않아 **전에 올려 둔 자리**에 섰다(Irene 신고).
+    //   신호를 올리고 표식은 주소에서 지운다 — 남기면 탭 경로에 박혀 새로고침마다 다시 내린다.
+    if (sp.get('jump')) {
+      if (c) setJumpToLatestSignal((n) => n + 1);
+      sp.delete('jump');
+      const qs = sp.toString();
+      navigate(`${location.pathname}${qs ? `?${qs}` : ''}`, { replace: true });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, pathConvId]);
 
@@ -840,8 +855,15 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       try {
         // ★ has_more 는 **서버가 센 값**을 쓴다. 옛 화면은 "50개 받았으면 더 있다" 로 짐작했는데,
         //   고객 화면은 서버가 삭제·내부 메모를 걸러 주므로 그 짐작이 틀린다.
-        const { messages: msgs, hasMore } = await qtalkApi.listConversationMessagesPaged(activeConversationId);
+        const { messages: msgs, hasMore, businessId: convBizId } = await qtalkApi.listConversationMessagesPaged(activeConversationId);
         if (cancelled) return;
+        // ★ 2026-09-11 (WORKSPACE_SCOPE_DESIGN Q6) — 서버는 **그 대화의** 권한만 본다. 알림·옛 탭·딥링크로 다른 워크스페이스
+        //   대화가 열리면 지금 워크스페이스 화면에 남의 대화가 그려졌다(좌측 목록엔 없는데 본문만 뜨는 상태).
+        //   메시지를 상태에 싣지 않고 전환 안내만 — 대화 id 를 같이 기억해 다른 대화로 옮기면 안내가 사라진다.
+        if (isOtherWorkspace(convBizId, businessId)) {
+          setOtherWsConv({ convId: activeConversationId, bizId: Number(convBizId) });
+          return;
+        }
         const loaded = msgs.map(apiMessageToMock);
         setOlderState((prev) => ({ ...prev, [activeConversationId]: { hasMore, loading: false } }));
         const loadedIds = new Set(loaded.map((m) => m.id));
@@ -1740,6 +1762,12 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         }}
         mobileHidden={activeConversationId !== null}
       />
+      {/* 다른 워크스페이스 대화 — 대화 화면 대신 전환 안내 (WORKSPACE_SCOPE_DESIGN Q6) */}
+      {otherWsConv && otherWsConv.convId === activeConversationId ? (
+        <OtherWsChatPane data-testid="qtalk-other-workspace">
+          <DetailFallback status="other_workspace" businessId={otherWsConv.bizId} />
+        </OtherWsChatPane>
+      ) : (
       <ChatPanel
         embedded={embedded}
         pinSlot={pinSlot}
@@ -1761,6 +1789,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         onMobileBack={handleMobileBack}
         mobileHidden={activeConversationId === null}
         onLoadOlder={loadOlderMessages}
+        jumpToLatestSignal={jumpToLatestSignal}
         hasMoreOlder={hasMoreOlder}
         loadingOlder={loadingOlder}
         onFocusCandidates={() => {
@@ -1777,6 +1806,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           }, 150);
         }}
       />
+      )}
       {/* 우측 작업대 접기/펼치기 — 공통 FloatingPanelToggle(뷰포트 오른쪽 변 플로팅).
           ≤1200px 은 RightPanel 내부 오버레이 플로팅이 담당하므로 여기선 >1200 만(hideBelow).
           대화를 안 고르면 RightPanel 자체가 없다 → 패널이 있을 때만 그린다. */}
@@ -2003,5 +2033,15 @@ const ToastDot = styled.span`
   border-radius: 50%;
   background: #5EEAD4;
   box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.3);
+`;
+
+// 다른 워크스페이스 대화 안내 — ChatPanel 자리(가운데 칸)를 그대로 차지한다
+const OtherWsChatPane = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FFFFFF;
 `;
 

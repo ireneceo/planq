@@ -94,6 +94,23 @@ export interface NotificationFullRow {
   business_id?: number | null;
 }
 
+/**
+ * 알림을 **눌러서 열 때** 쓰는 경로 — 대화 링크에 일회용 표식(`jump`)을 붙인다.
+ *
+ * 2026-09-11 Irene: "채팅 알림 있어서 누르면 데스크탑 앱에서도 새로 온 거 위에 전에 이미 본 기준으로 위치가 잡혀."
+ *   탭 모드는 keep-alive 라 그 대화가 **이미 열려 있으면** 같은 주소로 가는 것이라 아무 일도 일어나지 않는다
+ *   (QTalkPage 의 conv 동기화도, ChatPanel 의 진입 바닥 고정도 "대화가 바뀔 때" 만 돈다) → 전에 올려 둔 자리에 선다.
+ *   표식이 주소를 매번 다르게 만들어 QTalkPage 가 "알림으로 들어왔다" 를 알고 최신 메시지로 내린다. 받은 쪽이 지운다.
+ * 대화가 아닌 링크는 그대로 돌려준다.
+ */
+export function withJumpToLatest(path: string): string {
+  if (!/^\/(talk|chat)(\/\d+|\?|$)/.test(path)) return path;
+  const [base, query = ''] = path.split('?');
+  const sp = new URLSearchParams(query);
+  sp.set('jump', String(Date.now()));
+  return `${base}?${sp.toString()}`;
+}
+
 export function notificationRowToToastLink(row: NotificationFullRow): string {
   return resolveNotificationLink({
     link: row.link,

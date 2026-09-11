@@ -2,7 +2,8 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
@@ -269,6 +270,9 @@ const QProjectDetailPage: React.FC = () => {
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [detailStatus, setDetailStatus] = useState<DetailStatus>('idle');
+  // 다른 워크스페이스 프로젝트를 /projects/p/:id 로 열었을 때 그 워크스페이스 — 내용 대신 전환 안내
+  const { user: authUser } = useAuth();
+  const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
   // 탭 이름 = 프로젝트 이름. ★ 아래 `if (!projectId) return` 보다 반드시 위 — 훅은 조건부일 수 없다.
   useTabTitle(project?.name);
   const isClient = project?.my_role_in_project === 'client';
@@ -425,6 +429,12 @@ const QProjectDetailPage: React.FC = () => {
       if (!prRes.ok) { failed('error'); return; }
       const pr = await prRes.json().catch(() => null);
       if (!pr || pr.success === false) { failed('error'); return; }
+      // ★ 2026-09-11 (WORKSPACE_SCOPE_DESIGN Q6) — 서버는 프로젝트 **자기** 워크스페이스 권한만 본다.
+      //   옛 탭·딥링크로 다른 워크스페이스 프로젝트가 열리면 지금 워크스페이스 안에 남의 프로젝트가 그려졌다.
+      if (pr.success && isOtherWorkspace(pr.data?.business_id, authUser?.business_id)) {
+        if (!silent) { setOtherWsBizId(Number(pr.data.business_id)); setDetailStatus('other_workspace'); setProject(null); }
+        return;
+      }
       if (pr.success) {
         setDetailStatus('ready');
         setProject(pr.data);
@@ -643,10 +653,10 @@ const QProjectDetailPage: React.FC = () => {
   //   그 안의 편집기·스크롤·열어둔 패널이 언마운트로 전부 날아간다.
   if (loading && !project) return <PageShell title={t('loading', '로드 중...')}><Empty>{t('loading', '로드 중...')}</Empty></PageShell>;
   // ★ 못 불러온 것 — 여태는 아무 말도 없이 빈 화면이었다 (2026-08-30).
-  if (!project && (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error')) {
+  if (!project && (detailStatus === 'not_found' || detailStatus === 'forbidden' || detailStatus === 'error' || detailStatus === 'other_workspace')) {
     return (
       <PageShell title={t('project', '프로젝트') as string}>
-        <DetailFallback status={detailStatus} onRetry={() => load()} onBack={() => navigate('/projects')} />
+        <DetailFallback status={detailStatus} businessId={otherWsBizId} onRetry={() => load()} onBack={() => navigate('/projects')} />
       </PageShell>
     );
   }
