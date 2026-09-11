@@ -2569,16 +2569,29 @@ function checkDraft() {
     'pages/Public/SharePasswordPrompt.tsx', 'pages/Profile/AccountDeletionSection.tsx']);
   for (const [f, src] of srcOf) {
     const r = srel(f);
-    if (r === 'hooks/draftKinds.ts' || r === 'services/draftStore.ts') continue;
+    if (r === 'hooks/draftKinds.ts') continue;
+    // draftStore 는 키 접두사를 정의하는 곳이라 "손으로 쓴 키" 검사만 빠진다 — kind 사용(listLeaveBlockers 등)은 똑같이 대조한다
+    const isStore = r === 'services/draftStore.ts';
     src.split('\n').forEach((ln, i) => {
       if (isCommentLine(ln)) return;
+      const seen = new Set();
+      const judgeKind = (k) => {
+        if (seen.has(k)) return;
+        seen.add(k);
+        if (!kinds[k]) hard.push(`${r}:${i + 1}: 등록 안 된 초안 kind '${k}' → hooks/draftKinds.ts 에 등록(리뷰 지점)`);
+        else if (!kinds[k].includes(r)) hard.push(`${r}:${i + 1}: kind '${k}' 의 owners 에 이 파일이 없다`);
+      };
       for (const re of KIND_RES) {
-        for (const m of ln.matchAll(re)) {
-          if (!kinds[m[1]]) hard.push(`${r}:${i + 1}: 등록 안 된 초안 kind '${m[1]}' → hooks/draftKinds.ts 에 등록(리뷰 지점)`);
-          else if (!kinds[m[1]].includes(r)) hard.push(`${r}:${i + 1}: kind '${m[1]}' 의 owners 에 이 파일이 없다`);
+        for (const m of ln.matchAll(re)) judgeKind(m[1]);
+      }
+      // ★ 첫 인자가 리터럴일 때만 보면 **삼항·배열로 넘긴 kind 가 검사 밖**이다 — 등록 줄을 지워도 초록인데
+      //   런타임은 draftStorageKey → null 로 초안이 조용히 안 남았다(Fable 라운드 2 반증). 호출 인자 안의 kind 모양 문자열을 전부 본다.
+      if (!/^\s*(export\s+)?function\s/.test(ln)) {
+        for (const call of ln.matchAll(/\b(?:useDraftKey|draftStorageKey|listDraftRecords)\(([^;]*)/g)) {
+          for (const km of call[1].matchAll(/'([a-z]+(?:-[a-z]+)+)'/g)) judgeKind(km[1]);
         }
       }
-      if (/planq:draft:/.test(ln) && !/legacyKey|LegacyKey/.test(ln)) hard.push(`${r}:${i + 1}: 초안 키를 손으로 썼다 → useDraftKey / draftStorageKey`);
+      if (!isStore && /planq:draft:/.test(ln) && !/legacyKey|LegacyKey/.test(ln)) hard.push(`${r}:${i + 1}: 초안 키를 손으로 썼다 → useDraftKey / draftStorageKey`);
     });
     if (r.startsWith('hooks/') || r.startsWith('services/')) continue;
     const sensitive = SENSITIVE.has(r) || /type=\{?[^>\n]{0,80}['"]password['"]/.test(src);

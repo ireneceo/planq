@@ -23,7 +23,7 @@ export const DRAFT_KINDS = {
   'task-hold-reason': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QTask/TaskDetailDrawer.tsx'] },
   // 업무 설명·결과물 — 서버로 못 보낸 채 떠난 값(반복 업무 설명 = 적용 범위를 물어야 함 · 창 닫기·새로고침 백업).
   //   원문(base)이 그 사이 바뀌면 버린다(D-C1d). 반복 업무 설명이 남아 있으면 로그아웃 전에 확인한다(LeaveDecisionGuard).
-  'task-description': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/QTask/TaskDetailDrawer.tsx', 'components/Common/LeaveDecisionGuard.tsx', 'contexts/AuthContext.tsx'] },
+  'task-description': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/QTask/TaskDetailDrawer.tsx', 'services/draftStore.ts'] },
   'task-body': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/QTask/TaskDetailDrawer.tsx'] },
   'mail-issue': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'mail-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },

@@ -4,7 +4,7 @@ import i18n from '../i18n';
 import { detectClientKind } from '../services/native';
 import { clearPageCache } from '../lib/pageCache';
 import {
-  purgeDraftsNotOwnedBy, purgeDraftsOf, setDraftOwner, sweepExpiredDrafts, setDraftsSuppressed, listDraftRecords,
+  purgeDraftsNotOwnedBy, purgeDraftsOf, setDraftOwner, sweepExpiredDrafts, setDraftsSuppressed, listLeaveBlockers,
   DRAFT_OWNER_KEY,
 } from '../services/draftStore';
 import { markSwitching, broadcastWorkspaceSwitch } from '../services/workspaceSync';
@@ -868,7 +868,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // ② 범위를 골라야 저장되는 글(반복 업무 설명)이 남았으면 **멈추고 묻는다** — 아래 ④ 가 그 사람 초안을 지우므로
       //   그대로 가면 조용히 사라진다. Irene 2026-09-11 결정: "로그아웃 전에 확인" (components/Common/LeaveDecisionGuard)
       if (opts?.flush !== false && !opts?.discardUnsaved) {
-        const blockers = listDraftRecords<string>(['task-description'], leavingUserId).filter((d) => d.record.series);
+        const blockers = listLeaveBlockers(leavingUserId);
         if (blockers.length) {
           try { window.dispatchEvent(new CustomEvent(LOGOUT_BLOCKED_EVENT, { detail: { count: blockers.length } })); } catch { /* noop */ }
           return;

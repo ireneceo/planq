@@ -57,6 +57,7 @@ async function run() {
   let origName = null;
   let taskId = null;
   let seriesId = null;
+  let series2Id = null;
   const stamp = String(Date.now()).slice(-6);
   try {
     [{ name: origName }] = await q('SELECT name FROM users WHERE id=?', [USER]);
@@ -69,6 +70,10 @@ async function run() {
     seriesId = (await sequelize.query(
       'INSERT INTO tasks (business_id, title, status, assignee_id, created_by, description, recurrence_rule, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
       { replacements: [BIZ, 'leave-canary S', 'in_progress', USER, USER, '<p>leave-canary 반복 원래</p>', 'FREQ=WEEKLY', now, now] }))[0];
+    // 두 번째 반복 업무 — 업무 전환 뒤 옛 글이 이쪽으로 새는지(Fable 라운드 2 결함 1)
+    series2Id = (await sequelize.query(
+      'INSERT INTO tasks (business_id, title, status, assignee_id, created_by, description, recurrence_rule, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)',
+      { replacements: [BIZ, 'leave-canary S2', 'in_progress', USER, USER, '<p>leave-canary 반복2 원래</p>', 'FREQ=WEEKLY', now, now] }))[0];
 
     const launched = await b.launch();
     browser = launched.browser;
@@ -249,6 +254,58 @@ async function run() {
         `클릭=${cleared} 화면원래=${afterText.includes('반복 원래')} 로컬=${afterRec}`);
     }
 
+    // ── ⑧-전환 반복 업무 설명을 쓰다 **다른 반복 업무로 전환** — 옛 글이 새 업무에 저장·표시·박히지 않는다(Fable 라운드 2 결함 1) ──
+    const s2Key = `planq:draft:task-description:${USER}:${BIZ}:${series2Id}`;
+    await b.goto(page, `/tasks?task=${seriesId}`);
+    if (!(await waitFor(async () => !!(await handleOf(page, DESC)), 15000))) {
+      push('⑧-전환 옛 글이 새 업무로 가지 않는다', false, '반복 업무 설명 편집기를 못 찾음 — 계측 불가');
+    } else {
+      await b.sleep(600);
+      const since = reqs.length;
+      await typeAtEnd(page, DESC, ` 전환${stamp}`);
+      await b.sleep(400);
+      await nav(page, `/tasks?task=${series2Id}`);
+      const onS2 = await waitFor(async () => String(await visibleText(DESC) || '').includes('반복2 원래'), 12000);
+      await b.sleep(3000);   // 옛 debounce(2초)·blur 가 터질 시간
+      const askOnS2 = !!(await handleOf(page, SEL('series-scope-cancel')));
+      if (askOnS2) await click(page, SEL('series-scope-cancel'));
+      await b.sleep(500);
+      const s2Text = String(await visibleText(DESC) || '');
+      const putS2 = reqs.slice(since).filter((r) => r.method === 'PUT' && r.url === `/api/tasks/by-business/${BIZ}/${series2Id}`).length;
+      const [{ description: dS2 }] = await q('SELECT description FROM tasks WHERE id=?', [series2Id]);
+      const recs = await page.evaluate((a, c) => ({ s1: localStorage.getItem(a), s2: localStorage.getItem(c) }), seriesKey, s2Key);
+      let s1Rec = null;
+      try { s1Rec = recs.s1 ? JSON.parse(recs.s1) : null; } catch { s1Rec = null; }
+      push('⑧-전환 반복 업무 설명을 쓰다 다른 반복 업무로 — 새 업무에 범위 물음·옛 글·PUT·로컬 본 0 · 옛 업무 로컬 본에만 남는다',
+        onS2 && !askOnS2 && !s2Text.includes(stamp) && putS2 === 0 && !String(dS2).includes(stamp) && recs.s2 === null
+          && !!s1Rec && s1Rec.series === true && String(s1Rec.value).includes(`전환${stamp}`),
+        `S2열림=${onS2} S2범위물음=${askOnS2} S2화면옛글=${s2Text.includes(stamp)} S2PUT=${putS2} S2DB옛글=${String(dS2).includes(stamp)} S2로컬=${recs.s2 ? '있음' : 'null'} S1로컬=${s1Rec ? `series=${s1Rec.series}` : 'null'}`);
+      await page.evaluate((a) => localStorage.removeItem(a), seriesKey);
+    }
+
+    // ── ⑧-물음 범위 물음이 떠 있는 채 새로고침 — 그 설명이 로컬 본으로 남는다(Fable 라운드 2 결함 2) ──
+    await b.goto(page, `/tasks?task=${seriesId}`);
+    if (!(await waitFor(async () => !!(await handleOf(page, DESC)), 15000))) {
+      push('⑧-물음 범위 물음 뜬 채 새로고침', false, '반복 업무 설명 편집기를 못 찾음 — 계측 불가');
+    } else {
+      await b.sleep(600);
+      await typeAtEnd(page, DESC, ` 물음${stamp}`);
+      // debounce(2초) 가 터지면 범위 물음이 뜬다 — 그 상태에서 새로고침
+      const asked = await waitFor(async () => !!(await handleOf(page, SEL('series-scope-cancel'))), 6000);
+      await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => null);
+      await b.sleep(2000);
+      let rec = null;
+      try { rec = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)), seriesKey); } catch { rec = null; }
+      const [{ description: dS1 }] = await q('SELECT description FROM tasks WHERE id=?', [seriesId]);
+      push('⑧-물음 범위 물음이 떠 있는 채 새로고침 — 로컬 본(series)에 남고 서버엔 안 간다',
+        asked && !!rec && rec.series === true && String(rec.value).includes(`물음${stamp}`) && !String(dS1).includes(`물음${stamp}`),
+        `물음뜸=${asked} 로컬=${rec ? `series=${rec.series}` : 'null'} DB반영=${String(dS1).includes(`물음${stamp}`)}`);
+      await page.evaluate((k) => localStorage.removeItem(k), seriesKey);
+      await b.goto(page, `/tasks?task=${seriesId}`);   // ⑨ 는 깨끗한 화면에서
+      await waitFor(async () => !!(await handleOf(page, DESC)), 15000);
+      await b.sleep(600);
+    }
+
     // ── ⑨ 반복 업무 설명을 쓰다 로그아웃 — 멈추고 확인창 · 취소는 그대로 · 범위 골라 저장하면 로그아웃이 이어진다 ──
     const isLogoutPost = (r) => r.method === 'POST' && r.url === '/api/auth/logout';
     if (!(await waitFor(async () => !!(await handleOf(page, DESC)), 8000))) {
@@ -336,7 +393,7 @@ async function run() {
   } finally {
     if (browser) await browser.close().catch(() => null);
     if (origName != null) await q('UPDATE users SET name=? WHERE id=?', [origName, USER]).catch(() => null);
-    for (const id of [taskId, seriesId].filter(Boolean)) {
+    for (const id of [taskId, seriesId, series2Id].filter(Boolean)) {
       for (const t of ['task_comments', 'task_reviewers', 'task_status_history', 'task_attachments']) {
         await q(`DELETE FROM ${t} WHERE task_id=?`, [id]).catch(() => null);
       }

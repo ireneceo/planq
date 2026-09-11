@@ -44,15 +44,32 @@ async function launch() {
   return browser;
 }
 
+// ★ 버리는 브라우저는 **반드시 끝낸다** (2026-09-11).
+//   여태는 싱글톤 참조만 null 로 지우고 새로 띄웠다. 그런데 아래 isBrowserDeadError 는 'Timed out'·'Protocol error'
+//   처럼 **브라우저가 살아 있어도 나는 에러**를 죽음으로 친다 — 그때마다 살아 있는 Chrome 하나가 참조 없이 영구히 남았다.
+//   dev 실측: 백엔드 자식 헤드리스 Chrome 9개(26분~4시간)가 쌓여 스왑 3.5GB, 검사 체인이 메모리 부족으로 kill 됐다.
+//   close() 는 행 걸린 브라우저에서 돌아오지 않을 수 있어 상한을 두고, 넘기면 프로세스를 직접 죽인다.
+function disposeBrowser(b) {
+  if (!b) return;
+  const proc = typeof b.process === 'function' ? b.process() : null;
+  const kill = () => { try { if (proc && proc.exitCode === null && !proc.killed) proc.kill('SIGKILL'); } catch { /* noop */ } };
+  const timer = setTimeout(kill, 3000);
+  if (timer.unref) timer.unref();
+  Promise.resolve().then(() => b.close()).catch(() => {}).finally(() => { clearTimeout(timer); kill(); });
+}
+
 async function getBrowser() {
   if (browserPromise) {
+    let b = null;
     try {
-      const b = await browserPromise;
+      b = await browserPromise;
       // puppeteer 21+ : browser.connected (getter). 구버전 호환: isConnected().
       const alive = typeof b.connected === 'boolean' ? b.connected
         : (typeof b.isConnected === 'function' ? b.isConnected() : true);
       if (b && alive) return b;
     } catch { /* launch 실패 캐시 — 아래서 재시도 */ }
+    // 끊긴 브라우저도 프로세스는 남아 있을 수 있다 — 끝내고 새로 띄운다
+    disposeBrowser(b);
     browserPromise = null;
   }
   browserPromise = launch().catch((err) => {
@@ -127,7 +144,10 @@ async function renderPdfFromHtml(html, opts = {}) {
       lastErr = err;
       // 브라우저 죽음 → 싱글톤 강제 리셋 후 1회 재시도. 그 외(또는 2번째)는 throw.
       if (attempt === 0 && isBrowserDeadError(err)) {
+        // 참조만 지우면 살아 있는 Chrome 이 영구히 남는다(위 disposeBrowser 주석) — 끝내고 새로 띄운다
+        const stale = activeBrowser;
         browserPromise = null; activeBrowser = null;
+        disposeBrowser(stale);
         continue;
       }
       throw err;
@@ -143,7 +163,7 @@ async function closeBrowser() {
   if (!browserPromise) return;
   try {
     const b = await browserPromise;
-    await b.close();
+    disposeBrowser(b);
   } catch { /* ignore */ }
   browserPromise = null; activeBrowser = null;
 }

@@ -53,6 +53,14 @@ export function parseDraftKey(key: string): { kind: string; uid: string; biz: st
   return { kind: parts[0], uid: parts[1], biz: parts[2] ?? '', entity: parts.slice(3).join(':') };
 }
 
+/** 로그아웃을 멈추게 하는 초안 — **판정 한 곳**. AuthContext(멈춤)와 LeaveDecisionGuard(목록)가 같이 부른다.
+ *  두 곳이 조건을 따로 적으면 어긋나는 순간 로그아웃이 창 없이 조용히 멈춘다(Fable 2026-09-11 지적). */
+export function listLeaveBlockers(userId: unknown): Array<{ key: string; biz: string; taskId: number; record: DraftRecord<string> }> {
+  return listDraftRecords<string>(['task-description'], userId)
+    .filter((d) => d.record.series === true && typeof d.record.value === 'string' && Number(d.entity) > 0)
+    .map((d) => ({ key: d.key, biz: d.biz, taskId: Number(d.entity), record: d.record }));
+}
+
 /** 한 사용자의 특정 종류 초안을 모아 본다 — 키를 손으로 조립하지 않는다(로그아웃 확인창) */
 export function listDraftRecords<T = unknown>(kinds: string[], userId: unknown): Array<{ key: string; kind: string; biz: string; entity: string; record: DraftRecord<T> }> {
   const me = String(userId ?? '');

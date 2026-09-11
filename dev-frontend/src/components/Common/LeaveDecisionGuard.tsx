@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import StandardModal from './StandardModal';
 import ActionButton from './ActionButton';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
-import { listDraftRecords, clearDraftRecord } from '../../services/draftStore';
+import { listLeaveBlockers, clearDraftRecord } from '../../services/draftStore';
 import { LOGOUT_BLOCKED_EVENT } from '../../services/pendingSaves';
 import type { SeriesScope } from '../QTask/SeriesScopeDialog';
 
@@ -43,12 +43,11 @@ const LeaveDecisionGuard: React.FC = () => {
 
   const collect = useCallback((): Item[] => {
     if (!user?.id) return [];
-    return listDraftRecords<string>(['task-description'], user.id)
-      .filter((d) => d.record.series && typeof d.record.value === 'string' && Number(d.entity) > 0)
-      .map((d) => ({
-        key: d.key, biz: d.biz, taskId: Number(d.entity), label: d.record.label || '',
-        value: d.record.value, base: d.record.base ?? '', scope: null, status: 'idle' as ItemStatus,
-      }));
+    // 멈춤 판정과 **같은 함수**로 모은다 — 따로 적으면 어긋나는 순간 로그아웃이 창 없이 멈춘다
+    return listLeaveBlockers(user.id).map((d) => ({
+      key: d.key, biz: d.biz, taskId: d.taskId, label: d.record.label || '',
+      value: d.record.value, base: d.record.base ?? '', scope: null, status: 'idle' as ItemStatus,
+    }));
   }, [user?.id]);
 
   useEffect(() => {
