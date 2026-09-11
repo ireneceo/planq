@@ -419,6 +419,8 @@ const CueHelpDrawer: React.FC<{
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // 어느 워크스페이스에서 보낸 신고인지 — 서버는 멤버십을 확인한 뒤에만 적는다(2026-09-11)
+          business_id: user?.business_id ?? null,
           category: fbCategory,
           priority: fbPriority,
           title: (fbBody.trim().split('\n')[0] || '').slice(0, 60) || '(제목 없음)',

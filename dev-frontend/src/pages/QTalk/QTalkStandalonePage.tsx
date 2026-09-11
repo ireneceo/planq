@@ -26,7 +26,7 @@ const QTalkStandalonePage: React.FC = () => {
   //   지금 보고 있는 대화를 ref 로 들고 있다가 재마운트 초기값으로 쓴다.
   const ctxRef = useRef<{ p: number | null; c: number | null }>({ p: projectId, c: convId });
   // 팝아웃 위의 핀 = 이 창이 고정창을 연다. 고정 중에는 이 창이 작은 막대(홀더)로 줄어 주인으로 남는다.
-  const pin = usePinHost({ tool: 'qtalk', title: 'Q Talk' });
+  const pin = usePinHost({ tool: 'qtalk', title: 'Q talk' });
 
   useEffect(() => {
     document.title = t('popout.title', { defaultValue: 'PlanQ 채팅' }) as string;
@@ -35,7 +35,7 @@ const QTalkStandalonePage: React.FC = () => {
     return () => { delete document.body.dataset.popout; };
   }, [t]);
 
-  if (pin.mode === 'holder') return <Shell><PinHolderView host={pin} label="Q Talk" /></Shell>;
+  if (pin.mode === 'holder') return <Shell><PinHolderView host={pin} label="Q talk" /></Shell>;
 
   return (
     <Shell>

@@ -10,6 +10,8 @@ export interface InquiryPayload {
   from_company?: string;
   from_phone?: string;
   message: string;
+  /** 보낸 워크스페이스 — 서버가 멤버십을 확인한 뒤에만 적는다 */
+  business_id?: number | null;
 }
 
 export async function submitInquiry(payload: InquiryPayload): Promise<{ id: number; submitted_at: string } | null> {

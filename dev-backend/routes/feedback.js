@@ -84,7 +84,17 @@ router.post('/', authenticateToken, async (req, res, next) => {
     // 추가 문의는 부모의 분류/워크스페이스 상속, 신규는 사용자 선택값
     const finalCategory = parent ? parent.category : (ALLOWED_CATS.includes(category) ? category : 'other');
     const finalPriority = parent ? parent.priority : (ALLOWED_PRIORITY.includes(priority) ? priority : 'normal');
-    const finalBizId = parent ? parent.business_id : (req.user.business_id || null);
+    // ★ 2026-09-11 — 여태 `req.user.business_id` 를 읽었는데 인증 미들웨어는 그 필드를 싣지 않아 **항상 NULL** 이었다.
+    //   화면이 보내는 워크스페이스를 받고, 멤버·활성 고객일 때만 적는다(추측하지 않는다).
+    let reqBizId = null;
+    const rawBiz = Number(req.body && req.body.business_id);
+    if (!parent && Number.isInteger(rawBiz) && rawBiz > 0) {
+      const { BusinessMember: BM, Client: CL } = require('../models');
+      const okMember = await BM.findOne({ where: { user_id: req.user.id, business_id: rawBiz, removed_at: null }, attributes: ['id'] })
+        || await CL.findOne({ where: { user_id: req.user.id, business_id: rawBiz, status: 'active' }, attributes: ['id'] });
+      if (okMember) reqBizId = rawBiz;
+    }
+    const finalBizId = parent ? parent.business_id : reqBizId;
     const ua = String(req.headers['user-agent'] || '').slice(0, 500);
 
     const item = await FeedbackItem.create({

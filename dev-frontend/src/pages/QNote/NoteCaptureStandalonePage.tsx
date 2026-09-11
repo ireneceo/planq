@@ -18,10 +18,10 @@ const NoteCaptureStandalonePage: React.FC = () => {
   const { t } = useTranslation('qnote');
   const { user } = useAuth();
   const businessId = user?.business_id ? Number(user.business_id) : 0;
-  const pin = usePinHost({ tool: 'qnote', title: 'Q Note' });
+  const pin = usePinHost({ tool: 'qnote', title: 'Q note' });
 
   useEffect(() => {
-    document.title = t('memoPopup.title', 'Q Note') as string;
+    document.title = t('memoPopup.title', 'Q note') as string;
     document.body.dataset.popout = '1';
     markPopoutWindow(); // #84
     return () => { delete document.body.dataset.popout; };
@@ -30,7 +30,7 @@ const NoteCaptureStandalonePage: React.FC = () => {
   if (!businessId) return null;
 
   // 고정 중 — 이 창은 고정창의 주인으로 남는다(닫으면 고정창도 죽는다).
-  if (pin.mode === 'holder') return <PinHolderView host={pin} label="Q Note" />;
+  if (pin.mode === 'holder') return <PinHolderView host={pin} label="Q note" />;
 
   return (
     <MemoPopup

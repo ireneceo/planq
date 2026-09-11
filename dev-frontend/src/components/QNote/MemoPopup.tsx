@@ -13,6 +13,8 @@
 // 사용:
 //   <MemoPopup open={open} onClose={close} businessId={biz} existingSessionId={id?} />
 import { openPopout } from '../../utils/pinHost';
+import { requestMainNavigate } from '../Common/PopoutBridge';
+import { tabStore } from '../../stores/tabStore';
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { keyframes, css } from 'styled-components';
@@ -603,6 +605,15 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
   //     ③ 입력 커서 포커스 이상(#44, 원인 미규명)
   //   "항상 위"는 별도의 명시적 핀 기능으로만 다룬다(설계 진행 중) — 기본 경로에 숨기지 않는다.
   // 미저장 dirty 가 있으면 먼저 flush → 새 창에서 같은 메모 이어쓰기 가능 (sessions.body 동기).
+  // ★ 2026-09-11 Irene: "음성노트랑 녹음파일 링크로 가게 연결해주고" — Q note 창에서 Q Note 화면의 해당 시작점으로.
+  //   팝아웃(standalone)은 자기가 이동하지 않고 **메인 창에 새 탭을 부탁**한다(PopoutBridge — 보던 창을 안 덮는다).
+  //   앱 안 팝업은 새 탭으로 연다(하던 일 위에 얹힌 진입점 규칙). 도착 화면은 `?new=` 를 매번 소비한다(QNotePage).
+  const openInQNote = (kind: 'voice' | 'upload') => {
+    const path = `/notes?new=${kind}`;
+    if (standalone) { if (requestMainNavigate(path)) return; window.open(path, '_blank'); return; }
+    tabStore.openInNewTab(path);
+  };
+
   const detachToWindow = async () => {
     // 신규 메모면 먼저 저장해서 sessionId 확보
     if (!sessionIdRef.current && dirtyRef.current) {
@@ -720,6 +731,15 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
         </span>
       </StatusRow>
 
+      <NoteLinksRow>
+        <NoteLinkBtn type="button" data-testid="memo-open-voice-note" onClick={() => openInQNote('voice')}>
+          <span>{t('memoPopup.openVoiceNote') as string}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18" /></svg>
+        </NoteLinkBtn>
+        <NoteLinkBtn type="button" data-testid="memo-open-upload" onClick={() => openInQNote('upload')}>
+          <span>{t('memoPopup.openUpload') as string}</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18" /></svg>
+        </NoteLinkBtn>
+      </NoteLinksRow>
+
       <Body>
         <Suspense fallback={<EditorLoading>{t('memoPopup.searchLoading') as string}</EditorLoading>}>
           <PostEditor
@@ -748,5 +768,19 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
     document.body
   );
 };
+
+// Q Note 시작점 링크 줄 — 상태 줄 아래 한 줄. 버튼 높이 36(아이콘/텍스트 버튼 최소 규격).
+const NoteLinksRow = styled.div`
+  display: flex; gap: 6px; padding: 0 12px 6px; flex-wrap: wrap;
+`;
+const NoteLinkBtn = styled.button`
+  /* 화살표 문자(→)는 본문 폰트에서 밑줄처럼 깨져 보였다(2026-09-11 스크린샷) — 아이콘으로 그린다 */
+  display: inline-flex; align-items: center; gap: 4px;
+  min-height: 36px; padding: 0 10px 0 12px; border-radius: 8px;
+  border: 1px solid #E2E8F0; background: #FFFFFF; color: #334155;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer;
+  &:hover { background: #F8FAFC; border-color: #CBD5E1; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
+`;
 
 export default MemoPopup;

@@ -318,12 +318,16 @@
   },
   "cancel": "Cancel",
   "close": "Close",
+  "workspaceSync": {
+    "banner": "Your workspace was changed in another window or device",
+    "apply": "Switch now"
+  },
   "dock": {
-    "toggle": "Quick open — Q Talk · Q Task · Q Note · Q helper",
+    "toggle": "Quick open — Q talk · Q task · Q note · Q helper",
     "menuLabel": "Quick open",
-    "qtalk": "Q Talk",
-    "qtask": "Q Task",
-    "qnote": "Q Note",
+    "qtalk": "Q talk",
+    "qtask": "Q task",
+    "qnote": "Q note",
     "qhelper": "Q helper",
     "popout": "Open in new window",
     "createLabel": "Quick create",

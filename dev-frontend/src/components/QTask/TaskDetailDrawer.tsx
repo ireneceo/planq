@@ -2407,7 +2407,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 onRestored={() => { void loadDetail(detailTask.id); }} />
             </Section>
 
-            <TaskAttachments taskId={detailTask.id} onChangeCount={() => {}} />
+            <TaskAttachments taskId={detailTask.id} businessId={bizId} onChangeCount={() => {}} />
 
             <Collapsible>
               <ColHeader onClick={() => setOpenReviewers(v => !v)}>

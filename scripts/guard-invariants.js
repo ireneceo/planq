@@ -2316,7 +2316,57 @@ function checkAuditEntry() {
     rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
 }
 
+// ═══════════════════════════════════════════════
+// wsscope — 서버가 워크스페이스를 **추측하지 않는다** (2026-09-11 박제, docs/WORKSPACE_SCOPE_DESIGN.md C5·C8)
+//   Irene: "모든 페이지가 하나의 워크스페이스로만 연결되어야지" · "왜 자꾸 단편적으로 해?"
+//   격리 누수를 이틀에 네 번 따로 고쳤다. 공통 모양은 **범위 인자가 없을 때 서버가 추측**하는 것:
+//     ① `*.active_business_id` 를 직접 읽어 기본값으로 쓴다 — 사용자당 하나뿐인 "마지막 전환값"이라
+//        다른 창·다른 기기의 전환을 따라가고, 로그인은 이 값을 쓰지도 않았다(NULL 88명)
+//     ② `BusinessMember.findOne({ user_id … order: [['id','ASC']] })` — 첫 멤버십으로 떨어진다
+//   래칫이라 기존 부채는 동결, **증가만 실패**. 합산이 기능인 곳은 같은 줄이나 바로 윗줄에
+//   `// wsscope-exempt: <이유>` 를 적는다(이유가 보이게).
+//   예외 파일: 판정·자가치유가 사는 routes/auth.js · req.user 를 만드는 middleware/auth.js.
+// ═══════════════════════════════════════════════
+function checkWsScope() {
+  const EXEMPT = new Set(['dev-backend/routes/auth.js', 'dev-backend/middleware/auth.js']);
+  const files = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/middleware`, ['.js']),
+  ];
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const r = rel(f);
+    if (EXEMPT.has(r)) continue;
+    const lines = read(f).split('\n');
+    let n = 0;
+    const exempt = (i) => /wsscope-exempt/.test(lines[i]) || (i > 0 && /wsscope-exempt/.test(lines[i - 1]));
+    lines.forEach((ln, i) => {
+      if (/^\s*(\/\/|\*)/.test(ln)) return;
+      // ① 읽기만 센다 — `x.active_business_id = …` 대입과 `{ active_business_id: … }` 쓰기는 제외
+      if (/\.active_business_id\b(?!\s*=[^=])/.test(ln) && !exempt(i)) {
+        n += 1;
+        if (samples.length < 14) samples.push(`${r}:${i + 1}: active_business_id 직접 읽기 → 명시 business_id(멤버십 검증) 또는 요청 워크스페이스`);
+      }
+      // ② 첫 멤버십 폴백 — findOne 뒤 6줄 안에 order id ASC 가 있고 business_id 조건이 없다
+      if (/\bBusinessMember\.findOne\s*\(/.test(ln) && !exempt(i)) {
+        const win = lines.slice(i, i + 7).join('\n');
+        if (/order\s*:\s*\[\s*\[\s*['"]id['"]\s*,\s*['"]ASC['"]/.test(win) && !/business_id\s*:/.test(win)) {
+          n += 1;
+          if (samples.length < 14) samples.push(`${r}:${i + 1}: 첫 멤버십 폴백 → 범위를 추측하지 말 것(400 business_id_required)`);
+        }
+      }
+    });
+    if (n) current[r] = n;
+  }
+  const rt = ratchet('wsscope', current, samples);
+  report('wsscope', `워크스페이스 추측 금지 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
 const CATEGORIES = {
+  wsscope: checkWsScope,
   mock: checkMock,
   modalradius: checkModalRadius,
   canary: checkCanaryContract,

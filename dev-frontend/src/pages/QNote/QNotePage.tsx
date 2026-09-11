@@ -1499,7 +1499,7 @@ const QNotePage = () => {
   };
 
   // ── 새 회의 생성 ──────────────────────────────────────
-  // ── 바로 녹음 (Irene 2026-08-29) ──────────────────────────────
+  // ── 음성메모 (구 "바로 녹음", Irene 2026-08-29 · 2026-09-11 이름 변경) ─────────────
   //   "번역없고 그냥 바로 짧은 미팅이나 통화할 때 열어두게 해야 하는데 바로 들어가는 버튼이 없어서."
   //   회의 준비 모달(제목·참석자·자료·언어)은 준비된 회의를 위한 것이다. 통화가 걸려온 순간에는
   //   그걸 채울 시간이 없다. 그래서 **준비 없이 시작하는 경로**를 따로 둔다.
@@ -1509,7 +1509,7 @@ const QNotePage = () => {
     const lang = user?.language || getDefaultLanguageFromBrowser();
     void handleStartMeeting({
       title: t('page.quickRecord.title', {
-        defaultValue: '빠른 녹음 {{time}}',
+        defaultValue: '음성메모 {{time}}',
         time: new Date().toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
       }) as string,
       brief: '',
@@ -1531,6 +1531,27 @@ const QNotePage = () => {
       meetingAnswerLength: 'medium',
     });
   };
+
+  // ★ 2026-09-11 — 다른 창·화면에서 **새 노트 종류를 지목해** 들어오는 문 (`/notes?new=memo|quick|voice|upload`).
+  //   Irene: "음성노트랑 녹음파일 링크로 가게 연결해주고" — 우측 하단 Q note 창의 링크가 여기로 온다.
+  //   ★ 마운트 때 한 번만 읽지 않는다 — 이 화면은 keep-alive 탭이라 이미 열려 있으면 다시 마운트되지 않고,
+  //     그러면 링크를 눌러도 아무 일이 없다(memory feedback_url_param_read_once_keepalive).
+  //     값이 들어올 때마다 소비하고 URL 에서 걷는다(새로고침·뒤로가기로 또 열리지 않게).
+  //   ★ businessId 가 오기 전에는 소비하지 않는다 — 녹음 시작이 noBusiness 오류로 조용히 끝난다.
+  const newKindParam = searchParams.get('new');
+  useEffect(() => {
+    if (!newKindParam || !businessId) return;
+    const next = new URLSearchParams(searchParams); next.delete('new');
+    setSearchParams(next, { replace: true });
+    if (newKindParam === 'memo') guardRecording(() => { void createMemoSession(); });
+    // ★ 음성메모는 **자동으로 시작하지 않는다** — 다른 창에서 온 링크에는 이 창의 사용자 제스처가 없어
+    //   브라우저가 AudioContext 를 잠근 채 두고, 마이크는 켜졌는데 오디오 0 인 세션이 된다
+    //   (2026-08-29 PCMStreamer 실측 사고와 같은 계열). + 메뉴를 열어 한 번 누르게 한다.
+    else if (newKindParam === 'quick') setNewNoteDropdownOpen(true);
+    else if (newKindParam === 'voice') guardRecording(() => setShowStartModal(true));
+    else if (newKindParam === 'upload') guardRecording(() => setAudioUploadOpen(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newKindParam, businessId]);
 
   const handleStartMeeting = async (cfg: StartConfig) => {
     if (!businessId) {
@@ -2421,31 +2442,9 @@ const QNotePage = () => {
             </NewSessionBtn>
             {newNoteDropdownOpen && (
               <NewNoteDropdown onMouseLeave={() => setNewNoteDropdownOpen(false)}>
-                {/* 순서: 바로 녹음 → 음성 노트 → 메모 (Irene 2026-08-29 "메모가 가운데인 순서는 이상해").
-                    녹음 계열 둘이 붙어 있고, 성격이 다른 텍스트 메모가 맨 아래로 간다.
-                    맨 위는 준비 없이 바로 시작 — 통화가 걸려온 순간에 쓰는 경로다. */}
-                <NewNoteItem type="button" data-testid="qnote-quick-record" onClick={() => {
-                  setNewNoteDropdownOpen(false);
-                  guardRecording(() => { handleQuickStart(); });
-                }}>
-                  <NewNoteItemTitle>{t('page.newNoteDropdown.quickLabel', { defaultValue: '바로 녹음' }) as string}</NewNoteItemTitle>
-                  <NewNoteItemDesc>{t('page.newNoteDropdown.quickDesc', { defaultValue: '준비 없이 즉시 시작 · 번역 없음 · 마이크' }) as string}</NewNoteItemDesc>
-                </NewNoteItem>
-                <NewNoteItem type="button" onClick={() => {
-                  setNewNoteDropdownOpen(false);
-                  guardRecording(() => setShowStartModal(true));
-                }}>
-                  <NewNoteItemTitle>{t('page.newNoteDropdown.voiceLabel', { defaultValue: '음성 노트' }) as string}</NewNoteItemTitle>
-                  <NewNoteItemDesc>{t('page.newNoteDropdown.voiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewNoteItemDesc>
-                </NewNoteItem>
-                {/* #383 — 녹음 계열끼리 붙인다(바로 녹음 · 음성 노트 · 녹음 파일). 텍스트 메모는 맨 아래. */}
-                <NewNoteItem type="button" data-testid="qnote-upload-audio" onClick={() => {
-                  setNewNoteDropdownOpen(false);
-                  guardRecording(() => setAudioUploadOpen(true));
-                }}>
-                  <NewNoteItemTitle>{t('page.newNoteDropdown.uploadLabel') as string}</NewNoteItemTitle>
-                  <NewNoteItemDesc>{t('page.newNoteDropdown.uploadDesc') as string}</NewNoteItemDesc>
-                </NewNoteItem>
+                {/* 순서 (Irene 2026-09-11): 메모 → 음성메모 → 녹음 파일 → 음성 노트(대화형).
+                    가벼운 것에서 무거운 것으로 — 적기 · 바로 녹음하기 · 가진 녹음 올리기 · 준비해서 회의하기.
+                    ("바로 녹음" 은 이날 "음성메모" 로 이름이 바뀌었다 — 옛 순서는 2026-08-29 녹음 계열 우선이었다.) */}
                 <NewNoteItem type="button" onClick={() => {
                   setNewNoteDropdownOpen(false);
                   // 녹음 중 새 메모 생성은 activeSession 을 바꿔 심박을 흔든다 → 확인 후에만.
@@ -2453,6 +2452,27 @@ const QNotePage = () => {
                 }} data-testid="qnote-new-memo">
                   <NewNoteItemTitle>{t('page.newNoteDropdown.memoLabel', { defaultValue: '메모' }) as string}</NewNoteItemTitle>
                   <NewNoteItemDesc>{t('page.newNoteDropdown.memoDesc', { defaultValue: '텍스트 · 코드블록 · 서식 지원' }) as string}</NewNoteItemDesc>
+                </NewNoteItem>
+                <NewNoteItem type="button" data-testid="qnote-quick-record" onClick={() => {
+                  setNewNoteDropdownOpen(false);
+                  guardRecording(() => { handleQuickStart(); });
+                }}>
+                  <NewNoteItemTitle>{t('page.newNoteDropdown.quickLabel', { defaultValue: '음성메모' }) as string}</NewNoteItemTitle>
+                  <NewNoteItemDesc>{t('page.newNoteDropdown.quickDesc', { defaultValue: '준비 없이 즉시 시작 · 번역 없음 · 마이크' }) as string}</NewNoteItemDesc>
+                </NewNoteItem>
+                <NewNoteItem type="button" data-testid="qnote-upload-audio" onClick={() => {
+                  setNewNoteDropdownOpen(false);
+                  guardRecording(() => setAudioUploadOpen(true));
+                }}>
+                  <NewNoteItemTitle>{t('page.newNoteDropdown.uploadLabel') as string}</NewNoteItemTitle>
+                  <NewNoteItemDesc>{t('page.newNoteDropdown.uploadDesc') as string}</NewNoteItemDesc>
+                </NewNoteItem>
+                <NewNoteItem type="button" data-testid="qnote-new-voice" onClick={() => {
+                  setNewNoteDropdownOpen(false);
+                  guardRecording(() => setShowStartModal(true));
+                }}>
+                  <NewNoteItemTitle>{t('page.newNoteDropdown.voiceLabel', { defaultValue: '음성 노트 (대화형)' }) as string}</NewNoteItemTitle>
+                  <NewNoteItemDesc>{t('page.newNoteDropdown.voiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewNoteItemDesc>
                 </NewNoteItem>
               </NewNoteDropdown>
             )}

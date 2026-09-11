@@ -38,9 +38,9 @@
     "newNoteDropdown": {
       "memoLabel": "메모",
       "memoDesc": "텍스트 · 코드블록 · 서식 지원",
-      "voiceLabel": "음성 노트",
+      "voiceLabel": "음성 노트 (대화형)",
       "voiceDesc": "회의 녹음 + STT + 답변 찾기",
-      "quickLabel": "바로 녹음",
+      "quickLabel": "음성메모",
       "quickDesc": "준비 없이 즉시 시작 · 번역 없음 · 마이크",
       "uploadLabel": "녹음 파일",
       "uploadDesc": "가지고 있는 녹음을 올려 텍스트로"
@@ -227,12 +227,14 @@
     },
     "backToList": "목록으로",
     "quickRecord": {
-      "title": "빠른 녹음 {{time}}"
+      "title": "음성메모 {{time}}"
     },
     "translateFailed": "번역 실패"
   },
   "memoPopup": {
     "title": "메모",
+    "openVoiceNote": "음성 노트 (대화형)",
+    "openUpload": "녹음 파일",
     "bodyPlaceholder": "지금 떠오른 생각을 적어보세요.\n\n첫 줄이 자동으로 제목이 됩니다.",
     "close": "닫기",
     "newMemo": "새 메모",

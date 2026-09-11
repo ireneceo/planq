@@ -242,14 +242,16 @@ const TodoPage: React.FC = () => {
     const fullPatch = options?.recurrence_id
       ? { ...patch, recurrence_id: options.recurrence_id, from_date: options.recurrence_id }
       : patch;
-    const next = await updateEvent(bizId, selectedEvent.id, fullPatch, scope);
+    // ★ 2026-09-11 — 조회는 일정의 워크스페이스로 하고 수정·삭제는 현재 워크스페이스로 해 갈라져 있었다(감사 ② C-2).
+    //   일정 자신의 business_id 하나로 맞춘다.
+    const next = await updateEvent(selectedEvent.business_id || bizId, selectedEvent.id, fullPatch, scope);
     setSelectedEvent(next);
     silentLoad();
   };
   const handleEventDelete = async () => {
     if (!bizId || !selectedEvent) return;
     const eventId = selectedEvent.id;
-    await deleteEvent(bizId, eventId);
+    await deleteEvent(selectedEvent.business_id || bizId, eventId);
     setSelectedEvent(null);
     setData(prev => {
       if (!prev) return prev;
@@ -264,7 +266,7 @@ const TodoPage: React.FC = () => {
   };
   const handleEventCreateMeetingRoom = async () => {
     if (!bizId || !selectedEvent) return;
-    const next = await createMeetingRoom(bizId, selectedEvent.id);
+    const next = await createMeetingRoom(selectedEvent.business_id || bizId, selectedEvent.id);
     setSelectedEvent(next);
   };
 
@@ -310,7 +312,7 @@ const TodoPage: React.FC = () => {
               ))}
             </TabBar>
             {/* "전체"·"업무" 탭 — 지연 업무 / 다가오는 일정 인사이트. signature/billing 탭은 무관해서 가림 */}
-            {(activeTab === 'all' || activeTab === 'work') && <InsightCards />}
+            {(activeTab === 'all' || activeTab === 'work') && <InsightCards businessId={bizId ?? null} />}
             {/* "서명" 탭 활성 시 — pending 만 보이는 인박스라 전체 history archive 진입점 노출 */}
             {activeTab === 'signature' && (
               <ArchiveHint>

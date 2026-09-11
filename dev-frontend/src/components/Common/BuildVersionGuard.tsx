@@ -12,33 +12,12 @@ import { useActiveTab } from '../../hooks/useTabStore';
 
 const POLL_MS = 5 * 60 * 1000;  // 5분
 
-// reload 보류 기준 (데이터·작업 흐름 보호).
+// reload 보류 기준 (데이터·작업 흐름 보호) — 판정은 utils/reloadSafety.ts **한 곳**.
+//   워크스페이스 전환 전파(WorkspaceSyncGuard)도 같은 술어를 쓴다 — 두 벌이면 한쪽만 녹음을 지킨다.
+import { isReloadSafe } from '../../utils/reloadSafety';
 //   body[data-form-dirty]     — 미저장 변경이 있음 (자동저장이 끝나면 꺼진다)
 //   body[data-editing-active] — **편집 화면이 열려 있음** (저장 여부와 무관. 새 편집기는 이 플래그를 세울 것)
 //   body[data-pip-active] / body[data-recording-active] — 핀 창·녹음
-function isReloadSafe(): boolean {
-  try {
-    const el = document.activeElement as HTMLElement | null;
-    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return false;
-    if (document.body.dataset.formDirty === '1') return false;
-    if (document.querySelector('[data-form-dirty="1"]')) return false;
-    // ★ 편집 화면이 열려 있으면 저장할 게 남아 있지 않아도 reload 하지 않는다.
-    //   formDirty 는 "미저장 변경이 있음" 이라 **자동저장이 끝나는 순간 꺼진다**.
-    //   그 틈에 새 빌드가 감지되면 멀쩡히 글을 쓰는 중에 페이지가 새로고침돼 **편집이 닫힌다**
-    //   (운영 신고 2026-08-21: "고치면 저장되어 버려 / 닫혀, 편집이").
-    //   reload 는 사라지지 않고 pendingReloadRef 에 남아, 편집을 닫고 다른 화면으로 갈 때 적용된다.
-    if (document.body.dataset.editingActive === '1') return false;
-    if (document.querySelector('[data-editing-active="1"]')) return false;
-    // 핀(Document PiP) 창은 opener 문서에 종속 — 이 창을 reload 하면 핀 창이 같이 죽는다.
-    // 자동 갱신 때문에 사용자가 항상-위로 띄워둔 도구가 사라지면 안 된다 (utils/pinHost.ts).
-    if (document.body.dataset.pipActive === '1') return false;
-    // Q Note 녹음 중 reload = 마이크 사망. web_conference 캡처는 사용자가 회의 탭에 가 있는 것이
-    // 정상 사용이라 이 탭은 hidden 상태 — 아래 hidden 분기에 그대로 걸려 배포 때마다 녹음이 죽었다.
-    // 플래그는 QNotePage 가 녹음 phase 동안만 세운다.
-    if (document.body.dataset.recordingActive === '1') return false;
-  } catch { /* noop */ }
-  return true;
-}
 
 async function forceSwUpdate(): Promise<void> {
   try {

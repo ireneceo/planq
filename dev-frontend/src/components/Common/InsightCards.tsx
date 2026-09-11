@@ -17,7 +17,11 @@ interface Insight {
 
 const DISMISS_KEY = 'planq_insights_dismissed';
 
-const InsightCards: React.FC = () => {
+// ★ 2026-09-11 — businessId 는 **필수**다. 여태 범위 없이 불러 서버가 "처음 가입한 워크스페이스" 로
+//   떨어졌고, 새 워크스페이스에서 다른 워크스페이스의 "지연 업무 9건" 카드가 떴다.
+interface Props { businessId: number | null }
+
+const InsightCards: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('common');
   const navigate = useNavigate();
   const location = useLocation();
@@ -28,14 +32,22 @@ const InsightCards: React.FC = () => {
   });
 
   useEffect(() => {
-    apiFetch('/api/insights')
+    // 전환 직후 **직전 워크스페이스의 카드가 남아 보이지 않게** 먼저 비운다.
+    setItems([]);
+    if (!businessId) return;
+    let alive = true;
+    apiFetch(`/api/insights?business_id=${businessId}`)
       .then(r => r.json())
-      .then(j => { if (j.success) setItems(j.data || []); })
+      .then(j => { if (alive && j.success) setItems(j.data || []); })
       .catch(() => { /* silent */ });
-  }, []);
+    return () => { alive = false; };
+  }, [businessId]);
 
+  // 닫기 기록도 워크스페이스별 — 카드 id(`overdue_tasks_9` 등)에는 워크스페이스 축이 없어서,
+  //   한 곳에서 닫으면 다른 워크스페이스의 같은 모양 카드까지 숨었다.
+  const dismissKey = (id: string) => `${businessId ?? 0}:${id}`;
   const handleDismiss = (id: string) => {
-    const next = new Set(dismissed); next.add(id);
+    const next = new Set(dismissed); next.add(dismissKey(id));
     setDismissed(next);
     try { sessionStorage.setItem(DISMISS_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
   };
@@ -43,7 +55,7 @@ const InsightCards: React.FC = () => {
   // 순환 CTA 차단 — 현재 페이지로 가는 "열기" 인사이트는 숨김.
   // 예: 인박스(/inbox)에서 "컨펌 대기 N건 · 확인 필요 열기 →/inbox" 가 또 뜨던 회귀.
   // 이미 그 화면을 보고 있으면 카드 자체가 군더더기 (목록이 바로 아래 있음).
-  const visible = items.filter(it => !dismissed.has(it.id) && it.action?.link !== location.pathname);
+  const visible = items.filter(it => !dismissed.has(dismissKey(it.id)) && it.action?.link !== location.pathname);
   if (visible.length === 0) return null;
 
   return (

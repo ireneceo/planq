@@ -139,7 +139,8 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
     if (existing) {
       if (existing.user_id === req.user.id) {
         await existing.update({
-          business_id: req.user.active_business_id || existing.business_id || null,
+          // ★ 2026-09-11 — 추측값(마지막 전환 워크스페이스)을 저장하지 않는다. 구독은 기기 단위이고 이 컬럼을 읽는 곳은 없다.
+          business_id: existing.business_id || null,
           p256dh: keys.p256dh, auth: keys.auth,
           user_agent: user_agent || existing.user_agent,
           expired_at: null, last_used_at: new Date(),
@@ -159,7 +160,7 @@ router.post('/subscribe', authenticateToken, async (req, res, next) => {
     }
     const row = await PushSubscription.create({
       user_id: req.user.id,
-      business_id: req.user.active_business_id || null,
+      business_id: null,   // 기기 단위 구독 — 워크스페이스를 추측해 적지 않는다(2026-09-11)
       endpoint,
       p256dh: keys.p256dh, auth: keys.auth,
       user_agent: user_agent || null,
@@ -193,7 +194,7 @@ router.post('/subscribe-native', authenticateToken, async (req, res, next) => {
     if (existing) {
       if (existing.user_id === req.user.id) {
         await existing.update({
-          business_id: req.user.active_business_id || existing.business_id || null,
+          business_id: existing.business_id || null,
           kind, device_token: tok, device_name: dname || existing.device_name,
           user_agent: (req.headers['user-agent'] || '').slice(0, 500) || existing.user_agent,
           expired_at: null, last_used_at: new Date(),
@@ -209,7 +210,7 @@ router.post('/subscribe-native', authenticateToken, async (req, res, next) => {
     }
     const row = await PushSubscription.create({
       user_id: req.user.id,
-      business_id: req.user.active_business_id || null,
+      business_id: null,   // 기기 단위 구독 — 추측값 저장 금지(2026-09-11)
       kind, endpoint, device_token: tok, device_name: dname,
       user_agent: (req.headers['user-agent'] || '').slice(0, 500) || null,
       last_used_at: new Date(),

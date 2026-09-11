@@ -180,8 +180,8 @@ const RightDock: React.FC = () => {
         type="button"
         $expanded={expanded}
         aria-expanded={expanded}
-        aria-label={t('dock.toggle', '바로 열기 — Q Talk · Q Task · Q Note · Q helper') as string}
-        title={t('dock.toggle', '바로 열기 — Q Talk · Q Task · Q Note · Q helper') as string}
+        aria-label={t('dock.toggle', '바로 열기 — Q talk · Q task · Q note · Q helper') as string}
+        title={t('dock.toggle', '바로 열기 — Q talk · Q task · Q note · Q helper') as string}
         onClick={() => setExpanded((v) => !v)}
       >
         {expanded ? <IconClose /> : <IconDock />}

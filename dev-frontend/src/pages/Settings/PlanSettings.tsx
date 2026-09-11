@@ -87,6 +87,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     const r = await submitInquiry({
       kind: 'enterprise',
       source: 'plan_page',
+      business_id: businessId || null,
       from_name: inqName,
       from_email: inqEmail,
       from_company: inqCompany || undefined,
@@ -96,7 +97,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     setInquirySubmitting(false);
     if (r) setInquirySuccess({ email: inqEmail });
     else setInquiryErr(true);
-  }, [inqName, inqEmail, inqCompany, inqPhone, inqMessage]);
+  }, [inqName, inqEmail, inqCompany, inqPhone, inqMessage, businessId]);
 
   // 표에 표시할 플랜 — Enterprise 는 별도 섹션으로 이동 (Irene 요청)
   const comparisonPlans = useMemo(() => catalog.filter(p => p.code !== 'enterprise'), [catalog]);

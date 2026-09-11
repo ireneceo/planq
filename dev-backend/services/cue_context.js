@@ -226,7 +226,9 @@ async function getPersonalScheduleSnapshot({ userId, businessId, businessTimezon
   try {
     const { ExternalConnection } = require('../models');
     const conns = await ExternalConnection.findAll({
-      where: { user_id: userId, owner_scope: 'user', provider: 'google_calendar', is_active: true },
+      // ★ 2026-09-11 — 워크스페이스 축을 건다. 개인 캘린더 연결은 워크스페이스별로 붙는다
+      //   (형제 라우트 personal_calendar.js 도 business_id 를 건다). 안 걸면 B 에 붙인 캘린더가 A 의 Cue 답변에 들어갔다.
+      where: { user_id: userId, business_id: businessId, owner_scope: 'user', provider: 'google_calendar', is_active: true },
     });
     if (conns.length) {
       const personalCalendar = require('./personalCalendar');

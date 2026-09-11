@@ -51,6 +51,20 @@ const generateSlug = (name) => {
 //
 // active workspace 는 users.active_business_id 로 영구 저장. 없으면 첫 워크스페이스 fallback.
 // ============================================
+/**
+ * 현재 워크스페이스 판정 — **단일 원천** (워크스페이스 단일 정본 설계 C1).
+ *   저장값이 사용 가능한 워크스페이스(멤버십·활성 고객, 삭제 제외)면 그것, 아니면 첫 워크스페이스, 없으면 null.
+ *   /auth/me · refresh · 전환 · (다음 단계) 요청별 워크스페이스 판정이 **모두 이 함수**를 쓴다 —
+ *   같은 판정을 두 곳에 쓰면 "화면은 A, 서버는 NULL" 같은 어긋남이 다시 생긴다.
+ * @param {number|null} storedId  users.active_business_id
+ * @param {number[]} availableIds  이 사용자가 쓸 수 있는 워크스페이스 id (오름차순)
+ */
+function pickActiveBusinessId(storedId, availableIds) {
+  const ids = (availableIds || []).map(Number);
+  if (storedId && ids.includes(Number(storedId))) return Number(storedId);
+  return ids.length ? ids[0] : null;
+}
+
 const getUserWithBusiness = async (userId) => {
   const user = await User.findByPk(userId, {
     attributes: { exclude: USER_SENSITIVE_FIELDS }   // utils/userFields — 목록은 한 곳에서만
@@ -128,14 +142,23 @@ const getUserWithBusiness = async (userId) => {
 
   const workspaces = Array.from(map.values()).sort((a, b) => a.business_id - b.business_id);
 
-  // 4) active workspace 결정
+  // 4) active workspace 결정 — 판정은 pickActiveBusinessId 한 곳(아래 export).
   //   ★ active_business_id 가 삭제된 워크스페이스를 가리키면 map 에 없으므로 첫 워크스페이스로
   //     떨어진다(위에서 걸렀기 때문). 안 거르면 로그인 직후 삭제본에 착지해 화면 전체가 404 가 된다.
-  let activeId = user.active_business_id;
-  if (!activeId || !map.has(activeId)) {
-    activeId = workspaces[0]?.business_id || null;
-  }
+  const activeId = pickActiveBusinessId(user.active_business_id, workspaces.map((w) => w.business_id));
   const activeWs = activeId ? map.get(activeId) : null;
+
+  // ★ 2026-09-11 (워크스페이스 단일 정본 설계 C1 · Fable 설계 게이트 치명-1) — **정본을 자가 치유한다.**
+  //   로그인은 이 컬럼을 쓰지 않는다(쓰는 곳: 가입·생성·전환 셋). 그래서 컬럼이 NULL 이거나
+  //   해제된 멤버십을 가리키는 사용자는 **화면은 첫 워크스페이스, 서버 컬럼은 NULL** 로 갈라져 있었다
+  //   (dev 실측 NULL 88명 · 멤버십 보유 45명). 컬럼을 정본으로 쓰려면 해석값과 같아야 한다 —
+  //   로그인·me·refresh 가 모두 이 함수를 지나므로 여기 한 곳에서 맞춘다(멱등, 다를 때만 UPDATE).
+  if ((activeId || null) !== (user.active_business_id || null)) {
+    try {
+      await User.update({ active_business_id: activeId || null }, { where: { id: userId } });
+      user.active_business_id = activeId || null;
+    } catch (e) { console.warn('[auth] active_business_id self-heal failed:', e.message); }
+  }
 
   // 5) is_active 플래그 부착
   for (const w of workspaces) w.is_active = (w.business_id === activeId);
@@ -883,6 +906,11 @@ router.post('/switch-workspace', authenticateToken, async (req, res, next) => {
     if (!targetId || Number.isNaN(targetId)) {
       return errorResponse(res, 'business_id is required', 400);
     }
+    // ★ 2026-09-11 (워크스페이스 단일 정본 설계 C4) — 사칭 중에는 전환하지 않는다.
+    //   전환은 **대상 사용자의** 정본을 바꾸고 그 사람의 모든 창·기기를 재부팅시킨다(Fable 설계 게이트 지적).
+    if (req.user.impersonator) {
+      return errorResponse(res, 'impersonation_cannot_switch_workspace', 403);
+    }
 
     // ★ 삭제된 워크스페이스로는 전환할 수 없다 (Fable 치명-3).
     //   안 막으면 스위처를 우회한 직접 호출로 삭제본이 active 가 되어 로그인 후 계속 그리로 착지한다.
@@ -903,6 +931,14 @@ router.post('/switch-workspace', authenticateToken, async (req, res, next) => {
     }
 
     await User.update({ active_business_id: targetId }, { where: { id: req.user.id } });
+
+    // ★ 2026-09-11 (C4) — **이 사람의 모든 창·기기에** 알린다. 여태 누른 창만 리로드하고 알리는 수단이 0 이라
+    //   팝아웃 업무 리스트가 옛 워크스페이스로 계속 조회했다(Irene: "다시 바꿔도 돌아가지 않아").
+    //   받는 창은 user_id·business_id 로 멱등 판정한다(WorkspaceSyncGuard).
+    try {
+      const io = req.app.get('io');
+      if (io) io.to(`user:${req.user.id}`).emit('workspace:switched', { user_id: req.user.id, business_id: targetId });
+    } catch (e) { console.warn('[switch-workspace] emit failed:', e.message); }
 
     const userData = await getUserWithBusiness(req.user.id);
     successResponse(res, userData);

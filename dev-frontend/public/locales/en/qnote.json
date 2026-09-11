@@ -38,9 +38,9 @@
     "newNoteDropdown": {
       "memoLabel": "Memo",
       "memoDesc": "Text · code blocks · formatting",
-      "voiceLabel": "Voice note",
+      "voiceLabel": "Voice note (interactive)",
       "voiceDesc": "Meeting recording + STT + answer finder",
-      "quickLabel": "Record now",
+      "quickLabel": "Voice memo",
       "quickDesc": "Start instantly · no translation · microphone",
       "uploadLabel": "Recording file",
       "uploadDesc": "Upload a recording you already have"
@@ -227,12 +227,14 @@
     },
     "backToList": "Back to list",
     "quickRecord": {
-      "title": "Quick recording {{time}}"
+      "title": "Voice memo {{time}}"
     },
     "translateFailed": "Translation failed"
   },
   "memoPopup": {
     "title": "Memo",
+    "openVoiceNote": "Voice note (interactive)",
+    "openUpload": "Recording file",
     "bodyPlaceholder": "Capture what's on your mind.\n\nThe first line becomes the title.",
     "close": "Close",
     "newMemo": "New memo",

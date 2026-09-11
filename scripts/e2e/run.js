@@ -124,6 +124,7 @@ const SUITES = {
   //   바닥 고정 판정이 시간창·증감방향 같은 추정이라 조건이 어긋나면 조용히 풀렸다.
   //   스크롤 호출 여부가 아니라 좌표·가시성으로 재고, 위로 올린 뒤에는 안 끌어내리는지도 본다.
   chatbottom: () => require('./canary-chat-bottom'),
+  wssync: () => require('./canary-workspace-sync'),   // 워크스페이스 전환이 모든 창·팝아웃에 전해지는가 (WORKSPACE_SCOPE_DESIGN C4)
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };

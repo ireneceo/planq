@@ -16,7 +16,7 @@ import { useAppShellLock } from '../../hooks/useAppShellLock';
 const QTaskStandalonePage: React.FC = () => {
   useAppShellLock();
   const { t } = useTranslation('qtask');
-  const pin = usePinHost({ tool: 'qtask', title: 'Q Task' });
+  const pin = usePinHost({ tool: 'qtask', title: 'Q task' });
 
   useEffect(() => {
     document.title = t('popout.windowTitle', 'PlanQ 업무') as string;
@@ -25,7 +25,7 @@ const QTaskStandalonePage: React.FC = () => {
     return () => { delete document.body.dataset.popout; };
   }, [t]);
 
-  if (pin.mode === 'holder') return <Shell><PinHolderView host={pin} label="Q Task" /></Shell>;
+  if (pin.mode === 'holder') return <Shell><PinHolderView host={pin} label="Q task" /></Shell>;
 
   return (
     <Shell>

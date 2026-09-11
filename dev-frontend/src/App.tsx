@@ -23,6 +23,8 @@ import MainLayout from './components/Layout/MainLayout';
 const NotificationToaster = lazy(() => import('./components/Common/NotificationToaster'));
 const OpenInAppBanner = lazy(() => import('./components/Common/OpenInAppBanner'));
 const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGuard'));
+// 다른 창·기기의 워크스페이스 전환을 이 창에 반영 (docs/WORKSPACE_SCOPE_DESIGN.md C4)
+const WorkspaceSyncGuard = lazy(() => import('./components/Common/WorkspaceSyncGuard'));
 const PopoutBridge = lazy(() => import('./components/Common/PopoutBridge'));
 const LimitReachedDialog = lazy(() => import('./components/Common/LimitReachedDialog'));
 const AnnouncementBanner = lazy(() => import('./components/Common/AnnouncementBanner'));
@@ -680,6 +682,7 @@ function ShellApp() {
               (Fable 설계 C-1). 자기 자신이 팝아웃이면 컴포넌트가 내부에서 스스로 빠진다. */}
         <PopoutBridge />
         <BuildVersionGuard />
+        {/* WorkspaceSyncGuard 는 여기가 아니라 App 루트(ModeGate 옆)에 있다 — 탭 모드 트리에도 걸려야 한다 */}
         <LimitReachedDialog />
         {/* #71 — 공지 배너는 워크스페이스 작업 화면에서만. 랜딩·미리보기·팝아웃 제외 */}
         {!hideAppChrome && <AnnouncementBanner />}
@@ -734,6 +737,10 @@ function App() {
     <AuthProvider>
     <PwaInstallProvider>
       <ModeGate />
+      {/* 워크스페이스 전환 전파 — **모든 창 한 곳**. ModeGate 가 tab(TabAppShell)·shell(팝아웃 등) 두 트리로 갈라지므로
+          트리 안쪽에 두면 한쪽에만 걸린다(2026-09-11 실측: ShellApp 에만 있어 데스크탑 메인 탭 창이 전부 무반응).
+          Router 를 쓰지 않는다(재부팅은 window.location). */}
+      <Suspense fallback={null}><WorkspaceSyncGuard /></Suspense>
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>

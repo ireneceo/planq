@@ -27,13 +27,17 @@ type AttachRow = {
 
 type Props = {
   taskId: number;
+  /** 이 업무의 워크스페이스 — 드로어가 받은 값. 없으면 현재 워크스페이스 */
+  businessId?: number | null;
   onChangeCount?: (n: number) => void;
 };
 
-export default function TaskAttachments({ taskId, onChangeCount }: Props) {
+export default function TaskAttachments({ taskId, businessId: bizProp, onChangeCount }: Props) {
   const { t } = useTranslation('common');
   const { user } = useAuth();
-  const businessId = user?.business_id || 0;
+  // ★ 2026-09-11 — 드로어가 연 업무의 워크스페이스를 쓴다. 여태 현재 워크스페이스로 고정해
+  //   다른 워크스페이스 업무를 열면 첨부 미리보기·Drive 편집이 404 였다(감사 ② 어긋남).
+  const businessId = Number(bizProp || user?.business_id || 0);
   const [rows, setRows] = useState<AttachRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);

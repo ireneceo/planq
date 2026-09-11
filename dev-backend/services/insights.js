@@ -37,15 +37,17 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
   }
 
   // 2) 24h 내 일정
-  const upcomingEvents = await CalendarEvent.findAll({
-    where: {
-      business_id: businessId,
-      start_at: { [Op.between]: [now, tomorrowEnd] },
-    },
+  //   ★ 2026-09-11 — **볼 수 있는 일정만.** `business_id` 만 보면 동료의 개인(L1) 일정 제목이
+  //     이 카드에 뜬다. 캘린더 목록·오늘의 리뷰와 **같은 술어**(access_scope.calendarListWhere)를 쓴다 —
+  //     오늘의 리뷰가 같은 이유로 이미 고친 것(2026-09-05 Fable F2)을 여기만 빠뜨리고 있었다.
+  const { calendarListWhere } = require('../middleware/access_scope');
+  const calWhere = await calendarListWhere(userId, businessId);
+  const upcomingEvents = calWhere ? await CalendarEvent.findAll({
+    where: { [Op.and]: [calWhere, { start_at: { [Op.between]: [now, tomorrowEnd] } }] },
     attributes: ['id', 'title', 'start_at'],
     order: [['start_at', 'ASC']],
     limit: 3,
-  });
+  }) : [];
   if (upcomingEvents.length > 0) {
     const next = upcomingEvents[0];
     // ★ 날짜 문자열을 여기서 만들지 않는다 — 옛 코드는 'ko-KR' + 'Asia/Seoul' 을 박아 둬서
@@ -126,8 +128,11 @@ async function buildInsights({ userId, businessId, userRole, userEmail }) {
 
   // 5) 받은 서명 요청 — 만료 24h 이내
   if (userEmail) {
+    // ★ 2026-09-11 — 워크스페이스 축을 건다. 여태 서명자 이메일만 봐서 **다른 워크스페이스의
+    //   서명 요청**까지 이 워크스페이스 카드에 셌다(확인필요 collectSignatures 와 같은 결함·같은 수리).
     const expSoon = await SignatureRequest.count({
       where: {
+        business_id: businessId,
         signer_email: userEmail,
         status: { [Op.in]: ['sent', 'viewed'] },
         expires_at: { [Op.between]: [now, tomorrowEnd] },

@@ -2,6 +2,7 @@
 //
 // shell(App.tsx)이 렌더하던 오버레이를 tree-swap TabAppShell 에서도 렌더(기능 패리티). 전부 RR 탈피됨.
 // TabMirror 제외(트리 스왑은 미러 아님). 조건부/idle mount 라 fallback={null} 안전.
+// ★ WorkspaceSyncGuard 는 여기·ShellApp 어느 쪽에도 두지 않는다 — App 루트(ModeGate 옆)에 한 번. 두 벌이면 한쪽이 빠진다.
 import { Suspense, lazy } from 'react';
 import NativeBridge from '../NativeBridge';
 import { isNativeApp } from '../../services/native';

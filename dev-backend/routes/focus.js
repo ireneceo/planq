@@ -117,6 +117,17 @@ router.post('/start', authenticateToken, startStopLimiter, async (req, res, next
     if (!user) return;
     const { business_id, task_id } = req.body;
     if (!business_id) return errorResponse(res, 'business_id_required', 400);
+    // ★ 2026-09-11 (워크스페이스 단일 정본 설계 · Fable 감사) — body 의 business_id 를 **멤버십 확인 없이 저장**하고 있었다.
+    //   남의 워크스페이스 id 로 포커스 세션을 만들 수 있었고, 그 세션이 근태 자동출근·실제시간 누적에 들어간다.
+    //   같은 파일의 assertBusinessAccess(= tasks.js 와 같은 술어)를 쓴다. 업무도 그 워크스페이스 것이어야 한다.
+    const bizIdNum = Number(business_id);
+    if (!(await assertBusinessAccess(req.user.id, bizIdNum, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    if (task_id) {
+      const owned = await Task.findOne({ where: { id: Number(task_id), business_id: bizIdNum }, attributes: ['id'] });
+      if (!owned) return errorResponse(res, 'task_not_found', 404);
+    }
 
     const t = await sequelize.transaction();
     try {

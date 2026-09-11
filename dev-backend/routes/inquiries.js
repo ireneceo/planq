@@ -49,7 +49,14 @@ router.post('/', inquiryHourLimiter, inquiryDayLimiter, async (req, res, next) =
         const user = await User.findByPk(decoded.userId || decoded.id, { attributes: ['id', 'active_business_id', 'timezone'] });
         if (user) {
           fromUserId = user.id;
-          businessId = user.active_business_id || null;
+          // ★ 2026-09-11 — 추측값(마지막 전환 워크스페이스)을 적지 않는다. 화면이 보낸 워크스페이스가
+          //   이 사용자의 멤버십일 때만 적고, 아니면 비운다.
+          const rawBiz = Number(req.body && req.body.business_id);
+          if (Number.isInteger(rawBiz) && rawBiz > 0) {
+            const { BusinessMember: BM } = require('../models');
+            const bm = await BM.findOne({ where: { user_id: user.id, business_id: rawBiz, removed_at: null }, attributes: ['id'] });
+            businessId = bm ? rawBiz : null;
+          }
           // 문의자 timezone — 활성 워크스페이스 우선, 없으면 사용자 본인 timezone, 최종 fallback null.
           // admin 페이지에서 "관리자 시간 / 문의자 시간" 양쪽 표시에 사용.
           if (businessId) {

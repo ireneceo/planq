@@ -233,9 +233,19 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
 
     // ③ 채팅 — 내가 참여한 대화방에 어제 이후 남의 새 메시지
     try {
-      const convIds = (await ConversationParticipant.findAll({
+      // ★ 2026-09-11 — **이 워크스페이스의 방만.** 여태 내가 참여한 방을 워크스페이스 구분 없이
+      //   전부 모아 메시지를 세고(상위 6개로 자르고), 대화방 이름만 워크스페이스로 걸렀다. 걸러진 방도
+      //   줄은 그대로 넣어서 — 제목이 없으니 "대화" — **아무것도 없는 새 워크스페이스에 다른 워크스페이스의
+      //   채팅 "새 메시지 20건" 이 떴다**(Irene 신고). 게다가 남의 방이 상위 6개를 차지하면 이 워크스페이스
+      //   방은 잘려 안 보였다. 범위는 **처음 모을 때** 건다.
+      const myConvIds = (await ConversationParticipant.findAll({
         where: { user_id: userId }, attributes: ['conversation_id'],
       })).map((p) => p.conversation_id);
+      const convIds = myConvIds.length
+        ? (await Conversation.findAll({
+          where: { id: { [Op.in]: myConvIds }, business_id: { [Op.in]: bizIds } }, attributes: ['id'],
+        })).map((c) => c.id)
+        : [];
       if (convIds.length) {
         const rows = await Message.findAll({
           where: { conversation_id: { [Op.in]: convIds }, created_at: { [Op.gte]: since }, sender_id: { [Op.ne]: userId } },
@@ -267,6 +277,7 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
           const subjMap = await subjectLabels(convs, bizIds);
           rows.forEach((r) => {
             const c = cmap.get(r.conversation_id);
+            if (!c) return;   // 범위 밖 방은 줄도 만들지 않는다(위에서 이미 걸렀지만 이중 방어)
             const m = lastMap.get(r.conversation_id);
             changes.push({
               kind: 'chat', id: r.conversation_id, title: (c && c.title) || '대화',

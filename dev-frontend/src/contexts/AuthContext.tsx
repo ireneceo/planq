@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import i18n from '../i18n';
 import { detectClientKind } from '../services/native';
 import { clearPageCache } from '../lib/pageCache';
+import { markSwitching, broadcastWorkspaceSwitch } from '../services/workspaceSync';
 
 // ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
 //   쓰면 안 된다(트리 스왑 후 첫 렌더 크래시). 세션 종료(로그아웃·토큰만료) 이동은 window.location 로.
@@ -863,6 +864,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const body = await res.json();
       if (!body.success || !body.data) return false;
       clearPageCache();   // 워크스페이스가 바뀌면 앞 워크스페이스 캐시는 전부 무효
+      // ★ 2026-09-11 (C4) — 누른 창은 자기가 보낸 전파를 다시 받지 않는다(이중 리로드 방지).
+      //   같은 브라우저의 다른 창(팝아웃·핀·다른 탭)에는 채널로 즉시, 다른 기기는 서버 소켓 emit 으로 간다.
+      markSwitching();
+      broadcastWorkspaceSwitch(Number(user.id), businessId);
       setUser(normalizeUser(body.data));
       return true;
     } catch (e) {

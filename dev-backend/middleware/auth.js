@@ -101,6 +101,9 @@ const authenticateToken = async (req, res, next) => {
       //      switch-workspace 가 저장 시점에 멤버십을 검증하지만 그 뒤 멤버 해제·워크스페이스
       //      삭제로 stale 이 될 수 있다 → 소비처는 반드시 생존·멤버십을 재확인할 것.
       active_business_id: user.active_business_id || null,
+      // 사칭(impersonate) 토큰이면 사칭한 관리자 id — 사칭 중에는 대상 사용자의 정본(워크스페이스)을 바꾸지 않는다
+      //   (docs/WORKSPACE_SCOPE_DESIGN.md C4). 여태 토큰에만 있고 req.user 에 안 실려 판정할 수 없었다.
+      impersonator: decoded.impersonator || null,
     };
 
     // ★ 삭제된 워크스페이스 차단 — **인증 요청의 단일 관문** (Fable 치명-4).

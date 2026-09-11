@@ -746,11 +746,14 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   ★ 본문 평문은 **서버에서 받아온다** — content_json 에서 문단을 복원하는 규칙이 서버에 한 벌
   //     있고, 프론트에 베끼면 갈라진다(#234 가 그 계열의 사고였다).
   const sendToKnowledge = async (post: PostDetail) => {
-    if (!businessId || knowledgeBusy) return;
+    // ★ 2026-09-11 — 문서의 워크스페이스로 보낸다. 여태 현재 워크스페이스로 보내, 프로젝트 상세에서
+    //   다른 워크스페이스 문서를 열면 서버가 그 워크스페이스에서 문서를 못 찾아 404 였다(감사 ② 어긋남).
+    const docBizId = post.business_id || businessId;
+    if (!docBizId || knowledgeBusy) return;
     setKnowledgeBusy(true);
     setKnowledgeMsg(null);
     try {
-      const r = await apiFetch(`/api/businesses/${businessId}/kb/documents/import-from-post`, {
+      const r = await apiFetch(`/api/businesses/${docBizId}/kb/documents/import-from-post`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: post.id, extract_only: true }),
