@@ -3,7 +3,8 @@
 > Irene 2026-09-11: *"업무상세에서 수정요청에 내용 남기거나 댓글에 내용 남기거나 하다가 나가면 다 날라가는데 **모든 입력란은 임시저장** 되어 있게 못해?"*
 > 같은 날: *"고치는 걸 왜 자꾸 단편적으로 해? 구조 자체를 … 제대로 적용해서 수정해야지"*
 
-**상태: v4 — Fable 설계 게이트 v1 FAIL(T1) · v2 FAIL(C1) · v3 FAIL(치명 C1′ · 중요 I-1~I-6 · 경미 m-1~m-9 · 누락 카나리 12) 반영 · 재게이트 대기 · 미구현.**
+**상태: v5 — 설계 게이트 v1 FAIL(T1) · v2 FAIL(C1) · v3 FAIL(C1′) · v4 FAIL(치명 C1 포커스 판정 · 중요 I-1~I-4 · 경미 m-1~m-9) 반영 · 미구현.**
+> 5회차 설계 게이트는 돌리지 않는다 — 치명이 회차마다 좁아졌고(유실 경로 → 비교 필드 → 포커스 판정), 남은 위험은 전부 **양성 대조군이 달린 카나리로 기계 판정 가능(F=1)** 하다. 라운드 1A 구현 게이트(R=1 → Fable)가 v5 규칙과 ⑩ 카나리를 함께 판정한다.
 R=1(사용자 글 유실 비가역 · 교차 노출) · S=1. **라운드 1A(초안 장치) → 1B(자동저장 나갈 때 저장) 두 게이트. 1B 는 1A 위에 선다(순서 고정)** — 1B 의 edit 폴백·로그아웃 ③④ 가 1A 의 `draftKinds`·`draftsSuppressed` 를 쓴다.
 
 > **v4 에서 바뀐 것(한눈에)** — ① 비교 필드를 `savedAt`(쓴 시각)이 아니라 저장본에 박은 **`editedAt`(편집 시각)** 으로 · 같은 편집은 다시 쓰지 않음(C1′) ② 빈 값은 삭제 대신 **툼스톤**, 제출만 `cleared` 레코드(I-3) ③ 포커스 중 무시한 쓰기는 **blur 때 반영** — 닫는 순간 화면 == 저장본(I-4) ④ 사칭 창은 정체 확정 청소·센티널을 **건너뜀**(I-1) ⑤ `draftsSuppressed` 양방향(I-5) ⑥ AutoSaveField key 규칙 대상에 `useAuth` 파생 식별자 포함 + `switchWorkspace` 도 flush 프로토콜(I-2) ⑦ 1B→1A 의존 명시(I-6) ⑧ 경미 9건 · 카나리 12건 추가.
@@ -42,22 +43,27 @@ R=1(사용자 글 유실 비가역 · 교차 노출) · S=1. **라운드 1A(초�
 **(a) 동기화 규칙 (치명 T1·C1)**
 - `writeDraftText(key, value)` 는 저장 뒤 **같은 문서에** `window.dispatchEvent(new CustomEvent('planq:draft-written', { detail: { key, savedAt } }))` 를 낸다. 인스턴스는 `storage`(다른 창)와 이 이벤트(같은 창) **둘 다** 듣는다.
 - **저장본 형식 `{ v:2, value, editedAt, cleared? }`** — `editedAt` 은 **마지막 `setText` 시각**이다. flush 는 `Date.now()` 가 아니라 인스턴스의 `lastEditAtRef` 를 박는다(C1′: 쓴 시각과 편집 시각을 섞으면 더 새 글이 거부된다).
-- 인스턴스 상태: `dirtyRef`(마지막 read 이후 `setText` 가 불렸나) · `lastEditAtRef` · `writtenEditAtRef`(마지막으로 **쓴** 편집 시각) · `deferredReadRef`.
+- 인스턴스 상태: `dirtyRef`(마지막 read 이후 `setText` 가 불렸나) · `lastEditAtRef` · `writtenEditAtRef`(마지막으로 **쓴** 편집 시각) · `composingRef`(IME 조합 중).
   - **dirty 는 read(마운트·키 전환·재읽기)와 `clear()` 에서만 내려간다.**
+  - **편집 시각은 단조 증가** — `setText` 는 `lastEditAt = Math.max(Date.now(), lastEditAt + 1)`, read 는 `lastEditAt = stored.editedAt ?? 0`(v4 I-1: 같은 ms 겹침·시계 역행에 마지막 입력이 영영 안 쓰이는 것 차단). 저장본이 없으면 flush 조건 ⓒ 는 참.
 - **정본 = 편집 시각이 큰 쪽.**
   - flush(키 전환·언마운트·pagehide·visibility hidden·debounce)는 ⓐ dirty ⓑ `writtenEditAtRef !== lastEditAtRef`(같은 편집을 다시 쓰지 않는다) ⓒ **저장본 `editedAt < lastEditAt`**(같은 시각도 양보) 셋 다일 때만 쓴다.
   - **빈 값은 `removeItem` 이 아니라 툼스톤 `{ value:'', editedAt }`** 으로 쓴다 — 일반 비교 규칙이 그대로 적용된다(I-3: 남이 자기 글을 지운 순간 내 글이 비워지면 안 된다). 툼스톤은 TTL 청소가 지운다.
-  - 이벤트 수신(같은 창 CustomEvent · 다른 창 `storage`): 저장본 `editedAt > lastEditAt` 이면
-    · 그 입력란이 `document.activeElement` 가 **아니면 dirty 여도** 다시 읽는다
-    · 포커스 중이면 **`deferredReadRef` 에 남기고**, 입력란 `blur` 또는 다음 flush 시점에 다시 비교 — 여전히 저장본이 더 새면 재읽기 + `common:draft.replaced` 한 줄("다른 창의 더 새 글로 바뀌었어요"), 그 사이 내가 더 입력했으면(내 `lastEditAt` 이 더 크면) 쓰기. **불변식: 닫는 순간 화면 == 저장본**(I-4).
-  - `storage` 의 `newValue: null`(로그아웃 삭제·TTL 청소)은 **재읽기 대상이 아니다**(무시).
-- **`clear()`**(제출 성공)는 `{ cleared: true, editedAt: now }` 를 쓰고 이벤트를 낸 뒤 키를 지운다 — 받은 인스턴스는 **`cleared` 레코드에만** dirty 무시 비우기를 한다(제출은 명시 동작).
+  - 이벤트 수신(같은 창 CustomEvent · 다른 창 `storage`): 저장본 `editedAt > lastEditAt` 이면 **포커스와 무관하게 즉시 재읽기** + `common:draft.replaced` 한 줄("다른 창의 더 새 글로 바뀌었어요"). 내 편집이 전부 그보다 옛 것이므로 정본 규칙과 같다.
+    · ★ v4 C1: `document.activeElement` 로 보류하면 팝아웃·PiP(별도 문서)에서 창이 포커스를 잃어도 `activeElement` 는 그대로라 보류가 풀리지 않고, 사용자가 돌아와 한 글자 치는 순간 **다른 창에서 쓴 더 새 글을 옛 글로 덮는다.** 포커스로 판정하지 않는다.
+    · 보류는 **IME 조합 중(`compositionstart`~`compositionend`)에만** — `compositionend` 에서 즉시 재비교(한글 조합 중 값이 바뀌면 입력이 깨진다).
+  - flush 시점에 **입력란 `blur` · `window blur`** 도 넣는다(다른 창으로 옮기기 전에 내 편집을 먼저 쓴다). **불변식: 닫는 순간 화면 == 저장본.**
+  - `storage` 의 `newValue: null`(로그아웃 삭제·TTL 청소)은 재읽기 대상이 아니다. 단 **내 키가 null 로 오면 `writtenEditAtRef = null`**(화면은 그대로 — 다음 flush 가 다시 쓸 수 있게, v4 m-1).
+- **`clear()`**(제출 성공)는 `{ cleared: true, editedAt: now }` 를 쓰고 이벤트를 낸 뒤 키를 지운다 — 받은 인스턴스는 **`cleared` 레코드에만** dirty 무시 비우기를 한다(제출은 명시 동작). 판정은 `storage.newValue` / CustomEvent `detail.record` 로 한다(**재읽기 금지** — 이미 지워져 있다, v4 m-2).
+- 툼스톤(`value:''`)에는 복원 줄을 띄우지 않는다 · edit 모드 레코드도 `v:2`·`editedAt` 형식으로 통일(v4 m-9).
 - 비교 동등성: RichEditor 값은 양쪽 `trim` + 빈 `<p></p>` 정규화 뒤 비교(m-6).
 - 수용 한계: 두 곳에서 동시에 편집하면 **마지막 편집이 이긴다** · 두 문서의 검사-후-쓰기 사이에 뮤텍스가 없어 ±수 ms 동시 쓰기는 마지막으로 쓴 쪽(m-8).
 
 **(b) 키 — `useDraftKey(kind, entityId, bizId?)` 한 함수 + `hooks/draftKinds.ts` 등록제**
 - 키 `planq:draft:{kind}:{userId}:{bizId}:{entityId}`. `bizId` 는 **엔티티의 business_id 가 있으면 그것**(드로어 props `bizId`), 없을 때만 `user.business_id`.
 - null(=보존 안 함): userId·bizId 중 하나라도 없음 · **사칭 중** — `AuthContext` 가 `isImpersonating`(액세스 토큰 `impersonator` 클레임 디코드 또는 `sessionStorage.impersonate_pending`)을 노출하고 그것이 정본 · `draftsSuppressed`(D-C5).
+  - 키가 null 로 **바뀌어도 화면 state 는 유지**하고 저장만 멈춘다(현 `useDraftText` 137-139 는 '' 로 리셋 — 그러면 suppressed 순간 입력이 사라진다, v4 m-4).
+  - ★ 사실 교정(v4 m-6): 현재 사칭 탭(`AdminUsersPage.tsx:63 window.open(…_impersonate=1, 'noopener')`)을 **부팅에서 읽어 대상으로 전환하는 코드가 src 에 없다** — 새 탭은 refresh 쿠키로 **관리자 본인**으로 부팅한다. 사칭 가드는 지금은 idle 이며 사칭 토큰 경로(`_impersonateSetAccessToken`)를 위한 방어다.
 - `draftKinds.ts`: `{ kind: { ttlMs, mode: 'append'|'edit', owners: [파일] } }` — 등록 외 kind 는 가드 FAIL. TTL kind 별(기본 7일, `qnote-meeting-start` 24h).
 - `useLocalDraft` 도 `useDraftKey` 로 키를 받고 **같은 동기화 규칙 + `enabled` true→false 전환·언마운트 시 flush**(I6).
 
@@ -86,10 +92,13 @@ R=1(사용자 글 유실 비가역 · 교차 노출) · S=1. **라운드 1A(초�
   - **`key` 규칙(기계 판정)**: `<AutoSaveField` 가 있는 파일에서 `method: 'PUT'|'PATCH'` 호출 URL 템플릿의 `${…}` 안 식별자 중 **모듈 상수·import 가 아닌 전부**(`useState`·props·`useParams`·**`useAuth()` 파생** — 예 `const businessId = user?.business_id` 포함)를 집합 S 로 뽑는다. S 가 비어 있지 않으면 그 파일의 **모든** `<AutoSaveField` 는 `key={…}` 안에 S 원소 이름을 포함해야 한다. 예외는 `// autosave-key-exempt: <이유>` 한 줄. 양성 대조군: `TaskDetailDrawer.tsx:1523` key 제거 → FAIL · `ProfilePage.tsx` key 제거 → FAIL(I-2).
   - pending 중에는 `body[data-form-dirty]` 계약을 세운다 — `BuildVersionGuard`·`WorkspaceSyncGuard` 원격 재부팅이 pending 을 날리지 않게(m-7). 원격 재부팅(`apply`)도 아래 flush 프로토콜을 거친다.
 - **flush 프로토콜 `planq:drafts:flush`** — `window.dispatchEvent(new CustomEvent('planq:drafts:flush', { detail: { waitUntil(p) } }))`. **pending 이 있는 인스턴스만** `waitUntil(saveRef.current())` 로 등록한다(리스너는 마운트분만, 순서 무관 — m-9). 부르는 쪽은 `Promise.allSettled` 를 **상한 3초**로 기다린다. 부르는 곳: 로그아웃 ① · **`switchWorkspace` POST 전**(I-2) · 원격 재부팅 `apply` 전.
+  - **시리즈 공유 필드**(`TASK_SERIES_FIELDS` — 설명 등)는 `saveFields`(629-641)가 저장 대신 **범위 다이얼로그**를 띄운다 → flush 프로토콜에서도 `isSeries && needsSeriesScope` 면 PUT 생략 + `mode:'edit'` 로컬 초안(v4 I-2).
+  - **AutoSaveField 는 `pagehide` 에서도** pending 이면 `saveRef.current()` 를 부른다(`location.href` 이동·새로고침·탭 닫기엔 언마운트 cleanup 이 오지 않는다 — 완주 보장은 없으나 시도, v4 I-3).
+  - 언마운트 시 inflight 면 즉시 발사하지 않는다 — **완료 콜백이 `mountedRef` 와 무관하게 pending 을 한 번 더 발사**(동시 2 PUT 금지와 양립, v4 m-8).
 - **메일** — `closeCompose(reason)`: `'user'`(✕·취소)만 `dirtyRef` 기준 PUT 선발사, `'sent'`·`'discard'` 는 발사 없이 비운다. 답장 스레드 전환도 같은 규칙.
 - **Q Note** — `MemoView` 언마운트 dirty 면 persist · `MemoPopup` handleClose 밖 언마운트 dirty 면 persist.
 - **업무 설명·결과물 새로고침** — `pagehide` 에서
-  ① **raw `fetch(url, { method:'PATCH'|'PUT', keepalive:true, headers:{ Authorization:`Bearer ${getAccessToken()}`, 'Content-Type':'application/json' }, body })`**(apiFetch 는 `tryRefresh` 를 먼저 await 할 수 있어 문서가 죽기 전에 디스패치가 안 된다 · 엔티티 id 라우트라 `X-Workspace-Id` 불필요 · 401 재시도 불가)
+  ① **raw `fetch(url, { method:'PATCH'|'PUT', keepalive:true, headers:{ Authorization:`Bearer ${getAccessToken()}`, 'X-Workspace-Id': getRequestWorkspaceId(), 'Content-Type':'application/json' }, body })`**(apiFetch 는 `tryRefresh` 를 먼저 await 할 수 있어 문서가 죽기 전에 디스패치가 안 된다 · 엔티티 id 라우트라 409 는 안 나지만 헤더는 싣는다(관찰 카운터) · 401 재시도 불가)
   ② **동시에** `mode:'edit'` 로컬 초안 `task-description`/`task-body` `{ value, base: 마지막 서버값, savedAt }` 을 남긴다(본문 크기 무관)
   ③ 본문 60KB 초과면 ①을 생략하고 ②만(Chrome keepalive 64KB 상한). 다음 열기 때 D-C1d 판정.
 - **반복 업무(시리즈)** — `saveFields`(629)가 `isSeries && needsSeriesScope` 면 범위를 먼저 묻는다. pagehide raw PUT 은 이 물음을 우회하므로 **시리즈 업무는 ① 생략, ② 로컬 edit 초안만**(m-5). raw keepalive 에 `X-Workspace-Id: getRequestWorkspaceId()` 도 싣는다(`observe()` 카운터 오염 방지 — m-4).
@@ -109,7 +118,8 @@ R=1(사용자 글 유실 비가역 · 교차 노출) · S=1. **라운드 1A(초�
 - **정체 확정 한 곳**: `AuthProvider` 의 `useEffect([user?.id])` — `draftsSuppressed = false` 로 시작하고, `prevId !== user.id` 이면 `planq:draft:*` 중 userId ≠ 현재 사용자 키 삭제 + `planq:draft:owner` 센티널을 현재 userId 로 갱신. (부팅 복원·login·register·OAuth·사칭 종료가 모두 지나간다)
   - **`isImpersonating` 이면 청소도 센티널 갱신도 건너뛴다**(I-1: 사칭은 `AdminUsersPage.tsx:63 window.open(…_impersonate=1)` 별도 문서 부팅이라, 안 건너뛰면 관리자 본인 초안을 지우고 관리자 탭을 정지시킨다).
   - `user → null`(로그아웃·세션 만료)이면 아무것도 하지 않는다(로그아웃 ④ 가 처리 · m-3).
-- 다른 탭은 `storage` 로 센티널을 받아 **`draftsSuppressed = (owner !== myUserId)` — 양방향**(I-5: 같은 사람이 재로그인하면 풀린다). 자기 창이 `isImpersonating` 이면 센티널을 무시한다. 로그아웃 ③ 만 일방 true(직후 goLogin).
+- 다른 탭은 `storage` 로 센티널을 받아 **`draftsSuppressed = (String(owner) !== String(myUserId))` — 양방향·문자열 비교**(I-5: 같은 사람이 재로그인하면 풀린다 · `user.id` 는 `String(apiUser.id)` 라 한쪽만 `Number()` 로 바꾸면 모든 탭이 영구 정지 — v4 m-3). 자기 창이 `isImpersonating` 이면 센티널을 무시한다. 로그아웃 ③ 만 일방 true(직후 goLogin), 로그아웃 ④ 는 센티널을 `''` 로 갱신(같은 사용자의 옛 탭·팝아웃도 멈춘다 — 재로그인 시 풀림, v4 m-5).
+- 이관(D-C1c)은 **옛 키의 uid == 현재 userId 일 때만** 읽는다(v4 m-9).
 - `planq:draft:owner` 는 청소·TTL 대상에서 **제외**(m-3). ⓑ 옛 토큰 탭이 청소 전에 앞 사용자 키에 쓰는 것은 누수가 아니다(허용).
 - 로그아웃: D-C3 순서 ④. 세션 만료 자체는 지우지 않는다(같은 사람이 재로그인).
 - 부팅 1회: kind 별 TTL 지난 키 삭제. quota: 만료 청소 1회 후 재시도 → 실패면 조용히 포기(입력은 막지 않는다).
@@ -134,16 +144,19 @@ R=1(사용자 글 유실 비가역 · 교차 노출) · S=1. **라운드 1A(초�
 - ⑨ 이관: 옛 키 심기 → 열기 → 새 키에 값·옛 키 삭제 · uid `0` 옛 키는 삭제만 · 부팅 TTL: 만료 삭제·미만료 유지 · quota: 저장소 채운 뒤 입력 → 예외 없음
 - ⑩ (v3 게이트 추가) — 각 항목 옆 괄호는 끄면 FAIL 이 나야 하는 **양성 대조군**
   1. A 편집 → B 편집(+5s) → A 창 닫기(+0.2s) → 저장본 == B 글 (`savedAt` 비교 빌드 FAIL — C1′)
-  2. B 가 글 전부 삭제 → A dirty 글 유지 · A 닫은 뒤 저장본 == A 글 (툼스톤을 `removeItem` 으로 되돌리면 FAIL — I-3)
-  3. A 포커스 유지 · B 쓰기 · A blur → A 화면 == B 글 · 닫기 직전 화면 == 저장본 (blur 재읽기 끄면 FAIL — I-4)
-  4. 사칭 탭 부팅 → 관리자 `planq:draft:*` 키 수 불변 · 관리자 탭 입력 뒤 키 존재 (사칭 가드 빼면 FAIL — I-1)
+  2. B 가 글 전부 삭제(tB) → 비포커스 A 는 **''** 로 바뀜 / A 가 tB 뒤 추가 입력하면 닫은 뒤 저장본 == A 글 (`removeItem` 빌드에서는 A **화면 ≠ 저장본** — 화면엔 글, 저장본 없음 — 으로 FAIL · v4 I-4 교정)
+  3. **A 창 `document.hasFocus()===false && activeElement===입력란`**(양성 조건 명시) 상태에서 B(팝아웃) 쓰기 → A 화면 == B 글 즉시 · 사용자가 A 로 돌아와 한 글자 → 저장본 == B 글 + 1자 (포커스 보류 빌드 FAIL — v4 C1)
+  4. `impersonator` 클레임 토큰을 직접 심은 탭 부팅 → 관리자 `planq:draft:*` 키 수 불변 · 그 탭 입력 뒤 `planq:draft:*` 0 (사칭 가드 빼면 FAIL — v4 m-6: 현재 사칭 탭은 관리자로 부팅하므로 토큰을 심어야 빨갛게 만들 수 있다)
   5. 탭 A 살려둔 채 탭 B 로그아웃 → 같은 사용자 재로그인 → 탭 A 입력 → 키 존재 (I-5)
   6. (1B) ProfilePage 표시명 입력 0.5초 뒤 워크스페이스 전환 → 옛 biz PUT 1 / 새 biz 0 (I-2)
   7. (1B) 로그아웃 이중 클릭 → PUT 1 · logout POST 1 · flush 3초 초과 강제 → 로그아웃 진행 + 버튼 disabled (m-2)
   8. (1B) 원격 전환(BroadcastChannel) 수신 시 pending → reload 전 PUT 1 (m-7)
-  9. (1B) 시리즈 업무 설명 입력 → 새로고침 → `series_scope` 없는 PUT 0 · 로컬 edit 초안 존재 (m-5)
+  9. (1B) 시리즈 업무 설명 입력 → 새로고침 **및 로그아웃** → `series_scope` 없는 PUT 0 · 범위 다이얼로그 0 · 로컬 edit 초안 존재 (m-5 · v4 I-2)
   10. 부팅 TTL 청소 뒤 `planq:draft:owner` 존재 · 로그아웃 ④ 뒤 다른 uid 키 불변 (m-3)
-  11. 팝아웃 창 닫기(pagehide) → 메인 비포커스 인스턴스 화면 == 팝아웃 글
+  11. 팝아웃 창 닫기(pagehide) → 메인 인스턴스(`hasFocus()===false && activeElement===입력란` 포함) 화면 == 팝아웃 글
+  13. 같은 ms 편집·쓰기 겹침을 흉내(Date.now 고정 스텁) → 마지막 입력이 저장본에 착지 · 시계 역행 스텁 → 여전히 착지 (단조 증가 규칙 끄면 FAIL — v4 I-1)
+  14. (1B) AutoSaveField 입력 0.5초 뒤 `location.href` 이동 → PUT 시도 1 (pagehide 핸들러 빼면 0 — v4 I-3)
+  15. 한글 IME 조합 중 다른 창 쓰기 → 조합 깨짐 0 · compositionend 직후 재비교
   12. (1B) `draftKinds.ts` 에서 `task-description` 제거 → 1B 가드 FAIL (I-6)
 
 ## 2. 적용 순서 — 두 게이트
