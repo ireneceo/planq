@@ -2880,6 +2880,14 @@ router.post('/task-candidates/:id/reject', authenticateToken, async (req, res, n
 router.get('/workspace/:businessId/all-tasks', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
+    // ★ 소속이 없으면 403 (2026-09-11). 여태 멤버가 아니면 무조건 아래 **고객 분기**로 떨어졌다 —
+    //   비소속자는 200 빈 목록, **해제된 멤버는 옛 워크스페이스에서 자기가 담당·요청했던 업무를 계속 받았다**
+    //   (실측: 해제된 user 15 → biz 3 업무 119건 중 본인 담당·요청 19건). 고객 분기는 고객 자격이 있는 사람만 탄다.
+    //   판정은 getUserScope 한 곳(멤버·고객·플랫폼 관리자 통과, 해제된 멤버십·삭제된 워크스페이스 거부).
+    const { assertWorkspaceAccess } = require('../middleware/access_scope');
+    if (!(await assertWorkspaceAccess(req.user.id, businessId, req.user.platform_role))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     const bm = await requireBusinessMember(req.user.id, businessId);
 
     let where;

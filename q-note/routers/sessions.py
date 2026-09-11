@@ -598,7 +598,7 @@ async def recorder_release(
     return success({'released': True})
 
 
-async def _load_session_or_403(db, session_id: int, user_id: int, user_business_id: Optional[int] = None) -> aiosqlite.Row:
+async def _load_session_or_403(db, session_id: int, user_id: int, user_business_id: Optional[int] = None, *, access: str = 'write') -> aiosqlite.Row:
   """세션 로딩 + visibility 권한 검사 (사이클 N+14).
 
   정책:
@@ -618,6 +618,13 @@ async def _load_session_or_403(db, session_id: int, user_id: int, user_business_
   if row['user_id'] == user_id:
     return row
 
+  # ★ 2026-09-11 (Fable FAIL-2) — visibility 는 **보기만** 연다. 쓰기·녹음 제어·LLM 실행은 생성자만(PERMISSION_MATRIX §5.8).
+  #   기본값을 'write' 로 둔다 — 새 라우트가 access 를 빠뜨리면 **막히는 쪽**으로 떨어진다(fail-closed).
+  #   여태 이 함수가 쓰기 라우트에도 visibility 판정만 해서, L3 가 열리자 같은 워크스페이스 멤버가 남의 세션의
+  #   녹음 락을 뺏고(recorder/acquire) Q&A 를 만들고 답변 생성(LLM 과금)을 부를 수 있었다. 읽기 라우트만 access='read'.
+  if access != 'read':
+    raise HTTPException(status_code=403, detail='owner_only')
+
   # 녹화 중은 owner only — 잠정 데이터 절대 노출 금지
   if row['status'] == 'recording':
     raise HTTPException(status_code=403, detail='recording_owner_only')
@@ -626,9 +633,13 @@ async def _load_session_or_403(db, session_id: int, user_id: int, user_business_
   if visibility == 'L1':
     raise HTTPException(status_code=403, detail='Forbidden')
 
-  # L3: same business 멤버 → user_business_id 비교
+  # L3: same business 멤버 → Node internal API 로 **지금** 멤버인지 확인
+  #   ★ 2026-09-11 — 여태 토큰의 businessId 클레임과 비교했는데 Node 액세스 토큰에는 그 클레임이 **없다**
+  #     (services/authTokens.js generateAccessToken). 그래서 user_business_id 가 늘 None 이라 화면의
+  #     "워크스페이스 공개(L3)" 가 **한 번도 동작하지 않았다**(QNoteShareModal). 클레임을 넣어도 전환하면 낡으므로
+  #     세션의 워크스페이스에 대한 현재 멤버십(해제 제외)을 묻는다. 확인 실패(None)는 거부(보수적).
   if visibility == 'L3':
-    if user_business_id is not None and user_business_id == row['business_id']:
+    if await check_membership(user_id, row['business_id']) is True:
       return row
     raise HTTPException(status_code=403, detail='Forbidden')
 
@@ -641,9 +652,9 @@ async def _load_session_or_403(db, session_id: int, user_id: int, user_business_
       return row
     raise HTTPException(status_code=403, detail='Forbidden')
 
-  # L4: 인증된 사용자가 동일 워크스페이스라면 OK (외부 token 사용자는 별도 endpoint)
+  # L4: 인증된 사용자가 동일 워크스페이스 멤버라면 OK (외부 token 사용자는 별도 endpoint) — L3 와 같은 판정
   if visibility == 'L4':
-    if user_business_id is not None and user_business_id == row['business_id']:
+    if await check_membership(user_id, row['business_id']) is True:
       return row
     raise HTTPException(status_code=403, detail='Forbidden')
 
@@ -1089,6 +1100,12 @@ async def list_sessions(
   offset = (page - 1) * limit
   uid = user['user_id']
 
+  # ★ 2026-09-11 (Fable FAIL-1) — 남의 세션이 섞이는 범위(shared·all)는 **그 워크스페이스의 현재 멤버**만.
+  #   여태 business_id 에 대한 소속을 보지 않아 비소속자·해제된 멤버·고객에게도 그 워크스페이스의 L3 세션이
+  #   목록으로 나갔다(share_token·녹음 락 토큰 포함). 상세 판정(_load_session_or_403 L3)과 같은 술어.
+  if scope != 'mine' and await check_membership(uid, business_id) is not True:
+    raise HTTPException(status_code=403, detail='Forbidden')
+
   # base WHERE: business_id 동일
   conds = ['business_id = ?']
   params: list = [business_id]
@@ -1150,8 +1167,18 @@ async def list_sessions(
       tuple(params)
     )
     total = (await cursor.fetchone())['cnt']
+
+    def _for_viewer(r):
+      d = _deserialize_session(r)
+      # 녹음 락 토큰은 누구에게도 내보내지 않는다(상세 GET 과 같은 규칙) · 외부 공유 링크는 생성자에게만
+      d.pop('active_recorder_token', None)
+      d.pop('recorder_heartbeat_at', None)
+      if d.get('user_id') != uid:
+        d.pop('share_token', None)
+      return d
+
     return success(
-      [_deserialize_session(r) for r in rows],
+      [_for_viewer(r) for r in rows],
       pagination={'page': page, 'limit': limit, 'total': total}
     )
 
@@ -1198,7 +1225,7 @@ async def get_session(
   #   (Irene: "나만 보고 있는데 이런게 떠")
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'), access='read')
 
     cursor = await db.execute(
       'SELECT * FROM utterances WHERE session_id = ? ORDER BY id ASC',
@@ -1244,6 +1271,9 @@ async def get_session(
     }
     data.pop('active_recorder_token', None)
     data.pop('recorder_heartbeat_at', None)
+    # 외부 공유 링크(L4 share_token)는 생성자만 — 그 토큰을 알면 무인증으로 여는 링크 그 자체다.
+    if row['user_id'] != user['user_id']:
+      data.pop('share_token', None)
     return success(data)
 
 
@@ -2133,7 +2163,7 @@ async def list_qa_pairs(
   """Q&A 목록 조회. source 필터 가능 (custom|generated|priority)."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'), access='read')
 
     query = 'SELECT * FROM qa_pairs WHERE session_id = ?'
     params: list = [session_id]
@@ -2556,7 +2586,7 @@ async def download_qa_template(
   """CSV 템플릿 다운로드."""
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'), access='read')
 
   output = io.StringIO()
   writer = csv.writer(output)
@@ -2806,7 +2836,7 @@ async def get_cached_answer(
   """
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
+    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'), access='read')
 
     cursor = await db.execute(
       'SELECT * FROM detected_questions WHERE session_id = ? AND utterance_id = ? AND answer_text IS NOT NULL',

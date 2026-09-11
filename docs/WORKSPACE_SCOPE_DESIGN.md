@@ -20,7 +20,7 @@ C3 관찰(`middleware/workspaceContext.observe` — authed/header/no_header/stal
 프론트 `planq:workspace-stale` → `WorkspaceSyncGuard` ④ 가 ①② 와 같은 apply. **설계와 달라진 점:** 단계 4·5 를 관찰 1~2일 뒤로 미루는 대신,
 헤더가 **없는** 요청(옛 번들)만 종전 동작으로 남겨 한 번에 넣었다 — 옛 번들을 깨지 않는다는 원래 이유를 분기 하나로 지키고, 소진은 `legacy` 카운터로 판정한다.
 미포함: Q3 `workspace_mismatch` 409(관찰만) · Q5 보류 중 읽기 정지 · internal user-project-ids · `onWorkspaceSocket`(C7).
-> ★ 발견(미수리): q-note 는 JWT 의 `businessId` 클레임으로 워크스페이스를 읽는데 Node access token 에는 그 클레임이 없다 → q-note 쪽 L3/L4 같은 워크스페이스 공유 분기가 비소유자에게 **항상 불통**(`q-note/middleware/auth.py:22`, `services/authTokens.js:70`).
+> ✅ 수리(2026-09-11 4차): q-note 는 JWT 의 `businessId` 클레임으로 워크스페이스를 읽었는데 Node access token 에는 그 클레임이 없어 L3/L4 공유가 비소유자에게 **항상 불통**이었다. 클레임을 넣으면 전환 때 낡으므로, `_load_session_or_403` 이 세션의 워크스페이스에 대한 **현재 멤버십**(Node internal `business-membership`, 해제 제외, 실패=거부)을 묻는다. 같은 라운드: `projects/workspace/:id/all-tasks` 비소속·해제된 멤버 403(해제된 멤버가 옛 담당·요청 업무를 계속 받던 것) · `today-review` 범위 지정 비소속 403.
 
 > **단계 2 에서 카나리가 잡은 결함 2건 (2026-09-11)**
 > - **가드가 데스크탑 메인 창에 없었다** — `ModeGate` 가 로그인 데스크탑 앱 경로를 `TabAppShell`(전역 오버레이 `ChromeOverlays`)로, 그 외를 `ShellApp` 으로 보낸다. 가드를 ShellApp 에만 두어 팝아웃은 따라오고 메인 탭 창은 메시지를 받고도 무반응(청크 로드 0). → **App 루트(`ModeGate` 옆)에 한 번** 마운트. Router 불필요.

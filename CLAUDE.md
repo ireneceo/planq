@@ -472,7 +472,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 > **Invoice 재무 owner only (2026-05-10, 사이클 N+5):** PERMISSION_MATRIX §5.10. `assertInvoiceMutationOwner` 헬퍼 (`routes/invoices.js`) — 발행(send) / 결제 마킹(mark-paid·unmark-paid) / 세금계산서(mark-tax-invoice) / 삭제(invoice·installment) 5개 라우트에 적용. member 호출 시 403 `owner_only`. draft 생성·편집은 member 도 OK. `invoices.owner_user_id` 컬럼은 담당자 표시용으로만 — 권한 부여 안 함 (혼란 방지).
 
-> **Q Note 진짜 사적 공간 (코드 정합):** `q-note/routers/sessions.py` 의 모든 라우트가 `_load_session_or_403(db, session_id, user['user_id'])` 강제. 본인 세션 외 무조건 403 — owner 도 admin 도 백도어 없음. PERMISSION_MATRIX §5.8 박제. memory `feedback_qnote_personal_tool.md` 와 일치.
+> **Q Note 진짜 사적 공간 (코드 정합):** `q-note/routers/sessions.py` 의 모든 라우트가 `_load_session_or_403(db, session_id, user['user_id'])` 강제. 기본(L1)은 본인 세션 외 무조건 403 — owner 도 admin 도 백도어 없음. **생성자가 개방한 범위만** 열린다(L2 같은 프로젝트 멤버 · L3/L4 같은 워크스페이스 멤버 — 둘 다 Node internal API 로 **지금** 멤버인지 확인, 실패=거부, 고객 제외). ★ 2026-09-11 전까지 L3/L4 는 토큰에 없는 `businessId` 클레임과 비교해 **한 번도 열리지 않았다**. PERMISSION_MATRIX §5.8 박제. memory `feedback_qnote_personal_tool.md` 와 일치.
 
 > **사이클 N+6/N+7 — v1.5.3 (2026-05-11):** 진행률 sync + reviewer 분기 + 관련업무·description 첨부 + 시간 자동 누적 + 모바일 UX. commit `1031409`.
 >

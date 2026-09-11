@@ -2515,8 +2515,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 setSaveTplBusy(true); setSaveTplError(null);
                 try {
                   const html = renderContentToHtml(detail.content_json);
-                  const r = await (await fetch('/api/docs/templates', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` },
+                  // ★ apiFetch — 여태 raw fetch 에 localStorage 'accessToken' 을 실었는데, 액세스 토큰은 **메모리에만** 있다
+                  //   (AuthContext). 늘 빈 토큰 → 401 → "저장 실패" 였다. apiFetch 가 토큰·갱신·워크스페이스 헤더를 싣는다.
+                  const r = await (await apiFetch('/api/docs/templates', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       business_id: businessId, name: saveTplName.trim(), description: saveTplDesc.trim() || null,
                       kind: 'custom', mode: 'editor', body_template: html, locale: 'ko', visibility: 'workspace_only',

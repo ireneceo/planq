@@ -326,7 +326,7 @@ async function canFinancialAction(user, businessId, projectId) {
 | visibility 변경 · 공유 (share_token) | ● | - | - | - | - |
 
 > **원칙:** Q Note 는 **진짜 사적 공간**. 기본값(L1)에서는 owner 도 admin 도 남의 Q Note 못 봄 — 운영 감사 백도어 없음. **세션 생성자만** visibility 를 개방할 수 있고, 개방 범위대로만 열람 가능 (사이클 N+14):
-> - `_load_session_or_403` (`q-note/routers/sessions.py:386-435`) — 생성자 항상 통과. **`status='recording'` 은 무조건 owner only** (잠정 데이터 절대 비노출). L1=생성자만 / L2=같은 프로젝트 멤버 (Node internal API `project-membership` 검사) / L3·L4=같은 워크스페이스 멤버.
+> - `_load_session_or_403` (`q-note/routers/sessions.py:386-435`) — 생성자 항상 통과. **`status='recording'` 은 무조건 owner only** (잠정 데이터 절대 비노출). L1=생성자만 / L2=같은 프로젝트 멤버 (Node internal API `project-membership` 검사) / L3·L4=같은 워크스페이스 멤버 (Node internal API `business-membership` — 해제된 멤버십 제외, 확인 실패=거부. ★ 2026-09-11 전까지는 액세스 토큰에 없는 `businessId` 클레임과 비교해 L3·L4 가 **한 번도 열리지 않았다**).
 > - **쓰기는 visibility 무관 생성자만** — PUT(제목·메모)/DELETE/visibility 변경/share 생성·삭제 라우트가 별도 `owner_only` 403 (`sessions.py:978-979, 1011-1012, 1055-1056, 1127-1128, 1156-1157`).
 >
 > memory `feedback_qnote_personal_tool.md` 박제. "owner 급 역할"이 아니라 **생성자의 명시적 개방**만이 열람을 허용한다는 점이 §5.7 body 책임선과 같은 철학.

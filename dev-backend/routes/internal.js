@@ -39,6 +39,17 @@ router.get('/project-membership/:userId/:projectId', async (req, res, next) => {
     const projectId = Number(req.params.projectId);
     if (!userId || !projectId) return errorResponse(res, 'invalid_ids', 400);
 
+    const project = await Project.findByPk(projectId, { attributes: ['business_id'] });
+    if (!project) return successResponse(res, { member: false });
+    // ★ 2026-09-11 — 워크스페이스에서 해제된 사람은 프로젝트 멤버 행이 남아 있어도 멤버가 아니다.
+    //   여태 ProjectMember 만 봐서 해제된 멤버가 옛 프로젝트의 L2 Q Note 를 계속 열었다(Fable 실측).
+    //   BusinessMember 모델 defaultScope 가 removed_at 을 거른다.
+    const active = await BusinessMember.findOne({
+      where: { user_id: userId, business_id: project.business_id },
+      attributes: ['user_id', 'role'],
+    });
+    if (!active) return successResponse(res, { member: false });
+
     const pm = await ProjectMember.findOne({
       where: { user_id: userId, project_id: projectId },
       attributes: ['user_id', 'role'],
@@ -46,13 +57,8 @@ router.get('/project-membership/:userId/:projectId', async (req, res, next) => {
     if (pm) return successResponse(res, { member: true, role: pm.role });
 
     // 프로젝트 owner 의 워크스페이스 오너도 멤버로 간주
-    const project = await Project.findByPk(projectId, { attributes: ['business_id'] });
-    if (!project) return successResponse(res, { member: false });
-    const bm = await BusinessMember.findOne({
-      where: { user_id: userId, business_id: project.business_id, role: 'owner' },
-      attributes: ['user_id'],
-    });
-    return successResponse(res, { member: !!bm, role: bm ? 'workspace_owner' : null });
+    const isOwner = active.role === 'owner';
+    return successResponse(res, { member: isOwner, role: isOwner ? 'workspace_owner' : null });
   } catch (err) { next(err); }
 });
 
@@ -96,6 +102,11 @@ router.get('/user-project-ids/:userId', async (req, res, next) => {
     const userId = Number(req.params.userId);
     const businessId = req.query.business_id ? Number(req.query.business_id) : null;
     if (!userId) return errorResponse(res, 'invalid_user_id', 400);
+    // 해제된 멤버는 그 워크스페이스의 어떤 프로젝트에도 속하지 않는다(project-membership 과 같은 규칙)
+    if (businessId) {
+      const active = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId }, attributes: ['user_id'] });
+      if (!active) return successResponse(res, { project_ids: [] });
+    }
 
     const where = { user_id: userId };
     const rows = await ProjectMember.findAll({

@@ -110,6 +110,9 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
     const oneBusinessId = wsScope.businessId ? Number(wsScope.businessId) : null;
 
     const workspaces = await myWorkspaces(userId, oneBusinessId, isPlatformAdmin);
+    // ★ 범위를 정했는데 그 워크스페이스에 소속이 없으면 403 — 여태 빈 응답(200)이라 "소속 없음" 과
+    //   "오늘 할 일 없음" 이 구별되지 않았다(dashboard/todo 는 이미 403). 합산 모드(범위 없음)의 빈 결과는 그대로 200.
+    if (oneBusinessId && !workspaces.length && !isPlatformAdmin) return errorResponse(res, 'forbidden', 403);
     if (!workspaces.length) {
       return successResponse(res, { counts: emptyCounts(), changes: [], focus: [], generated_at: new Date() });
     }
