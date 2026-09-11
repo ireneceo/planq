@@ -23,6 +23,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import SingleDateField from '../../components/Common/SingleDateField';
 import DetailFallback from '../../components/Common/DetailFallback';
 import ClientTimeline from '../../components/Clients/ClientTimeline';
+import SummaryCard from '../../components/QSale/SummaryCard';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import {
@@ -56,6 +57,8 @@ export default function SaleDetailPage() {
   const [recordOpen, setRecordOpen] = useState(false);
   const [lostOpen, setLostOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  // 요약 문장의 ⓘ근거 — 누르면 타임라인이 **그 항목들만** 보여준다(§10.6 ①)
+  const [refFilter, setRefFilter] = useState<Array<{ type: TimelineType; id: number | string }> | null>(null);
 
   const loadClient = useCallback(async (silent = false) => {
     if (!businessId || !Number.isInteger(cid)) { setStatus('not_found'); return; }
@@ -198,6 +201,15 @@ export default function SaleDetailPage() {
 
       <Body>
         <LeftCol>
+          {/* 히스토리 요약 — 좌측 최상단(§5.3). 요약이 틀렸을 때 **원문으로 내려가는 길**을 같이 둔다 */}
+          <SummaryCard
+            key={`summary-${client.id}`}
+            businessId={businessId}
+            clientId={cid}
+            onFilterRefs={(refs) => setRefFilter(refs)}
+            refFilterActive={!!refFilter}
+            onClearFilter={() => setRefFilter(null)}
+          />
           <Card>
             <CardTitle>{t('detail.profile') as string}</CardTitle>
             <ProfileForm
@@ -267,8 +279,16 @@ export default function SaleDetailPage() {
               </FilterChip>
             ))}
           </FilterRow>
+          {refFilter && (
+            <FilterNotice role="status">
+              {t('summary.evidence', { count: refFilter.length }) as string}
+              <MiniBtn type="button" onClick={() => setRefFilter(null)}>{t('summary.clearFilter') as string}</MiniBtn>
+            </FilterNotice>
+          )}
           <ClientTimeline
-            items={items}
+            items={refFilter
+              ? items.filter((it) => refFilter.some((r) => r.type === it.type && String(r.id) === String(it.id)))
+              : items}
             onOpen={(it) => openTimelineItem(it, navigate)}
             renderActions={(it) => {
               const meta = (it.meta || {}) as Record<string, unknown>;
@@ -627,6 +647,12 @@ const FilterChip = styled.button<{ $on: boolean }>`
 `;
 const MoreRow = styled.div`display: flex; justify-content: center; padding: 8px 0;`;
 const RowActions = styled.div`display: flex; gap: 6px;`;
+/* 근거 필터가 걸려 있음을 타임라인 위에서 알린다 (요약 카드의 ⓘ근거 클릭 결과) */
+const FilterNotice = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; color: #0F766E;
+  background: #F0FDFA; border: 1px solid #99F6E4;
+`;
 const MiniBtn = styled.button`
   height: 36px; padding: 0 10px; border-radius: 6px; cursor: pointer;
   font-size: 0.6875rem; font-weight: 600; color: #475569;

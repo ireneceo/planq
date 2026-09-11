@@ -273,6 +273,7 @@
     "customerTitle": "This customer",
     "loading": "Loading…",
     "openTimeline": "Open unified timeline",
+    "openInSale": "Open in Q sale",
     "noActivity": "No activity on other channels yet.",
     "linkClientHint": "Link a customer to see their chats, tasks, and invoices here.",
     "channel": {

@@ -93,10 +93,23 @@
 - 1a 게이트 라운드는 **중단**했다(토큰). `docs/FABLE_GATE_QUEUE.md §0` 에 1a 항목 + 목요일에 볼 것 6가지를 적고 마커는 `by:"unavailable"`(= 미검증).
 - **1b·1c 까지 개발한 뒤 한 라운드로 검증한다. 그 전에는 운영 배포 금지.**
 
-#### 1b 진행 상황 (확인 필요·배지·알림) — 커밋 전
+#### 1c 진행 상황 (히스토리 요약) — 커밋 전
+- ✅ `services/saleSummary.js` — 타임라인 전 채널 입력 · `[#n type id at]` 인덱스 + **문장마다 refs** · 메일은 `ai_summary` 캐시 우선 · 상담 기록은 원문(600자) ·
+  증분("지난 요약") · `capText(8000)` · 기준선 `summary_as_of` 하나 · 감사 로그 `client.summary_regenerate`(이전 요약 보존)
+- ✅ `routes/sale_summary.js`(조회·갱신·직접 수정) + `perUserDaily('sale-summary', 3/분·60/일)` + COSTGUARD_LOCKED + llm.js `sale_summary` purpose
+- ✅ 화면: `components/QSale/SummaryCard.tsx`(분리 — 상세가 800줄 상한을 넘었다) · 근거 클릭 → 타임라인 필터 · 근거 없음 회색 · 직접 수정/AI 로 다시
+- ✅ Q mail 패널 요약 2줄 + `/sale/:id` 링크(패널은 요약을 **만들지 않는다** · LLM 0) · 대화 화면 옛 갱신 문도 같은 생성기로 위임
+- ✅ 검증: 요약 실호출 **17/17** — refs 8건 전부 실존 · **두 번째 갱신 LLM 0**(사용량 60→60) · 사람 요약 자동 갱신이 안 덮음 · 다른 워크스페이스 404 · health 43/43
+- ⏳ 남은 것: 빌드·가드 재확인 → `rm dev-backend/test-qsale-summary.js` → 커밋 → **목요일 Fable 한 라운드(1a+1b+1c)**
+
+#### 1b 진행 상황 (확인 필요·배지·알림) — 커밋 완료(ea96ef46)
 - ✅ `saleCommon.saleOwnerWhere`(귀속 한 함수) · 멤버 제거 시 `assigned_member_id` NULL · `collectSale` 4종 + `saleCount` · 배지(useInboxCount.sale → MainLayout `nav-badge-sale`) · 확인필요 탭/카테고리/아이콘/동사 ko/en · 알림 배선(saleNotify + NOTIFY_LOCKED + 제목표 + 링크표 두 벌 + 설정 매트릭스)
 - ✅ 검증: 수집기 실호출 **15/15**(양성·음성 대조군) · guard EXIT 0 · health 43/43
-- ⏳ 남은 것: 빌드 확인 → `--suite inboxcount` → `rm dev-backend/test-qsale-inbox.js` → 커밋 → **1c(히스토리 요약·Q mail/Q Talk 연결·다음 할 일=Task·일정)**
+- ✅ 빌드 EXIT 0(타입이 강제한 4곳 같이 수리: EventKind·탭 카운트 Record·라벨 폴백 2곳) · `--suite inboxcount` 실패 0 · 테스트 파일 rm · **커밋 완료**
+- ⏭ 다음: **1c — 히스토리 요약(§10)** · Q mail/Q Talk 패널 요약 2줄·링크 · 답장 초안·업무 추출 버튼 · 다음 할 일=Task · 일정 잡기
+  - 준비됨: `clients.summary_json/summary_as_of/summary_item_count/summary_model` dev 반영(모델+sync). 운영 적용은 sync(alter)가 컬럼을 만든다 — ENUM 아님
+  - 기존 `cue_orchestrator.generateClientSummary`(채팅 40건만)를 **타임라인 입력 + refs 강제**로 교체, 저장은 같은 컬럼. 호출처: routes/conversations.js `/client/:id/summary/refresh`
+  - 비용 게이트: checkUsageLimit + recordUsage('summary') + perUserDaily('sale-summary') + capText(8000) + stale 아니면 LLM 0 + 고객당 하루 자동 1회
 - ★ 하니스 교훈: `finally` 의 `process.exit` 은 예외를 삼킨다 — 예외를 실패로 세지 않으면 죽은 검사가 통과로 보인다
 
 #### 1a 진행 상황 (2026-09-11 밤)

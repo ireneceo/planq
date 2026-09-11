@@ -508,6 +508,7 @@ app.use('/api/clients', require('./routes/clients'));
 app.use('/api/sale', require('./routes/sale'));
 app.use('/api/sale', require('./routes/sale_interactions'));
 app.use('/api/sale', require('./routes/sale_save'));
+app.use('/api/sale', require('./routes/sale_summary'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/message-attachments', require('./routes/message_attachments'));

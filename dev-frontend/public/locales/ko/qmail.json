@@ -273,6 +273,7 @@
     "customerTitle": "이 고객",
     "loading": "불러오는 중…",
     "openTimeline": "통합 타임라인 보기",
+    "openInSale": "Q sale 에서 보기",
     "noActivity": "아직 다른 채널 활동이 없어요.",
     "linkClientHint": "고객을 연결하면 그 고객의 채팅·업무·청구를 여기서 함께 봅니다.",
     "channel": {

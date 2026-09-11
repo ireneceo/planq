@@ -25,7 +25,18 @@ API 실호출 **28/28**(격리 404·비소속 403 포함) · `guard-invariants` 
 `e2e tenant,detailopen` **실패 0**(신규 `/sale` 3폭 전환 안내 + 없는 id 대조군) · 화면 실측 **27/27**(3폭·가로 넘침 0·포털 팝오버) ·
 빌드 EXIT 0 / `error TS` 0 · 마이그레이션 멱등 2회 · 운영 ENUM SSH 읽기 = dev 동일
 
+### 같은 라운드에 묶는 것 — 1b·1c (2026-09-11 밤)
+- **1b 확인 필요·배지·알림** (commit `ea96ef46`) — `saleOwnerWhere`(담당 귀속 한 함수 · 퇴사자 담당은 owner·admin) · `collectSale` 4종 ·
+  `saleCount` 배지(total 의 부분집합) · 확인필요 "영업" 탭 · `eventKind 'sale'` 배선(saleNotify 단일 착지점 · 링크표 두 벌 · 설정 매트릭스).
+  자체 검증: 수집기 15/15(양성·음성 대조군) · guard EXIT 0 · health 43/43 · `--suite inboxcount` 실패 0
+- **1c 히스토리 요약** (커밋 예정) — `services/saleSummary.js`(타임라인 전 채널 입력 · 문장마다 refs · 증분 · `summary_as_of` 기준선 하나) ·
+  `routes/sale_summary.js`(조회·갱신·직접 수정 + `perUserDaily('sale-summary')` + COSTGUARD_LOCKED) · 요약 카드(근거 클릭 → 타임라인 필터 · 근거 없음 회색) ·
+  Q mail 패널 요약 2줄 + `/sale/:id` 링크 · 대화 화면의 옛 요약 갱신 문도 **같은 생성기**로 위임.
+  자체 검증: 요약 실호출 17/17 — 근거 8건이 전부 실존 항목 · **낡지 않으면 LLM 0**(사용량 60→60) · 사람 요약을 자동이 안 덮음 · 다른 워크스페이스 404
+
 ### Fable 이 봐야 할 것 (목요일)
+0. **1b·1c 추가분**: ① 배지 귀속(퇴사자·qsale 권한 none·메일 중복 버킷) ② 요약 비용 경로(stale 아니면 LLM 0 · rate-limit · 입력 캡 · 한도 초과 429)
+   ③ 요약 refs 가 실제 항목을 가리키는가(환각 표시 포함) ④ 대화 화면 요약 갱신이 같은 생성기를 쓰는가(두 벌 금지)
 1. **마이그레이션**: 배포 체인에서 sync(alter) 가 먼저 도는데 두 알림 테이블의 **값 순서가 달라도** 끝에만 붙는가 · NULL/DEFAULT 보존 · 롤백 `prospect→archived` 로 옛 코드가 깨지지 않는가
 2. **권한**: 고객(client) 계정으로 `/api/sale/*` 전부 403 · `qsale` 메뉴 none/read 멤버 403 · 프론트 리다이렉트·사이드바 숨김
 3. **격리**: 라우트별(목록·상세·PATCH·단계·기록·타임라인) 다른 워크스페이스 404 — 응답 id 를 DB 와 대조

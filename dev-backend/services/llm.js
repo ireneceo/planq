@@ -47,6 +47,11 @@ const PURPOSES = {
   task_estimate:  { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 100,  timeoutMs: 20_000, maxInputChars: 12_000 },
   mail_reply:     { model: 'gpt-4o-mini', temperature: 0.3, maxTokens: 800,  timeoutMs: 45_000, maxInputChars: 24_000 },
   mail_summary:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 500,  timeoutMs: 45_000, maxInputChars: 24_000 },
+  // Q sale 히스토리 요약 (docs/Q_SALE_DESIGN.md §10) — 입력은 타임라인 전 채널이고 출력은
+  //   문장마다 **근거 인덱스(refs)** 를 단 JSON 이다. 근거를 요구하면 답이 길어지므로 mail_summary 보다 넉넉히.
+  //   입력 상한은 설계의 capText(8000자)보다 크게 둔다 — 자르는 책임은 생성기(saleSummary)가 지고,
+  //   게이트웨이 상한에서 **꼬리가 조용히 잘리면** 최근 접점이 사라진 요약이 나온다.
+  sale_summary:   { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 1200, timeoutMs: 60_000, maxInputChars: 12_000 },
   translation:    { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 2000, timeoutMs: 20_000, maxInputChars: 16_000 },
   // 메일 본문 번역 — 채팅 한 줄과 달리 수천 자다. 20초/2000토큰이면 JSON 이 중간에서 잘려
   // 재시도까지 겹쳐 2분 대기 후 실패했다(#197). 다른 mail_* 와 같은 45초로 정렬.

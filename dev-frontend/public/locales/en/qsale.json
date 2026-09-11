@@ -142,6 +142,34 @@
     "projectsEmpty": "No linked projects",
     "emailLocked": "Email can't be changed here once an invitation was sent"
   },
+  "summary": {
+    "title": "History summary",
+    "asOf": "As of {{date}}",
+    "stale": "{{count}} new touchpoints not yet included",
+    "upToDate": "Up to date",
+    "refresh": "Refresh",
+    "refreshing": "Writing the summary…",
+    "empty": "A summary appears once there are touchpoints",
+    "unavailable": "AI is temporarily unavailable",
+    "usageLimit": "You've used this month's AI allowance",
+    "noItems": "No touchpoints to summarize yet",
+    "section": {
+      "situation": "Situation",
+      "needs": "Needs & terms",
+      "decisions": "Decisions",
+      "open_issues": "Open issues",
+      "next_steps": "Next"
+    },
+    "evidence": "Sources {{count}}",
+    "noEvidence": "No source",
+    "manualNote": "Edited by you — AI refresh won't overwrite",
+    "edit": "Edit",
+    "editSave": "Save",
+    "editCancel": "Cancel",
+    "regenerate": "Regenerate with AI",
+    "showSources": "Show sources",
+    "clearFilter": "Clear filter"
+  },
   "timeline": {
     "title": "Timeline",
     "all": "All",

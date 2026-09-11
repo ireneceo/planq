@@ -156,10 +156,26 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
     } catch { setSummary(null); } finally { setSumLoading(false); }
   }, [businessId]);
 
+  // Q sale 히스토리 요약 — **있는 것만 읽는다**(이 화면은 요약을 만들지 않는다 · LLM 0).
+  //   메일 스레드 밖의 통화·미팅 맥락이 답장을 쓰기 전에 먼저 읽히는 자리다(docs/Q_SALE_DESIGN.md §10.7).
+  const [clientSummary, setClientSummary] = useState<string | null>(null);
+  const loadSaleSummary = useCallback(async (cid: number) => {
+    try {
+      const r = await apiFetch(`/api/sale/${businessId}/clients/${cid}/summary`);
+      if (!r.ok) { setClientSummary(null); return; }   // qsale 권한이 없으면 403 — 조용히 안 그린다
+      const j = await r.json();
+      setClientSummary(j.success ? (j.data?.summary || null) : null);
+    } catch { setClientSummary(null); }
+  }, [businessId]);
+
   useEffect(() => {
-    if (clientId && clientId !== lastClientRef.current) { lastClientRef.current = clientId; loadSummary(clientId); }
-    if (!clientId) { setSummary(null); lastClientRef.current = null; }
-  }, [clientId, loadSummary]);
+    if (clientId && clientId !== lastClientRef.current) {
+      lastClientRef.current = clientId;
+      loadSummary(clientId);
+      loadSaleSummary(clientId);
+    }
+    if (!clientId) { setSummary(null); setClientSummary(null); lastClientRef.current = null; }
+  }, [clientId, loadSummary, loadSaleSummary]);
 
   // ★ 2026-09-09 — 고르면 즉시 저장되는데 **저장됐다는 표시가 없었다.**
   //   AutoSaveField 계약에 맞춰 가른다 — 래퍼가 onSave 를 부르므로 컨트롤이 저장까지 하면 두 번 나간다.
@@ -528,6 +544,16 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
                   );
                 })}
               </RecentList>
+              {/* Q sale 히스토리 요약 2줄 — 메일 스레드 밖(통화·미팅)의 맥락을 여기서 먼저 읽는다(§10.7).
+                  ★ 요약을 **여기서 만들지 않는다**(LLM 0) — 있는 것만 보여주고 갱신은 Q sale 상세에서 한다. */}
+              {clientSummary && (
+                <SaleSummaryBox>
+                  <SaleSummaryText>{clientSummary}</SaleSummaryText>
+                </SaleSummaryBox>
+              )}
+              <WorkbenchSectionLink type="button" onClick={() => navigate(`/sale/${clientId}`)}>
+                {t('context.openInSale', { defaultValue: 'Q sale 에서 보기' }) as string}<span aria-hidden>›</span>
+              </WorkbenchSectionLink>
               <WorkbenchSectionLink type="button" onClick={() => navigate(`/business/clients/${clientId}/timeline`)}>
                 {t('context.openTimeline', { defaultValue: '통합 타임라인 보기' }) as string}<span aria-hidden>›</span>
               </WorkbenchSectionLink>
@@ -568,3 +594,9 @@ const RecentType = styled.span<{ $type: Channel }>`
   background:${p => typeColor[p.$type].bg}; color:${p => typeColor[p.$type].fg};
 `;
 const RecentText = styled.span`font-size:0.75rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;`;
+/* Q sale 히스토리 요약 2줄 — 길면 자른다(패널은 좁고, 전문은 Q sale 상세에 있다) */
+const SaleSummaryBox = styled.div`background:#F0FDFA; border:1px solid #CCFBF1; border-radius:10px; padding:8px 10px;`;
+const SaleSummaryText = styled.div`
+  font-size:0.75rem; color:#0F766E; line-height:1.5;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+`;

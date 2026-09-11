@@ -1265,8 +1265,15 @@ router.post('/:businessId/client/:clientId/summary/refresh', authenticateToken, 
     });
     if (!client) return errorResponse(res, 'Client not found', 404);
 
-    const summary = await cueOrchestrator.generateClientSummary(client.id);
-    successResponse(res, { summary, refreshed: !!summary });
+    // ★ 요약 생성기는 **한 벌**이다 — Q sale 이 입력을 타임라인 전 채널로 바꾼 뒤에도
+    //   이 문(대화 화면의 "요약 갱신")이 옛 생성기(채팅 40건)를 부르면 같은 고객의 요약이
+    //   어느 문으로 눌렀느냐에 따라 달라진다. services/saleSummary 한 곳으로 위임한다.
+    const { generateSaleSummary, summaryStatus } = require('../services/saleSummary');
+    const out = await generateSaleSummary(Number(req.params.businessId), client.id, {
+      userId: req.user.id, force: true, origin: 'chat_panel',
+    });
+    const status = out.status || await summaryStatus(Number(req.params.businessId), client.id, { userId: req.user.id });
+    successResponse(res, { summary: status?.summary || null, refreshed: !!out.ok, skipped: out.skipped || null });
   } catch (err) { next(err); }
 });
 

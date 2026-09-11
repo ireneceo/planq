@@ -613,6 +613,8 @@ const COSTGUARD_LOCKED = [
   'dev-backend/routes/message_attachments.js',
   'dev-backend/routes/task_attachments.js',
   'dev-backend/routes/task_estimations.js',
+  // Q sale 히스토리 요약 — Q sale 에서 유일하게 LLM 을 부르는 라우트
+  'dev-backend/routes/sale_summary.js',
 ];
 function checkCostGuard() {
   const missing = [];

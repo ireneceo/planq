@@ -142,6 +142,34 @@
     "projectsEmpty": "연결된 프로젝트가 없습니다",
     "emailLocked": "초대를 보낸 뒤에는 이메일을 여기서 바꿀 수 없어요"
   },
+  "summary": {
+    "title": "히스토리 요약",
+    "asOf": "{{date}} 기준",
+    "stale": "새 접점 {{count}}건 반영 전",
+    "upToDate": "최신",
+    "refresh": "갱신",
+    "refreshing": "요약 만드는 중…",
+    "empty": "접점이 쌓이면 요약이 만들어집니다",
+    "unavailable": "AI 를 잠시 사용할 수 없어요",
+    "usageLimit": "이번 달 AI 사용 한도를 다 썼어요",
+    "noItems": "요약할 접점이 아직 없어요",
+    "section": {
+      "situation": "상황",
+      "needs": "요구·조건",
+      "decisions": "결정",
+      "open_issues": "미해결",
+      "next_steps": "다음"
+    },
+    "evidence": "근거 {{count}}",
+    "noEvidence": "근거 없음",
+    "manualNote": "직접 수정한 요약 — AI 갱신이 덮어쓰지 않습니다",
+    "edit": "직접 수정",
+    "editSave": "저장",
+    "editCancel": "취소",
+    "regenerate": "AI 로 다시",
+    "showSources": "원문으로",
+    "clearFilter": "필터 해제"
+  },
   "timeline": {
     "title": "타임라인",
     "all": "전체",

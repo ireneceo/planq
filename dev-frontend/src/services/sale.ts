@@ -177,6 +177,46 @@ export const deleteInteraction = (businessId: number, clientId: number, id: numb
 export const reviewInteraction = (businessId: number, clientId: number, id: number) =>
   apiFetch(`/api/sale/${businessId}/clients/${clientId}/interactions/${id}/review`, { method: 'POST' }).then(j<{ id: number }>);
 
+// ─── 히스토리 요약 (docs/Q_SALE_DESIGN.md §10) ─────────────────────────────
+export interface SummarySentence { text: string; refs: Array<{ type: TimelineType; id: number | string }> }
+export interface SummaryJson {
+  situation: SummarySentence[];
+  needs: SummarySentence[];
+  decisions: SummarySentence[];
+  open_issues: SummarySentence[];
+  next_steps: SummarySentence[];
+}
+export interface SummaryStatus {
+  has_summary: boolean;
+  summary: string | null;
+  summary_json: SummaryJson | null;
+  as_of: string | null;
+  updated_at: string | null;
+  manual: boolean;
+  model: string | null;
+  item_count: number | null;
+  /** 기준선 뒤에 생긴 접점 수 — 0 이면 "최신" */
+  new_items: number;
+  stale: boolean;
+  /** 갱신을 눌렀는데 LLM 을 안 부른 이유 (up_to_date · manual_summary · no_items …) */
+  skipped?: string | null;
+}
+export const SUMMARY_SECTIONS: Array<keyof SummaryJson> = ['situation', 'needs', 'decisions', 'open_issues', 'next_steps'];
+
+export const getClientSummary = (businessId: number, clientId: number) =>
+  apiFetch(`/api/sale/${businessId}/clients/${clientId}/summary`).then(j<SummaryStatus>);
+
+/** 갱신 — 낡지 않았으면 서버가 LLM 을 부르지 않고 skipped:'up_to_date' 로 돌려준다. force = [AI 로 다시] */
+export const refreshClientSummary = (businessId: number, clientId: number, force = false) =>
+  apiFetch(`/api/sale/${businessId}/clients/${clientId}/summary/refresh`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force }),
+  }).then(j<SummaryStatus>);
+
+export const setClientSummaryManual = (businessId: number, clientId: number, summary: string) =>
+  apiFetch(`/api/sale/${businessId}/clients/${clientId}/summary`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary }),
+  }).then(j<SummaryStatus>);
+
 export type SaveAsClientInput =
   | { from: 'guest_link'; guest_link_id: number }
   | { from: 'email_thread'; email_thread_id: number }
