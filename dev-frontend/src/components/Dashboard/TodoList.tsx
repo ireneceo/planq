@@ -34,6 +34,8 @@ const IconCash = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="no
 const IconReceipt = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-2 3 2 3-2 3 2 3-2V8z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="15" y2="14"/></svg>);
 // 휴가 — 달력에서 하루가 빠진 모양 (승인 대기)
 const IconLeave = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="16" x2="15" y2="16"/></svg>);
+// Q sale — 사람(고객) + 말풍선. 업무·메일 아이콘과 구별돼야 목록에서 출처가 읽힌다.
+const IconSale = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>);
 const IconChevron = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>);
 
 function TypeIcon({ type }: { type: TodoItem['type'] }) {
@@ -49,6 +51,7 @@ function TypeIcon({ type }: { type: TodoItem['type'] }) {
   if (type === 'tax_invoice') return <IconReceipt />;
   if (type === 'leave') return <IconLeave />;
   if (type === 'planq_subscription') return <IconCash />;  // PlanQ 구독 청구 (받는 청구)
+  if (type === 'sale') return <IconSale />;                 // Q sale — 영업 확인 항목
   return <IconMention />;
 }
 
@@ -103,11 +106,13 @@ function formatRelativeTime(iso: string | null | undefined, t: ReturnType<typeof
 const CATEGORY_OF: Record<string, string> = {
   task: 'work', event: 'work', invite: 'work', mention: 'work', task_candidate: 'work',
   email: 'mail',
+  // Q sale — 여기 없으면 '전체' 탭 그룹에서 어느 섹션에도 안 들어가 **목록에서 사라진다**
+  sale: 'sale',
   signature: 'signature',
   invoice: 'billing', invoice_draft: 'billing', payment_notify: 'billing',
   tax_invoice: 'billing', planq_subscription: 'billing',
 };
-const CATEGORY_LIST = ['work', 'mail', 'signature', 'billing'] as const;
+const CATEGORY_LIST = ['work', 'mail', 'sale', 'signature', 'billing'] as const;
 const PRIORITY_RANK: Record<string, number> = { urgent: 0, today: 1, waiting: 2, week: 3 };
 
 interface Props {
@@ -188,7 +193,7 @@ const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 
   const sections = groupBy === 'category'
     ? CATEGORY_LIST.map((cat) => ({
         key: cat,
-        label: t(`todo.tab.${cat}`, { work: '업무', mail: '메일', signature: '서명', billing: '청구' }[cat]) as string,
+        label: t(`todo.tab.${cat}`, { work: '업무', mail: '메일', sale: '영업', signature: '서명', billing: '청구' }[cat]) as string,
         hint: '',
         color: PRIORITY_COLOR.week,
         list: items

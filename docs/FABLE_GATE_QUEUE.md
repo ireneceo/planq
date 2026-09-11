@@ -8,6 +8,33 @@
 
 ---
 
+## 0. Q sale 사이클 1a — "문의가 보인다" (2026-09-11, commit `f2a06c2f`) · **Irene 지시로 목요일 라운드에 묶음**
+
+> Irene 2026-09-11: *"다 개발하고 나중에 목요일에 다시 fable 검증해야 할 것 같은데? 설계는 다 fable이 짠 거 아니야?"*
+> → 1a 게이트 라운드를 **중단**하고, 1b·1c 까지 개발한 뒤 **한 라운드로** 검증한다. 그 전에는 **운영 배포 금지**.
+
+**판정: R=1** — 운영 ENUM 마이그레이션(3건) · 권한 게이트(새 메뉴 키 `qsale` 11곳) · 멀티테넌트 격리(새 라우트 3파일) · 플랜 한도 계수 변경(돈 인접).
+
+### 무엇을 만들었나
+- `clients` 영업 축(+`status` ENUM `prospect`) · 신규 `client_stage_history` · `client_interactions` · `scripts/migrate-qsale.js`(멱등) + 배포 체인
+- 술어 단일 원천 4: `salesStage.setStage` · `clientAccess` · `clientQuota` · `saleCommon`
+- `/api/sale` 3파일(목록·요약·상세·프로필·단계·타임라인 / 상담 기록 / 고객으로 저장) · `/sale` 목록·상세 화면 · 메뉴·탭·라우트·i18n·prospect 소비처 7표면
+
+### 자체 검증 (Fable 미검증)
+API 실호출 **28/28**(격리 404·비소속 403 포함) · `guard-invariants` **EXIT 0**(내 회귀 5건 수리) · `health-check` **43/43**(신규 2) ·
+`e2e tenant,detailopen` **실패 0**(신규 `/sale` 3폭 전환 안내 + 없는 id 대조군) · 화면 실측 **27/27**(3폭·가로 넘침 0·포털 팝오버) ·
+빌드 EXIT 0 / `error TS` 0 · 마이그레이션 멱등 2회 · 운영 ENUM SSH 읽기 = dev 동일
+
+### Fable 이 봐야 할 것 (목요일)
+1. **마이그레이션**: 배포 체인에서 sync(alter) 가 먼저 도는데 두 알림 테이블의 **값 순서가 달라도** 끝에만 붙는가 · NULL/DEFAULT 보존 · 롤백 `prospect→archived` 로 옛 코드가 깨지지 않는가
+2. **권한**: 고객(client) 계정으로 `/api/sale/*` 전부 403 · `qsale` 메뉴 none/read 멤버 403 · 프론트 리다이렉트·사이드바 숨김
+3. **격리**: 라우트별(목록·상세·PATCH·단계·기록·타임라인) 다른 워크스페이스 404 — 응답 id 를 DB 와 대조
+4. **한도(돈 인접)**: 문의는 `usage.prospects` 만 +1 · 초대 승격은 **같은 행**이 invited 가 되고 `usage.clients` +1 · 기존 워크스페이스 숫자 불변
+5. **고객으로 저장 부수효과**: 비어 있는 연결만 채우는가(사람이 건 연결을 덮지 않는가) · 같은 주소 스레드 백필 범위 · `GET /api/guest/:token` 응답 키 변경 0
+6. 옛 `/api/clients/:biz/:id/timeline` 기본 채널이 여전히 4개인가(기존 화면 회귀)
+
+---
+
 ## 1. Q Note 회의록을 Cue 범위로 (2026-09-08, commit `f584036f`)
 
 **판정: R=1** — 개인 자료(회의록)가 LLM 프롬프트로 들어가고, Cue 답변에는 **고객 대화방으로

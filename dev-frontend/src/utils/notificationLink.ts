@@ -29,6 +29,9 @@ const ENTITY_LINK: Record<string, (id: string | number) => string> = {
   calendar_event: (id) => `/calendar?event=${id}`,
   event: (id) => `/calendar?event=${id}`,
   kb_document: (id) => `/info?doc=${id}`,
+  // Q sale — 백엔드 services/notification_link.js 와 **같은 값**(두 벌이면 반드시 갈라진다)
+  client: (id) => `/sale/${id}`,
+  client_interaction: (id) => `/sale/${id}`,
 };
 
 const EVENT_KIND_FALLBACK: Record<string, () => string> = {

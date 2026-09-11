@@ -54,7 +54,8 @@ const NotificationTypeIcon: React.FC<{ kind?: string | null; size?: number }> = 
     case 'task': return <IconTask size={size} />;
     case 'event': return <IconEvent size={size} />;
     case 'invite':
-    case 'signup': return <IconPerson size={size} />;
+    case 'signup':
+    case 'sale': return <IconPerson size={size} />;
     case 'invoice': return <IconBill size={size} />;
     case 'tax_invoice': return <IconReceipt size={size} />;
     case 'payment': return <IconCard size={size} />;

@@ -13,6 +13,7 @@ export type TodoType =
   | 'leave'          // 휴가 승인 대기 (승인권자에게만 — routes/dashboard.collectLeaveApprovals)
   | 'signature' | 'payment_notify' | 'tax_invoice'
   | 'invoice_draft'  // 발행 대기 정기 청구서 초안 (owner/admin)
+  | 'sale'           // Q sale — 답 안 한 문의·미확인 자동기록·다음 할 일 없음·계정 요청 (담당자 귀속)
   | 'planq_subscription';  // PlanQ 플랫폼 → 워크스페이스 구독 청구 (owner 만)
 
 export type TodoVerb =
@@ -36,7 +37,12 @@ export type TodoVerb =
   // #239 — 받은 문서 확인 요청. 업무 승인 verb(confirm)와 뜻이 달라 갈라 둔다.
   | 'doc_confirm'
   // #239 — 외부인이 문서에 의견을 남김. 거절이 아니다.
-  | 'doc_commented';
+  | 'doc_commented'
+  // Q sale (사이클 1b) — 각각 무엇을 해야 하는지가 동사에 있다
+  | 'sale_first_reply'      // 답 안 한 문의 — 첫 응답을 보낸다
+  | 'sale_unreviewed'       // 자동으로 쌓인 기록을 확인한다
+  | 'sale_next_action'      // 다음 할 일이 없다 — 정한다
+  | 'sale_account_request'; // 게스트가 계정을 요청했다 — 초대를 보낸다
 
 export interface TodoWorkspace {
   business_id: number;
@@ -81,6 +87,7 @@ export interface TodoResponse {
   taskCount?: number;  // Q Task 메뉴 뱃지 — 받은 요청·수정 요청·내가 컨펌·보낸 요청 (확인 필요 total 의 부분집합)
   billCount?: number;  // Q Bill 메뉴 뱃지 — 청구 관련 액션 대기 건수
   mailReplyCount?: number;  // Q mail 메뉴 뱃지 — 답변 필요 메일 (확인 필요 total 에는 합산 안 함)
+  saleCount?: number;  // Q sale 메뉴 뱃지 — 내게 귀속된 영업 확인 항목 (확인 필요 total 의 부분집합)
   workspaces?: TodoWorkspace[];
 }
 

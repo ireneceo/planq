@@ -115,6 +115,19 @@ Client.init({
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
+  // ─── Q sale 히스토리 요약 캐시 (docs/Q_SALE_DESIGN.md §10.2) ───
+  //   ★ 원장은 타임라인이다. 요약은 언제든 버리고 다시 만들 수 있는 **캐시**라 회차를 쌓지 않는다
+  //     (이전 요약이 필요하면 AuditLog client.summary_regenerate 의 old_value 를 본다).
+  summary_json: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    comment: '{situation, needs, decisions, open_issues, next_steps} — 문장마다 refs',
+  },
+  // ★ 기준선은 이 값 하나다 — stale 판정·증분 입력 절단·"새 접점 N건" 이 전부 이것을 읽는다.
+  //   두 공식을 두면 이미 갈라져 있다(memory feedback_same_value_multiple_formulas).
+  summary_as_of: { type: DataTypes.DATE, allowNull: true },
+  summary_item_count: { type: DataTypes.INTEGER, allowNull: true },
+  summary_model: { type: DataTypes.STRING(50), allowNull: true },
   // ─── 기본 담당 멤버 (사람) ───
   assigned_member_id: {
     type: DataTypes.INTEGER,

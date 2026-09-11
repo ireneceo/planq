@@ -419,6 +419,8 @@ const NOTIFY_LOCKED = [
   //   라우트만 잠그면 확인 경로가 우회한다.
   'dev-backend/services/signatureCore.js',
   'dev-backend/routes/calendar.js',
+  // Q sale 알림의 단일 착지점 — 여기가 비면 계정 요청·답 안 한 문의가 아무에게도 안 간다
+  'dev-backend/services/saleNotify.js',
 ];
 function checkNotify() {
   const missing = [];

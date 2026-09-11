@@ -937,6 +937,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   //   확인 필요는 '나에게 귀속된, 내가 완료할 수 있는 액션' 만 담는 신뢰 자산이고,
   //   회사 공용 메일함은 담당자 미지정이 기본이라 멤버 전원 뱃지가 같은 메일로 동시에 오른다.
   const mailMenuCount = inboxCounts.mail;
+  const saleMenuCount = inboxCounts.sale;  // Q sale 메뉴 뱃지 — 내게 귀속된 영업 확인 항목(확인 필요 total 의 부분집합)
   // N+63 — platform_admin 좌측 inbox badge (feedback + inquiries)
   const adminCounts = useAdminInboxCounts();
   // N+63 — 알림 feed (Activity Feed) 미읽음 카운트. 확인필요 (Action Queue) 와 분리.
@@ -1386,9 +1387,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   {hasBiz('owner', 'member') && (
                     <NavItem to="/sale" $isCollapsed={isCollapsed}
                       $active={isActive('/sale')}
-                      title={isCollapsed ? t('nav.qsale', 'Q sale') : undefined}>
+                      title={isCollapsed ? `${t('nav.qsale', 'Q sale')}${saleMenuCount > 0 ? ` (${saleMenuCount})` : ''}` : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconSale /></NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.qsale', 'Q sale')}</NavLabel>
+                      {saleMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sale"
+                          aria-label={`${t('nav.qsale', 'Q sale')} ${saleMenuCount}`}>
+                          {saleMenuCount > 99 ? '99+' : saleMenuCount}
+                        </InboxBadge>
+                      )}
                     </NavItem>
                   )}
                   <NavItem to="/tasks" $isCollapsed={isCollapsed} $active={isActive('/tasks')}

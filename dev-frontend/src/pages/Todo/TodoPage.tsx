@@ -26,17 +26,20 @@ interface MemberOpt { user_id: number; name: string; }
 
 // 인박스 탭 분류 — Q knowledge 패턴 (전체 / 업무 / 서명 / 청구).
 // "전체" 가 default 로 priority 그룹 통합 뷰 유지. 카테고리 탭은 좁히기 용도.
-type InboxTab = 'all' | 'work' | 'mail' | 'signature' | 'billing';
+type InboxTab = 'all' | 'work' | 'mail' | 'sale' | 'signature' | 'billing';
 const TYPE_TO_TAB: Record<string, Exclude<InboxTab, 'all'>> = {
   task: 'work', event: 'work', invite: 'work', mention: 'work', task_candidate: 'work',
   // 메일은 별도 탭 — 채팅과 달리 "답장하면 끝" 인 1회성 액션이라 확인 필요에 들어온다
   email: 'mail',
+  // Q sale — 영업은 업무와 성격이 다르다(고객을 향한 응답·확인). 여기 없으면 'all' 탭 그룹이
+  //   undefined 로 떨어져 **목록에서 조용히 사라진다**(상태값 규약).
+  sale: 'sale',
   signature: 'signature',
   invoice: 'billing', payment_notify: 'billing', tax_invoice: 'billing',
   invoice_draft: 'billing',
   planq_subscription: 'billing',  // PlanQ 구독 청구 (owner 가 받는 플랫폼 청구)
 };
-const TAB_LIST: InboxTab[] = ['all', 'work', 'mail', 'signature', 'billing'];
+const TAB_LIST: InboxTab[] = ['all', 'work', 'mail', 'sale', 'signature', 'billing'];
 
 const TodoPage: React.FC = () => {
   const { t } = useTranslation('dashboard');
@@ -290,7 +293,7 @@ const TodoPage: React.FC = () => {
       {/* 카테고리 탭 — 전체 default + 업무·서명·청구 카운트 분리 */}
       {(() => {
         const items = data?.items || [];
-        const counts: Record<InboxTab, number> = { all: items.length, work: 0, mail: 0, signature: 0, billing: 0 };
+        const counts: Record<InboxTab, number> = { all: items.length, work: 0, mail: 0, sale: 0, signature: 0, billing: 0 };
         items.forEach((it) => {
           const grp = TYPE_TO_TAB[it.type];
           if (grp) counts[grp] += 1;
@@ -305,7 +308,7 @@ const TodoPage: React.FC = () => {
                 <TabBtn key={tab} role="tab" type="button" aria-selected={activeTab === tab}
                   $active={activeTab === tab} onClick={() => setActiveTab(tab)}>
                   <span>{t(`todo.tab.${tab}`, {
-                    all: '전체', work: '업무', mail: '메일', signature: '서명', billing: '청구',
+                    all: '전체', work: '업무', mail: '메일', sale: '영업', signature: '서명', billing: '청구',
                   }[tab])}</span>
                   {counts[tab] > 0 && <Count $active={activeTab === tab}>{counts[tab]}</Count>}
                 </TabBtn>

@@ -931,6 +931,158 @@ async function collectMails(businessId, userId) {
   return out;
 }
 
+/**
+ * Q sale — 영업에서 **내게 귀속된** 확인 항목 (docs/Q_SALE_DESIGN.md §16 U1)
+ *
+ *   ① 답 안 한 문의   ② 미확인 자동 기록   ③ 다음 할 일 없음   ④ 계정 요청
+ *
+ * ★ 귀속: 담당자가 나 · 담당 없음/떠난 사람은 owner·admin (services/saleCommon.saleOwnerWhere 한 함수).
+ * ★ `qsale` 메뉴 권한이 none 인 멤버에게는 **아무것도 세지 않는다** — total 에는 들고 링크는 403,
+ *   사이드바 배지는 숨겨져 두 숫자가 갈라진다(§4.5 서버·프론트 같은 술어).
+ * ★ 한 항목 = 한 버킷 — 메일에서 온 문의는 collectMails 가 이미 세므로 여기서 빼고,
+ *   ①로 이미 뜬 고객은 ③으로 또 세지 않는다.
+ */
+async function collectSale(businessId, userId, userRole) {
+  const { Client, ClientInteraction, GuestLink, Task } = require('../models');
+  const { getMemberMenuLevels } = require('../middleware/menu_permission');
+  const { saleOwnerWhere, IN_PROGRESS } = require('../services/saleCommon');
+
+  const isManager = userRole === 'owner' || userRole === 'admin';
+  if (!isManager) {
+    const levels = await getMemberMenuLevels(businessId, userId);
+    if (!levels || levels.menus?.qsale === 'none') return [];
+  }
+  const ownerWhere = await saleOwnerWhere(businessId, userId, { isManager });
+
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  const out = [];
+
+  // 영업 중인 고객 (진행 단계) — 여기서 ①③을 가른다
+  const clients = await Client.findAll({
+    where: { business_id: businessId, sales_stage: { [Op.in]: IN_PROGRESS }, ...ownerWhere },
+    attributes: ['id', 'display_name', 'company_name', 'sales_stage', 'sales_source', 'last_touch_at', 'created_at'],
+    limit: COLLECT_LIMIT,
+    order: [['last_touch_at', 'ASC']],
+  });
+  if (clients.length) {
+    const ids = clients.map((c) => c.id);
+    // 우리가 먼저 말을 걸었는가 — outbound 상담 기록
+    const outbound = await ClientInteraction.findAll({
+      where: { business_id: businessId, client_id: { [Op.in]: ids }, deleted_at: null, direction: 'outbound' },
+      attributes: ['client_id'], group: ['client_id'], raw: true,
+    });
+    const repliedTo = new Set(outbound.map((r) => r.client_id));
+    // 살아 있는 할 일이 있는가
+    const tasks = await Task.findAll({
+      where: {
+        business_id: businessId, client_id: { [Op.in]: ids },
+        status: { [Op.notIn]: ['completed', 'canceled'] },
+      },
+      attributes: ['client_id'], group: ['client_id'], raw: true,
+    });
+    const hasTask = new Set(tasks.map((r) => r.client_id));
+
+    for (const c of clients) {
+      const name = c.display_name || c.company_name || `#${c.id}`;
+      const since = c.last_touch_at ? new Date(c.last_touch_at) : new Date(c.created_at);
+      const days = Math.floor((now - since.getTime()) / DAY);
+      // ① 답 안 한 문의 — 메일에서 온 문의는 Q mail 이 이미 센다(한 항목 = 한 버킷)
+      const unanswered = c.sales_stage === 'inquiry' && c.sales_source !== 'email'
+        && !repliedTo.has(c.id) && !hasTask.has(c.id) && days >= 1;
+      if (unanswered) {
+        out.push({
+          id: `sale-${c.id}-first-reply`,
+          type: 'sale',
+          priority: days >= 3 ? 'urgent' : 'today',
+          verb: 'sale_first_reply',
+          subject: name,
+          context: c.company_name && c.display_name ? c.company_name : null,
+          dueAt: null,
+          createdAt: safeToIso(since),
+          link: `/sale/${c.id}`,
+        });
+        continue;                       // ③으로 또 세지 않는다
+      }
+      // ③ 다음 할 일 없음 — 진행 중인데 살아 있는 할 일이 하나도 없다
+      if (!hasTask.has(c.id)) {
+        out.push({
+          id: `sale-${c.id}-next-action`,
+          type: 'sale',
+          priority: 'week',
+          verb: 'sale_next_action',
+          subject: name,
+          context: c.company_name && c.display_name ? c.company_name : null,
+          dueAt: null,
+          createdAt: safeToIso(since),
+          link: `/sale/${c.id}`,
+        });
+      }
+    }
+  }
+
+  // ② 미확인 자동 기록 — 사람이 쓴 기록은 확인할 것이 없다
+  const autoRows = await ClientInteraction.findAll({
+    where: { business_id: businessId, origin: 'auto', reviewed_at: null, deleted_at: null },
+    include: [{
+      model: Client,
+      attributes: ['id', 'display_name', 'company_name'],
+      where: ownerWhere,
+      required: true,
+    }],
+    order: [['occurred_at', 'DESC']],
+    limit: COLLECT_LIMIT,
+  });
+  for (const r of autoRows) {
+    const c = r.Client;
+    out.push({
+      id: `sale-interaction-${r.id}`,
+      type: 'sale',
+      priority: 'week',
+      verb: 'sale_unreviewed',
+      subject: c ? (c.display_name || c.company_name || `#${c.id}`) : `#${r.client_id}`,
+      context: r.title || null,
+      dueAt: null,
+      createdAt: safeToIso(r.occurred_at),
+      link: `/sale/${r.client_id}`,
+    });
+  }
+
+  // ④ 계정 요청 — 게스트가 눌렀고 아직 초대 전인 고객
+  const requested = await GuestLink.findAll({
+    where: { business_id: businessId, account_requested_at: { [Op.ne]: null }, client_id: { [Op.ne]: null }, revoked_at: null },
+    attributes: ['id', 'client_id', 'account_requested_at', 'requested_email'],
+    order: [['account_requested_at', 'DESC']],
+    limit: COLLECT_LIMIT,
+  });
+  if (requested.length) {
+    const reqClients = await Client.findAll({
+      where: { business_id: businessId, id: { [Op.in]: requested.map((l) => l.client_id) }, status: 'prospect', ...ownerWhere },
+      attributes: ['id', 'display_name', 'company_name'],
+    });
+    const byId = new Map(reqClients.map((c) => [c.id, c]));
+    const seen = new Set();
+    for (const l of requested) {
+      const c = byId.get(l.client_id);
+      if (!c || seen.has(c.id)) continue;   // 링크가 여럿이어도 고객당 하나
+      seen.add(c.id);
+      out.push({
+        id: `sale-${c.id}-account-request`,
+        type: 'sale',
+        priority: 'today',
+        verb: 'sale_account_request',
+        subject: c.display_name || c.company_name || `#${c.id}`,
+        context: l.requested_email || null,
+        dueAt: null,
+        createdAt: safeToIso(l.account_requested_at),
+        link: `/sale/${c.id}`,
+      });
+    }
+  }
+
+  return out;
+}
+
 async function collectPlanqSubscription(businessId, userRole) {
   if (userRole !== 'owner') return [];  // owner 만 결제 영역 알림
   const { Subscription } = require('../models');
@@ -1041,7 +1193,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     // 각 워크스페이스에서 collector 돌리고 항목마다 workspace 라벨 부착
     const allBuckets = await Promise.all(workspaces.map(async (w) => {
       const userRole = w.role === 'admin' ? 'admin' : w.role;
-      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails, leaveApprovals] = await Promise.all([
+      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails, leaveApprovals, sales] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
         // N+30 — 사용자 정책: task_candidate 는 채팅 옆 (RightPanel) + 본인 전체 업무 옆 (QTaskPage 인박스) 만 노출.
@@ -1056,8 +1208,10 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         collectRecurringDrafts(w.business_id, userRole),
         collectMails(w.business_id, userId),
         collectLeaveApprovals(w.business_id, userRole, userId),
+        // Q sale — 고객 역할에게는 이 수집기가 애초에 돌지 않는다(아래 role 검사)
+        w.role === 'client' ? Promise.resolve([]) : collectSale(w.business_id, userId, userRole),
       ]);
-      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails, ...leaveApprovals];
+      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails, ...leaveApprovals, ...sales];
       // 워크스페이스 라벨 부착
       for (const it of items) it.workspace = { business_id: w.business_id, brand_name: w.brand_name, role: w.role };
       return items;
@@ -1098,6 +1252,10 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     //   2026-09-07 Irene: "Q task 에 옆에 숫자알림 안떠. 3개 떠야지." — 다른 메뉴엔 다 있는데 여기만 없었다.
     //   ★ collectTasks 가 만든 것만 센다. 여기서 따로 세면 두 숫자가 갈라진다(#297 과 같은 계열).
     const taskCount = all.filter(it => it.type === 'task').length;   // ★ all 로 센다 — displayed 로 세면 다시 잘린다
+
+    // Q sale 메뉴 뱃지 — **내게 귀속된** 영업 확인 항목(담당자 = 나 · 담당 없음/떠난 사람은 owner·admin).
+    //   귀속만 세므로 total 의 부분집합이고, Q mail 같은 예외가 필요 없다(docs/Q_SALE_DESIGN.md §16 U1).
+    const saleCount = all.filter(it => it.type === 'sale').length;
 
     // Q Bill 메뉴 뱃지용 — 청구 관련 액션 대기 건수 (발행 대기 정기 draft·증빙 발행·입금알림·결제 대기)
     const BILL_TYPES = new Set(['invoice', 'invoice_draft', 'tax_invoice', 'payment_notify']);
@@ -1163,7 +1321,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       total: all.length,          // ★ 진짜 개수 — 목록 상한과 무관하다
       shown: displayed.length,
       hidden: hiddenCount,        // 화면이 "외 N건" 을 말할 수 있게
-      taskCount, billCount, billTabCounts, mailReplyCount, workspaces,
+      taskCount, billCount, billTabCounts, mailReplyCount, saleCount, workspaces,
     });
   } catch (err) {
     return next(err);

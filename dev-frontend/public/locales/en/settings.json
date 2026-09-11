@@ -148,7 +148,8 @@
       "task": "Tasks",
       "event": "Calendar",
       "invite": "Invites",
-      "mail": "New mail (Q mail)"
+      "mail": "New mail (Q mail)",
+      "sale": "Sales"
     },
     "eventDesc": {
       "message": "New message arrives in a chat room",
@@ -160,7 +161,8 @@
       "task": "Assigned / under review / completed",
       "event": "Added / changed / upcoming",
       "invite": "Workspace and project invites",
-      "mail": "Follows each mail account’s notification scope (default: reply needed + review recommended)"
+      "mail": "Follows each mail account’s notification scope (default: reply needed + review recommended)",
+      "sale": "Account requests · unanswered inquiries (later: call transcribed · automatic stage changes)"
     },
     "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
     "policy": {

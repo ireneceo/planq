@@ -33,6 +33,10 @@ const ENTITY_LINK = {
   calendar_event: (id) => `/calendar?event=${id}`,
   event: (id) => `/calendar?event=${id}`,
   kb_document: (id) => `/info?doc=${id}`,
+  // Q sale — 고객의 영업 뷰. 고객 관리(/business/clients)가 아니라 여기로 보낸다(알림의 맥락이 영업이다).
+  //   프론트 utils/notificationLink.ts 와 **같은 값**이어야 한다.
+  client: (id) => `/sale/${id}`,
+  client_interaction: (id) => `/sale/${id}`,
 };
 
 const EVENT_KIND_FALLBACK = {

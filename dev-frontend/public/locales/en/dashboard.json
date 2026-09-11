@@ -43,7 +43,8 @@
       "work": "Work",
       "signature": "Signatures",
       "billing": "Billing",
-      "mail": "Mail"
+      "mail": "Mail",
+      "sale": "Sales"
     },
     "emptyTitle": "Nothing to confirm",
     "emptySub": "See all tasks in Q Task",
@@ -109,7 +110,11 @@
       "reply": "Reply due",
       "doc_confirm": "Confirmation requested",
       "doc_commented": "Comment on document",
-      "awaiting_confirm": "Confirmation in progress"
+      "awaiting_confirm": "Confirmation in progress",
+      "sale_first_reply": "Send first reply",
+      "sale_unreviewed": "Review auto record",
+      "sale_next_action": "Set a next action",
+      "sale_account_request": "Account requested — send invite"
     },
     "relTime": {
       "now": "Just now",

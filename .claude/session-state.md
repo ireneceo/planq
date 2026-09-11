@@ -89,6 +89,16 @@
 - S5 프론트: i18n qsale ns + layout nav.qsale + settings menu.qsale + plan 두 줄 · 메뉴 게이트(VALID_MENUS·businesses.js·permissions.ts·MemberPermissionMatrix·cueMenus·navMenus·MainLayout 두 벌·App.tsx+appRoutes·tabStore/TabStrip/tabIcon) · pages/QSale 목록·상세(2밴드·ChipPopover·AutoSaveField key) · ClientTimeline 추출 · 문의 추가·기록 추가·종결 모달 · 고객으로 저장 버튼(Q Talk RightPanel·MailContextPanel) · PlanSettings·UsageWarningCard·초대 모달 한도 줄 · 소켓+useVisibilityRefresh · draftKinds
 - S6 검증: sync·build·guard 전체·health(+client 403 /api/sale)·e2e tenant·detailopen 행·API 테스트·3폭 스크린샷 · 문서(PERMISSION_MATRIX·CLAUDE.md DB·DEVELOPMENT_PLAN) · **Fable 게이트(R=1: 마이그레이션·권한·격리)**
 
+#### ★ Irene 결정 (2026-09-11 밤) — "다 개발하고 목요일에 fable 검증"
+- 1a 게이트 라운드는 **중단**했다(토큰). `docs/FABLE_GATE_QUEUE.md §0` 에 1a 항목 + 목요일에 볼 것 6가지를 적고 마커는 `by:"unavailable"`(= 미검증).
+- **1b·1c 까지 개발한 뒤 한 라운드로 검증한다. 그 전에는 운영 배포 금지.**
+
+#### 1b 진행 상황 (확인 필요·배지·알림) — 커밋 전
+- ✅ `saleCommon.saleOwnerWhere`(귀속 한 함수) · 멤버 제거 시 `assigned_member_id` NULL · `collectSale` 4종 + `saleCount` · 배지(useInboxCount.sale → MainLayout `nav-badge-sale`) · 확인필요 탭/카테고리/아이콘/동사 ko/en · 알림 배선(saleNotify + NOTIFY_LOCKED + 제목표 + 링크표 두 벌 + 설정 매트릭스)
+- ✅ 검증: 수집기 실호출 **15/15**(양성·음성 대조군) · guard EXIT 0 · health 43/43
+- ⏳ 남은 것: 빌드 확인 → `--suite inboxcount` → `rm dev-backend/test-qsale-inbox.js` → 커밋 → **1c(히스토리 요약·Q mail/Q Talk 연결·다음 할 일=Task·일정)**
+- ★ 하니스 교훈: `finally` 의 `process.exit` 은 예외를 삼킨다 — 예외를 실패로 세지 않으면 죽은 검사가 통과로 보인다
+
 #### 1a 진행 상황 (2026-09-11 밤)
 - ✅ S1~S5 구현 완료. 백엔드: models(Client 확장·ClientStageHistory·ClientInteraction) · services(saleCommon·salesStage·clientAccess·clientQuota) · routes(sale·sale_interactions·sale_save, 각 500줄 이하) · migrate-qsale.js(멱등 2회 확인) · 배포 체인 한 줄 · search 응답 status/sales_stage · clients.js 초대 = prospect 승격 · onboarding 계수
 - ✅ 프론트: services/sale.ts · pages/QSale/{SalePage,SaleDetailPage} · components/Clients/ClientTimeline(고객 타임라인 페이지도 이걸 쓴다) · 메뉴/탭/라우트 등록 11곳 · i18n qsale ko/en + layout/settings/clients/qbill 키 · ClientsPage prospect(필터에서 안 사라지게) · 검색 결과 링크 /sale/:id

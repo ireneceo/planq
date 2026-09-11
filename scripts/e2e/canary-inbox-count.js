@@ -113,6 +113,18 @@ async function run() {
     push('bill 배지도 total 안에 있다',
       (base.billCount || 0) <= base.total,
       `bill ${base.billCount} ≤ total ${base.total}`);
+    // Q sale (2026-09-11) — 메뉴 배지는 total 의 **부분집합**이다. 예외는 Q mail 하나뿐이고,
+    //   sale 은 "나에게 귀속된 것만" 세므로 예외가 필요 없다(docs/Q_SALE_DESIGN.md §16 U1).
+    push('saleCount 필드가 응답에 있다',
+      typeof base.saleCount === 'number',
+      `saleCount=${JSON.stringify(base.saleCount)} — 없으면 Q sale 배지는 영원히 0 이다`);
+    push('sale 배지도 total 안에 있다 (부분집합 계약)',
+      (base.saleCount || 0) <= base.total,
+      `sale ${base.saleCount} ≤ total ${base.total}`);
+    push('sale 항목 수 = saleCount (목록과 배지가 같은 것을 센다)',
+      (base.items || []).filter((it) => it.type === 'sale').length <= (base.saleCount || 0),
+      `items(sale) ${(base.items || []).filter((it) => it.type === 'sale').length} ≤ saleCount ${base.saleCount}`
+        + ' — 목록은 상한에 잘려도 배지는 안 잘린다');
     push('가려진 건수를 정확히 알려준다',
       typeof base.shown === 'number' && typeof base.hidden === 'number'
         && base.shown + base.hidden === base.total

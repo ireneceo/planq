@@ -1339,6 +1339,13 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
     }
 
     await member.update({ removed_at: new Date(), removed_by: req.user.id }, { transaction: t });
+    // Q sale — 떠난 사람이 담당으로 남으면 그 고객의 "확인 필요" 가 **아무에게도 안 뜬다**.
+    //   담당을 비워 owner·admin 에게 귀속시킨다(services/saleCommon.saleOwnerWhere 와 한 쌍).
+    if (member.user_id) {
+      const { Client } = require('../models');
+      await Client.update({ assigned_member_id: null },
+        { where: { business_id: businessId, assigned_member_id: member.user_id }, transaction: t });
+    }
     await t.commit();
     // 사이클 N+21 — 인사 변경 audit log (가장 중요한 영역)
     require('../services/auditService').logAudit(req, {

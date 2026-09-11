@@ -195,6 +195,17 @@ router.post('/:token/account-request',
           ioApp: req.app,
         });
       }
+      // Q sale — 이 링크에 고객이 붙어 있으면 **담당자에게** 영업 알림으로도 간다(대화방 참가자 알림과 별개).
+      //   담당이 없거나 떠난 사람이면 owner·admin 에게 — services/saleNotify 가 귀속 규칙을 쥔다.
+      if (link.client_id) {
+        const { notifyAccountRequestedByClientId } = require('../services/saleNotify');
+        await notifyAccountRequestedByClientId({
+          businessId: conversation.business_id,
+          clientId: link.client_id,
+          requestedEmail: email,
+          ioApp: req.app,
+        });
+      }
     } catch (e) {
       // 알림이 실패해도 요청 자체는 기록됐다 — 게스트에게 실패로 보이면 계속 다시 누른다.
       console.error('[guest] account-request notify 실패:', e.message);

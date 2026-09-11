@@ -57,6 +57,32 @@ async function isAssignableMember(businessId, userId) {
   return !!bm;
 }
 
+/**
+ * "확인 필요" 에서 **누구의 것인가** — 한 함수 (docs/Q_SALE_DESIGN.md §16 U1)
+ *
+ * ① 담당자가 나인 고객
+ * ② 담당자가 없거나 **지금 멤버가 아닌**(제거된) 사람인 고객 → owner·admin 에게
+ *    ★ 멤버 제거 라우트는 `removed_at` 만 찍고 `assigned_member_id` 를 비우지 않는다.
+ *      술어로 막지 않으면 퇴사자 담당 문의가 **아무 배지에도 안 뜬다**(U1 이 막으려던 바로 그 상태).
+ *      제거 시 NULL 처리도 같이 하지만, 옛 행이 남아 있으므로 읽는 쪽도 막는다.
+ */
+async function saleOwnerWhere(businessId, userId, { isManager }) {
+  const mine = { assigned_member_id: userId };
+  if (!isManager) return mine;
+  const members = await BusinessMember.findAll({
+    where: { business_id: businessId, removed_at: null },
+    attributes: ['user_id'], raw: true,
+  });
+  const active = members.map((m) => m.user_id).filter(Boolean);
+  return {
+    [Op.or]: [
+      mine,
+      { assigned_member_id: null },
+      ...(active.length ? [{ assigned_member_id: { [Op.notIn]: active } }] : []),
+    ],
+  };
+}
+
 /** 마지막 접점 — 파생값이다. 뒤로 가지 않게 큰 값만 쓴다(원천은 타임라인). */
 async function touchClient(client, at) {
   if (!client || !at) return;
@@ -102,4 +128,5 @@ module.exports = {
   blockClient, readChain, writeChain, broadcast,
   trimOrNull, normEmail, normPhoneDigits,
   CLIENT_INCLUDE, findClient, loadClientWithIncludes, isAssignableMember, touchClient, serializeClients,
+  saleOwnerWhere,
 };
