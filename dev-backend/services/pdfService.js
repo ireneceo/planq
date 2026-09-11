@@ -23,6 +23,13 @@ async function launch() {
   const browser = await puppeteer.launch({
     headless: 'new',
     protocolTimeout: 60000, // 죽은 browser 무한 행 방지 (default 180s 너무 김)
+    // ★ 종료 신호는 server.js 한 곳이 받는다 (Fable 2026-09-11 FAIL).
+    //   puppeteer 기본값 handleSIGINT:true 는 SIGINT(PM2 재시작 신호)를 받자마자 Chrome 그룹을 죽이고 **동기로
+    //   process.exit(130)** 한다(@puppeteer/browsers launch.js). 그래서 server.js 의 closeBrowser·server.close 는
+    //   한 번도 돌지 않았고 PM2 로그 종료코드가 늘 130 이었다. 끄면 server.js 가 closeBrowser 를 끝까지 기다린 뒤 exit(0).
+    handleSIGINT: false,
+    handleSIGTERM: false,
+    handleSIGHUP: false,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
