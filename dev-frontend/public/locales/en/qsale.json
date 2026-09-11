@@ -1,0 +1,185 @@
+{
+  "page": {
+    "title": "Q sale",
+    "detailBack": "Q sale list"
+  },
+  "stage": {
+    "label": "Stage",
+    "none": "Not in sales",
+    "none_hint": "Managed without sales stages",
+    "inquiry": "Inquiry",
+    "inquiry_hint": "Contacted, not yet consulted",
+    "consulting": "Consulting",
+    "consulting_hint": "Understanding their needs",
+    "proposal": "Proposal sent",
+    "proposal_hint": "Quote or proposal delivered",
+    "negotiation": "Negotiating",
+    "negotiation_hint": "Working out contract terms",
+    "won": "Signed",
+    "won_hint": "Contract signed by both sides",
+    "lost": "Closed, no deal",
+    "lost_hint": "Decided not to proceed (reason logged)",
+    "changed_auto": "Automatic — {{reason}}",
+    "changed_manual": "Changed by a person",
+    "days_in": "Day {{count}}",
+    "history": "History",
+    "historyEmpty": "No stage changes yet"
+  },
+  "access": {
+    "label": "Access",
+    "guest": "Guest",
+    "guest_hint": "Saved details only · no login",
+    "invited": "Invited",
+    "invited_hint": "Invitation sent, not accepted yet",
+    "member": "Member",
+    "member_hint": "Logs in to PlanQ",
+    "requires_member": "Available after formal invitation"
+  },
+  "quota": {
+    "counted": "Counts toward plan limit",
+    "not_counted": "Not counted · counts once invited",
+    "header": "Members {{clients}}/{{clients_max}} · Inquiries {{prospects}}/{{prospects_max}}",
+    "unlimited": "Unlimited",
+    "invite_notice": "Inviting counts toward your member limit (now {{clients}} / {{clients_max}})"
+  },
+  "source": {
+    "label": "Source",
+    "guest_link": "Guest chat",
+    "email": "Email",
+    "phone": "Phone",
+    "referral": "Referral",
+    "web": "Web inquiry",
+    "event": "Event",
+    "manual": "Added manually",
+    "other": "Other"
+  },
+  "lost": {
+    "reason": {
+      "price": "Price",
+      "timing": "Timing",
+      "competitor": "Chose a competitor",
+      "no_response": "No response",
+      "fit": "Poor fit",
+      "other": "Other"
+    },
+    "modal": {
+      "title": "Close — not proceeding",
+      "reasonLabel": "Reason",
+      "reasonRequired": "Please choose a reason",
+      "noteLabel": "Note (optional)",
+      "confirm": "Mark as closed"
+    }
+  },
+  "action": {
+    "addInquiry": "+ Add inquiry",
+    "saveAsClient": "Save as customer",
+    "linkedExisting": "Linked to existing customer {{name}}",
+    "addRecord": "Add record",
+    "invite": "Send invitation",
+    "openClientSettings": "Customer details",
+    "retry": "Try again"
+  },
+  "record": {
+    "kind": {
+      "label": "Type",
+      "call": "Call",
+      "meeting": "Meeting",
+      "visit": "Visit",
+      "memo": "Memo",
+      "other": "Other"
+    },
+    "direction": {
+      "label": "Direction",
+      "inbound": "Inbound",
+      "outbound": "Outbound"
+    },
+    "occurredAt": "When",
+    "duration": "Duration (min)",
+    "title": "Title",
+    "body": "Notes",
+    "save": "Save record",
+    "delete": "Delete record",
+    "deleteConfirm": "Delete this record? It disappears from the timeline.",
+    "auto": "Auto",
+    "unreviewed": "Unreviewed",
+    "markReviewed": "Mark reviewed",
+    "empty": "No records yet",
+    "contentRequired": "Add a title or notes",
+    "draftRestored": "Restored the notes you were writing",
+    "futureNotAllowed": "A touchpoint cannot be in the future"
+  },
+  "list": {
+    "searchPlaceholder": "Search name, company, phone, email",
+    "filterAll": "All",
+    "assignee": "Owner",
+    "assigneeNone": "Unassigned",
+    "stageInProgress": "In progress",
+    "columns": {
+      "client": "Customer / Company",
+      "access": "Access",
+      "stage": "Stage",
+      "assignee": "Owner",
+      "lastTouch": "Last touch",
+      "expected": "Expected"
+    },
+    "noTouch": "No touchpoints",
+    "count": "{{count}}"
+  },
+  "detail": {
+    "profile": "Profile",
+    "name": "Name",
+    "company": "Company",
+    "phone": "Phone",
+    "email": "Email",
+    "expectedAmount": "Expected size",
+    "currency": "Currency",
+    "assignee": "Owner",
+    "channels": "Channels",
+    "channelChat": "Conversations {{count}}",
+    "channelMail": "Threads {{count}}",
+    "channelGuest": "Guest links {{count}}",
+    "projects": "Linked projects",
+    "projectsEmpty": "No linked projects",
+    "emailLocked": "Email can't be changed here once an invitation was sent"
+  },
+  "timeline": {
+    "title": "Timeline",
+    "all": "All",
+    "channel": {
+      "chat": "Chat",
+      "email": "Email",
+      "task": "Tasks",
+      "invoice": "Invoices",
+      "interaction": "Calls & meetings",
+      "stage": "Stage",
+      "guest": "Guest link"
+    },
+    "stageChanged": "{{from}} → {{to}}",
+    "guestIssued": "Guest link issued",
+    "guestAccountRequested": "Account requested",
+    "empty": "Nothing here yet",
+    "more": "Load more",
+    "loadFailed": "Couldn't load the timeline"
+  },
+  "inquiry": {
+    "title": "Add inquiry",
+    "nameLabel": "Name",
+    "companyLabel": "Company",
+    "phoneLabel": "Phone",
+    "emailLabel": "Email",
+    "sourceLabel": "Source",
+    "submit": "Add",
+    "cancel": "Cancel",
+    "nameRequired": "Enter a name or a company",
+    "invalidEmail": "Check the email format"
+  },
+  "empty": {
+    "title": "No customers in progress yet",
+    "body": "Save a guest chat or email sender as a customer, or add an inquiry."
+  },
+  "error": {
+    "loadFailed": "Couldn't load. Please try again.",
+    "saveFailed": "Couldn't save",
+    "forbidden": "You don't have access to this menu"
+  }
+}

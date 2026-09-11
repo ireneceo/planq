@@ -4,7 +4,7 @@ import { apiFetch } from '../contexts/AuthContext';
 
 // 사이드바 메뉴 순서 + weekly_team (사이클 N+26 — 워크스페이스 통합 주간보고 보기, default 'none')
 // insights / weekly_team 은 조회 전용 (write 의미 X).
-export type MenuKey = 'qtalk' | 'qmail' | 'qtask' | 'qcalendar' | 'qnote' | 'qdocs' | 'qinfo' | 'qfile' | 'qbill' | 'clients' | 'insights' | 'weekly_team';
+export type MenuKey = 'qtalk' | 'qmail' | 'qsale' | 'qtask' | 'qcalendar' | 'qnote' | 'qdocs' | 'qinfo' | 'qfile' | 'qbill' | 'clients' | 'insights' | 'weekly_team';
 export type PermissionLevel = 'none' | 'read' | 'write';
 export type MemberRole = 'owner' | 'admin' | 'member' | 'ai';
 

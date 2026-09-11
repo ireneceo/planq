@@ -11,7 +11,7 @@ import { isTabsSpike } from '../utils/tabsBeta';
 
 export type TabKind =
   | 'dashboard' | 'inbox' | 'talk' | 'task' | 'note' | 'docs' | 'calendar'
-  | 'bill' | 'mail' | 'project' | 'projectDetail' | 'files' | 'clients' | 'info'
+  | 'bill' | 'mail' | 'sale' | 'project' | 'projectDetail' | 'files' | 'clients' | 'info'
   // 플랫폼 관리자 화면. 워크스페이스 kind 와 **반드시 갈라야 한다** — 예전엔 /admin 이
   // PREFIX_KIND 에 없어 전부 'other' 로 떨어졌고, 그 결과 ①탭 이름이 언제나 "설정" 이었으며
   // ②identity 가 다 같아 관리자 화면을 새로 열 때마다 **기존 관리자 탭을 덮어썼다.**
@@ -98,6 +98,7 @@ const PREFIX_KIND: Array<[RegExp, TabKind]> = [
   [/^\/calendar/, 'calendar'],
   [/^\/bills/, 'bill'],
   [/^\/mail/, 'mail'],
+  [/^\/sale/, 'sale'],          // Q sale — 목록·상세 같은 kind(고객별 복수 탭은 열지 않는다)
   [/^\/files/, 'files'],
   [/^\/business\/clients/, 'clients'], // 실 라우트(App.tsx). /^\/clients/ 보다 먼저 — other kind 흡수 방지
   [/^\/clients/, 'clients'],

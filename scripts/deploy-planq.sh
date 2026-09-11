@@ -411,6 +411,12 @@ sync_database() {
   log "  Creating ephemeral_tokens (OAuth 상태 저장소)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-ephemeral-tokens.js 2>&1 | tail -6"
 
+  # Q sale 1a — ENUM 끝 append 3건(clients.status prospect · 알림 두 테이블 sale). 멱등 (docs/Q_SALE_DESIGN.md §16 U2·U3)
+  #   위 sync(alter) 가 모델 순서대로 먼저 붙이므로 여기선 보통 no-op — sync 는 실패를 삼키므로 백스톱이다.
+  #   ★ 코드 배포 **전에** 운영에서 `--dry` → 실행을 수동 선행한다(새 코드가 옛 ENUM 에 'prospect' 를 쓰면 저장 실패).
+  log "  Appending Q sale ENUM values (clients.status · notifications · notification_prefs)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-qsale.js 2>&1 | tail -6"
+
   # 운영 #360 — 연결 post 가 없는 표(q_record)는 화면에서 열 길이 없다.
   #   Q record 메뉴 폐지 후 표를 여는 통로는 post(kind=table) 뿐인데, POST /api/records 가
   #   post 없이 표만 만들 수 있어 운영에 도달 불가 표가 생겼다(#12 "앱 스토어 개발자 계정", 행 15).

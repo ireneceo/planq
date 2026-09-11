@@ -19,6 +19,7 @@
 const CUE_MENUS = [
   { navKey: 'talk',     name: 'Q talk',     desc: '대화' },
   { navKey: 'qmail',    name: 'Q mail',     desc: '메일' },
+  { navKey: 'qsale',    name: 'Q sale',     desc: '영업·문의 고객' },
   { navKey: 'task',     name: 'Q task',     desc: '할일' },
   { navKey: 'project',  name: 'Q project',  desc: '프로젝트' },
   { navKey: 'calendar', name: 'Q calendar', desc: '일정' },

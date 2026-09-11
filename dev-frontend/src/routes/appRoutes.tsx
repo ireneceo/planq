@@ -36,6 +36,8 @@ const ProfilePage = lazy(() => import('../pages/Profile/ProfilePage'));
 const ProfileIntegrationsPage = lazy(() => import('../pages/Profile/ProfileIntegrationsPage'));
 const MyWorkSettingsPage = lazy(() => import('../pages/Profile/MyWorkSettingsPage'));
 const MailPage = lazy(() => import('../pages/QMail/MailPage'));
+const SalePage = lazy(() => import('../pages/QSale/SalePage'));
+const SaleDetailPage = lazy(() => import('../pages/QSale/SaleDetailPage'));
 const QBillPage = lazy(() => import('../pages/QBill/QBillPage'));
 const InsightsPage = lazy(() => import('../pages/Insights/InsightsPage'));
 const AdminDashboardPage = lazy(() => import('../pages/Admin/AdminDashboardPage'));
@@ -105,6 +107,8 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/settings', element: <WorkspaceSettingsPage /> },
   { path: '/settings/:tab', element: <WorkspaceSettingsPage /> },
   { path: '/mail', roles: BIZ, element: <MailPage /> },
+  { path: '/sale', roles: BIZ, element: <SalePage /> },
+  { path: '/sale/:clientId', roles: BIZ, element: <SaleDetailPage /> },
   { path: '/bills', element: <QBillPage /> },
   { path: '/stats/:tab', element: <InsightsPage /> },
   { path: '/admin/dashboard', roles: ['platform_admin'], element: <AdminDashboardPage /> },

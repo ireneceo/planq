@@ -17,7 +17,7 @@ import { mediaTablet } from '../../theme/breakpoints';
 
 // kind → layout ns nav 라벨 키 (사이드바와 동일 문구, 언어전환 재렌더 보장)
 const NAV_KEY: Record<TabKind, string> = {
-  dashboard: 'nav.dashboard', inbox: 'nav.inbox', talk: 'nav.talk', mail: 'nav.qmail',
+  dashboard: 'nav.dashboard', inbox: 'nav.inbox', talk: 'nav.talk', mail: 'nav.qmail', sale: 'nav.qsale',
   task: 'nav.task', project: 'nav.project', projectDetail: 'nav.project', calendar: 'nav.calendar',
   note: 'nav.note', docs: 'nav.docs', info: 'nav.qinfo', files: 'nav.file',
   clients: 'nav.clients', bill: 'nav.qbill', admin: 'nav.sectionAdmin', other: 'nav.settings',

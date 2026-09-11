@@ -8,6 +8,7 @@ const {
 } = require('../models');
 const { getPlan } = require('../config/plans');
 const { activeMemberSeatWhere } = require('./inviteExpiry');
+const { billableClientWhere, prospectWhere } = require('./clientQuota');
 
 // ─── 메모리 캐시 (30s TTL) ───
 const _planCache = new Map();   // businessId → { data, expires }
@@ -153,11 +154,13 @@ async function getUsage(businessId) {
   //   - 제거된 멤버 제외 (removed_at NOT NULL)
   //   회귀 fix: getUsage().members 가 모든 row 를 count 해서 "8/5 160%" 같은 잘못된 표시 발생.
   //   add_member 가드와 일관 정책 (아래 case 'add_member' 도 동일).
-  const [memberCount, clientCount, projectCount, conversationCount, storageRow, cueThisMonth, cueByType, qnoteThisMonth] = await Promise.all([
+  const [memberCount, clientCount, prospectCount, projectCount, conversationCount, storageRow, cueThisMonth, cueByType, qnoteThisMonth] = await Promise.all([
     // F2 — 만료된 미수락 초대는 세지 않는다. 게이트(add_member)와 **같은 집합**이어야
     //   화면 숫자와 실제 가능 여부가 갈라지지 않는다.
     BusinessMember.count({ where: { business_id: key, removed_at: null, role: { [Op.ne]: 'ai' }, ...activeMemberSeatWhere() } }),
-    Client.count({ where: { business_id: key } }),
+    // 정식 고객 / 문의 고객 — 게이트(add_client·add_prospect)와 같은 술어(services/clientQuota)
+    Client.count({ where: billableClientWhere(key) }),
+    Client.count({ where: prospectWhere(key) }),
     Project.count({ where: { business_id: key, status: { [Op.in]: ['active', 'paused'] } } }),
     Conversation.count({ where: { business_id: key } }),
     BusinessStorageUsage.findOne({ where: { business_id: key } }),
@@ -169,6 +172,7 @@ async function getUsage(businessId) {
   const result = {
     members: memberCount,
     clients: clientCount,
+    prospects: prospectCount,
     projects: projectCount,
     conversations: conversationCount,
     storage_bytes: storageRow ? Number(storageRow.bytes_used) : 0,
@@ -306,9 +310,20 @@ async function canInner(businessId, action, ctx = {}) {
       return { ok: true };
     }
     case 'add_client': {
-      const cur = await Client.count({ where: { business_id: businessId } });
+      // 정식 고객 생성·초대(문의 → 초대 승격 포함). 문의 고객은 세지 않는다 — getUsage().clients 와 같은 술어
+      //   ★ 승격은 이미 있는 행이 prospect → invited 로 바뀌므로 +1 이 맞다(그 행은 지금 cur 에 없다).
+      const cur = await Client.count({ where: billableClientWhere(businessId) });
       if (cur + 1 > limits.clients_max) {
         return { ok: false, reason: 'clients_quota_exceeded', limit: limits.clients_max, current: cur };
+      }
+      return { ok: true };
+    }
+    case 'add_prospect': {
+      // Q sale 문의 고객 생성("고객으로 저장"·"+ 문의 추가"). 플랜에 값이 없으면 무제한으로 본다
+      const max = limits.prospects_max === undefined ? Infinity : limits.prospects_max;
+      const cur = await Client.count({ where: prospectWhere(businessId) });
+      if (cur + 1 > max) {
+        return { ok: false, reason: 'prospects_quota_exceeded', limit: max, current: cur };
       }
       return { ok: true };
     }
@@ -437,6 +452,7 @@ function buildQuotaError(checkResult, businessId) {
     },
     members_quota_exceeded: { message: '멤버 수 한도 초과', message_en: 'Member limit exceeded' },
     clients_quota_exceeded: { message: '고객 수 한도 초과', message_en: 'Client limit exceeded' },
+    prospects_quota_exceeded: { message: '문의 고객 수 한도 초과', message_en: 'Inquiry customer limit exceeded' },
     projects_quota_exceeded: { message: '프로젝트 수 한도 초과', message_en: 'Project limit exceeded' },
     conversations_quota_exceeded: { message: '대화방 수 한도 초과', message_en: 'Conversation limit exceeded' },
     cue_quota_exceeded: { message: 'Cue AI 월 사용 한도 초과', message_en: 'Cue monthly limit exceeded' },

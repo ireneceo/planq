@@ -428,7 +428,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
           ...likeAny('display_name'), ...likeAny('company_name'),
           { invite_email: like }, { billing_contact_email: like },
         ] }] },
-        attributes: ['id', 'display_name', 'company_name', 'invite_email', 'billing_contact_email'],
+        // status·sales_stage 는 결과 행의 배지 — 검색에서 바로 "어떤 고객인지" 가 보인다(Q sale §12-7)
+        attributes: ['id', 'display_name', 'company_name', 'invite_email', 'billing_contact_email', 'status', 'sales_stage'],
         limit, order: [relevance('display_name'), ['updated_at', 'DESC']],
       }).catch(() => []),
       Project.findAll({

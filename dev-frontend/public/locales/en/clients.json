@@ -32,7 +32,15 @@
   "status": {
     "active": "Active",
     "archived": "Inactive",
-    "invited": "Invited"
+    "invited": "Invited",
+    "prospect": "Inquiry"
+  },
+  "quota": {
+    "counted": "Counts toward plan limit",
+    "notCounted": "Not counted · counts once invited"
+  },
+  "timelineLinks": {
+    "openInSale": "Open in Q sale"
   },
   "switch": {
     "tipDeactivate": "Active — click to deactivate",

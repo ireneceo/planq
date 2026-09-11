@@ -25,6 +25,7 @@ Notification.init({
       'mail',             // #203 — Q Mail 새 메일
       'system',           // 시스템 경고 (메일 sync 실패 등)
       'leave',            // #208 — 휴가 신청·승인·반려 (ENUM 은 끝에 append)
+      'sale',             // Q sale (끝에 append). ★ 이 테이블은 NotificationPref 와 값 **순서가 다르다**(share_expiry) — 순서를 맞추려 들지 말 것
     ),
     allowNull: false,
   },

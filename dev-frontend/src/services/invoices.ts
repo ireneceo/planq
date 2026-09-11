@@ -551,7 +551,9 @@ export async function listSourceCandidates(
 export interface ApiClientLite {
   id: number;
   user_id: number | null;   // 초대 수락 전(invited)에는 null — 프로젝트 contact_user_id 매칭용
-  status?: 'invited' | 'active' | 'archived';
+  // 'prospect' = Q sale 문의 고객(게스트로 정보만 저장). 공개 결제 링크로 청구할 수 있어 목록에 들어온다 —
+  //   정식 고객과 구별되게 라벨이 붙는다(상태값 규약: 새 값이 기본값으로 조용히 떨어지면 그게 버그다).
+  status?: 'invited' | 'active' | 'archived' | 'prospect';
   display_name: string | null;
   company_name: string | null;
   biz_name: string | null;

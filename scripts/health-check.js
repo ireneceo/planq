@@ -402,6 +402,21 @@ function defineSecurityTests() {
     if (r.success !== false) throw new Error('expected failure envelope');
     return true;
   });
+
+  // Q sale — 고객(client)·비소속에게는 **존재 자체가 없어야** 한다 (docs/Q_SALE_DESIGN.md §4.5)
+  test('security', '익명 /api/sale → 401', async () => {
+    await http('GET', `${BACKEND}/api/sale/${ctx.businessId || 1}/clients`, { expectStatus: 401 });
+    return true;
+  });
+
+  test('security', '비소속 워크스페이스 /api/sale → 403', async () => {
+    const r = await http('GET', `${BACKEND}/api/sale/99999999/clients`, {
+      headers: { Authorization: `Bearer ${ctx.token}` },
+      expectStatus: 403,
+    });
+    if (r.success !== false) throw new Error('expected failure envelope');
+    return true;
+  });
 }
 
 // ============================================

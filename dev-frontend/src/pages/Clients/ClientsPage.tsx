@@ -35,7 +35,9 @@ import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 
-type ClientStatus = 'invited' | 'active' | 'archived';
+// 'prospect' = Q sale 문의 고객(게스트로 정보만 저장 · 초대 전). 계정·관계 축의 값이다.
+//   ★ 새 상태값을 해석하는 곳은 전수로 고친다 — 삼항 사슬 끝(기본값)에 떨어지면 그게 곧 버그다.
+type ClientStatus = 'invited' | 'active' | 'archived' | 'prospect';
 
 interface ClientRow {
   id: number;
@@ -85,6 +87,7 @@ const STATUS_STYLE: Record<ClientStatus, { bg: string; fg: string }> = {
   active: { bg: '#CCFBF1', fg: '#0F766E' },
   archived: { bg: '#E2E8F0', fg: '#475569' },
   invited: { bg: '#FEF3C7', fg: '#92400E' },
+  prospect: { bg: '#F1F5F9', fg: '#475569' },
 };
 
 // 사업자·증빙 정보 개별 필드 — 라벨 + 자동저장 입력 (module-level 로 정의해 재렌더 시 focus 유지)
@@ -350,7 +353,9 @@ export default function ClientsPage() {
   const filtered = useMemo(() => clients.filter((c) => {
     if (statusFilter !== 'all') {
       const st = c.status || 'active';
-      if (statusFilter === 'active' && st !== 'active' && st !== 'invited') return false;
+      // '활성' = 보관하지 않은 것 전부. 문의 고객(prospect)을 빼면 Q sale 에서 저장한 고객이
+      //   고객 관리 기본 화면에서 **조용히 사라진다**(사용자에겐 "저장이 안 됐다" 로 보인다).
+      if (statusFilter === 'active' && st !== 'active' && st !== 'invited' && st !== 'prospect') return false;
       if (statusFilter === 'archived' && st !== 'archived') return false;
     }
     if (!query.trim()) return true;
@@ -610,6 +615,12 @@ export default function ClientsPage() {
                 {activeDetail.company_name && <HeadCompany>{activeDetail.company_name}</HeadCompany>}
               </HeadText>
               <HeadSide>
+                {/* 문의 고객(prospect)은 플랜 한도에 안 센다 — 초대하면 센다. 기준을 화면이 상태로 말한다 */}
+                <QuotaHint>
+                  {activeDetail.status === 'prospect'
+                    ? t('quota.notCounted', { defaultValue: '한도: 미포함 · 초대하면 포함' }) as string
+                    : t('quota.counted', { defaultValue: '한도: 포함' }) as string}
+                </QuotaHint>
                 <SwitchWrap title={activeDetail.status === 'archived' ? t('switch.tipActivate') as string : t('switch.tipDeactivate') as string}>
                   <SwitchInput type="checkbox" checked={activeDetail.status !== 'archived'} disabled={!isAdmin}
                     onChange={(e) => toggleStatus(activeDetail.id, e.target.checked ? 'active' : 'archived')} />
@@ -945,7 +956,9 @@ const HeadRow = styled.div`display:flex;align-items:center;gap:14px;padding-bott
 const HeadText = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;`;
 const HeadName = styled.h2`font-size:1.25rem;font-weight:700;color:#0F172A;margin:0;`;
 const HeadCompany = styled.div`font-size:0.8125rem;color:#64748B;`;
-const HeadSide = styled.div`flex-shrink:0;`;
+const HeadSide = styled.div`flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:6px;`;
+/* 한도에 세는 고객인지 — 문의 고객(prospect)은 초대해야 센다. 값이 아니라 **상태**로 보인다 */
+const QuotaHint = styled.span`font-size:0.6875rem; color:#64748B; white-space:nowrap;`;
 
 // Switch
 const SwitchWrap = styled.label`display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;`;

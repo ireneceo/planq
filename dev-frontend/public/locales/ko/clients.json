@@ -32,7 +32,15 @@
   "status": {
     "active": "활성",
     "archived": "비활성",
-    "invited": "초대됨"
+    "invited": "초대됨",
+    "prospect": "문의 고객"
+  },
+  "quota": {
+    "counted": "한도: 포함",
+    "notCounted": "한도: 미포함 · 초대하면 포함"
+  },
+  "timelineLinks": {
+    "openInSale": "Q sale 에서 보기"
   },
   "switch": {
     "tipDeactivate": "활성 — 클릭하여 비활성화",

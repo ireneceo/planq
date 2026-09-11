@@ -33,6 +33,8 @@ const LABELS = {
     active: '활성',
     invited: '초대됨',
     archived: '비활성',
+    // Q sale 문의 고객 — 게스트로 정보만 저장, 초대 전 (docs/Q_SALE_DESIGN.md §3.1)
+    prospect: '문의 고객',
   },
   // clients.json projectStatus.*
   project: {

@@ -14,7 +14,7 @@ import {
 
 // 사이드바 순서 그대로 (talk → mail → task → calendar → note → docs → info → file → bill → clients → insights)
 // + weekly_team (사이클 N+26) — 워크스페이스 통합 주간보고 보기 권한 (default 'none')
-const MENU_LIST: MenuKey[] = ['qtalk', 'qmail', 'qtask', 'qcalendar', 'qnote', 'qdocs', 'qinfo', 'qfile', 'qbill', 'clients', 'insights', 'weekly_team'];
+const MENU_LIST: MenuKey[] = ['qtalk', 'qmail', 'qsale', 'qtask', 'qcalendar', 'qnote', 'qdocs', 'qinfo', 'qfile', 'qbill', 'clients', 'insights', 'weekly_team'];
 const LEVEL_LIST: PermissionLevel[] = ['write', 'read', 'none'];
 // insights / weekly_team 은 조회 전용 — write 옵션 X
 const READ_ONLY_MENUS = new Set<MenuKey>(['insights', 'weekly_team']);

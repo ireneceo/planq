@@ -19,6 +19,8 @@ const PLANS = {
     limits: {
       members_max: 1,
       clients_max: 3,
+      // Q sale 문의 고객(prospect) 별도 상한 — 정식 고객 한도의 3배. 계산식이 아니라 값으로 둔다(한 곳만 고치게)
+      prospects_max: 9,
       projects_max: 2,
       conversations_max: 5,
       storage_bytes: 200 * MB,
@@ -51,6 +53,7 @@ const PLANS = {
     limits: {
       members_max: 1,
       clients_max: 5,
+      prospects_max: 15,
       projects_max: 5,
       conversations_max: 10,
       storage_bytes: 2 * GB,
@@ -86,6 +89,7 @@ const PLANS = {
     limits: {
       members_max: 5,
       clients_max: 20,
+      prospects_max: 60,
       projects_max: Infinity,
       conversations_max: Infinity,
       storage_bytes: 5 * GB,
@@ -117,6 +121,7 @@ const PLANS = {
     limits: {
       members_max: 10,
       clients_max: 100,
+      prospects_max: 300,
       projects_max: Infinity,
       conversations_max: Infinity,
       storage_bytes: 20 * GB,
@@ -148,6 +153,7 @@ const PLANS = {
     limits: {
       members_max: Infinity,
       clients_max: Infinity,
+      prospects_max: Infinity,
       projects_max: Infinity,
       conversations_max: Infinity,
       storage_bytes: Infinity,           // 맞춤 (기본 100GB)

@@ -416,7 +416,8 @@
       "extBizNumber": "Business no. (optional)",
       "extHint": "Sends the invoice to the entered email without an invite. Payment & viewing via the public link.",
       "individual": "Individual",
-      "invitedTag": "Invited"
+      "invitedTag": "Invited",
+      "prospectTag": "Inquiry"
     },
     "compose": {
       "title": "Invoice details",

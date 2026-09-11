@@ -114,6 +114,9 @@ const AccountDeletion = lazy(() => import('./pages/Legal/AccountDeletion'));
 const TermsOfService = lazy(() => import('./pages/Legal/TermsOfService'));
 // N+75-D Q mail M2 — 인박스 read-only (옛 ComingSoonPage 자리 대체)
 const MailPage = lazy(() => import('./pages/QMail/MailPage'));
+// Q sale — 영업 뷰(같은 clients). docs/Q_SALE_DESIGN.md
+const SalePage = lazy(() => import('./pages/QSale/SalePage'));
+const SaleDetailPage = lazy(() => import('./pages/QSale/SaleDetailPage'));
 // Landing — 비로그인 외부 트래픽이 보는 영역 (HomePage 는 RootRoute 에서 직접 import)
 const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
 const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
@@ -506,6 +509,17 @@ function ShellApp() {
         <Route path="/mail" element={
           <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
             <MainLayout><MailPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        {/* Q sale — 같은 clients 의 영업 뷰. 고객(client) 역할은 서버·프론트 같은 술어로 막는다 */}
+        <Route path="/sale" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><SalePage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/sale/:clientId" element={
+          <ProtectedRoute requiredRole={['business_owner', 'business_member']}>
+            <MainLayout><SaleDetailPage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/bills" element={

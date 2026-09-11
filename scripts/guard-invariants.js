@@ -443,6 +443,8 @@ const BROADCAST_LOCKED = [
   'dev-backend/routes/invoices.js',
   'dev-backend/routes/calendar.js',
   'dev-backend/routes/projects.js',
+  // Q sale — 고객 저장·단계 변경·상담 기록은 팀이 같이 보는 화면이다(목록·상세가 즉시 따라간다)
+  'dev-backend/routes/sale.js',
 ];
 function checkBroadcast() {
   const missing = [];

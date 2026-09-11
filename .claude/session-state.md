@@ -79,7 +79,22 @@
 - ✅ 설계 전문 읽음 · 근거 대조(서브에이전트): 줄 번호 절반 이동 + 계약 충돌 → **설계에 §16 "구현 직전 갱신" 추가(미커밋 docs)** — U1 배지 합산(assigned_member_id=나·미지정 owner/admin·saleCount) · U2 clients.status NULL 보존 · U3 ENUM 3건(notifications 도, 두 테이블 순서 다름) · U4 onboarding.js prospect 제외 · U5 cueLabels statuslabel · U6 sessions.py access='write'(사이클3) · 16.2 횡단 12종. 운영 ENUM SSH 읽기 = dev 동일(MySQL 8.0.46, clients 5·notifications 1720·prefs 16)
 - ✅ **Fable 라운드 완료** — A PASS(PDF 종료 3회 실측, by:fable 마커 commit 07732a85) · 참고: 소켓 클라이언트가 close 에 응답 못 하면(백그라운드 모바일) 4초 강제 경로(exit 0·Chrome 정리는 됨) — 원하면 io.close 1초 뒤 closeAllConnections 한 줄(미적용, 범위 밖)
 - ✅ B CHANGES → §16 반영: U1 saleOwnerWhere(퇴사 담당·qsale none→[]·메일/업무/일정 걸린 문의 제외) · U2 NULL→NOT NULL 은 INPLACE 허용 주의 · U3 sync 가 먼저 append·migrate no-op 백스톱·schemacol ENUM 순서 비교를 구현 게이트에 · U7 롤백 prospect→archived · **사이클 1 → 1a 문의가 보인다 / 1b 배지 / 1c 요약·연결** · FABLE_GATE_QUEUE §4 닫음
-- ⏭ 다음: Irene 에게 1a 착수 확인 → 1a 구현(설계 §3·§4·§5.2·§5.3·§12 필수·§16.2·U2~U5·U7)
+- ✅ docs 커밋 b8e738ac · Irene "다른 거 다 했으면 시작해" → **Q sale 사이클 1a 착수** (남은 알려진 것: drafts ⑩2 간헐만)
+
+### 🔄 Q sale 1a — 작업 계획 (설계 §3·§4·§5.2·§5.3·§16)
+- S1 데이터: Client.js(status +prospect, 영업 컬럼 9 + 인덱스 2) · Notification/NotificationPref +sale · 신규 ClientStageHistory·ClientInteraction(전 컬럼) + index.js · dev-backend/scripts/migrate-qsale.js(ENUM 3, 테이블별 Type 끝 append·INPLACE) + deploy 체인 줄 · sync · schema-snapshot
+- S2 서비스: clientAccess.js(accessKindOf·has_guest_link) · clientQuota.js(billable = prospect 제외, prospects) + plan.js getUsage/can add_client·add_prospect + plans.js prospects_max(×3 명시) · salesStage.js setStage(이력·broadcast·audit)
+- S3 routes/sale.js(/api/sale — authenticateToken·checkBusinessAccess·client 403·requireMenu qsale): 목록(필터·pagination·단계 요약) · 상세 · PATCH 프로필 · POST stage · timeline(+interaction·stage·guest) · interactions CRUD+review · save-as-client(guest_link·email_thread·manual) · BROADCAST_LOCKED
+- S4 prospect 소비처 7: ClientsPage 목록·드로어 · 초대(clients.js invite 가 prospect 행 승격 — 지금은 dupByEmail 409) · 재발송 · 프로젝트 고객 탭 · 청구서 고객 선택 · 검색(링크 /sale/:id+배지) · onboarding · cueLabels·clients.json
+- S5 프론트: i18n qsale ns + layout nav.qsale + settings menu.qsale + plan 두 줄 · 메뉴 게이트(VALID_MENUS·businesses.js·permissions.ts·MemberPermissionMatrix·cueMenus·navMenus·MainLayout 두 벌·App.tsx+appRoutes·tabStore/TabStrip/tabIcon) · pages/QSale 목록·상세(2밴드·ChipPopover·AutoSaveField key) · ClientTimeline 추출 · 문의 추가·기록 추가·종결 모달 · 고객으로 저장 버튼(Q Talk RightPanel·MailContextPanel) · PlanSettings·UsageWarningCard·초대 모달 한도 줄 · 소켓+useVisibilityRefresh · draftKinds
+- S6 검증: sync·build·guard 전체·health(+client 403 /api/sale)·e2e tenant·detailopen 행·API 테스트·3폭 스크린샷 · 문서(PERMISSION_MATRIX·CLAUDE.md DB·DEVELOPMENT_PLAN) · **Fable 게이트(R=1: 마이그레이션·권한·격리)**
+
+#### 1a 진행 상황 (2026-09-11 밤)
+- ✅ S1~S5 구현 완료. 백엔드: models(Client 확장·ClientStageHistory·ClientInteraction) · services(saleCommon·salesStage·clientAccess·clientQuota) · routes(sale·sale_interactions·sale_save, 각 500줄 이하) · migrate-qsale.js(멱등 2회 확인) · 배포 체인 한 줄 · search 응답 status/sales_stage · clients.js 초대 = prospect 승격 · onboarding 계수
+- ✅ 프론트: services/sale.ts · pages/QSale/{SalePage,SaleDetailPage} · components/Clients/ClientTimeline(고객 타임라인 페이지도 이걸 쓴다) · 메뉴/탭/라우트 등록 11곳 · i18n qsale ko/en + layout/settings/clients/qbill 키 · ClientsPage prospect(필터에서 안 사라지게) · 검색 결과 링크 /sale/:id
+- ✅ 검증: **API 28/28** (test-qsale.js — 끝나면 rm) · **guard-invariants EXIT 0**(내 회귀 5건 수리: draft 등록제·god-file 분리·schemacol 스냅샷·uispec 높이·i18n 키) · **health-check 43/43**(신규 2건)
+- ⏳ 남은 것: 프론트 빌드 EXIT 0 확인 → e2e `tenant`·`detailopen`(신규 /sale 행) → 3폭 화면 확인 → test 파일 rm → 커밋 → **Fable 게이트**(R=1)
+- ★ 주의: 빌드 종료코드는 파이프 뒤에 가려진다 — 로그의 `BUILD_EXIT=` 로 판정할 것(이번에도 알림은 0, 실제 2였다)
 - 계획: 내가 먼저 파일:줄 근거 낡음 대조(Fable 조사 반복 방지) → Fable 한 라운드(설계 구현 직전 검토 + PDF SIGINT 짧게) → 승인·개발 · ★ Fable 이 "고아 Chrome pid 2890994" 라 한 것은 **earlyoom** 이었다(건드리지 말 것) · ppid 1 은 chrome_crashpad_handler(브라우저당 2개) — 누적 여부 확인 예정 · 검증 스크립트 dev-backend/test-pdf-followup.js · scratchpad/verify-restart-cleanup.sh
   Fable 이 남긴 후속(비차단): ① wikiScreenshot `retainBrowser` 를 `newPage` 앞으로 한 줄 ② **선행 결함: 유휴 ≥180초 뒤 첫 PDF 34.5초**(newPage waitForTarget 30s → 교체 — 9개 누적의 진짜 발생원 추정, --single-process/--proxy-server 의심) ③ closeBrowser 가 shutdown 훅에 없음 → PM2 재시작마다 고아 Chrome(06:54 고아 1개 남음). 운영 배포는 Irene "배포" 명령 때(q-note 재시작 포함)
   ✅ 수리 검증: leavesave **15/15**(⑧-전환·⑧-물음) · drafts 28/28 · toggles 6/6 · PDF 누수 수정본 5/5 + 양성 대조군(수정 전) FAIL · dev 백엔드 재시작·누수 Chrome 9개 정리·health 41/41 · guard EXIT 0 · 문서(DEVELOPMENT_PLAN·설계 §2-3·CLAUDE.md)·메모리(feedback_singleton_reset_must_dispose) 반영 → **커밋 → Fable 재검증(297ef407 + 59ec48de + 이번 수리·PDF 누수)**

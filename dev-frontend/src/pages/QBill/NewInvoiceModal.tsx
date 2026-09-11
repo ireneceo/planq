@@ -368,8 +368,11 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
       ? `${c.display_name || c.company_name || ''}${c.biz_name ? ` (${c.biz_name})` : ''}`
       : `${c.display_name || c.company_name || '—'} (${t('newInvoice.to.individual', { defaultValue: '개인' }) as string})`;
     // 초대 수락 전 고객도 청구 가능 — 식별되도록 "초대중" 표시
-    const invited = c.status === 'invited' ? ` · ${t('newInvoice.to.invitedTag', { defaultValue: '초대중' }) as string}` : '';
-    return { value: c.id, label: `${base}${invited}` };
+    //   Q sale 문의 고객(prospect)도 공개 결제 링크로 청구할 수 있다. 정식 고객과 구별되게 따로 표시한다
+    //   (라벨이 없으면 "초대중" 도 아니고 아무 표시도 없어 정식 고객처럼 보인다 — 상태값 규약).
+    const tag = c.status === 'invited' ? ` · ${t('newInvoice.to.invitedTag', { defaultValue: '초대중' }) as string}`
+      : c.status === 'prospect' ? ` · ${t('newInvoice.to.prospectTag', { defaultValue: '문의 고객' }) as string}` : '';
+    return { value: c.id, label: `${base}${tag}` };
   }), [clients, t]);
 
   const sourceOptions: PlanQSelectOption[] = useMemo(() => sourceCandidates.map(p => ({

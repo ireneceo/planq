@@ -416,7 +416,8 @@
       "extBizNumber": "사업자번호 (선택)",
       "extHint": "초대 없이 입력한 이메일로 청구서를 발송합니다. 공개 결제 링크로 결제·확인이 가능합니다.",
       "individual": "개인",
-      "invitedTag": "초대중"
+      "invitedTag": "초대중",
+      "prospectTag": "문의 고객"
     },
     "compose": {
       "title": "청구 내역",

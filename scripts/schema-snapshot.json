@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-09-10",
+  "_generated": "2026-09-11",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -328,6 +328,46 @@
       "gcal_sync_workspace",
       "gcal_sync_personal"
     ],
+    "client_interactions": [
+      "id",
+      "business_id",
+      "client_id",
+      "project_id",
+      "calendar_event_id",
+      "kind",
+      "direction",
+      "occurred_at",
+      "duration_seconds",
+      "title",
+      "body",
+      "summary",
+      "key_points",
+      "origin",
+      "source_kind",
+      "reviewed_at",
+      "reviewed_by",
+      "qnote_session_id",
+      "file_id",
+      "stt_status",
+      "stt_error",
+      "created_by",
+      "deleted_at",
+      "deleted_by",
+      "created_at",
+      "updated_at"
+    ],
+    "client_stage_history": [
+      "id",
+      "business_id",
+      "client_id",
+      "from_stage",
+      "to_stage",
+      "origin",
+      "changed_by",
+      "reason",
+      "source_ref",
+      "created_at"
+    ],
     "client_subscriptions": [
       "id",
       "business_id",
@@ -389,7 +429,16 @@
       "billing_contact_phone",
       "reinvite_count",
       "kind",
-      "email_aliases"
+      "email_aliases",
+      "sales_stage",
+      "sales_stage_changed_at",
+      "sales_source",
+      "lost_reason",
+      "lost_note",
+      "phone",
+      "expected_amount",
+      "expected_currency",
+      "last_touch_at"
     ],
     "contact_inquiries": [
       "id",
@@ -776,6 +825,16 @@
       "received_at_email",
       "follow_up_days",
       "last_extracted_email_message_id"
+    ],
+    "ephemeral_tokens": [
+      "id",
+      "kind",
+      "token_key",
+      "payload",
+      "expires_at",
+      "created_at",
+      "updated_at",
+      "attempts"
     ],
     "export_jobs": [
       "id",
@@ -1978,6 +2037,22 @@
       "status",
       "error_message"
     ],
+    "schedule_batches": [
+      "id",
+      "business_id",
+      "project_id",
+      "created_by",
+      "prompt",
+      "op",
+      "params",
+      "items",
+      "warnings",
+      "applied_at",
+      "reverted_at",
+      "reverted_by",
+      "created_at",
+      "updated_at"
+    ],
     "signature_requests": [
       "id",
       "entity_type",
@@ -2366,6 +2441,14 @@
       "finalized_by",
       "snapshot_data",
       "retro_note",
+      "created_at",
+      "updated_at"
+    ],
+    "whats_new_reads": [
+      "id",
+      "user_id",
+      "slug",
+      "read_at",
       "created_at",
       "updated_at"
     ],

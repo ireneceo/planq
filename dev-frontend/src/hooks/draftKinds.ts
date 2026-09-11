@@ -25,6 +25,9 @@ export const DRAFT_KINDS = {
   //   원문(base)이 그 사이 바뀌면 버린다(D-C1d). 반복 업무 설명이 남아 있으면 로그아웃 전에 확인한다(LeaveDecisionGuard).
   'task-description': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/QTask/TaskDetailDrawer.tsx', 'services/draftStore.ts'] },
   'task-body': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/QTask/TaskDetailDrawer.tsx'] },
+  // Q sale — 상담 기록 메모(전화·미팅 내용은 길다)와 종결 사유 메모. 둘 다 모달 안에서 쓰다 닫으면 사라지던 값이다.
+  'sale-interaction-body': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QSale/SaleDetailPage.tsx'] },
+  'sale-lost-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QSale/SaleDetailPage.tsx'] },
   'mail-issue': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'mail-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'qtalk-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QTalk/RightPanel.tsx'] },

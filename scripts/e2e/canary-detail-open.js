@@ -118,6 +118,8 @@ async function otherWorkspaceCases(page) {
     ['파일', (id) => `/files?file=${id}`, ids.file, true],
     ['청구서', (id) => `/bills?tab=invoices&invoice=${id}`, ids.invoice, true],
     ['고객', (id) => `/business/clients?client=${id}`, ids.client, true],
+    // Q sale 상세도 URL 에 현재 워크스페이스를 넣어 부른다 — 남의 고객 id 는 404 → 전환 안내여야 한다
+    ['Q sale', (id) => `/sale/${id}`, ids.client, true],
     ['자료정리', (id) => `/docs/brief/${id}`, ids.brief, false],
   ];
   const [[orig]] = await sequelize.query('SELECT active_business_id FROM users WHERE id = ?', { replacements: [OW_USER] });

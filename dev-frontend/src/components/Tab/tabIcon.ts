@@ -19,6 +19,7 @@ const KIND_ICON: Record<TabKind, IconComp> = {
   calendar: CalendarIcon,
   bill: BillIcon,
   mail: MailIcon,
+  sale: ClientsIcon,   // Q sale — 고객의 영업 뷰라 고객 아이콘을 공유한다
   project: ProjectIcon,
   projectDetail: ProjectIcon,
   files: FolderIcon,

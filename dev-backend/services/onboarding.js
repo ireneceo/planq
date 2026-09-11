@@ -14,6 +14,7 @@
 // ★ 안내 문구는 이 파일에 없다. 화면이 i18n 으로 그린다 — 서버는 key 와 done 만 말한다.
 //   (문구를 서버가 내려주면 ko/en 패리티 가드 밖으로 새어나가 한쪽 언어만 남는다.)
 const { Client, Conversation, Task, PushSubscription, Business, BusinessMember } = require('../models');
+const { billableClientWhere } = require('./clientQuota');
 
 /** 온보딩을 볼 자격 — 워크스페이스를 **꾸리는 사람**만. 고객에게 "고객을 초대하세요" 는 말이 안 된다. */
 const ELIGIBLE_ROLES = new Set(['owner', 'admin']);
@@ -37,7 +38,8 @@ async function getOnboardingState({ businessId, userId }) {
 
   // 네 단계는 PlanQ 가 도는 한 바퀴다: 고객을 들이고 → 말을 걸고 → 일이 생기고 → 그 일이 도착한다.
   const [clients, conversations, tasks, pushSubs] = await Promise.all([
-    Client.count({ where: { business_id: bizId } }),
+    // "고객 초대" 단계 — Q sale 문의 고객(prospect)은 초대가 아니다. 문의만 넣어도 완료가 되면 안 된다(§16 U4)
+    Client.count({ where: billableClientWhere(bizId) }),
     Conversation.count({ where: { business_id: bizId } }),
     Task.count({ where: { business_id: bizId } }),
     // 알림만 워크스페이스가 아니라 **이 사람**의 기기 기준이다 — 기기 허용은 사람이 하는 일이다.

@@ -1,0 +1,185 @@
+{
+  "page": {
+    "title": "Q sale",
+    "detailBack": "Q sale 목록"
+  },
+  "stage": {
+    "label": "단계",
+    "none": "영업 외",
+    "none_hint": "단계 없이 관리하는 고객·협력사",
+    "inquiry": "문의",
+    "inquiry_hint": "연락은 왔지만 아직 상담 전",
+    "consulting": "상담",
+    "consulting_hint": "요구를 듣고 있는 중",
+    "proposal": "제안",
+    "proposal_hint": "견적·제안서를 보냈다",
+    "negotiation": "협상",
+    "negotiation_hint": "계약 조건을 다루는 중",
+    "won": "성사",
+    "won_hint": "계약 서명이 끝났다",
+    "lost": "종결",
+    "lost_hint": "진행하지 않기로 했다 (사유 기록)",
+    "changed_auto": "자동 — {{reason}}",
+    "changed_manual": "사람이 변경",
+    "days_in": "{{count}}일째",
+    "history": "이력",
+    "historyEmpty": "단계 이력이 없습니다"
+  },
+  "access": {
+    "label": "접근",
+    "guest": "게스트",
+    "guest_hint": "정보만 저장됨 · 로그인 없음",
+    "invited": "초대 대기",
+    "invited_hint": "초대 메일을 보냈고 아직 수락 전",
+    "member": "정식 고객",
+    "member_hint": "로그인하는 고객",
+    "requires_member": "정식 초대 후 가능"
+  },
+  "quota": {
+    "counted": "한도: 포함",
+    "not_counted": "한도: 미포함 · 초대하면 포함",
+    "header": "정식 {{clients}}/{{clients_max}} · 문의 {{prospects}}/{{prospects_max}}",
+    "unlimited": "무제한",
+    "invite_notice": "초대하면 정식 고객 한도에 포함됩니다 (지금 {{clients}} / {{clients_max}})"
+  },
+  "source": {
+    "label": "유입",
+    "guest_link": "게스트 채팅",
+    "email": "메일",
+    "phone": "전화",
+    "referral": "소개",
+    "web": "웹 문의",
+    "event": "행사",
+    "manual": "직접 등록",
+    "other": "기타"
+  },
+  "lost": {
+    "reason": {
+      "price": "가격",
+      "timing": "시기",
+      "competitor": "경쟁사 선택",
+      "no_response": "응답 없음",
+      "fit": "요구 불일치",
+      "other": "기타"
+    },
+    "modal": {
+      "title": "종결 — 진행하지 않기로 했다",
+      "reasonLabel": "사유",
+      "reasonRequired": "사유를 선택해 주세요",
+      "noteLabel": "메모 (선택)",
+      "confirm": "종결로 변경"
+    }
+  },
+  "action": {
+    "addInquiry": "+ 문의 추가",
+    "saveAsClient": "고객으로 저장",
+    "linkedExisting": "기존 고객 {{name}}에 연결했어요",
+    "addRecord": "기록 추가",
+    "invite": "초대 보내기",
+    "openClientSettings": "고객 정보",
+    "retry": "다시 시도"
+  },
+  "record": {
+    "kind": {
+      "label": "종류",
+      "call": "전화",
+      "meeting": "미팅",
+      "visit": "방문",
+      "memo": "메모",
+      "other": "기타"
+    },
+    "direction": {
+      "label": "방향",
+      "inbound": "받은",
+      "outbound": "건"
+    },
+    "occurredAt": "접점 시각",
+    "duration": "길이(분)",
+    "title": "제목",
+    "body": "메모",
+    "save": "기록 저장",
+    "delete": "기록 삭제",
+    "deleteConfirm": "이 상담 기록을 지울까요? 타임라인에서 사라집니다.",
+    "auto": "자동",
+    "unreviewed": "미확인",
+    "markReviewed": "확인함",
+    "empty": "아직 상담 기록이 없습니다",
+    "contentRequired": "제목이나 메모 중 하나는 적어 주세요",
+    "draftRestored": "쓰다 만 메모를 되살렸어요",
+    "futureNotAllowed": "접점 시각은 지금보다 뒤일 수 없어요"
+  },
+  "list": {
+    "searchPlaceholder": "이름·회사·전화·이메일 검색",
+    "filterAll": "전체",
+    "assignee": "담당자",
+    "assigneeNone": "담당자 없음",
+    "stageInProgress": "진행 중",
+    "columns": {
+      "client": "고객 / 회사",
+      "access": "접근",
+      "stage": "단계",
+      "assignee": "담당",
+      "lastTouch": "마지막 접점",
+      "expected": "예상"
+    },
+    "noTouch": "접점 없음",
+    "count": "{{count}}명"
+  },
+  "detail": {
+    "profile": "프로필",
+    "name": "이름",
+    "company": "회사",
+    "phone": "전화",
+    "email": "이메일",
+    "expectedAmount": "예상 규모",
+    "currency": "통화",
+    "assignee": "담당",
+    "channels": "채널",
+    "channelChat": "대화방 {{count}}",
+    "channelMail": "스레드 {{count}}",
+    "channelGuest": "게스트 링크 {{count}}",
+    "projects": "연결 프로젝트",
+    "projectsEmpty": "연결된 프로젝트가 없습니다",
+    "emailLocked": "초대를 보낸 뒤에는 이메일을 여기서 바꿀 수 없어요"
+  },
+  "timeline": {
+    "title": "타임라인",
+    "all": "전체",
+    "channel": {
+      "chat": "채팅",
+      "email": "메일",
+      "task": "할 일",
+      "invoice": "청구",
+      "interaction": "전화·미팅",
+      "stage": "단계",
+      "guest": "게스트 링크"
+    },
+    "stageChanged": "{{from}} → {{to}}",
+    "guestIssued": "게스트 링크 발급",
+    "guestAccountRequested": "계정 요청",
+    "empty": "아직 기록이 없습니다",
+    "more": "더 보기",
+    "loadFailed": "타임라인을 불러오지 못했어요"
+  },
+  "inquiry": {
+    "title": "문의 추가",
+    "nameLabel": "이름",
+    "companyLabel": "회사",
+    "phoneLabel": "전화",
+    "emailLabel": "이메일",
+    "sourceLabel": "유입",
+    "submit": "추가",
+    "cancel": "취소",
+    "nameRequired": "이름이나 회사 중 하나는 필요해요",
+    "invalidEmail": "이메일 형식을 확인해 주세요"
+  },
+  "empty": {
+    "title": "아직 영업 중인 고객이 없습니다",
+    "body": "게스트 채팅·메일에서 \"고객으로 저장\" 하거나 문의를 추가하세요."
+  },
+  "error": {
+    "loadFailed": "불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+    "saveFailed": "저장하지 못했어요",
+    "forbidden": "이 메뉴를 볼 권한이 없어요"
+  }
+}

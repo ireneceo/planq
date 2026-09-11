@@ -20,11 +20,16 @@ async function accessibleAccountIds(businessId, userId) {
 }
 
 const CHANNELS = ['chat', 'email', 'task', 'invoice'];
+// Q sale 채널 (docs/Q_SALE_DESIGN.md §4.1·§6) — **명시로 요청할 때만** 싣는다.
+//   기본값에 넣으면 이 함수를 부르는 기존 소비자(고객 타임라인 화면·채널 요약·Cue 컨텍스트)가
+//   모르는 type 을 받는다 — 화면은 색 표에서 undefined 를 읽어 죽고, Cue 에는 라벨 없는 값이 실린다.
+const SALE_CHANNELS = ['interaction', 'stage', 'guest'];
+const ALL_CHANNELS = [...CHANNELS, ...SALE_CHANNELS];
 
 // 한 고객의 통합 타임라인. before(ISO) 이전 항목만 (페이지네이션). 채널별로 limit*2 가져와 merge 후 limit cut.
 async function getClientTimeline(businessId, clientId, { userId, limit = 40, before = null, channels = null } = {}) {
   const want = Array.isArray(channels) && channels.length
-    ? channels.filter((c) => CHANNELS.includes(c))
+    ? channels.filter((c) => ALL_CHANNELS.includes(c))
     : CHANNELS;
   const beforeDate = before ? new Date(before) : null;
   const perSource = Math.min(limit + 5, 60); // merge 후 잘리므로 소스별 약간 여유
@@ -120,6 +125,73 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
     }
   }
 
+  // 5) 상담 기록 — client_interactions (전화·미팅·방문·메모). 접점 시각(occurred_at) 기준
+  if (want.includes('interaction')) {
+    const { ClientInteraction } = require('../models');
+    const where = { business_id: businessId, client_id: clientId, deleted_at: null };
+    if (beforeDate) where.occurred_at = { [Op.lt]: beforeDate };
+    const rows = await ClientInteraction.findAll({
+      where, order: [['occurred_at', 'DESC']], limit: perSource,
+      attributes: ['id', 'kind', 'direction', 'occurred_at', 'duration_seconds', 'title', 'body', 'summary',
+        'origin', 'reviewed_at', 'stt_status', 'project_id', 'created_by'],
+    });
+    for (const r of rows) {
+      items.push({
+        type: 'interaction', id: r.id, at: r.occurred_at,
+        title: r.title || null,
+        preview: String(r.summary || r.body || '').replace(/\s+/g, ' ').trim().slice(0, 140),
+        meta: {
+          kind: r.kind, direction: r.direction, duration_seconds: r.duration_seconds,
+          origin: r.origin, reviewed: !!r.reviewed_at, stt_status: r.stt_status,
+          project_id: r.project_id, created_by: r.created_by,
+        },
+      });
+    }
+  }
+
+  // 6) 단계 이력 — client_stage_history
+  if (want.includes('stage')) {
+    const { ClientStageHistory } = require('../models');
+    const where = { business_id: businessId, client_id: clientId };
+    if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
+    const rows = await ClientStageHistory.findAll({
+      where, order: [['createdAt', 'DESC']], limit: perSource,
+      attributes: ['id', 'from_stage', 'to_stage', 'origin', 'changed_by', 'reason', 'createdAt'],
+    });
+    for (const r of rows) {
+      items.push({
+        type: 'stage', id: r.id, at: r.createdAt, title: null,
+        meta: { from: r.from_stage, to: r.to_stage, origin: r.origin, changed_by: r.changed_by, reason: r.reason },
+      });
+    }
+  }
+
+  // 7) 게스트 링크 — 발급 · 계정 요청. 링크 원문·토큰은 싣지 않는다(해시만 있다)
+  if (want.includes('guest')) {
+    const { GuestLink } = require('../models');
+    const links = await GuestLink.findAll({
+      where: { business_id: businessId, client_id: clientId, kind: 'shared' },
+      order: [['id', 'DESC']], limit: perSource,
+      attributes: ['id', 'conversation_id', 'created_by', 'revoked_at', 'account_requested_at', 'createdAt'],
+    });
+    for (const l of links) {
+      if (!beforeDate || l.createdAt < beforeDate) {
+        items.push({
+          type: 'guest', id: l.id, at: l.createdAt, title: null,
+          conversation_id: l.conversation_id,
+          meta: { event: 'issued', created_by: l.created_by, revoked: !!l.revoked_at },
+        });
+      }
+      if (l.account_requested_at && (!beforeDate || l.account_requested_at < beforeDate)) {
+        items.push({
+          type: 'guest', id: `${l.id}-request`, at: l.account_requested_at, title: null,
+          conversation_id: l.conversation_id,
+          meta: { event: 'account_requested' },
+        });
+      }
+    }
+  }
+
   // merge — 시간 내림차순, null at 은 맨 뒤
   items.sort((a, b) => {
     const ta = a.at ? new Date(a.at).getTime() : 0;
@@ -144,4 +216,4 @@ async function getClientChannelSummary(businessId, clientId, { userId } = {}) {
   return { counts, latest };
 }
 
-module.exports = { getClientTimeline, getClientChannelSummary, accessibleAccountIds };
+module.exports = { getClientTimeline, getClientChannelSummary, accessibleAccountIds, CHANNELS, ALL_CHANNELS };

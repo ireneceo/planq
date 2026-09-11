@@ -503,6 +503,11 @@ app.use('/api/tasks', require('./routes/task_tags'));
 app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/task-templates', require('./routes/task_templates'));
 app.use('/api/clients', require('./routes/clients'));
+// Q sale — 영업 뷰(같은 clients). docs/Q_SALE_DESIGN.md
+//   한 접두어를 세 파일이 나눠 맡는다(라우트 파일 500줄 기준). 권한 체인은 services/saleCommon 한 벌.
+app.use('/api/sale', require('./routes/sale'));
+app.use('/api/sale', require('./routes/sale_interactions'));
+app.use('/api/sale', require('./routes/sale_save'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/conversations', require('./routes/conversations'));
 app.use('/api/message-attachments', require('./routes/message_attachments'));

@@ -286,6 +286,40 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, ...pe
       }
     }
     const dupByEmail = await Client.findOne({ where: { business_id: req.params.businessId, invite_email: email.trim() } });
+    // Q sale 문의 고객(prospect) → 초대 = **승격**. 새 행을 만들지 않고 같은 행을 invited 로 올린다 —
+    //   상담 기록·단계 이력·타임라인이 그 행에 붙어 있다(docs/Q_SALE_DESIGN.md §4.4). 한도 검사는 위에서 끝났다.
+    if (dupByEmail && dupByEmail.status === 'prospect') {
+      const token = crypto.randomBytes(24).toString('hex');
+      await dupByEmail.update({
+        status: 'invited', invite_token: token, invited_by: req.user.id, invited_at: new Date(),
+        display_name: dupByEmail.display_name || name.trim(),
+        company_name: dupByEmail.company_name || company_name?.trim() || null,
+        user_id: dupByEmail.user_id || existingUser?.id || null,
+        assigned_member_id: dupByEmail.assigned_member_id || req.user.id,
+      });
+      await createAuditLog({
+        userId: req.user.id, businessId: req.params.businessId,
+        action: 'client.invited', targetType: 'client', targetId: dupByEmail.id,
+        oldValue: { status: 'prospect' }, newValue: { status: 'invited', email: email.trim() },
+      });
+      try {
+        const { sendInviteEmail } = require('../services/emailService');
+        const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
+        const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
+        await sendInviteEmail({
+          to: email.trim(),
+          workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
+          inviterName: inviter?.name || '',
+          targetName: dupByEmail.display_name || name.trim(),
+          kind: 'workspace_client',
+          token,
+        });
+      } catch (e) { console.warn('invite email send failed:', e.message); }
+      // 문의 → 정식 고객으로 한도 계수가 바뀐다. 사용량 캐시(30초)를 비워야 플랜 화면이 바로 맞는다
+      try { require('../services/plan').invalidateBusinessCache(req.params.businessId); } catch { /* 캐시일 뿐이다 */ }
+      broadcastClient(req, dupByEmail, 'client:updated');
+      return successResponse(res, dupByEmail, 'Client invited', 200);
+    }
     if (dupByEmail && dupByEmail.status !== 'archived') {
       return errorResponse(res, 'Client already exists', 409);
     }

@@ -453,6 +453,14 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 **게스트 링크 (1):** **guest_links** — 무로그인 링크(#259). **2026-09-05: `scope` ENUM('conversation','project') 추가, 기본값 `conversation`.** 이 컬럼이 곧 **여는 것의 상한**이다 — `conversation` 토큰으로 프로젝트 탭 라우트(`/api/guest/:token/tasks` 등)를 부르면 **404**. 기본값을 conversation 으로 둔 이유: **이미 나가 있는 링크가 조용히 넓어지면 안 된다**(운영 기존 행은 전부 conversation 으로 남는다). 운영 적용은 `dev-backend/scripts/migrate-guest-link-scope.js`(멱등) — **코드 배포 전에** 실행한다(컬럼이 없으면 500). 발급 가능 판정은 `services/guest_link.js assertGuestLinkIssuable` **한 함수**(대화방·프로젝트 두 라우트가 같이 부른다 — 복사했다가 한쪽에서 죽은 코드가 된 전례). 설계 docs/PROJECT_EXTERNAL_VIEW_DESIGN.md
 
+**Q sale (2):** **client_stage_history**, **client_interactions** (2026-09-11 신규 — 영업은 **새 고객 테이블이 아니라 `clients` 의 축**이다. 설계 docs/Q_SALE_DESIGN.md)
+- `clients` 확장: `status` ENUM 끝에 **`prospect`**(문의 고객 = 계정 없음 + 초대 안 함) append · `sales_stage`(none→inquiry→consulting→proposal→negotiation→won/lost) · `sales_source` · `lost_reason/lost_note` · `phone` · `expected_amount/currency` · `last_touch_at`(파생) · 인덱스 2.
+- **단계를 바꾸는 문은 하나다** — `services/salesStage.js setStage`(컬럼 + 이력 + 감사 + broadcast). `client.update({sales_stage})` 를 다른 곳에서 부르면 이력·실시간이 조용히 빠진다.
+- **접근 종류는 컬럼이 아니라 파생이다** — `services/clientAccess.js accessKindOf`(guest/invited/member)와 같은 판정을 목록 필터도 쓴다(`accessWhere`). 프론트가 `user_id` 로 스스로 판정하지 않는다.
+- **한도 술어도 한 곳** — `services/clientQuota.js`: 정식 고객 = prospect 를 뺀 기존 집합, 문의 고객은 `prospects_max`(정식 ×3). `plan.can('add_client')`·`can('add_prospect')` 가 같은 술어를 쓴다. 생성 후 `invalidateBusinessCache`(사용량 30초 캐시).
+- **라우트는 세 파일이 한 접두어를 나눈다** — `routes/sale.js`(목록·상세·단계·타임라인) · `sale_interactions.js` · `sale_save.js`. 권한 체인·직렬화는 `services/saleCommon.js` 한 벌(베끼면 한쪽만 고쳐진다). 고객(client) 역할은 서버 `blockClient` + 프론트 `hasBiz('owner','member')` **같은 술어**로 막는다.
+- **운영 적용**: `dev-backend/scripts/migrate-qsale.js`(멱등, ENUM 끝 append 3건 — `clients.status` · `notifications.event_kind` · `notification_prefs.event_kind`). **코드 배포 전에** 실행한다. 두 알림 테이블은 값 **순서가 다르므로** 한 목록을 공유하지 않는다. 롤백은 `prospect→archived`(invited 로 돌리면 라벨이 거짓이고 한도에 들어간다).
+
 **Q위키 (2):** **help_categories**, **help_articles** (2026-06-18 신규 — PlanQ 제품 사용법 도움말. 플랫폼 공통 콘텐츠(business_id 없음), 격리 축은 article.visibility('public'/'authenticated')만. help_articles FULLTEXT(ngram) 한글검색 + body ko/en JSON 블록. 본문 임베딩은 **kb_chunks 재사용**(source_type ENUM 'kb'/'wiki' 추가 + source_id + business_id/kb_document_id nullable — wiki chunk는 플랫폼 공통이라 NULL, 워크스페이스 KB 검색 비오염). 스크린샷은 File 재사용(image 블록 file_id). 운영 적용 시 `dev-backend/setup-wiki-schema.js`(FULLTEXT+ALTER 멱등) + `seed-wiki-content.js`(콘텐츠) 실행. 설계 docs/Q_WIKI_DESIGN.md)
 
 > **Q Task 상태 ENUM:** `not_started`, `waiting`, `in_progress`, `reviewing`, `revision_requested`, `completed`, `canceled`. (2026-04-25: `done_feedback` 폐지 — 컨펌 정책 충족 시 `recalcStatusFromReviewers` 가 자동 `completed` 전환). 관점별 UI 라벨은 `dev-frontend/src/utils/taskLabel.ts` 참조 (i18n `status.{code}.{role}` 4차원 구조).

@@ -58,7 +58,7 @@ interface SearchResult {
   knowledge?: Array<{ id: number; title: string; category?: string | null; scope?: string } & WithMatch>;
   // ★ clients 에는 `email` 컬럼이 없다 — 서버는 invite_email / billing_contact_email 을 준다.
   //   옛 코드가 x.email 을 읽어 보조줄이 늘 비어 있었다(이메일로 찾아도 어느 주소인지 안 보였다).
-  clients?: Array<{ id: number; display_name?: string; company_name?: string; invite_email?: string | null; billing_contact_email?: string | null } & WithMatch>;
+  clients?: Array<{ id: number; display_name?: string; company_name?: string; invite_email?: string | null; billing_contact_email?: string | null; status?: string | null; sales_stage?: string | null } & WithMatch>;
   projects?: Array<{ id: number; name: string; status?: string } & WithMatch>;
 }
 
@@ -175,7 +175,12 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
       // 보조줄 = **맞은 이메일**(검색어가 이메일에서 맞았을 때) · 아니면 초대 주소 · 청구 담당 주소
       const matchedEmail = x.match?.field === 'email' ? x.match.snippet : null;
       const email = matchedEmail || x.invite_email || x.billing_contact_email || undefined;
-      h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub: email, to: `/business/clients?client=${x.id}`, type: 'clients', match: x.match });
+      // 영업 축이 있으면 단계·문의 여부를 보조줄 앞에 붙인다 — 목적지도 Q sale 상세다(같은 고객의 영업 뷰).
+      const stage = x.sales_stage && x.sales_stage !== 'none'
+        ? t(`qsale:stage.${x.sales_stage}`, { defaultValue: x.sales_stage }) as string
+        : (x.status === 'prospect' ? t('clients:status.prospect', { defaultValue: '문의 고객' }) as string : null);
+      const sub = [stage, email].filter(Boolean).join(' · ') || undefined;
+      h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub, to: `/sale/${x.id}`, type: 'clients', match: x.match });
     });
     (r.projects || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.status, to: `/projects/p/${x.id}`, type: 'projects', match: x.match }));
     return h;

@@ -138,6 +138,9 @@ const CalendarEventGcalLink = require('./CalendarEventGcalLink');
 const InvoiceStatusHistory = require('./InvoiceStatusHistory');
 const ReceiptCorrection = require('./ReceiptCorrection');
 const ClientSubscription = require('./ClientSubscription');
+// ─── Q sale (docs/Q_SALE_DESIGN.md §3.2·§3.3) ───
+const ClientStageHistory = require('./ClientStageHistory');
+const ClientInteraction = require('./ClientInteraction');
 // ─── Refresh Token (다중 디바이스 세션) ───
 const RefreshToken = require('./RefreshToken');
 const EphemeralToken = require('./EphemeralToken');
@@ -339,6 +342,14 @@ Message.belongsTo(Invoice, { foreignKey: 'invoice_id' });
 
 // Client 담당 멤버
 Client.belongsTo(User, { as: 'assignedMember', foreignKey: 'assigned_member_id' });
+
+// Q sale — 단계 이력 · 상담 원장 (FK 제약은 두지 않는다: 이력은 고객 삭제 뒤에도 감사용으로 남는다)
+ClientStageHistory.belongsTo(Client, { foreignKey: 'client_id', constraints: false });
+ClientStageHistory.belongsTo(User, { as: 'changer', foreignKey: 'changed_by', constraints: false });
+Client.hasMany(ClientStageHistory, { as: 'stageHistory', foreignKey: 'client_id', constraints: false });
+ClientInteraction.belongsTo(Client, { foreignKey: 'client_id', constraints: false });
+ClientInteraction.belongsTo(User, { as: 'creator', foreignKey: 'created_by', constraints: false });
+Client.hasMany(ClientInteraction, { as: 'interactions', foreignKey: 'client_id', constraints: false });
 
 // KbDocument
 KbDocument.belongsTo(Business, { foreignKey: 'business_id' });
@@ -547,6 +558,8 @@ module.exports = {
   File,
   Invoice,
   ClientSubscription,
+  ClientStageHistory,
+  ClientInteraction,
   InvoiceItem,
   AuditLog,
   KbDocument,

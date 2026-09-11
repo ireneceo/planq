@@ -160,7 +160,8 @@ async function canFinancialAction(user, businessId, projectId) {
 
 - **테이블:** `business_member_permissions` — UNIQUE(business_id, user_id, menu_key), `level` ENUM `none`/`read`/`write` (`models/BusinessMemberPermission.js`)
 - **가드:** `middleware/menu_permission.js` `requireMenu(menuKey, requiredLevel)` — 라우트에 `authenticateToken + checkBusinessAccess + requireMenu('qbill','write')` 패턴으로 체인
-- **메뉴 키 12종** (`menu_permission.js:32-35`): 사이드바 11 — `qtalk qmail qtask qcalendar qnote qdocs qinfo qfile qbill clients insights` — + `weekly_team`
+- **메뉴 키 13종** (`middleware/menu_permission.js`): 사이드바 12 — `qtalk qmail qsale qtask qcalendar qnote qdocs qinfo qfile qbill clients insights` — + `weekly_team`
+  - **`qsale`(2026-09-11 신규, Q sale)** — 고객(client) 역할에게는 **메뉴 자체가 없다**: 서버 `routes/sale*.js` 체인이 `checkBusinessAccess(memberOnly) → blockClient(businessRole==='client' → 403) → requireMenu('qsale', read|write)`, 프론트는 `hasBiz('owner','member')` + `ProtectedRoute requiredRole={['business_owner','business_member']}` (같은 술어). 게스트(그림자 User)는 `authenticateToken` 을 못 지난다. 상담 기록 편집·삭제는 **작성자 본인 또는 owner/admin**
 - **평가 순서** (`menu_permission.js:61-108`):
   1. platform_admin → 통과
   2. owner → 통과
