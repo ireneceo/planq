@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { onSocket, getSocket } from '../../services/socket';
 import { isReloadSafe } from '../../utils/reloadSafety';
+import { flushPendingSaves } from '../../services/pendingSaves';
 import { isPopoutWindow } from '../../utils/popout';
 import { clearPageCache } from '../../lib/pageCache';
 import {
@@ -41,8 +42,12 @@ const WorkspaceSyncGuard: React.FC = () => {
       if (isSwitching()) return;                         // 이 창이 누른 전환 — 스스로 리로드 중
       if (!isReloadSafe() || !canRebootNow(targetBizId)) { setPending(targetBizId); return; }
     }
-    clearPageCache();
-    rebootForWorkspace(isPopoutWindow(), targetBizId);
+    // ★ 사용자가 "전환" 을 누른 경우(보류 중이던 창)엔 대기 중인 자동저장이 있을 수 있다 — 버리기 전에 먼저 보낸다.
+    //   자동 경로는 위 isReloadSafe 가 대기 중(data-form-dirty)이면 이미 보류시킨다. 상한 3초, 넘기면 진행.
+    void flushPendingSaves().finally(() => {
+      clearPageCache();
+      rebootForWorkspace(isPopoutWindow(), targetBizId);
+    });
   }, []);
 
   // ①② 전파 수신

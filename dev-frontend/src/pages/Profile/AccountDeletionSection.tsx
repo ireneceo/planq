@@ -63,7 +63,7 @@ const AccountDeletionSection: React.FC = () => {
         return;
       }
       // 성공 — 유예 진입. 로그아웃 후 안내(로그인 시 복구 가능).
-      await logout();
+      await logout({ flush: false });   // 지워진 계정으로 대기 중인 자동저장을 보내지 않는다
       window.location.href = '/login?deleted=1';
     } catch {
       setError(t('accountDeletion.errGeneric'));

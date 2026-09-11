@@ -777,6 +777,19 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
 - **자동저장이 아닌 것은 예외를 코드에 선언한다** — `// autosave-exempt: <이유>` 한 줄.
   베이스라인에 조용히 묻지 않는다. 리뷰에서 이유가 보이고, 이유가 사라지면 다시 걸린다.
   (실제 예외: 액션 버튼 · 동의 게이트 · 닫을 때 반영 · 선택 자체가 결과인 것)
+- **나갈 때 확정 저장 (2026-09-11, 라운드 1B)** — debounce 에 걸린 입력은 화면을 떠나는 순간(언마운트·✕·새로고침·
+  로그아웃·워크스페이스 전환) **타이머와 함께 사라졌다**. 서버엔 안 갔고 화면은 없어졌다. 지금 계약:
+  - `AutoSaveField` 는 언마운트·pagehide 에 대기분을 보낸다. 저장은 **한 번에 하나**(동시 2 PUT 금지 — 옛 값이 나중에 착지한다),
+    대기·저장 중에는 `data-form-dirty` 로 자동 리로드를 막는다.
+  - AutoSaveField 가 아닌 debounce 편집기(메모 등)는 **`hooks/useLeaveSave`**. 나가며 저장은 화면 콜백(활성 문서·주소 바꾸기)을
+    부르지 않는다(떠난 문서로 끌려온다) · 새로 만든 id 는 ref 에 직접 맞춘다(언마운트 뒤엔 렌더가 없어 **문서가 두 번 생긴다**).
+  - 화면을 통째로 버리는 동작(로그아웃·`switchWorkspace`·원격 재부팅)은 먼저 **`services/pendingSaves.flushPendingSaves()`**(상한 3초).
+    새 debounce 저장 경로는 `onFlushPendingSaves` 로 자기 대기분을 등록한다. 창이 사라지는 순간은
+    **`services/keepaliveFetch.keepaliveJson`** — `apiFetch` 는 토큰 갱신을 먼저 기다리다 문서가 죽는다.
+  - **대상이 바뀌는 칸은 `key` 로 인스턴스를 가른다** — 같은 인스턴스를 다른 대상에 재사용하면 언마운트가 오지 않아
+    떠난 대상의 마지막 입력이 새 대상의 onSave 로 터진다. 가드 `--category=autosavekey`(래칫 · 예외 `// autosave-key-exempt: <이유>`).
+  - 카나리 `--suite leavesave` — **떠나기 전 0건 + 떠난 뒤 1건**을 같이 잰다(늦게 터진 debounce 와 떠날 때 보낸 것을 가른다).
+    새로고침 중 keepalive 요청은 puppeteer 가 못 볼 수 있어 판정은 DB, 대신 keepalive 를 막은 대조군이 뒤집히는지로 증명한다.
 - 컴포넌트: `src/components/Common/AutoSaveField.tsx`
 - **토글은 `type="toggle"` 로 감싸기만 하면 된다** — Wrapper 가 click 을 받는다(ref·triggerSave 불필요).
   래퍼 안에는 **저장 대상 컨트롤만** 둔다. 2026-09-02 이전엔 자식 `onChange` 만 감싸서

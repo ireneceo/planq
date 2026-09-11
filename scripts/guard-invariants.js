@@ -2144,6 +2144,78 @@ function checkAutoSave() {
   }
 }
 
+// ─── autosavekey — 대상이 바뀌는 자동저장 칸은 key 로 인스턴스를 가른다 (2026-09-11, DRAFT_PERSISTENCE_DESIGN D-C3) ───
+//   AutoSaveField 는 떠날 때(언마운트) 걸려 있던 저장을 보낸다. 그런데 **같은 인스턴스가 다른 대상으로 재사용되면**
+//   언마운트가 오지 않는다 — 걸려 있던 타이머는 새 대상의 onSave 로 터지고, 떠난 대상의 마지막 입력은 사라진다.
+//   판정: `<AutoSaveField` 가 있는 파일에서 PUT/PATCH URL 템플릿의 `${…}` **뿌리 식별자** 중
+//        import·대문자 상수·전역 함수가 아닌 것(useState·props·useParams·useAuth 파생)을 집합 S 로 뽑는다.
+//        S 가 비어 있지 않으면 그 파일의 모든 `<AutoSaveField` 는 key 안에 S 원소 이름을 포함해야 한다.
+//   래칫(기존 부채 동결, 증가만 실패) · 예외는 `// autosave-key-exempt: <이유>` 한 줄.
+function checkAutoSaveKey() {
+  const files = [
+    ...walk(`${ROOT}/dev-frontend/src/pages`, ['.tsx']),
+    ...walk(`${ROOT}/dev-frontend/src/components`, ['.tsx']),
+  ];
+  const GLOBALS = new Set(['encodeURIComponent', 'encodeURI', 'String', 'Number', 'JSON', 'Math', 'Date', 'window', 'undefined', 'null', 'true', 'false']);
+  const current = {};
+  const samples = [];
+  const cov = { files: 0, withScope: 0, tags: 0, keyed: 0 };
+  for (const f of files) {
+    const src = read(f);
+    if (!/<AutoSaveField/.test(src)) continue;
+    cov.files += 1;
+    if (/\/\/\s*autosave-key-exempt:/.test(src)) continue;
+    const r = rel(f);
+    const imported = new Set();
+    for (const m of src.matchAll(/^import\s+(?:type\s+)?([\s\S]*?)\s+from\s+['"][^'"]+['"]/gm)) {
+      for (const id of m[1].match(/[A-Za-z_$][\w$]*/g) || []) imported.add(id);
+    }
+    const scope = new Set();
+    for (const m of src.matchAll(/`([^`]*\/api\/[^`]*)`/g)) {
+      const after = src.slice(m.index + m[0].length, m.index + m[0].length + 240);
+      if (!/method:\s*'(PUT|PATCH)'/.test(after)) continue;
+      for (const expr of m[1].matchAll(/\$\{([^}]*)\}/g)) {
+        for (const idm of expr[1].matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)/g)) {
+          const id = idm[1];
+          if (GLOBALS.has(id) || imported.has(id) || /^[A-Z0-9_]+$/.test(id)) continue;
+          scope.add(id);
+        }
+      }
+    }
+    if (!scope.size) continue;
+    cov.withScope += 1;
+    let missing = 0;
+    let firstLine = 0;
+    let idx = 0;
+    while ((idx = src.indexOf('<AutoSaveField', idx)) !== -1) {
+      let depth = 0;
+      let j = idx + 1;
+      for (; j < src.length; j += 1) {
+        const c = src[j];
+        if (c === '{') depth += 1;
+        else if (c === '}') depth -= 1;
+        else if (c === '>' && depth === 0) break;
+      }
+      const tag = src.slice(idx, j + 1);
+      const at = idx;
+      idx = j + 1;
+      cov.tags += 1;
+      const km = tag.match(/\bkey=\{([\s\S]*?)\}\s/) || tag.match(/\bkey=\{([^}]*)\}/) || tag.match(/\bkey="([^"]*)"/);
+      const keyed = !!km && [...scope].some((id) => new RegExp(`(?<![\\w$])${id.replace(/\$/g, '\\$')}(?![\\w$])`).test(km[1]));
+      if (keyed) { cov.keyed += 1; continue; }
+      missing += 1;
+      if (!firstLine) firstLine = src.slice(0, at).split('\n').length;
+    }
+    if (missing) {
+      current[r] = missing;
+      if (samples.length < 12) samples.push(`${r}:${firstLine}: AutoSaveField ${missing}곳에 key 없음 — 저장 URL 이 ${[...scope].join('·')} 에 따라 바뀐다`);
+    }
+  }
+  const rt = ratchet('autosavekey', current, samples);
+  report('autosavekey', `자동저장 칸 key 규칙 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal}) · 파일 ${cov.files} · 대상 식별자 있는 파일 ${cov.withScope} · 칸 ${cov.tags} · key 있음 ${cov.keyed}`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // statstext — 통계 인사이트 문구는 **서버 카탈로그 한 곳**에만 있다 (2026-09-10 박제)
 //   `services/stats.js` 가 카드 문구를 한국어 문자열로 완성해 응답에 실었고, 프론트는 그것을
@@ -2563,6 +2635,7 @@ const CATEGORIES = {
   overlaytop: checkOverlayTop,
   chromeoffset: checkChromeOffset,
   autosave: checkAutoSave,
+  autosavekey: checkAutoSaveKey,
   modalportal: checkModalPortal,
   sharedrive: checkSharedDrive,
   rawmarkup: checkRawMarkup,

@@ -57,6 +57,8 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import HelpDot from '../../components/Common/HelpDot';
 import MailMessageBody from './MailMessageBody';
 import { isEnterAction } from '../../utils/imeKey';
+import { onFlushPendingSaves } from '../../services/pendingSaves';
+import { keepaliveJson } from '../../services/keepaliveFetch';
 import {
   AcctFilterRow,
   FilterToggleRow,
@@ -1334,6 +1336,7 @@ const MailPage: React.FC = () => {
 
   // 스레드 전환 시 컴포저 초기화 — 답장창은 닫힌 채로. 먼저 내용을 읽고, 답장하기를 누르면 열린다.
   useEffect(() => {
+    void sendPendingDraft(replyPendingRef);   // 떠나는 스레드에 걸려 있던 답장 초안부터 보낸다(아래 D-C3)
     setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
   }, [activeId]);
 
@@ -1366,22 +1369,56 @@ const MailPage: React.FC = () => {
       }
     }).catch(() => {}).finally(() => { replyDraftReady.current = true; });
   }, [replyOpen, businessId, activeId]);
+  // ★ 나갈 때 확정 저장 (docs/DRAFT_PERSISTENCE_DESIGN.md D-C3) — 스레드 전환·취소·로그아웃·창 닫기 때
+  //   1.5초 debounce 에 걸린 초안이 **타이머와 함께 사라졌다**(서버엔 안 갔고 폼은 비워졌다).
+  //   걸려 있는 PUT 을 스냅샷으로 들고 있다가 떠날 때 보낸다. 성공하면·발송을 시작하면 비운다.
+  type PendingDraft = { url: string; body: Record<string, unknown> };
+  const replyPendingRef = useRef<PendingDraft | null>(null);
+  const composePendingRef = useRef<PendingDraft | null>(null);
+  const sendPendingDraft = (ref: { current: PendingDraft | null }, keepalive = false): Promise<unknown> => {
+    const snap = ref.current;
+    if (!snap) return Promise.resolve();
+    ref.current = null;
+    if (keepalive) { keepaliveJson(snap.url, 'PUT', snap.body); return Promise.resolve(); }
+    return apiFetch(snap.url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snap.body) }).catch(() => null);
+  };
   useEffect(() => {
     if (!replyOpen || !businessId || !activeId || !replyDraftReady.current) return;
     if (isEmptyHtml(replyHtml) && !replyFileIds.length) return;
+    const snap: PendingDraft = {
+      url: `/api/businesses/${businessId}/email-drafts`,
+      body: { thread_id: activeId, body_html: replyHtml, attachment_file_ids: replyFileIds },
+    };
+    replyPendingRef.current = snap;
     const tid = setTimeout(async () => {
       setReplyDraftStatus('saving');
       try {
         // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다.
-        const r = await apiFetch(`/api/businesses/${businessId}/email-drafts`, {
+        const r = await apiFetch(snap.url, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ thread_id: activeId, body_html: replyHtml, attachment_file_ids: replyFileIds }),
+          body: JSON.stringify(snap.body),
         });
+        if (r.ok && replyPendingRef.current === snap) replyPendingRef.current = null;
         setReplyDraftStatus(r.ok ? 'saved' : 'error');
       } catch { setReplyDraftStatus('error'); }
     }, 1500);
     return () => clearTimeout(tid);
   }, [replyOpen, businessId, activeId, replyHtml, replyFileIds]);
+  // 로그아웃·워크스페이스 전환(flush 프로토콜) · 창 닫기(pagehide keepalive) · 메일 화면째 떠남(언마운트)
+  useEffect(() => {
+    const off = onFlushPendingSaves((waitUntil) => {
+      if (replyPendingRef.current || composePendingRef.current) {
+        waitUntil(Promise.all([sendPendingDraft(replyPendingRef), sendPendingDraft(composePendingRef)]));
+      }
+    });
+    const onPageHide = () => { void sendPendingDraft(replyPendingRef, true); void sendPendingDraft(composePendingRef, true); };
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      off();
+      window.removeEventListener('pagehide', onPageHide);
+      void sendPendingDraft(replyPendingRef); void sendPendingDraft(composePendingRef);
+    };
+  }, []);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // 보내는 주소(Send-as) — 이 계정에 등록된 별칭. 주소가 하나뿐이면 셀렉트를 숨긴다
   //   (없는 선택지를 보여주지 않는다).
@@ -1508,6 +1545,7 @@ const MailPage: React.FC = () => {
       myUserId: user ? Number(user.id) : null,
     });
     setDetail((prev) => insertPending(prev, pending));
+    replyPendingRef.current = null;   // 보내는 중 — 걸려 있던 초안을 떠날 때 다시 쓰지 않는다
     setReplyOpen(false);
     try {
       // 새 업로드 먼저 올려 file id 확보 → 기존 선택 파일과 합침
@@ -1765,13 +1803,19 @@ const MailPage: React.FC = () => {
     // 음성이 심어놓은 상태 그대로면 아직 사용자의 글이 아니다 — 서버 초안을 덮어쓰지 않는다.
     if (composeVoiceUntouched.current) return;
     if (!cTo.trim() && !cSubject.trim() && isEmptyHtml(cBody) && !cFileIds.length) return;
+    const snap: PendingDraft = {
+      url: `/api/businesses/${businessId}/email-drafts`,
+      body: { to_emails: cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean), subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId },
+    };
+    composePendingRef.current = snap;   // 떠날 때 보낼 것(위 D-C3)
     const tid = setTimeout(async () => {
       setComposeDraftStatus('saving');
       try {
-        const r = await apiFetch(`/api/businesses/${businessId}/email-drafts`, {
+        const r = await apiFetch(snap.url, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to_emails: cTo.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean), subject: cSubject, body_html: cBody, attachment_file_ids: cFileIds, account_id: cAccountId }),
+          body: JSON.stringify(snap.body),
         });
+        if (r.ok && composePendingRef.current === snap) composePendingRef.current = null;
         setComposeDraftStatus(r.ok ? 'saved' : 'error');
       } catch { setComposeDraftStatus('error'); }
     }, 1500);
@@ -1843,7 +1887,9 @@ const MailPage: React.FC = () => {
   const markComposeTouched = () => { composeVoiceUntouched.current = false; };
 
 
-  const closeCompose = () => {
+  // reason — 'user'(✕·취소): 걸려 있던 초안을 먼저 보낸다(다시 열면 서버 초안이 복원된다) · 'sent': 버린다
+  const closeCompose = (reason: 'user' | 'sent') => {
+    if (reason === 'user') void sendPendingDraft(composePendingRef); else composePendingRef.current = null;
     setComposeOpen(false); setCTo(''); setCSubject(''); setCBody(''); setCUploads([]); setCFileIds([]); setCError(null);
     setFwdFromMsgId(null); setFwdAttachCount(0);
     composeFreshToRef.current = null; setKeptDraftNotice(false); setComposeDraftStatus('idle');
@@ -1897,7 +1943,7 @@ const MailPage: React.FC = () => {
       //   보낸 뒤에도 남아 있으면 다음에 전달 폼을 열 때 보낸 내용이 되살아난다.
       if (fwdFromMsgId) fwdDraft.clear();
       else apiFetch(`/api/businesses/${businessId}/email-drafts`, { method: 'DELETE' }).catch(() => {});
-      closeCompose();
+      closeCompose('sent');
       loadList(); loadCounts(); loadAccounts();
       if (j.data?.thread_id) setActive(j.data.thread_id);
     } catch (e) {
@@ -2368,7 +2414,7 @@ const MailPage: React.FC = () => {
                 backLabel={t('sidebar.expand', { defaultValue: '목록 열기' }) as string}
               >
                 <ComposeTitle>{t('compose.new', { defaultValue: '새 메일' }) as string}</ComposeTitle>
-                <CloseBtn type="button" onClick={closeCompose} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>✕</CloseBtn>
+                <CloseBtn type="button" data-testid="mail-compose-close" onClick={() => closeCompose('user')} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>✕</CloseBtn>
               </PanelHeader>
               <ComposeBody>
                 {/* 남겨 둔 초안이 있다는 것을 화면이 말한다 — 말하지 않으면 "쓰던 메일이 날아갔나" 가 된다.
@@ -2483,7 +2529,7 @@ const MailPage: React.FC = () => {
                 <ActionButton tone="primary" size="md" loading={cSending} onClick={sendCompose}>
                   {t('compose.send', { defaultValue: '보내기' }) as string}
                 </ActionButton>
-                <ActionButton tone="secondary" size="md" onClick={closeCompose} disabled={cSending}>
+                <ActionButton tone="secondary" size="md" onClick={() => closeCompose('user')} disabled={cSending}>
                   {t('compose.cancel', { defaultValue: '취소' }) as string}
                 </ActionButton>
               </ComposeFoot>
@@ -2901,7 +2947,7 @@ const MailPage: React.FC = () => {
                           title={t('reply.aiHint', { defaultValue: 'AI 가 이 메일의 답장 초안을 써줍니다' }) as string}
                         />
                       )}
-                      <ActionButton tone="secondary" size="md" onClick={() => setReplyOpen(false)} disabled={sending}>
+                      <ActionButton tone="secondary" size="md" onClick={() => { void sendPendingDraft(replyPendingRef); setReplyOpen(false); }} disabled={sending}>
                         {t('reply.cancel', { defaultValue: '취소' }) as string}
                       </ActionButton>
                     </ComposerActions>

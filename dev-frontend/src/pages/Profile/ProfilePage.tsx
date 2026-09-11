@@ -542,6 +542,7 @@ export default function ProfilePage() {
             <FieldBody>
               <AutoSaveField onSave={saveAccountName}>
                 <TextInput
+                  data-testid="profile-account-name"
                   value={accountName}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAccountName(e.target.value)}
                   placeholder={t('basic.namePlaceholder')}

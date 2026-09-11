@@ -175,5 +175,17 @@ R=1(사용자 글 유실 비가역 · 교차 노출) · S=1. **라운드 1A(초�
 - **규칙으로 남긴 것** — 초안을 비우는 곳은 **제출 성공·명시 취소**뿐이다. 대상 전환·재조회 이펙트에서 `clear()` 하지 않는다.
 - **자체 검증(Fable 미검증)** — 카나리 `drafts` 28/28 · 가드 EXIT 0(draft 베이스라인 신규, godfile 불변) · health-check 41/41 · build EXIT 0 / error TS 0.
 
+## 2-2. 라운드 1B 구현 노트 (2026-09-11)
+
+- **flush 프로토콜** — `services/pendingSaves.ts`(`planq:drafts:flush` · `waitUntil` · 상한 3초). 부르는 곳: `AuthContext.logout`(단일 실행 · 대기분 먼저 → POST, 계정 삭제는 `{ flush:false }`) · `switchWorkspace`(POST 전 — 지금 워크스페이스로 보낸다) · `WorkspaceSyncGuard`(보류 창에서 사용자가 "전환" 을 누를 때. 자동 경로는 `data-form-dirty` 가 이미 보류시킨다). `useDraftText` 도 받아 로컬 초안을 동기로 쓴다.
+- **AutoSaveField** — pending/inflight 분리 · 저장 중 새 입력은 완료 뒤 이어 보냄 · 언마운트·pagehide 대기분 발사(저장 중이면 완료 finally 가 mountedRef 와 무관하게) · 대기·저장 중 `data-form-dirty="1"`.
+- **`hooks/useLeaveSave`** — MemoView·MemoPopup 에 **같은 코드가 복사**돼 들어갔던 것을 한 벌로 뽑았다. single-flight(새 메모 생성 중 나가며 저장이 또 나가면 메모 둘) · leaving 저장은 `onCreated/onUpdated` 를 안 부름 · `active` false 전환(팝업이 외부에서 닫힘)도 저장. MemoPopup 799→773줄(아이콘 `MemoPopupIcons.tsx` 분리 — god-file 래칫을 기준선이 아니라 구조로).
+- **메일** — 답장·새 메일 초안 PUT 을 스냅샷(pending ref)으로 들고, 스레드 전환·취소·✕(`closeCompose('user'|'sent')`)·flush·pagehide(keepalive)·언마운트에서 보낸다. 발송을 시작하거나 성공하면 버린다.
+- **업무 설명·결과물** — ★ 설계 가정 교정: 드로어 **닫기는 원래 괜찮았다**(언마운트가 타이머를 안 지워 늦게라도 나간다). 사라지는 것은 로그아웃(토큰이 먼저 지워져 401)과 창 닫기·새로고침 → pending 기록 + flush + pagehide keepalive. 반복 업무 공유 필드는 범위를 물을 화면이 없어 보내지 않는다(로컬 edit 폴백은 **미구현 — 다음 라운드**).
+- **가드 `autosavekey`** — PUT/PATCH URL 템플릿 `${}` 뿌리 식별자(import·대문자 상수·전역 제외)가 있으면 그 파일 `<AutoSaveField` 는 key 에 그 이름을 포함. 베이스 52(24파일 중 11파일). 반증: key 하나 붙이면 51 통과 · key 없는 칸 하나 넣으면 53 FAIL.
+- **카나리 `leavesave`** — ⑤ 프로필 이름 · ⑥ Q Note 새 메모 · ⑥-메일 ✕ · ⑥-업무 설명 새로고침(+keepalive 차단 대조군) · ⑦ 로그아웃 순서·이중 클릭. 판정기 교정 2: 새로고침 중 keepalive 요청은 puppeteer request 에 안 잡혀 판정을 DB 로(대조군으로 증명) · 생성 응답 본문 캡처가 비어 메모가 남아 제목 검색으로 정리.
+- **곁에서 잡은 것** — `MainLayout` 접힌 사이드바의 `onClick={logout}` 이 MouseEvent 를 넘겼다(logout 에 옵션이 생기자 타입이 잡음).
+- **자체 검증(Fable 미검증)** — `leavesave` 7/7 · `toggles` 6/0 · `drafts` 회귀 28/28(1차 ⑩3 FATAL 1회 · 재현 안 됨 · 원인 미확정, 진단 남김) · guard EXIT 0 · health 41/41 · build EXIT 0 / error TS 0.
+
 ## 3. 기본값
 - 첨부: 텍스트만(서버 파일 id 만, 제출 전 재확인) · 보존: kind 별(기본 7일, 회의 시작 24h) · 동시 편집: 마지막 편집 승

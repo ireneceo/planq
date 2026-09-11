@@ -32,6 +32,28 @@
 - 빌드 EXIT 0 · error TS 0 (16:51) · 카나리 5차 실행 중(기대: 업무 전환 PASS · ②-메모 2건 PASS)
 - ★ pkill -f "npm run build" 는 **자기 셸도 죽인다**(명령줄에 같은 문자열) — 그 빌드는 tsc 단계에서 끊겨 산출물 무손상 확인
 
+### ✅ 1A 커밋 `457343b6` (Irene "남은 거 해" — 1A 자체 검증 커밋 · Fable 은 1A+1B 묶어 한 번)
+- 카나리 drafts 28/28 · e2e tenant·detailopen·wssync 59/0 · guard EXIT 0 · health 41/41 · build EXIT 0
+
+### 🔄 라운드 1B 진행 중 (미커밋)
+구현:
+- `services/pendingSaves.ts`(flush 프로토콜 `planq:drafts:flush` · waitUntil · 상한 3초) · `services/keepaliveFetch.ts`(pagehide raw fetch keepalive · 토큰+X-Workspace-Id · 60KB)
+- `AutoSaveField` 재작성 — pending/inflight · 순차(동시 2 PUT 금지) · 언마운트·pagehide 저장 · `data-form-dirty` · flush 등록
+- `hooks/useLeaveSave.ts` — single-flight(메모 생성 중복 차단) + 언마운트·active false·pagehide·flush. `MemoView`·`MemoPopup` 이 쓴다(leaving 저장은 onCreated/onUpdated 안 부름 — 떠난 메모로 끌려오지 않게)
+- `MemoPopup` 802→773줄: 아이콘 `MemoPopupIcons.tsx` 분리(god-file 래칫)
+- `AuthContext` logout 단일 실행 + flush 후 POST + `{flush:false}`(계정 삭제) · switchWorkspace POST 전 flush · `WorkspaceSyncGuard` 전환 클릭 시 flush · `useDraftText` flush 수신
+- `MailPage` 답장·새 메일 초안 스냅샷(pending ref) → 스레드 전환·취소·✕(`closeCompose('user'|'sent')`)·flush·pagehide keepalive·언마운트에서 보냄
+- `TaskDetailDrawer` 설명·결과물 pending 기록 → flush·pagehide keepalive (드로어 닫기는 원래 타이머가 살아 있어 OK · 반복 업무 공유 필드는 보내지 않음 — 로컬 폴백은 다음)
+- testid: profile-account-name · mail-compose-close · user-menu-open/logout · task-desc-editor · 카나리 `canary-leave-save.js`(`--suite leavesave`, ⑤⑥⑥-메일⑥-설명⑦) 등록
+검증 상태: guard EXIT 0 · 빌드 1회 실패(MainLayout `onClick={logout}` 이 MouseEvent 를 옵션으로 넘김 → `() => logout()` 수정) → **재빌드 → leavesave → drafts 회귀 → 커밋 → 1A+1B Fable 한 번**
+- 재빌드 EXIT 0 / error TS 0 · **leavesave 7/7**(⑥-설명 판정 DB + keepalive 차단 대조군 뒤집힘 · 메모 정리 2건) · **toggles 6/0**
+- 가드 `autosavekey` 신설 · 베이스 52 · 반증 key 붙이면 51 통과 / key 없는 칸 넣으면 53 FAIL · 원복 cmp 동일 · 전체 guard EXIT 0
+- **drafts 회귀 1차 FATAL** — ⑩2 까지 18 PASS 뒤 ⑩3 `null.focus()`(full goto 뒤 댓글 입력칸 없음). ⑩3 에 url·화면 진단 추가 → **재실행 28/28**(같은 순서 — leavesave 로그아웃 뒤). 재현 안 됨 · 원인 미확정 · 진단은 남김
+- health-check 41/41 · DEVELOPMENT_PLAN 1B 기록 완료 → **1B 커밋 → 1A+1B Fable 한 번**
+- 카나리 잔여 0 · user5 이름 원복 확인 · 문서: CLAUDE.md 자동저장 절(나갈 때 확정 저장) · DRAFT_PERSISTENCE_DESIGN §2-2 작성 완료 · DEVELOPMENT_PLAN 1B 는 drafts 결과 뒤
+- 곁에서 본 것(미조치): planq-dev-backend 가 1분마다 google_calendar external_connections 조회를 "DB Query Error" 로 로그
+남은 1B 항목: 반복 업무 설명 로컬 edit 폴백 · AutoSaveField key 규칙 가드 · `--suite toggles`
+
 ### 다음 할 일 (이 순서로)
 **⏸ Irene 답 대기** — Stop 훅(fable-gate-stop.sh)은 `by:fable|unavailable` 마커만 받는데 CLAUDE.md 판정은 F=1 자체 검증. 물어본 것: "1A 를 자체 검증 수치로 커밋할지, 1A+1B 묶어 마지막에 Fable 한 번 돌릴지". 답 전에는 unavailable 마커·skip 파일 쓰지 않는다.
 

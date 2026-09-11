@@ -20,6 +20,7 @@ import {
   parseDraftRecord, parseDraftKey, isDraftsSuppressed,
   DRAFT_EVENT, DRAFT_SUPPRESS_EVENT, type DraftRecord,
 } from '../services/draftStore';
+import { onFlushPendingSaves } from '../services/pendingSaves';
 import type { DraftKind } from './draftKinds';
 
 /** 초안 키 — 사용자·워크스페이스·대상. 사칭 중·정지 중·정보 부족이면 null(=보존 안 함). */
@@ -208,7 +209,10 @@ export function useDraftText(key: string | null, opts: DraftTextOptions = {}): D
     window.addEventListener('pagehide', onPageHide);
     window.addEventListener('blur', onWinBlur);
     document.addEventListener('visibilitychange', onHide);
+    // 로그아웃·워크스페이스 전환·원격 재부팅 직전(services/pendingSaves) — 로컬 쓰기는 동기라 기다릴 것이 없다
+    const offFlush = onFlushPendingSaves(() => flush());
     return () => {
+      offFlush();
       window.removeEventListener(DRAFT_EVENT, onCustom);
       window.removeEventListener('storage', onStorage);
       window.removeEventListener('pagehide', onPageHide);

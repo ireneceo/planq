@@ -498,9 +498,15 @@ async function run() {
       tomb && tomb.value === '' && aEmpty && aScreen === 'A2' && s102 === 'A2', `툼스톤=${JSON.stringify(tomb)} A빈칸=${aEmpty} A화면=${aScreen} 최종=${s102}${diag102}`);
 
     // ⑩3 A 창이 포커스를 잃고 입력란은 activeElement 인 채 — B 쓰기가 즉시 반영 · 돌아와 한 글자
-    await openTask(main, T1, { full: true });
+    const opened103 = await openTask(main, T1, { full: true });
     await main.bringToFront();
-    await (await handleOf(main, CMT)).focus();
+    const h103 = await handleOf(main, CMT);
+    // 1B 첫 회귀에서 여기서 null.focus() 로 FATAL — 이유를 남기고 멈춘다(로그인 화면으로 튕겼는지·드로어가 안 열렸는지)
+    if (!h103) {
+      const where = await main.evaluate(() => ({ url: location.pathname + location.search, text: (document.body?.innerText || '').slice(0, 160).replace(/\s+/g, ' ') })).catch(() => ({}));
+      throw new Error(`⑩3 업무 입력란 없음 — openTask=${opened103} url=${where.url} 화면="${where.text}"`);
+    }
+    await h103.focus();
     await pop.bringToFront();
     await b.sleep(300);
     const pre3 = await probe(main, CMT);

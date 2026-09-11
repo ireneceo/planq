@@ -346,5 +346,18 @@
     "pages/Settings/CueKnowledgeSection.tsx": 1,
     "pages/Settings/MailAliasSection.tsx": 1,
     "pages/Settings/PlanSettings.tsx": 2
+  },
+  "autosavekey": {
+    "dev-frontend/src/pages/Clients/ClientsPage.tsx": 2,
+    "dev-frontend/src/pages/Profile/ProfileIntegrationsPage.tsx": 1,
+    "dev-frontend/src/pages/Profile/ProfilePage.tsx": 9,
+    "dev-frontend/src/pages/QMail/MailContextPanel.tsx": 2,
+    "dev-frontend/src/pages/QProject/QProjectDetailPage.tsx": 5,
+    "dev-frontend/src/pages/QTask/QTaskPage.tsx": 4,
+    "dev-frontend/src/pages/Settings/EmailSettings.tsx": 3,
+    "dev-frontend/src/pages/Settings/MailSignatureSection.tsx": 2,
+    "dev-frontend/src/pages/Settings/WorkspaceSettingsPage.tsx": 20,
+    "dev-frontend/src/components/QTask/TaskDetailDrawer.tsx": 1,
+    "dev-frontend/src/components/Settings/WorkManagementSettings.tsx": 3
   }
 }

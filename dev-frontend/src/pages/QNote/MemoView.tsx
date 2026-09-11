@@ -27,6 +27,7 @@ import type { VLevel } from '../../components/Common/VisibilityBadge';
 import SessionTaxonomyBar from '../../components/QNote/SessionTaxonomyBar';
 import QNoteShareModal from '../../components/QNote/QNoteShareModal';
 import { isEnterAction } from '../../utils/imeKey';
+import { useLeaveSave } from '../../hooks/useLeaveSave';
 
 const PostEditor = lazy(() => import('../../components/Docs/PostEditor'));
 
@@ -190,8 +191,11 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
     dirtyRef.current = false;
   }, [session?.id]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const persist = useCallback(async () => {
-    if (isDocEmpty(doc)) return;
+  // leaving — 나가며 저장(hooks/useLeaveSave: 언마운트·pagehide·로그아웃/전환). 부모 콜백을 부르지 않는다 —
+  //   onCreated/onUpdated 는 활성 메모·주소를 **이 메모로** 되돌리므로 방금 누른 다른 메모에서 끌려온다.
+  //   목록 갱신은 메모 팝업과 같은 전역 이벤트로 알린다.
+  const saveDoc = useCallback(async ({ leaving }: { leaving: boolean }) => {
+    if (isDocEmpty(doc)) return undefined;
     const title = deriveTitleFromDoc(doc);
     const bodyJson = JSON.stringify(doc);
     setSaveState('saving');
@@ -201,7 +205,8 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
         setSavedAt(Date.now()); setSaveState('saved');
         dirtyRef.current = false;
         baseDocRef.current = bodyJson; savedOnceRef.current = true;
-        onUpdated(updated);
+        if (leaving) { try { window.dispatchEvent(new CustomEvent('qnote-session-updated', { detail: { id: updated.id } })); } catch { /* noop */ } }
+        else onUpdated(updated);
         return updated;
       }
       // 사이클 N+17 hotfix — NewNoteModal prefill (project_id) 반영.
@@ -211,16 +216,19 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
         business_id: businessId, title, input_type: 'text', body: bodyJson,
         ...(prefillProjectId ? { project_id: prefillProjectId } : {}),
       } as any);
+      sessionIdRef.current = created.id;   // 언마운트 뒤엔 렌더가 없다 — 다음 저장이 또 만들지 않게(useLeaveSave 주석)
       setSessionId(created.id);
       setSavedAt(Date.now()); setSaveState('saved');
       dirtyRef.current = false;
       baseDocRef.current = bodyJson; savedOnceRef.current = true;
-      onCreated(created);
+      if (leaving) { try { window.dispatchEvent(new CustomEvent('qnote-session-created', { detail: { id: created.id } })); } catch { /* noop */ } }
+      else onCreated(created);
       return created;
     } catch (e) {
       setSaveState('error'); throw e;
     }
   }, [doc, businessId, onCreated, onUpdated]);
+  const { persist } = useLeaveSave(saveDoc, dirtyRef, debounceRef, { label: 'MemoView' });
 
   useEffect(() => {
     if (!dirtyRef.current) return;
@@ -228,7 +236,6 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
     debounceRef.current = setTimeout(() => { persist().catch(() => null); }, SAVE_DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [doc, persist]);
-
   useEffect(() => {
     if (saveState !== 'saved') return;
     const id = setInterval(() => setTick(x => x + 1), 10_000);

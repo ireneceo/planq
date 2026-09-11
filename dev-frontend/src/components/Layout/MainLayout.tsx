@@ -1796,13 +1796,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <UserMenuItemLink to="/profile" onClick={() => setUserMenuOpen(false)} role="menuitem">
                       {t('user.profile')}
                     </UserMenuItemLink>
-                    <UserMenuItemBtn type="button" $danger onClick={() => { setUserMenuOpen(false); logout(); }} role="menuitem">
+                    <UserMenuItemBtn type="button" $danger data-testid="user-menu-logout" onClick={() => { setUserMenuOpen(false); logout(); }} role="menuitem">
                       {t('user.logout')}
                     </UserMenuItemBtn>
                   </UserMenuPopover>
                 )}
                 <UserMenuButton
                   type="button"
+                  data-testid="user-menu-open"
                   aria-expanded={userMenuOpen}
                   aria-haspopup="menu"
                   aria-label={`${userDisplayName} — ${t('user.menu', { defaultValue: '계정 메뉴' }) as string}`}
@@ -1829,7 +1830,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 {userDisplayName?.charAt(0)?.toUpperCase() || 'U'}
               </CollapsedAvatarButton>
               <CollapsedLogoutIcon
-                onClick={logout}
+                onClick={() => logout()}
                 title={t('user.logout')}
                 aria-label={t('user.logout')}
               >

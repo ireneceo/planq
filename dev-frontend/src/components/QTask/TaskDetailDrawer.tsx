@@ -11,6 +11,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import { onFlushPendingSaves } from '../../services/pendingSaves';
+import { keepaliveJson } from '../../services/keepaliveFetch';
 import { formatDate } from '../../utils/dateFormat';
 import CalendarPicker from '../Common/CalendarPicker';
 import SingleDateField from '../Common/SingleDateField';
@@ -442,6 +444,20 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   };
 
   const debouncedRef = useRef<{ [key: string]: number }>({});
+  // ★ 나갈 때 확정 저장 (docs/DRAFT_PERSISTENCE_DESIGN.md D-C3) — 설명·결과물 2초 debounce 에 걸린 값.
+  //   드로어를 닫는 것은 괜찮다(타이머가 살아 있어 늦게라도 나간다). 사라지는 것은 **로그아웃**(토큰이 먼저 지워져 401)과
+  //   **창 닫기·새로고침**(문서가 먼저 죽는다) — 값을 따로 들고 있다가 그 순간 보낸다.
+  //   series — 반복 업무의 공유 필드는 범위를 물어야 해 보내지 않는다(물을 화면이 없다 — 로컬 폴백은 다음 라운드).
+  const pendingFieldsRef = useRef<{ [key: string]: { taskId: number; field: string; value: unknown; series: boolean } }>({});
+  const flushFieldsRef = useRef<(keepalive: boolean) => Promise<unknown>>(() => Promise.resolve());
+  useEffect(() => {
+    const off = onFlushPendingSaves((waitUntil) => {
+      if (Object.keys(pendingFieldsRef.current).length) waitUntil(flushFieldsRef.current(false));
+    });
+    const onPageHide = () => { void flushFieldsRef.current(true); };
+    window.addEventListener('pagehide', onPageHide);
+    return () => { off(); window.removeEventListener('pagehide', onPageHide); };
+  }, []);
   // 결과물 에디터에 **지금 떠 있는** 본문. 자동저장은 2초 debounce 라, 마지막 타이핑 직후
   //   "확인 요청" 을 누르면 서버의 body 는 아직 옛것이고 그 옛것이 버전으로 박제된다.
   //   그래서 제출할 때 이 값을 같이 보낸다(서버가 한 트랜잭션에 저장+박제한다).
@@ -714,14 +730,31 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     if (!detailTask) return;
     const key = `${detailTask.id}:${field}`;
     if (debouncedRef.current[key]) window.clearTimeout(debouncedRef.current[key]);
+    pendingFieldsRef.current[key] = { taskId: detailTask.id, field, value, series: isSeries && needsSeriesScope(detailTask, { [field]: value }) };
     debouncedRef.current[key] = window.setTimeout(() => {
+      delete pendingFieldsRef.current[key];
       saveField(field, value);
       delete debouncedRef.current[key];
     }, ms);
   };
+  // 로그아웃·워크스페이스 전환(flush) · 창 닫기(pagehide keepalive) — 걸려 있는 값을 지금 보낸다
+  flushFieldsRef.current = (keepalive) => {
+    const sends: Promise<unknown>[] = [];
+    for (const [key, p] of Object.entries(pendingFieldsRef.current)) {
+      if (debouncedRef.current[key]) { window.clearTimeout(debouncedRef.current[key]); delete debouncedRef.current[key]; }
+      delete pendingFieldsRef.current[key];
+      if (p.series) continue;
+      const url = `/api/tasks/by-business/${bizId}/${p.taskId}`;
+      const patch = { [p.field]: p.value };
+      if (keepalive) keepaliveJson(url, 'PUT', patch);
+      else sends.push(apiFetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }).catch(() => null));
+    }
+    return Promise.all(sends);
+  };
   const flushDebounced = (field: string, value: unknown) => {
     if (!detailTask) return;
     const key = `${detailTask.id}:${field}`;
+    delete pendingFieldsRef.current[key];
     if (debouncedRef.current[key]) {
       window.clearTimeout(debouncedRef.current[key]);
       delete debouncedRef.current[key];
@@ -935,6 +968,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     // ★ 대기 중인 본문 자동저장을 **먼저 거둔다.** 그대로 두면 제출로 status 가 reviewing 이 된 뒤에
     //   뒤늦은 PUT 이 날아가 서버 가드(body_locked)에 막히고, 화면엔 이유 없는 "저장 실패" 만 뜬다.
     const bodyKey = `${detailTask.id}:body`;
+    delete pendingFieldsRef.current[bodyKey];   // 제출이 본문을 같이 보낸다 — 떠날 때 따로 보내지 않는다
     if (debouncedRef.current[bodyKey]) {
       window.clearTimeout(debouncedRef.current[bodyKey]);
       delete debouncedRef.current[bodyKey];
@@ -2119,7 +2153,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   {t('detail.recurDescHint', '이 설명은 매 회차에 함께 생성됩니다. 회차별 결과물은 각 회차의 본문에 작성하세요.')}
                 </RecurDescHint>
               )}
-              <DescEditorWrap>
+              <DescEditorWrap data-testid="task-desc-editor">
                 <RichEditor
                   value={detailTask.description || ''}
                   onChange={(html) => debouncedSave('description', html, 2000)}

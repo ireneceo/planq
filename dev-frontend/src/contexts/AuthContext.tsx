@@ -8,6 +8,7 @@ import {
   DRAFT_OWNER_KEY,
 } from '../services/draftStore';
 import { markSwitching, broadcastWorkspaceSwitch } from '../services/workspaceSync';
+import { flushPendingSaves } from '../services/pendingSaves';
 
 // ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
 //   쓰면 안 된다(트리 스왑 후 첫 렌더 크래시). 세션 종료(로그아웃·토큰만료) 이동은 window.location 로.
@@ -93,7 +94,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string, remember?: boolean) => Promise<boolean>;
   register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean; invite_token?: string }) => Promise<boolean>;
-  logout: () => void;
+  /** flush:false — 계정 삭제 뒤처럼 대기 중인 자동저장을 보내면 안 되는 경우 */
+  logout: (opts?: { flush?: boolean }) => Promise<void>;
   updateUser: (userData: Partial<User>) => void;
   refreshUser: () => Promise<void>;
   hasRole: (...roles: string[]) => boolean;
@@ -853,21 +855,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return false;
   };
 
-  const logout = async () => {
-    const leavingUserId = user?.id;
-    try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    } catch { /* ignore */ }
-    // 초안 — 정지(이후 언마운트 flush 가 다시 쓰지 않게) → 그 사람 초안 삭제 → 센티널 비움(같은 사람의 옛 탭·팝아웃도 멈춤)
-    //   docs/DRAFT_PERSISTENCE_DESIGN.md D-C5. 공용 PC 에서 다음 사람에게 쓰던 글이 남지 않게.
-    setDraftsSuppressed(true);
-    purgeDraftsOf(leavingUserId);
-    setDraftOwner('');
-    clearPageCache();   // 다음 사용자에게 남의 목록이 한 프레임도 비치지 않게
-    setUser(null);
-    setAccessToken(null);
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    goLogin();
+  // 로그아웃은 한 번만 돈다 — 이중 클릭·여러 경로가 겹쳐도 저장·POST·삭제가 두 번 나가지 않게 (D-C3 I2)
+  const logoutInFlightRef = useRef<Promise<void> | null>(null);
+  const logout = (opts?: { flush?: boolean }): Promise<void> => {
+    if (logoutInFlightRef.current) return logoutInFlightRef.current;
+    const run = (async () => {
+      const leavingUserId = user?.id;
+      // ① 토큰이 살아 있는 동안 대기 중인 자동저장부터 보낸다(services/pendingSaves — 상한 3초, 넘기면 진행).
+      //   여태는 입력 직후 로그아웃하면 debounce 에 걸린 입력이 타이머와 함께 사라졌다.
+      if (opts?.flush !== false) await flushPendingSaves();
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      } catch { /* ignore */ }
+      // 초안 — 정지(이후 언마운트 flush 가 다시 쓰지 않게) → 그 사람 초안 삭제 → 센티널 비움(같은 사람의 옛 탭·팝아웃도 멈춤)
+      //   docs/DRAFT_PERSISTENCE_DESIGN.md D-C5. 공용 PC 에서 다음 사람에게 쓰던 글이 남지 않게.
+      setDraftsSuppressed(true);
+      purgeDraftsOf(leavingUserId);
+      setDraftOwner('');
+      clearPageCache();   // 다음 사용자에게 남의 목록이 한 프레임도 비치지 않게
+      setUser(null);
+      setAccessToken(null);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      goLogin();
+    })();
+    logoutInFlightRef.current = run;
+    return run.finally(() => { logoutInFlightRef.current = null; });
   };
 
   const updateUser = (userData: Partial<User>) => {
@@ -944,6 +956,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const switchWorkspace = async (businessId: number): Promise<boolean> => {
     if (!user) return false;
     if (user.business_id === businessId) return true; // 이미 active
+    // 전환 POST 전에 대기 중인 자동저장을 **지금 워크스페이스로** 보낸다 — 전환 뒤에 나가면 새 범위로 가거나 409 로 막힌다
+    await flushPendingSaves();
     try {
       const res = await apiFetch('/api/auth/switch-workspace', {
         method: 'POST',

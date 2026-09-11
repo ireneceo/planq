@@ -28,6 +28,8 @@ import {
 } from '../../utils/qnoteBody';
 import HighlightText from '../Common/HighlightText';
 import { makeSnippet } from '../../utils/searchMatch';
+import { useLeaveSave } from '../../hooks/useLeaveSave';
+import { IconClose, IconDetach, IconPlus, IconSearch, IconResize } from './MemoPopupIcons';
 
 // 사이클 N+17 — RichEditor 도입 (TipTap). lazy 로 첫 메모 작성 시점에만 받음.
 // vendor-tiptap (417KB) + vendor-highlight (162KB) 가 lazy chunk 로 떨어져 첫 로드 부담 0.
@@ -269,36 +271,6 @@ const SearchClearBtn = styled.button.attrs({ type: 'button' as const })`
   &:hover { background: #F1F5F9; color: #0F172A; }
 `;
 
-// ─── icons ───
-const IconClose = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
-const IconDetach = () => (
-  // 분리 창 (브라우저 밖 floating) 아이콘 — 화면 + 분리 화살표
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M15 3h6v6" />
-    <path d="M10 14L21 3" />
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-  </svg>
-);
-const IconPlus = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-  </svg>
-);
-const IconSearch = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-  </svg>
-);
-const IconResize = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-    <line x1="20" y1="10" x2="10" y2="20"/><line x1="20" y1="16" x2="16" y2="20"/>
-  </svg>
-);
-
 // ─── 컴포넌트 ───
 const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSessionId, onCreated, standalone = false, pinSlot }) => {
   const { t } = useTranslation('qnote');
@@ -444,8 +416,9 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
   };
 
   // ─── 자동저장 ───
-  const persist = useCallback(async () => {
-    if (isDocEmpty(doc)) return;
+  // leaving — 나가며 저장(hooks/useLeaveSave: 언마운트·닫힘·pagehide·로그아웃/전환). onCreated 는 부르지 않는다.
+  const saveDoc = useCallback(async ({ leaving }: { leaving: boolean }) => {
+    if (isDocEmpty(doc)) return undefined;
     const title = deriveTitleFromDoc(doc);
     const bodyJson = JSON.stringify(doc);
     setSaveState('saving');
@@ -462,10 +435,11 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
       const created = await createSession({
         business_id: businessId, title, input_type: 'text', body: bodyJson,
       });
+      sessionIdRef.current = created.id;   // 언마운트 뒤엔 렌더가 없다 — 다음 저장이 또 만들지 않게
       setSessionId(created.id);
       setSavedAt(Date.now()); setSaveState('saved');
       dirtyRef.current = false;
-      onCreated?.(created);
+      if (!leaving) onCreated?.(created);
       // N+35 — 신규 메모 생성 시 글로벌 sync (다른 페이지/탭의 QNotePage 자동 reload)
       try { window.dispatchEvent(new CustomEvent('qnote-session-created', { detail: { id: created.id } })); } catch { /* noop */ }
       return created;
@@ -473,6 +447,7 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
       setSaveState('error'); throw e;
     }
   }, [doc, businessId, onCreated]);
+  const { persist } = useLeaveSave(saveDoc, dirtyRef, debounceRef, { active: open, label: 'MemoPopup' });
 
   useEffect(() => {
     if (!open) return;
@@ -481,7 +456,6 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
     debounceRef.current = setTimeout(() => { persist().catch(() => { /* surfaced via saveState */ }); }, SAVE_DEBOUNCE_MS);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [open, doc, persist]);
-
   // ─── 메모 로드 (open 시점: existingSessionId or 자동 이어쓰기) ───
   const loadMemo = useCallback(async (id: number | null) => {
     if (id === null) {
