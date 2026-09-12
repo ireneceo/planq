@@ -1,45 +1,88 @@
-# PlanQ 세션 상태
-
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-09-12 06:15 UTC (Opus 5, 1M · 세션 planq-dc)
-**작업 상태:** ✅ **운영 배포 완료 `0bfa1b38`** (2026-09-12 06:33 UTC, 334s, DEPLOY_EXIT 0) — ★ **Q sale 1a~1c · PDF 후속 2건은 Fable 미검증(자체 검증)**
-**운영:** `0bfa1b38` · health 200 · / 200 · PM2 3종 online · Q sale 스키마 존재(clients.status `prospect` · client_stage_history · client_interactions · notifications/notification_prefs `sale`) · 고객 분포 active 3 / archived 1 / invited 1 (기존 데이터 불변)
-**Git:** HEAD `0bfa1b38` · 작업트리 깨끗 · 마커 `by:"unavailable"` (Fable 한도 429 — 대기열 9번)
-**롤백:** `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260912_062714/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
+**마지막 업데이트:** 2026-09-12 09:55 UTC
+**작업 상태:** 배포 완료 · 후속 4건 남음
 
-### 이번 배포 (Irene 판단: "지금 배포 (Fable 미검증 감수)")
-- Fable 라운드를 띄웠으나 **사용 한도(HTTP 429)로 시작 직후 중단** → 대기열 `docs/FABLE_GATE_QUEUE.md` 9번에 미검증 사실 기록, 개발현황·커밋에도 `opus_only` 로 표기
-- 자체 검증(기계 검사): build EXIT 0 / error TS 0 · health 43/43 · guard-invariants EXIT 0 (49/50, 나머지는 문서 신선도 경고) · e2e tenant·detailopen·inboxcount **실패 0 (✅72)**
-- 배포분: 미배포 13커밋 = 입력 임시저장 1A·1B·라운드 2(Fable PASS) · Drive Picker(PASS) · PDF 은퇴(PASS) + **PDF 후속 2 · Q sale 1a·1b·1c(미검증)**
-- ⚠️ **배포 스크립트 순서 확인 필요(다음 라운드)** — `sync_database` 단계에서 `sync-database.js`(deploy-planq.sh:287)가 **먼저**, `migrate-qsale.js`(:418)가 **나중**에 돈다. 이번엔 ENUM 이 이미 있어 skip·변경 0 이라 무해했지만, **새 ENUM 값이 없는 환경의 첫 배포에서는 순서가 뒤집혀 있다.** 대기열 0번의 "마이그레이션이 코드보다 먼저" 조건과 어긋나므로 Fable 사후 검증 항목에 포함할 것
+### 이번 세션 배포
+| 배포 | 커밋 | 백업 | 비고 |
+|---|---|---|---|
+| 1차 08:31 | `8c642085` | `20260912_083154` | 승인완료(done_feedback) 단계 부활 + Q sale 실시간 |
+| 2차 09:47 | `81cd75db` (내용 `3710babf`) | `20260912_094734` | Q sale 상담 기준·정보 통합·우측 패널 |
 
-### 오늘 세션 시작 시점 파악 (/개발시작)
-- 어제 밤 다른 세션(planq-18, 지금은 종료)이 **입력 임시저장 1A·1B·라운드 2 · Drive Picker · PDF 은퇴**(여기까지 Fable PASS, `f208323c`)에 이어
-  **PDF 후속 2건**과 **Q sale 1a·1b·1c** 를 커밋했다. 뒤 5개는 자체 검증만 됐다.
-- 대기열 `docs/FABLE_GATE_QUEUE.md` 0번에 Irene 지시가 박제돼 있다 — *"1b·1c 까지 개발한 뒤 한 라운드로 검증한다. 그 전에는 운영 배포 금지."*
-- 미배포 누적: 13커밋 · 118파일 · +7,469/−456
+롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/<TS>/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
 
-### 진행 중인 작업
-- **Fable 게이트 라운드(오늘)** — 대상: `11492759` · `07732a85`(PDF) · `f2a06c2f`(Q sale 1a) · `ea96ef46`(1b) · `161a3dae`(1c)
-  - 판정 항목은 대기열 0번의 "Fable 이 봐야 할 것" 0~6: 배지 귀속 · 요약 비용(낡지 않으면 LLM 0) · refs 환각 · 마이그레이션 순서/멱등/롤백 · 권한(고객·qsale none/read) · 격리(라우트별 404/403) · 한도(prospects/clients 계수) · 고객으로 저장 부수효과 · 옛 타임라인 회귀
-  - PDF: `--single-process` 제거 후 동시 요청·유휴 첫 PDF·Chrome 누수 0·SIGTERM 정리
-- dev 상태: 마이그레이션 적용됨(clients.status `prospect` · client_stage_history · client_interactions · notifications.event_kind `sale`) · dev health OK · dev 빌드 09-11 23:14
+### 완료된 작업 (이번 세션)
 
-### 다음 할 일
-1. **Fable PASS → 마커(by:fable) → 운영 배포** (미배포 13커밋 한 번에). 배포 전 `docs/dev-status/next.json` 을 이번 범위로 다시 쓴다
-   (지금 파일은 8bd11a23 배포분 기준 — Q Note 워크스페이스 공개·목록 격리·문서 템플릿 저장).
-   배포 조건: `migrate-qsale.js` 가 코드보다 먼저 · sync(alter) 와의 순서 · 롤백 경로 확인
-2. **FAIL 이면** 지적 항목만 수리 → 같은 라운드 재검증. 그 전 배포 금지(Irene 지시)
-3. 배포 후 잔여(어제 남긴 목록 유지):
-   - Q7 종 알림 = 현재 워크스페이스만 · Q6 미적용 상세 6곳(캘린더·메일·Q info·파일·청구·고객) · 워크스페이스 단계 3~5
-   - 통합검색 표 셀 secret 칸 매칭 제외(#334 술어) · today-review/all-tasks 비소속 200→403 통일
-   - 입력 임시저장 다음 라운드 · 도크 Q note [메모|음성메모] 탭 · GuestChatPanel 바닥 고정
-   - q-note JWT businessId 클레임 · Q Note 공유 보기에서 '답변 찾기' 숨김
-4. 사람 차례(Irene) — iOS 앱 재빌드(Codemagic, 키보드 ▲▼✓) · 운영 피드백 #409·#410 답글 · 판단 3건(관리자 벨 범위·서명 이메일 선노출·보고서 링크 무만료)
+**① Q sale 입구를 고객 → 상담(고객 미등록 문의)으로** (1차·2차 걸쳐)
+- `services/saleInbox.js`(신규) + `GET /api/sale/:biz/inbox`. 새 테이블 없이 원본 3곳에서 `client_id IS NULL` 만 읽는다
+- 행의 단위는 **대화방**. 게스트 링크는 별개 접점이 아니라 그 대화의 신원 → 중복 해소(914→912)
+- 등록 가능 판정은 `source` 가 아니라 **`ref.kind`** — 게스트가 채팅에서 이메일을 남기면 그 링크로 등록된다
+- 집계는 별도 COUNT, 칩 선택과 무관하게 계산(전체 7인데 칩 누르면 9로 튀던 결함 수정)
 
-### 주의 (이 저장소는 세션이 동시에 붙는다)
-- 커밋·배포 전 `git status` 로 남의 미커밋 변경이 섞이지 않았는지 본다. 남의 변경은 되돌리지 않는다
-- Fable 검증 중에는 소스를 건드리지 않는다(지문이 바뀌어 판정이 무의미해진다)
+**② 상담의 기준을 세웠다 (2차)**
+- 여태 **기준이 없었다** — 고객이 한 마디도 안 해도 방이 있으면 올라왔다
+- 이제 **외부(비멤버) 발화 ≥ 1** 인 방만. 링크만 있고 말 없는 방은 `account_requested_at` 있을 때만
+- dev 반증: 미연결 대화방 9개가 **전부 외부 발화 0건** → 채팅·게스트 0은 과잉 차단이 아님
+
+**③ 회사·이메일·이름 표시** — 회사는 이메일 도메인 추정, 무료메일 + **발송 전용 주소** 제외
+(`no_reply@email.apple.com` 을 회사로 내놓던 것을 실측으로 잡았다). 추정값은 `estimated` 로 구분
+
+**④ 고객 정보 한 벌로 통합** — `GET /clients/:id` 에 `contact`(초대/계정/청구/세금계산서 이메일을 **종류별로**)·`biz` 추가.
+`ClientPanel`(우측 패널, **정보만**) + 전체보기 아이콘 + `ClientLink`(이름 어디서나 같은 방식으로 열기).
+**관리(초대·보관·삭제·한도)는 설정에만** — Irene 지시
+
+**⑤ 고객 탭 페이지 전환 제거** → 우측 패널(재클릭 토글). 문의 추가 후에도 패널로 이어진다
+
+**⑥ 필터를 탭 아래로** · "원본 열기" → **[보기]**
+
+**⑦ 업무 추가가 빈 입력** — 메일 제목·본문을 베끼지 않는다. 그 입력은 쓰다 닫아도 남는다
+(draft kind `sale-task-add` 등록 — 예외 선언이 아니라 실제 임시저장. 래칫 89→88 복구)
+
+**⑧ 업무 승인완료(done_feedback) 단계 부활** (1차 배포)
+- 컨펌 충족 시 `completed` → **`done_feedback`**. `completed_at`·진행률 100 안 찍는다
+- `complete` 액션에 예외(컨펌자 있어도 `done_feedback` 이면 통과) — 없으면 **아무도 닫을 수 없는 막다른 길**
+- 확인필요 5번째 버킷(verb `finish`) · `weekTaskSet` · `popoutSort` 에 모두 반영
+- **운영 ENUM ALTER 0건** — 값이 살아 있고 코드 경로만 0이던 폐지값을 되살렸다
+- 2026-04-25 "자동완료 유지 + 알림만" 결정을 되돌린 것(같은 신고 두 번, #282)
+
+**⑨ Q sale 상담 목록 실시간** — 새 이벤트를 만들지 않고 있는 신호를 듣는다
+(`message:new`·`mail:new`·`inbox:refresh`) → 250ms debounce silent 재조회 + `useVisibilityRefresh`
+
+### 다음 할 일 (Q sale 후속 4건 — Irene 지시 잔여)
+1. **상담 행 클릭 → 우측 패널** — 아직 고객이 아니므로 `ClientPanel` 을 그대로 못 쓴다.
+   "아직 고객 아님 + 문의 정보(이름·이메일·회사·미리보기) + 고객으로 등록" 분기를 넣어야 한다
+2. **문의 추가에 AI 입력 · 작성자 기록 · 유입 경로(전화/방문 등) 명확히** — 모달은 이미 있다
+   (`sale-add-inquiry`, 이름·회사·전화·이메일·유입경로). AI 추가와 작성자가 빠져 있다
+3. **Q sale 배지 ⓑ** — 지금 `collectSale` 은 **등록된 고객**만 센다(미등록 문의는 어느 배지에도 없다).
+   메일·채팅 알림이 닿지 않는 **게스트 링크 문의만** 더한다. `sales_source !== 'email'` 조건이 이미 있어
+   이중 계수는 없다(확인 완료)
+4. **계약 불발 사유 입력** — 서버는 `lost_reason`·`lost_note` 를 받는데 지금은 단계만 넘긴다.
+   왜 깨졌는지가 원장에 안 남는다
+
+**의도적으로 뺀 것**: 프로젝트 만들기·청구하기 액션 — `/projects`·`/bill` 이 고객 지정 쿼리를
+**읽지 않는다**(실측 0건). 지금 버튼을 달면 고객이 안 실린 빈 화면으로 가는 죽은 링크다.
+받는 쪽을 먼저 만들어야 한다.
+
+### Fable 게이트 — 오늘 **5회 모두 한도 초과**
+`docs/FABLE_GATE_QUEUE.md` 9·10·11번. 마커는 `by:"unavailable"`.
+한도가 풀리면 **9·10·11번을 한 라운드로 묶어** 사후 검증한다(쪼개 올리지 않는다).
+오늘 배포 2회 모두 **독립 검증 0회**다.
+
+### 이번 세션에서 내 검사기가 거짓말한 것 (같은 실수 반복 금지)
+- 카나리 ④가 게스트 행 **0건을 보고 `0===0` 으로 통과**(빈 데이터 초록) → 0건이면 **판정 불가(실패)** 로 바꿨다
+- 승인 카나리가 `/마무리|완료/` 로 긁어 앱 크롬의 "이번 주 마무리" 를 잡아 **드로어가 안 열려도 통과** →
+  드로어 안 + "최종 완료" 문자열로 좁혔다
+- Q sale ⑦이 앞 단계가 켜둔 "답변 필요만" 필터를 물려받아 **거짓 FAIL** → 필터를 끄고 계측
+- `error TS` 0 을 **아직 안 찍힌 0** 으로 읽을 뻔했다(빌드 완료 신호를 먼저 확인할 것)
+- 빌드를 앞 빌드가 끝나기 전에 또 걸어 로그가 겹치고 SIGTERM(143)이 찍혔다
+
+### 남은 기술 부채
+- `routes/dashboard.js` 1349줄 / god-file 임계 **1350줄** — 여유 1줄. 다음 사이클에 수집기 분리 필요
+- Q sale 설계 §5.2 "확인 필요 스트립" 미구현 (상담 목록의 "답변 필요" 칩이 일부만 대신)
+- dev 대화방 331의 `last_message_at` 은 probe 가 바꾼 뒤 **원래 값을 몰라 못 되돌렸다**(영향: 정렬 순서만)
+
+### 사람이 해야 할 것 (Irene)
+- iOS 앱 재빌드(Codemagic) — 키보드 위 ▲▼✓ 바
+- 운영 피드백 #409 · #410 답글
 
 ---
 
