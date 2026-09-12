@@ -36,7 +36,7 @@ export const DRAFT_KINDS = {
   'qnote-meeting-start': { ttlMs: 1 * DAY, mode: 'append', owners: ['pages/QNote/StartMeetingModal.tsx'] },
   // 상담에서 바로 만드는 업무 — 모달 안에서 쓰다 닫으면 사라지던 값이다(2026-09-12 신설).
   //   메일 내용을 베끼지 않고 사람이 직접 쓰는 글이라 더욱 지켜야 한다.
-  'sale-task-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/SaleInboxList.tsx'] },
+  'sale-task-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/SaleInboxList.tsx', 'components/QTask/TaskCreateForm.tsx'] },
 } as const satisfies Record<string, DraftKindSpec>;
 
 export type DraftKind = keyof typeof DRAFT_KINDS;

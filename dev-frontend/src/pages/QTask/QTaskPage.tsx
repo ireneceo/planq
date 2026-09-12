@@ -12,7 +12,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import { apiFetch } from '../../contexts/AuthContext';
 import CalendarPicker from '../../components/Common/CalendarPicker';
-import SingleDateField from '../../components/Common/SingleDateField';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../utils/timezones';
@@ -33,12 +32,10 @@ import CueTaskBar from '../../components/QTask/CueTaskBar';
 import AiActionButton from '../../components/Common/AiActionButton';
 import EmptyState from '../../components/Common/EmptyState';
 import { StatusGlyph } from '../../components/Common/Icons';
-import RichEditor from '../../components/Common/RichEditor';
-import AttachmentField from '../../components/Common/AttachmentField';
 import SearchBox from '../../components/Common/SearchBox';
 import HighlightText from '../../components/Common/HighlightText';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
-import CreateDrawer from '../../components/Common/CreateDrawer';
+import TaskCreateForm, { type TaskCreateInitial, type TaskCreatedTask } from '../../components/QTask/TaskCreateForm';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
@@ -49,16 +46,10 @@ import { displayName } from '../../utils/displayName';
 import { friendlyDeleteError } from '../../utils/taskDeleteError';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import i18nClient from '../../i18n';
-import {
-  buildPresetRRule, buildCustomRRule, formatRRuleLabel, presetLabelMap, SELECTABLE_PRESETS,
-  type RecurEndType, type RecurPreset, type RecurCustomUnit,
-} from '../../utils/recurrence';
-import type { TFunction } from 'i18next';
+import { formatRRuleLabel } from '../../utils/recurrence';
 import WeeklyReviewModal from '../../components/QTask/WeeklyReviewModal';
 import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
-import PartnerKindBadge from '../../components/Common/PartnerKindBadge';
 import { type TaskTagLite } from '../../components/QTask/TagChips';
-import TagPicker from '../../components/QTask/TagPicker';
 import RowTags from '../../components/QTask/RowTags';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
 import TagManageModal from '../../components/QTask/TagManageModal';
@@ -357,10 +348,6 @@ const QTaskPage:React.FC=()=>{
   //   (2026-07-28 실사고. inWeekCanonical 주석 참조).
   const[tagFilter,setTagFilter]=useState<number|null>(null);
   const[tagDict,setTagDict]=useState<Array<{id:number;name:string;color:string|null;usage_count?:number}>>([]);
-  // 운영 #236/#250 — 업무 **추가 폼**의 태그. 여태 태그를 만들 수 있는 자리가 상세 드로어뿐이라,
-  //   태그가 0개인 워크스페이스에서는 필터·관리 버튼이 모두 숨어 "개발 안 된 기능" 으로 보였다.
-  //   생성 시점에 고르고 만들 수 있게 하면 그 막힌 고리가 풀린다.
-  const[newTagIds,setNewTagIds]=useState<number[]>([]);
   const[tagManageOpen,setTagManageOpen]=useState(false);
   // 기본 true: 체크박스 = 완료 = 리스트에서 사라짐 (완료 업무 다시 보려면 헤더 체크 해제)
   const[hideCompleted,setHideCompleted]=useState(true);
@@ -416,97 +403,24 @@ const QTaskPage:React.FC=()=>{
   // 모바일에서 업무추가 폼(우측 패널·오버레이)이 열리면 body 잠금 → data-overlay-open → 우하단 FAB 자동 숨김(#181).
   // 인라인 추가(표 하단)는 오버레이가 아니라 제외. ref-count 방식이라 위 rightOverlayOpen lock 과 병존 안전.
   useBodyScrollLock(isNarrow && addingTask && !addInline);
-  const[newTitle,setNewTitle]=useState('');
-  const[newAssignee,setNewAssignee]=useState<number|null>(null);
-  const[newProjectId,setNewProjectId]=useState<number|null>(null);
-  // 업무 추가 폼 담당자 후보 — 프로젝트를 고르면 그 프로젝트의 외부 참여자(고객·협력사·프리랜서)도 나온다.
-  //   프로젝트를 안 고르면 내부 멤버만 (외부인은 프로젝트 스코프 안에서만 담당자가 될 수 있다 — 백엔드 assertAssignable 과 같은 규칙).
-  const[addExternals,setAddExternals]=useState<Array<{user_id:number;name:string;kind:string}>>([]);
-  useEffect(()=>{
-    if(!bizId||!newProjectId){setAddExternals([]);return;}
-    let alive=true;
-    (async()=>{
-      try{
-        const r=await apiFetch(`/api/tasks/by-business/${bizId}/assignable-externals?project_id=${newProjectId}`);
-        const j=await r.json();
-        if(alive&&j.success)setAddExternals((j.data||[]).map((e:{user_id:number;name:string;kind:string})=>({user_id:e.user_id,name:e.name,kind:e.kind})));
-      }catch{/* 외부 후보는 부가 — 실패해도 내부 멤버로 등록은 된다 */}
-    })();
-    return()=>{alive=false;};
-  },[bizId,newProjectId]);
-  const[newDueDate,setNewDueDate]=useState<string>('');
-  const[newStartDate,setNewStartDate]=useState<string>('');
-  const[newEstHours,setNewEstHours]=useState<string>('');
-  const[newDescription,setNewDescription]=useState<string>('');
-  const[aiEstimating,setAiEstimating]=useState(false);
-  const[aiEstReason,setAiEstReason]=useState<string>('');
-  // 첨부: 새 task 생성 시 인라인 폼/패널 폼 양쪽 공유. 저장 시 task 생성 후 link.
-  const[newUploads,setNewUploads]=useState<File[]>([]);
-  const[newExistingFileIds,setNewExistingFileIds]=useState<number[]>([]);
-  const[newExistingPostIds,setNewExistingPostIds]=useState<number[]>([]);
-  const[showAttachInline,setShowAttachInline]=useState(false);
-  const[showAttachPanel,setShowAttachPanel]=useState(false);
-
-  // 담당자 미선택 시 서버 체인(프로젝트 기본담당자→PM→생성자)이 정하는 **실제 배정자** 미리보기.
-  //   내 업무(week/all)는 나로 고정, 요청 탭은 선택 필수라 체인이 개입하지 않는다 — 그 두 경우엔 조회 안 함.
-  //   ★ 값은 서버가 createTask 와 같은 함수로 계산한다(미리보기 ≠ 실제 방지).
-  const chainApplies = !(scope==='mine'&&(tab==='week'||tab==='today'||tab==='all')) && tab!=='requested';
-  const[resolvedAssignee,setResolvedAssignee]=useState<{name:string|null;is_me:boolean}|null>(null);
-  useEffect(()=>{
-    if(!chainApplies||!newProjectId){setResolvedAssignee(null);return;}
-    let cancelled=false;
-    (async()=>{
-      try{
-        const r=await apiFetch(`/api/projects/${newProjectId}`);
-        const j=await r.json();
-        const rd=j?.success?j.data?.resolved_default_assignee:null;
-        if(!cancelled)setResolvedAssignee(rd?{name:rd.name,is_me:rd.is_me}:null);
-      }catch{ if(!cancelled)setResolvedAssignee(null); }
-    })();
-    return()=>{cancelled=true;};
-  },[newProjectId,chainApplies]);
-  // 담당자 셀렉트 placeholder — 동작(체인)이 바뀌었으므로 "담당자: 나" 를 고정 문구로 두면 거짓말이 된다.
-  const assigneePlaceholder = tab==='requested'
-    ? t('add.assigneeRequiredHint','담당자 선택 (필수)')
-    : (resolvedAssignee?.name
-        ? (resolvedAssignee.is_me
-            ? t('add.assigneeResolvedMe',{name:resolvedAssignee.name,defaultValue:'담당자: {{name}} (나)'})
-            : t('add.assigneeResolvedChain',{name:resolvedAssignee.name,defaultValue:'담당자: {{name}} (프로젝트 기본)'}))
-        : t('add.assigneeDefault','담당자: 나'));
-
-  // AI 예측 — 제목 (+ 설명) 기반으로 LLM 추천 시간 받아서 newEstHours 채움.
-  const handleAiEstimate = useCallback(async () => {
-    const title = newTitle.trim();
-    if (!title || aiEstimating) return;
-    setAiEstimating(true);
-    setAiEstReason('');
-    try {
-      const r = await apiFetch('/api/tasks/estimate-preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description: newDescription || undefined }),
-      });
-      const j = await r.json();
-      if (j.success && typeof j.data?.value === 'number') {
-        setNewEstHours(String(j.data.value));
-        setAiEstReason(j.data.reason || '');
-      }
-    } catch (e) {
-      console.warn('[ai-estimate]', e);
-    } finally {
-      setAiEstimating(false);
-    }
-  }, [newTitle, newDescription, aiEstimating]);
-  // 정기업무 (recurring) — 5 프리셋 + Custom + 종료 조건
-  const[newRecurEnabled,setNewRecurEnabled]=useState(false);
-  const[newRecurPreset,setNewRecurPreset]=useState<RecurPreset>('weekly');
-  const[newRecurEndType,setNewRecurEndType]=useState<RecurEndType>('never');
-  const[newRecurEndCount,setNewRecurEndCount]=useState<string>('10');
-  const[newRecurEndUntil,setNewRecurEndUntil]=useState<string>('');
-  const[newRecurCustomEvery,setNewRecurCustomEvery]=useState<string>('1');
-  const[newRecurCustomUnit,setNewRecurCustomUnit]=useState<RecurCustomUnit>('week');
-  const[showCustomRecurModal,setShowCustomRecurModal]=useState(false);
-  const[addingSubmitting,setAddingSubmitting]=useState(false);
+  // ── 업무 추가 폼 — 값·검증·제출은 components/QTask/TaskCreateForm 한 곳에 있다.
+  //   여기는 **열고 닫는 것**과 **첫 값**만 쥔다(공유 타깃·음성 캡처가 채워 넣는 값).
+  //   ★ 2026-09-12 — 여태 이 폼이 세 벌(표 아래 인라인 / 우측 드로어 / Q sale 상담)이었고
+  //     이미 갈라져 있었다(태그는 인라인에만, 요청 탭 예측시간 가드는 드로어에 없었다).
+  const[addInitial,setAddInitial]=useState<TaskCreateInitial|null>(null);
+  const[addInitialNonce,setAddInitialNonce]=useState(0);
+  // 폼을 여는 문은 하나다 — 열기와 첫 값이 떨어지면 "값이 안 채워진 채 열리는" 경우가 생긴다.
+  const openAddForm=useCallback((inline:boolean, init:TaskCreateInitial|null)=>{
+    setAddInitial(init);
+    setAddInitialNonce(n=>n+1);
+    setAddInline(inline);
+    setAddingTask(true);
+  },[]);
+  const closeAddForm=useCallback(()=>{
+    setAddingTask(false);
+    setAddInline(false);
+    setAddInitial(null);
+  },[]);
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
 
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용.
@@ -525,49 +439,47 @@ const QTaskPage:React.FC=()=>{
   useEffect(() => {
     if (searchParams.get('create') !== '1') return;
     const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? null;
-    setAddingTask(true);
-    setAddInline(false);
-    if (voice) {
-      setNewTitle(voice.title || voice.text || '');
-      // detail 은 평문 — RichEditor 는 HTML 을 받는다. 그대로 넣으면 개행이 사라진다.
-      //   비어 있으면 **명시적으로 비운다** — 안 그러면 직전 진입의 설명이 그대로 남는다.
-      setNewDescription(voice.detail ? plainToHtml(voice.detail) : '');
-      // 서버가 워크스페이스 멤버로 확정한 담당자만 쓴다(정확 일치). 확정 실패면 기본 로직대로.
-      if (voice.assignee_user_id) setNewAssignee(voice.assignee_user_id);
-      else setNewAssignee(tab === 'requested' ? null : (myId ?? null));
-      setNewDueDate(voice.when_start ? voice.when_start.slice(0, 10) : '');
-    } else {
-      setNewAssignee(tab === 'requested' ? null : (myId ?? null));
-    }
+    // 음성으로 받은 내용은 폼의 **첫 값**으로 넘긴다(값의 주인은 폼 컴포넌트다).
+    //   detail 은 평문 — RichEditor 는 HTML 을 받으므로 여기서 바꿔 넘긴다(그대로 주면 개행이 사라진다).
+    //   비어 있으면 **명시적으로 빈 문자열** — 안 그러면 직전 진입의 설명이 그대로 남는다.
+    openAddForm(false, voice
+      ? {
+        title: voice.title || voice.text || '',
+        description: voice.detail ? plainToHtml(voice.detail) : '',
+        // 서버가 워크스페이스 멤버로 확정한 담당자만 쓴다(정확 일치). 확정 실패면 기본 로직대로.
+        assigneeId: voice.assignee_user_id || (tab === 'requested' ? null : (myId ?? null)),
+        dueDate: voice.when_start ? voice.when_start.slice(0, 10) : '',
+      }
+      : { assigneeId: tab === 'requested' ? null : (myId ?? null) });
     const next = new URLSearchParams(searchParams); next.delete('create'); setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams, tab, myId, location.state]);
+  }, [searchParams, setSearchParams, tab, myId, location.state, openAddForm]);
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
     const prefill = searchParams.get('prefill');
     const attachFileIds = searchParams.get('attachFileIds');
     if (prefill || attachFileIds) {
+      const init: TaskCreateInitial = {};
       if (prefill) {
         const decoded = decodeURIComponent(prefill);
         const lines = decoded.split('\n');
-        setNewTitle(lines[0]?.slice(0, 200) || '');
+        init.title = lines[0]?.slice(0, 200) || '';
         // 공유로 들어온 평문을 RichEditor(HTML) 에 그대로 넣으면 개행이 전부 사라지고
         //   `<`·`&` 가 마크업으로 해석된다 (음성 경로와 같은 계열).
-        if (lines.length > 1) setNewDescription(plainToHtml(lines.slice(1).join('\n')));
+        if (lines.length > 1) init.description = plainToHtml(lines.slice(1).join('\n'));
       }
       if (attachFileIds) {
         const ids = attachFileIds.split(',').map(s => Number(s)).filter(n => Number.isFinite(n) && n > 0);
-        if (ids.length > 0) setNewExistingFileIds(ids);
+        if (ids.length > 0) init.fileIds = ids;
       }
-      setAddingTask(true);
-      setAddInline(true);
+      openAddForm(true, init);
       const next = new URLSearchParams(searchParams);
       next.delete('prefill');
       next.delete('attachFileIds');
       setSearchParams(next, { replace: true });
       prefillAppliedRef.current = true;
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, openAddForm]);
 
   // 인박스 → 업무 후보 카드 강조 (사이클 N+9). 인박스 task_candidate 클릭 시 ?candidate=Y
   // → 우측 패널의 해당 카드로 스크롤 + flash. all 탭 자동 전환 + 우측 패널 자동 열기.
@@ -622,17 +534,6 @@ const QTaskPage:React.FC=()=>{
   const[candidates,setCandidates]=useState<CandidateRow[]>([]);
   const[periodPickerOpen,setPeriodPickerOpen]=useState(false);
   const periodAnchorRef=React.useRef<HTMLButtonElement>(null);
-  // 기간 picker — 시작/마감 단일 셀로 통일 (리스트의 DateRangeCell 패턴과 동일)
-  const[newDatePickerOpen,setNewDatePickerOpen]=useState(false);
-  const newDateAnchorRefInline=React.useRef<HTMLButtonElement>(null);
-  const newDateAnchorRefPanel=React.useRef<HTMLButtonElement>(null);
-  const formatDateRange=(s:string,d:string)=>{
-    const fmt=(v:string)=>v?v.slice(5).replace('-','/'):'';
-    if(s&&d) return s===d?fmt(d):`${fmt(s)} ~ ${fmt(d)}`;
-    if(d) return fmt(d);
-    if(s) return fmt(s);
-    return '';
-  };
   const[dailyProgress,setDailyProgress]=useState<{date:string;est_used:number;act_used:number}[]>([]);
   // #254 — 업무별 기준선(기간 시작 이전 최신 스냅샷). 오늘 라이브 값도 같은 기준으로 Δ 를 내야
   //   과거일(서버 Δ)과 오늘(라이브)이 같은 선 위에 놓인다.
@@ -849,7 +750,7 @@ const QTaskPage:React.FC=()=>{
       //   window 리스너 · 공용 useEscapeStack. 앞의 둘은 중첩 계약도 이 사실도 몰랐다.
       //   판정은 베끼지 않고 **같은 함수**를 부른다.
       if (escapeConsumedByOverlay(e)) return;
-      if (addingTask) { setAddingTask(false); resetNewTask(); return; }
+      if (addingTask) { closeAddForm(); return; }
       if (detailTaskId) { closeDetail(); return; }
     };
     window.addEventListener('keydown', onKey);
@@ -950,139 +851,28 @@ const QTaskPage:React.FC=()=>{
     })();
     return () => { cancelled = true; };
   }, [bizId]);
-  const projectOptions = useMemo(
-    () => projects.map((p) => ({ value: String(p.id), label: p.name })),
-    [projects]
-  );
 
-  const resetNewTask=()=>{
-    setNewTitle('');setNewAssignee(null);setNewProjectId(null);
-    setNewDueDate('');setNewStartDate('');setNewEstHours('');setNewDescription('');
-    setNewRecurEnabled(false);setNewRecurPreset('weekly');
-    setNewRecurEndType('never');setNewRecurEndCount('10');setNewRecurEndUntil('');
-    setNewRecurCustomEvery('1');setNewRecurCustomUnit('week');
-    setNewUploads([]);setNewExistingFileIds([]);setNewExistingPostIds([]);
-    setShowAttachInline(false);setShowAttachPanel(false);
-    setAiEstReason('');
-    setNewTagIds([]);
-  };
-
-  // 현재 폼 상태 → RRULE 문자열 (없으면 null).
-  const buildCurrentRRule = (dueDate: string): string | null => {
-    if (!newRecurEnabled || !dueDate) return null;
-    const end = {
-      type: newRecurEndType,
-      count: newRecurEndType === 'count' ? Number(newRecurEndCount) || 1 : undefined,
-      until: newRecurEndType === 'until' ? newRecurEndUntil : undefined,
-    };
-    if (newRecurPreset === 'custom') {
-      return buildCustomRRule(Number(newRecurCustomEvery) || 1, newRecurCustomUnit, end);
-    }
-    // 운영 #347 — 새로 만드는 폼에서는 'advanced' 가 나올 수 없지만, 타입상 가능하므로 명시적으로 막는다
-    //   (여기서 재빌드하면 규칙이 축소된다 — 상세 드로어에서 났던 회귀와 같은 종류).
-    if (newRecurPreset === 'advanced') return null;
-    return buildPresetRRule(newRecurPreset, dueDate, end);
-  };
-  const addTask=async()=>{
-    if(addingSubmitting)return; // 중복 방지
-    if(!newTitle.trim()||!bizId)return;
-    // 담당자 결정
-    // - 내 업무 week/all : 무조건 나 (담당자 선택 UI 없음 — 내 업무 목록이니 나로 고정)
-    // - requested : 선택 필수
-    // - workspace : 선택 가능. **미선택이면 null 로 보낸다** — 그래야 서버의 담당자 체인
-    //   (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
-    //   프로젝트를 안 골랐으면 서버가 생성자로 폴백하므로 종전과 결과가 같다.
-    let targetAssignee:number|null;
-    if(scope==='mine'&&(tab==='week'||tab==='today'||tab==='all')){
-      targetAssignee=myId;
-    }else if(tab==='requested'){
-      if(!newAssignee)return; // 필수
-      targetAssignee=newAssignee;
-    }else{
-      targetAssignee=newAssignee;
-    }
-    // 이번 주/오늘 탭에서는 마감일 기본값 = 오늘 (그 목록의 범위 안에 들어오도록).
-    //   ★ 오늘 탭에도 필요하다 — 없으면 날짜 없는 not_started 가 backlog flood 차단 규칙에 걸려
-    //     방금 추가한 업무가 목록에서 즉시 사라진다(추가했는데 안 보임).
-    const defaultDue=tabCreateDefaults?.due_date??null;
-    const finalDueDate = newDueDate || defaultDue;
-    // 정기업무는 due_date 필수 (백엔드도 검증)
-    if (newRecurEnabled && !finalDueDate) return;
-    const recurrenceRule = newRecurEnabled && finalDueDate ? buildCurrentRRule(finalDueDate) : null;
-    setAddingSubmitting(true);
-    try{
-      const r=await(await apiFetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          business_id:Number(bizId),
-          title:newTitle.trim(),
-          description:newDescription.trim()||null,
-          assignee_id:targetAssignee,
-          project_id:newProjectId,
-          planned_week_start:tabCreateDefaults?.planned_week_start??null,
-          start_date:newStartDate||null,
-          due_date:finalDueDate,
-          estimated_hours:newEstHours?Number(newEstHours):null,
-          recurrence_rule:recurrenceRule,
-        })
-      })).json();
-      if(r.success){
-        const newTaskId = r.data.id;
-        // 1) 새 업로드 파일들 — 워크스페이스 업로드 후 fileId 수집
-        const uploadedFileIds: number[] = [...newExistingFileIds];
-        if (newUploads.length > 0) {
-          for (const f of newUploads) {
-            try {
-              const fd = new FormData();
-              fd.append('file', f);
-              const upR = await apiFetch(`/api/files/${bizId}`, { method: 'POST', body: fd });
-              const upJ = await upR.json();
-              if (upJ.success && upJ.data?.id) uploadedFileIds.push(Number(upJ.data.id));
-            } catch (err) { console.warn('[task upload]', err); }
-          }
-        }
-        // 2) 모은 fileId 들을 task 에 link (TaskAttachment 생성)
-        //   ★ 운영 #256 — context 는 'description_attach' 다. 업무를 **추가하는 시점**의 첨부는
-        //     의뢰 명세(업무 설명)에 딸린 자료이지 수행자가 낸 결과물이 아니다.
-        //     'task' 로 붙이면 상세 드로어의 **업무 결과물** 아래에 렌더된다
-        //     (Irene: "업무추가할 때 넣은 첨부파일이 업무결과물 넣는 곳 아래로 붙어").
-        //     권한도 이쪽이 맞다 — description_attach 는 **작성자만**이고 생성자는 곧 작성자다.
-        //     결과물 첨부는 상세 드로어의 TaskAttachments 가 계속 'task' 로 붙인다(무변경).
-        //   ★ 문서(post)도 같이 보낸다 — 여태 고른 문서는 **아무 데도 가지 않았다**
-        //     (아래 3) 자리에 TODO 만 남아 있었다). 첨부했다고 믿는데 조용히 사라졌다.
-        if (uploadedFileIds.length > 0 || newExistingPostIds.length > 0) {
-          try {
-            const linkRes = await apiFetch(`/api/tasks/${newTaskId}/attachments/link`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                file_ids: uploadedFileIds,
-                post_ids: newExistingPostIds,
-                context: 'description_attach',
-              }),
-            });
-            // apiFetch 는 throw 하지 않는다 — res.ok 를 직접 본다.
-            if (!linkRes.ok) console.warn('[task attach link] HTTP', linkRes.status);
-          } catch (err) { console.warn('[task attach link]', err); }
-        }
-        // 2-B) 태그 붙이기 (#236/#250) — 실패해도 업무 생성은 이미 성공이라 되돌리지 않는다.
-        //   ★ apiFetch 는 throw 하지 않는다 — res.ok 를 직접 본다(안 보면 실패가 조용히 삼켜진다).
-        if (newTagIds.length > 0) {
-          try {
-            const tagRes = await apiFetch(`/api/tasks/${newTaskId}/tags`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ tag_ids: newTagIds }),
-            });
-            if (!tagRes.ok) console.warn('[task tags] HTTP', tagRes.status);
-          } catch (err) { console.warn('[task tags]', err); }
-        }
-        // Socket task:new 가 먼저 도착했을 가능성 — 중복 방지
-        setAllTasks(prev=>prev.some(x=>x.id===r.data.id)?prev:[r.data,...prev]);
-        resetNewTask();
-        setAddingTask(false);
-      }
-    }catch(e){console.error('[addTask]',e);}
-    finally{setAddingSubmitting(false);}
+  // 업무 추가 폼에 넘기는 맥락 — **두 자리(표 아래 인라인 / 우측 드로어)가 같은 값을 받는다.**
+  //   값·검증·제출(업로드·첨부 link·태그·반복)은 TaskCreateForm 안에 있다. 여기서 다시 쓰면 갈라진다.
+  const addFormProps = {
+    businessId: Number(bizId),
+    mode: (tab==='requested' ? 'request' : 'task') as 'request'|'task',
+    // 내 업무(오늘·이번 주·전체)에서 만든 업무는 담당자가 나다
+    assigneeFixedToMe: scope==='mine'&&(tab==='week'||tab==='today'||tab==='all'),
+    createDefaults: tabCreateDefaults,
+    initial: addInitial,
+    initialNonce: addInitialNonce,
+    members,
+    projects,
+    tagDict,
+    onTagDictAdd: (tag: TaskTagLite) => setTagDict(prev=>prev.some(g=>g.id===tag.id)
+      ? prev
+      // TagPicker 의 TaskTagLite 는 color 가 optional — 사전 state 는 필수라 정규화한다.
+      : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}]),
+    autoFocus: !isPhone,
+    onClose: closeAddForm,
+    // Socket task:new 가 먼저 도착했을 가능성 — 중복 방지
+    onCreated: (task: TaskCreatedTask) => setAllTasks(prev=>prev.some(x=>x.id===task.id)?prev:[task as never,...prev]),
   };
 
   // 우선순위 토글 — #250 ②청크. **재인덱스는 백엔드가 단독 수행**한다.
@@ -1867,7 +1657,7 @@ const QTaskPage:React.FC=()=>{
         if(tgt.closest('[data-task-row],[data-task-add-form],[data-calendar-picker],[data-portal-anchor],button,a,input,select,textarea,label,[role="button"],[role="dialog"],[data-dropdown]'))return;
         // 폼 내부 div(에디터·드롭다운 등) 도 폼 마커 안에 있으므로 위에서 차단됨.
         // 인라인 폼은 자동 닫기 비활성화 — 명시적으로 취소/저장 버튼으로만 닫는다 (Irene: 기간/반복 클릭 시 닫히던 버그 fix).
-        if(addingTask&&!addInline){setAddingTask(false);resetNewTask();return;}
+        if(addingTask&&!addInline){closeAddForm();return;}
         if(detailTaskId){closeDetail();}
       }}>
         {/* Header — 제목 + 스코프 세그먼트 토글 */}
@@ -1920,11 +1710,11 @@ const QTaskPage:React.FC=()=>{
               {t('tab.week','이번 주 내 업무')}
               {badgeCounts.week>0&&<TabBadge $active={tab==='week'}>{badgeCounts.week}</TabBadge>}
             </TabBtn>
-            <TabBtn type="button" $active={tab==='all'} onClick={()=>setTab('all')}>
+            <TabBtn type="button" data-testid="qtask-tab-all" $active={tab==='all'} onClick={()=>setTab('all')}>
               {t('tab.all','내 전체업무')}
               {badgeCounts.all>0&&<TabBadge $active={tab==='all'}>{badgeCounts.all}</TabBadge>}
             </TabBtn>
-            <TabBtn type="button" $active={tab==='requested'} onClick={()=>setTab('requested')}>
+            <TabBtn type="button" data-testid="qtask-tab-requested" $active={tab==='requested'} onClick={()=>setTab('requested')}>
               {t('tab.requested','요청하기')}
               {badgeCounts.requested>0&&<TabBadge $active={tab==='requested'}>{badgeCounts.requested}</TabBadge>}
             </TabBtn>
@@ -2106,9 +1896,8 @@ const QTaskPage:React.FC=()=>{
               title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
             />
             <HeaderAddBtn type="button" data-testid="task-add-btn" onClick={()=>{
-              setAddInline(false);                 // 우측 상단 = panel 모드
-              setAddingTask(true);
-              setNewAssignee(tab==='requested'?null:myId);
+              // 우측 상단 = panel(드로어) 모드
+              openAddForm(false,{assigneeId:tab==='requested'?null:myId});
             }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderAddBtn>
           </FilterBar>
 
@@ -2596,243 +2385,20 @@ const QTaskPage:React.FC=()=>{
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               }
-              onCta={()=>{setAddInline(false);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
+              onCta={()=>openAddForm(false,{assigneeId:tab==='requested'?null:myId})}
               secondaryCtaLabel={t('empty.askCue','Cue 에게 묻기')}
               onSecondaryCta={()=>askCue(t('help.cuePrefill') as string)}
             />
             </EmptyCenterWrap>
           )}
-          {filtered.length>0&&!addingTask&&<BottomAddLink type="button" onClick={()=>{setAddInline(true);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}>
+          {filtered.length>0&&!addingTask&&<BottomAddLink type="button" data-testid="task-add-below"
+            onClick={()=>openAddForm(true,{assigneeId:tab==='requested'?null:myId})}>
             + {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
           </BottomAddLink>}
           {/* 인라인 추가 폼 — 표 하단에서 새 행 형태 (사용자: 표 아래에서 추가).
               data-task-add-form 마커: 외부 클릭 핸들러가 폼 내부 클릭을 외부로 인식 안 하도록.  */}
           {addingTask&&addInline&&(
-            <InlineAddBox data-task-add-form>
-              {/* 제목 — 풀폭 */}
-              <AddInput autoFocus={!isPhone} value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
-                onChange={e=>setNewTitle(e.target.value)}
-                onKeyDown={e=>{
-                  if(isEnterAction(e)&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
-                  if(e.key==='Escape'){setAddingTask(false);setAddInline(false);resetNewTask();}
-                }} />
-              {/* 필드 한 줄 — 가로 풀폭 활용해 4 항목 펼침 (panel 의 2 행 분리와 차별화) */}
-              <AddOptRow>
-                <AddOptField>
-                  <AddOptLabel>{t('add.project','프로젝트')}</AddOptLabel>
-                  <PlanQSelect size="sm" isClearable
-                    placeholder={t('add.projectNone','선택')}
-                    value={newProjectId==null?null:{value:String(newProjectId),label:projectOptions.find(p=>p.value===String(newProjectId))?.label||'-'}}
-                    onChange={(v)=>setNewProjectId((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
-                    options={projectOptions} />
-                </AddOptField>
-                <AddOptField>
-                  <AddOptLabel>{t('add.assignee','담당자')}{tab==='requested'&&' *'}</AddOptLabel>
-                  <PlanQSelect size="sm" isClearable={tab!=='requested'}
-                    placeholder={assigneePlaceholder as string}
-                    value={newAssignee==null?null:{
-                      value:String(newAssignee),
-                      label:(members.find(m=>m.user_id===newAssignee)?.name||addExternals.find(e=>e.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
-                    }}
-                    onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
-                    options={[
-                      ...members.filter(m=>tab==='requested'?m.user_id!==myId:true)
-                        .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')})),
-                      ...addExternals.map(e=>({value:String(e.user_id),label:e.name,icon:<PartnerKindBadge kind={e.kind} size="xs" />})),
-                    ]} />
-                </AddOptField>
-                <AddOptField style={{flex:'1 1 200px'}}>
-                  <AddOptLabel>{t('add.dateRange','시작 ~ 마감')}</AddOptLabel>
-                  <AddDateTrigger ref={newDateAnchorRefInline} type="button" onClick={()=>setNewDatePickerOpen(v=>!v)}>
-                    {(newStartDate||newDueDate)
-                      ? formatDateRange(newStartDate,newDueDate)
-                      : <AddDatePH>{t('add.dateRangePlaceholder','기간 선택')}</AddDatePH>}
-                  </AddDateTrigger>
-                  {newDatePickerOpen&&(
-                    <CalendarPicker isOpen anchorRef={newDateAnchorRefInline}
-                      startDate={newStartDate||newDueDate}
-                      endDate={newDueDate||newStartDate}
-                      onRangeSelect={(s,d)=>{setNewStartDate(s||'');setNewDueDate(d||'');}}
-                      onClose={()=>setNewDatePickerOpen(false)} />
-                  )}
-                </AddOptField>
-                {/* 사이클 N+19 — 요청 탭에서는 예측시간/AI 추천 UI 숨김.
-                    estimated_hours 는 담당자만 입력 (PERMISSION_MATRIX §5.7).
-                    요청자는 명세만 — description 에 기대 시간 적으면 됨. */}
-                {tab!=='requested' && (
-                  <AddOptField style={{flex:'0 0 200px'}}>
-                    <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
-                    <AddEstWrap>
-                      <AddEstNumberInput type="number" step="0.5" min="0" placeholder="—"
-                        value={newEstHours} onChange={e=>{setNewEstHours(e.target.value);setAiEstReason('');}} />
-                      <AddEstAiBtn type="button" disabled={!newTitle.trim()||aiEstimating}
-                        onClick={handleAiEstimate}
-                        title={!newTitle.trim()
-                          ? (t('add.estAiNeedTitle','제목 입력 후 클릭하면 AI 가 추천합니다') as string)
-                          : (t('add.estAiHint','AI 가 제목·설명으로 예측 시간을 추천합니다') as string)}>
-                        {aiEstimating ? '…' : (newEstHours ? t('add.estAiAgain','AI 다시') : t('add.estAi','AI 추천'))}
-                      </AddEstAiBtn>
-                    </AddEstWrap>
-                    {aiEstReason && <AddEstReason title={aiEstReason}>{aiEstReason}</AddEstReason>}
-                  </AddOptField>
-                )}
-                {/* 운영 #236/#250 — 태그를 여기서 고르고 새로 만든다. 사전이 비어 있어도 항상 보인다:
-                    이 자리가 유일한 진입점이므로 숨기면 태그 기능 전체가 발견 불가가 된다.
-                    (필터·관리 버튼은 고를 게 없으면 죽은 컨트롤이라 계속 숨긴다 — 여기와 역할이 다르다.) */}
-                <AddOptField style={{flex:'1 1 220px',minWidth:200}}>
-                  <AddOptLabel>{t('add.tags','태그')}</AddOptLabel>
-                  <TagPicker
-                    bizId={bizId}
-                    dict={tagDict}
-                    value={tagDict.filter(g=>newTagIds.includes(g.id))}
-                    onChange={setNewTagIds}
-                    onDictAdd={(tag)=>setTagDict(prev=>prev.some(g=>g.id===tag.id)
-                      ? prev
-                      // TagPicker 의 TaskTagLite 는 color 가 optional — 사전 state 는 필수라 정규화한다.
-                      : [...prev,{id:tag.id,name:tag.name,color:tag.color??null}])}
-                  />
-                </AddOptField>
-              </AddOptRow>
-              {/* 반복 토글 + 옵션 — 요청 탭에서는 숨김 (담당자가 ack 후 정함).
-                  요청은 일시적, 정기성은 담당자 권한. */}
-              {tab!=='requested' && (
-                <RecurRow>
-                  <RecurToggleLabel>
-                    <input type="checkbox" checked={newRecurEnabled} disabled={!newDueDate}
-                      onChange={(e)=>setNewRecurEnabled(e.target.checked)} />
-                    <span>{t('recur.toggle','반복하기')}</span>
-                    {!newDueDate && <RecurHint>{t('recur.needDueDate','반복하려면 마감일이 필요해요')}</RecurHint>}
-                  </RecurToggleLabel>
-                </RecurRow>
-              )}
-              {/* 반복 활성 + 마감일 있을 때만 옵션 펼침 */}
-              {tab!=='requested' && newRecurEnabled && newDueDate && (
-                <InlineRecurRow>
-                  <PlanQSelect size="sm"
-                    // 운영 #347 — 라벨은 utils/recurrence 단일 원천 (프리셋 추가 시 여기 고칠 일 없음)
-                    value={{ value: newRecurPreset, label: presetLabelMap(t as unknown as TFunction, newDueDate)[newRecurPreset] }}
-                    onChange={(v)=>{
-                      const p=(v as {value?:string})?.value as RecurPreset|undefined;
-                      if(!p) return;
-                      if(p==='custom'){setShowCustomRecurModal(true);}
-                      else{setNewRecurPreset(p);}
-                    }}
-                    options={(()=>{
-                      const labels = presetLabelMap(t as unknown as TFunction, newDueDate);
-                      return SELECTABLE_PRESETS.map((k)=>({ value:k, label:labels[k] }));
-                    })()} />
-                  <PlanQSelect size="sm"
-                    value={{
-                      value: newRecurEndType,
-                      label: newRecurEndType==='never'?t('recur.endTypeNever','계속 반복')
-                        : newRecurEndType==='count'?t('recur.endTypeCount','횟수 후 종료')
-                        : t('recur.endTypeUntil','특정 날짜까지'),
-                    }}
-                    onChange={(v)=>{
-                      const e=(v as {value?:string})?.value as RecurEndType|undefined;
-                      if(e) setNewRecurEndType(e);
-                    }}
-                    options={[
-                      { value:'never', label:t('recur.endTypeNever','계속 반복') },
-                      { value:'count', label:t('recur.endTypeCount','횟수 후 종료') },
-                      { value:'until', label:t('recur.endTypeUntil','특정 날짜까지') },
-                    ]} />
-                  {newRecurEndType==='count' && (
-                    <AddDateInput type="number" min="1" max="999" style={{width:80}}
-                      value={newRecurEndCount} onChange={(e)=>setNewRecurEndCount(e.target.value)} />
-                  )}
-                  {newRecurEndType==='until' && (
-                    <SingleDateField value={newRecurEndUntil}
-                      onChange={(d)=>setNewRecurEndUntil(d)} width={140} />
-                  )}
-                </InlineRecurRow>
-              )}
-              {/* 설명 — RichEditor (panel 과 동일) */}
-              <DescEditorWrap>
-                <RichEditor
-                  value={newDescription}
-                  onChange={setNewDescription}
-                  placeholder={t('add.descPlaceholder','업무 설명 — 이미지 붙여넣기·드래그 지원') as string}
-                  uploadUrl={bizId ? `/api/files/${bizId}` : undefined}
-                  minHeight={100}
-                />
-              </DescEditorWrap>
-              {/* 첨부 토글 + 인라인 펼침 (panel 과 동일) */}
-              <AttachToggleRow>
-                <AttachToggleBtn type="button" data-testid="task-add-attach" onClick={()=>setShowAttachInline(v=>!v)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                  {showAttachInline ? t('add.attachHide','파일·문서 첨부 닫기') : t('add.attachShow','파일·문서 첨부')}
-                  {(newUploads.length+newExistingFileIds.length+newExistingPostIds.length)>0 &&
-                    <AttachCount>{newUploads.length+newExistingFileIds.length+newExistingPostIds.length}</AttachCount>}
-                </AttachToggleBtn>
-              </AttachToggleRow>
-              {showAttachInline && bizId && (
-                <AttachInlineBox>
-                  <AttachmentField
-                    businessId={Number(bizId)}
-                    uploads={newUploads}
-                    onUploadsChange={setNewUploads}
-                    existingFileIds={newExistingFileIds}
-                    onExistingFileIdsChange={setNewExistingFileIds}
-                    includePosts
-                    existingPostIds={newExistingPostIds}
-                    onExistingPostIdsChange={setNewExistingPostIds}
-                  />
-                </AttachInlineBox>
-              )}
-              <AddBtnRow>
-                <AddCancelBtn type="button" onClick={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}}>
-                  {t('add.cancel','취소')}
-                </AddCancelBtn>
-                <AddSaveBtn type="button" onClick={addTask}
-                  disabled={addingSubmitting||!newTitle.trim()||(tab==='requested'&&!newAssignee)||(newRecurEnabled&&!newDueDate)||(newRecurEnabled&&newRecurEndType==='count'&&(!newRecurEndCount||Number(newRecurEndCount)<1))||(newRecurEnabled&&newRecurEndType==='until'&&!newRecurEndUntil)}>
-                  {addingSubmitting?t('add.saving','저장 중...'):t('add.save','추가')}
-                </AddSaveBtn>
-              </AddBtnRow>
-            </InlineAddBox>
-          )}
-          {showCustomRecurModal && (
-            <CustomRecurOverlay onClick={()=>setShowCustomRecurModal(false)}>
-              <CustomRecurDialog onClick={(e)=>e.stopPropagation()}>
-                <CustomRecurTitle>{t('recur.customTitle','사용자 지정 반복')}</CustomRecurTitle>
-                <CustomRecurField>
-                  <CustomRecurFieldLabel>{t('recur.customEvery','반복 간격')}</CustomRecurFieldLabel>
-                  <CustomRecurInline>
-                    <AddDateInput type="number" min="1" max="99" style={{width:80}}
-                      value={newRecurCustomEvery} onChange={(e)=>setNewRecurCustomEvery(e.target.value)} />
-                    <PlanQSelect size="sm"
-                      value={{
-                        value: newRecurCustomUnit,
-                        label: newRecurCustomUnit==='day'?t('recur.customUnitDay','일')
-                          : newRecurCustomUnit==='week'?t('recur.customUnitWeek','주')
-                          : newRecurCustomUnit==='month'?t('recur.customUnitMonth','개월')
-                          : t('recur.customUnitYear','년'),
-                      }}
-                      onChange={(v)=>{
-                        const u=(v as {value?:string})?.value as RecurCustomUnit|undefined;
-                        if(u) setNewRecurCustomUnit(u);
-                      }}
-                      options={[
-                        { value:'day', label:t('recur.customUnitDay','일') },
-                        { value:'week', label:t('recur.customUnitWeek','주') },
-                        { value:'month', label:t('recur.customUnitMonth','개월') },
-                        { value:'year', label:t('recur.customUnitYear','년') },
-                      ]} />
-                  </CustomRecurInline>
-                </CustomRecurField>
-                <AddBtnRow>
-                  <AddCancelBtn type="button" onClick={()=>setShowCustomRecurModal(false)}>
-                    {t('recur.customCancel','취소')}
-                  </AddCancelBtn>
-                  <AddSaveBtn type="button" onClick={()=>{
-                    setNewRecurPreset('custom');
-                    setShowCustomRecurModal(false);
-                  }}>
-                    {t('recur.customSave','적용')}
-                  </AddSaveBtn>
-                </AddBtnRow>
-              </CustomRecurDialog>
-            </CustomRecurOverlay>
+            <TaskCreateForm {...addFormProps} layout="inline" />
           )}
           </TableHScroll>
           )}
@@ -2914,7 +2480,7 @@ const QTaskPage:React.FC=()=>{
                         description={<>{t('empty.line1','요청을 받고, 배정하고, 결과까지')}<br />{t('empty.line2','한 화면에서 실행으로 연결됩니다.')}</>}
                         ctaLabel={scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
                         ctaIcon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
-                        onCta={()=>{setAddInline(false);setAddingTask(true);setNewAssignee(tab==='requested'?null:myId);}}
+                        onCta={()=>openAddForm(false,{assigneeId:tab==='requested'?null:myId})}
                       />
                     </KanbanEmptyBoard>
                   );
@@ -3510,165 +3076,8 @@ const QTaskPage:React.FC=()=>{
       )}
       {/* ── 업무 추가 우측 패널 (panel 모드만) ── */}
       {addingTask&&!addInline&&(
-        <CreateDrawer
-          open
-          wide
-          onClose={()=>{setAddingTask(false);setAddInline(false);resetNewTask();}}
-          title={scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}
-          onSubmit={addTask}
-          submitting={addingSubmitting}
-          submitLabel={t('add.save','추가')}
-          submitDisabled={!newTitle.trim()||(tab==='requested'&&!newAssignee)}
-        >
-            <PanelAddForm>
-              <AddInput autoFocus={!isPhone} value={newTitle} placeholder={t('add.placeholder','업무명 입력 후 Ctrl+Enter 로 저장')}
-                onChange={e=>setNewTitle(e.target.value)}
-                onKeyDown={e=>{
-                  if(isEnterAction(e)&&(e.ctrlKey||e.metaKey)){e.preventDefault();addTask();}
-                  if(e.key==='Escape'){setAddingTask(false);resetNewTask();}
-                }} />
-              <AddOptRow>
-                <AddOptField>
-                  <AddOptLabel>{t('add.project','프로젝트')}</AddOptLabel>
-                  <PlanQSelect size="sm" isClearable
-                    placeholder={t('add.projectNone','선택')}
-                    value={newProjectId==null?null:{value:String(newProjectId),label:projectOptions.find(p=>p.value===String(newProjectId))?.label||'-'}}
-                    onChange={(v)=>setNewProjectId((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
-                    options={projectOptions} />
-                </AddOptField>
-                <AddOptField>
-                  <AddOptLabel>{t('add.assignee','담당자')}{tab==='requested'&&' *'}</AddOptLabel>
-                  <PlanQSelect size="sm" isClearable={tab!=='requested'}
-                    placeholder={assigneePlaceholder as string}
-                    value={newAssignee==null?null:{
-                      value:String(newAssignee),
-                      label:(members.find(m=>m.user_id===newAssignee)?.name||addExternals.find(e=>e.user_id===newAssignee)?.name||'-')+(newAssignee===myId?t('detail.meSuffix',' (나)'):''),
-                    }}
-                    onChange={(v)=>setNewAssignee((v as {value?:string})?.value?Number((v as {value:string}).value):null)}
-                    options={[
-                      ...members.filter(m=>tab==='requested'?m.user_id!==myId:true)
-                        .map(m=>({value:String(m.user_id),label:m.name+(m.user_id===myId?t('detail.meSuffix',' (나)'):'')})),
-                      ...addExternals.map(e=>({value:String(e.user_id),label:e.name,icon:<PartnerKindBadge kind={e.kind} size="xs" />})),
-                    ]} />
-                </AddOptField>
-              </AddOptRow>
-              <AddOptRow>
-                <AddOptField style={{flex:'1 1 220px'}}>
-                  <AddOptLabel>{t('add.dateRange','시작 ~ 마감')}</AddOptLabel>
-                  <AddDateTrigger ref={newDateAnchorRefPanel} type="button" onClick={()=>setNewDatePickerOpen(v=>!v)}>
-                    {(newStartDate||newDueDate)
-                      ? formatDateRange(newStartDate,newDueDate)
-                      : <AddDatePH>{t('add.dateRangePlaceholder','기간 선택')}</AddDatePH>}
-                  </AddDateTrigger>
-                  {newDatePickerOpen&&(
-                    <CalendarPicker isOpen anchorRef={newDateAnchorRefPanel}
-                      startDate={newStartDate||newDueDate}
-                      endDate={newDueDate||newStartDate}
-                      onRangeSelect={(s,d)=>{setNewStartDate(s||'');setNewDueDate(d||'');}}
-                      onClose={()=>setNewDatePickerOpen(false)} />
-                  )}
-                </AddOptField>
-                <AddOptField style={{flex:'0 0 200px'}}>
-                  <AddOptLabel>{t('add.estHours','예측(h)')}</AddOptLabel>
-                  <AddEstWrap>
-                    <AddEstNumberInput type="number" step="0.5" min="0" placeholder="—"
-                      value={newEstHours} onChange={e=>{setNewEstHours(e.target.value);setAiEstReason('');}} />
-                    <AddEstAiBtn type="button" disabled={!newTitle.trim()||aiEstimating}
-                      onClick={handleAiEstimate}
-                      title={!newTitle.trim()
-                        ? (t('add.estAiNeedTitle','제목 입력 후 클릭하면 AI 가 추천합니다') as string)
-                        : (t('add.estAiHint','AI 가 제목·설명으로 예측 시간을 추천합니다') as string)}>
-                      {aiEstimating ? '…' : (newEstHours ? t('add.estAiAgain','AI 다시') : t('add.estAi','AI 추천'))}
-                    </AddEstAiBtn>
-                  </AddEstWrap>
-                  {aiEstReason && <AddEstReason title={aiEstReason}>{aiEstReason}</AddEstReason>}
-                </AddOptField>
-              </AddOptRow>
-              {/* 정기업무 (반복) — 인라인 폼과 동일. 마감일 있을 때만 활성. */}
-              <RecurRow>
-                <RecurToggleLabel>
-                  <input type="checkbox" checked={newRecurEnabled} disabled={!newDueDate}
-                    onChange={(e)=>setNewRecurEnabled(e.target.checked)} />
-                  <span>{t('recur.toggle','반복하기')}</span>
-                  {!newDueDate && <RecurHint>{t('recur.needDueDate','반복하려면 마감일이 필요해요')}</RecurHint>}
-                </RecurToggleLabel>
-                {newRecurEnabled && newDueDate && (
-                  <RecurOptions>
-                    <PlanQSelect size="sm"
-                      // 운영 #347 — 라벨은 utils/recurrence 단일 원천 (프리셋 추가 시 여기 고칠 일 없음)
-                      value={{ value: newRecurPreset, label: presetLabelMap(t as unknown as TFunction, newDueDate)[newRecurPreset] }}
-                      onChange={(v)=>{
-                        const p=(v as {value?:string})?.value as RecurPreset|undefined;
-                        if(!p) return;
-                        if(p==='custom'){setShowCustomRecurModal(true);}
-                        else{setNewRecurPreset(p);}
-                      }}
-                      options={(()=>{
-                        const labels = presetLabelMap(t as unknown as TFunction, newDueDate);
-                        return SELECTABLE_PRESETS.map((k)=>({ value:k, label:labels[k] }));
-                      })()} />
-                    <RecurEndBox>
-                      <PlanQSelect size="sm"
-                        value={{
-                          value: newRecurEndType,
-                          label: newRecurEndType==='never'?t('recur.endTypeNever','계속 반복')
-                            : newRecurEndType==='count'?t('recur.endTypeCount','횟수 후 종료')
-                            : t('recur.endTypeUntil','특정 날짜까지'),
-                        }}
-                        onChange={(v)=>{
-                          const e=(v as {value?:string})?.value as RecurEndType|undefined;
-                          if(e) setNewRecurEndType(e);
-                        }}
-                        options={[
-                          { value:'never', label:t('recur.endTypeNever','계속 반복') },
-                          { value:'count', label:t('recur.endTypeCount','횟수 후 종료') },
-                          { value:'until', label:t('recur.endTypeUntil','특정 날짜까지') },
-                        ]} />
-                      {newRecurEndType==='count' && (
-                        <AddDateInput type="number" min="1" max="999" style={{width:64}}
-                          value={newRecurEndCount} onChange={(e)=>setNewRecurEndCount(e.target.value)} />
-                      )}
-                      {newRecurEndType==='until' && (
-                        <SingleDateField value={newRecurEndUntil}
-                          onChange={(d)=>setNewRecurEndUntil(d)} width={140} />
-                      )}
-                    </RecurEndBox>
-                  </RecurOptions>
-                )}
-              </RecurRow>
-              <DescEditorWrap>
-                <RichEditor
-                  value={newDescription}
-                  onChange={setNewDescription}
-                  placeholder={t('add.descPlaceholder','업무 설명 — 이미지 붙여넣기·드래그 지원') as string}
-                  uploadUrl={bizId ? `/api/files/${bizId}` : undefined}
-                  minHeight={120}
-                />
-              </DescEditorWrap>
-              <AttachToggleRow>
-                <AttachToggleBtn type="button" data-testid="task-panel-attach" onClick={()=>setShowAttachPanel(v=>!v)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                  {showAttachPanel ? t('add.attachHide','파일·문서 첨부 닫기') : t('add.attachShow','파일·문서 첨부')}
-                  {(newUploads.length+newExistingFileIds.length+newExistingPostIds.length)>0 &&
-                    <AttachCount>{newUploads.length+newExistingFileIds.length+newExistingPostIds.length}</AttachCount>}
-                </AttachToggleBtn>
-              </AttachToggleRow>
-              {showAttachPanel && bizId && (
-                <AttachInlineBox>
-                  <AttachmentField
-                    businessId={Number(bizId)}
-                    uploads={newUploads}
-                    onUploadsChange={setNewUploads}
-                    existingFileIds={newExistingFileIds}
-                    onExistingFileIdsChange={setNewExistingFileIds}
-                    includePosts
-                    existingPostIds={newExistingPostIds}
-                    onExistingPostIdsChange={setNewExistingPostIds}
-                  />
-                </AttachInlineBox>
-              )}
-            </PanelAddForm>
-        </CreateDrawer>
+        <TaskCreateForm {...addFormProps} layout="drawer"
+          drawerTitle={scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')} />
       )}
       {/* 주간 보고 마무리 모달 */}
       {weeklyReviewModalOpen && bizId && (
@@ -4006,49 +3415,16 @@ const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
 const EmptyFull=styled.div`display:flex;align-items:center;justify-content:center;height:100vh;color:#94A3B8;`;
 // 헤더 생성 버튼 규격 = ActionButton sm (h36)
 const HeaderAddBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
-const AddInput=styled.input`flex:1 1 auto;min-width:0;font-size:0.875rem;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 /* 인라인 추가 (표 하단 새 행) — 표와 자연스럽게 연결되도록 좌우 margin 만 적용 */
-const InlineAddBox=styled.div`display:flex;flex-direction:column;gap:8px;margin:8px 14px 20px;padding:12px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;`;
 // 반복 옵션 펼침 (inline 폼 전용 컴팩트 행)
-const InlineRecurRow=styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding-top:4px;border-top:1px dashed #E2E8F0;`;
 // 빈 상태 — 명시적으로 flex column 안에서 가운데 정렬. 부모(LeftPanel) 의 남은 공간 모두 차지.
 const EmptyCenterWrap=styled.div`flex:1;display:flex;align-items:center;justify-content:center;min-height:50vh;width:100%;`;
 /* 우측 패널 추가 폼 — 박스 없이 패널 padding 안에 직접 배치 (박스 안 박스 금지) */
-const PanelAddForm=styled.div`display:flex;flex-direction:column;gap:10px;padding:20px;background:transparent;border:none;`;
 // 행별 그룹: row1=프로젝트/담당자, row2=기간/예측+AI. 모바일에서는 wrap.
-const AddOptRow=styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;`;
-const DescEditorWrap=styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:0;overflow:hidden;&:focus-within{border-color:#14B8A6;}`;
-const AttachToggleRow=styled.div`display:flex;`;
-const AttachToggleBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;font-weight:600;color:#475569;cursor:pointer;font-family:inherit;&:hover{background:#F1F5F9;border-color:#CBD5E1;}`;
-const AttachCount=styled.span`display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;background:#14B8A6;color:#FFF;border-radius:8px;font-size:0.625rem;font-weight:700;`;
-const AttachInlineBox=styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:14px;`;
-const AddOptField=styled.div`flex:1 1 140px;min-width:120px;display:flex;flex-direction:column;gap:3px;`;
-const AddOptLabel=styled.label`font-size:0.6875rem;color:#64748B;font-weight:600;`;
-const AddDateInput=styled.input`height:30px;padding:0 8px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;width:100%;min-width:0;&:focus{outline:none;border-color:#14B8A6;}`;
-const AddEstWrap=styled.div`display:flex;gap:6px;align-items:stretch;`;
-const AddEstNumberInput=styled.input`width:60px;flex-shrink:0;height:30px;padding:0 8px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;text-align:right;&:focus{outline:none;border-color:#14B8A6;}`;
-const AddEstAiBtn=styled.button`flex:1;min-width:0;height:30px;padding:0 10px;font-size:0.75rem;font-weight:600;color:#0D9488;background:#F0FDFA;border:1px solid #99F6E4;border-radius:6px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;&:hover:not(:disabled){background:#CCFBF1;border-color:#14B8A6;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
-const AddEstReason=styled.div`font-size:0.625rem;color:#64748B;margin-top:2px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;`;
-const AddDateTrigger=styled.button`height:30px;padding:0 10px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;cursor:pointer;text-align:left;display:inline-flex;align-items:center;&:hover{border-color:#CBD5E1;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
-const AddDatePH=styled.span`color:#94A3B8;`;
-const AddBtnRow=styled.div`display:flex;justify-content:flex-end;gap:6px;`;
-const AddSaveBtn=styled.button`flex:0 0 auto;padding:6px 14px;font-size:0.8125rem;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
-const AddCancelBtn=styled.button`flex:0 0 auto;padding:6px 10px;font-size:0.8125rem;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
-const RecurRow=styled.div`display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;`;
-const RecurToggleLabel=styled.label`display:inline-flex;align-items:center;gap:8px;font-size:0.8125rem;color:#0F172A;cursor:pointer;input{cursor:pointer;}input:disabled{cursor:not-allowed;}`;
-const RecurHint=styled.span`font-size:0.75rem;color:#94A3B8;margin-left:6px;`;
-const RecurOptions=styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;`;
-const RecurEndBox=styled.div`display:inline-flex;gap:6px;align-items:center;`;
 const RecurChip=styled.span<{$iconOnly?:boolean}>`display:inline-flex;align-items:center;gap:4px;padding:${p=>p.$iconOnly?'2px 4px':'2px 8px'};font-size:0.6875rem;font-weight:600;color:#0F766E;background:#CCFBF1;border-radius:10px;line-height:1.5;flex-shrink:0;`;
 // 반복 아이콘 — "매주 토" 라벨 앞 (텍스트 "반복" 대신 회전 화살표 아이콘)
 const RecurIcon=styled.svg`width:11px;height:11px;flex-shrink:0;`;
 // Custom recurrence modal
-const CustomRecurOverlay=styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;`;
-const CustomRecurDialog=styled.div`background:#FFFFFF;border-radius:12px;padding:20px 22px;width:min(420px,90vw);box-shadow:0 20px 60px rgba(0,0,0,0.18);display:flex;flex-direction:column;gap:14px;`;
-const CustomRecurTitle=styled.h3`margin:0;font-size:1rem;font-weight:700;color:#0F172A;`;
-const CustomRecurField=styled.div`display:flex;flex-direction:column;gap:6px;`;
-const CustomRecurFieldLabel=styled.label`font-size:0.75rem;color:#64748B;font-weight:600;`;
-const CustomRecurInline=styled.div`display:flex;gap:8px;align-items:center;`;
 const ViewToggle=styled.div`display:inline-flex;gap:2px;padding:2px;background:#F1F5F9;border-radius:8px;margin-left:auto;`;
 const ViewBtn=styled.button<{$active:boolean}>`padding:6px 10px;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#94A3B8'};border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:#0F766E;}`;
 const ScopeToggle=styled.div`display:inline-flex;gap:4px;padding:3px;background:#F1F5F9;border-radius:8px;@media(max-width:640px){display:none;}`;

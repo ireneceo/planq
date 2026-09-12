@@ -19,8 +19,8 @@ import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ActionButton from '../Common/ActionButton';
-import StandardModal from '../Common/StandardModal';
-import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
+import TaskCreateForm from '../QTask/TaskCreateForm';
+import ClientPanel, { type InquiryView } from './ClientPanel';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
 import { listSaleInbox, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
@@ -47,16 +47,15 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  // 행을 누르면 **우측 패널**이 열린다 (Irene 2026-09-12: *"리스트 누르면 해당 고객 정보가
+  //   우측 패널에 뜨게 해달라고 했잖아. 만약 고객이 아니고 게스트면 가져올 수 있는 정보를 다 넣어야지."*)
+  //   ★ 펼치기 토글을 없앴다 — 패널이 같은 내용을 더 많이 보여주므로 두 동작이 한 클릭을 다투면
+  //     "눌렀는데 뭐가 열린 건지" 가 된다. 재클릭 해제는 패널 쪽 규칙(CLAUDE.md 리스트 재클릭 토글).
+  const [selected, setSelected] = useState<SaleInboxItem | null>(null);
   // 업무 추가 — 메일 내용을 베끼지 않고 **빈 입력**을 연다(Irene 2026-09-12).
   //   ★ 사람이 직접 쓰는 글이라 **쓰다 닫아도 남아야 한다**(입력 초안 계약).
   //     비우는 곳은 제출 성공·명시 취소뿐이다 — 대상 전환 이펙트에서 지우지 않는다.
   const [taskFor, setTaskFor] = useState<SaleInboxItem | null>(null);
-  const [taskErr, setTaskErr] = useState<string | null>(null);
-  const taskTitleKey = useDraftKey('sale-task-add', taskFor ? `${taskFor.id}:title` : null, businessId);
-  const taskDescKey = useDraftKey('sale-task-add', taskFor ? `${taskFor.id}:desc` : null, businessId);
-  const taskTitleDraft = useDraftText(taskTitleKey);
-  const taskDescDraft = useDraftText(taskDescKey);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // 최신 값은 ref 로 — 리스너·타이머가 옛 값에 굳지 않게(배경 갱신 규칙)
@@ -144,70 +143,24 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
     }
   }, [busyId, businessId, load, navigate, onRegistered, t]);
 
-  // 업무 추가 — 제목은 그 문의에서 가져온다. 만든 뒤 그 업무를 연다.
-  // ★ 2026-09-12 (Irene: "업무추가 버튼은 왜 메일 정보를 다 가져가? 그냥 업무추가 하면 입력을 하게 해.")
-  //   여태는 메일 제목·미리보기를 그대로 베껴 업무를 만들었다. 상담에서 할 일은 메일 제목과 다르다
-  //   ("견적서 보내기" 지 "Re: 문의드립니다" 가 아니다). **빈 입력**을 열고 사용자가 쓴 것만 저장한다.
-  const submitTask = useCallback(async (it: SaleInboxItem, title: string, description: string) => {
-    if (busyId) return;
-    setBusyId(it.id);
-    setActionError(null);
-    try {
-      const r = await apiFetch('/api/tasks', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_id: businessId,
-          title: title.trim().slice(0, 200),
-          description: description.trim() || null,
-        }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || j?.success === false) { setActionError(j?.message || `HTTP ${r.status}`); return; }
-      const taskId = j?.data?.id;
-      if (taskId) navigate(`/tasks?task=${taskId}`);
-    } catch {
-      setActionError(t('error.loadFailed') as string);
-    } finally {
-      setBusyId(null);
-    }
-  }, [busyId, businessId, navigate, t]);
-
   const rows = useMemo(() => items, [items]);
+  const selectedId = selected?.id ?? null;
 
+  // 업무 추가 — **기존 업무 추가 폼 그대로**(components/QTask/TaskCreateForm).
+  //   Irene 2026-09-12: *"업무추가 팝업이 왜 새거야? 기존 업무추가 항목들하고 기능하고 다르고?"*
+  //   여기서 따로 그리면 프로젝트·담당자·마감·태그·첨부가 빠진 "다른 업무 추가" 가 된다.
+  // ★ 입력은 빈 칸으로 연다(메일 제목·본문을 베끼지 않는다 — 상담에서 할 일은 메일 제목과 다르다).
+  //   그 입력은 쓰다 닫아도 남는다(draft kind 'sale-task-add', 대상 = 이 상담 행).
   const taskModal = taskFor ? (
-    <StandardModal open onClose={() => setTaskFor(null)} title={t('taskAdd.title') as string} size="sm"
-      footer={(
-        <>
-          <ActionButton tone="secondary" size="md" onClick={() => setTaskFor(null)}>
-            {t('taskAdd.cancel') as string}
-          </ActionButton>
-          <ActionButton tone="primary" size="md" loading={busyId === taskFor.id}
-            data-testid="sale-inbox-task-submit"
-            onClick={async () => {
-              if (!taskTitleDraft.text.trim()) { setTaskErr(t('taskAdd.titleRequired') as string); return; }
-              const target = taskFor;
-              const title = taskTitleDraft.text;
-              const desc = taskDescDraft.text;
-              setTaskFor(null);
-              await submitTask(target, title, desc);
-              // 제출이 끝난 뒤에만 비운다 — 실패를 삼키고 비우면 저장 실패가 곧 글 삭제다.
-              taskTitleDraft.clear();
-              taskDescDraft.clear();
-            }}>
-            {t('taskAdd.submit') as string}
-          </ActionButton>
-        </>
-      )}>
-      <FieldLabel htmlFor="sale-task-title">{t('taskAdd.titleLabel') as string}</FieldLabel>
-      <TextInput id="sale-task-title" data-draft-kind="sale-task-add" value={taskTitleDraft.text} autoFocus
-        placeholder={t('taskAdd.titlePlaceholder') as string}
-        onChange={(e) => { taskTitleDraft.setText(e.target.value); setTaskErr(null); }} />
-      <FieldLabel htmlFor="sale-task-desc">{t('taskAdd.descLabel') as string}</FieldLabel>
-      <TextArea id="sale-task-desc" data-draft-kind="sale-task-add" value={taskDescDraft.text} rows={4}
-        placeholder={t('taskAdd.descPlaceholder') as string}
-        onChange={(e) => taskDescDraft.setText(e.target.value)} />
-      {taskErr && <ErrorBar>{taskErr}</ErrorBar>}
-    </StandardModal>
+    <TaskCreateForm
+      businessId={businessId}
+      layout="drawer"
+      drawerTitle={t('taskAdd.title') as string}
+      draftKind="sale-task-add"
+      draftId={taskFor.id}
+      onClose={() => setTaskFor(null)}
+      onCreated={(task) => navigate(`/tasks?task=${task.id}`)}
+    />
   ) : null;
 
   return (
@@ -242,12 +195,12 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
         <List>
           {rows.map((it) => {
             const who = it.who || (t('inbox.unknownWho') as string);
-            const expanded = openId === it.id;
             const busy = busyId === it.id;
             return (
               <Row key={it.id} data-testid={`sale-inbox-row-${it.id}`}>
-                <RowMain type="button" onClick={() => setOpenId((v) => (v === it.id ? null : it.id))}
-                  aria-expanded={expanded}>
+                <RowMain type="button" $sel={selectedId === it.id}
+                  onClick={() => setSelected((v) => (v && v.id === it.id ? null : it))}
+                  aria-pressed={selectedId === it.id}>
                   <LetterAvatar name={who} size={32} variant="neutral" />
                   <RowBody>
                     <RowTop>
@@ -257,7 +210,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
                       <At title={it.at ? formatDateTime(it.at) : ''}>{it.at ? formatTimeAgo(it.at) : '—'}</At>
                     </RowTop>
                     <Title><HighlightText text={it.title || (t('inbox.noSubject') as string)} query={q} /></Title>
-                    {it.preview && <Preview $open={expanded}><HighlightText text={it.preview} query={q} /></Preview>}
+                    {it.preview && <Preview><HighlightText text={it.preview} query={q} /></Preview>}
                   </RowBody>
                 </RowMain>
                 <RowActions>
@@ -273,7 +226,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
                   )}
                   <ActionButton tone="secondary" size="sm" disabled={busy}
                     data-testid={`sale-inbox-task-${it.id}`}
-                    onClick={() => { setTaskFor(it); setTaskErr(null); }}>
+                    onClick={() => setTaskFor(it)}>
                     {t('action.addTask') as string}
                   </ActionButton>
                 </RowActions>
@@ -283,9 +236,37 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
         </List>
       )}
       {taskModal}
+      {/* 미등록 문의도 **같은 패널**에서 본다 — 고객이면 ClientPanel, 문의면 inquiry 분기.
+          화면을 따로 만들면 필드가 갈라진다(2026-09-12 박제). */}
+      <ClientPanel
+        businessId={businessId}
+        clientId={null}
+        inquiry={selected ? inquiryViewOf(selected) : null}
+        registerBusy={!!selected && busyId === selected.id}
+        onClose={() => setSelected(null)}
+        onRegister={() => { if (selected) void registerClient(selected); }}
+      />
     </>
   );
 };
+
+/** 상담 행 → 패널이 그리는 값. **목록이 받은 것에서만** 만든다(화면이 따로 모으지 않는다). */
+function inquiryViewOf(it: SaleInboxItem): InquiryView {
+  return {
+    who: it.who,
+    email: it.email,
+    company: it.company,
+    title: it.title,
+    preview: it.preview,
+    at: it.at,
+    needsReply: it.needs_reply,
+    source: it.source,
+    // 서버(routes/sale_save)가 받는 것은 게스트 링크·메일 스레드뿐 — 링크 없는 순수 대화방은 못 받는다
+    canRegister: it.ref.kind !== 'conversation',
+    emailVerified: !!(it.meta as { email_verified?: boolean })?.email_verified,
+    openPath: it.open_path,
+  };
+}
 
 export default SaleInboxList;
 
@@ -304,21 +285,6 @@ const Chip = styled.button<{ $on?: boolean; $accent?: boolean }>`
   &:hover { background: ${(p) => (p.$on ? undefined : '#F8FAFC')}; }
 `;
 const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 0 0 10px;`;
-const FieldLabel = styled.label`
-  display: block; margin: 12px 0 6px; font-size: 0.8125rem; font-weight: 600; color: #475569;
-  &:first-child { margin-top: 0; }
-`;
-const TextInput = styled.input`
-  width: 100%; height: 40px; padding: 0 12px; box-sizing: border-box;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.875rem; color: #0F172A;
-  &:focus { outline: none; border-color: #0D9488; }
-`;
-const TextArea = styled.textarea`
-  width: 100%; padding: 10px 12px; box-sizing: border-box; resize: vertical;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.875rem; color: #0F172A;
-  font-family: inherit; line-height: 1.5;
-  &:focus { outline: none; border-color: #0D9488; }
-`;
 const ErrorBar = styled.div`
   margin-bottom: 8px; padding: 8px 12px; border-radius: 8px;
   background: #FEF2F2; color: #B91C1C; font-size: 0.8125rem;
@@ -335,9 +301,11 @@ const Row = styled.div`
   &:hover { border-color: #CBD5E1; }
   @media (max-width: 640px) { flex-direction: column; gap: 8px; }
 `;
-const RowMain = styled.button`
+const RowMain = styled.button<{ $sel?: boolean }>`
   display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0;
   background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-family: inherit;
+  /* 선택된 행 — 우측 패널이 무엇을 보여주는지 목록에서 알 수 있게 */
+  ${(p) => (p.$sel ? 'outline: 2px solid #99F6E4; outline-offset: 4px; border-radius: 6px;' : '')}
 `;
 const RowBody = styled.div`flex: 1; min-width: 0;`;
 const RowTop = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
@@ -356,9 +324,9 @@ const Title = styled.div`
   margin-top: 2px; font-size: 0.8125rem; color: #334155;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
-const Preview = styled.div<{ $open: boolean }>`
+const Preview = styled.div`
   margin-top: 2px; font-size: 0.75rem; color: #94A3B8; line-height: 1.5;
-  ${(p) => (p.$open ? '' : 'white-space: nowrap; overflow: hidden; text-overflow: ellipsis;')}
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const RowActions = styled.div`
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;

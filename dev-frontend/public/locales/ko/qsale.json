@@ -95,7 +95,16 @@
     "bizAddress": "주소",
     "linked": "연결",
     "conversations": "대화방",
-    "emailThreads": "메일 스레드"
+    "emailThreads": "메일 스레드",
+    "inquiry": "문의 정보",
+    "email": "이메일",
+    "companyEstimated": "추정",
+    "source": "유입 경로",
+    "subject": "제목",
+    "at": "시각",
+    "state": "상태",
+    "emailVerified": "확인됨",
+    "notClientYet": "미등록 문의"
   },
   "action": {
     "addInquiry": "+ 문의 추가",

@@ -95,7 +95,16 @@
     "bizAddress": "Address",
     "linked": "Linked",
     "conversations": "Conversations",
-    "emailThreads": "Email threads"
+    "emailThreads": "Email threads",
+    "inquiry": "Inquiry",
+    "email": "Email",
+    "companyEstimated": "estimated",
+    "source": "Channel",
+    "subject": "Subject",
+    "at": "Time",
+    "state": "Status",
+    "emailVerified": "verified",
+    "notClientYet": "Not a client yet"
   },
   "action": {
     "addInquiry": "+ Add inquiry",

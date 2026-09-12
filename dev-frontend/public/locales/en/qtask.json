@@ -224,7 +224,10 @@
     "assigneeResolvedMe": "Assignee: {{name}} (me)",
     "assigneeResolvedChain": "Assignee: {{name}} (project default)",
     "tags": "Tags",
-    "dateRangePlaceholder": "Pick a date range"
+    "dateRangePlaceholder": "Pick a date range",
+    "dateRange": "Start ~ Due",
+    "attachShow": "Attach files & docs",
+    "attachHide": "Hide attachments"
   },
   "recur": {
     "toggle": "Repeat",
@@ -687,7 +690,8 @@
       "body_locked": "the result is locked in this status",
       "empty_body": "write the result first",
       "server": "the server could not process it. Please try again shortly"
-    }
+    },
+    "meSuffix": " (me)"
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",

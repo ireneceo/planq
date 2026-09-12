@@ -266,7 +266,10 @@
     "assigneeResolvedMe": "담당자: {{name}} (나)",
     "assigneeResolvedChain": "담당자: {{name}} (프로젝트 기본)",
     "tags": "태그",
-    "dateRangePlaceholder": "기간 선택"
+    "dateRangePlaceholder": "기간 선택",
+    "dateRange": "시작 ~ 마감",
+    "attachShow": "파일·문서 첨부",
+    "attachHide": "파일·문서 첨부 닫기"
   },
   "recur": {
     "toggle": "반복하기",
@@ -687,7 +690,8 @@
       "body_locked": "지금 상태에서는 결과물이 잠겨 있습니다",
       "empty_body": "결과물을 작성한 뒤에 남길 수 있습니다",
       "server": "서버에서 처리하지 못했습니다. 잠시 후 다시 시도해 주세요"
-    }
+    },
+    "meSuffix": " (나)"
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",

@@ -19,6 +19,7 @@ import DetailDrawer from '../Common/DetailDrawer';
 import ActionButton from '../Common/ActionButton';
 import LetterAvatar from '../Common/LetterAvatar';
 import { useChromeNav } from '../../hooks/useChromeNav';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { getSaleClient, setSaleStage, type SaleClientDetail } from '../../services/sale';
 
 /** 아직 고객이 아닌 문의(상담 행)를 그릴 때 쓰는 값 — 원본에서 **가져올 수 있는 것은 다 넣는다**.
@@ -35,6 +36,8 @@ export interface InquiryView {
   /** 등록 가능하면 누를 수 있다(링크 없는 순수 대화방은 서버가 못 받는다) */
   canRegister: boolean;
   emailVerified?: boolean;
+  /** 원본 화면 경로 — [보기] 가 목록과 **같은 곳**으로 간다(경로를 화면마다 조립하지 않는다) */
+  openPath: string;
 }
 
 interface Props {
@@ -47,11 +50,17 @@ interface Props {
   onChanged?: () => void;
   /** 미등록 문의를 고객으로 등록 */
   onRegister?: () => void;
+  /** 등록 진행 중 — 버튼 중복 제출 가드 */
+  registerBusy?: boolean;
 }
 
-const ClientPanel: React.FC<Props> = ({ businessId, clientId, onClose, onChanged }) => {
+const ClientPanel: React.FC<Props> = ({
+  businessId, clientId, inquiry = null, onClose, onChanged, onRegister, registerBusy = false,
+}) => {
   const { t } = useTranslation('qsale');
   const navigate = useChromeNav();
+  // 시각은 목록과 **같은 포맷터**로 — 날 ISO 문자열을 그대로 내보내면 사람이 읽는 값이 아니다
+  const { formatDateTime } = useTimeFormat();
   const [data, setData] = useState<SaleClientDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -82,10 +91,14 @@ const ClientPanel: React.FC<Props> = ({ businessId, clientId, onClose, onChanged
     } catch { setError(true); } finally { setBusy(false); }
   }, [businessId, clientId, busy, onChanged]);
 
-  const name = data?.display_name || data?.company_name || '';
+  // 미등록 문의도 같은 패널에서 그린다 — 고객 레코드가 없을 뿐이고 **보여줄 정보는 있다**.
+  const isInquiry = !clientId && !!inquiry;
+  const name = clientId
+    ? (data?.display_name || data?.company_name || '')
+    : (inquiry?.who || '');
 
   return (
-    <DetailDrawer open={!!clientId} onClose={onClose} width={420} ariaLabel={name || 'client'}>
+    <DetailDrawer open={!!clientId || isInquiry} onClose={onClose} width={420} ariaLabel={name || 'client'}>
       <DetailDrawer.Header onClose={onClose}>
         <HeadRow>
           <HeadName title={name}>{name || '—'}</HeadName>
@@ -105,7 +118,43 @@ const ClientPanel: React.FC<Props> = ({ businessId, clientId, onClose, onChanged
       </DetailDrawer.Header>
 
       <DetailDrawer.Body>
-        {loading ? (
+        {isInquiry && inquiry ? (
+          <>
+            <Top>
+              <LetterAvatar name={name || '—'} size={44} variant="neutral" />
+              <TopText>
+                <TopName>{name || (t('inbox.unknownWho') as string)}</TopName>
+                {inquiry.company && (
+                  <TopSub>
+                    {inquiry.company.name}
+                    {inquiry.company.estimated && ` (${t('panel.companyEstimated') as string})`}
+                  </TopSub>
+                )}
+                <StageTag>{t('panel.notClientYet') as string}</StageTag>
+              </TopText>
+            </Top>
+
+            <Section>
+              <SectionTitle>{t('panel.contact') as string}</SectionTitle>
+              {/* 확인 여부는 주소 옆에 붙인다 — 별도 줄로 빼면 "예" 만 남아 무엇이 확인됐는지 모른다 */}
+              <Row label={t('panel.email') as string}
+                value={inquiry.email
+                  ? inquiry.email + (inquiry.emailVerified ? ` (${t('panel.emailVerified') as string})` : '')
+                  : null} />
+              <Row label={t('panel.source') as string} value={t(`inbox.source.${inquiry.source}`) as string} />
+            </Section>
+
+            <Section>
+              <SectionTitle>{t('panel.inquiry') as string}</SectionTitle>
+              <Row label={t('panel.subject') as string} value={inquiry.title || (t('inbox.noSubject') as string)} />
+              <Row label={t('panel.at') as string} value={inquiry.at ? formatDateTime(inquiry.at) : null} />
+              {inquiry.needsReply && <Row label={t('panel.state') as string} value={t('inbox.needsReply') as string} />}
+              {inquiry.preview && (
+                <PreviewBox>{inquiry.preview}</PreviewBox>
+              )}
+            </Section>
+          </>
+        ) : loading ? (
           <Dim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
         ) : error || !data ? (
           <Dim>{t('error.loadFailed') as string}</Dim>
@@ -159,6 +208,21 @@ const ClientPanel: React.FC<Props> = ({ businessId, clientId, onClose, onChanged
       </DetailDrawer.Body>
 
       <DetailDrawer.Footer>
+        {isInquiry && inquiry ? (
+          <>
+            <ActionButton tone="secondary" size="md" data-testid="inquiry-panel-view"
+              onClick={() => navigate(inquiry.openPath)}>
+              {t('action.view') as string}
+            </ActionButton>
+            {inquiry.canRegister && (
+              <ActionButton tone="primary" size="md" loading={registerBusy}
+                data-testid="inquiry-panel-register" onClick={() => onRegister?.()}>
+                {t('action.registerClient') as string}
+              </ActionButton>
+            )}
+          </>
+        ) : (
+          <>
         {/* 계약 성사/불발만 둔다. 프로젝트·청구는 받는 화면이 고객 지정을 아직 안 읽어
             지금 버튼을 달면 눌러도 고객이 안 실린 빈 화면으로 간다(죽은 링크). 받는 쪽을 만든 뒤 붙인다. */}
         <ActionButton tone="secondary" size="md" disabled={busy || !data}
@@ -169,6 +233,8 @@ const ClientPanel: React.FC<Props> = ({ businessId, clientId, onClose, onChanged
           data-testid="client-panel-won" onClick={() => changeStage('won')}>
           {t('action.markWon') as string}
         </ActionButton>
+          </>
+        )}
       </DetailDrawer.Footer>
     </DetailDrawer>
   );
@@ -209,5 +275,10 @@ const ProjItem = styled.button`
   padding: 4px 10px; border: 1px solid #E2E8F0; border-radius: 999px; background: #FFFFFF;
   color: #334155; font-size: 0.75rem; cursor: pointer;
   &:hover { background: #F8FAFC; }
+`;
+const PreviewBox = styled.div`
+  margin-top: 8px; padding: 10px 12px; background: #F8FAFC; border: 1px solid #F1F5F9;
+  border-radius: 8px; font-size: 0.8125rem; color: #334155; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow-y: auto;
 `;
 const Dim = styled.div`padding: 32px 0; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;

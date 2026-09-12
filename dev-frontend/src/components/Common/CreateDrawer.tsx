@@ -36,12 +36,14 @@ export interface CreateDrawerProps {
   wide?: boolean;               // 복합 다중섹션 폼 — OVERLAY_DRAWER.wide(560). 기본 false → 480
   ariaLabel?: string;
   leftSlot?: React.ReactNode;   // 푸터 좌측 보조 슬롯(옵션)
+  /** 제출 버튼의 data-testid — 카나리가 텍스트 휴리스틱 없이 누를 수 있게 (없으면 안 붙는다) */
+  submitTestId?: string;
 }
 
 const CreateDrawer: React.FC<CreateDrawerProps> = ({
   open, onClose, title, children,
   onSubmit, submitting, submitLabel, submitDisabled, submitTone = 'primary',
-  width, wide, ariaLabel, leftSlot,
+  width, wide, ariaLabel, leftSlot, submitTestId,
 }) => {
   const resolvedWidth = width ?? (wide ? OVERLAY_DRAWER.wide : OVERLAY_DRAWER.default);
   const { t } = useTranslation('common');
@@ -61,6 +63,7 @@ const CreateDrawer: React.FC<CreateDrawerProps> = ({
           onClick={onSubmit}
           loading={submitting}
           disabled={submitDisabled}
+          data-testid={submitTestId}
         >
           {submitLabel || t('save')}
         </ActionButton>

@@ -71,6 +71,9 @@ const SUITES = {
   //   '보낸 업무요청' 수집기가 아예 없었다. 실호출 + 양성/음성 대조군으로 잰다 —
   //   시드를 넣으면 오르고 지우면 돌아와야 하며, 내가 컨펌자인 업무는 두 번 세면 안 된다.
   inboxcount: () => require('./canary-inbox-count'),
+  // "업무 추가" 가 **어디서 열어도 같은가** (2026-09-12 Irene: "업무추가 팝업이 왜 새거야?").
+  //   존재 검사로는 안 잡힌다 — 세 벌이 다 있었고 내용이 달랐다. 필드 집합을 **서로** 비교한다.
+  taskaddparity: () => require('./canary-task-add-parity'),
   // 파일을 폴더로 끌어다 놓기 — 서버 이동 API 는 있었는데 화면에 드롭 존이 없었다.
   //   ★ 전용 MIME 으로만 받는지도 같이 잰다(text/plain 으로 받으면 아무 텍스트나 이동이 된다).
   folderdnd: () => require('./canary-folder-dnd'),
