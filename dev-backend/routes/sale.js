@@ -78,6 +78,26 @@ router.get('/:businessId/clients', ...readChain, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── 상담(고객 미등록 접점) ────────────────────────────────────────
+// Irene 2026-09-12: "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지 · 게스트가 문의하거나 이메일로 문의온 경우"
+// ?source=(guest_link|email|chat, 쉼표) ?q= ?needs_reply=true ?limit
+//   새 테이블 없이 원본(게스트 링크·메일 스레드·고객 대화방)에서 client_id 가 비어 있는 것만 읽는다(services/saleInbox).
+router.get('/:businessId/inbox', ...readChain, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const { listUnlinkedTouchpoints } = require('../services/saleInbox');
+    const sources = String(req.query.source || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const { items, counts } = await listUnlinkedTouchpoints(businessId, {
+      userId: req.user.id,
+      sources: sources.length ? sources : null,
+      q: trimOrNull(req.query.q, 100),
+      needsReply: String(req.query.needs_reply || '') === 'true',
+      limit: Math.min(Math.max(Number(req.query.limit) || 100, 1), 300),
+    });
+    return successResponse(res, { items, counts });
+  } catch (err) { next(err); }
+});
+
 // ─── 요약 (단계 칩 · 한도 두 줄) ───────────────────────────────────
 router.get('/:businessId/summary', ...readChain, async (req, res, next) => {
   try {

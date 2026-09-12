@@ -77,7 +77,10 @@
     "addRecord": "기록 추가",
     "invite": "초대 보내기",
     "openClientSettings": "고객 정보",
-    "retry": "다시 시도"
+    "retry": "다시 시도",
+    "openOriginal": "원본 열기",
+    "addTask": "업무 추가",
+    "registerClient": "고객으로 등록"
   },
   "record": {
     "kind": {
@@ -123,7 +126,9 @@
       "expected": "예상"
     },
     "noTouch": "접점 없음",
-    "count": "{{count}}명"
+    "count": "{{count}}명",
+    "tabInbox": "상담",
+    "tabClients": "고객"
   },
   "detail": {
     "profile": "프로필",
@@ -209,5 +214,23 @@
     "loadFailed": "불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
     "saveFailed": "저장하지 못했어요",
     "forbidden": "이 메뉴를 볼 권한이 없어요"
+  },
+  "inbox": {
+    "title": "상담",
+    "hint": "고객으로 등록되지 않은 문의입니다. 확인하고 답하거나 고객으로 등록하세요.",
+    "sourceAll": "전체",
+    "source": {
+      "guest_link": "게스트 문의",
+      "email": "메일",
+      "chat": "채팅"
+    },
+    "needsReply": "답변 필요",
+    "needsReplyOnly": "답변 필요만",
+    "unknownWho": "—",
+    "noSubject": "(제목 없음)",
+    "empty": {
+      "title": "아직 들어온 문의가 없습니다",
+      "body": "게스트 링크로 온 대화, 고객에 연결되지 않은 메일·채팅이 여기 모입니다."
+    }
   }
 }

@@ -371,7 +371,43 @@ Q mail·Q Talk 에서 영업으로 넘어가는 문:
 
 기존 `/business/clients`(고객 관리 = 사업자·세금 정보·초대) 는 유지. **Q sale 은 같은 clients 의 영업 뷰**(Single Source / Multiple Views). 고객 관리 드로어에는 "영업 단계" 한 줄 읽기 표시 + Q sale 링크 + 한도 포함 칩.
 
-### 5.2 `/sale` 목록 (PageShell — 관리 리스트 패턴, ClientsPage 를 베낀다)
+### 5.2-A ★ 2026-09-12 구조 변경 — **입구는 상담(고객 미등록 문의)이다**
+
+> Irene(배포 직후 실사용): *"Q sales 가면 전체가 없어. 그리고 이게 왜 고객 > 상세야? 상세(채팅, 메일, 전화, 등등) > 고객
+> 이렇게 들어가야지. 그리고 상담리스트, 고객리스트 2가지 다 보여줘도 좋고. 그리고 실제 세일에서 할 일을 해야지.
+> 액션이 있어야지. 내용은 여기서 확인하고 보러가게 하고 답변하게 하거나 업무추가하거나 고객으로 등록하거나.
+> 게스트가 문의하거나 이메일로 문의온 경우 고객으로 등록 안된 경우."*
+
+아래 5.2 는 **고객 목록**을 입구로 잡았다. 그게 틀렸다 — 문의는 고객이 되기 **전**에 온다.
+실측(dev 워크스페이스 5): 메일 스레드 3,412건이 **전부** `client_id` NULL · 게스트 링크 52건 중 47건 NULL.
+그 문의들은 Q sale 화면에 **한 건도** 보이지 않았다.
+
+**바뀐 것**
+- `/sale` 은 **탭 2개**다 — `상담`(기본) · `고객`. "상담 > 고객" 이 실제 일의 순서다.
+- 상담 목록 = **고객으로 등록되지 않은 접점**. 새 테이블을 만들지 않고 원본에서 `client_id IS NULL` 로 읽는다
+  (`services/saleInbox.js` — `clientTimeline` 이 `client_id = X` 로 읽는 것의 정확히 반대 축).
+  - 게스트 링크(`guest_links`) · 메일 스레드(`email_threads`) · 고객 대화방(`conversations.channel_type='customer'`)
+  - **메일은 사람이 보낸 것만**(`triage='human'`). 실측 분포 자동발송 2,137 · 광고 366 · 사람 903 — 거르지 않으면 첫 화면이 광고로 덮인다
+  - "답할 차례" 판정: 메일 `reply_needed` · 게스트 `account_requested_at` · 채팅은 **마지막 메시지 발신자가 멤버가 아닐 때**
+    (★ `conversations` 에는 `last_message_direction` 컬럼이 없다 — 그걸로 판정하면 조용히 언제나 false 가 된다)
+  - **집계는 COUNT 로 따로 센다** — 배열 길이로 세면 소스별 조회 상한에 잘린다(실측 903 → 300). 목록만 자르고 숫자는 참으로
+- 액션 3종(행마다): **원본 열기**(`/talk?conv=` · `/mail?thread=`) · **고객으로 등록**(기존 `POST /api/sale/:biz/save-as-client` 재사용) · **업무 추가**(`POST /api/tasks`)
+  - ★ 채팅 행에는 "고객으로 등록" 을 그리지 않는다 — 서버가 `from: guest_link|email_thread|manual` 만 받는다(`routes/sale_save.js`). **다음 라운드에 `conversation` 분기 추가 검토**
+- 고객 탭 단계 줄 맨 앞에 **"전체" 칩**을 되살렸다(아래 5.2 에 "전체 칩 항상" 이라 적혀 있는데 구현에서 빠져 있었다)
+- 단계·접근·담당자 필터는 **고객 탭에서만** 그린다(상담 탭에서는 소스·답변 필요 칩이 그 자리)
+
+**API**: `GET /api/sale/:businessId/inbox?source=&q=&needs_reply=&limit=` → `{ items, counts }`
+`counts = { total, needs_reply, guest_link, email, chat }`
+
+**자체 검증(Fable 미검증)**: 실HTTP — 집계 914(메일 903·채팅 9·게스트 2) · `limit` 을 줄여도 집계 불변 · 답변 필요 48 전부 참 · 비소속 워크스페이스 403 ·
+실브라우저 6/6(상담 탭 기본 · 칩 5종 · 액션 3종 · 채팅 행 등록 버튼 없음 · 답변 필요만 48 · 고객 탭 전환과 "전체 16") · build EXIT 0 · i18n·parity 가드 EXIT 0
+
+**아직 안 한 것**: 설계 5.2 의 "확인 필요 스트립"(응답 대기·미확인 자동기록·정체·계정 요청)은 여전히 미구현 —
+상담 목록의 "답변 필요" 칩이 그 일부만 대신한다.
+
+---
+
+### 5.2 `/sale` 목록 (PageShell — 관리 리스트 패턴, ClientsPage 를 베낀다) — ⚠️ 입구는 5.2-A 로 바뀌었다(이 절은 고객 탭에 해당)
 
 ```
 PageShell title="Q sale"  count={단계 진행 중 고객 수}   [정식 12/20 · 문의 7/60]

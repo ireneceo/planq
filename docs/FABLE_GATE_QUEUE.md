@@ -326,3 +326,52 @@ Stop 훅은 커밋마다 by:fable 마커를 요구해 한 번 막았다 — Iren
 - **이번 운영 배포는 무해했다** — dev 에서 이미 적용돼 운영 ENUM 에도 값이 있었고 `migrate-qsale` 는 `skip · 변경 0(멱등 확인)` 으로 끝났다.
 - **위험은 "값이 아직 없는 환경의 첫 배포"** 다. sync 의 alter 가 ENUM 컬럼을 먼저 건드린 뒤 값이 추가되는 순서가 된다.
 - Fable 판정 요청: ① 이 순서에서 새 ENUM 값이 실제로 유실·거절될 수 있는가(빈 DB 로 재현) ② 그렇다면 `migrate-qsale` 를 `sync-database.js` **앞**(pre-sync 블록, :275 주석 참조)으로 옮겨야 하는가 ③ 옮길 때 FK 검사 끄기(`SET FOREIGN_KEY_CHECKS=0`) 구간과 부딪히지 않는가.
+
+---
+
+## 10. Q sale 입구 재구성 — 상담(고객 미등록 접점) 목록 · **Fable 한도 초과로 미검증** (2026-09-12)
+
+**판정: R=1.** 새 목록 라우트가 **워크스페이스 경계를 가로질러 읽을 수 있는 표면**이다
+(CLAUDE.md R=1 목록의 "멀티테넌트 격리(`business_id`)"). 스키마 변경·결제·외부 발송은 없다.
+**두 번째 시도도 실패했다** — 06:20 UTC 에 이어 같은 날 다시 띄웠으나 Fable 사용 한도(HTTP 429,
+`claude-fable-5-1`, req_011Cey7gtsKyFqeMSahhqej6)로 시작 직후 종료. 9번과 같은 이유다.
+→ 보고에는 **"Fable 미검증(자체 검증)"** 이라고 쓴다. "통과" 라고 쓰지 않는다.
+
+### 신고 원문 (Irene)
+*"Q sales 가면 전체가 없어. 그리고 이게 왜 고객 > 상세야? 상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지.
+그리고 상담리스트, 고객리스트 2가지 다 보여줘도 좋고. 그리고 실제 세일에서 할 일을 해야지. 액션이 있어야지.
+내용은 여기서 확인하고 보러가게 하고 답변하게 하거나 업무추가하거나 고객으로 등록하거나.
+게스트가 문의하거나 이메일로 문의온 경우 고객으로 등록 안된 경우."*
+
+### 무엇을 만들었나
+- `dev-backend/services/saleInbox.js`(신규) · `GET /api/sale/:businessId/inbox`(`routes/sale.js`) —
+  `client_id IS NULL` 인 접점을 **원본 3곳**에서 읽는다(새 테이블 없음): guest_links ·
+  email_threads(`triage='human'`) · conversations(`channel_type='customer'`)
+- `dev-frontend/src/components/QSale/SaleInboxList.tsx`(신규) — 소스 칩 4 + "답변 필요만", 액션 3종
+- `pages/QSale/SalePage.tsx` — 탭 2개(상담 기본 / 고객), 고객 탭 **"전체" 칩 복원**
+- `services/sale.ts` · ko/en `qsale.json` · `docs/Q_SALE_DESIGN.md` §5.2-A
+
+### 자체 검증 (Fable 미검증)
+- 실HTTP: `counts={total:914, needs_reply:48, guest_link:2, email:903, chat:9}` ·
+  **`?limit=5` 로도 total 914 불변**(집계가 목록 상한에 안 잘린다) · 비소속 워크스페이스 **403**
+- 실브라우저 6/6 — 상담 탭 기본 · 칩 5종 수치 일치 · 100행 액션 3종 · **채팅 행에 "고객으로 등록" 없음** ·
+  답변 필요만 48행 전부 표시 · 고객 탭 전환 후 "전체 16" + 단계 필터
+- build EXIT 0 · `error TS` 0 · guard-invariants(i18n·parity) EXIT 0
+
+### Fable 이 봐야 할 것
+1. **격리** — `saleInbox.js` 의 모든 쿼리가 business_id 축을 잃지 않는가. 특히 ①EmailThread 접근 계정
+   필터 ②메일 본문·참여자 **재조회**(스레드 목록을 좁힌 뒤 별도로 다시 읽는다) ③BusinessMember 조회.
+   비소속 403 은 라우트 입구만 증명한다 — **내부 재조회가 새는지는 못 증명한다.**
+2. **판정 술어** — 채팅의 "답할 차례" 를 *마지막 메시지 발신자가 BusinessMember 가 아님* 으로 본다.
+   (`conversations.last_message_direction` 컬럼은 **존재하지 않는다** — 그걸로 판정하면 조용히 언제나
+   false 가 된다. 실제로 한 번 그렇게 짰다가 잡았다.) 이 술어가 멤버 탈퇴·게스트 발화·시스템
+   메시지에서도 참인가.
+3. **메일 `triage='human'` 필터가 진짜 문의를 떨구지 않는가** — 미연결 3,410건 중 903건만 올린다.
+   9월 11일에 `emailTriage.js` 를 고친 직후라(Joanne Low 건) 분류 경계가 움직였다.
+4. **`save-as-client` 계약** — 채팅 행은 버튼을 **숨겼다**(서버가 `guest_link|email_thread|manual` 만
+   받는다). 숨기는 것이 맞는 처리인가, 아니면 `conversation` 분기를 서버에 더해야 하는가.
+   권한 없는 사용자가 등록·업무 추가를 눌렀을 때의 응답도.
+5. **집계 방식** — counts 를 별도 COUNT 로 세는 것이 세 소스 모두에서 목록과 같은 조건인가
+   (목록 조건과 COUNT 조건이 갈라지면 숫자와 목록이 어긋난다 — 확인필요 35→51 과 같은 계열).
+6. 실시간 계약(CLAUDE.md 운영 16번) — 이 목록에는 socket listener 도 `useVisibilityRefresh` 도
+   **아직 없다.** 새 문의가 와도 새로고침 전까지 안 보인다. 이 상태로 둘지 판단.

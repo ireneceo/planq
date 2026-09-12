@@ -1,0 +1,264 @@
+// SaleInboxList — Q sale "상담" 목록 (고객으로 **등록되지 않은** 문의)
+//
+// Irene 2026-09-12: *"이게 왜 고객 > 상세야? 상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지."*
+//   *"실제 세일에서 할 일을 해야지. 액션이 있어야지. 내용은 여기서 확인하고 보러가게 하고 답변하게 하거나
+//     업무추가하거나 고객으로 등록하거나. 게스트가 문의하거나 이메일로 문의온 경우 고객으로 등록 안된 경우."*
+//
+// 서버(services/saleInbox)는 새 테이블 없이 원본(게스트 링크·메일 스레드·고객 대화방)에서 client_id 가 빈 것만 읽는다.
+// 여기서 하는 일은 셋뿐이다 — **보고**(미리보기·원본 열기) · **고객으로 등록** · **업무 추가**.
+// ★ "고객으로 등록" 은 서버가 guest_link·email_thread 만 받는다(routes/sale_save.js). 채팅 행에는 그 버튼을 그리지 않는다.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
+import { apiFetch } from '../../contexts/AuthContext';
+import { useChromeNav } from '../../hooks/useChromeNav';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
+import ActionButton from '../Common/ActionButton';
+import LetterAvatar from '../Common/LetterAvatar';
+import HighlightText from '../Common/HighlightText';
+import { listSaleInbox, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
+
+interface Props {
+  businessId: number;
+  /** 상단 검색어 — 목록 필터에 그대로 넘긴다(서버가 제목·상대·미리보기에서 찾는다) */
+  q: string;
+  /** 고객으로 등록이 끝나면 고객 탭 숫자가 바뀐다 — 부모가 다시 읽는다 */
+  onRegistered?: () => void;
+}
+
+const SOURCES: Array<SaleInboxSource | ''> = ['', 'guest_link', 'email', 'chat'];
+
+const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
+  const { t } = useTranslation('qsale');
+  const navigate = useChromeNav();
+  const { formatDateTime, formatTimeAgo } = useTimeFormat();
+
+  const [source, setSource] = useState<SaleInboxSource | ''>('');
+  const [replyOnly, setReplyOnly] = useState(false);
+  const [items, setItems] = useState<SaleInboxItem[]>([]);
+  const [counts, setCounts] = useState<SaleInboxCounts>({ total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // 최신 값은 ref 로 — 리스너·타이머가 옛 값에 굳지 않게(배경 갱신 규칙)
+  const argsRef = useRef({ source, replyOnly, q });
+  argsRef.current = { source, replyOnly, q };
+
+  const load = useCallback(async (opts: { silent?: boolean } = {}) => {
+    if (!opts.silent) setLoading(true);
+    setError(false);
+    try {
+      const { source: s, replyOnly: r, q: query } = argsRef.current;
+      const res = await listSaleInbox(businessId, { source: s, q: query, needsReply: r, limit: 100 });
+      setItems(res.items);
+      setCounts(res.counts);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [businessId]);
+
+  useEffect(() => { void load(); }, [load, source, replyOnly, q]);
+
+  const sourceLabel = useCallback((s: SaleInboxSource | '') => (
+    s === '' ? (t('inbox.sourceAll') as string) : (t(`inbox.source.${s}`) as string)
+  ), [t]);
+  const sourceCount = useCallback((s: SaleInboxSource | '') => (
+    s === '' ? counts.total : counts[s]
+  ), [counts]);
+
+  // 원본으로 — 채팅은 대화방, 메일은 그 스레드. 보던 화면을 덮지 않게 새 탭 규칙을 따른다.
+  const openOriginal = useCallback((it: SaleInboxItem) => { navigate(it.open_path); }, [navigate]);
+
+  // 고객으로 등록 — 기존 라우트를 그대로 부른다(서버가 중복 연결·한도까지 판정한다)
+  const registerClient = useCallback(async (it: SaleInboxItem) => {
+    if (busyId) return;
+    setBusyId(it.id);
+    setActionError(null);
+    try {
+      const body = it.ref.kind === 'guest_link'
+        ? { from: 'guest_link', guest_link_id: it.ref.id }
+        : { from: 'email_thread', email_thread_id: it.ref.id };
+      const r = await apiFetch(`/api/sale/${businessId}/save-as-client`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || j?.success === false) { setActionError(j?.message || `HTTP ${r.status}`); return; }
+      const clientId = j?.data?.client?.id ?? j?.data?.id;
+      // 등록되면 원본의 client_id 가 채워져 이 목록에서 자연히 빠진다 — 다시 읽는다
+      await load({ silent: true });
+      onRegistered?.();
+      if (clientId) navigate(`/sale/${clientId}`);
+    } catch {
+      setActionError(t('error.loadFailed') as string);
+    } finally {
+      setBusyId(null);
+    }
+  }, [busyId, businessId, load, navigate, onRegistered, t]);
+
+  // 업무 추가 — 제목은 그 문의에서 가져온다. 만든 뒤 그 업무를 연다.
+  const addTask = useCallback(async (it: SaleInboxItem) => {
+    if (busyId) return;
+    setBusyId(it.id);
+    setActionError(null);
+    try {
+      const who = it.who || (t('inbox.unknownWho') as string);
+      const title = `${who} — ${it.title || t('inbox.noSubject')}`.slice(0, 200);
+      const r = await apiFetch('/api/tasks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ business_id: businessId, title, description: it.preview || null }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || j?.success === false) { setActionError(j?.message || `HTTP ${r.status}`); return; }
+      const taskId = j?.data?.id;
+      if (taskId) navigate(`/tasks?task=${taskId}`);
+    } catch {
+      setActionError(t('error.loadFailed') as string);
+    } finally {
+      setBusyId(null);
+    }
+  }, [busyId, businessId, navigate, t]);
+
+  const rows = useMemo(() => items, [items]);
+
+  return (
+    <>
+      <FilterRow>
+        {SOURCES.map((s) => (
+          <Chip key={s || 'all'} type="button" data-testid={`sale-inbox-source-${s || 'all'}`}
+            $on={source === s} onClick={() => setSource(s)}>
+            {sourceLabel(s)} <b>{sourceCount(s)}</b>
+          </Chip>
+        ))}
+        <Spacer />
+        <Chip type="button" data-testid="sale-inbox-needs-reply"
+          $on={replyOnly} $accent onClick={() => setReplyOnly((v) => !v)}>
+          {t('inbox.needsReplyOnly') as string} <b>{counts.needs_reply}</b>
+        </Chip>
+      </FilterRow>
+      <Hint>{t('inbox.hint') as string}</Hint>
+
+      {actionError && <ErrorBar role="alert">{actionError}</ErrorBar>}
+
+      {loading ? (
+        <Center>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</Center>
+      ) : error ? (
+        <Center>{t('error.loadFailed') as string}</Center>
+      ) : rows.length === 0 ? (
+        <EmptyBox>
+          <EmptyTitle>{t('inbox.empty.title') as string}</EmptyTitle>
+          <EmptyDesc>{t('inbox.empty.body') as string}</EmptyDesc>
+        </EmptyBox>
+      ) : (
+        <List>
+          {rows.map((it) => {
+            const who = it.who || (t('inbox.unknownWho') as string);
+            const expanded = openId === it.id;
+            const busy = busyId === it.id;
+            return (
+              <Row key={it.id} data-testid={`sale-inbox-row-${it.id}`}>
+                <RowMain type="button" onClick={() => setOpenId((v) => (v === it.id ? null : it.id))}
+                  aria-expanded={expanded}>
+                  <LetterAvatar name={who} size={32} variant="neutral" />
+                  <RowBody>
+                    <RowTop>
+                      <SourceTag $s={it.source}>{sourceLabel(it.source)}</SourceTag>
+                      <Who><HighlightText text={who} query={q} /></Who>
+                      {it.needs_reply && <ReplyTag>{t('inbox.needsReply') as string}</ReplyTag>}
+                      <At title={it.at ? formatDateTime(it.at) : ''}>{it.at ? formatTimeAgo(it.at) : '—'}</At>
+                    </RowTop>
+                    <Title><HighlightText text={it.title || (t('inbox.noSubject') as string)} query={q} /></Title>
+                    {it.preview && <Preview $open={expanded}><HighlightText text={it.preview} query={q} /></Preview>}
+                  </RowBody>
+                </RowMain>
+                <RowActions>
+                  <ActionButton tone="secondary" size="sm" disabled={busy}
+                    data-testid={`sale-inbox-open-${it.id}`} onClick={() => openOriginal(it)}>
+                    {t('action.openOriginal') as string}
+                  </ActionButton>
+                  {it.source !== 'chat' && (
+                    <ActionButton tone="primary" size="sm" disabled={busy}
+                      data-testid={`sale-inbox-register-${it.id}`} onClick={() => registerClient(it)}>
+                      {t('action.registerClient') as string}
+                    </ActionButton>
+                  )}
+                  <ActionButton tone="secondary" size="sm" disabled={busy}
+                    data-testid={`sale-inbox-task-${it.id}`} onClick={() => addTask(it)}>
+                    {t('action.addTask') as string}
+                  </ActionButton>
+                </RowActions>
+              </Row>
+            );
+          })}
+        </List>
+      )}
+    </>
+  );
+};
+
+export default SaleInboxList;
+
+const FilterRow = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 10px 0 4px;
+`;
+const Spacer = styled.div`flex: 1; min-width: 8px;`;
+const Chip = styled.button<{ $on?: boolean; $accent?: boolean }>`
+  height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer;
+  font-size: 0.75rem; font-weight: 600;
+  border: 1px solid ${(p) => (p.$on ? (p.$accent ? '#F43F5E' : '#0D9488') : '#E2E8F0')};
+  background: ${(p) => (p.$on ? (p.$accent ? '#FFF1F2' : '#F0FDFA') : '#FFFFFF')};
+  color: ${(p) => (p.$on ? (p.$accent ? '#BE123C' : '#0F766E') : '#475569')};
+  b { margin-left: 4px; font-weight: 700; }
+  &:hover { background: ${(p) => (p.$on ? undefined : '#F8FAFC')}; }
+`;
+const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 0 0 10px;`;
+const ErrorBar = styled.div`
+  margin-bottom: 8px; padding: 8px 12px; border-radius: 8px;
+  background: #FEF2F2; color: #B91C1C; font-size: 0.8125rem;
+`;
+const Center = styled.div`padding: 48px 0; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;
+const EmptyBox = styled.div`padding: 56px 20px; text-align: center;`;
+const EmptyTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
+const EmptyDesc = styled.div`margin-top: 6px; font-size: 0.8125rem; color: #64748B;`;
+
+const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const Row = styled.div`
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 14px; border: 1px solid #E2E8F0; border-radius: 10px; background: #FFFFFF;
+  &:hover { border-color: #CBD5E1; }
+  @media (max-width: 640px) { flex-direction: column; gap: 8px; }
+`;
+const RowMain = styled.button`
+  display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0;
+  background: none; border: none; padding: 0; text-align: left; cursor: pointer; font-family: inherit;
+`;
+const RowBody = styled.div`flex: 1; min-width: 0;`;
+const RowTop = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
+const SourceTag = styled.span<{ $s: string }>`
+  font-size: 0.6875rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  color: ${(p) => (p.$s === 'guest_link' ? '#92400E' : p.$s === 'email' ? '#0F766E' : '#3730A3')};
+  background: ${(p) => (p.$s === 'guest_link' ? '#FEF3C7' : p.$s === 'email' ? '#F0FDFA' : '#EEF2FF')};
+`;
+const Who = styled.span`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
+const ReplyTag = styled.span`
+  font-size: 0.6875rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  color: #BE123C; background: #FFF1F2;
+`;
+const At = styled.span`margin-left: auto; font-size: 0.6875rem; color: #94A3B8;`;
+const Title = styled.div`
+  margin-top: 2px; font-size: 0.8125rem; color: #334155;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+`;
+const Preview = styled.div<{ $open: boolean }>`
+  margin-top: 2px; font-size: 0.75rem; color: #94A3B8; line-height: 1.5;
+  ${(p) => (p.$open ? '' : 'white-space: nowrap; overflow: hidden; text-overflow: ellipsis;')}
+`;
+const RowActions = styled.div`
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  @media (max-width: 640px) { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+`;

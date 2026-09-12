@@ -117,6 +117,50 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
   return s ? `?${s}` : '';
 };
 
+// ── 상담(고객 미등록 접점) — Irene 2026-09-12 "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지"
+//   서버는 새 테이블 없이 원본(게스트 링크·메일 스레드·고객 대화방)에서 client_id 가 빈 것만 읽는다.
+export type SaleInboxSource = 'guest_link' | 'email' | 'chat';
+
+export interface SaleInboxItem {
+  source: SaleInboxSource;
+  /** `${source}:${id}` — 목록 key */
+  id: string;
+  /** 고객으로 저장·원본 열기에 쓰는 원본 참조 */
+  ref: { kind: 'guest_link' | 'email_thread' | 'conversation'; id: number; conversation_id?: number };
+  who: string | null;
+  email: string | null;
+  title: string | null;
+  preview: string | null;
+  at: string | null;
+  needs_reply: boolean;
+  meta: Record<string, unknown>;
+  /** 원본 화면 경로 (/talk?conv= · /mail?thread=) */
+  open_path: string;
+}
+
+export interface SaleInboxCounts {
+  total: number; needs_reply: number; guest_link: number; email: number; chat: number;
+}
+
+export async function listSaleInbox(
+  businessId: number,
+  params: { source?: SaleInboxSource | ''; q?: string; needsReply?: boolean; limit?: number } = {},
+): Promise<{ items: SaleInboxItem[]; counts: SaleInboxCounts }> {
+  const sp = new URLSearchParams();
+  if (params.source) sp.set('source', params.source);
+  if (params.q) sp.set('q', params.q);
+  if (params.needsReply) sp.set('needs_reply', 'true');
+  if (params.limit) sp.set('limit', String(params.limit));
+  const qs = sp.toString();
+  const r = await apiFetch(`/api/sale/${businessId}/inbox${qs ? `?${qs}` : ''}`);
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j?.success) throw new Error(j?.message || `HTTP ${r.status}`);
+  return {
+    items: (j.data?.items || []) as SaleInboxItem[],
+    counts: (j.data?.counts || { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0 }) as SaleInboxCounts,
+  };
+}
+
 export interface ListParams {
   q?: string;
   stage?: string;        // 'in_progress' | SaleStage

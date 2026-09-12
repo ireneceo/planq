@@ -77,7 +77,10 @@
     "addRecord": "Add record",
     "invite": "Send invitation",
     "openClientSettings": "Customer details",
-    "retry": "Try again"
+    "retry": "Try again",
+    "openOriginal": "Open original",
+    "addTask": "Add task",
+    "registerClient": "Register as client"
   },
   "record": {
     "kind": {
@@ -123,7 +126,9 @@
       "expected": "Expected"
     },
     "noTouch": "No touchpoints",
-    "count": "{{count}}"
+    "count": "{{count}}",
+    "tabInbox": "Inquiries",
+    "tabClients": "Clients"
   },
   "detail": {
     "profile": "Profile",
@@ -209,5 +214,23 @@
     "loadFailed": "Couldn't load. Please try again.",
     "saveFailed": "Couldn't save",
     "forbidden": "You don't have access to this menu"
+  },
+  "inbox": {
+    "title": "Inquiries",
+    "hint": "Inquiries not yet registered as clients. Reply, or register them as a client.",
+    "sourceAll": "All",
+    "source": {
+      "guest_link": "Guest",
+      "email": "Email",
+      "chat": "Chat"
+    },
+    "needsReply": "Needs reply",
+    "needsReplyOnly": "Needs reply only",
+    "unknownWho": "—",
+    "noSubject": "(No subject)",
+    "empty": {
+      "title": "No inquiries yet",
+      "body": "Guest link conversations and emails or chats not linked to a client appear here."
+    }
   }
 }

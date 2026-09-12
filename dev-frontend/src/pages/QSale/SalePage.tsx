@@ -14,6 +14,9 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import ActionButton from '../../components/Common/ActionButton';
 import StandardModal from '../../components/Common/StandardModal';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+// ★ 2026-09-12 Irene: "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지 · 상담리스트, 고객리스트 2가지 다 보여줘도 좋고"
+//   입구를 상담(고객 미등록 문의)으로 바꾸고 고객 목록은 옆 탭으로 둔다. 목록·액션은 SaleInboxList 한 곳.
+import SaleInboxList from '../../components/QSale/SaleInboxList';
 import {
   listSaleClients, getSaleSummary, saveAsClient,
   SALE_STAGES, IN_PROGRESS_STAGES, SALE_SOURCES,
@@ -38,6 +41,8 @@ export default function SalePage() {
   const [error, setError] = useState<string | null>(null);
 
   const [q, setQ] = useState('');
+  // 입구는 상담(고객 미등록 문의)이다 — 고객 목록은 옆 탭. Irene 2026-09-12
+  const [tab, setTab] = useState<'inbox' | 'clients'>('inbox');
   const [stage, setStage] = useState<string>('');
   const [access, setAccess] = useState<string>('');
   const [assignee, setAssignee] = useState<string>('');
@@ -131,6 +136,9 @@ export default function SalePage() {
           <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
             placeholder={t('list.searchPlaceholder') as string}
             aria-label={t('list.searchPlaceholder') as string} />
+          {/* 단계·접근·담당자는 **고객 목록**의 축이다 — 상담 탭에서는 그릴 것이 없다(소스·답변 필요 칩이 그 자리) */}
+          {tab === 'clients' && (
+          <>
           <SelectWrap $w={150} data-testid="sale-stage-filter">
             <PlanQSelect size="sm" isSearchable={false} options={stageOptions}
               aria-label={t('stage.label') as string}
@@ -149,15 +157,43 @@ export default function SalePage() {
               value={assigneeOptions.find((o) => o.value === assignee) || assigneeOptions[0]}
               onChange={(opt: unknown) => setAssignee(String((opt as { value?: string } | null)?.value ?? ''))} />
           </SelectWrap>
+          </>
+          )}
           <ActionButton tone="primary" size="sm" data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
             {t('action.addInquiry') as string}
           </ActionButton>
         </Actions>
       )}
     >
+      {/* 탭 — 상담이 기본, 고객은 옆. "상담 > 고객" 순서가 실제 일의 순서다 (Irene 2026-09-12) */}
+      <TabRow role="tablist">
+        <TabBtn type="button" role="tab" aria-selected={tab === 'inbox'} data-testid="sale-tab-inbox"
+          $on={tab === 'inbox'} onClick={() => setTab('inbox')}>
+          {t('list.tabInbox') as string}
+        </TabBtn>
+        <TabBtn type="button" role="tab" aria-selected={tab === 'clients'} data-testid="sale-tab-clients"
+          $on={tab === 'clients'} onClick={() => setTab('clients')}>
+          {t('list.tabClients') as string}
+        </TabBtn>
+      </TabRow>
+
+      {tab === 'inbox' ? (
+        businessId ? (
+          <SaleInboxList businessId={businessId} q={q} onRegistered={() => load({ silent: true, page: 1 })} />
+        ) : null
+      ) : (
+      <>
       {summary && (
         <StripRow>
           <StageStrip>
+            {/* ★ 2026-09-12 Irene: "Q sales 가면 전체가 없어" — 설계 §5.2 는 "전체 칩 항상" 이었는데 구현에서 빠졌다.
+                칩으로 필터를 건 뒤 전체로 돌아갈 길이 같은 칩 재클릭뿐이라, 무엇을 보고 있는지도 알 수 없었다. */}
+            <StageChip type="button" data-testid="sale-stage-chip-all"
+              $on={stage === ''}
+              onClick={() => setStage('')}>
+              {t('list.filterAll') as string} <b>{total}</b>
+            </StageChip>
+            <Divider aria-hidden />
             {IN_PROGRESS_STAGES.map((s) => (
               <StageChip key={s} type="button" data-testid={`sale-stage-chip-${s}`}
                 $on={stage === s}
@@ -252,6 +288,8 @@ export default function SalePage() {
             )}
           </FootRow>
         </>
+      )}
+      </>
       )}
 
       <AddInquiryModal
@@ -364,6 +402,22 @@ const SearchInput = styled.input`
   border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #5EEAD4; }
   @media (max-width: 640px) { width: 150px; }
+`;
+// 탭 — 상담(기본) / 고객. 밑줄 탭(관리 리스트 패턴)과 같은 톤으로 가볍게.
+const TabRow = styled.div`
+  display: flex; align-items: center; gap: 4px;
+  border-bottom: 1px solid #E2E8F0; margin-bottom: 12px;
+`;
+const TabBtn = styled.button<{ $on: boolean }>`
+  position: relative; height: 36px; padding: 0 12px;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  font-size: 0.8125rem; font-weight: ${(p) => (p.$on ? 700 : 600)};
+  color: ${(p) => (p.$on ? '#0F766E' : '#64748B')};
+  &::after {
+    content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px;
+    background: ${(p) => (p.$on ? '#0D9488' : 'transparent')};
+  }
+  &:hover { color: ${(p) => (p.$on ? '#0F766E' : '#334155')}; }
 `;
 const StripRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;`;
 const StageStrip = styled.div`display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 2px;
