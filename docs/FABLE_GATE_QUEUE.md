@@ -319,3 +319,10 @@ Stop 훅은 커밋마다 by:fable 마커를 요구해 한 번 막았다 — Iren
 
 ### Fable 이 봐야 할 것
 0번 항목의 체크리스트 0~6 그대로 + PDF 2건(동시 요청·유휴 첫 PDF·Chrome 누수 0·SIGTERM 정리).
+
+### ★ 배포 후 발견 — 마이그레이션 순서가 조건과 반대다 (2026-09-12 06:33 배포 시 확인)
+`scripts/deploy-planq.sh` `sync_database` 단계 안에서 **`sync-database.js`(:287)가 먼저**, **`migrate-qsale.js`(:418)가 나중**에 돈다.
+0번 항목의 배포 조건("마이그레이션이 코드보다 먼저 · sync(alter) 와의 순서")과 어긋난다.
+- **이번 운영 배포는 무해했다** — dev 에서 이미 적용돼 운영 ENUM 에도 값이 있었고 `migrate-qsale` 는 `skip · 변경 0(멱등 확인)` 으로 끝났다.
+- **위험은 "값이 아직 없는 환경의 첫 배포"** 다. sync 의 alter 가 ENUM 컬럼을 먼저 건드린 뒤 값이 추가되는 순서가 된다.
+- Fable 판정 요청: ① 이 순서에서 새 ENUM 값이 실제로 유실·거절될 수 있는가(빈 DB 로 재현) ② 그렇다면 `migrate-qsale` 를 `sync-database.js` **앞**(pre-sync 블록, :275 주석 참조)으로 옮겨야 하는가 ③ 옮길 때 FK 검사 끄기(`SET FOREIGN_KEY_CHECKS=0`) 구간과 부딪히지 않는가.

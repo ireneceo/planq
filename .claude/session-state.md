@@ -2,9 +2,16 @@
 
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-09-12 06:15 UTC (Opus 5, 1M · 세션 planq-dc)
-**작업 상태:** ⏳ **Fable 게이트 라운드 진행 중** — 미배포 13커밋 중 **미검증 5커밋**(PDF 2 · Q sale 1a·1b·1c)
-**운영:** `8bd11a23` (2026-09-11 15:34) · health 200 · PM2 3종 online
-**Git:** HEAD `161a3dae` · 작업트리 깨끗 · 마커 `by:"unavailable"`(= Fable 못 띄운 채 남은 상태, 오늘 라운드로 대체 예정)
+**작업 상태:** ✅ **운영 배포 완료 `0bfa1b38`** (2026-09-12 06:33 UTC, 334s, DEPLOY_EXIT 0) — ★ **Q sale 1a~1c · PDF 후속 2건은 Fable 미검증(자체 검증)**
+**운영:** `0bfa1b38` · health 200 · / 200 · PM2 3종 online · Q sale 스키마 존재(clients.status `prospect` · client_stage_history · client_interactions · notifications/notification_prefs `sale`) · 고객 분포 active 3 / archived 1 / invited 1 (기존 데이터 불변)
+**Git:** HEAD `0bfa1b38` · 작업트리 깨끗 · 마커 `by:"unavailable"` (Fable 한도 429 — 대기열 9번)
+**롤백:** `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260912_062714/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
+
+### 이번 배포 (Irene 판단: "지금 배포 (Fable 미검증 감수)")
+- Fable 라운드를 띄웠으나 **사용 한도(HTTP 429)로 시작 직후 중단** → 대기열 `docs/FABLE_GATE_QUEUE.md` 9번에 미검증 사실 기록, 개발현황·커밋에도 `opus_only` 로 표기
+- 자체 검증(기계 검사): build EXIT 0 / error TS 0 · health 43/43 · guard-invariants EXIT 0 (49/50, 나머지는 문서 신선도 경고) · e2e tenant·detailopen·inboxcount **실패 0 (✅72)**
+- 배포분: 미배포 13커밋 = 입력 임시저장 1A·1B·라운드 2(Fable PASS) · Drive Picker(PASS) · PDF 은퇴(PASS) + **PDF 후속 2 · Q sale 1a·1b·1c(미검증)**
+- ⚠️ **배포 스크립트 순서 확인 필요(다음 라운드)** — `sync_database` 단계에서 `sync-database.js`(deploy-planq.sh:287)가 **먼저**, `migrate-qsale.js`(:418)가 **나중**에 돈다. 이번엔 ENUM 이 이미 있어 skip·변경 0 이라 무해했지만, **새 ENUM 값이 없는 환경의 첫 배포에서는 순서가 뒤집혀 있다.** 대기열 0번의 "마이그레이션이 코드보다 먼저" 조건과 어긋나므로 Fable 사후 검증 항목에 포함할 것
 
 ### 오늘 세션 시작 시점 파악 (/개발시작)
 - 어제 밤 다른 세션(planq-18, 지금은 종료)이 **입력 임시저장 1A·1B·라운드 2 · Drive Picker · PDF 은퇴**(여기까지 Fable PASS, `f208323c`)에 이어
