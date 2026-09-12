@@ -1123,5 +1123,15 @@
     "leaveFailed": "저장하지 못했어요. 다시 시도해 주세요.",
     "leaveDiscard": "버리고 로그아웃",
     "leaveCancel": "취소"
+  },
+  "phone": {
+    "placeholder": "010-1234-5678",
+    "required": "전화번호를 입력해주세요",
+    "invalid": "번호 자리수가 맞지 않아요 (예: 010-1234-5678)"
+  },
+  "email": {
+    "placeholder": "name@company.com",
+    "required": "이메일을 입력해주세요",
+    "invalid": "이메일 형식이 아니에요 (예: name@company.com)"
   }
 }

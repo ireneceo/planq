@@ -147,10 +147,17 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
         });
         for (const e of ems) if (!firstInbound.has(e.thread_id)) firstInbound.set(e.thread_id, e);
       }
+      const { isAutomatedSenderAddress } = require('./emailTriage');
       for (const t of threads) {
         // participants 는 [{name,email,is_internal}] — 바깥 사람 첫 명이 상대다
         const outside = (Array.isArray(t.participants) ? t.participants : []).find((p) => p && !p.is_internal)
           || (() => { const e = firstInbound.get(t.id); return e ? { name: e.from_name, email: e.from_email } : null; })();
+        // ★ 주소 **재판정** — 저장된 triage 가 'human' 이어도 보낸 주소가 자동발송이면 상담이 아니다
+        //   (2026-09-12 Irene: "메일이 문의가 아닌데 가져오고 있어". 실측: testflight_no_reply@·no_reply@·
+        //    notifications@ 류가 human 으로 저장돼 있었다. 판정은 emailTriage 한 곳의 패턴을 그대로 쓴다.)
+        //   ★ 패턴에 안 걸리는 것(은행 브랜드 주소 등)은 사람이 [문의 아님] 을 눌러 정정한다 —
+        //     패턴을 계속 늘리면 진짜 문의를 떨어뜨린다(실측: 과한 기준이 903→10 으로 잘랐다).
+        if (outside?.email && isAutomatedSenderAddress(outside.email)) continue;
         items.push({
           source: 'email',
           id: `email:${t.id}`,
@@ -326,8 +333,30 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
         status: { [Op.notIn]: ['spam', 'archived'] }, triage: 'human',
       };
       if (like) w[Op.or] = [{ subject: like }, { last_message_preview: like }];
-      counts.email = await EmailThread.count({ where: w });
-      counts.needs_reply += await EmailThread.count({ where: { ...w, reply_needed: true } });
+      // ★ 집계도 목록과 **같은 기준**이어야 한다 — 목록은 발신 주소를 재판정해 자동발송을 빼는데
+      //   COUNT 는 그것을 모른다. 갈라지면 "숫자는 903인데 목록엔 889" 가 된다(같은 값의 공식 두 벌).
+      //   그래서 id+participants 만 가볍게 받아 **같은 술어**로 센다(상한 5000 — 그 이상은 목록도 의미가 없다).
+      const { isAutomatedSenderAddress: isAutoAddr } = require('./emailTriage');
+      const cntRows = await EmailThread.findAll({
+        where: w, attributes: ['id', 'participants', 'reply_needed'], raw: true, limit: 5000,
+      });
+      const needWhoIds = cntRows.filter((t) => !(Array.isArray(t.participants) ? t.participants : []).some((p) => p && !p.is_internal)).map((t) => t.id);
+      const firstByThread = new Map();
+      if (needWhoIds.length) {
+        const { EmailMessage: EM2 } = require('../models');
+        const ems2 = await EM2.findAll({
+          where: { business_id: businessId, thread_id: { [Op.in]: needWhoIds }, direction: 'inbound' },
+          order: [['sent_at', 'ASC']], attributes: ['thread_id', 'from_email'], raw: true,
+        });
+        for (const e of ems2) if (!firstByThread.has(e.thread_id)) firstByThread.set(e.thread_id, e.from_email);
+      }
+      const humanRows = cntRows.filter((t) => {
+        const outsideEmail = (Array.isArray(t.participants) ? t.participants : [])
+          .find((p) => p && !p.is_internal)?.email || firstByThread.get(t.id) || null;
+        return !(outsideEmail && isAutoAddr(outsideEmail));
+      });
+      counts.email = humanRows.length;
+      counts.needs_reply += humanRows.filter((t) => !!t.reply_needed).length;
     }
   }
   if (wantChat || wantGuest) {

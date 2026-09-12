@@ -322,6 +322,12 @@ export const extractInquiry = (businessId: number, text: string) =>
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
   }).then(j<InquiryExtract>);
 
+/** [문의 아님] — 사람이 메일 분류를 정정한다. 상담에서 내려가고 Q mail 판정도 같이 고쳐진다. */
+export const dismissInboxItem = (businessId: number, kind: 'email_thread', id: number) =>
+  apiFetch(`/api/sale/${businessId}/inbox/dismiss`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
+  }).then(j<{ id: number; triage: string }>);
+
 /** 단계 목록 — 화면 순서의 단일 원천(서버 ENUM 과 같은 순서) */
 export const SALE_STAGES: SaleStage[] = ['none', 'inquiry', 'consulting', 'proposal', 'negotiation', 'won', 'lost'];
 export const IN_PROGRESS_STAGES: SaleStage[] = ['inquiry', 'consulting', 'proposal', 'negotiation'];

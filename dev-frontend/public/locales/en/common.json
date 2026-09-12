@@ -1123,5 +1123,15 @@
     "leaveFailed": "Couldn't save. Please try again.",
     "leaveDiscard": "Discard and sign out",
     "leaveCancel": "Cancel"
+  },
+  "phone": {
+    "placeholder": "+1 555 123 4567",
+    "required": "Enter a phone number",
+    "invalid": "That number's length doesn't look right"
+  },
+  "email": {
+    "placeholder": "name@company.com",
+    "required": "Enter an email",
+    "invalid": "That is not an email address (e.g. name@company.com)"
   }
 }

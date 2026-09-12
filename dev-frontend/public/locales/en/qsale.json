@@ -123,7 +123,9 @@
     "createProject": "Create project",
     "createInvoice": "Create invoice",
     "markWon": "Mark as won",
-    "markLost": "Mark as lost"
+    "markLost": "Mark as lost",
+    "notInquiry": "Not an inquiry",
+    "notInquiryHint": "Removes it from consultations and marks the mail as automated (also applied in Q mail)."
   },
   "record": {
     "kind": {
@@ -259,7 +261,8 @@
     "aiEmpty": "Nothing was pasted.",
     "noteKindLabel": "Consultation type",
     "noteLabel": "Consultation note (optional)",
-    "notePlaceholder": "What came up on the call or visit — saved as the first consultation record"
+    "notePlaceholder": "What came up on the call or visit — saved as the first consultation record",
+    "invalidPhone": "Check the phone number format"
   },
   "empty": {
     "title": "No customers in progress yet",

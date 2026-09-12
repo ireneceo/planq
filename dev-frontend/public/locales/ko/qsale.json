@@ -123,7 +123,9 @@
     "createProject": "프로젝트 만들기",
     "createInvoice": "청구하기",
     "markWon": "계약 성사",
-    "markLost": "계약 불발"
+    "markLost": "계약 불발",
+    "notInquiry": "문의 아님",
+    "notInquiryHint": "이 메일을 상담에서 내리고 자동 발송으로 분류합니다(Q mail 에서도 같이 반영)."
   },
   "record": {
     "kind": {
@@ -259,7 +261,8 @@
     "aiEmpty": "붙여넣은 내용이 없습니다.",
     "noteKindLabel": "상담 종류",
     "noteLabel": "상담 내용 (선택)",
-    "notePlaceholder": "통화·방문에서 나온 이야기를 적어두면 첫 상담 기록으로 남습니다"
+    "notePlaceholder": "통화·방문에서 나온 이야기를 적어두면 첫 상담 기록으로 남습니다",
+    "invalidPhone": "전화번호 형식을 확인해주세요"
   },
   "empty": {
     "title": "아직 영업 중인 고객이 없습니다",

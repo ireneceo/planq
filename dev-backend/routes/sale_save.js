@@ -80,6 +80,38 @@ router.post('/:businessId/inquiry/extract', ...writeChain, ...extractLimit, asyn
   } catch (err) { next(err); }
 });
 
+// ── [문의 아님] — 사람이 분류를 정정한다 ───────────────────────────────────
+//   Irene 2026-09-12: "메일이 문의가 아닌데 가져오고 있어. 이런 걸 왜 가져와?" (은행 거래 알림)
+//   기계가 못 가르는 것(브랜드 주소로 오는 알림·명세서)은 **한 번 눌러 끝내는 길**이 답이다.
+//   패턴을 계속 늘리면 진짜 문의를 떨어뜨린다(실측: 과한 기준이 상담 903건을 10건으로 잘랐다).
+//   ★ 정정은 메일 분류 자체에 남긴다(`email_threads.triage='automated'`) — 그래야 Q mail 에서도
+//     같은 판단이 보이고, 상담 목록은 그 값을 읽어 자연히 내려간다(목록 전용 플래그를 새로 만들지 않는다).
+router.post('/:businessId/inbox/dismiss', ...writeChain, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const kind = String(req.body?.kind || '');
+    const id = Number(req.body?.id || 0);
+    if (kind !== 'email_thread' || !id) return errorResponse(res, 'unsupported_kind', 400);
+
+    const { accessibleAccountIds } = require('../services/clientTimeline');
+    const acctIds = await accessibleAccountIds(businessId, req.user.id);
+    const thread = await EmailThread.findOne({
+      where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+    });
+    if (!thread) return errorResponse(res, 'thread_not_found', 404);
+
+    const before = thread.triage;
+    await thread.update({ triage: 'automated', reply_needed: false });
+    createAuditLog({
+      userId: req.user.id, businessId, action: 'mail.triage_correct',
+      targetType: 'email_thread', targetId: thread.id,
+      oldValue: { triage: before }, newValue: { triage: 'automated', origin: 'sale_inbox_dismiss' },
+    });
+    broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+    return successResponse(res, { id: thread.id, triage: 'automated' }, 'dismissed');
+  } catch (err) { next(err); }
+});
+
 router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);

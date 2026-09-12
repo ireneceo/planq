@@ -20,6 +20,9 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 //   입구를 상담(고객 미등록 문의)으로 바꾸고 고객 목록은 옆 탭으로 둔다. 목록·액션은 SaleInboxList 한 곳.
 import SaleInboxList from '../../components/QSale/SaleInboxList';
 import SaleCueBar from '../../components/QSale/SaleCueBar';
+// 이메일·전화는 **공용 입력**을 쓴다 — 형식을 입력 중에 맞춰 주고 틀리면 그 자리에서 말한다
+import EmailInput, { isEmailUsable } from '../../components/Common/EmailInput';
+import PhoneInput, { isPhoneUsable } from '../../components/Common/PhoneInput';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import {
   listSaleClients, getSaleSummary, saveAsClient,
@@ -378,6 +381,9 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
   const submit = async () => {
     if (!businessId || saving) return;              // 중복 제출 가드
     if (!name.trim() && !company.trim()) { setErr(t('inquiry.nameRequired') as string); return; }
+    // 형식이 틀린 값은 **보내지 않는다** — 서버 400 을 받고 나서 말하면 사용자는 무엇이 틀렸는지 모른다
+    if (!isEmailUsable(email)) { setErr(t('inquiry.invalidEmail') as string); return; }
+    if (!isPhoneUsable(phone)) { setErr(t('inquiry.invalidPhone') as string); return; }
     setSaving(true);
     try {
       const body = note.text.trim();
@@ -424,11 +430,11 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
       </Field>
       <Field>
         <FieldLabel htmlFor="sale-inq-phone">{t('inquiry.phoneLabel') as string}</FieldLabel>
-        <TextInput id="sale-inq-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" />
+        <PhoneInput id="sale-inq-phone" value={phone} onChange={setPhone} />
       </Field>
       <Field>
         <FieldLabel htmlFor="sale-inq-email">{t('inquiry.emailLabel') as string}</FieldLabel>
-        <TextInput id="sale-inq-email" value={email} onChange={(e) => setEmail(e.target.value)} inputMode="email" />
+        <EmailInput id="sale-inq-email" value={email} onChange={setEmail} />
       </Field>
       <Field>
         <FieldLabel>{t('inquiry.sourceLabel') as string}</FieldLabel>

@@ -23,7 +23,7 @@ import TaskCreateForm from '../QTask/TaskCreateForm';
 import ClientPanel, { type InquiryView } from './ClientPanel';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
-import { listSaleInbox, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
+import { listSaleInbox, dismissInboxItem, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
 
 interface Props {
   businessId: number;
@@ -239,6 +239,25 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
                     onClick={() => setTaskFor(it)}>
                     {t('action.addTask') as string}
                   </ActionButton>
+                  {/* ★ [문의 아님] — 기계가 못 가르는 알림·명세서를 사람이 한 번 눌러 정정한다.
+                      메일 행에만 둔다(오분류가 거기서 난다). 누르면 메일 분류까지 고쳐진다. */}
+                  {it.ref.kind === 'email_thread' && (
+                    <ActionButton tone="secondary" size="sm" disabled={busy}
+                      data-testid={`sale-inbox-dismiss-${it.id}`}
+                      title={t('action.notInquiryHint') as string}
+                      onClick={async () => {
+                        if (busyId) return;
+                        setBusyId(it.id); setActionError(null);
+                        try {
+                          await dismissInboxItem(businessId, 'email_thread', it.ref.id);
+                          if (selected?.id === it.id) setSelected(null);
+                          await load({ silent: true });
+                        } catch { setActionError(t('error.saveFailed') as string); }
+                        finally { setBusyId(null); }
+                      }}>
+                      {t('action.notInquiry') as string}
+                    </ActionButton>
+                  )}
                 </RowActions>
               </Row>
             );

@@ -11,7 +11,11 @@ const { classify } = require('./emailSpamFilter');
 const { hget, normalizeHeaders, pickTriageHeaders, TRIAGE_HEADER_KEYS } = require('./emailHeaders');
 
 // noreply / 시스템 발송 / 소셜 알림 발신자 패턴 (사람이 답장할 수 없는 주소)
-const AUTOMATED_SENDER = /(^|[._-])(no-?reply|do-?not-?reply|donotreply|noreply|mailer-daemon|mailer|postmaster|bounce[sd]?|notifications?|alerts?|automated?|auto-?confirm|support\+|system|daemon|no_?return)([._-]|@)/i;
+// ★ 2026-09-12 — 구분자에 **밑줄**을 넣는다. 여태 `no-?reply` 라 `no_reply@`·`do_not_reply@` 를 놓쳤고,
+//   그래서 `testflight_no_reply@email.apple.com` 같은 발송 전용 주소가 `triage='human'` 으로 저장돼
+//   Q sale 상담 목록까지 올라왔다(Irene: "메일이 문의가 아닌데 가져오고 있어").
+//   운영 읽기전용 시뮬로 **오강등 0**(새로 걸리는 것이 전부 발송 전용)을 확인한 뒤 바꿨다.
+const AUTOMATED_SENDER = /(^|[._-])(no[._-]?reply|do[._-]?not[._-]?reply|donotreply|mailer-daemon|mailer|postmaster|bounce[sd]?|notifications?|alerts?|automated?|auto-?confirm|support\+|system|daemon|no[._-]?return)([._-]|@)/i;
 const SOCIAL_DOMAIN = /@([^>\s]*\.)?(linkedin|facebook|fb|twitter|instagram|tiktok|youtube|pinterest|reddit|medium|slack|notion|asana|trello|atlassian|zoom|calendly|meetup|eventbrite)\.[a-z.]+/i;
 
 /** 재판정 시점 — 저장된 메시지 한 통에서 판정용 헤더를 복원한다.
@@ -450,6 +454,13 @@ const TRANSACTIONAL_NOTICE = new RegExp([
   '(결제|이용|거래)하?신?\\s*내역',
 ].join('|'), 'i');
 
+/** 발신 주소만 보고 자동발송인가 — 저장된 triage 가 틀렸을 때 **다시 볼** 수 있게 내보낸다.
+ *  (2026-09-12: 은행 거래 알림이 `triage='human'` 으로 저장돼 Q sale 상담 목록에 올라왔다.
+ *   헤더가 비어 있어 수집 시점 판정이 눈을 감았고, 주소 패턴은 여전히 유효한 단서다.) */
+function isAutomatedSenderAddress(fromEmail) {
+  return AUTOMATED_SENDER.test(String(fromEmail || '').toLowerCase().trim());
+}
+
 function isTransactionalNotice(subject) {
   return TRANSACTIONAL_NOTICE.test(String(subject || ''));
 }
@@ -643,6 +654,7 @@ module.exports = {
   headersFromMessage,
   isBounce,
   isTransactionalNotice,
+  isAutomatedSenderAddress,
   threadFieldsForInbound,
   retriageStored,
   isBulkBody,
