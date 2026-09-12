@@ -23,6 +23,10 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { getSaleClient, setSaleStage, type SaleClientDetail, type LostReason } from '../../services/sale';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
 import LostReasonModal from './LostReasonModal';
+// 상담 관리의 다음 액션 — 상세 페이지와 **같은 창**을 쓴다(자리마다 다른 동작을 만들지 않는다)
+import RecordModal from './RecordModal';
+import NextContactModal from './NextContactModal';
+import TaskCreateForm from '../QTask/TaskCreateForm';
 
 /** 아직 고객이 아닌 문의(상담 행)를 그릴 때 쓰는 값 — 원본에서 **가져올 수 있는 것은 다 넣는다**.
  *  Irene 2026-09-12: *"만약 고객이 아니고 게스트면 가져올 수 있는 정보를 다 넣어야지. 이름 이메일주소 등등."* */
@@ -68,6 +72,13 @@ const ClientPanel: React.FC<Props> = ({
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // 액션(메모·다음 연락) 뒤에 다시 읽는 길 — effect 와 같은 호출을 쓴다(두 벌이 되지 않게)
+  const reload = useCallback(async () => {
+    if (!clientId) return;
+    try { setData(await getSaleClient(businessId, clientId)); onChanged?.(); }
+    catch { setError(true); }
+  }, [businessId, clientId, onChanged]);
+
   useEffect(() => {
     if (!clientId) { setData(null); return; }
     let alive = true;
@@ -80,6 +91,10 @@ const ClientPanel: React.FC<Props> = ({
   }, [businessId, clientId]);
 
   const [lostOpen, setLostOpen] = useState(false);
+  // 다음 액션 — 메모(상담 기록) · 다음 연락(일정) · 업무 추가. 청구·프로젝트는 그 화면으로 넘긴다.
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [nextOpen, setNextOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
 
   const applyStage = useCallback(async (
     stage: 'won' | 'lost',
@@ -242,7 +257,34 @@ const ClientPanel: React.FC<Props> = ({
           </>
         ) : (
           <>
-        {/* 계약 성사/불발만 둔다. 프로젝트·청구는 받는 화면이 고객 지정을 아직 안 읽어
+        {/* ★ 2026-09-12 Irene: "액션버튼 어디갔어? 프로젝트/고객 추가 초대, 청구서 발행, 메모" ·
+            "그 다음 언제 연락해야 하는지 미팅 일정도 넣고 연결해야지."
+            상담 관리의 다음 액션을 여기 모은다 — 상세 페이지와 **같은 창**을 쓴다. */}
+        <ActionButton tone="secondary" size="md" disabled={!data}
+          data-testid="client-panel-record" onClick={() => setRecordOpen(true)}>
+          {t('action.addRecord') as string}
+        </ActionButton>
+        <ActionButton tone="secondary" size="md" disabled={!data}
+          data-testid="client-panel-next" onClick={() => setNextOpen(true)}>
+          {t('next.title') as string}
+        </ActionButton>
+        <ActionButton tone="secondary" size="md" disabled={!data}
+          data-testid="client-panel-task" onClick={() => setTaskOpen(true)}>
+          {t('action.addTask') as string}
+        </ActionButton>
+        <ActionButton tone="secondary" size="md" disabled={!data}
+          data-testid="client-panel-invoice"
+          // ★ 경로는 **/bills** 다(`/bill` 은 라우트가 없다 — 가드 `--category=routelink` 가 잡았다).
+          //   그리고 기본 탭은 개요라 `tab=invoices` 를 지정해야 청구서 모달이 있는 화면이 뜬다.
+          onClick={() => clientId && navigate(`/bills?tab=invoices&new=1&client=${clientId}`)}>
+          {t('action.createInvoice') as string}
+        </ActionButton>
+        <ActionButton tone="secondary" size="md" disabled={!data}
+          data-testid="client-panel-project"
+          onClick={() => clientId && navigate(`/projects?new=1&client=${clientId}`)}>
+          {t('action.createProject') as string}
+        </ActionButton>
+        {/* 계약 성사/불발. 프로젝트·청구는 받는 화면이 고객 지정을 아직 안 읽어
             지금 버튼을 달면 눌러도 고객이 안 실린 빈 화면으로 간다(죽은 링크). 받는 쪽을 만든 뒤 붙인다. */}
         <ActionButton tone="secondary" size="md" disabled={busy || !data}
           data-testid="client-panel-lost" onClick={() => changeStage('lost')}>
@@ -255,6 +297,22 @@ const ClientPanel: React.FC<Props> = ({
           </>
         )}
       </DetailDrawer.Footer>
+
+      {clientId && data && (
+        <>
+          <RecordModal open={recordOpen} businessId={businessId} clientId={clientId}
+            onClose={() => setRecordOpen(false)}
+            onSaved={() => { setRecordOpen(false); void reload(); }} />
+          <NextContactModal open={nextOpen} businessId={businessId} clientId={clientId}
+            clientName={name || '—'}
+            onClose={() => setNextOpen(false)}
+            onSaved={() => { setNextOpen(false); void reload(); }} />
+          {taskOpen && (
+            <TaskCreateForm businessId={businessId} layout="drawer"
+              onClose={() => setTaskOpen(false)} onCreated={() => setTaskOpen(false)} />
+          )}
+        </>
+      )}
 
       {clientId && (
         <LostReasonModal

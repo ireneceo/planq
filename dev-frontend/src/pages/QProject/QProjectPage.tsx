@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { displayName } from '../../utils/displayName';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -101,6 +101,27 @@ const QProjectPage: React.FC = () => {
     () => readCache<Record<number, TaskRow[]>>(`${projKey}:tasks`) ?? {}
   );
   const [newProjectOpen, setNewProjectOpen] = useState(false);
+  // ★ Q sale 상담 → "프로젝트 만들기" (?new=1&client=:id). 받는 쪽이 읽지 않으면 죽은 링크다.
+  const [prefillClient, setPrefillClient] = useState<{ name: string; email: string } | null>(null);
+  const [sp, setSp] = useSearchParams();
+  useEffect(() => {
+    if (sp.get('new') !== '1') return;
+    const cid = Number(sp.get('client') || 0);
+    setNewProjectOpen(true);
+    const next = new URLSearchParams(sp); next.delete('new'); next.delete('client'); setSp(next, { replace: true });
+    if (!cid || !user?.business_id) return;
+    (async () => {
+      try {
+        const { getSaleClient } = await import('../../services/sale');
+        const d = await getSaleClient(Number(user.business_id), cid);
+        setPrefillClient({
+          name: d.display_name || d.company_name || '',
+          email: d.contact?.invite_email || d.contact?.account_email || d.email || '',
+        });
+      } catch { /* 고객을 못 읽어도 모달은 열린다(사람이 직접 넣는다) */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp]);
   // 검색 + 상태 필터 (사이클 N+17). 기본은 'active' — 진행 중만 노출. 종료/대기는 명시 선택 시 표시.
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
@@ -353,6 +374,7 @@ const QProjectPage: React.FC = () => {
       <NewProjectModal
         businessId={user?.business_id || 0}
         open={newProjectOpen}
+        prefillClient={prefillClient}
         onClose={() => setNewProjectOpen(false)}
         onCreate={handleCreateProject}
       />

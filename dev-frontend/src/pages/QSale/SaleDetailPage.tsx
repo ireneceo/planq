@@ -17,23 +17,19 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
 import ChipPopover from '../../components/Common/ChipPopover';
 import ActionButton from '../../components/Common/ActionButton';
 import AutoSaveField from '../../components/Common/AutoSaveField';
-import StandardModal from '../../components/Common/StandardModal';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import PlanQSelect from '../../components/Common/PlanQSelect';
-import SingleDateField from '../../components/Common/SingleDateField';
 import DetailFallback from '../../components/Common/DetailFallback';
 import ClientTimeline from '../../components/Clients/ClientTimeline';
 import SummaryCard from '../../components/QSale/SummaryCard';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
-import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 // 불발 사유 창은 **공용**이다 — 우측 패널도 같은 것을 쓴다(자리마다 다른 동작을 만들지 않는다)
 import LostReasonModal from '../../components/QSale/LostReasonModal';
+import RecordModal from '../../components/QSale/RecordModal';
 import {
-  getSaleClient, patchSaleClient, setSaleStage, getSaleTimeline,
-  createInteraction, deleteInteraction, reviewInteraction,
-  SALE_STAGES, INTERACTION_KINDS, SALE_SOURCES,
-  type SaleClientDetail, type SaleStage, type TimelineItem, type TimelineType,
-  type InteractionKind, type SaleSource,
+  getSaleClient, patchSaleClient, setSaleStage, getSaleTimeline, deleteInteraction, reviewInteraction,
+  SALE_STAGES, SALE_SOURCES,
+  type SaleClientDetail, type SaleStage, type TimelineItem, type TimelineType, type SaleSource,
 } from '../../services/sale';
 
 type LoadStatus = 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error' | 'other_workspace';
@@ -439,116 +435,6 @@ function ProfileForm({ client, onSave }: { client: SaleClientDetail; onSave: (pa
 }
 
 // ─── 기록 추가 ────────────────────────────────────────────────────
-function RecordModal({ open, businessId, clientId, onClose, onSaved }: {
-  open: boolean; businessId: number | null; clientId: number; onClose: () => void; onSaved: () => void;
-}) {
-  const { t } = useTranslation('qsale');
-  const [kind, setKind] = useState<InteractionKind>('call');
-  const [direction, setDirection] = useState<'inbound' | 'outbound' | ''>('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [time, setTime] = useState(() => new Date().toTimeString().slice(0, 5));
-  const [title, setTitle] = useState('');
-  const [minutes, setMinutes] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  // 통화·미팅 메모는 길다 — 모달을 닫아도 남는다(제출 성공에만 비운다). docs/DRAFT_PERSISTENCE_DESIGN.md
-  const draftKey = useDraftKey('sale-interaction-body', clientId, businessId);
-  const bodyDraft = useDraftText(draftKey);
-  const body = bodyDraft.text;
-
-  useEffect(() => {
-    if (!open) return;
-    setKind('call'); setDirection(''); setTitle(''); setMinutes(''); setErr(null);
-    setDate(new Date().toISOString().slice(0, 10));
-    setTime(new Date().toTimeString().slice(0, 5));
-  }, [open]);
-
-  const kindOptions = useMemo(() => INTERACTION_KINDS.map((k) => ({ value: k as string, label: t(`record.kind.${k}`) as string })), [t]);
-  const dirOptions = useMemo(() => ([
-    { value: '', label: '—' },
-    { value: 'inbound', label: t('record.direction.inbound') as string },
-    { value: 'outbound', label: t('record.direction.outbound') as string },
-  ]), [t]);
-
-  const submit = async () => {
-    if (!businessId || saving) return;                 // 중복 제출 가드
-    if (!title.trim() && !body.trim()) { setErr(t('record.contentRequired') as string); return; }
-    setSaving(true);
-    try {
-      await createInteraction(businessId, clientId, {
-        kind,
-        direction: direction || null,
-        occurred_at: new Date(`${date}T${time || '00:00'}`).toISOString(),
-        duration_seconds: minutes ? Math.round(Number(minutes) * 60) : null,
-        title: title.trim() || null,
-        body: body.trim() || null,
-      });
-      bodyDraft.clear();          // 제출 성공에만 비운다 — 실패를 삼키고 비우면 그게 곧 글 삭제다
-      onSaved();
-    } catch (e) {
-      const m = (e as Error).message;
-      setErr(m === 'occurred_in_future' ? (t('record.futureNotAllowed') as string)
-        : m === 'content_required' ? (t('record.contentRequired') as string)
-          : (t('error.saveFailed') as string));
-    } finally { setSaving(false); }
-  };
-
-  return (
-    <StandardModal open={open} onClose={onClose} title={t('action.addRecord') as string} size="md"
-      footer={(
-        <>
-          <ActionButton tone="secondary" size="md" onClick={onClose}>{t('inquiry.cancel') as string}</ActionButton>
-          <ActionButton tone="primary" size="md" loading={saving} onClick={submit} data-testid="sale-record-submit">
-            {t('record.save') as string}
-          </ActionButton>
-        </>
-      )}>
-      <TwoCol>
-        <Field>
-          <FieldLabel>{t('record.kind.label') as string}</FieldLabel>
-          <PlanQSelect size="md" isSearchable={false} options={kindOptions}
-            aria-label={t('record.kind.label') as string}
-            value={kindOptions.find((o) => o.value === kind)}
-            onChange={(opt: unknown) => setKind(((opt as { value?: string } | null)?.value || 'call') as InteractionKind)} />
-        </Field>
-        <Field>
-          <FieldLabel>{t('record.direction.label') as string}</FieldLabel>
-          <PlanQSelect size="md" isSearchable={false} options={dirOptions}
-            aria-label={t('record.direction.label') as string}
-            value={dirOptions.find((o) => o.value === direction)}
-            onChange={(opt: unknown) => setDirection((((opt as { value?: string } | null)?.value) || '') as 'inbound' | 'outbound' | '')} />
-        </Field>
-      </TwoCol>
-      <TwoCol>
-        <Field>
-          <FieldLabel>{t('record.occurredAt') as string}</FieldLabel>
-          <SingleDateField value={date} onChange={setDate} size="md" />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="sale-rec-time">{t('record.occurredAt') as string}</FieldLabel>
-          <TextInput id="sale-rec-time" value={time} onChange={(e) => setTime(e.target.value)} placeholder="14:20" />
-        </Field>
-      </TwoCol>
-      <Field>
-        <FieldLabel htmlFor="sale-rec-title">{t('record.title') as string}</FieldLabel>
-        <TextInput id="sale-rec-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-rec-body">{t('record.body') as string}</FieldLabel>
-        <TextArea id="sale-rec-body" rows={5} {...bodyDraft.bind} />
-        {bodyDraft.restored && <HintText>{t('record.draftRestored') as string}</HintText>}
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-rec-min">{t('record.duration') as string}</FieldLabel>
-        <TextInput id="sale-rec-min" value={minutes} inputMode="numeric"
-          onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ''))} />
-      </Field>
-      {err && <ErrText role="alert">{err}</ErrText>}
-    </StandardModal>
-  );
-}
-
-// ─── 종결 (사유 필수) ─────────────────────────────────────────────
 // ─── styled ──────────────────────────────────────────────────────
 const Page = styled.div`display: flex; flex-direction: column; height: 100%; min-height: 0; background: #F8FAFC;`;
 const TitleSlot = styled.div`display: flex; align-items: baseline; gap: 8px; min-width: 0;`;
@@ -570,11 +456,6 @@ const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #64
 const TextInput = styled.input`
   height: 36px; padding: 0 30px 0 10px; border: 1px solid #E2E8F0; border-radius: 8px;
   font-size: 0.8125rem; color: #0F172A; width: 100%;
-  &:focus { outline: none; border-color: #5EEAD4; }
-`;
-const TextArea = styled.textarea`
-  padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 0.8125rem; color: #0F172A; width: 100%; resize: vertical; font-family: inherit;
   &:focus { outline: none; border-color: #5EEAD4; }
 `;
 const ReadOnlyValue = styled.div`font-size: 0.8125rem; color: #334155; padding: 8px 0;`;
@@ -641,6 +522,3 @@ const OptionBtn = styled.button<{ $on: boolean }>`
 `;
 const OptName = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
 const OptHint = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
-const TwoCol = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  @media (max-width: 640px) { grid-template-columns: 1fr; }`;
-const ErrText = styled.div`font-size: 0.8125rem; color: #B91C1C;`;

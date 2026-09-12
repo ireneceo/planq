@@ -62,6 +62,14 @@ export default function InvoicesTab() {
     const n = Number(v);
     return Number.isFinite(n) ? n : null;
   })();
+  // Q sale 상담에서 발행 진입: ?client=:id → 받는 고객 자동 선택
+  //   ★ 받는 쪽이 이 값을 읽지 않으면 버튼은 **죽은 링크**다(고객이 안 실린 빈 화면으로 간다).
+  const prefillClientId = (() => {
+    const v = sp.get('client');
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  })();
   // 프로젝트에서 발행 진입: ?project=:id → invoice.project_id 자동 연결
   const prefillProjectId = (() => {
     const v = sp.get('project');
@@ -330,12 +338,14 @@ export default function InvoicesTab() {
           if (sp2.has('split')) { sp2.delete('split'); dirty = true; }
           if (sp2.has('from_post')) { sp2.delete('from_post'); dirty = true; }
           if (sp2.has('project')) { sp2.delete('project'); dirty = true; }
+          if (sp2.has('client')) { sp2.delete('client'); dirty = true; }
           if (dirty) navigate(`${location.pathname}${sp2.toString() ? `?${sp2.toString()}` : ''}`, { replace: true });
           reload();
         }}
         prefillSplit={prefillSplit}
         prefillPostId={prefillPostId}
         prefillProjectId={prefillProjectId}
+        prefillClientId={prefillClientId}
         editInvoiceId={editInvoiceId}
       />
     </Wrap>

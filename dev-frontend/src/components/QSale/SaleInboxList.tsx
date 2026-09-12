@@ -27,6 +27,10 @@ import { listSaleInbox, type SaleInboxItem, type SaleInboxCounts, type SaleInbox
 
 interface Props {
   businessId: number;
+  /** 부모가 올리면 목록을 다시 읽는다 — 문의를 추가하면 **이 목록에** 들어와야 한다 */
+  refreshKey?: number;
+  /** 등록된 상담(고객) 행을 누르면 부모의 고객 패널을 연다 — 패널이 두 벌이 되지 않게 */
+  onOpenClient?: (clientId: number) => void;
   /** 상단 검색어 — 목록 필터에 그대로 넘긴다(서버가 제목·상대·미리보기에서 찾는다) */
   q: string;
   /** 고객으로 등록이 끝나면 고객 탭 숫자가 바뀐다 — 부모가 다시 읽는다 */
@@ -35,7 +39,7 @@ interface Props {
 
 const SOURCES: Array<SaleInboxSource | ''> = ['', 'guest_link', 'email', 'chat'];
 
-const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
+const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegistered, onOpenClient }) => {
   const { t } = useTranslation('qsale');
   const navigate = useChromeNav();
   const { formatDateTime, formatTimeAgo } = useTimeFormat();
@@ -77,7 +81,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
     }
   }, [businessId]);
 
-  useEffect(() => { void load(); }, [load, source, replyOnly, q]);
+  useEffect(() => { void load(); }, [load, source, replyOnly, q, refreshKey]);
 
   // 실시간 — 새 문의가 오면 새로고침 없이 뜬다 (CLAUDE.md 운영 16번).
   //
@@ -107,7 +111,8 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
   // 소켓이 끊겼던 동안 놓친 것 회복 — 모바일 PWA background → foreground.
   useVisibilityRefresh(silentReload);
 
-  const sourceLabel = useCallback((s: SaleInboxSource | '') => (
+  // 'client' 는 칩이 아니라 **행 표시**용이다(등록된 상담) — 칩 목록에는 없고 라벨만 필요하다
+  const sourceLabel = useCallback((s: SaleInboxSource | '' | 'client') => (
     s === '' ? (t('inbox.sourceAll') as string) : (t(`inbox.source.${s}`) as string)
   ), [t]);
   const sourceCount = useCallback((s: SaleInboxSource | '') => (
@@ -199,12 +204,17 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
             return (
               <Row key={it.id} data-testid={`sale-inbox-row-${it.id}`}>
                 <RowMain type="button" $sel={selectedId === it.id}
-                  onClick={() => setSelected((v) => (v && v.id === it.id ? null : it))}
+                  onClick={() => {
+                    // 등록된 상담(고객)은 **고객 패널**로, 미등록 문의는 이 목록의 문의 패널로.
+                    if (it.ref.kind === 'client' && onOpenClient) { onOpenClient(it.ref.id); return; }
+                    setSelected((v) => (v && v.id === it.id ? null : it));
+                  }}
                   aria-pressed={selectedId === it.id}>
                   <LetterAvatar name={who} size={32} variant="neutral" />
                   <RowBody>
                     <RowTop>
                       <SourceTag $s={it.source}>{sourceLabel(it.source)}</SourceTag>
+                      {it.stage && <StageTag>{t(`stage.${it.stage}`) as string}</StageTag>}
                       <Who><HighlightText text={who} query={q} /></Who>
                       {it.needs_reply && <ReplyTag>{t('inbox.needsReply') as string}</ReplyTag>}
                       <At title={it.at ? formatDateTime(it.at) : ''}>{it.at ? formatTimeAgo(it.at) : '—'}</At>
@@ -218,7 +228,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
                     data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}>
                     {t('action.view') as string}
                   </ActionButton>
-                  {it.ref.kind !== 'conversation' && (
+                  {it.ref.kind !== 'conversation' && it.ref.kind !== 'client' && (
                     <ActionButton tone="primary" size="sm" disabled={busy}
                       data-testid={`sale-inbox-register-${it.id}`} onClick={() => registerClient(it)}>
                       {t('action.registerClient') as string}
@@ -327,6 +337,10 @@ const Title = styled.div`
 const Preview = styled.div`
   margin-top: 2px; font-size: 0.75rem; color: #94A3B8; line-height: 1.5;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+`;
+const StageTag = styled.span`
+  font-size: 0.6875rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  color: #0F766E; background: #F0FDFA;
 `;
 const RowActions = styled.div`
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;

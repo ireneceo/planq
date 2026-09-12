@@ -85,10 +85,12 @@ router.get('/:businessId/clients', ...readChain, async (req, res, next) => {
 router.get('/:businessId/inbox', ...readChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const { listUnlinkedTouchpoints } = require('../services/saleInbox');
+    // ★ 상담 = **진행 중인 상담 전부**(미등록 접점 + 영업 단계의 고객). 합치는 곳은 서비스 한 곳이다.
+    const { listConsults } = require('../services/saleInbox');
     const sources = String(req.query.source || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const { items, counts } = await listUnlinkedTouchpoints(businessId, {
+    const { items, counts } = await listConsults(businessId, {
       userId: req.user.id,
+      isManager: req.businessRole === 'owner' || req.businessRole === 'admin' || req.user.platform_role === 'platform_admin',
       sources: sources.length ? sources : null,
       q: trimOrNull(req.query.q, 100),
       needsReply: String(req.query.needs_reply || '') === 'true',

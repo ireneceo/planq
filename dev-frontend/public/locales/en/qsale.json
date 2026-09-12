@@ -277,7 +277,8 @@
     "source": {
       "guest_link": "Guest",
       "email": "Email",
-      "chat": "Chat"
+      "chat": "Chat",
+      "client": "Registered"
     },
     "needsReply": "Needs reply",
     "needsReplyOnly": "Needs reply only",
@@ -287,5 +288,25 @@
       "title": "No inquiries yet",
       "body": "Guest link conversations and emails or chats not linked to a client appear here."
     }
+  },
+  "cuebar": {
+    "placeholder": "Paste the conversation — \"Call from GreenTech, Seojun Park, quote request, 010-2345-6789\" (Ctrl+Enter)",
+    "run": "Tell Cue",
+    "hint": "Extracts name, company, contacts and channel, registers the inquiry, and keeps your text as the first consultation record.",
+    "notFound": "Could not find a name, company or contact. Use [+ Add inquiry] instead.",
+    "failed": "Could not register. Try again or enter it manually."
+  },
+  "next": {
+    "title": "Set next contact",
+    "kindLabel": "How",
+    "dateLabel": "Date",
+    "timeLabel": "Time",
+    "minutesLabel": "Length (min)",
+    "noteLabel": "Note (optional)",
+    "notePlaceholder": "What to check or deliver — goes into the event description",
+    "submit": "Create event",
+    "dateRequired": "Pick a date",
+    "none": "No upcoming event",
+    "label": "Next"
   }
 }

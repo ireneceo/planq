@@ -145,11 +145,16 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
 export type SaleInboxSource = 'guest_link' | 'email' | 'chat';
 
 export interface SaleInboxItem {
-  source: SaleInboxSource;
+  /** 'client' = 이미 등록된 **진행 중 상담**(등록해도 상담은 계속된다 — 2026-09-12) */
+  source: SaleInboxSource | 'client';
   /** `${source}:${id}` — 목록 key */
   id: string;
-  /** 고객으로 저장·원본 열기에 쓰는 원본 참조 */
-  ref: { kind: 'guest_link' | 'email_thread' | 'conversation'; id: number; conversation_id?: number };
+  /** 고객으로 저장·원본 열기에 쓰는 원본 참조. 'client' 는 이미 등록된 상담이다 */
+  ref: { kind: 'guest_link' | 'email_thread' | 'conversation' | 'client'; id: number; conversation_id?: number };
+  /** 등록된 상담의 영업 단계 (미등록이면 없다) */
+  stage?: string | null;
+  client_id?: number | null;
+  phone?: string | null;
   who: string | null;
   email: string | null;
   /** 회사 — 입력값이 없으면 이메일 도메인에서 **추정**한다(estimated). 화면은 둘을 구분해 보여준다 */
@@ -165,6 +170,8 @@ export interface SaleInboxItem {
 
 export interface SaleInboxCounts {
   total: number; needs_reply: number; guest_link: number; email: number; chat: number;
+  /** 등록된 진행 중 상담 수 */
+  client?: number;
 }
 
 export async function listSaleInbox(

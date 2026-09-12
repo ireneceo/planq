@@ -341,4 +341,88 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   return { items: sliced.slice(0, limit), counts };
 }
 
-module.exports = { listUnlinkedTouchpoints, SOURCES };
+/**
+ * 상담 목록 — **진행 중인 상담 전부**. (Irene 2026-09-12:
+ *   "문의받은 내용 추가 > 상담 리스트에서 관리 및 다음 액션. 이렇게 되어야지.")
+ *
+ * ★ 여태 이 목록은 **미등록 접점만** 보여줬다. 그래서 문의를 추가하면 고객 레코드가 생겨
+ *   상담 목록에서 **사라지고** 고객 탭으로 가버렸다 — 다음 액션을 할 자리가 없어졌다
+ *   (Irene: "상담리스트에 아무것도 안나오고 고객리스트만 추가되더니 다음 할일 정할 액션 아무것도 없고").
+ *   이제 두 원천을 **한 목록**으로 합친다:
+ *     ① 아직 고객이 아닌 접점(게스트 링크·메일·채팅) — listUnlinkedTouchpoints
+ *     ② 영업이 진행 중인 고객(sales_stage inquiry~negotiation) — 등록했어도 상담은 계속된다
+ *   합치는 곳은 여기 하나다. 화면이 두 번 부르면 숫자와 목록이 갈라진다.
+ */
+async function listConsults(businessId, opts = {}) {
+  const { userId = null, sources = null, q = null, needsReply = false, limit = 100 } = opts;
+  const base = await listUnlinkedTouchpoints(businessId, { userId, sources, q, needsReply, limit });
+
+  // 소스 칩으로 접점 종류를 고른 경우엔 고객 행을 섞지 않는다(그 칩의 뜻이 "메일 문의" 이므로).
+  const wantClients = !Array.isArray(sources) || sources.length === 0;
+  if (!wantClients) return { ...base, counts: { ...base.counts, client: 0 } };
+
+  const { Client } = require('../models');
+  const { IN_PROGRESS, saleOwnerWhere } = require('./saleCommon');
+  const isManager = !!opts.isManager;
+  const ownerWhere = userId ? await saleOwnerWhere(businessId, userId, { isManager }) : {};
+  const where = { business_id: businessId, sales_stage: { [Op.in]: IN_PROGRESS }, ...ownerWhere };
+  if (q) {
+    const like = { [Op.like]: `%${String(q).replace(/[\\%_]/g, (m) => `\\${m}`)}%` };
+    where[Op.or] = [{ display_name: like }, { company_name: like }, { phone: like }, { invite_email: like }];
+  }
+  const rows = await Client.findAll({
+    where,
+    attributes: ['id', 'display_name', 'company_name', 'phone', 'invite_email', 'status',
+      'sales_stage', 'sales_source', 'last_touch_at', 'created_at', 'assigned_member_id'],
+    order: [['last_touch_at', 'DESC']],
+    limit: Math.min(Math.max(limit * 3, 200), 500),
+  });
+
+  // 답할 차례 — 들어온 지 하루가 지났는데 우리가 아직 아무것도 안 한 문의(확인필요의 술어와 같은 뜻).
+  //   여기서는 목록 표시용이므로 단순하게: 단계가 inquiry 이고 접점 기록이 없으면 답할 차례다.
+  const { ClientInteraction } = require('../models');
+  const ids = rows.map((c) => c.id);
+  const touched = new Set();
+  if (ids.length) {
+    const its = await ClientInteraction.findAll({
+      where: { business_id: businessId, client_id: { [Op.in]: ids }, deleted_at: null },
+      attributes: ['client_id'], group: ['client_id'], raw: true,
+    });
+    for (const it of its) touched.add(it.client_id);
+  }
+
+  const clientItems = rows.map((c) => ({
+    source: 'client',
+    id: `client:${c.id}`,
+    ref: { kind: 'client', id: c.id },
+    client_id: c.id,
+    stage: c.sales_stage,
+    who: c.display_name || c.company_name || c.invite_email || `#${c.id}`,
+    email: c.invite_email || null,
+    phone: c.phone || null,
+    company: c.company_name ? { name: c.company_name, estimated: false } : companyFromEmail(c.invite_email),
+    title: null,
+    preview: null,
+    at: c.last_touch_at || c.created_at,
+    needs_reply: c.sales_stage === 'inquiry' && !touched.has(c.id),
+    meta: { status: c.status, sales_source: c.sales_source, assigned_member_id: c.assigned_member_id },
+    open_path: `/sale/${c.id}`,
+  }));
+
+  const filtered = needsReply ? clientItems.filter((x) => x.needs_reply) : clientItems;
+  // ★ **등록된 상담이 먼저다.** 시각만으로 섞으면 메일 접점 수백 건 뒤로 밀려 목록에서 사라진다
+  //   (실측: dev 에서 메일 903건이 앞을 다 먹어 방금 만든 상담 고객이 첫 100건 안에 없었다).
+  //   사람이 관리하는 대상(상담 중인 고객)이 위, 아직 손대지 않은 접점이 아래다.
+  //   같은 묶음 안에서는 최신 접점 순 — `last_touch_at` 이 없으면 만든 시각을 쓴다(위에서 채웠다).
+  const byAt = (a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime();
+  const merged = [...filtered.sort(byAt), ...base.items.sort(byAt)].slice(0, limit);
+  const counts = {
+    ...base.counts,
+    client: filtered.length,
+    total: base.counts.total + filtered.length,
+    needs_reply: base.counts.needs_reply + clientItems.filter((x) => x.needs_reply).length,
+  };
+  return { items: merged, counts };
+}
+
+module.exports = { listUnlinkedTouchpoints, listConsults, SOURCES };

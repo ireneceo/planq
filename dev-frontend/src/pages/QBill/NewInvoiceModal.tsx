@@ -32,6 +32,8 @@ interface Props {
   prefillProjectId?: number | null;
   /** 임시저장(draft) 재편집 진입 시 — 해당 invoice id 를 로드해 폼 채움 (PUT 저장) */
   editInvoiceId?: number | null;
+  /** Q sale 상담에서 "청구서 발행" 으로 진입 — 받는 고객을 미리 고른다(죽은 링크를 만들지 않는다) */
+  prefillClientId?: number | null;
 }
 
 interface Item { id: number; description: string; detail: string; quantity: number; unit_price: number; }
@@ -53,7 +55,7 @@ const VAT_OPTIONS: PlanQSelectOption[] = [
   { value: '0.1', label: '10%' },
 ];
 
-export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId, prefillProjectId, editInvoiceId }: Props) {
+export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPostId, prefillProjectId, editInvoiceId, prefillClientId }: Props) {
   const isEdit = !!editInvoiceId;
   const { t } = useTranslation('qbill');
   const { user } = useAuth();
@@ -84,7 +86,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
     emailTo: string | null;
   } | null>(null);
 
-  const [clientId, setClientId] = useState<number | null>(null);
+  const [clientId, setClientId] = useState<number | null>(prefillClientId ?? null);
+  // 상담에서 넘어온 고객 — 열릴 때마다 적용한다(모달이 살아 있는 채로 다른 고객으로 다시 열 수 있다)
+  useEffect(() => { if (open && prefillClientId) setClientId(prefillClientId); }, [open, prefillClientId]);
   // 프로젝트 자동선택 보완 — ProjectClient.client_id 가 비어있는 초대중 고객을 clients 로드 후 매칭
   const [pendingContactUserId, setPendingContactUserId] = useState<number | null>(null);
   // 프로젝트 연결 — 프로젝트에서 발행 시 invoice.project_id 로 저장 + 그 프로젝트 채팅방 탐색

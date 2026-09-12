@@ -26,7 +26,7 @@ export const DRAFT_KINDS = {
   'task-description': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/QTask/TaskDetailDrawer.tsx', 'services/draftStore.ts'] },
   'task-body': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/QTask/TaskDetailDrawer.tsx'] },
   // Q sale — 상담 기록 메모(전화·미팅 내용은 길다)와 종결 사유 메모. 둘 다 모달 안에서 쓰다 닫으면 사라지던 값이다.
-  'sale-interaction-body': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QSale/SaleDetailPage.tsx'] },
+  'sale-interaction-body': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/RecordModal.tsx'] },
   'sale-lost-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/LostReasonModal.tsx'] },
   'mail-issue': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'mail-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
@@ -38,7 +38,9 @@ export const DRAFT_KINDS = {
   //   메일 내용을 베끼지 않고 사람이 직접 쓰는 글이라 더욱 지켜야 한다.
   'sale-task-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/SaleInboxList.tsx', 'components/QTask/TaskCreateForm.tsx'] },
   // 문의 추가 모달 — 붙여넣은 원문과 첫 상담 메모. 둘 다 길고, 쓰다 닫으면 사라지던 값이다(2026-09-12).
-  'sale-inquiry-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QSale/SalePage.tsx'] },
+  'sale-inquiry-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QSale/SalePage.tsx', 'components/QSale/SaleCueBar.tsx'] },
+  // 다음 연락 약속 메모 — 일정으로 저장되기 전까지 남는다(2026-09-12)
+  'sale-next-contact': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/NextContactModal.tsx'] },
 } as const satisfies Record<string, DraftKindSpec>;
 
 export type DraftKind = keyof typeof DRAFT_KINDS;

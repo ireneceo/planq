@@ -19,10 +19,10 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 // ★ 2026-09-12 Irene: "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지 · 상담리스트, 고객리스트 2가지 다 보여줘도 좋고"
 //   입구를 상담(고객 미등록 문의)으로 바꾸고 고객 목록은 옆 탭으로 둔다. 목록·액션은 SaleInboxList 한 곳.
 import SaleInboxList from '../../components/QSale/SaleInboxList';
-import AiActionButton from '../../components/Common/AiActionButton';
+import SaleCueBar from '../../components/QSale/SaleCueBar';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import {
-  listSaleClients, getSaleSummary, saveAsClient, extractInquiry,
+  listSaleClients, getSaleSummary, saveAsClient,
   SALE_STAGES, IN_PROGRESS_STAGES, SALE_SOURCES, INTERACTION_KINDS,
   type SaleClient, type SaleSummary, type SaleStage, type AccessKind, type SaleSource,
   type InteractionKind,
@@ -55,6 +55,8 @@ export default function SalePage() {
   // ★ 행을 눌러도 **페이지를 갈아타지 않는다** (Irene 2026-09-12: "고객탭에서는 리스트 누르면
   //   페이지 전환하지 말고 우측패널 나오게 하고"). 전체를 보려면 패널 헤더의 전체보기 아이콘.
   const [panelClientId, setPanelClientId] = useState<number | null>(null);
+  // 상담 목록을 다시 읽게 하는 신호 — 문의를 추가하면 **그 목록에** 들어와야 한다
+  const [inboxRefresh, setInboxRefresh] = useState(0);
 
   const filters = useMemo(() => ({ q, stage, access, assignee }), [q, stage, access, assignee]);
   const filtersRef = useRef(filters);
@@ -141,11 +143,8 @@ export default function SalePage() {
       count={summary ? summary.in_progress : undefined}
       actions={(
         <Actions>
-          <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder={t('list.searchPlaceholder') as string}
-            aria-label={t('list.searchPlaceholder') as string} />
-          {/* ★ 필터는 헤더가 아니라 **탭 아래**다 (Irene 2026-09-12: "필터는 원래 탭 아래 있는 거 아니야?
-              왜 우측 상단에 있어?"). 헤더에는 검색과 새로 만들기만 남긴다 — 목록 페이지 공통 규격. */}
+          {/* ★ 검색도 **탭 아래**다 (Irene 2026-09-12: "검색창 위에 있는 거 탭 아래로 내리랬잖아").
+              헤더에는 주 액션 하나만 남긴다 — Q Task 와 같은 배치(탭 → AI 바 → 필터 → 리스트). */}
           <ActionButton tone="primary" size="sm" data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
             {t('action.addInquiry') as string}
           </ActionButton>
@@ -164,9 +163,28 @@ export default function SalePage() {
         </TabBtn>
       </TabRow>
 
+      {/* 탭 아래 순서 = Q Task 와 같다: ① Cue 에게 말하기 ② 검색·필터 ③ 리스트 */}
+      {businessId && (
+        <SaleCueBar businessId={businessId}
+          onCreated={(clientId) => {
+            // ★ 등록했으면 **그 자리(상담 탭)** 에서 보인다 — 고객 탭으로 튕기지 않는다.
+            //   상담 목록은 진행 중인 고객도 포함하므로 재조회하면 방금 넣은 것이 맨 위에 온다.
+            setInboxRefresh((n) => n + 1);
+            load({ silent: true, page: 1 });
+            setPanelClientId(clientId);
+          }} />
+      )}
+      <SearchRow>
+        <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
+          placeholder={t('list.searchPlaceholder') as string}
+          aria-label={t('list.searchPlaceholder') as string} />
+      </SearchRow>
+
       {tab === 'inbox' ? (
         businessId ? (
-          <SaleInboxList businessId={businessId} q={q} onRegistered={() => load({ silent: true, page: 1 })} />
+          <SaleInboxList businessId={businessId} q={q} refreshKey={inboxRefresh}
+            onRegistered={() => { setInboxRefresh((n) => n + 1); load({ silent: true, page: 1 }); }}
+            onOpenClient={(id) => setPanelClientId(id)} />
         ) : null
       ) : (
       <>
@@ -309,7 +327,14 @@ export default function SalePage() {
         open={addOpen}
         businessId={businessId}
         onClose={() => setAddOpen(false)}
-        onDone={(clientId) => { setAddOpen(false); setPanelClientId(clientId); }}
+        onDone={(clientId) => {
+          // ★ 여태 패널만 열고 **목록을 다시 읽지 않았다**(Irene: "우측 패널만 생기고 실제로 리스트에
+          //   추가 안 되고 있어"). 상담 목록·고객 목록 둘 다 갱신하고, 탭은 그대로 둔다.
+          setAddOpen(false);
+          setInboxRefresh((n) => n + 1);
+          load({ silent: true, page: 1 });
+          setPanelClientId(clientId);
+        }}
       />
       <ClientPanel
         businessId={businessId as number}
@@ -336,17 +361,10 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
   const [noteKind, setNoteKind] = useState<InteractionKind>('call');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // AI — 전화 메모·메일 본문을 붙여넣으면 칸을 채운다. **저장은 사람이 한다.**
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiMsg, setAiMsg] = useState<string | null>(null);
-  const [aiFilled, setAiFilled] = useState(false);
 
   // 붙여넣은 글·상담 메모는 길다 — 쓰다 닫아도 남는다(입력 초안 계약).
   //   대상이 하나뿐인 폼이라 entityId 는 고정값이고, 비우는 것은 **저장 성공**뿐이다.
-  const pasteKey = useDraftKey('sale-inquiry-add', 'paste', businessId);
-  const noteKey = useDraftKey('sale-inquiry-add', 'note', businessId);
-  const paste = useDraftText(pasteKey);
-  const note = useDraftText(noteKey);
+  const note = useDraftText(useDraftKey('sale-inquiry-add', 'note', businessId));
 
   const sourceOptions = useMemo(() => SALE_SOURCES.map((x) => ({ value: x as string, label: t(`source.${x}`) as string })), [t]);
   // 종류 라벨은 상담 원장이 쓰는 **record.kind.*** 를 그대로 쓴다(같은 값의 라벨을 두 벌 만들지 않는다)
@@ -354,34 +372,8 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
 
   useEffect(() => {
     // ★ 초안(붙여넣은 글·메모)은 **여기서 비우지 않는다** — 열 때마다 지우면 초안이 아니다.
-    if (open) { setName(''); setCompany(''); setPhone(''); setEmail(''); setSource('manual'); setNoteKind('call'); setErr(null); setAiMsg(null); setAiFilled(false); }
+    if (open) { setName(''); setCompany(''); setPhone(''); setEmail(''); setSource('manual'); setNoteKind('call'); setErr(null); }
   }, [open]);
-
-  const runAi = async () => {
-    if (!businessId || aiBusy || !paste.text.trim()) return;
-    setAiBusy(true); setAiMsg(null);
-    try {
-      const out = await extractInquiry(businessId, paste.text);
-      if (!out.found) { setAiMsg(t('inquiry.aiNotFound') as string); }
-      else {
-        // 시스템이 채운 값이다 — 사람이 확인·수정할 수 있고, 화면이 그 사실을 말한다
-        if (out.display_name) setName(out.display_name);
-        if (out.company_name) setCompany(out.company_name);
-        if (out.phone) setPhone(out.phone);
-        if (out.email) setEmail(out.email);
-        if (out.sales_source) setSource(out.sales_source);
-        setAiFilled(true);
-        setAiMsg(null);
-      }
-      // 요약은 상담 기록 제목 자리로 — 메모 본문은 붙여넣은 원문을 쓴다
-      if (out.summary && !note.text.trim()) note.setText(paste.text);
-    } catch (e) {
-      const msg = (e as Error).message;
-      setAiMsg(msg === 'usage_limit' ? (t('inquiry.aiUsageLimit') as string)
-        : msg === 'empty' ? (t('inquiry.aiEmpty') as string)
-          : (t('inquiry.aiFailed') as string));
-    } finally { setAiBusy(false); }
-  };
 
   const submit = async () => {
     if (!businessId || saving) return;              // 중복 제출 가드
@@ -400,7 +392,7 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
         interaction: body ? { kind: noteKind, body, direction: 'inbound' } : undefined,
       });
       // 저장이 끝난 뒤에만 초안을 비운다 — 실패를 삼키고 비우면 저장 실패가 곧 글 삭제다
-      paste.clear(); note.clear();
+      note.clear();
       onDone(out.client.id);
     } catch (e) {
       const msg = (e as Error).message;
@@ -422,21 +414,6 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
           </ActionButton>
         </>
       )}>
-      {/* AI 로 채우기 — 전화 메모·메일 본문을 그대로 붙여넣는다. 값은 아래 칸에 들어가고 사람이 확인한다. */}
-      <Field>
-        <FieldLabel htmlFor="sale-inq-paste">{t('inquiry.pasteLabel') as string}</FieldLabel>
-        <TextArea id="sale-inq-paste" rows={4} data-draft-kind="sale-inquiry-add"
-          placeholder={t('inquiry.pastePlaceholder') as string}
-          value={paste.text} onChange={(e) => paste.setText(e.target.value)} />
-        <AiRow>
-          <AiActionButton size="sm" testId="sale-inquiry-ai"
-            onClick={runAi} loading={aiBusy} disabled={!paste.text.trim()}
-            label={t('inquiry.aiFill') as string}
-            title={t('inquiry.aiFillHint') as string} />
-          {aiFilled && <AiHint>{t('inquiry.aiFilled') as string}</AiHint>}
-          {aiMsg && <AiHint role="status">{aiMsg}</AiHint>}
-        </AiRow>
-      </Field>
       <Field>
         <FieldLabel htmlFor="sale-inq-name">{t('inquiry.nameLabel') as string}</FieldLabel>
         <TextInput id="sale-inq-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
@@ -496,6 +473,7 @@ const Actions = styled.div`
   @media (max-width: 640px) { > *:last-child { order: -1; } }
 `;
 /* PlanQSelect 는 react-select 라 폭을 직접 받지 않는다 — 감싸는 칸이 폭을 준다 */
+const SearchRow = styled.div`display: flex; align-items: center; gap: 8px; margin-bottom: 10px;`;
 const SelectWrap = styled.div<{ $w: number }>`width: ${(p) => p.$w}px; flex-shrink: 0;
   @media (max-width: 640px) { width: ${(p) => Math.min(p.$w, 128)}px; }`;
 const SearchInput = styled.input`
@@ -611,6 +589,4 @@ const TextArea = styled.textarea`
   &:focus { outline: none; border-color: #5EEAD4; }
   &::placeholder { color: #94A3B8; }
 `;
-const AiRow = styled.div`display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap;`;
-const AiHint = styled.span`font-size: 0.75rem; color: #64748B; line-height: 1.4;`;
 const ErrText = styled.div`font-size: 0.8125rem; color: #B91C1C;`;

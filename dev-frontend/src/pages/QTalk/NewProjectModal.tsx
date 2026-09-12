@@ -14,6 +14,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onCreate: (data: ProjectFormData) => void;
+  /** Q sale 상담에서 "프로젝트 만들기" 로 진입 — 고객·회사를 미리 채운다(죽은 링크를 만들지 않는다) */
+  prefillClient?: { name: string; email: string; company?: string } | null;
 }
 
 export interface ProjectFormData {
@@ -54,7 +56,7 @@ const ROLE_KEY: Record<string, string> = {
   '기획': 'planning', '디자인': 'design', '개발': 'dev', '영업': 'sales', '운영': 'ops', '기타': 'etc',
 };
 
-const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate }) => {
+const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate, prefillClient = null }) => {
   const { t } = useTranslation('qtalk');
   const roleLabel = (r: string) => t(`newProject.role.${ROLE_KEY[r] || 'etc'}`, { defaultValue: r });
   const ROLE_SELECT_OPTIONS = ROLE_OPTIONS.map((r) => ({ value: r, label: roleLabel(r) }));
@@ -71,6 +73,14 @@ const NewProjectModal: React.FC<Props> = ({ businessId, open, onClose, onCreate 
   const [isInternal, setIsInternal] = useState(false);  // 내부 프로젝트(비청구·수익성 제외)
   const [members, setMembers] = useState<MemberInput[]>([]);
   const [clients, setClients] = useState<ClientInput[]>([]);
+  // ★ 상담(Q sale)에서 넘어온 고객 — **값이 도착할 때** 채운다.
+  //   open 이펙트 안에서 채우면 그때는 아직 null 이라(고객 조회가 비동기) 빈 칸으로 열린다(실측).
+  useEffect(() => {
+    if (!open || !prefillClient) return;
+    const nm = prefillClient.name || prefillClient.email;
+    if (!nm) return;
+    setClients((prev) => (prev.some((c) => c.name === nm) ? prev : [...prev, { name: nm, email: prefillClient.email || '' }]));
+  }, [open, prefillClient]);
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
