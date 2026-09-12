@@ -2,76 +2,23 @@
 //   /api/sale 아래 같은 접두어로 마운트된다. 권한 체인·직렬화는 services/saleCommon 한 벌을 쓴다.
 const express = require('express');
 const router = express.Router();
-const { ClientInteraction, Project } = require('../models');
+const { ClientInteraction } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
 const {
-  writeChain, broadcast, trimOrNull, findClient, touchClient, INTERACTION_KINDS,
+  writeChain, broadcast, findClient, touchClient,
 } = require('../services/saleCommon');
-
-function interactionPatchFrom(body, { creating }) {
-  const out = {};
-  if (creating || body.kind !== undefined) {
-    if (!INTERACTION_KINDS.includes(body.kind)) return { error: 'invalid_kind' };
-    out.kind = body.kind;
-  }
-  if (body.direction !== undefined) {
-    if (body.direction !== null && !['inbound', 'outbound'].includes(body.direction)) return { error: 'invalid_direction' };
-    out.direction = body.direction || null;
-  }
-  if (creating || body.occurred_at !== undefined) {
-    const d = body.occurred_at ? new Date(body.occurred_at) : new Date();
-    if (Number.isNaN(d.getTime())) return { error: 'invalid_occurred_at' };
-    // 미래 접점은 기록이 아니라 일정이다 — 시계 오차만 허용
-    if (d.getTime() > Date.now() + 5 * 60 * 1000) return { error: 'occurred_in_future' };
-    out.occurred_at = d;
-  }
-  if (body.duration_seconds !== undefined) {
-    if (body.duration_seconds === null || body.duration_seconds === '') out.duration_seconds = null;
-    else {
-      const n = Math.round(Number(body.duration_seconds));
-      if (!Number.isFinite(n) || n < 0 || n > 24 * 3600) return { error: 'invalid_duration' };
-      out.duration_seconds = n;
-    }
-  }
-  if (body.title !== undefined) out.title = trimOrNull(body.title, 200);
-  if (body.body !== undefined) {
-    const s = body.body === null ? null : String(body.body);
-    if (s && s.length > 20000) return { error: 'body_too_long' };
-    out.body = s && s.trim() ? s : null;
-  }
-  return { patch: out };
-}
+// 검증·생성은 **한 문**이다 — 문의 추가 모달의 첫 기록도 같은 함수를 쓴다
+const { interactionPatchFrom, createInteraction } = require('../services/saleInteraction');
 
 router.post('/:businessId/clients/:clientId/interactions', ...writeChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const client = await findClient(businessId, req.params.clientId);
     if (!client) return errorResponse(res, 'Client not found', 404);
-    const body = req.body || {};
-    const { patch, error } = interactionPatchFrom(body, { creating: true });
-    if (error) return errorResponse(res, error, 400);
-    if (!patch.title && !patch.body) return errorResponse(res, 'content_required', 400);
-
-    let projectId = null;
-    if (body.project_id) {
-      const p = await Project.findOne({ where: { id: Number(body.project_id), business_id: businessId }, attributes: ['id'] });
-      if (!p) return errorResponse(res, 'invalid_project', 400);
-      projectId = p.id;
-    }
-    const row = await ClientInteraction.create({
-      ...patch,
-      business_id: businessId, client_id: client.id, project_id: projectId,
-      origin: 'manual', source_kind: 'manual', created_by: req.user.id,
-    });
-    await touchClient(client, row.occurred_at);
-    createAuditLog({
-      userId: req.user.id, businessId, action: 'client.interaction.create', targetType: 'client_interaction', targetId: row.id,
-      newValue: { client_id: client.id, kind: row.kind, occurred_at: row.occurred_at },
-    });
-    broadcast(req, businessId, 'interaction:new', { id: row.id, client_id: client.id });
-    broadcast(req, businessId, 'client:updated', { id: client.id, business_id: businessId });
-    return successResponse(res, row, 'created', 201);
+    const out = await createInteraction({ businessId, client, body: req.body || {}, userId: req.user.id, req });
+    if (out.error) return errorResponse(res, out.error, 400);
+    return successResponse(res, out.row, 'created', 201);
   } catch (err) { next(err); }
 });
 

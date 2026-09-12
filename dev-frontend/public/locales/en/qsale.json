@@ -104,7 +104,10 @@
     "at": "Time",
     "state": "Status",
     "emailVerified": "verified",
-    "notClientYet": "Not a client yet"
+    "notClientYet": "Not a client yet",
+    "registered": "Added",
+    "registeredBy": "Added by",
+    "registeredAt": "Added at"
   },
   "action": {
     "addInquiry": "+ Add inquiry",
@@ -244,7 +247,19 @@
     "submit": "Add",
     "cancel": "Cancel",
     "nameRequired": "Enter a name or a company",
-    "invalidEmail": "Check the email format"
+    "invalidEmail": "Check the email format",
+    "pasteLabel": "Paste the inquiry (optional)",
+    "pastePlaceholder": "Paste a call note or email body — AI fills in name, company and contacts",
+    "aiFill": "Fill with AI",
+    "aiFillHint": "Extracts name, company, phone, email and channel from the pasted text. You review and save.",
+    "aiFilled": "Filled by AI — review and edit as needed",
+    "aiNotFound": "Nothing to extract. Please type it in.",
+    "aiFailed": "AI extraction failed. Please type it in.",
+    "aiUsageLimit": "You've used up this month's AI quota.",
+    "aiEmpty": "Nothing was pasted.",
+    "noteKindLabel": "Consultation type",
+    "noteLabel": "Consultation note (optional)",
+    "notePlaceholder": "What came up on the call or visit — saved as the first consultation record"
   },
   "empty": {
     "title": "No customers in progress yet",

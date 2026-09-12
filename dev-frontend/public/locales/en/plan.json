@@ -62,7 +62,8 @@
       "summary": "Client summary",
       "translation": "Translation",
       "voice_capture": "Voice transcription",
-      "canvas_draft": "Canvas draft"
+      "canvas_draft": "Canvas draft",
+      "extract": "Inquiry extraction"
     }
   },
   "comparison": {

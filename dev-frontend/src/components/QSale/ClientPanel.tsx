@@ -190,6 +190,14 @@ const ClientPanel: React.FC<Props> = ({
             )}
 
             <Section>
+              <SectionTitle>{t('panel.registered') as string}</SectionTitle>
+              {/* 누가 언제 등록했는가 — 값은 줄곧 원장에 있었고 **화면에 없었을 뿐**이다(Irene 2026-09-12) */}
+              <Row label={t('panel.registeredBy') as string} value={data.registered_by?.name || null} />
+              <Row label={t('panel.registeredAt') as string}
+                value={data.registered_at ? formatDateTime(data.registered_at) : null} />
+            </Section>
+
+            <Section>
               <SectionTitle>{t('panel.linked') as string}</SectionTitle>
               <Row label={t('panel.conversations') as string} value={String(data.channels?.conversations ?? 0)} />
               <Row label={t('panel.emailThreads') as string} value={String(data.channels?.email_threads ?? 0)} />

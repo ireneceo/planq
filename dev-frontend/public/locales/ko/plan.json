@@ -62,7 +62,8 @@
       "summary": "고객 요약",
       "translation": "번역",
       "voice_capture": "음성 받아쓰기",
-      "canvas_draft": "캔버스 초안"
+      "canvas_draft": "캔버스 초안",
+      "extract": "문의 정보 추출"
     }
   },
   "comparison": {

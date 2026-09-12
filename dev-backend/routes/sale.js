@@ -151,6 +151,17 @@ router.get('/:businessId/clients/:clientId', ...readChain, async (req, res, next
       at: h.createdAt,
     }));
 
+    // 등록자·등록 시각 — **단계 이력의 첫 행**이 곧 등록 시점이다(새 컬럼을 만들지 않는다).
+    //   Irene 2026-09-12: "문의 추가에 … 작성자 기록". 값은 이미 원장에 있었고 **화면에 없었을 뿐**이다.
+    //   ★ 위 stage_history 는 최신 30건(DESC)이라 오래된 고객의 첫 행이 그 안에 없다 — 따로 읽는다.
+    const firstStage = await ClientStageHistory.findOne({
+      where: { business_id: businessId, client_id: client.id },
+      include: [{ model: User, as: 'changer', attributes: ['id', 'name'] }],
+      order: [['createdAt', 'ASC']],
+    });
+    out.registered_by = firstStage?.changer ? { id: firstStage.changer.id, name: firstStage.changer.name } : null;
+    out.registered_at = firstStage ? firstStage.createdAt : (client.createdAt || null);
+
     const [conversations, threads, guestLinks] = await Promise.all([
       Conversation.count({ where: { business_id: businessId, client_id: client.id } }),
       EmailThread.count({ where: { business_id: businessId, client_id: client.id } }),

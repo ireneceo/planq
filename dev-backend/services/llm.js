@@ -37,6 +37,9 @@ const PURPOSES = {
   cue_reply:      { model: 'gpt-5.1', temperature: 0.3, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 24_000 },
   cue_task:       { model: 'gpt-5.1', temperature: 0.3, maxTokens: 2400, timeoutMs: 45_000, maxInputChars: 32_000 },
   task_extract:   { model: 'gpt-4o-mini', temperature: 0.1, maxTokens: 1500, timeoutMs: 45_000, maxInputChars: 32_000 },
+  // Q sale 문의 추출 — 전화 메모·메일 본문 한 덩어리에서 이름·회사·연락처를 **뽑기만** 한다.
+  //   생성이 아니라 추출이라 temperature 0, 출력이 짧다(필드 6개 + 한 줄 요약). 입력 캡은 긴 메일 본문 기준.
+  sale_extract:   { model: 'gpt-4o-mini', temperature: 0, maxTokens: 500, timeoutMs: 30_000, maxInputChars: 12_000 },
   task_plan:      { model: 'gpt-4o-mini', temperature: 0.2, maxTokens: 2000, timeoutMs: 45_000, maxInputChars: 16_000 },
   // #354 루틴 설계 모드 — 같은 분해라도 **출력 부피가 다른 일**이라 task_plan 과 나눠 둔다.
   //   업무 16건 × 지침 500~1,500자면 task_plan 의 2,000토큰에서 JSON 이 중간에 잘리고,

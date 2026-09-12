@@ -61,6 +61,9 @@ export interface SaleClientDetail extends SaleClient {
     billing_phone: string | null;
     billing_contact_name: string | null;
   };
+  /** 등록자·등록 시각 — 단계 이력의 **첫 행**에서 파생한다(새 컬럼 없음). 이력이 없으면 by=null */
+  registered_by?: { id: number; name: string } | null;
+  registered_at?: string | null;
   /** 사업자 정보 — 없으면 null */
   biz?: {
     name: string | null;
@@ -286,12 +289,31 @@ export const setClientSummaryManual = (businessId: number, clientId: number, sum
 export type SaveAsClientInput =
   | { from: 'guest_link'; guest_link_id: number }
   | { from: 'email_thread'; email_thread_id: number }
-  | { from: 'manual'; display_name?: string; company_name?: string; phone?: string; email?: string; sales_source?: SaleSource };
+  | { from: 'manual'; display_name?: string; company_name?: string; phone?: string; email?: string;
+      sales_source?: SaleSource;
+      /** 첫 상담 기록 — 전화·방문 내용은 **등록하는 그 순간**에만 손에 있다. 같이 보낸다 */
+      interaction?: { kind: InteractionKind; title?: string | null; body?: string | null; direction?: 'inbound' | 'outbound' | null } };
 
 export const saveAsClient = (businessId: number, input: SaveAsClientInput) =>
   apiFetch(`/api/sale/${businessId}/save-as-client`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   }).then(j<{ client: SaleClient; linked_existing: boolean }>);
+
+/** 붙여넣은 글에서 문의 정보 뽑기 (AI). **저장하지 않는다** — 폼에 채우고 사람이 확인해 저장한다. */
+export interface InquiryExtract {
+  display_name: string | null;
+  company_name: string | null;
+  phone: string | null;
+  email: string | null;
+  sales_source: SaleSource | null;
+  summary: string | null;
+  /** 이름·회사·전화·이메일 중 하나라도 뽑혔는가 — 아무것도 없으면 화면이 그렇게 말한다 */
+  found: boolean;
+}
+export const extractInquiry = (businessId: number, text: string) =>
+  apiFetch(`/api/sale/${businessId}/inquiry/extract`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+  }).then(j<InquiryExtract>);
 
 /** 단계 목록 — 화면 순서의 단일 원천(서버 ENUM 과 같은 순서) */
 export const SALE_STAGES: SaleStage[] = ['none', 'inquiry', 'consulting', 'proposal', 'negotiation', 'won', 'lost'];

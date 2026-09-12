@@ -19,10 +19,13 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 // ★ 2026-09-12 Irene: "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지 · 상담리스트, 고객리스트 2가지 다 보여줘도 좋고"
 //   입구를 상담(고객 미등록 문의)으로 바꾸고 고객 목록은 옆 탭으로 둔다. 목록·액션은 SaleInboxList 한 곳.
 import SaleInboxList from '../../components/QSale/SaleInboxList';
+import AiActionButton from '../../components/Common/AiActionButton';
+import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import {
-  listSaleClients, getSaleSummary, saveAsClient,
-  SALE_STAGES, IN_PROGRESS_STAGES, SALE_SOURCES,
+  listSaleClients, getSaleSummary, saveAsClient, extractInquiry,
+  SALE_STAGES, IN_PROGRESS_STAGES, SALE_SOURCES, INTERACTION_KINDS,
   type SaleClient, type SaleSummary, type SaleStage, type AccessKind, type SaleSource,
+  type InteractionKind,
 } from '../../services/sale';
 
 const PAGE = 50;
@@ -328,19 +331,64 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [source, setSource] = useState<SaleSource>('manual');
+  // 첫 상담 기록 — 전화·방문 내용은 **등록하는 그 순간**에만 손에 있다(Irene 2026-09-12).
+  //   여기서 안 받으면 저장 후 상세로 들어가 한 번 더 써야 하고, 대개 안 쓴다.
+  const [noteKind, setNoteKind] = useState<InteractionKind>('call');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const sourceOptions = useMemo(() => SALE_SOURCES.map((s) => ({ value: s as string, label: t(`source.${s}`) as string })), [t]);
+  // AI — 전화 메모·메일 본문을 붙여넣으면 칸을 채운다. **저장은 사람이 한다.**
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
+  const [aiFilled, setAiFilled] = useState(false);
+
+  // 붙여넣은 글·상담 메모는 길다 — 쓰다 닫아도 남는다(입력 초안 계약).
+  //   대상이 하나뿐인 폼이라 entityId 는 고정값이고, 비우는 것은 **저장 성공**뿐이다.
+  const pasteKey = useDraftKey('sale-inquiry-add', 'paste', businessId);
+  const noteKey = useDraftKey('sale-inquiry-add', 'note', businessId);
+  const paste = useDraftText(pasteKey);
+  const note = useDraftText(noteKey);
+
+  const sourceOptions = useMemo(() => SALE_SOURCES.map((x) => ({ value: x as string, label: t(`source.${x}`) as string })), [t]);
+  // 종류 라벨은 상담 원장이 쓰는 **record.kind.*** 를 그대로 쓴다(같은 값의 라벨을 두 벌 만들지 않는다)
+  const kindOptions = useMemo(() => INTERACTION_KINDS.map((k) => ({ value: k as string, label: t(`record.kind.${k}`) as string })), [t]);
 
   useEffect(() => {
-    if (open) { setName(''); setCompany(''); setPhone(''); setEmail(''); setSource('manual'); setErr(null); }
+    // ★ 초안(붙여넣은 글·메모)은 **여기서 비우지 않는다** — 열 때마다 지우면 초안이 아니다.
+    if (open) { setName(''); setCompany(''); setPhone(''); setEmail(''); setSource('manual'); setNoteKind('call'); setErr(null); setAiMsg(null); setAiFilled(false); }
   }, [open]);
+
+  const runAi = async () => {
+    if (!businessId || aiBusy || !paste.text.trim()) return;
+    setAiBusy(true); setAiMsg(null);
+    try {
+      const out = await extractInquiry(businessId, paste.text);
+      if (!out.found) { setAiMsg(t('inquiry.aiNotFound') as string); }
+      else {
+        // 시스템이 채운 값이다 — 사람이 확인·수정할 수 있고, 화면이 그 사실을 말한다
+        if (out.display_name) setName(out.display_name);
+        if (out.company_name) setCompany(out.company_name);
+        if (out.phone) setPhone(out.phone);
+        if (out.email) setEmail(out.email);
+        if (out.sales_source) setSource(out.sales_source);
+        setAiFilled(true);
+        setAiMsg(null);
+      }
+      // 요약은 상담 기록 제목 자리로 — 메모 본문은 붙여넣은 원문을 쓴다
+      if (out.summary && !note.text.trim()) note.setText(paste.text);
+    } catch (e) {
+      const msg = (e as Error).message;
+      setAiMsg(msg === 'usage_limit' ? (t('inquiry.aiUsageLimit') as string)
+        : msg === 'empty' ? (t('inquiry.aiEmpty') as string)
+          : (t('inquiry.aiFailed') as string));
+    } finally { setAiBusy(false); }
+  };
 
   const submit = async () => {
     if (!businessId || saving) return;              // 중복 제출 가드
     if (!name.trim() && !company.trim()) { setErr(t('inquiry.nameRequired') as string); return; }
     setSaving(true);
     try {
+      const body = note.text.trim();
       const out = await saveAsClient(businessId, {
         from: 'manual',
         display_name: name.trim() || undefined,
@@ -348,7 +396,11 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
         sales_source: source,
+        // 내용이 있을 때만 기록을 만든다(빈 기록은 원장을 더럽힌다)
+        interaction: body ? { kind: noteKind, body, direction: 'inbound' } : undefined,
       });
+      // 저장이 끝난 뒤에만 초안을 비운다 — 실패를 삼키고 비우면 저장 실패가 곧 글 삭제다
+      paste.clear(); note.clear();
       onDone(out.client.id);
     } catch (e) {
       const msg = (e as Error).message;
@@ -370,6 +422,21 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
           </ActionButton>
         </>
       )}>
+      {/* AI 로 채우기 — 전화 메모·메일 본문을 그대로 붙여넣는다. 값은 아래 칸에 들어가고 사람이 확인한다. */}
+      <Field>
+        <FieldLabel htmlFor="sale-inq-paste">{t('inquiry.pasteLabel') as string}</FieldLabel>
+        <TextArea id="sale-inq-paste" rows={4} data-draft-kind="sale-inquiry-add"
+          placeholder={t('inquiry.pastePlaceholder') as string}
+          value={paste.text} onChange={(e) => paste.setText(e.target.value)} />
+        <AiRow>
+          <AiActionButton size="sm" testId="sale-inquiry-ai"
+            onClick={runAi} loading={aiBusy} disabled={!paste.text.trim()}
+            label={t('inquiry.aiFill') as string}
+            title={t('inquiry.aiFillHint') as string} />
+          {aiFilled && <AiHint>{t('inquiry.aiFilled') as string}</AiHint>}
+          {aiMsg && <AiHint role="status">{aiMsg}</AiHint>}
+        </AiRow>
+      </Field>
       <Field>
         <FieldLabel htmlFor="sale-inq-name">{t('inquiry.nameLabel') as string}</FieldLabel>
         <TextInput id="sale-inq-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
@@ -396,6 +463,24 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
             const v = (opt as { value?: string } | null)?.value;
             if (v) setSource(v as SaleSource);
           }} />
+      </Field>
+      {/* 첫 상담 기록 — 종류(전화·미팅·방문·메모)와 내용. 내용이 있으면 상담 원장에 1건 남는다. */}
+      <Field>
+        <FieldLabel>{t('inquiry.noteKindLabel') as string}</FieldLabel>
+        <PlanQSelect size="md" isSearchable={false}
+          aria-label={t('inquiry.noteKindLabel') as string}
+          options={kindOptions}
+          value={kindOptions.find((o) => o.value === noteKind)}
+          onChange={(opt: unknown) => {
+            const v = (opt as { value?: string } | null)?.value;
+            if (v) setNoteKind(v as InteractionKind);
+          }} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="sale-inq-note">{t('inquiry.noteLabel') as string}</FieldLabel>
+        <TextArea id="sale-inq-note" rows={3} data-draft-kind="sale-inquiry-add"
+          placeholder={t('inquiry.notePlaceholder') as string}
+          value={note.text} onChange={(e) => note.setText(e.target.value)} />
       </Field>
       {err && <ErrText role="alert">{err}</ErrText>}
     </StandardModal>
@@ -520,4 +605,12 @@ const TextInput = styled.input`
   font-size: 0.875rem; color: #0F172A;
   &:focus { outline: none; border-color: #5EEAD4; }
 `;
+const TextArea = styled.textarea`
+  width: 100%; padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit; line-height: 1.5; resize: vertical;
+  &:focus { outline: none; border-color: #5EEAD4; }
+  &::placeholder { color: #94A3B8; }
+`;
+const AiRow = styled.div`display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap;`;
+const AiHint = styled.span`font-size: 0.75rem; color: #64748B; line-height: 1.4;`;
 const ErrText = styled.div`font-size: 0.8125rem; color: #B91C1C;`;

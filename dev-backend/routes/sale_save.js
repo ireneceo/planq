@@ -6,6 +6,10 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { Client, User, GuestLink, Conversation, EmailThread, EmailMessage, Message } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { perUserDaily } = require('../middleware/costGuard');
+// 첫 상담 기록은 **상담 원장과 같은 문**으로 만든다(감사·실시간·last_touch 가 한 곳)
+const { createInteraction } = require('../services/saleInteraction');
+const { extractInquiry } = require('../services/saleExtract');
 const { createAuditLog } = require('../services/auditService');
 const { setStage } = require('../services/salesStage');
 const planEngine = require('../services/plan');
@@ -55,6 +59,26 @@ async function respondExisting(res, businessId, clientId) {
   const [out] = await serializeClients(businessId, [existing]);
   return successResponse(res, { client: out, linked_existing: true });
 }
+
+// ── 붙여넣은 글에서 문의 정보 뽑기 (AI) ─────────────────────────────────────
+//   Irene 2026-09-12: "문의 추가에 AI 입력". **저장하지 않는다** — 값을 폼에 채우고 사람이 확인해 저장한다.
+//   비용: 여기 rate-limit + 서비스 안 checkUsageLimit + capText (CLAUDE.md 운영 1번 3종 세트).
+const extractLimit = perUserDaily('sale-extract', {
+  perMin: 5, perDay: 50,
+  message: 'AI 추출이 너무 잦습니다. 잠시 후 다시 시도하세요.',
+});
+router.post('/:businessId/inquiry/extract', ...writeChain, ...extractLimit, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const out = await extractInquiry(businessId, req.body?.text, { userId: req.user.id });
+    if (!out.ok) {
+      // 실패도 **이유를 말한다** — 조용한 무반응은 "AI 가 안 된다" 로만 읽힌다
+      const http = out.reason === 'usage_limit' ? 429 : out.reason === 'empty' ? 400 : 503;
+      return errorResponse(res, out.reason, http);
+    }
+    return successResponse(res, out.data);
+  } catch (err) { next(err); }
+});
 
 router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next) => {
   try {
@@ -175,6 +199,17 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
     }
     if (seed.touchAt) await touchClient(client, seed.touchAt);
 
+    // 첫 상담 기록 — 전화·방문 내용은 문의를 **등록하는 그 순간**에만 손에 있다.
+    //   여기서 안 받으면 사용자는 저장 후 상세로 들어가 한 번 더 쓴다(그리고 대개 안 쓴다).
+    //   ★ 실패를 삼키지 않는다 — 응답에 담아 화면이 말하게 한다(기록만 실패하고 고객은 생긴 상태).
+    let interactionError = null;
+    if (body.interaction && (body.interaction.body || body.interaction.title)) {
+      const made = await createInteraction({
+        businessId, client, body: body.interaction, userId: req.user.id, req,
+      });
+      if (made.error) interactionError = made.error;
+    }
+
     createAuditLog({
       userId: req.user.id, businessId,
       action: linkedExisting ? 'client.link_from_sale' : 'client.save_from_guest',
@@ -185,7 +220,8 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
 
     const fresh = await Client.findOne({ where: { id: client.id, business_id: businessId }, include: CLIENT_INCLUDE });
     const [out] = await serializeClients(businessId, [fresh]);
-    return successResponse(res, { client: out, linked_existing: linkedExisting }, linkedExisting ? 'linked' : 'created', linkedExisting ? 200 : 201);
+    return successResponse(res, { client: out, linked_existing: linkedExisting, interaction_error: interactionError },
+      linkedExisting ? 'linked' : 'created', linkedExisting ? 200 : 201);
   } catch (err) { next(err); }
 });
 
