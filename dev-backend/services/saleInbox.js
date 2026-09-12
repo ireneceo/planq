@@ -19,6 +19,26 @@ const SOURCES = ['guest_link', 'email', 'chat'];
 
 const clean = (s, n = 140) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
+/** 한 대화방에 링크가 여럿일 때 **등록에 쓸 하나**를 고른다 — 확인된 이메일 → 이메일 있음 → 최근 사용순.
+ *
+ * ★ 구독(`routes/guest_subscribe.js`)은 **확인한 사람마다** personal 링크를 하나씩 만든다.
+ *   아무거나 고르면 이메일이 없는 링크로 고객을 만들어 **연락처가 빈 고객**이 생긴다 —
+ *   `routes/sale_save.js` 의 guest_link 분기가 링크의 contact_email 을 그대로 쓰기 때문이다.
+ */
+function betterLink(a, b) {
+  if (!a) return b;
+  if (!b) return a;
+  const av = a.email_verified_at ? 1 : 0;
+  const bv = b.email_verified_at ? 1 : 0;
+  if (av !== bv) return bv > av ? b : a;
+  const ae = a.contact_email || a.requested_email ? 1 : 0;
+  const be = b.contact_email || b.requested_email ? 1 : 0;
+  if (ae !== be) return be > ae ? b : a;
+  const at = new Date(a.last_used_at || a.created_at || 0).getTime();
+  const bt = new Date(b.last_used_at || b.created_at || 0).getTime();
+  return bt > at ? b : a;
+}
+
 /**
  * 고객 미등록 접점 목록.
  * @param businessId 워크스페이스
@@ -41,29 +61,37 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   const items = [];
 
   // 1) 게스트 링크 — 고객으로 저장되지 않은 링크. 문의가 **여기로** 들어온다(#259 게스트 대화).
-  if (want.includes('guest_link')) {
-    const where = { business_id: businessId, client_id: null, revoked_at: null };
-    if (like) where[Op.or] = [{ guest_name: like }, { requested_email: like }, { contact_email: like }];
+  //
+  // ★ 2026-09-12 — **행을 여기서 만들지 않는다.** 게스트 링크는 별개의 접점이 아니라
+  //   그 대화방의 **신원**이다. 따로 세면 같은 대화가 두 줄로 보이고 집계도 그만큼 부푼다
+  //   (실측: 미연결 고객 대화방 26개 중 3개가 링크를 갖고 있어 양쪽에 떴다).
+  //   그래서 여기서는 **대화방별 대표 링크만** 고르고, 행은 아래 3)이 한 번만 만든다.
+  //
+  // ★ 대화방 기준으로 묶어도 되는 근거 — `services/guest_link.js ensurePersonalLink` 가
+  //   자식(personal) 링크에 부모의 `business_id`·`conversation_id`·`project_id` 를 그대로
+  //   물려준다. 구독은 **확인한 사람마다** personal 링크를 하나씩 만들므로 한 대화방에
+  //   링크가 여러 개 달리는 것이 정상이다.
+  // ★ 신원은 **소스 칩과 무관하게** 붙인다. 여기에 `want` 를 걸면 "채팅" 칩을 눌렀을 때
+  //   링크를 아예 안 읽어 모든 대화가 링크 없는 방으로 보이고, 겹침 보정이 0 이 되어
+  //   전체에서는 7 인 채팅이 칩을 누르면 9 로 튄다(실측). 거르는 것은 **행을 만들 때**다.
+  const linksByConv = new Map();       // conversation_id -> 등록에 쓸 대표 링크
+  const linkLikeConvIds = new Set();   // 검색어가 게스트 이름·이메일에 맞은 대화방
+  if (want.includes('guest_link') || want.includes('chat')) {
+    const base = { business_id: businessId, client_id: null, revoked_at: null };
     const links = await GuestLink.findAll({
-      where, order: [['last_used_at', 'DESC']], limit: perSource,
+      where: base, order: [['last_used_at', 'DESC']], limit: perSource,
       attributes: ['id', 'conversation_id', 'guest_name', 'requested_email', 'contact_email',
-        'message_count', 'last_used_at', 'account_requested_at', 'created_at'],
+        'email_verified_at', 'message_count', 'last_used_at', 'account_requested_at', 'created_at'],
     });
-    for (const g of links) {
-      items.push({
-        source: 'guest_link',
-        id: `guest_link:${g.id}`,
-        ref: { kind: 'guest_link', id: g.id, conversation_id: g.conversation_id },
-        who: g.guest_name || g.contact_email || g.requested_email || null,
-        email: g.contact_email || g.requested_email || null,
-        title: null,
-        preview: null,
-        at: g.last_used_at || g.created_at,
-        // 계정 요청은 사람이 답해야 하는 신호다(게스트가 "정식으로 쓰고 싶다" 고 말한 것)
-        needs_reply: !!g.account_requested_at,
-        meta: { message_count: g.message_count, account_requested_at: g.account_requested_at },
-        open_path: `/talk?conv=${g.conversation_id}`,
+    for (const g of links) linksByConv.set(g.conversation_id, betterLink(linksByConv.get(g.conversation_id), g));
+    // 검색은 **DB 와 같은 렌즈로** 판정한다 — 여기서 자바스크립트 substring 으로 흉내내면
+    // 대소문자·콜레이션이 갈려 화면과 숫자가 어긋난다.
+    if (like) {
+      const m = await GuestLink.findAll({
+        where: { ...base, [Op.or]: [{ guest_name: like }, { requested_email: like }, { contact_email: like }] },
+        attributes: ['conversation_id'],
       });
+      for (const r of m) linkLikeConvIds.add(r.conversation_id);
     }
   }
 
@@ -122,14 +150,31 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
     }
   }
 
-  // 3) 고객 대화방 — channel_type='customer' 인데 client_id 가 비어 있는 방(초대 전 대화)
-  if (want.includes('chat')) {
-    const where = { business_id: businessId, client_id: null, channel_type: 'customer', archived_at: null };
-    if (like) where[Op.or] = [{ title: like }, { display_name: like }];
+  // 3) 대화방 = 접점 **한 줄**. 링크가 있으면 그 링크가 이 대화의 **신원**이 된다.
+  //
+  // ★ 상한을 두지 않는다. 미연결 고객 대화방은 고객으로 등록되면 목록에서 빠지는 유한한 집합이고,
+  //   상한을 두는 순간 아래 needs_reply 를 **배열에서 세게 되어** 숫자가 목록 상한에 잘린다
+  //   (메일에서 903 → 300 으로 잘렸던 것과 같은 계열). 목록만 끝에서 자른다.
+  const wantChat = want.includes('chat');
+  const wantGuest = want.includes('guest_link');
+  const convWhere = { business_id: businessId, client_id: null, channel_type: 'customer', archived_at: null };
+  // 검색어가 **게스트 이름·이메일**에 맞은 대화도 들어온다 — 영업에서 사람을 찾는 방식이 그것이다.
+  // 대화방 제목만 보면 "이메일로 찾았는데 안 나온다" 가 된다.
+  if (like) {
+    convWhere[Op.or] = [
+      { title: like }, { display_name: like },
+      ...(linkLikeConvIds.size ? [{ id: { [Op.in]: [...linkLikeConvIds] } }] : []),
+    ];
+  }
+  let convCountExact = 0;      // 링크 유무와 무관한 전체 미연결 고객 대화방 수
+  let convNeedsReply = 0;      // 이 묶음(채팅+게스트)에서 답할 차례인 것 — 배열 길이가 아니라 누적
+  if (wantChat || wantGuest) {
+    const where = convWhere;
     const convs = await Conversation.findAll({
-      where, order: [['last_message_at', 'DESC']], limit: perSource,
+      where, order: [['last_message_at', 'DESC']],
       attributes: ['id', 'title', 'display_name', 'last_message_at', 'created_at'],
     });
+    convCountExact = convs.length;
     if (convs.length) {
       // 마지막 메시지 한 줄 — 목록에서 "무슨 이야기인지" 가 보여야 누를지 정한다.
       // ★ conversations 에는 last_message_direction 컬럼이 **없다**(email_threads 에만 있다).
@@ -153,19 +198,60 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
         for (const m of ms) memberIds.add(m.user_id);
       }
       for (const c of convs) {
+        const link = linksByConv.get(c.id) || null;
+        // 선택한 소스 칩에 맞는 것만 — 링크가 있으면 "게스트 문의", 없으면 "채팅" 이다.
+        if (link ? !wantGuest : !wantChat) continue;
         const last = lastByConv.get(c.id) || null;
+        // 답할 차례 = 마지막 발화가 우리 쪽이 아니거나, 게스트가 계정을 달라고 했거나.
+        const needsReplyRow = (!!last && !last.is_ai && !memberIds.has(last.sender_id))
+          || !!(link && link.account_requested_at);
+        if (needsReplyRow) convNeedsReply += 1;
         items.push({
-          source: 'chat',
-          id: `chat:${c.id}`,
-          ref: { kind: 'conversation', id: c.id },
-          who: c.display_name || c.title || null,
-          email: null,
+          source: link ? 'guest_link' : 'chat',
+          id: link ? `guest_link:${link.id}` : `chat:${c.id}`,
+          // ★ 등록은 **링크로** 나간다 — 서버(sale_save.js)가 대화방은 안 받지만 링크는 받는다.
+          //   그래서 이메일을 남긴 게스트 대화는 채팅이어도 "고객으로 등록" 이 된다.
+          ref: link
+            ? { kind: 'guest_link', id: link.id, conversation_id: c.id }
+            : { kind: 'conversation', id: c.id },
+          who: (link && (link.guest_name || link.contact_email || link.requested_email))
+            || c.display_name || c.title || null,
+          email: link ? link.contact_email || link.requested_email || null : null,
           title: c.title || null,
           preview: clean(last?.content),
           at: c.last_message_at || last?.created_at || c.created_at,
-          needs_reply: !!last && !last.is_ai && !memberIds.has(last.sender_id),
-          meta: {},
+          needs_reply: needsReplyRow,
+          meta: {
+            email_verified: !!(link && link.email_verified_at),
+            account_requested_at: link?.account_requested_at || null,
+            message_count: link?.message_count ?? null,
+          },
           open_path: `/talk?conv=${c.id}`,
+        });
+      }
+    }
+    // 대화방이 이 목록에 없는 링크(보관됨·고객 대화방이 아닌 방) — 그래도 문의는 문의다.
+    if (wantGuest) {
+      const seen = new Set(convs.map((c) => c.id));
+      for (const [convId, g] of linksByConv) {
+        if (seen.has(convId)) continue;
+        if (g.account_requested_at) convNeedsReply += 1;
+        items.push({
+          source: 'guest_link',
+          id: `guest_link:${g.id}`,
+          ref: { kind: 'guest_link', id: g.id, conversation_id: convId },
+          who: g.guest_name || g.contact_email || g.requested_email || null,
+          email: g.contact_email || g.requested_email || null,
+          title: null,
+          preview: null,
+          at: g.last_used_at || g.created_at,
+          needs_reply: !!g.account_requested_at,
+          meta: {
+            email_verified: !!g.email_verified_at,
+            account_requested_at: g.account_requested_at,
+            message_count: g.message_count,
+          },
+          open_path: `/talk?conv=${convId}`,
         });
       }
     }
@@ -178,12 +264,8 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   //   실측: 사람이 보낸 미연결 메일이 903건인데 배열 길이로는 300 으로 나왔다(상한값 그대로).
   //   숫자가 상한에 잘리는 것은 이미 한 번 사고가 난 계열이다(확인필요 35→51) — 목록만 자르고 숫자는 참으로.
   const counts = { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0 };
-  if (want.includes('guest_link')) {
-    const w = { business_id: businessId, client_id: null, revoked_at: null };
-    if (like) w[Op.or] = [{ guest_name: like }, { requested_email: like }, { contact_email: like }];
-    counts.guest_link = await GuestLink.count({ where: w });
-    counts.needs_reply += await GuestLink.count({ where: { ...w, account_requested_at: { [Op.ne]: null } } });
-  }
+  // 게스트·채팅은 **같은 대화**를 가리키므로 아래 한 곳에서 대화방 단위로 같이 센다.
+  // 따로 세면 겹친 만큼 합계가 부푼다(실측 3건이 양쪽에 떠 있었다).
   if (want.includes('email')) {
     const acctIds = await accessibleAccountIds(businessId, userId);
     if (acctIds.length) {
@@ -196,12 +278,15 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
       counts.needs_reply += await EmailThread.count({ where: { ...w, reply_needed: true } });
     }
   }
-  if (want.includes('chat')) {
-    // 채팅의 "답할 차례" 는 마지막 메시지 발신자로 정해지므로 위에서 만든 항목으로 센다(대화방 수는 적다).
-    const w = { business_id: businessId, client_id: null, channel_type: 'customer', archived_at: null };
-    if (like) w[Op.or] = [{ title: like }, { display_name: like }];
-    counts.chat = await Conversation.count({ where: w });
-    counts.needs_reply += items.filter((x) => x.source === 'chat' && x.needs_reply).length;
+  if (wantChat || wantGuest) {
+    const linkConvIds = [...linksByConv.keys()];
+    // 겹침 = 링크가 붙어 있으면서 이 목록의 대화방이기도 한 것. 이것을 빼지 않으면 두 번 세어진다.
+    const overlap = linkConvIds.length
+      ? await Conversation.count({ where: { ...convWhere, id: { [Op.in]: linkConvIds } } })
+      : 0;
+    if (wantChat) counts.chat = convCountExact - overlap;    // 링크가 없는 대화방
+    if (wantGuest) counts.guest_link = linkConvIds.length;   // 링크가 붙은 대화방(대표 1개로 접은 수)
+    counts.needs_reply += convNeedsReply;
   }
   counts.total = counts.guest_link + counts.email + counts.chat;
   return { items: sliced.slice(0, limit), counts };

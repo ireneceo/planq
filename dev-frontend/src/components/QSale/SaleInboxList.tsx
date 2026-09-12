@@ -6,7 +6,10 @@
 //
 // 서버(services/saleInbox)는 새 테이블 없이 원본(게스트 링크·메일 스레드·고객 대화방)에서 client_id 가 빈 것만 읽는다.
 // 여기서 하는 일은 셋뿐이다 — **보고**(미리보기·원본 열기) · **고객으로 등록** · **업무 추가**.
-// ★ "고객으로 등록" 은 서버가 guest_link·email_thread 만 받는다(routes/sale_save.js). 채팅 행에는 그 버튼을 그리지 않는다.
+// ★ "고객으로 등록" 은 서버가 guest_link·email_thread 만 받는다(routes/sale_save.js).
+//   그래서 판정은 **source 가 아니라 `ref.kind`** 다 — 게스트가 채팅에서 이메일을 남기면
+//   그 대화에 링크가 붙고, 서버는 그 링크로 등록할 수 있다(2026-09-12 Irene: "채팅할 때 고객이 이메일 넣으면?").
+//   링크가 없는 순수 대화방(`ref.kind === 'conversation'`)에만 버튼을 숨긴다.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -180,7 +183,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
                     data-testid={`sale-inbox-open-${it.id}`} onClick={() => openOriginal(it)}>
                     {t('action.openOriginal') as string}
                   </ActionButton>
-                  {it.source !== 'chat' && (
+                  {it.ref.kind !== 'conversation' && (
                     <ActionButton tone="primary" size="sm" disabled={busy}
                       data-testid={`sale-inbox-register-${it.id}`} onClick={() => registerClient(it)}>
                       {t('action.registerClient') as string}
