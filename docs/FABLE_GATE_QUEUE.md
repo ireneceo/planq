@@ -411,6 +411,13 @@ Stop 훅은 커밋마다 by:fable 마커를 요구해 한 번 막았다 — Iren
 | 승인완료 단계 후 | 업무 승인완료(done_feedback) 단계 부활 + Q sale 실시간 | HTTP 429 (`req_011CeyDt2eA1zyJ7ybzq4r3A`) |
 | Q sale 정보 통합 | 채팅 기준·회사 추정·고객 정보 정본 통합·우측 패널 | HTTP 429 (`req_011CeyJjnjbibqBEafA7VqML`) |
 
+### 부록 — `adb724d2` (문서 + 미사용 타입 1개)
+**판정: R=0 · S=0 · F=1 → 내가 검증한다** (CLAUDE.md 판정식). 내용은 CLAUDE.md "새로 만들지 않는다"
+절 신설 · session-state 후속 기록 · `ClientPanel.tsx` 에 `InquiryView` **인터페이스 선언만** 추가
+(사용처 0곳, 런타임 코드 변화 없음). 스키마·권한·발송·격리 어디에도 닿지 않는다.
+훅은 "소스 폴더가 바뀌었다" 만 보므로 걸렸고, 그 사실을 여기 남긴다 — 조용히 넘기지 않는다.
+검증: `npm run build` EXIT 0 · `error TS` 0(직전 빌드에 이 타입이 포함돼 통과).
+
 → 마커는 `by:"unavailable"`. 보고는 **"Fable 미검증(자체 검증)"**. "통과" 라고 쓰지 않는다.
 한도가 풀리면 9번·10번·11번을 **한 라운드로 묶어** 올린다(쪼개 올리지 않는다 — CLAUDE.md 소모 규칙).
 
