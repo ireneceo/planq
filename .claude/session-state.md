@@ -2,7 +2,22 @@
 **마지막 업데이트:** 2026-09-12 20:45 UTC
 **작업 상태:** Q sale 후속 1·2 완료(커밋 `a353e1c4`, **미배포**) · 후속 3~5 남음
 
-### ★ 방금 끝낸 것 (커밋 a353e1c4 · 3eeb6ca5 — **둘 다 미배포**)
+### ★ 방금 끝낸 것 (커밋 a353e1c4 · 3eeb6ca5 · 28656ba4 — **셋 다 미배포**)
+
+**③ 문의 추가에 AI 입력 · 첫 상담 기록 · 등록자 (28656ba4)**
+- `POST /api/sale/:biz/inquiry/extract` — 전화 메모·메일 본문을 붙여넣으면 6필드 추출, **저장 안 함**
+  (사람이 확인 후 저장 · "AI 가 채운 값" 안내). 비용 3종 + `PURPOSES.sale_extract`.
+- 모달에 **첫 상담 기록**(종류 전화·미팅·방문·메모 + 내용) → `client_interactions` 1건(`created_by`=나).
+  생성 로직은 `services/saleInteraction.js` **한 문**(상담 원장 POST 와 공유 — 베끼지 않았다).
+- **등록자·등록 시각** — `client_stage_history` 첫 행에서 파생(새 컬럼 0). ClientPanel "등록" 절.
+- 초안 kind `sale-inquiry-add`. 가드가 `usage.cueKind.extract` 라벨 누락을 선제로 잡았다.
+- 검증: 실호출 16/16 · 실브라우저 8/8(폰 390 포함) · `--suite drafts` 0 · 빌드 EXIT 0 · guard 49/50.
+- ★ **dev 에는 활성 구독이 없어 새 문의 생성이 422(플랜 게이트)로 막힌다** — `client_stage_history` 0건이
+  그 증거. 기록 경로는 "기존 고객 연결" 분기로 쟀다. 운영 정책 확인 필요(대기열 14번 질문 4).
+- ★ **미결정: `clients.sales_source` 에 'visit' 추가 여부** — Irene "전화/방문". ENUM append 는 운영
+  ALTER(R=1)라 하지 않았다. 지금은 방문이 **상담 기록 종류**로만 남고 유입 통계에선 'other' 로 섞인다.
+
+### 앞 라운드 — 업무 추가 폼 복사본 4→1 (a353e1c4 · 3eeb6ca5)
 - **업무 추가 폼이 한 벌이 됐다** — 네 자리(QTaskPage 인라인·드로어 / Q sale 상담 / Q project 업무 탭)가
   `components/QTask/TaskCreateForm.tsx`(535줄) 하나를 쓴다. QTaskPage 4223→3598 · TasksTab 648→433.
 - 합치며 드러난 실제 결함 3: ①Q project 에 태그·첨부 없음 ②반복 UI 두 벌(공용 `RecurrencePicker` 로 통일,
