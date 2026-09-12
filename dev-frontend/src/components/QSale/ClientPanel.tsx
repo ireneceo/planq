@@ -21,12 +21,32 @@ import LetterAvatar from '../Common/LetterAvatar';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { getSaleClient, setSaleStage, type SaleClientDetail } from '../../services/sale';
 
+/** 아직 고객이 아닌 문의(상담 행)를 그릴 때 쓰는 값 — 원본에서 **가져올 수 있는 것은 다 넣는다**.
+ *  Irene 2026-09-12: *"만약 고객이 아니고 게스트면 가져올 수 있는 정보를 다 넣어야지. 이름 이메일주소 등등."* */
+export interface InquiryView {
+  who: string | null;
+  email: string | null;
+  company: { name: string; estimated: boolean } | null;
+  title: string | null;
+  preview: string | null;
+  at: string | null;
+  needsReply: boolean;
+  source: string;
+  /** 등록 가능하면 누를 수 있다(링크 없는 순수 대화방은 서버가 못 받는다) */
+  canRegister: boolean;
+  emailVerified?: boolean;
+}
+
 interface Props {
   businessId: number;
   clientId: number | null;
+  /** clientId 가 없고 이것이 있으면 **미등록 문의**를 그린다 */
+  inquiry?: InquiryView | null;
   onClose: () => void;
   /** 단계가 바뀌면 부모 목록도 다시 읽는다 */
   onChanged?: () => void;
+  /** 미등록 문의를 고객으로 등록 */
+  onRegister?: () => void;
 }
 
 const ClientPanel: React.FC<Props> = ({ businessId, clientId, onClose, onChanged }) => {

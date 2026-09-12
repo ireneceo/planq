@@ -47,11 +47,46 @@
 **⑨ Q sale 상담 목록 실시간** — 새 이벤트를 만들지 않고 있는 신호를 듣는다
 (`message:new`·`mail:new`·`inbox:refresh`) → 250ms debounce silent 재조회 + `useVisibilityRefresh`
 
-### 다음 할 일 (Q sale 후속 4건 — Irene 지시 잔여)
-1. **상담 행 클릭 → 우측 패널** — 아직 고객이 아니므로 `ClientPanel` 을 그대로 못 쓴다.
-   "아직 고객 아님 + 문의 정보(이름·이메일·회사·미리보기) + 고객으로 등록" 분기를 넣어야 한다
-2. **문의 추가에 AI 입력 · 작성자 기록 · 유입 경로(전화/방문 등) 명확히** — 모달은 이미 있다
+### ★ 작업 원칙 (2026-09-12 Irene 지시 — 이번 세션에서 내가 어긴 것)
+
+> *"뭘 개발해도 새로운거 새로운 디자인. 기능형태 ui/ux 마음대로 생성하지마. 동기화도 다 되어야 해."*
+
+**구현 전에 먼저 찾는다.** 같은 일을 하는 화면이 있으면 그것을 쓰고, 인라인이라 재사용이 안 되면
+**공용으로 빼서** 둘이 같이 쓴다. 새로 그리면 필드·동작이 갈리고 고칠 때 한 곳만 고쳐진다.
+껍데기도 이미 있다 — `CreateDrawer`(우측 생성 폼) · `StandardModal`(가운데) · `DetailDrawer`(상세 패널) ·
+`dropdownShell` · `AttachmentField`. 자료도 **응답 한 곳**을 정본으로 쓴다(화면마다 모으면 갈라진다).
+CLAUDE.md "새로 만들지 않는다" 절에 박제했다.
+
+### 다음 할 일 (Q sale 후속 — Irene 지시 잔여)
+
+> **★ 2026-09-12 오후 추가 지적 2건 — 아래 1·2 가 그것이다. 배포 뒤에 받았다.**
+
+1. **상담 행 클릭 → 우측 패널** (Irene: *"상담 탭 리스트에서 리스트 누르면 해당 고객 정보가 우측 패널에
+   뜨게 해달라고 했잖아. 이건 아직 안한거야? 만약 고객이 아니고 게스트면 **가져올 수 있는 정보를 다
+   넣어야지. 이름 이메일주소 등등**"*)
+   - 미등록 문의는 고객 레코드가 없어 `ClientPanel` 을 그대로 못 쓴다 → **`InquiryView` 분기**로 간다
+     (타입은 `components/QSale/ClientPanel.tsx` 에 이미 추가해 뒀다: who·email·company·title·preview·
+     at·needsReply·source·canRegister·emailVerified)
+   - `SaleInboxList` 의 행 클릭이 지금 **펼치기 토글**(`setOpenId`)이다 — 패널 열기로 바꾸되
+     펼치기를 없앨지 같이 둘지 정해야 한다
+   - 넣을 것: 이름·이메일(+확인 여부)·회사(추정 표시)·유입 경로·제목·마지막 내용·시각·답변 필요 여부
+     · [보기] · [고객으로 등록](`canRegister` 일 때만)
+
+2. **★ 업무 추가 팝업을 기존 것으로 교체 — 내가 새로 만든 것이 잘못이다**
+   (Irene: *"업무추가 팝업이 왜 새거야? 기존 업무추가 항목들하고 기능하고 다르고?"*)
+   - 지금 `SaleInboxList` 에 **`StandardModal` 로 새로 짠 제목+설명 2칸 모달**이 들어가 있다.
+     기존 업무 추가에는 **프로젝트·담당자·마감일** 등이 있는데 여기엔 없다 → 화면마다 기능이 갈린다
+   - **재사용 대상**: `components/Common/CreateDrawer`(props: `open·onClose·title·children·onSubmit·
+     submitting·submitLabel·submitDisabled·wide·leftSlot`) + `pages/QTask/QTaskPage.tsx:3513` 의
+     `PanelAddForm` 구성(업무명 · 프로젝트 · 담당자 · 마감 · Ctrl+Enter 저장)
+   - 그 폼은 지금 QTaskPage 안에 인라인이라 **공용으로 빼야** 두 곳이 같아진다. 빼는 김에
+     Q project TasksTab 도 같이 쓰게 할지 검토
+   - ★ 지금 붙여둔 임시저장(kind `sale-task-add`)은 **교체 후에도 유지**해야 한다(쓰다 닫으면 날아감)
+
+3. **문의 추가에 AI 입력 · 작성자 기록 · 유입 경로(전화/방문 등) 명확히** — 모달은 이미 있다
    (`sale-add-inquiry`, 이름·회사·전화·이메일·유입경로). AI 추가와 작성자가 빠져 있다
+   - **AI 는 `components/QTask/AiTaskCreateModal.tsx` 패턴을 따른다**
+     (props: `open·onClose·businessId·projectId·onCreated`) — 새로 짜지 말 것
 3. **Q sale 배지 ⓑ** — 지금 `collectSale` 은 **등록된 고객**만 센다(미등록 문의는 어느 배지에도 없다).
    메일·채팅 알림이 닿지 않는 **게스트 링크 문의만** 더한다. `sales_source !== 'email'` 조건이 이미 있어
    이중 계수는 없다(확인 완료)
