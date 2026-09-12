@@ -70,6 +70,33 @@
       "confirm": "종결로 변경"
     }
   },
+  "taskAdd": {
+    "title": "업무 추가",
+    "titleLabel": "할 일",
+    "titlePlaceholder": "무엇을 해야 하나요?",
+    "descLabel": "설명 (선택)",
+    "descPlaceholder": "필요하면 자세히 적어주세요",
+    "titleRequired": "할 일을 입력해 주세요",
+    "submit": "추가",
+    "cancel": "취소"
+  },
+  "panel": {
+    "openFull": "전체보기",
+    "contact": "연락처",
+    "phone": "전화",
+    "accountEmail": "계정 이메일",
+    "inviteEmail": "초대 이메일",
+    "billingEmail": "청구 이메일",
+    "taxEmail": "세금계산서 이메일",
+    "biz": "사업자 정보",
+    "bizName": "상호",
+    "bizCeo": "대표자",
+    "bizTaxId": "사업자번호",
+    "bizAddress": "주소",
+    "linked": "연결",
+    "conversations": "대화방",
+    "emailThreads": "메일 스레드"
+  },
   "action": {
     "addInquiry": "+ 문의 추가",
     "saveAsClient": "고객으로 저장",
@@ -78,9 +105,13 @@
     "invite": "초대 보내기",
     "openClientSettings": "고객 정보",
     "retry": "다시 시도",
-    "openOriginal": "원본 열기",
+    "view": "보기",
     "addTask": "업무 추가",
-    "registerClient": "고객으로 등록"
+    "registerClient": "고객으로 등록",
+    "createProject": "프로젝트 만들기",
+    "createInvoice": "청구하기",
+    "markWon": "계약 성사",
+    "markLost": "계약 불발"
   },
   "record": {
     "kind": {

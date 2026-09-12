@@ -19,6 +19,24 @@ const SOURCES = ['guest_link', 'email', 'chat'];
 
 const clean = (s, n = 140) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
+/** 이메일 도메인으로 회사를 **추정**한다 — 무료메일은 제외(그건 개인 주소지 회사가 아니다).
+ *
+ * ★ 추정값이므로 화면은 이것을 **입력된 회사와 구분해서** 보여줘야 한다(estimated 플래그).
+ *   도메인 목록은 services/emailTriage 의 FREE_MAIL_DOMAIN 단일 원천을 쓴다 — 베끼면 한쪽만 늘어난다.
+ */
+function companyFromEmail(email) {
+  const addr = String(email || '').toLowerCase();
+  const [local, dom] = addr.split('@');
+  if (!dom || dom.length < 4) return null;
+  const { FREE_MAIL_DOMAIN } = require('./emailTriage');
+  if (FREE_MAIL_DOMAIN.test(dom)) return null;
+  // ★ 발송 전용 주소는 회사가 아니다. 실측으로 잡았다 — no_reply@email.apple.com 을
+  //   "회사: email.apple.com" 으로 내놓고 있었다. 추정이 거짓이면 안 하느니만 못하다.
+  if (/^(no-?reply|donotreply|do-not-reply|mailer|bounce|postmaster|notification?s?|alerts?|news|info|admin)(\b|[-_.])/.test(local || '')) return null;
+  if (/^(email|mail|mailer|notifications?|bounce|reply|em|mg|smtp)\./.test(dom)) return null;
+  return { name: dom.replace(/^www\./, ''), estimated: true };
+}
+
 /** 한 대화방에 링크가 여럿일 때 **등록에 쓸 하나**를 고른다 — 확인된 이메일 → 이메일 있음 → 최근 사용순.
  *
  * ★ 구독(`routes/guest_subscribe.js`)은 **확인한 사람마다** personal 링크를 하나씩 만든다.
@@ -139,6 +157,7 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
           ref: { kind: 'email_thread', id: t.id },
           who: outside?.name || outside?.email || null,
           email: outside?.email || null,
+          company: companyFromEmail(outside?.email),
           title: t.subject || null,
           preview: clean(t.last_message_preview),
           at: t.last_message_at || t.created_at,
@@ -166,28 +185,46 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
       ...(linkLikeConvIds.size ? [{ id: { [Op.in]: [...linkLikeConvIds] } }] : []),
     ];
   }
-  let convCountExact = 0;      // 링크 유무와 무관한 전체 미연결 고객 대화방 수
   let convNeedsReply = 0;      // 이 묶음(채팅+게스트)에서 답할 차례인 것 — 배열 길이가 아니라 누적
+  // 자격을 통과한 것만 센다(아래 ★ 외부 발화 기준). 칩 선택과 무관하게 세어야 전체와 칩이 일치한다.
+  let qChat = 0;               // 링크 없는 대화방
+  let qGuest = 0;              // 링크가 붙은 대화방
+  let qOrphan = 0;             // 대화방이 목록에 없는 링크
+  // ★ 바깥에서 선언한다 — 안쪽 블록에서 const 로 만들면 고아 링크 루프가 그 변수를 못 본다(500).
+  const qualifiedIds = new Set();
   if (wantChat || wantGuest) {
     const where = convWhere;
     const convs = await Conversation.findAll({
       where, order: [['last_message_at', 'DESC']],
       attributes: ['id', 'title', 'display_name', 'last_message_at', 'created_at'],
     });
-    convCountExact = convs.length;
     if (convs.length) {
       // 마지막 메시지 한 줄 — 목록에서 "무슨 이야기인지" 가 보여야 누를지 정한다.
       // ★ conversations 에는 last_message_direction 컬럼이 **없다**(email_threads 에만 있다).
       //   그 컬럼으로 판정하면 조용히 언제나 false 가 된다 — 마지막 메시지의 **보낸 사람**으로 판정한다.
       //   우리 워크스페이스 멤버가 아닌 사람(게스트·고객)이 마지막이면 우리가 답할 차례다.
+      const convIds = convs.map((c) => c.id);
       const rows = await Message.findAll({
-        where: { conversation_id: { [Op.in]: convs.map((c) => c.id) }, is_deleted: false },
+        where: { conversation_id: { [Op.in]: convIds }, is_deleted: false },
         order: [['id', 'DESC']], limit: convs.length * 3,
         attributes: ['id', 'conversation_id', 'content', 'sender_id', 'is_ai', 'created_at'],
       });
       const lastByConv = new Map();
       for (const m of rows) if (!lastByConv.has(m.conversation_id)) lastByConv.set(m.conversation_id, m);
-      const senderIds = [...new Set([...lastByConv.values()].map((m) => m.sender_id).filter(Boolean))];
+
+      // ★ 2026-09-12 (Irene: "채팅도 고객이 아무말도 안남겨도 나오는데") —
+      //   **고객·게스트가 실제로 말한 적이 있는 방만** 상담이다. 여태는 방이 있으면 올라왔다.
+      //   방마다 발화자를 모아, 우리 멤버가 아닌 사람이 한 번이라도 말했는지로 가른다.
+      //   (Cue 자동응답은 우리 쪽이므로 is_ai 는 제외한다 — 그것은 고객의 말이 아니다.)
+      const speakers = await Message.findAll({
+        where: { conversation_id: { [Op.in]: convIds }, is_deleted: false, is_ai: false },
+        attributes: ['conversation_id', 'sender_id'],
+        group: ['conversation_id', 'sender_id'], raw: true,
+      });
+      const senderIds = [...new Set([
+        ...speakers.map((s) => s.sender_id),
+        ...[...lastByConv.values()].map((m) => m.sender_id),
+      ].filter(Boolean))];
       const memberIds = new Set();
       if (senderIds.length) {
         const { BusinessMember } = require('../models');
@@ -197,9 +234,16 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
         });
         for (const m of ms) memberIds.add(m.user_id);
       }
-      for (const c of convs) {
+      const spoke = new Set();
+      for (const s of speakers) if (s.sender_id && !memberIds.has(s.sender_id)) spoke.add(s.conversation_id);
+      // 자격 통과분 — 목록도 집계도 이 집합만 본다(둘이 갈라지지 않게).
+      const qualified = convs.filter((c) => spoke.has(c.id));
+      for (const c of qualified) qualifiedIds.add(c.id);
+      for (const c of qualified) {
         const link = linksByConv.get(c.id) || null;
-        // 선택한 소스 칩에 맞는 것만 — 링크가 있으면 "게스트 문의", 없으면 "채팅" 이다.
+        // 집계는 칩 선택과 무관하게 — 그래야 "전체 7" 인데 칩을 누르면 9 가 되는 일이 없다.
+        if (link) qGuest += 1; else qChat += 1;
+        // 선택한 소스 칩에 맞는 것만 그린다 — 링크가 있으면 "게스트 문의", 없으면 "채팅".
         if (link ? !wantGuest : !wantChat) continue;
         const last = lastByConv.get(c.id) || null;
         // 답할 차례 = 마지막 발화가 우리 쪽이 아니거나, 게스트가 계정을 달라고 했거나.
@@ -217,6 +261,7 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
           who: (link && (link.guest_name || link.contact_email || link.requested_email))
             || c.display_name || c.title || null,
           email: link ? link.contact_email || link.requested_email || null : null,
+          company: companyFromEmail(link && (link.contact_email || link.requested_email)),
           title: c.title || null,
           preview: clean(last?.content),
           at: c.last_message_at || last?.created_at || c.created_at,
@@ -231,10 +276,16 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
       }
     }
     // 대화방이 이 목록에 없는 링크(보관됨·고객 대화방이 아닌 방) — 그래도 문의는 문의다.
+    // ★ 링크만 있고 **아무도 말하지 않은** 방은 상담이 아니다 — 우리가 문을 열어둔 것일 뿐이다.
+    //   계정을 달라고 한 것(account_requested_at)은 그 자체가 말이므로 자격으로 친다.
+    //   (자격을 통과한 링크 대화방은 위 루프가 이미 대화방 제목·미리보기와 함께 그렸다.)
+    for (const [convId, g] of linksByConv) {
+      if (qualifiedIds.has(convId) || !g.account_requested_at) continue;
+      qOrphan += 1;
+    }
     if (wantGuest) {
-      const seen = new Set(convs.map((c) => c.id));
       for (const [convId, g] of linksByConv) {
-        if (seen.has(convId)) continue;
+        if (qualifiedIds.has(convId) || !g.account_requested_at) continue;
         if (g.account_requested_at) convNeedsReply += 1;
         items.push({
           source: 'guest_link',
@@ -242,6 +293,7 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
           ref: { kind: 'guest_link', id: g.id, conversation_id: convId },
           who: g.guest_name || g.contact_email || g.requested_email || null,
           email: g.contact_email || g.requested_email || null,
+          company: companyFromEmail(g.contact_email || g.requested_email),
           title: null,
           preview: null,
           at: g.last_used_at || g.created_at,
@@ -279,13 +331,10 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
     }
   }
   if (wantChat || wantGuest) {
-    const linkConvIds = [...linksByConv.keys()];
-    // 겹침 = 링크가 붙어 있으면서 이 목록의 대화방이기도 한 것. 이것을 빼지 않으면 두 번 세어진다.
-    const overlap = linkConvIds.length
-      ? await Conversation.count({ where: { ...convWhere, id: { [Op.in]: linkConvIds } } })
-      : 0;
-    if (wantChat) counts.chat = convCountExact - overlap;    // 링크가 없는 대화방
-    if (wantGuest) counts.guest_link = linkConvIds.length;   // 링크가 붙은 대화방(대표 1개로 접은 수)
+    // ★ 자격(외부 발화)을 통과한 것만 센다. 목록을 만들며 함께 세었으므로 두 숫자가 갈라지지 않는다.
+    //   칩 선택과 무관하게 세므로 전체와 칩이 항상 일치한다.
+    if (wantChat) counts.chat = qChat;
+    if (wantGuest) counts.guest_link = qGuest + qOrphan;
     counts.needs_reply += convNeedsReply;
   }
   counts.total = counts.guest_link + counts.email + counts.chat;

@@ -51,6 +51,26 @@ export interface SaleClientDetail extends SaleClient {
   stage_history: StageHistoryRow[];
   channels: { conversations: number; email_threads: number; guest_links: number };
   projects: Array<{ id: number; name: string; status: string }>;
+  /** 연락처 — 목록은 이메일을 하나로 접지만 상세는 **종류별로** 편다(어떤 주소인지 말할 수 있게) */
+  contact?: {
+    invite_email: string | null;
+    account_email: string | null;
+    billing_email: string | null;
+    tax_invoice_email: string | null;
+    phone: string | null;
+    billing_phone: string | null;
+    billing_contact_name: string | null;
+  };
+  /** 사업자 정보 — 없으면 null */
+  biz?: {
+    name: string | null;
+    ceo: string | null;
+    tax_id: string | null;
+    type: string | null;
+    item: string | null;
+    address: string | null;
+    address_en: string | null;
+  } | null;
 }
 
 export interface SaleQuota {
@@ -129,6 +149,8 @@ export interface SaleInboxItem {
   ref: { kind: 'guest_link' | 'email_thread' | 'conversation'; id: number; conversation_id?: number };
   who: string | null;
   email: string | null;
+  /** 회사 — 입력값이 없으면 이메일 도메인에서 **추정**한다(estimated). 화면은 둘을 구분해 보여준다 */
+  company: { name: string; estimated: boolean } | null;
   title: string | null;
   preview: string | null;
   at: string | null;

@@ -409,6 +409,7 @@ Stop 훅은 커밋마다 by:fable 마커를 요구해 한 번 막았다 — Iren
 | 2차 라운드 전 | Q sale 상담 목록 1차 | HTTP 429 (`req_011Cey7gtsKyFqeMSahhqej6`) |
 | 2차 라운드 후 | Q sale 상담 목록 2차(대화방 합치기) | HTTP 429 (`req_011CeyBfkSGMDcQpxVNnnYgG`) |
 | 승인완료 단계 후 | 업무 승인완료(done_feedback) 단계 부활 + Q sale 실시간 | HTTP 429 (`req_011CeyDt2eA1zyJ7ybzq4r3A`) |
+| Q sale 정보 통합 | 채팅 기준·회사 추정·고객 정보 정본 통합·우측 패널 | HTTP 429 (`req_011CeyJjnjbibqBEafA7VqML`) |
 
 → 마커는 `by:"unavailable"`. 보고는 **"Fable 미검증(자체 검증)"**. "통과" 라고 쓰지 않는다.
 한도가 풀리면 9번·10번·11번을 **한 라운드로 묶어** 올린다(쪼개 올리지 않는다 — CLAUDE.md 소모 규칙).

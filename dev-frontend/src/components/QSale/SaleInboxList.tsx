@@ -19,6 +19,8 @@ import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ActionButton from '../Common/ActionButton';
+import StandardModal from '../Common/StandardModal';
+import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
 import { listSaleInbox, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
@@ -46,6 +48,15 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
   const [error, setError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  // 업무 추가 — 메일 내용을 베끼지 않고 **빈 입력**을 연다(Irene 2026-09-12).
+  //   ★ 사람이 직접 쓰는 글이라 **쓰다 닫아도 남아야 한다**(입력 초안 계약).
+  //     비우는 곳은 제출 성공·명시 취소뿐이다 — 대상 전환 이펙트에서 지우지 않는다.
+  const [taskFor, setTaskFor] = useState<SaleInboxItem | null>(null);
+  const [taskErr, setTaskErr] = useState<string | null>(null);
+  const taskTitleKey = useDraftKey('sale-task-add', taskFor ? `${taskFor.id}:title` : null, businessId);
+  const taskDescKey = useDraftKey('sale-task-add', taskFor ? `${taskFor.id}:desc` : null, businessId);
+  const taskTitleDraft = useDraftText(taskTitleKey);
+  const taskDescDraft = useDraftText(taskDescKey);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // 최신 값은 ref 로 — 리스너·타이머가 옛 값에 굳지 않게(배경 갱신 규칙)
@@ -105,7 +116,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
   ), [counts]);
 
   // 원본으로 — 채팅은 대화방, 메일은 그 스레드. 보던 화면을 덮지 않게 새 탭 규칙을 따른다.
-  const openOriginal = useCallback((it: SaleInboxItem) => { navigate(it.open_path); }, [navigate]);
+  const openRow = useCallback((it: SaleInboxItem) => { navigate(it.open_path); }, [navigate]);
 
   // 고객으로 등록 — 기존 라우트를 그대로 부른다(서버가 중복 연결·한도까지 판정한다)
   const registerClient = useCallback(async (it: SaleInboxItem) => {
@@ -134,16 +145,21 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
   }, [busyId, businessId, load, navigate, onRegistered, t]);
 
   // 업무 추가 — 제목은 그 문의에서 가져온다. 만든 뒤 그 업무를 연다.
-  const addTask = useCallback(async (it: SaleInboxItem) => {
+  // ★ 2026-09-12 (Irene: "업무추가 버튼은 왜 메일 정보를 다 가져가? 그냥 업무추가 하면 입력을 하게 해.")
+  //   여태는 메일 제목·미리보기를 그대로 베껴 업무를 만들었다. 상담에서 할 일은 메일 제목과 다르다
+  //   ("견적서 보내기" 지 "Re: 문의드립니다" 가 아니다). **빈 입력**을 열고 사용자가 쓴 것만 저장한다.
+  const submitTask = useCallback(async (it: SaleInboxItem, title: string, description: string) => {
     if (busyId) return;
     setBusyId(it.id);
     setActionError(null);
     try {
-      const who = it.who || (t('inbox.unknownWho') as string);
-      const title = `${who} — ${it.title || t('inbox.noSubject')}`.slice(0, 200);
       const r = await apiFetch('/api/tasks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId, title, description: it.preview || null }),
+        body: JSON.stringify({
+          business_id: businessId,
+          title: title.trim().slice(0, 200),
+          description: description.trim() || null,
+        }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || j?.success === false) { setActionError(j?.message || `HTTP ${r.status}`); return; }
@@ -157,6 +173,42 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
   }, [busyId, businessId, navigate, t]);
 
   const rows = useMemo(() => items, [items]);
+
+  const taskModal = taskFor ? (
+    <StandardModal open onClose={() => setTaskFor(null)} title={t('taskAdd.title') as string} size="sm"
+      footer={(
+        <>
+          <ActionButton tone="secondary" size="md" onClick={() => setTaskFor(null)}>
+            {t('taskAdd.cancel') as string}
+          </ActionButton>
+          <ActionButton tone="primary" size="md" loading={busyId === taskFor.id}
+            data-testid="sale-inbox-task-submit"
+            onClick={async () => {
+              if (!taskTitleDraft.text.trim()) { setTaskErr(t('taskAdd.titleRequired') as string); return; }
+              const target = taskFor;
+              const title = taskTitleDraft.text;
+              const desc = taskDescDraft.text;
+              setTaskFor(null);
+              await submitTask(target, title, desc);
+              // 제출이 끝난 뒤에만 비운다 — 실패를 삼키고 비우면 저장 실패가 곧 글 삭제다.
+              taskTitleDraft.clear();
+              taskDescDraft.clear();
+            }}>
+            {t('taskAdd.submit') as string}
+          </ActionButton>
+        </>
+      )}>
+      <FieldLabel htmlFor="sale-task-title">{t('taskAdd.titleLabel') as string}</FieldLabel>
+      <TextInput id="sale-task-title" data-draft-kind="sale-task-add" value={taskTitleDraft.text} autoFocus
+        placeholder={t('taskAdd.titlePlaceholder') as string}
+        onChange={(e) => { taskTitleDraft.setText(e.target.value); setTaskErr(null); }} />
+      <FieldLabel htmlFor="sale-task-desc">{t('taskAdd.descLabel') as string}</FieldLabel>
+      <TextArea id="sale-task-desc" data-draft-kind="sale-task-add" value={taskDescDraft.text} rows={4}
+        placeholder={t('taskAdd.descPlaceholder') as string}
+        onChange={(e) => taskDescDraft.setText(e.target.value)} />
+      {taskErr && <ErrorBar>{taskErr}</ErrorBar>}
+    </StandardModal>
+  ) : null;
 
   return (
     <>
@@ -210,8 +262,8 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
                 </RowMain>
                 <RowActions>
                   <ActionButton tone="secondary" size="sm" disabled={busy}
-                    data-testid={`sale-inbox-open-${it.id}`} onClick={() => openOriginal(it)}>
-                    {t('action.openOriginal') as string}
+                    data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}>
+                    {t('action.view') as string}
                   </ActionButton>
                   {it.ref.kind !== 'conversation' && (
                     <ActionButton tone="primary" size="sm" disabled={busy}
@@ -220,7 +272,8 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
                     </ActionButton>
                   )}
                   <ActionButton tone="secondary" size="sm" disabled={busy}
-                    data-testid={`sale-inbox-task-${it.id}`} onClick={() => addTask(it)}>
+                    data-testid={`sale-inbox-task-${it.id}`}
+                    onClick={() => { setTaskFor(it); setTaskErr(null); }}>
                     {t('action.addTask') as string}
                   </ActionButton>
                 </RowActions>
@@ -229,6 +282,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
           })}
         </List>
       )}
+      {taskModal}
     </>
   );
 };
@@ -250,6 +304,21 @@ const Chip = styled.button<{ $on?: boolean; $accent?: boolean }>`
   &:hover { background: ${(p) => (p.$on ? undefined : '#F8FAFC')}; }
 `;
 const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 0 0 10px;`;
+const FieldLabel = styled.label`
+  display: block; margin: 12px 0 6px; font-size: 0.8125rem; font-weight: 600; color: #475569;
+  &:first-child { margin-top: 0; }
+`;
+const TextInput = styled.input`
+  width: 100%; height: 40px; padding: 0 12px; box-sizing: border-box;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.875rem; color: #0F172A;
+  &:focus { outline: none; border-color: #0D9488; }
+`;
+const TextArea = styled.textarea`
+  width: 100%; padding: 10px 12px; box-sizing: border-box; resize: vertical;
+  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.875rem; color: #0F172A;
+  font-family: inherit; line-height: 1.5;
+  &:focus { outline: none; border-color: #0D9488; }
+`;
 const ErrorBar = styled.div`
   margin-bottom: 8px; padding: 8px 12px; border-radius: 8px;
   background: #FEF2F2; color: #B91C1C; font-size: 0.8125rem;

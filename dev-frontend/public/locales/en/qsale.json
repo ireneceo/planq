@@ -70,6 +70,33 @@
       "confirm": "Mark as closed"
     }
   },
+  "taskAdd": {
+    "title": "Add task",
+    "titleLabel": "Task",
+    "titlePlaceholder": "What needs to be done?",
+    "descLabel": "Description (optional)",
+    "descPlaceholder": "Add details if needed",
+    "titleRequired": "Please enter the task",
+    "submit": "Add",
+    "cancel": "Cancel"
+  },
+  "panel": {
+    "openFull": "Open full view",
+    "contact": "Contact",
+    "phone": "Phone",
+    "accountEmail": "Account email",
+    "inviteEmail": "Invitation email",
+    "billingEmail": "Billing email",
+    "taxEmail": "Tax invoice email",
+    "biz": "Business info",
+    "bizName": "Business name",
+    "bizCeo": "Representative",
+    "bizTaxId": "Business number",
+    "bizAddress": "Address",
+    "linked": "Linked",
+    "conversations": "Conversations",
+    "emailThreads": "Email threads"
+  },
   "action": {
     "addInquiry": "+ Add inquiry",
     "saveAsClient": "Save as customer",
@@ -78,9 +105,13 @@
     "invite": "Send invitation",
     "openClientSettings": "Customer details",
     "retry": "Try again",
-    "openOriginal": "Open original",
+    "view": "View",
     "addTask": "Add task",
-    "registerClient": "Register as client"
+    "registerClient": "Register as client",
+    "createProject": "Create project",
+    "createInvoice": "Create invoice",
+    "markWon": "Mark as won",
+    "markLost": "Mark as lost"
   },
   "record": {
     "kind": {

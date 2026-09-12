@@ -10,6 +10,8 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { onSocket } from '../../services/socket';
 import PageShell from '../../components/Layout/PageShell';
+import ClientPanel from '../../components/QSale/ClientPanel';
+import ClientLink from '../../components/QSale/ClientLink';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import ActionButton from '../../components/Common/ActionButton';
 import StandardModal from '../../components/Common/StandardModal';
@@ -47,6 +49,9 @@ export default function SalePage() {
   const [access, setAccess] = useState<string>('');
   const [assignee, setAssignee] = useState<string>('');
   const [addOpen, setAddOpen] = useState(false);
+  // ★ 행을 눌러도 **페이지를 갈아타지 않는다** (Irene 2026-09-12: "고객탭에서는 리스트 누르면
+  //   페이지 전환하지 말고 우측패널 나오게 하고"). 전체를 보려면 패널 헤더의 전체보기 아이콘.
+  const [panelClientId, setPanelClientId] = useState<number | null>(null);
 
   const filters = useMemo(() => ({ q, stage, access, assignee }), [q, stage, access, assignee]);
   const filtersRef = useRef(filters);
@@ -136,29 +141,8 @@ export default function SalePage() {
           <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
             placeholder={t('list.searchPlaceholder') as string}
             aria-label={t('list.searchPlaceholder') as string} />
-          {/* 단계·접근·담당자는 **고객 목록**의 축이다 — 상담 탭에서는 그릴 것이 없다(소스·답변 필요 칩이 그 자리) */}
-          {tab === 'clients' && (
-          <>
-          <SelectWrap $w={150} data-testid="sale-stage-filter">
-            <PlanQSelect size="sm" isSearchable={false} options={stageOptions}
-              aria-label={t('stage.label') as string}
-              value={stageOptions.find((o) => o.value === stage) || stageOptions[0]}
-              onChange={(opt: unknown) => setStage(String((opt as { value?: string } | null)?.value ?? ''))} />
-          </SelectWrap>
-          <SelectWrap $w={130} data-testid="sale-access-filter">
-            <PlanQSelect size="sm" isSearchable={false} options={accessOptions}
-              aria-label={t('access.label') as string}
-              value={accessOptions.find((o) => o.value === access) || accessOptions[0]}
-              onChange={(opt: unknown) => setAccess(String((opt as { value?: string } | null)?.value ?? ''))} />
-          </SelectWrap>
-          <SelectWrap $w={140} data-testid="sale-assignee-filter">
-            <PlanQSelect size="sm" isSearchable={false} options={assigneeOptions}
-              aria-label={t('list.assignee') as string}
-              value={assigneeOptions.find((o) => o.value === assignee) || assigneeOptions[0]}
-              onChange={(opt: unknown) => setAssignee(String((opt as { value?: string } | null)?.value ?? ''))} />
-          </SelectWrap>
-          </>
-          )}
+          {/* ★ 필터는 헤더가 아니라 **탭 아래**다 (Irene 2026-09-12: "필터는 원래 탭 아래 있는 거 아니야?
+              왜 우측 상단에 있어?"). 헤더에는 검색과 새로 만들기만 남긴다 — 목록 페이지 공통 규격. */}
           <ActionButton tone="primary" size="sm" data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
             {t('action.addInquiry') as string}
           </ActionButton>
@@ -172,7 +156,7 @@ export default function SalePage() {
           {t('list.tabInbox') as string}
         </TabBtn>
         <TabBtn type="button" role="tab" aria-selected={tab === 'clients'} data-testid="sale-tab-clients"
-          $on={tab === 'clients'} onClick={() => setTab('clients')}>
+          $on={tab === 'clients'} onClick={() => setTab('clients')}>{/* 필터는 이 줄 아래에 온다 */}
           {t('list.tabClients') as string}
         </TabBtn>
       </TabRow>
@@ -183,6 +167,28 @@ export default function SalePage() {
         ) : null
       ) : (
       <>
+      {/* ★ 필터는 **탭 아래** (Irene 2026-09-12: "필터는 원래 탭 아래 있는 거 아니야? 왜 우측 상단에 있어?").
+          단계·접근·담당자는 고객 목록의 축이라 이 탭에서만 그린다. */}
+      <FilterRow data-testid="sale-filter-row">
+        <SelectWrap $w={150} data-testid="sale-stage-filter">
+          <PlanQSelect size="sm" isSearchable={false} options={stageOptions}
+            aria-label={t('stage.label') as string}
+            value={stageOptions.find((o) => o.value === stage) || stageOptions[0]}
+            onChange={(opt: unknown) => setStage(String((opt as { value?: string } | null)?.value ?? ''))} />
+        </SelectWrap>
+        <SelectWrap $w={130} data-testid="sale-access-filter">
+          <PlanQSelect size="sm" isSearchable={false} options={accessOptions}
+            aria-label={t('access.label') as string}
+            value={accessOptions.find((o) => o.value === access) || accessOptions[0]}
+            onChange={(opt: unknown) => setAccess(String((opt as { value?: string } | null)?.value ?? ''))} />
+        </SelectWrap>
+        <SelectWrap $w={140} data-testid="sale-assignee-filter">
+          <PlanQSelect size="sm" isSearchable={false} options={assigneeOptions}
+            aria-label={t('list.assignee') as string}
+            value={assigneeOptions.find((o) => o.value === assignee) || assigneeOptions[0]}
+            onChange={(opt: unknown) => setAssignee(String((opt as { value?: string } | null)?.value ?? ''))} />
+        </SelectWrap>
+      </FilterRow>
       {summary && (
         <StripRow>
           <StageStrip>
@@ -253,11 +259,15 @@ export default function SalePage() {
               {items.map((c) => {
                 const name = c.display_name || c.company_name || c.email || '—';
                 return (
-                  <Tr key={c.id} data-testid={`sale-row-${c.id}`} onClick={() => navigate(`/sale/${c.id}`)}>
+                  <Tr key={c.id} data-testid={`sale-row-${c.id}`}
+                    onClick={() => setPanelClientId((prev) => (prev === c.id ? null : c.id))}>
                     <Td><LetterAvatar name={name} size={32} variant="neutral" /></Td>
                     <Td>
                       <NameCell>
-                        <strong>{name}</strong>
+                        {/* ★ 이름은 공통 컴포넌트로 — 어디서 이름이 나오든 같은 방식으로 열린다.
+                            행 전체도 패널을 열지만, 이름을 직접 눌러도 **같은 패널**이라 동작이 갈라지지 않는다. */}
+                        <ClientLink clientId={c.id} name={name}
+                          onOpen={(id) => setPanelClientId((prev) => (prev === id ? null : id))} />
                         {c.company_name && c.display_name && <CompanySub>{c.company_name}</CompanySub>}
                       </NameCell>
                     </Td>
@@ -296,7 +306,13 @@ export default function SalePage() {
         open={addOpen}
         businessId={businessId}
         onClose={() => setAddOpen(false)}
-        onDone={(clientId) => { setAddOpen(false); navigate(`/sale/${clientId}`); }}
+        onDone={(clientId) => { setAddOpen(false); setPanelClientId(clientId); }}
+      />
+      <ClientPanel
+        businessId={businessId as number}
+        clientId={panelClientId}
+        onClose={() => setPanelClientId(null)}
+        onChanged={() => load({ silent: true })}
       />
     </PageShell>
   );
@@ -433,6 +449,11 @@ const StageChip = styled.button<{ $on?: boolean }>`
   &:hover { border-color: #5EEAD4; }
 `;
 const Divider = styled.span`width: 1px; height: 18px; background: #E2E8F0; flex-shrink: 0;`;
+// 탭 바로 아래 필터 줄 — 폰에서는 감긴다(고정 폭 셀렉트가 가로로 넘치지 않게).
+const FilterRow = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 0 2px;
+`;
 const QuotaChip = styled.button`
   height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer;
   font-size: 0.75rem; font-weight: 600; color: #475569;

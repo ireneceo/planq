@@ -34,6 +34,9 @@ export const DRAFT_KINDS = {
   'mail-forward': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QMail/MailPage.tsx'] },
   // 회의 시작 설정은 24시간 — 며칠 전 언어·번역 설정이 오늘 회의를 지배하지 않게(StartMeetingModal 의 옛 의도)
   'qnote-meeting-start': { ttlMs: 1 * DAY, mode: 'append', owners: ['pages/QNote/StartMeetingModal.tsx'] },
+  // 상담에서 바로 만드는 업무 — 모달 안에서 쓰다 닫으면 사라지던 값이다(2026-09-12 신설).
+  //   메일 내용을 베끼지 않고 사람이 직접 쓰는 글이라 더욱 지켜야 한다.
+  'sale-task-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/SaleInboxList.tsx'] },
 } as const satisfies Record<string, DraftKindSpec>;
 
 export type DraftKind = keyof typeof DRAFT_KINDS;

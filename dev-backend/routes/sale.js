@@ -173,6 +173,31 @@ router.get('/:businessId/clients/:clientId', ...readChain, async (req, res, next
       seen.add(pc.Project.id);
       out.projects.push({ id: pc.Project.id, name: pc.Project.name, status: pc.Project.status });
     }
+
+    // ★ 2026-09-12 (Irene: "설정에서 고객/파트너에 나오는 정보랑 통합해서 제대로 만들어줘") —
+    //   우측 패널·전체보기·설정이 **같은 응답**을 나눠 쓴다. 화면마다 따로 모으면 반드시 갈라진다.
+    //   ★ 목록용 serializeClients 는 email 을 하나로 **접어서** 내보낸다(초대→계정→청구 순).
+    //     그러면 화면이 "어떤 주소인지" 를 말할 수 없다 — 상세에서는 종류별로 편다.
+    //   ★ 관리(초대 재발송·보관 스위치·삭제·한도)는 여기 싣지 않는다. 그건 설정의 몫이다.
+    out.contact = {
+      invite_email: client.invite_email || null,
+      account_email: client.user?.email || null,
+      billing_email: client.billing_contact_email || null,
+      tax_invoice_email: client.tax_invoice_email || null,
+      phone: client.phone || null,
+      billing_phone: client.billing_contact_phone || null,
+      billing_contact_name: client.billing_contact_name || null,
+    };
+    out.biz = client.biz_name || client.biz_tax_id ? {
+      name: client.biz_name || null,
+      ceo: client.biz_ceo || null,
+      tax_id: client.biz_tax_id || null,
+      type: client.biz_type || null,
+      item: client.biz_item || null,
+      address: client.biz_address || null,
+      address_en: client.biz_address_en || null,
+    } : null;
+
     return successResponse(res, out);
   } catch (err) { next(err); }
 });

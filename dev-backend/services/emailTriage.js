@@ -648,6 +648,9 @@ module.exports = {
   isBulkBody,
   isSelfSender,
   needsReply,
+  // 무료메일 도메인 — 회사 추정에서 제외하는 데 쓴다(services/saleInbox).
+  //   목록을 베껴 가면 한쪽만 늘어난다. 여기가 단일 원천이다.
+  FREE_MAIL_DOMAIN,
   hasWorkSignal,
   hasBusinessRelevance,
   isFromOurPlatform,
