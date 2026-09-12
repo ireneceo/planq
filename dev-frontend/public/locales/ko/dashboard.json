@@ -115,7 +115,8 @@
       "sale_first_reply": "첫 응답 보내기",
       "sale_unreviewed": "자동 기록 확인",
       "sale_next_action": "다음 할 일 정하기",
-      "sale_account_request": "계정 요청 — 초대 보내기"
+      "sale_account_request": "계정 요청 — 초대 보내기",
+      "sale_inbox_reply": "문의에 답하기"
     },
     "relTime": {
       "now": "방금",

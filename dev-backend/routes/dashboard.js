@@ -68,12 +68,6 @@ function toIsoDateOnlyAsDate(dateOnlyStr) {
 }
 
 // 안전한 ISO string 변환 — Invalid Date 는 null 반환 (toJSON 에서 RangeError 방지)
-function safeToIso(dt) {
-  if (!dt) return null;
-  const d = dt instanceof Date ? dt : new Date(dt);
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
 
 /* ─────────────────────────────────────────────
    업무 집계 — 내가 담당 / 내가 컨펌자 / 내가 요청자(최종완료 대기)
@@ -84,7 +78,9 @@ function safeToIso(dt) {
 //   세어지지도 않았다. "3건인데 2건" 신고와 같은 계열이다(그때는 수집기 자체가 없었다).
 //   화면 배지는 99+ 로 끊으므로 120 이면 **표시 목적상 정확**하고 쿼리도 여전히 가볍다.
 //   목록은 아래 DISPLAY_CAP 으로 종류별로 자른다 — 자르는 것은 목록이지 숫자가 아니다.
-const COLLECT_LIMIT = 120;
+// 상한·시각 변환은 수집기와 **같은 원천**을 쓴다(services/todo/common.js) — 복사하면 숫자가 갈라진다
+const { COLLECT_LIMIT, safeToIso } = require('../services/todo/common');
+const { collectSale } = require('../services/todo/saleBucket');
 
 async function collectTasks(businessId, userId) {
   const items = [];
@@ -960,147 +956,6 @@ async function collectMails(businessId, userId) {
  * ★ 한 항목 = 한 버킷 — 메일에서 온 문의는 collectMails 가 이미 세므로 여기서 빼고,
  *   ①로 이미 뜬 고객은 ③으로 또 세지 않는다.
  */
-async function collectSale(businessId, userId, userRole) {
-  const { Client, ClientInteraction, GuestLink, Task } = require('../models');
-  const { getMemberMenuLevels } = require('../middleware/menu_permission');
-  const { saleOwnerWhere, IN_PROGRESS } = require('../services/saleCommon');
-
-  const isManager = userRole === 'owner' || userRole === 'admin';
-  if (!isManager) {
-    const levels = await getMemberMenuLevels(businessId, userId);
-    if (!levels || levels.menus?.qsale === 'none') return [];
-  }
-  const ownerWhere = await saleOwnerWhere(businessId, userId, { isManager });
-
-  const now = Date.now();
-  const DAY = 24 * 60 * 60 * 1000;
-  const out = [];
-
-  // 영업 중인 고객 (진행 단계) — 여기서 ①③을 가른다
-  const clients = await Client.findAll({
-    where: { business_id: businessId, sales_stage: { [Op.in]: IN_PROGRESS }, ...ownerWhere },
-    attributes: ['id', 'display_name', 'company_name', 'sales_stage', 'sales_source', 'last_touch_at', 'created_at'],
-    limit: COLLECT_LIMIT,
-    order: [['last_touch_at', 'ASC']],
-  });
-  if (clients.length) {
-    const ids = clients.map((c) => c.id);
-    // 우리가 먼저 말을 걸었는가 — outbound 상담 기록
-    const outbound = await ClientInteraction.findAll({
-      where: { business_id: businessId, client_id: { [Op.in]: ids }, deleted_at: null, direction: 'outbound' },
-      attributes: ['client_id'], group: ['client_id'], raw: true,
-    });
-    const repliedTo = new Set(outbound.map((r) => r.client_id));
-    // 살아 있는 할 일이 있는가
-    const tasks = await Task.findAll({
-      where: {
-        business_id: businessId, client_id: { [Op.in]: ids },
-        status: { [Op.notIn]: ['completed', 'canceled'] },
-      },
-      attributes: ['client_id'], group: ['client_id'], raw: true,
-    });
-    const hasTask = new Set(tasks.map((r) => r.client_id));
-
-    for (const c of clients) {
-      const name = c.display_name || c.company_name || `#${c.id}`;
-      const since = c.last_touch_at ? new Date(c.last_touch_at) : new Date(c.created_at);
-      const days = Math.floor((now - since.getTime()) / DAY);
-      // ① 답 안 한 문의 — 메일에서 온 문의는 Q mail 이 이미 센다(한 항목 = 한 버킷)
-      const unanswered = c.sales_stage === 'inquiry' && c.sales_source !== 'email'
-        && !repliedTo.has(c.id) && !hasTask.has(c.id) && days >= 1;
-      if (unanswered) {
-        out.push({
-          id: `sale-${c.id}-first-reply`,
-          type: 'sale',
-          priority: days >= 3 ? 'urgent' : 'today',
-          verb: 'sale_first_reply',
-          subject: name,
-          context: c.company_name && c.display_name ? c.company_name : null,
-          dueAt: null,
-          createdAt: safeToIso(since),
-          link: `/sale/${c.id}`,
-        });
-        continue;                       // ③으로 또 세지 않는다
-      }
-      // ③ 다음 할 일 없음 — 진행 중인데 살아 있는 할 일이 하나도 없다
-      if (!hasTask.has(c.id)) {
-        out.push({
-          id: `sale-${c.id}-next-action`,
-          type: 'sale',
-          priority: 'week',
-          verb: 'sale_next_action',
-          subject: name,
-          context: c.company_name && c.display_name ? c.company_name : null,
-          dueAt: null,
-          createdAt: safeToIso(since),
-          link: `/sale/${c.id}`,
-        });
-      }
-    }
-  }
-
-  // ② 미확인 자동 기록 — 사람이 쓴 기록은 확인할 것이 없다
-  const autoRows = await ClientInteraction.findAll({
-    where: { business_id: businessId, origin: 'auto', reviewed_at: null, deleted_at: null },
-    include: [{
-      model: Client,
-      attributes: ['id', 'display_name', 'company_name'],
-      where: ownerWhere,
-      required: true,
-    }],
-    order: [['occurred_at', 'DESC']],
-    limit: COLLECT_LIMIT,
-  });
-  for (const r of autoRows) {
-    const c = r.Client;
-    out.push({
-      id: `sale-interaction-${r.id}`,
-      type: 'sale',
-      priority: 'week',
-      verb: 'sale_unreviewed',
-      subject: c ? (c.display_name || c.company_name || `#${c.id}`) : `#${r.client_id}`,
-      context: r.title || null,
-      dueAt: null,
-      createdAt: safeToIso(r.occurred_at),
-      link: `/sale/${r.client_id}`,
-    });
-  }
-
-  // ④ 계정 요청 — 게스트가 눌렀고 아직 초대 전인 고객
-  const requested = await GuestLink.findAll({
-    where: { business_id: businessId, account_requested_at: { [Op.ne]: null }, client_id: { [Op.ne]: null }, revoked_at: null },
-    attributes: ['id', 'client_id', 'account_requested_at', 'requested_email'],
-    order: [['account_requested_at', 'DESC']],
-    limit: COLLECT_LIMIT,
-  });
-  if (requested.length) {
-    const reqClients = await Client.findAll({
-      where: { business_id: businessId, id: { [Op.in]: requested.map((l) => l.client_id) }, status: 'prospect', ...ownerWhere },
-      attributes: ['id', 'display_name', 'company_name'],
-    });
-    const byId = new Map(reqClients.map((c) => [c.id, c]));
-    const seen = new Set();
-    for (const l of requested) {
-      const c = byId.get(l.client_id);
-      if (!c || seen.has(c.id)) continue;   // 링크가 여럿이어도 고객당 하나
-      seen.add(c.id);
-      out.push({
-        id: `sale-${c.id}-account-request`,
-        type: 'sale',
-        priority: 'today',
-        verb: 'sale_account_request',
-        subject: c.display_name || c.company_name || `#${c.id}`,
-        context: l.requested_email || null,
-        dueAt: null,
-        createdAt: safeToIso(l.account_requested_at),
-        link: `/sale/${c.id}`,
-      });
-    }
-  }
-
-  return out;
-}
-
 async function collectPlanqSubscription(businessId, userRole) {
   if (userRole !== 'owner') return [];  // owner 만 결제 영역 알림
   const { Subscription } = require('../models');

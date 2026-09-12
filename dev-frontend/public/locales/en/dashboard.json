@@ -115,7 +115,8 @@
       "sale_first_reply": "Send first reply",
       "sale_unreviewed": "Review auto record",
       "sale_next_action": "Set a next action",
-      "sale_account_request": "Account requested — send invite"
+      "sale_account_request": "Account requested — send invite",
+      "sale_inbox_reply": "Reply to inquiry"
     },
     "relTime": {
       "now": "Just now",

@@ -20,7 +20,9 @@ import ActionButton from '../Common/ActionButton';
 import LetterAvatar from '../Common/LetterAvatar';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
-import { getSaleClient, setSaleStage, type SaleClientDetail } from '../../services/sale';
+import { getSaleClient, setSaleStage, type SaleClientDetail, type LostReason } from '../../services/sale';
+// 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
+import LostReasonModal from './LostReasonModal';
 
 /** 아직 고객이 아닌 문의(상담 행)를 그릴 때 쓰는 값 — 원본에서 **가져올 수 있는 것은 다 넣는다**.
  *  Irene 2026-09-12: *"만약 고객이 아니고 게스트면 가져올 수 있는 정보를 다 넣어야지. 이름 이메일주소 등등."* */
@@ -77,19 +79,28 @@ const ClientPanel: React.FC<Props> = ({
     return () => { alive = false; };
   }, [businessId, clientId]);
 
-  const changeStage = useCallback(async (stage: 'won' | 'lost') => {
+  const [lostOpen, setLostOpen] = useState(false);
+
+  const applyStage = useCallback(async (
+    stage: 'won' | 'lost',
+    extra?: { lost_reason?: LostReason; lost_note?: string },
+  ) => {
     if (!clientId || busy) return;
     setBusy(true);
     try {
       // ★ 시그니처는 **객체**다(`{ to, reason?, lost_reason?, lost_note? }`). 문자열을 넘기면 서버가 단계를 못 읽는다.
-      // ☐ 한계 — 불발 사유(lost_reason·lost_note)를 아직 안 받는다. 사유 없이 닫으면 "왜 깨졌는지" 가
-      //   원장에 남지 않는다. 사유 입력은 다음 묶음에서 붙인다.
-      await setSaleStage(businessId, clientId, { to: stage });
+      await setSaleStage(businessId, clientId, { to: stage, ...(extra || {}) });
       const fresh = await getSaleClient(businessId, clientId);
       setData(fresh);
       onChanged?.();
     } catch { setError(true); } finally { setBusy(false); }
   }, [businessId, clientId, busy, onChanged]);
+
+  // 불발은 **사유를 받고** 넘긴다 — 사유 없이 닫으면 왜 깨졌는지가 원장에 남지 않는다.
+  const changeStage = useCallback((stage: 'won' | 'lost') => {
+    if (stage === 'lost') { setLostOpen(true); return; }
+    void applyStage(stage);
+  }, [applyStage]);
 
   // 미등록 문의도 같은 패널에서 그린다 — 고객 레코드가 없을 뿐이고 **보여줄 정보는 있다**.
   const isInquiry = !clientId && !!inquiry;
@@ -244,6 +255,19 @@ const ClientPanel: React.FC<Props> = ({
           </>
         )}
       </DetailDrawer.Footer>
+
+      {clientId && (
+        <LostReasonModal
+          open={lostOpen}
+          businessId={businessId}
+          clientId={clientId}
+          onClose={() => setLostOpen(false)}
+          onConfirm={async (reason, note) => {
+            await applyStage('lost', { lost_reason: reason, lost_note: note });
+            setLostOpen(false);
+          }}
+        />
+      )}
     </DetailDrawer>
   );
 };

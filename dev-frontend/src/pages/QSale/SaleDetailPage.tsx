@@ -26,11 +26,13 @@ import ClientTimeline from '../../components/Clients/ClientTimeline';
 import SummaryCard from '../../components/QSale/SummaryCard';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
+// 불발 사유 창은 **공용**이다 — 우측 패널도 같은 것을 쓴다(자리마다 다른 동작을 만들지 않는다)
+import LostReasonModal from '../../components/QSale/LostReasonModal';
 import {
   getSaleClient, patchSaleClient, setSaleStage, getSaleTimeline,
   createInteraction, deleteInteraction, reviewInteraction,
-  SALE_STAGES, LOST_REASONS, INTERACTION_KINDS, SALE_SOURCES,
-  type SaleClientDetail, type SaleStage, type LostReason, type TimelineItem, type TimelineType,
+  SALE_STAGES, INTERACTION_KINDS, SALE_SOURCES,
+  type SaleClientDetail, type SaleStage, type TimelineItem, type TimelineType,
   type InteractionKind, type SaleSource,
 } from '../../services/sale';
 
@@ -325,7 +327,7 @@ export default function SaleDetailPage() {
         onClose={() => setRecordOpen(false)}
         onSaved={() => { setRecordOpen(false); silentReload(); }}
       />
-      <LostModal
+      <LostReasonModal
         open={lostOpen}
         businessId={businessId}
         clientId={cid}
@@ -547,53 +549,6 @@ function RecordModal({ open, businessId, clientId, onClose, onSaved }: {
 }
 
 // ─── 종결 (사유 필수) ─────────────────────────────────────────────
-function LostModal({ open, businessId, clientId, onClose, onConfirm }: {
-  open: boolean; businessId: number | null; clientId: number; onClose: () => void;
-  onConfirm: (reason: LostReason, note: string) => Promise<void>;
-}) {
-  const { t } = useTranslation('qsale');
-  const [reason, setReason] = useState<LostReason | ''>('');
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  // 종결 사유 메모도 남긴다 — 쓰다 닫으면 사라지던 값이다(제출 성공에만 비운다)
-  const noteDraft = useDraftText(useDraftKey('sale-lost-note', clientId, businessId));
-  const note = noteDraft.text;
-  useEffect(() => { if (open) { setReason(''); setErr(null); } }, [open]);
-
-  return (
-    <StandardModal open={open} onClose={onClose} title={t('lost.modal.title') as string} size="sm"
-      footer={(
-        <>
-          <ActionButton tone="secondary" size="md" onClick={onClose}>{t('inquiry.cancel') as string}</ActionButton>
-          <ActionButton tone="danger" size="md" loading={saving} data-testid="sale-lost-confirm"
-            onClick={async () => {
-              if (saving) return;
-              if (!reason) { setErr(t('lost.modal.reasonRequired') as string); return; }
-              setSaving(true);
-              try { await onConfirm(reason, note); noteDraft.clear(); } catch { setErr(t('error.saveFailed') as string); } finally { setSaving(false); }
-            }}>
-            {t('lost.modal.confirm') as string}
-          </ActionButton>
-        </>
-      )}>
-      <Field>
-        <FieldLabel>{t('lost.modal.reasonLabel') as string}</FieldLabel>
-        <ReasonList>
-          {LOST_REASONS.map((r) => (
-            <ReasonBtn key={r} type="button" $on={reason === r} data-testid={`sale-lost-reason-${r}`}
-              onClick={() => setReason(r)}>{t(`lost.reason.${r}`) as string}</ReasonBtn>
-          ))}
-        </ReasonList>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-lost-note">{t('lost.modal.noteLabel') as string}</FieldLabel>
-        <TextArea id="sale-lost-note" rows={3} {...noteDraft.bind} />
-      </Field>
-      {err && <ErrText role="alert">{err}</ErrText>}
-    </StandardModal>
-  );
-}
-
 // ─── styled ──────────────────────────────────────────────────────
 const Page = styled.div`display: flex; flex-direction: column; height: 100%; min-height: 0; background: #F8FAFC;`;
 const TitleSlot = styled.div`display: flex; align-items: baseline; gap: 8px; min-width: 0;`;
@@ -688,12 +643,4 @@ const OptName = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F17
 const OptHint = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
 const TwoCol = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
   @media (max-width: 640px) { grid-template-columns: 1fr; }`;
-const ReasonList = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
-const ReasonBtn = styled.button<{ $on: boolean }>`
-  height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer;
-  font-size: 0.75rem; font-weight: 600;
-  border: 1px solid ${(p) => (p.$on ? '#F87171' : '#E2E8F0')};
-  background: ${(p) => (p.$on ? '#FEF2F2' : '#fff')};
-  color: ${(p) => (p.$on ? '#991B1B' : '#64748B')};
-`;
 const ErrText = styled.div`font-size: 0.8125rem; color: #B91C1C;`;
