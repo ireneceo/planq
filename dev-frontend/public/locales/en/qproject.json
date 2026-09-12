@@ -118,24 +118,7 @@
   "addTask": {
     "add": "+ Add Task",
     "cancel": "Cancel",
-    "save": "Add",
-    "saving": "Saving...",
-    "titlePlaceholder": "Task title (Ctrl+Enter to save)",
-    "assigneeLabel": "Assignee",
-    "assigneePlaceholder": "Assignee: me",
-    "meSuffix": " (me)",
-    "periodLabel": "Period",
-    "periodPlaceholder": "Pick dates",
-    "noValue": "—",
-    "estLabel": "Est. (h)",
-    "drawerTitle": "+ Add Task",
-    "close": "Close",
-    "workstreamLabel": "Work group",
-    "workstreamNone": "No group",
-    "descLabel": "Description",
-    "descPlaceholder": "What needs doing, and why (optional)",
-    "assigneeResolvedMe": "Assignee: {{name}} (me)",
-    "assigneeResolvedChain": "Assignee: {{name}} (project default)"
+    "drawerTitle": "+ Add Task"
   },
   "calHeader": {
     "monthYear": "{{year}}-{{month}}"

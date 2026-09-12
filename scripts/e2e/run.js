@@ -4,6 +4,12 @@
 //         node scripts/e2e/run.js --suite mobile,crosscut  # 여러 개
 //         node scripts/e2e/run.js                          # 전체
 //   INSPECTION_PLAYBOOK.md 참조. 신규 스위트는 SUITES 에 등록.
+// ★ DB env 를 **러너가** 먼저 싣는다. 안 그러면 DB 를 쓰는 모듈이 나중에 로드되는 순간
+//   `dev-backend/config/database.js` 가 스스로 process.exit(1) 한다 — 결과는 "총 실패: 0" 인데
+//   **종료코드 1**. 게이트는 종료코드를 보므로 초록 스위트가 빨간불로 읽힌다(2026-09-12 tabletchrome 실측).
+//   카나리마다 각자 dotenv 를 부르던 것을 여기 한 곳으로 올린다.
+require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
+
 const SUITES = {
   mobile: () => require('./mobile-keyboard'),
   // 타이핑 **중** 캐럿 가시성 — mobile 스위트는 focus 만 보고 타이핑을 안 해서 이 계열이 통째로 샜다

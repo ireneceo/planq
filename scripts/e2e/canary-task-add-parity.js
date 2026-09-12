@@ -4,7 +4,7 @@
 //          *"뭘 개발해도 새로운거 새로운 디자인. 기능형태 ui/ux 마음대로 생성하지마. 동기화도 다 되어야 해."*
 //
 // 세 자리에서 폼을 **실제로 열어** 필드 집합을 재고, 세 집합이 같은지 본다:
-//   ① Q Task 우측 드로어  ② Q Task 표 아래 인라인  ③ Q sale 상담 → 업무 추가
+//   ① Q Task 우측 드로어  ② Q Task 표 아래 인라인  ③ Q sale 상담 → 업무 추가  ⑧ Q project 업무 탭
 //
 // ★ 존재 검사로는 이 계열이 안 잡힌다 — 세 벌이 다 "있었고" 내용이 달랐다.
 //   그래서 `[data-field]` 집합을 **서로 비교**한다(하드코딩한 기대 목록이 아니라 서로).
@@ -206,6 +206,60 @@ async function run() {
         panelWasOpen && closed,
         panelWasOpen ? `닫힘=${closed}` : '앞 단계에서 패널이 열리지 않았다 — 닫힘 판정 불가(실패로 떨어뜨린다)');
     }
+
+    // ── ⑧ Q project 업무 탭 — **네 번째 자리**도 같은 폼인가 ────────────
+    //   이 화면만 더 주는 것: 프로젝트 고정(프로젝트 칸 없음) · 업무 그룹(workstream).
+    const pid = await (async () => {
+      const [rows] = await sequelize.query(
+        "SELECT id FROM projects WHERE business_id = 5 AND (status IS NULL OR status <> 'archived') ORDER BY id DESC LIMIT 1");
+      return rows[0] && rows[0].id;
+    })();
+    if (!pid) {
+      push('⑧ Q project 프로젝트가 있다 (없으면 판정 불가 = 실패)', false, 'business 5 에 프로젝트가 0건');
+    } else {
+      await gotoSPA(page, `/projects/p/${pid}?tab=tasks`);   // ★ 상세는 /projects/p/:id — /projects/:id 는 목록 라우트다(여기서 한 번 속았다)
+      await sleep(3000);
+      const proj = await openForm(page, 'project-task-add-btn');
+      push('⑧ Q project 업무 추가가 **공용 폼**으로 열린다', !proj.error && proj.fields.length > 0,
+        proj.error || `필드 ${proj.fields.join(',')}`);
+      push('⑧ 프로젝트 칸은 없고 업무 그룹 칸이 있다 (이 화면의 맥락)',
+        !!proj.fields && !proj.fields.includes('project') && proj.fields.includes('workstream'),
+        `필드 ${proj.fields || '-'} — 프로젝트는 고정, 그룹은 프로젝트 안에서만 뜻이 있다`);
+      push('⑧ 나머지 칸은 ①과 같다 (담당자·기간·태그·설명·첨부)',
+        !!(proj.fields && drawer.fields)
+          && ['assignee', 'dates', 'tags', 'desc', 'attach'].every((f) => proj.fields.includes(f)),
+        `Q project [${proj.fields || '-'}] vs Q Task [${drawer.fields || '-'}]`);
+
+      await closeForm(page);
+    }
+    // ── ⑨ §5.7 — 남에게 지정하면 예측(h)·반복 칸이 사라진다 (서버가 버리는 값) ──
+    //   ★ Q Task(워크스페이스 범위)에서 잰다. 프로젝트 멤버가 나 하나인 프로젝트에서는
+    //     고를 상대가 없어 **판정 불가**였다(처음엔 그걸 '선택 실패' 로 적어 실패로 떨어뜨렸다).
+    await gotoSPA(page, '/tasks');
+    await sleep(2500);
+    const beforeOther = await openForm(page, 'task-add-btn');
+    const ctlBox = await page.$('[data-testid="task-create-form"] [data-field="assignee"]');
+    if (ctlBox) await ctlBox.click().catch(() => null);
+    await sleep(700);
+    const optTexts = await page.evaluate(() => [...document.querySelectorAll('[class*="-option"]')]
+      .map((e) => (e.textContent || '').trim()));
+    const idx = optTexts.findIndex((x) => x && !/\(나\)|\(me\)/.test(x));
+    let chose = null;
+    if (idx >= 0) {
+      for (let i = 0; i <= idx; i++) await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('Enter');
+      chose = optTexts[idx];
+      await sleep(900);
+    }
+    const afterOther = await page.evaluate(FIELDS);
+    push('⑨ 남에게 지정하면 예측(h)·반복이 사라진다 (§5.7 — 서버가 버리는 값)',
+      !!chose && !!afterOther && !afterOther.fields.includes('est') && !afterOther.fields.includes('recur'),
+      chose ? `담당자="${chose}" → 필드 ${afterOther && afterOther.fields.join(',')}`
+        : `고를 상대가 없어 판정 불가 (옵션 ${optTexts.length}개: ${optTexts.join(' / ')})`);
+    push('⑨ 양성 대조군 — 고르기 전에는 둘 다 있었다',
+      !!(beforeOther.fields && beforeOther.fields.includes('est') && beforeOther.fields.includes('recur')),
+      `고르기 전 필드 ${beforeOther.fields || beforeOther.error} — 없었다면 위 판정은 무효다`);
+    await closeForm(page);
   } catch (e) {
     push('카나리 실행', false, String((e && e.message) || e));
   } finally {

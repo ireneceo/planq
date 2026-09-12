@@ -118,24 +118,7 @@
   "addTask": {
     "add": "+ 업무 추가",
     "cancel": "취소",
-    "save": "추가",
-    "saving": "저장 중...",
-    "titlePlaceholder": "업무명 (Ctrl+Enter 저장)",
-    "assigneeLabel": "담당자",
-    "assigneePlaceholder": "담당자: 나",
-    "meSuffix": " (나)",
-    "periodLabel": "기간",
-    "periodPlaceholder": "기간 선택",
-    "noValue": "—",
-    "estLabel": "예측(h)",
-    "drawerTitle": "+ 업무 추가",
-    "close": "닫기",
-    "workstreamLabel": "업무 그룹",
-    "workstreamNone": "그룹 없음",
-    "descLabel": "업무 설명",
-    "descPlaceholder": "무엇을, 왜 해야 하는지 (선택)",
-    "assigneeResolvedMe": "담당자: {{name}} (나)",
-    "assigneeResolvedChain": "담당자: {{name}} (프로젝트 기본)"
+    "drawerTitle": "+ 업무 추가"
   },
   "calHeader": {
     "monthYear": "{{year}}년 {{month}}월"

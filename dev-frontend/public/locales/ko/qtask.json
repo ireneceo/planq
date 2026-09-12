@@ -269,7 +269,9 @@
     "dateRangePlaceholder": "기간 선택",
     "dateRange": "시작 ~ 마감",
     "attachShow": "파일·문서 첨부",
-    "attachHide": "파일·문서 첨부 닫기"
+    "attachHide": "파일·문서 첨부 닫기",
+    "workstream": "업무 그룹",
+    "workstreamNone": "그룹 없음"
   },
   "recur": {
     "toggle": "반복하기",

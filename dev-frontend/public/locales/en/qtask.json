@@ -227,7 +227,9 @@
     "dateRangePlaceholder": "Pick a date range",
     "dateRange": "Start ~ Due",
     "attachShow": "Attach files & docs",
-    "attachHide": "Hide attachments"
+    "attachHide": "Hide attachments",
+    "workstream": "Work group",
+    "workstreamNone": "No group"
   },
   "recur": {
     "toggle": "Repeat",

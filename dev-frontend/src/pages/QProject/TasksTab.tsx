@@ -4,9 +4,7 @@ import styled from 'styled-components';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
-import PlanQSelect from '../../components/Common/PlanQSelect';
-import CalendarPicker from '../../components/Common/CalendarPicker';
-import RecurrencePicker from '../../components/Common/RecurrencePicker';
+import TaskCreateForm from '../../components/QTask/TaskCreateForm';
 import ProjectTaskList from './ProjectTaskList';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
@@ -20,8 +18,6 @@ import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '..
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { listWorkstreams, type Workstream } from '../../services/projectCanvas';
 import { useTranslation } from 'react-i18next';
-import { isEnterAction } from '../../utils/imeKey';
-import { belowTabs } from '../../theme/layout';
 
 type ViewMode = 'split' | 'list' | 'timeline' | 'calendar';
 
@@ -53,7 +49,6 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
   const location = useLocation();
   const { user } = useAuth();
   const { t: tp } = useTranslation('qproject');
-  const { t: tc } = useTranslation('clients');   // 고객/협력사/프리랜서 유형 라벨 (#139)
   const myId = user ? Number(user.id) : -1;
   const wsTz = user?.workspace_timezone || detectBrowserTz();
   const todayStr = todayInTz(wsTz);
@@ -98,42 +93,14 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
   const [tplOpen, setTplOpen] = useState(false);
   const [tplInitialId, setTplInitialId] = useState<number | null>(null);
   const [tplSaveOpen, setTplSaveOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newAssignee, setNewAssignee] = useState<number | null>(null);
-  const [newStart, setNewStart] = useState('');
-  const [newDue, setNewDue] = useState('');
-  const [newEst, setNewEst] = useState('');
-  // 운영 P3 — "업무그룹도 적용안되고, 업무반복 기능도 적용이 안되네?"
-  //   그룹 섹션 안 인라인 추가는 이미 workstream_id 를 보내는데 이 드로어 폼만 안 보냈다.
-  const [newWorkstreamId, setNewWorkstreamId] = useState<number | null>(null);
-  const [newRecurrence, setNewRecurrence] = useState<string | null>(null);
-  const [newDescription, setNewDescription] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  // ★ 업무 추가 폼은 **components/QTask/TaskCreateForm 한 벌**이다(2026-09-12).
+  //   여기 있던 자체 폼이 네 번째 복사본이었다 — 태그·첨부가 없고, 반복 UI 가 달랐고,
+  //   우측 드로어 껍데기를 손으로 그려(AddDrawer/AddBackdrop) 표준 CreateDrawer 와 갈라져 있었다.
+  //   이 화면이 더 주는 맥락은 둘뿐이다: 프로젝트 고정 · 업무 그룹(워크스트림).
   const [members, setMembers] = useState<Member[]>([]);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const dateAnchorRef = useRef<HTMLButtonElement>(null);
 
-  // 프로젝트 참여 외부 인력(고객·협력사·프리랜서)도 담당자가 될 수 있다 (#139).
-  //   백엔드(assertAssignable)는 **그 프로젝트의 참여자일 때만** 외부인 배정을 허용한다 —
-  //   프로젝트가 정해진 이 화면이 바로 그 조건을 만족하는데, 여기만 내부 멤버만 보여줬다.
-  //   (같은 탭의 ProjectTaskList 는 이미 제대로 하고 있었다 — 한 화면 안에서 동작이 갈렸다.)
-  const [externals, setExternals] = useState<{ user_id: number; name: string; kind: string }[]>([]);
-  useEffect(() => {
-    if (!projectId || !businessId) { setExternals([]); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await apiFetch(`/api/tasks/by-business/${businessId}/assignable-externals?project_id=${projectId}`);
-        const j = await r.json();
-        if (!cancelled) setExternals(j.success && Array.isArray(j.data) ? j.data : []);
-      } catch { if (!cancelled) setExternals([]); }
-    })();
-    return () => { cancelled = true; };
-  }, [projectId, businessId]);
-  const externalCandidates = useMemo(
-    () => externals.filter(e => !members.some(m => m.user_id === e.user_id)),
-    [externals, members],
-  );
+  // ★ 외부 인력(고객·협력사·프리랜서) 담당자 후보는 **공용 폼이 직접** 읽는다
+  //   (`assignable-externals?project_id=`) — 여기서 또 읽으면 두 벌이 된다.
   // Optimistic local copy — prop 변경 시 reseed
   const [localTasks, setLocalTasks] = useState<TaskRow[]>(tasks);
   useEffect(() => { setLocalTasks(tasks); }, [tasks]);
@@ -141,9 +108,8 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     setLocalTasks(prev => prev.map(x => x.id === taskId ? { ...x, ...patch } : x));
   };
 
-  // 담당자를 비워두면 실제로 누가 맡는지 — 서버가 createTask 와 **같은 함수**로 계산해 내려준다.
-  //   (후보 배열의 [0] 이 아니다 — "기본담당자 = 나" 케이스에서 미리보기와 실제가 갈린다)
-  const [resolvedAssignee, setResolvedAssignee] = useState<{ name: string | null; is_me: boolean } | null>(null);
+  // 프로젝트 멤버 — 업무 목록·공용 폼의 담당자 후보.
+  //   ("담당자 비우면 실제로 누가 맡는가" 미리보기는 공용 폼이 같은 라우트로 스스로 읽는다)
   useEffect(() => {
     apiFetch(`/api/projects/${projectId}`).then(r => r.json()).then(j => {
       if (j.success) {
@@ -153,8 +119,6 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
         const ms = (j.data.projectMembers || []).map((m: { user_id: number; User?: { name: string; display_name?: string | null } }) =>
           ({ user_id: m.user_id, name: m.User?.display_name || m.User?.name || (tp('members.unknown', '알 수 없는 멤버') as string) }));
         setMembers(ms);
-        const rd = j.data.resolved_default_assignee as { name: string | null; is_me: boolean } | undefined;
-        setResolvedAssignee(rd ? { name: rd.name, is_me: rd.is_me } : null);
       }
     });
   }, [projectId]);
@@ -192,142 +156,15 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
     return as.localeCompare(bs);
   }), [localTasks]);
 
-  const resetNew = () => {
-    setNewTitle(''); setNewAssignee(null); setNewStart(''); setNewDue(''); setNewEst('');
-    setNewWorkstreamId(null); setNewRecurrence(null); setNewDescription('');
+  // 공용 폼에 넘기는 맥락 — 두 자리(하단 인라인 / 상단 드로어)가 같은 값을 받는다
+  const addFormProps = {
+    businessId,
+    fixedProjectId: projectId,
+    workstreams,
+    members: members.map((m) => ({ user_id: m.user_id, name: m.name })),
+    onClose: () => setAdding(null),
+    onCreated: () => onRefresh(),
   };
-
-  // 담당자를 **명시적으로 남에게** 지정했는가 — 이때는 서버가 §5.7 로 예측시간·반복을 조용히 버린다
-  //   (남에게 '요청'하는 업무의 캐파는 담당자가 정한다). 버려질 입력을 폼에 두면 사용자는
-  //   저장된 줄 알고 잃는다 → est·반복 UI 를 아예 숨긴다. 미지정(=체인 배정)은 반복이 살아 있으므로 노출.
-  const assignedToOther = newAssignee != null && newAssignee !== myId;
-
-  const submit = async () => {
-    if (submitting || !newTitle.trim()) return;
-    setSubmitting(true);
-    try {
-      const r = await apiFetch('/api/tasks', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          business_id: businessId, project_id: projectId, title: newTitle.trim(),
-          // ★ `|| myId` 를 쓰지 않는다. 비워서 보내야 서버의 담당자 체인
-          //   (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
-          assignee_id: newAssignee,
-          workstream_id: newWorkstreamId,
-          description: newDescription.trim() || null,
-          recurrence_rule: assignedToOther ? null : newRecurrence,
-          start_date: newStart || null, due_date: newDue || null,
-          estimated_hours: newEst ? Number(newEst) : null,
-        }),
-      });
-      if (!r.ok) return;  // 실패 시 폼 유지(입력 보존)
-      resetNew();
-      setAdding(null);
-      onRefresh();
-    } finally { setSubmitting(false); }
-  };
-
-  const renderAddForm = () => (
-    <AddForm>
-      <AddInput autoFocus placeholder={tp('addTask.titlePlaceholder', '업무명 (Ctrl+Enter 저장)') as string} value={newTitle}
-        onChange={e => setNewTitle(e.target.value)}
-        onKeyDown={e => { if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } if (e.key === 'Escape') { setAdding(null); resetNew(); } }} />
-      <AddOptRow>
-        <AddOptField>
-          <AddOptLabel>{tp('addTask.assigneeLabel', '담당자')}</AddOptLabel>
-          <PlanQSelect size="sm" isClearable
-            placeholder={(
-              // 비워두면 서버 체인이 정한다 — 그 결과를 그대로 보여준다.
-              //   문구를 "담당자: 나" 로 고정해 두면 체인이 타인을 배정하는 프로젝트에서 거짓말이 된다.
-              resolvedAssignee?.name
-                ? (resolvedAssignee.is_me
-                    ? tp('addTask.assigneeResolvedMe', { name: resolvedAssignee.name, defaultValue: '담당자: {{name}} (나)' })
-                    : tp('addTask.assigneeResolvedChain', { name: resolvedAssignee.name, defaultValue: '담당자: {{name}} (프로젝트 기본)' }))
-                : tp('addTask.assigneePlaceholder', '담당자: 나')
-            ) as string}
-            value={newAssignee == null ? null : {
-              value: String(newAssignee),
-              label: members.find(m => m.user_id === newAssignee)?.name
-                || externalCandidates.find(e => e.user_id === newAssignee)?.name
-                || String(newAssignee),
-            }}
-            onChange={v => setNewAssignee((v as { value?: string } | null)?.value ? Number((v as { value: string }).value) : null)}
-            options={[
-              // 우리 팀
-              ...members.map(m => ({
-                value: String(m.user_id),
-                label: m.name + (m.user_id === myId ? tp('addTask.meSuffix', ' (나)') : ''),
-              })),
-              // 이 프로젝트에 참여한 외부 인력 — 고객/협력사/프리랜서를 라벨로 구분한다
-              ...externalCandidates.map(e => ({
-                value: String(e.user_id),
-                label: `${e.name} · ${tc(`kind.${e.kind}`, e.kind)}`,
-              })),
-            ]} />
-        </AddOptField>
-        <AddOptField style={{ flex: '1 1 240px' }}>
-          <AddOptLabel>{tp('addTask.periodLabel', '기간')}</AddOptLabel>
-          <DateTrigger ref={dateAnchorRef} type="button" onClick={() => setDatePickerOpen(v => !v)}>
-            {(newStart || newDue) ? (
-              <>{newStart?.replace(/-/g, '/') || tp('addTask.noValue', '—')} ~ {newDue?.replace(/-/g, '/') || tp('addTask.noValue', '—')}</>
-            ) : <DatePlaceholder>{tp('addTask.periodPlaceholder', '기간 선택')}</DatePlaceholder>}
-          </DateTrigger>
-          {datePickerOpen && (
-            <CalendarPicker
-              isOpen={datePickerOpen}
-              anchorRef={dateAnchorRef}
-              startDate={newStart}
-              endDate={newDue || newStart}
-              onRangeSelect={(s, e) => { setNewStart(s || ''); setNewDue(e || ''); }}
-              onClose={() => setDatePickerOpen(false)}
-            />
-          )}
-        </AddOptField>
-        {!assignedToOther && (
-          <AddOptField style={{ flex: '0 0 80px' }}>
-            <AddOptLabel>{tp('addTask.estLabel', '예측(h)')}</AddOptLabel>
-            <AddDateInput type="number" step="0.5" min="0" value={newEst} onChange={e => setNewEst(e.target.value)} />
-          </AddOptField>
-        )}
-      </AddOptRow>
-      <AddOptRow>
-        {/* 업무 그룹(워크스트림) — 그룹 섹션 안 인라인 추가와 같은 값을 보낸다 */}
-        <AddOptField>
-          <AddOptLabel>{tp('addTask.workstreamLabel', '업무 그룹')}</AddOptLabel>
-          <PlanQSelect size="sm" isClearable
-            placeholder={tp('addTask.workstreamNone', '그룹 없음') as string}
-            value={newWorkstreamId == null ? null : {
-              value: String(newWorkstreamId),
-              label: workstreams.find(w => w.id === newWorkstreamId)?.title || String(newWorkstreamId),
-            }}
-            onChange={v => setNewWorkstreamId((v as { value?: string } | null)?.value ? Number((v as { value: string }).value) : null)}
-            options={workstreams.filter(w => w.status === 'active').map(w => ({ value: String(w.id), label: w.title }))} />
-        </AddOptField>
-      </AddOptRow>
-      {/* 정기 루틴 — 공용 RecurrencePicker 재사용(빌더는 utils/recurrence 단일 원천).
-          마감일이 anchor 다. 담당자를 명시적으로 남에게 지정하면 서버가 §5.7 로 버리므로 숨긴다. */}
-      {!assignedToOther && (
-        <RecurSlot>
-          <RecurrencePicker value={newRecurrence} onChange={setNewRecurrence} anchorDate={newDue || null} />
-        </RecurSlot>
-      )}
-      <AddOptField>
-        <AddOptLabel>{tp('addTask.descLabel', '업무 설명')}</AddOptLabel>
-        <AddDescArea
-          value={newDescription}
-          onChange={e => setNewDescription(e.target.value)}
-          placeholder={tp('addTask.descPlaceholder', '무엇을, 왜 해야 하는지 (선택)') as string}
-          rows={3}
-          onKeyDown={e => { if (isEnterAction(e) && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); } }} />
-      </AddOptField>
-      <AddBtnRow>
-        <CancelBtn type="button" onClick={() => { setAdding(null); resetNew(); }}>{tp('addTask.cancel', '취소')}</CancelBtn>
-        <SaveBtn type="button" onClick={submit} disabled={submitting || !newTitle.trim()}>
-          {submitting ? tp('addTask.saving', '저장 중...') : tp('addTask.save', '추가')}
-        </SaveBtn>
-      </AddBtnRow>
-    </AddForm>
-  );
 
   return (
     <Wrap>
@@ -350,7 +187,7 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
           <TemplateBtn type="button" onClick={() => setTplSaveOpen(true)} title={tp('tpl.saveHint', '현재 프로젝트의 일정을 템플릿으로 저장') as string}>
             {tp('tpl.saveBtn', '템플릿으로 저장')}
           </TemplateBtn>
-          <AddTaskBtn type="button" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.add', '+ 업무 추가')}</AddTaskBtn>
+          <AddTaskBtn type="button" data-testid="project-task-add-btn" onClick={() => setAdding(adding === 'top' ? null : 'top')}>{adding === 'top' ? tp('addTask.cancel', '취소') : tp('addTask.add', '+ 업무 추가')}</AddTaskBtn>
         </ToolbarRight>
       </Toolbar>
 
@@ -374,24 +211,15 @@ const TasksTab: React.FC<Props> = ({ projectId, businessId, projectName, tasks, 
 
       {/* 하단 간이 추가 — 글자만 좌측정렬. 클릭 시 하단에 폼이 뜸 (표와 간격 유지) */}
       {adding === 'bottom'
-        ? <BottomAddSlot>{renderAddForm()}</BottomAddSlot>
-        : <BottomAddLink type="button" onClick={() => setAdding('bottom')}>{tp('addTask.add', '+ 업무 추가')}</BottomAddLink>}
+        ? <TaskCreateForm {...addFormProps} layout="inline" />
+        : <BottomAddLink type="button" data-testid="project-task-add-below"
+            onClick={() => setAdding('bottom')}>{tp('addTask.add', '+ 업무 추가')}</BottomAddLink>}
 
-      {/* 상단 버튼 → 우측 오버레이 드로어 (Q Task 패턴). Backdrop 클릭 시 닫힘. */}
-      {adding === 'top' && (<>
-        <AddBackdrop onClick={() => { setAdding(null); resetNew(); }} />
-        <AddDrawer>
-          <AddDrawerHeader>
-            <AddDrawerTitle>{tp('addTask.drawerTitle', '+ 업무 추가')}</AddDrawerTitle>
-            <AddDrawerClose onClick={() => { setAdding(null); resetNew(); }} aria-label={tp('addTask.close', '닫기')}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </AddDrawerClose>
-          </AddDrawerHeader>
-          <AddDrawerBody>
-            {renderAddForm()}
-          </AddDrawerBody>
-        </AddDrawer>
-      </>)}
+      {/* 상단 버튼 → 표준 생성 드로어(CreateDrawer). 껍데기를 손으로 그리지 않는다 — 규격이 갈라진다. */}
+      {adding === 'top' && (
+        <TaskCreateForm {...addFormProps} layout="drawer"
+          drawerTitle={tp('addTask.drawerTitle', '+ 업무 추가')} />
+      )}
 
       {detailTaskId && (
         <TaskDetailDrawer
@@ -555,7 +383,6 @@ const CalendarView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; t
 };
 
 export default TasksTab;
-void CalendarPicker; // keep import (future date pickers)
 
 // ─── styled ───
 const Wrap = styled.div``;
@@ -575,53 +402,11 @@ const TemplateBtn = styled.button`
 // 헤더 생성 버튼 규격 = ActionButton sm (h36)
 const AddTaskBtn = styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;white-space:nowrap;&:hover{background:#0D9488;}`;
 
-const AddForm = styled.div`display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;padding:10px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;margin-bottom:12px;`;
-const AddInput = styled.input`flex:2 1 220px;min-width:180px;height:32px;padding:0 10px;border:1px solid #14B8A6;border-radius:6px;font-size:0.8125rem;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
-const AddOptRow = styled.div`display:contents;`;
-const AddOptField = styled.div`flex:1 1 130px;min-width:120px;display:flex;flex-direction:column;gap:2px;`;
-const AddOptLabel = styled.label`font-size:0.625rem;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.3px;`;
-const AddDateInput = styled.input`height:32px;padding:0 10px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;&:focus{outline:none;border-color:#14B8A6;}`;
 // 반복 선택기는 자체 배경 카드를 갖고 있어 폼 폭을 통째로 쓴다(행 안에 끼우면 눌린다)
-const RecurSlot = styled.div`flex:1 1 100%;min-width:0;`;
-const AddDescArea = styled.textarea`
-  width:100%;min-width:0;box-sizing:border-box;padding:8px 10px;font-size:0.8125rem;line-height:1.5;color:#0F172A;
-  border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;resize:vertical;
-  &::placeholder{color:#94A3B8;}
-  &:focus{outline:none;border-color:#14B8A6;}
-`;
-const AddBtnRow = styled.div`display:flex;justify-content:flex-end;gap:6px;flex:0 0 auto;`;
-const CancelBtn = styled.button`padding:6px 12px;background:#FFF;color:#64748B;border:1px solid #E2E8F0;border-radius:6px;font-size:0.8125rem;cursor:pointer;&:hover{background:#F8FAFC;}`;
-const SaveBtn = styled.button`padding:6px 14px;background:#14B8A6;color:#FFF;border:none;border-radius:6px;font-size:0.8125rem;font-weight:700;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 
 // List — Q Task 스타일
-const DateTrigger = styled.button`width:100%;height:32px;padding:0 10px;border:1px solid #E2E8F0;border-radius:6px;font-size:0.75rem;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}`;
-const DatePlaceholder = styled.span`color:#94A3B8;`;
 const TableWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;overflow-x:auto;overflow-y:hidden;&::-webkit-scrollbar{height:6px;}&::-webkit-scrollbar-thumb{background:#E2E8F0;border-radius:3px;}`;
 const BottomAddLink = styled.button`margin-top:10px;padding:8px 14px;background:transparent;color:#94A3B8;border:none;font-size:0.8125rem;font-weight:500;cursor:pointer;text-align:left;display:block;font-family:inherit;&:hover{color:#0F766E;}`;
-const BottomAddSlot = styled.div`margin-top:16px;`;
-const AddBackdrop = styled.div`
-  position:fixed;left:0;right:0;bottom:0;${belowTabs};background:rgba(15, 23, 42, 0.08);
-  z-index:39;
-  animation:pqFadeIn 0.22s ease-out;
-  @keyframes pqFadeIn{from{opacity:0;}to{opacity:1;}}
-  @media (prefers-reduced-motion: reduce){animation:none;}
-`;
-const AddDrawer = styled.aside`
-  position:fixed;right:0;bottom:0;
-  /* 기준선은 theme/layout 의 조각 하나로 — 각자 쓰면 갈라진다(2026-09-06 전수조사). */
-  ${belowTabs}
-  width:min(520px, calc(100vw - 56px));
-  background:#FFF;border-left:1px solid #E2E8F0;
-  box-shadow:-16px 0 40px rgba(15,23,42,0.14);display:flex;flex-direction:column;overflow:hidden;z-index:40;
-  animation:pqSlideIn 0.28s cubic-bezier(0.22,1,0.36,1);
-  @keyframes pqSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
-  padding-bottom:var(--pq-safe-bottom, 0px);
-  @media (prefers-reduced-motion: reduce){animation:none;}
-`;
-const AddDrawerHeader = styled.div`height:60px;padding:14px 20px;border-bottom:1px solid #E2E8F0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;`;
-const AddDrawerTitle = styled.h2`font-size:0.875rem;font-weight:700;color:#0F172A;margin:0;`;
-const AddDrawerClose = styled.button`width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:6px;color:#64748B;cursor:pointer;&:hover{background:#F1F5F9;color:#0F172A;}`;
-const AddDrawerBody = styled.div`flex:1;overflow-y:auto;padding:16px;`;
 const EmptyBox = styled.div`padding:40px;text-align:center;color:#94A3B8;font-size:0.8125rem;background:#FFF;border:1px solid #E2E8F0;border-radius:8px;`;
 
 // Timeline

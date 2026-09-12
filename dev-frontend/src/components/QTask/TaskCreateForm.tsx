@@ -20,25 +20,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import CreateDrawer from '../Common/CreateDrawer';
 import CalendarPicker from '../Common/CalendarPicker';
-import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 import RichEditor from '../Common/RichEditor';
 import AttachmentField from '../Common/AttachmentField';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
+import RecurrencePicker from '../Common/RecurrencePicker';
 import TagPicker from './TagPicker';
 import { useTaskTagDict } from './useTaskTagDict';
 import type { TaskTagLite } from './TagChips';
 import { isEnterAction } from '../../utils/imeKey';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import type { DraftKind } from '../../hooks/draftKinds';
-import {
-  buildPresetRRule, buildCustomRRule, presetLabelMap, SELECTABLE_PRESETS,
-  type RecurEndType, type RecurPreset, type RecurCustomUnit,
-} from '../../utils/recurrence';
 
 export interface TaskFormMember { user_id: number; name: string }
 export interface TaskFormProject { id: number; name: string }
@@ -65,6 +60,10 @@ export interface TaskCreateFormProps {
   mode?: 'task' | 'request';
   /** 내 업무(오늘·이번 주·전체) — 담당자는 무조건 나 */
   assigneeFixedToMe?: boolean;
+  /** 프로젝트가 이미 정해진 화면(Q project 업무 탭) — 프로젝트 칸을 숨기고 이 값으로 고정한다 */
+  fixedProjectId?: number | null;
+  /** 업무 그룹(워크스트림) 후보. 주면 칸이 생긴다 — 프로젝트 안에서만 뜻이 있다 */
+  workstreams?: Array<{ id: number; title: string; status?: string }>;
   /** 그 탭 목록 안에 남게 하는 생성 기본값(단일 원천은 부르는 쪽) */
   createDefaults?: { due_date?: string | null; planned_week_start?: string | null } | null;
   initial?: TaskCreateInitial | null;
@@ -85,6 +84,7 @@ export interface TaskCreateFormProps {
 
 const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   businessId, layout = 'drawer', mode = 'task', assigneeFixedToMe = false,
+  fixedProjectId = null, workstreams,
   createDefaults = null, initial = null, initialNonce = 0,
   draftKind, draftId = null,
   members: membersProp, projects: projectsProp, tagDict: tagDictProp, onTagDictAdd,
@@ -105,7 +105,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const description = descDraft.text;
 
   const [assigneeId, setAssigneeId] = useState<number | null>(initial?.assigneeId ?? (isRequest ? null : myId));
-  const [projectId, setProjectId] = useState<number | null>(initial?.projectId ?? null);
+  const [projectId, setProjectId] = useState<number | null>(fixedProjectId ?? initial?.projectId ?? null);
+  const [workstreamId, setWorkstreamId] = useState<number | null>(null);
   const [startDate, setStartDate] = useState<string>(initial?.startDate ?? '');
   const [dueDate, setDueDate] = useState<string>(initial?.dueDate ?? '');
   const [estHours, setEstHours] = useState<string>('');
@@ -118,15 +119,10 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const dateAnchorRef = useRef<HTMLButtonElement>(null);
 
-  // 반복(정기업무) — 프리셋 5 + 사용자 지정 + 종료 조건
-  const [recurEnabled, setRecurEnabled] = useState(false);
-  const [recurPreset, setRecurPreset] = useState<RecurPreset>('weekly');
-  const [recurEndType, setRecurEndType] = useState<RecurEndType>('never');
-  const [recurEndCount, setRecurEndCount] = useState<string>('10');
-  const [recurEndUntil, setRecurEndUntil] = useState<string>('');
-  const [recurCustomEvery, setRecurCustomEvery] = useState<string>('1');
-  const [recurCustomUnit, setRecurCustomUnit] = useState<RecurCustomUnit>('week');
-  const [showCustomRecur, setShowCustomRecur] = useState(false);
+  // 반복(정기업무) — UI 는 **공용 RecurrencePicker**(Q Calendar 와 같은 것). 값은 RRULE 문자열 하나.
+  //   여기에 프리셋 셀렉트를 다시 그리면 달력과 업무의 반복 UI 가 갈라진다(그 컴포넌트의 주석이
+  //   "Q Calendar / (향후) Q Task 가 공유" 라고 적어 둔 자리다 — 이제 실제로 공유한다).
+  const [recurrence, setRecurrence] = useState<string | null>(null);
 
   const [aiEstimating, setAiEstimating] = useState(false);
   const [aiEstReason, setAiEstReason] = useState('');
@@ -140,7 +136,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     if (initial.title !== undefined) titleDraft.setText(initial.title);
     if (initial.description !== undefined) descDraft.setText(initial.description);
     if (initial.assigneeId !== undefined) setAssigneeId(initial.assigneeId);
-    if (initial.projectId !== undefined) setProjectId(initial.projectId);
+    if (initial.projectId !== undefined && !fixedProjectId) setProjectId(initial.projectId);
     if (initial.startDate !== undefined) setStartDate(initial.startDate);
     if (initial.dueDate !== undefined) setDueDate(initial.dueDate);
     if (initial.fileIds !== undefined) setExistingFileIds(initial.fileIds);
@@ -251,25 +247,14 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     finally { setAiEstimating(false); }
   }, [title, description, aiEstimating]);
 
-  const buildCurrentRRule = (due: string): string | null => {
-    if (!recurEnabled || !due) return null;
-    const end = {
-      type: recurEndType,
-      count: recurEndType === 'count' ? Number(recurEndCount) || 1 : undefined,
-      until: recurEndType === 'until' ? recurEndUntil : undefined,
-    };
-    if (recurPreset === 'custom') return buildCustomRRule(Number(recurCustomEvery) || 1, recurCustomUnit, end);
-    // 새로 만드는 폼에서는 'advanced' 가 나올 수 없지만 타입상 가능하므로 명시적으로 막는다
-    //   (여기서 재빌드하면 규칙이 축소된다 — 상세 드로어에서 났던 회귀와 같은 종류).
-    if (recurPreset === 'advanced') return null;
-    return buildPresetRRule(recurPreset, due, end);
-  };
+  // ★ 예측시간·반복은 **담당자의 캐파**다 — 남에게 명시적으로 지정한 업무에서는 서버가
+  //   §5.7 로 조용히 버린다(services/actions/task_actions.js `isInternalRequest`).
+  //   버려질 칸을 보여 주면 사용자는 저장된 줄 알고 잃는다. 그래서 숨기고 **보내지도 않는다**.
+  //   미지정(=서버 담당자 체인)은 반복이 살아 있으므로 그대로 노출한다(그 주석의 근거와 같은 규칙).
+  const assignedToOther = assigneeId != null && assigneeId !== myId;
+  const capacityMine = !isRequest && !assignedToOther;
 
-  const invalid = !title.trim()
-    || (isRequest && !assigneeId)
-    || (recurEnabled && !(dueDate || createDefaults?.due_date))
-    || (recurEnabled && recurEndType === 'count' && (!recurEndCount || Number(recurEndCount) < 1))
-    || (recurEnabled && recurEndType === 'until' && !recurEndUntil);
+  const invalid = !title.trim() || (isRequest && !assigneeId);
 
   const submit = async () => {
     if (submitting || invalid || !bizId) return;
@@ -280,8 +265,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     //     (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
     const targetAssignee = assigneeFixedToMe ? myId : assigneeId;
     const finalDue = dueDate || (createDefaults?.due_date ?? null);
-    if (recurEnabled && !finalDue) return;      // 정기업무는 due_date 필수 (백엔드도 검증)
-    const recurrenceRule = recurEnabled && finalDue ? buildCurrentRRule(finalDue) : null;
+    // 정기업무는 due_date 가 anchor 다(백엔드도 검증) — 없으면 반복을 붙이지 않는다
+    const recurrenceRule = capacityMine && finalDue ? recurrence : null;
     setSubmitting(true);
     try {
       const r = await (await apiFetch('/api/tasks', {
@@ -295,8 +280,9 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           planned_week_start: createDefaults?.planned_week_start ?? null,
           start_date: startDate || null,
           due_date: finalDue,
-          estimated_hours: estHours ? Number(estHours) : null,
+          estimated_hours: capacityMine && estHours ? Number(estHours) : null,
           recurrence_rule: recurrenceRule,
+          workstream_id: workstreamId,
         }),
       })).json();
       if (!r?.success) return;
@@ -363,6 +349,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           if (e.key === 'Escape') onClose();
         }} />
       <AddOptRow>
+        {!fixedProjectId && (
         <AddOptField data-field="project">
           <AddOptLabel>{t('add.project', '프로젝트')}</AddOptLabel>
           <PlanQSelect size="sm" isClearable
@@ -371,6 +358,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
             onChange={(v) => setProjectId((v as { value?: string })?.value ? Number((v as { value: string }).value) : null)}
             options={projectOptions} />
         </AddOptField>
+        )}
         <AddOptField data-field="assignee">
           <AddOptLabel>{t('add.assignee', '담당자')}{isRequest && ' *'}</AddOptLabel>
           <PlanQSelect size="sm" isClearable={!isRequest}
@@ -402,7 +390,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
         </AddOptField>
         {/* 요청에서는 예측시간·AI 추천을 숨긴다 — estimated_hours 는 담당자만(PERMISSION_MATRIX §5.7).
             요청자는 명세만 쓴다(기대 시간은 설명에). */}
-        {!isRequest && (
+        {capacityMine && (
           <AddOptField data-field="est" style={{ flex: '0 0 200px' }}>
             <AddOptLabel>{t('add.estHours', '예측(h)')}</AddOptLabel>
             <AddEstWrap>
@@ -420,6 +408,20 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
         )}
         {/* 운영 #236/#250 — 태그를 여기서 고르고 새로 만든다. 사전이 비어 있어도 항상 보인다:
             이 자리가 유일한 진입점이므로 숨기면 태그 기능 전체가 발견 불가가 된다. */}
+        {workstreams && (
+          <AddOptField data-field="workstream" style={{ flex: '1 1 200px' }}>
+            <AddOptLabel>{t('add.workstream', '업무 그룹')}</AddOptLabel>
+            <PlanQSelect size="sm" isClearable
+              placeholder={t('add.workstreamNone', '그룹 없음') as string}
+              value={workstreamId == null ? null : {
+                value: String(workstreamId),
+                label: workstreams.find((w) => w.id === workstreamId)?.title || String(workstreamId),
+              }}
+              onChange={(v) => setWorkstreamId((v as { value?: string })?.value ? Number((v as { value: string }).value) : null)}
+              options={workstreams.filter((w) => !w.status || w.status === 'active')
+                .map((w) => ({ value: String(w.id), label: w.title }))} />
+          </AddOptField>
+        )}
         <AddOptField data-field="tags" style={{ flex: '1 1 220px', minWidth: 200 }}>
           <AddOptLabel>{t('add.tags', '태그')}</AddOptLabel>
           <TagPicker
@@ -430,56 +432,12 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
             onDictAdd={addTagToDict} />
         </AddOptField>
       </AddOptRow>
-      {/* 반복 — 요청에서는 숨김(담당자가 ack 후 정한다). 마감일이 있어야 활성. */}
-      {!isRequest && (
+      {/* 반복 — 공용 RecurrencePicker(Q Calendar 와 같은 것). 마감일이 anchor 다.
+          남에게 명시적으로 지정한 업무에서는 서버가 버리므로(§5.7) 칸 자체를 내지 않는다. */}
+      {capacityMine && (
         <RecurRow data-field="recur">
-          <RecurToggleLabel>
-            <input type="checkbox" checked={recurEnabled} disabled={!dueDate}
-              onChange={(e) => setRecurEnabled(e.target.checked)} />
-            <span>{t('recur.toggle', '반복하기')}</span>
-            {!dueDate && <RecurHint>{t('recur.needDueDate', '반복하려면 마감일이 필요해요')}</RecurHint>}
-          </RecurToggleLabel>
-          {recurEnabled && dueDate && (
-            <RecurOptions>
-              <PlanQSelect size="sm"
-                // 운영 #347 — 라벨은 utils/recurrence 단일 원천
-                value={{ value: recurPreset, label: presetLabelMap(t as unknown as TFunction, dueDate)[recurPreset] }}
-                onChange={(v) => {
-                  const p = (v as { value?: string })?.value as RecurPreset | undefined;
-                  if (!p) return;
-                  if (p === 'custom') setShowCustomRecur(true); else setRecurPreset(p);
-                }}
-                options={(() => {
-                  const labels = presetLabelMap(t as unknown as TFunction, dueDate);
-                  return SELECTABLE_PRESETS.map((k) => ({ value: k, label: labels[k] }));
-                })()} />
-              <RecurEndBox>
-                <PlanQSelect size="sm"
-                  value={{
-                    value: recurEndType,
-                    label: recurEndType === 'never' ? t('recur.endTypeNever', '계속 반복')
-                      : recurEndType === 'count' ? t('recur.endTypeCount', '횟수 후 종료')
-                        : t('recur.endTypeUntil', '특정 날짜까지'),
-                  }}
-                  onChange={(v) => {
-                    const e = (v as { value?: string })?.value as RecurEndType | undefined;
-                    if (e) setRecurEndType(e);
-                  }}
-                  options={[
-                    { value: 'never', label: t('recur.endTypeNever', '계속 반복') },
-                    { value: 'count', label: t('recur.endTypeCount', '횟수 후 종료') },
-                    { value: 'until', label: t('recur.endTypeUntil', '특정 날짜까지') },
-                  ]} />
-                {recurEndType === 'count' && (
-                  <AddDateInput type="number" min="1" max="999" style={{ width: 64 }}
-                    value={recurEndCount} onChange={(e) => setRecurEndCount(e.target.value)} />
-                )}
-                {recurEndType === 'until' && (
-                  <SingleDateField value={recurEndUntil} onChange={(d) => setRecurEndUntil(d)} width={140} />
-                )}
-              </RecurEndBox>
-            </RecurOptions>
-          )}
+          <RecurrencePicker value={recurrence} onChange={setRecurrence}
+            anchorDate={dueDate || createDefaults?.due_date || null} />
         </RecurRow>
       )}
       <DescEditorWrap data-field="desc">
@@ -516,45 +474,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     </>
   );
 
-  const customRecurModal = showCustomRecur ? (
-    <CustomRecurOverlay onClick={() => setShowCustomRecur(false)}>
-      <CustomRecurDialog onClick={(e) => e.stopPropagation()}>
-        <CustomRecurTitle>{t('recur.customTitle', '사용자 지정 반복')}</CustomRecurTitle>
-        <CustomRecurField>
-          <CustomRecurFieldLabel>{t('recur.customEvery', '반복 간격')}</CustomRecurFieldLabel>
-          <CustomRecurInline>
-            <AddDateInput type="number" min="1" max="99" style={{ width: 80 }}
-              value={recurCustomEvery} onChange={(e) => setRecurCustomEvery(e.target.value)} />
-            <PlanQSelect size="sm"
-              value={{
-                value: recurCustomUnit,
-                label: recurCustomUnit === 'day' ? t('recur.customUnitDay', '일')
-                  : recurCustomUnit === 'week' ? t('recur.customUnitWeek', '주')
-                    : recurCustomUnit === 'month' ? t('recur.customUnitMonth', '개월')
-                      : t('recur.customUnitYear', '년'),
-              }}
-              onChange={(v) => {
-                const u = (v as { value?: string })?.value as RecurCustomUnit | undefined;
-                if (u) setRecurCustomUnit(u);
-              }}
-              options={[
-                { value: 'day', label: t('recur.customUnitDay', '일') },
-                { value: 'week', label: t('recur.customUnitWeek', '주') },
-                { value: 'month', label: t('recur.customUnitMonth', '개월') },
-                { value: 'year', label: t('recur.customUnitYear', '년') },
-              ]} />
-          </CustomRecurInline>
-        </CustomRecurField>
-        <AddBtnRow>
-          <AddCancelBtn type="button" onClick={() => setShowCustomRecur(false)}>{t('recur.customCancel', '취소')}</AddCancelBtn>
-          <AddSaveBtn type="button" onClick={() => { setRecurPreset('custom'); setShowCustomRecur(false); }}>
-            {t('recur.customSave', '적용')}
-          </AddSaveBtn>
-        </AddBtnRow>
-      </CustomRecurDialog>
-    </CustomRecurOverlay>
-  ) : null;
-
   if (layout === 'inline') {
     return (
       <>
@@ -568,7 +487,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
             </AddSaveBtn>
           </AddBtnRow>
         </InlineAddBox>
-        {customRecurModal}
       </>
     );
   }
@@ -587,7 +505,6 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
       >
         <PanelAddForm data-testid="task-create-form">{fields}</PanelAddForm>
       </CreateDrawer>
-      {customRecurModal}
     </>
   );
 };
@@ -606,7 +523,6 @@ const AttachCount = styled.span`display:inline-flex;align-items:center;justify-c
 const AttachInlineBox = styled.div`background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:14px;`;
 const AddOptField = styled.div`flex:1 1 140px;min-width:120px;display:flex;flex-direction:column;gap:3px;`;
 const AddOptLabel = styled.label`font-size:0.6875rem;color:#64748B;font-weight:600;`;
-const AddDateInput = styled.input`height:30px;padding:0 8px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;width:100%;min-width:0;&:focus{outline:none;border-color:#14B8A6;}`;
 const AddEstWrap = styled.div`display:flex;gap:6px;align-items:stretch;`;
 const AddEstNumberInput = styled.input`width:60px;flex-shrink:0;height:30px;padding:0 8px;font-size:0.8125rem;color:#0F172A;border:1px solid #E2E8F0;border-radius:6px;background:#FFF;font-family:inherit;text-align:right;&:focus{outline:none;border-color:#14B8A6;}`;
 const AddEstAiBtn = styled.button`flex:1;min-width:0;height:30px;padding:0 10px;font-size:0.75rem;font-weight:600;color:#0D9488;background:#F0FDFA;border:1px solid #99F6E4;border-radius:6px;cursor:pointer;font-family:inherit;letter-spacing:0.2px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;&:hover:not(:disabled){background:#CCFBF1;border-color:#14B8A6;}&:disabled{opacity:0.5;cursor:not-allowed;}`;
@@ -617,13 +533,3 @@ const AddBtnRow = styled.div`display:flex;justify-content:flex-end;gap:6px;`;
 const AddSaveBtn = styled.button`flex:0 0 auto;padding:6px 14px;font-size:0.8125rem;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddCancelBtn = styled.button`flex:0 0 auto;padding:6px 10px;font-size:0.8125rem;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
 const RecurRow = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;`;
-const RecurToggleLabel = styled.label`display:inline-flex;align-items:center;gap:8px;font-size:0.8125rem;color:#0F172A;cursor:pointer;input{cursor:pointer;}input:disabled{cursor:not-allowed;}`;
-const RecurHint = styled.span`font-size:0.75rem;color:#94A3B8;margin-left:6px;`;
-const RecurOptions = styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:center;`;
-const RecurEndBox = styled.div`display:inline-flex;gap:6px;align-items:center;`;
-const CustomRecurOverlay = styled.div`position:fixed;inset:0;background:rgba(15,23,42,0.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;`;
-const CustomRecurDialog = styled.div`background:#FFFFFF;border-radius:12px;padding:20px 22px;width:min(420px,90vw);box-shadow:0 20px 60px rgba(0,0,0,0.18);display:flex;flex-direction:column;gap:14px;`;
-const CustomRecurTitle = styled.h3`margin:0;font-size:1rem;font-weight:700;color:#0F172A;`;
-const CustomRecurField = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const CustomRecurFieldLabel = styled.label`font-size:0.75rem;color:#64748B;font-weight:600;`;
-const CustomRecurInline = styled.div`display:flex;gap:8px;align-items:center;`;
