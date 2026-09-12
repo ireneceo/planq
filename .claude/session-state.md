@@ -2,7 +2,21 @@
 **마지막 업데이트:** 2026-09-12 20:45 UTC
 **작업 상태:** Q sale 후속 1·2 완료(커밋 `a353e1c4`, **미배포**) · 후속 3~5 남음
 
-### ★ 방금 끝낸 것 (커밋 a353e1c4 — 배포 안 했다)
+### ★ 방금 끝낸 것 (커밋 a353e1c4 · 3eeb6ca5 — **둘 다 미배포**)
+- **업무 추가 폼이 한 벌이 됐다** — 네 자리(QTaskPage 인라인·드로어 / Q sale 상담 / Q project 업무 탭)가
+  `components/QTask/TaskCreateForm.tsx`(535줄) 하나를 쓴다. QTaskPage 4223→3598 · TasksTab 648→433.
+- 합치며 드러난 실제 결함 3: ①Q project 에 태그·첨부 없음 ②반복 UI 두 벌(공용 `RecurrencePicker` 로 통일,
+  사용자 지정 모달 폐기) ③**§5.7 — 남을 담당자로 고르고 적은 예측시간이 조용히 사라졌다**
+  (서버가 버리는데 화면은 요청 탭에서만 숨겼다 → `capacityMine` 한 술어로 통일, 값도 안 보낸다).
+- 상담 행 클릭 → `ClientPanel` 의 `inquiry` 분기 우측 패널. 펼치기 토글 제거.
+- 하니스 `run.js` 가 dotenv 를 먼저 싣는다 — "총 실패 0 + 종료코드 1" 로 초록이 빨간불로 읽히던 구멍.
+- 검증: 빌드 EXIT 0/`error TS` 0 · guard 49/50 · health 43/43 · **신규 `--suite taskaddparity` 20/20** ·
+  `tabletchrome` 9뷰포트 0 · 회귀 `drafts,detailopen,inboxcount` 0 · DB 왕복(반복·그룹·§5.7 버림·남의 그룹 400) ·
+  3폭 실측. **Fable 미검증(자체 검증) — 한도 초과 7회, 대기열 12·13번**
+- 남은 부채: 없음(복사본 4→1). `pages/QProject/ProjectTaskList.tsx` 의 **행 단위 빠른 추가**는 성격이
+  달라(표 안 한 줄) 그대로 뒀다 — 합칠 대상인지 판단 필요.
+
+### 앞 라운드 (a353e1c4 상세)
 - **업무 추가 폼 단일 원천** `components/QTask/TaskCreateForm.tsx`(신규 629줄).
   세 벌(QTaskPage 인라인·드로어 / Q sale)이 이미 갈라져 있었다 — 태그는 인라인에만, 요청 탭 예측시간
   가드는 드로어에 없었다(§5.7 위반), Q sale 은 제목+설명 2칸. QTaskPage 4223→3599줄.
