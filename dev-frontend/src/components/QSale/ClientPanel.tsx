@@ -20,7 +20,15 @@ import ActionButton from '../Common/ActionButton';
 import LetterAvatar from '../Common/LetterAvatar';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
-import { getSaleClient, setSaleStage, type SaleClientDetail, type LostReason } from '../../services/sale';
+import {
+  getSaleClient, setSaleStage, getSaleTimeline,
+  type SaleClientDetail, type LostReason, type TimelineItem,
+} from '../../services/sale';
+import { createPost } from '../../services/posts';
+import { apiFetch } from '../../contexts/AuthContext';
+// 히스토리는 상세와 **같은 컴포넌트**로 그린다 — 패널과 전체페이지가 다르면 고장으로 읽힌다
+import ClientTimeline from '../Clients/ClientTimeline';
+import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
 import LostReasonModal from './LostReasonModal';
 // 상담 관리의 다음 액션 — 상세 페이지와 **같은 창**을 쓴다(자리마다 다른 동작을 만들지 않는다)
@@ -80,6 +88,17 @@ const ClientPanel: React.FC<Props> = ({
   }, [businessId, clientId, onChanged]);
 
   useEffect(() => {
+    if (!clientId) { setItems([]); return undefined; }
+    let alive = true;
+    setHistLoading(true);
+    getSaleTimeline(businessId, clientId, { limit: 6 })
+      .then((out) => { if (alive) setItems(out.items || []); })
+      .catch(() => { if (alive) setItems([]); })
+      .finally(() => { if (alive) setHistLoading(false); });
+    return () => { alive = false; };
+  }, [businessId, clientId]);
+
+  useEffect(() => {
     if (!clientId) { setData(null); return; }
     let alive = true;
     setLoading(true); setError(false);
@@ -95,6 +114,9 @@ const ClientPanel: React.FC<Props> = ({
   const [recordOpen, setRecordOpen] = useState(false);
   const [nextOpen, setNextOpen] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
+  // 히스토리 — 최근 것 몇 건만. 전체는 전체보기(상세)에서 본다.
+  const [items, setItems] = useState<TimelineItem[]>([]);
+  const [histLoading, setHistLoading] = useState(false);
 
   const applyStage = useCallback(async (
     stage: 'won' | 'lost',
@@ -119,6 +141,41 @@ const ClientPanel: React.FC<Props> = ({
 
   // 미등록 문의도 같은 패널에서 그린다 — 고객 레코드가 없을 뿐이고 **보여줄 정보는 있다**.
   const isInquiry = !clientId && !!inquiry;
+  const inviteEmail = data?.contact?.invite_email || data?.contact?.account_email || data?.email || '';
+
+  // 초대 — 기존 라우트를 그대로 부른다(초대 메일·토큰·중복 판정이 전부 거기 있다)
+  const sendInvite = useCallback(async () => {
+    if (!clientId || !data || busy || !inviteEmail) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch(`/api/clients/${businessId}/invite`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.display_name || data.company_name || inviteEmail,
+          email: inviteEmail,
+          company_name: data.company_name || undefined,
+        }),
+      });
+      if (!r.ok) { setError(true); return; }
+      await reload();
+    } catch { setError(true); } finally { setBusy(false); }
+  }, [businessId, clientId, data, busy, inviteEmail, reload]);
+
+  // 계약서 — Q docs 문서를 만들고 그 문서를 연다(받는 화면이 `?post=` 를 읽는다)
+  const createContract = useCallback(async () => {
+    if (!clientId || !data || busy) return;
+    setBusy(true);
+    try {
+      const who = data.display_name || data.company_name || `#${clientId}`;
+      const post = await createPost({
+        business_id: businessId,
+        title: `${t('action.contractTitle', { defaultValue: '계약서' }) as string} — ${who}`,
+        status: 'draft',
+      });
+      navigate(`/docs?post=${post.id}`);
+    } catch { setError(true); } finally { setBusy(false); }
+  }, [businessId, clientId, data, busy, navigate, t]);
+
   const name = clientId
     ? (data?.display_name || data?.company_name || '')
     : (inquiry?.who || '');
@@ -225,8 +282,24 @@ const ClientPanel: React.FC<Props> = ({
 
             <Section>
               <SectionTitle>{t('panel.linked') as string}</SectionTitle>
-              <Row label={t('panel.conversations') as string} value={String(data.channels?.conversations ?? 0)} />
-              <Row label={t('panel.emailThreads') as string} value={String(data.channels?.email_threads ?? 0)} />
+              {/* ★ 숫자를 누르면 **그 채널만** 보이는 히스토리로 간다 (Irene 2026-09-12:
+                  "숫자들이나 내용들 누르면 연결되어야지"). 죽은 숫자를 두지 않는다. */}
+              <LinkRow>
+                <FieldLabel>{t('panel.conversations') as string}</FieldLabel>
+                <CountLink type="button" data-testid="panel-link-chat"
+                  disabled={!(data.channels?.conversations)}
+                  onClick={() => clientId && navigate(`/sale/${clientId}?channel=chat`)}>
+                  {data.channels?.conversations ?? 0}
+                </CountLink>
+              </LinkRow>
+              <LinkRow>
+                <FieldLabel>{t('panel.emailThreads') as string}</FieldLabel>
+                <CountLink type="button" data-testid="panel-link-mail"
+                  disabled={!(data.channels?.email_threads)}
+                  onClick={() => clientId && navigate(`/sale/${clientId}?channel=email`)}>
+                  {data.channels?.email_threads ?? 0}
+                </CountLink>
+              </LinkRow>
               {data.projects?.length > 0 && (
                 <ProjList>
                   {data.projects.map((p) => (
@@ -236,7 +309,28 @@ const ClientPanel: React.FC<Props> = ({
               )}
             </Section>
 
-            {/* ★ 관리(초대·보관·삭제·한도)는 여기 없다 — 설정 > 고객/파트너의 몫이다. */}
+            {/* 히스토리 — 상세와 같은 컴포넌트. 여기서는 최근 몇 건만, 전체는 전체보기에서. */}
+            <Section>
+              <SectionTitle>{t('panel.history') as string}</SectionTitle>
+              {histLoading ? (
+                <Dim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</Dim>
+              ) : items.length === 0 ? (
+                <Dim>{t('timeline.empty') as string}</Dim>
+              ) : (
+                <>
+                  <ClientTimeline items={items} onOpen={(it) => openSaleTimelineItem(it, navigate)} />
+                  {clientId && (
+                    <MoreLink type="button" data-testid="panel-history-more"
+                      onClick={() => navigate(`/sale/${clientId}`)}>
+                      {t('panel.historyMore') as string}
+                    </MoreLink>
+                  )}
+                </>
+              )}
+            </Section>
+
+            {/* ★ 보관·삭제·한도 같은 **관리**는 여기 없다 — 설정 > 고객/파트너의 몫이다.
+                초대는 상담에서 바로 필요하다는 지시(2026-09-12)에 따라 아래 액션에 둔다. */}
           </>
         )}
       </DetailDrawer.Body>
@@ -284,6 +378,20 @@ const ClientPanel: React.FC<Props> = ({
           onClick={() => clientId && navigate(`/projects?new=1&client=${clientId}`)}>
           {t('action.createProject') as string}
         </ActionButton>
+        {/* 계약서 — Q docs 문서를 만들어 바로 연다. 분류는 제목으로 정해진다(docs 의 기존 규칙 `inferKindFromTitle`). */}
+        <ActionButton tone="secondary" size="md" disabled={!data || busy}
+          data-testid="client-panel-contract" onClick={createContract}>
+          {t('action.createContract') as string}
+        </ActionButton>
+        {/* 초대 — 문의 고객에게만(이미 초대·계정이 있으면 할 일이 없다). 주소가 없으면 설정에서 넣는다. */}
+        {data?.status === 'prospect' && (
+          <ActionButton tone="secondary" size="md" disabled={busy || !inviteEmail}
+            data-testid="client-panel-invite"
+            title={inviteEmail ? undefined : (t('action.inviteNoEmail') as string)}
+            onClick={sendInvite}>
+            {t('action.invite') as string}
+          </ActionButton>
+        )}
         {/* 계약 성사/불발. 프로젝트·청구는 받는 화면이 고객 지정을 아직 안 읽어
             지금 버튼을 달면 눌러도 고객이 안 실린 빈 화면으로 간다(죽은 링크). 받는 쪽을 만든 뒤 붙인다. */}
         <ActionButton tone="secondary" size="md" disabled={busy || !data}
@@ -370,5 +478,17 @@ const PreviewBox = styled.div`
   margin-top: 8px; padding: 10px 12px; background: #F8FAFC; border: 1px solid #F1F5F9;
   border-radius: 8px; font-size: 0.8125rem; color: #334155; line-height: 1.5;
   white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow-y: auto;
+`;
+const LinkRow = styled.div`display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 0.8125rem;`;
+const CountLink = styled.button`
+  padding: 2px 10px; border-radius: 999px; border: 1px solid #E2E8F0; background: #FFFFFF;
+  color: #0F766E; font-size: 0.8125rem; font-weight: 700; cursor: pointer; font-family: inherit;
+  &:hover:not(:disabled) { background: #F0FDFA; border-color: #5EEAD4; }
+  &:disabled { color: #94A3B8; cursor: default; }
+`;
+const MoreLink = styled.button`
+  margin-top: 8px; padding: 0; background: none; border: none; color: #0F766E;
+  font-size: 0.75rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  &:hover { text-decoration: underline; }
 `;
 const Dim = styled.div`padding: 32px 0; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;

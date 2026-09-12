@@ -26,6 +26,7 @@ import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 // 불발 사유 창은 **공용**이다 — 우측 패널도 같은 것을 쓴다(자리마다 다른 동작을 만들지 않는다)
 import LostReasonModal from '../../components/QSale/LostReasonModal';
 import RecordModal from '../../components/QSale/RecordModal';
+import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 import {
   getSaleClient, patchSaleClient, setSaleStage, getSaleTimeline, deleteInteraction, reviewInteraction,
   SALE_STAGES, SALE_SOURCES,
@@ -49,7 +50,11 @@ export default function SaleDetailPage() {
   const [otherBiz, setOtherBiz] = useState<number | null>(null);
   const [client, setClient] = useState<SaleClientDetail | null>(null);
   const [items, setItems] = useState<TimelineItem[]>([]);
-  const [filter, setFilter] = useState<'all' | TimelineType>('all');
+  // ★ 패널의 연결 숫자가 `?channel=chat|email` 로 보낸다 — 받는 쪽이 읽지 않으면 숫자는 죽은 링크다
+  const [filter, setFilter] = useState<'all' | TimelineType>(() => {
+    const c = new URLSearchParams(window.location.search).get('channel');
+    return (c && (CHANNELS as string[]).includes(c)) ? (c as TimelineType) : 'all';
+  });
   const [hasMore, setHasMore] = useState(false);
   const beforeRef = useRef<string | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
@@ -287,7 +292,7 @@ export default function SaleDetailPage() {
             items={refFilter
               ? items.filter((it) => refFilter.some((r) => r.type === it.type && String(r.id) === String(it.id)))
               : items}
-            onOpen={(it) => openTimelineItem(it, navigate)}
+            onOpen={(it) => openSaleTimelineItem(it, navigate)}
             renderActions={(it) => {
               const meta = (it.meta || {}) as Record<string, unknown>;
               if (it.type !== 'interaction') return null;
@@ -356,14 +361,6 @@ export default function SaleDetailPage() {
 function daysSince(iso: string): number {
   const ms = Date.now() - new Date(iso).getTime();
   return Math.max(1, Math.floor(ms / 86400000) + 1);
-}
-
-function openTimelineItem(it: TimelineItem, navigate: (to: string) => void) {
-  if (it.type === 'chat' && it.conversation_id) navigate(`/talk?conv=${it.conversation_id}`);
-  else if (it.type === 'email' && it.thread_id) navigate(`/mail?thread=${it.thread_id}`);
-  else if (it.type === 'task') navigate(`/tasks?task=${it.id}`);
-  else if (it.type === 'invoice') navigate(`/bills?invoice=${it.id}`);
-  else if (it.type === 'guest' && it.conversation_id) navigate(`/talk?conv=${it.conversation_id}`);
 }
 
 // ─── 프로필 (AutoSaveField — 저장 버튼 없음) ───────────────────────

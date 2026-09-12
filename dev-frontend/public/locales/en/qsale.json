@@ -107,7 +107,9 @@
     "notClientYet": "Not a client yet",
     "registered": "Added",
     "registeredBy": "Added by",
-    "registeredAt": "Added at"
+    "registeredAt": "Added at",
+    "history": "History",
+    "historyMore": "See full history"
   },
   "action": {
     "addInquiry": "+ Add inquiry",
@@ -125,7 +127,10 @@
     "markWon": "Mark as won",
     "markLost": "Mark as lost",
     "notInquiry": "Not an inquiry",
-    "notInquiryHint": "Removes it from consultations and marks the mail as automated (also applied in Q mail)."
+    "notInquiryHint": "Removes it from consultations and marks the mail as automated (also applied in Q mail).",
+    "createContract": "Create contract",
+    "contractTitle": "Contract",
+    "inviteNoEmail": "No email on file — add one in settings to invite"
   },
   "record": {
     "kind": {

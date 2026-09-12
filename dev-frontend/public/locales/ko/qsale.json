@@ -107,7 +107,9 @@
     "notClientYet": "미등록 문의",
     "registered": "등록",
     "registeredBy": "등록자",
-    "registeredAt": "등록 시각"
+    "registeredAt": "등록 시각",
+    "history": "히스토리",
+    "historyMore": "전체 히스토리 보기"
   },
   "action": {
     "addInquiry": "+ 문의 추가",
@@ -125,7 +127,10 @@
     "markWon": "계약 성사",
     "markLost": "계약 불발",
     "notInquiry": "문의 아님",
-    "notInquiryHint": "이 메일을 상담에서 내리고 자동 발송으로 분류합니다(Q mail 에서도 같이 반영)."
+    "notInquiryHint": "이 메일을 상담에서 내리고 자동 발송으로 분류합니다(Q mail 에서도 같이 반영).",
+    "createContract": "계약서 만들기",
+    "contractTitle": "계약서",
+    "inviteNoEmail": "이메일이 없어 초대할 수 없습니다 — 설정에서 주소를 넣어주세요"
   },
   "record": {
     "kind": {
