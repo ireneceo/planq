@@ -474,3 +474,52 @@ ko/en 4관점 라벨("마무리 대기"/"승인완료" · "Pending wrap-up"/"App
 - 승인 카나리가 `/마us리|완료/` 로 긁어 앱 크롬의 "이번 주 마무리" 를 잡아 **드로어가 안 열려도 통과** →
   드로어 안 + "최종 완료" 문자열로 좁힘
 - Q sale ⑦ 이 앞 단계가 켜둔 "답변 필요만" 필터를 물려받아 **거짓 FAIL** → 필터를 끄고 계측
+
+---
+
+## 12. 업무 추가 폼 단일 원천 + 상담 우측 패널 (2026-09-12, commit `a353e1c4`)
+
+**판정: R=0 · S=0 · F=1** — 스키마·ENUM·권한 미들웨어·돈·외부발송·공개라우트 무변경이고,
+되돌리기는 코드 되돌리기뿐이다. 판정식상 **내가 검증하는 쪽**이다. 그런데도 여기 적는 이유는
+**게이트가 Fable 을 요구**했고 **띄우지 못했기 때문**이다(아래).
+
+**Fable 호출 실패**: `model: fable` Agent 가 HTTP 429 — *"You've reached your Fable limit"*
+(req_011CezBwXys5xB7B3TCk8Rnz). 2026-09-12 누적 6회 모두 한도 초과(앞 5회는 9·10·11번 항목).
+
+### 무엇을 만들었나
+- `components/QTask/TaskCreateForm.tsx`(신규 629줄) — 업무 추가 폼의 단일 원천. `layout='drawer'|'inline'`,
+  `mode='task'|'request'`, `draftKind/draftId`, `initial/initialNonce`, 멤버·프로젝트·태그 사전은
+  주면 쓰고 없으면 스스로 읽는다. 제출(업로드 → `attachments/link` context `description_attach` →
+  태그 PUT → 반복 RRULE)이 여기 한 곳.
+- `QTaskPage` 4223→3599줄 — 폼 **두 벌**(인라인·드로어)과 그 state·`addTask`·`resetNewTask`·
+  `buildCurrentRRule`·반복 모달·styled 32개를 제거하고 `openAddForm/closeAddForm` 두 문만 남겼다.
+- `SaleInboxList` — `StandardModal` 2칸 모달 제거, 공용 폼 사용. 행 클릭이 펼치기→**우측 패널**.
+- `ClientPanel` — `inquiry` 분기(미등록 문의). `CreateDrawer` 에 `submitTestId`.
+- i18n ko/en: qsale `panel.*` 9키 · qtask `add.dateRange`·`add.attachShow`·`add.attachHide`·`detail.meSuffix`.
+- `scripts/e2e/canary-task-add-parity.js`(신규) + 러너 등록.
+
+### 자체 검증 (Fable 미검증)
+- 빌드 **EXIT 0 · `error TS` 0** (1차 EXIT 2·8건: `myId` 가 string(AuthContext `id: string`) · 고아 import 4)
+- `guard-invariants` **49/50 통과** — draft 88→87, parity_missing_keys 491→486(누락 4키는 baseline 대신 ko/en 추가)
+- `health-check` **43/43**
+- 신규 카나리 `--suite taskaddparity` **15/15** — 세 자리 필드 집합 **상호 비교**(하드코딩 기대값 아님) ·
+  요청 탭 음성 대조군(est·recur 없음) + 일반 탭 양성 대조군(있음) · 제출 DB 왕복(task 생성 확인 후 삭제) ·
+  초안 보존/제출 후 비움 · 패널 열기·재클릭 해제 · 시각이 날 ISO 가 아님
+- 회귀 `--suite drafts,detailopen,inboxcount` **실패 0**
+- 실HTTP **7/7** — 저장→재조회(`/api/tasks/by-business/:biz`) 값 일치(project 239·due 2026-09-30·est 2.5) ·
+  담당자 미지정 시 서버 체인이 채움(assignee 5) · 빈 제목 400 · 반복+마감없음 400 · 비소속 biz 403
+- 데이터 원복: 테스트 업무 0건 · `users.active_business_id`(id=5) = 5
+
+### Fable 이 봐야 할 것
+1. **지워진 624줄에 폼과 무관한 것이 섞이지 않았는가** — 이 변경의 최대 위험이고 내가 컴파일러
+   (`error TS6133`)와 grep 으로만 확인했다. 특히 공유 타깃 `?prefill=`·`?attachFileIds=`·
+   음성 캡처(`?create=1` + navigate state) 세 진입이 **실제로 값까지 채우는가**(카나리에 없다).
+2. **인라인 폼의 바깥클릭 계약** — `data-task-add-form` 마커가 공용 컴포넌트 안으로 들어갔다.
+   표 아래 폼이 바깥 클릭으로 닫히는 경계가 그대로인가.
+3. **요청 탭 §5.7** — 화면에서 est·recur 를 숨기는 것과 **서버가 버리는 것**이 같은 술어인가
+   (담당자를 남으로 지정한 경우까지. QProject TasksTab 은 `assignedToOther` 로 더 좁게 본다).
+4. **네 번째 복사본** — `pages/QProject/TasksTab.tsx` 가 여전히 자체 폼이다(업무 그룹·프로젝트 고정).
+   합치는 것이 맞는 설계인지, 합칠 때 workstream 을 공용 폼에 어떻게 넣을지 판단해 달라.
+5. **god-file 베이스라인 되돌림** — 전체 `--update-baseline` 이 내가 안 건드린 15파일의 크기까지
+   동결하므로 옛(엄격한) 값으로 되돌렸다(dashboard.js 1174 유지 등). 이 손편집이 맞는 처리인가.
+6. 폰(≤640px) 1폭에서 공용 폼의 제출 도달성·가로 넘침 — 데스크탑만 쟀다.
