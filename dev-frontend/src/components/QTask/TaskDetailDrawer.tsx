@@ -1448,7 +1448,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           const submitAvailable = iAmAssignee && reviewers.length > 0 && (detailTask.status === 'in_progress' || detailTask.status === 'revision_requested');
           const cancelReviewAvailable = iAmAssignee && detailTask.status === 'reviewing';
           const completeSimple = iAmAssignee && reviewers.length === 0 && detailTask.status === 'in_progress';
-          const completeFinal = false; // done_feedback 단계 폐지 — 컨펌 충족 시 자동 completed
+          // ★ 2026-09-12 (Irene) — 승인완료(done_feedback) 단계 부활. 컨펌이 끝나도 자동으로 닫지 않고
+          //   **담당자가 내용을 보고 마무리**한다. 여기가 그 마무리 버튼의 게이트다.
+          //   백엔드도 같은 예외를 둔다(task_actions.complete: done_feedback 이면 컨펌자 있어도 통과).
+          const completeFinal = iAmAssignee && detailTask.status === 'done_feedback';
           // #206 보류 / 외부컨펌 — 권한 집합은 status 편집과 동일 (담당자·작성자·owner·admin). 최종 방어는 백엔드.
           const canChangeStatus = iAmAssignee || iAmCreator || iAmWsOwner || myWsRole === 'admin';
           const isOnHold = detailTask.status === 'on_hold';

@@ -463,7 +463,21 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 **Q위키 (2):** **help_categories**, **help_articles** (2026-06-18 신규 — PlanQ 제품 사용법 도움말. 플랫폼 공통 콘텐츠(business_id 없음), 격리 축은 article.visibility('public'/'authenticated')만. help_articles FULLTEXT(ngram) 한글검색 + body ko/en JSON 블록. 본문 임베딩은 **kb_chunks 재사용**(source_type ENUM 'kb'/'wiki' 추가 + source_id + business_id/kb_document_id nullable — wiki chunk는 플랫폼 공통이라 NULL, 워크스페이스 KB 검색 비오염). 스크린샷은 File 재사용(image 블록 file_id). 운영 적용 시 `dev-backend/setup-wiki-schema.js`(FULLTEXT+ALTER 멱등) + `seed-wiki-content.js`(콘텐츠) 실행. 설계 docs/Q_WIKI_DESIGN.md)
 
-> **Q Task 상태 ENUM:** `not_started`, `waiting`, `in_progress`, `reviewing`, `revision_requested`, `completed`, `canceled`. (2026-04-25: `done_feedback` 폐지 — 컨펌 정책 충족 시 `recalcStatusFromReviewers` 가 자동 `completed` 전환). 관점별 UI 라벨은 `dev-frontend/src/utils/taskLabel.ts` 참조 (i18n `status.{code}.{role}` 4차원 구조).
+> **Q Task 상태 ENUM:** `not_started`, `waiting`, `in_progress`, `reviewing`, `revision_requested`, **`done_feedback`**, `completed`, `canceled`. 관점별 UI 라벨은 `dev-frontend/src/utils/taskLabel.ts` 참조 (i18n `status.{code}.{role}` 4차원 구조).
+>
+> **★ 승인완료(`done_feedback`) — 완료 **앞** 단계 (2026-09-12 부활).** Irene: *"업무 승인, 컨펌 다 받으면
+> 완료 상태가 되는데 그러면 담당자가 확인을 못하잖아. 승인완료함 << 이렇게 단계 하나 완료 앞에 있어야
+> 하지 않아? 요청받은 것처럼 확인필요에 뜨고 업무리스트에도 그대로 있게 해서 다음 처리 하게."*
+> - 컨펌 정책 충족 시 `completed` 가 아니라 여기로 온다. **`completed_at`·진행률 100 을 찍지 않는다** —
+>   찍으면 "오늘 완료"·주간 진척 그래프가 아직 안 끝난 일을 완료로 센다.
+> - 담당자가 **"최종 완료"** 를 눌러야 닫힌다. `complete` 액션은 컨펌자가 있으면 막지만
+>   `done_feedback` 일 때는 통과시킨다 — 그 예외가 없으면 **아무도 닫을 수 없는 막다른 길**이 된다.
+> - **활성 상태다.** 이번 주 목록(`services/weekTaskSet.js`)·정렬(`popoutSort` STAGE_ORDER)·확인필요
+>   5번째 버킷(`collectTasks`, verb `finish`)에 모두 들어간다. 하나라도 빠지면 "확인필요엔 뜨는데
+>   업무리스트에선 사라진" 상태가 된다(2026-09-11 외부컨펌 신고와 같은 모양).
+> - 2026-04-25~09-12 은 폐지 상태였고 그때 결정("자동완료 유지 + 알림만")을 **되돌린 것**이다.
+>   같은 신고가 두 번 왔다(#282). **알림은 인지를 보장하지 못한다 — 단계로 만든다.**
+> - 폐지값을 되살린 것이라 **운영 ENUM ALTER 가 없다.** ko/en 4관점 라벨도 이미 있었다.
 >
 > **Q Task 시간/진행율 권한 (2026-04-25):** `estimated_hours / actual_hours / progress_percent` 는 **담당자만 입력 가능**. 비담당자가 PATCH/PUT 시 `only_assignee_can_edit_hours` 403. 프론트는 `assignee_id !== myId` 시 input disabled (회색·점선·spinner 숨김). 다른 역할은 read-only 참고.
 >

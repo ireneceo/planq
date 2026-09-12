@@ -248,9 +248,27 @@ async function collectTasks(businessId, userId) {
     });
   }
 
-  // 옛 '완료 피드백(done_feedback)' 대기 목록이 여기 있었다.
-  //    그 단계는 2026-04-25 에 폐지됐다 — 컨펌 정책이 충족되면 곧바로 completed 로 전이한다.
-  //    그래서 이 쿼리는 **항상 0건**이었다(죽은 코드). 요청자가 승인할 일은 컨펌자 승인(approve)으로 대체됐다.
+  // 5) 승인완료(done_feedback) — 컨펌이 끝나 **담당자가 마무리**할 차례 (2026-09-12 Irene: "승인완료함 <<
+  //    완료 앞 단계 / 요청받은 것처럼 확인필요에 뜨고 업무리스트에도 그대로"). 옛 done_feedback 은
+  //    요청자 피드백 자리였고 지금은 축이 다르다. 3)·4)는 reviewing 단계라 겹치지 않는다(한 업무=한 버킷).
+  const approvedWaiting = await Task.findAll({
+    where: { business_id: businessId, assignee_id: userId, [Op.and]: [stageWhere('done_feedback')] },
+    attributes: ['id', 'title', 'due_date', 'updatedAt', 'status'],
+    include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],
+    order: [['due_date', 'ASC']],
+    limit: COLLECT_LIMIT,
+  });
+  for (const t of approvedWaiting) {
+    const due = toIsoDateOnlyAsDate(t.due_date);
+    items.push({
+      id: `task-${t.id}-finish`, stage: stageOf(t), type: 'task',
+      priority: bucketByDue(due), verb: 'finish', subject: t.title,
+      context: t.requester ? `요청: ${resolveName(t.requester, nameMap)}` : null,
+      dueAt: due ? due.toISOString() : null, createdAt: safeToIso(t.updatedAt),
+      actor: t.requester ? { name: resolveName(t.requester, nameMap) } : null,
+      drawer: { kind: 'task', id: t.id },
+    });
+  }
 
   return items;
 }

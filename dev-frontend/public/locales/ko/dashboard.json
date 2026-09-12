@@ -91,6 +91,7 @@
     },
     "verb": {
       "ack": "요청 확인",
+      "finish": "승인완료 — 마무리",
       "confirm": "승인 대기",
       "approve": "확정 대기",
       "review": "검토",

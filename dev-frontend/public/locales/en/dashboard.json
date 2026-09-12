@@ -91,6 +91,7 @@
     },
     "verb": {
       "ack": "Acknowledge",
+      "finish": "Approved — wrap up",
       "confirm": "Awaiting approval",
       "approve": "Awaiting finalization",
       "review": "Review",

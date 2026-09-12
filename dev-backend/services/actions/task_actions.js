@@ -112,7 +112,18 @@ function audit(actor, entry) {
 }
 
 // 컨펌자들의 state + 정책 → 메인 status 재계산 (전이 규칙의 단일 원천).
-//   정책 충족(전원/1명 승인) 시 자동 completed — done_feedback 단계는 2026-04-25 폐지.
+//
+// ★ 2026-09-12 (Irene): *"업무 승인, 컨펌 다 받으면 완료 상태가 되는데 그러면 담당자가 확인을 못하잖아.
+//   승인완료함 << 이렇게 단계 하나 완료 앞에 있어야 하지 않아? 요청받은 것처럼 확인필요에 뜨고
+//   업무리스트에도 그대로 있게 해서 다음 처리 하게."*
+//   → 정책 충족 시 **`done_feedback`(승인완료·마무리 대기)** 으로 간다. 완료가 아니다.
+//     `completed_at`·진행률 100 은 여기서 찍지 않는다 — 담당자가 완료를 누를 때 찍힌다.
+//
+//   이것은 2026-04-25 의 "done_feedback 폐지 → 컨펌 충족 시 즉시 completed" 결정을 **되돌린 것**이다.
+//   같은 신고가 두 번 왔다(#282 "완료처리는 승인한 후 담당자가 승인한 걸 인지하고 해야 하는 건데").
+//   그때는 자동완료를 유지하고 알림만 추가했는데, 알림은 "인지" 를 보장하지 못했다 — 단계로 만든다.
+//   ★ ENUM 은 건드리지 않는다. `done_feedback` 은 값이 살아 있고 코드 경로만 0 이던 폐지값이라
+//     운영 DB ALTER 가 필요 없다(모델 주석이 이 용도를 열어뒀다). ko/en 4관점 라벨도 이미 있다.
 async function recalcStatusFromReviewers(task, transaction) {
   const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, transaction });
   if (reviewers.length === 0) return task.status;
@@ -130,17 +141,16 @@ async function recalcStatusFromReviewers(task, transaction) {
   if (hasRevision) {
     target = 'revision_requested';
   } else if (task.review_policy === 'all') {
-    target = approvedCount === reviewers.length ? 'completed' : 'reviewing';
+    target = approvedCount === reviewers.length ? 'done_feedback' : 'reviewing';
   } else {
     // any: 1명이라도 승인하면 충족. 단 아무도 아직 안 봤으면 reviewing 유지.
-    target = approvedCount >= 1 ? 'completed' : 'reviewing';
+    target = approvedCount >= 1 ? 'done_feedback' : 'reviewing';
     if (pendingCount === reviewers.length) target = 'reviewing';
   }
   if (target !== task.status) {
-    const updates = { status: target };
-    if (target === 'completed' && !task.completed_at) updates.completed_at = new Date();
-    if (target === 'completed') updates.progress_percent = 100;
-    await task.update(updates, { transaction });
+    // ★ 승인완료(done_feedback)는 **종료가 아니다** — completed_at 도 진행률 100 도 찍지 않는다.
+    //   찍으면 "오늘 완료한 것"·주간 진척 그래프가 아직 안 끝난 일을 완료로 센다.
+    await task.update({ status: target }, { transaction });
   }
   return target;
 }
@@ -848,7 +858,10 @@ async function complete(task, actor) {
   const reviewerCount = await TaskReviewer.count({ where: { task_id: task.id } });
   // 컨펌자가 있으면 완료는 컨펌 정책 충족으로만 일어난다 (recalcStatusFromReviewers 가 자동 전이).
   //   담당자가 이 라우트로 컨펌을 건너뛸 수 없다.
-  if (reviewerCount > 0) return fail('not_ready_for_complete');
+  // ★ 2026-09-12 — 단, **승인완료(done_feedback)** 는 이미 컨펌을 통과한 단계다.
+  //   그 마무리는 담당자가 누른다(Irene: "그냥 완료처리 하더라도 멘트 보고 하던지").
+  //   이 예외가 없으면 새 단계가 **아무도 닫을 수 없는 막다른 길**이 된다.
+  if (reviewerCount > 0 && task.status !== 'done_feedback') return fail('not_ready_for_complete');
 
   const fromStatus = task.status;
   const t = await sequelize.transaction();
@@ -924,23 +937,21 @@ async function approve(task, actor, { note = null } = {}) {
   broadcastTask(task, 'task:updated', actor.userId);
 
   const wsName = await workspaceName(task.business_id);
-  if (task.status === 'completed') {
+  if (task.status === 'done_feedback') {
+    // 운영 #282 의 후속 — 2026-09-12 Irene 지시로 **단계**를 만들었다(위 recalcStatusFromReviewers 주석).
+    //   승인이 끝났다는 사실은 요청자에게도, 마무리할 담당자에게도 간다.
+    //   승인자==담당자면 excludeUserId 로 걸러진다.
     notifyTask({
       userId: task.request_by_user_id || task.created_by,
       task, wsName, excludeUserId: actor.userId,
       action: 'task_completed', ctaLabel: '결과 확인',
+      body: `"${task.title}" — 컨펌이 끝났습니다(담당자 마무리 대기)`,
     });
-    // 운영 #282 — Irene: "완료처리는 승인한 후 담당자가 승인한 걸 인지하고 해야 하는 건데".
-    //   여태 이 분기는 **요청자에게만** 알리고 담당자에게는 아무것도 안 갔다. 승인 한 번으로
-    //   업무가 닫히는데(review_policy='any') 정작 일한 사람이 그 사실을 모르는 상태였다.
-    //   자동 완료 자체는 유지한다 — 2026-04-25 에 done_feedback 단계를 폐지하며 내린 결정이고,
-    //   되돌리면 "승인했는데 담당자가 완료를 또 눌러야 하는" 이중 단계가 부활한다.
-    //   대신 담당자가 **인지**할 경로를 만든다. 승인자==담당자면 excludeUserId 로 걸러진다.
     notifyTask({
       userId: task.assignee_id, task, wsName, excludeUserId: actor.userId,
       action: 'task_approved',
-      body: `"${task.title}" — 컨펌이 끝나 완료 처리됐습니다`,
-      ctaLabel: '업무 보기',
+      body: `"${task.title}" — 컨펌이 끝났습니다. 내용을 확인하고 마무리해 주세요`,
+      ctaLabel: '마무리하기',
     });
   } else {
     notifyTask({

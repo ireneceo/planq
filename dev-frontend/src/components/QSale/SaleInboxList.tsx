@@ -14,8 +14,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { joinRoom, onSocket } from '../../services/socket';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ActionButton from '../Common/ActionButton';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
@@ -66,6 +68,34 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, onRegistered }) => {
   }, [businessId]);
 
   useEffect(() => { void load(); }, [load, source, replyOnly, q]);
+
+  // 실시간 — 새 문의가 오면 새로고침 없이 뜬다 (CLAUDE.md 운영 16번).
+  //
+  // ★ **새 이벤트를 만들지 않는다.** 이 목록의 원본 셋은 이미 신호를 쏘고 있다:
+  //   메일 도착 `mail:new`(services/emailImapCron) · 대화 메시지 `message:new`(conversations·guest) ·
+  //   뱃지 갱신 `inbox:refresh`(services/mailBroadcast 등). 셋 다 이 목록을 흔드는 사건이다.
+  //   새 이름으로 쏘면 **수신부가 0곳**이 되는 계열의 사고를 되풀이한다.
+  // ★ 목록이 커서 setState merge 가 아니라 **서버 fresh 재조회**다(silent).
+  //   덜 온 것만 합치면 등록되어 빠진 행이 남는다.
+  const reloadTimer = useRef<number | null>(null);
+  const silentReload = useCallback(() => {
+    if (reloadTimer.current) window.clearTimeout(reloadTimer.current);
+    reloadTimer.current = window.setTimeout(() => { void load({ silent: true }); }, 250);
+  }, [load]);
+
+  useEffect(() => {
+    if (!businessId) return undefined;
+    // room 은 refCount 관리 — 서버가 connection 시 소속 워크스페이스를 자동 join 하므로 이중 보장(멱등).
+    joinRoom(`business:${businessId}`);
+    const offs = ['message:new', 'mail:new', 'inbox:refresh'].map((ev) => onSocket(ev, silentReload));
+    return () => {
+      offs.forEach((off) => off());
+      if (reloadTimer.current) window.clearTimeout(reloadTimer.current);
+    };
+  }, [businessId, silentReload]);
+
+  // 소켓이 끊겼던 동안 놓친 것 회복 — 모바일 PWA background → foreground.
+  useVisibilityRefresh(silentReload);
 
   const sourceLabel = useCallback((s: SaleInboxSource | '') => (
     s === '' ? (t('inbox.sourceAll') as string) : (t(`inbox.source.${s}`) as string)

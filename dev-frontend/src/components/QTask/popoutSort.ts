@@ -104,7 +104,10 @@ export const POPOUT_SORT_KEYS: PopoutSortKey[] = ['recent', 'name', 'stage'];
  *    그 값이 실제로 생기면 여기 같이 추가한다(상태값 규약: 새 값이 조용히 기본값으로 떨어지면 버그다). */
 const STAGE_ORDER: Record<string, number> = {
   not_started: 0, waiting: 1, in_progress: 2, reviewing: 3, revision_requested: 4,
-  external_review: 5, on_hold: 6, completed: 7, canceled: 8,
+  // 승인완료(마무리 대기) — 컨펌 뒤, 완료 앞. 2026-09-12 단계 부활로 실제로 생긴 값이라
+  // 위 주석이 예고한 대로 여기 같이 넣는다(안 넣으면 999 로 떨어져 맨 끝에 처박힌다).
+  done_feedback: 5,
+  external_review: 6, on_hold: 7, completed: 8, canceled: 9,
 };
 function stageRank(t: SortableTask): number {
   const v = STAGE_ORDER[String(t.status || '')];

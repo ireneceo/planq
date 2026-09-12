@@ -67,7 +67,10 @@ function myAssignedWeekWhere(uid, monday, sunday, opts = {}) {
         ],
       },
       // #206 external_review 는 이번 주에 남긴다 (외부를 채근할 책임이 담당자에게 있다).
-      { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review'] } },
+      // ★ 2026-09-12 done_feedback(승인완료·마무리 대기)도 남긴다 — 컨펌은 끝났지만 **닫는 것은
+      //   담당자**다. 빼면 "확인필요에는 뜨는데 이번 주 목록에서는 사라진" 상태가 되는데,
+      //   그건 외부컨펌 때 Irene 이 신고한 것과 같은 모양이다(2026-09-11 services/reviewStage 참조).
+      { status: { [Op.in]: ['in_progress', 'reviewing', 'revision_requested', 'waiting', 'external_review', 'done_feedback'] } },
     ],
   };
   if (opts.createdBefore) branch.created_at = { [Op.lte]: opts.createdBefore };

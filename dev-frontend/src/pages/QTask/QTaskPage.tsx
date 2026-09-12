@@ -2004,7 +2004,7 @@ const QTaskPage:React.FC=()=>{
                 placeholder={t('filter.allStatus','All status')}
                 value={statusFilter?{value:statusFilter,label:t(`status.${statusFilter}.observer`,statusFilter)}:null}
                 onChange={(v)=>setStatusFilter((v as {value?:string})?.value||'')}
-                options={STATUS_CODES.filter(k=>k!=='task_requested'&&k!=='done_feedback').map(k=>({value:k,label:t(`status.${k}.observer`,k)}))} />
+                options={STATUS_CODES.filter(k=>k!=='task_requested').map(k=>({value:k,label:t(`status.${k}.observer`,k)}))} />
             </div>
             {/* #250 태그 필터 — isClearable 이 "전체"(CLAUDE.md 필터 규칙).
                 ★ 2026-09-08 — 여태 `tagDict.length>0` 으로 가렸다("죽은 컨트롤을 두지 않는다").
