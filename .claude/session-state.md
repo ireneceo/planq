@@ -45,7 +45,14 @@
 | 배포 | 커밋 | 백업 | 비고 |
 |---|---|---|---|
 | 1차 08:31 | `8c642085` | `20260912_083154` | 승인완료(done_feedback) 단계 부활 + Q sale 실시간 |
-| 2차 09:47 | `81cd75db` (내용 `3710babf`) | `20260912_094734` | Q sale 상담 기준·정보 통합·우측 패널 |
+| 2차 09:47 | `81cd75db` | `20260912_094734` | Q sale 상담 기준·정보 통합·우측 패널 |
+| **3차 22:11** | **`8c43e09c`** | **`20260912_220523`** | **업무 추가 폼 4→1 · Q sale 문의 AI·기록·등록자 · 게스트 배지 · 불발 사유** (346초, EXIT 0) |
+
+운영 확인: health ok · planq.kr 200 · PM2 planq-prod-{backend,qnote,mcp} online ·
+새 라우트 `/api/sale/:biz/inquiry/extract` 401(마운트됨) · 마이그레이션 전부 멱등(변경 0) ·
+릴리즈노트 v1.48.21 발행됨(블록 14) · 피드백 #409·#410 은 **답글이 없어 닫지 않았다**(사람이 답글 먼저).
+
+롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/20260912_220523/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
 
 롤백: `ssh irene@87.106.78.146 'tar -xzf /opt/planq/backups/<TS>/backend.tar.gz -C /opt/planq && pm2 reload planq-prod-backend'`
 
