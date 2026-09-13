@@ -34,7 +34,15 @@ const SALE_CHANNELS = ['interaction', 'stage', 'guest', 'note'];
 const ALL_CHANNELS = [...CHANNELS, ...SALE_CHANNELS];
 
 // 한 고객의 통합 타임라인. before(ISO) 이전 항목만 (페이지네이션). 채널별로 limit*2 가져와 merge 후 limit cut.
-async function getClientTimeline(businessId, clientId, { userId, limit = 40, before = null, channels = null } = {}) {
+//
+// ★ balanced — **요약 자리 전용** 채널 쿼터 (2026-09-13).
+//   우측 패널은 8건만 그린다. 시간순으로만 자르면 **한 채널이 자리를 다 먹는다** — 실측으로
+//   고객 13 의 최근 8건이 전부 메모였다(채팅·메일·업무 기록이 한 줄도 안 보였다). 상담 목록에서
+//   메일 903건이 앞을 다 먹었던 것과 같은 계열이다(memory feedback_fix_structure_not_screen).
+//   전체 타임라인 페이지에는 **걸지 않는다** — 거기서 균형을 잡으면 "메일 10건 연속" 이라는
+//   사실 자체가 왜곡되고, 커서(next_before)도 건너뛴 항목 때문에 거짓이 된다. 그래서 balanced 는
+//   첫 페이지 요약에서만 켜고 커서를 내보내지 않는다.
+async function getClientTimeline(businessId, clientId, { userId, limit = 40, before = null, channels = null, balanced = false } = {}) {
   const want = Array.isArray(channels) && channels.length
     ? channels.filter((c) => ALL_CHANNELS.includes(c))
     : CHANNELS;
@@ -278,9 +286,46 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
     return tb - ta;
   });
   const has_more = items.length > limit;
+  if (balanced) {
+    // 채널 쿼터 — 한 채널이 요약 자리를 다 먹지 못하게 한다. 커서는 내보내지 않는다(건너뛴 항목이 있어 거짓이 된다).
+    return { items: balancedPick(items, limit), has_more, next_before: null };
+  }
   const page = items.slice(0, limit);
   const next_before = has_more && page.length ? page[page.length - 1].at : null;
   return { items: page, has_more, next_before };
+}
+
+// 채널 쿼터로 고르기 — 이미 시간 내림차순으로 정렬된 items 에서 limit 건을 뽑는다.
+//   ① 채널마다 최대 cap(= limit / 등장한 채널 수, 올림) 건까지 최신순으로 담고
+//   ② 자리가 남으면(채널이 적거나 어떤 채널이 cap 을 못 채우면) 나머지를 시간순으로 채운다.
+// 채널이 하나뿐이면 그대로 시간순이다 — 메모밖에 없는 고객에게 억지로 빈 자리를 만들지 않는다.
+function balancedPick(items, limit) {
+  const kinds = new Set(items.map((it) => it.type));
+  if (kinds.size <= 1) return items.slice(0, limit);
+  const cap = Math.max(1, Math.ceil(limit / kinds.size));
+  const taken = new Map();
+  const picked = [];
+  const key = (it) => `${it.type}-${it.id}`;
+  const chosen = new Set();
+  for (const it of items) {
+    if (picked.length >= limit) break;
+    const n = taken.get(it.type) || 0;
+    if (n >= cap) continue;
+    taken.set(it.type, n + 1);
+    chosen.add(key(it));
+    picked.push(it);
+  }
+  for (const it of items) {
+    if (picked.length >= limit) break;
+    if (chosen.has(key(it))) continue;
+    picked.push(it);
+  }
+  picked.sort((a, b) => {
+    const ta = a.at ? new Date(a.at).getTime() : 0;
+    const tb = b.at ? new Date(b.at).getTime() : 0;
+    return tb - ta;
+  });
+  return picked;
 }
 
 // 채널별 카운트 + 각 채널 최근 1건 — 메일/채팅 우측 패널 "이 고객" 요약용 (cross-channel)

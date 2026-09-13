@@ -36,13 +36,13 @@ import {
 } from '../../services/sale';
 
 type LoadStatus = 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error' | 'other_workspace';
-const CHANNELS: TimelineType[] = ['chat', 'email', 'task', 'invoice', 'interaction', 'stage', 'guest'];
+const CHANNELS: TimelineType[] = ['chat', 'email', 'task', 'invoice', 'interaction', 'stage', 'guest', 'note'];
 // ★ 2026-09-13 (Irene: "탭에도 단계가 뭐야? 전체 / 채팅 / 메일 / 할 일 / 청구 / 전화·미팅 / 단계 / 게스트 링크")
 //   칩 줄에 있는 것들은 **어디서 온 기록**이다. '단계'는 상태 변화이고 '게스트 링크'는 발급 이력이라
 //   같은 층이 아니다 — 나란히 두면 무엇을 고르는 줄인지 알 수 없다.
 //   ★ 조회(CHANNELS)에서는 빼지 않는다 — 빼면 전체 타임라인에서 그 기록이 **사라진다**.
 //     칩으로만 안 보여준다. 단계 이력은 이미 전용 카드가, 게스트 링크는 패널이 따로 보여준다.
-const CHANNEL_CHIPS: TimelineType[] = ['chat', 'email', 'task', 'invoice', 'interaction'];
+const CHANNEL_CHIPS: TimelineType[] = ['chat', 'email', 'task', 'invoice', 'interaction', 'note'];
 const PAGE = 30;
 
 export default function SaleDetailPage() {

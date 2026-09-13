@@ -27,6 +27,8 @@ const TYPE_COLOR: Record<TimelineType, { bg: string; fg: string }> = {
   interaction: { bg: '#FDF4FF', fg: '#A21CAF' },
   stage: { bg: '#F1F5F9', fg: '#334155' },
   guest: { bg: '#FFF7ED', fg: '#C2410C' },
+  // 메모 — 어디에 썼든 "사람이 남긴 말" 이라 한 색으로 묶는다(출처는 아래 meta.on 으로 따로 말한다).
+  note: { bg: '#F5F3FF', fg: '#6D28D9' },
 };
 const FALLBACK_COLOR = { bg: '#F1F5F9', fg: '#475569' };
 
@@ -115,6 +117,13 @@ function titleOf(
   }
   if (it.type === 'guest') {
     return meta.event === 'account_requested' ? label('timeline.guestAccountRequested') : label('timeline.guestIssued');
+  }
+  // ★ 2026-09-13 — 메모는 **어디에 쓴 것인지**가 제목이다. 저장은 원래 자리에 그대로 두고 읽을 때만
+  //   모으므로(서버 clientTimeline 의 note 채널), 섞어만 놓고 출처가 없으면 "이게 어디 메모였지" 가 된다.
+  //   배지는 "메모", 제목은 **출처**, 본문은 preview — 세 줄이 각자 다른 말을 한다.
+  if (it.type === 'note') {
+    const on = typeof meta.on === 'string' ? meta.on : '';
+    return on ? label(`timeline.noteOn.${on}`) : label('timeline.channel.note');
   }
   if (it.title) return it.title;
   return label(`timeline.channel.${it.type}`);

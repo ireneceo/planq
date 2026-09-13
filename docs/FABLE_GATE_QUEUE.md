@@ -915,3 +915,34 @@ rate-limit(`perUserDaily('invite-email')`)도 그 라우트 것이지만, **버�
 명칭/표시 정리(고객응대 내역 · `saved_from:email_thread` 노출 · 타임라인 '단계' 탭 · 우측 이름 라벨 ·
 "한도: 미포함" 문구) · 단계별 액션 재구성(**계약 성사는 버튼이 아니다**) · 메모/연결 UI ·
 업무 여러 번 추가와 직접 연결(업무·문서·파일·프로젝트) · 전체 프로필에서 목록으로 돌아가기 · 실시간 반영
+
+---
+
+## 22. Q sale — 메모 모아보기 화면 연결 + **요약 자리 채널 쿼터** (2026-09-13)
+
+**판정: R=0 · S=0 · F=1 → 자체 검증** (Fable 에 올리지 않는다). 스키마·외부 발송·권한에 닿지 않는
+**읽기 경로의 옵션**이고, 참/거짓을 가르는 기계 검사를 실제로 만들어 돌렸다.
+
+### 무엇을 했나
+- 메모 채널(`note`)을 화면에 붙였다 — 배지 색 · 채널 칩 · `timeline.noteOn.{chat,email,project,task}`
+  (제목이 **출처**가 된다: "채팅에 남긴 메모").
+- **채널 쿼터(`balanced`)** — 우측 패널은 8칸뿐인데 한 채널이 그 자리를 다 먹으면 나머지 기록이
+  한 줄도 안 보인다. `services/clientTimeline.balancedPick` 이 채널당 `ceil(limit/채널수)` 까지만
+  담고 남는 자리를 시간순으로 채운다. **요약 자리에서만** 켠다(`?balanced=1`) — 전체 목록에서
+  균형을 잡으면 "메일 10건 연속" 이라는 사실 자체가 왜곡되고, 건너뛴 항목 때문에 커서가 거짓이 된다.
+  그래서 balanced 응답은 `next_before: null` 이다.
+
+### 자체 검증 (Fable 미검증)
+- **실HTTP 양성/음성 대조 — client 194 (biz 105)**:
+  `balanced` 없음 `{chat:6, invoice:1, task:1}` → `balanced=1` `{chat:3, task:3, invoice:2}`.
+  편중 6(cap 3) → 3 · 채널 3종 유지 · 시간순 유지 · 커서 `null`. **JUDGE=PASS**
+- ★ **첫 대조군이 거짓 FAIL 이었다** — client 13 은 타임라인 전체가 메모뿐(채널 1종)이라 쿼터가
+  개입할 여지가 없는 fixture 였다. "편중 = 한 채널이 8칸 전부" 라는 내 스캔 조건도 너무 좁아
+  편중 고객을 0건으로 셌다(실제 편중은 **과반 점유**다). 판정 기계를 고치고 다시 쟀다
+  (memory `feedback_false_fail_suspect_the_judge` · `feedback_empty_fixture_false_verdict`).
+- 빈/단조 fixture 방어를 판정에 넣었다 — 8칸을 못 채우거나 음성 대조군에 편중이 없으면 **판정불가**.
+- build EXIT 0 · `error TS` 0 · guard-invariants EXIT 0 (49/50)
+
+### Fable 이 나중에 볼 것
+채널 쿼터의 **cap 공식**(`ceil(limit/채널수)`)이 맞는가. 채널이 많아질수록 각 채널이 1건으로
+수렴하는데, 요약으로서 "최근에 실제로 무슨 일이 있었나" 를 더 잘 말하는 배분이 따로 있는가.

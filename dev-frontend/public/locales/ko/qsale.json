@@ -243,14 +243,21 @@
       "invoice": "청구",
       "interaction": "전화·미팅",
       "stage": "단계",
-      "guest": "게스트 링크"
+      "guest": "게스트 링크",
+      "note": "메모"
     },
     "stageChanged": "{{from}} → {{to}}",
     "guestIssued": "게스트 링크 발급",
     "guestAccountRequested": "계정 요청",
     "empty": "아직 기록이 없습니다",
     "more": "더 보기",
-    "loadFailed": "타임라인을 불러오지 못했어요"
+    "loadFailed": "타임라인을 불러오지 못했어요",
+    "noteOn": {
+      "chat": "채팅에 남긴 메모",
+      "email": "메일에 남긴 메모",
+      "project": "프로젝트에 남긴 메모",
+      "task": "업무에 남긴 댓글"
+    }
   },
   "inquiry": {
     "title": "문의 추가",

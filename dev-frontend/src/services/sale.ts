@@ -90,7 +90,9 @@ export interface SaleSummary {
   quota: SaleQuota;
 }
 
-export type TimelineType = 'chat' | 'email' | 'task' | 'invoice' | 'interaction' | 'stage' | 'guest';
+// 'note' — 고객에 연결된 대화방·메일·프로젝트·업무에 달린 **메모를 읽을 때만 모은 것**
+//   (서버 services/clientTimeline 의 명시 채널. 저장은 원래 자리에 그대로 있다.)
+export type TimelineType = 'chat' | 'email' | 'task' | 'invoice' | 'interaction' | 'stage' | 'guest' | 'note';
 
 export interface TimelineItem {
   type: TimelineType;
@@ -234,9 +236,12 @@ export const setSaleStage = (
 
 export const getSaleTimeline = (
   businessId: number, clientId: number,
-  opts: { limit?: number; before?: string | null; channels?: TimelineType[] } = {},
+  // balanced — 요약 자리(우측 패널)에서만 켠다. 한 채널이 몇 안 되는 자리를 다 먹는 것을 막는다.
+  // 전체 목록에는 쓰지 않는다(시간순 자체가 사실이고, 건너뛴 항목 때문에 커서가 거짓이 된다).
+  opts: { limit?: number; before?: string | null; channels?: TimelineType[]; balanced?: boolean } = {},
 ) => apiFetch(`/api/sale/${businessId}/clients/${clientId}/timeline${qs({
   limit: opts.limit, before: opts.before || undefined, channels: opts.channels?.join(','),
+  balanced: opts.balanced ? '1' : undefined,
 })}`).then(j<TimelinePage>);
 
 export const createInteraction = (businessId: number, clientId: number, body: InteractionInput) =>

@@ -97,7 +97,16 @@ const ClientPanel: React.FC<Props> = ({
     if (!clientId) { setItems([]); return undefined; }
     let alive = true;
     setHistLoading(true);
-    getSaleTimeline(businessId, clientId, { limit: 6 })
+    // ★ 채널을 **명시**한다 — 안 넘기면 서버 기본값이 적용돼 `note`(메모 모아보기)가 빠진다.
+    //   Irene 2026-09-13: "우측 패널 고객프로필하고 전체프로필 모두 서로 업무를 공유할 수 있게 메모들 남겨주고"
+    // ★ balanced — 8칸을 한 채널이 다 먹지 않게 채널 쿼터를 건다(서버 clientTimeline.balancedPick).
+    //   실측: 이 옵션 없이는 고객 13 의 8칸이 **전부 메모**라 채팅·메일·업무 기록이 한 줄도 안 보였다.
+    //   전체 기록은 아래 "더 보기" 로 간다 — 거기서는 시간순 그대로다.
+    getSaleTimeline(businessId, clientId, {
+      limit: 8,
+      channels: ['chat', 'email', 'task', 'invoice', 'interaction', 'stage', 'guest', 'note'],
+      balanced: true,
+    })
       .then((out) => { if (alive) setItems(out.items || []); })
       .catch(() => { if (alive) setItems([]); })
       .finally(() => { if (alive) setHistLoading(false); });

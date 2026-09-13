@@ -308,6 +308,8 @@ router.get('/:businessId/clients/:clientId/timeline', ...readChain, async (req, 
     const channels = asked.length ? asked.filter((c) => ALL_CHANNELS.includes(c)) : ALL_CHANNELS;
     const out = await getClientTimeline(businessId, client.id, {
       userId: req.user.id, limit, before: req.query.before || null, channels,
+      // 요약 자리(우측 패널)만 채널 쿼터를 쓴다 — 전체 목록은 시간순 그대로가 사실이다
+      balanced: req.query.balanced === '1' || req.query.balanced === 'true',
     });
     return successResponse(res, out);
   } catch (err) { next(err); }

@@ -243,14 +243,21 @@
       "invoice": "Invoices",
       "interaction": "Calls & meetings",
       "stage": "Stage",
-      "guest": "Guest link"
+      "guest": "Guest link",
+      "note": "Notes"
     },
     "stageChanged": "{{from}} → {{to}}",
     "guestIssued": "Guest link issued",
     "guestAccountRequested": "Account requested",
     "empty": "Nothing here yet",
     "more": "Load more",
-    "loadFailed": "Couldn't load the timeline"
+    "loadFailed": "Couldn't load the timeline",
+    "noteOn": {
+      "chat": "Note on chat",
+      "email": "Note on mail",
+      "project": "Note on project",
+      "task": "Comment on task"
+    }
   },
   "inquiry": {
     "title": "Add inquiry",
