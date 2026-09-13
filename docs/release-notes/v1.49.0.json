@@ -1,0 +1,36 @@
+{
+  "version": "1.49.0",
+  "date": "2026-09-13",
+  "items": [
+    {
+      "ko": { "title": "Q sale 상담 목록에서 일이 끝납니다",
+        "body": "행마다 보기·메모·일정·업무·단계·치우기가 순서대로 놓였습니다. 메모는 목록을 떠나지 않고 행 아래에서 열리고, 거기서 남긴 기록은 고객 패널과 전체 프로필에도 그대로 보입니다. 단계는 목록에서 바로 바꾸며, 단계는 고객에 붙기 때문에 같은 고객의 다른 상담도 함께 바뀝니다. 어느 문의에서 단계를 바꿨는지가 히스토리에 남습니다. 단계 필터가 생겼고 끝난 상담은 기본으로 가려집니다." },
+      "en": { "title": "Work now finishes inside the Q sale inbox",
+        "body": "Each row now carries open · notes · event · task · stage · dismiss, in that order. Notes open inline under the row without leaving the list, and what you write there also shows in the client panel and full profile. Stage changes happen right in the list; since stage belongs to the client, other inquiries from the same client move with it, and the history records which inquiry the change came from. There is a stage filter, and closed deals are hidden by default." }
+    },
+    {
+      "ko": { "title": "고객 패널이 어디서 열든 같아졌습니다",
+        "body": "상담에서 열든 고객에서 열든 같은 창입니다. 상담에서 열었다는 것은 맨 위 문의 정보 박스로만 표시되고, 그 아래는 고객 화면 그대로입니다. 이름·회사·전화·이메일 등을 패널에서 바로 고칠 수 있고, 히스토리도 패널에서 전부 봅니다. 아직 고객이 아닌 문의도 응대 기록·일정·업무를 바로 걸 수 있습니다 — 처음 누를 때 고객으로 등록할지 묻고, 이때 초대 메일은 나가지 않습니다." },
+      "en": { "title": "The client panel is the same wherever you open it",
+        "body": "Opening from an inquiry or from a client now gives the same panel. Having come from an inquiry shows only as an info box at the top; everything below is the client view. Name, company, phone and email are editable right there, and the full history is in the panel. Inquiries that aren't clients yet accept notes, events and tasks too — the first action asks whether to register them first, and no invitation email is sent at that point." }
+    },
+    {
+      "ko": { "title": "우측 패널 가로 폭이 모든 화면에서 같아졌습니다",
+        "body": "화면마다 420·440·460·480·520·560으로 제각각이던 것을 480 하나로 맞췄습니다. 업무·일정·고객·문서 어디서 열어도 같은 폭입니다. 그리고 패널이 열려 있어도 뒤 목록이 그대로 스크롤됩니다 — 옆 목록에서 다음 항목을 찾으려고 패널을 닫을 필요가 없습니다." },
+      "en": { "title": "Side panels are now the same width everywhere",
+        "body": "Panels used to be 420, 440, 460, 480, 520 or 560 wide depending on the screen; they are all 480 now. Tasks, events, clients, documents — the same width every time. The list behind a panel also scrolls while the panel is open, so you no longer have to close it to find the next item." }
+    },
+    {
+      "ko": { "title": "프로젝트에 노트 탭이 생기고 히스토리를 직접 적을 수 있습니다",
+        "body": "Q note에서 회의록을 만들 때 프로젝트를 고르면 프로젝트 노트 탭에 모입니다. 개인 노트는 본인에게만 보이므로 여기 나오지 않습니다. 히스토리 탭에서는 주요 이슈를 날짜·제목·내용으로 직접 적을 수 있고, 날짜는 지난 날로도 적을 수 있습니다. 프로젝트에 연결된 고객의 상담 기록도 이제 프로젝트 히스토리에 함께 쌓입니다. 탭 순서와 가로 레이아웃도 정리했습니다." },
+      "en": { "title": "Projects get a Notes tab, and you can log history yourself",
+        "body": "Meeting notes created in Q note appear in the project's Notes tab when you pick that project; personal notes stay private and aren't listed. In the History tab you can log key events yourself with a date, title and details, and the date can be in the past. Contact records from clients linked to the project now also appear in the project history. Tab order and horizontal layout have been tidied up." }
+    },
+    {
+      "ko": { "title": "표가 든 문서가 공유 화면에서 잘리지 않습니다",
+        "body": "칸이 많은 표를 게스트 문서 보기나 프로젝트 문서 미리보기에서 열면 오른쪽이 잘려 보였습니다. 이제 표가 폭을 넘으면 표 안에서 가로로 스크롤됩니다." },
+      "en": { "title": "Wide tables no longer get cut off in shared views",
+        "body": "Tables with many columns were clipped on the right in the guest document view and the project document preview. A table wider than the space now scrolls horizontally instead." }
+    }
+  ]
+}
