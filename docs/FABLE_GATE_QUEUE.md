@@ -1190,3 +1190,53 @@ Irene: *"확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q 
 > - 자동 등록 확인 후 열리는 창이 **내가 누른 그 액션**이 맞는지(등록·후속 실행 자체는 확인)
 >
 > 롤백: 배포 로그의 `/opt/planq/backups/{TIMESTAMP}` (요약란 참조).
+
+
+---
+
+## 27. 권한 가드 배선 — 라우트 표의 `roles` 가 읽히지 않았다 (2026-09-13, 커밋 `5edb821a`, **미배포**)
+
+**판정: R=1** — 인증/권한 경계(무인증 표면이 아니라 **관리자 표면**)를 바꿨다. 잘못 고치면
+①비관리자가 계속 본다(원래 결함) ②관리자가 잠긴다(새 결함) 둘 중 하나다.
+
+### 무엇이 문제였나 (운영 출시 전 QA 중 실측)
+`platform_role='user'` 계정이 주소창에 `/admin/users` 를 치면 **플랫폼 관리자 셸이 통째로**
+(좌측 관리자 링크 17개) 그려지고 "권한이 없습니다" 안내가 **한 줄도 없었다**. 전체 로드·SPA 이동 둘 다.
+데이터는 안 샜다 — 서버가 `/api/admin/*` 6종을 403 으로 막고 있었다. 샌 것은 **화면**이다:
+관리자 기능 목록이 보였고, 사용자에게는 "고장난 화면" 과 구별되지 않았다.
+
+원인 둘 — 둘 다 "장치는 있는데 작동하지 않는" 모양(`feedback_unwired_guard_is_no_guard` 계열):
+1. `routes/appRoutes.tsx` 가 `/admin/*` 16개에 `roles: ['platform_admin']` 을 **선언했는데
+   읽는 곳이 저장소에 0곳**이었다. `TabPane.tsx` 가 roles 를 버리고 렌더했다(탭 모드 = 데스크탑 기본).
+2. `MainLayout.tsx` 의 `isAdminMode` 가 **경로만** 봤다.
+
+### 무엇을 했나
+- `components/Common/RouteRoleGate.tsx` 신설 + `TabPane` 배선. 술어는 `ProtectedRoute` 와
+  **같은 `useAuth().hasRole`**, 문구도 같은 `common:forbidden.*`.
+- `isAdminMode` 에 `platform_role === 'platform_admin'` 조건 추가.
+- 곁들여 `TagQuickMenu` 의 비모달 `role="dialog"` → `role="group"` (§17 위반 + 내 검사기 오염원).
+
+### 자체 검증 (Fable 미검증 — 4회 모두 429)
+- 빌드 EXIT 0 / `error TS` 0 · guard-invariants **54/54**
+- 차단: 전체 로드 3/3 · SPA 이동 2/2 — 권한 안내 + 관리자 링크 **0개**
+- **양성 대조군**: 임시 platform_admin 계정으로 3/3 진입 + 사이드바 17개 유지.
+  임시 계정은 검사 후 **완전 삭제**(잔존 0 · platform_admin 수 2 복구)
+- **음성 대조군**: /tasks·/mail·/sale 그대로 열림
+
+### ★ Fable 이 봐야 할 것
+1. **`/business/settings/notifications`** — `roles: ['business_owner','business_member','client']` 가
+   선언된 **유일한 비관리자 라우트**다. 이제 가드가 걸리는데 기존 사용자가 잘못 막히지 않는가.
+   `hasRole` 은 business_role 이 없으면 client 로 간주하는 하위호환 분기가 있다.
+   (나는 동시 실행 경합 때문에 이 판정을 **신뢰할 수 없는 상태로** 얻었다 — 아래 참조)
+2. **미러 모드**(폰·좁은 폭)는 `TabPane` 을 안 쓴다. 그쪽은 `ProtectedRoute` 가 막는가.
+3. `RouteRoleGate` 가 `isLoading` 중 `null` 을 돌려준다 — 새로고침 시 빈 화면으로 멈추는 경우가 없는가.
+4. `isAdminMode` 변경이 관리자에게 부작용(역할 표시·탭 범위·워크스페이스 전환)을 주지 않는가.
+
+### ★ 이번 세션에서 내 검사가 **네 번** 거짓말했다 (같은 실수 반복 금지)
+1. keep-alive DOM 을 세서 클릭 요소 수를 **3배** 부풀렸다(`/settings` 657 → 실제 78).
+2. "태그 붙이기가 눌러도 아무 일 없다" — 팝오버가 `role="dialog"` 라 내 selector 가 못 봤다.
+3. 클릭 전수검사 **499건이 전부 `CSS is not defined`** — Node 컨텍스트에서 브라우저 전역을 불렀다.
+   버튼 결함 0건인데 499건 결함으로 보고할 뻔했다.
+4. **동시 실행 경합** — 클릭 재검사와 회귀 검사를 같은 계정으로 동시에 돌려 토큰이 경합했고
+   (`/api/auth/refresh` 401), 멀쩡한 `/tasks` 가 ErrorBoundary 로 보였다. 단독 재실행 시 1214자 정상.
+   **검사를 겹쳐 돌리면 제품이 고장으로 보인다.**

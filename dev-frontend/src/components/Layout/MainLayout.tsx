@@ -31,6 +31,7 @@ import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
 import { setTabScope, setTabScopeBusiness, tabScopeOf } from '../../stores/tabStore';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useAppShellLock } from '../../hooks/useAppShellLock';
 import { mediaTablet } from '../../theme/breakpoints';
 import InstallPromptBanner from '../Common/InstallPromptBanner';
@@ -926,6 +927,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
 
   // 모바일 사이드바 열림 시 배경 스크롤 잠금
   useBodyScrollLock(sidebarOpen);
+  // ★ 2026-09-13 실측 — 사이드바 드로어가 **Esc 로 닫히지 않았다.** 햄버거(tabstrip-menu)를 누르면
+  //   전면 백드롭(fixed · z-index 95 · pointer-events:auto)이 깔리는데, Esc 를 눌러도 그대로 남아
+  //   앱 전체 클릭이 막혔다. 바깥을 한 번 눌러야 풀린다 — 그 사이 사용자에겐 "앱이 멈춘" 것이다.
+  //   CLAUDE.md 드로어 접근성은 Esc 닫기를 필수로 못 박고 있다. 표준 스택을 쓴다(중첩 안전).
+  useEscapeStack(sidebarOpen, () => setSidebarOpen(false));
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
   // ★ 2026-09-13 — **경로만 보면 안 된다.** 여태 `/admin/*` 경로이기만 하면 관리자 사이드바를
