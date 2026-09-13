@@ -8,6 +8,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import SingleDateField from '../../components/Common/SingleDateField';
+// 쓰다 나가도 남는다 — 자유 텍스트는 서버에 즉시 안 가므로 초안이 필요하다(가드 --category=draft)
+import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
@@ -18,7 +21,7 @@ interface HistoryEvent {
   id: string;
   // ★ 'note' 는 프로젝트 메모, 'qnote' 는 Q Note 회의록이다 — 다른 원장이다.
   //   같은 이름에 담으면 어느 쪽이 빠졌는지 알 수 없다(회의록이 여태 통째로 빠져 있었다).
-  source: 'project' | 'task' | 'post' | 'file' | 'note' | 'qnote' | 'invoice';
+  source: 'project' | 'task' | 'post' | 'file' | 'note' | 'qnote' | 'invoice' | 'manual' | 'interaction';
   kind: string;
   at: string;
   actor_user_id: number | null;
@@ -53,6 +56,8 @@ const PAGE = 50;
 
 const SOURCE_ICON: Record<string, string> = {
   project: '◈', task: '✓', post: '📄', file: '📎', note: '✎', invoice: '₩',
+  // 사람이 직접 적은 주요 이슈 · 연결된 고객의 상담 기록 (2026-09-13)
+  manual: '★', interaction: '☎', qnote: '🎙',
 };
 
 export default function HistoryTab({ projectId }: Props) {
@@ -62,6 +67,15 @@ export default function HistoryTab({ projectId }: Props) {
   const [more, setMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 수동 히스토리 추가 (2026-09-13) — 날짜는 사람이 정한다(오늘이 기본)
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDate, setAddDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [addTitle, setAddTitle] = useState('');
+  // 본문은 길다 — 탭을 옮기거나 새로고침해도 남는다. 비우는 곳은 **제출 성공**뿐이다.
+  const bodyDraft = useDraftText(useDraftKey('project-history-entry', projectId, null));
+  const addBody = bodyDraft.text;
+  const [addBusy, setAddBusy] = useState(false);
+  const [addErr, setAddErr] = useState<string | null>(null);
   const reloadTimer = useRef<number | null>(null);
   // 접힌 업무 묶음 중 펼쳐 둔 것
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -195,8 +209,69 @@ export default function HistoryTab({ projectId }: Props) {
     if (g) g.items.push(en); else groups.push({ key, label: gl, items: [en] });
   }
 
+  const submitEntry = async () => {
+    if (addBusy || !addTitle.trim()) return;       // 중복 제출 가드 (UI_DESIGN_GUIDE §1.8)
+    setAddBusy(true); setAddErr(null);
+    try {
+      // 날짜만 고르면 그 날 정오로 — 자정으로 보내면 시간대에 따라 전날로 밀린다
+      const occurredAt = new Date(`${addDate}T12:00:00`).toISOString();
+      const r = await apiFetch(`/api/projects/${projectId}/history-entries`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: addTitle.trim(), body: addBody.trim() || null, occurred_at: occurredAt }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) {
+        // 실패를 삼키지 않는다 — 이유를 그대로 보여준다
+        setAddErr(j?.message === 'occurred_in_future'
+          ? (t('history.add.futureNotAllowed', '앞으로의 날짜는 넣을 수 없습니다.') as string)
+          : (t('history.add.failed', '추가하지 못했습니다.') as string));
+        return;
+      }
+      setAddTitle(''); bodyDraft.clear(); setAddOpen(false);   // 성공에만 비운다
+      await load();                                  // 목록을 다시 읽어 방금 것이 보이게
+    } catch {
+      setAddErr(t('history.add.failed', '추가하지 못했습니다.') as string);
+    } finally { setAddBusy(false); }
+  };
+
   return (
     <Wrap>
+      {/* ★ 2026-09-13 (Irene: *"프로젝트 히스토리 탭에 수동으로 히스토리 추가하는 기능이 없어.
+          프로젝트 히스토리는 주요 이슈를 직접 넣는 거야. 날짜 제목 내용 등"*)
+          날짜는 **사람이 정한다** — 지난주 일을 오늘 적을 수 있어야 히스토리가 사실과 맞는다. */}
+      <AddBar>
+        {!addOpen ? (
+          <ActionButton tone="secondary" size="sm" data-testid="history-add-open"
+            onClick={() => setAddOpen(true)}>
+            {t('history.add.open', '히스토리 추가') as string}
+          </ActionButton>
+        ) : (
+          <AddForm>
+            <AddRow>
+              <SingleDateField value={addDate} onChange={setAddDate} size="md" />
+              <AddInput value={addTitle} onChange={(e) => setAddTitle(e.target.value)}
+                data-testid="history-add-title"
+                placeholder={t('history.add.titlePlaceholder', '제목 — 무슨 일이 있었나') as string} />
+            </AddRow>
+            <AddArea rows={3} data-testid="history-add-body" data-draft-kind="project-history-entry"
+              placeholder={t('history.add.bodyPlaceholder', '내용 (선택)') as string}
+              {...bodyDraft.bind} />
+            {bodyDraft.restored && <AddHint>{t('history.add.draftRestored', '쓰던 내용을 되살렸습니다.') as string}</AddHint>}
+            {addErr && <AddErr role="alert">{addErr}</AddErr>}
+            <AddActions>
+              <ActionButton tone="secondary" size="sm"
+                onClick={() => { setAddOpen(false); setAddErr(null); }}>
+                {t('history.add.cancel', '취소') as string}
+              </ActionButton>
+              <ActionButton tone="primary" size="sm" loading={addBusy} disabled={!addTitle.trim()}
+                data-testid="history-add-submit" onClick={submitEntry}>
+                {t('history.add.submit', '추가') as string}
+              </ActionButton>
+            </AddActions>
+          </AddForm>
+        )}
+      </AddBar>
+
       {groups.map((g) => (
         <Group key={g.key}>
           <GroupHead>{g.label}</GroupHead>
@@ -325,3 +400,27 @@ const Title = styled.span`
 const Row2 = styled.div`display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; color: #94A3B8;`;
 const Sep = styled.span`color: #CBD5E1;`;
 const MoreRow = styled.div`display: flex; justify-content: center; padding: 8px 0;`;
+
+/* 수동 히스토리 추가 (2026-09-13) — 목록 위 한 줄. 접혀 있다가 누르면 펴진다 */
+const AddBar = styled.div`margin-bottom: 14px;`;
+const AddForm = styled.div`
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+`;
+const AddRow = styled.div`
+  display: grid; grid-template-columns: 160px 1fr; gap: 8px;
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
+`;
+const AddInput = styled.input`
+  height: 40px; padding: 0 10px; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit; width: 100%;
+  &:focus { outline: none; border-color: #5EEAD4; }
+`;
+const AddArea = styled.textarea`
+  padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px; resize: vertical;
+  font-size: 0.8125rem; color: #0F172A; font-family: inherit; line-height: 1.5; width: 100%;
+  &:focus { outline: none; border-color: #5EEAD4; }
+`;
+const AddActions = styled.div`display: flex; justify-content: flex-end; gap: 8px;`;
+const AddErr = styled.div`font-size: 0.75rem; color: #B91C1C;`;
+const AddHint = styled.div`font-size: 0.6875rem; color: #94A3B8;`;

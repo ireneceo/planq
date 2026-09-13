@@ -160,7 +160,7 @@ export default function SaleDetailPage() {
   if (status !== 'ready' || !client) {
     return (
       <Page>
-        <PanelHeader onBack={() => navigate('/sale')}>
+        <PanelHeader onBack={() => navigate('/sale')} backOnDesktop>
           <TitleSlot><PanelSubTitle>{t('page.title') as string}</PanelSubTitle></TitleSlot>
           <ActionSlot />
         </PanelHeader>
@@ -173,7 +173,7 @@ export default function SaleDetailPage() {
   return (
     <Page>
       {/* 밴드1 — 제목 + 액션 한 칸 */}
-      <PanelHeader onBack={() => navigate('/sale')} backLabel={t('page.detailBack') as string}>
+      <PanelHeader onBack={() => navigate('/sale')} backLabel={t('page.detailBack') as string} backOnDesktop>
         <TitleSlot>
           <PanelSubTitle>{title}</PanelSubTitle>
           {client.company_name && client.display_name && <HeaderSub>{client.company_name}</HeaderSub>}

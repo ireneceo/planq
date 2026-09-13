@@ -25,14 +25,23 @@ type Props = {
    *   usePanelStack().canGoBack 과 짝으로 쓴다.
    */
   onBack?: () => void;
+  /** 데스크탑에서도 뒤로가기 화살표를 보인다.
+   *
+   *  ★ 2026-09-13 (Irene: *"고객 프로필 전체보기 갔을 때 프로젝트 상세처럼 뒤로가기 화살표 넣어줘."*)
+   *    기본값이 "폰·태블릿에서만" 이라, 데스크탑에서는 `onBack` 을 줘도 **아무것도 안 그려졌다.**
+   *  ★ 그렇다고 전역으로 켜지 않는다 — `onBack` 을 **다른 뜻으로** 쓰는 곳이 있다:
+   *    Q mail 은 사이드바 펼치기(`sidebarCollapsed ? expand : undefined`)에 쓴다. 거기서
+   *    ← 화살표가 데스크탑에 뜨면 "뒤로" 로 읽혀 엉뚱한 안내가 된다.
+   *    그래서 "뒤로가기가 맞는 화면" 만 이 값을 켠다. */
+  backOnDesktop?: boolean;
   backLabel?: string;
 };
 
-export default function PanelHeader({ children, className, onBack, backLabel }: Props) {
+export default function PanelHeader({ children, className, onBack, backLabel, backOnDesktop }: Props) {
   return (
     <PanelHeaderBar className={className}>
       {onBack && (
-        <BackBtn type="button" onClick={onBack} aria-label={backLabel || '뒤로'} title={backLabel || '뒤로'}>
+        <BackBtn type="button" $always={!!backOnDesktop} onClick={onBack} aria-label={backLabel || '뒤로'} title={backLabel || '뒤로'}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
@@ -193,8 +202,8 @@ export const PanelMetaTitle = styled.h2`
 `;
 
 /** 표준 뒤로 버튼 — 폰 터치 타깃 44 (theme/tokens CONTROL.touchMin). 데스크탑에서는 숨긴다. */
-const BackBtn = styled.button`
-  display: none;
+const BackBtn = styled.button<{ $always?: boolean }>`
+  display: ${(p) => (p.$always ? 'inline-flex' : 'none')};
   flex-shrink: 0;
   width: 40px; height: 40px;
   margin-left: -8px; margin-right: 2px;

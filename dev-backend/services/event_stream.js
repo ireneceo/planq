@@ -192,7 +192,10 @@ function looksLikeRawIdNote(eventType, note) {
 // ★ 'note' 는 **프로젝트 메모(ProjectNote)** 다. Q Note 회의록은 별도 서비스(SQLite)라
 //   여기서 직접 못 읽어, 여태 히스토리에 아예 안 실렸다(Irene 2026-09-03: "히스토리에 안 쌓여").
 //   'qnote' 를 별도 소스로 둔다 — 같은 이름에 두 가지를 담으면 어느 쪽이 빠졌는지 알 수 없다.
-const PROJECT_SOURCES = ['project', 'task', 'post', 'file', 'note', 'qnote', 'invoice'];
+// ★ 2026-09-13 — 'manual'(사람이 적은 주요 이슈)과 'interaction'(연결된 고객의 상담 기록) 추가.
+//   Irene: *"고객 상담내용에 추가되는 메모들이 생겨도 프로젝트가 연결되어 있으면 가져와서 연결하는 거 맞지?"*
+//   → 여태 **아니었다.** 히스토리 소스에 상담 기록이 아예 없었다.
+const PROJECT_SOURCES = ['project', 'task', 'post', 'file', 'note', 'qnote', 'invoice', 'manual', 'interaction'];
 
 // 이벤트 id 는 `<접두어>:<원장 id>` — 커서 비교를 위해 둘로 나눈다.
 function parseEventId(id) {
@@ -238,16 +241,20 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
   //         (`< before` 또는 `= before AND id > 커서id`. 같은 초 클러스터가 아무리 커도 창에 안 갇힌다.)
   //         **다른 소스**는 `<= before` — `<` 를 쓰면 위 반올림 때문에 같은 초가 통째로 빠지고,
   //         `<=` 면 반올림이 오히려 경계 초를 포함시켜 준다. 이미 본 행이 조금 섞여 와도 필터가 자른다.
-  const timeWhereFor = (prefix) => {
+  const timeWhereOn = (prefix, col) => {
     if (!before) return {};
-    if (!cur || prefix !== cur.prefix) return { created_at: { [Op.lte]: before } };
+    if (!cur || prefix !== cur.prefix) return { [col]: { [Op.lte]: before } };
     return {
       [Op.or]: [
-        { created_at: { [Op.lt]: before } },
-        { created_at: before, id: { [Op.gt]: cur.num } },
+        { [col]: { [Op.lt]: before } },
+        { [col]: before, id: { [Op.gt]: cur.num } },
       ],
     };
   };
+  const timeWhereFor = (prefix) => timeWhereOn(prefix, 'created_at');
+  // ★ 시각이 `occurred_at` 인 소스용 — 사람이 정한 시점으로 정렬·커서를 잡는다.
+  //   `created_at` 으로 자르면 "지난주 일을 오늘 적은" 항목이 커서를 건너뛴다.
+  const timeWhereAt = (prefix) => timeWhereOn(prefix, 'occurred_at');
 
   const {
     Post, File, ProjectNote, Project,
@@ -454,6 +461,58 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
         title: String(r.body || '').replace(/\s+/g, ' ').trim().slice(0, 80) || null,
       })))
     );
+  }
+
+  // ── 수동 히스토리 (사람이 직접 적은 주요 이슈) — 2026-09-13 ──
+  //   Irene: *"프로젝트 히스토리는 주요 이슈를 직접 넣는 거야."*
+  //   ★ 시각은 `occurred_at`(사람이 정한 시점)이다 — 적은 시각이 아니다.
+  if (want('manual')) {
+    const { ProjectHistoryEntry } = require('../models');
+    jobs.push(
+      ProjectHistoryEntry.findAll({
+        where: { project_id: projectId, deleted_at: null, [Op.and]: [timeWhereAt('manual')] },
+        attributes: ['id', 'title', 'body', 'created_by', 'occurred_at'],
+        order: [['occurred_at', 'DESC'], ['id', 'DESC']], limit: perSource, raw: true,
+      }).then((rows) => rows.map((r) => ({
+        id: `manual:${r.id}`, source: 'manual', kind: 'manual.logged',
+        at: iso(r.occurred_at), actor_user_id: r.created_by,
+        entity_type: 'history_entry', entity_id: r.id,
+        from_status: null, to_status: null,
+        title: r.title || null,
+        preview: r.body ? String(r.body).replace(/\s+/g, ' ').trim().slice(0, 120) : null,
+      }))).catch(() => [])
+    );
+  }
+
+  // ── 고객 응대 기록 (이 프로젝트에 연결된 고객의 상담 메모) — 2026-09-13 ──
+  //   Irene: *"고객 상담내용에 추가되는 메모들이 생겨도 프로젝트가 연결되어 있으면
+  //   가져와서 연결하는 거 맞지?"* — **여태 아니었다.** 히스토리 소스에 상담 기록이 없었다.
+  //   ★ 범위는 `project_clients` 가 정한다 — 이 프로젝트에 붙은 고객의 것만.
+  //     고객이 여러 프로젝트에 걸쳐 있어도 각 프로젝트는 자기 몫만 본다.
+  if (want('interaction')) {
+    const { ClientInteraction, ProjectClient } = require('../models');
+    jobs.push((async () => {
+      const links = await ProjectClient.findAll({
+        where: { project_id: projectId }, attributes: ['client_id'], raw: true,
+      }).catch(() => []);
+      const clientIds = [...new Set(links.map((l) => l.client_id).filter(Boolean))];
+      if (!clientIds.length) return [];
+      const rows = await ClientInteraction.findAll({
+        where: {
+          client_id: { [Op.in]: clientIds }, deleted_at: null,
+          [Op.and]: [timeWhereAt('interaction')],
+        },
+        attributes: ['id', 'kind', 'title', 'body', 'created_by', 'occurred_at', 'client_id'],
+        order: [['occurred_at', 'DESC'], ['id', 'DESC']], limit: perSource, raw: true,
+      });
+      return rows.map((r) => ({
+        id: `interaction:${r.id}`, source: 'interaction', kind: `interaction.${r.kind || 'memo'}`,
+        at: iso(r.occurred_at), actor_user_id: r.created_by,
+        entity_type: 'interaction', entity_id: r.id,
+        from_status: null, to_status: null,
+        title: r.title || (r.body ? String(r.body).replace(/\s+/g, ' ').trim().slice(0, 80) : null),
+      }));
+    })().catch(() => []));
   }
 
   // ── Q Note 회의록 ──

@@ -105,8 +105,14 @@ export const ProjectDocsWrap = styled.div`
      ※ styled 템플릿 안 주석에 백틱을 쓰면 템플릿이 끊긴다 — 오늘 두 번 겪었다. */
   max-height: calc(100% - ${TABBAR_H});
   min-height: 460px;
-  margin: -20px;
-  @media (max-width: 768px) { height: calc(100vh - 180px); margin: -16px; }
+  /* ★ 2026-09-13 (Irene: *"프로젝트 상세 가로 레이아웃이 탭마다 달라. 맞춰줘야지. …
+     헤더랑 다르면 안되는데 탭마다 다르고 헤더랑도 다르고."*)
+     실측 1440폭 기준: 12개 탭 중 **문서만** 0~800(풀폭)이고 나머지 11개는 20~780 이었다.
+     원인은 여기 있던 음수 좌우 margin — 페이지 좌우 여백을 뚫고 나가던 것.
+     기준선은 탭 막대의 **라벨 시작 x(=20)** 다(막대는 배경·구분선만 풀폭인 게 맞다 — 구분선이니까).
+     세로 여백만 걷어내고 **좌우는 다른 탭과 같은 자리**에 둔다. */
+  margin: -20px 0;
+  @media (max-width: 768px) { height: calc(100vh - 180px); margin: -16px 0; }
 `;
 // 파일 탭 — 기준선만 선언한다(레이아웃 영향 없는 블록). 문서 탭과 **같은 값**을 쓴다.
 export const ProjectFilesWrap = styled.div`

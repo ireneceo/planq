@@ -802,7 +802,13 @@
       "task.due_change": "Schedule changed",
       "task.project_change": "Moved to another project",
       "task.on_hold": "Task on hold",
-      "qnote.created": "Meeting note linked"
+      "qnote.created": "Meeting note linked",
+      "manual.logged": "Key event",
+      "interaction.call": "Client call",
+      "interaction.meeting": "Client meeting",
+      "interaction.visit": "Client visit",
+      "interaction.memo": "Client note",
+      "interaction.other": "Client contact"
     },
     "status": {
       "not_started": "Not started",
@@ -821,6 +827,16 @@
     },
     "bundle": {
       "taskCreated": "{{n}} tasks added"
+    },
+    "add": {
+      "open": "Add entry",
+      "titlePlaceholder": "Title — what happened",
+      "bodyPlaceholder": "Details (optional)",
+      "cancel": "Cancel",
+      "submit": "Add",
+      "futureNotAllowed": "You can't log a future date.",
+      "failed": "Couldn't add the entry.",
+      "draftRestored": "Restored what you were writing."
     }
   },
   "loadError": {

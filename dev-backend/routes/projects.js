@@ -335,6 +335,82 @@ router.get('/', authenticateToken, async (req, res, next) => {
 // ============================================
 // GET /api/projects/:id — 상세
 // ============================================
+// ─── 수동 히스토리 (사람이 직접 적는 주요 이슈) — 2026-09-13 ────────
+//   Irene: *"프로젝트 히스토리는 주요 이슈를 직접 넣는 거야. 날짜 제목 내용 등"*
+//   ★ `occurred_at` 은 **사람이 정한다** — 지난주 일을 오늘 적을 수 있어야 히스토리가 사실과 맞는다.
+router.get('/:id/history-entries', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { ProjectHistoryEntry, User } = require('../models');
+    const rows = await ProjectHistoryEntry.findAll({
+      where: { business_id: project.business_id, project_id: project.id, deleted_at: null },
+      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
+      order: [['occurred_at', 'DESC'], ['id', 'DESC']],
+      limit: Math.min(Math.max(Number(req.query.limit) || 100, 1), 300),
+    });
+    return successResponse(res, rows.map((r) => ({
+      id: r.id, occurred_at: r.occurred_at, title: r.title, body: r.body,
+      created_by: r.created_by, author_name: r.author?.name || null, created_at: r.created_at,
+    })));
+  } catch (err) { next(err); }
+});
+
+router.post('/:id/history-entries', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const title = String(req.body?.title || '').trim();
+    if (!title) return errorResponse(res, 'title_required', 400);
+    // 날짜를 안 주면 지금으로 — 다만 **미래는 막는다**(히스토리는 있었던 일이다)
+    const at = req.body?.occurred_at ? new Date(req.body.occurred_at) : new Date();
+    if (Number.isNaN(at.getTime())) return errorResponse(res, 'invalid_occurred_at', 400);
+    if (at.getTime() > Date.now() + 60 * 1000) return errorResponse(res, 'occurred_in_future', 400);
+    const { ProjectHistoryEntry } = require('../models');
+    const row = await ProjectHistoryEntry.create({
+      business_id: project.business_id, project_id: project.id,
+      occurred_at: at, title: title.slice(0, 200),
+      body: req.body?.body ? String(req.body.body).slice(0, 5000) : null,
+      created_by: req.user.id,
+    });
+    createAuditLog({
+      userId: req.user.id, businessId: project.business_id,
+      action: 'project.history_entry.create', targetType: 'project', targetId: project.id,
+      newValue: { id: row.id, title: row.title, occurred_at: row.occurred_at },
+    });
+    // 히스토리 탭을 열어 둔 다른 사람에게도 바로 보인다 (CLAUDE.md 운영 안정성 16 (b))
+    const io = req.app.get('io');
+    if (io) io.to(`business:${project.business_id}`).emit('project:updated', { id: project.id });
+    return successResponse(res, { id: row.id }, null, 201);
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id/history-entries/:entryId', authenticateToken, async (req, res, next) => {
+  try {
+    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
+    if (error) return errorResponse(res, error.message, error.code);
+    const { ProjectHistoryEntry } = require('../models');
+    const row = await ProjectHistoryEntry.findOne({
+      where: { id: Number(req.params.entryId), business_id: project.business_id, project_id: project.id, deleted_at: null },
+    });
+    if (!row) return errorResponse(res, 'not_found', 404);
+    // 적은 사람이거나 워크스페이스 관리자만 — 남의 기록을 조용히 지우지 않는다
+    const isOwner = row.created_by === req.user.id;
+    const isManager = req.businessRole === 'owner' || req.businessRole === 'admin'
+      || req.user.platform_role === 'platform_admin';
+    if (!isOwner && !isManager) return errorResponse(res, 'forbidden', 403);
+    await row.update({ deleted_at: new Date() });
+    createAuditLog({
+      userId: req.user.id, businessId: project.business_id,
+      action: 'project.history_entry.delete', targetType: 'project', targetId: project.id,
+      oldValue: { id: row.id, title: row.title },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${project.business_id}`).emit('project:updated', { id: project.id });
+    return successResponse(res, { id: row.id });
+  } catch (err) { next(err); }
+});
+
 // ─── 프로젝트에 연결된 Q Note 세션 (2026-09-13) ──────────────────────
 //   Irene: *"상단에 문서 다음에 노트 넣어줘. 노트는 Q note가 프로젝트로 연결되면 잡히는 거야."*
 //   ★ Q Note 는 별도 서비스(SQLite)라 Node 가 직접 못 읽는다 — 내부 브리지 한 곳을 쓴다.

@@ -802,7 +802,13 @@
       "task.due_change": "일정 변경",
       "task.project_change": "프로젝트 이관",
       "task.on_hold": "업무 보류",
-      "qnote.created": "회의록이 연결되었습니다"
+      "qnote.created": "회의록이 연결되었습니다",
+      "manual.logged": "주요 이슈",
+      "interaction.call": "고객 통화",
+      "interaction.meeting": "고객 미팅",
+      "interaction.visit": "고객 방문",
+      "interaction.memo": "고객 메모",
+      "interaction.other": "고객 응대"
     },
     "status": {
       "not_started": "시작 전",
@@ -821,6 +827,16 @@
     },
     "bundle": {
       "taskCreated": "업무 {{n}}개 추가"
+    },
+    "add": {
+      "open": "히스토리 추가",
+      "titlePlaceholder": "제목 — 무슨 일이 있었나",
+      "bodyPlaceholder": "내용 (선택)",
+      "cancel": "취소",
+      "submit": "추가",
+      "futureNotAllowed": "앞으로의 날짜는 넣을 수 없습니다.",
+      "failed": "추가하지 못했습니다.",
+      "draftRestored": "쓰던 내용을 되살렸습니다."
     }
   },
   "loadError": {
