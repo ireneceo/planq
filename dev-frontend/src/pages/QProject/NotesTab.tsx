@@ -61,23 +61,23 @@ export default function NotesTab({ projectId }: { projectId: number }) {
     <Wrap>
       <Toolbar>
         <SearchBox value={search} onChange={setSearch}
-          placeholder={t('notes.searchPlaceholder', '회의록 제목 검색') as string} />
+          placeholder={t('qnote.searchPlaceholder', '회의록 제목 검색') as string} />
         <Spacer />
         {/* 새 회의록은 Q Note 에서 만든다 — 여기 또 만드는 문을 두면 두 벌이 된다 */}
         <ActionButton tone="secondary" size="sm" data-testid="project-notes-open-qnote"
           onClick={() => tabStore.openInNewTab('/notes')}>
-          {t('notes.openQNote', 'Q note 에서 열기') as string}
+          {t('qnote.openQNote', 'Q note 에서 열기') as string}
         </ActionButton>
       </Toolbar>
 
       {rows === null ? (
-        <Dim>{t('common.loading', '불러오는 중…') as string}</Dim>
+        <Dim>{t('qnote.loading', '불러오는 중…') as string}</Dim>
       ) : error ? (
-        <Dim>{t('notes.loadFailed', '회의록을 불러오지 못했습니다.') as string}</Dim>
+        <Dim>{t('qnote.loadFailed', '회의록을 불러오지 못했습니다.') as string}</Dim>
       ) : shown.length === 0 ? (
         <Empty>
-          <EmptyTitle>{t('notes.empty.title', '이 프로젝트에 연결된 회의록이 없습니다') as string}</EmptyTitle>
-          <EmptyDesc>{t('notes.empty.body', 'Q note 에서 회의록을 만들 때 이 프로젝트를 고르면 여기에 모입니다. 개인 노트는 본인에게만 보이므로 여기 나오지 않습니다.') as string}</EmptyDesc>
+          <EmptyTitle>{t('qnote.empty.title', '이 프로젝트에 연결된 회의록이 없습니다') as string}</EmptyTitle>
+          <EmptyDesc>{t('qnote.empty.body', 'Q note 에서 회의록을 만들 때 이 프로젝트를 고르면 여기에 모입니다. 개인 노트는 본인에게만 보이므로 여기 나오지 않습니다.') as string}</EmptyDesc>
         </Empty>
       ) : (
         <List>
@@ -85,9 +85,9 @@ export default function NotesTab({ projectId }: { projectId: number }) {
             <Row key={n.id} type="button" data-testid={`project-note-row-${n.id}`}
               onClick={() => tabStore.openInNewTab(`/notes/${n.id}`)}>
               <RowBody>
-                <Title><HighlightText text={n.title || (t('notes.untitled', '제목 없음') as string)} query={search} /></Title>
+                <Title><HighlightText text={n.title || (t('qnote.untitled', '제목 없음') as string)} query={search} /></Title>
                 <Meta>
-                  <Tag>{t(`notes.mode.${n.capture_mode}`, n.capture_mode) as string}</Tag>
+                  <Tag>{t(`qnote.mode.${n.capture_mode}`, n.capture_mode) as string}</Tag>
                   <span>{formatDateTime(n.created_at)}</span>
                 </Meta>
               </RowBody>
