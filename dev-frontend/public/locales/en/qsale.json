@@ -113,7 +113,12 @@
     "historyMore": "See full history",
     "profile": "Profile",
     "billingPhone": "Billing phone",
-    "notClientHint": "Not registered as a client yet. Choosing an action below registers them first, then continues."
+    "notClientHint": "Not registered as a client yet. Choosing an action below registers them first, then continues.",
+    "cameVia": "Came in via {{via}}",
+    "menuGroup": {
+      "make": "Create",
+      "go": "Open & manage"
+    }
   },
   "action": {
     "addInquiry": "+ Add inquiry",
@@ -157,7 +162,10 @@
     "addEvent": "Add event",
     "removeFromInbox": "Remove from inbox",
     "removeFromInboxTitle": "Remove this from the inbox?",
-    "removeFromInboxBody": "It disappears from the sales inbox. The original email isn't deleted, and you can restore it from the archive."
+    "removeFromInboxBody": "It disappears from the sales inbox. The original email isn't deleted, and you can restore it from the archive.",
+    "deleteClient": "Delete client",
+    "deleteClientTitle": "Delete this client?",
+    "deleteClientBody": "Deletes {{who}}. This cannot be undone. Linked tasks, invoices and conversations remain, but lose their link to this client."
   },
   "record": {
     "kind": {

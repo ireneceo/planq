@@ -233,6 +233,7 @@ const ClientPanel: React.FC<Props> = ({
   const [nextOpen, setNextOpen] = useState(false);
   const [inviteAsk, setInviteAsk] = useState(false);
   const [registerAsk, setRegisterAsk] = useState(false);
+  const [deleteAsk, setDeleteAsk] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
 
   const applyStage = useCallback(async (
@@ -265,6 +266,12 @@ const ClientPanel: React.FC<Props> = ({
   }, [businessId, cid, reload]);
 
   const inviteEmail = data?.contact?.invite_email || data?.contact?.account_email || data?.email || '';
+  // 계정 이메일과 초대 이메일이 **실제로 다를 때만** 나눠 보여준다(같으면 한 줄).
+  //   둘 중 하나만 있는 경우도 "다르지 않다" — 나눠 놓으면 빈 줄이 생긴다.
+  const sameEmail = !data?.contact?.account_email || !data?.contact?.invite_email
+    || data.contact.account_email.toLowerCase() === data.contact.invite_email.toLowerCase();
+  // 우리 고객으로 들여오는 문 — 계정이 아직 없으면 초대를 보낼 수 있다
+  const canInvite = !!cid && data?.status === 'prospect' && !!inviteEmail;
 
   // 초대 — 기존 라우트를 그대로 부른다(초대 메일·토큰·중복 판정이 전부 거기 있다)
   const sendInvite = useCallback(async () => {
@@ -283,6 +290,23 @@ const ClientPanel: React.FC<Props> = ({
       await reload();
     } catch { setError(true); } finally { setBusy(false); }
   }, [businessId, cid, data, busy, inviteEmail, reload]);
+
+  // 고객 삭제 — **되돌릴 수 없다.** 설정의 고객 목록과 **같은 라우트**를 부른다(두 벌로 만들지 않는다).
+  const deleteClient = useCallback(async () => {
+    if (!cid || busy) return;
+    setBusy(true);
+    try {
+      const r = await apiFetch(`/api/clients/${businessId}/${cid}`, { method: 'DELETE' });
+      if (!r.ok) {
+        const j = await r.json().catch(() => null);
+        setLocalNotice(j?.message || (t('error.saveFailed') as string));
+        return;
+      }
+      onChanged?.();
+      onClose();           // 지운 고객의 패널을 열어둘 이유가 없다
+    } catch { setLocalNotice(t('error.saveFailed') as string); }
+    finally { setBusy(false); }
+  }, [businessId, cid, busy, onChanged, onClose, t]);
 
   // 계약서 — Q docs 문서를 만들고 그 문서를 연다(받는 화면이 `?post=` 를 읽는다)
   const createContract = useCallback(async (forId: number) => {
@@ -308,10 +332,12 @@ const ClientPanel: React.FC<Props> = ({
   //   상세 밴드 계약과 같은 원칙 — 자주 쓰는 3개만 두고 나머지는 메뉴로.
   const overflowItems = useMemo<OverflowItem[]>(() => {
     const out: OverflowItem[] = [];
+    // ★ 2026-09-13 (Irene: *"... 이 메뉴에 뭐가 들은지는 안나와."*) — 그룹 제목을 붙여
+    //   열기 전에도 무엇이 들었는지 짐작되게 하고, 항목마다 글자 라벨을 준다(아이콘만 두지 않는다).
     out.push({
       key: 'invoice', label: t('action.createInvoice') as string, testId: 'client-panel-invoice',
+      groupLabel: t('panel.menuGroup.make') as string,
       // ★ 경로는 **/bills** 다(`/bill` 은 라우트가 없다 — 가드 `--category=routelink` 가 잡았다).
-      //   그리고 기본 탭은 개요라 `tab=invoices` 를 지정해야 청구서 모달이 있는 화면이 뜬다.
       onClick: () => withClient((id) => navigate(`/bills?tab=invoices&new=1&client=${id}`)),
     });
     out.push({
@@ -323,33 +349,23 @@ const ClientPanel: React.FC<Props> = ({
       disabled: busy,
       onClick: () => withClient((id) => { void createContract(id); }),
     });
-    // 초대 — 아직 계정이 없는 고객에게만(이미 계정이 있으면 할 일이 없다)
-    if (cid && data?.status === 'prospect') {
-      out.push({
-        key: 'invite', label: t('action.invite') as string, testId: 'client-panel-invite',
-        disabled: busy || !inviteEmail,
-        onClick: () => setInviteAsk(true),
-        dividerBefore: true,
-      });
-    }
-    // 명시적 [고객으로 등록] — **초대 메일까지** 보낸다. 자동 등록(withClient)과는 다른 일이다.
-    if (!cid && inquiry?.canRegister && onRegister) {
-      out.push({
-        key: 'register', label: t('action.registerClient') as string, testId: 'inquiry-panel-register',
-        disabled: registerBusy, onClick: () => setRegisterAsk(true), dividerBefore: true,
-      });
-    }
     if (cid) {
       out.push({
         key: 'full', label: t('panel.openFull') as string, testId: 'client-panel-full-menu',
-        onClick: () => navigate(`/sale/${cid}`), dividerBefore: true,
+        groupLabel: t('panel.menuGroup.go') as string,
+        onClick: () => navigate(`/sale/${cid}`),
+      });
+      // ★ 고객 삭제 (Irene: *"고객 삭제 버튼이 있어야 하지 않아?"*) — **되돌릴 수 없다.**
+      //   그래서 ⋯ 안쪽 맨 아래, 구분선 뒤, danger 톤. 누르면 이름을 적어 묻는다.
+      out.push({
+        key: 'delete', label: t('action.deleteClient') as string, testId: 'client-panel-delete',
+        danger: true, dividerBefore: true, disabled: busy,
+        onClick: () => setDeleteAsk(true),
       });
     }
     return out;
-  }, [t, withClient, navigate, busy, createContract, cid, data, inviteEmail, inquiry, onRegister, registerBusy]);
+  }, [t, withClient, navigate, busy, createContract, cid]);
 
-  // 액션은 **고객이든 문의든 같다** — 문의면 첫 클릭에서 등록을 묻고 이어서 실행한다.
-  const actionsReady = !!cid || !!(inquiry && inquiry.canRegister);
 
   return (
     <DetailDrawer open={cid != null || !!inquiry} onClose={onClose} ariaLabel={name || 'client'}>
@@ -445,11 +461,12 @@ const ClientPanel: React.FC<Props> = ({
               )}
               {inquiry.at && <span>{formatDateTime(inquiry.at)}</span>}
             </InquiryMeta>
-            {/* ★ 이 버튼은 **다른 화면으로 나간다**(패널 안이 아니다) */}
-            <ActionButton tone="secondary" size="sm" data-testid="inquiry-panel-view"
-              onClick={() => navigate(inquiry.openPath)}>
-              {t('action.view') as string}
-            </ActionButton>
+            {/* ★ 2026-09-13 — [보기] 를 뺐다 (Irene: *"[보기]라고 나오는게 필요없어 보여.
+                리스트에서 알아서 하면 되는 거야. 그거보다 문의가 어디를 통해 들어온건지 표시 해야 해."*)
+                원본으로 가는 길은 목록의 액션이 맡는다. 여기서는 **어디로 들어온 문의인지**를 말한다. */}
+            <InquiryVia data-testid="client-panel-inquiry-via">
+              {t('panel.cameVia', { via: t(`inbox.source.${inquiry.source}`, { defaultValue: inquiry.source }) as string }) as string}
+            </InquiryVia>
           </InquiryBox>
         )}
 
@@ -463,16 +480,27 @@ const ClientPanel: React.FC<Props> = ({
             <>
               {/* 프로필 — **여기서 고친다**. 전체 프로필과 같은 폼이다.
                   ★ 대상이 바뀌면 key 로 인스턴스를 가른다(떠난 고객의 마지막 입력이 새 고객으로 저장되지 않게). */}
-              <Section>
-                <SectionTitle>{t('panel.profile') as string}</SectionTitle>
+              {/* ★ 항목명 없이 바로 입력칸 (Irene: *"굳이 프로필 이라고 항목명 없어도 돼"*).
+                  칸마다 라벨이 이미 있어 제목이 한 겹 더 붙으면 같은 말이 두 번이다. */}
+              <Section $first>
                 <ClientProfileForm key={`panel-profile-${cid}`} client={data} onSave={saveProfile} compact />
               </Section>
 
+              {/* ★ 2026-09-13 (Irene: *"연락처, 등록 이런 항목도 어차피 다른 항목명이 겹쳐서
+                  없어도 될 것 같아. 계정 이메일이랑 초대 이메일이 다를 수도 있어?"*)
+                  — 답: **다를 수 있다.** 초대 가입이 이메일 일치를 강제하지 않는다(routes/auth.js).
+                    다만 운영 실측으로 계정이 붙은 고객 15명 중 다른 사례는 **0건**이었다.
+                    그래서 **같으면 한 줄로 합치고, 실제로 다를 때만 나눠서** 보여준다.
+                    청구·세금계산서 주소는 값이 있을 때만 나온다(Row 가 빈 값을 안 그린다). */}
               <Section>
-                <SectionTitle>{t('panel.contact') as string}</SectionTitle>
-                {/* ★ 이메일은 **종류별로** 보여준다 — 목록처럼 하나로 접으면 어떤 주소인지 알 수 없다 */}
-                <Row label={t('panel.accountEmail') as string} value={data.contact?.account_email} />
-                <Row label={t('panel.inviteEmail') as string} value={data.contact?.invite_email} />
+                {sameEmail ? (
+                  <Row label={t('panel.email') as string} value={data.contact?.account_email || data.contact?.invite_email} />
+                ) : (
+                  <>
+                    <Row label={t('panel.accountEmail') as string} value={data.contact?.account_email} />
+                    <Row label={t('panel.inviteEmail') as string} value={data.contact?.invite_email} />
+                  </>
+                )}
                 <Row label={t('panel.billingEmail') as string} value={data.contact?.billing_email} />
                 <Row label={t('panel.taxEmail') as string} value={data.contact?.tax_invoice_email} />
                 <Row label={t('panel.billingPhone', { defaultValue: '청구 전화' }) as string} value={data.contact?.billing_phone} />
@@ -489,8 +517,8 @@ const ClientPanel: React.FC<Props> = ({
               )}
 
               <Section>
-                <SectionTitle>{t('panel.registered') as string}</SectionTitle>
-                {/* 누가 언제 등록했는가 — 값은 줄곧 원장에 있었고 **화면에 없었을 뿐**이다(Irene 2026-09-12) */}
+                {/* 누가 언제 등록했는가 — 값은 줄곧 원장에 있었고 **화면에 없었을 뿐**이다(Irene 2026-09-12).
+                    ★ "등록" 이라는 제목은 뺐다 — 칸 라벨이 이미 "등록자"·"등록 시각" 이라 같은 말이 두 번이다. */}
                 <Row label={t('panel.registeredBy') as string} value={data.registered_by?.name || null} />
                 <Row label={t('panel.registeredAt') as string}
                   value={data.registered_at ? formatDateTime(data.registered_at) : null} />
@@ -537,6 +565,7 @@ const ClientPanel: React.FC<Props> = ({
                   <Dim>{t('timeline.empty') as string}</Dim>
                 ) : (
                   <>
+                    {/* 히스토리 항목은 **새 탭**으로 (Irene: "아예 나가버리면 안될 것 같아") */}
                     <ClientTimeline items={items} onOpen={(it) => openSaleTimelineItem(it, navigate)} />
                     {histMore && (
                       <MoreLink type="button" data-testid="panel-history-more" disabled={histLoading}
@@ -559,20 +588,23 @@ const ClientPanel: React.FC<Props> = ({
         )}
       </DetailDrawer.Body>
 
-      {/* 푸터는 **어디서 열든 같다** — 자주 쓰는 3개 + 나머지는 ⋯ */}
+      {/* ★ 2026-09-13 (Irene: *"하단에 고객응대 내역 추가 다음연락 정하기 업무추가 버튼은
+          리스트로 뺐으니 없애도 돼."*) — 그 셋은 상담 목록의 행 액션이 되었다. 같은 일을 하는 문을
+          두 곳에 두면 어느 쪽이 정본인지 알 수 없다.
+          여기 남는 것은 **이 고객 자체에 대한 것**뿐이다: 우리 고객으로 들여오기(초대) · 나머지는 ⋯ */}
       <DetailDrawer.Footer>
-        <ActionButton tone="secondary" size="md" disabled={!actionsReady || ensuring}
-          data-testid="client-panel-record" onClick={() => withClient(() => setRecordOpen(true))}>
-          {t('action.addRecord') as string}
-        </ActionButton>
-        <ActionButton tone="secondary" size="md" disabled={!actionsReady || ensuring}
-          data-testid="client-panel-next" onClick={() => withClient(() => setNextOpen(true))}>
-          {t('next.title') as string}
-        </ActionButton>
-        <ActionButton tone="secondary" size="md" disabled={!actionsReady || ensuring}
-          data-testid="client-panel-task" onClick={() => withClient(() => setTaskOpen(true))}>
-          {t('action.addTask') as string}
-        </ActionButton>
+        {canInvite && (
+          <ActionButton tone="primary" size="md" disabled={busy}
+            data-testid="client-panel-invite" onClick={() => setInviteAsk(true)}>
+            {t('action.invite') as string}
+          </ActionButton>
+        )}
+        {!cid && inquiry?.canRegister && onRegister && (
+          <ActionButton tone="primary" size="md" loading={registerBusy}
+            data-testid="inquiry-panel-register" onClick={() => setRegisterAsk(true)}>
+            {t('action.registerClient') as string}
+          </ActionButton>
+        )}
         <OverflowMenu label={t('action.more') as string} items={overflowItems}
           data-testid="client-panel-more" />
       </DetailDrawer.Footer>
@@ -606,6 +638,20 @@ const ClientPanel: React.FC<Props> = ({
           variant="info"
           onClose={() => setRegisterAsk(false)}
           onConfirm={() => { setRegisterAsk(false); onRegister(); }}
+        />
+      )}
+
+      {/* 삭제는 되돌릴 수 없다 — **이름을 적어** 묻는다("정말?" 만 묻는 창은 확인이 아니다) */}
+      {cid && (
+        <ConfirmDialog
+          isOpen={deleteAsk}
+          title={t('action.deleteClientTitle') as string}
+          message={t('action.deleteClientBody', { who: name || `#${cid}` }) as string}
+          confirmText={t('action.deleteClient') as string}
+          cancelText={t('inquiry.cancel') as string}
+          variant="danger"
+          onClose={() => setDeleteAsk(false)}
+          onConfirm={() => { setDeleteAsk(false); void deleteClient(); }}
         />
       )}
 
@@ -679,7 +725,11 @@ const StageTag = styled.span`
   display: inline-block; margin-top: 6px; padding: 3px 8px; border-radius: 999px;
   background: #F0FDFA; color: #0F766E; font-size: 0.75rem; font-weight: 600;
 `;
-const Section = styled.section`padding: 14px 0; border-top: 1px solid #F1F5F9;`;
+const Section = styled.section<{ $first?: boolean }>`
+  padding: 14px 0;
+  border-top: ${(p) => (p.$first ? 'none' : '1px solid #F1F5F9')};
+  ${(p) => (p.$first ? 'padding-top: 4px;' : '')}
+`;
 const SectionTitle = styled.h3`margin: 0 0 8px; font-size: 0.8125rem; font-weight: 700; color: #475569;`;
 /** 문의 정보 — 고객 정보와 **성격이 다른 박스**다. 배경으로 구분해 "이건 지금 누른 그 건" 임을 말한다. */
 const InquiryBox = styled.section`
@@ -724,3 +774,9 @@ const MoreLink = styled.button`
   &:disabled { color: #94A3B8; cursor: default; }
 `;
 const Dim = styled.div`padding: 32px 0; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;
+
+/** 문의가 **어디로 들어왔는지** — [보기] 를 뺀 자리를 이것이 대신한다(2026-09-13 Irene) */
+const InquiryVia = styled.div`
+  font-size: 0.75rem; font-weight: 600; color: #4338CA;
+  background: #EEF2FF; border-radius: 999px; padding: 3px 10px; align-self: flex-start;
+`;
