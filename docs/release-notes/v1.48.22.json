@@ -1,0 +1,36 @@
+{
+  "version": "1.48.22",
+  "date": "2026-09-13",
+  "items": [
+    {
+      "ko": { "title": "공유 링크가 열어 둔 채로도 최신 내용을 보여줍니다",
+        "body": "문서를 고쳐도 상대가 보고 있는 공유 링크에는 이전 내용이 그대로 남아 있었습니다. 링크 페이지가 처음 한 번만 내용을 읽고 그 뒤로는 다시 읽지 않았기 때문입니다. 이제 탭으로 돌아오면 다시 읽고, 보고 있는 동안에는 1분마다 확인합니다. 탭을 가려 두면 멈춥니다. 문서·글·업무·파일·지식·일정·회의록·리포트·청구서·서명 링크 모두 같습니다. 다만 서명 중(본인 확인·서명 그리기)이나 청구서 신청서를 쓰는 동안에는 갱신이 끼어들지 않습니다 — 쓰던 것이 사라지지 않게 했습니다." },
+      "en": { "title": "Shared links now stay up to date while they're open",
+        "body": "Editing a document left the recipient's shared link showing the old version, because the link page read its content once and never again. It now re-reads when you return to the tab, and checks once a minute while you're looking at it; it pauses while the tab is hidden. This applies to every shared link — documents, posts, tasks, files, knowledge, events, meeting notes, reports, invoices and signatures. Refreshing is suspended while you're verifying or drawing a signature, or filling in an invoice request form, so nothing you've entered is lost." }
+    },
+    {
+      "ko": { "title": "Q docs 상세에서 스크롤해도 제목줄이 그대로 있습니다",
+        "body": "좁은 화면에서 본문을 내리면 제목 아래의 분류·공유·서명 받기 줄이 화면 밖으로 밀려나, 지금 이 문서로 무엇을 할 수 있는지가 보이지 않았습니다. 이제 제목줄과 그 아래 줄이 함께 상단에 남습니다. 보기와 편집 두 화면 모두 같습니다." },
+      "en": { "title": "The document header stays put when you scroll in Q docs",
+        "body": "On narrower screens, scrolling the body pushed the row under the title — category, sharing, request signature — off the top, so what you could do with the document disappeared from view. The title row and the row beneath it now stay pinned. This applies to both the reading and editing views." }
+    },
+    {
+      "ko": { "title": "확인 필요에서 영업 문의를 누르면 상담 화면과 같은 패널이 열립니다",
+        "body": "여태는 영업 목록만 열려서 어느 문의였는지 다시 찾아야 했습니다. 이제 Q sale 상담 탭에서 열리는 그 패널이 그대로 열립니다. 새로 만든 화면이 아니라 같은 화면이라, 보이는 항목과 할 수 있는 일이 어디서 열든 같습니다." },
+      "en": { "title": "Sales inquiries in Needs review open the same panel as the Sales tab",
+        "body": "Clicking one used to open only the sales list, leaving you to find the inquiry again. It now opens the very panel you get from the Q sale inquiries tab — the same panel, not a new screen, so the fields you see and the actions you can take are identical wherever you open it from." }
+    },
+    {
+      "ko": { "title": "[고객으로 등록] 이 메일을 보내기 전에 주소를 보여주고 묻습니다",
+        "body": "이 버튼은 고객을 등록만 하는 것이 아니라 그 주소로 초대 메일을 보냅니다. 누르는 즉시 나가던 것을, 어느 주소로 나가는지 적어 확인을 받은 뒤에 보내도록 바꿨습니다. 취소하면 아무것도 나가지 않습니다. 이메일이 없는 문의는 등록만 하고 초대는 보내지 않는다고 미리 알려줍니다." },
+      "en": { "title": "Register as client now shows the address before sending",
+        "body": "This button does more than register the client — it emails an invitation to that address. Instead of sending the moment you click, it now names the address and asks first; cancelling sends nothing. For an inquiry with no email address, it tells you up front that it will register the client without sending an invitation." }
+    },
+    {
+      "ko": { "title": "고객에 업무·파일·프로젝트를 붙이고 뗄 수 있습니다",
+        "body": "이미 있는 업무·파일·프로젝트를 고객에 연결할 수 있습니다. 연결을 푸는 것도 화면에서 됩니다 — 전에는 걸기만 하고 풀 수가 없었습니다. 다른 워크스페이스의 고객에는 붙지 않습니다." },
+      "en": { "title": "Link tasks, files and projects to a client — and unlink them",
+        "body": "You can now attach an existing task, file or project to a client, and detach it again from the same screen; previously you could only attach. Items can't be linked to a client in another workspace." }
+    }
+  ]
+}
