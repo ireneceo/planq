@@ -176,16 +176,22 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
     });
   }, [docs, search, categoryFilter, catsOf]);
 
-  // 좌측 트리 — 이 프로젝트 문서가 실제로 쓰는 카테고리 + 워크스페이스 등록분.
-  //   건수 0 인 등록 카테고리도 보여준다(분류 자리가 있다는 걸 알아야 거기에 넣는다).
+  // 좌측 트리 — **이 프로젝트 문서가 실제로 쓰는 카테고리만.**
+  //
+  // ★ 2026-09-13 (Irene: *"프로젝트 > 정보 탭에 좌측 카테고리가 이상해. 해당 프로젝트와
+  //   상관있는 것만 나와야 하는데 온갖거 다나와. 그리고 없는 건 안나와야 하는데 나오고."*)
+  //   여태 `이 프로젝트 문서의 카테고리 ∪ 워크스페이스 등록분 ∪ 하드코딩 6종` 을 **모두 합쳤다.**
+  //   그래서 이 프로젝트와 아무 상관없는 분류가 줄줄이 나왔고, 건수 0 인 것도 남았다.
+  //   "분류 자리가 있다는 걸 알아야 거기에 넣는다" 는 이유로 0건을 보여줬는데 —
+  //   **넣는 자리는 문서 편집 폼의 카테고리 셀렉트**다(거기는 여전히 전체 목록을 준다).
+  //   목록 왼쪽의 트리는 **거르는 자리**이고, 거를 것이 없는 항목은 거기 있을 이유가 없다.
   const treeItems = useMemo<CategoryTreeItem[]>(() => {
     const counts: Record<string, number> = {};
     for (const d of docs) for (const c of catsOf(d)) counts[c] = (counts[c] || 0) + 1;
-    const names = [...new Set([...Object.keys(counts), ...wsCats, ...CATEGORIES])];
-    return names
-      .map(k => ({ key: k, label: t(`category.${k}`, k) as string, count: counts[k] || 0 }))
+    return Object.keys(counts)
+      .map(k => ({ key: k, label: t(`category.${k}`, k) as string, count: counts[k] }))
       .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
-  }, [docs, wsCats, catsOf, t]);
+  }, [docs, catsOf, t]);
 
   return (
     <Wrap>
@@ -368,7 +374,10 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
                 <PlanQSelect size="sm"
                   value={{ value: draftCategory, label: t(`category.${draftCategory}`, draftCategory) as string }}
                   onChange={(opt) => setDraftCategory((opt as PlanQSelectOption | null)?.value as KbCategory || 'manual')}
-                  options={CATEGORIES.map(c => ({ value: c, label: t(`category.${c}`, c) as string }))}
+                  /* 넣는 자리는 여기다 — 워크스페이스 등록분까지 **전부** 고를 수 있어야 한다.
+                     (거르는 자리인 좌측 트리는 이 프로젝트가 실제로 쓰는 것만 보여준다) */
+                  options={[...new Set([...CATEGORIES, ...wsCats])]
+                    .map(c => ({ value: c, label: t(`category.${c}`, c) as string }))}
                 />
               </Field>
               <Field>

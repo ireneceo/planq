@@ -188,7 +188,8 @@
     "renameHint": "이름 변경",
     "details": "상세정보",
     "settings": "설정",
-    "history": "히스토리"
+    "history": "히스토리",
+    "notes": "노트"
   },
   "tx": {
     "summary": {

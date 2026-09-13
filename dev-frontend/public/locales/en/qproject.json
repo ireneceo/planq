@@ -188,7 +188,8 @@
     "renameHint": "Rename",
     "details": "Details",
     "settings": "Settings",
-    "history": "History"
+    "history": "History",
+    "notes": "Notes"
   },
   "tx": {
     "summary": {

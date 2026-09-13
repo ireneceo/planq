@@ -14,6 +14,8 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ProjectCanvas from './canvas/ProjectCanvas'; // 기본 탭 — 즉시 로드(로딩 플래시 없음)
 import ProjectShareLinkButton from './ProjectShareLinkButton';
+// 노트 탭 — 문서 탭과 같은 자리. 프로젝트에 연결된 Q Note 회의록을 모은다 (2026-09-13)
+import NotesTab from './NotesTab';
 // 나머지 탭은 지연 로드(lazy) — 프로젝트 열 때 모든 탭 코드(+무거운 에디터 tiptap)를 한꺼번에
 // 받던 것을 탭 클릭 시점 로드로 분리. 초기 페이지 로드 대폭 경량화.
 const TasksTab = React.lazy(() => import('./TasksTab'));
@@ -145,7 +147,7 @@ const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 // 사이클 N+14 — 'info' 의미 분리:
 //   'details' = 프로젝트 메타데이터 편집 (옛 'info' 폼). 라벨 "상세정보".
 //   'info'    = Q info (KbDocument scope='project'). 라벨 "정보". 문서 다음 위치.
-type TabKey = 'dashboard' | 'tasks' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'transactions' | 'report' | 'history' | `doc-${number}`;
+type TabKey = 'dashboard' | 'tasks' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'notes' | 'transactions' | 'report' | 'history' | `doc-${number}`;
 // 고객(client)에게 숨기는 탭 — 내부 캔버스(전략·403)·고객목록·거래(청구)·보고서·상세메타. 고객은 협업 탭(업무·파일·문서·정보)만.
 const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'clients', 'transactions', 'report', 'details', 'settings', 'history'];
 
@@ -235,7 +237,7 @@ const QProjectDetailPage: React.FC = () => {
   const projectId = id ? Number(id) : 0;
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'transactions', 'report', 'history'];
+  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'notes', 'transactions', 'report', 'history'];
   const rawTab = searchParams.get('tab');
   // 이전 ?tab=process 진입 호환 — docs 로 fallback
   // doc-:id 도 허용 (사용자가 메뉴에 추가한 특정 문서)
@@ -709,9 +711,11 @@ const QProjectDetailPage: React.FC = () => {
       backLabel={t('backToList', '목록') as string}
     >
       <TabBar>
-        {/* 탭 순서 (사이클 N+14): 문서 다음에 정보(Q info), 상세정보(메타)는 마지막 */}
+        {/* ★ 탭 순서 — Irene 2026-09-13 지시 그대로:
+            개요 · 업무 · 문서 · 노트 · 파일 · 정보 · 보고서 · 히스토리 · 거래 · 고객 · 상세정보 · 설정
+            (만드는 것 → 쌓이는 것 → 보는 것 → 관리 순이다) */}
         {/* 고객(client)은 협업 탭만 — 캔버스(내부 전략·403)·고객목록·거래·보고서·상세는 숨김 (권한 매트릭스 detail-only) */}
-        {(['dashboard', 'tasks', 'clients', 'files', 'docs', 'info', 'transactions', 'report', 'history', 'details', 'settings'] as TabKey[])
+        {(['dashboard', 'tasks', 'docs', 'notes', 'files', 'info', 'report', 'history', 'transactions', 'clients', 'details', 'settings'] as TabKey[])
           .filter((k) => !(isClient && CLIENT_HIDDEN_TABS.includes(k)))
           .map((k) => (
           <Tab key={k} $active={tab === k} onClick={() => setTab(k)}>
@@ -1148,6 +1152,8 @@ const QProjectDetailPage: React.FC = () => {
           <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
         </ProjectDocsWrap>
       )}
+      {/* 노트 — 문서 탭과 같은 자리·같은 모양. 내용은 Q Note 본체에서 연다(새 탭) */}
+      {tab === 'notes' && <NotesTab projectId={projectId} />}
       {tab === 'clients' && (
         <ClientsBody>
           <Card>
