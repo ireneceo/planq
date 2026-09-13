@@ -15,7 +15,13 @@ const { Op } = require('sequelize');
 const { Conversation, Message, EmailThread, GuestLink } = require('../models');
 const { accessibleAccountIds } = require('./clientTimeline');
 
-const SOURCES = ['guest_link', 'email', 'chat'];
+// ★ 2026-09-13 (Irene: "문의아님 분류한거 다시 되돌리고 싶으면 어떻게 해? 문의아님으로 분리한 탭이나
+//   휴지통처럼 따로 임시보관 해야 하는 거 아니야?") — `dismissed` 는 **보관함**이다.
+//   ☐ 급소: [문의 아님]은 triage 를 'automated' 로 바꾸는데, 그건 **원래 자동발송 메일과 구별이 안 된다**
+//     (dev 실측 2,137건). 그래서 보관함은 triage 로 찾지 않고 **사람이 내린 판단의 기록**,
+//     즉 감사 로그(action='mail.triage_correct' · new_value.origin='sale_inbox_dismiss')로 찾는다.
+//     새 컬럼 0건이고, "누가 언제 내렸는지" 도 그 기록에 이미 있다.
+const SOURCES = ['guest_link', 'email', 'chat', 'dismissed'];
 
 const clean = (s, n = 140) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
@@ -176,6 +182,67 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
     }
   }
 
+  // 2-B) 보관함 — 사람이 [문의 아님] 이라고 판단해 내린 것. **되돌릴 수 있어야 한다**(Irene 2026-09-13).
+  //
+  // ★ triage='automated' 로 찾으면 **원래 자동발송 메일까지 전부 딸려온다**(dev 실측 2,137건).
+  //   보관함의 뜻은 "사람이 내린 판단" 이므로 그 **판단의 기록**(감사 로그)으로 찾는다. 새 컬럼 0건.
+  // ★ 스레드별 **최신 1건**만 본다 — 되돌리면 `sale_inbox_restore` 가 최신이 되어 자동으로 빠진다.
+  //   (지우지 않고 새 기록으로 뒤집는다 — 누가 언제 내린 판단인지가 남아야 한다.)
+  let qDismissed = 0;          // 보관함 수 — counts 는 아래에서 선언되므로 여기선 누적만 한다
+  if (want.includes('dismissed')) {
+    const { AuditLog } = require('../models');
+    const logs = await AuditLog.findAll({
+      where: { business_id: businessId, action: 'mail.triage_correct', target_type: 'email_thread' },
+      attributes: ['target_id', 'new_value', 'created_at', 'user_id'],
+      // ★ 동률 깨기로 id 를 같이 쓴다. created_at 만으로 정렬하면 **같은 초에 찍힌 두 판단**의
+      //   순서가 갈리지 않아, 되돌려도 보관함에 남는다(양성 대조군이 실제로 FAIL 을 냈다).
+      //   사람이 빠르게 두 번 누르면 실사용에서도 그대로 난다.
+      order: [['created_at', 'DESC'], ['id', 'DESC']],
+      limit: 2000,
+    });
+    const latest = new Map();   // thread_id -> 최신 판단 1건
+    for (const l of logs) if (!latest.has(l.target_id)) latest.set(l.target_id, l);
+    const dismissedIds = [];
+    const byThread = new Map();
+    for (const [tid, l] of latest) {
+      const origin = l.new_value && l.new_value.origin;
+      if (origin === 'sale_inbox_dismiss') { dismissedIds.push(tid); byThread.set(tid, l); }
+    }
+    if (dismissedIds.length) {
+      const acctIds = await accessibleAccountIds(businessId, userId);
+      const w = {
+        id: { [Op.in]: dismissedIds }, business_id: businessId, client_id: null,
+        account_id: { [Op.in]: acctIds.length ? acctIds : [0] },
+      };
+      if (like) w[Op.or] = [{ subject: like }, { last_message_preview: like }];
+      const rows = await EmailThread.findAll({
+        where: w, order: [['last_message_at', 'DESC']], limit: perSource,
+        attributes: ['id', 'subject', 'participants', 'last_message_at', 'last_message_preview', 'created_at'],
+      });
+      // ★ counts 는 **아래(386줄)에서 선언**된다 — 여기서 쓰면 선언 전 참조다.
+      //   누적만 해두고 숫자는 그 뒤에 옮긴다(2026-09-12 qualifiedIds 와 같은 사고를 되풀이하지 않는다).
+      qDismissed += rows.length;
+      for (const t of rows) {
+        const outside = (Array.isArray(t.participants) ? t.participants : []).find((p) => p && !p.is_internal);
+        const l = byThread.get(t.id);
+        items.push({
+          source: 'dismissed',
+          id: `dismissed:${t.id}`,
+          ref: { kind: 'email_thread', id: t.id },
+          who: outside?.name || outside?.email || null,
+          email: outside?.email || null,
+          company: companyFromEmail(outside?.email),
+          title: t.subject || null,
+          preview: clean(t.last_message_preview),
+          at: t.last_message_at || t.created_at,
+          needs_reply: false,                    // 보관함은 대응 대상이 아니다
+          meta: { dismissed_at: l ? l.created_at : null, dismissed_by: l ? l.user_id : null },
+          open_path: `/mail?thread=${t.id}`,
+        });
+      }
+    }
+  }
+
   // 3) 대화방 = 접점 **한 줄**. 링크가 있으면 그 링크가 이 대화의 **신원**이 된다.
   //
   // ★ 상한을 두지 않는다. 미연결 고객 대화방은 고객으로 등록되면 목록에서 빠지는 유한한 집합이고,
@@ -322,7 +389,9 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   // ★ 집계는 **세어서** 만든다 — 모은 배열 길이로 세면 소스별 조회 상한(perSource)에 잘린다.
   //   실측: 사람이 보낸 미연결 메일이 903건인데 배열 길이로는 300 으로 나왔다(상한값 그대로).
   //   숫자가 상한에 잘리는 것은 이미 한 번 사고가 난 계열이다(확인필요 35→51) — 목록만 자르고 숫자는 참으로.
-  const counts = { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0 };
+  const counts = { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0, dismissed: 0 };
+  // 보관함은 위에서 목록을 만들며 함께 세었다 — 두 숫자가 갈라지지 않게 그 값을 그대로 옮긴다.
+  if (want.includes('dismissed')) counts.dismissed = qDismissed;
   // 게스트·채팅은 **같은 대화**를 가리키므로 아래 한 곳에서 대화방 단위로 같이 센다.
   // 따로 세면 겹친 만큼 합계가 부푼다(실측 3건이 양쪽에 떠 있었다).
   if (want.includes('email')) {

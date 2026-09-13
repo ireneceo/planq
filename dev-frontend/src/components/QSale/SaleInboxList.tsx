@@ -23,7 +23,7 @@ import TaskCreateForm from '../QTask/TaskCreateForm';
 import ClientPanel, { type InquiryView } from './ClientPanel';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
-import { listSaleInbox, dismissInboxItem, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
+import { listSaleInbox, dismissInboxItem, restoreInboxItem, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
 
 interface Props {
   businessId: number;
@@ -137,16 +137,50 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
       const j = await r.json().catch(() => null);
       if (!r.ok || j?.success === false) { setActionError(j?.message || `HTTP ${r.status}`); return; }
       const clientId = j?.data?.client?.id ?? j?.data?.id;
+      // ★ 2026-09-13 (Irene: "고객으로 등록 버튼 누르면 초대메일 보내져야지 왜 고객페이지로 가?")
+      //   등록은 원장을 만드는 것이고, **초대는 그 사람에게 문을 여는 것**이다. 둘을 잇는다.
+      //   ☐ 이메일이 없으면 보낼 수 없다 — 초대 라우트가 name·email 을 필수로 받는다.
+      //     그때는 등록만 하고 패널의 [초대 보내기] 로 남긴다(조용히 넘어가지 않게 안내한다).
+      const invitee = it.email;
+      if (clientId && invitee) {
+        const inv = await apiFetch(`/api/clients/${businessId}/invite`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: it.who || invitee, email: invitee, company_name: it.company?.name || null }),
+        });
+        if (!inv.ok) {
+          const ij = await inv.json().catch(() => null);
+          // 등록 자체는 성공했다 — 초대만 실패했음을 분명히 말한다(실패를 삼키지 않는다)
+          setActionError(ij?.message || (t('inbox.inviteFailed') as string));
+        }
+      } else if (clientId && !invitee) {
+        setActionError(t('inbox.inviteNoEmail') as string);
+      }
       // 등록되면 원본의 client_id 가 채워져 이 목록에서 자연히 빠진다 — 다시 읽는다
       await load({ silent: true });
       onRegistered?.();
-      if (clientId) navigate(`/sale/${clientId}`);
+      // ★ 페이지로 튕기지 않는다 — 맥락을 잃는다. 방금 만든 고객을 **우측 패널**로 이어 보여준다.
+      if (clientId) onOpenClient?.(clientId);
     } catch {
       setActionError(t('error.loadFailed') as string);
     } finally {
       setBusyId(null);
     }
   }, [busyId, businessId, load, navigate, onRegistered, t]);
+
+  // 보관함에서 되돌리기 — 되돌리면 그 행은 보관함에서 빠지고 상담으로 돌아간다.
+  const restoreItem = useCallback(async (it: SaleInboxItem) => {
+    if (busyId || it.ref.kind !== 'email_thread') return;
+    setBusyId(it.id);
+    setActionError(null);
+    try {
+      await restoreInboxItem(businessId, 'email_thread', it.ref.id);
+      await load({ silent: true });
+    } catch {
+      setActionError(t('error.loadFailed') as string);
+    } finally {
+      setBusyId(null);
+    }
+  }, [busyId, businessId, load, t]);
 
   const rows = useMemo(() => items, [items]);
   const selectedId = selected?.id ?? null;
@@ -178,6 +212,13 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
           </Chip>
         ))}
         <Spacer />
+        {/* ★ 보관함은 **소스가 아니라 판단의 결과**다(사람이 [문의 아님] 이라고 내린 것).
+            일반 소스 칩 사이에 끼우면 "게스트/메일/채팅" 과 같은 층으로 읽힌다 — 오른쪽에 따로 둔다. */}
+        <Chip type="button" data-testid="sale-inbox-source-dismissed"
+          $on={source === 'dismissed'}
+          onClick={() => setSource((v) => (v === 'dismissed' ? '' : 'dismissed'))}>
+          {t('inbox.source.dismissed') as string} <b>{counts.dismissed ?? 0}</b>
+        </Chip>
         <Chip type="button" data-testid="sale-inbox-needs-reply"
           $on={replyOnly} $accent onClick={() => setReplyOnly((v) => !v)}>
           {t('inbox.needsReplyOnly') as string} <b>{counts.needs_reply}</b>
@@ -219,16 +260,32 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
                       {it.needs_reply && <ReplyTag>{t('inbox.needsReply') as string}</ReplyTag>}
                       <At title={it.at ? formatDateTime(it.at) : ''}>{it.at ? formatTimeAgo(it.at) : '—'}</At>
                     </RowTop>
-                    <Title><HighlightText text={it.title || (t('inbox.noSubject') as string)} query={q} /></Title>
-                    {it.preview && <Preview><HighlightText text={it.preview} query={q} /></Preview>}
+                    {/* ★ 2026-09-13 (Irene: "전화나 채팅은 제목 없는데 제목 내용 분리하면 안되는 거 아니야?
+                        제목 없으면 제목없음 뜨지 말고 내용만 떠야지. 그리고 내용없음을 표시해.")
+                        제목이 있을 때만 제목 줄을 그린다. 없으면 내용이 그 자리를 대신한다.
+                        둘 다 없을 때만 "내용 없음" — 빈 줄로 두면 무엇이 없는 건지 알 수 없다. */}
+                    {it.title && <Title><HighlightText text={it.title} query={q} /></Title>}
+                    {it.preview
+                      ? <Preview $lead={!it.title}><HighlightText text={it.preview} query={q} /></Preview>
+                      : !it.title && <Preview $muted>{t('inbox.noBody') as string}</Preview>}
                   </RowBody>
                 </RowMain>
                 <RowActions>
+                  {/* ★ 이 버튼은 **다른 화면으로 나간다**(우측 패널이 아니다). Irene: "보기 버튼은 우측패널
+                      열릴 것 같은데 다른 곳으로 가버리니 문제가 되네. 보내는 아이콘 써서 어디로 간다고
+                      알 수 있게 하고 이름을 각각에 맞춰서" → 소스별 이름 + 바깥으로 나가는 화살표. */}
                   <ActionButton tone="secondary" size="sm" disabled={busy}
                     data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}>
-                    {t('action.view') as string}
+                    <OutIcon aria-hidden />
+                    {t(`action.viewIn.${it.source === 'email' ? 'mail' : 'chat'}`) as string}
                   </ActionButton>
-                  {it.ref.kind !== 'conversation' && it.ref.kind !== 'client' && (
+                  {/* 보관함 행은 등록이 아니라 **되돌리기**다 — 사람의 판단을 되돌릴 길이 있어야 한다. */}
+                  {it.source === 'dismissed' ? (
+                    <ActionButton tone="primary" size="sm" disabled={busy}
+                      data-testid={`sale-inbox-restore-${it.id}`} onClick={() => restoreItem(it)}>
+                      {t('action.restore') as string}
+                    </ActionButton>
+                  ) : it.ref.kind !== 'conversation' && it.ref.kind !== 'client' && (
                     <ActionButton tone="primary" size="sm" disabled={busy}
                       data-testid={`sale-inbox-register-${it.id}`} onClick={() => registerClient(it)}>
                       {t('action.registerClient') as string}
@@ -314,6 +371,18 @@ const Chip = styled.button<{ $on?: boolean; $accent?: boolean }>`
   &:hover { background: ${(p) => (p.$on ? undefined : '#F8FAFC')}; }
 `;
 const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 0 0 10px;`;
+/** 바깥으로 나가는 화살표 — ClientPanel 의 전체보기 아이콘과 **같은 모양**(새로 그리지 않는다).
+ *  이 버튼은 우측 패널이 아니라 다른 화면으로 이동한다는 뜻을 아이콘이 먼저 말한다. */
+const OutIcon = styled.span.attrs({
+  children: (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 3h6v6" /><path d="M10 14L21 3" /><path d="M21 14v7H3V3h7" />
+    </svg>
+  ),
+})`
+  display: inline-flex; align-items: center; margin-right: 4px; flex-shrink: 0;
+`;
 const ErrorBar = styled.div`
   margin-bottom: 8px; padding: 8px 12px; border-radius: 8px;
   background: #FEF2F2; color: #B91C1C; font-size: 0.8125rem;
@@ -353,8 +422,14 @@ const Title = styled.div`
   margin-top: 2px; font-size: 0.8125rem; color: #334155;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
-const Preview = styled.div`
-  margin-top: 2px; font-size: 0.75rem; color: #94A3B8; line-height: 1.5;
+// $lead — 제목이 없는 항목(전화·채팅)에서는 **내용이 대표 줄**이다. 제목 자리를 대신하므로 같은 위계로.
+// $muted — 제목도 내용도 없을 때의 "내용 없음". 빈 줄로 두면 무엇이 없는 건지 알 수 없다.
+const Preview = styled.div<{ $lead?: boolean; $muted?: boolean }>`
+  margin-top: ${(p) => (p.$lead ? '0' : '2px')};
+  font-size: ${(p) => (p.$lead ? '0.8125rem' : '0.75rem')};
+  color: ${(p) => (p.$muted ? '#CBD5E1' : p.$lead ? '#334155' : '#94A3B8')};
+  font-style: ${(p) => (p.$muted ? 'italic' : 'normal')};
+  line-height: 1.5;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const StageTag = styled.span`

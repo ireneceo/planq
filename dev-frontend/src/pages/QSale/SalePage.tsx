@@ -2,7 +2,7 @@
 //   관리 리스트 패턴(PageShell) — 고객 관리 목록과 같은 규격.
 //   ★ 접근 종류·한도 포함 여부는 서버가 준 값만 쓴다(화면이 user_id 로 판정하지 않는다).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -57,7 +57,25 @@ export default function SalePage() {
   const [addOpen, setAddOpen] = useState(false);
   // ★ 행을 눌러도 **페이지를 갈아타지 않는다** (Irene 2026-09-12: "고객탭에서는 리스트 누르면
   //   페이지 전환하지 말고 우측패널 나오게 하고"). 전체를 보려면 패널 헤더의 전체보기 아이콘.
-  const [panelClientId, setPanelClientId] = useState<number | null>(null);
+  // ★ 우측 패널은 **URL 과 묶는다**(UI_DESIGN_GUIDE §1.9 · CLAUDE.md 상세/드로어 URL 싱크).
+  //   state 로만 열면 새로고침하면 사라지고, 링크를 보내도 상대는 목록만 본다.
+  //   ★ 초기값으로만 읽지 않는다 — keep-alive 탭에서는 컴포넌트가 살아 있어 초기값이 다시 안 돈다
+  //     (memory feedback_url_param_read_once_keepalive). searchParams 를 그대로 정본으로 쓴다.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const panelClientId = (() => {
+    const raw = searchParams.get('client');
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  })();
+  const setPanelClientId = useCallback((next: number | null | ((prev: number | null) => number | null)) => {
+    setSearchParams((sp) => {
+      const cur = (() => { const r = sp.get('client'); const n = r ? Number(r) : NaN; return Number.isFinite(n) && n > 0 ? n : null; })();
+      const v = typeof next === 'function' ? (next as (p: number | null) => number | null)(cur) : next;
+      const out = new URLSearchParams(sp);
+      if (v) out.set('client', String(v)); else out.delete('client');
+      return out;
+    }, { replace: true });
+  }, [setSearchParams]);
   // 상담 목록을 다시 읽게 하는 신호 — 문의를 추가하면 **그 목록에** 들어와야 한다
   const [inboxRefresh, setInboxRefresh] = useState(0);
 

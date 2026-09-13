@@ -67,6 +67,10 @@ async function collectSale(businessId, userId, userRole) {
           dueAt: null,
           createdAt: safeToIso(since),
           link: `/sale/${c.id}`,
+          // ★ 2026-09-13 (Irene: "확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q sale 상담탭에서
+          //   열리는 우측패널을 열어줘… 업무상세 우측패널처럼 이용가능하게 맥락을 맞춰")
+          //   업무·일정과 **같은 계약**(drawer)을 쓴다 — 종류마다 다른 여는 방식을 만들지 않는다.
+          drawer: { kind: 'client', id: c.id },
         });
         continue;                       // ③으로 또 세지 않는다
       }
@@ -82,6 +86,7 @@ async function collectSale(businessId, userId, userRole) {
           dueAt: null,
           createdAt: safeToIso(since),
           link: `/sale/${c.id}`,
+          drawer: { kind: 'client', id: c.id },
         });
       }
     }
@@ -138,6 +143,10 @@ async function collectSale(businessId, userId, userRole) {
         dueAt: null,
         createdAt: safeToIso(it.at),
         link: '/sale',
+        // ★ 이건 **아직 고객이 아닌 문의**다 — 고객 패널이 아니라 상담 패널(ClientPanel 의 inquiry 분기)로 연다.
+        //   link 만 주면 목록만 열려 "어느 문의였는지" 를 사람이 다시 찾아야 한다.
+        //   ref 를 그대로 실어 받는 쪽이 그 행을 집어낼 수 있게 한다(업무·일정과 같은 drawer 계약).
+        drawer: { kind: 'inquiry', id: it.id, ref: it.ref },
       });
     }
   } catch (e) {

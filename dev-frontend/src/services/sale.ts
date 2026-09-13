@@ -142,7 +142,7 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
 
 // ── 상담(고객 미등록 접점) — Irene 2026-09-12 "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지"
 //   서버는 새 테이블 없이 원본(게스트 링크·메일 스레드·고객 대화방)에서 client_id 가 빈 것만 읽는다.
-export type SaleInboxSource = 'guest_link' | 'email' | 'chat';
+export type SaleInboxSource = 'guest_link' | 'email' | 'chat' | 'dismissed';
 
 export interface SaleInboxItem {
   /** 'client' = 이미 등록된 **진행 중 상담**(등록해도 상담은 계속된다 — 2026-09-12) */
@@ -170,6 +170,8 @@ export interface SaleInboxItem {
 
 export interface SaleInboxCounts {
   total: number; needs_reply: number; guest_link: number; email: number; chat: number;
+  /** 보관함 — 사람이 [문의 아님] 이라고 판단한 것 */
+  dismissed?: number;
   /** 등록된 진행 중 상담 수 */
   client?: number;
 }
@@ -325,6 +327,12 @@ export const extractInquiry = (businessId: number, text: string) =>
 /** [문의 아님] — 사람이 메일 분류를 정정한다. 상담에서 내려가고 Q mail 판정도 같이 고쳐진다. */
 export const dismissInboxItem = (businessId: number, kind: 'email_thread', id: number) =>
   apiFetch(`/api/sale/${businessId}/inbox/dismiss`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
+  }).then(j<{ id: number; triage: string }>);
+
+/** 보관함에서 되돌리기 — [문의 아님]은 사람의 판단이고 사람은 틀린다. 되돌릴 길이 없으면 삭제나 마찬가지다. */
+export const restoreInboxItem = (businessId: number, kind: 'email_thread', id: number) =>
+  apiFetch(`/api/sale/${businessId}/inbox/restore`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
   }).then(j<{ id: number; triage: string }>);
 

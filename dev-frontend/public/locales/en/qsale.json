@@ -132,7 +132,12 @@
     "contractTitle": "Contract",
     "inviteNoEmail": "No email on file — add one in settings to invite",
     "inviteConfirmTitle": "Send the invitation?",
-    "inviteConfirmBody": "An invitation email will be sent to {{email}}. A sent email cannot be taken back."
+    "inviteConfirmBody": "An invitation email will be sent to {{email}}. A sent email cannot be taken back.",
+    "viewIn": {
+      "mail": "Open in Mail",
+      "chat": "Open in Chat"
+    },
+    "restore": "Restore"
   },
   "record": {
     "kind": {
@@ -288,16 +293,20 @@
       "guest_link": "Guest",
       "email": "Email",
       "chat": "Chat",
-      "client": "Registered"
+      "client": "Registered",
+      "dismissed": "Not an inquiry"
     },
-    "needsReply": "Needs reply",
-    "needsReplyOnly": "Needs reply only",
+    "needsReply": "Needs action",
+    "needsReplyOnly": "Needs action only",
     "unknownWho": "—",
     "noSubject": "(No subject)",
     "empty": {
       "title": "No inquiries yet",
       "body": "Guest link conversations and emails or chats not linked to a client appear here."
-    }
+    },
+    "noBody": "No content",
+    "inviteFailed": "Registered as a customer, but the invitation email failed. You can resend it from the panel.",
+    "inviteNoEmail": "Registered as a customer. No email address, so no invitation was sent."
   },
   "cuebar": {
     "placeholder": "Paste the conversation — \"Call from GreenTech, Seojun Park, quote request, 010-2345-6789\" (Ctrl+Enter)",

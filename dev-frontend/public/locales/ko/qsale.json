@@ -132,7 +132,12 @@
     "contractTitle": "계약서",
     "inviteNoEmail": "이메일이 없어 초대할 수 없습니다 — 설정에서 주소를 넣어주세요",
     "inviteConfirmTitle": "초대 메일을 보낼까요?",
-    "inviteConfirmBody": "{{email}} 으로 초대 메일이 나갑니다. 보낸 메일은 되돌릴 수 없습니다."
+    "inviteConfirmBody": "{{email}} 으로 초대 메일이 나갑니다. 보낸 메일은 되돌릴 수 없습니다.",
+    "viewIn": {
+      "mail": "메일 보기",
+      "chat": "채팅 보기"
+    },
+    "restore": "되돌리기"
   },
   "record": {
     "kind": {
@@ -288,16 +293,20 @@
       "guest_link": "게스트 문의",
       "email": "메일",
       "chat": "채팅",
-      "client": "등록된 상담"
+      "client": "등록된 상담",
+      "dismissed": "보관함"
     },
-    "needsReply": "답변 필요",
-    "needsReplyOnly": "답변 필요만",
+    "needsReply": "대응 필요",
+    "needsReplyOnly": "대응 필요만",
     "unknownWho": "—",
     "noSubject": "(제목 없음)",
     "empty": {
       "title": "아직 들어온 문의가 없습니다",
       "body": "게스트 링크로 온 대화, 고객에 연결되지 않은 메일·채팅이 여기 모입니다."
-    }
+    },
+    "noBody": "내용 없음",
+    "inviteFailed": "고객으로 등록했지만 초대 메일 발송에 실패했습니다. 패널에서 다시 보낼 수 있어요.",
+    "inviteNoEmail": "고객으로 등록했습니다. 이메일 주소가 없어 초대는 보내지 못했어요."
   },
   "cuebar": {
     "placeholder": "상담 내용을 그대로 붙여넣으세요 — \"오늘 전화로 (주)그린테크 박서준 팀장이 견적 문의. 010-2345-6789\" (Ctrl+Enter)",

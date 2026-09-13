@@ -112,6 +112,37 @@ router.post('/:businessId/inbox/dismiss', ...writeChain, async (req, res, next) 
   } catch (err) { next(err); }
 });
 
+// ─── 보관함에서 되돌리기 ─────────────────────────────────────────────
+//   Irene 2026-09-13: *"문의아님 분류한거 다시 되돌리고 싶으면 어떻게 해?"*
+//   [문의 아님]은 사람의 판단이고 사람은 틀린다. 되돌릴 길이 없으면 그건 삭제나 마찬가지다.
+//   ★ 되돌림도 **기록으로 남긴다**(origin: sale_inbox_restore). 그래야 보관함 목록에서 빠진다 —
+//     보관함은 "마지막 판단이 dismiss 인 것" 이므로, 지운 흔적이 아니라 **새 기록**으로 뒤집는다.
+router.post('/:businessId/inbox/restore', ...writeChain, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const kind = String(req.body?.kind || '');
+    const id = Number(req.body?.id || 0);
+    if (kind !== 'email_thread' || !id) return errorResponse(res, 'unsupported_kind', 400);
+
+    const { accessibleAccountIds } = require('../services/clientTimeline');
+    const acctIds = await accessibleAccountIds(businessId, req.user.id);
+    const thread = await EmailThread.findOne({
+      where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+    });
+    if (!thread) return errorResponse(res, 'thread_not_found', 404);
+
+    const before = thread.triage;
+    await thread.update({ triage: 'human' });
+    createAuditLog({
+      userId: req.user.id, businessId, action: 'mail.triage_correct',
+      targetType: 'email_thread', targetId: thread.id,
+      oldValue: { triage: before }, newValue: { triage: 'human', origin: 'sale_inbox_restore' },
+    });
+    broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+    return successResponse(res, { id: thread.id, triage: 'human' }, 'restored');
+  } catch (err) { next(err); }
+});
+
 router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);

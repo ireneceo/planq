@@ -23,7 +23,14 @@ const CHANNELS = ['chat', 'email', 'task', 'invoice'];
 // Q sale 채널 (docs/Q_SALE_DESIGN.md §4.1·§6) — **명시로 요청할 때만** 싣는다.
 //   기본값에 넣으면 이 함수를 부르는 기존 소비자(고객 타임라인 화면·채널 요약·Cue 컨텍스트)가
 //   모르는 type 을 받는다 — 화면은 색 표에서 undefined 를 읽어 죽고, Cue 에는 라벨 없는 값이 실린다.
-const SALE_CHANNELS = ['interaction', 'stage', 'guest'];
+// ★ 2026-09-13 (Irene: "메모가 여기 저기 다 있잖아. 프로젝트, 채팅, 메일, 업무, 연결고리 파악 좀 해서
+//   서로 동기화하는 거 체크해줘.") — 메모는 두 테이블에 흩어져 있고 **고객 축이 없다**:
+//     project_notes  … project_id · conversation_id · email_thread_id (프로젝트·채팅·메일 메모)
+//     task_comments  … task_id                                        (업무 댓글)
+//   그래서 서로 안 보인다. **새 테이블도 새 컬럼도 만들지 않는다** — 저장은 원래 자리에 두고
+//   고객을 허브로 **읽을 때 모은다**(이 함수가 이미 그 고객의 대화방·메일·프로젝트·업무를 찾는다).
+//   그러면 운영 ALTER 0건이고, 메일 메모가 프로젝트 메모 목록을 오염시키지도 않는다.
+const SALE_CHANNELS = ['interaction', 'stage', 'guest', 'note'];
 const ALL_CHANNELS = [...CHANNELS, ...SALE_CHANNELS];
 
 // 한 고객의 통합 타임라인. before(ISO) 이전 항목만 (페이지네이션). 채널별로 limit*2 가져와 merge 후 limit cut.
@@ -146,6 +153,78 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
           project_id: r.project_id, created_by: r.created_by,
         },
       });
+    }
+  }
+
+  // 5-B) 메모 모아보기 — 저장 축은 그대로 두고 **고객을 허브로 읽기만 합친다**(위 SALE_CHANNELS 주석).
+  //   · project_notes  : 이 고객의 대화방 / 메일스레드 / 프로젝트에 달린 메모
+  //   · task_comments  : 이 고객의 업무에 달린 댓글 (kind 가 system_* 인 것은 사람이 쓴 글이 아니다)
+  //   ★ 어디에 쓴 메모인지 잃지 않는다 — meta.on 으로 출처를 싣는다. 섞어 놓고 출처가 없으면
+  //     "이게 어디 메모였지" 가 되고, 그러면 모아 보여준 것이 오히려 해가 된다.
+  if (want.includes('note')) {
+    // ★ Project 도 같이 꺼낸다 — 아래 조인에서 쓴다. 참조만 하고 안 꺼내면 **문법은 통과하고
+    //   그 채널을 부르는 순간 죽는다**(2026-09-12 qualifiedIds 와 같은 사고).
+    const { ProjectNote, TaskComment, ProjectClient, Project } = require('../models');
+    const [convIds, threadIds, projIds, taskIds] = await Promise.all([
+      Conversation.findAll({ where: { business_id: businessId, client_id: clientId }, attributes: ['id'] })
+        .then((r) => r.map((x) => x.id)),
+      EmailThread.findAll({ where: { business_id: businessId, client_id: clientId }, attributes: ['id'] })
+        .then((r) => r.map((x) => x.id)),
+      // ★ project_clients 에는 business_id 가 없다 — client_id 로만 조회하면 **다른 워크스페이스의
+      //   프로젝트 메모가 딸려올 수 있다**(멀티테넌트 급소). Project 를 조인해 축을 강제한다.
+      ProjectClient.findAll({
+        where: { client_id: clientId },
+        attributes: ['project_id'],
+        include: [{ model: Project, attributes: ['id'], where: { business_id: businessId }, required: true }],
+      }).then((r) => r.map((x) => x.project_id)),
+      Task.findAll({ where: { business_id: businessId, client_id: clientId }, attributes: ['id'] })
+        .then((r) => r.map((x) => x.id)),
+    ]);
+
+    const noteOr = [];
+    if (convIds.length) noteOr.push({ conversation_id: { [Op.in]: convIds } });
+    if (threadIds.length) noteOr.push({ email_thread_id: { [Op.in]: threadIds } });
+    if (projIds.length) noteOr.push({ project_id: { [Op.in]: projIds } });
+    if (noteOr.length) {
+      const where = { [Op.or]: noteOr };
+      if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
+      const notes = await ProjectNote.findAll({
+        where, order: [['createdAt', 'DESC']], limit: perSource,
+        attributes: ['id', 'body', 'visibility', 'author_user_id', 'project_id', 'conversation_id',
+          'email_thread_id', 'createdAt'],
+      });
+      for (const n of notes) {
+        items.push({
+          type: 'note', id: `note:${n.id}`, at: n.createdAt,
+          title: null,
+          preview: String(n.body || '').replace(/\s+/g, ' ').trim().slice(0, 140),
+          meta: {
+            author_user_id: n.author_user_id, visibility: n.visibility,
+            on: n.conversation_id ? 'chat' : n.email_thread_id ? 'email' : 'project',
+            on_id: n.conversation_id || n.email_thread_id || n.project_id,
+          },
+        });
+      }
+    }
+
+    if (taskIds.length) {
+      const where = { task_id: { [Op.in]: taskIds }, kind: null };
+      if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
+      const cs = await TaskComment.findAll({
+        where, order: [['createdAt', 'DESC']], limit: perSource,
+        attributes: ['id', 'task_id', 'content', 'visibility', 'user_id', 'createdAt'],
+      });
+      for (const c of cs) {
+        items.push({
+          type: 'note', id: `tc:${c.id}`, at: c.createdAt,
+          title: null,
+          preview: String(c.content || '').replace(/\s+/g, ' ').trim().slice(0, 140),
+          meta: {
+            author_user_id: c.user_id, visibility: c.visibility,
+            on: 'task', on_id: c.task_id,
+          },
+        });
+      }
     }
   }
 
