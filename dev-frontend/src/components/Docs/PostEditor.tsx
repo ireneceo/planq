@@ -669,20 +669,44 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
      앞으로 옮기면 베이스의 width:max-content 가 다시 이겨 **조용히 무력화된다**
      (실제로 처음 넣을 때 앞에 두어 실측 0/3 실패했다). */
   ${p => p.$editable ? '' : `
+  /* ★ 2026-09-13 (Irene: *"에디터에서는 제대로 나오는데 저장하고 나면 이상해."* ·
+     *"문서에 표가 우측 잘리고 테두리 중간에 없어지는 거"*)
+
+     원인은 아래에 있던 **display: block** 이다. 표를 블록으로 만들면 안쪽에 **익명 테이블 박스**가
+     생기는데 그 폭은 shrink-to-fit(내용만큼)이고, 테두리·배경·둥근모서리는 **바깥 블록**에 그려진다.
+     실측(운영 문서 "법률사무소 운영체계 진단 및 업무설계 보고서" 구조 복제, 1440px):
+       표 22개 중 **21개**가 바깥 872px / 안쪽 격자 726px → 146px 구간에 셀 테두리가 없다.
+       td:last-child 의 border-right 제거까지 겹쳐 "오른쪽이 잘린" 것처럼 보인다.
+     편집 화면은 .tableWrapper(TipTap 이 editable 에서만 만든다)가 스크롤을 맡아 이 문제가 없다 —
+     그래서 **"에디터는 멀쩡한데 저장하면 이상" 했다.**
+
+     고침: 표를 **진짜 표로 두고 폭을 채운다**(display: table + width 100% + table-layout fixed).
+       · 저장된 열 폭(colgroup)은 **비율로 보존**된다 — 실측 420:160 → 630:240 (72.4% : 27.6%).
+         tbody 를 table 로 만드는 다른 안은 colgroup 이 무시돼 115:755 로 뒤집혔다(그래서 버렸다).
+       · fixed 라 컨테이너를 넘지 않는다 — 2026-08-27 의 "페이지 밖으로 잘려 나감" 도 구조적으로 불가능.
+     다만 **열이 많으면** 한 칸이 96px 아래로 눌려 글이 세로로 붕괴한다(12열 실측 73px).
+     그 경우만 종전대로 표 안에서 가로 스크롤한다 — 임계값 9열은 본문 폭 872 ÷ 96 에서 나온 값이다.
+     (:has() 로 colgroup 의 col 개수를 센다. 실측 CSS.supports('selector(:has(a))') === true) */
   & table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    display: table;
+    table-layout: fixed;
     width: 100%;
     max-width: 100%;
     min-width: 0;
+  }
+  & table td, & table th { min-width: 0; word-break: break-word; overflow-wrap: anywhere; }
+
+  & table:has(colgroup col:nth-child(9)) {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     table-layout: auto;
     &::-webkit-scrollbar { height: 8px; }
     &::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
   }
-  /* 칼럼 하한은 편집 화면과 같은 96px — 이보다 좁게 눌러 넣으면 글이 세로로 붕괴한다.
-     그래서 칼럼이 많아 다 못 넣는 표는 페이지를 밀지 않고 **표 안에서** 가로 스크롤된다. */
-  & table td, & table th { min-width: 96px; word-break: break-word; overflow-wrap: anywhere; }
+  /* 칼럼 하한은 편집 화면과 같은 96px — 스크롤로 넘긴 표에만 적용한다(눌러 넣지 않기 위함). */
+  & table:has(colgroup col:nth-child(9)) td,
+  & table:has(colgroup col:nth-child(9)) th { min-width: 96px; }
   `}
   /* 첫 행 좌상단·우상단 라운드 (border-radius 가 table 에만 적용되면 셀이 가려서 안 보임) */
   & table tr:first-child th:first-child, & table tr:first-child td:first-child {

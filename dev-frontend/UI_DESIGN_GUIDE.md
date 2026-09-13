@@ -413,6 +413,28 @@ const TranslatedText = styled.div`
 - **하한은 96px** — 보기 화면(`styles/postContentView`)·읽기 전용 규칙과 같은 값. 더 좁히면 글이
   세로로 붕괴한다. 나눈 나머지 픽셀은 **마지막 열**에 넣어 합이 정확히 본문 폭이 되게 한다
   (안 그러면 1~3px 틈이 오른쪽에 실선 자국처럼 남는다).
+### 읽기 전용(저장 후 보기)은 **표를 블록으로 만들지 않는다**
+
+> Irene: *"에디터에서는 제대로 나오는데 저장하고 나면 이상해."* · *"표가 우측 잘리고 테두리 중간에 없어지는 거"*
+
+편집 화면에는 TipTap 이 만드는 `.tableWrapper` 가 있어 그것이 스크롤을 맡는다. **읽기 전용에는 그 래퍼가 없다.**
+그래서 예전엔 표 자신을 스크롤 컨테이너로 만들었는데(`display: block`), 그러면 안쪽에 **익명 테이블 박스**가
+생기고 그 폭은 shrink-to-fit 인데 **테두리·배경·둥근모서리는 바깥 블록에 그려진다.**
+
+실측(운영 문서 구조 복제, 1440px): 표 22개 중 **21개**가 바깥 872px / 안쪽 격자 726px —
+**146px 구간에 셀 테두리가 없다.** `td:last-child { border-right: none }` 까지 겹쳐 "오른쪽이 잘린" 것처럼 보인다.
+
+| 상황 | 계약 |
+|---|---|
+| 보통 표 | `display: table` + `width: 100%` + `table-layout: fixed` — 폭을 채우고 **저장된 열 폭은 비율로 보존**(실측 420:160 → 630:240) |
+| 열 9개 이상 | 종전대로 `display: block; overflow-x: auto` — 눌러 넣지 않고 표 안에서 가로 스크롤 |
+
+- 임계값 9는 본문 폭 872 ÷ 칸 하한 96 에서 나온 값이다. `:has(colgroup col:nth-child(9))` 로 센다
+  (`CSS.supports('selector(:has(a))')` === true 실측).
+- **tbody 를 table 로 만드는 방법은 쓰지 않는다** — `colgroup` 이 무시돼 저장된 열 폭이 뒤집힌다(실측 420:160 → 115:755).
+- 회귀는 카나리 `--suite tablefit` ⑦ 이 막는다 — **저장된 문서의 보기 화면**에서 행 폭 == 표 폭 인지 잰다.
+  (이 경로가 여태 계측 밖이라 "에디터는 멀쩡한데 저장하면 이상" 을 못 잡았다.)
+
 - 적용처: `components/Docs/PostEditor.tsx` · `components/Common/RichEditor.tsx` ·
   HTML 로 그리는 본문은 `styles/postContentView.ts` 한 벌.
 - 회귀는 카나리가 막는다: `node scripts/e2e/run.js --suite tablefit`
