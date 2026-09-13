@@ -2044,6 +2044,44 @@ function checkDrawerWidth() {
 }
 
 // ═══════════════════════════════════════════════
+// duproute — **한 라우터 파일에 같은 method+path 를 두 번 쓰지 않는다** (2026-09-13 신설)
+//
+//   실사례 — 2026-09-13 v1.49.0 이 운영에 나간 뒤 발견:
+//   `routes/projects.js` 에 `GET /:id/notes` 가 **두 번** 있었다.
+//     420행: 새로 넣은 Q Note 세션 목록   /  2745행: 원래 있던 프로젝트 메모(ProjectNote)
+//   Express 는 **먼저 만난 것**만 부른다. 그래서 뒤엣것은 그날부터 죽은 코드가 됐고,
+//   프로젝트 메모를 읽던 화면 4곳(Q talk 우측패널·프로젝트 상세·Q task)이
+//   **에러 없이** 엉뚱한 목록을 받았다. 500 도 404 도 안 나서 검증을 그대로 통과했다.
+//   (memory `feedback_express_route_order` · `feedback_silent_no_output_paths`)
+//
+//   ★ 새 라우트를 더할 때 "이 경로가 이미 있나" 는 사람이 기억할 일이 아니다. 기계가 센다.
+function checkDupRoute() {
+  const dir = `${ROOT}/dev-backend/routes`;
+  const bad = [];
+  let total = 0;
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.js'))) {
+    const lines = read(`${dir}/${f}`).split('\n');
+    const seen = new Map();
+    lines.forEach((l, i) => {
+      const m = l.match(/^\s*router\.(get|post|put|patch|delete)\(\s*'([^']*)'/);
+      if (!m) return;
+      const key = `${m[1].toUpperCase()} ${m[2]}`;
+      if (!seen.has(key)) seen.set(key, []);
+      seen.get(key).push(i + 1);
+    });
+    total += seen.size;
+    for (const [key, at] of seen) {
+      if (at.length > 1) {
+        bad.push(`routes/${f} — ${key} 가 ${at.length}번 선언됐다 (${at.join(', ')}행). `
+          + `Express 는 ${at[0]}행만 부른다 — 나머지는 죽은 코드다`);
+      }
+    }
+  }
+  report('duproute', `라우터 파일 안 method+path 중복 없음 (하드 게이트 · ${total}개 경로)`,
+    bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // navmenu — **메뉴 이름이 화면에 키로 노출되지 않는가** (2026-09-09 신설)
 //
 //   운영 신고 (Irene 2026-09-09): "탭 열기에서 어떤 메뉴들이 이름 제대로 안나오고 nav.으로 나와."
@@ -2662,6 +2700,7 @@ const CATEGORIES = {
   modalradius: checkModalRadius,
   canary: checkCanaryContract,
   drawerwidth: checkDrawerWidth,
+  duproute: checkDupRoute,
   navmenu: checkNavMenu,
   i18n: checkI18n,
   parity: checkParity,

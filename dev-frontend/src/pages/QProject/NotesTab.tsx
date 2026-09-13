@@ -39,7 +39,7 @@ export default function NotesTab({ projectId }: { projectId: number }) {
   const load = useCallback(async () => {
     setError(false);
     try {
-      const r = await apiFetch(`/api/projects/${projectId}/notes?limit=100`);
+      const r = await apiFetch(`/api/projects/${projectId}/qnotes?limit=100`);
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { setError(true); setRows([]); return; }
       setRows(Array.isArray(j.data) ? j.data : []);
