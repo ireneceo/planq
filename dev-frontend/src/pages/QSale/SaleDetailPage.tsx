@@ -6,7 +6,7 @@
 //   (같은 인스턴스를 다른 고객에 재사용하면 떠난 고객의 마지막 입력이 새 고객으로 저장된다).
 // ★ 다른 워크스페이스 고객 id 는 404 로 온다 — findOtherWorkspaceOf 로 물어 "전환 안내" 를 그린다.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,6 +28,8 @@ import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 // 불발 사유 창은 **공용**이다 — 우측 패널도 같은 것을 쓴다(자리마다 다른 동작을 만들지 않는다)
 import LostReasonModal from '../../components/QSale/LostReasonModal';
 import RecordModal from '../../components/QSale/RecordModal';
+// 업무 추가는 **업무 추가 폼의 단일 원천**을 쓴다 — 우측 패널과 같은 창이다(자리마다 새로 만들지 않는다)
+import TaskCreateForm from '../../components/QTask/TaskCreateForm';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 import {
   getSaleClient, patchSaleClient, setSaleStage, getSaleTimeline, deleteInteraction, reviewInteraction,
@@ -59,13 +61,21 @@ export default function SaleDetailPage() {
   const [client, setClient] = useState<SaleClientDetail | null>(null);
   const [items, setItems] = useState<TimelineItem[]>([]);
   // ★ 패널의 연결 숫자가 `?channel=chat|email` 로 보낸다 — 받는 쪽이 읽지 않으면 숫자는 죽은 링크다
-  const [filter, setFilter] = useState<'all' | TimelineType>(() => {
-    const c = new URLSearchParams(window.location.search).get('channel');
-    return (c && (CHANNELS as string[]).includes(c)) ? (c as TimelineType) : 'all';
-  });
+  //   ★ 쿼리를 useState 초기값으로만 읽으면 **keep-alive 탭에서 안 걸린다** — 이미 살아 있는 탭으로
+  //     `?channel=email` 이 다시 들어와도 초기화 함수는 두 번 돌지 않는다
+  //     (memory feedback_url_param_read_once_keepalive). 읽고 **따라간다**.
+  const [searchParams] = useSearchParams();
+  const channelParam = searchParams.get('channel');
+  const [filter, setFilter] = useState<'all' | TimelineType>('all');
+  useEffect(() => {
+    if (channelParam && (CHANNELS as string[]).includes(channelParam)) setFilter(channelParam as TimelineType);
+  }, [channelParam]);
   const [hasMore, setHasMore] = useState(false);
   const beforeRef = useRef<string | null>(null);
   const [recordOpen, setRecordOpen] = useState(false);
+  // 업무 추가 — 우측 패널과 같은 폼을 같은 방식으로 연다(Irene 2026-09-13: "우측 패널 고객프로필하고
+  // 전체프로필 모두 … 업무추가도 여러 번 할 수 있게 해서 추가되면 연결이 계속되서 보이게")
+  const [taskOpen, setTaskOpen] = useState(false);
   const [lostOpen, setLostOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   // 요약 문장의 ⓘ근거 — 누르면 타임라인이 **그 항목들만** 보여준다(§10.6 ①)
@@ -118,7 +128,11 @@ export default function SaleDetailPage() {
       onSocket('interaction:new', debounced),
       onSocket('interaction:updated', debounced),
       onSocket('interaction:deleted', debounced),
+      // ★ task:new 도 듣는다 — 고객에 붙는 업무는 여기서 만들 수도, 남이 만들 수도 있다.
+      //   updated 만 듣던 동안은 **방금 추가한 업무가 새로고침 전까지 안 보였다**.
+      onSocket('task:new', debounced),
       onSocket('task:updated', debounced),
+      onSocket('task:deleted', debounced),
       onSocket('mail:updated', debounced),
     ];
     return () => { if (pending) window.clearTimeout(pending); offs.forEach((off) => off()); };
@@ -221,6 +235,10 @@ export default function SaleDetailPage() {
           {/* ★ 2026-09-13 (Irene: "고객 전체프로필에서 Q sale로 돌아가는 링크 좀 추가할까? …
               뒤로가기가 우측 상단에 있어서 꽤나 불편하네.")
               좌측 뒤로가기는 그대로 두되, 어디로 돌아가는지 **이름이 있는 문**을 하나 둔다. */}
+          {/* 업무 추가 — 우측 패널의 같은 버튼과 **같은 라벨·같은 폼**이다 */}
+          <MiniBtn type="button" data-testid="sale-detail-task" onClick={() => setTaskOpen(true)}>
+            {t('action.addTask') as string}
+          </MiniBtn>
           <MiniBtn type="button" data-testid="sale-detail-back-list" onClick={() => navigate('/sale')}>
             {t('page.backToList') as string}
           </MiniBtn>
@@ -346,6 +364,13 @@ export default function SaleDetailPage() {
         </RightCol>
       </Body>
 
+      {/* 업무 추가 — 우측 패널과 **같은 폼**. 고객을 실어 보내 그 고객의 업무가 되게 한다(tasks.client_id).
+          만들고 나면 타임라인까지 같이 되읽는다 — 추가한 것이 바로 보여야 "연결이 계속되서 보인다". */}
+      {taskOpen && businessId && (
+        <TaskCreateForm businessId={businessId} layout="drawer" fixedClientId={cid}
+          onClose={() => setTaskOpen(false)}
+          onCreated={() => { setTaskOpen(false); silentReload(); }} />
+      )}
       <RecordModal
         open={recordOpen}
         businessId={businessId}

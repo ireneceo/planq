@@ -78,13 +78,16 @@ export interface TaskCreateFormProps {
   autoFocus?: boolean;
   drawerTitle?: React.ReactNode;
   submitLabel?: React.ReactNode;
+  /** 고객이 이미 정해진 화면(Q sale 고객 패널·전체 프로필) — 만든 업무를 그 고객에 붙인다(tasks.client_id).
+   *  칸을 만들지 않는다: 그 화면은 이미 "이 고객" 맥락 안이라 고르게 하면 틀릴 수만 있다. */
+  fixedClientId?: number | null;
   onClose: () => void;
   onCreated?: (task: TaskCreatedTask) => void;
 }
 
 const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   businessId, layout = 'drawer', mode = 'task', assigneeFixedToMe = false,
-  fixedProjectId = null, workstreams,
+  fixedProjectId = null, fixedClientId = null, workstreams,
   createDefaults = null, initial = null, initialNonce = 0,
   draftKind, draftId = null,
   members: membersProp, projects: projectsProp, tagDict: tagDictProp, onTagDictAdd,
@@ -283,6 +286,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           estimated_hours: capacityMine && estHours ? Number(estHours) : null,
           recurrence_rule: recurrenceRule,
           workstream_id: workstreamId,
+          // 고객 맥락에서 연 폼이면 그 고객의 업무가 된다 — 서버가 워크스페이스 소속을 확인한다
+          client_id: fixedClientId,
         }),
       })).json();
       if (!r?.success) return;

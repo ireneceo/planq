@@ -15,6 +15,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+// 실시간 — 이 패널은 소켓도 복귀 갱신도 없이 열려 있었다(CLAUDE.md 운영 안정성 16). 전체 프로필과 같은 두 벌을 쓴다.
+import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { onSocket } from '../../services/socket';
 import DetailDrawer from '../Common/DetailDrawer';
 import ActionButton from '../Common/ActionButton';
 import LetterAvatar from '../Common/LetterAvatar';
@@ -86,32 +89,60 @@ const ClientPanel: React.FC<Props> = ({
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // 액션(메모·다음 연락) 뒤에 다시 읽는 길 — effect 와 같은 호출을 쓴다(두 벌이 되지 않게)
+  // 히스토리를 읽는 길 — effect 와 액션 뒤(reload)가 **같은 함수**를 쓴다.
+  //   ★ 이것을 effect 안에만 두었더니 업무·메모를 추가해도 히스토리가 그대로였다.
+  //     의존이 [businessId, clientId] 뿐이라 액션 뒤에 다시 돌 이유가 없었기 때문이다 —
+  //     사용자에게는 "추가했는데 안 보인다" 로 보인다(memory feedback_backend_done_ui_missing).
+  const loadHistory = useCallback(async () => {
+    if (!clientId) { setItems([]); return; }
+    setHistLoading(true);
+    try {
+      // ★ 채널을 **명시**한다 — 안 넘기면 서버 기본값이 적용돼 `note`(메모 모아보기)가 빠진다.
+      // ★ balanced — 8칸을 한 채널이 다 먹지 않게 채널 쿼터를 건다(서버 clientTimeline.balancedPick).
+      //   실측: 이 옵션 없이는 채팅 6칸이 자리를 먹어 업무·청구 기록이 밀려났다.
+      //   전체 기록은 아래 "더 보기" 로 간다 — 거기서는 시간순 그대로다.
+      const out = await getSaleTimeline(businessId, clientId, {
+        limit: 8,
+        channels: ['chat', 'email', 'task', 'invoice', 'interaction', 'stage', 'guest', 'note'],
+        balanced: true,
+      });
+      setItems(out.items || []);
+    } catch { setItems([]); }
+    finally { setHistLoading(false); }
+  }, [businessId, clientId]);
+
+  // 액션(메모·다음 연락·업무 추가) 뒤에 다시 읽는 길 — 프로필과 히스토리를 **같이** 되읽는다
   const reload = useCallback(async () => {
     if (!clientId) return;
     try { setData(await getSaleClient(businessId, clientId)); onChanged?.(); }
     catch { setError(true); }
-  }, [businessId, clientId, onChanged]);
+    void loadHistory();
+  }, [businessId, clientId, onChanged, loadHistory]);
 
+  useEffect(() => { void loadHistory(); }, [loadHistory]);
+
+  // 실시간 — 다른 사람이 이 고객의 업무·메모·단계를 바꾸면 패널이 스스로 따라간다(CLAUDE.md 운영 안정성 16).
+  //   전체 프로필과 **같은 이벤트 목록**을 듣는다 — 두 화면이 서로 다른 것을 들으면 한쪽만 조용히 낡는다.
   useEffect(() => {
-    if (!clientId) { setItems([]); return undefined; }
-    let alive = true;
-    setHistLoading(true);
-    // ★ 채널을 **명시**한다 — 안 넘기면 서버 기본값이 적용돼 `note`(메모 모아보기)가 빠진다.
-    //   Irene 2026-09-13: "우측 패널 고객프로필하고 전체프로필 모두 서로 업무를 공유할 수 있게 메모들 남겨주고"
-    // ★ balanced — 8칸을 한 채널이 다 먹지 않게 채널 쿼터를 건다(서버 clientTimeline.balancedPick).
-    //   실측: 이 옵션 없이는 고객 13 의 8칸이 **전부 메모**라 채팅·메일·업무 기록이 한 줄도 안 보였다.
-    //   전체 기록은 아래 "더 보기" 로 간다 — 거기서는 시간순 그대로다.
-    getSaleTimeline(businessId, clientId, {
-      limit: 8,
-      channels: ['chat', 'email', 'task', 'invoice', 'interaction', 'stage', 'guest', 'note'],
-      balanced: true,
-    })
-      .then((out) => { if (alive) setItems(out.items || []); })
-      .catch(() => { if (alive) setItems([]); })
-      .finally(() => { if (alive) setHistLoading(false); });
-    return () => { alive = false; };
-  }, [businessId, clientId]);
+    if (!clientId) return undefined;
+    let pending: number | null = null;
+    const debounced = () => {
+      if (pending) return;
+      pending = window.setTimeout(() => { pending = null; void reload(); }, 250);
+    };
+    const offs = [
+      onSocket('client:updated', debounced),
+      onSocket('interaction:new', debounced),
+      onSocket('interaction:updated', debounced),
+      onSocket('interaction:deleted', debounced),
+      onSocket('task:new', debounced),
+      onSocket('task:updated', debounced),
+      onSocket('task:deleted', debounced),
+      onSocket('mail:updated', debounced),
+    ];
+    return () => { if (pending) window.clearTimeout(pending); offs.forEach((off) => off()); };
+  }, [clientId, reload]);
+  useVisibilityRefresh(reload);
 
   useEffect(() => {
     if (!clientId) { setData(null); return; }
@@ -342,10 +373,11 @@ const ClientPanel: React.FC<Props> = ({
                   {data.channels?.email_threads ?? 0}
                 </CountLink>
               </LinkRow>
+              {/* 프로젝트 상세는 /projects/p/:id 다 — /projects/:id 는 목록 라우트(:view)에 걸려 엉뚱한 화면이 열린다 */}
               {data.projects?.length > 0 && (
                 <ProjList>
                   {data.projects.map((p) => (
-                    <ProjItem key={p.id} type="button" onClick={() => navigate(`/projects/${p.id}`)}>{p.name}</ProjItem>
+                    <ProjItem key={p.id} type="button" onClick={() => navigate(`/projects/p/${p.id}`)}>{p.name}</ProjItem>
                   ))}
                 </ProjList>
               )}
@@ -463,9 +495,11 @@ const ClientPanel: React.FC<Props> = ({
             onClose={() => setInviteAsk(false)}
             onConfirm={() => { setInviteAsk(false); void sendInvite(); }}
           />
+          {/* ★ 고객을 실어 보낸다 — 여기서 만든 업무는 **그 고객의 업무**다(tasks.client_id).
+              이 줄이 없으면 폼은 열리는데 만들어진 업무가 고객에 안 붙어, 다시 열어도 아무것도 안 보인다. */}
           {taskOpen && (
-            <TaskCreateForm businessId={businessId} layout="drawer"
-              onClose={() => setTaskOpen(false)} onCreated={() => setTaskOpen(false)} />
+            <TaskCreateForm businessId={businessId} layout="drawer" fixedClientId={clientId}
+              onClose={() => setTaskOpen(false)} onCreated={() => { setTaskOpen(false); void reload(); }} />
           )}
         </>
       )}

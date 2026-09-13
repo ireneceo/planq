@@ -451,7 +451,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
   try {
     const { business_id, project_id, title, description, assignee_id, due_date,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
-      cue_kind, cue_context_ref, recurrence_rule, workstream_id } = req.body;
+      cue_kind, cue_context_ref, recurrence_rule, workstream_id, client_id } = req.body;
 
     // 생성은 행동 계층 단일 착지점을 지난다 (services/actions/task_actions.js).
     //   권한·요청자 자동 컨펌자·Cue 실행·socket·알림·감사가 전부 그 안에서 일어난다 — Cue 도 같은 문.
@@ -462,6 +462,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
       conversationId: conversation_id, plannedWeekStart: planned_week_start,
       cueKind: cue_kind, cueContextRef: cue_context_ref,
       recurrenceRule: recurrence_rule, workstreamId: workstream_id,
+      // 고객 축 — 행동 계층이 같은 워크스페이스 고객인지 확인한 뒤에만 붙인다(task_actions 의 격리 검사)
+      clientId: client_id,
     }, { autoAiEstimate: true });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
 
