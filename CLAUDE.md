@@ -965,7 +965,7 @@ const handleSelect = (id) => {
 
 ## UI 규칙 — 드로어 접근성 (신규 코드 필수)
 
-모든 드로어·모달은 아래 3개 훅을 반드시 사용한다. 프리미티브 `DetailDrawer` 는 이미 내장.
+모든 드로어·모달은 아래 훅을 반드시 사용한다. 프리미티브 `DetailDrawer` 는 이미 내장.
 
 ```tsx
 import { useBodyScrollLock } from 'hooks/useBodyScrollLock';
@@ -973,11 +973,30 @@ import { useFocusTrap } from 'hooks/useFocusTrap';
 import { useEscapeStack } from 'hooks/useEscapeStack';
 
 const ref = useRef<HTMLElement>(null);
-useBodyScrollLock(open);                 // 배경 스크롤 잠금
 useEscapeStack(open, onClose);           // 중첩 모달 안전한 Esc (최상단만 닫힘)
 useFocusTrap(ref, open);                 // Tab 순회 + 복귀
+useBodyScrollLock(open);                 // ★ **가운데 모달에만.** 우측 곁패널에는 쓰지 않는다 (아래)
 // 드로어 루트: ref + role="dialog" + aria-modal="true" + aria-label
 ```
+
+### ★ 배경 스크롤 — **가운데 모달만 잠근다** (2026-09-13 계약 변경)
+
+> Irene: *"우측패널들 열려있어도 좌측에 나오는 화면은 스크롤 반응하게 해. 고정할 필요 있어?
+> 어둡게 했으면 됐지. 리스트들이든 뭐든 스크롤 반응은 막지마."*
+
+| 종류 | 배경 스크롤 | 이유 |
+|---|---|---|
+| **우측 곁패널** (`DetailDrawer`) | **잠그지 않는다** | 목록을 보면서 패널을 함께 보는 것이 이 패널의 용도다. 잠그면 "옆 목록에서 다음 것을 찾는" 동선이 끊긴다 |
+| **가운데 모달** (`UI/Modal`·`StandardModal`) | 잠근다 | 전면을 덮는 창은 뒤가 움직이면 안 된다. 2026-09-13 에 고친 접근성을 되돌리지 않는다 |
+
+- **막는 것이 두 겹이라 하나만 풀면 여전히 안 움직인다.** ①`useBodyScrollLock`(문서 잠금) ②**백드롭이 덮고 있다** —
+  휠은 백드롭의 스크롤 조상(= body)을 찾으므로 실제 목록(`overflow:auto` 인 안쪽 div)은 한 픽셀도 안 움직인다.
+  그래서 `DetailDrawer` 가 백드롭이 받은 휠·터치를 **밑의 스크롤 컨테이너로 넘긴다**(`usePassThroughScroll`).
+  `elementsFromPoint` 로 자기 자신과 `[data-pq-drawer-panel]` 을 건너뛰고 첫 스크롤 컨테이너를 굴린다.
+- **React 의 `onWheel`/`onTouchMove` 는 passive 라 `preventDefault` 가 통하지 않는다** — 그대로 두면
+  우리가 굴린 만큼 문서도 같이 굴러 **두 번 움직인다.** 직접 `addEventListener(…, { passive: false })` 로 붙인다.
+- 백드롭의 **클릭(=닫기)은 그대로**다. 포털로 뜨는 팝오버·모달은 백드롭보다 위에 그려져 자기 클릭을 직접 받는다.
+- 검증은 "패널 연 상태에서 뒤 목록 `scrollTop` 이 실제로 변하는가"(음성 대조군 = 닫힌 상태) · 폰·태블릿·데스크탑 3폭.
 
 **키보드 단축키 표준:** 우측 패널 토글은 `⌘/` (mac) · `Ctrl+\` (win). Q Task · Q Talk 에 구현됨.
 
@@ -1027,7 +1046,8 @@ useFocusTrap(ref, open);                 // Tab 순회 + 복귀
 - **≤640px:** `width: 100vw` 풀스크린, border-left·box-shadow 제거, `padding-bottom: env(safe-area-inset-bottom)`
 
 공통 규칙:
-- **body 스크롤 잠금**: `hooks/useBodyScrollLock(open)` 필수 — 드로어/모달 열림 동안 배경 스크롤 차단, 스크롤바 폭 보정 포함
+- **배경 스크롤은 잠그지 않는다** (2026-09-13) — 우측 곁패널은 목록과 **함께** 보는 것이 용도다.
+  `useBodyScrollLock` 은 가운데 모달의 것이다. 위 "배경 스크롤" 절 참조
 - Esc 닫기 + 백드롭 클릭 닫기 + 재클릭 토글 기본
 - 폰에서 리사이즈 핸들 `@media (max-width: 1024px) { display: none; }`
 - 터치 타겟 폰에서 최소 40×40

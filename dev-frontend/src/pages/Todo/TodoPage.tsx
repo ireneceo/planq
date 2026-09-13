@@ -441,6 +441,9 @@ const TodoPage: React.FC = () => {
           notice={panelNotice}
           registerBusy={inquiryBusy}
           onClose={() => { setSelectedInquiry(null); setSelectedInquiryBizId(null); setPanelNotice(null); }}
+          /* 패널 안에서 **첫 액션 자동 등록**이 일어나면 이 목록도 따라가야 한다 —
+             안 붙이면 등록·기록을 했는데 확인 필요 숫자와 행이 그대로다 */
+          onChanged={silentLoad}
           onRegister={() => { void handleInquiryRegister(); }}
         />
       )}

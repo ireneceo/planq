@@ -23,9 +23,21 @@ export interface SaleRegisterResult {
   message?: string | null;
 }
 
+/** 등록의 두 가지 쓰임 — **초대를 보내는가**가 갈린다.
+ *  · `invite: true`  명시적 [고객으로 등록] 버튼. 사람이 확인창에서 주소를 보고 눌렀다.
+ *  · `invite: false` 우측 패널의 **첫 액션 자동 등록**(기록 추가·업무 추가 등).
+ *    ★ 여기서 메일을 보내면 "기록을 남겼을 뿐인데 고객에게 초대가 나갔다" 가 된다 —
+ *      외부 발송은 그 자체로 확인을 받아야 하는 일이다(CLAUDE.md "외부 발송은 확인을 받는다").
+ *      원장만 만들고, 초대는 패널의 [초대] 버튼에 남긴다. */
+export interface SaleRegisterOptions {
+  /** 기본 true — 옛 호출부(명시적 등록 버튼)의 동작을 바꾸지 않는다 */
+  invite?: boolean;
+}
+
 export async function registerInquiryAsClient(
   businessId: number,
   it: SaleRegisterInput,
+  opts: SaleRegisterOptions = {},
 ): Promise<SaleRegisterResult> {
   // 기존 라우트를 그대로 부른다(서버가 중복 연결·한도까지 판정한다)
   const body = it.ref.kind === 'guest_link'
@@ -46,6 +58,8 @@ export async function registerInquiryAsClient(
   //     그때는 등록만 하고 패널의 [초대 보내기] 로 남긴다(경고로 알린다).
   const invitee = it.email;
   if (!clientId) return { ok: true, clientId: null };
+  // 자동 등록(첫 액션)은 여기서 멈춘다 — 원장만 만들고 **메일은 보내지 않는다**
+  if (opts.invite === false) return { ok: true, clientId };
   if (!invitee) return { ok: true, clientId, warn: 'invite_no_email' };
 
   const inv = await apiFetch(`/api/clients/${businessId}/invite`, {

@@ -44,6 +44,10 @@ const SUITES = {
   imgresize: () => require('./canary-image-resize'),
   mobileboot: () => require('./canary-mobile-boot'), // 콜드스타트 착지 · 재진입 즉시표시 · Cue 키보드 (저장소+뷰포트+키보드가 합쳐진 뒤에만 존재)
   trash: () => require('./canary-file-trash'),
+  // Q sale 우측 패널이 **한 벌인가** — 문의로 열어도 고객 액션이 있는가 · 이름 중복 · 푸터 한 줄 ·
+  //   저장 액션이 묻고 나서 나가는가 · **패널이 열려도 뒤 목록이 스크롤되는가**(2026-09-13 계약 변경).
+  //   전부 CSS·런타임이 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 안 잡힌다.
+  salepanel: () => require('./canary-sale-panel'),
   detailopen: () => require('./canary-detail-open'), // 상세가 실제로 열리는가 — 딥링크 소생 + "없음" 을 말하는가(침묵 금지)   // 파일 휴지통 — 삭제를 되돌릴 수 있는가(백엔드 아닌 **화면**에서)
 
   aiopen: () => require('./canary-ai-open'),    // AI 진입 모달이 **눌러서 뜨는가** (early return 아래 훅 = React #310, 런타임에만 드러남)

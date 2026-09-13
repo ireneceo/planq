@@ -2,10 +2,11 @@
 //
 // 상단 크롬은 **두 밴드**다(CLAUDE.md 페이지 레이아웃 3): 밴드1 PanelHeader(제목 + 액션 칸),
 // 밴드2 DetailMetaBar(접근·단계·담당 칩). 규격을 손으로 다시 쓰지 않는다.
-// ★ 프로필 입력은 AutoSaveField — 저장 버튼이 없다. 대상이 바뀌면 key 로 인스턴스를 가른다
+// ★ 프로필 입력은 **우측 패널과 같은 폼**(ClientProfileForm) — AutoSaveField 라 저장 버튼이 없다.
+//   대상이 바뀌면 key 로 인스턴스를 가른다
 //   (같은 인스턴스를 다른 고객에 재사용하면 떠난 고객의 마지막 입력이 새 고객으로 저장된다).
 // ★ 다른 워크스페이스 고객 id 는 404 로 온다 — findOtherWorkspaceOf 로 물어 "전환 안내" 를 그린다.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -18,14 +19,14 @@ import ChipPopover from '../../components/Common/ChipPopover';
 // 팝오버 선택 목록은 **공용 한 벌** — 우측 패널(ClientPanel)과 같은 것을 쓴다(따로 그리면 갈라진다)
 import { OptionList, OptionBtn, OptName, OptHint } from '../../components/Common/optionList';
 import ActionButton from '../../components/Common/ActionButton';
-import AutoSaveField from '../../components/Common/AutoSaveField';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
-import PlanQSelect from '../../components/Common/PlanQSelect';
 import DetailFallback from '../../components/Common/DetailFallback';
 import ClientTimeline from '../../components/Clients/ClientTimeline';
 import SummaryCard from '../../components/QSale/SummaryCard';
 // 업무·파일·프로젝트 연결 — 우측 패널과 같은 한 벌(따로 그리면 갈라진다)
 import ClientLinksSection from '../../components/QSale/ClientLinksSection';
+// 프로필 입력은 **우측 패널과 같은 폼**이다 — 여기 인라인으로 두면 패널이 쓸 수 없어 읽기 전용이 된다
+import ClientProfileForm from '../../components/QSale/ClientProfileForm';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 // 불발 사유 창은 **공용**이다 — 우측 패널도 같은 것을 쓴다(자리마다 다른 동작을 만들지 않는다)
 import LostReasonModal from '../../components/QSale/LostReasonModal';
@@ -35,8 +36,8 @@ import TaskCreateForm from '../../components/QTask/TaskCreateForm';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 import {
   getSaleClient, patchSaleClient, setSaleStage, getSaleTimeline, deleteInteraction, reviewInteraction,
-  SALE_STAGES, SALE_SOURCES,
-  type SaleClientDetail, type SaleStage, type TimelineItem, type TimelineType, type SaleSource,
+  SALE_STAGES,
+  type SaleClientDetail, type SaleStage, type TimelineItem, type TimelineType,
 } from '../../services/sale';
 
 type LoadStatus = 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error' | 'other_workspace';
@@ -260,7 +261,7 @@ export default function SaleDetailPage() {
           />
           <Card>
             <CardTitle>{t('detail.profile') as string}</CardTitle>
-            <ProfileForm
+            <ClientProfileForm
               key={`profile-${client.id}`}
               client={client}
               onSave={save}
@@ -413,74 +414,6 @@ function daysSince(iso: string): number {
   return Math.max(1, Math.floor(ms / 86400000) + 1);
 }
 
-// ─── 프로필 (AutoSaveField — 저장 버튼 없음) ───────────────────────
-function ProfileForm({ client, onSave }: { client: SaleClientDetail; onSave: (patch: Record<string, unknown>) => Promise<void> }) {
-  const { t } = useTranslation('qsale');
-  const [name, setName] = useState(client.display_name || '');
-  const [company, setCompany] = useState(client.company_name || '');
-  const [phone, setPhone] = useState(client.phone || '');
-  const [email, setEmail] = useState(client.email || '');
-  const [amount, setAmount] = useState(client.expected_amount != null ? String(client.expected_amount) : '');
-  const [source, setSource] = useState<SaleSource | ''>(client.sales_source || '');
-  const emailLocked = client.status !== 'prospect';
-  const sourceOptions = useMemo(() => ([
-    { value: '', label: '—' },
-    ...SALE_SOURCES.map((s) => ({ value: s as string, label: t(`source.${s}`) as string })),
-  ]), [t]);
-
-  return (
-    <Fields>
-      <Field>
-        <FieldLabel htmlFor="sale-name">{t('detail.name') as string}</FieldLabel>
-        <AutoSaveField onSave={async () => { await onSave({ display_name: name }); }}>
-          <TextInput id="sale-name" value={name} onChange={(e) => setName(e.target.value)} />
-        </AutoSaveField>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-company">{t('detail.company') as string}</FieldLabel>
-        <AutoSaveField onSave={async () => { await onSave({ company_name: company }); }}>
-          <TextInput id="sale-company" value={company} onChange={(e) => setCompany(e.target.value)} />
-        </AutoSaveField>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-phone">{t('detail.phone') as string}</FieldLabel>
-        <AutoSaveField onSave={async () => { await onSave({ phone }); }}>
-          <TextInput id="sale-phone" value={phone} inputMode="tel" onChange={(e) => setPhone(e.target.value)} />
-        </AutoSaveField>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-email">{t('detail.email') as string}</FieldLabel>
-        {emailLocked ? (
-          <>
-            <ReadOnlyValue id="sale-email">{email || '—'}</ReadOnlyValue>
-            <HintText>{t('detail.emailLocked') as string}</HintText>
-          </>
-        ) : (
-          <AutoSaveField onSave={async () => { await onSave({ email }); }}>
-            <TextInput id="sale-email" value={email} inputMode="email" onChange={(e) => setEmail(e.target.value)} />
-          </AutoSaveField>
-        )}
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-amount">{t('detail.expectedAmount') as string}</FieldLabel>
-        <AutoSaveField onSave={async () => { await onSave({ expected_amount: amount === '' ? null : Number(amount), expected_currency: amount === '' ? null : (client.expected_currency || 'KRW') }); }}>
-          <TextInput id="sale-amount" value={amount} inputMode="numeric"
-            onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))} />
-        </AutoSaveField>
-      </Field>
-      <Field>
-        <FieldLabel>{t('source.label') as string}</FieldLabel>
-        <AutoSaveField type="select" onSave={async () => { await onSave({ sales_source: source || null }); }}>
-          <PlanQSelect size="sm" isSearchable={false} options={sourceOptions}
-            aria-label={t('source.label') as string}
-            value={sourceOptions.find((o) => o.value === source) || sourceOptions[0]}
-            onChange={(opt: unknown) => setSource(((opt as { value?: string } | null)?.value || '') as SaleSource | '')} />
-        </AutoSaveField>
-      </Field>
-    </Fields>
-  );
-}
-
 // ─── 기록 추가 ────────────────────────────────────────────────────
 // ─── styled ──────────────────────────────────────────────────────
 const Page = styled.div`display: flex; flex-direction: column; height: 100%; min-height: 0; background: #F8FAFC;`;
@@ -497,16 +430,6 @@ const LeftCol = styled.div`display: flex; flex-direction: column; gap: 12px; min
 const RightCol = styled.div`display: flex; flex-direction: column; gap: 10px; min-width: 0;`;
 const Card = styled.section`background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px;`;
 const CardTitle = styled.h2`margin: 0 0 10px; font-size: 0.8125rem; font-weight: 700; color: #334155;`;
-const Fields = styled.div`display: flex; flex-direction: column; gap: 10px;`;
-const Field = styled.div`display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
-const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #64748B;`;
-const TextInput = styled.input`
-  height: 36px; padding: 0 30px 0 10px; border: 1px solid #E2E8F0; border-radius: 8px;
-  font-size: 0.8125rem; color: #0F172A; width: 100%;
-  &:focus { outline: none; border-color: #5EEAD4; }
-`;
-const ReadOnlyValue = styled.div`font-size: 0.8125rem; color: #334155; padding: 8px 0;`;
-const HintText = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
 const Dim = styled.span`font-size: 0.8125rem; color: #64748B;`;
 const MetaDim = styled.span`font-size: 0.75rem; color: #94A3B8; white-space: nowrap;`;
 const TagDim = styled.span`margin-left: 6px; font-size: 0.6875rem; font-weight: 700; color: #64748B; background: #F1F5F9; border-radius: 999px; padding: 1px 6px;`;

@@ -110,7 +110,10 @@
     "registeredBy": "Added by",
     "registeredAt": "Added at",
     "history": "History",
-    "historyMore": "See full history"
+    "historyMore": "See full history",
+    "profile": "Profile",
+    "billingPhone": "Billing phone",
+    "notClientHint": "Not registered as a client yet. Choosing an action below registers them first, then continues."
   },
   "action": {
     "addInquiry": "+ Add inquiry",
@@ -136,12 +139,20 @@
     "inviteConfirmBody": "An invitation email will be sent to {{email}}. A sent email cannot be taken back.",
     "viewIn": {
       "mail": "Open in Mail",
-      "chat": "Open in Chat"
+      "chat": "Open in Chat",
+      "client": "Open client detail",
+      "guest": "Open guest chat"
     },
     "restore": "Restore",
     "registerConfirmTitle": "Register as a client and send the invitation?",
     "registerConfirmBody": "An invitation email will be sent to {{email}}. A sent email cannot be taken back.",
-    "registerConfirmNoEmail": "This only registers the client. There is no email address, so no invitation will be sent."
+    "registerConfirmNoEmail": "This only registers the client. There is no email address, so no invitation will be sent.",
+    "more": "More",
+    "restoreToInbox": "Move back to inbox",
+    "ensureClientTitle": "Register as a client and continue?",
+    "ensureClientBody": "Registers {{who}} as a client, then continues. No invitation email is sent.",
+    "ensureClientBodyNoEmail": "Registers them as a client, then continues. No invitation email is sent.",
+    "ensureClientConfirm": "Register and continue"
   },
   "record": {
     "kind": {

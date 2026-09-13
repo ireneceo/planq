@@ -208,7 +208,7 @@ export default function SalePage() {
         businessId ? (
           <SaleInboxList businessId={businessId} q={q} refreshKey={inboxRefresh}
             onRegistered={() => { setInboxRefresh((n) => n + 1); load({ silent: true, page: 1 }); }}
-            onOpenClient={(id) => setPanelClientId(id)} />
+            />
         ) : null
       ) : (
       <>

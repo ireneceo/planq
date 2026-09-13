@@ -1109,3 +1109,61 @@ Irene: *"확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q 
 > `help@gitconsulting.group`(id=38 · account 32 · biz 3)을 등록했다. 코드 변경이 아니라 **데이터**다.
 > Fable 은 이 등록이 타당한지도 판단해야 한다 — 그 주소가 실제로 워크스페이스 3 의 수신 주소가
 > 아니라면 **발신 축까지 넓어져**(isSelfSender) 그 주소에서 온 진짜 문의가 강등된다.
+
+---
+
+## 26. Q sale 우측 패널 **한 벌** + 우측 드로어 스크롤 계약 변경 (2026-09-13, 미커밋)
+
+**판정: R=1** — ① 화면이 **원장을 만든다**(첫 액션 자동 등록 → `clients` 행 + `prospects_max` 한도 소모 +
+`client_stage_history`) ② 그 경로가 **외부 발송(초대 메일)에 인접**하다 — 한 줄만 틀리면 "기록을 남겼을 뿐인데
+고객에게 메일이 나간다" 가 된다 ③ `components/Common/DetailDrawer.tsx` 는 **18개 화면 공통 프리미티브**이고
+거기서 **접근성 계약(배경 스크롤 잠금)을 뺐다**.
+
+### 무엇을 만들었나
+- **패널 단일화** — `ClientPanel` 의 `isInquiry` 두 벌 분기 제거. 상담/확인필요/고객 어디서 열든 한 벌.
+  문의는 상단 박스(`client-panel-inquiry-box`), 아래는 고객 패널 그대로. 이름은 **헤더에만**(본문 중복 제거).
+- **첫 액션 자동 등록** — `withClient(run)` 한 문. 여는 것만으로는 DB 무변경. 저장 액션 첫 클릭에 확인 →
+  `registerInquiryAsClient(..., { invite: false })` → `prospect` 생성 → 그 액션 이어서 실행.
+  **자동 등록은 초대 메일을 보내지 않는다**(명시적 [고객으로 등록]만 `invite: true`).
+- **프로필 추출** — `components/QSale/ClientProfileForm.tsx`(신규). 전체 프로필(`/sale/:id`)과 패널이 같은 폼.
+  패널에서 **수정**된다(AutoSaveField · `key` 로 대상 구분).
+- **히스토리 전체** — `before` 커서 + 더 보기. "전체 히스토리 보기" 링크 제거. `balanced` 제거(커서와 상충).
+- **푸터** `ActionButton` **19 → 4** (기록·다음 연락·업무 + `OverflowMenu`). 실측 65px 한 줄.
+- **라벨 전수 분기** — `viewInLabel()` 이 `ref.kind` 전수. 모르는 kind 는 kind 이름 그대로(기본값으로 안 숨는다).
+  `action.viewIn.{client,guest}` ko/en 추가. "되돌리기" → "상담으로 되돌리기".
+- **§N.4 스크롤 계약** — `DetailDrawer` 에서 `useBodyScrollLock` 제거 + 백드롭이 받은 휠·터치를
+  밑의 스크롤 컨테이너로 넘기는 `usePassThroughScroll`(React onWheel 은 passive 라 직접 addEventListener) +
+  Body `overscroll-behavior: contain`. **가운데 모달(`UI/Modal`)은 제외.** CLAUDE.md 문구도 같이 고쳤다.
+- **신규 카나리** `scripts/e2e/canary-sale-panel.js` + run.js 등록(`--suite salepanel`).
+
+### 자체 검증 (Fable 미검증 — 숫자)
+- 빌드 EXIT 0 · `error TS` 0 · `guard-invariants` **54/54 EXIT 0** · `health-check` **44/44**
+- e2e `salepanel,detailopen,drafts,inboxcount` — **106/106 · 총 실패 0**
+- **양성 대조군 성립**: 옛 `useBodyScrollLock` 을 되살려 실제 빌드·배포하니 ⑥(스크롤 통과)이 **❌ 로 뒤집혔고**,
+  "패널 닫힘" 대조군은 초록 유지 → 검사기가 회귀를 실제로 잡는다.
+- 실HTTP 등록 왕복 **10/10** — 등록 시 이메일이 `invite_email`·상세 `email`·목록 행 `email` 에 모두 반영 ·
+  등록자/시각 기록 · `invite_token` 비노출. **원복 확인**: client 하드 삭제 · `email_threads.client_id` null 복귀 ·
+  상담 total **889 → 889** · 테스트 스크립트 삭제(잔존 0).
+
+### 내 검사가 이번에 두 번 거짓말했다 (Fable 이 참고할 것)
+1. **대조군 빌드가 TS6133 으로 실패**했는데 래퍼의 `echo EXIT=$?` 가 **0 으로 보이게** 해서
+   "대조군이 안 뒤집힌다 = 검사기가 거짓 초록" 이라고 오판했다. 옛 자산이 그대로 서빙되고 있었다.
+   → 함수를 지우지 말고 **끄는 방식**(`usePassThroughScroll(ref, false)`)으로 다시 만들어 성립시켰다.
+2. 대기 셸의 `pgrep -f "tsc -b|vite build"` 가 **자기 명령어 문자열에 매칭**돼 빌드 상태를 오판했다.
+
+### ★ Fable 이 봐야 할 것 (내가 못 가른 지점)
+1. **자동 등록이 정말 메일을 안 보내는가** — 가장 비가역. `{ invite: false }` 분기가 실호출에서도
+   `/api/clients/:biz/invite` 를 안 부르는지. (나는 UI 에서 "확인 전 POST 0건" 만 쟀고, **확인을 누른 뒤**의
+   호출은 원장 오염을 피하려고 안 쟀다 — 그 반쪽이 비어 있다.)
+2. **`autoId` 가 대상 전환 때 지워지는가** — 문의 A 자동 등록 → 문의 B 를 열었을 때 B 에 A 의 고객이 안 붙는가.
+   의존은 `[clientId, inquiryKey]` 인데 `inquiryKey` 는 `ref.kind:ref.id` 다. 같은 ref 로 다른 대상이 올 수 있는가?
+3. **확인창 취소 후 `pendingRef` 가 남는가** — 취소 뒤 다른 버튼을 누르면 앞 버튼 동작이 터지지 않는가.
+4. **카나리 커버리지 공백** — dev 상담 889건이 **전부 메일**이라 라벨 전수 분기의 guest/client/chat 가지는
+   이 실행에서 **미측정**이다. 픽스처를 만들어 재야 하는지 판단해 달라.
+5. **드로어 계약 변경의 18개 화면 파급** — ⓐ가운데 모달은 여전히 잠그는가 ⓑ폰(≤640px) 전체화면 드로어에서
+   `overscroll-behavior: contain` 이 실제로 먹는가 ⓒ백드롭 클릭 닫기 생존 ⓓ포털 팝오버(OverflowMenu·
+   ChipPopover·PlanQSelect)가 패널 안에서 눌리는가. 나는 Q sale 한 화면에서만 쟀다.
+6. **`ClientProfileForm` 추출이 `/sale/:id` 자동저장을 깨지 않았는가** — 이름 변경 시 PATCH **정확히 1건**.
+   나는 패널 쪽만 코드로 확인했고 실측하지 않았다.
+
+**Fable 호출 2회 모두 HTTP 429(한도 초과)** — 마커 `by:"unavailable"`. 보고에는 **"Fable 미검증(자체 검증)"**.

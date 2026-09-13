@@ -33,8 +33,6 @@ interface Props {
   businessId: number;
   /** 부모가 올리면 목록을 다시 읽는다 — 문의를 추가하면 **이 목록에** 들어와야 한다 */
   refreshKey?: number;
-  /** 등록된 상담(고객) 행을 누르면 부모의 고객 패널을 연다 — 패널이 두 벌이 되지 않게 */
-  onOpenClient?: (clientId: number) => void;
   /** 상단 검색어 — 목록 필터에 그대로 넘긴다(서버가 제목·상대·미리보기에서 찾는다) */
   q: string;
   /** 고객으로 등록이 끝나면 고객 탭 숫자가 바뀐다 — 부모가 다시 읽는다 */
@@ -43,7 +41,7 @@ interface Props {
 
 const SOURCES: Array<SaleInboxSource | ''> = ['', 'guest_link', 'email', 'chat'];
 
-const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegistered, onOpenClient }) => {
+const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegistered }) => {
   const { t } = useTranslation('qsale');
   const navigate = useChromeNav();
   const { formatDateTime, formatTimeAgo } = useTimeFormat();
@@ -129,6 +127,23 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
   // 원본으로 — 채팅은 대화방, 메일은 그 스레드. 보던 화면을 덮지 않게 새 탭 규칙을 따른다.
   const openRow = useCallback((it: SaleInboxItem) => { navigate(it.open_path); }, [navigate]);
 
+  // [보기] 라벨 — **어디로 가는지**를 말한다.
+  //   ★ 2026-09-13 (Irene: *"sale 리스트에 채팅이 아닌데 채팅보기가 나와. 이상한데로 보내고."*)
+  //     여태 `source === 'email' ? 'mail' : 'chat'` **이분법**이라 `client`·`guest_link`·`dismissed`
+  //     가 전부 "채팅 보기" 로 떨어졌다. 목적지는 서버가 준 `open_path` 인데 라벨만 거짓이었다.
+  //   ★ 목적지의 진실은 `ref.kind` 다(source 는 표시 축이다 — 보관함 행도 원본은 메일 스레드다).
+  //     전수 분기이고 **기본값으로 조용히 떨어뜨리지 않는다**(CLAUDE.md 상태값 규약):
+  //     새 kind 가 생기면 그 kind 이름이 그대로 보여 바로 눈에 띈다.
+  const viewInLabel = useCallback((it: SaleInboxItem): string => {
+    const key = it.ref.kind === 'email_thread' ? 'mail'
+      : it.ref.kind === 'client' ? 'client'
+        : it.ref.kind === 'guest_link' ? 'guest'
+          : it.ref.kind === 'conversation' ? 'chat'
+            : null;
+    if (!key) return it.ref.kind;
+    return t(`action.viewIn.${key}`) as string;
+  }, [t]);
+
   // 고객으로 등록 — 기존 라우트를 그대로 부른다(서버가 중복 연결·한도까지 판정한다)
   const registerClient = useCallback(async (it: SaleInboxItem) => {
     if (busyId) return;
@@ -145,13 +160,19 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
       onRegistered?.();
       // ★ 페이지로 튕기지 않는다 — 맥락을 잃는다. 방금 만든 고객을 **우측 패널**로 이어 보여준다.
       //   이때 문의 패널은 닫는다. 안 닫으면 고객 패널 위에 옛 문의 패널이 겹쳐 남는다.
-      if (res.clientId) { setSelected(null); onOpenClient?.(res.clientId); }
+      // 등록되면 **같은 패널이 그 자리에서 고객 쪽으로 채워진다** — 닫았다 다시 열게 하지 않는다.
+      //   ★ 열려 있는 `selected` 는 등록 **전**의 행이다(client_id 가 비어 있다). 다시 읽은 목록으로
+      //     갈아끼우지 않으면 패널은 계속 "미등록 문의" 로 남는다 — 사용자에겐 "등록했는데 그대로" 다.
+      if (res.clientId) {
+        const newId = res.clientId;
+        setSelected((v) => (v && v.id === it.id ? { ...v, client_id: newId } : v));
+      }
     } catch {
       setActionError(t('error.loadFailed') as string);
     } finally {
       setBusyId(null);
     }
-  }, [busyId, businessId, load, onOpenClient, onRegistered, t]);
+  }, [busyId, businessId, load, onRegistered, t]);
 
   // 보관함에서 되돌리기 — 되돌리면 그 행은 보관함에서 빠지고 상담으로 돌아간다.
   const restoreItem = useCallback(async (it: SaleInboxItem) => {
@@ -232,8 +253,9 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
               <Row key={it.id} data-testid={`sale-inbox-row-${it.id}`}>
                 <RowMain type="button" $sel={selectedId === it.id}
                   onClick={() => {
-                    // 등록된 상담(고객)은 **고객 패널**로, 미등록 문의는 이 목록의 문의 패널로.
-                    if (it.ref.kind === 'client' && onOpenClient) { onOpenClient(it.ref.id); return; }
+                    // ★ 2026-09-13 — 행이 무엇이든 **같은 패널**을 연다(Irene: "상담에서 열든 고객에서
+                    //   열든 우측 패널은 고객에서 연 창이야"). 등록된 상담이면 고객 id 가 같이 실리고,
+                    //   미등록이면 문의 박스만 있는 같은 패널이 열린다. 재클릭은 해제(CLAUDE.md).
                     setSelected((v) => (v && v.id === it.id ? null : it));
                   }}
                   aria-pressed={selectedId === it.id}>
@@ -263,13 +285,16 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
                   <ActionButton tone="secondary" size="sm" disabled={busy}
                     data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}>
                     <OutIcon aria-hidden />
-                    {t(`action.viewIn.${it.source === 'email' ? 'mail' : 'chat'}`) as string}
+                    {viewInLabel(it)}
                   </ActionButton>
                   {/* 보관함 행은 등록이 아니라 **되돌리기**다 — 사람의 판단을 되돌릴 길이 있어야 한다. */}
                   {it.source === 'dismissed' ? (
                     <ActionButton tone="primary" size="sm" disabled={busy}
                       data-testid={`sale-inbox-restore-${it.id}`} onClick={() => restoreItem(it)}>
-                      {t('action.restore') as string}
+                      {/* ★ "되돌리기" 만 적으면 **등록의 취소**로 읽힌다(Irene: "되돌리기 고객으로
+                          등록은 뭐야? 등록하면 등록하는 거지"). 무엇을 되돌리는지 적는다 —
+                          이 버튼은 보관함(문의 아님) 행에만 있고, 등록에는 취소가 없다. */}
+                      {t('action.restoreToInbox') as string}
                     </ActionButton>
                   ) : it.ref.kind !== 'conversation' && it.ref.kind !== 'client' && (
                     <ActionButton tone="primary" size="sm" disabled={busy}
@@ -324,10 +349,14 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
           화면을 따로 만들면 필드가 갈라진다(2026-09-12 박제). */}
       <ClientPanel
         businessId={businessId}
-        clientId={null}
+        /* 등록된 상담이면 고객 id 가 있다 — 같은 패널이 고객 쪽으로 채워진다.
+           ★ `client_id` 를 먼저 본다: 게스트 링크가 나중에 고객에 붙은 행은 ref 가 여전히
+             guest_link 이지만 고객은 이미 있다(그때 문의 박스 + 고객 내용이 함께 보여야 한다). */
+        clientId={selected ? (selected.client_id ?? (selected.ref.kind === 'client' ? selected.ref.id : null)) : null}
         inquiry={selected ? inquiryViewOf(selected) : null}
         registerBusy={!!selected && busyId === selected.id}
         onClose={() => setSelected(null)}
+        onChanged={() => { void load({ silent: true }); }}
         onRegister={() => { if (selected) void registerClient(selected); }}
       />
     </>

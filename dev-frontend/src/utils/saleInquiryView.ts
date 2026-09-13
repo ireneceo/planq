@@ -13,6 +13,9 @@ import type { InquiryView } from '../components/QSale/ClientPanel';
 
 export function inquiryViewOf(it: SaleInboxItem): InquiryView {
   return {
+    // 원본 참조 — 패널이 **첫 액션에서 자동 등록**할 때 그대로 서버로 넘긴다.
+    //   이것이 없으면 패널은 등록을 스스로 못 해 부모의 onRegister 에만 매달린다(= 자리마다 갈라진다).
+    ref: it.ref,
     who: it.who,
     email: it.email,
     company: it.company,
