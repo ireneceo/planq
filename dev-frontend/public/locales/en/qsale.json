@@ -130,7 +130,9 @@
     "notInquiryHint": "Removes it from consultations and marks the mail as automated (also applied in Q mail).",
     "createContract": "Create contract",
     "contractTitle": "Contract",
-    "inviteNoEmail": "No email on file — add one in settings to invite"
+    "inviteNoEmail": "No email on file — add one in settings to invite",
+    "inviteConfirmTitle": "Send the invitation?",
+    "inviteConfirmBody": "An invitation email will be sent to {{email}}. A sent email cannot be taken back."
   },
   "record": {
     "kind": {

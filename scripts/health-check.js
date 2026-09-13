@@ -43,7 +43,7 @@ const path = require('path');
 //   안 적으면 test() 가 등록 시점에 죽는다(fail-closed).
 const CATEGORIES = [
   'infra', 'auth', 'security', 'qnote', 'voice', 'external',
-  'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly', 'retention',
+  'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly', 'retention', 'secrets',
 ];
 
 const args = process.argv.slice(2);
@@ -1043,6 +1043,35 @@ function defineRetentionTests() {
   });
 }
 
+// ============================================
+// 카테고리: secrets — 자격증명이 응답에 실리지 않는가
+// ============================================
+function defineSecretTests() {
+  // ★ 2026-09-13 실측 — `GET /api/clients/:biz` 가 `c.toJSON()` 을 그대로 내보내 **초대 토큰**이
+  //   목록·상세 양쪽에 실려 나갔다. 그 토큰은 `POST /api/auth/register` 가 "그 고객으로" 계정을
+  //   붙이는 자격증명이다. 필드를 내리는 수정은 한 줄이라 **조용히 되돌아온다** — 그래서 게이트에 붙인다.
+  //   판정은 응답 **원문 문자열**로 한다(키 이름만 보면 중첩·새 경로에서 빠져나간다).
+  test('secrets', '고객 응답에 초대 토큰이 실리지 않는다 (목록·상세)', async () => {
+    // 단독 실행(`--category=secrets`)에서도 돌아야 한다 — 안 그러면 양성 대조군이 401 로 실패해
+    // "검사가 잡았다" 와 "준비가 안 됐다" 가 구별되지 않는다(2026-09-13 실제로 그랬다).
+    await setup();
+    const list = await http('GET', `${BACKEND}/api/clients/${ctx.businessId}`, {
+      headers: { Authorization: `Bearer ${ctx.token}` },
+    });
+    const rows = Array.isArray(list.data) ? list.data : [];
+    if (rows.length === 0) throw new Error('고객이 0건 — 빈 응답으로는 "안 샌다" 를 증명할 수 없다');
+    const det = await http('GET', `${BACKEND}/api/clients/${ctx.businessId}/${rows[0].id}`, {
+      headers: { Authorization: `Bearer ${ctx.token}` },
+    });
+    const raw = JSON.stringify(list) + JSON.stringify(det);
+    if (raw.includes('invite_token')) throw new Error('응답에 invite_token 이 실려 있다 — 고객 목록 읽기 권한만으로 초대 링크를 얻는다');
+    // 양성 대조군 — 같은 응답이 쓸 값(보낼 주소)은 그대로 와야 한다. 통째로 비어 거짓 통과하는 것을 막는다.
+    const hasUsable = rows.some((r) => 'invite_email' in r) && !!det.data && 'display_name' in det.data;
+    if (!hasUsable) throw new Error('토큰은 없지만 invite_email·display_name 도 없다 — 응답이 통째로 비었을 가능성(거짓 통과)');
+    return `목록 ${rows.length}행 · 상세 1건 — 토큰 0 · 쓸 필드 유지`;
+  });
+}
+
 function defineDateOnlyTests() {
   test('dateonly', 'DATEONLY 비교 전 정규화 (dev/운영 타입 차이)', async () => {
     // ★ DB 조회는 백엔드 cwd 의 별도 프로세스로 — 이 스크립트에는 DB 환경변수가 없다(다른 검사와 동일 패턴).
@@ -1239,6 +1268,7 @@ async function runTests(allTests, category) {
   defineRealtimeTests();
   defineDateOnlyTests();
   defineRetentionTests();
+  defineSecretTests();
 
   const allPass = await runTests(tests, opts.category);
   process.exit(allPass ? 0 : 1);

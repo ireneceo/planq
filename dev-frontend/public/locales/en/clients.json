@@ -144,7 +144,10 @@
     "resend": "Resend invite",
     "resending": "Sending…",
     "resent": "Invite resent",
-    "invitedAt": "Invited: {{when}}"
+    "invitedAt": "Invited: {{when}}",
+    "resendConfirmTitle": "Send the invitation again?",
+    "resendConfirmBody": "Another invitation email will go to {{email}}. Sent email cannot be recalled.",
+    "noEmail": "No address to send to — add an email to this client"
   },
   "subscription": {
     "title": "Recurring subscription",

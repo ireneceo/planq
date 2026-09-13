@@ -34,6 +34,9 @@ import { belowTabs } from '../../theme/layout';
 import DetailFallback from '../../components/Common/DetailFallback';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
+// 초대 재발송도 **되돌릴 수 없는 외부 발송**이다 — 누르기 전에 묻는다(Irene 2026-09-12 "확인을 받아").
+//   이 파일 안의 `ConfirmDialog` 는 삭제 확인용 **styled.div** 라 이름이 겹친다 → 공용 창은 별칭으로 가져온다.
+import AskDialog from '../../components/Common/ConfirmDialog';
 
 // 'prospect' = Q sale 문의 고객(게스트로 정보만 저장 · 초대 전). 계정·관계 축의 값이다.
 //   ★ 새 상태값을 해석하는 곳은 전수로 고친다 — 삼항 사슬 끝(기본값)에 떨어지면 그게 곧 버그다.
@@ -64,6 +67,8 @@ interface ClientRow {
   active_project_count?: number;
   invited_at: string | null;
   reinvite_count?: number;  // 운영 #52
+  /** 초대 메일이 **실제로 나가는 주소**. 아직 가입 전이면 `user` 가 없어 이 값만이 근거다. */
+  invite_email?: string | null;
   created_at: string;
   user?: { id: number; name: string; email: string; phone: string | null; avatar_url?: string | null };
   linked_projects?: Array<{ id: number; name: string; status: string; color: string | null; project_type?: string; project_client_id: number }>;
@@ -320,6 +325,7 @@ export default function ClientsPage() {
   // 초대 재발송 (invited 상태 고객) — 메일 다시 보내기
   const [resendBusy, setResendBusy] = useState(false);
   const [resendDone, setResendDone] = useState(false);
+  const [resendAsk, setResendAsk] = useState(false);
   const resendInvite = async (id: number) => {
     if (resendBusy) return;
     setResendBusy(true); setResendDone(false);
@@ -659,9 +665,22 @@ export default function ClientsPage() {
                     {(activeDetail.reinvite_count ?? 0) > 0 && ` · ${t('clients.resentCount', { count: activeDetail.reinvite_count, defaultValue: `재발송 ${activeDetail.reinvite_count}회` }) as string}`}
                   </InviteMeta>
                 </InviteBannerText>
-                <ResendBtn type="button" onClick={() => resendInvite(activeDetail.id)} disabled={resendBusy || !isAdmin}>
+                <ResendBtn type="button" onClick={() => setResendAsk(true)}
+                  disabled={resendBusy || !isAdmin || !activeDetail.invite_email}
+                  title={activeDetail.invite_email ? undefined : (t('invitePending.noEmail') as string)}>
                   {resendBusy ? t('invitePending.resending', '보내는 중…') : resendDone ? t('invitePending.resent', '재발송 완료') : t('invitePending.resend', '초대 재발송')}
                 </ResendBtn>
+                {/* 주소를 **보여주고** 묻는다 — "정말?" 만 묻는 창은 확인이 아니다 */}
+                <AskDialog
+                  isOpen={resendAsk}
+                  title={t('invitePending.resendConfirmTitle') as string}
+                  message={t('invitePending.resendConfirmBody', { email: activeDetail.invite_email || activeDetail.user?.email || '—' }) as string}
+                  confirmText={t('invitePending.resend') as string}
+                  cancelText={t('deleteModal.cancel') as string}
+                  variant="info"
+                  onClose={() => setResendAsk(false)}
+                  onConfirm={() => { setResendAsk(false); void resendInvite(activeDetail.id); }}
+                />
               </InviteBanner>
             )}
 

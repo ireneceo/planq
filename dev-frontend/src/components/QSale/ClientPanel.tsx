@@ -31,6 +31,8 @@ import ClientTimeline from '../Clients/ClientTimeline';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
 import LostReasonModal from './LostReasonModal';
+// 초대는 **되돌릴 수 없다**(고객에게 메일이 나간다) — 누르기 전에 묻는다(Irene 2026-09-12: "확인을 받아")
+import ConfirmDialog from '../Common/ConfirmDialog';
 // 상담 관리의 다음 액션 — 상세 페이지와 **같은 창**을 쓴다(자리마다 다른 동작을 만들지 않는다)
 import RecordModal from './RecordModal';
 import NextContactModal from './NextContactModal';
@@ -113,6 +115,7 @@ const ClientPanel: React.FC<Props> = ({
   // 다음 액션 — 메모(상담 기록) · 다음 연락(일정) · 업무 추가. 청구·프로젝트는 그 화면으로 넘긴다.
   const [recordOpen, setRecordOpen] = useState(false);
   const [nextOpen, setNextOpen] = useState(false);
+  const [inviteAsk, setInviteAsk] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
   // 히스토리 — 최근 것 몇 건만. 전체는 전체보기(상세)에서 본다.
   const [items, setItems] = useState<TimelineItem[]>([]);
@@ -388,7 +391,7 @@ const ClientPanel: React.FC<Props> = ({
           <ActionButton tone="secondary" size="md" disabled={busy || !inviteEmail}
             data-testid="client-panel-invite"
             title={inviteEmail ? undefined : (t('action.inviteNoEmail') as string)}
-            onClick={sendInvite}>
+            onClick={() => setInviteAsk(true)}>
             {t('action.invite') as string}
           </ActionButton>
         )}
@@ -415,6 +418,17 @@ const ClientPanel: React.FC<Props> = ({
             clientName={name || '—'}
             onClose={() => setNextOpen(false)}
             onSaved={() => { setNextOpen(false); void reload(); }} />
+          {/* ★ 발송 전 확인 — 주소를 **보여주고** 묻는다. "정말?" 만 묻는 창은 확인이 아니다. */}
+          <ConfirmDialog
+            isOpen={inviteAsk}
+            title={t('action.inviteConfirmTitle') as string}
+            message={t('action.inviteConfirmBody', { email: inviteEmail }) as string}
+            confirmText={t('action.invite') as string}
+            cancelText={t('inquiry.cancel') as string}
+            variant="info"
+            onClose={() => setInviteAsk(false)}
+            onConfirm={() => { setInviteAsk(false); void sendInvite(); }}
+          />
           {taskOpen && (
             <TaskCreateForm businessId={businessId} layout="drawer"
               onClose={() => setTaskOpen(false)} onCreated={() => setTaskOpen(false)} />

@@ -89,6 +89,31 @@ async function goto(page, path) {
  * 응답을 기다리는 이유는 호출부의 원복과 경합하지 않기 위해서다(파일 상단 주석 참조).
  */
 async function clickAndSave(page, handle, urlPart, expect) {
+  // ★ 2026-09-12 — **누르기 전에 그 좌표가 내 것인지 본다.**
+  //   실측: 출근 자동기록 모달이 떠 있어 첫 클릭이 **백드롭에 먹히고** 토글엔 닿지도 않았는데,
+  //   판정은 "저장이 10초 안에 안 갔다" 라고 말했다. 제품이 고장난 것과 구별되지 않는 사유다
+  //   (라벨 글자를 누르면 all_day:true 가 정확히 저장됐다 — 제품은 정상이었다).
+  //   memory feedback_clipped_menu_reads_as_dead_button 과 같은 계열.
+  //   ★ **클릭과 같은 렌즈로 재야 한다** — puppeteer 는 누르기 전에 스크롤해서 올린다.
+  //     스크롤 없이 재면 접힌 아래쪽 컨트롤이 전부 "화면 밖" 으로 오탐된다(실측 3건).
+  await handle.evaluate((el) => el.scrollIntoView({ block: 'center', inline: 'center' }));
+  await sleep(400);
+  const covered = await page.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return { why: '크기 0 — 그려지지 않았다' };
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (cx < 0 || cy < 0 || cx > innerWidth || cy > innerHeight) return { why: `스크롤해도 화면 밖이다 (${Math.round(cx)},${Math.round(cy)} / ${innerWidth}x${innerHeight})` };
+    const top = document.elementFromPoint(cx, cy);
+    if (!top) return { why: '그 좌표에 아무것도 없다' };
+    if (top === el || el.contains(top) || top.contains(el)) return null;  // 래퍼/자식은 정상
+    const cs = getComputedStyle(top);
+    return {
+      why: `다른 층에 덮여 있다 — <${top.tagName.toLowerCase()}> "${(top.textContent || '').trim().slice(0, 24)}" `
+         + `z=${cs.zIndex} pos=${cs.position}${top.closest('[aria-modal="true"]') ? ' (열린 모달)' : ''}`,
+    };
+  }, handle);
+  if (covered) return { ok: false, reason: covered.why };
+
   const pending = page.waitForResponse((res) => {
     const req = res.request();
     if (!req.url().includes(urlPart) || !['PUT', 'PATCH'].includes(req.method())) return false;
@@ -149,6 +174,14 @@ async function checkAllDayToggle() {
       domain: new URL(FRONT).hostname, path: '/', httpOnly: true, secure: FRONT.startsWith('https'),
     });
     const ok = await goto(page, `/calendar?event=${id}`);
+    // 출근 자동기록 알림(StandardModal)은 전면 백드롭이라 뒤의 토글을 가린다.
+    //   브라우저를 새로 띄우므로 localStorage 박제가 없어 **매 회차 뜬다** — 먼저 확인해 닫는다.
+    for (let i = 0; i < 3; i++) {
+      const ok2 = await page.$('[data-testid="attn-auto-ok"]');
+      if (!ok2) break;
+      await ok2.click();
+      await sleep(800);
+    }
     // 드로어는 목록 로드 뒤에 열린다 — 나타날 때까지 폴링(한 번 보고 끝내면 이른 순간을 읽는다).
     let box = null;
     for (let i = 0; i < 10 && !box; i++) {

@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import ReactDOM from 'react-dom';
 import styled from 'styled-components';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 
 export const ModalOverlay = styled.div`
   position: fixed;
@@ -227,6 +230,14 @@ interface ModalComponentProps {
 const ModalComponentInternal: React.FC<ModalComponentProps> = ({
   isOpen, onClose, title, children, footer, maxWidth, size = 'medium', headerActions, zIndex
 }) => {
+  const contentRef = useRef<HTMLDivElement>(null);
+  // ★ 2026-09-12 — 접근성 훅 3종이 **하나도 없었다**(CLAUDE.md '드로어 접근성' 필수).
+  //   Esc 로 닫히지 않고, 열린 동안 배경이 스크롤되고, Tab 이 뒤 화면으로 새어 나갔다.
+  //   훅은 early return **위**에 둔다 — 아래에 두면 닫힐 때 훅 수가 달라져 React 가 깨진다.
+  useBodyScrollLock(isOpen);
+  useEscapeStack(isOpen, onClose);
+  useFocusTrap(contentRef, isOpen);
+
   if (!isOpen) return null;
 
   const getMaxWidth = () => {
@@ -240,7 +251,17 @@ const ModalComponentInternal: React.FC<ModalComponentProps> = ({
 
   const modalContent = (
     <ModalOverlay onClick={onClose} style={zIndex ? { zIndex } : undefined}>
-      <ModalContent style={{ maxWidth: getMaxWidth() }} onClick={e => e.stopPropagation()}>
+      {/* ★ 2026-09-12 — `role="dialog"` + `aria-modal` 이 **없었다.** 스크린리더가 대화상자로 알리지 않고,
+          검사 하니스도 `[aria-modal="true"]` 로 스코핑할 수 없어 "확인창이 떴는지" 를 못 쟀다
+          (CLAUDE.md §17 — 모달 루트에 aria-modal 필수). 이 모달은 ConfirmDialog 등 여러 곳이 쓴다. */}
+      <ModalContent
+        ref={contentRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={typeof title === 'string' ? title : undefined}
+        style={{ maxWidth: getMaxWidth() }}
+        onClick={e => e.stopPropagation()}
+      >
         <ModalHeader>
           <ModalTitle>{title}</ModalTitle>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

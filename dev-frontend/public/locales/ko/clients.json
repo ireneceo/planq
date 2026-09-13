@@ -144,7 +144,10 @@
     "resend": "초대 재발송",
     "resending": "보내는 중…",
     "resent": "재발송 완료",
-    "invitedAt": "초대: {{when}}"
+    "invitedAt": "초대: {{when}}",
+    "resendConfirmTitle": "초대 메일을 다시 보낼까요?",
+    "resendConfirmBody": "{{email}} 으로 초대 메일이 다시 나갑니다. 보낸 메일은 되돌릴 수 없습니다.",
+    "noEmail": "보낼 주소가 없습니다 — 고객 정보에 이메일을 넣어주세요"
   },
   "subscription": {
     "title": "정기 구독",

@@ -130,7 +130,9 @@
     "notInquiryHint": "이 메일을 상담에서 내리고 자동 발송으로 분류합니다(Q mail 에서도 같이 반영).",
     "createContract": "계약서 만들기",
     "contractTitle": "계약서",
-    "inviteNoEmail": "이메일이 없어 초대할 수 없습니다 — 설정에서 주소를 넣어주세요"
+    "inviteNoEmail": "이메일이 없어 초대할 수 없습니다 — 설정에서 주소를 넣어주세요",
+    "inviteConfirmTitle": "초대 메일을 보낼까요?",
+    "inviteConfirmBody": "{{email}} 으로 초대 메일이 나갑니다. 보낸 메일은 되돌릴 수 없습니다."
   },
   "record": {
     "kind": {

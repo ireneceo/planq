@@ -18,6 +18,20 @@ function broadcastClient(req, client, event = 'client:updated') {
 // List clients for a business
 // 프로젝트 매칭은 ProjectClient.contact_user_id = Client.user_id 로 통일 (FK 기반).
 // email/name 문자열 매칭 폐기 — 고객이 이름/이메일 변경 시 연결이 끊기거나 동명이인 혼선 제거.
+// ★ 2026-09-13 — **초대 토큰은 응답에 실리지 않는다.**
+//   `c.toJSON()` 을 그대로 내보내서 `invite_token` 이 목록·상세 양쪽에 실려 나갔다(실측).
+//   이 토큰은 초대 링크의 자격증명이다 — `POST /api/auth/register` 가 이 값으로 "그 고객으로"
+//   계정을 붙인다(routes/auth.js:242, routes/invites.js). 고객 목록 읽기 권한만 있으면
+//   남의 고객 계정을 먼저 만들어 그 고객의 대화·자료로 들어갈 수 있었다.
+//   화면은 이 필드를 **한 곳도 쓰지 않는다**(프론트 grep: 프로젝트 고객·가입 폼만 사용).
+//   열거식이라 컬럼이 늘면 샌다 — 그래서 health-check 에 "응답에 토큰 없음" 검사를 같이 붙였다.
+const CLIENT_SECRET_FIELDS = ['invite_token'];
+function stripClientSecrets(json) {
+  if (!json || typeof json !== 'object') return json;
+  for (const k of CLIENT_SECRET_FIELDS) delete json[k];
+  return json;
+}
+
 router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const clients = await Client.findAll({
@@ -36,7 +50,7 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
       const linked = c.user_id ? pcRows.filter((pc) => pc.contact_user_id === c.user_id) : [];
       json.project_count = linked.length;
       json.active_project_count = linked.filter((pc) => pc.Project?.status === 'active').length;
-      return json;
+      return stripClientSecrets(json);
     });
     successResponse(res, enriched);
   } catch (error) {
@@ -133,7 +147,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       newValue: { user_id, display_name, company_name },
     });
     broadcastClient(req, client, 'client:new');
-    successResponse(res, client, 'Client invited', 201);
+    successResponse(res, stripClientSecrets(client.toJSON()), 'Client invited', 201);
   } catch (error) {
     next(error);
   }
@@ -183,7 +197,7 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
       project_id: c.project_id, last_message_at: c.last_message_at,
     }));
 
-    const out = client.toJSON();
+    const out = stripClientSecrets(client.toJSON());
     out.linked_projects = projects;
     out.linked_conversations = conversations;
     successResponse(res, out);
@@ -223,14 +237,14 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
       if (nv !== client.is_business) { patch.is_business = nv; before.is_business = client.is_business; }
     }
 
-    if (Object.keys(patch).length === 0) { broadcastClient(req, client, 'client:updated'); return successResponse(res, client); }
+    if (Object.keys(patch).length === 0) { broadcastClient(req, client, 'client:updated'); return successResponse(res, stripClientSecrets(client.toJSON())); }
     await client.update(patch);
     await createAuditLog({
       userId: req.user.id, businessId: req.params.businessId,
       action: 'client.updated', targetType: 'client', targetId: client.id,
       oldValue: before, newValue: patch,
     });
-    successResponse(res, client);
+    successResponse(res, stripClientSecrets(client.toJSON()));
   } catch (error) { next(error); }
 });
 
@@ -280,7 +294,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, ...pe
       if (dup) {
         if (dup.status === 'archived') {
           await dup.update({ status: 'invited', display_name: name.trim(), company_name: company_name?.trim() || dup.company_name, notes: notes?.trim() || dup.notes });
-          return successResponse(res, dup, 'Re-invited', 200);
+          return successResponse(res, stripClientSecrets(dup.toJSON()), 'Re-invited', 200);
         }
         return errorResponse(res, 'Client already exists', 409);
       }
@@ -318,7 +332,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, ...pe
       // 문의 → 정식 고객으로 한도 계수가 바뀐다. 사용량 캐시(30초)를 비워야 플랜 화면이 바로 맞는다
       try { require('../services/plan').invalidateBusinessCache(req.params.businessId); } catch { /* 캐시일 뿐이다 */ }
       broadcastClient(req, dupByEmail, 'client:updated');
-      return successResponse(res, dupByEmail, 'Client invited', 200);
+      return successResponse(res, stripClientSecrets(dupByEmail.toJSON()), 'Client invited', 200);
     }
     if (dupByEmail && dupByEmail.status !== 'archived') {
       return errorResponse(res, 'Client already exists', 409);
@@ -361,7 +375,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, ...pe
       });
     } catch (e) { console.warn('invite email send failed:', e.message); }
 
-    successResponse(res, created, 'Client invited', 201);
+    successResponse(res, stripClientSecrets(created.toJSON()), 'Client invited', 201);
   } catch (error) { next(error); }
 });
 

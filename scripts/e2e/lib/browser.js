@@ -64,6 +64,27 @@ async function gotoSPA(page, pathname) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * 검사를 가리는 **전면 알림**을 치운다. 2026-09-12 실측 —
+ * 출근 자동기록 알림(`StandardModal`)이 떠 있어 토글·버튼 클릭이 **백드롭에 먹혔고**,
+ * 판정은 "저장이 안 갔다"(=제품 고장과 같은 말)라고 보고했다. 확인 여부는 localStorage 에
+ * 박제되므로 **새 브라우저마다 다시 뜬다** — 하니스는 항상 새 브라우저다.
+ *
+ * ★ `goto()` 안에서 자동으로 부르지 않는다 — `canary-modal-top` 은 **이 알림 자체**가 검사 대상이다.
+ *   무엇을 치울지는 부르는 쪽이 고른다.
+ */
+async function dismissBlockers(page) {
+  const cleared = [];
+  for (let i = 0; i < 3; i++) {
+    const btn = await page.$('[data-testid="attn-auto-ok"]');
+    if (!btn) break;
+    await btn.click().catch(() => null);
+    cleared.push('출근 자동기록 알림');
+    await sleep(700);
+  }
+  return cleared;
+}
+
 // ── 모바일 키보드 가림 판정 ──
 //   focus 후 CDP 로 뷰포트 height 를 KEYBOARD_H 만큼 줄여 iOS 키보드 이벤트 체인 발화
 //   (visualViewport resize → main.tsx update() → data-keyboard-up → ensureFocusedVisible).
@@ -189,4 +210,4 @@ async function visibleInputs(page) {
   return out;
 }
 
-module.exports = { launch, login, goto, gotoSPA, sleep, assertKeyboardSafe, assertRendered, visibleInputs, waitForInputs, BASE, CREDS, MOBILE_VP };
+module.exports = { dismissBlockers, launch, login, goto, gotoSPA, sleep, assertKeyboardSafe, assertRendered, visibleInputs, waitForInputs, BASE, CREDS, MOBILE_VP };
