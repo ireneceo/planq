@@ -144,10 +144,12 @@ const ARTICLES = [
     title: t('고객 초대하기', 'Invite a client'),
     summary: t('고객을 초대해 대화·문서·청구를 공유', 'Invite clients to share chats, documents, and billing'),
     body: [
-      p('고객은 이메일·이름만으로 즉시 초대됩니다. 가입 전에도 청구서·문서를 공유할 수 있습니다.',
+      p('고객은 이메일·이름만으로 초대됩니다. 가입 전에도 청구서·문서를 공유할 수 있습니다.',
         'Clients are invited with just an email and name. You can share invoices and documents even before they sign up.'),
       s('고객 메뉴에서 "고객 초대"를 눌러 이름과 이메일을 입력합니다.', 'In Clients, click "Invite client" and enter their name and email.'),
       s('고객은 웹 링크 클릭만으로 즉시 접속합니다.', 'Clients join instantly by clicking the web link.'),
+      note('초대 메일을 보내기 전에 **어느 주소로 나가는지** 확인창이 한 번 묻습니다. 보낸 메일은 되돌릴 수 없기 때문입니다. 아직 수락하지 않은 고객은 상세에서 [초대 재발송] 으로 다시 보낼 수 있고, 이때도 같은 확인을 받습니다.',
+        'Before an invitation goes out, a dialog asks you to confirm — it shows the exact address, because sent email cannot be recalled. For clients who have not accepted yet, you can use [Resend invitation] in the detail panel; it asks for the same confirmation.'),
     ] },
 
   // ── Q Talk ──
