@@ -1194,6 +1194,22 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     }
     if (progress_percent !== undefined) updates.progress_percent = progress_percent;
     if (category !== undefined) updates.category = category;
+    // 고객 연결 — **이미 있는 업무를 이 고객의 업무로 붙이거나 뗀다**(null 이면 해제).
+    //   생성 경로(POST /api/tasks → taskActions.createTask)는 이미 client_id 를 받는데 수정 경로에는
+    //   없어서, 만들 때 정하지 못한 업무는 영영 고객에 붙일 수 없었다.
+    //   ★ 소속을 확인한다 — 파일(PATCH /api/files)·문서(PUT /api/docs/documents)·행동 계층의 createTask 와
+    //     **같은 술어**다. 남의 워크스페이스 고객 id 를 저장하면 그 업무는 조회에 영영 안 걸린다.
+    if (req.body.client_id !== undefined) {
+      const raw = req.body.client_id;
+      const cid = raw === null || raw === '' ? null : Number(raw);
+      if (cid !== null) {
+        const { Client } = require('../models');
+        const ok = Number.isInteger(cid) && cid > 0
+          && await Client.findOne({ where: { id: cid, business_id: businessId }, attributes: ['id'] });
+        if (!ok) return errorResponse(res, 'invalid_client', 400);
+      }
+      updates.client_id = cid;
+    }
     // (planned_week_start 는 위 날짜 정규화 루프가 넣는다 — 여기서 원본을 다시 쓰면 정규화가 덮인다)
     // #353 ⑤ 중요도 — ENUM 밖 값은 **400 으로 돌려준다.** 조용히 떨구면 사용자는 저장된 줄 안다.
     //   (miss_policy 는 조용히 무시하는 옛 방식인데, 그건 내부 정책 값이고 이건 사용자가 고르는 값이다.)

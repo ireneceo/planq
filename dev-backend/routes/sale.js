@@ -184,7 +184,12 @@ router.get('/:businessId/clients/:clientId', ...readChain, async (req, res, next
     for (const pc of pcs) {
       if (!pc.Project || seen.has(pc.Project.id)) continue;
       seen.add(pc.Project.id);
-      out.projects.push({ id: pc.Project.id, name: pc.Project.name, status: pc.Project.status });
+      // link_id = project_clients 행 id. 연결을 **푸는** 문(DELETE /api/projects/:id/clients/:linkId)이
+      //   고객 id 가 아니라 이 행 id 를 받는다(이름이 :clientId 라 헷갈리지만 where 는 id 로 찾는다).
+      //   이것을 안 실어 보내면 화면은 연결을 걸 수만 있고 풀 수는 없다.
+      out.projects.push({
+        id: pc.Project.id, name: pc.Project.name, status: pc.Project.status, link_id: pc.id,
+      });
     }
 
     // ★ 2026-09-12 (Irene: "설정에서 고객/파트너에 나오는 정보랑 통합해서 제대로 만들어줘") —

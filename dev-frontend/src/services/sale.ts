@@ -50,7 +50,9 @@ export interface StageHistoryRow {
 export interface SaleClientDetail extends SaleClient {
   stage_history: StageHistoryRow[];
   channels: { conversations: number; email_threads: number; guest_links: number };
-  projects: Array<{ id: number; name: string; status: string }>;
+  /** link_id = project_clients 행 id. 연결을 **푸는** 문이 고객 id 가 아니라 이 행 id 를 받는다
+   *  (DELETE /api/projects/:id/clients/:linkId — 이름이 :clientId 라 헷갈리지만 where 는 id 로 찾는다). */
+  projects: Array<{ id: number; name: string; status: string; link_id?: number }>;
   /** 연락처 — 목록은 이메일을 하나로 접지만 상세는 **종류별로** 편다(어떤 주소인지 말할 수 있게) */
   contact?: {
     invite_email: string | null;
