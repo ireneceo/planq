@@ -13,6 +13,7 @@ import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import DailyStartModal from '../../components/Focus/DailyStartModal';
 import CandidateActionModal from '../../components/Focus/CandidateActionModal';
 import EventDrawer from '../../pages/QCalendar/EventDrawer';
+import ClientPanel from '../../components/QSale/ClientPanel';
 import { fetchTodo } from '../../services/dashboard';
 import type { TodoItem, TodoResponse } from '../../services/dashboard';
 import type { CalendarEvent } from '../../pages/QCalendar/types';
@@ -75,6 +76,11 @@ const TodoPage: React.FC = () => {
   // cross-workspace inbox: task 의 정확한 워크스페이스 bizId 추적 (default bizId 와 다를 수 있음)
   const [selectedTaskBizId, setSelectedTaskBizId] = useState<number | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  // ★ 2026-09-13 (Irene: "확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q sale 상담탭에서 열리는
+  //   우측패널을 열어줘… 업무상세 우측패널처럼 이용가능하게 맥락을 맞춰")
+  //   이 페이지는 이미 업무·일정 상세를 **직접** 띄운다 — 영업도 같은 방식이어야 맥락이 맞는다.
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [selectedClientBizId, setSelectedClientBizId] = useState<number | null>(null);
   // 인박스 task_candidate 카드 클릭 시 inline 모달 (사이클 N+26)
   const [candidateInfo, setCandidateInfo] = useState<{
     candidate_id: number;
@@ -203,6 +209,9 @@ const TodoPage: React.FC = () => {
       setSelectedTaskId(item.drawer.id);
       // cross-workspace: item.workspace.business_id 우선, 없으면 default bizId
       setSelectedTaskBizId(item.workspace?.business_id ?? bizId);
+    } else if (item.drawer?.kind === 'client') {
+      setSelectedClientId(item.drawer.id);
+      setSelectedClientBizId(item.workspace?.business_id ?? bizId);
     } else if (item.drawer?.kind === 'event' && bizId) {
       const eventBizId = item.workspace?.business_id ?? bizId;
       try {
@@ -355,6 +364,15 @@ const TodoPage: React.FC = () => {
           onClose={closeTaskDrawer}
           onRefresh={silentLoad}
           onDuplicated={(newId)=>{ setSelectedTaskId(newId); silentLoad(); }}
+        />
+      )}
+
+      {selectedClientId !== null && (selectedClientBizId ?? bizId) !== null && (
+        <ClientPanel
+          businessId={(selectedClientBizId ?? bizId) as number}
+          clientId={selectedClientId}
+          onClose={() => { setSelectedClientId(null); setSelectedClientBizId(null); }}
+          onChanged={silentLoad}
         />
       )}
 

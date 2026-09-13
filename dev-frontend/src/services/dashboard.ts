@@ -67,7 +67,10 @@ export interface TodoItem {
   currency?: 'KRW' | 'USD' | 'EUR';
   actor?: { name: string; avatarUrl?: string };
   link?: string;                 // 페이지 이동용
-  drawer?: { kind: 'task' | 'event'; id: number };  // 우측 드로어용
+  // 우측 드로어용 — 종류마다 다른 여는 방식을 만들지 않는다(업무·일정·영업이 같은 계약을 쓴다).
+  //   'client'  : 등록된 고객 → ClientPanel
+  //   'inquiry' : 아직 고객이 아닌 문의 → ClientPanel 의 inquiry 분기(받는 쪽 미구현, ref 로 다시 집는다)
+  drawer?: { kind: 'task' | 'event' | 'client' | 'inquiry'; id: number; ref?: { kind: string; id: number } };
   inline?: 'invite';             // Accept/Decline 인라인 버튼 활성화
   workspace?: TodoWorkspace;     // cross-workspace 모드 시 부착
   // task_candidate 전용 — 인박스 inline 등록/반려 모달용 (사이클 N+26)

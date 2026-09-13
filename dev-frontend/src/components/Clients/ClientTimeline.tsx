@@ -104,7 +104,14 @@ function titleOf(
     const from = meta.from ? label(`stage.${meta.from}`) : '—';
     const to = label(`stage.${meta.to}`);
     const line = label('timeline.stageChanged', { from, to });
-    return meta.reason ? `${line} · ${String(meta.reason)}` : line;
+    // ★ 2026-09-13 (Irene: "단계 / 영업 외 → 문의 · saved_from:email_thread … 이해 안가게 표시하는 건
+    //   전혀 없게 할 수 있어?") — `reason` 을 **검증 없이 이어붙이고 있었다.**
+    //   서버가 넣던 개발자용 표식(`saved_from:email_thread`)이 그대로 사람 눈에 나갔다.
+    //   서버는 사람 말로 남기게 고쳤지만 **이미 저장된 과거 행은 그대로다** — 화면에서도 막는다.
+    //   판정: `영문키:값` 꼴(공백 없는 코드형)은 사람에게 보여줄 문장이 아니다.
+    const reason = meta.reason ? String(meta.reason).trim() : '';
+    const looksLikeCode = /^[a-z][a-z0-9_]*:[a-z0-9_.-]+$/i.test(reason);
+    return reason && !looksLikeCode ? `${line} · ${reason}` : line;
   }
   if (it.type === 'guest') {
     return meta.event === 'account_requested' ? label('timeline.guestAccountRequested') : label('timeline.guestIssued');

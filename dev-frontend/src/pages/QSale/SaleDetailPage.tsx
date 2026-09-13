@@ -15,6 +15,8 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { onSocket } from '../../services/socket';
 import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../../components/Layout/PanelHeader';
 import ChipPopover from '../../components/Common/ChipPopover';
+// 팝오버 선택 목록은 **공용 한 벌** — 우측 패널(ClientPanel)과 같은 것을 쓴다(따로 그리면 갈라진다)
+import { OptionList, OptionBtn, OptName, OptHint } from '../../components/Common/optionList';
 import ActionButton from '../../components/Common/ActionButton';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
@@ -35,6 +37,12 @@ import {
 
 type LoadStatus = 'loading' | 'ready' | 'not_found' | 'forbidden' | 'error' | 'other_workspace';
 const CHANNELS: TimelineType[] = ['chat', 'email', 'task', 'invoice', 'interaction', 'stage', 'guest'];
+// ★ 2026-09-13 (Irene: "탭에도 단계가 뭐야? 전체 / 채팅 / 메일 / 할 일 / 청구 / 전화·미팅 / 단계 / 게스트 링크")
+//   칩 줄에 있는 것들은 **어디서 온 기록**이다. '단계'는 상태 변화이고 '게스트 링크'는 발급 이력이라
+//   같은 층이 아니다 — 나란히 두면 무엇을 고르는 줄인지 알 수 없다.
+//   ★ 조회(CHANNELS)에서는 빼지 않는다 — 빼면 전체 타임라인에서 그 기록이 **사라진다**.
+//     칩으로만 안 보여준다. 단계 이력은 이미 전용 카드가, 게스트 링크는 패널이 따로 보여준다.
+const CHANNEL_CHIPS: TimelineType[] = ['chat', 'email', 'task', 'invoice', 'interaction'];
 const PAGE = 30;
 
 export default function SaleDetailPage() {
@@ -163,10 +171,17 @@ export default function SaleDetailPage() {
       {/* 밴드2 — 접근·단계·담당 칩 (값은 칩, 고치는 컨트롤은 누를 때만) */}
       <DetailMetaBar data-testid="sale-detail-meta">
         <DetailMetaLeft>
-          <AccessPill $kind={client.access_kind} title={t(`access.${client.access_kind}_hint`) as string}>
+          {/* ★ 2026-09-13 (Irene: "게스트 / 한도: 미포함 · 초대하면 포함 … 이런 건 뭐야?
+              이해 안가게 표시하는 건 전혀 없게 할 수 있어?")
+              한도 설명은 **요금제 이야기**지 이 밴드(메타·상태 칩)에 있을 말이 아니다.
+              접근 종류 칩의 툴팁으로 내린다 — 알고 싶은 사람은 얹으면 보이고, 줄은 조용해진다. */}
+          <AccessPill
+            $kind={client.access_kind}
+            title={`${t(`access.${client.access_kind}_hint`) as string}\n${
+              client.quota_counted ? (t('quota.counted') as string) : (t('quota.not_counted') as string)}`}
+          >
             {t(`access.${client.access_kind}`) as string}
           </AccessPill>
-          <QuotaPill>{client.quota_counted ? (t('quota.counted') as string) : (t('quota.not_counted') as string)}</QuotaPill>
           <ChipPopover
             prefix={t('stage.label') as string}
             label={t(`stage.${client.sales_stage}`) as string}
@@ -198,7 +213,17 @@ export default function SaleDetailPage() {
           )}
         </DetailMetaLeft>
         <DetailMetaRight>
-          <MetaDim>{client.assigned_member?.name || (t('list.assigneeNone') as string)}</MetaDim>
+          {/* ★ 이름만 떠 있어 무엇인지 알 수 없었다(Irene: "고객 프로필에 우측에 irene이 왜 나와?
+              이것도 뭐야? 담당이야 뭐야?"). 값 앞에 **무엇인지**를 붙인다. */}
+          <MetaDim>
+            {t('list.assignee') as string} · {client.assigned_member?.name || (t('list.assigneeNone') as string)}
+          </MetaDim>
+          {/* ★ 2026-09-13 (Irene: "고객 전체프로필에서 Q sale로 돌아가는 링크 좀 추가할까? …
+              뒤로가기가 우측 상단에 있어서 꽤나 불편하네.")
+              좌측 뒤로가기는 그대로 두되, 어디로 돌아가는지 **이름이 있는 문**을 하나 둔다. */}
+          <MiniBtn type="button" data-testid="sale-detail-back-list" onClick={() => navigate('/sale')}>
+            {t('page.backToList') as string}
+          </MiniBtn>
         </DetailMetaRight>
       </DetailMetaBar>
 
@@ -275,7 +300,7 @@ export default function SaleDetailPage() {
           <FilterRow role="tablist">
             <FilterChip type="button" role="tab" aria-selected={filter === 'all'} $on={filter === 'all'}
               onClick={() => setFilter('all')}>{t('timeline.all') as string}</FilterChip>
-            {CHANNELS.map((c) => (
+            {CHANNEL_CHIPS.map((c) => (
               <FilterChip key={c} type="button" role="tab" aria-selected={filter === c} $on={filter === c}
                 onClick={() => setFilter((prev) => (prev === c ? 'all' : c))}>
                 {t(`timeline.channel.${c}`) as string}
@@ -509,13 +534,3 @@ const QuotaPill = styled.span`
   white-space: nowrap;
 `;
 const LostPill = styled(QuotaPill)`color: #991B1B; background: #FEE2E2; border-color: #FECACA;`;
-const OptionList = styled.div`display: flex; flex-direction: column; gap: 2px;`;
-const OptionBtn = styled.button<{ $on: boolean }>`
-  display: flex; flex-direction: column; gap: 2px; text-align: left;
-  padding: 8px 10px; border-radius: 8px; cursor: pointer;
-  background: ${(p) => (p.$on ? '#F0FDFA' : '#fff')};
-  border: 1px solid ${(p) => (p.$on ? '#5EEAD4' : 'transparent')};
-  &:hover { background: #F8FAFC; }
-`;
-const OptName = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
-const OptHint = styled.span`font-size: 0.6875rem; color: #94A3B8;`;

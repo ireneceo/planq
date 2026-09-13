@@ -229,7 +229,15 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
         assigned_member_id: req.user.id,
         last_touch_at: seed.touchAt || null,
       });
-      await setStage(client, 'inquiry', { origin: 'manual', by: req.user.id, reason: `saved_from:${from}` });
+      // ★ 2026-09-13 (Irene: "단계 / 영업 외 → 문의 · saved_from:email_thread … 이해 안가게 표시하는 건
+      //   전혀 없게 할 수 있어?") — `reason` 은 **화면에 나가는 값**이다. 개발자용 표식을 넣으면
+      //   사용자가 그대로 읽는다. 어디서 왔는지는 사람 말로 남긴다.
+      //   (뜻은 잃지 않는다 — 출처 구분이 필요하면 origin/sourceRef 로 남기지 reason 에 코드를 쓰지 않는다.)
+      const FROM_LABEL = { email_thread: '메일 문의', guest_link: '게스트 문의', manual: '직접 등록' };
+      await setStage(client, 'inquiry', {
+        origin: 'manual', by: req.user.id,
+        reason: FROM_LABEL[from] || '고객으로 등록',
+      });
       // 한도 숫자는 30초 캐시라 방금 만든 문의가 화면에 안 늘어 보인다 — 만든 쪽이 비운다(files.js 와 같은 처방)
       planEngine.invalidateBusinessCache(businessId);
       linkedExisting = false;

@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Q sale",
-    "detailBack": "Q sale list"
+    "detailBack": "Q sale list",
+    "backToList": "Customer list"
   },
   "stage": {
     "label": "Stage",
@@ -115,7 +116,7 @@
     "addInquiry": "+ Add inquiry",
     "saveAsClient": "Save as customer",
     "linkedExisting": "Linked to existing customer {{name}}",
-    "addRecord": "Add record",
+    "addRecord": "Add customer interaction",
     "invite": "Send invitation",
     "openClientSettings": "Customer details",
     "retry": "Try again",

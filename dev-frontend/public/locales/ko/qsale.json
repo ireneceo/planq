@@ -1,7 +1,8 @@
 {
   "page": {
     "title": "Q sale",
-    "detailBack": "Q sale 목록"
+    "detailBack": "Q sale 목록",
+    "backToList": "고객 목록"
   },
   "stage": {
     "label": "단계",
@@ -115,7 +116,7 @@
     "addInquiry": "+ 문의 추가",
     "saveAsClient": "고객으로 저장",
     "linkedExisting": "기존 고객 {{name}}에 연결했어요",
-    "addRecord": "기록 추가",
+    "addRecord": "고객응대 내역 추가",
     "invite": "초대 보내기",
     "openClientSettings": "고객 정보",
     "retry": "다시 시도",

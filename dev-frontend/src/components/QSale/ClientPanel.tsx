@@ -31,6 +31,10 @@ import ClientTimeline from '../Clients/ClientTimeline';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
 import LostReasonModal from './LostReasonModal';
+// 단계 칩은 전체 프로필과 **같은 것**을 쓴다 — 화면마다 따로 그리면 동작이 갈라진다.
+import ChipPopover from '../Common/ChipPopover';
+import { OptionList, OptionBtn, OptName, OptHint } from '../Common/optionList';
+import { SALE_STAGES, type SaleStage } from '../../services/sale';
 // 초대는 **되돌릴 수 없다**(고객에게 메일이 나간다) — 누르기 전에 묻는다(Irene 2026-09-12: "확인을 받아")
 import ConfirmDialog from '../Common/ConfirmDialog';
 // 상담 관리의 다음 액션 — 상세 페이지와 **같은 창**을 쓴다(자리마다 다른 동작을 만들지 않는다)
@@ -122,7 +126,8 @@ const ClientPanel: React.FC<Props> = ({
   const [histLoading, setHistLoading] = useState(false);
 
   const applyStage = useCallback(async (
-    stage: 'won' | 'lost',
+    // 칩이 7단계를 모두 넘긴다 — 여기서 'won'|'lost' 로 좁히면 나머지 다섯은 **조용히 막힌다**.
+    stage: SaleStage,
     extra?: { lost_reason?: LostReason; lost_note?: string },
   ) => {
     if (!clientId || busy) return;
@@ -137,7 +142,8 @@ const ClientPanel: React.FC<Props> = ({
   }, [businessId, clientId, busy, onChanged]);
 
   // 불발은 **사유를 받고** 넘긴다 — 사유 없이 닫으면 왜 깨졌는지가 원장에 남지 않는다.
-  const changeStage = useCallback((stage: 'won' | 'lost') => {
+  // 칩에서 7단계를 모두 넘긴다 — 'won'|'lost' 로 좁혀두면 칩이 그 둘 말고는 아무 일도 못 한다.
+  const changeStage = useCallback((stage: SaleStage) => {
     if (stage === 'lost') { setLostOpen(true); return; }
     void applyStage(stage);
   }, [applyStage]);
@@ -251,7 +257,31 @@ const ClientPanel: React.FC<Props> = ({
               <TopText>
                 <TopName>{name || '—'}</TopName>
                 {data.company_name && data.display_name && <TopSub>{data.company_name}</TopSub>}
-                <StageTag>{t(`stage.${data.sales_stage}`) as string}</StageTag>
+                {/* ★ 2026-09-13 — 단계는 **여기서 바꾼다**(Irene: "우측패널에 액션버튼 다 나오게 하고
+                    단계도 바꾸게 하고"). 하단의 계약 성사/불발 버튼을 없앤 자리를 이것이 대신한다.
+                    ★ 전체 프로필(SaleDetailPage)과 **같은 ChipPopover** 다 — 새로 그리면 두 화면이 갈라진다.
+                    'lost' 를 고르면 changeStage 가 사유 모달로 보낸다(왜 깨졌는지가 원장에 남아야 한다). */}
+                <ChipPopover
+                  prefix={t('stage.label') as string}
+                  label={t(`stage.${data.sales_stage}`) as string}
+                  active={data.sales_stage !== 'none'}
+                  data-testid="client-panel-stage-chip"
+                  width={260}
+                >
+                  {(close) => (
+                    <OptionList role="listbox">
+                      {SALE_STAGES.map((s) => (
+                        <OptionBtn key={s} type="button" role="option" aria-selected={data.sales_stage === s}
+                          $on={data.sales_stage === s}
+                          data-testid={`client-panel-stage-${s}`}
+                          onClick={() => { close(); changeStage(s); }}>
+                          <OptName>{t(`stage.${s}`) as string}</OptName>
+                          <OptHint>{t(`stage.${s}_hint`) as string}</OptHint>
+                        </OptionBtn>
+                      ))}
+                    </OptionList>
+                  )}
+                </ChipPopover>
               </TopText>
             </Top>
 
@@ -395,16 +425,11 @@ const ClientPanel: React.FC<Props> = ({
             {t('action.invite') as string}
           </ActionButton>
         )}
-        {/* 계약 성사/불발. 프로젝트·청구는 받는 화면이 고객 지정을 아직 안 읽어
-            지금 버튼을 달면 눌러도 고객이 안 실린 빈 화면으로 간다(죽은 링크). 받는 쪽을 만든 뒤 붙인다. */}
-        <ActionButton tone="secondary" size="md" disabled={busy || !data}
-          data-testid="client-panel-lost" onClick={() => changeStage('lost')}>
-          {t('action.markLost') as string}
-        </ActionButton>
-        <ActionButton tone="primary" size="md" disabled={busy || !data}
-          data-testid="client-panel-won" onClick={() => changeStage('won')}>
-          {t('action.markWon') as string}
-        </ActionButton>
+        {/* ★ 2026-09-13 (Irene: "계약성사는 버튼도 아니고 그냥 계약을 하면 한거고. 그리고 계약 성사를
+            눌렀더니 그냥 성사라고 표시되는데 이게 뭐야.") — **계약 성사/불발 버튼을 없앴다.**
+            그 둘은 *할 일*이 아니라 **일어난 일의 기록**이고, 위 단계 칩이 이미 같은 일을 한다.
+            버튼과 칩이 같은 값을 두 벌로 바꾸고 있었다(누르면 단계만 '성사' 로 바뀌니 "이게 뭐야" 가 된다).
+            불발 사유는 단계 칩에서 'lost' 를 고를 때 그대로 묻는다(LostReasonModal). */}
           </>
         )}
       </DetailDrawer.Footer>
