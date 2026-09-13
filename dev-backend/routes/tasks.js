@@ -994,6 +994,9 @@ router.get('/by-business/:businessId', authenticateToken, async (req, res, next)
     const where = { ...baseWhere };
     if (req.query.status) where.status = req.query.status;
     if (req.query.assignee_id) where.assignee_id = Number(req.query.assignee_id);
+    // 고객 축 — "이 고객의 업무" 를 묻는 화면(Q sale 고객 패널·전체 프로필)이 쓴다.
+    //   파일(?client_id=)·문서(?client_id=) 목록과 같은 이름의 필터다.
+    if (req.query.client_id) where.client_id = Number(req.query.client_id);
 
     // Pagination — 누적 task 1000+ 시 전체 응답 폭발 방지.
     // 클라이언트 호환: limit 미지정이면 기본 500 (현재 프론트는 전체 받아 클라이언트 필터링 — 단계적 전환 위해 큰 default).

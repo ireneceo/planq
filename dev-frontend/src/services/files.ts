@@ -203,6 +203,31 @@ export async function fetchWorkspaceFiles(businessId: number): Promise<ProjectFi
   );
 }
 
+/** 고객에 붙어 있는 파일 한 줄의 모양 — `GET /api/files/:biz` 는 File 행을 그대로 돌려준다
+ *  (여기 id 는 **숫자**다. 위 ProjectFile 의 'direct-12' 꼴 합성 id 와 다르다). */
+export interface ClientFileRow {
+  id: number;
+  file_name: string;
+  file_size: number | null;
+  mime_type: string | null;
+  created_at?: string;
+}
+
+/** 이 고객의 자료(파일). 연결·해제는 updateFileMeta 의 client_id 로 한다. */
+export async function fetchClientFiles(businessId: number, clientId: number): Promise<ClientFileRow[]> {
+  const r = await apiFetch(`/api/files/${businessId}?client_id=${clientId}&limit=200`);
+  if (!r.ok) return [];
+  const j = await r.json().catch(() => null);
+  if (!j?.success || !Array.isArray(j.data)) return [];
+  return (j.data as ClientFileRow[]).map((x) => ({
+    id: Number(x.id),
+    file_name: String(x.file_name || ''),
+    file_size: x.file_size ?? null,
+    mime_type: x.mime_type ?? null,
+    created_at: x.created_at,
+  }));
+}
+
 // N+30 — 개인 보관함 (Personal Vault) 파일 list
 // 본인 업로드 + visibility=L1 + project_id=null 만 (PERSONAL_VAULT_DESIGN.md §2)
 // backend GET /api/personal-vault/:bizId/files 응답 형식을 ProjectFile shape 로 어댑트.

@@ -202,6 +202,7 @@
     "channelMail": "Threads {{count}}",
     "channelGuest": "Guest links {{count}}",
     "projects": "Linked projects",
+    "links": "Linked",
     "projectsEmpty": "No linked projects",
     "emailLocked": "Email can't be changed here once an invitation was sent"
   },
@@ -335,5 +336,27 @@
     "dateRequired": "Pick a date",
     "none": "No upcoming event",
     "label": "Next"
+  },
+  "links": {
+    "tasks": "Tasks",
+    "files": "Files",
+    "projects": "Projects",
+    "add": "Link",
+    "close": "Close",
+    "unlink": "Unlink",
+    "untitled": "(untitled)",
+    "loading": "Loading…",
+    "searching": "Searching…",
+    "noResult": "Nothing available to link",
+    "empty": {
+      "task": "No linked tasks",
+      "file": "No linked files",
+      "project": "No linked projects"
+    },
+    "search": {
+      "task": "Find by task title",
+      "file": "Find by file name",
+      "project": "Find by project name"
+    }
   }
 }

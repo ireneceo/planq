@@ -31,6 +31,8 @@ import { createPost } from '../../services/posts';
 import { apiFetch } from '../../contexts/AuthContext';
 // 히스토리는 상세와 **같은 컴포넌트**로 그린다 — 패널과 전체페이지가 다르면 고장으로 읽힌다
 import ClientTimeline from '../Clients/ClientTimeline';
+// 업무·파일·프로젝트 연결 — 전체 프로필과 같은 한 벌(따로 그리면 갈라진다)
+import ClientLinksSection from './ClientLinksSection';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
 import LostReasonModal from './LostReasonModal';
@@ -373,13 +375,17 @@ const ClientPanel: React.FC<Props> = ({
                   {data.channels?.email_threads ?? 0}
                 </CountLink>
               </LinkRow>
-              {/* 프로젝트 상세는 /projects/p/:id 다 — /projects/:id 는 목록 라우트(:view)에 걸려 엉뚱한 화면이 열린다 */}
-              {data.projects?.length > 0 && (
-                <ProjList>
-                  {data.projects.map((p) => (
-                    <ProjItem key={p.id} type="button" onClick={() => navigate(`/projects/p/${p.id}`)}>{p.name}</ProjItem>
-                  ))}
-                </ProjList>
+              {/* 업무·파일·프로젝트 연결 — 전체 프로필과 **같은 컴포넌트**다(자리마다 다르게 만들지 않는다).
+                  프로젝트 상세는 /projects/p/:id 다 — /projects/:id 는 목록 라우트(:view)에 걸린다. */}
+              {clientId && (
+                <ClientLinksSection
+                  businessId={businessId}
+                  clientId={clientId}
+                  projects={data.projects || []}
+                  onChanged={() => { void reload(); }}
+                  onOpenTask={(id) => navigate(`/tasks?task=${id}`)}
+                  onOpenProject={(id) => navigate(`/projects/p/${id}`)}
+                />
               )}
             </Section>
 
@@ -550,12 +556,7 @@ const SectionTitle = styled.h3`margin: 0 0 8px; font-size: 0.8125rem; font-weigh
 const FieldRow = styled.div`display: flex; gap: 10px; padding: 4px 0; font-size: 0.8125rem;`;
 const FieldLabel = styled.span`min-width: 92px; color: #94A3B8; flex-shrink: 0;`;
 const FieldValue = styled.span`color: #0F172A; word-break: break-all;`;
-const ProjList = styled.div`display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;`;
-const ProjItem = styled.button`
-  padding: 4px 10px; border: 1px solid #E2E8F0; border-radius: 999px; background: #FFFFFF;
-  color: #334155; font-size: 0.75rem; cursor: pointer;
-  &:hover { background: #F8FAFC; }
-`;
+/* 프로젝트 칩은 ClientLinksSection 이 그린다 — 여기 있던 ProjList/ProjItem 은 지웠다(두 벌이 되지 않게) */
 const PreviewBox = styled.div`
   margin-top: 8px; padding: 10px 12px; background: #F8FAFC; border: 1px solid #F1F5F9;
   border-radius: 8px; font-size: 0.8125rem; color: #334155; line-height: 1.5;

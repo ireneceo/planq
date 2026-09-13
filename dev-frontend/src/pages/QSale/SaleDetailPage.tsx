@@ -24,6 +24,8 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import DetailFallback from '../../components/Common/DetailFallback';
 import ClientTimeline from '../../components/Clients/ClientTimeline';
 import SummaryCard from '../../components/QSale/SummaryCard';
+// 업무·파일·프로젝트 연결 — 우측 패널과 같은 한 벌(따로 그리면 갈라진다)
+import ClientLinksSection from '../../components/QSale/ClientLinksSection';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 // 불발 사유 창은 **공용**이다 — 우측 패널도 같은 것을 쓴다(자리마다 다른 동작을 만들지 않는다)
 import LostReasonModal from '../../components/QSale/LostReasonModal';
@@ -298,19 +300,17 @@ export default function SaleDetailPage() {
             </ChannelRow>
           </Card>
 
+          {/* 연결 — 업무·파일·프로젝트. 우측 패널과 **같은 컴포넌트**를 쓴다(갈라지지 않게) */}
           <Card>
-            <CardTitle>{t('detail.projects') as string}</CardTitle>
-            {client.projects.length === 0 ? (
-              <Dim>{t('detail.projectsEmpty') as string}</Dim>
-            ) : (
-              <ProjectList>
-                {client.projects.map((p) => (
-                  <ProjectRow key={p.id} type="button" onClick={() => navigate(`/projects/p/${p.id}`)}>
-                    {p.name}
-                  </ProjectRow>
-                ))}
-              </ProjectList>
-            )}
+            <CardTitle>{t('detail.links', { defaultValue: '연결' }) as string}</CardTitle>
+            <ClientLinksSection
+              businessId={businessId as number}
+              clientId={cid}
+              projects={client.projects || []}
+              onChanged={() => silentReload()}
+              onOpenTask={(id) => navigate(`/tasks?task=${id}`)}
+              onOpenProject={(id) => navigate(`/projects/p/${id}`)}
+            />
           </Card>
         </LeftCol>
 
@@ -515,11 +515,7 @@ const HistoryRow = styled.div`display: flex; align-items: center; justify-conten
 const HistoryText = styled.div`font-size: 0.8125rem; color: #0F172A; min-width: 0;`;
 const HistoryMeta = styled.div`font-size: 0.75rem; color: #94A3B8; white-space: nowrap;`;
 const ChannelRow = styled.div`display: flex; gap: 14px; flex-wrap: wrap;`;
-const ProjectList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
-const ProjectRow = styled.button`
-  text-align: left; font-size: 0.8125rem; color: #0F766E; background: none; border: none;
-  padding: 4px 0; cursor: pointer; &:hover { text-decoration: underline; }
-`;
+/* 프로젝트 목록은 ClientLinksSection 이 그린다 — 여기 있던 ProjectList/ProjectRow 는 지웠다 */
 const FilterRow = styled.div`display: flex; gap: 6px; flex-wrap: wrap;`;
 const FilterChip = styled.button<{ $on: boolean }>`
   height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer;

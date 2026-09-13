@@ -203,6 +203,7 @@
     "channelGuest": "게스트 링크 {{count}}",
     "projects": "연결 프로젝트",
     "projectsEmpty": "연결된 프로젝트가 없습니다",
+    "links": "연결",
     "emailLocked": "초대를 보낸 뒤에는 이메일을 여기서 바꿀 수 없어요"
   },
   "summary": {
@@ -335,5 +336,27 @@
     "dateRequired": "날짜를 정해주세요",
     "none": "다음 일정 없음",
     "label": "다음 일정"
+  },
+  "links": {
+    "tasks": "업무",
+    "files": "파일",
+    "projects": "프로젝트",
+    "add": "연결",
+    "close": "닫기",
+    "unlink": "연결 해제",
+    "untitled": "(제목 없음)",
+    "loading": "불러오는 중…",
+    "searching": "찾는 중…",
+    "noResult": "연결할 수 있는 것이 없습니다",
+    "empty": {
+      "task": "연결된 업무가 없습니다",
+      "file": "연결된 파일이 없습니다",
+      "project": "연결된 프로젝트가 없습니다"
+    },
+    "search": {
+      "task": "업무 제목으로 찾기",
+      "file": "파일 이름으로 찾기",
+      "project": "프로젝트 이름으로 찾기"
+    }
   }
 }
