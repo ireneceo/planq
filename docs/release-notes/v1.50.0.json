@@ -44,12 +44,12 @@
     },
     {
       "ko": {
-        "title": "문서 표 [폭 맞춤] 이 실제로 폭을 채웁니다",
-        "body": "표 메뉴의 폭 맞춤이 열을 160px 로 고정해서, 3열 표는 본문 오른쪽에 큰 빈 여백이 남았습니다. 이제 본문 폭을 재서 열을 고르게 나눕니다. 열이 많아 다 못 들어가면 표 안에서 가로로 스크롤됩니다."
+        "title": "문서 표가 기본으로 본문 폭을 채웁니다",
+        "body": "표를 넣으면 내용만큼만 그려져 테두리가 중간에서 끊기고 오른쪽이 비어 있었습니다. 이제 만들자마자 본문 폭을 채우고 열이 고르게 나뉩니다. 창을 좁히면 표를 억지로 눌러 넣지 않고 표 안에서 가로로 스크롤됩니다. 표 메뉴의 [열 균등] 은 [폭 맞춤] 으로 이름이 바뀌었고, 열을 직접 조절한 뒤 다시 고르게 펴고 싶을 때 누르면 됩니다."
       },
       "en": {
-        "title": "Fit width on document tables really fills the width",
-        "body": "The table menu's fit action used to pin every column to 160px, leaving a large empty gap on the right of a three-column table. It now measures the content width and divides columns evenly. Tables with too many columns scroll horizontally inside the table instead."
+        "title": "Document tables now fill the content width by default",
+        "body": "Inserting a table used to draw it only as wide as its content, leaving the border cut short and empty space on the right. Tables now fill the content width with evenly divided columns from the moment you create them. Narrow the window and the table is not squeezed — it scrolls horizontally inside itself. The table menu’s \"Even columns\" is now \"Fit width\", for re-spreading columns evenly after you have dragged them."
       }
     },
     {
