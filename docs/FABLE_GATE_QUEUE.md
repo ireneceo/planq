@@ -1300,3 +1300,8 @@ Irene: *"확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q 
    고객(client) 역할에게 수동 히스토리 작성이 열려 있지 않은지.
 
 **Fable 호출 오늘 6회 모두 HTTP 429.** 마커 `by:"unavailable"`. 보고는 **"Fable 미검증(자체 검증)"**.
+
+**배포 결과 (2026-09-13 18:04 KST+9 기준 UTC):** v1.49.0 운영 배포 exit 0 ·
+백업 `/opt/planq/backups/20260913_175505` · `project_history_entries` 운영 생성 확인(10컬럼, 0행) ·
+planq.kr health ok · PM2 prod 3개 online · 릴리즈노트 `/insights/update-1-49-0` 200 ·
+개발 현황 id=91 발행. **위 6개 확인 항목은 배포와 무관하게 그대로 남아 있다.**
