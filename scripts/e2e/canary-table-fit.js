@@ -7,10 +7,11 @@
 //   정적 검사로는 못 잡는다 — 그래서 실브라우저로 픽셀을 잰다.
 //
 //   재는 것:
-//     ① 누르기 **전** 에는 표가 본문 폭을 다 안 쓴다(또는 열이 제각각) — 측정 전제(음성 대조군)
+//     ⓪ **누르기 전에도** 표가 본문 폭을 채운다 — 기본 반응형(2026-09-13 Irene 추가 신고)
 //     ② 누른 **뒤** 표 폭 == 본문 폭 (오른쪽 빈 여백 ≤ 2px)
 //     ③ 열 폭이 서로 같다 (가장 넓은 열 − 가장 좁은 열 ≤ 2px)
 //     ④ 가로 스크롤이 생기지 않는다 (scrollWidth ≤ clientWidth + 2)
+//     ⑤ 반대로 **컨테이너가 좁아지면** 표를 눌러 넣지 않고 래퍼가 스크롤한다(옛 우측 잘림 회귀 차단)
 const { launch, login, goto, sleep, dismissBlockers } = require('./lib/browser');
 
 const results = [];
@@ -74,6 +75,18 @@ async function run() {
       return results;
     }
 
+    // ⓪ **기본값**이 이미 맞아야 한다 (Irene: "기본 반응형 안잡아줘?")
+    //   prosemirror-tables 가 표에 인라인 min-width 를 써서 스타일시트의 100% 를 덮는다 —
+    //   그 탓에 새 표가 max-content(실측 290px)에 머물러 872px 본문 안에서 테두리가
+    //   내용까지만 그려졌다. 버튼을 누르기 **전**에 재는 것이 이 계약이다.
+    const gap0 = before.wrapW - before.tableW;
+    const spread0 = Math.max(...before.widths) - Math.min(...before.widths);
+    push('⓪ 표를 만들면 **누르지 않아도** 본문 폭을 채운다',
+      Math.abs(gap0) <= 3,
+      `표 ${before.tableW} / 본문 ${before.wrapW} (오른쪽 여백 ${gap0})`);
+    push('⓪-b 만들자마자 열 폭이 서로 같다',
+      spread0 <= 3, `열 폭 [${before.widths.join(', ')}] · 최대−최소 ${spread0}`);
+
     // 일부러 한 열을 좁혀 "제각각" 상태를 만든다 — 그래야 ②③ 이 의미를 갖는다.
     //   (표를 막 만들면 열이 이미 균등이라 대조군이 안 된다)
     await page.evaluate(() => {
@@ -115,13 +128,32 @@ async function run() {
 
     push('① 측정 전제 — 표가 본문 폭을 쓰고 있다(래퍼 폭 > 0)',
       after.wrapW > 200, `래퍼 폭 ${after.wrapW}`);
-    push('② 맞춘 뒤 오른쪽 빈 여백이 없다 (표 폭 == 본문 폭)',
+    // 위에서 한 열을 80px 로 **일부러 좁혀** 제각각으로 만들어 두었다 — 그래서 ②③ 이 의미를 갖는다.
+    push('② [폭 맞춤] 뒤 오른쪽 빈 여백이 없다 (표 폭 == 본문 폭)',
       Math.abs(gapAfter) <= 3,
-      `전 표 ${before.tableW}/래퍼 ${before.wrapW} (여백 ${gapBefore}) → 후 표 ${after.tableW}/래퍼 ${after.wrapW} (여백 ${gapAfter})`);
+      `전 표 ${before.tableW}/본문 ${before.wrapW} (여백 ${gapBefore}) → 후 표 ${after.tableW}/본문 ${after.wrapW} (여백 ${gapAfter})`);
     push('③ 열 폭이 서로 같다',
       spread <= 3, `열 폭 [${after.widths.join(', ')}] · 최대−최소 ${spread}`);
     push('④ 가로 스크롤이 생기지 않는다',
       after.scrollW <= after.wrapW + 3, `scrollWidth ${after.scrollW} vs clientWidth ${after.wrapW}`);
+
+    // ── ⑤ 좁아지면 **눌러 넣지 않는다** (옛 '우측 잘림' 회귀 차단) ──────────
+    //   min-width:100% 를 !important 로 올렸으므로 좁은 표는 늘어난다. 그 반대쪽 —
+    //   컨테이너가 표보다 좁아지면 표는 자연폭을 지키고 **래퍼가 가로 스크롤**해야 한다.
+    //   (창을 좁히는 것이 열을 늘리는 것보다 같은 조건을 더 정확히 만든다)
+    await page.setViewport({ width: 375, height: 812 });
+    await sleep(1400);
+    const narrow = await measure(page);
+    const narrowScroll = await page.evaluate(() => ({
+      doc: document.documentElement.scrollWidth, win: window.innerWidth,
+    }));
+    push('⑤ 컨테이너가 좁아져도 표를 눌러 넣지 않는다 (래퍼가 가로 스크롤)',
+      !!narrow && narrow.tableW > narrow.wrapW && narrow.scrollW > narrow.wrapW,
+      narrow ? `표 ${narrow.tableW} / 본문 ${narrow.wrapW} · scrollWidth ${narrow.scrollW}` : '측정 실패');
+    push('⑤-b 좁은 폭에서도 페이지가 가로로 밀리지 않는다',
+      narrowScroll.doc <= narrowScroll.win + 2,
+      `문서 ${narrowScroll.doc} vs 창 ${narrowScroll.win}`);
+
   } finally { await browser.close(); }
   return results;
 }

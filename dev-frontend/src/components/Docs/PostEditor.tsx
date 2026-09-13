@@ -627,7 +627,17 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
     border-collapse: separate; border-spacing: 0;
     table-layout: fixed;
     width: max-content;
-    min-width: 100%;
+    /* ★ 2026-09-13 (Irene: *"문서에 표가 왜 내용까지만 테두리가 생기고 좌우 열이 자동 맞춤이
+       안되는 거야? 기본 반응형 안잡아줘?"*)
+       !important 가 필요한 이유 — prosemirror-tables 가 표 DOM 에 **인라인으로**
+       min-width(합계 px)를 쓴다(실측: 새 3열 표에 min-width 75px). 인라인이 이기므로
+       여기 적힌 100% 는 **한 번도 적용된 적이 없었고**, 표는 max-content(실측 290px)에 머물러
+       872px 본문 안에서 테두리가 내용까지만 그려졌다.
+       이 한 줄이 "기본 반응형" 이다 — 좁은 표는 본문 폭까지 늘어나고(남는 자리는 열이 나눠 갖는다),
+       넓은 표는 100% 가 하한이라 그대로 자연폭을 유지해 래퍼 안에서 가로 스크롤한다.
+       ※ 여기에 width:100% 를 쓰면 안 된다 — 넓은 표를 강제로 끼워 넣어 우측이 잘린다(옛 회귀).
+       ※ styled 템플릿 안 주석에 백틱을 쓰면 템플릿이 끊긴다 — 이 파일에서 또 겪었다. */
+    min-width: 100% !important;
     max-width: none;
     font-size: 0.8125rem; margin: 16px 0;
     border: 1px solid #CBD5E1; border-radius: 10px;

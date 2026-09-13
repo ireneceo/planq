@@ -1,0 +1,66 @@
+{
+  "version": "1.50.0",
+  "date": "2026-09-13",
+  "items": [
+    {
+      "ko": {
+        "title": "프로젝트 노트 탭이 Q note 그대로입니다",
+        "body": "프로젝트 안에서 회의록을 만들고, 녹음하고, 요약하고, 업무로 뽑는 일이 전부 그 자리에서 됩니다. 문서 탭이 Q docs 를 그대로 쓰는 것과 같은 방식입니다. 목록은 그 프로젝트에 연결된 회의록만 보여 주고, 새로 만드는 노트에는 그 프로젝트가 자동으로 붙습니다. 개인 노트는 여전히 본인에게만 보입니다."
+      },
+      "en": {
+        "title": "The project Notes tab is now Q note itself",
+        "body": "Create, record, summarize meeting notes and pull tasks from them without leaving the project — the same way the Documents tab embeds Q docs. The list shows only notes linked to that project, and new notes are attached to it automatically. Personal notes stay private to you."
+      }
+    },
+    {
+      "ko": {
+        "title": "노트를 공유해도 프로젝트 연결이 풀리지 않습니다",
+        "body": "프로젝트에 연결한 회의록의 공개 범위를 워크스페이스 공개로 바꾸면 프로젝트 연결이 지워지던 문제를 고쳤습니다. 연결과 공개 범위는 별개입니다. 연결을 푸는 것은 연결 해제로만 됩니다. 또한 노트를 만들 때 고른 프로젝트·고객이 이제 실제로 저장됩니다."
+      },
+      "en": {
+        "title": "Sharing a note no longer unlinks it from its project",
+        "body": "Changing a project-linked note's visibility to workspace-wide used to silently clear the project link. Linking and visibility are separate now — only Unlink removes the link. The project or client you pick when creating a note is also actually saved now."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 정보 탭이 Q info 와 같은 모양입니다",
+        "body": "목록 행이 Q info 와 완전히 같아졌습니다. 본문 미리보기, 사용자 정의 항목(눌러서 복사), 보안등급·권한·처리 상태 배지, 삭제까지 같은 자리에 있습니다. 정렬(최근·이름·오래된)도 생겼고, AI 자동추가 버튼도 다른 AI 버튼과 같은 색·아이콘으로 맞췄습니다."
+      },
+      "en": {
+        "title": "The project Info tab now matches Q info",
+        "body": "List rows are identical to Q info: body preview, custom fields (click to copy), security-level, permission and processing badges, and delete — all in the same places. Sorting (recent, name, oldest) was added, and the AI auto-add button now uses the same color and icon as every other AI action."
+      }
+    },
+    {
+      "ko": {
+        "title": "고객 프로필에서 연결된 노트와 정보가 보입니다",
+        "body": "고객에 연결된 Q note 회의록과 Q info 정보가 고객 패널·전체 프로필에 함께 나옵니다. 눌러서 새 탭으로 엽니다. 개인 노트는 나오지 않습니다."
+      },
+      "en": {
+        "title": "Client profiles show linked notes and info",
+        "body": "Q note meeting notes and Q info documents linked to a client now appear in the client panel and full profile. Click to open them in a new tab. Personal notes are not listed."
+      }
+    },
+    {
+      "ko": {
+        "title": "문서 표 [폭 맞춤] 이 실제로 폭을 채웁니다",
+        "body": "표 메뉴의 폭 맞춤이 열을 160px 로 고정해서, 3열 표는 본문 오른쪽에 큰 빈 여백이 남았습니다. 이제 본문 폭을 재서 열을 고르게 나눕니다. 열이 많아 다 못 들어가면 표 안에서 가로로 스크롤됩니다."
+      },
+      "en": {
+        "title": "Fit width on document tables really fills the width",
+        "body": "The table menu's fit action used to pin every column to 160px, leaving a large empty gap on the right of a three-column table. It now measures the content width and divides columns evenly. Tables with too many columns scroll horizontally inside the table instead."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 메모가 다시 보입니다",
+        "body": "직전 배포에서 프로젝트 메모 조회가 Q note 목록을 대신 받아 오던 문제를 고쳤습니다. Q talk 우측 패널·프로젝트 상세·Q task 에서 메모가 정상으로 보입니다."
+      },
+      "en": {
+        "title": "Project memos are visible again",
+        "body": "In the previous release, project memo lookups were returning the Q note list instead. Memos show correctly again in the Q talk side panel, project detail, and Q task."
+      }
+    }
+  ]
+}
