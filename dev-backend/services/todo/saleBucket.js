@@ -146,7 +146,26 @@ async function collectSale(businessId, userId, userRole) {
         // ★ 이건 **아직 고객이 아닌 문의**다 — 고객 패널이 아니라 상담 패널(ClientPanel 의 inquiry 분기)로 연다.
         //   link 만 주면 목록만 열려 "어느 문의였는지" 를 사람이 다시 찾아야 한다.
         //   ref 를 그대로 실어 받는 쪽이 그 행을 집어낼 수 있게 한다(업무·일정과 같은 drawer 계약).
-        drawer: { kind: 'inquiry', id: it.id, ref: it.ref },
+        //   ★ 패널이 그릴 값을 **통째로** 실어 보낸다 — 받는 쪽이 다시 조회하면
+        //     같은 문의가 두 화면에서 다르게 보일 자리가 생긴다(그리고 조회가 한 번 더 나간다).
+        //     목록(Q sale 상담)이 쓰는 필드와 같은 이름·같은 출처다.
+        drawer: {
+          kind: 'inquiry',
+          id: it.id,
+          ref: it.ref,
+          inquiry: {
+            who: it.who,
+            email: it.email,
+            company: it.company,
+            title: it.title,
+            preview: it.preview,
+            at: it.at,
+            needs_reply: it.needs_reply,
+            source: it.source,
+            open_path: it.open_path,
+            meta: it.meta,
+          },
+        },
       });
     }
   } catch (e) {

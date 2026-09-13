@@ -987,3 +987,104 @@ Irene: *"업무, 문서, 파일 연결되게 해줘. 프로젝트도 연결하�
 - ★ 문서 검증은 **첫 시도가 판정불가**였다 — 대상 워크스페이스에 `Document` 행이 하나도 없었다.
   빈 fixture 로 "통과" 를 만들지 않고 문서가 실재하는 워크스페이스를 찾아 다시 쟀다
 - build EXIT 0 · `error TS` 0 · `node --check` OK · guard-invariants EXIT 0 (49/50)
+
+---
+
+## 24. 확인 필요 → Q sale 상담 우측패널 · 등록(+초대) 한 벌 (2026-09-13)
+
+**판정: R=0 · S=0 · F=1** → 원래 자체 검증 대상이나, Stop 게이트 정책상 Fable 을 띄웠고
+**Agent 호출이 실제로 실패**했다(HTTP 429 `You've reached your Fable limit`, model `claude-fable-5-1`).
+그래서 **"Fable 미검증(자체 검증)"** 으로 남긴다. **"통과" 가 아니다.**
+
+### 무엇을 했나
+Irene: *"확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q sale 상담탭에서 열리는 우측패널을 열어줘."*
+
+| 파일 | 한 일 |
+|---|---|
+| `dev-backend/services/todo/saleBucket.js` | `drawer.inquiry` 에 패널이 그릴 값을 **통째로** 싣는다(받는 쪽이 다시 조회하면 두 화면이 어긋난다) |
+| `dev-frontend/src/services/dashboard.ts` | `drawer.id` 가 문의 때문에 `number \| string` 이 됐다(문의 id 는 `${source}:${id}`) · `drawer.inquiry` 타입 |
+| `utils/saleInquiryView.ts` (신규) | 행 → `InquiryView` 변환 **한 벌** + `inquiryItemOfDrawer`(모양 안 맞으면 null → 빈 패널을 띄우지 않는다) |
+| `services/saleRegister.ts` (신규) | 등록(+초대) 호출 **한 벌**. 상담 목록과 Todo 가 같은 함수를 부른다 |
+| `components/QSale/ClientPanel.tsx` | `notice` prop — 등록·초대 실패를 **패널 안**에서 말한다(목록 바닥에 적으면 패널에 가려 안 읽힌다) |
+| `components/QSale/SaleInboxList.tsx` | 위 두 벌을 쓰도록 전환 · 등록 후 문의 패널이 고객 패널 위에 **겹쳐 남던 것** 닫기 |
+| `pages/Todo/TodoPage.tsx` | `inquiry` 분기 — 행을 그대로 들고(등록이 `ref`·이메일을 쓴다) 그릴 때만 같은 변환 통과 |
+
+- 스키마 변경 없음 · 마이그레이션 없음 · 공개(무인증) 라우트 추가 없음.
+
+### 자체 검증 (Fable 미검증)
+- **빌드** EXIT 0 · `error TS` 0 · `dev-frontend-build/index.html` 갱신 확인
+- **가드** `guard-invariants.js` 49/50 (1건은 문서 신선도 **경고**)
+- **실HTTP** — dev 에 상담 데이터가 **0건**이라 게스트 문의 픽스처를 만들어 쟀다(빈 fixture 로 "0건=정상" 금지):
+  `GET /api/sale/:biz/inbox` 1건 · `GET /api/dashboard/todo` 의 `drawer.inquiry` 전체 페이로드 도착 ·
+  **목록 vs 확인필요 불일치 필드 0**(`who/email/title/preview/needs_reply/source/open_path`), `id` 동일
+- **실브라우저**(1440 기본 뷰포트) — 클릭 **전 `[aria-modal]` 0개**(음성 대조군) → 클릭 후 **420×560 visible**,
+  내용이 Q sale 상담 패널 그대로. 클릭 좌표는 `elementFromPoint` 로 내 것임을 먼저 확인
+- **죽은 컨트롤 아님** — [고객으로 등록] → `POST /api/sale/6/save-as-client` **실제 발사**(요청 가로채 abort,
+  데이터 생성 없음). abort 시 패널에 실패 문구 표시 = 실패를 삼키지 않는다
+- 만든 픽스처·테스트 스크립트 **전부 삭제**(users/conversations/guest_links 잔존 **0**)
+
+### ★ Fable 이 봐야 할 것 (내가 못 가른 지점)
+1. **폰(375×667)·태블릿에서 이 패널.** 데스크탑만 쟀다 — CLAUDE.md 가 "축을 좁히면 F=1 이 거짓말이 된다"
+   고 박제한 바로 그 구멍이다. `DetailDrawer` 를 쓰므로 계약상 맞아야 하지만 **재지 않았다.**
+2. **합산 모드 누수.** `?business_id=` 를 **생략**한 `/api/dashboard/todo`(소속 전 워크스페이스 합산)에서
+   문의 항목이 중복 계수되거나 `drawer` 가 남의 워크스페이스 것을 가리키지 않는지 — 숫자 배지 계약 5.
+   `collectSale` 의 새 항목 id(`sale-inbox-${it.id}`)에 **워크스페이스 축이 없다**. 워크스페이스가
+   하나면 보이지 않는 종류의 버그다.
+3. **권한** — qsale 권한 없는 멤버·고객(client) 역할에게 이 항목이 보이는지. 이번 수집기는
+   담당 귀속(ownerWhere)을 적용하지 않는다(고객이 없으니 담당자도 없다)고 주석에 적혀 있는데,
+   그 판단이 `requireMenu('qsale')` 와 정합인지 실호출로 확인 필요.
+4. **외부 발송 확인 누락(기존 결함이 한 화면 더 늘었다).** [고객으로 등록]은 초대 메일을 보낸다.
+   CLAUDE.md "외부 발송은 확인을 받는다"(주소를 문구에 적고 `ConfirmDialog`)가 **이 버튼엔 없다.**
+   원래 상담 목록에만 있던 것이 이번에 확인 필요에도 생겼다 — 규칙화 여부는 Irene 판단 대기.
+5. **동시 세션 충돌.** 작업 중 다른 세션이 같은 파일을 편집해 중복 임포트·중복 패널 블록이 들어왔다.
+   그쪽 블록은 `onRegister` 없이 패널을 띄워 **눌러도 아무 일 없는 등록 버튼**이 될 뻔했다(제거함).
+   최종 diff 가 의도한 것만 담고 있는지 제3자 대조가 필요하다.
+
+---
+
+## 25. 외부발송 확인 · Q docs 헤더 고정 · 공개 페이지 실시간 갱신 (2026-09-13)
+
+**판정: R=0(①③) · R=1 성격 1건(②는 외부 발송 경로를 건드린다) · S=0 · F=1**
+→ Fable 을 띄웠고 **Agent 호출이 또 실패**했다(HTTP 429 `You've reached your Fable limit`,
+`claude-fable-5-1`, 같은 날 2회). **"Fable 미검증(자체 검증)"** 으로 남긴다. **"통과" 가 아니다.**
+(항목 24 의 "Fable 이 봐야 할 것 4번" = 등록 버튼의 외부 발송 확인 누락은 **이번에 닫았다.**)
+
+### 무엇을 했나
+| 갈래 | 파일 | 한 일 |
+|---|---|---|
+| ② 외부 발송 확인 | `ClientPanel.tsx` · `SaleInboxList.tsx` · `locales/{ko,en}/qsale.json` | [고객으로 등록]은 초대 메일을 보낸다 → `ConfirmDialog` 로 **보낼 주소를 적어** 묻는다. 패널 버튼·목록 행 버튼 **둘 다**. 키 `action.registerConfirm{Title,Body,NoEmail}` |
+| ③ Q docs 헤더 | `components/Docs/PostsPage.tsx` | 밴드1+밴드2 를 `StickyBands`(`data-testid="docs-detail-bands"`) 한 묶음으로 감싸 ≤900px sticky. 보기·편집 두 모드 |
+| ④ 공개 실시간 | `hooks/usePublicRevalidate.ts`(신규) + 공개 페이지 11개 | 탭 복귀 재조회 + 보이는 동안 60초 폴링(숨으면 정지). 공개 라우트는 소켓에 JWT 가 필요해 못 쓴다 |
+
+- 스키마 변경 없음 · 마이그레이션 없음 · 새 공개 라우트 없음.
+- ③ 은 2026-09-08 결정("제목 밴드까지만")을 **Irene 지시로 되돌린 것**이다(본문 세로공간 ↔ 액션 가시성 트레이드오프).
+
+### 자체 검증 (Fable 미검증)
+- 빌드 EXIT 0 · `error TS` 0 · 가드 49/50(1건 문서 신선도 **경고**) · i18n/parity 통과
+- **공개 갱신** 실브라우저: 링크 연 채 DB 로 원본 수정 → 수정 직후 그대로(음성 대조군) → **탭 복귀 후 반영** ✅
+- **Q docs 헤더** 실브라우저 3폭(375/820/1440): 밴드 2개 **제자리 + 보임** ✅ ·
+  양성 대조군(`position:static`)에서 폰·태블릿 판정 뒤집힘 ✅(데스크탑은 원래 본문만 스크롤이라 무관)
+  ★ **첫 측정이 거짓이었다** — 짧은 문서라 바깥 셸이 스크롤해 "밴드가 올라간다" 로 나왔다.
+    긴 문서 픽스처로 다시 재서 잡았다(`feedback_my_measurement_lied_three_times` 계열)
+- **등록 확인창** 실브라우저: 창에 주소 노출 ✅ · **확인 전 요청 0건 → 확인 후 1건** ✅
+  ★ 패널과 확인창이 **둘 다** `[aria-modal="true"]` 라 첫 판정이 패널을 확인창으로 오인했다(거짓 통과 직전).
+    제목 문구로 좁혀 다시 쟀다
+- 픽스처·테스트 스크립트 전부 삭제(잔존 0)
+
+### ★ Fable 이 봐야 할 것 (내가 못 가른 지점)
+1. **합산 모드 중복 계수** (항목 24 에서 이월, 여전히 미측정) — `?business_id=` 없는
+   `/api/dashboard/todo` 에서 `sale-inbox-${it.id}` 에 워크스페이스 축이 없어 중복 계수되는지,
+   `drawer` 가 남의 워크스페이스를 가리키는지.
+2. **qsale 권한/역할별 노출** — `collectSale` 은 담당 귀속을 적용하지 않는다. `requireMenu('qsale')`
+   없는 멤버·고객(client) 역할에게 문의가 보이는지 실호출 판정.
+3. **Q docs 편집 모드 헤더** — 보기 모드만 쟀다. 편집 모드는 밴드2 가 `MetaRow`(wrap 허용)라
+   폰에서 두 줄이 되면 묶음 높이가 달라진다. 그 상태에서도 고정이 유효한지.
+4. **서명 페이지 갱신 정지** — `enabled: phase === 'review'` 로 OTP·캔버스 단계에서 멈추게 했지만
+   **실제로 멈추는지 재지 않았다.** 여기서 틀리면 서명 중 화면이 앞 단계로 되돌아가 **쓰던 서명이 사라진다**
+   (비가역적 사용자 피해). 최우선.
+5. **비밀번호 보호 공개 페이지** — 재조회가 `pwRef` 로 같은 자격을 쓰고 401 에 `if (silent) return`
+   하도록 했지만, 실제로 잠금 화면으로 되돌아가지 않는지 재지 않았다.
+6. **숨은 탭 폴링 정지** — 요청 카운트로 확인하지 않았다. 공개 라우트는 인증이 없어 rate-limit 만이
+   방어선이다. 링크를 열어 둔 탭이 종일 두드리면 안 된다.
+7. **동시 세션 오염** — 작업 중 다른 세션이 같은 파일들을 편집했다(중복 임포트·중복 패널 블록 2회 제거).
+   최종 diff 가 이 4갈래만 담고 있는지 제3자 대조 필요.

@@ -14,6 +14,10 @@ import DailyStartModal from '../../components/Focus/DailyStartModal';
 import CandidateActionModal from '../../components/Focus/CandidateActionModal';
 import EventDrawer from '../../pages/QCalendar/EventDrawer';
 import ClientPanel from '../../components/QSale/ClientPanel';
+// 상담 목록과 **같은 변환·같은 등록 함수**를 쓴다 — 베끼면 두 화면이 갈라진다
+import { inquiryItemOfDrawer, inquiryViewOf } from '../../utils/saleInquiryView';
+import { registerInquiryAsClient } from '../../services/saleRegister';
+import type { SaleInboxItem } from '../../services/sale';
 import { fetchTodo } from '../../services/dashboard';
 import type { TodoItem, TodoResponse } from '../../services/dashboard';
 import type { CalendarEvent } from '../../pages/QCalendar/types';
@@ -44,6 +48,8 @@ const TAB_LIST: InboxTab[] = ['all', 'work', 'mail', 'sale', 'signature', 'billi
 
 const TodoPage: React.FC = () => {
   const { t } = useTranslation('dashboard');
+  // 상담 패널의 문구는 Q sale 것이다 — 같은 문장을 dashboard 에 복사하지 않는다
+  const { t: tSale } = useTranslation('qsale');
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -81,6 +87,16 @@ const TodoPage: React.FC = () => {
   //   이 페이지는 이미 업무·일정 상세를 **직접** 띄운다 — 영업도 같은 방식이어야 맥락이 맞는다.
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
   const [selectedClientBizId, setSelectedClientBizId] = useState<number | null>(null);
+  // 아직 고객이 **아닌** 문의 — 같은 패널의 inquiry 분기로 연다(Irene 2026-09-13:
+  //   "확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q sale 상담탭에서 열리는 우측패널을 열어줘").
+  //   서버가 패널이 그릴 값을 통째로 실어 보내므로 여기서 다시 조회하지 않는다.
+  //   ★ 패널이 그리는 값(InquiryView)이 아니라 **행 그대로** 들고 있는다 —
+  //     [고객으로 등록] 이 ref·이메일을 쓰기 때문이다. 그릴 때만 같은 변환을 통과시킨다.
+  const [selectedInquiry, setSelectedInquiry] = useState<SaleInboxItem | null>(null);
+  const [selectedInquiryBizId, setSelectedInquiryBizId] = useState<number | null>(null);
+  const [inquiryBusy, setInquiryBusy] = useState(false);
+  // 등록·초대 실패는 패널 안에서 말한다(눌렀는데 아무 일도 없는 버튼을 만들지 않는다)
+  const [panelNotice, setPanelNotice] = useState<string | null>(null);
   // 인박스 task_candidate 카드 클릭 시 inline 모달 (사이클 N+26)
   const [candidateInfo, setCandidateInfo] = useState<{
     candidate_id: number;
@@ -206,12 +222,21 @@ const TodoPage: React.FC = () => {
 
   const handleOpenDrawer = async (item: TodoItem) => {
     if (item.drawer?.kind === 'task') {
-      setSelectedTaskId(item.drawer.id);
+      // ★ drawer.id 는 문의 때문에 문자열도 될 수 있다 — 업무·고객은 숫자로 좁혀 쓴다
+      setSelectedTaskId(Number(item.drawer.id));
       // cross-workspace: item.workspace.business_id 우선, 없으면 default bizId
       setSelectedTaskBizId(item.workspace?.business_id ?? bizId);
     } else if (item.drawer?.kind === 'client') {
-      setSelectedClientId(item.drawer.id);
+      setSelectedClientId(Number(item.drawer.id));
       setSelectedClientBizId(item.workspace?.business_id ?? bizId);
+    } else if (item.drawer?.kind === 'inquiry') {
+      // 아직 고객이 아닌 문의 — 상담 목록과 **같은 변환·같은 패널**로 연다.
+      //   서버가 값을 통째로 실어 보내므로 여기서 다시 조회하지 않는다(두 화면이 어긋날 자리를 없앤다).
+      const it = inquiryItemOfDrawer(item.drawer);
+      if (!it) return;              // 모양이 안 맞으면 빈 패널을 띄우지 않는다
+      setPanelNotice(null);
+      setSelectedInquiry(it);
+      setSelectedInquiryBizId(item.workspace?.business_id ?? bizId);
     } else if (item.drawer?.kind === 'event' && bizId) {
       const eventBizId = item.workspace?.business_id ?? bizId;
       try {
@@ -219,6 +244,35 @@ const TodoPage: React.FC = () => {
         const j = await r.json();
         if (j.success) setSelectedEvent(j.data as CalendarEvent);
       } catch { /* noop */ }
+    }
+  };
+
+  // 문의를 고객으로 등록 — 상담 목록과 **같은 함수**를 부른다(routes 를 화면마다 다시 쓰지 않는다).
+  const handleInquiryRegister = async () => {
+    const it = selectedInquiry;
+    const biz = selectedInquiryBizId ?? bizId;
+    if (!it || !biz || inquiryBusy) return;
+    setInquiryBusy(true);
+    setPanelNotice(null);
+    try {
+      const res = await registerInquiryAsClient(biz, it);
+      if (!res.ok) { setPanelNotice(res.message || (tSale('error.loadFailed') as string)); return; }
+      if (res.warn === 'invite_failed') setPanelNotice(res.message || (tSale('inbox.inviteFailed') as string));
+      else if (res.warn === 'invite_no_email') setPanelNotice(tSale('inbox.inviteNoEmail') as string);
+      // 등록되면 더는 문의가 아니다 — 확인 필요 목록에서도 빠진다
+      silentLoad();
+      // ★ 페이지로 튕기지 않는다. 방금 만든 고객을 **같은 자리**의 패널로 이어 보여준다.
+      //   경고(초대 실패 등)는 그 패널에 그대로 남는다 — 화면이 바뀐다고 사라지면 못 읽는다.
+      if (res.clientId) {
+        setSelectedInquiry(null);
+        setSelectedInquiryBizId(null);
+        setSelectedClientId(res.clientId);
+        setSelectedClientBizId(biz);
+      }
+    } catch {
+      setPanelNotice(tSale('error.loadFailed') as string);
+    } finally {
+      setInquiryBusy(false);
     }
   };
 
@@ -371,8 +425,23 @@ const TodoPage: React.FC = () => {
         <ClientPanel
           businessId={(selectedClientBizId ?? bizId) as number}
           clientId={selectedClientId}
-          onClose={() => { setSelectedClientId(null); setSelectedClientBizId(null); }}
+          notice={panelNotice}
+          onClose={() => { setSelectedClientId(null); setSelectedClientBizId(null); setPanelNotice(null); }}
           onChanged={silentLoad}
+        />
+      )}
+
+      {/* 아직 고객이 아닌 문의 — Q sale 상담 탭에서 열리는 것과 **같은 패널**이다.
+          화면을 따로 만들면 필드와 액션이 갈라진다(2026-09-12 박제). */}
+      {selectedInquiry !== null && (selectedInquiryBizId ?? bizId) !== null && (
+        <ClientPanel
+          businessId={(selectedInquiryBizId ?? bizId) as number}
+          clientId={null}
+          inquiry={inquiryViewOf(selectedInquiry)}
+          notice={panelNotice}
+          registerBusy={inquiryBusy}
+          onClose={() => { setSelectedInquiry(null); setSelectedInquiryBizId(null); setPanelNotice(null); }}
+          onRegister={() => { void handleInquiryRegister(); }}
         />
       )}
 

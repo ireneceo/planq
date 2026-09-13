@@ -1,7 +1,7 @@
 // 공개 결제 페이지 — share_token 기반 (인증 없음)
 // 라우트: /public/invoices/:token
 // 기능: 청구서 본문 + 입금 안내 + 입금자명 가이드 + 송금 완료 알림 보내기
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -10,6 +10,8 @@ import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import type { InvoiceRecurring } from '../../services/invoices';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import { openExternalUrl } from '../../services/native';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface Installment {
   id: number;
@@ -145,28 +147,32 @@ const PublicInvoicePage: React.FC = () => {
   const [rcMode, setRcMode] = useState<'confirm' | 'edit'>('edit');
   const [rcCanConfirm, setRcCanConfirm] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(async (silent = false) => {
     if (!token) return;
-    (async () => {
-      try {
-        // apiFetch: 로그인 상태면 토큰 자동 첨부 → 백엔드가 내부(발신자) 조회로 인식해
-        // '고객 열람'으로 잘못 기록하지 않음. 게스트(고객)는 토큰 없이 그대로 통과.
-        const r = await apiFetch(`/api/invoices/public/${token}`);
-        const j = await r.json().catch(() => ({}));
-        if (r.status === 410 && j.code === 'share_expired') {
-          setExpired({ at: j.expired_at || null });
-        } else if (!j.success) {
-          throw new Error(j.message || 'load_failed');
-        } else {
-          setInvoice(j.data);
-        }
-      } catch (e) {
-        setErr((e as Error).message);
-      } finally {
-        setLoading(false);
+    if (!silent) setLoading(true);
+    try {
+      // apiFetch: 로그인 상태면 토큰 자동 첨부 → 백엔드가 내부(발신자) 조회로 인식해
+      // '고객 열람'으로 잘못 기록하지 않음. 게스트(고객)는 토큰 없이 그대로 통과.
+      const r = await apiFetch(`/api/invoices/public/${token}`);
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 410 && j.code === 'share_expired') {
+        setExpired({ at: j.expired_at || null });
+      } else if (!j.success) {
+        throw new Error(j.message || 'load_failed');
+      } else {
+        setInvoice(j.data); setErr(null);
       }
-    })();
+    } catch (e) {
+      if (!silent) setErr((e as Error).message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => { void load(); }, [load]);
+  // 결제·증빙 상태가 바뀌면 링크를 보고 있는 고객에게도 바로 보인다(공개 페이지 공통 계약).
+  //   ★ 모달(알림 신청·증빙 신청)이 열려 있는 동안에는 멈춘다 — 입력 중 갱신 금지.
+  usePublicRevalidate(() => load(true), { enabled: !!invoice && !notifyOpen && !receiptOpen });
 
   // N+47 — Smart Routing. PlanQ 로그인된 사용자면 in-app 으로 자동 redirect.
   useEffect(() => {

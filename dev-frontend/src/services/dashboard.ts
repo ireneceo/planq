@@ -70,7 +70,26 @@ export interface TodoItem {
   // 우측 드로어용 — 종류마다 다른 여는 방식을 만들지 않는다(업무·일정·영업이 같은 계약을 쓴다).
   //   'client'  : 등록된 고객 → ClientPanel
   //   'inquiry' : 아직 고객이 아닌 문의 → ClientPanel 의 inquiry 분기(받는 쪽 미구현, ref 로 다시 집는다)
-  drawer?: { kind: 'task' | 'event' | 'client' | 'inquiry'; id: number; ref?: { kind: string; id: number } };
+  drawer?: {
+    kind: 'task' | 'event' | 'client' | 'inquiry';
+    /** ★ 문의는 `${source}:${id}` 꼴 **문자열**이다(업무·일정은 숫자). 받는 쪽에서 좁혀 쓴다 */
+    id: number | string;
+    ref?: { kind: string; id: number; conversation_id?: number };
+    /** 상담(미등록 문의) 패널이 그릴 값 — 서버가 통째로 싣는다.
+     *  받는 쪽이 다시 조회하면 같은 문의가 두 화면에서 다르게 보일 자리가 생긴다. */
+    inquiry?: {
+      who: string | null;
+      email: string | null;
+      company: { name: string; estimated: boolean } | null;
+      title: string | null;
+      preview: string | null;
+      at: string | null;
+      needs_reply: boolean;
+      source: string;
+      open_path: string;
+      meta?: Record<string, unknown>;
+    };
+  };
   inline?: 'invite';             // Accept/Decline 인라인 버튼 활성화
   workspace?: TodoWorkspace;     // cross-workspace 모드 시 부착
   // task_candidate 전용 — 인박스 inline 등록/반려 모달용 (사이클 N+26)

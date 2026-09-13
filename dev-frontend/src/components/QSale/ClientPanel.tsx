@@ -75,12 +75,16 @@ interface Props {
   onChanged?: () => void;
   /** 미등록 문의를 고객으로 등록 */
   onRegister?: () => void;
+  /** 액션 결과(등록 실패·초대 실패 등) — 부르는 쪽이 자기 문구로 번역해 넘긴다.
+   *  ★ 패널 안에서 일어난 일은 패널 안에서 말한다. 목록 바닥에만 적으면 패널에 가려 안 보인다. */
+  notice?: string | null;
   /** 등록 진행 중 — 버튼 중복 제출 가드 */
   registerBusy?: boolean;
 }
 
 const ClientPanel: React.FC<Props> = ({
   businessId, clientId, inquiry = null, onClose, onChanged, onRegister, registerBusy = false,
+  notice = null,
 }) => {
   const { t } = useTranslation('qsale');
   const navigate = useChromeNav();
@@ -157,6 +161,10 @@ const ClientPanel: React.FC<Props> = ({
     return () => { alive = false; };
   }, [businessId, clientId]);
 
+  // ★ 외부 발송은 확인을 받는다 (CLAUDE.md · Irene 2026-09-13 "확인을 받아").
+  //   [고객으로 등록]은 등록만 하는 게 아니라 **그 주소로 초대 메일을 보낸다.**
+  //   "정말?" 만 묻는 창은 확인이 아니다 — 어디로 가는지 모르면 확인할 수 없으므로 주소를 문구에 적는다.
+  const [registerAsk, setRegisterAsk] = useState(false);
   const [lostOpen, setLostOpen] = useState(false);
   // 다음 액션 — 메모(상담 기록) · 다음 연락(일정) · 업무 추가. 청구·프로젝트는 그 화면으로 넘긴다.
   const [recordOpen, setRecordOpen] = useState(false);
@@ -252,6 +260,8 @@ const ClientPanel: React.FC<Props> = ({
       </DetailDrawer.Header>
 
       <DetailDrawer.Body>
+        {/* 고객·문의 어느 분기든 **같은 자리**에서 말한다 — 분기마다 따로 두면 한쪽에서만 보인다 */}
+        {notice && <NoticeBar role="status">{notice}</NoticeBar>}
         {isInquiry && inquiry ? (
           <>
             <Top>
@@ -422,9 +432,12 @@ const ClientPanel: React.FC<Props> = ({
               onClick={() => navigate(inquiry.openPath)}>
               {t('action.view') as string}
             </ActionButton>
-            {inquiry.canRegister && (
+            {/* ★ onRegister 를 안 받으면 **버튼 자체를 그리지 않는다**. 여태 조건이 canRegister 뿐이라
+                핸들러 없이 열린 자리(확인 필요)에서는 눌러도 아무 일이 없는 버튼이 됐다
+                (memory feedback_ui_control_sends_nothing). 등록은 상담 목록의 일이다. */}
+            {inquiry.canRegister && onRegister && (
               <ActionButton tone="primary" size="md" loading={registerBusy}
-                data-testid="inquiry-panel-register" onClick={() => onRegister?.()}>
+                data-testid="inquiry-panel-register" onClick={() => setRegisterAsk(true)}>
                 {t('action.registerClient') as string}
               </ActionButton>
             )}
@@ -480,6 +493,21 @@ const ClientPanel: React.FC<Props> = ({
           </>
         )}
       </DetailDrawer.Footer>
+
+      {isInquiry && inquiry && onRegister && (
+        <ConfirmDialog
+          isOpen={registerAsk}
+          title={t('action.registerConfirmTitle') as string}
+          message={inquiry.email
+            ? (t('action.registerConfirmBody', { email: inquiry.email }) as string)
+            : (t('action.registerConfirmNoEmail') as string)}
+          confirmText={t('action.registerClient') as string}
+          cancelText={t('inquiry.cancel') as string}
+          variant="info"
+          onClose={() => setRegisterAsk(false)}
+          onConfirm={() => { setRegisterAsk(false); onRegister(); }}
+        />
+      )}
 
       {clientId && data && (
         <>
@@ -542,6 +570,11 @@ const IconBtn = styled.button`
   border: 1px solid #E2E8F0; border-radius: 8px; background: #FFFFFF; color: #475569;
   cursor: pointer; flex-shrink: 0;
   &:hover { background: #F8FAFC; }
+`;
+/** 액션 결과 한 줄 — 성공 토스트는 쓰지 않는다(금지). 실패·경고만 여기에 남는다. */
+const NoticeBar = styled.div`
+  margin: 0 0 12px; padding: 8px 12px; border-radius: 8px;
+  background: #FEF2F2; color: #B91C1C; font-size: 0.8125rem; line-height: 1.45;
 `;
 const Top = styled.div`display: flex; align-items: center; gap: 12px; padding: 4px 0 16px;`;
 const TopText = styled.div`min-width: 0;`;

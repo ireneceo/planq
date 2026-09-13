@@ -13,14 +13,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../../contexts/AuthContext';
 import { joinRoom, onSocket } from '../../services/socket';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ActionButton from '../Common/ActionButton';
+import ConfirmDialog from '../Common/ConfirmDialog';
 import TaskCreateForm from '../QTask/TaskCreateForm';
-import ClientPanel, { type InquiryView } from './ClientPanel';
+import ClientPanel from './ClientPanel';
+// 상담 한 줄 → 패널이 그리는 값. 확인 필요(Todo)도 **같은 변환**을 쓴다(베끼면 갈라진다)
+import { inquiryViewOf } from '../../utils/saleInquiryView';
+// 등록(+초대)도 한 벌 — 확인 필요(Todo)의 같은 버튼이 같은 함수를 부른다
+import { registerInquiryAsClient } from '../../services/saleRegister';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
 import { listSaleInbox, dismissInboxItem, restoreInboxItem, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
@@ -61,6 +65,9 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
   //     비우는 곳은 제출 성공·명시 취소뿐이다 — 대상 전환 이펙트에서 지우지 않는다.
   const [taskFor, setTaskFor] = useState<SaleInboxItem | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // ★ 외부 발송은 확인을 받는다 — 이 버튼은 등록만 하는 게 아니라 **그 주소로 초대 메일을 보낸다**.
+  //   패널 쪽 [고객으로 등록]도 같은 확인을 거친다(ClientPanel). 두 문이 같은 문구를 쓴다.
+  const [registerAsk, setRegisterAsk] = useState<SaleInboxItem | null>(null);
 
   // 최신 값은 ref 로 — 리스너·타이머가 옛 값에 굳지 않게(배경 갱신 규칙)
   const argsRef = useRef({ source, replyOnly, q });
@@ -128,44 +135,23 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
     setBusyId(it.id);
     setActionError(null);
     try {
-      const body = it.ref.kind === 'guest_link'
-        ? { from: 'guest_link', guest_link_id: it.ref.id }
-        : { from: 'email_thread', email_thread_id: it.ref.id };
-      const r = await apiFetch(`/api/sale/${businessId}/save-as-client`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
-      const j = await r.json().catch(() => null);
-      if (!r.ok || j?.success === false) { setActionError(j?.message || `HTTP ${r.status}`); return; }
-      const clientId = j?.data?.client?.id ?? j?.data?.id;
-      // ★ 2026-09-13 (Irene: "고객으로 등록 버튼 누르면 초대메일 보내져야지 왜 고객페이지로 가?")
-      //   등록은 원장을 만드는 것이고, **초대는 그 사람에게 문을 여는 것**이다. 둘을 잇는다.
-      //   ☐ 이메일이 없으면 보낼 수 없다 — 초대 라우트가 name·email 을 필수로 받는다.
-      //     그때는 등록만 하고 패널의 [초대 보내기] 로 남긴다(조용히 넘어가지 않게 안내한다).
-      const invitee = it.email;
-      if (clientId && invitee) {
-        const inv = await apiFetch(`/api/clients/${businessId}/invite`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: it.who || invitee, email: invitee, company_name: it.company?.name || null }),
-        });
-        if (!inv.ok) {
-          const ij = await inv.json().catch(() => null);
-          // 등록 자체는 성공했다 — 초대만 실패했음을 분명히 말한다(실패를 삼키지 않는다)
-          setActionError(ij?.message || (t('inbox.inviteFailed') as string));
-        }
-      } else if (clientId && !invitee) {
-        setActionError(t('inbox.inviteNoEmail') as string);
-      }
+      const res = await registerInquiryAsClient(businessId, it);
+      if (!res.ok) { setActionError(res.message || (t('error.loadFailed') as string)); return; }
+      // 등록은 됐고 초대만 어긋난 경우 — 조용히 넘어가지 않는다
+      if (res.warn === 'invite_failed') setActionError(res.message || (t('inbox.inviteFailed') as string));
+      else if (res.warn === 'invite_no_email') setActionError(t('inbox.inviteNoEmail') as string);
       // 등록되면 원본의 client_id 가 채워져 이 목록에서 자연히 빠진다 — 다시 읽는다
       await load({ silent: true });
       onRegistered?.();
       // ★ 페이지로 튕기지 않는다 — 맥락을 잃는다. 방금 만든 고객을 **우측 패널**로 이어 보여준다.
-      if (clientId) onOpenClient?.(clientId);
+      //   이때 문의 패널은 닫는다. 안 닫으면 고객 패널 위에 옛 문의 패널이 겹쳐 남는다.
+      if (res.clientId) { setSelected(null); onOpenClient?.(res.clientId); }
     } catch {
       setActionError(t('error.loadFailed') as string);
     } finally {
       setBusyId(null);
     }
-  }, [busyId, businessId, load, navigate, onRegistered, t]);
+  }, [busyId, businessId, load, onOpenClient, onRegistered, t]);
 
   // 보관함에서 되돌리기 — 되돌리면 그 행은 보관함에서 빠지고 상담으로 돌아간다.
   const restoreItem = useCallback(async (it: SaleInboxItem) => {
@@ -287,7 +273,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
                     </ActionButton>
                   ) : it.ref.kind !== 'conversation' && it.ref.kind !== 'client' && (
                     <ActionButton tone="primary" size="sm" disabled={busy}
-                      data-testid={`sale-inbox-register-${it.id}`} onClick={() => registerClient(it)}>
+                      data-testid={`sale-inbox-register-${it.id}`} onClick={() => setRegisterAsk(it)}>
                       {t('action.registerClient') as string}
                     </ActionButton>
                   )}
@@ -322,6 +308,18 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
         </List>
       )}
       {taskModal}
+      <ConfirmDialog
+        isOpen={!!registerAsk}
+        title={t('action.registerConfirmTitle') as string}
+        message={registerAsk?.email
+          ? (t('action.registerConfirmBody', { email: registerAsk.email }) as string)
+          : (t('action.registerConfirmNoEmail') as string)}
+        confirmText={t('action.registerClient') as string}
+        cancelText={t('inquiry.cancel') as string}
+        variant="info"
+        onClose={() => setRegisterAsk(null)}
+        onConfirm={() => { const it = registerAsk; setRegisterAsk(null); if (it) void registerClient(it); }}
+      />
       {/* 미등록 문의도 **같은 패널**에서 본다 — 고객이면 ClientPanel, 문의면 inquiry 분기.
           화면을 따로 만들면 필드가 갈라진다(2026-09-12 박제). */}
       <ClientPanel
@@ -336,23 +334,8 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
   );
 };
 
-/** 상담 행 → 패널이 그리는 값. **목록이 받은 것에서만** 만든다(화면이 따로 모으지 않는다). */
-function inquiryViewOf(it: SaleInboxItem): InquiryView {
-  return {
-    who: it.who,
-    email: it.email,
-    company: it.company,
-    title: it.title,
-    preview: it.preview,
-    at: it.at,
-    needsReply: it.needs_reply,
-    source: it.source,
-    // 서버(routes/sale_save)가 받는 것은 게스트 링크·메일 스레드뿐 — 링크 없는 순수 대화방은 못 받는다
-    canRegister: it.ref.kind !== 'conversation',
-    emailVerified: !!(it.meta as { email_verified?: boolean })?.email_verified,
-    openPath: it.open_path,
-  };
-}
+/* 상담 행 → 패널이 그리는 값의 변환은 utils/saleInquiryView 로 옮겼다 —
+   확인 필요(Todo)도 같은 문의를 열기 때문에 한 벌이어야 한다. */
 
 export default SaleInboxList;
 

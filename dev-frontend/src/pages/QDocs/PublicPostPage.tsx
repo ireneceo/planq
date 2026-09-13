@@ -1,7 +1,7 @@
 // 공개 포스트 페이지 — share_token 기반 (인증 없음)
 // 라우트: /public/posts/:token
 // 기능: 본문 표시 + 인쇄(PDF)
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import styled from 'styled-components';
 import PublicPageShell, { PublicCenter, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀌어야 한다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface PublicPost {
   id: number;
@@ -32,26 +34,33 @@ const PublicPostPage: React.FC = () => {
   // N+44 — 410 share_expired 분기 (N+43 백엔드 응답)
   const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
-  useEffect(() => {
+  // ★ silent=true 는 **다시 읽기**다 — 로딩 화면으로 되돌리지 않는다.
+  //   읽던 문서가 스피너로 바뀌면 갱신이 아니라 고장으로 읽힌다.
+  const load = useCallback(async (silent = false) => {
     if (!token) return;
-    (async () => {
-      try {
-        const r = await fetch(`/api/posts/public/${token}`);
-        const j = await r.json().catch(() => ({}));
-        if (r.status === 410 && j.code === 'share_expired') {
-          setExpired({ at: j.expired_at || null });
-        } else if (!j.success) {
-          throw new Error(j.message || 'load_failed');
-        } else {
-          setPost(j.data);
-        }
-      } catch (e) {
-        setErr((e as Error).message);
-      } finally {
-        setLoading(false);
+    if (!silent) setLoading(true);
+    try {
+      const r = await fetch(`/api/posts/public/${token}`);
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 410 && j.code === 'share_expired') {
+        setExpired({ at: j.expired_at || null });
+      } else if (!j.success) {
+        throw new Error(j.message || 'load_failed');
+      } else {
+        setPost(j.data);
+        setExpired(null);
+        setErr(null);
       }
-    })();
+    } catch (e) {
+      // 조용한 재조회가 실패했다고 보고 있던 문서를 에러 화면으로 덮지 않는다
+      if (!silent) setErr((e as Error).message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => { void load(); }, [load]);
+  usePublicRevalidate(() => load(true));
 
   // N+72-3 fix — 옛 자동 redirect 제거 (사용자 호소 "로그인했어도 따로 보이는게 맞다").
   // share link 의 의도는 외부 뷰. in-app 으로 가고 싶으면 별도 버튼 (아래 InAppOpenLink) 명시 클릭.

@@ -14,6 +14,8 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 import {
   ActionRow, Brand, Canvas, CanvasClear, CanvasPlaceholder, CanvasWrap, ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
@@ -90,13 +92,14 @@ const PublicSignPage: React.FC = () => {
   const [canvasEmpty, setCanvasEmpty] = useState(true);
 
   // ─── 로드 ───
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (silent = false) => {
     if (!token) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const r = await fetch(`/api/sign/${token}`);
       const j = await r.json();
       if (!j.success) {
+        if (silent) return;   // 보고 있던 문서를 조용한 재조회 실패로 덮지 않는다
         setLoadErr({ code: j.message || 'load_failed', message: j.message || '' });
       } else {
         setDoc(j.data);
@@ -111,13 +114,17 @@ const PublicSignPage: React.FC = () => {
         // OTP 이미 verified 면 sign 으로 (단계 스킵)
       }
     } catch (e) {
-      setLoadErr({ code: 'network', message: (e as Error).message });
+      if (!silent) setLoadErr({ code: 'network', message: (e as Error).message });
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [token]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { void reload(); }, [reload]);
+  // ★ **문서를 읽는 단계에서만** 다시 읽는다. OTP 입력·캔버스 서명 중에 갱신이 끼어들면
+  //   reload 가 phase 를 다시 계산해 사용자를 앞 단계로 되돌린다(= 쓰던 서명이 사라진다).
+  //   읽는 동안에는 원본이 바뀌거나 요청이 취소·만료된 것을 바로 알아야 한다.
+  usePublicRevalidate(() => reload(true), { enabled: phase === 'review' });
 
   // 쿨다운 카운트다운
   useEffect(() => {

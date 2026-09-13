@@ -138,7 +138,10 @@
       "mail": "메일 보기",
       "chat": "채팅 보기"
     },
-    "restore": "되돌리기"
+    "restore": "되돌리기",
+    "registerConfirmTitle": "고객으로 등록하고 초대를 보낼까요?",
+    "registerConfirmBody": "{{email}} 으로 초대 메일이 나갑니다. 보낸 메일은 되돌릴 수 없습니다.",
+    "registerConfirmNoEmail": "고객으로 등록만 합니다. 이메일 주소가 없어 초대 메일은 나가지 않습니다."
   },
   "record": {
     "kind": {

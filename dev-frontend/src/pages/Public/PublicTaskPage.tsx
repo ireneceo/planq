@@ -5,7 +5,7 @@
 //   2. 비-인증 또는 외부 사용자 → 미리보기 그대로 + [PlanQ 로그인] / [무료 시작]
 //
 // read-only 메타만 노출 (댓글/첨부/시간 X — 개인정보 보호)
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,8 @@ import PublicPageShell, { PublicCenter, PublicWorkspaceLabel } from '../../compo
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { formatPublicDate } from '../../utils/dateFormat';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 // #99b — 공개 페이지 날짜는 보는 사람 로케일로. (여태 '2026-07-11' 원본 문자열이 그대로 노출)
 //   ★ 2026-09-10 — 여기 지역 선언으로 두었더니 게스트 화면이 이 수리를 못 받았다.
@@ -70,34 +72,38 @@ const PublicTaskPage = () => {
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwBusy, setPwBusy] = useState(false);
 
-  const fetchTask = useCallback(async (pw?: string) => {
+  const pwRef = useRef<string | undefined>(undefined);
+  const fetchTask = useCallback(async (pw?: string, silent = false) => {
     if (!token) return;
-    if (pw) setPwBusy(true); else setLoading(true);
-    setPwError(null);
+    // silent = **다시 읽기**. 보고 있는 화면을 스피너·비밀번호 창으로 되돌리지 않는다.
+    if (!silent) { if (pw) setPwBusy(true); else setLoading(true); setPwError(null); }
     try {
       const r = await fetch(`/api/tasks/public/by-token/${token}`,
         pw ? { headers: { 'X-Share-Password': pw } } : undefined);
       const j = await r.json();
-      if (j.success) {
+      if (j.success) { pwRef.current = pw;
         setTask(j.data);
         setNeedPw(false);
       } else if (r.status === 410 && j.code === 'share_expired') {
         setExpired({ at: j.expired_at || null });
       } else if (r.status === 401 && j.requires_password) {
+        if (silent) return;   // 이미 열어 본 화면을 잠금 화면으로 되돌리지 않는다
         setNeedPw(true);
         if (pw) setPwError(j.message === 'password_wrong' ? 'wrong' : null);
-      } else {
+      } else if (!silent) {
         setError(j.message || 'not_found');
       }
     } catch {
-      setError('network');
+      if (!silent) setError('network');
     } finally {
-      setLoading(false);
-      setPwBusy(false);
+      if (!silent) { setLoading(false); setPwBusy(false); }
     }
   }, [token]);
 
-  useEffect(() => { fetchTask(); }, [fetchTask]);
+  useEffect(() => { void fetchTask(); }, [fetchTask]);
+  // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약).
+  //   비밀번호로 연 화면은 **같은 자격으로** 다시 읽는다 — 안 그러면 갱신이 곧 잠금이 된다.
+  usePublicRevalidate(() => fetchTask(pwRef.current, true), { enabled: !!task });
 
   // N+95 fix — 옛 자동 redirect 제거 (로그인해도 공유 뷰가 따로 보여야). authed 는 아래 CTA 로 명시 이동.
 

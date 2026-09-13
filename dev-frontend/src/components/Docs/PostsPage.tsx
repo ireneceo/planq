@@ -1861,6 +1861,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       <Content $hasDetail={!!detail || isEditing} $projectFull={isProject}>
         {isEditing ? (
           <>
+            <StickyBands data-testid="docs-detail-bands">
             <PanelHeader>
               <TitleRow>
                 <MobileBackBtn $always={isProject} type="button" onClick={cancelEdit} aria-label={t('back', '뒤로') as string}>
@@ -1989,6 +1990,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </>
               )}
             </MetaRow>
+            </StickyBands>
             <Body>
               {error && <ErrorBar>{error}</ErrorBar>}
               {/* 다운로드 실패는 조용히 넘기지 않는다 — 이전엔 링크가 401 이어도 화면에 아무 말이 없었다 */}
@@ -2072,6 +2074,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           </>
         ) : detail ? (
           <>
+            <StickyBands data-testid="docs-detail-bands">
             <StickyPanelHeader>
               <TitleRow>
                 <MobileBackBtn $always={isProject} type="button" onClick={() => setDetail(null)} aria-label={t('back', '뒤로') as string}>
@@ -2240,6 +2243,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             
               </MetaRight>
             </ViewMeta>
+            </StickyBands>
             <Body>
               {/* ★ 보기 모드에는 오류 자리가 아예 없었다 — PDF·워드 생성 실패가 setError 로만 남고
                   화면에는 아무 말도 안 나왔다(조용한 실패). 편집 모드와 같은 자리를 준다. */}
@@ -2984,7 +2988,15 @@ const Content = styled.section<{ $hasDetail?: boolean; $projectFull?: boolean }>
 //   ★ 스크롤 구조는 바꾸지 않는다(본문에 세로 공간을 주려던 의도는 그대로다) —
 //     **제목 밴드만** 그 컨테이너 안에서 붙여 둔다. 메타/액션 줄은 종전대로 같이 흐른다
 //     ("제목 나오는 곳 **까지**" — 그 이상을 붙이면 좁은 화면에서 본문 자리를 또 뺏는다).
-const StickyPanelHeader = styled(PanelHeader)`
+//   ★ 2026-09-13 (Irene: "헤더가 q docs에서 위로 자꾸 올라가. 서브헤더까지 고정이 되어야지.")
+//     2026-09-08 에는 제목 밴드만 붙이고 메타 밴드는 흐르게 뒀다(본문 세로 공간을 아끼려고).
+//     그런데 스크롤을 내리면 분류·공유·[서명 받기] 가 사라져 **지금 문서로 뭘 할 수 있는지**가
+//     화면에서 없어진다. 이제 **두 밴드를 함께** 붙인다.
+//   ★ 밴드2 에 `top: 60px` 같은 숫자를 주지 않는다 — 폰(≤640)에서 제목이 길면 밴드1 이
+//     `height:auto` 로 자라기 때문에(PanelHeaderBar) 그 숫자가 곧 거짓이 되어 겹친다.
+//     **두 밴드를 한 묶음으로 감싸** 묶음 하나만 붙인다(높이 계산이 아예 없다).
+const StickyBands = styled.div`
+  flex-shrink: 0;
   @media (max-width: 900px) {
     position: sticky;
     top: 0;
@@ -2992,6 +3004,7 @@ const StickyPanelHeader = styled(PanelHeader)`
     background: #fff;
   }
 `;
+const StickyPanelHeader = styled(PanelHeader)``;
 const Body = styled.div`
   flex: 1; min-height: 0;
   /* 좌우 0 — 에디터 툴바·구분선이 좌우 끝까지 풀폭. 글자 안쪽 여백은 아래 규칙으로 통일(Irene).

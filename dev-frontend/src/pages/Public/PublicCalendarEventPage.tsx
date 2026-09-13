@@ -1,5 +1,5 @@
 // 공유 일정 미리보기 — /public/calendar/:token
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -7,6 +7,8 @@ import { getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
 import PublicPageShell, { PublicCenter, PublicWorkspaceLabel } from '../../components/Layout/PublicPageShell';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface CalendarPreview {
   id: number;
@@ -66,26 +68,31 @@ const PublicCalendarEventPage = () => {
   const [pwBusy, setPwBusy] = useState(false);
   const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
-  const fetchEv = useCallback(async (pw?: string) => {
+  const pwRef = useRef<string | undefined>(undefined);
+  const fetchEv = useCallback(async (pw?: string, silent = false) => {
     if (!token) return;
-    if (pw) setPwBusy(true); else setLoading(true);
-    setPwError(null);
+    // silent = **다시 읽기**. 보고 있는 화면을 스피너·비밀번호 창으로 되돌리지 않는다.
+    if (!silent) { if (pw) setPwBusy(true); else setLoading(true); setPwError(null); }
     try {
       const r = await fetch(`/api/calendar-events/public/by-token/${token}`,
         pw ? { headers: { 'X-Share-Password': pw } } : undefined);
       const j = await r.json();
-      if (j.success) { setEv(j.data); setNeedPw(false); }
+      if (j.success) { pwRef.current = pw; setEv(j.data); setNeedPw(false); }
       else if (r.status === 410 && j.code === 'share_expired') {
         setExpired({ at: j.expired_at || null });
       } else if (r.status === 401 && j.requires_password) {
+        if (silent) return;   // 이미 열어 본 화면을 잠금 화면으로 되돌리지 않는다
         setNeedPw(true);
         if (pw) setPwError(j.message === 'password_wrong' ? 'wrong' : null);
-      } else { setError(j.message || 'not_found'); }
-    } catch { setError('network'); }
-    finally { setLoading(false); setPwBusy(false); }
+      } else if (!silent) { setError(j.message || 'not_found'); }
+    } catch { if (!silent) setError('network'); }
+    finally { if (!silent) { setLoading(false); setPwBusy(false); } }
   }, [token]);
 
-  useEffect(() => { fetchEv(); }, [fetchEv]);
+  useEffect(() => { void fetchEv(); }, [fetchEv]);
+  // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약).
+  //   비밀번호로 연 화면은 **같은 자격으로** 다시 읽는다 — 안 그러면 갱신이 곧 잠금이 된다.
+  usePublicRevalidate(() => fetchEv(pwRef.current, true), { enabled: !!ev });
 
   // N+95 fix — 옛 자동 redirect 제거 (로그인해도 공유 뷰가 따로 보여야). authed 는 아래 CTA 로 명시 이동.
 

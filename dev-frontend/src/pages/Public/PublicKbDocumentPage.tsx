@@ -1,6 +1,6 @@
 // 공유 KB(인포) 문서 미리보기 — /public/kb/:token
 // 문서 공개 페이지(PublicPostPage)와 동일한 레이아웃 — 지금은 components/Layout/PublicPageShell 이 그린다.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import PublicPageShell, { PublicCenter, PublicWorkspaceLabel, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -9,6 +9,8 @@ import { getAccessToken } from '../../contexts/AuthContext';
 import SharePasswordPrompt from './SharePasswordPrompt';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface KbPreview {
   id: number;
@@ -44,26 +46,31 @@ const PublicKbDocumentPage = () => {
   const [pwBusy, setPwBusy] = useState(false);
   const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
-  const fetchDoc = useCallback(async (pw?: string) => {
+  const pwRef = useRef<string | undefined>(undefined);
+  const fetchDoc = useCallback(async (pw?: string, silent = false) => {
     if (!token) return;
-    if (pw) setPwBusy(true); else setLoading(true);
-    setPwError(null);
+    // silent = **다시 읽기**. 보고 있는 화면을 스피너·비밀번호 창으로 되돌리지 않는다.
+    if (!silent) { if (pw) setPwBusy(true); else setLoading(true); setPwError(null); }
     try {
       const r = await fetch(`/api/kb-documents/public/by-token/${token}`,
         pw ? { headers: { 'X-Share-Password': pw } } : undefined);
       const j = await r.json();
-      if (j.success) { setDoc(j.data); setNeedPw(false); }
+      if (j.success) { pwRef.current = pw; setDoc(j.data); setNeedPw(false); }
       else if (r.status === 410 && j.code === 'share_expired') {
         setExpired({ at: j.expired_at || null });
       } else if (r.status === 401 && j.requires_password) {
+        if (silent) return;   // 이미 열어 본 화면을 잠금 화면으로 되돌리지 않는다
         setNeedPw(true);
         if (pw) setPwError(j.message === 'password_wrong' ? 'wrong' : null);
-      } else { setError(j.message || 'not_found'); }
-    } catch { setError('network'); }
-    finally { setLoading(false); setPwBusy(false); }
+      } else if (!silent) { setError(j.message || 'not_found'); }
+    } catch { if (!silent) setError('network'); }
+    finally { if (!silent) { setLoading(false); setPwBusy(false); } }
   }, [token]);
 
-  useEffect(() => { fetchDoc(); }, [fetchDoc]);
+  useEffect(() => { void fetchDoc(); }, [fetchDoc]);
+  // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약).
+  //   비밀번호로 연 화면은 **같은 자격으로** 다시 읽는다 — 안 그러면 갱신이 곧 잠금이 된다.
+  usePublicRevalidate(() => fetchDoc(pwRef.current, true), { enabled: !!doc });
 
   // N+95 — 자동 redirect 없음 (PublicPostPage 와 동일). 로그인 사용자는 Toolbar 의 'PlanQ 에서 보기' 명시 클릭.
 

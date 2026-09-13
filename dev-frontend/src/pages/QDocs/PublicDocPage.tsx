@@ -1,12 +1,14 @@
 // 공개 문서 페이지 — share_token 기반 (인증 없음)
 // 라우트: /public/docs/:token
 // 기능: 본문 표시 + 인쇄(PDF) + 동의/서명/거절
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface PublicDoc {
   id: number; title: string; status: string; kind: string;
@@ -33,26 +35,31 @@ const PublicDocPage: React.FC = () => {
   // N+44 — 410 share_expired 분기
   const [expired, setExpired] = useState<{ at: string | null } | null>(null);
 
-  useEffect(() => {
+  // silent = **다시 읽기**. 보고 있는 문서를 스피너·에러 화면으로 되돌리지 않는다.
+  const load = useCallback(async (silent = false) => {
     if (!token) return;
-    (async () => {
-      try {
-        const r = await fetch(`/api/docs/public/${token}`);
-        const j = await r.json().catch(() => ({}));
-        if (r.status === 410 && j.code === 'share_expired') {
-          setExpired({ at: j.expired_at || null });
-        } else if (!j.success) {
-          throw new Error(j.message || 'load_failed');
-        } else {
-          setDoc(j.data);
-        }
-      } catch (e) {
-        setErr((e as Error).message);
-      } finally {
-        setLoading(false);
+    if (!silent) setLoading(true);
+    try {
+      const r = await fetch(`/api/docs/public/${token}`);
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 410 && j.code === 'share_expired') {
+        setExpired({ at: j.expired_at || null });
+      } else if (!j.success) {
+        throw new Error(j.message || 'load_failed');
+      } else {
+        setDoc(j.data); setErr(null);
       }
-    })();
+    } catch (e) {
+      if (!silent) setErr((e as Error).message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => { void load(); }, [load]);
+  // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약).
+  //   ★ 서명 입력 중에는 멈춘다 — 갱신이 끼어들면 쓰던 이름·동의가 날아간다.
+  usePublicRevalidate(() => load(true), { enabled: !!doc && !signing && !signedDone });
 
   const submitSign = async (accept: boolean) => {
     if (!token || !signerName.trim()) return;

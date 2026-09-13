@@ -138,7 +138,10 @@
       "mail": "Open in Mail",
       "chat": "Open in Chat"
     },
-    "restore": "Restore"
+    "restore": "Restore",
+    "registerConfirmTitle": "Register as a client and send the invitation?",
+    "registerConfirmBody": "An invitation email will be sent to {{email}}. A sent email cannot be taken back.",
+    "registerConfirmNoEmail": "This only registers the client. There is no email address, so no invitation will be sent."
   },
   "record": {
     "kind": {

@@ -1,12 +1,14 @@
 // 공유 KB(인포) 번들(다건/카테고리) 미리보기 — /public/kb-bundle/:token
 // 리스트 → 항목 클릭 → 상세. 문서 공개 페이지(PublicPostPage)와 동일 레이아웃.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import PublicPageShell, { PublicCenter, PublicWorkspaceLabel, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface BundleDoc {
   id: number;
@@ -44,18 +46,25 @@ const PublicKbBundlePage = () => {
   const [expired, setExpired] = useState<{ at: string | null } | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async (silent = false) => {
     if (!token) return;
-    fetch(`/api/kb-bundle/public/by-token/${token}`)
-      .then(async (r) => {
-        const j = await r.json();
-        if (j.success) { setData(j.data); }
-        else if (r.status === 410 && j.code === 'share_expired') setExpired({ at: j.expired_at || null });
-        else setError(j.message || 'not_found');
-      })
-      .catch(() => setError('network'))
-      .finally(() => setLoading(false));
+    if (!silent) setLoading(true);
+    try {
+      const r = await fetch(`/api/kb-bundle/public/by-token/${token}`);
+      const j = await r.json();
+      if (j.success) { setData(j.data); setError(null); }
+      else if (r.status === 410 && j.code === 'share_expired') setExpired({ at: j.expired_at || null });
+      else if (!silent) setError(j.message || 'not_found');
+    } catch {
+      if (!silent) setError('network');
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => { void load(); }, [load]);
+  // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+  usePublicRevalidate(() => load(true), { enabled: !!data });
 
   const selected = useMemo(
     () => (selectedId != null && data ? data.documents.find((d) => d.id === selectedId) || null : null),

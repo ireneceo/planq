@@ -1,11 +1,13 @@
 // 공개 Q Note 세션 페이지 — share_token 기반 (인증 없음)
 // 라우트: /public/qnote-sessions/:token
 // 사이클 N+25 — 회의 transcript + summary read-only 미리보기.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import PublicPageShell, { PublicCenter, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface Speaker {
   id: number;
@@ -54,17 +56,24 @@ const PublicQNoteSessionPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async (silent = false) => {
     if (!token) return;
-    fetch(`/qnote/api/sessions/public/by-token/${token}`)
-      .then(r => r.json())
-      .then(j => {
-        if (!j.success) throw new Error(j.detail || j.message || 'load_failed');
-        setData(j.data);
-      })
-      .catch(e => setErr((e as Error).message))
-      .finally(() => setLoading(false));
+    if (!silent) setLoading(true);
+    try {
+      const r = await fetch(`/qnote/api/sessions/public/by-token/${token}`);
+      const j = await r.json();
+      if (!j.success) throw new Error(j.detail || j.message || 'load_failed');
+      setData(j.data); setErr(null);
+    } catch (e) {
+      if (!silent) setErr((e as Error).message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => { void load(); }, [load]);
+  // 회의록은 요약·발화가 뒤늦게 붙는다 — 링크를 열어 둔 사람에게도 그때 보여야 한다
+  usePublicRevalidate(() => load(true), { enabled: !!data });
 
   if (loading) return <PublicCenter>{t('public.loading', '회의록 로드 중...')}</PublicCenter>;
   if (err || !data) {

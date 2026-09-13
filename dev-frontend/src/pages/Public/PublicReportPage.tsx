@@ -11,6 +11,8 @@ import {
 import ReportContent from '../../components/QTask/report/ReportContent';
 import PublicPageShell, { PublicCenter, PublicWorkspaceLabel } from '../../components/Layout/PublicPageShell';
 import type { ReportSnapshot } from '../../services/reportUnit';
+// 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface UnitView {
   scope: 'project' | 'member';
@@ -47,18 +49,21 @@ const PublicReportPage = () => {
   //   만료되지 않는다** — 한 번 나간 링크가 영구히 열린다. 별건으로 다룰 문제다.
   //   (2026-09-10: 여기 410 분기를 넣었다가 되돌렸다. 서버가 절대 보내지 않는 응답을 처리하는
   //    죽은 코드였고, 커밋 메시지에 "서버가 share_expired 를 준다" 고 **잘못 적었다**.)
-  const fetchReport = useCallback(async () => {
-    setLoading(true); setError(false);
+  const fetchReport = useCallback(async (silent = false) => {
+    // silent = 다시 읽기 — 보고 있는 리포트를 스피너로 되돌리지 않는다
+    if (!silent) { setLoading(true); setError(false); }
     try {
       const r = await fetch(`/api/reports/public/integrated/${token}`);
       const j = await r.json();
       if (!r.ok || !j.success) throw new Error();
       setData(j.data);
       setDim(j.data?.dim === 'member' ? 'member' : 'project');
-    } catch { setError(true); }
-    finally { setLoading(false); }
+    } catch { if (!silent) setError(true); }
+    finally { if (!silent) setLoading(false); }
   }, [token]);
-  useEffect(() => { fetchReport(); }, [fetchReport]);
+  useEffect(() => { void fetchReport(); }, [fetchReport]);
+  // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
+  usePublicRevalidate(() => fetchReport(true), { enabled: !!data });
 
   if (loading) return <PublicCenter>{t('publicReport.loading', { defaultValue: '불러오는 중…' }) as string}</PublicCenter>;
   if (error || !data) return (
