@@ -852,21 +852,5 @@
     "projectLink": "외부 열람 링크",
     "projectLinkLead": "로그인 없이 {{name}} 의 진행 상황·업무를 보고 문의할 수 있는 링크입니다. 카톡·메일로 보내세요.",
     "projectLinkLive": "외부 열람 링크 — 지금 열려 있습니다"
-  },
-  "qnote": {
-    "searchPlaceholder": "회의록 제목 검색",
-    "openQNote": "Q note 에서 열기",
-    "loadFailed": "회의록을 불러오지 못했습니다.",
-    "untitled": "제목 없음",
-    "loading": "불러오는 중…",
-    "empty": {
-      "title": "이 프로젝트에 연결된 회의록이 없습니다",
-      "body": "Q note 에서 회의록을 만들 때 이 프로젝트를 고르면 여기에 모입니다. 개인 노트는 본인에게만 보이므로 여기 나오지 않습니다."
-    },
-    "mode": {
-      "live": "실시간 녹음",
-      "upload": "업로드",
-      "memo": "메모"
-    }
   }
 }

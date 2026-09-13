@@ -380,12 +380,16 @@
     "empty": {
       "task": "No linked tasks",
       "file": "No linked files",
-      "project": "No linked projects"
+      "project": "No linked projects",
+      "qnote": "No meeting notes linked to this client. Personal notes are not shown here.",
+      "info": "No info documents linked to this client."
     },
     "search": {
       "task": "Find by task title",
       "file": "Find by file name",
       "project": "Find by project name"
-    }
+    },
+    "qnotes": "Notes",
+    "infos": "Info"
   }
 }

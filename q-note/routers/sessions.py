@@ -351,6 +351,14 @@ class CreateSessionRequest(BaseModel):
   keywords: Optional[List[str]] = None  # STT 보정용 어휘 사전
   category: Optional[str] = Field(None, max_length=100)  # 운영 #54 — 분류
   tags: Optional[List[str]] = None                       # 운영 #54 — 태그
+  # ★ 2026-09-13 — 만들 때 바로 붙이는 연결.
+  #   여태 이 두 필드가 **스키마에 없어서** 화면이 보내도 조용히 버려졌다(pydantic 이 무시한다).
+  #   MemoView 는 사이클 N+17 부터 `project_id` 를 보내고 있었고 주석에는 "prefill 반영" 이라고
+  #   적혀 있었지만, 실측하니 생성된 세션의 project_id 는 언제나 NULL 이었다.
+  #   (memory `feedback_ui_control_sends_nothing` · `feedback_verified_claim_not_assumed`)
+  #   소속 검증은 PUT 과 **같은 술어**(_belongs_to_business)를 쓴다 — 화면이 보낸 번호를 믿지 않는다.
+  project_id: Optional[int] = None
+  client_id: Optional[int] = None
 
 
 class UpdateSessionRequest(BaseModel):
@@ -1011,6 +1019,12 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
   initial_status = 'active' if is_text else 'prepared'
   translate_enabled_int = 1 if body.translate_enabled else 0   # #241 — 미지정이면 OFF
 
+  # 연결 대상 소속 검증 — PUT 과 같은 술어. 남의 워크스페이스 프로젝트/고객에 못 붙인다.
+  if body.project_id is not None and not await _belongs_to_business('project', body.project_id, body.business_id):
+    raise HTTPException(status_code=403, detail='project_not_in_workspace')
+  if body.client_id is not None and not await _belongs_to_business('client', body.client_id, body.business_id):
+    raise HTTPException(status_code=403, detail='client_not_in_workspace')
+
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     # linked_voice_session_id 검증 (text 메모만 의미 있음)
@@ -1024,8 +1038,9 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
             meeting_languages, translation_language, answer_language, pasted_context, capture_mode,
             user_name, user_bio, user_expertise, user_organization, user_job_title,
             user_language_levels, user_expertise_level, meeting_answer_style, meeting_answer_length,
-            keywords, input_type, translate_enabled, linked_voice_session_id, body, category, tags)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            keywords, input_type, translate_enabled, linked_voice_session_id, body, category, tags,
+            project_id, client_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       (
         body.business_id, user['user_id'], body.title, language, initial_status,
         body.brief, participants_json, languages_json,
@@ -1036,6 +1051,7 @@ async def create_session(body: CreateSessionRequest, user: dict = Depends(get_cu
         keywords_json,
         input_type, translate_enabled_int, body.linked_voice_session_id, body.body,
         category_val, tags_json,
+        body.project_id, body.client_id,
       )
     )
     await db.commit()
@@ -1390,13 +1406,23 @@ async def change_visibility(
     new_vis = body.visibility
     new_proj_id = body.project_id
 
+    # ★ 2026-09-13 — **공개 범위를 바꾸는 것이 연결을 끊어서는 안 된다.**
+    #   여태 L2 가 아니면 `new_proj_id = None` 으로 덮어써서, 프로젝트에 연결해 둔 회의록을
+    #   "워크스페이스 공개(L3)" 로 바꾸는 순간 project_id 가 NULL 이 됐다 — 그 노트는 프로젝트
+    #   노트 탭·프로젝트 히스토리에서 **말없이 사라졌다**(실측 2026-09-13: 픽스처가 0건으로 떨어짐).
+    #   한 컬럼에 뜻이 둘 섞여 있던 것이다: `project_id` 는 **연결**이고 `visibility` 는 **공개 범위**다.
+    #   L2 는 "그 프로젝트 팀에게만" 이라 연결이 반드시 있어야 한다 — 그것만 요구한다.
+    #   연결을 푸는 문은 따로 있다(PUT /:id 의 `unlink_project`).
+    cur_proj_id = row['project_id'] if 'project_id' in row.keys() else None
     if new_vis == 'L2':
+      if not new_proj_id:
+        new_proj_id = cur_proj_id
       if not new_proj_id:
         raise HTTPException(status_code=400, detail='project_id_required_for_L2')
       if not await _is_user_in_project(user['user_id'], new_proj_id):
         raise HTTPException(status_code=403, detail='not_a_project_member')
-    else:
-      new_proj_id = None
+    elif new_proj_id is None:
+      new_proj_id = cur_proj_id
 
     # 외부 참석자 동의 검사 — L3/L4 공유 시
     if new_vis in ('L3', 'L4'):

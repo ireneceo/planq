@@ -315,8 +315,15 @@ export interface CreateSessionPayload {
   tags?: string[];
 }
 
-export async function listSessions(businessId: number, page = 1, limit = 20) {
-  const res = await apiFetch(`${BASE}/sessions?business_id=${businessId}&page=${page}&limit=${limit}`);
+// opts.projectId — 프로젝트 탭(embedded Q Note)이 그 프로젝트 회의록만 본다.
+//   범위 판정은 q-note 쪽이다: 내 세션 + L3 + (내가 속한 프로젝트의) L2.
+//   **여기서 필터를 흉내 내지 않는다** — 클라이언트가 걸러 봐야 서버가 보낸 것은 이미 왔다.
+export async function listSessions(
+  businessId: number, page = 1, limit = 20, opts?: { projectId?: number | null },
+) {
+  const qs = new URLSearchParams({ business_id: String(businessId), page: String(page), limit: String(limit) });
+  if (opts?.projectId) qs.set('project_id', String(opts.projectId));
+  const res = await apiFetch(`${BASE}/sessions?${qs.toString()}`);
   return handle<QNoteSession[]>(res);
 }
 

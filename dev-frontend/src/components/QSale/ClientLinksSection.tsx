@@ -11,13 +11,22 @@
 //                                   DELETE /api/projects/:pid/clients/:linkId  ← **행 id**다
 //   (null 을 보내면 해제. 워크스페이스 소속은 서버가 같은 술어로 확인한다 — 400 invalid_client)
 //
-// ★ Q docs 글(Post)에는 고객 축이 없다(모델 확인). 그래서 "문서" 는 여기 없다 —
+// ★ 2026-09-13 (Irene: *"Q note나 문서 등 고객이 연결되면 고객프로필에도 나와야 하는 거야."*)
+//   **보여주는 것**을 두 가지 더한다 — 둘 다 읽기 전용이다:
+//     노트  Q Note 세션    — GET /api/clients/:biz/:id/qnotes (q-note 브리지, `visibility <> 'L1'`)
+//     정보  Q info 문서    — GET /api/businesses/:biz/kb/documents?client_id=N (이미 있는 필터)
+//   왜 연결/해제 버튼이 없나: **연결하는 자리가 따로 있고 거기가 정본**이다.
+//     노트는 만든 사람이 Q Note 에서 고객을 고른다(남의 개인 노트를 여기서 붙일 수 없다 — §5.8).
+//     정보는 등록 폼에서 적용 범위를 고객으로 고른다(여기서 scope 를 바꾸면 프로젝트 문서가 망가진다).
+//
+// ★ Q docs 글(Post)에는 고객 축이 없다(모델 재확인 2026-09-13). 그래서 Q docs 글은 여기 없다 —
 //   대상이 없는 버튼을 두면 눌러도 아무 일이 없는 컨트롤이 된다. 결정은 docs/FABLE_GATE_QUEUE.md 23번.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { fetchClientFiles, updateFileMeta, type ClientFileRow } from '../../services/files';
+import { tabStore } from '../../stores/tabStore';
 
 type ProjectRow = { id: number; name: string; status?: string; link_id?: number };
 type TaskRow = { id: number; title: string; status?: string };
@@ -45,6 +54,9 @@ export default function ClientLinksSection({
 
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [files, setFiles] = useState<ClientFileRow[]>([]);
+  // 읽기 전용 — 고객에 연결된 Q Note 회의록 · Q info 정보
+  const [qnotes, setQnotes] = useState<Array<{ id: number; title: string }>>([]);
+  const [infos, setInfos] = useState<Array<{ id: number; title: string }>>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -55,20 +67,29 @@ export default function ClientLinksSection({
   const timerRef = useRef<number | null>(null);
 
   const loadLinked = useCallback(async () => {
-    if (!businessId || !clientId) { setTasks([]); setFiles([]); return; }
+    if (!businessId || !clientId) { setTasks([]); setFiles([]); setQnotes([]); setInfos([]); return; }
     setLoading(true);
     try {
-      const [tr, fr] = await Promise.all([
+      const [tr, fr, nr, ir] = await Promise.all([
         apiFetch(`/api/tasks/by-business/${businessId}?client_id=${clientId}&limit=100`)
           .then((r) => (r.ok ? r.json() : null)).catch(() => null),
         fetchClientFiles(businessId, clientId),
+        // q-note 가 죽어 있어도 고객 화면은 떠야 한다 — 실패는 빈 목록
+        apiFetch(`/api/clients/${businessId}/${clientId}/qnotes?limit=50`)
+          .then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        apiFetch(`/api/businesses/${businessId}/kb/documents?client_id=${clientId}&limit=50`)
+          .then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ]);
+      setQnotes((Array.isArray(nr?.data) ? nr.data : [])
+        .map((x: { id: number; title?: string | null }) => ({ id: Number(x.id), title: String(x.title || '') })));
+      setInfos((Array.isArray(ir?.data) ? ir.data : [])
+        .map((x: { id: number; title?: string | null }) => ({ id: Number(x.id), title: String(x.title || '') })));
       const rows = Array.isArray(tr?.data) ? tr.data : [];
       setTasks(rows.map((x: { id: number; title?: string; status?: string }) => ({
         id: Number(x.id), title: String(x.title || ''), status: x.status,
       })));
       setFiles(fr);
-    } catch { setTasks([]); setFiles([]); }
+    } catch { setTasks([]); setFiles([]); setQnotes([]); setInfos([]); }
     finally { setLoading(false); }
   }, [businessId, clientId]);
 
@@ -244,6 +265,37 @@ export default function ClientLinksSection({
     </Group>
   );
 
+  // 읽기 전용 그룹 — 연결/해제 컨트롤 없이 "무엇이 연결돼 있나" 만 보여준다.
+  //   빈 목록에는 **왜 비었는지**를 적는다 — "없다" 와 "못 본다" 는 사용자에게 구별되지 않는다.
+  const roGroup = (
+    kind: 'qnote' | 'info',
+    title: string,
+    rows: Array<{ id: number; title: string }>,
+    onOpen: (id: number) => void,
+  ) => (
+    <Group data-testid={`client-links-${kind}`}>
+      <GroupHead>
+        <GroupTitle>{title}</GroupTitle>
+        <Count>{rows.length}</Count>
+      </GroupHead>
+      {rows.length === 0 ? (
+        <Empty>{label(`links.empty.${kind}`, '연결된 항목이 없습니다')}</Empty>
+      ) : (
+        <Chips>
+          {rows.map((r) => (
+            <Chip key={r.id} $clickable>
+              <ChipName type="button" title={r.title}
+                data-testid={`client-link-open-${kind}-${r.id}`}
+                onClick={() => onOpen(r.id)}>
+                {r.title || label('links.untitled', '(제목 없음)')}
+              </ChipName>
+            </Chip>
+          ))}
+        </Chips>
+      )}
+    </Group>
+  );
+
   return (
     <Wrap data-testid="client-links">
       {loading && <Hint>{label('links.loading', '불러오는 중…')}</Hint>}
@@ -253,6 +305,11 @@ export default function ClientLinksSection({
         files.map((x) => ({ id: x.id, label: x.file_name })))}
       {group('project', label('links.projects', '프로젝트'),
         projects.map((p) => ({ id: p.id, label: p.name, linkId: p.link_id })), onOpenProject)}
+      {/* 아래 둘은 **읽기 전용**이다 — 연결은 각자의 정본 자리에서 한다(파일 상단 주석). */}
+      {roGroup('qnote', label('links.qnotes', '노트'), qnotes,
+        (id) => tabStore.openInNewTab(`/notes/${id}`))}
+      {roGroup('info', label('links.infos', '정보'), infos,
+        (id) => tabStore.openInNewTab(`/info?doc=${id}`))}
     </Wrap>
   );
 }

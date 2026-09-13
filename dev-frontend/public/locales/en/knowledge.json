@@ -122,7 +122,8 @@
     "inferredNameHint": "The field name was not stored when it was removed, so it could not be recovered. Rename it after restoring."
   },
   "row": {
-    "delete": "Delete"
+    "delete": "Delete",
+    "attached": "{{n}} attached"
   },
   "empty": {
     "title": "No knowledge yet",
@@ -234,6 +235,7 @@
     "retry": "Try again"
   },
   "button": {
-    "aiAdd": "Add with AI"
+    "aiAdd": "Add with AI",
+    "aiAddHint": "AI organizes pasted content or text files by topic and adds them"
   }
 }

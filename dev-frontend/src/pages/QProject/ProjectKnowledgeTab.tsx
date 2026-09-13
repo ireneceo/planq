@@ -14,14 +14,15 @@ import { useTranslation } from 'react-i18next';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
-import HighlightText from '../../components/Common/HighlightText';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import AttachmentField from '../../components/Common/AttachmentField';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import CategoryTree, { Split, MainArea, type CategoryTreeItem } from '../../components/Common/CategoryTree';
 import KbAiIngestModal from '../Knowledge/KbAiIngestModal';
-import { SparkleIcon } from '../../components/Common/Icons';
+import AiActionButton from '../../components/Common/AiActionButton';
+// 목록 행은 Q info 와 **같은 한 벌**이다 (components/Knowledge/kbListShell).
+import { List, KbDocRow, catLabel } from '../../components/Knowledge/kbListShell';
 import { listKbCategories } from '../../services/knowledge';
 import { apiFetch } from '../../contexts/AuthContext';
 import {
@@ -49,6 +50,8 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  // 정렬 — Q info 와 같은 3종(최근/이름/오래된). 툴바에서 빠져 있으면 같은 자료인데 순서가 달라 보인다.
+  const [sortKey, setSortKey] = useState<'recent' | 'title' | 'oldest'>('recent');
   const [aiOpen, setAiOpen] = useState(false);
   // 좌측 트리에 쓸 카테고리 — 워크스페이스 등록분(Q info 와 같은 엔드포인트) ∪ 이 프로젝트 문서가 쓰는 값
   const [wsCats, setWsCats] = useState<string[]>([]);
@@ -168,13 +171,30 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return docs.filter(d => {
+    const arr = docs.filter(d => {
       const cs = catsOf(d);
       if (categoryFilter !== 'all' && !cs.includes(categoryFilter)) return false;
       if (q && !(d.title.toLowerCase().includes(q) || cs.join(' ').toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [docs, search, categoryFilter, catsOf]);
+    const at = (d: KbDocumentRow) => new Date(d.updated_at || d.created_at).getTime() || 0;
+    return [...arr].sort((a, b) =>
+      sortKey === 'title' ? a.title.localeCompare(b.title)
+      : sortKey === 'oldest' ? at(a) - at(b)
+      : at(b) - at(a));
+  }, [docs, search, categoryFilter, catsOf, sortKey]);
+
+  // 행 우측 메타 — 첨부 수 + 수정일. 스코프·프로젝트명은 적지 않는다(여기가 그 프로젝트다).
+  const rowMeta = useCallback((d: KbDocumentRow): string => {
+    const parts: string[] = [];
+    const fileCount = Array.isArray(d.attached_file_ids) ? d.attached_file_ids.length : 0;
+    const postCount = Array.isArray(d.attached_post_ids) ? d.attached_post_ids.length : 0;
+    if (fileCount + postCount > 0) parts.push(t('row.attached', '첨부 {{n}}', { n: fileCount + postCount }) as string);
+    if (d.chunk_count > 0) parts.push(`chunk ${d.chunk_count}`);
+    const when = d.updated_at || d.created_at;
+    if (when) { const dt = new Date(when); if (!isNaN(dt.getTime())) parts.push(dt.toLocaleDateString()); }
+    return parts.join(' · ');
+  }, [t]);
 
   // 좌측 트리 — **이 프로젝트 문서가 실제로 쓰는 카테고리만.**
   //
@@ -189,7 +209,9 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
     const counts: Record<string, number> = {};
     for (const d of docs) for (const c of catsOf(d)) counts[c] = (counts[c] || 0) + 1;
     return Object.keys(counts)
-      .map(k => ({ key: k, label: t(`category.${k}`, k) as string, count: counts[k] }))
+      // 라벨은 Q info 와 같은 함수(catLabel) — 여기만 `category.*` 키를 보고 있어서
+      //   기본 6종도 번역이 안 붙고 원문 키("policy")가 그대로 나왔다.
+      .map(k => ({ key: k, label: catLabel(t, k), count: counts[k] }))
       .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
   }, [docs, catsOf, t]);
 
@@ -199,11 +221,33 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
         <ToolbarLeft>
           <SearchBox value={search} onChange={setSearch} placeholder={t('search.placeholder', '제목·카테고리 검색') as string} />
         </ToolbarLeft>
-        {/* AI 자동추가 — Q info 와 같은 모달을 scope='project' 로 재사용 (Irene 2026-09-03) */}
-        <AiBtn type="button" data-testid="projinfo-ai-add" onClick={() => setAiOpen(true)}>
-          <SparkleIcon size={14} />
-          {t('button.aiAdd', 'AI 로 자동 추가') as string}
-        </AiBtn>
+        {/* AI 자동추가 — 버튼도 모달도 Q info 와 같은 것을 쓴다.
+            ★ 2026-09-13 (Irene: *"AI로 자동추가는 버튼색도 아이콘도 안맞아. Q info랑 매칭해봐."*)
+              여기만 흰 배경 + 민트 테두리 + SparkleIcon 으로 따로 그려져 있었다. AI 진입점의
+              색·아이콘은 `components/Common/AiActionButton` 한 곳이 정한다(Coral 그라디언트 + 5각 별). */}
+        <AiActionButton
+          testId="projinfo-ai-add"
+          onClick={() => setAiOpen(true)}
+          label={t('button.aiAdd', 'AI 로 자동 추가') as string}
+          title={t('button.aiAddHint', '붙여넣은 내용이나 텍스트 파일을 AI 가 토픽별로 정리해 추가합니다') as string}
+        />
+        <SortWrap>
+          <PlanQSelect
+            size="sm" isSearchable={false}
+            value={{
+              value: sortKey,
+              label: sortKey === 'title' ? (t('sort.title', '이름 순') as string)
+                : sortKey === 'oldest' ? (t('sort.oldest', '오래된 순') as string)
+                : (t('sort.recent', '최근 순') as string),
+            }}
+            onChange={(opt) => setSortKey((((opt as PlanQSelectOption | null)?.value) as 'recent' | 'title' | 'oldest') || 'recent')}
+            options={[
+              { value: 'recent', label: t('sort.recent', '최근 순') as string },
+              { value: 'title', label: t('sort.title', '이름 순') as string },
+              { value: 'oldest', label: t('sort.oldest', '오래된 순') as string },
+            ]}
+          />
+        </SortWrap>
         <PrimaryBtn type="button" onClick={openModal}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           {t('button.add', '정보 등록') as string}
@@ -223,21 +267,27 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
           {loading && <SkBar style={{ width: '100%', height: 48 }} />}
           {!loading && filtered.length === 0 && (
             <EmptyState
+              icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 6.253v13"/><path d="M12 6.253C10.832 5.477 9.246 5 7.5 5 5.754 5 4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253"/><path d="M12 6.253C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253"/></svg>}
               title={t('empty.title', '아직 등록된 정보가 없어요') as string}
               description={t('empty.body', '이 프로젝트에서 자주 참조하는 자료·정책·매뉴얼을 등록하면 Cue 가 답변 시 참조합니다.') as string}
+              ctaLabel={t('empty.cta', '정보 등록') as string}
+              onCta={openModal}
             />
           )}
           {!loading && filtered.length > 0 && (
             <List>
+              {/* 행은 Q info 와 같은 컴포넌트다 — 커스텀 항목·보안등급·권한/상태 칩·삭제까지 같이 온다.
+                  메타 문자열은 화면이 만든다: 여기서는 "프로젝트: X" 를 또 적을 이유가 없다. */}
               {filtered.map(d => (
-                <Row key={d.id} $active={detailId === d.id} onClick={() => setDetailId(prev => prev === d.id ? null : d.id)}>
-                  <RowTitle><HighlightText text={d.title} query={search} /></RowTitle>
-                  <RowMeta>
-                    {/* 다중 카테고리 표시 — 단수만 그리면 AI 가 배열로 저장한 문서에 칩이 안 뜬다 */}
-                    {catsOf(d).map(c => <CategoryChip key={c}><HighlightText text={t(`category.${c}`, c) as string} query={search} /></CategoryChip>)}
-                    {d.chunk_count > 0 && <span>· chunk {d.chunk_count}</span>}
-                  </RowMeta>
-                </Row>
+                <KbDocRow
+                  key={d.id}
+                  doc={d}
+                  search={search}
+                  active={detailId === d.id}
+                  meta={rowMeta(d)}
+                  onOpen={() => setDetailId(prev => prev === d.id ? null : d.id)}
+                  onDelete={() => setConfirmDelete(d.id)}
+                />
               ))}
             </List>
           )}
@@ -418,26 +468,8 @@ export default ProjectKnowledgeTab;
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 16px;`;
 const Toolbar = styled.div`display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap;`;
 const ToolbarLeft = styled.div`display: flex; gap: 8px; flex: 1; min-width: 0;`;
-const List = styled.div`display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden;`;
-const Row = styled.button<{ $active: boolean }>`
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 16px; background: ${p => p.$active ? '#F0FDFA' : 'transparent'}; border: none; cursor: pointer; text-align: left;
-  border-bottom: 1px solid #F1F5F9;
-  &:last-child { border-bottom: none; }
-  &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
-`;
-const RowTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-const RowMeta = styled.div`display: flex; gap: 8px; align-items: center; font-size: 0.75rem; color: #64748B;`;
-const CategoryChip = styled.span`background: #F1F5F9; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 0.6875rem; font-weight: 500;`;
+const SortWrap = styled.div`min-width: 132px;`;
 const SkBar = styled.div`background: linear-gradient(90deg, #F1F5F9 0px, #E2E8F0 40px, #F1F5F9 80px); background-size: 200px 100%; animation: sk 1.2s linear infinite; border-radius: 4px; @keyframes sk { 0% { background-position: -200px 0 } 100% { background-position: calc(200px + 100%) 0 } }`;
-const AiBtn = styled.button`
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 36px; padding: 0 12px; border-radius: 8px;
-  background: #fff; color: #0F766E; border: 1px solid #99F6E4;
-  font-size: 0.8125rem; font-weight: 600; cursor: pointer; white-space: nowrap;
-  &:hover { background: #F0FDFA; }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
-`;
 const PrimaryBtn = styled.button`display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; background: #14B8A6; color: #fff; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover:not(:disabled) { background: #0D9488; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;
 const SecondaryBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #475569; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #F8FAFC; border-color: #CBD5E1; }`;
 const DangerBtn = styled.button`height: 36px; padding: 0 14px; background: transparent; color: #DC2626; border: 1px solid #FECACA; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover { background: #FEF2F2; }`;

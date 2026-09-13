@@ -506,7 +506,7 @@ const ListView: React.FC<{
   ], query) : null);
 
   const renderCard = (p: ProjectWithStats) => (
-      <ProjectCard key={p.id} onClick={() => onOpen(p.id)} role="button" tabIndex={0}
+      <ProjectCard key={p.id} data-testid={`project-card-${p.id}`} onClick={() => onOpen(p.id)} role="button" tabIndex={0}
         onKeyDown={(e) => { if (isEnterAction(e)) onOpen(p.id); }}
         style={{ borderLeft: `4px solid ${colorForProject(p)}` }}>
         <CardHead>

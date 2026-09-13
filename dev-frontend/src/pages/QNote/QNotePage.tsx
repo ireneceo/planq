@@ -204,7 +204,26 @@ function joinTranslation(segments: BlockSegment[]): { text: string; hasAny: bool
   };
 }
 
-const QNotePage = () => {
+// ★ 2026-09-13 (Irene: *"프로젝트 > 노트 탭은 문서 랑 완전히 똑같이 해서 Q note 기능 그대로 구현해."*)
+//
+//   문서 탭이 `<PostsPage scope={{type:'project',…}} />` 인 것과 **같은 방식**이다.
+//   목록만 보여 주고 내용은 다른 탭에서 여는 식으로 베껴 두면, 프로젝트 안에서는 회의록을
+//   만들지도 고치지도 못한다 — 같은 기능이 자리마다 다른 것을 사용자는 고장으로 읽는다.
+//
+//   embedded(project) 모드에서 달라지는 것은 **네 가지뿐**이다:
+//     ① 세션 선택이 URL 이 아니라 내부 state 다 (프로젝트 탭은 자기 주소를 갖지 않는다)
+//     ② 목록이 그 프로젝트로 걸린다 — `listSessions(..., { projectId })`.
+//        범위 판정은 q-note 가 한다: 내 세션 + L3 + (내 프로젝트의) L2. **남의 개인 노트는 안 온다.**
+//     ③ 새로 만드는 노트에 그 프로젝트가 미리 붙는다
+//     ④ 탭 제목을 건드리지 않는다 (그 탭은 프로젝트 탭이다)
+//   그 외 녹음·요약·업무추출·공유는 **같은 코드**가 그대로 돈다.
+export interface QNotePageProps {
+  scope?: { type: 'project'; businessId: number; projectId: number };
+  /** embedded 모드에서 녹음이 도는 동안 부모(프로젝트 상세)가 이 탭을 언마운트하지 않게 알린다. */
+  onRecordingChange?: (recording: boolean) => void;
+}
+
+const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   // 9b — 숨은 앱탭(멀티탭 비활성)·브라우저 백그라운드에선 준비상태/락 폴링을 멈춘다(불필요한 백엔드 부하 차단).
   //   녹음 heartbeat 는 별개로 항상 유지(백그라운드 녹음 지속). 단일탭에선 항상 true → 무회귀.
   const reallyVisible = useReallyVisible();
@@ -212,7 +231,9 @@ const QNotePage = () => {
   const { t: tErr } = useTranslation('errors');
   const { user } = useAuth();
   const { formatDate: fmtWsDate } = useTimeFormat();
-  const businessId = user?.business_id ?? null;
+  const embedded = scope?.type === 'project';
+  const embedProjectId = scope?.type === 'project' ? scope.projectId : null;
+  const businessId = (scope?.businessId ?? user?.business_id) ?? null;
 
   const speakerLabels = useMemo(() => ({
     self: t('page.speaker.self'),
@@ -220,8 +241,21 @@ const QNotePage = () => {
     numbered: (n: number) => t('page.speaker.numbered', { n }),
   }), [t]);
 
-  const { sessionId: urlSessionId } = useParams<{ sessionId?: string }>();
+  const { sessionId: routeSessionId } = useParams<{ sessionId?: string }>();
   const navigate = useNavigate();
+  // 프로젝트 탭에는 자기 주소가 없다 — 선택은 내부 state 로 간다.
+  const [embedSessionId, setEmbedSessionId] = useState<string | undefined>(undefined);
+  const urlSessionId = embedded ? embedSessionId : routeSessionId;
+  // Q Note 안에서의 이동 한 곳. embedded 면 주소를 바꾸지 않고 선택만 바꾼다.
+  //   ★ `/notes` 밖으로 나가는 이동(`/docs` 등)은 그대로 navigate 를 쓴다 — 그건 진짜 이동이다.
+  const goNote = useCallback((path: string, opts?: { replace?: boolean }) => {
+    if (embedded) {
+      const m = /^\/notes\/(\d+)/.exec(path);
+      setEmbedSessionId(m ? m[1] : undefined);
+      return;
+    }
+    navigate(path, opts);
+  }, [embedded, navigate]);
 
   // ── Refresh 성능 계측기 (일회성 진단용) ──
   // 브라우저 DevTools Console 에 [QNOTE-TIMING] 로 찍어 어디가 느린지 사용자가 공유 가능하게.
@@ -248,7 +282,9 @@ const QNotePage = () => {
   // 사이클 N+17 — text 메모 신규 작성 (페이지 안에서 빈 메모 → 우측 panel 에서 PostEditor 풀모드 편집)
   const [composingMemo, setComposingMemo] = useState(false);
   // 신규 작성 시 prefill 옵션 (NewNoteModal 에서 선택한 project/client)
-  const [composingPrefill, setComposingPrefill] = useState<{ project_id: number | null; client_id: number | null }>({ project_id: null, client_id: null });
+  // 프로젝트 탭에서 만든 노트는 **그 프로젝트로 붙는다** — 사용자가 또 고르게 하지 않는다.
+  const [composingPrefill, setComposingPrefill] = useState<{ project_id: number | null; client_id: number | null }>(
+    { project_id: embedProjectId, client_id: null });
   // `/notes?prefill=<평문>` — 음성 캡처(VoiceCaptureSheet)·PWA 공유가 넘긴 본문.
   //   라우트만 맞춰 놓고 이 소비가 없으면 페이지는 뜨는데 받아쓴 텍스트는 그대로 버려진다.
   const [composingText, setComposingText] = useState<string | null>(null);
@@ -294,11 +330,15 @@ const QNotePage = () => {
   // 다른 워크스페이스 노트를 /notes/:id 로 열었을 때 그 워크스페이스 — 내용 대신 전환 안내(WORKSPACE_SCOPE_DESIGN Q6)
   const [otherWsBizId, setOtherWsBizId] = useState<number | null>(null);
   // 탭 이름 = 열려 있는 회의 제목
-  useTabTitle(activeSession?.title);
+  // 프로젝트 탭 안에서는 탭 이름이 **프로젝트의 것**이다 — 노트 제목으로 덮지 않는다.
+  //   ★ 제목을 undefined 로 넘기는 것으로는 안 된다 — 그러면 빈 문자열을 써서 주인의 제목을
+  //     지운다(2026-08-28 PostsPage 임베드가 프로젝트명을 지웠던 것과 같은 사고).
+  //     훅에 있는 `enabled` 로 **아예 끈다**.
+  useTabTitle(activeSession?.title, !embedded);
   // ★ 2·3단 레이아웃 단일 계약 (hooks/usePanelStack). 페이지마다 각자 만든 모바일 규칙을
   //   여기로 모은다 — 구현이 다르면 동작도 달라진다("어떤 화면은 뒤로가기가 안 된다").
   //   Q Note 는 목록 + 상세(세션) 2단이고 보조 패널은 없다.
-  const panel = usePanelStack(!!urlSessionId, false, () => navigate('/notes'));
+  const panel = usePanelStack(!!urlSessionId, false, () => goNote('/notes'));
   // 사이클 N+14 — visibility 변경 모달 + 에러 표시
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   // ★ 공개 범위 모달에 넘길 프로젝트 목록 (Irene 2026-09-03: "특정 프로젝트 검색 안되고 공개범위
@@ -601,7 +641,7 @@ const QNotePage = () => {
     if (!businessId) return;
     const _t0 = performance.now();
     try {
-      const data = await listSessions(businessId);
+      const data = await listSessions(businessId, 1, 20, embedProjectId ? { projectId: embedProjectId } : undefined);
       // eslint-disable-next-line no-console
       console.log(`[QNOTE-TIMING] ${Math.round(performance.now() - _t0)}ms loadSessions done (${data.length} sessions)`);
       // 최신 우선 정렬 (created_at DESC)
@@ -614,7 +654,7 @@ const QNotePage = () => {
     } catch (err) {
       console.error('Failed to load sessions:', err);
     }
-  }, [businessId]);
+  }, [businessId, embedProjectId]);
 
   useEffect(() => {
     loadSessions();
@@ -797,7 +837,10 @@ const QNotePage = () => {
   useEffect(() => {
     if (phase === 'recording') document.body.dataset.recordingActive = '1';
     else delete document.body.dataset.recordingActive;
-  }, [phase]);
+    // 프로젝트 탭에 얹혀 있을 때 — 부모가 다른 탭으로 옮겨도 이 트리를 살려 둬야 한다.
+    //   언마운트되면 아래 cleanup 이 LiveSession 을 끊어 **녹음이 소리 없이 멈춘다.**
+    onRecordingChange?.(phase === 'recording');
+  }, [phase, onRecordingChange]);
 
   // 새 메모 즉시 생성 (사이클 N+22 드롭다운 경로). guardRecording 이 감쌀 수 있게 함수로 분리.
   const createMemoSession = async () => {
@@ -808,19 +851,20 @@ const QNotePage = () => {
         title: 'Untitled',
         input_type: 'text',
         body: JSON.stringify(emptyDoc),
+        ...(embedProjectId ? { project_id: embedProjectId } : {}),
       } as any);
       setActiveSession(created);
       setComposingMemo(false);
       setSessions((prev) => [created, ...prev]);
-      navigate(`/notes/${created.id}`, { replace: true });
+      goNote(`/notes/${created.id}`, { replace: true });
     } catch (e) {
       // preCreate 실패 → lazy compose 폴백(MemoView 가 첫 입력 시 POST + 실패 시 error Dot 표면화).
       // 침묵 금지 — canonical onStart(memo) 경로와 동일하게 로그 남긴다.
       console.warn('[QNote] preCreate failed, falling back to lazy create', e);
       setActiveSession(null);
-      setComposingPrefill({ project_id: null, client_id: null });
+      setComposingPrefill({ project_id: embedProjectId, client_id: null });
       setComposingMemo(true);
-      navigate('/notes', { replace: true });
+      goNote('/notes', { replace: true });
     }
   };
 
@@ -836,7 +880,7 @@ const QNotePage = () => {
       guardRecording(() => {
         setActiveSession(null);
         setPhase('empty');
-        navigate('/notes', { replace: true });
+        goNote('/notes', { replace: true });
       });
       return;
     }
@@ -917,7 +961,7 @@ const QNotePage = () => {
       //   목록에서 항목을 여는 것은 **한 단계 들어가는 것**이므로 push 가 맞다.
       //   ※ 새로 만들어 바로 여는 경로(아래 생성 흐름들)는 replace 를 유지한다 —
       //     거기서 뒤로 가면 반쯤 만들어진 상태로 돌아가는 셈이라 의미가 다르다.
-      navigate(`/notes/${sessionId}`);
+      goNote(`/notes/${sessionId}`);
 
       // 저장된 답변 있는 질문들 → 초기 상태 세팅 (답변 보기 버튼으로 시작)
       if (detail.detected_questions && detail.detected_questions.length > 0) {
@@ -1651,7 +1695,7 @@ const QNotePage = () => {
       setSessions((prev) => [detail, ...prev]);
       setPendingConfig(cfg);
       setPhase('prepared');
-      navigate(`/notes/${created.id}`, { replace: true });
+      goNote(`/notes/${created.id}`, { replace: true });
     } catch (err) {
       setLiveError(mapApiError(err, tErr));
     }
@@ -2660,13 +2704,13 @@ const QNotePage = () => {
                 setActiveSession(created);
                 setComposingMemo(false);
                 setSessions(prev => [created, ...prev]);
-                navigate(`/notes/${created.id}`, { replace: true });
+                goNote(`/notes/${created.id}`, { replace: true });
               } catch (e) {
                 console.warn('[QNote] preCreate failed, falling back to lazy create', e);
                 setActiveSession(null);
-                setComposingPrefill({ project_id: null, client_id: null });
+                setComposingPrefill({ project_id: embedProjectId, client_id: null });
                 setComposingMemo(true);
-                navigate('/notes', { replace: true });
+                goNote('/notes', { replace: true });
               }
             }}
             secondaryCtaLabel={t('page.empty.ctaVoice', { defaultValue: '새 음성노트' }) as string}
@@ -2685,10 +2729,10 @@ const QNotePage = () => {
               key={composingMemo ? 'new' : `s-${activeSession?.id}`}
               session={composingMemo ? null : (activeSession || null)}
               businessId={businessId ? Number(businessId) : 0}
-              prefillProjectId={composingMemo ? composingPrefill.project_id : null}
+              prefillProjectId={composingMemo ? composingPrefill.project_id : embedProjectId}
               prefillClientId={composingMemo ? composingPrefill.client_id : null}
               prefillText={composingMemo ? composingText : null}
-              onCreated={(s) => { setActiveSession(s); setComposingMemo(false); setComposingText(null); setComposingPrefill({ project_id: null, client_id: null }); loadSessions(); navigate(`/notes/${s.id}`, { replace: true }); }}
+              onCreated={(s) => { setActiveSession(s); setComposingMemo(false); setComposingText(null); setComposingPrefill({ project_id: embedProjectId, client_id: null }); loadSessions(); goNote(`/notes/${s.id}`, { replace: true }); }}
               onUpdated={(s) => { setActiveSession(s); setSessions(prev => prev.map(x => x.id === s.id ? { ...x, ...s } : x)); }}
               onDelete={async (id) => {
                 await deleteSession(id);
@@ -2696,9 +2740,9 @@ const QNotePage = () => {
                 setActiveSession(null);
                 setComposingMemo(false);
                 setPhase('empty');
-                navigate('/notes', { replace: true });
+                goNote('/notes', { replace: true });
               }}
-              onClose={() => { setComposingMemo(false); setComposingText(null); setActiveSession(null); navigate('/notes', { replace: true }); }}
+              onClose={() => { setComposingMemo(false); setComposingText(null); setActiveSession(null); goNote('/notes', { replace: true }); }}
             />
           </Suspense>
         )}
@@ -3370,13 +3414,13 @@ const QNotePage = () => {
                 setActiveSession(created);
                 setComposingMemo(false);
                 setSessions(prev => [created, ...prev]);
-                navigate(`/notes/${created.id}`, { replace: true });
+                goNote(`/notes/${created.id}`, { replace: true });
               } catch (e) {
                 // 실패 시 옛 흐름 (composing 모드 + 첫 글자 입력 시 POST) 으로 fallback
                 console.warn('[QNote] preCreate failed, falling back to lazy create', e);
                 setActiveSession(null);
                 setComposingMemo(true);
-                navigate('/notes', { replace: true });
+                goNote('/notes', { replace: true });
               }
             } else {
               // 음성 노트 — 옛 흐름: StartMeetingModal 열림. project/client prefill 은 차후 사이클.

@@ -852,21 +852,5 @@
     "projectLink": "External view link",
     "projectLinkLead": "A link to view {{name}} progress and tasks — and ask questions — without signing in. Share it by chat or email.",
     "projectLinkLive": "External view link — currently open"
-  },
-  "qnote": {
-    "searchPlaceholder": "Search meeting notes",
-    "openQNote": "Open in Q note",
-    "loadFailed": "Couldn't load meeting notes.",
-    "untitled": "Untitled",
-    "loading": "Loading…",
-    "empty": {
-      "title": "No meeting notes linked to this project",
-      "body": "Choose this project when creating a note in Q note and it will appear here. Personal notes stay private to their author and are not listed."
-    },
-    "mode": {
-      "live": "Live recording",
-      "upload": "Upload",
-      "memo": "Memo"
-    }
   }
 }

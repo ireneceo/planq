@@ -1305,3 +1305,64 @@ Irene: *"확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q 
 백업 `/opt/planq/backups/20260913_175505` · `project_history_entries` 운영 생성 확인(10컬럼, 0행) ·
 planq.kr health ok · PM2 prod 3개 online · 릴리즈노트 `/insights/update-1-49-0` 200 ·
 개발 현황 id=91 발행. **위 6개 확인 항목은 배포와 무관하게 그대로 남아 있다.**
+
+---
+
+## 29. 프로젝트 노트 탭 = Q Note 본체 · 정보 탭 = Q info 한 벌 · 고객 프로필 연결 (2026-09-13 저녁)
+
+> Irene: *"프로젝트 > 노트 탭은 문서 랑 완전히 똑같이 해서 Q note 기능 그대로 구현해."* ·
+> *"정보페이지도 디자인 맞춰. AI로 자동추가는 버튼색도 아이콘도 안맞아. Q info랑 매칭해봐."* ·
+> *"Q note나 문서 등 고객이 연결되면 고객프로필에도 나와야 하는 거야."* · *"다 해."*
+
+**판정: R=1** — ① 운영에 이미 나간 라우트 충돌(프로젝트 메모 4화면이 죽어 있었다)을 고쳤다
+② q-note 세션 **생성·공개범위 변경의 쓰기 경로**를 바꿨다(연결 컬럼) ③ 새 라우트 파일을
+`/api/clients` 접두어에 **clients.js 앞으로** 마운트했다(라우터 마운트 순서 = R=1 목록).
+
+### 무엇을 만들었나
+- **회귀 수리** `routes/projects.js` 의 `GET /:id/notes` 중복 선언 제거 → Q Note 목록은 폐기
+  (노트 탭이 q-note 를 직접 읽게 되어 소비처가 0이 됐다). 가드 신설 `--category=duproute`.
+- **노트 탭** `QNotePage` 에 `scope={{type:'project'}}` prop — 문서 탭이 `PostsPage` 를 쓰는 방식 그대로.
+  선택은 내부 state(주소 없음) · 목록은 `listSessions(..., {projectId})` · 새 노트에 프로젝트 자동 연결 ·
+  탭 이름 `enabled=false` · **녹음 중에는 탭을 옮겨도 언마운트하지 않는다**(`ProjectNotesWrap $hidden`).
+  `pages/QProject/NotesTab.tsx` 삭제.
+- **q-note 쓰기 경로 2건**
+  ① `CreateSessionRequest` 에 `project_id`/`client_id` 추가 — 여태 **스키마에 없어 조용히 버려졌다**
+     (MemoView 가 사이클 N+17 부터 보내고 주석엔 "반영" 이라 적혀 있었다). 소속 검증은 PUT 과 같은 술어.
+  ② `PUT /:id/visibility` 가 L2 가 아니면 `project_id = None` 으로 **연결을 지우고 있었다** —
+     프로젝트 노트를 "워크스페이스 공개" 로 바꾸는 순간 프로젝트에서 사라졌다. 연결과 공개범위를 분리.
+- **정보 탭** 목록 행을 `components/Knowledge/kbListShell` 로 **빼서 Q info 와 공유**
+  (전에는 2칸 단순 행 vs 5열 그리드로 갈려 있었다) + 정렬 3종 + EmptyState 규격 + 카테고리 라벨 함수 일치.
+  AI 버튼을 `AiActionButton`(Coral 그라디언트 + 별) 표준으로.
+- **문서 표 폭 맞춤** `PostEditor` 의 [폭 맞춤] 이 열마다 160px 고정을 넣어 3열 표면 480px —
+  본문 800px 에서 오른쪽 320px 이 빈 채로 남았다. 래퍼 안쪽 폭을 재서 나누고 나머지 픽셀을
+  마지막 열에 넣는다. 문구도 `열 균등` → `폭 맞춤` 으로(동작이 바뀌면 문구가 거짓말이 된다).
+  실측: 전 290/872(여백 582) → 후 872/872(여백 0) · 열 [290,290,290] · 가로 스크롤 없음.
+- **고객 프로필** `ClientLinksSection` 에 **읽기 전용** [노트]·[정보] 묶음.
+  새 라우트 `GET /api/clients/:biz/:id/qnotes`(파일 분리 `routes/client_links.js`) + 기존 kb `client_id` 필터.
+  `/info?doc=N` 딥링크가 keep-alive 탭에서 두 번째부터 죽던 것(한 번 읽고 끝)도 같이 고쳤다.
+
+### 자체 검증 (Fable 미검증)
+
+빌드 EXIT 0 / `error TS` 0 · guard **EXIT 0**(신규 `duproute` 포함, ✗ 0) · health-check **44/44** ·
+실HTTP: 라우트 충돌 **9/9** · 고객 연결 **7/7** · 픽스처 대조 **10/10** · 연결 유지 **8/8**(음성 대조군 포함) ·
+실브라우저 `--suite projecttabs` **8/8**(양성 대조군: 기대값을 흔들면 5건 실패로 뒤집힘) ·
+`detailopen`·`drafts`·`salepanel` 실패 0.
+테스트 스크립트(`dev-backend/test-*.js`) 잔존 **0** · 카나리 픽스처는 실행 끝에 삭제.
+
+### ★ Fable 이 봐야 할 것
+1. **q-note 생성 경로에 연결 필드가 생겼다** — `project_id`/`client_id` 를 만들 때 받는다.
+   소속 검증(`_belongs_to_business`)이 PUT 과 정말 같은 술어인지, 남의 워크스페이스 id 로
+   403 이 나는지(자체 검증은 1건만 쳤다).
+2. **공개범위 변경이 연결을 지우지 않게 바꿨다** — L2→L3→L1 을 오갈 때 `project_id` 가 남는다.
+   이것이 L2 판정(`_load_session_or_403`)의 전제를 흔들지 않는지. 운영 옛 데이터 중
+   이미 연결이 지워진 세션은 되살아나지 않는다(과거 손실은 복구 대상이 아니다).
+3. **라우터 마운트 순서** — `client_links.js` 를 `clients.js` **앞**에 붙였다. 같은 접두어에
+   두 라우터를 두는 것이 맞는 모양인지, 고객 id 뒤 꼬리 경로 규칙으로 충분한지.
+4. **프로젝트 탭에 Q Note 본체를 얹었다** — 녹음 중 탭 전환 시 `display:none` 으로 살려 두는
+   방식이 recorder lock·WS·quota 계측에 부작용이 없는지. 프로젝트를 떠나면 녹음은 멈춘다(의도).
+5. 노트 탭 목록이 `listSessions(project_id)` 로 바뀌며 **범위가 좁아졌다**(내 것 + L3 + 내 프로젝트의 L2).
+   옛 `by-entity`(L1 만 제외)보다 안전한 쪽이지만, 프로젝트 멤버가 봐야 할 노트가 빠지지 않는지.
+6. **표 폭 맞춤** — 실측은 데스크탑 1440 한 폭이다. 폰·태블릿과 열 많은 표(하한 96px 폴백)는 미측정.
+
+**Fable 호출 오늘 계속 HTTP 429.** 마커 `by:"unavailable"`. 보고는 **"Fable 미검증(자체 검증)"**.
+

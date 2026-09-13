@@ -502,6 +502,9 @@ app.use('/api/tasks', require('./routes/task_priority'));
 app.use('/api/tasks', require('./routes/task_tags'));
 app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/task-templates', require('./routes/task_templates'));
+// ★ client_links 를 **먼저** 마운트한다 — `/:businessId/:clientId/qnotes` 같은 꼬리 경로가
+//   clients.js 의 `/:businessId/:id` 에 먼저 잡히면 안 된다(Express 는 순서대로 판정한다).
+app.use('/api/clients', require('./routes/client_links'));
 app.use('/api/clients', require('./routes/clients'));
 // Q sale — 영업 뷰(같은 clients). docs/Q_SALE_DESIGN.md
 //   한 접두어를 세 파일이 나눠 맡는다(라우트 파일 500줄 기준). 권한 체인은 services/saleCommon 한 벌.

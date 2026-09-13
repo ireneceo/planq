@@ -25,9 +25,12 @@ import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import SearchBox from '../../components/Common/SearchBox';
-import HighlightText from '../../components/Common/HighlightText';
-import MatchReason from '../../components/Common/MatchReason';
-import { pickMatch } from '../../utils/searchMatch';
+// ★ 목록 행·값 셀은 **프로젝트>정보 탭과 같은 한 벌**을 쓴다 (components/Knowledge/kbListShell).
+//   여기서 다시 선언하면 두 화면이 갈라진다 — 2026-09-13 에 실제로 갈라져 있었다.
+import {
+  catLabel, useCopy, KbDocRow, List,
+  SecretBtn, LinkRow, ValueLink,
+} from '../../components/Knowledge/kbListShell';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
 import AttachmentField from '../../components/Common/AttachmentField';
@@ -57,16 +60,6 @@ import { isEnterAction } from '../../utils/imeKey';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
-
-// #326 — 카테고리 라벨. **자유 카테고리는 번역키가 없다.**
-//   여태 t(`cat.${c}`) 를 그대로 써서 "cat.계정정보" 처럼 번역키가 화면에 찍혔다
-//   (i18next 는 키가 없으면 키 문자열을 그대로 돌려준다).
-//   LEGACY 6종만 번역하고 나머지는 이름을 그대로 보여준다.
-function catLabel(t: (k: string, o?: Record<string, unknown>) => unknown, c: string): string {
-  return LEGACY_KB_CATEGORIES.includes(c as typeof LEGACY_KB_CATEGORIES[number])
-    ? (t(`cat.${c}`) as string)
-    : c;
-}
 const SCOPES: KbScope[] = ['workspace', 'project', 'client'];
 // 사용자 정의 항목 타입
 const COL_TYPE_DEFAULT_LABEL: Record<string, string> = {
@@ -102,11 +95,6 @@ interface KnowledgePageProps {
   mode?: 'workspace' | 'personal';
 }
 
-// #187 — 본문(RichEditor HTML)에서 태그 제거 후 리스트 미리보기용 텍스트. 120자 컷.
-function stripHtmlPreview(html: string): string {
-  const text = html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
-  return text.length > 120 ? text.slice(0, 120) + '…' : text;
-}
 
 /* -----------------------------------------------------------------------------
    #408 - 지운 항목을 **되돌릴 자리**.
@@ -321,15 +309,21 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   }, [searchParams, setSearchParams]);
 
   // 공유 페이지 "PlanQ 에서 보기" → /info?doc=:id 딥링크. 마운트 시 해당 문서 상세 열기.
-  const docParamAppliedRef = useRef(false);
+  // ?doc=N 딥링크 — **한 번만 읽으면 keep-alive 탭에서 두 번째 링크가 죽는다.**
+  //   ★ 2026-09-13: 고객 프로필의 [정보] 칩이 `/info?doc=N` 으로 여는데, /info 탭이 이미 살아
+  //     있으면 탭스토어가 그 탭의 주소만 바꾼다(새 마운트가 없다). 불리언 한 번 플래그는 그때
+  //     이미 true 라 아무 일도 안 일어났다(memory `feedback_url_param_read_once_keepalive`).
+  //   그래서 **적용한 값**을 기억한다 — 값이 바뀌면 다시 연다. 사용자가 패널을 닫은 뒤
+  //   같은 값으로 재적용되는 일은 없다(값이 그대로다).
+  const docParamAppliedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (docParamAppliedRef.current) return;
     const docParam = searchParams.get('doc');
-    if (!docParam) return;
+    if (!docParam) { docParamAppliedRef.current = null; return; }
+    if (docParamAppliedRef.current === docParam) return;
     const id = Number(docParam);
     if (!id) return;
     setDetailId(id);
-    docParamAppliedRef.current = true;
+    docParamAppliedRef.current = docParam;
   }, [searchParams]);
 
   // ─── 검색 디바운스 ───
@@ -912,111 +906,24 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
              />
            ) : (
              <List>
-               {filtered.map(d => {
-                 const isSelected = selectedIds.has(d.id);
-                 return (
-                 <Row
+               {filtered.map(d => (
+                 <KbDocRow
                    key={d.id}
-                   $active={selectMode ? isSelected : detailId === d.id}
-                   $selectMode={selectMode}
-                   data-kb-id={d.id}
-                   onClick={() => {
-                     if (selectMode) {
-                       setSelectedIds(prev => {
-                         const n = new Set(prev);
-                         if (n.has(d.id)) n.delete(d.id); else n.add(d.id);
-                         return n;
-                       });
-                     } else {
-                       setDetailId(prev => prev === d.id ? null : d.id);
-                     }
-                   }}
-                 >
-                   {/* 체크박스 — 선택 모드일 때만 첫 컬럼 */}
-                   {selectMode && (
-                     <RowChk onClick={(e) => e.stopPropagation()}>
-                       <RowCheckbox
-                         type="checkbox"
-                         checked={isSelected}
-                         readOnly
-                         onClick={(e) => e.stopPropagation()}
-                       />
-                     </RowChk>
-                   )}
-                   {/* 제목 — 읽기 전용. 클릭하면 우측 패널이 열리고 거기서 편집 (#143) */}
-                   <ColTitleArea>
-                     <RowTitleText><HighlightText text={d.title} query={search} /></RowTitleText>
-                     {/* #187 — 본문 미리보기 (HTML 제거 + 한 줄 말줄임). 리스트에서 내용 감 잡게.
-                         검색 중 제목엔 없고 본문에서 찾았으면 — 첫 줄 대신 **찾은 자리**를 같은 한 줄로 보여준다
-                         (첫 줄 미리보기는 말줄임에 가려 매칭어가 안 보일 수 있다). */}
-                     {(() => {
-                       const kbHit = search.trim() ? pickMatch([
-                         { field: 'title', text: d.title, shown: true },
-                         { field: 'body', text: d.body },
-                       ], search) : null;
-                       if (kbHit && !kbHit.shown) return <MatchReason field={kbHit.field} snippet={kbHit.snippet} query={search} />;
-                       const preview = d.body ? stripHtmlPreview(d.body) : '';
-                       return preview ? <RowBodyPreview><HighlightText text={preview} query={search} /></RowBodyPreview> : null;
-                     })()}
-                   </ColTitleArea>
-
-                   {/* 가운데: 커스텀 항목 — 클릭하면 값 복사 (#143) */}
-                   <ColCustomArea>
-                     {Array.isArray(d.custom_columns) && d.custom_columns.filter(c => c.show_in_list).map(col => (
-                       <CustomItem key={col.id}>
-                         <CustomLabel>{col.name}</CustomLabel>
-                         <CopyCell
-                           colType={col.type}
-                           value={(d.custom_values || {})[col.id] as string | undefined}
-                         />
-                       </CustomItem>
-                     ))}
-                   </ColCustomArea>
-
-                   {/* 카테고리 chip + 메타 */}
-                   <ColMeta>
-                     {docCats(d).map(c => <CategoryChip key={c}>{catLabel(t, c)}</CategoryChip>)}
-                     <MetaText>{renderRowMeta(d)}</MetaText>
-                   </ColMeta>
-
-                   {/* 권한·상태 chip */}
-                   <ColRight>
-                     {/* D4 #62 — 보안등급 배지 (일반은 자동 숨김) */}
-                     <SecurityLevelBadge level={d.security_level} />
-                     {d.read_policy === 'owner' && (
-                       <PolicyChip $kind="owner" title={t('policy.ownerOnly', '운영진만') as string}>
-                         {t('policy.ownerShort', '운영진') as string}
-                       </PolicyChip>
-                     )}
-                     {d.status === 'indexing' && (
-                       <StatusChip $s="indexing" title={t('status.indexing', '인덱싱 중') as string}>
-                         {t('status.indexingShort', '처리중') as string}
-                       </StatusChip>
-                     )}
-                     {d.status === 'failed' && (
-                       <StatusChip $s="failed" title={t('status.failed', '실패') as string}>
-                         {t('status.failedShort', '실패') as string}
-                       </StatusChip>
-                     )}
-                   </ColRight>
-
-                   {/* 우측 끝: 휴지통 — 선택 모드 아닐 때만 */}
-                   <RowAct>
-                     {!selectMode && (
-                       <IconBtn type="button" title={t('drawer.delete') as string}
-                         aria-label={t('drawer.delete') as string}
-                         onClick={(e) => { e.stopPropagation(); setConfirmDelete(d.id); }}>
-                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                           <polyline points="3 6 5 6 21 6" />
-                           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                           <path d="M10 11v6M14 11v6" />
-                         </svg>
-                       </IconBtn>
-                     )}
-                   </RowAct>
-                 </Row>
-                 );
-               })}
+                   doc={d}
+                   search={search}
+                   active={detailId === d.id}
+                   meta={renderRowMeta(d)}
+                   selectMode={selectMode}
+                   selected={selectedIds.has(d.id)}
+                   onOpen={() => setDetailId(prev => prev === d.id ? null : d.id)}
+                   onToggleSelect={() => setSelectedIds(prev => {
+                     const n = new Set(prev);
+                     if (n.has(d.id)) n.delete(d.id); else n.add(d.id);
+                     return n;
+                   })}
+                   onDelete={() => setConfirmDelete(d.id)}
+                 />
+               ))}
              </List>
            )}
         </MainArea>
@@ -2270,19 +2177,6 @@ const PurgeColBtn = styled.button`
  */
 // 복사 동작 **단일 원천**. 리스트(CopyCell)와 상세(DrawerCopyBtn)가 같은 것을 쓴다 —
 //   각자 navigator.clipboard 를 부르면 피드백 시간·에러 처리가 곧 갈라진다.
-function useCopy() {
-  const [copied, setCopied] = React.useState(false);
-  const copy = React.useCallback(async (text: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch { /* 클립보드 권한 없음 — 값은 그대로 보인다 */ }
-  }, []);
-  return { copied, copy };
-}
 
 /** #284 — "항목들이 리스트랑 상세 모두에서 복사되게 해서 편리하게 제공하면 좋겠어."
  *  리스트에는 있었고(#143) 상세에는 없었다. 상세는 편집 화면이라 값 칸을 누르면 편집이 되므로,
@@ -2299,58 +2193,6 @@ const DrawerCopyBtn: React.FC<{ value: unknown }> = ({ value }) => {
   );
 };
 
-const CopyCell: React.FC<{ value: string | undefined; colType: string }> = ({ value, colType }) => {
-  const { t } = useTranslation('knowledge');
-  const { copied, copy: doCopy } = useCopy();
-  // #330 — secret 은 기본은 가리되 **본인이 눌러서 볼 수 있어야** 한다.
-  //   여태 ●●●●●● 로만 보이고 꺼낼 방법이 없어, 넣는 사람이 "리스트에서 항목을 빼는" 식으로 우회했다.
-  const [revealed, setRevealed] = React.useState(false);
-
-  const text = value == null || value === '' ? '' : String(value);
-  const isSecret = colType === 'secret';
-  if (!text) return <CustomValue>{isSecret ? '' : '—'}</CustomValue>;
-
-  const copy = (e: React.MouseEvent) => doCopy(text, e);   // 행 클릭(드로어 열기)과 겹치지 않게
-
-  if (isSecret) {
-    return (
-      <SecretRow onClick={(e) => e.stopPropagation()}>
-        <SecretText $masked={!revealed}>{revealed ? text : '••••••'}</SecretText>
-        <SecretBtn
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setRevealed(v => !v); }}
-          title={(revealed ? t('inline.hide', '가리기') : t('inline.reveal', '보기')) as string}
-        >
-          {revealed ? t('inline.hide', '가리기') : t('inline.reveal', '보기')}
-        </SecretBtn>
-        <SecretBtn type="button" onClick={copy} title={t('inline.copy', '복사') as string}>
-          {copied ? t('inline.copied', '복사됨') : t('inline.copy', '복사')}
-        </SecretBtn>
-      </SecretRow>
-    );
-  }
-
-  // #331 — URL 이면 링크로. 여태 클릭하면 복사만 돼서, 사이트로 가려면 주소창에 붙여야 했다.
-  //   타입이 url 이 아니어도 값 자체가 http(s) 로 시작하면 링크로 본다(사용자가 타입을 안 고른 경우가 많다).
-  const isUrl = colType === 'url' || /^https?:\/\//i.test(text);
-  if (isUrl) {
-    return (
-      <LinkRow onClick={(e) => e.stopPropagation()}>
-        <ValueLink href={text} target="_blank" rel="noopener noreferrer" title={text}>{text}</ValueLink>
-        <SecretBtn type="button" onClick={copy} title={t('inline.copy', '복사') as string}>
-          {copied ? t('inline.copied', '복사됨') : t('inline.copy', '복사')}
-        </SecretBtn>
-      </LinkRow>
-    );
-  }
-
-  return (
-    <CopyValue type="button" onClick={copy} title={t('inline.copyHint', '클릭해서 복사') as string}>
-      <span>{text}</span>
-      <CopyMark $on={copied}>{copied ? t('inline.copied', '복사됨') : t('inline.copy', '복사')}</CopyMark>
-    </CopyValue>
-  );
-};
 
 const InlineCellEdit: React.FC<{
   docId: number;
@@ -2510,56 +2352,13 @@ const InlineTextarea = styled.textarea<{ $err?: boolean }>`
   &:focus { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.25); }
 `;
 
-// #330 · #331 — 값 옆 보조 동작(보기/가리기/복사/편집) 공통 버튼.
-const SecretBtn = styled.button`
-  flex-shrink: 0;
-  background: none; border: 1px solid #E2E8F0; border-radius: 4px;
-  padding: 1px 6px; font-size: 0.6875rem; font-weight: 600; font-family: inherit;
-  color: #64748B; cursor: pointer; transition: all 0.12s;
-  &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
-  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
-`;
-const SecretRow = styled.div`
-  display: flex; align-items: center; gap: 6px;
-  width: 100%; max-width: 100%; min-width: 0;
-  & > button:last-child { margin-left: auto; }
-`;
 const SecretEditRow = styled.div`display: flex; align-items: center; gap: 6px; max-width: 100%;`;
-const SecretText = styled.span<{ $masked: boolean }>`
-  flex: 1; min-width: 0;
-  color: #334155; font-weight: 500; font-size: 0.8125rem;
-  letter-spacing: ${p => (p.$masked ? '1px' : 'normal')};
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
 const SecretValueBtn = styled.button`
   flex: 1; min-width: 0; text-align: left;
   background: none; border: 1px dashed transparent; border-radius: 4px;
   padding: 2px 8px; font-family: inherit; font-size: 0.8125rem; font-weight: 500; color: #334155;
   cursor: text; overflow-wrap: anywhere;
   &:hover { background: #F0FDFA; color: #0F766E; border-color: #CCFBF1; }
-`;
-/* 운영(Irene 2026-08-24) — "항목에 링크가 들어가면 줄지어 레이아웃을 넘어가.
-   복사버튼은 해당 열 맨 끝에 나와야 해."
-   원인: 값이 `overflow-wrap: anywhere` 라 긴 URL 이 폭 제한 없이 번지고, 그 뒤를 따라가던
-   복사 버튼이 열 밖으로 밀려났다. → 값은 **한 줄 말줄임**, 버튼은 `margin-left:auto` 로 열 맨 끝 고정. */
-const LinkRow = styled.div`
-  display: flex; align-items: center; gap: 6px;
-  width: 100%; max-width: 100%; min-width: 0;
-  & > button:last-child { margin-left: auto; }
-`;
-const ValueLink = styled.a`
-  flex: 1; min-width: 0;
-  color: #0F766E; font-weight: 500; font-size: 0.8125rem; text-decoration: none;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  &:hover { text-decoration: underline; }
-  /* ★ 2026-09-08 (Irene: "리스트에서는 링크 클릭도 안돼") — 링크는 눌리고 있었다.
-     실측 183x**16px**. 그 줄이 속한 행에는 상세를 여는 click 이 걸려 있어서, 폰에서
-     손가락이 조금만 빗나가면 행이 먼저 먹고 **상세가 열린다** — 사용자에겐 "링크가 안 눌린다".
-     보이는 크기는 그대로 두고 **누를 수 있는 자리만** 넓힌다(음수 여백으로 레이아웃 불변).
-     같은 방식이 고객 목록 이름칸(ClientsPage NameCell)에 이미 쓰이고 있다. */
-  padding: 6px 4px;
-  margin: -6px -4px;
-  @media (max-width: 640px) { padding: 11px 4px; margin: -11px -4px; }
 `;
 const InlineInput = styled.input<{ $err?: boolean }>`
   height: 22px; padding: 0 6px;
@@ -2728,109 +2527,11 @@ const BundleOpen = styled.a`
   display: inline-block; font-size: 0.8125rem; font-weight: 600; color: #0D9488; text-decoration: none;
   &:hover { text-decoration: underline; }
 `;
-const RowCheckbox = styled.input`
-  width: 16px; height: 16px;
-  accent-color: #14B8A6; cursor: pointer;
-  vertical-align: middle;
-`;
 
 // Q info — 좌측 트리 + 메인 영역 (Q file 과 같은 패턴)
 // 좌측 카테고리 트리 껍데기는 components/Common/CategoryTree 로 옮겼다 (프로젝트>정보와 공용).
 
-// 커스텀 항목 — Row 의 ColCustomArea 안에서 자동 배치
-const CustomItem = styled.span`
-  display: inline-flex; align-items: center; gap: 4px;
-  white-space: nowrap; font-size: 0.75rem;
-  min-width: 0; max-width: 260px;  /* #187 — 개별 항목 폭 제한 (라벨+값이 옆 컬럼 침범 방지) */
-  overflow: hidden;                /* 링크 값이 제 폭을 넘어 흘러나오던 것 차단 (Irene 2026-08-24) */
-`;
-const CustomLabel = styled.span`color: #94A3B8; font-weight: 500;`;
-const CustomValue = styled.span`color: #334155; font-weight: 500;
-  max-width: 180px; overflow: hidden; text-overflow: ellipsis;
-`;
 
-// Q file (DocsTab) 패턴 통일 — border 1px + radius 10 + overflow hidden
-const List = styled.div`
-  background: #fff;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  overflow: hidden;
-`;
-// 행 컬럼 — Q file 동일 토큰 구조: title 가변 / custom 가변 / category 100px / status 70px / action 36px
-// 커스텀 항목이 많은 문서(url 여러 개)도 안 구겨지게 — 커스텀 영역에 충분한 폭 배분.
-const KB_LIST_COLS = 'minmax(160px, 1.6fr) minmax(220px, 2.6fr) auto minmax(90px, auto) 36px';
-const RowChk = styled.div`display:flex; align-items:center; justify-content:center;`;
-const RowAct = styled.div`display:flex; justify-content:flex-end;`;
-const IconBtn = styled.button`
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  background: transparent; border: none; color: #94A3B8;
-  border-radius: 6px; cursor: pointer;
-  &:hover { background: #FEE2E2; color: #DC2626; }
-`;
-// 행 그리드: [제목 240px] [커스텀 1fr (자동 채움)] [메타 auto] [상태 우측]
-// 모든 행에서 같은 컬럼 정렬 — 30년차 디자이너 관점의 일관성
-// Q file ListRow 패턴 — 36px(체크) + 5컬럼
-const Row = styled.div<{ $active: boolean; $selectMode?: boolean }>`
-  cursor: pointer;
-  display: grid;
-  grid-template-columns: ${p => p.$selectMode ? `36px ${KB_LIST_COLS}` : KB_LIST_COLS};
-  gap: 8px; align-items: center;
-  padding: 10px 14px;
-  background: ${p => p.$active ? '#F0FDFA' : 'transparent'};
-  border-bottom: 1px solid #F1F5F9;
-  transition: background 0.12s;
-  &:last-child { border-bottom: none; }
-  &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr auto;
-    grid-auto-rows: auto;
-  }
-`;
-// 좌측: 제목
-const ColTitleArea = styled.div`min-width: 0;`;
-// 가운데: 커스텀 항목 (자동 배치)
-const ColCustomArea = styled.div`
-  display: flex; flex-wrap: wrap; gap: 12px 16px;
-  align-items: center;
-  min-width: 0; overflow: hidden;  /* #187 — 넘친 커스텀 값이 옆 컬럼 위로 흐르지 않게 */
-  @media (max-width: 900px) { grid-column: 1 / -1; }
-`;
-// 우측: 카테고리 chip(여러개 가능) + 메타 (스코프·날짜)
-const ColMeta = styled.div`
-  display: flex; align-items: center; gap: 6px;
-  flex-wrap: wrap; justify-content: flex-end;
-  font-size: 0.6875rem; color: #94A3B8;
-  @media (max-width: 900px) { display: none; }
-`;
-const CategoryChip = styled.span`
-  display: inline-flex; align-items: center;
-  padding: 2px 8px;
-  background: #F0FDFA; color: #0F766E;
-  border-radius: 999px;
-  font-size: 0.6875rem; font-weight: 600;
-`;
-const MetaText = styled.span`
-  font-size: 0.6875rem; color: #94A3B8;
-`;
-// 우측 끝: 권한·상태 chip
-const ColRight = styled.div`
-  display: flex; align-items: center; gap: 6px;
-  flex-shrink: 0;
-`;
-const PolicyChip = styled.span<{ $kind: 'owner' }>`
-  padding: 2px 8px; border-radius: 999px;
-  font-size: 0.625rem; font-weight: 600;
-  background: #FEF3C7; color: #92400E;
-`;
-const StatusChip = styled.span<{ $s: string }>`
-  flex-shrink: 0;
-  padding: 2px 8px; border-radius: 999px; font-size: 0.625rem; font-weight: 600;
-  ${p => p.$s === 'ready' ? 'background:#DCFCE7;color:#166534;' :
-        p.$s === 'indexing' ? 'background:#FEF3C7;color:#92400E;' :
-        p.$s === 'failed' ? 'background:#FEE2E2;color:#B91C1C;' :
-        'background:#F1F5F9;color:#64748B;'}
-`;
 const ActiveTagBar = styled.div`
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 12px;
@@ -2845,35 +2546,6 @@ const ActiveTagChip = styled.button`
   &:hover { background: #0D9488; }
 `;
 const ActiveTagX = styled.span`font-size: 0.875rem; line-height: 1;`;
-/* 리스트 제목 — 읽기 전용 (#143). 행을 클릭하면 우측 패널이 열리고 거기서 편집한다. */
-const RowTitleText = styled.div`
-  font-size: 0.875rem; font-weight: 600; color: #0F172A;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  padding: 2px 8px;
-`;
-// #187 — 본문 미리보기 (제목 아래 한 줄 말줄임)
-const RowBodyPreview = styled.div`
-  font-size: 0.75rem; color: #94A3B8;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  padding: 0 8px; margin-top: 1px;
-`;
-/* 값 셀 — 클릭하면 복사 (#143). "DB 저장소처럼 꺼내 쓰는" 화면. */
-const CopyValue = styled.button`
-  display: flex; align-items: center; gap: 6px; width: 100%; max-width: 100%; min-width: 0;
-  padding: 2px 8px; border: 1px dashed transparent; border-radius: 4px;
-  background: none; font-family: inherit; font-size: 0.8125rem; font-weight: 500;
-  color: #334155; text-align: left; cursor: pointer; transition: all 0.12s;
-  & > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  &:hover { background: #F0FDFA; border-color: #CCFBF1; }
-  &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
-`;
-const CopyMark = styled.span<{ $on: boolean }>`
-  flex-shrink: 0; margin-left: auto; font-size: 0.6875rem; font-weight: 600;
-  color: ${p => (p.$on ? '#0F766E' : '#94A3B8')};
-  opacity: ${p => (p.$on ? 1 : 0)};
-  transition: opacity 0.12s;
-  ${CopyValue}:hover & { opacity: 1; }
-`;
 // ─── DetailDrawer 내부 ───
 const DrawerTitle = styled.div`
   font-size: 1rem; font-weight: 700; color: #0F172A;

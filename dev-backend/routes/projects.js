@@ -411,30 +411,6 @@ router.delete('/:id/history-entries/:entryId', authenticateToken, async (req, re
   } catch (err) { next(err); }
 });
 
-// ─── 프로젝트에 연결된 Q Note 세션 (2026-09-13) ──────────────────────
-//   Irene: *"상단에 문서 다음에 노트 넣어줘. 노트는 Q note가 프로젝트로 연결되면 잡히는 거야."*
-//   ★ Q Note 는 별도 서비스(SQLite)라 Node 가 직접 못 읽는다 — 내부 브리지 한 곳을 쓴다.
-//   ★ 범위 판정은 q-note 가 한다(`visibility <> 'L1'`): **개인 노트는 안 온다.**
-//     프로젝트에 연결했다는 것과 남이 읽어도 된다는 것은 다르다(PERMISSION_MATRIX §5.8).
-//   ★ 프로젝트 접근 권한은 여기서 본다 — 브리지는 권한을 모른다.
-//   ★ 경로는 `/:id/qnotes` 다 — `/:id/notes` 는 **이미 프로젝트 메모(ProjectNote)의 것**이다.
-//     2026-09-13 에 여기에 같은 경로를 또 선언해서 Express 가 먼저 만난 이쪽으로만 보냈고,
-//     프로젝트 메모 조회 4곳(Q talk 우측패널·프로젝트 상세·Q task)이 조용히 Q Note 목록을 받았다.
-//     한 파일에 같은 method+path 를 두 번 쓰면 뒤엣것은 **죽은 코드**다
-//     (memory `feedback_express_route_order`). 가드 `--category=duproute` 가 재발을 막는다.
-router.get('/:id/qnotes', authenticateToken, async (req, res, next) => {
-  try {
-    const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
-    if (error) return errorResponse(res, error.message, error.code);
-    const { listQnoteByEntity } = require('../services/qnoteByEntity');
-    const rows = await listQnoteByEntity({
-      businessId: project.business_id, projectId: project.id,
-      limit: Math.min(Math.max(Number(req.query.limit) || 50, 1), 100),
-    });
-    return successResponse(res, rows);
-  } catch (err) { next(err); }
-});
-
 router.get('/:id', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);

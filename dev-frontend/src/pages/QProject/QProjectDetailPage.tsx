@@ -14,8 +14,9 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ProjectCanvas from './canvas/ProjectCanvas'; // 기본 탭 — 즉시 로드(로딩 플래시 없음)
 import ProjectShareLinkButton from './ProjectShareLinkButton';
-// 노트 탭 — 문서 탭과 같은 자리. 프로젝트에 연결된 Q Note 회의록을 모은다 (2026-09-13)
-import NotesTab from './NotesTab';
+// 노트 탭 = **Q Note 본체**(문서 탭이 PostsPage 를 그대로 쓰는 것과 같은 방식, 2026-09-13).
+//   목록만 베껴 그리면 프로젝트 안에서 회의록을 만들지도 고치지도 못한다.
+const QNotePage = React.lazy(() => import('../QNote/QNotePage'));
 // 나머지 탭은 지연 로드(lazy) — 프로젝트 열 때 모든 탭 코드(+무거운 에디터 tiptap)를 한꺼번에
 // 받던 것을 탭 클릭 시점 로드로 분리. 초기 페이지 로드 대폭 경량화.
 const TasksTab = React.lazy(() => import('./TasksTab'));
@@ -50,6 +51,7 @@ import {
   InfoBody,
   OverviewDesc,
   ProjectDocsWrap,
+  ProjectNotesWrap,
   ProjectFilesWrap,
   EditGrid,
   EditField,
@@ -247,6 +249,8 @@ const QProjectDetailPage: React.FC = () => {
     : (rawTab && (validTabs.includes(rawTab as TabKey) || isDocTabKey(rawTab))) ? (rawTab as TabKey)
     : 'dashboard');
   const [tab, setTabState] = useState<TabKey>(initialTab);
+  // 노트 탭이 녹음 중이면 다른 탭으로 옮겨도 그 트리를 살려 둔다(언마운트 = 녹음 중단).
+  const [notesRecording, setNotesRecording] = useState(false);
 
   // 메뉴에 추가한 문서(📌) 탭 — 상태·라벨 조회는 훅으로 분리
   const { pinnedDocIds, pinnedDocLabels } = usePinnedDocTabs(projectId);
@@ -718,7 +722,7 @@ const QProjectDetailPage: React.FC = () => {
         {(['dashboard', 'tasks', 'docs', 'notes', 'files', 'info', 'report', 'history', 'transactions', 'clients', 'details', 'settings'] as TabKey[])
           .filter((k) => !(isClient && CLIENT_HIDDEN_TABS.includes(k)))
           .map((k) => (
-          <Tab key={k} $active={tab === k} onClick={() => setTab(k)}>
+          <Tab key={k} $active={tab === k} data-testid={`project-tab-${k}`} onClick={() => setTab(k)}>
             {t(`tab.${k}`)}
           </Tab>
         ))}
@@ -1148,12 +1152,20 @@ const QProjectDetailPage: React.FC = () => {
         </ProjectFilesWrap>
       )}
       {tab === 'docs' && (
-        <ProjectDocsWrap>
+        <ProjectDocsWrap data-testid="project-tab-body-docs">
           <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
         </ProjectDocsWrap>
       )}
-      {/* 노트 — 문서 탭과 같은 자리·같은 모양. 내용은 Q Note 본체에서 연다(새 탭) */}
-      {tab === 'notes' && <NotesTab projectId={projectId} />}
+      {/* 노트 — 문서 탭과 같은 자리·같은 껍데기. Q Note 기능이 그대로 돈다.
+          ★ 녹음 중에는 다른 탭으로 옮겨도 **언마운트하지 않는다** — 언마운트가 곧 녹음 중단이다. */}
+      {(tab === 'notes' || notesRecording) && (
+        <ProjectNotesWrap data-testid="project-tab-body-notes" $hidden={tab !== 'notes'}>
+          <QNotePage
+            scope={{ type: 'project', businessId: project.business_id, projectId }}
+            onRecordingChange={setNotesRecording}
+          />
+        </ProjectNotesWrap>
+      )}
       {tab === 'clients' && (
         <ClientsBody>
           <Card>

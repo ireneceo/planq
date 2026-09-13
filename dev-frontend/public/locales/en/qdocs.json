@@ -564,8 +564,8 @@
       "row": "Row",
       "delTable": "Delete table",
       "table": "Table",
-      "evenCols": "Even cols",
-      "evenColsHint": "Make all columns the same width (you can still drag to resize)"
+      "evenCols": "Fit width",
+      "evenColsHint": "Fits the table to the content width and divides columns evenly (drag to adjust again)"
     },
     "origin": "Origin",
     "alignLeft": "Align left",

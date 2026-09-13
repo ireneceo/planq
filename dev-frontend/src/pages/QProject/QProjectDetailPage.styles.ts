@@ -114,6 +114,12 @@ export const ProjectDocsWrap = styled.div`
   margin: -20px 0;
   @media (max-width: 768px) { height: calc(100vh - 180px); margin: -16px 0; }
 `;
+// 노트 탭 — 문서 탭과 **같은 껍데기**(Q Note 본체를 그대로 얹는다).
+//   $hidden: 녹음 중에 다른 탭으로 옮겨도 이 트리를 **살려 둔다** — 언마운트되면 LiveSession 이
+//   끊겨 녹음이 소리 없이 멈춘다. 자리만 감춘다(display:none).
+export const ProjectNotesWrap = styled(ProjectDocsWrap)<{ $hidden?: boolean }>`
+  ${(p) => (p.$hidden ? 'display: none;' : '')}
+`;
 // 파일 탭 — 기준선만 선언한다(레이아웃 영향 없는 블록). 문서 탭과 **같은 값**을 쓴다.
 export const ProjectFilesWrap = styled.div`
   --pq-tab-sticky-top: ${tabStickyTop};
