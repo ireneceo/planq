@@ -27,7 +27,22 @@ import { inquiryViewOf } from '../../utils/saleInquiryView';
 import { registerInquiryAsClient } from '../../services/saleRegister';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
-import { listSaleInbox, dismissInboxItem, restoreInboxItem, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource } from '../../services/sale';
+import {
+  listSaleInbox, dismissInboxItem, restoreInboxItem, setSaleStage, getSaleTimeline,
+  SALE_STAGES, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource,
+  type SaleStage, type TimelineItem,
+} from '../../services/sale';
+// 단계 칩은 우측 패널·전체 프로필과 **같은 것**을 쓴다(자리마다 따로 그리면 동작이 갈라진다)
+import ChipPopover from '../Common/ChipPopover';
+import { OptionList, OptionBtn, OptName, OptHint } from '../Common/optionList';
+import PlanQSelect from '../Common/PlanQSelect';
+// 일정 추가 — 상세·패널과 같은 창(다음 연락 정하기). 고객이 일정에 연결된다
+import NextContactModal from './NextContactModal';
+// 상담 기록(메모) — 같은 창을 쓴다
+import RecordModal from './RecordModal';
+import ClientTimeline from '../Clients/ClientTimeline';
+// 히스토리 항목 → 갈 곳. 새 탭으로 연다(목록을 잃지 않게)
+import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 
 interface Props {
   businessId: number;
@@ -48,6 +63,20 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
 
   const [source, setSource] = useState<SaleInboxSource | ''>('');
   const [replyOnly, setReplyOnly] = useState(false);
+  // ★ 2026-09-13 (Irene: "리스트에도 필터가 제대로 있어야지 단계필터 나오게 해" ·
+  //   "상담 리스트에는 종료 가리기 넣고 체크해놔")
+  //   종료 가리기는 **기본 켜짐** — 끝난 상담은 기본 목록에 없다. 판정은 서버가 한다(화면에서 거르면
+  //   목록 숫자와 서버 숫자가 갈라진다).
+  const [stage, setStage] = useState<SaleStage | ''>('');
+  const [hideClosed, setHideClosed] = useState(true);
+  // 메모 펼치기 — 행 **아래**에서 열린다(Irene: "리스트에서 메모보기 하면 리스트 아래 열려서")
+  const [memoFor, setMemoFor] = useState<string | null>(null);
+  // 일정 추가 — 이 상담 **고객이 일정에 연결**된다
+  const [eventFor, setEventFor] = useState<SaleInboxItem | null>(null);
+  // ✕ — 상담 목록에서 치울지 묻는다(삭제가 아니라 보관이라는 것을 문구로 말한다)
+  const [dismissAsk, setDismissAsk] = useState<SaleInboxItem | null>(null);
+  // 단계를 바꾸려는데 아직 고객이 아니면 먼저 등록해야 한다 — 패널과 **같은 흐름**
+  const [stageAsk, setStageAsk] = useState<{ it: SaleInboxItem; to: SaleStage } | null>(null);
   const [items, setItems] = useState<SaleInboxItem[]>([]);
   const [counts, setCounts] = useState<SaleInboxCounts>({ total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0 });
   const [loading, setLoading] = useState(true);
@@ -68,15 +97,18 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
   const [registerAsk, setRegisterAsk] = useState<SaleInboxItem | null>(null);
 
   // 최신 값은 ref 로 — 리스너·타이머가 옛 값에 굳지 않게(배경 갱신 규칙)
-  const argsRef = useRef({ source, replyOnly, q });
-  argsRef.current = { source, replyOnly, q };
+  const argsRef = useRef({ source, replyOnly, q, stage, hideClosed });
+  argsRef.current = { source, replyOnly, q, stage, hideClosed };
 
   const load = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (!opts.silent) setLoading(true);
     setError(false);
     try {
-      const { source: s, replyOnly: r, q: query } = argsRef.current;
-      const res = await listSaleInbox(businessId, { source: s, q: query, needsReply: r, limit: 100 });
+      const { source: s, replyOnly: r, q: query, stage: st, hideClosed: hc } = argsRef.current;
+      const res = await listSaleInbox(businessId, {
+        source: s, q: query, needsReply: r, limit: 100,
+        stage: st || undefined, includeClosed: !hc,
+      });
       setItems(res.items);
       setCounts(res.counts);
     } catch {
@@ -86,7 +118,7 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
     }
   }, [businessId]);
 
-  useEffect(() => { void load(); }, [load, source, replyOnly, q, refreshKey]);
+  useEffect(() => { void load(); }, [load, source, replyOnly, q, stage, hideClosed, refreshKey]);
 
   // 실시간 — 새 문의가 오면 새로고침 없이 뜬다 (CLAUDE.md 운영 16번).
   //
@@ -120,12 +152,48 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
   const sourceLabel = useCallback((s: SaleInboxSource | '' | 'client') => (
     s === '' ? (t('inbox.sourceAll') as string) : (t(`inbox.source.${s}`) as string)
   ), [t]);
+  // 단계 옵션 — 목록은 `SALE_STAGES` 한 곳에서 온다(손으로 다시 쓰지 않는다)
+  const stageOptions = useMemo(() => ([
+    { value: '', label: t('inbox.stageAll') as string },
+    ...SALE_STAGES.filter((x) => x !== 'none').map((x) => ({ value: x as string, label: t(`stage.${x}`) as string })),
+  ]), [t]);
+
   const sourceCount = useCallback((s: SaleInboxSource | '') => (
     s === '' ? counts.total : counts[s]
   ), [counts]);
 
   // 원본으로 — 채팅은 대화방, 메일은 그 스레드. 보던 화면을 덮지 않게 새 탭 규칙을 따른다.
   const openRow = useCallback((it: SaleInboxItem) => { navigate(it.open_path); }, [navigate]);
+
+  // 아직 고객이 아닌 행에 **고객 기준 동작**(단계·메모·일정)을 걸려면 먼저 등록해야 한다.
+  //   ★ 우측 패널의 `withClient` 와 같은 뜻이다 — 여는 것만으로는 아무것도 만들지 않고,
+  //     저장이 필요한 첫 액션에서 한 번 묻는다. 초대 메일은 보내지 않는다(`invite: false`).
+  const ensureClient = useCallback(async (it: SaleInboxItem): Promise<number | null> => {
+    if (it.client_id) return it.client_id;
+    if (it.ref.kind === 'client') return it.ref.id;
+    const out = await registerInquiryAsClient(businessId, it, { invite: false });
+    if (!out.ok || !out.clientId) { setActionError(out.message || (t('error.saveFailed') as string)); return null; }
+    await load({ silent: true });
+    return out.clientId;
+  }, [businessId, load, t]);
+
+  // 단계 바꾸기 — **고객 기준**이므로 같은 고객의 다른 상담 행도 함께 바뀐다(서버가 고객을 바꾸므로).
+  //   어느 문의에서 바꿨는지를 `source_ref` 로 같이 보낸다(Irene: "히스토리에 어느 문의 내용에서
+  //   단계를 바꿨는지 표시해주고").
+  const applyStage = useCallback(async (it: SaleInboxItem, to: SaleStage) => {
+    if (busyId) return;
+    setBusyId(it.id); setActionError(null);
+    try {
+      const cid = await ensureClient(it);
+      if (!cid) return;
+      await setSaleStage(businessId, cid, {
+        to,
+        source_ref: { kind: it.ref.kind, id: it.ref.id, title: it.title || it.preview || null },
+      });
+      await load({ silent: true });
+    } catch { setActionError(t('error.saveFailed') as string); }
+    finally { setBusyId(null); }
+  }, [busyId, businessId, ensureClient, load, t]);
 
   // [보기] 라벨 — **어디로 가는지**를 말한다.
   //   ★ 2026-09-13 (Irene: *"sale 리스트에 채팅이 아닌데 채팅보기가 나와. 이상한데로 보내고."*)
@@ -231,6 +299,25 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
           {t('inbox.needsReplyOnly') as string} <b>{counts.needs_reply}</b>
         </Chip>
       </FilterRow>
+
+      {/* ★ 2026-09-13 — 단계 필터 · 종료 가리기 (Irene 지시).
+          단계는 **등록된 상담에만** 있으므로, 단계로 고르면 미등록 문의는 서버가 빼고 준다.
+          종료 가리기는 기본 켜짐 — 끝난 상담(성사·불발)은 기본 목록에 없다. */}
+      <FilterRow>
+        <SelectWrap data-testid="sale-inbox-stage-filter">
+          <PlanQSelect
+            size="sm" isSearchable={false}
+            aria-label={t('stage.label') as string}
+            options={stageOptions}
+            value={stageOptions.find((o) => o.value === stage) || stageOptions[0]}
+            onChange={(opt: unknown) => setStage((((opt as { value?: string } | null)?.value) || '') as SaleStage | '')}
+          />
+        </SelectWrap>
+        <CheckLabel data-testid="sale-inbox-hide-closed">
+          <input type="checkbox" checked={hideClosed} onChange={(e) => setHideClosed(e.target.checked)} />
+          {t('inbox.hideClosed') as string}
+        </CheckLabel>
+      </FilterRow>
       <Hint>{t('inbox.hint') as string}</Hint>
 
       {actionError && <ErrorBar role="alert">{actionError}</ErrorBar>}
@@ -279,60 +366,141 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
                   </RowBody>
                 </RowMain>
                 <RowActions>
-                  {/* ★ 이 버튼은 **다른 화면으로 나간다**(우측 패널이 아니다). Irene: "보기 버튼은 우측패널
-                      열릴 것 같은데 다른 곳으로 가버리니 문제가 되네. 보내는 아이콘 써서 어디로 간다고
-                      알 수 있게 하고 이름을 각각에 맞춰서" → 소스별 이름 + 바깥으로 나가는 화살표. */}
+                  {/* ★ 2026-09-13 순서 고정 (Irene 지시): 보기 · 메모 · 일정 · 업무 · 단계 · ✕
+                      이 순서는 "보러 간다 → 남긴다 → 잡는다 → 시킨다 → 옮긴다 → 치운다" 는 일의 순서다. */}
+
+                  {/* ① 보기 — **다른 화면으로 나간다**. 라벨이 목적지를 말한다(고객 상세·메일·채팅·게스트) */}
                   <ActionButton tone="secondary" size="sm" disabled={busy}
                     data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}>
                     <OutIcon aria-hidden />
                     {viewInLabel(it)}
                   </ActionButton>
-                  {/* 보관함 행은 등록이 아니라 **되돌리기**다 — 사람의 판단을 되돌릴 길이 있어야 한다. */}
-                  {it.source === 'dismissed' ? (
-                    <ActionButton tone="primary" size="sm" disabled={busy}
-                      data-testid={`sale-inbox-restore-${it.id}`} onClick={() => restoreItem(it)}>
-                      {/* ★ "되돌리기" 만 적으면 **등록의 취소**로 읽힌다(Irene: "되돌리기 고객으로
-                          등록은 뭐야? 등록하면 등록하는 거지"). 무엇을 되돌리는지 적는다 —
-                          이 버튼은 보관함(문의 아님) 행에만 있고, 등록에는 취소가 없다. */}
-                      {t('action.restoreToInbox') as string}
-                    </ActionButton>
-                  ) : it.ref.kind !== 'conversation' && it.ref.kind !== 'client' && (
-                    <ActionButton tone="primary" size="sm" disabled={busy}
-                      data-testid={`sale-inbox-register-${it.id}`} onClick={() => setRegisterAsk(it)}>
-                      {t('action.registerClient') as string}
-                    </ActionButton>
-                  )}
+
+                  {/* ② 메모 — 행 **아래**에서 열린다(나가지 않는다). 건수를 같이 보여준다 */}
+                  <ActionButton tone="secondary" size="sm" disabled={busy}
+                    data-testid={`sale-inbox-memo-${it.id}`}
+                    onClick={() => setMemoFor((v) => (v === it.id ? null : it.id))}>
+                    {t('action.memo') as string}{it.note_count ? ` ${it.note_count}` : ''}
+                  </ActionButton>
+
+                  {/* ③ 일정 — 이 상담 **고객이 일정에 연결**된다 */}
+                  <ActionButton tone="secondary" size="sm" disabled={busy}
+                    data-testid={`sale-inbox-event-${it.id}`}
+                    onClick={() => setEventFor(it)}>
+                    {t('action.addEvent') as string}
+                  </ActionButton>
+
+                  {/* ④ 업무 — 프로젝트·고객이 연결된 업무로 만들어진다 */}
                   <ActionButton tone="secondary" size="sm" disabled={busy}
                     data-testid={`sale-inbox-task-${it.id}`}
                     onClick={() => setTaskFor(it)}>
                     {t('action.addTask') as string}
                   </ActionButton>
-                  {/* ★ [문의 아님] — 기계가 못 가르는 알림·명세서를 사람이 한 번 눌러 정정한다.
-                      메일 행에만 둔다(오분류가 거기서 난다). 누르면 메일 분류까지 고쳐진다. */}
-                  {it.ref.kind === 'email_thread' && (
+
+                  {/* ⑤ 단계 — **리스트에서 바꾼다**. 고객 기준이라 같은 고객의 다른 상담도 함께 바뀐다.
+                      전체 프로필·우측 패널과 **같은 ChipPopover** 다(자리마다 새로 그리지 않는다). */}
+                  <ChipPopover
+                    prefix={t('stage.label') as string}
+                    label={it.stage ? (t(`stage.${it.stage}`) as string) : (t('stage.none') as string)}
+                    active={!!it.stage && it.stage !== 'none'}
+                    data-testid={`sale-inbox-stage-${it.id}`}
+                    width={260}
+                  >
+                    {(close) => (
+                      <OptionList role="listbox">
+                        {SALE_STAGES.map((sg) => (
+                          <OptionBtn key={sg} type="button" role="option" aria-selected={it.stage === sg}
+                            $on={it.stage === sg}
+                            data-testid={`sale-inbox-stage-${it.id}-${sg}`}
+                            onClick={() => {
+                              close();
+                              // 아직 고객이 아니면 먼저 등록해야 단계가 붙는다 — 한 번 묻는다
+                              if (!it.client_id && it.ref.kind !== 'client') { setStageAsk({ it, to: sg }); return; }
+                              void applyStage(it, sg);
+                            }}>
+                            <OptName>{t(`stage.${sg}`) as string}</OptName>
+                            <OptHint>{t(`stage.${sg}_hint`) as string}</OptHint>
+                          </OptionBtn>
+                        ))}
+                      </OptionList>
+                    )}
+                  </ChipPopover>
+
+                  {/* ⑥ ✕ — 상담 목록에서 치운다. 누르면 **묻는다**(되돌릴 수 있다는 것도 문구로 말한다).
+                      보관함 행에서는 되돌리기가 그 자리를 대신한다. */}
+                  {it.source === 'dismissed' ? (
                     <ActionButton tone="secondary" size="sm" disabled={busy}
-                      data-testid={`sale-inbox-dismiss-${it.id}`}
-                      title={t('action.notInquiryHint') as string}
-                      onClick={async () => {
-                        if (busyId) return;
-                        setBusyId(it.id); setActionError(null);
-                        try {
-                          await dismissInboxItem(businessId, 'email_thread', it.ref.id);
-                          if (selected?.id === it.id) setSelected(null);
-                          await load({ silent: true });
-                        } catch { setActionError(t('error.saveFailed') as string); }
-                        finally { setBusyId(null); }
-                      }}>
-                      {t('action.notInquiry') as string}
+                      data-testid={`sale-inbox-restore-${it.id}`} onClick={() => restoreItem(it)}>
+                      {t('action.restoreToInbox') as string}
                     </ActionButton>
+                  ) : it.ref.kind === 'email_thread' && (
+                    <IconX type="button" disabled={busy}
+                      data-testid={`sale-inbox-dismiss-${it.id}`}
+                      aria-label={t('action.removeFromInbox') as string}
+                      title={t('action.removeFromInbox') as string}
+                      onClick={() => setDismissAsk(it)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                    </IconX>
                   )}
                 </RowActions>
+                {/* ★ 메모는 **행 아래**에서 열린다 (Irene: "리스트에서 메모보기 하면 리스트 아래
+                    열려서 메모 붙인거 나오게 해줘"). 나가지 않으니 목록의 맥락을 잃지 않는다. */}
+                {memoFor === it.id && (
+                  <MemoPane data-testid={`sale-inbox-memo-pane-${it.id}`}>
+                    <InlineMemo businessId={businessId} item={it}
+                      onEnsureClient={() => ensureClient(it)}
+                      onChanged={() => { void load({ silent: true }); }} />
+                  </MemoPane>
+                )}
               </Row>
             );
           })}
         </List>
       )}
       {taskModal}
+
+      {/* 일정 추가 — 상세·패널과 **같은 창**. 고객이 일정에 연결된다 */}
+      {eventFor && (
+        <NextContactEnsure item={eventFor} businessId={businessId}
+          onEnsureClient={() => ensureClient(eventFor)}
+          onClose={() => setEventFor(null)}
+          onSaved={() => { setEventFor(null); void load({ silent: true }); }} />
+      )}
+
+      {/* ✕ — 상담 목록에서 치울지 묻는다. 삭제가 아니라 보관이며 되돌릴 수 있다고 적는다 */}
+      <ConfirmDialog
+        isOpen={!!dismissAsk}
+        title={t('action.removeFromInboxTitle') as string}
+        message={t('action.removeFromInboxBody') as string}
+        confirmText={t('action.removeFromInbox') as string}
+        cancelText={t('inquiry.cancel') as string}
+        variant="danger"
+        onClose={() => setDismissAsk(null)}
+        onConfirm={async () => {
+          const it = dismissAsk; setDismissAsk(null);
+          if (!it || busyId) return;
+          setBusyId(it.id); setActionError(null);
+          try {
+            await dismissInboxItem(businessId, 'email_thread', it.ref.id);
+            if (selected?.id === it.id) setSelected(null);
+            await load({ silent: true });
+          } catch { setActionError(t('error.saveFailed') as string); }
+          finally { setBusyId(null); }
+        }}
+      />
+
+      {/* 단계를 바꾸려는데 아직 고객이 아니면 — 먼저 등록할지 묻는다(메일은 나가지 않는다) */}
+      <ConfirmDialog
+        isOpen={!!stageAsk}
+        title={t('action.ensureClientTitle') as string}
+        message={t('action.ensureClientBody', { who: stageAsk?.it.who || '—' }) as string}
+        confirmText={t('action.ensureClientConfirm') as string}
+        cancelText={t('inquiry.cancel') as string}
+        variant="info"
+        onClose={() => setStageAsk(null)}
+        onConfirm={() => { const a = stageAsk; setStageAsk(null); if (a) void applyStage(a.it, a.to); }}
+      />
       <ConfirmDialog
         isOpen={!!registerAsk}
         title={t('action.registerConfirmTitle') as string}
@@ -365,6 +533,93 @@ const SaleInboxList: React.FC<Props> = ({ businessId, q, refreshKey = 0, onRegis
 
 /* 상담 행 → 패널이 그리는 값의 변환은 utils/saleInquiryView 로 옮겼다 —
    확인 필요(Todo)도 같은 문의를 열기 때문에 한 벌이어야 한다. */
+
+/** 행 아래에서 여는 메모 — 그 고객의 상담 기록을 보여주고 새로 남긴다.
+ *
+ *  ★ 목록을 떠나지 않는다. 우측 패널·전체 프로필과 **같은 원천**(타임라인 interaction·note)을 읽으므로
+ *    여기서 남긴 메모가 그쪽에도 바로 보인다(Irene: "상담 리스트에 메모 남기는 거 … 우측 패널
+ *    고객페이지에도 나와야 해").
+ *  ★ 아직 고객이 아닌 행이면 메모를 붙일 곳이 없다 — 남기려 할 때 한 번 묻고 등록한다. */
+function InlineMemo({ businessId, item, onEnsureClient, onChanged }: {
+  businessId: number; item: SaleInboxItem;
+  onEnsureClient: () => Promise<number | null>;
+  onChanged: () => void;
+}) {
+  const { t } = useTranslation('qsale');
+  const navigate = useChromeNav();
+  const [cid, setCid] = useState<number | null>(item.client_id ?? (item.ref.kind === 'client' ? item.ref.id : null));
+  const [rows, setRows] = useState<TimelineItem[] | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!cid) { setRows([]); return; }
+    let alive = true;
+    getSaleTimeline(businessId, cid, { limit: 20, channels: ['interaction', 'note'] })
+      .then((out) => { if (alive) setRows(out.items || []); })
+      .catch(() => { if (alive) setRows([]); });
+    return () => { alive = false; };
+  }, [businessId, cid]);
+
+  const openAdd = async () => {
+    if (busy) return;
+    if (cid) { setAddOpen(true); return; }
+    setBusy(true);
+    try { const id = await onEnsureClient(); if (id) { setCid(id); setAddOpen(true); } }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <>
+      <MemoHead>
+        <MemoTitle>{t('panel.history') as string}</MemoTitle>
+        <ActionButton tone="secondary" size="sm" disabled={busy}
+          data-testid={`sale-inbox-memo-add-${item.id}`} onClick={openAdd}>
+          {t('action.addRecord') as string}
+        </ActionButton>
+      </MemoHead>
+      {rows === null ? (
+        <MemoDim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</MemoDim>
+      ) : rows.length === 0 ? (
+        <MemoDim>{t('timeline.empty') as string}</MemoDim>
+      ) : (
+        /* 히스토리는 상세·패널과 **같은 컴포넌트**. 누르면 새 탭으로 연다(목록을 잃지 않게) */
+        <ClientTimeline items={rows} onOpen={(x) => openSaleTimelineItem(x, navigate, { newTab: true })} />
+      )}
+      {cid !== null && (
+        <RecordModal open={addOpen} businessId={businessId} clientId={cid}
+          onClose={() => setAddOpen(false)}
+          onSaved={() => {
+            setAddOpen(false);
+            getSaleTimeline(businessId, cid, { limit: 20, channels: ['interaction', 'note'] })
+              .then((out) => setRows(out.items || [])).catch(() => null);
+            onChanged();
+          }} />
+      )}
+    </>
+  );
+}
+
+/** 일정 추가 — 고객이 있어야 일정에 연결된다. 없으면 한 번 묻고 등록한 뒤 연다.
+ *  창 자체는 상세·패널과 **같은 것**(NextContactModal)이다. */
+function NextContactEnsure({ businessId, item, onEnsureClient, onClose, onSaved }: {
+  businessId: number; item: SaleInboxItem;
+  onEnsureClient: () => Promise<number | null>;
+  onClose: () => void; onSaved: () => void;
+}) {
+  const [cid, setCid] = useState<number | null>(item.client_id ?? (item.ref.kind === 'client' ? item.ref.id : null));
+  const [tried, setTried] = useState(false);
+  useEffect(() => {
+    if (cid || tried) return;
+    setTried(true);
+    void onEnsureClient().then((id) => { if (id) setCid(id); else onClose(); });
+  }, [cid, tried, onEnsureClient, onClose]);
+  if (!cid) return null;
+  return (
+    <NextContactModal open businessId={businessId} clientId={cid}
+      clientName={item.who || '—'} onClose={onClose} onSaved={onSaved} />
+  );
+}
 
 export default SaleInboxList;
 
@@ -452,3 +707,28 @@ const RowActions = styled.div`
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
   @media (max-width: 640px) { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
 `;
+
+/* 단계 필터 셀렉트 — 칩 줄과 같은 높이(36)로 맞춘다 */
+const SelectWrap = styled.div`width: 150px; flex-shrink: 0;`;
+/* 종료 가리기 — 체크박스는 라벨과 한 덩어리로 눌린다 */
+const CheckLabel = styled.label`
+  display: inline-flex; align-items: center; gap: 6px; height: 36px;
+  font-size: 0.75rem; font-weight: 600; color: #475569; cursor: pointer; user-select: none;
+  input { width: 16px; height: 16px; accent-color: #0D9488; cursor: pointer; }
+`;
+/* ✕ — 아이콘 전용이지만 aria-label·title 로 뜻을 말한다(이름 없는 버튼 금지) */
+const IconX = styled.button`
+  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid #E2E8F0; border-radius: 6px; background: #FFFFFF; color: #94A3B8;
+  cursor: pointer; flex-shrink: 0;
+  &:hover:not(:disabled) { background: #FFF1F2; border-color: #FDA4AF; color: #BE123C; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+/* 행 아래 메모 — 목록 안에서 열리므로 행과 붙어 보이게 배경을 낮춘다 */
+const MemoPane = styled.div`
+  grid-column: 1 / -1; margin: 4px 0 2px; padding: 12px 14px;
+  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
+`;
+const MemoHead = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;`;
+const MemoTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #475569;`;
+const MemoDim = styled.div`padding: 12px 0; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;

@@ -168,6 +168,8 @@ export interface SaleInboxItem {
   at: string | null;
   needs_reply: boolean;
   meta: Record<string, unknown>;
+  /** 상담 기록(메모) 건수 — 리스트의 [메모] 가 몇 건인지 보여준다 */
+  note_count?: number;
   /** 원본 화면 경로 (/talk?conv= · /mail?thread=) */
   open_path: string;
 }
@@ -182,12 +184,18 @@ export interface SaleInboxCounts {
 
 export async function listSaleInbox(
   businessId: number,
-  params: { source?: SaleInboxSource | ''; q?: string; needsReply?: boolean; limit?: number } = {},
+  params: { source?: SaleInboxSource | ''; q?: string; needsReply?: boolean; limit?: number;
+    /** 단계 한 개로 좁힌다 — 미등록 접점은 단계가 없어 이때 빠진다(서버에서) */
+    stage?: SaleStage | '';
+    /** 종료(성사·불발)까지 보여줄지. 기본은 가린다(체크된 상태) */
+    includeClosed?: boolean } = {},
 ): Promise<{ items: SaleInboxItem[]; counts: SaleInboxCounts }> {
   const sp = new URLSearchParams();
   if (params.source) sp.set('source', params.source);
   if (params.q) sp.set('q', params.q);
   if (params.needsReply) sp.set('needs_reply', 'true');
+  if (params.stage) sp.set('stage', params.stage);
+  if (params.includeClosed) sp.set('include_closed', 'true');
   if (params.limit) sp.set('limit', String(params.limit));
   const qs = sp.toString();
   const r = await apiFetch(`/api/sale/${businessId}/inbox${qs ? `?${qs}` : ''}`);
@@ -231,7 +239,9 @@ export const patchSaleClient = (businessId: number, clientId: number, patch: Rec
 
 export const setSaleStage = (
   businessId: number, clientId: number,
-  body: { to: SaleStage; reason?: string; lost_reason?: LostReason; lost_note?: string },
+  body: { to: SaleStage; reason?: string; lost_reason?: LostReason; lost_note?: string;
+    /** 어느 문의에서 바꿨는가 — 상담 목록에서 바꾸면 그 행을 싣는다(히스토리에 남는다) */
+    source_ref?: { kind: string; id: number; title?: string | null } },
 ) => apiFetch(`/api/sale/${businessId}/clients/${clientId}/stage`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 }).then(j<{ changed: boolean; from: SaleStage; to: SaleStage; sales_stage: SaleStage }>);

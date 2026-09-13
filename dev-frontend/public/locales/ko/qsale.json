@@ -152,7 +152,12 @@
     "ensureClientTitle": "고객으로 등록하고 계속할까요?",
     "ensureClientBody": "{{who}} 을(를) 고객으로 등록한 뒤 이어서 진행합니다. 초대 메일은 나가지 않습니다.",
     "ensureClientBodyNoEmail": "고객으로 등록한 뒤 이어서 진행합니다. 초대 메일은 나가지 않습니다.",
-    "ensureClientConfirm": "등록하고 계속"
+    "ensureClientConfirm": "등록하고 계속",
+    "memo": "메모",
+    "addEvent": "일정 추가",
+    "removeFromInbox": "상담 목록에서 치우기",
+    "removeFromInboxTitle": "이 상담을 목록에서 치울까요?",
+    "removeFromInboxBody": "상담 목록에서 사라집니다. 원본 메일은 지워지지 않고, 보관함에서 되돌릴 수 있습니다."
   },
   "record": {
     "kind": {
@@ -329,7 +334,9 @@
     },
     "noBody": "내용 없음",
     "inviteFailed": "고객으로 등록했지만 초대 메일 발송에 실패했습니다. 패널에서 다시 보낼 수 있어요.",
-    "inviteNoEmail": "고객으로 등록했습니다. 이메일 주소가 없어 초대는 보내지 못했어요."
+    "inviteNoEmail": "고객으로 등록했습니다. 이메일 주소가 없어 초대는 보내지 못했어요.",
+    "stageAll": "단계 전체",
+    "hideClosed": "종료 가리기"
   },
   "cuebar": {
     "placeholder": "상담 내용을 그대로 붙여넣으세요 — \"오늘 전화로 (주)그린테크 박서준 팀장이 견적 문의. 010-2345-6789\" (Ctrl+Enter)",

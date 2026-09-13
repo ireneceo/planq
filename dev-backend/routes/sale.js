@@ -94,6 +94,9 @@ router.get('/:businessId/inbox', ...readChain, async (req, res, next) => {
       sources: sources.length ? sources : null,
       q: trimOrNull(req.query.q, 100),
       needsReply: String(req.query.needs_reply || '') === 'true',
+      // 단계 필터 · 종료 가리기 (2026-09-13) — 기본은 종료를 가린다(체크된 상태)
+      stage: STAGES.includes(String(req.query.stage || "")) ? String(req.query.stage) : null,
+      includeClosed: String(req.query.include_closed || '') === 'true',
       limit: Math.min(Math.max(Number(req.query.limit) || 100, 1), 300),
     });
     return successResponse(res, { items, counts });
@@ -288,10 +291,17 @@ router.post('/:businessId/clients/:clientId/stage', ...writeChain, async (req, r
     const businessId = Number(req.params.businessId);
     const client = await findClient(businessId, req.params.clientId);
     if (!client) return errorResponse(res, 'Client not found', 404);
-    const { to, reason, lost_reason: lostReason, lost_note: lostNote } = req.body || {};
+    const { to, reason, lost_reason: lostReason, lost_note: lostNote, source_ref: srcRef } = req.body || {};
+    // ★ 2026-09-13 (Irene: "히스토리에 어느 문의 내용에서 단계를 바꿨는지 표시해주고")
+    //   상담 목록에서 바꾸면 **그 행이 무엇이었는지**를 같이 남긴다. 같은 고객의 상담이 여럿일 때
+    //   "어디서 올렸는지" 를 나중에 알 수 있어야 한다. 화면이 보낸 것을 그대로 믿지 않고 모양을 검사한다.
+    const KINDS = ['email_thread', 'guest_link', 'conversation', 'client'];
+    const sourceRef = (srcRef && KINDS.includes(srcRef.kind) && Number.isFinite(Number(srcRef.id)))
+      ? { kind: srcRef.kind, id: Number(srcRef.id), title: srcRef.title ? String(srcRef.title).slice(0, 200) : null }
+      : null;
     try {
       const r = await setStage(client, String(to || ''), {
-        origin: 'manual', by: req.user.id, reason, lostReason, lostNote, io: req.app.get('io'),
+        origin: 'manual', by: req.user.id, reason, lostReason, lostNote, sourceRef, io: req.app.get('io'),
       });
       return successResponse(res, { ...r, sales_stage: client.sales_stage, sales_stage_changed_at: client.sales_stage_changed_at });
     } catch (e) {

@@ -243,12 +243,14 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
     if (beforeDate) where.createdAt = { [Op.lt]: beforeDate };
     const rows = await ClientStageHistory.findAll({
       where, order: [['createdAt', 'DESC']], limit: perSource,
-      attributes: ['id', 'from_stage', 'to_stage', 'origin', 'changed_by', 'reason', 'createdAt'],
+      attributes: ['id', 'from_stage', 'to_stage', 'origin', 'changed_by', 'reason', 'createdAt', 'source_ref'],
     });
     for (const r of rows) {
       items.push({
         type: 'stage', id: r.id, at: r.createdAt, title: null,
-        meta: { from: r.from_stage, to: r.to_stage, origin: r.origin, changed_by: r.changed_by, reason: r.reason },
+        // source_ref — **어느 문의에서 바꿨는지**(2026-09-13 Irene). 상담 목록에서 단계를 바꾸면 그 행이 실린다
+        meta: { from: r.from_stage, to: r.to_stage, origin: r.origin, changed_by: r.changed_by, reason: r.reason,
+          source_ref: r.source_ref || null },
       });
     }
   }

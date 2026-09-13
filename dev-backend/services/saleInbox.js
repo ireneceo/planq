@@ -452,8 +452,19 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
  *   합치는 곳은 여기 하나다. 화면이 두 번 부르면 숫자와 목록이 갈라진다.
  */
 async function listConsults(businessId, opts = {}) {
-  const { userId = null, sources = null, q = null, needsReply = false, limit = 100 } = opts;
-  const base = await listUnlinkedTouchpoints(businessId, { userId, sources, q, needsReply, limit });
+  const {
+    userId = null, sources = null, q = null, needsReply = false, limit = 100,
+    // ★ 2026-09-13 (Irene: "리스트에도 필터가 제대로 있어야지 단계필터 나오게 해" ·
+    //   "상담 리스트에는 종료 가리기 넣고 체크해놔")
+    //   · stage       — 단계 한 개로 좁힌다. 미등록 문의는 단계가 없으므로 이때 제외된다(단계로 고른 것이니 당연하다)
+    //   · includeClosed — 기본 false(= 종료 가림). 성사/불발은 **끝난 상담**이라 기본 목록에 없다
+    stage = null, includeClosed = false,
+  } = opts;
+  // ★ 단계로 고르면 **미등록 접점은 뜻이 없다** — 단계가 아직 없기 때문이다.
+  //   섞어 두면 "단계로 골랐는데 단계 없는 행이 남는" 화면이 된다.
+  const base = stage
+    ? { items: [], counts: { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0, dismissed: 0 } }
+    : await listUnlinkedTouchpoints(businessId, { userId, sources, q, needsReply, limit });
 
   // 소스 칩으로 접점 종류를 고른 경우엔 고객 행을 섞지 않는다(그 칩의 뜻이 "메일 문의" 이므로).
   const wantClients = !Array.isArray(sources) || sources.length === 0;
@@ -463,7 +474,10 @@ async function listConsults(businessId, opts = {}) {
   const { IN_PROGRESS, saleOwnerWhere } = require('./saleCommon');
   const isManager = !!opts.isManager;
   const ownerWhere = userId ? await saleOwnerWhere(businessId, userId, { isManager }) : {};
-  const where = { business_id: businessId, sales_stage: { [Op.in]: IN_PROGRESS }, ...ownerWhere };
+  // 종료(won/lost)를 포함할지 — 체크를 풀면 끝난 상담까지 보인다
+  const CLOSED = ['won', 'lost'];
+  const stageSet = stage ? [stage] : (includeClosed ? [...IN_PROGRESS, ...CLOSED] : IN_PROGRESS);
+  const where = { business_id: businessId, sales_stage: { [Op.in]: stageSet }, ...ownerWhere };
   if (q) {
     const like = { [Op.like]: `%${String(q).replace(/[\\%_]/g, (m) => `\\${m}`)}%` };
     where[Op.or] = [{ display_name: like }, { company_name: like }, { phone: like }, { invite_email: like }];
@@ -481,12 +495,15 @@ async function listConsults(businessId, opts = {}) {
   const { ClientInteraction } = require('../models');
   const ids = rows.map((c) => c.id);
   const touched = new Set();
+  // 리스트의 [메모] 가 몇 건인지 보여주고, 0 건이면 펼쳐도 빈 것을 알 수 있게 한다
+  const noteCount = new Map();
   if (ids.length) {
     const its = await ClientInteraction.findAll({
       where: { business_id: businessId, client_id: { [Op.in]: ids }, deleted_at: null },
-      attributes: ['client_id'], group: ['client_id'], raw: true,
+      attributes: ['client_id', [ClientInteraction.sequelize.fn('COUNT', ClientInteraction.sequelize.col('id')), 'n']],
+      group: ['client_id'], raw: true,
     });
-    for (const it of its) touched.add(it.client_id);
+    for (const it of its) { touched.add(it.client_id); noteCount.set(it.client_id, Number(it.n) || 0); }
   }
 
   const clientItems = rows.map((c) => ({
@@ -503,6 +520,7 @@ async function listConsults(businessId, opts = {}) {
     preview: null,
     at: c.last_touch_at || c.created_at,
     needs_reply: c.sales_stage === 'inquiry' && !touched.has(c.id),
+    note_count: noteCount.get(c.id) || 0,
     meta: { status: c.status, sales_source: c.sales_source, assigned_member_id: c.assigned_member_id },
     open_path: `/sale/${c.id}`,
   }));
