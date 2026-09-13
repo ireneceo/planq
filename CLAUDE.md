@@ -843,6 +843,35 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
 - 옳은 길: `CreateDrawer` 를 쓰고, QTaskPage 안에 인라인으로 있는 폼을 **공용으로 빼서** 둘이 공유한다.
 - AI 생성도 마찬가지 — `components/QTask/AiTaskCreateModal.tsx` 가 이미 있다. 새로 짜지 않는다.
 
+### 2026-09-13 실사례 — 탭 안에 얹는 것도 같은 규칙이다
+> Irene: *"프로젝트 > 노트 탭은 문서 랑 완전히 똑같이 해서 Q note 기능 그대로 구현해."*
+
+프로젝트 **문서** 탭은 `<PostsPage scope={{type:'project',…}} />` 로 Q docs 본체를 그대로 얹는다.
+그런데 **노트** 탭은 목록만 베껴 그렸다 — 그래서 프로젝트 안에서는 회의록을 만들 수도 고칠 수도 없었다.
+같은 기능이 자리마다 다른 것을 사용자는 **고장으로 읽는다.**
+→ `QNotePage` 에 `scope` prop 을 넣어 **같은 컴포넌트**를 얹었다. 새 탭에 기능을 넣을 때도 같다:
+  **본체에 scope 를 받게 하고 얹는다. 목록을 다시 그리지 않는다.**
+- embedded 모드에서 바꿔야 하는 것은 넷뿐이다 — ①선택을 URL 대신 내부 state 로 ②목록 범위
+  ③새로 만드는 것의 기본 연결 ④`useTabTitle(…, enabled=false)`(끄지 않고 `undefined` 를 넘기면
+  **빈 문자열로 주인의 탭 이름을 지운다**).
+- ★ **언마운트가 곧 중단인 기능**(녹음·업로드)은 탭을 옮겨도 트리를 살려 둔다(`$hidden` 으로 감추기).
+
+---
+
+## 라우트는 **같은 파일에 두 번 선언하지 않는다** (2026-09-13 박제)
+
+`routes/projects.js` 에 `GET /:id/notes` 를 두 번 선언했다(하나는 프로젝트 메모, 하나는 새로 넣은
+Q Note 목록). Express 는 **먼저 만난 것만** 부르므로 뒤엣것은 그날부터 **죽은 코드**가 됐고,
+프로젝트 메모를 읽던 화면 4곳이 **500 도 404 도 없이** 엉뚱한 목록을 받았다 — 그래서 검증을
+그대로 통과했고 운영까지 나갔다(v1.49.0).
+
+- **기계가 센다** — `node scripts/guard-invariants.js --category=duproute` (하드 게이트, 873개 경로).
+  "이 경로가 이미 있나" 는 사람이 기억할 일이 아니다.
+- 가드는 **한 파일 안**만 본다. 같은 접두어에 라우터를 둘 이상 마운트할 때는(`/api/clients` 의
+  `client_links.js` + `clients.js`) **순서가 계약**이다 — 더 구체적인 꼬리 경로를 가진 라우터를
+  **앞에** 붙이고, 그 파일에는 고객 id 뒤에 고유한 꼬리가 붙은 경로만 둔다.
+- memory `feedback_express_route_order` · `feedback_silent_no_output_paths`.
+
 ---
 
 ## 자동저장 (필수)
