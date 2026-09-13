@@ -1,6 +1,7 @@
 // 파일 미리보기 — 영상·음성(서명 URL 재생) / 이미지(라이트박스) / PDF / 그 외 폴백.
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
+import { postContentTableCss } from '../../../styles/postContentView';
 import { useTranslation } from 'react-i18next';
 import { useImageLightbox } from '../../../components/Common/ImageLightbox';
 import { extOf, isImage, isVideo, isAudio, requestMediaUrl, type ProjectFile } from '../../../services/files';
@@ -314,7 +315,9 @@ const PreviewDoc = styled.div`
   p{margin:.6em 0;} ul,ol{padding-left:1.4em;margin:.6em 0;}
   code{background:#F1F5F9;padding:1px 4px;border-radius:4px;font-size:.9em;}
   pre{background:#F8FAFC;padding:12px;border-radius:8px;overflow:auto;}
-  img{max-width:100%;} table{border-collapse:collapse;} td,th{border:1px solid #E2E8F0;padding:6px 8px;}
+  img{max-width:100%;}
+  /* 표 규격은 공용 조각 한 벌 (2026-09-13) */
+  ${postContentTableCss}
 `;
 const PreviewTableWrap = styled.div`
   max-height:420px;overflow:auto;background:#fff;border:1px solid #E2E8F0;border-radius:10px;

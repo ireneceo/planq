@@ -41,8 +41,28 @@ export function postContentToHtml(contentJson: unknown): string {
   } catch { return ''; }
 }
 
-/** 화면에 넣을 HTML — 변환 + 정화. `dangerouslySetInnerHTML` 에는 **이것만** 쓴다. */
+/** 표를 가로 스크롤 래퍼로 감싼다.
+ *
+ *  ★ 2026-09-13 (Irene: *"문서를 만들었는데 표가 오른쪽이 잘려. 왜그러지?"*)
+ *    실측: 보기 화면에 **`.tableWrapper` 가 없고**, 위로 `overflow-x: hidden` 조상이 **4겹**이었다.
+ *    → 컨테이너보다 넓은 표는 스크롤바도 없이 그냥 **잘린다.**
+ *  ★ 왜 없었나 — 편집기는 TipTap 이 `.tableWrapper` 를 **런타임에** 붙여 주는데(nodeView),
+ *    보기 화면은 `generateHTML` 로 만든 **정적 HTML** 이다. 그 함수는 래퍼를 만들지 않는다.
+ *    편집기에만 있는 CSS 를 보기 화면이 물려받을 거라고 **가정한 것**이 원인이다.
+ *  ★ 그래서 클래스 이름을 **같은 것**(`tableWrapper`)으로 맞춘다 — 스타일이 한 벌로 남는다.
+ *    여기서 새 클래스를 만들면 편집·보기가 또 갈라진다.
+ *  ★ 정화(sanitize) **뒤에** 감싼다. 앞에서 감싸면 sanitizer 가 래퍼를 지울 수 있다.
+ *    넣는 것은 우리가 만든 고정 문자열이라 새 입력이 섞이지 않는다.
+ */
+function wrapTables(html: string): string {
+  if (!html.includes('<table')) return html;
+  return html
+    .replace(/<table(\s|>)/g, '<div class="tableWrapper"><table$1')
+    .replace(/<\/table>/g, '</table></div>');
+}
+
+/** 화면에 넣을 HTML — 변환 + 정화 + 표 래핑. `dangerouslySetInnerHTML` 에는 **이것만** 쓴다. */
 export function postContentToSafeHtml(contentJson: unknown): string {
   const html = postContentToHtml(contentJson);
-  return html ? sanitizeRichText(html) : '';
+  return html ? wrapTables(sanitizeRichText(html)) : '';
 }

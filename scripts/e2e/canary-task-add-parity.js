@@ -173,14 +173,17 @@ async function run() {
         return true;
       }, row);
       await sleep(1200);
+      // ★ 2026-09-13 — 여태 패널을 `[data-testid="inquiry-panel-view"]`([보기] 버튼)로 찾았다.
+      //   Irene 지시로 그 버튼을 **없앴다**(원본으로 가는 길은 목록 액션의 몫이다) —
+      //   그 순간 이 검사는 "패널이 안 열린다" 로 4건을 **거짓 신고**했다. 제품은 멀쩡했다.
+      //   패널 자체의 표식(`[data-pq-drawer-panel]`)으로 찾는다. 버튼 하나에 매달지 않는다.
       const panel = await page.evaluate(() => {
-        const view = document.querySelector('[data-testid="inquiry-panel-view"]');
-        if (!view) return null;
-        const r = view.getBoundingClientRect();
-        const dlg = view.closest('[role="dialog"]');
+        const dlg = document.querySelector('[data-pq-drawer-panel]');
+        if (!dlg) return null;
+        const r = dlg.getBoundingClientRect();
         return {
-          visible: r.width > 0 && r.height > 0,
-          text: dlg ? (dlg.innerText || '').slice(0, 400) : '',
+          visible: r.width > 40 && r.height > 40,
+          text: (dlg.innerText || '').slice(0, 400),
         };
       });
       push('⑦ 상담 행을 누르면 우측 패널이 뜬다',
@@ -200,7 +203,10 @@ async function run() {
         if (r) r.click();
       }, row);
       await sleep(900);
-      const closed = await page.evaluate(() => !document.querySelector('[data-testid="inquiry-panel-view"]'));
+      const closed = await page.evaluate(() => {
+        const d = document.querySelector('[data-pq-drawer-panel]');
+        return !d || d.getBoundingClientRect().width < 40;
+      });
       const panelWasOpen = !!(panel && panel.visible);
       push('⑦ 같은 행을 다시 누르면 패널이 닫힌다 (재클릭 토글)',
         panelWasOpen && closed,

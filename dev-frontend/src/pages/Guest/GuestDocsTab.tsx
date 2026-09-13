@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { postContentToSafeHtml } from '../../utils/postContentHtml';
+import { postContentTableCss } from '../../styles/postContentView';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -234,7 +235,8 @@ const DocBody = styled.div`
   flex:1;min-height:0;overflow-y:auto;padding:16px 20px calc(20px + env(safe-area-inset-bottom));
   font-size:0.875rem;line-height:1.7;color:#0f172a;
   img{max-width:100%;height:auto;}
-  table{width:100%;border-collapse:collapse;}
+  /* 표 규격은 공용 조각 한 벌 — 각자 쓰면 갈라진다(2026-09-13) */
+  ${postContentTableCss}
   td,th{border:1px solid #e2e8f0;padding:5px 7px;}
   h1,h2,h3{margin:14px 0 6px;}
   ul,ol{padding-left:20px;}
