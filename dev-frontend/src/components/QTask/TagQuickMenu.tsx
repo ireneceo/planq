@@ -155,8 +155,13 @@ const TagQuickMenu: React.FC<Props> = ({ taskId, bizId, dict, value, disabled, o
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
       </Trigger>
+      {/* ★ 2026-09-13 — 이 팝오버는 `role="dialog" aria-modal="false"` 였다. CLAUDE.md §17 은
+          비모달에 `role="dialog"` 를 금지한다 — 하니스가 `[aria-modal="true"]` 로 모달을
+          스코핑하는데 role=dialog 인 비모달이 섞이면 "모달이 떴는가" 판정이 오염된다.
+          실제로 이것 때문에 내 검사기가 "눌러도 아무 일 없음" 이라는 거짓 판정을 냈다.
+          값을 고르는 팝오버이므로 `group` 이 맞다 — 이름은 aria-label 이 준다. */}
       {open && pos && createPortal(
-        <Menu ref={menuRef} role="dialog" aria-modal="false" aria-label={t('tags.quickTitle', '태그 붙이기') as string}
+        <Menu ref={menuRef} role="group" aria-label={t('tags.quickTitle', '태그 붙이기') as string}
           style={{ top: pos.top, left: pos.left }} onClick={(e) => e.stopPropagation()}>
           <Field
             ref={inputRef} value={q} disabled={busy}

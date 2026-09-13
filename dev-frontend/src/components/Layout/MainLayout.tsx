@@ -928,7 +928,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   useBodyScrollLock(sidebarOpen);
 
   const isActive = (path: string) => location.pathname === path || location.pathname.startsWith(path + '/');
-  const isAdminMode = location.pathname.startsWith('/admin');
+  // ★ 2026-09-13 — **경로만 보면 안 된다.** 여태 `/admin/*` 경로이기만 하면 관리자 사이드바를
+  //   그렸다. 그래서 `platform_role='user'` 계정이 주소를 직접 치면 관리자 메뉴 17개가 그대로
+  //   보였다(데이터는 서버가 403 으로 막았지만, 관리자 기능 목록은 노출됐고 "권한 없음" 안내는 없었다).
+  //   경로는 **의도**이고 역할이 **자격**이다 — 둘 다 맞아야 관리자 모드다.
+  const isAdminMode = location.pathname.startsWith('/admin') && user?.platform_role === 'platform_admin';
   const inboxCounts = useInboxCount(user?.business_id ? Number(user.business_id) : null);
   const inboxCount = inboxCounts.total;
   const taskMenuCount = inboxCounts.task;  // Q Task 메뉴 뱃지 — 받은 요청·수정 요청·내가 컨펌·보낸 요청

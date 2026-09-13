@@ -7,6 +7,8 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import styled from 'styled-components';
 import { TabActiveProvider, TabIdProvider } from '../../contexts/TabActiveContext';
 import { APP_ROUTES } from '../../routes/appRoutes';
+// ★ 라우트 표의 `roles` 선언을 집행한다 — 여태 이 pane 은 역할을 **읽지 않았다**(2026-09-13 실측).
+import RouteRoleGate from '../Common/RouteRoleGate';
 import UrlMirror from './UrlMirror';
 import type { Tab } from '../../stores/tabStore';
 
@@ -35,7 +37,10 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
           <PaneScroll ref={scrollRef} onScroll={(e) => { if (active) savedScroll.current = e.currentTarget.scrollTop; }}>
             <Suspense fallback={<Fallback />}>
               <Routes>
-                {APP_ROUTES.map((r) => <Route key={r.path} path={r.path} element={r.element} />)}
+                {APP_ROUTES.map((r) => (
+                  <Route key={r.path} path={r.path}
+                    element={<RouteRoleGate roles={r.roles}>{r.element}</RouteRoleGate>} />
+                ))}
                 <Route path="*" element={<Fallback />} />
               </Routes>
             </Suspense>
