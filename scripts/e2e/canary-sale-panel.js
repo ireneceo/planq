@@ -92,6 +92,12 @@ async function run() {
     }
     push('상담 행이 있다', true, `행 ${rows.length}건으로 측정 (전체 목록의 앞부분)`);
 
+    // ★ 패널에서 뺀 셋이 **목록에 있는지** 확인한다 — 없애기만 했으면 기능이 사라진 것이다.
+    const listActs = await page.evaluate((id) => ['memo', 'event', 'task']
+      .filter((k) => !!document.querySelector(`[data-testid="sale-inbox-${k}-${id}"]`)), rows[0]);
+    push('① 그 셋은 **목록 행 액션**으로 옮겨져 있다', listActs.length === 3,
+      `목록에 있는 것: ${listActs.join(', ') || '없음'} (메모·일정·업무)`);
+
     // ── ④ [보기] 라벨이 목적지와 맞는가 ───────────────────────────
     //   라벨과 open_path 를 같은 곳에서 정한다 — 어긋나면 "이상한데로 보낸다"(Irene).
     //   ★ 라벨만 보면 "이상한데로 보낸다" 를 못 잡는다 — **라벨과 목적지(open_path)가 같은 것을
@@ -141,8 +147,12 @@ async function run() {
     push('행을 누르면 우측 패널이 열린다', true, `폭 ${info.width}px`);
 
     // ── ① 문의로 열어도 **고객 액션**이 있다 ──────────────────────
-    push('① 문의 패널에 고객 액션 3개가 있다 (기록·다음 연락·업무)',
-      info.actionIds.length === 3, `있는 것: ${info.actionIds.join(', ') || '없음'}`);
+    // ★ 2026-09-13 계약 변경 (Irene: *"하단에 고객응대 내역 추가 다음연락 정하기 업무추가 버튼은
+    //   리스트로 뺐으니 없애도 돼."*) — 그 셋은 **상담 목록의 행 액션**이 되었다.
+    //   같은 일을 하는 문이 두 곳에 있으면 어느 쪽이 정본인지 알 수 없다.
+    //   그래서 여기서는 **없어야** 맞고, 대신 목록에 있는지를 아래에서 따로 잰다.
+    push('① 패널 하단에는 그 셋이 **없다**(리스트로 옮겼다)',
+      info.actionIds.length === 0, `남아 있는 것: ${info.actionIds.join(', ') || '없음'}`);
     push('① 나머지는 ⋯ 메뉴로 접혀 있다', info.hasMore,
       info.hasMore ? '더보기 메뉴 있음' : 'OverflowMenu 없음 — 버튼이 다시 늘어난 것');
 
@@ -258,9 +268,9 @@ async function run() {
       await page.click(`[data-testid="${cRow}"]`);
       await sleep(1000);
       const ci = await panelInfo(page);
-      push('① 고객에서 연 패널도 **같은 액션 3개**',
-        !!ci && ci.actionIds.length === 3 && ci.hasMore,
-        ci ? `액션 ${ci.actionIds.join(',')} · 더보기 ${ci.hasMore}` : '패널 없음');
+      push('① 고객에서 연 패널도 **같은 모양**(하단 셋 없음 + ⋯ 있음)',
+        !!ci && ci.actionIds.length === 0 && ci.hasMore,
+        ci ? `남은 액션 ${ci.actionIds.join(',') || '없음'} · 더보기 ${ci.hasMore}` : '패널 없음');
     }
   } finally { await browser.close(); }
   return results;
