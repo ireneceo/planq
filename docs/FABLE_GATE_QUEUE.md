@@ -1369,3 +1369,13 @@ planq.kr health ok · PM2 prod 3개 online · 릴리즈노트 `/insights/update-
 
 **Fable 호출 오늘 계속 HTTP 429.** 마커 `by:"unavailable"`. 보고는 **"Fable 미검증(자체 검증)"**.
 
+**2026-09-13 20:4x 재시도 — 또 429.** `/개발완료` 정지 훅이 **미검증 소스 커밋 1건**(`704fd393`,
+`dev-backend/seed-wiki-content.js` — Q위키 아티클 2건 추가)을 잡아 완료를 막았다. 맞게 걸린 것이다 —
+커밋은 검증이 아니다. Fable 서브에이전트를 실제로 띄웠고(`model: fable`) **HTTP 429 로 즉시 종료**됐다
+(`You've reached your Fable limit`). 위임하려던 항목은 그대로 남는다:
+①diff 범위(합의한 7개 밖 변경) ②가드 3축 + tsc ③실HTTP — 라우트 충돌 회귀 · q-note 생성 연결 저장 ·
+공개범위 변경이 연결을 안 지우는지(+`unlink_project` 음성 대조군) · 고객 qnotes 404/403 ·
+마운트 순서가 고객 상세를 안 가리는지 · `invite_token` 미노출 ④배포 안전성 — q-note 컬럼 멱등 보장 ·
+rsync 범위 · 롤백 경로 · **이미 운영에 나간 `PUT /:id/visibility` 동작 변경이 L2 판정 전제를 흔들지 않는지**.
+마커 `by:"unavailable"`. 보고는 **"Fable 미검증(자체 검증)"**.
+
