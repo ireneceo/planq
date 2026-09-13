@@ -20,15 +20,16 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 //   입구를 상담(고객 미등록 문의)으로 바꾸고 고객 목록은 옆 탭으로 둔다. 목록·액션은 SaleInboxList 한 곳.
 import SaleInboxList from '../../components/QSale/SaleInboxList';
 import SaleCueBar from '../../components/QSale/SaleCueBar';
+// 응대 내역 입력칸은 **공용 한 벌** — RecordModal 과 같은 것을 쓴다
+import InteractionFields, { emptyInteraction, type InteractionValue } from '../../components/QSale/InteractionFields';
 // 이메일·전화는 **공용 입력**을 쓴다 — 형식을 입력 중에 맞춰 주고 틀리면 그 자리에서 말한다
 import EmailInput, { isEmailUsable } from '../../components/Common/EmailInput';
 import PhoneInput, { isPhoneUsable } from '../../components/Common/PhoneInput';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import {
   listSaleClients, getSaleSummary, saveAsClient,
-  SALE_STAGES, IN_PROGRESS_STAGES, SALE_SOURCES, INTERACTION_KINDS,
+  SALE_STAGES, IN_PROGRESS_STAGES, SALE_SOURCES,
   type SaleClient, type SaleSummary, type SaleStage, type AccessKind, type SaleSource,
-  type InteractionKind,
 } from '../../services/sale';
 
 const PAGE = 50;
@@ -166,8 +167,11 @@ export default function SalePage() {
         <Actions>
           {/* ★ 검색도 **탭 아래**다 (Irene 2026-09-12: "검색창 위에 있는 거 탭 아래로 내리랬잖아").
               헤더에는 주 액션 하나만 남긴다 — Q Task 와 같은 배치(탭 → AI 바 → 필터 → 리스트). */}
+          {/* ★ 2026-09-13 (Irene: *"+문의추가는 고객응대내용 추가 이 팝업 뜨게 하고 이름도 이걸로 해.
+              이것 저것 비슷한 항목 자꾸 만들지 마."*) — "문의 추가" 와 "고객응대 내역 추가" 는
+              같은 일(=응대를 기록한다)이었고 칸만 달랐다. 이름과 칸을 하나로 합쳤다. */}
           <ActionButton tone="primary" size="sm" data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
-            {t('action.addInquiry') as string}
+            {t('action.addRecord') as string}
           </ActionButton>
         </Actions>
       )}
@@ -382,7 +386,8 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
   const [source, setSource] = useState<SaleSource>('manual');
   // 첫 상담 기록 — 전화·방문 내용은 **등록하는 그 순간**에만 손에 있다(Irene 2026-09-12).
   //   여기서 안 받으면 저장 후 상세로 들어가 한 번 더 써야 하고, 대개 안 쓴다.
-  const [noteKind, setNoteKind] = useState<InteractionKind>('call');
+  // 응대 내역 값 — 공용 칸(InteractionFields)이 쓰는 모양 그대로
+  const [rec, setRec] = useState<InteractionValue>(() => emptyInteraction());
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -391,12 +396,10 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
   const note = useDraftText(useDraftKey('sale-inquiry-add', 'note', businessId));
 
   const sourceOptions = useMemo(() => SALE_SOURCES.map((x) => ({ value: x as string, label: t(`source.${x}`) as string })), [t]);
-  // 종류 라벨은 상담 원장이 쓰는 **record.kind.*** 를 그대로 쓴다(같은 값의 라벨을 두 벌 만들지 않는다)
-  const kindOptions = useMemo(() => INTERACTION_KINDS.map((k) => ({ value: k as string, label: t(`record.kind.${k}`) as string })), [t]);
 
   useEffect(() => {
     // ★ 초안(붙여넣은 글·메모)은 **여기서 비우지 않는다** — 열 때마다 지우면 초안이 아니다.
-    if (open) { setName(''); setCompany(''); setPhone(''); setEmail(''); setSource('manual'); setNoteKind('call'); setErr(null); }
+    if (open) { setName(''); setCompany(''); setPhone(''); setEmail(''); setSource('manual'); setRec(emptyInteraction()); setErr(null); }
   }, [open]);
 
   const submit = async () => {
@@ -416,7 +419,14 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
         email: email.trim() || undefined,
         sales_source: source,
         // 내용이 있을 때만 기록을 만든다(빈 기록은 원장을 더럽힌다)
-        interaction: body ? { kind: noteKind, body, direction: 'inbound' } : undefined,
+        // 시각·제목·길이까지 같이 보낸다 — 칸이 생겼는데 안 보내면 사용자가 적은 것이 사라진다
+        interaction: body ? {
+          kind: rec.kind, body,
+          direction: rec.direction || 'inbound',
+          occurred_at: rec.date && rec.time ? `${rec.date}T${rec.time}` : undefined,
+          title: rec.title.trim() || undefined,
+          duration_minutes: rec.minutes ? Number(rec.minutes) : undefined,
+        } : undefined,
       });
       // 저장이 끝난 뒤에만 초안을 비운다 — 실패를 삼키고 비우면 저장 실패가 곧 글 삭제다
       note.clear();
@@ -432,7 +442,7 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
   };
 
   return (
-    <StandardModal open={open} onClose={onClose} title={t('inquiry.title') as string} size="sm"
+    <StandardModal open={open} onClose={onClose} title={t('action.addRecord') as string} size="sm"
       footer={(
         <>
           <ActionButton tone="secondary" size="md" onClick={onClose}>{t('inquiry.cancel') as string}</ActionButton>
@@ -468,24 +478,18 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
             if (v) setSource(v as SaleSource);
           }} />
       </Field>
-      {/* 첫 상담 기록 — 종류(전화·미팅·방문·메모)와 내용. 내용이 있으면 상담 원장에 1건 남는다. */}
-      <Field>
-        <FieldLabel>{t('inquiry.noteKindLabel') as string}</FieldLabel>
-        <PlanQSelect size="md" isSearchable={false}
-          aria-label={t('inquiry.noteKindLabel') as string}
-          options={kindOptions}
-          value={kindOptions.find((o) => o.value === noteKind)}
-          onChange={(opt: unknown) => {
-            const v = (opt as { value?: string } | null)?.value;
-            if (v) setNoteKind(v as InteractionKind);
-          }} />
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="sale-inq-note">{t('inquiry.noteLabel') as string}</FieldLabel>
-        <TextArea id="sale-inq-note" rows={3} data-draft-kind="sale-inquiry-add"
-          placeholder={t('inquiry.notePlaceholder') as string}
-          value={note.text} onChange={(e) => note.setText(e.target.value)} />
-      </Field>
+      {/* ★ 응대 내역 칸은 **공용 한 벌**(InteractionFields) — `RecordModal` 과 같은 것을 쓴다.
+          2026-09-13 이전엔 여기만 종류·내용 둘뿐이라, 어디서 적느냐에 따라 남는 정보가 달랐다. */}
+      <InteractionFields
+        idPrefix="sale-inq"
+        value={rec}
+        onChange={(patch) => setRec((v) => ({ ...v, ...patch }))}
+        bodySlot={(
+          <TextArea id="sale-inq-body" rows={3} data-draft-kind="sale-inquiry-add"
+            placeholder={t('inquiry.notePlaceholder') as string}
+            value={note.text} onChange={(e) => note.setText(e.target.value)} />
+        )}
+      />
       {err && <ErrText role="alert">{err}</ErrText>}
     </StandardModal>
   );

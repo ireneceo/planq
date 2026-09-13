@@ -3,6 +3,8 @@
 //   "AI 추가는 문의추가랑 별개로 입력 바로 하게 나와야지 왜 문의추가 안에 버튼을 넣었어?"
 //
 // 모양·자리는 Q Task 의 CueTaskBar 와 같다(탭 바로 아래 인라인 바). 새 디자인을 만들지 않는다.
+//   ★ 2026-09-13 — 그렇게 적혀 있었지만 실제 스타일은 갈라져 있었다(민트 vs 흰 배경).
+//     Q task 규격(흰 배경 · Coral 포커스 링 · 테두리 없는 입력)으로 맞췄다.
 // 하는 일: 붙여넣은 글 → AI 추출(POST /api/sale/:biz/inquiry/extract) → **바로 문의 등록**
 //   (기존 저장 경로 `saveAsClient` 를 그대로 쓴다 — 생성 로직을 두 벌로 만들지 않는다).
 //   원문은 **첫 상담 기록**으로 함께 남는다(정보가 버려지지 않는다). 값이 틀리면 우측 패널에서 고친다.
@@ -88,16 +90,25 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
 
 export default SaleCueBar;
 
+/* ★ 2026-09-13 (Irene: *"Cue에게 말하기는 스타일이 디자인 스타일이 Q task에 나오는 거랑
+   같게 해줘."*) — 이 파일 머리말은 "모양·자리는 CueTaskBar 와 같다" 고 적혀 있었지만
+   **실제로는 달랐다**: Q task 는 흰 배경 + Coral 포커스 링, 여기는 민트 배경 + 민트 테두리였다.
+   주석이 사실을 보증하지 않는다(memory `feedback_comment_lies_predicate_drifts`).
+   Q task 의 `BarRow`/`Field` 규격을 그대로 가져온다. */
+const CORAL = '#F43F5E';
 const Bar = styled.div`
-  display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap;
-  padding: 10px 12px; margin-bottom: 10px;
-  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 10px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 7px 8px 7px 12px; margin-bottom: 10px;
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
+  transition: border-color .15s, box-shadow .15s;
+  &:focus-within { border-color: ${CORAL}; box-shadow: 0 0 0 3px rgba(244,63,94,0.12); }
 `;
 const Input = styled.textarea`
   flex: 1 1 260px; min-width: 0; resize: none; overflow-y: auto;
-  border: 1px solid #CCFBF1; border-radius: 8px; background: #FFFFFF;
-  padding: 8px 10px; font-size: 0.8125rem; color: #0F172A; font-family: inherit; line-height: 1.5;
-  &:focus { outline: none; border-color: #14B8A6; }
+  border: none; outline: none; background: transparent;
+  padding: 1px 0; max-height: 140px;
+  font-family: inherit; font-size: 0.84375rem; line-height: 1.5; color: #0F172A;
   &::placeholder { color: #94A3B8; }
+  &:disabled { color: #94A3B8; }
 `;
 const Hint = styled.span`flex: 1 1 100%; font-size: 0.75rem; color: #B91C1C;`;

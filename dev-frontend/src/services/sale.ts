@@ -318,7 +318,13 @@ export type SaveAsClientInput =
   | { from: 'manual'; display_name?: string; company_name?: string; phone?: string; email?: string;
       sales_source?: SaleSource;
       /** 첫 상담 기록 — 전화·방문 내용은 **등록하는 그 순간**에만 손에 있다. 같이 보낸다 */
-      interaction?: { kind: InteractionKind; title?: string | null; body?: string | null; direction?: 'inbound' | 'outbound' | null } };
+      // 응대 내역 — 공용 칸(InteractionFields)이 적는 것을 **그대로** 보낸다.
+      //   칸이 생겼는데 안 보내면 사용자가 적은 것이 조용히 사라진다.
+      interaction?: {
+        kind: InteractionKind; title?: string | null; body?: string | null;
+        direction?: 'inbound' | 'outbound' | null;
+        occurred_at?: string; duration_minutes?: number;
+      } };
 
 export const saveAsClient = (businessId: number, input: SaveAsClientInput) =>
   apiFetch(`/api/sale/${businessId}/save-as-client`, {
