@@ -172,6 +172,21 @@ export default function SalePage() {
         </Actions>
       )}
     >
+      {/* ★ Cue 에게 말하기는 **탭 위**다 (Irene 2026-09-13: "Cue 에게 말하기는 상담/고객 탭 위로 둬.
+          어차피 같은 맥락으로 추가되는 거니까 상위가 맞아").
+          두 탭 어디서 말하든 같은 곳(상담)에 들어가므로 탭에 종속된 자리가 아니다 —
+          탭 아래에 두면 "이 탭에만 해당하는 입력" 으로 읽힌다. */}
+      {businessId && (
+        <SaleCueBar businessId={businessId}
+          onCreated={(clientId) => {
+            // ★ 등록했으면 **그 자리(상담 탭)** 에서 보인다 — 고객 탭으로 튕기지 않는다.
+            //   상담 목록은 진행 중인 고객도 포함하므로 재조회하면 방금 넣은 것이 맨 위에 온다.
+            setInboxRefresh((n) => n + 1);
+            load({ silent: true, page: 1 });
+            setPanelClientId(clientId);
+          }} />
+      )}
+
       {/* 탭 — 상담이 기본, 고객은 옆. "상담 > 고객" 순서가 실제 일의 순서다 (Irene 2026-09-12) */}
       <TabRow role="tablist">
         <TabBtn type="button" role="tab" aria-selected={tab === 'inbox'} data-testid="sale-tab-inbox"
@@ -183,18 +198,6 @@ export default function SalePage() {
           {t('list.tabClients') as string}
         </TabBtn>
       </TabRow>
-
-      {/* 탭 아래 순서 = Q Task 와 같다: ① Cue 에게 말하기 ② 검색·필터 ③ 리스트 */}
-      {businessId && (
-        <SaleCueBar businessId={businessId}
-          onCreated={(clientId) => {
-            // ★ 등록했으면 **그 자리(상담 탭)** 에서 보인다 — 고객 탭으로 튕기지 않는다.
-            //   상담 목록은 진행 중인 고객도 포함하므로 재조회하면 방금 넣은 것이 맨 위에 온다.
-            setInboxRefresh((n) => n + 1);
-            load({ silent: true, page: 1 });
-            setPanelClientId(clientId);
-          }} />
-      )}
       <SearchRow>
         <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
           placeholder={t('list.searchPlaceholder') as string}
