@@ -109,7 +109,7 @@ const FilePicker: React.FC<Props> = ({
   }
 
   return (
-    <DetailDrawer open={open} onClose={onClose} width={480} ariaLabel={title || t('filepicker.title', '파일 선택') as string}>
+    <DetailDrawer open={open} onClose={onClose} ariaLabel={title || t('filepicker.title', '파일 선택') as string}>
       <DetailDrawer.Header onClose={onClose}>{headerNode}</DetailDrawer.Header>
       <DetailDrawer.Body>{bodyNode}</DetailDrawer.Body>
       <DetailDrawer.Footer>{footerNode}</DetailDrawer.Footer>

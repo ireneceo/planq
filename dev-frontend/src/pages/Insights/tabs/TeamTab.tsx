@@ -178,7 +178,6 @@ const TeamTab: React.FC<{ businessId: number; range: RangePreset; segment?: Stat
       <DetailDrawer
         open={!!selected}
         onClose={() => setSelected(null)}
-        width={460}
         ariaLabel={t('team.drawer.title', '직원 카테고리 분석') as string}
       >
         <DetailDrawer.Header onClose={() => setSelected(null)}>

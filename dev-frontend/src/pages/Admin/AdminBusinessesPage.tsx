@@ -302,7 +302,6 @@ export default function AdminBusinessesPage() {
       <DetailDrawer
         open={activeId != null}
         onClose={closeDrawer}
-        width={460}
         ariaLabel={t('page.title') as string}
       >
         {detailLoading && !detail && <Padded><InfoText>Loading…</InfoText></Padded>}

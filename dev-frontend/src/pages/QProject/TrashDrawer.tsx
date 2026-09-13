@@ -106,7 +106,7 @@ const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, on
 
   return (
     <>
-      <DetailDrawer open={open} onClose={onClose} width={480} ariaLabel={(t('docs.trash.title', '휴지통') as string)}>
+      <DetailDrawer open={open} onClose={onClose} ariaLabel={(t('docs.trash.title', '휴지통') as string)}>
         <DetailDrawer.Header onClose={onClose}>
           <HeadTitle>{(t('docs.trash.title', '휴지통') as string)}</HeadTitle>
           {!loading && <HeadCount>{total}</HeadCount>}

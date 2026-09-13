@@ -178,7 +178,6 @@ const AdminFeedbackPage = () => {
       <DetailDrawer
         open={!!detail}
         onClose={() => setDetailId(null)}
-        width={520}
         ariaLabel={t('adminFeedback.detailTitle', '피드백 상세') as string}
       >
         <DetailDrawer.Header onClose={() => setDetailId(null)}>

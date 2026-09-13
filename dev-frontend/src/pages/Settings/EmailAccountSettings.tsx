@@ -358,7 +358,6 @@ const EmailAccountSettings: React.FC = () => {
       <DetailDrawer
         open={editing !== null}
         onClose={() => setEditing(null)}
-        width={560}
         ariaLabel={editing === 'new' ? t('settings.addTitle', '메일 계정 등록') as string : t('settings.editTitle', '메일 계정 편집') as string}
       >
         {editing !== null && (

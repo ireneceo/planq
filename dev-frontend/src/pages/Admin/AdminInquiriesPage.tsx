@@ -166,7 +166,7 @@ const AdminInquiriesPage = () => {
       )}
 
       {detail && (
-        <DetailDrawer open={!!detail} onClose={closeDetail} width={520} ariaLabel={t('adminInq.detailAria', '문의 상세') as string}>
+        <DetailDrawer open={!!detail} onClose={closeDetail} ariaLabel={t('adminInq.detailAria', '문의 상세') as string}>
           <DetailDrawer.Header onClose={closeDetail}>
             <DetailTitle>
               <span>#{detail.id}</span>

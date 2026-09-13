@@ -68,7 +68,6 @@ const AttachmentPreviewDrawer: React.FC<Props> = ({ attachment, businessId, onCl
     <DetailDrawer
       open={!!attachment}
       onClose={onClose}
-      width={480}
       ariaLabel={t('attachments.previewAria', { defaultValue: '첨부파일 미리보기' }) as string}
     >
       {attachment && (

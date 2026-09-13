@@ -1041,13 +1041,19 @@ useBodyScrollLock(open);                 // ★ **가운데 모달에만.** 우�
 
 우측 상세/편집 드로어는 **공통 프리미티브 `components/Common/DetailDrawer.tsx`** 를 사용한다. 기존 커스텀 드로어도 아래 반응형 CSS 를 반드시 적용.
 
-- **≥1025px:** 지정 width (기본 440px) 사이드 드로어
+- **≥1025px:** **480px 고정** — 폭은 `DetailDrawer` 하나가 정한다. `width` prop 은 **없다**
 - **641~1024px:** `width: min(560px, 90vw)`
 - **≤640px:** `width: 100vw` 풀스크린, border-left·box-shadow 제거, `padding-bottom: env(safe-area-inset-bottom)`
 
 공통 규칙:
 - **배경 스크롤은 잠그지 않는다** (2026-09-13) — 우측 곁패널은 목록과 **함께** 보는 것이 용도다.
   `useBodyScrollLock` 은 가운데 모달의 것이다. 위 "배경 스크롤" 절 참조
+- **폭을 호출부가 정하지 않는다** (2026-09-13) — Irene: *"솔루션 우측패널들 가로 사이즈가 왜 달라?
+  다 똑같이 통일해야 하는 거 아니야?"* 실측 **19곳이 420·440·460·480·520·560 여섯 가지**였다.
+  ★ `theme/panelWidth.ts` 의 `OVERLAY_DRAWER.default` 주석에는 이미 "구 460/480/520/560 난립 →
+  480 수렴" 이라고 적혀 있었다 — **토큰은 있었는데 아무도 안 썼다**(공용 컴포넌트가 있다 ≠ 강제된다).
+  그래서 `width` prop 자체를 없앴다. 다른 폭이 정말 필요하면 **프리미티브에 변형을 정의**하고 이유를 적는다.
+  재발은 가드가 막는다: `node scripts/guard-invariants.js --category=drawerwidth`
 - Esc 닫기 + 백드롭 클릭 닫기 + 재클릭 토글 기본
 - 폰에서 리사이즈 핸들 `@media (max-width: 1024px) { display: none; }`
 - 터치 타겟 폰에서 최소 40×40

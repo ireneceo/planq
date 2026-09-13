@@ -224,7 +224,7 @@ const EventDrawer: React.FC<Props> = ({
   };
 
   return (
-    <DetailDrawer open={!!event} onClose={onClose} width={480} ariaLabel={event.title}>
+    <DetailDrawer open={!!event} onClose={onClose} ariaLabel={event.title}>
       <DetailDrawer.Header onClose={onClose}>
         <HeaderInner>
           <ColorBar $color={c.fg} />

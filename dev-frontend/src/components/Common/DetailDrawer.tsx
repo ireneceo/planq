@@ -2,7 +2,14 @@
  * DetailDrawer — 우측 상세/편집 드로어 공통 프리미티브
  *
  * 반응형 정책:
- *  - 데스크탑 (≥1025px): 지정한 width (default 440px) 사이드 드로어
+ *  - 데스크탑 (≥1025px): **480px 고정** 사이드 드로어
+ *
+ * ★ 2026-09-13 — 폭은 **여기 하나가 정한다.** Irene: *"솔루션 우측패널들 가로 사이즈가 왜 달라?
+ *   다 똑같이 통일해야 하는 거 아니야?"* 실측 결과 호출부 19곳이 420·440·460·480·520·560
+ *   **여섯 가지**로 갈라져 있었다 — 화면을 옮길 때마다 패널 폭이 바뀌어 "이랬다 저랬다" 로 보였다.
+ *   `width` prop 을 없앴다. 규격을 prop 으로 열어 두면 반드시 다시 갈라진다
+ *   (memory `feedback_shared_wrapper_is_not_enforcement` — 공용 컴포넌트가 있다 ≠ 강제된다).
+ *   정말 다른 폭이 필요한 화면이 생기면 **여기에 변형을 정의**하고 이유를 적는다.
  *  - 태블릿 (641~1024px): 90vw, 최대 560px
  *  - 폰 (≤640px): 100vw 풀스크린 오버레이 (border-radius 제거)
  *
@@ -27,7 +34,7 @@
  *   ★ 가운데 모달(components/UI/Modal)은 이 변경에서 **제외**다 — 전면을 덮는 창은 뒤가 움직이면 안 된다.
  *
  * 사용 예:
- *   <DetailDrawer open={!!selected} onClose={close} width={440} ariaLabel="일정 상세">
+ *   <DetailDrawer open={!!selected} onClose={close} ariaLabel="일정 상세">
  *     <DetailDrawer.Header onClose={close}>
  *       <Title>제목</Title>
  *     </DetailDrawer.Header>
@@ -41,10 +48,12 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { mediaPhone } from '../../theme/breakpoints';
 
+/** 우측 곁패널 표준 폭 — 데스크탑. 태블릿·폰은 아래 미디어쿼리가 덮는다. */
+const DRAWER_W = 480;
+
 interface DetailDrawerProps {
   open: boolean;
   onClose: () => void;
-  width?: number;                 // 데스크탑 폭 (default 440)
   ariaLabel?: string;
   closeOnBackdrop?: boolean;      // default true
   closeOnEsc?: boolean;           // default true
@@ -52,7 +61,7 @@ interface DetailDrawerProps {
 }
 
 const DetailDrawerRoot: React.FC<DetailDrawerProps> = ({
-  open, onClose, width = 480, ariaLabel,
+  open, onClose, ariaLabel,
   closeOnBackdrop = true, closeOnEsc = true,
   children,
 }) => {
@@ -75,7 +84,7 @@ const DetailDrawerRoot: React.FC<DetailDrawerProps> = ({
         aria-label={ariaLabel}
         /* 스크롤 통과가 **패널 자신을 굴리지 않게** 하는 표식 (usePassThroughScroll) */
         data-pq-drawer-panel=""
-        $width={width}
+        $width={DRAWER_W}
       >
         {children}
       </Panel>

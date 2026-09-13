@@ -1047,7 +1047,7 @@ const DocsTab: React.FC<Props> = (props) => {
       <DetailFallbackDrawer state={preview ? null : missingFile} onClose={closeMissingFile} />
 
       {/* 미리보기 드로어 */}
-      <DetailDrawer open={!!preview} onClose={() => setPreview(null)} width={480} ariaLabel={tr('docs.preview.aria', '파일 미리보기')}>
+      <DetailDrawer open={!!preview} onClose={() => setPreview(null)} ariaLabel={tr('docs.preview.aria', '파일 미리보기')}>
         {preview && (
           <>
             <DetailDrawer.Header onClose={() => setPreview(null)}>

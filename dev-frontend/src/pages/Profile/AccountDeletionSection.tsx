@@ -121,7 +121,7 @@ const AccountDeletionSection: React.FC = () => {
         {t('accountDeletion.deleteButton')}
       </DeleteBtn>
 
-      <DetailDrawer open={open} onClose={close} width={460} ariaLabel={t('accountDeletion.confirmTitle')}>
+      <DetailDrawer open={open} onClose={close} ariaLabel={t('accountDeletion.confirmTitle')}>
         <DetailDrawer.Header onClose={close}>{t('accountDeletion.confirmTitle')}</DetailDrawer.Header>
         <DetailDrawer.Body>
           <ConfirmWarn>{t('accountDeletion.confirmWarn', { days: pf?.grace_days ?? 30 })}</ConfirmWarn>

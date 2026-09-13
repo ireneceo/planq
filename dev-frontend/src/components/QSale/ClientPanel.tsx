@@ -352,7 +352,7 @@ const ClientPanel: React.FC<Props> = ({
   const actionsReady = !!cid || !!(inquiry && inquiry.canRegister);
 
   return (
-    <DetailDrawer open={cid != null || !!inquiry} onClose={onClose} width={420} ariaLabel={name || 'client'}>
+    <DetailDrawer open={cid != null || !!inquiry} onClose={onClose} ariaLabel={name || 'client'}>
       <DetailDrawer.Header onClose={onClose}>
         <HeadRow>
           <HeadName title={name}>{name || '—'}</HeadName>

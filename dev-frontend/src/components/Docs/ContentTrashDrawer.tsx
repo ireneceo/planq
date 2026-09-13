@@ -74,7 +74,7 @@ const ContentTrashDrawer: React.FC<Props> = ({ open, businessId, onClose, onChan
 
   return (
     <>
-      <DetailDrawer open={open} onClose={onClose} width={460}
+      <DetailDrawer open={open} onClose={onClose}
         ariaLabel={t('trash.title', { defaultValue: '휴지통' }) as string}>
         <DetailDrawer.Header onClose={onClose}>
           <HeadTitle>{t('trash.title', { defaultValue: '휴지통' })}</HeadTitle>

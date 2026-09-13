@@ -65,7 +65,7 @@ export const AdminFixDrawer: React.FC<{
   const KINDS = ['clock_in', 'break_start', 'break_end', 'clock_out'];
 
   return (
-    <DetailDrawer open={!!day} onClose={onClose} width={460} ariaLabel={t('fix.title') as string}>
+    <DetailDrawer open={!!day} onClose={onClose} ariaLabel={t('fix.title') as string}>
       <DetailDrawer.Header onClose={onClose}>
         {t('fix.title')} — {nameOf(day.user_id)} · {day.work_date}
       </DetailDrawer.Header>

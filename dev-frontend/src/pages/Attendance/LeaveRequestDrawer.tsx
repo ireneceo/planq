@@ -107,7 +107,7 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
   ];
 
   return (
-    <DetailDrawer open={open} onClose={onClose} width={440} ariaLabel={t('leave.new') as string}>
+    <DetailDrawer open={open} onClose={onClose} ariaLabel={t('leave.new') as string}>
       <DetailDrawer.Header onClose={onClose}>{t('leave.new')}</DetailDrawer.Header>
       <DetailDrawer.Body>
         {/* ★ 잔여를 **고르기 전에** 보여준다. 여태 이 화면에는 잔여가 한 글자도 없어서

@@ -106,7 +106,7 @@ const ReportsList: React.FC<Props> = ({ businessId, periodType, dim }) => {
           </TableWrap>
         )}
 
-      <DetailDrawer open={!!selected} onClose={() => setSelected(null)} width={560} ariaLabel={selected?.name || ''}>
+      <DetailDrawer open={!!selected} onClose={() => setSelected(null)} ariaLabel={selected?.name || ''}>
         <DetailDrawer.Header onClose={() => setSelected(null)}>
           <DrawerTitle>{selected?.name}</DrawerTitle>
           <DrawerSub>{label}{selected?.department && ` · ${selected.department}`}{selected?.confirmed && ` · ${t('weeklyReview.integrated.confirmed', { defaultValue: '확정' })}`}</DrawerSub>

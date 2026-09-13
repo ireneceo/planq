@@ -1026,7 +1026,6 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       <DetailDrawer
         open={!!detailId}
         onClose={() => setDetailId(null)}
-        width={520}
         ariaLabel={t('drawer.title') as string}
       >
         <DetailDrawer.Header onClose={() => setDetailId(null)}>

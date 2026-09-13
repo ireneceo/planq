@@ -207,7 +207,7 @@ const AdminAuditLogsPage = () => {
       )}
 
       {detail && (
-        <DetailDrawer open={!!detail} onClose={() => setDetailId(null)} width={560} ariaLabel={t('adminAudit.detail', '로그 상세') as string}>
+        <DetailDrawer open={!!detail} onClose={() => setDetailId(null)} ariaLabel={t('adminAudit.detail', '로그 상세') as string}>
           <DetailDrawer.Header onClose={() => setDetailId(null)}>
             <DTitle>#{detail.id} — {detail.action}</DTitle>
           </DetailDrawer.Header>

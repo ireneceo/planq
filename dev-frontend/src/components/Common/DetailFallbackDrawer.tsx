@@ -12,14 +12,13 @@ interface Props {
   /** null · loading · ready · idle 이면 닫혀 있다 */
   state: { status: DetailStatus; otherBiz: number | null } | null;
   onClose: () => void;
-  width?: number;
 }
 
-export default function DetailFallbackDrawer({ state, onClose, width = 480 }: Props) {
+export default function DetailFallbackDrawer({ state, onClose }: Props) {
   const { t } = useTranslation('common');
   const open = !!state && state.status !== 'loading' && state.status !== 'ready' && state.status !== 'idle';
   return (
-    <DetailDrawer open={open} onClose={onClose} width={width} ariaLabel={t('detail.ariaLabel', '상세') as string}>
+    <DetailDrawer open={open} onClose={onClose} ariaLabel={t('detail.ariaLabel', '상세') as string}>
       {open && state && (
         <>
           <DetailDrawer.Header onClose={onClose}>{null}</DetailDrawer.Header>

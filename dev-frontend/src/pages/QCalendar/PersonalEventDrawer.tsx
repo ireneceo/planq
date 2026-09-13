@@ -20,7 +20,6 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { toDateKey, formatTime } from './dateUtils';
 import { personalToEvent } from './taskToEvent';
 import type { PersonalCalendarEvent } from './types';
-import { OVERLAY_DRAWER } from '../../theme/panelWidth';
 
 const TIME_OPTIONS = (() => {
   const arr: Array<{ value: string; label: string }> = [];
@@ -123,7 +122,7 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
   }, [canEdit, event.read_only, event.is_organizer, t]);
 
   return (
-    <DetailDrawer open onClose={onClose} width={OVERLAY_DRAWER.default} ariaLabel={t('personal.ariaLabel', { defaultValue: '개인 일정 상세' }) as string}>
+    <DetailDrawer open onClose={onClose} ariaLabel={t('personal.ariaLabel', { defaultValue: '개인 일정 상세' }) as string}>
       <DetailDrawer.Header onClose={onClose}>
         <HeadWrap>
           {canEdit ? (

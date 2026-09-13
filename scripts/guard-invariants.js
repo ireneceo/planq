@@ -2004,6 +2004,46 @@ function checkCanaryContract() {
 }
 
 // ═══════════════════════════════════════════════
+// drawerwidth — **우측 곁패널 폭은 한 곳이 정한다** (2026-09-13 신설)
+//
+//   Irene 2026-09-13: *"솔루션 우측패널들 가로 사이즈가 왜 달라? 다 똑같이 통일해야 하는 거 아니야?
+//   이랬다 저랬다 보이는게 있어서 검증 했으면 좋겠어."*
+//
+//   실측: `<DetailDrawer>` 호출부 **19곳이 420·440·460·480·520·560 여섯 가지**로 갈라져 있었다.
+//   화면을 옮길 때마다 패널 폭이 바뀌어 "이랬다 저랬다" 로 보였다.
+//   ★ 더 나쁜 것 — `theme/panelWidth.ts` 의 `OVERLAY_DRAWER.default` 주석에 이미
+//     "구 460/480/520/560 난립 → 480 수렴" 이라고 적혀 있었다. **토큰은 있었는데 아무도 안 썼다.**
+//     (memory `feedback_shared_wrapper_is_not_enforcement` — 공용 컴포넌트가 있다 ≠ 강제된다)
+//   그래서 `width` prop 자체를 없앴다. 이 가드는 그것이 되살아나는 것을 막는다.
+function checkDrawerWidth() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.tsx']);
+  const bad = [];
+  let opens = 0;
+  for (const f of files) {
+    const src = read(f);
+    if (!src.includes('<DetailDrawer')) continue;
+    const rel = f.replace(`${ROOT}/`, '');
+    // 여는 태그 블록만 본다(자식 내용의 width= 는 무관하다)
+    const re = /<DetailDrawer(?![.\w])([\s\S]*?)>/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      opens += 1;
+      if (/\bwidth\s*=/.test(m[1])) {
+        const line = src.slice(0, m.index).split('\n').length;
+        bad.push(`${rel}:${line} — <DetailDrawer> 에 width 를 넘겼다. 폭은 DetailDrawer 한 곳이 정한다`);
+      }
+    }
+  }
+  report('drawerwidth', `우측 곁패널 폭 단일 원천 (하드 게이트 · 여는 곳 ${opens}곳)`, bad.length === 0, bad);
+
+  // 프리미티브 안에 폭 상수가 하나뿐인가 — 둘이 되면 다시 갈라진다
+  const dd = read(`${ROOT}/dev-frontend/src/components/Common/DetailDrawer.tsx`);
+  const consts = (dd.match(/const DRAWER_W\s*=\s*\d+/g) || []).length;
+  report('drawerwidth', '프리미티브의 폭 상수는 하나', consts === 1,
+    consts === 1 ? [] : [`DetailDrawer.tsx 의 DRAWER_W 선언이 ${consts}개 — 한 개여야 한다`]);
+}
+
+// ═══════════════════════════════════════════════
 // navmenu — **메뉴 이름이 화면에 키로 노출되지 않는가** (2026-09-09 신설)
 //
 //   운영 신고 (Irene 2026-09-09): "탭 열기에서 어떤 메뉴들이 이름 제대로 안나오고 nav.으로 나와."
@@ -2621,6 +2661,7 @@ const CATEGORIES = {
   mock: checkMock,
   modalradius: checkModalRadius,
   canary: checkCanaryContract,
+  drawerwidth: checkDrawerWidth,
   navmenu: checkNavMenu,
   i18n: checkI18n,
   parity: checkParity,

@@ -460,7 +460,6 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
     <DetailDrawer
       open={!!invoice}
       onClose={onClose}
-      width={480}
       ariaLabel={t('detail.confirm.aria', { number: invoice.invoice_number, defaultValue: '청구서 {{number}}' }) as string}
     >
       {/* ─── 헤더 ─── */}

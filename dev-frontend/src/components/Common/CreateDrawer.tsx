@@ -20,7 +20,6 @@ import { useTranslation } from 'react-i18next';
 import DetailDrawer from './DetailDrawer';
 import DrawerFooter from './DrawerFooter';
 import ActionButton from './ActionButton';
-import { OVERLAY_DRAWER } from '../../theme/panelWidth';
 
 export interface CreateDrawerProps {
   open: boolean;
@@ -32,8 +31,12 @@ export interface CreateDrawerProps {
   submitLabel?: React.ReactNode; // 기본 common:save
   submitDisabled?: boolean;     // 폼 유효성 실패 등으로 제출 비활성
   submitTone?: 'primary' | 'danger';
-  width?: number;               // 명시 폭 override. 미지정 시 wide 여부로 결정
-  wide?: boolean;               // 복합 다중섹션 폼 — OVERLAY_DRAWER.wide(560). 기본 false → 480
+  /** ★ 2026-09-13 — 폭 override 를 없앴다. 우측 패널 폭은 `DetailDrawer` 하나가 정한다
+   *  (Irene: "솔루션 우측패널들 가로 사이즈가 왜 달라? 다 똑같이 통일해야 하는 거 아니야?").
+   *  `OVERLAY_DRAWER.default = 480` 토큰은 이미 "난립 → 480 수렴" 이라고 적혀 있었는데
+   *  호출부 19곳이 그 토큰을 안 쓰고 제 숫자를 넘겼다 — 그래서 prop 자체를 없앴다.
+   *  옛 호출부 호환으로 `wide` 를 받기만 하고 **쓰지 않는다**(넘겨도 폭이 안 바뀐다). */
+  wide?: boolean;
   ariaLabel?: string;
   leftSlot?: React.ReactNode;   // 푸터 좌측 보조 슬롯(옵션)
   /** 제출 버튼의 data-testid — 카나리가 텍스트 휴리스틱 없이 누를 수 있게 (없으면 안 붙는다) */
@@ -43,14 +46,13 @@ export interface CreateDrawerProps {
 const CreateDrawer: React.FC<CreateDrawerProps> = ({
   open, onClose, title, children,
   onSubmit, submitting, submitLabel, submitDisabled, submitTone = 'primary',
-  width, wide, ariaLabel, leftSlot, submitTestId,
+  ariaLabel, leftSlot, submitTestId,
 }) => {
-  const resolvedWidth = width ?? (wide ? OVERLAY_DRAWER.wide : OVERLAY_DRAWER.default);
   const { t } = useTranslation('common');
   const label = ariaLabel || (typeof title === 'string' ? title : undefined);
 
   return (
-    <DetailDrawer open={open} onClose={onClose} width={resolvedWidth} ariaLabel={label}>
+    <DetailDrawer open={open} onClose={onClose} ariaLabel={label}>
       <DetailDrawer.Header onClose={onClose}><DrawerTitle>{title}</DrawerTitle></DetailDrawer.Header>
       <DetailDrawer.Body>{children}</DetailDrawer.Body>
       <DrawerFooter left={leftSlot} align={leftSlot ? 'space-between' : 'right'}>
