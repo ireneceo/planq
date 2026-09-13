@@ -564,6 +564,24 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
     // 채팅/대화에서 올라온 첨부 — project_id 없어도 Drive 의 "Conversations" 폴더로 라우팅 가능
     const conversationId = req.body.conversation_id ? Number(req.body.conversation_id) : null;
 
+    // 고객 축 — **한 곳에서 검증하고 아래 저장 분기(로컬·gdrive·s3)가 모두 이 값을 쓴다.**
+    //   여태 네 분기가 `req.body.client_id` 를 각자 **검증 없이** 저장했다. 남의 워크스페이스
+    //   고객 id 가 들어오면 그 파일은 조회(business_id + client_id)에 영영 안 걸리는 유령이 된다.
+    //   프로젝트·폴더 소유권을 여기서 보는 것과 같은 이유·같은 자리다.
+    const clientIdRaw = req.body.client_id;
+    let clientId = null;
+    if (clientIdRaw !== undefined && clientIdRaw !== null && clientIdRaw !== '') {
+      const cid = Number(clientIdRaw);
+      const { Client } = require('../models');
+      const okClient = Number.isInteger(cid) && cid > 0
+        && await Client.findOne({ where: { id: cid, business_id: businessId }, attributes: ['id'] });
+      if (!okClient) {
+        if (tempPath) try { fs.unlinkSync(tempPath); } catch { /* */ }
+        return errorResponse(res, 'invalid_client', 400, 'invalid_client');
+      }
+      clientId = cid;
+    }
+
     // 소유권 검증
     if (projectId && !(await verifyProjectOwnership(projectId, businessId))) {
       fs.unlinkSync(tempPath);
@@ -618,7 +636,7 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
           business_id: businessId,
           project_id: projectId,
           folder_id: folderId,
-          client_id: req.body.client_id || null,
+          client_id: clientId,
           uploader_id: req.user.id,
           file_name: decodeOriginalName(req.file.originalname),
           file_path: key,
@@ -677,7 +695,7 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
           business_id: businessId,
           project_id: projectId,
           folder_id: folderId,
-          client_id: req.body.client_id || null,
+          client_id: clientId,
           uploader_id: req.user.id,
           file_name: decodeOriginalName(req.file.originalname),
           file_path: driveFile.id,  // gdrive 는 file_path 필드를 external_id 로 활용
@@ -751,7 +769,7 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
             business_id: businessId,
             project_id: projectId,
             folder_id: folderId,
-            client_id: req.body.client_id || null,
+            client_id: clientId,
             uploader_id: req.user.id,
             file_name: decodeOriginalName(req.file.originalname),
             file_path: existing.file_path,
@@ -772,7 +790,7 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
           business_id: businessId,
           project_id: projectId,
           folder_id: folderId,
-          client_id: req.body.client_id || null,
+          client_id: clientId,
           uploader_id: req.user.id,
           file_name: decodeOriginalName(req.file.originalname),
           file_path: req.file.path,
@@ -1112,7 +1130,28 @@ router.patch('/:businessId/:id', authenticateToken, checkBusinessAccess, async (
     if (!(await canMutateFile(file, req))) return errorResponse(res, 'forbidden', 403);
 
     const patch = {};
-    const before = { file_name: file.file_name, description: file.description, tags: file.tags };
+    const before = {
+      file_name: file.file_name, description: file.description, tags: file.tags,
+      client_id: file.client_id,
+    };
+
+    // 고객 연결 — **이미 올라간 파일을 이 고객의 자료로 붙이거나 뗀다**(null 이면 해제).
+    //   여태 이 문이 없어서, 업로드할 때 정하지 못한 파일은 영영 고객에 붙일 수 없었다.
+    //   ★ 소속을 여기서 확인한다 — 남의 워크스페이스 고객 id 를 받아 저장하면 그 파일은
+    //     어느 목록에도 안 나오는 유령이 된다(조회는 business_id + client_id 로 하므로).
+    if (req.body.client_id !== undefined) {
+      const raw = req.body.client_id;
+      const cid = raw === null || raw === '' ? null : Number(raw);
+      if (cid !== null) {
+        const { Client } = require('../models');
+        if (!Number.isInteger(cid) || cid <= 0) return errorResponse(res, 'invalid_client', 400, 'invalid_client');
+        const cl = await Client.findOne({
+          where: { id: cid, business_id: file.business_id }, attributes: ['id'],
+        });
+        if (!cl) return errorResponse(res, 'invalid_client', 400, 'invalid_client');
+      }
+      patch.client_id = cid;
+    }
 
     if (req.body.file_name !== undefined) {
       let name = String(req.body.file_name || '').trim();

@@ -2949,8 +2949,7 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
-    const { name, email } = req.body || {};
-    if (!name || !String(name).trim()) return errorResponse(res, 'name is required', 400);
+    const { name, email, client_id } = req.body || {};
     const token = crypto.randomBytes(24).toString('hex');
     // 프로젝트 고객 초대 = 워크스페이스 Client 로도 항상 편입.
     //  - 옛 버그: 이미 가입한 User 일 때만 Client 행 생성 → 미가입 초대 고객은 청구서/고객목록에 안 떠서
@@ -2958,8 +2957,27 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
     const { User: UserM, Client: ClientM } = require('../models');
     let contact_user_id = null;
     let clientRow = null;
+
+    // ★ 2026-09-13 — **이미 있는 고객을 이 프로젝트에 붙이는** 길(client_id).
+    //   이 라우트는 이름·이메일로 **새로 초대**하는 문이었다. Q sale 에서 "프로젝트 연결" 로 이것을
+    //   그대로 부르면 같은 사람이 Client 로 한 번 더 만들어진다(이메일이 없으면 매칭할 열쇠조차 없다).
+    //   그래서 기존 고객을 넘기는 분기를 둔다 — 이름은 그 고객의 표시명을 쓰므로 받지 않는다.
+    if (client_id !== undefined && client_id !== null && client_id !== '') {
+      const cid = Number(client_id);
+      if (!Number.isInteger(cid) || cid <= 0) return errorResponse(res, 'invalid_client', 400);
+      clientRow = await ClientM.findOne({ where: { id: cid, business_id: project.business_id } });
+      if (!clientRow) return errorResponse(res, 'invalid_client', 400);
+      // 이미 붙어 있으면 또 만들지 않는다 — 두 번 누르면 목록에 두 줄이 생긴다
+      const dup = await ProjectClient.findOne({ where: { project_id: project.id, client_id: cid } });
+      if (dup) return successResponse(res, { id: dup.id, client_id: cid, already: true });
+      contact_user_id = clientRow.user_id || null;
+    }
+
+    if (!clientRow && (!name || !String(name).trim())) return errorResponse(res, 'name is required', 400);
     const emailTrim = email && email.trim() ? email.trim() : null;
-    if (emailTrim) {
+    if (clientRow) {
+      // 기존 고객을 붙이는 길 — 새로 만들지 않는다
+    } else if (emailTrim) {
       const existingUser = await UserM.findOne({ where: { email: emailTrim } });
       if (existingUser) contact_user_id = existingUser.id;
       // 기존 Client 매칭: user_id(가입자) 우선, 없으면 같은 워크스페이스 invite_email
@@ -2989,12 +3007,21 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
         invited_by: req.user.id, invited_at: new Date(),
       });
     }
+    // 기존 고객을 붙이는 길에는 name 이 없다 — 그 고객의 표시명으로 떨어뜨린다
+    //   (String(undefined) 는 "undefined" 라는 이름을 저장한다)
+    const contactName = String(
+      (name && String(name).trim())
+      || clientRow?.display_name
+      || clientRow?.company_name
+      || clientRow?.invite_email
+      || '',
+    ).trim();
     const row = await ProjectClient.create({
       project_id: project.id,
       client_id: clientRow ? clientRow.id : null,
       contact_user_id,
-      contact_name: String(name).trim(),
-      contact_email: emailTrim,
+      contact_name: contactName,
+      contact_email: emailTrim || clientRow?.invite_email || null,
       invite_token: token,
       invited_by: req.user.id,
     });
