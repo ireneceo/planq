@@ -73,11 +73,12 @@ export interface ProjectFile {
   tags?: string[] | null;
 }
 
-/** 파일 메타(이름·설명·태그) 편집. 권한은 삭제와 같은 술어(본인 업로드·오너·PM). */
+/** 파일 메타(이름·설명·태그·고객 연결) 편집. 권한은 삭제와 같은 술어(본인 업로드·오너·PM).
+ *  client_id: 숫자면 그 고객의 자료로 붙이고, null 이면 해제한다. 서버가 워크스페이스 소속을 확인한다. */
 export async function updateFileMeta(
   businessId: number,
   fileId: string,
-  patch: { file_name?: string; description?: string | null; tags?: string[] },
+  patch: { file_name?: string; description?: string | null; tags?: string[]; client_id?: number | null },
 ): Promise<{ file_name: string; description: string | null; tags: string[] } | null> {
   const parsed = parseFileId(fileId);
   if (!parsed || parsed.source !== 'direct') return null;

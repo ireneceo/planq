@@ -621,6 +621,17 @@ router.put('/documents/:id', authenticateToken, async (req, res, next) => {
     }
     const allowed = ['title', 'status', 'form_data', 'body_json', 'body_html',
                      'client_id', 'project_id', 'pdf_url'];
+    // ★ 고객 연결은 **소속을 확인하고** 바꾼다 (2026-09-13). allowed 목록에 이름이 있다는 것과
+    //   그 값이 이 워크스페이스 것이라는 건 다른 이야기다 — 남의 워크스페이스 고객 id 를 그대로
+    //   저장하면 그 문서는 조회(business_id + client_id)에 영영 안 걸리는 유령이 된다.
+    //   파일(PATCH /api/files)·프로젝트(POST /projects/:id/clients)와 같은 술어다.
+    if (req.body.client_id !== undefined && req.body.client_id !== null && req.body.client_id !== '') {
+      const cid = Number(req.body.client_id);
+      const { Client } = require('../models');
+      const ok = Number.isInteger(cid) && cid > 0
+        && await Client.findOne({ where: { id: cid, business_id: doc.business_id }, attributes: ['id'] });
+      if (!ok) return errorResponse(res, 'invalid_client', 400, 'invalid_client');
+    }
     const updates = {};
     const changes = {};
     for (const k of allowed) {
