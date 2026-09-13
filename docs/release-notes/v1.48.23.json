@@ -1,0 +1,36 @@
+{
+  "version": "1.48.23",
+  "date": "2026-09-13",
+  "items": [
+    {
+      "ko": { "title": "Q sale 우측 패널이 어디서 열든 같습니다",
+        "body": "상담에서 연 패널과 고객에서 연 패널이 서로 다른 화면이었습니다. 상담에서 열면 고객 기능(응대 기록, 다음 연락, 업무 추가, 연결, 단계, 청구)이 통째로 없었습니다. 이제 어디서 열든 같은 패널입니다. 상담에서 열었다는 것은 맨 위 문의 정보 박스 하나로만 표시되고, 그 아래는 고객 화면 그대로입니다. 액션 버튼도 같습니다." },
+      "en": { "title": "The Q sale side panel is now the same wherever you open it",
+        "body": "Opening a panel from an inquiry gave you a different screen from opening the same person as a client — the client actions (logging contact, scheduling the next call, adding a task, linking, stage, billing) were simply absent. It is now one panel everywhere. Having opened it from an inquiry shows only as an inquiry box at the top; everything below is the client view, with the same action buttons." }
+    },
+    {
+      "ko": { "title": "우측 패널에서 고객 정보를 바로 고칠 수 있습니다",
+        "body": "이름·회사·전화·이메일·예상 금액·유입 경로를 패널에서 바로 고칩니다. 전체 프로필 화면과 같은 입력이라 어느 쪽에서 고쳐도 결과가 같습니다. 저장 버튼은 없습니다 — 입력하면 저장됩니다. 히스토리도 패널에서 전체를 봅니다(더 보기). 전체 페이지로 나갔다 오지 않아도 됩니다." },
+      "en": { "title": "Edit client details directly in the side panel",
+        "body": "Name, company, phone, email, expected amount and source are now editable in the panel itself, using the same fields as the full profile page, so editing in either place gives the same result. There is no save button — typing saves. The full history is also in the panel now (Load more), so you no longer have to leave for the full page and come back." }
+    },
+    {
+      "ko": { "title": "미등록 문의도 바로 응대할 수 있습니다",
+        "body": "아직 고객으로 등록되지 않은 문의는 아무 액션도 할 수 없었습니다. 이제 응대 기록·업무 추가 같은 버튼을 누르면 고객으로 등록할지 먼저 묻고, 확인하면 등록한 뒤 그 작업을 이어서 진행합니다. 이때 초대 메일은 나가지 않습니다 — 초대는 [초대] 버튼에서 주소를 확인하고 보냅니다. 취소하면 아무것도 만들어지지 않습니다." },
+      "en": { "title": "Act on an inquiry before registering it as a client",
+        "body": "Inquiries that weren't yet clients offered no actions at all. Now pressing an action such as logging contact or adding a task asks whether to register them as a client first, then registers and continues straight into that action. No invitation email is sent at this point — invitations go out from the Invite button, which shows you the address first. Cancelling creates nothing." }
+    },
+    {
+      "ko": { "title": "[보기] 버튼이 실제로 가는 곳을 말합니다",
+        "body": "메일이 아닌 상담에도 '채팅 보기'라고 적혀 있어서, 눌러 보면 전혀 다른 화면으로 갔습니다. 이제 메일·채팅·게스트 대화·고객 상세를 각각 맞게 표시합니다. 보관함의 [되돌리기]도 무엇을 되돌리는지 분명하도록 '상담으로 되돌리기'로 바꿨습니다." },
+      "en": { "title": "The open button now names where it actually goes",
+        "body": "Inquiries that weren't email still read \"Open in Chat\", and clicking took you somewhere else entirely. It now says Mail, Chat, Guest chat or Client detail to match. The archive's Restore button is now \"Move back to inbox\", so it's clear what is being undone." }
+    },
+    {
+      "ko": { "title": "우측 패널이 열려 있어도 뒤 목록을 스크롤할 수 있습니다",
+        "body": "상세 패널을 열면 뒤 화면이 얼어붙어서, 옆 목록에서 다음 항목을 찾으려면 패널을 닫아야 했습니다. 이제 패널이 열려 있어도 뒤 목록이 그대로 스크롤됩니다. 배경은 종전대로 어둡게 유지되고, 바깥을 누르면 닫히는 것도 같습니다. 업무·일정·고객·문서 등 우측 패널을 쓰는 모든 화면에 함께 적용됩니다. 화면 한가운데 뜨는 창은 종전대로 뒤가 움직이지 않습니다." },
+      "en": { "title": "Scroll the list behind a side panel while it's open",
+        "body": "Opening a detail panel froze the screen behind it, so finding the next item in the list meant closing the panel first. The list behind now scrolls normally while the panel is open. The background is still dimmed and clicking outside still closes it. This applies to every screen that uses a side panel — tasks, events, clients, documents and the rest. Dialogs that appear in the centre of the screen still hold the background still." }
+    }
+  ]
+}
