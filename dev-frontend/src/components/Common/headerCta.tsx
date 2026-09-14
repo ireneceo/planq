@@ -16,14 +16,25 @@
 //   (Irene: *"색상이나 디자인 막 바꾸지 말고 배치를 맞춰봐."*). 새 톤을 만든 것이 아니라
 //   이미 있던 머리줄 CTA 규격을 한 곳으로 모은 것이다.
 //
-// 높이는 32 가 기본이다. Q task 만 36 으로 남겨 두었다 — 그 화면의 머리줄 컨트롤이 36 이라
-// 거기만 32 로 낮추면 줄이 들쭉날쭉해진다. 바꿀 일이 있으면 **이 파일 한 곳**에서 바꾼다.
+// 높이는 **32 한 값**이다. `$h` prop 은 없다 — 폭 prop 을 없앤 `DetailDrawer` 와 같은 처방이다
+// (호출부가 규격을 정하면 반드시 갈라진다).
+//
+// ★ 2026-09-14 실측으로 바로잡았다. 그 전에는 Q task 만 `$h={36}` 이었고, 이 자리에
+//   *"그 화면의 머리줄 컨트롤이 36 이라"* 고 적혀 있었다 — **검증된 적 없는 거짓**이었다.
+//   3폭(폰390·태블릿834·데스크탑1440) 실측:
+//     · Q task  그 버튼이 선 줄 = [AI 32] [CTA 36]        → 집합 {32, 36} ❌
+//     · 프로젝트 머리줄         = [알약 37] [CTA 32]        → {32, 37} ❌
+//     · Q sale  머리줄         = [알약 37] [CTA 32]        → {32, 37} ❌
+//   **머리줄 정본은 32 다** — /docs 머리줄 {32} · /knowledge 데스크탑 {32} · AI 버튼 sm 32.
+//   (36 은 **필터줄**(`filterBar.tsx`) 의 값이다. 두 줄은 계약이 다르다.
+//    AI 버튼 sm 을 36 으로 올려 보는 길도 쟀는데 /docs·/knowledge 데스크탑이 깨진다.)
+//   memory `feedback_comment_lies_predicate_drifts` — 주석은 사실을 보증하지 않는다.
 import styled from 'styled-components';
 
-export const HeaderCta = styled.button<{ $h?: 32 | 36; $collapseOnPhone?: boolean }>`
+export const HeaderCta = styled.button<{ $collapseOnPhone?: boolean }>`
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   flex-shrink: 0;
-  height: ${p => p.$h ?? 32}px; padding: 0 ${p => (p.$h === 36 ? 14 : 12)}px;
+  height: 32px; padding: 0 12px;
   background: #14B8A6; color: #FFF; border: none; border-radius: 8px;
   font-size: 0.8125rem; font-weight: 600; cursor: pointer; white-space: nowrap;
   &:hover:not(:disabled) { background: #0D9488; }
@@ -36,7 +47,7 @@ export const HeaderCta = styled.button<{ $h?: 32 | 36; $collapseOnPhone?: boolea
       feedback_styled_comment_backtick) */
   svg { width: 14px; flex-shrink: 0; }
   ${p => p.$collapseOnPhone ? `
-  @media (max-width: 640px) { width: ${p.$h ?? 32}px; padding: 0; span { display: none; } }
+  @media (max-width: 640px) { width: 32px; padding: 0; span { display: none; } }
   ` : ''}
 `;
 

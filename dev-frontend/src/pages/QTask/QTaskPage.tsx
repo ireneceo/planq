@@ -1897,7 +1897,7 @@ const QTaskPage:React.FC=()=>{
               label={t('ai.btnShort','AI')}
               title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
             />
-            <HeaderCta type="button" $h={36} data-testid="task-add-btn" onClick={()=>{
+            <HeaderCta type="button" data-testid="task-add-btn" onClick={()=>{
               // 우측 상단 = panel(드로어) 모드
               openAddForm(false,{assigneeId:tab==='requested'?null:myId});
             }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderCta>

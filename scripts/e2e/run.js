@@ -160,6 +160,7 @@ const SUITES = {
   // Q sale 2차 신고 15건의 화면 계약 — 필터줄·헤더 배치·행 액션·메모판. 폰·태블릿·데스크탑 3폭.
   //   ★ 폭을 하나만 재면 거짓 통과한다(2026-09-14 프로젝트 탭 실측: 데스크탑만 0, 태블릿 20, 폰 398).
   salelayout: () => require('./canary-sale-layout'),
+  headerrow: () => require('./canary-header-row'),   // 머리줄 컨트롤 높이 한 값 — CSS 합성 뒤에만 존재하는 값이라 정적 검사 불가
   tabletchrome: () => require('./canary-tablet-chrome'),  // CSP 가 앱을 깨뜨리지 않는가 — 정책은 브라우저가 집행해야만 드러난다(정적 검사 불가)
   // chrome: () => require('./chrome-suppression'),
 };

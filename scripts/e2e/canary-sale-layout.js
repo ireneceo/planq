@@ -127,18 +127,31 @@ async function measure(page) {
       };
     }
     // ⑯ 알약 탭의 글자가 **세로로 쪼개지지 않는다** (Irene: *"상담 고객이 글자가 왜 세로야?"*)
-    //    판정은 낱말 폭이 아니라 **줄 수**로 한다 — 높이 ÷ 줄높이가 2 이상이면 쪼개진 것이다.
+    //    판정은 낱말 폭이 아니라 **줄 수**다.
+    //    ★ 2026-09-14 판정식을 고쳤다 — 전에는 **버튼 상자 높이 ÷ 줄높이**로 줄 수를 *추정*했다.
+    //      알약 높이를 32px 로 못 박고 안쪽 버튼을 `height:100%` 로 바꾸자(padding 0) 상자 높이가
+    //      글자 한 줄보다 커져 **26/15.6 = 2줄** 로 읽혔다 — `nowrap` 인데도 3폭 전부 거짓 실패.
+    //      상자는 글자가 아니다(memory feedback_judge_measures_wrapper_not_defect).
+    //      이제 **글자 자체의 줄상자**를 센다 — Range 의 client rect 를 top 으로 묶으면
+    //      그것이 실제로 몇 줄에 그려졌는지다. 추정이 아니라 측정이다.
+    const lineCountOf = (el) => {
+      const rng = document.createRange();
+      rng.selectNodeContents(el);
+      const rects = [...rng.getClientRects()].filter((r) => r.width > 0.5 && r.height > 0.5);
+      if (!rects.length) return 0;
+      const tops = [];
+      rects.forEach((r) => { if (!tops.some((t) => Math.abs(t - r.top) <= 2)) tops.push(r.top); });
+      return tops.length;
+    };
     out.tabText = ['sale-tab-inbox', 'sale-tab-clients'].map((id) => {
       const el = q(`[data-testid="${id}"]`);
       if (!el) return { id, missing: true };
       const cs = getComputedStyle(el);
-      const lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.2);
       const r = el.getBoundingClientRect();
-      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
       return {
         id, text: (el.innerText || '').trim(),
         w: Math.round(r.width), h: Math.round(r.height),
-        lines: Math.max(1, Math.round((r.height - padY) / lh)),
+        lines: lineCountOf(el),
         whiteSpace: cs.whiteSpace,
         overflowing: el.scrollWidth > el.clientWidth + 1,
       };

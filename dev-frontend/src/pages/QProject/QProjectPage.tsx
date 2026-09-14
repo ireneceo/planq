@@ -7,6 +7,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import PageShell from '../../components/Layout/PageShell';
 import { HeaderCta } from '../../components/Common/headerCta';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { todayInTz, addDaysStr, detectBrowserTz } from '../../utils/timezones';
 import { colorForProject, lightenColor } from '../../utils/projectColors';
@@ -948,34 +949,23 @@ const FilterScroll = styled.div`
 `;
 /* [+ 새 프로젝트] 는 공용 `components/Common/headerCta` 로 옮겼다 (2026-09-14).
    세 화면(프로젝트·Q task·Q sale)이 같은 버튼을 각자 선언하고 있었다. */
-const ViewTabs = styled.div`
-  display: inline-flex;
-  gap: 4px;
-  padding: 3px;
-  background: #F1F5F9;
-  border-radius: 8px;
-  @media (max-width: 640px) {
-    gap: 2px;
-    padding: 2px;
-  }
+// 보기 전환 알약 — 공용 `segmentedToggle` 을 **상속**한다 (2026-09-14).
+// ★ 그 전에는 같은 모양을 여기서 따로 선언한 **복사본**이었고, 그래서 갈라져 있었다 —
+//   실측 데스크탑·태블릿 **37px** / 폰 **30px**(글자를 숨겨 padding 만 남았다). 옆에 선
+//   머리줄 CTA 는 32 라 줄이 들쭉날쭉했다. 높이·여백·라운드는 이제 한 곳에서 온다.
+// ★ 상속만 하고 **활성 글자색은 여기서 덮는다** — 이 알약은 활성값이 #0F766E(초록)이고
+//   공용 기본은 #0F172A 다. 색을 통일하라는 지시는 없었다(Irene: *"색상이나 디자인 막 바꾸지
+//   말고 배치를 맞춰봐."*) — 그래서 **배치만** 공용으로 모으고 색은 그대로 둔다.
+const ViewTabs = styled(SegmentedToggle)`
+  @media (max-width: 640px) { gap: 2px; padding: 2px; }
 `;
-const ViewTab = styled.button<{ $active: boolean }>`
-  display: inline-flex;
-  align-items: center;
+const ViewTab = styled(SegmentedBtn)`
   gap: 6px;
-  padding: 6px 12px;
-  border: none;
-  background: ${p => p.$active ? '#FFFFFF' : 'transparent'};
+  padding: 0 12px;
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
-  border-radius: 6px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: ${p => p.$active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'};
-  transition: background 0.15s;
-  &:hover { background: ${p => p.$active ? '#FFFFFF' : '#E2E8F0'}; }
+  &:hover { background: ${p => p.$active ? '#FFFFFF' : '#E2E8F0'}; color: ${p => p.$active ? '#0F766E' : '#64748B'}; }
   @media (max-width: 640px) {
-    padding: 6px 8px;
+    padding: 0 8px;
     span { display: none; }
   }
 `;

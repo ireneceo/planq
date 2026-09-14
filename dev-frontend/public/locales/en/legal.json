@@ -36,7 +36,8 @@
         "Google LLC (USA) — when you connect Google Calendar: email, calendar events (read and write — calendar.events scope), OAuth token. Purpose: showing your events inside PlanQ Calendar, syncing events created in PlanQ to your Google Calendar, and generating Google Meet links. Retention: until disconnection.",
         "Google LLC (USA) — when you connect a Gmail account (Q Mail): email address, mail contents and attachments, access credentials (app passwords stored encrypted; OAuth tokens when connected via OAuth). Purpose: receiving, displaying, and sending your mail inside the PlanQ inbox. Retention: until disconnection.",
         "PlanQ's access, use, and storage of Google user data complies with the Google API Services User Data Policy, including the Limited Use requirements. Such data is used only to provide the features described above, and is never used for advertising or sold to third parties.",
-        "Stripe, Inc. (USA / Malaysia) — global card payments: amount, email. Card details handled by Stripe directly.",
+        "Stripe, Inc. (USA) — card payment processing: amount, email. Card details are handled by Stripe directly and are not stored by the Company.",
+        "GIT Consulting Group (Malaysia) — the entity that bills and collects subscription fees: amount, email, transaction identifier. Because that entity is located in Malaysia, payment-related data is transferred outside Korea. Retention: the transaction-record retention period required by applicable law.",
         "When a workspace connects its own Stripe account to receive card payments from its clients (Q Bill), payment data is processed directly between the client and that workspace's Stripe account and does not pass through the Company. The Company stores only the transaction ID and amount for invoice processing; the workspace operator is the data controller for such payments.",
         "OpenAI, L.L.C. (USA) — Cue AI feature: partial conversation content. Not used for model training (per OpenAI API terms).",
         "Deepgram, Inc. (USA) — Q Note recording: audio data. Not used for model training."
@@ -127,7 +128,8 @@
         "Payment methods: bank transfer, and card payment via Stripe where available. For bank transfers, the Company activates the subscription after confirming the deposit.",
         "Users may cancel anytime before the next billing date. Cancellation takes effect from the next billing cycle.",
         "International users may be charged additional taxes (VAT, GST, sales tax) on top of listed prices.",
-        "Failed payments enter a 7-day grace period. If unpaid, the account reverts to the Free plan."
+        "Failed payments enter a 7-day grace period. If unpaid, the account reverts to the Free plan.",
+        "Subscription fees are billed and collected under the name of GIT Consulting Group (Malaysia, https://gitconsulting.group). That entity name appears on your card statement and payment receipt. The Company remains the service provider and your counterparty under these Terms; direct service and refund inquiries to the Company. Payment-specific inquiries may also be sent to help@gitconsulting.group."
       ]
     },
     "s4": {
