@@ -395,6 +395,13 @@ sync_database() {
   log "Adding push_fallback to notification_prefs ENUM..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-fallback-pref.js 2>&1 | tail -5"
 
+  # 2026-09-14 — Q sale 상담 메모(댓글)의 **기준**을 남기는 칸: project_notes.client_id.
+  #   Irene: "메모라고 메모남기기가 댓글처럼 … 어떤 문의를 기준으로 저장된건지 남기게 하고."
+  #   ★ **코드보다 먼저 돈다** — 모델이 client_id 를 선언하므로 컬럼이 없으면 메모 조회가 500 이다.
+  #   멱등: 컬럼·인덱스가 이미 있으면 아무것도 안 한다.
+  log "Adding client_id to project_notes (Q sale 상담 메모)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-sale-note-client.js 2>&1 | tail -5"
+
   # 2026-09-09 — 휴가 **종류**(leave_grants/leave_requests.category ENUM 4종).
   #   Irene: "관리자가 멤버에게 휴가 연차나 등등 종류별로 제공하는 거 어떻게 줘?"
   #   ★ **코드보다 먼저 돈다** — 모델이 category 를 선언하므로 컬럼 없이 새 코드가 뜨면

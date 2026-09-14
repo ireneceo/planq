@@ -31,6 +31,8 @@ export const DRAFT_KINDS = {
   'mail-issue': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'mail-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'qtalk-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QTalk/RightPanel.tsx'] },
+  // Q sale 상담 메모(댓글) — 채팅방 메모와 같은 컴포넌트를 쓴다(2026-09-14)
+  'sale-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'components/QSale/SaleInboxList.tsx'] },
   'mail-forward': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QMail/MailPage.tsx'] },
   // 회의 시작 설정은 24시간 — 며칠 전 언어·번역 설정이 오늘 회의를 지배하지 않게(StartMeetingModal 의 옛 의도)
   'qnote-meeting-start': { ttlMs: 1 * DAY, mode: 'append', owners: ['pages/QNote/StartMeetingModal.tsx'] },

@@ -28,9 +28,10 @@ import { registerInquiryAsClient } from '../../services/saleRegister';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
 import {
-  listSaleInbox, dismissInboxItem, restoreInboxItem, purgeInboxItem, setSaleStage, getSaleTimeline,
+  listSaleInbox, dismissInboxItem, restoreInboxItem, purgeInboxItem, setSaleStage,
+  listConsultNotes, addConsultNote, deleteConsultNote, type SaleNote, type ConsultRefKind,
   SALE_STAGES, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource,
-  type SaleStage, type TimelineItem,
+  type SaleStage,
 } from '../../services/sale';
 // 단계 칩은 우측 패널·전체 프로필과 **같은 것**을 쓴다(자리마다 따로 그리면 동작이 갈라진다)
 import ChipPopover from '../Common/ChipPopover';
@@ -38,10 +39,10 @@ import { OptionList, OptionBtn, OptName, OptHint } from '../Common/optionList';
 // 일정 추가 — 상세·패널과 같은 창(다음 연락 정하기). 고객이 일정에 연결된다
 import NextContactModal from './NextContactModal';
 // 상담 기록(메모) — 같은 창을 쓴다
-import RecordModal from './RecordModal';
-import ClientTimeline from '../Clients/ClientTimeline';
+// 메모는 채팅방·메일과 **같은 댓글 컴포넌트**를 쓴다(공개범위·초안 보존 내장)
+import NoteThread from '../Common/NoteThread';
+import { useAuth } from '../../contexts/AuthContext';
 // 히스토리 항목 → 갈 곳. 새 탭으로 연다(목록을 잃지 않게)
-import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 
 interface Props {
   businessId: number;
@@ -72,6 +73,9 @@ const SaleInboxList: React.FC<Props> = ({
   const { t } = useTranslation('qsale');
   const navigate = useChromeNav();
   const { formatDateTime, formatTimeAgo } = useTimeFormat();
+  // 메모(댓글)에서 "내 것" 판정 — 본인 메모만 지울 수 있고, personal 은 본인에게만 보인다
+  const { user } = useAuth();
+  const myUserId = user ? Number(user.id) : null;
 
   const [source, setSource] = useState<SaleInboxSource | ''>('');
   // 단계·대응필요·종료가리기·접근·담당자는 **부모가 들고 있다**(위 Props 주석).
@@ -459,8 +463,7 @@ const SaleInboxList: React.FC<Props> = ({
                     열려서 메모 붙인거 나오게 해줘"). 나가지 않으니 목록의 맥락을 잃지 않는다. */}
                 {memoFor === it.id && (
                   <MemoPane data-testid={`sale-inbox-memo-pane-${it.id}`}>
-                    <InlineMemo businessId={businessId} item={it}
-                      onEnsureClient={() => ensureClient(it)}
+                    <SaleNoteThread businessId={businessId} item={it} myUserId={myUserId}
                       onChanged={() => { void load({ silent: true }); }} />
                   </MemoPane>
                 )}
@@ -585,63 +588,73 @@ const SaleInboxList: React.FC<Props> = ({
  *    여기서 남긴 메모가 그쪽에도 바로 보인다(Irene: "상담 리스트에 메모 남기는 거 … 우측 패널
  *    고객페이지에도 나와야 해").
  *  ★ 아직 고객이 아닌 행이면 메모를 붙일 곳이 없다 — 남기려 할 때 한 번 묻고 등록한다. */
-function InlineMemo({ businessId, item, onEnsureClient, onChanged }: {
-  businessId: number; item: SaleInboxItem;
-  onEnsureClient: () => Promise<number | null>;
-  onChanged: () => void;
+/** 상담 메모 = **댓글 스레드**. (2026-09-14)
+ *
+ *  Irene: *"이 메모를 고객응대 내역이랑 섞은 거야? 그냥 담당자 메모야. … 리스트에 댓글이 달리는 것처럼
+ *  붙여달라는 거고 그걸 열였다 접었다 할 수 잇게 해줘. … 채팅방 보면 메모를 공개범위 선택해서 할 수
+ *  잇잖아. 그거 그대로 하자."*
+ *
+ *  ★ 여기 있던 것은 **고객응대 내역(ClientInteraction) 타임라인 전체**였다 — [메모] 를 누르면
+ *    원장이 통째로 펼쳐졌다. 그건 메모가 아니다. 원장은 [보기]·우측 패널에서 본다.
+ *  ★ 컴포넌트는 채팅방·메일 맥락 패널과 **같은 것**(`components/Common/NoteThread`) —
+ *    공개범위 고르기·초안 보존·본인 것만 삭제가 이미 그 안에 있다. 새로 그리지 않는다.
+ *  ★ 어떤 문의를 기준으로 남겼는지는 **저장 대상 자체**가 말한다(메일 스레드·대화방·고객).
+ */
+function SaleNoteThread({ businessId, item, myUserId, onChanged }: {
+  businessId: number; item: SaleInboxItem; myUserId: number | null; onChanged: () => void;
 }) {
   const { t } = useTranslation('qsale');
-  const navigate = useChromeNav();
-  const [cid, setCid] = useState<number | null>(item.client_id ?? (item.ref.kind === 'client' ? item.ref.id : null));
-  const [rows, setRows] = useState<TimelineItem[] | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { formatTimeAgo } = useTimeFormat();
+  const [notes, setNotes] = useState<SaleNote[] | null>(null);
 
-  useEffect(() => {
-    if (!cid) { setRows([]); return; }
-    let alive = true;
-    getSaleTimeline(businessId, cid, { limit: 20, channels: ['interaction', 'note'] })
-      .then((out) => { if (alive) setRows(out.items || []); })
-      .catch(() => { if (alive) setRows([]); });
-    return () => { alive = false; };
-  }, [businessId, cid]);
+  // 이 행의 메모가 어디에 붙는가 — 메일이면 스레드, 게스트/채팅이면 대화방, 등록된 상담이면 고객.
+  const target = useMemo((): { kind: ConsultRefKind; id: number } | null => {
+    const r = item.ref;
+    if (r.kind === 'email_thread') return { kind: 'email_thread', id: r.id };
+    if (r.kind === 'conversation') return { kind: 'conversation', id: r.id };
+    if (r.kind === 'guest_link' && r.conversation_id) return { kind: 'conversation', id: r.conversation_id };
+    if (r.kind === 'client') return { kind: 'client', id: r.id };
+    if (item.client_id) return { kind: 'client', id: item.client_id };
+    return null;
+  }, [item]);
 
-  const openAdd = async () => {
-    if (busy) return;
-    if (cid) { setAddOpen(true); return; }
-    setBusy(true);
-    try { const id = await onEnsureClient(); if (id) { setCid(id); setAddOpen(true); } }
-    finally { setBusy(false); }
-  };
+  const reload = useCallback(() => {
+    if (!target) { setNotes([]); return; }
+    listConsultNotes(businessId, target.kind, target.id)
+      .then(setNotes).catch(() => setNotes([]));
+  }, [businessId, target]);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  if (!target) return <MemoDim>{t('note.noTarget', { defaultValue: '이 행에는 메모를 붙일 수 없습니다.' }) as string}</MemoDim>;
 
   return (
-    <>
-      <MemoHead>
-        <MemoTitle>{t('panel.history') as string}</MemoTitle>
-        <ActionButton tone="secondary" size="sm" disabled={busy}
-          data-testid={`sale-inbox-memo-add-${item.id}`} onClick={openAdd}>
-          {t('action.addRecord') as string}
-        </ActionButton>
-      </MemoHead>
-      {rows === null ? (
-        <MemoDim>{t('timeline.loading', { defaultValue: '불러오는 중…' }) as string}</MemoDim>
-      ) : rows.length === 0 ? (
-        <MemoDim>{t('timeline.empty') as string}</MemoDim>
-      ) : (
-        /* 히스토리는 상세·패널과 **같은 컴포넌트**. 누르면 새 탭으로 연다(목록을 잃지 않게) */
-        <ClientTimeline items={rows} onOpen={(x) => openSaleTimelineItem(x, navigate, { newTab: true })} />
-      )}
-      {cid !== null && (
-        <RecordModal open={addOpen} businessId={businessId} clientId={cid}
-          onClose={() => setAddOpen(false)}
-          onSaved={() => {
-            setAddOpen(false);
-            getSaleTimeline(businessId, cid, { limit: 20, channels: ['interaction', 'note'] })
-              .then((out) => setRows(out.items || [])).catch(() => null);
-            onChanged();
-          }} />
-      )}
-    </>
+    <NoteThread
+      notes={(notes || []).map((n) => ({
+        id: n.id, body: n.body, visibility: n.visibility,
+        author_user_id: n.author_user_id, author_name: n.author_name, created_at: n.created_at,
+      }))}
+      myUserId={myUserId}
+      canChooseVisibility
+      formatTime={formatTimeAgo}
+      onAdd={async (body, visibility) => {
+        // ★ 성공 여부를 돌려준다 — NoteThread 는 true 일 때만 쓰던 글을 비운다(실패하면 글이 남아야 한다)
+        try {
+          await addConsultNote(businessId, target.kind, target.id, body, visibility);
+          reload(); onChanged();
+          return true;
+        } catch { return false; }
+      }}
+      onDelete={async (id) => {
+        try { await deleteConsultNote(businessId, target.kind, target.id, id); reload(); onChanged(); }
+        catch { /* 실패는 목록 그대로 둔다 */ }
+      }}
+      draftKind="sale-note"
+      draftEntityId={`${target.kind}:${target.id}`}
+      draftBizId={businessId}
+      emptyText={t('note.empty', { defaultValue: '아직 메모가 없습니다' }) as string}
+      placeholder={t('note.placeholder', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string}
+    />
   );
 }
 
@@ -766,6 +779,4 @@ const MemoPane = styled.div`
   grid-column: 1 / -1; margin: 4px 0 2px; padding: 12px 14px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
 `;
-const MemoHead = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px;`;
-const MemoTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #475569;`;
 const MemoDim = styled.div`padding: 12px 0; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;

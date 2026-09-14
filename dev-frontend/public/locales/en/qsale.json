@@ -41,7 +41,9 @@
     "not_counted": "Not counted · counts once invited",
     "header": "Members {{clients}}/{{clients_max}} · Inquiries {{prospects}}/{{prospects_max}}",
     "unlimited": "Unlimited",
-    "invite_notice": "Inviting counts toward your member limit (now {{clients}} / {{clients_max}})"
+    "invite_notice": "Inviting counts toward your member limit (now {{clients}} / {{clients_max}})",
+    "tip": "Registered = customers with an account · Inquiries = people you have not invited yet. The numbers are current / plan limit.",
+    "raise": "Raise the limit"
   },
   "source": {
     "label": "Source",
@@ -165,7 +167,13 @@
     "removeFromInboxBody": "It disappears from the sales inbox. The original email isn't deleted, and you can restore it from the archive.",
     "deleteClient": "Delete client",
     "deleteClientTitle": "Delete this client?",
-    "deleteClientBody": "Deletes {{who}}. This cannot be undone. Linked tasks, invoices and conversations remain, but lose their link to this client."
+    "deleteClientBody": "Deletes {{who}}. This cannot be undone. Linked tasks, invoices and conversations remain, but lose their link to this client.",
+    "purgeFromInbox": "Remove from consults permanently",
+    "purgeTitle": "Remove from consults permanently?",
+    "purgeBody": "This will never appear in the consult list or the archive again. The email itself stays in Q mail.",
+    "purgeConfirm": "Remove permanently",
+    "clearStageTitle": "Take this out of the consult list?",
+    "clearStageBody": "Customer details and records stay as they are; only the sales stage becomes “none”. Give it a stage again and it returns to the list."
   },
   "record": {
     "kind": {
@@ -391,5 +399,10 @@
     },
     "qnotes": "Notes",
     "infos": "Info"
+  },
+  "note": {
+    "noTarget": "Notes cannot be attached to this row.",
+    "empty": "No notes yet",
+    "placeholder": "Write a note… (⌘/Ctrl+Enter to save)"
   }
 }

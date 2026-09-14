@@ -41,7 +41,9 @@
     "not_counted": "한도: 미포함 · 초대하면 포함",
     "header": "정식 {{clients}}/{{clients_max}} · 문의 {{prospects}}/{{prospects_max}}",
     "unlimited": "무제한",
-    "invite_notice": "초대하면 정식 고객 한도에 포함됩니다 (지금 {{clients}} / {{clients_max}})"
+    "invite_notice": "초대하면 정식 고객 한도에 포함됩니다 (지금 {{clients}} / {{clients_max}})",
+    "tip": "정식 = 계정을 만들어 드린 고객 · 문의 = 아직 초대하지 않은 상담 상대. 숫자는 현재 / 플랜 한도입니다.",
+    "raise": "한도 늘리기"
   },
   "source": {
     "label": "유입",
@@ -165,7 +167,13 @@
     "removeFromInboxBody": "상담 목록에서 사라집니다. 원본 메일은 지워지지 않고, 보관함에서 되돌릴 수 있습니다.",
     "deleteClient": "고객 삭제",
     "deleteClientTitle": "이 고객을 삭제할까요?",
-    "deleteClientBody": "{{who}} 님을 삭제합니다. 되돌릴 수 없습니다. 연결된 업무·청구·대화 기록은 남지만 고객 연결이 끊깁니다."
+    "deleteClientBody": "{{who}} 님을 삭제합니다. 되돌릴 수 없습니다. 연결된 업무·청구·대화 기록은 남지만 고객 연결이 끊깁니다.",
+    "purgeFromInbox": "상담에서 영구히 빼기",
+    "purgeTitle": "상담에서 영구히 뺄까요?",
+    "purgeBody": "이 건은 다시는 상담 목록과 보관함에 나타나지 않습니다. 메일 자체는 Q mail 에 그대로 남습니다.",
+    "purgeConfirm": "영구히 빼기",
+    "clearStageTitle": "상담 목록에서 치울까요?",
+    "clearStageBody": "고객 정보와 기록은 그대로 남고, 영업 단계만 «없음» 이 됩니다. 단계를 다시 주면 상담 목록으로 돌아옵니다."
   },
   "record": {
     "kind": {
@@ -391,5 +399,10 @@
     },
     "qnotes": "노트",
     "infos": "정보"
+  },
+  "note": {
+    "noTarget": "이 행에는 메모를 붙일 수 없습니다.",
+    "empty": "아직 메모가 없습니다",
+    "placeholder": "메모 작성... (⌘/Ctrl+Enter 저장)"
   }
 }

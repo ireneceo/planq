@@ -9,6 +9,12 @@ ProjectNote.init({
   project_id: { type: DataTypes.BIGINT, allowNull: true },
   conversation_id: { type: DataTypes.INTEGER, allowNull: true },
   email_thread_id: { type: DataTypes.INTEGER, allowNull: true }, // N+87 Phase C — 메일 스레드 노트
+  // ★ 2026-09-14 — Q sale 상담 메모 (Irene: *"메모라고 메모남기기가 댓글처럼 …
+  //   채팅방 보면 메모를 공개범위 선택해서 할 수 잇잖아. 그거 그대로 하자."*)
+  //   상담 행의 **기준**이 무엇인지가 곧 이 세 칸이다: 메일이면 email_thread_id,
+  //   대화면 conversation_id, 등록된 고객이면 client_id. 새 표를 만들지 않는다 —
+  //   공개범위·작성자·초안·삭제 규칙이 이미 여기 한 벌로 있다(베끼면 한쪽만 고쳐진다).
+  client_id: { type: DataTypes.INTEGER, allowNull: true },
   author_user_id: { type: DataTypes.INTEGER, allowNull: false },
   visibility: {
     type: DataTypes.ENUM('personal', 'internal', 'shared'),

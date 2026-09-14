@@ -1574,3 +1574,39 @@ Fable 이 막혀 있어 판단을 기다릴 수 없었다. 어제 실패한 이�
 **2026-09-14 재시도 — 또 429.** 이 항목으로 Fable 을 실제로 띄웠고 `You've reached your Fable limit`
 로 즉시 종료됐다. 오늘만 두 번째다. 마커 `by:"unavailable"`. 보고는 **"Fable 미검증(자체 검증)"**.
 
+
+---
+
+## 33. Q sale 상담 메모(댓글) · 에스컬레이션 두 겹 게이트 · 보관함 영구 제외 (2026-09-14)
+
+**판정: R=1** — 운영 DB 마이그레이션(`project_notes.client_id`) · 외부 메일 발송 트리거 변경 ·
+새 라우트 3개(무인증은 아니지만 멀티테넌트 표면 확장).
+
+**신고**
+1. *"내가 메일설정 껐는데 메일로 계속 와. 알림 설정 맞춰진거 맞아?"*
+2. *"메모라고 메모남기기가 댓글처럼 … 어떤 문의를 기준으로 저장된건지 남기게 하고 … 채팅방 보면
+   메모를 공개범위 선택해서 할 수 잇잖아. 그거 그대로 하자."*
+3. *"보관함에서는 X버튼을 눌러서 영구히 삭제 시켜."*
+
+**구현**
+- `services/unreadEscalationCron.js` — 게이트 두 겹(`selectEscalatable`): 그 알림 **종류의 email 설정**
+  AND `push_fallback`. 전용 스위치는 이제 **좁히기만** 한다(우회하지 않는다).
+  운영 실측이 원인이었다 — irene 계정은 10종이 전부 0 인데 `push_fallback` 만 1(어제 만든 기본값).
+- `models/ProjectNote.js` + `scripts/migrate-sale-note-client.js`(멱등) — `client_id` 1컬럼 + 인덱스.
+  배포 체인에 **코드 배포 전** 실행으로 등록.
+- `routes/sale_interactions.js` — `GET/POST/DELETE /api/sale/:biz/consults/:kind/:id/notes`.
+  새 표를 만들지 않고 `project_notes` 재사용(공개범위·초안·삭제 규칙이 이미 한 벌).
+- `services/saleInbox.js` — 기본 목록에서 보관함 제외(집계는 유지) · access/assignee 필터.
+- `routes/sale_save.js` — `POST /inbox/purge`(감사로그 origin). **메일 자체는 지우지 않는다.**
+
+**자체 검증 수치**
+- 빌드 EXIT 0 / `error TS` 0 · 가드 EXIT 0(52/53) · health-check 44/44 · duproute 877경로
+- 실HTTP 상담 메모 8/8(남기기·재조회 일치·없는 대상 404·삭제·삭제 후 부재)
+- 에스컬레이션 게이트 5/5(양성 대조군 포함 — message 만 켜면 그것만 통과)
+
+**Fable 이 봐야 할 것**
+A. 두 겹 게이트의 양방향(끈 사람 0통 / 켠 사람 도달) · 마킹이 큐를 비우는지
+B. 마이그레이션 안전성(멱등·순서·롤백) · 기존 project_notes 조회 3경로 무영향
+C. consults notes 3라우트의 **멀티테넌트 격리** — `resolveConsultTarget` 의 business_id 확인이
+   남의 워크스페이스 메일 스레드·대화·고객 id 를 막는지
+D. "영구히" 문구와 실제 동작의 어긋남(코드에는 되돌릴 길이 남아 있다)

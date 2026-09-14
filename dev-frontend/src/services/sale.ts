@@ -370,6 +370,36 @@ export const purgeInboxItem = (businessId: number, kind: 'email_thread', id: num
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
   }).then(j<{ id: number }>);
 
+// ─── 상담 메모 = 댓글 (공개범위 그대로) ────────────────────────────────────
+//   Irene 2026-09-14: *"메모라는 액션버튼은 그대로 메모를 남기는 역할만 … 댓글처럼 …
+//   어떤 문의를 기준으로 저장된건지 남기게."*
+//   저장소는 `project_notes` 한 곳이다(채팅방·메일 메모와 같은 표·같은 공개범위).
+export type ConsultRefKind = 'email_thread' | 'conversation' | 'client';
+export interface SaleNote {
+  id: number;
+  body: string;
+  visibility: 'personal' | 'internal' | 'shared';
+  author_user_id: number;
+  author_name: string | null;
+  created_at: string;
+}
+
+export const listConsultNotes = (businessId: number, kind: ConsultRefKind, id: number) =>
+  apiFetch(`/api/sale/${businessId}/consults/${kind}/${id}/notes`).then(j<SaleNote[]>);
+
+export const addConsultNote = (
+  businessId: number, kind: ConsultRefKind, id: number,
+  body: string, visibility: 'internal' | 'personal',
+) =>
+  apiFetch(`/api/sale/${businessId}/consults/${kind}/${id}/notes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ body, visibility }),
+  }).then(j<SaleNote>);
+
+export const deleteConsultNote = (businessId: number, kind: ConsultRefKind, id: number, noteId: number) =>
+  apiFetch(`/api/sale/${businessId}/consults/${kind}/${id}/notes/${noteId}`, { method: 'DELETE' })
+    .then(j<{ id: number }>);
+
 /** 단계 목록 — 화면 순서의 단일 원천(서버 ENUM 과 같은 순서) */
 export const SALE_STAGES: SaleStage[] = ['none', 'inquiry', 'consulting', 'proposal', 'negotiation', 'won', 'lost'];
 export const IN_PROGRESS_STAGES: SaleStage[] = ['inquiry', 'consulting', 'proposal', 'negotiation'];
