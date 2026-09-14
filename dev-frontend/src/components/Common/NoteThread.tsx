@@ -73,11 +73,21 @@ export default function NoteThread({
     requestAnimationFrame(() => { if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight; });
   };
 
+  // ★ 2026-09-14 — **Enter 로 보낸다** (Irene: *"입력란 + Enter 전송. 모든 곳 동일한 형태야.
+  //   다른 곳도 찾아서 수정해."*). 메모는 채팅처럼 짧게 여러 번 쓰는 입력이라, 매번 ⌘+Enter 를
+  //   요구하면 보내는 방법을 모르는 칸이 된다. 줄바꿈은 **Shift+Enter**(채팅 표준).
+  //
+  //   ⚠️ UI_DESIGN_GUIDE §1.8 "Enter 단독 저장 금지" 는 **폼의 생성/추가/승인 버튼**에 대한 규칙이다
+  //     (잘못 누르면 되돌리기 어려운 것). 메모는 본인이 바로 지울 수 있고 채팅형 입력이라 예외로 둔다 —
+  //     그 예외를 §1.8 에 적어 두었다. 조용히 어기지 않는다.
+  //
+  //   ★ IME 가드는 그대로다. 한글은 Enter 가 **마지막 음절을 확정하는 키**이기도 해서,
+  //     가드가 없으면 "안녕하세" 까지만 쓴 글이 전송된다(memory feedback_ime_enter_needs_guard).
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    // IME 조합 중 무시 (한글 마지막 음절 중복 입력 방지)
-    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-    // ⌘/Ctrl+Enter 만 저장 — 일반 Enter 는 줄바꿈
-    if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
+    if (!isEnterAction(e)) return;          // 조합 중 Enter · Enter 아님 → 그대로 흘려보낸다
+    if (e.shiftKey) return;                 // Shift+Enter = 줄바꿈
+    e.preventDefault();
+    submit();                               // Enter · ⌘/Ctrl+Enter 둘 다 전송
   };
 
   return (
@@ -118,7 +128,7 @@ export default function NoteThread({
           {...(draftKey ? draft.bind : { value: text, onChange: (e: ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value) })}
           disabled={busy}
           onKeyDown={onKeyDown}
-          placeholder={placeholder || (t('note.placeholder', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string)}
+          placeholder={placeholder || (t('note.placeholder', { defaultValue: '메모 작성... (Enter 저장 · Shift+Enter 줄바꿈)' }) as string)}
         />
         {canChooseVisibility && (
           <VisToggle>
@@ -135,8 +145,8 @@ export default function NoteThread({
           type="button"
           onClick={submit}
           disabled={!text.trim() || !!busy}
-          title={t('note.saveHint', { defaultValue: '저장 (⌘/Ctrl+Enter)' }) as string}
-          aria-label={t('note.saveHint', { defaultValue: '저장 (⌘/Ctrl+Enter)' }) as string}
+          title={t('note.saveHint', { defaultValue: '저장 (Enter)' }) as string}
+          aria-label={t('note.saveHint', { defaultValue: '저장 (Enter)' }) as string}
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <line x1="22" y1="2" x2="11" y2="13" />

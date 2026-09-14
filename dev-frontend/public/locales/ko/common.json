@@ -1014,8 +1014,8 @@
     "withTeam": "공개",
     "someone": "팀원",
     "delete": "삭제",
-    "placeholder": "메모 작성... (⌘/Ctrl+Enter 저장)",
-    "saveHint": "저장 (⌘/Ctrl+Enter)"
+    "placeholder": "메모 작성... (Enter 저장 · Shift+Enter 줄바꿈)",
+    "saveHint": "저장 (Enter)"
   },
   "voice": {
     "title": "말로 추가",

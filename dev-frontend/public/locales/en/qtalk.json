@@ -59,8 +59,8 @@
       "onlyMe": "Only me",
       "withTeam": "Public",
       "empty": "No notes yet",
-      "placeholder": "Write a note...",
-      "saveHint": "Save (⌘/Ctrl+Enter)"
+      "placeholder": "Write a note… (Enter to save · Shift+Enter for a new line)",
+      "saveHint": "Save (Enter)"
     },
     "info": {
       "title": "Project Info",

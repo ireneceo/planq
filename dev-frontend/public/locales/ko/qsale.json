@@ -164,16 +164,17 @@
     "addEvent": "일정 추가",
     "removeFromInbox": "상담 목록에서 치우기",
     "removeFromInboxTitle": "이 상담을 목록에서 치울까요?",
-    "removeFromInboxBody": "상담 목록에서 사라집니다. 원본 메일은 지워지지 않고, 보관함에서 되돌릴 수 있습니다.",
+    "removeFromInboxBody": "상담 목록에서 사라집니다. 원본 메일은 지워지지 않고, 휴지통에서 되돌릴 수 있습니다.",
     "deleteClient": "고객 삭제",
     "deleteClientTitle": "이 고객을 삭제할까요?",
     "deleteClientBody": "{{who}} 님을 삭제합니다. 되돌릴 수 없습니다. 연결된 업무·청구·대화 기록은 남지만 고객 연결이 끊깁니다.",
     "purgeFromInbox": "상담에서 영구히 빼기",
     "purgeTitle": "상담에서 영구히 뺄까요?",
-    "purgeBody": "이 건은 다시는 상담 목록과 보관함에 나타나지 않습니다. 메일 자체는 Q mail 에 그대로 남습니다.",
+    "purgeBody": "이 건은 다시는 상담 목록과 휴지통에 나타나지 않습니다. 메일 자체는 Q mail 에 그대로 남습니다.",
     "purgeConfirm": "영구히 빼기",
     "clearStageTitle": "상담 목록에서 치울까요?",
-    "clearStageBody": "고객 정보와 기록은 그대로 남고, 영업 단계만 «없음» 이 됩니다. 단계를 다시 주면 상담 목록으로 돌아옵니다."
+    "clearStageBody": "고객 정보와 기록은 그대로 남고, 영업 단계만 «없음» 이 됩니다. 단계를 다시 주면 상담 목록으로 돌아옵니다.",
+    "memoOpen": "메모보기"
   },
   "record": {
     "kind": {
@@ -338,7 +339,7 @@
       "email": "메일",
       "chat": "채팅",
       "client": "등록된 상담",
-      "dismissed": "보관함"
+      "dismissed": "휴지통"
     },
     "needsReply": "대응 필요",
     "needsReplyOnly": "대응 필요만",
@@ -410,6 +411,6 @@
   "note": {
     "noTarget": "이 행에는 메모를 붙일 수 없습니다.",
     "empty": "아직 메모가 없습니다",
-    "placeholder": "메모 작성... (⌘/Ctrl+Enter 저장)"
+    "placeholder": "메모 작성... (Enter 저장 · Shift+Enter 줄바꿈)"
   }
 }

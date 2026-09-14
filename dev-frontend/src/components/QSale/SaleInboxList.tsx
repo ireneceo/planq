@@ -326,8 +326,15 @@ const SaleInboxList: React.FC<Props> = ({
           {rows.map((it) => {
             const who = it.who || (t('inbox.unknownWho') as string);
             const busy = busyId === it.id;
+            const memoOpen = memoFor === it.id;
             return (
-              <Row key={it.id} data-testid={`sale-inbox-row-${it.id}`}>
+              /* ★ 2026-09-14 2차 (Irene: *"메모가 열리는 모양 — 리스트와 별개로 아래에 회색 영역이
+                 좌우 풀폭으로 열려. 리스트는 움직이지 않아."*)
+                 메모판을 **행 카드 안**에 두면 가로 flex 의 네 번째 칸이 되어 액션 오른쪽에
+                 찌그러져 붙는다(데스크탑 실측). 카드(Row)와 메모판을 `RowWrap` 으로 감싸
+                 메모판이 카드 **아래 · 좌우 풀폭**으로 열리게 한다 — 카드 자체는 그대로다. */
+              <RowWrap key={it.id}>
+              <Row data-testid={`sale-inbox-row-${it.id}`}>
                 <RowMain type="button" $sel={selectedId === it.id}
                   onClick={() => {
                     // ★ 2026-09-13 — 행이 무엇이든 **같은 패널**을 연다(Irene: "상담에서 열든 고객에서
@@ -355,7 +362,7 @@ const SaleInboxList: React.FC<Props> = ({
                       : !it.title && <Preview $muted>{t('inbox.noBody') as string}</Preview>}
                   </RowBody>
                 </RowMain>
-                <StageSlot>
+                <StageSlot data-testid={`sale-inbox-stageslot-${it.id}`}>
                 {/* 단계 — **리스트에서 바꾼다**. 고객 기준이라 같은 고객의 다른 상담도 함께 바뀐다.
                     전체 프로필·우측 패널과 **같은 ChipPopover** 다(자리마다 새로 그리지 않는다). */}
                 <ChipPopover
@@ -389,34 +396,39 @@ const SaleInboxList: React.FC<Props> = ({
                 <RowActions>
                   {/* 나머지 순서는 종전대로: 보기 · 메모 · 일정 · 업무 · ✕ */}
 
-                  {/* ① 보기 — **다른 화면으로 나간다**. 라벨이 목적지를 말한다(고객 상세·메일·채팅·게스트)
-                      ★ 고정 폭 칸에 넣는다. 라벨이 행마다 다르면("메일 보기" 112px vs "고객 상세 보기" 139px)
-                        액션 묶음 전체 폭이 흔들려 **왼쪽의 단계 칸까지 밀린다**(실측 left 882 vs 902).
-                        여기만 고정하면 단계 열이 위아래로 정확히 맞는다. */}
-                  <ViewSlot>
-                    <ActionButton tone="secondary" size="sm" disabled={busy}
-                      data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}>
-                      <OutIcon aria-hidden />
-                      {viewInLabel(it)}
-                    </ActionButton>
-                  </ViewSlot>
+                  {/* ① 보기 — **다른 화면으로 나간다**.
+                      ★ 2026-09-14 2차 (Irene: *"[메일 보기]·[고객 상세 보기] 는 이름을 빼고
+                        링크 아이콘 + 보기 만."*) 라벨을 한 낱말로 고정하니 **폭이 행마다 같아진다** —
+                        `ViewSlot` 의 고정폭(148)으로 떠받치던 열 어긋남(실측 left 888 vs 908)의
+                        원인 자체가 사라져 그 칸을 없앴다([[feedback_variable_label_breaks_column_align]]).
+                      ★ 목적지는 라벨에서 사라지지만 **말하지 않는 것은 아니다** — title·aria-label 이
+                        "메일 보기"·"고객 상세 보기" 를 그대로 들고 있다(이름 없는 버튼 금지). */}
+                  <ActionButton tone="secondary" size="xs" disabled={busy}
+                    data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}
+                    title={viewInLabel(it)} aria-label={viewInLabel(it)}>
+                    <OutIcon aria-hidden />
+                    {t('action.view') as string}
+                  </ActionButton>
 
-                  {/* ② 메모 — 행 **아래**에서 열린다(나가지 않는다). 건수를 같이 보여준다 */}
-                  <ActionButton tone="secondary" size="sm" disabled={busy}
+                  {/* ② 메모 — 행 **아래**에서 열린다(나가지 않는다).
+                      ★ 2026-09-14 2차 (Irene: *"메모 개수 표시는 없애."*) 숫자를 뺐다.
+                        메모가 있다는 사실은 행 아래 [메모보기 ⌄] 가 말한다. */}
+                  <ActionButton tone="secondary" size="xs" disabled={busy}
                     data-testid={`sale-inbox-memo-${it.id}`}
+                    aria-expanded={memoOpen}
                     onClick={() => setMemoFor((v) => (v === it.id ? null : it.id))}>
-                    {t('action.memo') as string}{it.note_count ? ` ${it.note_count}` : ''}
+                    {t('action.memo') as string}
                   </ActionButton>
 
                   {/* ③ 일정 — 이 상담 **고객이 일정에 연결**된다 */}
-                  <ActionButton tone="secondary" size="sm" disabled={busy}
+                  <ActionButton tone="secondary" size="xs" disabled={busy}
                     data-testid={`sale-inbox-event-${it.id}`}
                     onClick={() => setEventFor(it)}>
                     {t('action.addEvent') as string}
                   </ActionButton>
 
                   {/* ④ 업무 — 프로젝트·고객이 연결된 업무로 만들어진다 */}
-                  <ActionButton tone="secondary" size="sm" disabled={busy}
+                  <ActionButton tone="secondary" size="xs" disabled={busy}
                     data-testid={`sale-inbox-task-${it.id}`}
                     onClick={() => setTaskFor(it)}>
                     {t('action.addTask') as string}
@@ -426,7 +438,7 @@ const SaleInboxList: React.FC<Props> = ({
                       보관함 행에서는 되돌리기가 그 자리를 대신한다. */}
                   {it.source === 'dismissed' ? (
                     <>
-                      <ActionButton tone="secondary" size="sm" disabled={busy}
+                      <ActionButton tone="secondary" size="xs" disabled={busy}
                         data-testid={`sale-inbox-restore-${it.id}`} onClick={() => restoreItem(it)}>
                         {t('action.restoreToInbox') as string}
                       </ActionButton>
@@ -464,15 +476,31 @@ const SaleInboxList: React.FC<Props> = ({
                     </IconX>
                   )}
                 </RowActions>
-                {/* ★ 메모는 **행 아래**에서 열린다 (Irene: "리스트에서 메모보기 하면 리스트 아래
-                    열려서 메모 붙인거 나오게 해줘"). 나가지 않으니 목록의 맥락을 잃지 않는다. */}
-                {memoFor === it.id && (
-                  <MemoPane data-testid={`sale-inbox-memo-pane-${it.id}`}>
-                    <SaleNoteThread businessId={businessId} item={it} myUserId={myUserId}
-                      onChanged={() => { void load({ silent: true }); }} />
-                  </MemoPane>
-                )}
               </Row>
+              {/* ★ 2026-09-14 2차 (Irene: *"메모가 있으면 리스트 아래 좌측 끝에 [메모보기 ⌄] 가 나와.
+                  메모 버튼을 눌러도 같이 열려."*)
+                  **있을 때만** 나온다 — 없는 행에까지 붙이면 목록이 손잡이로 뒤덮인다.
+                  여는 상태는 위 [메모] 버튼과 **같은 하나**(`memoFor`)다. 두 벌로 두면 한쪽으로 연 것이
+                  다른 쪽에서 닫히지 않는다. */}
+              {(it.note_count ?? 0) > 0 && (
+                <MemoToggle type="button" disabled={busy}
+                  data-testid={`sale-inbox-memo-toggle-${it.id}`}
+                  aria-expanded={memoOpen}
+                  onClick={() => setMemoFor((v) => (v === it.id ? null : it.id))}>
+                  {t('action.memoOpen') as string}
+                  <Caret $open={memoOpen} aria-hidden />
+                </MemoToggle>
+              )}
+              {/* ★ 메모는 **행 아래**에서 열린다 (Irene: "리스트에서 메모보기 하면 리스트 아래
+                  열려서 메모 붙인거 나오게 해줘"). 나가지 않으니 목록의 맥락을 잃지 않는다.
+                  카드 **밖**이라 좌우 풀폭이고, 카드 자체는 한 픽셀도 움직이지 않는다. */}
+              {memoOpen && (
+                <MemoPane data-testid={`sale-inbox-memo-pane-${it.id}`}>
+                  <SaleNoteThread businessId={businessId} item={it} myUserId={myUserId}
+                    onChanged={() => { void load({ silent: true }); }} />
+                </MemoPane>
+              )}
+              </RowWrap>
             );
           })}
         </List>
@@ -653,6 +681,9 @@ const EmptyTitle = styled.div`font-size: 0.9375rem; font-weight: 700; color: #0F
 const EmptyDesc = styled.div`margin-top: 6px; font-size: 0.8125rem; color: #64748B;`;
 
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+/* 행 한 벌 = 카드 + (메모보기 손잡이) + (메모판). 메모가 열려도 **카드는 그대로**이고
+   메모판이 카드 아래에 좌우 풀폭으로 붙는다(Irene 2026-09-14). */
+const RowWrap = styled.div`display: flex; flex-direction: column;`;
 const Row = styled.div`
   display: flex; align-items: flex-start; gap: 12px;
   padding: 12px 14px; border: 1px solid #E2E8F0; border-radius: 10px; background: #FFFFFF;
@@ -706,15 +737,6 @@ const RowActions = styled.div`
   margin-left: auto; min-width: 0;
   @media (max-width: 640px) { width: 100%; }
 `;
-/* [보기] 칸 — 폭을 고정해 액션 묶음 전체 폭을 행마다 같게 만든다(위 주석 참조).
-   라벨이 넘치면 줄이지 않고 말줄임한다 — 목적지는 아이콘과 함께 여전히 읽힌다. */
-const ViewSlot = styled.div`
-  flex: 0 0 148px; min-width: 0; display: flex;
-  > button { width: 100%; min-width: 0; }
-  > button > span, > button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  @media (max-width: 640px) { flex: 0 0 auto; > button { width: auto; } }
-`;
-
 /* 단계 칸 — 행마다 **같은 자리·같은 폭**이라 위아래로 열이 맞는다.
    ★ 2026-09-14 실측: 처음엔 이 칸을 RowActions **안**에 넣었는데, 액션 묶음이 `margin-left:auto`
      로 오른쪽에 붙는 탓에 **묶음 전체 폭만큼 왼쪽 끝이 흔들렸다**([보기] 라벨이 "메일 보기"·
@@ -723,19 +745,55 @@ const ViewSlot = styled.div`
      이 칸의 왼쪽 끝은 행마다 **항상 같은 x** 다. */
 const StageSlot = styled.div`
   flex: 0 0 auto; width: 150px; display: flex; justify-content: center;
-  @media (max-width: 640px) { width: 100%; justify-content: flex-start; }
+  /* ★ 2026-09-14 2차 (Irene: *"단계 버튼이 행 높이의 세로 중앙에 있지 않아."*)
+     Row 가 align-items: flex-start 라 이 칸도 맨 위에 붙어 있었다. 행 높이는 왼쪽 본문
+     (제목+내용 1~2줄)이 정하므로, 단계 칩은 **그 높이의 한가운데**에 서야 열이 보인다.
+     Row 전체를 center 로 바꾸지 않는다 — 그러면 본문 텍스트 정렬까지 따라 움직인다. */
+  align-self: center;
+  @media (max-width: 640px) { width: 100%; justify-content: flex-start; align-self: stretch; }
 `;
 
-/* ✕ — 아이콘 전용이지만 aria-label·title 로 뜻을 말한다(이름 없는 버튼 금지) */
+/* ✕ — 아이콘 전용이지만 aria-label·title 로 뜻을 말한다(이름 없는 버튼 금지).
+   ★ 2026-09-14 2차 (Irene: *"X 버튼 — 불필요한 박스를 빼. 높이값도 달라서 이상해."*)
+     테두리·배경을 없앴다. 옆의 글자 버튼들은 테두리가 곧 누를 수 있는 범위인데, ✕ 는 글자가
+     없어서 같은 상자를 두르면 **빈 네모** 하나가 줄 끝에 남는다.
+     높이는 **32** — 옆 액션 버튼(ActionButton size="xs")과 같은 수다. 28 이라 4px 어긋나 있었다.
+     누를 수 있는 자리는 그대로 32×32 이고, 눌린다는 신호는 hover 의 옅은 배경이 준다. */
 const IconX = styled.button`
-  width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid #E2E8F0; border-radius: 6px; background: #FFFFFF; color: #94A3B8;
-  cursor: pointer; flex-shrink: 0;
-  &:hover:not(:disabled) { background: #FFF1F2; border-color: #FDA4AF; color: #BE123C; }
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 8px; background: transparent; color: #94A3B8;
+  cursor: pointer; flex-shrink: 0; padding: 0;
+  &:hover:not(:disabled) { background: #FFF1F2; color: #BE123C; }
+  &:focus-visible { outline: 2px solid #FDA4AF; outline-offset: 1px; }
   &:disabled { opacity: 0.5; cursor: default; }
 `;
-/* 행 아래 메모 — 목록 안에서 열리므로 행과 붙어 보이게 배경을 낮춘다 */
+
+/* [메모보기 ⌄] — 행 **아래 좌측 끝**. 메모가 있는 행에만 나온다.
+   글자 버튼이 아니라 손잡이라서 톤을 낮춘다(액션 묶음과 경쟁하지 않게). */
+const MemoToggle = styled.button`
+  align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 4px;
+  margin: 4px 0 0 2px; padding: 4px 6px; border: none; background: none; border-radius: 6px;
+  font-size: 0.6875rem; font-weight: 700; color: #64748B; cursor: pointer; font-family: inherit;
+  &:hover:not(:disabled) { color: #0F766E; background: #F0FDFA; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 1px; }
+  &:disabled { opacity: 0.5; cursor: default; }
+`;
+const Caret = styled.span.attrs({
+  children: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+  ),
+})<{ $open: boolean }>`
+  display: inline-flex; align-items: center;
+  transition: transform 0.15s ease;
+  transform: rotate(${(p) => (p.$open ? 180 : 0)}deg);
+  @media (prefers-reduced-motion: reduce) { transition: none; }
+`;
+/* 행 아래 메모 — 카드 **밖**(RowWrap 의 둘째 칸)이라 좌우 **풀폭**이다.
+   grid-column 은 여기 쓰이지 않는다(부모가 grid 가 아니다) — 있던 것을 지웠다.
+   배경을 낮춰 카드와 구분하되, 위 카드에 붙여 어느 행의 메모인지 보이게 한다. */
 const MemoPane = styled.div`
-  grid-column: 1 / -1; margin: 4px 0 2px; padding: 12px 14px;
+  width: 100%; margin: 4px 0 2px; padding: 12px 14px; box-sizing: border-box;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
 `;

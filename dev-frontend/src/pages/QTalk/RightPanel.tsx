@@ -441,7 +441,7 @@ const RightPanel: React.FC<Props> = ({
                 draftBizId={businessId}
                 draftLegacyKey={`planq:draft:qtalk-note:${myUserId}:${project ? `p${project.id}` : `c${activeConversationId || 0}`}`}
                 emptyText={t('right.notes.empty', '아직 메모가 없습니다') as string}
-                placeholder={t('right.notes.placeholder', '메모 작성... (⌘/Ctrl+Enter 저장)') as string}
+                placeholder={t('right.notes.placeholder', '메모 작성... (Enter 저장 · Shift+Enter 줄바꿈)') as string}
                 renderMeta={(n) => {
                   const conv = project ? notes.find((x) => x.id === n.id)?.conversation_id : null;
                   return conv && convName(conv)

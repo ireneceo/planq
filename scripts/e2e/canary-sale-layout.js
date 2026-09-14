@@ -1,0 +1,417 @@
+// scripts/e2e/canary-sale-layout.js — Q sale 2차 신고 15건의 **화면 계약** (2026-09-14)
+//
+// Irene 원문(요지):
+//   ① 종료 가리기는 기존대로 **체크박스** · ② 단계·접근·담당자는 **셀렉트 안**에서 고른다
+//   (축 이름 라벨 없음 · "전체" 없음) · ③ 필터줄이 위에 너무 들러붙었다
+//   ④ 검색 · [고객응대 내역 추가] 를 **우측 상단 헤더**로, 추가 버튼은 탭 **뒤**
+//   ⑤ 추가 버튼은 `+` 가 붙은 기존 스타일 · 색이 덜 진해야 한다 · ⑥ 더 작은 액션 크기(32px)
+//   ⑧ 단계 버튼이 행 **세로 중앙** · ⑨ ✕ 의 박스 제거 + 높이 통일
+//   ⑩ [보기] 는 아이콘 + "보기" (이름 없음) · ⑪ 메모 **개수 표시 없음**
+//   ⑫ 메모가 있으면 행 아래 **좌측 끝**에 [메모보기 ⌄] · ⑬ 열리면 **좌우 풀폭 회색 영역**,
+//      리스트(카드)는 움직이지 않는다 · ⑭ 메모 입력은 **Enter 전송**
+//
+// 이 카나리가 **정적 검사로는 못 잡는 것**만 본다 — 전부 CSS 가 합쳐진 뒤에만 존재하는 값이다.
+//
+// ★ 폭을 하나만 재면 거짓 통과한다 (2026-09-14 프로젝트 탭에서 겪었다: 데스크탑만 0 이고
+//   태블릿 20 · 폰 398 이었다). **폰·태블릿·데스크탑 3폭**을 잰다.
+// ★ 크기만 재지 않고 **보이는가**를 잰다 — rect 가 있어도 부모가 height 0 + overflow:hidden 이면
+//   한 픽셀도 안 그려진다.
+// ★ 0건이면 **판정 불가 = 실패**다(memory feedback_empty_fixture_false_verdict).
+const { launch, login, goto, sleep, dismissBlockers } = require('./lib/browser');
+
+const results = [];
+const push = (name, pass, detail) => results.push({ name, fail: !pass, details: detail ? [detail] : [] });
+
+const VPS = [
+  { key: '폰',      w: 390,  h: 844 },
+  { key: '태블릿',  w: 834,  h: 1112 },
+  { key: '데스크탑', w: 1440, h: 900 },
+];
+
+/** 정말 그려지는가 — rect + 조상 클리핑 + elementFromPoint 까지 */
+const VISIBLE = `(el) => {
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return { drawn: false, why: 'rect 0' };
+  let n = el.parentElement;
+  while (n && n !== document.body) {
+    const s = getComputedStyle(n);
+    const nr = n.getBoundingClientRect();
+    if (/hidden|clip/.test(s.overflow + s.overflowY) && (nr.height < 1 || r.bottom <= nr.top || r.top >= nr.bottom))
+      return { drawn: false, why: '조상 클리핑' };
+    n = n.parentElement;
+  }
+  const cx = Math.round(r.left + r.width / 2), cy = Math.round(r.top + r.height / 2);
+  const hit = document.elementFromPoint(cx, cy);
+  return {
+    drawn: !!hit && (el.contains(hit) || hit.contains(el)),
+    why: hit ? '' : '좌표에 아무것도 없음',
+    x: Math.round(r.left), y: Math.round(r.top),
+    w: Math.round(r.width), h: Math.round(r.height),
+    bottom: Math.round(r.bottom), right: Math.round(r.right),
+  };
+}`;
+
+async function measure(page) {
+  return page.evaluate((VIS_SRC) => {
+    const vis = eval(VIS_SRC);
+    const q = (s) => document.querySelector(s);
+    const out = {};
+
+    // ── 필터줄 ───────────────────────────────────────────────
+    const bar = q('[data-testid="sale-filter-row"]');
+    out.filterBar = vis(bar);
+    out.filterMarginTop = bar ? parseFloat(getComputedStyle(bar).marginTop) : null;
+    // 필터줄 바로 위 형제의 아래끝 ~ 필터줄 위끝 = 실제 벌어진 틈
+    if (bar && bar.previousElementSibling) {
+      const pr = bar.previousElementSibling.getBoundingClientRect();
+      out.gapAbove = Math.round(bar.getBoundingClientRect().top - pr.bottom);
+    }
+    // ② 축 셀렉트 — 밖 라벨이 없고, 첫 옵션 라벨이 축 이름이며 "전체" 가 아니다
+    out.axisLabelsOutside = ['sale-stage-filter', 'sale-access-filter', 'sale-assignee-filter']
+      .map((id) => {
+        const el = q(`[data-testid="${id}"]`);
+        if (!el) return { id, missing: true };
+        // 칸 안의 **셀렉트가 아닌 맨앞 텍스트** = 밖에 붙은 축 이름 라벨
+        const sel = el.querySelector('[class*="control"], [class*="Control"]');
+        const own = (el.innerText || '').trim();
+        const inSel = sel ? (sel.innerText || '').trim() : '';
+        return { id, shown: inSel || own, strayLabel: own.replace(inSel, '').trim(), v: vis(el) };
+      });
+    // ① 종료 가리기 = 체크박스
+    const hc = q('[data-testid="sale-inbox-hide-closed"]');
+    out.hideClosed = hc ? {
+      tag: hc.tagName, isCheckbox: !!hc.querySelector('input[type="checkbox"]'),
+      v: vis(hc),
+    } : null;
+    // 한 줄 안 컨트롤 높이 집합
+    out.filterHeights = bar ? [...new Set([...bar.children].map((c) => Math.round(c.getBoundingClientRect().height)))] : [];
+
+    // ── 헤더 ─────────────────────────────────────────────────
+    const search = q('[data-testid="sale-search"]');
+    const tabs = q('[data-testid="sale-tab-inbox"]');
+    const add = q('[data-testid="sale-add-inquiry"]');
+    out.search = vis(search); out.tabs = vis(tabs); out.add = add ? vis(add) : null;
+    // ④ 셋이 **같은 줄(헤더)** 안에 있는가 — 공통 조상이 필터줄 위인가
+    out.headerHasAll = !!(search && tabs && add);
+    if (out.headerHasAll && bar) {
+      out.headerAboveFilter = Math.max(add.getBoundingClientRect().bottom, tabs.getBoundingClientRect().bottom)
+        <= bar.getBoundingClientRect().top + 1;
+      // 추가 버튼이 탭 **뒤**(문서 순서)
+      out.addAfterTabs = !!(tabs.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING);
+    }
+    if (add) {
+      const cs = getComputedStyle(add);
+      out.addStyle = {
+        h: Math.round(add.getBoundingClientRect().height),
+        bg: cs.backgroundColor, color: cs.color,
+        hasPlusSvg: !!add.querySelector('svg'),
+      };
+    }
+
+    // ── 행 ───────────────────────────────────────────────────
+    const rows = [...document.querySelectorAll('[data-testid^="sale-inbox-row-"]')];
+    out.rowCount = rows.length;
+    out.rows = rows.slice(0, 8).map((row) => {
+      const id = row.getAttribute('data-testid').replace('sale-inbox-row-', '');
+      const rr = row.getBoundingClientRect();
+      const dir = getComputedStyle(row).flexDirection;
+      const slot = row.querySelector('[data-testid^="sale-inbox-stageslot-"]');
+      const stage = slot ? slot.querySelector('[data-testid^="sale-inbox-stage-"]') : null;
+      const open = row.querySelector('[data-testid^="sale-inbox-open-"]');
+      const memo = row.querySelector('[data-testid^="sale-inbox-memo-"]');
+      const x = row.querySelector('[data-testid^="sale-inbox-dismiss-"],[data-testid^="sale-inbox-clear-"],[data-testid^="sale-inbox-purge-"]');
+      const acts = [...row.querySelectorAll('button')].filter((b) => /sale-inbox-(open|memo|event|task|restore)-/.test(b.getAttribute('data-testid') || ''));
+      const sr = stage ? stage.getBoundingClientRect() : null;
+      return {
+        id, dir,
+        // 칩이 **자기 칸 안**에서 가운데인가 — 폰(세로 스택)에서는 이것이 ⑧ 의 뜻이다
+        chipOffInSlot: (slot && sr)
+          ? Math.round((sr.top + sr.height / 2)
+            - (slot.getBoundingClientRect().top + slot.getBoundingClientRect().height / 2)) : null,
+        rowH: Math.round(rr.height), rowTop: Math.round(rr.top), rowLeft: Math.round(rr.left),
+        rowRight: Math.round(rr.right),
+        // ⑧ 단계 칩의 세로 중심 vs 행의 세로 중심
+        stageOff: sr ? Math.round((sr.top + sr.height / 2) - (rr.top + rr.height / 2)) : null,
+        // ★ 열 정렬은 **칸**으로 잰다 — 칩은 칸 안에서 가운데 정렬이라 라벨 길이("없음" vs "협상중")
+        //   에 따라 x 가 달라진다. 칩으로 재면 정상 동작이 실패로 나온다
+        //   ([[feedback_variable_label_breaks_column_align]] — 2026-09-14 이 카나리가 실제로 그랬다).
+        slotLeft: slot ? Math.round(slot.getBoundingClientRect().left) : null,
+        slotW: slot ? Math.round(slot.getBoundingClientRect().width) : null,
+        stageLeft: sr ? Math.round(sr.left) : null,
+        // ⑩ [보기] 라벨
+        openLabel: open ? (open.innerText || '').trim() : null,
+        openW: open ? Math.round(open.getBoundingClientRect().width) : null,
+        openDest: open ? (open.getAttribute('title') || '').trim() : null,
+        // ⑪ 메모 버튼에 숫자가 붙지 않았다
+        memoLabel: memo ? (memo.innerText || '').trim() : null,
+        // ⑨ ✕ 박스
+        x: x ? (() => { const cs = getComputedStyle(x); const b = x.getBoundingClientRect();
+          return { h: Math.round(b.height), w: Math.round(b.width),
+            border: cs.borderTopWidth, bg: cs.backgroundColor }; })() : null,
+        // ⑥ 액션 높이 집합
+        actH: [...new Set(acts.map((b) => Math.round(b.getBoundingClientRect().height)))],
+        // ⑫ 메모보기 손잡이
+        toggle: (() => { const t = row.parentElement && row.parentElement.querySelector('[data-testid^="sale-inbox-memo-toggle-"]');
+          if (!t) return null; const tr = t.getBoundingClientRect();
+          return { left: Math.round(tr.left), top: Math.round(tr.top), text: (t.innerText || '').trim() }; })(),
+      };
+    });
+    return out;
+  }, VISIBLE);
+}
+
+async function run() {
+  const { browser, page } = await launch();
+  try {
+    await login(page);
+
+    for (const vp of VPS) {
+      await page.setViewport({ width: vp.w, height: vp.h, deviceScaleFactor: 1 });
+      await goto(page, '/sale');
+      await dismissBlockers(page);
+      await sleep(900);
+      const m = await measure(page);
+      const P = (n, ok, d) => push(`[${vp.key}] ${n}`, ok, d);
+
+      if (!m.rowCount) { P('상담 행이 있다 (0건 = 판정 불가)', false, 'sale-inbox-row-* 0건 — 이 폭 전부 미측정'); continue; }
+
+      // ── ② 축 셀렉트: 밖 라벨 없음 + "전체" 아님 ────────────────
+      const stray = m.axisLabelsOutside.filter((a) => a.missing || (a.strayLabel && a.strayLabel.length > 0));
+      const allText = m.axisLabelsOutside.map((a) => a.shown || '');
+      const anyAll = allText.filter((t) => /^전체$|^All$/.test(t));
+      P('② 축 이름이 셀렉트 **밖**에 없다', stray.length === 0,
+        `칸 3개 · 밖 라벨 ${stray.length}건` + (stray.length ? ` (${stray.map((s) => s.id + ':' + (s.strayLabel || 'missing')).join(', ')})` : ''));
+      P('② 셀렉트에 "전체" 가 보이지 않는다 (축 이름이 보인다)', anyAll.length === 0 && allText.every(Boolean),
+        `보이는 값: ${allText.join(' / ')}`);
+      P('② 셀렉트 3칸이 실제로 그려진다', m.axisLabelsOutside.every((a) => a.v && a.v.drawn),
+        m.axisLabelsOutside.map((a) => `${a.id}:${a.v ? (a.v.drawn ? 'drawn' : a.v.why) : 'x'}`).join(' · '));
+
+      // ── ① 종료 가리기 = 체크박스 ────────────────────────────
+      const showHide = !!m.hideClosed;
+      P('① 종료 가리기가 **체크박스**다', showHide && m.hideClosed.isCheckbox && m.hideClosed.v.drawn,
+        showHide ? `<${m.hideClosed.tag}> checkbox=${m.hideClosed.isCheckbox} drawn=${m.hideClosed.v.drawn}` : '상담 탭 아님/없음');
+
+      // ── ③ 필터줄 위 여백 ────────────────────────────────────
+      P('③ 필터줄 위가 붙어 있지 않다 (틈 ≥ 10px)', (m.gapAbove ?? 0) >= 10,
+        `위 형제와의 틈 ${m.gapAbove}px · margin-top ${m.filterMarginTop}px`);
+
+      // ── 한 줄 컨트롤 높이 ───────────────────────────────────
+      P('필터줄 컨트롤 높이가 한 값이다', m.filterHeights.length === 1,
+        `높이 집합 {${m.filterHeights.join(', ')}}`);
+
+      // ── ④⑤ 헤더 ────────────────────────────────────────────
+      P('④ 검색·탭·추가가 모두 헤더에 있다', m.headerHasAll && m.search.drawn && m.tabs.drawn && m.add.drawn,
+        `search=${m.search && m.search.drawn} tabs=${m.tabs && m.tabs.drawn} add=${m.add && m.add.drawn}`);
+      P('④ 헤더가 필터줄 **위**에 있다', m.headerAboveFilter === true, `headerBottom ≤ filterTop = ${m.headerAboveFilter}`);
+      P('④ 추가 버튼이 탭 **뒤**다 (문서 순서)', m.addAfterTabs === true, `addAfterTabs=${m.addAfterTabs}`);
+      P('⑤ 추가 버튼에 `+` 아이콘이 있다', !!(m.addStyle && m.addStyle.hasPlusSvg), `svg=${m.addStyle && m.addStyle.hasPlusSvg}`);
+      // "색상이 덜 진해야 한다" — primary 진한 청록(#0F766E)이 아니어야 한다
+      const dark = /rgb\(15,\s*118,\s*110\)/.test((m.addStyle || {}).bg || '');
+      P('⑤ 추가 버튼이 진한 primary 배경이 아니다', !dark, `background=${(m.addStyle || {}).bg}`);
+      P('⑥ 추가 버튼 높이가 32 (xs)', (m.addStyle || {}).h === 32, `h=${(m.addStyle || {}).h}px`);
+
+      // ── ⑥⑧⑨⑩⑪ 행 ──────────────────────────────────────────
+      const R = m.rows;
+      // ⑧ — **계약이 레이아웃마다 다르다.** 가로로 늘어선 행(데스크탑·태블릿)에서는 단계 칩이
+      //   행 높이의 세로 중앙에 와야 열이 보인다. 폰에서는 행이 `flex-direction: column` 이라
+      //   본문·단계·액션이 **세로로 쌓인 띠**다 — 거기서 "행의 세로 중앙" 은 뜻이 없다
+      //   (실측: 본문 60 / 단계 36 / 액션 32 → 단계 띠의 중심은 당연히 행 중심보다 14px 아래다).
+      //   그래서 폰에서는 **칩이 자기 칸 안에서 가운데인가**를 잰다. 검사를 끄는 것이 아니라
+      //   그 폭에서 참이어야 하는 명제로 바꾼 것이다.
+      const stacked = R.every((r) => r.dir === 'column');
+      if (stacked) {
+        const ins = R.map((r) => r.chipOffInSlot).filter((v) => v !== null);
+        P('⑧ (세로 스택) 단계 칩이 **자기 칸** 안에서 가운데다', ins.length > 0 && ins.every((v) => Math.abs(v) <= 2),
+          `행 ${ins.length}건 · 칸 안 어긋남 ${ins.join(', ')}px · flex-direction=column 이라 "행 세로중앙"은 미적용`);
+      } else {
+        const offs = R.map((r) => r.stageOff).filter((v) => v !== null);
+        P('⑧ 단계 칩이 행의 세로 중앙이다 (|어긋남| ≤ 2px)', offs.length > 0 && offs.every((v) => Math.abs(v) <= 2),
+          `행 ${offs.length}건 · 어긋남 ${offs.join(', ')}px`);
+      }
+
+      const labels = [...new Set(R.map((r) => r.openLabel))];
+      const openWs = [...new Set(R.map((r) => r.openW))];
+      P('⑩ [보기] 라벨이 한 낱말로 고정 + 폭도 같다', labels.length === 1 && openWs.length === 1,
+        `라벨 {${labels.join('|')}} · 폭 {${openWs.join('|')}}px`);
+      P('⑩ 목적지는 title 이 여전히 말한다', R.every((r) => r.openDest && r.openDest.length > 0),
+        `예: ${R[0].openDest}`);
+
+      const memoNum = R.filter((r) => /\d/.test(r.memoLabel || ''));
+      P('⑪ 메모 버튼에 개수 숫자가 없다', memoNum.length === 0,
+        `숫자 붙은 행 ${memoNum.length}건 · 예 "${R[0].memoLabel}"`);
+
+      const xs = R.map((r) => r.x).filter(Boolean);
+      P('⑨ ✕ 에 테두리 박스가 없다', xs.length > 0 && xs.every((x) => parseFloat(x.border) === 0),
+        `✕ ${xs.length}건 · border ${[...new Set(xs.map((x) => x.border))].join(',')}`);
+      P('⑨ ✕ 높이가 액션과 같다 (32)', xs.length > 0 && xs.every((x) => x.h === 32),
+        `높이 {${[...new Set(xs.map((x) => x.h))].join(',')}}`);
+      const actHs = [...new Set(R.flatMap((r) => r.actH))];
+      P('⑥ 행 액션 높이가 한 값(32)이다', actHs.length === 1 && actHs[0] === 32, `높이 집합 {${actHs.join(', ')}}`);
+
+      // 단계 열이 위아래로 맞는가 (라벨 고정폭의 근거)
+      const slotLefts = [...new Set(R.map((r) => r.slotLeft))];
+      const slotWs = [...new Set(R.map((r) => r.slotW))];
+      P('열 정렬 — 단계 **칸**의 x·폭이 행마다 같다', slotLefts.length === 1 && slotWs.length === 1,
+        `slotLeft {${slotLefts.join(', ')}} · slotW {${slotWs.join(', ')}}`
+        + ` ※ 칸 안의 칩은 가운데 정렬이라 x 가 라벨 길이만큼 다르다(정상): {${[...new Set(R.map((r) => r.stageLeft))].join(', ')}}`);
+
+      // ── ⑫⑬ 메모 ─────────────────────────────────────────────
+      const withToggle = R.filter((r) => r.toggle);
+      if (withToggle.length === 0) {
+        push(`[${vp.key}] ⑫⑬ 메모 손잡이 — 커버리지`, true, '메모가 달린 행이 이 목록에 없다 — ⑫⑬ 미측정');
+      } else {
+        const t = withToggle[0];
+        P('⑫ [메모보기] 가 행 **좌측 끝**에 있다 (행 왼쪽 ±8px)', Math.abs(t.toggle.left - t.rowLeft) <= 8,
+          `toggleLeft ${t.toggle.left} vs rowLeft ${t.rowLeft}`);
+        P('⑫ [메모보기] 가 행 **아래**다', t.toggle.top >= t.rowTop + t.rowH - 1,
+          `toggleTop ${t.toggle.top} vs rowBottom ${t.rowTop + t.rowH}`);
+      }
+
+      // ⑬ 메모를 열면 — 카드는 안 움직이고, 회색 판이 좌우 풀폭
+      const target = R[0];
+      const before = await page.evaluate((id) => {
+        const row = document.querySelector(`[data-testid="sale-inbox-row-${id}"]`);
+        const r = row.getBoundingClientRect();
+        return { top: Math.round(r.top), h: Math.round(r.height), left: Math.round(r.left), right: Math.round(r.right) };
+      }, target.id);
+      await page.click(`[data-testid="sale-inbox-memo-${target.id}"]`);
+      await sleep(500);
+      const after = await page.evaluate((id) => {
+        const row = document.querySelector(`[data-testid="sale-inbox-row-${id}"]`);
+        const pane = document.querySelector(`[data-testid="sale-inbox-memo-pane-${id}"]`);
+        const r = row.getBoundingClientRect();
+        const p = pane ? pane.getBoundingClientRect() : null;
+        const cs = pane ? getComputedStyle(pane) : null;
+        return {
+          row: { top: Math.round(r.top), h: Math.round(r.height), left: Math.round(r.left), right: Math.round(r.right) },
+          pane: p ? { top: Math.round(p.top), left: Math.round(p.left), right: Math.round(p.right), h: Math.round(p.height), bg: cs.backgroundColor } : null,
+          insideRow: pane ? row.contains(pane) : null,
+          hasInput: !!(pane && pane.querySelector('[data-testid="note-input"]')),
+        };
+      }, target.id);
+      P('⑬ 메모판이 열린다', !!after.pane && after.pane.h > 20, after.pane ? `h=${after.pane.h}` : '안 열림');
+      P('⑬ 메모판이 카드 **밖**(아래)이다', after.insideRow === false && after.pane && after.pane.top >= after.row.top + after.row.h - 1,
+        `insideRow=${after.insideRow} · paneTop ${after.pane && after.pane.top} vs rowBottom ${after.row.top + after.row.h}`);
+      P('⑬ 카드(리스트 행)가 움직이지 않는다', after.row.h === before.h && after.row.top === before.top,
+        `높이 ${before.h}→${after.row.h} · top ${before.top}→${after.row.top}`);
+      P('⑬ 메모판이 **좌우 풀폭**(행과 같은 x 범위)', after.pane
+        && Math.abs(after.pane.left - after.row.left) <= 1 && Math.abs(after.pane.right - after.row.right) <= 1,
+        after.pane ? `pane ${after.pane.left}~${after.pane.right} vs row ${after.row.left}~${after.row.right}` : '—');
+      P('⑬ 메모판이 회색이다', !!(after.pane && /248,\s*250,\s*252/.test(after.pane.bg)), `bg=${after.pane && after.pane.bg}`);
+      P('⑭ 메모 입력칸이 있다', after.hasInput === true, `note-input=${after.hasInput}`);
+
+      // ⑫ 손잡이로도 같은 것이 닫힌다 (하나의 상태)
+      if (withToggle.length && withToggle[0].id === target.id) {
+        await page.click(`[data-testid="sale-inbox-memo-toggle-${target.id}"]`);
+        await sleep(350);
+        const closed = await page.evaluate((id) => !document.querySelector(`[data-testid="sale-inbox-memo-pane-${id}"]`), target.id);
+        P('⑫ [메모보기] 와 [메모] 가 **같은 하나**를 여닫는다', closed, `손잡이로 닫힘=${closed}`);
+      } else {
+        await page.click(`[data-testid="sale-inbox-memo-${target.id}"]`);
+        await sleep(300);
+      }
+    }
+
+    // ── ⑭ Enter 전송 — 데스크탑에서 한 번만 (실제 POST 가 나가는지) ─────────
+    //   ★ 음성 대조군: **Shift+Enter 는 보내지 않는다**(줄바꿈). 둘 다 재야 "Enter 로 보낸다" 가 증명된다.
+    await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
+    await goto(page, '/sale');
+    await dismissBlockers(page);
+    await sleep(900);
+    const rid = await page.evaluate(() => {
+      const r = document.querySelector('[data-testid^="sale-inbox-row-"]');
+      return r ? r.getAttribute('data-testid').replace('sale-inbox-row-', '') : null;
+    });
+    if (!rid) { push('⑭ Enter 전송 — 판정 불가', false, '행 0건'); return results; }
+
+    const posts = [];
+    page.on('request', (req) => { if (req.method() === 'POST' && /\/notes?\b|consult-notes|\/notes$/.test(req.url())) posts.push(req.url()); });
+    await page.click(`[data-testid="sale-inbox-memo-${rid}"]`);
+    await sleep(600);
+    const hasInput = await page.evaluate(() => !!document.querySelector('[data-testid="note-input"]'));
+    if (!hasInput) { push('⑭ Enter 전송 — 판정 불가', false, '메모 입력칸 없음'); return results; }
+
+    // 음성 대조군 — Shift+Enter 는 줄바꿈이지 전송이 아니다
+    await page.click('[data-testid="note-input"]');
+    await page.type('[data-testid="note-input"]', '카나리 줄바꿈 시험');
+    await page.keyboard.down('Shift'); await page.keyboard.press('Enter'); await page.keyboard.up('Shift');
+    await sleep(500);
+    const afterShift = posts.length;
+    const shiftText = await page.evaluate(() => document.querySelector('[data-testid="note-input"]').value);
+    push('⑭ 음성 대조군 — Shift+Enter 는 보내지 않는다 (줄바꿈)',
+      afterShift === 0 && /\n/.test(shiftText), `POST ${afterShift}건 · 줄바꿈 ${/\n/.test(shiftText)}`);
+
+    // 본 판정 — Enter 는 보낸다
+    await page.keyboard.press('Enter');
+    await sleep(1200);
+    push('⑭ Enter 로 메모가 전송된다', posts.length >= 1, `POST ${posts.length}건 ${posts[0] || ''}`);
+    const cleared = await page.evaluate(() => (document.querySelector('[data-testid="note-input"]') || {}).value);
+    push('⑭ 전송 성공하면 입력칸이 비워진다', cleared === '', `남은 값 "${cleared}"`);
+
+    // ── ⑫ [메모보기 ⌄] — 방금 만든 메모로 **커버리지를 직접 만든다** ───────────
+    //   ★ dev 상담 목록에는 메모가 달린 행이 하나도 없어 ⑫ 가 계속 "미측정" 이었다.
+    //     0건을 초록으로 넘기지 않는다(memory feedback_empty_fixture_false_verdict) —
+    //     방금 Enter 로 넣은 메모가 있으니 그 행으로 잰다.
+    //   ★ 잰 뒤에는 **지운다**. 남기면 다음 실행마다 쌓이고, 뒤 스위트의 판정을 흔든다
+    //     (memory feedback_canary_pollutes_next_suite).
+    if (posts.length >= 1) {
+      await goto(page, '/sale');
+      await dismissBlockers(page);
+      await sleep(900);
+      const tg = await page.evaluate((id) => {
+        const row = document.querySelector(`[data-testid="sale-inbox-row-${id}"]`);
+        if (!row) return { missing: 'row' };
+        const t = row.parentElement && row.parentElement.querySelector('[data-testid^="sale-inbox-memo-toggle-"]');
+        if (!t) return { missing: 'toggle' };
+        const rr = row.getBoundingClientRect(), tr = t.getBoundingClientRect();
+        return {
+          left: Math.round(tr.left), rowLeft: Math.round(rr.left),
+          top: Math.round(tr.top), rowBottom: Math.round(rr.bottom),
+          text: (t.innerText || '').trim(),
+          drawn: tr.width > 1 && tr.height > 1,
+          memoLabel: (() => { const m = row.querySelector('[data-testid^="sale-inbox-memo-"]'); return m ? (m.innerText || '').trim() : null; })(),
+        };
+      }, rid);
+      push('⑫ 메모가 있으면 [메모보기] 가 나온다', !tg.missing && tg.drawn,
+        tg.missing ? `없음(${tg.missing})` : `"${tg.text}" drawn=${tg.drawn}`);
+      if (!tg.missing) {
+        push('⑫ [메모보기] 가 행 **좌측 끝**이다 (±8px)', Math.abs(tg.left - tg.rowLeft) <= 8,
+          `toggleLeft ${tg.left} vs rowLeft ${tg.rowLeft}`);
+        push('⑫ [메모보기] 가 행 **아래**다', tg.top >= tg.rowBottom - 1,
+          `toggleTop ${tg.top} vs rowBottom ${tg.rowBottom}`);
+        push('⑪ 메모가 생겨도 [메모] 버튼에 숫자가 안 붙는다', !/\d/.test(tg.memoLabel || ''),
+          `"${tg.memoLabel}"`);
+        // 손잡이로 열린다 → 같은 하나
+        await page.click(`[data-testid="sale-inbox-memo-toggle-${rid}"]`);
+        await sleep(500);
+        const opened = await page.evaluate((id) => !!document.querySelector(`[data-testid="sale-inbox-memo-pane-${id}"]`), rid);
+        push('⑫ [메모보기] 로도 같은 메모판이 열린다', opened, `열림=${opened}`);
+      }
+      // ── 뒷정리 — 방금 넣은 메모를 지운다(원장 원복) ──
+      try {
+        if (!await page.evaluate((id) => !!document.querySelector(`[data-testid="sale-inbox-memo-pane-${id}"]`), rid)) {
+          await page.click(`[data-testid="sale-inbox-memo-${rid}"]`); await sleep(600);
+        }
+        const removed = await page.evaluate(() => {
+          const pane = document.querySelector('[data-testid^="sale-inbox-memo-pane-"]');
+          if (!pane) return 0;
+          const dels = [...pane.querySelectorAll('button')].filter((b) => /^삭제$|^Delete$/.test((b.innerText || '').trim()));
+          dels.forEach((b) => b.click());
+          return dels.length;
+        });
+        await sleep(900);
+        push('뒷정리 — 카나리가 넣은 메모를 지웠다', removed >= 1, `지운 건수 ${removed}`);
+      } catch (e) { push('뒷정리 — 카나리가 넣은 메모를 지웠다', false, String(e && e.message || e)); }
+    }
+
+    return results;
+  } catch (e) {
+    push('카나리 실행', false, String(e && e.message || e));
+    return results;
+  } finally {
+    await browser.close();
+  }
+}
+
+module.exports = { name: 'Q sale 배치 (2차 신고 15건)', run };

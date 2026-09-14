@@ -94,6 +94,74 @@ async function touchClient(client, at) {
 }
 
 /** 목록·상세 공통 직렬화 — 접근 종류는 서버가 정한다(프론트가 user_id 로 판정하지 않는다) */
+/**
+ * 상담 메모가 **어디에 붙는가** — 화면(`components/QSale/SaleNoteThread.tsx` 의 target 판정)과
+ * 서버(`routes/sale_interactions.js` 의 NOTE_KINDS)가 쓰는 **같은 술어**.
+ *
+ * ★ 2026-09-14 — 이것을 한 곳으로 모은 이유:
+ *   목록의 `note_count` 가 **메모가 아니라 응대 내역(ClientInteraction)** 을 세고 있었다.
+ *   둘은 다른 표다(메모 = `project_notes`, 응대 내역 = `client_interactions`). 그래서
+ *   ①메모를 아무리 달아도 숫자가 안 늘고 ②응대 내역만 있는 행에는 메모가 0건인데도 손잡이가 떴다.
+ *   [메모보기] 손잡이가 `note_count > 0` 에 달리면서 그 어긋남이 **기능 결손**이 됐다
+ *   (메모를 달았는데 손잡이가 영영 안 나온다 — memory feedback_backend_done_ui_missing 계열).
+ *   메일·채팅·게스트 행은 아예 `note_count` 를 받지 못해 **항상 0** 이기도 했다.
+ */
+const NOTE_REF_COL = { email_thread: 'email_thread_id', conversation: 'conversation_id', client: 'client_id' };
+
+/** 행의 ref → 메모가 붙는 (칼럼, id). 게스트 링크의 메모는 그 **대화방**에 붙는다(화면과 같다). */
+function noteTargetOf(ref, clientId) {
+  if (!ref) return clientId ? { col: 'client_id', id: clientId } : null;
+  if (ref.kind === 'guest_link') return ref.conversation_id ? { col: 'conversation_id', id: ref.conversation_id } : null;
+  const col = NOTE_REF_COL[ref.kind];
+  if (col && ref.id) return { col, id: ref.id };
+  return clientId ? { col: 'client_id', id: clientId } : null;
+}
+
+/**
+ * 목록 행들의 **메모 건수**를 한 번에 센다.
+ * `personal` 은 본인 것만 — 조회 라우트(GET …/notes)와 **같은 가시성 술어**다. 안 맞추면
+ * 손잡이는 뜨는데 열면 비어 있다(남의 personal 을 세는 경우).
+ */
+async function noteCountsForItems(items, userId) {
+  const { ProjectNote } = require('../models');
+  const { fn, col: colRef } = require('sequelize');
+  const byCol = { email_thread_id: new Set(), conversation_id: new Set(), client_id: new Set() };
+  for (const it of items) {
+    const t = noteTargetOf(it.ref, it.client_id);
+    if (t && byCol[t.col]) byCol[t.col].add(t.id);
+  }
+  const counts = new Map();                       // `${col}:${id}` → n
+  // ★ **세는 것은 DB 가 센다.** 행을 끌어와 자바스크립트로 세면 `limit` 에 걸리는 순간
+  //   숫자가 **조용히 작아진다** — 오류도 안 나고 손잡이만 사라진다(memory feedback_silent_no_output_paths).
+  //   GROUP BY 면 대상 수만큼만 돌아오므로 상한이 곧 행 수다.
+  //   칼럼이 셋이라 쿼리도 최대 셋 — 행 수와 무관하다(N+1 아님).
+  for (const [c, ids] of Object.entries(byCol)) {
+    if (!ids.size) continue;
+    const rows = await ProjectNote.findAll({
+      where: {
+        [c]: { [Op.in]: [...ids] },
+        // personal 은 본인 것만 — GET …/notes 와 **같은 가시성 술어**. 안 맞추면 손잡이는 뜨는데
+        // 열면 비어 있다(남의 personal 을 센 경우).
+        [Op.or]: [{ visibility: { [Op.ne]: 'personal' } }, { author_user_id: userId || 0 }],
+      },
+      attributes: [c, [fn('COUNT', colRef('id')), 'n']],
+      group: [c],
+      raw: true,
+    });
+    for (const r of rows) counts.set(`${c}:${r[c]}`, Number(r.n) || 0);
+  }
+  return counts;
+}
+
+/** 위 두 함수를 묶어 행에 숫자를 박는다 — 부르는 곳이 매핑을 다시 쓰지 않게. */
+function applyNoteCounts(items, counts) {
+  for (const it of items) {
+    const t = noteTargetOf(it.ref, it.client_id);
+    it.note_count = t ? (counts.get(`${t.col}:${t.id}`) || 0) : 0;
+  }
+  return items;
+}
+
 async function serializeClients(businessId, rows) {
   const withA = await withAccess(businessId, rows);
   return withA.map((c) => ({
@@ -124,6 +192,8 @@ async function serializeClients(businessId, rows) {
 }
 
 module.exports = {
+  noteTargetOf, noteCountsForItems, applyNoteCounts,
+
   IN_PROGRESS, SOURCES, INTERACTION_KINDS, CURRENCIES, EMAIL_RE,
   blockClient, readChain, writeChain, broadcast,
   trimOrNull, normEmail, normPhoneDigits,

@@ -1352,7 +1352,11 @@ function checkUiSpec() {
     // ① 자체 페이지 헤더 선언 — PageShell/PanelHeader 를 두고 각자 만든 것
     const hdr = src.match(/const\s+(Header|HeaderBar|TopBar|PageHeader)\s*=\s*styled/g);
     if (hdr) { current.customHeaders += hdr.length; detail.customHeaders.push(`${r}(${hdr.length})`); }
-    // ② 컨트롤 높이 하드코딩 — 토큰(36/40/44) 외의 값
+    // ② 컨트롤 높이 하드코딩 — 토큰(32/36/40/44) 외의 값
+    // ★ 32 도 **토큰**이다 (2026-09-14 — ActionButton 에 `xs` 를 추가했다. Irene:
+    //   *"액션 버튼에 더 작은 크기가 필요해. 프로젝트 우측 상단 [프로젝트 링크] 정도의 크기."*)
+    //   그 크기를 쓰는 코드가 위반으로 세어지면 아래 40 과 **똑같은 사고**가 난다 —
+    //   규격을 지킨 새 코드가 래칫을 올린다. 토큰이 늘면 이 목록도 같이 늘린다.
     // ★ 40 은 **토큰**이다(ActionButton sm 36 / md 40 / lg 44 — CLAUDE.md 사이클 N+18).
     //   그런데 옛 패턴 `4[0-3]` 이 40 을 같이 잡아, 라벨("토큰 36/40/44 밖")과 정면으로
     //   모순돼 있었다. 규격대로 md 40 을 쓴 새 코드가 위반으로 세어져 래칫이 올라간다
@@ -1364,7 +1368,7 @@ function checkUiSpec() {
     //   그러면 사람은 규격을 맞추는 대신 검사기를 피하거나 베이스라인을 올리게 된다.
     //   제대로 고치려면 **요소 종류(styled.input/button/select/textarea)** 로 좁혀야 하는데,
     //   그건 702건 베이스라인을 통째로 다시 잡는 일이라 별도 건으로 남긴다.
-    const hs = src.match(/height:\s*(1[0-9]|2[0-9]|3[0-5]|3[7-9]|4[1-3])px/g);
+    const hs = src.match(/height:\s*(1[0-9]|2[0-9]|3[01]|3[3-5]|3[7-9]|4[1-3])px/g);
     if (hs) current.controlHeights += hs.length;
     // ③ 리스트 글자 크기 — 12px 미만은 목록에서 읽기 어렵다(모바일에서 특히)
     const fs = src.match(/font-size:\s*(9|10|11)(\.[0-9])?px/g);
@@ -1381,7 +1385,7 @@ function checkUiSpec() {
   const fails = [];
   const label = {
     customHeaders: '자체 페이지 헤더(PageShell·PanelHeader 대신 직접 만든 것)',
-    controlHeights: '컨트롤 높이 하드코딩(토큰 36/40/44 밖)',
+    controlHeights: '컨트롤 높이 하드코딩(토큰 32/36/40/44 밖)',
     listFontSizes: '11px 이하 글자(목록 가독성)',
     fixedMinWidth: '폰 대응 없는 고정 최소폭(가로 넘침)',
   };

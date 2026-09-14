@@ -98,43 +98,43 @@ async function run() {
     push('① 그 셋은 **목록 행 액션**으로 옮겨져 있다', listActs.length === 3,
       `목록에 있는 것: ${listActs.join(', ') || '없음'} (메모·일정·업무)`);
 
-    // ── ④ [보기] 라벨이 목적지와 맞는가 ───────────────────────────
-    //   라벨과 open_path 를 같은 곳에서 정한다 — 어긋나면 "이상한데로 보낸다"(Irene).
-    //   ★ 라벨만 보면 "이상한데로 보낸다" 를 못 잡는다 — **라벨과 목적지(open_path)가 같은 것을
-    //     가리키는지**까지 잰다. 그래서 서버 응답과 화면을 대조한다.
-    const labels = await page.evaluate(() => [...document.querySelectorAll('[data-testid^="sale-inbox-open-"]')]
-      .slice(0, 12).map((b) => ({ label: (b.innerText || '').trim() })));
-    const kinds = new Set(labels.map((l) => l.label));
-    // 라벨 → 가야 할 경로의 접두어. 라벨이 늘면 여기도 늘려야 한다(기본값으로 떨어뜨리지 않는다).
+    // ── ④ [보기]의 **목적지**가 행 종류를 따라가는가 ──────────────
+    //   ★ 2026-09-14 계약 변경 (Irene: *"[메일 보기]·[고객 상세 보기] 는 이름을 빼고
+    //     링크 아이콘 + 보기 만."*) — 이제 **보이는 글자는 행마다 같다**("보기"/"Open").
+    //     그래서 판정 대상을 글자가 아니라 **title/aria-label** 로 옮겼다. 검사를 끄지 않는다:
+    //     2026-09-13 신고("이상한데로 보내고")가 잡아낸 것은 라벨의 모양이 아니라
+    //     **행 종류 → 목적지 매핑이 이분법으로 뭉개진 것**이었고, 그 위험은 그대로 있다.
+    //   ★ 보이는 라벨이 **정말 고정폭인지**도 같이 잰다 — 그것이 열 어긋남을 없앤 근거다.
+    const opens = await page.evaluate(() => [...document.querySelectorAll('[data-testid^="sale-inbox-open-"]')]
+      .slice(0, 12).map((b) => ({
+        label: (b.innerText || '').trim(),
+        dest: (b.getAttribute('title') || b.getAttribute('aria-label') || '').trim(),
+        w: Math.round(b.getBoundingClientRect().width),
+      })));
+    const destKinds = new Set(opens.map((o) => o.dest));
+    // 목적지 문구 → 가야 할 경로의 접두어. 종류가 늘면 여기도 늘린다(기본값으로 떨어뜨리지 않는다).
     const WANT = [
       [/메일 보기|Open in Mail/, '/mail'],
       [/채팅 보기|Open in Chat/, '/talk'],
       [/게스트 대화 보기|Open guest chat/, '/talk'],
       [/고객 상세 보기|Open client detail/, '/sale/'],
     ];
-    const unknown = [...kinds].filter((k) => !WANT.some(([re]) => re.test(k)));
-    push('④ [보기] 라벨이 행 종류를 따라간다', labels.length > 0 && unknown.length === 0,
-      `라벨 ${[...kinds].join(' / ')} · 측정 ${labels.length}건`
-      + (unknown.length ? ` · 뜻 모를 라벨 ${unknown.join(',')}(기본값으로 떨어졌다)` : ''));
+    const unknown = [...destKinds].filter((k) => !WANT.some(([re]) => re.test(k)));
+    push('④ [보기]의 목적지가 행 종류를 따라간다 (title/aria-label)',
+      opens.length > 0 && unknown.length === 0,
+      `목적지 ${[...destKinds].join(' / ') || '없음'} · 측정 ${opens.length}건`
+      + (unknown.length ? ` · 뜻 모를 목적지 ${unknown.join(',')}(기본값으로 떨어졌다)` : ''));
 
-    // 라벨 ↔ 실제 목적지 대조 — 눌러 보지 않고 서버가 준 open_path 와 맞춘다
-    const mism = await page.evaluate((WANT_SRC) => {
-      const want = WANT_SRC.map(([re, pre]) => [new RegExp(re), pre]);
-      const rows = [...document.querySelectorAll('[data-testid^="sale-inbox-row-"]')].slice(0, 12);
-      const out = [];
-      for (const row of rows) {
-        const btn = row.querySelector('[data-testid^="sale-inbox-open-"]');
-        if (!btn) continue;
-        const label = (btn.innerText || '').trim();
-        const hit = want.find(([re]) => re.test(label));
-        out.push({ label, prefix: hit ? hit[1] : null });
-      }
-      return out;
-    }, WANT.map(([re, pre]) => [re.source, pre]));
-    const mailOnly = [...kinds].every((k) => /메일|Mail/.test(k));
-    push('④ 라벨이 가리키는 곳이 한 종류로 정해진다', mism.length > 0 && mism.every((m) => m.prefix),
-      `${mism.length}건 대조`
-      + (mailOnly ? ' ※ 커버리지: dev 상담 889건이 **전부 메일**이다 — guest/client/chat 분기는 이 실행에서 미측정' : ''));
+    // 보이는 글자는 **한 낱말로 고정**이다 — 여기가 흔들리면 열 어긋남(20px)이 되돌아온다.
+    const labelSet = new Set(opens.map((o) => o.label));
+    const widthSet = new Set(opens.map((o) => o.w));
+    push('④-B 보이는 라벨이 행마다 같고 폭도 같다',
+      opens.length > 0 && labelSet.size === 1 && widthSet.size === 1,
+      `라벨 {${[...labelSet].join('|')}} · 폭 {${[...widthSet].join('|')}}px`);
+
+    const mailOnly = [...destKinds].every((k) => /메일|Mail/.test(k));
+    if (mailOnly) push('④-C 커버리지', true,
+      '※ dev 상담이 **전부 메일**이다 — guest/client/chat 분기는 이 실행에서 미측정');
 
     // ── 패널 열기 ─────────────────────────────────────────────────
     await page.click(`[data-testid="sale-inbox-row-${rows[0]}"] button`);

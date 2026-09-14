@@ -76,7 +76,7 @@ function SaleNoteThread({ businessId, item, myUserId, onChanged }: {
       draftEntityId={`${target.kind}:${target.id}`}
       draftBizId={businessId}
       emptyText={t('note.empty', { defaultValue: '아직 메모가 없습니다' }) as string}
-      placeholder={t('note.placeholder', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string}
+      placeholder={t('note.placeholder', { defaultValue: '메모 작성... (Enter 저장 · Shift+Enter 줄바꿈)' }) as string}
     />
   );
 }

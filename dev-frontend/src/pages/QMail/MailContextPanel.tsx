@@ -474,7 +474,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           draftBizId={businessId}
           draftLegacyKey={`planq:draft:mail-issue:${myUserId || 0}:${thread.id}`}
           emptyText={t('context.issuesEmpty', { defaultValue: '아직 이슈가 없습니다' }) as string}
-          placeholder={t('context.issuePh', { defaultValue: '이슈 작성... (⌘/Ctrl+Enter 저장)' }) as string}
+          placeholder={t('context.issuePh', { defaultValue: '이슈 작성... (Enter 저장 · Shift+Enter 줄바꿈)' }) as string}
         />
       </WorkbenchSection>
 
@@ -498,7 +498,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
           draftBizId={businessId}
           draftLegacyKey={`planq:draft:mail-note:${myUserId || 0}:${thread.id}`}
           emptyText={t('context.notesEmpty', { defaultValue: '아직 메모가 없습니다' }) as string}
-          placeholder={t('context.notePh', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string}
+          placeholder={t('context.notePh', { defaultValue: '메모 작성... (Enter 저장 · Shift+Enter 줄바꿈)' }) as string}
         />
       </WorkbenchSection>
 

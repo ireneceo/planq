@@ -523,15 +523,16 @@ async function listConsults(businessId, opts = {}) {
   const { ClientInteraction } = require('../models');
   const ids = rows.map((c) => c.id);
   const touched = new Set();
-  // 리스트의 [메모] 가 몇 건인지 보여주고, 0 건이면 펼쳐도 빈 것을 알 수 있게 한다
-  const noteCount = new Map();
+  // ★ 2026-09-14 — 여기서 세던 것은 **메모가 아니라 응대 내역**이었다(다른 표다).
+  //   그걸 `note_count` 로 내보내서 ①메모를 달아도 숫자가 안 늘고 ②응대 내역만 있는 행에
+  //   메모 손잡이가 떴다. 메모 건수는 아래에서 `noteCountsForItems` 한 술어로 센다.
+  //   이 쿼리는 이제 **`touched`(답할 차례 판정)** 만을 위한 것이다 — 그 뜻 그대로 남긴다.
   if (ids.length) {
     const its = await ClientInteraction.findAll({
       where: { business_id: businessId, client_id: { [Op.in]: ids }, deleted_at: null },
-      attributes: ['client_id', [ClientInteraction.sequelize.fn('COUNT', ClientInteraction.sequelize.col('id')), 'n']],
-      group: ['client_id'], raw: true,
+      attributes: ['client_id'], group: ['client_id'], raw: true,
     });
-    for (const it of its) { touched.add(it.client_id); noteCount.set(it.client_id, Number(it.n) || 0); }
+    for (const it of its) touched.add(it.client_id);
   }
 
   const clientItems = rows.map((c) => ({
@@ -548,7 +549,6 @@ async function listConsults(businessId, opts = {}) {
     preview: null,
     at: c.last_touch_at || c.created_at,
     needs_reply: c.sales_stage === 'inquiry' && !touched.has(c.id),
-    note_count: noteCount.get(c.id) || 0,
     meta: { status: c.status, sales_source: c.sales_source, assigned_member_id: c.assigned_member_id },
     open_path: `/sale/${c.id}`,
   }));
@@ -560,6 +560,11 @@ async function listConsults(businessId, opts = {}) {
   //   같은 묶음 안에서는 최신 접점 순 — `last_touch_at` 이 없으면 만든 시각을 쓴다(위에서 채웠다).
   const byAt = (a, b) => new Date(b.at || 0).getTime() - new Date(a.at || 0).getTime();
   const merged = [...filtered.sort(byAt), ...base.items.sort(byAt)].slice(0, limit);
+  // ★ 메모 건수는 **행 종류를 가리지 않는다** — 메일·채팅·게스트·고객 전부에 붙인다.
+  //   전에는 고객 행에만(그것도 응대 내역 건수로) 있어서, 메일 행에 메모를 달면 숫자가 영영 0 이었다.
+  //   술어는 `services/saleCommon` 한 곳(화면 SaleNoteThread 의 대상 판정과 같다).
+  const { noteCountsForItems, applyNoteCounts } = require('./saleCommon');
+  applyNoteCounts(merged, await noteCountsForItems(merged, userId));
   const counts = {
     ...base.counts,
     client: filtered.length,

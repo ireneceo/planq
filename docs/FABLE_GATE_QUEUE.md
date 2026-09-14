@@ -1898,3 +1898,73 @@ F. **법인 2개 구조** — Stripe 가입 법인(말레이시아)과 서비스
 
 **2026-09-14 (10차) — 또 429.** req_011Cf3kALF27zyfGgQvC7baW.
 ⛔ **blocked_on_human — `/usage-credits`.** 보고에는 **"Fable 미검증(자체 검증)"** 이라 쓴다.
+
+---
+
+## 42. Q sale 2차 신고 15건 — 공용 껍데기 4곳 + `note_count` 단일 술어 (2026-09-14, 미배포)
+
+**판정: R=0 · S=0 · F=1 → 원래는 자체 검증 대상이다.** 돈·인증·운영 스키마·외부 발송·공개 표면 어디에도
+닿지 않는다(DB 마이그레이션 0 · 라우트 신설 0). 화면 배치는 기계로 참/거짓이 갈린다.
+그럼에도 게이트에 올린 이유는 **백엔드 파생값(`note_count`)의 술어를 바꿨기** 때문이다.
+**Fable 2회 시도 전부 429** (req_011Cf3pBSR6FP4Z1zkHjCxG5 · req_011Cf3prTyBvaRSromG43Vkz).
+
+### 구현 — 화면이 아니라 **껍데기**를 고쳤다
+| 껍데기 | 무엇을 | 번지는 곳 |
+|---|---|---|
+| `Common/ActionButton.tsx` | **`xs` 32px** 신설 (Irene: *"프로젝트 우측 상단 [프로젝트 링크] 정도"* → `QProjectDetailPage.styles.HeaderBtn` 규격을 그대로). 모바일 44 강제는 xs 만 제외 | 전 화면(신규 사용은 Q sale 뿐) |
+| `Common/filterBar.tsx` | `LabeledFilter` → **`FilterSlot` + `axisOption`**(축 이름이 첫 옵션) · **`CheckFilter`** 신설 · `margin-top:14px` | Q sale(유일 사용처) |
+| `Common/NoteThread.tsx` | **Enter 전송**(Shift+Enter 줄바꿈 · IME 가드 유지) | **3파일 4곳** — Q mail 이슈·메모 · Q Talk 메모 · Q sale 메모 |
+| `services/saleCommon.js` | **`noteTargetOf` / `noteCountsForItems` / `applyNoteCounts`** 신설 | `services/saleInbox.js` |
+| `scripts/guard-invariants.js` | controlHeights 토큰에 **32** 추가 → 베이스라인 **740 → 636** | 전 저장소 |
+
+**★ 카나리가 내 결함을 잡았다 — `note_count` 가 메모가 아니었다.**
+`services/saleInbox.js` 가 `note_count` 로 **`ClientInteraction`(응대 내역 = 원장)** 을 세고 있었다.
+화면의 [메모]는 **`ProjectNote`** 다 — 다른 표다. 이번에 [메모보기 ⌄] 손잡이를 `note_count > 0` 에
+달면서 그 어긋남이 **기능 결손**이 됐다: 메모를 달아도 손잡이가 영영 안 뜨고, 응대 내역만 있으면
+거짓으로 떴다. 메일·채팅·게스트 행은 `note_count` 를 **아예 받지 못해** 항상 0이었다.
+→ 대상 판정을 `saleCommon` 한 곳(화면 `SaleNoteThread` 의 target 판정과 같은 술어)으로 모으고
+  **모든 행 종류**에 적용. 세는 것은 **DB 가 GROUP BY 로** 센다(행을 끌어와 세면 `limit` 에 걸리는
+  순간 숫자가 조용히 작아진다).
+
+### 자체 검증 (Fable 미검증 — 자체 검증)
+- 빌드 **EXIT 0 · `error TS` 0** (첫 빌드 EXIT 2 — styled 주석 안 백틱이 템플릿을 끊었다)
+- health-check **44/44** · guard-invariants **통과**(uispec 636/636) · `--suite tenant` **실패 0**
+- 새 카나리 **`--suite salelayout`** — 폰390·태블릿834·데스크탑1440 **3폭, 통과 90 · 실패 0**
+  · ⑧ 단계 칩 어긋남 데스크탑/태블릿 **0px**, 폰은 `flex-direction:column` 이라 **칸 안 중앙 0px** 로 계약을 갈랐다
+  · ⑩ [보기] 라벨 `{보기}` · 폭 `{65}px` **단일** · ⑬ 메모판 `240~1420` = 행 `240~1420`(풀폭) · 카드 높이 `64→64` 불변
+  · ⑭ **실 POST 1건** + **음성 대조군 Shift+Enter POST 0건**(줄바꿈 O) · 카나리가 넣은 메모는 **스스로 지운다**
+- `note_count` **실 HTTP 4축** (스크립트 실행 후 `rm`):
+  100행 전부 필드 보유(응답 77ms) · 메모 3건(internal/personal/shared) 후 `0 → 3` ·
+  **손잡이 숫자 == 실제 조회 건수 3 vs 3**(가시성 술어 일치의 증거) · 삭제 후 `→ 0` 복귀
+  · **음성 대조군**: 응대 내역을 **실제로 201 생성**(id=23)했는데 `note_count` **0 유지**
+    (옛 코드였다면 1 이 떠서 거짓 손잡이가 붙었다)
+- 가드 토큰 변경의 **양성 대조군**: `height: 31px` 를 심으면 FAIL(601 vs 600), 빼면 PASS
+- 열 정렬 판정의 **양성 대조군**: `StageSlot width:150px → auto` 로 빌드 후 재측정 →
+  태블릿·데스크탑 **FAIL 로 뒤집힘**(폰은 ≤640 에서 `width:100%` 라 원래 균일 — 정상). 원복·재빌드 확인
+
+### ★ 내 판정기가 두 번 틀렸다 (둘 다 고치고 메모리에 박제)
+1. 열 정렬을 **칸이 아니라 칩**으로 재서 거짓 실패 3건. 칸은 927px 로 전 행 동일했고, 가운데 정렬된
+   칩의 x 가 라벨 길이("없음" vs "협상중")만큼 다른 것은 정상이다 → `feedback_center_aligned_chip_x_is_not_a_column`
+2. 첫 **양성 대조군이 거짓 통과**. `:nth-of-type(odd)` 는 **같은 태그** 기준이라 `StageSlot` 이 언제나
+   첫 div → 모든 행에 똑같이 먹어 폭이 균일해졌다. 결함을 심은 줄 알았는데 안 심겼다.
+
+### Fable 이 봐야 할 것
+A. **`note_count` 가 셋 이상의 진입점에서 같은 뜻인가.** 나는 목록(`listConsults`) 하나만 고쳤다.
+   `listUnlinkedTouchpoints`·요약(`sale_summary.js`)·우측 패널이 같은 숫자를 다른 공식으로 만들고 있지 않은지
+   전수로 봐야 한다([[feedback_same_value_multiple_formulas]] 계열).
+B. **멀티테넌트** — `project_notes` 에는 `business_id` 컬럼이 **없다.** 격리는 전적으로 대상 id
+   (email_thread_id·conversation_id·client_id)가 이미 이 워크스페이스 것이라는 전제에 기댄다.
+   나는 `listConsults` 의 세 소스가 모두 `business_id: businessId` 로 거르는 것을 grep 으로 확인했을 뿐,
+   **남의 워크스페이스 메모가 세어질 경로를 실호출로 반증하지는 못했다.** 기존 조회 라우트
+   (`GET …/notes`)와 같은 전제이므로 새 노출면은 아니지만, 그 전제 자체를 검증해야 한다.
+C. **가시성 술어** — personal 을 본인 것만 세는 것을 "숫자 == 조회 건수" 로 간접 증명했다.
+   **다른 사용자의 personal 메모**로 직접 반증하지 못했다(두 번째 계정이 필요하다).
+D. **Enter 전송이 다른 화면에서도 같은가** — Q mail 맥락 패널·Q Talk 우측 패널은 **코드가 같은 껍데기**라는
+   것만 확인했고 실브라우저로 누르지는 않았다(잰 것은 Q sale 뿐).
+E. **`ActionButton` 모바일 44 강제에서 xs 만 제외**한 것 — 지금은 사용처가 Q sale 뿐이라 안전하지만,
+   다른 화면이 xs 를 쓰기 시작하면 폰 터치 타겟이 32 로 남는다. 규칙으로 못을 박을지.
+F. **15번(고객 탭)을 손대지 않은 판단** — 고객 탭은 표이고 행 액션이 0건이라 맞출 맥락이 없다.
+   Irene 확인 대기 중.
+
+**2026-09-14 (11·12차) — 또 429.** ⛔ **blocked_on_human — `/usage-credits`.**
+보고에는 **"Fable 미검증(자체 검증)"** 이라 쓴다. "통과" 라고 쓰지 않는다.

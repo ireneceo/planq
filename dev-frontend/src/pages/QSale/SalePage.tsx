@@ -13,7 +13,7 @@ import PageShell from '../../components/Layout/PageShell';
 import ClientPanel from '../../components/QSale/ClientPanel';
 import ClientLink from '../../components/QSale/ClientLink';
 import PlanQSelect from '../../components/Common/PlanQSelect';
-import { FilterBar, FilterSearchSlot, FilterRight, LabeledFilter, ToggleFilter } from '../../components/Common/filterBar';
+import { FilterBar, FilterSlot, ToggleFilter, CheckFilter, axisOption } from '../../components/Common/filterBar';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import ActionButton from '../../components/Common/ActionButton';
 import StandardModal from '../../components/Common/StandardModal';
@@ -163,13 +163,16 @@ export default function SalePage() {
     || (!!summary.quota.prospects_max && summary.quota.prospects / summary.quota.prospects_max >= 0.8)
   );
 
+  // ★ 2026-09-14 2차 — 첫 옵션의 라벨은 **축 이름**이다 (Irene: *"항목명으로 필요 없고 전체가
+  //   필요없는 거야."*). 고르기 전에는 무슨 축인지 보이고, 이 옵션을 다시 고르면 필터가 풀린다.
+  //   `axisOption` 한 함수로만 만든다 — 손으로 쓰면 화면마다 "전체"/축 이름이 섞인다.
   const stageOptions = useMemo(() => ([
-    { value: '', label: t('list.filterAll') as string },
+    axisOption(t('stage.label') as string),
     { value: 'in_progress', label: t('list.stageInProgress') as string },
     ...SALE_STAGES.map((s) => ({ value: s, label: t(`stage.${s}`) as string })),
   ]), [t]);
   const accessOptions = useMemo(() => ([
-    { value: '', label: t('list.filterAll') as string },
+    axisOption(t('access.label') as string),
     { value: 'guest', label: t('access.guest') as string },
     { value: 'invited', label: t('access.invited') as string },
     { value: 'member', label: t('access.member') as string },
@@ -178,7 +181,7 @@ export default function SalePage() {
     const names = new Map<number, string>();
     for (const c of items) if (c.assigned_member) names.set(c.assigned_member.id, c.assigned_member.name);
     return [
-      { value: '', label: t('list.filterAll') as string },
+      axisOption(t('list.assignee') as string),
       { value: 'none', label: t('list.assigneeNone') as string },
       ...[...names.entries()].map(([id, name]) => ({ value: String(id), label: name })),
     ];
@@ -191,11 +194,20 @@ export default function SalePage() {
       actions={(
         <Actions>
           {/* ★ 2026-09-14 (Irene: *"Q sale UI를 Q task 처럼 해줘. 우측 상단에 연회색 탭으로 상담, 고객을
-              넣어주고, 그 다음 Cue 에게 말하기 나오고, 그 다음 필터들 … 색상이나 디자인 막 바꾸지 말고
-              배치를 맞춰봐."*)
+              넣어주고 … 색상이나 디자인 막 바꾸지 말고 배치를 맞춰봐."*)
               탭이 **머리 오른쪽**으로 올라간다. Q task 의 [내 업무 | 전체 업무] 와 같은 컴포넌트다
               (`components/Common/segmentedToggle` — 베끼지 않고 빼서 같이 쓴다).
-              주 액션([고객응대 내역 추가])은 **필터 줄 오른쪽**으로 내려간다. */}
+
+              ★ 2026-09-14 2차 (Irene: *"검색 · [고객응대 내역 추가] 를 우측 상단 헤더에 붙여줘.
+                추가 버튼은 상담/고객 탭 뒤에."*) — 검색과 주 액션이 **필터줄에서 헤더로** 올라왔다.
+                필터줄에는 이제 **거르는 것만** 남는다(축 셀렉트 3 + 대응필요만 + 종료가리기).
+                자리: [검색] [상담|고객] [+ 고객응대 내역 추가] */}
+          <HeaderSearch>
+            <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
+              data-testid="sale-search"
+              placeholder={t('list.searchPlaceholder') as string}
+              aria-label={t('list.searchPlaceholder') as string} />
+          </HeaderSearch>
           <SegmentedToggle role="tablist">
             <SegmentedBtn type="button" role="tab" aria-selected={tab === 'inbox'} data-testid="sale-tab-inbox"
               $active={tab === 'inbox'} onClick={() => setTab('inbox')}>
@@ -206,6 +218,12 @@ export default function SalePage() {
               {t('list.tabClients') as string}
             </SegmentedBtn>
           </SegmentedToggle>
+          {/* ★ 2026-09-14 2차 (Irene: *"`+` 를 붙이는 것이 기존 버튼 스타일이야. 색상도 덜 진해야 하고."*)
+              다른 목록 화면의 추가 버튼과 같은 모양 — 앞에 `+`, secondary 톤, 작은 크기(xs). */}
+          <ActionButton tone="secondary" size="xs" data-testid="sale-add-inquiry"
+            icon={<PlusIcon aria-hidden />} onClick={() => setAddOpen(true)}>
+            {t('action.addRecord') as string}
+          </ActionButton>
         </Actions>
       )}
     >
@@ -226,35 +244,30 @@ export default function SalePage() {
           }} />
       )}
 
-      {/* ★ 2026-09-14 — 검색과 필터가 **한 줄**이다 (Irene: *"전체 전체 전체 이렇게 나오게 하지 말고
-          무슨 필터인지 알게 하고 검색 옆에 배치해. 이거 전에도 요청했는데 왜 안해?"*).
-          · 축 이름을 셀렉트 **밖에** 붙였다 — 안에 넣으면 값을 고르는 순간 축 이름이 사라진다.
-          · 같은 축(단계·접근·담당)을 **두 탭에 똑같이** 건다. 상담 탭에만 없던 것이 "다른 필터는 어딨어?" 였다.
+      {/* ★ 2026-09-14 2차 — 여기 남은 것은 **거르는 것뿐**이다(검색·추가는 헤더로 올라갔다).
+          · 축 이름은 셀렉트 **안**(첫 옵션). "전체" 라는 낱말은 쓰지 않지만 되돌릴 길은 그 옵션이다.
+          · 같은 축(단계·접근·담당)을 **두 탭에 똑같이** 건다.
+          · 대응 필요만 = 알약(지금 이것만 본다) / 종료 가리기 = 체크박스(늘 이렇게 본다). 쓰임이 다르다.
           · 좁아지면 가로로 숨기지 않고 **줄이 바뀐다**. */}
       <FilterBar data-testid="sale-filter-row">
-        <FilterSearchSlot>
-          <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
-            placeholder={t('list.searchPlaceholder') as string}
-            aria-label={t('list.searchPlaceholder') as string} />
-        </FilterSearchSlot>
-        <LabeledFilter label={t('stage.label') as string} width={130} testId="sale-stage-filter">
+        <FilterSlot width={130} testId="sale-stage-filter">
           <PlanQSelect size="sm" isSearchable={false} options={stageOptions}
             aria-label={t('stage.label') as string}
             value={stageOptions.find((o) => o.value === stage) || stageOptions[0]}
             onChange={(opt: unknown) => setStage(String((opt as { value?: string } | null)?.value ?? ''))} />
-        </LabeledFilter>
-        <LabeledFilter label={t('access.label') as string} width={120} testId="sale-access-filter">
+        </FilterSlot>
+        <FilterSlot width={120} testId="sale-access-filter">
           <PlanQSelect size="sm" isSearchable={false} options={accessOptions}
             aria-label={t('access.label') as string}
             value={accessOptions.find((o) => o.value === access) || accessOptions[0]}
             onChange={(opt: unknown) => setAccess(String((opt as { value?: string } | null)?.value ?? ''))} />
-        </LabeledFilter>
-        <LabeledFilter label={t('list.assignee') as string} width={130} testId="sale-assignee-filter">
+        </FilterSlot>
+        <FilterSlot width={130} testId="sale-assignee-filter">
           <PlanQSelect size="sm" isSearchable={false} options={assigneeOptions}
             aria-label={t('list.assignee') as string}
             value={assigneeOptions.find((o) => o.value === assignee) || assigneeOptions[0]}
             onChange={(opt: unknown) => setAssignee(String((opt as { value?: string } | null)?.value ?? ''))} />
-        </LabeledFilter>
+        </FilterSlot>
         {tab === 'inbox' && (
           <>
             {/* 참/거짓 하나짜리는 셀렉트로 만들지 않는다 — 켜고 끄는 것이 곧 뜻이다 */}
@@ -263,20 +276,15 @@ export default function SalePage() {
               {t('inbox.needsReplyOnly') as string}
               {inboxCounts ? <b>{inboxCounts.needs_reply}</b> : null}
             </ToggleFilter>
-            <ToggleFilter type="button" data-testid="sale-inbox-hide-closed"
-              $on={hideClosed} onClick={() => setHideClosed((v) => !v)}>
+            {/* ★ 종료 가리기는 **체크박스**로 되돌렸다 (Irene 2026-09-14: *"기존대로 체크박스."*)
+                기본 켜짐인 상시 설정이라 알약으로 강조할 것이 아니다. */}
+            <CheckFilter data-testid="sale-inbox-hide-closed">
+              <input type="checkbox" checked={hideClosed}
+                onChange={(e) => setHideClosed(e.target.checked)} />
               {t('inbox.hideClosed') as string}
-            </ToggleFilter>
+            </CheckFilter>
           </>
         )}
-        {/* 주 액션은 **필터 줄 오른쪽 끝**. 줄이 감기면 이 버튼이 다음 줄 오른쪽에 선다.
-            ★ 2026-09-13 (Irene: *"+문의추가는 고객응대내용 추가 이 팝업 뜨게 하고 이름도 이걸로 해."*)
-              "문의 추가" 와 "고객응대 내역 추가" 는 같은 일이었다 — 이름과 칸을 하나로 합친 그대로다. */}
-        <FilterRight>
-          <ActionButton tone="primary" size="sm" data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
-            {t('action.addRecord') as string}
-          </ActionButton>
-        </FilterRight>
       </FilterBar>
 
       {tab === 'inbox' ? (
@@ -570,9 +578,22 @@ const Actions = styled.div`
   display: flex; align-items: center; gap: 8px;
   @media (max-width: 640px) { > *:last-child { order: -1; } }
 `;
+/* 헤더의 검색칸 — 머리 줄에 서므로 헤더 컨트롤 높이(32)에 맞춘다.
+   폭은 데스크탑에서 적당히 고정하고, 폰에서는 남는 만큼 늘린다(머리 줄이 가로로 스크롤된다). */
+const HeaderSearch = styled.div`
+  flex: 0 1 200px; min-width: 120px;
+  @media (max-width: 640px) { flex: 1 1 140px; }
+`;
+const PlusIcon = styled.span.attrs({
+  children: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  ),
+})`display: inline-flex; align-items: center;`;
 const SearchInput = styled.input`
-  /* 폭은 감싸는 FilterSearchSlot 이 정한다 — 고정 200px 이면 필터 줄에서 늘지도 줄지도 않는다 */
-  height: 36px; width: 100%; padding: 0 10px;
+  height: 32px; width: 100%; padding: 0 10px; box-sizing: border-box;
   border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #5EEAD4; }
 `;

@@ -130,7 +130,7 @@
     "invite": "Send invitation",
     "openClientSettings": "Customer details",
     "retry": "Try again",
-    "view": "View",
+    "view": "Open",
     "addTask": "Add task",
     "registerClient": "Register as client",
     "createProject": "Create project",
@@ -164,16 +164,17 @@
     "addEvent": "Add event",
     "removeFromInbox": "Remove from inbox",
     "removeFromInboxTitle": "Remove this from the inbox?",
-    "removeFromInboxBody": "It disappears from the sales inbox. The original email isn't deleted, and you can restore it from the archive.",
+    "removeFromInboxBody": "It disappears from the sales inbox. The original email isn't deleted, and you can restore it from the trash.",
     "deleteClient": "Delete client",
     "deleteClientTitle": "Delete this client?",
     "deleteClientBody": "Deletes {{who}}. This cannot be undone. Linked tasks, invoices and conversations remain, but lose their link to this client.",
     "purgeFromInbox": "Remove from consults permanently",
     "purgeTitle": "Remove from consults permanently?",
-    "purgeBody": "This will never appear in the consult list or the archive again. The email itself stays in Q mail.",
+    "purgeBody": "This will never appear in the consult list or the trash again. The email itself stays in Q mail.",
     "purgeConfirm": "Remove permanently",
     "clearStageTitle": "Take this out of the consult list?",
-    "clearStageBody": "Customer details and records stay as they are; only the sales stage becomes “none”. Give it a stage again and it returns to the list."
+    "clearStageBody": "Customer details and records stay as they are; only the sales stage becomes “none”. Give it a stage again and it returns to the list.",
+    "memoOpen": "Show notes"
   },
   "record": {
     "kind": {
@@ -338,7 +339,7 @@
       "email": "Email",
       "chat": "Chat",
       "client": "Registered",
-      "dismissed": "Not an inquiry"
+      "dismissed": "Trash"
     },
     "needsReply": "Needs action",
     "needsReplyOnly": "Needs action only",
@@ -410,6 +411,6 @@
   "note": {
     "noTarget": "Notes cannot be attached to this row.",
     "empty": "No notes yet",
-    "placeholder": "Write a note… (⌘/Ctrl+Enter to save)"
+    "placeholder": "Write a note… (Enter to save · Shift+Enter for a new line)"
   }
 }
