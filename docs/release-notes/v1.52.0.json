@@ -1,0 +1,106 @@
+{
+  "version": "1.52.0",
+  "date": "2026-09-14",
+  "items": [
+    {
+      "ko": {
+        "title": "알림 메일을 껐는데도 오던 문제",
+        "body": "알림 설정에서 메일을 전부 껐는데도 «확인하지 않은 알림» 메일이 계속 갔습니다. 어제 추가한 [푸시 실패 시 메일] 이 개별 설정과 별개로 동작해서, 그 항목만 켜져 있으면 나가고 있었습니다. 이제 두 가지가 모두 허용해야 메일이 나갑니다 — 그 알림 종류의 메일 설정과 [푸시 실패 시 메일]. 메일을 끈 항목은 재알림도 오지 않습니다."
+      },
+      "en": {
+        "title": "Emails kept arriving after you turned them off",
+        "body": "Even with every email toggle off, the \"unread notifications\" email still went out: yesterday's \"Email when push fails\" acted independently of the individual settings. Now both must allow it — the notification type's email setting and \"Email when push fails\". A type with email off gets no re-notification either."
+      }
+    },
+    {
+      "ko": {
+        "title": "공유 링크를 여는 사람의 언어로 보입니다",
+        "body": "문서·업무·회의록·청구서 공개 링크를 영어 브라우저로 열면 화면 곳곳이 한국어로 남아 있었습니다. 안내 문구 95곳을 한국어·영어 양쪽으로 채웠습니다. 공개 업무의 상태 표시와 청구서 금액 표기(1,000,000원 ↔ ₩1,000,000)도 보는 사람의 언어를 따릅니다."
+      },
+      "en": {
+        "title": "Shared links now follow the viewer's language",
+        "body": "Opening a public document, task, meeting note or invoice link in an English browser still showed Korean in many places. 95 strings now exist in both languages. Public task status labels and invoice amount formatting (₩1,000,000 ↔ 1,000,000원) follow the viewer's language too."
+      }
+    },
+    {
+      "ko": {
+        "title": "파일 업로드가 실패하면 이유를 말합니다",
+        "body": "업로드가 실패하면 «실패» 라고만 표시되고 이유가 없었습니다. 이제 왜 안 됐는지와 다음에 무엇을 하면 되는지를 같이 알려줍니다. 또한 화면이 용량 한도를 50MB로 고정해 두고 있어서, Google Drive를 연결해 둔 워크스페이스에서도 큰 파일이 미리 막히고 «Drive를 연결하세요» 라고 안내했습니다. 한도는 이제 플랜과 연동 상태에 따라 서버가 알려줍니다."
+      },
+      "en": {
+        "title": "Upload failures now explain themselves",
+        "body": "A failed upload only said \"Failed\". It now tells you why and what to do next. The screen also had a hard-coded 50MB ceiling, so large files were blocked up front even in workspaces with Google Drive connected — and the message told you to connect Drive. The limit now comes from the server, based on your plan and integration."
+      }
+    },
+    {
+      "ko": {
+        "title": "좌측 메뉴가 가려지지 않습니다",
+        "body": "창 높이가 작을 때 하단의 시계·근무 영역이 자리를 고정으로 차지해 메뉴가 대부분 가려졌습니다. 이제 접었다 펼 수 있고, 창이 낮으면 기본으로 접혀 메뉴가 먼저 보입니다."
+      },
+      "en": {
+        "title": "The sidebar menu no longer gets cut off",
+        "body": "On short windows, the clock and work block at the bottom took a fixed amount of space and hid most of the menu. It now collapses, and on a short window it starts collapsed so the menu comes first."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q sale 화면을 Q task와 같은 배치로",
+        "body": "상담·고객 탭이 우측 상단으로 올라가고, Cue에게 말하기 → 필터 → 목록 순서로 정돈했습니다. 검색과 필터가 한 줄에 놓이고 각 필터에 «단계·접근·담당자» 이름이 붙어 무엇을 고르는지 보입니다. 같은 필터를 상담 탭에서도 쓸 수 있습니다."
+      },
+      "en": {
+        "title": "Q sale now matches the Q task layout",
+        "body": "The Consults / Customers tabs moved to the top right, and the order is now Ask Cue → filters → list. Search and filters share one row, and each filter is labelled (Stage, Access, Owner) so you can see what you are choosing. The same filters now work on the Consults tab as well."
+      }
+    },
+    {
+      "ko": {
+        "title": "상담 메모가 댓글이 되었습니다",
+        "body": "[메모] 를 누르면 고객 응대 내역 전체가 펼쳐졌습니다. 이제 그 자리에 댓글이 붙습니다 — 채팅방 메모와 같은 방식으로 공개 범위(나만·내부)를 고를 수 있고, 어떤 문의를 기준으로 남긴 메모인지 함께 저장됩니다."
+      },
+      "en": {
+        "title": "Consult notes are comments now",
+        "body": "Pressing [Note] used to expand the whole customer interaction log. It now opens a comment thread on that row — with the same visibility choice as chat notes (private / internal), and each note records which inquiry it belongs to."
+      }
+    },
+    {
+      "ko": {
+        "title": "Cue에게 말하기가 Q task와 똑같이 동작합니다",
+        "body": "Q sale에서는 Enter로 보낼 수 없었고, 정리한 내용을 확인하기도 전에 저장된 뒤 우측 패널이 열렸습니다. 이제 Enter로 보내고(Shift+Enter 줄바꿈), Cue가 정리한 이름·회사·전화·메일을 보고 고친 뒤 [이대로 추가] 를 누르면 목록에 들어갑니다."
+      },
+      "en": {
+        "title": "\"Ask Cue\" in Q sale behaves like it does in Q task",
+        "body": "Enter did not send, and the result was saved before you could check it — then a side panel opened. Now Enter sends (Shift+Enter for a new line), and you review and correct the name, company, phone and email Cue extracted before pressing [Add as-is]."
+      }
+    },
+    {
+      "ko": {
+        "title": "보관함과 치우기",
+        "body": "보관한 상담이 전체 목록에 그대로 남아 있었습니다. 이제 전체 목록에서 빠지고 보관함에서만 보입니다(숫자는 그대로 셉니다). 보관함에서는 ✕로 영구히 뺄 수 있으며, 메일 자체는 Q mail에 그대로 남습니다. 손으로 추가한 상담에도 ✕가 생겨 목록에서 치울 수 있습니다."
+      },
+      "en": {
+        "title": "Archive and dismissing",
+        "body": "Archived consults still appeared in the full list. They are now only in the archive (the count still includes them). In the archive, ✕ removes an item permanently — the email itself stays in Q mail. Manually added consults now have a ✕ too."
+      }
+    },
+    {
+      "ko": {
+        "title": "이름 앞 아이콘 모양 통일 · 프로필 사진",
+        "body": "사람 아이콘이 화면마다 동그라미와 라운드 박스로 갈려 있었습니다. 라운드 박스로 통일했습니다. 그리고 내 프로필에서 사진을 올릴 수 있습니다 — 같은 워크스페이스 멤버에게 보입니다(JPG·PNG·WebP, 2MB 이하)."
+      },
+      "en": {
+        "title": "One avatar shape, and profile photos",
+        "body": "Person icons were circles in some places and rounded squares in others. They are all rounded squares now. You can also upload a profile photo from My profile — visible to members of your workspaces (JPG, PNG or WebP, 2MB max)."
+      }
+    },
+    {
+      "ko": {
+        "title": "확인 필요에서 영업 항목을 누르면",
+        "body": "고객 정보 패널이 열려 상담을 처리할 수 없었습니다. 이제 상담 탭에서 그 건만 걸러진 상태로 열려, 단계 변경·메모·일정을 그 자리에서 할 수 있습니다. 항목 이름도 «대응 필요 — 첫 답장» 처럼 목록의 표시와 같은 말로 맞췄습니다."
+      },
+      "en": {
+        "title": "Opening a sales item from Needs attention",
+        "body": "It opened the customer info panel, where you could not act on the consult. It now opens the Consults tab filtered to that one item, so you can change the stage, add a note or schedule right there. The labels now match the list wording, e.g. \"Needs response — first reply\"."
+      }
+    }
+  ]
+}
