@@ -2044,6 +2044,49 @@ function checkDrawerWidth() {
 }
 
 // ═══════════════════════════════════════════════
+// capci — **앱 빌드 명령은 package.json 한 곳에서만 정한다** (2026-09-14 신설)
+//
+//   2026-09-14 안드로이드 Codemagic 빌드가 `exit 1` 로 죽었다:
+//   *"android: 오프라인 폴백이 https://dev.planq.kr 인데 server.url 은 https://planq.kr"*
+//
+//   원인은 **같은 명령을 두 곳에 적어 둔 것**이다. iOS 스텝은 `npm run cap:beta` 를 부르는데
+//   안드로이드 스텝만 `npx cap sync android` + 검사만 인라인으로 적어 뒀다. 그래서 앞 세션이
+//   package.json 체인에 `cap-offline-fallback.js` 를 더했을 때 **안드로이드만 못 받았고**,
+//   폴백 화면이 dev 를 가리킨 채 빌드 시점에야 잡혔다(생성물은 gitignore 라 리뷰로도 안 보인다).
+//   → CI 는 `npm run cap:*` 만 부른다. 체인을 바꾸면 두 플랫폼이 같이 받는다.
+//   (memory `feedback_same_value_multiple_formulas`)
+function checkCapCi() {
+  const f = `${ROOT}/codemagic.yaml`;
+  const bad = [];
+  let steps = 0;
+  if (!fs.existsSync(f)) {
+    report('capci', '앱 빌드 명령 단일 원천', true, []);
+    return;
+  }
+  const src = read(f);
+  src.split('\n').forEach((line, i) => {
+    const t = line.trim();
+    if (t.startsWith('#')) return;                    // 주석 안의 예시는 대상이 아니다
+    if (/\bnpx\s+cap\s+(sync|copy|update)\b/.test(t)) {
+      steps += 1;
+      bad.push(`codemagic.yaml:${i + 1} — CI 가 \`cap sync\` 를 직접 부른다. \`npm run cap:beta\`·\`cap:beta:android\` 를 쓸 것(체인은 package.json 한 곳)`);
+    }
+    if (/\bnpm run cap:/.test(t)) steps += 1;
+  });
+  report('capci', `앱 빌드 명령 단일 원천 (하드 게이트 · cap 스텝 ${steps}개)`, bad.length === 0, bad);
+
+  // package.json 의 beta 체인에 폴백 박기가 들어 있는가 — 빠지면 CI 가 통과해도 화면이 dev 를 가리킨다
+  const pkg = read(`${ROOT}/dev-frontend/package.json`);
+  const miss = [];
+  for (const k of ['cap:beta', 'cap:beta:android', 'cap:sync:dev', 'cap:sync:prod']) {
+    const m = new RegExp(`"${k.replace(/:/g, ':')}"\\s*:\\s*"([^"]*)"`).exec(pkg);
+    if (!m) { miss.push(`package.json 에 ${k} 가 없다`); continue; }
+    if (!/cap-offline-fallback/.test(m[1])) miss.push(`${k} 에 cap-offline-fallback 이 빠졌다`);
+  }
+  report('capci', 'cap 체인이 오프라인 폴백을 박는다', miss.length === 0, miss);
+}
+
+// ═══════════════════════════════════════════════
 // avatarshape — **이름 앞 아이콘은 한 모양이다** (2026-09-14 신설)
 //
 //   Irene 2026-09-14: *"이름들 앞에 아이콘들 사용한 거 많은데 동그라미 쓸건지 라운드박스 쓸건지
@@ -2736,6 +2779,7 @@ const CATEGORIES = {
   canary: checkCanaryContract,
   drawerwidth: checkDrawerWidth,
   avatarshape: checkAvatarShape,
+  capci: checkCapCi,
   duproute: checkDupRoute,
   navmenu: checkNavMenu,
   i18n: checkI18n,

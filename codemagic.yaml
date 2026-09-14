@@ -120,10 +120,12 @@ workflows:
       - name: Capacitor sync — 운영 서버로 고정 + 목표 점검
         script: |
           cd dev-frontend
-          CAP_SERVER_URL=https://planq.kr npx cap sync android
-          # ★ 이 점검이 없으면 테스터 전원이 개발 서버를 쓴다. 생성물은 gitignore 라
-          #   코드 리뷰로도 안 걸린다 — 빌드 시점에만 잡을 수 있다.
-          node ../scripts/android-beta-check.js --expect-prod
+          # ★ 2026-09-14 — 여기 명령을 **손으로 다시 적어 두어** 빌드가 깨졌다.
+          #   iOS 스텝은 `npm run cap:beta` 를 쓰는데 안드로이드만 인라인이라,
+          #   앞 세션이 package.json 체인에 `cap-offline-fallback.js` 를 더했을 때
+          #   **이쪽만 못 받았다** → 오프라인 폴백이 dev 를 가리킨 채 검사에서 exit 1.
+          #   같은 일의 명령이 두 벌이면 이미 갈라져 있다 — package.json 한 곳만 본다.
+          npm run cap:beta:android   # cap sync android && cap-offline-fallback && android-beta-check --expect-prod
       - name: 빌드 번호 (Play 최신 +1)
         script: |
           cd dev-frontend/android
