@@ -16,6 +16,12 @@ const EVENT_KINDS = [
   'comment_mention',  // 업무/문서 댓글 @멘션 (사이클 N+16-C 신규)
   'share_expiry',     // N+74-B — 외부 공유 링크 만료 임박 (D-3)
   'mail',             // #203 — Q Mail 새 메일 (받을 범위는 메일 계정별 notify_scope 로 따로 고른다)
+  // ★ 2026-09-14 — `sale` 이 **여기 빠져 있었다.** Q sale 사이클에서 DB ENUM 에는 넣었고
+  //   화면(NotificationSettings)도 행을 그렸는데 이 목록에만 없어서 matrix['sale'] 이 undefined 였다.
+  //   그 결과 개인 알림 설정 화면이 `matrix[ev][ch]` 에서 통째로 크래시했고
+  //   (`Cannot read properties of undefined (reading 'inbox')`), 한 번 죽으면 다른 화면까지 에러로 보였다.
+  //   **상태값을 늘리면 그 값을 읽는 곳을 전수로 고친다**(CLAUDE.md 상태값 규약).
+  'sale',             // Q sale — 계정 요청·답 안 한 문의
   // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
   'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
   'system',           // 시스템 경고 (메일 계정 sync 실패 등) — 여태 목록에 없어 끌 방법이 없었다

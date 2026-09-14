@@ -1363,18 +1363,24 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     const expiresAt = Number.isFinite(days) && days > 0
       ? new Date(Date.now() + days * 86400 * 1000)
       : null;
+    // ★ 2026-09-14 — 발급·만료·비밀번호는 **공용 헬퍼 한 곳**(services/share_helper.applyShareUpdate)이 한다.
+    //   일정·업무·파일·Q info 가 이미 그것을 쓰고 있었고 Q docs 글만 자기 코드로 토큰만 만들고 있었다 —
+    //   그래서 화면의 비밀번호 칸이 **저장도 검증도 안 되는 컨트롤**이었다(실측: 틀린 비밀번호로도 200).
+    //   ★ 토큰 형식은 종전대로 hex 64 를 유지한다 — 이미 나가 있는 링크와 같은 모양이어야 한다.
+    //     그래서 없을 때만 먼저 심고 헬퍼를 부른다(헬퍼의 토큰 생성 분기를 타지 않게).
     if (!post.share_token) {
-      const token = crypto.randomBytes(32).toString('hex');
-      await post.update({ share_token: token, shared_at: new Date(), share_expires_at: expiresAt });
-    } else if (req.body?.expires_in_days !== undefined) {
-      // 기존 토큰 유지 + 만료일만 갱신 (재발급 아님)
-      await post.update({ share_expires_at: expiresAt });
+      await post.update({ share_token: crypto.randomBytes(32).toString('hex'), shared_at: new Date() });
     }
+    const { applyShareUpdate } = require('../services/share_helper');
+    const r = await applyShareUpdate(post, req.body || {});
+    void expiresAt;   // 만료 계산도 헬퍼가 한다(두 벌로 두면 갈린다)
     return successResponse(res, {
       share_token: post.share_token,
       share_url: `${APP_URL}/public/posts/${post.share_token}`,
-      shared_at: post.shared_at,
-      share_expires_at: post.share_expires_at,
+      shared_at: r.shared_at,
+      share_expires_at: r.share_expires_at,
+      // 화면이 "설정됨" 배지를 그리는 값 — 다른 4종과 같은 필드 이름.
+      password_set: r.password_set,
     });
   } catch (err) { next(err); }
 });
@@ -1387,7 +1393,8 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    await post.update({ share_token: null, shared_at: null, share_expires_at: null });
+    // 회수하면 비밀번호도 같이 지운다 — 남겨 두면 다음 발급이 옛 비번을 물려받는다(사용자는 모른다).
+    await post.update({ share_token: null, shared_at: null, share_expires_at: null, share_password_hash: null });
     return successResponse(res, { revoked: true });
   } catch (err) { next(err); }
 });
@@ -1637,6 +1644,13 @@ router.get('/public/:token', async (req, res, next) => {
         });
       }
       if (why) return errorResponse(res, 'not_found', 404);   // deleted·no_token·not_published
+    }
+    // ★ 2026-09-14 — 비밀번호 보호. 다른 4종과 **같은 헬퍼**로 판정한다.
+    //   여태 이 검사가 없어서 비밀번호를 걸어도 링크만 있으면 누구나 열렸다.
+    {
+      const { verifySharePassword } = require('../services/share_helper');
+      const v = await verifySharePassword(post, req);
+      if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
     }
     // ★ silent — 조회수 증가가 updated_at 을 건드리면 안 된다.
     //   (a) 문서를 **열기만 해도** updated_at 이 바뀌어 편집 낙관적 잠금(#252)이 즉시 거짓 409 를 낸다

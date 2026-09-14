@@ -136,14 +136,20 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
               </HeadCell>
             ))}
           </MatrixHead>
-          {EVENTS.map(ev => (
+          {/* ★ 2026-09-14 — 서버 matrix 에 **없는 종류는 그리지 않는다.**
+              여태 `matrix[ev][ch]` 를 바로 읽어서, 목록이 한 칸이라도 어긋나면 이 화면이 통째로
+              크래시했다(실측: `sale` 이 서버 EVENT_KINDS 에만 빠져 있어
+              `Cannot read properties of undefined (reading 'inbox')`). 그리고 한 번 죽으면
+              다른 화면까지 에러 화면으로 보였다 — **한 줄의 목록 차이가 앱을 막았다.**
+              정본은 서버 목록이고(그쪽에 `sale` 을 넣었다), 여기서는 어긋나도 죽지 않게 거른다. */}
+          {EVENTS.filter(ev => !!matrix[ev]).map(ev => (
             <MatrixRow key={ev}>
               <EventCell>
                 <EventLabel>{t(`notifications.eventLabel.${ev}`)}</EventLabel>
                 <EventDesc>{t(`notifications.eventDesc.${ev}`)}</EventDesc>
               </EventCell>
               {CHANNELS.map(ch => {
-                const enabled = matrix[ev][ch];
+                const enabled = matrix[ev]?.[ch] ?? true;   // 기본 ON (열린 문화) — 없는 칸에 죽지 않는다
                 return (
                   <ToggleCell key={ch}>
                     {/* 래퍼가 click 을 받아 300ms 뒤 persist 를 부르고 ✓/스피너/! 를 그린다.

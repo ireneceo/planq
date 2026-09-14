@@ -25,6 +25,13 @@ Post.init({
   // N+43 — share_token 만료. NULL = 무제한 (legacy). 만료된 token 은 공개 endpoint 가 410 응답 + 친절한 만료 페이지.
   // 철회 (revoke) 는 share_token = NULL 로 통일 (File 패턴, 별도 컬럼 불필요).
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
+  // ★ 2026-09-14 (Irene: *"공유에서 비밀번호 기능 제대로 되는지 확인해주고 왜 일정공유에만
+  //   이런 기능있는 건지 알려줘. 모든 공유 기능에 있으면 좋을 것 같은데?"*)
+  //   실측하니 일정만이 아니라 **업무·파일·Q info 도** 되고 있었고, **Q docs 글만** 빠져 있었다 —
+  //   그런데 화면(ShareModal)에는 비밀번호 칸이 **조건 없이** 떠서, 사용자는 걸었다고 믿는데
+  //   서버는 저장도 검증도 안 했다(실측: 틀린 비밀번호로도 200). 거짓 약속이자 무인증 표면이다.
+  //   검증은 다른 4종과 **같은 헬퍼**(services/share_helper.verifySharePassword)를 쓴다.
+  share_password_hash: { type: DataTypes.STRING(255), allowNull: true },
   // 자료정리(Brief) 메타 — category='brief' 인 post 의 source 자료, 시점·파일 보기 토글, 추천 후속 문서 종류
   // 일반 post 는 null
   brief_meta: { type: DataTypes.JSON, allowNull: true },

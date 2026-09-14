@@ -202,7 +202,8 @@
     "gcalNone": "Not added",
     "gcalSync": "Google Calendar",
     "share": "Share",
-    "gcalMeetingKept": "Calendar copies that hold the meeting are kept even when sync is off (protecting the link already shared with attendees). Switching to private still revokes the team copy."
+    "gcalMeetingKept": "Calendar copies that hold the meeting are kept even when sync is off (protecting the link already shared with attendees). Switching to private still revokes the team copy.",
+    "me": "Me"
   },
   "empty": {
     "month": "No events this month",

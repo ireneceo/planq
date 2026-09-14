@@ -639,7 +639,12 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
         if (seen.has(key)) continue;
         seen.add(key);
         if (a.user_id && validUserIds.has(a.user_id)) {
-          rows.push({ event_id: event.id, user_id: a.user_id, response: a.response && RESPONSE_SET.has(a.response) ? a.response : 'pending' });
+          // ★ 2026-09-14 (Irene: *"나 자신을 넣어도 응답대기가 나와?"*)
+          //   **만든 사람 자신은 자동 수락**이다 — 자기가 만든 일정에 자기 응답을 기다릴 이유가 없다.
+          //   (남을 넣으면 종전대로 'pending' 이고, 그 사람이 일정 상세에서 수락/미정/거절을 고른다.)
+          const isSelf = a.user_id === req.user.id;
+          const resp = a.response && RESPONSE_SET.has(a.response) ? a.response : (isSelf ? 'accepted' : 'pending');
+          rows.push({ event_id: event.id, user_id: a.user_id, response: resp });
         } else if (a.client_id && validClientIds.has(a.client_id)) {
           rows.push({ event_id: event.id, client_id: a.client_id, response: 'pending' });
         }

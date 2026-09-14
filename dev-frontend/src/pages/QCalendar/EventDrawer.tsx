@@ -203,6 +203,23 @@ const EventDrawer: React.FC<Props> = ({
     }
     return Promise.resolve(onUpdate(patch));
   };
+  // 참석 응답 — **본인 것만**. 서버 라우트는 처음부터 있었는데 부르는 곳이 없었다.
+  const [respondingId, setRespondingId] = useState<number | null>(null);
+  const respond = async (attendeeId: number, response: 'accepted' | 'declined' | 'tentative') => {
+    if (!event || !user?.business_id) return;
+    setRespondingId(attendeeId);
+    try {
+      const r = await apiFetch(`/api/calendar/by-business/${user.business_id}/${event.id}/attendees/${attendeeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response }),
+      });
+      if (!r.ok) throw new Error('respond_failed');
+      // 목록·드로어가 같은 값을 보게 부모가 다시 읽는다
+      onUpdate({ attendees: (event.attendees || []).map((x) => (x.id === attendeeId ? { ...x, response } : x)) as CalendarEvent['attendees'] });
+    } finally { setRespondingId(null); }
+  };
+
   const saveSchedule = async (sd: string, ed: string, st: string, et: string, allDay: boolean) => {
     const sISO = mkISO(sd, st, allDay, false);
     const eISO = mkISO(ed, et, allDay, true);
@@ -230,7 +247,7 @@ const EventDrawer: React.FC<Props> = ({
           <ColorBar $color={c.fg} />
           <HeaderTexts>
             {canEdit ? (
-              <AutoSaveField type="input" onSave={async () => {
+              <AutoSaveField key={`ev${event.id}-1`} type="input" onSave={async () => {
                 const v = title.trim();
                 if (v && v !== event.title) await updateMaybeScoped({ title: v });
               }}>
@@ -273,7 +290,11 @@ const EventDrawer: React.FC<Props> = ({
         </HeaderInner>
       </DetailDrawer.Header>
 
-      <DetailDrawer.Body>
+      {/* ★ 2026-09-14 — 본문을 **일정 id 로 가른다.** 드로어를 연 채 캘린더에서 다른 일정을 누르면
+          같은 인스턴스가 재사용돼 언마운트가 오지 않는다 — 그때 debounce 에 걸려 있던 입력이
+          **떠난 일정의 값인데 새 일정의 onSave 로** 터진다(CLAUDE.md 자동저장 절).
+          각 AutoSaveField 에도 key 를 붙였다(가드 --category=autosavekey 가 그것을 센다). */}
+      <DetailDrawer.Body key={event.id}>
         {/* ⑤B — Cue 대화형 실행으로 추가된 일정: Cue 유래 정보성 배지(표시 전용) */}
         {event.created_via === 'cue' && (
           <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common' })} /></ProvenanceRow>
@@ -307,7 +328,7 @@ const EventDrawer: React.FC<Props> = ({
                     <span>{fmtDay(startDate)}</span>
                   </DateTrigger>
                   {!event.all_day && (
-                    <AutoSaveField type="select" onSave={async () => {
+                    <AutoSaveField key={`ev${event.id}-2`} type="select" onSave={async () => {
                       await saveSchedule(startDate, endDate, startTime, endTime, false);
                     }}>
                       <TimeWrap>
@@ -348,7 +369,7 @@ const EventDrawer: React.FC<Props> = ({
                     <span>{fmtDay(endDate)}</span>
                   </DateTrigger>
                   {!event.all_day && (
-                    <AutoSaveField type="select" onSave={async () => {
+                    <AutoSaveField key={`ev${event.id}-3`} type="select" onSave={async () => {
                       await saveSchedule(startDate, endDate, startTime, endTime, false);
                     }}>
                       <TimeWrap>
@@ -379,7 +400,7 @@ const EventDrawer: React.FC<Props> = ({
                   }}
                 />
                 <AllDayRow>
-                  <AutoSaveField type="toggle" onSave={async () => {
+                  <AutoSaveField key={`ev${event.id}-4`} type="toggle" onSave={async () => {
                     await saveSchedule(startDate, endDate, startTime, endTime, !event.all_day);
                   }}>
                     <CheckboxLabel>
@@ -412,6 +433,261 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
+        {/* 설명 */}
+        <Section>
+          <SectionIcon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="21" y1="6" x2="3" y2="6" /><line x1="21" y1="12" x2="3" y2="12" /><line x1="21" y1="18" x2="3" y2="18" />
+            </svg>
+          </SectionIcon>
+          <SectionBody>
+            <MutedSmall>{t('form.description', '설명')}</MutedSmall>
+            {canEdit ? (
+              <AutoSaveField key={`ev${event.id}-5`} type="input" onSave={async () => {
+                const v = description.trim();
+                if ((v || null) !== (event.description || null)) await updateMaybeScoped({ description: v || null });
+              }}>
+                <Textarea
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t('form.descriptionPlaceholder', '회의 내용, 안건, 참고 사항...') as string}
+                />
+              </AutoSaveField>
+            ) : (
+              <Description>{event.description || <Muted>{t('drawer.noDescription', '설명 없음')}</Muted>}</Description>
+            )}
+          </SectionBody>
+        </Section>
+
+        {/* 위치 */}
+        <Section>
+          <SectionIcon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+            </svg>
+          </SectionIcon>
+          <SectionBody>
+            <MutedSmall>{t('form.location', '위치')}</MutedSmall>
+            {canEdit ? (
+              <AutoSaveField key={`ev${event.id}-6`} type="input" onSave={async () => {
+                const v = location.trim();
+                if ((v || null) !== (event.location || null)) await updateMaybeScoped({ location: v || null });
+              }}>
+                <Input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder={t('form.locationPlaceholder', '회의실, 주소 등') as string}
+                />
+              </AutoSaveField>
+            ) : (
+              <Plain>{event.location || <Muted>{t('drawer.noLocation', '위치 없음')}</Muted>}</Plain>
+            )}
+          </SectionBody>
+        </Section>
+
+        {/* 참석자 — 인라인 편집 (멤버 picker + 각 row 제거 버튼) */}
+        <Section>
+          <SectionIcon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </SectionIcon>
+          <SectionBody>
+            <MutedSmall>{t('drawer.attendees')}</MutedSmall>
+            {(event.attendees || []).length === 0 ? (
+              <Muted>{t('drawer.noAttendees')}</Muted>
+            ) : (
+              <AttendeeList>
+                {(event.attendees || []).map((a) => {
+                  const rawName = a.user?.name || a.client?.display_name || '—';
+                  // ★ 2026-09-14 (Irene: *"나 자신을 넣어도 응답대기가 나와? 나라고 나와야지."*)
+                  //   내 행은 이름 대신 **나**로 부르고, 응답을 여기서 바꿀 수 있게 한다.
+                  const isMe = !!a.user_id && String(a.user_id) === String(user?.id ?? '');   // user.id 는 문자열이다
+                  const name = isMe ? (t('drawer.me', '나') as string) : rawName;
+                  return (
+                    <AttendeeRow key={a.id}>
+                      <Avatar>{rawName[0]}</Avatar>
+                      <AttendeeName>{name}</AttendeeName>
+                      {isMe ? (
+                        /* ★ 여태 이 칩은 **표시 전용**이었다 — 서버에는 응답 변경 라우트가 있는데
+                           화면에서 부르는 곳이 0곳이라, 참석자는 수락도 거절도 할 수 없었고
+                           "응답 대기" 에 영영 머물렀다(memory feedback_backend_done_ui_missing).
+                           내 행에만 고르는 문을 연다 — 서버도 본인 응답만 허용한다. */
+                        <MyResponseRow>
+                          {(['accepted', 'tentative', 'declined'] as const).map((r) => (
+                            <MyResponseBtn
+                              key={r}
+                              type="button"
+                              $on={a.response === r}
+                              data-testid={`event-response-${r}`}
+                              disabled={respondingId === a.id}
+                              onClick={() => void respond(a.id, r)}
+                            >
+                              {t(`response.${r}`)}
+                            </MyResponseBtn>
+                          ))}
+                        </MyResponseRow>
+                      ) : (
+                        <ResponsePill $response={a.response}>{t(`response.${a.response}`)}</ResponsePill>
+                      )}
+                      {canEdit && (
+                        <AttendeeRemoveBtn
+                          type="button"
+                          title={t('drawer.removeAttendee', '제거') as string}
+                          aria-label={t('drawer.removeAttendee', '제거') as string}
+                          onClick={() => {
+                            const next = (event.attendees || [])
+                              .filter(x => x.id !== a.id)
+                              .map(x => ({
+                                user_id: x.user_id ?? undefined,
+                                client_id: x.client_id ?? undefined,
+                                response: x.response,
+                              }));
+                            onUpdate({ attendees: next as unknown as CalendarEvent['attendees'] });
+                          }}
+                        >×</AttendeeRemoveBtn>
+                      )}
+                    </AttendeeRow>
+                  );
+                })}
+              </AttendeeList>
+            )}
+            {canEdit && (members.length > 0 || clients.length > 0) && (() => {
+              const existingUserIds = new Set((event.attendees || []).map(a => a.user_id).filter(Boolean));
+              const existingClientIds = new Set((event.attendees || []).map(a => a.client_id).filter(Boolean));
+              const addableMembers = members.filter(m => !existingUserIds.has(m.user_id));
+              const addableClients = clients.filter(c => !existingClientIds.has(c.id));
+              if (addableMembers.length === 0 && addableClients.length === 0) return null;
+              // 통합 picker — 멤버/고객 grouped options. value prefix 로 분기:
+              //   'u-{userId}' = 멤버, 'c-{clientId}' = 고객
+              const groupedOptions = [
+                ...(addableMembers.length > 0 ? [{
+                  label: t('drawer.attendeeGroupMember', '멤버') as string,
+                  options: addableMembers.map(m => ({ value: `u-${m.user_id}`, label: m.name })),
+                }] : []),
+                ...(addableClients.length > 0 ? [{
+                  label: t('drawer.attendeeGroupClient', '고객') as string,
+                  options: addableClients.map(c => ({
+                    value: `c-${c.id}`,
+                    label: c.display_name || c.company_name || `#${c.id}`,
+                  })),
+                }] : []),
+              ];
+              return (
+                <AddAttendeeRow>
+                  <PlanQSelect
+                    size="sm"
+                    placeholder={t('drawer.addAttendee', '+ 참석자 추가') as string}
+                    options={groupedOptions}
+                    value={null}
+                    onChange={(opt) => {
+                      const v = opt ? String((opt as { value: string }).value) : '';
+                      if (!v) return;
+                      const [kind, idStr] = v.split('-');
+                      const id = Number(idStr);
+                      if (!id) return;
+                      const newRow = kind === 'c'
+                        ? { client_id: id, response: 'pending' as const }
+                        : { user_id: id, response: 'pending' as const };
+                      const next = [
+                        ...(event.attendees || []).map(x => ({
+                          user_id: x.user_id ?? undefined,
+                          client_id: x.client_id ?? undefined,
+                          response: x.response,
+                        })),
+                        newRow,
+                      ];
+                      onUpdate({ attendees: next as unknown as CalendarEvent['attendees'] });
+                    }}
+                  />
+                </AddAttendeeRow>
+              );
+            })()}
+          </SectionBody>
+        </Section>
+
+        {/* 회의 — 재발급 버튼 포함 (P1) */}
+        {(event.meeting_url || (gcalCanWrite && onCreateMeetingRoom)) && (
+          <Section>
+            <SectionIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
+              </svg>
+            </SectionIcon>
+            <SectionBody>
+              <MutedSmall>{t('drawer.meeting')}</MutedSmall>
+              {event.meeting_url ? (
+                <>
+                  {/* N+63 사용자 호소 — 재발급 후 변화 확인 위해 URL 자체 노출.
+                      location 자동 덮어쓰기는 사용자 입력 침범 → 별도 영역 (Google Calendar / Outlook 표준 패턴). */}
+                  <MeetingUrl
+                    href={event.meeting_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={event.meeting_url}
+                  >
+                    {event.meeting_url}
+                  </MeetingUrl>
+                  <MeetingActions>
+                    {/* Google Meet 는 X-Frame-Options 로 iframe embed 불가 — 외부 링크만 */}
+                    <CopyBtn as="a" href={event.meeting_url} target="_blank" rel="noreferrer">
+                      {t('drawer.joinMeeting')} ↗
+                    </CopyBtn>
+                    <CopyBtn type="button" onClick={copyMeetingLink}>
+                      {copied ? t('drawer.linkCopied') : t('drawer.copyLink')}
+                    </CopyBtn>
+                    {/* P1 — 재발급 (만료된 옛 링크 / 정기 회의 다음 회차 회복) */}
+                    {canEdit && gcalCanWrite && (
+                      <ReissueBtn type="button" onClick={handleReissueMeeting} disabled={reissuingMeeting}>
+                        {reissuingMeeting ? t('drawer.reissuing', '재발급 중...') : t('drawer.reissueMeeting', '링크 재발급')}
+                      </ReissueBtn>
+                    )}
+                  </MeetingActions>
+                  {canEdit && (
+                    <MeetingHint>{t('drawer.reissueHint', '만료된 링크는 재발급으로 복구하세요. 정기 회의는 모든 회차에 동일 링크가 유효해야 합니다.')}</MeetingHint>
+                  )}
+                </>
+              ) : (
+                canEdit && gcalCanWrite && onCreateMeetingRoom && (
+                  <CreateRoomBtn onClick={handleCreateRoom} disabled={creatingRoom}>
+                    {creatingRoom ? t('drawer.creating') : t('drawer.createRoom')}
+                  </CreateRoomBtn>
+                )
+              )}
+            </SectionBody>
+          </Section>
+        )}
+
+        {/* 정기 일정 — RecurrencePicker */}
+        <Section>
+          <SectionIcon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+          </SectionIcon>
+          <SectionBody>
+            <MutedSmall>{t('recurrence.label', '정기 일정')}</MutedSmall>
+            {canEdit ? (
+              <RecurrencePicker
+                value={event.rrule}
+                onChange={(rrule) => {
+                  if (rrule !== event.rrule) onUpdate({ rrule });
+                }}
+                anchorDate={startDate}
+              />
+            ) : (
+              <Plain>
+                {event.rrule
+                  ? formatRRuleLabel(event.rrule, event.start_at?.slice(0, 10), tQtask as unknown as Parameters<typeof formatRRuleLabel>[2])
+                  : t('recurrence.none', '반복 없음')}
+              </Plain>
+            )}
+          </SectionBody>
+        </Section>
+
         {/* 카테고리 / visibility / project — 인라인 select */}
         <Section>
           <SectionIcon>
@@ -435,40 +711,10 @@ const EventDrawer: React.FC<Props> = ({
               ))}
             </CategoryRow>
             {canEdit && (
-              <Grid2>
-                <Field style={{ gridColumn: '1 / -1' }}>
-                  <FieldLabel>{t('form.visibility', { defaultValue: '공개' }) as string}</FieldLabel>
-                  {/* N+66 — 통합 VisibilityField (NewEventModal · KnowledgePage 정합). 옛 personal/business 2 select 폐지. */}
-                  <VisibilityField
-                    value={parseVisibility({
-                      vlevel: event.vlevel ?? null,
-                      scope: null,
-                      read_policy: null,
-                      project_id: event.project_id ?? null,
-                      client_id: null,
-                      client_ids: event.target_client_ids ?? null,
-                      target_member_ids: event.target_member_ids ?? null,
-                    })}
-                    onChange={(v: VisibilityValue) => {
-                      const ser = serializeVisibility(v);
-                      const patch: Partial<CalendarEvent> = {
-                        vlevel: v.vlevel,
-                        target_member_ids: ser.target_member_ids,
-                        target_client_ids: v.variant === 'L4' ? ser.client_ids : [],
-                        // legacy backward-compat (hook 가 자동 동기지만 explicit)
-                        visibility: v.vlevel === 'L1' ? 'personal' : 'business',
-                      };
-                      if (v.variant === 'L2_project') patch.project_id = ser.project_id;
-                      updateMaybeScoped(patch);
-                    }}
-                    projects={(projects || []).map(p => ({ id: p.id, name: p.name }))}
-                    clients={(clients || []).map(c => ({ id: c.id, display_name: c.display_name || c.company_name }))}
-                    members={(members || []).map(m => ({ user_id: m.user_id, name: m.name, role: m.role || 'member' }))}
-                  />
-                </Field>
+              <Grid2 $single>
                 <Field>
                   <FieldLabel>{t('form.project')}</FieldLabel>
-                  <AutoSaveField type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
+                  <AutoSaveField key={`ev${event.id}-7`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
                     <PlanQSelect
                       size="sm"
                       isClearable
@@ -502,7 +748,7 @@ const EventDrawer: React.FC<Props> = ({
             <MutedSmall>{t('drawer.reminder', '임박 알림')}</MutedSmall>
             {/* 종일 일정은 기준이 시작일 09:00 이라 목록이 다르다 — 등록 모달과 같은 규칙. */}
             {canEdit ? (
-              <AutoSaveField type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
+              <AutoSaveField key={`ev${event.id}-8`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
                 <PlanQSelect
                   size="sm"
                   isClearable
@@ -590,112 +836,6 @@ const EventDrawer: React.FC<Props> = ({
         </Section>
         )}
 
-        {/* 정기 일정 — RecurrencePicker */}
-        <Section>
-          <SectionIcon>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-            </svg>
-          </SectionIcon>
-          <SectionBody>
-            <MutedSmall>{t('recurrence.label', '정기 일정')}</MutedSmall>
-            {canEdit ? (
-              <RecurrencePicker
-                value={event.rrule}
-                onChange={(rrule) => {
-                  if (rrule !== event.rrule) onUpdate({ rrule });
-                }}
-                anchorDate={startDate}
-              />
-            ) : (
-              <Plain>
-                {event.rrule
-                  ? formatRRuleLabel(event.rrule, event.start_at?.slice(0, 10), tQtask as unknown as Parameters<typeof formatRRuleLabel>[2])
-                  : t('recurrence.none', '반복 없음')}
-              </Plain>
-            )}
-          </SectionBody>
-        </Section>
-
-        {/* 위치 */}
-        <Section>
-          <SectionIcon>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-            </svg>
-          </SectionIcon>
-          <SectionBody>
-            <MutedSmall>{t('form.location', '위치')}</MutedSmall>
-            {canEdit ? (
-              <AutoSaveField type="input" onSave={async () => {
-                const v = location.trim();
-                if ((v || null) !== (event.location || null)) await updateMaybeScoped({ location: v || null });
-              }}>
-                <Input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder={t('form.locationPlaceholder', '회의실, 주소 등') as string}
-                />
-              </AutoSaveField>
-            ) : (
-              <Plain>{event.location || <Muted>{t('drawer.noLocation', '위치 없음')}</Muted>}</Plain>
-            )}
-          </SectionBody>
-        </Section>
-
-        {/* 회의 — 재발급 버튼 포함 (P1) */}
-        {(event.meeting_url || (gcalCanWrite && onCreateMeetingRoom)) && (
-          <Section>
-            <SectionIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
-              </svg>
-            </SectionIcon>
-            <SectionBody>
-              <MutedSmall>{t('drawer.meeting')}</MutedSmall>
-              {event.meeting_url ? (
-                <>
-                  {/* N+63 사용자 호소 — 재발급 후 변화 확인 위해 URL 자체 노출.
-                      location 자동 덮어쓰기는 사용자 입력 침범 → 별도 영역 (Google Calendar / Outlook 표준 패턴). */}
-                  <MeetingUrl
-                    href={event.meeting_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={event.meeting_url}
-                  >
-                    {event.meeting_url}
-                  </MeetingUrl>
-                  <MeetingActions>
-                    {/* Google Meet 는 X-Frame-Options 로 iframe embed 불가 — 외부 링크만 */}
-                    <CopyBtn as="a" href={event.meeting_url} target="_blank" rel="noreferrer">
-                      {t('drawer.joinMeeting')} ↗
-                    </CopyBtn>
-                    <CopyBtn type="button" onClick={copyMeetingLink}>
-                      {copied ? t('drawer.linkCopied') : t('drawer.copyLink')}
-                    </CopyBtn>
-                    {/* P1 — 재발급 (만료된 옛 링크 / 정기 회의 다음 회차 회복) */}
-                    {canEdit && gcalCanWrite && (
-                      <ReissueBtn type="button" onClick={handleReissueMeeting} disabled={reissuingMeeting}>
-                        {reissuingMeeting ? t('drawer.reissuing', '재발급 중...') : t('drawer.reissueMeeting', '링크 재발급')}
-                      </ReissueBtn>
-                    )}
-                  </MeetingActions>
-                  {canEdit && (
-                    <MeetingHint>{t('drawer.reissueHint', '만료된 링크는 재발급으로 복구하세요. 정기 회의는 모든 회차에 동일 링크가 유효해야 합니다.')}</MeetingHint>
-                  )}
-                </>
-              ) : (
-                canEdit && gcalCanWrite && onCreateMeetingRoom && (
-                  <CreateRoomBtn onClick={handleCreateRoom} disabled={creatingRoom}>
-                    {creatingRoom ? t('drawer.creating') : t('drawer.createRoom')}
-                  </CreateRoomBtn>
-                )
-              )}
-            </SectionBody>
-          </Section>
-        )}
-
         {/* #126 — Google Calendar sync status + backfill(send old events to Google) */}
         {canEdit && (
           <Section>
@@ -724,129 +864,6 @@ const EventDrawer: React.FC<Props> = ({
           </Section>
         )}
 
-        {/* 설명 */}
-        <Section>
-          <SectionIcon>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="21" y1="6" x2="3" y2="6" /><line x1="21" y1="12" x2="3" y2="12" /><line x1="21" y1="18" x2="3" y2="18" />
-            </svg>
-          </SectionIcon>
-          <SectionBody>
-            <MutedSmall>{t('form.description', '설명')}</MutedSmall>
-            {canEdit ? (
-              <AutoSaveField type="input" onSave={async () => {
-                const v = description.trim();
-                if ((v || null) !== (event.description || null)) await updateMaybeScoped({ description: v || null });
-              }}>
-                <Textarea
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder={t('form.descriptionPlaceholder', '회의 내용, 안건, 참고 사항...') as string}
-                />
-              </AutoSaveField>
-            ) : (
-              <Description>{event.description || <Muted>{t('drawer.noDescription', '설명 없음')}</Muted>}</Description>
-            )}
-          </SectionBody>
-        </Section>
-
-        {/* 참석자 — 인라인 편집 (멤버 picker + 각 row 제거 버튼) */}
-        <Section>
-          <SectionIcon>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-          </SectionIcon>
-          <SectionBody>
-            <MutedSmall>{t('drawer.attendees')}</MutedSmall>
-            {(event.attendees || []).length === 0 ? (
-              <Muted>{t('drawer.noAttendees')}</Muted>
-            ) : (
-              <AttendeeList>
-                {(event.attendees || []).map((a) => {
-                  const name = a.user?.name || a.client?.display_name || '—';
-                  return (
-                    <AttendeeRow key={a.id}>
-                      <Avatar>{name[0]}</Avatar>
-                      <AttendeeName>{name}</AttendeeName>
-                      <ResponsePill $response={a.response}>{t(`response.${a.response}`)}</ResponsePill>
-                      {canEdit && (
-                        <AttendeeRemoveBtn
-                          type="button"
-                          title={t('drawer.removeAttendee', '제거') as string}
-                          aria-label={t('drawer.removeAttendee', '제거') as string}
-                          onClick={() => {
-                            const next = (event.attendees || [])
-                              .filter(x => x.id !== a.id)
-                              .map(x => ({
-                                user_id: x.user_id ?? undefined,
-                                client_id: x.client_id ?? undefined,
-                                response: x.response,
-                              }));
-                            onUpdate({ attendees: next as unknown as CalendarEvent['attendees'] });
-                          }}
-                        >×</AttendeeRemoveBtn>
-                      )}
-                    </AttendeeRow>
-                  );
-                })}
-              </AttendeeList>
-            )}
-            {canEdit && (members.length > 0 || clients.length > 0) && (() => {
-              const existingUserIds = new Set((event.attendees || []).map(a => a.user_id).filter(Boolean));
-              const existingClientIds = new Set((event.attendees || []).map(a => a.client_id).filter(Boolean));
-              const addableMembers = members.filter(m => !existingUserIds.has(m.user_id));
-              const addableClients = clients.filter(c => !existingClientIds.has(c.id));
-              if (addableMembers.length === 0 && addableClients.length === 0) return null;
-              // 통합 picker — 멤버/고객 grouped options. value prefix 로 분기:
-              //   'u-{userId}' = 멤버, 'c-{clientId}' = 고객
-              const groupedOptions = [
-                ...(addableMembers.length > 0 ? [{
-                  label: t('drawer.attendeeGroupMember', '멤버') as string,
-                  options: addableMembers.map(m => ({ value: `u-${m.user_id}`, label: m.name })),
-                }] : []),
-                ...(addableClients.length > 0 ? [{
-                  label: t('drawer.attendeeGroupClient', '고객') as string,
-                  options: addableClients.map(c => ({
-                    value: `c-${c.id}`,
-                    label: c.display_name || c.company_name || `#${c.id}`,
-                  })),
-                }] : []),
-              ];
-              return (
-                <AddAttendeeRow>
-                  <PlanQSelect
-                    size="sm"
-                    placeholder={t('drawer.addAttendee', '+ 참석자 추가') as string}
-                    options={groupedOptions}
-                    value={null}
-                    onChange={(opt) => {
-                      const v = opt ? String((opt as { value: string }).value) : '';
-                      if (!v) return;
-                      const [kind, idStr] = v.split('-');
-                      const id = Number(idStr);
-                      if (!id) return;
-                      const newRow = kind === 'c'
-                        ? { client_id: id, response: 'pending' as const }
-                        : { user_id: id, response: 'pending' as const };
-                      const next = [
-                        ...(event.attendees || []).map(x => ({
-                          user_id: x.user_id ?? undefined,
-                          client_id: x.client_id ?? undefined,
-                          response: x.response,
-                        })),
-                        newRow,
-                      ];
-                      onUpdate({ attendees: next as unknown as CalendarEvent['attendees'] });
-                    }}
-                  />
-                </AddAttendeeRow>
-              );
-            })()}
-          </SectionBody>
-        </Section>
 
         {/* 작성자 — read-only */}
         <Section>
@@ -860,6 +877,52 @@ const EventDrawer: React.FC<Props> = ({
             <Plain>{event.creator?.name || '—'}</Plain>
           </SectionBody>
         </Section>
+
+        {/* 공개 범위 — **가장 아래** (Irene 2026-09-14: *"공개범위는 가장 아래가 맞지 않아?"*)
+            자주 건드리는 것이 위, 한 번 정하고 마는 것이 아래다. 일정에서 매번 바꾸는 것은
+            시간·설명·참석자이고 공개 범위는 처음에 한 번 정한다. */}
+        {canEdit && (
+          <Section>
+            <SectionIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </SectionIcon>
+            <SectionBody>
+              <MutedSmall>{t('form.visibility', { defaultValue: '공개' }) as string}</MutedSmall>
+                <FieldLabel>{t('form.visibility', { defaultValue: '공개' }) as string}</FieldLabel>
+                {/* N+66 — 통합 VisibilityField (NewEventModal · KnowledgePage 정합). 옛 personal/business 2 select 폐지. */}
+                <VisibilityField
+                  value={parseVisibility({
+                    vlevel: event.vlevel ?? null,
+                    scope: null,
+                    read_policy: null,
+                    project_id: event.project_id ?? null,
+                    client_id: null,
+                    client_ids: event.target_client_ids ?? null,
+                    target_member_ids: event.target_member_ids ?? null,
+                  })}
+                  onChange={(v: VisibilityValue) => {
+                    const ser = serializeVisibility(v);
+                    const patch: Partial<CalendarEvent> = {
+                      vlevel: v.vlevel,
+                      target_member_ids: ser.target_member_ids,
+                      target_client_ids: v.variant === 'L4' ? ser.client_ids : [],
+                      // legacy backward-compat (hook 가 자동 동기지만 explicit)
+                      visibility: v.vlevel === 'L1' ? 'personal' : 'business',
+                    };
+                    if (v.variant === 'L2_project') patch.project_id = ser.project_id;
+                    updateMaybeScoped(patch);
+                  }}
+                  projects={(projects || []).map(p => ({ id: p.id, name: p.name }))}
+                  clients={(clients || []).map(c => ({ id: c.id, display_name: c.display_name || c.company_name }))}
+                  members={(members || []).map(m => ({ user_id: m.user_id, name: m.name, role: m.role || 'member' }))}
+                />
+            </SectionBody>
+          </Section>
+        )}
+
       </DetailDrawer.Body>
 
       <DetailDrawer.Footer>
@@ -1057,10 +1120,23 @@ const Description = styled.div`
 
 // 시간 편집
 const ScheduleEditor = styled.div` display: flex; flex-direction: column; gap: 8px; position: relative; `;
-const DateTimeRow = styled.div` display: flex; align-items: center; gap: 8px; flex-wrap: wrap; `;
-const RowLabel = styled.span` font-size: 0.6875rem; font-weight: 700; color: #64748B; min-width: 30px; `;
+/* ★ 2026-09-14 (Irene: *"일정에서 상세 가면 배치가 엉망이야. 정렬 좀 제대로 해줘."*)
+   `flex-wrap: wrap` 이라 480px 패널에서 [시작][날짜][시간] 이 줄바꿈돼 흩어졌다 —
+   라벨만 남고 날짜가 다음 줄, 시간이 또 다음 줄로 떨어진다. 세 칸을 **그리드로 고정**한다:
+   라벨은 폭이 정해져 있고(시작/마감이 세로로 맞는다), 날짜가 남는 폭을 먹고, 시간은 제 폭만. */
+const DateTimeRow = styled.div`
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center; gap: 8px;
+`;
+const RowLabel = styled.span`
+  font-size: 0.6875rem; font-weight: 700; color: #64748B;
+  white-space: nowrap;
+`;
 const DateTrigger = styled.button`
-  display: inline-flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; min-width: 0;
+  span, & > *:not(svg) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   padding: 7px 10px; border: 1px solid #CBD5E1; border-radius: 8px;
   background: #fff; color: #0F172A; font-size: 0.78125rem; font-weight: 500; cursor: pointer;
   svg { color: #64748B; flex-shrink: 0; }
@@ -1068,7 +1144,12 @@ const DateTrigger = styled.button`
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
 `;
 const TimeWrap = styled.div` width: 100px; `;
-const AllDayRow = styled.div` display: flex; `;
+/* 종일 토글도 **한 줄을 다 쓴다** — 왼쪽에만 붙어 있으면 위 두 줄과 좌우가 안 맞는다. */
+const AllDayRow = styled.div`
+  display: flex; align-items: center;
+  padding: 2px 0;
+  & > * { width: 100%; }
+`;
 const CheckboxLabel = styled.label`
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   font-size: 0.78125rem; color: #475569;
@@ -1076,7 +1157,11 @@ const CheckboxLabel = styled.label`
 `;
 
 // 카테고리 / project / visibility
-const Grid2 = styled.div` display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; `;
+const Grid2 = styled.div<{ $single?: boolean }>`
+  display: grid;
+  grid-template-columns: ${(p) => (p.$single ? '1fr' : '1fr 1fr')};
+  gap: 10px; margin-top: 4px;
+`;
 const Field = styled.div` display: flex; flex-direction: column; gap: 4px; min-width: 0; `;
 const FieldLabel = styled.label`
   font-size: 0.65625rem; font-weight: 500; color: #94A3B8;
@@ -1094,11 +1179,15 @@ const CategoryBtn = styled.button<{ $active: boolean }>`
 
 // input/textarea
 const Input = styled.input`
+  width: 100%; box-sizing: border-box;
   padding: 8px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 0.8125rem; color: #0F172A; outline: none; background: #fff;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.12); }
 `;
 const Textarea = styled.textarea`
+  /* 설명 입력란은 **좌우 끝까지** (Irene 2026-09-14: "설명 부분에도 입력란이 끝까지 가게").
+     box-sizing 이 없으면 padding+border 만큼 넘쳐 오른쪽이 잘린다. */
+  width: 100%; box-sizing: border-box;
   padding: 8px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 0.8125rem; color: #0F172A; outline: none; resize: vertical;
   font-family: inherit; line-height: 1.5;
@@ -1173,6 +1262,17 @@ const Avatar = styled.div`
   display: flex; align-items: center; justify-content: center;
 `;
 const AttendeeName = styled.div` font-size: 0.8125rem; color: #0F172A; flex: 1; `;
+/* 내 행 전용 — 수락/미정/거절을 여기서 고른다. */
+const MyResponseRow = styled.div` display: inline-flex; gap: 4px; flex-shrink: 0; `;
+const MyResponseBtn = styled.button<{ $on: boolean }>`
+  padding: 3px 8px; border-radius: 999px; cursor: pointer;
+  font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
+  border: 1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};
+  background: ${(p) => (p.$on ? '#14B8A6' : '#fff')};
+  color: ${(p) => (p.$on ? '#fff' : '#64748B')};
+  &:hover:not(:disabled) { border-color: #14B8A6; }
+  &:disabled { opacity: 0.6; cursor: default; }
+`;
 const ResponsePill = styled.span<{ $response: string }>`
   font-size: 0.65625rem; font-weight: 600; padding: 2px 7px; border-radius: 999px;
   background: ${({ $response }) => ({

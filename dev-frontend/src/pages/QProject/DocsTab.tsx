@@ -1851,7 +1851,14 @@ const CompactUploadBtn = styled.button`
   &:hover{background:#0D9488;}
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
-const CompactHint = styled.div`font-size:0.6875rem;color:#94A3B8;flex:1;min-width:0;`;
+/* ★ 2026-09-14 — 좁은 폭에서 이 문구가 넘쳐 옆 것과 겹칠 수 있었다(말줄임이 없었다).
+   ※ Irene 신고 "파일리스트 좌측 상단에 채팅/업로드 안내가 겹쳐" 는 **재현하지 못했다** —
+     이건 그 계열에서 코드로 확인되는 유일한 후보라 방어로 막아 둔다. */
+const CompactHint = styled.div`
+  font-size:0.6875rem;color:#94A3B8;flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  @media (max-width: 640px) { display:none; }
+`;
 
 const DragOverlay = styled.div`
   position:fixed;inset:0;z-index:60;background:rgba(15,23,42,0.55);
