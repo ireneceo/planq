@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-09-11",
+  "_generated": "2026-09-14",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -438,7 +438,11 @@
       "phone",
       "expected_amount",
       "expected_currency",
-      "last_touch_at"
+      "last_touch_at",
+      "summary_json",
+      "summary_as_of",
+      "summary_item_count",
+      "summary_model"
     ],
     "contact_inquiries": [
       "id",
@@ -1562,7 +1566,8 @@
       "stripe_secret_enc",
       "stripe_webhook_secret_enc",
       "announcement_text_en",
-      "guest_links_enabled"
+      "guest_links_enabled",
+      "stripe_card_enabled"
     ],
     "post_attachments": [
       "id",
@@ -1625,7 +1630,8 @@
       "share_expires_at",
       "security_level",
       "deleted_at",
-      "purge_after"
+      "purge_after",
+      "share_password_hash"
     ],
     "project_clients": [
       "id",
@@ -1647,6 +1653,18 @@
       "amount",
       "incurred_at",
       "created_by",
+      "created_at",
+      "updated_at"
+    ],
+    "project_history_entries": [
+      "id",
+      "business_id",
+      "project_id",
+      "occurred_at",
+      "title",
+      "body",
+      "created_by",
+      "deleted_at",
       "created_at",
       "updated_at"
     ],
@@ -1689,7 +1707,8 @@
       "conversation_id",
       "vlevel",
       "target_member_ids",
-      "email_thread_id"
+      "email_thread_id",
+      "client_id"
     ],
     "project_pinned_docs": [
       "id",

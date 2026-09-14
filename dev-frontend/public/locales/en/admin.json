@@ -87,7 +87,15 @@
     "publishableUnused": "Payments run through Stripe-hosted checkout, so this value is not used. Card payment works without it.",
     "keyPrefixError": "Enter a value starting with {{prefix}}.",
     "storedMalformed": "The stored value \"{{value}}\" is not a Stripe key. Replace it with a value starting with pk_, or clear it.",
-    "keyPrefixJoin": " or "
+    "keyPrefixJoin": " or ",
+    "cardUse": "Card payments",
+    "cardUseOn": "Add both values below and “Pay by card” appears on the checkout screen.",
+    "cardUseOff": "Off — “Pay by card” will not appear even with keys saved. The keys are not deleted.",
+    "stripeHint3": "Both values are stored encrypted and are never shown again after saving (this is by design).",
+    "savedNote": "Stored, encrypted — never shown again",
+    "change": "Change",
+    "keyClear": "Remove this key",
+    "cancelChange": "Cancel change"
   },
   "payments": {
     "title": "Payment history",
