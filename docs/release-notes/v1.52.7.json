@@ -1,0 +1,16 @@
+{
+  "version": "1.52.7",
+  "date": "2026-09-15",
+  "items": [
+    {
+      "ko": {
+        "title": "Q sale 상담 목록의 [메모] 버튼이 개수를 그대로 보여줍니다",
+        "body": "메모가 몇 개인지 버튼에 숫자로 나옵니다 — 없으면 «메모 0», 다섯 개면 «메모 5». 직전 버전의 작은 점은 없는 쪽이 빈 자리로 보여 알아보기 어려웠습니다. 글자를 왼쪽에 붙여 두었기 때문에 숫자가 두 자리가 되어도 «메모» 글자가 밀리지 않고, 버튼 좌우 길이도 행마다 같습니다. 버튼을 누르면 종전처럼 행 아래로 메모가 펼쳐지고 다시 누르면 닫힙니다."
+      },
+      "en": {
+        "title": "The [Notes] button in the Q sale consult list now shows the count",
+        "body": "The button states how many notes a row has — «Notes 0» when there are none, «Notes 5» when there are five. The small dot in the previous version was hard to read, since «none» just looked like empty space. The text is left-aligned, so a two-digit count does not push the word «Notes» sideways, and every row's button stays exactly the same width. Pressing it still opens the notes below the row, and pressing again closes them."
+      }
+    }
+  ]
+}

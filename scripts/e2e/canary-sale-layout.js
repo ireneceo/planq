@@ -199,28 +199,43 @@ async function measure(page) {
             border: cs.borderTopWidth, bg: cs.backgroundColor }; })() : null,
         // ⑥ 액션 높이 집합
         actH: [...new Set(acts.map((b) => Math.round(b.getBoundingClientRect().height)))],
-        // ⑫ 메모 버튼 — **점으로** 있음/없음을 말하고 **폭은 같다** (2026-09-14 4차로 계약이 바뀜:
-        //   행 아래 [메모보기 ⌄] 손잡이는 없앴다. 검사를 끈 것이 아니라 판정 대상을 옮겼다.)
+        // ⑫ 메모 버튼 — **숫자로** 개수를 말하고(0 포함) **좌측 정렬 · 폭은 행마다 같다**.
+        //   2026-09-14 에 계약이 세 번 옮겨졌다: 손잡이 좌표 → 점 색 → 숫자·정렬.
+        //   매번 **끄지 않고 옮겼다**. 지금 정본은 이 주석 바로 아래의 측정값이다.
         memoBtn: (() => {
-          const b = row.querySelector('[data-testid^="sale-inbox-memo-"]');
+          // ★ 접두어가 겹친다 — `sale-inbox-memo-` 는 `-count-`·`-pane-` 에도 걸린다.
+          //   지금은 숫자 span 이 버튼의 **자손**이라 문서 순서상 버튼이 먼저 잡히지만,
+          //   그 우연에 기대지 않는다. 행 id 로 **정확한** testid 를 만든다.
+          const rid = (row.getAttribute('data-testid') || '').replace('sale-inbox-row-', '');
+          const b = row.querySelector(`[data-testid="sale-inbox-memo-${rid}"]`);
           if (!b) return null;
           const br = b.getBoundingClientRect();
-          // 점은 **항상 그려져 있어야** 한다(없을 때 투명). 조건부 렌더면 폭이 갈린다.
-          // ★ 2026-09-14 — 처음엔 `b.querySelector('span')` 으로 집었다가 **ActionButton 이
-          //   children 을 감싸는 `<Label>` span** 을 재서 «점이 투명하다» 가 **거짓 통과**했다.
-          //   확정 손잡이(`sale-inbox-memo-dot-*`)로만 집는다
-          //   (memory feedback_judge_measures_wrapper_not_defect).
-          const dot = b.querySelector('[data-testid^="sale-inbox-memo-dot-"]');
-          const ds = dot ? getComputedStyle(dot) : null;
-          const dr = dot ? dot.getBoundingClientRect() : null;
+          // ★ 2026-09-14 5차로 계약이 또 바뀌었다 (Irene: *"메모 없는 건 이상하잖아.
+          //   그냥 메모 0, 메모 5 이렇게 나오게 해. 메모 좌측정렬하면 숫자 2자리여도…"*)
+          //   → 점이 아니라 **숫자**다. 0 도 쓴다. 판정 대상을 또 옮긴다(끄지 않는다).
+          // ★ 확정 손잡이로만 집는다 — `querySelector('span')` 은 ActionButton 의 `<Label>`
+          //   래퍼를 집어 거짓 통과를 냈던 자리다(memory feedback_judge_measures_wrapper_not_defect).
+          const cnt = b.querySelector('[data-testid^="sale-inbox-memo-count-"]');
+          const cs = cnt ? getComputedStyle(cnt) : null;
+          const cr = cnt ? cnt.getBoundingClientRect() : null;
+          const bs = getComputedStyle(b);
           return {
             has: b.getAttribute('data-has-notes') === '1',
             w: Math.round(br.width), h: Math.round(br.height),
-            label: (b.innerText || '').trim(),
+            label: (b.innerText || '').replace(/\s+/g, ' ').trim(),
             aria: b.getAttribute('aria-label') || '',
-            dotPresent: !!dot,
-            dotW: dr ? Math.round(dr.width) : 0,
-            dotBg: ds ? ds.backgroundColor : '',
+            countPresent: !!cnt,
+            countText: cnt ? (cnt.innerText || '').trim() : '',
+            countW: cr ? Math.round(cr.width) : 0,
+            countAlign: cs ? cs.textAlign : '',
+            // 좌측 정렬 — 버튼 안의 글자가 왼쪽에 붙어 시작 x 가 고정인가
+            justify: bs.justifyContent,
+            // 글자 시작 x 가 버튼 왼쪽 안쪽 여백과 붙어 있는가
+            textStartOffset: (() => {
+              const lab = b.querySelector('span');
+              if (!lab) return null;
+              return Math.round(lab.getBoundingClientRect().left - br.left);
+            })(),
           };
         })(),
         // 손잡이는 **사라졌어야** 한다
@@ -326,9 +341,15 @@ async function run() {
       P('⑩ 목적지는 title 이 여전히 말한다', R.every((r) => r.openDest && r.openDest.length > 0),
         `예: ${R[0].openDest}`);
 
+      // ★ 2026-09-14 5차 — 이 검사는 **뒤집혔다.** 2차에는 *"메모 개수 표시는 없애"* 라
+      //   «숫자가 없다» 를 요구했는데, 5차에 Irene 이 되돌렸다
+      //   (*"메모 없는 건 이상하잖아. 그냥 메모 0, 메모 5 이렇게 나오게 해."*).
+      //   지운 것이 아니라 **방향을 바꿨다** — 그리고 정본 판정은 아래 `memoBtn` 블록이
+      //   확정 손잡이(`sale-inbox-memo-count-*`)로 한다. 여기서는 라벨에 숫자가 실제로
+      //   보이는지만 한 줄로 확인한다(라벨은 사용자가 읽는 글자 그대로다).
       const memoNum = R.filter((r) => /\d/.test(r.memoLabel || ''));
-      P('⑪ 메모 버튼에 개수 숫자가 없다', memoNum.length === 0,
-        `숫자 붙은 행 ${memoNum.length}건 · 예 "${R[0].memoLabel}"`);
+      P('⑪ 메모 버튼 라벨에 **개수 숫자가 보인다** (0 도 쓴다)', memoNum.length === R.length,
+        `숫자 있는 행 ${memoNum.length}/${R.length} · 예 "${R[0].memoLabel}"`);
 
       const xs = R.map((r) => r.x).filter(Boolean);
       P('⑨ ✕ 에 테두리 박스가 없다', xs.length > 0 && xs.every((x) => parseFloat(x.border) === 0),
@@ -357,38 +378,33 @@ async function run() {
       if (mb.length === 0) {
         P('⑫ [메모] 버튼 — 커버리지', false, '행이 있는데 메모 버튼을 하나도 못 찾았다 (판정 불가)');
       } else {
-        // 점은 **항상** 그려져 있어야 한다 — 조건부로 렌더하면 폭이 갈린다
-        P('⑫ [메모] 버튼의 점이 **모든 행에** 그려져 있다 (없을 때도 자리를 차지한다)',
-          mb.every((b) => b.dotPresent && b.dotW >= 5),
-          `점 없는 행 ${mb.filter((b) => !b.dotPresent).length}건 · 폭 집합 {${[...new Set(mb.map((b) => b.dotW))].join(',')}}`);
+        // ★ 2026-09-14 5차 계약 — 숫자를 **항상** 쓴다(0 도). 2차에 지웠던 것을 Irene 이 되돌렸다.
+        P('⑪ [메모] 버튼에 **개수 숫자가 있다** (0 도 쓴다)',
+          mb.every((b) => b.countPresent && /^\d+$/.test(b.countText)),
+          `숫자 없는 행 ${mb.filter((b) => !b.countPresent || !/^\d+$/.test(b.countText)).length}건 · `
+          + `값 {${[...new Set(mb.map((b) => b.countText))].join(', ')}}`);
 
-        // ★ 이것이 신고의 본문이다 — **폭이 행마다 같다**
+        // 숫자와 data-has-notes 가 **서로 맞는가** (한쪽만 고쳐지면 거짓말이 된다)
+        P('⑪ 숫자와 «있음» 표시가 일치한다',
+          mb.every((b) => (Number(b.countText) > 0) === b.has),
+          mb.map((b) => `${b.countText}/${b.has ? 'has' : 'none'}`).join(' '));
+
+        // ★ Irene 의 두 요구 — 좌측 정렬 + 폭 불변
+        P('⑫ 버튼 안이 **좌측 정렬**이다 (숫자가 늘어도 «메모» 글자가 밀리지 않는다)',
+          mb.every((b) => b.justify === 'flex-start'),
+          `justify-content 집합 {${[...new Set(mb.map((b) => b.justify))].join(', ')}}`);
+        P('⑫ 글자 시작 x 가 **행마다 같다** (좌측 정렬의 실제 효과)',
+          [...new Set(mb.map((b) => b.textStartOffset))].length === 1,
+          `시작 offset 집합 {${[...new Set(mb.map((b) => b.textStartOffset))].join(', ')}}px`);
         const ws = [...new Set(mb.map((b) => b.w))];
-        P('⑫ [메모] 버튼 폭이 **행마다 같다** (있음/없음이 폭을 바꾸지 않는다)', ws.length === 1,
+        P('⑫ [메모] 버튼 폭이 **행마다 같다**', ws.length === 1,
           `폭 집합 {${ws.join(', ')}} · 있음 ${mb.filter((b) => b.has).length} / 없음 ${mb.filter((b) => !b.has).length}`);
-
-        // 점 색이 실제로 갈리는가 — 있음은 칠해지고, 없음은 투명
-        const on = mb.filter((b) => b.has), off = mb.filter((b) => !b.has);
-        if (on.length) {
-          P('⑫ 메모가 **있는** 행은 점이 칠해진다 (#14B8A6)',
-            on.every((b) => /rgb\(20,\s*184,\s*166\)/.test(b.dotBg)),
-            `색 집합 {${[...new Set(on.map((b) => b.dotBg))].join(' | ')}}`);
-          P('⑫ 메모가 있는 행의 이름이 그 사실을 말한다 (색만으로 말하지 않는다)',
-            on.every((b) => b.aria && b.aria.length > 0 && !/\d/.test(b.label)),
-            `aria="${on[0].aria}" · 라벨="${on[0].label}"`);
-        }
-        if (off.length) {
-          P('⑫ 메모가 **없는** 행은 점이 투명하다',
-            off.every((b) => /rgba\(0,\s*0,\s*0,\s*0\)|transparent/.test(b.dotBg)),
-            `색 집합 {${[...new Set(off.map((b) => b.dotBg))].join(' | ')}}`);
-        }
-        // ★ 커버리지를 **숨기지 않고 적는다.** 이 단계(목록을 그냥 읽는 단계)에는 «있음» 행이
-        //   없을 수 있다 — 메모를 만들어 두 상태를 같은 목록에서 대조하는 것은 아래
-        //   "메모를 달면" 섹션이 하고, 그 섹션은 «없음» 행이 0이면 실패한다.
-        //   여기서 두 상태를 요구하면 구조적으로 못 만족하는 조건이 되어 영구 빨간불이 된다.
-        P('⑫ 폭 판정의 커버리지를 밝힌다 (있음/없음 몇 건을 쟀는가)', mb.length > 0,
-          `이 폭에서 있음 ${on.length} / 없음 ${off.length}`
-          + (on.length === 0 ? ' — 있음이 0이라 «상태가 폭을 바꾸지 않는다» 는 아래 섹션이 잰다' : ''));
+        P('⑫ 숫자 칸이 **1자리·2자리 같은 폭**이다 (min-width 2ch)',
+          [...new Set(mb.map((b) => b.countW))].length === 1 && mb[0].countW >= 10,
+          `숫자칸 폭 집합 {${[...new Set(mb.map((b) => b.countW))].join(', ')}}px`);
+        P('⑫ 폭 판정의 커버리지를 밝힌다 (있음/없음 몇 건을 쟀는가)', true,
+          `이 폭에서 있음 ${mb.filter((b) => b.has).length} / 없음 ${mb.filter((b) => !b.has).length}`
+          + ` · 자릿수 {${[...new Set(mb.map((b) => b.countText.length))].join(',')}}`);
       }
 
       // ⑬ 메모를 열면 — 카드는 안 움직이고, 회색 판이 좌우 풀폭
@@ -597,16 +613,20 @@ async function run() {
         const row = document.querySelector(`[data-testid="sale-inbox-row-${id}"]`);
         if (!row) return { missing: 'row' };
         const readBtn = (r) => {
-          const b = r.querySelector('[data-testid^="sale-inbox-memo-"]');
+          // ★ 접두어가 겹친다 — `sale-inbox-memo-count-*` 가 `sale-inbox-memo-*` 에도 걸린다.
+          //   **버튼만** 집으려면 정확한 id 로 본다(안 그러면 숫자 span 을 버튼으로 재게 된다).
+          const rid = (r.getAttribute('data-testid') || '').replace('sale-inbox-row-', '');
+          const b = r.querySelector(`[data-testid="sale-inbox-memo-${rid}"]`);
           if (!b) return null;
           const br = b.getBoundingClientRect();
-          const dot = b.querySelector('[data-testid^="sale-inbox-memo-dot-"]');
+          const cnt = b.querySelector(`[data-testid="sale-inbox-memo-count-${rid}"]`);
           return {
             has: b.getAttribute('data-has-notes') === '1',
-            w: Math.round(br.width), label: (b.innerText || '').trim(),
+            w: Math.round(br.width),
+            label: (b.innerText || '').replace(/\s+/g, ' ').trim(),
             aria: b.getAttribute('aria-label') || '',
-            dotPresent: !!dot,
-            dotBg: dot ? getComputedStyle(dot).backgroundColor : '',
+            countPresent: !!cnt,
+            countText: cnt ? (cnt.innerText || '').trim() : '',
           };
         };
         const mine = readBtn(row);
@@ -620,16 +640,13 @@ async function run() {
         };
       }, rid);
       push('⑫ 행 아래 [메모보기 ⌄] 손잡이가 없다', tg.toggleGone === true, `남아 있음=${!tg.toggleGone}`);
-      push('⑫ 메모를 달면 그 행 [메모] 버튼이 **있음**으로 바뀐다',
-        !tg.missing && !!tg.mine && tg.mine.has === true && tg.mine.dotPresent,
-        tg.missing ? `없음(${tg.missing})` : `has=${tg.mine && tg.mine.has} dot=${tg.mine && tg.mine.dotPresent}`);
+      push('⑪ 메모를 달면 그 행의 **숫자가 1 이상으로 바뀐다** (0 이 아니다)',
+        !tg.missing && !!tg.mine && Number(tg.mine.countText) >= 1 && tg.mine.has === true,
+        tg.missing ? `없음(${tg.missing})` : `숫자="${tg.mine && tg.mine.countText}" has=${tg.mine && tg.mine.has}`);
       if (!tg.missing && tg.mine) {
-        push('⑫ 그 행의 점이 **칠해진다** (#14B8A6)', /rgb\(20,\s*184,\s*166\)/.test(tg.mine.dotBg),
-          `dotBg=${tg.mine.dotBg}`);
-        push('⑫ 이름이 메모 있음을 말한다 (색만으로 말하지 않는다)',
-          !!tg.mine.aria && tg.mine.aria.length > 0, `aria="${tg.mine.aria}"`);
-        push('⑪ 메모가 생겨도 [메모] 버튼에 **숫자가 안 붙는다**', !/\d/.test(tg.mine.label || ''),
-          `"${tg.mine.label}"`);
+        push('⑪ 라벨이 "메모 N" 모양이다', /\d/.test(tg.mine.label || ''), `"${tg.mine.label}"`);
+        push('⑫ 이름(aria)이 개수를 말한다', !!tg.mine.aria && /\d/.test(tg.mine.aria),
+          `aria="${tg.mine.aria}"`);
         // ★ 신고의 본문 — 메모가 달린 행과 안 달린 행의 버튼 폭이 같아야 한다
         if (tg.otherHasOff > 0) {
           push('⑫ 메모 있는 행과 없는 행의 [메모] 버튼 **폭이 같다**',

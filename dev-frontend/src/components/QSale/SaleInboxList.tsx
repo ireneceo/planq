@@ -84,10 +84,12 @@ const SaleInboxList: React.FC<Props> = ({
   const [memoFor, setMemoFor] = useState<string | null>(null);
   // 메모 있음/없음을 **글자로도** 말한다 — 점(색)만으로는 색을 못 보는 사용자에게 전달되지 않고,
   // 마우스를 올린 사람에게도 이유가 보여야 한다. 폭에는 영향이 없다(title·aria-label).
-  const memoHint = (it: { note_count?: number | null }) =>
-    ((it.note_count ?? 0) > 0
-      ? t('action.memoWith', { defaultValue: '메모 있음 — 눌러서 보기' })
+  const memoHint = (it: { note_count?: number | null }) => {
+    const n = it.note_count ?? 0;
+    return (n > 0
+      ? t('action.memoWith', { n, defaultValue: '메모 {{n}}개 — 눌러서 보기' })
       : t('action.memoNone', { defaultValue: '메모 없음 — 눌러서 남기기' })) as string;
+  };
   // 일정 추가 — 이 상담 **고객이 일정에 연결**된다
   const [eventFor, setEventFor] = useState<SaleInboxItem | null>(null);
   // ✕ — 상담 목록에서 치울지 묻는다(삭제가 아니라 보관이라는 것을 문구로 말한다)
@@ -420,35 +422,29 @@ const SaleInboxList: React.FC<Props> = ({
                   </ActionButton>
 
                   {/* ② 메모 — 행 **아래**에서 열린다(나가지 않는다).
-                      ★ 2026-09-14 4차 (Irene: *"메모보기 좌측 버튼은 그냥 없애자. 메모 버튼이
-                        메모가 있는 거랑 없는 거랑 알 수 있게 해줄래? 버튼 좌우 길이가 다르지 않게
-                        표시방법 없어?"*)
-                      행 아래 [메모보기 ⌄] 손잡이를 없애고, **이 버튼 하나**가 두 일을 한다 —
-                      메모가 있다는 사실을 말하고, 누르면 아래를 연다.
-                      ★ **점을 항상 그린다.** 없을 때 투명하게만 둔다 — 그래서 폭이
-                        ①있음/없음 두 상태에서 같고 ②행마다 같다. 숫자·글자를 붙이면 그 순간
-                        폭이 갈리고, 그것이 곧 열 어긋남이 된다
-                        (memory `feedback_variable_label_breaks_column_align`).
-                      ★ 색만으로 말하지 않는다 — `title`·`aria-label` 이 있음/없음을 글자로 들고
-                        있다(폭에는 영향이 없다).
-                      ★ 점은 children 이 아니라 **`icon` 슬롯**에 넣는다. `ActionButton` 은 children 을
-                        `<Label>` span 으로 감싸므로 그 안에 넣으면 버튼의 `gap` 을 못 받고,
-                        무엇보다 **검사기가 첫 span 을 집으면 그 래퍼를 재게 된다**(실제로 그래서
-                        «점이 투명하다» 가 거짓 통과했다 — memory
-                        `feedback_judge_measures_wrapper_not_defect`). `icon` 슬롯은 버튼의 직계
-                        자식이고 `flex-shrink:0` 이라 폭이 흔들리지 않는다.
-                      ★ 검사기가 확정적으로 집도록 **점에 `data-testid`** 를 준다. "첫 span" 같은
-                        휴리스틱은 위(래퍼)로도 아래(잎)로도 어긋난다. */}
-                  <ActionButton tone="secondary" size="xs" disabled={busy}
+                      ★ 2026-09-14 5차 (Irene: *"메모 없는 건 이상하잖아. 그냥 메모 0, 메모 5
+                        이렇게 나오게 해. 그리고 메모 좌측정렬하면 숫자 2자리여도 안 이상해지지
+                        않을까?"*)
+                      **개수를 그대로 쓴다.** 0 도 쓴다 — 4차의 «점» 은 없는 쪽이 빈 자리로 보여
+                      이상했다. (2차에 *"메모 개수 표시는 없애"* 로 지웠던 것을 Irene 이 되돌렸다.
+                      숫자를 다시 지우지 말 것 — 이 줄이 그 이유다.)
+                      ★ **왜 좌측 정렬인가** — Irene 의 짐작이 맞다. 폭을 고정해 두고 가운데
+                        정렬하면 1자리→2자리에서 «메모» 글자가 반 칸 왼쪽으로 밀려 흔들린다.
+                        좌측 정렬이면 글자 시작 x 가 고정이고 숫자만 오른쪽으로 자란다.
+                      ★ **폭은 여전히 행마다 같아야 한다**(3차 요구). 숫자 칸에 `min-width: 2ch` 를
+                        줘서 1자리와 2자리가 **같은 폭**이 되게 한다 — 버튼 전체에 px 을 박지 않는다
+                        (글꼴이 바뀌면 거짓이 되고, 규격 토큰 밖 숫자는 가드가 센다). */}
+                  <MemoBtn tone="secondary" size="xs" disabled={busy}
                     data-testid={`sale-inbox-memo-${it.id}`}
                     data-has-notes={(it.note_count ?? 0) > 0 ? '1' : '0'}
                     aria-expanded={memoOpen}
                     title={memoHint(it)} aria-label={memoHint(it)}
-                    icon={<MemoDot $on={(it.note_count ?? 0) > 0}
-                      data-testid={`sale-inbox-memo-dot-${it.id}`} aria-hidden />}
                     onClick={() => setMemoFor((v) => (v === it.id ? null : it.id))}>
                     {t('action.memo') as string}
-                  </ActionButton>
+                    <MemoCount data-testid={`sale-inbox-memo-count-${it.id}`}>
+                      {it.note_count ?? 0}
+                    </MemoCount>
+                  </MemoBtn>
 
                   {/* ③ 일정 — 이 상담 **고객이 일정에 연결**된다 */}
                   <ActionButton tone="secondary" size="xs" disabled={busy}
@@ -773,12 +769,22 @@ const IconX = styled.button`
   &:disabled { opacity: 0.5; cursor: default; }
 `;
 
-/* 메모 있음 표시 — [메모] 버튼 안의 점. **없을 때도 자리를 차지한다**(투명).
-   그래서 버튼 폭이 있음/없음 두 상태에서 같고, 행마다도 같다. 지우거나 조건부로
-   렌더하면 그 순간 폭이 갈린다. */
-const MemoDot = styled.span<{ $on: boolean }>`
-  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
-  background: ${(p) => (p.$on ? '#14B8A6' : 'transparent')};
+/* [메모 N] — 공용 `ActionButton` 을 **상속**한다(규격을 다시 쓰지 않는다).
+   ★ 좌측 정렬 — 폭이 고정된 채 가운데 정렬이면 숫자가 한 자리 늘 때 «메모» 글자가 반 칸
+     왼쪽으로 밀린다. 왼쪽에 붙여 두면 글자 시작 x 가 고정이고 숫자만 오른쪽으로 자란다
+     (Irene 2026-09-14 5차의 짐작이 맞았다). */
+const MemoBtn = styled(ActionButton)`
+  justify-content: flex-start;
+`;
+/* 숫자 칸 — `min-width: 2ch` 로 **1자리와 2자리가 같은 폭**이다.
+   버튼 전체에 px 폭을 박지 않는다: 글꼴이 바뀌면 그 숫자가 거짓이 되고,
+   규격 토큰(32/36/40/44) 밖의 값은 UI 가드가 위반으로 센다.
+   3자리(99+)가 되면 1ch 만큼 자란다 — 그건 받아들인다(그 수의 메모는 행 목록의 관심사가 아니다). */
+const MemoCount = styled.span`
+  display: inline-block;
+  min-width: 2ch;
+  text-align: left;
+  font-variant-numeric: tabular-nums;  /* 자릿수마다 글자폭이 달라지지 않게 */
 `;
 /* 행 아래 메모 — 카드 **밖**(RowWrap 의 둘째 칸)이라 좌우 **풀폭**이다.
    grid-column 은 여기 쓰이지 않는다(부모가 grid 가 아니다) — 있던 것을 지웠다.
