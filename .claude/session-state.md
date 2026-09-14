@@ -1,103 +1,84 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-09-14 (UTC)
-**작업 상태:** 완료 (운영 배포 `55c90dfa` · **v1.52.1** · 09:49 · 353초 · 백업 `/opt/planq/backups/20260914_094402`)
-**Git:** 미커밋 변경 0건 · 마지막 배포 커밋 `55c90dfa`
+**작업 상태:** 완료 (운영 배포 2회 — `f16a7768` **v1.52.2** 17:11 · `9aeeb117` **v1.52.3** 17:28 · 347초 · 백업 `/opt/planq/backups/20260914_171156`, `/opt/planq/backups/20260914_172848`)
+**Git:** 미커밋 변경 0건 · HEAD `01aa7a78` · **미배포 1건** (아래)
 
-### 진행 중인 작업
-- 없음
+### ★ 미배포 — 다음 배포에 실린다
+- `01aa7a78` **Q info 저장 조건 수정**. 운영은 아직 v1.52.3(`9aeeb117`)이다.
+  Irene 이 `/배포` 라고 해야 나간다.
 
 ### 완료된 작업 (이번 세션)
 
-**★ 앱에서 알림을 눌러도 못 가던 것 — 원인이 세 겹이었다** (`9dbcc519`)
-> Irene: *"모바일에서 알림이오면 눌러서 갈 수가 없어 커넥션 문제라고 나와 모든 알림 다."* · *"앱 다 체크해"*
-> (아이폰 앱·안드로이드 앱 **양쪽**. 웹/PWA 는 이 경로를 안 타서 멀쩡했다.)
+**★ 안드로이드 앱 — Play 프로덕션 심사 제출까지 완료**
+- Codemagic 빌드가 **두 번, 같은 로그로** 실패했다. 첫 번째는 `cap sync` 단계가 오프라인 폴백을
+  박는 스크립트를 건너뛴 것(`648d59d1` — `npm run cap:beta:android` 로 교체).
+  **두 번째 원인은 코드가 아니라 푸시를 안 한 것**이었다 — CI 는 rsync 가 아니라 **GitHub 에서** 당겨간다.
+  내가 그 사이에 *"고쳤습니다, 다시 돌려주세요"* 라고 말한 것은 근거가 없었다.
+  → 메모리 `feedback_ci_pulls_from_github_not_rsync`
+- 내부 테스트 업로드(version code 28. *"no deobfuscation file"* 경고는 출시를 막지 않는다) →
+  App content · Health apps · 국가(**모든 국가**) → `Submit 11 changes for review`. **심사 수일 대기.**
+- ★ **심사 화면 안내를 두 번 틀렸다.** 화면에 없는 메뉴를 있다고 말했다.
+  Irene: *"1번부터 화면에 없어. 내가 주는 화면 보고 하는 거 맞아?"* · *"하나씩 좀 하자. 하나씩"*
+  → 그 뒤로는 **받은 화면에 보이는 것만** 근거로 한 단계씩 안내했다.
 
-1. `stores/tabStore.ts` — 미러 모드에서 `navigateDelegate` 가 아직 없으면 `navigateActive` 가
-   **조용히 no-op**. 앱 콜드 스타트(알림 탭의 대부분)가 정확히 그 순간이다 → `mirrorNavigate` 로
-   한 건 보류했다가 `setTabNavigator` 가 붙을 때 보낸다(TTL 15초).
-2. `components/NativeBridge.tsx` — 그래서 400ms 뒤 `location.assign(상대경로)` 로 **문서 전체를
-   다시 로드**했다. 앱 기동 중의 그 로드가 실패하면 Capacitor 가 `errorPath` 로 떨어뜨린다
-   → SPA 로 2.4초 기다리고(문서 로드 0회), 그래도 못 가면 **1회만 절대 URL**.
-3. `www-placeholder/index.html` — 그 오프라인 화면의 [다시 시도]가 `location.reload()` 였다.
-   그 문서는 **앱 번들 안의 로컬 파일**이라 다시 읽어도 같은 화면 — **한 번 떨어지면 영영 못 나왔다.**
-   → 절대 서버 URL 이동 + 자동 복귀(online·visibilitychange·1.5초), 최소 간격 8초로 루프 차단.
-   URL 은 `scripts/cap-offline-fallback.js` 가 플랫폼 `server.url` 에서 박는다(손으로 안 적는다).
+**★ Stripe 실연결 + 카드 결제 사용 스위치** (`ea85d433` · `f16a7768`)
+- restricted key(`rk_live`) 발급 → 웹훅 등록 → **결제 0건으로** 실동작 확인
+  (정상 서명 200 / 위조 서명 400 · `rk_live` LIVE 모드 확인). Products 권한이 없어
+  `price_data` 인라인만 쓴다.
+- 관리자 화면 신고 4건 수리 — 저장하면 값이 사라짐 · 자동완성 오염 · "비우면 유지" 문구 ·
+  **사용 여부 스위치가 없음**(`platform_settings.stripe_card_enabled` 신설, 마이그레이션 멱등).
+- ★ **그 스위치가 화면만 가리고 있었다** — 껐는데도 `POST …/stripe-checkout`(구독)과
+  워크스페이스 청구서 체크아웃은 **그대로 열려 있었다**. `isStripeEnabled('platform')` 한 술어에
+  스위치를 넣고 **서버 문 두 곳**(`routes/plan.js` · `routes/invoices.js`)에 게이트를 걸었다.
+  **버튼을 숨기는 것은 보안이 아니다.**
 
-원인 추적에 결정적이었던 것: **앱 UA 크래시 리포트가 0건**이었다 = 우리 JS 가 아예 안 돌고 있었다.
-운영 실측으로 배제: 알림 링크 전부 정상 상대경로 · 그 경로 운영 200(iOS UA) · TLS 유효 ·
-push 3일 실패 0(apns 25·fcm 25·webpush 25) · dev 서버엔 네이티브 세션 0(양쪽 앱 모두 운영을 가리킨다).
+**★ 법인이 둘이라는 것 — 미해결**
+- Stripe 가입 법인은 **말레이시아 법인**, 서비스 제공자는 **아이린앤컴퍼니**.
+  내가 처음 *"상관없다"* 고 답한 것은 **틀렸다** — 청구 주체가 둘이면 고지해야 한다.
+- 개정 대상: 약관 제3조 · 개인정보처리방침 **국외이전** · 푸터 사업자 정보 · 청구서/영수증 양식.
+  필요한 것 = 말레이시아 법인 **정식 상호·등록번호·주소**(Irene). 세무·최종 문구는 전문가 영역.
+- **그때까지 [카드 결제 사용] 스위치를 꺼 둘 것을 권고**했다. → 메모리 `project_billing_entity_two_companies`
 
-**★ 프로젝트 상세 12탭 레이아웃을 껍데기 2종으로 수렴** (`6d64d6dc`)
-> Irene: *"프로젝트 상세 가로 레이아웃이 탭마다 달라. 헤더랑 다르면 안되는데 탭마다 다르고 헤더랑도 다르고."*
+**★ Q info 가 파일 없이는 저장이 안 됐다** (`01aa7a78`, **미배포**)
+- 서버(`routes/kb.js`)는 **본문 · 첨부 · 항목값** 셋 중 하나면 이미 받고 있었는데
+  화면(`KnowledgePage.submit`)만 본문·첨부를 요구했다. **화면이 서버보다 엄격했다.**
+- 클라이언트 검증 **14곳**을 훑어 어긋난 것은 이 한 곳뿐임을 확인했다
+  (Irene: *"이런 말도 안되는 형국이 여기 저기 있는 거 아니야?"* 에 대한 답).
+- → 메모리 `feedback_client_stricter_than_server_kills_feature`
 
-12탭 × 3폭 실측으로 갈린 축 셋: 좌우 여백(보고서만 +20px, **모든 폭**) · 시작점(파일만 20px 아래,
-폰에선 얹는탭이 막대보다 2px 위) · 스크롤 주체(파일만 바깥 — 태블릿 20px·폰 398px 넘침).
-→ `ProjectTabPane`(일반) / `ProjectTabFull`(문서·노트·**파일**) 둘만 쓰게 했다.
-`ProjectReportTab` padding:20px 제거 · `HistoryTab` 상단 4px 제거 · `ProjectFilesWrap` 삭제 ·
-폰 margin 16→14 · 읽는 곳이 없어진 `tabStickyTop` 삭제.
-후: 일반탭 좌 `[240][20][14]` · 얹는탭 시작차 `[0][0][0]` · 바깥 스크롤 `0 0 0`.
-
-**프로필 사진 매직바이트** (`ec4ffe25`, 앞 세션 커밋분이 이번 배포에 실림)
-
-**배포** — v1.52.1 (버전을 **배포 전에** 올렸다), 릴리즈노트 ko/en 3항목 발행, 개발현황 id=95.
-
-### ★ 이번 세션에서 검사기를 세 번 고쳤다 (전부 대조군이 잡아낸 것)
-1. **하니스 mail-compose 거짓 FAIL** — "위로 밀림 top -61" 은 본문 에디터가 보이는 영역보다 커서
-   (h 374 > vvh 337) **필연**이었다. 실제로 14줄을 쳐 보니 캐럿은 246/337 로 내내 보인다.
-   검사기는 원래도 캐럿으로 재려 했는데 하니스가 `focus()` 만 하고 선택을 안 만들어 언제나
-   요소 rect 로 떨어졌다 → 캐럿을 세워 재게 함. 대조군 2/2.
-   ★ **내 변경 이전 빌드에서도 같았다** — 두 파일을 원복·재빌드해 확인했다(내 것이 아님을 증명).
-2. **탭 레이아웃 검사기 1차** — 껍데기 rect 로 재서 **양성 대조군이 통과**했다(빨간불을 끈 것일 뿐).
-3. **탭 레이아웃 검사기 2차** — "텍스트 있는 첫 잎" 으로 바꾸니 탭마다 다른 컨트롤이 잡혀 전부 거짓 실패.
-→ 최종: **탭 루트 상자 + padding, 단 보이는 상자(카드)의 padding 은 더하지 않는다.**
-  대조군에서 3폭 모두 `report` **하나만** 잡힘(오탐 0), 원복 후 0 실패.
-
-### 신설한 가드·카나리
-- `scripts/cap-offline-fallback.js` (+`--check`) — 앱 오프라인 화면의 서버 URL 을 플랫폼
-  `server.url` 에서 박고 검사. `{ios,android}-beta-check.js` 에 물림. **깨뜨려 확인**(android 만
-  어긋내니 exit 1, 원복 0).
-- beta-check 에 "생성물이 capacitor.config.ts 보다 오래됐다" 경고 — 실제로 **iOS 생성물이 8/25 자**라
-  그대로 아카이브하면 dev 서버를 가리키고 8/27 포그라운드 배너 수정이 되돌아간다.
-- 카나리 `--suite pushdeeplink` (신규 8건) — 콜드스타트 딥링크 도착 + 문서로드 1회 ·
-  양성 대조군(SPA 막으면 폴백 2회) · 오프라인 화면 서버 복귀 4건 · 음성 대조군(옛 reload 0건).
-- `--suite projecttabs` 에 **12탭 × 3폭 레이아웃 계약** 추가 + 탭 순서 판정 선택자 조임
-  (접두어만 보다 새 본문 testid 를 탭으로 세어 거짓 실패했다).
+**배포 게이트가 두 번 제대로 막았다** (`be5353d0`) — 빠뜨린 문구 12개(ko/en) · 낡은 스키마 스냅샷.
+그 뒤 i18n 파일별 래칫도 한 번 걸렸다(두 줄짜리 `t()` 폴백 → 한 줄로).
 
 ### 검증 (Fable 미검증 — 자체 검증)
-**Fable 호출 오늘 9회 전부 429(한도 초과).** 대기열 37·38·39 등재 + `unavailable` 마커.
-- 빌드 EXIT 0 / `error TS` 0 · health 44/44 · 불변식 53/54
-- 카나리 `pushdeeplink` 8/8 · `projecttabs` 전건 · `sticky`·`mobile`·`tabs` 실패 0
-- 얹는탭 overflow 위험 3종 실측: 이중 스크롤 0 · sticky 가림 0 · 내용 끝까지 닿음
-  (files 태블릿 96/96 · 폰 475/475 · docs 폰 103/103)
-- 배포 후 **운영 자산에서 직접** 확인: 메인 청크 해시 dev 와 동일 ·
-  `ProjectReportTab-CTTFXJ63.js` 에 `padding:20px…` 0건 · `QProjectDetailPage` 에 `overflow-y:auto`
-  있고 `--pq-tab-sticky-top` 부여는 없음 · 메인 청크에 `planq_pending_push_link` ·
-  운영 `routes/users.js` 에 매직바이트 판정
+**Fable 호출 오늘 10회 전부 429(한도 초과).** 대기열 **40** 등재 + `unavailable` 마커
+(기준 커밋은 `f8fdc510` 그대로 — HEAD 로 올리면 미검증 커밋 4개가 검증된 것처럼 지워진다).
+- 결제 게이트 **3/3 양방향** — OFF→403 `card_payment_disabled` / ON→통과 / **실 결제·세션 생성 0**
+- 스위치 저장 4/4 · 운영 Stripe 실동작(결제 0건) · Q info **4/4 실 HTTP**
+  (항목값만 201 · 음성 대조군 제목만 → 400 · **secret 항목 값이 색인 본문에 안 샘** · 일반 항목은 색인)
+- 가드 EXIT 0 · health 44/44 · 멀티테넌트 0 · 빌드 EXIT 0 / `error TS` 0 · Q위키 커버리지 통과
+- 운영 확인: `planq.kr/api/health` ok · PM2 `planq-prod-backend` **1.52.3**
 
 ### 주요 변경 파일
-`dev-frontend/src/stores/tabStore.ts` · `src/components/NativeBridge.tsx` ·
-`dev-frontend/www-placeholder/index.html` · `src/pages/QProject/{QProjectDetailPage.tsx,
-QProjectDetailPage.styles.ts, ProjectReportTab.tsx, HistoryTab.tsx}` ·
-`scripts/cap-offline-fallback.js`(신규) · `scripts/{ios,android}-beta-check.js` ·
-`scripts/e2e/{canary-push-deeplink.js(신규), canary-project-tabs.js, lib/browser.js, run.js}` ·
-`dev-frontend/package.json`(cap 스크립트 + 버전)
+`dev-backend/{models/PlatformSetting.js, routes/admin.js, routes/plan.js, routes/invoices.js,
+services/stripeService.js, scripts/migrate-stripe-card-toggle.js}` ·
+`dev-frontend/src/pages/Admin/AdminBillingSettingsPage.tsx` ·
+`dev-frontend/src/pages/Knowledge/KnowledgePage.tsx` ·
+`dev-frontend/public/locales/{ko,en}/{admin,knowledge}.json` ·
+`codemagic.yaml`(안드로이드 단계) · `scripts/schema-snapshot.json`
 
 ### 다음 할 일
-- **★ 앱 빌드가 필요하다** — 오프라인 화면 수정은 **앱 번들 안**이라 이번 웹 배포로는 폰에 안 갔다.
-  이미 그 화면에 좌초한 기기는 강제종료 후 재실행해야 한다.
-  iOS `npm run cap:beta` → Xcode 아카이브 (★ 생성물이 8/25 자 — 그냥 아카이브하면 dev 를 가리킨다) ·
-  Android `npm run cap:beta:android`.
-- **Fable 대기열 35·36·37·38·39** — `/usage-credits` 로 풀리면 한 번에 올린다. 특히
-  ①보류분이 엉뚱한 시점에 터지는지(실브라우저로 못 만들었다) ②데스크탑 탭 모드 무회귀
-  ③`--pq-tab-sticky-top` 제거 판단(2026-09-09 에 **정반대 방향으로** 한 번 틀린 자리다)
-  ④문서가 많은 워크스페이스에서 얹는탭 스크롤(내 픽스처는 자료가 거의 0건 — **빈 목록은 거짓 초록**)
-  ⑤카드 padding 을 빼는 판정 규칙이 배경색 있는 래퍼를 놓치는 것.
-- **탭 메뉴 추가**(사용자가 프로젝트 탭을 추가) — 범위·권한·게스트 노출을 먼저 정해야 한다. 지시 대기.
-- **iOS 빌드 만료 알림은 존재하지 않는다** — 컬럼도 크론도 없다. 만들려면 만료일 칸 1개 +
-  D-14/7/3/1 메일(`platformNotify` 재사용). 지시 대기.
-- **안드로이드** — Google Play 조직 계정 서류 승인 여부만 알면 다음 단계로 간다(서버에서 확인 불가).
+- **배포 대기** — `01aa7a78`(Q info). 지시 대기.
+- **법인 2개 문서 개정** — 위 항목. Irene 의 법인 정보가 있어야 시작한다. **그 전까지 카드 결제 OFF 권고.**
+- **Play 심사 결과 대기**(수일). 승인되면 **운영** 관리자 화면에
+  `platform_settings.app_android_url` 을 넣는다(dev 에 넣으면 운영에 안 간다).
+- **iOS 알림 속도** — 분석만 했고 구현 안 했다. ①알림으로 열렸을 때 확인필요 화면을 건너뛰고
+  바로 대상으로 ②서비스워커가 앱 자산을 캐시. (화면이 두 번 마운트되고 JS 129개를 받는다)
+- **iOS 빌드 만료 알림은 존재하지 않는다** — 만들려면 만료일 칸 1개 + D-14/7/3/1 메일. 지시 대기.
+- **프로젝트 탭 메뉴 추가**(사용자가 탭을 추가) — 범위·권한·게스트 노출을 먼저 정해야 한다. 지시 대기.
+- **Fable 대기열 35~40** — `/usage-credits` 로 풀리면 한 번에 올린다. 특히 **40 의 A**
+  (스위치가 꺼진 채 결제 세션을 만들 수 있는 경로가 더 없는지 전수).
 - 알림 메일 모양을 실제 메일 클라이언트로 확인(Gmail·Outlook·iOS Mail) — 아직 못 했다.
-- 운영에 옛 청크가 누적된다(rsync 가 안 지운다) — 열어 둔 탭에는 이롭지만 한 번 판단 필요.
+- 운영에 옛 청크가 누적된다(rsync 가 안 지운다) — 한 번 판단 필요.
 
 ---
 
