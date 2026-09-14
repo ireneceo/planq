@@ -41,6 +41,16 @@
         "title": "The consults and clients tabs now match",
         "body": "The two tabs drew their filter pills at different positions and in different colours, so the row shifted when you switched tabs. They now share one spec. Row buttons read «Open» with a link icon instead of «Open in Mail» / «Open client detail», so the columns line up — hover tells you where it goes."
       }
+    },
+    {
+      "ko": {
+        "title": "Q sale 화면 정돈 — 검색은 필터 맨 앞으로, 추가 버튼은 다른 화면과 같은 모양으로",
+        "body": "검색칸이 필터와 떨어져 머리줄에 있어 따로 노는 것으로 보였습니다. 이제 필터 맨 앞(단계 셀렉트 앞)에 있고, 화면이 좁아지면 필터가 줄을 바꿔 내려갑니다. [상담]·[고객] 탭 글자가 좁은 화면에서 세로로 쪼개지던 것도 고쳤습니다. [+ 고객응대 내역 추가] 버튼은 프로젝트의 [+ 새 프로젝트], 업무의 [+ 업무 추가] 와 같은 모양·같은 색이 되었습니다."
+      },
+      "en": {
+        "title": "Q sale tidy-up — search moves to the front of the filters, and the add button matches the rest of PlanQ",
+        "body": "The search box sat in the header, away from the filters it belongs with. It now leads the filter row, ahead of the stage select, and the filters wrap to the next line on narrow screens. Tab labels no longer break into vertical letters when space is tight. The [+ Add interaction] button now looks exactly like [+ New project] and [+ Add task]."
+      }
     }
   ]
 }
