@@ -54,6 +54,10 @@ const SUITES = {
   // 문서 표 [폭 맞춤] — 누른 뒤 오른쪽에 빈 여백이 남지 않는가 · 열이 균등한가.
   //   colgroup·CSS·컨테이너 폭이 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 못 잡는다.
   tablefit: () => require('./canary-table-fit'),
+  // 저장된 문서 **보기** 화면의 표 — 테두리가 중간에 끊기지 않는가.
+  //   tablefit(편집기)과 **일부러 가른 스위트**다. 한 런에 넣으면 편집 초안 때문에
+  //   페이지 이탈이 끝나지 않아 검사가 멈춘다(2026-09-13 실측 17분 행).
+  tableview: () => require('./canary-table-view'),
   detailopen: () => require('./canary-detail-open'), // 상세가 실제로 열리는가 — 딥링크 소생 + "없음" 을 말하는가(침묵 금지)   // 파일 휴지통 — 삭제를 되돌릴 수 있는가(백엔드 아닌 **화면**에서)
 
   aiopen: () => require('./canary-ai-open'),    // AI 진입 모달이 **눌러서 뜨는가** (early return 아래 훅 = React #310, 런타임에만 드러남)
