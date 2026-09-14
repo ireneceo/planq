@@ -2267,3 +2267,12 @@ TIN `C29771304030` · P-02-06A, 2nd Floor, Tropicana Avenue, Persiaran Tropicana
   프론트 **메모리**에만 있어 `/api/auth/me` 가 401 이었고, `try/catch` 가 그걸 삼켰다.
   로그인 응답의 토큰을 Bearer 로 쓰도록 고치고, **실패하면 경고를 찍게** 했다
   (memory `feedback_unwired_guard_is_no_guard`).
+
+### 43-B Fable 호출 — **8차 429**
+`/fable-검증` 으로 두 번 더 띄웠다. 둘 다 한도 초과로 실패했다:
+- `req_011Cf3zpGdRXz5MdhEJEehMZ` (7차 · 43)
+- `req_011Cf42vV5BK9V1dp8x1WsuN` (8차 · 43-B)
+
+마커 `by:"unavailable"`. 보고에는 **"Fable 미검증(자체 검증)"** — "통과" 라고 쓰지 않는다.
+크레딧이 풀리면 43 과 43-B 를 **한 라운드로 묶어** 올린다(CLAUDE.md 소모 규칙 — 쪼개 올리지 않는다).
+올릴 프롬프트는 이 항목의 *Fable 이 봐야 할 것* 6항목 + 43 의 5항목이 그대로 쓸 수 있게 적혀 있다.
