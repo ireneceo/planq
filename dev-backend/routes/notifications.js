@@ -22,6 +22,12 @@ const EVENT_KINDS = [
   //   (`Cannot read properties of undefined (reading 'inbox')`), 한 번 죽으면 다른 화면까지 에러로 보였다.
   //   **상태값을 늘리면 그 값을 읽는 곳을 전수로 고친다**(CLAUDE.md 상태값 규약).
   'sale',             // Q sale — 계정 요청·답 안 한 문의
+  // ★ 2026-09-14 (Irene: *"푸시 실패 시 메일로 재알림 항목 넣는 거 좋은데?"*)
+  //   기기 알림(푸시)이 조용히 실패했을 때 메일로 다시 알리는 **안전망 전용 항목**이다.
+  //   여태 이 발송(unreadEscalationCron)은 설정을 **일부러 무시**했다 — 그래서 "메일 다 껐는데 온다" 가 났다.
+  //   개별 종류의 email 설정과 **별개로** 이 항목 하나가 안전망을 켜고 끈다(기본 ON).
+  //   그래야 ①끄고 싶은 사람은 끌 수 있고 ②개별 메일을 다 꺼도 안전망은 남길 수 있다.
+  'push_fallback',
   // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
   'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
   'system',           // 시스템 경고 (메일 계정 sync 실패 등) — 여태 목록에 없어 끌 방법이 없었다

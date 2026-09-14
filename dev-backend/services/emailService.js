@@ -1136,11 +1136,32 @@ async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
 //   push 가 OS/브라우저/푸시중계 구간에서 201 받고도 기기에 안 뜨는 경우를 위한 백업.
 //   unreadEscalationCron 이 일정 시간 미읽음 알림을 모아 1통으로 발송.
 // ═══════════════════════════════════════════════════════════════
+// ★ 2026-09-14 (Irene: *"메일 폼이 메시지 알림은 제대로 나오고 다른 것도 제대로 나오는데
+//   … 이 메일이 반응형 이상했었어."*)
+//   왜 **이 메일만** 이상했나 — 다른 알림 메일의 본문은 우리가 쓴 짧은 문구다. 그런데 이 메일은
+//   **채팅 메시지 원문**을 그대로 싣는다. 거기에 공백 없는 긴 URL 이 들어오면(신고 메일의
+//   vittz.co.kr 쿼리스트링) 그 한 줄이 최소폭이 되어 봉투를 밀어낸다.
+//   공용 래퍼의 word-break 가 이미 막지만(봉투는 안 밀린다), **읽기에도 나쁘다** — 본문 절반이
+//   추적 파라미터다. 그래서 표시용으로만 축약한다(원문은 앱에서 본다).
+function shortenLongTokens(text, max = 60) {
+  return String(text || '').replace(/\S{61,}/g, (tok) => {
+    // URL 이면 사람이 알아볼 앞부분 + 끝만 남긴다. 아니면 가운데를 접는다.
+    const m = /^(https?:\/\/)?([^/?#]+)(.*)$/.exec(tok);
+    if (m && m[2] && m[2].includes('.')) {
+      const host = m[2].replace(/^www\./, '');
+      const rest = (m[3] || '').split('?')[0];
+      const head = `${host}${rest}`;
+      return head.length > max ? `${head.slice(0, max)}…` : `${head}…`;
+    }
+    return `${tok.slice(0, max)}…`;
+  });
+}
+
 function unreadNotificationEmailHtml({ name, items, count, workspaceName }) {
   const rows = (items || []).map((it) => `
     <div style="padding:12px 14px;border:1px solid #E2E8F0;border-radius:10px;margin-bottom:8px;text-align:left;">
-      <div style="font-weight:700;font-size:14px;color:#0F172A;line-height:1.4;">${escapeHtml(it.title || '')}</div>
-      ${it.body ? `<div style="margin-top:4px;font-size:13px;color:#475569;line-height:1.6;">${escapeHtml(String(it.body).slice(0, 160))}</div>` : ''}
+      <div style="font-weight:700;font-size:14px;color:#0F172A;line-height:1.4;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(shortenLongTokens(it.title || ''))}</div>
+      ${it.body ? `<div style="margin-top:4px;font-size:13px;color:#475569;line-height:1.6;word-break:break-word;overflow-wrap:anywhere;">${escapeHtml(shortenLongTokens(String(it.body)).slice(0, 160))}</div>` : ''}
     </div>`).join('');
   const more = Math.max(0, (count || 0) - (items || []).length);
   // 본문은 '실제 알림 내용'을 최상단에 — 안내 보일러플레이트는 하단 작은 글씨로 강등

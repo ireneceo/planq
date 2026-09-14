@@ -150,7 +150,8 @@
       "invite": "Invites",
       "mail": "New mail (Q mail)",
       "sale": "Sales",
-      "share_expiry": "Share link expiring"
+      "share_expiry": "Share link expiring",
+      "push_fallback": "Email when push fails"
     },
     "eventDesc": {
       "message": "New message arrives in a chat room",
@@ -164,7 +165,8 @@
       "invite": "Workspace and project invites",
       "mail": "Follows each mail account’s notification scope (default: reply needed + review recommended)",
       "sale": "Account requests · unanswered inquiries (later: call transcribed · automatic stage changes)",
-      "share_expiry": "When an external share link expires in 3 days"
+      "share_expiry": "When an external share link expires in 3 days",
+      "push_fallback": "Re-sends unread notifications by email when a device push was not delivered"
     },
     "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
     "policy": {
@@ -173,8 +175,8 @@
       "systemAlways": "Security emails (signup verification, password reset, signature OTP) are always sent — they ignore this matrix.",
       "clientAlways": "Emails to external clients (invoice, document share, signature request) also bypass this matrix — they are deliberate sends from the workspace."
     },
-    "emailOffNote": "With email off, we will not re-notify you by email even when a device push fails.",
-    "alwaysOnNote": "Billing, trial-end and workspace-lock notices cannot be turned off — missing one locks the workspace."
+    "alwaysOnNote": "Billing, trial-end and workspace-lock notices cannot be turned off — missing one locks the workspace.",
+    "pushFallbackNote": "If a device push fails, unread notifications are emailed once more so you do not miss them. This is separate from the per-type email settings — turn it off with \"Email when push fails\" above."
   },
   "permissions": {
     "title": "Permission Policy",

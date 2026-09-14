@@ -88,11 +88,13 @@ async function runUnreadEscalation() {
     //   ※ `isAllowed` 는 여태 import 만 하고 **한 번도 부르지 않았다** — 죽은 import 였다.
     {
       const user = await getUser(g.userId);
-      // 종류가 섞여 있으면 **허용된 종류만** 남겨 보낸다(하나 때문에 전부 막거나 전부 보내지 않는다).
-      const allowed = [];
-      for (const r of fresh) {
-        if (await isAllowed(g.userId, g.businessId, r.event_kind, 'email')) allowed.push(r);
-      }
+      // ★ 판정은 **전용 항목 하나**(`push_fallback`)가 한다 — Irene 승인 2026-09-14.
+      //   개별 종류의 email 설정을 따르게 하면, 메일을 다 끈 사람은 푸시까지 실패했을 때
+      //   중요 알림을 **완전히** 놓친다. 그건 이 경로가 존재하는 이유를 없앤다.
+      //   그래서 안전망은 개별 설정과 **별개 스위치**로 두고(기본 ON), 끄고 싶은 사람은 그것을 끈다.
+      //   설정 화면이 그 뜻을 한 줄로 말한다(NotificationSettings).
+      const fallbackOn = await isAllowed(g.userId, g.businessId, 'push_fallback', 'email');
+      const allowed = fallbackOn ? fresh : [];
       if (user && user.email && allowed.length) {
         const ok = await sendUnreadNotificationEmail({
           to: user.email,
