@@ -2018,3 +2018,51 @@ H. **⑮ 검사에 같은 함정이 더 없는가** — 나는 한 번 틀렸다
 **Fable 이 봐야 할 것**: 없음에 가깝다. 다만 `completed[].verified` 를 전부 `opus_only` 로
 적은 것이 **사실**이라는 점을 기록해 둔다 — 크레딧이 풀려 42번을 검증하면 그때
 `fable_pass` 로 고쳐 재발행해야 한다(개발 현황은 배포마다 한 행이므로 과거 행은 그대로 남는다).
+
+---
+
+### 42. Q sale 3차 신고 4건 — 검색 자리 · 알약 탭 세로 글자 · 머리줄 CTA 공용화 (커밋 `12b2975d`)
+
+**Fable 5차 시도도 429** (req_011Cf3vXJJSbm1r6r7CiTcRc). ⛔ blocked_on_human — `/usage-credits`.
+
+**판정: R=0 · S=0 · F=1 → 내가 검증한다.** 프론트 배치 변경이고 백엔드·스키마 변경 0.
+되돌릴 수 없는 것에 닿지 않는다(결제·격리·인증·공개표면·외부발송 전부 무관).
+참/거짓은 실브라우저 좌표·색·줄 수로 기계가 가른다.
+
+**구현 (Irene 신고 4건)**
+1. 검색을 머리줄 → **필터줄 맨 앞**(단계 셀렉트 앞). 독자 `SearchInput`(32px) 제거, 공용
+   `SearchBox`(36px — 필터줄 높이 계약과 같다). `FilterSearchSlot` 을 `flex:0 1 240px` 로
+   (grow 면 검색이 남는 자리를 다 먹어 셀렉트가 줄 오른쪽 끝으로 밀린다).
+2. 알약 탭 글자가 세로로 쪼개지던 것 — 머리줄이 좁아지면 알약이 **먼저 줄어들었다**
+   (flex-shrink 기본 1). 공용 `segmentedToggle` 에 `flex-shrink:0` + `white-space:nowrap`.
+3. 머리줄 주 액션이 **세 곳에 각자 선언**돼 있었다(프로젝트 #14B8A6/h32/600 ·
+   Q task #14B8A6/h36/**700** · Q sale 흰 배경 secondary) → `components/Common/headerCta.tsx`
+   신설, 셋이 같이 쓴다. 값은 **프로젝트 헤더 것을 정본**으로 모았다(색을 새로 만들지 않았다).
+
+**자체 검증 (수치)**
+- 빌드 **EXIT 0 · `error TS` 0** · health-check **44/44** · 가드 **전체 통과**
+- `--suite salelayout` 3폭(390·834·1440) **실패 0** · 인접 `sale-panel` 0 · `projecttabs` 0
+- ★ **양성 대조군 9/9** — 검색을 필터줄 맨 뒤로 + 탭 nowrap 제거 → 3폭 × 3건 전부 FAIL,
+  원복 후 0. 판정기를 고친 뒤 빨간불을 끈 것이 아님을 증명했다.
+- ★ 폰에서 ④ 가 **거짓 실패**했다 — 필터줄이 줄바꿈되면 "앞" 은 왼쪽이 아니라 **윗줄**이다.
+  데스크탑 기준만 재면 계약대로 도는 화면을 벌한다([[feedback_center_aligned_chip_x_is_not_a_column]] 계열).
+- ★ styled **주석 안 백틱**이 템플릿을 끊어 첫 빌드 EXIT 2 ([[feedback_styled_comment_backtick]]).
+- ★ UI 규격 가드가 아이콘의 장식용 `height:14px` 를 **컨트롤 높이**로 세어 래칫이 올랐다
+  ([[feedback_guard_punishes_conformant_code]]) → viewBox 가 있는 svg 는 폭만 준다.
+
+**Fable 이 봐야 할 것**
+A. **Q task 머리줄이 의도 밖으로 바뀌었다** — 옛 `HeaderAddBtn` 은 `font-weight:700`, 공용
+   껍데기는 600 이다. 나는 "같은 버튼으로 해" 라는 지시에 맞춘 것이라고 판단했지만,
+   Irene 이 요청한 것은 **Q sale 을 Q task 에 맞추라**는 것이었다 — 반대 방향으로 한 뼘 움직였다.
+   이 정도가 허용 범위인지, 아니면 700 을 공용 값으로 올려야 하는지 판단이 필요하다.
+B. **높이가 두 값(32·36)인 채로 공용화한 것** — 프로젝트·Q sale 32, Q task 36. 한 파일 안이긴
+   하나 prop 으로 갈라 두었으므로 다시 벌어질 씨앗이다. 하나로 모을지.
+C. **같은 모양을 각자 선언한 곳이 더 있는가** — 41번의 알약과 같은 계열이다.
+   `grep -rn "background:#14B8A6" --include='*.tsx'` 전수로 봐야 한다. 껍데기를 만들어도
+   강제되지 않는다([[feedback_shared_wrapper_is_not_enforcement]]) — 가드로 못을 박을지 판단 필요.
+D. **⑯ 판정이 감싸는 상자가 아니라 버튼 자신을 재는가** — 나는 어제 같은 실수를 했다
+   ([[feedback_judge_measures_wrapper_not_defect]]). 양성 대조군은 통과했지만 더 교묘한
+   결함(`nowrap` 은 두고 버튼 폭만 22px 고정)으로 다시 반증해 볼 필요가 있다.
+E. **프로젝트 CTA 의 폰 규칙**(≤640 에서 라벨 숨김 + 32px 정사각)을 공용 껍데기의
+   `$collapseOnPhone` 으로 옮겼는데, 라벨이 사라진 상태의 `aria-label` 을 호출부에서 준다 —
+   빠뜨린 호출부가 생기면 스크린리더에 이름 없는 버튼이 된다. 규칙화할지.
