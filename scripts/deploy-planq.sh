@@ -386,6 +386,15 @@ sync_database() {
   log "Creating project_pinned_docs table..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-pinned-docs.js 2>&1 | tail -5"
 
+  # 2026-09-14 — 알림 설정 `push_fallback` (notification_prefs.event_kind ENUM **끝에 append**).
+  #   Irene: "푸시 실패 시 메일로 재알림 항목 넣는 거 좋은데?"
+  #   ★ **코드보다 먼저 돈다** — 값이 없는데 새 화면이 그 항목을 저장하면 MySQL 이
+  #     `Data truncated for column 'event_kind'` 로 500 을 낸다(dev 실측).
+  #   ★ 끝에 append 한다(중간 삽입은 기존 행의 값을 민다). 멱등 — 이미 있으면 아무것도 안 한다.
+  #   ★ `notifications.event_kind` 는 건드리지 않는다 — 이건 알림 레코드 종류가 아니라 발송 스위치다.
+  log "Adding push_fallback to notification_prefs ENUM..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-fallback-pref.js 2>&1 | tail -5"
+
   # 2026-09-09 — 휴가 **종류**(leave_grants/leave_requests.category ENUM 4종).
   #   Irene: "관리자가 멤버에게 휴가 연차나 등등 종류별로 제공하는 거 어떻게 줘?"
   #   ★ **코드보다 먼저 돈다** — 모델이 category 를 선언하므로 컬럼 없이 새 코드가 뜨면
@@ -423,7 +432,7 @@ sync_database() {
   #   가시성(vlevel·target_member_ids)은 원본 표에서 그대로 옮기므로 더 넓게 보이지 않는다.
   log "Backfilling orphan record posts (#360)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-orphan-record-posts.js --apply 2>&1 | tail -8"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup / candidate-null / project-pinned-docs)"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup / candidate-null / project-pinned-docs / push-fallback-pref)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."
