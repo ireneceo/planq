@@ -414,6 +414,15 @@ router.post('/:businessId/payments/:paymentId/stripe-checkout', authenticateToke
     if (pay.status === 'paid') return errorResponse(res, 'already_paid', 400);
     if (pay.status !== 'pending') return errorResponse(res, 'invalid_state', 400);
 
+    // ★ 2026-09-15 — **여기에 게이트가 없었다.** 화면은 `stripe_enabled` 로 버튼을 숨기는데
+    //   이 라우트는 그 판정을 보지 않아, 꺼 둔 상태에서도 직접 부르면 **실제 Stripe 세션이 만들어졌다**
+    //   (관리자 스위치가 화면 장식이 되는 셈이다 — memory `feedback_predicate_must_match_both_sides`).
+    //   같은 술어를 서버에서도 건다: 키 둘 + 관리자 스위치.
+    const { isStripeEnabled } = require('../services/stripeService');
+    if (!(await isStripeEnabled('platform'))) {
+      return errorResponse(res, 'card_payment_disabled', 403);
+    }
+
     const { APP_URL } = require('../services/platformNotify');
     const stripeCheckout = require('../services/stripeCheckoutService');
     try {

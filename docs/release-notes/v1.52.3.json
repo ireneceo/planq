@@ -1,0 +1,16 @@
+{
+  "version": "1.52.3",
+  "date": "2026-09-15",
+  "items": [
+    {
+      "ko": {
+        "title": "카드 결제 스위치가 화면뿐 아니라 서버에서도 막습니다",
+        "body": "카드 결제를 꺼도 결제 요청 자체는 서버에서 막히지 않아, 화면을 거치지 않고 부르면 결제가 진행될 수 있었습니다. 이제 서버가 같은 기준으로 거절합니다. 워크스페이스 청구서 카드결제도 같이 막았습니다 — 결제 확정 경로(웹훅)가 준비되지 않은 상태에서 결제가 열려 «돈은 들어왔는데 미결제로 남는» 일을 방지합니다."
+      },
+      "en": {
+        "title": "The card payment switch now blocks on the server too",
+        "body": "Turning card payments off hid the button but did not stop the request, so a call that skipped the screen could still start a payment. The server now refuses it using the same rule. Workspace invoice card payments are gated the same way — preventing a payment from opening while the confirmation path (webhook) is not ready, which would leave money received but the invoice unpaid."
+      }
+    }
+  ]
+}

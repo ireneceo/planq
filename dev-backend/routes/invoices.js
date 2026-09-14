@@ -442,6 +442,15 @@ router.post('/public/:token/stripe-checkout', publicStripeLimiter, async (req, r
       existingSessionId = invoice.stripe_session_id;
     }
 
+    // ★ 2026-09-15 — 여기도 게이트가 없었다. 목록 응답(`stripe_enabled`)으로 버튼만 숨기고 있어,
+    //   **웹훅 비밀이 없는 상태**에서도 세션이 만들어졌다 — 고객은 카드로 냈는데 확정 경로가 없어
+    //   청구서는 영영 미결제로 남는다(이 파일 위쪽 `isStripeEnabled` 주석이 경고하던 바로 그 모양).
+    //   화면과 **같은 술어**를 서버에서도 건다.
+    const { isStripeEnabled: cardOn } = require('../services/stripeService');
+    if (!(await cardOn('workspace', invoice.business_id))) {
+      return errorResponse(res, 'card_payment_disabled', 403);
+    }
+
     const { startWorkspaceInvoiceCheckout } = require('../services/stripeCheckoutService');
     const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
     const back = `${APP_URL}/public/invoices/${invoice.share_token}`;
