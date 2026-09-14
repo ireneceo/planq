@@ -104,9 +104,29 @@ async function assertKeyboardSafe(page, elHandle) {
     const el = document.activeElement;
     if (!el) return null;
     let rect = el.getBoundingClientRect();
+    let caretUsed = false;
     if (el.isContentEditable) {
+      // ★ 본문 에디터는 **보이는 영역보다 크다**(실측 2026-09-14 메일 작성: h 374 > vvh 337).
+      //   그러면 요소 rect 로 재는 순간 top<0 은 **필연**이라 언제나 빨간불이 된다 —
+      //   사용자가 실제로 해를 입는지는 **캐럿이 보이는가**로만 갈린다(타이핑 14줄 동안 246/337 로 계속 보였다).
+      //   이 코드는 원래도 캐럿으로 재려 했는데, 하니스가 focus() 만 하고 선택을 만들지 않아
+      //   **언제나 요소 rect 로 떨어졌다.** 캐럿을 세워서 의도대로 잰다.
       const s = getSelection();
-      if (s && s.rangeCount) { const rs = s.getRangeAt(0).getClientRects(); if (rs.length) rect = rs[rs.length - 1]; }
+      let rs = (s && s.rangeCount) ? s.getRangeAt(0).getClientRects() : null;
+      if (!rs || !rs.length) {
+        try {
+          const rg = document.createRange(); rg.selectNodeContents(el); rg.collapse(false);
+          s.removeAllRanges(); s.addRange(rg);
+          rs = rg.getClientRects();
+          if (!rs.length) {
+            // 빈 에디터 — 폭 0 인 범위는 rect 가 없다. 제로폭 글자를 잠깐 넣어 자리를 얻는다.
+            const sp = document.createElement('span'); sp.textContent = '\u200b';
+            rg.insertNode(sp); const br = sp.getBoundingClientRect(); sp.remove();
+            if (br.height) { rect = br; caretUsed = true; }
+          }
+        } catch (e) { /* 못 세우면 아래 요소 rect 로 */ }
+      }
+      if (rs && rs.length) { rect = rs[rs.length - 1]; caretUsed = true; }
     }
     const scroller = document.querySelector('main, [data-scroll-root]') || document.scrollingElement;
     return {
@@ -117,6 +137,8 @@ async function assertKeyboardSafe(page, elHandle) {
       hScroll: document.documentElement.scrollWidth - window.innerWidth,
       scrollTop: scroller ? Math.round(scroller.scrollTop) : 0,
       tag: el.tagName,
+      caretUsed,
+      elHeight: Math.round(el.getBoundingClientRect().height),
     };
   });
   await sleep(600);
@@ -137,7 +159,14 @@ async function assertKeyboardSafe(page, elHandle) {
   if (r.innerW !== MOBILE_VP.width) return { fails: [], info: r, fatal: `하니스 환경 오염: 판정 innerWidth ${r.innerW} ≠ ${MOBILE_VP.width} (뷰포트 복원 실패)` };
   if (r.height <= 0) fails.push('요소 렌더 안됨(rect height 0)');
   if (r.bottom > r.vvh - 8) fails.push(`가림: 요소 bottom ${r.bottom} > 뷰포트 ${r.vvh}-8`);
-  if (r.top < 0) fails.push(`위로 밀림: top ${r.top} < 0`);
+  // top<0 — **요소가 보이는 영역보다 크면 필연**이므로 그 자체로는 판정하지 않는다.
+  //   그때는 위에서 잡은 캐럿 자리로 판정한다(캐럿을 못 잡았으면 판정 불가 = 실패로 남긴다 —
+  //   조용히 넘기면 "0건이라 통과" 가 된다).
+  if (r.top < 0) {
+    if (r.elHeight <= r.vvh) fails.push(`위로 밀림: top ${r.top} < 0`);
+    else if (!r.caretUsed) fails.push(`판정 불가: 요소가 뷰포트보다 큰데(h ${r.elHeight} > ${r.vvh}) 캐럿을 못 잡았다`);
+    else fails.push(`캐럿이 위로 밀림: top ${r.top} < 0`);
+  }
   if (r.kbFlag !== '1') fails.push('data-keyboard-up 미설정 (키보드 감지 안 걸림)');
   if (r.hScroll > 1) fails.push(`가로 스크롤 ${r.hScroll}px`);
   if (Math.abs(after - before) > 4) fails.push(`자동 스크롤 드리프트 ${Math.abs(after - before)}px`);

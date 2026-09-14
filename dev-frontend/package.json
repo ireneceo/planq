@@ -8,13 +8,13 @@
     "build": "NODE_OPTIONS='--max-old-space-size=5120' tsc -b && NODE_OPTIONS='--max-old-space-size=4096' vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cap:sync:dev": "CAP_SERVER_URL=https://dev.planq.kr npx cap sync",
-    "cap:sync:prod": "CAP_SERVER_URL=https://planq.kr npx cap sync",
+    "cap:sync:dev": "CAP_SERVER_URL=https://dev.planq.kr npx cap sync && node ../scripts/cap-offline-fallback.js",
+    "cap:sync:prod": "CAP_SERVER_URL=https://planq.kr npx cap sync && node ../scripts/cap-offline-fallback.js",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
-    "cap:beta": "CAP_SERVER_URL=https://planq.kr npx cap sync ios && node ../scripts/ios-beta-check.js --expect-prod",
+    "cap:beta": "CAP_SERVER_URL=https://planq.kr npx cap sync ios && node ../scripts/cap-offline-fallback.js && node ../scripts/ios-beta-check.js --expect-prod",
     "cap:check": "node ../scripts/ios-beta-check.js",
-    "cap:beta:android": "CAP_SERVER_URL=https://planq.kr npx cap sync android && node ../scripts/android-beta-check.js --expect-prod",
+    "cap:beta:android": "CAP_SERVER_URL=https://planq.kr npx cap sync android && node ../scripts/cap-offline-fallback.js && node ../scripts/android-beta-check.js --expect-prod",
     "cap:check:android": "node ../scripts/android-beta-check.js"
   },
   "dependencies": {

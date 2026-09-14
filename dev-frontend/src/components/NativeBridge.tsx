@@ -11,6 +11,12 @@ import { useChromeNav } from '../hooks/useChromeNav';
 import { isNativeApp, nativePlatform } from '../services/native';
 import { clearPair } from '../services/oauth';
 
+// 딥링크가 착지하기를 기다리는 시간 — 400ms × 6 = 2.4초.
+//   실측(2026-09-14, 모바일 뷰포트)상 웹에서는 한 번에 착지하므로, 기다림이 도는 것은
+//   라우터가 아직 없는 **앱 콜드 스타트**뿐이다(그때는 tabStore 가 보류분을 들고 있다).
+const DEEP_LINK_RETRY_MS = 400;
+const DEEP_LINK_SPA_TRIES = 6;
+
 export default function NativeBridge() {
   const chromeNav = useChromeNav();
 
@@ -30,14 +36,42 @@ export default function NativeBridge() {
   const deepLinkNav = useCallback((path: string) => {
     const here = () => window.location.pathname + window.location.search;
     if (path === here()) return;                       // 이미 그 자리
-    try { chromeNav(path); } catch { /* 아래 폴백이 받는다 */ }
+
     // ★ 판정은 "주소가 **바뀌었나**" 가 아니라 "**목적지에 있나**" 여야 한다.
     //   아이폰 앱은 루트(/)로 뜨고 그 경로는 인증 사용자를 /inbox 로 **스스로 보낸다**
     //   (App.tsx NativeMarketingRedirect). "바뀌었나" 로 재면 그 리다이렉트를 이동 성공으로
     //   오인해 폴백이 영영 안 터진다 — 고치려던 바로 그 화면(확인필요)에 남는다.
-    window.setTimeout(() => {
-      if (here() !== path) window.location.assign(path);   // SPA 이동이 안 먹었다 → 확실히 착지
-    }, 400);
+    //
+    // ★ 2026-09-14 — **문서 전체 로드를 서둘러 걸지 않는다.**
+    //   Irene: *"모바일에서 알림이오면 눌러서 갈 수가 없어 커넥션 문제라고 나와 모든 알림 다."*
+    //   콜드 스타트(알림 탭의 대부분)에서는 `tabStore.navigateActive` 가 미러 모드인데
+    //   `navigateDelegate` 가 아직 없어 **조용히 아무 일도 안 한다**(tabStore.ts 의 mirror 분기).
+    //   그래서 옛 코드는 400ms 뒤 `location.assign` 을 **매번** 걸었다 — 앱이 아직 뜨는 중에
+    //   메인 프레임을 다시 로드하는 셈이고, 그 로드가 한 번 실패하면 Capacitor 가
+    //   `errorPath`(번들 안 오프라인 화면)로 떨어뜨린다. 그 화면은 로컬 파일이라 거기서 못 나온다.
+    //   → 라우터가 준비될 때까지 **SPA 이동만 되풀이**하고(문서 로드 0회), 그래도 못 가면
+    //     **딱 한 번** 절대 URL 로 착지시킨다.
+    //   SPA 이동은 **한 번만** 부른다 — tabStore 가 통로(navigateDelegate)가 붙을 때까지
+    //   들고 있다가 스스로 보낸다. 되풀이해 부르면 통로 없는 창에서 `newTab` 폴백이
+    //   매번 새 탭을 만든다(newTab 은 같은 경로를 합치지 않는다).
+    try { chromeNav(path); } catch { /* 아래 폴백이 받는다 */ }
+    let waited = 0;
+    const tick = () => {
+      if (here() === path) return;                     // 도착 — 끝
+      if (waited < DEEP_LINK_RETRY_MS * DEEP_LINK_SPA_TRIES) {
+        waited += DEEP_LINK_RETRY_MS;
+        window.setTimeout(tick, DEEP_LINK_RETRY_MS);
+        return;
+      }
+      // 마지막 수단 — **절대 URL** 로. 상대경로로 걸면 앱이 이미 오프라인 폴백(로컬 스킴)에
+      //   있을 때 자기 자신으로 돌아 영영 못 빠져나온다.
+      try {
+        window.location.assign(new URL(path, window.location.origin).href);
+      } catch {
+        window.location.assign(path);
+      }
+    };
+    tick();
   }, [chromeNav]);
 
   useEffect(() => {

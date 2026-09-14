@@ -97,6 +97,29 @@ if (fs.existsSync(GRADLE)) {
   console.log(`  versionCode: ${code} / versionName: ${name}`);
 }
 
+// 생성물이 **소스보다 오래됐는가** — `cap sync` 를 잊고 아카이브하면 옛 설정으로 나간다.
+//   실제로 2026-09-14 실측 시 iOS 생성물(8/25)은 presentationOptions 가 빈 배열이었다 —
+//   그 상태로 빌드하면 8/27 에 고친 "포그라운드도 OS 배너" 가 되돌아간다.
+{
+  const SRC = path.join(ROOT, 'dev-frontend/capacitor.config.ts');
+  if (fs.existsSync(SRC) && fs.statSync(GEN).mtimeMs < fs.statSync(SRC).mtimeMs) {
+    warn.push('생성된 config 가 capacitor.config.ts 보다 오래됐습니다 — 아카이브 전에 `npm run cap:beta`(또는 cap:beta:android) 를 실행하세요.');
+  }
+}
+
+// 오프라인 폴백 화면이 **이 빌드의 서버**로 돌아갈 수 있는지 (2026-09-14).
+//   errorPath 로 뜨는 화면은 앱 번들 안의 로컬 파일이라, 서버 URL 이 안 박혀 있으면
+//   한 번 떨어진 사용자가 영영 못 나온다(알림을 눌러도 그 화면 그대로).
+{
+  const { execFileSync } = require('child_process');
+  try {
+    execFileSync(process.execPath, [path.join(ROOT, 'scripts/cap-offline-fallback.js'), '--check'], { stdio: 'pipe' });
+    console.log('  오프라인 폴백: 서버 URL 일치');
+  } catch (e) {
+    fail.push('오프라인 폴백의 서버 URL 이 server.url 과 다릅니다 — `node scripts/cap-offline-fallback.js` 를 실행하세요.\n     ' + String(e.stdout || '').trim());
+  }
+}
+
 for (const w of warn) console.log('⚠  ' + w);
 for (const f of fail) console.log('✗  ' + f);
 if (!fail.length && !warn.length) console.log('✓ 점검 통과');

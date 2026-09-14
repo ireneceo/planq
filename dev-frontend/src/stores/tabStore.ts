@@ -322,7 +322,28 @@ function newId() { return `t${Date.now().toString(36)}_${(idSeq++).toString(36)}
 //   역보고를 받지 않는다. 사용자가 탭 안에서 직접 이동한 경우는 도착 이후이므로 정상 반영된다.
 let pendingSwitch: { id: string; path: string } | null = null;
 let navigateDelegate: ((path: string) => void) | null = null;
-export function setTabNavigator(fn: ((path: string) => void) | null) { navigateDelegate = fn; }
+// ★ 통로가 아직 없을 때 온 이동은 **버리지 않고 기다린다** (2026-09-14).
+//   Irene: *"모바일에서 알림이오면 눌러서 갈 수가 없어 커넥션 문제라고 나와 모든 알림 다."*
+//   앱 콜드 스타트(알림 탭의 대부분)에서는 딥링크가 TabMirror 마운트보다 **먼저** 온다.
+//   여태 미러 분기는 `if (navigateDelegate) …; return;` 이라 그 순간 **조용히 사라졌고**,
+//   부르는 쪽(NativeBridge)은 못 간 것을 뒤늦게 알고 문서 전체 로드로 때웠다 —
+//   그 로드가 앱 기동 중에 실패하면 Capacitor 가 오프라인 화면으로 떨어뜨린다.
+//   한 건만 들고 있는다(마지막 것이 이긴다). 오래된 것은 의미가 없으므로 유효기간을 둔다.
+const PENDING_NAV_TTL_MS = 15000;
+let pendingNav: { path: string; at: number } | null = null;
+function mirrorNavigate(path: string) {
+  if (navigateDelegate) { navigateDelegate(path); return; }
+  pendingNav = { path, at: Date.now() };
+}
+export function setTabNavigator(fn: ((path: string) => void) | null) {
+  navigateDelegate = fn;
+  if (!fn || !pendingNav) return;
+  const p = pendingNav;
+  pendingNav = null;
+  if (Date.now() - p.at > PENDING_NAV_TTL_MS) return;
+  // 통로가 막 붙은 참이다 — 같은 tick 에 부르면 마운트 중 setState 가 된다.
+  setTimeout(() => { try { fn(p.path); } catch { /* 부르는 쪽 폴백이 받는다 */ } }, 0);
+}
 
 /**
  * 탭 저장 범위를 워크스페이스로 가른다 (#405).
@@ -485,8 +506,8 @@ export const tabStore = {
 
   // 브라우저 탭 모델 — 현재(활성) 탭의 경로를 바꾼다(안으로 들어가도 새 탭 X). 사이드바/본문 링크 내비.
   navigateActive(path: string) {
-    if (ensureScopeFor(path)) { if (state.mirror && navigateDelegate) navigateDelegate(path); return; }
-    if (state.mirror) { if (navigateDelegate) navigateDelegate(path); return; } // location→seedFromPath 가 store 갱신
+    if (ensureScopeFor(path)) { if (state.mirror) mirrorNavigate(path); return; }
+    if (state.mirror) { mirrorNavigate(path); return; } // location→seedFromPath 가 store 갱신
     const id = state.activeId;
     if (!id) { this.newTab(path); return; }
     this.setTabPath(id, path);

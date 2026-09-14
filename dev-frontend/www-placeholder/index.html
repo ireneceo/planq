@@ -38,15 +38,47 @@
     <button id="retry" type="button">다시 시도</button>
   </div>
   <script>
-    // 영어 환경이면 문구 교체(i18n 원칙 — placeholder 단독이라 인라인 최소 처리).
-    if ((navigator.language || '').slice(0, 2) !== 'ko') {
-      document.getElementById('msg').textContent = 'No network connection.';
-      document.getElementById('sub').textContent = 'Please check your connection and try again.';
-      document.getElementById('retry').textContent = 'Retry';
+    // ★ 이 화면에서 **서버로 돌아갈 수 있어야 한다** (2026-09-14).
+    //   Irene: *"모바일에서 알림이오면 눌러서 갈 수가 없어 커넥션 문제라고 나와 모든 알림 다."*
+    //   여태 [다시 시도] 는 `location.reload()` 였다. 그런데 이 문서는 서버가 아니라 앱 번들
+    //   안의 **로컬 파일**(capacitor://localhost · https://localhost)이다 — 다시 읽어도 같은
+    //   화면이라 한 번 여기 떨어지면 **영영 못 나왔다.** 알림을 눌러 앱이 앞으로 나와도 마찬가지.
+    //   그래서 절대 URL 로 나간다. 값은 플랫폼의 capacitor.config.json(server.url)에서
+    //   `node scripts/cap-offline-fallback.js` 가 sync 뒤에 박아 넣는다 — dev 빌드가 운영을,
+    //   운영 빌드가 dev 를 가리키면 안 되므로 **손으로 적지 않는다.**
+    var PQ_SERVER = 'https://dev.planq.kr'; /* pq:server-url */
+
+    var msg = document.getElementById('msg');
+    var sub = document.getElementById('sub');
+    var retry = document.getElementById('retry');
+    var ko = (navigator.language || '').slice(0, 2) === 'ko';
+    if (!ko) {
+      msg.textContent = 'No network connection.';
+      sub.textContent = 'Please check your connection and try again.';
+      retry.textContent = 'Retry';
     }
-    document.getElementById('retry').addEventListener('click', function () {
-      location.reload();
+
+    // 자동 재시도 — 연결이 돌아오거나 앱이 다시 앞으로 나오면 **스스로** 서버로 복귀한다.
+    //   ★ 무한 로드 루프를 만들지 않는다: 서버가 정말 죽어 있으면 재시도 → 실패 → 이 화면 →
+    //     재시도 … 가 반복된다. 그래서 **마지막 시도 시각**을 세션에 남기고 최소 간격을 둔다
+    //     (문서가 다시 로드돼도 값이 남아야 하므로 변수가 아니라 sessionStorage).
+    var KEY = 'pq_offline_retry_at';
+    var MIN_GAP_MS = 8000;
+    function lastTry() { try { return Number(sessionStorage.getItem(KEY)) || 0; } catch (e) { return 0; } }
+    function go(force) {
+      var now = Date.now();
+      if (!force && now - lastTry() < MIN_GAP_MS) return;
+      if (!force && navigator.onLine === false) return;
+      try { sessionStorage.setItem(KEY, String(now)); } catch (e) { /* 무시 */ }
+      location.replace(PQ_SERVER + '/');
+    }
+
+    retry.addEventListener('click', function () { go(true); });   // 사람이 누른 것은 간격 무시
+    window.addEventListener('online', function () { go(false); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') go(false);      // 알림 탭으로 앱이 앞에 나온 순간
     });
+    setTimeout(function () { go(false); }, 1500);                 // 첫 로드 직후 한 번
   </script>
 </body>
 </html>

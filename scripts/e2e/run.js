@@ -51,6 +51,8 @@ const SUITES = {
   // 프로젝트 상세 탭 — 순서·노트 탭이 Q Note 본체인가·정보 탭이 Q info 규격인가·고객 프로필 연결.
   //   순서와 색은 **렌더 뒤에만 존재**한다(배열 grep 은 화면 순서를 증명하지 못한다).
   projecttabs: () => require('./canary-project-tabs'),
+  // 알림을 눌러 **그 화면에 닿는가** + 오프라인 폴백에서 서버로 돌아오는가 (앱이 좌초하던 계열)
+  pushdeeplink: () => require('./canary-push-deeplink'),
   // 문서 표 [폭 맞춤] — 누른 뒤 오른쪽에 빈 여백이 남지 않는가 · 열이 균등한가.
   //   colgroup·CSS·컨테이너 폭이 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 못 잡는다.
   tablefit: () => require('./canary-table-fit'),
