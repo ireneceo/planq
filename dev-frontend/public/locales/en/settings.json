@@ -176,7 +176,7 @@
       "clientAlways": "Emails to external clients (invoice, document share, signature request) also bypass this matrix — they are deliberate sends from the workspace."
     },
     "alwaysOnNote": "Billing, trial-end and workspace-lock notices cannot be turned off — missing one locks the workspace.",
-    "pushFallbackNote": "If a device push fails, unread notifications are emailed once more so you do not miss them. This is separate from the per-type email settings — turn it off with \"Email when push fails\" above."
+    "pushFallbackNote": "If a device notification never arrives, unread items are re-sent once by email. It follows each row’s Email setting — a row with Email off gets no re-notification either. To stop the summary itself, turn off \"Email when push fails\" above."
   },
   "permissions": {
     "title": "Permission Policy",

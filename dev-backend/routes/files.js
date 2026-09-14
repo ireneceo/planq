@@ -513,12 +513,48 @@ router.get('/:businessId/storage', authenticateToken, checkBusinessAccess, async
     const usage = await getOrCreateUsage(req.params.businessId);
     const { plan } = await planEngine.getBusinessPlan(req.params.businessId);
     const quota = plan.limits.storage_bytes;
+
+    // ★ 2026-09-14 — **업로드 한도의 정본을 여기서 내려준다** (Irene: *"구글드라이브로 들어가는
+    //   건데 용량 크든 말든 왜 제한하는 건지, 설정 있는지 알려줘"*).
+    //   화면(`services/files.ts`)이 `50MB` 를 **하드코딩**하고 있었다. 그 값은
+    //   ①basic 플랜에서만 우연히 맞고(free 5 · starter 20 · pro 100 · enterprise 200MB)
+    //   ②Drive 로 라우팅되는 업로드에는 **아예 해당되지 않는다**(서버는 5GB 까지 받는다).
+    //   그래서 Drive 가 연결된 워크스페이스에서 60MB 파일을 프로젝트에 올리면, 서버는 받았을 것을
+    //   화면이 먼저 "Drive 연결이 필요합니다" 로 막았다 — **이미 연결돼 있는데.**
+    //   숫자를 두 벌 두지 않는다. 한도를 아는 쪽이 말한다.
+    const cloudToken = await BusinessCloudToken.findOne({
+      where: { business_id: req.params.businessId, provider: 'gdrive' },
+      attributes: ['id', 'root_folder_id'],
+    });
+    let externalProvider = (cloudToken && cloudToken.root_folder_id) ? 'gdrive' : null;
+    if (!externalProvider) {
+      // S3 독립 서버도 자체 스토리지 한도를 우회한다 — 업로드 라우트의 `useS3` 와 같은 술어.
+      const biz = await Business.findByPk(req.params.businessId, { attributes: ['default_storage_provider'] });
+      if (biz && biz.default_storage_provider === 's3') {
+        const { WorkspaceStorageConfig } = require('../models');
+        const c = await WorkspaceStorageConfig.findOne({ where: { business_id: req.params.businessId } });
+        if (c && c.is_active && c.verified_at) externalProvider = 's3';
+      }
+    }
+
     successResponse(res, {
       provider: usage.storage_provider,
       bytes_used: Number(usage.bytes_used),
       bytes_quota: quota === Infinity ? null : quota,
       file_count: usage.file_count,
-      plan: plan.code
+      plan: plan.code,
+      upload: {
+        // 자체 스토리지로 받을 수 있는 1개 파일 최대 — 플랜 값 그대로
+        self_max_bytes: plan.limits.file_size_max_bytes,
+        // 외부(Drive·S3)로 흘릴 때의 단일 상한 — services/plan.js `upload_file` 의 externalCap 과 같은 값
+        external_max_bytes: 5 * 1024 * 1024 * 1024,
+        // 외부로 흘릴 준비가 됐는가. ★ 실제로 타려면 **프로젝트 또는 대화 맥락**도 있어야 한다
+        //   (업로드 라우트의 `useGdrive = 토큰 && root_folder_id && (projectId || conversationId)`).
+        //   그 맥락은 화면이 안다 — 그래서 두 값을 나눠 준다.
+        external_ready: !!externalProvider,
+        external_provider: externalProvider,
+        external_needs_context: true,
+      },
     });
   } catch (error) {
     next(error);

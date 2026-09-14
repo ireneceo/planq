@@ -52,13 +52,10 @@ const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
   external_review:   { bg: '#E0F2FE', fg: '#075985' },
 };
 
-const STATUS_LABEL_DEFAULTS: Record<string, string> = {
-  not_started: '시작 전', waiting: '대기', in_progress: '진행 중',
-  reviewing: '검토', revision_requested: '수정 요청',
-  completed: '완료', canceled: '취소',
-  // #206 on_hold·external_review 는 이 폴백 맵에 두지 않는다 — common.json 의
-  //   public.task.status.* 키(ko/en)가 단일 원천. 여기 한국어를 더하면 en 화면에 한국어가 샌다.
-};
+// ★ 2026-09-14 — 여기 있던 **한국어 폴백 맵을 지웠다**(Irene: *"고객사 브라우저가 영어면 영어기준으로"*).
+//   `public.task.status.*` 키가 ko/en 양쪽에 없어서, 영어 브라우저로 이 링크를 연 고객은
+//   상태 칩만 한국어("진행 중"·"검토")로 봤다. 이제 **common.json 의 키가 단일 원천**이고
+//   폴백은 원문 상태코드다 — 키를 빠뜨리면 한국어가 새는 대신 `not_started` 가 보여 **눈에 띈다.**
 
 const PublicTaskPage = () => {
   const { t } = useTranslation('common');
@@ -119,7 +116,7 @@ const PublicTaskPage = () => {
   );
 
   const tone = STATUS_TONE[task.status] || { bg: '#F1F5F9', fg: '#475569' };
-  const statusLabel = t(`public.task.status.${task.status}`, { defaultValue: STATUS_LABEL_DEFAULTS[task.status] || task.status }) as string;
+  const statusLabel = t(`public.task.status.${task.status}`, { defaultValue: task.status }) as string;
   const isAuthed = !!getAccessToken();
 
   return (

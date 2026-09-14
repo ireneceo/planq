@@ -24,6 +24,24 @@ const ESCALATE_KINDS = [
   'task', 'event', 'invite', 'signature', 'invoice', 'tax_invoice',
 ];
 
+/** 이 사용자에게 **메일로 내보내도 되는** 알림만 고른다 — 게이트 두 겹(위 주석 참조).
+ *  판정을 여기 한 곳에 둔 이유: 크론 본체는 DB 를 쓰기 때문에 검사로 돌릴 수 없다.
+ *  이 함수는 순수 판정이라 실제 설정으로 참/거짓을 가를 수 있다(`--suite` 없이 node 로).
+ */
+async function selectEscalatable(userId, businessId, rows) {
+  const { isAllowed } = require('../routes/notifications');
+  if (!rows || !rows.length) return [];
+  if (!(await isAllowed(userId, businessId, 'push_fallback', 'email'))) return [];
+  const kindOk = new Map();   // 같은 종류를 여러 번 묻지 않는다
+  const out = [];
+  for (const r of rows) {
+    const k = r.event_kind;
+    if (!kindOk.has(k)) kindOk.set(k, await isAllowed(userId, businessId, k, 'email'));
+    if (kindOk.get(k)) out.push(r);
+  }
+  return out;
+}
+
 async function runUnreadEscalation() {
   const { Notification, User, Business } = require('../models');
   const { isAllowed } = require('../routes/notifications');
@@ -79,22 +97,23 @@ async function runUnreadEscalation() {
     }
     if (!fresh.length) continue;
 
-    // ★ 2026-09-14 (Irene: *"알림설정에서 메일설정을 다 뺐는데도 메일로 오는데"*)
-    //   여기는 **일부러 email pref 를 무시하고** 있었다(push silent-drop 안전망이 목적이었다).
-    //   그래서 사용자가 설정에서 메일을 전부 꺼도 이 메일만은 계속 왔다 — **설정이 거짓말을 했다.**
-    //   안전망이라도 사용자가 명시적으로 끈 것을 시스템이 우회하면 안 된다. 이제 그 알림 종류의
-    //   **email 채널 설정을 그대로 따른다**(끈 종류는 에스컬레이션도 없다).
-    //   대신 그 대가를 설정 화면이 한 줄로 말한다(NotificationSettings 의 안내).
-    //   ※ `isAllowed` 는 여태 import 만 하고 **한 번도 부르지 않았다** — 죽은 import 였다.
+    // ★ 2026-09-14 — 여기는 원래 **일부러 email pref 를 무시**했다(push silent-drop 안전망이 목적).
+    //   그래서 설정에서 메일을 전부 꺼도 이 메일만은 계속 왔다 — **설정이 거짓말을 했다.**
     {
       const user = await getUser(g.userId);
-      // ★ 판정은 **전용 항목 하나**(`push_fallback`)가 한다 — Irene 승인 2026-09-14.
-      //   개별 종류의 email 설정을 따르게 하면, 메일을 다 끈 사람은 푸시까지 실패했을 때
-      //   중요 알림을 **완전히** 놓친다. 그건 이 경로가 존재하는 이유를 없앤다.
-      //   그래서 안전망은 개별 설정과 **별개 스위치**로 두고(기본 ON), 끄고 싶은 사람은 그것을 끈다.
-      //   설정 화면이 그 뜻을 한 줄로 말한다(NotificationSettings).
-      const fallbackOn = await isAllowed(g.userId, g.businessId, 'push_fallback', 'email');
-      const allowed = fallbackOn ? fresh : [];
+      // ★ 판정은 **두 겹**이다 — 둘 다 통과해야 나간다 (Irene 2026-09-14 재신고:
+      //   *"내가 메일설정 껐는데 메일로 계속 와. 알림 설정 맞춰진거 맞아?"*)
+      //
+      //   ① 그 알림 **종류의 email 설정** — 사용자가 "메시지는 메일로 보내지 마" 라고 껐으면
+      //      안전망이라도 그 종류를 메일로 되살리지 않는다. 전용 스위치를 **별개**로 두었더니
+      //      (2026-09-14 오전) 메일을 전부 끈 사람에게 이 경로만 계속 나갔다 — 설정이 거짓말이 된다.
+      //      운영 실측: irene 계정은 10종이 전부 0 인데 push_fallback 만 1(기본값) 이라 계속 왔다.
+      //   ② `push_fallback` 전용 스위치 — 종류별 메일은 받지만 **미확인 재알림(요약)은 싫다** 는
+      //      사람을 위한 것. 이제 이 스위치는 **좁히기만** 한다(우회하지 않는다).
+      //
+      //   대가: 메일을 전부 끈 사람은 푸시가 조용히 죽었을 때 메일로도 못 받는다.
+      //   그건 **사용자가 고른 것**이고, 설정 화면이 그 뜻을 한 줄로 말한다(NotificationSettings).
+      const allowed = await selectEscalatable(g.userId, g.businessId, fresh);
       if (user && user.email && allowed.length) {
         const ok = await sendUnreadNotificationEmail({
           to: user.email,
@@ -126,4 +145,4 @@ function initUnreadEscalationCron() {
   console.log(`[unreadEscalation] cron started — every 1min, escalate unread after ${ESCALATE_AFTER_MIN}min`);
 }
 
-module.exports = { runUnreadEscalation, initUnreadEscalationCron };
+module.exports = { runUnreadEscalation, initUnreadEscalationCron, selectEscalatable };

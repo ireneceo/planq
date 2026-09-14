@@ -4,6 +4,7 @@
 import { apiFetch, apiUpload } from '../contexts/AuthContext';
 import type { UploadProgress } from '../contexts/AuthContext';
 import { downloadBlob } from '../utils/download';
+import i18next from 'i18next';
 
 export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post';
 export type StorageProvider = 'planq' | 'gdrive';
@@ -142,7 +143,11 @@ export interface StorageStatus {
 export interface UploadResult {
   success: boolean;
   file?: ProjectFile;
+  /** 실패 사유 **코드**. 화면은 이것을 `uploadErrorText()` 로 문장으로 바꾼다
+   *  (코드를 그대로 보여 주면 "실패" 만 뜨고 이유를 알 수 없다 — 2026-09-14 신고). */
   message?: string;
+  /** 그 사유가 크기 한도일 때의 한도(바이트). 문장에 숫자를 넣기 위한 것. */
+  limitBytes?: number;
 }
 
 // ─── id 접두어 파서 ───
@@ -347,11 +352,70 @@ export async function moveFile(businessId: number, fileId: string, folderId: num
 //   이 이미 `ctx.external` 이면 플랜 한도·쿼터를 건너뛰고 5GB 까지 허용한다.
 //   여기서 올리기 **전에** 걸러 사용자에게 이유와 다음 행동을 말한다.
 //   (여태는 nginx 가 413 HTML 을 돌려주고 화면은 아무 말도 못 해 "그냥 안 됨" 으로 보였다.)
-export const SELF_STORAGE_MAX_BYTES = 50 * 1024 * 1024;   // nginx client_max_body_size 와 같은 축
+/** 업로드 한도 — **서버가 정본**이다 (`GET /api/files/:biz/storage` 의 `upload`).
+ *
+ *  ★ 2026-09-14 이전에는 여기 `SELF_STORAGE_MAX_BYTES = 50MB` 가 하드코딩돼 있었다.
+ *    그 숫자는 basic 플랜에서만 우연히 맞았고(free 5·starter 20·pro 100·enterprise 200MB),
+ *    무엇보다 **Drive 로 라우팅되는 업로드에는 해당되지 않는다**(서버는 5GB 까지 받는다).
+ *    그래서 Drive 를 연결해 둔 워크스페이스에서도 60MB 파일이 화면 단계에서 막혔다 —
+ *    그리고 그 안내가 "Drive 를 연결하세요" 였다. 이미 연결돼 있는데.
+ *    숫자를 두 벌 두지 않는다(memory `feedback_same_value_multiple_formulas`). */
+export interface UploadLimits {
+  self_max_bytes: number;
+  external_max_bytes: number;
+  /** Drive·S3 로 흘릴 준비가 됐는가(토큰+루트 폴더). 실제로 타려면 맥락도 필요하다 — 아래 참조. */
+  external_ready: boolean;
+  external_provider: 'gdrive' | 's3' | null;
+}
 
-/** 자체 스토리지로 올릴 수 없는 크기인가 — 넘으면 Drive 연결이 필요하다. */
-export function needsDriveForSize(bytes: number): boolean {
-  return Number(bytes || 0) > SELF_STORAGE_MAX_BYTES;
+const LIMITS_TTL_MS = 60 * 1000;
+const limitsCache = new Map<number, { at: number; v: UploadLimits }>();
+
+export async function getUploadLimits(businessId: number): Promise<UploadLimits | null> {
+  const hit = limitsCache.get(businessId);
+  if (hit && Date.now() - hit.at < LIMITS_TTL_MS) return hit.v;
+  try {
+    const r = await apiFetch(`/api/files/${businessId}/storage`);
+    const j = await r.json();
+    const u = j?.data?.upload;
+    if (!u) return null;
+    const v: UploadLimits = {
+      self_max_bytes: Number(u.self_max_bytes) || 0,
+      external_max_bytes: Number(u.external_max_bytes) || 0,
+      external_ready: !!u.external_ready,
+      external_provider: (u.external_provider as UploadLimits['external_provider']) ?? null,
+    };
+    limitsCache.set(businessId, { at: Date.now(), v });
+    return v;
+  } catch {
+    return null;   // 한도를 모르면 막지 않는다 — 아래 참조
+  }
+}
+
+/** 마지막으로 받아 둔 한도(동기). 문장에 숫자를 넣을 때만 쓴다. */
+export function peekUploadLimits(businessId: number): UploadLimits | null {
+  return limitsCache.get(businessId)?.v ?? null;
+}
+
+/** 올리기 **전에** 크기로 막을 이유가 있는가. 서버 업로드 라우트와 같은 술어로 판정한다:
+ *  `외부로 간다 = (Drive·S3 준비됨) AND (프로젝트 또는 대화 맥락 있음)`.
+ *
+ *  ★ 한도를 못 가져오면 **막지 않는다.** 모르는 값으로 미리 막는 것이 바로 이번 사고였다 —
+ *    판정은 서버에게 넘기고, 서버는 이유가 담긴 JSON 을 준다.
+ *  반환: 막을 이유가 없으면 null. */
+export async function preflightUploadSize(
+  businessId: number, size: number, hasContext: boolean
+): Promise<{ code: string; limitBytes: number } | null> {
+  const lim = await getUploadLimits(businessId);
+  if (!lim) return null;
+  const external = lim.external_ready && hasContext;
+  const cap = external ? lim.external_max_bytes : lim.self_max_bytes;
+  if (!cap || Number(size || 0) <= cap) return null;
+  if (external) return { code: 'file_size_exceeded', limitBytes: cap };
+  // 자체 스토리지 한도를 넘었다 — 남은 길이 두 가지이고, **어느 길인지에 따라 안내가 다르다.**
+  return lim.external_ready
+    ? { code: 'needs_context_for_large_file', limitBytes: cap }   // 연결은 돼 있다. 프로젝트·대화에 올리면 된다
+    : { code: 'needs_drive_for_large_file', limitBytes: cap };    // 연결부터 필요하다
 }
 
 async function readUploadResponse(r: Response): Promise<{ ok: true; data: any } | { ok: false; message: string }> {
@@ -363,7 +427,11 @@ async function readUploadResponse(r: Response): Promise<{ ok: true; data: any } 
     return { ok: false, message: r.status === 413 ? 'file_size_exceeded' : `upload_failed_${r.status}` };
   }
   if (!r.ok || !j?.success || !j?.data) {
-    return { ok: false, message: j?.message || `upload_failed_${r.status}` };
+    // 서버는 사람 문장을 ko/en 두 벌로 준다(`buildQuotaError`). 보는 사람 언어로 고른다 —
+    //   공개 링크가 아니어도 워크스페이스에 영어 사용자가 있다(2026-09-14).
+    const lng = String(i18next.language || 'ko').toLowerCase();
+    const msg = lng.startsWith('ko') ? j?.message : (j?.message_en || j?.message);
+    return { ok: false, message: msg || `upload_failed_${r.status}` };
   }
   return { ok: true, data: j.data };
 }
@@ -380,7 +448,9 @@ export async function uploadProjectFile(
   file: File,
   options?: { folderId?: number | null } & UploadHooks
 ): Promise<UploadResult> {
-  if (needsDriveForSize(file.size)) return { success: false, message: 'needs_drive_for_large_file' };
+  // 프로젝트 업로드는 **맥락이 있다** → Drive 가 연결돼 있으면 그쪽으로 흐른다(5GB 까지).
+  const pre = await preflightUploadSize(businessId, file.size, true);
+  if (pre) return { success: false, message: pre.code, limitBytes: pre.limitBytes };
   const fd = new FormData();
   fd.append('file', file);
   fd.append('project_id', String(projectId));
@@ -420,7 +490,9 @@ export async function uploadMyFile(
   file: File,
   opts?: { conversationId?: number | null; projectId?: number | null } & UploadHooks
 ): Promise<UploadResult> {
-  if (needsDriveForSize(file.size)) return { success: false, message: 'needs_drive_for_large_file' };
+  // 맥락(프로젝트·대화)이 있을 때만 Drive 로 흐른다 — 서버 `useGdrive` 와 같은 조건.
+  const pre = await preflightUploadSize(businessId, file.size, !!(opts?.conversationId || opts?.projectId));
+  if (pre) return { success: false, message: pre.code, limitBytes: pre.limitBytes };
   const fd = new FormData();
   fd.append('file', file);
   if (opts?.conversationId) fd.append('conversation_id', String(opts.conversationId));

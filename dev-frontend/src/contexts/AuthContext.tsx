@@ -501,10 +501,17 @@ const apiFetch = async (url: string, options: ApiFetchOptions = {}): Promise<Res
   }
 
   // 422 plan quota — 글로벌 이벤트로 LimitReachedDialog 띄움. 호출자는 그대로 응답 받음.
-  if (response.status === 422) {
+  // ★ 413 도 같이 본다 (2026-09-14) — 파일 업로드 쿼터는 **413** 으로 나간다(routes/files.js).
+  //   여기서 422 만 보고 있어서 **저장 공간이 가득 찼을 때 아무 창도 안 떴다.**
+  //   크기 초과(file_size_exceeded)는 제외한다 — 그 안내는 업로드 줄에 인라인으로 붙고,
+  //   해결책이 "플랜 업그레이드" 가 아니라 "Drive 연결·프로젝트에 올리기" 라 창이 거짓말이 된다.
+  if (response.status === 422 || response.status === 413) {
     try {
       const j = await response.clone().json();
-      if (j?.code && /quota_exceeded|feature_not_in_plan|subscription_inactive/.test(String(j.code))) {
+      const quotaRe = response.status === 413
+        ? /storage_quota_exceeded/
+        : /quota_exceeded|feature_not_in_plan|subscription_inactive/;
+      if (j?.code && quotaRe.test(String(j.code))) {
         window.dispatchEvent(new CustomEvent('planq:limit-reached', { detail: j }));
       }
     } catch { /* noop */ }
@@ -594,10 +601,14 @@ const apiUpload = async (url: string, body: FormData, opts?: ApiUploadOptions): 
       try { window.dispatchEvent(new Event('planq:session-expired')); } catch { /* noop */ }
     }
   }
-  if (res.status === 422) {
+  // 업로드는 쿼터를 413 으로 돌려준다 — 위 apiFetch 와 같은 술어.
+  if (res.status === 422 || res.status === 413) {
     try {
       const j = await res.clone().json();
-      if (j?.code && /quota_exceeded|feature_not_in_plan|subscription_inactive/.test(String(j.code))) {
+      const quotaRe = res.status === 413
+        ? /storage_quota_exceeded/
+        : /quota_exceeded|feature_not_in_plan|subscription_inactive/;
+      if (j?.code && quotaRe.test(String(j.code))) {
         window.dispatchEvent(new CustomEvent('planq:limit-reached', { detail: j }));
       }
     } catch { /* noop */ }

@@ -182,10 +182,11 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
         <FooterNote>{t('notifications.footerNote', '확인필요(Inbox)는 PlanQ 안에서 직접 보는 알림 영역입니다. 채팅/이메일은 외부로 나가는 알림.')}</FooterNote>
         {/* ★ 2026-09-14 — 설정이 **무엇을 뜻하는지** 화면이 말한다.
             Irene: *"알림설정에서 메일설정을 다 뺐는데도 메일로 오는데"* — 그때 이 두 가지가 이유였다:
-            ① 푸시를 놓쳤을 때 보내던 재알림 메일이 설정을 **일부러 무시**하고 있었다(이제 따른다)
+            ① 푸시를 놓쳤을 때 보내던 재알림 메일이 설정을 **일부러 무시**하고 있었다
+               (2026-09-14 2차 신고 뒤 **각 항목의 메일 설정을 따르게** 바꿨다 — 전용 스위치는 좁히기만 한다)
             ② 결제·잠금 안내는 끌 수 없다 — 그런데 아무 말이 없어 "관리가 안 된다" 로 보였다. */}
         <FooterNote>
-          {t('notifications.pushFallbackNote', '기기 알림이 실패해도 놓치지 않게, 안 읽은 알림은 메일로 한 번 더 보냅니다. 개별 메일 설정과 별개이며 위의 "푸시 실패 시 메일" 로 끕니다.') as string}
+          {t('notifications.pushFallbackNote', '기기 알림이 실패해도 놓치지 않게, 안 읽은 알림을 메일로 한 번 더 보냅니다. 각 항목의 메일 설정을 그대로 따릅니다 — 메일을 끈 항목은 재알림도 오지 않습니다. 이 요약 자체가 싫으면 위의 "푸시 실패 시 메일" 을 끄세요.') as string}
         </FooterNote>
         <FooterNote>
           {t('notifications.alwaysOnNote', '결제·체험 종료·워크스페이스 잠금 안내는 끌 수 없습니다 — 놓치면 워크스페이스가 잠기기 때문입니다.') as string}

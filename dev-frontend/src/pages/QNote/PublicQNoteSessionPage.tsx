@@ -80,7 +80,9 @@ const PublicQNoteSessionPage: React.FC = () => {
     return (
       <PublicCenter>
         <ErrTitle>{t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</ErrTitle>
-        <ErrHint>{err || t('public.notFoundHint', '링크 만료 또는 작성자가 공유를 해제했습니다.')}</ErrHint>
+        {/* ★ 서버가 준 값을 그대로 걸면 **코드가 그대로 보인다**(실측: `not_found_or_expired`).
+            고객이 보는 화면이다 — 코드처럼 생긴 값은 버리고 우리 문장을 쓴다(2026-09-14). */}
+        <ErrHint>{(err && !/^[a-z0-9_]+$/.test(err)) ? err : t('public.notFoundHint', '링크 만료 또는 작성자가 공유를 해제했습니다.')}</ErrHint>
       </PublicCenter>
     );
   }

@@ -5,6 +5,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { formatBytes, type ProjectFile, type UploadHooks } from '../../../services/files';
+import { uploadErrorText } from '../../../utils/uploadError';
 
 interface UploadJob {
   key: string;
@@ -14,12 +15,15 @@ interface UploadJob {
   /** 0~100. 서버가 길이를 모르면 -1 */
   pct: number;
   status: 'queued' | 'uploading' | 'error';
+  /** 실패 사유 **코드**(또는 서버가 준 문장). 화면은 `uploadErrorText()` 로 문장을 만든다. */
   error?: string;
+  /** 사유가 크기 한도일 때의 한도 — 문장에 숫자를 넣기 위한 것 */
+  limitBytes?: number;
   /** bytes per second — 남은 시간 추정용 */
   bps?: number;
 }
 
-export interface UploadSendResult { success: boolean; file?: ProjectFile; message?: string }
+export interface UploadSendResult { success: boolean; file?: ProjectFile; message?: string; limitBytes?: number }
 
 /** 업로드 큐 상태 + 실행기. 한 번에 하나씩 보낸다(모바일 회선에서 병렬은 전체를 더 느리게 만든다). */
 export function useUploadQueue() {
@@ -58,7 +62,7 @@ export function useUploadQueue() {
           setUploads(prev => prev.filter(u => u.key !== job.key));
         } else {
           setUploads(prev => prev.map(u => (u.key === job.key
-            ? { ...u, status: 'error', error: r.message || 'upload_failed' } : u)));
+            ? { ...u, status: 'error', error: r.message || 'upload_failed', limitBytes: r.limitBytes } : u)));
         }
       } catch (e) {
         // 사용자가 취소한 것은 오류가 아니다 — 조용히 목록에서 뺀다.
@@ -110,7 +114,7 @@ export const UploadQueuePanel: React.FC<{
               </UpBar>
               <UpMeta>
                 {u.status === 'error'
-                  ? t('docs.up.errGeneric', '업로드하지 못했습니다')
+                  ? uploadErrorText(u.error, t, u.limitBytes)
                   : (
                     <>
                       {formatBytes(u.loaded)} / {formatBytes(u.size)}

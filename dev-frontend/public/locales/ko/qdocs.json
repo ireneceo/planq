@@ -713,5 +713,28 @@
   "doneEditing": "편집 완료",
   "trash": {
     "retentionDays": "삭제 후 {{count}}일 안에는 되돌릴 수 있어요"
+  },
+  "public": {
+    "signError": "서명 실패: {{message}}",
+    "loading": "문서 로드 중...",
+    "notFound": "공개되지 않았거나 만료된 링크입니다",
+    "print": "인쇄 / PDF 저장",
+    "signOpen": "동의 / 서명",
+    "signedAccept": "동의 완료",
+    "signedReject": "거절됨",
+    "signer": "서명자",
+    "signedAt": "서명 시각",
+    "signTitle": "동의 또는 거절",
+    "signSub": "서명 후에는 변경할 수 없습니다. 신중히 검토해 주세요.",
+    "signerName": "이름",
+    "signerNamePh": "예: 홍길동",
+    "signerEmail": "이메일 (선택)",
+    "signNote": "메모 (선택)",
+    "signNotePh": "의견·조건·요청 사항",
+    "reject": "거절",
+    "accept": "동의 · 서명",
+    "notFoundHint": "문서가 삭제됐거나 공유가 중지된 링크입니다. 보낸 분께 새 링크를 요청해 주세요.",
+    "openInApp": "PlanQ 앱에서 열기",
+    "downloadPdf": "PDF 다운로드"
   }
 }

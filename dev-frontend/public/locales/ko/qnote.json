@@ -452,5 +452,18 @@
     "notInWorkspace": "이 워크스페이스의 항목이 아닙니다",
     "ownerOnly": "작성자만 연결할 수 있습니다",
     "failed": "연결에 실패했습니다"
+  },
+  "public": {
+    "loading": "회의록 로드 중...",
+    "notFound": "공개되지 않았거나 만료된 링크입니다",
+    "notFoundHint": "링크 만료 또는 작성자가 공유를 해제했습니다.",
+    "speaker": "화자",
+    "print": "인쇄 / PDF",
+    "minute": "분",
+    "utteranceCount": "발화 {{count}}개",
+    "brief": "회의 안내",
+    "summary": "요약",
+    "memo": "메모",
+    "transcript": "대화 기록"
   }
 }

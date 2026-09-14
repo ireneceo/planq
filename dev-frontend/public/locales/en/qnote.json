@@ -452,5 +452,18 @@
     "notInWorkspace": "That item is not in this workspace",
     "ownerOnly": "Only the author can link this",
     "failed": "Could not link"
+  },
+  "public": {
+    "loading": "Loading meeting notes…",
+    "notFound": "This link is not shared, or it has expired",
+    "notFoundHint": "The link expired, or the author stopped sharing it.",
+    "speaker": "Speaker",
+    "print": "Print / PDF",
+    "minute": "min",
+    "utteranceCount": "{{count}} utterances",
+    "brief": "Meeting brief",
+    "summary": "Summary",
+    "memo": "Notes",
+    "transcript": "Transcript"
   }
 }

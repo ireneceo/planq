@@ -51,7 +51,10 @@
     "taskCount": "{{done}} / {{total}} done",
     "docs": "Shared documents",
     "untitled": "Untitled",
-    "chatHint2": "Ask the team anything in the Chat tab."
+    "chatHint2": "Ask the team anything in the Chat tab.",
+    "projectSub": "Progress and questions",
+    "stagesEmpty": "No stages yet.",
+    "tasksEmpty": "No tasks yet."
   },
   "notify": {
     "cta": "Get notified when they reply?",
@@ -117,7 +120,8 @@
     "hiddenCount_one": "{{count}} document is not shown because it cannot be shared.",
     "hiddenCount_other": "{{count}} documents are not shown because they cannot be shared.",
     "lockedTitle": "This document is not open",
-    "lockedBody": "Only the team can view this one. Ask them in the chat tab if you need it."
+    "lockedBody": "Only the team can view this one. Ask them in the chat tab if you need it.",
+    "hiddenCount": "{{count}} document(s) that cannot be shared are not listed."
   },
   "files": {
     "failed": "Could not load the files.",
@@ -129,6 +133,7 @@
     "lockedTitle": "This file is not open",
     "lockedBody": "Only the team can download this one. Ask them in the chat tab if you need it.",
     "loginTitle": "Sign-in needed",
-    "loginBody": "You need to sign in to download this file. Ask the team for an account in the chat tab."
+    "loginBody": "You need to sign in to download this file. Ask the team for an account in the chat tab.",
+    "hiddenCount": "{{count}} file(s) that cannot be shared are not listed."
   }
 }

@@ -15,6 +15,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import AttachmentField from '../Common/AttachmentField';
 import PostPreviewModal from '../Docs/PostPreviewModal';
 import { useImageLightbox } from '../Common/ImageLightbox';
+import { uploadErrorText } from '../../utils/uploadError';
 
 /** 서버가 내는 '권한 없음' 코드 — 옛 이름도 같이 받는다(2026-09-07 개명). */
 const NOT_PERMITTED = new Set(['only_creator_can_attach_description', 'only_creator_or_owner_can_attach_description']);
@@ -90,7 +91,7 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
           if (NOT_PERMITTED.has(code)) setErrMsg(t('descAttach.error.notPermitted', { defaultValue: '의뢰 명세 첨부는 작성자만 할 수 있습니다' }) as string);
           else if (code === 'disallowed_extension') setErrMsg(t('descAttach.error.disallowedExt', { defaultValue: '허용되지 않는 파일 형식' }) as string);
           else if (code === 'file_too_large') setErrMsg(t('descAttach.error.tooLarge', { defaultValue: '파일이 너무 큽니다' }) as string);
-          else setErrMsg(t('descAttach.error.failed', { defaultValue: '업로드 실패' }) as string);
+          else setErrMsg(uploadErrorText(code, t));   // 모르는 코드도 이유를 말한다
           setSubmitting(false);
           return;
         }

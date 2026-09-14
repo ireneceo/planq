@@ -66,4 +66,19 @@ i18n
   } catch { /* 실패하면 기존 감지 결과 그대로 — 회귀 0 */ }
 })();
 
+// ── <html lang> 을 실제 화면 언어에 맞춘다 (2026-09-14) ────────────────────────
+// `index.html` 은 `lang="en"` 으로 **고정**이었다. 공개 링크(무인증 미리보기)를 여는 고객사
+// 브라우저는 이 값을 보고 ①번역 제안 ②화면낭독기 발음 ③`:lang()` 규칙을 정한다.
+// 한국어로 그려 놓고 `lang="en"` 이라고 적어 두면 크롬이 한국어 문서를 영어로 오인해
+// "이 페이지를 번역하시겠습니까?" 를 거꾸로 띄운다. 감지 결과를 그대로 반영한다.
+const syncHtmlLang = (lng?: string) => {
+  try {
+    const base = String(lng || i18n.language || 'en').split('-')[0];
+    if (typeof document !== 'undefined') document.documentElement.lang = base;
+  } catch { /* 문서가 없거나 접근 불가 — 표시에만 쓰이므로 삼킨다 */ }
+};
+i18n.on('languageChanged', syncHtmlLang);
+i18n.on('initialized', () => syncHtmlLang());
+syncHtmlLang();
+
 export default i18n;

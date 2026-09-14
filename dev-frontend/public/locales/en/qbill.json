@@ -933,7 +933,8 @@
       "bizItem": "Business item",
       "phone": "Phone",
       "email": "Email"
-    }
+    },
+    "downloadPdf": "Download PDF"
   },
   "kind": {
     "contract": "Contract",

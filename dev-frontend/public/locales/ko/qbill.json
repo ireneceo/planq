@@ -933,7 +933,8 @@
       "bizItem": "종목",
       "phone": "전화",
       "email": "이메일"
-    }
+    },
+    "downloadPdf": "PDF 다운로드"
   },
   "kind": {
     "contract": "계약서",

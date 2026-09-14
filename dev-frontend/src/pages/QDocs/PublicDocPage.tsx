@@ -92,7 +92,8 @@ const PublicDocPage: React.FC = () => {
 
   if (loading) return <Center>{t('public.loading', '문서 로드 중...')}</Center>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
-  if (err || !doc) return <Center>{err || t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
+  // 서버 코드(`not_found_or_expired` 같은)를 고객 화면에 그대로 걸지 않는다 — 2026-09-14
+  if (err || !doc) return <Center>{(err && !/^[a-z0-9_]+$/.test(err)) ? err : t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
 
   const alreadySigned = !!doc.signed_at;
   const signerLabel = doc.signature_data?.signer_name || '';

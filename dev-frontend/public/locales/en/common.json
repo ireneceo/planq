@@ -797,7 +797,9 @@
       "goToChat": "Open chat",
       "sendFail": "Failed to send",
       "network": "Network error"
-    }
+    },
+    "passwordHide": "Hide",
+    "passwordShow": "Show"
   },
   "candidate": {
     "noAssignee": "Unassigned",
@@ -820,17 +822,61 @@
   "public": {
     "kb": {
       "bundleTitle": "Shared materials",
-      "bundleEmpty": "No shared materials."
+      "bundleEmpty": "No shared materials.",
+      "backToList": "Back to list",
+      "bundleCount": "{{count}} items",
+      "noBody": "This document has no content.",
+      "created": "Created",
+      "updated": "Updated"
     },
     "task": {
       "status": {
         "on_hold": "On hold",
-        "external_review": "External review"
-      }
+        "external_review": "External review",
+        "not_started": "Not started",
+        "waiting": "Waiting",
+        "in_progress": "In progress",
+        "reviewing": "In review",
+        "revision_requested": "Revision requested",
+        "completed": "Completed",
+        "canceled": "Canceled"
+      },
+      "description": "Description",
+      "assignee": "Assignee",
+      "creator": "Requester",
+      "start": "Start date",
+      "due": "Due date",
+      "progress": "Progress"
     },
     "file": {
       "previewLoading": "Preparing preview…",
-      "previewUnavailable": "Preview is unavailable. Please download the file to view it."
+      "previewUnavailable": "Preview is unavailable. Please download the file to view it.",
+      "download": "Download"
+    },
+    "loading": "Loading…",
+    "notFound": "This link has expired, or the item no longer exists",
+    "notFoundHint": "Ask the person who sent it for a new link.",
+    "goHome": "Go to PlanQ home",
+    "calendar": {
+      "location": "Location",
+      "meetingUrl": "Meeting link",
+      "creator": "Created by",
+      "description": "Description"
+    },
+    "openInPlanQ": "Open in PlanQ →",
+    "login": "Log in to PlanQ",
+    "signup": "Start for free",
+    "poweredBy": "PlanQ — Work, just work",
+    "promoCta": "Go to PlanQ",
+    "openInApp": "Open in the PlanQ app",
+    "downloadPdf": "Download PDF",
+    "password": {
+      "title": "Password-protected link",
+      "sub": "Enter the password you received from the sender.",
+      "placeholder": "Password",
+      "wrong": "That password is not correct.",
+      "checking": "Checking…",
+      "submit": "Continue"
     }
   },
   "myFeedback": {
@@ -1133,5 +1179,20 @@
     "placeholder": "name@company.com",
     "required": "Enter an email",
     "invalid": "That is not an email address (e.g. name@company.com)"
+  },
+  "upload": {
+    "err": {
+      "needsDrive": "This file is larger than {{limit}}. Connect Google Drive and large files upload as-is (Settings > Files & integrations).",
+      "needsContext": "This file is larger than {{limit}}. Upload it inside a project or a chat and it goes to your connected Google Drive.",
+      "theLimit": "the limit",
+      "tooLargeWithLimit": "This is over the maximum size for a single file ({{limit}}).",
+      "tooLarge": "This is over the maximum size for a single file.",
+      "quota": "Your workspace storage is full. Free up space or add capacity in Settings > Files & integrations.",
+      "network": "The connection dropped, so the upload did not finish. Please try again.",
+      "forbidden": "You do not have permission to upload here.",
+      "noFile": "The file is empty.",
+      "unknownWithCode": "Could not upload. ({{code}})",
+      "unknown": "Could not upload."
+    }
   }
 }

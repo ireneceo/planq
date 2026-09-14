@@ -63,6 +63,7 @@ import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
 import { usePostPresence } from '../../hooks/usePostPresence';
 import PostHistoryPanel from './PostHistoryPanel';
 import { isEnterAction } from '../../utils/imeKey';
+import { uploadErrorText } from '../../utils/uploadError';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -1198,9 +1199,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         const fid = Number(result.file.id.replace(/^direct-/, ''));
         if (fid) { fileIds.push(fid); uploadedIds.push(fid); }
       } else {
-        const reason = result.message === 'file_size_exceeded'
-          ? t('attach.tooLarge', '용량 한도 초과')
-          : t('attach.uploadFailed', '업로드 실패');
+        // 2026-09-14 — 사유를 두 갈래로만 접지 않는다. Drive 연결·맥락 안내까지 그대로 말한다.
+        const reason = uploadErrorText(result.message, t, result.limitBytes);
         failedFiles.push(f);
         failedLabels.push(`${f.name} (${reason})`);
       }

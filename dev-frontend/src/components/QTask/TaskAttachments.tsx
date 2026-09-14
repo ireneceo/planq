@@ -9,6 +9,7 @@ import ConfirmDialog from '../Common/ConfirmDialog';
 import AttachmentField from '../Common/AttachmentField';
 import { useImageLightbox } from '../Common/ImageLightbox';
 import AttachmentPreviewDrawer from '../Common/AttachmentPreviewDrawer';
+import { uploadErrorText } from '../../utils/uploadError';
 
 type AttachRow = {
   id: number;
@@ -89,7 +90,8 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
         const r = await apiFetch(`/api/tasks/${taskId}/attachments?context=task`, { method: 'POST', body: fd });
         const j = await r.json();
         if (!r.ok || !j.success) {
-          setError(j?.message || 'upload_failed');
+          // 코드를 그대로 보여 주면 사용자는 이유를 모른다 — 공용 문장 변환을 거친다(2026-09-14)
+          setError(uploadErrorText(j?.message, t));
         }
       } catch (e) {
         setError((e as Error).message);

@@ -797,7 +797,9 @@
       "goToChat": "대화방 열기",
       "sendFail": "발송 실패",
       "network": "네트워크 오류"
-    }
+    },
+    "passwordHide": "숨기기",
+    "passwordShow": "보이기"
   },
   "candidate": {
     "noAssignee": "담당 미정",
@@ -820,17 +822,61 @@
   "public": {
     "kb": {
       "bundleTitle": "공유 자료",
-      "bundleEmpty": "공유된 자료가 없습니다."
+      "bundleEmpty": "공유된 자료가 없습니다.",
+      "backToList": "목록으로",
+      "bundleCount": "{{count}}개 자료",
+      "noBody": "본문이 비어 있습니다.",
+      "created": "작성",
+      "updated": "수정"
     },
     "task": {
       "status": {
         "on_hold": "보류중",
-        "external_review": "외부컨펌중"
-      }
+        "external_review": "외부컨펌중",
+        "not_started": "시작 전",
+        "waiting": "대기",
+        "in_progress": "진행 중",
+        "reviewing": "검토",
+        "revision_requested": "수정 요청",
+        "completed": "완료",
+        "canceled": "취소"
+      },
+      "description": "설명",
+      "assignee": "담당자",
+      "creator": "요청자",
+      "start": "시작일",
+      "due": "마감일",
+      "progress": "진행률"
     },
     "file": {
       "previewLoading": "미리보기 준비 중…",
-      "previewUnavailable": "미리보기를 만들 수 없어요. 파일을 내려받아 확인해 주세요."
+      "previewUnavailable": "미리보기를 만들 수 없어요. 파일을 내려받아 확인해 주세요.",
+      "download": "다운로드"
+    },
+    "loading": "불러오는 중...",
+    "notFound": "링크가 만료되었거나 없는 항목입니다",
+    "notFoundHint": "링크 작성자에게 다시 받으세요.",
+    "goHome": "PlanQ 홈으로",
+    "calendar": {
+      "location": "장소",
+      "meetingUrl": "회의 링크",
+      "creator": "작성자",
+      "description": "설명"
+    },
+    "openInPlanQ": "PlanQ 에서 보기 →",
+    "login": "PlanQ 로그인",
+    "signup": "무료로 시작하기",
+    "poweredBy": "PlanQ — 일이 일이 되지 않게",
+    "promoCta": "플랜큐 바로가기",
+    "openInApp": "PlanQ 앱에서 열기",
+    "downloadPdf": "PDF 다운로드",
+    "password": {
+      "title": "비밀번호로 보호된 링크",
+      "sub": "링크 작성자에게 받은 비밀번호를 입력하세요.",
+      "placeholder": "비밀번호",
+      "wrong": "비밀번호가 맞지 않습니다.",
+      "checking": "확인 중...",
+      "submit": "확인"
     }
   },
   "myFeedback": {
@@ -1133,5 +1179,20 @@
     "placeholder": "name@company.com",
     "required": "이메일을 입력해주세요",
     "invalid": "이메일 형식이 아니에요 (예: name@company.com)"
+  },
+  "upload": {
+    "err": {
+      "needsDrive": "{{limit}} 보다 큰 파일이에요. Google Drive 를 연결하면 큰 파일도 그대로 올라갑니다 (설정 > 파일·외부 연동).",
+      "needsContext": "{{limit}} 보다 큰 파일이에요. 프로젝트나 대화에 올리면 연결해 둔 Google Drive 로 저장됩니다.",
+      "theLimit": "허용 용량",
+      "tooLargeWithLimit": "파일 하나에 올릴 수 있는 최대 크기({{limit}})를 넘었습니다.",
+      "tooLarge": "파일 하나에 올릴 수 있는 최대 크기를 넘었습니다.",
+      "quota": "워크스페이스 저장 공간이 가득 찼습니다. 설정 > 파일·외부 연동에서 정리하거나 용량을 늘려 주세요.",
+      "network": "연결이 끊겨 올리지 못했습니다. 다시 시도해 주세요.",
+      "forbidden": "이 위치에 파일을 올릴 권한이 없습니다.",
+      "noFile": "파일이 비어 있습니다.",
+      "unknownWithCode": "올리지 못했습니다. ({{code}})",
+      "unknown": "올리지 못했습니다."
+    }
   }
 }

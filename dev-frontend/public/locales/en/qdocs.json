@@ -713,5 +713,28 @@
   "doneEditing": "Done",
   "trash": {
     "retentionDays": "You can restore within {{count}} days of deleting"
+  },
+  "public": {
+    "signError": "Signing failed: {{message}}",
+    "loading": "Loading document…",
+    "notFound": "This link is not shared, or it has expired",
+    "print": "Print / Save as PDF",
+    "signOpen": "Agree / Sign",
+    "signedAccept": "Agreed",
+    "signedReject": "Declined",
+    "signer": "Signer",
+    "signedAt": "Signed at",
+    "signTitle": "Agree or decline",
+    "signSub": "You cannot change this after signing. Please review carefully.",
+    "signerName": "Name",
+    "signerNamePh": "e.g. Jane Doe",
+    "signerEmail": "Email (optional)",
+    "signNote": "Note (optional)",
+    "signNotePh": "Comments, conditions, requests",
+    "reject": "Decline",
+    "accept": "Agree · Sign",
+    "notFoundHint": "The document was deleted or sharing was stopped. Please ask the sender for a new link.",
+    "openInApp": "Open in the PlanQ app",
+    "downloadPdf": "Download PDF"
   }
 }

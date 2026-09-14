@@ -12,6 +12,7 @@ import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import { openExternalUrl } from '../../services/native';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
+import i18next from 'i18next';
 
 interface Installment {
   id: number;
@@ -100,8 +101,20 @@ interface ReceiptProfile {
   contact_phone?: string | null;
 }
 
+/** 보는 사람의 언어. 공개 청구서는 **고객사 브라우저**가 열기 때문에 화면 언어를 따라간다
+ *  (Irene 2026-09-14: *"고객사 브라우저가 영어면 영어기준으로, 한글이면 한글 기준으로"*).
+ *  i18next 인스턴스를 직접 읽는 이유: 아래 두 포맷터가 컴포넌트 밖(모듈 레벨)이라 훅을 못 쓴다. */
+function viewLng(): 'ko' | 'en' {
+  return String(i18next.language || 'ko').toLowerCase().startsWith('ko') ? 'ko' : 'en';
+}
+
 function formatMoney(amount: number, currency: string = 'KRW'): string {
-  if (currency === 'KRW') return Number(amount).toLocaleString('ko-KR') + '원';
+  // 한국어 화면은 "1,000,000원", 영어 화면은 "₩1,000,000" — 같은 금액, 그 나라 표기.
+  if (currency === 'KRW') {
+    return viewLng() === 'ko'
+      ? Number(amount).toLocaleString('ko-KR') + '원'
+      : '₩' + Number(amount).toLocaleString('en-US');
+  }
   if (currency === 'USD') return '$' + Number(amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (currency === 'EUR') return '€' + Number(amount).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return `${currency} ${Number(amount).toLocaleString()}`;
@@ -109,10 +122,11 @@ function formatMoney(amount: number, currency: string = 'KRW'): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
-  // 한국어 표기 YYYY/M/D — locale/timezone 의존 없이 날짜 문자열 직접 파싱 (M/D/YYYY 역전 방지)
+  // YYYY/M/D — locale/timezone 의존 없이 날짜 문자열 직접 파싱 (M/D/YYYY 역전 방지).
+  //   이 표기는 두 언어 모두에서 뜻이 하나뿐이라 그대로 둔다(영어권 M/D/YYYY 와 헷갈리지 않는다).
   const ymd = String(iso).slice(0, 10).split('-');
   if (ymd.length === 3 && ymd[0].length === 4) return `${ymd[0]}/${Number(ymd[1])}/${Number(ymd[2])}`;
-  return new Date(iso).toLocaleDateString('ko-KR');
+  return new Date(iso).toLocaleDateString(viewLng() === 'ko' ? 'ko-KR' : 'en-US');
 }
 
 const PublicInvoicePage: React.FC = () => {
@@ -365,7 +379,8 @@ const PublicInvoicePage: React.FC = () => {
 
   if (loading) return <Center>{t('public.loading', '청구서 로드 중...')}</Center>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
-  if (err || !invoice) return <Center>{err || t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
+  // 서버 코드를 고객 화면에 그대로 걸지 않는다 — 2026-09-14
+  if (err || !invoice) return <Center>{(err && !/^[a-z0-9_]+$/.test(err)) ? err : t('public.notFound', '공개되지 않았거나 만료된 링크입니다')}</Center>;
 
   const isFullyPaid = invoice.status === 'paid';
   const isCanceled = invoice.status === 'canceled';
