@@ -2003,3 +2003,18 @@ H. **⑮ 검사에 같은 함정이 더 없는가** — 나는 한 번 틀렸다
 
 **2026-09-14 (11·12·13차) — 전부 429.** ⛔ **blocked_on_human — `/usage-credits`.**
 보고에는 **"Fable 미검증(자체 검증)"** 이라 쓴다. "통과" 라고 쓰지 않는다.
+
+### 추가 — `19643da3` v1.52.4 릴리즈 커밋 (버전·문서만, 로직 0)
+
+**Fable 4차 시도도 429** (req_011Cf3sGDfs9EqXW2ZD7U3yW).
+
+**자체 확인 5/5** — 이 커밋은 기계로 전수 확인이 되는 종류다(F=1):
+- 변경 파일 **4개뿐**: `dev-{backend,frontend}/package.json` · `docs/release-notes/v1.52.4.json` · `docs/dev-status/next.json`
+- 두 package.json 의 diff 는 **`"version"` 한 줄씩**(의존성 변동 0)
+- 두 버전 **일치** 1.52.4 / 1.52.4
+- 릴리즈노트 items 4 · **ko/en 짝 누락 0**
+- `publish-dev-status.js --dry-run` 통과 (`verified` 값 전부 `opus_only`)
+
+**Fable 이 봐야 할 것**: 없음에 가깝다. 다만 `completed[].verified` 를 전부 `opus_only` 로
+적은 것이 **사실**이라는 점을 기록해 둔다 — 크레딧이 풀려 42번을 검증하면 그때
+`fable_pass` 로 고쳐 재발행해야 한다(개발 현황은 배포마다 한 행이므로 과거 행은 그대로 남는다).
