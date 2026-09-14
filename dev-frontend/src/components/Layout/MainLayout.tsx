@@ -513,7 +513,7 @@ const StatusSlot = styled.div`
 `;
 
 const UserAvatar = styled.div`
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 32px; height: 32px; border-radius: 9px;
   background: #0F766E; color: #FFFFFF;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.8125rem; font-weight: 600; flex-shrink: 0;
@@ -522,7 +522,7 @@ const UserAvatar = styled.div`
 
 const CollapsedAvatarButton = styled.button`
   background: none; border: none; padding: 0; cursor: pointer;
-  width: 36px; height: 36px; border-radius: 50%;
+  width: 36px; height: 36px; border-radius: 10px;
   background: #0F766E; color: #FFFFFF;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.875rem; font-weight: 600;

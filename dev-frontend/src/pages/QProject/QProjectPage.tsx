@@ -1126,7 +1126,7 @@ const AvatarStack = styled.div`
 `;
 const Avatar = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border-radius: 50%;
+  width: 24px; height: 24px; border-radius: 7px;
   background: #0F766E; color: #FFFFFF;
   font-size: 0.6875rem; font-weight: 700;
   border: 2px solid #FFFFFF;
@@ -1134,7 +1134,7 @@ const Avatar = styled.span`
 `;
 const AvatarMore = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border-radius: 50%;
+  width: 24px; height: 24px; border-radius: 7px;
   background: #F1F5F9; color: #475569;
   font-size: 0.625rem; font-weight: 700;
   border: 2px solid #FFFFFF;

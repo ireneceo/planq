@@ -465,7 +465,7 @@ const SkeletonRow = styled.div`
 const SkeletonAvatar = styled.div`
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: 10px;
   background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
   background-size: 200% 100%;
   animation: pq-skel-shimmer 1.4s linear infinite;

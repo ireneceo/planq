@@ -382,7 +382,7 @@ const Avatar = styled.div<{ $signed?: boolean }>`
   background: ${p => p.$signed
     ? 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)'
     : 'linear-gradient(135deg, #94A3B8 0%, #64748B 100%)'};
-  color: #fff; font-size: 0.8125rem; font-weight: 700; border-radius: 50%;
+  color: #fff; font-size: 0.8125rem; font-weight: 700; border-radius: 9px;
 `;
 const SignerInfo = styled.div`display:flex;flex-direction:column;gap:1px;min-width:0;`;
 const SignerName = styled.span`

@@ -1257,7 +1257,7 @@ const CopyBtn = styled.button`
 const AttendeeList = styled.div` display: flex; flex-direction: column; gap: 6px; margin-top: 2px; `;
 const AttendeeRow = styled.div` display: flex; align-items: center; gap: 8px; `;
 const Avatar = styled.div`
-  width: 24px; height: 24px; border-radius: 50%; background: #E2E8F0;
+  width: 24px; height: 24px; border-radius: 7px; background: #E2E8F0;
   color: #475569; font-size: 0.6875rem; font-weight: 600;
   display: flex; align-items: center; justify-content: center;
 `;

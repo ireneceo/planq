@@ -182,7 +182,7 @@ const AccountBadge = styled.div<{ $google?: boolean }>`
   color: ${p => p.$google ? '#92400E' : '#0F766E'};
   text-transform: uppercase; letter-spacing: 0.4px;
 `;
-const Avatar = styled.img`width: 40px; height: 40px; border-radius: 50%; object-fit: cover;`;
+const Avatar = styled.img`width: 40px; height: 40px; border-radius: 11px; object-fit: cover;`;   /* 라운드 박스로 통일(LetterAvatar 규칙 = 크기×0.28) */
 const AccountName = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
 const AccountEmail = styled.div`font-size: 0.6875rem; color: #64748B;`;
 const ConnectArrow = styled.div`font-size: 1.125rem; color: #14B8A6;`;

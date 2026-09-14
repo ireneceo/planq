@@ -2044,6 +2044,41 @@ function checkDrawerWidth() {
 }
 
 // ═══════════════════════════════════════════════
+// avatarshape — **이름 앞 아이콘은 한 모양이다** (2026-09-14 신설)
+//
+//   Irene 2026-09-14: *"이름들 앞에 아이콘들 사용한 거 많은데 동그라미 쓸건지 라운드박스 쓸건지
+//   통일해야 해."*
+//
+//   실측: 공용 `LetterAvatar`(라운드 박스, 크기×0.28)를 **30곳**이 쓰고 있는데,
+//   손으로 만든 아바타 **12곳**이 `border-radius: 50%`(원형)였다 —
+//   일정 참석자·프로젝트 멤버·워크스페이스 멤버·서명자·좌측 사용자·채팅 말풍선 아바타.
+//   같은 사람이 화면마다 다른 모양으로 보였다.
+//   ★ 공용 컴포넌트가 있다고 강제되지 않는다(memory `feedback_shared_wrapper_is_not_enforcement`).
+//     그래서 가드로 못을 박는다. 점(dot)·배지·스텝 표시는 대상이 아니다 — 이름이 Avatar 인 것만 본다.
+function checkAvatarShape() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.tsx', '.ts']);
+  const bad = [];
+  let seen = 0;
+  for (const f of files) {
+    const src = read(f);
+    if (!/Avatar/.test(src)) continue;
+    const rel = f.replace(`${ROOT}/`, '');
+    // `const XxxAvatarYyy = styled...` 선언 블록만 본다
+    const re = /const\s+(\w*Avatar\w*)\s*=\s*styled[^`]*`([\s\S]*?)`;/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      seen += 1;
+      if (/border-radius:\s*50%/.test(m[2])) {
+        const line = src.slice(0, m.index).split('\n').length;
+        bad.push(`${rel}:${line} — ${m[1]} 이 원형(50%)이다. 라운드 박스로 통일한다(LetterAvatar 규칙 = 크기×0.28)`);
+      }
+    }
+  }
+  report('avatarshape', `이름 앞 아이콘 모양 통일 (하드 게이트 · 아바타 styled ${seen}개)`,
+    bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // duproute — **한 라우터 파일에 같은 method+path 를 두 번 쓰지 않는다** (2026-09-13 신설)
 //
 //   실사례 — 2026-09-13 v1.49.0 이 운영에 나간 뒤 발견:
@@ -2700,6 +2735,7 @@ const CATEGORIES = {
   modalradius: checkModalRadius,
   canary: checkCanaryContract,
   drawerwidth: checkDrawerWidth,
+  avatarshape: checkAvatarShape,
   duproute: checkDupRoute,
   navmenu: checkNavMenu,
   i18n: checkI18n,

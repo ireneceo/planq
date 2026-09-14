@@ -447,7 +447,7 @@ const SignerRowWrap = styled.div<{ $invalid: boolean }>`
   &:focus-within { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
 `;
 const Avatar = styled.div`
-  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
   color: #fff; font-size: 0.75rem; font-weight: 700;

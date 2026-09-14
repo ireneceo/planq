@@ -44,7 +44,15 @@
     "secondaryEmailHint": "Used for recovery if you forget your username or primary email. Only verified addresses are active.",
     "defaultLanguage": "Default Language",
     "languagePlaceholder": "Select language",
-    "languageHint": "Used as the default for meeting translation"
+    "languageHint": "Used as the default for meeting translation",
+    "photo": "Photo",
+    "photoAdd": "Add a photo",
+    "photoChange": "Change photo",
+    "photoRemove": "Remove photo",
+    "photoHint": "JPG, PNG or WebP · 2MB max. Visible to members of your workspaces.",
+    "photoTooLarge": "Images must be 2MB or smaller.",
+    "photoImageOnly": "Only JPG, PNG or WebP images can be uploaded.",
+    "photoFailed": "The photo could not be uploaded."
   },
   "workspaceProfile": {
     "sectionTitle": "Workspace Profile",

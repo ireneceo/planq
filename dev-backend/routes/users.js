@@ -773,3 +773,103 @@ router.patch('/:id/status', authenticateToken, requireRole('platform_admin'), as
 });
 
 module.exports = router;
+
+// ─── 프로필 사진 ────────────────────────────────────────────────────────────
+//
+// Irene 2026-09-14: *"이름들 앞에 아이콘들 … 사진 넣는 기능도 만들고."*
+//
+// ★ `users.avatar_url` 컬럼은 **이미 있었다**(모델·응답 여러 곳이 실어 나르고 있다).
+//   없던 것은 **올리는 길과 보여주는 길**뿐이다. 컬럼을 새로 만들지 않는다.
+// ★ 파일은 워크스페이스 스토리지에 넣지 않는다 — 프로필 사진은 **계정의 것**이고,
+//   워크스페이스 쿼터에 잡히면 워크스페이스를 옮길 때 사진이 사라지는 모양이 된다.
+// ★ 보는 범위: 본인 + **같은 워크스페이스 멤버**. 아무나 볼 수 있게 두지 않는다(사람 얼굴이다).
+const multerLib = require('multer');
+const pathLib = require('path');
+const fsLib = require('fs');
+
+const AVATAR_DIR = pathLib.join(__dirname, '..', 'uploads', 'avatars');
+const AVATAR_MAX = 2 * 1024 * 1024;                       // 2MB — 얼굴 사진에 그 이상은 필요 없다
+const AVATAR_EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+
+const avatarUpload = multerLib({
+  storage: multerLib.diskStorage({
+    destination: (req, file, cb) => {
+      if (!fsLib.existsSync(AVATAR_DIR)) fsLib.mkdirSync(AVATAR_DIR, { recursive: true });
+      cb(null, AVATAR_DIR);
+    },
+    filename: (req, file, cb) => cb(null, `u${req.user.id}${AVATAR_EXT[file.mimetype] || '.img'}`),
+  }),
+  limits: { fileSize: AVATAR_MAX },
+  fileFilter: (req, file, cb) => cb(null, !!AVATAR_EXT[file.mimetype]),
+});
+
+/** 이 사용자의 사진을 저 사용자가 볼 수 있는가 — 본인이거나 워크스페이스를 함께 쓰는 사이. */
+async function canSeeAvatar(viewerId, targetId) {
+  if (Number(viewerId) === Number(targetId)) return true;
+  const { BusinessMember } = require('../models');
+  const { Op } = require('sequelize');
+  const mine = await BusinessMember.findAll({
+    where: { user_id: viewerId, removed_at: null }, attributes: ['business_id'], raw: true,
+  });
+  if (!mine.length) return false;
+  const shared = await BusinessMember.count({
+    where: { user_id: targetId, removed_at: null, business_id: { [Op.in]: mine.map((m) => m.business_id) } },
+  });
+  return shared > 0;
+}
+
+function avatarPathOf(userId) {
+  for (const ext of ['.jpg', '.png', '.webp']) {
+    const p = pathLib.join(AVATAR_DIR, `u${userId}${ext}`);
+    if (fsLib.existsSync(p)) return p;
+  }
+  return null;
+}
+
+router.post('/:id/avatar', authenticateToken,
+  ...perUserDaily('avatar-upload', { perMin: 5, perDay: 50 }),
+  (req, res, next) => {
+    if (Number(req.params.id) !== Number(req.user.id)) return errorResponse(res, 'only_self', 403);
+    avatarUpload.single('file')(req, res, (err) => {
+      if (err) {
+        // 크기 초과는 코드가 아니라 **문장**으로 말한다(2026-09-14 업로드 신고와 같은 계열)
+        return errorResponse(res, err.code === 'LIMIT_FILE_SIZE' ? 'avatar_too_large' : 'upload_failed', 400);
+      }
+      if (!req.file) return errorResponse(res, 'image_only', 400);
+      next();
+    });
+  },
+  async (req, res, next) => {
+    try {
+      // 확장자가 바뀌면 옛 파일이 남는다 — 내 것 중 지금 것이 아닌 것은 지운다
+      for (const ext of ['.jpg', '.png', '.webp']) {
+        const p = pathLib.join(AVATAR_DIR, `u${req.user.id}${ext}`);
+        if (p !== req.file.path && fsLib.existsSync(p)) { try { fsLib.unlinkSync(p); } catch { /* noop */ } }
+      }
+      // 캐시를 깨기 위해 버전을 붙인다 — 같은 주소면 브라우저가 옛 사진을 계속 쓴다
+      const url = `/api/users/${req.user.id}/avatar?v=${Date.now()}`;
+      await User.update({ avatar_url: url }, { where: { id: req.user.id } });
+      return successResponse(res, { avatar_url: url }, 'uploaded');
+    } catch (err) { next(err); }
+  });
+
+router.get('/:id/avatar', authenticateToken, async (req, res, next) => {
+  try {
+    const targetId = Number(req.params.id);
+    if (!(await canSeeAvatar(req.user.id, targetId))) return errorResponse(res, 'not_allowed', 403);
+    const p = avatarPathOf(targetId);
+    if (!p) return errorResponse(res, 'avatar_not_found', 404);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    return res.sendFile(pathLib.resolve(p));
+  } catch (err) { next(err); }
+});
+
+router.delete('/:id/avatar', authenticateToken, async (req, res, next) => {
+  try {
+    if (Number(req.params.id) !== Number(req.user.id)) return errorResponse(res, 'only_self', 403);
+    const p = avatarPathOf(req.user.id);
+    if (p) { try { fsLib.unlinkSync(p); } catch { /* noop */ } }
+    await User.update({ avatar_url: null }, { where: { id: req.user.id } });
+    return successResponse(res, { avatar_url: null }, 'deleted');
+  } catch (err) { next(err); }
+});

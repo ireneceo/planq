@@ -338,7 +338,7 @@ const LoadingRow = styled.div`
   align-items: center;
 `;
 const SkeletonAvatar = styled.div`
-  width: 48px; height: 48px; border-radius: 50%;
+  width: 48px; height: 48px; border-radius: 13px;
   background: #F1F5F9;
   animation: pq-skel 1.4s ease-in-out infinite;
   @keyframes pq-skel { 0%,100%{opacity:1} 50%{opacity:0.5} }

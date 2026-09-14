@@ -352,7 +352,7 @@ const DefaultRoleBadge = styled.span`
 const Avatar = styled.div<{ $ai?: boolean }>`
   width: 40px;
   height: 40px;
-  border-radius: 50%;
+  border-radius: 11px;
   background: ${(p) => (p.$ai ? '#f43f5e' : '#14b8a6')};
   color: #ffffff;
   display: flex;

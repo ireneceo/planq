@@ -84,7 +84,7 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
   };
 
   /** ② 확인하면 들어간다 — 그 자리(상담 목록)에서 보인다. 패널은 열지 않는다. */
-  const confirm = async () => {
+  const addNow = async () => {
     if (!got || saving) return;
     const text = draft.text.trim();
     const v = { ...got, ...edit };
@@ -169,7 +169,7 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
           </Fields>
           {err && <ErrorMsg role="alert">{err}</ErrorMsg>}
           <Actions>
-            <ModalActionButton variant="ai" onClick={() => void confirm()} disabled={saving}
+            <ModalActionButton variant="ai" onClick={() => void addNow()} disabled={saving}
               data-testid="sale-cue-confirm">
               {saving ? (t('cuebar.adding', { defaultValue: '추가 중...' }) as string)
                 : (t('cuebar.confirm', { defaultValue: '이대로 추가' }) as string)}

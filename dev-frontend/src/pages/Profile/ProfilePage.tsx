@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
 import FontScaleSection from '../../components/Common/FontScaleSection';
-import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { useAuth, apiFetch, apiUpload } from '../../contexts/AuthContext';
 import type { LanguageLevels, LanguageSkillLevel, User } from '../../contexts/AuthContext';
 import { WavRecorder } from '../../services/audio/recordToWav';
 import AccountDeletionSection from './AccountDeletionSection';
@@ -19,6 +19,8 @@ import { LANGUAGES, getLanguageByCode, type LanguageOption } from '../../constan
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import AutoSaveField from '../../components/Common/AutoSaveField';
+import LetterAvatar from '../../components/Common/LetterAvatar';
+import ActionButton from '../../components/Common/ActionButton';
 // N+32 — FocusSettingsCard / UserTimezoneSection 은 /me/work-settings 페이지로 이동.
 // UserTimezoneSection 함수는 이 파일 내 정의 (export) — 새 페이지가 import.
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
@@ -89,6 +91,46 @@ export default function ProfilePage() {
   const [wsNameLoaded, setWsNameLoaded] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState<string>((user as { username?: string } | null)?.username || '');
   // 계정 이름 (users.name) — 회원가입 시 받은 본 이름. 모든 워크스페이스 공통.
+  // 프로필 사진 — 계정의 것이다(워크스페이스 스토리지에 넣지 않는다)
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(
+    ((user as { avatar_url?: string | null } | null)?.avatar_url) || null,
+  );
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarMsg, setAvatarMsg] = useState<string | null>(null);
+  const uploadAvatar = React.useCallback(async (file: File) => {
+    if (!user) return;
+    setAvatarBusy(true); setAvatarMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const r = await apiUpload(`/api/users/${user.id}/avatar`, fd);
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) {
+        // 코드가 아니라 문장으로 — 왜 안 됐는지 모르면 고칠 수가 없다
+        setAvatarMsg(j?.message === 'avatar_too_large'
+          ? (t('basic.photoTooLarge', '2MB 이하 이미지만 올릴 수 있어요.') as string)
+          : j?.message === 'image_only'
+            ? (t('basic.photoImageOnly', 'JPG·PNG·WebP 이미지만 올릴 수 있어요.') as string)
+            : (t('basic.photoFailed', '사진을 올리지 못했어요.') as string));
+        return;
+      }
+      setAvatarUrl(j.data.avatar_url);
+    } catch {
+      setAvatarMsg(t('basic.photoFailed', '사진을 올리지 못했어요.') as string);
+    } finally { setAvatarBusy(false); }
+  }, [user, t]);
+  const removeAvatar = React.useCallback(async () => {
+    if (!user || avatarBusy) return;
+    setAvatarBusy(true); setAvatarMsg(null);
+    try {
+      await apiFetch(`/api/users/${user.id}/avatar`, { method: 'DELETE' });
+      setAvatarUrl(null);
+    } catch {
+      setAvatarMsg(t('basic.photoFailed', '사진을 올리지 못했어요.') as string);
+    } finally { setAvatarBusy(false); }
+  }, [user, avatarBusy, t]);
+
   const [accountName, setAccountName] = useState<string>(user?.name || '');
   useEffect(() => { setAccountName(user?.name || ''); }, [user?.name]);
   // `#timezone` 해시로 들어오면 그 카드까지 스크롤 — 사이드바 시계 클릭의 착지점.
@@ -535,6 +577,34 @@ export default function ProfilePage() {
         <Card>
           <SectionTitle>{t('basic.accountSection', '계정 정보')}</SectionTitle>
           <Description>{t('basic.accountDesc', '이름·아이디·이메일·기본 언어는 모든 워크스페이스에 공통으로 적용됩니다.')}</Description>
+
+          {/* ★ 2026-09-14 (Irene: *"사진 넣는 기능도 만들고."*)
+              `users.avatar_url` 컬럼은 **이미 있었다** — 없던 것은 올리는 길뿐이었다.
+              모양은 이름 앞 아이콘과 같은 라운드 박스다(공용 `LetterAvatar`). */}
+          <FieldRow>
+            <Label>{t('basic.photo', '사진')}</Label>
+            <FieldBody>
+              <PhotoRow>
+                <LetterAvatar name={accountName || '—'} size={64} src={avatarUrl || undefined} />
+                <PhotoBtns>
+                  <ActionButton tone="secondary" size="sm" data-testid="profile-avatar-pick"
+                    onClick={() => avatarInputRef.current?.click()} disabled={avatarBusy}>
+                    {avatarUrl ? t('basic.photoChange', '사진 바꾸기') : t('basic.photoAdd', '사진 올리기')}
+                  </ActionButton>
+                  {avatarUrl && (
+                    <ActionButton tone="secondary" size="sm" data-testid="profile-avatar-remove"
+                      onClick={removeAvatar} disabled={avatarBusy}>
+                      {t('basic.photoRemove', '사진 지우기')}
+                    </ActionButton>
+                  )}
+                </PhotoBtns>
+                <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp"
+                  style={{ display: 'none' }}
+                  onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void uploadAvatar(f); }} />
+              </PhotoRow>
+              <Hint>{avatarMsg || t('basic.photoHint', 'JPG·PNG·WebP · 2MB 이하. 같은 워크스페이스 멤버에게 보입니다.')}</Hint>
+            </FieldBody>
+          </FieldRow>
 
           {/* 계정 이름 — users.name. 회원가입 때 받은 본 이름. 워크스페이스마다 별도 닉네임은 워크스페이스 프로필 섹션에서. */}
           <FieldRow>
@@ -1097,6 +1167,9 @@ const Container = styled.div`
     grid-template-columns: 1fr;
   }
 `;
+
+const PhotoRow = styled.div`display: flex; align-items: center; gap: 14px; flex-wrap: wrap;`;
+const PhotoBtns = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 
 const Card = styled.section<{ $wide?: boolean }>`
   background: #fff;

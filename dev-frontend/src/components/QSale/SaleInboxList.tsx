@@ -357,8 +357,42 @@ const SaleInboxList: React.FC<Props> = ({
                   </RowBody>
                 </RowMain>
                 <RowActions>
-                  {/* ★ 2026-09-13 순서 고정 (Irene 지시): 보기 · 메모 · 일정 · 업무 · 단계 · ✕
-                      이 순서는 "보러 간다 → 남긴다 → 잡는다 → 시킨다 → 옮긴다 → 치운다" 는 일의 순서다. */}
+                  {/* ★ 2026-09-14 순서 변경 (Irene: *"Q sale 에서 단계 바꾸는 거 맨 끝에 두지 말고
+                      버튼들 가장 처음에 중앙배치 열 맞춰서 배치해줘."*)
+                      단계가 **맨 앞**이다 — 상담에서 가장 자주 바꾸는 것이고, 행마다 자리가 같아야
+                      눈으로 훑을 수 있다. 그래서 고정 폭 칸(StageSlot)에 넣어 **열을 맞춘다.**
+                      나머지는 종전 순서: 보기 · 메모 · 일정 · 업무 · ✕ */}
+                  <StageSlot>
+                  {/* 단계 — **리스트에서 바꾼다**. 고객 기준이라 같은 고객의 다른 상담도 함께 바뀐다.
+                      전체 프로필·우측 패널과 **같은 ChipPopover** 다(자리마다 새로 그리지 않는다). */}
+                  <ChipPopover
+                    prefix={t('stage.label') as string}
+                    label={it.stage ? (t(`stage.${it.stage}`) as string) : (t('stage.none') as string)}
+                    active={!!it.stage && it.stage !== 'none'}
+                    data-testid={`sale-inbox-stage-${it.id}`}
+                    width={260}
+                  >
+                    {(close) => (
+                      <OptionList role="listbox">
+                        {SALE_STAGES.map((sg) => (
+                          <OptionBtn key={sg} type="button" role="option" aria-selected={it.stage === sg}
+                            $on={it.stage === sg}
+                            data-testid={`sale-inbox-stage-${it.id}-${sg}`}
+                            onClick={() => {
+                              close();
+                              // 아직 고객이 아니면 먼저 등록해야 단계가 붙는다 — 한 번 묻는다
+                              if (!it.client_id && it.ref.kind !== 'client') { setStageAsk({ it, to: sg }); return; }
+                              void applyStage(it, sg);
+                            }}>
+                            <OptName>{t(`stage.${sg}`) as string}</OptName>
+                            <OptHint>{t(`stage.${sg}_hint`) as string}</OptHint>
+                          </OptionBtn>
+                        ))}
+                      </OptionList>
+                    )}
+                  </ChipPopover>
+
+                  </StageSlot>
 
                   {/* ① 보기 — **다른 화면으로 나간다**. 라벨이 목적지를 말한다(고객 상세·메일·채팅·게스트) */}
                   <ActionButton tone="secondary" size="sm" disabled={busy}
@@ -387,35 +421,6 @@ const SaleInboxList: React.FC<Props> = ({
                     onClick={() => setTaskFor(it)}>
                     {t('action.addTask') as string}
                   </ActionButton>
-
-                  {/* ⑤ 단계 — **리스트에서 바꾼다**. 고객 기준이라 같은 고객의 다른 상담도 함께 바뀐다.
-                      전체 프로필·우측 패널과 **같은 ChipPopover** 다(자리마다 새로 그리지 않는다). */}
-                  <ChipPopover
-                    prefix={t('stage.label') as string}
-                    label={it.stage ? (t(`stage.${it.stage}`) as string) : (t('stage.none') as string)}
-                    active={!!it.stage && it.stage !== 'none'}
-                    data-testid={`sale-inbox-stage-${it.id}`}
-                    width={260}
-                  >
-                    {(close) => (
-                      <OptionList role="listbox">
-                        {SALE_STAGES.map((sg) => (
-                          <OptionBtn key={sg} type="button" role="option" aria-selected={it.stage === sg}
-                            $on={it.stage === sg}
-                            data-testid={`sale-inbox-stage-${it.id}-${sg}`}
-                            onClick={() => {
-                              close();
-                              // 아직 고객이 아니면 먼저 등록해야 단계가 붙는다 — 한 번 묻는다
-                              if (!it.client_id && it.ref.kind !== 'client') { setStageAsk({ it, to: sg }); return; }
-                              void applyStage(it, sg);
-                            }}>
-                            <OptName>{t(`stage.${sg}`) as string}</OptName>
-                            <OptHint>{t(`stage.${sg}_hint`) as string}</OptHint>
-                          </OptionBtn>
-                        ))}
-                      </OptionList>
-                    )}
-                  </ChipPopover>
 
                   {/* ⑥ ✕ — 상담 목록에서 치운다. 누르면 **묻는다**(되돌릴 수 있다는 것도 문구로 말한다).
                       보관함 행에서는 되돌리기가 그 자리를 대신한다. */}
@@ -761,9 +766,20 @@ const StageTag = styled.span`
   font-size: 0.6875rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
   color: #0F766E; background: #F0FDFA;
 `;
+/* ★ 2026-09-14 (Irene: *"모든 버튼은 우측정렬 하되 열이 제한되게 해서 해당 열이 되면
+   엔터값들어가게 반응형 정리해줘."*)
+   여태 **폰에서만** 감겼다(≤640). 그 사이 폭에서는 버튼이 줄어들지도 감기지도 않아
+   행이 옆으로 밀렸다. 이제 어느 폭에서나 **오른쪽에 붙고, 넘치면 다음 줄로 내려간다.** */
 const RowActions = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
-  @media (max-width: 640px) { width: 100%; justify-content: flex-end; flex-wrap: wrap; }
+  display: flex; align-items: center; gap: 6px;
+  justify-content: flex-end; flex-wrap: wrap;
+  margin-left: auto; min-width: 0;
+  @media (max-width: 640px) { width: 100%; }
+`;
+/* 단계 칸 — 행마다 **같은 자리·같은 폭**이라 위아래로 열이 맞는다 */
+const StageSlot = styled.div`
+  flex: 0 0 auto; width: 150px; display: flex; justify-content: center;
+  @media (max-width: 640px) { width: auto; justify-content: flex-start; }
 `;
 
 /* ✕ — 아이콘 전용이지만 aria-label·title 로 뜻을 말한다(이름 없는 버튼 금지) */

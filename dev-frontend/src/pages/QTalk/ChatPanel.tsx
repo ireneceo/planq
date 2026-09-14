@@ -2759,7 +2759,7 @@ const SkelMsgRow = styled.div<{ $align: 'left' | 'right' }>`
 const SkelMsgAvatar = styled.div`
   width: 36px;
   height: 36px;
-  border-radius: 50%;
+  border-radius: 10px;
   background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
   background-size: 200% 100%;
   animation: pq-msgskel-shimmer 1.4s linear infinite;
@@ -2834,7 +2834,7 @@ const AvatarBtn = styled.button`
   border: none;
   padding: 0;
   cursor: pointer;
-  border-radius: 50%;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

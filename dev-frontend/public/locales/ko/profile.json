@@ -44,7 +44,15 @@
     "secondaryEmailHint": "아이디·이메일을 잊었을 때 복구용. 인증된 이메일만 활성됩니다.",
     "defaultLanguage": "기본 언어",
     "languagePlaceholder": "언어 선택",
-    "languageHint": "회의 시 번역 기본값으로 사용됩니다"
+    "languageHint": "회의 시 번역 기본값으로 사용됩니다",
+    "photo": "사진",
+    "photoAdd": "사진 올리기",
+    "photoChange": "사진 바꾸기",
+    "photoRemove": "사진 지우기",
+    "photoHint": "JPG·PNG·WebP · 2MB 이하. 같은 워크스페이스 멤버에게 보입니다.",
+    "photoTooLarge": "2MB 이하 이미지만 올릴 수 있어요.",
+    "photoImageOnly": "JPG·PNG·WebP 이미지만 올릴 수 있어요.",
+    "photoFailed": "사진을 올리지 못했어요."
   },
   "workspaceProfile": {
     "sectionTitle": "이 워크스페이스 프로필",
