@@ -174,7 +174,8 @@
     "purgeConfirm": "영구히 빼기",
     "clearStageTitle": "상담 목록에서 치울까요?",
     "clearStageBody": "고객 정보와 기록은 그대로 남고, 영업 단계만 «없음» 이 됩니다. 단계를 다시 주면 상담 목록으로 돌아옵니다.",
-    "memoOpen": "메모보기"
+    "memoWith": "메모 있음 — 눌러서 보기",
+    "memoNone": "메모 없음 — 눌러서 남기기"
   },
   "record": {
     "kind": {

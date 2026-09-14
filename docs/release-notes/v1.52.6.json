@@ -1,0 +1,16 @@
+{
+  "version": "1.52.6",
+  "date": "2026-09-15",
+  "items": [
+    {
+      "ko": {
+        "title": "Q sale 상담 목록에서 메모가 있는지 [메모] 버튼만 보고 알 수 있습니다",
+        "body": "메모가 있는 행에만 아래쪽에 따로 나타났던 [메모보기] 손잡이를 없앴습니다. 대신 [메모] 버튼 안에 작은 점이 생겨, 메모가 있으면 민트색으로 칠해지고 없으면 비어 있습니다. 점은 없을 때도 자리를 차지하므로 버튼 좌우 길이가 행마다 달라지지 않습니다. 버튼을 누르면 종전처럼 행 아래로 메모가 펼쳐지고, 다시 누르면 닫힙니다."
+      },
+      "en": {
+        "title": "In the Q sale consult list, the [Notes] button itself tells you whether notes exist",
+        "body": "The separate [Show notes] handle that appeared under rows with notes is gone. The [Notes] button now carries a small dot: filled mint when the row has notes, empty when it does not. The dot keeps its space either way, so the button is exactly the same width on every row. Pressing it still opens the notes below the row, and pressing again closes it."
+      }
+    }
+  ]
+}

@@ -199,10 +199,32 @@ async function measure(page) {
             border: cs.borderTopWidth, bg: cs.backgroundColor }; })() : null,
         // ⑥ 액션 높이 집합
         actH: [...new Set(acts.map((b) => Math.round(b.getBoundingClientRect().height)))],
-        // ⑫ 메모보기 손잡이
-        toggle: (() => { const t = row.parentElement && row.parentElement.querySelector('[data-testid^="sale-inbox-memo-toggle-"]');
-          if (!t) return null; const tr = t.getBoundingClientRect();
-          return { left: Math.round(tr.left), top: Math.round(tr.top), text: (t.innerText || '').trim() }; })(),
+        // ⑫ 메모 버튼 — **점으로** 있음/없음을 말하고 **폭은 같다** (2026-09-14 4차로 계약이 바뀜:
+        //   행 아래 [메모보기 ⌄] 손잡이는 없앴다. 검사를 끈 것이 아니라 판정 대상을 옮겼다.)
+        memoBtn: (() => {
+          const b = row.querySelector('[data-testid^="sale-inbox-memo-"]');
+          if (!b) return null;
+          const br = b.getBoundingClientRect();
+          // 점은 **항상 그려져 있어야** 한다(없을 때 투명). 조건부 렌더면 폭이 갈린다.
+          // ★ 2026-09-14 — 처음엔 `b.querySelector('span')` 으로 집었다가 **ActionButton 이
+          //   children 을 감싸는 `<Label>` span** 을 재서 «점이 투명하다» 가 **거짓 통과**했다.
+          //   확정 손잡이(`sale-inbox-memo-dot-*`)로만 집는다
+          //   (memory feedback_judge_measures_wrapper_not_defect).
+          const dot = b.querySelector('[data-testid^="sale-inbox-memo-dot-"]');
+          const ds = dot ? getComputedStyle(dot) : null;
+          const dr = dot ? dot.getBoundingClientRect() : null;
+          return {
+            has: b.getAttribute('data-has-notes') === '1',
+            w: Math.round(br.width), h: Math.round(br.height),
+            label: (b.innerText || '').trim(),
+            aria: b.getAttribute('aria-label') || '',
+            dotPresent: !!dot,
+            dotW: dr ? Math.round(dr.width) : 0,
+            dotBg: ds ? ds.backgroundColor : '',
+          };
+        })(),
+        // 손잡이는 **사라졌어야** 한다
+        toggleGone: !(row.parentElement && row.parentElement.querySelector('[data-testid^="sale-inbox-memo-toggle-"]')),
       };
     });
     return out;
@@ -324,15 +346,49 @@ async function run() {
         + ` ※ 칸 안의 칩은 가운데 정렬이라 x 가 라벨 길이만큼 다르다(정상): {${[...new Set(R.map((r) => r.stageLeft))].join(', ')}}`);
 
       // ── ⑫⑬ 메모 ─────────────────────────────────────────────
-      const withToggle = R.filter((r) => r.toggle);
-      if (withToggle.length === 0) {
-        push(`[${vp.key}] ⑫⑬ 메모 손잡이 — 커버리지`, true, '메모가 달린 행이 이 목록에 없다 — ⑫⑬ 미측정');
+      // ★ 2026-09-14 4차로 계약이 바뀌었다 (Irene: *"메모보기 좌측 버튼은 그냥 없애자.
+      //   메모 버튼이 메모가 있는 거랑 없는 거랑 알 수 있게… 버튼 좌우 길이가 다르지 않게"*).
+      //   검사를 **끈 것이 아니라 옮겼다** — 판정 대상이 손잡이의 좌표에서
+      //   [메모] 버튼의 **점·폭**으로 바뀐다.
+      P('⑫ 행 아래 [메모보기 ⌄] 손잡이가 **없다**', R.every((r) => r.toggleGone === true),
+        `남아 있는 행 ${R.filter((r) => r.toggleGone === false).length}건`);
+
+      const mb = R.map((r) => r.memoBtn).filter(Boolean);
+      if (mb.length === 0) {
+        P('⑫ [메모] 버튼 — 커버리지', false, '행이 있는데 메모 버튼을 하나도 못 찾았다 (판정 불가)');
       } else {
-        const t = withToggle[0];
-        P('⑫ [메모보기] 가 행 **좌측 끝**에 있다 (행 왼쪽 ±8px)', Math.abs(t.toggle.left - t.rowLeft) <= 8,
-          `toggleLeft ${t.toggle.left} vs rowLeft ${t.rowLeft}`);
-        P('⑫ [메모보기] 가 행 **아래**다', t.toggle.top >= t.rowTop + t.rowH - 1,
-          `toggleTop ${t.toggle.top} vs rowBottom ${t.rowTop + t.rowH}`);
+        // 점은 **항상** 그려져 있어야 한다 — 조건부로 렌더하면 폭이 갈린다
+        P('⑫ [메모] 버튼의 점이 **모든 행에** 그려져 있다 (없을 때도 자리를 차지한다)',
+          mb.every((b) => b.dotPresent && b.dotW >= 5),
+          `점 없는 행 ${mb.filter((b) => !b.dotPresent).length}건 · 폭 집합 {${[...new Set(mb.map((b) => b.dotW))].join(',')}}`);
+
+        // ★ 이것이 신고의 본문이다 — **폭이 행마다 같다**
+        const ws = [...new Set(mb.map((b) => b.w))];
+        P('⑫ [메모] 버튼 폭이 **행마다 같다** (있음/없음이 폭을 바꾸지 않는다)', ws.length === 1,
+          `폭 집합 {${ws.join(', ')}} · 있음 ${mb.filter((b) => b.has).length} / 없음 ${mb.filter((b) => !b.has).length}`);
+
+        // 점 색이 실제로 갈리는가 — 있음은 칠해지고, 없음은 투명
+        const on = mb.filter((b) => b.has), off = mb.filter((b) => !b.has);
+        if (on.length) {
+          P('⑫ 메모가 **있는** 행은 점이 칠해진다 (#14B8A6)',
+            on.every((b) => /rgb\(20,\s*184,\s*166\)/.test(b.dotBg)),
+            `색 집합 {${[...new Set(on.map((b) => b.dotBg))].join(' | ')}}`);
+          P('⑫ 메모가 있는 행의 이름이 그 사실을 말한다 (색만으로 말하지 않는다)',
+            on.every((b) => b.aria && b.aria.length > 0 && !/\d/.test(b.label)),
+            `aria="${on[0].aria}" · 라벨="${on[0].label}"`);
+        }
+        if (off.length) {
+          P('⑫ 메모가 **없는** 행은 점이 투명하다',
+            off.every((b) => /rgba\(0,\s*0,\s*0,\s*0\)|transparent/.test(b.dotBg)),
+            `색 집합 {${[...new Set(off.map((b) => b.dotBg))].join(' | ')}}`);
+        }
+        // ★ 커버리지를 **숨기지 않고 적는다.** 이 단계(목록을 그냥 읽는 단계)에는 «있음» 행이
+        //   없을 수 있다 — 메모를 만들어 두 상태를 같은 목록에서 대조하는 것은 아래
+        //   "메모를 달면" 섹션이 하고, 그 섹션은 «없음» 행이 0이면 실패한다.
+        //   여기서 두 상태를 요구하면 구조적으로 못 만족하는 조건이 되어 영구 빨간불이 된다.
+        P('⑫ 폭 판정의 커버리지를 밝힌다 (있음/없음 몇 건을 쟀는가)', mb.length > 0,
+          `이 폭에서 있음 ${on.length} / 없음 ${off.length}`
+          + (on.length === 0 ? ' — 있음이 0이라 «상태가 폭을 바꾸지 않는다» 는 아래 섹션이 잰다' : ''));
       }
 
       // ⑬ 메모를 열면 — 카드는 안 움직이고, 회색 판이 좌우 풀폭
@@ -368,16 +424,13 @@ async function run() {
       P('⑬ 메모판이 회색이다', !!(after.pane && /248,\s*250,\s*252/.test(after.pane.bg)), `bg=${after.pane && after.pane.bg}`);
       P('⑭ 메모 입력칸이 있다', after.hasInput === true, `note-input=${after.hasInput}`);
 
-      // ⑫ 손잡이로도 같은 것이 닫힌다 (하나의 상태)
-      if (withToggle.length && withToggle[0].id === target.id) {
-        await page.click(`[data-testid="sale-inbox-memo-toggle-${target.id}"]`);
-        await sleep(350);
-        const closed = await page.evaluate((id) => !document.querySelector(`[data-testid="sale-inbox-memo-pane-${id}"]`), target.id);
-        P('⑫ [메모보기] 와 [메모] 가 **같은 하나**를 여닫는다', closed, `손잡이로 닫힘=${closed}`);
-      } else {
-        await page.click(`[data-testid="sale-inbox-memo-${target.id}"]`);
-        await sleep(300);
-      }
+      // ⑫ **같은 버튼을 다시 눌러 닫힌다** — 문이 하나가 되었으므로(손잡이 삭제)
+      //   여닫는 계약은 «재클릭 토글»(CLAUDE.md UI 규칙) 하나로 판정한다.
+      await page.click(`[data-testid="sale-inbox-memo-${target.id}"]`);
+      await sleep(400);
+      const closedAgain = await page.evaluate(
+        (id) => !document.querySelector(`[data-testid="sale-inbox-memo-pane-${id}"]`), target.id);
+      P('⑫ [메모] 를 **다시 누르면 닫힌다** (재클릭 토글)', closedAgain, `닫힘=${closedAgain}`);
     }
 
     // ── ⑮ 고객 탭이 상담 탭과 **같은 자리·같은 모양**인가 (3폭) ───────────────
@@ -537,34 +590,60 @@ async function run() {
       await goto(page, '/sale');
       await dismissBlockers(page);
       await sleep(900);
+      // ★ 2026-09-14 4차 — 여기가 이 카나리에서 **유일하게 «있음» 을 만들어 낼 수 있는 자리**다.
+      //   메모를 방금 달았으니 그 행의 점이 **칠해져야** 하고, 폭은 **다른 행과 같아야** 한다.
+      //   (위 3폭 판정은 목록에 있음·없음이 둘 다 있어야 폭을 비교할 수 있다 — 여기서는 확정이다.)
       const tg = await page.evaluate((id) => {
         const row = document.querySelector(`[data-testid="sale-inbox-row-${id}"]`);
         if (!row) return { missing: 'row' };
-        const t = row.parentElement && row.parentElement.querySelector('[data-testid^="sale-inbox-memo-toggle-"]');
-        if (!t) return { missing: 'toggle' };
-        const rr = row.getBoundingClientRect(), tr = t.getBoundingClientRect();
+        const readBtn = (r) => {
+          const b = r.querySelector('[data-testid^="sale-inbox-memo-"]');
+          if (!b) return null;
+          const br = b.getBoundingClientRect();
+          const dot = b.querySelector('[data-testid^="sale-inbox-memo-dot-"]');
+          return {
+            has: b.getAttribute('data-has-notes') === '1',
+            w: Math.round(br.width), label: (b.innerText || '').trim(),
+            aria: b.getAttribute('aria-label') || '',
+            dotPresent: !!dot,
+            dotBg: dot ? getComputedStyle(dot).backgroundColor : '',
+          };
+        };
+        const mine = readBtn(row);
+        // 같은 목록의 **다른 행**들 폭 — 있음/없음이 폭을 바꾸지 않는지 대조
+        const others = [...document.querySelectorAll('[data-testid^="sale-inbox-row-"]')]
+          .filter((r) => r !== row).map(readBtn).filter(Boolean);
         return {
-          left: Math.round(tr.left), rowLeft: Math.round(rr.left),
-          top: Math.round(tr.top), rowBottom: Math.round(rr.bottom),
-          text: (t.innerText || '').trim(),
-          drawn: tr.width > 1 && tr.height > 1,
-          memoLabel: (() => { const m = row.querySelector('[data-testid^="sale-inbox-memo-"]'); return m ? (m.innerText || '').trim() : null; })(),
+          mine, otherW: [...new Set(others.map((o) => o.w))],
+          otherHasOff: others.filter((o) => !o.has).length,
+          toggleGone: !(row.parentElement && row.parentElement.querySelector('[data-testid^="sale-inbox-memo-toggle-"]')),
         };
       }, rid);
-      push('⑫ 메모가 있으면 [메모보기] 가 나온다', !tg.missing && tg.drawn,
-        tg.missing ? `없음(${tg.missing})` : `"${tg.text}" drawn=${tg.drawn}`);
-      if (!tg.missing) {
-        push('⑫ [메모보기] 가 행 **좌측 끝**이다 (±8px)', Math.abs(tg.left - tg.rowLeft) <= 8,
-          `toggleLeft ${tg.left} vs rowLeft ${tg.rowLeft}`);
-        push('⑫ [메모보기] 가 행 **아래**다', tg.top >= tg.rowBottom - 1,
-          `toggleTop ${tg.top} vs rowBottom ${tg.rowBottom}`);
-        push('⑪ 메모가 생겨도 [메모] 버튼에 숫자가 안 붙는다', !/\d/.test(tg.memoLabel || ''),
-          `"${tg.memoLabel}"`);
-        // 손잡이로 열린다 → 같은 하나
-        await page.click(`[data-testid="sale-inbox-memo-toggle-${rid}"]`);
+      push('⑫ 행 아래 [메모보기 ⌄] 손잡이가 없다', tg.toggleGone === true, `남아 있음=${!tg.toggleGone}`);
+      push('⑫ 메모를 달면 그 행 [메모] 버튼이 **있음**으로 바뀐다',
+        !tg.missing && !!tg.mine && tg.mine.has === true && tg.mine.dotPresent,
+        tg.missing ? `없음(${tg.missing})` : `has=${tg.mine && tg.mine.has} dot=${tg.mine && tg.mine.dotPresent}`);
+      if (!tg.missing && tg.mine) {
+        push('⑫ 그 행의 점이 **칠해진다** (#14B8A6)', /rgb\(20,\s*184,\s*166\)/.test(tg.mine.dotBg),
+          `dotBg=${tg.mine.dotBg}`);
+        push('⑫ 이름이 메모 있음을 말한다 (색만으로 말하지 않는다)',
+          !!tg.mine.aria && tg.mine.aria.length > 0, `aria="${tg.mine.aria}"`);
+        push('⑪ 메모가 생겨도 [메모] 버튼에 **숫자가 안 붙는다**', !/\d/.test(tg.mine.label || ''),
+          `"${tg.mine.label}"`);
+        // ★ 신고의 본문 — 메모가 달린 행과 안 달린 행의 버튼 폭이 같아야 한다
+        if (tg.otherHasOff > 0) {
+          push('⑫ 메모 있는 행과 없는 행의 [메모] 버튼 **폭이 같다**',
+            tg.otherW.length === 1 && tg.otherW[0] === tg.mine.w,
+            `있음 ${tg.mine.w}px vs 나머지 {${tg.otherW.join(', ')}}px (없음 행 ${tg.otherHasOff}건)`);
+        } else {
+          push('⑫ 폭 대조군 — 메모 없는 행이 같은 목록에 있어야 한다', false,
+            '없음 행 0건 — 폭 비교가 거짓 통과한다');
+        }
+        // 같은 버튼으로 열린다
+        await page.click(`[data-testid="sale-inbox-memo-${rid}"]`);
         await sleep(500);
         const opened = await page.evaluate((id) => !!document.querySelector(`[data-testid="sale-inbox-memo-pane-${id}"]`), rid);
-        push('⑫ [메모보기] 로도 같은 메모판이 열린다', opened, `열림=${opened}`);
+        push('⑫ [메모] 버튼으로 메모판이 열린다', opened, `열림=${opened}`);
       }
       // ── 뒷정리 — 방금 넣은 메모를 지운다(원장 원복) ──
       try {

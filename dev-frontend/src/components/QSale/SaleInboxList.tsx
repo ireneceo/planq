@@ -82,6 +82,12 @@ const SaleInboxList: React.FC<Props> = ({
   //   종료 가리기 기본 켜짐은 그대로다 — 판정은 서버가 한다(화면에서 거르면 목록 숫자와 갈라진다).
   // 메모 펼치기 — 행 **아래**에서 열린다(Irene: "리스트에서 메모보기 하면 리스트 아래 열려서")
   const [memoFor, setMemoFor] = useState<string | null>(null);
+  // 메모 있음/없음을 **글자로도** 말한다 — 점(색)만으로는 색을 못 보는 사용자에게 전달되지 않고,
+  // 마우스를 올린 사람에게도 이유가 보여야 한다. 폭에는 영향이 없다(title·aria-label).
+  const memoHint = (it: { note_count?: number | null }) =>
+    ((it.note_count ?? 0) > 0
+      ? t('action.memoWith', { defaultValue: '메모 있음 — 눌러서 보기' })
+      : t('action.memoNone', { defaultValue: '메모 없음 — 눌러서 남기기' })) as string;
   // 일정 추가 — 이 상담 **고객이 일정에 연결**된다
   const [eventFor, setEventFor] = useState<SaleInboxItem | null>(null);
   // ✕ — 상담 목록에서 치울지 묻는다(삭제가 아니라 보관이라는 것을 문구로 말한다)
@@ -414,11 +420,32 @@ const SaleInboxList: React.FC<Props> = ({
                   </ActionButton>
 
                   {/* ② 메모 — 행 **아래**에서 열린다(나가지 않는다).
-                      ★ 2026-09-14 2차 (Irene: *"메모 개수 표시는 없애."*) 숫자를 뺐다.
-                        메모가 있다는 사실은 행 아래 [메모보기 ⌄] 가 말한다. */}
+                      ★ 2026-09-14 4차 (Irene: *"메모보기 좌측 버튼은 그냥 없애자. 메모 버튼이
+                        메모가 있는 거랑 없는 거랑 알 수 있게 해줄래? 버튼 좌우 길이가 다르지 않게
+                        표시방법 없어?"*)
+                      행 아래 [메모보기 ⌄] 손잡이를 없애고, **이 버튼 하나**가 두 일을 한다 —
+                      메모가 있다는 사실을 말하고, 누르면 아래를 연다.
+                      ★ **점을 항상 그린다.** 없을 때 투명하게만 둔다 — 그래서 폭이
+                        ①있음/없음 두 상태에서 같고 ②행마다 같다. 숫자·글자를 붙이면 그 순간
+                        폭이 갈리고, 그것이 곧 열 어긋남이 된다
+                        (memory `feedback_variable_label_breaks_column_align`).
+                      ★ 색만으로 말하지 않는다 — `title`·`aria-label` 이 있음/없음을 글자로 들고
+                        있다(폭에는 영향이 없다).
+                      ★ 점은 children 이 아니라 **`icon` 슬롯**에 넣는다. `ActionButton` 은 children 을
+                        `<Label>` span 으로 감싸므로 그 안에 넣으면 버튼의 `gap` 을 못 받고,
+                        무엇보다 **검사기가 첫 span 을 집으면 그 래퍼를 재게 된다**(실제로 그래서
+                        «점이 투명하다» 가 거짓 통과했다 — memory
+                        `feedback_judge_measures_wrapper_not_defect`). `icon` 슬롯은 버튼의 직계
+                        자식이고 `flex-shrink:0` 이라 폭이 흔들리지 않는다.
+                      ★ 검사기가 확정적으로 집도록 **점에 `data-testid`** 를 준다. "첫 span" 같은
+                        휴리스틱은 위(래퍼)로도 아래(잎)로도 어긋난다. */}
                   <ActionButton tone="secondary" size="xs" disabled={busy}
                     data-testid={`sale-inbox-memo-${it.id}`}
+                    data-has-notes={(it.note_count ?? 0) > 0 ? '1' : '0'}
                     aria-expanded={memoOpen}
+                    title={memoHint(it)} aria-label={memoHint(it)}
+                    icon={<MemoDot $on={(it.note_count ?? 0) > 0}
+                      data-testid={`sale-inbox-memo-dot-${it.id}`} aria-hidden />}
                     onClick={() => setMemoFor((v) => (v === it.id ? null : it.id))}>
                     {t('action.memo') as string}
                   </ActionButton>
@@ -480,20 +507,9 @@ const SaleInboxList: React.FC<Props> = ({
                   )}
                 </RowActions>
               </Row>
-              {/* ★ 2026-09-14 2차 (Irene: *"메모가 있으면 리스트 아래 좌측 끝에 [메모보기 ⌄] 가 나와.
-                  메모 버튼을 눌러도 같이 열려."*)
-                  **있을 때만** 나온다 — 없는 행에까지 붙이면 목록이 손잡이로 뒤덮인다.
-                  여는 상태는 위 [메모] 버튼과 **같은 하나**(`memoFor`)다. 두 벌로 두면 한쪽으로 연 것이
-                  다른 쪽에서 닫히지 않는다. */}
-              {(it.note_count ?? 0) > 0 && (
-                <MemoToggle type="button" disabled={busy}
-                  data-testid={`sale-inbox-memo-toggle-${it.id}`}
-                  aria-expanded={memoOpen}
-                  onClick={() => setMemoFor((v) => (v === it.id ? null : it.id))}>
-                  {t('action.memoOpen') as string}
-                  <Caret $open={memoOpen} aria-hidden />
-                </MemoToggle>
-              )}
+              {/* ★ 2026-09-14 4차 — 행 아래 [메모보기 ⌄] 손잡이를 **없앴다**(Irene 지시).
+                  여는 문은 위 [메모] 버튼 하나다. 손잡이가 있던 동안은 같은 상태(`memoFor`)를
+                  두 곳에서 여닫았는데, 문이 하나면 그 어긋남이 생길 자리 자체가 없다. */}
               {/* ★ 메모는 **행 아래**에서 열린다 (Irene: "리스트에서 메모보기 하면 리스트 아래
                   열려서 메모 붙인거 나오게 해줘"). 나가지 않으니 목록의 맥락을 잃지 않는다.
                   카드 **밖**이라 좌우 풀폭이고, 카드 자체는 한 픽셀도 움직이지 않는다. */}
@@ -757,27 +773,12 @@ const IconX = styled.button`
   &:disabled { opacity: 0.5; cursor: default; }
 `;
 
-/* [메모보기 ⌄] — 행 **아래 좌측 끝**. 메모가 있는 행에만 나온다.
-   글자 버튼이 아니라 손잡이라서 톤을 낮춘다(액션 묶음과 경쟁하지 않게). */
-const MemoToggle = styled.button`
-  align-self: flex-start;
-  display: inline-flex; align-items: center; gap: 4px;
-  margin: 4px 0 0 2px; padding: 4px 6px; border: none; background: none; border-radius: 6px;
-  font-size: 0.6875rem; font-weight: 700; color: #64748B; cursor: pointer; font-family: inherit;
-  &:hover:not(:disabled) { color: #0F766E; background: #F0FDFA; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 1px; }
-  &:disabled { opacity: 0.5; cursor: default; }
-`;
-const Caret = styled.span.attrs({
-  children: (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-  ),
-})<{ $open: boolean }>`
-  display: inline-flex; align-items: center;
-  transition: transform 0.15s ease;
-  transform: rotate(${(p) => (p.$open ? 180 : 0)}deg);
-  @media (prefers-reduced-motion: reduce) { transition: none; }
+/* 메모 있음 표시 — [메모] 버튼 안의 점. **없을 때도 자리를 차지한다**(투명).
+   그래서 버튼 폭이 있음/없음 두 상태에서 같고, 행마다도 같다. 지우거나 조건부로
+   렌더하면 그 순간 폭이 갈린다. */
+const MemoDot = styled.span<{ $on: boolean }>`
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: ${(p) => (p.$on ? '#14B8A6' : 'transparent')};
 `;
 /* 행 아래 메모 — 카드 **밖**(RowWrap 의 둘째 칸)이라 좌우 **풀폭**이다.
    grid-column 은 여기 쓰이지 않는다(부모가 grid 가 아니다) — 있던 것을 지웠다.

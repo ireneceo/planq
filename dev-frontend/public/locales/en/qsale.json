@@ -174,7 +174,8 @@
     "purgeConfirm": "Remove permanently",
     "clearStageTitle": "Take this out of the consult list?",
     "clearStageBody": "Customer details and records stay as they are; only the sales stage becomes “none”. Give it a stage again and it returns to the list.",
-    "memoOpen": "Show notes"
+    "memoWith": "Has notes — click to view",
+    "memoNone": "No notes — click to add one"
   },
   "record": {
     "kind": {
