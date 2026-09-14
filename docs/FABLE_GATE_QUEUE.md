@@ -1610,3 +1610,8 @@ B. 마이그레이션 안전성(멱등·순서·롤백) · 기존 project_notes 
 C. consults notes 3라우트의 **멀티테넌트 격리** — `resolveConsultTarget` 의 business_id 확인이
    남의 워크스페이스 메일 스레드·대화·고객 id 를 막는지
 D. "영구히" 문구와 실제 동작의 어긋남(코드에는 되돌릴 길이 남아 있다)
+
+**2026-09-14 (3차) — 에이전트는 떴는데 API 가 429.** `You've reached your Fable limit`
+(model `claude-fable-5-1`). 어제부터 이어지는 **크레딧 소진**이고 날짜가 바뀌어도 안 풀린다.
+⛔ **blocked_on_human — Irene 이 `/usage-credits` 로 풀어야 한다.**
+마커 `by:"unavailable"`. 보고에는 **"Fable 미검증(자체 검증)"** 이라고 쓴다.

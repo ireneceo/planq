@@ -215,12 +215,14 @@ export default function SalePage() {
           탭 아래에 두면 "이 탭에만 해당하는 입력" 으로 읽힌다. */}
       {businessId && (
         <SaleCueBar businessId={businessId}
-          onCreated={(clientId) => {
+          onCreated={() => {
             // ★ 등록했으면 **그 자리(상담 탭)** 에서 보인다 — 고객 탭으로 튕기지 않는다.
             //   상담 목록은 진행 중인 고객도 포함하므로 재조회하면 방금 넣은 것이 맨 위에 온다.
+            // ★ 2026-09-14 (Irene: *"그대로 리스트에 추가하면 되지 우측패널 왜 열려?"*)
+            //   여기서 `setPanelClientId` 를 불러 우측 패널을 열고 있었다. 확인은 이미 Cue 바의
+            //   **정리 단계**에서 끝났다 — 그 뒤에 패널을 여는 것은 한 번 더 확인을 시키는 셈이다.
             setInboxRefresh((n) => n + 1);
             load({ silent: true, page: 1 });
-            setPanelClientId(clientId);
           }} />
       )}
 

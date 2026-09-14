@@ -359,7 +359,14 @@
     "run": "Tell Cue",
     "hint": "Extracts name, company, contacts and channel, registers the inquiry, and keeps your text as the first consultation record.",
     "notFound": "Could not find a name, company or contact. Use [+ Add inquiry] instead.",
-    "failed": "Could not register. Try again or enter it manually."
+    "failed": "Could not register. Try again or enter it manually.",
+    "hintEnter": "Enter to send to Cue · Shift+Enter for a new line",
+    "thinking": "Cue is sorting this out…",
+    "organized": "Here is what Cue made of it — check and fix anything",
+    "confirm": "Add as-is",
+    "adding": "Adding…",
+    "regenerate": "Sort again",
+    "close": "Close"
   },
   "next": {
     "title": "Set next contact",

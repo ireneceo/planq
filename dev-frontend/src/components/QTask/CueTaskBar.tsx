@@ -3,7 +3,7 @@
 // 모달 아님(제자리 인라인). 백엔드는 분해 모달과 동일 재사용: /api/tasks/ai-create(+/confirm).
 // 생성 후 socket task:new 가 리스트 자동 반영 (실시간 §16). 카드는 AiCandidateCard 공유.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled, { keyframes } from 'styled-components';
+// styled 는 이 파일에 더 남아 있지 않다 — 껍데기는 Common/cueBarShell 한 곳이다
 import { useTranslation } from 'react-i18next';
 import ModalActionButton from '../Common/ModalActionButton';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
@@ -11,6 +11,10 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
 import AiCandidateCard, { type AiCandidate, type AiCardMember } from './AiCandidateCard';
 import { isEnterAction } from '../../utils/imeKey';
+import {
+  Wrap, BarRow, Sparkle, Field, SendBtn, Shortcut, AddedBadge, Check,
+  SubHint, ErrorMsg, NoticeMsg, Drop, CueLine, CardList, Actions, Thinking, Dots,
+} from '../Common/cueBarShell';
 
 interface Props {
   businessId: number;
@@ -256,98 +260,5 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   );
 }
 
-const CORAL = '#F43F5E';
-
-const Wrap = styled.div<{ $compact?: boolean }>`
-  padding: ${(p) => (p.$compact ? '0' : '10px 16px 0')};
-  flex-shrink: 0;
-`;
-const BarRow = styled.div<{ $active: boolean }>`
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px 7px 12px;
-  background: #fff;
-  border: 1px solid ${p => p.$active ? CORAL : '#E2E8F0'};
-  border-radius: 10px;
-  transition: border-color .15s, box-shadow .15s;
-  box-shadow: ${p => p.$active ? `0 0 0 3px rgba(244,63,94,0.10)` : 'none'};
-  &:focus-within { border-color: ${CORAL}; box-shadow: 0 0 0 3px rgba(244,63,94,0.12); }
-`;
-const Sparkle = styled.span`
-  display: inline-flex; align-items: center; justify-content: center;
-  color: ${CORAL}; flex-shrink: 0;
-`;
-const Field = styled.textarea`
-  flex: 1; min-width: 0;
-  border: none; outline: none; resize: none;
-  background: transparent;
-  font-family: inherit; font-size: 0.84375rem; line-height: 1.5; color: #0F172A;
-  padding: 1px 0;
-  max-height: 140px;
-  &::placeholder { color: #94A3B8; }
-  &:disabled { color: #94A3B8; }
-`;
-const SendBtn = styled.button`
-  flex-shrink: 0;
-  width: 30px; height: 30px; border-radius: 8px; border: none;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: ${CORAL}; color: #fff; cursor: pointer;
-  transition: background .15s, transform .05s;
-  &:hover { background: #E11D48; }
-  &:active { transform: scale(0.94); }
-  &:disabled { opacity: 0.5; cursor: default; }
-`;
-const Shortcut = styled.span`
-  flex-shrink: 0;
-  font-size: 0.6875rem; font-weight: 600; color: #CBD5E1;
-  padding: 2px 6px; border: 1px solid #E2E8F0; border-radius: 5px;
-  @media (max-width: 640px) { display: none; }
-`;
-const AddedBadge = styled.span`
-  flex-shrink: 0;
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 0.75rem; font-weight: 600; color: #0D9488;
-  animation: cuefade .25s ease;
-  @keyframes cuefade { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; } }
-`;
-const Check = styled.svg`width: 14px; height: 14px;`;
-const SubHint = styled.div`
-  font-size: 0.6875rem; color: #94A3B8; padding: 5px 4px 0 14px;
-`;
-const ErrorMsg = styled.div`
-  font-size: 0.75rem; color: #DC2626; background: #FEF2F2;
-  padding: 8px 10px; border-radius: 6px; margin-top: 8px;
-`;
-// #237 — 실패가 아니라 안내(업무는 생성됨). 실패와 같은 빨강을 쓰지 않는다.
-const NoticeMsg = styled.div`
-  font-size: 0.75rem; color: #B45309; background: #FFFBEB;
-  padding: 8px 10px; border-radius: 6px; margin-top: 8px;
-`;
-const Drop = styled.div`
-  margin-top: 8px;
-  padding: 12px;
-  background: #FFF1F2;
-  border: 1px solid #FECDD3;
-  border-radius: 10px;
-  display: flex; flex-direction: column; gap: 10px;
-  animation: cuedrop .2s ease;
-  @keyframes cuedrop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-`;
-const CueLine = styled.div`
-  display: flex; align-items: flex-start; gap: 6px;
-  font-size: 0.78125rem; line-height: 1.5; color: #9F1239; font-weight: 500;
-`;
-const CardList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const Actions = styled.div`
-  display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap;
-`;
-const Thinking = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  font-size: 0.78125rem; color: #9F1239; font-weight: 500;
-`;
-const blink = keyframes`0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}`;
-const Dots = styled.span`
-  display: inline-flex; gap: 3px;
-  i { width: 5px; height: 5px; border-radius: 50%; background: ${CORAL}; display: inline-block; animation: ${blink} 1.2s infinite; }
-  i:nth-child(2) { animation-delay: .2s; }
-  i:nth-child(3) { animation-delay: .4s; }
-`;
+/* ★ 껍데기(스타일)는 `components/Common/cueBarShell` 로 옮겼다 — Q sale 이 같은 것을 쓴다.
+   베껴 두면 갈라진다(2026-09-13 실제로 갈라져 있었다). 값은 하나도 바꾸지 않고 옮겼다. */
