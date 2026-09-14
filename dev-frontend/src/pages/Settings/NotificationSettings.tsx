@@ -17,7 +17,7 @@ interface Props {
 
 // 사이클 N+16-C — 'message' (채팅 일반) + 'comment_mention' (업무 댓글 멘션) 신규 토글.
 // 옛 'mention' 은 채팅 @멘션 전용으로 의미 정정. 댓글 멘션은 별도 row.
-type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mail' | 'sale';
+type EventKind = 'message' | 'mention' | 'comment_mention' | 'signature' | 'invoice' | 'tax_invoice' | 'task' | 'event' | 'invite' | 'mail' | 'sale' | 'share_expiry';
 // 4 채널 — 인박스(영구) / 인앱(우측 상단 토스트) / 디바이스(OS push) / 이메일
 type Channel = 'inbox' | 'chat' | 'push' | 'email';
 type Matrix = Record<EventKind, Record<Channel, boolean>>;
@@ -29,6 +29,9 @@ const EVENTS: EventKind[] = [
   'task', 'event', 'invite',     // 업무·일정·초대
   'signature', 'invoice', 'tax_invoice', // 청구·서명
   'sale',                        // Q sale — 계정 요청·답 안 한 문의(이후 통화 전사·자동 단계 변경)
+  // ★ 2026-09-14 (Irene: *"설정에 항목 빠지거나 관리 안되는 거 확인해서 다시 맞춰서"*)
+  //   `share_expiry`(외부 공유 링크 만료 임박)는 서버는 보내는데 **이 목록에만 없어서 끌 방법이 없었다.**
+  'share_expiry',
 ];
 const CHANNELS: Channel[] = ['inbox', 'chat', 'push', 'email'];
 
@@ -174,6 +177,16 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
         </Matrix>
 
         <FooterNote>{t('notifications.footerNote', '확인필요(Inbox)는 PlanQ 안에서 직접 보는 알림 영역입니다. 채팅/이메일은 외부로 나가는 알림.')}</FooterNote>
+        {/* ★ 2026-09-14 — 설정이 **무엇을 뜻하는지** 화면이 말한다.
+            Irene: *"알림설정에서 메일설정을 다 뺐는데도 메일로 오는데"* — 그때 이 두 가지가 이유였다:
+            ① 푸시를 놓쳤을 때 보내던 재알림 메일이 설정을 **일부러 무시**하고 있었다(이제 따른다)
+            ② 결제·잠금 안내는 끌 수 없다 — 그런데 아무 말이 없어 "관리가 안 된다" 로 보였다. */}
+        <FooterNote>
+          {t('notifications.emailOffNote', '메일을 끄면 기기 알림(푸시)이 실패해도 메일로 다시 알려주지 않습니다.') as string}
+        </FooterNote>
+        <FooterNote>
+          {t('notifications.alwaysOnNote', '결제·체험 종료·워크스페이스 잠금 안내는 끌 수 없습니다 — 놓치면 워크스페이스가 잠기기 때문입니다.') as string}
+        </FooterNote>
         <PolicyBox>
           <PolicyTitle>{t('notifications.policy.title', '이 매트릭스의 적용 범위')}</PolicyTitle>
           <PolicyItem>

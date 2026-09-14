@@ -149,7 +149,8 @@
       "event": "Calendar",
       "invite": "Invites",
       "mail": "New mail (Q mail)",
-      "sale": "Sales"
+      "sale": "Sales",
+      "share_expiry": "Share link expiring"
     },
     "eventDesc": {
       "message": "New message arrives in a chat room",
@@ -162,7 +163,8 @@
       "event": "Added / changed / upcoming",
       "invite": "Workspace and project invites",
       "mail": "Follows each mail account’s notification scope (default: reply needed + review recommended)",
-      "sale": "Account requests · unanswered inquiries (later: call transcribed · automatic stage changes)"
+      "sale": "Account requests · unanswered inquiries (later: call transcribed · automatic stage changes)",
+      "share_expiry": "When an external share link expires in 3 days"
     },
     "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
     "policy": {
@@ -170,7 +172,9 @@
       "appliesTo": "Applies only to notifications sent to workspace members (task assignment / review, calendar invites, mentions, invoice & tax-invoice review, etc.).",
       "systemAlways": "Security emails (signup verification, password reset, signature OTP) are always sent — they ignore this matrix.",
       "clientAlways": "Emails to external clients (invoice, document share, signature request) also bypass this matrix — they are deliberate sends from the workspace."
-    }
+    },
+    "emailOffNote": "With email off, we will not re-notify you by email even when a device push fails.",
+    "alwaysOnNote": "Billing, trial-end and workspace-lock notices cannot be turned off — missing one locks the workspace."
   },
   "permissions": {
     "title": "Permission Policy",

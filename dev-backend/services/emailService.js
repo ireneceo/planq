@@ -268,15 +268,29 @@ function emailWrap({ title, body, width = 520, footerOptions = {}, preheader }) 
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="x-apple-disable-message-reformatting">
   <title>${escapeHtml(title || PLATFORM.brand)}</title>
+  <style>
+    /* ★ 2026-09-14 (Irene: *"이 이메일 폼은 반응형도 제대로 안되고 있어."*)
+       원인은 폭 지정이 아니라 **줄바꿈**이었다 — 알림 본문에 공백 없는 긴 URL 이 들어오면
+       (실제 신고 메일에 vittz.co.kr 쿼리스트링이 그대로 있었다) 그 한 줄이 최소폭이 되어
+       max-width:520px 가 있어도 봉투가 옆으로 밀린다. 모든 메일이 같은 문제를 갖고 있으므로
+       개별 템플릿이 아니라 **공용 래퍼 한 곳**에서 막는다.
+       ※ 메일 클라이언트는 style 블록을 통째로 지우기도 한다 → 인라인 보호도 같이 둔다(아래 td). */
+    .pq-body, .pq-body * { word-break: break-word; overflow-wrap: anywhere; }
+    .pq-body img { max-width: 100%; height: auto; }
+    @media only screen and (max-width: 600px) {
+      .pq-outer { padding: 16px 10px !important; }
+      .pq-pad { padding: 20px 18px 26px !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#F1F5F9;font-family:${MAIL_FONT_STACK};color:#0F172A;-webkit-text-size-adjust:none;">
   <div style="display:none;max-height:0;overflow:hidden;color:#F1F5F9;">${escapeHtml(previewText)}</div>
   <div style="display:none;max-height:0;overflow:hidden;color:#F1F5F9;">${previewPad}</div>
-  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#F1F5F9;padding:32px 16px;">
+  <table class="pq-outer" width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#F1F5F9;padding:32px 16px;">
     <tr><td align="center">
       <table width="${width}" cellpadding="0" cellspacing="0" role="presentation" style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:14px;max-width:${width}px;width:100%;overflow:hidden;">
         ${emailHeader()}
-        <tr><td style="padding:28px 28px 36px;">
+        <tr><td class="pq-pad pq-body" style="padding:28px 28px 36px;word-break:break-word;overflow-wrap:anywhere;">
           ${body}
         </td></tr>
         ${emailFooter(footerOptions)}

@@ -79,24 +79,35 @@ async function runUnreadEscalation() {
     }
     if (!fresh.length) continue;
 
-    // 에스컬레이션은 push silent-drop 백업이 목적 → 일반 email pref 와 무관하게 발송.
-    //   (활성 사용자는 대화/알림을 읽으면 read 처리되어 큐에서 빠지므로 스팸 아님)
-    //   push 가 기기/OS/PWA캐시 문제로 안 떠도 중요 알림(채팅·멘션·업무 등)을 이메일로 반드시 전달.
+    // ★ 2026-09-14 (Irene: *"알림설정에서 메일설정을 다 뺐는데도 메일로 오는데"*)
+    //   여기는 **일부러 email pref 를 무시하고** 있었다(push silent-drop 안전망이 목적이었다).
+    //   그래서 사용자가 설정에서 메일을 전부 꺼도 이 메일만은 계속 왔다 — **설정이 거짓말을 했다.**
+    //   안전망이라도 사용자가 명시적으로 끈 것을 시스템이 우회하면 안 된다. 이제 그 알림 종류의
+    //   **email 채널 설정을 그대로 따른다**(끈 종류는 에스컬레이션도 없다).
+    //   대신 그 대가를 설정 화면이 한 줄로 말한다(NotificationSettings 의 안내).
+    //   ※ `isAllowed` 는 여태 import 만 하고 **한 번도 부르지 않았다** — 죽은 import 였다.
     {
       const user = await getUser(g.userId);
-      if (user && user.email) {
+      // 종류가 섞여 있으면 **허용된 종류만** 남겨 보낸다(하나 때문에 전부 막거나 전부 보내지 않는다).
+      const allowed = [];
+      for (const r of fresh) {
+        if (await isAllowed(g.userId, g.businessId, r.event_kind, 'email')) allowed.push(r);
+      }
+      if (user && user.email && allowed.length) {
         const ok = await sendUnreadNotificationEmail({
           to: user.email,
           name: user.name,
-          items: fresh.slice(0, 10).map((r) => ({ title: r.title, body: r.body, link: r.link })),
-          count: fresh.length,
+          items: allowed.slice(0, 10).map((r) => ({ title: r.title, body: r.body, link: r.link })),
+          count: allowed.length,
           workspaceName: g.businessId ? (wsNameById.get(g.businessId) || null) : null,
           businessId: g.businessId || null,
         }).catch(() => false);
         if (ok) emails++;
       }
     }
-    // 발송 여부 무관하게 마킹 (email pref OFF 여도 큐 무한 누적 방지)
+    // 발송 여부 무관하게 마킹 — **끈 사람의 알림도 마킹한다.** 안 그러면 설정을 끈 사용자의
+    //   큐가 영원히 안 비어 매분 재검사한다(그리고 나중에 켜면 옛 알림이 한꺼번에 터진다).
+    
     const ids = fresh.map((r) => r.id);
     await Notification.update({ email_escalated_at: new Date() }, { where: { id: ids } });
     marked += ids.length;
