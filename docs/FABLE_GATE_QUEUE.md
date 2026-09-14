@@ -1615,3 +1615,35 @@ D. "영구히" 문구와 실제 동작의 어긋남(코드에는 되돌릴 길�
 (model `claude-fable-5-1`). 어제부터 이어지는 **크레딧 소진**이고 날짜가 바뀌어도 안 풀린다.
 ⛔ **blocked_on_human — Irene 이 `/usage-credits` 로 풀어야 한다.**
 마커 `by:"unavailable"`. 보고에는 **"Fable 미검증(자체 검증)"** 이라고 쓴다.
+
+---
+
+## 34. 아바타 모양 통일 · 프로필 사진 · Q sale 행 배치 (2026-09-14)
+
+**판정: R=1** — 새 파일 업로드·서빙 라우트 3개(사람 얼굴 사진 · 접근 판정 자체 구현).
+
+**신고** — *"이름들 앞에 아이콘들 … 동그라미 쓸건지 라운드박스 쓸건지 통일해야 해. 사진 넣는 기능도
+만들고."* · *"단계 바꾸는 거 맨 끝에 두지 말고 … 가장 처음에 중앙배치 열 맞춰서"* ·
+*"모든 버튼은 우측정렬 하되 열이 제한되게 해서 해당 열이 되면 엔터값들어가게."*
+
+**구현**
+- 원형 아바타 12곳 → 라운드 박스(LetterAvatar 규칙 크기×0.28). 가드 `--category=avatarshape` 신설.
+- `POST/GET/DELETE /api/users/:id/avatar` — `users.avatar_url`(기존 컬럼) 사용, 스키마 변경 0.
+  파일은 `uploads/avatars/u{id}.{ext}`. 2MB·JPG/PNG/WebP. 분당 5·일 50.
+  **보는 범위 판정은 자체 구현**(`canSeeAvatar`: 본인 또는 워크스페이스 공유).
+- Q sale 행: 단계를 맨 앞 고정 폭 칸으로 · 액션 묶음 상시 우측정렬 + 줄바꿈.
+
+**자체 검증 수치**
+- 빌드 EXIT 0 / `error TS` 0 · 가드 EXIT 0(53/54) · health-check 44/44
+- 실HTTP 사진 8/8 — 본인 200(image/png) · 무인증 401 · 남의 계정 403 · 비이미지 400 · 삭제 후 404
+- 실브라우저 Cue 바 4/4 · 아바타 가드 양성 대조군(원형 되살리면 FAIL) 확인
+
+**Fable 이 봐야 할 것**
+A. `canSeeAvatar` — 워크스페이스를 함께 쓰지 **않는** 사용자가 남의 사진을 못 보는지.
+   `removed_at` 처리 · 플랫폼 관리자 예외가 필요한지 · 파일명이 user id 라 **열거 가능**한 점의 위험도
+B. 업로드 경로 탈출(파일명은 서버가 만들지만 확장자 판정이 mimetype 기반이다) · 이미지 위장 파일
+C. `sendFile` 이 내보내는 헤더(Content-Type·Cache-Control private)가 맞는지
+D. 행 배치 변경이 폰·태블릿에서 터치 타겟을 깨지 않는지
+
+**2026-09-14 (4차) — 또 429.** `You've reached your Fable limit`(claude-fable-5-1).
+⛔ **blocked_on_human — `/usage-credits`.** 마커 `by:"unavailable"`.
