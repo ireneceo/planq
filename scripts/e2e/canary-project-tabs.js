@@ -46,6 +46,109 @@ function trackCount(css) {
   return n;
 }
 
+// ── 탭 본문 껍데기 계약 (2026-09-14) ─────────────────────────
+//   Irene: *"프로젝트 상세 가로 레이아웃이 탭마다 달라. 맞춰줘야지."*
+//   계약: 본문 껍데기는 **두 종류뿐**이고, 같은 종류끼리는 좌·우·시작점이 **값 하나**여야 한다.
+//     · 일반탭  — PageShell 여백 안에서 그린다(자체 padding 금지)
+//     · 얹는탭  — 문서·노트·파일. 탭 막대에 붙고(시작차 0) 자기 상자 안에서 스크롤한다
+//   ★ 폭을 하나만 재면 거짓 통과한다 — 실측상 파일 탭은 데스크탑에서만 0 이었고 태블릿 20·폰 398 이었다.
+const FULL_TABS = new Set(['docs', 'notes', 'files']);
+const LAYOUT_VPS = [
+  { name: 'desktop', width: 1440, height: 900 },
+  { name: 'tablet', width: 1024, height: 768 },
+  { name: 'phone', width: 390, height: 844 },
+];
+
+async function measureTabBody(page, key) {
+  return page.evaluate((k) => {
+    const body = document.querySelector(`[data-testid="project-tab-body-${k}"]`);
+    const bar = document.querySelector('button[data-testid="project-tab-dashboard"]');
+    if (!body || !bar) return null;
+    const r = body.getBoundingClientRect();
+    const br = bar.parentElement.getBoundingClientRect();
+    // ★ **탭이 실제로 그리기 시작하는 자리**를 잰다 (2026-09-14).
+    //   대조군이 두 번 가르쳐 준 것:
+    //     ① 껍데기(ProjectTabPane) rect 로 재면 안쪽 padding 을 못 본다 → 보고서 결함이 통과했다.
+    //     ② "텍스트 있는 첫 잎" 으로 재면 탭마다 다른 컨트롤이 잡혀 값이 전부 갈린다(거짓 실패).
+    //   그래서 **탭 컴포넌트의 루트 상자 + 그 padding** 을 쓴다 — `padding:20px` 을 주면
+    //   그만큼 오른쪽/아래에서 시작한다는 사실이 그대로 숫자로 나온다. 휴리스틱이 없다.
+    //   ★ 단, **보이는 상자**(배경이 칠해졌거나 테두리가 있는 것 = 카드)의 padding 은 더하지 않는다.
+    //     카드 안쪽 여백은 디자인이고, 카드 **테두리**가 240 에서 시작하면 열은 맞는 것이다.
+    //     투명한 레이아웃 래퍼의 padding 만이 "이 탭만 안쪽으로 밀린" 결함이다(보고서 탭이 그랬다).
+    const rootEl = body.firstElementChild;
+    const rcs = rootEl ? getComputedStyle(rootEl) : null;
+    const rr = rootEl ? rootEl.getBoundingClientRect() : null;
+    const visibleBox = rcs
+      ? (rcs.backgroundColor !== 'rgba(0, 0, 0, 0)' && rcs.backgroundColor !== 'transparent')
+        || parseFloat(rcs.borderLeftWidth || '0') > 0 || parseFloat(rcs.borderTopWidth || '0') > 0
+      : false;
+    const padL = visibleBox ? 0 : parseFloat(rcs?.paddingLeft || '0');
+    const padT = visibleBox ? 0 : parseFloat(rcs?.paddingTop || '0');
+    const fr = rr ? { left: rr.left + padL, top: rr.top + padT } : null;
+    const first = rootEl;
+    let sc = body.parentElement, outer = 0;
+    while (sc && sc !== document.body) {
+      const cs = getComputedStyle(sc);
+      if (cs.overflowY === 'auto' || cs.overflowY === 'scroll') { outer = sc.scrollHeight - sc.clientHeight; break; }
+      sc = sc.parentElement;
+    }
+    return {
+      top: Math.round(r.top), right: Math.round(r.right), outer,
+      // 판정에 쓰는 값은 **내용** 기준. 내용이 없으면 null 로 돌려보내 "판정 불가 = 실패" 가 되게 한다.
+      left: fr ? Math.round(fr.left) : null,
+      gap: fr ? Math.round(fr.top - br.bottom) : null,
+      sample: first ? `${first.tagName}${rcs ? ' pad ' + rcs.paddingTop + ' ' + rcs.paddingLeft : ''}` : null,
+    };
+  }, key);
+}
+
+async function checkTabLayout(page, projId) {
+  for (const vp of LAYOUT_VPS) {
+    await page.setViewport({ width: vp.width, height: vp.height });
+    await gotoSPA(page, `/projects/p/${projId}`);
+    await sleep(1500);
+    await dismissBlockers(page);
+    const got = [];
+    for (const key of EXPECTED_TABS) {
+      if (!(await clickTab(page, key, 1400))) continue;
+      const m = await measureTabBody(page, key);
+      if (!m) { push(`레이아웃 ${vp.name} — ${key} 본문 testid`, false, `project-tab-body-${key} 를 못 찾았다(껍데기를 안 쓰고 직접 그렸을 수 있다)`); continue; }
+      if (m.left === null) { push(`레이아웃 ${vp.name} — ${key} 내용`, false, '본문에 그려진 내용이 없다 — 판정 불가(실패)'); continue; }
+      got.push({ key, ...m });
+    }
+    // ★ 0건이면 판정 불가 = 실패다.
+    if (got.length < EXPECTED_TABS.length - 1) {
+      push(`레이아웃 ${vp.name} — 잰 탭 수`, false, `${got.length}/${EXPECTED_TABS.length} 개만 쟀다`);
+      continue;
+    }
+    const uniq = (a, f) => [...new Set(a.map(f))];
+    for (const [label, rows] of [['일반탭', got.filter((g) => !FULL_TABS.has(g.key))], ['얹는탭', got.filter((g) => FULL_TABS.has(g.key))]]) {
+      const L = uniq(rows, (r) => r.left), R = uniq(rows, (r) => r.right), G = uniq(rows, (r) => r.gap);
+      push(`레이아웃 ${vp.name} ${label} — 좌·우·시작점이 값 하나`, L.length === 1 && R.length === 1 && G.length === 1,
+        `좌 ${JSON.stringify(L)} · 우 ${JSON.stringify(R)} · 시작차 ${JSON.stringify(G)}` +
+        (L.length > 1 ? ` ← 어긋난 탭: ${JSON.stringify(rows.filter((r) => r.left !== L[0]).map((r) => r.key))}` : '') +
+        (G.length > 1 ? ` ← 시작점이 다른 탭: ${JSON.stringify(rows.filter((r) => r.gap !== G[0]).map((r) => r.key))}` : ''));
+    }
+    // 얹는탭은 **자기 상자 안에서** 스크롤한다 — 바깥이 스크롤하면 탭을 옮길 때 위치가 튄다.
+    const spill = got.filter((g) => FULL_TABS.has(g.key) && g.outer > 0);
+    push(`레이아웃 ${vp.name} 얹는탭 — 바깥이 스크롤하지 않는다`, spill.length === 0,
+      spill.length ? `넘친 탭: ${JSON.stringify(spill.map((s) => `${s.key}:${s.outer}px`))}` : '문서·노트·파일 모두 0');
+    // 일반탭은 좌우가 **탭 막대 라벨 시작 x** 와 같은 자리여야 한다(헤더와 어긋나면 안 된다).
+    //   ★ 첫 탭 버튼의 x 로 재면 안 된다 — 탭 막대는 **가로로 스크롤된다**(폰에서 오른쪽 탭을
+    //     고르면 막대가 밀린다). 실측 폰: 라벨 x=-237. 스크롤과 무관한 **막대 안쪽 시작 x**
+    //     (= 막대 left + padding-left) 가 이 계약의 기준이다.
+    const bar = await page.evaluate(() => {
+      const b = document.querySelector('button[data-testid="project-tab-dashboard"]');
+      if (!b || !b.parentElement) return null;
+      const el = b.parentElement;
+      return Math.round(el.getBoundingClientRect().left + parseFloat(getComputedStyle(el).paddingLeft || '0'));
+    });
+    const pane = got.filter((g) => !FULL_TABS.has(g.key))[0];
+    push(`레이아웃 ${vp.name} — 본문 좌측이 탭 라벨과 같은 x`, bar !== null && pane && pane.left === bar,
+      `탭 라벨 x=${bar} · 본문 좌 ${pane && pane.left}`);
+  }
+}
+
 // ── 픽스처 ─────────────────────────────────────────────
 //   ★ 0건이면 판정 불가 = 실패다. 프로젝트 정보(Q info scope='project')가 비어 있는 워크스페이스에서도
 //     "행이 Q info 와 같은 그리드인가" 를 잴 수 있어야 하므로 **한 건 만들고 끝나면 지운다.**
@@ -117,7 +220,10 @@ async function run() {
 
     // ── ① 탭 순서 ────────────────────────────────────────
     const order = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-testid^="project-tab-"]')]
+      // ★ 탭 **버튼**만 센다 (2026-09-14). 접두어만 보면 탭 본문(`project-tab-body-*`)까지
+      //   딸려 들어와 순서 판정이 거짓 실패한다 — 실제로 본문에 testid 를 붙인 날 그렇게 났다.
+      //   본문은 div, 탭은 button 이라 태그로 가른다.
+      [...document.querySelectorAll('button[data-testid^="project-tab-"]')]
         .map((b) => b.getAttribute('data-testid').replace('project-tab-', '')));
     push('① 탭 순서 = 개요 업무 문서 노트 파일 정보 보고서 히스토리 거래 고객 상세정보 설정',
       order.join(',') === EXPECTED_TABS.join(','),
@@ -267,8 +373,10 @@ async function run() {
       push('⑤ 고객 패널에 [노트]·[정보] 묶음이 보인다',
         links.qnote && links.info, `노트 ${links.qnote} · 정보 ${links.info}`);
     }
+    // ⑦ 탭 본문 껍데기 계약 — 12탭 × 3폭. **맨 뒤에 둔다**(뷰포트를 바꾸므로 앞 판정을 오염시키지 않게).
+    await checkTabLayout(page, fx.projId);
   } finally { await browser.close(); await teardownFixture(fx); }
   return results;
 }
 
-module.exports = { name: '프로젝트 탭 — 순서·노트=Q Note 본체·정보=Q info 규격 · 고객 프로필 연결', run };
+module.exports = { name: '프로젝트 탭 — 순서·노트=Q Note 본체·정보=Q info 규격 · 고객 프로필 연결 · 본문 껍데기 계약', run };

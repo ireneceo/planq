@@ -84,9 +84,13 @@ export const InfoBody = styled.div`display:grid;grid-template-columns:repeat(2, 
 //     워크스페이스 범위(/docs · /files — 탭 막대가 없다)에서는 폴백 8px 이 그대로 쓰인다.
 //   46px = 탭 막대 실측 높이(패딩 12×2 + 13px 글자 + 하단 보더 1). -20px = TabBar 의 sticky top.
 //   어긋나면 `node scripts/e2e/run.js --suite sticky` 가 "covered" 로 잡는다(그 검사가 이걸 찾아냈다).
-// 탭 막대 높이 — 아래 두 계산이 **같은 값**에서 나온다. 따로 적으면 갈라진다.
+// 탭 막대 높이 — 아래 계산이 이 값에서 나온다. 따로 적으면 갈라진다.
 export const TABBAR_H = '46px';
-export const tabStickyTop = `calc(${TABBAR_H} - 20px + 8px)`;
+// ★ `tabStickyTop`(= TABBAR_H - 20 + 8) 은 **2026-09-14 에 없앴다.**
+//   그 값은 "탭 내용의 sticky 자식이 **바깥(PageShell Body)** 을 스크롤포트로 삼을 때" 의 보정이다.
+//   이제 얹는탭 3개가 모두 자기 상자 안에서 스크롤하므로 그 전제가 사라졌다 —
+//   스크롤포트의 시작점이 이미 탭 막대 아래라 자식의 폴백 `var(--pq-tab-sticky-top, 8px)` 이 맞다.
+//   **읽는 곳이 없는 값을 남겨 두지 않는다**(있으면 다음 사람이 그게 적용 중이라고 믿는다).
 
 // ★ 문서 탭에는 --pq-tab-sticky-top 을 주지 **않는다** (2026-09-09 실측으로 정정).
 //   문서 탭의 좌측 패널은 PostsPage 자신의 Body(overflow-y:auto)를 스크롤포트로 삼는다 —
@@ -94,7 +98,23 @@ export const tabStickyTop = `calc(${TABBAR_H} - 20px + 8px)`;
 //   여기에 34px 을 주면 그 패널이 실제로 붙을 때 26px 헛자리가 생긴다.
 //   문서 탭에서 패널이 탭 막대에 잠기던 것은 sticky 가 아니라 **래퍼 높이**가 원인이었다 —
 //   아래 max-height 로 고쳤다.
-export const ProjectDocsWrap = styled.div`
+// ─────────────────────────────────────────────────────────────
+// 프로젝트 상세 탭 본문 껍데기는 **두 가지뿐**이다 (2026-09-14 박제).
+//   Irene: *"프로젝트 상세 가로 레이아웃이 탭마다 달라. 맞춰줘야지.
+//           헤더랑 다르면 안되는데 탭마다 다르고 헤더랑도 다르고."*
+//
+//   ① ProjectTabPane — 일반 콘텐츠 탭. PageShell Body 의 여백(20px) 안에서 그린다.
+//      **자체 padding 을 주지 않는다.** 주는 순간 그 탭만 안쪽으로 밀려 열이 어긋난다
+//      (실측 2026-09-14: 보고서 탭만 좌 260 / 나머지 240. 1024·폰에서도 같은 20px).
+//   ② ProjectTabFull — 본체를 통째로 얹는 탭(문서·노트·파일). 세로 여백만 상쇄해 탭 막대에
+//      붙이고, **좌우는 다른 탭과 같은 자리**에 둔다. 자체 높이를 가져 내부가 스크롤한다.
+//
+//   탭을 새로 만들면 둘 중 하나를 **반드시** 쓴다. 직접 styled 를 선언하면 갈라진다 —
+//   회귀는 `node scripts/e2e/run.js --suite projecttabs` 가 12탭 × 3폭으로 잰다.
+// ─────────────────────────────────────────────────────────────
+export const ProjectTabPane = styled.div``;
+
+export const ProjectTabFull = styled.div`
   height: calc(100vh - 210px);
   /* ★ 2026-09-09 — 이 높이 공식이 **보이는 영역보다 커서** 바깥(PageShell Body)이 스크롤됐고,
      그 스크롤이 문서 탭 좌측 패널을 탭 막대 뒤로 끌고 들어갔다
@@ -112,18 +132,30 @@ export const ProjectDocsWrap = styled.div`
      기준선은 탭 막대의 **라벨 시작 x(=20)** 다(막대는 배경·구분선만 풀폭인 게 맞다 — 구분선이니까).
      세로 여백만 걷어내고 **좌우는 다른 탭과 같은 자리**에 둔다. */
   margin: -20px 0;
-  @media (max-width: 768px) { height: calc(100vh - 180px); margin: -16px 0; }
+  /* ★ 폰 값은 TabBar 의 폰 규칙과 **같은 숫자**여야 한다 (2026-09-14).
+     TabBar 는 @media (max-width:640px) 에서 margin:-14px -14px 14px 인데 여기만 16 이라
+     얹는탭 3개가 탭 막대보다 **2px 위**에서 시작했다(실측 폰: 시작차 -2 / 일반탭 14).
+     두 곳에 같은 숫자를 적는 것 자체가 갈라지는 원인이라, 바꿀 땐 둘을 같이 본다. */
+  @media (max-width: 768px) { height: calc(100vh - 180px); margin: -14px 0; }
+
+  /* ★ 안쪽이 스크롤한다 (2026-09-14).
+     전에는 파일 탭만 높이 계약이 없어 내용이 이 상자를 넘쳐 **바깥(PageShell Body)** 이 스크롤했다
+     (실측: 데스크탑 0 / 태블릿 20 / 폰 398 — 문서·노트는 전부 0). 같은 껍데기를 쓰는 탭끼리
+     스크롤 주체가 다르면 탭을 옮길 때마다 스크롤바와 위치가 튄다.
+     ※ 문서·노트는 본체(PostsPage·QNotePage)가 이미 height:100% 로 자기 Body 를 스크롤하므로
+       여기서는 넘칠 것이 없다 — 이 선언은 그 둘에게 무해하고, 파일 탭만 실제로 쓴다.
+     ※ --pq-tab-sticky-top 은 주지 않는다. 스크롤포트가 이 상자가 되면 그 시작점이 이미
+       탭 막대 아래라 폴백 8px 이 맞다(2026-09-09 문서 탭에서 같은 이유로 정정했다).
+       34px 을 주면 sticky 자식이 붙을 때 26px 헛자리가 생긴다. */
+  overflow-y: auto;
 `;
 // 노트 탭 — 문서 탭과 **같은 껍데기**(Q Note 본체를 그대로 얹는다).
 //   $hidden: 녹음 중에 다른 탭으로 옮겨도 이 트리를 **살려 둔다** — 언마운트되면 LiveSession 이
 //   끊겨 녹음이 소리 없이 멈춘다. 자리만 감춘다(display:none).
-export const ProjectNotesWrap = styled(ProjectDocsWrap)<{ $hidden?: boolean }>`
+export const ProjectNotesWrap = styled(ProjectTabFull)<{ $hidden?: boolean }>`
   ${(p) => (p.$hidden ? 'display: none;' : '')}
 `;
-// 파일 탭 — 기준선만 선언한다(레이아웃 영향 없는 블록). 문서 탭과 **같은 값**을 쓴다.
-export const ProjectFilesWrap = styled.div`
-  --pq-tab-sticky-top: ${tabStickyTop};
-`;
+
 export const EditGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:12px;`;
 export const EditField = styled.div`display:flex;flex-direction:column;gap:4px;`;
 export const EditLabel = styled.span`font-size:0.6875rem;color:#64748B;font-weight:700;`;

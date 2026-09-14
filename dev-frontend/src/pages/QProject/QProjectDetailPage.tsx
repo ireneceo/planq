@@ -50,9 +50,9 @@ import {
   Tab,
   InfoBody,
   OverviewDesc,
-  ProjectDocsWrap,
+  ProjectTabPane,
+  ProjectTabFull,
   ProjectNotesWrap,
-  ProjectFilesWrap,
   EditGrid,
   EditField,
   EditLabel,
@@ -740,7 +740,7 @@ const QProjectDetailPage: React.FC = () => {
       <Suspense fallback={<TabFallback>{t('common.loading', '불러오는 중…')}</TabFallback>}>
       {/* #167 — 개요 탭은 보기 전용. 편집(전략·지표·추진과제·프로젝트 연결)은 상세정보 탭 한 곳. */}
       {tab === 'dashboard' && !isClient && (
-        <>
+        <ProjectTabPane data-testid="project-tab-body-dashboard">
           {/* 운영 #339 — "그리고 개요에 표시되게 하고". 설명은 설정 안에만 있어서, 정작 프로젝트를
               열었을 때 "이게 무슨 일인지" 가 어디에도 안 보였다. 편집은 종전대로 설정 한 곳(단일 원천),
               여기서는 읽기 전용으로 보여주기만 한다. 비어 있으면 아무것도 그리지 않는다. */}
@@ -748,25 +748,27 @@ const QProjectDetailPage: React.FC = () => {
             <OverviewDesc>{project.description}</OverviewDesc>
           )}
           <ProjectCanvas projectId={projectId} businessId={project.business_id} readOnly />
-        </>
+        </ProjectTabPane>
       )}
 
       {tab === 'tasks' && (
-        <TasksTab
+        <ProjectTabPane data-testid="project-tab-body-tasks"><TasksTab
           projectId={projectId}
           businessId={project.business_id}
           projectName={project.name}
           tasks={sortedTasks as unknown as import('./TasksTab').TaskRow[]}
           onRefresh={load}
-        />
+        /></ProjectTabPane>
       )}
 
       {tab === 'info' && (
-        <ProjectKnowledgeTab businessId={project.business_id} projectId={projectId} />
+        <ProjectTabPane data-testid="project-tab-body-info">
+          <ProjectKnowledgeTab businessId={project.business_id} projectId={projectId} />
+        </ProjectTabPane>
       )}
 
       {tab === 'settings' && (
-        <InfoBody>
+        <InfoBody data-testid="project-tab-body-settings">
           <Card>
             <CardTitle>{t('section.editInfo', '기본 정보')}</CardTitle>
             <EditGrid>
@@ -1053,7 +1055,7 @@ const QProjectDetailPage: React.FC = () => {
       {/* #136 — 정보성(이슈·메모·이력·참여고객)과 설정성(기본정보 편집·멤버·채팅 연결)을 탭으로 분리.
           한 화면에 섞여 있어 정보를 보러 왔는데 편집폼이 먼저 나오는 혼란이 있었다. */}
       {tab === 'details' && (
-        <InfoBody>
+        <InfoBody data-testid="project-tab-body-details">
 
           {/* #167 — 편집은 상세정보 탭 한 곳(단일 원천). 개요와 같은 캔버스를 여기서 편집(개요는 읽기전용). */}
           <div style={{ gridColumn: '1 / -1' }}>
@@ -1145,16 +1147,17 @@ const QProjectDetailPage: React.FC = () => {
           </Card>
         </InfoBody>
       )}
-      {/* ProjectFilesWrap — 탭 안 sticky 기준선만 선언한다(레이아웃 영향 없음). 문서 탭과 같은 값. */}
+      {/* 파일 — 문서·노트와 **같은 껍데기**(본체를 통째로 얹는 탭). 전에는 이 탭만 높이 계약이
+          없어 시작점 20px·스크롤 주체가 달랐다(실측 1024 에서 바깥이 128px 스크롤). */}
       {tab === 'files' && (
-        <ProjectFilesWrap>
+        <ProjectTabFull data-testid="project-tab-body-files">
           <DocsTab projectId={projectId} businessId={project.business_id} />
-        </ProjectFilesWrap>
+        </ProjectTabFull>
       )}
       {tab === 'docs' && (
-        <ProjectDocsWrap data-testid="project-tab-body-docs">
+        <ProjectTabFull data-testid="project-tab-body-docs">
           <PostsPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
-        </ProjectDocsWrap>
+        </ProjectTabFull>
       )}
       {/* 노트 — 문서 탭과 같은 자리·같은 껍데기. Q Note 기능이 그대로 돈다.
           ★ 녹음 중에는 다른 탭으로 옮겨도 **언마운트하지 않는다** — 언마운트가 곧 녹음 중단이다. */}
@@ -1167,7 +1170,7 @@ const QProjectDetailPage: React.FC = () => {
         </ProjectNotesWrap>
       )}
       {tab === 'clients' && (
-        <ClientsBody>
+        <ClientsBody data-testid="project-tab-body-clients">
           <Card>
             <CardTitle>{t('section.projClients', '참여 고객')} <small>{(project.projectClients || []).length}</small></CardTitle>
             {(project.projectClients || []).length === 0 ? <Dim>{t('clients.empty', '고객이 없습니다')}</Dim> : (
@@ -1276,9 +1279,9 @@ const QProjectDetailPage: React.FC = () => {
           </Card>
         </ClientsBody>
       )}
-      {tab === 'transactions' && <TransactionsTab projectId={projectId} />}
-      {tab === 'report' && <ProjectReportTab businessId={project.business_id} projectId={projectId} />}
-      {tab === 'history' && <HistoryTab projectId={projectId} />}
+      {tab === 'transactions' && <ProjectTabPane data-testid="project-tab-body-transactions"><TransactionsTab projectId={projectId} /></ProjectTabPane>}
+      {tab === 'report' && <ProjectTabPane data-testid="project-tab-body-report"><ProjectReportTab businessId={project.business_id} projectId={projectId} /></ProjectTabPane>}
+      {tab === 'history' && <ProjectTabPane data-testid="project-tab-body-history"><HistoryTab projectId={projectId} /></ProjectTabPane>}
 
       {/* 메뉴에 추가된 문서 탭 (doc-:id) — PostEditor read-only + 편집 진입 */}
       {isDocTabKey(tab) && (

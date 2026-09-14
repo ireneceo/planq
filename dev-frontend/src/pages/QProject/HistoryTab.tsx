@@ -341,7 +341,8 @@ export default function HistoryTab({ projectId }: Props) {
   );
 }
 
-const Wrap = styled.div`display: flex; flex-direction: column; gap: 18px; padding: 4px 0 24px;`;
+// 상단 4px 제거 (2026-09-14) — 이 탭만 내용이 4px 아래에서 시작했다. 하단 여백은 유지.
+const Wrap = styled.div`display: flex; flex-direction: column; gap: 18px; padding: 0 0 24px;`;
 const Dim = styled.div`padding: 40px 0; text-align: center; font-size: 0.8125rem; color: #94A3B8; line-height: 1.7;`;
 const Group = styled.div`display: flex; flex-direction: column; gap: 4px;`;
 const GroupHead = styled.div`
