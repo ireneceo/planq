@@ -2,6 +2,7 @@
 // scroll 후엔 white sticky GNB 로 자연스럽게 전환.
 import { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import BILLING_ENTITY from '../../config/legalEntities';
 import styled, { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -178,8 +179,14 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
             </FooterCol>
           </FooterCols>
           <FooterBottom>
-            {company && (company.legal_entity || company.biz_registration_no) && (
-              <FooterBiz>
+            {/* ★ 두 법인은 **독립적으로** 그린다 (2026-09-14).
+                전에는 카드 수취 법인 행이 이 조건 안에 있어서, 한국 사업자 정보가 비어 있는
+                서버(dev 실측: platform_settings 전 칸 NULL)에서는 **블록째로 사라졌다** —
+                말레이시아 법인 표기는 코드 상수라 언제나 있는데 남의 데이터 유무에 매달려 있었다.
+                고지는 다른 값이 비었다고 같이 사라져서는 안 된다. */}
+            <FooterBiz>
+              {company && (company.legal_entity || company.biz_registration_no) && (
+                <>
                 <FooterBizRow>
                   {company.legal_entity && <span>{t('footer.biz.company', '상호')}: {company.legal_entity}</span>}
                   {company.representative_name && <span>{t('footer.biz.ceo', '대표')}: {company.representative_name}</span>}
@@ -207,8 +214,19 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
                   {company.company_phone && <span>{t('footer.biz.tel', '대표전화')}: {company.company_phone}</span>}
                   {company.company_email && <span>{t('footer.biz.email', '이메일')}: {company.company_email}</span>}
                 </FooterBizRow>
-              </FooterBiz>
-            )}
+                </>
+              )}
+                {/* ★ 청구 주체가 둘이다 (2026-09-14). 위는 **서비스 제공자**(한국, platform_settings),
+                    아래는 **카드 결제 수취 법인**(말레이시아). 카드 명세서에 찍히는 이름이 위와
+                    다르므로 여기에 적어야 한다 — 값은 `config/legalEntities.ts` 한 곳에서 온다.
+                    계좌이체는 위 법인이 직접 받는다(그래서 "카드 결제" 라고 한정한다). */}
+              <FooterBizRow data-testid="footer-card-biller">
+                <span>{t('footer.biz.cardBiller', '카드 결제 수취')}: {BILLING_ENTITY.name} ({t('footer.biz.cardBillerCountry', '말레이시아')})</span>
+                <span>{t('footer.biz.regNoIntl', '법인등록번호')}: {BILLING_ENTITY.regNo}</span>
+                <span>{t('footer.biz.address', '주소')}: {BILLING_ENTITY.address}</span>
+                <span>{t('footer.biz.email', '이메일')}: {BILLING_ENTITY.email}</span>
+              </FooterBizRow>
+            </FooterBiz>
             <FooterCopy>© {new Date().getFullYear()} PlanQ. {t('footer.allRights', 'All rights reserved.')}</FooterCopy>
           </FooterBottom>
         </FooterInner>

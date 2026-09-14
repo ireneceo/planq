@@ -34,10 +34,17 @@ async function run() {
   let uid = null;
   const cred = { email: `admincrawl-${Date.now()}@test.planq.kr`, password: 'AdminCrawl2026!' };
   try {
+    // ★ 약관 **버전**까지 채운다. 시각만 채우면 현재 버전과 달라 로그인 직후 재동의 모달이
+    //   전면에 떠 "모달 열림" 판정을 위조한다 (memory feedback_consent_modal_fakes_modal_open).
+    //   버전을 **platform_settings 에서 읽는다** — 상수 '1.0' 으로 박으면 약관을 개정하는 날
+    //   이 카나리가 통째로 죽는다(2026-09-14 개정에서 실제로 걸렸다).
+    const [[ps]] = await sequelize.query('SELECT terms_version, privacy_version FROM platform_settings LIMIT 1');
     const [id] = await sequelize.query(
-      `INSERT INTO users (email, password_hash, name, username, platform_role, terms_accepted_at, privacy_accepted_at, created_at, updated_at)
-       VALUES (?, ?, 'AdminCrawl Canary', ?, 'platform_admin', NOW(), NOW(), NOW(), NOW())`,
-      { replacements: [cred.email, await bcrypt.hash(cred.password, 12), `adcr${Date.now()}`] });
+      `INSERT INTO users (email, password_hash, name, username, platform_role,
+                          terms_version, terms_accepted_at, privacy_version, privacy_accepted_at, created_at, updated_at)
+       VALUES (?, ?, 'AdminCrawl Canary', ?, 'platform_admin', ?, NOW(), ?, NOW(), NOW(), NOW())`,
+      { replacements: [cred.email, await bcrypt.hash(cred.password, 12), `adcr${Date.now()}`,
+                       (ps && ps.terms_version) || '1.0', (ps && ps.privacy_version) || '1.0'] });
     uid = id;
 
     const { browser, page } = await b.launch();

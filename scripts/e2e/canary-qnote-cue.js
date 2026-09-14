@@ -50,10 +50,17 @@ async function run() {
   try {
     const mk = async (tag) => {
       const email = `qnc-${tag}-${stamp}@test.planq.kr`;
+      // ★ 약관 **버전**까지 채운다. 시각만 채우면 현재 버전과 달라 로그인 직후 재동의 모달이
+      //   전면에 떠 "모달 열림" 판정을 위조한다 (memory feedback_consent_modal_fakes_modal_open).
+      //   버전을 **platform_settings 에서 읽는다** — 상수 '1.0' 으로 박으면 약관을 개정하는 날
+      //   이 카나리가 통째로 죽는다(2026-09-14 개정에서 실제로 걸렸다).
+      const [[ps]] = await sequelize.query('SELECT terms_version, privacy_version FROM platform_settings LIMIT 1');
       const [uid] = await sequelize.query(
-        `INSERT INTO users (email, password_hash, name, username, platform_role, terms_accepted_at, privacy_accepted_at, created_at, updated_at)
-         VALUES (?,?,?,?,'user',NOW(),NOW(),NOW(),NOW())`,
-        { replacements: [email, await bcrypt.hash('QnoteCue2026!', 12), `QnoteCue ${tag}`, `qnc${tag}${stamp}`.slice(0, 30)] });
+        `INSERT INTO users (email, password_hash, name, username, platform_role,
+                            terms_version, terms_accepted_at, privacy_version, privacy_accepted_at, created_at, updated_at)
+         VALUES (?,?,?,?,'user',?,NOW(),?,NOW(),NOW(),NOW())`,
+        { replacements: [email, await bcrypt.hash('QnoteCue2026!', 12), `QnoteCue ${tag}`, `qnc${tag}${stamp}`.slice(0, 30),
+                         (ps && ps.terms_version) || '1.0', (ps && ps.privacy_version) || '1.0'] });
       // owner 로 넣는다 — "직급이 높으면 남의 노트가 보이는가" 를 같이 반증하기 위해서다.
       await sequelize.query("INSERT INTO business_members (business_id,user_id,role,created_at,updated_at) VALUES (?,?,'owner',NOW(),NOW())",
         { replacements: [BIZ, uid] });

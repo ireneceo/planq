@@ -22,13 +22,49 @@ async function launch({ mobile = false } = {}) {
 // 로그인 fetch → refresh 쿠키(HttpOnly) 심음 → 이후 페이지 이동 시 앱이 자동 인증(메모리 토큰 → refresh)
 async function login(page, creds = CREDS) {
   await page.goto(BASE + '/login', { waitUntil: 'domcontentloaded' });
-  const ok = await page.evaluate(async (c) => {
+  // ★ 토큰을 **응답에서 받아 둔다.** access token 은 프론트가 메모리(AuthContext)에만 두므로
+  //   localStorage 에도 쿠키에도 없다 — 날 fetch 는 Authorization 헤더 없이는 401 이다.
+  //   (처음엔 쿠키만 믿고 아래 약관 동의를 붙였다가 **아무 일도 안 하는 코드**가 됐다.
+  //    try/catch 가 그 401 을 삼켜 조용했다 — memory feedback_unwired_guard_is_no_guard.)
+  const res = await page.evaluate(async (c) => {
     try {
       const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: c.email, password: c.password }) });
-      const j = await r.json(); return j && j.success === true;
-    } catch { return false; }
+      const j = await r.json();
+      return { ok: j && j.success === true, token: (j && j.data && j.data.token) || null };
+    } catch { return { ok: false, token: null }; }
   }, creds);
-  if (!ok) throw new Error('login failed for ' + creds.email);
+  if (!res || !res.ok) throw new Error('login failed for ' + creds.email);
+
+  // ★ 약관 재동의를 **API 로 먼저 통과시킨다** (2026-09-14).
+  //   약관을 개정해 platform_settings.terms_version 을 올리면 이 계정의 버전이 뒤처져
+  //   앱 화면마다 재동의 모달이 전면에 뜬다 — 그 모달은 `aria-modal="true"` 라 "모달이 떴는가"
+  //   판정을 위조하고, 모든 클릭을 가로챈다. `dismissBlockers` 도 치우지만 그건 **부르는
+  //   카나리만** 면역이다. 여기서 치우면 전부 면역이다.
+  //   (계정마다 손으로 버전을 맞추는 것은 답이 아니다 — 개정할 때마다 잊는다.)
+  const consent = await page.evaluate(async (token) => {
+    if (!token) return 'no-token';
+    const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    try {
+      const r = await fetch('/api/auth/me', { credentials: 'include', headers: H });
+      if (!r.ok) return 'me-' + r.status;
+      const u = (await r.json()).data;
+      if (!u || !u.platform) return 'no-platform';
+      const tv = u.platform.current_terms_version;
+      const pv = u.platform.current_privacy_version;
+      const patch = {};
+      if (tv && tv !== u.terms_version) { patch.terms_version = tv; patch.terms_accepted_at = new Date().toISOString(); }
+      if (pv && pv !== u.privacy_version) { patch.privacy_version = pv; patch.privacy_accepted_at = new Date().toISOString(); }
+      if (!Object.keys(patch).length) return 'already';
+      const w = await fetch(`/api/users/${u.id}`, { method: 'PUT', credentials: 'include', headers: H, body: JSON.stringify(patch) });
+      return w.ok ? 'accepted' : 'put-' + w.status;
+    } catch (e) { return 'err-' + (e && e.message); }
+  }, res.token);
+  // ★ **조용히 실패하지 않는다.** 이 단계가 죽으면 재동의 모달이 모든 카나리의 클릭을 가로채는데
+  //   증상은 "버튼을 눌렀는데 아무 일이 없다" 로 나타나 원인을 한참 못 찾는다. 그래서 값을 남긴다.
+  //   ('already' = 맞출 것이 없었다 · 'accepted' = 실제로 동의시켰다 — 둘 다 정상.)
+  if (!['already', 'accepted'].includes(consent)) {
+    console.warn(`  [harness] 약관 자동 동의 실패: ${consent} — 재동의 모달이 판정을 가릴 수 있다`);
+  }
 }
 
 // ★ networkidle2 만 믿으면 **멀쩡한 화면에서 거짓 실패**가 난다.
@@ -75,6 +111,30 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  */
 async function dismissBlockers(page) {
   const cleared = [];
+
+  // ★ 약관 재동의 모달 (2026-09-14 추가) — **가장 먼저 치운다.**
+  //   약관을 개정해 platform_settings.terms_version 을 올리는 순간 이 모달이 전면에 떠
+  //   모든 카나리의 클릭을 가로챈다. 그리고 `aria-modal="true"` 라 "모달이 떴는가" 판정을
+  //   **위조**한다 — 2026-09-10 admintabs 에서 하마터면 초록으로 넘어갈 뻔했다
+  //   (memory feedback_consent_modal_fakes_modal_open · feedback_overlay_eats_click_false_reason).
+  //   계정마다 버전을 손으로 맞추는 것은 답이 아니다(개정마다 잊는다) — 하니스가 사용자처럼 동의한다.
+  if (await page.$('[data-testid="terms-reaccept"]')) {
+    for (const id of ['terms-reaccept-terms', 'terms-reaccept-privacy']) {
+      const box = await page.$(`[data-testid="${id}"]`);
+      if (box) { await box.click().catch(() => null); await sleep(120); }
+    }
+    const submit = await page.$('[data-testid="terms-reaccept-submit"]');
+    if (submit) {
+      await submit.click().catch(() => null);
+      cleared.push('약관 재동의');
+      // 사라질 때까지 기다린다 — 안 사라지면 뒤 판정이 전부 이 모달을 보고 있다
+      await page.waitForFunction(
+        () => !document.querySelector('[data-testid="terms-reaccept"]'),
+        { timeout: 6000 },
+      ).catch(() => null);
+    }
+  }
+
   for (let i = 0; i < 3; i++) {
     const btn = await page.$('[data-testid="attn-auto-ok"]');
     if (!btn) break;

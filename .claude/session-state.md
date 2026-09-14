@@ -87,6 +87,42 @@ https://gitconsulting.group/ · help@gitconsulting.group
 검증: 빌드 EXIT 0 · error TS 0 · 가드 전체 통과(55/56, 1은 문서 신선도 경고) · uispec 636/636 무변동 ·
 health-check 44/44 · 카나리 실패 0(headerrow·salelayout·sale-panel·projecttabs). **Fable 미검증(429 6차)** · 게이트 43.
 
+### 법인 2개 고지 — **완결** (Irene 이 정식 정보를 줬다: "남은 거 다 하라고")
+**GIT CONSULTING SDN. BHD.** · SSM `202201012250(1457947-A)` · TIN `C29771304030` ·
+P-02-06A, 2nd Floor, Tropicana Avenue, … 47410 Petaling Jaya, Selangor · help@gitconsulting.group
+
+**★ 앞 라운드에 내가 쓴 문구가 절반 거짓이었다.** 운영 `platform_settings` 직독으로 확인:
+- **계좌이체 → (주)아이린앤컴퍼니**(국민은행 · 105-87-76451) · **카드(Stripe) → 말레이시아 법인**
+- 그리고 "GIT Consulting Group" 은 **브랜드명**이지 등록 법인명이 아니었다(정식은 SDN. BHD.)
+→ 결제 수단에 따라 수취 법인이 다르다는 사실로 전부 다시 썼다.
+
+**단일 원천** `dev-frontend/src/config/legalEntities.ts` — 로케일의 법인명 하드코딩 **0건**(보간).
+국가 이름은 모듈에 두지 않는다(i18n 가드가 잡았다 — "말레이시아" 는 번역 대상).
+
+한 것: 약관 **제3조**·**제12조**(준거법) · 방침 **3조**(카드에 한정한 국외 이전 + SSM + **거부 수단**) ·
+결제 화면 · **랜딩 푸터 두 법인** · 시행일 `2026-08-10`→**`2026-09-14`** · dev `terms/privacy_version` **1.1**
+
+**★ 그 과정에 결함 3건을 찾아 같이 고쳤다**
+1. **세금계산서 신청 후 카드 결제 → 신청이 조용히 버려졌다**(`handleStripe` 가 tax 를 안 보낸다).
+   애초에 한국 세금계산서를 말레이시아 법인 수취 결제에 발행할 수 없다 → 카드 버튼 비활성 + 이유
+2. **푸터의 카드 수취 법인 행이 한국 법인 데이터 유무에 매달려** 블록째로 사라졌다(dev 는 전 칸 NULL)
+   → 조건 밖으로 분리. **운영 데이터로만 쟀으면 못 봤다**
+3. **약관 버전을 올리면 카나리 전체가 죽는 구조** — 재동의 모달이 `aria-modal` 로 판정을 위조하고
+   클릭을 가로채는데 `data-testid` 가 없었다 → testid 4개 + `dismissBlockers` + **`login()` 이 API 로
+   선동의**. 버전을 `'1.0'` 상수로 박던 카나리 2곳(`qnote-cue`·`admin-crawl`)도 DB 에서 읽게
+
+**★ 그 자동 동의를 처음엔 조용히 실패하게 만들었다** — access token 이 프론트 **메모리**에만 있어
+쿠키 fetch 는 401, `try/catch` 가 삼켰다. 로그인 응답 토큰을 Bearer 로 쓰고 **실패하면 경고**를 찍는다.
+
+### ★ 운영 사실 2건 (Irene 판단 필요)
+1. **운영에서 카드 결제가 지금 켜져 있다** — `stripe_card_enabled=1` · secret·webhook 모두 있음
+   → `isStripeEnabled('platform')` = **true**. memory 의 "문서 개정 전까지 OFF 권고" 가 반영 안 된 채
+   열려 있었다. 고지는 이제 넣었지만 **최종 문구가 전문가 확인을 안 받았다**
+2. **운영 `terms_version` 은 안 올렸다** — 설정은 서버별 DB 라 배포로 안 따라간다. 올리는 순간
+   운영 전 사용자에게 재동의 모달. 배포와 같은 순간에 해야 한다
+
+미푸시: 법인 완결분 포함. **Fable 미검증(429 7차)** · 게이트 43 · 43-B.
+
 ### ★ Irene 에게 물어야 하는 것 (세션이 끊겨 잃어버렸다)
 그때 1~4번으로 번호 붙인 신고 목록이 **어디에도 안 적혀 있다.** 복구된 것은 1번뿐이다.
 - **2·3번이 무엇이었나?**

@@ -224,7 +224,10 @@
       "address": "Address",
       "tel": "Phone",
       "email": "Email",
-      "verify": "Verify business"
+      "verify": "Verify business",
+      "cardBiller": "Card payments collected by",
+      "regNoIntl": "Company reg. no.",
+      "cardBillerCountry": "Malaysia"
     }
   },
   "featuresPage": {

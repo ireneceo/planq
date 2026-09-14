@@ -3,6 +3,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { billingEntityVars } from '../../config/legalEntities';
 
 interface SectionDef {
   key: string;                    // 번역 키 prefix (예: 'privacy.s1')
@@ -23,6 +24,12 @@ const asItems = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : 
 const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
   const { t, i18n, ready } = useTranslation('legal');
   const isKo = i18n.language?.startsWith('ko') !== false;
+
+  // ★ 법인명·등록번호는 **문구에 박지 않는다** — `config/legalEntities.ts` 한 곳에서 보간한다.
+  //   약관·개인정보처리방침·결제 화면·푸터가 같은 값을 쓰게 하려면 원천이 하나여야 한다.
+  //   `returnObjects: true` 로 받는 배열 항목에도 보간이 걸려야 하므로 값을 **여기서** 넘긴다
+  //   (넘기지 않으면 화면에 `{{billingEntity}}` 가 그대로 노출된다 — 실제로 열어서 확인했다).
+  const vars = billingEntityVars();
 
   // 문서별 섹션 목록
   // ★ deletion(계정 삭제 안내)은 **구글플레이가 요구하는 공개 페이지**다 —
@@ -100,11 +107,11 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
         {sections.map(s => (
           <Section key={s.key}>
             <SectionTitle>{t(`${s.key}.title`)}</SectionTitle>
-            {s.intro && <SectionIntro>{t(`${s.key}.intro`)}</SectionIntro>}
-            {s.content && <SectionP>{t(`${s.key}.${s.content}`)}</SectionP>}
+            {s.intro && <SectionIntro>{t(`${s.key}.intro`, vars)}</SectionIntro>}
+            {s.content && <SectionP>{t(`${s.key}.${s.content}`, vars)}</SectionP>}
             {s.items && (
               <List>
-                {asItems(t(`${s.key}.items`, { returnObjects: true })).map((item, i) => (
+                {asItems(t(`${s.key}.items`, { returnObjects: true, ...vars })).map((item, i) => (
                   <ListItem key={i}>{item}</ListItem>
                 ))}
               </List>

@@ -62,13 +62,17 @@ const TermsReacceptModal: React.FC = () => {
 
   return (
     <Backdrop>
-      <Dialog role="dialog" aria-modal="true" aria-label={t('terms.reacceptTitle', '약관 재동의') as string}>
+      {/* ★ data-testid 는 §17 요구사항이자 **하니스 생존 조건**이다 (2026-09-14).
+          약관을 개정해 버전을 올리는 순간 이 모달이 전면에 떠 모든 카나리의 클릭을 가로챈다.
+          손잡이가 없으면 하니스가 넘길 수 없어 개정마다 검사 전체가 죽는다
+          (memory feedback_consent_modal_fakes_modal_open · feedback_overlay_eats_click_false_reason). */}
+      <Dialog data-testid="terms-reaccept" role="dialog" aria-modal="true" aria-label={t('terms.reacceptTitle', '약관 재동의') as string}>
         <Header>{t('terms.reacceptTitle', '약관이 업데이트됐습니다')}</Header>
         <Body>
           <Hint>{t('terms.reacceptHint', '서비스를 계속 이용하려면 변경된 약관에 동의해주세요.')}</Hint>
           {termsChanged && (
             <ConsentItem>
-              <input type="checkbox" id="re-terms" checked={termsAgree} onChange={e => setTermsAgree(e.target.checked)} />
+              <input data-testid="terms-reaccept-terms" type="checkbox" id="re-terms" checked={termsAgree} onChange={e => setTermsAgree(e.target.checked)} />
               <label htmlFor="re-terms">
                 <a href="/terms" target="_blank" rel="noopener">{t('terms.termsLink', '이용약관')}</a>
                 {t('terms.versionLabel', ' (v{{v}})', { v: user.platform.current_terms_version }) as string}
@@ -78,7 +82,7 @@ const TermsReacceptModal: React.FC = () => {
           )}
           {privacyChanged && (
             <ConsentItem>
-              <input type="checkbox" id="re-privacy" checked={privacyAgree} onChange={e => setPrivacyAgree(e.target.checked)} />
+              <input data-testid="terms-reaccept-privacy" type="checkbox" id="re-privacy" checked={privacyAgree} onChange={e => setPrivacyAgree(e.target.checked)} />
               <label htmlFor="re-privacy">
                 <a href="/privacy" target="_blank" rel="noopener">{t('terms.privacyLink', '개인정보 처리방침')}</a>
                 {t('terms.versionLabel', ' (v{{v}})', { v: user.platform.current_privacy_version }) as string}
@@ -88,7 +92,7 @@ const TermsReacceptModal: React.FC = () => {
           )}
         </Body>
         <Footer>
-          <Submit type="button" onClick={submit} disabled={submitting || (termsChanged && !termsAgree) || (privacyChanged && !privacyAgree)}>
+          <Submit data-testid="terms-reaccept-submit" type="button" onClick={submit} disabled={submitting || (termsChanged && !termsAgree) || (privacyChanged && !privacyAgree)}>
             {submitting ? t('terms.saving', '저장 중...') : t('terms.agree', '동의하고 계속')}
           </Submit>
         </Footer>

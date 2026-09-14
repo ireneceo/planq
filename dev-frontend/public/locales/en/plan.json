@@ -185,9 +185,10 @@
     "or": "or",
     "stripe": {
       "payWithCard": "Pay by card",
-      "hint": "Paying by card takes you to Stripe's secure checkout, and your subscription activates instantly once payment completes. Subscription fees are billed under the name of GIT Consulting Group (Malaysia), so that entity name appears on your card statement and receipt — the Company remains your service provider.",
+      "hint": "Paying by card takes you to Stripe's secure checkout, and your subscription activates instantly once payment completes. Card payments are collected by {{billingEntity}} (Malaysia), so that entity's name appears on your card statement and receipt — the Company remains your service provider. Bank transfers are collected by the Company directly.",
       "notConfigured": "Card payment isn't available yet. Please use bank transfer.",
-      "failed": "Couldn't start the card payment. Please try again in a moment."
+      "failed": "Couldn't start the card payment. Please try again in a moment.",
+      "taxBlocked": "Tax invoices (세금계산서) are issued for bank transfers only — card payments are collected by our overseas entity, which cannot issue them. If you need a tax invoice, please pay by bank transfer above."
     }
   },
   "billing": {

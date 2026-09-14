@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { modalFooterRadius } from '../../components/Common/modalShell';
 import { useTranslation } from 'react-i18next';
+import { billingEntityVars } from '../../config/legalEntities';
 import { checkout, notifyPaymentPaid, startStripeCheckout, type PlanCode, type BillingCycle, type PlanDef, type TaxInvoiceInput } from '../../services/plan';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -263,7 +264,14 @@ export default function CheckoutModal({
           {stripeEnabled && paymentId && (
             <StripeBlock>
               <OrDivider><span>{t('checkout.or', '또는')}</span></OrDivider>
-              <CardPayBtn type="button" onClick={handleStripe} disabled={submitting}>
+              {/* ★ 세금계산서를 요청한 상태에서는 카드 결제를 막는다 (2026-09-14).
+                  세금계산서는 **계좌이체를 수취하는 한국 법인**만 발행할 수 있다 —
+                  카드 결제는 말레이시아 법인이 수취하므로 발행 주체가 아니다.
+                  그 전에는 눌리게 두고 `handleStripe` 가 세금계산서 입력을 **조용히 버렸다**
+                  (그 함수는 tax 를 아예 안 보낸다) — 사용자에게는 "신청했는데 안 나옴" 이 된다.
+                  눌리게 두고 서버가 거절하는 것도, 눌리게 두고 버리는 것도 확인이 아니다. */}
+              <CardPayBtn type="button" onClick={handleStripe} disabled={submitting || taxOpen}
+                title={taxOpen ? (t('checkout.stripe.taxBlocked') as string) : undefined}>
                 <CardIcon aria-hidden>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="1" y="4" width="22" height="16" rx="2" ry="2" /><line x1="1" y1="10" x2="23" y2="10" />
@@ -271,7 +279,12 @@ export default function CheckoutModal({
                 </CardIcon>
                 {t('checkout.stripe.payWithCard', '카드로 결제')}
               </CardPayBtn>
-              <StripeHint>{t('checkout.stripe.hint', '카드로 결제하면 Stripe 보안 결제 페이지로 이동하며, 결제 완료 시 구독이 즉시 활성화됩니다.')}</StripeHint>
+              {/* ★ 법인명은 문구에 박지 않고 `config/legalEntities.ts` 에서 보간한다 —
+                  약관·방침·푸터가 같은 값을 써야 한다. 폴백 문구에도 박지 않는다
+                  (폴백이 뜨는 순간 화면마다 다른 법인명이 보이게 된다). */}
+              <StripeHint>{taxOpen
+                ? t('checkout.stripe.taxBlocked')
+                : t('checkout.stripe.hint', { ...billingEntityVars() })}</StripeHint>
             </StripeBlock>
           )}
 

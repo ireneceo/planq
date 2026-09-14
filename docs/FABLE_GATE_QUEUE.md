@@ -2163,3 +2163,107 @@ Selangor · https://gitconsulting.group/ · help@gitconsulting.group
 
 ### 회귀 (전부 실패 0)
 `--suite headerrow` 36/36 · `--suite salelayout` · `--suite sale-panel` · `--suite projecttabs`
+
+---
+
+## 43-B. 법인 2개 고지 **완결** + 내가 틀렸던 것 (2026-09-14, 미배포)
+
+Irene 이 정식 법인 정보를 주었다: **GIT CONSULTING SDN. BHD.** · SSM `202201012250(1457947-A)` ·
+TIN `C29771304030` · P-02-06A, 2nd Floor, Tropicana Avenue, Persiaran Tropicana, Tropicana,
+47410 Petaling Jaya, Selangor · https://gitconsulting.group/ · help@gitconsulting.group
+
+### ★ 앞 라운드에 내가 쓴 문구는 **절반이 거짓**이었다
+
+*"유료 구독료의 청구 및 수취는 GIT Consulting Group 명의로 이루어집니다"* 라고 적었다.
+**계좌이체에 대해서는 거짓이다.** 운영 `platform_settings` 직독으로 확인했다:
+
+| 결제 수단 | 수취 법인 | 근거 |
+|---|---|---|
+| 계좌이체 | **(주)아이린앤컴퍼니** (국민은행 · 사업자등록번호 105-87-76451) | `bank_name='국민은행'` · `bank_account_holder='(주)아이린앤컴퍼니'` |
+| 카드(Stripe) | **GIT CONSULTING SDN. BHD.** | `merchant='platform'` Stripe 가입 법인 |
+
+그리고 **"GIT Consulting Group" 은 브랜드명이지 등록 법인명이 아니었다**(정식 상호는 SDN. BHD.).
+법적 고지에 브랜드명을 적어 둔 셈이다. 둘 다 **묻지 않고 짐작해서** 생긴 오류다
+(memory `feedback_verified_claim_not_assumed`).
+
+### 단일 원천으로 바꿨다
+법인명을 로케일 4곳에 복사해 놨던 것을 **`dev-frontend/src/config/legalEntities.ts` 한 곳**으로 모았다.
+문구는 `{{billingEntity}}` · `{{billingEntityRegNo}}` 로 보간한다 — 로케일의 법인명 하드코딩 **0건**.
+- **국가 이름은 모듈에 두지 않는다** — `countryKo:'말레이시아'` 를 넣었더니 i18n 하드코딩 가드가
+  즉시 잡았다(현재 278 / 베이스 277). 옳은 지적이다: "말레이시아" 는 식별자가 아니라 **번역 대상**이다.
+  → 모듈은 `countryCode:'MY'` 만 갖고, 낱말은 각 언어 문구 안에 있다. 가드 **277/277 원복**.
+- **`**` 마크다운을 로케일에 넣었다가** RAWMARKUP 하드 게이트에 걸릴 것을 알고 걷어냈다(4건).
+
+### 한 것
+| 곳 | 무엇을 |
+|---|---|
+| 약관 **제3조** | 결제 수단에 따라 수취 법인이 다르다는 사실 + 계약 당사자는 회사 |
+| 약관 **제12조** | 수취 법인이 해외여도 준거법·관할은 그대로이고 이용자 권리를 제한하지 않는다 |
+| 방침 **3조** | 카드 결제에 **한정한** 국외 이전 + SSM 번호 + **거부 수단 명시**(계좌이체는 국내 처리) |
+| 결제 화면 | 카드 명세서에 찍히는 법인명. 계좌이체는 회사가 직접 수취 |
+| 랜딩 푸터 | 두 법인 **독립** 표기 |
+| 시행일 | terms·privacy 둘 다 `2026-08-10` → **`2026-09-14`** |
+| dev `terms_version`·`privacy_version` | `1.0` → **`1.1`** (재동의 발동) |
+
+### ★ 그 과정에서 **결함 3건**을 찾아 같이 고쳤다
+
+**① 세금계산서를 신청하고 카드로 결제하면 그 신청이 조용히 버려졌다.**
+`handleStripe` 는 tax 입력을 **아예 보내지 않는다**(보내는 것은 `notifyPaymentPaid` = 계좌이체 경로뿐).
+사용자에게는 "신청했는데 안 나옴" 이 된다. 그리고 애초에 **한국 세금계산서를 말레이시아 법인이
+수취한 결제에 발행할 수 없다.** → 세금계산서 체크 시 카드 버튼 **비활성 + 이유 문구**
+(CLAUDE.md "눌리게 두고 서버가 거절하면 사용자에게는 아무 일도 안 일어난 것").
+
+**② 푸터의 카드 수취 법인 표기가 한국 법인 데이터 유무에 매달려 있었다.**
+`company && (legal_entity || biz_registration_no)` **안**에 넣었더니, 그 값이 비어 있는 서버에서
+**블록째로 사라졌다** — dev 실측으로 드러났다(dev `platform_settings` 사업자 칸 전부 NULL).
+말레이시아 법인 표기는 코드 상수라 언제나 있는데 남의 데이터에 묶여 있었다. → 조건 밖으로 분리.
+★ **운영 데이터로만 쟀으면 못 봤다.** 빈 데이터가 결합을 드러냈다.
+
+**③ 약관 버전을 올리면 카나리 전체가 죽는 구조였다.**
+카나리 계정(`health-check@planq.kr`)은 `1.0` 인데 플랫폼이 `1.1` 이 되면 재동의 모달이 전면에 뜬다.
+그 모달은 `aria-modal="true"` 라 **"모달이 떴는가" 판정을 위조**하고 모든 클릭을 가로챈다
+(memory `feedback_consent_modal_fakes_modal_open` · `feedback_overlay_eats_click_false_reason`).
+게다가 그 모달에 **`data-testid` 가 하나도 없어**(§17 위반) 하니스가 넘길 방법이 없었다.
+→ testid 4개 부여 + `dismissBlockers` 가 치운다 + **`login()` 이 API 로 먼저 동의**시켜
+  `dismissBlockers` 를 부르지 않는 카나리까지 면역. 그리고 버전을 안 채우던 카나리 2곳
+  (`canary-qnote-cue` · `canary-admin-crawl`)이 **`platform_settings` 에서 읽도록** 고쳤다
+  (`'1.0'` 상수로 박혀 있었다 — 개정하는 날 죽는 코드).
+
+### 아직 안 한 것 · Irene 판단
+- **운영 `terms_version` bump 은 안 했다.** 설정은 **서버별 DB** 라 배포로 안 따라간다
+  (memory `feedback_platform_settings_are_per_server`). 배포 지시가 오면 그때 올린다.
+  올리는 순간 **운영 전 사용자에게 재동의 모달**이 뜬다.
+- **★ 운영에서 카드 결제가 지금 켜져 있다.** 실측: `stripe_card_enabled=1` ·
+  `stripe_secret_enc` 있음 · `stripe_webhook_secret_enc` 있음 → `isStripeEnabled('platform')` = **true**.
+  memory `project_billing_entity_two_companies` 의 "문서 개정 전까지 OFF 권고" 가 **반영되지 않은 채**
+  열려 있었다. 이제 고지는 넣었으므로 끄고 갈 이유는 줄었지만, **최종 문구가 전문가 확인을
+  안 받았다.** 켤지/끌지는 Irene 판단.
+- TIN 은 모듈에만 있고 어느 화면에도 안 그린다(이유를 코드에 적었다).
+
+### Fable 이 봐야 할 것 (법적 문구 — 내가 기계로 못 가른다)
+1. **결제 수단에 따라 수취 법인이 다르다**는 구조를 약관 3조 + 방침 3조 + 결제 직전 + 푸터
+   네 곳에 적었다. 전자상거래법·표시의무 관점에서 **빠진 자리**가 있는가.
+2. **국외 이전 거부권** — "원하지 않으면 계좌이체" 를 거부 수단으로 적었다. 이것이 유효한
+   선택권인가(카드만 쓰는 해외 이용자에게는 사실상 선택이 없다).
+3. **제12조** — 준거법을 대한민국으로 유지하면서 해외 법인이 수취하는 구조가 성립하는가.
+4. **세금계산서 차단이 옳은 해법인가** — 아니면 카드도 한국 법인이 수취하도록 Stripe 계정을
+   바꾸는 것이 맞는가(그건 제품 결정이다).
+5. **영문본이 한글본과 같은 것을 말하는가** — 법적 문구는 직역이 오역이 되는 자리다.
+6. **시행일을 2026-09-14 로 적고 운영 버전을 안 올린 상태** — 화면은 새 약관을 보여주는데
+   동의 기록은 옛 버전이다. 이 간격이 허용되는가, 배포와 bump 를 같은 순간에 해야 하는가.
+
+### 43-B 자체 검증 (Fable 미검증 — 429 7차로 못 띄웠다)
+- 빌드 **EXIT 0 · `error TS` 0** · 산출물에 새 코드 확인(`terms-reaccept-submit` · `footer-card-biller`)
+- 가드 **전체 통과**(55/56 · 1은 문서 신선도 경고) — i18n 래칫 **277/277** · RAWMARKUP 하드게이트 통과 ·
+  PARITY(ko/en) 통과 · uispec 636/636
+- health-check **44/44** · `--suite tenant` 실패 0
+- **렌더 실측 5곳 전부 통과** — `/terms`·`/privacy` 를 **ko/en 양쪽 + localStorage 비운 첫 방문**으로 열어
+  ①정식 상호가 보인다 ②`{{` 보간 잔재 0 ③옛 브랜드명("GIT Consulting Group") 0
+  ④국외 이전·SSM·계좌이체 구분 문구가 보인다. 랜딩 푸터도 카드 수취 법인 행이 보인다.
+  ★ `returnObjects: true` 배열에 **보간이 걸리는지**를 믿지 않고 화면에서 확인했다.
+- **재동의 흐름 3단계 실측** (양성 대조군 — 계정 버전을 일부러 1.0 으로 되돌려 모달을 띄웠다):
+  ①모달이 뜬다(480×318 · "v1.1" 표기) ②하니스가 넘긴다 ③동의가 서버에 남는다(1.1/1.1)
+- ★ **하니스 자동 동의를 처음엔 조용히 실패하게 만들었다** — 쿠키만 믿고 붙였는데 access token 은
+  프론트 **메모리**에만 있어 `/api/auth/me` 가 401 이었고, `try/catch` 가 그걸 삼켰다.
+  로그인 응답의 토큰을 Bearer 로 쓰도록 고치고, **실패하면 경고를 찍게** 했다
+  (memory `feedback_unwired_guard_is_no_guard`).

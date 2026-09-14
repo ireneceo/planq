@@ -37,7 +37,7 @@
         "Google LLC (USA) — when you connect a Gmail account (Q Mail): email address, mail contents and attachments, access credentials (app passwords stored encrypted; OAuth tokens when connected via OAuth). Purpose: receiving, displaying, and sending your mail inside the PlanQ inbox. Retention: until disconnection.",
         "PlanQ's access, use, and storage of Google user data complies with the Google API Services User Data Policy, including the Limited Use requirements. Such data is used only to provide the features described above, and is never used for advertising or sold to third parties.",
         "Stripe, Inc. (USA) — card payment processing: amount, email. Card details are handled by Stripe directly and are not stored by the Company.",
-        "GIT Consulting Group (Malaysia) — the entity that bills and collects subscription fees: amount, email, transaction identifier. Because that entity is located in Malaysia, payment-related data is transferred outside Korea. Retention: the transaction-record retention period required by applicable law.",
+        "{{billingEntity}} (Malaysia, company reg. no. {{billingEntityRegNo}}) — the entity that collects subscription fees for card payments only: amount, email, transaction identifier. Because that entity is located in Malaysia, this data is transferred outside Korea. If you prefer not to have your data transferred abroad, you may pay by bank transfer instead, which is processed domestically with no international transfer. Retention: the transaction-record retention period required by applicable law.",
         "When a workspace connects its own Stripe account to receive card payments from its clients (Q Bill), payment data is processed directly between the client and that workspace's Stripe account and does not pass through the Company. The Company stores only the transaction ID and amount for invoice processing; the workspace operator is the data controller for such payments.",
         "OpenAI, L.L.C. (USA) — Cue AI feature: partial conversation content. Not used for model training (per OpenAI API terms).",
         "Deepgram, Inc. (USA) — Q Note recording: audio data. Not used for model training."
@@ -129,7 +129,7 @@
         "Users may cancel anytime before the next billing date. Cancellation takes effect from the next billing cycle.",
         "International users may be charged additional taxes (VAT, GST, sales tax) on top of listed prices.",
         "Failed payments enter a 7-day grace period. If unpaid, the account reverts to the Free plan.",
-        "Subscription fees are billed and collected under the name of GIT Consulting Group (Malaysia, https://gitconsulting.group). That entity name appears on your card statement and payment receipt. The Company remains the service provider and your counterparty under these Terms; direct service and refund inquiries to the Company. Payment-specific inquiries may also be sent to help@gitconsulting.group."
+        "The entity that collects your subscription fee depends on the payment method. Bank transfers are collected by the Company directly; card payments are collected by {{billingEntity}} (Malaysia), in which case that entity's name appears on your card statement and payment receipt. In either case the Company remains the service provider and your counterparty under these Terms, and service or refund inquiries should go to the Company. Card-payment inquiries may also be sent to {{billingEntityEmail}}."
       ]
     },
     "s4": {
@@ -207,7 +207,8 @@
       "items": [
         "These Terms are governed by the laws of the Republic of Korea.",
         "Disputes shall be settled in the Seoul Central District Court as the court of first instance.",
-        "International users agree to final resolution in Korean courts."
+        "International users agree to final resolution in Korean courts.",
+        "Even where {{billingEntity}} (Malaysia) collects the subscription fee, the Company remains your counterparty under these Terms, and the governing law and jurisdiction above continue to apply. The fact that the collecting entity is located abroad does not limit your rights."
       ]
     },
     "s13": {
