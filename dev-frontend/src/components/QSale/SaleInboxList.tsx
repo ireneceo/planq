@@ -278,6 +278,13 @@ const SaleInboxList: React.FC<Props> = ({
   }, [busyId, businessId, load, t]);
 
   const rows = useMemo(() => items, [items]);
+  // ★ 6차 — 버튼은 행마다 독립이라 **자동으로 같이 늘지 않는다.** min-width 를 빼면 1자리 행과
+  //   2자리 행의 폭이 갈린다(3차에 없애라고 한 그것). 그래서 «목록 최대 자릿수» 를 여기서 한 번
+  //   세어 전 버튼에 같이 준다. ★ 이 값은 **한 곳에서만** 나온다 — 행마다 세면 폭이 다시 갈린다.
+  const countCh = useMemo(
+    () => Math.max(1, ...rows.map((r) => String(r.note_count ?? 0).length)),
+    [rows],
+  );
   const selectedId = selected?.id ?? null;
 
   // 업무 추가 — **기존 업무 추가 폼 그대로**(components/QTask/TaskCreateForm).
@@ -421,19 +428,10 @@ const SaleInboxList: React.FC<Props> = ({
                     {t('action.view') as string}
                   </ActionButton>
 
-                  {/* ② 메모 — 행 **아래**에서 열린다(나가지 않는다).
-                      ★ 2026-09-14 5차 (Irene: *"메모 없는 건 이상하잖아. 그냥 메모 0, 메모 5
-                        이렇게 나오게 해. 그리고 메모 좌측정렬하면 숫자 2자리여도 안 이상해지지
-                        않을까?"*)
-                      **개수를 그대로 쓴다.** 0 도 쓴다 — 4차의 «점» 은 없는 쪽이 빈 자리로 보여
-                      이상했다. (2차에 *"메모 개수 표시는 없애"* 로 지웠던 것을 Irene 이 되돌렸다.
-                      숫자를 다시 지우지 말 것 — 이 줄이 그 이유다.)
-                      ★ **왜 좌측 정렬인가** — Irene 의 짐작이 맞다. 폭을 고정해 두고 가운데
-                        정렬하면 1자리→2자리에서 «메모» 글자가 반 칸 왼쪽으로 밀려 흔들린다.
-                        좌측 정렬이면 글자 시작 x 가 고정이고 숫자만 오른쪽으로 자란다.
-                      ★ **폭은 여전히 행마다 같아야 한다**(3차 요구). 숫자 칸에 `min-width: 2ch` 를
-                        줘서 1자리와 2자리가 **같은 폭**이 되게 한다 — 버튼 전체에 px 을 박지 않는다
-                        (글꼴이 바뀌면 거짓이 되고, 규격 토큰 밖 숫자는 가드가 센다). */}
+                  {/* ② 메모 — 행 아래에서 열린다. 계약이 하루에 네 번 바뀌었다(2차 개수삭제 →
+                      4차 점 → 5차 숫자+좌측정렬 → 6차 색구분·간격·최대자릿수 공유폭).
+                      **정본은 6차. 숫자를 다시 지우지 말 것** — 2차를 Irene 이 되돌렸다.
+                      좌측 정렬은 1→2자리에서 «메모» 글자가 반 칸 밀리지 않게. 폭은 행마다 같다(3차). */}
                   <MemoBtn tone="secondary" size="xs" disabled={busy}
                     data-testid={`sale-inbox-memo-${it.id}`}
                     data-has-notes={(it.note_count ?? 0) > 0 ? '1' : '0'}
@@ -441,7 +439,8 @@ const SaleInboxList: React.FC<Props> = ({
                     title={memoHint(it)} aria-label={memoHint(it)}
                     onClick={() => setMemoFor((v) => (v === it.id ? null : it.id))}>
                     {t('action.memo') as string}
-                    <MemoCount data-testid={`sale-inbox-memo-count-${it.id}`}>
+                    <MemoCount $on={(it.note_count ?? 0) > 0} $ch={countCh}
+                      data-testid={`sale-inbox-memo-count-${it.id}`}>
                       {it.note_count ?? 0}
                     </MemoCount>
                   </MemoBtn>
@@ -769,22 +768,27 @@ const IconX = styled.button`
   &:disabled { opacity: 0.5; cursor: default; }
 `;
 
-/* [메모 N] — 공용 `ActionButton` 을 **상속**한다(규격을 다시 쓰지 않는다).
-   ★ 좌측 정렬 — 폭이 고정된 채 가운데 정렬이면 숫자가 한 자리 늘 때 «메모» 글자가 반 칸
-     왼쪽으로 밀린다. 왼쪽에 붙여 두면 글자 시작 x 가 고정이고 숫자만 오른쪽으로 자란다
-     (Irene 2026-09-14 5차의 짐작이 맞았다). */
+/* [메모 N] — 공용 ActionButton 을 **상속**한다(규격을 다시 쓰지 않는다).
+   좌측 정렬 이유는 위 호출부 주석 참조(5차). */
 const MemoBtn = styled(ActionButton)`
   justify-content: flex-start;
 `;
-/* 숫자 칸 — `min-width: 2ch` 로 **1자리와 2자리가 같은 폭**이다.
-   버튼 전체에 px 폭을 박지 않는다: 글꼴이 바뀌면 그 숫자가 거짓이 되고,
-   규격 토큰(32/36/40/44) 밖의 값은 UI 가드가 위반으로 센다.
-   3자리(99+)가 되면 1ch 만큼 자란다 — 그건 받아들인다(그 수의 메모는 행 목록의 관심사가 아니다). */
-const MemoCount = styled.span`
+/* 숫자 칸. 버튼 전체에 px 폭을 박지 않는다 — 글꼴이 바뀌면 거짓이 되고,
+   규격 토큰(32/36/40/44) 밖의 값은 UI 가드가 센다. */
+const MemoCount = styled.span<{ $on: boolean; $ch: number }>`
   display: inline-block;
-  min-width: 2ch;
+  min-width: ${(p) => p.$ch}ch;  /* 목록 최대 자릿수 — 전부 1자리면 여백 0,
+                                    2자리가 생기면 전 버튼이 같이 늘어난다. */
+  /* «메모» 와 숫자 사이 (Irene 6차). ActionButton 의 gap 은 icon 슬롯에만 걸리고 이 숫자는
+     children(Label span) 안이라 닿지 않는다. ★ 주석에 백틱 금지 — styled 템플릿이 끊긴다. */
+  margin-left: 4px;
   text-align: left;
   font-variant-numeric: tabular-nums;  /* 자릿수마다 글자폭이 달라지지 않게 */
+  font-weight: 700;                    /* 숫자가 라벨보다 먼저 읽히게 */
+  /* 색은 COLOR_GUIDE 정본만 쓴다(새로 만들지 않는다): 1 이상 = Primary600 #0D9488
+     (글자용 녹색은 500 이 아니라 600 이다 — 500 은 fill 색이라 흰 배경에서 흐리다) ·
+     0 = Text Tertiary #94A3B8 */
+  color: ${(p) => (p.$on ? '#0D9488' : '#94A3B8')};
 `;
 /* 행 아래 메모 — 카드 **밖**(RowWrap 의 둘째 칸)이라 좌우 **풀폭**이다.
    grid-column 은 여기 쓰이지 않는다(부모가 grid 가 아니다) — 있던 것을 지웠다.

@@ -1,0 +1,16 @@
+{
+  "version": "1.52.8",
+  "date": "2026-09-15",
+  "items": [
+    {
+      "ko": {
+        "title": "Q sale 의 메모 개수가 색으로 먼저 눈에 들어옵니다",
+        "body": "메모가 하나라도 있으면 숫자가 PlanQ 기본 녹색으로, 없으면(0) 회색으로 표시됩니다. 숫자는 «메모» 글자와 조금 띄우고 굵게 두어, 목록을 훑을 때 어느 상담에 메모가 달렸는지 바로 보입니다. 버튼 좌우 길이는 행마다 같게 유지하되, 목록에 두 자리 개수가 나타나면 그때 모든 버튼이 함께 한 칸 넓어집니다 — 그래서 평소에는 남는 여백이 없습니다."
+      },
+      "en": {
+        "title": "Note counts in Q sale now stand out by color",
+        "body": "When a row has at least one note the number shows in PlanQ's primary green; when it has none (0) it shows in grey. The number sits slightly apart from the word «Notes» and is bolder, so scanning the list immediately shows which consults carry notes. Every row's button stays the same width, and if any row reaches a two-digit count all the buttons widen together by one character — so there is no wasted space the rest of the time."
+      }
+    }
+  ]
+}

@@ -228,6 +228,9 @@ async function measure(page) {
             countText: cnt ? (cnt.innerText || '').trim() : '',
             countW: cr ? Math.round(cr.width) : 0,
             countAlign: cs ? cs.textAlign : '',
+            // 2026-09-14 6차 — 숫자가 **색으로도** 말한다(1 이상 녹색 / 0 회색) + 간격
+            countColor: cs ? cs.color : '',
+            countGap: cs ? Math.round(parseFloat(cs.marginLeft) || 0) : 0,
             // 좌측 정렬 — 버튼 안의 글자가 왼쪽에 붙어 시작 x 가 고정인가
             justify: bs.justifyContent,
             // 글자 시작 x 가 버튼 왼쪽 안쪽 여백과 붙어 있는가
@@ -399,9 +402,32 @@ async function run() {
         const ws = [...new Set(mb.map((b) => b.w))];
         P('⑫ [메모] 버튼 폭이 **행마다 같다**', ws.length === 1,
           `폭 집합 {${ws.join(', ')}} · 있음 ${mb.filter((b) => b.has).length} / 없음 ${mb.filter((b) => !b.has).length}`);
-        P('⑫ 숫자 칸이 **1자리·2자리 같은 폭**이다 (min-width 2ch)',
-          [...new Set(mb.map((b) => b.countW))].length === 1 && mb[0].countW >= 10,
-          `숫자칸 폭 집합 {${[...new Set(mb.map((b) => b.countW))].join(', ')}}px`);
+        // ★ 2026-09-14 6차 — `min-width` 는 **고정 2ch 이 아니라 목록의 최대 자릿수**다
+        //   (Irene: *"2자리가 되면 자동으로 모든 버튼이 늘어나면 되는거지"*).
+        //   그래서 판정은 «10px 이상» 같은 절대값이 아니라 **행마다 같은 값인가** 다.
+        //   전부 1자리면 좁고, 어느 행이 2자리면 전부 같이 넓어진다 — 어느 쪽이든 **집합이 1개**.
+        P('⑫ 숫자 칸 폭이 **행마다 같다** (목록 최대 자릿수로 함께 늘어난다)',
+          [...new Set(mb.map((b) => b.countW))].length === 1 && mb[0].countW > 0,
+          `숫자칸 폭 집합 {${[...new Set(mb.map((b) => b.countW))].join(', ')}}px`
+          + ` · 자릿수 집합 {${[...new Set(mb.map((b) => b.countText.length))].join(',')}}`);
+        // ★ 2026-09-14 6차 (Irene: *"1 이상부터 메모가 있으면 우리 메인칼라 녹색계열로.
+        //   0은 회색으로"*). 색은 COLOR_GUIDE 정본만 쓴다 — 1 이상 Primary600 #0D9488(13,148,136),
+        //   0 은 Text Tertiary #94A3B8(148,163,184). 새 색을 만들면 여기서 실패한다.
+        const onC = mb.filter((b) => b.has), offC = mb.filter((b) => !b.has);
+        if (onC.length) {
+          P('⑫ 숫자 1 이상은 **녹색**이다 (Primary600 #0D9488)',
+            onC.every((b) => /rgb\(13,\s*148,\s*136\)/.test(b.countColor)),
+            `색 집합 {${[...new Set(onC.map((b) => b.countColor))].join(' | ')}}`);
+        }
+        if (offC.length) {
+          P('⑫ 숫자 0 은 **회색**이다 (Text Tertiary #94A3B8)',
+            offC.every((b) => /rgb\(148,\s*163,\s*184\)/.test(b.countColor)),
+            `색 집합 {${[...new Set(offC.map((b) => b.countColor))].join(' | ')}}`);
+        }
+        P('⑫ «메모» 와 숫자가 **떨어져 있다** (간격 ≥ 3px)',
+          mb.every((b) => b.countGap >= 3),
+          `간격 집합 {${[...new Set(mb.map((b) => b.countGap))].join(', ')}}px`);
+
         P('⑫ 폭 판정의 커버리지를 밝힌다 (있음/없음 몇 건을 쟀는가)', true,
           `이 폭에서 있음 ${mb.filter((b) => b.has).length} / 없음 ${mb.filter((b) => !b.has).length}`
           + ` · 자릿수 {${[...new Set(mb.map((b) => b.countText.length))].join(',')}}`);
@@ -627,6 +653,7 @@ async function run() {
             aria: b.getAttribute('aria-label') || '',
             countPresent: !!cnt,
             countText: cnt ? (cnt.innerText || '').trim() : '',
+            countColor: cnt ? getComputedStyle(cnt).color : '',
           };
         };
         const mine = readBtn(row);
@@ -647,6 +674,11 @@ async function run() {
         push('⑪ 라벨이 "메모 N" 모양이다', /\d/.test(tg.mine.label || ''), `"${tg.mine.label}"`);
         push('⑫ 이름(aria)이 개수를 말한다', !!tg.mine.aria && /\d/.test(tg.mine.aria),
           `aria="${tg.mine.aria}"`);
+        // ★ 0 → 1 이 되는 순간 **색도 바뀌어야** 한다. 여기가 색 전이를 실제로 잴 수 있는
+        //   유일한 자리다(dev 목록은 그냥 읽으면 전부 0이다).
+        push('⑫ 메모가 생기면 숫자 색이 **회색 → 녹색**으로 바뀐다',
+          /rgb\(13,\s*148,\s*136\)/.test(tg.mine.countColor || ''),
+          `색=${tg.mine.countColor}`);
         // ★ 신고의 본문 — 메모가 달린 행과 안 달린 행의 버튼 폭이 같아야 한다
         if (tg.otherHasOff > 0) {
           push('⑫ 메모 있는 행과 없는 행의 [메모] 버튼 **폭이 같다**',
