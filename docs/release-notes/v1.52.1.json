@@ -1,0 +1,36 @@
+{
+  "version": "1.52.1",
+  "date": "2026-09-14",
+  "items": [
+    {
+      "ko": {
+        "title": "앱에서 알림을 눌러도 그 화면으로 못 가던 문제",
+        "body": "아이폰·안드로이드 앱에서 알림을 누르면 «연결» 오류 화면이 뜨고 해당 화면으로 넘어가지 못했습니다. 앱이 아직 켜지는 중에 화면 전체를 다시 불러오려 해서 생긴 일이었고, 한 번 그 오류 화면에 들어가면 [다시 시도]를 눌러도 같은 화면만 반복됐습니다. 이제 앱이 준비될 때까지 기다렸다가 알림이 가리키는 화면으로 바로 들어가고, 오류 화면에서도 연결이 돌아오거나 앱을 다시 열면 스스로 복구합니다. (오류 화면 자체의 수정은 다음 앱 업데이트부터 적용됩니다.)"
+      },
+      "en": {
+        "title": "Tapping a notification in the app didn't open the screen",
+        "body": "On the iPhone and Android apps, tapping any notification showed a connection error instead of opening the screen. The app was reloading the whole page while it was still starting up, and once that error screen appeared, Retry only reloaded the same screen. Now the app waits until it's ready and goes straight to the notification's screen, and the error screen recovers by itself when the connection returns or you reopen the app. (The error screen's own fix ships with the next app update.)"
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 상세 탭들의 여백이 제각각이던 것",
+        "body": "프로젝트 상세에서 탭을 옮길 때마다 내용이 시작하는 위치와 좌우 여백이 조금씩 달라 화면이 흔들려 보였습니다. 보고서 탭은 좌우가 20px 안쪽으로 밀려 있었고, 파일 탭만 스크롤 동작이 달랐습니다. 12개 탭 전부 같은 자리에서 시작하도록 맞췄습니다 — 데스크탑·태블릿·폰 모두."
+      },
+      "en": {
+        "title": "Project detail tabs had inconsistent spacing",
+        "body": "Switching tabs in a project's detail view shifted the content slightly each time: the Report tab was inset by 20px, and the Files tab scrolled differently from the rest. All 12 tabs now start at the same position on desktop, tablet and phone."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로필 사진 업로드 검사 강화",
+        "body": "프로필 사진을 올릴 때 파일 이름과 형식만 보고 받아들이던 것을, 파일 내용이 실제로 이미지인지까지 확인합니다. 이미지인 척하는 파일은 저장되지 않습니다."
+      },
+      "en": {
+        "title": "Stricter profile photo checks",
+        "body": "Profile photo uploads were accepted based on the declared file type alone. We now verify that the file's contents are actually an image, so files merely posing as images are rejected."
+      }
+    }
+  ]
+}
