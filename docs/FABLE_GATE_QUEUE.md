@@ -1695,3 +1695,13 @@ Irene: *"지금 fable 안돼. 자체 검증해."* — 그래서 대기열 35의 
 
 **Fable 이 봐야 할 것**: 매직바이트 3종 외 형식(HEIC·AVIF 등)을 쓰는 기기에서 업로드가 막히는지,
 그리고 대기열 35의 A·C·D·E 는 그대로 남는다.
+
+**2026-09-14 (6차) — 또 429.** 오늘만 여섯 번째. `claude-fable-5-1` 크레딧 소진.
+⛔ **blocked_on_human — `/usage-credits`.** Irene 지시(*"지금 fable 안돼. 자체 검증해."*)로
+자체 검증으로 진행했고, 그 수치는 위 35·36 에 있다. 보고에는 **"Fable 미검증(자체 검증)"** 이라 쓴다.
+
+> ※ 이때 작업 트리에 **다른 세션의 미커밋 변경 4건**이 있었다(Capacitor 오프라인 폴백 —
+> `dev-frontend/package.json` · `src/components/NativeBridge.tsx` · `src/stores/tabStore.ts` ·
+> `www-placeholder/index.html`). **이 라운드의 검증 대상이 아니며 건드리지 않았다.**
+> 게이트 지문에는 그 파일들이 섞여 들어간다 — 마커는 "이 상태가 Fable 검증을 받지 않았다" 는
+> 뜻일 뿐, 저 변경을 **내가 봤다는 뜻이 아니다.**
