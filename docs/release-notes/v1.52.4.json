@@ -1,0 +1,46 @@
+{
+  "version": "1.52.4",
+  "date": "2026-09-15",
+  "items": [
+    {
+      "ko": {
+        "title": "메모를 달면 목록에서 바로 보이고, 펼쳐서 읽을 수 있습니다",
+        "body": "상담 목록에서 메모를 남겨도 그 사실이 목록에 드러나지 않았습니다. 메모 건수를 세는 기준이 메모가 아니라 «고객응대 내역»이었기 때문입니다. 이제 메모가 있는 줄에는 아래 왼쪽에 [메모보기]가 나타나고, 누르면 줄 아래로 넓게 펼쳐집니다. 메일·채팅·게스트 문의에 남긴 메모도 똑같이 셉니다."
+      },
+      "en": {
+        "title": "Notes you leave now show up in the list and open in place",
+        "body": "Leaving a note on a consult left no trace in the list, because the count was measuring customer interactions rather than notes. Rows that have notes now show a [Show notes] handle at the lower left, which opens a full-width panel under the row. Notes on email, chat and guest inquiries are counted the same way."
+      }
+    },
+    {
+      "ko": {
+        "title": "메모는 Enter 로 보냅니다 (줄바꿈은 Shift+Enter)",
+        "body": "메모·이슈 입력칸이 ⌘/Ctrl+Enter 를 요구해 보내는 방법을 찾기 어려웠습니다. 이제 Enter 로 보내고 Shift+Enter 로 줄을 바꿉니다. 업무·메일·채팅의 메모가 모두 같은 방식입니다. 한글 입력 중 마지막 글자를 확정하는 Enter 는 전송되지 않습니다."
+      },
+      "en": {
+        "title": "Send a note with Enter (Shift+Enter for a new line)",
+        "body": "Note and issue boxes required ⌘/Ctrl+Enter, which was hard to discover. Enter now sends and Shift+Enter starts a new line, the same way in tasks, mail and chat. An Enter that only confirms an in-progress Korean/Japanese/Chinese character does not send."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q sale 의 필터와 버튼 배치를 정리했습니다",
+        "body": "검색과 [고객응대 내역 추가]가 화면 오른쪽 위로 올라가고, 필터줄에는 거르는 것만 남았습니다. 단계·접근·담당자는 셀렉트 안에서 고르며, 고르기 전에도 무슨 축인지 보입니다. 종료 가리기는 체크박스로 돌아왔습니다. «보관함»은 하는 일에 맞게 «휴지통»으로 이름을 바꿨습니다."
+      },
+      "en": {
+        "title": "Q sale filters and buttons are laid out consistently",
+        "body": "Search and [Add customer interaction] moved to the top right, leaving only filters in the filter row. Stage, access and owner are chosen inside their select, which names its axis even before you pick. Hide-closed is a checkbox again. «Archive» was renamed «Trash» to match what it does."
+      }
+    },
+    {
+      "ko": {
+        "title": "상담 탭과 고객 탭이 같은 모양으로 맞춰졌습니다",
+        "body": "두 탭의 필터 알약이 서로 다른 위치·다른 색으로 그려져 탭을 옮길 때 줄이 어긋났습니다. 이제 같은 규격을 씁니다. 목록 행의 [보기] 버튼은 «메일 보기»·«고객 상세 보기» 대신 링크 아이콘과 «보기»로 통일되어 열이 가지런합니다(어디로 가는지는 마우스를 올리면 나옵니다)."
+      },
+      "en": {
+        "title": "The consults and clients tabs now match",
+        "body": "The two tabs drew their filter pills at different positions and in different colours, so the row shifted when you switched tabs. They now share one spec. Row buttons read «Open» with a link icon instead of «Open in Mail» / «Open client detail», so the columns line up — hover tells you where it goes."
+      }
+    }
+  ]
+}
