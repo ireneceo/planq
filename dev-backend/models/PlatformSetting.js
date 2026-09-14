@@ -60,6 +60,12 @@ PlatformSetting.init({
   stripe_publishable_key: { type: DataTypes.STRING(255), allowNull: true },
   stripe_secret_enc: { type: DataTypes.TEXT, allowNull: true },
   stripe_webhook_secret_enc: { type: DataTypes.TEXT, allowNull: true },
+  // ★ 2026-09-15 — 카드 결제 **사용 스위치** (Irene: *"사용할지 말지 토글로 열어야 하는 거 아니야?"*)
+  //   여태 활성 여부가 **키가 있느냐로만** 정해졌다. 그래서 키를 넣는 순간 결제가 켜지고,
+  //   잠시 끄려면 키를 지우는 수밖에 없었다(다시 켤 때 Stripe 에서 새로 발급받아야 한다).
+  //   법인·약관 정리가 끝날 때까지 키는 두고 결제만 닫아 두는 것이 실제로 필요하다.
+  //   기본 true — 이 칸이 생기기 전 동작(키가 있으면 켜짐)을 그대로 유지한다.
+  stripe_card_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   // PortOne (폐기 — Stripe 로 대체. 컬럼은 호환 유지)
   portone_store_id: { type: DataTypes.STRING(100), allowNull: true },
   portone_channel_key: { type: DataTypes.STRING(200), allowNull: true },

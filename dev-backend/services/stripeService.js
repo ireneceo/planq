@@ -66,7 +66,17 @@ async function getStripeForMerchant(merchant, merchantId) {
 async function isStripeEnabled(merchant, merchantId) {
   try {
     const { secret, webhookSecret } = await getStripeKeysForMerchant(merchant, merchantId);
-    return !!secret && !!webhookSecret;
+    if (!secret || !webhookSecret) return false;
+    // ★ 2026-09-15 — 플랫폼은 **사용 스위치**를 하나 더 본다.
+    //   키가 있어도 관리자가 꺼 두면 결제 버튼이 안 켜진다(법인·약관 정리 중 잠시 닫기 위함).
+    //   워크스페이스(Q Bill)는 종전대로 키 유무로만 판정한다 — 스위치가 없다.
+    if (normalizeMerchant(merchant) === 'platform') {
+      // 이 파일이 위에서 이미 들여온 모델을 쓴다 — `require('../models')` 로 다시 들이면
+      // 내보내는 모양이 달라 undefined 가 될 수 있다(그러면 스위치가 조용히 무시된다).
+      const row = await PlatformSetting.findOne({ order: [['id', 'ASC']], attributes: ['stripe_card_enabled'] });
+      if (row && row.stripe_card_enabled === false) return false;
+    }
+    return true;
   } catch { return false; }
 }
 

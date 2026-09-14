@@ -655,6 +655,7 @@ router.get('/platform-settings', async (req, res, next) => {
     try {
       const { isStripeEnabled } = require('../services/stripeService');
       data.stripe_enabled = await isStripeEnabled('platform');
+      data.stripe_card_enabled = row ? row.stripe_card_enabled !== false : true;
     } catch { data.stripe_enabled = false; }
     return successResponse(res, data);
   } catch (err) { next(err); }
@@ -708,6 +709,8 @@ router.put('/platform-settings', async (req, res, next) => {
         ? { stripe_secret_enc: b.stripe_secret ? encrypt(String(b.stripe_secret)) : null } : {}),
       ...(b.stripe_webhook_secret !== undefined
         ? { stripe_webhook_secret_enc: b.stripe_webhook_secret ? encrypt(String(b.stripe_webhook_secret)) : null } : {}),
+      // 카드 결제 사용 스위치 (2026-09-15) — 키를 지우지 않고 결제만 닫을 수 있게
+      ...(b.stripe_card_enabled !== undefined ? { stripe_card_enabled: !!b.stripe_card_enabled } : {}),
       // PortOne 은 걷어냈다(입력 경로 제거). DB 컬럼·결제 이력 ENUM 은 보존.
       ...setNum('default_vat_rate'),
       ...setNum('default_due_days'),

@@ -27,6 +27,7 @@ interface BillingSettings {
   stripe_secret_set: boolean;
   stripe_webhook_secret_set: boolean;
   stripe_enabled: boolean;      // 서버 판정 (복호화까지 성공해야 true)
+  stripe_card_enabled: boolean; // 관리자가 켜고 끄는 스위치 (키와 별개)
   default_vat_rate: number;
   default_due_days: number;
 }
@@ -35,7 +36,7 @@ const EMPTY: BillingSettings = {
   bank_name: '', bank_account_number: '', bank_account_holder: '',
   bank_name_en: '', bank_account_holder_en: '', swift_code: '',
   stripe_publishable_key: '', stripe_secret_set: false, stripe_webhook_secret_set: false,
-  stripe_enabled: false,
+  stripe_enabled: false, stripe_card_enabled: true,
   default_vat_rate: 0.1, default_due_days: 7,
 };
 
@@ -60,6 +61,8 @@ const AdminBillingSettingsPage = () => {
   const [data, setData] = useState<BillingSettings>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
+  // 저장된 키를 **바꾸는 중**인가 — 평소엔 입력칸 대신 '저장됨' 줄을 보인다
+  const [editing, setEditing] = useState({ ss: false, sw: false });
   // Stripe write-only 시크릿 — data 에 안 담고 로컬 입력만. 저장 후 비움(값은 서버에만).
   const [stripeSecretInput, setStripeSecretInput] = useState('');
   const [stripeWebhookInput, setStripeWebhookInput] = useState('');
@@ -86,6 +89,7 @@ const AdminBillingSettingsPage = () => {
           stripe_secret_set: !!r.data.stripe_secret_set,
           stripe_webhook_secret_set: !!r.data.stripe_webhook_secret_set,
           stripe_enabled: !!r.data.stripe_enabled,
+          stripe_card_enabled: r.data.stripe_card_enabled !== false,
           default_vat_rate: Number(r.data.default_vat_rate ?? 0.1),
           default_due_days: Number(r.data.default_due_days ?? 7),
         });
@@ -109,6 +113,7 @@ const AdminBillingSettingsPage = () => {
           ['bank_name', 'bank_account_number', 'bank_account_holder',
            'bank_name_en', 'bank_account_holder_en', 'swift_code',
            'stripe_publishable_key', 'stripe_secret_set', 'stripe_webhook_secret_set', 'stripe_enabled',
+           'stripe_card_enabled',
            'default_vat_rate', 'default_due_days'].includes(k)
         )
       ),
@@ -119,6 +124,11 @@ const AdminBillingSettingsPage = () => {
     setData((prev) => ({ ...prev, [key]: value }));
 
   // 형식이 틀리면 저장하지 않고 필드 아래 인라인 안내 (팝업·토스트 금지 — CLAUDE.md)
+  /** 붙여넣은 값 정리 — Stripe 대시보드에서 복사하면 앞뒤 공백·줄바꿈이 섞여 오고,
+   *  비밀번호 관리자가 자동입력을 끼워 넣기도 한다(Irene 2026-09-15: *"자동입력이 이상한게 들어가"*).
+   *  보이지 않는 문자까지 걷어내야 "sk_ 로 시작하는 값을 넣어주세요" 가 거짓으로 뜨지 않는다. */
+  const cleanKey = (v: string) => String(v || '').replace(/[\s\u200B-\u200D\uFEFF]/g, '');
+
   const guardFormat = (field: string, value: string) => {
     if (prefixOk(field, value)) {
       setKeyError((e) => { const n = { ...e }; delete n[field]; return n; });
@@ -135,14 +145,14 @@ const AdminBillingSettingsPage = () => {
   };
 
   const savePublishable = async () => {
-    const v = String(data.stripe_publishable_key || '').trim();
+    const v = cleanKey(data.stripe_publishable_key || '');
     if (!guardFormat('stripe_publishable_key', v)) throw new Error('invalid_format');
     await save({ stripe_publishable_key: v });
   };
 
   // write-only 시크릿 저장 — 비어있으면 유지(실수 삭제 방지), 값 있으면 암호화 저장 후 입력 비움.
   const saveStripeSecret = async (field: 'stripe_secret' | 'stripe_webhook_secret', value: string, clear: () => void) => {
-    const v = value.trim();
+    const v = cleanKey(value);
     if (!v) return;
     if (!guardFormat(field, v)) throw new Error('invalid_format');
     await save({ [field]: v } as unknown as Partial<BillingSettings>);
@@ -214,8 +224,28 @@ const AdminBillingSettingsPage = () => {
         {/* ② 카드 결제 — 넣어야 하는 2개 */}
         <Card>
           <SectionTitle>{t('billing.stripeSection', '카드 결제 (Stripe)')}</SectionTitle>
+
+          {/* ★ 2026-09-15 — **사용 스위치** (Irene: *"사용할지 말지 토글로 열어야 하는 거 아니야?"*)
+              여태 활성 여부가 키 유무로만 정해져, 잠시 끄려면 키를 지우는 수밖에 없었다
+              (다시 켤 때 Stripe 에서 새로 발급받아야 한다). 이제 키는 두고 결제만 닫을 수 있다. */}
+          <ToggleRow>
+            <AutoSaveField type="toggle" onSave={async () => save({ stripe_card_enabled: !data.stripe_card_enabled })}>
+              <SwitchLabel>
+                <SwitchInput type="checkbox" checked={data.stripe_card_enabled}
+                  onChange={() => setData((d) => ({ ...d, stripe_card_enabled: !d.stripe_card_enabled }))} />
+                <SwitchTrack />
+                <SwitchText>{t('billing.cardUse', '카드 결제 사용')}</SwitchText>
+              </SwitchLabel>
+            </AutoSaveField>
+            <ToggleHint>
+              {data.stripe_card_enabled
+                ? t('billing.cardUseOn', '아래 2개를 다 넣으면 결제 화면에 «카드로 결제» 가 나타납니다.')
+                : t('billing.cardUseOff', '꺼져 있습니다 — 키가 있어도 «카드로 결제» 가 나타나지 않습니다. 키는 지워지지 않습니다.')}
+            </ToggleHint>
+          </ToggleRow>
+
           <Hint>
-            {t('billing.stripeHint2', '아래 2개를 넣으면 구독 결제 화면에 "카드로 결제" 버튼이 켜집니다. 둘 다 암호화되어 저장되며 화면에 다시 표시되지 않습니다.')}
+            {t('billing.stripeHint3', '두 값 모두 암호화되어 저장되며, 저장 뒤에는 화면에 다시 표시되지 않습니다(설계상 정상입니다).')}
           </Hint>
 
           {/* 1단계 — Secret Key */}
@@ -232,22 +262,42 @@ const AdminBillingSettingsPage = () => {
               {t('billing.whereSecret', 'Stripe 대시보드 → 개발자 → API 키 에서 "공개(Reveal)" 를 눌러 복사')}
               <LinkOut href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noreferrer">dashboard.stripe.com/apikeys</LinkOut>
             </StepWhere>
-            <SecretRow>
-              <AutoSaveField type="input" onSave={async () => saveStripeSecret('stripe_secret', stripeSecretInput, () => setStripeSecretInput(''))}>
-                <Input type={reveal.ss ? 'text' : 'password'}
-                  value={stripeSecretInput} onChange={e => setStripeSecretInput(e.target.value)}
-                  placeholder={data.stripe_secret_set ? (t('billing.secretKeepPh', '변경하려면 새 값 입력 (비우면 유지)') as string) : 'sk_live_...'}
-                  maxLength={255} autoComplete="off" />
-              </AutoSaveField>
-              <RevealBtn type="button" onClick={() => setReveal((r) => ({ ...r, ss: !r.ss }))}>
-                {reveal.ss ? t('billing.hide', '숨기기') : t('billing.show', '보기')}
-              </RevealBtn>
-            </SecretRow>
-            {keyError.stripe_secret && <FieldError>{keyError.stripe_secret}</FieldError>}
-            {data.stripe_secret_set && (
-              <ClearBtn type="button" onClick={() => clearStripeSecret('stripe_secret')}>
-                {t('billing.secretClear', '삭제 (카드 결제 비활성화)')}
-              </ClearBtn>
+            {/* ★ 2026-09-15 — 저장된 뒤에는 **입력칸을 보여주지 않는다** (Irene: *"저장되면 없어져버려…
+                변경하려면 새값 입력(비우면 유지) 이게 뭐야?"*). 값이 사라진 빈 칸은 "저장이 안 됐나" 로 읽힌다.
+                저장됐으면 **저장됨 줄**을 보이고, 바꿀 때만 입력칸을 연다. */}
+            {data.stripe_secret_set && !editing.ss ? (
+              <SavedRow>
+                <SavedMask>••••••••••••••••</SavedMask>
+                <SavedNote>{t('billing.savedNote', '암호화되어 저장됨 — 다시 표시되지 않습니다')}</SavedNote>
+                <RevealBtn type="button" onClick={() => { setStripeSecretInput(''); setEditing((e) => ({ ...e, ss: true })); }}>
+                  {t('billing.change', '바꾸기')}
+                </RevealBtn>
+                <ClearBtn type="button" onClick={() => clearStripeSecret('stripe_secret')}>
+                  {t('billing.keyClear', '이 키 지우기')}
+                </ClearBtn>
+              </SavedRow>
+            ) : (
+              <>
+                <SecretRow>
+                  <AutoSaveField type="input" onSave={async () => { await saveStripeSecret('stripe_secret', stripeSecretInput, () => setStripeSecretInput('')); setEditing((e) => ({ ...e, ss: false })); }}>
+                    <Input type={reveal.ss ? 'text' : 'password'}
+                      value={stripeSecretInput} onChange={e => setStripeSecretInput(e.target.value)}
+                      placeholder="sk_live_... / rk_live_..."
+                      maxLength={255}
+                      name="planq-stripe-secret" spellCheck={false}
+                      autoComplete="new-password" data-1p-ignore data-lpignore="true" data-bwignore />
+                  </AutoSaveField>
+                  <RevealBtn type="button" onClick={() => setReveal((r) => ({ ...r, ss: !r.ss }))}>
+                    {reveal.ss ? t('billing.hide', '숨기기') : t('billing.show', '보기')}
+                  </RevealBtn>
+                </SecretRow>
+                {keyError.stripe_secret && <FieldError>{keyError.stripe_secret}</FieldError>}
+                {data.stripe_secret_set && (
+                  <ClearBtn type="button" onClick={() => setEditing((e) => ({ ...e, ss: false }))}>
+                    {t('billing.cancelChange', '바꾸기 취소')}
+                  </ClearBtn>
+                )}
+              </>
             )}
           </Step>
 
@@ -277,22 +327,39 @@ const AdminBillingSettingsPage = () => {
               <Code>{WEBHOOK_EVENTS}</Code>
             </CodeRow>
 
-            <SecretRow>
-              <AutoSaveField type="input" onSave={async () => saveStripeSecret('stripe_webhook_secret', stripeWebhookInput, () => setStripeWebhookInput(''))}>
-                <Input type={reveal.sw ? 'text' : 'password'}
-                  value={stripeWebhookInput} onChange={e => setStripeWebhookInput(e.target.value)}
-                  placeholder={data.stripe_webhook_secret_set ? (t('billing.secretKeepPh', '변경하려면 새 값 입력 (비우면 유지)') as string) : 'whsec_...'}
-                  maxLength={255} autoComplete="off" />
-              </AutoSaveField>
-              <RevealBtn type="button" onClick={() => setReveal((r) => ({ ...r, sw: !r.sw }))}>
-                {reveal.sw ? t('billing.hide', '숨기기') : t('billing.show', '보기')}
-              </RevealBtn>
-            </SecretRow>
-            {keyError.stripe_webhook_secret && <FieldError>{keyError.stripe_webhook_secret}</FieldError>}
-            {data.stripe_webhook_secret_set && (
-              <ClearBtn type="button" onClick={() => clearStripeSecret('stripe_webhook_secret')}>
-                {t('billing.secretClear', '삭제 (카드 결제 비활성화)')}
-              </ClearBtn>
+            {data.stripe_webhook_secret_set && !editing.sw ? (
+              <SavedRow>
+                <SavedMask>••••••••••••••••</SavedMask>
+                <SavedNote>{t('billing.savedNote', '암호화되어 저장됨 — 다시 표시되지 않습니다')}</SavedNote>
+                <RevealBtn type="button" onClick={() => { setStripeWebhookInput(''); setEditing((e) => ({ ...e, sw: true })); }}>
+                  {t('billing.change', '바꾸기')}
+                </RevealBtn>
+                <ClearBtn type="button" onClick={() => clearStripeSecret('stripe_webhook_secret')}>
+                  {t('billing.keyClear', '이 키 지우기')}
+                </ClearBtn>
+              </SavedRow>
+            ) : (
+              <>
+                <SecretRow>
+                  <AutoSaveField type="input" onSave={async () => { await saveStripeSecret('stripe_webhook_secret', stripeWebhookInput, () => setStripeWebhookInput('')); setEditing((e) => ({ ...e, sw: false })); }}>
+                    <Input type={reveal.sw ? 'text' : 'password'}
+                      value={stripeWebhookInput} onChange={e => setStripeWebhookInput(e.target.value)}
+                      placeholder="whsec_..."
+                      maxLength={255}
+                      name="planq-stripe-webhook" spellCheck={false}
+                      autoComplete="new-password" data-1p-ignore data-lpignore="true" data-bwignore />
+                  </AutoSaveField>
+                  <RevealBtn type="button" onClick={() => setReveal((r) => ({ ...r, sw: !r.sw }))}>
+                    {reveal.sw ? t('billing.hide', '숨기기') : t('billing.show', '보기')}
+                  </RevealBtn>
+                </SecretRow>
+                {keyError.stripe_webhook_secret && <FieldError>{keyError.stripe_webhook_secret}</FieldError>}
+                {data.stripe_webhook_secret_set && (
+                  <ClearBtn type="button" onClick={() => setEditing((e) => ({ ...e, sw: false }))}>
+                    {t('billing.cancelChange', '바꾸기 취소')}
+                  </ClearBtn>
+                )}
+              </>
             )}
           </Step>
 
@@ -520,6 +587,33 @@ const OptionalBadge = styled.span`
   font-size: 0.6875rem; font-weight: 600; color: #94A3B8;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 2px 8px;
 `;
+const SavedRow = styled.div`
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
+`;
+const SavedMask = styled.span`
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem; color: #475569; letter-spacing: 1px;
+`;
+const SavedNote = styled.span`
+  font-size: 0.75rem; color: #64748B; flex: 1 1 200px; min-width: 0;
+`;
+const ToggleRow = styled.div`
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 4px 0 12px;
+`;
+const ToggleHint = styled.span`font-size: 0.75rem; color: #64748B; flex: 1 1 240px; min-width: 0;`;
+const SwitchLabel = styled.label`display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;`;
+const SwitchText = styled.span`font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
+const SwitchInput = styled.input`
+  appearance: none; width: 40px; height: 22px; border-radius: 999px; background: #CBD5E1;
+  position: relative; cursor: pointer; transition: background .15s; flex-shrink: 0;
+  &:checked { background: #0D9488; }
+  &::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+    border-radius: 50%; background: #fff; transition: transform .15s; }
+  &:checked::after { transform: translateX(18px); }
+`;
+const SwitchTrack = styled.span``;
+
 const ClearBtn = styled.button`
   align-self: flex-start; margin-top: 2px;
   font-size: 0.75rem; font-weight: 600; color: #B91C1C;

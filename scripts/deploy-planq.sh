@@ -402,6 +402,13 @@ sync_database() {
   log "Adding client_id to project_notes (Q sale 상담 메모)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-sale-note-client.js 2>&1 | tail -5"
 
+  # 2026-09-15 — 카드 결제 **사용 스위치**: platform_settings.stripe_card_enabled.
+  #   Irene: "사용할지 말지 토글로 열어야 하는 거 아니야?" — 키를 지우지 않고 결제만 닫기 위한 칸.
+  #   ★ **코드보다 먼저 돈다** — 모델이 이 칸을 선언하므로 없으면 설정 화면이 500 이다.
+  #   기본 TRUE 라 이 칸이 생기기 전 동작(키가 있으면 켜짐)이 그대로 유지된다. 멱등.
+  log "Adding stripe_card_enabled to platform_settings (카드 결제 스위치)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-stripe-card-toggle.js 2>&1 | tail -5"
+
   # 2026-09-09 — 휴가 **종류**(leave_grants/leave_requests.category ENUM 4종).
   #   Irene: "관리자가 멤버에게 휴가 연차나 등등 종류별로 제공하는 거 어떻게 줘?"
   #   ★ **코드보다 먼저 돈다** — 모델이 category 를 선언하므로 컬럼 없이 새 코드가 뜨면
