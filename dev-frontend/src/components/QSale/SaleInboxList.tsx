@@ -29,7 +29,6 @@ import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
 import {
   listSaleInbox, dismissInboxItem, restoreInboxItem, purgeInboxItem, setSaleStage,
-  listConsultNotes, addConsultNote, deleteConsultNote, type SaleNote, type ConsultRefKind,
   SALE_STAGES, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource,
   type SaleStage,
 } from '../../services/sale';
@@ -39,9 +38,9 @@ import { OptionList, OptionBtn, OptName, OptHint } from '../Common/optionList';
 // 일정 추가 — 상세·패널과 같은 창(다음 연락 정하기). 고객이 일정에 연결된다
 import NextContactModal from './NextContactModal';
 // 상담 기록(메모) — 같은 창을 쓴다
-// 메모는 채팅방·메일과 **같은 댓글 컴포넌트**를 쓴다(공개범위·초안 보존 내장)
-import NoteThread from '../Common/NoteThread';
 import { useAuth } from '../../contexts/AuthContext';
+// 메모(댓글)는 별도 파일 — 이 파일이 800줄을 넘어 분리했다(god-file 가드)
+import SaleNoteThread from './SaleNoteThread';
 // 히스토리 항목 → 갈 곳. 새 탭으로 연다(목록을 잃지 않게)
 
 interface Props {
@@ -356,50 +355,51 @@ const SaleInboxList: React.FC<Props> = ({
                       : !it.title && <Preview $muted>{t('inbox.noBody') as string}</Preview>}
                   </RowBody>
                 </RowMain>
+                <StageSlot>
+                {/* 단계 — **리스트에서 바꾼다**. 고객 기준이라 같은 고객의 다른 상담도 함께 바뀐다.
+                    전체 프로필·우측 패널과 **같은 ChipPopover** 다(자리마다 새로 그리지 않는다). */}
+                <ChipPopover
+                  prefix={t('stage.label') as string}
+                  label={it.stage ? (t(`stage.${it.stage}`) as string) : (t('stage.none') as string)}
+                  active={!!it.stage && it.stage !== 'none'}
+                  data-testid={`sale-inbox-stage-${it.id}`}
+                  width={260}
+                >
+                  {(close) => (
+                    <OptionList role="listbox">
+                      {SALE_STAGES.map((sg) => (
+                        <OptionBtn key={sg} type="button" role="option" aria-selected={it.stage === sg}
+                          $on={it.stage === sg}
+                          data-testid={`sale-inbox-stage-${it.id}-${sg}`}
+                          onClick={() => {
+                            close();
+                            // 아직 고객이 아니면 먼저 등록해야 단계가 붙는다 — 한 번 묻는다
+                            if (!it.client_id && it.ref.kind !== 'client') { setStageAsk({ it, to: sg }); return; }
+                            void applyStage(it, sg);
+                          }}>
+                          <OptName>{t(`stage.${sg}`) as string}</OptName>
+                          <OptHint>{t(`stage.${sg}_hint`) as string}</OptHint>
+                        </OptionBtn>
+                      ))}
+                    </OptionList>
+                  )}
+                </ChipPopover>
+
+                </StageSlot>
                 <RowActions>
-                  {/* ★ 2026-09-14 순서 변경 (Irene: *"Q sale 에서 단계 바꾸는 거 맨 끝에 두지 말고
-                      버튼들 가장 처음에 중앙배치 열 맞춰서 배치해줘."*)
-                      단계가 **맨 앞**이다 — 상담에서 가장 자주 바꾸는 것이고, 행마다 자리가 같아야
-                      눈으로 훑을 수 있다. 그래서 고정 폭 칸(StageSlot)에 넣어 **열을 맞춘다.**
-                      나머지는 종전 순서: 보기 · 메모 · 일정 · 업무 · ✕ */}
-                  <StageSlot>
-                  {/* 단계 — **리스트에서 바꾼다**. 고객 기준이라 같은 고객의 다른 상담도 함께 바뀐다.
-                      전체 프로필·우측 패널과 **같은 ChipPopover** 다(자리마다 새로 그리지 않는다). */}
-                  <ChipPopover
-                    prefix={t('stage.label') as string}
-                    label={it.stage ? (t(`stage.${it.stage}`) as string) : (t('stage.none') as string)}
-                    active={!!it.stage && it.stage !== 'none'}
-                    data-testid={`sale-inbox-stage-${it.id}`}
-                    width={260}
-                  >
-                    {(close) => (
-                      <OptionList role="listbox">
-                        {SALE_STAGES.map((sg) => (
-                          <OptionBtn key={sg} type="button" role="option" aria-selected={it.stage === sg}
-                            $on={it.stage === sg}
-                            data-testid={`sale-inbox-stage-${it.id}-${sg}`}
-                            onClick={() => {
-                              close();
-                              // 아직 고객이 아니면 먼저 등록해야 단계가 붙는다 — 한 번 묻는다
-                              if (!it.client_id && it.ref.kind !== 'client') { setStageAsk({ it, to: sg }); return; }
-                              void applyStage(it, sg);
-                            }}>
-                            <OptName>{t(`stage.${sg}`) as string}</OptName>
-                            <OptHint>{t(`stage.${sg}_hint`) as string}</OptHint>
-                          </OptionBtn>
-                        ))}
-                      </OptionList>
-                    )}
-                  </ChipPopover>
+                  {/* 나머지 순서는 종전대로: 보기 · 메모 · 일정 · 업무 · ✕ */}
 
-                  </StageSlot>
-
-                  {/* ① 보기 — **다른 화면으로 나간다**. 라벨이 목적지를 말한다(고객 상세·메일·채팅·게스트) */}
-                  <ActionButton tone="secondary" size="sm" disabled={busy}
-                    data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}>
-                    <OutIcon aria-hidden />
-                    {viewInLabel(it)}
-                  </ActionButton>
+                  {/* ① 보기 — **다른 화면으로 나간다**. 라벨이 목적지를 말한다(고객 상세·메일·채팅·게스트)
+                      ★ 고정 폭 칸에 넣는다. 라벨이 행마다 다르면("메일 보기" 112px vs "고객 상세 보기" 139px)
+                        액션 묶음 전체 폭이 흔들려 **왼쪽의 단계 칸까지 밀린다**(실측 left 882 vs 902).
+                        여기만 고정하면 단계 열이 위아래로 정확히 맞는다. */}
+                  <ViewSlot>
+                    <ActionButton tone="secondary" size="sm" disabled={busy}
+                      data-testid={`sale-inbox-open-${it.id}`} onClick={() => openRow(it)}>
+                      <OutIcon aria-hidden />
+                      {viewInLabel(it)}
+                    </ActionButton>
+                  </ViewSlot>
 
                   {/* ② 메모 — 행 **아래**에서 열린다(나가지 않는다). 건수를 같이 보여준다 */}
                   <ActionButton tone="secondary" size="sm" disabled={busy}
@@ -593,76 +593,6 @@ const SaleInboxList: React.FC<Props> = ({
  *    여기서 남긴 메모가 그쪽에도 바로 보인다(Irene: "상담 리스트에 메모 남기는 거 … 우측 패널
  *    고객페이지에도 나와야 해").
  *  ★ 아직 고객이 아닌 행이면 메모를 붙일 곳이 없다 — 남기려 할 때 한 번 묻고 등록한다. */
-/** 상담 메모 = **댓글 스레드**. (2026-09-14)
- *
- *  Irene: *"이 메모를 고객응대 내역이랑 섞은 거야? 그냥 담당자 메모야. … 리스트에 댓글이 달리는 것처럼
- *  붙여달라는 거고 그걸 열였다 접었다 할 수 잇게 해줘. … 채팅방 보면 메모를 공개범위 선택해서 할 수
- *  잇잖아. 그거 그대로 하자."*
- *
- *  ★ 여기 있던 것은 **고객응대 내역(ClientInteraction) 타임라인 전체**였다 — [메모] 를 누르면
- *    원장이 통째로 펼쳐졌다. 그건 메모가 아니다. 원장은 [보기]·우측 패널에서 본다.
- *  ★ 컴포넌트는 채팅방·메일 맥락 패널과 **같은 것**(`components/Common/NoteThread`) —
- *    공개범위 고르기·초안 보존·본인 것만 삭제가 이미 그 안에 있다. 새로 그리지 않는다.
- *  ★ 어떤 문의를 기준으로 남겼는지는 **저장 대상 자체**가 말한다(메일 스레드·대화방·고객).
- */
-function SaleNoteThread({ businessId, item, myUserId, onChanged }: {
-  businessId: number; item: SaleInboxItem; myUserId: number | null; onChanged: () => void;
-}) {
-  const { t } = useTranslation('qsale');
-  const { formatTimeAgo } = useTimeFormat();
-  const [notes, setNotes] = useState<SaleNote[] | null>(null);
-
-  // 이 행의 메모가 어디에 붙는가 — 메일이면 스레드, 게스트/채팅이면 대화방, 등록된 상담이면 고객.
-  const target = useMemo((): { kind: ConsultRefKind; id: number } | null => {
-    const r = item.ref;
-    if (r.kind === 'email_thread') return { kind: 'email_thread', id: r.id };
-    if (r.kind === 'conversation') return { kind: 'conversation', id: r.id };
-    if (r.kind === 'guest_link' && r.conversation_id) return { kind: 'conversation', id: r.conversation_id };
-    if (r.kind === 'client') return { kind: 'client', id: r.id };
-    if (item.client_id) return { kind: 'client', id: item.client_id };
-    return null;
-  }, [item]);
-
-  const reload = useCallback(() => {
-    if (!target) { setNotes([]); return; }
-    listConsultNotes(businessId, target.kind, target.id)
-      .then(setNotes).catch(() => setNotes([]));
-  }, [businessId, target]);
-
-  useEffect(() => { reload(); }, [reload]);
-
-  if (!target) return <MemoDim>{t('note.noTarget', { defaultValue: '이 행에는 메모를 붙일 수 없습니다.' }) as string}</MemoDim>;
-
-  return (
-    <NoteThread
-      notes={(notes || []).map((n) => ({
-        id: n.id, body: n.body, visibility: n.visibility,
-        author_user_id: n.author_user_id, author_name: n.author_name, created_at: n.created_at,
-      }))}
-      myUserId={myUserId}
-      canChooseVisibility
-      formatTime={formatTimeAgo}
-      onAdd={async (body, visibility) => {
-        // ★ 성공 여부를 돌려준다 — NoteThread 는 true 일 때만 쓰던 글을 비운다(실패하면 글이 남아야 한다)
-        try {
-          await addConsultNote(businessId, target.kind, target.id, body, visibility);
-          reload(); onChanged();
-          return true;
-        } catch { return false; }
-      }}
-      onDelete={async (id) => {
-        try { await deleteConsultNote(businessId, target.kind, target.id, id); reload(); onChanged(); }
-        catch { /* 실패는 목록 그대로 둔다 */ }
-      }}
-      draftKind="sale-note"
-      draftEntityId={`${target.kind}:${target.id}`}
-      draftBizId={businessId}
-      emptyText={t('note.empty', { defaultValue: '아직 메모가 없습니다' }) as string}
-      placeholder={t('note.placeholder', { defaultValue: '메모 작성... (⌘/Ctrl+Enter 저장)' }) as string}
-    />
-  );
-}
-
 /** 일정 추가 — 고객이 있어야 일정에 연결된다. 없으면 한 번 묻고 등록한 뒤 연다.
  *  창 자체는 상세·패널과 **같은 것**(NextContactModal)이다. */
 function NextContactEnsure({ businessId, item, onEnsureClient, onClose, onSaved }: {
@@ -776,10 +706,24 @@ const RowActions = styled.div`
   margin-left: auto; min-width: 0;
   @media (max-width: 640px) { width: 100%; }
 `;
-/* 단계 칸 — 행마다 **같은 자리·같은 폭**이라 위아래로 열이 맞는다 */
+/* [보기] 칸 — 폭을 고정해 액션 묶음 전체 폭을 행마다 같게 만든다(위 주석 참조).
+   라벨이 넘치면 줄이지 않고 말줄임한다 — 목적지는 아이콘과 함께 여전히 읽힌다. */
+const ViewSlot = styled.div`
+  flex: 0 0 148px; min-width: 0; display: flex;
+  > button { width: 100%; min-width: 0; }
+  > button > span, > button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 640px) { flex: 0 0 auto; > button { width: auto; } }
+`;
+
+/* 단계 칸 — 행마다 **같은 자리·같은 폭**이라 위아래로 열이 맞는다.
+   ★ 2026-09-14 실측: 처음엔 이 칸을 RowActions **안**에 넣었는데, 액션 묶음이 `margin-left:auto`
+     로 오른쪽에 붙는 탓에 **묶음 전체 폭만큼 왼쪽 끝이 흔들렸다**([보기] 라벨이 "메일 보기"·
+     "고객 상세 보기" 처럼 행마다 달라서다 — left 888 vs 908 로 20px 어긋났다).
+     그래서 RowActions 밖, **RowMain(flex:1) 바로 뒤**로 옮겼다. RowMain 이 남는 폭을 다 먹으므로
+     이 칸의 왼쪽 끝은 행마다 **항상 같은 x** 다. */
 const StageSlot = styled.div`
   flex: 0 0 auto; width: 150px; display: flex; justify-content: center;
-  @media (max-width: 640px) { width: auto; justify-content: flex-start; }
+  @media (max-width: 640px) { width: 100%; justify-content: flex-start; }
 `;
 
 /* ✕ — 아이콘 전용이지만 aria-label·title 로 뜻을 말한다(이름 없는 버튼 금지) */
@@ -795,4 +739,3 @@ const MemoPane = styled.div`
   grid-column: 1 / -1; margin: 4px 0 2px; padding: 12px 14px;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
 `;
-const MemoDim = styled.div`padding: 12px 0; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;

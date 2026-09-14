@@ -400,7 +400,11 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   //   숫자가 상한에 잘리는 것은 이미 한 번 사고가 난 계열이다(확인필요 35→51) — 목록만 자르고 숫자는 참으로.
   const counts = { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0, dismissed: 0 };
   // 보관함은 위에서 목록을 만들며 함께 세었다 — 두 숫자가 갈라지지 않게 그 값을 그대로 옮긴다.
-  if (want.includes('dismissed')) counts.dismissed = qDismissed;
+  // ★ 2026-09-14 — 여기 `if (want.includes('dismissed'))` 가 있었다. 기본 목록에서 보관함을
+  //   **빼면서**(ACTIVE_SOURCES) 이 조건이 거짓이 되어, **칩에는 1건이 있는데 숫자는 0** 이 됐다.
+  //   양성 대조군이 잡았다(실제로 하나 보관해 보니 0 → 0). 집계는 **언제나** 옮긴다 —
+  //   숫자와 목록이 갈라지는 것은 이 저장소에서 이미 여러 번 난 사고다.
+  counts.dismissed = qDismissed;
   // 게스트·채팅은 **같은 대화**를 가리키므로 아래 한 곳에서 대화방 단위로 같이 센다.
   // 따로 세면 겹친 만큼 합계가 부푼다(실측 3건이 양쪽에 떠 있었다).
   if (want.includes('email')) {

@@ -329,7 +329,7 @@ export default function SalePage() {
               숫자를 확인하려고 누른 사람에게는 아무 설명 없이 장소가 바뀌는 일이다.
               이제 ①평소엔 누를 수 없는 표시이고 ②무슨 숫자인지 말해 주며
               ③**한도에 가까울 때만**(80%) 늘리는 길을 따로 내놓는다. */}
-          <QuotaBox title={t('quota.tip', {
+          <QuotaBox data-testid="sale-quota" title={t('quota.tip', {
             defaultValue: '정식 = 계정을 만들어 드린 고객 · 문의 = 아직 초대하지 않은 상담 상대. 숫자는 현재 / 플랜 한도입니다.',
           }) as string}>
             <span>{quotaLabel}</span>
