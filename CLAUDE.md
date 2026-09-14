@@ -858,6 +858,35 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
 
 ---
 
+## 껍데기는 **빼서 같이 쓴다** — 베끼면 갈라진다 (2026-09-14 박제)
+
+> Irene: *"Q sale UI를 Q task 처럼 해줘. … 색상이나 디자인 막 바꾸지 말고 배치를 맞춰봐."* ·
+> *"별표 아이콘 들어가는 거라 입력할 때 빨간 라인 들어가는 거 모두 완전히 스타일 기능 완벽히 똑같이."*
+
+2026-09-13 에 Q sale 의 Cue 바 머리말에는 **"모양·자리는 CueTaskBar 와 같다"** 고 적혀 있었는데
+실제로는 민트 배경 vs 흰 배경으로 **갈라져 있었다**(memory `feedback_comment_lies_predicate_drifts`).
+주석은 사실을 보증하지 않는다. 그래서 이번엔 **값을 옮겨 한 곳에 두었다**:
+
+| 껍데기 | 파일 | 쓰는 곳 |
+|---|---|---|
+| Cue 바(별표·빨간 테두리·드롭·점 세 개) | `components/Common/cueBarShell.tsx` | Q task · Q sale |
+| 연회색 알약 탭 | `components/Common/segmentedToggle.tsx` | Q task(내 업무/전체) · Q sale(상담/고객) |
+| 검색 + 라벨 붙은 필터 한 줄 | `components/Common/filterBar.tsx` | Q sale(두 탭) · 신규 목록 화면 |
+
+- **옮길 때 값을 바꾸지 않는다.** 색·높이·그림자를 그대로 가져와야 "같게 해 달라" 가 지켜진다.
+- **필터 축 이름은 셀렉트 밖에 붙인다** — 안에 넣으면 값을 고르는 순간 축 이름이 사라지고,
+  고르기 전에는 **"전체" 세 개**가 되어 무슨 축인지 알 수 없다(Irene: *"전체 전체 전체 이렇게 나오게 하지 말고"*).
+- **한 줄 안의 컨트롤은 같은 높이(36px)** 다. 하나라도 다르면 줄이 들쭉날쭉해진다(실측으로 집합이 `{36}` 인지 잰다).
+- **우측 정렬은 빈 칸막이(spacer)가 아니라 `margin-left:auto`** — 칸막이로 밀면 줄이 바뀔 때
+  버튼이 **새 줄의 왼쪽**으로 떨어진다(1024px 실측 left 20 → 수정 후 right 1004).
+
+### 이름 앞 아이콘은 한 모양이다
+공용 `LetterAvatar`(라운드 박스, 크기×0.28)가 30곳에서 쓰이는데 손으로 만든 아바타 **12곳이 원형**이었다 —
+같은 사람이 화면마다 다른 모양이었다. 전부 라운드 박스로 모으고 **가드 `--category=avatarshape`** 로 못을 박았다.
+공용 컴포넌트가 있다고 강제되지 않는다(memory `feedback_shared_wrapper_is_not_enforcement`).
+
+---
+
 ## 라우트는 **같은 파일에 두 번 선언하지 않는다** (2026-09-13 박제)
 
 `routes/projects.js` 에 `GET /:id/notes` 를 두 번 선언했다(하나는 프로젝트 메모, 하나는 새로 넣은
