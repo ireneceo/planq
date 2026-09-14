@@ -841,6 +841,20 @@ router.post('/:id/avatar', authenticateToken,
   },
   async (req, res, next) => {
     try {
+      // ★ **내용이 정말 이미지인지 본다** (2026-09-14 자체 검증에서 찾은 구멍).
+      //   multer 의 `fileFilter` 는 **브라우저가 말해 준 mimetype** 만 본다 — 보내는 쪽이 정하는 값이라
+      //   `Content-Type: image/png` 을 붙인 아무 바이트나 저장됐다(실측: `<script>` 가 u5.png 로 저장됨).
+      //   서빙은 `image/png` + `nosniff` 라 브라우저가 실행하지는 않지만, **저장 자체를 막는 것이 정석**이다.
+      //   판정은 매직바이트 — 파일 앞부분 12바이트면 세 형식이 갈린다.
+      const head = fsLib.readFileSync(req.file.path).subarray(0, 12);
+      const isPng = head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4E && head[3] === 0x47;
+      const isJpg = head[0] === 0xFF && head[1] === 0xD8 && head[2] === 0xFF;
+      const isWebp = head.subarray(0, 4).toString('ascii') === 'RIFF' && head.subarray(8, 12).toString('ascii') === 'WEBP';
+      if (!isPng && !isJpg && !isWebp) {
+        try { fsLib.unlinkSync(req.file.path); } catch { /* noop */ }
+        return errorResponse(res, 'image_only', 400);
+      }
+
       // 확장자가 바뀌면 옛 파일이 남는다 — 내 것 중 지금 것이 아닌 것은 지운다
       for (const ext of ['.jpg', '.png', '.webp']) {
         const p = pathLib.join(AVATAR_DIR, `u${req.user.id}${ext}`);
