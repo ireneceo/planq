@@ -298,6 +298,29 @@ const ActionBtn = styled.button<{$active?: boolean}>`
 - 검색 가능, 멀티 셀렉트, 아이콘/설명 옵션 지원
 - **옵션이 많은 리스트 (시간, 50+ 항목)**: `density="compact"` prop 추가해 옵션 패딩 절반 (10px 12px → 5px 10px)
 
+### 1.6-B 한 줄 안의 컨트롤 높이 — **머리줄 32 / 필터줄 36** (2026-09-14 실측 박제)
+
+> Irene: *"머리줄 버튼 통일."*
+
+**한 줄에 나란히 선 컨트롤은 높이가 같아야 한다.** 그런데 이 저장소에는 **줄이 두 종류**이고
+기준값이 다르다 — 섞으면 줄이 들쭉날쭉해진다.
+
+| 줄 | 높이 | 쓰는 것 |
+|---|---|---|
+| **머리줄** (`PanelHeader` 액션 칸 · 주 액션이 선 줄) | **32px** | `components/Common/headerCta.tsx` (`HeaderCta`) · `SegmentedToggle` · `ActionButton size="xs"` · `AiActionButton size="sm"` |
+| **필터줄** (`components/Common/filterBar.tsx`) | **36px** | `SearchBox` · `FilterSlot` 셀렉트 · `CheckFilter` |
+
+- **`HeaderCta` 에 높이 prop 은 없다.** 폭 prop 을 없앤 `DetailDrawer` 와 같은 처방이다 —
+  호출부가 규격을 정하면 반드시 갈라진다.
+- **36 으로 올리는 길은 이미 재 봤고 깨진다** — `AiActionButton` 의 `sm` 을 36 으로 올리면
+  현재 `{32}` 인 /docs 머리줄과 /knowledge 데스크탑이 갈라진다. 머리줄 정본은 32 다.
+- **알약 탭(`SegmentedToggle`)은 높이를 명시한다.** 높이를 안 적고 padding 만 주면 글자 줄높이가
+  높이를 정해 **37px**(폰에서 글자를 숨기면 30px)이 된다 — 옆 버튼과 5px 어긋났던 실제 원인이다.
+- **베끼지 말고 상속한다** — 프로젝트의 `ViewTabs` 는 `styled(SegmentedToggle)` 로 상속하고
+  활성 글자색만 덮는다.
+- 회귀는 기계가 막는다: `node scripts/e2e/run.js --suite headerrow`
+  (3화면 × 3폭 × 4항목 — CSS 가 합쳐진 뒤에만 존재하는 값이라 정적 검사로는 못 잡는다).
+
 ### 1.7 액션 버튼 3톤 규칙 (필수 — 2026-04-19 표준화)
 
 **버튼은 딱 3종류만 사용한다. 상태 색(단계별 색상)을 버튼 배경으로 쓰지 말 것.**
