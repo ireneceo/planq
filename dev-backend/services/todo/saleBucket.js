@@ -8,6 +8,18 @@
 const { Op } = require('sequelize');
 const { COLLECT_LIMIT, safeToIso } = require('./common');
 
+// ★ 2026-09-14 (Irene: *"확인필요에서 영업 링크 누르면 우측패널이 고객정보 나오는데 상담관리가 안되네.
+//   그냥 상담에서 검색해서 해당 상담이 딱 리스트업된 상태가 되게 해줘. 다음 업무를 진행해야 하니까."*)
+//
+//   2026-09-13 에는 **고객 패널을 열어 달라**고 하셔서 `drawer: {kind:'client'}` 를 붙였는데,
+//   그 패널에서는 상담을 처리할 수 없었다(단계 바꾸기·메모·일정이 상담 목록의 행에 있다).
+//   그래서 **상담 목록에서 그 건이 걸러진 상태**로 보낸다 — 열자마자 다음 행동을 할 수 있다.
+//   검색어는 사람이 보는 이름 그대로다(목록의 검색이 이름·회사·전화·메일에서 찾는다).
+function saleConsultLink(nameLike) {
+  const q = String(nameLike || '').trim();
+  return q ? `/sale?q=${encodeURIComponent(q)}` : '/sale';
+}
+
 async function collectSale(businessId, userId, userRole) {
   const { Client, ClientInteraction, GuestLink, Task } = require('../../models');
   const { getMemberMenuLevels } = require('../../middleware/menu_permission');
@@ -66,11 +78,7 @@ async function collectSale(businessId, userId, userRole) {
           context: c.company_name && c.display_name ? c.company_name : null,
           dueAt: null,
           createdAt: safeToIso(since),
-          link: `/sale/${c.id}`,
-          // ★ 2026-09-13 (Irene: "확인필요에서 영업 탭으로 나오는 리스트는 누르면 Q sale 상담탭에서
-          //   열리는 우측패널을 열어줘… 업무상세 우측패널처럼 이용가능하게 맥락을 맞춰")
-          //   업무·일정과 **같은 계약**(drawer)을 쓴다 — 종류마다 다른 여는 방식을 만들지 않는다.
-          drawer: { kind: 'client', id: c.id },
+          link: saleConsultLink(name),
         });
         continue;                       // ③으로 또 세지 않는다
       }
@@ -85,8 +93,7 @@ async function collectSale(businessId, userId, userRole) {
           context: c.company_name && c.display_name ? c.company_name : null,
           dueAt: null,
           createdAt: safeToIso(since),
-          link: `/sale/${c.id}`,
-          drawer: { kind: 'client', id: c.id },
+          link: saleConsultLink(name),
         });
       }
     }
@@ -115,7 +122,7 @@ async function collectSale(businessId, userId, userRole) {
       context: r.title || null,
       dueAt: null,
       createdAt: safeToIso(r.occurred_at),
-      link: `/sale/${r.client_id}`,
+      link: saleConsultLink(c ? (c.display_name || c.company_name) : ''),
     });
   }
 
@@ -142,7 +149,8 @@ async function collectSale(businessId, userId, userRole) {
         context: it.company?.name || it.title || null,
         dueAt: null,
         createdAt: safeToIso(it.at),
-        link: '/sale',
+        // ★ 2026-09-14 — 여기도 **상담 목록에서 걸러진 상태**로 보낸다(위 saleConsultLink 주석).
+        link: saleConsultLink(it.who || it.title || ''),
         // ★ 이건 **아직 고객이 아닌 문의**다 — 고객 패널이 아니라 상담 패널(ClientPanel 의 inquiry 분기)로 연다.
         //   link 만 주면 목록만 열려 "어느 문의였는지" 를 사람이 다시 찾아야 한다.
         //   ref 를 그대로 실어 받는 쪽이 그 행을 집어낼 수 있게 한다(업무·일정과 같은 drawer 계약).
@@ -200,7 +208,7 @@ async function collectSale(businessId, userId, userRole) {
         context: l.requested_email || null,
         dueAt: null,
         createdAt: safeToIso(l.account_requested_at),
-        link: `/sale/${c.id}`,
+        link: saleConsultLink(c.display_name || c.company_name),
       });
     }
   }

@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import styled, { css } from 'styled-components';
 // ⑥ 멀티탭 chrome RR 탈피 — MainLayout 은 router-less zone 후보라 react-router 훅/Link 미사용.
 //   TabStore 소비로 전환(미러 모드에서 단일탭 동작 동일). Link → ChromeLink, useLocation/Navigate → chromeNav.
@@ -485,6 +485,33 @@ const SidebarFooter = styled.div<{ $isCollapsed?: boolean }>`
   }
 `;
 
+// 하단 블록 접기 손잡이 — 메뉴 항목과 글자 시작선을 맞춘다(좌우 여백은 SidebarFooter 가 갖는다).
+const StatusToggle = styled.button`
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 3px 0; margin: 0 0 2px 0;   /* 펼친 상태에서 이 줄이 메뉴 한 칸을 먹지 않게 */
+  background: none; border: none; cursor: pointer;
+  color: rgba(255,255,255,0.62); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em;
+  &:hover { color: rgba(255,255,255,0.9); }
+  &:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 2px; border-radius: 4px; }
+`;
+const StatusToggleLabel = styled.span`
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const StatusChevron = styled.svg<{ $open: boolean }>`
+  width: 14px; height: 14px; flex-shrink: 0;
+  transition: transform 0.15s ease;
+  transform: rotate(${p => (p.$open ? '180deg' : '0deg')});
+`;
+// 펼쳐도 하단이 화면을 다 먹지 않게 — 넘치면 **이 안에서** 스크롤한다.
+//   이것이 없으면 창을 줄였을 때 메뉴가 다시 밀려난다(접기만으로는 부족하다).
+const StatusSlot = styled.div`
+  max-height: min(46vh, 260px);
+  overflow-y: auto; overflow-x: hidden;
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+`;
+
 const UserAvatar = styled.div`
   width: 32px; height: 32px; border-radius: 50%;
   background: #0F766E; color: #FFFFFF;
@@ -873,6 +900,45 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
       </WorkBlock>
     </>
   );
+
+  // ★ 좌측 하단 블록(시계·근무·지금 이 업무)은 **접힌다** (2026-09-14)
+  //   Irene: *"높이값이 작을 때 데스크탑앱에서 메뉴들이 다 가려져서."*
+  //   실측(1440px): 이 블록이 창 높이와 무관하게 **213px 를 고정으로** 먹는다 —
+  //   창 높이 900 에서 메뉴 14/20, 760 에서 11/20, 560 에서 **4/20** 만 보였다.
+  //   `SidebarFooter` 가 `flex-shrink:0` 이라 줄어들지 않고 메뉴 쪽만 계속 깎였다.
+  //   고른 방법: ①접을 수 있게 하고 ②사용자가 고른 적 없으면 **짧은 창에서는 기본 접힘**
+  //   ③펼친 상태여도 하단이 화면의 절반을 넘지 않게(그 안에서 스크롤). 셋 다 있어야
+  //   "창을 줄였더니 메뉴가 사라졌다" 가 다시 안 난다.
+  const STATUS_KEY = 'planq:sidebar-status';
+  const [statusOpen, setStatusOpen] = useState<boolean>(() => {
+    try {
+      const v = localStorage.getItem(STATUS_KEY);
+      if (v === 'open') return true;
+      if (v === 'closed') return false;
+    } catch { /* 접근 불가 브라우저 — 기본값으로 */ }
+    return typeof window === 'undefined' ? true : window.innerHeight >= 800;
+  });
+  const statusChosenRef = React.useRef<boolean>((() => {
+    try { return !!localStorage.getItem(STATUS_KEY); } catch { return false; }
+  })());
+  const toggleStatus = useCallback(() => {
+    setStatusOpen((v) => {
+      const next = !v;
+      statusChosenRef.current = true;
+      try { localStorage.setItem(STATUS_KEY, next ? 'open' : 'closed'); } catch { /* noop */ }
+      return next;
+    });
+  }, []);
+  // 사용자가 고른 적이 **없을 때만** 창 높이를 따라간다. 고른 뒤에는 건드리지 않는다 —
+  //   내가 편 것을 창을 줄였다고 시스템이 접으면 그건 고장으로 읽힌다.
+  useEffect(() => {
+    const onResize = () => {
+      if (statusChosenRef.current) return;
+      setStatusOpen(window.innerHeight >= 800);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   useEffect(() => { setSidebarOpen(false); }, [location.pathname]);
 
@@ -1805,7 +1871,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
           {!isCollapsed && (
             <>
               {/* 폰에서는 이 블록이 메뉴 안(스크롤 영역 끝)으로 옮겨간다 — 아래 statusBlock 참조 */}
-              {!isMobileNav && statusBlock}
+              {!isMobileNav && (
+                <>
+                  <StatusToggle type="button" onClick={toggleStatus} aria-expanded={statusOpen}
+                    aria-controls="pq-sidebar-status"
+                    title={statusOpen ? t('sidebar.statusCollapse', '시계·근무 접기') : t('sidebar.statusExpand', '시계·근무 펼치기')}>
+                    <StatusToggleLabel>{t('sidebar.statusBlock', '시계 · 근무')}</StatusToggleLabel>
+                    <StatusChevron $open={statusOpen} viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="6 9 12 15 18 9" />
+                    </StatusChevron>
+                  </StatusToggle>
+                  {statusOpen && <StatusSlot id="pq-sidebar-status">{statusBlock}</StatusSlot>}
+                </>
+              )}
               {/* N+63 — UserMenu 통합: avatar+이름 1줄 + 클릭 popover (Language + 프로필 + 로그아웃).
                   옛 3블록 (LanguageSelector + UserInfo + LogoutButton) 합쳐 공간 절약 (모바일 호소 fix). */}
               <UserMenuWrap ref={userMenuRef}>

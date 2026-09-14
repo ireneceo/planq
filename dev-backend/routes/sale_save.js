@@ -112,6 +112,42 @@ router.post('/:businessId/inbox/dismiss', ...writeChain, async (req, res, next) 
   } catch (err) { next(err); }
 });
 
+// ─── 보관함에서 영구히 빼기 ──────────────────────────────────────────
+//   Irene 2026-09-14: *"보관함에서는 X버튼을 눌러서 영구히 삭제 시켜."*
+//
+// ★ **메일 자체는 지우지 않는다.** 지우는 것은 *상담 목록에서의 자리*다 —
+//   이 행의 원본은 Q mail 의 스레드이고, 거기서는 그대로 보여야 한다(영업에서 치웠다고
+//   받은 메일이 사라지면 그건 우리가 고객의 자료를 지운 것이다).
+//   그래서 "영구히" 의 뜻은 **다시는 상담·보관함에 나타나지 않는다** 이고,
+//   되돌리기와 같은 방식(판단의 기록)으로 남긴다 — origin: sale_inbox_purge.
+//   보관함 수집기는 스레드별 **최신 판단 1건**만 보므로, 이 기록이 최신이면 양쪽에서 다 빠진다.
+//   ※ 되돌릴 길은 남아 있다(같은 스레드에 restore 를 남기면 돌아온다) — 화면에는 내놓지 않는다.
+router.post('/:businessId/inbox/purge', ...writeChain, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const kind = String(req.body?.kind || '');
+    const id = Number(req.body?.id || 0);
+    if (kind !== 'email_thread' || !id) return errorResponse(res, 'unsupported_kind', 400);
+
+    const { accessibleAccountIds } = require('../services/clientTimeline');
+    const acctIds = await accessibleAccountIds(businessId, req.user.id);
+    const thread = await EmailThread.findOne({
+      where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+    });
+    if (!thread) return errorResponse(res, 'thread_not_found', 404);
+
+    const before = thread.triage;
+    await thread.update({ triage: 'automated', reply_needed: false });
+    createAuditLog({
+      userId: req.user.id, businessId, action: 'mail.triage_correct',
+      targetType: 'email_thread', targetId: thread.id,
+      oldValue: { triage: before }, newValue: { triage: 'automated', origin: 'sale_inbox_purge' },
+    });
+    broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+    return successResponse(res, { id: thread.id }, 'purged');
+  } catch (err) { next(err); }
+});
+
 // ─── 보관함에서 되돌리기 ─────────────────────────────────────────────
 //   Irene 2026-09-13: *"문의아님 분류한거 다시 되돌리고 싶으면 어떻게 해?"*
 //   [문의 아님]은 사람의 판단이고 사람은 틀린다. 되돌릴 길이 없으면 그건 삭제나 마찬가지다.

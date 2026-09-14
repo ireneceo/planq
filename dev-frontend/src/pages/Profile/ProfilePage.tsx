@@ -640,12 +640,6 @@ export default function ProfilePage() {
           </FieldRow>
         </Card>
 
-        {/* 글씨 크기 — 기기별(localStorage). 계정이 아니라 이 기기에만 적용된다. */}
-        <Card>
-          <SectionTitle>{t('fontScale.sectionTitle') as string}</SectionTitle>
-          <FontScaleSection />
-        </Card>
-
         {/* 개인정보 처리 — 첫 행 2번째 열 (사용자 호소: 계정정보 옆 빈 공간 차단) */}
         <Card>
           <SectionTitle>{t('privacy.sectionTitle')}</SectionTitle>
@@ -881,6 +875,14 @@ export default function ProfilePage() {
               </Hint>
             </FieldBody>
           </FieldRow>
+        </Card>
+
+        {/* ★ 2026-09-14 (Irene: *"내 프로필 가면 글씨크기가 2번째로 나오는데 가장 마지막에 1열로 나오게 해.
+            내 목소리등록 위에 나오게 해."*) — 계정·프로필 항목들을 먼저 보고, 표시 설정은 맨 아래에 둔다.
+            기기별 설정(localStorage)이라 계정 항목들과 성격도 다르다. `$wide` 로 **한 열 전체**를 쓴다. */}
+        <Card $wide>
+          <SectionTitle>{t('fontScale.sectionTitle') as string}</SectionTitle>
+          <FontScaleSection />
         </Card>
 
         {/* 음성 핑거프린트 (다국어) */}

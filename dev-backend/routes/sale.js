@@ -97,6 +97,9 @@ router.get('/:businessId/inbox', ...readChain, async (req, res, next) => {
       // 단계 필터 · 종료 가리기 (2026-09-13) — 기본은 종료를 가린다(체크된 상태)
       stage: STAGES.includes(String(req.query.stage || "")) ? String(req.query.stage) : null,
       includeClosed: String(req.query.include_closed || '') === 'true',
+      // 고객 목록과 **같은 축**을 상담 목록에도 (2026-09-14)
+      access: ['guest', 'invited', 'member'].includes(String(req.query.access || '')) ? String(req.query.access) : null,
+      assignee: /^(none|\d+)$/.test(String(req.query.assignee || '')) ? String(req.query.assignee) : null,
       limit: Math.min(Math.max(Number(req.query.limit) || 100, 1), 300),
     });
     return successResponse(res, { items, counts });

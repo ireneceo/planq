@@ -61,6 +61,7 @@ import SeriesScopeDialog, { type SeriesScope } from '../../components/QTask/Seri
 import { needsSeriesScope } from '../../utils/taskSeries';
 import { belowTabs } from '../../theme/layout';
 import { inReviewStage } from '../../utils/reviewStage';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -3427,7 +3428,8 @@ const RecurIcon=styled.svg`width:11px;height:11px;flex-shrink:0;`;
 // Custom recurrence modal
 const ViewToggle=styled.div`display:inline-flex;gap:2px;padding:2px;background:#F1F5F9;border-radius:8px;margin-left:auto;`;
 const ViewBtn=styled.button<{$active:boolean}>`padding:6px 10px;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F766E':'#94A3B8'};border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:#0F766E;}`;
-const ScopeToggle=styled.div`display:inline-flex;gap:4px;padding:3px;background:#F1F5F9;border-radius:8px;@media(max-width:640px){display:none;}`;
+/* 연회색 알약 탭은 공용이다 — Q sale 도 같은 것을 쓴다(components/Common/segmentedToggle) */
+const ScopeToggle=styled(SegmentedToggle)`@media(max-width:640px){display:none;}`;
 const ScopeMobileWrap=styled.div`display:none;min-width:100px;@media(max-width:640px){display:block;}`;
 
 // ── Kanban ──
@@ -3484,7 +3486,7 @@ const KanbanEmptyBoard=styled.div`
   border:1px dashed #E2E8F0;
   border-radius:12px;
 `;
-const ScopeBtn=styled.button<{$active:boolean}>`padding:6px 14px;font-size:0.8125rem;font-weight:600;background:${p=>p.$active?'#FFFFFF':'transparent'};color:${p=>p.$active?'#0F172A':'#64748B'};border:none;border-radius:6px;cursor:pointer;box-shadow:${p=>p.$active?'0 1px 2px rgba(0,0,0,0.06)':'none'};transition:background 0.15s, color 0.15s;&:hover{background:${p=>p.$active?'#FFFFFF':'#E2E8F0'};color:${p=>p.$active?'#0F172A':'#0F172A'};}`;
+const ScopeBtn=SegmentedBtn;
 const NameChip=styled.span<{$type:'from'|'to'|'observer'}>`
   display:inline-block;margin-left:6px;padding:1px 7px;font-size:0.6875rem;font-weight:600;
   border-radius:10px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;

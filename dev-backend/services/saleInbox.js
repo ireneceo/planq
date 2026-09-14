@@ -74,9 +74,15 @@ function betterLink(a, b) {
  */
 async function listUnlinkedTouchpoints(businessId, opts = {}) {
   const { userId = null, sources = null, q = null, needsReply = false, limit = 100 } = opts;
+  // ★ 2026-09-14 (Irene: *"리스트에는 보관함에 있는 리스트는 전체 리스트에서 빼고."*)
+  //   `SOURCES` 에 'dismissed' 가 들어 있어서, 소스를 안 고르면(= 전체) **보관한 것까지 같이** 나왔다.
+  //   보관함은 "치운 것" 이다 — 치웠는데 전체 목록에 그대로 있으면 치운 것이 아니다.
+  //   숫자(칩의 보관함 N)는 계속 세야 하므로 **집계는 늘 하고, 목록에만 안 넣는다.**
+  const ACTIVE_SOURCES = ['guest_link', 'email', 'chat'];
   const want = Array.isArray(sources) && sources.length
     ? sources.filter((s) => SOURCES.includes(s))
-    : SOURCES;
+    : ACTIVE_SOURCES;
+  const wantDismissedItems = want.includes('dismissed');
   // ★ 소스별 조회 상한은 **목록용 여유분**이고 집계(counts)를 자르면 안 된다.
   //   운영 #(확인필요 35→51)과 같은 계열 — 숫자가 목록 상한에 잘리면 사용자는 "왜 숫자가 안 맞지" 로 읽는다.
   //   목록은 아래에서 limit 으로 자르고, counts 는 여기서 모은 전체로 센다.
@@ -189,7 +195,8 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   // ★ 스레드별 **최신 1건**만 본다 — 되돌리면 `sale_inbox_restore` 가 최신이 되어 자동으로 빠진다.
   //   (지우지 않고 새 기록으로 뒤집는다 — 누가 언제 내린 판단인지가 남아야 한다.)
   let qDismissed = 0;          // 보관함 수 — counts 는 아래에서 선언되므로 여기선 누적만 한다
-  if (want.includes('dismissed')) {
+  // 집계는 **언제나** 한다(칩에 숫자가 떠야 한다). 행을 목록에 넣는 것만 고른 때로 제한한다.
+  {
     const { AuditLog } = require('../models');
     const logs = await AuditLog.findAll({
       where: { business_id: businessId, action: 'mail.triage_correct', target_type: 'email_thread' },
@@ -206,6 +213,8 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
     const byThread = new Map();
     for (const [tid, l] of latest) {
       const origin = l.new_value && l.new_value.origin;
+      // 최신 판단이 purge 이면 **보관함에서도 뺀다**(2026-09-14 "영구히 삭제").
+      //   메일 자체는 Q mail 에 그대로 있다 — 여기서 빠지는 것은 상담 목록에서의 자리다.
       if (origin === 'sale_inbox_dismiss') { dismissedIds.push(tid); byThread.set(tid, l); }
     }
     if (dismissedIds.length) {
@@ -222,7 +231,7 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
       // ★ counts 는 **아래(386줄)에서 선언**된다 — 여기서 쓰면 선언 전 참조다.
       //   누적만 해두고 숫자는 그 뒤에 옮긴다(2026-09-12 qualifiedIds 와 같은 사고를 되풀이하지 않는다).
       qDismissed += rows.length;
-      for (const t of rows) {
+      for (const t of wantDismissedItems ? rows : []) {
         const outside = (Array.isArray(t.participants) ? t.participants : []).find((p) => p && !p.is_internal);
         const l = byThread.get(t.id);
         items.push({
@@ -459,10 +468,17 @@ async function listConsults(businessId, opts = {}) {
     //   · stage       — 단계 한 개로 좁힌다. 미등록 문의는 단계가 없으므로 이때 제외된다(단계로 고른 것이니 당연하다)
     //   · includeClosed — 기본 false(= 종료 가림). 성사/불발은 **끝난 상담**이라 기본 목록에 없다
     stage = null, includeClosed = false,
+    // ★ 2026-09-14 (Irene: *"고객탭이랑 같은 필터 나오게 해. 상담탭에도."*)
+    //   접근 종류·담당자는 고객 목록의 축이었는데 상담 목록에는 없었다. 같은 축을 같은 술어로 건다.
+    //   · access   — `services/clientAccess.accessWhere` 하나를 쓴다(목록마다 다시 쓰지 않는다)
+    //   · assignee — 숫자면 그 멤버, 'none' 이면 미배정
+    access = null, assignee = null,
   } = opts;
+  // 단계와 같은 이유로, **고객에만 있는 축**으로 고르면 미등록 접점은 뜻이 없다.
+  const clientOnlyFilter = !!(stage || access || assignee);
   // ★ 단계로 고르면 **미등록 접점은 뜻이 없다** — 단계가 아직 없기 때문이다.
   //   섞어 두면 "단계로 골랐는데 단계 없는 행이 남는" 화면이 된다.
-  const base = stage
+  const base = clientOnlyFilter
     ? { items: [], counts: { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0, dismissed: 0 } }
     : await listUnlinkedTouchpoints(businessId, { userId, sources, q, needsReply, limit });
 
@@ -478,6 +494,14 @@ async function listConsults(businessId, opts = {}) {
   const CLOSED = ['won', 'lost'];
   const stageSet = stage ? [stage] : (includeClosed ? [...IN_PROGRESS, ...CLOSED] : IN_PROGRESS);
   const where = { business_id: businessId, sales_stage: { [Op.in]: stageSet }, ...ownerWhere };
+  if (access) {
+    const { accessWhere } = require('./clientAccess');
+    const aw = accessWhere(access);
+    if (aw) where[Op.and] = [...(where[Op.and] || []), aw];
+  }
+  if (assignee) {
+    where.assigned_member_id = assignee === 'none' ? null : Number(assignee);
+  }
   if (q) {
     const like = { [Op.like]: `%${String(q).replace(/[\\%_]/g, (m) => `\\${m}`)}%` };
     where[Op.or] = [{ display_name: like }, { company_name: like }, { phone: like }, { invite_email: like }];

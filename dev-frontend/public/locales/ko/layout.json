@@ -219,5 +219,10 @@
     "filterNew": "새 소식",
     "markAllRead": "모두 읽음",
     "more": "더 보기 ({{count}}건 남음)"
+  },
+  "sidebar": {
+    "statusBlock": "시계 · 근무",
+    "statusCollapse": "시계·근무 접기",
+    "statusExpand": "시계·근무 펼치기"
   }
 }

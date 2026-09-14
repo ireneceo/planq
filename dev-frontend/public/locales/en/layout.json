@@ -219,5 +219,10 @@
     "filterNew": "What's new",
     "markAllRead": "Mark all read",
     "more": "Show more ({{count}} left)"
+  },
+  "sidebar": {
+    "statusBlock": "Clock & work",
+    "statusCollapse": "Collapse clock & work",
+    "statusExpand": "Expand clock & work"
   }
 }

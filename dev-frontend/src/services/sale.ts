@@ -188,7 +188,9 @@ export async function listSaleInbox(
     /** 단계 한 개로 좁힌다 — 미등록 접점은 단계가 없어 이때 빠진다(서버에서) */
     stage?: SaleStage | '';
     /** 종료(성사·불발)까지 보여줄지. 기본은 가린다(체크된 상태) */
-    includeClosed?: boolean } = {},
+    includeClosed?: boolean;
+    /** 고객 목록과 **같은 축** — 접근 종류 · 담당자 (2026-09-14) */
+    access?: string; assignee?: string } = {},
 ): Promise<{ items: SaleInboxItem[]; counts: SaleInboxCounts }> {
   const sp = new URLSearchParams();
   if (params.source) sp.set('source', params.source);
@@ -196,6 +198,8 @@ export async function listSaleInbox(
   if (params.needsReply) sp.set('needs_reply', 'true');
   if (params.stage) sp.set('stage', params.stage);
   if (params.includeClosed) sp.set('include_closed', 'true');
+  if (params.access) sp.set('access', params.access);
+  if (params.assignee) sp.set('assignee', params.assignee);
   if (params.limit) sp.set('limit', String(params.limit));
   const qs = sp.toString();
   const r = await apiFetch(`/api/sale/${businessId}/inbox${qs ? `?${qs}` : ''}`);
@@ -358,6 +362,13 @@ export const restoreInboxItem = (businessId: number, kind: 'email_thread', id: n
   apiFetch(`/api/sale/${businessId}/inbox/restore`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
   }).then(j<{ id: number; triage: string }>);
+
+/** 보관함에서 **영구히 빼기** — 다시는 상담·보관함에 나타나지 않는다.
+ *  ★ 메일 자체는 지우지 않는다(Q mail 에 그대로 있다). 지우는 것은 상담 목록에서의 자리다. */
+export const purgeInboxItem = (businessId: number, kind: 'email_thread', id: number) =>
+  apiFetch(`/api/sale/${businessId}/inbox/purge`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
+  }).then(j<{ id: number }>);
 
 /** 단계 목록 — 화면 순서의 단일 원천(서버 ENUM 과 같은 순서) */
 export const SALE_STAGES: SaleStage[] = ['none', 'inquiry', 'consulting', 'proposal', 'negotiation', 'won', 'lost'];

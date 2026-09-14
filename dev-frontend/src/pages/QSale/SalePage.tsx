@@ -13,6 +13,8 @@ import PageShell from '../../components/Layout/PageShell';
 import ClientPanel from '../../components/QSale/ClientPanel';
 import ClientLink from '../../components/QSale/ClientLink';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+import { FilterBar, FilterSearchSlot, FilterRight, LabeledFilter, ToggleFilter } from '../../components/Common/filterBar';
+import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import ActionButton from '../../components/Common/ActionButton';
 import StandardModal from '../../components/Common/StandardModal';
 import LetterAvatar from '../../components/Common/LetterAvatar';
@@ -55,6 +57,11 @@ export default function SalePage() {
   const [stage, setStage] = useState<string>('');
   const [access, setAccess] = useState<string>('');
   const [assignee, setAssignee] = useState<string>('');
+  // ★ 2026-09-14 — 상담 탭 필터도 **부모가 들고 있다.** 두 탭이 같은 축(단계·접근·담당)을 쓰므로
+  //   탭을 오갈 때 고른 것이 유지되고, 필터 UI 도 한 벌만 그린다(자식 안에 또 그리면 갈라진다).
+  const [replyOnly, setReplyOnly] = useState(false);
+  const [hideClosed, setHideClosed] = useState(true);
+  const [inboxCounts, setInboxCounts] = useState<{ needs_reply: number } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   // ★ 행을 눌러도 **페이지를 갈아타지 않는다** (Irene 2026-09-12: "고객탭에서는 리스트 누르면
   //   페이지 전환하지 말고 우측패널 나오게 하고"). 전체를 보려면 패널 헤더의 전체보기 아이콘.
@@ -77,6 +84,18 @@ export default function SalePage() {
       return out;
     }, { replace: true });
   }, [setSearchParams]);
+  // ★ 2026-09-14 (Irene: *"확인필요에서 영업 링크 누르면 우측패널이 고객정보 나오는데 상담관리가 안되네.
+  //   그냥 상담에서 검색해서 해당 상담이 딱 리스트업된 상태가 되게 해줘."*)
+  //   확인필요·알림이 `/sale?q=이름` 으로 보낸다. 열자마자 **상담 탭에서 그 건만 걸러진 상태**가 되고,
+  //   단계 바꾸기·메모·일정을 그 행에서 바로 할 수 있다(고객 패널에서는 못 하던 것들이다).
+  //   ★ 초기값으로만 읽지 않는다 — keep-alive 탭은 컴포넌트가 살아 있어 초기값이 다시 안 돈다.
+  const urlQ = searchParams.get('q') || '';
+  useEffect(() => {
+    if (!urlQ) return;
+    setQ(urlQ);
+    setTab('inbox');
+  }, [urlQ]);
+
   // 상담 목록을 다시 읽게 하는 신호 — 문의를 추가하면 **그 목록에** 들어와야 한다
   const [inboxRefresh, setInboxRefresh] = useState(0);
 
@@ -138,6 +157,12 @@ export default function SalePage() {
     prospects_max: summary.quota.prospects_max ?? (t('quota.unlimited', { defaultValue: '무제한' }) as string),
   }) as string : '';
 
+  // 한도의 80% 를 넘었는가 — 늘리는 길을 내보일지 판정한다(무제한이면 언제나 아니다).
+  const quotaTight = !!summary && (
+    (!!summary.quota.clients_max && summary.quota.clients / summary.quota.clients_max >= 0.8)
+    || (!!summary.quota.prospects_max && summary.quota.prospects / summary.quota.prospects_max >= 0.8)
+  );
+
   const stageOptions = useMemo(() => ([
     { value: '', label: t('list.filterAll') as string },
     { value: 'in_progress', label: t('list.stageInProgress') as string },
@@ -165,14 +190,22 @@ export default function SalePage() {
       count={summary ? summary.in_progress : undefined}
       actions={(
         <Actions>
-          {/* ★ 검색도 **탭 아래**다 (Irene 2026-09-12: "검색창 위에 있는 거 탭 아래로 내리랬잖아").
-              헤더에는 주 액션 하나만 남긴다 — Q Task 와 같은 배치(탭 → AI 바 → 필터 → 리스트). */}
-          {/* ★ 2026-09-13 (Irene: *"+문의추가는 고객응대내용 추가 이 팝업 뜨게 하고 이름도 이걸로 해.
-              이것 저것 비슷한 항목 자꾸 만들지 마."*) — "문의 추가" 와 "고객응대 내역 추가" 는
-              같은 일(=응대를 기록한다)이었고 칸만 달랐다. 이름과 칸을 하나로 합쳤다. */}
-          <ActionButton tone="primary" size="sm" data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
-            {t('action.addRecord') as string}
-          </ActionButton>
+          {/* ★ 2026-09-14 (Irene: *"Q sale UI를 Q task 처럼 해줘. 우측 상단에 연회색 탭으로 상담, 고객을
+              넣어주고, 그 다음 Cue 에게 말하기 나오고, 그 다음 필터들 … 색상이나 디자인 막 바꾸지 말고
+              배치를 맞춰봐."*)
+              탭이 **머리 오른쪽**으로 올라간다. Q task 의 [내 업무 | 전체 업무] 와 같은 컴포넌트다
+              (`components/Common/segmentedToggle` — 베끼지 않고 빼서 같이 쓴다).
+              주 액션([고객응대 내역 추가])은 **필터 줄 오른쪽**으로 내려간다. */}
+          <SegmentedToggle role="tablist">
+            <SegmentedBtn type="button" role="tab" aria-selected={tab === 'inbox'} data-testid="sale-tab-inbox"
+              $active={tab === 'inbox'} onClick={() => setTab('inbox')}>
+              {t('list.tabInbox') as string}
+            </SegmentedBtn>
+            <SegmentedBtn type="button" role="tab" aria-selected={tab === 'clients'} data-testid="sale-tab-clients"
+              $active={tab === 'clients'} onClick={() => setTab('clients')}>
+              {t('list.tabClients') as string}
+            </SegmentedBtn>
+          </SegmentedToggle>
         </Actions>
       )}
     >
@@ -191,53 +224,70 @@ export default function SalePage() {
           }} />
       )}
 
-      {/* 탭 — 상담이 기본, 고객은 옆. "상담 > 고객" 순서가 실제 일의 순서다 (Irene 2026-09-12) */}
-      <TabRow role="tablist">
-        <TabBtn type="button" role="tab" aria-selected={tab === 'inbox'} data-testid="sale-tab-inbox"
-          $on={tab === 'inbox'} onClick={() => setTab('inbox')}>
-          {t('list.tabInbox') as string}
-        </TabBtn>
-        <TabBtn type="button" role="tab" aria-selected={tab === 'clients'} data-testid="sale-tab-clients"
-          $on={tab === 'clients'} onClick={() => setTab('clients')}>{/* 필터는 이 줄 아래에 온다 */}
-          {t('list.tabClients') as string}
-        </TabBtn>
-      </TabRow>
-      <SearchRow>
-        <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
-          placeholder={t('list.searchPlaceholder') as string}
-          aria-label={t('list.searchPlaceholder') as string} />
-      </SearchRow>
+      {/* ★ 2026-09-14 — 검색과 필터가 **한 줄**이다 (Irene: *"전체 전체 전체 이렇게 나오게 하지 말고
+          무슨 필터인지 알게 하고 검색 옆에 배치해. 이거 전에도 요청했는데 왜 안해?"*).
+          · 축 이름을 셀렉트 **밖에** 붙였다 — 안에 넣으면 값을 고르는 순간 축 이름이 사라진다.
+          · 같은 축(단계·접근·담당)을 **두 탭에 똑같이** 건다. 상담 탭에만 없던 것이 "다른 필터는 어딨어?" 였다.
+          · 좁아지면 가로로 숨기지 않고 **줄이 바뀐다**. */}
+      <FilterBar data-testid="sale-filter-row">
+        <FilterSearchSlot>
+          <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder={t('list.searchPlaceholder') as string}
+            aria-label={t('list.searchPlaceholder') as string} />
+        </FilterSearchSlot>
+        <LabeledFilter label={t('stage.label') as string} width={130} testId="sale-stage-filter">
+          <PlanQSelect size="sm" isSearchable={false} options={stageOptions}
+            aria-label={t('stage.label') as string}
+            value={stageOptions.find((o) => o.value === stage) || stageOptions[0]}
+            onChange={(opt: unknown) => setStage(String((opt as { value?: string } | null)?.value ?? ''))} />
+        </LabeledFilter>
+        <LabeledFilter label={t('access.label') as string} width={120} testId="sale-access-filter">
+          <PlanQSelect size="sm" isSearchable={false} options={accessOptions}
+            aria-label={t('access.label') as string}
+            value={accessOptions.find((o) => o.value === access) || accessOptions[0]}
+            onChange={(opt: unknown) => setAccess(String((opt as { value?: string } | null)?.value ?? ''))} />
+        </LabeledFilter>
+        <LabeledFilter label={t('list.assignee') as string} width={130} testId="sale-assignee-filter">
+          <PlanQSelect size="sm" isSearchable={false} options={assigneeOptions}
+            aria-label={t('list.assignee') as string}
+            value={assigneeOptions.find((o) => o.value === assignee) || assigneeOptions[0]}
+            onChange={(opt: unknown) => setAssignee(String((opt as { value?: string } | null)?.value ?? ''))} />
+        </LabeledFilter>
+        {tab === 'inbox' && (
+          <>
+            {/* 참/거짓 하나짜리는 셀렉트로 만들지 않는다 — 켜고 끄는 것이 곧 뜻이다 */}
+            <ToggleFilter type="button" data-testid="sale-inbox-needs-reply" $accent
+              $on={replyOnly} onClick={() => setReplyOnly((v) => !v)}>
+              {t('inbox.needsReplyOnly') as string}
+              {inboxCounts ? <b>{inboxCounts.needs_reply}</b> : null}
+            </ToggleFilter>
+            <ToggleFilter type="button" data-testid="sale-inbox-hide-closed"
+              $on={hideClosed} onClick={() => setHideClosed((v) => !v)}>
+              {t('inbox.hideClosed') as string}
+            </ToggleFilter>
+          </>
+        )}
+        {/* 주 액션은 **필터 줄 오른쪽 끝**. 줄이 감기면 이 버튼이 다음 줄 오른쪽에 선다.
+            ★ 2026-09-13 (Irene: *"+문의추가는 고객응대내용 추가 이 팝업 뜨게 하고 이름도 이걸로 해."*)
+              "문의 추가" 와 "고객응대 내역 추가" 는 같은 일이었다 — 이름과 칸을 하나로 합친 그대로다. */}
+        <FilterRight>
+          <ActionButton tone="primary" size="sm" data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
+            {t('action.addRecord') as string}
+          </ActionButton>
+        </FilterRight>
+      </FilterBar>
 
       {tab === 'inbox' ? (
         businessId ? (
           <SaleInboxList businessId={businessId} q={q} refreshKey={inboxRefresh}
+            stage={stage} access={access} assignee={assignee}
+            replyOnly={replyOnly} hideClosed={hideClosed}
+            onCounts={setInboxCounts}
             onRegistered={() => { setInboxRefresh((n) => n + 1); load({ silent: true, page: 1 }); }}
             />
         ) : null
       ) : (
       <>
-      {/* ★ 필터는 **탭 아래** (Irene 2026-09-12: "필터는 원래 탭 아래 있는 거 아니야? 왜 우측 상단에 있어?").
-          단계·접근·담당자는 고객 목록의 축이라 이 탭에서만 그린다. */}
-      <FilterRow data-testid="sale-filter-row">
-        <SelectWrap $w={150} data-testid="sale-stage-filter">
-          <PlanQSelect size="sm" isSearchable={false} options={stageOptions}
-            aria-label={t('stage.label') as string}
-            value={stageOptions.find((o) => o.value === stage) || stageOptions[0]}
-            onChange={(opt: unknown) => setStage(String((opt as { value?: string } | null)?.value ?? ''))} />
-        </SelectWrap>
-        <SelectWrap $w={130} data-testid="sale-access-filter">
-          <PlanQSelect size="sm" isSearchable={false} options={accessOptions}
-            aria-label={t('access.label') as string}
-            value={accessOptions.find((o) => o.value === access) || accessOptions[0]}
-            onChange={(opt: unknown) => setAccess(String((opt as { value?: string } | null)?.value ?? ''))} />
-        </SelectWrap>
-        <SelectWrap $w={140} data-testid="sale-assignee-filter">
-          <PlanQSelect size="sm" isSearchable={false} options={assigneeOptions}
-            aria-label={t('list.assignee') as string}
-            value={assigneeOptions.find((o) => o.value === assignee) || assigneeOptions[0]}
-            onChange={(opt: unknown) => setAssignee(String((opt as { value?: string } | null)?.value ?? ''))} />
-        </SelectWrap>
-      </FilterRow>
       {summary && (
         <StripRow>
           <StageStrip>
@@ -272,7 +322,22 @@ export default function SalePage() {
               {t('stage.none') as string} <b>{summary.stage_counts.none ?? 0}</b>
             </StageChip>
           </StageStrip>
-          <QuotaChip type="button" onClick={() => navigate('/business/settings/plan')}>{quotaLabel}</QuotaChip>
+          {/* ★ 2026-09-14 (Irene: *"정식 4/100 · 문의 4/300 이거 누르면 왜 구독플랜으로 가? 이게 무슨 상황이야?"*)
+              이건 **현황 표시**다. 그런데 통째로 버튼이라 눌리면 결제 화면으로 튀었다 —
+              숫자를 확인하려고 누른 사람에게는 아무 설명 없이 장소가 바뀌는 일이다.
+              이제 ①평소엔 누를 수 없는 표시이고 ②무슨 숫자인지 말해 주며
+              ③**한도에 가까울 때만**(80%) 늘리는 길을 따로 내놓는다. */}
+          <QuotaBox title={t('quota.tip', {
+            defaultValue: '정식 = 계정을 만들어 드린 고객 · 문의 = 아직 초대하지 않은 상담 상대. 숫자는 현재 / 플랜 한도입니다.',
+          }) as string}>
+            <span>{quotaLabel}</span>
+            {quotaTight && (
+              <QuotaCta type="button" data-testid="sale-quota-raise"
+                onClick={() => navigate('/business/settings/plan')}>
+                {t('quota.raise', { defaultValue: '한도 늘리기' }) as string}
+              </QuotaCta>
+            )}
+          </QuotaBox>
         </StripRow>
       )}
 
@@ -503,31 +568,11 @@ const Actions = styled.div`
   display: flex; align-items: center; gap: 8px;
   @media (max-width: 640px) { > *:last-child { order: -1; } }
 `;
-/* PlanQSelect 는 react-select 라 폭을 직접 받지 않는다 — 감싸는 칸이 폭을 준다 */
-const SearchRow = styled.div`display: flex; align-items: center; gap: 8px; margin-bottom: 10px;`;
-const SelectWrap = styled.div<{ $w: number }>`width: ${(p) => p.$w}px; flex-shrink: 0;
-  @media (max-width: 640px) { width: ${(p) => Math.min(p.$w, 128)}px; }`;
 const SearchInput = styled.input`
-  height: 36px; width: 200px; padding: 0 10px;
+  /* 폭은 감싸는 FilterSearchSlot 이 정한다 — 고정 200px 이면 필터 줄에서 늘지도 줄지도 않는다 */
+  height: 36px; width: 100%; padding: 0 10px;
   border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #5EEAD4; }
-  @media (max-width: 640px) { width: 150px; }
-`;
-// 탭 — 상담(기본) / 고객. 밑줄 탭(관리 리스트 패턴)과 같은 톤으로 가볍게.
-const TabRow = styled.div`
-  display: flex; align-items: center; gap: 4px;
-  border-bottom: 1px solid #E2E8F0; margin-bottom: 12px;
-`;
-const TabBtn = styled.button<{ $on: boolean }>`
-  position: relative; height: 36px; padding: 0 12px;
-  background: none; border: none; cursor: pointer; font-family: inherit;
-  font-size: 0.8125rem; font-weight: ${(p) => (p.$on ? 700 : 600)};
-  color: ${(p) => (p.$on ? '#0F766E' : '#64748B')};
-  &::after {
-    content: ''; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px;
-    background: ${(p) => (p.$on ? '#0D9488' : 'transparent')};
-  }
-  &:hover { color: ${(p) => (p.$on ? '#0F766E' : '#334155')}; }
 `;
 const StripRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;`;
 const StageStrip = styled.div`display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 2px;
@@ -543,16 +588,18 @@ const StageChip = styled.button<{ $on?: boolean }>`
   &:hover { border-color: #5EEAD4; }
 `;
 const Divider = styled.span`width: 1px; height: 18px; background: #E2E8F0; flex-shrink: 0;`;
-// 탭 바로 아래 필터 줄 — 폰에서는 감긴다(고정 폭 셀렉트가 가로로 넘치지 않게).
-const FilterRow = styled.div`
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 10px 0 2px;
-`;
-const QuotaChip = styled.button`
-  height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer;
+// 현황 표시 — 누르는 것이 아니다. 늘리는 길은 안쪽의 작은 버튼이 따로 갖는다.
+const QuotaBox = styled.div`
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 12px; border-radius: 999px;
   font-size: 0.75rem; font-weight: 600; color: #475569;
   background: #F8FAFC; border: 1px solid #E2E8F0;
-  &:hover { background: #F1F5F9; }
+`;
+const QuotaCta = styled.button`
+  border: none; background: none; padding: 0; cursor: pointer;
+  font-size: 0.75rem; font-weight: 700; color: #F43F5E;
+  text-decoration: underline; text-underline-offset: 2px;
+  &:hover { color: #E11D48; }
 `;
 const Table = styled.table`
   width: 100%; border-collapse: separate; border-spacing: 0;
