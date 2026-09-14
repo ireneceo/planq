@@ -313,6 +313,117 @@ async function run() {
       }
     }
 
+    // ── ⑮ 고객 탭이 상담 탭과 **같은 자리·같은 모양**인가 (3폭) ───────────────
+    //   Irene: *"세일에서 고객탭은 필터랑 버튼 디자인들 위치 맞추라고 한거야."*
+    //   ★ 두 탭을 **같은 실행에서 번갈아 재야** 한다 — 따로 재면 폭·스크롤 위치가 달라 비교가 거짓이 된다.
+    for (const vp of VPS) {
+      await page.setViewport({ width: vp.w, height: vp.h, deviceScaleFactor: 1 });
+      await goto(page, '/sale');
+      await dismissBlockers(page);
+      await sleep(900);
+      const read = () => page.evaluate(() => {
+        const bar = document.querySelector('[data-testid="sale-filter-row"]');
+        const row = document.querySelector('[data-testid="sale-inbox-chip-row"],[data-testid="sale-clients-chip-row"]');
+        if (!bar || !row) return null;
+        const br = bar.getBoundingClientRect(), rr = row.getBoundingClientRect();
+        const cs = getComputedStyle(row);
+        const chip = row.querySelector('button');
+        const on = [...row.querySelectorAll('button')].find((b) => {
+          const c = getComputedStyle(b); return c.borderTopColor !== 'rgb(226, 232, 240)';
+        }) || chip;
+        const oc = on ? getComputedStyle(on) : null;
+        const cr = chip ? chip.getBoundingClientRect() : null;
+        return {
+          // ★ 틈은 **첫 칩**의 위끝으로 잰다 — 감싸는 상자(ChipRow)의 top 을 재면
+          //   `padding-top` 이 상자 **안쪽**이라 상자는 안 움직이고 칩만 올라간다. 즉 결함을
+          //   되살려도 초록이 뜬다(2026-09-14 양성 대조군이 실제로 그랬다).
+          //   원래 신고의 "10px 차이" 가 정확히 **칩의 y** 였다.
+          //   [[feedback_judge_measures_wrapper_not_defect]]
+          gapFromFilter: cr ? Math.round(cr.top - br.bottom) : null,
+          boxGap: Math.round(rr.top - br.bottom),          // 참고값(상자 기준 — 판정에 쓰지 않는다)
+          left: Math.round(rr.left),
+          padTop: cs.paddingTop, gap: cs.columnGap,
+          chipH: cr ? Math.round(cr.height) : null,
+          chipLeft: cr ? Math.round(cr.left) : null,
+          onBorder: oc ? oc.borderTopColor : null,
+          onBg: oc ? oc.backgroundColor : null,
+          onColor: oc ? oc.color : null,
+        };
+      });
+      const inbox = await read();
+      await page.click('[data-testid="sale-tab-clients"]');
+      await sleep(900);
+      const clients = await read();
+      const P = (n, ok, d) => push(`[${vp.key}] ${n}`, ok, d);
+      if (!inbox || !clients) { P('⑮ 두 탭의 칩 줄을 찾았다', false, `inbox=${!!inbox} clients=${!!clients}`); continue; }
+
+      P('⑮ 칩 줄이 **같은 자리**에서 시작한다 (필터줄과의 틈 동일)',
+        inbox.gapFromFilter === clients.gapFromFilter && inbox.left === clients.left,
+        `첫 칩의 틈 상담 ${inbox.gapFromFilter} / 고객 ${clients.gapFromFilter}px`
+        + ` · 줄 left 상담 ${inbox.left} / 고객 ${clients.left}`
+        + ` · (참고: 상자 기준 틈 ${inbox.boxGap}/${clients.boxGap} — 이 값으로 재면 결함을 못 잡는다)`);
+      P('⑮ 칩의 **첫 x·높이**가 같다',
+        inbox.chipLeft === clients.chipLeft && inbox.chipH === clients.chipH,
+        `x 상담 ${inbox.chipLeft} / 고객 ${clients.chipLeft} · h 상담 ${inbox.chipH} / 고객 ${clients.chipH}`);
+      P('⑮ 줄 규격(패딩·간격)이 같다',
+        inbox.padTop === clients.padTop && inbox.gap === clients.gap,
+        `padTop ${inbox.padTop}/${clients.padTop} · gap ${inbox.gap}/${clients.gap}`);
+      P('⑮ **켜진 칩의 색**이 같다 (테두리·배경·글자)',
+        inbox.onBorder === clients.onBorder && inbox.onBg === clients.onBg && inbox.onColor === clients.onColor,
+        `상담 ${inbox.onBorder} / ${inbox.onBg} · 고객 ${clients.onBorder} / ${clients.onBg}`);
+    }
+
+    // ── ⑮-B 칩이 **여전히 눌리고 필터가 걸리는가** (데스크탑 1회) ─────────────
+    //   ★ 모양만 재면 "예쁘게 죽은 버튼" 을 못 잡는다. 공용 껍데기로 갈아끼우면서
+    //     `<Spacer />` 를 지웠으므로, 그 자리에 있던 칩이 사라지거나 죽지 않았는지 **눌러서** 본다
+    //     (memory feedback_ui_control_sends_nothing · feedback_completed_but_dead_features).
+    await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
+    await goto(page, '/sale');
+    await dismissBlockers(page);
+    await sleep(900);
+    const rowCountNow = () => page.evaluate(() =>
+      document.querySelectorAll('[data-testid^="sale-inbox-row-"]').length);
+
+    // 상담 탭 — 휴지통 칩(우측 끝, ChipRight 안)이 살아 있고 목록을 바꾸는가
+    const trash = await page.$('[data-testid="sale-inbox-source-dismissed"]');
+    push('⑮-B 휴지통 칩이 **사라지지 않았다**', !!trash, trash ? '있음' : 'ChipRight 로 옮기며 사라졌다');
+    if (trash) {
+      const n0 = await rowCountNow();
+      await trash.click(); await sleep(1100);
+      const n1 = await rowCountNow();
+      const on = await page.evaluate(() => {
+        const b = document.querySelector('[data-testid="sale-inbox-source-dismissed"]');
+        return b ? getComputedStyle(b).borderTopColor : null;
+      });
+      push('⑮-B 휴지통 칩을 누르면 **목록이 바뀐다**', n1 !== n0,
+        `행 ${n0} → ${n1} · 켜진 테두리 ${on}`);
+      push('⑮-B 눌린 칩이 **켜진 색**으로 보인다', on === 'rgb(13, 148, 136)', `borderColor=${on}`);
+      await trash.click(); await sleep(900);   // 되돌린다(다음 검사 오염 금지)
+    }
+
+    // 고객 탭 — 단계 칩이 살아 있고 목록을 바꾸는가
+    await page.click('[data-testid="sale-tab-clients"]'); await sleep(1100);
+    const clientRows = () => page.evaluate(() =>
+      document.querySelectorAll('[data-testid^="sale-row-"]').length);
+    const c0 = await clientRows();
+    const stageChip = await page.$('[data-testid="sale-stage-chip-inquiry"]');
+    push('⑮-B 고객 탭 단계 칩이 **사라지지 않았다**', !!stageChip, stageChip ? '있음' : '없다');
+    if (stageChip) {
+      await stageChip.click(); await sleep(1200);
+      const c1 = await clientRows();
+      push('⑮-B 단계 칩을 누르면 **목록이 걸러진다**', c1 !== c0, `행 ${c0} → ${c1}`);
+      // [전체] 로 되돌아갈 길이 있는가 (필터 전체 옵션 계약)
+      const all = await page.$('[data-testid="sale-stage-chip-all"]');
+      push('⑮-B [전체] 로 돌아갈 길이 있다', !!all, all ? '있음' : '없다');
+      if (all) { await all.click(); await sleep(1200);
+        const c2 = await clientRows();
+        push('⑮-B [전체] 를 누르면 되돌아온다', c2 === c0, `행 ${c1} → ${c2} (원래 ${c0})`); }
+    }
+    // 한도 표시는 ChipRight 안에서 살아 있는가
+    const quota = await page.$('[data-testid="sale-quota"]');
+    push('⑮-B 한도 표시가 **사라지지 않았다**', !!quota, quota ? '있음' : 'ChipRight 로 옮기며 사라졌다');
+    await page.click('[data-testid="sale-tab-inbox"]'); await sleep(900);
+
     // ── ⑭ Enter 전송 — 데스크탑에서 한 번만 (실제 POST 가 나가는지) ─────────
     //   ★ 음성 대조군: **Shift+Enter 는 보내지 않는다**(줄바꿈). 둘 다 재야 "Enter 로 보낸다" 가 증명된다.
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });

@@ -14,6 +14,7 @@ import ClientPanel from '../../components/QSale/ClientPanel';
 import ClientLink from '../../components/QSale/ClientLink';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { FilterBar, FilterSlot, ToggleFilter, CheckFilter, axisOption } from '../../components/Common/filterBar';
+import { ChipRow, FilterChip, ChipDivider, ChipRight } from '../../components/Common/filterChip';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import ActionButton from '../../components/Common/ActionButton';
 import StandardModal from '../../components/Common/StandardModal';
@@ -298,45 +299,48 @@ export default function SalePage() {
         ) : null
       ) : (
       <>
+      {/* ★ 2026-09-14 2차 (Irene: *"세일에서 고객탭은 필터랑 버튼 디자인들 위치 맞추라고 한거야."*)
+          상담 탭의 칩 줄과 **같은 껍데기**를 쓴다(`components/Common/filterChip`).
+          전에는 두 탭이 알약을 각자 선언해 줄 시작 y 가 10px, 켜진 테두리색이 달랐다. */}
       {summary && (
-        <StripRow>
-          <StageStrip>
+        <ChipRow data-testid="sale-clients-chip-row">
             {/* ★ 2026-09-12 Irene: "Q sales 가면 전체가 없어" — 설계 §5.2 는 "전체 칩 항상" 이었는데 구현에서 빠졌다.
                 칩으로 필터를 건 뒤 전체로 돌아갈 길이 같은 칩 재클릭뿐이라, 무엇을 보고 있는지도 알 수 없었다. */}
-            <StageChip type="button" data-testid="sale-stage-chip-all"
+            <FilterChip type="button" data-testid="sale-stage-chip-all"
               $on={stage === ''}
               onClick={() => setStage('')}>
               {t('list.filterAll') as string} <b>{total}</b>
-            </StageChip>
-            <Divider aria-hidden />
+            </FilterChip>
+            <ChipDivider aria-hidden />
             {IN_PROGRESS_STAGES.map((s) => (
-              <StageChip key={s} type="button" data-testid={`sale-stage-chip-${s}`}
+              <FilterChip key={s} type="button" data-testid={`sale-stage-chip-${s}`}
                 $on={stage === s}
                 title={t(`stage.${s}_hint`) as string}
                 onClick={() => setStage((prev) => (prev === s ? '' : s))}>
                 {t(`stage.${s}`) as string} <b>{summary.stage_counts[s] ?? 0}</b>
-              </StageChip>
+              </FilterChip>
             ))}
-            <Divider aria-hidden />
-            <StageChip type="button" $on={stage === 'won'} title={t('stage.won_hint') as string}
+            <ChipDivider aria-hidden />
+            <FilterChip type="button" $on={stage === 'won'} title={t('stage.won_hint') as string}
               onClick={() => setStage((prev) => (prev === 'won' ? '' : 'won'))}>
               {t('stage.won') as string} <b>{summary.this_month.won}</b>
-            </StageChip>
-            <StageChip type="button" $on={stage === 'lost'} title={t('stage.lost_hint') as string}
+            </FilterChip>
+            <FilterChip type="button" $on={stage === 'lost'} title={t('stage.lost_hint') as string}
               onClick={() => setStage((prev) => (prev === 'lost' ? '' : 'lost'))}>
               {t('stage.lost') as string} <b>{summary.this_month.lost}</b>
-            </StageChip>
-            <Divider aria-hidden />
-            <StageChip type="button" $on={stage === 'none'} title={t('stage.none_hint') as string}
+            </FilterChip>
+            <ChipDivider aria-hidden />
+            <FilterChip type="button" $on={stage === 'none'} title={t('stage.none_hint') as string}
               onClick={() => setStage((prev) => (prev === 'none' ? '' : 'none'))}>
               {t('stage.none') as string} <b>{summary.stage_counts.none ?? 0}</b>
-            </StageChip>
-          </StageStrip>
+            </FilterChip>
+
           {/* ★ 2026-09-14 (Irene: *"정식 4/100 · 문의 4/300 이거 누르면 왜 구독플랜으로 가? 이게 무슨 상황이야?"*)
               이건 **현황 표시**다. 그런데 통째로 버튼이라 눌리면 결제 화면으로 튀었다 —
               숫자를 확인하려고 누른 사람에게는 아무 설명 없이 장소가 바뀌는 일이다.
               이제 ①평소엔 누를 수 없는 표시이고 ②무슨 숫자인지 말해 주며
               ③**한도에 가까울 때만**(80%) 늘리는 길을 따로 내놓는다. */}
+          <ChipRight>
           <QuotaBox data-testid="sale-quota" title={t('quota.tip', {
             defaultValue: '정식 = 계정을 만들어 드린 고객 · 문의 = 아직 초대하지 않은 상담 상대. 숫자는 현재 / 플랜 한도입니다.',
           }) as string}>
@@ -348,7 +352,8 @@ export default function SalePage() {
               </QuotaCta>
             )}
           </QuotaBox>
-        </StripRow>
+          </ChipRight>
+        </ChipRow>
       )}
 
       {loading ? (
@@ -597,20 +602,6 @@ const SearchInput = styled.input`
   border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #0F172A;
   &:focus { outline: none; border-color: #5EEAD4; }
 `;
-const StripRow = styled.div`display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;`;
-const StageStrip = styled.div`display: flex; align-items: center; gap: 6px; overflow-x: auto; padding-bottom: 2px;
-  scrollbar-width: none; &::-webkit-scrollbar { display: none; }`;
-const StageChip = styled.button<{ $on?: boolean }>`
-  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
-  height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer;
-  font-size: 0.75rem; font-weight: 600;
-  border: 1px solid ${(p) => (p.$on ? '#5EEAD4' : '#E2E8F0')};
-  background: ${(p) => (p.$on ? '#F0FDFA' : '#fff')};
-  color: ${(p) => (p.$on ? '#0F766E' : '#64748B')};
-  b { color: #0F172A; font-size: 0.8125rem; }
-  &:hover { border-color: #5EEAD4; }
-`;
-const Divider = styled.span`width: 1px; height: 18px; background: #E2E8F0; flex-shrink: 0;`;
 // 현황 표시 — 누르는 것이 아니다. 늘리는 길은 안쪽의 작은 버튼이 따로 갖는다.
 const QuotaBox = styled.div`
   display: inline-flex; align-items: center; gap: 8px;

@@ -18,6 +18,7 @@ import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import ActionButton from '../Common/ActionButton';
+import { ChipRow, FilterChip, ChipRight } from '../Common/filterChip';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import TaskCreateForm from '../QTask/TaskCreateForm';
 import ClientPanel from './ClientPanel';
@@ -290,22 +291,24 @@ const SaleInboxList: React.FC<Props> = ({
 
   return (
     <>
-      <FilterRow>
+      <ChipRow data-testid="sale-inbox-chip-row">
         {SOURCES.map((s) => (
-          <Chip key={s || 'all'} type="button" data-testid={`sale-inbox-source-${s || 'all'}`}
+          <FilterChip key={s || 'all'} type="button" data-testid={`sale-inbox-source-${s || 'all'}`}
             $on={source === s} onClick={() => setSource(s)}>
             {sourceLabel(s)} <b>{sourceCount(s)}</b>
-          </Chip>
+          </FilterChip>
         ))}
-        <Spacer />
+        
         {/* ★ 보관함은 **소스가 아니라 판단의 결과**다(사람이 [문의 아님] 이라고 내린 것).
             일반 소스 칩 사이에 끼우면 "게스트/메일/채팅" 과 같은 층으로 읽힌다 — 오른쪽에 따로 둔다. */}
-        <Chip type="button" data-testid="sale-inbox-source-dismissed"
-          $on={source === 'dismissed'}
-          onClick={() => setSource((v) => (v === 'dismissed' ? '' : 'dismissed'))}>
-          {t('inbox.source.dismissed') as string} <b>{counts.dismissed ?? 0}</b>
-        </Chip>
-      </FilterRow>
+        <ChipRight>
+          <FilterChip type="button" data-testid="sale-inbox-source-dismissed"
+            $on={source === 'dismissed'}
+            onClick={() => setSource((v) => (v === 'dismissed' ? '' : 'dismissed'))}>
+            {t('inbox.source.dismissed') as string} <b>{counts.dismissed ?? 0}</b>
+          </FilterChip>
+        </ChipRight>
+      </ChipRow>
       {/* ★ 2026-09-14 — 단계 필터·대응 필요만·종료 가리기는 **검색 옆 한 줄**(SalePage)로 옮겼다.
           여기 남은 것은 접점 **종류**(게스트/메일/채팅)와 보관함 — 목록 자신의 축이다. */}
       <Hint>{t('inbox.hint') as string}</Hint>
@@ -644,20 +647,6 @@ function NextContactEnsure({ businessId, item, onEnsureClient, onClose, onSaved 
 
 export default SaleInboxList;
 
-const FilterRow = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-  padding: 10px 0 4px;
-`;
-const Spacer = styled.div`flex: 1; min-width: 8px;`;
-const Chip = styled.button<{ $on?: boolean; $accent?: boolean }>`
-  height: 36px; padding: 0 12px; border-radius: 999px; cursor: pointer;
-  font-size: 0.75rem; font-weight: 600;
-  border: 1px solid ${(p) => (p.$on ? (p.$accent ? '#F43F5E' : '#0D9488') : '#E2E8F0')};
-  background: ${(p) => (p.$on ? (p.$accent ? '#FFF1F2' : '#F0FDFA') : '#FFFFFF')};
-  color: ${(p) => (p.$on ? (p.$accent ? '#BE123C' : '#0F766E') : '#475569')};
-  b { margin-left: 4px; font-weight: 700; }
-  &:hover { background: ${(p) => (p.$on ? undefined : '#F8FAFC')}; }
-`;
 const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 0 0 10px;`;
 /** 바깥으로 나가는 화살표 — ClientPanel 의 전체보기 아이콘과 **같은 모양**(새로 그리지 않는다).
  *  이 버튼은 우측 패널이 아니라 다른 화면으로 이동한다는 뜻을 아이콘이 먼저 말한다. */
