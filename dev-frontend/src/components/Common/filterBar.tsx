@@ -31,9 +31,11 @@ export const FilterBar = styled.div`
      하나라도 다르면 줄이 들쭉날쭉해진다. */
 `;
 
-/** 검색칸 — 남는 자리를 먹되, 좁아지면 제 줄을 차지한다. */
+/** 검색칸 — 줄의 **맨 앞**이다(2026-09-14, Irene: *"검색창 … 필터들 맨 앞에 둬. 단계 셀렉트 앞에."*).
+ *  자라지 않는다 — `flex-grow:1` 이면 검색이 남는 자리를 다 먹어 셀렉트들이 줄 오른쪽 끝으로
+ *  밀려난다(같은 줄인데 두 덩어리로 보인다). 프로젝트 목록의 검색칸과 같은 240px. */
 export const FilterSearchSlot = styled.div`
-  flex: 1 1 240px; min-width: 180px;
+  flex: 0 1 240px; min-width: 160px;
   display: flex; align-items: center;
   > * { width: 100%; }
 `;

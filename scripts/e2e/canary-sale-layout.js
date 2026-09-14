@@ -3,8 +3,10 @@
 // Irene 원문(요지):
 //   ① 종료 가리기는 기존대로 **체크박스** · ② 단계·접근·담당자는 **셀렉트 안**에서 고른다
 //   (축 이름 라벨 없음 · "전체" 없음) · ③ 필터줄이 위에 너무 들러붙었다
-//   ④ 검색 · [고객응대 내역 추가] 를 **우측 상단 헤더**로, 추가 버튼은 탭 **뒤**
-//   ⑤ 추가 버튼은 `+` 가 붙은 기존 스타일 · 색이 덜 진해야 한다 · ⑥ 더 작은 액션 크기(32px)
+//   ④ [검색]은 **필터줄 맨 앞**(단계 셀렉트 앞) · 탭과 [고객응대 내역 추가]는 머리줄, 추가는 탭 뒤
+//      (2026-09-14 3차로 바뀐 계약 — 오전엔 검색도 머리줄이었다. 검사를 끄지 않고 **옮겼다**)
+//   ⑤ 추가 버튼은 `+` 가 붙은 **활성화(채워진 민트 #14B8A6)** — Q task·프로젝트 헤더와 같은 껍데기
+//   ⑥ 높이 32(프로젝트 헤더와 같다) · ⑯ 상담·고객 탭 글자가 **세로로 쪼개지지 않는다**
 //   ⑧ 단계 버튼이 행 **세로 중앙** · ⑨ ✕ 의 박스 제거 + 높이 통일
 //   ⑩ [보기] 는 아이콘 + "보기" (이름 없음) · ⑪ 메모 **개수 표시 없음**
 //   ⑫ 메모가 있으면 행 아래 **좌측 끝**에 [메모보기 ⌄] · ⑬ 열리면 **좌우 풀폭 회색 영역**,
@@ -87,14 +89,30 @@ async function measure(page) {
     // 한 줄 안 컨트롤 높이 집합
     out.filterHeights = bar ? [...new Set([...bar.children].map((c) => Math.round(c.getBoundingClientRect().height)))] : [];
 
-    // ── 헤더 ─────────────────────────────────────────────────
+    // ── 헤더 · 검색 ──────────────────────────────────────────
+    // ★ 2026-09-14 3차로 계약이 **바뀌었다** (Irene: *"검색창 왜 위에 있어? 필터들 맨 앞에 둬.
+    //   단계 셀렉트 앞에."*). 오전 계약(검색이 헤더)을 검사하던 자리를 **끄지 않고 옮긴다**.
     const search = q('[data-testid="sale-search"]');
+    const stageSlot = q('[data-testid="sale-stage-filter"]');
     const tabs = q('[data-testid="sale-tab-inbox"]');
     const add = q('[data-testid="sale-add-inquiry"]');
     out.search = vis(search); out.tabs = vis(tabs); out.add = add ? vis(add) : null;
-    // ④ 셋이 **같은 줄(헤더)** 안에 있는가 — 공통 조상이 필터줄 위인가
-    out.headerHasAll = !!(search && tabs && add);
-    if (out.headerHasAll && bar) {
+    // ④ 검색이 **필터줄 안**이고, 그 줄의 **맨 앞**(단계 셀렉트보다 앞)인가
+    out.searchInFilterBar = !!(bar && search && bar.contains(search));
+    out.searchIsFirstChild = !!(bar && search && bar.firstElementChild === search);
+    out.searchBeforeStage = !!(search && stageSlot
+      && (search.compareDocumentPosition(stageSlot) & Node.DOCUMENT_POSITION_FOLLOWING));
+    if (search && stageSlot) {
+      const sr = search.getBoundingClientRect(), gr = stageSlot.getBoundingClientRect();
+      out.searchLeftOfStage = Math.round(sr.right) <= Math.round(gr.left) + 1;
+      out.searchSameRow = Math.abs(Math.round(sr.top) - Math.round(gr.top)) <= 2;
+      // ★ 좁은 폭에서는 필터줄이 **줄바꿈**된다(계약: "좁아지면 가로로 숨기지 않고 줄이 바뀐다").
+      //   그때 "앞" 은 왼쪽이 아니라 **윗줄**이다. 데스크탑 기준만 재면 폰에서 거짓 실패가 난다.
+      out.searchAboveStage = Math.round(sr.bottom) <= Math.round(gr.top) + 1;
+    }
+    // ④ 탭·추가는 머리줄에 남는다(필터줄 **위**)
+    out.headerHasTabAndAdd = !!(tabs && add);
+    if (out.headerHasTabAndAdd && bar) {
       out.headerAboveFilter = Math.max(add.getBoundingClientRect().bottom, tabs.getBoundingClientRect().bottom)
         <= bar.getBoundingClientRect().top + 1;
       // 추가 버튼이 탭 **뒤**(문서 순서)
@@ -108,6 +126,23 @@ async function measure(page) {
         hasPlusSvg: !!add.querySelector('svg'),
       };
     }
+    // ⑯ 알약 탭의 글자가 **세로로 쪼개지지 않는다** (Irene: *"상담 고객이 글자가 왜 세로야?"*)
+    //    판정은 낱말 폭이 아니라 **줄 수**로 한다 — 높이 ÷ 줄높이가 2 이상이면 쪼개진 것이다.
+    out.tabText = ['sale-tab-inbox', 'sale-tab-clients'].map((id) => {
+      const el = q(`[data-testid="${id}"]`);
+      if (!el) return { id, missing: true };
+      const cs = getComputedStyle(el);
+      const lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.2);
+      const r = el.getBoundingClientRect();
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      return {
+        id, text: (el.innerText || '').trim(),
+        w: Math.round(r.width), h: Math.round(r.height),
+        lines: Math.max(1, Math.round((r.height - padY) / lh)),
+        whiteSpace: cs.whiteSpace,
+        overflowing: el.scrollWidth > el.clientWidth + 1,
+      };
+    });
 
     // ── 행 ───────────────────────────────────────────────────
     const rows = [...document.querySelectorAll('[data-testid^="sale-inbox-row-"]')];
@@ -200,16 +235,35 @@ async function run() {
       P('필터줄 컨트롤 높이가 한 값이다', m.filterHeights.length === 1,
         `높이 집합 {${m.filterHeights.join(', ')}}`);
 
-      // ── ④⑤ 헤더 ────────────────────────────────────────────
-      P('④ 검색·탭·추가가 모두 헤더에 있다', m.headerHasAll && m.search.drawn && m.tabs.drawn && m.add.drawn,
-        `search=${m.search && m.search.drawn} tabs=${m.tabs && m.tabs.drawn} add=${m.add && m.add.drawn}`);
-      P('④ 헤더가 필터줄 **위**에 있다', m.headerAboveFilter === true, `headerBottom ≤ filterTop = ${m.headerAboveFilter}`);
+      // ── ④⑤ 헤더 · 검색 자리 ────────────────────────────────
+      // ★ 3차 계약: 검색은 **필터줄 맨 앞**, 탭·추가는 머리줄.
+      P('④ 검색이 **필터줄 안**에 있다 (머리줄이 아니다)', m.searchInFilterBar === true,
+        `inFilterBar=${m.searchInFilterBar} drawn=${m.search && m.search.drawn}`);
+      P('④ 검색이 필터줄의 **맨 앞**이다', m.searchIsFirstChild === true, `firstChild=${m.searchIsFirstChild}`);
+      // 같은 줄이면 **왼쪽**, 줄이 바뀌었으면 **윗줄** — 둘 다 "앞" 이다.
+      const aheadOfStage = m.searchSameRow ? m.searchLeftOfStage === true : m.searchAboveStage === true;
+      P('④ 검색이 **단계 셀렉트 앞**이다 (문서 순서 + 좌표)',
+        m.searchBeforeStage === true && aheadOfStage,
+        `before=${m.searchBeforeStage} sameRow=${m.searchSameRow} leftOf=${m.searchLeftOfStage} above=${m.searchAboveStage}`);
+      P('④ 탭·추가는 필터줄 **위**(머리줄)에 있다',
+        m.headerHasTabAndAdd && m.tabs.drawn && m.add.drawn && m.headerAboveFilter === true,
+        `tabs=${m.tabs && m.tabs.drawn} add=${m.add && m.add.drawn} above=${m.headerAboveFilter}`);
       P('④ 추가 버튼이 탭 **뒤**다 (문서 순서)', m.addAfterTabs === true, `addAfterTabs=${m.addAfterTabs}`);
       P('⑤ 추가 버튼에 `+` 아이콘이 있다', !!(m.addStyle && m.addStyle.hasPlusSvg), `svg=${m.addStyle && m.addStyle.hasPlusSvg}`);
-      // "색상이 덜 진해야 한다" — primary 진한 청록(#0F766E)이 아니어야 한다
-      const dark = /rgb\(15,\s*118,\s*110\)/.test((m.addStyle || {}).bg || '');
-      P('⑤ 추가 버튼이 진한 primary 배경이 아니다', !dark, `background=${(m.addStyle || {}).bg}`);
-      P('⑥ 추가 버튼 높이가 32 (xs)', (m.addStyle || {}).h === 32, `h=${(m.addStyle || {}).h}px`);
+      // ★ 3차 계약: **활성화(채워진) 버튼**. Q task [+ 업무 추가]·프로젝트 [+ 새 프로젝트] 와 같은 값
+      //   (#14B8A6). 오전에는 "덜 진하게"(secondary 흰 배경)였다 — Irene 이 되돌렸다.
+      const mint = /rgb\(20,\s*184,\s*166\)/.test((m.addStyle || {}).bg || '');
+      P('⑤ 추가 버튼이 **채워진 민트**다 (#14B8A6 — Q task·프로젝트와 같다)', mint,
+        `background=${(m.addStyle || {}).bg}`);
+      P('⑤ 추가 버튼 글자가 흰색이다', /rgb\(255,\s*255,\s*255\)/.test((m.addStyle || {}).color || ''),
+        `color=${(m.addStyle || {}).color}`);
+      P('⑥ 추가 버튼 높이가 32 (프로젝트 헤더와 같다)', (m.addStyle || {}).h === 32, `h=${(m.addStyle || {}).h}px`);
+
+      // ── ⑯ 알약 탭 글자가 세로가 아니다 ──────────────────────
+      const badTab = (m.tabText || []).filter((tt) => tt.missing || tt.lines > 1 || tt.whiteSpace !== 'nowrap');
+      P('⑯ 상담·고객 탭 글자가 **한 줄**이다 (세로로 쪼개지지 않는다)', badTab.length === 0,
+        (m.tabText || []).map((tt) => tt.missing ? `${tt.id}:없음`
+          : `${tt.text}: ${tt.w}×${tt.h} ${tt.lines}줄 ${tt.whiteSpace}`).join(' · '));
 
       // ── ⑥⑧⑨⑩⑪ 행 ──────────────────────────────────────────
       const R = m.rows;

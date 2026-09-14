@@ -11,10 +11,15 @@ import styled from 'styled-components';
 export const SegmentedToggle = styled.div`
   display: inline-flex; gap: 4px; padding: 3px;
   background: #F1F5F9; border-radius: 8px;
+  /* ★ 2026-09-14 (Irene: *"상담 고객이 글자가 왜 세로야?"*)
+     머리줄은 flex 라 자리가 모자라면 이 알약이 **먼저 줄어든다**(flex-shrink 기본 1).
+     폭이 글자 하나만큼 좁아지면 "상담" 이 세로로 쪼개진다 — 줄이지 않는다. */
+  flex-shrink: 0;
 `;
 
 export const SegmentedBtn = styled.button<{ $active: boolean }>`
   padding: 6px 14px; font-size: 0.8125rem; font-weight: 600;
+  white-space: nowrap;  /* 두 글자가 세로로 쪼개지지 않는다 */
   background: ${p => (p.$active ? '#FFFFFF' : 'transparent')};
   color: ${p => (p.$active ? '#0F172A' : '#64748B')};
   border: none; border-radius: 6px; cursor: pointer;

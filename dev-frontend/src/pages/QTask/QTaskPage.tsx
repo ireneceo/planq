@@ -62,6 +62,7 @@ import { needsSeriesScope } from '../../utils/taskSeries';
 import { belowTabs } from '../../theme/layout';
 import { inReviewStage } from '../../utils/reviewStage';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
+import { HeaderCta } from '../../components/Common/headerCta';
 
 // #249 — 우측 패널을 인라인으로 붙여둘 최소 뷰포트 폭.
 //   이보다 좁으면 overlay(기본 닫힘 + 떠 있는 토글 + ⌘/·Ctrl+\)로 전환해 리스트가 전폭을 쓴다.
@@ -1896,10 +1897,10 @@ const QTaskPage:React.FC=()=>{
               label={t('ai.btnShort','AI')}
               title={t('ai.btnHint','자연어 한 줄로 여러 업무 자동 생성') as string}
             />
-            <HeaderAddBtn type="button" data-testid="task-add-btn" onClick={()=>{
+            <HeaderCta type="button" $h={36} data-testid="task-add-btn" onClick={()=>{
               // 우측 상단 = panel(드로어) 모드
               openAddForm(false,{assigneeId:tab==='requested'?null:myId});
-            }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderAddBtn>
+            }}>+ {scope==='mine'&&tab==='requested'?t('add.reqBtn','요청 추가'):t('add.btn','업무 추가')}</HeaderCta>
           </FilterBar>
 
           {/* ★ P0-1 — 저장 실패를 여기서 말한다. 침묵하면 사용자는 "저장됨" 으로 읽는다(#228). */}
@@ -3414,8 +3415,8 @@ const DateTrigger=styled.button<{$color?:string;$empty?:boolean}>`
 `;
 
 const EmptyFull=styled.div`display:flex;align-items:center;justify-content:center;height:100vh;color:#94A3B8;`;
-// 헤더 생성 버튼 규격 = ActionButton sm (h36)
-const HeaderAddBtn=styled.button`display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;font-size:0.8125rem;font-weight:700;cursor:pointer;white-space:nowrap;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
+/* [+ 업무 추가] 는 공용 `components/Common/headerCta` 로 옮겼다 (2026-09-14) — 높이 36 만 이 화면 값이다
+   (머리줄의 다른 컨트롤이 36 이라 여기만 32 로 낮추면 줄이 들쭉날쭉해진다). 색·모서리·hover 는 공용 값. */
 /* 인라인 추가 (표 하단 새 행) — 표와 자연스럽게 연결되도록 좌우 margin 만 적용 */
 // 반복 옵션 펼침 (inline 폼 전용 컴팩트 행)
 // 빈 상태 — 명시적으로 flex column 안에서 가운데 정렬. 부모(LeftPanel) 의 남은 공간 모두 차지.

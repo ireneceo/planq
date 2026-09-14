@@ -13,7 +13,9 @@ import PageShell from '../../components/Layout/PageShell';
 import ClientPanel from '../../components/QSale/ClientPanel';
 import ClientLink from '../../components/QSale/ClientLink';
 import PlanQSelect from '../../components/Common/PlanQSelect';
-import { FilterBar, FilterSlot, ToggleFilter, CheckFilter, axisOption } from '../../components/Common/filterBar';
+import { FilterBar, FilterSlot, FilterSearchSlot, ToggleFilter, CheckFilter, axisOption } from '../../components/Common/filterBar';
+import SearchBox from '../../components/Common/SearchBox';
+import { HeaderCta } from '../../components/Common/headerCta';
 import { ChipRow, FilterChip, ChipDivider, ChipRight } from '../../components/Common/filterChip';
 import { SegmentedToggle, SegmentedBtn } from '../../components/Common/segmentedToggle';
 import ActionButton from '../../components/Common/ActionButton';
@@ -199,16 +201,9 @@ export default function SalePage() {
               탭이 **머리 오른쪽**으로 올라간다. Q task 의 [내 업무 | 전체 업무] 와 같은 컴포넌트다
               (`components/Common/segmentedToggle` — 베끼지 않고 빼서 같이 쓴다).
 
-              ★ 2026-09-14 2차 (Irene: *"검색 · [고객응대 내역 추가] 를 우측 상단 헤더에 붙여줘.
-                추가 버튼은 상담/고객 탭 뒤에."*) — 검색과 주 액션이 **필터줄에서 헤더로** 올라왔다.
-                필터줄에는 이제 **거르는 것만** 남는다(축 셀렉트 3 + 대응필요만 + 종료가리기).
-                자리: [검색] [상담|고객] [+ 고객응대 내역 추가] */}
-          <HeaderSearch>
-            <SearchInput value={q} onChange={(e) => setQ(e.target.value)}
-              data-testid="sale-search"
-              placeholder={t('list.searchPlaceholder') as string}
-              aria-label={t('list.searchPlaceholder') as string} />
-          </HeaderSearch>
+              ★ 2026-09-14 2차 → 3차로 **한 번 더 바뀌었다.** 2차에는 검색까지 머리줄로 올렸는데
+                Irene 이 되돌렸다(*"검색창 왜 위에 있어? 필터들 맨 앞에 둬."*).
+                지금 자리 — 머리줄: [상담|고객] [+ 고객응대 내역 추가] / 필터줄: [검색] [단계] [접근] … */}
           <SegmentedToggle role="tablist">
             <SegmentedBtn type="button" role="tab" aria-selected={tab === 'inbox'} data-testid="sale-tab-inbox"
               $active={tab === 'inbox'} onClick={() => setTab('inbox')}>
@@ -219,12 +214,15 @@ export default function SalePage() {
               {t('list.tabClients') as string}
             </SegmentedBtn>
           </SegmentedToggle>
-          {/* ★ 2026-09-14 2차 (Irene: *"`+` 를 붙이는 것이 기존 버튼 스타일이야. 색상도 덜 진해야 하고."*)
-              다른 목록 화면의 추가 버튼과 같은 모양 — 앞에 `+`, secondary 톤, 작은 크기(xs). */}
-          <ActionButton tone="secondary" size="xs" data-testid="sale-add-inquiry"
-            icon={<PlusIcon aria-hidden />} onClick={() => setAddOpen(true)}>
-            {t('action.addRecord') as string}
-          </ActionButton>
+          {/* ★ 2026-09-14 3차 (Irene: *"+고객응대 내역 추가 버튼은 Q task 에 +업무추가랑 같은
+              버튼으로 해. 활성화 버튼."* · *"프로젝트 헤더처럼."*)
+              머리줄 주 액션은 **공용 `HeaderCta` 한 곳**에서 온다 — 프로젝트 [+ 새 프로젝트] ·
+              Q task [+ 업무 추가] 와 같은 껍데기다. 오전에는 secondary(흰 배경)였는데,
+              세 화면을 나란히 놓으면 여기만 눌리지 않는 버튼처럼 보였다. */}
+          <HeaderCta data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
+            <PlusIcon aria-hidden />
+            <span>{t('action.addRecord') as string}</span>
+          </HeaderCta>
         </Actions>
       )}
     >
@@ -251,6 +249,16 @@ export default function SalePage() {
           · 대응 필요만 = 알약(지금 이것만 본다) / 종료 가리기 = 체크박스(늘 이렇게 본다). 쓰임이 다르다.
           · 좁아지면 가로로 숨기지 않고 **줄이 바뀐다**. */}
       <FilterBar data-testid="sale-filter-row">
+        {/* ★ 2026-09-14 3차 (Irene: *"Q sale 에서 검색창 왜 위에 있어? 필터들 맨 앞에 둬.
+            단계 셀렉트 앞에."*) — 오전에 헤더로 올렸던 검색을 **필터줄 맨 앞**으로 되돌렸다.
+            검색도 거르는 일이다 — 머리줄에 있으면 필터와 따로 노는 것으로 읽힌다.
+            프로젝트 목록(`QProjectPage`)이 이미 [검색][필터…] 순서다. 같은 자리에 둔다.
+            독자 styled 를 만들지 않는다 — 공용 `SearchBox`(36px, 필터줄 높이 계약과 같다). */}
+        <FilterSearchSlot data-testid="sale-search">
+          <SearchBox value={q} onChange={setQ} width="100%"
+            placeholder={t('list.searchPlaceholder') as string}
+            ariaLabel={t('list.searchPlaceholder') as string} />
+        </FilterSearchSlot>
         <FilterSlot width={130} testId="sale-stage-filter">
           <PlanQSelect size="sm" isSearchable={false} options={stageOptions}
             aria-label={t('stage.label') as string}
@@ -577,17 +585,11 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
 
 // ─── styled ──────────────────────────────────────────────────────
 /* 폰에서는 액션 줄이 가로로 스크롤된다(PageShell). 그대로 두면 **주 액션이 화면 밖 오른쪽**에 있어
-   스크롤해야 닿는다(실측 390px: 검색+셀렉트 3개가 앞을 다 먹고 "+ 문의 추가" 가 뷰포트 밖).
-   → 폰에서는 주 액션을 맨 앞으로 돌린다. 필터는 오른쪽으로 흘러도 스크롤로 닿는다. */
+   스크롤해야 닿는다(실측 390px: 앞의 컨트롤이 자리를 다 먹고 "+ 고객응대 내역 추가" 가 뷰포트 밖).
+   → 폰에서는 주 액션을 맨 앞으로 돌린다. 탭은 오른쪽으로 흘러도 스크롤로 닿는다. */
 const Actions = styled.div`
   display: flex; align-items: center; gap: 8px;
   @media (max-width: 640px) { > *:last-child { order: -1; } }
-`;
-/* 헤더의 검색칸 — 머리 줄에 서므로 헤더 컨트롤 높이(32)에 맞춘다.
-   폭은 데스크탑에서 적당히 고정하고, 폰에서는 남는 만큼 늘린다(머리 줄이 가로로 스크롤된다). */
-const HeaderSearch = styled.div`
-  flex: 0 1 200px; min-width: 120px;
-  @media (max-width: 640px) { flex: 1 1 140px; }
 `;
 const PlusIcon = styled.span.attrs({
   children: (
@@ -597,11 +599,6 @@ const PlusIcon = styled.span.attrs({
     </svg>
   ),
 })`display: inline-flex; align-items: center;`;
-const SearchInput = styled.input`
-  height: 32px; width: 100%; padding: 0 10px; box-sizing: border-box;
-  border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.8125rem; color: #0F172A;
-  &:focus { outline: none; border-color: #5EEAD4; }
-`;
 // 현황 표시 — 누르는 것이 아니다. 늘리는 길은 안쪽의 작은 버튼이 따로 갖는다.
 const QuotaBox = styled.div`
   display: inline-flex; align-items: center; gap: 8px;

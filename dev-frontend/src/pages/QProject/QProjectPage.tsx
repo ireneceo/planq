@@ -6,6 +6,7 @@ import { displayName } from '../../utils/displayName';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import PageShell from '../../components/Layout/PageShell';
+import { HeaderCta } from '../../components/Common/headerCta';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { todayInTz, addDaysStr, detectBrowserTz } from '../../utils/timezones';
 import { colorForProject, lightenColor } from '../../utils/projectColors';
@@ -300,7 +301,9 @@ const QProjectPage: React.FC = () => {
               <span>{t('view.calendar')}</span>
             </ViewTab>
           </ViewTabs>
-          <NewProjectCta type="button" onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></NewProjectCta>
+          {/* 머리줄 주 액션 — 공용 `HeaderCta`(2026-09-14 추출). Q task·Q sale 과 같은 껍데기다. */}
+          <HeaderCta type="button" $collapseOnPhone aria-label={t('newProject', '새 프로젝트') as string}
+            onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></HeaderCta>
         </>
       }
     >
@@ -943,13 +946,8 @@ const FilterScroll = styled.div`
     > * { flex:0 0 auto; }
   }
 `;
-const NewProjectCta = styled.button`
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  padding:0 12px;height:32px;background:#14B8A6;color:#FFF;border:none;border-radius:8px;
-  font-size:0.8125rem;font-weight:600;cursor:pointer;white-space:nowrap;
-  &:hover{background:#0D9488;}
-  @media(max-width:640px){width:32px;padding:0;span{display:none;}}
-`;
+/* [+ 새 프로젝트] 는 공용 `components/Common/headerCta` 로 옮겼다 (2026-09-14).
+   세 화면(프로젝트·Q task·Q sale)이 같은 버튼을 각자 선언하고 있었다. */
 const ViewTabs = styled.div`
   display: inline-flex;
   gap: 4px;
