@@ -1817,3 +1817,37 @@ D. 개요 탭의 `<>` → `<ProjectTabPane>` 전환이 ProjectCanvas 의 높이 
 
 **2026-09-14 (8차) — 또 429.** req_011Cf36zkRjP7B1BoPmFF26i.
 ⛔ **blocked_on_human — `/usage-credits`.** 보고에는 **"Fable 미검증(자체 검증)"** 이라 쓴다.
+
+### 39. v1.52.1 운영 배포 (2026-09-14, 커밋 `55c90dfa` · 09:49 · 353초)
+
+**판정: R=0 · S=0 · F=1.** 이 커밋의 소스 변경은 `package.json` 두 곳의 **version 1.52.0 → 1.52.1**
+뿐이다(나머지는 릴리즈노트·개발현황 문서). 배포 자체는 되돌릴 수 있다 —
+롤백 경로 `/opt/planq/backups/20260914_094402` 존재 확인. **Fable 429(오늘 9번째).**
+
+이 배포에 실린 앞선 커밋: `ec4ffe25`(프로필 사진 매직바이트) · `9dbcc519`(앱 알림 딥링크 3겹) ·
+`6d64d6dc`(프로젝트 탭 레이아웃). 각각의 판정·자체 검증 수치는 대기열 **36·37·38**.
+
+**배포 후 자체 확인 (커밋이 있다고 배포된 것이 아니므로 운영 자산에서 직접)**
+- 헬스 `status: ok`(db_pool 20/20) · 프론트 200 · `/inbox`·`/talk`·`/projects` 200
+- PM2 `planq-prod-backend` **1.52.1** online · qnote · mcp 정상 · `.last-deployed-commit` = 55c90dfa
+- 청크 해시 갱신: 운영 index.html 메인 = `index-B6dTXRv-.js` = dev 빌드와 **동일**
+- **고친 것이 실제로 들어갔는가** — 운영 자산에서 확인:
+  · `ProjectReportTab-CTTFXJ63.js`(09:49) 안에 `padding:20px…gap:16px` **0건** (고친 그 값이 없다)
+  · `QProjectDetailPage-sBfFkKWM.js` 에 `overflow-y:auto` 있음, `--pq-tab-sticky-top` **부여는 없고**
+    주석만 남았다(= 설정 제거가 실제로 반영됨)
+  · 메인 청크에 `planq_pending_push_link`·`planq:navigate` 존재(앱 딥링크 경로)
+  · 운영 `backend/routes/users.js` 에 매직바이트 판정 존재
+- 개발 현황 id=95 (v1.52.1 / commit_to 55c90dfa) · 릴리즈노트 `/insights/update-1-52-1` 200 (ko/en)
+- 스키마 변경 0 — 배포 로그 "드리프트 없음 — 모델과 DB 의 NULL 허용이 일치"
+
+**Fable 이 봐야 할 것**
+A. **운영 실사용자 회귀** — 나는 운영을 읽기만 했다. 운영 계정으로 로그인해 프로젝트 상세 탭을
+   실제로 오가며 레이아웃·스크롤을 재는 것은 못 했다(운영 쓰기 금지 원칙).
+B. **앱에서의 실제 확인** — 알림을 눌러 화면이 열리는지는 실기기에서만 참/거짓이 갈린다.
+   ★ 오프라인 폴백 화면의 수정은 **앱 번들 안**이라 이번 웹 배포로는 폰에 가지 않았다.
+   iOS `npm run cap:beta` / Android `npm run cap:beta:android` 가 필요하다.
+C. 옛 청크가 운영에 남아 있다(`ProjectReportTab-1qSH03xh.js` 등) — rsync 가 지우지 않는다.
+   열어 둔 탭에는 이롭지만, 누적 용량과 "옛 코드가 계속 서빙된다" 는 점은 한 번 판단이 필요하다.
+
+**2026-09-14 (9차) — 또 429.** req_011Cf38DuD42PQBtzmitmxk6.
+⛔ **blocked_on_human — `/usage-credits`.** 보고에는 **"Fable 미검증(자체 검증)"** 이라 쓴다.
