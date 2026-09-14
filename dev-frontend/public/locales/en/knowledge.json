@@ -202,7 +202,8 @@
     "optional": "(optional)",
     "uploadFiles": "Upload new files",
     "attachExistingFiles": "Link existing files",
-    "attachExistingPosts": "Link existing docs"
+    "attachExistingPosts": "Link existing docs",
+    "errContentRequired2": "Add at least one thing besides the title — write a body, fill in an item, or attach a file or document"
   },
   "csvIngest": {
     "drop": "Drag a CSV file here, or click to choose",

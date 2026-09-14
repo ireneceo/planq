@@ -512,9 +512,18 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     if (!draft.title.trim()) {
       setSubmitError(t('modal.errTitleRequired', '제목은 필수입니다') as string); return;
     }
-    const hasContent = draft.body.trim() || uploadFiles.length > 0 || pickedFileIds.size > 0 || pickedPostIds.size > 0;
+    // ★ 2026-09-15 (Irene: *"정보를 넣으려고 만든 메뉴가 Q info인데 파일이 없으면 저장이 안된다니."*)
+    //   **항목(custom_values)을 빠뜨리고 있었다.** 서버는 #332 에서 이미 항목만 있어도 저장하게
+    //   고쳤는데(routes/kb.js 의 `hasCustomValues`), **화면이 그 조건을 안 봐서** 계정 목록·접속정보처럼
+    //   항목 위주로 정리하는 자료를 넣으려면 본문에 아무 글자나 억지로 채워야 했다.
+    //   서버와 화면이 같은 술어를 써야 한다(memory `feedback_predicate_must_match_both_sides`).
+    const hasCustomValues = Object.values(draft.custom_values || {})
+      .some((v) => v != null && String(v).trim() !== '');
+    const hasContent = draft.body.trim() || uploadFiles.length > 0
+      || pickedFileIds.size > 0 || pickedPostIds.size > 0 || hasCustomValues;
     if (!hasContent) {
-      setSubmitError(t('modal.errContentRequired', '본문 또는 첨부 (파일/문서) 중 하나는 필요합니다') as string); return;
+      // 한 줄로 둔다 — 줄을 나누면 가드가 t() 폴백으로 못 보고 하드코딩으로 센다
+      setSubmitError(t('modal.errContentRequired2', '제목 말고 내용이 하나는 있어야 합니다 — 본문을 쓰거나, 항목에 값을 넣거나, 파일·문서를 첨부하세요') as string); return;
     }
     // N+64 — vlevel 검증
     if (draft.vlevel === 'L2' && draft.scope === 'project' && !draft.project_id) {
