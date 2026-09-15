@@ -51,7 +51,7 @@ import PostShareModal from './PostShareModal';
 import KbAiIngestModal from '../../pages/Knowledge/KbAiIngestModal';
 import PostAiModal from './PostAiModal';
 // 프로젝트 문서 탭 — 파일 탭과 동일한 공용 레이아웃 (단일 원천). 파일탭·문서탭 디자인 통일.
-import { Split as AtSplit, FolderTreePanel as AtPanel, FilesArea as AtArea, TreeRoot as AtTree, FolderRow as AtRow, FolderName as AtName, FolderCount as AtCount, Grid as AtGrid, Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta, Toolbar as AtToolbar, SortWrap as AtSortWrap } from './assetTabLayout';
+import { Split as AtSplit, FolderTreePanel as AtPanel, FilesArea as AtArea, TreeRoot as AtTree, FolderRow as AtRow, FolderName as AtName, FolderCount as AtCount, Grid as AtGrid, Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta, Toolbar as AtToolbar, ToolbarRight as AtToolbarRight, SortWrap as AtSortWrap } from './assetTabLayout';
 import PostSignatureModal from './PostSignatureModal';
 import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
@@ -1446,11 +1446,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 options={[{ value: 'recent', label: t('sort.recent', '최근 순') as string }, { value: 'name', label: t('sort.name', '이름 순') as string }]}
               />
             </AtSortWrap>
-            <AiActionButton onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
+            <AtToolbarRight>
+            <AiActionButton size="filter" onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
             <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '템플릿에서 시작') as string}>{t('templates.btn', '템플릿')}</TemplateBtn>
             <NewBtnWrap>
               <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                {t('btn.new', '새 문서') as string}
               </NewBtn>
               {newDropdownOpen && (
                 <NewDropdown onMouseLeave={() => setNewDropdownOpen(false)}>
@@ -1465,6 +1467,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 </NewDropdown>
               )}
             </NewBtnWrap>
+            </AtToolbarRight>
           </AtToolbar>
           <AtSplit>
             <AtPanel>
@@ -2666,8 +2669,10 @@ const TitleGroup = styled.div`
   display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 0;
 `;
 const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;`;
+/* ★ 2026-09-15 — 툴바 한 줄 안의 컨트롤은 **같은 높이 36px** 이다(검색 36 · 정렬 셀렉트 36).
+     실측에서 버튼만 32/30 이라 줄이 들쭉날쭉했다. components/Common/filterBar 의 같은 계약. */
 const TemplateBtn = styled.button`
-  height: 32px; padding: 0 12px;
+  height: 36px; padding: 0 12px;
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
@@ -2676,7 +2681,7 @@ const TemplateBtn = styled.button`
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 const NewBtn = styled.button`
-  width: 32px; height: 32px;
+  height: 36px; padding: 0 14px; gap: 6px;
   display: inline-flex; align-items: center; justify-content: center;
   background: #14B8A6; color: #fff; border: none; border-radius: 8px; cursor: pointer;
   transition: background 0.15s;

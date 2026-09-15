@@ -5,9 +5,24 @@
 import styled from 'styled-components';
 
 // ── 상단 툴바 ──
+/* ★ 2026-09-15 (Irene: *"문서탭에 버튼들 필터 최근순 옆에 바로 붙었는데 버튼들은 우측정렬해야 해.
+   노트도 그렇게 하고 +는 이름도 넣어줘야지."* · *"정보등록은 최근순 필터가 왜 우측에 있지?
+   필터 왼쪽 버튼 우측, 버튼 표시 방법 통일."*)
+
+   한 줄의 계약: **[검색] [필터들] ……밀어내기…… [액션 버튼들]**
+   - 필터(정렬 셀렉트 포함)는 **왼쪽**. 버튼은 **오른쪽 끝**.
+   - 오른쪽은 빈 칸막이(spacer)가 아니라 `margin-left:auto` 다 — 칸막이로 밀면 줄이 바뀔 때
+     버튼이 **새 줄의 왼쪽**으로 떨어진다(components/Common/filterBar 에서 같은 이유로 박제).
+   - 줄이 바뀌어도 간격이 같게 column/row gap 을 따로 준다. */
 export const Toolbar = styled.div`
-  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  display:flex;align-items:center;flex-wrap:wrap;
+  column-gap:8px;row-gap:8px;
   padding:0;
+`;
+/** 여기서부터 오른쪽 끝. 액션 버튼만 담는다(필터를 넣지 않는다 — 그 순간 계약이 깨진다). */
+export const ToolbarRight = styled.div`
+  margin-left:auto;
+  display:inline-flex;align-items:center;gap:8px;flex-shrink:0;
 `;
 export const SortWrap = styled.div`width:130px;`;
 

@@ -24,6 +24,7 @@ import { useUploadQueue, UploadQueuePanel } from './docs/UploadQueue';
 import FileMetaEditor from './docs/FileMetaEditor';
 import PreviewArea from './docs/PreviewArea';
 import CloudConnectNotice from '../../components/Common/CloudConnectNotice';
+import { Toolbar, ToolbarRight, SortWrap } from '../../components/Docs/assetTabLayout';
 import { Link } from 'react-router-dom';
 import {
   fetchProjectFiles, fetchWorkspaceFiles, uploadProjectFile, uploadMyFile, deleteProjectFile, bulkDeleteFiles,
@@ -589,6 +590,7 @@ const DocsTab: React.FC<Props> = (props) => {
       onDragOver={e => e.preventDefault()}
       onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
     >
+      <Inner>
       {/* GDrive 연결 안내 / 연결 추천 (workspace · project 양쪽) */}
       {businessId > 0 && <CloudConnectNotice businessId={businessId} />}
 
@@ -655,6 +657,7 @@ const DocsTab: React.FC<Props> = (props) => {
             ]}
           />
         </SortWrap>
+        <ToolbarRight>
         <ViewToggle role="group" aria-label="view">
           <VT $active={view === 'grid'} type="button" onClick={() => setView('grid')} title={tr('docs.view.grid', '그리드')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -683,6 +686,7 @@ const DocsTab: React.FC<Props> = (props) => {
         >
           {t('docs.trash.title', '휴지통') as string}
         </SelectToggle>
+        </ToolbarRight>
       </Toolbar>
 
       {/* 하니스 판정 신호(CLAUDE.md §17) — **양성**이어야 한다.
@@ -1360,6 +1364,7 @@ const DocsTab: React.FC<Props> = (props) => {
           </Dialog>
         </Modal>
       )}
+      </Inner>
     </Wrap>
   );
 };
@@ -1824,7 +1829,23 @@ const FileExtBox = styled.div`
 
 // ─── styled ───
 
-const Wrap = styled.div`display:flex;flex-direction:column;gap:12px;`;
+/* ★ 2026-09-15 (Irene: *"파일탭은 상단에 여백이 없어서 노란 안내박스가 탭에 들러붙어 있어."*)
+   얹는탭은 세로 여백을 상쇄해 탭 막대에 붙이는데(ProjectTabFull), 이 탭은 맨 위가 **안내 박스**라
+   그대로 막대에 닿았다. 문서·노트는 본체가 자기 머리줄(PanelHeader)을 가져 이 문제가 없다.
+   자기 안쪽 여백으로 띄운다 — 껍데기(ProjectTabFull)의 상쇄 값을 건드리면 3탭이 같이 틀어진다. */
+const Wrap = styled.div`
+  display:flex;flex-direction:column;gap:12px;
+  /* ★ 2026-09-15 — 여백을 **여기 주지 않는다.** 이 상자는 탭 본문의 첫 자식이라, 여기에 주면
+     문서·노트(여백이 더 안쪽 ProjBrowse 에 있다)와 시작점이 갈린다
+     (실측: 얹는탭 좌 [0,20] — files 만 20). 여백은 아래 Inner 가 문서 탭과 **같은 값**으로 준다. */
+`;
+/* 문서 탭 ProjBrowse 와 같은 계약(배경 위 20 / ≤900px 16). 노란 안내 박스가 탭 막대에 들러붙던 것도
+   여기서 풀린다 (Irene 2026-09-15: "파일탭은 상단에 여백이 없어서 노란 안내박스가 탭에 들러붙어 있어"). */
+const Inner = styled.div`
+  display:flex;flex-direction:column;gap:12px;
+  padding:20px;
+  @media (max-width: 900px){ padding:16px; }
+`;
 
 // KnowledgePage 새 지식 등록 폼과 동일 스타일 (UI 일관성 — AttachmentField 와 동일)
 const Dropzone = styled.div<{ $drag: boolean }>`
@@ -1871,14 +1892,12 @@ const DragOverlayInner = styled.div`
 `;
 
 // 박스 제거 — 페이지 배경 위 inline 배치 (박스 안에 박스 X)
-const Toolbar = styled.div`
-  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  padding:0;
-`;
-const SortWrap = styled.div`width:130px;`;
+// ★ 2026-09-15 — Toolbar·SortWrap 의 **로컬 복사본을 지웠다.** 공용(components/Docs/assetTabLayout)
+//   으로 뺀 뒤에도 원본이 여기 남아 있어서, 공용을 고쳐도 파일 탭만 옛 모양이었다
+//   (memory `feedback_copied_component_drifts_extract_shell`). 지금은 문서 탭과 같은 컴포넌트다.
 const ViewToggle = styled.div`display:inline-flex;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:8px;padding:2px;gap:2px;`;
 const VT = styled.button<{ $active: boolean }>`
-  width:30px;height:26px;display:flex;align-items:center;justify-content:center;
+  width:32px;height:30px;display:flex;align-items:center;justify-content:center;
   background:${p => p.$active ? '#fff' : 'transparent'};
   color:${p => p.$active ? '#0F766E' : '#94A3B8'};
   border:none;border-radius:6px;cursor:pointer;
@@ -1886,8 +1905,10 @@ const VT = styled.button<{ $active: boolean }>`
   &:hover{color:#0F172A;}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}
 `;
+/* ★ 2026-09-15 — 툴바 한 줄 안의 컨트롤은 **같은 높이 36px** 이다(검색 36 · 정렬 셀렉트 36).
+     실측에서 버튼만 32/30 이라 줄이 들쭉날쭉했다. components/Common/filterBar 의 같은 계약. */
 const SelectToggle = styled.button<{ $on: boolean }>`
-  height:30px;padding:0 14px;
+  height:36px;padding:0 14px;
   background:${p => p.$on ? '#14B8A6' : '#fff'};
   color:${p => p.$on ? '#fff' : '#0F172A'};
   border:1px solid ${p => p.$on ? '#14B8A6' : '#CBD5E1'};

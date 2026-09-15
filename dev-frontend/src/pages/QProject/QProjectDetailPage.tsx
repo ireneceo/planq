@@ -239,7 +239,11 @@ const QProjectDetailPage: React.FC = () => {
   const projectId = id ? Number(id) : 0;
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'notes', 'transactions', 'report', 'history'];
+  /* ★ 2026-09-15 — details·settings 가 **빠져 있었다.** 옛 코드에서는 URL 을 처음 한 번만 읽어
+     티가 안 났지만, 탭이 URL 을 따라가게 되자(뒤로가기 수정) 그 두 탭은 누르는 즉시
+     `?tab=details` → 목록에 없음 → dashboard 로 되돌려져 **열 수 없는 탭**이 됐다.
+     (`--suite projecttabs` 가 3폭 모두에서 잡았다 — 목록에 값을 더할 땐 이 배열을 같이 본다.) */
+  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'notes', 'transactions', 'report', 'history', 'details', 'settings'];
   const rawTab = searchParams.get('tab');
   // 이전 ?tab=process 진입 호환 — docs 로 fallback
   // doc-:id 도 허용 (사용자가 메뉴에 추가한 특정 문서)
@@ -255,14 +259,28 @@ const QProjectDetailPage: React.FC = () => {
   // 메뉴에 추가한 문서(📌) 탭 — 상태·라벨 조회는 훅으로 분리
   const { pinnedDocIds, pinnedDocLabels } = usePinnedDocTabs(projectId);
 
+  /* ★ 2026-09-15 (Irene: *"탭 이동한 다음 뒤로가기 버튼 누르면 반영 안되고 안 돌아가."*)
+     두 가지가 같이 막고 있었다.
+       ① `replace: true` — 탭을 옮겨도 히스토리에 **안 쌓인다**. 그래서 뒤로가기는 프로젝트에
+          들어오기 **전 화면**으로 나가 버렸다(탭 이동은 없던 일이 된다).
+       ② `useState(initialTab)` — URL 을 **처음 한 번만** 읽는다. 히스토리를 되돌려 ?tab 이
+          바뀌어도 화면은 그대로다(memory `feedback_url_param_read_once_keepalive`).
+     → 탭 전환은 **push**(히스토리에 쌓는다) · URL 이 바뀌면 **따라간다**(아래 useEffect).
+     ※ 같은 탭을 다시 누르는 것은 push 하지 않는다 — 뒤로가기 한 번에 한 칸씩 돌아가야 한다. */
   const setTab = (k: TabKey) => {
     setTabState(k);
     const sp = new URLSearchParams(searchParams);
     if (k === 'dashboard') sp.delete('tab'); else sp.set('tab', k);
     // 탭 전환 시 문서 상세(?post) 초기화 — stale ?post 로 문서 탭이 목록 대신 상세로 바로 열리던 문제 방지
     sp.delete('post');
-    setSearchParams(sp, { replace: true });
+    setSearchParams(sp, { replace: k === tab });
   };
+
+  /* 뒤로/앞으로 — URL 이 바뀌면 탭도 따라간다. (히스토리 이동뿐 아니라 링크·딥링크에도 걸린다) */
+  useEffect(() => {
+    if (initialTab !== tab) setTabState(initialTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTab]);
   const [newClientName, setNewClientName] = useState('');
   const [newClientEmail, setNewClientEmail] = useState('');
   const [issues, setIssues] = useState<{ id: number; body: string; author?: { name: string }; created_at: string }[]>([]);

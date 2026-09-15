@@ -6,7 +6,11 @@
 // 회색 secondary 로 흩어져 있던 AI 진입점(메일 답변 초안, 맥락 요약, 지식 자동 추가,
 // 문서 자동 작성)을 전부 이 하나로 모은다. 새 AI 기능도 반드시 이걸 쓴다.
 //
-// size: sm(32px — 툴바·헤더 기본) / md(40px — 폼·컴포저에서 ActionButton md 와 높이 정렬)
+// size: sm(32px — **머리줄**) / filter(36px — **필터줄**) / md(40px — 폼·컴포저에서 ActionButton md 와 정렬)
+//   ★ 2026-09-15 — 'filter' 를 더했다. 머리줄과 필터줄은 기준 높이가 다르다(32 vs 36 —
+//     memory `feedback_uiux_unified_master`). 프로젝트 문서·정보 탭 툴바에서 이 버튼만 32 라
+//     검색칸(36)·정렬 셀렉트(36)와 줄이 어긋났다(실측). sm 을 36 으로 바꾸면 머리줄 쓰는 곳이
+//     같이 틀어지므로 **변형을 정의**한다(DetailDrawer 폭과 같은 방식).
 import styled, { keyframes } from 'styled-components';
 
 interface Props {
@@ -15,7 +19,7 @@ interface Props {
   title?: string;         // 호버 힌트
   disabled?: boolean;
   loading?: boolean;      // 생성 중 — 별 자리에 스피너 + 클릭 차단
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'filter' | 'md';
   className?: string;
   testId?: string;        // CLAUDE.md §17 — 모달/드로어 오프너는 data-testid 필수 (하니스 안정성)
 }
@@ -56,8 +60,8 @@ const Spinner = styled.span`
   @media (prefers-reduced-motion: reduce) { animation-duration: 2s; }
 `;
 
-const Btn = styled.button<{ $size: 'sm' | 'md' }>`
-  height: ${(p) => (p.$size === 'md' ? 40 : 32)}px;
+const Btn = styled.button<{ $size: 'sm' | 'filter' | 'md' }>`
+  height: ${(p) => (p.$size === 'md' ? 40 : p.$size === 'filter' ? 36 : 32)}px;
   padding: 0 ${(p) => (p.$size === 'md' ? 16 : 12)}px;
   display: inline-flex; align-items: center; justify-content: center;
   gap: ${(p) => (p.$size === 'md' ? 6 : 4)}px;

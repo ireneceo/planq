@@ -102,6 +102,10 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
               $dragging={dragId === tab.id}
               $dropTarget={!!dragId && overId === tab.id && dragId !== tab.id}
               data-testid={`tabstrip-tab-${tab.id}`}
+              /* 우클릭 메뉴가 "어느 탭인가" 를 아는 유일한 손잡이 (components/Common/AppContextMenu).
+                 경로도 같이 싣는다 — 복제·링크 복사가 이 값을 그대로 쓴다. */
+              data-ctx-tab-id={tab.id}
+              data-ctx-tab-path={tab.path}
               title={label(tab)}
               draggable={tabs.length > 1}
               onDragStart={(e) => { setDragId(tab.id); e.dataTransfer.effectAllowed = 'move'; }}

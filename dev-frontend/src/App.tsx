@@ -26,6 +26,7 @@ const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGua
 // 다른 창·기기의 워크스페이스 전환을 이 창에 반영 (docs/WORKSPACE_SCOPE_DESIGN.md C4)
 const WorkspaceSyncGuard = lazy(() => import('./components/Common/WorkspaceSyncGuard'));
 const LeaveDecisionGuard = lazy(() => import('./components/Common/LeaveDecisionGuard'));
+const AppContextMenu = lazy(() => import('./components/Common/AppContextMenu'));
 const PopoutBridge = lazy(() => import('./components/Common/PopoutBridge'));
 const LimitReachedDialog = lazy(() => import('./components/Common/LimitReachedDialog'));
 const AnnouncementBanner = lazy(() => import('./components/Common/AnnouncementBanner'));
@@ -758,6 +759,9 @@ function App() {
       <Suspense fallback={null}><WorkspaceSyncGuard /></Suspense>
       {/* 로그아웃 전 확인 — 범위를 골라야 저장되는 글이 남았을 때. 같은 이유로 **루트 한 곳**(두 렌더 트리 공통) */}
       <Suspense fallback={null}><LeaveDecisionGuard /></Suspense>
+      {/* 우리 우클릭 메뉴 — 링크는 "새 탭에서 열기 · 링크 복사", 탭은 "복제 · 복사 · 닫기".
+          같은 이유로 **루트 한 곳**: 탭 모드(TabAppShell)와 미러 모드 두 트리에서 다 돌아야 한다. */}
+      <Suspense fallback={null}><AppContextMenu /></Suspense>
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>

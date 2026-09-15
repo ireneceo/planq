@@ -1194,5 +1194,14 @@
       "unknownWithCode": "Could not upload. ({{code}})",
       "unknown": "Could not upload."
     }
+  },
+  "ctx": {
+    "openInNewTab": "Open in new tab",
+    "copyLink": "Copy link",
+    "duplicateTab": "Duplicate tab",
+    "closeTab": "Close tab",
+    "closeOthers": "Close other tabs",
+    "back": "Back",
+    "forward": "Forward"
   }
 }

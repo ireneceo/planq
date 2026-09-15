@@ -218,40 +218,46 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
   return (
     <Wrap>
       <Toolbar>
+        {/* ★ 2026-09-15 (Irene: *"정보등록은 최근순 필터가 왜 우측에 있지? 필터 왼쪽 버튼 우측,
+            버튼 표시 방법 통일."*) — 정렬 셀렉트는 **필터**라 왼쪽, 버튼만 오른쪽 끝이다.
+            문서·파일 탭과 같은 계약(components/Docs/assetTabLayout 의 Toolbar/ToolbarRight). */}
         <ToolbarLeft>
           <SearchBox value={search} onChange={setSearch} placeholder={t('search.placeholder', '제목·카테고리 검색') as string} />
+          <SortWrap>
+            <PlanQSelect
+              size="sm" isSearchable={false}
+              value={{
+                value: sortKey,
+                label: sortKey === 'title' ? (t('sort.title', '이름 순') as string)
+                  : sortKey === 'oldest' ? (t('sort.oldest', '오래된 순') as string)
+                  : (t('sort.recent', '최근 순') as string),
+              }}
+              onChange={(opt) => setSortKey((((opt as PlanQSelectOption | null)?.value) as 'recent' | 'title' | 'oldest') || 'recent')}
+              options={[
+                { value: 'recent', label: t('sort.recent', '최근 순') as string },
+                { value: 'title', label: t('sort.title', '이름 순') as string },
+                { value: 'oldest', label: t('sort.oldest', '오래된 순') as string },
+              ]}
+            />
+          </SortWrap>
         </ToolbarLeft>
+        <ToolbarRight>
         {/* AI 자동추가 — 버튼도 모달도 Q info 와 같은 것을 쓴다.
             ★ 2026-09-13 (Irene: *"AI로 자동추가는 버튼색도 아이콘도 안맞아. Q info랑 매칭해봐."*)
               여기만 흰 배경 + 민트 테두리 + SparkleIcon 으로 따로 그려져 있었다. AI 진입점의
               색·아이콘은 `components/Common/AiActionButton` 한 곳이 정한다(Coral 그라디언트 + 5각 별). */}
         <AiActionButton
+          size="filter"
           testId="projinfo-ai-add"
           onClick={() => setAiOpen(true)}
           label={t('button.aiAdd', 'AI 로 자동 추가') as string}
           title={t('button.aiAddHint', '붙여넣은 내용이나 텍스트 파일을 AI 가 토픽별로 정리해 추가합니다') as string}
         />
-        <SortWrap>
-          <PlanQSelect
-            size="sm" isSearchable={false}
-            value={{
-              value: sortKey,
-              label: sortKey === 'title' ? (t('sort.title', '이름 순') as string)
-                : sortKey === 'oldest' ? (t('sort.oldest', '오래된 순') as string)
-                : (t('sort.recent', '최근 순') as string),
-            }}
-            onChange={(opt) => setSortKey((((opt as PlanQSelectOption | null)?.value) as 'recent' | 'title' | 'oldest') || 'recent')}
-            options={[
-              { value: 'recent', label: t('sort.recent', '최근 순') as string },
-              { value: 'title', label: t('sort.title', '이름 순') as string },
-              { value: 'oldest', label: t('sort.oldest', '오래된 순') as string },
-            ]}
-          />
-        </SortWrap>
         <PrimaryBtn type="button" onClick={openModal}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           {t('button.add', '정보 등록') as string}
         </PrimaryBtn>
+        </ToolbarRight>
       </Toolbar>
 
       {/* 좌측 카테고리 트리 + 본문 — Q info 와 같은 껍데기(components/Common/CategoryTree) */}
@@ -466,8 +472,11 @@ export default ProjectKnowledgeTab;
 
 // ── styled ────────────────────────────────────────────────
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 16px;`;
-const Toolbar = styled.div`display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap;`;
-const ToolbarLeft = styled.div`display: flex; gap: 8px; flex: 1; min-width: 0;`;
+/* 한 줄 계약 = [검색][필터] …밀어내기… [버튼]. space-between 을 쓰면 가운데 것이 흩어지므로
+   오른쪽 묶음의 margin-left:auto 하나로 민다(문서·파일 탭과 같은 방식). */
+const Toolbar = styled.div`display: flex; align-items: center; column-gap: 8px; row-gap: 8px; flex-wrap: wrap;`;
+const ToolbarLeft = styled.div`display: flex; align-items: center; gap: 8px; min-width: 0;`;
+const ToolbarRight = styled.div`margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;`;
 const SortWrap = styled.div`min-width: 132px;`;
 const SkBar = styled.div`background: linear-gradient(90deg, #F1F5F9 0px, #E2E8F0 40px, #F1F5F9 80px); background-size: 200px 100%; animation: sk 1.2s linear infinite; border-radius: 4px; @keyframes sk { 0% { background-position: -200px 0 } 100% { background-position: calc(200px + 100%) 0 } }`;
 const PrimaryBtn = styled.button`display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; background: #14B8A6; color: #fff; border: none; border-radius: 8px; font-size: 0.8125rem; font-weight: 600; cursor: pointer; &:hover:not(:disabled) { background: #0D9488; } &:disabled { opacity: 0.5; cursor: not-allowed; }`;

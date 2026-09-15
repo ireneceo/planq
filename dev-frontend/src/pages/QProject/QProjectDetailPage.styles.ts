@@ -1,7 +1,7 @@
 // QProjectDetailPage 의 styled 정의 — 화면 로직과 분리 (god-file 축소).
 // 이 저장소의 기존 선례(QMail/MailPage.styles.ts)와 같은 패턴.
 
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 export const PinnedDocCard = styled.div`
   background: #FFFFFF;
@@ -72,7 +72,6 @@ export const Tab = styled.button<{$active:boolean}>`
   display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:0 0 auto;
   &:hover{color:#0F766E;}
 `;
-export const InfoBody = styled.div`display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:16px;@media (max-width:900px){grid-template-columns:1fr;}`;
 // #96 — PostsPage(Layout height:100%) 를 프로젝트 탭에 임베드. 경계 높이 부여 → 내부 사이드바·그리드 자체 스크롤.
 //   상단 네비(64)+PageShell 헤더(60)+Body padding+TabBar 보정. Body padding(20) 상쇄 위해 음수 마진.
 // ★ 탭 안의 sticky 자식은 **탭 막대 아래**에 붙어야 한다 (2026-09-09).
@@ -112,7 +111,38 @@ export const TABBAR_H = '46px';
 //   탭을 새로 만들면 둘 중 하나를 **반드시** 쓴다. 직접 styled 를 선언하면 갈라진다 —
 //   회귀는 `node scripts/e2e/run.js --suite projecttabs` 가 12탭 × 3폭으로 잰다.
 // ─────────────────────────────────────────────────────────────
-export const ProjectTabPane = styled.div``;
+/* ★ 2026-09-15 (Irene: *"모든 프로젝트 탭 콘텐츠 영역이 좌우 하단 이상한 여백이 들어갔는데
+   다 풀로 제대로 들어가게 해줘."* · *"문서 상세도 좌우 하단 잘린 것처럼 이상해."*)
+
+   실측 1440×900: 슬롯(PageShell Body) padding 20/20/**88** 이라 콘텐츠가 240~1420 에 갇히고
+   얹는탭은 792 에서 끝나 **108px 빈 띠**가 남았다. 하단 88 은 우측 하단 FAB 이 마지막 줄을
+   덮지 않게 둔 자리인데(2026-09-07), 자기 상자를 스크롤하는 프로젝트 탭에서는 그냥 죽은 띠다.
+
+   → 탭 콘텐츠는 **슬롯 여백을 상쇄해 풀블리드**로 간다. 숫자는 TabBar 의 음수 마진과
+     **같은 값**이어야 한다(20 / 폰 14) — 갈라지면 탭바와 본문이 서로 다른 x 에서 시작한다.
+   ※ 하단은 Body 의 padding-bottom(88px)을 상쇄한다. 폰은 safe-area 만큼 더 잡혀 있으므로
+     같이 뺀다. 두 곳(PageShell Body · 여기)에 같은 숫자가 있으니 바꿀 땐 둘을 같이 본다. */
+export const projectTabBleed = css`
+  margin-left: -20px;
+  margin-right: -20px;
+  margin-bottom: -88px;
+  @media (max-width: 640px) {
+    margin-left: -14px;
+    margin-right: -14px;
+    margin-bottom: calc(-88px - var(--pq-safe-bottom, 0px));
+  }
+`;
+
+export const ProjectTabPane = styled.div`
+  ${projectTabBleed}
+  /* ★ 상자는 풀블리드(220~1440)이고, **안쪽에서** 숨을 준다.
+     얹는탭(문서·파일·노트)은 자기 회색 영역이 화면 끝까지 차고 그 안에서 카드가 20px 떨어져 있다
+     (PostsPage ProjBrowse · DocsTab Wrap 이 같은 20). 일반탭만 안쪽 여백이 없으면 카드 테두리가
+     창 가장자리에 붙어 **같은 프로젝트 안에서 탭마다 다르게** 보인다 — 그 값을 여기서 맞춘다.
+     폰 값은 TabBar·얹는탭과 같은 숫자(14)여야 한다. */
+  padding: 0 20px 20px;
+  @media (max-width: 640px) { padding: 0 14px 14px; }
+`;
 
 export const ProjectTabFull = styled.div`
   height: calc(100vh - 210px);
@@ -123,20 +153,25 @@ export const ProjectTabFull = styled.div`
      바깥이 스크롤될 이유가 없어진다. height 선언은 그대로 두어 짧은 화면에서의 동작을 안 바꾼다
      — max 만 씌운다. 회귀는 e2e sticky 스위트가 좌표로 잡는다.
      ※ styled 템플릿 안 주석에 백틱을 쓰면 템플릿이 끊긴다 — 오늘 두 번 겪었다. */
-  max-height: calc(100% - ${TABBAR_H});
+  /* 하단 88px 을 상쇄했으므로 그만큼 더 내려간다 — 안 더하면 상쇄만 하고 높이는 그대로라
+     아래가 잘린 것처럼 보인다(신고의 "하단 잘린 것처럼"). */
+  max-height: calc(100% - ${TABBAR_H} + 88px);
   min-height: 460px;
   /* ★ 2026-09-13 (Irene: *"프로젝트 상세 가로 레이아웃이 탭마다 달라. 맞춰줘야지. …
      헤더랑 다르면 안되는데 탭마다 다르고 헤더랑도 다르고."*)
      실측 1440폭 기준: 12개 탭 중 **문서만** 0~800(풀폭)이고 나머지 11개는 20~780 이었다.
      원인은 여기 있던 음수 좌우 margin — 페이지 좌우 여백을 뚫고 나가던 것.
-     기준선은 탭 막대의 **라벨 시작 x(=20)** 다(막대는 배경·구분선만 풀폭인 게 맞다 — 구분선이니까).
-     세로 여백만 걷어내고 **좌우는 다른 탭과 같은 자리**에 둔다. */
-  margin: -20px 0;
+     기준선은 탭 막대의 **라벨 시작 x(=20)** 였다.
+     ★ 2026-09-15 — Irene 이 **풀블리드**로 정했다("좌우도 화면 끝까지"). 그래서 좌우 상쇄가
+       돌아왔다. 다만 그때 갈라졌던 이유(얹는탭만 풀폭)는 반복하지 않는다 — 이번에는
+       **일반탭도 같은 조각(projectTabBleed)** 을 쓰므로 12탭이 같은 x 에서 시작한다. */
+  margin-top: -20px;
+  ${projectTabBleed}
   /* ★ 폰 값은 TabBar 의 폰 규칙과 **같은 숫자**여야 한다 (2026-09-14).
      TabBar 는 @media (max-width:640px) 에서 margin:-14px -14px 14px 인데 여기만 16 이라
      얹는탭 3개가 탭 막대보다 **2px 위**에서 시작했다(실측 폰: 시작차 -2 / 일반탭 14).
      두 곳에 같은 숫자를 적는 것 자체가 갈라지는 원인이라, 바꿀 땐 둘을 같이 본다. */
-  @media (max-width: 768px) { height: calc(100vh - 180px); margin: -14px 0; }
+  @media (max-width: 768px) { height: calc(100vh - 180px); margin-top: -14px; }
 
   /* ★ 안쪽이 스크롤한다 (2026-09-14).
      전에는 파일 탭만 높이 계약이 없어 내용이 이 상자를 넘쳐 **바깥(PageShell Body)** 이 스크롤했다
@@ -179,7 +214,14 @@ export const HexInput = styled.input`
   font-size:0.75rem;font-family:'SFMono-Regular',Menlo,Consolas,monospace;color:#0F172A;letter-spacing:0.5px;
   &:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}
 `;
-export const ClientsBody = styled.div``;
+/* 상세정보·설정 탭의 2열 그리드. ★ 2026-09-15 — 여기도 껍데기를 안 쓰고 있어 좌우 여백이
+   다른 탭과 갈라졌다. 그리드 규격은 그대로 두고 **여백 계약만** 일반탭에서 상속한다. */
+export const InfoBody = styled(ProjectTabPane)`display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:16px;@media (max-width:900px){grid-template-columns:1fr;}`;
+
+/* ★ 2026-09-15 — 껍데기를 **안 쓰고 있던** 탭이다(빈 styled). 그래서 풀블리드를 넣어도
+   고객 탭만 240~1420 으로 남았다(실측). 껍데기 2종 중 일반탭을 그대로 상속한다 —
+   "탭을 새로 만들면 둘 중 하나를 반드시 쓴다" 는 이 파일 머리말의 계약이 지켜지지 않았다. */
+export const ClientsBody = styled(ProjectTabPane)``;
 export const Card = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:10px;padding:16px;`;
 export const CardTitle = styled.h3`margin:0 0 12px;font-size:0.875rem;font-weight:700;color:#0F172A;display:flex;align-items:center;gap:8px;small{font-size:0.6875rem;font-weight:600;color:#64748B;}`;
 

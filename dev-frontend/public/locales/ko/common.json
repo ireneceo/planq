@@ -1194,5 +1194,14 @@
       "unknownWithCode": "올리지 못했습니다. ({{code}})",
       "unknown": "올리지 못했습니다."
     }
+  },
+  "ctx": {
+    "openInNewTab": "새 탭에서 열기",
+    "copyLink": "링크 복사",
+    "duplicateTab": "이 탭 복제",
+    "closeTab": "탭 닫기",
+    "closeOthers": "다른 탭 모두 닫기",
+    "back": "뒤로 가기",
+    "forward": "앞으로 가기"
   }
 }
