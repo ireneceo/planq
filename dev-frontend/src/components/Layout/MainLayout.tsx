@@ -346,24 +346,11 @@ const NavLabel = styled.span<{ $isCollapsed?: boolean }>`
 // 인박스 미처리 카운트 — pill 배지 (확장 상태) / 작은 dot (collapsed 상태)
 // 통일 정책: 모든 알림 카운트는 숫자만 표시. 점 표시 X (Irene 명시).
 // 사이드바 expanded — 메뉴 라벨 우측 inline. collapsed — 아이콘 우상단 absolute (NavItem 안).
-// 배지 두 종류 — **뜻이 다르면 색이 달라야 한다** (2026-09-15).
-//   work   = 확인 필요(내가 처리할 일). Coral. 확인필요 total 의 부분집합이다.
-//   unread = 안 읽은 메시지. 읽으면 사라지지 우리가 처리하는 게 아니다 → 브랜드 민트(Primary 300).
-//   ★ 2026-09-15 2차: 처음엔 중립 슬레이트(#64748B)로 낮췄다가 되돌렸다. 사이드바 배경이
-//     딥 틸(#115E59→#134E4A)이라 회색이 **묻혀서 안 보였고**, 무엇보다 이 제품의 색 규칙에서
-//     회색은 "없음"이다(2026-09-14 메모 개수: 0=회색 / 1 이상=녹색). 안 읽은 메시지가 **있는데**
-//     회색이면 뜻이 거꾸로다. Irene: "토크 알림 색상이 왜 회색이야?"
-//     민트는 어두운 사이드바에서 잘 보이고 Coral 과 헷갈리지 않는다 — 둘 다 만족한다.
-//   ★ 같은 빨강으로 그리면 사용자가 **눈으로 합산**한다 — 운영 실측(2026-09-15 · biz 1):
-//     업무 배지 합 10 == 확인필요 10 으로 정확했는데, Q Talk 안읽음 2 가 같은 빨강이라
-//     좌측 합이 12 로 읽혔다. 숫자가 틀린 게 아니라 **뜻이 섞여 보인 것**이다.
-//   크기·모양·자리는 건드리지 않는다(색만 가른다).
-const InboxBadge = styled.span<{ $collapsed?: boolean; $tone?: 'work' | 'unread' }>`
+const InboxBadge = styled.span<{ $collapsed?: boolean }>`
   margin-left: auto;
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 20px; height: 18px; padding: 0 6px;
-  background: ${p => (p.$tone === 'unread' ? '#5EEAD4' : '#F43F5E')};
-  color: ${p => (p.$tone === 'unread' ? '#134E4A' : '#FFFFFF')};   /* 민트 위 흰 글씨는 안 읽힌다 */
+  background: #F43F5E; color: #FFFFFF;
   font-size: 0.625rem; font-weight: 700; line-height: 1;
   border-radius: 999px;
   ${p => p.$collapsed && `
@@ -706,7 +693,7 @@ const MobileHeaderSpacer = styled.div`
 const MobileHeaderBadge = styled.span`
   position: absolute; top: 4px; right: 2px;
   min-width: 16px; height: 16px; padding: 0 4px;
-  border-radius: 8px; background: #5EEAD4; color: #134E4A;   /* 안읽음 톤 — 사이드바 Q talk 배지와 같은 뜻·같은 색 */
+  border-radius: 8px; background: #F43F5E; color: #fff;
   font-size: 0.625rem; font-weight: 700; line-height: 16px; text-align: center;
 `;
 
@@ -1455,8 +1442,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <NavIcon $isCollapsed={isCollapsed}><IconTalk /></NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.talk')}</NavLabel>
                     {talkUnreadCount > 0 && (
-                      <InboxBadge $collapsed={isCollapsed} $tone="unread"
-                        data-testid="nav-badge-talk" data-tone="unread"
+                      <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-talk"
                         aria-label={`${t('nav.talk')} ${talkUnreadCount}`}>
                         {talkUnreadCount > 99 ? '99+' : talkUnreadCount}
                       </InboxBadge>

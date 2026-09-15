@@ -1337,8 +1337,11 @@ import DetailDrawer from 'components/Common/DetailDrawer';
    `collectMails` 가 `type:'email'` 항목을 `all` 에 넣으므로 메일은 이미 `total` 안에 있다
    (운영 실측: total 10 = email 4 + task 3 + sale 3). 진짜 예외는 **Q Talk 안읽음**이다 —
    todo API 소속이 아니고 뜻도 다르다(확인필요 = 내가 처리할 일 / 안읽음 = 아직 안 읽은 것).
-   그래서 **색을 가른다**: 업무 = Coral, 안읽음 = 중립 슬레이트(`InboxBadge $tone`).
-   같은 빨강이면 사용자가 눈으로 합산한다 — 신고 "12 인데 10" 이 정확히 그것이었다(숫자는 맞았다).
+   신고 "12 인데 10" 은 **숫자가 아니라 이 차이**였다 — 업무 배지 합은 10 으로 정확했고
+   남는 2 가 Q Talk 안읽음이었다.
+   ★ **배지 모양·색을 임의로 바꾸지 마라** (2026-09-15). 이 차이를 "보이게" 하려고 안읽음 배지를
+   회색→민트로 두 번 바꿨다가 전부 되돌렸다. **요청은 숫자를 맞추는 것이었다.**
+   Irene: *"알림숫자 맞추라고 했더니 왜 바꿔? 색을?"* 표시를 바꾸는 것은 별도 요청이다.
    ★ **배지를 별도 쿼리로 다시 세지 마라.** `mailReplyCount` 가 같은 술어를 두 번째 쿼리로 세고 있었고
    그쪽엔 `COLLECT_LIMIT` 가 없어 답변필요 메일 120건을 넘는 순간 조용히 갈라졌다.
    지금은 전 배지가 `all.filter(type)` **한 공식**이다(memory `feedback_same_value_multiple_formulas`).
