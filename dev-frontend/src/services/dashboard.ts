@@ -14,7 +14,8 @@ export type TodoType =
   | 'signature' | 'payment_notify' | 'tax_invoice'
   | 'invoice_draft'  // 발행 대기 정기 청구서 초안 (owner/admin)
   | 'sale'           // Q sale — 답 안 한 문의·미확인 자동기록·다음 할 일 없음·계정 요청 (담당자 귀속)
-  | 'planq_subscription';  // PlanQ 플랫폼 → 워크스페이스 구독 청구 (owner 만)
+  | 'planq_subscription'
+  | 'chat';  // PlanQ 플랫폼 → 워크스페이스 구독 청구 (owner 만)
 
 export type TodoVerb =
   | 'ack'
@@ -42,7 +43,8 @@ export type TodoVerb =
   | 'sale_first_reply'      // 답 안 한 문의 — 첫 응답을 보낸다
   | 'sale_unreviewed'       // 자동으로 쌓인 기록을 확인한다
   | 'sale_next_action'      // 다음 할 일이 없다 — 정한다
-  | 'sale_account_request'; // 게스트가 계정을 요청했다 — 초대를 보낸다
+  | 'sale_account_request'
+  | 'chat_unread'; // 게스트가 계정을 요청했다 — 초대를 보낸다
 
 export interface TodoWorkspace {
   business_id: number;
@@ -64,6 +66,8 @@ export interface TodoItem {
   dueAt?: string | null;         // ISO string
   createdAt?: string | null;     // ISO string — 알림 발생 시점 (사용자: 어느날 알림인지 표시)
   amount?: number;               // 청구서/견적용
+  /** 채팅 — 그 방의 안 읽은 **메시지 수**. 세는 단위는 방이고(항목 1개), 이 값은 설명용이다. */
+  count?: number;
   currency?: 'KRW' | 'USD' | 'EUR';
   actor?: { name: string; avatarUrl?: string };
   link?: string;                 // 페이지 이동용
@@ -108,7 +112,9 @@ export interface TodoResponse {
   hidden?: number;
   taskCount?: number;  // Q Task 메뉴 뱃지 — 받은 요청·수정 요청·내가 컨펌·보낸 요청 (확인 필요 total 의 부분집합)
   billCount?: number;  // Q Bill 메뉴 뱃지 — 청구 관련 액션 대기 건수
-  mailReplyCount?: number;  // Q mail 메뉴 뱃지 — 답변 필요 메일 (확인 필요 total 에는 합산 안 함)
+  mailReplyCount?: number;  // Q mail 메뉴 뱃지 — 답변 필요 메일 (확인 필요 total 의 부분집합)
+  /** Q Talk 메뉴 뱃지 — 안 읽은 **대화방** 수. 채팅 리스트의 방별 숫자(메시지 수)와 단위가 다르다. */
+  talkCount?: number;
   saleCount?: number;  // Q sale 메뉴 뱃지 — 내게 귀속된 영업 확인 항목 (확인 필요 total 의 부분집합)
   workspaces?: TodoWorkspace[];
 }

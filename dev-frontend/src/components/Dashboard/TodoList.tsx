@@ -27,6 +27,7 @@ const IconEvent = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="n
 const IconInvite = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>);
 const IconMention = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg>);
 const IconEmail = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>);
+const IconChat = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>);
 const IconSpark = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6L12 2z"/></svg>);
 const IconBill = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>);
 const IconSign = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>);
@@ -52,6 +53,7 @@ function TypeIcon({ type }: { type: TodoItem['type'] }) {
   if (type === 'leave') return <IconLeave />;
   if (type === 'planq_subscription') return <IconCash />;  // PlanQ 구독 청구 (받는 청구)
   if (type === 'sale') return <IconSale />;                 // Q sale — 영업 확인 항목
+  if (type === 'chat') return <IconChat />;                 // Q Talk — 안 읽은 대화방
   return <IconMention />;
 }
 
@@ -108,11 +110,12 @@ const CATEGORY_OF: Record<string, string> = {
   email: 'mail',
   // Q sale — 여기 없으면 '전체' 탭 그룹에서 어느 섹션에도 안 들어가 **목록에서 사라진다**
   sale: 'sale',
+  chat: 'chat',
   signature: 'signature',
   invoice: 'billing', invoice_draft: 'billing', payment_notify: 'billing',
   tax_invoice: 'billing', planq_subscription: 'billing',
 };
-const CATEGORY_LIST = ['work', 'mail', 'sale', 'signature', 'billing'] as const;
+const CATEGORY_LIST = ['work', 'mail', 'sale', 'chat', 'signature', 'billing'] as const;
 const PRIORITY_RANK: Record<string, number> = { urgent: 0, today: 1, waiting: 2, week: 3 };
 
 interface Props {
@@ -193,7 +196,7 @@ const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 
   const sections = groupBy === 'category'
     ? CATEGORY_LIST.map((cat) => ({
         key: cat,
-        label: t(`todo.tab.${cat}`, { work: '업무', mail: '메일', sale: '영업', signature: '서명', billing: '청구' }[cat]) as string,
+        label: t(`todo.tab.${cat}`, { work: '업무', mail: '메일', sale: '영업', chat: '채팅', signature: '서명', billing: '청구' }[cat]) as string,
         hint: '',
         color: PRIORITY_COLOR.week,
         list: items
@@ -269,6 +272,12 @@ const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 
                       {it.dueAt && <DueBadge $priority={it.priority}>{formatDue(it, t, fmt)}</DueBadge>}
                       {it.createdAt && <CreatedChip title={new Date(it.createdAt).toLocaleString()}>{formatRelativeTime(it.createdAt, t)}</CreatedChip>}
                       {it.context && <CtxText>{it.context}</CtxText>}
+                      {/* 채팅 — 항목은 방 1개지만 "몇 건 쌓였는지" 는 알려준다 */}
+                      {it.type === 'chat' && !!it.count && (
+                        <CtxText data-testid="todo-chat-unread">
+                          {t('todo.chatUnread', { count: it.count, defaultValue: '안 읽음 {{count}}건' })}
+                        </CtxText>
+                      )}
                       {it.workspace && <WsChip $role={it.workspace.role}>{it.workspace.brand_name}</WsChip>}
                     </CardLine2>
                   </CardBody>

@@ -886,6 +886,77 @@ async function collectRecurringDrafts(businessId, userRole) {
 //   채팅과 달리 메일은 "답장하면 끝" 인 1회성 액션이고, 누가 답장하거나 "답변 완료" 로 넘기면
 //   reply_needed 가 꺼져 모두의 목록에서 동시에 사라진다 (공유 큐지만 처리하면 정리되는 큐).
 //   담당자가 지정된 스레드는 그 사람 것만 — 나머지에게는 노이즈다.
+/**
+ * Q Talk — 안 읽은 대화방 (2026-09-15, Irene 지시)
+ *
+ * > "Talk 안에 안읽은 메시지도 확인필요에 나와야지. 채팅방 기준으로 1개 채팅방이면 1개."
+ *
+ * ★ **방 1개 = 항목 1개.** 메시지 수로 세지 않는다 — 한 방에 30건이 쌓여도 열어야 할 자리는
+ *   하나다. 메시지로 세면 확인필요가 채팅으로 덮여 "내가 처리할 일" 이라는 뜻이 죽는다.
+ *   (채팅 **리스트**의 방별 숫자는 종전대로 안 읽은 메시지 수다 — 거기선 그게 맞다.)
+ * ★ 술어는 채팅 목록과 **같은 함수**를 쓴다(conversationListWhere · clientVisibleSql).
+ *   여기서 새로 쓰면 "배지엔 뜨는데 목록엔 없는 방" 이 생긴다 —
+ *   `/me/unread-total-all` 이 옛날에 LEFT JOIN 으로 겪은 그 사고다.
+ * ★ 참여자(conversation_participants)로 INNER JOIN 한다. 오너라서 보이기만 하는 방은
+ *   last_read_at 이 없어 과거 전체가 안읽음으로 잡힌다.
+ */
+async function collectChats(businessId, userId) {
+  const { Conversation, Message } = require('../models');
+  const { sequelize } = require('../config/database');
+  const { conversationListWhere, getUserScope } = require('../middleware/access_scope');
+  const { clientVisibleSql } = require('../utils/messageVisibility');
+
+  const baseWhere = await conversationListWhere(userId, businessId);
+  if (!baseWhere) return [];   // deny 센티널 — 접근 불가
+  const convs = await Conversation.findAll({
+    where: { ...baseWhere, status: 'active', archived_at: null },
+    attributes: ['id', 'title'],
+  });
+  if (!convs.length) return [];
+  const convIds = convs.map((c) => c.id);
+  const titleMap = new Map(convs.map((c) => [c.id, c.title]));
+
+  const viewerScope = await getUserScope(userId, businessId).catch(() => null);
+  const visSql = viewerScope?.isClient
+    ? `AND ${clientVisibleSql('m')}`
+    : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
+
+  const [rows] = await sequelize.query(
+    `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt, MAX(m.created_at) AS last_at
+       FROM messages m
+       INNER JOIN conversation_participants cp
+         ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
+      WHERE m.conversation_id IN (:cids)
+        AND m.sender_id != :uid
+        ${visSql}
+        AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
+      GROUP BY m.conversation_id
+      ORDER BY last_at ASC
+      LIMIT ${COLLECT_LIMIT}`,
+    { replacements: { uid: userId, cids: convIds } },
+  );
+
+  const now = Date.now();
+  const oneHourMs = 60 * 60 * 1000;
+  return rows.map((r) => {
+    const last = r.last_at ? new Date(r.last_at) : new Date();
+    const hours = (now - last.getTime()) / oneHourMs;
+    // 채팅은 메일보다 빠른 응답을 기대받는다(메일은 7일/3일). 하루 넘게 방치된 방은 긴급.
+    const priority = hours >= 24 ? 'urgent' : (hours >= 3 ? 'today' : 'week');
+    return {
+      id: `chat-${r.cid}`,
+      type: 'chat',
+      priority,
+      verb: 'chat_unread',
+      subject: titleMap.get(r.cid) || '',
+      count: Number(r.cnt) || 0,     // 안 읽은 메시지 수 — 표시용(세는 단위는 방이다)
+      dueAt: null,
+      createdAt: safeToIso(r.last_at),
+      link: `/talk?conv=${r.cid}`,
+    };
+  });
+}
+
 async function collectMails(businessId, userId) {
   const oneDayMs = 24 * 60 * 60 * 1000;
   const { EmailThread, EmailAccount, EmailThreadParticipant } = require('../models');
@@ -1066,7 +1137,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     // 각 워크스페이스에서 collector 돌리고 항목마다 workspace 라벨 부착
     const allBuckets = await Promise.all(workspaces.map(async (w) => {
       const userRole = w.role === 'admin' ? 'admin' : w.role;
-      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails, leaveApprovals, sales] = await Promise.all([
+      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails, chats, leaveApprovals, sales] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
         // N+30 — 사용자 정책: task_candidate 는 채팅 옆 (RightPanel) + 본인 전체 업무 옆 (QTaskPage 인박스) 만 노출.
@@ -1080,11 +1151,13 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         collectPlanqSubscription(w.business_id, userRole),
         collectRecurringDrafts(w.business_id, userRole),
         collectMails(w.business_id, userId),
+        // Q Talk 안 읽은 대화방 (2026-09-15) — 고객도 받는다(자기 방만 보인다).
+        collectChats(w.business_id, userId),
         collectLeaveApprovals(w.business_id, userRole, userId),
         // Q sale — 고객 역할에게는 이 수집기가 애초에 돌지 않는다(아래 role 검사)
         w.role === 'client' ? Promise.resolve([]) : collectSale(w.business_id, userId, userRole),
       ]);
-      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails, ...leaveApprovals, ...sales];
+      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails, ...chats, ...leaveApprovals, ...sales];
       // 워크스페이스 라벨 부착
       for (const it of items) it.workspace = { business_id: w.business_id, brand_name: w.brand_name, role: w.role };
       return items;
@@ -1152,13 +1225,20 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     //   담당자 필터(남이 맡은 스레드 제외)·접근 가능한 계정 범위는 collectMails 안에 그대로 있다.
     const mailReplyCount = all.filter((it) => it.type === 'email').length;
 
+    // Q Talk 메뉴 뱃지 — **안 읽은 대화방 수** (2026-09-15, Irene: "채팅방 기준으로 1개 채팅방이면 1개").
+    //   ★ 옛 배지는 `/api/conversations/me/unread-total-all` 의 **메시지 수**였다. 그 숫자는
+    //     확인필요에 없는 것이라 좌측 합이 확인필요보다 커 보였다("12 인데 10").
+    //     이제 채팅이 확인필요 안에 있으므로 배지도 **여기서** 온다 — 같은 공식, 부분집합 계약 유지.
+    //   ★ 채팅 **리스트**의 방별 숫자는 여전히 안 읽은 메시지 수다(routes/conversations.js). 거기선 그게 맞다.
+    const talkCount = all.filter((it) => it.type === 'chat').length;
+
     return successResponse(res, {
       items: displayed,
       counts,
       total: all.length,          // ★ 진짜 개수 — 목록 상한과 무관하다
       shown: displayed.length,
       hidden: hiddenCount,        // 화면이 "외 N건" 을 말할 수 있게
-      taskCount, billCount, billTabCounts, mailReplyCount, saleCount, workspaces,
+      taskCount, billCount, billTabCounts, mailReplyCount, talkCount, saleCount, workspaces,
     });
   } catch (err) {
     return next(err);

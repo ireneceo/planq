@@ -6,14 +6,14 @@ import { fetchTodo } from '../services/dashboard';
 import { useAuth } from '../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../services/socket';
 
-export interface InboxCounts { total: number; task: number; bill: number; mail: number; sale: number; /** 서버에서 실제로 받았는가 — 앱 배지가 0 의 뜻을 값으로 추측하지 않게 한다. */ loaded: boolean }
+export interface InboxCounts { total: number; task: number; bill: number; mail: number; sale: number; /** 안 읽은 **대화방** 수 (메시지 수가 아니다) */ talk: number; /** 서버에서 실제로 받았는가 — 앱 배지가 0 의 뜻을 값으로 추측하지 않게 한다. */ loaded: boolean }
 export function useInboxCount(businessId: number | null | undefined): InboxCounts {
-  const [count, setCount] = useState<InboxCounts>({ total: 0, task: 0, bill: 0, mail: 0, sale: 0, loaded: false });
+  const [count, setCount] = useState<InboxCounts>({ total: 0, task: 0, bill: 0, mail: 0, sale: 0, talk: 0, loaded: false });
   const localCleanupRef = useRef<(() => void) | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!businessId || !user) { setCount({ total: 0, task: 0, bill: 0, mail: 0, sale: 0, loaded: false }); return; }
+    if (!businessId || !user) { setCount({ total: 0, task: 0, bill: 0, mail: 0, sale: 0, talk: 0, loaded: false }); return; }
     let cancelled = false;
 
     const refresh = async () => {
@@ -22,7 +22,7 @@ export function useInboxCount(businessId: number | null | undefined): InboxCount
         //   푸시가 계산하는 배지(routes/notifications.js)는 현재 워크스페이스만 세므로, 여기만
         //   넓히면 두 숫자가 갈라지고 푸시가 도착할 때 배지를 덮어쓴다. 같은 범위를 유지한다.
         const r = await fetchTodo(businessId);
-        if (!cancelled) setCount({ total: r.total || 0, task: r.taskCount || 0, bill: r.billCount || 0, mail: r.mailReplyCount || 0, sale: r.saleCount || 0, loaded: true });
+        if (!cancelled) setCount({ total: r.total || 0, task: r.taskCount || 0, bill: r.billCount || 0, mail: r.mailReplyCount || 0, sale: r.saleCount || 0, talk: r.talkCount || 0, loaded: true });
       } catch { /* silent — 실패는 0 건이 아니다. loaded 를 세우지 않는다 */ }
     };
 
@@ -41,10 +41,15 @@ export function useInboxCount(businessId: number | null | undefined): InboxCount
     const onLocalRefresh = () => debounced();
     const onVisibility = () => { if (document.visibilityState === 'visible') refresh(); };
     window.addEventListener('inbox:refresh', onLocalRefresh);
+    // 2026-09-15 — 대화방을 **읽으면** 확인필요에서도 빠져야 한다. QTalkPage 가 읽음 처리 후
+    //   'planq:unread-changed' 를 쏜다(useUnreadTotal 이 듣던 것). 안 들으면 방을 다 읽었는데
+    //   배지가 그대로 남아 "없어지지 않는 숫자" 가 된다.
+    window.addEventListener('planq:unread-changed', onLocalRefresh);
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('focus', refresh);
     localCleanupRef.current = () => {
       window.removeEventListener('inbox:refresh', onLocalRefresh);
+      window.removeEventListener('planq:unread-changed', onLocalRefresh);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('focus', refresh);
     };
@@ -53,12 +58,17 @@ export function useInboxCount(businessId: number | null | undefined): InboxCount
     // N+63 — workspace room join → backend 가 io.to('business:N').emit('inbox:refresh') 받음. join 은 멱등.
     joinRoom(`business:${businessId}`);
     const offInbox = onSocket('inbox:refresh', debounced);
+    // 2026-09-15 — 안 읽은 **대화방**이 확인필요 항목이 되면서, 새 메시지는 곧 이 숫자를 바꾼다.
+    //   이걸 안 걸면 채팅이 와도 배지가 그대로 있다가 탭을 옮겨야 늘어난다(§16 (c) 실시간 계약).
+    //   읽음 처리(방을 열면)도 같은 이벤트로 줄어든다 — QTalkPage 가 markRead 후 emit 한다.
+    const offMessage = onSocket('message:new', debounced);
 
     return () => {
       cancelled = true;
       if (localCleanupRef.current) { localCleanupRef.current(); localCleanupRef.current = null; }
       leaveRoom(`business:${businessId}`);
       offInbox();
+      offMessage();
     };
   }, [businessId, user?.id]);
 

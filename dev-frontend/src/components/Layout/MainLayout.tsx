@@ -1031,15 +1031,28 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const openWhatsNew = () => {
     setWhatsNewOpen((prev) => !prev);
   };
-  const talkUnreadCount = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
-  // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — **인박스(확인 필요) + Q Talk 안읽음**.
+  // 안 읽은 **메시지** 수 두 가지 — OS 아이콘 계산에만 쓴다(사이드바 배지는 아래 방 수를 쓴다).
+  //   인자 없음 = 전 워크스페이스 합계 · 인자 있음 = 그 워크스페이스만 (hooks/useUnreadTotal 계약).
+  const talkUnreadAllWorkspaces = useUnreadTotal();
+  const currentWorkspaceUnread = useUnreadTotal(user?.business_id ? Number(user.business_id) : null);
+  // 사이드바 Q Talk 배지 = 안 읽은 **대화방 수** (2026-09-15, Irene: "채팅방 기준으로 1개 채팅방이면 1개").
+  //   ★ 확인필요(todo)가 만든 것만 쓴다 — 다른 메뉴 배지와 같은 공식이라 부분집합 계약이 유지된다.
+  //     옛 배지는 메시지 수였고 확인필요에 없는 값이라 좌측 합이 확인필요보다 커 보였다("12 인데 10").
+  //   ★ 채팅 **리스트**의 방별 숫자는 종전대로 안 읽은 메시지 수다. 거기선 그게 맞다.
+  const talkUnreadCount = inboxCounts.talk;
+  // OS app badge (데스크탑 dock / 모바일 홈스크린 아이콘) — **인박스(확인 필요) + 다른 워크스페이스 안읽음**.
   //   2026-05-08 Irene 피드백으로 정해진 규칙이다("앱 열면 뱃지 숫자가 사라짐. 실제로 봐야 사라지는 게 맞아").
   //   좌측 메뉴에 뜨는 그 두 숫자와 같다. 알림 수가 아니고, Q Mail·Q Bill 을 더하지도 않는다
   //   (Q Bill 은 확인 필요에 이미 포함돼 있어 더하면 두 번 세어진다).
   //
   //   ★ 세 번째 인자 `loaded` 만 2026-09-04 에 더했다 — 규칙 변경이 아니라 **0 의 뜻을 가리는 것**이다.
   //     "아직 안 불러온 0" 에 배지를 지워서 앱을 접어만 놔도 숫자가 사라지던 것을 막는다.
-  useGlobalBadge(inboxCount, talkUnreadCount, inboxCounts.loaded);
+  //   ★ 2026-09-15 — 채팅이 확인필요 **안으로** 들어오면서, 여기에 안읽음을 그대로 더하면
+  //     현재 워크스페이스 몫이 **두 번** 세어진다(Q Bill 이 이미 포함돼 더하지 않는 것과 같은 이유).
+  //     그래서 **다른 워크스페이스 몫만** 더한다 — 앱 아이콘은 전 워크스페이스 합산이어야 한다는
+  //     2026-05-26 결정("앱 아이콘 = 모든 워크스페이스 합산")을 지키면서 이중 계수만 뺀다.
+  const otherWorkspaceUnread = Math.max(0, talkUnreadAllWorkspaces - currentWorkspaceUnread);
+  useGlobalBadge(inboxCount, otherWorkspaceUnread, inboxCounts.loaded);
 
   // 로그인 직후 자동 push 구독 시도 (Slack 패턴 — granted 면 조용히, default 면 7일 1회 prompt)
   useEffect(() => {

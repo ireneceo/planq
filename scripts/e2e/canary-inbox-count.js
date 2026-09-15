@@ -130,13 +130,19 @@ async function run() {
     //     합치면 total 보다 큰" 상태를 못 잡는다 — 사용자가 보는 것은 바로 그 **합**이다.
     //     (2026-09-15 신고: 좌측 배지 합 12 vs 확인필요 10. 실제로는 Q Talk 안읽음 2 가 섞여
     //      보인 것이었고 업무 배지 합은 10 으로 정확했다. 그때 이 검사가 있었으면 즉시 갈렸다.)
-    //   업무 배지 = task + bill + sale + mail. Q Talk 안읽음은 todo API 소속이 아니다(별개 뜻).
+    //   메뉴 배지 = task + bill + sale + mail + talk.
+    //   ★ 2026-09-15 — 채팅(안 읽은 **대화방**)이 확인필요 안으로 들어왔다(Irene 지시).
+    //     이제 예외가 하나도 없다: 좌측 메뉴 배지의 합 == 확인필요. 여기서 talk 를 빼면
+    //     합이 total 보다 작아 검사가 헐거워진다(배지가 total 밖의 것을 세도 안 걸린다).
     const workBadgeSum = (base.taskCount || 0) + (base.billCount || 0)
-      + (base.saleCount || 0) + (base.mailReplyCount || 0);
-    push('업무 배지들의 합 ≤ total (합 부분집합 계약)',
+      + (base.saleCount || 0) + (base.mailReplyCount || 0) + (base.talkCount || 0);
+    push('메뉴 배지들의 합 ≤ total (합 부분집합 계약)',
       workBadgeSum <= base.total,
-      `task ${base.taskCount} + bill ${base.billCount} + sale ${base.saleCount} + mail ${base.mailReplyCount}`
+      `task ${base.taskCount} + bill ${base.billCount} + sale ${base.saleCount} + mail ${base.mailReplyCount} + talk ${base.talkCount}`
         + ` = ${workBadgeSum} ≤ total ${base.total} — 넘으면 어떤 배지가 total 밖의 것을 세고 있다`);
+    push('talkCount 필드가 응답에 있다 (안 읽은 대화방 수)',
+      typeof base.talkCount === 'number',
+      `talkCount=${JSON.stringify(base.talkCount)} — 없으면 Q Talk 배지가 영원히 0 이고 채팅 탭도 빈다`);
 
     //   ★ **종류별로** 정확히 같아야 한다 — 단, 그 종류가 목록 상한(DISPLAY_CAP 30)에 닿지 않았을 때만.
     //     닿은 종류는 목록으로 배지를 판정할 수 없으니 **그 종류만** 미측정으로 적고 넘어간다.
@@ -149,6 +155,8 @@ async function run() {
       { key: 'task', badge: base.taskCount || 0, listed: cnt((it) => it.type === 'task') },
       { key: 'sale', badge: base.saleCount || 0, listed: cnt((it) => it.type === 'sale') },
       { key: 'mail', badge: base.mailReplyCount || 0, listed: cnt((it) => it.type === 'email') },
+      // 채팅 — 배지도 목록도 **방 단위**다. 메시지 수를 세면 여기서 갈라진다.
+      { key: 'talk', badge: base.talkCount || 0, listed: cnt((it) => it.type === 'chat') },
       // bill 은 4종이 각각 상한을 따로 먹는다 — 하나라도 닿으면 이 축은 판정 불가
       { key: 'bill', badge: base.billCount || 0, listed: cnt((it) => BILL_TYPES.includes(it.type)),
         capped: BILL_TYPES.some((t) => cnt((it) => it.type === t) >= DISPLAY_CAP) },

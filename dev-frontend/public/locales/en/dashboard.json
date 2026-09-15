@@ -44,7 +44,8 @@
       "signature": "Signatures",
       "billing": "Billing",
       "mail": "Mail",
-      "sale": "Sales"
+      "sale": "Sales",
+      "chat": "Chat"
     },
     "emptyTitle": "Nothing to confirm",
     "emptySub": "See all tasks in Q Task",
@@ -116,7 +117,8 @@
       "sale_unreviewed": "Needs review — auto-logged",
       "sale_next_action": "Needs response — no next task",
       "sale_account_request": "Needs response — account request",
-      "sale_inbox_reply": "Needs response — new inquiry"
+      "sale_inbox_reply": "Needs response — new inquiry",
+      "chat_unread": "New messages"
     },
     "relTime": {
       "now": "Just now",
@@ -137,7 +139,8 @@
       "mine": "Mine",
       "waiting": "Waiting"
     },
-    "hidden": "Showing up to 30 of each kind — {{count}} more not listed."
+    "hidden": "Showing up to 30 of each kind — {{count}} more not listed.",
+    "chatUnread": "{{count}} unread"
   },
   "review": {
     "title": "Today's review",
