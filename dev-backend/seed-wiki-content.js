@@ -156,6 +156,36 @@ const ARTICLES = [
   // #195 — 게스트(랜딩 도움말)는 visibility='public' 아티클만 본다. 카테고리는 public 아티클이
   //   1건 이상일 때만 노출되므로(routes/wiki.js /categories required:true), 이 글이 authenticated
   //   이면 Q Talk 카테고리가 통째로 사라진다. 핵심 기능이 공개 도움말에서 안 보이던 원인.
+  // 2026-09-15 — 안 읽은 대화방이 "확인 필요" 항목이 됐다(방 1개 = 항목 1개).
+  { cat: 'getting-started', slug: 'inbox-chat', visibility: 'authenticated', linked_route: '/inbox', est: 2,
+    title: t('확인 필요에 채팅이 함께 뜹니다', 'Unread chats appear in your inbox'),
+    summary: t('안 읽은 대화방이 확인 필요 목록의 «채팅» 탭에 모입니다',
+      'Unread conversations gather under the Chat tab of your inbox'),
+    body: [
+      s('확인 필요에는 업무·메일·영업·청구와 함께 **채팅**이 뜹니다. 누가 말을 걸었고 내가 답해야 하는 것은 한자리에 모입니다.',
+        'Your inbox now lists Chat alongside tasks, mail, sales and billing — everything someone is waiting on you for sits in one place.'),
+      s('세는 단위는 **대화방**입니다. 한 방에 메시지가 30건 쌓여도 확인 필요에는 1건으로 뜨고, 카드에 «안 읽음 30건» 이라고 적힙니다. 열어야 할 자리가 하나이기 때문입니다.',
+        'It counts rooms, not messages. Thirty unread messages in one room show as a single item labelled “30 unread” — there is only one place to open.'),
+      s('좌측 메뉴 Q Talk 옆 숫자도 같은 기준(대화방 수)입니다. 채팅 목록 안에서 방마다 보이는 숫자는 종전대로 **안 읽은 메시지 수**입니다.',
+        'The number next to Q Talk in the sidebar counts rooms too. Inside the chat list, each room still shows its unread message count.'),
+      note('방을 열어 읽으면 확인 필요에서도 곧바로 사라집니다.',
+        'Opening the room clears it from the inbox right away.'),
+    ] },
+  // 2026-09-15 — 우리 우클릭 메뉴 + 같은 화면 두 탭.
+  { cat: 'getting-started', slug: 'right-click-menu', visibility: 'authenticated', linked_route: '/dashboard', est: 2,
+    title: t('마우스 오른쪽 버튼으로 새 탭 열기', 'Right-click to open a new tab'),
+    summary: t('링크·탭에서 오른쪽 버튼을 누르면 새 탭 열기·링크 복사·탭 복제가 나옵니다',
+      'Right-click a link or a tab for open-in-new-tab, copy link, and duplicate'),
+    body: [
+      s('메뉴나 링크에서 **마우스 오른쪽 버튼**을 누르면 «새 탭에서 열기»·«링크 복사» 가 나옵니다. 보던 화면을 잃지 않고 다른 화면을 함께 열 수 있습니다.',
+        'Right-click a menu item or link for “Open in new tab” and “Copy link”, so you can open something else without losing what you were doing.'),
+      s('상단 **탭** 위에서 오른쪽 버튼을 누르면 «이 탭 복제»·«링크 복사»·«탭 닫기»·«다른 탭 모두 닫기» 가 나옵니다. 복제를 쓰면 **같은 화면을 탭 두 개로** 열어 나란히 볼 수 있습니다.',
+        'Right-click a tab for “Duplicate tab”, “Copy link”, “Close tab” and “Close other tabs”. Duplicate lets you keep the same screen open in two tabs side by side.'),
+      s('두 메뉴 모두 아래쪽에 «뒤로 가기»·«앞으로 가기» 가 있습니다.',
+        'Both menus also offer Back and Forward.'),
+      note('글을 쓰는 입력칸이나 글자를 선택한 상태에서는 브라우저 기본 메뉴가 그대로 나옵니다 — 복사·붙여넣기를 빼앗지 않습니다.',
+        'Inside a text field, or when text is selected, your browser’s own menu appears as usual — copy and paste are untouched.'),
+    ] },
   { cat: 'qtalk', slug: 'start-conversation', visibility: 'public', linked_route: '/talk', est: 2,
     title: t('대화 시작하기', 'Start a conversation'),
     summary: t('고객·팀과 새 대화방을 열고 메시지를 주고받기', 'Open a new chat with clients or team and exchange messages'),
