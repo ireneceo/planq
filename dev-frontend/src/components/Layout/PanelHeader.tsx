@@ -39,7 +39,7 @@ type Props = {
 
 export default function PanelHeader({ children, className, onBack, backLabel, backOnDesktop }: Props) {
   return (
-    <PanelHeaderBar className={className}>
+    <PanelHeaderBar className={className} data-testid="panel-header">
       {onBack && (
         <BackBtn type="button" $always={!!backOnDesktop} onClick={onBack} aria-label={backLabel || '뒤로'} title={backLabel || '뒤로'}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

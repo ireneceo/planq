@@ -1141,52 +1141,16 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
       'tax-invoices': all.filter(it => it.type === 'tax_invoice').length,
     };
 
-    // Q Mail 메뉴 뱃지용 — 답변 필요 메일 건수. Q Bill 과 같은 문법(메뉴 옆 뱃지).
-    //   ⚠️ total 에 합산하지 않는다 — "확인 필요" 는 '나에게 귀속된 건' 만 담는 신뢰 자산이다
-    //   (2026-09-07 부터 내가 보낸 요청의 컨펌 진행분도 포함 — 내 요청이라 나에게 귀속된다).
-    //   회사 공용 메일함은 담당자 미지정이 기본이라 멤버 전원 뱃지가 같은 메일로
-    //   동시에 오르고, 한 명이 답장해도 나머지는 계속 노이즈를 본다 (공유 큐 ≠ 개인 처리함).
-    //   담당자 지정(is_assigned)이 실사용되면 "내 담당 + 3일 경과" 부분집합만 확인 필요로 승격.
-    let mailReplyCount = 0;
-    try {
-      const { EmailThread, EmailAccount, EmailThreadParticipant } = require('../models');
-      // 뱃지 스코프: workspaces 는 business_id 명시 시 그 하나만(위 860~871), 아니면 전 워크스페이스.
-      const bizIds = workspaces.map((w) => w.business_id);
-      if (bizIds.length > 0) {
-        // 접근 가능한 계정만 (회사 공용 + 본인 개인) — 남의 개인 메일함은 세지 않는다
-        const accs = await EmailAccount.findAll({
-          where: {
-            business_id: { [Op.in]: bizIds },
-            is_active: true,
-            [Op.or]: [{ owner_user_id: null }, { owner_user_id: userId }],
-          },
-          attributes: ['id'],
-        });
-        if (accs.length > 0) {
-          // #180 — 뱃지 수 = "내가 답변할 메일" 수. collectMails(확인필요)와 같은 담당자 필터로 맞춘다:
-          //   남이 담당(is_assigned, user_id≠나)한 스레드는 내 뱃지에서 제외 → 뱃지 25 vs 확인필요 14 불일치 해소.
-          const rnThreads = await EmailThread.findAll({
-            where: {
-              account_id: { [Op.in]: accs.map((a) => a.id) },
-              reply_needed: true,
-              status: { [Op.in]: ['open', 'uncertain'] },
-            },
-            attributes: ['id'],
-          });
-          const rnIds = rnThreads.map((t) => t.id);
-          if (rnIds.length) {
-            const assigned = await EmailThreadParticipant.findAll({
-              where: { thread_id: { [Op.in]: rnIds }, is_assigned: true },
-              attributes: ['thread_id', 'user_id'],
-            });
-            const assignedToOther = new Set(
-              assigned.filter((a) => Number(a.user_id) !== Number(userId)).map((a) => a.thread_id),
-            );
-            mailReplyCount = rnIds.filter((id) => !assignedToOther.has(id)).length;
-          }
-        }
-      }
-    } catch (e) { console.warn('[todo] mailReplyCount', e.message); }
+    // Q Mail 메뉴 뱃지 — 답변 필요 메일 건수.
+    //   ★ collectMails 가 만든 것만 센다 — task·sale·bill 배지와 **같은 공식**이다.
+    //   2026-09-15 정정: 여기 있던 주석은 "total 에 합산하지 않는다" 고 적혀 있었으나 **거짓이었다.**
+    //   collectMails 가 type:'email' 항목을 all 에 넣으므로 메일은 이미 total 안에 있다
+    //   (운영 실측 2026-09-15 · biz 1 · user 1: total 10 = email 4 + task 3 + sale 3).
+    //   게다가 배지는 같은 술어를 **두 번째 쿼리**로 다시 세고 있었고 그쪽엔 COLLECT_LIMIT 가 없어,
+    //   답변필요 메일이 120건을 넘는 순간 배지 > total 로 조용히 갈라진다
+    //   (memory feedback_same_value_multiple_formulas · 숫자 배지 계약 §2 부분집합 위반).
+    //   담당자 필터(남이 맡은 스레드 제외)·접근 가능한 계정 범위는 collectMails 안에 그대로 있다.
+    const mailReplyCount = all.filter((it) => it.type === 'email').length;
 
     return successResponse(res, {
       items: displayed,

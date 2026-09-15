@@ -124,6 +124,11 @@ function serializeThreadRow(t, { folder, senderByThread, lastOutByThread, attach
       labels: obj.labels || [],
       account: obj.EmailAccount,
       counterpart: other ? { name: other.name || null, email: other.email || null } : null,
+      // ★ 2026-09-15 — 검색은 폴더를 넘는다(routes/email_threads). 그러면 결과 행은 **자기 자리**를
+      //   말해야 한다. 안 그러면 확인권장에서 검색했는데 나온 메일이 어디 것인지 알 수 없다.
+      //   판정은 services/mailFolders.folderOf **한 곳** — folderWhere 와 같은 파일에 둬서
+      //   폴더 정의가 바뀔 때 같이 바뀌게 했다(memory feedback_same_value_multiple_formulas).
+      folder: require('./mailFolders').folderOf(obj),
       client: obj.Client,
       project: obj.Project,
       uncertain_reason: obj.uncertain_reason,

@@ -514,6 +514,18 @@ export const LabelChip = styled.span<{ $color: string; $clickable?: boolean }>`
   border: 1px solid ${p => p.$color}55;
   cursor: ${p => p.$clickable ? 'pointer' : 'default'};
 `;
+/* 검색이 폴더를 넘을 때 «이 결과는 어디 것인가» (2026-09-15).
+   ★ 규격을 다시 적지 않는다 — LabelChip 을 **상속**한다. 처음엔 고정 높이·padding·둥글기를
+     새로 박았는데, 그 순간 UI 규격 래칫이 636→637 로 올랐다. 베끼면 갈라지고 가드가 바로 잡는다
+     (memory feedback_copied_component_drifts_extract_shell).
+   ★ 주석에 컨트롤 크기를 **숫자와 단위로 적지 말 것** — 가드는 주석 글자도 센다.
+     그것 때문에 상속으로 고친 뒤에도 래칫이 안 내려가 한 바퀴 더 돌았다.
+   색만 중립으로 덮는다 — 사용자가 붙인 라벨과 섞여 보이면 안 된다. */
+export const FolderChip = styled(LabelChip)`
+  background: #F1F5F9;
+  border-color: #E2E8F0;
+  white-space: nowrap;
+`;
 // 상세 헤더 좌측 (목록 열기 + 제목) — PanelHeader 안 왼쪽 슬롯.
 //   운영 #283 — 목록 열기 버튼이 absolute 로 제목 위에 겹쳐 "상단이 잘린" 것처럼 보였다.
 //   ★ PanelHeader 는 ≤640px 에서 flex-direction:column 이라, 버튼과 제목을 이 Row 로 묶지 않으면

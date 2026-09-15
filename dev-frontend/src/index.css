@@ -30,6 +30,23 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   width: 100%;
   max-width: 100vw;
+}
+
+/* ★ 2026-09-15 — overflow-x 는 **html 에만** 준다. body 에 주면 sticky 가 전부 죽는다.
+   CSS 규칙상 한 축이 visible 이 아니면 **다른 축이 auto 로 계산**된다. 그래서
+   body { overflow-x: hidden } 은 body 를 overflow: hidden auto 로 만들고, body 가
+   **자기 스크롤 컨테이너**가 된다. 그런데 실제로 구르는 것은 viewport(html)다 —
+   body 는 scrollHeight == clientHeight 라 한 번도 구르지 않는다(실측 1110/1110).
+   position:sticky 는 «가장 가까운 스크롤 조상» 에 묶이므로 body 에 묶이고,
+   그 body 가 안 구르니 **영영 발동하지 않는다.**
+
+   실측(2026-09-15) — 이것 때문에 **랜딩 GNB 가 한 번도 붙은 적이 없었다**:
+     /  (홈)  GNB y 0 → -300   · /wiki GNB y 0 → -210 (데스크탑) · 폰도 같음
+   body 에서 걷어낸 뒤: GNB 드리프트 **0**, 위키 머리줄 **1**. 가로 넘침은 여전히 0 —
+   html 의 overflow 는 viewport 로 전파되어 클리핑을 그대로 해 준다(보호 손실 없음).
+
+   ⚠️ 여기에 body 를 다시 넣지 말 것. 앱 셸은 아래 html.pq-app-shell body 가 따로 정한다. */
+html {
   overflow-x: hidden;
 }
 

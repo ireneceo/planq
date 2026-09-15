@@ -244,6 +244,13 @@ const Page = styled.div`
   background: #FAFBFC;
   color: #0F172A;
   font-family: 'Noto Sans KR', 'Inter', sans-serif;
+  /* ★ 2026-09-15 — 이 셸은 **문서 전체가 스크롤**한다(앱 셸의 탭 슬롯과 다르다). 그래서 여기에
+     놓인 PageShell 은 자기 머리줄을 sticky 로 붙여야 하고, 그 기준선은 **이 셸의 상단 크롬**
+     (= sticky GNB) 높이다. 숫자는 GnbInner 와 **여기 한 쌍**에서만 쓴다 — 쓰는 쪽(PageShell)이
+     스스로 정하면 셸이 바뀔 때마다 거짓이 된다(CLAUDE.md "상단 기준선").
+     ⚠️ GnbInner 의 height 를 바꾸면 이 값도 같이 바꾼다. */
+  --pq-page-header-top: 64px;
+  @media (max-width: 640px) { --pq-page-header-top: 56px; }
 `;
 const Gnb = styled.header<{ $transparent: boolean; $solid: boolean }>`
   position: sticky; top: 0; z-index: 100;
@@ -261,6 +268,7 @@ const Gnb = styled.header<{ $transparent: boolean; $solid: boolean }>`
 `;
 const GnbInner = styled.div`
   max-width: 1200px; margin: 0 auto;
+  /* ⚠️ 이 높이를 바꾸면 위 Page 의 --pq-page-header-top 도 같이 바꾼다 (한 쌍이다) */
   height: 64px; padding: 0 24px;
   display: flex; align-items: center; justify-content: space-between;
   gap: 24px;

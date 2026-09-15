@@ -26,7 +26,7 @@ const { sendMail, deliveryFromSendResult } = require('../services/emailSend');
 const { inlineMailTableStyles } = require('../services/emailHtmlInline');
 const { buildQuote, buildForwardHeader, isolateForwardedHtml } = require('../services/emailQuote');
 // 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
-const { folderWhere, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
+const { folderWhere, searchFolderWhere, folderOf, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
 const { outgoingIdentityFor, accessibleAccountIds } = require('../services/mailIdentity');
 const { serializeThreadRow, resolveRecipientNames } = require('../services/mailSerialize');
@@ -107,9 +107,18 @@ router.get('/:businessId/email-threads',
       const { folder, account_id, client_id, project_id, label, unread, starred, q } = req.query;
       const { limit, page, offset } = parsePagination(req, { defaultLimit: 50, maxLimit: 200 });
 
+      // ★ 2026-09-15 — **검색어가 있으면 폴더를 넘는다** (Irene: "검색해도 이 이름이 안 나와").
+      //   확인권장에 서서 검색하면 답변필요·전체에 있는 메일이 안 나왔다. 사용자가 검색창에
+      //   치는 순간 원하는 것은 «이 폴더 안에서» 가 아니라 «내 메일에서» 다.
+      //   스팸만은 넘지 않는다(그 폴더에 있을 때만 그 안에서) — 범위 규칙은
+      //   services/mailFolders.searchFolderWhere 한 곳이다.
+      //   계정 격리(account_id)는 아래에서 따로 걸리므로 이 완화로 남의 메일이 새지 않는다.
+      const hasQuery = !!(q && String(q).trim());
       const where = {
         business_id: businessId,
-        ...folderWhere(folder, req.user.id, businessId),
+        ...(hasQuery
+          ? searchFolderWhere(folder, req.user.id, businessId)
+          : folderWhere(folder, req.user.id, businessId)),
       };
       // 프라이버시 격리 — 접근 가능한 계정으로만 제한 (개인 메일 격리)
       const acctIds = await accessibleAccountIds(businessId, req.user.id);
@@ -127,7 +136,7 @@ router.get('/:businessId/email-threads',
         where.received_at_email = String(req.query.received_at).toLowerCase().slice(0, 255);
       }
       // assigned/following 폴더 — 본인 participant 가 달린 thread 로 제한
-      if (folder === 'assigned' || folder === 'following') {
+      if (!hasQuery && (folder === 'assigned' || folder === 'following')) {
         const pcol = folder === 'assigned' ? 'is_assigned' : 'is_following';
         const parts = await EmailThreadParticipant.findAll({ where: { user_id: req.user.id, [pcol]: true }, attributes: ['thread_id'] });
         const tids = parts.map(p => p.thread_id);
@@ -162,19 +171,50 @@ router.get('/:businessId/email-threads',
         //   ② 검색어에 공백 있음 / 대상에 없음 ("워드 프레스" → "워드프레스") : 아래 squashed OR 로 해결
         const squashed = esc(rawQuery.replace(/\s+/g, ''));
 
-        // 토큰별 메시지 매칭 (접근 가능 계정 스코프 내) — 제목/미리보기에 없어도 내용·발신자로 검색
-        const msgTidsFor = async (needle) => {
-          const [msgRows] = await sequelize.query(
-            `SELECT DISTINCT thread_id FROM email_messages
-              WHERE business_id = :bid
-                AND thread_id IN (SELECT id FROM email_threads WHERE business_id = :bid AND account_id IN (:acctIds))
-                AND (body_text LIKE :kw OR subject LIKE :kw OR from_name LIKE :kw OR from_email LIKE :kw
-                     OR REPLACE(subject, ' ', '') LIKE :kw
-                     OR REPLACE(COALESCE(from_name, ''), ' ', '') LIKE :kw)
-              LIMIT 1000`,
-            { replacements: { bid: businessId, kw: `%${needle}%`, acctIds: acctIds.length ? acctIds : [0] } }
-          );
-          return msgRows.map(r => r.thread_id);
+        // 토큰별 메시지 매칭 — 제목/미리보기에 없어도 내용·발신자·수신자·첨부로 찾는다.
+        //
+        // ★ 2026-09-15 (Irene: "보낸 사람이 Purple Here 인데 검색해도 이 이름이 안 나와.")
+        //   여기는 원래 `SELECT DISTINCT thread_id ... LIMIT 1000` 으로 **목록을 먼저 만들고**
+        //   바깥에서 `id IN (그 목록)` 을 걸었다. 그런데 그 LIMIT 에는 **ORDER BY 가 없었다.**
+        //   "here" 처럼 본문에 흔한 단어("click here")는 수천~수만 건이 맞고, 그중 **임의의
+        //   1000건**만 남는다. 찾던 메일이 그 1000 안에 없으면 **오류도 경고도 없이 탈락**한다.
+        //   실제로 그 메일의 from_name 에는 "Purple Here" 가 멀쩡히 들어 있었는데도 안 나왔다.
+        //   제목이 "New Purchase Order Received" 라 제목·미리보기 경로로도 못 걸렸다.
+        //   → **상관 서브쿼리 EXISTS** 로 바꾼다. 중간 목록이 없으니 **자를 것이 없다**.
+        //     행마다 조기 종료라 LIKE 전수 스캔보다 오히려 싸다.
+        //   (memory feedback_silent_no_output_paths — 조용히 줄어드는 산출물)
+        //
+        // ★ 계정 격리는 **바깥 where 의 account_id** 가 이미 건다. 여기서 다시 걸지 않는다
+        //   (두 곳에 적으면 한쪽만 고쳐진다).
+        const bizLit = Number(businessId);
+        const msgExists = (needle) => {
+          const kw = sequelize.escape(`%${needle}%`);
+          return sequelize.literal(`EXISTS (
+            SELECT 1 FROM email_messages em
+             WHERE em.thread_id = \`EmailThread\`.\`id\`
+               AND em.business_id = ${bizLit}
+               AND ( em.body_text LIKE ${kw}
+                  OR em.subject LIKE ${kw}
+                  OR em.from_name LIKE ${kw}
+                  OR em.from_email LIKE ${kw}
+                  OR REPLACE(em.subject, ' ', '') LIKE ${kw}
+                  OR REPLACE(COALESCE(em.from_name, ''), ' ', '') LIKE ${kw}
+                  -- 받는사람·참조 — 보낸메일함에서 "누구에게 보냈더라" 로 찾는 길이 없었다.
+                  --   JSON 컬럼이라 문자열로 훑는다(주소와 이름이 같이 들어 있다).
+                  OR CAST(em.to_emails AS CHAR) LIKE ${kw}
+                  OR CAST(COALESCE(em.cc_emails, JSON_ARRAY()) AS CHAR) LIKE ${kw} )
+          )`);
+        };
+        // 첨부 파일명 — "그 견적서 파일" 로 찾는 길. 여태 검색 대상이 아니었다.
+        const attachExists = (needle) => {
+          const kw = sequelize.escape(`%${needle}%`);
+          return sequelize.literal(`EXISTS (
+            SELECT 1 FROM email_attachments ea
+              JOIN email_messages em2 ON em2.id = ea.message_id
+             WHERE em2.thread_id = \`EmailThread\`.\`id\`
+               AND em2.business_id = ${bizLit}
+               AND ea.filename LIKE ${kw}
+          )`);
         };
 
         const threadOr = (needle) => {
@@ -187,24 +227,28 @@ router.get('/:businessId/email-threads',
             //   needle 은 위 esc() 로 LIKE 와일드카드가 escape 된 상태이고, JSON_SEARCH 의 기본
             //   escape 문자도 백슬래시라 그대로 통한다.
             sequelize.literal(`JSON_SEARCH(\`EmailThread\`.\`labels\`, 'one', ${sequelize.escape(`%${needle}%`)}) IS NOT NULL`),
+            // 참여자 JSON — **목록이 보여주는 발신자 이름의 fallback 원천**인데 검색 대상이 아니었다.
+            //   화면에 그 이름이 떠 있는데 그 이름으로 검색하면 안 나오는 상태였다
+            //   (mailSerialize.serializeThreadRow 의 fromParts). 보이는 것은 찾을 수 있어야 한다.
+            sequelize.literal(`JSON_SEARCH(\`EmailThread\`.\`participants\`, 'one', ${sequelize.escape(`%${needle}%`)}) IS NOT NULL`),
           ];
           return conds;
         };
 
         for (const raw of tokens) {
           const tk = esc(raw);
-          const msgTids = await msgTidsFor(tk);
           const orConds = threadOr(tk);
-          if (msgTids.length) orConds.push({ id: { [Op.in]: msgTids } });
+          orConds.push(msgExists(tk));
+          orConds.push(attachExists(tk));
           andConds.push({ [Op.or]: orConds });
         }
 
         // ② 검색어에 공백이 있고 대상은 붙어 있는 경우 — 토큰 AND 와 **OR** 로 묶는다.
         let searchCond = andConds.length ? { [Op.and]: andConds } : null;
         if (tokens.length > 1 && squashed) {
-          const sqTids = await msgTidsFor(squashed);
           const sqOr = threadOr(squashed);
-          if (sqTids.length) sqOr.push({ id: { [Op.in]: sqTids } });
+          sqOr.push(msgExists(squashed));
+          sqOr.push(attachExists(squashed));
           searchCond = { [Op.or]: [searchCond, { [Op.or]: sqOr }] };
         }
         if (searchCond) where[Op.and] = [...(where[Op.and] || []), searchCond];

@@ -23,6 +23,9 @@ const SUITES = {
   l1: () => require('./canary-l1'),             // L1 개인자원 누출 카나리 (백엔드 API 크롤)
   tenant: () => require('./canary-tenant'),     // 멀티테넌트 격리 카나리 (비멤버 biz 403 실증)
   mail: () => require('./canary-mail-triage'),  // 메일 판정 카나리 (실 mailparser 헤더 — 조용히 눈감는 계열)
+  // 메일 **검색**이 조용히 누락하지 않는가 (2026-09-15 Irene: "보낸 사람 이름으로 검색해도 안 나와").
+  //   흔한 단어가 섞이면 옛 LIMIT 1000(무정렬)이 27% 를 잘라내고 있었다 — 오류 없이.
+  mailsearch: () => require('./canary-mail-search'),
   mailrt: () => require('./canary-mail-realtime'), // #205 실시간 반영 — 한 탭에서 내린 행이 다른 탭에서도 사라지는가
   handles: () => require('./canary-panel-handles'), // 패널 토글 화살표 중복 카나리 (접힘 상태에서만 드러남)
   tabs: () => require('./canary-tabs'),
@@ -37,6 +40,14 @@ const SUITES = {
   //   hlock 과 같은 계열의 반대쪽이다 — 저기는 가로가 세로를 잠그는 것을, 여기는 그 결과로 sticky 가
   //   엉뚱한 스크롤러에 묶이는 것을 본다. 둘 다 CSS grep 으로는 안 잡힌다(선언은 정상으로 보인다).
   sticky: () => require('./canary-sticky'),
+  // Q docs 머리줄·두 밴드가 스크롤에 **딸려 올라가지 않는가** (2026-09-15 Irene 신고).
+  //   ★ 위 sticky 스위트는 **computed position 이 sticky 인 요소만** 훑는다. 이 결함에서는
+  //     좌측 머리줄이 애초에 sticky 가 아니고 우측 밴드는 데스크탑에서 static 이라
+  //     훑을 대상이 0건 → 아무 말 없이 초록이었다. 그래서 선언이 아니라 **결과(y)** 를 잰다.
+  docsheader: () => require('./canary-docs-header'),
+  // 같은 결함이 **다른 화면에도** 있는가 — 전 앱 라우트 × 3폭 머리줄 드리프트 (Irene 2026-09-15:
+  //   "다른 모든 곳도 체크해"). 화면마다 눈으로 보는 것은 답이 아니다 — 기계가 전수로 센다.
+  headerdrift: () => require('./canary-header-drift'),
   fab: () => require('./canary-fab-reach'),
   mailfwd: () => require('./canary-mail-forward'),   // 전달 컴포저 — 원문 미리보기가 **실제 높이**를 갖는가
   mailimage: () => require('./canary-mail-image'),   // #378 메일 본문 이미지 — 드래그가 무시되는지 눈으로 구별이 안 되는 계열

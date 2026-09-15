@@ -252,7 +252,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
           60px 계약을 넘겼다 — 좌우 패널의 밑줄이 서로 다른 y 에 서서 "틀어져" 보인다
           (Irene 2026-09-06 "노트는 틀어지네"). 표준의 금지 항목 그대로였다:
           "헤더 안에 여러 줄(제목+부제) 쌓기 금지 — 부제/메타는 헤더 밖(아래)으로". */}
-      <Header>
+      <Header data-testid="panel-header">
         <TitleArea>
           <Title>{titleDisplay}</Title>
         </TitleArea>

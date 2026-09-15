@@ -2477,7 +2477,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           판정 축을 **URL** 로 맞춘다 — 뒤로가기가 바꾸는 것이 바로 그것이다. */}
       <CollapsibleSidebar data-testid="qnote-list" $collapsed={sidebarCollapsed} $w={listWidth} $fullOnMobile={!urlSessionId}>
         <PanelResizeHandle onMouseDown={startListResize} />
-        <SidebarHeader>
+        <SidebarHeader data-testid="panel-header">
           <TitleGroup>
             <SidebarTitle>Q note</SidebarTitle>
             <HelpDot askCue={t('page.help.cuePrefill','Q note 의 회의 시작·녹음 모드·답변 찾기·화자 인식이 어떻게 작동하는지 알려줘') as string} topic="qnote">
@@ -2758,7 +2758,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
             {(
 
               <HeaderBand>
-              <MainHeader>
+              <MainHeader data-testid="panel-header">
                 <HeaderLeft>
                   {/* 표준 뒤로가기 — 좁은 화면에서 목록으로. 버튼은 ≤1024px 에서만 보인다(PanelHeader 계약) */}
                   {panel.canGoBack && <PanelBackButton onClick={() => panel.goBack()} label={t('page.backToList', { defaultValue: '목록으로' }) as string} />}
@@ -2951,7 +2951,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
         {phase === 'review' && activeSession && activeSession.input_type !== 'text' && (
           <>
-            <MainHeader>
+            <MainHeader data-testid="panel-header">
               <HeaderLeft>
                 {panel.canGoBack && <PanelBackButton onClick={() => panel.goBack()} label={t('page.backToList', { defaultValue: '목록으로' }) as string} />}
                 {editingTitle ? (

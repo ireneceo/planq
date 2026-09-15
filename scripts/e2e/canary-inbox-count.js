@@ -125,6 +125,47 @@ async function run() {
       (base.items || []).filter((it) => it.type === 'sale').length <= (base.saleCount || 0),
       `items(sale) ${(base.items || []).filter((it) => it.type === 'sale').length} ≤ saleCount ${base.saleCount}`
         + ' — 목록은 상한에 잘려도 배지는 안 잘린다');
+    // ── 합 계약 (2026-09-15 신설) ───────────────────────────────────────────
+    //   ★ 지금까지는 배지 **하나하나가** total 이하인지만 봤다. 그래서 "각각은 total 보다 작은데
+    //     합치면 total 보다 큰" 상태를 못 잡는다 — 사용자가 보는 것은 바로 그 **합**이다.
+    //     (2026-09-15 신고: 좌측 배지 합 12 vs 확인필요 10. 실제로는 Q Talk 안읽음 2 가 섞여
+    //      보인 것이었고 업무 배지 합은 10 으로 정확했다. 그때 이 검사가 있었으면 즉시 갈렸다.)
+    //   업무 배지 = task + bill + sale + mail. Q Talk 안읽음은 todo API 소속이 아니다(별개 뜻).
+    const workBadgeSum = (base.taskCount || 0) + (base.billCount || 0)
+      + (base.saleCount || 0) + (base.mailReplyCount || 0);
+    push('업무 배지들의 합 ≤ total (합 부분집합 계약)',
+      workBadgeSum <= base.total,
+      `task ${base.taskCount} + bill ${base.billCount} + sale ${base.saleCount} + mail ${base.mailReplyCount}`
+        + ` = ${workBadgeSum} ≤ total ${base.total} — 넘으면 어떤 배지가 total 밖의 것을 세고 있다`);
+
+    //   ★ **종류별로** 정확히 같아야 한다 — 단, 그 종류가 목록 상한(DISPLAY_CAP 30)에 닿지 않았을 때만.
+    //     닿은 종류는 목록으로 배지를 판정할 수 없으니 **그 종류만** 미측정으로 적고 넘어간다.
+    //     (통째로 미측정 처리하면 메일 많은 계정에서 이 검사가 영영 빨간불이라 아무도 안 본다.
+    //      반대로 ≤ 만 보면 배지가 0 이어도 통과한다 — "영원히 0" 회귀를 못 잡는다.)
+    const DISPLAY_CAP = 30;
+    const BILL_TYPES = ['invoice', 'invoice_draft', 'tax_invoice', 'payment_notify'];
+    const cnt = (pred) => (base.items || []).filter(pred).length;
+    const AXES = [
+      { key: 'task', badge: base.taskCount || 0, listed: cnt((it) => it.type === 'task') },
+      { key: 'sale', badge: base.saleCount || 0, listed: cnt((it) => it.type === 'sale') },
+      { key: 'mail', badge: base.mailReplyCount || 0, listed: cnt((it) => it.type === 'email') },
+      // bill 은 4종이 각각 상한을 따로 먹는다 — 하나라도 닿으면 이 축은 판정 불가
+      { key: 'bill', badge: base.billCount || 0, listed: cnt((it) => BILL_TYPES.includes(it.type)),
+        capped: BILL_TYPES.some((t) => cnt((it) => it.type === t) >= DISPLAY_CAP) },
+    ];
+    const judged = [], skipped = [], bad = [];
+    for (const a of AXES) {
+      const capped = a.capped !== undefined ? a.capped : a.listed >= DISPLAY_CAP;
+      if (capped) { skipped.push(`${a.key}(목록 ${a.listed} — 상한)`); continue; }
+      judged.push(`${a.key} ${a.listed}=${a.badge}`);
+      if (a.listed !== a.badge) bad.push(`${a.key} 목록 ${a.listed} ≠ 배지 ${a.badge}`);
+    }
+    push('배지 = 목록의 그 종류 개수 (배지와 목록이 한 공식)',
+      bad.length === 0 && judged.length > 0,
+      (bad.length ? bad.join(' · ') + ' — 배지를 별도 쿼리로 다시 세면 이렇게 갈라진다'
+        : (judged.length ? '일치: ' + judged.join(' · ') : '판정한 축이 하나도 없다 — 이 계정으로는 무효'))
+        + (skipped.length ? ` · 미측정(상한): ${skipped.join(' · ')}` : ''));
+
     push('가려진 건수를 정확히 알려준다',
       typeof base.shown === 'number' && typeof base.hidden === 'number'
         && base.shown + base.hidden === base.total

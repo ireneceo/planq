@@ -147,6 +147,7 @@ import {
   ReplyRow,
   RowBtn,
   RowLabels,
+  FolderChip,
   RuleBadge,
   SearchClear,
   SearchIcon,
@@ -225,6 +226,9 @@ interface Thread {
   account: { id: number; email: string; display_name?: string | null; owner_user_id?: number | null } | null;
   // 상대방(발신자) — 목록의 "보낸 사람" 자리. 내 메일함 이름(account.display_name)이 아니다.
   counterpart?: { name: string | null; email: string | null } | null;
+  // 2026-09-15 — 검색은 폴더를 넘는다(서버 searchFolderWhere). 그래서 행이 **자기 자리**를 말한다.
+  //   판정 정본은 서버 services/mailFolders.folderOf — 화면이 다시 계산하지 않는다.
+  folder?: string | null;
   client: { id: number; display_name?: string; company_name?: string } | null;
   project?: { id: number; name?: string; color?: string } | null;
   uncertain_reason?: string | null;
@@ -2366,11 +2370,16 @@ const MailPage: React.FC = () => {
                       </RowBtn>
                     </ReplyRow>
                   )}
-                  {mt.labels && mt.labels.length > 0 && (
+                  {/* 검색은 폴더를 넘으므로, 지금 보고 있는 폴더가 아닌 곳에서 온 결과는 어디 것인지 말한다.
+                      같은 폴더면 붙이지 않는다 — 모든 행에 같은 칩이 붙으면 읽히지 않는다. */}
+                  {(mt.labels && mt.labels.length > 0) || (qDebounced && mt.folder && mt.folder !== folder) ? (
                     <RowLabels>
-                      {mt.labels.map(l => <LabelChip key={l} $color={labelColor(l)}><HighlightText text={l} query={qDebounced} /></LabelChip>)}
+                      {qDebounced && mt.folder && mt.folder !== folder && (
+                        <FolderChip $color="#64748B">{t(`folders.${mt.folder}`, { defaultValue: mt.folder }) as string}</FolderChip>
+                      )}
+                      {(mt.labels || []).map(l => <LabelChip key={l} $color={labelColor(l)}><HighlightText text={l} query={qDebounced} /></LabelChip>)}
                     </RowLabels>
-                  )}
+                  ) : null}
                 </ThreadItem>
               ))}
               {loadingMore && <ListMoreRow><Spinner /></ListMoreRow>}

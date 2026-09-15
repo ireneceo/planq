@@ -77,7 +77,9 @@ export default function PageShell({
   if (embedded) return <>{children}</>;
   return (
     <Page>
-      <Header>
+      {/* 검사 하니스 손잡이(CLAUDE.md §17) — 휴리스틱으로 머리줄을 찾으면 알림 배너를 집는다
+          (2026-09-15 실측: "디바이스 알림이 차단되어 있습니다" 를 머리줄로 판정했다). */}
+      <Header data-testid="page-header">
         <HeaderLeft>
           {onBack && (
             <BackArrow type="button" onClick={onBack}
@@ -133,6 +135,16 @@ const Page = styled.div`
 `;
 
 const Header = styled.div`
+  /* ★ 2026-09-15 — PageShell 은 «머리줄 고정 + Body 만 스크롤» 이 계약인데, 그것은 이 껍데기가
+     **확정 높이 슬롯** 안에 있을 때만 성립한다(Page 가 height:100%). /wiki 처럼 문서 전체가
+     스크롤하는 랜딩 셸 안에 놓이면 Page 가 내용 높이로 자라고 머리줄이 통째로 딸려 올라간다
+     (실측: 폰 500px · 태블릿 318px · 데스크탑 228px — 검색창이 든 줄이 사라졌다).
+     그런 셸은 «--pq-page-header-top» 을 **자기 상단 크롬 높이**로 내려준다. 값이 없으면
+     (= 앱 셸 안) sticky 가 할 일이 없어 종전과 똑같이 동작한다.
+     ★ 숫자를 여기 적지 않는다 — 기준선은 감싸는 쪽이 정한다(CLAUDE.md "상단 기준선"). */
+  position: sticky;
+  top: var(--pq-page-header-top, 0px);
+  z-index: 20;
   height: 60px;            /* 좌측메뉴·2뎁스 헤더와 픽셀 동일 — 헤더 밑줄(회색 라인) 정렬 */
   padding: 14px 20px;
   background: #ffffff;

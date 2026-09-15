@@ -124,4 +124,46 @@ function sentOrder() {
   ), 'DESC']];
 }
 
-module.exports = { folderWhere, sentOrder, BULK_FOLDERS: new Set(['reply_needed', 'uncertain', 'all']) };
+/**
+ * 검색할 때의 폴더 범위 — **검색은 폴더를 넘는다** (2026-09-15).
+ *
+ * Irene: "보낸 사람이 Purple Here 인데 검색해도 이 이름이 안 나와."
+ * 사용자가 검색창에 치는 순간 원하는 것은 «이 폴더 안에서» 가 아니라 «내 메일에서» 다.
+ * 확인권장에 서서 검색하면 답변필요·전체에 있는 메일이 안 나오던 것이 그 자체로 신고가 됐다.
+ *
+ * 다만 **스팸은 넘지 않는다** — 스팸함에서 검색하면 스팸 안에서, 그 밖에서는 스팸을 뺀다.
+ * (스팸을 검색에 섞으면 찾던 메일이 광고 사이에 묻힌다. 스팸을 뒤질 때는 그 폴더로 간다.)
+ *
+ * ★ 이 함수와 아래 folderOf 는 folderWhere 와 **같은 파일**에 둔다. 범위를 정하는 규칙과
+ *   "이 행이 어느 폴더인가" 를 말해 주는 규칙이 갈라지면 화면이 거짓말을 한다
+ *   (memory feedback_same_value_multiple_formulas).
+ */
+function searchFolderWhere(folder, userId, businessId) {
+  if (folder === 'spam') return folderWhere('spam', userId, businessId);
+  return folderWhere('all', userId, businessId);
+}
+
+/**
+ * 행 하나가 **어느 폴더에 사는가** — 검색이 폴더를 넘으므로 결과 행은 자기 자리를 말해야 한다.
+ * 위 folderWhere 의 술어를 그대로 뒤집은 것이다. 새 폴더를 만들면 여기도 같이 고친다.
+ * 우선순위는 화면 좌측 폴더 목록과 같은 순서 — 한 메일이 여러 곳에 걸리면 **가장 앞의 것** 하나.
+ */
+function folderOf(row) {
+  if (!row) return null;
+  const status = row.status;
+  if (status === 'spam') return 'spam';
+  if (status === 'archived') return 'archived';
+  if (row.reply_needed && (status === 'open' || status === 'uncertain')) return 'reply_needed';
+  if (status === 'open' && (row.triage === 'automated' || row.triage === 'marketing')) return 'marketing';
+  const notOutbound = row.last_message_direction !== 'outbound';
+  if (!row.reply_needed
+      && (status === 'uncertain'
+          || (status === 'open' && row.triage !== 'automated' && row.triage !== 'marketing'))
+      && notOutbound) return 'uncertain';
+  return 'all';
+}
+
+module.exports = {
+  folderWhere, searchFolderWhere, folderOf, sentOrder,
+  BULK_FOLDERS: new Set(['reply_needed', 'uncertain', 'all']),
+};

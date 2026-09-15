@@ -1175,7 +1175,7 @@ const ChatPanel: React.FC<Props> = ({
   if (!activeConv && project) {
     return (
       <Container $mobileHidden={mobileHidden}>
-        <HeaderBar>
+        <HeaderBar data-testid="panel-header">
           <HeaderLeft>
             {onMobileBack && (
               <PanelBackButton onClick={onMobileBack} label={t('chat.back', '리스트로 돌아가기') as string} />
@@ -1249,7 +1249,7 @@ const ChatPanel: React.FC<Props> = ({
           → 밴드1 = 제목 + 액션 아이콘(핀·팝아웃·고객링크·설정) · 밴드2 = 정보(분류·소속·고객·다른 채널).
           ★ 규격은 각자 쓰지 않는다 — 밴드1은 PanelHeaderBar, 밴드2는 DetailMetaBar 를 **상속**한다.
             이 파일은 여태 그 둘을 안 쓰고 손으로 다시 써서 좌우 패널 밑줄이 어긋나 있었다. */}
-      <HeaderBar data-testid="chat-header-band1">
+      <HeaderBar data-testid="panel-header" data-band="chat-header-band1">
         <HeaderLeft>
           {onMobileBack && (
             <PanelBackButton onClick={onMobileBack} label={t('chat.back', '리스트로 돌아가기') as string} />
