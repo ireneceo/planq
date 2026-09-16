@@ -26,6 +26,7 @@ if (!fs.existsSync(UPLOAD_ROOT)) fs.mkdirSync(UPLOAD_ROOT, { recursive: true });
 // 운영 #267 — 허용 확장자는 services/uploadPolicy 한 곳이 정본이다.
 //   여기 사본을 두면 화면마다 되는 형식이 달라진다(업무 첨부만 영상이 막혀 있던 것이 그 사례).
 const { ATTACHMENT_EXT: ALLOWED_EXT } = require('../services/uploadPolicy');
+const { isRenderableImage, effectiveMimeType } = require('../services/filePreview'); // 미리보기 판정 단일 원천
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -197,7 +198,8 @@ router.post('/:taskId/attachments',
           stored_name: finalStoredName,
           file_path: finalFilePath,
           file_size: req.file.size,
-          mime_type: req.file.mimetype,
+          // mime 을 모르고 온 업로드는 확장자로 되살린다 — 안 하면 그 행은 영구히 미리보기 밖이다.
+          mime_type: effectiveMimeType(req.file.mimetype, req.file.originalname),
           uploaded_by: req.user.id,
           storage_provider: storageProvider,
           external_id: externalId,
@@ -222,7 +224,7 @@ router.post('/:taskId/attachments',
         download_url: `/api/tasks/attachments/${att.id}/download`,
         // 문서 첨부는 post_id 로 식별한다 — 없으면 화면이 파일과 구별할 수 없다
         post_id: att.post_id || null,
-        preview_url: att.mime_type?.startsWith('image/') ? `/api/tasks/public/attach/${att.stored_name}` : null,
+        preview_url: isRenderableImage(att.mime_type, att.original_name) ? `/api/tasks/public/attach/${att.stored_name}` : null,
         created_at: att.created_at,
       });
     } catch (err) {
@@ -283,7 +285,7 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
         download_url: `/api/tasks/attachments/${att.id}/download`,
         // 문서 첨부는 post_id 로 식별한다 — 없으면 화면이 파일과 구별할 수 없다
         post_id: att.post_id || null,
-        preview_url: att.mime_type?.startsWith('image/') ? `/api/tasks/public/attach/${att.stored_name}` : null,
+        preview_url: isRenderableImage(att.mime_type, att.original_name) ? `/api/tasks/public/attach/${att.stored_name}` : null,
         created_at: att.created_at,
       });
     }
@@ -356,7 +358,7 @@ router.get('/:taskId/attachments', authenticateToken, async (req, res, next) => 
       post_id: r.post_id || null,
       uploader: r.uploader ? { id: r.uploader.id, name: r.uploader.name } : null,
       download_url: `/api/tasks/attachments/${r.id}/download`,
-      preview_url: r.mime_type?.startsWith('image/') ? `/api/tasks/public/attach/${r.stored_name}` : null,
+      preview_url: isRenderableImage(r.mime_type, r.original_name) ? `/api/tasks/public/attach/${r.stored_name}` : null,
       created_at: r.created_at,
     }));
     await applyMemberDisplayName(items, req._task.business_id, ['uploader']);
@@ -419,7 +421,9 @@ router.get('/public/attach/:storedName', async (req, res, next) => {
   try {
     const att = await TaskAttachment.findOne({ where: { stored_name: req.params.storedName } });
     if (!att) return errorResponse(res, 'not_found', 404);
-    if (!att.mime_type || !att.mime_type.startsWith('image/')) {
+    // octet-stream 을 그대로 내보내면 판정만 통과하고 <img> 는 안 그린다 — Content-Type 도 되살린다.
+    const serveMime = effectiveMimeType(att.mime_type, att.original_name);
+    if (!isRenderableImage(att.mime_type, att.original_name)) {
       return errorResponse(res, 'not_public_image', 403);
     }
     // #134 — 여기가 <img> 가 실제로 부르는 경로. Drive 저장분은 로컬 파일이 없어 410 이었다.
@@ -428,9 +432,9 @@ router.get('/public/attach/:storedName', async (req, res, next) => {
     if (body.redirect) return res.redirect(body.redirect);
 
     // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
-    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, att.mime_type)) return;
+    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, serveMime)) return;
 
-    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: att.mime_type, file_name: att.file_name || att.original_name }, { inline: true });
+    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: serveMime, file_name: att.file_name || att.original_name }, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
     body.stream.on('error', (e) => {
       console.error('[task_attachments] public image stream error:', e.message);

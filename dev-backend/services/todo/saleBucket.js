@@ -15,9 +15,22 @@ const { COLLECT_LIMIT, safeToIso } = require('./common');
 //   그 패널에서는 상담을 처리할 수 없었다(단계 바꾸기·메모·일정이 상담 목록의 행에 있다).
 //   그래서 **상담 목록에서 그 건이 걸러진 상태**로 보낸다 — 열자마자 다음 행동을 할 수 있다.
 //   검색어는 사람이 보는 이름 그대로다(목록의 검색이 이름·회사·전화·메일에서 찾는다).
-function saleConsultLink(nameLike) {
+//
+// ★ 2026-09-16 (Irene: *"확인필요에서 영업리스트 누르면 검색되어서 넘어가는데 리스트에 검색된 형태가 아니야."*)
+//   9-14 수정은 **전부 상담 탭**으로 보냈다. 그런데 상담 탭은 정의상
+//   *"고객으로 **등록되지 않은** 접점만"* 이다(`services/saleInbox.js` 머리말).
+//   아래 ①②③④ 는 모두 **등록된 고객**이므로 그 목록에 **구조적으로 있을 수 없다** —
+//   검색어만 칸에 박히고 결과는 0건이 된다. 미등록 문의(⑤)만 상담 탭이 맞다.
+//   → 링크가 **자기가 어느 탭에 있는지**를 같이 싣는다. 받는 쪽(SalePage)은 그 탭을 연다.
+//   (memory feedback_predicate_must_match_both_sides — 보내는 술어와 목록의 술어가 같아야 한다.)
+/**
+ * @param {string} nameLike 사람이 보는 이름 — 목록 검색이 이름·회사·전화·메일에서 찾는다
+ * @param {'clients'|'inbox'} tab 그 건이 실제로 **들어 있는** 탭
+ */
+function saleConsultLink(nameLike, tab) {
   const q = String(nameLike || '').trim();
-  return q ? `/sale?q=${encodeURIComponent(q)}` : '/sale';
+  const t = tab === 'inbox' ? 'inbox' : 'clients';
+  return q ? `/sale?tab=${t}&q=${encodeURIComponent(q)}` : `/sale?tab=${t}`;
 }
 
 async function collectSale(businessId, userId, userRole) {
@@ -78,7 +91,7 @@ async function collectSale(businessId, userId, userRole) {
           context: c.company_name && c.display_name ? c.company_name : null,
           dueAt: null,
           createdAt: safeToIso(since),
-          link: saleConsultLink(name),
+          link: saleConsultLink(name, 'clients'),
         });
         continue;                       // ③으로 또 세지 않는다
       }
@@ -93,7 +106,7 @@ async function collectSale(businessId, userId, userRole) {
           context: c.company_name && c.display_name ? c.company_name : null,
           dueAt: null,
           createdAt: safeToIso(since),
-          link: saleConsultLink(name),
+          link: saleConsultLink(name, 'clients'),
         });
       }
     }
@@ -122,7 +135,7 @@ async function collectSale(businessId, userId, userRole) {
       context: r.title || null,
       dueAt: null,
       createdAt: safeToIso(r.occurred_at),
-      link: saleConsultLink(c ? (c.display_name || c.company_name) : ''),
+      link: saleConsultLink(c ? (c.display_name || c.company_name) : '', 'clients'),
     });
   }
 
@@ -150,7 +163,7 @@ async function collectSale(businessId, userId, userRole) {
         dueAt: null,
         createdAt: safeToIso(it.at),
         // ★ 2026-09-14 — 여기도 **상담 목록에서 걸러진 상태**로 보낸다(위 saleConsultLink 주석).
-        link: saleConsultLink(it.who || it.title || ''),
+        link: saleConsultLink(it.who || it.title || '', 'inbox'),
         // ★ 이건 **아직 고객이 아닌 문의**다 — 고객 패널이 아니라 상담 패널(ClientPanel 의 inquiry 분기)로 연다.
         //   link 만 주면 목록만 열려 "어느 문의였는지" 를 사람이 다시 찾아야 한다.
         //   ref 를 그대로 실어 받는 쪽이 그 행을 집어낼 수 있게 한다(업무·일정과 같은 drawer 계약).
@@ -208,7 +221,7 @@ async function collectSale(businessId, userId, userRole) {
         context: l.requested_email || null,
         dueAt: null,
         createdAt: safeToIso(l.account_requested_at),
-        link: saleConsultLink(c.display_name || c.company_name),
+        link: saleConsultLink(c.display_name || c.company_name, 'clients'),
       });
     }
   }

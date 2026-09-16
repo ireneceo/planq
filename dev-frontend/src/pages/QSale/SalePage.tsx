@@ -92,12 +92,19 @@ export default function SalePage() {
   //   확인필요·알림이 `/sale?q=이름` 으로 보낸다. 열자마자 **상담 탭에서 그 건만 걸러진 상태**가 되고,
   //   단계 바꾸기·메모·일정을 그 행에서 바로 할 수 있다(고객 패널에서는 못 하던 것들이다).
   //   ★ 초기값으로만 읽지 않는다 — keep-alive 탭은 컴포넌트가 살아 있어 초기값이 다시 안 돈다.
+  //   ★ 2026-09-16 (Irene: *"확인필요에서 영업리스트 누르면 검색되어서 넘어가는데 리스트에 검색된
+  //     형태가 아니야."*) — 9-14 판은 **무조건 상담 탭**을 열었다. 그런데 상담 탭은 정의상
+  //     "고객으로 **등록되지 않은** 접점" 만 담는다(services/saleInbox.js). 확인필요 영업 항목
+  //     5종 중 4종은 **등록된 고객**이라 그 목록에 있을 수 없다 — 검색어만 칸에 박히고 0건이 된다.
+  //     이제 보내는 쪽이 `?tab=` 으로 **그 건이 실제로 들어 있는 탭**을 같이 알려준다.
+  //     탭을 안 알려준 옛 링크는 종전대로 상담 탭(호환).
   const urlQ = searchParams.get('q') || '';
+  const urlTab = searchParams.get('tab');
   useEffect(() => {
-    if (!urlQ) return;
-    setQ(urlQ);
-    setTab('inbox');
-  }, [urlQ]);
+    if (!urlQ && !urlTab) return;
+    if (urlQ) setQ(urlQ);
+    setTab(urlTab === 'clients' ? 'clients' : 'inbox');
+  }, [urlQ, urlTab]);
 
   // 상담 목록을 다시 읽게 하는 신호 — 문의를 추가하면 **그 목록에** 들어와야 한다
   const [inboxRefresh, setInboxRefresh] = useState(0);

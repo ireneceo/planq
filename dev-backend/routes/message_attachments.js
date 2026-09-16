@@ -15,7 +15,7 @@ const { v4: uuidv4 } = require('uuid');
 const { Conversation, Message, MessageAttachment, File: FileModel } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
-const { serializeMessageAttachment } = require('../services/filePreview');
+const { serializeMessageAttachment, effectiveMimeType } = require('../services/filePreview');
 const { canAccessConversation } = require('../middleware/access_scope');
 const { decodeOriginalName } = require('../services/filename');
 const { perUserLimiter } = require('../middleware/costGuard');
@@ -138,7 +138,9 @@ router.post('/:conversationId/:messageId',
           file_name: decodeOriginalName(req.file.originalname),
           file_path: path.relative(path.join(__dirname, '..'), req.file.path),
           file_size: req.file.size,
-          mime_type: req.file.mimetype || null,
+          // 브라우저가 mime 을 모르고 보낸 경우(드래그앤드롭·모바일 공유시트) 확장자로 되살린다.
+          //   여기서 안 하면 그 행은 **영구히** 미리보기 대상이 아니게 된다.
+          mime_type: effectiveMimeType(req.file.mimetype, req.file.originalname) || null,
           storage_provider: 'planq',
         });
       } catch (e) {
@@ -295,7 +297,12 @@ router.get('/public/:storedName', async (req, res, next) => {
           where: { storage_provider: 'gdrive', [Op.or]: [{ external_id: stored }, { file_path: stored }] },
         });
     if (!att) return errorResponse(res, 'not_found', 404);
-    if (!require('../services/filePreview').isRenderableImage(att.mime_type)) {
+    // ★ 판정도 서빙도 **파일명까지** 본다(services/filePreview 단일 원천).
+    //   저장된 mime 이 `application/octet-stream` 인 PNG 는 여기서 403 이 났고, 설령 통과시켜도
+    //   그 값을 그대로 Content-Type 으로 내보내면 브라우저는 <img> 를 안 그린다.
+    const { isRenderableImage, effectiveMimeType } = require('../services/filePreview');
+    const serveMime = effectiveMimeType(att.mime_type, att.file_name);
+    if (!isRenderableImage(att.mime_type, att.file_name)) {
       return errorResponse(res, 'not_public_image', 403);
     }
 
@@ -318,9 +325,9 @@ router.get('/public/:storedName', async (req, res, next) => {
     if (!body.ok) return errorResponse(res, body.msg, body.code);
     if (body.redirect) return res.redirect(body.redirect);
     // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
-    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, att.mime_type)) return;
+    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, serveMime)) return;
 
-    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: att.mime_type, file_name: att.file_name || att.original_name }, { inline: true });
+    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: serveMime, file_name: att.file_name || att.original_name }, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
     body.stream.on('error', (e) => {
       console.error('[message_attachments] public image stream error:', e.message);

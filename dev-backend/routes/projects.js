@@ -30,7 +30,7 @@ function cueReadOf(f) {
     return can.ok ? { ok: true } : { ok: false, reason: can.reason };
   } catch { return undefined; }
 }
-const { serializeMessageAttachments } = require('../services/filePreview');
+const { serializeMessageAttachments, isRenderableImage } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { CLIENT_VISIBLE_MESSAGE_WHERE } = require('../utils/messageVisibility');
 const { authenticateToken } = require('../middleware/auth');
@@ -3573,8 +3573,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         // 채팅 첨부 미리보기 — 로컬은 UUID 파일명, Drive 는 Drive 파일 ID.
         //   ★ 순차 정수 id 경로(`/:id/raw`)는 쓰지 않는다 — 무인증 + 1,2,3… 열거가 가능하다(Fable 실측).
         //   둘 다 `/public/:token` 한 경로로 보낸다(추측 불가능한 토큰 계약).
-        const isImage = a.mime_type && a.mime_type.startsWith('image/');
-        const chatToken = a.storage_provider === 'gdrive' ? a.file_path
+        // 판정은 services/filePreview 단일 원천 — 파일명까지 본다(mime 을 모르고 올라온 PNG 구제).
+        const isImage = isRenderableImage(a.mime_type, a.file_name);
+        const chatToken = a.storage_provider === 'gdrive' ? (a.external_id || a.file_path)
           : a.file_path ? path.basename(a.file_path) : null;
         const previewUrl = (isImage && chatToken)
           ? `/api/message-attachments/public/${chatToken}` : undefined;
@@ -3616,7 +3617,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         const task = taskMap.get(a.task_id);
         const proj = task ? projMap.get(task.project_id) : null;
         // 이미지면 task 첨부 public 엔드포인트로 썸네일 노출 (direct/chat 소스와 동일 규칙)
-        const previewUrl = (a.mime_type && a.mime_type.startsWith('image/') && a.stored_name)
+        const previewUrl = (isRenderableImage(a.mime_type, a.original_name) && a.stored_name)
           ? `/api/tasks/public/attach/${a.stored_name}`
           : undefined;
         results.push({
@@ -3794,8 +3795,9 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           uploader_name: a.Message.sender ? a.Message.sender.name : null,
           uploaded_at: (a.createdAt || a.created_at || new Date()).toISOString ? (a.createdAt || a.created_at).toISOString() : new Date().toISOString(),
           download_url: a.file_path ? `/uploads/${path.relative(path.join(__dirname, '..', 'uploads'), a.file_path)}` : null,
-          preview_url: (a.mime_type && a.mime_type.startsWith('image/') && a.file_path)
-            ? `/api/message-attachments/public/${a.storage_provider === 'gdrive' ? a.file_path : path.basename(a.file_path)}`
+          // 판정은 services/filePreview 단일 원천 — 파일명까지 본다(mime 을 모르고 올라온 PNG 구제).
+          preview_url: (isRenderableImage(a.mime_type, a.file_name) && a.file_path)
+            ? `/api/message-attachments/public/${a.storage_provider === 'gdrive' ? (a.external_id || a.file_path) : path.basename(a.file_path)}`
             : undefined,
           context: conv ? { kind: 'conversation', id: conv.id, label: conv.title || '대화방' } : undefined,
           folder_id: null,
@@ -3832,7 +3834,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
           // ★ /api/tasks/public/attach 는 이미 Drive 를 서버가 받아 흘려준다(readAttachmentBody).
           //   external_url 로 직행시키면 수신자가 구글 401 을 만난다 (2026-09-03).
           download_url: `/api/tasks/public/attach/${a.stored_name}`,
-          preview_url: (a.mime_type && a.mime_type.startsWith('image/') && a.stored_name)
+          preview_url: (isRenderableImage(a.mime_type, a.original_name) && a.stored_name)
             ? `/api/tasks/public/attach/${a.stored_name}`
             : undefined,
           external_id: a.external_id || null,

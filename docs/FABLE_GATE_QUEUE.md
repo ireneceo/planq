@@ -2948,3 +2948,77 @@ S=1 인 이유: "확인 필요란 무엇인가" 의 경계를 바꾸는 결정�
 - **운영 미반영** — 위키 콘텐츠는 다음 배포 때 운영에서 `node seed-wiki-content.js` 를 돌려야 도달한다.
   이 사실을 session-state·개발완료 보고에 적었다.
 - Fable 이 봐야 할 것: 없음(콘텐츠). 앞선 #48~#52 의 열린 항목이 그대로 남아 있다.
+
+---
+
+### 54. 채팅 첨부 미리보기 · 확인필요→영업 링크 (2026-09-16) — `by:"unavailable"` (Fable 429 · 2회 시도, 마지막 2026-09-16 재개 세션)
+
+**판정: R=0 · S=0 · F=1** → 규칙상 자체 검증.
+실HTTP 왕복(preview_url 유무 · Content-Type · 403)과 실브라우저(<img> 가 실제로 그려지는가)로
+참/거짓이 갈린다. 되돌릴 수 없는 것에 닿지 않는다 — 스키마 변경 0, 운영 마이그레이션 0,
+외부 발송 0, 권한 미들웨어 변경 0.
+
+★ **다만 R 판정에 한 가지 걸리는 점을 적어 둔다** — `/api/message-attachments/public/:token` 은
+**무인증 경로**다. 이번 변경이 그 경로의 *판정*(어떤 첨부가 이미지인가)을 넓혔다. 토큰 규칙
+(로컬=UUID 파일명 **전체 일치** · Drive=파일 ID)은 건드리지 않았고 음성 대조군(PDF 403 · HEIC 제외)도
+잡았지만, **무인증 표면의 판정을 넓힌 것은 내가 스스로 R=0 이라고 단정하기에 가장 약한 자리**다.
+Fable 이 가장 먼저 봐야 할 곳이다(아래 1번).
+
+#### 신고 원문
+1. Irene: *"채팅에서 png 받으면 미리보기가 안돼. 왜 미리보기가 안나와? 제대로 다 미리보기 나오게
+   해주고 클릭해도 미리보기 안나와. 이미지들 pdf 다 미리보기 최대한 모두 나오게 해"*
+2. Irene: *"확인필요에서 영업리스트 누르면 검색되어서 넘어가는데 리스트에 검색된 형태가 아니야."*
+
+#### 고친 것
+| | |
+|---|---|
+| **소켓 매퍼가 필드를 버림** (신고1의 직접 원인) | `QTalkPage` 의 `message:attachment` 핸들러가 4필드만 옮겨 `preview_url`·`file_id`·`drive_editable` 을 버렸다. **2026-09-07 에 조회 매퍼의 같은 결함을 고쳤는데 소켓 경로는 그대로였다** → "받으면 안 되고 새로고침하면 된다"(간헐로 읽힌다) |
+| 서버 술어가 mime 만 봄 | 프론트 `isImage(mime, name)` 는 확장자도 보는데 서버 `isRenderableImage(mime)` 는 안 봤다. `application/octet-stream` 으로 올라온 PNG 는 **영영** preview_url 이 없었다 → `services/filePreview.js` 에 확장자 폴백 + `effectiveMimeType`(서빙 Content-Type 도 복원) |
+| 술어 복사본 5곳 | `task_attachments.js` 3 · `projects.js` 2 가 `startsWith('image/')` 사본. HEIC/TIFF 에 반대로 preview_url 을 줘 깨진 아이콘이 뜨던 자리 → 단일 원천으로 |
+| 영업 링크가 틀린 탭 | 상담(inbox) 탭은 정의상 *"고객으로 등록되지 않은 접점"* 인데 확인필요 영업 5종 중 4종이 **등록된 고객**이었다 → `saleConsultLink(name, tab)` 로 탭을 같이 싣고 `SalePage` 가 `?tab=` 을 읽는다 |
+
+#### 자체 검증 (수치)
+- 빌드 EXIT 0 · `error TS` **0** · health **44/44** · 가드 **55/56 통과** · `--suite tenant` 미실행(아래 열린 항목).
+- 신규 카나리 `--suite chatpreview` **8/8**. 서버 판정 + **화면에 `<img>` 가 실제로 그려지는가**(rect·naturalWidth)를 같이 잰다.
+- **양성 대조군 2건 모두 뒤집혔다** — ①소켓 매퍼 원복 → `before=6 after=6` ❌ ②서버 확장자 폴백 제거 → ❌.
+- ★ **첫 양성 대조군은 안 뒤집혔고, 그것이 하니스 결함이었다** — nginx 가 `dev-frontend-build/assets/*.js.gz`
+  사본을 서빙한다. `.js` 만 고치면 브라우저에 도달하지 않는다. `.gz` 를 같이 갈아야 진짜 대조군이 된다.
+  **번들을 손으로 고쳐 재는 모든 검사에 해당한다** — 앞으로 이 함정을 기억할 것.
+- 음성 대조군: PDF preview_url 없음 · PDF 토큰을 public 이미지 경로로 → **403** · `.heic` 제외.
+- 옛 데이터 1건(수정 전 저장된 `application/octet-stream` 행) → **200 `image/png`** 소급 복구.
+- 업무 첨부 1건도 같은 처방 확인(`octet-stream` 업로드 → `image/png` + preview_url + GET 200).
+- 영업: 실브라우저 클릭 실측 — 전 `inboxSelected=true / 고객행 0 / 상담행 1`(전체 1인데 소스 칩 전부 0 인
+  모순 상태) → 후 `clientsSelected=true / 고객행 1`.
+- 기존 회귀: `--suite chatattach,mailimage,inboxcount,l1` **실패 0**.
+- 가드가 내 주석이 `task_attachments.js` 를 500줄 위로 민 것을 잡았다 → 베이스라인을 올리지 않고
+  주석을 줄여 499줄로(`feedback_guard_punishes_conformant_code` 와 반대 방향 — 이번엔 가드가 옳았다).
+- 검증용 DB 행·업로드 파일·테스트 스크립트 전부 정리.
+
+#### Fable 이 봐야 할 것
+1. ~~무인증 표면 공격 미실시~~ → **직접 쳤다. 14/14 막힘(샌 건수 0).**
+   짧은 접미사(옛 LIKE 구멍) · 부분 일치 앞/뒤 · 확장자 바꿔치기 · traversal(인코딩/생) · 절대경로 ·
+   순차 정수 id · `%` 와일드카드 · SQL LIKE 와일드카드 — 두 라우트 모두 400/404.
+   기준선(정상 토큰)은 200 이므로 검사가 죽어 있던 것이 아니다.
+2. **확장자 폴백의 경계 — svg 는 실측으로 닫았다.** 폴백이 `octet-stream` + `.svg` 를 이미지로
+   인정하는 것이 **이번 변경이 넓힌 유일한 자리**였다. 실제로 스크립트를 품은 svg 를 올려 쳐 봤더니
+   `services/fileServing` 의 3중 방어가 그대로 먹는다 — `Content-Disposition: attachment`(inline 아님) ·
+   `nosniff` · `CSP default-src 'none'; sandbox`. 그 파일은 mime 과 **확장자 둘 다** 보므로
+   내 `effectiveMimeType` 이 무엇으로 되살리든 막힌다.
+   남은 판단: 애초에 svg 에 preview_url 을 주는 것이 옳은가(화면은 attachment 라 못 그리고
+   PreviewArea 는 "왜 안 보이는지" 를 말한다). 기능 결손은 아니나 Fable 이 한 번 봐 주면 좋겠다.
+   그 외 경계는 그대로다 — `text/plain` 인 `.png` 는 거부, 확장자 없음도 거부(실측).
+3. ~~`--suite tenant` 미실행~~ → **돌렸다. 9/9 통과(실패 0).**
+4. **영업 링크의 탭 선택이 5종 전부에 맞는가.** `sale_unreviewed`(자동 기록 미확인)는 고객 탭으로
+   보냈는데, 그 확인 행위가 고객 패널에서 실제로 가능한지 화면으로 확인 못 했다.
+5. **게스트(무로그인 링크) 채팅에는 첨부가 아예 없다** — `routes/guest*.js` 에 `MessageAttachment`
+   참조 0건. 링크 받은 고객은 첨부를 못 본다. 이번 신고 범위 밖이라 손대지 않았으나 같은 계열이다.
+
+#### 재개 세션 재검증 (2026-09-16, 커밋 직전)
+앞 세션이 svg 확인 중 끊겨 **커밋 전에 전부 다시 돌렸다** — "끊긴 세션의 상태 파일은 마지막 동작보다
+먼저 쓰였다"(memory `feedback_session_state_predates_its_last_action`)라서 문서의 수치를 믿지 않았다.
+- health **44/44** · 가드 **55/56 통과** · `--suite chatpreview,chatattach,inboxcount` **총 실패 0**
+  (chatpreview 단독 **8/8** — `<img>` rect·naturalWidth 까지).
+- ★ **번들 위조 대조군이 원복돼 있는지 먼저 확인했다** — `QTalkPage-*.js` 가 빌드보다 2분 늦은
+  mtime 이라 의심했고, `.js`·`.gz` 둘 다 수정본(`drive_editable` 3건)이고 크기가 일치함을 확인했다.
+  **손으로 고쳐 재는 검사는 원복까지가 검사다**(안 하면 dev 가 위조 번들을 계속 서빙한다).
+- Fable 재시도 → **429**(누적 5회). 규칙대로 `by:"unavailable"` 유지, 보고에 **"Fable 미검증(자체 검증)"**.

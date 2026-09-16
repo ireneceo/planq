@@ -648,7 +648,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
     // 메시지 첨부 추가 (메시지 생성 직후 link-existing / 업로드 직후 emit)
     //   message:new 가 첨부 비어있는 상태로 먼저 도착하므로, 이 이벤트로 attachments 배열에 append.
-    on('message:attachment', (data: { message_id: number; attachment: { id: number; file_name: string; file_size: number; mime_type?: string | null; file_id?: number; preview_url?: string | null } }) => {
+    on('message:attachment', (data: { message_id: number; attachment: { id: number; file_name: string; file_size: number; mime_type?: string | null; file_id?: number | null; preview_url?: string | null; drive_editable?: boolean } }) => {
       setMessages((prev) => {
         const next: typeof prev = {};
         let touched = false;
@@ -663,11 +663,21 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
             next[Number(convId)] = list;
             continue;
           }
+          // ★ 2026-09-16 — 여기서도 **preview_url 을 떨어뜨리고 있었다.**
+          //   2026-09-07 에 조회 매퍼(apiMessageToMock)의 같은 결함을 고쳤는데 **실시간 수신
+          //   경로는 그대로였다.** 그래서 "받으면 미리보기가 안 되고, 새로고침하면 된다" —
+          //   Irene: "채팅에서 png 받으면 미리보기가 안돼 … 클릭해도 미리보기 안나와."
+          //   화면은 preview_url 이 없으면 파일 카드로 떨어뜨리고(ChatPanel isImg),
+          //   눌러서 열리는 드로어도 이미지 분기가 preview_url 에서 막혀 "다운로드 후 확인" 이 된다.
+          //   memory feedback_mapper_drops_server_fields — 서버가 준 필드를 매퍼가 버리면 기능이 사라진다.
           const newAtt = {
             id: data.attachment.id,
             file_name: data.attachment.file_name,
             file_size: data.attachment.file_size,
             mime_type: data.attachment.mime_type ?? null,
+            preview_url: data.attachment.preview_url ?? null,
+            file_id: data.attachment.file_id ?? null,
+            drive_editable: !!data.attachment.drive_editable,
           };
           const updatedMsg = { ...target, attachments: [...existing, newAtt] };
           next[Number(convId)] = list.map((m, i) => (i === idx ? updatedMsg : m));
