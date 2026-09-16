@@ -3240,13 +3240,13 @@ const ConfirmActions = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;
 `;
 const ConfirmCancel = styled.button`
-  height: 34px; padding: 0 14px;
-  background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 8px;
-  font-size: 0.8125rem; font-weight: 600; color: #334155; cursor: pointer;
+  height: 36px; padding: 0 14px;
+  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 0.8125rem; font-weight: 600; color: #475569; cursor: pointer;
   &:hover { background: #F8FAFC; }
 `;
 const ConfirmDanger = styled.button`
-  height: 34px; padding: 0 14px;
+  height: 36px; padding: 0 14px;
   background: #DC2626; border: none; border-radius: 8px;
   font-size: 0.8125rem; font-weight: 700; color: #FFFFFF; cursor: pointer;
   &:hover { background: #B91C1C; }

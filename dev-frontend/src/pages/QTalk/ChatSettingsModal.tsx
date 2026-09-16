@@ -345,14 +345,14 @@ const PendingList = styled.div`
 `;
 const InviteRow = styled.div`display:flex;gap:6px;align-items:flex-start;`;
 const PrimaryBtn = styled.button`
-  height:32px;padding:0 14px;background:#14B8A6;color:#fff;border:none;
-  border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;
+  height:36px;padding:0 14px;background:#14B8A6;color:#fff;border:none;
+  border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){background:#0D9488;}
   &:disabled{background:#CBD5E1;cursor:not-allowed;}
 `;
 const SecondaryBtn = styled.button`
-  height:32px;padding:0 14px;background:#fff;color:#334155;border:1px solid #E2E8F0;
-  border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;
+  height:36px;padding:0 14px;background:#fff;color:#475569;border:1px solid #E2E8F0;
+  border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
   &:hover:not(:disabled){border-color:#CBD5E1;background:#F8FAFC;}
 `;
 const DangerBtn = styled.button`
@@ -362,6 +362,6 @@ const DangerBtn = styled.button`
   &:disabled{opacity:.4;cursor:not-allowed;}
 `;
 const Footer = styled.div`
-  display:flex;justify-content:flex-end;gap:6px;
+  display:flex;justify-content:flex-end;gap:8px;
   padding:12px 20px 18px;border-top:1px solid #F1F5F9;
 `;
