@@ -486,6 +486,20 @@ router.get('/', authenticateToken, async (req, res, next) => {
 - **한도 술어도 한 곳** — `services/clientQuota.js`: 정식 고객 = prospect 를 뺀 기존 집합, 문의 고객은 `prospects_max`(정식 ×3). `plan.can('add_client')`·`can('add_prospect')` 가 같은 술어를 쓴다. 생성 후 `invalidateBusinessCache`(사용량 30초 캐시).
 - **라우트는 세 파일이 한 접두어를 나눈다** — `routes/sale.js`(목록·상세·단계·타임라인) · `sale_interactions.js` · `sale_save.js`. 권한 체인·직렬화는 `services/saleCommon.js` 한 벌(베끼면 한쪽만 고쳐진다). 고객(client) 역할은 서버 `blockClient` + 프론트 `hasBiz('owner','member')` **같은 술어**로 막는다.
 - **운영 적용**: `dev-backend/scripts/migrate-qsale.js`(멱등, ENUM 끝 append 3건 — `clients.status` · `notifications.event_kind` · `notification_prefs.event_kind`). **코드 배포 전에** 실행한다. 두 알림 테이블은 값 **순서가 다르므로** 한 목록을 공유하지 않는다. 롤백은 `prospect→archived`(invited 로 돌리면 라벨이 거짓이고 한도에 들어간다).
+- **상담에 무엇이 들어오는가는 «관계» 로 가른다** (2026-09-16 박제 — Irene: *"상담리스트에 메일이 너무
+  쓸데없이 많이 들어와. 그냥 신청하라는 홍보메일도 가져오면 어떻게 해?"*). 판정은
+  **`services/saleMailCriteria.js` 한 곳** — ①우리가 답한 스레드 ②개인 주소(무료메일 개인 계정 ·
+  회사 도메인이면 **이름 두 토막 이상**) ③사람이 올린 것. 그 외는 **「후보」**(`source=candidate`).
+  - **키워드로 가르지 않는다.** 그 길을 두 번 걸었고 두 번 다 샜다(발송전용 패턴·광고 표기·List-* 헤더).
+    운영 실측 32건 중 진짜 문의는 7건이고, 그중 5건이 «우리가 답함» 또는 «개인 주소» 였다.
+  - **후보는 버리지 않는다.** 좁힌 기준과 **[상담으로 보내기]**(`POST /:biz/inbox/promote`)는 **한 벌**이다 —
+    문이 없으면 놓친 문의를 살릴 길이 없고, 기준이 없으면 목록이 홍보로 덮인다. 진입점 3곳:
+    메일 목록 **우클릭**(행이 `<button>` 이라 안에 메뉴를 못 넣는다 → `AppContextMenu` 의
+    `data-pq-context`) · 메일 상세 ⋯ · 채팅 메시지 툴바(고객 대화방만, 팀 대화방은 400).
+  - **보관함 [되돌리기]도 승격으로 읽는다** — 사람이 "문의 맞다" 고 말한 것이다. 안 그러면 되돌려도
+    후보로 떨어져 되돌리기의 뜻이 사라진다(실측으로 잡았다).
+  - **목록과 집계는 `classifyMailThreads` 한 번**을 읽는다. 각자 세면 같은 술어가 두 벌이 된다
+    (memory `feedback_same_value_multiple_formulas`). 회귀: `node scripts/e2e/run.js --suite salecriteria`.
 
 **Q위키 (2):** **help_categories**, **help_articles** (2026-06-18 신규 — PlanQ 제품 사용법 도움말. 플랫폼 공통 콘텐츠(business_id 없음), 격리 축은 article.visibility('public'/'authenticated')만. help_articles FULLTEXT(ngram) 한글검색 + body ko/en JSON 블록. 본문 임베딩은 **kb_chunks 재사용**(source_type ENUM 'kb'/'wiki' 추가 + source_id + business_id/kb_document_id nullable — wiki chunk는 플랫폼 공통이라 NULL, 워크스페이스 KB 검색 비오염). 스크린샷은 File 재사용(image 블록 file_id). 운영 적용 시 `dev-backend/setup-wiki-schema.js`(FULLTEXT+ALTER 멱등) + `seed-wiki-content.js`(콘텐츠) 실행. 설계 docs/Q_WIKI_DESIGN.md)
 
