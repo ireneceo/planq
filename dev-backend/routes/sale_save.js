@@ -179,6 +179,63 @@ router.post('/:businessId/inbox/restore', ...writeChain, async (req, res, next) 
   } catch (err) { next(err); }
 });
 
+// ── [상담으로 보내기] — 사람이 올린다 ──────────────────────────────────────
+//   Irene 2026-09-16: *"메일목록에서, 채팅 메시지에서, 상담리스트로 보내기 기능이 있어야 할 것 같아. 그치?"*
+//
+// ★ 이 문이 있어야 **자동 유입 기준을 좁힐 수 있다**(services/saleMailCriteria).
+//   기계는 관계가 증명된 것만 들이고, 놓친 것은 사람이 한 번 눌러 올린다 — 둘은 한 벌이다.
+//   [문의 아님]의 정확한 반대 방향이고, **같은 원장**(판단의 기록)을 쓴다. 새 컬럼·새 테이블 0.
+router.post('/:businessId/inbox/promote', ...writeChain, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const kind = String(req.body?.kind || '');
+    const id = Number(req.body?.id || 0);
+    // 근거 메시지 — 채팅에서 올릴 때 "어느 말 때문에 올렸는지" 가 남아야 나중에 읽힌다.
+    const messageId = Number(req.body?.message_id || 0) || null;
+    if (!id) return errorResponse(res, 'unsupported_kind', 400);
+
+    if (kind === 'email_thread') {
+      const { accessibleAccountIds } = require('../services/clientTimeline');
+      const acctIds = await accessibleAccountIds(businessId, req.user.id);
+      const thread = await EmailThread.findOne({
+        where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      });
+      if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      // 이미 고객에 붙은 스레드는 상담이 아니라 **그 고객의 이력**이다(목록의 뜻이 그렇다).
+      if (thread.client_id) return errorResponse(res, 'already_client', 400);
+      const before = thread.triage;
+      // 분류 자체도 사람 판단으로 맞춘다 — Q mail 에서도 같은 판단이 보여야 한다(dismiss 와 대칭).
+      if (before !== 'human') await thread.update({ triage: 'human' });
+      createAuditLog({
+        userId: req.user.id, businessId, action: 'mail.triage_correct',
+        targetType: 'email_thread', targetId: thread.id,
+        oldValue: { triage: before }, newValue: { triage: 'human', origin: 'sale_inbox_promote' },
+      });
+      broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+      return successResponse(res, { id: thread.id, kind }, 'promoted');
+    }
+
+    if (kind === 'conversation') {
+      const { Conversation } = require('../models');
+      const conv = await Conversation.findOne({ where: { id, business_id: businessId } });
+      if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+      // ★ 고객 대화방만 올린다. 팀 대화방을 올리면 목록의 "누구" 가 우리 멤버가 되어
+      //   상담 목록의 뜻이 무너진다 — 화면도 같은 술어로 메뉴를 감춘다(양쪽이 같아야 한다).
+      if (conv.channel_type !== 'customer') return errorResponse(res, 'not_customer_chat', 400);
+      if (conv.client_id) return errorResponse(res, 'already_client', 400);
+      createAuditLog({
+        userId: req.user.id, businessId, action: 'sale.inbox_promote',
+        targetType: 'conversation', targetId: conv.id,
+        oldValue: null, newValue: { origin: 'sale_inbox_promote', message_id: messageId },
+      });
+      broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+      return successResponse(res, { id: conv.id, kind }, 'promoted');
+    }
+
+    return errorResponse(res, 'unsupported_kind', 400);
+  } catch (err) { next(err); }
+});
+
 router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);

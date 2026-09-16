@@ -495,6 +495,12 @@ async function generateEmailReplyDraft(businessId, { businessName, subject, late
       return { error: 'echoed_inbound', usage: await checkUsageLimit(businessId) };
     }
   }
+  // ★ 빈 초안을 **성공으로 내보내지 않는다.** 내보내면 화면은 `if (j.data?.suggestion)` 에서
+  //   조용히 지나가 아무 말도 하지 않는다 — 사용자에게는 "눌렀는데 아무 반응이 없다" 와 같다
+  //   (memory feedback_silent_no_output_paths).
+  if (!String(result.content || '').trim()) {
+    return { error: 'ai_empty', usage: await checkUsageLimit(businessId) };
+  }
   return { content: result.content, usage: await checkUsageLimit(businessId) };
 }
 

@@ -175,7 +175,8 @@
     "clearStageTitle": "Take this out of the consult list?",
     "clearStageBody": "Customer details and records stay as they are; only the sales stage becomes “none”. Give it a stage again and it returns to the list.",
     "memoWith": "{{n}} note(s) — click to view",
-    "memoNone": "No notes — click to add one"
+    "memoNone": "No notes — click to add one",
+    "promoteToInbox": "Send to consults"
   },
   "record": {
     "kind": {
@@ -340,7 +341,8 @@
       "email": "Email",
       "chat": "Chat",
       "client": "Registered",
-      "dismissed": "Trash"
+      "dismissed": "Trash",
+      "candidate": "Candidates"
     },
     "needsReply": "Needs action",
     "needsReplyOnly": "Needs action only",
@@ -354,7 +356,8 @@
     "inviteFailed": "Registered as a customer, but the invitation email failed. You can resend it from the panel.",
     "inviteNoEmail": "Registered as a customer. No email address, so no invitation was sent.",
     "stageAll": "All stages",
-    "hideClosed": "Hide closed"
+    "hideClosed": "Hide closed",
+    "hintCandidate": "Only mail with a confirmed relationship enters Consults automatically — threads you replied to, or inquiries from a personal address. These did not meet that bar. If one is a real inquiry, press Send to consults."
   },
   "cuebar": {
     "placeholder": "Paste the conversation — \"Call from GreenTech, Seojun Park, quote request, 010-2345-6789\" (Ctrl+Enter)",

@@ -1554,6 +1554,8 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
       // 받은 메일을 그대로 되돌려준 초안은 내보내지 않는다 — 조용히 붙여 놓는 것이 가장 나쁘다.
       if (out.error === 'echoed_inbound') return errorResponse(res, 'ai_echoed_inbound', 422);
+      // 빈 초안 — 조용히 성공으로 내보내면 화면이 아무 말도 못 한다(2026-09-16).
+      if (out.error === 'ai_empty') return errorResponse(res, 'ai_empty', 422);
 
       // 텍스트 → 안전한 HTML (문단/줄바꿈)
       const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

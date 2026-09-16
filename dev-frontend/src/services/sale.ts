@@ -146,7 +146,7 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
 
 // ── 상담(고객 미등록 접점) — Irene 2026-09-12 "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지"
 //   서버는 새 테이블 없이 원본(게스트 링크·메일 스레드·고객 대화방)에서 client_id 가 빈 것만 읽는다.
-export type SaleInboxSource = 'guest_link' | 'email' | 'chat' | 'dismissed';
+export type SaleInboxSource = 'guest_link' | 'email' | 'chat' | 'dismissed' | 'candidate';
 
 export interface SaleInboxItem {
   /** 'client' = 이미 등록된 **진행 중 상담**(등록해도 상담은 계속된다 — 2026-09-12) */
@@ -178,6 +178,8 @@ export interface SaleInboxCounts {
   total: number; needs_reply: number; guest_link: number; email: number; chat: number;
   /** 보관함 — 사람이 [문의 아님] 이라고 판단한 것 */
   dismissed?: number;
+  /** 후보 — 자동 유입 기준(관계)에 안 걸린 메일. 버리지 않고 여기 모아 사람이 올린다 (2026-09-16) */
+  candidate?: number;
   /** 등록된 진행 중 상담 수 */
   client?: number;
 }
@@ -356,6 +358,23 @@ export const dismissInboxItem = (businessId: number, kind: 'email_thread', id: n
   apiFetch(`/api/sale/${businessId}/inbox/dismiss`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
   }).then(j<{ id: number; triage: string }>);
+
+/** [상담으로 보내기] — 기계가 놓친 것을 사람이 올린다 (2026-09-16).
+ *
+ *  ★ 자동 유입 기준을 **관계가 증명된 것만**으로 좁힌 대가를 갚는 문이다(services/saleMailCriteria).
+ *    좁힌 기준과 이 문은 한 벌이라, 한쪽만 있으면 안 된다 — 기준만 좁히면 놓친 문의를 살릴 길이 없고,
+ *    문만 있으면 목록이 계속 홍보메일로 덮인다.
+ *  @param kind 'email_thread' = 메일 목록·상세에서 / 'conversation' = 채팅에서
+ *  @param messageId 채팅에서 올릴 때 **어느 말 때문에** 올렸는지 (원장에 남는다)
+ */
+export const promoteInboxItem = (
+  businessId: number, kind: 'email_thread' | 'conversation', id: number, messageId?: number,
+) =>
+  apiFetch(`/api/sale/${businessId}/inbox/promote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, id, ...(messageId ? { message_id: messageId } : {}) }),
+  }).then(j<{ id: number; kind: string }>);
 
 /** 보관함에서 되돌리기 — [문의 아님]은 사람의 판단이고 사람은 틀린다. 되돌릴 길이 없으면 삭제나 마찬가지다. */
 export const restoreInboxItem = (businessId: number, kind: 'email_thread', id: number) =>

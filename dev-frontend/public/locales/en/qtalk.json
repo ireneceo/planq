@@ -299,7 +299,9 @@
       "unpin": "Unpin",
       "more": "More",
       "selectMulti": "Select multiple",
-      "delete": "Delete"
+      "delete": "Delete",
+      "promoteToSale": "Send to consults",
+      "promotedToSale": "Sent to consults"
     },
     "pinned": {
       "count_one": "{{count}} pinned",

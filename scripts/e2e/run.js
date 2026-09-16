@@ -120,6 +120,7 @@ const SUITES = {
   delivver: () => require('./canary-deliverable-version'),
   chatattach: () => require('./canary-chat-attach-download'),
   chatpreview: () => require('./canary-chat-preview'),   // 채팅 첨부 미리보기 — 받는 쪽(소켓)까지 잰다
+  salecriteria: () => require('./canary-sale-criteria'), // Q sale 상담 유입 기준 + 사람이 올리는 문
   filesrc: () => require('./canary-file-source-tags'),
   fileindex: () => require('./canary-file-index'),
   crashreport: () => require('./canary-crash-report'),

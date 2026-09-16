@@ -5,7 +5,7 @@ import { downloadBlob } from '../../utils/download';
 import DetailFallback from '../Common/DetailFallback';
 import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import type { DetailStatus } from '../../hooks/useDetailResource';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -538,6 +538,39 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       }
     } catch { /* ignore */ }
   }, []);
+  // ★ 2026-09-16 (Irene: *"업무상세 댓글에 결과물 버전 추가로 업로드된 거 표시해주면 어때?
+  //   소통하다가 언제 중간에 내용이 추가된건지 보면 좋을 듯 해. 담당자가 결과물 넣고 댓글도 남기고
+  //   그러고 있네. 아무래도 시점확인이 안되서 그러는 거 아닐까?"*)
+  //   결과물 버전과 댓글은 **다른 목적**이라 자리를 합치지 않는다(2026-09-10 박제). 다만
+  //   *언제* 결과물이 올라왔는지는 대화의 맥락이다 — 그래서 **시점만** 대화 흐름에 끼워 넣는다.
+  //   내용은 넣지 않는다(그건 결과물 이력의 몫이다). 담당자가 «올렸다»고 댓글을 또 쓰는 이유가
+  //   그 시점이 안 보여서였다.
+  type VerEvent = { id: number; round: number; submitted: boolean; at: string; who: string | null };
+  const [verEvents, setVerEvents] = useState<VerEvent[]>([]);
+  const loadVerEvents = useCallback(async (id: number) => {
+    try {
+      const r = await apiFetch(`/api/tasks/${id}/deliverable-versions`);
+      if (!r.ok) { setVerEvents([]); return; }
+      const j = await r.json().catch(() => null);
+      const rows = (j?.data?.versions || j?.versions || []) as Array<Record<string, unknown>>;
+      setVerEvents(rows.map((v) => ({
+        id: Number(v.id), round: Number(v.round) || 0, submitted: !!v.submitted,
+        at: String(v.submitted_at || ''), who: (v.submitter as { name?: string } | null)?.name || null,
+      })).filter((v) => v.at));
+    } catch { setVerEvents([]); }
+  }, []);
+
+  /** 댓글 + 결과물 버전 시점을 **한 줄기**로 세운다 — 시간순. 정렬 축이 둘이면 대화가 어긋나 읽힌다. */
+  const mergedThread = useMemo(() => {
+    type Node = { at: string; kind: 'comment'; comment: CommentRow } | { at: string; kind: 'version'; ver: VerEvent };
+    const nodes: Node[] = [
+      ...((detailTask?.comments || []).map((c) => ({ at: c.createdAt || '', kind: 'comment' as const, comment: c }))),
+      ...verEvents.map((v) => ({ at: v.at, kind: 'version' as const, ver: v })),
+    ];
+    return nodes.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  }, [detailTask?.comments, verEvents]);
+
+
   const loadDetail = useCallback(async (id: number) => {
     // ★ 실패를 삼키지 않는다 (2026-08-30). 여태는 `if (dr.success)` 만 처리하고 catch 가
     //   전부 무시해서, 404·403·429·500·네트워크 순단이 **전부 같은 침묵**으로 떨어졌다.
@@ -550,6 +583,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       const [res] = await Promise.all([
         apiFetch(`/api/tasks/${id}/detail`),
         loadWorkflow(id),
+        loadVerEvents(id),          // 결과물 버전 **시점**을 대화 흐름에 끼우기 위한 재료
       ]);
       if (res.status === 404) { setDetailStatus('not_found'); return; }
       if (res.status === 403) { setDetailStatus('forbidden'); return; }
@@ -921,7 +955,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       await loadDetail(detailTask.id);
     } catch {
       setActionError(t('detail.newVersionFailed') as string);
-    } finally { setNewVerBusy(false); }
+      await loadVerEvents(detailTask.id);   // 남긴 버전이 대화 흐름에도 바로 보이게
+      } finally { setNewVerBusy(false); }
   };
 
   // 상태 변경 — progress+status 같이 쓰는 로직은 QTaskPage 와 동일
@@ -2302,7 +2337,23 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
             <Section>
               <SectionTitle>{t('detail.comments', 'Comments')} ({detailTask.comments?.length || 0})</SectionTitle>
-              {(detailTask.comments || []).map(c => (
+              {/* ★ 결과물 버전이 올라온 **시점**을 대화 사이에 끼운다 (2026-09-16).
+                  내용은 넣지 않는다 — 결과물과 대화는 목적이 다르다(2026-09-10 박제).
+                  여기 있는 것은 "언제 올라왔나" 뿐이고, 무엇이 올라왔는지는 결과물 이력에서 본다. */}
+              {mergedThread.map((node) => (node.kind === 'version' ? (
+                <VersionEventRow key={`v-${node.ver.id}`} data-testid={`task-version-event-${node.ver.id}`}>
+                  <VersionEventDot aria-hidden />
+                  <span>
+                    {t('detail.versionAdded', {
+                      defaultValue: '결과물 v{{n}} 추가됨',
+                      n: node.ver.round,
+                    }) as string}
+                    {node.ver.submitted ? ` · ${t('detail.versionSubmitted', { defaultValue: '확인 요청' }) as string}` : ''}
+                    {node.ver.who ? ` · ${node.ver.who}` : ''}
+                  </span>
+                  <VersionEventTime>{node.ver.at.slice(5, 16).replace('T', ' ')}</VersionEventTime>
+                </VersionEventRow>
+              ) : (((c: CommentRow) => (
                 <CommentItem key={c.id}>
                   <CommentHead>
                     <strong>{c.author?.name}</strong>
@@ -2399,7 +2450,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     );
                   })()}
                 </CommentItem>
-              ))}
+              ))(node.comment))))}
               <CommentComposer>
                 <CommentInput data-testid="task-comment-input" {...commentDraft.bind} placeholder={t('detail.writeCommentPaste', '댓글 입력 · 이미지 붙여넣기(Cmd/Ctrl+V) 가능') as string}
                   onPaste={handleCommentPaste}
@@ -3200,6 +3251,26 @@ const RevisionInput = styled.textarea`width:100%;min-height:60px;padding:6px 8px
 const RevisionRow = styled.div`display:flex;gap:6px;align-items:center;justify-content:flex-end;& > button:first-child{margin-right:auto;}`;
 
 // Comments
+/* 결과물 버전이 올라온 **시점** 한 줄 (2026-09-16).
+   댓글과 섞이되 **다르게 보여야** 한다 — 이건 사람이 쓴 말이 아니라 일어난 일이다.
+   그래서 배경 없이 옅은 선 한 줄로 둔다(댓글 카드보다 가볍게). */
+const VersionEventRow = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 2px; margin: 2px 0 6px;
+  border-top: 1px dashed #E2E8F0;
+  color: #64748B; font-size: 0.75rem; font-weight: 600;
+  > span { flex: 1; min-width: 0; }
+`;
+
+const VersionEventDot = styled.span`
+  width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%;
+  background: #14B8A6;
+`;
+
+const VersionEventTime = styled.span`
+  flex-shrink: 0; color: #94A3B8; font-weight: 500;
+`;
+
 const CommentItem = styled.div`
   position:relative;padding:8px 10px;background:#F8FAFC;border-radius:8px;
   & + &{margin-top:6px;}

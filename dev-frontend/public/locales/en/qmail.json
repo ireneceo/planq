@@ -211,7 +211,9 @@
     "addLabelAria": "Add a tag",
     "noMoreLabels": "No other tags to add",
     "assignSearch": "Find by name",
-    "meShort": "Me"
+    "meShort": "Me",
+    "promoteToSale": "Send to consults",
+    "promotedToSale": "Sent to consults"
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",
@@ -258,7 +260,10 @@
     "aiInstructionRequired": "You already have a draft. Tell AI how to revise it.",
     "aliasHelp": "This customer wrote to {{addr}}. Your reply will also be sent from that address.",
     "aiEchoed": "The draft only repeated the email you received. Tell us below what you want to say.",
-    "keepNeeded": "Keep in “Needs reply” after sending (holding reply)"
+    "keepNeeded": "Keep in “Needs reply” after sending (holding reply)",
+    "aiWorking": "AI is drafting your reply…",
+    "aiSlow": "AI is still writing. This can take a little longer — you can also just write it yourself.",
+    "aiEmpty": "AI could not produce a draft this time. Try again, or tell it below what you want."
   },
   "errors": {
     "loadList": "Failed to load inbox"

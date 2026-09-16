@@ -33,6 +33,8 @@ type MenuItem = {
 type Target =
   | { kind: 'link'; path: string; absolute: string }
   | { kind: 'tab'; tabId: string; path: string; absolute: string }
+  /** 화면이 직접 선언한 동작 — `data-pq-context="키,키"` 를 단 요소 위에서 (2026-09-16) */
+  | { kind: 'custom'; el: HTMLElement; actions: string[] }
   | null;
 
 const MENU_W = 216;
@@ -64,6 +66,15 @@ function resolveTarget(e: MouseEvent): Target {
     const tabId = chip.getAttribute('data-ctx-tab-id') || '';
     const path = chip.getAttribute('data-ctx-tab-path') || '';
     return { kind: 'tab', tabId, path, absolute: window.location.origin + path };
+  }
+
+  // ★ 2026-09-16 — 화면이 자기 행에 붙인 동작. 메일 목록 행처럼 **행 자체가 <button>** 이라
+  //   안에 메뉴 버튼을 넣을 수 없는 자리를 위한 문이다(중첩 button 은 유효하지 않은 HTML).
+  //   메뉴 껍데기는 여기 하나뿐이다 — 화면마다 다시 그리면 갈라진다.
+  const custom = el.closest<HTMLElement>('[data-pq-context]');
+  if (custom) {
+    const actions = (custom.getAttribute('data-pq-context') || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (actions.length) return { kind: 'custom', el: custom, actions };
   }
 
   const a = el.closest<HTMLAnchorElement>('a[href]');
@@ -116,6 +127,22 @@ const AppContextMenu: React.FC = () => {
         label: t('ctx.copyLink', { defaultValue: '링크 복사' }) as string,
         onSelect: () => copyText(target.absolute),
       });
+    }
+
+    if (target.kind === 'custom') {
+      for (const key of target.actions) {
+        out.push({
+          key: `custom-${key}`,
+          // 라벨은 화면이 요소에 실어 보낸다(`data-pq-context-label-<키>`) — 없으면 공통 사전에서 찾는다.
+          label: target.el.getAttribute(`data-pq-context-label-${key}`)
+            || (t(`ctx.${key}`, { defaultValue: key }) as string),
+          // ★ 이벤트는 **그 요소에서** 띄운다(document 가 아니라). 같은 화면이 두 탭에 떠 있어도
+          //   자기 트리로만 올라가므로 엉뚱한 탭이 처리하지 않는다.
+          onSelect: () => target.el.dispatchEvent(
+            new CustomEvent('pq:context-action', { bubbles: true, detail: { action: key } }),
+          ),
+        });
+      }
     }
 
     if (target.kind === 'tab') {

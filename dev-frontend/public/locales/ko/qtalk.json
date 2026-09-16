@@ -267,7 +267,9 @@
       "unpin": "공지 해제",
       "more": "더보기",
       "selectMulti": "여러 메시지 선택",
-      "delete": "삭제"
+      "delete": "삭제",
+      "promoteToSale": "상담으로 보내기",
+      "promotedToSale": "상담으로 보냄"
     },
     "pinned": {
       "count_one": "공지 {{count}}개",

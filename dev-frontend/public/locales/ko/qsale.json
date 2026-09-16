@@ -175,7 +175,8 @@
     "clearStageTitle": "상담 목록에서 치울까요?",
     "clearStageBody": "고객 정보와 기록은 그대로 남고, 영업 단계만 «없음» 이 됩니다. 단계를 다시 주면 상담 목록으로 돌아옵니다.",
     "memoWith": "메모 {{n}}개 — 눌러서 보기",
-    "memoNone": "메모 없음 — 눌러서 남기기"
+    "memoNone": "메모 없음 — 눌러서 남기기",
+    "promoteToInbox": "상담으로 보내기"
   },
   "record": {
     "kind": {
@@ -340,7 +341,8 @@
       "email": "메일",
       "chat": "채팅",
       "client": "등록된 상담",
-      "dismissed": "휴지통"
+      "dismissed": "휴지통",
+      "candidate": "후보"
     },
     "needsReply": "대응 필요",
     "needsReplyOnly": "대응 필요만",
@@ -354,7 +356,8 @@
     "inviteFailed": "고객으로 등록했지만 초대 메일 발송에 실패했습니다. 패널에서 다시 보낼 수 있어요.",
     "inviteNoEmail": "고객으로 등록했습니다. 이메일 주소가 없어 초대는 보내지 못했어요.",
     "stageAll": "단계 전체",
-    "hideClosed": "종료 가리기"
+    "hideClosed": "종료 가리기",
+    "hintCandidate": "자동으로는 관계가 확인된 메일만 상담에 들어옵니다 — 우리가 답했거나, 개인 주소에서 온 문의. 여기 있는 것은 그 기준에 안 걸린 메일입니다. 문의가 맞으면 [상담으로 보내기] 를 누르세요."
   },
   "cuebar": {
     "placeholder": "상담 내용을 그대로 붙여넣으세요 — \"오늘 전화로 (주)그린테크 박서준 팀장이 견적 문의. 010-2345-6789\" (Ctrl+Enter)",

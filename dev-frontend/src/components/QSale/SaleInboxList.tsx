@@ -12,6 +12,7 @@
 //   링크가 없는 순수 대화방(`ref.kind === 'conversation'`)에만 버튼을 숨긴다.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { useInboxItemActions } from './useInboxItemActions';
 import { useTranslation } from 'react-i18next';
 import { joinRoom, onSocket } from '../../services/socket';
 import { useChromeNav } from '../../hooks/useChromeNav';
@@ -29,7 +30,7 @@ import { registerInquiryAsClient } from '../../services/saleRegister';
 import LetterAvatar from '../Common/LetterAvatar';
 import HighlightText from '../Common/HighlightText';
 import {
-  listSaleInbox, dismissInboxItem, restoreInboxItem, purgeInboxItem, setSaleStage,
+  listSaleInbox, dismissInboxItem, purgeInboxItem,
   SALE_STAGES, type SaleInboxItem, type SaleInboxCounts, type SaleInboxSource,
   type SaleStage,
 } from '../../services/sale';
@@ -185,36 +186,6 @@ const SaleInboxList: React.FC<Props> = ({
   // 원본으로 — 채팅은 대화방, 메일은 그 스레드. 보던 화면을 덮지 않게 새 탭 규칙을 따른다.
   const openRow = useCallback((it: SaleInboxItem) => { navigate(it.open_path); }, [navigate]);
 
-  // 아직 고객이 아닌 행에 **고객 기준 동작**(단계·메모·일정)을 걸려면 먼저 등록해야 한다.
-  //   ★ 우측 패널의 `withClient` 와 같은 뜻이다 — 여는 것만으로는 아무것도 만들지 않고,
-  //     저장이 필요한 첫 액션에서 한 번 묻는다. 초대 메일은 보내지 않는다(`invite: false`).
-  const ensureClient = useCallback(async (it: SaleInboxItem): Promise<number | null> => {
-    if (it.client_id) return it.client_id;
-    if (it.ref.kind === 'client') return it.ref.id;
-    const out = await registerInquiryAsClient(businessId, it, { invite: false });
-    if (!out.ok || !out.clientId) { setActionError(out.message || (t('error.saveFailed') as string)); return null; }
-    await load({ silent: true });
-    return out.clientId;
-  }, [businessId, load, t]);
-
-  // 단계 바꾸기 — **고객 기준**이므로 같은 고객의 다른 상담 행도 함께 바뀐다(서버가 고객을 바꾸므로).
-  //   어느 문의에서 바꿨는지를 `source_ref` 로 같이 보낸다(Irene: "히스토리에 어느 문의 내용에서
-  //   단계를 바꿨는지 표시해주고").
-  const applyStage = useCallback(async (it: SaleInboxItem, to: SaleStage) => {
-    if (busyId) return;
-    setBusyId(it.id); setActionError(null);
-    try {
-      const cid = await ensureClient(it);
-      if (!cid) return;
-      await setSaleStage(businessId, cid, {
-        to,
-        source_ref: { kind: it.ref.kind, id: it.ref.id, title: it.title || it.preview || null },
-      });
-      await load({ silent: true });
-    } catch { setActionError(t('error.saveFailed') as string); }
-    finally { setBusyId(null); }
-  }, [busyId, businessId, ensureClient, load, t]);
-
   // [보기] 라벨 — **어디로 가는지**를 말한다.
   //   ★ 2026-09-13 (Irene: *"sale 리스트에 채팅이 아닌데 채팅보기가 나와. 이상한데로 보내고."*)
   //     여태 `source === 'email' ? 'mail' : 'chat'` **이분법**이라 `client`·`guest_link`·`dismissed`
@@ -262,20 +233,12 @@ const SaleInboxList: React.FC<Props> = ({
     }
   }, [busyId, businessId, load, onRegistered, t]);
 
-  // 보관함에서 되돌리기 — 되돌리면 그 행은 보관함에서 빠지고 상담으로 돌아간다.
-  const restoreItem = useCallback(async (it: SaleInboxItem) => {
-    if (busyId || it.ref.kind !== 'email_thread') return;
-    setBusyId(it.id);
-    setActionError(null);
-    try {
-      await restoreInboxItem(businessId, 'email_thread', it.ref.id);
-      await load({ silent: true });
-    } catch {
-      setActionError(t('error.loadFailed') as string);
-    } finally {
-      setBusyId(null);
-    }
-  }, [busyId, businessId, load, t]);
+  // 행 액션(올리기·되돌리기·보관·영구삭제)은 한 벌로 묶여 있다 — useInboxItemActions.
+  const { promoteItem, restoreItem, ensureClient, applyStage } = useInboxItemActions({
+    businessId, busyId, setBusyId, setActionError,
+    errorText: t('error.loadFailed') as string, saveErrorText: t('error.saveFailed') as string,
+    reload: () => load({ silent: true }),
+  });
 
   const rows = useMemo(() => items, [items]);
   // ★ 6차 — 버튼은 행마다 독립이라 **자동으로 같이 늘지 않는다.** min-width 를 빼면 1자리 행과
@@ -317,6 +280,14 @@ const SaleInboxList: React.FC<Props> = ({
         {/* ★ 보관함은 **소스가 아니라 판단의 결과**다(사람이 [문의 아님] 이라고 내린 것).
             일반 소스 칩 사이에 끼우면 "게스트/메일/채팅" 과 같은 층으로 읽힌다 — 오른쪽에 따로 둔다. */}
         <ChipRight>
+          {/* ★ 2026-09-16 — 「후보」. 자동 유입 기준을 **관계가 증명된 것만**으로 좁히면서
+              걸러진 것을 볼 자리다(Irene: *"영업 상담으로 가져오는 기준설정 좀 잡아봐"*).
+              버리지 않는다 — 여기서 한 번 눌러 올린다. 보관함과 같은 층이라 오른쪽에 둔다. */}
+          <FilterChip type="button" data-testid="sale-inbox-source-candidate"
+            $on={source === 'candidate'}
+            onClick={() => setSource((v) => (v === 'candidate' ? '' : 'candidate'))}>
+            {t('inbox.source.candidate') as string} <b>{counts.candidate ?? 0}</b>
+          </FilterChip>
           <FilterChip type="button" data-testid="sale-inbox-source-dismissed"
             $on={source === 'dismissed'}
             onClick={() => setSource((v) => (v === 'dismissed' ? '' : 'dismissed'))}>
@@ -326,7 +297,9 @@ const SaleInboxList: React.FC<Props> = ({
       </ChipRow>
       {/* ★ 2026-09-14 — 단계 필터·대응 필요만·종료 가리기는 **검색 옆 한 줄**(SalePage)로 옮겼다.
           여기 남은 것은 접점 **종류**(게스트/메일/채팅)와 보관함 — 목록 자신의 축이다. */}
-      <Hint>{t('inbox.hint') as string}</Hint>
+      {/* ★ 기준은 화면이 **짧게** 알려준다 — 왜 여기 없는지 모르면 사용자는 고장으로 읽는다
+          (memory feedback_rules_must_be_explained_briefly). */}
+      <Hint>{t(source === 'candidate' ? 'inbox.hintCandidate' : 'inbox.hint') as string}</Hint>
 
       {actionError && <ErrorBar role="alert">{actionError}</ErrorBar>}
 
@@ -413,6 +386,8 @@ const SaleInboxList: React.FC<Props> = ({
                 </StageSlot>
                 <RowActions>
                   {/* 나머지 순서는 종전대로: 보기 · 메모 · 일정 · 업무 · ✕ */}
+                  {/* ★ 후보 행에서 할 일은 «올릴지 말지» 하나다. 고객 기준 동작(메모·일정·업무)은
+                      아직 상담이 아닌 것에 고객 레코드를 만들게 되므로 감춘다 — 올린 뒤에 할 일이다. */}
 
                   {/* ① 보기 — **다른 화면으로 나간다**.
                       ★ 2026-09-14 2차 (Irene: *"[메일 보기]·[고객 상세 보기] 는 이름을 빼고
@@ -428,6 +403,7 @@ const SaleInboxList: React.FC<Props> = ({
                     {t('action.view') as string}
                   </ActionButton>
 
+                  {it.source !== 'candidate' && (<>
                   {/* ② 메모 — 행 아래에서 열린다. 계약이 하루에 네 번 바뀌었다(2차 개수삭제 →
                       4차 점 → 5차 숫자+좌측정렬 → 6차 색구분·간격·최대자릿수 공유폭).
                       **정본은 6차. 숫자를 다시 지우지 말 것** — 2차를 Irene 이 되돌렸다.
@@ -458,10 +434,28 @@ const SaleInboxList: React.FC<Props> = ({
                     onClick={() => setTaskFor(it)}>
                     {t('action.addTask') as string}
                   </ActionButton>
+                  </>)}
 
                   {/* ⑥ ✕ — 상담 목록에서 치운다. 누르면 **묻는다**(되돌릴 수 있다는 것도 문구로 말한다).
                       보관함 행에서는 되돌리기가 그 자리를 대신한다. */}
-                  {it.source === 'dismissed' ? (
+                  {it.source === 'candidate' ? (
+                    <>
+                      {/* 후보 → 상담. 기계가 놓친 것을 사람이 올린다(자동 기준과 한 벌이다). */}
+                      <ActionButton tone="primary" size="xs" disabled={busy}
+                        data-testid={`sale-inbox-promote-${it.id}`}
+                        onClick={() => promoteItem(it)}>
+                        {t('action.promoteToInbox') as string}
+                      </ActionButton>
+                      <IconX type="button" disabled={busy}
+                        data-testid={`sale-inbox-dismiss-${it.id}`}
+                        aria-label={t('action.removeFromInbox') as string}
+                        title={t('action.removeFromInbox') as string}
+                        onClick={() => setDismissAsk(it)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                          strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                      </IconX>
+                    </>
+                  ) : it.source === 'dismissed' ? (
                     <>
                       <ActionButton tone="secondary" size="xs" disabled={busy}
                         data-testid={`sale-inbox-restore-${it.id}`} onClick={() => restoreItem(it)}>

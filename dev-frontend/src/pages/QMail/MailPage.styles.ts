@@ -1,6 +1,6 @@
 // Q mail 화면 스타일 — MailPage.tsx 에서 분리 (god-file 가드: 컴포넌트 파일 800줄 상한).
 // 동작 코드와 표현을 나눠 두면 화면 로직을 읽을 때 스타일 400줄을 스크롤하지 않아도 된다.
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { listRowTitleCss } from '../../theme/tokens';
 import { mediaPhone } from '../../theme/breakpoints';
 
@@ -871,6 +871,29 @@ export const ComposerTo = styled.div`
   font-size: 0.75rem; color: #64748B;
   strong { color: #0F172A; font-weight: 600; }
 `;
+/* AI 진행 줄 — **쓰는 자리 바로 위**에서 말한다 (2026-09-16).
+   답장창 맨 아래 버튼의 스피너만으로는 본문이 긴 메일에서 화면 밖이라 보이지 않았다.
+   포인트색 계열이되 에러(붉은 박스)와 구별되게 옅은 배경으로 둔다. */
+export const AiWorkingLine = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; margin-bottom: 6px;
+  background: #FFF1F2; color: #9F1239;
+  border: 1px solid #FECDD3; border-radius: 8px;
+  font-size: 0.75rem; font-weight: 600;
+`;
+
+const aiPulse = keyframes`
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.8); }
+`;
+
+export const AiDot = styled.span`
+  width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%;
+  background: linear-gradient(135deg, #F43F5E 0%, #BE185D 100%);
+  animation: ${aiPulse} 1.1s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) { animation: none; }
+`;
+
 export const ComposerError = styled.div`
   padding: 8px 10px;
   background: #FEF2F2; color: #B91C1C;

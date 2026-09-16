@@ -693,7 +693,9 @@
       "empty_body": "결과물을 작성한 뒤에 남길 수 있습니다",
       "server": "서버에서 처리하지 못했습니다. 잠시 후 다시 시도해 주세요"
     },
-    "meSuffix": " (나)"
+    "meSuffix": " (나)",
+    "versionAdded": "결과물 v{{n}} 추가됨",
+    "versionSubmitted": "확인 요청"
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",

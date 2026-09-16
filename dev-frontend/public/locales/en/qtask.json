@@ -693,7 +693,9 @@
       "empty_body": "write the result first",
       "server": "the server could not process it. Please try again shortly"
     },
-    "meSuffix": " (me)"
+    "meSuffix": " (me)",
+    "versionAdded": "Deliverable v{{n}} added",
+    "versionSubmitted": "submitted for review"
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",

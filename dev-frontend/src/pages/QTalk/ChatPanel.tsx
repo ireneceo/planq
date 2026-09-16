@@ -1,5 +1,5 @@
 import { openPopout } from '../../utils/pinHost';
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { downloadBlob } from '../../utils/download';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
@@ -12,6 +12,7 @@ import {
 } from './types';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
+import { promoteInboxItem } from '../../services/sale';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
@@ -677,6 +678,25 @@ const ChatPanel: React.FC<Props> = ({
   }, []);
   // FilePicker 의 businessId — useAuth() 의 user.business_id 사용 (MockProject 에는 business_id 없음)
   const businessId = user?.business_id ? Number(user.business_id) : null;
+
+  // ★ 2026-09-16 (Irene: *"채팅 메시지에서 … 상담리스트로 보내기 기능이 있어야 할 것 같아. 그치?"*)
+  //   Q sale 상담은 기계 기준(외부 발화 있음 · 고객 미등록)으로 모으는데, 그 기준이 놓치는 방이 있다.
+  //   사람이 그 자리에서 올린다 — **근거가 된 메시지 id 도 함께** 남긴다(왜 올렸는지가 원장에 남는다).
+  //   ★ 서버와 **같은 술어**로 막는다: 고객 대화방이고 아직 고객으로 등록되지 않은 방만
+  //     (팀 대화방을 올리면 상담 목록의 "누구" 가 우리 멤버가 되어 목록의 뜻이 무너진다).
+  const canPromoteConv = !!activeConv && activeConv.channel_type === 'customer'
+    && !activeConv.client && !isClient && !!businessId;
+  const [promotedMsgId, setPromotedMsgId] = useState<number | null>(null);
+  const handlePromoteToSale = useCallback(async (messageId: number) => {
+    if (!canPromoteConv || !activeConv || !businessId) return;
+    try {
+      await promoteInboxItem(Number(businessId), 'conversation', Number(activeConv.id), messageId);
+      setPromotedMsgId(messageId);
+      window.setTimeout(() => setPromotedMsgId((v) => (v === messageId ? null : v)), 2500);
+      window.dispatchEvent(new CustomEvent('inbox:refresh'));
+    } catch { /* 실패는 조용히 — 버튼은 그대로라 다시 누를 수 있다 */ }
+  }, [canPromoteConv, activeConv, businessId]);
+
 
   // 한 개 파일을 즉시 워크스페이스에 업로드 → fileId 받아서 stagedExistingIds 에 추가.
   // 진행 중엔 uploadingFiles 에 임시 chip 으로 노출 (이름 + 크기 + 스피너).
@@ -2020,6 +2040,22 @@ const ChatPanel: React.FC<Props> = ({
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
                 </ToolBarBtn>
+                {canPromoteConv && (
+                  <ToolBarBtn type="button"
+                    data-testid={`chat-promote-sale-${m.id}`}
+                    onClick={(e) => { e.stopPropagation(); void handlePromoteToSale(m.id); }}
+                    title={promotedMsgId === m.id
+                      ? t('chat.action.promotedToSale', '상담으로 보냄') as string
+                      : t('chat.action.promoteToSale', '상담으로 보내기') as string}
+                    aria-label={t('chat.action.promoteToSale', '상담으로 보내기') as string}>
+                    {/* 보냈다는 것은 아이콘의 체크로 조용히 알린다 — 성공 토스트는 쓰지 않는다 */}
+                    {promotedMsgId === m.id ? (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    ) : (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    )}
+                  </ToolBarBtn>
+                )}
                 {canEditThis && (
                   <ToolBarBtn type="button" onClick={(e) => { e.stopPropagation(); handleEditStart(m); }} title={t('chat.action.edit', '수정') as string} aria-label={t('chat.action.edit', '수정') as string}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -171,6 +171,23 @@ const ARTICLES = [
       note('방을 열어 읽으면 확인 필요에서도 곧바로 사라집니다.',
         'Opening the room clears it from the inbox right away.'),
     ] },
+  // 2026-09-16 — 영업 상담에 **무엇이 들어오는가**. 기준을 좁히면 «왜 안 보이지» 가 따라온다.
+  { cat: 'qmail', slug: 'sale-inbox-criteria', visibility: 'authenticated', linked_route: '/sale', est: 2,
+    title: t('어떤 메일이 영업 상담에 들어오나요', 'Which emails become sales consults'),
+    summary: t('관계가 확인된 메일만 자동으로 들어오고, 나머지는 «후보» 에 모입니다',
+      'Only mail with a confirmed relationship enters automatically; the rest gather under Candidates'),
+    body: [
+      s('Q sale 의 **상담** 목록에는 아무 메일이나 들어오지 않습니다. 자동으로 들어오는 것은 두 가지입니다 — ①우리가 한 번이라도 **답장한** 메일 ②**개인 주소**에서 온 첫 문의.',
+        'The Consults list in Q sale does not take every email. Two kinds enter automatically: threads you have replied to at least once, and first inquiries from a personal address.'),
+      s('그 기준에 안 걸린 메일은 버려지지 않고 **«후보»** 칸에 모입니다. 상담 목록 오른쪽 위의 «후보» 를 누르면 볼 수 있습니다. 주문 알림·약관 안내·홍보 메일이 주로 여기 있습니다.',
+        'Everything else is not discarded — it gathers under Candidates, at the top right of the list. Order notifications, terms updates and promotional mail usually land there.'),
+      s('후보에 있는 것이 진짜 문의라면 **[상담으로 보내기]** 를 누르면 상담으로 올라옵니다. 메일 목록에서 그 줄을 **마우스 오른쪽 버튼**으로 눌러도, 메일을 연 뒤 우측 위 **⋯** 메뉴에서도 같은 항목이 있습니다.',
+        'If a candidate really is an inquiry, press Send to consults. The same action is on the right-click menu of a row in the mail list, and in the ⋯ menu once the thread is open.'),
+      s('**채팅**에서도 보낼 수 있습니다. 고객 대화방의 메시지에 마우스를 올리면 나오는 도구 막대에서 보내기 아이콘을 누르면 그 대화방이 상담으로 올라옵니다.',
+        'You can send from chat too: hover a message in a customer conversation and press the send icon in the toolbar to bring that conversation into Consults.'),
+      note('한 번 올린 것은 다시 내려가지 않습니다. 반대로 상담에서 [문의 아님] 으로 내린 것은 **보관함**에 남아 언제든 되돌릴 수 있습니다.',
+        'Once promoted it stays. Conversely, anything you mark as “not an inquiry” goes to the Archive and can be restored at any time.'),
+    ] },
   // 2026-09-15 — 우리 우클릭 메뉴 + 같은 화면 두 탭.
   { cat: 'getting-started', slug: 'right-click-menu', visibility: 'authenticated', linked_route: '/dashboard', est: 2,
     title: t('마우스 오른쪽 버튼으로 새 탭 열기', 'Right-click to open a new tab'),

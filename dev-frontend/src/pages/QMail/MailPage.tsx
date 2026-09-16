@@ -59,6 +59,7 @@ import MailMessageBody from './MailMessageBody';
 import { isEnterAction } from '../../utils/imeKey';
 import { onFlushPendingSaves } from '../../services/pendingSaves';
 import { keepaliveJson } from '../../services/keepaliveFetch';
+import { promoteInboxItem } from '../../services/sale';
 import {
   AcctFilterRow,
   FilterToggleRow,
@@ -90,7 +91,7 @@ import {
   ComposerActions,
   KeepNeededRow,
   HoldingBadge,
-  ComposerError,
+  ComposerError, AiWorkingLine, AiDot,
   ComposerFrom,
   ComposerHint,
   ComposerTo,
@@ -561,6 +562,29 @@ const MailPage: React.FC = () => {
     setSp(nsp, { replace: true });
   };
 
+  // ★ 2026-09-16 (Irene: *"확인필요에서 메일 누르면 메일상세로 잘 가는데 리스트가 안맞아.
+  //   답변필요나 확인권장이면 제대로 리스트 선택된 상태로 나와야지."*)
+  //   밖에서 `?thread=` 로 들어오면 **폴더는 직전에 보던 것 그대로**라, 연 메일이 그 목록에 없다.
+  //   상세는 맞는데 좌측이 딴 곳을 보고 있으니 사용자에게는 "리스트가 안 맞는" 화면이다.
+  //   → 그 메일이 **실제로 속한 폴더**로 좌측을 맞춘다. 판정은 스레드 자신이 들고 있는 값이다
+  //     (답변 필요 → reply_needed · 확인 권장 → uncertain). 보내는 쪽마다 폴더를 적어 보내면
+  //     새 진입점이 생길 때마다 빠진다 — 받는 쪽 한 곳에서 판정한다.
+  //   ★ `setFolder` 를 쓰지 않는다 — 그건 `thread` 를 지워서 **방금 연 메일을 닫는다.**
+  const folderSyncedFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (!detail || !threadIdParam) return;
+    if (sp.get('folder')) return;                 // 사람이 폴더를 명시했으면 존중한다
+    if (folderSyncedFor.current === detail.id) return;
+    folderSyncedFor.current = detail.id;
+    const want: Folder | null = detail.reply_needed ? 'reply_needed'
+      : detail.status === 'uncertain' ? 'uncertain'
+        : null;                                    // 그 외에는 지금 폴더를 그대로 둔다(전체가 맞다)
+    if (!want || want === folder) return;
+    const nsp = new URLSearchParams(sp);
+    nsp.set('folder', want);                       // thread 는 **지우지 않는다**
+    setSp(nsp, { replace: true });
+  }, [detail, threadIdParam, folder, sp, setSp]);
+
   // 첫 화면은 "일이 있는 곳" 으로 — 답변 필요가 있으면 거기서 시작하고, 없으면 확인 권장.
   //   사람이 고른 탭에 내용이 있으면 그 선택을 존중한다(지난 선택 유지). 빈 탭에 떨어뜨리지 않는다.
   const autoFolderDone = useRef(false);
@@ -684,6 +708,33 @@ const MailPage: React.FC = () => {
   //   줄며 스크롤이 위로 튀었다 (Irene: "그 자리에 그대로 있어야 해").
   //   → 이미 읽은 페이지 수만큼 다시 받고, 스크롤 위치를 복원한다.
   const listRef = useRef<HTMLDivElement>(null);
+
+  // ★ 2026-09-16 — 목록 행 우클릭 [상담으로 보내기]. 메뉴 껍데기는 AppContextMenu 하나이고,
+  //   **무엇을 할지**만 여기서 정한다. 이벤트는 그 행에서 올라오므로 이 목록만 받는다.
+  const [promoteDone, setPromoteDone] = useState<number | null>(null);
+  const promoteThread = useCallback(async (threadId: number) => {
+    if (!businessId || !threadId) return;
+    try {
+      await promoteInboxItem(businessId, 'email_thread', threadId);
+      setPromoteDone(threadId);
+      window.setTimeout(() => setPromoteDone((v) => (v === threadId ? null : v)), 2500);
+      // 상담 목록을 보고 있는 다른 화면도 즉시 따라온다(확인필요·Q sale 공통 신호)
+      window.dispatchEvent(new CustomEvent('inbox:refresh'));
+    } catch { /* 실패는 조용히 — 행은 그대로 남아 다시 누를 수 있다 */ }
+  }, [businessId]);
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return undefined;
+    const onAct = (e: Event) => {
+      const d = (e as CustomEvent).detail;
+      if (!d || d.action !== 'sale-promote') return;
+      const row = (e.target as HTMLElement)?.closest?.('[data-ctx-thread-id]');
+      const id = Number(row?.getAttribute('data-ctx-thread-id') || 0);
+      if (id) void promoteThread(id);
+    };
+    el.addEventListener('pq:context-action', onAct);
+    return () => el.removeEventListener('pq:context-action', onAct);
+  }, [promoteThread]);
   // #205 — 목록 요청 순번. 응답이 순서를 바꿔 도착하면(느린 silent 요청이 뒤늦게 옴) 옛 응답이
   //   최신 상태를 덮어써 방금 내린 행이 되살아난다. 최신 요청의 응답만 반영한다.
   const listSeqRef = useRef(0);
@@ -1212,6 +1263,17 @@ const MailPage: React.FC = () => {
         testId: 'mail-detail-spam',
       },
     ];
+    // ★ 2026-09-16 — [상담으로 보내기]. 자동 유입 기준을 «관계가 증명된 것만» 으로 좁혔으므로
+    //   기계가 놓친 문의를 사람이 올리는 문이 필요하다(services/saleMailCriteria 와 한 벌).
+    //   이미 고객에 연결된 스레드는 상담이 아니라 그 고객의 이력이다 — 그때는 내지 않는다.
+    if (!detail.client) {
+      items.push({
+        key: 'sale-promote',
+        label: t('actions.promoteToSale', { defaultValue: '상담으로 보내기' }) as string,
+        onClick: () => { void promoteThread(detail.id); },
+        testId: 'mail-detail-promote-sale',
+      });
+    }
     // ★ 2026-09-09 (Irene: "... 메뉴의 3일 뒤, 7일 뒤, 14일 뒤... 이게 뭐야? 답 없으면이 누가?
     //   받은 메일에서 이게 무슨 알림인지 이해가 안가.")
     //   이 기능(#384)은 **내가 보낸 메일에 상대가 답을 안 하면 나에게 알리는** 것이다.
@@ -1234,7 +1296,7 @@ const MailPage: React.FC = () => {
     // onMarkSpam 은 매 렌더 새로 만들어지는 평범한 함수라 deps 에 넣으면 메모가 무의미해진다.
     //   detail.id·status·follow_up_days 가 바뀔 때만 다시 만들면 충분하다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail?.id, detail?.status, detail?.follow_up_days, detail?.last_message_direction, t, setFollowUpDays]);
+  }, [detail?.id, detail?.status, detail?.client, detail?.follow_up_days, detail?.last_message_direction, t, setFollowUpDays, promoteThread]);
 
   // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
   const silentReload = useCallback(() => {
@@ -1287,6 +1349,10 @@ const MailPage: React.FC = () => {
   const [keepReplyNeeded, setKeepReplyNeeded] = useState(false);
   const [sending, setSending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  // 60초가 넘으면 «오래 걸린다» 고 말한다. 침묵은 고장과 구별되지 않는다.
+  const [aiSlow, setAiSlow] = useState(false);
+  // AI 가 «무엇을 쓸지 알려달라» 고 답한 직후 — 그 입력란을 열어 둬야 사용자가 다음 수를 둘 수 있다.
+  const [aiNeedsInstruction, setAiNeedsInstruction] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiFaqSources, setAiFaqSources] = useState<string[]>([]); // M4 — AI 답변이 활용한 등록 FAQ
   const [aiInstruction, setAiInstruction] = useState(''); // #192 — 초안 수정 요청(추가 지시)
@@ -1309,6 +1375,8 @@ const MailPage: React.FC = () => {
     }
     setAiBusy(true);
     setReplyError(null);
+    setAiSlow(false);
+    const slowTimer = window.setTimeout(() => setAiSlow(true), 60_000);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${detail.id}/ai-suggest`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1323,19 +1391,35 @@ const MailPage: React.FC = () => {
           ai_unavailable: t('reply.aiUnavailable', { defaultValue: 'AI 서비스를 잠시 사용할 수 없어요.' }) as string,
           no_inbound_message: t('reply.aiNoInbound', { defaultValue: '답장할 받은 메일이 없어요.' }) as string,
           // 받은 메일을 그대로 베낀 초안은 서버가 막는다. 무엇을 쓸지 알려주면 제대로 나온다.
+          // 빈 초안 — 서버가 조용히 성공으로 내보내던 것을 422 로 바꿨다(2026-09-16)
+          ai_empty: t('reply.aiEmpty', {
+            defaultValue: 'AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 아래에 요청을 적어 주세요.',
+          }) as string,
           ai_echoed_inbound: t('reply.aiEchoed', {
             defaultValue: '받은 메일을 되풀이하는 초안만 나왔어요. 어떤 답을 보내고 싶은지 아래에 적어 주세요.',
           }) as string,
         };
         setReplyError(map[j.message] || (t('reply.aiFailed', { defaultValue: 'AI 제안 생성 실패' }) as string));
+        // 이 둘은 «요청을 적어 주세요» 로 끝난다 — 적을 칸을 열고 커서까지 옮긴다.
+        if (j.message === 'ai_echoed_inbound' || j.message === 'ai_empty') {
+          setAiNeedsInstruction(true);
+          window.setTimeout(() => aiInstructionRef.current?.focus(), 0);
+        }
         return;
       }
-      if (j.data?.suggestion) setReplyHtml(j.data.suggestion);
+      // ★ 빈 초안이 와도 **말한다.** 예전엔 여기서 조용히 지나가 "아무 반응 없음" 이 됐다.
+      if (j.data?.suggestion) { setReplyHtml(j.data.suggestion); setAiNeedsInstruction(false); }
+      else {
+        setReplyError(t('reply.aiEmpty', {
+          defaultValue: 'AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 아래에 요청을 적어 주세요.',
+        }) as string);
+        return;
+      }
       setAiFaqSources(j.data?.faq_used ? (j.data.faq_sources || []) : []);
       if (instruction) setAiInstruction(''); // 반영됐으니 요청란 비움
     } catch (e) {
       setReplyError((e as Error).message);
-    } finally { setAiBusy(false); }
+    } finally { window.clearTimeout(slowTimer); setAiSlow(false); setAiBusy(false); }
   }, [detail, businessId, aiBusy, t, aiInstruction, replyHtml]);
 
   // 스레드 전환 시 컴포저 초기화 — 답장창은 닫힌 채로. 먼저 내용을 읽고, 답장하기를 누르면 열린다.
@@ -2199,6 +2283,15 @@ const MailPage: React.FC = () => {
                   $unread={mt.unread_count > 0}
                   $handled={handledIds.has(mt.id)}
                   onClick={() => setActive(mt.id)}
+                  // ★ 2026-09-16 (Irene: "메일목록에서 … 상담리스트로 보내기 기능이 있어야 할 것 같아.")
+                  //   행 자체가 <button> 이라 안에 메뉴 버튼을 넣을 수 없다(중첩 button = 유효하지 않은 HTML).
+                  //   그래서 **우클릭 메뉴 한 곳**(AppContextMenu)에 동작을 선언한다.
+                  //   이미 고객에 연결된 스레드는 상담이 아니라 그 고객의 이력이므로 내지 않는다.
+                  {...(mt.client ? {} : {
+                    'data-pq-context': 'sale-promote',
+                    'data-pq-context-label-sale-promote': t('actions.promoteToSale', { defaultValue: '상담으로 보내기' }) as string,
+                    'data-ctx-thread-id': String(mt.id),
+                  })}
                 >
                   <ThreadRow1>
                     <ThreadSender>
@@ -2234,6 +2327,12 @@ const MailPage: React.FC = () => {
                         (Irene: "왜 [보낸]이란 표시가 있고 없고 달라?"). 전부 보낸 메일인 폴더라 정보량도 0. */}
                     {folder !== 'sent' && mt.last_message_direction === 'outbound' && (
                       <SentTag>{t('thread.sent', { defaultValue: '보낸' }) as string}</SentTag>
+                    )}
+                    {/* 보냈다는 것은 **행에 조용히** 남긴다 — 성공 토스트는 쓰지 않는다(운영 규칙). */}
+                    {promoteDone === mt.id && (
+                      <SentTag data-testid="mail-promoted-mark">
+                        {t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string}
+                      </SentTag>
                     )}
                     <HighlightText text={mt.subject || '(no subject)'} query={qDebounced} />
                   </ThreadSubject>
@@ -2865,6 +2964,22 @@ const MailPage: React.FC = () => {
                         {t('reply.to', { defaultValue: '받는 사람' }) as string}: <strong>{replyToHint}</strong>
                       </ComposerTo>
                     )}
+                    {/* ★ 2026-09-16 (Irene: *"이 이메일이 AI답변 초안을 눌러도 아무 반응이 없어."*)
+                        누르는 순간 답장창으로 바뀌면서 **누른 버튼(스피너·"AI 작성 중…")이 사라진다.**
+                        진행 표시가 답장창 맨 아래에만 있어, 본문이 긴 메일에서는 화면 밖이었다.
+                        그래서 **쓰는 자리 바로 위**에서 말한다.
+                        ★ 정정 — 처음엔 "응답이 5분 넘게 걸린다" 고 봤는데 **내 측정이 틀렸다**
+                          (DB 풀을 안 닫아 프로세스가 안 끝났고, 파이프 뒤 tail 이 출력을 안 내놨다).
+                          실측은 gpt-5.1 **1.9초**다. 이 줄은 여전히 쓸모가 있지만(느린 날은 있다),
+                          이 신고의 원인은 아니었다 — 원인은 `echoed_inbound` 막다른 길이다. */}
+                    {aiBusy && (
+                      <AiWorkingLine role="status" data-testid="mail-ai-working">
+                        <AiDot aria-hidden />
+                        {aiSlow
+                          ? (t('reply.aiSlow', { defaultValue: 'AI 가 아직 쓰고 있어요. 조금 더 걸릴 수 있습니다 — 그냥 직접 쓰셔도 됩니다.' }) as string)
+                          : (t('reply.aiWorking', { defaultValue: 'AI 가 답장 초안을 쓰는 중이에요…' }) as string)}
+                      </AiWorkingLine>
+                    )}
                     <RichEditor
                       value={replyHtml}
                       onChange={setReplyHtml}
@@ -2892,7 +3007,16 @@ const MailPage: React.FC = () => {
                     )}
                     {/* #192 — 초안이 있고 AI 가 허용된 메일이면 수정 요청 입력란 노출. 지시를 넣고
                         AI 초안 다시 생성을 누르면 현재 초안을 그 지시대로 다듬는다. (원샷 생성만 되던 불편 해소) */}
-                    {replyHtml.trim() && (
+                    {/* ★ 2026-09-16 (Irene: *"이 이메일이 AI답변 초안을 눌러도 아무 반응이 없어."*)
+                        실측: 그 메일은 서버가 `echoed_inbound` 로 판정한다(초안 0자 + 422).
+                        화면은 "어떤 답을 보내고 싶은지 **아래에 적어 주세요**" 라고 말하는데,
+                        이 입력란이 `replyHtml.trim()` 일 때만 떠서 **적을 곳이 없었다** —
+                        초안이 안 생긴 바로 그 상황에서 사라지는 입력란이었다. 막다른 길이라
+                        사용자에게는 "아무 반응 없음" 과 구별되지 않는다.
+                        (memory feedback_dont_instruct_what_we_didnt_build — 화면이 시키는 절차는
+                         우리가 만들어 둔 것이어야 한다.)
+                        → 초안이 있거나, **AI 가 초안을 못 준 직후**면 연다. */}
+                    {(replyHtml.trim() || aiNeedsInstruction) && (
                       <AiInstructionRow>
                         <AiInstructionInput
                           ref={aiInstructionRef}
