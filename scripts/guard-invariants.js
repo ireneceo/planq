@@ -2102,6 +2102,95 @@ function checkCapCi() {
 //   같은 사람이 화면마다 다른 모양으로 보였다.
 //   ★ 공용 컴포넌트가 있다고 강제되지 않는다(memory `feedback_shared_wrapper_is_not_enforcement`).
 //     그래서 가드로 못을 박는다. 점(dot)·배지·스텝 표시는 대상이 아니다 — 이름이 Avatar 인 것만 본다.
+//  목록 행 **제목**의 글자 규격 — 화면마다 숫자를 적으면 폰 분기가 빠진다.
+//
+//   Irene 이 **두 번** 같은 신고를 했다:
+//     2026-09-08 "모바일에서 q talk 리스트 제목이랑 q note 리스트 제목이 너무 글자가 작아.
+//                 q mail이랑 q task가 좀 큰데 이게 적합한 것 같아. 통일해줘."
+//     2026-09-17 "문서랑 메일리스트 제목이 모바일에서만 작아. 채팅이랑 테스크 등은 사이즈 큰데 여기에 맞춰."
+//   첫 신고 때 `theme/tokens.listRowTitleCss` 를 만들었는데 **Q docs 는 받아 가지 않아** 13px 에 남았다.
+//   ★ 토큰이 있다고 강제되지 않는다(memory `feedback_shared_wrapper_is_not_enforcement`).
+//     같은 계열 두 번째 신고는 구조로 고친다 — 가드로 못을 박는다.
+//
+//   대상: 이름이 `RowTitle`·`ItemTitle`·`ListTitle`·`ThreadSubject` 인 styled 선언.
+//   규칙: `listRowTitleCss` 를 쓰거나, 폰 분기(`max-width: 640px` 안의 `font-size`)를 **직접** 가질 것.
+//   (굵기·색을 덮어쓰는 것은 자유다 — 크기의 폰 분기만 본다.)
+function checkListRowTitle() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.tsx', '.ts']);
+  const bad = [];
+  let seen = 0;
+  const NAMES = /^(\w*RowTitle|\w*ItemTitle|\w*ListTitle|ThreadSubject)$/;
+
+  // px 로 환산 — rem 은 16 기준(저장소 전역 root font-size 는 기본값이다).
+  const toPx = (raw) => {
+    const m = /^([\d.]+)\s*(px|rem|em)$/.exec(String(raw).trim());
+    if (!m) return null;                       // 보간식(${p => …})·calc 는 판정하지 않는다
+    return m[2] === 'px' ? Number(m[1]) : Number(m[1]) * 16;
+  };
+
+  // ★ 폰 분기 «표기» 는 두 가지다 (2026-09-17, Fable 10차 ③(a)).
+  //   저장소 표준은 `${mediaPhone}` 토큰인데(theme/breakpoints), 리터럴 `max-width: 640px` 만
+  //   보면 **규격을 지킨 새 코드가 래칫을 올린다** — memory `feedback_guard_punishes_conformant_code`.
+  //   그리고 "뒤 120자 안" 같은 창으로 재면 선언 순서에 따라 거짓 실패가 난다.
+  //   그래서 여는 중괄호부터 **짝 맞는 닫는 중괄호까지** 블록을 실제로 잘라서 본다.
+  const phoneBlock = (body) => {
+    const marker = /(\$\{mediaPhone\}|@media[^{]*max-width:\s*640px[^{]*)\s*\{/g;
+    let m;
+    while ((m = marker.exec(body)) !== null) {
+      let i = m.index + m[0].length, depth = 1;
+      while (i < body.length && depth > 0) {
+        if (body[i] === '{') depth += 1;
+        else if (body[i] === '}') depth -= 1;
+        i += 1;
+      }
+      const block = body.slice(m.index + m[0].length, i - 1);
+      if (/font-size/.test(block)) return block;
+    }
+    return null;
+  };
+
+  // 미디어 블록을 걷어낸 «기본(데스크탑)» 선언
+  const stripMedia = (body) => body.replace(/(\$\{mediaPhone\}|@media[^{]*)\{[\s\S]*?\}/g, ' ');
+
+  for (const f of files) {
+    const src = read(f);
+    const rel = f.replace(`${ROOT}/`, '');
+    const re = /const\s+(\w+)\s*=\s*styled[^`]*`([\s\S]*?)`;/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      if (!NAMES.test(m[1])) continue;
+      const body = m[2];
+      if (!/font-size/.test(body)) continue;   // 크기를 안 정하면 상위 규격을 따른다
+      seen += 1;
+      if (/listRowTitleCss/.test(body)) continue;              // 규격을 가져다 썼다
+      const line = () => src.slice(0, m.index).split('\n').length;
+      const pb = phoneBlock(body);
+      if (!pb) {
+        bad.push(`${rel}:${line()} — ${m[1]} 에 폰 분기가 없다. \`theme/tokens.listRowTitleCss\` 를 쓸 것(데스크탑 14 / 폰 15)`);
+        continue;
+      }
+      // ★ 분기가 «있는지» 만 보면 **더 작게** 내린 것도 통과한다 (Fable 10차 ③ 놓침 1).
+      //   이 가드가 막으려는 신고가 정확히 "폰에서만 작다" 이므로 크기까지 잰다.
+      const basePx = toPx((/font-size:\s*([^;]+);/.exec(stripMedia(body)) || [])[1]);
+      const phonePx = toPx((/font-size:\s*([^;]+);/.exec(pb) || [])[1]);
+      if (basePx != null && phonePx != null && phonePx < basePx) {
+        bad.push(`${rel}:${line()} — ${m[1]} 이 폰에서 더 작다(${basePx}→${phonePx}px). 목록 제목은 폰에서 더 크거나 같아야 한다`);
+      }
+    }
+  }
+  // ★ **래칫**으로 둔다. 실측 20여 곳이 폰 분기 없이 남아 있는데, 그중 드롭다운 항목·관리자 화면·
+  //   랜딩 블로그는 Irene 이 비교한 «주요 목록 화면» 이 아니다. 전부 바꾸면 요청 밖의 화면이 달라진다.
+  //   기존 부채는 동결하고 **새로 생기는 것만** 막는다 — 그러면 세 번째 신고가 없다.
+  const current = {};
+  for (const b of bad) {
+    const rel = b.split(':')[0];
+    current[rel] = (current[rel] || 0) + 1;
+  }
+  const rt = ratchet('listrowtitle', current, bad.slice(0, 8));
+  report('listrowtitle', `목록 행 제목 폰 분기 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal}) · 제목 styled ${seen}개`,
+    rt.fails.length === 0, rt.fails.concat(rt.sampleLines));
+}
+
 function checkAvatarShape() {
   const files = walk(`${ROOT}/dev-frontend/src`, ['.tsx', '.ts']);
   const bad = [];
@@ -2790,6 +2879,7 @@ const CATEGORIES = {
   canary: checkCanaryContract,
   drawerwidth: checkDrawerWidth,
   avatarshape: checkAvatarShape,
+  listrowtitle: checkListRowTitle,
   capci: checkCapCi,
   duproute: checkDupRoute,
   navmenu: checkNavMenu,

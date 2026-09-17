@@ -1,6 +1,7 @@
 // 문서(포스팅) 공용 페이지 — 워크스페이스·프로젝트 공용
 // 레이아웃 패턴: Q Note 와 동일 (Sidebar + Content 2컬럼 + PanelHeader)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
@@ -2908,7 +2909,13 @@ const RowPinBtn = styled.button<{ $on: boolean }>`
 //   짧은 제목일 때 빈 줄이 생기지 않게 한다(높이는 내용만큼만).
 //   ★ 이 컴포넌트는 Q docs 와 프로젝트 > 문서 탭이 함께 쓴다 — 한 번 고치면 두 화면에 같이 적용된다.
 const RowTitle = styled.div`
-  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
+  /* ★ 규격을 **가져다 쓴다** (2026-09-17). 숫자를 적어 두면 폰 분기가 빠진다 —
+     2026-09-08 에 Q talk·Q note 가 같은 이유로 13px 에 남아 있었고, 그때 토큰을 만들었는데
+     이 화면은 받아 가지 않았다. 실측(390px): 문서 13 · 채팅 15 · 업무 15 · 노트 15 · 파일 15.
+     Irene: *"문서랑 메일리스트 제목이 모바일에서만 작아. 채팅이랑 테스크 등은 사이즈 큰데 여기에 맞춰."* */
+  ${listRowTitleCss}
+  font-weight: 700;   /* 문서 목록은 제목을 더 굵게 (규격은 600, 여기만 덮어쓴다) */
+  color: #0F172A;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   overflow: hidden; overflow-wrap: anywhere; line-height: 1.45;
   > * { vertical-align: middle; margin-right: 4px; }
