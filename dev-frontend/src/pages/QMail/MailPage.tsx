@@ -1069,11 +1069,22 @@ const MailPage: React.FC = () => {
   const [bulkBusy, setBulkBusy] = useState(false);
   const bulkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 폴더 → 일괄 액션. 확인권장/전체는 bulk-read 재사용(읽음=알람 해제). 그 외 폴더는 액션 없음.
-  const bulkAction: { path: string; label: string } | null =
+  // ★ 2026-09-17 — **일괄 버튼이 «몇 건을 지우는지» 를 적는다.**
+  //   배지가 세는 수는 곧 이 버튼이 지울 수다. 그런데 「전체 3475」 만 축이 «안 읽음» 이라
+  //   폰에서는 "전체 메일이 3475개" 로 읽혔다. 배지에 붙인 `title` 은 **터치 기기에서 한 번도
+  //   안 뜬다**(Fable 19차 ⑥ 실측: 375px 스크린샷에 시각 단서 0). 그래서 **이미 화면에 있는**
+  //   이 버튼에 수를 적어 숫자와 뜻을 잇는다 — 배지의 숫자·색·크기·자리는 그대로 둔다.
+  const bulkBase: { path: string; label: string } | null =
     folder === 'reply_needed' ? { path: 'bulk-dismiss', label: t('bulk.dismissAll', { defaultValue: '모두 답변 불필요' }) as string }
     : folder === 'uncertain' ? { path: 'bulk-handled', label: t('bulk.confirmDone', { defaultValue: '모두 확인완료' }) as string }
     : folder === 'all' ? { path: 'bulk-read', label: t('bulk.markRead', { defaultValue: '모두 읽음' }) as string }
     : null;
+  //   0 건이면 수를 적지 않는다 — «모두 읽음 (0)» 은 누를 이유가 없는 버튼을 설명만 길게 만든다.
+  //   (`bulkBase` 는 렌더마다 새 객체라 useMemo 를 씌워도 매번 다시 계산된다 — 그냥 계산한다.)
+  const bulkCount = bulkBase ? tabBadge(folder) : 0;
+  const bulkAction: { path: string; label: string } | null = !bulkBase ? null
+    : !bulkCount ? bulkBase
+    : { ...bulkBase, label: t('bulk.withCount', { label: bulkBase.label, n: bulkCount, defaultValue: '{{label}} ({{n}})' }) as string };
   const armBulk = useCallback(() => {
     setBulkConfirm(true);
     if (bulkTimer.current) clearTimeout(bulkTimer.current);

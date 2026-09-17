@@ -207,6 +207,34 @@ async function run() {
         push('「전체」 탭 배지는 안 읽음이라고 말한다',
           /안 ?읽음|unread/i.test(all.title),
           `"${all.title}" — 이 말이 없으면 3475 를 «전체 메일 수» 로 읽는다`);
+
+        // ★ **폰에서도 보이는 단서가 있어야 한다.** `title` 은 터치 기기에서 한 번도 안 뜨고
+        //   `aria-label` 은 보조기술 전용이다(Fable 19차 ⑥). 그래서 배지가 세는 수를
+        //   **같은 화면의 일괄 버튼**이 글자로 말하는지 **폰 폭에서** 잰다.
+        await page.setViewport({ width: 375, height: 667, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+        await b.goto(page, '/mail?folder=all');
+        await b.sleep(4000);
+        const bulk = await page.evaluate((n) => {
+          const hit = [...document.querySelectorAll('button')]
+            .map((el) => ({ el, txt: (el.textContent || '').replace(/\s+/g, ' ').trim() }))
+            .find((x) => x.txt.includes(n) && /읽음|read/i.test(x.txt));
+          if (!hit) return { found: false };
+          const r = hit.el.getBoundingClientRect();
+          const cx = Math.round(r.left + r.width / 2), cy = Math.round(r.top + r.height / 2);
+          const top = document.elementFromPoint(cx, cy);
+          return {
+            found: true, txt: hit.txt, w: Math.round(r.width), h: Math.round(r.height),
+            // 크기만 재면 «그려졌는데 안 보이는» 경우를 놓친다 — 그 좌표가 내 것인지까지 본다
+            hit: !!(top && (top === hit.el || hit.el.contains(top))),
+            inView: r.top >= 0 && r.bottom <= window.innerHeight && r.width > 0,
+          };
+        }, all.n);
+        push('폰(375)에서 배지 수를 **글자로** 말하는 버튼이 보인다',
+          bulk.found && bulk.w > 40 && bulk.h > 20 && bulk.hit && bulk.inView,
+          bulk.found
+            ? `"${bulk.txt}" ${bulk.w}×${bulk.h} · 클릭지점 적중 ${bulk.hit} · 화면 안 ${bulk.inView}`
+            : `배지 수 ${all.n} 을 적은 버튼이 폰 화면에 없다 — title 은 터치에서 안 뜨므로 시각 단서가 0이 된다`);
+        await page.setViewport({ width: 1440, height: 900 });
       }
     }
   } catch (e) {

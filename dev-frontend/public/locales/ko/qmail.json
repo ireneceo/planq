@@ -493,7 +493,8 @@
     "confirmDone": "모두 확인완료",
     "markRead": "모두 읽음",
     "working": "처리 중…",
-    "confirmN": "{{n}}개 처리?"
+    "confirmN": "{{n}}개 처리?",
+    "withCount": "{{label}} ({{n}})"
   },
   "notifyScope": {
     "title": "알림 범위",
