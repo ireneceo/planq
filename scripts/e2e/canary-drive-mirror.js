@@ -10,10 +10,13 @@
 //   ★ 여기 걸리면 «누군가에게 안 보여야 할 것이 Drive 로 보인다» 는 뜻이다. Drive 권한은
 //     우리 쪽 롤백으로 회수되지 않으므로, 이 검사는 배포 전에 반드시 초록이어야 한다.
 //
-//   ★ **실 Drive 를 아예 안 부르는 것은 아니다** (2026-09-17 정정 — 주석이 거짓이었다).
-//     합성 미러 id 를 쓰지만 «마지막 참조» 분기는 `drive.files.delete` 를 실제로 친다.
-//     가짜 id 이므로 **404 경로만** 타고(성공 경로는 여기서 못 잰다), 워크스페이스에 Drive 토큰이
-//     없으면 그 항목이 `failed` 로 빨간불이 된다. 실 Drive 왕복의 성공 경로는 Fable 게이트가 친다.
+//   ★ **실 Drive 왕복도 잰다** (2026-09-17 저녁 — Irene 승인 "실제 드라이브 써도 된다니까
+//     그냥 테스트라고 하고 써"). 그 전까지는 합성 id 로 **404 경로만** 타서
+//     «사본이 진짜로 만들어지고 진짜로 사라지는가» 를 **한 번도 확인한 적이 없었다** —
+//     코드를 읽어 추정만 했다. 아래 D 구획이 그것을 잰다.
+//     검사 파일은 `ZZ-PLANQ-TEST-` 로 시작해 사람이 한눈에 알아보고, 끝나면 지운다.
+//     ★ 지우기 전후로 **공유 폴더 항목 수**를 세어 «시작 상태로 돌아왔는가» 까지 확인한다 —
+//       남의 드라이브다. 흔적을 남기지 않는 것이 이 검사의 일부다.
 //   ★ `applyChange` 는 `gdrive_sync_logs` 에 행을 남긴다 — 이 카나리가 **자기 흔적을 지운다**
 //     (안 지우면 원장이 검사 기록으로 더러워진다).
 const db = require('/opt/planq/dev-backend/models');
@@ -233,6 +236,65 @@ async function run() {
       await B.destroy({ force: true });
       push('참조술어/형제를 지우면 마지막 참조다(음성 대조군)',
         (await fileRefs.isLastLiveRef(A, undefined)) === true);
+    }
+
+    // ── D. **실 Drive 왕복** — 업로드→사본 생성, 삭제→사본 회수, 폴더 정리 ──────
+    //   토큰이 없으면 «미측정» 으로 남긴다(통과로 세지 않는다 — run.js `unmeasured` 계약).
+    {
+      const fs = require('fs');
+      const gdrive = require('/opt/planq/dev-backend/services/gdrive');
+      const tk = await gdrive.getTokenForBusiness(BIZ).catch(() => null);
+      if (!tk) {
+        results.push({ name: 'Drive왕복/토큰 없음', route: 'Drive왕복', leaked: false,
+          unmeasured: true, optional: true, detail: '이 워크스페이스에 Drive 연결이 없다' });
+      } else {
+        const dr = await gdrive.getDriveClient(tk);
+        const wsf = await mirror.findWorkspaceFilesFolder(dr, tk);
+        const kids = async (id) => ((await dr.files.list({
+          q: `'${id}' in parents and trashed=false`, fields: 'files(id,name)', pageSize: 1000,
+          supportsAllDrives: true, includeItemsFromAllDrives: true })).data.files || []);
+        const TAG = `ZZ-PLANQ-TEST-${Date.now()}`;
+        const base = (await kids(wsf)).length;
+
+        // ① 업로드 → 사본 생성
+        const dir = `/opt/planq/dev-backend/uploads/${BIZ}/canary`;
+        fs.mkdirSync(dir, { recursive: true });
+        const fp = `${dir}/${TAG}.txt`;
+        fs.writeFileSync(fp, `PlanQ 자동 검사 파일. 지워도 됩니다.\n${TAG}\n`);
+        const rf = await mk({ gdrive_mirror_id: null, file_name: `${TAG}.txt`, file_path: fp,
+          file_size: fs.statSync(fp).size, mime_type: 'text/plain' });
+        await mirror.mirrorOnUpload(rf.id, BIZ);
+        await rf.reload();
+        push('Drive왕복/올리면 사본이 생긴다', !!rf.gdrive_mirror_id, `mirror=${rf.gdrive_mirror_id}`);
+        push('Drive왕복/공유 폴더에 실제로 보인다',
+          (await kids(wsf)).some((x) => x.name.includes(TAG)), `${base} → ${(await kids(wsf)).length}`);
+
+        // ② 삭제 → 사본 회수 (**성공 경로**)
+        const pt = {};
+        const rr = await recallDriveMirror(rf, pt);
+        push('Drive왕복/지우면 사본이 removed 된다', rr === 'removed', `결과=${rr}`);
+        push('Drive왕복/공유 폴더에서 실제로 사라진다', (await kids(wsf)).length === base,
+          `끝 ${(await kids(wsf)).length} · 시작 ${base}`);
+
+        // ③ 폴더 정리 — 안의 것을 잃지 않는다(가장 위험한 자리)
+        const folder = await gdrive.createFolder(dr, `${TAG}-폴더`, wsf);
+        const inner = await gdrive.uploadFile(dr, { name: `${TAG}-안.txt`, mimeType: 'text/plain',
+          body: require('stream').Readable.from(['지워지면 안 된다']), parentId: folder.id });
+        const cr = await require('/opt/planq/dev-backend/services/driveFolderCleanup')
+          .cleanupDriveFolders(dr, gdrive, [folder.id], wsf);
+        const alive = await dr.files.get({ fileId: inner.id, fields: 'trashed', supportsAllDrives: true })
+          .then((x) => !x.data.trashed).catch(() => false);
+        push('Drive왕복/폴더를 지워도 안의 파일이 산다', alive, `moved=${cr.moved}`);
+        push('Drive왕복/빈 폴더는 지워진다', cr.deleted.includes(folder.id), `deleted=${cr.deleted.length}`);
+
+        // 정리 — 남의 드라이브다. 시작 상태로 되돌린다.
+        await gdrive.deleteFile(dr, inner.id).catch(() => {});
+        try { fs.unlinkSync(fp); } catch { /* 이미 없음 */ }
+        const end = await kids(wsf);
+        push('Drive왕복/정리 — 시작 상태로 돌아왔다', end.length === base, `시작 ${base} · 끝 ${end.length}`);
+        push('Drive왕복/정리 — 검사 잔재 0',
+          end.filter((x) => /ZZ-PLANQ-TEST/.test(x.name)).length === 0);
+      }
     }
 
     // ── C. Drive 쪽에서 지웠을 때 — 화면이 말하는가 ───────────────────
