@@ -114,7 +114,22 @@ router.isAllowed = isAllowed;
 //   ★ title 은 notifications.title 에 문자열로 박제되고 push payload 로 그대로 나간다 —
 //     프론트 t() 로는 번역할 수 없어서 발송 시점 해석이 유일한 방법이다.
 //   titleSpec 없이 title 만 주는 옛 호출부는 그대로 동작한다(점진 전환).
-async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
+/**
+ * @param {'internal_only'|undefined} previewPolicy
+ *   ★ 2026-09-17 (#407) — **사람이 쓴 자유 텍스트는 우리 울타리 밖으로 내보내지 않는다.**
+ *
+ *   Irene: *"채팅에서 비번과 같은 중요내용 보내면 어떻게 보안처리 해?
+ *            절대 공유되서 문제되는 일 없게 개발된 거 맞아? 확인하고 말해줘."*
+ *   확인 결과 **아니었다**(운영 실측): 채팅 본문 140자가
+ *     ① 알림 행(DB) ② **푸시 payload → Apple/Google 서버** ③ **알림 메일 HTML 본문·프리헤더**
+ *   로 그대로 나갔다. 운영 푸시 5,422건 발송 · 알림 행 1,795건이 본문을 보관 중이었다.
+ *   잠금화면 미리보기로도 보인다.
+ *
+ *   `previewPolicy: 'internal_only'` 를 주면 **인앱(알림 목록)에만** 본문을 남기고
+ *   메일·푸시에는 «무슨 일이 있었는지» 만 보낸다. 제목·링크는 그대로라 도달성은 안 떨어진다.
+ *   ★ 이것은 «가리기» 가 아니라 **경로를 좁히는 것**이다 — 우리 DB 의 평문 저장은 별건이다.
+ */
+async function notify({ userId, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy }) {
   if (!userId || !eventKind) return { inbox: false, email: false, push: false };
   // ★ 삭제된 워크스페이스로는 아무것도 발송하지 않는다 (Fable 중요 — 중앙 fan-out 무검사).
   //   여기 한 곳이 알림·메일·푸시의 공통 착지점이라, 여기서 막으면 발송 계열이 전부 닫힌다.
@@ -154,6 +169,15 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
   };
   if (typeof body === 'function') body = body(await langOf());
   if (typeof ctaLabel === 'function') ctaLabel = ctaLabel(await langOf());
+
+  // 울타리 밖(메일·푸시)으로 나갈 본문. 기본은 그대로, internal_only 면 중립 문구.
+  let outsideBody = body;
+  if (previewPolicy === 'internal_only') {
+    const lang = await langOf();
+    outsideBody = lang === 'en'
+      ? 'Open PlanQ to read it.'
+      : 'PlanQ 에서 내용을 확인하세요.';
+  }
 
   if (titleSpec && titleSpec.feature && titleSpec.action) {
     try {
@@ -250,7 +274,7 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         const { sendNotificationEmail } = require('../services/emailService');
         results.email = await sendNotificationEmail({
           to: user.email,
-          title, body, link, ctaLabel, workspaceName,
+          title, body: outsideBody, link, ctaLabel, workspaceName,
           businessId, eventKind, recipientUserId: userId,
         });
       }
@@ -307,7 +331,7 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
       } catch { /* badge 계산 실패해도 push 자체는 보냄 */ }
       const r = await sendPushToUser(userId, {
         title: title || 'PlanQ',
-        body: body || '',
+        body: outsideBody || '',
         link: resolvedLink,  // N+73 — inbox 채널과 같은 link (호출자 미전달 시 buildLink 적용됨)
         tag: tag || `${eventKind}:${userId}`,
         ...(badge !== undefined ? { badge } : {}),
@@ -321,10 +345,10 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
 }
 
 // 멀티 수신자용 (워크스페이스 멤버 N 명에게 한 번에)
-async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels }) {
+async function notifyMany({ userIds, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, excludeUserId, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy }) {
   const filtered = (userIds || []).filter((id) => id && id !== excludeUserId);
   const results = await Promise.all(
-    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels }))
+    filtered.map((uid) => notify({ userId: uid, businessId, eventKind, title, titleSpec, body, link, ctaLabel, workspaceName, tag, actorUserId, entityType, entityId, ioApp, skipChannels, previewPolicy }))
   );
   return results;
 }

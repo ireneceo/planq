@@ -1242,6 +1242,11 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
           userIds: mentioned, businessId: conv.business_id, eventKind: 'mention',
           titleSpec: { feature: 'chat', action: 'chat_mention', subject: convTitle },
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
+          // ★ #407 — 채팅 본문은 **우리 울타리 안에만** 남긴다. 메일·푸시로는
+          //   «PlanQ 에서 확인하세요» 만 나간다(제목·링크는 그대로라 도달성 무변화).
+          //   여기 본문이 그대로 나가면 비밀번호 한 줄이 Apple/Google 푸시 서버와
+          //   받는 사람 메일함·잠금화면에 평문으로 남는다(운영 실측 푸시 5,422건).
+          previewPolicy: 'internal_only',
           tag: `conv:${conv.id}`,
           // N+93 — entity 전달: 토스터 활성방 스킵 (#8a)
           entityType: 'conversation', entityId: conv.id,
@@ -1252,6 +1257,11 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
           userIds: plainRecipients, businessId: conv.business_id, eventKind: 'message',
           titleSpec: { feature: 'chat', action: 'chat_message', subject: `${senderName} · ${convTitle}` },
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
+          // ★ #407 — 채팅 본문은 **우리 울타리 안에만** 남긴다. 메일·푸시로는
+          //   «PlanQ 에서 확인하세요» 만 나간다(제목·링크는 그대로라 도달성 무변화).
+          //   여기 본문이 그대로 나가면 비밀번호 한 줄이 Apple/Google 푸시 서버와
+          //   받는 사람 메일함·잠금화면에 평문으로 남는다(운영 실측 푸시 5,422건).
+          previewPolicy: 'internal_only',
           tag: `conv:${conv.id}`,
           entityType: 'conversation', entityId: conv.id,
         }).catch((e) => console.warn('[notify message]', e.message));
