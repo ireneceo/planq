@@ -139,7 +139,8 @@
     "reminderMinutes_one": "{{count}}분 전",
     "reminderMinutes_other": "{{count}}분 전",
     "attendeesPh": "함께할 사람을 고르세요",
-    "attendeesHint": "고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다."
+    "attendeesHint": "고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다.",
+    "attendeeClientTag": "고객"
   },
   "button": {
     "create": "일정 만들기",

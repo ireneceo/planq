@@ -85,7 +85,13 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   //   알림이 만든 사람에게만 갔다(Fable 게이트 2026-09-05 · 1차 필수).
   //   참석자는 공개 범위와 다른 축이다 — 전체 공개 일정에도 "이 사람들이 온다" 가 있다.
   //   수락/거절이 달리는 유일한 구조라 알림 대상의 정본이기도 하다.
-  const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
+  //   ★ 2026-09-17 (#411) — **고객도 참석자다.** Irene: *"참석자는 멤버, 고객 선택 가능하게 하고
+  //     프로젝트를 연결한 상태에서는 해당 멤버랑 고객만 나오게"*
+  //     서버(`CalendarEventAttendee`)는 처음부터 `client_id` 를 받고 검증까지 했는데
+  //     **화면이 멤버만 줬다** — 서버가 이미 허용하는 것을 사용자가 영영 못 하는 상태였다
+  //     (memory `feedback_client_stricter_than_server_kills_feature`).
+  //     한 목록에 섞이므로 값은 `u:<id>` / `c:<id>` 로 구분한다.
+  const [attendeeKeys, setAttendeeKeys] = useState<string[]>([]);
 
   // 종일이면 분 단위가 의미 없다 — 옵션 세트를 바꾼다(크론이 종일은 시작일 09:00 을 기준으로 잡는다).
   //   목록과 라벨은 상세 드로어와 **같은 모듈**에서 온다(reminderOptions.ts) — 각자 들고 있던
@@ -133,6 +139,37 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
     }).catch(() => {});
   }, [businessId]);
   const [projectId, setProjectId] = useState<number | ''>('');
+  // 프로젝트를 고르면 **그 프로젝트의 멤버·고객만** 후보가 된다. 못 읽으면 전체로 떨어진다
+  //   (좁히지 못했다고 고를 수 없게 만들면 «아무도 못 넣는» 상태가 된다).
+  const [projScope, setProjScope] = useState<{ users: Set<number>; clients: Set<number> } | null>(null);
+  useEffect(() => {
+    if (!projectId) { setProjScope(null); return; }
+    let dead = false;
+    apiFetch(`/api/projects/${projectId}`).then(r => r.json()).then((j) => {
+      if (dead || !j?.success) { setProjScope(null); return; }
+      const d = j.data || {};
+      const users = new Set<number>((d.members || [])
+        .map((m: { user_id?: number }) => Number(m.user_id)).filter(Boolean));
+      const clients = new Set<number>((d.clients || [])
+        .map((c: { client_id?: number; id?: number }) => Number(c.client_id ?? c.id)).filter(Boolean));
+      setProjScope({ users, clients });
+    }).catch(() => { if (!dead) setProjScope(null); });
+    return () => { dead = true; };
+  }, [projectId]);
+
+  // 후보 목록 — 멤버 + 고객, 프로젝트가 걸려 있으면 그 범위로 좁힌다.
+  const attendeeOptions = useMemo(() => {
+    const mem = members
+      .filter((m) => !projScope || projScope.users.has(m.user_id))
+      .map((m) => ({ value: `u:${m.user_id}`, label: m.name }));
+    const cli = clientsList
+      .filter((c) => !projScope || projScope.clients.has(Number(c.id)))
+      .map((c) => ({
+        value: `c:${c.id}`,
+        label: `${c.display_name || c.company_name || c.biz_name || `#${c.id}`} · ${t('form.attendeeClientTag', { defaultValue: '고객' })}`,
+      }));
+    return [...mem, ...cli];
+  }, [members, clientsList, projScope, t]);
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
   // 구글 캘린더에 올릴지 — **팀/개인 각각** (계정이 다르므로 하나로 합치면 안 된다). 기본 둘 다 ON.
@@ -268,7 +305,9 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       // N+66 — 통합 visibility
       vlevel: vis.vlevel,
       target_member_ids: ser.target_member_ids,
-      attendees: attendeeIds.map((id) => ({ user_id: id })),
+      attendees: attendeeKeys.map((k) => (k.startsWith('c:')
+        ? { client_id: Number(k.slice(2)) }
+        : { user_id: Number(k.slice(2)) })),
       target_client_ids: vis.variant === 'L4' ? ser.client_ids : [],
     } as unknown as Partial<CalendarEvent>);
     // #242 — 실패 경로에서 submitting 이 영영 안 풀려 버튼이 잠기던 것. 성공 시엔 모달이 사라지므로 무해.
@@ -386,18 +425,18 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
               isMulti isSearchable
               menuPlacement="auto"
               placeholder={t('form.attendeesPh', { defaultValue: '함께할 사람을 고르세요' }) as string}
-              value={attendeeIds.map((id) => {
-                const m = members.find((x) => x.user_id === id);
-                return { value: String(id), label: m ? m.name : `User #${id}` };
+              value={attendeeKeys.map((k) => {
+                const o = attendeeOptions.find((x) => x.value === k);
+                return { value: k, label: o ? o.label : k };
               })}
-              options={members.map((m) => ({ value: String(m.user_id), label: m.name }))}
+              options={attendeeOptions}
               onChange={(opts) => {
-                const ids: number[] = [];
+                const keys: string[] = [];
                 if (Array.isArray(opts)) for (const o of opts) {
-                  const n = Number((o as { value: string }).value);
-                  if (n) ids.push(n);
+                  const v = (o as { value: string }).value;
+                  if (v) keys.push(v);
                 }
-                setAttendeeIds(ids);
+                setAttendeeKeys(keys);
               }}
             />
             <TzHint>{t('form.attendeesHint', { defaultValue: '고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다.' }) as string}</TzHint>

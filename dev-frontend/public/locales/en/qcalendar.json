@@ -139,7 +139,8 @@
     "reminderMinutes_one": "{{count}} minute before",
     "reminderMinutes_other": "{{count}} minutes before",
     "attendeesPh": "Choose who is joining",
-    "attendeesHint": "The people you choose get a reminder. The creator always does."
+    "attendeesHint": "The people you choose get a reminder. The creator always does.",
+    "attendeeClientTag": "Client"
   },
   "button": {
     "create": "Create event",
