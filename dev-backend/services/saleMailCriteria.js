@@ -30,6 +30,15 @@ const ROLE_WORD = new Set([
   'hr', 'recruit', 'careers', 'job', 'jobs', 'office', 'mail', 'email', 'center', 'centre',
   'admin', 'administrator', 'welcome', 'invite', 'invoice', 'payment', 'pay', 'delivery',
   'shipping', 'return', 'refund', 'partner', 'partners', 'biz', 'business', 'global', 'kr', 'korea',
+  // ★ 2026-09-17 — **발송전용 주소가 «개인» 으로 새고 있었다.**
+  //   `no-reply@grab.com` 은 `.`·`-` 로 쪼개면 토큰이 ['no','reply'] 인데 둘 다 이 목록 밖이라
+  //   «역할어만으로 된 주소» 판정을 빠져나가 개인 주소가 됐다. 운영 실측 — 이런 모양이
+  //   marketing/personal 로 잡힌 것이 biz1 252건 · biz5 169건.
+  //   지금은 `triage='human'` 조건이 우연히 막아 주고 있을 뿐이라, 그 조건을 조금만 넓히면
+  //   상담 목록이 250건 늘어난다. 막아 주는 것이 있다고 새는 곳을 두지 않는다.
+  'no', 'noreply', 'reply', 'donotreply', 'do', 'not', 'nreply', 'auto', 'automated', 'robot', 'bot',
+  'notification', 'notifications', 'alert', 'alerts', 'jobalerts', 'messages', 'message',
+  'mailer', 'mailerdaemon', 'daemon', 'postmaster', 'bounce', 'bounces', 'system', 'noresponse',
 ]);
 
 const splitLocal = (local) => String(local || '').split(/[._-]+/).filter(Boolean);

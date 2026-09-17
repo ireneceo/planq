@@ -63,65 +63,50 @@ async function run() {
     const get = async (qs) => (await (await fetch(`${API}/api/sale/${bizId}/inbox${qs}`, { headers: H })).json()).data;
 
     const inbox = await get('?limit=200');
-    const cands = await get('?source=candidate&limit=200');
     const inboxIds = new Set((inbox.items || []).filter((x) => x.ref.kind === 'email_thread').map((x) => x.ref.id));
-    const candIds = (cands.items || []).map((x) => x.ref.id);
-    const overlap = candIds.filter((id) => inboxIds.has(id));
-    push('한 메일은 한 칸에만 있다 (상담 ∩ 후보 = 0)', overlap.length === 0,
-      `상담 ${inbox.counts.email} · 후보 ${inbox.counts.candidate} · 겹침 ${overlap.length}`);
-    push('후보 숫자가 응답에 있다 (없으면 칩이 영원히 0이다)',
-      typeof inbox.counts.candidate === 'number', `candidate=${inbox.counts.candidate}`);
-    push('후보는 «답할 차례» 로 세지 않는다 (그 숫자는 할 일의 수다)',
-      (cands.items || []).every((x) => !x.needs_reply), `후보 ${candIds.length}건 중 needs_reply 0`);
+    // ★ 2026-09-17 — **후보 칸을 뺐다.** 운영 22건 전수에 진짜 문의가 0건이었고(자동메일 오판),
+    //   [상담으로 보내기] 0회 · [보관/무시] 7회 — 열어서 버리기만 했다.
+    //   그래서 이제 «후보 칸이 있는가» 가 아니라 **«관계 없는 메일이 상담에 안 들어오는가»** 를 잰다.
+    //   좁히는 기준(①)과 사람이 올리는 문(⑤ Q mail 우클릭)은 그대로 재므로 계약은 줄지 않았다.
+    push('후보(관계 없음)는 상담 목록에 들어오지 않는다',
+      typeof inbox.counts.candidate === 'undefined',
+      `counts 에 candidate 키 없음 = ${typeof inbox.counts.candidate === 'undefined'} · 상담 ${inbox.counts.email}`);
+    push('상담에 들어온 것은 전부 관계가 있다(기준 ①과 같은 술어)',
+      (inbox.items || []).filter((x) => x.ref.kind === 'email_thread')
+        .every((x) => !x.meta || !x.meta.verdict || x.meta.verdict !== 'no_relationship'),
+      `상담 ${inboxIds.size}건`);
 
-    // ── ③ 사람이 올리는 문 — 실제로 목록이 바뀌는가 ──
-    const target = (cands.items || [])[0];
-    if (target) {
+    // ── ③ 사람이 올리는 문 — 여전히 작동하는가 (진입점은 Q mail 이다) ──
+    //   후보 칸이 없어졌어도 **문은 닫히면 안 된다.** 관계 없는 메일 하나를 직접 올려 본다.
+    const noRel = await sequelize.query(
+      `SELECT t.id FROM email_threads t WHERE t.business_id = ? AND t.client_id IS NULL
+         AND t.triage = 'human' AND t.status <> 'spam' LIMIT 50`,
+      { replacements: [bizId], type: sequelize.QueryTypes.SELECT });
+    const notInInbox = (noRel || []).map((r) => r.id).find((id) => !inboxIds.has(id));
+    if (notInInbox) {
       const pr = await fetch(`${API}/api/sale/${bizId}/inbox/promote`, {
-        method: 'POST', headers: H, body: JSON.stringify({ kind: 'email_thread', id: target.ref.id }),
+        method: 'POST', headers: H, body: JSON.stringify({ kind: 'email_thread', id: notInInbox }),
       });
-      promoted.push(target.ref.id);
+      promoted.push(notInInbox);
       const after = await get('?limit=200');
       const afterIds = new Set((after.items || []).filter((x) => x.ref.kind === 'email_thread').map((x) => x.ref.id));
-      push('★ [상담으로 보내기] 가 그 메일을 실제로 상담에 올린다', pr.status === 200 && afterIds.has(target.ref.id),
+      push('★ [상담으로 보내기] 가 그 메일을 실제로 상담에 올린다',
+        pr.status === 200 && afterIds.has(notInInbox),
         `status=${pr.status} · 상담 ${inbox.counts.email} → ${after.counts.email}`);
-      push('올린 만큼 후보에서 빠진다 (두 칸의 합이 보존된다)',
-        after.counts.candidate === inbox.counts.candidate - 1,
-        `후보 ${inbox.counts.candidate} → ${after.counts.candidate}`);
     } else {
-      push('후보가 있어야 승격을 잴 수 있다', false, '후보 0건 — 이 검사는 무효다(빈 픽스처로 통과시키지 않는다)');
+      push('올릴 대상(상담 밖 메일)을 찾지 못했다', null, '픽스처 없음 — 재지 못했다');
     }
 
-    // ── ④ 화면 — 후보 칸이 실제로 보이고 눌리는가 ──
-    const b = await launch();          // 러너 계약 — launch() 는 { browser, page } 를 준다
-    browser = b.browser;
-    const page = b.page;
+    // ── ④ 화면 — **후보 칩이 없어야 한다** (있으면 지운 기능이 되살아난 것이다) ──
+    const b2 = await launch();          // 러너 계약 — launch() 는 { browser, page } 를 준다
+    browser = b2.browser;
+    const page = b2.page;
     await login(page, CREDS);
     await page.goto(`${BASE}/sale?tab=inbox`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 1200));
-    const chip = await page.evaluate(() => {
-      const el = document.querySelector('[data-testid="sale-inbox-source-candidate"]');
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      const mid = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-      return { text: (el.textContent || '').trim(), w: Math.round(r.width), h: Math.round(r.height),
-        hit: !!mid && (el === mid || el.contains(mid)) };
-    });
-    push('후보 칩이 화면에 그려지고 실제로 눌린다', !!chip && chip.w > 0 && chip.h > 0 && chip.hit,
-      chip ? `"${chip.text}" ${chip.w}x${chip.h} 클릭가능=${chip.hit}` : '칩 없음');
-
-    if (chip && chip.hit) {
-      await page.click('[data-testid="sale-inbox-source-candidate"]');
-      await new Promise((r) => setTimeout(r, 1200));
-      const promoteBtn = await page.evaluate(() => {
-        const b = document.querySelector('[data-testid^="sale-inbox-promote-"]');
-        if (!b) return null;
-        const r = b.getBoundingClientRect();
-        return { label: (b.textContent || '').trim(), w: Math.round(r.width), h: Math.round(r.height) };
-      });
-      push('후보 칸의 행에 [상담으로 보내기] 가 있다', !!promoteBtn && promoteBtn.w > 0,
-        promoteBtn ? `"${promoteBtn.label}" ${promoteBtn.w}x${promoteBtn.h}` : '버튼 없음 — 후보를 볼 수만 있고 올릴 수 없다');
-    }
+    const chipGone = await page.evaluate(() =>
+      !document.querySelector('[data-testid="sale-inbox-source-candidate"]'));
+    push('후보 칩이 화면에 없다 (지운 기능이 되살아나지 않았다)', chipGone);
 
     // ── ⑤ 메일 목록 — 우클릭 메뉴에 [상담으로 보내기] 가 나온다 ──
     await page.goto(`${BASE}/mail`, { waitUntil: 'networkidle2' });

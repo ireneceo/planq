@@ -233,8 +233,11 @@ const SaleInboxList: React.FC<Props> = ({
     }
   }, [busyId, businessId, load, onRegistered, t]);
 
-  // 행 액션(올리기·되돌리기·보관·영구삭제)은 한 벌로 묶여 있다 — useInboxItemActions.
-  const { promoteItem, restoreItem, ensureClient, applyStage } = useInboxItemActions({
+  // 행 액션(되돌리기·보관·영구삭제)은 한 벌로 묶여 있다 — useInboxItemActions.
+  //   ★ `promoteItem`(상담으로 보내기)은 여기서 안 쓴다 — 그 문은 **Q mail** 에 있다
+  //     (메일 목록 우클릭 · 상세 ⋯). 후보 칸을 뺐으므로 이 화면에는 올릴 대상이 없다.
+  //     훅에는 그대로 남겨 둔다 — Q mail 쪽이 같은 훅을 쓴다.
+  const { restoreItem, ensureClient, applyStage } = useInboxItemActions({
     businessId, busyId, setBusyId, setActionError,
     errorText: t('error.loadFailed') as string, saveErrorText: t('error.saveFailed') as string,
     reload: () => load({ silent: true }),
@@ -280,14 +283,11 @@ const SaleInboxList: React.FC<Props> = ({
         {/* ★ 보관함은 **소스가 아니라 판단의 결과**다(사람이 [문의 아님] 이라고 내린 것).
             일반 소스 칩 사이에 끼우면 "게스트/메일/채팅" 과 같은 층으로 읽힌다 — 오른쪽에 따로 둔다. */}
         <ChipRight>
-          {/* ★ 2026-09-16 — 「후보」. 자동 유입 기준을 **관계가 증명된 것만**으로 좁히면서
-              걸러진 것을 볼 자리다(Irene: *"영업 상담으로 가져오는 기준설정 좀 잡아봐"*).
-              버리지 않는다 — 여기서 한 번 눌러 올린다. 보관함과 같은 층이라 오른쪽에 둔다. */}
-          <FilterChip type="button" data-testid="sale-inbox-source-candidate"
-            $on={source === 'candidate'}
-            onClick={() => setSource((v) => (v === 'candidate' ? '' : 'candidate'))}>
-            {t('inbox.source.candidate') as string} <b>{counts.candidate ?? 0}</b>
-          </FilterChip>
+          {/* ★ 2026-09-17 — **«후보» 칩을 뺐다.** 2026-09-16 에 «걸러진 것을 볼 자리» 로 두었는데,
+              운영에 쌓인 22건을 전수로 열어 보니 **진짜 문의가 0건**이었다(자동메일 오판이 모이는 자리였다).
+              행동도 그것을 말한다 — [상담으로 보내기] 0회 · [보관/무시] 7회. 열어서 버리기만 했다.
+              ★ [상담으로 보내기] **문은 Q mail 목록 우클릭·상세 ⋯ 에 그대로 있다.**
+                메일을 읽다가 «이건 문의다» 하고 올리는 쪽이 노이즈를 뒤지는 것보다 자연스럽다. */}
           <FilterChip type="button" data-testid="sale-inbox-source-dismissed"
             $on={source === 'dismissed'}
             onClick={() => setSource((v) => (v === 'dismissed' ? '' : 'dismissed'))}>
@@ -299,7 +299,7 @@ const SaleInboxList: React.FC<Props> = ({
           여기 남은 것은 접점 **종류**(게스트/메일/채팅)와 보관함 — 목록 자신의 축이다. */}
       {/* ★ 기준은 화면이 **짧게** 알려준다 — 왜 여기 없는지 모르면 사용자는 고장으로 읽는다
           (memory feedback_rules_must_be_explained_briefly). */}
-      <Hint>{t(source === 'candidate' ? 'inbox.hintCandidate' : 'inbox.hint') as string}</Hint>
+      <Hint>{t('inbox.hint') as string}</Hint>
 
       {actionError && <ErrorBar role="alert">{actionError}</ErrorBar>}
 
@@ -403,7 +403,7 @@ const SaleInboxList: React.FC<Props> = ({
                     {t('action.view') as string}
                   </ActionButton>
 
-                  {it.source !== 'candidate' && (<>
+                  {(<>
                   {/* ② 메모 — 행 아래에서 열린다. 계약이 하루에 네 번 바뀌었다(2차 개수삭제 →
                       4차 점 → 5차 숫자+좌측정렬 → 6차 색구분·간격·최대자릿수 공유폭).
                       **정본은 6차. 숫자를 다시 지우지 말 것** — 2차를 Irene 이 되돌렸다.
@@ -438,24 +438,7 @@ const SaleInboxList: React.FC<Props> = ({
 
                   {/* ⑥ ✕ — 상담 목록에서 치운다. 누르면 **묻는다**(되돌릴 수 있다는 것도 문구로 말한다).
                       보관함 행에서는 되돌리기가 그 자리를 대신한다. */}
-                  {it.source === 'candidate' ? (
-                    <>
-                      {/* 후보 → 상담. 기계가 놓친 것을 사람이 올린다(자동 기준과 한 벌이다). */}
-                      <ActionButton tone="primary" size="xs" disabled={busy}
-                        data-testid={`sale-inbox-promote-${it.id}`}
-                        onClick={() => promoteItem(it)}>
-                        {t('action.promoteToInbox') as string}
-                      </ActionButton>
-                      <IconX type="button" disabled={busy}
-                        data-testid={`sale-inbox-dismiss-${it.id}`}
-                        aria-label={t('action.removeFromInbox') as string}
-                        title={t('action.removeFromInbox') as string}
-                        onClick={() => setDismissAsk(it)}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                          strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
-                      </IconX>
-                    </>
-                  ) : it.source === 'dismissed' ? (
+                  {it.source === 'dismissed' ? (
                     <>
                       <ActionButton tone="secondary" size="xs" disabled={busy}
                         data-testid={`sale-inbox-restore-${it.id}`} onClick={() => restoreItem(it)}>

@@ -67,13 +67,21 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
   if (!acctIds.length) return empty;
   const w = {
     business_id: businessId, client_id: null, account_id: { [Op.in]: acctIds },
-    status: { [Op.notIn]: ['spam', 'archived'] }, triage: 'human',
+    // ★ 2026-09-17 — **`archived` 를 빼지 않는다.** Q mail 의 [확인완료] 가 찍는 값이
+    //   `status='archived'` 인데(`routes/email_threads.js` mark-handled), 여기서 제외하는 바람에
+    //   **메일을 처리하는 순간 그 건이 Q sale 상담에서 사라졌다.**
+    //   «우리가 답하면 관계로 인정» 해 놓고 «확인완료하면 소멸» 시키는 자기모순이었고,
+    //   그래서 파이프라인이 쌓일 수가 없었다 — 운영 실측 biz1 `human/archived` 210건 안에
+    //   실제 거래(멤버십 문의·계약갱신·POS 교체·협력 제안 등)가 최소 7~8건 들어 있었다.
+    //   상담에서 나가는 문은 «고객으로 등록»(client_id 가 채워져 자연히 빠진다) 또는 [보관] 이지
+    //   «메일 확인완료» 가 아니다. spam 만 계속 뺀다.
+    status: { [Op.ne]: 'spam' }, triage: 'human',
   };
   if (like) w[Op.or] = [{ subject: like }, { last_message_preview: like }];
   // 가볍게 전부 받아 분류한다 — 상한에서 자르면 **숫자가 잘린다**(목록만 뒤에서 자른다).
   const rows = await EmailThread.findAll({
     where: w, order: [['last_message_at', 'DESC']],
-    attributes: ['id', 'participants', 'reply_needed', 'last_message_at'], raw: true, limit: 5000,
+    attributes: ['id', 'participants', 'reply_needed', 'last_message_at', 'status'], raw: true, limit: 5000,
   });
   if (!rows.length) return { ...empty, acctIds };
 
@@ -130,7 +138,10 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
       //    사용자에게는 "되돌렸는데 안 돌아온다" 로 보인다. 되돌리기의 뜻이 사라진 자리다.)
       promoted: humanPromoted,
     });
-    meta.set(r.id, { outside, verdict: v, reply_needed: !!r.reply_needed });
+    // ★ 확인완료(archived)한 건은 목록에 **남되 «답할 차례» 로 세지 않는다.**
+    //   그 숫자는 «지금 내가 할 일» 의 수다 — 처리한 것을 거기 넣으면 숫자가 거짓이 된다.
+    const handled = r.status === 'archived';
+    meta.set(r.id, { outside, verdict: v, reply_needed: handled ? false : !!r.reply_needed, handled });
     (v.kind === 'inquiry' ? inquiryIds : candidateIds).push(r.id);
   }
   return { inquiryIds, candidateIds, meta, acctIds };
@@ -143,9 +154,18 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
 //     (dev 실측 2,137건). 그래서 보관함은 triage 로 찾지 않고 **사람이 내린 판단의 기록**,
 //     즉 감사 로그(action='mail.triage_correct' · new_value.origin='sale_inbox_dismiss')로 찾는다.
 //     새 컬럼 0건이고, "누가 언제 내렸는지" 도 그 기록에 이미 있다.
-// ★ 2026-09-16 — `candidate`(후보) 추가. 기준을 좁힌 대신 **걸러진 것을 볼 자리**를 둔다.
+// ★ 2026-09-17 — **`candidate`(후보) 칸을 뺐다.** 2026-09-16 에 «기준을 좁힌 대신 걸러진 것을
+//   볼 자리» 로 두었는데, 운영에 쌓인 **22건을 전수로 열어 보니 진짜 문의가 0건**이었다
+//   (삼성생명 자동이체 · 카드 약관 · 주문알림 · 뉴스레터…). 후보는 «좁혀서 놓친 문의» 가 아니라
+//   **triage 가 사람으로 오판한 자동메일**이 모이는 자리였다. 행동도 그것을 말한다 —
+//   [상담으로 보내기] 0회 · [보관/무시] 7회. 열어서 **버리기만** 했다. 기능이 일을 만들었다.
+//
+//   ★ 좁히는 기준(`mailThreadVerdict`)과 **[상담으로 보내기] 문은 그대로 둔다.**
+//     그 문은 Q mail 목록 우클릭·상세 ⋯ 에 이미 있다 — 메일을 읽다가 «이건 문의다» 하고 올리는 것이
+//     후보 탭에서 노이즈를 뒤지는 것보다 자연스럽다. 문이 없으면 놓친 문의를 살릴 길이 사라진다.
+//   ★ 분류 자체는 남는다(`candidateIds`) — 상담에 넣지 않을 근거로 계속 쓴다.
 //   보관함(dismissed)과 같은 성격이다 — 목록엔 기본으로 안 넣고, 숫자는 늘 센다.
-const SOURCES = ['guest_link', 'email', 'chat', 'dismissed', 'candidate'];
+const SOURCES = ['guest_link', 'email', 'chat', 'dismissed'];
 
 const clean = (s, n = 140) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
@@ -260,9 +280,8 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   //   판정은 위 classifyMailThreads 한 번으로 끝난다 — 목록과 집계가 같은 결과를 읽는다.
   const mailClass = await classifyMailThreads(businessId, { userId, like, judgments });
   {
-    const wantIds = want.includes('email') ? mailClass.inquiryIds
-      : want.includes('candidate') ? mailClass.candidateIds : [];
-    const asCandidate = !want.includes('email') && want.includes('candidate');
+    const wantIds = want.includes('email') ? mailClass.inquiryIds : [];
+    const asCandidate = false;   // 후보 칸 제거(위 주석) — 분류는 남지만 목록에는 안 나온다
     if (wantIds.length) {
       const showIds = wantIds.slice(0, perSource);
       const threads = await EmailThread.findAll({
@@ -284,7 +303,9 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
           preview: clean(t.last_message_preview),
           at: t.last_message_at || t.created_at,
           // 후보는 아직 상담이 아니다 — "답할 차례" 로 세지 않는다(그 숫자는 할 일의 수다).
-          needs_reply: asCandidate ? false : !!t.reply_needed,
+          //   확인완료한 건은 답할 차례가 아니다(위 meta 와 같은 판정 — 두 벌로 쓰지 않는다).
+          needs_reply: asCandidate ? false : !!(m && m.reply_needed),
+          handled: !!(m && m.handled),
           meta: {
             unread_count: t.unread_count, direction: t.last_message_direction,
             reason: t.reply_needed_reason,
@@ -500,7 +521,7 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   // ★ 집계는 **세어서** 만든다 — 모은 배열 길이로 세면 소스별 조회 상한(perSource)에 잘린다.
   //   실측: 사람이 보낸 미연결 메일이 903건인데 배열 길이로는 300 으로 나왔다(상한값 그대로).
   //   숫자가 상한에 잘리는 것은 이미 한 번 사고가 난 계열이다(확인필요 35→51) — 목록만 자르고 숫자는 참으로.
-  const counts = { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0, dismissed: 0, candidate: 0 };
+  const counts = { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0, dismissed: 0 };
   // 보관함은 위에서 목록을 만들며 함께 세었다 — 두 숫자가 갈라지지 않게 그 값을 그대로 옮긴다.
   // ★ 2026-09-14 — 여기 `if (want.includes('dismissed'))` 가 있었다. 기본 목록에서 보관함을
   //   **빼면서**(ACTIVE_SOURCES) 이 조건이 거짓이 되어, **칩에는 1건이 있는데 숫자는 0** 이 됐다.
@@ -513,7 +534,6 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   //   여태는 목록과 집계가 각자 같은 술어를 적어 두 벌이었다. 한 벌로 줄이면 갈라질 수가 없다.
   //   칩 선택과 무관하게 옮긴다 — 보관함에서 "칩엔 1건인데 숫자는 0" 이 났던 것과 같은 계열이다.
   counts.email = mailClass.inquiryIds.length;
-  counts.candidate = mailClass.candidateIds.length;
   counts.needs_reply += mailClass.inquiryIds.filter((id) => mailClass.meta.get(id)?.reply_needed).length;
   if (wantChat || wantGuest) {
     // ★ 자격(외부 발화)을 통과한 것만 센다. 목록을 만들며 함께 세었으므로 두 숫자가 갈라지지 않는다.
@@ -557,7 +577,7 @@ async function listConsults(businessId, opts = {}) {
   // ★ 단계로 고르면 **미등록 접점은 뜻이 없다** — 단계가 아직 없기 때문이다.
   //   섞어 두면 "단계로 골랐는데 단계 없는 행이 남는" 화면이 된다.
   const base = clientOnlyFilter
-    ? { items: [], counts: { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0, dismissed: 0, candidate: 0 } }
+    ? { items: [], counts: { total: 0, needs_reply: 0, guest_link: 0, email: 0, chat: 0, dismissed: 0 } }
     : await listUnlinkedTouchpoints(businessId, { userId, sources, q, needsReply, limit });
 
   // 소스 칩으로 접점 종류를 고른 경우엔 고객 행을 섞지 않는다(그 칩의 뜻이 "메일 문의" 이므로).
