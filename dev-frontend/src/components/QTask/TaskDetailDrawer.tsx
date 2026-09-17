@@ -2343,14 +2343,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {mergedThread.map((node) => (node.kind === 'version' ? (
                 <VersionEventRow key={`v-${node.ver.id}`} data-testid={`task-version-event-${node.ver.id}`}>
                   <VersionEventDot aria-hidden />
-                  <span>
+                  <VersionEventText>
                     {t('detail.versionAdded', {
                       defaultValue: '결과물 v{{n}} 추가됨',
                       n: node.ver.round,
                     }) as string}
                     {node.ver.submitted ? ` · ${t('detail.versionSubmitted', { defaultValue: '확인 요청' }) as string}` : ''}
                     {node.ver.who ? ` · ${node.ver.who}` : ''}
-                  </span>
+                  </VersionEventText>
                   <VersionEventTime>{node.ver.at.slice(5, 16).replace('T', ' ')}</VersionEventTime>
                 </VersionEventRow>
               ) : (((c: CommentRow) => (
@@ -3259,16 +3259,29 @@ const VersionEventRow = styled.div`
   padding: 6px 2px; margin: 2px 0 6px;
   border-top: 1px dashed #E2E8F0;
   color: #64748B; font-size: 0.75rem; font-weight: 600;
-  > span { flex: 1; min-width: 0; }
+  /* ★ 여기에 «> span { flex: 1 }» 을 두지 말 것 (2026-09-17, Irene: "앞에 길게 늘어진 아이콘은 뭐야?").
+     이 줄의 자식은 **셋 다 span** 이다 — 점·본문·시각. 자손 선택자(0,1,1)가
+     컴포넌트 자기 클래스(0,1,0)를 이겨서 **점에도 flex:1 이 먹었다.**
+     그러면 width:6px 이 무시되고(flex-basis 0 + grow) 점이 **가로로 늘어난 막대**가 된다.
+     flex-shrink:0 은 커지는 것을 막지 못한다. 늘어날 칸은 **그 칸에만** 지정한다.
+     ★ 이 주석에 백틱을 쓰지 말 것 — styled 템플릿이 거기서 끊긴다
+       (memory feedback_styled_comment_backtick · 오늘 두 번째다). */
 `;
 
 const VersionEventDot = styled.span`
-  width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%;
+  width: 6px; height: 6px; border-radius: 50%;
+  flex: 0 0 auto;            /* 늘지도 줄지도 않는다 — 점은 점이다 */
   background: #14B8A6;
 `;
 
+/** 가운데 본문만 남는 자리를 차지한다(늘어나는 칸은 여기 하나). */
+const VersionEventText = styled.span`
+  flex: 1 1 auto; min-width: 0;
+`;
+
 const VersionEventTime = styled.span`
-  flex-shrink: 0; color: #94A3B8; font-weight: 500;
+  flex: 0 0 auto;            /* 시각도 늘지 않는다 */
+  color: #94A3B8; font-weight: 500;
 `;
 
 const CommentItem = styled.div`
