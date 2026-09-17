@@ -28,6 +28,23 @@ const b = require('./lib/browser');
 // 카나리 계정(health-check@planq.kr)의 워크스페이스 — 목록 첫 화면에 보이는 스레드를 픽스처로 쓴다.
 const FIX_BIZ = Number(process.env.E2E_MAIL_BIZ || 5);
 
+/** where 절을 **읽을 수 있게** 찍는다.
+ *  ★ `JSON.stringify` 는 Symbol 키(`Op.in`·`Op.ne`)를 통째로 버려 `{"status":{}}` 가 된다 —
+ *    무정보일 뿐 아니라, 서로 다른 두 조건이 **같은 문자열**이 되어 비교에 쓰면 항상 참이다
+ *    (Fable 17차 소견: 「같은 술어다」의 앞 절이 그래서 죽어 있었다).
+ */
+function showWhere(w) {
+  if (!w || typeof w !== 'object') return String(w);
+  const out = {};
+  for (const k of Reflect.ownKeys(w)) {
+    const v = w[k];
+    out[typeof k === 'symbol' ? k.toString() : k] =
+      (v && typeof v === 'object') ? showWhere(v) : v;
+  }
+  return out;
+}
+const whereStr = (w) => JSON.stringify(showWhere(w));
+
 // where 절이 이 status 를 받아들이는가 — Op.in / Op.ne / 없음 세 모양을 모두 읽는다.
 function admits(where, status) {
   if (!where || !('status' in where)) return true;      // status 조건 자체가 없으면 전부 통과
@@ -48,7 +65,7 @@ async function run() {
   const fw = folderWhere('following', 1, 5);
   push('팔로우 — 확인완료(archived)해도 남는다',
     admits(fw, 'archived'),
-    `where=${JSON.stringify(fw)} — archived 를 빼면 [모두 확인완료] 한 번에 팔로우 목록이 통째로 빈다`);
+    `where=${whereStr(fw)} — archived 를 빼면 [모두 확인완료] 한 번에 팔로우 목록이 통째로 빈다`);
   push('팔로우 — 열린 것은 당연히 남는다 (음성 대조군)',
     admits(fw, 'open') && admits(fw, 'uncertain'),
     `open/uncertain 이 빠지면 폴더가 반대로 망가진 것이다`);
@@ -60,20 +77,20 @@ async function run() {
   const aw = folderWhere('assigned', 1, 5);
   push('담당 — 확인완료(archived)해도 남는다',
     admits(aw, 'archived'),
-    `where=${JSON.stringify(aw)} — 팔로우와 같은 성격(사람이 명시적으로 건 표시)이다`);
+    `where=${whereStr(aw)} — 팔로우와 같은 성격(사람이 명시적으로 건 표시)이다`);
   push('담당 — 스팸은 뺀다 (양성 대조군)',
     !admits(aw, 'spam'),
     `스팸까지 들이면 담당이 쓰레기통이 된다`);
   push('담당과 팔로우가 **같은 술어**다',
-    JSON.stringify(aw) === JSON.stringify(fw)
-      && ['open', 'uncertain', 'archived', 'spam'].every((st) => admits(aw, st) === admits(fw, st)),
-    `assigned=${JSON.stringify(aw)} / following=${JSON.stringify(fw)} — 갈라지면 한쪽만 고쳐진다`);
+    whereStr(aw) === whereStr(fw)
+      && ['open', 'uncertain', 'archived', 'spam', 'closed'].every((st) => admits(aw, st) === admits(fw, st)),
+    `assigned=${whereStr(aw)} / following=${whereStr(fw)} — 갈라지면 한쪽만 고쳐진다`);
 
   // 답변필요 폴더는 종전 그대로여야 한다 — 이 수정이 옆 폴더로 번지지 않았는지.
   const rn = folderWhere('reply_needed', 1, 5);
   push('답변필요 폴더는 건드리지 않았다 (음성 대조군)',
     !admits(rn, 'archived') && admits(rn, 'open'),
-    `where=${JSON.stringify(rn)}`);
+    `where=${whereStr(rn)}`);
 
   // ── ② 문구 충돌 — 먼저 **원천**(i18n)에서 가른다 ────────
   //   ★ Fable 16차 소견: 처음엔 화면만 두 폴더(all·uncertain)에서 쟀는데, `uncertain` 폴더에는

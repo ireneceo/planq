@@ -1,0 +1,26 @@
+{
+  "version": "1.52.10",
+  "date": "2026-09-17",
+  "items": [
+    {
+      "ko": {
+        "title": "팔로우·담당한 메일이 «확인 완료» 로 목록에서 사라지지 않습니다",
+        "body": "팔로우 탭과 담당 탭이 «확인 완료» 한 메일을 걸러 내고 있었습니다. 그래서 [모두 확인 완료] 를 한 번 누르면 직접 팔로우해 둔 메일이 목록에서 통째로 사라졌습니다 — 표시 자체는 그대로 남아 있었는데 목록 조건이 가린 것이라, 되돌릴 방법이 보이지 않았습니다. 팔로우와 담당은 «이건 내가 계속 보겠다 / 내가 맡는다» 고 직접 거는 표시이고, 확인 완료는 «지금 처리했다» 는 뜻이라 서로 다른 축입니다. 이제 확인 완료해도 두 목록에 그대로 남고, 목록에서 빼는 방법은 팔로우 해제·담당 해제 하나뿐입니다. 스팸으로 내린 메일만 예외로 빠집니다."
+      },
+      "en": {
+        "title": "Mail you follow or own no longer disappears when you mark it done",
+        "body": "The Following and Assigned tabs were filtering out mail you had marked as done, so a single [Mark all done] could empty a list of mail you had deliberately followed. The follow flag itself was never lost — the list condition was hiding it, which left no visible way to get it back. Following and assigning are marks you set yourself to keep watching or to take ownership, while marking done means you handled it right now; those are separate things. Both lists now keep the mail after you mark it done, and the only way out of them is to unfollow or unassign. Mail moved to spam is the one exception."
+      }
+    },
+    {
+      "ko": {
+        "title": "메일 목록에서 「답변 필요」 가 두 번 보이던 것을 정리했습니다",
+        "body": "전체 메일 목록에는 답변을 기다리는 메일에 붙는 빨간 「답변 필요」 표시와, 아직 그렇게 지정하지 않은 메일에 누를 수 있는 회색 버튼이 함께 있었는데 글자가 똑같았습니다. 목록을 훑으면 같은 표시가 빨강과 회색으로 두 번 나오는 것처럼 읽혔습니다. 상태를 알리는 표시는 「답변 필요」 그대로 두고, 누르는 버튼은 「답변 필요로 표시」 로 바꿔 무엇이 사실이고 무엇이 동작인지 구분됩니다."
+      },
+      "en": {
+        "title": "\"Reply needed\" no longer appears twice in the mail list",
+        "body": "The all-mail list showed a red \"Reply needed\" tag on mail awaiting a reply, and a grey button with the same words on mail not yet flagged. Scanning the list, the same label seemed to appear twice, once red and once grey. The status tag keeps its wording, and the button now reads \"Mark as needs reply\", so it is clear which one states a fact and which one performs an action."
+      }
+    }
+  ]
+}
