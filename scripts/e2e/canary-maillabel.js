@@ -234,6 +234,29 @@ async function run() {
           bulk.found
             ? `"${bulk.txt}" ${bulk.w}×${bulk.h} · 클릭지점 적중 ${bulk.hit} · 화면 안 ${bulk.inView}`
             : `배지 수 ${all.n} 을 적은 버튼이 폰 화면에 없다 — title 은 터치에서 안 뜨므로 시각 단서가 0이 된다`);
+        // ★ **누르기 전과 누른 뒤가 같은 수를 말해야 한다.** 라벨은 `tabBadge`, 확인 문구는
+        //   `folderCounts[folder]` 를 읽고 있어서 「모두 읽음 (3475)」 → 「3522개 처리?」 로 갈렸다
+        //   (Fable 20차 ②-2). 같은 값의 공식이 두 벌이면 이미 갈라져 있다.
+        //   ※ 첫 클릭은 확인 단계(arm)일 뿐 아무것도 보내지 않는다 — 4초 뒤 자동 원복된다.
+        const armed = await page.evaluate(async (n) => {
+          const btn = [...document.querySelectorAll('button')]
+            .find((el) => /읽음|read/i.test(el.textContent || '') && (el.textContent || '').includes(n));
+          if (!btn) return { found: false };
+          const before = (btn.textContent || '').trim();
+          btn.click();
+          await new Promise((r) => setTimeout(r, 400));
+          return { found: true, before, after: (btn.textContent || '').trim() };
+        }, all.n);
+        if (!armed.found) {
+          results.push({ name: '누르기 전·후가 같은 수를 말한다', unmeasured: true, details: ['버튼을 못 찾았다'] });
+        } else {
+          const nums = (t) => (t.match(/\d+/g) || []);
+          const b0 = nums(armed.before), a0 = nums(armed.after);
+          push('누르기 전·후가 같은 수를 말한다',
+            b0.length > 0 && a0.length > 0 && b0[b0.length - 1] === a0[a0.length - 1],
+            `"${armed.before}" → "${armed.after}" — 수가 달라지면 어느 쪽이 참인지 알 수 없다`);
+        }
+        await b.sleep(4500);   // 확인 상태 자동 원복(4초)을 기다린 뒤 다음 검사로
         await page.setViewport({ width: 1440, height: 900 });
       }
     }

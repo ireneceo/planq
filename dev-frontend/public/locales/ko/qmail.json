@@ -494,7 +494,8 @@
     "markRead": "모두 읽음",
     "working": "처리 중…",
     "confirmN": "{{n}}개 처리?",
-    "withCount": "{{label}} ({{n}})"
+    "withCount": "{{label}} ({{n}})",
+    "capped": "많아서 일부만 처리했습니다. 다시 누르면 이어서 처리합니다."
   },
   "notifyScope": {
     "title": "알림 범위",

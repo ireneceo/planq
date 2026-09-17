@@ -854,19 +854,44 @@ router.post('/:businessId/email-threads/:id/mark-reply-needed',
 // #154 일괄 처리 — 선택한 스레드들 "모두 답변불필요" / "모두 읽음". 접근 가능한 계정으로 스코프.
 //   개별 dismiss-reply/mark-read 의 벌크판. 학습(규칙 생성)은 벌크에선 생략(개별 클릭 시에만).
 // ─────────────────────────────────────────────
-// 대상 스레드 id 해석 — { all:true, folder } 이면 폴더 전체(folderWhere+스코프, 500 캡), 아니면 thread_ids.
+// 대상 스레드 id 해석 — { all:true, folder } 이면 폴더 전체(folderWhere+스코프), 아니면 thread_ids.
 //   Fable 권고: "모두"가 로드된 페이지만이 아니라 폴더 전체에 진짜로 적용되게.
+//
+// ★ 2026-09-17 — **500 캡을 걷어냈다.** 화면이 「모두 읽음 (3475)」 처럼 **수를 약속**하게 되면서
+//   그 캡이 곧 거짓말이 됐다(Fable 20차 실측: 3475 라고 적고 누르면 **499건**만 처리됐다).
+//   버튼 이름이 「모두」인데 모두가 아니었던 것은 이 문구가 생기기 전부터의 결함이다 —
+//   사용자에게는 "눌렀는데 안 없어진다" 로 보인다.
+//   대신 **상한을 남긴다**(`BULK_MAX`). 상한에 닿으면 `capped` 를 돌려주고 화면이 그 사실을 말한다.
+//   조용히 자르지 않는다 — 자르는 것 자체보다 **자른 줄 모르는 것**이 문제였다.
+//
+// ★ 계정 필터를 태운다 — 화면이 "이 계정만" 을 골라 두면 라벨은 그 계정 수인데 실행은 전 계정이었다.
+//   `account_id` 가 오면 접근 가능한 계정 안에서만 좁힌다(넓히지 않는다).
+const BULK_MAX = 20000;   // 한 번에 처리할 상한. 넘으면 capped 로 알린다.
+const BULK_CHUNK = 500;   // IN 절 크기 — 쿼리 모양을 종전과 같게 유지한다.
+
 async function resolveBulkTargetIds(body, businessId, userId) {
   const acctIds = await accessibleAccountIds(businessId, userId);
-  const acctScope = { [Op.in]: acctIds.length ? acctIds : [0] };
+  const picked = Number(body?.account_id) || null;
+  const scopeIds = (picked && acctIds.includes(picked)) ? [picked] : acctIds;
+  const acctScope = { [Op.in]: scopeIds.length ? scopeIds : [0] };
   if (body?.all && BULK_FOLDERS.has(body?.folder)) {
     const rows = await EmailThread.findAll({
       where: { ...folderWhere(body.folder, userId, businessId), business_id: businessId, account_id: acctScope },
-      attributes: ['id'], limit: 500,
+      attributes: ['id'], limit: BULK_MAX + 1,
     });
-    return { ids: rows.map((r) => r.id), acctScope };
+    const all = rows.map((r) => r.id);
+    return { ids: all.slice(0, BULK_MAX), acctScope, capped: all.length > BULK_MAX };
   }
-  return { ids: parseThreadIds(body), acctScope };
+  return { ids: parseThreadIds(body), acctScope, capped: false };
+}
+
+/** ids 를 BULK_CHUNK 씩 잘라 돌린다 — IN 절을 종전 크기로 유지하면서 «모두» 를 지킨다. */
+async function inChunks(ids, fn) {
+  let total = 0;
+  for (let i = 0; i < ids.length; i += BULK_CHUNK) {
+    total += (await fn(ids.slice(i, i + BULK_CHUNK))) || 0;
+  }
+  return total;
 }
 const parseThreadIds = (body) => (Array.isArray(body?.thread_ids)
   ? body.thread_ids.map(Number).filter(Boolean).slice(0, 500) : []);
@@ -876,14 +901,17 @@ router.post('/:businessId/email-threads/bulk-dismiss',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const { ids, acctScope } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
+      const { ids, acctScope, capped } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
-      const [count] = await EmailThread.update(
-        { reply_needed: false, reply_needed_at: null, reply_needed_reason: 'dismissed' },
-        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: acctScope, reply_needed: true } },
-      );
+      const count = await inChunks(ids, async (chunk) => {
+        const [n] = await EmailThread.update(
+          { reply_needed: false, reply_needed_at: null, reply_needed_reason: 'dismissed' },
+          { where: { id: { [Op.in]: chunk }, business_id: businessId, account_id: acctScope, reply_needed: true } },
+        );
+        return n;
+      });
       broadcastMail(req, businessId, 'mail:updated', { bulk: true, reply_needed: false });
-      return successResponse(res, { updated: count });
+      return successResponse(res, { updated: count, requested: ids.length, capped });
     } catch (err) { next(err); }
   },
 );
@@ -893,15 +921,19 @@ router.post('/:businessId/email-threads/bulk-read',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const { ids, acctScope } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
+      const { ids, acctScope, capped } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
-      const [count] = await EmailThread.update(
-        { unread_count: 0 },
-        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: acctScope, unread_count: { [Op.gt]: 0 } } },
-      );
-      await EmailMessage.update({ is_read: true }, { where: { thread_id: { [Op.in]: ids }, is_read: false } }).catch(() => {});
+      const count = await inChunks(ids, async (chunk) => {
+        const [n] = await EmailThread.update(
+          { unread_count: 0 },
+          { where: { id: { [Op.in]: chunk }, business_id: businessId, account_id: acctScope, unread_count: { [Op.gt]: 0 } } },
+        );
+        // 메시지까지 읽음 — 스레드만 0 으로 만들면 다음 동기화가 미읽음을 되살린다.
+        await EmailMessage.update({ is_read: true }, { where: { thread_id: { [Op.in]: chunk }, is_read: false } }).catch(() => {});
+        return n;
+      });
       broadcastMail(req, businessId, 'mail:updated', { bulk: true, unread: 0 });
-      return successResponse(res, { updated: count });
+      return successResponse(res, { updated: count, requested: ids.length, capped });
     } catch (err) { next(err); }
   },
 );
@@ -913,20 +945,23 @@ router.post('/:businessId/email-threads/bulk-handled',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const { ids, acctScope } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
+      const { ids, acctScope, capped } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
-      const [count] = await EmailThread.update(
-        // #205 — 개별 mark-handled 와 같은 처리(읽음까지). 두 경로가 갈리면 벌크로 내린 메일만
-        //   미읽음 뱃지가 남는다.
-        { status: 'archived', reply_needed: false, reply_needed_at: null, reply_needed_reason: 'handled', uncertain_reason: null, unread_count: 0 },
-        { where: { id: { [Op.in]: ids }, business_id: businessId, account_id: acctScope } },
-      );
-      await EmailMessage.update(
-        { is_read: true },
-        { where: { thread_id: { [Op.in]: ids }, is_read: false } },
-      ).catch(() => {});
+      const count = await inChunks(ids, async (chunk) => {
+        const [n] = await EmailThread.update(
+          // #205 — 개별 mark-handled 와 같은 처리(읽음까지). 두 경로가 갈리면 벌크로 내린 메일만
+          //   미읽음 뱃지가 남는다.
+          { status: 'archived', reply_needed: false, reply_needed_at: null, reply_needed_reason: 'handled', uncertain_reason: null, unread_count: 0 },
+          { where: { id: { [Op.in]: chunk }, business_id: businessId, account_id: acctScope } },
+        );
+        await EmailMessage.update(
+          { is_read: true },
+          { where: { thread_id: { [Op.in]: chunk }, is_read: false } },
+        ).catch(() => {});
+        return n;
+      });
       broadcastMail(req, businessId, 'mail:updated', { bulk: true, handled: true, unread: 0 });
-      return successResponse(res, { updated: count });
+      return successResponse(res, { updated: count, requested: ids.length, capped });
     } catch (err) { next(err); }
   },
 );

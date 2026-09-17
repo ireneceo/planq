@@ -494,7 +494,8 @@
     "markRead": "Mark all read",
     "working": "Working…",
     "confirmN": "Apply to {{n}}?",
-    "withCount": "{{label}} ({{n}})"
+    "withCount": "{{label}} ({{n}})",
+    "capped": "Too many to do at once — part of them were handled. Press again to continue."
   },
   "notifyScope": {
     "title": "Notification scope",

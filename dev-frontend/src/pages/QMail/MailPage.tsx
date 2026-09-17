@@ -174,6 +174,7 @@ import {
   HeaderActions,
   AcctManageIcon,
   BulkAction,
+  BulkCappedNote,
   FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
   KeptDraftNote,
   DraftStatusLine,
@@ -1067,6 +1068,7 @@ const MailPage: React.FC = () => {
   // #154 — 폴더 맥락 일괄 처리(Fable 설계): 폴더별 단일 액션 + 폴더 전체({all,folder}) + 2단계 인라인 확인.
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkCapped, setBulkCapped] = useState(false);   // 상한에 걸려 일부만 처리됨
   const bulkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 폴더 → 일괄 액션. 확인권장/전체는 bulk-read 재사용(읽음=알람 해제). 그 외 폴더는 액션 없음.
   // ★ 2026-09-17 — **일괄 버튼이 «몇 건을 지우는지» 를 적는다.**
@@ -1095,17 +1097,24 @@ const MailPage: React.FC = () => {
     if (bulkTimer.current) clearTimeout(bulkTimer.current);
     setBulkBusy(true);
     try {
+      // ★ 계정 필터를 같이 보낸다 — 수를 세는 쪽(`loadCounts`)은 이 필터를 태우는데 실행하는 쪽이
+      //   안 태워서, "이 계정만" 을 골라 두면 **적힌 수와 지우는 대상이 달랐다**(Fable 20차 ③).
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${bulkAction.path}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ all: true, folder }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true, folder, ...(accountFilter ? { account_id: accountFilter } : {}) }),
       });
-      await r.json().catch(() => null);
+      const j = await r.json().catch(() => null);
       if (!r.ok) return;  // 실패 시 확인 버튼 유지(거짓 완료 방지) — 4초 후 자동 원복
+      // 상한에 닿았으면 조용히 넘어가지 않는다 — 남은 것이 있다는 사실이 화면에 남아야 한다
+      //   (다음 로드에서 배지가 그대로면 사용자는 "안 먹었다" 로 읽는다).
+      if (j?.data?.capped) setBulkCapped(true);
       setBulkConfirm(false);
       await loadList();
       loadCounts();
     } catch { /* 무시 — 실패 시 목록 그대로 */ } finally { setBulkBusy(false); }
-  }, [businessId, bulkBusy, bulkAction, folder, loadList, loadCounts]);
-  useEffect(() => { setBulkConfirm(false); }, [folder]);  // 폴더 바뀌면 확인 상태 리셋
+  }, [businessId, bulkBusy, bulkAction, folder, accountFilter, loadList, loadCounts]);
+  useEffect(() => { setBulkConfirm(false); setBulkCapped(false); }, [folder]);  // 폴더 바뀌면 확인 상태 리셋
 
   // 라벨 토글 (상세) — 현재 라벨 배열에 추가/제거
   const toggleLabel = useCallback((name: string) => {
@@ -2174,9 +2183,18 @@ const MailPage: React.FC = () => {
                 <span>{bulkBusy
                   ? (t('bulk.working', { defaultValue: '처리 중…' }) as string)
                   : bulkConfirm
-                    ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: folderCounts[folder] }) as string)
+                    // ★ 2026-09-17 — **라벨과 같은 수를 쓴다.** 여기만 `folderCounts[folder]` 를 읽고 있어서
+                    //   「모두 읽음 (3475)」 을 누르면 「3522개 처리?」 가 떴다 — 같은 값의 공식이 두 벌이면
+                    //   이미 갈라져 있다(memory `feedback_same_value_multiple_formulas`).
+                    ? (t('bulk.confirmN', { defaultValue: '{{n}}개 처리?', n: bulkCount }) as string)
                     : bulkAction.label}</span>
               </BulkAction>
+            )}
+            {/* 상한에 걸려 일부만 처리된 경우 — 조용히 넘어가지 않는다. 다시 누르면 이어서 처리된다. */}
+            {bulkCapped && (
+              <BulkCappedNote>
+                {t('bulk.capped', { defaultValue: '많아서 일부만 처리했습니다. 다시 누르면 이어서 처리합니다.' }) as string}
+              </BulkCappedNote>
             )}
           </FilterToggleRow>
         </ListControls>

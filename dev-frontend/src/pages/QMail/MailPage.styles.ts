@@ -1040,6 +1040,14 @@ export const FromManage = styled.button`
 //   이것만 36px/8px/흰배경이라 줄이 어그러져 보였다. 치수는 필터와 **같은 값**을 쓰고
 //   (min-height 28 · padding 4px 9px · radius 7 · font 12/600), 대신 배경을 회색으로 채워
 //   "누를 수 있는 것" 임을 형태로 알린다(필터 토글은 투명 — 둘이 구분된다).
+/** 일괄 처리가 **상한에 걸려 일부만** 처리됐다는 줄 (2026-09-17).
+ *  조용히 자르면 사용자는 "눌렀는데 안 없어진다" 로 읽는다 — 남은 것이 있다는 사실을 말한다.
+ *  버튼이 아니라 알림이므로 액션 3톤 규칙 밖이다(읽기 전용 상태 표시). */
+export const BulkCappedNote = styled.div`
+  flex-basis: 100%;
+  margin-top: 2px; padding: 0 2px;
+  color: #92400E; font-size: 0.6875rem; font-weight: 600; line-height: 1.4;
+`;
 export const BulkAction = styled.button<{ $confirm?: boolean }>`
   flex-shrink: 0; align-self: center;
   display: inline-flex; align-items: center; gap: 5px;
