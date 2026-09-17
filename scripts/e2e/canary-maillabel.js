@@ -56,13 +56,41 @@ async function run() {
     !admits(fw, 'spam'),
     `스팸까지 들이면 팔로우가 쓰레기통이 된다`);
 
+  // ★ 담당(assigned)도 같은 술어를 쓴다 — 한쪽만 고치면 같은 값의 공식이 두 벌이 된다.
+  const aw = folderWhere('assigned', 1, 5);
+  push('담당 — 확인완료(archived)해도 남는다',
+    admits(aw, 'archived'),
+    `where=${JSON.stringify(aw)} — 팔로우와 같은 성격(사람이 명시적으로 건 표시)이다`);
+  push('담당 — 스팸은 뺀다 (양성 대조군)',
+    !admits(aw, 'spam'),
+    `스팸까지 들이면 담당이 쓰레기통이 된다`);
+  push('담당과 팔로우가 **같은 술어**다',
+    JSON.stringify(aw) === JSON.stringify(fw)
+      && ['open', 'uncertain', 'archived', 'spam'].every((st) => admits(aw, st) === admits(fw, st)),
+    `assigned=${JSON.stringify(aw)} / following=${JSON.stringify(fw)} — 갈라지면 한쪽만 고쳐진다`);
+
   // 답변필요 폴더는 종전 그대로여야 한다 — 이 수정이 옆 폴더로 번지지 않았는지.
   const rn = folderWhere('reply_needed', 1, 5);
   push('답변필요 폴더는 건드리지 않았다 (음성 대조군)',
     !admits(rn, 'archived') && admits(rn, 'open'),
     `where=${JSON.stringify(rn)}`);
 
-  // ── ② 목록 안에서 같은 말이 두 뜻으로 쓰이는가 ───────────
+  // ── ② 문구 충돌 — 먼저 **원천**(i18n)에서 가른다 ────────
+  //   ★ Fable 16차 소견: 처음엔 화면만 두 폴더(all·uncertain)에서 쟀는데, `uncertain` 폴더에는
+  //     구조적으로 답변필요 행이 실리지 않아(그 폴더 정의가 `reply_needed:false`) **상태 뱃지가
+  //     한 번도 안 뜬다** — 즉 그 검사는 영원히 초록인 잉여였다. 실효 검사는 `all` 한 곳뿐이었다.
+  //     그래서 잉여 폴더를 빼고, 대신 **i18n 원천 비교**를 넣는다. 이쪽은 화면에 무엇이 실리든
+  //     결정적이고, 브라우저가 한 번도 안 열어 보는 **en 까지** 덮는다.
+  for (const L of ['ko', 'en']) {
+    const j = require(`/opt/planq/dev-frontend/public/locales/${L}/qmail.json`);
+    const badge = j.replyNeededBadge;
+    const action = j.actions && j.actions.markReplyNeeded;
+    push(`${L}/상태 뱃지와 액션 버튼의 말이 다르다 (원천)`,
+      !!badge && !!action && badge !== action,
+      `뱃지="${badge}" · 액션="${action}" — 같으면 목록에서 «같은 표시가 두 번» 으로 읽힌다`);
+  }
+
+  // ── ②-b 화면에서도 확인한다 (원천이 맞아도 화면이 다를 수 있다) ─
   //   ★ **픽스처를 직접 만든다.** 처음엔 그냥 목록을 열어 재기만 했는데, 첫 화면 30행에 답변필요인
   //     스레드가 하나도 없어 «상태» 쪽 집합에 그 말이 아예 안 담겼다 — 그래서 문구를 옛것으로
   //     되돌린 **양성 대조군이 통과했다**(빨간불을 못 켜는 검사기였다).
@@ -84,7 +112,7 @@ async function run() {
   try {
     await page.setViewport({ width: 1440, height: 900 });
     await b.login(page);
-    for (const folder of ['all', 'uncertain']) {
+    for (const folder of ['all']) {
       await b.goto(page, `/mail?folder=${folder}`);
       await b.sleep(5000);
       const m = await page.evaluate(() => {

@@ -14,7 +14,6 @@ function folderWhere(folder, userId, businessId) {
   switch (folder) {
     case 'reply_needed': return { reply_needed: true, status: { [Op.in]: ['open', 'uncertain'] } };
     // assigned/following 은 EmailThreadParticipant 조인 필요 → 리스트 라우트에서 thread_id 필터로 처리. 여기선 status 기준만.
-    case 'assigned': return { status: { [Op.in]: ['open', 'uncertain'] } };
 
     // ★ 2026-09-17 — **팔로우는 확인완료로 지워지지 않는다.**
     //   Irene: *"내가 팔로우 해놨던 메일리스트가 없어졌어."*
@@ -27,8 +26,12 @@ function folderWhere(folder, userId, businessId) {
     //   («답하면 관계로 인정» 해 놓고 «확인완료하면 소멸» 시키던 자기모순).
     //   → 스팸만 뺀다. 팔로우를 끄는 문은 **팔로우 해제** 하나다.
     //
-    //   ★ `assigned`(담당)도 같은 성격이지만 신고 범위가 아니라 **건드리지 않았다.**
-    //     같은 계열이므로 신고가 오면 이 줄과 함께 고친다.
+    //   ★ **`assigned`(담당)도 같이 고쳤다** (2026-09-17 2차 — Irene: *"정석대로 … 다 구현해"*).
+    //     담당 배정도 사람이 «이건 내가 맡는다» 고 명시적으로 건 표시다. 한쪽만 고치면 같은 술어가
+    //     두 벌이 되고, 다음 신고는 «담당 목록이 없어졌어» 로 똑같이 온다
+    //     (memory `feedback_fix_structure_not_screen` — 같은 계열은 구조로 고친다).
+    //     그래서 두 폴더가 **한 줄을 공유한다.** 조건을 나누고 싶어지면 그때 이유를 적고 가른다.
+    case 'assigned':
     case 'following': return { status: { [Op.ne]: 'spam' } };
     // 확인 권장 = "한 번 보고 판단할 것" — 처리 완료(옛 inbox)를 여기에 합쳤다.
     //   ① 애매한 메일 (status='uncertain'): 스팸·광고는 아닌데 업무인지 모르겠는 것,
