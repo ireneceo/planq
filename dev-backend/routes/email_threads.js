@@ -869,20 +869,35 @@ router.post('/:businessId/email-threads/:id/mark-reply-needed',
 const BULK_MAX = 20000;   // 한 번에 처리할 상한. 넘으면 capped 로 알린다.
 const BULK_CHUNK = 500;   // IN 절 크기 — 쿼리 모양을 종전과 같게 유지한다.
 
-async function resolveBulkTargetIds(body, businessId, userId) {
+// ★ 2026-09-17 (Fable 21차 차단2) — **`thread_ids` 로 준 id 도 범위 SELECT 를 통과시킨다.**
+//   여태 그 갈래는 준 id 를 **그대로** 돌려줬다. 스레드 UPDATE 는 where 에 `business_id`·계정이 붙어
+//   0건으로 막혔지만, **메시지 UPDATE 는 `thread_id IN (...)` 뿐**이라 막을 것이 없었다 —
+//   Fable 실측: biz3 멤버가 biz5 스레드 id 를 보내면 응답은 `updated:0` 인데 **biz5 메시지 3행이
+//   읽음으로 바뀌었다.** 남의 사적 계정 스레드 16행도 같은 방식으로 바뀌었다.
+//   «아무 일도 안 일어났다» 고 답하면서 남의 테넌트 데이터를 고치는 것이 가장 나쁜 모양이다.
+//   → 두 갈래 모두 **여기서 한 번 걸러진** id 만 나간다. 그 뒤로는 스레드도 메시지도 그 id 만 쓴다.
+//
+// ★ 차단3 — **후보 SELECT 에 «아직 안 된 것» 술어를 건다**(`actionWhere`).
+//   안 걸면 상한에 닿았을 때 매번 **같은 첫 N개**(이미 처리된 것)를 다시 집어 `updated:0` 이 되고,
+//   화면의 "다시 누르면 이어서 처리합니다" 가 거짓말이 된다(Fable 실측: 2회차 0건).
+async function resolveBulkTargetIds(body, businessId, userId, actionWhere = {}) {
   const acctIds = await accessibleAccountIds(businessId, userId);
   const picked = Number(body?.account_id) || null;
   const scopeIds = (picked && acctIds.includes(picked)) ? [picked] : acctIds;
   const acctScope = { [Op.in]: scopeIds.length ? scopeIds : [0] };
-  if (body?.all && BULK_FOLDERS.has(body?.folder)) {
-    const rows = await EmailThread.findAll({
-      where: { ...folderWhere(body.folder, userId, businessId), business_id: businessId, account_id: acctScope },
-      attributes: ['id'], limit: BULK_MAX + 1,
-    });
-    const all = rows.map((r) => r.id);
-    return { ids: all.slice(0, BULK_MAX), acctScope, capped: all.length > BULK_MAX };
-  }
-  return { ids: parseThreadIds(body), acctScope, capped: false };
+
+  const selector = (body?.all && BULK_FOLDERS.has(body?.folder))
+    ? folderWhere(body.folder, userId, businessId)
+    : (() => { const ids = parseThreadIds(body); return ids.length ? { id: { [Op.in]: ids } } : null; })();
+  if (!selector) return { ids: [], acctScope, capped: false };
+
+  // Op.and 로 합친다 — 펼쳐 넣으면 같은 컬럼 조건(status 등)이 서로를 덮어쓴다.
+  const rows = await EmailThread.findAll({
+    where: { [Op.and]: [selector, { business_id: businessId, account_id: acctScope }, actionWhere] },
+    attributes: ['id'], limit: BULK_MAX + 1,
+  });
+  const all = rows.map((r) => r.id);
+  return { ids: all.slice(0, BULK_MAX), acctScope, capped: all.length > BULK_MAX };
 }
 
 /** ids 를 BULK_CHUNK 씩 잘라 돌린다 — IN 절을 종전 크기로 유지하면서 «모두» 를 지킨다. */
@@ -901,7 +916,8 @@ router.post('/:businessId/email-threads/bulk-dismiss',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const { ids, acctScope, capped } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
+      const { ids, acctScope, capped } = await resolveBulkTargetIds(
+        req.body, businessId, req.user.id, { reply_needed: true });
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
       const count = await inChunks(ids, async (chunk) => {
         const [n] = await EmailThread.update(
@@ -921,7 +937,8 @@ router.post('/:businessId/email-threads/bulk-read',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const { ids, acctScope, capped } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
+      const { ids, acctScope, capped } = await resolveBulkTargetIds(
+        req.body, businessId, req.user.id, { unread_count: { [Op.gt]: 0 } });
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
       const count = await inChunks(ids, async (chunk) => {
         const [n] = await EmailThread.update(
@@ -945,7 +962,8 @@ router.post('/:businessId/email-threads/bulk-handled',
   async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const { ids, acctScope, capped } = await resolveBulkTargetIds(req.body, businessId, req.user.id);
+      const { ids, acctScope, capped } = await resolveBulkTargetIds(
+        req.body, businessId, req.user.id, { status: { [Op.ne]: 'archived' } });
       if (!ids.length) return errorResponse(res, 'no_threads', 400);
       const count = await inChunks(ids, async (chunk) => {
         const [n] = await EmailThread.update(

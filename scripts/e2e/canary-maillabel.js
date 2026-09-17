@@ -94,6 +94,21 @@ async function run() {
     !admits(rn, 'archived') && admits(rn, 'open'),
     `where=${whereStr(rn)}`);
 
+  // ── ①-b 일괄 처리의 **범위와 이어서 처리** ──────────────
+  //   Fable 21차 차단2·3. 둘 다 «응답은 아무 일 없다고 하는데 실제로는 다른» 계열이다.
+  const routeSrc = require('fs').readFileSync('/opt/planq/dev-backend/routes/email_threads.js', 'utf8');
+  const calls = routeSrc.match(/resolveBulkTargetIds\(\s*[\s\S]{0,160}?\)/g) || [];
+  //   함수 **선언부**(`(body, businessId, userId, actionWhere = {})`)가 같이 잡힌다 — 호출부만 센다.
+  const callSites = calls.filter((c) => c.includes('req.body'));
+  push('일괄 라우트 3곳이 **«아직 안 된 것» 술어**를 넘긴다',
+    callSites.length === 3 && callSites.every((c) => /req\.user\.id\s*,\s*\{/.test(c.replace(/\s+/g, ' '))),
+    callSites.length === 3
+      ? `3곳 모두 4번째 인자를 넘긴다 — 안 넘기면 상한에 닿았을 때 **같은 첫 N개**(이미 처리된 것)를 다시 집어 0건이 되고, "다시 누르면 이어서 처리합니다" 가 거짓말이 된다`
+      : `호출부 ${callSites.length}곳 — 3곳이어야 한다`);
+  push('`thread_ids` 갈래도 **범위 SELECT 를 통과**한다',
+    /const selector = \(body\?\.all/.test(routeSrc) && /EmailThread\.findAll\(\{\s*\n?\s*where: \{ \[Op\.and\]/.test(routeSrc),
+    '준 id 를 그대로 쓰면 스레드 UPDATE 는 막혀도 **메시지 UPDATE(`thread_id IN`)** 가 남의 테넌트를 고친다 — 실측으로 잡혔다(응답은 updated:0)');
+
   // ── ② 문구 충돌 — 먼저 **원천**(i18n)에서 가른다 ────────
   //   ★ Fable 16차 소견: 처음엔 화면만 두 폴더(all·uncertain)에서 쟀는데, `uncertain` 폴더에는
   //     구조적으로 답변필요 행이 실리지 않아(그 폴더 정의가 `reply_needed:false`) **상태 뱃지가

@@ -1108,7 +1108,9 @@ const MailPage: React.FC = () => {
       if (!r.ok) return;  // 실패 시 확인 버튼 유지(거짓 완료 방지) — 4초 후 자동 원복
       // 상한에 닿았으면 조용히 넘어가지 않는다 — 남은 것이 있다는 사실이 화면에 남아야 한다
       //   (다음 로드에서 배지가 그대로면 사용자는 "안 먹었다" 로 읽는다).
-      if (j?.data?.capped) setBulkCapped(true);
+      // 성공하면 그 사실로 갱신한다 — 한 번 켜 두고 폴더를 바꿀 때까지 놔두면
+      //   이미 다 끝난 뒤에도 "일부만 처리했다" 가 남는다(Fable 21차 소견3).
+      setBulkCapped(!!j?.data?.capped);
       setBulkConfirm(false);
       await loadList();
       loadCounts();
