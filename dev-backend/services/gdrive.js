@@ -618,6 +618,7 @@ async function clearTokenError(token) {
 }
 
 module.exports = {
+  isNotFoundError,
   isConfigured,
   SCOPES,
   ensureRootFolder,

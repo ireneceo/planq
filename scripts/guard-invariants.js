@@ -2724,6 +2724,13 @@ function checkDraft() {
     }
     for (const m of src.matchAll(/\scontentEditable(?=[\s=>/])/g)) {
       if (isCommentLine(lineAt(src, m.index))) continue;
+      // ★ 2026-09-17 — `contentEditable={false}` 는 **편집 불가**라고 명시한 것이다.
+      //   자유 텍스트 입력의 정반대인데 여태 부채로 셌다. 그래서 «편집 못 하게 막는» 올바른 코드를
+      //   쓸 때마다 래칫이 올라갔다(memory feedback_guard_punishes_conformant_code).
+      //   값이 없거나(`contentEditable` 단독) true 인 것만 센다.
+      const val = /^\s*=\s*\{\s*(false|true)\s*\}|^\s*=\s*["'](false|true)["']/.exec(
+        src.slice(m.index + ' contentEditable'.length, m.index + ' contentEditable'.length + 24));
+      if (val && (val[1] === 'false' || val[2] === 'false')) continue;
       const start = src.lastIndexOf('<', m.index);
       judge(src, r, start, openTag(src, start), 'contentEditable', st);
     }

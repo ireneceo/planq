@@ -15,6 +15,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch, useAuth } from '../contexts/AuthContext';
 import { onSocket } from '../services/socket';
+import { isAdminContext } from '../stores/tabStore';
+import { useActiveTabPath } from './useTabStore';
 
 export interface NotificationItem {
   id: number;
@@ -40,6 +42,28 @@ const withScope = (path: string, bizId: number | null): string => {
   const qs = scopeQs(bizId);
   return qs ? `${path}${path.includes('?') ? '&' : '?'}${qs}` : path;
 };
+/**
+ * 이 창의 종이 어느 범위를 보는가 — **한 곳에서만 정한다**.
+ *
+ * ★ 2026-09-17 (Irene #413: *"플랫폼 관리자로 가면 좌측 상단 스피커랑 종 아이콘에
+ *   다른 워크스페이스 것이 떠. 플랫폼 관리자는 필요없으면 안나오게 해야지."*)
+ *   여태 `user.business_id` 를 그대로 썼다. 플랫폼 관리자 화면에는 «현재 워크스페이스» 라는
+ *   것이 없는데도 **직전 워크스페이스 id** 가 남아 있어서 그 워크스페이스의 알림이 그대로 떴다.
+ *   관리자 범위에서는 `null` — 서버는 인자가 없으면 **플랫폼 공지만** 준다(가장 좁은 쪽).
+ *   판정은 `isAdminContext` 하나를 쓴다. 여기서 따로 `startsWith('/admin')` 을 적으면 갈라진다.
+ *   ★ 훅 안에 두는 이유: 소비처 4곳(사이드바 배지·드롭다운·전체보기·대시보드)이 모두 이 훅을
+ *   지나므로, **아무도 범위를 잊을 수 없다**.
+ * ★ `useLocation()` 을 쓰면 **앱이 통째로 죽는다** — 이 훅의 소비처 중 사이드바 배지(MainLayout)는
+ *   탭 모드에서 **크롬 트리**에 있고 그 트리에는 Router 가 없다
+ *   (memory feedback_two_render_trees_global_mount). 2026-09-17 에 실제로 넣었다가
+ *   실브라우저가 `useLocation() may be used only in the context of a <Router>` 로 잡았다.
+ *   `useActiveTabPath()` 가 정확히 그 자리를 위해 있다 — 활성 탭 경로이고 미러 모드에선 실제 location.
+ */
+function useNotificationScope(userBizId: number | null): number | null {
+  const pathname = useActiveTabPath();
+  return isAdminContext(pathname) ? null : userBizId;
+}
+
 // 소켓 payload 가 다른 워크스페이스 것이면 이 창의 종과 무관하다(플랫폼 공지 = business_id null 은 통과).
 const isOtherScope = (payloadBiz: unknown, bizId: number | null): boolean => (
   payloadBiz != null && Number(payloadBiz) !== bizId
@@ -52,7 +76,7 @@ const isOtherScope = (payloadBiz: unknown, bizId: number | null): boolean => (
 //   "불러왔더니 0 이다" 에서 안 지우면 다 읽었는데 숫자가 남는다. 값으로 추측하지 않는다.
 export function useNotificationCountState(): { count: number; loaded: boolean } {
   const { user } = useAuth();
-  const bizId = user?.business_id ? Number(user.business_id) : null;
+  const bizId = useNotificationScope(user?.business_id ? Number(user.business_id) : null);
   const [count, setCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -114,7 +138,7 @@ interface UseNotificationsOptions {
 export function useNotifications(opts: UseNotificationsOptions = {}) {
   const { limit = 20, unreadOnly = false, autoRefresh = true } = opts;
   const { user } = useAuth();
-  const bizId = user?.business_id ? Number(user.business_id) : null;
+  const bizId = useNotificationScope(user?.business_id ? Number(user.business_id) : null);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
 

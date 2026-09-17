@@ -1,0 +1,170 @@
+// canary-drive-mirror — Drive 미러 **생명주기 전 전이** (2026-09-17)
+//
+//   왜 이 카나리가 있는가
+//     [파인더 공유]가 생기면서 `Workspace Files` 폴더가 **남에게 열리는 면**이 됐다. 그 순간부터
+//     미러 생명주기의 모든 전이가 «누가 무엇을 볼 수 있는가» 를 정한다. 그런데 그 생명주기는
+//     상태가 많다 — 산 행/휴지통/퍼지/자격상실/쌍둥이(같은 사본을 나눠 쓰는 행)/Drive 쪽 변경.
+//     2026-09-17 에 그 경로들을 **하나씩** 고치다 Fable 게이트에서 여섯 번 연속으로 막혔다.
+//     매번 «안 본 경로»에서 새 구멍이 났다. 그래서 경로가 아니라 **표**로 건다.
+//
+//   ★ 여기 걸리면 «누군가에게 안 보여야 할 것이 Drive 로 보인다» 는 뜻이다. Drive 권한은
+//     우리 쪽 롤백으로 회수되지 않으므로, 이 검사는 배포 전에 반드시 초록이어야 한다.
+//
+//   ★ **실 Drive 를 아예 안 부르는 것은 아니다** (2026-09-17 정정 — 주석이 거짓이었다).
+//     합성 미러 id 를 쓰지만 «마지막 참조» 분기는 `drive.files.delete` 를 실제로 친다.
+//     가짜 id 이므로 **404 경로만** 타고(성공 경로는 여기서 못 잰다), 워크스페이스에 Drive 토큰이
+//     없으면 그 항목이 `failed` 로 빨간불이 된다. 실 Drive 왕복의 성공 경로는 Fable 게이트가 친다.
+//   ★ `applyChange` 는 `gdrive_sync_logs` 에 행을 남긴다 — 이 카나리가 **자기 흔적을 지운다**
+//     (안 지우면 원장이 검사 기록으로 더러워진다).
+const db = require('/opt/planq/dev-backend/models');
+const mirror = require('/opt/planq/dev-backend/services/gdriveMirror');
+const { recallDriveMirror } = require('/opt/planq/dev-backend/services/driveMirrorRecall');
+const gdriveApply = require('/opt/planq/dev-backend/services/gdriveApply');
+
+const BIZ = Number(process.env.CANARY_BIZ || 3);
+const TOKEN = { connected_by: 3, root_folder_id: 'root', workspace_folder_id: 'wsf' };
+const base = (over) => ({
+  storage_provider: 'planq', gdrive_mirror_id: null, deleted_at: null,
+  file_size: 1, uploader_id: 3, vlevel: 'L3', visibility: 'L3', security_level: 'general',
+  project_id: null, target_member_ids: null, ...over,
+});
+
+async function run() {
+  const results = [];
+  const push = (name, ok, detail) => results.push({ name, route: name, leaked: !ok, detail });
+  const made = [];
+  const seq = db.File.sequelize;
+  const mk = async (over) => {
+    const f = await db.File.create({
+      business_id: BIZ, file_name: 'canary-mirror.bin',
+      file_path: `/tmp/pq-canary-${Date.now()}${Math.random()}.bin`,
+      mime_type: 'application/octet-stream', ref_count: 1,
+      gdrive_mirror_url: 'https://drive.google.com/x', gdrive_mirrored_at: new Date(),
+      ...base(over),
+    });
+    made.push(f.id);
+    return f;
+  };
+
+  try {
+    // ── A. 무엇이 공유 폴더에 올라가는가 ──────────────────────────────
+    //   여기가 틀리면 **올리면 안 되는 것이 공유 폴더에 놓인다.**
+    for (const [label, over, want] of [
+      ['L3 일반', {}, true],
+      ['L1 개인', { vlevel: 'L1' }, false],
+      ['L2+프로젝트', { vlevel: 'L2', project_id: 7 }, true],
+      ['L2+특정멤버(프로젝트 없음)', { vlevel: 'L2', target_member_ids: [5] }, false],
+      // ★ 프로젝트가 하드삭제되면 `resolveDriveParent` 가 **공유 폴더로 폴백**한다 —
+      //   프로젝트 멤버만 보던 파일이 워크스페이스 전원에게 열리는 자리(Fable 8차 ⑮).
+      ['L2+프로젝트 없음(타겟도 없음)', { vlevel: 'L2' }, false],
+      ['대외비', { security_level: 'confidential' }, false],
+      ['내부용', { security_level: 'internal' }, false],
+      ['삭제됨', { deleted_at: new Date() }, false],
+      ['gdrive 원본', { storage_provider: 'gdrive' }, false],
+    ]) {
+      const got = mirror.isEligible(base(over), TOKEN);
+      push(`미러대상/${label}`, got === want, `기대 ${want} · 실제 ${got}`);
+    }
+
+    // ── B. 회수 — 자격을 잃으면 사본이 사라지는가 ─────────────────────
+    {
+      const a = await mk({ gdrive_mirror_id: `CAN1-${Date.now()}` });
+      const p = {};
+      const r = await recallDriveMirror(a, p);
+      push('회수/단독행은 사본을 지운다', r === 'removed', r);
+      push('회수/mirrored_at 도 지운다(의도된 회수)', p.gdrive_mirrored_at === null, String(p.gdrive_mirrored_at));
+    }
+    {
+      // 삭제 경로: 포인터를 **남긴다** — 비우면 DB 어디에도 없는 고아 사본이 된다
+      const M = `CAN2-${Date.now()}`;
+      const a = await mk({ gdrive_mirror_id: M }); const b = await mk({ gdrive_mirror_id: M });
+      const p = {};
+      const r = await recallDriveMirror(a, p);
+      push('회수/산 형제가 있으면 사본을 남긴다', r === 'shared', r);
+      push('회수/삭제 경로는 포인터를 남긴다(고아 방지)', Object.keys(p).length === 0, JSON.stringify(p));
+      await b.reload();
+      push('회수/형제 포인터는 그대로', b.gdrive_mirror_id === M, b.gdrive_mirror_id || '(비움)');
+    }
+    {
+      // 자격상실 경로(L1 전환 등): 내 포인터만 비운다 — 사본은 자격 있는 형제 것
+      const M = `CAN3-${Date.now()}`;
+      const a = await mk({ gdrive_mirror_id: M }); const b = await mk({ gdrive_mirror_id: M });
+      const p = {};
+      const r = await recallDriveMirror(a, p, { clearOnShared: true });
+      push('회수/자격상실은 내 포인터만 비운다', r === 'shared' && p.gdrive_mirror_id === null, r);
+      await b.reload();
+      push('회수/그때도 형제 사본은 남는다', b.gdrive_mirror_id === M, b.gdrive_mirror_id || '(비움)');
+    }
+    {
+      // 마지막 참조: 휴지통 형제의 **죽은 포인터**까지 정리 — 안 하면 복구해도 영영 재미러 안 된다
+      const M = `CAN4-${Date.now()}`;
+      const dead = await mk({ gdrive_mirror_id: M, deleted_at: new Date() });
+      const live = await mk({ gdrive_mirror_id: M });
+      await live.update({ deleted_at: new Date() });
+      const p = {};
+      const r = await recallDriveMirror(live, p);
+      await dead.reload({ paranoid: false });
+      push('회수/마지막 참조는 사본을 지운다', r === 'removed', r);
+      push('회수/휴지통 형제의 죽은 포인터도 정리', !dead.gdrive_mirror_id, dead.gdrive_mirror_id || '(비움)');
+    }
+
+    // ── B5. 자격을 되찾으면 다시 올리는가 (Fable 9차 C3) ──────────────
+    //   `isEligible` 이 true 로 바뀐 행을 `mirrorOnUpload` 가 실제로 집는가.
+    //   ★ C3 는 «저장 전 행을 읽어» 조용히 끝나던 것이었다 — 표에 이 전이가 없어 초록이었다.
+    {
+      const a = await mk({ gdrive_mirror_id: null, vlevel: 'L1' });
+      await a.update({ vlevel: 'L3', visibility: 'L3' });
+      const fresh = await db.File.findByPk(a.id);
+      const elig = mirror.isEligible(fresh.get({ plain: true }), TOKEN);
+      push('자격회복/저장된 행이 미러 대상이 된다', elig, `vlevel=${fresh.vlevel} eligible=${elig}`);
+    }
+
+    // ── B6. 폴더를 지울 때 안의 것을 잃지 않는가 (Fable 9차 C1) ────────
+    //   Drive `files.delete` 는 폴더의 **하위 항목을 휴지통 없이 영구 삭제**한다.
+    //   PlanQ 는 파일을 부모로 옮기지만 Drive 쪽 파일은 그 폴더 안에 그대로다.
+    //   그래서 **비었을 때만** 지워야 한다 — 이 검사는 그 규칙이 코드에 살아 있는지 본다.
+    {
+      const src = require('fs').readFileSync('/opt/planq/dev-backend/routes/file_folders.js', 'utf8');
+      const guarded = /in parents and trashed=false/.test(src) && /항목이 남아 삭제하지 않음/.test(src);
+      push('폴더삭제/비었을 때만 Drive 폴더를 지운다', guarded, guarded ? '가드 있음' : '가드 없음 — 하위 파일 영구삭제 위험');
+    }
+
+    // ── C. Drive 쪽에서 지웠을 때 — 화면이 말하는가 ───────────────────
+    {
+      const M = `CAN5-${Date.now()}`;
+      const a = await mk({ gdrive_mirror_id: M }); const b = await mk({ gdrive_mirror_id: M });
+      await gdriveApply.applyChange(BIZ, { fileId: M, removed: true }, null);
+      await a.reload(); await b.reload();
+      const tag = (f) => f.storage_provider === 'planq' && !f.gdrive_mirror_id && !!f.gdrive_mirrored_at;
+      push('Drive삭제/그 미러를 든 모든 행 unmirror', !a.gdrive_mirror_id && !b.gdrive_mirror_id);
+      // ★ `mirrored_at` 을 지우면 이 태그가 **영영 false** 가 되어 사용자는 사본이 사라진 것을 모른다.
+      push('Drive삭제/«사본 없음» 태그가 뜬다', tag(a) && tag(b), `a=${tag(a)} b=${tag(b)}`);
+    }
+
+    // ── D. Drive 변경이 **누구에게** 붙는가 ───────────────────────────
+    {
+      const M = `CAN6-${Date.now()}`;
+      const dead = await mk({ gdrive_mirror_id: M, deleted_at: new Date() });
+      const live = await mk({ gdrive_mirror_id: M });
+      const found = await gdriveApply.findLocal(BIZ, M);
+      push('Drive변경/산 행에 붙는다(휴지통 행 아님)',
+        found && String(found.id) === String(live.id), `found=${found && found.id} live=${live.id} dead=${dead.id}`);
+    }
+  } catch (e) {
+    push('카나리 실행', false, e.message);
+  } finally {
+    if (made.length) {
+      try { await db.File.sequelize.query(`DELETE FROM files WHERE id IN (${made.join(',')})`); }
+      catch (e) { push('픽스처 정리', false, e.message); }
+    }
+    // `applyChange` 가 남긴 원장 행 — 검사 기록이 운영 원장에 쌓이지 않게 지운다.
+    try {
+      await db.File.sequelize.query(
+        "DELETE FROM gdrive_sync_logs WHERE gdrive_file_id LIKE 'CAN%' OR gdrive_file_id LIKE 'LC%'",
+      );
+    } catch (e) { push('원장 정리', false, e.message); }
+  }
+  return results;
+}
+
+module.exports = { run, name: 'drivemirror' };

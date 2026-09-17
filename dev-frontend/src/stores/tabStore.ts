@@ -123,6 +123,12 @@ export function identityOfPath(path: string): string {
   // 관리자 화면은 **화면마다 별개의 탭**이다. 사용자·워크스페이스·결제는 서로 다른 일이라
   // 하나로 합치면 방금 보던 화면이 사라진다. (kind 하나로 묶었을 때 실제로 그랬다.)
   if (kind === 'admin') return `admin:${(path || '').split('?')[0]}`;
+  // ★ 2026-09-17 — `other` 도 **화면마다 별개의 탭**이다.
+  //   여태 `/notifications`·`/whats-new`·`/settings`·`/profile`·`/stats/*`·`/me/feedback` 이
+  //   전부 identity `'other'` 하나를 나눠 써서 **서로를 덮어썼다.** 알림 전체보기를 열면
+  //   방금 보던 설정 탭이 사라지는 식이다. 관리자 화면에서 이미 같은 일을 겪고 고쳤는데
+  //   (2026-09-10) 나머지 경로는 그대로 남아 있었다 — Irene #414.
+  if (kind === 'other') return `other:${(path || '/').split('?')[0]}`;
   return kind;
 }
 

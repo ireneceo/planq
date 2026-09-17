@@ -438,7 +438,13 @@
       "hint": "Up to 50MB · Multiple files supported",
       "upload": "Upload",
       "compactHint": "Or drag files anywhere into this tab",
-      "release": "Release to upload"
+      "release": "Release to upload",
+      "hintDrive": "Up to {{limit}} per file · larger files are stored in Google Drive",
+      "hintLimit": "Up to {{limit}} per file · connect Google Drive to upload larger files as-is",
+      "hintPlain": "You can upload several files at once",
+      "compactHintLimit": "Up to {{limit}} per file · you can also drop files here or on the list",
+      "limitOnly": "Up to {{limit}} per file",
+      "compactHintTail": " · you can also drop files here or on the list"
     },
     "cloud": {
       "connectedTitle": "Shared files are stored in Google Drive.",
@@ -552,7 +558,10 @@
       "deleteTitle": "Delete folder?",
       "deleteDesc": "Files inside will be moved to \"Direct root\"",
       "deleteWithFiles": "{{n}} files inside will be moved to \"Direct root\"",
-      "deleteEmpty": "This folder is empty"
+      "deleteEmpty": "This folder is empty",
+      "more": "Folder menu",
+      "downloadAll": "Download whole folder",
+      "downloading": "Zipping the folder… {{p}}"
     },
     "up": {
       "aria": "Upload progress",
@@ -619,6 +628,11 @@
       "too_large": "Larger than 8MB — not indexed",
       "empty_text": "No readable text found",
       "other": "Cue cannot read this file"
+    },
+    "moveTo": "Move to folder",
+    "security": {
+      "driveOrigin": "This file lives in Google Drive, so PlanQ cannot remove the copy. Please move or delete it in Drive.",
+      "driveFailed": "Could not remove the Google Drive copy. Check the Drive connection and try again."
     }
   },
   "pinnedDoc": {

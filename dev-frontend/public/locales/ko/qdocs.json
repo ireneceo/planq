@@ -570,7 +570,9 @@
     "origin": "출처",
     "alignLeft": "왼쪽 정렬",
     "alignCenter": "가운데 정렬",
-    "alignRight": "오른쪽 정렬"
+    "alignRight": "오른쪽 정렬",
+    "codeInsertAbove": "코드 블록 위에 문단 추가",
+    "codeInsertBelow": "코드 블록 아래에 문단 추가"
   },
   "tab": {
     "title": "문서",

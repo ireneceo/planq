@@ -8,6 +8,7 @@ import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
+import { TrailingNode } from '@tiptap/extensions';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 // 표 (#151) — 여태 RichEditor 에는 표 확장이 없어서 업무 본문·메일·지식에 표를 **넣을 수도 볼 수도** 없었다.
@@ -88,6 +89,13 @@ export default function RichEditor({
         placeholder: ({ node }) => node.type.name === 'paragraph' ? effectivePlaceholder : '',
         includeChildren: false,
       }),
+      // ★ 2026-09-17 (Irene #420: *"문서편집할 때 코드기능에 사이에 더 넣거나 내용을 추가하거나
+      //   다른 코드기능 또 넣고 싶어서 방법이 없어. 커서도 안들어가고 아래에 추가하기도 안되고"*)
+      //   `codeBlock`·`table` 은 **텍스트블록/격리 노드**라 Gapcursor 가 안 뜬다. 그래서 문서의
+      //   **마지막**이 코드블록이면 그 아래에 클릭할 자리가 아예 없어 더 쓸 수가 없었다.
+      //   TrailingNode 가 끝에 빈 문단을 하나 유지한다. (블록 **사이**는 CodeBlockNodeView 의
+      //   삽입 손잡이가 담당한다 — 둘이 한 벌이다.)
+      TrailingNode,
       TaskList,
       TaskItem.configure({ nested: true }),
       // ★ Underline 을 따로 넣지 않는다 — StarterKit v3 가 이미 포함한다.

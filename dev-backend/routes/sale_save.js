@@ -10,7 +10,15 @@ const { perUserDaily } = require('../middleware/costGuard');
 // 첫 상담 기록은 **상담 원장과 같은 문**으로 만든다(감사·실시간·last_touch 가 한 곳)
 const { createInteraction } = require('../services/saleInteraction');
 const { extractInquiry } = require('../services/saleExtract');
-const { createAuditLog } = require('../services/auditService');
+const { createAuditLog, writeAudit } = require('../services/auditService');
+// ★ 2026-09-17 (Fable 게이트 FAIL) — 상담 칸의 **상태가 곧 이 원장**이다.
+//   `classifyMailThreads` 가 `origin`(promote/restore/dismiss/purge)을 읽어 어느 칸에 놓을지 정한다.
+//   그런데 `createAuditLog` 는 `setImmediate` fire-and-forget 이라 **200 을 돌려준 시점에 상태가 없다.**
+//   화면은 `await 액션; await 재조회` 라 같은 경합에 걸려 **눌러도 그대로**인 일이 간헐로 났다
+//   (Fable 실측: 승격 200 · 즉시 재조회 35→35 · 몇 초 뒤에야 854→853).
+//   그래서 이 다섯 곳만 `writeAudit`(await + 실패는 던진다)로 쓴다 —
+//   기록이 안 남으면 **아무 일도 안 일어난 것**이므로 200 을 주면 거짓말이다.
+//   순수 기록(client.save_from_guest)은 종전대로 fire-and-forget 이다.
 const { setStage } = require('../services/salesStage');
 const planEngine = require('../services/plan');
 const {
@@ -102,7 +110,7 @@ router.post('/:businessId/inbox/dismiss', ...writeChain, async (req, res, next) 
 
     const before = thread.triage;
     await thread.update({ triage: 'automated', reply_needed: false });
-    createAuditLog({
+    await writeAudit({
       userId: req.user.id, businessId, action: 'mail.triage_correct',
       targetType: 'email_thread', targetId: thread.id,
       oldValue: { triage: before }, newValue: { triage: 'automated', origin: 'sale_inbox_dismiss' },
@@ -138,7 +146,7 @@ router.post('/:businessId/inbox/purge', ...writeChain, async (req, res, next) =>
 
     const before = thread.triage;
     await thread.update({ triage: 'automated', reply_needed: false });
-    createAuditLog({
+    await writeAudit({
       userId: req.user.id, businessId, action: 'mail.triage_correct',
       targetType: 'email_thread', targetId: thread.id,
       oldValue: { triage: before }, newValue: { triage: 'automated', origin: 'sale_inbox_purge' },
@@ -169,7 +177,7 @@ router.post('/:businessId/inbox/restore', ...writeChain, async (req, res, next) 
 
     const before = thread.triage;
     await thread.update({ triage: 'human' });
-    createAuditLog({
+    await writeAudit({
       userId: req.user.id, businessId, action: 'mail.triage_correct',
       targetType: 'email_thread', targetId: thread.id,
       oldValue: { triage: before }, newValue: { triage: 'human', origin: 'sale_inbox_restore' },
@@ -203,10 +211,19 @@ router.post('/:businessId/inbox/promote', ...writeChain, async (req, res, next) 
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
       // 이미 고객에 붙은 스레드는 상담이 아니라 **그 고객의 이력**이다(목록의 뜻이 그렇다).
       if (thread.client_id) return errorResponse(res, 'already_client', 400);
+      // ★ 올렸는데 **목록에 안 나타나는 상태**로 두지 않는다 (2026-09-17).
+      //   상담 목록은 `status NOT IN ('spam','archived') AND triage='human'` 인 것만 본다
+      //   (services/saleInbox.classifyMailThreads — 같은 술어를 여기서 두 번 적지 않도록 그 조건만 맞춘다).
+      //   스팸은 되살리는 것이 이 버튼의 뜻이 아니므로 **거절해서 알린다** — 조용히 200 을 주면
+      //   사용자에게는 "눌렀는데 아무 일도 안 일어남" 이고, 그것이 이번에 Fable 이 잡은 결함이다.
+      if (thread.status === 'spam') return errorResponse(res, 'thread_is_spam', 400);
       const before = thread.triage;
       // 분류 자체도 사람 판단으로 맞춘다 — Q mail 에서도 같은 판단이 보여야 한다(dismiss 와 대칭).
-      if (before !== 'human') await thread.update({ triage: 'human' });
-      createAuditLog({
+      const patch = {};
+      if (before !== 'human') patch.triage = 'human';
+      if (thread.status === 'archived') patch.status = 'uncertain';   // 보관 해제(중립 상태로)
+      if (Object.keys(patch).length) await thread.update(patch);
+      await writeAudit({
         userId: req.user.id, businessId, action: 'mail.triage_correct',
         targetType: 'email_thread', targetId: thread.id,
         oldValue: { triage: before }, newValue: { triage: 'human', origin: 'sale_inbox_promote' },
@@ -223,7 +240,7 @@ router.post('/:businessId/inbox/promote', ...writeChain, async (req, res, next) 
       //   상담 목록의 뜻이 무너진다 — 화면도 같은 술어로 메뉴를 감춘다(양쪽이 같아야 한다).
       if (conv.channel_type !== 'customer') return errorResponse(res, 'not_customer_chat', 400);
       if (conv.client_id) return errorResponse(res, 'already_client', 400);
-      createAuditLog({
+      await writeAudit({
         userId: req.user.id, businessId, action: 'sale.inbox_promote',
         targetType: 'conversation', targetId: conv.id,
         oldValue: null, newValue: { origin: 'sale_inbox_promote', message_id: messageId },

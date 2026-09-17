@@ -46,7 +46,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} footer={footer} zIndex={zIndex}>
       <div style={{ textAlign: 'center', padding: '32px 0' }}>
-        <p style={{ fontSize: '1rem', color: '#4B5563', lineHeight: '1.6', margin: '0' }}>{message}</p>
+        {/* ★ `white-space: pre-line` — 줄바꿈을 살린다 (2026-09-17, Fable 8차 ⑨).
+            없으면 «포함되는 것 / 포함되지 않는 것 / 되돌릴 수 없음» 세 문단이 **한 덩어리로 붙어**
+            폰에서 읽을 수 없는 벽이 된다(스크린샷 확인). 확인창은 «한 번에 알 수 있어야» 하는 자리다. */}
+        <p style={{ fontSize: '1rem', color: '#4B5563', lineHeight: '1.6', margin: '0', whiteSpace: 'pre-line' }}>{message}</p>
       </div>
     </Modal>
   );

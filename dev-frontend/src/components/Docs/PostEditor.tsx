@@ -10,6 +10,7 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import { TrailingNode } from '@tiptap/extensions';
 import Link from '@tiptap/extension-link';
 import { ResizableImage } from './ResizableImage';
 import { resizableImageCss } from './resizableImageStyles';
@@ -179,6 +180,13 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
         codeBlock: false,
       }),
       PqCodeBlock,
+      // ★ 2026-09-17 (Irene #420: *"문서편집할 때 코드기능에 사이에 더 넣거나 내용을 추가하거나
+      //   다른 코드기능 또 넣고 싶어서 방법이 없어. 커서도 안들어가고 아래에 추가하기도 안되고"*)
+      //   `codeBlock`·`table` 은 **텍스트블록/격리 노드**라 Gapcursor 가 안 뜬다. 그래서 문서의
+      //   **마지막**이 코드블록이면 그 아래에 클릭할 자리가 아예 없어 더 쓸 수가 없었다.
+      //   TrailingNode 가 끝에 빈 문단을 하나 유지한다. (블록 **사이**는 CodeBlockNodeView 의
+      //   삽입 손잡이가 담당한다 — 둘이 한 벌이다.)
+      TrailingNode,
       Placeholder.configure({ placeholder: placeholder || t('editor.placeholder', { defaultValue: '본문을 작성하세요…' }) }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
       ResizableImage.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),

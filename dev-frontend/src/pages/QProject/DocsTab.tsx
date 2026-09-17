@@ -31,7 +31,7 @@ import {
   fetchFolders, createFolder, renameFolder, deleteFolder, reorderFolder, moveFile,
   fetchWorkspaceFolders, createWorkspaceFolder,
   createShareLink, bulkDownloadZip, updateFileVisibility, updateFileSecurityLevel,
-  formatBytes, extOf, isImage,
+  formatBytes, extOf, isImage, getUploadLimits, type UploadLimits,
   type ProjectFile, type FileSource, type FileFolder, parseFileId, canOpenInNewTab } from '../../services/files';
 import { objectUrlFromApi } from '../../utils/download';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
@@ -41,6 +41,7 @@ import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TrashDrawer from './TrashDrawer';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut, PLANQ_FILE_MIME, isMovableInApp } from '../../hooks/useFileDragOut';
+import OverflowMenu from '../../components/Common/OverflowMenu';
 import { isEnterAction } from '../../utils/imeKey';
 import { openDriveEditor } from '../../utils/driveEdit';
 
@@ -477,6 +478,19 @@ const DocsTab: React.FC<Props> = (props) => {
   );
   const [shareLinkInfo, setShareLinkInfo] = useState<{ url: string; expires: string } | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
+  // ★ 업로드 한도는 **플랜마다 다르다** (Free 5MB · Starter 20 · Basic 50 · Pro 100 · Enterprise 200).
+  //   여태 드롭존 문구에 `최대 50MB` 가 **하드코딩**돼 있어 Free 사용자에게 10배 틀린 숫자를
+  //   보여주고 있었다 — Irene #417: *"여전히 용량 큰게 안올라가는 것 같은데 … 기준을 찾아."*
+  //   화면이 기준을 거짓으로 말하면 사용자는 영영 원인을 못 찾는다.
+  //   서버가 내려주는 값을 그대로 쓴다(`getUploadLimits` — 60초 캐시, 숫자를 두 벌 두지 않는다).
+  const [uploadLimits, setUploadLimits] = useState<UploadLimits | null>(null);
+  useEffect(() => {
+    if (!businessId) return;
+    let alive = true;
+    getUploadLimits(businessId).then((v) => { if (alive) setUploadLimits(v); }).catch(() => {});
+    return () => { alive = false; };
+  }, [businessId]);
+
   const [downloading, setDownloading] = useState(false);
   const [zipProgress, setZipProgress] = useState<{ received: number; total: number | null } | null>(null);
   const [opening, setOpening] = useState(false);   // 새 탭 열기 중 (중복 클릭 가드)
@@ -517,6 +531,21 @@ const DocsTab: React.FC<Props> = (props) => {
       setZipProgress(null);
     }
   }, [selectedDownloadable, businessId, t]);
+
+  /**
+   * 폴더 통째 다운로드 (Irene #417: "폴더 전체 다운로드나 파일 전체 선택 다운로드 기능도 있어야 해").
+   * 새 API 를 만들지 않는다 — 그 폴더의 파일 id 를 모아 **기존 bulk-download(zip)** 에 넘긴다.
+   * ★ 받을 수 있는 것만 넘긴다(`download_url` 이 있는 것). 빈 폴더면 애초에 메뉴에 안 뜬다.
+   */
+  const onDownloadFolder = useCallback(async (folderId: number) => {
+    const ids = files.filter(f => f.folder_id === folderId && f.download_url && f.download_url !== '#').map(f => f.id);
+    if (!ids.length) return;
+    setDownloading(true); setZipProgress(null); setShareError(null);
+    try {
+      const r = await bulkDownloadZip(businessId, ids, setZipProgress);
+      if (!r.ok) setShareError(t('docs.bulk.zipFailed', 'ZIP 다운로드 실패: {{msg}}', { msg: r.message || '' }) as string);
+    } finally { setDownloading(false); setZipProgress(null); }
+  }, [files, businessId, t]);
 
   const zipProgressText = !zipProgress
     ? t('docs.bulk.zipDownloading', '준비 중...')
@@ -561,6 +590,37 @@ const DocsTab: React.FC<Props> = (props) => {
     setFiles(prev => prev.map(f => movedSet.has(f.id) ? { ...f, folder_id: targetFolderId } : f));
     setSelectedIds(new Set());
   }, [businessId, files, selectedIds]);
+
+  /**
+   * 파일 한 건을 폴더로 옮긴다 — **드래그 말고도 가는 문**(2026-09-17, Fable 게이트 #57).
+   *
+   * ★ 왜 필요한가: 폴더 이동 수단이 **HTML5 드래그뿐**이었다. 폰·태블릿에서는 그 드래그가
+   *   동작하지 않으므로 **파일을 옮길 방법이 아예 없었다**(Irene #417: "파일 편집에서 폴더를
+   *   이동할 수도 있어야 하고"). 드래그는 가속기이지 유일한 문이면 안 된다.
+   * ★ 허용 조건은 `isMovableInApp`(= 서버 `canMutateFile` 과 같은 값) 하나만 본다.
+   */
+  const moveOne = useCallback(async (f: ProjectFile, targetFolderId: number | null) => {
+    if (await moveFile(businessId, f.id, targetFolderId)) {
+      setFiles(prev => prev.map(x => (x.id === f.id ? { ...x, folder_id: targetFolderId } : x)));
+    }
+  }, [businessId]);
+
+  /** 행/카드 ⋯ 메뉴의 «폴더로 이동» 묶음. 지금 폴더는 체크로 표시한다. */
+  const moveMenuItems = useCallback((f: ProjectFile) => ([
+    {
+      key: 'mv-root',
+      groupLabel: t('docs.moveTo') as string,
+      label: t('docs.folder.directRoot', '폴더 없음') as string,
+      checked: !f.folder_id,
+      onClick: () => { void moveOne(f, null); },
+    },
+    ...folders.map(fd => ({
+      key: `mv-${fd.id}`,
+      label: fd.name,
+      checked: f.folder_id === fd.id,
+      onClick: () => { void moveOne(f, fd.id); },
+    })),
+  ]), [folders, moveOne, t]);
 
   const onMoveTo = useCallback(async (targetFolderId: number | null) => {
     for (const f of selectedDeletable) {
@@ -619,7 +679,15 @@ const DocsTab: React.FC<Props> = (props) => {
             </svg>
           </DzIcon>
           <DzTitle>{t('docs.drop.title', '파일을 여기에 드롭하거나 클릭해 선택')}</DzTitle>
-          <DzHint>{t('docs.drop.hint', '최대 50MB · 여러 파일 동시 업로드')}</DzHint>
+          {/* 이유만 말하면 막다른 길이다 — **더 큰 파일은 어떻게 하면 되는지**를 같이 말한다.
+              Drive 가 연결돼 있으면 큰 파일이 실제로 그 경로로 올라간다(운영 84MB 실측). */}
+          <DzHint>
+            {uploadLimits
+              ? (uploadLimits.external_ready
+                ? t('docs.drop.hintDrive', '파일 하나에 {{limit}}까지 · 그보다 크면 Google Drive 로 저장됩니다', { limit: formatBytes(uploadLimits.self_max_bytes) })
+                : t('docs.drop.hintLimit', '파일 하나에 {{limit}}까지 · 더 큰 파일은 Google Drive 를 연결하면 그대로 올라갑니다', { limit: formatBytes(uploadLimits.self_max_bytes) })) as string
+              : t('docs.drop.hintPlain', '여러 파일을 한 번에 올릴 수 있습니다') as string}
+          </DzHint>
         </Dropzone>
       ) : (
         <CompactBar>
@@ -630,7 +698,22 @@ const DocsTab: React.FC<Props> = (props) => {
             </svg>
             {t('docs.drop.upload', '업로드')}
           </CompactUploadBtn>
-          <CompactHint>{t('docs.drop.compactHint', '여기나 리스트 영역에 파일을 끌어다 놓아도 됩니다')}</CompactHint>
+          {/* ★ 한도는 **여기에도** 있어야 한다 — 드롭존은 워크스페이스가 완전히 빌 때만 나오고,
+              파일이 하나라도 있으면 이 줄로 바뀐다. 즉 사용자가 실제로 보는 것은 거의 항상 이쪽인데
+              여태 한도 얘기가 **아예 없었다**. "기준을 찾아"(#417) 라는 말이 나온 자리다. */}
+          {/* ★ 폰에서는 **한도만** 남긴다 — 드래그 안내는 터치에서 뜻이 없고, 한도는 업로드가
+              실패했을 때 **가장 필요한 정보**다. 옛 코드는 이 줄을 폰에서 통째로 숨겨서
+              (`display:none`) 정작 필요한 사람만 못 보고 있었다(실측 0×0). */}
+          <CompactHint>
+            {uploadLimits && (
+              <LimitPart>{t('docs.drop.limitOnly', '파일 하나에 {{limit}}까지', { limit: formatBytes(uploadLimits.self_max_bytes) }) as string}</LimitPart>
+            )}
+            <DragPart>
+              {uploadLimits
+                ? (t('docs.drop.compactHintTail', ' · 여기나 리스트 영역에 끌어다 놓아도 됩니다') as string)
+                : (t('docs.drop.compactHint', '여기나 리스트 영역에 파일을 끌어다 놓아도 됩니다') as string)}
+            </DragPart>
+          </CompactHint>
         </CompactBar>
       )}
       <UploadQueuePanel uploads={uploads} onCancel={cancelUpload} />
@@ -750,6 +833,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   setFolders(fd);
                 }}
                 onDropFiles={onDropToFolder}
+                onDownloadFolder={onDownloadFolder}
                 tr={tr}
               />
             </>
@@ -793,6 +877,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 await reorderFolder(id, direction);
               }}
               onDropFiles={onDropToFolder}
+              onDownloadFolder={onDownloadFolder}
               tr={tr}
             />
           )}
@@ -834,6 +919,14 @@ const DocsTab: React.FC<Props> = (props) => {
                 </BulkBtn>
               </BulkBarRight>
             </BulkBar>
+          )}
+          {/* ★ 폴더 ⋯ 로 받을 때는 **선택 모드가 아니다** — 진행률이 일괄 선택 바 안에만 있어서
+              큰 폴더를 받으면 수십 초 동안 화면에 아무 표시가 없었다(= 고장으로 읽힌다).
+              선택 모드 **밖**에서도 보이는 자리에 둔다(ErrorBar 와 같은 자리). */}
+          {downloading && !selectMode && (
+            <ErrorBar role="status" data-testid="folder-zip-progress">
+              {t('docs.folder.downloading', '폴더를 압축해 받는 중… {{p}}', { p: zipProgressText }) as string}
+            </ErrorBar>
           )}
           {shareError && <ErrorBar>{shareError}</ErrorBar>}
           {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
@@ -943,7 +1036,21 @@ const DocsTab: React.FC<Props> = (props) => {
                       {f.security_level && f.security_level !== 'general' && <SecurityLevelBadge level={f.security_level} />}
                     </CardMeta>
                     <CardMeta><span>{formatBytes(f.file_size)}</span><span>·</span><span>{f.uploader_name}</span></CardMeta>
-                    <CardMeta><span>{formatDate(f.uploaded_at)}</span></CardMeta>
+                    <CardMeta>
+                      <span>{formatDate(f.uploaded_at)}</span>
+                      {/* ★ 그리드가 **기본 뷰**다 — 폰도 여기로 시작한다. 여기에 [폴더로 이동] 이 없으면
+                          폰에서는 옮길 방법이 여전히 없다(드래그가 안 된다). 리스트 뷰에만 붙였다가
+                          Fable 재검증에서 잡혔다: "리스트 뷰에만 있다 · 폰 기본 뷰에서는 0개". */}
+                      {isMovableInApp(f) && !selectMode && folders.length > 0 && (
+                        <span style={{ marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
+                          <OverflowMenu
+                            label={t('docs.moveTo') as string}
+                            data-testid={`docs-file-menu-${f.id}`}
+                            items={moveMenuItems(f)}
+                          />
+                        </span>
+                      )}
+                    </CardMeta>
                   </Card>
                 );
               })}
@@ -1027,6 +1134,15 @@ const DocsTab: React.FC<Props> = (props) => {
                             </svg>
                           )}
                         </IconBtn>
+                      )}
+                      {isMovableInApp(f) && !selectMode && folders.length > 0 && (
+                        <span onClick={e => e.stopPropagation()}>
+                          <OverflowMenu
+                            label={t('docs.moveTo') as string}
+                            data-testid={`docs-file-menu-${f.id}`}
+                            items={moveMenuItems(f)}
+                          />
+                        </span>
                       )}
                       {f.deletable && !selectMode && (
                         <IconBtn type="button" title={tr('docs.delete', '삭제')}
@@ -1235,6 +1351,15 @@ const DocsTab: React.FC<Props> = (props) => {
                       try {
                         const r = await updateFileSecurityLevel(scope.businessId, fileIdNum, lv);
                         setPreview(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null } : {}) } : prev);
+                        // ★ **Drive 사본이 남았으면 말한다** (2026-09-17, Fable 8차 차단②).
+                        //   등급을 올리면 서버가 사본을 거두는데, 못 거두는 경우가 있다:
+                        //   `is_origin`(Drive 가 원본이라 지우면 파일이 사라진다) · `failed`(토큰 만료 등).
+                        //   조용히 넘어가면 사용자는 «비밀로 바꿨다» 고 믿는데 사본은 Drive 에 그대로다.
+                        if (lv !== 'general' && (r.drive_copy === 'is_origin' || r.drive_copy === 'failed')) {
+                          setShareError(t(
+                            r.drive_copy === 'is_origin' ? 'docs.security.driveOrigin' : 'docs.security.driveFailed',
+                          ) as string);
+                        }
                       } catch (_) { /* skip */ }
                     }}
                   />
@@ -1481,12 +1606,14 @@ interface FolderTreeProps {
   onRename: (id: number, name: string) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   onReorder: (id: number, direction: 'up' | 'down') => Promise<void>;
+  /** 폴더 통째 다운로드 (zip). 파일을 하나씩 고르지 않고 폴더째 받는다 — Irene #417. */
+  onDownloadFolder?: (id: number) => void | Promise<void>;
   /** 파일을 이 폴더로 끌어다 놓았을 때. 없으면 드롭 존 자체를 만들지 않는다. */
   onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>;
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, projectName, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, tr, foldersOnly }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, projectName, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDownloadFolder, tr, foldersOnly }) => {
   const folderDrop = useFolderDrop(onDropFiles);
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
@@ -1539,24 +1666,29 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
               }} />
           ) : (
             <>
-              <FolderName onDoubleClick={e => { e.stopPropagation(); startRename(f); }}>{f.name}</FolderName>
+              <FolderName onDoubleClick={e => { e.stopPropagation(); startRename(f); }} title={f.name}>{f.name}</FolderName>
               {count > 0 && <FolderCount>{count}</FolderCount>}
+              {/* ★ 2026-09-17 (Irene #417: *"Q file에서 폴더이름들 너무 짧게 나와. 1글자 나오고 ... 이 되는데."*)
+                  아이콘 전용 버튼 **5개**가 한 줄에 서 있었다. 이름 칸은 `minmax(0,1fr)` 이라
+                  버튼이 자리를 먹는 만큼 **0 까지 줄어든다** — 폴더를 고르는 순간 이름이 한 글자가 됐다.
+                  CLAUDE.md 가 이미 금지한 모양이다("상세 헤더에 아이콘 전용 버튼 4개 이상 나열 금지 → OverflowMenu").
+                  메뉴로 접으면 자리를 돌려주고 **글자 라벨이 붙어** 무슨 버튼인지도 알게 된다
+                  ("폴더 안에 또 폴더" 가 안 보였던 것도 이 때문이다 — 하위 폴더 버튼은 내내 있었다). */}
               <FolderActions $visible={sel} onClick={e => e.stopPropagation()}>
-                <FolderMiniBtn type="button" title={tr('docs.folder.moveUp', '위로')} aria-label={tr('docs.folder.moveUp', '위로')}
-                  disabled={isFirst} onClick={() => !isFirst && onReorder(f.id, 'up')}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-                </FolderMiniBtn>
-                <FolderMiniBtn type="button" title={tr('docs.folder.moveDown', '아래로')} aria-label={tr('docs.folder.moveDown', '아래로')}
-                  disabled={isLast} onClick={() => !isLast && onReorder(f.id, 'down')}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                </FolderMiniBtn>
-                <FolderMiniBtn type="button" title={tr('docs.folder.newChild', '하위 폴더')} onClick={() => startCreate(f.id)} aria-label={tr('docs.folder.newChild', '하위 폴더')}><PlusSvg /></FolderMiniBtn>
-                <FolderMiniBtn type="button" title={tr('docs.folder.rename', '이름 변경')} onClick={() => startRename(f)} aria-label={tr('docs.folder.rename', '이름 변경')}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                </FolderMiniBtn>
-                <FolderMiniBtn type="button" $danger title={tr('docs.folder.delete', '삭제')} onClick={() => setDeleteTarget(f)} aria-label={tr('docs.folder.delete', '삭제')}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-                </FolderMiniBtn>
+                <OverflowMenu
+                  label={tr('docs.folder.more')}
+                  data-testid={`docs-folder-menu-${f.id}`}
+                  items={[
+                    { key: 'child', label: tr('docs.folder.newChild', '하위 폴더'), onClick: () => startCreate(f.id), testId: 'docs-folder-newchild' },
+                    { key: 'rename', label: tr('docs.folder.rename', '이름 변경'), onClick: () => startRename(f), testId: 'docs-folder-rename' },
+                    ...(onDownloadFolder && count > 0
+                      ? [{ key: 'dl', label: tr('docs.folder.downloadAll'), onClick: () => { void onDownloadFolder(f.id); }, testId: 'docs-folder-download' }]
+                      : []),
+                    { key: 'up', label: tr('docs.folder.moveUp', '위로'), onClick: () => onReorder(f.id, 'up'), disabled: isFirst, dividerBefore: true },
+                    { key: 'down', label: tr('docs.folder.moveDown', '아래로'), onClick: () => onReorder(f.id, 'down'), disabled: isLast },
+                    { key: 'del', label: tr('docs.folder.delete', '삭제'), onClick: () => setDeleteTarget(f), danger: true, dividerBefore: true, testId: 'docs-folder-delete' },
+                  ]}
+                />
               </FolderActions>
             </>
           )}
@@ -1878,6 +2010,11 @@ const CompactUploadBtn = styled.button`
 const CompactHint = styled.div`
   font-size:0.6875rem;color:#94A3B8;flex:1;min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+`;
+/** 한도 — **폰에서도 보인다.** 업로드가 막혔을 때 사용자가 찾는 단 하나의 숫자다. */
+const LimitPart = styled.span``;
+/** 드래그 안내 — 터치에는 뜻이 없어 폰에서만 숨긴다(한도는 남는다). */
+const DragPart = styled.span`
   @media (max-width: 640px) { display:none; }
 `;
 
@@ -1992,14 +2129,6 @@ const FolderNewBtn = styled.button`
   &:hover{background:#F0FDFA;border-color:#99F6E4;}
   /* 터치 타겟 — 토큰(36/40/44) 안에서. */
   @media (hover: none), (max-width: 640px){ min-height:36px; padding:0 10px; }
-`;
-const FolderMiniBtn = styled.button<{ $danger?: boolean }>`
-  width:22px;height:22px;display:flex;align-items:center;justify-content:center;
-  background:transparent;border:none;border-radius:4px;cursor:pointer;color:#64748B;
-  line-height:1;
-  &:hover:not(:disabled){background:${p => p.$danger ? '#FEE2E2' : '#E2E8F0'};color:${p => p.$danger ? '#DC2626' : '#0F172A'};}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}
-  &:disabled{opacity:0.3;cursor:not-allowed;}
 `;
 const RenameInput = styled.input`
   flex:1;min-width:0;height:24px;padding:0 6px;

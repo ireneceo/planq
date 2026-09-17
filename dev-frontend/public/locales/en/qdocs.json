@@ -570,7 +570,9 @@
     "origin": "Origin",
     "alignLeft": "Align left",
     "alignCenter": "Align center",
-    "alignRight": "Align right"
+    "alignRight": "Align right",
+    "codeInsertAbove": "Add a paragraph above the code block",
+    "codeInsertBelow": "Add a paragraph below the code block"
   },
   "tab": {
     "title": "Docs",

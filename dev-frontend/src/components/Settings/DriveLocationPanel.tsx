@@ -15,10 +15,12 @@
 //   "내가 PlanQ 폴더 만들면 그 안에 PlanQ 폴더를 너가 또 만들어 넣을까봐 걱정인건데."
 //   → 맞는 걱정이다. ①무엇이 생기는지 누르기 전에 보여주고 ②이미 우리가 만든 폴더가 있으면
 //     재사용하며(서버가 appProperties 표식으로 찾는다) ③두 겹이 되는 경우를 미리 경고한다.
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { listBusinessMembers } from '../../services/qtalk';
+import ConfirmDialog from '../Common/ConfirmDialog';
 
 export interface DriveFolderInfo {
   name?: string;
@@ -141,7 +143,183 @@ const DriveLocationPanel: React.FC<Props> = ({ businessId, folder, onChanged }) 
           )}
         </Box>
       )}
+
+      {/* 파인더 공유 — 위치 바꾸기와 다른 일이라 줄을 나눈다 */}
+      <FinderShare businessId={businessId} />
     </Wrap>
+  );
+};
+
+
+/**
+ * 파인더 공유 — PlanQ 폴더를 팀원의 구글 계정에 열어 준다 (Irene #419, 2026-09-17).
+ *
+ * *"구글드라이브 연동된 거 실제 해당 구글드라이브로 로그인한 사람만 파인더에서 볼 수 있잖아.
+ *   … 공유를 요청하고 해주고 하는게 플랜큐에서 가능할까?"* → 된다.
+ *
+ * ★ `drive.file` 권한으로도 **우리가 만든 폴더**의 권한은 줄 수 있다. 구글 심사가 필요한 것은
+ *   반대 방향(드라이브에서 새로 만든 것을 들여오기)뿐이다.
+ * ★★ 여는 것은 **루트가 아니라 `Workspace Files` 폴더 하나**다 (2026-09-17 Fable FAIL 수정).
+ *   루트에는 Q Note(사적 공간)·고객 대화방 첨부·프로젝트 파일이 함께 있어, 루트를 열면
+ *   PlanQ 안의 게이트 네 개를 Drive 로 우회한다. 서버가 대상 폴더를 정한다 — 화면은 못 고른다.
+ * ★ 기본은 **보기(reader)**. 쓰기는 별개의 허락이라 체크로 명시할 때만.
+ * ★ 고객은 대상이 아니다 — 폴더를 열면 그 **안의 모든 것**이 열려 범위를 고를 수 없다.
+ *   고객에게는 파일 단위 공개 링크가 맞는 문이고, 그건 이미 있다.
+ * ★ Cue(AI 멤버)는 구글 계정이 없다 — 목록에 두면 눌러도 `no_google_account` 만 뜬다.
+ * ★ 구글 계정이 없는 주소에는 줄 수 없다. 그 사유를 **사람 말로** 적는다 —
+ *   "안 됨" 으로만 보이면 무엇을 해야 할지 모른다.
+ */
+const FinderShare: React.FC<{ businessId: number }> = ({ businessId }) => {
+  const { t } = useTranslation('settings');
+  const tr = (k: string, fb?: string) => t(k, (fb ?? '') as string) as unknown as string;
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<Array<{ user_id: number; name: string; email: string; shared: boolean }>>([]);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [allowEdit, setAllowEdit] = useState(false);          // 기본 보기 · 쓰기는 명시할 때만
+  const [confirmFor, setConfirmFor] = useState<{ user_id: number; name: string; email: string } | null>(null);
+  const [note, setNote] = useState<{ text: string; err: boolean } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [folderLink, setFolderLink] = useState<string | null>(null);   // 되돌리는 문(아래)
+  // 실제 Drive 경로 — 화면이 이름을 손으로 적으면 파인더에서 못 찾는다(루트는 `PlanQ - <워크스페이스>`).
+  const [folderPath, setFolderPath] = useState<string>('PlanQ / Workspace Files');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [members, permRes] = await Promise.all([
+        listBusinessMembers(businessId),
+        apiFetch(`/api/cloud/gdrive/${businessId}/share-root`).then((r) => r.json()).catch(() => null),
+      ]);
+      if (permRes && permRes.success && permRes.data?.web_view_link) setFolderLink(permRes.data.web_view_link);
+      const connectedBy = (permRes && permRes.success && permRes.data?.connected_by) || null;
+      if (permRes && permRes.success && permRes.data?.folder_path) setFolderPath(permRes.data.folder_path);
+      const granted = new Set<string>(
+        ((permRes && permRes.success && permRes.data?.permissions) || [])
+          .map((p: { email?: string | null }) => String(p.email || '').toLowerCase())
+          .filter(Boolean),
+      );
+      setRows((members || [])
+        // Cue(AI 멤버)는 구글 계정이 없다 — 목록에 두면 눌러도 실패만 한다
+        // Cue(AI)는 구글 계정이 없다. 그리고 **Drive 를 연결한 본인**은 이미 그 폴더의 주인이라
+        // 열어 줄 것이 없다 — 목록에 두면 눌러서 **다른 구글 계정에 권한이 부여된다**
+        // (Drive owner 이메일 ≠ PlanQ 계정 이메일일 수 있어 권한 목록 대조로는 안 걸린다).
+        // 부여는 되돌릴 수 없으므로 **이메일이 아니라 연결자 id** 로 가른다.
+        .filter((m) => m.role !== 'ai' && !!m.user?.email
+          && !(connectedBy != null && Number(m.user.id) === Number(connectedBy)))
+        .map((m) => ({
+          user_id: m.user.id, name: m.name || m.user.name, email: m.user.email,
+          shared: granted.has(String(m.user.email || '').toLowerCase()),
+        })));
+    } catch { /* 목록이 없으면 빈 상태로 둔다 */ }
+    finally { setLoading(false); }
+  }, [businessId]);
+
+  useEffect(() => { if (open) void load(); }, [open, load]);
+
+  /** 준 권한을 거둔다 — 화면에 문이 없으면 «되돌릴 수 없다» 가 사실이 된다(2026-09-17). */
+  const unshare = async (row: { user_id: number; email: string }) => {
+    setBusyId(row.user_id); setNote(null);
+    try {
+      const r = await apiFetch(`/api/cloud/gdrive/${businessId}/share-root`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: row.email }),
+      });
+      const j = await r.json();
+      setNote(j.success
+        ? { text: tr('storage.finderShare.unshared', '접근을 끊었습니다. 이미 자기 드라이브로 복사한 파일은 회수되지 않습니다.'), err: false }
+        : { text: tr('storage.finderShare.failed', '공유하지 못했습니다.'), err: true });
+      await load();
+    } catch {
+      setNote({ text: tr('storage.finderShare.failed', '공유하지 못했습니다.'), err: true });
+    } finally { setBusyId(null); }
+  };
+
+  const share = async (userId: number) => {
+    setBusyId(userId); setNote(null);
+    try {
+      const r = await apiFetch(`/api/cloud/gdrive/${businessId}/share-root`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_ids: [userId], role: allowEdit ? 'writer' : 'reader' }),
+      });
+      const j = await r.json();
+      if (!j.success) { setNote({ text: tr('storage.finderShare.failed', '공유하지 못했습니다.'), err: true }); return; }
+      const one = (j.data?.results || [])[0] || {};
+      if (one.granted) setNote({ text: tr('storage.finderShare.done', '파인더에 폴더가 보이게 했습니다.'), err: false });
+      else if (one.reason === 'already') setNote({ text: tr('storage.finderShare.already', '이미 볼 수 있습니다.'), err: false });
+      else if (one.reason === 'no_google_account') setNote({ text: tr('storage.finderShare.noGoogle', '이 주소로는 구글 계정을 찾을 수 없습니다. 구글 계정으로 쓰는 주소여야 파인더에서 열립니다.'), err: true });
+      else setNote({ text: tr('storage.finderShare.failed', '공유하지 못했습니다.'), err: true });
+      await load();
+    } catch {
+      setNote({ text: tr('storage.finderShare.failed', '공유하지 못했습니다.'), err: true });
+    } finally { setBusyId(null); }
+  };
+
+  return (
+    <Box>
+      <Btns>
+        <SmallBtn type="button" data-testid="gdrive-finder-share-open" onClick={() => { setOpen((v) => !v); setNote(null); }}>
+          {tr('storage.finderShare.open', '파인더 공유')}
+        </SmallBtn>
+      </Btns>
+      {open && (
+        <>
+          <Help>{tr('storage.finderShare.help', '팀원의 구글 계정에 이 폴더를 열어 주면, 그 사람 파인더(구글 드라이브)에도 같은 폴더가 보입니다. 알림 메일은 보내지 않습니다.')}</Help>
+          {loading && <Help>{tr('storage.finderShare.loading', '불러오는 중…')}</Help>}
+          {!loading && rows.length === 0 && <Help>{tr('storage.finderShare.empty', '공유할 팀원이 없습니다.')}</Help>}
+          {rows.map((r) => (
+            <Row key={r.user_id}>
+              <Text>{r.name} · {r.email}</Text>
+              {r.shared
+                ? (
+                  <SmallBtn type="button" data-testid={`gdrive-finder-unshare-${r.user_id}`}
+                    disabled={busyId === r.user_id} onClick={() => { void unshare(r); }}>
+                    {busyId === r.user_id ? tr('storage.finderShare.unsharing', '해제 중…') : tr('storage.finderShare.unshare', '해제')}
+                  </SmallBtn>
+                )
+                : (
+                  <SmallBtn type="button" data-testid={`gdrive-finder-share-${r.user_id}`}
+                    disabled={busyId === r.user_id} onClick={() => setConfirmFor(r)}>
+                    {busyId === r.user_id ? tr('storage.finderShare.sharing', '여는 중…') : tr('storage.finderShare.share', '열어 주기')}
+                  </SmallBtn>
+                )}
+            </Row>
+          ))}
+          <Row>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: '#475569' }}>
+              <input type="checkbox" checked={allowEdit} onChange={(e) => setAllowEdit(e.target.checked)}
+                data-testid="gdrive-finder-share-allow-edit" />
+              {tr('storage.finderShare.allowEdit', '고치는 것도 허용 (기본은 보기만)')}
+            </label>
+          </Row>
+          {/* ★ 되돌리는 법을 **말로만** 하면 막다른 길이다 — "구글 드라이브에서 직접 해제하세요" 라고
+              하면서 어디인지 안 알려줬다. 폴더 링크는 이미 손에 있으니 문을 만든다. */}
+          {folderLink && (
+            <Row>
+              <SmallBtn as="a" href={folderLink} target="_blank" rel="noreferrer" data-testid="gdrive-finder-manage">
+                {tr('storage.finderShare.manage', '드라이브에서 권한 관리 ↗')}
+              </SmallBtn>
+            </Row>
+          )}
+          {note && <Msg $err={note.err} role="status">{note.text}</Msg>}
+        </>
+      )}
+      {/* 권한 부여는 **되돌릴 수 없다** — 누구에게 무엇을 여는지 적어서 묻는다(발송 확인과 같은 성격). */}
+      <ConfirmDialog
+        isOpen={!!confirmFor}
+        onClose={() => setConfirmFor(null)}
+        onConfirm={() => { const c = confirmFor; setConfirmFor(null); if (c) void share(c.user_id); }}
+        title={tr('storage.finderShare.confirmTitle', '파인더에 폴더를 열까요?')}
+        message={t('storage.finderShare.confirmBody', {
+          folder: folderPath,
+          defaultValue: '{{name}} ({{email}}) 의 구글 계정에 «PlanQ / Workspace Files» 폴더를 {{mode}} 권한으로 엽니다. 한 번 준 권한은 PlanQ 에서 되돌릴 수 없고, 구글 드라이브에서 직접 해제해야 합니다. Q note·고객 대화 첨부·프로젝트 파일은 포함되지 않습니다.',
+          name: confirmFor?.name || '', email: confirmFor?.email || '',
+          mode: allowEdit ? tr('storage.finderShare.modeEdit', '편집') : tr('storage.finderShare.modeView', '보기'),
+        }) as string}
+        confirmText={tr('storage.finderShare.confirmOk', '열기')}
+        cancelText={tr('storage.finderShare.confirmCancel', '취소')}
+        variant="warning"
+      />
+    </Box>
   );
 };
 

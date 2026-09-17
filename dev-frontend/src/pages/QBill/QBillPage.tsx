@@ -144,6 +144,9 @@ const TabBtn = styled.button<{ $active: boolean }>`
 
 const Body = styled.div`
   padding: 20px;
+  /* bodyPadding="0" 으로 PageShell Body 의 여백을 껐으므로 FAB 자리는 여기서 비운다 —
+     숫자를 다시 적지 않고 PageShell 이 세운 토큰을 쓴다(2026-09-17, #416 과 같은 계열). */
+  padding-bottom: var(--pq-fab-clearance, 88px);
 `;
 
 // 탭 옆 할 일 숫자

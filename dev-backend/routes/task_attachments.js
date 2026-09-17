@@ -6,7 +6,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
-const { Task, TaskAttachment, TaskComment, User, BusinessMember, BusinessCloudToken, Project, File } = require('../models');
+const { Task, TaskAttachment, TaskComment, User, BusinessMember, BusinessCloudToken, Project, File, MessageAttachment } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { getUserScope, canAccessTask, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
@@ -478,13 +478,13 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
       //     double-decrement. 반대로 업로드가 증가만 하고 삭제가 반환 안 하면 단조증가 → 업로드 잠금(BLOCKER).
       const { Op } = require('sequelize');
       const { releasePlanqUpload } = require('../services/storageUsage');
-      const [fileRefs, attRefs] = await Promise.all([
-        File.count({ where: { file_path: att.file_path, deleted_at: null } }),
-        TaskAttachment.count({ where: { file_path: att.file_path, id: { [Op.ne]: att.id } } }),
-      ]);
-      const soleOwner = (fileRefs === 0 && attRefs === 0);
+      const fp = { file_path: att.file_path };   // 채팅 첨부도 같은 바이트를 가리킨다(filePurge 와 같은 집합)
+      const soleOwner = await File.count({ where: { ...fp, deleted_at: null } }) === 0
+        && await TaskAttachment.count({ where: { ...fp, id: { [Op.ne]: att.id } } }) === 0
+        && await MessageAttachment.count({ where: fp }) === 0;
       if (soleOwner) {
-        const abs = path.join(__dirname, '..', att.file_path);
+        // ★ 절대경로일 수 있다(link 가 File 경로를 복사) — join 하면 이어 붙어 안 지워진다.
+        const abs = path.isAbsolute(att.file_path) ? att.file_path : path.join(__dirname, '..', att.file_path);
         try { if (fs.existsSync(abs)) fs.unlinkSync(abs); } catch (_) { /* ignore */ }
         await releasePlanqUpload(att.business_id, att.file_size).catch((e) => {
           console.warn('[task-attach] usage release failed', e.message);

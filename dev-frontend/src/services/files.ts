@@ -116,7 +116,12 @@ export async function updateFileSecurityLevel(
   businessId: number,
   fileId: number,
   level: FileSecurityLevel,
-): Promise<{ id: number; security_level: FileSecurityLevel; revoked_share: boolean }> {
+): Promise<{ id: number; security_level: FileSecurityLevel; revoked_share: boolean;
+  /** Drive 사본을 실제로 거뒀는가 — 'removed' | 'shared' | 'is_origin' | 'failed' | 'none'.
+   *  ★ 화면이 **반드시 읽어야 한다.** 대외비로 바꿨는데 사본이 남아 있으면(토큰 만료·Drive 원본)
+   *    사용자는 «비밀로 바꿨다» 고 믿는데 실제로는 남아 있다. 백엔드만 고치고 화면을 안 붙이면
+   *    고친 것이 아니다(memory feedback_backend_done_ui_missing). */
+  drive_copy?: 'removed' | 'shared' | 'is_origin' | 'failed' | 'none' }> {
   const r = await apiFetch(`/api/files/${businessId}/${fileId}/security-level`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }),
   });

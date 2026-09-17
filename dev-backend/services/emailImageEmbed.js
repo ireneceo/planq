@@ -110,7 +110,8 @@ async function embedOwnImages(html, { businessId, userId } = {}) {
     if (file.security_level && file.security_level !== 'general') {
       throw new MailImageError('mail_image_security_level', file.file_name);
     }
-    if (!isRenderableImage(file.mime_type)) {
+    // ★ 파일명까지 — 목록이 preview_url 을 주는 것과 **같은 술어**여야 한다(2026-09-17).
+    if (!isRenderableImage(file.mime_type, file.file_name)) {
       throw new MailImageError('mail_image_not_image', file.file_name);
     }
     if (userId != null && !(await canAccessFileByLevel(userId, file))) {

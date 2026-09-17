@@ -268,7 +268,11 @@ router.get('/public-image/:storedName', async (req, res, next) => {
       : await File.findOne({ where: { external_id: stored, deleted_at: null, storage_provider: 'gdrive' } });
     if (!file) return errorResponse(res, 'not_found', 404);
     // image/* 만 — HTML/JS 를 inline 으로 흘리면 XSS 가 된다 (기존 계약 유지)
-    if (!require('../services/filePreview').isRenderableImage(file.mime_type)) {
+    // ★ 2026-09-17 — **파일명까지 넘긴다.** 목록은 `previewUrlForFile`(파일명을 본다)이 preview_url 을
+    //   주는데 여기서는 mime 만 봐서, `application/octet-stream` 으로 저장된 PNG 가 **403** 으로 막혔다.
+    //   화면에는 썸네일 자리가 있고 그 자리가 깨진다 — 사용자에게는 "png인데 미리보기가 안 된다"(#418).
+    //   두 술어가 갈라져 있던 것이고, 정본은 `isRenderableImage(mime, name)` 하나다.
+    if (!require('../services/filePreview').isRenderableImage(file.mime_type, file.file_name)) {
       return errorResponse(res, 'not_public_image', 403);
     }
     // ★ 2026-09-01 — 대외비·내부용은 **무인증 경로로 절대 내보내지 않는다.**
@@ -1076,19 +1080,51 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
     const prevProjectId = file.project_id;
     const prevTargetIds = file.target_member_ids;
     // N+74 — vlevel + visibility 둘 다 갱신 (legacy 정합) + target_member_ids
-    await file.update({
+    // ★ 2026-09-17 (Fable 게이트 #57 2차) — **개인(L1)으로 내리면 Drive 사본을 거둔다.**
+    //   미러는 **올릴 때만** 자격을 본다(`gdriveMirror.isEligible`). 그래서 L3 로 올린 파일을
+    //   나중에 L1 로 내려도 사본은 `Workspace Files` 에 그대로 남아 있었다 —
+    //   그 폴더가 [파인더 공유]가 여는 폴더라 **남의 개인 파일이 같이 열린다.**
+    //   회수는 security-level·purge 와 **같은 함수**다.
+    const visPatch = {
       vlevel: level,
       visibility: level,
       project_id: nextProjectId,
       target_member_ids: nextTargetMemberIds,
-    });
+    };
+    //   ★ **`isEligible` 과 같은 술어로 판정한다** (2026-09-17, Fable 4차 FAIL).
+    //     여태 `level === 'L1'` 만 봐서, 새로 넣은 «L2 + 특정 멤버 지정» 제외가 런타임에서 안 돌았다
+    //     (실측: L3→L2+targets 전환 뒤 미러가 그대로 남았다). 판정이 스크립트·isEligible·런타임
+    //     **세 벌**이 된 자리다. 바뀐 값을 얹은 가상 행으로 자격을 다시 물어 **한 술어**로 만든다.
+    const mirrorSvc = require('../services/gdriveMirror');
+    const gtoken = await require('../services/gdrive').getTokenForBusiness(file.business_id);
+    // 바뀌기 **전** 자격 — 이것이 false 였다가 true 가 되면 «되찾았다» 이다.
+    const driveWasEligibleBefore = gtoken
+      ? mirrorSvc.isEligible({ ...file.get({ plain: true }), gdrive_mirror_id: null }, gtoken)
+      : true;
+    const stillEligible = gtoken
+      ? mirrorSvc.isEligible({ ...file.get({ plain: true }), ...visPatch, gdrive_mirror_id: null }, gtoken)
+      : true;
+    const driveCopy = (file.gdrive_mirror_id && !stillEligible)
+      ? await require('../services/driveMirrorRecall').recallDriveMirror(file, visPatch, { clearOnShared: true })
+      : 'none';
+    // ★ **자격을 되찾으면 다시 올린다** (2026-09-17, Fable 8차 ⑥).
+    //   L1 로 내렸다가 L3 로 되돌리면 사본이 영영 안 생겼다 — 회수만 있고 반대 방향이 없었다.
+    //   «되돌리면 되돌아온다» 가 아니면 사용자는 한 번 내린 파일을 Drive 에서 영영 잃는다.
+    //   미러는 부수효과이므로 응답을 막지 않는다(`setImmediate`). 실패는 미러 로그에 남는다.
+    const regained = !file.gdrive_mirror_id && stillEligible && !driveWasEligibleBefore;
+    await file.update(visPatch);
+    // ★ 재미러는 **저장한 뒤**에 건다 (2026-09-17, Fable 9차 C3 — 내 «고쳤다» 가 거짓이었다).
+    //   `setImmediate` 를 `update` **앞**에 걸었더니 `mirrorOnUpload` 가 **갱신 전 행**(아직 L1)을
+    //   읽어 `isEligible=false` 로 조용히 끝났다. 실측 L1→L3 **4/4 미러 없음**.
+    //   같은 함수를 복구 경로(커밋 뒤 호출)에서는 성공했다 — 순서만 달랐다.
+    if (regained) setImmediate(() => { mirrorSvc.mirrorOnUpload(file.id, file.business_id).catch(() => {}); });
     broadcastFile(req, file, 'file:updated');
     require('../services/auditService').logAudit(req, {
       action: 'file.visibility_change',
       targetType: 'file',
       targetId: file.id,
       oldValue: { vlevel: prevVlevel, visibility: prevVisibility, project_id: prevProjectId, target_member_ids: prevTargetIds },
-      newValue: { vlevel: level, visibility: level, project_id: nextProjectId, target_member_ids: nextTargetMemberIds },
+      newValue: { vlevel: level, visibility: level, project_id: nextProjectId, target_member_ids: nextTargetMemberIds, drive_copy: driveCopy },
     });
 
     // ★ 2026-09-07 — 프로젝트를 바꾸면 Drive 자리도 따라가야 한다.
@@ -1117,7 +1153,10 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
       });
     }
 
-    successResponse(res, { id: file.id, vlevel: level, visibility: level, project_id: nextProjectId, target_member_ids: nextTargetMemberIds });
+    // ★ `drive_copy` 를 **응답에도** 싣는다 (2026-09-17, Fable 9차 N4).
+    //   원장에만 있으면 화면이 말할 수 없다 — 개인으로 내렸는데 Drive 사본이 남았을 때
+    //   사용자는 «비공개로 바꿨다» 고 믿는다. security-level 만 붙였던 것을 여기도 맞춘다.
+    successResponse(res, { id: file.id, vlevel: level, visibility: level, project_id: nextProjectId, target_member_ids: nextTargetMemberIds, drive_copy: driveCopy });
   } catch (err) { next(err); }
 });
 
@@ -1139,13 +1178,33 @@ router.put('/:businessId/:id/security-level', authenticateToken, attachWorkspace
     // 일반 외로 상향 시 기존 외부 공유 링크 즉시 무효화
     let revokedShare = false;
     if (level !== 'general' && file.share_token) { patch.share_token = null; patch.share_expires_at = null; revokedShare = true; }
+
+    // ★ 2026-09-17 (Fable 게이트 #57) — **Drive 사본도 거둔다.**
+    //   미러(`gdriveMirror.isEligible`)는 올리는 **그 시점에만** 보안등급을 본다. 그래서 일반으로
+    //   올렸다가 **나중에 대외비로 바꾸면** 링크는 끊기는데 Drive 사본은 그대로 남아 있었다 —
+    //   그 폴더를 팀원에게 열어 주면(파인더 공유) 대외비가 그대로 보인다.
+    //   ★ 로컬 바이트가 정본인 **미러 사본만** 지운다. `storage_provider==='gdrive'`(Drive 가 원본)는
+    //     지우면 파일 자체가 사라지므로 손대지 않고, 대신 그 사실을 응답에 실어 화면이 말하게 한다.
+    //   회수는 `services/driveMirrorRecall` **한 곳**이다 — visibility(L1)·purge 도 같은 함수를 부른다.
+    //   라우트마다 손으로 적으면 반드시 한 곳이 빠진다(실제로 여기만 있었고 나머지 둘이 비어 있었다).
+    const driveCopy = level !== 'general'
+      ? await require('../services/driveMirrorRecall').recallDriveMirror(file, patch, { clearOnShared: true })
+      : 'none';
+
     await file.update(patch);
     broadcastFile(req, file, 'file:updated');
     require('../services/auditService').logAudit(req, {
       action: 'file.security_level_change', targetType: 'file', targetId: file.id, businessId: file.business_id,
-      oldValue: { security_level: prev }, newValue: { security_level: level, revoked_share: revokedShare },
+      oldValue: { security_level: prev }, newValue: { security_level: level, revoked_share: revokedShare, drive_copy: driveCopy },
     });
-    return successResponse(res, { id: file.id, security_level: level, revoked_share: revokedShare });
+    // ★ **되돌리면 되돌아온다** — visibility 와 같은 계약 (2026-09-17, Fable 9차 N3).
+    //   대외비 → 일반 로 내려도 사본이 안 생겨, «되돌렸는데 Drive 에는 영영 없음» 이었다.
+    if (level === 'general' && !file.gdrive_mirror_id) {
+      setImmediate(() => {
+        require('../services/gdriveMirror').mirrorOnUpload(file.id, file.business_id).catch(() => {});
+      });
+    }
+    return successResponse(res, { id: file.id, security_level: level, revoked_share: revokedShare, drive_copy: driveCopy });
   } catch (err) { next(err); }
 });
 
@@ -1254,8 +1313,10 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
 
     const t = await sequelize.transaction();
     try {
-      await trashFile(file, req, t);
+      const mq = [];   // ★ 요청 스코프 — 전역이면 롤백 잔여가 다음 요청에서 터진다(Fable 9차 N1)
+      await trashFile(file, req, t, mq);
       await t.commit();
+      await flushMirrorRecalls(mq);   // ★ 커밋 **뒤에** Drive 사본을 거둔다(되돌릴 수 없는 호출)
       // 사이클 N+21 — 파일 삭제 audit
       require('../services/auditService').logAudit(req, {
         action: 'file.delete',
@@ -1300,8 +1361,10 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
         project_id: f.project_id,
         visibility: f.visibility,
       }));
-      for (const f of files) await trashFile(f, req, t);
+      const mq = [];   // ★ 요청 스코프 (Fable 9차 N1)
+      for (const f of files) await trashFile(f, req, t, mq);
       await t.commit();
+      await flushMirrorRecalls(mq);   // ★ 커밋 **뒤에** Drive 사본을 거둔다(되돌릴 수 없는 호출)
       for (const f of files) broadcastFile(req, { id: f.id, business_id: f.business_id, project_id: f.project_id }, 'file:deleted');
       // 사이클 N+59 — bulk delete audit. 다량 데이터 삭제 = 보안 감사 critical
       require('../services/auditService').logAudit(req, {
@@ -1336,7 +1399,7 @@ router.post('/:businessId/bulk-delete', authenticateToken, checkBusinessAccess, 
 //     `plans.js trash_retention_days` 는 **아무도 읽지 않았다**. 정의는
 //     services/retentionPolicy.js 한 곳에만 있다.
 
-async function trashFile(file, req, transaction) {
+async function trashFile(file, req, transaction, mirrorQueue) {
   const deletedAt = new Date();
   file.deleted_at = deletedAt;
   file.deleted_by = req?.user?.id ?? null;
@@ -1348,16 +1411,101 @@ async function trashFile(file, req, transaction) {
   } catch { file.purge_after = null; }
   await file.save({ transaction });
 
+  // ★ Drive 사본도 **지금** 거둔다 (2026-09-17, Fable 3차 FAIL).
+  //   여태는 purge(보존기간 최대 30일) 때까지 사본이 `Workspace Files` 에 남아 있었다 —
+  //   그 폴더가 [파인더 공유]가 여는 곳이라 **지운 파일이 30일간 남의 파인더에 보인다.**
+  //   색인 회수와 같은 생각이다: "목록에서 지웠는데 다른 표면에 남아 있으면 지운 것이 아니다."
+  //   복구하면 색인처럼 **다시 미러한다**(routes/file_trash.js) — 두 경로가 한 벌이다.
+  //   ★ 산 형제가 같은 사본을 쓰면 `recallDriveMirror` 가 'shared' 로 두고 지우지 않는다.
+  // ★ Drive 호출은 **트랜잭션 밖의 부수효과**다 (2026-09-17, Fable 8차 ⑦).
+  //   트랜잭션 안에서 사본을 지우면, 그 뒤 커밋이 실패했을 때 **사본은 이미 없는데 포인터는 살아남는다**
+  //   — 죽은 포인터라 재미러도 영영 안 된다. 되돌릴 수 없는 외부 호출을 되돌릴 수 있는 DB 작업과
+  //   같은 경계에 두면 안 된다. 커밋이 끝난 뒤 호출하도록 **호출측에 미룬다**.
+  //   (`trashFile` 은 여러 곳에서 트랜잭션과 함께 불린다 — 여기서 큐에 담고 호출측이 비운다.)
+  if (file.gdrive_mirror_id && file.storage_provider === 'planq' && Array.isArray(mirrorQueue)) {
+    mirrorQueue.push(file);
+  }
+
   // 색인 회수 — 목록에서 지운 파일이 **Cue 답변에는 남아 있으면** 지운 것이 아니다
   //   (memory: feedback_delete_needs_all_surfaces). 복구하면 다시 색인된다.
   setImmediate(() => { require('../services/fileIndex').removeFileIndex(file.id, file.business_id).catch(() => {}); });
 
   // 쿼터 반환 (자체 스토리지만 쿼터 사용) — 바이트는 남지만 사용자 한도에서는 즉시 빠진다.
+  //
+  // ★ 2026-09-17 (Fable 게이트 #57) — **더할 때와 뺄 때가 비대칭이었다.**
+  //   업로드에서 SHA-256 dedup 이 걸리면(같은 바이트가 이미 있으면) 물리 파일을 새로 두지 않으므로
+  //   `bytes_used` 를 **0** 더한다(위 업로드 라우트의 `else` 분기). 그런데 여기서는 행마다
+  //   `file_size` 를 **무조건** 뺐다 → **지울 때마다 카운터가 실제보다 작아진다.**
+  //   운영 실측(biz1): 실제 950개·250MB vs 카운터 585개·209MB — **365개·41MB 누락.**
+  //   과소 계수는 곧 **한도를 넘겨도 안 막힌다**는 뜻이다(쿼터 판정의 입력값이다).
+  //   #372 가 같은 증상으로 닫혔는데 그때는 **1회 재계산만** 해서 다시 벌어졌다 —
+  //   재계산은 증상이고 원인은 여기다(memory `feedback_backfill_needs_write_side_fix`).
+  //
+  //   규칙: **이 행이 그 바이트의 마지막 산 참조일 때만** 뺀다. 같은 `file_path` 를 공유하는
+  //   살아 있는 행이 더 있으면 물리 파일은 그대로 남아 있으므로 카운터도 그대로여야 한다.
+  //   (`releasePlanqUpload` 주석이 이미 같은 계약을 적어 두었다 — "물리 파일을 실제로 제거한
+  //    경우에만 호출해야 double-decrement 를 피한다". 이 경로만 그 계약 밖에 있었다.)
   if (file.storage_provider === 'planq') {
-    const usage = await getOrCreateUsage(file.business_id, transaction);
-    usage.bytes_used = Math.max(0, Number(usage.bytes_used) - Number(file.file_size));
-    usage.file_count = Math.max(0, usage.file_count - 1);
-    await usage.save({ transaction });
+    let lastRef = true;
+    if (file.file_path) {
+      // ★ 동시 삭제에서는 **둘 다 형제를 보고 아무도 빼지 않는다**(과계수 방향).
+      //   `FOR UPDATE` 로 직렬화하려 했더니 **교착**이 났다(두 트랜잭션이 이미 자기 행을 잡은 채
+      //   서로의 행을 원한다 — 실측 `Deadlock found`). 그래서 잠그지 않는다.
+      //   남는 오차는 **보수적 방향**이다: 실제보다 많이 쓴 것으로 세므로 한도를 넘겨 쓰는 일은 없다
+      //   (과소 계수였던 옛 결함의 반대). 드리프트는 `scripts/recount-storage-usage.js` 가 맞춘다.
+      const others = await File.count({
+        where: {
+          business_id: file.business_id,
+          file_path: file.file_path,
+          deleted_at: null,
+          id: { [Op.ne]: file.id },
+        },
+        transaction,
+      });
+      // ★ **업무 첨부도 산 참조다** (2026-09-17, Fable 3차 실측).
+      //   `/attachments/link` 는 File 의 `file_path` 를 **그대로 복사**해 업무첨부 행을 만든다.
+      //   그 상태에서 File 을 지우면 바이트를 빼 버리는데(카운터가 줄고 purge 가 물리파일을 지운다)
+      //   업무첨부는 살아 있어 **바이트를 잃는다**(Fable 실측: purge 뒤 physical exists=false 인데
+      //   업무첨부는 조회된다). 산 참조를 셀 때 그 테이블도 같이 본다.
+      const { TaskAttachment } = require('../models');
+      const attRefs = others === 0 && TaskAttachment
+        ? await TaskAttachment.count({
+          where: { business_id: file.business_id, file_path: file.file_path },
+          transaction,
+        })
+        : 0;
+      lastRef = others === 0 && attRefs === 0;
+    }
+    if (lastRef) {
+      const usage = await getOrCreateUsage(file.business_id, transaction);
+      usage.bytes_used = Math.max(0, Number(usage.bytes_used) - Number(file.file_size));
+      usage.file_count = Math.max(0, usage.file_count - 1);
+      await usage.save({ transaction });
+    }
+  }
+}
+
+/**
+ * 커밋 뒤에 처리할 Drive 회수 큐 — **되돌릴 수 없는 외부 호출을 트랜잭션 안에 두지 않는다.**
+ *
+ * ★★ **요청마다 따로 만든다** (2026-09-17, Fable 9차 N1).
+ *   처음엔 모듈 전역 배열이었다. 그러면 요청끼리 섞인다:
+ *     ⒜ 일괄 삭제 도중 예외로 롤백되면 큐엔 앞 파일들이 **남고**, 그 뒤 **무관한 다음 요청의
+ *        flush 가 살아 있는 파일의 사본을 지운다**(포인터까지 비워 재미러도 안 된다).
+ *     ⒝ A 요청의 flush 가 B 요청의 **커밋 전** 항목을 비운다 — 이 큐를 만든 취지 자체가 무너진다.
+ *   그래서 배열을 **호출측이 만들어 넘기고**, 커밋한 그 호출측만 비운다.
+ */
+async function flushMirrorRecalls(queue) {
+  const pendingMirrorRecalls = queue || [];
+  while (pendingMirrorRecalls.length) {
+    const f = pendingMirrorRecalls.shift();
+    try {
+      const patch = {};
+      const r = await require('../services/driveMirrorRecall').recallDriveMirror(f, patch);
+      if ((r === 'removed' || r === 'shared') && Object.keys(patch).length) {
+        await f.update(patch, { hooks: false });
+      }
+    } catch (e) { console.warn('[trashFile] Drive 회수 실패', f.id, e.message); }
   }
 }
 

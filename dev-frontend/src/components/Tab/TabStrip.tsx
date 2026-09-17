@@ -12,7 +12,7 @@ import { tabStore, type Tab, type TabKind } from '../../stores/tabStore';
 import { XIcon, PlusIcon } from '../Common/Icons';
 import { useAuth } from '../../contexts/AuthContext';
 import GlobalSearchModal from '../Common/GlobalSearchModal';
-import { adminLabelKeyForPath } from '../../config/navMenus';
+import { navLabelKeyForPath } from '../../config/navMenus';
 import { mediaTablet } from '../../theme/breakpoints';
 
 // kind → layout ns nav 라벨 키 (사이드바와 동일 문구, 언어전환 재렌더 보장)
@@ -52,8 +52,11 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
   //   심게 하면 빠뜨린 화면만 조용히 "설정" 이 된다. 표를 읽으면 메뉴를 늘릴 때 같이 따라온다.
   const label = (tab: Tab) => {
     if (tab.title) return tab.title;
-    const adminKey = tab.kind === 'admin' ? adminLabelKeyForPath(tab.path) : null;
-    return t(adminKey || NAV_KEY[tab.kind], { defaultValue: tab.kind }) as string;
+    // ★ 표를 먼저 읽는다 — 관리자만이 아니라 **모든 경로**가 대상이다(2026-09-17, #414).
+    //   `NAV_KEY[kind]` 는 kind 가 정해진 화면의 이름이고, 그 밖의 화면(`other`)에서는
+    //   `nav.settings`("설정")로 떨어져 **알림·새 소식·내 프로필이 전부 "설정"** 이었다.
+    const key = navLabelKeyForPath(tab.path) || NAV_KEY[tab.kind];
+    return t(key, { defaultValue: tab.kind }) as string;
   };
 
   // #5 — 그 탭에 열린 모달/드로어(aria-modal)가 있으면 탭을 닫지 않는다. 대신 그 탭을 활성화해

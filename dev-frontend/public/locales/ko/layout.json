@@ -158,7 +158,10 @@
     "myFeedback": "내 문의·피드백",
     "inquiries": "문의 인박스",
     "adminNotifications": "내 알림 설정",
-    "adminAuditLogs": "감사 로그"
+    "adminAuditLogs": "감사 로그",
+    "whatsNew": "새 소식",
+    "helpCenter": "도움말",
+    "records": "기록"
   },
   "user": {
     "profile": "내 프로필",

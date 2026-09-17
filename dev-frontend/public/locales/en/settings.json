@@ -282,7 +282,31 @@
     },
     "driveFirstTitle": "How to use it",
     "driveFirstOk": "Upload and organise files in PlanQ. For Word/Excel documents, use \"Edit in Drive\" in the preview to edit them directly.",
-    "driveFirstNo": "Files you create directly in Drive won't appear in PlanQ. Upload those to PlanQ."
+    "driveFirstNo": "Files you create directly in Drive won't appear in PlanQ. Upload those to PlanQ.",
+    "finderShare": {
+      "open": "Share in Finder",
+      "help": "Opening the shared workspace files folder to a teammate's Google account makes it appear in their Finder (Google Drive). Your personal files, Q note and customer chat attachments are never mirrored there (some project files may be). No notification email is sent.",
+      "loading": "Loading…",
+      "empty": "No teammates to share with.",
+      "share": "Open access",
+      "sharing": "Opening…",
+      "sharedLabel": "Visible",
+      "done": "The folder is now visible in their Finder.",
+      "already": "Already visible.",
+      "noGoogle": "No Google account was found for this address. It must be an address used as a Google account to appear in Finder.",
+      "failed": "Could not share.",
+      "allowEdit": "Also allow editing (view only by default)",
+      "confirmTitle": "Open this folder in their Finder?",
+      "confirmBody": "Gives {{name}} ({{email}})'s Google account {{mode}} access to the «{{folder}}» folder.\n\nIncluded: shared workspace files\nNot included: your personal files · Q note · customer chat attachments\nNote: some project files may also live in this folder.\n\nYou can revoke access later with [Revoke] on this screen. Files they already copied to their own Drive are not recalled.",
+      "confirmOk": "Open access",
+      "modeView": "view",
+      "modeEdit": "edit",
+      "manage": "Manage access in Drive ↗",
+      "confirmCancel": "Cancel",
+      "unshare": "Revoke",
+      "unsharing": "Revoking…",
+      "unshared": "Access removed. Files they already copied to their own Drive are not recalled."
+    }
   },
   "brand": {
     "sectionTitle": "Brand",

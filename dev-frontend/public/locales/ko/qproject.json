@@ -438,7 +438,13 @@
       "hint": "최대 50MB · 여러 파일 동시 업로드",
       "upload": "업로드",
       "compactHint": "여기나 리스트 영역에 파일을 끌어다 놓아도 됩니다",
-      "release": "여기에 놓아 업로드"
+      "release": "여기에 놓아 업로드",
+      "hintDrive": "파일 하나에 {{limit}}까지 · 그보다 크면 Google Drive 로 저장됩니다",
+      "hintLimit": "파일 하나에 {{limit}}까지 · 더 큰 파일은 Google Drive 를 연결하면 그대로 올라갑니다",
+      "hintPlain": "여러 파일을 한 번에 올릴 수 있습니다",
+      "compactHintLimit": "파일 하나에 {{limit}}까지 · 여기나 리스트 영역에 끌어다 놓아도 됩니다",
+      "limitOnly": "파일 하나에 {{limit}}까지",
+      "compactHintTail": " · 여기나 리스트 영역에 끌어다 놓아도 됩니다"
     },
     "cloud": {
       "connectedTitle": "공용 파일은 Google Drive 에 저장됩니다.",
@@ -552,7 +558,10 @@
       "deleteTitle": "폴더를 삭제할까요?",
       "deleteDesc": "폴더 안 파일은 “직접 업로드 루트”로 옮겨집니다",
       "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 “직접 업로드 루트”로 옮겨집니다",
-      "deleteEmpty": "이 폴더는 비어있습니다"
+      "deleteEmpty": "이 폴더는 비어있습니다",
+      "more": "폴더 메뉴",
+      "downloadAll": "폴더 통째 다운로드",
+      "downloading": "폴더를 압축해 받는 중… {{p}}"
     },
     "up": {
       "aria": "업로드 진행 상황",
@@ -619,6 +628,11 @@
       "too_large": "8MB 가 넘어 색인하지 않습니다",
       "empty_text": "읽을 수 있는 글이 없습니다",
       "other": "내용을 읽지 못합니다"
+    },
+    "moveTo": "폴더로 이동",
+    "security": {
+      "driveOrigin": "이 파일은 Google Drive 에 원본이 있어 PlanQ 가 사본을 거둘 수 없습니다. Drive 에서 직접 옮기거나 지워 주세요.",
+      "driveFailed": "Google Drive 사본을 거두지 못했습니다. Drive 연결 상태를 확인한 뒤 다시 시도해 주세요."
     }
   },
   "pinnedDoc": {

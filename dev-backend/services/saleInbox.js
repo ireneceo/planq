@@ -106,19 +106,29 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
   for (const r of rows) {
     const outside = (Array.isArray(r.participants) ? r.participants : []).find((x) => x && !x.is_internal)
       || (() => { const e = firstInbound.get(r.id); return e ? { name: e.from_name, email: e.from_email } : null; })();
-    // 발송 전용 주소는 **어느 칸에도** 넣지 않는다 — 후보로도 볼 일이 없다(2026-09-12 판정 그대로).
-    if (outside?.email && isAutomatedSenderAddress(outside.email)) continue;
+    // ★ 사람의 판단을 **기계 판정보다 먼저** 읽는다 (2026-09-17, Fable 게이트 FAIL).
+    //   여태는 발송전용 주소를 여기서 통째로 `continue` 시켰는데, 그 자리가 **[상담으로 보내기]의
+    //   막다른 길**이었다 — 웹폼 릴레이(`no-reply@wix.com`·`tally.so`·구글폼)로 들어온 **진짜 문의**를
+    //   사람이 올려도 상담에도 후보에도 안 나타났다. 서버는 200 `promoted` 를 주고 화면은 메뉴를
+    //   내주는데 아무 일도 안 일어난다(Fable 실측: 상담 35→35 · 후보 854→854).
+    //   자동발송 판정은 **자동 유입을 좁히는 휴리스틱**이다. 사람이 "이건 문의다" 라고 말한 것을
+    //   휴리스틱이 덮으면 그 문은 존재하지 않는 것과 같다.
     const j = judgments ? judgments.get(r.id) : null;
     const origin = j && j.new_value && j.new_value.origin;
     // 보관·영구삭제는 이 칸의 소관이 아니다(2-B 가 따로 본다). 여기서 또 세면 두 곳에 뜬다.
     if (origin === 'sale_inbox_dismiss' || origin === 'sale_inbox_purge') continue;
+    // 되돌리기도 올리기와 같은 뜻이다(아래 `promoted` 와 **같은 목록**을 쓴다 — 두 벌이면 갈라진다).
+    const humanPromoted = origin === 'sale_inbox_promote' || origin === 'sale_inbox_restore';
+    // 발송 전용 주소는 **어느 칸에도** 넣지 않는다 — 후보로도 볼 일이 없다(2026-09-12 판정 그대로).
+    //   단, 사람이 올린 것은 예외다(위 주석).
+    if (!humanPromoted && outside?.email && isAutomatedSenderAddress(outside.email)) continue;
     const v = mailThreadVerdict({
       email: outside?.email || null,
       outboundCount: outByThread.get(r.id) || 0,
       // ★ 되돌리기도 **사람이 "이건 문의다" 라고 말한 것**이다. 올리기와 같은 뜻으로 읽는다.
       //   (실측으로 잡았다 — 보관함에서 되돌렸더니 상담이 아니라 후보로 떨어졌다.
       //    사용자에게는 "되돌렸는데 안 돌아온다" 로 보인다. 되돌리기의 뜻이 사라진 자리다.)
-      promoted: origin === 'sale_inbox_promote' || origin === 'sale_inbox_restore',
+      promoted: humanPromoted,
     });
     meta.set(r.id, { outside, verdict: v, reply_needed: !!r.reply_needed });
     (v.kind === 'inquiry' ? inquiryIds : candidateIds).push(r.id);

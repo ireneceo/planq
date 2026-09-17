@@ -94,7 +94,25 @@ router.post('/:businessId/:id/restore', authenticateToken, checkBusinessAccess, 
     try {
       // 쿼터를 다시 채운다 — 삭제 때 반환했으므로 복구하면 되돌려야 한다.
       //   한도를 넘기면 복구를 막는다: 넘긴 채로 되살리면 업로드 게이트를 우회하는 뒷문이 된다.
-      if (file.storage_provider === 'planq') {
+      //
+      // ★ 2026-09-17 — **삭제와 같은 술어**여야 한다(routes/files.js trashFile).
+      //   삭제는 «이 행이 그 바이트의 마지막 산 참조일 때만» 뺀다(SHA-256 dedup 행은 0을 뺀다).
+      //   여기서 무조건 더하면 **반대 방향으로 벌어진다** — 안 뺀 것을 되돌려 놓는 셈이라
+      //   dedup 파일을 지웠다 되살릴 때마다 카운터가 커진다. 한쪽만 고치면 그 자리가 생긴다.
+      let addsBytes = true;
+      if (file.storage_provider === 'planq' && file.file_path) {
+        const { TaskAttachment, MessageAttachment } = require('../models');
+        // ★ `trashFile` 의 `lastRef` 와 **같은 참조 집합**이어야 한다 (2026-09-17, Fable 8차 ⑫).
+        //   trash 는 첨부를 세는데 복구가 안 세면 링크 첨부가 있는 파일을 지웠다 되살릴 때
+        //   **바이트를 두 번 더한다**(과계수). 한쪽만 고치면 반대 방향으로 벌어진다.
+        const [others, att, msg] = await Promise.all([
+          File.count({ where: { business_id: file.business_id, file_path: file.file_path, deleted_at: null, id: { [Op.ne]: file.id } }, transaction: t }),
+          TaskAttachment.count({ where: { file_path: file.file_path }, transaction: t }),
+          MessageAttachment.count({ where: { file_path: file.file_path }, transaction: t }),
+        ]);
+        addsBytes = others === 0 && att === 0 && msg === 0;   // 산 참조가 있으면 바이트는 이미 세어져 있다
+      }
+      if (file.storage_provider === 'planq' && addsBytes) {
         const usage = await getOrCreateUsage(file.business_id, t);
         const { plan } = await planEngine.getBusinessPlan(file.business_id);
         const quota = plan.limits.storage_bytes;
@@ -111,6 +129,13 @@ router.post('/:businessId/:id/restore', authenticateToken, checkBusinessAccess, 
       file.deleted_by = null;
       await file.save({ transaction: t });
       await t.commit();
+      // ★ Drive 사본을 **다시 만든다** (2026-09-17, Fable 3차).
+      //   삭제 시점에 거뒀으므로(routes/files.js trashFile) 복구는 그 반대여야 한다.
+      //   안 하면 "복구했는데 Drive 에서만 영영 사라진" 상태가 되고, 사용자는 그것을 모른다.
+      //   실패해도 복구 자체는 되돌리지 않는다 — 로컬 바이트가 정본이다.
+      setImmediate(() => {
+        require('../services/gdriveMirror').mirrorOnUpload(file.id, file.business_id).catch(() => {});
+      });
     } catch (e) { await t.rollback(); throw e; }
 
     require('../services/auditService').logAudit(req, {

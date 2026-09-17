@@ -236,12 +236,53 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
         { where: { folder_id: { [Op.in]: allFolderIds } }, transaction: t }
       );
 
+      // ★ Drive 쪽 폴더 id 를 **먼저 챙겨 둔다** — destroy 뒤엔 읽을 수 없다 (2026-09-17, Fable 8차 ⑤).
+      //   여태 PlanQ 폴더만 지우고 Drive 폴더는 그대로 남겼다(실측: 빈 폴더가 공유 폴더 안에 잔존).
+      //   파인더에서 보면 **없앤 폴더가 계속 보인다** — 지운 것이 지워지지 않은 상태다.
+      const driveFolderIds = (await FileFolder.findAll({
+        where: { id: { [Op.in]: allFolderIds } }, attributes: ['gdrive_folder_id'], transaction: t, raw: true,
+      })).map((r) => r.gdrive_folder_id).filter(Boolean);
+
       // 폴더 삭제 (자식 먼저 → 루트 마지막)
       for (let i = allFolderIds.length - 1; i >= 0; i--) {
         await FileFolder.destroy({ where: { id: allFolderIds[i] }, transaction: t });
       }
 
       await t.commit();
+
+      // ★ Drive 호출은 **커밋 뒤**에 — 되돌릴 수 없는 외부 호출을 트랜잭션 안에 두지 않는다(⑦과 같은 이유).
+      //   파일은 위에서 부모 폴더로 이미 옮겼으므로 여기서 지우는 것은 **빈 폴더**다.
+      //   실패해도 삭제 자체는 되돌리지 않는다(PlanQ 가 정본이고, 빈 폴더는 다음 정리에서 걷힌다).
+      if (driveFolderIds.length) {
+        try {
+          const gdrive = require('../services/gdrive');
+          const token = await gdrive.getTokenForBusiness(folder.business_id);
+          if (token) {
+            const drive = await gdrive.getDriveClient(token);
+            for (const fid of driveFolderIds) {
+              try {
+                // ★★ **비어 있을 때만 지운다** (2026-09-17, Fable 9차 C1 — 내가 만든 데이터 손실 회귀).
+                //   Drive 의 `files.delete` 는 폴더를 지울 때 **안의 항목을 휴지통 없이 영구 삭제**한다.
+                //   PlanQ 는 파일을 부모 폴더로 옮기지만 **Drive 쪽 파일은 그 폴더 안에 그대로** 있다.
+                //   그래서 폴더 하나를 지우는 것이 그 안 파일들의 **유일한 바이트**를 없앨 수 있었다
+                //   — 운영 실측: 한 폴더 안에 Drive 원본 107건(그 파일들은 로컬 사본이 없다).
+                //   원래 신고는 «빈 Drive 폴더가 남는다» 였다. 비었을 때만 지우면 그 신고는 해결되고
+                //   손실 위험은 0 이 된다. 비어 있지 않으면 **남긴다** — 남는 편이 잃는 것보다 낫다.
+                const kids = await drive.files.list({
+                  q: `'${fid}' in parents and trashed=false`,
+                  fields: 'files(id)', pageSize: 1,
+                  supportsAllDrives: true, includeItemsFromAllDrives: true,
+                });
+                if ((kids.data.files || []).length > 0) {
+                  console.warn('[file_folders] Drive 폴더에 항목이 남아 삭제하지 않음', fid);
+                  continue;
+                }
+                await gdrive.deleteFile(drive, fid);
+              } catch (e) { if (!gdrive.isNotFoundError(e)) console.warn('[file_folders] Drive 폴더 삭제 실패', fid, e.message); }
+            }
+          }
+        } catch (e) { console.warn('[file_folders] Drive 정리 건너뜀', e.message); }
+      }
       successResponse(res, { removed_folders: allFolderIds.length }, 'Folder deleted');
     } catch (e) { await t.rollback(); throw e; }
   } catch (error) {

@@ -100,6 +100,9 @@ export const ADMIN_MENUS: NavMenuEntry[] = [
   { key: 'admin-billing-settings', to: '/admin/billing-settings', labelKey: 'nav.billingSettings', section: 'admin', roles: 'any' },
   { key: 'admin-notifications', to: '/admin/notifications', labelKey: 'nav.adminNotifications', section: 'admin', roles: 'any' },
   { key: 'admin-audit-logs', to: '/admin/audit-logs', labelKey: 'nav.adminAuditLogs', section: 'admin', roles: 'any' },
+  // ★ 사이드바(MainLayout:1356)에는 있는데 이 표에 없었다 — 표가 단일 원천이므로 빠지면
+  //   탭 이름도 `+` 검색 목록도 같이 빠진다(2026-09-17 전수 검사로 발견).
+  { key: 'admin-updates', to: '/admin/updates', labelKey: 'nav.updates', section: 'admin', roles: 'any' },
 ];
 
 /**
@@ -137,6 +140,56 @@ export function visibleNavMenus(opts: {
  *   표가 이미 단일 원천이니 표를 읽는다. 메뉴를 추가하면 탭 이름도 자동으로 따라온다.
  * 접두어가 가장 긴 항목을 고른다 — `/admin/wiki/123` 같은 하위 경로도 부모 라벨을 받는다.
  */
+
+/**
+ * 메뉴 표에 **없는데** 탭으로 열리는 화면들. 여기 없으면 탭 이름이 기본값으로 떨어진다.
+ * (사이드바 메뉴가 아니라 헤더 아이콘·딥링크로만 여는 화면들이다.)
+ */
+const EXTRA_PAGE_LABELS: Array<[string, string]> = [
+  ['/notifications', 'nav.notifications'],
+  ['/whats-new', 'nav.whatsNew'],
+  ['/todo', 'nav.inbox'],
+  ['/settings', 'nav.settings'],
+  ['/profile', 'user.profile'],
+  ['/knowledge', 'nav.qinfo'],
+  ['/attendance', 'nav.attendance'],
+  ['/wiki', 'nav.helpCenter'],
+  ['/billing', 'nav.billing'],
+  ['/records', 'nav.records'],
+  ['/personal-vault', 'nav.personalVault'],
+  ['/me/feedback', 'nav.myFeedback'],
+  ['/me/work-settings', 'nav.myWorkEnv'],
+  ['/signatures/received', 'nav.receivedSignatures'],
+  // 인덱스 경로 — 하위로 리다이렉트되지만 탭은 이 경로로 먼저 만들어진다(짧은 순간 "설정" 이 보인다).
+  ['/stats', 'nav.statsOverview'],
+  ['/admin', 'nav.sectionAdmin'],
+  ['/', 'nav.dashboard'],
+];
+
+/**
+ * **모든** 경로 → 탭 이름 i18n 키. 관리자·워크스페이스 메뉴 표와 위 보충표를 한 번에 읽는다.
+ *
+ * ★ 왜 표인가 — 화면마다 `useTabTitle` 을 부르게 하면 **하나만 빠뜨려도 그 탭만** 조용히
+ *   기본값으로 떨어진다. 2026-09-10 에 `/admin` 만 이 방식으로 고쳤는데 나머지 30여 경로는
+ *   그대로 남아서 Irene 이 다시 신고했다 — *"전체보기를 열면 탭이 설정으로 떠"*(#414).
+ *   기본값으로 떨어지는 것이 곧 버그다(상태값 규약과 같은 계열).
+ * 접두어가 가장 긴 항목을 고른다.
+ */
+export function navLabelKeyForPath(path: string): string | null {
+  const p = (path || '').split('?')[0].replace(/\/+$/, '') || '/';
+  let best: { to: string; labelKey: string } | null = null;
+  const consider = (to: string, labelKey: string) => {
+    const base = to.split('?')[0];
+    if (p === base || p.startsWith(`${base}/`)) {
+      if (!best || base.length > best.to.length) best = { to: base, labelKey };
+    }
+  };
+  for (const m of ADMIN_MENUS) consider(m.to, m.labelKey);
+  for (const m of WORKSPACE_MENUS) consider(m.to, m.labelKey);
+  for (const [to, labelKey] of EXTRA_PAGE_LABELS) consider(to, labelKey);
+  return best ? (best as { to: string; labelKey: string }).labelKey : null;
+}
+
 export function adminLabelKeyForPath(path: string): string | null {
   const p = (path || '').split('?')[0].replace(/\/+$/, '') || '/';
   let best: NavMenuEntry | null = null;

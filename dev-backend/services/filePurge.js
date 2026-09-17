@@ -33,7 +33,19 @@ async function purgeFile(file, transaction) {
       //   (라우트에 두면 같은 규칙이 삭제 경로마다 갈라진다).
       const referencedByRevision = await require('./fileRetention')
         .isReferencedByPostRevision(file, transaction);
-      if (siblings === 0 && !referencedByRevision && fs.existsSync(file.file_path)) {
+      // ★ **첨부도 산 참조다** (2026-09-17, Fable 4차 실측).
+      //   `/attachments/link` 는 File 의 `file_path` 를 **그대로 복사**해 첨부 행을 만든다.
+      //   여기서 `File` 형제만 보고 바이트를 지우면 **살아 있는 업무 첨부가 410 이 된다**
+      //   (Fable 실측: purge 뒤 physical 없음 · `GET /tasks/attachments/:id/download` = 410).
+      //   카운터(`trashFile` 의 lastRef)만 고치고 **바이트를 지우는 이 판정을 놔둔 것**이 구멍이었다.
+      //   운영 노출: 산 File 과 경로를 공유하는 업무첨부 3건.
+      const { TaskAttachment, MessageAttachment } = require('../models');
+      let attachRefs = 0;
+      if (siblings === 0 && !referencedByRevision) {
+        attachRefs += await TaskAttachment.count({ where: { file_path: file.file_path }, transaction });
+        attachRefs += await MessageAttachment.count({ where: { file_path: file.file_path }, transaction });
+      }
+      if (siblings === 0 && !referencedByRevision && attachRefs === 0 && fs.existsSync(file.file_path)) {
         fs.unlinkSync(file.file_path);
       }
     } else if (file.storage_provider === 'gdrive' && file.external_id) {
@@ -52,6 +64,19 @@ async function purgeFile(file, transaction) {
         const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: file.business_id }, transaction });
         if (cfg) await require('./s3Storage').deleteObject(cfg, file.external_id);
       } catch (e) { console.error('[files] s3 delete failed:', e.message); }
+    }
+  }
+  // ★ 2026-09-17 (Fable 게이트 #57 2차) — **Drive 미러 사본도 거둔다.**
+  //   주 회수는 이제 **trash 시점**이다(routes/files.js trashFile) — 보존기간 동안 사본이
+  //   공유 폴더에 남는 창을 닫기 위해서다. 여기는 **그물**이다: trash 를 거치지 않고 온 경로,
+  //   회수가 실패했던 행, 옛 데이터가 여기서 마지막으로 정리된다.
+  //   회수는 `services/driveMirrorRecall` 한 곳이다(라우트마다 적으면 반드시 한 곳이 빠진다).
+  if (file.gdrive_mirror_id && file.storage_provider === 'planq') {
+    const patch = {};
+    const r = await require('./driveMirrorRecall').recallDriveMirror(file, patch);
+    if (r === 'removed' || r === 'shared') {
+      try { await file.update(patch, { transaction }); }
+      catch (e) { console.warn('[filePurge] 미러 컬럼 정리 실패', file.id, e.message); }
     }
   }
   // 쿼터는 trashFile 에서 이미 반환했다 — 여기서 또 빼면 두 번 빠진다.

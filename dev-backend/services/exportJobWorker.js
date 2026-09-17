@@ -209,16 +209,50 @@ async function softDeleteSourceFile(f) {
       try { fs.unlinkSync(f.file_path); } catch { /* best-effort */ }
     }
   }
+  // ★ Drive 사본도 거둔다 (2026-09-17, Fable 8차 차단③).
+  //   `trashFile` 은 삭제 시점에 회수하는데 이 경로는 `deleted_at` 만 찍고 지나갔다.
+  //   `purge_after` 도 안 찍혀 `uploadCleanup` 레거시 30일까지 **출발지 공유 폴더에 사본이 남는다**
+  //   — 4차에 막은 «휴지통 창» 과 같은 계열이다. 이관은 "여기서 없어진다" 이므로 사본도 없어져야 한다.
+  if (f.gdrive_mirror_id && f.storage_provider === 'planq') {
+    const mp = {};
+    const r = await require('./driveMirrorRecall').recallDriveMirror(f, mp);
+    if ((r === 'removed' || r === 'shared') && Object.keys(mp).length) {
+      try { await f.update(mp, { hooks: false }); }
+      catch (e) { console.warn('[exportJobWorker] 미러 컬럼 정리 실패', f.id, e.message); }
+    }
+  }
+
   // 출발 워크스페이스 쿼터 반환 (자체 스토리지만)
+  // ★ 2026-09-17 (Fable 게이트 #57 2차) — **`routes/files.js trashFile` 과 같은 술어여야 한다.**
+  //   업로드에서 SHA-256 dedup 이 걸리면 바이트를 **0** 더한다. 그런데 여기서는 행마다
+  //   `file_size` 를 무조건 뺐다 → 이관(move)으로 dedup 행을 보낼 때마다 카운터가 실제보다
+  //   작아진다(과소 계수 = 한도를 넘겨도 안 막힌다). trashFile 만 고치고 이 경로를 놔두면
+  //   같은 결함이 여기 남는다 — Fable 이 정확히 그것을 잡았다.
+  //   규칙: **이 행이 그 바이트의 마지막 산 참조일 때만** 뺀다.
   if (f.storage_provider === 'planq') {
-    const [usage] = await BusinessStorageUsage.findOrCreate({
-      where: { business_id: f.business_id, storage_provider: 'planq' },
-      defaults: { business_id: f.business_id, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
-    });
-    await usage.update({
-      bytes_used: Math.max(0, Number(usage.bytes_used) - (Number(f.file_size) || 0)),
-      file_count: Math.max(0, usage.file_count - 1),
-    });
+    let lastRef = true;
+    if (f.file_path) {
+      const { Op } = require('sequelize');
+      const others = await File.count({
+        where: { business_id: f.business_id, file_path: f.file_path, deleted_at: null, id: { [Op.ne]: f.id } },
+      });
+      // ★ `routes/files.js trashFile` 과 **같은 술어** — 첨부도 산 참조다(2026-09-17, Fable 4차 주석).
+      const { TaskAttachment } = require('../models');
+      const attRefs = others === 0
+        ? await TaskAttachment.count({ where: { business_id: f.business_id, file_path: f.file_path } })
+        : 0;
+      lastRef = others === 0 && attRefs === 0;
+    }
+    if (lastRef) {
+      const [usage] = await BusinessStorageUsage.findOrCreate({
+        where: { business_id: f.business_id, storage_provider: 'planq' },
+        defaults: { business_id: f.business_id, bytes_used: 0, file_count: 0, storage_provider: 'planq' },
+      });
+      await usage.update({
+        bytes_used: Math.max(0, Number(usage.bytes_used) - (Number(f.file_size) || 0)),
+        file_count: Math.max(0, usage.file_count - 1),
+      });
+    }
   }
 }
 

@@ -158,7 +158,10 @@
     "myFeedback": "My inquiries & feedback",
     "inquiries": "Inquiry inbox",
     "adminNotifications": "My notification settings",
-    "adminAuditLogs": "Audit logs"
+    "adminAuditLogs": "Audit logs",
+    "whatsNew": "What's new",
+    "helpCenter": "Help",
+    "records": "Records"
   },
   "user": {
     "profile": "My Profile",

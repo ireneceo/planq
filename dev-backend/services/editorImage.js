@@ -34,13 +34,16 @@ async function resolveEditorImage(filename) {
   if (file.security_level && file.security_level !== 'general') return null;
 
   // image/* 만 — HTML/JS 를 inline 으로 흘리면 XSS 가 된다.
-  const { isRenderableImage } = require('./filePreview');
-  if (!isRenderableImage(file.mime_type)) return null;
+  const { isRenderableImage, effectiveMimeType } = require('./filePreview');
+  // ★ 파일명까지 — 목록·서빙과 **같은 술어**(2026-09-17). octet-stream 으로 저장된 PNG 가 여기서 막혀
+  //   본문에 넣은 이미지가 조용히 사라지던 자리다.
+  if (!isRenderableImage(file.mime_type, file.file_name)) return null;
 
   const absPath = path.join(EDITOR_IMG_DIR, name);
   if (!fs.existsSync(absPath)) return null;
 
-  return { file, absPath, mime: file.mime_type };
+  // 판정만 통과시키고 generic mime 을 그대로 내보내면 nosniff 때문에 여전히 안 그려진다.
+  return { file, absPath, mime: effectiveMimeType(file.mime_type, file.file_name) || file.mime_type };
 }
 
 module.exports = { resolveEditorImage, EDITOR_IMG_DIR, EDITOR_IMG_NAME_RE };

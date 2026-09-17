@@ -64,10 +64,20 @@ function isSafeInline(mime, fileName) {
  * @returns {boolean} 실제로 inline 으로 나갔는가
  */
 function applyFileResponseHeaders(res, file, opts = {}) {
-  const mime = file && file.mime_type;
+  const rawMime = file && file.mime_type;
   const name = (file && (file.file_name || file.original_name)) || '';
+  // ★ 2026-09-17 — **판정과 서빙이 같은 값을 봐야 한다.**
+  //   저장된 mime 이 `application/octet-stream`(드래그앤드롭·모바일 공유시트·일부 OS 가 그렇게 보낸다)인
+  //   PNG 는 미리보기 판정(`isRenderableImage`)은 확장자로 통과시키는데, 여기서 그 generic 값을 그대로
+  //   실어 보내면 `nosniff` 때문에 브라우저가 **끝내 안 그린다** — 목록엔 썸네일 자리가 있는데 깨져 보인다
+  //   (Irene #418: "미리보기가 이미지들이 자꾸 안나와. png도 다").
+  //   9/16 에 채팅·업무 첨부는 `effectiveMimeType` 으로 고쳤고 **파일 경로만 남아 있었다**.
+  //   되살린 값으로 **inline 안전 판정도 다시 한다** — 그러지 않으면 octet-stream 인 .html 이
+  //   inline 판정을 통과한 뒤 text/html 로 나가는 반대 구멍이 생긴다.
+  const { effectiveMimeType } = require('./filePreview');
+  const mime = effectiveMimeType(rawMime, name) || rawMime;
   const wantInline = !!opts.inline;
-  const inline = wantInline && isSafeInline(mime, name);
+  const inline = wantInline && isSafeInline(rawMime, name) && isSafeInline(mime, name);
 
   res.setHeader('Content-Type', mime || 'application/octet-stream');
   res.setHeader('X-Content-Type-Options', 'nosniff');

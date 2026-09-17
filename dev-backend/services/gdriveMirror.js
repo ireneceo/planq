@@ -44,11 +44,27 @@ function isEligible(file, token) {
   if (file.deleted_at) return false;
   if (file.security_level && file.security_level !== 'general') return false;  // confidential/internal 제외 (File.js 정책)
   const level = file.vlevel || file.visibility || 'L3';
-  if (level === 'L1') {
-    // 개인 파일은 연결계정 주인(owner) 본인 것만 — 타 멤버 개인파일을 owner Drive 에 노출 금지
-    return token.connected_by != null && String(file.uploader_id) === String(token.connected_by);
-  }
-  return true;  // L2/L3/L4 워크스페이스·팀·외부
+  // ★ 2026-09-17 (Fable 게이트 #57 2차) — **개인(L1) 파일은 미러하지 않는다.**
+  //   여태는 «연결계정 주인 본인 것이면 OK» 였다. 그 전제는 "그 Drive 는 그 사람 것뿐" 이었는데,
+  //   [파인더 공유]로 **그 폴더를 팀원에게 여는 문**이 생기면서 전제가 깨졌다 —
+  //   운영 실측(biz1): 미러 59건 중 **L1 개인 파일이 12건**. 공유하는 순간 같이 열린다.
+  //   Drive 권한은 비가역이라 "열고 나서 정리" 가 성립하지 않는다. 안 올리는 것이 답이다.
+  //   (이미 올라간 12건은 `scripts/recall-personal-mirrors.js` 로 거둔다 — 이 판정과 한 벌이다.)
+  if (level === 'L1') return false;
+  // ★ L2 중 **특정 멤버만 지정된 것**(`target_member_ids`)도 제외한다 (2026-09-17, Fable 3차).
+  //   그런 파일은 프로젝트 폴더가 없어 `resolveDriveParent` 가 `Workspace Files` 로 보내는데,
+  //   그 폴더가 곧 [파인더 공유]가 여는 곳이다 — **청중이 제한된 파일이 전원에게 열린다.**
+  //   프로젝트로 제한된 L2(`project_id` 있음)는 프로젝트 폴더로 가므로 해당 없다.
+  const targets = file.target_member_ids;
+  const hasTargets = Array.isArray(targets) ? targets.length > 0 : !!targets;
+  if (level === 'L2' && !file.project_id && hasTargets) return false;
+  // ★ **프로젝트로 제한된 L2 는 프로젝트 폴더가 있어야만 미러한다** (2026-09-17, Fable 8차 ⑮).
+  //   `resolveDriveParent` 는 프로젝트를 못 찾으면 `Workspace Files` 로 **폴백**한다.
+  //   그래서 프로젝트가 하드삭제되면 그 프로젝트 파일이 조용히 **공유 폴더에 놓인다** —
+  //   청중이 프로젝트 멤버였던 파일이 워크스페이스 전원에게 열리는 자리다.
+  //   프로젝트가 없는 L2 는 어느 쪽이든(타겟이 있든 없든) 공유 폴더 밖에 있어야 한다.
+  if (level === 'L2' && !file.project_id) return false;
+  return true;  // L2(프로젝트)/L3/L4 워크스페이스·팀·외부
 }
 
 /**

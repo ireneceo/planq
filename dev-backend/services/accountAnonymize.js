@@ -11,8 +11,26 @@ const {
   EmailAccount, NotificationPref,
 } = require('../models');
 
+/** 익명화가 지운 L1 파일의 Drive 사본 — **커밋 뒤** 거둔다(되돌릴 수 없는 외부 호출). */
+// ★ 요청 스코프로 받는다 — 모듈 전역이면 사용자끼리 섞인다(Fable 9차 N1 과 같은 모양).
+async function flushAnonymizeRecalls(pendingAnonymizeRecalls) {
+  const { File } = require('../models');
+  const { recallDriveMirror } = require('./driveMirrorRecall');
+  while (pendingAnonymizeRecalls.length) {
+    const id = pendingAnonymizeRecalls.shift();
+    try {
+      const f = await File.findByPk(id, { paranoid: false });
+      if (!f || !f.gdrive_mirror_id) continue;
+      const patch = {};
+      const r = await recallDriveMirror(f, patch);
+      if ((r === 'removed' || r === 'shared') && Object.keys(patch).length) await f.update(patch, { hooks: false });
+    } catch (e) { console.warn('[accountAnonymize] Drive 회수 실패', id, e.message); }
+  }
+}
+
 async function anonymizeUser(user) {
   const uid = user.id;
+  const anonymizeRecalls = [];   // ★ 요청(사용자) 스코프 — 전역이면 섞인다
   const t = await sequelize.transaction();
   try {
     // 1) users PII 마스킹
@@ -51,6 +69,16 @@ async function anonymizeUser(user) {
 
     // 4) 개인 자산 L1 삭제 (D4). ★ catch 제거 — 실패하면 rollback 되어 anonymized_at 미기록 → 재시도(🟠4).
     //   침묵 catch 가 Unknown column 을 삼켜 "성공했는데 PII 잔존"이 나던 것(🔴1 실사례).
+    // ★ Drive 사본도 거둔다 (2026-09-17, Fable 8차 ④).
+    //   여기는 `trashFile` 을 우회해 `deleted_at` 만 찍는다(트랜잭션 안이라 그 설계가 맞다).
+    //   그런데 그러면 **회수도 쿼터 반환도 안 일어난다** — 탈퇴한 사람의 개인 파일 사본이
+    //   공유 폴더에 남는다. L1 은 이제 미러 대상이 아니지만 **과거분은 이미 올라가 있다**
+    //   (운영 실측 L1 미러 12건). 지울 대상을 먼저 챙겨 두고 **커밋 뒤** 거둔다.
+    const l1Mirrored = await File.findAll({
+      where: { uploader_id: uid, visibility: 'L1', deleted_at: null, storage_provider: 'planq' },
+      attributes: ['id'], transaction: t, raw: true,
+    });
+    if (l1Mirrored.length) anonymizeRecalls.push(...l1Mirrored.map((r) => r.id));
     await File.update({ deleted_at: new Date() }, { where: { uploader_id: uid, visibility: 'L1', deleted_at: null }, transaction: t });
     await Post.destroy({ where: { author_id: uid, vlevel: 'L1' }, transaction: t });
     await KbDocument.destroy({ where: { uploaded_by: uid, scope: 'private' }, transaction: t });
@@ -66,6 +94,7 @@ async function anonymizeUser(user) {
     await NotificationPref.destroy({ where: { user_id: uid }, transaction: t });
 
     await t.commit();
+    await flushAnonymizeRecalls(anonymizeRecalls);   // ★ 커밋 뒤에 Drive 사본을 거둔다
     return true;
   } catch (e) {
     await t.rollback().catch(() => {});

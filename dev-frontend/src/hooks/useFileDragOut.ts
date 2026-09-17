@@ -19,11 +19,19 @@ type CacheEntry = { url: string; until: number };
 const TTL_MS = 300 * 1000;
 const SAFETY_MS = 30 * 1000;
 
-/** 앱 안에서 폴더로 끌어 옮길 수 있는가 — services/files.moveFile 및 서버 canMutateFile 과 같은 술어.
+/** 앱 안에서 폴더로 끌어 옮길 수 있는가 — 서버 `POST /:biz/:id/move` 의 `canMutateFile` 과 **같은 술어**.
  *  ★ 드래그 아웃(OS 로 빼내기)과 **다른 조건**이다. 보안등급이 걸린 파일은 밖으로는 못 나가도
- *    안에서 폴더 정리는 돼야 한다. 하나로 묶으면 "정리가 안 되는 파일" 이 생긴다. */
+ *    안에서 폴더 정리는 돼야 한다. 하나로 묶으면 "정리가 안 되는 파일" 이 생긴다.
+ *
+ *  ★ 2026-09-17 (Fable 게이트 #57) — `source === 'direct'` 조건을 **뺐다.**
+ *    서버는 `source` 를 보지 않는다(`canMutateFile` + 폴더 소유 검사뿐). 화면만 더 엄격해서
+ *    **채팅·업무에서 온 파일은 끌어도 아무 일이 안 나고 이유도 말하지 않았다** —
+ *    서버가 이미 허용하는 것을 사용자가 영영 못 하는 상태였다
+ *    (memory `feedback_client_stricter_than_server_kills_feature`).
+ *    `folder_id` 는 Q file 의 **정리 축**이라 그 파일이 붙어 있는 대화·업무 소속과 충돌하지 않는다.
+ *    권한이 없어 못 옮기는 것은 `deletable` 이 이미 말해 준다(서버와 같은 값). */
 export function isMovableInApp(f: ProjectFile): boolean {
-  return f.source === 'direct' && !!f.deletable;
+  return !!f.deletable;
 }
 
 /** 앱 내부 드래그 페이로드 — 폴더 행이 이 타입으로 드롭을 판정한다.

@@ -35,13 +35,26 @@ async function log(businessId, row) {
 // Drive 파일 하나가 PlanQ 의 어느 File 인가.
 //   external_id  = Drive 가 정본인 파일(v2 인제스트분)
 //   gdrive_mirror_id = PlanQ 가 정본이고 Drive 엔 사본만 있는 파일(현행 미러)
+/**
+ * Drive 파일 id → 그것을 가리키는 PlanQ 행.
+ *
+ * ★ **산 행을 우선한다** (2026-09-17, Fable 5차 FAIL).
+ *   같은 미러 id 를 여러 행이 나눠 쓴다(`posts.js` 쌍둥이·백필 `byHash`), 그리고 삭제 경로가
+ *   **포인터를 남기도록** 바뀌면서 휴지통 행도 같은 id 를 든다. `findOne` 은 보통 **낮은 id
+ *   (= 먼저 만든 = 지운 행)** 를 집으므로, Drive 쪽 이름변경이 **휴지통 행에 붙고** 산 행은
+ *   그대로였다(Fable 실측: A(trash) 이름만 바뀌고 B(산 행)는 원래 이름).
+ *   가리킬 수 있는 것이 여럿이면 **사용자가 보는 행**이 정본이다.
+ */
 async function findLocal(businessId, driveFileId) {
-  return File.findOne({
+  const rows = await File.findAll({
     where: {
       business_id: businessId,
       [Op.or]: [{ external_id: driveFileId }, { gdrive_mirror_id: driveFileId }],
     },
+    order: [['deleted_at', 'ASC'], ['id', 'ASC']],   // NULL(산 행) 먼저
   });
+  if (!rows.length) return null;
+  return rows.find((r) => !r.deleted_at) || rows[0];
 }
 
 // Drive 의 부모 폴더 id → PlanQ folder_id. 매핑이 없으면 null(루트) — 폴더 트리 인제스트는 v2.
@@ -104,7 +117,23 @@ async function applyChange(businessId, change, ctx = null) {
     }
     // ① PlanQ 가 정본 — 사본이 지워졌을 뿐이다. 원본은 건드리지 않는다.
     if (!local.gdrive_mirror_id) return { action: 'skip', reason: 'no_change' };
-    await local.update({ gdrive_mirror_id: null, gdrive_mirror_url: null, gdrive_mirrored_at: null });
+    // ★ 그 사본을 가리키던 **모든 행**을 비운다 (2026-09-17, Fable 5차).
+    //   한 행만 비우면 형제(특히 휴지통 행)가 **죽은 포인터**를 든 채 남고, 그 행은
+    //   `isEligible` 이 «이미 미러됨» 으로 읽어 복구해도 영영 재미러되지 않는다.
+    //   `services/driveMirrorRecall` 의 `removed` 분기와 **같은 규칙**이다.
+    // ★ `gdrive_mirrored_at` 은 **남긴다** (2026-09-17, Fable 6차 FAIL).
+    //   화면의 «Drive 사본 없음» 태그는 `!gdrive_mirror_id && !!gdrive_mirrored_at` 으로 판정한다
+    //   (`routes/projects.js` 3곳). 여기서 `mirrored_at` 까지 지우면 그 식이 **영영 false** 가 되어
+    //   사용자는 사본이 사라진 것을 **알 수 없다** — 침묵이다.
+    //   운영 실측: 그 조건에 걸리는 행이 **0건**. 태그는 만들어진 날부터 한 번도 뜬 적이 없었다.
+    //   ★ 여기(Drive 쪽에서 지워진 것)와 `driveMirrorRecall`(우리가 의도해서 거둔 것)은 **다르다.**
+    //     회수는 "미러 대상이 아니게 됐다" 이므로 `mirrored_at` 도 지우는 것이 맞고,
+    //     여기는 "있었는데 없어졌다" 이므로 그 흔적을 남겨야 화면이 말할 수 있다.
+    await File.update(
+      { gdrive_mirror_id: null, gdrive_mirror_url: null },
+      { where: { business_id: businessId, gdrive_mirror_id: local.gdrive_mirror_id }, paranoid: false },
+    );
+    await local.reload({ paranoid: false });
     await log(businessId, {
       gdrive_file_id: driveId, file_id: local.id, action: 'unmirror',
       detail: { note: 'Drive 사본이 삭제됨 — PlanQ 원본은 보존, 자동 재미러 안 함' },

@@ -316,6 +316,7 @@ const ListPane = styled.div<{ $detailOpen: boolean }>`
   border-right: 1px solid #e2e8f0;
   background: #ffffff;
   overflow-y: auto;
+  padding-bottom: var(--pq-fab-clearance, 88px);   /* 마지막 행이 FAB 밑에 깔리지 않게 */
   display: flex; flex-direction: column;
   @media (max-width: 1024px) {
     width: 100%;
@@ -327,6 +328,11 @@ const DetailPane = styled.div<{ $detailOpen: boolean }>`
   flex: 1; min-width: 0;
   background: #f8fafc;
   overflow-y: auto;
+  /* ★ 안쪽에서 따로 스크롤하는 패널이라 PageShell Body 의 여백이 닿지 않는다 —
+     그래서 추가 문의 입력란이 우측 하단 FAB 밑에 깔려 **누를 수도 볼 수도 없었다**
+     (Irene #416: *"상세에서 스크롤이 안되서 할 수가 없어 … 우측 하단 버튼이 채팅창이랑 겹쳐"*).
+     숫자를 다시 적지 않고 PageShell 이 세운 토큰을 쓴다. */
+  padding-bottom: var(--pq-fab-clearance, 88px);
   display: flex; flex-direction: column;
   @media (max-width: 1024px) {
     display: ${p => (p.$detailOpen ? 'flex' : 'none')};

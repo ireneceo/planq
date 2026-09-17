@@ -507,6 +507,7 @@ const Split = styled.div`display: flex; height: 100%; min-height: 0;`;
 const ListPane = styled.div<{ $detailOpen: boolean }>`
   width: 340px; flex-shrink: 0; border-right: 1px solid #e2e8f0; background: #fff;
   overflow-y: auto; display: flex; flex-direction: column;
+  padding-bottom: var(--pq-fab-clearance, 88px);   /* 안쪽 스크롤 패널 — Body 여백이 닿지 않는다 */
   @media (max-width: 1024px) { width: 100%; border-right: none; display: ${p => p.$detailOpen ? 'none' : 'flex'}; }
 `;
 const EditorPane = styled.div<{ $detailOpen: boolean }>`
@@ -537,7 +538,7 @@ const BackBtn = styled.button`
 `;
 const EditorTitle = styled.h2`flex: 1; min-width: 0; font-size: 1rem; font-weight: 700; color: #0f172a; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
 const PreviewLink = styled.a`font-size: 0.75rem; font-weight: 600; color: #0d9488; text-decoration: none; flex-shrink: 0; &:hover { text-decoration: underline; }`;
-const EditorBody = styled.div`flex: 1; min-height: 0; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;`;
+const EditorBody = styled.div`flex: 1; min-height: 0; overflow-y: auto; padding: 20px; padding-bottom: var(--pq-fab-clearance, 88px); display: flex; flex-direction: column; gap: 16px;`;
 const Grid2 = styled.div`display: grid; grid-template-columns: 1fr 1fr; gap: 12px; @media (max-width: 640px) { grid-template-columns: 1fr; }`;
 const Grid3 = styled.div`display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; @media (max-width: 640px) { grid-template-columns: 1fr; }`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px; min-width: 0;`;
