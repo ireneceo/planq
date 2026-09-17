@@ -3569,3 +3569,39 @@ styled 템플릿 **주석 안 백틱**이 템플릿을 끊어 빌드가 죽었�
 **사이드바는 `config/navMenus.ts` 표를 읽지 않는다 — `MainLayout` 에 손으로 쓰여 있다.**
 표에만 넣었더니 «탭 이름은 맞는데 사이드바에는 없다» 가 됐다. 메뉴를 늘리려면 **둘 다** 고친다.
 장기적으로는 사이드바가 표를 렌더하게 해야 한다(별건 · 범위 큼).
+
+---
+
+## 2026-09-17 — **Fable 14차 PASS** (`021b2be7..997e4f14`) · 배포 승인
+
+오늘 라운드: 10차 PASS → 11차 FAIL(차단2) → 12차 FAIL(차단3) → 13차 FAIL(차단1) → **14차 PASS**.
+세 번 연속 차단이 나왔고 **전부 내가 만든 것**이었다. 특히 #407 은 세 라운드에 걸쳐
+**같은 결함이 모양을 바꿔 가며** 나왔다:
+  ① notify() 직접 발송 → ② 5분 뒤 미읽음 에스컬레이션 크론 → ③ 종류(`'task'`)로는 못 가름.
+매번 «이제 막혔다» 고 적었고 **두 번 틀렸다.** 지금 구조는 «만든 쪽이 행에 적고, 읽는 쪽이 따른다»
+라 새 소비자가 생겨도 자동으로 따라온다.
+
+### Fable 실측 (14차)
+- 실 라우트로 댓글·보류(액션/PUT)·수정요청 4건 생성 → 전부 `event_kind='task'` + `preview_policy='internal_only'`,
+  시스템 3행은 `default`. 크론 메일 items 7 — **마커 본문 NULL 4/4 · 시스템 문구 유지 3/3**
+- 양성 대조군: 댓글 행만 `default` 로 되돌리면 그 행만 본문 노출(판정기 생존 확인)
+- `Notification.create` 직접 호출은 **notify() 안 1곳뿐** — 우회 없음
+- 행을 밖으로 내보내는 소비자 전수 7곳 중 **크론 1곳뿐**
+- `unmeasured` 계약 반증 통과 · 다른 스위트 판정 불변
+- 운영: `notifications` 1,802행/0.78MB · MySQL 8.0.46 → `ADD COLUMN DEFAULT` 는 **INSTANT**, 잠금 무시 가능
+- FK 타입 대조 ✓ (`calendar_events.id` bigint ↔ `event_id BIGINT`)
+
+### 배포 순서 (Fable 지정)
+```
+scp dev-backend/scripts/migrate-{notification-preview-policy,event-attachments}.js \
+    irene@87.106.78.146:/opt/planq/backend/scripts/
+ssh … 'cd /opt/planq/backend && NODE_ENV=production node scripts/migrate-notification-preview-policy.js'
+ssh … 'cd /opt/planq/backend && NODE_ENV=production node scripts/migrate-event-attachments.js'
+./scripts/deploy-planq.sh
+```
+배포 범위 `35118c02..HEAD` = 8커밋. 옛 코드는 새 컬럼·테이블을 모른 채 무해하므로 선행 실행이 안전.
+
+### 잔여 (비차단 · 이번 배포를 막지 않음)
+A. `routes/attendance.js:249` 근태 정정 사유 — 같은 계열, `previewPolicy:'internal_only'` 한 줄
+B. `canary-docs-header.js:182` · `canary-sale-panel.js:136,192` 가 아직 `push(true,'미측정')` 로 초록
+C. 두 마이그레이션을 `deploy-planq.sh` 의 멱등 슬롯에 걸어 두기(다음 배포부터 자동 재실행)
