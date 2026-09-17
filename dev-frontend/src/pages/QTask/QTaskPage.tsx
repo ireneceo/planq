@@ -52,6 +52,7 @@ import WeeklyReviewTab from '../../components/QTask/WeeklyReviewTab';
 import { type TaskTagLite } from '../../components/QTask/TagChips';
 import RowTags from '../../components/QTask/RowTags';
 import OpenTaskPopoutButton from '../../components/QTask/OpenTaskPopoutButton';
+import { useMenuReset } from '../../hooks/useMenuReset';
 import TagManageModal from '../../components/QTask/TagManageModal';
 import { usePanelStack } from '../../hooks/usePanelStack';
 import { askCue } from '../../utils/cueAsk';
@@ -423,6 +424,9 @@ const QTaskPage:React.FC=()=>{
     setAddInline(false);
     setAddInitial(null);
   },[]);
+  // 사이드바에서 Q task 를 **다시** 누르면 업무 추가 화면을 접고 목록으로 돌아온다.
+  //   이 폼은 URL 에 없어(컴포넌트 state) 주소만으로는 안 닫힌다 — hooks/useMenuReset 참조.
+  useMenuReset(closeAddForm, '/tasks');
   const[statusDropdownId,setStatusDropdownId]=useState<number|null>(null);
 
   // PWA Share Target 등에서 ?prefill= 으로 본문 전달받음. 마운트 시 한 번만 적용.

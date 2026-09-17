@@ -216,9 +216,14 @@ function usePassThroughScroll(ref: React.RefObject<HTMLDivElement | null>, open:
 }
 
 const Backdrop = styled.div`
-  /* --chrome-top: 멀티탭 스트립 높이(MainLayout 이 세팅). 탭바는 브라우저 크롬이라 덮지 않는다(#199).
-     탭모드가 아니면 0 이라 기존 동작과 동일. */
-  position: fixed; top: var(--chrome-top, 0px); left: 0; right: 0; bottom: 0;
+  /* ★ 2026-09-17 — 기준선을 **상단 크롬 전체 아래**(--pq-chrome-bottom)로 올린다.
+     Irene: *"모바일에서 업무추가 버튼 누르면 서브헤더가 위로 붙어서 안보여. 헤더 아래로 나오게 해줘."*
+     여태 --chrome-top(탭바 아래)이라 **미러 모드(폰)에서는 0** 이었다 — 드로어가 모바일 헤더까지
+     통째로 덮어, 드로어 제목이 화면 맨 위에 붙고 위에 아무것도 없어 «어디인지» 를 잃었다.
+     --pq-chrome-bottom 은 탭 모드=탭바 아래 / 폰=모바일 헤더 아래 / 그 외 0 이라
+     **데스크탑 탭 모드 동작은 그대로**고 폰에서만 헤더가 남는다.
+     숫자를 적지 않는다 — 상태바 인셋이 있는 기기에서 거짓이 된다. */
+  position: fixed; top: var(--pq-chrome-bottom, 0px); left: 0; right: 0; bottom: 0;
   background: rgba(15, 23, 42, 0.08);
   /* RightDock FAB(z-index 120) 위로 — 드로어 열리면 우하단 퀵메뉴가 드로어를 뚫고 나오지 않게.
      위계: 페이지크롬(99·100) < FAB(120) < 드로어(125·130) < 센터모달(1000+). */
@@ -235,8 +240,8 @@ const Panel = styled.aside<{ $width: number }>`
   /* --vv-top: iOS 가 키보드를 올리며 visual viewport 를 밀어낸 양(main.tsx 가 sync).
      이걸 안 더하면 fixed 패널이 화면 위로 밀려 **헤더와 제목이 잘려 나간다**.
      키보드 없음/데스크탑 = 0 → 기존과 동일. */
-  position: fixed; top: calc(var(--chrome-top, 0px) + var(--vv-top, 0px)); right: 0;
-  height: calc(var(--vvh, 100dvh) - var(--chrome-top, 0px));
+  position: fixed; top: calc(var(--pq-chrome-bottom, 0px) + var(--vv-top, 0px)); right: 0;
+  height: calc(var(--vvh, 100dvh) - var(--pq-chrome-bottom, 0px));
   z-index: 130;
   background: #fff;
   display: flex; flex-direction: column;

@@ -512,6 +512,29 @@ export const tabStore = {
 
   // 브라우저 탭 모델 — 현재(활성) 탭의 경로를 바꾼다(안으로 들어가도 새 탭 X). 사이드바/본문 링크 내비.
   navigateActive(path: string) {
+    // ★ **이미 그 메뉴에 있으면 «그 메뉴의 처음» 으로 되돌린다** (2026-09-17, Irene:
+    //   *"해당 메뉴에 있더라도 그 메뉴를 다시 누르면 그 메뉴 처음으로 다시 돌아가야 하는 거 아니야?
+    //     업무리스트에서 업무추가를 눌렀어. 그럼 업무등록하는 화면인데 다시 q task 누르면 업무리스트가 나오는거지"*)
+    //
+    //   ① URL 로 열린 상세·드로어(`?task=` · `?item=` · `?conv=` …)는 **쿼리를 떨어뜨리면** 닫힌다.
+    //      그래서 «같은 기본 경로» 로의 이동은 쿼리 없는 형태로 바꿔 보낸다.
+    //   ② URL 에 없는 화면 상태(업무 추가 폼처럼 컴포넌트 state)는 주소만으로 못 닫는다 —
+    //      **같은 경로라 리렌더조차 안 일어나기 때문이다.** 그래서 신호를 하나 쏜다.
+    //      화면마다 «메뉴를 다시 눌렀나» 를 스스로 알아내게 하면 반드시 한 곳이 빠진다(한 곳에서 쏜다).
+    //   ★ 전 디바이스 공통이다 — 탭 모드·미러 모드 어느 쪽에서도 같은 동작이어야 한다.
+    //   ★ 미러 모드(폰·단일탭)에서는 store 의 활성 탭이 정본이 아닐 수 있어 실제 주소도 함께 본다.
+    const stateHere = state.activeId
+      ? (state.tabs.find((t) => t.id === state.activeId)?.path || '')
+      : '';
+    const docHere = typeof window !== 'undefined' ? window.location.pathname : '';
+    const here = ((state.mirror ? docHere : stateHere) || stateHere || '').split('?')[0];
+    const target = (path || '').split('?')[0];
+    if (here && here === target) {
+      path = target;                                   // 쿼리 제거 = URL 로 열린 것은 닫힌다
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('pq:menu-reset', { detail: { path: target } }));
+      }
+    }
     if (ensureScopeFor(path)) { if (state.mirror) mirrorNavigate(path); return; }
     if (state.mirror) { mirrorNavigate(path); return; } // location→seedFromPath 가 store 갱신
     const id = state.activeId;
