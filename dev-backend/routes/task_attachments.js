@@ -476,12 +476,12 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
       //   없을 때만(단독 소유) 물리 삭제 + 쿼터 반환한다. files.js 의 siblings 정책과 동일.
       //   · Q File 링크 첨부(/attachments/link)는 File 행이 물리파일·쿼터를 소유 → 여기서 차감하면
       //     double-decrement. 반대로 업로드가 증가만 하고 삭제가 반환 안 하면 단조증가 → 업로드 잠금(BLOCKER).
-      const { Op } = require('sequelize');
       const { releasePlanqUpload } = require('../services/storageUsage');
-      const fp = { file_path: att.file_path };   // 채팅 첨부도 같은 바이트를 가리킨다(filePurge 와 같은 집합)
-      const soleOwner = await File.count({ where: { ...fp, deleted_at: null } }) === 0
-        && await TaskAttachment.count({ where: { ...fp, id: { [Op.ne]: att.id } } }) === 0
-        && await MessageAttachment.count({ where: fp }) === 0;
+      // ★ 산 참조 판정은 `services/fileRefs.countLiveRefs` 한 곳 (Fable 10차 #2·#3) — 옛 완전일치
+      //   비교는 첨부(상대경로) vs File(절대경로)라 늘 0 이라 **산 Q File 의 바이트**를 지울 수 있었다.
+      const refs = await require('../services/fileRefs')
+        .countLiveRefs(att, undefined, { excludeFileId: null, excludeTaskAttachmentId: att.id });
+      const soleOwner = refs.total === 0;
       if (soleOwner) {
         // ★ 절대경로일 수 있다(link 가 File 경로를 복사) — join 하면 이어 붙어 안 지워진다.
         const abs = path.isAbsolute(att.file_path) ? att.file_path : path.join(__dirname, '..', att.file_path);

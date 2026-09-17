@@ -230,19 +230,11 @@ async function softDeleteSourceFile(f) {
   //   같은 결함이 여기 남는다 — Fable 이 정확히 그것을 잡았다.
   //   규칙: **이 행이 그 바이트의 마지막 산 참조일 때만** 뺀다.
   if (f.storage_provider === 'planq') {
-    let lastRef = true;
-    if (f.file_path) {
-      const { Op } = require('sequelize');
-      const others = await File.count({
-        where: { business_id: f.business_id, file_path: f.file_path, deleted_at: null, id: { [Op.ne]: f.id } },
-      });
-      // ★ `routes/files.js trashFile` 과 **같은 술어** — 첨부도 산 참조다(2026-09-17, Fable 4차 주석).
-      const { TaskAttachment } = require('../models');
-      const attRefs = others === 0
-        ? await TaskAttachment.count({ where: { business_id: f.business_id, file_path: f.file_path } })
-        : 0;
-      lastRef = others === 0 && attRefs === 0;
-    }
+    // ★ 판정은 `services/fileRefs.isLastLiveRef` **한 곳**이다 (2026-09-17, Fable 10차 #2).
+    //   "trashFile 과 같은 술어" 라고 주석만 적어 둔 상태였는데 실제로는 갈라져 있었다
+    //   (여기는 MessageAttachment 를 안 셌고, 경로 표기가 절대/상대로 어긋났다).
+    //   memory `feedback_comment_lies_predicate_drifts` — 주석은 사실을 보증하지 않는다.
+    const lastRef = await require('./fileRefs').isLastLiveRef(f, undefined);
     if (lastRef) {
       const [usage] = await BusinessStorageUsage.findOrCreate({
         where: { business_id: f.business_id, storage_provider: 'planq' },

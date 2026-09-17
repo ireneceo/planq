@@ -14,7 +14,7 @@ const { File, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { attachWorkspaceScope, fileListWhereByLevel } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
-const { purgeFile } = require('../services/filePurge');
+const { purgeFile, flushPurgeExternals } = require('../services/filePurge');
 const { canMutateFile, getOrCreateUsage, applyMemberDisplayName, broadcastFile, isRestorable } = require('./files');
 const { resolveRetention, effectiveExpiry } = require('../services/retentionPolicy');
 const planEngine = require('../services/plan');
@@ -99,19 +99,13 @@ router.post('/:businessId/:id/restore', authenticateToken, checkBusinessAccess, 
       //   삭제는 «이 행이 그 바이트의 마지막 산 참조일 때만» 뺀다(SHA-256 dedup 행은 0을 뺀다).
       //   여기서 무조건 더하면 **반대 방향으로 벌어진다** — 안 뺀 것을 되돌려 놓는 셈이라
       //   dedup 파일을 지웠다 되살릴 때마다 카운터가 커진다. 한쪽만 고치면 그 자리가 생긴다.
-      let addsBytes = true;
-      if (file.storage_provider === 'planq' && file.file_path) {
-        const { TaskAttachment, MessageAttachment } = require('../models');
-        // ★ `trashFile` 의 `lastRef` 와 **같은 참조 집합**이어야 한다 (2026-09-17, Fable 8차 ⑫).
-        //   trash 는 첨부를 세는데 복구가 안 세면 링크 첨부가 있는 파일을 지웠다 되살릴 때
-        //   **바이트를 두 번 더한다**(과계수). 한쪽만 고치면 반대 방향으로 벌어진다.
-        const [others, att, msg] = await Promise.all([
-          File.count({ where: { business_id: file.business_id, file_path: file.file_path, deleted_at: null, id: { [Op.ne]: file.id } }, transaction: t }),
-          TaskAttachment.count({ where: { file_path: file.file_path }, transaction: t }),
-          MessageAttachment.count({ where: { file_path: file.file_path }, transaction: t }),
-        ]);
-        addsBytes = others === 0 && att === 0 && msg === 0;   // 산 참조가 있으면 바이트는 이미 세어져 있다
-      }
+      // ★ **삭제와 같은 술어**여야 한다 — `services/fileRefs.isLastLiveRef` 한 곳
+      //   (2026-09-17, Fable 10차 #2·#3). 삭제는 «이 행이 그 바이트의 마지막 산 참조일 때만»
+      //   뺀다(SHA-256 dedup 행·링크 첨부는 0을 뺀다). 여기서 무조건 더하면 **반대 방향으로
+      //   벌어진다** — 안 뺀 것을 되돌려 놓는 셈이라 지웠다 되살릴 때마다 카운터가 커진다.
+      //   옛 코드는 여기서만 MessageAttachment 를 세고 삭제 쪽은 안 세어 집합이 갈라져 있었고,
+      //   경로 표기가 절대/상대로 어긋나 첨부 비교 자체가 참이 되지 않았다.
+      const addsBytes = await require('../services/fileRefs').isLastLiveRef(file, t);
       if (file.storage_provider === 'planq' && addsBytes) {
         const usage = await getOrCreateUsage(file.business_id, t);
         const { plan } = await planEngine.getBusinessPlan(file.business_id);
@@ -127,6 +121,10 @@ router.post('/:businessId/:id/restore', authenticateToken, checkBusinessAccess, 
       }
       file.deleted_at = null;
       file.deleted_by = null;
+      // ★ 보존기간 도장도 지운다 (2026-09-17, Fable N11). 안 지우면 산 파일이 «N일 후 영구삭제»
+      //   날짜를 달고 다닌다 — 화면이 그 값을 그대로 보여주면 거짓이다.
+      //   (다시 지울 때 `trashFile` 이 `stampFor` 로 새로 찍으므로 잃는 정보는 없다.)
+      file.purge_after = null;
       await file.save({ transaction: t });
       await t.commit();
       // ★ Drive 사본을 **다시 만든다** (2026-09-17, Fable 3차).
@@ -164,11 +162,15 @@ router.delete('/:businessId/:id/purge', authenticateToken, checkBusinessAccess, 
       return errorResponse(res, '본인 업로드 · 오너 · 프로젝트 PM 만 영구 삭제할 수 있습니다', 403);
     }
     const snapshot = { name: file.file_name, size: Number(file.file_size) || 0 };
+    // 외부 삭제(Drive/S3·미러 회수)는 **커밋 뒤**에 친다 — 되돌릴 수 없는 호출을
+    // 되돌릴 수 있는 트랜잭션 안에 두지 않는다(Fable N10).
+    const ext = [];
     const t = await sequelize.transaction();
     try {
-      await purgeFile(file, t);
+      await purgeFile(file, t, ext);
       await t.commit();
     } catch (e) { await t.rollback(); throw e; }
+    await flushPurgeExternals(ext);
     require('../services/auditService').logAudit(req, {
       action: 'file.purge', targetType: 'file', targetId: file.id, oldValue: snapshot,
     });
@@ -187,9 +189,11 @@ router.post('/:businessId/trash/empty', authenticateToken, attachWorkspaceScope(
     let purged = 0; const skipped = [];
     for (const f of files) {
       if (!(await canMutateFile(f, req))) { skipped.push(f.id); continue; }
+      const ext = [];
       const t = await sequelize.transaction();
-      try { await purgeFile(f, t); await t.commit(); purged++; }
+      try { await purgeFile(f, t, ext); await t.commit(); purged++; }
       catch (e) { await t.rollback(); console.error('[files] purge failed', f.id, e.message); }
+      await flushPurgeExternals(ext);   // 롤백이면 큐는 비어 있다(커밋한 것만 외부를 건드린다)
     }
     require('../services/auditService').logAudit(req, {
       action: 'file.trash_empty', targetType: 'file', targetId: null,

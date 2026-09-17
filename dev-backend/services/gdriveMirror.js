@@ -15,6 +15,26 @@ function absLocalPath(file) {
 }
 
 // 워크스페이스 파일 공용 폴더 (root/Workspace Files) — dedup + token 캐시 (ensureConversationsFolder 패턴)
+/** 공유 폴더를 **찾기만** 한다 — 없으면 null. 만들지 않고 토큰도 갱신하지 않는다.
+ *  ★ 점검·dry-run 은 반드시 이것을 쓴다 (2026-09-17, Fable 10차 #7).
+ *    `ensureWorkspaceFilesFolder` 는 없으면 **만들고 토큰을 갱신한다** — 그래서
+ *    "아무것도 안 바꾼다" 고 적힌 dry-run 이 사용자 Drive 에 폴더를 만들 수 있었다.
+ *    읽기 전용이라고 말하는 코드는 읽기만 해야 한다. */
+async function findWorkspaceFilesFolder(drive, token) {
+  if (token.workspace_folder_id) {
+    try {
+      const r = await drive.files.get({ fileId: token.workspace_folder_id, fields: 'id, trashed', supportsAllDrives: true });
+      if (r.data && !r.data.trashed) return token.workspace_folder_id;
+    } catch { /* 아래 검색으로 */ }
+  }
+  try {
+    const q = `'${token.root_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and name='Workspace Files' and trashed=false`;
+    const list = await drive.files.list({ q, fields: 'files(id, name)', pageSize: 1, supportsAllDrives: true, includeItemsFromAllDrives: true });
+    if (list.data.files && list.data.files.length > 0) return list.data.files[0].id;
+  } catch { /* 못 찾음 */ }
+  return null;
+}
+
 async function ensureWorkspaceFilesFolder(drive, token) {
   if (token.workspace_folder_id) {
     try {
@@ -174,4 +194,5 @@ async function mirrorOnUpload(fileId, businessId) {
   }
 }
 
-module.exports = { ensureWorkspaceFilesFolder, resolveDriveParent, ensureFolderChainOnDrive, isEligible, mirrorFile, mirrorOnUpload, absLocalPath };
+module.exports = {
+  findWorkspaceFilesFolder, ensureWorkspaceFilesFolder, resolveDriveParent, ensureFolderChainOnDrive, isEligible, mirrorFile, mirrorOnUpload, absLocalPath };

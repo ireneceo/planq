@@ -1199,7 +1199,10 @@ router.put('/:businessId/:id/security-level', authenticateToken, attachWorkspace
     });
     // ★ **되돌리면 되돌아온다** — visibility 와 같은 계약 (2026-09-17, Fable 9차 N3).
     //   대외비 → 일반 로 내려도 사본이 안 생겨, «되돌렸는데 Drive 에는 영영 없음» 이었다.
-    if (level === 'general' && !file.gdrive_mirror_id) {
+    //   ★ **바뀐 경우에만** 건다 (2026-09-17, Fable 10차 #8). prev 도 general 인 무변화 PUT 에서
+    //     걸면, 사용자가 Drive 쪽에서 지운 사본이 화면을 만질 때마다 되살아난다 —
+    //     «Drive 에서 지운 것은 자동으로 다시 만들지 않는다» 는 계약과 충돌한다.
+    if (level === 'general' && prev !== 'general' && !file.gdrive_mirror_id) {
       setImmediate(() => {
         require('../services/gdriveMirror').mirrorOnUpload(file.id, file.business_id).catch(() => {});
       });
@@ -1446,36 +1449,15 @@ async function trashFile(file, req, transaction, mirrorQueue) {
   //   (`releasePlanqUpload` 주석이 이미 같은 계약을 적어 두었다 — "물리 파일을 실제로 제거한
   //    경우에만 호출해야 double-decrement 를 피한다". 이 경로만 그 계약 밖에 있었다.)
   if (file.storage_provider === 'planq') {
-    let lastRef = true;
-    if (file.file_path) {
-      // ★ 동시 삭제에서는 **둘 다 형제를 보고 아무도 빼지 않는다**(과계수 방향).
-      //   `FOR UPDATE` 로 직렬화하려 했더니 **교착**이 났다(두 트랜잭션이 이미 자기 행을 잡은 채
-      //   서로의 행을 원한다 — 실측 `Deadlock found`). 그래서 잠그지 않는다.
-      //   남는 오차는 **보수적 방향**이다: 실제보다 많이 쓴 것으로 세므로 한도를 넘겨 쓰는 일은 없다
-      //   (과소 계수였던 옛 결함의 반대). 드리프트는 `scripts/recount-storage-usage.js` 가 맞춘다.
-      const others = await File.count({
-        where: {
-          business_id: file.business_id,
-          file_path: file.file_path,
-          deleted_at: null,
-          id: { [Op.ne]: file.id },
-        },
-        transaction,
-      });
-      // ★ **업무 첨부도 산 참조다** (2026-09-17, Fable 3차 실측).
-      //   `/attachments/link` 는 File 의 `file_path` 를 **그대로 복사**해 업무첨부 행을 만든다.
-      //   그 상태에서 File 을 지우면 바이트를 빼 버리는데(카운터가 줄고 purge 가 물리파일을 지운다)
-      //   업무첨부는 살아 있어 **바이트를 잃는다**(Fable 실측: purge 뒤 physical exists=false 인데
-      //   업무첨부는 조회된다). 산 참조를 셀 때 그 테이블도 같이 본다.
-      const { TaskAttachment } = require('../models');
-      const attRefs = others === 0 && TaskAttachment
-        ? await TaskAttachment.count({
-          where: { business_id: file.business_id, file_path: file.file_path },
-          transaction,
-        })
-        : 0;
-      lastRef = others === 0 && attRefs === 0;
-    }
+    // ★ 판정은 `services/fileRefs.countLiveRefs` **한 곳**이다 (2026-09-17, Fable 10차 #2·#3).
+    //   여기·복구·purge·내보내기가 각자 세다가 참조 집합이 네 벌로 갈라져 있었고,
+    //   경로 표기(절대/상대)가 어긋나 **첨부 비교가 한 번도 참이 되지 않았다.**
+    //
+    //   동시 삭제에서는 둘 다 형제를 보고 아무도 빼지 않는다(과계수 방향).
+    //   `FOR UPDATE` 로 직렬화하려 했더니 **교착**이 났다(실측 `Deadlock found`).
+    //   남는 오차는 보수적 방향이라 한도를 넘겨 쓰는 일은 없고,
+    //   드리프트는 `scripts/recount-storage-usage.js` 가 맞춘다.
+    const lastRef = await require('../services/fileRefs').isLastLiveRef(file, transaction);
     if (lastRef) {
       const usage = await getOrCreateUsage(file.business_id, transaction);
       usage.bytes_used = Math.max(0, Number(usage.bytes_used) - Number(file.file_size));

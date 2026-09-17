@@ -119,14 +119,100 @@ async function run() {
       push('자격회복/저장된 행이 미러 대상이 된다', elig, `vlevel=${fresh.vlevel} eligible=${elig}`);
     }
 
-    // ── B6. 폴더를 지울 때 안의 것을 잃지 않는가 (Fable 9차 C1) ────────
-    //   Drive `files.delete` 는 폴더의 **하위 항목을 휴지통 없이 영구 삭제**한다.
-    //   PlanQ 는 파일을 부모로 옮기지만 Drive 쪽 파일은 그 폴더 안에 그대로다.
-    //   그래서 **비었을 때만** 지워야 한다 — 이 검사는 그 규칙이 코드에 살아 있는지 본다.
+    // ── B6. 폴더를 지울 때 안의 것을 잃지 않는가 (Fable 9차 C1 · 10차 #5#6) ────
+    //   ★ 옛 검사는 라우트 **소스 문자열**을 grep 했다 — `continue` 한 줄만 지워도 초록이었다.
+    //     지금은 `services/driveFolderCleanup` 에 **가짜 drive** 를 주입해 동작으로 잰다
+    //     (실 Drive 호출 0 — 이 검사는 남의 Drive 를 건드리지 않는다).
     {
-      const src = require('fs').readFileSync('/opt/planq/dev-backend/routes/file_folders.js', 'utf8');
-      const guarded = /in parents and trashed=false/.test(src) && /항목이 남아 삭제하지 않음/.test(src);
-      push('폴더삭제/비었을 때만 Drive 폴더를 지운다', guarded, guarded ? '가드 있음' : '가드 없음 — 하위 파일 영구삭제 위험');
+      const { cleanupDriveFolders } = require('/opt/planq/dev-backend/services/driveFolderCleanup');
+      // 트리: root(Rf) ─ sub(Sf) ─ 파일 X.  부모(DEST)로 옮겨야 한다.
+      const mkDrive = (tree) => ({
+        files: {
+          list: async ({ q }) => {
+            const m = /'([^']+)' in parents/.exec(q);
+            const kids = (tree[m[1]] || []).map((id) => ({ id }));
+            return { data: { files: kids } };
+          },
+        },
+      });
+      const mkGdrive = (tree, log) => ({
+        moveFile: async (_d, id, dest) => {
+          for (const k of Object.keys(tree)) tree[k] = tree[k].filter((x) => x !== id);
+          tree[dest] = (tree[dest] || []).concat(id);
+          log.moved.push(`${id}->${dest}`);
+        },
+        deleteFile: async (_d, id) => {
+          if ((tree[id] || []).length) throw new Error('지우면 안 되는 폴더를 지웠다: ' + id);
+          // ★ 실제 Drive 는 지운 항목을 **부모 목록에서도** 뺀다. 안 빼면 가짜가 실물과 달라져
+          //   «루트가 안 지워진다» 는 거짓 실패가 난다(2026-09-17 실제로 한 번 났다 —
+          //   memory `feedback_positive_control_can_be_wrong`).
+          delete tree[id];
+          for (const k of Object.keys(tree)) tree[k] = tree[k].filter((x) => x !== id);
+          log.deleted.push(id);
+        },
+        isNotFoundError: () => false,
+      });
+
+      // ① 정상: 안의 파일을 부모로 옮기고, 자식 먼저 지우고, 루트도 지워진다
+      {
+        const tree = { DEST: [], Rf: ['Sf'], Sf: ['X'] };
+        const log = { moved: [], deleted: [] };
+        const r = await cleanupDriveFolders(mkDrive(tree), mkGdrive(tree, log), ['Sf', 'Rf'], 'DEST');
+        push('폴더삭제/안의 파일을 부모로 옮긴다', (tree.DEST || []).includes('X'), `DEST=${JSON.stringify(tree.DEST)} moved=${log.moved.join(',')}`);
+        push('폴더삭제/자식·루트 폴더가 모두 지워진다', r.deleted.join(',') === 'Sf,Rf', `deleted=${r.deleted.join(',')}`);
+      }
+      // ② 옮길 곳이 없으면(destId=null) **지우지 않고 남긴다** — 잃는 것보다 남기는 편이 낫다
+      {
+        const tree = { Rf: ['X'] };
+        const log = { moved: [], deleted: [] };
+        const r = await cleanupDriveFolders(mkDrive(tree), mkGdrive(tree, log), ['Rf'], null);
+        push('폴더삭제/옮길 곳이 없으면 폴더를 남긴다', r.deleted.length === 0 && r.kept.join(',') === 'Rf',
+          `deleted=${r.deleted.length} kept=${r.kept.join(',')}`);
+      }
+      // ③ 이동이 실패하면 그 폴더는 **남는다**(안의 항목을 영구삭제하지 않는다) — 음성 대조군
+      {
+        const tree = { DEST: [], Rf: ['X'] };
+        const log = { moved: [], deleted: [] };
+        const g = mkGdrive(tree, log);
+        g.moveFile = async () => { throw new Error('이동 실패'); };
+        const r = await cleanupDriveFolders(mkDrive(tree), g, ['Rf'], 'DEST');
+        push('폴더삭제/이동 실패하면 폴더를 남긴다(영구삭제 안 함)', r.deleted.length === 0 && r.kept.join(',') === 'Rf',
+          `deleted=${r.deleted.length} kept=${r.kept.join(',')}`);
+      }
+      // ④ 루트 먼저 넘기면 루트가 안 지워진다 — **순서 계약의 양성 대조군**
+      {
+        const tree = { DEST: [], Rf: ['Sf'], Sf: [] };
+        const log = { moved: [], deleted: [] };
+        const r = await cleanupDriveFolders(mkDrive(tree), mkGdrive(tree, log), ['Rf', 'Sf'], 'DEST');
+        push('폴더삭제/순서가 뒤집히면 루트가 남는다(대조군)', r.kept.includes('Rf') && r.deleted.includes('Sf'),
+          `deleted=${r.deleted.join(',')} kept=${r.kept.join(',')}`);
+      }
+    }
+
+    // ── B7. 산 참조 술어 — 경로 표기가 달라도 찾는가 (Fable 10차 #2·#3) ─
+    //   첨부는 상대경로(`uploads/...`), File 은 절대경로로 저장된다. 완전일치로 물으면
+    //   **한 번도 참이 되지 않는다** — 운영 실측 링크 채팅첨부 7건 중 일치 0/7.
+    //   그 상태에서는 purge 가 살아 있는 첨부의 바이트를 지운다.
+    {
+      const fileRefs = require('/opt/planq/dev-backend/services/fileRefs');
+      const abs = `${fileRefs.BACKEND_ROOT}/uploads/${BIZ}/canary/ref-${Date.now()}.txt`;
+      const rel = abs.slice(fileRefs.BACKEND_ROOT.length + 1);
+      push('참조술어/절대·상대 두 표기를 모두 묻는다',
+        fileRefs.pathVariants(abs).includes(rel) && fileRefs.pathVariants(rel).includes(abs),
+        `abs→${JSON.stringify(fileRefs.pathVariants(abs))}`);
+
+      // 같은 바이트를 가리키는 두 행 — 한쪽은 절대, 한쪽은 상대 표기.
+      const A = await mk({ gdrive_mirror_id: null, file_path: abs });
+      const B = await mk({ gdrive_mirror_id: null, file_path: rel });
+      const refs = await fileRefs.countLiveRefs(A, undefined);
+      push('참조술어/표기가 달라도 형제를 찾는다', refs.fileSiblings >= 1,
+        `siblings=${refs.fileSiblings} total=${refs.total}`);
+      push('참조술어/형제가 있으면 마지막 참조가 아니다',
+        (await fileRefs.isLastLiveRef(A, undefined)) === false);
+      // 음성 대조군 — 형제를 지우면 마지막 참조가 된다
+      await B.destroy({ force: true });
+      push('참조술어/형제를 지우면 마지막 참조다(음성 대조군)',
+        (await fileRefs.isLastLiveRef(A, undefined)) === true);
     }
 
     // ── C. Drive 쪽에서 지웠을 때 — 화면이 말하는가 ───────────────────

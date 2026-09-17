@@ -61,12 +61,14 @@ async function runUploadCleanup(today = new Date()) {
   }
 
   const { sequelize } = require('../config/database');
-  const { purgeFile } = require('./filePurge');
+  const { purgeFile, flushPurgeExternals } = require('./filePurge');
   let removed = 0; let failed = 0;
   for (const f of expired) {
+    // 외부 삭제는 커밋 뒤 (Fable N10) — 롤백이면 큐는 비어 있다.
+    const ext = [];
     const t = await sequelize.transaction();
     try {
-      await purgeFile(f, t);
+      await purgeFile(f, t, ext);
       await t.commit();
       removed += 1;
     } catch (e) {
@@ -74,6 +76,7 @@ async function runUploadCleanup(today = new Date()) {
       failed += 1;
       logger.warn({ file_id: f.id, err: e.message }, 'trash purge failed');
     }
+    await flushPurgeExternals(ext);
   }
   // 델타 — 플랜 기준으로 바꾸면 무엇이 달라지는가. 플래그를 켜기 전에 이 숫자를 본다.
   return { scanned: expired.length, removed, failed, mode: applyPlan ? 'plan' : 'legacy_30d', delta };

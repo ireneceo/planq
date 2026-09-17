@@ -41,7 +41,12 @@ function shouldNotHaveMirror(f) {
   //   `isEligible` 이 정본이므로 그것을 직접 부른다(미러 유무는 빼고 묻는다 — 이미 미러돼 있으니까).
   const { isEligible } = require('../services/gdriveMirror');
   const plain = typeof f.get === 'function' ? f.get({ plain: true }) : f;
-  const eligible = isEligible({ ...plain, gdrive_mirror_id: null, deleted_at: null },
+  // ★ `storage_provider` 를 **planq 로 덮어서** 묻는다 (2026-09-17, Fable 10차 #1).
+  //   `isEligible` 첫 줄이 `storage_provider !== 'planq' → false` 라, Drive 원본(gdrive) 행은
+  //   내용과 무관하게 **항상 «미러 대상 아님»** 이 됐다. 그러면 운영 148건이 전부 후보가 되어
+  //   `files.get` 을 168회 치고, 여기서 묻고 싶은 것(«이 가시성·보안등급이면 공유 폴더에
+  //   있어도 되는가»)에는 답하지 못한다. 저장소 종류는 이 질문의 축이 아니다.
+  const eligible = isEligible({ ...plain, storage_provider: 'planq', gdrive_mirror_id: null, deleted_at: null },
     { connected_by: plain.uploader_id, root_folder_id: 'x' });
   if (eligible) return null;
   const level = plain.vlevel || plain.visibility || 'L3';
@@ -93,7 +98,8 @@ function shouldNotHaveMirror(f) {
           if (!tk) wsfCache.set(f.business_id, null);
           else {
             const dr = await gdrive.getDriveClient(tk);
-            wsfCache.set(f.business_id, { wsf: await mirrorSvc.ensureWorkspaceFilesFolder(dr, tk), drive: dr });
+            // ★ **찾기만** 한다 — dry-run 이 폴더를 만들면 안 된다 (Fable 10차 #7).
+            wsfCache.set(f.business_id, { wsf: await mirrorSvc.findWorkspaceFilesFolder(dr, tk), drive: dr });
           }
         }
         const ctx = wsfCache.get(f.business_id);

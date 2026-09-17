@@ -224,6 +224,23 @@ router.get('/gdrive/:businessId/share-root', authenticateToken, checkBusinessAcc
         const biz = await Business.findByPk(businessId, { attributes: ['name'] });
         rootName = `PlanQ - ${(biz && biz.name) || 'workspace'}`;   // ensureRootFolder 와 같은 규칙
       } catch { /* 이름을 못 읽으면 기본값 */ }
+      // ★ **Drive 에서 실제 이름을 읽는다** (2026-09-17, Fable 10차 N9).
+      //   위 규칙은 «우리가 만들 때» 의 이름이다. 사용자가 Drive 에서 폴더 이름을 바꾸면
+      //   화면이 알려주는 경로가 거짓이 되고, 파인더에서 그 이름을 찾을 수 없다 —
+      //   우리가 만들지 않은 절차를 시키는 셈이다(memory
+      //   `feedback_dont_instruct_what_we_didnt_build`). 못 읽으면 위 조립값으로 떨어진다.
+      let leafName = 'Workspace Files';
+      try {
+        const meta = await drive.files.get({
+          fileId: shareFolderId, fields: 'id, name, parents', supportsAllDrives: true,
+        });
+        if (meta?.data?.name) leafName = meta.data.name;
+        const parentId = (meta?.data?.parents || [])[0];
+        if (parentId) {
+          const pm = await drive.files.get({ fileId: parentId, fields: 'id, name', supportsAllDrives: true });
+          if (pm?.data?.name) rootName = pm.data.name;
+        }
+      } catch (e) { console.warn('[share-root] Drive 이름 읽기 실패 — 조립값 사용', e.message); }
       const list = await drive.permissions.list({
         fileId: shareFolderId,
         fields: 'permissions(id, emailAddress, role, type, displayName)',
@@ -243,7 +260,7 @@ router.get('/gdrive/:businessId/share-root', authenticateToken, checkBusinessAcc
         //   확인창이 «PlanQ / Workspace Files» 라고 적어 뒀는데 실제 루트는
         //   `PlanQ - <워크스페이스 이름>` 이다(`ensureRootFolder`). 사용자가 파인더에서 찾을 때
         //   **그 이름이 없다.** 서버가 실제 경로를 내려주고 화면은 받아 쓴다.
-        folder_path: `${rootName} / Workspace Files`,
+        folder_path: `${rootName} / ${leafName}`,
         permissions: (list.data.permissions || []).map((p) => ({
           email: p.emailAddress || null, role: p.role, type: p.type, name: p.displayName || null,
         })),

@@ -14,7 +14,26 @@ const { Op } = require('sequelize');
 const { File, BusinessCloudToken } = require('../models');
 const gdrive = require('./gdrive');
 
-async function purgeFile(file, transaction) {
+/**
+ * @param {Array} externalQueue  **되돌릴 수 없는 외부 호출**(Drive/S3 삭제·미러 회수)을 담아
+ *   두는 배열. 호출측이 만들어 넘기고 **커밋한 뒤** `flushPurgeExternals(queue)` 로 비운다.
+ *
+ * ★ 왜 트랜잭션 밖으로 뺐나 (2026-09-17, Fable N10):
+ *   옛 코드는 Drive `files.delete` 를 트랜잭션 **안**에서 쳤다. 그러면 ①네트워크가 느린 동안
+ *   DB 트랜잭션을 붙잡고 있고 ②그 뒤 무엇이든 실패해 롤백되면 **DB 는 안 지워졌는데 Drive 원본만
+ *   사라진다** — 되돌릴 수 없는 쪽이 되돌릴 수 있는 쪽 안에 들어가 있었다.
+ *   `routes/files.js` 의 `flushMirrorRecalls` 와 **같은 방식**이다(큐를 호출측이 만든다 —
+ *   모듈 전역에 두면 요청끼리 섞여 산 파일의 사본을 지운다. Fable 9차 N1).
+ */
+async function purgeFile(file, transaction, externalQueue) {
+  // 큐를 안 받았으면 경고하고 **적어도 트랜잭션 밖(다음 틱)** 으로 미룬다.
+  // 조용히 안쪽에서 치면 이 계약이 새 호출부에서 그대로 사라진다.
+  const queue = externalQueue || null;
+  const defer = (fn) => {
+    if (queue) { queue.push(fn); return; }
+    console.warn('[filePurge] externalQueue 없이 호출됨 — 외부 삭제를 트랜잭션 밖으로 미룬다', file.id);
+    setImmediate(() => { Promise.resolve().then(fn).catch(() => {}); });
+  };
   // 바이트가 사라졌음을 기록 — 휴지통 목록이 SQL 로 이것을 걸러낸다.
   file.purged_at = new Date();
   await file.save({ transaction });
@@ -24,46 +43,41 @@ async function purgeFile(file, transaction) {
 
   if (file.ref_count <= 0) {
     if (file.storage_provider === 'planq') {
-      // 동일 file_path 를 참조하는 다른 활성 레코드 존재 여부 확인
-      const siblings = await File.count({
-        where: { file_path: file.file_path, deleted_at: null, id: { [Op.ne]: file.id } },
-        transaction
-      });
+      // ★ 산 참조 판정은 `services/fileRefs.countLiveRefs` **한 곳**이다
+      //   (2026-09-17, Fable 10차 #2·#3). 옛 코드는 여기서만 File 형제와 첨부를 따로 셌고,
+      //   `file_path` 완전일치로 비교해 **첨부 보호가 한 번도 참이 되지 않았다** —
+      //   첨부 테이블은 상대경로로도 저장된다(Fable 운영 실측: 링크 채팅첨부 7건 중 일치 0/7).
+      //   즉 살아 있는 첨부의 바이트를 이 경로가 지울 수 있었다.
+      const refs = await require('./fileRefs').countLiveRefs(file, transaction);
+      const siblings = refs.fileSiblings;
+      const attachRefs = refs.taskAttachments + refs.messageAttachments;
       // 문서 버전 기록이 참조하면 바이트를 남긴다 — 판정은 services/fileRetention 에 모았다
       //   (라우트에 두면 같은 규칙이 삭제 경로마다 갈라진다).
       const referencedByRevision = await require('./fileRetention')
         .isReferencedByPostRevision(file, transaction);
-      // ★ **첨부도 산 참조다** (2026-09-17, Fable 4차 실측).
-      //   `/attachments/link` 는 File 의 `file_path` 를 **그대로 복사**해 첨부 행을 만든다.
-      //   여기서 `File` 형제만 보고 바이트를 지우면 **살아 있는 업무 첨부가 410 이 된다**
-      //   (Fable 실측: purge 뒤 physical 없음 · `GET /tasks/attachments/:id/download` = 410).
-      //   카운터(`trashFile` 의 lastRef)만 고치고 **바이트를 지우는 이 판정을 놔둔 것**이 구멍이었다.
-      //   운영 노출: 산 File 과 경로를 공유하는 업무첨부 3건.
-      const { TaskAttachment, MessageAttachment } = require('../models');
-      let attachRefs = 0;
-      if (siblings === 0 && !referencedByRevision) {
-        attachRefs += await TaskAttachment.count({ where: { file_path: file.file_path }, transaction });
-        attachRefs += await MessageAttachment.count({ where: { file_path: file.file_path }, transaction });
-      }
       if (siblings === 0 && !referencedByRevision && attachRefs === 0 && fs.existsSync(file.file_path)) {
         fs.unlinkSync(file.file_path);
       }
     } else if (file.storage_provider === 'gdrive' && file.external_id) {
-      try {
-        const cloudToken = await BusinessCloudToken.findOne({
-          where: { business_id: file.business_id, provider: 'gdrive' }, transaction
-        });
-        if (cloudToken) {
-          const drive = await gdrive.getDriveClient(cloudToken);
-          await gdrive.deleteFile(drive, file.external_id);
-        }
-      } catch (e) { console.error('[files] gdrive delete failed:', e.message); }
+      const bizId = file.business_id, extId = file.external_id;
+      defer(async () => {
+        try {
+          const cloudToken = await BusinessCloudToken.findOne({ where: { business_id: bizId, provider: 'gdrive' } });
+          if (cloudToken) {
+            const drive = await gdrive.getDriveClient(cloudToken);
+            await gdrive.deleteFile(drive, extId);
+          }
+        } catch (e) { console.error('[files] gdrive delete failed:', e.message); }
+      });
     } else if (file.storage_provider === 's3' && file.external_id) {
-      try {
-        const { WorkspaceStorageConfig } = require('../models');
-        const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: file.business_id }, transaction });
-        if (cfg) await require('./s3Storage').deleteObject(cfg, file.external_id);
-      } catch (e) { console.error('[files] s3 delete failed:', e.message); }
+      const bizId = file.business_id, extId = file.external_id;
+      defer(async () => {
+        try {
+          const { WorkspaceStorageConfig } = require('../models');
+          const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: bizId } });
+          if (cfg) await require('./s3Storage').deleteObject(cfg, extId);
+        } catch (e) { console.error('[files] s3 delete failed:', e.message); }
+      });
     }
   }
   // ★ 2026-09-17 (Fable 게이트 #57 2차) — **Drive 미러 사본도 거둔다.**
@@ -72,14 +86,26 @@ async function purgeFile(file, transaction) {
   //   회수가 실패했던 행, 옛 데이터가 여기서 마지막으로 정리된다.
   //   회수는 `services/driveMirrorRecall` 한 곳이다(라우트마다 적으면 반드시 한 곳이 빠진다).
   if (file.gdrive_mirror_id && file.storage_provider === 'planq') {
-    const patch = {};
-    const r = await require('./driveMirrorRecall').recallDriveMirror(file, patch);
-    if (r === 'removed' || r === 'shared') {
-      try { await file.update(patch, { transaction }); }
-      catch (e) { console.warn('[filePurge] 미러 컬럼 정리 실패', file.id, e.message); }
-    }
+    defer(async () => {
+      const patch = {};
+      const r = await require('./driveMirrorRecall').recallDriveMirror(file, patch);
+      if (r === 'removed' || r === 'shared') {
+        // 커밋 뒤이므로 트랜잭션 없이 쓴다(그 행은 이미 purged_at 이 찍혀 확정됐다).
+        try { await file.update(patch); }
+        catch (e) { console.warn('[filePurge] 미러 컬럼 정리 실패', file.id, e.message); }
+      }
+    });
   }
   // 쿼터는 trashFile 에서 이미 반환했다 — 여기서 또 빼면 두 번 빠진다.
 }
 
-module.exports = { purgeFile };
+/** 커밋 뒤에 부른다 — 큐에 쌓인 외부 삭제를 순서대로 처리한다(하나가 실패해도 나머지는 계속). */
+async function flushPurgeExternals(queue) {
+  const q = queue || [];
+  while (q.length) {
+    const fn = q.shift();
+    try { await fn(); } catch (e) { console.warn('[filePurge] 외부 정리 실패', e.message); }
+  }
+}
+
+module.exports = { purgeFile, flushPurgeExternals };

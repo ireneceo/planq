@@ -239,9 +239,21 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
       // ★ Drive 쪽 폴더 id 를 **먼저 챙겨 둔다** — destroy 뒤엔 읽을 수 없다 (2026-09-17, Fable 8차 ⑤).
       //   여태 PlanQ 폴더만 지우고 Drive 폴더는 그대로 남겼다(실측: 빈 폴더가 공유 폴더 안에 잔존).
       //   파인더에서 보면 **없앤 폴더가 계속 보인다** — 지운 것이 지워지지 않은 상태다.
-      const driveFolderIds = (await FileFolder.findAll({
-        where: { id: { [Op.in]: allFolderIds } }, attributes: ['gdrive_folder_id'], transaction: t, raw: true,
-      })).map((r) => r.gdrive_folder_id).filter(Boolean);
+      //   ★ 순서를 **PlanQ 삭제 순서와 같게** 맞춘다 — 자식 먼저, 루트 마지막
+      //     (2026-09-17, Fable 10차 #6). 쿼리 결과 순서는 보장되지 않으므로 손으로 세운다.
+      //     루트를 먼저 다루면 그 안에 하위 폴더가 남아 «비어 있지 않아» 영영 안 지워진다.
+      const driveByFolder = new Map((await FileFolder.findAll({
+        where: { id: { [Op.in]: allFolderIds } }, attributes: ['id', 'gdrive_folder_id'], transaction: t, raw: true,
+      })).map((r) => [r.id, r.gdrive_folder_id]));
+      const driveFolderIds = allFolderIds
+        .slice().reverse()                       // 자식(뒤에 쌓인 것) → 루트
+        .map((id) => driveByFolder.get(id))
+        .filter(Boolean);
+      // 옮겨 갈 Drive 부모 — PlanQ 가 파일을 `folder.parent_id` 로 옮기는 것과 **같은 목적지**.
+      // 부모가 없으면(루트) 커밋 뒤 `Workspace Files` 로 해석한다.
+      const parentDriveId = folder.parent_id
+        ? (await FileFolder.findByPk(folder.parent_id, { attributes: ['gdrive_folder_id'], transaction: t, raw: true }) || {}).gdrive_folder_id || null
+        : null;
 
       // 폴더 삭제 (자식 먼저 → 루트 마지막)
       for (let i = allFolderIds.length - 1; i >= 0; i--) {
@@ -259,27 +271,17 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
           const token = await gdrive.getTokenForBusiness(folder.business_id);
           if (token) {
             const drive = await gdrive.getDriveClient(token);
-            for (const fid of driveFolderIds) {
-              try {
-                // ★★ **비어 있을 때만 지운다** (2026-09-17, Fable 9차 C1 — 내가 만든 데이터 손실 회귀).
-                //   Drive 의 `files.delete` 는 폴더를 지울 때 **안의 항목을 휴지통 없이 영구 삭제**한다.
-                //   PlanQ 는 파일을 부모 폴더로 옮기지만 **Drive 쪽 파일은 그 폴더 안에 그대로** 있다.
-                //   그래서 폴더 하나를 지우는 것이 그 안 파일들의 **유일한 바이트**를 없앨 수 있었다
-                //   — 운영 실측: 한 폴더 안에 Drive 원본 107건(그 파일들은 로컬 사본이 없다).
-                //   원래 신고는 «빈 Drive 폴더가 남는다» 였다. 비었을 때만 지우면 그 신고는 해결되고
-                //   손실 위험은 0 이 된다. 비어 있지 않으면 **남긴다** — 남는 편이 잃는 것보다 낫다.
-                const kids = await drive.files.list({
-                  q: `'${fid}' in parents and trashed=false`,
-                  fields: 'files(id)', pageSize: 1,
-                  supportsAllDrives: true, includeItemsFromAllDrives: true,
-                });
-                if ((kids.data.files || []).length > 0) {
-                  console.warn('[file_folders] Drive 폴더에 항목이 남아 삭제하지 않음', fid);
-                  continue;
-                }
-                await gdrive.deleteFile(drive, fid);
-              } catch (e) { if (!gdrive.isNotFoundError(e)) console.warn('[file_folders] Drive 폴더 삭제 실패', fid, e.message); }
+            // ★ 규칙(자식먼저 · 먼저 옮기고 · 비었을 때만 삭제)은 `services/driveFolderCleanup`
+            //   **한 곳**이다 (2026-09-17, Fable 10차 #5·#6). 라우트 안에 두면 회귀 검사가
+            //   소스 문자열밖에 못 재고, 그런 검사는 `continue` 한 줄만 지워도 초록이다.
+            let destId = parentDriveId;
+            if (!destId) {
+              try { destId = await require('../services/gdriveMirror').findWorkspaceFilesFolder(drive, token); }
+              catch { destId = null; }
             }
+            const r = await require('../services/driveFolderCleanup')
+              .cleanupDriveFolders(drive, gdrive, driveFolderIds, destId);
+            if (r.kept.length) console.warn('[file_folders] Drive 폴더에 항목이 남아 삭제하지 않음', r.kept.join(','));
           }
         } catch (e) { console.warn('[file_folders] Drive 정리 건너뜀', e.message); }
       }

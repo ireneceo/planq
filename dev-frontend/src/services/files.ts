@@ -99,7 +99,11 @@ export async function updateFileVisibility(
   businessId: number,
   fileId: number,
   body: { level: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number }
-): Promise<{ id: number; visibility: string; project_id: number | null }> {
+): Promise<{ id: number; visibility: string; project_id: number | null;
+  /** 가시성을 좁히면(예: L3→L1) 서버가 Drive 공유 사본을 거둔다 — 그 결과.
+   *  ★ 보안등급 쪽과 **같은 축**이다. 여기만 안 읽으면 "개인으로 내렸는데 사본은 공유 폴더에
+   *    그대로" 를 사용자가 모른다(Fable 10차 #4). */
+  drive_copy?: 'removed' | 'shared' | 'is_origin' | 'failed' | 'none' }> {
   const r = await apiFetch(`/api/files/${businessId}/${fileId}/visibility`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

@@ -1326,11 +1326,19 @@ const DocsTab: React.FC<Props> = (props) => {
                       const bizId = scope.businessId;
                       const ser = serializeVisibility(v);
                       try {
-                        await updateFileVisibility(bizId, fileIdNum, {
+                        const rv = await updateFileVisibility(bizId, fileIdNum, {
                           level: v.vlevel,
                           ...(v.variant === 'L2_project' && ser.project_id ? { project_id: ser.project_id } : {}),
                         });
                         setPreview(prev => prev ? { ...prev, visibility: v.vlevel, project_id: ser.project_id } : prev);
+                        // ★ 보안등급과 **같은 처리** (2026-09-17, Fable 10차 #4).
+                        //   개인(L1)으로 내렸는데 사본을 못 거둔 경우(`is_origin`·`failed`)를
+                        //   말하지 않으면, 사용자는 «개인으로 돌렸다» 고 믿는데 공유 폴더엔 그대로다.
+                        if (rv.drive_copy === 'is_origin' || rv.drive_copy === 'failed') {
+                          setShareError(t(
+                            rv.drive_copy === 'is_origin' ? 'docs.security.driveOrigin' : 'docs.security.driveFailed',
+                          ) as string);
+                        }
                       } catch (_) { /* skip */ }
                     }}
                     projects={projects.map(p => ({ id: p.id, name: p.name }))}
