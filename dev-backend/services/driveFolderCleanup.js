@@ -24,6 +24,17 @@ async function cleanupDriveFolders(drive, gdrive, driveFolderIds, destId) {
   const out = { moved: 0, deleted: [], kept: [], failed: 0 };
   const deletedSet = new Set(driveFolderIds);
 
+  // ★ **목적지가 살아 있는지 확인한다** (2026-09-17, Fable 11차 D4).
+  //   `parentDriveId` 는 우리 DB 값이다. 사용자가 Drive 쪽에서 그 폴더를 휴지통에 넣었으면
+  //   안의 것을 휴지통 안으로 옮기게 되고, 휴지통을 비우는 순간 **같이 영구삭제된다.**
+  //   확인할 수 없으면 `destId` 를 버린다 = 옮기지 않는다 = 폴더를 남긴다(잃는 것보다 낫다).
+  if (destId) {
+    try {
+      const d = await drive.files.get({ fileId: destId, fields: 'id, trashed', supportsAllDrives: true });
+      if (!d || !d.data || d.data.trashed) destId = null;
+    } catch { destId = null; }
+  }
+
   for (const fid of driveFolderIds) {
     // ② 안의 것을 부모로 옮긴다 — 같이 지울 하위 폴더는 건너뛴다(곧 지워진다).
     if (destId) {
@@ -37,6 +48,8 @@ async function cleanupDriveFolders(drive, gdrive, driveFolderIds, destId) {
           });
           for (const k of (kids.data.files || [])) {
             if (deletedSet.has(k.id)) continue;
+            // ★ `gdrive.moveFile` 은 **기존 부모를 전부 뗀다**(Fable 11차 D6). Drive 쪽에서
+            //   여러 폴더에 놓인 항목이면 그 자리들도 잃는다 — 바이트 손실은 아니고 정리 부작용이다.
             try { await gdrive.moveFile(drive, k.id, destId); out.moved += 1; }
             catch (e) { out.failed += 1; console.warn('[driveFolderCleanup] 이동 실패 — 폴더는 남긴다', k.id, e.message); }
           }

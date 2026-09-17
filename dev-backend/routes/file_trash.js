@@ -191,9 +191,18 @@ router.post('/:businessId/trash/empty', authenticateToken, attachWorkspaceScope(
       if (!(await canMutateFile(f, req))) { skipped.push(f.id); continue; }
       const ext = [];
       const t = await sequelize.transaction();
-      try { await purgeFile(f, t, ext); await t.commit(); purged++; }
-      catch (e) { await t.rollback(); console.error('[files] purge failed', f.id, e.message); }
-      await flushPurgeExternals(ext);   // 롤백이면 큐는 비어 있다(커밋한 것만 외부를 건드린다)
+      try { await purgeFile(f, t, ext); await t.commit(); }
+      catch (e) {
+        await t.rollback();
+        // ★ **롤백이면 큐를 버린다** (2026-09-17, Fable 11차 D1 — 내가 «비어 있다» 고 적은 주석이 거짓이었다).
+        //   `purgeFile` 은 save/decrement **뒤에** 큐에 넣으므로 `commit()` 이 실패해도 큐는 차 있다.
+        //   그대로 flush 하면 **DB 는 안 지워졌는데 Drive 원본만 사라진다** — 이 큐를 만든 취지가 무너진다.
+        ext.length = 0;
+        console.error('[files] purge failed', f.id, e.message);
+        continue;
+      }
+      purged++;
+      await flushPurgeExternals(ext);
     }
     require('../services/auditService').logAudit(req, {
       action: 'file.trash_empty', targetType: 'file', targetId: null,

@@ -73,6 +73,9 @@ async function runUploadCleanup(today = new Date()) {
       removed += 1;
     } catch (e) {
       await t.rollback().catch(() => {});
+      // ★ 롤백이면 큐를 버린다 (Fable 11차 D1). commit 실패 시 큐는 **차 있다** —
+      //   그대로 flush 하면 DB 는 그대로인데 Drive 원본만 사라진다.
+      ext.length = 0;
       failed += 1;
       logger.warn({ file_id: f.id, err: e.message }, 'trash purge failed');
     }

@@ -126,13 +126,15 @@ async function run() {
     {
       const { cleanupDriveFolders } = require('/opt/planq/dev-backend/services/driveFolderCleanup');
       // 트리: root(Rf) ─ sub(Sf) ─ 파일 X.  부모(DEST)로 옮겨야 한다.
-      const mkDrive = (tree) => ({
+      const mkDrive = (tree, trashed = new Set()) => ({
         files: {
           list: async ({ q }) => {
             const m = /'([^']+)' in parents/.exec(q);
             const kids = (tree[m[1]] || []).map((id) => ({ id }));
             return { data: { files: kids } };
           },
+          // 목적지 생사 확인용 (Fable 11차 D4)
+          get: async ({ fileId }) => ({ data: { id: fileId, trashed: trashed.has(fileId) } }),
         },
       });
       const mkGdrive = (tree, log) => ({
@@ -160,6 +162,14 @@ async function run() {
         const r = await cleanupDriveFolders(mkDrive(tree), mkGdrive(tree, log), ['Sf', 'Rf'], 'DEST');
         push('폴더삭제/안의 파일을 부모로 옮긴다', (tree.DEST || []).includes('X'), `DEST=${JSON.stringify(tree.DEST)} moved=${log.moved.join(',')}`);
         push('폴더삭제/자식·루트 폴더가 모두 지워진다', r.deleted.join(',') === 'Sf,Rf', `deleted=${r.deleted.join(',')}`);
+      }
+      // ①-b 목적지가 Drive 휴지통이면 **옮기지 않고 남긴다** (Fable 11차 D4)
+      {
+        const tree = { DEST: [], Rf: ['X'] };
+        const log = { moved: [], deleted: [] };
+        const r = await cleanupDriveFolders(mkDrive(tree, new Set(['DEST'])), mkGdrive(tree, log), ['Rf'], 'DEST');
+        push('폴더삭제/목적지가 휴지통이면 옮기지 않는다', log.moved.length === 0 && r.kept.join(',') === 'Rf',
+          `moved=${log.moved.length} kept=${r.kept.join(',')}`);
       }
       // ② 옮길 곳이 없으면(destId=null) **지우지 않고 남긴다** — 잃는 것보다 남기는 편이 낫다
       {

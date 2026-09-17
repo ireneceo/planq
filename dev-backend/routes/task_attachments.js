@@ -479,9 +479,8 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
       const { releasePlanqUpload } = require('../services/storageUsage');
       // ★ 산 참조 판정은 `services/fileRefs.countLiveRefs` 한 곳 (Fable 10차 #2·#3) — 옛 완전일치
       //   비교는 첨부(상대경로) vs File(절대경로)라 늘 0 이라 **산 Q File 의 바이트**를 지울 수 있었다.
-      const refs = await require('../services/fileRefs')
-        .countLiveRefs(att, undefined, { excludeFileId: null, excludeTaskAttachmentId: att.id });
-      const soleOwner = refs.total === 0;
+      const soleOwner = !(await require('../services/fileRefs')
+        .bytesStillNeeded(att, undefined, { excludeFileId: null, excludeTaskAttachmentId: att.id }));
       if (soleOwner) {
         // ★ 절대경로일 수 있다(link 가 File 경로를 복사) — join 하면 이어 붙어 안 지워진다.
         const abs = path.isAbsolute(att.file_path) ? att.file_path : path.join(__dirname, '..', att.file_path);

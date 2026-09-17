@@ -48,7 +48,10 @@ async function purgeFile(file, transaction, externalQueue) {
       //   `file_path` 완전일치로 비교해 **첨부 보호가 한 번도 참이 되지 않았다** —
       //   첨부 테이블은 상대경로로도 저장된다(Fable 운영 실측: 링크 채팅첨부 7건 중 일치 0/7).
       //   즉 살아 있는 첨부의 바이트를 이 경로가 지울 수 있었다.
-      const refs = await require('./fileRefs').countLiveRefs(file, transaction);
+      //   ★ 여기는 **물리삭제** 자리라 «바이트가 아직 필요한가» 로 묻는다 (Fable 11차 D3) —
+      //     휴지통에 있어도 복구 가능한(`purged_at IS NULL`) 형제는 그 바이트가 있어야 한다.
+      const refs = await require('./fileRefs')
+        .countLiveRefs(file, transaction, { siblingScope: 'unpurged' });
       const siblings = refs.fileSiblings;
       const attachRefs = refs.taskAttachments + refs.messageAttachments;
       // 문서 버전 기록이 참조하면 바이트를 남긴다 — 판정은 services/fileRetention 에 모았다

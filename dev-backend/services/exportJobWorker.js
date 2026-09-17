@@ -202,10 +202,11 @@ async function softDeleteSourceFile(f) {
   await f.decrement('ref_count');
   await f.reload();
   if (f.ref_count <= 0 && f.storage_provider === 'planq') {
-    const siblings = await File.count({
-      where: { file_path: f.file_path, deleted_at: null, id: { [Op.ne]: f.id } },
-    });
-    if (siblings === 0 && f.file_path && fs.existsSync(f.file_path)) {
+    // ★ **여섯 번째 복사본이었다** (2026-09-17, Fable 11차 D2). 쿼터 쪽만 술어로 바꾸고
+    //   이 unlink 판정은 완전일치 File 형제만 보고 있었다 — 이관한 원본이 채팅 링크 첨부
+    //   (상대경로)를 갖고 있으면 그 첨부의 바이트가 사라진다(운영에 그 조합 7건).
+    const needed = await require('./fileRefs').bytesStillNeeded(f, undefined);
+    if (!needed && f.file_path && fs.existsSync(f.file_path)) {
       try { fs.unlinkSync(f.file_path); } catch { /* best-effort */ }
     }
   }

@@ -38,9 +38,13 @@ function pathVariants(p) {
  *   - File 형제: 같은 경로 · 미삭제 · 자기 자신 제외
  *   - 업무 첨부 · 메시지 첨부: 같은 경로(두 표기)
  *
- * ★ 워크스페이스로 다시 거르지 않는다 — 경로 자체가 `uploads/{business_id}/...` 라
- *   이미 워크스페이스 축이다. 여기에 `business_id` 를 더 걸면 컬럼이 비었거나 어긋난 행을
- *   **못 보고 바이트를 지운다**. 못 보는 쪽이 아니라 더 보는 쪽으로 틀린다.
+ * ★ 워크스페이스로 다시 거르지 않는다 — 틀리더라도 «못 보는» 쪽이 아니라 «더 보는» 쪽으로
+ *   틀려야 한다(못 보면 산 바이트를 지운다). `business_id` 를 더 걸면 컬럼이 비었거나 어긋난
+ *   행을 놓친다.
+ *   ★ "경로가 곧 워크스페이스 축" 은 **완전하지 않다** (2026-09-17, Fable 11차 ② 실측):
+ *     `uploads/editor-images/...` 는 business 세그먼트가 없다(운영 82행·dev 44행).
+ *     파일명이 UUID 라 실제 충돌은 없고(정규화 경로가 두 워크스페이스에 걸친 행 dev 0·운영 0),
+ *     설령 충돌해도 «더 본다» = 안 지운다 쪽이라 안전하다. 전제가 아니라 안전 방향이 근거다.
  */
 async function countLiveRefs(file, transaction, opts = {}) {
   const variants = pathVariants(file && file.file_path);
@@ -53,9 +57,15 @@ async function countLiveRefs(file, transaction, opts = {}) {
   // 주체(지금 지우려는 행)는 자기 자신을 참조로 세면 안 된다. 주체가 File 이면 excludeFileId,
   // 첨부면 excludeTaskAttachmentId / excludeMessageAttachmentId 로 알린다.
   const excludeFileId = opts.excludeFileId !== undefined ? opts.excludeFileId : (file && file.id);
-  const fileWhere = { ...where, deleted_at: null };
+  // ★ 형제를 세는 **질문이 둘**이다 (2026-09-17, Fable 11차 D3 — 하나로 묶었다가 지적받았다):
+  //   ⒜ 쿼터: «지금 살아 있는 것» — 휴지통 행은 이미 바이트를 반환했으므로 세지 않는다.
+  //   ⒝ 물리삭제(unlink): «바이트가 아직 필요한가» — 휴지통에 있어도 **복구 가능한 행**
+  //      (`purged_at IS NULL`)은 그 바이트가 있어야 한다. 여기서 `deleted_at: null` 로 세면
+  //      dedup 쌍둥이를 둘 다 휴지통에 넣고 한쪽만 영구삭제했을 때 **다른 쪽 복구가 410** 이 된다.
+  const fileWhere = { ...where };
+  if (opts.siblingScope === 'unpurged') fileWhere.purged_at = null;
+  else fileWhere.deleted_at = null;
   if (excludeFileId) fileWhere.id = { [Op.ne]: excludeFileId };
-  if (opts.includeTrashedSiblings) delete fileWhere.deleted_at;
 
   const taskWhere = { ...where };
   if (opts.excludeTaskAttachmentId) taskWhere.id = { [Op.ne]: opts.excludeTaskAttachmentId };
@@ -75,11 +85,19 @@ async function countLiveRefs(file, transaction, opts = {}) {
   return out;
 }
 
-/** 이 행이 그 바이트의 **마지막 산 참조**인가 — 쿼터를 더하고 뺄 때의 판정. */
+/** 이 행이 그 바이트의 **마지막 산 참조**인가 — 쿼터를 더하고 뺄 때의 판정(⒜). */
 async function isLastLiveRef(file, transaction) {
   if (!file || file.storage_provider !== 'planq' || !file.file_path) return true;
   const r = await countLiveRefs(file, transaction);
   return r.total === 0;
 }
 
-module.exports = { pathVariants, countLiveRefs, isLastLiveRef, BACKEND_ROOT };
+/** 이 바이트가 **아직 필요한가** — 물리 파일을 지우기 전의 판정(⒝).
+ *  휴지통에 있어도 복구 가능한 행(`purged_at IS NULL`)과 첨부는 바이트를 필요로 한다. */
+async function bytesStillNeeded(file, transaction, opts = {}) {
+  if (!file || !file.file_path) return true;
+  const r = await countLiveRefs(file, transaction, { ...opts, siblingScope: 'unpurged' });
+  return r.total > 0;
+}
+
+module.exports = { pathVariants, countLiveRefs, isLastLiveRef, bytesStillNeeded, BACKEND_ROOT };
