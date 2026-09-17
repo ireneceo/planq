@@ -3665,3 +3665,42 @@ Q mail 에서 [확인완료] 로 치운 것이 상담으로 되살아나는 상�
 내용: 거짓이 된 주석 2곳 정정 · `CLAUDE.md` 인접 문장 · locale 끝 개행 6개 ·
 Fable 이 «커밋 메시지에 없다» 고 한 **범위 밖 변경 4파일을 개발현황에 기록**.
 **소스 동작 변경 0** (주석·문서·JSON 개행뿐). 빌드 EXIT 0 · 가드 57/58.
+
+---
+
+## 2026-09-17 · v1.52.11 배포 사후 (Fable 23차) — **일부 미검증**
+
+**판정: FAIL (결함 0건. 「권한으로 못 돌린 검사」 를 통과로 쓰지 않은 것)**
+
+### 검증된 것 (PASS)
+- diff 범위 — `5d940a0a` 는 package.json version 두 줄 + 문서 2개. **코드 변경 0**
+  (`git diff 8cbc8590 5d940a0a -- dev-backend/routes dev-backend/services dev-frontend/src scripts` 빈 출력)
+- 운영 `routes/email_threads.js` sha256 **= dev 와 바이트 동일** (`a41a9bb9…0cf5c7bb`)
+- 운영 health 200 · PM2 `planq-prod-backend` 1.52.11 · `.last-deployed-commit` = `5d940a0a`
+- 운영 locales(평문+gz)에 `folders.badgeUnread`·`bulk.withCount` 실림
+- 릴리즈노트 v1.52.11 발행(공개 라우트 200 — 미발행이면 404)
+- 롤백 경로 실재 `/opt/planq/backups/20260917_200338/`(backend 280MB · db 97.5MB · frontend 328MB)
+
+### 못 돌린 것 (권한 차단 — **미검증으로 남긴다**)
+1. **운영에서 크로스테넌트 실호출** — 자기 워크스페이스 라우트에 남의 워크스페이스 `thread_ids` 를 보내
+   `400 no_threads` + `email_messages` 무변경을 **운영 DB 로** 확인하는 프로브.
+   Fable 의 시도가 auto-mode 분류기에 3회 차단됐다(`Remote Shell Writes` · `Credential Exploration`).
+   ★ **Opus 가 대신 돌리지 않았다** — 주체만 바꿔 우회하는 것은 권한 세탁이다.
+2. `dev_status_reports` 행 직접 확인(platform_admin 전용 API 401 + 운영 DB SELECT 차단).
+
+### 지금 근거로 말할 수 있는 것
+운영 코드가 dev 와 **바이트 동일**하고, 그 dev 코드는 22차에서 **54 케이스 전부 400 + DB 무변경**으로
+실측됐다(양성 대조군 포함 — 자기 것 1건 + 남의 id 19건을 섞으면 자기 것만 처리). 따라서
+**같은 코드가 운영에 실린 것은 확정**이고, 남은 것은 «운영에서 직접 쳐 본 증거» 하나다.
+
+### Irene 이 돌릴 수 있는 프로브 (읽기 전용 · 400 기대)
+```
+ssh irene@87.106.78.146 'cd /opt/planq/backend && node -e "…"'
+ 1) 배우: active 사용자 1명 + 그 소속 워크스페이스 biz_a
+ 2) 피해자: business_id NOT IN (배우 소속) AND unread_count>0 인 스레드 10건
+ 3) 스냅샷: 그 스레드의 email_messages(is_read) · email_threads(unread_count,status,reply_needed)
+ 4) 배우 토큰으로 POST /api/businesses/{biz_a}/email-threads/{bulk-read|bulk-handled|bulk-dismiss}
+    body { thread_ids: [피해자 ids] }
+ 5) 기대: 3건 모두 400 {"message":"no_threads"} · 스냅샷 JSON 동일
+```
+결과가 기대와 다르면 즉시 롤백 경로가 위에 있다.
