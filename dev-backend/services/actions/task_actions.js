@@ -631,6 +631,9 @@ async function notifyComment({ task, comment, subjectId, actor, io }) {
       //   notify() 가 1인씩 부를 때 수신자 언어로 해석한다.
       titleSpec: { feature: 'task', action: 'task_comment_mention', subject: `"${task.title}"` },
       body: preview, link, ctaLabel: '댓글 보기', workspaceName: wsName,
+    // ★ #407 — 댓글은 **사람이 쓴 본문**이다(제목·시스템 문구가 아니다).
+    //   메일·푸시로는 내보내지 않고 인앱 알림에만 남긴다.
+    previewPolicy: 'internal_only',
       actorUserId: actor.userId, entityType: 'task', entityId: task.id, ioApp: io,
     }).catch((e) => console.warn('[notify comment_mention task]', e.message));
   }
@@ -654,6 +657,9 @@ async function notifyComment({ task, comment, subjectId, actor, io }) {
     // #281 — `Q Task · 새 댓글 · {작성자} · "{업무명}"`. 첫 토큰이 기능명이라 출처가 먼저 읽힌다.
     titleSpec: { feature: 'task', action: 'task_comment', subject: `${authorName} · "${task.title}"` },
     body: preview, link, ctaLabel: '댓글 보기', workspaceName: wsName,
+    // ★ #407 — 댓글은 **사람이 쓴 본문**이다(제목·시스템 문구가 아니다).
+    //   메일·푸시로는 내보내지 않고 인앱 알림에만 남긴다.
+    previewPolicy: 'internal_only',
     actorUserId: actor.userId, entityType: 'task', entityId: task.id, ioApp: io,
   }).catch((e) => console.warn('[notify task comment]', e.message));
 }

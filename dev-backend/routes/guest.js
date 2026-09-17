@@ -331,6 +331,9 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
           // 정화 전 raw 가 아니라 태그를 걷어낸 cleaned 를 넣는다 — 알림은 메일·inbox·push 로
           //   퍼지고 그중 하나만 HTML 로 렌더하면 무인증 입구가 그대로 통로가 된다 (#259).
           body: cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned,
+          // ★ #407 — 게스트가 쓴 본문은 **우리 울타리 밖으로 내보내지 않는다.** 인앱에만 남는다.
+          //   무인증 링크로 들어온 사람이 쓴 자유 텍스트라 더더욱 메일·푸시로 퍼뜨릴 이유가 없다.
+          previewPolicy: 'internal_only',
           link: `/talk?conv=${conversation.id}`,
           ctaLabel: '대화 열기',
           entityType: 'Conversation',

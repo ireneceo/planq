@@ -19,6 +19,13 @@ const INTERVAL_MS = 60 * 1000;  // 1분마다 점검
 const PER_RUN_LIMIT = 500;      // 한 번에 처리할 최대 알림 수
 
 // 놓치면 안 되는 종류만 — 관리성 알림(signup/payment/subscription/trial/feedback)은 제외해 메일 과다 방지.
+// ★ **사람이 쓴 자유 텍스트를 담는 종류** — 이 메일에는 본문을 싣지 않는다 (#407, 2026-09-17).
+//   인앱 알림 행에는 본문이 그대로 있다(울타리 안). 그런데 이 크론이 그 `body` 를 **메일 HTML 로
+//   그대로 렌더**해 왔다 — `notify()` 에서 메일·푸시를 막아 놔도 **여기로 다시 새어 나갔다.**
+//   Fable 12차 차단3 실측: 마커 문자열이 에스컬레이션 메일 items[0].body 에 그대로 들어갔다.
+//   즉 «푸시를 5분 안에 못 본 모든 채팅» 이 본문째 메일로 나가고 있었다.
+const FREE_TEXT_KINDS = new Set(['message', 'mention', 'comment_mention', 'task_comment']);
+
 const ESCALATE_KINDS = [
   'message', 'mention', 'comment_mention',
   'task', 'event', 'invite', 'signature', 'invoice', 'tax_invoice',
@@ -118,7 +125,13 @@ async function runUnreadEscalation() {
         const ok = await sendUnreadNotificationEmail({
           to: user.email,
           name: user.name,
-          items: allowed.slice(0, 10).map((r) => ({ title: r.title, body: r.body, link: r.link })),
+          //   ★ 자유 텍스트 종류는 **제목·링크만** 보낸다(#407). 무엇이 왔는지는 제목이 말하고,
+          //     내용은 로그인해서 본다. 나머지 종류(업무 상태·청구 등)는 시스템 문구라 그대로 싣는다.
+          items: allowed.slice(0, 10).map((r) => ({
+            title: r.title,
+            body: FREE_TEXT_KINDS.has(r.event_kind) ? null : r.body,
+            link: r.link,
+          })),
           count: allowed.length,
           workspaceName: g.businessId ? (wsNameById.get(g.businessId) || null) : null,
           businessId: g.businessId || null,

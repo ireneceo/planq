@@ -148,19 +148,28 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
     apiFetch(`/api/projects/${projectId}`).then(r => r.json()).then((j) => {
       if (dead || !j?.success) { setProjScope(null); return; }
       const d = j.data || {};
-      const users = new Set<number>((d.members || [])
+      // ★ 키 이름은 **`projectMembers` / `projectClients`** 다 (2026-09-17, Fable 12차 차단2).
+      //   `members`/`clients` 로 읽었더니 둘 다 빈 Set 이 **non-null 로** 세팅돼
+      //   **멤버·고객이 전부 걸러졌다** — «그 프로젝트 사람만» 의 정반대(아무도 못 넣는다).
+      //   저장소 다른 6곳은 전부 `projectMembers` 로 읽고 있었다. 서버 응답을 눈으로 확인할 것.
+      const users = new Set<number>((d.projectMembers || [])
         .map((m: { user_id?: number }) => Number(m.user_id)).filter(Boolean));
-      const clients = new Set<number>((d.clients || [])
+      const clients = new Set<number>((d.projectClients || [])
         .map((c: { client_id?: number; id?: number }) => Number(c.client_id ?? c.id)).filter(Boolean));
+      // ★ 좁혔는데 **아무도 안 남으면** 좁히지 않은 것으로 본다 — 빈 목록은 «고를 게 없다» 가 아니라
+      //   대개 «내가 잘못 읽었다» 이고, 그 결과가 «아무도 못 넣는» 화면이다.
+      if (users.size === 0 && clients.size === 0) { setProjScope(null); return; }
       setProjScope({ users, clients });
     }).catch(() => { if (!dead) setProjScope(null); });
     return () => { dead = true; };
   }, [projectId]);
 
   // 후보 목록 — 멤버 + 고객, 프로젝트가 걸려 있으면 그 범위로 좁힌다.
+  //   ★ **주최자 본인은 항상 남긴다.** 프로젝트에 멤버가 0명인 경우가 실제로 있고(고객만 붙은 프로젝트),
+  //     그때 나까지 걸러지면 «내 회의에 나를 못 넣는» 막다른 길이 된다(실측 project 57: 멤버 0 · 고객 1).
   const attendeeOptions = useMemo(() => {
     const mem = members
-      .filter((m) => !projScope || projScope.users.has(m.user_id))
+      .filter((m) => !projScope || projScope.users.has(m.user_id) || m.user_id === Number(user?.id))
       .map((m) => ({ value: `u:${m.user_id}`, label: m.name }));
     const cli = clientsList
       .filter((c) => !projScope || projScope.clients.has(Number(c.id)))
@@ -169,7 +178,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
         label: `${c.display_name || c.company_name || c.biz_name || `#${c.id}`} · ${t('form.attendeeClientTag', { defaultValue: '고객' })}`,
       }));
     return [...mem, ...cli];
-  }, [members, clientsList, projScope, t]);
+  }, [members, clientsList, projScope, t, user?.id]);
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
   // 구글 캘린더에 올릴지 — **팀/개인 각각** (계정이 다르므로 하나로 합치면 안 된다). 기본 둘 다 ON.
@@ -427,7 +436,15 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
               placeholder={t('form.attendeesPh', { defaultValue: '함께할 사람을 고르세요' }) as string}
               value={attendeeKeys.map((k) => {
                 const o = attendeeOptions.find((x) => x.value === k);
-                return { value: k, label: o ? o.label : k };
+                if (o) return { value: k, label: o.label };
+                // 프로젝트로 좁힌 뒤 범위 밖이 된 기선택 — 원시 키(`u:5`)를 보여주지 않는다.
+                const id = Number(k.slice(2));
+                const m = members.find((x) => x.user_id === id);
+                const c = clientsList.find((x) => Number(x.id) === id);
+                const name = k.startsWith('c:')
+                  ? (c?.display_name || c?.company_name || c?.biz_name)
+                  : m?.name;
+                return { value: k, label: name || `#${id}` };
               })}
               options={attendeeOptions}
               onChange={(opts) => {
