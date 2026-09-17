@@ -2439,10 +2439,10 @@ const MailPage: React.FC = () => {
                         type="button"
                         data-testid="mail-row-reply-needed"
                         disabled={dismissingId === mt.id}
-                        title={t('actions.markReplyNeededHint', { defaultValue: '답변 필요로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
+                        title={t('actions.markReplyNeededHint', { defaultValue: '이 메일을 «답변 필요» 로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
                         onClick={(e) => markReplyNeeded(e, mt.id)}
                       >
-                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요' }) as string}
+                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요로 표시' }) as string}
                       </RowBtn>
                       <RowBtn
                         type="button"
@@ -2454,7 +2454,15 @@ const MailPage: React.FC = () => {
                       </RowBtn>
                     </ReplyRow>
                   )}
-                  {/* 운영 #314 — 확인 권장·답변 필요 말고 **어느 탭에서도** 답변 필요로 올릴 수 있어야 한다.
+                  {/* ★ 2026-09-17 — **버튼 문구는 뱃지와 달라야 한다.**
+                      Irene: *"전체 메일에 답변필요 표시가 두번 나와. 빨간거 회색."*
+                      실측(전체 30행): 빨간 `ReplyNeededBadge`(상태 = 이 메일은 답변 대기 중)와
+                      회색 `RowBtn`(행위 = 눌러서 올려라)이 **글자가 똑같아서** 한 목록에 같은 표시가
+                      두 번 있는 것으로 읽혔다. 한 행에 둘이 같이 뜨지는 않지만(조건이 배타적),
+                      목록을 훑는 사람에게는 **행이 아니라 목록 전체가 한 장면**이다.
+                      → 상태는 명사(「답변 필요」), 행위는 동사를 붙인다(「답변 필요로 표시」).
+                      회귀: `node scripts/e2e/run.js --suite maillabel`
+                      운영 #314 — 확인 권장·답변 필요 말고 **어느 탭에서도** 답변 필요로 올릴 수 있어야 한다.
                       (전체·자동/마케팅·보관·보낸메일·스팸 …) 이미 답변 필요인 건 다시 올릴 이유가 없다. */}
                   {folder !== 'uncertain' && folder !== 'reply_needed' && !mt.reply_needed && !handledIds.has(mt.id) && (
                     <ReplyRow>
@@ -2462,10 +2470,10 @@ const MailPage: React.FC = () => {
                         type="button"
                         data-testid="mail-row-reply-needed"
                         disabled={dismissingId === mt.id}
-                        title={t('actions.markReplyNeededHint', { defaultValue: '답변 필요로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
+                        title={t('actions.markReplyNeededHint', { defaultValue: '이 메일을 «답변 필요» 로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
                         onClick={(e) => markReplyNeeded(e, mt.id)}
                       >
-                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요' }) as string}
+                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요로 표시' }) as string}
                       </RowBtn>
                     </ReplyRow>
                   )}

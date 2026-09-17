@@ -14,8 +14,22 @@ function folderWhere(folder, userId, businessId) {
   switch (folder) {
     case 'reply_needed': return { reply_needed: true, status: { [Op.in]: ['open', 'uncertain'] } };
     // assigned/following 은 EmailThreadParticipant 조인 필요 → 리스트 라우트에서 thread_id 필터로 처리. 여기선 status 기준만.
-    case 'assigned':
-    case 'following': return { status: { [Op.in]: ['open', 'uncertain'] } };
+    case 'assigned': return { status: { [Op.in]: ['open', 'uncertain'] } };
+
+    // ★ 2026-09-17 — **팔로우는 확인완료로 지워지지 않는다.**
+    //   Irene: *"내가 팔로우 해놨던 메일리스트가 없어졌어."*
+    //   실측: 팔로우 3건이 전부 `archived` 였다(2건은 9/16 16:48 에 동시에 = [모두 확인완료]).
+    //   데이터는 멀쩡했고 **이 폴더 조건이 걸러 낸 것**이다.
+    //
+    //   팔로우는 사람이 «이건 내가 계속 지켜보겠다» 고 **명시적으로 건 표시**다.
+    //   확인완료는 «지금 처리했다» 는 뜻이지 «그만 보겠다» 가 아니다 — 둘은 다른 축인데
+    //   지금은 확인완료가 팔로우를 덮어썼다. 오늘 Q sale 에서 고친 것과 **같은 모양**이다
+    //   («답하면 관계로 인정» 해 놓고 «확인완료하면 소멸» 시키던 자기모순).
+    //   → 스팸만 뺀다. 팔로우를 끄는 문은 **팔로우 해제** 하나다.
+    //
+    //   ★ `assigned`(담당)도 같은 성격이지만 신고 범위가 아니라 **건드리지 않았다.**
+    //     같은 계열이므로 신고가 오면 이 줄과 함께 고친다.
+    case 'following': return { status: { [Op.ne]: 'spam' } };
     // 확인 권장 = "한 번 보고 판단할 것" — 처리 완료(옛 inbox)를 여기에 합쳤다.
     //   ① 애매한 메일 (status='uncertain'): 스팸·광고는 아닌데 업무인지 모르겠는 것,
     //      그리고 자동 발송이지만 내용이 업무인 것(결제 완료·보고서·시스템 업무 안내)

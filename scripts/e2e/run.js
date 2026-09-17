@@ -122,6 +122,7 @@ const SUITES = {
   chatattach: () => require('./canary-chat-attach-download'),
   chatpreview: () => require('./canary-chat-preview'),   // 채팅 첨부 미리보기 — 받는 쪽(소켓)까지 잰다
   salecriteria: () => require('./canary-sale-criteria'), // Q sale 상담 유입 기준 + 사람이 올리는 문
+  maillabel: () => require('./canary-maillabel'),        // 메일 팔로우 폴더 범위 + 목록 문구 충돌(상태 vs 행위)
   // Drive 미러 생명주기 전 전이 — [파인더 공유]가 그 폴더를 «남에게 열리는 면» 으로 바꿨다.
   //   경로를 하나씩 고치다 게이트에서 여섯 번 막혔다(2026-09-17). 경로가 아니라 **표**로 건다.
   drivemirror: () => require('./canary-drive-mirror'),
