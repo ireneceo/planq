@@ -31,6 +31,18 @@ Notification.init({
   },
   title: { type: DataTypes.STRING(300), allowNull: false },
   body: { type: DataTypes.TEXT, allowNull: true },
+
+  // ★ **«울타리 밖으로 내보내도 되는 본문인가» 를 행에 싣는다** (2026-09-17, Fable 13차 차단1).
+  //   처음엔 `event_kind` 로 갈랐는데 **틀렸다**: 업무 댓글은 `'task'` 로 만들어진다
+  //   (내가 쓴 `'task_comment'` 는 ENUM 에 없는 **죽은 값**이었다). 그래서 `notify()` 의 직접
+  //   메일·푸시는 막혔는데 **5분 뒤 미읽음 에스컬레이션 크론이 댓글 본문을 그대로 메일로 냈다.**
+  //   종류는 사람 글과 시스템 문구가 섞인다(`'task'` 가 그렇다) — 종류로 가르면 반드시 샌다.
+  //   만든 쪽이 «이건 사람이 쓴 글» 이라고 **행에 적어 두면** 나중에 그 행을 읽는 누구든 따라온다.
+  preview_policy: {
+    type: DataTypes.ENUM('default', 'internal_only'),
+    allowNull: false,
+    defaultValue: 'default',
+  },
   link: { type: DataTypes.STRING(500), allowNull: true },
   cta_label: { type: DataTypes.STRING(50), allowNull: true },
   // 액션 한 사람 (null = 시스템 발송)

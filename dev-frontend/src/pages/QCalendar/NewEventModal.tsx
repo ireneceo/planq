@@ -154,6 +154,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       //   저장소 다른 6곳은 전부 `projectMembers` 로 읽고 있었다. 서버 응답을 눈으로 확인할 것.
       const users = new Set<number>((d.projectMembers || [])
         .map((m: { user_id?: number }) => Number(m.user_id)).filter(Boolean));
+      // ★ **프로젝트 주인도 그 프로젝트 사람이다** (Fable 13차 비차단 ②).
+      //   실측: 프로젝트를 만들어도 project_members 에 자동으로 안 들어간다(#57·#216 owner_user_id=5, 멤버 0).
+      //   주최자 예외만으로는 «남이 만드는 회의에서 프로젝트 주인이 걸러지는» 자리가 남는다.
+      if (Number(d.owner_user_id)) users.add(Number(d.owner_user_id));
       const clients = new Set<number>((d.projectClients || [])
         .map((c: { client_id?: number; id?: number }) => Number(c.client_id ?? c.id)).filter(Boolean));
       // ★ 좁혔는데 **아무도 안 남으면** 좁히지 않은 것으로 본다 — 빈 목록은 «고를 게 없다» 가 아니라

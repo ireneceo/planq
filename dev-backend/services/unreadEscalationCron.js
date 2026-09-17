@@ -19,7 +19,12 @@ const INTERVAL_MS = 60 * 1000;  // 1분마다 점검
 const PER_RUN_LIMIT = 500;      // 한 번에 처리할 최대 알림 수
 
 // 놓치면 안 되는 종류만 — 관리성 알림(signup/payment/subscription/trial/feedback)은 제외해 메일 과다 방지.
-// ★ **사람이 쓴 자유 텍스트를 담는 종류** — 이 메일에는 본문을 싣지 않는다 (#407, 2026-09-17).
+// ★ **정본은 행의 `preview_policy` 다** (Fable 13차 차단1 — 2026-09-17).
+//   처음엔 아래 «종류» 목록으로 갈랐는데 **샜다**: 업무 댓글은 `event_kind='task'` 로 만들어진다
+//   (내가 쓴 `'task_comment'` 는 ENUM 에 없는 죽은 값이었다). 종류는 사람 글과 시스템 문구가
+//   섞이므로 그것으로 가르면 반드시 빠져나간다. 아래 목록은 **옛 행(컬럼 도입 전)용 보조**로만 남긴다.
+//
+// ★ 사람이 쓴 자유 텍스트를 담는 종류 — 이 메일에는 본문을 싣지 않는다 (#407, 2026-09-17).
 //   인앱 알림 행에는 본문이 그대로 있다(울타리 안). 그런데 이 크론이 그 `body` 를 **메일 HTML 로
 //   그대로 렌더**해 왔다 — `notify()` 에서 메일·푸시를 막아 놔도 **여기로 다시 새어 나갔다.**
 //   Fable 12차 차단3 실측: 마커 문자열이 에스컬레이션 메일 items[0].body 에 그대로 들어갔다.
@@ -129,7 +134,10 @@ async function runUnreadEscalation() {
           //     내용은 로그인해서 본다. 나머지 종류(업무 상태·청구 등)는 시스템 문구라 그대로 싣는다.
           items: allowed.slice(0, 10).map((r) => ({
             title: r.title,
-            body: FREE_TEXT_KINDS.has(r.event_kind) ? null : r.body,
+            //   ① 행이 «내보내지 말라» 고 적었으면 그대로 따른다(정본)
+            //   ② 컬럼 도입 전 옛 행은 종류로 보조 판정한다
+            body: (r.preview_policy === 'internal_only' || FREE_TEXT_KINDS.has(r.event_kind))
+              ? null : r.body,
             link: r.link,
           })),
           count: allowed.length,

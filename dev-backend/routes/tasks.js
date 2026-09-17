@@ -1751,6 +1751,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
             userIds: audience, businessId: task.business_id, eventKind: 'task',
             titleSpec: { feature: 'task', action: holdAction, subject: `"${task.title}"` },
             body: task.hold_reason ? `"${task.title}" — ${task.hold_reason}` : `"${task.title}"`,
+            // #407 — 보류 사유는 사람이 쓴 글이다. 사유가 있을 때만 울타리 안으로 제한한다.
+            previewPolicy: task.hold_reason ? 'internal_only' : undefined,
             link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
             excludeUserId: req.user.id,
           }).catch((e) => console.warn('[notify hold]', e.message));

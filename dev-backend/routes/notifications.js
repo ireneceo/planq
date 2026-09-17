@@ -234,6 +234,9 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         actor_user_id: actorUserId || null,
         entity_type: entityType || null,
         entity_id: entityId || null,
+        // ★ 정책을 **행에 적는다** (Fable 13차 차단1). 이 행을 나중에 읽는 쪽
+        //   (미읽음 에스컬레이션 크론)이 종류를 추측하지 않고 이 값을 따른다.
+        preview_policy: previewPolicy === 'internal_only' ? 'internal_only' : 'default',
       });
       results.inbox = !!row.id;
       // N+73 — multi-device sync. socket emit 에 full row 포함 (옛: { id, kind } 만).

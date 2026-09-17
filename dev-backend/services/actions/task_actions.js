@@ -86,7 +86,7 @@ async function workspaceName(businessId) {
 // CLAUDE.md §13 — status 전이는 notify 강제. 라우트가 아니라 행동 계층이 부른다 → Cue 경로에서도 발송된다.
 // #281 — `action` 을 주면 제목 규약(`Q Task · {행위} · {업무명}`)으로 **수신자 언어에 맞춰** 만든다.
 //   title 을 직접 주는 옛 호출부도 그대로 동작한다(점진 전환).
-function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, excludeUserId }) {
+function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, excludeUserId, previewPolicy }) {
   if (!userId || (excludeUserId && userId === excludeUserId)) return;
   const { notify } = require('../../routes/notifications');
   (async () => {
@@ -103,6 +103,7 @@ function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, exclu
       title: finalTitle, body: body || `"${task.title}"`,
       link: taskLink(task.id), ctaLabel: ctaLabel || '업무 보기',
       workspaceName: wsName, tag: `task:${task.id}`,
+      previewPolicy,   // #407 — 사람이 쓴 사유·댓글이면 울타리 밖으로 안 내보낸다
     });
   })().catch((e) => console.warn('[task_actions notify]', e.message));
 }
@@ -1006,6 +1007,7 @@ async function requestRevision(task, actor, { note } = {}) {
     task, wsName: await workspaceName(task.business_id), excludeUserId: actor.userId,
     action: 'task_revision',
     body: text.length > 140 ? text.slice(0, 140) + '…' : text,
+    previewPolicy: 'internal_only',   // #407 — 수정요청 사유는 사람이 쓴 글이다
     ctaLabel: '수정 시작',
   });
 
@@ -1185,13 +1187,13 @@ async function canChangeStatus(task, actor) {
 }
 
 // 보류/해제의 관심 당사자 = 담당자 + 의뢰자. 둘이 같은 사람이면 1통만 (중복 알림 차단).
-function notifyStatusAudience(task, actor, { title, action, body, wsName }) {
+function notifyStatusAudience(task, actor, { title, action, body, wsName, previewPolicy }) {
   const ids = [task.assignee_id, task.request_by_user_id || task.created_by];
   const seen = new Set();
   for (const userId of ids) {
     if (!userId || seen.has(userId)) continue;
     seen.add(userId);
-    notifyTask({ userId, task, wsName, excludeUserId: actor.userId, title, action, body });
+    notifyTask({ userId, task, wsName, excludeUserId: actor.userId, title, action, body, previewPolicy });
   }
 }
 
@@ -1241,6 +1243,7 @@ async function hold(task, actor, { reason = null } = {}) {
   notifyStatusAudience(task, actor, {
     action: 'task_hold',
     body: cleanReason ? `"${task.title}" — ${cleanReason}` : undefined,
+    previewPolicy: cleanReason ? 'internal_only' : undefined,   // #407 — 보류 사유는 사람이 쓴 글이다
     wsName,
   });
 

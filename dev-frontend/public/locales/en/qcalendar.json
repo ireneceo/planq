@@ -139,7 +139,7 @@
     "reminderMinutes_one": "{{count}} minute before",
     "reminderMinutes_other": "{{count}} minutes before",
     "attendeesPh": "Choose who is joining",
-    "attendeesHint": "The people you choose get a reminder. The creator always does.",
+    "attendeesHint": "Members you pick get a notification; the organizer always does. Clients are recorded as attendees but are not notified yet.",
     "attendeeClientTag": "Client"
   },
   "button": {

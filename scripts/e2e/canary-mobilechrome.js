@@ -42,6 +42,9 @@ async function setInset(page, px) {
 async function run() {
   const results = [];
   const push = (name, ok, detail) => results.push({ name, route: name, leaked: !ok, detail });
+  // ★ 못 쟀으면 **통과로 넘기지 않는다** — run.js 가 게이트 실패로 센다(Fable 13차 ④).
+  //   픽스처(업무 행·사이드바 링크·추가 버튼)는 우리 통제 안이라 «못 쟀다» = «검사가 깨졌다» 다.
+  const skip = (name, why) => results.push({ name, route: name, leaked: false, unmeasured: true, detail: why });
   const { browser, page } = await launch();
   try {
     await login(page);
@@ -75,7 +78,7 @@ async function run() {
       const seen = Object.values(sizes).reduce((a, b) => a + b, 0);
       const small = Object.entries(sizes).filter(([k]) => Number(k) < 15).reduce((s, [, v]) => s + v, 0);
       // 0건이면 «통과» 가 아니라 **미측정**이다 — 빈 픽스처로 초록을 만들지 않는다.
-      if (seen === 0) push(`제목크기/${label} (미측정 — 행 0건)`, true, '행이 없어 재지 못함');
+      if (seen === 0) skip(`제목크기/${label}`, '목록 행 0건 — 재지 못했다');
       else push(`제목크기/${label} 폰에서 15px 이상`, small === 0, JSON.stringify(sizes));
     }
 
@@ -124,7 +127,7 @@ async function run() {
         const r = b.getBoundingClientRect();
         return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
       });
-      if (!box) { push(`드로어/${w} (미측정 — 추가 버튼 없음)`, true, ''); continue; }
+      if (!box) { skip(`드로어/${w}`, '업무 추가 버튼을 못 찾았다'); skip(`재클릭/${w}`, '드로어를 못 열어 이어서 재지 못했다'); continue; }
       await page.mouse.click(box.x, box.y);
       await sleep(1200);
       const top = await page.evaluate(() => {
@@ -145,7 +148,7 @@ async function run() {
         return true;
       });
       await sleep(1200);
-      if (!clicked) { push(`재클릭/${w} (미측정 — 사이드바 링크 안 보임)`, true, ''); continue; }
+      if (!clicked) { skip(`재클릭/${w}`, '사이드바 링크가 안 보인다'); continue; }
       const closed = await page.evaluate(() => {
         const t = [...document.querySelectorAll('div,h1,h2,h3,span')]
           .find((e) => (e.textContent || '').trim() === '업무 추가' && e.children.length === 0);

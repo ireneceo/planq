@@ -182,20 +182,30 @@ const SUITES = {
   // chrome: () => require('./chrome-suppression'),
 };
 
+// ★ **«못 쟀다» 를 «통과» 로 세지 않는다** (2026-09-17, Fable 12·13차 지적).
+//   카나리가 `push(name, true, '미측정')` 으로 넘기면 `leaked:false` 라 여기서 통과로 세어졌다.
+//   실제로 셀렉터 두 개를 깨뜨리자 **12검사 → 9검사, 전부 ✅, «총 실패 0»** 이 나왔다 —
+//   검사가 조용히 사라지는데 초록이다. 픽스처는 우리 통제 안이므로 «못 쟀다» 는 곧 «검사가 깨졌다» 다.
+//   → 행에 `unmeasured: true` 를 달면 ⚪ 로 표시하고 **게이트 실패로 센다**(fail-closed).
+//   데이터가 정말 비어도 되는 검사만 `optional: true` 를 **명시**했을 때 예외로 둔다.
 function printSuite(name, results) {
-  let fail = 0, fatal = 0;
+  let fail = 0, fatal = 0, unmeasured = 0;
   console.log(`\n=== ${name} ===`);
   for (const r of results) {
-    const bad = (r.fail || 0) + (r.blank ? 1 : 0) + (r.leaked ? 1 : 0) + (r.overblock ? 1 : 0) + (r.error ? 1 : 0);
-    const status = (r.fatal > 0) ? '🔥' : (bad > 0 ? '❌' : (r.inputs === 0 && !r.hasCanary && r.route === undefined ? '⚪' : '✅'));
+    const unm = (r.unmeasured && !r.optional) ? 1 : 0;
+    const bad = (r.fail || 0) + (r.blank ? 1 : 0) + (r.leaked ? 1 : 0) + (r.overblock ? 1 : 0) + (r.error ? 1 : 0) + unm;
+    const status = (r.fatal > 0) ? '🔥'
+      : (r.unmeasured ? '⚪'
+        : (bad > 0 ? '❌' : (r.inputs === 0 && !r.hasCanary && r.route === undefined ? '⚪' : '✅')));
     const metric = (r.path !== undefined)
       ? `(${r.path}) — 입력 ${r.inputs} · 통과 ${r.pass} · 실패 ${r.fail}${r.blank ? ' · 흰화면' : ''}${r.fatal ? ' · FATAL ' + r.fatal : ''}`
       : (r.route !== undefined ? (r.detail || (r.leaked ? '— 누출' : '')) : '');
     console.log(`${status} ${r.name || r.route} ${metric}`);
     (r.details || []).forEach((d) => console.log('     └ ' + d));
     if (r.snippet && r.leaked) console.log('     └ ' + r.snippet);
-    fail += bad; fatal += (r.fatal || 0);
+    fail += bad; fatal += (r.fatal || 0); unmeasured += (r.unmeasured ? 1 : 0);
   }
+  if (unmeasured) console.log(`  ⚪ 미측정 ${unmeasured}건 — 통과로 세지 않는다(검사가 깨졌을 수 있다)`);
   return fail + fatal;  // FATAL(하니스 환경 오염)도 게이트 실패로 취급 — 판정 자체를 신뢰 못 함
 }
 

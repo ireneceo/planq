@@ -842,7 +842,10 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       if (mentioned.length > 0) {
         notifyMany({
           userIds: mentioned, businessId: Number(req.params.businessId), eventKind: 'mention',
-          titleSpec: { feature: 'chat', action: 'chat_mention', subject: convTitle },
+          // ★ #407 이후 울타리 밖으로 나가는 것은 **제목뿐**이다. 그래서 제목이 «누가» 를 담아야 한다
+          //   — 여태 방 이름만 있어 메일·푸시에서 «누가 멘션했는지» 를 알 수 없었다(Fable 12차 비차단).
+          //    와 같은 모양으로 맞춘다.
+          titleSpec: { feature: 'chat', action: 'chat_mention', subject: `${senderName} · ${convTitle}` },
           body: previewBody, link, ctaLabel: '대화 보기', workspaceName: wsName,
           // ★ #407 — 채팅 본문은 **우리 울타리 안에만** 남긴다. 메일·푸시로는
           //   «PlanQ 에서 확인하세요» 만 나간다(제목·링크는 그대로라 도달성 무변화).
