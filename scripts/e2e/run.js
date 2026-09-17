@@ -28,6 +28,7 @@ const SUITES = {
   mailsearch: () => require('./canary-mail-search'),
   mailrt: () => require('./canary-mail-realtime'), // #205 실시간 반영 — 한 탭에서 내린 행이 다른 탭에서도 사라지는가
   handles: () => require('./canary-panel-handles'), // 패널 토글 화살표 중복 카나리 (접힘 상태에서만 드러남)
+  mobilechrome: () => require('./canary-mobilechrome'),  // 폰 상단 크롬 충돌 계열(제목 크기·빈 줄·오버레이·드로어·메뉴 재클릭)
   tabs: () => require('./canary-tabs'),
   tabtitle: () => require('./canary-tab-title'),
   collapsed: () => require('./canary-collapsed'),        // 좌측 메뉴 접힘 × 전 루트 빈 화면
