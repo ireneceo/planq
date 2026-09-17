@@ -34,12 +34,14 @@ const FIX_BIZ = Number(process.env.E2E_MAIL_BIZ || 5);
  *    (Fable 17차 소견: 「같은 술어다」의 앞 절이 그래서 죽어 있었다).
  */
 function showWhere(w) {
-  if (!w || typeof w !== 'object') return String(w);
+  if (!w || typeof w !== 'object') return w;
+  // 배열은 배열로 남긴다 — `Reflect.ownKeys` 로 풀면 `{"0":"open","1":"uncertain","length":2}` 가 되어
+  //   비교에는 결정적이지만 읽을 수가 없다 (Fable 18차 소견).
+  if (Array.isArray(w)) return w.map(showWhere);
   const out = {};
   for (const k of Reflect.ownKeys(w)) {
     const v = w[k];
-    out[typeof k === 'symbol' ? k.toString() : k] =
-      (v && typeof v === 'object') ? showWhere(v) : v;
+    out[typeof k === 'symbol' ? k.toString() : k] = (v && typeof v === 'object') ? showWhere(v) : v;
   }
   return out;
 }
@@ -162,6 +164,50 @@ async function run() {
           ? `겹친 말: ${clash.join(' · ')} — 같은 글자가 «지금 이렇다» 와 «이렇게 만들어라» 두 뜻으로 쓰인다 (행 ${m.rows})`
           : `행 ${m.rows} · 상태 ${m.states.length}종 · 액션 ${m.actions.length}종 — 겹침 0`
             + (m.states.includes(badgeText) ? ` (뱃지 "${badgeText}" 실림)` : ''));
+    }
+    // ── ③ 폴더 탭 배지는 **자기 축을 말한다** ──────────────
+    //   「답변 필요 48」·「확인 권장 3051」 은 그 폴더의 건수이고 「전체 3475」 는 안 읽음 수다.
+    //   축이 다른데 화면에 단서가 없으면 "전체 메일 3475개" 로 읽힌다(Irene: *"손봐"*).
+    //   숫자는 건드리지 않는다 — 부족한 것은 **뜻**이다.
+    await b.goto(page, '/mail?folder=all');
+    await b.sleep(4000);
+    const badges = await page.evaluate(() => {
+      const out = [];
+      document.querySelectorAll('button').forEach((btn) => {
+        const txt = (btn.textContent || '').trim();
+        // 폴더 탭만 — 숫자로 끝나고 글자가 짧은 버튼
+        if (!/[가-힣A-Za-z·\s]+\d+$/.test(txt) || txt.length > 20) return;
+        const num = btn.querySelector('span:last-child');
+        if (!num || !/^\d+$/.test((num.textContent || '').trim())) return;
+        out.push({
+          tab: txt.replace(/\d+$/, '').trim(),
+          n: (num.textContent || '').trim(),
+          title: btn.getAttribute('title') || '',
+          aria: num.getAttribute('aria-label') || '',
+        });
+      });
+      return out;
+    });
+    if (!badges.length) {
+      results.push({ name: '폴더 탭 배지가 자기 축을 말한다', unmeasured: true,
+        details: ['숫자 배지가 붙은 탭이 0개 — 잴 것이 없다(계정에 미읽음·대기가 전부 0)'] });
+    } else {
+      const bad = badges.filter((x) => !x.title || !x.aria || !x.title.includes(x.n));
+      push('폴더 탭 배지가 자기 축을 말한다',
+        bad.length === 0,
+        bad.length
+          ? `설명 없는 배지: ${bad.map((x) => `${x.tab}=${x.n}`).join(' · ')}`
+          : badges.map((x) => `${x.tab}=${x.n} → "${x.title}"`).join(' | '));
+      // 전체 탭은 «안 읽음» 이라고 말해야 한다 — 다른 탭과 축이 다른 유일한 자리다
+      const all = badges.find((x) => /전체|All/i.test(x.tab));
+      if (!all) {
+        results.push({ name: '「전체」 탭 배지는 안 읽음이라고 말한다', unmeasured: true,
+          details: ['전체 탭에 배지가 없다(미읽음 0) — 잴 것이 없다'] });
+      } else {
+        push('「전체」 탭 배지는 안 읽음이라고 말한다',
+          /안 ?읽음|unread/i.test(all.title),
+          `"${all.title}" — 이 말이 없으면 3475 를 «전체 메일 수» 로 읽는다`);
+      }
     }
   } catch (e) {
     push('화면 단계', false, String((e && e.message) || e));

@@ -161,7 +161,9 @@
     "assigned": "내 담당",
     "following": "팔로우",
     "all": "전체",
-    "sent": "보낸메일"
+    "sent": "보낸메일",
+    "badgeUnread": "안 읽음 {{n}}건 — [모두 읽음] 이 지웁니다",
+    "badgePending": "처리할 것 {{n}}건 — 일괄 처리가 지웁니다"
   },
   "thread": {
     "sent": "보낸",

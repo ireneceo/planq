@@ -459,6 +459,19 @@ const MailPage: React.FC = () => {
     if (key === 'reply_needed' || key === 'uncertain') return folderCounts[key] || 0;  // pending (일괄 액션이 비움)
     return 0;                                                     // 그 외 — 배지 없음
   }, [allUnread, folderCounts]);
+  // ★ 2026-09-17 — **배지는 자기 축을 말한다.**
+  //   Fable 17차가 판정 밖으로 짚었고 Irene 이 *"손봐"* 라고 했다: 「답변 필요 48」·「확인 권장 3051」 은
+  //   **그 폴더의 건수**인데 「전체 3475」 만 **안 읽음 수**다. 축이 다른데 화면에 단서가 하나도 없어
+  //   "전체 메일이 3475개" 로 읽힌다(실측: all=3522 · unread=3475 · 읽은 것 47).
+  //
+  //   ★ **숫자는 그대로 둔다.** 배지 정책(그 탭의 일괄 액션이 지울 수)은 옳고, 바꿔 달라는 것도 아니다
+  //     (memory `feedback_fix_the_number_not_the_look` — 숫자 얘기에 색·모양을 건드리지 않는다).
+  //     모자란 것은 **뜻**이라서 뜻만 붙인다. 색·크기·자리는 손대지 않았다.
+  const tabBadgeLabel = useCallback((key: Folder, n: number): string => (
+    key === 'all'
+      ? t('folders.badgeUnread', { n, defaultValue: '안 읽음 {{n}}건' }) as string
+      : t('folders.badgePending', { n, defaultValue: '처리할 것 {{n}}건' }) as string
+  ), [t]);
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
   // 좌측 리스트 폭 — 우측 패널처럼 드래그로 조절 (제목이 길면 300px 는 답답하다)
   // 훅은 콜백(IIFE) 안에서 부르지 않는다 — 동작은 같지만 eslint rules-of-hooks 위반이고,
@@ -2097,9 +2110,21 @@ const MailPage: React.FC = () => {
             </AddressBanner>
           )}
           {FOLDERS.map(({ key, defaultLabel }) => (
-            <FolderTab key={key} type="button" $active={folder === key} onClick={() => setFolder(key)}>
+            <FolderTab
+              key={key}
+              type="button"
+              $active={folder === key}
+              onClick={() => setFolder(key)}
+              // 탭 전체에 붙인다 — 배지에만 붙이면 좁은 화면에서 손가락이 닿는 대상과 설명이 어긋난다.
+              title={tabBadge(key) > 0 ? tabBadgeLabel(key, tabBadge(key)) : undefined}
+            >
               {t(`folders.${key}`, { defaultValue: defaultLabel }) as string}
-              {tabBadge(key) > 0 && <TabCount $active={folder === key}>{tabBadge(key)}</TabCount>}
+              {tabBadge(key) > 0 && (
+                // 보조기술에는 숫자만 읽히면 «무슨 3475» 인지 알 수 없다 — 축을 함께 읽힌다.
+                <TabCount $active={folder === key} aria-label={tabBadgeLabel(key, tabBadge(key))}>
+                  {tabBadge(key)}
+                </TabCount>
+              )}
             </FolderTab>
           ))}
         </FolderTabs>

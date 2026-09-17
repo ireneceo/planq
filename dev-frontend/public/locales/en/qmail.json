@@ -161,7 +161,9 @@
     "assigned": "Assigned to me",
     "following": "Following",
     "all": "All mail",
-    "sent": "Sent"
+    "sent": "Sent",
+    "badgeUnread": "{{n}} unread — cleared by Mark all read",
+    "badgePending": "{{n}} to handle — cleared by the bulk action"
   },
   "thread": {
     "sent": "Sent",
