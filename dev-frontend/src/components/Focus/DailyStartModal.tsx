@@ -12,6 +12,7 @@
 // "오늘 다시 보지 않기" = focus_prompt_last_dismissed_date = 오늘
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { createPortal } from 'react-dom';
 import { useChromeNav } from '../../hooks/useChromeNav';
@@ -312,7 +313,8 @@ const PlayIcon = styled.span`
 `;
 const RowBody = styled.div`flex: 1; min-width: 0;`;
 const RowTitle = styled.div`
-  font-size: 0.875rem; font-weight: 600; color: #0F172A;
+  ${listRowTitleCss}
+   font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   letter-spacing: -0.1px;
 `;

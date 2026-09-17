@@ -214,6 +214,15 @@ const PhoneActionRow = styled.div`
   gap: 8px;
   padding: 8px 14px;
   background: #ffffff;
+  /* ★ **내용이 없으면 줄을 그리지 않는다** (2026-09-17, Irene: "헤더아래에 흰여백이 더 있어").
+     이 줄은 배경(흰색)과 상하 8px 여백을 가지므로, 안의 컨트롤이 폰에서 빠지면
+     **아무것도 없는 흰 띠**만 남는다. 화면마다 «폰에서 액션이 있나» 를 호출부가 따지게 하면
+     반드시 한 곳이 빠진다 — 껍데기가 한 번 막는다.
+     ★ :empty 가 먹으려면 자식이 **DOM 에서 빠져야** 한다. display:none 으로 숨긴 자식은
+       여전히 자식이라 이 규칙에 안 걸린다(그래서 OpenTaskPopoutButton 은 null 을 반환한다).
+     ★ 이 주석에 백틱을 쓰지 말 것 — styled 템플릿이 거기서 끊긴다
+       (memory feedback_styled_comment_backtick · 2026-09-17 실제로 밟았다). */
+  &:empty { display: none; }
   border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
   overflow-x: auto;

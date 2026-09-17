@@ -1764,6 +1764,57 @@ function checkOverlayTop() {
 }
 
 // ═══════════════════════════════════════════════
+// phonetop — **폰 분기에서 «크롬 아래» 를 숫자로 적지 않는다** (2026-09-17 박제)
+//
+//   Irene: *"모바일에서 문서에서 +버튼 누르면 드롭다운 메뉴가 위로 올라가서 잘려"*
+//
+//   실측 9곳이 폰 미디어쿼리 안에서 `position: fixed; top: 68px|70px` 이었다.
+//   그 숫자는 «모바일 헤더 56px + 여백» 을 손으로 계산한 것인데, 상태바(노치)가 있는 기기에서는
+//   크롬이 `calc(56px + safe-top)` 으로 커진다 — 그 순간 오버레이가 **헤더 뒤로 숨는다.**
+//   브라우저에서는 safe-top 이 0 이라 **재현되지 않는다**(memory feedback_js_constant_cannot_be_responsive).
+//
+//   ★ 기존 `overlaytop` 가드는 `right: 0` 인 것만 봐서 이 9곳을 **한 번도 못 봤다**
+//     (`right: 16px` 이었다). 술어를 좁게 잡으면 같은 결함이 옆으로 새 나간다.
+//   정본은 `--pq-chrome-bottom` / `theme/layout.belowChrome` 하나다.
+function checkPhoneTop() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const hits = [];
+  let scanned = 0;
+  for (const f of files) {
+    const src = read(f);
+    if (!/position:\s*fixed/.test(src)) continue;
+    const re = /(?:export\s+)?const\s+(\w+)\s*=\s*styled[^`]*`([\s\S]*?)\n`;/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const [, name, body] = m;
+      if (!/position:\s*fixed/.test(body)) continue;
+      scanned += 1;
+      // 폰·태블릿 분기 블록만 — 중괄호 짝을 맞춰 자른다(창으로 재면 거짓 판정이 난다)
+      const mq = /@media[^{]*max-width:\s*(\d+)px[^{]*\{/g;
+      let q;
+      while ((q = mq.exec(body)) !== null) {
+        if (Number(q[1]) > 768) continue;
+        let i = q.index + q[0].length, depth = 1;
+        while (i < body.length && depth > 0) {
+          if (body[i] === '{') depth += 1; else if (body[i] === '}') depth -= 1;
+          i += 1;
+        }
+        const block = body.slice(q.index + q[0].length, i - 1);
+        const tm = block.match(/top:\s*(\d+)px/);
+        if (!tm) continue;
+        const px = Number(tm[1]);
+        if (px < 40 || px > 120) continue;   // 크롬 높이대의 숫자만 — 12px 같은 여백은 대상이 아니다
+        const line = src.slice(0, m.index).split('\n').length;
+        hits.push(`${rel(f)}:${line}: ${name} → 폰 분기에 top: ${px}px. `
+          + '`calc(var(--pq-chrome-bottom, 56px) + N px)` 또는 `theme/layout.belowChrome` 을 쓸 것');
+      }
+    }
+  }
+  report('phonetop', `폰 오버레이 상단을 숫자로 적지 않는다 (하드 게이트 · fixed styled ${scanned}개)`,
+    hits.length === 0, hits);
+}
+
+// ═══════════════════════════════════════════════
 // modalportal — 전면 모달은 **body 로 포털**해야 한다 (2026-09-07 박제)
 //   Irene: "이게 우측패널 뒤로 떠. 모든 팝업은 무조건 최상위 아니야?
 //           팝업이 기본 컴포넌트로 사용안된 곳들이 있어?"
@@ -2913,6 +2964,7 @@ const CATEGORIES = {
   menuname: checkMenuName,
   statuslabel: checkStatusLabel,
   overlaytop: checkOverlayTop,
+  phonetop: checkPhoneTop,
   chromeoffset: checkChromeOffset,
   autosave: checkAutoSave,
   autosavekey: checkAutoSaveKey,

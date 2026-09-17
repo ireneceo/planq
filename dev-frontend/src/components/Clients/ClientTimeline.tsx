@@ -7,6 +7,7 @@
 // ★ 모르는 type 은 **보이게** 렌더한다. 기본값으로 조용히 떨어뜨리지 않는다
 //   (memory feedback_unknown_state_silent_default).
 import styled from 'styled-components';
+import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import type { TimelineItem, TimelineType } from '../../services/sale';
@@ -147,7 +148,8 @@ const TypeBadge = styled.span`
   font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
 `;
 const Body = styled.div`min-width: 0; display: flex; flex-direction: column; gap: 3px;`;
-const RowTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const RowTitle = styled.div`
+  ${listRowTitleCss} font-weight: 600; color: #0F172A; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const Preview = styled.div`font-size: 0.8125rem; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const Metas = styled.div`display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px;`;
 const Meta = styled.span`font-size: 0.6875rem; font-weight: 600; color: #475569; background: #F1F5F9; border-radius: 999px; padding: 1px 8px;`;

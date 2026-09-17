@@ -11,6 +11,7 @@
 //     복원 버튼이 잠긴다(조용히 사라지지 않게). 30 을 화면에 박지 않는다 — 플랜마다 다르다.
 //   · 공용 DetailDrawer 사용(반응형 3구간·Esc·포커스 트랩·스크롤 잠금 내장).
 import React, { useCallback, useEffect, useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import DetailDrawer from '../Common/DetailDrawer';
@@ -153,7 +154,8 @@ const KindTag = styled.span<{ $kb?: boolean }>`
   background: ${p => (p.$kb ? '#F3E8FF' : '#F0FDFA')};
 `;
 const RowTitle = styled.div`
-  font-size: 0.875rem; font-weight: 600; color: #0F172A;
+  ${listRowTitleCss}
+   font-weight: 600; color: #0F172A;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
 `;
 const RowMeta = styled.div`font-size: 0.75rem; color: #94A3B8;`;

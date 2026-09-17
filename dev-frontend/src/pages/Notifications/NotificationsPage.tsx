@@ -1,6 +1,7 @@
 // N+63 — 알림 feed full list 페이지. Activity Feed (확인 필요 = Action Queue 와 분리).
 //   filter: 전체 / 미읽음. read-all 버튼. 클릭 시 link 이동 + 자동 읽음.
 import React, { useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
@@ -145,7 +146,8 @@ const ItemIcon = styled.span`
 `;
 const ItemBody = styled.div` flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; `;
 const ItemTitle = styled.div<{ $unread: boolean }>`
-  font-size: 0.875rem; font-weight: ${p => p.$unread ? 600 : 500}; color: #0F172A;
+  ${listRowTitleCss}
+   font-weight: ${p => p.$unread ? 600 : 500}; color: #0F172A;
 `;
 const ItemDesc = styled.div` font-size: 0.8125rem; color: #475569; line-height: 1.5; `;
 const ItemMetaRow = styled.div` display: flex; gap: 8px; align-items: baseline; margin-top: 4px; `;

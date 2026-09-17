@@ -8,6 +8,7 @@
 //
 // 데이터: GET /api/tasks/context (한 번에 3버킷). 실시간은 socket task:new/updated/deleted.
 import { useCallback, useEffect, useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -189,7 +190,8 @@ const Dot = styled.span<{ $color: string }>`
 `;
 const RowMain = styled.span`display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1;`;
 const RowTitle = styled.span`
-  font-size: 0.75rem; font-weight: 600; color: #334155; line-height: 1.4;
+  ${listRowTitleCss}
+   font-weight: 600; color: #334155; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 `;
 const RowMeta = styled.span`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;

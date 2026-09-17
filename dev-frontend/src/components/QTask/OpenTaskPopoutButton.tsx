@@ -10,11 +10,19 @@ import React from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { openPopout } from '../../utils/pinHost';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const OpenTaskPopoutButton: React.FC<{ className?: string }> = ({ className }) => {
   const { t } = useTranslation('qtask');
+  // ★ **CSS 로 숨기지 않고 렌더 자체를 안 한다** (2026-09-17, Irene: "확인필요에 헤더아래에 흰여백이 더 있어").
+  //   `display:none` 으로 숨기면 DOM 에는 남아, 이 버튼을 담는 `PageShell` 의 폰 액션 줄이
+  //   **비어 있지 않다고 판단해 흰 띠(배경+상하 8px)를 그대로 그린다.** 화면에는 아무것도 없는
+  //   여백만 보인다 — 사용자는 그것을 «뭔가 이상하다» 로 읽는다.
+  //   DOM 에서 빠져야 그 줄이 `:empty` 로 접힌다. 판정 폭은 종전 CSS 와 같은 768px.
+  const isPhone = useMediaQuery('(max-width: 768px)');
   const label = t('popout.openBtn', { defaultValue: '오늘 내 업무' }) as string;
   const hint = t('popout.openBtnHint', { defaultValue: '오늘·이번 주 내 업무를 별도 창으로 — 창 안의 핀을 누르면 항상 위로 고정됩니다' }) as string;
+  if (isPhone) return null;   // 모바일은 별도 창이 의미 없다(도크와 같은 판단)
   return (
     <Btn type="button" className={className} data-testid="open-task-popout"
       onClick={() => openPopout('qtask')} title={hint} aria-label={hint}>
@@ -38,6 +46,6 @@ const Btn = styled.button`
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   &:hover { background: #F8FAFC; border-color: #CBD5E1; color: #0F172A; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-  /* 모바일은 별도 창이 의미 없다 */
-  @media (max-width: 768px) { display: none; }
+  /* 모바일 분기는 **컴포넌트가 렌더를 안 하는 것**으로 한다(위 주석) — 여기서 숨기면
+     감싸는 줄이 빈 채로 남는다. 안전망으로 남겨 두지 않는다: 남기면 다시 그 상태가 된다. */
 `;

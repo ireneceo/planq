@@ -8,6 +8,7 @@
 // ★ 토큰은 화면에 오지 않는다. "받기" 는 서버 라우트를 열고 서버가 302 로 보낸다 —
 //   공유 토큰을 프론트에 실으면 그 자체가 유출 지점이 된다.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -161,8 +162,9 @@ const Row = styled.button<{ $dim: boolean }>`
 `;
 const RowMain = styled.div`flex:1 1 0;min-width:0;`;
 const RowTitle = styled.div`
+  ${listRowTitleCss}
   display:flex;align-items:center;gap:6px;
-  font-size:0.875rem;font-weight:600;color:#0f172a;
+  font-weight:600;color:#0f172a;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 `;
 const Lock = styled.span`font-size:0.75rem;`;

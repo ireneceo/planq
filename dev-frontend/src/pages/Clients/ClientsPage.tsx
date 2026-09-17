@@ -1062,7 +1062,8 @@ const ItemCard = styled.button`
 const ColorDot = styled.span`width:4px;align-self:stretch;border-radius:2px;flex-shrink:0;`;
 const ChannelDot = styled.span<{ $type:string }>`width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${p=>p.$type==='customer'?'#14B8A6':'#94A3B8'};`;
 const ItemMain = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;`;
-const ItemTitle = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
+const ItemTitle = styled.div`
+  ${listRowTitleCss}font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
 const ItemMeta = styled.div`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#64748B;`;
 const ProjectStatusPill = styled.span<{ $status:string }>`padding:1px 6px;border-radius:6px;font-size:0.625rem;font-weight:600;
   ${p=>p.$status==='active'?'background:#CCFBF1;color:#0F766E;':p.$status==='paused'?'background:#FEF3C7;color:#92400E;':'background:#E2E8F0;color:#475569;'}

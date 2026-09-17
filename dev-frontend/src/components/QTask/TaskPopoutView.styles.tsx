@@ -2,6 +2,7 @@
 // 주석을 깎아 가드를 통과시키지 않는다 — QMail(MailPage.styles)·ProjectTaskList 와 같은 패턴.
 //   ★ 확장자가 .tsx 인 이유: 이 블록에 SVG 아이콘 컴포넌트(JSX)가 함께 있다.
 import React from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled, { keyframes } from 'styled-components';
 
 export const Wrap = styled.div`
@@ -277,7 +278,8 @@ export const Badge = styled.span<{ $bg: string; $fg: string }>`
   white-space: nowrap;
 `;
 export const RowTitle = styled.span`
-  font-size: 0.84375rem; font-weight: 600; color: #0F172A; line-height: 1.4;
+  ${listRowTitleCss}
+   font-weight: 600; color: #0F172A; line-height: 1.4;
   word-break: break-word;
 `;
 export const RowMeta = styled.div`

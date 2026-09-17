@@ -191,7 +191,7 @@ const Modal = styled.div`
   max-height: 90vh; overflow: hidden;
   /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
   @media (max-width: 640px) {
-    position: fixed; z-index: 1000; top: 70px; bottom: 20px; left: 16px; right: 16px;
+    position: fixed; z-index: 1000; top: calc(var(--pq-chrome-bottom, 56px) + 14px); bottom: 20px; left: 16px; right: 16px;
     width: auto; max-width: none; max-height: none;
   }
 `;

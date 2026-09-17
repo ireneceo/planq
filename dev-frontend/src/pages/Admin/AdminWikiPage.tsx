@@ -5,6 +5,7 @@
 //   카테고리 관리 모달. 본문은 plain-text 블록(text/heading/step/callout/image) — body_ko/body_en 병렬.
 //   백엔드: /api/admin/wiki/* (platform_admin 전용).
 import { useCallback, useEffect, useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -527,7 +528,8 @@ const ListRow = styled.button<{ $active: boolean }>`
 const RowTop = styled.div`display: flex; align-items: center; gap: 6px; flex-wrap: wrap;`;
 const CatChip = styled.span`font-size: 0.6875rem; font-weight: 700; color: #0f766e; background: #f0fdfa; border-radius: 999px; padding: 2px 8px;`;
 const Badge = styled.span<{ $bg: string; $fg: string }>`font-size: 0.6875rem; font-weight: 700; border-radius: 999px; padding: 2px 8px; background: ${p => p.$bg}; color: ${p => p.$fg};`;
-const RowTitle = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0f172a; line-height: 1.4;`;
+const RowTitle = styled.div`
+  ${listRowTitleCss} font-weight: 600; color: #0f172a; line-height: 1.4;`;
 const RowSlug = styled.div`font-size: 0.6875rem; color: #94a3b8; font-family: ui-monospace, monospace;`;
 const EditorHeader = styled.div`flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: #fff; border-bottom: 1px solid #e2e8f0;`;
 const BackBtn = styled.button`

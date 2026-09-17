@@ -3,6 +3,7 @@
 // URL 싱크: ?workspace=:id
 // 재클릭 토글 / body scroll lock / focus trap / Esc 스택
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -670,7 +671,8 @@ const Row = styled.button<{ $active: boolean }>`
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
 const RowMain = styled.div`flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;`;
-const RowTitle = styled.div`font-size: 0.875rem; font-weight: 600; color: #0F172A;`;
+const RowTitle = styled.div`
+  ${listRowTitleCss} font-weight: 600; color: #0F172A;`;
 const RowMeta = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 
 const PlanBadge = styled.span<{ $code: PlanCode }>`

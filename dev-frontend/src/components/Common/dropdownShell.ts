@@ -6,6 +6,7 @@
 //
 //   ★ 새 드롭다운을 만들 때도 여기서 가져다 쓴다. 각자 styled 를 다시 선언하지 않는다.
 import styled from 'styled-components';
+import { listRowTitleCss } from '../../theme/tokens';
 import ChromeLink from '../Tab/ChromeLink';
 
 // ★ 등장 효과는 index.css 의 `[data-popover]` 계약이 준다. 여기서는 속성만 기본값으로 붙인다 —
@@ -67,7 +68,8 @@ export const ItemBody = styled.div` flex: 1; min-width: 0; display: flex; flex-d
 //   두 목록이 같은 스타일을 쓰는데 달라 보였던 이유는 굵기 규칙이 아니라 **읽음 상태**였다 —
 //   새 소식은 대부분 새 항목(600)이고 알림은 이미 읽은 것(500)이 많았다. 기준을 한 단계씩 올린다.
 export const ItemTitle = styled.div<{ $unread: boolean }>`
-  font-size: 0.8125rem; font-weight: ${p => (p.$unread ? 700 : 600)}; color: #0F172A;
+  ${listRowTitleCss}
+   font-weight: ${p => (p.$unread ? 700 : 600)}; color: #0F172A;
   overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 `;

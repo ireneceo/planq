@@ -2,6 +2,7 @@
 //   #54: 검색 + 카테고리/상태 필터.
 //   #70: Q docs·Q note 식 좌/우 레이아웃 + ?item URL 싱크 + 답변 받은 항목에 추가 문의(스레드).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -367,7 +368,8 @@ const AwaitDot = styled.span`
   width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; margin-left: auto;
 `;
 const RowTitle = styled.div`
-  font-size: 0.8125rem; font-weight: 600; color: #0f172a; line-height: 1.4;
+  ${listRowTitleCss}
+   font-weight: 600; color: #0f172a; line-height: 1.4;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 `;
 const RowMeta = styled.div`

@@ -1,6 +1,7 @@
 // 근태 화면 공용 타입·스타일 (#208) — AttendancePage 가 800줄을 넘어 쪼갠 것.
 //   화면 하나를 세 파일이 나눠 쓰므로 **타입과 표 스타일은 여기 한 벌**만 둔다.
 import styled from 'styled-components';
+import { listRowTitleCss } from '../../theme/tokens';
 
 export interface LeaveRequestRow {
   id: number; user_id: number; leave_type: 'paid' | 'unpaid';
@@ -68,7 +69,8 @@ export const Row = styled.div`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
 `;
 export const RowMain = styled.div` flex: 1; min-width: 0; `;
-export const RowTitle = styled.div` font-size: 0.8125rem; font-weight: 600; color: #0F172A; `;
+export const RowTitle = styled.div`
+  ${listRowTitleCss}  font-weight: 600; color: #0F172A; `;
 export const RowMeta = styled.div` font-size: 0.75rem; color: #64748B; margin-top: 2px; `;
 export const Hint = styled.div` margin-top: 6px; font-size: 0.6875rem; color: #94A3B8; `;
 export const Field = styled.div` margin-bottom: 14px; `;

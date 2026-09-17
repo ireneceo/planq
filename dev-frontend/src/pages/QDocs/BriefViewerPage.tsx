@@ -5,6 +5,7 @@
 // 추천 후속 문서 (recommended_next_kind) 가 있으면 하단에 CTA 카드.
 
 import { useEffect, useState, useMemo } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -383,8 +384,9 @@ const SourceTag = styled.span`
   border-radius: 4px;
 `;
 const ItemTitle = styled.h4`
+  ${listRowTitleCss}
   margin: 0 0 6px;
-  font-size: 0.875rem;
+  
   font-weight: 600;
   color: #0F172A;
 `;

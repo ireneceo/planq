@@ -10,6 +10,7 @@
 // ★ 알 수 없는 상태값(severity·verified)은 기본값으로 떨어뜨리지 않고 그 값 그대로 보인다
 //   (CLAUDE.md 상태값 규약 — 조용한 기본값은 "안 열린다" 로 보인다).
 import { useEffect, useState, useCallback } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 // 헬퍼로 넘길 t 의 타입 — 손으로 좁게 적으면 i18next 의 TFunction 과 호환되지 않는다(TS2345)
@@ -231,7 +232,8 @@ const Row = styled.div`
   &:last-child{border-bottom:none;}
 `;
 const RowMain = styled.div`display:flex;flex-wrap:wrap;align-items:center;gap:8px;`;
-const RowTitle = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;flex:1 1 0;min-width:0;`;
+const RowTitle = styled.div`
+  ${listRowTitleCss}font-weight:600;color:#0F172A;flex:1 1 0;min-width:0;`;
 const RowDetail = styled.div`
   margin-top:5px;font-size:0.8125rem;color:#475569;line-height:1.55;
   p{margin:0 0 3px;} p:last-child{margin-bottom:0;}

@@ -2,6 +2,7 @@
 // 라우트: /admin/feedback
 // 기능: 상태별 탭 (pending/reviewing/done/wontfix), 카테고리 필터, 답변 작성 + 상태 변경
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
@@ -286,7 +287,8 @@ const Row = styled.div<{ $active: boolean }>`
   &:hover { background: ${p => p.$active ? '#F0FDFA' : '#F8FAFC'}; }
 `;
 const RowTitle = styled.div`
-  font-size: 0.875rem; font-weight: 600; color: #0F172A;
+  ${listRowTitleCss}
+   font-weight: 600; color: #0F172A;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `;
 const RowMeta = styled.div`

@@ -1363,7 +1363,7 @@ const ModalBox = styled.div`
   /* mobile: top/bottom 고정으로 GNB 피하고 화면 안에 확실히 배치 */
   @media (max-width: 640px) {
     position: fixed;
-    top: 70px;
+    top: calc(var(--pq-chrome-bottom, 56px) + 14px);
     bottom: auto;
     left: 16px;
     right: 16px;

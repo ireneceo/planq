@@ -2702,7 +2702,7 @@ const NewDropdown = styled.div`
   /* 모바일 — 헤더 아래 우측 정렬 */
   @media (max-width: 640px) {
     position: fixed;
-    top: 68px;
+    top: calc(var(--pq-chrome-bottom, 56px) + 12px);
     right: 16px;
     left: auto;
     min-width: auto;
@@ -2737,7 +2737,7 @@ const ModalDialog = styled.div`
   display: flex; flex-direction: column; overflow: hidden;
   /* 모바일 — Q Calendar 패턴: 헤더(70px) 아래로 배치 */
   @media (max-width: 640px) {
-    top: 70px; bottom: 20px; left: 16px; right: 16px;
+    top: calc(var(--pq-chrome-bottom, 56px) + 14px); bottom: 20px; left: 16px; right: 16px;
     transform: none; width: auto; max-width: none; max-height: none;
   }
 `;

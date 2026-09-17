@@ -10,6 +10,7 @@
 //   줄은 사용자에게 고장으로 보인다(memory feedback_rules_must_be_explained_briefly).
 // ★ 본문은 편집기를 띄우지 않고 headless 변환 + 정화만 한다(utils/postContentHtml).
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { postContentToSafeHtml } from '../../utils/postContentHtml';
@@ -184,8 +185,9 @@ const Row = styled.button<{ $locked: boolean }>`
 `;
 const RowMain = styled.div`flex:1 1 0;min-width:0;`;
 const RowTitle = styled.div`
+  ${listRowTitleCss}
   display:flex;align-items:center;gap:6px;
-  font-size:0.875rem;font-weight:600;color:#0f172a;
+  font-weight:600;color:#0f172a;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 `;
 const Lock = styled.span`font-size:0.75rem;`;

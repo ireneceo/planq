@@ -2,6 +2,7 @@
 //   workspace owner / platform_admin 만 접근. archived 리스트 + 복원/영구삭제.
 //   진입: LeftPanel 풋터 "보관함 보기" 링크.
 import React, { useCallback, useEffect, useState } from 'react';
+import { listRowTitleCss } from '../../theme/tokens';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '../../components/UI/Modal';
@@ -213,7 +214,8 @@ const Body = styled.div`
 `;
 
 const RowTitle = styled.div`
-  font-size: 0.875rem;
+  ${listRowTitleCss}
+  
   font-weight: 600;
   color: #0F172A;
   margin-bottom: 4px;
