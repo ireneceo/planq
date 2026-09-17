@@ -1,0 +1,26 @@
+{
+  "version": "1.52.11",
+  "date": "2026-09-17",
+  "items": [
+    {
+      "ko": {
+        "title": "「모두 읽음」이 이제 정말 모두 읽음 처리합니다",
+        "body": "메일 목록 위의 일괄 버튼은 이름과 달리 한 번에 499건까지만 처리하고 멈췄습니다. 미읽음이 3천 건이면 일곱 번을 눌러야 했고, 누른 사람에게는 «눌렀는데 안 없어진다» 로 보였습니다. 이제 한 번에 끝까지 처리합니다. 아주 많은 경우에는 한 번에 다 하지 않고 «많아서 일부만 처리했습니다. 다시 누르면 이어서 처리합니다» 라고 알려 주며, 다시 누르면 남은 것부터 이어서 처리합니다."
+      },
+      "en": {
+        "title": "\"Mark all read\" now really marks all of them",
+        "body": "The bulk button above the mail list stopped after 499 items despite its name, so clearing three thousand unread mails took seven presses and simply looked like the button was not working. It now runs to the end in one press. For very large amounts it stops partway and says so — \"Too many to do at once\" — and pressing again continues from where it left off."
+      }
+    },
+    {
+      "ko": {
+        "title": "폴더 탭의 숫자가 무엇을 세는지 알려 줍니다",
+        "body": "「답변 필요 48」·「확인 권장 3051」은 그 폴더에 든 메일 수인데 「전체 3475」만 안 읽은 메일 수였습니다. 축이 다른데 화면에 단서가 없어 «전체 메일이 3475개» 로 읽혔습니다. 이제 일괄 버튼이 그 수를 함께 적어(「모두 읽음 (3475)」) 무엇을 세는 숫자인지 바로 보이고, 버튼을 누르기 전과 후가 같은 수를 말합니다."
+      },
+      "en": {
+        "title": "Folder tab counts now say what they are counting",
+        "body": "\"Reply needed 48\" and \"Review 3051\" count mails in those folders, but \"All 3475\" was counting unread mails instead — a different measure with nothing on screen to say so, so it read as \"3475 mails in total\". The bulk button now carries the same number (\"Mark all read (3475)\"), making clear what is being counted, and the number stays the same before and after you press it."
+      }
+    }
+  ]
+}
