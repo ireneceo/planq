@@ -1565,6 +1565,27 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     </NavIcon>
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.personalVault', '개인 보관함')}</NavLabel>
                   </NavItem>
+                  {/* ★ 2026-09-17 (#414) — 새 소식·알림을 **여기** 둔다. Irene:
+                      *"전체보기를 열면 탭이 설정으로 떠 … 아님 내문의, 피드백이랑 묶어서 4개 다 같은 메뉴"*
+                      워크스페이스 «설정» 이 아니라 **나에게 온 것**이라 개인 섹션이 제자리다.
+                      아이콘은 헤더의 스피커·종과 같은 모양으로 둔다 — 같은 것을 여는 문이다.
+                      ★ 이 사이드바는 `config/navMenus.ts` 표를 **읽지 않고 손으로 쓰여 있다.**
+                        표는 탭 이름·탭 `+` 목록의 단일 원천이므로 **둘 다** 고쳐야 한다.
+                        (한쪽만 고치면 «탭 이름은 맞는데 사이드바에 없다» 가 된다 — 실제로 그랬다.) */}
+                  <NavItem to="/whats-new" $isCollapsed={isCollapsed} $active={isActive('/whats-new')}
+                    title={isCollapsed ? t('nav.whatsNew', '새 소식') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a3 3 0 0 1 0 6"/><path d="M19 6a7 7 0 0 1 0 12"/></svg>
+                    </NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.whatsNew', '새 소식')}</NavLabel>
+                  </NavItem>
+                  <NavItem to="/notifications" $isCollapsed={isCollapsed} $active={isActive('/notifications')}
+                    title={isCollapsed ? t('nav.notifications', '알림') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    </NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.notifications', '알림')}</NavLabel>
+                  </NavItem>
                   <NavItem to="/me/feedback" $isCollapsed={isCollapsed} $active={isActive('/me/feedback')}
                     title={isCollapsed ? t('nav.myFeedback', '내 문의·피드백') : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}>

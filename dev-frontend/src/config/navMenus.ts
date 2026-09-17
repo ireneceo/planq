@@ -50,6 +50,16 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'bill', to: '/bills', labelKey: 'nav.qbill', section: 'features', roles: ['owner', 'member', 'client'] },
 
   { key: 'personal-vault', to: '/personal-vault', labelKey: 'nav.personalVault', section: 'personal', roles: ['owner', 'member'] },
+  // ★ 2026-09-17 (#414) — **새 소식·알림을 메뉴 표에 올린다.** Irene:
+  //   *"스피커랑 알림을 좌측 상단 아이콘에서 전체보기를 열면 탭이 설정으로 떠. …
+  //     아님 내문의, 피드백이랑 묶어서 4개 다 같은 메뉴 될 수 있지 않나"*
+  //   여태 이 둘은 헤더 아이콘으로만 여는 화면이라 **표에 없었다** — 소속이 없으니 탭에서
+  //   좌측 2뎁스도 안 열리고 이름도 기본값으로 떨어졌다.
+  //   자리는 «설정» 이 아니라 **개인**이다: 알림·새 소식·내 문의는 워크스페이스 설정이 아니라
+  //   **나에게 온 것**이고, 그 섹션에 이미 내 문의·피드백이 있다(Irene 의 두 번째 안).
+  //   ★ 표에 올렸으니 EXTRA_PAGE_LABELS 에서는 뺀다 — 같은 값을 두 곳에 두면 갈라진다.
+  { key: 'whats-new', to: '/whats-new', labelKey: 'nav.whatsNew', section: 'personal', roles: ['owner', 'member'] },
+  { key: 'notifications', to: '/notifications', labelKey: 'nav.notifications', section: 'personal', roles: ['owner', 'member'] },
   { key: 'my-feedback', to: '/me/feedback', labelKey: 'nav.myFeedback', section: 'personal', roles: ['owner', 'member'] },
   { key: 'received-signatures', to: '/signatures/received', labelKey: 'nav.receivedSignatures', section: 'personal', roles: ['owner', 'member'] },
 
@@ -146,8 +156,6 @@ export function visibleNavMenus(opts: {
  * (사이드바 메뉴가 아니라 헤더 아이콘·딥링크로만 여는 화면들이다.)
  */
 const EXTRA_PAGE_LABELS: Array<[string, string]> = [
-  ['/notifications', 'nav.notifications'],
-  ['/whats-new', 'nav.whatsNew'],
   ['/todo', 'nav.inbox'],
   ['/settings', 'nav.settings'],
   ['/profile', 'user.profile'],
