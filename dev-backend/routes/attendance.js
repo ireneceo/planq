@@ -250,6 +250,9 @@ router.patch('/days/:id/correct', authenticateToken, clockLimiter, async (req, r
           userId: m.user_id, businessId: day.business_id, eventKind: 'system',
           title: '근태 기록 정정',
           body: `${me?.name || '멤버'} 님이 ${ymd(day.work_date)} 근태를 정정했습니다 — ${String(req.body.fix_reason).slice(0, 120)}`,
+          // #407 — 정정 사유는 **사람이 쓴 글**이다. 메일·푸시로 내보내지 않고 인앱에만 남긴다
+          //   (Fable 14차 잔여 A). 제목 «근태 기록 정정» 만으로 무슨 일인지는 전달된다.
+          previewPolicy: 'internal_only',
           link: `/attendance?tab=team&date=${ymd(day.work_date)}`,
           actorUserId: req.user.id, entityType: 'attendance_day', entityId: day.id,
           ioApp: req.app,

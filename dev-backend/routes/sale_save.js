@@ -212,16 +212,20 @@ router.post('/:businessId/inbox/promote', ...writeChain, async (req, res, next) 
       // 이미 고객에 붙은 스레드는 상담이 아니라 **그 고객의 이력**이다(목록의 뜻이 그렇다).
       if (thread.client_id) return errorResponse(res, 'already_client', 400);
       // ★ 올렸는데 **목록에 안 나타나는 상태**로 두지 않는다 (2026-09-17).
-      //   상담 목록은 `status NOT IN ('spam','archived') AND triage='human'` 인 것만 본다
-      //   (services/saleInbox.classifyMailThreads — 같은 술어를 여기서 두 번 적지 않도록 그 조건만 맞춘다).
+      //   상담 목록은 이제 `status <> 'spam' AND triage='human'` 을 보고, 확인완료(archived)한 것도
+      //   **올린 것이면 들어온다**(`mailThreadVerdict` 가 `promoted` 를 가장 먼저 본다).
       //   스팸은 되살리는 것이 이 버튼의 뜻이 아니므로 **거절해서 알린다** — 조용히 200 을 주면
-      //   사용자에게는 "눌렀는데 아무 일도 안 일어남" 이고, 그것이 이번에 Fable 이 잡은 결함이다.
+      //   사용자에게는 "눌렀는데 아무 일도 안 일어남" 이고, 그것이 Fable 이 잡은 결함이다.
       if (thread.status === 'spam') return errorResponse(res, 'thread_is_spam', 400);
       const before = thread.triage;
       // 분류 자체도 사람 판단으로 맞춘다 — Q mail 에서도 같은 판단이 보여야 한다(dismiss 와 대칭).
       const patch = {};
       if (before !== 'human') patch.triage = 'human';
-      if (thread.status === 'archived') patch.status = 'uncertain';   // 보관 해제(중립 상태로)
+      // ★ **보관을 풀지 않는다** (2026-09-17, Fable 15차 비차단 1).
+      //   여기서 `archived → uncertain` 으로 되돌리면 Q mail 의 «확인 권장» 목록
+      //   (`status='uncertain' ∧ reply_needed=false`)에 그 메일이 **되살아난다** —
+      //   사용자가 이미 치운 것을 상담으로 올렸다는 이유로 Q mail 에 다시 띄우는 셈이다.
+      //   상담 유입은 이제 status 가 아니라 **판정(promoted)** 이 정한다. 상태는 그대로 둔다.
       if (Object.keys(patch).length) await thread.update(patch);
       await writeAudit({
         userId: req.user.id, businessId, action: 'mail.triage_correct',

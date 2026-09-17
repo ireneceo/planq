@@ -395,6 +395,21 @@ sync_database() {
   log "Adding push_fallback to notification_prefs ENUM..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-fallback-pref.js 2>&1 | tail -5"
 
+  # 2026-09-17 (#407) — `notifications.preview_policy`: 이 알림의 본문을 **울타리 밖(메일·푸시)으로
+  #   내보내도 되는가** 를 행에 적어 둔다. 처음엔 `event_kind` 로 갈랐는데 업무 댓글이 'task' 로
+  #   만들어져 **종류로는 못 가른다**(Fable 13차 차단). 만든 쪽이 행에 적고 읽는 쪽이 따른다.
+  #   ★ **코드보다 먼저 돈다** — 모델이 이 컬럼을 선언하므로 없으면 알림 생성이 500 이다.
+  #   멱등(SHOW COLUMNS 확인). 2026-09-17 배포에서는 손으로 먼저 돌렸고, 이후는 여기서 재실행된다.
+  log "Adding preview_policy to notifications..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-notification-preview-policy.js 2>&1 | tail -5"
+
+  # 2026-09-17 (#411) — 일정에 붙는 미팅자료 `calendar_event_attachments`.
+  #   파일/문서를 **가리키기만** 한다(바이트 복사 없음, 원본 삭제 시 CASCADE).
+  #   ★ **코드보다 먼저 돈다** — 없으면 일정 조회가 없는 테이블을 조인해 500 이다.
+  #   ★ `event_id` 는 BIGINT — `calendar_events.id` 가 bigint 라 INT 로 잡으면 FK 가 거부된다.
+  log "Creating calendar_event_attachments..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-event-attachments.js 2>&1 | tail -5"
+
   # 2026-09-14 — Q sale 상담 메모(댓글)의 **기준**을 남기는 칸: project_notes.client_id.
   #   Irene: "메모라고 메모남기기가 댓글처럼 … 어떤 문의를 기준으로 저장된건지 남기게 하고."
   #   ★ **코드보다 먼저 돈다** — 모델이 client_id 를 선언하므로 컬럼이 없으면 메모 조회가 500 이다.
@@ -446,7 +461,7 @@ sync_database() {
   #   가시성(vlevel·target_member_ids)은 원본 표에서 그대로 옮기므로 더 넓게 보이지 않는다.
   log "Backfilling orphan record posts (#360)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-orphan-record-posts.js --apply 2>&1 | tail -8"
-  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup / candidate-null / project-pinned-docs / push-fallback-pref)"
+  success "마이그레이션 완료 (push native / invoice-payment / account-deletion / mail-notify / task-hold / mail-delivery / calendar-sync / calendar-split / calendar-reverse-sync / doc-confirm / file-trash / gdrive-origin / mail-followup / candidate-null / project-pinned-docs / push-fallback-pref / preview-policy / event-attachments)"
 
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."

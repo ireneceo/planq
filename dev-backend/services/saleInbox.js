@@ -137,6 +137,9 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
       //   (실측으로 잡았다 — 보관함에서 되돌렸더니 상담이 아니라 후보로 떨어졌다.
       //    사용자에게는 "되돌렸는데 안 돌아온다" 로 보인다. 되돌리기의 뜻이 사라진 자리다.)
       promoted: humanPromoted,
+      // ★ 확인완료한 것은 «개인 주소» 추정으로 들이지 않는다 — 판정은 `mailThreadVerdict` 한 곳이다
+      //   (2026-09-17, Fable 15차 차단). 여기서 따로 세지 않고 그 함수에 축을 넘긴다.
+      archived: r.status === 'archived',
     });
     // ★ 확인완료(archived)한 건은 목록에 **남되 «답할 차례» 로 세지 않는다.**
     //   그 숫자는 «지금 내가 할 일» 의 수다 — 처리한 것을 거기 넣으면 숫자가 거짓이 된다.

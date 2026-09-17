@@ -71,16 +71,26 @@ async function run() {
     push('후보(관계 없음)는 상담 목록에 들어오지 않는다',
       typeof inbox.counts.candidate === 'undefined',
       `counts 에 candidate 키 없음 = ${typeof inbox.counts.candidate === 'undefined'} · 상담 ${inbox.counts.email}`);
-    push('상담에 들어온 것은 전부 관계가 있다(기준 ①과 같은 술어)',
-      (inbox.items || []).filter((x) => x.ref.kind === 'email_thread')
-        .every((x) => !x.meta || !x.meta.verdict || x.meta.verdict !== 'no_relationship'),
-      `상담 ${inboxIds.size}건`);
+    // ★ **확인완료한 것은 «행위로 증명된 관계» 일 때만 들어온다** (2026-09-17, Fable 15차 차단).
+    //   주소 모양(personal)만으로 들이면 Q mail 에서 치운 은행 알림·회람·스팸이 되살아난다
+    //   (운영 실측 owner 화면 4 → 48). 판정 단위로 양방향을 잰다.
+    const V = (o) => mailThreadVerdict(o).kind;
+    push('확인완료 + 답 없음 + 개인주소 → 상담에 안 들어온다',
+      V({ email: 'hong.gildong@bank.co.kr', outboundCount: 0, archived: true }) === 'candidate');
+    push('확인완료여도 **우리가 답했으면** 들어온다 (양성 대조군)',
+      V({ email: 'hong.gildong@bank.co.kr', outboundCount: 1, archived: true }) === 'inquiry');
+    push('확인완료여도 **사람이 올렸으면** 들어온다 (양성 대조군)',
+      V({ email: 'hong.gildong@bank.co.kr', outboundCount: 0, archived: true, promoted: true }) === 'inquiry');
+    push('확인완료가 아니면 개인주소 추정이 그대로 산다 (음성 대조군)',
+      V({ email: 'hong.gildong@bank.co.kr', outboundCount: 0, archived: false }) === 'inquiry');
 
     // ── ③ 사람이 올리는 문 — 여전히 작동하는가 (진입점은 Q mail 이다) ──
     //   후보 칸이 없어졌어도 **문은 닫히면 안 된다.** 관계 없는 메일 하나를 직접 올려 본다.
     const noRel = await sequelize.query(
+      // ★ `archived` 는 집지 않는다 — 승격이 dev 스레드 상태를 바꾸면 다음 검사가 오염된다
+      //   (memory `feedback_canary_pollutes_next_suite`). 되돌릴 수 있는 것만 고른다.
       `SELECT t.id FROM email_threads t WHERE t.business_id = ? AND t.client_id IS NULL
-         AND t.triage = 'human' AND t.status <> 'spam' LIMIT 50`,
+         AND t.triage = 'human' AND t.status NOT IN ('spam','archived') LIMIT 50`,
       { replacements: [bizId], type: sequelize.QueryTypes.SELECT });
     const notInInbox = (noRel || []).map((r) => r.id).find((id) => !inboxIds.has(id));
     if (notInInbox) {

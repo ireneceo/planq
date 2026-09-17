@@ -146,7 +146,7 @@ const qs = (params: Record<string, string | number | undefined | null>) => {
 
 // ── 상담(고객 미등록 접점) — Irene 2026-09-12 "상세(채팅, 메일, 전화, 등등) > 고객 이렇게 들어가야지"
 //   서버는 새 테이블 없이 원본(게스트 링크·메일 스레드·고객 대화방)에서 client_id 가 빈 것만 읽는다.
-export type SaleInboxSource = 'guest_link' | 'email' | 'chat' | 'dismissed' | 'candidate';
+export type SaleInboxSource = 'guest_link' | 'email' | 'chat' | 'dismissed';
 
 export interface SaleInboxItem {
   /** 'client' = 이미 등록된 **진행 중 상담**(등록해도 상담은 계속된다 — 2026-09-12) */
@@ -167,6 +167,8 @@ export interface SaleInboxItem {
   preview: string | null;
   at: string | null;
   needs_reply: boolean;
+  /** Q mail 에서 [확인완료] 한 건 — 목록에는 남되 «답할 차례» 는 아니다(#Q sale 2026-09-17). */
+  handled?: boolean;
   meta: Record<string, unknown>;
   /** 상담 기록(메모) 건수 — 리스트의 [메모] 가 몇 건인지 보여준다 */
   note_count?: number;
@@ -179,7 +181,6 @@ export interface SaleInboxCounts {
   /** 보관함 — 사람이 [문의 아님] 이라고 판단한 것 */
   dismissed?: number;
   /** 후보 — 자동 유입 기준(관계)에 안 걸린 메일. 버리지 않고 여기 모아 사람이 올린다 (2026-09-16) */
-  candidate?: number;
   /** 등록된 진행 중 상담 수 */
   client?: number;
 }

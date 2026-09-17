@@ -18,6 +18,9 @@ const { launch, login, goto, gotoSPA, sleep, dismissBlockers } = require('./lib/
 
 const results = [];
 const push = (name, pass, detail) => results.push({ name, fail: !pass, details: detail ? [detail] : [] });
+// ★ «못 쟀다» 를 초록으로 적지 않는다 (run.js `unmeasured` 계약). dev 데이터가 한쪽뿐이라
+//   못 재는 분기는 `optional` 을 같이 달아 ⚪ 로 보이되 게이트는 막지 않는다.
+const skip = (name, why) => results.push({ name, fail: false, unmeasured: true, optional: true, details: [why] });
 
 /** 패널(우측 드로어)이 **보이는가** — 확인창도 aria-modal 이라 그것만으로는 못 가른다.
  *  2026-09-13 실사례: 판정이 패널을 확인창으로 오인해 거짓 통과 직전이었다. 표식으로 좁힌다. */
@@ -133,8 +136,8 @@ async function run() {
       `라벨 {${[...labelSet].join('|')}} · 폭 {${[...widthSet].join('|')}}px`);
 
     const mailOnly = [...destKinds].every((k) => /메일|Mail/.test(k));
-    if (mailOnly) push('④-C 커버리지', true,
-      '※ dev 상담이 **전부 메일**이다 — guest/client/chat 분기는 이 실행에서 미측정');
+    if (mailOnly) skip('④-C guest/client/chat 분기',
+      'dev 상담이 전부 메일이라 이 분기는 재지 못했다');
 
     // ── 패널 열기 ─────────────────────────────────────────────────
     await page.click(`[data-testid="sale-inbox-row-${rows[0]}"] button`);
@@ -189,8 +192,9 @@ async function run() {
     page.on('request', onReq);
     const recordBtn = await page.$(`${PANEL} [data-testid="client-panel-record"]`);
     if (info.recordDisabled) {
-      push('⑤ 저장 액션이 확인을 받는다', true,
-        '이 행은 등록 불가(순수 대화방)라 액션이 비활성 — 이유 있는 비활성이므로 통과, 확인창은 미측정');
+      // 비활성 자체는 **옳은 동작**이라 통과로 센다. 다만 «확인창이 뜨는가» 는 못 쟀으므로 따로 적는다.
+      push('⑤ 등록 불가 행에서는 저장 액션이 비활성이다', true, '순수 대화방 — 이유 있는 비활성');
+      skip('⑤ 저장 액션의 확인창', '이 행은 액션이 비활성이라 확인창까지 못 갔다');
     } else if (recordBtn) {
       await recordBtn.click();
       await sleep(900);

@@ -341,8 +341,7 @@
       "email": "Email",
       "chat": "Chat",
       "client": "Registered",
-      "dismissed": "Trash",
-      "candidate": "Candidates"
+      "dismissed": "Trash"
     },
     "needsReply": "Needs action",
     "needsReplyOnly": "Needs action only",
@@ -357,7 +356,7 @@
     "inviteNoEmail": "Registered as a customer. No email address, so no invitation was sent.",
     "stageAll": "All stages",
     "hideClosed": "Hide closed",
-    "hintCandidate": "Only mail with a confirmed relationship enters Consults automatically — threads you replied to, or inquiries from a personal address. These did not meet that bar. If one is a real inquiry, press Send to consults."
+    "handled": "Handled"
   },
   "cuebar": {
     "placeholder": "Paste the conversation — \"Call from GreenTech, Seojun Park, quote request, 010-2345-6789\" (Ctrl+Enter)",

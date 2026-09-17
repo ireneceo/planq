@@ -34,6 +34,10 @@ const SCROLL = 500;
 
 const results = [];
 const P = (name, pass, detail) => results.push({ name, fail: !pass, details: detail ? [detail] : [] });
+// ★ **«못 쟀다» 를 초록으로 적지 않는다** (2026-09-17, Fable 12·13차 지적 · run.js `unmeasured` 계약).
+//   픽스처가 짧아 스크롤 여지가 없는 경우처럼 **데이터에 따라 정말 못 재는** 것은 `optional` 을 같이 단다
+//   — ⚪ 로 보이되 게이트를 막지는 않는다. 통제 가능한 픽스처가 없는 경우라면 `optional` 없이 쓴다.
+const SKIP = (name, why) => results.push({ name, fail: false, unmeasured: true, optional: true, details: [why] });
 
 /** 스크롤 주인을 찾아 굴리고, 기준 요소의 y 변화를 돌려준다 */
 const SCROLL_AND_MEASURE = `(sel, px) => {
@@ -179,8 +183,8 @@ async function run() {
                  ownerCls: String(list.className || '').slice(0, 24), ownerIsDoc: false };
       }, SCROLL);
       if (left.err && !left.noRoom) P(`[${vp.key}] ② 좌측 머리줄을 찾았다`, false, left.err);
-      else if (left.noRoom || left.moved < 40) P(`[${vp.key}] ② 좌측 머리줄 — 스크롤 여지`, true,
-        `${left.err || '굴림 ' + left.moved + 'px'} — 미측정(커버리지에 적는다)`);
+      else if (left.noRoom || left.moved < 40) SKIP(`[${vp.key}] ② 좌측 머리줄`,
+        `스크롤 여지가 없어 재지 못했다 — ${left.err || '굴림 ' + left.moved + 'px'}`);
       else P(`[${vp.key}] ② 좌측 머리줄이 스크롤에도 제자리`, left.drift <= 2,
         `y ${left.before} → ${left.after} (${left.moved}px 굴림 @ ${left.ownerCls}${left.ownerIsDoc ? ' ★문서스크롤' : ''})`);
 

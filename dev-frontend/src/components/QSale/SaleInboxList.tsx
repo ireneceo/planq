@@ -236,7 +236,7 @@ const SaleInboxList: React.FC<Props> = ({
   // 행 액션(되돌리기·보관·영구삭제)은 한 벌로 묶여 있다 — useInboxItemActions.
   //   ★ `promoteItem`(상담으로 보내기)은 여기서 안 쓴다 — 그 문은 **Q mail** 에 있다
   //     (메일 목록 우클릭 · 상세 ⋯). 후보 칸을 뺐으므로 이 화면에는 올릴 대상이 없다.
-  //     훅에는 그대로 남겨 둔다 — Q mail 쪽이 같은 훅을 쓴다.
+  //     훅에는 남겨 두되 **쓰는 곳이 없다** — Q mail·채팅은 `services/sale.ts promoteInboxItem` 을 직접 부른다.
   const { restoreItem, ensureClient, applyStage } = useInboxItemActions({
     businessId, busyId, setBusyId, setActionError,
     errorText: t('error.loadFailed') as string, saveErrorText: t('error.saveFailed') as string,
@@ -341,6 +341,10 @@ const SaleInboxList: React.FC<Props> = ({
                       {it.stage && <StageTag>{t(`stage.${it.stage}`) as string}</StageTag>}
                       <Who><HighlightText text={who} query={q} /></Who>
                       {it.needs_reply && <ReplyTag>{t('inbox.needsReply') as string}</ReplyTag>}
+                      {/* ★ 확인완료한 건은 **목록에 남되** 답할 차례가 아니다 — 그 사실을 화면이 말한다.
+                          안 그러면 처리한 것과 안 한 것이 같은 모양이라 왜 여기 있는지 알 수 없다
+                          (memory feedback_backend_done_ui_missing — 서버만 넣고 화면을 안 붙이면 안 고친 것이다). */}
+                      {it.handled && <HandledTag>{t('inbox.handled', { defaultValue: '확인완료' }) as string}</HandledTag>}
                       <At title={it.at ? formatDateTime(it.at) : ''}>{it.at ? formatTimeAgo(it.at) : '—'}</At>
                     </RowTop>
                     {/* ★ 2026-09-13 (Irene: "전화나 채팅은 제목 없는데 제목 내용 분리하면 안되는 거 아니야?
@@ -386,7 +390,7 @@ const SaleInboxList: React.FC<Props> = ({
                 </StageSlot>
                 <RowActions>
                   {/* 나머지 순서는 종전대로: 보기 · 메모 · 일정 · 업무 · ✕ */}
-                  {/* ★ 후보 행에서 할 일은 «올릴지 말지» 하나다. 고객 기준 동작(메모·일정·업무)은
+                  {/* ★ 보관함 행에서 할 일은 «올릴지 말지» 하나다. 고객 기준 동작(메모·일정·업무)은
                       아직 상담이 아닌 것에 고객 레코드를 만들게 되므로 감춘다 — 올린 뒤에 할 일이다. */}
 
                   {/* ① 보기 — **다른 화면으로 나간다**.
@@ -403,7 +407,6 @@ const SaleInboxList: React.FC<Props> = ({
                     {t('action.view') as string}
                   </ActionButton>
 
-                  {(<>
                   {/* ② 메모 — 행 아래에서 열린다. 계약이 하루에 네 번 바뀌었다(2차 개수삭제 →
                       4차 점 → 5차 숫자+좌측정렬 → 6차 색구분·간격·최대자릿수 공유폭).
                       **정본은 6차. 숫자를 다시 지우지 말 것** — 2차를 Irene 이 되돌렸다.
@@ -434,7 +437,6 @@ const SaleInboxList: React.FC<Props> = ({
                     onClick={() => setTaskFor(it)}>
                     {t('action.addTask') as string}
                   </ActionButton>
-                  </>)}
 
                   {/* ⑥ ✕ — 상담 목록에서 치운다. 누르면 **묻는다**(되돌릴 수 있다는 것도 문구로 말한다).
                       보관함 행에서는 되돌리기가 그 자리를 대신한다. */}
@@ -684,6 +686,12 @@ const Who = styled.span`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`
 const ReplyTag = styled.span`
   font-size: 0.6875rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
   color: #BE123C; background: #FFF1F2;
+`;
+/** 확인완료 — «답할 차례»(ReplyTag, 붉은 톤)와 **반대 뜻**이라 조용한 회색으로 둔다.
+ *  같은 줄에 둘이 함께 뜨는 일은 없다(확인완료면 needs_reply 가 false 다). */
+const HandledTag = styled.span`
+  font-size: 0.6875rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  color: #64748B; background: #F1F5F9;
 `;
 const At = styled.span`margin-left: auto; font-size: 0.6875rem; color: #94A3B8;`;
 const Title = styled.div`

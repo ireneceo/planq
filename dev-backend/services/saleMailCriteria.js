@@ -30,16 +30,18 @@ const ROLE_WORD = new Set([
   'hr', 'recruit', 'careers', 'job', 'jobs', 'office', 'mail', 'email', 'center', 'centre',
   'admin', 'administrator', 'welcome', 'invite', 'invoice', 'payment', 'pay', 'delivery',
   'shipping', 'return', 'refund', 'partner', 'partners', 'biz', 'business', 'global', 'kr', 'korea',
-  // ★ 2026-09-17 — **발송전용 주소가 «개인» 으로 새고 있었다.**
-  //   `no-reply@grab.com` 은 `.`·`-` 로 쪼개면 토큰이 ['no','reply'] 인데 둘 다 이 목록 밖이라
-  //   «역할어만으로 된 주소» 판정을 빠져나가 개인 주소가 됐다. 운영 실측 — 이런 모양이
-  //   marketing/personal 로 잡힌 것이 biz1 252건 · biz5 169건.
-  //   지금은 `triage='human'` 조건이 우연히 막아 주고 있을 뿐이라, 그 조건을 조금만 넓히면
-  //   상담 목록이 250건 늘어난다. 막아 주는 것이 있다고 새는 곳을 두지 않는다.
-  'no', 'noreply', 'reply', 'donotreply', 'do', 'not', 'nreply', 'auto', 'automated', 'robot', 'bot',
-  'notification', 'notifications', 'alert', 'alerts', 'jobalerts', 'messages', 'message',
-  'mailer', 'mailerdaemon', 'daemon', 'postmaster', 'bounce', 'bounces', 'system', 'noresponse',
+  'noreply', 'donotreply', 'mailerdaemon', 'postmaster', 'notifications', 'jobalerts',
 ]);
+
+/** 발송 전용 주소 모양 — **구분자를 걷어낸 통짜**로 본다.
+ *
+ *  ★ 2026-09-17 — 처음엔 `no`·`reply`·`do`·`not`·`system` 을 **낱말로** ROLE_WORD 에 넣었다.
+ *    `no-reply@grab.com` 은 막혔지만, Fable 15차가 부작용을 실증했다 —
+ *    `do.yeon@acme.co.kr` · `system.kim@corp.co.kr` · `ji.no@` · `bot.lee@` 같은 **진짜 이름**이
+ *    같이 잘린다(한국 이름에 흔한 토막이다). 운영엔 아직 없지만 시간문제다.
+ *  → 낱말이 아니라 **붙어 있는 모양**만 본다. `no-reply`·`do_not_reply` 는 걸리고
+ *    `do.yeon`·`ji.no` 는 안 걸린다. 좁게 틀리는 쪽을 고른다. */
+const SENDER_ONLY_SHAPE = /^(no|do)?n?o?t?reply|^donotreply|^noreply|noreply$|^mailer(daemon)?$|^postmaster$|^bounces?$|^auto(mated)?reply$|^notification(s)?$|^alerts?$|^jobalerts/;
 
 const splitLocal = (local) => String(local || '').split(/[._-]+/).filter(Boolean);
 
@@ -69,6 +71,8 @@ function isPersonalSender(email) {
   // 역할어 하나로만 된 주소는 사람이 아니다 (help@ · info@ · savings@)
   const allRole = tokens.every((tk) => ROLE_WORD.has(tk));
   if (allRole) return false;
+  // 발송 전용 모양 — 구분자를 걷어낸 통짜로 본다(위 주석: 낱말로 보면 진짜 이름이 잘린다)
+  if (SENDER_ONLY_SHAPE.test(local.replace(/[._-]+/g, ''))) return false;
 
   if (FREE_MAIL_DOMAIN.test(domain)) {
     // 무료메일이어도 역할어 주소는 개인이 아니다(info@gmail.com 류)
@@ -91,14 +95,24 @@ function isPersonalSender(email) {
  * @param {string} p.email            바깥 사람의 주소
  * @param {number} p.outboundCount    이 스레드에서 **우리가 보낸** 메일 수
  * @param {boolean} p.promoted        사람이 [상담으로 보내기] 를 눌렀는가
+ * @param {boolean} p.archived         Q mail 에서 **[확인완료]** 를 누른 스레드인가
  * @returns {{kind:'inquiry'|'candidate', reason:string}}
  */
-function mailThreadVerdict({ email = null, outboundCount = 0, promoted = false } = {}) {
+function mailThreadVerdict({ email = null, outboundCount = 0, promoted = false, archived = false } = {}) {
   // 사람의 판단이 기계보다 위다 — 올린 것은 기준을 다시 묻지 않는다.
   if (promoted) return { kind: 'inquiry', reason: 'promoted' };
   // 우리가 한 번이라도 답했다 = 이미 관계다. (상대가 우리 메일에 회신한 경우도 이 스레드에
   //   우리 발신이 있으므로 여기서 함께 걸린다 — 축을 둘로 나누지 않는다.)
   if (Number(outboundCount) > 0) return { kind: 'inquiry', reason: 'replied' };
+
+  // ★ **확인완료한 것에는 «개인 주소» 추정을 쓰지 않는다** (2026-09-17, Fable 15차 차단).
+  //   «확인완료 + 우리 답 없음» 은 사람이 **보고 무시했다**는 가장 강한 신호다.
+  //   그런데 주소 모양만 보고 관계로 읽으면, Q mail 에서 치운 은행 거래 알림·몰 회람·콜드 스팸이
+  //   전부 상담으로 되살아난다 — 운영 실측(owner 계정 2개 합산) **4 → 48**, 그중 32건이 그 모양이었다.
+  //   확인완료한 것은 **행위로 증명된 관계**(우리가 답했다 / 사람이 올렸다)일 때만 들인다.
+  //   그래도 놓친 것은 Q mail 우클릭 [상담으로 보내기] 로 올린다 — 문은 그대로다.
+  if (archived) return { kind: 'candidate', reason: 'handled_no_reply' };
+
   if (isPersonalSender(email)) return { kind: 'inquiry', reason: 'personal' };
   return { kind: 'candidate', reason: 'no_relationship' };
 }
