@@ -550,7 +550,20 @@ router.get('/', authenticateToken, async (req, res, next) => {
 >   → 캡 제거(`BULK_CHUNK` 500씩 끝까지) · 상한 `BULK_MAX` 에 닿으면 `capped` 로 **화면이 말한다** ·
 >     계정 필터(`account_id`)를 실행에도 싣되 **접근 가능한 계정 안에서만 좁힌다**(넓히면 권한 우회다).
 >
-> 회귀: `node scripts/e2e/run.js --suite maillabel` (14검사 — 폴더 술어 · i18n 원천 ko/en · 실화면 문구 ·
+> ⑤ **일괄 처리는 «id 를 거를 때» 범위를 건다.** 사용자가 준 `thread_ids` 를 그대로 쓰면 주 테이블의
+>   `UPDATE … WHERE id IN (…) AND business_id = ?` 는 0건으로 막혀도 **딸린 테이블**
+>   (`email_messages … WHERE thread_id IN (…)`)에는 막을 것이 없다. 2026-09-17 실측 —
+>   **`200 {"updated":0}` 이라고 답하면서 남의 워크스페이스 메시지 3행이 읽음으로 바뀌었다**
+>   (남의 사적 계정 스레드 16행도 같은 방식). 응답에 흔적이 없어 오래 안 보였다.
+>   → `resolveBulkTargetIds` **한 곳**에서 `business_id` + 접근 가능 계정으로 **SELECT 를 통과한 id 만**
+>     돌려주고, 그 뒤로는 주 테이블도 딸린 테이블도 그 id 만 쓴다.
+>   → `body.account_id` 처럼 **좁히는 인자**는 접근 가능 집합 안에서만 교집합을 낸다 — 넣은 값을 그대로
+>     쓰면 좁히는 인자가 **넓히는 문**이 된다.
+>   → 상한(`BULK_MAX`)에 닿는 경우, 후보 SELECT 에 **«아직 안 된 것» 술어**를 걸지 않으면 매번 같은
+>     첫 N개를 다시 집어 `updated:0` 이 되고 "다시 누르면 이어서" 가 거짓말이 된다(실측 `1000 → 0`).
+>   memory `feedback_bulk_scope_on_ids_not_only_rows`.
+>
+> 회귀: `node scripts/e2e/run.js --suite maillabel` (16검사 — 폴더 술어 · i18n 원천 ko/en · 실화면 문구 ·
 > 배지 축 · **폰(375) 가시 단서** · 누르기 전후 수 일치).
 > ★ **빌드된 locales 는 `gzip_static`** 이다 — 대조군으로 문구를 되돌릴 때 평문 `.json` 만 바꾸면
 >   브라우저는 옛 `.json.gz` 를 받아 **아무 변화가 없다.** 둘을 같이 바꾼다(이것 때문에 "검사기가
