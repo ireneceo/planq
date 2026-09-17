@@ -224,6 +224,41 @@ async function createEvent(actor, params = {}) {
       if (rows.length) await CalendarEventAttendee.bulkCreate(rows, { transaction: t });
     }
 
+    // 미팅자료(#411) — 파일 또는 문서를 **가리키기만** 한다. 바이트는 복사하지 않는다.
+    //   ★ 참석자와 **같은 방식으로 워크스페이스 축을 검증한다** — 남의 워크스페이스 파일·문서를
+    //     일정에 붙이면 그 일정을 보는 사람에게 남의 자료가 새는 문이 된다.
+    //     «id 를 받았으니 붙인다» 가 아니라 «이 워크스페이스 것인가» 를 DB 에 되묻는다.
+    const atts = Array.isArray(params.attachments) ? params.attachments : [];
+    if (atts.length > 0) {
+      const { CalendarEventAttachment, File, Post } = require('../../models');
+      const wantFiles = atts.map((a) => Number(a.file_id)).filter(Boolean);
+      const wantPosts = atts.map((a) => Number(a.post_id)).filter(Boolean);
+      const okFiles = new Set((wantFiles.length ? await File.findAll({
+        where: { business_id: businessId, id: wantFiles, deleted_at: null },
+        attributes: ['id'], transaction: t,
+      }) : []).map((x) => x.id));
+      const okPosts = new Set((wantPosts.length ? await Post.findAll({
+        where: { business_id: businessId, id: wantPosts },
+        attributes: ['id'], transaction: t,
+      }) : []).map((x) => x.id));
+      const arows = [];
+      const aseen = new Set();
+      atts.forEach((a, i) => {
+        const fid = Number(a.file_id) || null;
+        const pid = Number(a.post_id) || null;
+        // 정확히 하나만 — 둘 다이거나 둘 다 아니면 버린다(조용히 반쪽 행을 만들지 않는다).
+        if (!!fid === !!pid) return;
+        const key = `f${fid || ''}p${pid || ''}`;
+        if (aseen.has(key)) return;
+        aseen.add(key);
+        if (fid && !okFiles.has(fid)) return;
+        if (pid && !okPosts.has(pid)) return;
+        arows.push({ business_id: businessId, event_id: event.id, file_id: fid, post_id: pid,
+          sort_order: i, created_by: subjectId });
+      });
+      if (arows.length) await CalendarEventAttachment.bulkCreate(arows, { transaction: t });
+    }
+
     await t.commit();
   } catch (e) {
     if (!t.finished) await t.rollback();

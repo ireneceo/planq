@@ -3,8 +3,8 @@ const { Op } = require('sequelize');
 const router = express.Router();
 const { sequelize } = require('../config/database');
 const {
-  CalendarEvent, CalendarEventAttendee, CalendarEventGcalLink,
-  BusinessMember, User, Client, Project, ProjectMember, AuditLog,
+  CalendarEvent, CalendarEventAttendee, CalendarEventAttachment, CalendarEventGcalLink,
+  BusinessMember, User, Client, Project, ProjectMember, AuditLog, File, Post,
 } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
@@ -73,6 +73,17 @@ const INCLUDE_DETAIL = [
     include: [
       { model: User, as: 'user', attributes: ['id', 'name', 'email', 'name_localized'] },
       { model: Client, as: 'client', attributes: ['id', 'display_name', 'company_name'] },
+    ],
+  },
+  // 미팅자료(#411) — 가리키는 원본을 같이 내려준다. 원본이 지워지면 이 행도 CASCADE 로 사라지므로
+  //   «있는데 안 열리는» 첨부가 생기지 않는다.
+  {
+    model: CalendarEventAttachment,
+    as: 'attachments',
+    required: false,
+    include: [
+      { model: File, as: 'file', attributes: ['id', 'file_name', 'mime_type', 'file_size'], required: false },
+      { model: Post, as: 'post', attributes: ['id', 'title'], required: false },
     ],
   },
 ];
@@ -223,7 +234,8 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
 // POST /by-business/:businessId — 생성
 // body: { title, description?, location?, start_at, end_at, all_day?, category?,
 //         color?, rrule?, meeting_url?, meeting_provider?, visibility?, project_id?,
-//         attendees?: [{ user_id? | client_id? }] }
+//         attendees?: [{ user_id? | client_id? }],
+//         attachments?: [{ file_id? | post_id? }] }   ← #411 미팅자료(둘 중 정확히 하나)
 // ============================================
 router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   // 얇은 라우트 — 파싱 + actor 구성 + 행동 계층 호출 + 응답. 생성 규칙은 services/actions/event_actions.js.
@@ -241,6 +253,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         autoCreateMeeting: b.auto_create_meeting,
         visibility: b.visibility, projectId: b.project_id,
         attendees: b.attendees || [],
+        attachments: b.attachments || [],   // #411 미팅자료(file_id | post_id)
         reminderMinutes: b.reminder_minutes,
         vlevel: b.vlevel, gcalSyncWorkspace: b.gcal_sync_workspace, gcalSyncPersonal: b.gcal_sync_personal, targetMemberIds: b.target_member_ids, targetClientIds: b.target_client_ids,
       }
