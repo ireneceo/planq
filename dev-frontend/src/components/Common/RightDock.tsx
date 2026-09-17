@@ -53,7 +53,15 @@ const RightDock: React.FC = () => {
   const pathHidden = FAB_HIDDEN_PREFIXES.some((p) => location.pathname === p || location.pathname.startsWith(`${p}/`))
     || (typeof document !== 'undefined' && document.body.dataset.popout === '1')
     || isPopoutWindow() // #84 — 팝아웃 창 내부 이동에도 FAB 숨김 유지
-    || isPublicSurfacePath(location.pathname); // 공개 표면 심층방어
+    || isPublicSurfacePath(location.pathname) // 공개 표면 심층방어
+    // ★ 2026-09-17 (#416) — **내 문의·피드백 상세**에서는 폭과 무관하게 숨긴다. Irene:
+    //   *"우측 하단 버튼이 채팅창이랑 겹쳐. 문의 상세도 열면 우측 하단 채팅버튼 없어야 할 듯 해."*
+    //   그 화면 자체가 «운영팀에게 말을 거는 곳» 이라 같은 일을 하는 버튼이 그 위에 떠 있을 이유가 없고,
+    //   답변 아래 «추가 문의» 입력줄을 가린다. 여백(--pq-fab-clearance)으로 비켜 두는 것과 다르다 —
+    //   요청은 «없어야 한다» 였다.
+    //   ★ 목록(?item 없음)에서는 그대로 둔다 — 가릴 입력줄이 없고, 거기서 도크를 잃으면 손해다.
+    //   ★ Q Talk·Q Note 의 «하단 입력줄» 규칙(onBottomBarScreen, ≤1024px)은 건드리지 않는다.
+    || (location.pathname === '/me/feedback' && new URLSearchParams(location.search).has('item'));
   // Q Talk (메인 채팅) — 모바일에선 채팅 입력바를 가리므로 FAB 숨김 (데스크탑·타 페이지는 유지)
   // Q Talk 에서 FAB 숨김은 "활성 대화방(입력바 있음)" 일 때만 — 대화 리스트(?conv 없음)에선 FAB 유지(#165).
   //   ★ 2026-08-27 — 같은 이유가 Q Note 세션에도 그대로 있다(Irene: "Q note 음성메모는 아래
