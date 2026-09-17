@@ -30,6 +30,16 @@ const base = (over) => ({
 });
 
 async function run() {
+  // ★ **지난 실행이 죽었으면 흔적이 남는다** (2026-09-17 실측: dev 에 65행).
+  //   `finally` 의 정리는 프로세스가 거기까지 갔을 때만 돈다 — MySQL 커넥션 고갈처럼
+  //   중간에 죽으면 그 목록째로 사라진다. 그래서 **시작할 때 이름으로 쓸어낸다.**
+  //   남겨 두면 다음 검사의 입력이 오염된다(memory `feedback_canary_pollutes_next_suite`).
+  try {
+    await db.File.sequelize.query(
+      "DELETE FROM files WHERE file_name = 'canary-mirror.bin' AND file_path LIKE '/tmp/pq-canary-%'"
+    );
+  } catch { /* 청소 실패로 검사를 막지 않는다 */ }
+
   const results = [];
   const push = (name, ok, detail) => results.push({ name, route: name, leaked: !ok, detail });
   const made = [];
