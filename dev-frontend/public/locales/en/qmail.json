@@ -191,7 +191,7 @@
     "billing": "Billing/payment",
     "quote": "Quote/contract",
     "review": "Review suggested",
-    "automated_relevant": "Auto/business",
+    "automated_relevant": "Auto task",
     "unclear_intent": "Needs a closer look"
   },
   "replyNeededBadge": "Reply needed",
