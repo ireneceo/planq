@@ -525,6 +525,37 @@ router.get('/', authenticateToken, async (req, res, next) => {
   - **목록과 집계는 `classifyMailThreads` 한 번**을 읽는다. 각자 세면 같은 술어가 두 벌이 된다
     (memory `feedback_same_value_multiple_formulas`). 회귀: `node scripts/e2e/run.js --suite salecriteria`.
 
+> **Q mail 폴더·배지 계약 (2026-09-17 박제)**
+>
+> ① **사람이 명시적으로 건 표시는 «확인 완료» 로 지워지지 않는다.** `following`·`assigned` 폴더는
+>   `status != 'spam'` 하나만 본다(`services/mailFolders.js`, **두 폴더가 한 줄을 공유한다**).
+>   Irene: *"내가 팔로우 해놨던 메일리스트가 없어졌어."* — 데이터는 멀쩡했고 폴더 조건이 `archived` 를
+>   걸러 냈다(운영 실측 3건 전부, 2건은 **같은 초**에 = [모두 확인완료] 한 번). 팔로우·담당은 «내가 계속
+>   보겠다/맡는다» 이고 확인완료는 «지금 처리했다» 다 — **다른 축**이다. 끄는 문은 팔로우 해제·담당 해제 하나.
+>   한쪽만 고치면 같은 판정이 두 벌이 되어 다음 신고가 «담당 목록이 없어졌어» 로 똑같이 온다.
+>
+> ② **같은 글자를 상태와 행위에 같이 쓰지 않는다.** 빨간 「답변 필요」(뱃지 = 사실)와 회색 버튼
+>   (= 눌러서 만들어라)의 글자가 같아 목록이 «같은 표시가 두 번» 으로 읽혔다. **상태는 명사, 행위는 동사**
+>   (「답변 필요로 표시」). 한 행에 둘이 같이 뜨지 않아도 **목록 전체가 한 장면**이다.
+>
+> ③ **배지는 자기 축을 말한다.** 「답변 필요 50」·「확인 권장 3051」은 그 폴더 건수인데 「전체 3475」만
+>   **미읽음**이다(`tabBadge('all') → allUnread`). `title`·`aria-label` 은 **터치 기기에서 안 뜬다** —
+>   폰까지 닿게 하려면 **보이는 글자**가 필요하다. 그래서 그 탭의 **일괄 버튼에 건수**를 적는다
+>   (「모두 읽음 (3475)」). 숫자·색·크기·자리는 건드리지 않는다(memory `feedback_fix_the_number_not_the_look`).
+>
+> ④ **버튼이 수를 적는 순간 그 수는 약속이 된다.** 라벨·확인 문구·실제 처리량이 **모두 같아야** 한다.
+>   2026-09-17 실측 — 라벨 3475 / 확인 3522(`folderCounts` 를 읽는 다른 공식) / 실행 **499**
+>   (`resolveBulkTargetIds` 의 `limit:500` 이 조용히 잘랐다). 「모두 읽음」이 모두가 아니었던 것은
+>   **문구가 생기기 전부터의 결함**이고, 사용자에게는 "눌렀는데 안 없어진다" 로 보인다.
+>   → 캡 제거(`BULK_CHUNK` 500씩 끝까지) · 상한 `BULK_MAX` 에 닿으면 `capped` 로 **화면이 말한다** ·
+>     계정 필터(`account_id`)를 실행에도 싣되 **접근 가능한 계정 안에서만 좁힌다**(넓히면 권한 우회다).
+>
+> 회귀: `node scripts/e2e/run.js --suite maillabel` (14검사 — 폴더 술어 · i18n 원천 ko/en · 실화면 문구 ·
+> 배지 축 · **폰(375) 가시 단서** · 누르기 전후 수 일치).
+> ★ **빌드된 locales 는 `gzip_static`** 이다 — 대조군으로 문구를 되돌릴 때 평문 `.json` 만 바꾸면
+>   브라우저는 옛 `.json.gz` 를 받아 **아무 변화가 없다.** 둘을 같이 바꾼다(이것 때문에 "검사기가
+>   빨간불을 못 켠다" 로 잘못 결론 낼 뻔했다 — 적용이 안 됐던 것이다).
+
 **Q위키 (2):** **help_categories**, **help_articles** (2026-06-18 신규 — PlanQ 제품 사용법 도움말. 플랫폼 공통 콘텐츠(business_id 없음), 격리 축은 article.visibility('public'/'authenticated')만. help_articles FULLTEXT(ngram) 한글검색 + body ko/en JSON 블록. 본문 임베딩은 **kb_chunks 재사용**(source_type ENUM 'kb'/'wiki' 추가 + source_id + business_id/kb_document_id nullable — wiki chunk는 플랫폼 공통이라 NULL, 워크스페이스 KB 검색 비오염). 스크린샷은 File 재사용(image 블록 file_id). 운영 적용 시 `dev-backend/setup-wiki-schema.js`(FULLTEXT+ALTER 멱등) + `seed-wiki-content.js`(콘텐츠) 실행. 설계 docs/Q_WIKI_DESIGN.md)
 
 > **Q Task 상태 ENUM:** `not_started`, `waiting`, `in_progress`, `reviewing`, `revision_requested`, **`done_feedback`**, `completed`, `canceled`. 관점별 UI 라벨은 `dev-frontend/src/utils/taskLabel.ts` 참조 (i18n `status.{code}.{role}` 4차원 구조).
