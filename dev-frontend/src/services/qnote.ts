@@ -118,6 +118,25 @@ export interface QNoteSession {
   tags?: string[] | null;
 }
 
+/**
+ * 세션 PUT 응답을 화면 상태에 **덧입힌다**(덮어쓰지 않는다).
+ *
+ * ★ `PUT /api/sessions/:id` 는 **sessions 행만** 돌려준다 — `utterances`·`documents`·`speakers`·
+ *   `detected_questions` 키가 **아예 없다**(q-note `_deserialize_session`). 반면 `GET /:id` 는
+ *   그것들을 붙여서 준다. 그래서 PUT 응답으로 `setActiveSession(updated)` 처럼 **통째로 갈아끼우면
+ *   전사·자료·화자가 화면에서 사라진다** — 사용자에게는 "프로젝트 연결했더니 갑자기 내용이 없다"
+ *   로 보인다(2026-09-18 운영 신고). 서버 데이터는 멀쩡하고 **화면만** 잃는다.
+ *
+ * ★ 새 저장 경로를 만들 때도 이 함수를 쓴다. 호출부마다 손으로 스프레드하면 한 곳만 빠진다
+ *   (memory `feedback_mapper_drops_server_fields`).
+ */
+export function applySessionPatch(
+  prev: QNoteSession | null, patch: QNoteSession,
+): QNoteSession {
+  if (!prev || prev.id !== patch.id) return patch;
+  return { ...prev, ...patch };
+}
+
 /** 노트를 프로젝트·고객에 연결/해제한다.
  *  ★ null 은 "안 건드림" 이라 해제를 표현할 수 없다 — 해제는 unlink_* 플래그로 명시한다.
  *    그렇지 않으면 한 번 연결하면 영영 못 뗀다.

@@ -71,10 +71,20 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
     } finally { setBusy(null); }
   };
 
-  const projOpts: PlanQSelectOption[] = projects.map((p) => ({ value: p.id, label: p.name }));
-  const clientOpts: PlanQSelectOption[] = clients.map((c) => ({ value: c.id, label: c.name }));
-  const curProj = projOpts.find((o) => o.value === session.project_id) || null;
-  const curClient = clientOpts.find((o) => o.value === session.client_id) || null;
+  // ★ 해제는 **목록의 첫 항목**으로 한다 — 칸 안의 작은 X 를 없앤다.
+  //   X 는 32px 을 상시 먹으면서 무엇을 지우는지 말해주지 않는다(Irene: "굳이 X가 표시되는게
+  //   필요하다면 … 텍스트가 잘 안보여"). 목록 항목이면 글자로 뜻이 보이고 자리도 돌려받는다.
+  const NONE = -1;
+  const projOpts: PlanQSelectOption[] = [
+    { value: NONE, label: t('link.projectPlaceholder', { defaultValue: '프로젝트 연결 안 함' }) as string },
+    ...projects.map((p) => ({ value: p.id, label: p.name })),
+  ];
+  const clientOpts: PlanQSelectOption[] = [
+    { value: NONE, label: t('link.clientPlaceholder', { defaultValue: '고객 연결 안 함' }) as string },
+    ...clients.map((c) => ({ value: c.id, label: c.name })),
+  ];
+  const curProj = session.project_id ? (projOpts.find((o) => o.value === session.project_id) || null) : null;
+  const curClient = session.client_id ? (clientOpts.find((o) => o.value === session.client_id) || null) : null;
 
   // 읽기 전용이면 연결된 것만 보여준다. 빈 셀렉트를 보여주면 누를 수 있는 것처럼 보인다.
   if (!editable) {
@@ -95,9 +105,11 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
             size="sm"
             options={projOpts}
             value={curProj}
-            onChange={(o) => save('project', o ? Number((o as PlanQSelectOption).value) : null)}
+            onChange={(o) => {
+              const v = o ? Number((o as PlanQSelectOption).value) : null;
+              save('project', v === NONE ? null : v);
+            }}
             placeholder={t('link.projectPlaceholder', { defaultValue: '프로젝트 연결 안 함' }) as string}
-            isClearable
             isSearchable
             isDisabled={busy === 'project'}
           />
@@ -107,9 +119,11 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
             size="sm"
             options={clientOpts}
             value={curClient}
-            onChange={(o) => save('client', o ? Number((o as PlanQSelectOption).value) : null)}
+            onChange={(o) => {
+              const v = o ? Number((o as PlanQSelectOption).value) : null;
+              save('client', v === NONE ? null : v);
+            }}
             placeholder={t('link.clientPlaceholder', { defaultValue: '고객 연결 안 함' }) as string}
-            isClearable
             isSearchable
             isDisabled={busy === 'client'}
           />
@@ -129,8 +143,11 @@ const Row = styled.div`
   @media (max-width: 640px) { flex-wrap: nowrap; }
 `;
 const Field = styled.div`
-  /* 고정 px 대신 최소·최대 — 좁아지면 접힌다 */
-  flex: 1 1 160px; min-width: 140px; max-width: 240px;
+  /* ★ 2026-09-18 실측 — 이 칸이 **156px** 이었다(선언은 max 240 인데 밴드가 그만큼을 안 줬다).
+     값이 선택되면 지우기 X + 화살표가 64px 을 먹어 **글자 자리가 72px**(한글 5자)밖에 안 남아
+     프로젝트·고객 이름이 늘 잘렸다 (Irene: "텍스트가 잘 안보여").
+     기준을 올려 최소 200px 을 보장한다. 밴드는 감기지 않고 가로로 흐른다(아래 Row 주석). */
+  flex: 0 1 260px; min-width: 200px; max-width: 300px;
   /* 폰: 최소폭을 풀어야 두 칸이 한 줄에 들어간다. min-width:0 이 없으면 flex 아이템이
      내용 폭 아래로 안 줄어들어(기본 min-width:auto) nowrap 이 넘쳐 흐른다. */
   @media (max-width: 640px) { flex: 1 1 0; min-width: 0; max-width: none; }

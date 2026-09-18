@@ -27,6 +27,7 @@ import { useReallyVisible } from '../../contexts/TabActiveContext';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
+  applySessionPatch,
   listSessions,
   getSession,
   createSession,
@@ -3106,7 +3107,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                     businessId={businessId}
                     editable={String(activeSession.user_id) === String(user?.id)}
                     onChange={(updated) => {
-                      setActiveSession(updated);
+                      // PUT 응답에는 전사·자료·화자가 없다 — 덮어쓰면 화면에서 내용이 사라진다
+                      setActiveSession((prev) => applySessionPatch(prev, updated));
                       setSessions((prev) => prev.map((x) => (x.id === updated.id
                         ? { ...x, project_id: updated.project_id, client_id: updated.client_id }
                         : x)));
@@ -3326,7 +3328,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           session={activeSession}
           businessId={Number(businessId)}
           onSessionChange={(updated) => {
-            setActiveSession((prev) => (prev && prev.id === updated.id ? updated : prev));
+            setActiveSession((prev) => applySessionPatch(prev, updated));
             setSessions((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)));
           }}
         />
