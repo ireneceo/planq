@@ -387,7 +387,7 @@ router.get('/:businessId/email-threads',
 );
 
 // ─────────────────────────────────────────────
-// GET outgoing-identity — 이 발송에 **실제로** 붙을 발신자·서명 (#262)
+// mail-outgoing-identity — 이 발송에 **실제로** 붙을 발신자·서명 (#262)
 //
 //   Irene: "메일 보낼 때 서명이 팀서명과 개인서명 뭐가 붙는지도 모르고 알 수도 없어."
 //   서명은 발송 시점에 emailSend 가 별칭 > 계정 > 워크스페이스 순으로 고른다 — 화면엔 그 결과가
@@ -396,18 +396,36 @@ router.get('/:businessId/email-threads',
 //
 //   thread_id 를 받는 이유: 답장은 별칭을 사용자가 고른 게 아니라 **받은 주소**로 자동 결정된다
 //   (resolveSender ②). alias 파라미터만 받으면 답장 미리보기가 실제와 달라진다 (Fable 지적).
-//   :id 충돌 방지 위해 literal 경로 (express literal 우선).
+//
+//   ★ GET 판은 **삭제했다**(2026-09-18). 본문을 못 실어 같은 질문에 다른 답을 주는 두 번째 문이었다
+//     — 같은 답장에 GET=ko / POST=en 이 나왔다(Fable 실측). 부르는 화면도 없었다.
 // ─────────────────────────────────────────────
-router.get('/:businessId/mail-outgoing-identity',
+// POST mail-outgoing-identity — 같은 계산이지만 **작성 중인 본문을 바디로** 받는다.
+//   ★ GET 쿼리로 보내면 한글은 1자=9바이트라 **1,250자쯤에서 414/431** 이 나고,
+//     화면은 응답 실패를 `setIdent(null)` 로 처리해 **서명 배지가 통째로 사라졌다**(Fable 실측).
+//   ★ 그리고 원본 HTML 을 그대로 받아 **발송과 같은 함수**로 텍스트화한다 —
+//     화면이 자체 stripHtml 로 2,000자만 잘라 보내던 탓에 장문 이중언어에서 판정이 갈렸다.
+router.post('/:businessId/mail-outgoing-identity',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
+      const b = req.body || {};
       const out = await outgoingIdentityFor({
         businessId: Number(req.params.businessId),
         userId: req.user.id,
-        accountId: req.query.account_id ? Number(req.query.account_id) : null,
-        threadId: req.query.thread_id ? Number(req.query.thread_id) : null,
-        fromAliasId: parseFromAliasId(req.query),
+        accountId: b.account_id ? Number(b.account_id) : null,
+        threadId: b.thread_id ? Number(b.thread_id) : null,
+        fromAliasId: parseFromAliasId(b),
+        // 사용자가 쓴 부분만 — 전달 원문·인용문은 호출부가 빼서 보낸다(발송과 같은 규칙).
+        // ★ **자르지 않는다.** 200k 에서 자르니 `<img src="data:…` 중간이 끊겨 닫히지 않은 태그가
+        //   남고, htmlToText 의 태그 제거가 안 먹어 **base64 가 영문자로 세어졌다**(Fable 실측).
+        //   양쪽이 같은 자리에서 자르지 않을 바에는 자르지 않는 것이 맞다(express 10mb 상한이 있다).
+        bodyHtml: String(b.body_html || ''),
+        // 답장(thread_id)이면 비워 둔다 — 서버가 `Re: 원제목` 을 만든다.
+        // ★ **자르지 않는다.** 여기만 300자로 자르고 발송은 안 잘라, 386자 제목에서
+        //   «미리보기 en / 실발송 ko» 가 났다(Fable 실측). 제목은 detectLang 입력일 뿐 저장하지 않는다.
+        //   같은 값의 공식이 두 벌이면 이미 갈라져 있다.
+        subject: String(b.subject || ''),
       });
       if (out.error) return errorResponse(res, out.error, out.status);
       return successResponse(res, out.data);
@@ -1026,8 +1044,11 @@ router.post('/:businessId/email-threads/:id/messages',
       if (!toList.length) return errorResponse(res, 'recipient_required', 400);
 
       // 제목: Re: 접두 (이미 있으면 그대로)
-      const baseSubject = (thread.subject || (lastMsg && lastMsg.subject) || '').trim();
-      const subject = /^re:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`.trim();
+      //   ★ 공식은 `services/mailIdentity.replySubjectOf` **한 곳** — 미리보기가 같은 것을 부른다.
+      //     여기에만 있던 탓에 화면은 제목을 모르고, `detectLang` 이 제목을 ×3 가중해
+      //     «미리보기 en / 실발송 ko» 가 났다(Fable 실측).
+      const { replySubjectOf } = require('../services/mailIdentity');
+      const subject = replySubjectOf(thread.subject || (lastMsg && lastMsg.subject) || '');
 
       // RFC 스레딩 헤더
       const inReplyTo = lastMsg ? lastMsg.message_id : null;
@@ -1082,6 +1103,8 @@ router.post('/:businessId/email-threads/:id/messages',
       let sendResult;
       try {
         sendResult = await sendMail(account, {
+          // 언어 판정 원천 — **사용자가 쓴 답장 본문만**(인용문·원문 제외)
+          langHtml: String(body_html || ''),
           to: toList, cc, bcc, subject, html: bodyHtmlOut, quote,
           inReplyTo, references, attachments: atts,
           // 발신 주소 — 사용자가 고른 별칭이 있으면 그것, 없으면 "이 메일이 온 주소" 로 답한다.
@@ -1267,7 +1290,10 @@ router.post('/:businessId/email-compose',
       let sendResult;
       try {
         // 표 인라인 — 저장본과 발송본에 같은 값 (전달은 인용을 붙이지 않는다: 원문이 이미 본문에 있다)
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false, senderUserId: req.user.id });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false, senderUserId: req.user.id, langHtml: String(req.body?.body_html || ''),
+          // ★ 제목도 **사용자가 쓴 것만**. 서버 기본값('(제목 없음)'·'Fwd: 원제목')은 판정에서 뺀다 —
+          //   detectLang 이 제목을 ×3 가중해서, 빈 제목의 짧은 영어 메일이 한국어로 뒤집혔다.
+          langSubject: String(req.body?.subject || '') });
       } catch (e) {
         console.error('[qmail] compose send failed:', e.message);
         // ★ #378 — 본문 이미지 문제는 **사용자가 고칠 수 있는** 오류다(보안등급·용량·바이트 없음).
@@ -1409,7 +1435,10 @@ router.post('/:businessId/email-threads/:id/forward',
       let sendResult;
       try {
         // 표 인라인 — 저장본과 발송본에 같은 값 (전달은 인용을 붙이지 않는다: 원문이 이미 본문에 있다)
-        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false, senderUserId: req.user.id });
+        sendResult = await sendMail(account, { to: toList, cc, bcc, subject: subj, html: bodyHtmlOut2, attachments: atts, fromAliasId: parseFromAliasId(req.body), signature: req.body.signature !== false, senderUserId: req.user.id, langHtml: String(req.body?.body_html || ''),
+          // ★ 제목도 **사용자가 쓴 것만**. 서버 기본값('(제목 없음)'·'Fwd: 원제목')은 판정에서 뺀다 —
+          //   detectLang 이 제목을 ×3 가중해서, 빈 제목의 짧은 영어 메일이 한국어로 뒤집혔다.
+          langSubject: String(req.body?.subject || '') });
       } catch (e) {
         console.error('[qmail] forward send failed:', e.message);
         // ★ #378 — 본문 이미지 문제는 **사용자가 고칠 수 있는** 오류다(보안등급·용량·바이트 없음).

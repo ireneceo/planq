@@ -119,7 +119,8 @@
     "signature": {
       "label": "Workspace email signature",
       "placeholder": "Signature appended to outgoing company email",
-      "hint": "Used when a mail account has no signature of its own. Account and alias signatures take precedence."
+      "hint": "Used when a mail account has no signature of its own. Account and alias signatures take precedence.",
+      "placeholderEn": "e.g. Gildong Hong · WorproLab · +82 10-0000-0000"
     },
     "emailScopeHint": "This page covers email PlanQ sends on your behalf — invoices, signature requests, document shares. To read and reply to customer email, go to \"Company mailbox\"."
   },

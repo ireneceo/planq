@@ -233,6 +233,8 @@ Business.init({
   // 워크스페이스 공통 메일 서명 — 계정 서명이 비어 있으면 이걸 쓴다(팀 공통이 기본).
   //   우선순위: 별칭 서명 > 계정 서명 > 이 값 > 없음. services/emailSend.appendSignature 참조.
   mail_signature_html: { type: DataTypes.TEXT, allowNull: true, comment: '워크스페이스 공통 메일 서명 (HTML)' },
+  // 언어별 공통 서명 — 비우면 mail_signature_html 을 쓴다 (2026-09-18)
+  mail_signature_html_en: { type: DataTypes.TEXT, allowNull: true, comment: '워크스페이스 공통 메일 서명 — 영문 (비우면 기본 서명)' },
   mail_reply_to: { type: DataTypes.STRING(200), allowNull: true, comment: '회신 주소 (Reply-To 헤더, 비우면 발신 주소 사용)' },
   tax_invoice_email: { type: DataTypes.STRING(200), allowNull: true },
   // 포트원 V2 — 암호화는 Phase 6 에서

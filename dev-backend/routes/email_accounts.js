@@ -80,6 +80,7 @@ function serializeAccount(acc) {
     email: j.email,
     display_name: j.display_name,
     signature_html: j.signature_html || null,
+    signature_html_en: j.signature_html_en || null,
     signature_enabled: j.signature_enabled !== false,
     imap_host: j.imap_host,
     imap_port: j.imap_port,
@@ -217,6 +218,8 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
     if (b.display_name !== undefined) patch.display_name = b.display_name || null;
     // 서명 — 계정마다 등록한다. HTML 저장(발송 시 emailSend.appendSignature 가 붙인다).
     if (b.signature_html !== undefined) patch.signature_html = b.signature_html ? String(b.signature_html).slice(0, 20000) : null;
+    // 영문 서명 — **비우면 위 기본 서명을 쓴다**(별도 «언어별 사용» 스위치 없음, 2026-09-18)
+    if (b.signature_html_en !== undefined) patch.signature_html_en = b.signature_html_en ? String(b.signature_html_en).slice(0, 20000) : null;
     if (b.signature_enabled !== undefined) patch.signature_enabled = !!b.signature_enabled;
     // ★ 수정 경로도 같은 검사. 옛 코드는 imap 만 보고 **smtp_host 는 검증이 아예 없었다** —
     //   저장된 뒤 발송 때마다 그 호스트로 붙고, OAuth 계정은 살아 있는 access token 을 함께 보낸다.

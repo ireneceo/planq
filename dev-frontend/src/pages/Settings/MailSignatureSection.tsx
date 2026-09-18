@@ -8,18 +8,22 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import RichEditor from '../../components/Common/RichEditor';
 import AutoSaveField from '../../components/Common/AutoSaveField';
+import SignatureLangTabs, { type SigLang } from '../../components/Common/SignatureLangTabs';
 import { apiFetch } from '../../contexts/AuthContext';
 
 interface Props {
   businessId: number;
   accountId: number;
   initialHtml: string | null;
+  initialHtmlEn: string | null;
   initialEnabled: boolean;
 }
 
-export default function MailSignatureSection({ businessId, accountId, initialHtml, initialEnabled }: Props) {
+export default function MailSignatureSection({ businessId, accountId, initialHtml, initialHtmlEn, initialEnabled }: Props) {
   const { t } = useTranslation('qmail');
   const [html, setHtml] = useState(initialHtml || '');
+  const [htmlEn, setHtmlEn] = useState(initialHtmlEn || '');
+  const [lang, setLang] = useState<SigLang>('ko');
   const [enabled, setEnabled] = useState(initialEnabled);
 
   // ★ 2026-09-09 — 자동저장 표시를 **공용 컴포넌트로 통일**한다
@@ -30,10 +34,12 @@ export default function MailSignatureSection({ businessId, accountId, initialHtm
   //   실패는 **던진다** — 그래야 래퍼가 ! 를 띄운다(조용히 삼키면 안 저장된 걸 모른다).
   const htmlRef = useRef(html);
   htmlRef.current = html;
+  const htmlEnRef = useRef(htmlEn);
+  htmlEnRef.current = htmlEn;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
-  const save = useCallback(async (patch: { signature_html?: string; signature_enabled?: boolean }) => {
+  const save = useCallback(async (patch: { signature_html?: string; signature_html_en?: string; signature_enabled?: boolean }) => {
     const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${accountId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -73,15 +79,30 @@ export default function MailSignatureSection({ businessId, accountId, initialHtm
       <ScopeNote>{enabled
         ? t('signature.scopeOn', { defaultValue: '이 스위치는 메일함 전체에 적용돼요. 끄면 주소별 전용 서명도 붙지 않습니다.' }) as string
         : t('signature.scopeOff', { defaultValue: '지금은 주소별 전용 서명을 포함해 어떤 서명도 붙지 않습니다.' }) as string}</ScopeNote>
+      <SignatureLangTabs value={lang} onChange={setLang} enEmpty={!htmlEn.trim()} />
       <EditorBox $dim={!enabled}>
-        <AutoSaveField onSave={() => save({ signature_html: htmlRef.current })}>
-          <RichEditor
-            value={html}
-            onChange={setHtml}
-            placeholder={t('signature.placeholder', { defaultValue: '예) 홍길동 · 워프로랩 · 010-0000-0000' }) as string}
-            minHeight={110}
-          />
-        </AutoSaveField>
+        {/* ★ 언어 **와 계정**으로 인스턴스를 가른다(key). 같은 인스턴스를 다른 대상에 재사용하면
+            언마운트가 오지 않아 떠난 대상의 마지막 입력이 새 대상의 onSave 로 터진다
+            — 계정을 바꿔도 같은 일이 난다 (가드 --category=autosavekey). */}
+        {lang === 'ko' ? (
+          <AutoSaveField key={`sig-ko-${accountId}`} onSave={() => save({ signature_html: htmlRef.current })}>
+            <RichEditor
+              value={html}
+              onChange={setHtml}
+              placeholder={t('signature.placeholder', { defaultValue: '예) 홍길동 · 워프로랩 · 010-0000-0000' }) as string}
+              minHeight={110}
+            />
+          </AutoSaveField>
+        ) : (
+          <AutoSaveField key={`sig-en-${accountId}`} onSave={() => save({ signature_html_en: htmlEnRef.current })}>
+            <RichEditor
+              value={htmlEn}
+              onChange={setHtmlEn}
+              placeholder={t('signature.placeholderEn', { defaultValue: 'e.g. Gildong Hong · WorproLab · +82 10-0000-0000' }) as string}
+              minHeight={110}
+            />
+          </AutoSaveField>
+        )}
       </EditorBox>
     </Wrap>
   );

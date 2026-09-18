@@ -93,7 +93,7 @@ async function resolveSender(account, { fromAliasId = null, replyToAddresses = n
   // ①-a 사용자가 "계정 주소" 를 **명시 선택**한 경우(0). 미지정(null/undefined)과 구분해야 한다 —
   //   0 을 미지정으로 뭉개면 아래 ③ 기본별칭이 사용자의 명시 선택을 덮어쓴다.
   if (fromAliasId !== null && fromAliasId !== undefined && Number(fromAliasId) === 0) {
-    return { email: account.email, displayName: null, signatureHtml: null };
+    return { email: account.email, displayName: null, signatureHtml: null, signatureHtmlEn: null, aliasId: null };
   }
 
   // ① 명시 — 이 계정 소유인지 재검증 (클라이언트가 보낸 id 를 믿지 않는다)
@@ -104,29 +104,29 @@ async function resolveSender(account, { fromAliasId = null, replyToAddresses = n
       e.code = 'alias_not_owned';
       throw e;
     }
-    return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null };
+    return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null, signatureHtmlEn: hit.signature_html_en || null, aliasId: hit.id };
   }
 
   // ② 답장 — 받은 주소가 계정/별칭 중 하나면 그 주소로
   if (Array.isArray(replyToAddresses) && replyToAddresses.length) {
     const lower = replyToAddresses.map((a) => String(a || '').toLowerCase());
     const hit = aliases.find((a) => lower.includes(String(a.email).toLowerCase()));
-    if (hit) return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null };
+    if (hit) return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null, signatureHtmlEn: hit.signature_html_en || null, aliasId: hit.id };
     // ★ 계정 본주소로 온 메일이면 **여기서 끝낸다**. 아래 ③ 기본별칭으로 흘려보내면
     //   help@ 로 받은 메일에 답장했는데 실제 From 이 support@(기본별칭)로 나간다 —
     //   화면은 help@ 를 표시하므로 **표시≠실발신** 사고가 된다(Fable 실측 확인).
     //   주석은 원래 이 동작을 전제했는데 코드가 ③으로 떨어지고 있었다.
     if (lower.includes(String(account.email).toLowerCase())) {
-      return { email: account.email, displayName: null, signatureHtml: null };
+      return { email: account.email, displayName: null, signatureHtml: null, signatureHtmlEn: null, aliasId: null };
     }
   }
 
   // ③ 기본 별칭
   const def = aliases.find((a) => a.is_default);
-  if (def) return { email: def.email, displayName: def.display_name || null, signatureHtml: def.signature_html || null };
+  if (def) return { email: def.email, displayName: def.display_name || null, signatureHtml: def.signature_html || null, signatureHtmlEn: def.signature_html_en || null, aliasId: def.id };
 
   // ④ 계정 주소
-  return { email: account.email, displayName: null, signatureHtml: null };
+  return { email: account.email, displayName: null, signatureHtml: null, signatureHtmlEn: null, aliasId: null };
 }
 
 // 서명 붙이기 — data-planq-signature 표식으로 중복 삽입을 막는다.
@@ -138,22 +138,68 @@ function htmlToTextForWire(html) {
 }
 
 const SIGNATURE_MARK = 'data-planq-signature';
-// 우선순위: 별칭 서명 > 계정 서명 > **워크스페이스 공통 서명** > 없음.
-//   여태 워크스페이스 층이 아예 없어서, 팀 공통 서명을 한 곳에서 관리할 방법이 없었다
-//   (Irene: "서명은 왜 개별로인데 회사 공통으로 쓰는 건 없어? 팀공통이 기본 아니야?").
+
+// ★ 2026-09-18 — **언어별 서명** (Irene: "이메일이 영어일 때랑 한글내용일 때 서명이 따로 붙어야 하는데
+//   다 한글 기본서명이 가네. 언어별로 서명 만들게 해줘.")
+//
+//   ★ 언어 판정을 **새로 만들지 않는다** (Irene: "번역하기 기능도 어차피 메일에 맞춰서 하고 있잖아.
+//     ai 초안작성도 그렇고. 다 묶어서 같이 조건 사용하면 되는 거 아니야?").
+//     `services/emailBodyClean.js` 의 `detectLang(본문, 폴백, 제목)` — **AI 초안이 쓰는 그 함수**다.
+//     폴백은 워크스페이스 기본 언어(`businesses.default_language`).
+//     같은 값의 공식이 두 벌이면 이미 갈라져 있다(memory feedback_same_value_multiple_formulas).
+//
+//   규칙은 **층 먼저, 그 안에서 언어**다:
+//     ① 이기는 층을 종전 그대로 고른다 (별칭 > 계정 > 워크스페이스)
+//     ② 그 층 안에서 메일 언어 칸을 쓰고, **비어 있으면 그 층의 기본 서명**으로 떨어진다
+//   → 영문 칸을 안 채우면 **지금과 완전히 같다.** 기존 데이터가 하나도 안 바뀐다.
+//   → 「비우면 안 쓴다」가 곧 선택이라 별도 «언어별 사용» 스위치를 두지 않는다
+//     (한국어 서명이 «비우면 윗층» 인 것과 같은 규칙 — 스위치를 더하면 규칙이 두 벌이 된다).
+const SIGNATURE_LANGS = ['ko', 'en'];
+const sigNonEmpty = (v) => !!String(v || '').trim();
+
+/** 한 층의 {기본, 영문} 에서 언어에 맞는 것을 고른다. 없으면 기본. */
+function pickSignatureForLang(base, en, lang) {
+  if (lang === 'en' && sigNonEmpty(en)) return String(en).trim();
+  return sigNonEmpty(base) ? String(base).trim() : '';
+}
+
+/**
+ * 이 발송에 붙을 서명을 **한 곳에서** 정한다 — 층과 언어를 같이.
+ * 반환 { source, html, lang, langFallback } — langFallback 은 «언어 칸이 비어 기본으로 떨어졌다».
+ */
+function resolveSignature({ account, aliasBase, aliasEn, workspaceBase, workspaceEn, lang }) {
+  const L = SIGNATURE_LANGS.includes(lang) ? lang : 'ko';
+  if (account && account.signature_enabled === false) return { source: 'disabled', html: '', lang: L, langFallback: false };
+  const layers = [
+    ['alias', aliasBase, aliasEn],
+    ['account', account && account.signature_html, account && account.signature_html_en],
+    ['workspace', workspaceBase, workspaceEn],
+  ];
+  for (const [source, base, en] of layers) {
+    // 층은 **기본 서명이 있는지**로 고른다 — 영문만 채운 층이 한국어 메일에서 윗층을 가로채지 않게.
+    if (!sigNonEmpty(base) && !sigNonEmpty(en)) continue;
+    const html = pickSignatureForLang(base, en, L);
+    if (!html) continue;
+    return { source, html, lang: L, langFallback: L === 'en' && !sigNonEmpty(en) };
+  }
+  return { source: 'none', html: '', lang: L, langFallback: false };
+}
+// 서명 붙이기 — 판정은 위 `resolveSignature` 가 한다(층: 별칭 > 계정 > 워크스페이스, 그 안에서 언어).
 //   계정 서명을 비워두면 자동으로 공통을 쓴다 — 별도 "공통 사용" 스위치가 필요 없고,
 //   기존 계정별 서명은 우선순위상 그대로 이기므로 **아무것도 덮어쓰지 않는다**.
 //   서명 자체를 끄고 싶으면 기존 signature_enabled=false 그대로.
-function appendSignature(html, account, aliasSignatureHtml = null, workspaceSignatureHtml = null) {
-  // 별칭 서명이 있으면 그것이 우선 — 도메인이 다르면 브랜드가 다르다
-  const firstNonEmpty = (...vals) => {
-    for (const v of vals) { const t = String(v || '').trim(); if (t) return t; }
-    return '';
-  };
-  const raw = aliasSignatureHtml != null && String(aliasSignatureHtml).trim()
-    ? aliasSignatureHtml
-    : firstNonEmpty(account && account.signature_html, workspaceSignatureHtml);
-  const sig = account && account.signature_enabled !== false ? String(raw || '').trim() : '';
+function appendSignature(html, account, aliasSignatureHtml = null, workspaceSignatureHtml = null, opts = {}) {
+  // ★ 층·언어 판정은 `resolveSignature` 한 곳이다 — 미리보기(resolveOutgoingIdentity)와
+  //   **같은 함수**여야 화면과 실발송이 어긋나지 않는다(#262 계약).
+  const { html: sig } = resolveSignature({
+    account,
+    // ★ 키 이름을 호출부와 **같은 글자**로 쓴다. `workspaceSignatureHtmlEn` 이라고 잘못 읽는 바람에
+    //   **워크스페이스(팀 공통) 영문 서명이 실발송에 영영 안 붙었다**(미리보기는 다른 경로라 맞아서
+    //   한참 가려져 있었다 — Fable 실측). 한국어는 base 경로라 증상이 안 났다.
+    aliasBase: aliasSignatureHtml, aliasEn: opts.aliasSignatureHtmlEn || null,
+    workspaceBase: workspaceSignatureHtml, workspaceEn: opts.workspaceSignatureEn || null,
+    lang: opts.lang || 'ko',
+  });
   if (!sig) return html;
   const body = String(html || '');
   if (body.includes(SIGNATURE_MARK)) return body;   // 이미 들어 있음 (초안에서 편집한 경우)
@@ -165,43 +211,54 @@ function appendSignature(html, account, aliasSignatureHtml = null, workspaceSign
 //     그래서 sendMail 본문에서 이 계산을 통째로 절출해 양쪽이 공유한다.
 //   source: 어느 층에서 왔는지 — 화면이 "팀 서명인지 개인 서명인지" 를 말해줄 수 있어야 한다
 //     (Irene: "서명이 팀서명과 개인서명 뭐가 붙는지도 모르고 알 수도 없어").
-async function resolveOutgoingIdentity(account, { fromAliasId = null, replyToAddresses = null } = {}) {
+async function resolveOutgoingIdentity(account, { fromAliasId = null, replyToAddresses = null, lang = null, langText = '', langSubject = '' } = {}) {
   let fromName = account.display_name || '';
   let workspaceSignature = null;
+  let workspaceSignatureEn = null;
+  let bizDefaultLang = 'ko';
   if (account.business_id) {
     try {
       const { Business } = require('../models');
       const biz = await Business.findByPk(account.business_id, {
-        attributes: ['mail_from_name', 'brand_name', 'name', 'mail_signature_html'],
+        attributes: ['mail_from_name', 'brand_name', 'name', 'mail_signature_html', 'mail_signature_html_en', 'default_language'],
       });
       if (!fromName) fromName = biz?.mail_from_name || biz?.brand_name || biz?.name || '';
       workspaceSignature = biz?.mail_signature_html || null;
+      workspaceSignatureEn = biz?.mail_signature_html_en || null;
+      bizDefaultLang = biz?.default_language || 'ko';
     } catch (e) { console.warn('[emailSend] workspace 설정 조회 실패', e.message); }
   }
   const sender = await resolveSender(account, { fromAliasId, replyToAddresses });
   if (sender.displayName) fromName = sender.displayName;
 
-  // appendSignature 와 **같은 우선순위**로 어느 층이 이길지 판정한다.
-  const nonEmpty = (v) => !!String(v || '').trim();
-  let source = 'none';
-  let signatureHtml = '';
-  if (account.signature_enabled === false) {
-    source = 'disabled';
-  } else if (nonEmpty(sender.signatureHtml)) {
-    source = 'alias'; signatureHtml = String(sender.signatureHtml).trim();
-  } else if (nonEmpty(account.signature_html)) {
-    source = 'account'; signatureHtml = String(account.signature_html).trim();
-  } else if (nonEmpty(workspaceSignature)) {
-    source = 'workspace'; signatureHtml = String(workspaceSignature).trim();
-  }
+  // ★ 층·언어 판정은 `resolveSignature` **한 함수**다 — 여기서 다시 쓰면 실발송과 갈라진다.
+  //   언어는 호출자가 주면 그것, 없으면 **AI 초안과 같은 `detectLang`** 으로 본문·제목에서 뽑는다.
+  const { detectLang } = require('./emailBodyClean');
+  const useLang = SIGNATURE_LANGS.includes(lang)
+    ? lang
+    : detectLang(langText || '', bizDefaultLang, langSubject || '');
+  const sigPick = resolveSignature({
+    account,
+    aliasBase: sender.signatureHtml, aliasEn: sender.signatureHtmlEn,
+    workspaceBase: workspaceSignature, workspaceEn: workspaceSignatureEn,
+    lang: useLang,
+  });
+  const source = sigPick.source;
+  const signatureHtml = sigPick.html;
+
   return {
     fromName, fromEmail: sender.email,
     signatureSource: source, signatureHtml,
+    signatureLang: sigPick.lang, signatureLangFallback: sigPick.langFallback,
+    // 영문 서명을 **어디에 저장해야 실제로 붙는지** — 이긴 층이 아니면 영영 안 붙는다
+    //   (별칭이 이기는데 계정에 저장하면 계정 층까지 내려오지 않는다).
+    signatureAliasId: sender.aliasId || null,
     aliasSignatureHtml: sender.signatureHtml || null, workspaceSignature,
+    aliasSignatureHtmlEn: sender.signatureHtmlEn || null, workspaceSignatureEn,
   };
 }
 
-async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null, signature = true, quote = null, senderUserId = null }) {
+async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, references, attachments, fromAliasId = null, replyToAddresses = null, signature = true, quote = null, senderUserId = null, langHtml = undefined, langSubject = undefined }) {
   // 수신자 검증 — 가짜/예약TLD/형식불량 주소 차단 (바운스·평판 보호). emailService 게이트 재사용.
   const { emailBlockReason, MAIL_FONT_STACK } = require('./emailService');
   const blocked = emailBlockReason([].concat(to || [], cc || [], bcc || []));
@@ -219,7 +276,18 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
   //   ★ 발송정지 게이트보다 **앞**에서 계산한다. 라우트가 outbound row 에 기록할 From 을
   //     이 결과에서 가져가야 하는데, 게이트 뒤에 두면 dev(발송정지)에서는 값이 없어
   //     "실발송은 별칭인데 보낸메일함은 계정 주소" 가 된다(같은 종류의 표시≠실발신).
-  const ident = await resolveOutgoingIdentity(account, { fromAliasId, replyToAddresses });
+  // ★ 서명 언어는 **사용자가 쓴 부분**으로 정한다 — 서명이 붙는 그 글의 언어여야 한다.
+  //   ★ `langHtml` 을 호출자가 준다(Fable 지적). `html` 을 그대로 쓰면 **전달(forward)** 에서
+  //     원문이 합쳐진 뒤라 한국어 원문이 영어 한 줄을 이겨 «미리보기 en / 실발송 ko» 가 됐다.
+  //     인용문(`quote`)을 뺀 것과 같은 논리다 — 남의 글이 내 서명 언어를 정하면 안 된다.
+  //   ★ `langSubject` 도 호출자가 준다 — 답장은 서버가 만든 `Re: 원제목` 이 제목이고
+  //     `detectLang` 이 제목을 ×3 가중하므로, 화면이 제목을 안 보내면 판정이 갈린다.
+  //   여기서 한 번만 계산하고, appendSignature 는 그 결과를 받아 쓴다(공식 두 벌 금지).
+  const ident = await resolveOutgoingIdentity(account, {
+    fromAliasId, replyToAddresses,
+    langText: htmlToTextForWire(langHtml !== undefined ? langHtml : html),
+    langSubject: (langSubject !== undefined ? langSubject : subject) || '',
+  });
   const from = ident.fromName
     ? `"${String(ident.fromName).replace(/"/g, '')}" <${ident.fromEmail}>`
     : ident.fromEmail;
@@ -248,7 +316,13 @@ async function sendMail(account, { to, cc, bcc, subject, html, text, inReplyTo, 
   //   `signature: false` 는 **이 발송만** 서명을 끈다 (계정 설정 signature_enabled 는 건드리지 않는다).
   const htmlWithSig = signature === false
     ? html
-    : appendSignature(html, account, ident.aliasSignatureHtml, ident.workspaceSignature);
+    : appendSignature(html, account, ident.aliasSignatureHtml, ident.workspaceSignature, {
+      aliasSignatureHtmlEn: ident.aliasSignatureHtmlEn,
+      workspaceSignatureEn: ident.workspaceSignatureEn,
+      // ★ 언어는 **이미 계산된 것**을 쓴다. 여기서 detectLang 을 다시 부르면 미리보기와 갈라진다 —
+      //   ident 는 이 발송 직전에 resolveOutgoingIdentity 가 한 번 만든 값이다.
+      lang: ident.signatureLang,
+    });
 
   // 표 인라인 — 서명 안의 표까지 덮는다(서명도 같은 에디터로 쓴다). 멱등이라 라우트에서 이미
   //   한 번 처리했어도 안전하다.
@@ -337,5 +411,5 @@ function deliveryFromSendResult(sendResult) {
 }
 
 module.exports = {
-  appendSignature,
+  appendSignature, htmlToTextForWire,
   resolveSender, resolveOutgoingIdentity, sendMail, buildTransport, deriveSmtpHost, deliveryFromSendResult };

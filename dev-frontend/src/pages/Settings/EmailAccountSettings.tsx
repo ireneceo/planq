@@ -276,6 +276,7 @@ const EmailAccountSettings: React.FC = () => {
           businessId={businessId}
           accountId={acc.id}
           initialHtml={acc.signature_html ?? null}
+          initialHtmlEn={acc.signature_html_en ?? null}
           initialEnabled={acc.signature_enabled !== false}
         />
     </AccountCard>

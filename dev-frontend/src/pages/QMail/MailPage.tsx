@@ -1781,6 +1781,24 @@ const MailPage: React.FC = () => {
   }), [businessId]);
   const [cSubject, setCSubject] = useState('');
   const [cBody, setCBody] = useState('');
+  // ★ 서명 언어 판정용 — 타이핑마다 서버를 부르지 않게 **debounce** 한 본문을 뱃지에 넘긴다.
+  //   판정 자체는 서버(detectLang, AI 초안과 같은 함수)가 한다 — 화면은 원천만 전달한다.
+  const [sigLangSrc, setSigLangSrc] = useState({ body: '', subject: '' });
+  // 작성창이면 작성 본문, 답장창이면 답장 본문 — 열려 있는 쪽이 원천이다.
+  //   ★ **자르지도 텍스트화하지도 않는다.** 원본 HTML 을 그대로 넘기고 서버가 발송과 같은
+  //     함수로 판정한다 — 화면이 stripHtml 로 2,000자만 보내던 탓에 장문 이중언어에서
+  //     «미리보기 en / 실발송 ko» 가 났다(Fable 실측).
+  //   ★ 인용문·전달 원문은 본문 state 에 안 들어 있다(서버가 붙인다) — 남의 글이 내 서명
+  //     언어를 정하지 않는다. 발송 라우트도 같은 `langHtml` 을 쓴다.
+  //   ★ 답장 제목은 **안 보낸다** — 서버가 `Re: 원제목` 을 만든다(replySubjectOf 한 공식).
+  useEffect(() => {
+    const srcHtml = composeOpen ? cBody : replyHtml;
+    const srcSubject = composeOpen ? cSubject : '';
+    const id = window.setTimeout(() => {
+      setSigLangSrc({ body: srcHtml || '', subject: srcSubject });
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [composeOpen, cBody, cSubject, replyHtml]);
   const [cUploads, setCUploads] = useState<File[]>([]);
   const [cFileIds, setCFileIds] = useState<number[]>([]);
   const [cSending, setCSending] = useState(false);
@@ -2685,6 +2703,8 @@ const MailPage: React.FC = () => {
                   businessId={businessId}
                   accountId={cAccountId || null}
                   fromAliasId={cFromAliasId}
+                  bodyHtml={sigLangSrc.body}
+                  subject={sigLangSrc.subject}
                   enabled={cSignature}
                   onToggle={setCSignature}
                 />
@@ -3099,6 +3119,7 @@ const MailPage: React.FC = () => {
                       businessId={businessId}
                       threadId={detail.id}
                       fromAliasId={fromAliasId}
+                      bodyHtml={sigLangSrc.body}
                       enabled={replySignature}
                       onToggle={setReplySignature}
                       onIdentity={(id) => setOutgoingFrom(id?.from_email || '')}

@@ -21,7 +21,17 @@ async function accessibleAccountIds(businessId, userId) {
   return accts.map(a => a.id);
 }
 
-async function outgoingIdentityFor({ businessId, userId, accountId = null, threadId = null, fromAliasId = null }) {
+/**
+ * 답장 제목 — `Re:` 접두(이미 있으면 그대로). **미리보기와 발송이 같은 공식을 쓴다.**
+ *   `detectLang` 이 제목을 ×3 가중하므로, 화면이 제목을 안 보내면 서명 언어가 갈린다
+ *   (Fable 실측: 한국어 제목 스레드에 영어 답장 → 미리보기 en / 실발송 ko).
+ */
+function replySubjectOf(baseSubject) {
+  const b = String(baseSubject || '').trim();
+  return /^re:/i.test(b) ? b : `Re: ${b}`.trim();
+}
+
+async function outgoingIdentityFor({ businessId, userId, accountId = null, threadId = null, fromAliasId = null, bodyHtml = '', subject = '' }) {
   const acctIds = await accessibleAccountIds(businessId, userId);
   if (!acctIds.length) return { error: 'no_mail_account', status: 404 };
   if (accountId && !acctIds.includes(accountId)) return { error: 'forbidden_account', status: 403 };
@@ -32,7 +42,7 @@ async function outgoingIdentityFor({ businessId, userId, accountId = null, threa
   if (threadId) {
     const thread = await EmailThread.findOne({
       where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds } },
-      attributes: ['id', 'account_id'],
+      attributes: ['id', 'account_id', 'subject'],
     });
     if (!thread) return { error: 'thread_not_found', status: 404 };
     resolvedAccountId = thread.account_id;
@@ -41,13 +51,30 @@ async function outgoingIdentityFor({ businessId, userId, accountId = null, threa
       order: [['sent_at', 'DESC']], attributes: ['to_emails'],
     });
     if (lastIn) replyToAddresses = emailsOf(lastIn.to_emails);
+    // ★ 답장 제목은 **서버가 만든다** — 발송 라우트와 같은 공식(replySubjectOf).
+    //   화면이 제목을 안 보내던 탓에 «미리보기 en / 실발송 ko» 가 났다(Fable 실측).
+    if (!subject) {
+      const last = await EmailMessage.findOne({
+        where: { thread_id: thread.id }, order: [['sent_at', 'DESC']], attributes: ['subject'],
+      });
+      subject = replySubjectOf(thread.subject || (last && last.subject) || '');
+    }
   }
   if (!resolvedAccountId) resolvedAccountId = acctIds[0];
 
   const account = await EmailAccount.findOne({ where: { id: resolvedAccountId, business_id: businessId } });
   if (!account) return { error: 'no_mail_account', status: 404 };
 
-  const ident = await resolveOutgoingIdentity(account, { fromAliasId, replyToAddresses });
+  // ★ 서명 **언어**도 여기서 같이 계산한다 — 화면이 스스로 판정하면 실발송과 갈라진다.
+  //   원천은 «나가는 본문+제목». 답장 화면이 아직 비어 있으면 워크스페이스 기본 언어로 떨어진다
+  //   (resolveOutgoingIdentity 안의 detectLang 폴백).
+  // ★ 본문 정규화도 **발송과 같은 렌즈**여야 한다 — 화면이 자체 stripHtml 로 2000자만 보내던 탓에
+  //   장문 이중언어에서 판정이 갈렸다. 원본 HTML 을 받아 sendMail 과 같은 함수로 텍스트화한다.
+  const { htmlToTextForWire } = require('./emailSend');
+  const ident = await resolveOutgoingIdentity(account, {
+    fromAliasId, replyToAddresses,
+    langText: htmlToTextForWire(bodyHtml || ''), langSubject: subject || '',
+  });
   return {
     data: {
       account_id: account.id,
@@ -56,8 +83,20 @@ async function outgoingIdentityFor({ businessId, userId, accountId = null, threa
       // 'alias' | 'account' | 'workspace' | 'none' | 'disabled' — 화면이 "팀/개인" 을 말할 근거
       signature_source: ident.signatureSource,
       signature_html: ident.signatureHtml || null,
+      // 'ko' | 'en' — 이 메일에 붙을 서명의 언어. 화면은 이 값을 **보여주기만** 한다.
+      signature_lang: ident.signatureLang,
+      // true = 그 언어 칸이 비어 기본 서명으로 떨어졌다 (화면이 "영문 서명 없음" 을 말할 근거)
+      signature_lang_fallback: !!ident.signatureLangFallback,
+      // ★ 영문 서명을 **어느 층에 저장해야 이 메일에 붙는지**. 화면이 스스로 고르면
+      //   «저장했는데 안 붙는다» 가 된다(이긴 층이 아니면 내려오지 않는다).
+      signature_target: ident.signatureSource === 'alias' && ident.signatureAliasId
+        ? { layer: 'alias', account_id: account.id, alias_id: ident.signatureAliasId }
+        : ident.signatureSource === 'workspace'
+          ? { layer: 'workspace', account_id: account.id, alias_id: null }
+          : { layer: 'account', account_id: account.id, alias_id: null },
     },
   };
 }
 
-module.exports = { outgoingIdentityFor, accessibleAccountIds };
+module.exports = {
+  replySubjectOf, outgoingIdentityFor, accessibleAccountIds };

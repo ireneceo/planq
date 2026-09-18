@@ -447,7 +447,20 @@
       "disabled": "Signature off"
     },
     "scopeOn": "This switch applies to the whole mailbox. Turning it off also stops per-address signatures.",
-    "scopeOff": "No signature is attached right now — including per-address signatures."
+    "scopeOff": "No signature is attached right now — including per-address signatures.",
+    "langKo": "Korean",
+    "langEn": "English",
+    "langNote": "Picked automatically from the language of the email body.",
+    "enEmptyNote": "If left empty, the Korean signature is used for English emails too.",
+    "placeholderEn": "e.g. Gildong Hong · WorproLab · +82 10-0000-0000",
+    "tagKo": "Korean",
+    "tagEn": "English",
+    "enMissing": "This email is in English but no English signature is set, so the Korean one is used.",
+    "enSetup": "Set up English signature",
+    "enClose": "Close",
+    "enSave": "Save",
+    "enApplyHint": "Saving applies it to the email you are writing right now.",
+    "enSaveFail": "Could not save. Please check your permissions."
   },
   "alias": {
     "title": "Send-as addresses",
@@ -473,7 +486,8 @@
     "signaturePh": "e.g. WOR-PRO Lab · John Doe · +82 10-0000-0000",
     "signatureHint": "Leave empty to use the \"Default signature\" below.",
     "hasSignature": "own signature",
-    "noSignature": "uses default"
+    "noSignature": "uses default",
+    "signaturePhEn": "e.g. WorproLab · Gildong Hong · +82 10-0000-0000"
   },
   "detail": {
     "toAddr": "Received at",

@@ -62,6 +62,7 @@ router.post('/:businessId/email-accounts/:id/aliases', authenticateToken, checkB
       email,
       display_name: b.display_name ? String(b.display_name).slice(0, 100) : null,
       signature_html: b.signature_html ? String(b.signature_html).slice(0, 20000) : null,
+      signature_html_en: b.signature_html_en ? String(b.signature_html_en).slice(0, 20000) : null,
       is_default: !!b.is_default,
     });
     if (alias.is_default) {
@@ -86,6 +87,7 @@ router.put('/:businessId/email-accounts/:id/aliases/:aliasId', authenticateToken
     }
     if (b.display_name !== undefined) patch.display_name = b.display_name ? String(b.display_name).slice(0, 100) : null;
     if (b.signature_html !== undefined) patch.signature_html = b.signature_html ? String(b.signature_html).slice(0, 20000) : null;
+    if (b.signature_html_en !== undefined) patch.signature_html_en = b.signature_html_en ? String(b.signature_html_en).slice(0, 20000) : null;
     if (b.is_default !== undefined) patch.is_default = !!b.is_default;
     await alias.update(patch);
     if (patch.is_default) {

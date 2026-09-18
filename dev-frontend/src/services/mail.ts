@@ -24,6 +24,8 @@ export interface EmailAccountRow {
   auto_extract_scope?: 'off' | 'reply_needed' | 'recommended';
   // 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다)
   signature_html: string | null;
+  /** 영문 서명 — 비우면 signature_html 을 쓴다 (2026-09-18) */
+  signature_html_en: string | null;
   signature_enabled: boolean;
   owner_user_id: number | null;
   is_personal: boolean;

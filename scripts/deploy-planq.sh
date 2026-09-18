@@ -292,6 +292,14 @@ sync_database() {
   # 올라가면 push_subscriptions 조회가 Unknown column 으로 죽어 기존 웹푸시까지 전멸한다.
   log "Running idempotent migrations..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-push-native.js 2>&1 | tail -10"
+  # 언어별 메일 서명 — email_accounts/email_account_aliases/businesses 의 `*_en` 3컬럼 (2026-09-18).
+  #   ★ **PM2 reload 앞**이어야 한다. 컬럼 없이 새 코드가 뜨면 `EmailAccount.findOne` 이
+  #     전 컬럼을 SELECT 하다 ER_BAD_FIELD → **Q mail 전 라우트 500**, `GET /:biz/mail` 도 500.
+  #     워크스페이스 컬럼은 더 나쁘다 — try/catch 라 500 도 안 나고 **팀 공통 서명이 조용히 사라진다.**
+  #   ★ 이 스크립트는 `--apply` 가 없으면 **dry-run** 이다(형제들과 다르다). 반드시 붙인다.
+  #   ★ 여태 「배포 전에 실행한다」가 스크립트 머리말에만 있고 **부르는 곳이 없었다**
+  #     — 게이트에 안 붙은 가드는 없는 가드다(Fable 3차 지적).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-signature-lang.js --apply 2>&1 | tail -10"
   # Q Bill 결제 원장 — invoice_payments.installment_id (매출 통계 원천). 코드보다 먼저.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-invoice-payment-installment.js 2>&1 | tail -10"
   # 온보딩 안내 카드 — businesses.onboarding_dismissed_at. businesses 는 키가 많아

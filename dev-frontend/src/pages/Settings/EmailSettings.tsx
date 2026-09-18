@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import AutoSaveField from '../../components/Common/AutoSaveField';
+import SignatureLangTabs, { type SigLang } from '../../components/Common/SignatureLangTabs';
 import RichEditor from '../../components/Common/RichEditor';
 import { apiFetch } from '../../contexts/AuthContext';
 
@@ -18,6 +19,7 @@ interface MailConfig {
   mail_from_name: string | null;
   mail_reply_to: string | null;
   mail_signature_html: string | null;
+  mail_signature_html_en: string | null;
   brand_name: string | null;
   name: string | null;
   smtp_configured: boolean;
@@ -31,6 +33,8 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const [fromName, setFromName] = useState('');
   const [replyTo, setReplyTo] = useState('');
   const [signature, setSignature] = useState('');
+  const [signatureEn, setSignatureEn] = useState('');
+  const [sigLang, setSigLang] = useState<SigLang>('ko');
 
   useEffect(() => {
     if (!businessId) return;
@@ -46,6 +50,7 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
         setFromName(c.mail_from_name || '');
         setReplyTo(c.mail_reply_to || '');
         setSignature(c.mail_signature_html || '');
+        setSignatureEn(c.mail_signature_html_en || '');
         setError(null);
       })
       .catch(e => { if (!cancelled) setError((e as Error).message); })
@@ -53,7 +58,7 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
     return () => { cancelled = true; };
   }, [businessId]);
 
-  const save = async (patch: Partial<{ mail_from_name: string | null; mail_reply_to: string | null; mail_signature_html: string | null }>) => {
+  const save = async (patch: Partial<{ mail_from_name: string | null; mail_reply_to: string | null; mail_signature_html: string | null; mail_signature_html_en: string | null }>) => {
     const r = await apiFetch(`/api/businesses/${businessId}/mail`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -136,14 +141,28 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
             우선순위: 별칭 서명 > 계정 서명 > 이 값 > 없음. 기존 계정별 서명을 덮어쓰지 않는다. */}
         <Field>
           <Label>{t('email.signature.label')}</Label>
-          <AutoSaveField type="input" onSave={async () => save({ mail_signature_html: signature.trim() || null })}>
-            <RichEditor
-              value={signature}
-              onChange={setSignature}
-              readOnly={!isOwner}
-              placeholder={t('email.signature.placeholder') as string}
-            />
-          </AutoSaveField>
+          <SignatureLangTabs value={sigLang} onChange={setSigLang} enEmpty={!signatureEn.trim()} />
+          {/* 언어 **와 워크스페이스**로 인스턴스를 가른다(key) — 같은 인스턴스를 다른 대상에
+              재사용하면 언마운트가 오지 않아 떠난 쪽의 마지막 입력이 새 대상의 onSave 로 터진다. */}
+          {sigLang === 'ko' ? (
+            <AutoSaveField key={`wsig-ko-${businessId}`} type="input" onSave={async () => save({ mail_signature_html: signature.trim() || null })}>
+              <RichEditor
+                value={signature}
+                onChange={setSignature}
+                readOnly={!isOwner}
+                placeholder={t('email.signature.placeholder') as string}
+              />
+            </AutoSaveField>
+          ) : (
+            <AutoSaveField key={`wsig-en-${businessId}`} type="input" onSave={async () => save({ mail_signature_html_en: signatureEn.trim() || null })}>
+              <RichEditor
+                value={signatureEn}
+                onChange={setSignatureEn}
+                readOnly={!isOwner}
+                placeholder={t('email.signature.placeholderEn', { defaultValue: 'e.g. Gildong Hong · WorproLab · +82 10-0000-0000' }) as string}
+              />
+            </AutoSaveField>
+          )}
           <Hint>{t('email.signature.hint')}</Hint>
         </Field>
       </Section>

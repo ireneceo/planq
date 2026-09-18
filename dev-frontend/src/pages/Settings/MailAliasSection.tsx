@@ -8,6 +8,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ActionButton from '../../components/Common/ActionButton';
 import RichEditor from '../../components/Common/RichEditor';
+import SignatureLangTabs, { type SigLang } from '../../components/Common/SignatureLangTabs';
+import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import { apiFetch } from '../../contexts/AuthContext';
 
 export interface MailAlias {
@@ -15,6 +17,7 @@ export interface MailAlias {
   email: string;
   display_name: string | null;
   signature_html: string | null;
+  signature_html_en: string | null;
   is_default: boolean;
 }
 
@@ -40,13 +43,20 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
   //   (Irene: "표시이름 선택한거 다시 추가를 못해. 등록한거 수정은 못해?").
   //   서버 PUT 은 이미 display_name·email 을 받고 있었다 — 화면만 안 부르고 있었다.
   const [editId, setEditId] = useState<number | null>(null);
+
+  // 쓰다 만 서명은 남는다 — 행(별칭)마다, 언어마다 키를 가른다.
+  //   같은 인스턴스를 다른 행에 재사용하면 떠난 행의 글이 새 행에 나타난다.
+  const koDraft = useDraftText(useDraftKey('mail-signature-alias', `${editId ?? 0}:ko`, businessId));
+  const enDraft = useDraftText(useDraftKey('mail-signature-alias', `${editId ?? 0}:en`, businessId));
+  const editSignature = koDraft.text; const setEditSignature = koDraft.setText;
+  const editSignatureEn = enDraft.text; const setEditSignatureEn = enDraft.setText;
   const [editEmail, setEditEmail] = useState('');
   const [editName, setEditName] = useState('');
   // 주소마다 다른 서비스라 서명도 주소마다 달라야 한다 (Irene).
   //   백엔드는 처음부터 별칭 서명을 지원했다 — 발송 시 우선순위가
   //   **별칭 서명 → 계정 서명 → 워크스페이스 서명** (services/emailSend.js).
   //   화면에서 입력할 방법만 없어서 그 컬럼이 늘 비어 있었을 뿐이다.
-  const [editSignature, setEditSignature] = useState('');
+  const [sigLang, setSigLang] = useState<SigLang>('ko');
 
   const base = `/api/businesses/${businessId}/email-accounts/${accountId}/aliases`;
 
@@ -98,9 +108,12 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
     setEditId(a.id);
     setEditEmail(a.email);
     setEditName(a.display_name || '');
-    setEditSignature(a.signature_html || '');
+    // 저장된 초안이 있으면 그것이 이긴다 — 없을 때만 서버 값으로 채운다.
+    if (!koDraft.text) setEditSignature(a.signature_html || '');
+    if (!enDraft.text) setEditSignatureEn(a.signature_html_en || '');
+    setSigLang('ko');
   };
-  const cancelEdit = () => { setEditId(null); setEditEmail(''); setEditName(''); setEditSignature(''); };
+  const cancelEdit = () => { setEditId(null); setEditEmail(''); setEditName(''); koDraft.clear(); enDraft.clear(); setSigLang('ko'); };
 
   const saveEdit = async (id: number) => {
     const addr = editEmail.trim().toLowerCase();
@@ -114,6 +127,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
           email: addr,
           display_name: editName.trim() || null,
           signature_html: isEmptyHtml(editSignature) ? null : editSignature,
+          signature_html_en: isEmptyHtml(editSignatureEn) ? null : editSignatureEn,
         }),
       });
       const j = await r.json().catch(() => ({}));
@@ -186,12 +200,26 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
           </Row>
           <SigBox>
             <SigLabel>{t('alias.signature', { defaultValue: '이 주소로 보낼 때 붙는 서명' }) as string}</SigLabel>
-            <RichEditor
-              value={editSignature}
-              onChange={setEditSignature}
-              minHeight={110}
-              placeholder={t('alias.signaturePh', { defaultValue: '예) 워프로랩 · 홍길동 · 010-0000-0000' }) as string}
-            />
+            <SignatureLangTabs value={sigLang} onChange={setSigLang} enEmpty={isEmptyHtml(editSignatureEn)} />
+            {sigLang === 'ko' ? (
+              <RichEditor
+                data-draft-kind="mail-signature-alias"
+                key="alias-sig-ko"
+                value={editSignature}
+                onChange={setEditSignature}
+                minHeight={110}
+                placeholder={t('alias.signaturePh', { defaultValue: '예) 워프로랩 · 홍길동 · 010-0000-0000' }) as string}
+              />
+            ) : (
+              <RichEditor
+                data-draft-kind="mail-signature-alias"
+                key="alias-sig-en"
+                value={editSignatureEn}
+                onChange={setEditSignatureEn}
+                minHeight={110}
+                placeholder={t('alias.signaturePhEn', { defaultValue: 'e.g. WorproLab · Gildong Hong · +82 10-0000-0000' }) as string}
+              />
+            )}
             <SigHint>{t('alias.signatureHint', { defaultValue: '비워 두면 아래 "기본 서명"이 대신 붙습니다.' }) as string}</SigHint>
           </SigBox>
           </React.Fragment>

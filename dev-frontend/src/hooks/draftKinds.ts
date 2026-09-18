@@ -28,6 +28,12 @@ export const DRAFT_KINDS = {
   // Q sale — 상담 기록 메모(전화·미팅 내용은 길다)와 종결 사유 메모. 둘 다 모달 안에서 쓰다 닫으면 사라지던 값이다.
   'sale-interaction-body': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/RecordModal.tsx'] },
   'sale-lost-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/LostReasonModal.tsx'] },
+  // 메일 영문 서명 — 작성창에서 «영문 서명이 없어 한글이 붙는다» 안내를 보고 그 자리에서 쓰는 글.
+  //   설정 화면으로 보내지 않고 작성창 안에서 끝내므로, 컴포저를 닫으면 사라질 수 있다(2026-09-18).
+  'mail-signature-en': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QMail/SignatureBadge.tsx'] },
+  // 별칭(보내는 주소)별 서명 — 설정의 편집 폼. [저장]/[취소] 로 끝나지만, 쓰다가 다른 행을 누르거나
+  //   화면을 떠나면 그대로 사라졌다. 한국어·영문 둘 다 같은 규칙이다(2026-09-18).
+  'mail-signature-alias': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/Settings/MailAliasSection.tsx'] },
   'mail-issue': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'mail-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QMail/MailContextPanel.tsx'] },
   'qtalk-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Common/NoteThread.tsx', 'pages/QTalk/RightPanel.tsx'] },

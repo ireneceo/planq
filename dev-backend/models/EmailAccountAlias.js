@@ -20,6 +20,8 @@ EmailAccountAlias.init({
   email: { type: DataTypes.STRING(200), allowNull: false },
   display_name: { type: DataTypes.STRING(100), allowNull: true },
   signature_html: { type: DataTypes.TEXT, allowNull: true },
+  // 언어별 서명 — 비우면 이 별칭의 기본 서명을 쓴다 (2026-09-18)
+  signature_html_en: { type: DataTypes.TEXT, allowNull: true },
   is_default: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 }, {
   sequelize,

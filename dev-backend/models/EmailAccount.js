@@ -14,6 +14,11 @@ EmailAccount.init({
   // 서명 — 계정마다 다르다 (회사 공용 메일과 내 개인 메일의 서명이 같을 리 없다).
   //   HTML 로 저장하고 발송 시 본문 끝에 붙인다. 자동 삽입은 계정별로 끌 수 있다.
   signature_html: { type: DataTypes.TEXT, allowNull: true },
+  // ★ 2026-09-18 — **언어별 서명** (Irene: "이메일이 영어일 때랑 한글내용일 때 서명이 따로 붙어야 하는데
+  //   다 한글 기본서명이 가네"). `signature_html` 이 기본(한국어), 이쪽이 영문.
+  //   **비워두면 기본 서명을 쓴다** — 한국어 서명이 «비우면 윗층» 인 것과 같은 규칙이라
+  //   별도 «언어별 사용» 스위치를 두지 않는다(규칙이 두 벌이 되면 갈라진다).
+  signature_html_en: { type: DataTypes.TEXT, allowNull: true },
   signature_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   // 인증 방식 — N+70 Task C/D 통합
   //   password: IMAP/SMTP 비밀번호 직접 (앱 비밀번호) — 옛 방식

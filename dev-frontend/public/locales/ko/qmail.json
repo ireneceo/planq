@@ -447,7 +447,20 @@
       "disabled": "서명 꺼짐"
     },
     "scopeOn": "이 스위치는 메일함 전체에 적용돼요. 끄면 주소별 전용 서명도 붙지 않습니다.",
-    "scopeOff": "지금은 주소별 전용 서명을 포함해 어떤 서명도 붙지 않습니다."
+    "scopeOff": "지금은 주소별 전용 서명을 포함해 어떤 서명도 붙지 않습니다.",
+    "langKo": "한국어",
+    "langEn": "English",
+    "langNote": "메일 본문 언어에 맞춰 자동으로 골라 붙습니다.",
+    "enEmptyNote": "비워두면 영문 메일에도 한국어 서명이 붙습니다.",
+    "placeholderEn": "예) Gildong Hong · WorproLab · +82 10-0000-0000",
+    "tagKo": "한국어",
+    "tagEn": "영문",
+    "enMissing": "영문 메일인데 영문 서명이 없어 한국어 서명이 붙습니다.",
+    "enSetup": "영문 서명 설정",
+    "enClose": "닫기",
+    "enSave": "저장",
+    "enApplyHint": "저장하면 지금 쓰는 메일부터 바로 적용됩니다.",
+    "enSaveFail": "저장하지 못했습니다. 권한을 확인해 주세요."
   },
   "alias": {
     "title": "보내는 주소",
@@ -473,7 +486,8 @@
     "signaturePh": "예) 워프로랩 · 홍길동 · 010-0000-0000",
     "signatureHint": "비워 두면 아래 \"기본 서명\"이 대신 붙습니다.",
     "hasSignature": "전용 서명",
-    "noSignature": "기본 서명 사용"
+    "noSignature": "기본 서명 사용",
+    "signaturePhEn": "예) WorproLab · Gildong Hong · +82 10-0000-0000"
   },
   "detail": {
     "toAddr": "받은 주소",
