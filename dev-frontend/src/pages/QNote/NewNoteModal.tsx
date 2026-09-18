@@ -129,6 +129,9 @@ const NewNoteModal: React.FC<Props> = ({ open, onClose, businessId, onStart }) =
               isClearable
               isSearchable
             />
+            {/* 부연은 칸 밖으로 — 옛 문구 「프로젝트 선택 — 고객 자동 매핑 (선택)」가 담던 뜻.
+                칸 안에 넣으면 값을 고르는 순간 사라지고, 고르기 전에는 길어서 잘린다. */}
+            <FieldHint>{tc(CONNECT_PROMPT.projectHintAutoClient) as string}</FieldHint>
           </Field>
         </Body>
 
@@ -232,4 +235,8 @@ const SecondaryBtn = styled.button`
   padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #334155;
   background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer;
   &:hover { border-color: #CBD5E1; background: #F8FAFC; }
+`;
+
+const FieldHint = styled.div`
+  font-size: 0.6875rem; color: #94A3B8; margin-top: 4px; line-height: 1.5;
 `;

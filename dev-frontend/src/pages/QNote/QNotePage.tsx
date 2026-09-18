@@ -2793,7 +2793,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               prefillClientId={composingMemo ? composingPrefill.client_id : null}
               prefillText={composingMemo ? composingText : null}
               onCreated={(s) => { setActiveSession(s); setComposingMemo(false); setComposingText(null); setComposingPrefill({ project_id: embedProjectId, client_id: null }); loadSessions(); goNote(`/notes/${s.id}`, { replace: true }); }}
-              onUpdated={(s) => { setActiveSession(s); setSessions(prev => prev.map(x => x.id === s.id ? { ...x, ...s } : x)); }}
+              onUpdated={(s) => { setActiveSession((prev) => applySessionPatch(prev, s)); setSessions(prev => prev.map(x => x.id === s.id ? { ...x, ...s } : x)); }}
               onDelete={async (id) => {
                 await deleteSession(id);
                 setSessions(prev => prev.filter(s => s.id !== id));
@@ -3060,6 +3060,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 {/* N+88 — Q docs 문서 상세 상단과 통일: 공개 chip + 공유 Primary + IconBtn 클러스터 */}
                 {String(activeSession.user_id) === String(user?.id) && (
                   <VisibilityChip
+                    data-testid="qnote-visibility-chip"
                     level={(activeSession.visibility as VLevel) || 'L1'}
                     onClick={() => setVisibilityModalOpen(true)}
                   />
@@ -3400,7 +3401,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 visibility: level,
                 ...(level === 'L2' && projectId ? { project_id: projectId } : {}),
               });
-              setActiveSession(updated);
+              // 공개 범위 저장 응답에도 전사·자료·화자가 없다 — 덮어쓰면 내용이 사라진다(연결과 같은 계열)
+              setActiveSession((prev) => applySessionPatch(prev, updated));
               setSessions((prev) => prev.map((s) => (s.id === updated.id ? { ...s, visibility: updated.visibility, project_id: updated.project_id } : s)));
             } catch (e) {
               // status=recording / external_consent_required 등 backend 에러

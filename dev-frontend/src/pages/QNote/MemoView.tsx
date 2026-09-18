@@ -206,6 +206,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
         dirtyRef.current = false;
         baseDocRef.current = bodyJson; savedOnceRef.current = true;
         if (leaving) { try { window.dispatchEvent(new CustomEvent('qnote-session-updated', { detail: { id: updated.id } })); } catch { /* noop */ } }
+        // savemerge-exempt: 받는 쪽(QNotePage)이 applySessionPatch 로 덧입힌다
         else onUpdated(updated);
         return updated;
       }

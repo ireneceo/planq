@@ -836,21 +836,24 @@ export default function WorkspaceSettingsPage() {
   const saveBrand = useCallback(async (payload: Partial<Workspace>) => {
     if (!businessId) return;
     const updated = await updateBrand(businessId, payload);
-    setWs(updated);
+    // 저장 응답에는 GET 이 붙이는 연관(owner·cueUser 등)이 없다 — 덧입힌다
+    setWs((prev) => (prev ? { ...prev, ...updated } : updated));
     await refreshUser();
   }, [businessId, refreshUser]);
 
   const saveLegal = useCallback(async (payload: Partial<Workspace>) => {
     if (!businessId) return;
     const updated = await updateLegal(businessId, payload);
-    setWs(updated);
+    // 저장 응답에는 GET 이 붙이는 연관(owner·cueUser 등)이 없다 — 덧입힌다
+    setWs((prev) => (prev ? { ...prev, ...updated } : updated));
     await refreshUser();
   }, [businessId, refreshUser]);
 
   const saveSettings = useCallback(async (payload: Partial<Workspace>) => {
     if (!businessId) return;
     const updated = await updateSettings(businessId, payload);
-    setWs(updated);
+    // 저장 응답에는 GET 이 붙이는 연관(owner·cueUser 등)이 없다 — 덧입힌다
+    setWs((prev) => (prev ? { ...prev, ...updated } : updated));
     await refreshUser();
   }, [businessId, refreshUser]);
 

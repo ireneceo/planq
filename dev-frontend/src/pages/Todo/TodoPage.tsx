@@ -316,7 +316,8 @@ const TodoPage: React.FC = () => {
     // ★ 2026-09-11 — 조회는 일정의 워크스페이스로 하고 수정·삭제는 현재 워크스페이스로 해 갈라져 있었다(감사 ② C-2).
     //   일정 자신의 business_id 하나로 맞춘다.
     const next = await updateEvent(selectedEvent.business_id || bizId, selectedEvent.id, fullPatch, scope);
-    setSelectedEvent(next);
+    // 저장 응답은 조회보다 좁다 — 덧입힌다(통째 대입하면 상세에서 값이 사라진다)
+    setSelectedEvent((prev) => (prev ? { ...prev, ...next } : next));
     silentLoad();
   };
   const handleEventDelete = async () => {

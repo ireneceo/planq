@@ -31,6 +31,8 @@ export default function SuccessMetricsEditor({ projectId, initial, onSaved, read
       setStatus('saving');
       try {
         const saved = await putSuccessMetrics(projectId, payload);
+        // savemerge-exempt: 서버가 **전체 목록**을 돌려주는 자리다(배열). 지운 행까지 반영돼야 하므로
+        //   덧입히면 오히려 틀린다 — 통째 교체가 맞다.
         setRows(saved);
         setStatus('saved');
         onSaved?.(saved);

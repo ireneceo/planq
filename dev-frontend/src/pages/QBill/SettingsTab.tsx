@@ -100,7 +100,8 @@ export default function SettingsTab({ inWorkspaceSettings = false }: SettingsTab
   const save = async (patch: BillingPatch) => {
     if (!businessId) return;
     const updated = await updateBusinessBilling(businessId, patch);
-    setInfo(updated);
+    // 저장 응답은 GET 보다 좁다(연관·파생이 없다) — 덮어쓰지 말고 덧입힌다
+    setInfo((prev) => (prev ? { ...prev, ...updated } : updated));
   };
 
   if (loading) return <Loading>{t('common.loading')}</Loading>;

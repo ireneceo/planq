@@ -316,6 +316,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                     size="sm"
                     isClearable
                     placeholder={tc(CONNECT_PROMPT.projectPick) as string}
+                    /* 부연은 칸 밖 도움말로 — 옛 문구 「선택 안 함 (워크스페이스 업무)」가 담던 뜻 */
                     value={selectedProjectId
                       ? { value: String(selectedProjectId), label: projects.find(p => p.id === selectedProjectId)?.name || `#${selectedProjectId}` }
                       : null}
@@ -325,6 +326,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                     }}
                     options={projects.map(p => ({ value: String(p.id), label: p.name }))}
                   />
+                  <Hint>{tc(CONNECT_PROMPT.projectHintWorkspace) as string}</Hint>
                 </FieldRow>
               )}
               {/* #354 — 루틴 설계 모드는 **명시 버튼**으로만 켠다. 프로젝트가 있어야 영역(업무그룹)을

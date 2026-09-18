@@ -2283,37 +2283,90 @@ function checkAvatarShape() {
 //         또는 전용 병합 함수(`applySessionPatch` 등). 통째 대입은 래칫으로 막는다.
 //   예외: 정말 전체를 갈아끼워야 하면 `// savemerge-exempt: <이유>` 를 바로 위에 적는다.
 function checkSaveMerge() {
+  // ── ① 저장 서비스 함수 목록 — 본문에 PUT/PATCH 가 있는 export 를 **본문 범위를 정확히 잘라** 모은다.
+  //    2026-09-18 신고(Q note)가 바로 이 형태였다: 화면은 `await linkSessionEntities(...)` 만 부르고
+  //    `method:'PUT'` 은 서비스 안에 있어, 호출부만 보는 검사로는 **영원히 안 잡힌다.**
+  const saveFns = new Set();
+  for (const f of walk(`${ROOT}/dev-frontend/src/services`, ['.ts'])) {
+    const src = read(f);
+    // ★ 본문 경계는 **다음 export 까지**로 잡는다. 첫 '{' 를 본문 시작으로 보면 시그니처가 여러 줄일 때
+    //   매개변수 타입의 '{' 를 잡아 본문을 놓친다 — 실제로 `linkSessionEntities` 가 그래서
+    //   «저장 함수» 목록에서 빠졌고, 그 결과 이 가드가 **정작 잡아야 할 그 줄을 못 잡았다**(2026-09-18).
+    const decls = [...src.matchAll(/^export\s+(?:async\s+)?(?:function\s+(\w+)|const\s+(\w+)\s*[=:])/gm)];
+    decls.forEach((m, i) => {
+      const name = m[1] || m[2];
+      const end = i + 1 < decls.length ? decls[i + 1].index : src.length;
+      if (/method:\s*'(PUT|PATCH)'/.test(src.slice(m.index, end))) saveFns.add(name);
+    });
+  }
+
   const files = walk(`${ROOT}/dev-frontend/src`, ['.tsx', '.ts']);
   const current = {};
   const samples = [];
+  const fnAlt = [...saveFns].map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
   for (const f of files) {
     const src = read(f);
-    if (!/method:\s*'(PUT|PATCH)'/.test(src)) continue;
     const rel = f.replace(`${ROOT}/`, '');
+    if (rel.startsWith('services/')) continue;          // 서비스 자신은 상태를 안 들고 있다
     const lines = src.split('\n');
     let debt = 0;
+    const flag = (k, why) => {
+      const ln = lines[k];
+      if (/prev|\.\.\./.test(ln)) return;                            // 이미 병합형
+      const above = lines.slice(Math.max(0, k - 3), k).join('\n');
+      if (/savemerge-exempt:/.test(above) || /savemerge-exempt:/.test(ln)) return;
+      debt += 1;
+      if (samples.length < 12) samples.push(`${rel}:${k + 1}: ${why} → setX(prev => ({ ...prev, ...응답 })) 또는 // savemerge-exempt: <이유>`);
+    };
+    // ── ② 인라인 PUT/PATCH 뒤 14줄 안의 통째 대입
     for (let i = 0; i < lines.length; i += 1) {
       if (!/method:\s*'(PUT|PATCH)'/.test(lines[i])) continue;
-      // 저장 호출 이후 14줄 안에서 응답을 상태에 통째로 넣는가
       for (let k = i; k < Math.min(i + 14, lines.length); k += 1) {
-        const ln = lines[k];
-        if (/^\s*(\/\/|\*)/.test(ln)) continue;
-        const m = /\bset[A-Z]\w*\(\s*(j\.data|json\.data|res\.data|data)\s*\)/.exec(ln);
-        if (!m) continue;
-        if (/prev|\.\.\./.test(ln)) break;                       // 이미 병합형
-        const above = lines.slice(Math.max(0, k - 3), k).join('\n');
-        if (/savemerge-exempt:/.test(above) || /savemerge-exempt:/.test(ln)) break;
-        debt += 1;
-        if (samples.length < 12) {
-          samples.push(`${rel}:${k + 1}: 저장 응답을 통째로 대입 → setX(prev => ({ ...prev, ...j.data })) 또는 // savemerge-exempt: <이유>`);
+        if (/^\s*(\/\/|\*)/.test(lines[k])) continue;
+        if (/\bset[A-Z]\w*\(\s*(j\.data|json\.data|res\.data|data)\s*\)/.test(lines[k])) { flag(k, '저장 응답을 통째로 대입'); break; }
+      }
+    }
+    // ── ③ **서비스 경유** — `setX(await saveFn(...))` 한 줄형, 그리고 `const v = await saveFn(...)` 뒤 대입
+    if (fnAlt) {
+      const direct = new RegExp(`\\bset[A-Z]\\w*\\(\\s*await\\s+(?:${fnAlt})\\s*\\(`);
+      const assign = new RegExp(`\\bconst\\s+(\\w+)\\s*=\\s*await\\s+(?:${fnAlt})\\s*\\(`);
+      for (let i = 0; i < lines.length; i += 1) {
+        if (/^\s*(\/\/|\*)/.test(lines[i])) continue;
+        if (direct.test(lines[i])) { flag(i, '저장 서비스 응답을 통째로 대입'); continue; }
+        const a = assign.exec(lines[i]);
+        if (!a) continue;
+        const v = a[1];
+        const setRe = new RegExp(`\\bset[A-Z]\\w*\\(\\s*${v}\\s*\\)`);
+        for (let k = i; k < Math.min(i + 10, lines.length); k += 1) {
+          if (/^\s*(\/\/|\*)/.test(lines[k])) continue;
+          if (setRe.test(lines[k])) { flag(k, '저장 서비스 응답을 통째로 대입'); break; }
         }
-        break;
+      }
+    }
+    // ── ④ **저장 응답이 컴포넌트 경계를 넘는 지점** (2026-09-18 — ②③ 으로도 못 잡던 형태)
+    //    값이 `onChange(updated)` 로 부모에 건너가면 부모의 `setX(updated)` 만 봐서는
+    //    그것이 «저장 응답» 인지 알 수 없다. **넘기는 쪽**에서 표시한다 — 여기가 걸리면
+    //    받는 쪽이 병합하는지 사람이 확인한다. 이번 운영 신고(Q note)가 정확히 이 모양이었다.
+    if (fnAlt) {
+      const cbDirect = new RegExp(`\\bon[A-Z]\\w*\\(\\s*await\\s+(?:${fnAlt})\\s*\\(`);
+      const cbAssign = new RegExp(`\\bconst\\s+(\\w+)\\s*=\\s*await\\s+(?:${fnAlt})\\s*\\(`);
+      for (let i = 0; i < lines.length; i += 1) {
+        if (/^\s*(\/\/|\*)/.test(lines[i])) continue;
+        if (cbDirect.test(lines[i])) { flag(i, '저장 응답을 콜백으로 그대로 넘긴다 — 받는 쪽이 통째로 대입하면 화면이 지워진다'); continue; }
+        const a = cbAssign.exec(lines[i]);
+        if (!a) continue;
+        const v = a[1];
+        const cbRe = new RegExp(`\\bon[A-Z]\\w*\\(\\s*${v}\\s*\\)`);
+        for (let k = i; k < Math.min(i + 10, lines.length); k += 1) {
+          if (/^\s*(\/\/|\*)/.test(lines[k])) continue;
+          if (cbRe.test(lines[k])) { flag(k, '저장 응답을 콜백으로 그대로 넘긴다 — 받는 쪽이 통째로 대입하면 화면이 지워진다'); break; }
+        }
       }
     }
     if (debt) current[rel] = debt;
   }
   const rt = ratchet('savemerge', current, samples);
-  report('savemerge', `저장 응답 통째 대입 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+  report('savemerge', `저장 응답 통째 대입 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal} · 저장 서비스 ${saveFns.size}개 추적)`,
     rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
 }
 

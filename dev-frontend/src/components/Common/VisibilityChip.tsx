@@ -11,15 +11,17 @@ interface Props {
   onClick?: () => void;     // 있으면 클릭 가능 (변경 모달 트리거)
   disabled?: boolean;
   className?: string;
+  /** 검사 하니스 손잡이 (CLAUDE.md §17) — 위치·문구 휴리스틱으로 집으면 화면이 바뀔 때 검사가 거짓말한다 */
+  'data-testid'?: string;
 }
 
-const VisibilityChip: React.FC<Props> = ({ level, onClick, disabled, className }) => {
+const VisibilityChip: React.FC<Props> = ({ level, onClick, disabled, className, 'data-testid': testId }) => {
   const { t } = useTranslation('common');
   const lv = level || 'L3';
   const label = t(`vault.vis.${lv}`, { defaultValue: { L1: '나만', L2: '팀', L3: '워크스페이스', L4: '외부' }[lv] }) as string;
   const openLabel = t('vault.visOpenLabel', { defaultValue: '공개' }) as string;
   return (
-    <Chip type="button" $level={lv} onClick={onClick} disabled={disabled || !onClick}
+    <Chip type="button" data-testid={testId} $level={lv} onClick={onClick} disabled={disabled || !onClick}
       title={t('vault.visChangeHint', { defaultValue: '공개 범위 변경' }) as string} className={className}>
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <circle cx="12" cy="12" r="3" /><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />

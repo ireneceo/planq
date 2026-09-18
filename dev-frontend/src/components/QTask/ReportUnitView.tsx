@@ -57,7 +57,12 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
     return () => { if (pend) clearTimeout(pend); leaveRoom(`business:${Number(businessId)}`); offReport(); };
   }, [businessId, scope, refId]);
 
-  const saveNarrative = useCallback(async () => { if (!data) return; setData(await patchReportUnit(businessId, data.id, { narrative: narrativeRef.current })); }, [businessId, data]);
+  // 저장 응답은 조회보다 좁을 수 있다 — 덧입힌다(통째 대입하면 조회에서만 붙는 값이 사라진다)
+  const saveNarrative = useCallback(async () => {
+    if (!data) return;
+    const saved = await patchReportUnit(businessId, data.id, { narrative: narrativeRef.current });
+    setData((prev) => (prev ? { ...prev, ...saved } : saved));
+  }, [businessId, data]);
   // #85 — SCR(상황·문제·해결) AI 초안 생성 → narrative 채움 + 저장. 사용자가 자유 편집 가능.
   const doGenerate = async () => {
     if (!data || genBusy) return;
@@ -67,7 +72,8 @@ const ReportUnitView: React.FC<Props> = ({ businessId, scope, refId, periodType 
       const out = await generateReportNarrative(businessId, data.id, lang);
       if (out?.narrative) {
         narrativeRef.current = out.narrative;
-        setData(await patchReportUnit(businessId, data.id, { narrative: out.narrative }));
+        const saved2 = await patchReportUnit(businessId, data.id, { narrative: out.narrative });
+      setData((prev) => (prev ? { ...prev, ...saved2 } : saved2));
         setNarrativeKey((k) => k + 1);
       }
     } catch { setGenErr(true); } finally { setGenBusy(false); }

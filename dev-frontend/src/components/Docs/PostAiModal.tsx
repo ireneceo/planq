@@ -463,6 +463,8 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
                   placeholder={tc(CONNECT_PROMPT.projectPick) as string}
                   isClearable isSearchable isDisabled={busy}
                 />
+                {/* 부연은 칸 밖으로 — 옛 문구가 칸 안에 담던 뜻(고객 자동 매핑) */}
+                <FieldHint>{tc(CONNECT_PROMPT.projectHintAutoClient) as string}</FieldHint>
               </Field>
             </>
           )}
@@ -710,4 +712,8 @@ const ConfirmDesc = styled.div`
 `;
 const ConfirmActions = styled.div`
   display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;
+`;
+
+const FieldHint = styled.div`
+  font-size: 0.6875rem; color: #94A3B8; margin-top: 4px; line-height: 1.5;
 `;

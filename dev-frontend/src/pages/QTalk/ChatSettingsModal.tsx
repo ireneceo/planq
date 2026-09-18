@@ -96,6 +96,7 @@ const ChatSettingsModal: React.FC<Props> = ({
         translation_enabled: translationOn,
         translation_languages: translationOn ? [langA, langB] : null,
       });
+      // savemerge-exempt: 받는 쪽(QTalkPage)이 { ...prev, [next.id]: next } 로 받는다
       onUpdated(next);
       onClose();
     } catch (e) {

@@ -62,6 +62,7 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
       const body = kind === 'project'
         ? (id ? { project_id: id } : { unlink_project: true })
         : (id ? { client_id: id } : { unlink_client: true });
+      // savemerge-exempt: 받는 쪽(QNotePage)이 applySessionPatch 로 덧입힌다 — 여기서는 원본을 그대로 넘긴다
       onChange(await linkSessionEntities(session.id, body));
     } catch (e) {
       const msg = (e as Error).message || '';

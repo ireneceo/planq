@@ -23,6 +23,7 @@ export const FileMetaEditor: React.FC<{
     const m = await updateFileMeta(businessId, file.id, patch);
     if (!m) throw new Error('save_failed');   // AutoSaveField 가 ! 뱃지를 띄운다
     setName(m.file_name);
+    // savemerge-exempt: 받는 쪽(DocsTab)이 { ...prev, ...m } 으로 덧입힌다
     onSaved(m);
   }, [businessId, file.id, onSaved]);
 

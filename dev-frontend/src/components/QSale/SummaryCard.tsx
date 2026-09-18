@@ -57,7 +57,9 @@ export default function SummaryCard({ businessId, clientId, onFilterRefs, refFil
   const saveManual = async () => {
     if (!businessId || busy || !draft.trim()) return;
     setBusy(true);
-    try { setStatus(await setClientSummaryManual(businessId, clientId, draft)); setEditing(false); }
+    // 저장 응답은 조회보다 좁을 수 있다 — 덧입힌다
+    try { const saved = await setClientSummaryManual(businessId, clientId, draft);
+      setStatus((prev) => (prev ? { ...prev, ...saved } : saved)); setEditing(false); }
     catch { setMsg(t('error.saveFailed') as string); }
     finally { setBusy(false); }
   };
