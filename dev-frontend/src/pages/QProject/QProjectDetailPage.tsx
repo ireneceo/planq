@@ -1,5 +1,7 @@
 // /projects/p/:id — 프로젝트 허브 (대시보드/업무/문서/고객/프로세스 파트 5탭)
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -233,6 +235,7 @@ const ProjectDescriptionEditor = ({ projectId, initial, onSave }: {
 
 const QProjectDetailPage: React.FC = () => {
   const { t } = useTranslation('qproject');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { formatDateTime } = useTimeFormat();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -553,7 +556,10 @@ const QProjectDetailPage: React.FC = () => {
     });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.success) throw new Error(j?.message || `members save failed: ${r.status}`);
-    setProject(j.data);
+    // ★ 저장 응답은 GET 보다 **좁다** — `my_role_in_project`·`resolved_default_assignee` 가 없다.
+    //   통째로 갈아끼우면 그 값이 화면에서 사라져 권한 표시(isClient 등)가 바뀐다.
+    //   덮어쓰지 말고 덧입힌다 (2026-09-18 Q note 와 같은 계열).
+    setProject((prev) => (prev ? { ...prev, ...j.data } : j.data));
   };
   // 뱃지가 없는 호출부(추가·삭제·PM 토글)는 옛 낙관적 동작 유지 — 실패는 다음 조작의 서버 값으로 덮인다
   const saveMembersOptimistic = (next: Parameters<typeof saveMembers>[0]) => { void saveMembers(next).catch(() => {}); };
@@ -1247,7 +1253,7 @@ const QProjectDetailPage: React.FC = () => {
                   <div style={{ flex: 1, minWidth: 0 }}>
                   <PlanQSelect
                     size="sm" isClearable
-                    placeholder={t('clients.selectPlaceholder', '워크스페이스 고객 선택') as string}
+                    placeholder={tc(CONNECT_PROMPT.clientPick) as string}
                     value={null}
                     onChange={async (opt) => {
                       const v = (opt as { value?: string } | null)?.value;

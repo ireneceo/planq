@@ -2266,6 +2266,58 @@ function checkAvatarShape() {
 }
 
 // ═══════════════════════════════════════════════
+// savemerge — **저장 응답으로 화면 상태를 통째로 갈아끼우지 않는다** (2026-09-18 신설)
+//
+//   PUT/PATCH 응답은 GET 보다 **좁은 경우가 많다.** 서버가 저장 뒤 바탕 행만 돌려주고
+//   GET 에서만 붙이는 것(연관·파생·표시명)이 있기 때문이다. 그 응답으로 `setX(j.data)` 하면
+//   그 값들이 **화면에서만** 사라진다 — 서버 데이터는 멀쩡해서 새로고침하면 돌아오고,
+//   그래서 오래 안 보인다.
+//
+//   2026-09-18 실측 4곳:
+//     · Q note  — PUT 응답에 `utterances` 키가 없어 **프로젝트를 연결하면 전사가 사라졌다**(운영 신고)
+//     · 프로젝트 — `my_role_in_project`·`resolved_default_assignee` 가 없어 권한 표시가 바뀐다
+//     · Q docs  — `linked_posts`·표시명이 없어 연결 문서 목록이 사라진다
+//     · 메일설정 — 서명 두 필드가 없다(지금은 별도 state 라 안 보이지만 언제든 터진다)
+//
+//   규칙: 저장 응답을 상태에 넣을 때는 **덧입힌다** — `setX(prev => ({ ...prev, ...j.data }))`
+//         또는 전용 병합 함수(`applySessionPatch` 등). 통째 대입은 래칫으로 막는다.
+//   예외: 정말 전체를 갈아끼워야 하면 `// savemerge-exempt: <이유>` 를 바로 위에 적는다.
+function checkSaveMerge() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.tsx', '.ts']);
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const src = read(f);
+    if (!/method:\s*'(PUT|PATCH)'/.test(src)) continue;
+    const rel = f.replace(`${ROOT}/`, '');
+    const lines = src.split('\n');
+    let debt = 0;
+    for (let i = 0; i < lines.length; i += 1) {
+      if (!/method:\s*'(PUT|PATCH)'/.test(lines[i])) continue;
+      // 저장 호출 이후 14줄 안에서 응답을 상태에 통째로 넣는가
+      for (let k = i; k < Math.min(i + 14, lines.length); k += 1) {
+        const ln = lines[k];
+        if (/^\s*(\/\/|\*)/.test(ln)) continue;
+        const m = /\bset[A-Z]\w*\(\s*(j\.data|json\.data|res\.data|data)\s*\)/.exec(ln);
+        if (!m) continue;
+        if (/prev|\.\.\./.test(ln)) break;                       // 이미 병합형
+        const above = lines.slice(Math.max(0, k - 3), k).join('\n');
+        if (/savemerge-exempt:/.test(above) || /savemerge-exempt:/.test(ln)) break;
+        debt += 1;
+        if (samples.length < 12) {
+          samples.push(`${rel}:${k + 1}: 저장 응답을 통째로 대입 → setX(prev => ({ ...prev, ...j.data })) 또는 // savemerge-exempt: <이유>`);
+        }
+        break;
+      }
+    }
+    if (debt) current[rel] = debt;
+  }
+  const rt = ratchet('savemerge', current, samples);
+  report('savemerge', `저장 응답 통째 대입 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
+// ═══════════════════════════════════════════════
 // duproute — **한 라우터 파일에 같은 method+path 를 두 번 쓰지 않는다** (2026-09-13 신설)
 //
 //   실사례 — 2026-09-13 v1.49.0 이 운영에 나간 뒤 발견:
@@ -2932,6 +2984,7 @@ const CATEGORIES = {
   avatarshape: checkAvatarShape,
   listrowtitle: checkListRowTitle,
   capci: checkCapCi,
+  savemerge: checkSaveMerge,
   duproute: checkDupRoute,
   navmenu: checkNavMenu,
   i18n: checkI18n,

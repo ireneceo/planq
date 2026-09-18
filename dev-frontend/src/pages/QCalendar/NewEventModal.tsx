@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -43,6 +45,7 @@ const TIME_OPTIONS = (() => {
 
 const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, businessId, onClose, onCreate }) => {
   const { t, i18n } = useTranslation('qcalendar');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { user } = useAuth();
   const bizId = user?.business_id || null;
   // 운영 #41 — 입력 시간의 기준 타임존(워크스페이스) 안내
@@ -492,7 +495,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
               <PlanQSelect
                 size="sm"
                 isClearable
-                placeholder={t('form.projectNone')}
+                placeholder={tc(CONNECT_PROMPT.projectPick)}
                 options={projects.map((p) => ({ value: p.id, label: p.name }))}
                 value={projectId === '' ? null : { value: projectId, label: projects.find((p) => p.id === projectId)?.name || '' }}
                 onChange={(opt) => setProjectId(opt ? Number((opt as { value: number | string }).value) : '')}

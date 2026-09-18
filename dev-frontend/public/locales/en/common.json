@@ -1203,5 +1203,13 @@
     "closeOthers": "Close other tabs",
     "back": "Back",
     "forward": "Forward"
+  },
+  "connect": {
+    "projectNone": "No project linked",
+    "projectPick": "Select a project",
+    "clientNone": "No client linked",
+    "clientPick": "Select a client",
+    "projectHintAutoClient": "Picking a project links its client automatically",
+    "projectHintWorkspace": "Leave unlinked to make it a workspace task"
   }
 }

@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -81,6 +83,7 @@ const EventDrawer: React.FC<Props> = ({
   onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalCanWrite, workspaceCanWrite, personalCalWritable,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { user } = useAuth();
   // 운영 #41 — 워크스페이스 tz 기본 + 개인 tz 보조표시
   const wsTz = user?.workspace_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -718,7 +721,7 @@ const EventDrawer: React.FC<Props> = ({
                     <PlanQSelect
                       size="sm"
                       isClearable
-                      placeholder={t('form.projectNone', '연결 없음') as string}
+                      placeholder={tc(CONNECT_PROMPT.projectNone) as string}
                       options={projects.map((p) => ({ value: p.id, label: p.name }))}
                       value={event.project_id == null
                         ? null

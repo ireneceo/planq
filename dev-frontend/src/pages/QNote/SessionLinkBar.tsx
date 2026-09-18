@@ -7,6 +7,8 @@
 //
 // ★ 서버가 그 프로젝트·고객이 내 워크스페이스 것인지 확인한다 — 화면 목록만 믿지 않는다.
 import { useEffect, useState } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -26,6 +28,7 @@ interface Opt { id: number; name: string }
 
 export default function SessionLinkBar({ session, businessId, editable, onChange }: Props) {
   const { t, i18n } = useTranslation('qnote');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const [projects, setProjects] = useState<Opt[]>([]);
   const [clients, setClients] = useState<Opt[]>([]);
   const [busy, setBusy] = useState<'project' | 'client' | null>(null);
@@ -76,11 +79,11 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
   //   필요하다면 … 텍스트가 잘 안보여"). 목록 항목이면 글자로 뜻이 보이고 자리도 돌려받는다.
   const NONE = -1;
   const projOpts: PlanQSelectOption[] = [
-    { value: NONE, label: t('link.projectPlaceholder', { defaultValue: '프로젝트 연결 안 함' }) as string },
+    { value: NONE, label: tc(CONNECT_PROMPT.projectNone) as string },
     ...projects.map((p) => ({ value: p.id, label: p.name })),
   ];
   const clientOpts: PlanQSelectOption[] = [
-    { value: NONE, label: t('link.clientPlaceholder', { defaultValue: '고객 연결 안 함' }) as string },
+    { value: NONE, label: tc(CONNECT_PROMPT.clientNone) as string },
     ...clients.map((c) => ({ value: c.id, label: c.name })),
   ];
   const curProj = session.project_id ? (projOpts.find((o) => o.value === session.project_id) || null) : null;

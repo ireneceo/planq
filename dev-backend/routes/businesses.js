@@ -355,9 +355,13 @@ router.put('/:businessId/mail', authenticateToken, checkBusinessAccess, async (r
       updates.mail_reply_to = v;
     }
     await business.update(updates);
+    // ★ GET 과 **같은 모양**으로 돌려준다. 저장 응답만 좁으면 화면이 그것으로 상태를 갈아끼울 때
+    //   서명이 조용히 사라진다(2026-09-18 — 같은 계열을 Q note·프로젝트·Q docs 에서 실측했다).
     return successResponse(res, {
       mail_from_name: business.mail_from_name,
       mail_reply_to: business.mail_reply_to,
+      mail_signature_html: business.mail_signature_html || null,
+      mail_signature_html_en: business.mail_signature_html_en || null,
       brand_name: business.brand_name,
       name: business.name,
       smtp_configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER),

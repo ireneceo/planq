@@ -1,6 +1,8 @@
 // 문서(포스팅) 공용 페이지 — 워크스페이스·프로젝트 공용
 // 레이아웃 패턴: Q Note 와 동일 (Sidebar + Content 2컬럼 + PanelHeader)
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import { listRowTitleCss } from '../../theme/tokens';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
@@ -97,6 +99,7 @@ function inferKindFromTitle(title: string, category: string | null): 'contract' 
 
 const PostsPage: React.FC<Props> = ({ scope }) => {
   const { t } = useTranslation('qdocs');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
   const { formatDate } = useTimeFormat();
   // 목록의 날짜는 **수정일** 기준으로 정렬(서버 order: updated_at DESC)되는데, 화면에는 이름 없이
@@ -718,7 +721,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       });
       const j = await r.json();
       if (j.success && j.data) {
-        setDetail(j.data);
+        // 저장 응답에는 `linked_posts`·표시명이 없다(GET 에는 있다) — 덧입힌다
+        setDetail((prev) => (prev ? { ...prev, ...j.data } : j.data));
         setKnowledgeMsg(t('kind.changed', '{{kind}} 으로 변경됐습니다', { kind: newKind === 'table' ? '표' : '문서' }) as string);
         setTimeout(() => setKnowledgeMsg(null), 3000);
       } else {
@@ -747,7 +751,8 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       }
       const j = await r.json();
       if (j.success && j.data) {
-        setDetail(j.data);
+        // 저장 응답에는 `linked_posts`·표시명이 없다(GET 에는 있다) — 덧입힌다
+        setDetail((prev) => (prev ? { ...prev, ...j.data } : j.data));
         setKnowledgeMsg(t('kind.changed', '문서로 변경됐습니다') as string);
         setTimeout(() => setKnowledgeMsg(null), 3000);
       }
@@ -1952,7 +1957,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   options={projectOptions}
                   value={projectOptions.find(o => o.value === projectDraft) || null}
                   onChange={(opt) => setProjectDraft(opt ? Number((opt as PlanQSelectOption).value) : null)}
-                  placeholder={t('share.linkage.noneProject', '프로젝트 연결 안 함') as string}
+                  placeholder={tc(CONNECT_PROMPT.projectNone) as string}
                   isClearable
                   isSearchable
                 />

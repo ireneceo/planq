@@ -12,6 +12,8 @@
 //   (services/qnoteByEntity.js 가 읽는 축이 session.client_id 다). 기록만 남기고 노트를 안 걸면
 //   같은 사실이 한쪽에만 있게 된다.
 import { useEffect, useMemo, useState } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import StandardModal from '../../components/Common/StandardModal';
@@ -39,6 +41,7 @@ const KINDS: InteractionKind[] = ['meeting', 'call', 'visit', 'memo', 'other'];
 
 export default function SaveToSaleModal({ open, onClose, session, businessId, onSessionChange }: Props) {
   const { t, i18n } = useTranslation('qnote');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const [clients, setClients] = useState<Array<{ id: number; name: string }>>([]);
   const [clientId, setClientId] = useState<number | null>(session.client_id ?? null);
   const [kind, setKind] = useState<InteractionKind>('meeting');
@@ -171,7 +174,7 @@ export default function SaveToSaleModal({ open, onClose, session, businessId, on
             onChange={(o) => setClientId(o ? Number((o as PlanQSelectOption).value) : null)}
             placeholder={clients.length === 0
               ? (t('saveToSale.clientEmpty', { defaultValue: '등록된 고객이 없습니다' }) as string)
-              : (t('saveToSale.clientPh', { defaultValue: '고객 선택' }) as string)}
+              : (tc(CONNECT_PROMPT.clientPick) as string)}
             isSearchable
             isDisabled={busy}
           />

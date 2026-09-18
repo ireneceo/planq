@@ -2,6 +2,8 @@
 // Backdrop + Dialog + Header + Body + FormActions 전부 PostAiModal 패턴 복제.
 // 자연어 한 줄 → AI 가 다중 업무 분해 → 미리보기 → 일괄 확정.
 import React, { useCallback, useEffect, useState } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
 import { modalFooterRadius } from '../Common/modalShell';
 import { useTranslation } from 'react-i18next';
@@ -49,6 +51,7 @@ type Stage = 'input' | 'loading' | 'preview';
 
 export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated, onUseTemplate }: Props) {
   const { t } = useTranslation('qtask');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
   const [stage, setStage] = useState<Stage>('input');
   const [prompt, setPrompt] = useState('');
@@ -312,7 +315,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
                   <PlanQSelect
                     size="sm"
                     isClearable
-                    placeholder={t('ai.projectNone', '선택 안 함 (워크스페이스 업무)') as string}
+                    placeholder={tc(CONNECT_PROMPT.projectPick) as string}
                     value={selectedProjectId
                       ? { value: String(selectedProjectId), label: projects.find(p => p.id === selectedProjectId)?.name || `#${selectedProjectId}` }
                       : null}

@@ -2,6 +2,8 @@
 // QTaskPage / QProjectDetailPage 양쪽에서 공용. 단일 taskId 를 받아 상세 + 워크플로우
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
 import { downloadBlob } from '../../utils/download';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import DetailFallback from '../Common/DetailFallback';
 import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import type { DetailStatus } from '../../hooks/useDetailResource';
@@ -190,6 +192,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   width, onWidthChange, onClose, onPatch, onRefresh, onDuplicated,
 }) => {
   const { t, i18n } = useTranslation('qtask');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   // 댓글 첨부 이미지 라이트박스 — 한 댓글의 이미지들이 갤러리로 묶임
   const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
   // 문서 첨부 미리보기 — 화면 전체를 갈아끼우지 않고 그 문서만 연다.
@@ -1762,7 +1765,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   </MetaLabel>
                   <PlanQSelect size="sm" isClearable
                     isDisabled={!canEditProject}
-                    placeholder={t('detail.meta.projectPh', '선택') as string}
+                    placeholder={tc(CONNECT_PROMPT.projectNone) as string}
                     value={detailTask.project_id == null ? null : {
                       value: String(detailTask.project_id),
                       label: projects.find(p => p.id === detailTask.project_id)?.name

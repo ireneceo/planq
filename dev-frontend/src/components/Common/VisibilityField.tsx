@@ -9,6 +9,8 @@
 // UI: 5 라디오 (L3 / L2-project / L2-members / L4 / L1) + sub-target picker
 // 사용처: KnowledgePage 등록 + 상세, CalendarEvent, Post, TaskComment 등 모든 자산 통일.
 import React from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from './connectPrompts';
 import styled, { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
@@ -93,6 +95,7 @@ const VisibilityField: React.FC<VisibilityFieldProps> = ({
   value, onChange, projects, clients, members, hide = {}, labels = {}, disabled = false,
 }) => {
   const { t } = useTranslation('common');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const visibleVariants = VARIANT_ORDER.filter(v => !hide[v]);
   const defaultLabel = (variant: VVariant) => {
     switch (variant) {
@@ -132,7 +135,7 @@ const VisibilityField: React.FC<VisibilityFieldProps> = ({
             size="sm"
             isSearchable
             menuPlacement="auto"
-            placeholder={t('visibility.projectPh', { defaultValue: '프로젝트를 선택하세요' }) as string}
+            placeholder={tc(CONNECT_PROMPT.projectPick) as string}
             isDisabled={disabled}
             value={value.project_id
               ? { value: String(value.project_id), label: projects.find(p => p.id === value.project_id)?.name || `#${value.project_id}` }
@@ -172,7 +175,7 @@ const VisibilityField: React.FC<VisibilityFieldProps> = ({
           <PlanQSelect
             size="sm" isSearchable isMulti
             menuPlacement="auto"
-            placeholder={t('visibility.clientPh', { defaultValue: '고객을 선택하세요' }) as string}
+            placeholder={tc(CONNECT_PROMPT.clientPick) as string}
             isDisabled={disabled}
             value={value.client_ids.map(id => {
               const c = clients.find(x => x.id === id);

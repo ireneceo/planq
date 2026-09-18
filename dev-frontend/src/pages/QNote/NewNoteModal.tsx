@@ -13,6 +13,8 @@
 //
 // styled 토큰은 PostAiModal 과 동일 (Backdrop/Dialog/Header/Tabs/Field/Footer).
 import React, { useState, useEffect } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
 import { modalFooterRadius } from '../../components/Common/modalShell';
 import { useTranslation } from 'react-i18next';
@@ -33,6 +35,7 @@ interface Props {
 
 const NewNoteModal: React.FC<Props> = ({ open, onClose, businessId, onStart }) => {
   const { t } = useTranslation('qnote');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const [kind, setKind] = useState<NewNoteKind>('memo');
   const [projects, setProjects] = useState<ProjectOpt[]>([]);
   const [clients, setClients] = useState<ClientOpt[]>([]);
@@ -122,7 +125,7 @@ const NewNoteModal: React.FC<Props> = ({ open, onClose, businessId, onStart }) =
               options={projectOptions}
               value={projectOptions.find(o => o.value === projectId) || null}
               onChange={(opt) => setProjectId(opt ? Number((opt as PlanQSelectOption).value) : null)}
-              placeholder={t('newNoteModal.projectPh', { defaultValue: '프로젝트 선택 — 고객 자동 매핑 (선택)' }) as string}
+              placeholder={tc(CONNECT_PROMPT.projectPick) as string}
               isClearable
               isSearchable
             />

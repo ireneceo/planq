@@ -1203,5 +1203,13 @@
     "closeOthers": "다른 탭 모두 닫기",
     "back": "뒤로 가기",
     "forward": "앞으로 가기"
+  },
+  "connect": {
+    "projectNone": "프로젝트 연결 안 함",
+    "projectPick": "프로젝트 선택",
+    "clientNone": "고객 연결 안 함",
+    "clientPick": "고객 선택",
+    "projectHintAutoClient": "프로젝트를 고르면 고객이 자동으로 연결됩니다",
+    "projectHintWorkspace": "연결하지 않으면 워크스페이스 업무가 됩니다"
   }
 }

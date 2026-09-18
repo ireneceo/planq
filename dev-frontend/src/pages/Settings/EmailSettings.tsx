@@ -66,7 +66,8 @@ const EmailSettings: React.FC<Props> = ({ businessId, isOwner }) => {
     });
     const j = await r.json();
     if (!j.success) throw new Error(j.message || 'save_failed');
-    setConfig(j.data);
+    // 저장 응답에는 서명 두 필드가 없다(GET 에는 있다) — 덮어쓰지 말고 덧입힌다
+    setConfig((prev) => (prev ? { ...prev, ...j.data } : j.data));
   };
 
   if (loading) return <Loading>{t('common.loading', '불러오는 중...')}</Loading>;

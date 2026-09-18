@@ -6,6 +6,8 @@
 //   1. props.projectId (page-level) → selector 숨김
 //   2. workspace 스코프 → client/project selector 표시
 import React, { useState, useEffect, useMemo } from 'react';
+// 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
+import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { modalFooterRadius } from '../Common/modalShell';
@@ -50,6 +52,7 @@ type Mode = 'blank' | 'new' | 'brief' | 'table';
 
 const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pageProjectId, clientId: pageClientId, onGenerate, onBlank, intent = 'manual', defaultMode: defaultModeProp, initialBriefTitle, initialBriefText, onTableCreated }) => {
   const { t } = useTranslation('qdocs');
+  const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const KIND_OPTIONS: PlanQSelectOption[] = useMemo(
     () => KIND_OPTION_VALUES.map(v => ({ value: v, label: t(KIND_LABEL_KEYS[v], { defaultValue: KIND_LABELS_KO[v] }) as string })),
     [t],
@@ -457,7 +460,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
                   options={projectOptions}
                   value={projectOptions.find(o => o.value === pickedProjectId) || null}
                   onChange={(opt) => setPickedProjectId(opt ? Number((opt as PlanQSelectOption).value) : null)}
-                  placeholder={t('ai.projectPh', '프로젝트 선택 — 고객 자동 매핑 (선택)') as string}
+                  placeholder={tc(CONNECT_PROMPT.projectPick) as string}
                   isClearable isSearchable isDisabled={busy}
                 />
               </Field>
