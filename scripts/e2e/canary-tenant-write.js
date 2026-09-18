@@ -65,6 +65,65 @@ async function post(token, bizId, action, body) {
 
 const ACTIONS = ['bulk-read', 'bulk-handled', 'bulk-dismiss'];
 
+// ★ 2026-09-18 (Fable 24차 비차단 소견) — **«같은 워크스페이스 안 남의 사적 계정»** 축.
+//   `resolveBulkTargetIds` 의 `acctIds.includes(picked)` 를 없애면 `account_id` 가 **넓히는 문**이 된다.
+//   그런데 그 회귀를 심어도 이 카나리는 **초록**이었다 — 크로스테넌트는 `business_id` 술어가
+//   여전히 막아 표본이 안 바뀌기 때문이다. 그 회귀가 실제로 여는 것은 **내 워크스페이스 안에 있는
+//   다른 사람의 사적 메일 계정**(L1 축)인데, dev 에 그런 자료가 0건이라 실증 자체가 불가능했다.
+//   → 「검사는 도는데 비교할 대상이 없어 늘 참」 = memory `feedback_guard_key_never_matches` 계열.
+//   그래서 **픽스처를 직접 만든다.** 만들고 반드시 지운다(남긴 상태가 다음 검사를 죽인다).
+//   ★ `q()` 는 sequelize 결과의 첫 원소를 돌려준다 — SELECT 면 rows, **INSERT 면 insertId**(배열 아님).
+//     배열로 분해하면 `is not iterable` 로 죽는다(2026-09-18 실제로 겪었고 fail-closed 가 ⚪ 로 잡았다).
+async function seedPrivateAccount(businessId, actorId) {
+  const tag = `tw${Date.now()}`;
+  const uid = await q(
+    `INSERT INTO users (email, password_hash, name, username, platform_role, created_at, updated_at)
+     VALUES (?, 'x', 'TenantWrite Fixture', ?, 'user', NOW(), NOW())`,
+    [`${tag}@test.planq.kr`, tag]);
+  if (uid === actorId) throw new Error('픽스처 소유자가 배우와 같다');
+  await q(`INSERT INTO business_members (business_id, user_id, role, created_at, updated_at)
+           VALUES (?, ?, 'member', NOW(), NOW())`, [businessId, uid]);
+  // owner_user_id = 남의 id → accessibleAccountIds 가 배우에게 주지 않는 **사적 계정**
+  const acctId = await q(
+    `INSERT INTO email_accounts (business_id, email, display_name, imap_host, imap_username,
+                                 owner_user_id, is_active, created_at, updated_at)
+     VALUES (?, ?, 'TW Fixture', 'imap.invalid', ?, ?, 0, NOW(), NOW())`,
+    [businessId, `${tag}@private.test`, `${tag}@private.test`, uid]);
+  const threadIds = [];
+  for (let i = 0; i < 2; i++) {
+    const tid = await q(
+      `INSERT INTO email_threads (business_id, account_id, subject, status, unread_count,
+                                  message_count, reply_needed, is_starred, created_at, updated_at)
+       VALUES (?, ?, ?, 'open', 2, 2, 1, 0, NOW(), NOW())`,
+      [businessId, acctId, `${tag} 사적 스레드 ${i}`]);
+    threadIds.push(tid);
+    for (let m = 0; m < 2; m++) {
+      await q(
+        `INSERT INTO email_messages (business_id, thread_id, message_id, direction, delivery_status,
+                                     is_read, to_emails, sent_at, created_at, updated_at)
+         VALUES (?, ?, ?, 'inbound', 'delivered', 0, '[]', NOW(), NOW(), NOW())`,
+        [businessId, tid, `<${tag}-${i}-${m}@private.test>`]);
+    }
+  }
+  return { uid, acctId, threadIds };
+}
+
+async function dropPrivateAccount(f) {
+  if (!f) return;
+  try {
+    if (f.threadIds?.length) {
+      const ph = f.threadIds.map(() => '?').join(',');
+      await q(`DELETE FROM email_messages WHERE thread_id IN (${ph})`, f.threadIds);
+      await q(`DELETE FROM email_threads WHERE id IN (${ph})`, f.threadIds);
+    }
+    if (f.acctId) await q('DELETE FROM email_accounts WHERE id = ?', [f.acctId]);
+    if (f.uid) {
+      await q('DELETE FROM business_members WHERE user_id = ?', [f.uid]);
+      await q('DELETE FROM users WHERE id = ?', [f.uid]);
+    }
+  } catch { /* 정리 실패는 검사 결과를 바꾸지 않는다 — 남으면 다음 실행이 새 tag 로 만든다 */ }
+}
+
 async function run() {
   const results = [];
   const push = (name, ok, msg) => results.push({ name, fail: ok ? 0 : 1, details: msg ? [msg] : [] });
@@ -130,16 +189,39 @@ async function run() {
       (untouched ? '' : ' ← ❌ 남의 데이터가 바뀌었다'));
   }
 
-  // ── ② 넓히는 문이 되지 않는가 — 접근 불가 계정을 account_id 로 지정해도 남의 것은 안 건드린다
-  const [foreignAcct] = await q(
-    `SELECT a.id FROM email_accounts a WHERE a.business_id NOT IN (${ph}) LIMIT 1`, myBizIds);
-  if (foreignAcct) {
-    const r = await post(token, myBiz, 'bulk-read', { thread_ids: victimIds, account_id: foreignAcct.id });
-    const after = await snapshot(victimIds);
-    push('account_id 로 남의 계정 지정 — 넓어지지 않는다', same(before, after),
-      `HTTP ${r.status} · 피해자 미읽음 ${before.msgUnread}→${after.msgUnread}`);
-  } else {
-    unmeasured('account_id 로 남의 계정 지정', '타 워크스페이스 메일 계정 없음');
+  // ── ② `account_id` 가 **넓히는 문**이 되지 않는가 — 축은 «같은 워크스페이스 안 남의 사적 계정».
+  //     타 워크스페이스 축은 ①이 이미 본다(중복). 여기서만 드러나는 것은 L1(사적 계정) 누출이다.
+  let fixture = null;
+  try {
+    fixture = await seedPrivateAccount(myBiz, actor.id);
+    const privBefore = await snapshot(fixture.threadIds);
+    if (privBefore.msgUnread === 0) {
+      unmeasured('사적 계정 픽스처', '미읽음 메시지 0건 — 바뀔 것이 없어 판정 불가');
+    } else {
+      // ⓐ account_id 로 **콕 집어** 지정 — 여기가 `acctIds.includes(picked)` 가 지키는 자리다
+      const rA = await post(token, myBiz, 'bulk-read',
+        { thread_ids: fixture.threadIds, account_id: fixture.acctId });
+      const afterA = await snapshot(fixture.threadIds);
+      push('같은 워크스페이스 — 남의 사적 계정을 account_id 로 집어도 안 열린다',
+        rA.status === 400 && same(privBefore, afterA),
+        `HTTP ${rA.status} ${JSON.stringify(rA.json?.message ?? '')} · 사적 미읽음 ${privBefore.msgUnread}→${afterA.msgUnread}` +
+        (same(privBefore, afterA) ? '' : ' ← ❌ 남의 사적 메일이 바뀌었다'));
+
+      // ⓑ account_id 없이 스레드 id 만 — 계정 범위(acctScope)가 기본으로 막는가
+      //   ★ 기준선을 **바로 직전 상태**로 다시 잡는다. ⓐ 가 이미 샜다면 그 결과를 물려받아
+      //     ⓑ 까지 빨간불이 되어 «어느 호출이 샜는지» 를 못 가른다(2026-09-18 실측으로 걸렸다).
+      const midB = await snapshot(fixture.threadIds);
+      const rB = await post(token, myBiz, 'bulk-read', { thread_ids: fixture.threadIds });
+      const afterB = await snapshot(fixture.threadIds);
+      push('같은 워크스페이스 — 남의 사적 스레드 id 만 보내도 안 열린다',
+        rB.status === 400 && same(midB, afterB),
+        `HTTP ${rB.status} · 사적 미읽음 ${midB.msgUnread}→${afterB.msgUnread}` +
+        (same(midB, afterB) ? '' : ' ← ❌ 남의 사적 메일이 바뀌었다'));
+    }
+  } catch (e) {
+    unmeasured('같은 워크스페이스 사적 계정 축', `픽스처 생성 실패 — ${String(e.message).slice(0, 90)}`);
+  } finally {
+    await dropPrivateAccount(fixture);
   }
 
   // ── ③ 음성 대조군 — 내 것 1건은 **실제로 처리된다**(400 이 «라우트가 죽어서» 가 아님을 증명)
