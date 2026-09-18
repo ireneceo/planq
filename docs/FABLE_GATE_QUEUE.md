@@ -3853,3 +3853,9 @@ Codemagic `artifacts:` 글로브는 `outputs/**/*.aab`, 검사기는 `bundle/rel
 동률 `sent_at` 정렬에 id 타이브레이커 없음(`['id','DESC']` 한 줄 권장) · 미리보기 POST 전용
 rate-limit 없음(`apiLimiter` 600/분·10mb 만) · 답장 미리보기가 `body.subject` 를 받으면 서버 `Re:` 를
 덮는다(화면은 안 보내므로 실화면 불일치 아님).
+
+### 2026-09-18 · v1.52.12 배포 커밋 — **Fable 4차 PASS 범위와의 차이를 적는다**
+4차가 검증한 것은 `194a0453`(언어별 서명 구현). 배포 커밋 `14ee669d` 과의 **소스 차이는
+`package.json` 두 파일의 version 문자열 `1.52.11 → 1.52.12` 뿐**이다(`git diff 194a0453 HEAD --
+dev-backend dev-frontend q-note` = 2 files, +2 −2). 동작 변경 0.
+나머지(릴리즈노트 json·개발현황 json·이 문서)는 해시 대상 경로 밖이다.
