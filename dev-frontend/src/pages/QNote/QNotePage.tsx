@@ -15,6 +15,10 @@ import styled from 'styled-components';
 import { listRowTitleCss } from '../../theme/tokens';
 import StartMeetingModal from './StartMeetingModal';
 import AudioUploadModal from './AudioUploadModal';
+import SaveToSaleModal from './SaveToSaleModal';
+// 새 노트 메뉴·＋ 버튼은 Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다
+import { NewNoteMenu, NewSessionWrap, NewSessionBtn } from '../../components/QNote/newNoteMenu';
+import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
 import { getDefaultLanguageFromBrowser } from '../../constants/languages';
 import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
@@ -72,6 +76,12 @@ const MemoView = React.lazy(() => import('./MemoView'));
 import NewNoteModal, { type NewNoteKind } from './NewNoteModal';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../../components/Layout/PanelResizeHandle';
+// ★ 2026-09-18 — 프로젝트 탭 안에서는 **문서·파일·지식 탭과 같은 껍데기**로 그린다
+//   (Irene: *"프로젝트 > 문서와 같은 스타일의 디자인으로 하라고 전에 요청했는데 왜 안한거야."*
+//    · *"디자인 스타일이 다르다고 프로젝트 탭들은."*). 베끼지 않고 공용을 가져다 쓴다.
+import SearchBox from '../../components/Common/SearchBox';
+import { ProjBrowse, Toolbar as AtToolbar, ToolbarRight as AtToolbarRight, Grid as AtGrid,
+  Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta } from '../../components/Docs/assetTabLayout';
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar } from '../../components/Layout/PanelHeader';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -306,7 +316,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
   // 사이클 N+22 — + 버튼 드롭다운 (메모 즉시 / 음성 모달) — Irene 요청
-  const [newNoteDropdownOpen, setNewNoteDropdownOpen] = useState(false);
+  // ★ 좌표·바깥클릭·Esc·포커스는 공용 usePopoverAnchor 한 벌 — 메뉴는 body 로 포털된다.
+  //   절대위치였을 때 조상이 자르는 자리(Q sale 머리줄)에서 메뉴가 통째로 안 보였다.
+  const noteAnchor = usePopoverAnchor();
+  const newNoteDropdownOpen = noteAnchor.open;
+  const setNewNoteDropdownOpen = noteAnchor.setOpen;
+  // 노트 → Q sale 상담 기록으로 저장 (Irene 2026-09-18). 상담은 고객 축의 기록이다 — CLAUDE.md.
+  const [saveToSaleOpen, setSaveToSaleOpen] = useState(false);
   const [audioUploadOpen, setAudioUploadOpen] = useState(false);   // #383 녹음 파일 업로드
   const handleSessionDelete = async (sessionId: number) => {
     if (sessionDeleting) return;
@@ -339,6 +355,9 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   //   여기로 모은다 — 구현이 다르면 동작도 달라진다("어떤 화면은 뒤로가기가 안 된다").
   //   Q Note 는 목록 + 상세(세션) 2단이고 보조 패널은 없다.
   const panel = usePanelStack(!!urlSessionId, false, () => goNote('/notes'));
+  // 탭 안(embedded)에서는 목록과 상세가 **같은 칸**을 번갈아 쓴다 — 넓은 화면에서도 뒤로가 필요하다.
+  //   전면 /notes 는 목록이 옆에 계속 있으므로 종전대로 좁은 화면에서만 나온다.
+  const showBack = panel.canGoBack || (embedded && !!urlSessionId);
   // 사이클 N+14 — visibility 변경 모달 + 에러 표시
   const [visibilityModalOpen, setVisibilityModalOpen] = useState(false);
   // ★ 공개 범위 모달에 넘길 프로젝트 목록 (Irene 2026-09-03: "특정 프로젝트 검색 안되고 공개범위
@@ -1393,7 +1412,10 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   };
 
   // ── 회의 종료 ─────────────────────────────────────────
-  const endMeeting = async () => {
+  // 종료 후 곧바로 [상담 저장] 을 열지 여부. 종료는 비동기 갱신이 뒤따르지만
+  //   모달은 activeSession 만 있으면 되므로 기다리지 않는다.
+  const endMeeting = async (opts?: { thenSaveToSale?: boolean }) => {
+    if (opts?.thenSaveToSale) setSaveToSaleOpen(true);
     liveRef.current?.stop();
     liveRef.current = null;
     clearInterim();
@@ -1654,6 +1676,11 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         meeting_answer_style: cfg.meetingAnswerStyle || user?.answer_style_default || undefined,
         meeting_answer_length: cfg.meetingAnswerLength || user?.answer_length_default || 'medium',
         // keywords 는 서버가 자동 추출 — 프론트에서 전달하지 않음
+        // ★ 프로젝트 안(embedded)에서 시작한 노트는 **그 프로젝트의 것**이다.
+        //   여태 메모(createMemoSession)만 이 값을 실었고 음성메모·음성 노트·녹음 파일은 안 실어
+        //   `project_id=NULL` 로 생겼다 — 목록이 `?project_id=` 로 거르므로 탭을 나갔다 오면
+        //   **방금 만든 노트가 사라졌다**(Fable 2026-09-18 실측: 세션 99992846). embedded 계약 ③.
+        ...(embedProjectId ? { project_id: embedProjectId } : {}),
       });
 
       // Priority Q&A — 다른 자료보다 먼저 업로드해 prefetch 에 즉시 반영
@@ -2456,18 +2483,44 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     );
   };
 
+  // ★ 2026-09-18 — 새 노트 메뉴는 **한 벌**이다. 사이드바(전면 화면)와 프로젝트 탭 툴바가 같은 것을 쓴다.
+  //   ★ 처음엔 프로젝트 툴바에 버튼만 놓고 메뉴는 사이드바 안에 두었다 — 프로젝트 탭에서는
+  //     사이드바를 안 그리므로 **버튼이 눌려도 아무 일이 없는 죽은 컨트롤**이 됐다(Fable 실측:
+  //     aria-expanded 는 true 인데 항목이 0개). 프로젝트 안에서 노트를 만들 방법이 사라진
+  //     2026-09-13 신고로 그대로 되돌아간 회귀다. memory `feedback_ui_control_sends_nothing`.
+  const newNoteMenu = newNoteDropdownOpen ? (
+    <NewNoteMenu
+      pos={noteAnchor.pos}
+      panelRef={noteAnchor.panelRef}
+      onMouseLeave={() => setNewNoteDropdownOpen(false)}
+      onPick={(kind) => {
+        setNewNoteDropdownOpen(false);
+        // 녹음 중 새 노트 생성은 activeSession 을 바꿔 심박을 흔든다 → 확인 후에만.
+        if (kind === 'memo') guardRecording(() => { void createMemoSession(); });
+        else if (kind === 'quick') guardRecording(() => { handleQuickStart(); });
+        else if (kind === 'upload') guardRecording(() => setAudioUploadOpen(true));
+        else guardRecording(() => setShowStartModal(true));
+      }}
+    />
+  ) : null;
+
   return (
-    <PanelGridLayout $cols={sidebarCollapsed ? '0px 1fr' : `${listWidth}px 1fr`}>
+    <PanelGridLayout
+      $cols={embedded ? '1fr' : (sidebarCollapsed ? '0px 1fr' : `${listWidth}px 1fr`)}
+      $bg={embedded ? '#F8FAFC' : undefined}
+      data-testid={embedded ? 'qnote-embedded-root' : undefined}
+    >
       {/* 리스트 접기/펼치기 — 공통 FloatingPanelToggle(뷰포트 왼쪽 변 플로팅, 전 폭 동일 디자인).
           열림 시 실제 리스트 폭(listWidth)을 offset 으로 넘겨 리스트 안쪽 변에 붙인다. */}
-      <FloatingPanelToggle
+      {/* 프로젝트 탭 안에서는 접기 손잡이를 두지 않는다 — 그 자리는 이미 탭 막대다. */}
+      {!embedded && <FloatingPanelToggle
         side="left"
         open={!sidebarCollapsed}
         hideBelow={1024}   /* ≤1024 는 리스트↔본문 드릴다운이라 접기 핸들이 필요 없다 — 화살표만 둥 뜬다 */
         onToggle={() => setSidebarCollapsed((v) => !v)}
         offsetOpen={`${listWidth}px`}
         ariaLabel={(sidebarCollapsed ? t('page.sidebar.expand', '리스트 열기') : t('page.sidebar.collapse', '리스트 접기')) as string}
-      />
+      />}
       {/* data-testid — 하니스가 "모바일 진입 시 리스트가 보이는가"(#283)를 판정하는 앵커.
           CLAUDE.md 운영안정성 §17: 인터랙티브/판정 대상 요소에 testid 부여. */}
       {/* 운영 #399·#400 — "큐노트는 리스트가 왜 우측까지 다 안열려? … 뒤로갔을 때야."
@@ -2475,7 +2528,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           봤다. 뒤로가면 URL 은 /notes 로 돌아오지만 activeSession 은 그대로 남아, 목록이
           85vw 오버레이에 머물렀다(Q Mail 은 URL 파라미터를 봐서 정상이었다 — 그래서 "메뉴마다 달라").
           판정 축을 **URL** 로 맞춘다 — 뒤로가기가 바꾸는 것이 바로 그것이다. */}
-      <CollapsibleSidebar data-testid="qnote-list" $collapsed={sidebarCollapsed} $w={listWidth} $fullOnMobile={!urlSessionId}>
+      {!embedded && <CollapsibleSidebar data-testid="qnote-list" $collapsed={sidebarCollapsed} $w={listWidth} $fullOnMobile={!urlSessionId}>
         <PanelResizeHandle onMouseDown={startListResize} />
         <SidebarHeader data-testid="panel-header">
           <TitleGroup>
@@ -2486,7 +2539,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           </TitleGroup>
           {/* 사이클 N+22 — Irene 요청: NewNoteModal 모달 대신 즉시 드롭다운.
               메모 = 즉시 새 세션 + URL, 음성 = StartMeetingModal (회의 prep). */}
-          <NewSessionWrap>
+          <NewSessionWrap ref={noteAnchor.wrapRef}>
             <NewSessionBtn
               type="button"
               data-testid="qnote-new"
@@ -2500,42 +2553,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </NewSessionBtn>
-            {newNoteDropdownOpen && (
-              <NewNoteDropdown onMouseLeave={() => setNewNoteDropdownOpen(false)}>
-                {/* 순서 (Irene 2026-09-11): 메모 → 음성메모 → 녹음 파일 → 음성 노트(대화형).
-                    가벼운 것에서 무거운 것으로 — 적기 · 바로 녹음하기 · 가진 녹음 올리기 · 준비해서 회의하기.
-                    ("바로 녹음" 은 이날 "음성메모" 로 이름이 바뀌었다 — 옛 순서는 2026-08-29 녹음 계열 우선이었다.) */}
-                <NewNoteItem type="button" onClick={() => {
-                  setNewNoteDropdownOpen(false);
-                  // 녹음 중 새 메모 생성은 activeSession 을 바꿔 심박을 흔든다 → 확인 후에만.
-                  guardRecording(() => { void createMemoSession(); });
-                }} data-testid="qnote-new-memo">
-                  <NewNoteItemTitle>{t('page.newNoteDropdown.memoLabel', { defaultValue: '메모' }) as string}</NewNoteItemTitle>
-                  <NewNoteItemDesc>{t('page.newNoteDropdown.memoDesc', { defaultValue: '텍스트 · 코드블록 · 서식 지원' }) as string}</NewNoteItemDesc>
-                </NewNoteItem>
-                <NewNoteItem type="button" data-testid="qnote-quick-record" onClick={() => {
-                  setNewNoteDropdownOpen(false);
-                  guardRecording(() => { handleQuickStart(); });
-                }}>
-                  <NewNoteItemTitle>{t('page.newNoteDropdown.quickLabel', { defaultValue: '음성메모' }) as string}</NewNoteItemTitle>
-                  <NewNoteItemDesc>{t('page.newNoteDropdown.quickDesc', { defaultValue: '준비 없이 즉시 시작 · 번역 없음 · 마이크' }) as string}</NewNoteItemDesc>
-                </NewNoteItem>
-                <NewNoteItem type="button" data-testid="qnote-upload-audio" onClick={() => {
-                  setNewNoteDropdownOpen(false);
-                  guardRecording(() => setAudioUploadOpen(true));
-                }}>
-                  <NewNoteItemTitle>{t('page.newNoteDropdown.uploadLabel') as string}</NewNoteItemTitle>
-                  <NewNoteItemDesc>{t('page.newNoteDropdown.uploadDesc') as string}</NewNoteItemDesc>
-                </NewNoteItem>
-                <NewNoteItem type="button" data-testid="qnote-new-voice" onClick={() => {
-                  setNewNoteDropdownOpen(false);
-                  guardRecording(() => setShowStartModal(true));
-                }}>
-                  <NewNoteItemTitle>{t('page.newNoteDropdown.voiceLabel', { defaultValue: '음성 노트 (대화형)' }) as string}</NewNoteItemTitle>
-                  <NewNoteItemDesc>{t('page.newNoteDropdown.voiceDesc', { defaultValue: '회의 녹음 + STT + 답변 찾기' }) as string}</NewNoteItemDesc>
-                </NewNoteItem>
-              </NewNoteDropdown>
-            )}
+            {newNoteMenu}
           </NewSessionWrap>
         </SidebarHeader>
 
@@ -2668,12 +2686,53 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
             </SessDelDialog>
           </SessDelBackdrop>
         )}
-      </CollapsibleSidebar>
+      </CollapsibleSidebar>}
 
-      {viewportNarrow && !sidebarCollapsed && (
+      {!embedded && viewportNarrow && !sidebarCollapsed && (
         <SidebarBackdrop onClick={() => setSidebarCollapsed(true)} />
       )}
 
+      {/* ★ 프로젝트 탭의 «둘러보기» — 문서·파일·지식 탭과 **같은 공용 껍데기**(ProjBrowse + 툴바 + 카드).
+          Q note 자체 화면(접히는 사이드바·자체 머리줄)은 프로젝트 안에서는 쓰지 않는다 —
+          그 자리는 이미 탭 막대이고, 탭마다 디자인이 다르면 사용자는 고장으로 읽는다. */}
+      {embedded && !urlSessionId && (
+        <ProjBrowse data-testid="qnote-proj-browse">
+          <AtToolbar>
+            <SearchBox width={260} value={sessionQuery} onChange={setSessionQuery}
+              placeholder={t('page.sessionSearchPlaceholder', { defaultValue: '노트 검색' }) as string} />
+            <AtToolbarRight>
+              <NewSessionWrap ref={noteAnchor.wrapRef}>
+                <NewSessionBtn type="button" data-testid="qnote-new-proj"
+                  onClick={() => setNewNoteDropdownOpen(v => !v)}
+                  aria-expanded={newNoteDropdownOpen}
+                  title={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  {t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}
+                </NewSessionBtn>
+                {newNoteMenu}
+              </NewSessionWrap>
+            </AtToolbarRight>
+          </AtToolbar>
+          {filteredSessions.length === 0 ? (
+            <ProjEmpty>{t('page.emptySessionList', { defaultValue: '아직 노트가 없습니다' }) as string}</ProjEmpty>
+          ) : (
+            <AtGrid>
+              {filteredSessions.map((session) => (
+                <AtCard key={session.id} data-qnote-session={session.id}
+                  onClick={() => handleSessionClick(session.id)}>
+                  <AtCardName><HighlightText text={session.title} query={sessionQuery} /></AtCardName>
+                  <AtCardMeta>{fmtWsDate(session.created_at)}</AtCardMeta>
+                </AtCard>
+              ))}
+            </AtGrid>
+          )}
+        </ProjBrowse>
+      )}
+      {/* ★ 2026-09-18 — embedded(프로젝트 탭)에서는 **세션을 고른 뒤에만** 본문을 그린다.
+          고르기 전에는 아래 ProjBrowse(문서 탭과 같은 껍데기)가 목록을 대신한다. */}
+      {(!embedded || !!urlSessionId) && (
       <Panel $grow $last $relative data-panel-main>
         {/* 자체 사이드바 토글 제거 — 공통 PanelEdgeHandle 과 같은 자리에 겹쳐 서로 가리고 있었다
             (닫고 열고 하는 아이콘이 뒤로 숨어버렸다는 지적). 접기 핸들은 레이아웃 레벨 하나로 통일. */}
@@ -2761,7 +2820,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               <MainHeader data-testid="panel-header">
                 <HeaderLeft>
                   {/* 표준 뒤로가기 — 좁은 화면에서 목록으로. 버튼은 ≤1024px 에서만 보인다(PanelHeader 계약) */}
-                  {panel.canGoBack && <PanelBackButton onClick={() => panel.goBack()} label={t('page.backToList', { defaultValue: '목록으로' }) as string} />}
+                  {showBack && <PanelBackButton always={embedded} onClick={() => panel.goBack()} label={t('page.backToList', { defaultValue: '목록으로' }) as string} />}
                   {editingTitle ? (
                     <SessionTitleInput
                       defaultValue={activeSession.title}
@@ -2789,6 +2848,16 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                     <SettingsIcon size={14} />
                     <BtnLabel>{t('page.controls.settings')}</BtnLabel>
                   </SecondaryBtn>
+                  {/* 끝난 노트는 [상담 저장] — 녹음 중에는 [종료하고 상담 저장] 이 그 자리를 한다.
+                      둘이 동시에 뜨지 않게 phase 로 가른다. */}
+                  {phase !== 'recording' && phase !== 'paused' && (
+                    <SecondaryBtn $compact data-testid="qnote-save-sale"
+                      onClick={() => setSaveToSaleOpen(true)}
+                      title={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}
+                      aria-label={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}>
+                      <BtnLabel>{t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}</BtnLabel>
+                    </SecondaryBtn>
+                  )}
                   {phase === 'prepared' && (
                     <PrimaryBtn $compact onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
                       <MicIcon size={14} />
@@ -2805,7 +2874,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                         <StopIcon size={14} />
                         <BtnLabel>{t('page.controls.pause')}</BtnLabel>
                       </SecondaryBtn>
-                      <DangerBtn $compact onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
+                      <SecondaryBtn $compact data-testid="qnote-end-and-save-sale"
+                        onClick={() => { void endMeeting({ thenSaveToSale: true }); }}
+                        title={t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}
+                        aria-label={t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}>
+                        <BtnLabel>{t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}</BtnLabel>
+                      </SecondaryBtn>
+                      <DangerBtn $compact onClick={() => { void endMeeting(); }} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
                         <PowerIcon size={14} />
                         <BtnLabel>{t('page.controls.endMeeting')}</BtnLabel>
                       </DangerBtn>
@@ -2817,7 +2892,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                         <MicIcon size={14} />
                         <BtnLabel>{t('page.controls.resume')}</BtnLabel>
                       </PrimaryBtn>
-                      <DangerBtn $compact onClick={endMeeting} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
+                      <SecondaryBtn $compact data-testid="qnote-end-and-save-sale"
+                        onClick={() => { void endMeeting({ thenSaveToSale: true }); }}
+                        title={t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}
+                        aria-label={t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}>
+                        <BtnLabel>{t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}</BtnLabel>
+                      </SecondaryBtn>
+                      <DangerBtn $compact onClick={() => { void endMeeting(); }} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
                         <PowerIcon size={14} />
                         <BtnLabel>{t('page.controls.endMeeting')}</BtnLabel>
                       </DangerBtn>
@@ -2953,7 +3034,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           <>
             <MainHeader data-testid="panel-header">
               <HeaderLeft>
-                {panel.canGoBack && <PanelBackButton onClick={() => panel.goBack()} label={t('page.backToList', { defaultValue: '목록으로' }) as string} />}
+                {showBack && <PanelBackButton always={embedded} onClick={() => panel.goBack()} label={t('page.backToList', { defaultValue: '목록으로' }) as string} />}
                 {editingTitle ? (
                   <SessionTitleInput
                     defaultValue={activeSession.title}
@@ -3217,6 +3298,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
           </>
         )}
       </Panel>
+      )}
 
       {/* 녹음 보호 — 녹음을 끊는 모든 경로가 이 문을 지난다 (window.confirm 금지) */}
       <ConfirmDialog
@@ -3237,9 +3319,23 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
       {/* #383 — 녹음 파일 올려 텍스트로. 서버가 즉시 session_id 를 주고 STT 는 백그라운드라
           모달은 기다리지 않고 닫힌다. 목록의 그 노트가 "처리 중" 으로 서 있다가 완성된다. */}
+      {activeSession && businessId && (
+        <SaveToSaleModal
+          open={saveToSaleOpen}
+          onClose={() => setSaveToSaleOpen(false)}
+          session={activeSession}
+          businessId={Number(businessId)}
+          onSessionChange={(updated) => {
+            setActiveSession((prev) => (prev && prev.id === updated.id ? updated : prev));
+            setSessions((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)));
+          }}
+        />
+      )}
+
       <AudioUploadModal
         open={audioUploadOpen}
         businessId={businessId ?? 0}
+        projectId={embedProjectId}
         onClose={() => setAudioUploadOpen(false)}
         onUploaded={(sessionId) => {
           // ★ 올리자마자 그 노트를 연다. 목록만 갱신하면 사용자에겐 **아무 반응이 없는 것**으로
@@ -3711,52 +3807,7 @@ const SidebarTitle = styled.h1`
   letter-spacing: -0.2px;
 `;
 
-const NewSessionBtn = styled.button`
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #14B8A6;
-  border: none;
-  border-radius: 8px;
-  color: #FFFFFF;
-  cursor: pointer;
-  transition: background 0.15s;
-  padding: 0;
-  &:hover { background: #0D9488; }
-  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
-`;
 // 사이클 N+22 — Irene 요청: + 클릭 = 드롭다운 (메모 즉시 / 음성 모달)
-const NewSessionWrap = styled.div`position: relative;`;
-const NewNoteDropdown = styled.div`
-  position: absolute; top: calc(100% + 6px); right: 0;
-  min-width: 220px;
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  box-shadow: 0 8px 24px -6px rgba(15,23,42,0.18);
-  z-index: 100;
-  overflow: hidden;
-  animation: pqNoteDdFade 0.12s ease-out;
-  @keyframes pqNoteDdFade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-`;
-const NewNoteItem = styled.button`
-  display: block; width: 100%; text-align: left;
-  padding: 10px 14px;
-  background: transparent; border: none; cursor: pointer;
-  &:hover { background: #F8FAFC; }
-  &:focus-visible { background: #F0FDFA; outline: none; }
-  & + & { border-top: 1px solid #F1F5F9; }
-`;
-const NewNoteItemTitle = styled.div`
-  /* 규격은 theme/tokens.listRowTitleCss 하나다 (전엔 0.8125rem 고정 — 폰에서 2px 작았다). */
-  ${listRowTitleCss}
-  color: #0F172A;
-`;
-const NewNoteItemDesc = styled.div`
-  font-size: 0.6875rem; color: #94A3B8; margin-top: 2px;
-`;
 
 // ★ 밴드2 규격 — 12(위) + 36(검색 박스) + 8(아래) + 1(밑줄) = 57.
 //   아래 padding 이 12 였어서 **61px**, 우측 상세의 밴드2(57)와 4px 어긋나 있었다
@@ -5046,3 +5097,7 @@ const InterimDot = styled.span`
   }
 `;
 
+// 프로젝트 탭 둘러보기의 빈 상태 — 문서 탭과 같은 톤.
+const ProjEmpty = styled.div`
+  padding: 28px 12px; text-align: center; color: #94A3B8; font-size: 0.8125rem;
+`;

@@ -7,6 +7,7 @@
 const { ClientInteraction, Project } = require('../models');
 const { createAuditLog } = require('./auditService');
 const { broadcast, trimOrNull, touchClient, INTERACTION_KINDS } = require('./saleCommon');
+const { verifyQnoteSession } = require('./qnoteOwnership');
 
 /** 입력 → 저장할 필드. 잘못된 값은 { error } 로 돌려준다(라우트가 400 으로 바꾼다). */
 function interactionPatchFrom(body, { creating }) {
@@ -51,6 +52,22 @@ function interactionPatchFrom(body, { creating }) {
 async function createInteraction({ businessId, client, body, userId, req }) {
   const { patch, error } = interactionPatchFrom(body || {}, { creating: true });
   if (error) return { error };
+
+  // ★ Q Note 에서 올라온 기록 — `source_kind` 는 **화면이 고르는 값이 아니다.**
+  //   노트 번호가 실제로 그 사람 것일 때에만 'qnote' 가 된다(확인은 qnoteOwnership 한 곳).
+  //   번호를 못 주면 그냥 수기 기록으로 남는다 — 거짓 출처를 원장에 적느니 출처가 없는 게 낫다.
+  let source = { origin: 'manual', source_kind: 'manual', qnote_session_id: null };
+  if (body && body.qnote_session_id !== undefined && body.qnote_session_id !== null) {
+    const v = await verifyQnoteSession({ sessionId: body.qnote_session_id, userId, businessId });
+    if (!v.ok) return { error: v.reason };
+    source = { origin: 'manual', source_kind: 'qnote', qnote_session_id: Number(body.qnote_session_id) };
+    // 제목·길이는 노트에서 가져온다 — 화면이 안 보냈을 때만(사용자가 고쳐 보냈으면 그것을 존중)
+    if (!patch.title && v.session.title) patch.title = trimOrNull(v.session.title, 200);
+    if (patch.duration_seconds === undefined && Number.isFinite(Number(v.session.duration_seconds))) {
+      const d = Math.max(0, Math.min(24 * 3600, Math.round(Number(v.session.duration_seconds))));
+      patch.duration_seconds = d;
+    }
+  }
   if (!patch.title && !patch.body) return { error: 'content_required' };
 
   let projectId = null;
@@ -62,13 +79,16 @@ async function createInteraction({ businessId, client, body, userId, req }) {
   const row = await ClientInteraction.create({
     ...patch,
     business_id: businessId, client_id: client.id, project_id: projectId,
-    origin: 'manual', source_kind: 'manual', created_by: userId,
+    ...source, created_by: userId,
   });
   await touchClient(client, row.occurred_at);
   createAuditLog({
     userId, businessId, action: 'client.interaction.create',
     targetType: 'client_interaction', targetId: row.id,
-    newValue: { client_id: client.id, kind: row.kind, occurred_at: row.occurred_at },
+    newValue: {
+      client_id: client.id, kind: row.kind, occurred_at: row.occurred_at,
+      source_kind: row.source_kind, qnote_session_id: row.qnote_session_id,
+    },
   });
   if (req) {
     broadcast(req, businessId, 'interaction:new', { id: row.id, client_id: client.id });

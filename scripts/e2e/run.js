@@ -70,6 +70,10 @@ const SUITES = {
   // 프로젝트 상세 탭 — 순서·노트 탭이 Q Note 본체인가·정보 탭이 Q info 규격인가·고객 프로필 연결.
   //   순서와 색은 **렌더 뒤에만 존재**한다(배열 grep 은 화면 순서를 증명하지 못한다).
   projecttabs: () => require('./canary-project-tabs'),
+  // 프로젝트 «자료» 탭(문서·노트·파일)이 **같은 디자인**인가 — 바탕색·여백·시작점 3폭.
+  //   2026-09-13 에 「했다」고 적어 두고 화면은 달랐다. 글이 아니라 기계가 센다.
+  projtabstyle: () => require('./canary-project-tab-style'),
+  consultlinks: () => require('./canary-consult-links'),
   // 알림을 눌러 **그 화면에 닿는가** + 오프라인 폴백에서 서버로 돌아오는가 (앱이 좌초하던 계열)
   pushdeeplink: () => require('./canary-push-deeplink'),
   // 문서 표 [폭 맞춤] — 누른 뒤 오른쪽에 빈 여백이 남지 않는가 · 열이 균등한가.

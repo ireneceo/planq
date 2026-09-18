@@ -121,6 +121,9 @@ export interface InteractionInput {
   title?: string | null;
   body?: string | null;
   project_id?: number | null;
+  /** Q note 세션에서 저장할 때만. 서버가 **소유를 확인한 뒤** source_kind='qnote' 로 박는다
+   *  (화면이 출처를 고르지 않는다 — services/qnoteOwnership.js). */
+  qnote_session_id?: number | null;
 }
 
 const j = async <T = unknown>(r: Response): Promise<T> => {

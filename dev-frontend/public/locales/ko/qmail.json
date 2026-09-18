@@ -215,6 +215,7 @@
     "assignSearch": "이름으로 찾기",
     "meShort": "나",
     "promoteToSale": "상담으로 보내기",
+    "promoteToSaleHint": "이 메일을 Q sale 상담 목록으로 보냅니다",
     "promotedToSale": "상담으로 보냄"
   },
   "selectWorkspace": "워크스페이스를 선택해 주세요.",

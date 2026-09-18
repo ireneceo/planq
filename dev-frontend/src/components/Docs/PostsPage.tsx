@@ -52,7 +52,7 @@ import PostShareModal from './PostShareModal';
 import KbAiIngestModal from '../../pages/Knowledge/KbAiIngestModal';
 import PostAiModal from './PostAiModal';
 // 프로젝트 문서 탭 — 파일 탭과 동일한 공용 레이아웃 (단일 원천). 파일탭·문서탭 디자인 통일.
-import { Split as AtSplit, FolderTreePanel as AtPanel, FilesArea as AtArea, TreeRoot as AtTree, FolderRow as AtRow, FolderName as AtName, FolderCount as AtCount, Grid as AtGrid, Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta, Toolbar as AtToolbar, ToolbarRight as AtToolbarRight, SortWrap as AtSortWrap } from './assetTabLayout';
+import { ProjBrowse, Split as AtSplit, FolderTreePanel as AtPanel, FilesArea as AtArea, TreeRoot as AtTree, FolderRow as AtRow, FolderName as AtName, FolderCount as AtCount, Grid as AtGrid, Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta, Toolbar as AtToolbar, ToolbarRight as AtToolbarRight, SortWrap as AtSortWrap } from './assetTabLayout';
 import PostSignatureModal from './PostSignatureModal';
 import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
@@ -2872,12 +2872,6 @@ const RowList = styled.div`
 // 프로젝트 문서 탭 browse 컨테이너 — 파일 탭(DocsTab) Body 흐름과 동일: 배경 #F8FAFC + padding 20 +
 //   세로 flex(gap 12: Toolbar + Split). 내부는 공용 assetTabLayout(AtToolbar/AtSplit/AtPanel/AtArea/AtGrid/AtCard)
 //   을 그대로 써서 파일 탭과 좌측 패널·카드·간격·툴바가 픽셀 동일. Layout 이 고정 높이라 자체 스크롤.
-const ProjBrowse = styled.div`
-  min-height: 0; height: 100%; overflow-y: auto;
-  background: #F8FAFC; padding: 20px;
-  display: flex; flex-direction: column; gap: 12px;
-  @media (max-width: 900px) { padding: 16px; }
-`;
 // Q Talk ChatRow / Mail ThreadItem 정확값 — 둥근 행, active=#F0FDFA + inset 3px 0 0 #0D9488, hover #F8FAFC.
 // 가로 구분선 제거(Q docs만 선 스타일이라 달랐다 — Irene 통일 지시).
 const RowItem = styled.button<{ $active: boolean; $project?: boolean }>`

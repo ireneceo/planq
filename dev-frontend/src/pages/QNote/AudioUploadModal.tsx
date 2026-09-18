@@ -17,13 +17,15 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 type Props = {
   open: boolean;
   businessId: number;
+  /** 프로젝트 안에서 열렸으면 그 프로젝트 — 올린 노트가 그 프로젝트의 것이 된다 */
+  projectId?: number | null;
   onClose: () => void;
   onUploaded: (sessionId: number) => void;
 };
 
 const ACCEPT = AUDIO_UPLOAD_EXT.map((e) => `.${e}`).join(',');
 
-export default function AudioUploadModal({ open, businessId, onClose, onUploaded }: Props) {
+export default function AudioUploadModal({ open, businessId, projectId = null, onClose, onUploaded }: Props) {
   const { t } = useTranslation('qnote');
   const ref = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +57,7 @@ export default function AudioUploadModal({ open, businessId, onClose, onUploaded
     if (!file || busy) return;               // 중복 제출 가드
     setBusy(true); setError(null);
     try {
-      const r = await uploadAudioForStt(file, businessId);
+      const r = await uploadAudioForStt(file, businessId, { projectId });
       onUploaded(r.session_id);
       setFile(null);
       onClose();

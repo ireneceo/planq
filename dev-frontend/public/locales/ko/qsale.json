@@ -176,7 +176,8 @@
     "clearStageBody": "고객 정보와 기록은 그대로 남고, 영업 단계만 «없음» 이 됩니다. 단계를 다시 주면 상담 목록으로 돌아옵니다.",
     "memoWith": "메모 {{n}}개 — 눌러서 보기",
     "memoNone": "메모 없음 — 눌러서 남기기",
-    "promoteToInbox": "상담으로 보내기"
+    "promoteToInbox": "상담으로 보내기",
+    "proceedConsult": "상담 진행"
   },
   "record": {
     "kind": {
@@ -205,7 +206,8 @@
     "empty": "아직 상담 기록이 없습니다",
     "contentRequired": "제목이나 메모 중 하나는 적어 주세요",
     "draftRestored": "쓰다 만 메모를 되살렸어요",
-    "futureNotAllowed": "접점 시각은 지금보다 뒤일 수 없어요"
+    "futureNotAllowed": "접점 시각은 지금보다 뒤일 수 없어요",
+    "openNote": "노트 열기"
   },
   "list": {
     "searchPlaceholder": "이름·회사·전화·이메일 검색",

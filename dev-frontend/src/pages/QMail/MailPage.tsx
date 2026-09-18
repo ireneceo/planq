@@ -2923,6 +2923,20 @@ const MailPage: React.FC = () => {
                   >
                     {t('actions.extractTasks', { defaultValue: '업무 추출' }) as string}
                   </CtrlBtn>
+                  {/* 상담 승격 진입점 — 여태 ⋯ 메뉴·우클릭·채팅 툴바 셋뿐이라 메일 상세를 보고 있는
+                      사람에게는 보이지 않았다 (Irene: "상담으로 저장이 업무추출 옆에 있거나 하면 좋겠는데").
+                      핸들러는 promoteThread 하나 — ⋯ 메뉴와 같은 문이다(베끼지 않는다). */}
+                  <CtrlBtn
+                    type="button"
+                    $on={promoteDone === detail.id}
+                    data-testid="mail-detail-promote-sale-inline"
+                    onClick={() => { void promoteThread(detail.id); }}
+                    title={t('actions.promoteToSaleHint', { defaultValue: '이 메일을 Q sale 상담 목록으로 보냅니다' }) as string}
+                  >
+                    {promoteDone === detail.id
+                      ? t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string
+                      : t('actions.promoteToSale', { defaultValue: '상담으로 보내기' }) as string}
+                  </CtrlBtn>
                 </DetailMetaRight>
               </DetailMetaBar>
               <MessagesScroll ref={scrollRef}>

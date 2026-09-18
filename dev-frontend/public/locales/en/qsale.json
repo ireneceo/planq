@@ -176,7 +176,8 @@
     "clearStageBody": "Customer details and records stay as they are; only the sales stage becomes “none”. Give it a stage again and it returns to the list.",
     "memoWith": "{{n}} note(s) — click to view",
     "memoNone": "No notes — click to add one",
-    "promoteToInbox": "Send to consults"
+    "promoteToInbox": "Send to consults",
+    "proceedConsult": "Start consult"
   },
   "record": {
     "kind": {
@@ -205,7 +206,8 @@
     "empty": "No records yet",
     "contentRequired": "Add a title or notes",
     "draftRestored": "Restored the notes you were writing",
-    "futureNotAllowed": "A touchpoint cannot be in the future"
+    "futureNotAllowed": "A touchpoint cannot be in the future",
+    "openNote": "Open note"
   },
   "list": {
     "searchPlaceholder": "Search name, company, phone, email",

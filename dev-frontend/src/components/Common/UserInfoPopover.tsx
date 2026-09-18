@@ -14,6 +14,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import LetterAvatar from './LetterAvatar';
+import { tabStore } from '../../stores/tabStore';
 
 interface OrgUnit { id: number; name: string; name_en?: string | null }
 interface MemberRow {
@@ -45,6 +46,8 @@ interface UserInfo {
   role?: string | null;
   company_name?: string | null;
   avatar_url?: string | null;
+  /** scope='client' 일 때 고객 프로필(/sale/:id)로 가기 위한 번호 */
+  client_id?: number | null;
   // D1 후속 — 소속(부서/팀)
   department?: OrgUnit | null;
   team?: OrgUnit | null;
@@ -96,6 +99,7 @@ async function fetchAndResolve(businessId: number, userId: number): Promise<User
       scope: 'client',
       name: client.display_name || '',
       company_name: client.company_name || null,
+      client_id: client.id,
     };
   }
   return { scope: 'unknown', name: '' };
@@ -229,6 +233,31 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
                 <NoInfo>{t('userInfo.noInfo', '추가 정보가 없습니다')}</NoInfo>
               )}
             </FieldList>
+            {/* ★ 프로필로 가는 문 (Irene: "채팅에서 고객이나 멤버 아이콘 누르면 프로필로 가야지
+                고객프로필이랑 멤버 프로필"). 여태 이 팝오버가 막다른 길이었다 — 이름·이메일까지만
+                보여주고 그 사람에 대해 더 보려면 어디로 가야 하는지 알려주지 않았다.
+                ▸ 고객  → /sale/:clientId (Q sale 고객 상세 = 고객 프로필)
+                ▸ 멤버  → /business/members?member=:userId (기존 멤버 상세 드로어)
+                둘 다 **새 탭**으로 연다 — 대화 중에 눌렀는데 보던 대화가 사라지면 안 된다
+                (CLAUDE.md "하던 일 위에 얹히는 진입점은 새 탭"). */}
+            {(info.scope === 'client' ? !!info.client_id : info.scope === 'member') && (
+              <ProfileLinkBtn
+                type="button"
+                data-testid="userinfo-open-profile"
+                onClick={() => {
+                  const path = info.scope === 'client'
+                    ? `/sale/${info.client_id}`
+                    : `/business/members?member=${userId}`;
+                  tabStore.openInNewTab(path);
+                  onClose();
+                }}
+              >
+                {info.scope === 'client'
+                  ? t('userInfo.openClientProfile', '고객 프로필 열기')
+                  : t('userInfo.openMemberProfile', '멤버 프로필 열기')}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polyline points="9 18 15 12 9 6" /></svg>
+              </ProfileLinkBtn>
+            )}
           </>
           );
           })()
@@ -325,6 +354,24 @@ const FieldValue = styled.div`
   word-break: break-all;
   a { color: #0D9488; text-decoration: none; }
   a:hover { text-decoration: underline; }
+`;
+const ProfileLinkBtn = styled.button`
+  margin-top: 12px;
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #0F766E;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  &:hover { background: #F8FAFC; }
+  @media (max-width: 640px) { min-height: 44px; }
 `;
 const NoInfo = styled.div`
   font-size: 0.75rem;

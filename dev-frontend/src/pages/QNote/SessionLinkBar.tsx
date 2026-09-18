@@ -12,6 +12,8 @@ import { useTranslation } from 'react-i18next';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { apiFetch } from '../../contexts/AuthContext';
 import { linkSessionEntities, type QNoteSession } from '../../services/qnote';
+// 고객 이름 정본 — `clients` 응답에 `name` 은 없다(display_name). 손으로 읽으면 라벨이 빈다.
+import { displayName, type NameLocalizable } from '../../utils/displayName';
 
 interface Props {
   session: QNoteSession;
@@ -23,7 +25,7 @@ interface Props {
 interface Opt { id: number; name: string }
 
 export default function SessionLinkBar({ session, businessId, editable, onChange }: Props) {
-  const { t } = useTranslation('qnote');
+  const { t, i18n } = useTranslation('qnote');
   const [projects, setProjects] = useState<Opt[]>([]);
   const [clients, setClients] = useState<Opt[]>([]);
   const [busy, setBusy] = useState<'project' | 'client' | null>(null);
@@ -41,10 +43,15 @@ export default function SessionLinkBar({ session, businessId, editable, onChange
     //   돌아와 목록이 조용히 빈다 — 셀렉트는 열리는데 고를 것이 없는 상태가 된다.
     apiFetch(`/api/clients/${businessId}?limit=200`)
       .then((r) => r.json())
-      .then((j) => { if (alive && j?.success) setClients((j.data || []).map((c: Opt) => ({ id: c.id, name: c.name }))); })
+      .then((j) => {
+        if (!alive || !j?.success) return;
+        setClients((j.data || []).map((c: NameLocalizable & { id: number }) => ({
+          id: c.id, name: displayName(c, i18n.language),
+        })));
+      })
       .catch(() => { /* 위와 같음 */ });
     return () => { alive = false; };
-  }, [editable, businessId]);
+  }, [editable, businessId, i18n.language]);
 
   const save = async (kind: 'project' | 'client', id: number | null) => {
     setBusy(kind); setErr(null);

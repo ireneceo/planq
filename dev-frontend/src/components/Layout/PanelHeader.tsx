@@ -221,9 +221,14 @@ const BackBtn = styled.button<{ $always?: boolean }>`
  * 헤더 마크업 통일은 점진적으로 하되, 동작(뒤로 가기)은 지금 당장 같아야 한다 —
  * "어떤 화면은 되고 어떤 화면은 안 되는" 것이 사용자에겐 가장 큰 차이다.
  */
-export function PanelBackButton({ onClick, label }: { onClick: () => void; label?: string }) {
+export function PanelBackButton(
+  { onClick, label, always }: { onClick: () => void; label?: string; always?: boolean },
+) {
+  // ★ always — 넓은 화면에서도 보여야 하는 자리가 있다. 탭 안에 얹은 화면(프로젝트 > 노트)은
+  //   목록과 상세가 **같은 칸을 번갈아 쓰므로**, 데스크탑이라고 뒤로를 감추면 목록으로
+  //   돌아올 길이 없다(Fable 2026-09-18 실측: 1440·820 에서 뒤로 0건. 같은 자리의 문서 탭은 있다).
   return (
-    <BackBtn type="button" onClick={onClick} aria-label={label || '뒤로'} title={label || '뒤로'}>
+    <BackBtn type="button" $always={always} onClick={onClick} aria-label={label || '뒤로'} title={label || '뒤로'}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="15 18 9 12 15 6" />
       </svg>

@@ -83,3 +83,20 @@ export const CardName = styled.div`padding:8px 36px 2px 10px;font-size:0.8125rem
 export const CardMeta = styled.div`padding:0 10px;font-size:0.6875rem;color:#64748B;display:flex;gap:4px;
   &:last-child{padding-bottom:10px;margin-top:2px;}
 `;
+
+// ── 프로젝트 탭 «자료 둘러보기» 껍데기 ──
+// ★ 2026-09-18 (Irene: *"노트탭 프로젝트에 있는 건 Q note랑 다른 스타일이어야 해.
+//   프로젝트 > 문서와 같은 스타일의 디자인으로 하라고 전에 요청했는데 왜 안한거야."*
+//   · *"디자인 스타일이 다르다고 프로젝트 탭들은."*)
+//
+//   문서 탭은 프로젝트 안에서 이 껍데기(연회색 바탕 + 20px 여백 + 툴바 + 카드)로 그리는데
+//   **노트 탭만 Q note 앱 껍데기를 통째로** 들고 왔다 — 실측(1440px): 문서는 bg `#F8FAFC`·padding 20,
+//   노트는 bg `#FFFFFF`·padding 0 에 **접히는 aside 300px + 손잡이**까지 있었다.
+//   PostsPage 안에만 있던 `ProjBrowse` 를 여기로 올려 **문서·노트가 같은 것을 쓴다.**
+//   베끼면 반드시 갈라진다(memory `feedback_copied_component_drifts_extract_shell`).
+export const ProjBrowse = styled.div`
+  min-height: 0; height: 100%; overflow-y: auto;
+  background: #F8FAFC; padding: 20px;
+  display: flex; flex-direction: column; gap: 12px;
+  @media (max-width: 900px) { padding: 16px; }
+`;

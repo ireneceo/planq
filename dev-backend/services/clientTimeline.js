@@ -148,7 +148,10 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
     const rows = await ClientInteraction.findAll({
       where, order: [['occurred_at', 'DESC']], limit: perSource,
       attributes: ['id', 'kind', 'direction', 'occurred_at', 'duration_seconds', 'title', 'body', 'summary',
-        'origin', 'reviewed_at', 'stt_status', 'project_id', 'created_by'],
+        'origin', 'reviewed_at', 'stt_status', 'project_id', 'created_by',
+        // 출처 — Q note 에서 저장한 상담은 그 노트로 되돌아갈 수 있어야 한다.
+        //   기록만 남기고 원본으로 가는 길이 없으면 "연결" 이 아니라 복사다.
+        'source_kind', 'qnote_session_id'],
     });
     for (const r of rows) {
       items.push({
@@ -159,6 +162,7 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
           kind: r.kind, direction: r.direction, duration_seconds: r.duration_seconds,
           origin: r.origin, reviewed: !!r.reviewed_at, stt_status: r.stt_status,
           project_id: r.project_id, created_by: r.created_by,
+          source_kind: r.source_kind, qnote_session_id: r.qnote_session_id,
         },
       });
     }

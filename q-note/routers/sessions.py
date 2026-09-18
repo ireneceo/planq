@@ -234,6 +234,42 @@ async def internal_export_sessions(
   return success(out)
 
 
+# ─── Q sale 상담 저장 — 이 노트가 정말 그 사람 것인가 (Node 가 묻는다) ───
+#   Node `POST /api/sale/:biz/clients/:id/interactions` 가 `qnote_session_id` 를 받을 때 부른다.
+#   화면이 보낸 번호를 그대로 원장에 적으면 남의 세션 번호가 박힌 기록이 생긴다 — 열면 403 이라
+#   내용이 새지는 않지만, 원장에 거짓이 남는다. 경계는 **여기 한 곳**이다(Node 는 SQLite 를 못 읽는다).
+#   by-entity 를 대신 쓰지 않는 이유: 그 문은 `visibility <> 'L1'` 이라 **개인 노트를 안 준다** —
+#   막 끝낸 내 회의는 대개 L1 이므로 그 문으로 물으면 내 것도 "아니다" 가 된다.
+@router.get('/internal/owns')
+async def internal_session_owns(
+    session_id: int = Query(...),
+    user_id: int = Query(...),
+    business_id: int = Query(...),
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cur = await db.execute(
+      "SELECT id, title, user_id, business_id, status, capture_mode, client_id, project_id, "
+      "created_at, duration_seconds FROM sessions WHERE id = ?",
+      (int(session_id),),
+    )
+    row = await cur.fetchone()
+  # 세 축이 모두 맞아야 한다 — 작성자 본인 + 같은 워크스페이스. 하나라도 어긋나면 "없다" 로 답한다
+  #   (있는데 남의 것이다 를 알려주면 그 자체가 존재 확인이 된다)
+  if not row or row['user_id'] != int(user_id) or (row['business_id'] or 0) != int(business_id):
+    raise HTTPException(status_code=404, detail='not_found')
+  return success({
+    'id': row['id'], 'title': row['title'], 'status': row['status'],
+    'capture_mode': row['capture_mode'], 'client_id': row['client_id'],
+    'project_id': row['project_id'], 'created_at': row['created_at'],
+    'duration_seconds': row['duration_seconds'],
+  })
+
+
 # ─── 계정 삭제(회원 탈퇴) 시 Q Note 개인 데이터 전량 삭제 (ACCOUNT_DELETION_DESIGN D6) ───
 #   Node accountAnonymize.js 가 익명화 후 호출. 음성 지문(생체정보)·세션·전사·요약·문서 삭제.
 #   SQLite CASCADE 를 신뢰하지 않고 FK 순서대로 명시 삭제.

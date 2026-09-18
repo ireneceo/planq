@@ -28,6 +28,9 @@ export const DRAFT_KINDS = {
   // Q sale — 상담 기록 메모(전화·미팅 내용은 길다)와 종결 사유 메모. 둘 다 모달 안에서 쓰다 닫으면 사라지던 값이다.
   'sale-interaction-body': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/RecordModal.tsx'] },
   'sale-lost-note': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/LostReasonModal.tsx'] },
+  // 노트를 상담으로 저장할 때 쓰는 메모 — 요약을 손보다가 창을 닫으면 그대로 사라지던 값(2026-09-18).
+  //   base = 요약 프리필. 요약이 다시 생성돼 원문이 바뀌면 옛 초안을 버린다(D-C1d).
+  'qnote-sale-memo': { ttlMs: 7 * DAY, mode: 'edit', owners: ['pages/QNote/SaveToSaleModal.tsx'] },
   // 메일 영문 서명 — 작성창에서 «영문 서명이 없어 한글이 붙는다» 안내를 보고 그 자리에서 쓰는 글.
   //   설정 화면으로 보내지 않고 작성창 안에서 끝내므로, 컴포저를 닫으면 사라질 수 있다(2026-09-18).
   'mail-signature-en': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QMail/SignatureBadge.tsx'] },

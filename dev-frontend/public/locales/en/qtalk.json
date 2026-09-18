@@ -494,7 +494,9 @@
     "company": "Company",
     "phone": "Phone",
     "noInfo": "No additional info",
-    "notFound": "Could not load profile"
+    "notFound": "Could not load profile",
+    "openClientProfile": "Open client profile",
+    "openMemberProfile": "Open member profile"
   },
   "popout": {
     "title": "PlanQ Chat"

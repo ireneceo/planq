@@ -25,6 +25,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 import aiosqlite
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -80,6 +81,11 @@ async def upload_audio(
   business_id: int = Form(...),
   title: str = Form(''),
   language: str = Form('multi'),
+  # ★ 2026-09-18 — 프로젝트 안에서 올린 녹음은 **그 프로젝트의 것**이다. 여태 이 값이 없어
+  #   프로젝트 노트 탭에서 올린 파일이 `project_id=NULL` 로 생겼고, 목록은 `?project_id=` 로
+  #   거르므로 탭을 나갔다 오면 **방금 올린 노트가 사라졌다**(Fable 실측).
+  project_id: Optional[int] = Form(None),
+  client_id: Optional[int] = Form(None),
   user: dict = Depends(get_current_user),
 ):
   uid = int(user['user_id'])
@@ -88,6 +94,14 @@ async def upload_audio(
   member = await check_membership(uid, business_id)
   if member is False:
     raise HTTPException(status_code=403, detail='not a member of this workspace')
+
+  # 연결 대상이 **내 워크스페이스 것**인지 확인한다 — 화면이 보낸 번호를 그대로 쓰지 않는다
+  #   (sessions.py PUT /{id} 와 같은 술어를 쓴다. 베끼면 한쪽만 고쳐진다.)
+  from .sessions import _belongs_to_business
+  if project_id is not None and not await _belongs_to_business('project', project_id, business_id):
+    raise HTTPException(status_code=403, detail='project_not_in_workspace')
+  if client_id is not None and not await _belongs_to_business('client', client_id, business_id):
+    raise HTTPException(status_code=403, detail='client_not_in_workspace')
 
   if not is_allowed_ext(file.filename or ''):
     raise HTTPException(status_code=400,
@@ -149,9 +163,10 @@ async def upload_audio(
     cur = await db.execute(
       '''INSERT INTO sessions
            (business_id, user_id, title, language, status, capture_mode, input_type,
-            duration_seconds, utterance_count, upload_job_id, upload_source_name)
-         VALUES (?, ?, ?, ?, 'processing', 'upload', 'voice', 0, 0, ?, ?)''',
-      (business_id, uid, auto_title, language, job_id, base[:200]),
+            duration_seconds, utterance_count, upload_job_id, upload_source_name,
+            project_id, client_id)
+         VALUES (?, ?, ?, ?, 'processing', 'upload', 'voice', 0, 0, ?, ?, ?, ?)''',
+      (business_id, uid, auto_title, language, job_id, base[:200], project_id, client_id),
     )
     session_id = cur.lastrowid
     await db.commit()

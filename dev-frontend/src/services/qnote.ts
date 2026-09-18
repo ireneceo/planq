@@ -748,13 +748,17 @@ export type AudioUploadResult = {
 export async function uploadAudioForStt(
   file: File,
   businessId: number,
-  opts: { title?: string; language?: string } = {},
+  // ★ projectId — 프로젝트 안에서 올린 녹음은 **그 프로젝트의 것**이다. 안 실으면 project_id=NULL 로
+  //   생겨서 프로젝트 노트 목록(`?project_id=`)에 안 잡힌다 = 방금 올린 노트가 사라진다.
+  opts: { title?: string; language?: string; projectId?: number | null; clientId?: number | null } = {},
 ): Promise<AudioUploadResult> {
   const fd = new FormData();
   fd.append('file', file);
   fd.append('business_id', String(businessId));
   if (opts.title) fd.append('title', opts.title);
   fd.append('language', opts.language || 'multi');
+  if (opts.projectId) fd.append('project_id', String(opts.projectId));
+  if (opts.clientId) fd.append('client_id', String(opts.clientId));
 
   const res = await fetch(`${BASE}/sessions/upload-audio`, {
     method: 'POST',

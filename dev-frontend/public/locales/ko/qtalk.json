@@ -494,7 +494,9 @@
     "company": "회사",
     "phone": "전화",
     "noInfo": "추가 정보가 없습니다",
-    "notFound": "정보를 불러올 수 없습니다"
+    "notFound": "정보를 불러올 수 없습니다",
+    "openClientProfile": "고객 프로필 열기",
+    "openMemberProfile": "멤버 프로필 열기"
   },
   "popout": {
     "title": "PlanQ 채팅"

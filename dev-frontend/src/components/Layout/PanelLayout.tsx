@@ -56,11 +56,13 @@ export const PanelLayout = styled.div<{ $embedded?: boolean }>`
  * absolute 오버레이로 빠지고, 본문 패널([data-panel-main])이 전체 높이를 채운다
  * (block 모드에서 height:100% 누락 시 본문 붕괴 → 1024px 동일 breakpoint 로 보정).
  */
-export const PanelGridLayout = styled.div<{ $cols?: string }>`
+export const PanelGridLayout = styled.div<{ $cols?: string; $bg?: string }>`
   display: grid;
   grid-template-columns: ${(p) => p.$cols || '300px 1fr'};
   ${panelShellHeight}
-  background: #FFFFFF;
+  /* 기본은 흰색(앱 전면 화면). 프로젝트 탭 안처럼 **탭 공통 바탕** 위에 얹힐 때만 바꾼다
+     — 기본값을 건드리면 Q talk·Q mail·Q task 가 같이 흔들린다. (2026-09-18) */
+  background: ${(p) => p.$bg || '#FFFFFF'};
   overflow: hidden;
   min-height: 0;
   position: relative;

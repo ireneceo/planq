@@ -60,7 +60,7 @@
       "startRecording": "Start Recording",
       "recordingNow": "Recording",
       "pause": "Pause",
-      "endMeeting": "End Recording",
+      "endMeeting": "End",
       "resume": "Resume Recording",
       "settings": "Settings"
     },
@@ -465,5 +465,31 @@
     "summary": "Summary",
     "memo": "Notes",
     "transcript": "Transcript"
+  },
+  "saveToSale": {
+    "title": "Save to consults",
+    "client": "Which client is this consult for?",
+    "clientPh": "Select a client",
+    "clientEmpty": "No clients registered",
+    "kind": "Contact type",
+    "kind_meeting": "Meeting",
+    "kind_call": "Call",
+    "kind_visit": "Visit",
+    "kind_memo": "Memo",
+    "kind_other": "Other",
+    "memo": "Memo (optional)",
+    "memoPh": "What was decided · next steps",
+    "hint": "The full note stays in Q note; the consult record links back to it.",
+    "submit": "Save to consults",
+    "cancel": "Cancel",
+    "close": "Close",
+    "openClient": "Open consult",
+    "done": "Saved this note as a consult record. You can find it in the client consult list.",
+    "errNotMine": "You do not have permission to save this note",
+    "errUnavailable": "Could not reach the note service, so nothing was saved",
+    "errEmpty": "A title or content is required",
+    "errFailed": "Could not save",
+    "endAndSave": "End and save to consults",
+    "saveOnly": "Save to consults"
   }
 }

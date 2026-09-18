@@ -7,6 +7,7 @@
 //   (같은 인스턴스를 다른 고객에 재사용하면 떠난 고객의 마지막 입력이 새 고객으로 저장된다).
 // ★ 다른 워크스페이스 고객 id 는 404 로 온다 — findOtherWorkspaceOf 로 물어 "전환 안내" 를 그린다.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { tabStore } from '../../stores/tabStore';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -342,6 +343,14 @@ export default function SaleDetailPage() {
               if (it.type !== 'interaction') return null;
               return (
                 <RowActions onClick={(e) => e.stopPropagation()}>
+                  {/* Q note 에서 저장한 상담 — 원본 노트로 돌아가는 길. 기록만 남기고 길이 없으면
+                      연결이 아니라 복사다. 새 탭으로 연다(보던 상담을 잃지 않게). */}
+                  {meta.source_kind === 'qnote' && !!meta.qnote_session_id && (
+                    <MiniBtn type="button" data-testid={`sale-record-open-note-${it.id}`}
+                      onClick={() => tabStore.openInNewTab(`/notes/${meta.qnote_session_id}`)}>
+                      {t('record.openNote', { defaultValue: '노트 열기' }) as string}
+                    </MiniBtn>
+                  )}
                   {meta.origin === 'auto' && meta.reviewed === false && (
                     <MiniBtn type="button" onClick={async () => {
                       if (!businessId) return;

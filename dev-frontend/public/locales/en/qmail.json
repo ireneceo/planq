@@ -215,6 +215,7 @@
     "assignSearch": "Find by name",
     "meShort": "Me",
     "promoteToSale": "Send to consults",
+    "promoteToSaleHint": "Send this email to the Q sale consult list",
     "promotedToSale": "Sent to consults"
   },
   "selectWorkspace": "Select a workspace.",

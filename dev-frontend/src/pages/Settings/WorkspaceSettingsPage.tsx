@@ -511,7 +511,7 @@ export default function WorkspaceSettingsPage() {
 
   const location = useLocation();
   const params = useParams<{ tab?: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // URL 기반 섹션 결정. 사이드바 Secondary 에서 직접 접근하므로 내부 탭 UI 없음.
   // /business/members → members 섹션
@@ -571,6 +571,27 @@ export default function WorkspaceSettingsPage() {
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
+  // ★ 멤버 상세는 `?member=<user_id>` 로 URL 싱크한다 (CLAUDE.md "드로어 URL 싱크").
+  //   여태 state 뿐이라 **바깥에서 이 사람을 가리킬 방법이 없었다** — 채팅 아바타 팝오버가
+  //   "프로필 열기" 를 걸 곳이 없던 이유다. 키를 member.id 가 아니라 user_id 로 잡는 이유:
+  //   부르는 쪽(채팅·업무·메일)이 아는 것은 사람의 id 이지 워크스페이스 멤버 행 번호가 아니다.
+  const memberParam = searchParams.get('member');
+  useEffect(() => {
+    if (!memberParam) { setSelectedMemberId(null); return; }
+    const row = members.find((m) => m.user_id != null && String(m.user_id) === memberParam);
+    // 목록이 아직 안 왔으면 다음 렌더에서 다시 본다(빈 목록으로 파라미터를 지우지 않는다)
+    if (row) setSelectedMemberId(row.id);
+  }, [memberParam, members]);
+  const openMember = useCallback((memberRowId: number | null) => {
+    setSelectedMemberId(memberRowId);
+    const row = memberRowId == null ? null : members.find((m) => m.id === memberRowId);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (row && row.user_id != null) next.set('member', String(row.user_id));
+      else next.delete('member');
+      return next;
+    }, { replace: true });
+  }, [members, setSearchParams]);
 
   const [memberBusy, setMemberBusy] = useState(false);
   const [memberError, setMemberError] = useState<string | null>(null);
@@ -596,7 +617,7 @@ export default function WorkspaceSettingsPage() {
       const fresh = await listMembers(businessId);
       setMembers(fresh);
       setConfirmTransferId(null);
-      setSelectedMemberId(null);
+      openMember(null);
     } catch (err: unknown) {
       setMemberError(mapApiError(err, tErr));
     } finally { setMemberBusy(false); }
@@ -623,7 +644,7 @@ export default function WorkspaceSettingsPage() {
       await removeMember(businessId, memberId);
       const fresh = await listMembers(businessId);
       setMembers(fresh);
-      setSelectedMemberId(null);
+      openMember(null);
       setConfirmRemoveId(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1398,7 +1419,7 @@ export default function WorkspaceSettingsPage() {
                   : m.user?.job_title || m.user?.email || '';
               return (
                 <MemberRow key={m.id} $ai={isAi} $clickable={!isAi}
-                  onClick={() => { if (!isAi) setSelectedMemberId((cur) => cur === m.id ? null : m.id); }}>
+                  onClick={() => { if (!isAi) openMember(selectedMemberId === m.id ? null : m.id); }}>
                   <Avatar $ai={isAi}>{isAi ? 'C' : firstLetter}</Avatar>
                   <MemberInfo>
                     <MemberNameRow>
@@ -1428,14 +1449,14 @@ export default function WorkspaceSettingsPage() {
             const fmtLastLogin = u?.last_login_at ? new Date(u.last_login_at).toLocaleString() : '—';
             return (
               <>
-                <MemberDrawerBackdrop onClick={() => setSelectedMemberId(null)} />
+                <MemberDrawerBackdrop onClick={() => openMember(null)} />
                 <MemberDrawer role="dialog" aria-modal="true" aria-label={targetName || 'member'}>
                   <MemberDrawerHeader>
-                    <MemberDrawerBack type="button" onClick={() => setSelectedMemberId(null)}>
+                    <MemberDrawerBack type="button" onClick={() => openMember(null)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
                       {t('members.drawer.back', '목록')}
                     </MemberDrawerBack>
-                    <MemberDrawerClose type="button" onClick={() => setSelectedMemberId(null)} aria-label={t('members.drawer.close', '닫기') as string}>
+                    <MemberDrawerClose type="button" onClick={() => openMember(null)} aria-label={t('members.drawer.close', '닫기') as string}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </MemberDrawerClose>
                   </MemberDrawerHeader>

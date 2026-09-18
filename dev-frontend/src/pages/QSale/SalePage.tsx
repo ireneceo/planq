@@ -13,6 +13,9 @@ import PageShell from '../../components/Layout/PageShell';
 import ClientPanel from '../../components/QSale/ClientPanel';
 import ClientLink from '../../components/QSale/ClientLink';
 import PlanQSelect from '../../components/Common/PlanQSelect';
+// 새 노트 메뉴는 Q note 사이드바의 ＋ 와 **같은 한 벌** — 베끼지 않고 가져다 쓴다
+import { NewNoteMenu, NewSessionWrap, openQNoteWithKind } from '../../components/QNote/newNoteMenu';
+import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
 import { FilterBar, FilterSlot, FilterSearchSlot, ToggleFilter, CheckFilter, axisOption } from '../../components/Common/filterBar';
 import SearchBox from '../../components/Common/SearchBox';
 import { HeaderCta } from '../../components/Common/headerCta';
@@ -66,6 +69,8 @@ export default function SalePage() {
   const [hideClosed, setHideClosed] = useState(true);
   const [inboxCounts, setInboxCounts] = useState<{ needs_reply: number } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  // [상담 진행] 드롭다운 — 좌표·바깥클릭·Esc·포커스는 공용 앵커 한 벌(각자 계산하면 갈라진다).
+  const noteAnchor = usePopoverAnchor();
   // ★ 행을 눌러도 **페이지를 갈아타지 않는다** (Irene 2026-09-12: "고객탭에서는 리스트 누르면
   //   페이지 전환하지 말고 우측패널 나오게 하고"). 전체를 보려면 패널 헤더의 전체보기 아이콘.
   // ★ 우측 패널은 **URL 과 묶는다**(UI_DESIGN_GUIDE §1.9 · CLAUDE.md 상세/드로어 URL 싱크).
@@ -230,6 +235,33 @@ export default function SalePage() {
             <PlusIcon aria-hidden />
             <span>{t('action.addRecord') as string}</span>
           </HeaderCta>
+          {/* ★ 2026-09-18 (Irene: *"Q sale에 상 진행 이라고 버튼 넣고 고객응대 내역 추가 뒤에 넣어줘.
+              그리고 Q note + 드롭다운 그대로 넣고 누르면 Q note로 열리게 해."*)
+              상담을 **지금 진행**하는 문 — 메뉴는 Q note 사이드바의 ＋ 와 **같은 한 벌**이다
+              (`components/QNote/newNoteMenu`). 여기서 다시 그리면 항목이 갈라진다.
+              고르면 Q note 를 **새 탭**으로 연다 — 보던 상담 목록을 덮지 않는다. */}
+          <NewSessionWrap ref={noteAnchor.wrapRef}>
+            <ProceedBtn
+              type="button"
+              data-testid="sale-proceed-consult"
+              aria-expanded={noteAnchor.open}
+              aria-haspopup="menu"
+              onClick={noteAnchor.toggle}
+            >
+              <span>{t('action.proceedConsult', { defaultValue: '상담 진행' }) as string}</span>
+              <Caret aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </Caret>
+            </ProceedBtn>
+            {noteAnchor.open && (
+              <NewNoteMenu
+                pos={noteAnchor.pos}
+                panelRef={noteAnchor.panelRef}
+                onMouseLeave={noteAnchor.close}
+                onPick={(kind) => { noteAnchor.close(); openQNoteWithKind(kind); }}
+              />
+            )}
+          </NewSessionWrap>
         </Actions>
       )}
     >
@@ -686,3 +718,25 @@ const TextArea = styled.textarea`
   &::placeholder { color: #94A3B8; }
 `;
 const ErrText = styled.div`font-size: 0.8125rem; color: #B91C1C;`;
+
+// [상담 진행] — 머리줄 보조 액션. 주 액션(HeaderCta)과 **같은 높이**여야 줄이 들쭉날쭉하지 않는다.
+const ProceedBtn = styled.button`
+  /* ★ 머리줄 컨트롤은 32px (필터줄이 36) — HeaderCta 와 같은 높이여야 줄이 들쭉날쭉하지 않는다.
+     memory feedback_uiux_unified_master. */
+  height: 32px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 0 12px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  color: #0F766E;
+  font-size: 0.8125rem; font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  &:hover { background: #F0FDFA; border-color: #99F6E4; }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
+`;
+/* 장식 svg 에 height 를 적지 않는다 — viewBox 가 비율을 주고, UI 규격 가드는
+   height:<n>px 를 컨트롤 높이로 세기 때문에 규격을 지킨 코드가 래칫을 올린다
+   (headerCta.tsx 의 같은 주석 참조). */
+const Caret = styled.svg`width: 14px; flex-shrink: 0;`;
