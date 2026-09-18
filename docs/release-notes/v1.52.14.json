@@ -1,0 +1,36 @@
+{
+  "version": "1.52.14",
+  "date": "2026-09-18",
+  "items": [
+    {
+      "ko": {
+        "title": "Q note 에서 프로젝트·고객을 연결하면 회의 내용이 사라지던 문제를 고쳤습니다",
+        "body": "노트를 열어 둔 채 프로젝트나 고객을 연결하거나 공개 범위를 바꾸면, 화면의 회의 내용이 통째로 비어 보이는 일이 있었습니다. 저장한 내용은 서버에 그대로 있었고 화면만 잃은 것이라 새로고침하면 돌아왔지만, 그 순간에는 내용이 날아간 것처럼 보였습니다. 이제 연결해도 내용이 그대로 남습니다. 같은 원인으로 문서를 표로 바꾸면 연결 문서 목록이 사라지던 것, 프로젝트 멤버를 저장하면 일부 표시가 바뀌던 것도 함께 고쳤습니다."
+      },
+      "en": {
+        "title": "Fixed meeting notes disappearing when linking a project or client in Q note",
+        "body": "Linking a project or client to an open note — or changing its visibility — could make the note's contents appear to vanish. The saved content was intact on the server and came back on refresh, but at that moment it looked lost. Contents now stay put. The same root cause affected other screens and was fixed too: linked documents disappearing when switching a document to a table, and some indicators changing after saving project members."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q note 의 프로젝트·고객 연결 칸을 넓혔습니다",
+        "body": "칸이 좁아 이름이 다섯 글자만 넘어도 잘려 보였습니다. 칸을 넓히고, 연결을 푸는 작은 ✕ 를 없앤 자리만큼 글자 공간을 돌려받았습니다. 연결을 풀려면 목록 첫 줄의 「프로젝트 연결 안 함」 을 고르면 됩니다."
+      },
+      "en": {
+        "title": "Wider project and client fields in Q note",
+        "body": "The fields were narrow enough that names were cut off after just a few characters. They are now wider, and removing the small ✕ gave that space back to the text. To unlink, pick the first item in the list — “No project linked”."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트·고객을 연결하는 입력의 안내 문구를 통일했습니다",
+        "body": "같은 일을 하는 입력인데 화면마다 「프로젝트 없음」·「연결 없음」·「프로젝트를 선택하세요」 처럼 문구가 달랐습니다. 이미 연결된 것을 바꾸는 자리는 「프로젝트 연결 안 함」, 새로 만들며 고르는 자리는 「프로젝트 선택」 두 가지로 정리했습니다. 칸 안에 길게 적혀 잘리던 설명은 칸 아래 안내로 내렸습니다."
+      },
+      "en": {
+        "title": "Consistent wording for project and client pickers",
+        "body": "The same kind of field used different wording on different screens. It is now two phrasings only: “No project linked” where you attach or detach an existing item, and “Select a project” where you pick one while creating something. Explanatory text that used to sit inside the field — and got truncated — now appears below it."
+      }
+    }
+  ]
+}
