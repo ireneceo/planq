@@ -70,6 +70,32 @@ if (gsProblem) {
   else warn.push(msg);
 }
 
+// 백업 — 앱은 **원격 껍데기**라 로그인 세션이 WebView 저장소에 남는다.
+//   `allowBackup="true"`(Capacitor 기본값) 이면 그 세션이 사용자 Drive 로 백업되고
+//   **다른 기기로 복원**된다. 업무용 앱에서 세션이 기기를 옮겨 다니는 것은 의도가 아니다.
+//
+// ★ 판정은 `scripts/android-manifest-assert.js` 한 곳이다 — **문자열이 아니라 트리로** 본다.
+//   이 검사를 문자열로 두 번 썼고 두 번 다 뚫렸다(Fable 25·26차): 속성 삭제·홑따옴표·빈 규칙파일 ·
+//   주석 안의 가짜 false · exclude 주석 처리 · `<exclude path=…>` 부분 제외 · `<activity>` 에 달기 ·
+//   **`src/release/` 소스셋의 tools:replace**. 파서는 주석을 노드로 분리하고 «어느 요소의 속성인가» 를 안다.
+//
+// ★ 그리고 **소스는 제품이 아니다.** 여기서 통과해도 병합에서 뒤집힐 수 있으므로,
+//   빌드 뒤 `scripts/android-packaged-backup-check.js` 가 **링크된 리소스 두 벌**(APK·AAB 경로)에 같은 술어를 건다.
+//   이쪽은 빠른 사전 검사이고, **제품 판정은 빌드 뒤 `android-packaged-backup-check.js`** 가 한다
+//   (aapt2 로 링크된 리소스 테이블을 읽는다).
+const MA = require('./android-manifest-assert');
+const SRC = path.join(ROOT, 'dev-frontend/android/app/src');
+const backupErrs = [
+  ...MA.assertManifest(path.join(SRC, 'main/AndroidManifest.xml'),
+    { resolveRules: path.join(SRC, 'main/res'), label: 'AndroidManifest' }),
+  ...MA.assertNoSourceSetOverride(SRC),
+  // ★ 규칙 파일이 `res/xml-v31/` 나 `src/release/res/xml/` 로 덮이면 매니페스트는 멀쩡한 채
+  //   제품에서만 다른 규칙이 쓰인다(Fable 27차). 이름은 매니페스트가 가리키는 것을 따른다.
+  ...MA.assertSingleRulesLocation(SRC, MA.rulesNameOf(path.join(SRC, 'main/AndroidManifest.xml'))),
+];
+backupErrs.forEach((e) => fail.push(e));
+if (!backupErrs.length) console.log('  백업: allowBackup=false · 규칙 두 섹션 전 도메인 · 소스셋 덮어쓰기 없음 ✓');
+
 // targetSdk — Play 는 매년 최소 target API 를 올리고, 미달이면 **업로드 자체를 거부**한다.
 //   2026-09-04 실사례: targetSdk 35 로 올렸다가 "must target at least API level 36" 로 거부.
 //   빌드는 성공한 뒤 업로드에서 막히므로, 빌드 시점에 먼저 세운다.

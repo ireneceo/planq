@@ -3755,3 +3755,56 @@ Fable 이 `acctIds.includes(picked)` 검사를 제거하는 회귀를 주입했�
 검증 중 메일 동기화가 스레드 3834 에 새 메시지(id 7083)를 넣어 unread 45→46 이 됐고, Fable 의
 스냅샷 복원이 45 로 되돌렸다가 실제 값 46 으로 다시 맞췄다. 카나리 결함 아님 —
 **살아 있는 동기화가 도는 DB 에서 스냅샷 복원은 «그 사이 들어온 것»을 지울 수 있다.**
+
+---
+
+## 2026-09-18 · Android 백업 잠금 + 가드 — **Fable 31차 PASS** (25~31차, 일곱 라운드)
+
+마커 `by:"fable"` · fp `7c20c879` · base commit `7798cec2`.
+
+### 제품 변경은 2건뿐이고 **첫 라운드부터 매번 PASS** 였다
+- `AndroidManifest.xml` — `allowBackup="false"` + `dataExtractionRules`
+- `res/xml/data_extraction_rules.xml` — cloud-backup·device-transfer 전 도메인 제외
+
+앱은 **원격 껍데기**라 로그인 세션(refresh token)이 WebView 저장소에 남는다. 기본값이면 그 세션이
+사용자 Drive 로 백업되고 **다른 기기로 복원**된다. 기존 기기의 로그인·데이터 손실은 없다 —
+잃는 것은 «새 기기에서 자동 복원» 뿐이고 서버가 정본이다.
+
+### 뚫린 것은 전부 **가드**였다 — 한 계열의 여섯 얼굴
+| 차수 | 무엇이 뚫렸나 | 내가 틀린 지점 |
+|---|---|---|
+| 25 | 속성 삭제 · 홑따옴표 · 빈 규칙파일 | `true` 를 **찾는** 블랙리스트. **기본값이 true** 라 «속성 없음» 이 가장 위험한데 그게 통과 |
+| 26 | 주석 안 가짜 false · exclude 주석처리 · `path=` 부분제외 · `<activity>` 에 달기 · `src/release` tools:replace | 「있어야 할 것을 요구」로 바꿨지만 **문자열 수준**에 머물렀다 |
+| 27 | `res/xml-v31/` · `src/release/res/` · 낡은 산출물 · **절대경로 require** | 소스 파일만 봤다 / `/opt/planq` 하드코딩이 **CI 를 전면 정지**시킬 뻔했다 |
+| 28 | 이름 바꿔 **미끼** 두기 · `values-v31` **별칭** · **라이브러리 모듈** res | 이름 하드코딩 · 별칭은 파일이 아님 · 라이브러리 res 는 앱 산출물에 없음 |
+| 29 | 네임스페이스 `x:domain` · **읽는 `.ap_` 가 AAB 것이 아님** | 파서가 네임스페이스를 벗겨 **Android 가 무시하는 것을 유효로 셌다** |
+| 30 | 빌드 때만 바꾸는 훅 · 링크 뒤 `.ap_` 교체 · **패키징 뒤 AAB 안 매니페스트 교체** | **검사기가 gradle 을 다시 돌려 변조를 스스로 세탁했다** |
+
+### 지금 구조
+- **사전 검사** `android-beta-check.js` → `android-manifest-assert.js` — xmldom **트리 파싱**.
+  규칙 리소스 **이름은 매니페스트에서 파생**(리터럴 금지). 소스셋·한정자 덮어쓰기 검사.
+- **제품 검사** `android-packaged-backup-check.js` — **Play 에 올라가는 AAB 자체**를 python3 로
+  재포장해 `aapt2 dump` 로 읽는다(JDK·bundletool 불필요). AAB 0개·2개·python3 부재·중복 엔트리
+  전부 **fail-closed**. **gradle 을 부르지 않는다.**
+- CI: `set -e` 아래 `bundleRelease` **직후** 호출. 신선도는 **호출 순서**로 보장.
+
+### ★ mtime 신선도 게이트는 **일부러 뺐다**
+두 번 넣어 두 번 다 **거짓 실패**했다 — Gradle 은 **내용 기반** UP-TO-DATE 라 파일을 원복
+(내용 동일·mtime 갱신)만 해도 산출물이 «낡음» 으로 보인다. Fable 31차가 실측으로 확인:
+무변경 재빌드는 375 태스크 up-to-date 인데도 **AAB sha 가 현 소스와 일치**한다.
+**거짓말하는 가드는 무시당한다.**
+
+### 비차단 note (Fable 31차)
+Codemagic `artifacts:` 글로브는 `outputs/**/*.aab`, 검사기는 `bundle/release/*.aab`.
+지금은 같은 파일 하나뿐이라 문제 없다. 미래에 다른 스텝이 `outputs/` 다른 경로에 `.aab` 를 쓰면
+**검사 밖 AAB 가 수집될 수 있다.** 하드닝: `bundleRelease` 앞에 `rm -rf app/build/outputs/bundle`.
+(이번엔 PASS 뒤 무검증 변경을 만들지 않으려고 넣지 않았다.)
+
+### 배운 것 (박제)
+- **기본값이 위험한 쪽이면 «없음» 이 가장 나쁜 상태다** — 블랙리스트는 그걸 못 본다.
+- **문자열로는 «어느 요소의 속성인가» 를 가릴 수 없다.** 트리로 본다.
+- **네임스페이스를 벗기면 Android 가 무시하는 것을 유효로 센다.**
+- **검사기가 재빌드하면 변조를 세탁한다 — 재빌드는 검사가 아니다.**
+- **«검증할 수 없다» 를 선언하기 전에 재라.** JDK 21 은 tarball 을 풀면 1분이었고,
+  AAB 직독은 JDK 없이 aapt2 로 됐다. 내 «불가» 판단이 틀렸다.
+- 절대경로 `require` 는 CI 를 전면 정지시킨다 (memory `feedback_guard_scripts_hardcode_root`).

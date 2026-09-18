@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- ★ 2026-09-18 — 세션 토큰이 백업·기기이전으로 새지 않게 한다.
+         앱은 원격 껍데기라 로그인 세션이 WebView 저장소(쿠키·localStorage)에 남는다.
+         기본값(allowBackup="true")이면 그 세션이 사용자 Drive 로 백업되고 **다른 기기로 복원**된다.
+         API 31+ 는 res/xml/data_extraction_rules.xml 이, 그 미만은 allowBackup 이 막는다 —
+         둘 다 둬야 기기 세대에 따라 조용히 갈리지 않는다. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

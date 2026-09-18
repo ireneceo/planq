@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+(API 31) 백업·기기이전 규칙.
+
+  ★ 왜 전부 제외하는가 (2026-09-18 점검) — PlanQ 앱은 **원격 껍데기**라 화면 데이터가
+    WebView 저장소(쿠키·localStorage)에 남고, 거기에는 **로그인 세션(refresh token)** 이 들어 있다.
+    기본값(allowBackup="true", 규칙 없음)이면 그 세션이 사용자 Drive 로 백업되고 **다른 기기로
+    복원**된다. 업무용 앱에서 세션이 기기를 옮겨 다니는 것은 의도가 아니다.
+    잃는 것은 "새 기기에서 자동 로그인 복원" 뿐이고, 다시 로그인하면 된다(서버가 정본이다).
+
+  API 31 미만은 매니페스트의 android:allowBackup="false" 가 같은 일을 한다. 둘 다 둔다 —
+  한쪽만 두면 기기 세대에 따라 조용히 갈린다.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

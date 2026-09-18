@@ -150,11 +150,35 @@ workflows:
           mv build.gradle.tmp app/build.gradle
           # 치환이 실제로 됐는지 확인한다. 조용히 빗나가면 Play 가 같은 versionCode 를 거부한다.
           grep -q "versionCode $NEXT" app/build.gradle || { echo "FAIL — versionCode 치환 실패"; grep -n versionCode app/build.gradle; exit 1; }
-          grep -n "versionCode" app/build.gradle
+          #
+          # ★ 2026-09-18 — versionName 도 **제품 버전**으로 맞춘다.
+          #   여태 `1.0` 에 고정돼 있었다(CI 가 versionCode 만 올렸다). 웹은 v1.52.11 인데
+          #   Play 와 사용자에게는 영원히 "1.0" 이라, 장애 신고가 와도 **어느 빌드인지 특정할 수 없다.**
+          #   정본은 dev-frontend/package.json — 사람이 여기 또 적으면 반드시 갈라진다.
+          VNAME=$(node -p "require('../package.json').version")
+          [ -n "$VNAME" ] || { echo "FAIL — package.json 에서 버전을 읽지 못했습니다"; exit 1; }
+          echo "versionName → $VNAME"
+          sed "s/versionName .*/versionName \"$VNAME\"/" app/build.gradle > build.gradle.tmp
+          mv build.gradle.tmp app/build.gradle
+          grep -q "versionName \"$VNAME\"" app/build.gradle || { echo "FAIL — versionName 치환 실패"; grep -n versionName app/build.gradle; exit 1; }
+          grep -nE "versionCode|versionName" app/build.gradle
       - name: AAB 빌드
         script: |
+          # ★ Codemagic 이 set -e 를 넣어 주는지 문서로 확인되지 않았다(Fable 27차).
+          #   없으면 아래 병합 검사가 exit 1 을 내도 다음 줄이 이어 돌아 **단계가 초록으로 끝난다** —
+          #   검사가 있어도 세우지 못한다. 바로 다음 「서명 확인」 단계는 이미 명시하고 있었다.
+          set -e
           cd dev-frontend/android
           ./gradlew bundleRelease
+          # ★ 2026-09-18 — **Play 에 올라가는 AAB 자체를 읽는다.** (Fable 26~30차)
+          #   소스를 읽는 검사는 세 번, 중간 산출물을 읽는 검사는 두 번 뚫렸다:
+          #     `src/release/` 의 tools:replace · `res/xml-v31/` 한정자 · values 별칭 · 라이브러리 res ·
+          #     빌드 때만 입력을 바꾸는 훅 · 링크 뒤 `.ap_` 교체 · **패키징 뒤 AAB 안 매니페스트 교체**.
+          #   공통 원인은 하나다 — **읽는 것이 곧 제품이 아니다.** 그래서 대상은 AAB 하나다.
+          #   ★ 이 검사는 **빌드하지 않는다.** 예전엔 스스로 gradle 을 불렀는데, 그러면 변조된
+          #     중간물이 재생성되며 **검사가 변조를 세탁**했다. 신선도는 **호출 순서**로 보장한다 —
+          #     바로 위 `bundleRelease` 직후, 같은 `set -e` 아래. 여기서 막히면 AAB 를 올리지 않는다.
+          node ../../scripts/android-packaged-backup-check.js
           # 설치용 universal APK — Play 를 거치지 않고 기기에 바로 넣는 유일한 길.
           #   같은 서명(planq_upload)으로 나가므로 App Links 검증은 Play 배포본과 다를 수 있다
           #   (Play App Signing 은 구글이 재서명한다). 커스텀 스킴(planq://)은 서명과 무관하니
