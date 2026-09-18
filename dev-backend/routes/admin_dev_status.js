@@ -13,17 +13,17 @@ const { DevStatusReport, User, FeedbackItem } = require('../models');
 //   나중에 라우트를 하나 추가할 때 가드를 빠뜨리지 않는다.
 router.use(authenticateToken, requireRole('platform_admin'));
 
-const SECTION_KEYS = [
-  'working_on', 'completed', 'in_progress', 'issues', 'backlog',
-  'behavior_changes', 'check_areas', 'migrations', 'blocked_on_human',
-  'tooling_health', 'undeployed',
-];
+// ★ 섹션 모양은 services/devStatusSections.js 가 정본이다 — 발행 스크립트도 같은 것을 부른다.
+//   여기 목록을 또 적으면 한쪽만 고쳐진다(memory feedback_same_value_multiple_formulas).
+const { SECTION_KEYS, normalizeSections } = require('../services/devStatusSections');
 
 // 응답 직렬화 — sections 는 없는 키를 빈 배열로 채워 화면이 분기하지 않게 한다.
+//
+// ★ 2026-09-18 — **읽을 때도 정규화한다.** 문자열로 적힌 항목이 화면에서 전부 '—' 로 떨어지던
+//   신고(Irene: "다 비어서 나와")를 고치면서, 발행 쪽만 고치면 **이미 저장된 행**(v1.52.11 등)은
+//   재발행 전까지 계속 비어 보인다. 읽는 쪽에 걸어야 옛 행이 그 자리에서 치유된다.
 function serialize(row, extra = {}) {
-  const s = row.sections || {};
-  const sections = {};
-  for (const k of SECTION_KEYS) sections[k] = Array.isArray(s[k]) ? s[k] : [];
+  const sections = normalizeSections(row.sections || {});
   return {
     id: row.id,
     commit_to: row.commit_to,

@@ -16,11 +16,9 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 
-const SECTION_KEYS = [
-  'working_on', 'completed', 'in_progress', 'issues', 'backlog',
-  'behavior_changes', 'check_areas', 'migrations', 'blocked_on_human',
-  'tooling_health', 'undeployed',
-];
+// ★ 섹션 모양(키 목록·대표 키·정규화)은 services/devStatusSections.js 가 정본이다.
+//   읽는 라우트도 같은 것을 부른다 — 여기 따로 적으면 한쪽만 고쳐진다.
+const { SECTION_KEYS, normalizeSections, titleOf, PRIMARY_KEY } = require('../services/devStatusSections');
 const VERIFIED = new Set(['fable_pass', 'opus_only', 'none']);
 const SEVERITY = new Set(['low', 'medium', 'high', 'critical']);
 const PRIORITY = new Set(['low', 'medium', 'high']);
@@ -29,11 +27,22 @@ function die(msg) { console.error(`[dev-status] ${msg}`); process.exit(1); }
 
 // 알 수 없는 값을 조용히 기본값으로 떨어뜨리지 않는다 — 화면이 거짓을 말하게 된다.
 // 여기서 막고, 화면은 통과한 값을 그대로 보여준다(CLAUDE.md 상태값 규약).
-function validate(sections) {
+function validate(sections, rawSections) {
   const errs = [];
-  for (const k of Object.keys(sections)) {
+  for (const k of Object.keys(rawSections)) {
     if (!SECTION_KEYS.includes(k)) errs.push(`알 수 없는 섹션: ${k}`);
-    else if (!Array.isArray(sections[k])) errs.push(`${k} 은 배열이어야 합니다`);
+    else if (!Array.isArray(rawSections[k])) errs.push(`${k} 은 배열이어야 합니다`);
+  }
+  // ★ 2026-09-18 — **항목이 화면에 보일 제목을 갖는지 본다.** 여태 이 검사가 없어서
+  //   제목 없는 항목이 발행을 통과하고 화면에서 '—' 로 떨어졌다(Irene: "다 비어서 나와").
+  //   건수만 맞고 내용이 비는 모양이라 "저장이 안 됐다" 로 보인다 — 조용한 기본값 계열.
+  //   문자열 항목은 정규화가 대표 키로 승격하므로 여기서 걸리지 않는다(문자열은 정식 입력이다).
+  for (const k of SECTION_KEYS) {
+    (sections[k] || []).forEach((it, i) => {
+      if (!titleOf(it)) {
+        errs.push(`${k}[${i}] 에 제목이 없습니다 — 문자열로 쓰거나 '${PRIMARY_KEY[k]}' 를 채우세요 (받은 값: ${JSON.stringify(it).slice(0, 80)})`);
+      }
+    });
   }
   for (const it of sections.completed || []) {
     if (it.verified && !VERIFIED.has(it.verified)) errs.push(`completed.verified 허용값 아님: ${it.verified} (${[...VERIFIED].join('|')})`);
@@ -63,8 +72,11 @@ function validate(sections) {
   catch (e) { die(`json 파싱 실패: ${e.message}`); }
 
   const meta = metaRaw ? (() => { try { return JSON.parse(metaRaw); } catch (e) { die(`--meta 파싱 실패: ${e.message}`); } })() : {};
-  const sections = doc.sections || doc;
-  const errs = validate(sections);
+  // 정규화 먼저 — 문자열 항목을 섹션별 대표 키로 승격한 뒤 검증한다.
+  //   저장도 정규화된 것을 넣는다(읽는 쪽도 다시 정규화하므로 옛 행은 그 자리에서 치유된다).
+  const rawSections = doc.sections || doc;
+  const sections = normalizeSections(rawSections);
+  const errs = validate(sections, rawSections);
   if (errs.length) { errs.forEach((e) => console.error(`  ✗ ${e}`)); die(`검증 실패 ${errs.length}건`); }
 
   const commit_to = meta.commit_to || doc.commit_to;

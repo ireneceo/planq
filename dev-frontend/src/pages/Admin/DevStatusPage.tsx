@@ -25,6 +25,28 @@ import {
 
 type SectionKey = keyof DevStatusSections;
 
+// 항목의 제목 — ★ 2026-09-18 (Irene: "개발현황이 제대로 저장이 안되는데. 내용들이. 다 비어서 나와")
+//   서버 `services/devStatusSections.js` 가 문자열 항목을 섹션별 대표 키로 승격해 내려주므로
+//   여기 오는 것은 객체다. 그래도 **문자열을 그대로 받는 길을 남긴다** — 화면 검증이 서버보다
+//   엄격하면 서버가 이미 허용하는 것을 사용자는 영영 못 본다(memory feedback_client_stricter_than_server).
+//   그리고 **못 읽으면 '—' 가 아니라 원문을 보인다.** 조용한 기본값은 "저장이 안 됐다" 로 읽힌다
+//   (CLAUDE.md 상태값 규약). 이 신고가 정확히 그 모양이었다 — 건수는 맞는데 내용만 비었다.
+const TITLE_KEYS = ['title', 'area', 'what', 'tool', 'script', 'subject'] as const;
+function itemTitle(it: unknown): string {
+  if (typeof it === 'string') return it;
+  if (it && typeof it === 'object') {
+    const o = it as Record<string, unknown>;
+    for (const k of TITLE_KEYS) {
+      const v = o[k];
+      if (typeof v === 'string' && v.trim()) return v;
+    }
+    return JSON.stringify(it);   // 모르는 모양이어도 **보이게** 한다
+  }
+  return String(it ?? '');
+}
+const asRecord = (it: unknown): Record<string, unknown> =>
+  (it && typeof it === 'object' ? it as Record<string, unknown> : {});
+
 // 개발자/관리자가 읽는 순서로 배열한다 — "지금 무엇이 진행 중인가" 가 먼저,
 // "무엇을 더 봐야 하는가" 가 끝.
 const SECTION_ORDER: SectionKey[] = [
@@ -120,15 +142,18 @@ export default function DevStatusPage() {
                   <Nothing>{t('devStatus.none', '없음')}</Nothing>
                 ) : (
                   <List>
-                    {(items as Record<string, unknown>[]).map((it, i) => (
-                      <Row key={i}>
-                        <RowMain>
-                          <RowTitle>{String(it.title || it.area || it.what || it.tool || it.script || it.subject || '—')}</RowTitle>
-                          {renderMeta(it, detail, t)}
-                        </RowMain>
-                        {renderBody(k, it, t)}
-                      </Row>
-                    ))}
+                    {(items as unknown[]).map((raw, i) => {
+                      const it = asRecord(raw);
+                      return (
+                        <Row key={i}>
+                          <RowMain>
+                            <RowTitle>{itemTitle(raw)}</RowTitle>
+                            {renderMeta(it, detail, t)}
+                          </RowMain>
+                          {renderBody(k, it, t)}
+                        </Row>
+                      );
+                    })}
                   </List>
                 )}
               </Section>
@@ -143,6 +168,11 @@ export default function DevStatusPage() {
 // 본문 — 항목 종류마다 보여줄 필드가 다르다. 전부 텍스트다.
 function renderBody(k: SectionKey, it: Record<string, unknown>, t: TFn) {
   if (k === 'behavior_changes') {
+    // ★ 전/후가 둘 다 없으면 「이전 — 이후 —」 빈 칸을 그리지 않는다. 한 줄 서술로 적은 항목이
+    //   «비어 보이는» 원인이었다 — 없는 것은 자리도 만들지 않는다.
+    if (!it.before && !it.after) {
+      return it.affected ? <RowDetail><p>{t('devStatus.affected', '영향')}: {String(it.affected)}</p></RowDetail> : null;
+    }
     return (
       <Diff>
         <DiffCell $kind="before"><DiffLabel>{t('devStatus.before', '이전')}</DiffLabel>{String(it.before || '—')}</DiffCell>

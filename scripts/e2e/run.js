@@ -21,7 +21,11 @@ const SUITES = {
   narrowtext: () => require('./narrow-text-audit'),   // 세로로 쌓인 텍스트 (제목 붕괴)
   crosscut: () => require('./canary-crawl'),   // 표시명(계정명) 누출 카나리 크롤
   l1: () => require('./canary-l1'),             // L1 개인자원 누출 카나리 (백엔드 API 크롤)
-  tenant: () => require('./canary-tenant'),     // 멀티테넌트 격리 카나리 (비멤버 biz 403 실증)
+  tenant: () => require('./canary-tenant'),     // 멀티테넌트 격리 카나리 (비멤버 biz 403 실증) — **GET 전용**
+  // 일괄 **쓰기** 격리 (2026-09-17 Fable 22차 소견). 정적 문자열 검사는 우회된다 —
+  //   `resolveBulkTargetIds` 앞에 한 줄 끼우면 카나리는 초록인데 남의 메시지 34→0 이었다.
+  //   판정은 응답이 아니라 **DB** 다: 실제 결함이 `updated:0` 이라고 답하면서 데이터를 고쳤다.
+  tenantwrite: () => require('./canary-tenant-write'),
   mail: () => require('./canary-mail-triage'),  // 메일 판정 카나리 (실 mailparser 헤더 — 조용히 눈감는 계열)
   // 메일 **검색**이 조용히 누락하지 않는가 (2026-09-15 Irene: "보낸 사람 이름으로 검색해도 안 나와").
   //   흔한 단어가 섞이면 옛 LIMIT 1000(무정렬)이 27% 를 잘라내고 있었다 — 오류 없이.
@@ -136,6 +140,10 @@ const SUITES = {
   mailplain: () => require('./canary-mail-plaintext'),
   seriesscope: () => require('./canary-series-scope'),
   admincrawl: () => require('./canary-admin-crawl'),
+  // 개발 현황이 **내용을 보여주는가** (2026-09-18 신고: "다 비어서 나와").
+  //   JSON 의 모양과 화면이 읽는 필드가 **합쳐진 뒤에만** 존재하는 결함이라 정적 검사로 안 잡힌다.
+  //   '—' 가 아니라 심은 문장이 실제로 보이는지로 판정한다(발행 검증 양성/음성 대조군 포함).
+  devstatus: () => require('./canary-dev-status'),
   // rawkey — 번역 키가 화면에 그대로 나오는가. 정적 가드는 `t(\`status.${x}\`)` 같은 **동적 키**를
   //   구조적으로 못 본다(뒤가 런타임 값이라 대조할 대상이 없다). 판정을 화면으로 옮긴다.
   //   ★ 반증 완료(2026-09-07): 소스 로케일에서 status.* 를 지우고 **재빌드**하면 폰·데스크탑
