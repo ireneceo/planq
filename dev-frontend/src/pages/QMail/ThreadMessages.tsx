@@ -323,7 +323,7 @@ export default function ThreadMessages(p: Props) {
               foldLabels={foldLabels}
             />
           ) : (
-            <MessageBodyText data-mail-body="1">
+            <MessageBodyText data-mail-body="1" data-testid="mail-body-block">
               {/* ★ 2026-09-08 — 평문 메일(body_html 없음)은 여태 **URL 이 그냥 글자**였다.
                   운영 실측: message #3517 은 body_html 이 NULL 이고 본문에 초대 링크가 있는데
                   누를 수가 없었다(Irene 신고). HTML 메일에만 링크가 있어서 같은 메일함 안에서
@@ -331,8 +331,16 @@ export default function ThreadMessages(p: Props) {
               {linkify(m.body_text || '') }
             </MessageBodyText>
           )}
+          {/* ★ 2026-09-18 (Irene: *"이메일 상세에 첨부파일 위치가 애매해. 내용에 바로 아래 첨부파일
+              있어야 할 것 같아. 이전 대화보기가 본문이라면 그 아래에 첨부파일 나와야지.
+              번역이랑 메일내용 요약정리 하는 것보다 첨부파일이 아래에 나와야 하지 않아?"*)
+              첨부는 **받은 메일에 딸려 온 것**이고 번역·요약은 우리가 덧붙이는 것이다.
+              받은 것이 먼저고 우리가 만든 것이 뒤다 — 그래서 본문 바로 아래로 옮겼다.
+              「이전 대화보기」는 본문(MailMessageBody) 안에 있으므로 자연히 그 아래가 된다.
+              여태는 번역문·요약 패널 뒤라 긴 메일에서 첨부를 찾으려면 한참 내려야 했다. */}
+          <MessageAttachments businessId={businessId} attachments={m.attachments} />
           {/* #184 — 번역하기 / 원본 보기 토글 (언어 선택). 답장 원문 언어는 #153에서 처리됨. */}
-          <TransBar>
+          <TransBar data-testid="mail-trans-bar">
             <TransSelect value={transLangByMsg[m.id] ?? pickTranslateTarget(guessLangFromText(m.body_text, m.body_html), uiLang)}
               onChange={(e) => setTransLangByMsg((p) => ({ ...p, [m.id]: e.target.value }))}
               aria-label={t('translate.langLabel', { defaultValue: '번역 언어' }) as string}>
@@ -396,7 +404,6 @@ export default function ThreadMessages(p: Props) {
             <TransBody>{msgTrans[m.id]!.text}</TransBody>
           )}
           {briefOpenFor === m.id && brief && <MailBriefPanel brief={brief} />}
-          <MessageAttachments businessId={businessId} attachments={m.attachments} />
           </>}
         </MessageCard>
         );

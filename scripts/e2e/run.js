@@ -55,6 +55,9 @@ const SUITES = {
   headerdrift: () => require('./canary-header-drift'),
   fab: () => require('./canary-fab-reach'),
   mailfwd: () => require('./canary-mail-forward'),   // 전달 컴포저 — 원문 미리보기가 **실제 높이**를 갖는가
+  // 메일 상세에서 **첨부가 본문 바로 아래**인가 (2026-09-18 신고).
+  //   DOM 순서가 아니라 **화면 y** 로 잰다 — JSX 순서만 보면 CSS 로 뒤집혀 있어도 초록이다.
+  mailattach: () => require('./canary-mail-attach-order'),
   mailimage: () => require('./canary-mail-image'),   // #378 메일 본문 이미지 — 드래그가 무시되는지 눈으로 구별이 안 되는 계열
   dropdowns: () => require('./canary-dropdowns'),   // 알림↔새소식 규격 일치 + 새 탭으로 열기
   imgresize: () => require('./canary-image-resize'),

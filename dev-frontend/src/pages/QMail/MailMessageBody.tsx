@@ -36,6 +36,7 @@ function MailMessageBody({ id, bodyHtml, bodyText, cidMap, measuredH, foldLabels
   const h = measuredH || estimateHeight(bodyText);
   return (
     <MessageBodyFrame
+      data-testid="mail-body-block"
       sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
       style={{ height: `${h}px`, transition: 'height 120ms ease-out' }}
       srcDoc={srcDoc}

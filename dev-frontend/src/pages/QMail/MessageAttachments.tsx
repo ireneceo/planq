@@ -129,7 +129,8 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
 
   return (
     <>
-      <Attachments>
+      {/* 검사가 붙잡는 확정 손잡이 — 본문 바로 아래에 있는지 y 로 잰다(§17) */}
+      <Attachments data-testid="mail-attachments">
         {attachments.map(a => {
           const canPreview = isPreviewable(a);
           return (
