@@ -1,0 +1,26 @@
+{
+  "version": "1.52.12",
+  "date": "2026-09-18",
+  "items": [
+    {
+      "ko": {
+        "title": "메일 서명을 언어별로 만들 수 있습니다",
+        "body": "영어로 쓴 메일에도 한국어 서명이 그대로 붙었습니다. 이제 언어별로 서명을 따로 등록하면, 메일 본문의 언어에 맞춰 알아서 골라 붙습니다. 설정에서 서명을 쓰는 곳마다 [한국어 | English] 탭이 생겼고, 워크스페이스 공통 서명·메일 계정 서명·보내는 주소별 서명 세 곳 모두에서 쓸 수 있습니다. 영문 칸을 비워 두면 지금까지처럼 기본 서명이 붙으니, 필요한 곳에만 채우면 됩니다."
+      },
+      "en": {
+        "title": "Email signatures can now be set per language",
+        "body": "Until now the Korean signature was attached even to emails written in English. Register a signature per language and PlanQ picks the right one from the language of the message body. A [Korean | English] tab now appears everywhere you edit a signature — the workspace-wide one, each mail account, and each sending address. Leave the English box empty and your default signature is used exactly as before, so you only fill in the ones you need."
+      }
+    },
+    {
+      "ko": {
+        "title": "영문 서명이 없으면 메일을 쓰는 중에 알려 줍니다",
+        "body": "영어로 메일을 쓰는데 영문 서명을 아직 만들지 않았다면, 작성창이 «영문 서명이 없어 한국어 서명이 붙습니다» 라고 알려 줍니다. 설정 화면으로 갈 필요 없이 그 자리에서 바로 만들 수 있고, 저장하면 지금 쓰고 있던 메일부터 곧바로 적용됩니다. 어떤 서명이 붙는지도 보내기 전에 화면에서 확인할 수 있습니다."
+      },
+      "en": {
+        "title": "The composer tells you when an English signature is missing",
+        "body": "If you are writing in English but have not set up an English signature yet, the composer says so — \"no English signature, the Korean one will be attached\". You can write one right there without leaving for the settings screen, and saving applies it to the email you are already writing. You can also see which signature will be attached before you send."
+      }
+    }
+  ]
+}
