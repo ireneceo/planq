@@ -416,6 +416,9 @@ export const OverdueChip = styled.span`
   border: 1px solid #FECACA; border-radius: 999px; padding: 1px 7px;
 `;
 // 리스트 행의 처리 버튼 — 확인 완료 · 스팸 · 답변 불필요. 높이·정렬을 하나로 고정한다.
+// 「답변 필요로 →」 의 화살표. 장식이라 height 를 적지 않는다(UI 규격 가드가 컨트롤 높이로 센다).
+export const SendArrow = styled.svg`width: 11px; margin-left: 3px; flex-shrink: 0;`;
+
 export const RowBtn = styled.button<{ $danger?: boolean }>`
   height: 24px; padding: 0 8px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;

@@ -190,11 +190,11 @@
     }
   },
   "uncertain": {
-    "billing": "Billing/payment",
-    "quote": "Quote/contract",
-    "review": "Review suggested",
+    "billing": "Billing",
+    "quote": "Quote",
+    "review": "Review",
     "automated_relevant": "Auto task",
-    "unclear_intent": "Needs a closer look"
+    "unclear_intent": "Unclear"
   },
   "replyNeededBadge": "Reply needed",
   "actions": {
@@ -204,7 +204,7 @@
     "handledDone": "Done",
     "extractTasks": "Extract tasks",
     "extractTasksHint": "Pull action items out of this email as candidates",
-    "markReplyNeeded": "Mark as needs reply",
+    "markReplyNeeded": "To needs-reply",
     "markReplyNeededHint": "Flags this mail as needing a reply. You can handle it from the Needs reply tab.",
     "more": "More",
     "assigneePrefix": "Owner",

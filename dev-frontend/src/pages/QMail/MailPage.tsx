@@ -147,6 +147,7 @@ import {
   ReplyBar,
   ReplyRow,
   RowBtn,
+  SendArrow,
   RowLabels,
   FolderChip,
   RuleBadge,
@@ -2495,9 +2496,16 @@ const MailPage: React.FC = () => {
                   )}
                   {folder === 'uncertain' && !handledIds.has(mt.id) && (
                     <ReplyRow>
-                      {mt.status === 'uncertain' && (
+                      {/* ★ 2026-09-19 (Irene #421: *"이건 확인이 필요하면 확인권장탭으로 가면 되는 건데
+                          왜 체크가 나와? 이건 필요없는 표시 같은데?"*) — **탭 이름이 이미 그 말을 하고 있다.**
+                          일반 사유(unclear_intent·review)는 «확인이 필요하다» 는 뜻뿐이라 이 탭에서는
+                          같은 말을 두 번 하는 것이다. 정보를 더하는 사유(자동업무·청구결제·견적계약)만 남긴다.
+                          다른 탭에서는 맥락이 없으므로 종전대로 전부 보여준다(위 UncertainBadge). */}
+                      {mt.status === 'uncertain'
+                        && !!mt.uncertain_reason
+                        && !['unclear_intent', 'review'].includes(mt.uncertain_reason) && (
                         <UncertainInline>
-                          ⚠ {t(`uncertain.${mt.uncertain_reason || 'review'}`, { defaultValue: t('uncertain.review', { defaultValue: '확인 권장' }) }) as string}
+                          ⚠ {t(`uncertain.${mt.uncertain_reason}`, { defaultValue: t('uncertain.review', { defaultValue: '확인권장' }) }) as string}
                         </UncertainInline>
                       )}
                       <RowBtn
@@ -2516,7 +2524,12 @@ const MailPage: React.FC = () => {
                         title={t('actions.markReplyNeededHint', { defaultValue: '이 메일을 «답변 필요» 로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
                         onClick={(e) => markReplyNeeded(e, mt.id)}
                       >
-                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요로 표시' }) as string}
+                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요로' }) as string}
+                        {/* 「표시」를 아이콘으로 — 방향형 어미(…로)는 남긴다. 상태 뱃지(빨간 「답변 필요」)와
+                            글자가 같아지면 목록이 «같은 표시가 두 번» 으로 읽힌다(CLAUDE.md Q mail 계약 ②). */}
+                        <SendArrow aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="5" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" />
+                        </SendArrow>
                       </RowBtn>
                       <RowBtn
                         type="button"
@@ -2547,7 +2560,12 @@ const MailPage: React.FC = () => {
                         title={t('actions.markReplyNeededHint', { defaultValue: '이 메일을 «답변 필요» 로 올립니다. 답변 필요 탭에서 이어서 처리할 수 있습니다.' }) as string}
                         onClick={(e) => markReplyNeeded(e, mt.id)}
                       >
-                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요로 표시' }) as string}
+                        {t('actions.markReplyNeeded', { defaultValue: '답변 필요로' }) as string}
+                        {/* 「표시」를 아이콘으로 — 방향형 어미(…로)는 남긴다. 상태 뱃지(빨간 「답변 필요」)와
+                            글자가 같아지면 목록이 «같은 표시가 두 번» 으로 읽힌다(CLAUDE.md Q mail 계약 ②). */}
+                        <SendArrow aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="5" y1="12" x2="19" y2="12" /><polyline points="13 6 19 12 13 18" />
+                        </SendArrow>
                       </RowBtn>
                     </ReplyRow>
                   )}
@@ -3237,6 +3255,3 @@ export default MailPage;
 
 
 // 리스트 행의 스팸 버튼 — 파괴적이지 않지만 되돌릴 수 있음을 알리는 톤(회색 → hover 시 danger)
-
-
-
