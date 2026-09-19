@@ -37,9 +37,21 @@ router.post('/:businessId/qnote-sessions/:sid/extract-tasks',
       const sid = Number(req.params.sid);
       const { text, title } = req.body || {};
       if (!text || !String(text).trim()) return errorResponse(res, 'text_required', 400);
+      // ★ 세션이 붙어 있는 프로젝트를 **가져다 쓴다**(있으면). q-note 는 별도 서비스라 Node 가
+      //   직접 못 읽으므로 내부 문으로 묻는다. **실패해도 추출은 막지 않는다** — 프로젝트 귀속은
+      //   편의이고, 못 알아냈다고 업무 추출 자체를 못 하게 하면 손해가 더 크다.
+      //   (그래서 여기서는 소유 확인을 «차단» 이 아니라 «알아내기» 로만 쓴다 — 팀원이 공유받은
+      //    노트에서 뽑는 정상 경로를 막지 않기 위해서다.)
+      let projectId = null;
+      try {
+        const { verifyQnoteSession } = require('../services/qnoteOwnership');
+        const v = await verifyQnoteSession({ sessionId: sid, userId: req.user.id, businessId });
+        if (v.ok && v.session && v.session.project_id) projectId = Number(v.session.project_id);
+      } catch { /* 못 알아내면 워크스페이스 업무로 — 종전 동작 */ }
+
       const extractor = require('../services/task_extractor');
       const out = await extractor.extractNoteTaskCandidates({
-        text: String(text), title: title ? String(title) : '', qnoteSessionId: sid, userId: req.user.id, businessId,
+        text: String(text), title: title ? String(title) : '', qnoteSessionId: sid, userId: req.user.id, businessId, projectId,
       });
       if (out.skipped === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if ((out.candidates || []).length) {

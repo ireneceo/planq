@@ -655,7 +655,7 @@ async function extractEmailTaskCandidates({ emailThreadId, userId, businessId })
 // ─── Q Note 세션 → 업무 후보 (cross-DB 브릿지, N+88) ───
 // qnote 는 SQLite 라 Node 가 직접 못 읽음 → 프론트가 text(transcript/summary)+title+qnote_session_id 전달.
 // 개인 노트라 프로젝트 미연결 기본 (담당자는 등록 시 사용자 선택). business_id 후보에 직접 저장 (tenant 격리).
-async function extractNoteTaskCandidates({ text, title, qnoteSessionId, userId, businessId }) {
+async function extractNoteTaskCandidates({ text, title, qnoteSessionId, userId, businessId, projectId = null }) {
   const BusinessMember = require('../models/BusinessMember');
   const clean = String(text || '').replace(/\s+/g, ' ').trim();
   if (!clean) return { candidates: [], reason: 'no_text' };
@@ -668,7 +668,22 @@ async function extractNoteTaskCandidates({ text, title, qnoteSessionId, userId, 
   const language = detectLang(messagesText, 'ko', title);
   try { const usage = await checkUsageLimit(businessId); if (usage.over) return { candidates: [], skipped: 'usage_limit_exceeded' }; } catch { /* best-effort */ }
 
-  const prompt = buildExtractionPrompt(messagesText, memberNames, language, note);
+  // ★ 2026-09-19 — 이미 이 세션에서 뽑힌 것을 **모델에게 알려준다.** 제목 대조만으로는 못 막는다:
+  //   [다시 추출] 을 누르면 모델이 **같은 일을 다른 문장으로** 내놓아 비슷한 후보가 쌓였다
+  //   (실측: 목록 1 → 2). 사후 필터가 아니라 **애초에 다시 내놓지 않게** 하는 쪽이 맞다.
+  //   아래 제목 대조(dedup)는 그래도 남긴다 — 모델이 지시를 어겨도 걸리는 두 번째 그물이다.
+  const knownC = await TaskCandidate.findAll({
+    where: { qnote_session_id: qnoteSessionId, status: { [Op.in]: ['pending', 'registered', 'merged', 'rejected'] } },
+    attributes: ['title'], order: [['id', 'DESC']], limit: 30,
+  });
+  const knownTitles = knownC.map((c) => (c.title || '').trim()).filter(Boolean);
+  const alreadyBlock = knownTitles.length
+    ? `\n\n═══ ALREADY EXTRACTED (do NOT return these again, not even reworded) ═══\n`
+      + knownTitles.map((x) => `- ${x}`).join('\n')
+      + `\nIf every actionable item is already listed above, return an empty list.`
+    : '';
+
+  const prompt = buildExtractionPrompt(messagesText, memberNames, language, note) + alreadyBlock;
   const llmResult = await callLLMJson([{ role: 'system', content: prompt }], { temperature: 0.1, maxTokens: 1500 });
   await recordUsage(businessId, 'task_extraction', MODEL, llmResult.input_tokens, llmResult.output_tokens);
 
@@ -677,8 +692,11 @@ async function extractNoteTaskCandidates({ text, title, qnoteSessionId, userId, 
   extracted = extracted.filter((t) => String(t.title || '').trim());  // 빈 제목 후보 제거
   if (extracted.length === 0) return { candidates: [], reason: 'no_tasks_found', fallback: llmResult.fallback };
 
-  // dedup — 같은 세션에서 이미 resolved 된 후보 제목 (qnote 는 source message id 없음 → title 기반)
-  const resolvedC = await TaskCandidate.findAll({ where: { qnote_session_id: qnoteSessionId, status: { [Op.in]: ['registered', 'merged', 'rejected'] } }, attributes: ['title'] });
+  // dedup — 같은 세션의 기존 후보 제목 (qnote 는 source message id 없음 → title 기반)
+  //   ★ 2026-09-19 — 여태 **resolved 된 것만** 봤다. 그래서 [다시 추출] 을 누르면 **아직 처리도
+  //     안 한 대기 후보와 같은 제목이 또 쌓였다.** 사용자에게는 같은 업무가 두 번 세 번 보인다.
+  //     pending 도 함께 막는다 — «이미 목록에 있는 것» 은 다시 만들 이유가 없다.
+  const resolvedC = await TaskCandidate.findAll({ where: { qnote_session_id: qnoteSessionId, status: { [Op.in]: ['pending', 'registered', 'merged', 'rejected'] } }, attributes: ['title'] });
   const blockedTitles = new Set(resolvedC.map((c) => (c.title || '').trim().toLowerCase()));
   extracted = extracted.filter((t) => !blockedTitles.has(String(t.title || '').trim().toLowerCase()));
   if (extracted.length === 0) return { candidates: [], reason: 'all_duplicates' };
@@ -692,7 +710,10 @@ async function extractNoteTaskCandidates({ text, title, qnoteSessionId, userId, 
         const d = new Date(rawDate.trim() + 'T00:00:00'); if (!isNaN(d.getTime())) safeDate = rawDate.trim();
       }
       const cand = await TaskCandidate.create({
-        project_id: null, conversation_id: null, email_thread_id: null,
+        // ★ 세션이 프로젝트에 붙어 있으면 후보도 그 프로젝트의 것이다 — 등록하면 업무가 그
+        //   프로젝트로 간다(`registerCandidate` 가 `candidate.project_id` 를 그대로 쓴다).
+        //   여태 null 고정이라 프로젝트 안에서 뽑은 업무가 워크스페이스 업무로 떨어졌다.
+        project_id: projectId || null, conversation_id: null, email_thread_id: null,
         qnote_session_id: qnoteSessionId, business_id: businessId,
         extracted_at: new Date(), extracted_by_user_id: userId,
         source_message_ids: null, source_email_message_ids: null,

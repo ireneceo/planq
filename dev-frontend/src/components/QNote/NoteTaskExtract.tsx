@@ -44,7 +44,12 @@ export default function NoteTaskExtract({ businessId, sessionId, text, title, my
   const [rowBusy, setRowBusy] = useState<number | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // 이미 뽑아 둔 후보를 먼저 보여준다 — 누를 때마다 다시 뽑게 하면 같은 후보가 쌓인다
+  // 이미 뽑아 둔 후보를 먼저 보여준다 — 누를 때마다 다시 뽑게 하면 같은 후보가 쌓인다.
+  //   ★ 알려진 것(2026-09-19 실측) — 이 조회가 **같은 밀리초에 2번** 나간다. 응답은 둘 다 200 이고
+  //     화면에 보이는 영향은 없다(멱등 GET). 가른 사실: 멤버 조회도 2회인데 부모의 세션 조회는 1회 ·
+  //     DOM 인스턴스 1개 · 프로덕션 빌드(StrictMode 아님) · 번들 청크 1벌.
+  //     인스턴스별 ref 와 모듈 단위 합치기를 **둘 다 시도했지만 듣지 않았다** — 원인 미규명이다.
+  //     듣지 않는 장치를 남기면 다음 사람이 «처리됐다» 고 믿으므로 걷어냈다. 증상만 여기 적어 둔다.
   useEffect(() => {
     let alive = true;
     setCands([]); setMsg(null);
