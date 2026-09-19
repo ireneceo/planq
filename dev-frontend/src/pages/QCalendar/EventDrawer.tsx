@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
+// 「미팅 정리」 메뉴는 Q note·Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다
+import { NewNoteMenu, NewSessionWrap, openQNoteWithKind } from '../../components/QNote/newNoteMenu';
+import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
@@ -84,6 +87,8 @@ const EventDrawer: React.FC<Props> = ({
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
+  // 「미팅 정리」 드롭다운 — 좌표·바깥클릭·Esc·포커스는 공용 앵커 한 벌
+  const noteAnchor = usePopoverAnchor();
   const { user } = useAuth();
   // 운영 #41 — 워크스페이스 tz 기본 + 개인 tz 보조표시
   const wsTz = user?.workspace_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -283,6 +288,32 @@ const EventDrawer: React.FC<Props> = ({
                   {formatRRuleLabel(event.rrule, event.start_at?.slice(0, 10), tQtask as unknown as Parameters<typeof formatRRuleLabel>[2], { short: true })}
                 </RecurrenceBadge>
               )}
+              {/* ★ 2026-09-19 (#411: *"미팅내용 정리하기 기능을 추가해서 Q note 열리게 하고 바로
+                  마이크 녹음할지 그냥 메모할지 … 미팅시작할 때 누르게 도와줘"*)
+                  메뉴는 Q note 사이드바·Q sale [상담 진행] 과 **같은 한 벌**이다. 고르면 Q note 가
+                  새 탭에서 그 모드로 열린다 — 보던 일정을 덮지 않는다. */}
+              <NewSessionWrap ref={noteAnchor.wrapRef}>
+                <MeetingNoteBtn
+                  type="button"
+                  data-testid="event-meeting-note"
+                  aria-expanded={noteAnchor.open}
+                  aria-haspopup="menu"
+                  onClick={noteAnchor.toggle}
+                >
+                  {t('drawer.meetingNote', { defaultValue: '미팅 정리' }) as string}
+                  <Caret aria-hidden viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9" />
+                  </Caret>
+                </MeetingNoteBtn>
+                {noteAnchor.open && (
+                  <NewNoteMenu
+                    pos={noteAnchor.pos}
+                    panelRef={noteAnchor.panelRef}
+                    onMouseLeave={noteAnchor.close}
+                    onPick={(kind) => { noteAnchor.close(); openQNoteWithKind(kind); }}
+                  />
+                )}
+              </NewSessionWrap>
               {!canEdit && (
                 <ReadOnlyHint title={t('drawer.readOnlyHint', '편집은 작성자 또는 관리자만 가능합니다') as string}>
                   {t('drawer.readOnly', '읽기 전용')}
@@ -1372,3 +1403,19 @@ const ScopeOptHint = styled.span`
 const ScopeFooter = styled.div`
   display: flex; justify-content: flex-end; margin-top: 4px;
 `;
+
+// 「미팅 정리 ▾」 — 메타줄의 칩들과 같은 높이·모양(칩 줄에 섞이므로 버튼 티를 내지 않는다)
+const MeetingNoteBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 2px;
+  /* ★ 높이를 적지 않는다 — 같은 줄의 형제 칩(CategoryPill·ProjectChip·VisibilityTag)이 전부
+     padding 만으로 높이를 맞춘다. 여기만 height 를 박으면 1px 씩 어긋나고, UI 규격 가드도
+     그 숫자를 «컨트롤 높이» 로 세어 규격을 지킨 코드가 래칫을 올린다. */
+  padding: 3px 8px;
+  background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 6px;
+  color: #0F766E; font-size: 0.6875rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+  &:hover { background: #CCFBF1; }
+  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 1px; }
+`;
+// 장식 svg 에 height 를 적지 않는다(UI 규격 가드가 컨트롤 높이로 센다)
+const Caret = styled.svg`width: 11px; flex-shrink: 0;`;

@@ -142,6 +142,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onS
               <Card
                 key={`${task ? 't' : personal ? 'p' : 'e'}-${(e as { _instance_key?: string })._instance_key || e.id}-${g.key}`}
                 $border={c.border}
+                data-testid={task ? 'calendar-task' : 'calendar-event'}
                 onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
               >
                 <CardTime>{timeLabel}</CardTime>

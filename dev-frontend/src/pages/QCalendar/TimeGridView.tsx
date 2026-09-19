@@ -97,6 +97,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                     $bg={c.bg}
                     $fg={c.fg}
                     $border={c.border}
+                    data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                     onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                   >
                     {isTask && <CheckIcon size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />}{e.title}
@@ -166,6 +167,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                         $bg={c.bg}
                         $fg={c.fg}
                         $border={c.border}
+                        data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                         onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       >
                         <EventHeader>

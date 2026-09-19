@@ -108,6 +108,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                       $fg={c.fg}
                       $border={c.border}
                       $allDay={e.all_day || !isSameDay(new Date(e.start_at), new Date(e.end_at))}
+                      data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                       onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       title={e.title}
                     >
@@ -168,6 +169,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                     $bg={c.bg}
                     $fg={c.fg}
                     $border={c.border}
+                    data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                     onClick={() => { onSelectEvent(e.id, e.start_at?.slice(0, 10)); setPopoverDay(null); }}
                   >
                     <PopoverItemTime>

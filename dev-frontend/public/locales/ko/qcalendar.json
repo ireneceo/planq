@@ -204,7 +204,8 @@
     "gcalSync": "Google Calendar",
     "share": "공유",
     "gcalMeetingKept": "회의가 걸린 캘린더 사본은 동기화를 꺼도 유지됩니다 (참석자에게 배포된 링크 보호). 비공개로 바꾸면 팀 사본은 회수됩니다.",
-    "me": "나"
+    "me": "나",
+    "meetingNote": "미팅 정리"
   },
   "empty": {
     "month": "이번 달엔 예정된 일정이 없습니다",
