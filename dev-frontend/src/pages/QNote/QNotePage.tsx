@@ -16,6 +16,8 @@ import { listRowTitleCss } from '../../theme/tokens';
 import StartMeetingModal from './StartMeetingModal';
 import AudioUploadModal from './AudioUploadModal';
 import SaveToSaleModal from './SaveToSaleModal';
+// 업무 추출 — 서버·서비스는 2026-06-05 부터 있었는데 부르는 화면이 없었다(운영 #382)
+import NoteTaskExtract from '../../components/QNote/NoteTaskExtract';
 // 새 노트 메뉴·＋ 버튼은 Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다
 import { NewNoteMenu, NewSessionWrap, NewSessionBtn } from '../../components/QNote/newNoteMenu';
 import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
@@ -3203,6 +3205,21 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 </SummaryEmpty>
               )}
             </SummarySection>
+
+            {/* ★ 2026-09-19 (#382: *"업무추출되게 하고"*) — 요약 바로 아래.
+                추출에 넣는 본문은 **전사 전문**이고, 없으면 요약으로 떨어진다. */}
+            {businessId && (
+              <NoteTaskExtract
+                businessId={Number(businessId)}
+                sessionId={activeSession.id}
+                title={activeSession.title}
+                myUserId={user ? Number(user.id) : undefined}
+                text={(activeSession.utterances || [])
+                  .map((u) => String(u.original_text || '').trim())
+                  .filter(Boolean)
+                  .join('\n') || String(activeSession.summary_full || '')}
+              />
+            )}
 
             {/* N+88 — 업무 추출 (transcript → 후보 → 등록). TaskCandidateCard 통일 재사용. */}
             <TasksSection>

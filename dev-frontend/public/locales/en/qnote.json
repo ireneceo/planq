@@ -491,5 +491,16 @@
     "errFailed": "Could not save",
     "endAndSave": "End and save to consults",
     "saveOnly": "Save to consults"
+  },
+  "extract": {
+    "title": "Extract tasks",
+    "run": "Extract tasks",
+    "again": "Extract again",
+    "none": "No tasks found to extract.",
+    "aiUnavailable": "The AI service is briefly unavailable. Please try again shortly.",
+    "failed": "Could not extract tasks.",
+    "registerFailed": "Could not create the task.",
+    "rejectFailed": "Could not dismiss the candidate.",
+    "needText": "A transcript or summary is needed to extract tasks."
   }
 }
