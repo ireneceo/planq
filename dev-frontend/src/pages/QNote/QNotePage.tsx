@@ -2705,7 +2705,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               placeholder={t('page.sessionSearchPlaceholder', { defaultValue: '노트 검색' }) as string} />
             <AtToolbarRight>
               <NewSessionWrap ref={noteAnchor.wrapRef}>
-                <NewSessionBtn type="button" data-testid="qnote-new-proj"
+                <NewSessionBtn type="button" $wide data-testid="qnote-new-proj"
                   onClick={() => setNewNoteDropdownOpen(v => !v)}
                   aria-expanded={newNoteDropdownOpen}
                   title={t('page.newNoteOrMemo', { defaultValue: '새 노트' }) as string}>

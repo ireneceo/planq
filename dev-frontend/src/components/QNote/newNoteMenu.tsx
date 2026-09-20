@@ -72,8 +72,17 @@ export function NewNoteMenu(
 
 // ── 껍데기 (값은 Q note 사이드바의 것을 그대로 옮겼다 — 바꾸지 않는다) ──
 export const NewSessionWrap = styled.div`position: relative;`;
-export const NewSessionBtn = styled.button`
-  width: 32px;
+/**
+ * 새 노트 버튼.
+ *
+ * ★ 2026-09-20 (Irene: *"프로젝트 > 노트에서 우측 +버튼이 글자가 다 안나오고 +만 있는 사이즈야."*)
+ *   — 이 버튼은 **32×32 아이콘 전용**(`padding:0`, 고정폭)인데 프로젝트 탭에서만 안에 글자를
+ *   넣고 있었다. 칸이 32px 이라 «새 노트» 가 잘려 `+` 만 보였다.
+ *   글자를 같이 보여 주는 자리는 `$wide` 로 **껍데기가** 넓어진다 — 호출부에서 style 을 덧대면
+ *   두 곳이 갈라진다(memory feedback_copied_component_drifts_extract_shell).
+ *   높이는 32px 그대로(한 줄 안 컨트롤 토큰).
+ */
+export const NewSessionBtn = styled.button<{ $wide?: boolean }>`
   height: 32px;
   display: inline-flex;
   align-items: center;
@@ -84,7 +93,9 @@ export const NewSessionBtn = styled.button`
   color: #FFFFFF;
   cursor: pointer;
   transition: background 0.15s;
-  padding: 0;
+  ${p => (p.$wide
+    ? 'width:auto;min-width:32px;padding:0 12px;gap:6px;white-space:nowrap;font-size:0.8125rem;font-weight:700;'
+    : 'width:32px;padding:0;')}
   &:hover { background: #0D9488; }
   &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
 `;
