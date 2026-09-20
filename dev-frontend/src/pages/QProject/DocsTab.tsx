@@ -399,9 +399,15 @@ const DocsTab: React.FC<Props> = (props) => {
   const [pendingUpload, setPendingUpload] = useState<File[] | null>(null);
   const [workspaceUploadProject, setWorkspaceUploadProject] = useState<number | null>(null);
 
-  const handleFiles = useCallback(async (fileList: FileList | File[]) => {
+  /**
+   * 올린다. `folderOverride` 를 주면 **그 폴더로** — 좌측 폴더 행에 바로 떨어뜨린 경우다
+   * (Irene 2026-09-20: *"로컬 파일로 있는 것도 폴더 위에 바로 올려서 못 넣어?"*).
+   * 주지 않으면 지금 보고 있는 폴더(`folderSel`)로 — 종전과 같다.
+   */
+  const handleFiles = useCallback(async (fileList: FileList | File[], folderOverride?: number | null) => {
     const arr = Array.from(fileList);
     if (arr.length === 0) return;
+    const sel: FolderSel | null = folderOverride !== undefined ? folderOverride : folderSel;
     // N+30 — 개인 보관함 모드: project_id 없이 uploadMyFile → backend 가 자동 visibility=L1 (files.js:390)
     if (isPersonal) {
       await runUploads(arr,
@@ -413,7 +419,7 @@ const DocsTab: React.FC<Props> = (props) => {
       // 워크스페이스 모드:
       //  - "내 파일" 폴더 선택 중이면 바로 업로드 (project_id 없이)
       //  - 그 외엔 프로젝트 선택 모달 띄움
-      if (folderSel === 'my') {
+      if (sel === 'my') {
         await runUploads(arr,
           (f, hooks) => uploadMyFile(businessId, f, hooks),
           (file) => setFiles(prev => [file, ...prev]));
@@ -421,8 +427,8 @@ const DocsTab: React.FC<Props> = (props) => {
       }
       // 폴더를 골라 놓고 올리면 **그 폴더로** 들어간다 — 안 그러면 올린 파일이
       //   보고 있던 폴더에 안 보여 "어디 갔지" 가 된다(프로젝트 모드와 같은 규칙).
-      if (typeof folderSel === 'number') {
-        const targetFolder = folderSel;
+      if (typeof sel === 'number') {
+        const targetFolder = sel;
         await runUploads(arr,
           (f, hooks) => uploadMyFile(businessId, f, hooks),
           async (file) => {
@@ -435,7 +441,7 @@ const DocsTab: React.FC<Props> = (props) => {
       setPendingUpload(arr);
       return;
     }
-    const targetFolderId = typeof folderSel === 'number' ? folderSel : null;
+    const targetFolderId = typeof sel === 'number' ? sel : null;
     await runUploads(arr,
       (f, hooks) => uploadProjectFile(businessId, projectId, f, { folderId: targetFolderId, ...hooks }),
       (file) => setFiles(prev => [file, ...prev]));
@@ -661,6 +667,10 @@ const DocsTab: React.FC<Props> = (props) => {
     setDeleteConfirm(null);
   }, [deleteConfirm, businessId, preview]);
 
+  /* 좌측 트리의 드롭 — **한 인스턴스**를 두 트리가 나눠 쓴다. 각자 훅을 부르면 «끌어온 표시»
+     상태가 두 벌이 되어 한쪽에 올렸는데 다른 쪽이 안 밝아진다. */
+  const treeDrop = useFolderDrop(onDropToFolder, (fid, fl) => handleFiles(fl, fid));
+
   const isEmpty = !loading && files.length === 0;
 
   return (
@@ -836,6 +846,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 folderCounts={counts.byFolder}
                 onSelectFolder={id => { setFolderSel(id); clearSelection(); }}
                 onCreateFolder={(pid, parentId) => setNewProjectFolder({ projectId: pid, parentId: parentId ?? null, name: '' })}
+                folderDrop={treeDrop}
               />
               {/* Irene 2026-08-31 — 워크스페이스 파일에도 폴더.
                   프로젝트 그룹(출처별 탐색)은 그대로 두고 **아래에** 폴더를 더한다 —
@@ -867,6 +878,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   setFolders(fd);
                 }}
                 onDropFiles={onDropToFolder}
+                onDropExternal={(fid, fl) => handleFiles(fl, fid)}
                 onDownloadFolder={onDownloadFolder}
                 tr={tr}
               />
@@ -910,6 +922,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 await reorderFolder(id, direction);
               }}
               onDropFiles={onDropToFolder}
+              onDropExternal={(fid, fl) => handleFiles(fl, fid)}
               onDownloadFolder={onDownloadFolder}
               tr={tr}
             />
@@ -1051,9 +1064,18 @@ const DocsTab: React.FC<Props> = (props) => {
                               />
                             )
                             : <FileExtIcon ext={extOf(f.file_name)} size={56} large />}
-                          {srcsOf(f).map(sc => (
-                            <SourceTag key={sc} $src={sc}>{sourceShortLabel(sc, tr)}</SourceTag>
-                          ))}
+                          {/* ★ 2026-09-20 (Irene: *"폴더이름 아래에 있는 거 이상하다고. 날짜 좁게 나오고
+                              이게 뭐야? … 직접업로드 옆에, 업무, 회의 이런 거 옆에 나오게 배치를 해"*) —
+                              폴더 칩을 **날짜 줄**에 넣었더니 날짜를 밀어 좁아졌다. 분류는 분류끼리 —
+                              출처 태그와 한 줄로 묶는다.
+                              ★ 태그가 각자 `absolute` 라 두 개 이상이면 **서로 겹쳐 있었다**(출처가 둘인 파일).
+                                줄로 묶으면서 같이 풀린다. */}
+                          <TagRow>
+                            {srcsOf(f).map(sc => (
+                              <SourceTag key={sc} $src={sc}>{sourceShortLabel(sc, tr)}</SourceTag>
+                            ))}
+                            {f.folder_id && <FolderChip data-folder-chip $onThumb title={currentFolderName(f)}>{currentFolderName(f)}</FolderChip>}
+                          </TagRow>
                         </Thumb>
                       );
                     })()}
@@ -1073,8 +1095,8 @@ const DocsTab: React.FC<Props> = (props) => {
                       <span>{formatDate(f.uploaded_at)}</span>
                       {/* ★ 그리드가 **기본 뷰**다 — 폰도 여기로 시작한다. 여기에 [폴더로 이동] 이 없으면
                           폰에서는 옮길 방법이 여전히 없다(드래그가 안 된다). 리스트 뷰에만 붙였다가
-                          Fable 재검증에서 잡혔다: "리스트 뷰에만 있다 · 폰 기본 뷰에서는 0개". */}
-                      {f.folder_id && <FolderChip title={currentFolderName(f)}>{currentFolderName(f)}</FolderChip>}
+                          Fable 재검증에서 잡혔다: "리스트 뷰에만 있다 · 폰 기본 뷰에서는 0개".
+                          ★ 폴더 **이름**은 여기 두지 않는다 — 날짜를 민다. 분류는 썸네일의 태그 줄로. */}
                       {isMovableInApp(f) && !selectMode && folders.length > 0 && (
                         <MoveBtn type="button" style={{ marginLeft: 'auto' }}
                           title={t('docs.moveTo') as string} aria-label={t('docs.moveTo') as string}
@@ -1144,7 +1166,7 @@ const DocsTab: React.FC<Props> = (props) => {
                       ) : f.context ? (
                         <RowCtx title={f.context.label}>{f.context.label}</RowCtx>
                       ) : null}
-                      {f.folder_id && <FolderChip title={currentFolderName(f)}>{currentFolderName(f)}</FolderChip>}
+                      {f.folder_id && <FolderChip data-folder-chip title={currentFolderName(f)}>{currentFolderName(f)}</FolderChip>}
                     </RowSrc>
                     <RowSize>{formatBytes(f.file_size)}</RowSize>
                     <RowUp>{f.uploader_name}</RowUp>
@@ -1574,29 +1596,49 @@ function isExternalFileDrag(e: React.DragEvent) {
   return types.includes('Files') && !types.includes(PLANQ_FILE_MIME);
 }
 
-function useFolderDrop(onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>) {
+function useFolderDrop(
+  onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>,
+  /** 바깥(OS)에서 끌어온 파일을 **그 폴더로** 올린다. 없으면 종전대로 상위 드롭존으로 흘린다. */
+  onDropExternal?: (folderId: number | null, files: FileList) => void | Promise<void>,
+) {
   const [overKey, setOverKey] = useState<string | null>(null);
   return (folderId: number | null) => {
-    if (!onDropFiles) return { dropProps: {}, over: false };
+    if (!onDropFiles && !onDropExternal) return { dropProps: {}, over: false };
     const key = String(folderId);
     return {
       over: overKey === key,
       dropProps: {
         onDragOver: (e: React.DragEvent) => {
           // dragover 에서는 getData 가 빈 문자열이다 — types 로만 판정할 수 있다.
-          if (!Array.from(e.dataTransfer.types).includes(PLANQ_FILE_MIME)) return;
+          const types = Array.from(e.dataTransfer.types);
+          const mine = !!onDropFiles && types.includes(PLANQ_FILE_MIME);
+          const outside = !mine && !!onDropExternal && types.includes('Files');
+          if (!mine && !outside) return;
           e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
+          // 우리 파일은 «옮기기», 바깥 파일은 «복사(=올리기)» — 커서가 무엇이 일어날지 말해 준다.
+          e.dataTransfer.dropEffect = mine ? 'move' : 'copy';
           if (overKey !== key) setOverKey(key);
         },
         onDragLeave: () => setOverKey(k => (k === key ? null : k)),
         onDrop: (e: React.DragEvent) => {
           const id = e.dataTransfer.getData(PLANQ_FILE_MIME);
+          const dropped = e.dataTransfer.files;
           setOverKey(null);
-          if (!id) return;                 // 우리 것이 아니면 상위(업로드 드롭존)로 흘려보낸다
-          e.preventDefault();
-          e.stopPropagation();
-          void onDropFiles(folderId, id);
+          if (id && onDropFiles) {
+            e.preventDefault();
+            e.stopPropagation();
+            void onDropFiles(folderId, id);
+            return;
+          }
+          // 바깥에서 끌어온 파일 — **그 폴더로** 올린다. 상위 드롭존으로 흘리면
+          // 보고 있던 폴더로 들어가 «어디 갔지» 가 된다.
+          if (onDropExternal && dropped && dropped.length) {
+            e.preventDefault();
+            e.stopPropagation();
+            void onDropExternal(folderId, dropped);
+            return;
+          }
+          // 그 외에는 상위(업로드 드롭존)로 흘려보낸다.
         },
       },
     };
@@ -1615,6 +1657,8 @@ interface ProjectGroupsProps {
   onSelectFolder?: (id: number) => void;
   /** 그 프로젝트 안에 폴더를 새로 만든다. 없으면 [+] 를 그리지 않는다. */
   onCreateFolder?: (projectId: number, parentId?: number | null) => void;
+  /** 하위 폴더 행의 드롭 — FolderTree 와 **같은 훅**이 만든다(베끼면 한쪽만 고쳐진다). */
+  folderDrop?: (folderId: number | null) => { over: boolean; dropProps: Record<string, unknown> };
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
   selected: FolderSel;
@@ -1622,7 +1666,7 @@ interface ProjectGroupsProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder }) => {
+const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop }) => {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const toggle = (id: number) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const foldersOf = (projectId: number, parentId: number | null) =>
@@ -1644,6 +1688,8 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
     <React.Fragment key={f.id}>
       <TreeRow
         selected={selected === f.id}
+        dropOver={folderDrop ? folderDrop(f.id).over : undefined}
+        dropProps={folderDrop ? folderDrop(f.id).dropProps : undefined}
         depth={depth}
         icon={<FolderIconWrap $selected={selected === f.id}><FolderSvg /></FolderIconWrap>}
         name={f.name}
@@ -1752,11 +1798,13 @@ interface FolderTreeProps {
   onDownloadFolder?: (id: number) => void | Promise<void>;
   /** 파일을 이 폴더로 끌어다 놓았을 때. 없으면 드롭 존 자체를 만들지 않는다. */
   onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>;
+  /** 바깥(OS)에서 끌어온 파일을 이 폴더로 올린다. */
+  onDropExternal?: (folderId: number | null, files: FileList) => void | Promise<void>;
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDownloadFolder, tr, foldersOnly }) => {
-  const folderDrop = useFolderDrop(onDropFiles);
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, tr, foldersOnly }) => {
+  const folderDrop = useFolderDrop(onDropFiles, onDropExternal);
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -2316,8 +2364,15 @@ const Thumb = styled.div`
 const ThumbImg = styled.img`
   width:100%;height:100%;object-fit:contain;display:block;
 `;
+/* 썸네일 좌상단의 **분류 줄** — 출처 태그와 폴더 칩이 같이 선다(각자 absolute 면 겹친다). */
+const TagRow = styled.div`
+  position:absolute;top:8px;left:8px;right:8px;
+  /* ★ wrap 하지 않는다 — 폴더 이름이 길면 다음 줄로 떨어져 «옆에» 계약이 데이터에 따라 깨진다.
+     넘치면 칩이 줄어들고 말줄임표가 된다(실측: 카드 폭 180px 에서 wrap 이면 23px 아래로 내려갔다). */
+  display:flex;flex-wrap:nowrap;gap:4px;align-items:center;pointer-events:none;overflow:hidden;
+`;
 const SourceTag = styled.div<{ $src: FileSource }>`
-  position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:999px;
+  flex-shrink:0;padding:2px 8px;border-radius:999px;
   font-size:0.625rem;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}
 `;
 const CardName = styled.div`padding:8px 10px 2px;font-size:0.875rem;font-weight:600;@media(max-width:640px){font-size:0.9375rem;}color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
@@ -2377,10 +2432,13 @@ const IconBtn = styled.button`
 `;
 
 /* 분류 표시 — 출처 칩과 **같은 줄에 나란히**. 누르는 것이 아니다(버튼으로 만들면 이동과 헷갈린다). */
-const FolderChip = styled.span`
-  flex-shrink:0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+const FolderChip = styled.span<{ $onThumb?: boolean }>`
+  flex-shrink:1;min-width:0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   padding:2px 8px;border-radius:999px;font-size:0.625rem;font-weight:700;letter-spacing:.2px;
-  background:#F1F5F9;color:#475569;
+  /* 썸네일 위에서는 사진 위에 얹히므로 바탕을 덮는다. 목록 행에서는 회색 칩 그대로. */
+  ${p => (p.$onThumb
+    ? 'background:rgba(255,255,255,0.92);color:#334155;box-shadow:0 1px 2px rgba(15,23,42,0.12);'
+    : 'background:#F1F5F9;color:#475569;')}
 `;
 /* 폴더로 이동 — 받기·삭제와 **같은 규격**의 아이콘 버튼. IconBtn 을 상속해 크기를 다시 적지 않는다. */
 const MoveBtn = styled(IconBtn)`

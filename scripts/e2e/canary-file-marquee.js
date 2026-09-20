@@ -20,7 +20,7 @@ async function run() {
   const push = (name, ok, msg) => results.push({ name, fail: ok ? 0 : 1, details: [msg] });
   const skip = (name, msg) => results.push({ name, fail: 0, details: ['⬜ 미측정 — ' + msg] });
   const { browser, page } = await b.launch();
-  let folderId = null; let movedIds = [];
+  let folderId = null; let movedIds = []; const uploadedIds = [];
   try {
     await page.setViewport({ width: 1440, height: 900 });
     await b.login(page);
@@ -147,6 +147,48 @@ async function run() {
       push('우리 파일을 끌 때는 업로드 오버레이가 안 뜬다', !onInner, `오버레이 ${onInner}`);
     }
 
+    // ── 그리드 카드: 폴더 칩은 **출처 태그와 같은 줄**에 선다. 날짜 줄에 넣으면 날짜를 민다.
+    //   Irene 2026-09-20: *"폴더이름 아래에 있는 거 이상하다고. 날짜 좁게 나오고 이게 뭐야?
+    //   … 직접업로드 옆에, 업무, 회의 이런 거 옆에 나오게 배치를 해"*
+    const card = await page.evaluate(() => {
+      const chips = [...document.querySelectorAll('[data-folder-chip]')];
+      if (!chips.length) return { none: true };
+      const chip = chips[0];
+      const cardEl = chip.closest('[data-file-id]');
+      if (!cardEl) return { none: true };
+      const tag = cardEl.querySelector('[data-folder-chip]')
+        && [...cardEl.children].length ? cardEl.querySelector('div > div') : null;
+      // 같은 부모(분류 줄) 안에 출처 태그가 있는가
+      const rowKids = [...chip.parentElement.children];
+      const sameRow = rowKids.length >= 2
+        && Math.abs(rowKids[0].getBoundingClientRect().top - chip.getBoundingClientRect().top) <= 2;
+      // 날짜가 잘리지 않는가 — 날짜 줄(마지막 meta)의 첫 span
+      const metas = [...cardEl.querySelectorAll('div')].filter((d) => /\d{4}|\d+\.\d+/.test(d.textContent || '') && d.children.length);
+      // 날짜 칸 = 마지막 줄의 첫 span. 글자 모양으로 찾으면 로케일마다 어긋난다("9월 8일").
+      const dateSpan = cardEl.lastElementChild ? cardEl.lastElementChild.querySelector('span') : null;
+      return {
+        sameRow, rowKidCount: rowKids.length,
+        chipTop: Math.round(chip.getBoundingClientRect().top),
+        tagTop: rowKids[0] ? Math.round(rowKids[0].getBoundingClientRect().top) : null,
+        dateClipped: dateSpan ? dateSpan.scrollWidth > dateSpan.clientWidth + 1 : null,
+        dateText: dateSpan ? (dateSpan.textContent || '').trim() : null,
+        // ★ 날짜 줄은 **카드의 마지막 줄**이다. 날짜 글자를 정규식으로 찾으려다 못 찾아
+        //   판정이 null 로 빠졌다(형식이 로케일마다 다르다). 구조로 집는다.
+        chipInDateLine: !!cardEl.lastElementChild
+          && !!cardEl.lastElementChild.querySelector('[data-folder-chip]'),
+        dateLineText: cardEl.lastElementChild ? (cardEl.lastElementChild.textContent || '').trim().slice(0, 24) : null,
+        metasSeen: metas.length,
+      };
+    });
+    if (card.none) skip('카드 — 폴더 칩 자리', '폴더에 든 파일이 화면에 없다');
+    else {
+      push('폴더 칩이 출처 태그와 같은 줄에 선다', card.sameRow,
+        `줄 안 ${card.rowKidCount}개 · y 태그 ${card.tagTop} / 칩 ${card.chipTop}`);
+      push('날짜 줄에는 폴더 칩이 없다', card.chipInDateLine === false, `마지막 줄 "${card.dateLineText}"`);
+      if (card.dateClipped === null) skip('날짜가 잘리지 않는다', '날짜 칸을 못 찾았다');
+      else push('날짜가 잘리지 않는다', !card.dateClipped, `"${card.dateText}"`);
+    }
+
     // ── 목록 행의 «폴더이름 버튼» → 분류 칩 + 이동 아이콘 두 개로 갈랐다.
     //   ★ 리스트 뷰에서 잰다 — 그리드 카드에는 받기·삭제가 없어 «같은 크기인가» 를 잴 상대가 없다.
     await page.evaluate(() => {
@@ -170,8 +212,35 @@ async function run() {
     if (row.sizes.length >= 2) {
       push('[이동] 이 같은 줄의 다른 아이콘과 같은 크기', new Set(row.sizes).size === 1, `높이 ${row.sizes.join('/')}`);
     } else skip('[이동] 크기 비교', `같은 줄 버튼 ${row.sizes.length}개`);
+    // ── 로컬(OS) 파일을 **폴더 행 위에 바로** 떨어뜨리면 그 폴더로 올라간다.
+    //   Irene 2026-09-20: *"로컬 파일로 있는 것도 폴더 위에 바로 올려서 못 넣어?"*
+    //   여태는 상위 업로드 드롭존으로 흘러가 **보고 있던 폴더**로 들어갔다.
+    const dropName = 'ZDROP-' + Date.now() + '.txt';
+    const dropped = await page.evaluate((fid, nm) => {
+      const menu = document.querySelector(`[data-testid="docs-folder-menu-${fid}"]`);
+      const row = menu ? menu.closest('[data-folder-actions]').parentElement : null;
+      if (!row) return 'no-row';
+      const dt = new DataTransfer();
+      try { dt.items.add(new File(['hello planq'], nm, { type: 'text/plain' })); } catch { return 'no-file'; }
+      if (!dt.files.length) return 'no-file';
+      row.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      row.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      return 'sent';
+    }, folderId, dropName);
+    if (dropped !== 'sent') skip('로컬 파일을 폴더에 바로 떨어뜨리기', `준비 실패(${dropped})`);
+    else {
+      await b.sleep(5000);
+      const [got] = await sequelize.query(
+        'SELECT id, folder_id FROM files WHERE file_name = :n ORDER BY id DESC LIMIT 1',
+        { replacements: { n: dropName } });
+      push('로컬 파일이 떨어뜨린 폴더로 올라간다',
+        got.length === 1 && Number(got[0].folder_id) === Number(folderId),
+        got.length ? `folder_id ${got[0].folder_id} (기대 ${folderId})` : '올라간 파일이 없다');
+      if (got.length) uploadedIds.push(got[0].id);
+    }
   } finally {
     try {
+      if (uploadedIds.length) await sequelize.query('DELETE FROM files WHERE id IN (:ids)', { replacements: { ids: uploadedIds } });
       if (movedIds.length) await sequelize.query('UPDATE files SET folder_id=NULL WHERE id IN (:ids)', { replacements: { ids: movedIds } });
       await sequelize.query("DELETE FROM file_folders WHERE name LIKE 'ZMQ-%'");
     } catch { /* noop */ }
