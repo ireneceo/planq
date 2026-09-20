@@ -618,7 +618,8 @@
     "folders": {
       "section": "Workspace folders",
       "empty": "Use + to create a folder",
-      "sectionHint": "Folders for files that do not belong to a project"
+      "sectionHint": "Folders for files that do not belong to a project",
+      "sectionProject": "Folders in this project"
     },
     "driveEdit": {
       "open": "Edit in Drive",

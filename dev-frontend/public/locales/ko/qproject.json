@@ -618,7 +618,8 @@
     "folders": {
       "section": "워크스페이스 폴더",
       "empty": "+ 를 눌러 폴더를 만들 수 있어요",
-      "sectionHint": "프로젝트에 속하지 않은 파일을 정리하는 폴더입니다"
+      "sectionHint": "프로젝트에 속하지 않은 파일을 정리하는 폴더입니다",
+      "sectionProject": "이 프로젝트의 폴더"
     },
     "driveEdit": {
       "open": "Drive 에서 편집",

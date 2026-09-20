@@ -144,7 +144,6 @@ const DocsTab: React.FC<Props> = (props) => {
   const [reloadTick, setReloadTick] = useState(0);
   const [files, setFiles] = useState<ProjectFile[]>(() => readCache<ProjectFile[]>(fileKey) ?? []);
   const [folders, setFolders] = useState<FileFolder[]>(() => readCache<FileFolder[]>(`${fileKey}:folders`) ?? []);
-  const [projectName, setProjectName] = useState<string>('');
   // ★ "못 불러옴" 과 "파일 없음" 은 다른 상태다(500 재현으로 실측 — 오류인데 빈 상태가 떴다).
   const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(() => !hasCache(fileKey));
@@ -259,16 +258,10 @@ const DocsTab: React.FC<Props> = (props) => {
         if (!cancelled) {
           setFiles(fs); setFolders(fd); setLoading(false);
           writeCache(fileKey, fs); writeCache(`${fileKey}:folders`, fd);
-          // 프로젝트 이름은 집계 파일에 있는 project_context 에서 또는 별도 조회 — 없으면 fetch
-          const fromFile = fs.find(f => f.project_context)?.project_context?.name;
-          if (fromFile) setProjectName(fromFile);
-          else {
-            import('../../contexts/AuthContext').then(({ apiFetch }) => {
-              apiFetch(`/api/projects/${projectId}`).then(r => r.json()).then(j => {
-                if (!cancelled && j.success && j.data?.name) setProjectName(j.data.name);
-              });
-            });
-          }
+          // ★ 2026-09-20 — 프로젝트 이름 조회를 **걷어냈다.** 그 값을 쓰던 곳은 좌측 트리의
+          //   «프로젝트 루트» 행 하나뿐이었는데, 프로젝트 안에서 프로젝트 이름을 한 번 더 보여 주는
+          //   것이라 없앴다(Irene). 읽는 곳이 없어진 값은 남기지 않는다 — 남기면 다음 사람이
+          //   적용 중이라고 믿고, 쓸데없는 요청이 한 번 더 나간다.
         }
       });
     }
@@ -897,7 +890,6 @@ const DocsTab: React.FC<Props> = (props) => {
               folders={folders}
               counts={counts}
               total={counts.total}
-              projectName={projectName}
               selected={folderSel}
               onSelect={sel => { setFolderSel(sel); clearSelection(); }}
               onCreate={async (parentId, name) => {
@@ -1678,7 +1670,11 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
           <React.Fragment key={p.id}>
             <FolderRow $selected={sel} data-testid={`docs-project-row-${p.id}`}
               aria-expanded={roots.length ? expanded : undefined}
-              onClick={() => onSelect(key)}>
+              /* ★ 2026-09-20 (Irene: *"프로젝트 폴더 이름을 눌러서 선택할 때 하위도 열려야 할 것
+                 같아. 자동으로. 폴더 아이콘 눌러야 하위 나오는 건 모를 것 같아"*) —
+                 이름을 누르면 **고르고 동시에 펼친다.** 아이콘만 여닫는 손잡이로 두면
+                 폴더가 있다는 사실 자체를 모른다. 아이콘은 **접을 때** 쓴다(이미 열려 있으면 토글). */
+              onClick={() => { onSelect(key); if (roots.length && !expanded) toggle(p.id); }}>
               {/* 아이콘 = 여닫는 손잡이. 프로젝트 색은 **아이콘 선**에 칠한다(동그라미를 따로 두지 않는다).
                   아이콘 클릭 = 펼침 / 행 클릭 = 프로젝트 필터 — 갈라 두지 않으면 목록이 통째로 바뀐다. */}
               <FolderIconWrap $selected={sel} $tint={p.color || '#14B8A6'}
@@ -1692,7 +1688,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
               {/* 프로젝트 **안**에 폴더를 만드는 문. 아래 「워크스페이스 폴더」 [+] 는 프로젝트에
                   속하지 않은 것만 만든다 — Q file 에는 이 문이 없었다(프로젝트 상세 탭에만 있었다). */}
               {onCreateFolder && (
-                <FolderActions $visible onClick={e => e.stopPropagation()}>
+                <FolderActions data-folder-actions $visible onClick={e => e.stopPropagation()}>
                   <FolderNewBtn type="button" data-testid={`docs-project-folder-new-${p.id}`}
                     title={tr('docs.folder.newInProject')}
                     onClick={() => onCreateFolder(p.id)}>
@@ -1740,7 +1736,6 @@ interface FolderTreeProps {
   folders: FileFolder[];
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number };
   total: number;
-  projectName?: string;
   selected: FolderSel;
   onSelect: (sel: FolderSel) => void;
   onCreate: (parentId: number | null, name: string) => Promise<void>;
@@ -1754,7 +1749,7 @@ interface FolderTreeProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, projectName, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDownloadFolder, tr, foldersOnly }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDownloadFolder, tr, foldersOnly }) => {
   const folderDrop = useFolderDrop(onDropFiles);
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
@@ -1819,7 +1814,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
                   CLAUDE.md 가 이미 금지한 모양이다("상세 헤더에 아이콘 전용 버튼 4개 이상 나열 금지 → OverflowMenu").
                   메뉴로 접으면 자리를 돌려주고 **글자 라벨이 붙어** 무슨 버튼인지도 알게 된다
                   ("폴더 안에 또 폴더" 가 안 보였던 것도 이 때문이다 — 하위 폴더 버튼은 내내 있었다). */}
-              <FolderActions $visible={sel} onClick={e => e.stopPropagation()}>
+              <FolderActions data-folder-actions $visible={sel} onClick={e => e.stopPropagation()}>
                 <OverflowMenu
                   label={tr('docs.folder.more')}
                   data-testid={`docs-folder-menu-${f.id}`}
@@ -1932,19 +1927,24 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
 
         <TreeDivider />
 
-        {/* 프로젝트 루트 — 프로젝트 이름이 곧 루트, 사용자 폴더 + 자동 수집 전부 하위 */}
+        {/* ★ 2026-09-20 (Irene: *"프로젝트에 들어가면 굳이 프로젝트 최상위 폴더가 나와야 해?
+            여기가 프로젝트>파일인데?"*) — 이 행은 사실 **«직접 업로드» 출처 필터**인데
+            프로젝트 이름을 달고 있어 «프로젝트 루트» 처럼 읽혔다. 프로젝트 안에서 프로젝트 이름을
+            한 번 더 보여 주는 것은 정보가 아니다. 출처 이름을 그대로 쓴다.
+            [+ 새 폴더] 는 이 행에서 빼 **폴더 섹션 머리줄**로 옮겼다(Q file 과 같은 자리). */}
         <FolderRow $selected={selected === 'direct'} $dropOver={folderDrop(null).over} {...folderDrop(null).dropProps}
           onClick={() => onSelect('direct')}>
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
-          <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '직접 업로드')}</FolderName>
+          <FolderName title={tr('docs.folder.directRoot')}>{tr('docs.folder.directRoot')}</FolderName>
           <FolderCount>{counts.bySrc.direct}</FolderCount>
-          <FolderActions $visible onClick={e => e.stopPropagation()}>
-            <FolderNewBtn type="button" data-testid="folder-new" title={tr('docs.folder.new')} onClick={() => startCreate(null)}>
-              <PlusSvg size={11} />
-              <span>{tr('docs.folder.new')}</span>
-            </FolderNewBtn>
-          </FolderActions>
         </FolderRow>
+        <SectionRow>
+          <FolderSectionLabel>{tr('docs.folders.sectionProject')}</FolderSectionLabel>
+          <FolderNewBtn type="button" data-testid="folder-new" title={tr('docs.folder.new')} onClick={() => startCreate(null)}>
+            <PlusSvg size={11} />
+            <span>{tr('docs.folder.new')}</span>
+          </FolderNewBtn>
+        </SectionRow>
         {creatingParent === null && (
           <FolderRow style={{ paddingLeft: 22 }}>
               <FolderIconWrap><FolderSvg /></FolderIconWrap>
@@ -2199,8 +2199,14 @@ const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean }>`
   display:grid;
   /* 칸 **넷 고정**: [아이콘 18][이름 1fr][숫자][액션 22]. 2026-09-20 —
      여닫는 손잡이는 폴더 아이콘 자체다(화살표 칸을 없앴다: 있으면 전 행이 밀려 «최상단 기준» 이 깨진다).
-     마지막 칸을 고정폭으로 둬야 [+] 있는 행만 숫자가 밀리지 않는다(실측 x=453/420 → 431). */
-  grid-template-columns:18px minmax(0,1fr) auto 22px;
+     ★ 2026-09-20 (Irene: *"새폴더 만드는 버튼 우측 레이아웃 나가버리고, ... 아이콘은 뭐야?
+       불필요하게 공간을 잡고 있으면 어떻게 해?"*) — 액션을 **칸으로 두지 않는다.**
+       고정폭(22px)이면 글자 붙은 [+ 새 폴더]·36px ⋯ 가 넘쳐 레이아웃이 터지고,
+       auto 면 그 행만 숫자가 밀려 열이 갈라진다. 어느 쪽도 답이 아니다.
+       → 액션은 **행 오른쪽에 겹쳐** 띄우고(absolute) 평소엔 숨긴다. 그러면 자리를 안 먹고,
+         숫자 열은 전 행에서 유지된다(탐색기·VS Code 가 쓰는 방식). */
+  position:relative;
+  grid-template-columns:18px minmax(0,1fr) auto;
   align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;min-height:30px;
   background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : 'transparent')};
   color:${p => p.$selected ? '#0F766E' : '#0F172A'};
@@ -2208,6 +2214,10 @@ const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean }>`
      안쪽 그림자로 그린다 — border 를 켜면 행 높이가 2px 튀어 목록이 흔들린다. */
   box-shadow:${p => p.$dropOver ? 'inset 0 0 0 2px #14B8A6' : 'none'};
   &:hover{background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : '#F8FAFC')};}
+  /* 행에 마우스를 올리거나 선택하면 겹쳐 둔 액션이 나온다. 선언 순서 때문에 styled 참조 대신
+     data 속성으로 고른다(FolderActions 가 아래에 선언된다). */
+  &:hover [data-folder-actions], &:focus-within [data-folder-actions]{opacity:1;pointer-events:auto;}
+  ${p => (p.$selected ? '[data-folder-actions]{opacity:1;pointer-events:auto;}' : '')}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
 `;
 const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource; $tint?: string }>`
@@ -2244,8 +2254,15 @@ const FolderSectionLabel = styled.div`
 const EmptyHint = styled.div`
   padding:6px 10px;font-size:0.6875rem;color:#94A3B8;line-height:1.5;
 `;
+/* 행 오른쪽에 **겹쳐** 뜬다 — 칸을 차지하지 않으므로 숫자 열이 흔들리지 않는다.
+   평소엔 숨고 행에 마우스를 올리거나 선택했을 때 나온다. $visible 이면 항상 보인다. */
 const FolderActions = styled.div<{ $visible?: boolean }>`
-  display:flex;gap:2px;opacity:${p => p.$visible ? 1 : 0};transition:opacity .1s;flex-shrink:0;
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  display:flex;gap:2px;align-items:center;flex-shrink:0;
+  background:inherit;border-radius:6px;padding-left:4px;
+  opacity:${p => (p.$visible ? 1 : 0)};
+  pointer-events:${p => (p.$visible ? 'auto' : 'none')};
+  transition:opacity .1s;
 `;
 /* 폴더 만들기 — 글자를 같이 보여준다. 아이콘만 두면 "폴더 관리가 안 되는" 것으로 읽힌다. */
 const FolderNewBtn = styled.button`
