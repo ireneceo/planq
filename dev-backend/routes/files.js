@@ -488,6 +488,13 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       const idsArr = String(req.query.ids).split(',').map(Number).filter(n => Number.isFinite(n) && n > 0).slice(0, 100);
       if (idsArr.length > 0) where.id = idsArr;
     }
+    // ★ 메일 첨부 보관분은 **목록**에 넣지 않는다 (2026-09-20 Irene 결정 — services/mailAttachmentFiles).
+    //   `?ids=` 로 **콕 집어 물은 것**은 그대로 준다 — 채팅 칩·미리보기가 그 id 로 메타를 읽는데
+    //   여기서 빼면 이미 붙어 있는 첨부가 화면에서 «없는 파일» 이 된다(고친 것보다 큰 고장이다).
+    if (!req.query.ids) {
+      const excl = await require('../services/mailAttachmentFiles').excludeMailAttachmentsWhere(req.params.businessId);
+      if (excl) where[Op.and] = [...(where[Op.and] || []), excl];
+    }
 
     // 사이클 N+50 — pagination. include 가 1:1 (uploader/client) 라 distinct 안전.
     // files 는 누적 빠름 — default 500 / max 1000. frontend 가 ?page= 점진 opt-in

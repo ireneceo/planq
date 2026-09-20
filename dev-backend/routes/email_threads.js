@@ -392,6 +392,72 @@ router.get('/:businessId/email-threads',
   }
 );
 
+// ─── 첨부를 이 워크스페이스 자료로 저장 ───────────────────────────────
+// POST /api/businesses/:businessId/email-attachments/:attachmentId/save-to-library
+//
+// Irene 2026-09-20: *"메일에 첨부된것도 굳이 따로 저장할 필요 없어. 다운로드나 이 워크스페이스에
+// 저장하기가 있으면 어때?"* — 메일 첨부는 이제 Q file 목록에 **자동으로 들어가지 않는다**.
+// 필요한 것만 사람이 올린다.
+//
+// ★ 바이트를 다시 쓰지 않는다. 첨부의 실체인 `files` 행을 근거로 **새 File 행**을 만들되
+//   `file_path` 와 `content_hash` 를 그대로 물려받고 원본의 `ref_count` 를 올린다.
+//   (업로드 경로의 dedup 과 같은 규칙 — 삭제는 ref_count 0 일 때만 물리 파일을 지운다.)
+// ★ 그래서 스토리지 사용량도 늘지 않는다 — 같은 바이트다.
+// ★ 새 행은 `email_attachments` 에 걸리지 않으므로 목록 제외 술어에 안 잡힌다.
+//   즉 «저장했다» 가 곧 «Q file 에 보인다» 이고, 판정이 한 곳(파생)뿐이다.
+router.post('/:businessId/email-attachments/:attachmentId/save-to-library',
+  authenticateToken, checkBusinessAccess, async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      const att = await EmailAttachment.findByPk(Number(req.params.attachmentId));
+      if (!att || !att.file_id) return errorResponse(res, 'attachment_not_found', 404);
+      const src = await File.findOne({ where: { id: att.file_id, business_id: businessId, deleted_at: null } });
+      if (!src) return errorResponse(res, 'attachment_not_found', 404);
+      // ★ 권한은 **다운로드와 같은 술어**다. 볼 수 있는 사람만 저장할 수 있다 —
+      //   여기만 느슨하면 개인 메일(L1) 첨부를 남이 워크스페이스로 끌어올릴 수 있다.
+      // ★ 이 파일에는 `attachWorkspaceScope` 가 없다 — scope 를 여기서 만든다.
+      //   (없는 미들웨어를 썼다가 서버가 기동에 실패했다. import 를 눈으로 확인할 것.)
+      const { canAccessFileByLevel, getUserScope } = require('../middleware/access_scope');
+      const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
+      if (!(await canAccessFileByLevel(req.user.id, src, scope))) {
+        return errorResponse(res, 'forbidden', 403);
+      }
+      // 이미 저장해 둔 것이 있으면 그것을 돌려준다(누를 때마다 쌓이지 않게).
+      const existing = await File.findOne({
+        where: { business_id: businessId, content_hash: src.content_hash, deleted_at: null,
+          id: { [Op.ne]: src.id } },
+        order: [['id', 'ASC']],
+      });
+      if (existing) return successResponse(res, { id: existing.id, file_name: existing.file_name, already: true });
+
+      const copy = await File.create({
+        business_id: businessId,
+        uploader_id: req.user.id,
+        file_name: src.file_name,
+        file_path: src.file_path,        // 같은 바이트를 가리킨다
+        file_size: src.file_size,
+        mime_type: src.mime_type,
+        storage_provider: src.storage_provider,
+        external_id: src.external_id || null,
+        content_hash: src.content_hash,
+        project_id: null,
+        folder_id: null,
+        // ★ 개인 메일(L1) 첨부라도 **저장하는 순간은 사람이 고른 행위**다. 기본은 워크스페이스 공개(L3)로
+        //   두되, 원본이 개인(L1)이면 그대로 개인으로 둔다 — 저장이 «공개» 를 뜻하면 안 된다.
+        visibility: src.visibility === 'L1' ? 'L1' : 'L3',
+        vlevel: src.visibility === 'L1' ? 'L1' : 'L3',
+      });
+      await src.increment('ref_count');
+      // ★ 감사 기록은 **단일 입구**로 쓴다(services/auditService). `AuditLog.create` 를 직접
+      //   부르면 마스킹·보관기간 스탬프를 건너뛰고, 가드 `auditentry` 가 바로 잡아낸다.
+      require('../services/auditService').logAudit(req, {
+        action: 'file.save_from_mail', targetType: 'file', targetId: copy.id,
+        businessId, newValue: { from_attachment_id: att.id, file_name: copy.file_name },
+      });
+      return successResponse(res, { id: copy.id, file_name: copy.file_name, already: false }, 'saved', 201);
+    } catch (err) { next(err); }
+  });
+
 // ─────────────────────────────────────────────
 // mail-outgoing-identity — 이 발송에 **실제로** 붙을 발신자·서명 (#262)
 //

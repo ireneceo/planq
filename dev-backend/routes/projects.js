@@ -3502,6 +3502,9 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     const results = [];
 
     // 1) direct 파일 — 프로젝트 소속 + "내 파일"(project_id NULL) 둘 다 포함
+    // ★ 메일 첨부 보관분은 Q file 목록에 넣지 않는다 (2026-09-20 Irene 결정).
+    //   바이트는 그대로 두고 **목록에서만** 뺀다 — services/mailAttachmentFiles 에 이유가 있다.
+    const mailExcl = await require('../services/mailAttachmentFiles').excludeMailAttachmentsWhere(bizId);
     const directFiles = await File.findAll({
       where: {
         [Op.and]: [
@@ -3511,6 +3514,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
             { project_id: { [Op.in]: projIds } },
             { project_id: null }
           ] },
+          ...(mailExcl ? [mailExcl] : []),
         ],
       },
       include: [

@@ -224,11 +224,41 @@ function platformLogoBytes() {
   return logoBytesCache;
 }
 
+/** 본문 장식 이미지인가 — 자료가 아니라 «메일이 자기를 꾸미려고 들고 온 것».
+ *  판정 근거와 운영 수치는 위 saveAttachmentAsFile 주석 참조. */
+const BODY_IMAGE_MAX = 20 * 1024;
+function isBodyDecoration(att) {
+  const mime = String(att?.contentType || '').toLowerCase();
+  if (!mime.startsWith('image/')) return false;
+  const disp = String(att?.contentDisposition || '').toLowerCase();
+  if (disp === 'inline') return true;
+  const size = Number(att?.size || (att?.content ? att.content.length : 0)) || 0;
+  return size > 0 && size < BODY_IMAGE_MAX;
+}
+
 async function saveAttachmentAsFile({ businessId, att, account, fallbackOwnerId }) {
   try {
     if (isNoiseAttachment(att.contentType)) return null;
     // 플랫폼 로고는 사용자의 자료가 아니다 — 파일 목록에 쌓이면 진짜 자료를 덮는다.
     if (isPlatformLogo(att)) return null;
+    // ★ 2026-09-20 (Irene: *"메일 본문에서 자료 가져올 필요없어. 첨부하는 파일들만 관리하자"*) —
+    //   **본문에 박힌 이미지**는 자료가 아니다. 서명·로고·배너·추적 픽셀이다.
+    //   ★ `is_inline`(= 본문이 그 cid 를 참조하는가)에 기댈 수 없다 — 수신 서버가 cid: 를
+    //     data:base64 로 치환해 배달해서 운영 891건 중 **2건**만 참이었다. 그 판정은 사실상 죽어 있다.
+    //   그래서 **첨부 자신의 성질**로 가른다. 둘 중 하나면 본문 장식으로 본다:
+    //     ① Content-Disposition 이 inline 이다(mailparser 가 알려준다)
+    //     ② 작은 이미지다 — 20KB 미만. 운영 실측 메일 이미지 605건의 **79%(478건)** 가 여기다
+    //        (icon.png 219회 · 아웃룩 서명 image002.png 59회 · logo-email.png 28회).
+    //   ★ 사람이 진짜로 보낸 20KB 미만 이미지가 걸릴 수 있다. 그래서 **바이트를 버리지 않는다** —
+    //     EmailAttachment 행은 그대로 만들어지고 메일 상세에서 보이고 받을 수 있다.
+    //     여기서 건너뛰는 것은 `files` 행(= Q file 자료)뿐이다.
+    // ★ 여기서 **건너뛰지 않는다.** 한 번 그렇게 고쳤다가 되돌렸다 —
+    //   `email_attachments` 에는 저장 필드가 없어서 첨부의 실체는 이 `files` 행 하나뿐이다.
+    //   건너뛰면 그 첨부는 **메일 본문에서 깨지고 다운로드도 안 된다**(고친 것보다 큰 고장).
+    //   Q file 에서 빼는 일은 **목록 단계**가 한다(services/mailAttachmentFiles) —
+    //   «자료로 취급하지 않는다» 와 «바이트를 버린다» 는 다른 말이다.
+    //   판정 함수는 남겨 둔다: 화면이 «본문 장식» 을 접어 두는 데 쓴다.
+    void isBodyDecoration;
     const personal = !!(account && account.owner_user_id);
     const level = personal ? 'L1' : 'L3';
     const ym = new Date().toISOString().slice(0, 7);

@@ -552,7 +552,10 @@
     "preview": "Preview",
     "download": "Download",
     "fallback": "Attachment",
-    "downloadFailed": "Download failed"
+    "downloadFailed": "Download failed",
+    "saveToLibrary": "Save to this workspace",
+    "saved": "Saved to this workspace",
+    "saveFailed": "Couldn't save"
   },
   "domainRule": {
     "title": "Our domains",

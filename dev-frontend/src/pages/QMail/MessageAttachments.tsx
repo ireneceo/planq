@@ -45,6 +45,11 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
   const objUrlsRef = useRef<Map<number, string>>(new Map());
   const [attachErr, setAttachErr] = useState<Record<number, boolean>>({});
   const [dlId, setDlId] = useState<number | null>(null);
+  // ★ 2026-09-20 (Irene: *"메일에 첨부된것도 굳이 따로 저장할 필요 없어. 다운로드나 이 워크스페이스에
+  //   저장하기가 있으면 어때?"*) — 메일 첨부는 이제 Q file 목록에 **자동으로 들어가지 않는다**.
+  //   필요한 것만 사람이 여기서 올린다. 서버가 같은 바이트를 가리키는 새 파일 행을 만든다(용량 안 늘어남).
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const [savedIds, setSavedIds] = useState<Record<number, 'ok' | 'err'>>({});
   const [dlPct, setDlPct] = useState<number | null>(null);
   const { open: openLightbox, lightbox } = useImageLightbox();
 
@@ -72,6 +77,17 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
 
   // 큰 첨부는 몇 초가 걸리는데 아무 표시가 없으면 "눌러도 안 된다" 로 읽힌다
   //   (Irene: "다운로드 %로 답답함 없게"). 파일 목록·문서와 같은 경로(downloadFromApi)를 쓴다.
+  const saveToLibrary = useCallback(async (a: MailAttachment) => {
+    if (!a.file_id) return;
+    setSavingId(a.id);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/email-attachments/${a.id}/save-to-library`, { method: 'POST' });
+      // apiFetch 는 실패해도 throw 하지 않는다 — 상태를 직접 본다(안 보면 실패가 성공인 척 지나간다).
+      setSavedIds(prev => ({ ...prev, [a.id]: r.ok ? 'ok' : 'err' }));
+    } catch { setSavedIds(prev => ({ ...prev, [a.id]: 'err' })); }
+    finally { setSavingId(null); }
+  }, [businessId]);
+
   const download = useCallback(async (a: MailAttachment) => {
     if (!a.file_id) return;
     setDlId(a.id);
@@ -164,6 +180,27 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                   )}
                 </AttachDownloadBtn>
+              )}
+              {a.file_id && (
+                <AttachDownloadBtn
+                  type="button"
+                  data-testid="mail-attach-save"
+                  onClick={() => saveToLibrary(a)}
+                  disabled={savingId !== null || savedIds[a.id] === 'ok'}
+                  title={savedIds[a.id] === 'ok'
+                    ? (t('attachment.saved', { defaultValue: '이 워크스페이스에 저장됨' }) as string)
+                    : (t('attachment.saveToLibrary', { defaultValue: '이 워크스페이스에 저장' }) as string)}
+                  aria-label={`${a.file_name} ${t('attachment.saveToLibrary', { defaultValue: '이 워크스페이스에 저장' })}`}
+                >
+                  {savedIds[a.id] === 'ok' ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12" /></svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                  )}
+                </AttachDownloadBtn>
+              )}
+              {savedIds[a.id] === 'err' && (
+                <AttachErr role="status">{t('attachment.saveFailed', { defaultValue: '저장하지 못했어요' }) as string}</AttachErr>
               )}
               {attachErr[a.id] && (
                 <AttachErr role="status">{t('attachment.downloadFailed', { defaultValue: '내려받지 못했어요' }) as string}</AttachErr>
