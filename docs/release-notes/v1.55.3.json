@@ -1,0 +1,36 @@
+{
+  "version": "1.55.3",
+  "date": "2026-09-20",
+  "items": [
+    {
+      "ko": {
+        "title": "파일 목록 왼쪽의 버튼이 줄을 밀어내지 않습니다",
+        "body": "[새 폴더] 버튼이 오른쪽으로 넘치고, ⋯ 메뉴가 늘 자리를 차지해 이름과 숫자가 밀려 있었습니다.\n\n이제 버튼들은 줄에 겹쳐 뜨고 평소에는 숨어 있습니다. 마우스를 올리거나 그 줄을 고르면 나옵니다. 그래서 이름과 숫자는 항상 같은 자리에 서고, ⋯ 메뉴도 맨 위 폴더부터 모든 폴더에서 쓸 수 있습니다."
+      },
+      "en": {
+        "title": "Sidebar buttons no longer push the rows out of line",
+        "body": "The [New folder] button overflowed to the right and the ⋯ menu always occupied space, shifting names and counts.\n\nThose controls now float over the row and stay hidden until you hover or select it. Names and counts keep their positions, and the ⋯ menu is available on every folder, including the top-level ones."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 이름을 누르면 그 안의 폴더가 바로 열립니다",
+        "body": "폴더 아이콘을 눌러야만 하위 폴더가 나와서, 폴더가 있다는 것 자체를 모르고 지나치기 쉬웠습니다. 이제 프로젝트 이름을 누르면 고르는 동시에 펼쳐집니다. 접을 때는 아이콘을 누르시면 됩니다."
+      },
+      "en": {
+        "title": "Clicking a project name opens its folders",
+        "body": "Folders only appeared when you clicked the folder icon, so it was easy to miss that a project had any. Clicking the project name now selects and expands it at once; use the icon to collapse."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 안에서 같은 이름이 두 번 나오지 않습니다",
+        "body": "프로젝트 > 파일에 들어가면 왼쪽 맨 위에 그 프로젝트 이름이 한 번 더 나왔습니다. 이미 그 프로젝트 안인데 이름을 또 보여 주는 셈이었습니다.\n\n그 줄은 원래 「직접 업로드」한 파일을 고르는 자리라 이름을 그대로 바꿨고, [새 폴더] 는 폴더 목록 머리줄로 옮겼습니다."
+      },
+      "en": {
+        "title": "No more duplicate project name inside a project",
+        "body": "Opening Project → Files showed the project's own name at the top of the sidebar, repeating where you already were.\n\nThat row actually filters directly uploaded files, so it now says so, and [New folder] moved to the folder list heading."
+      }
+    }
+  ]
+}
