@@ -47,6 +47,44 @@ async function run() {
     judge('같은 이름이 트리에 한 번만 (중복 제거)', before.sameNameCount === 1, `"${before.projName}" ×${before.sameNameCount}`);
     judge('폴더가 있으면 캐럿이 붙는다', before.hasCaret, String(before.hasCaret));
     judge('누르기 전에는 하위 폴더가 안 보인다 (음성 대조군)', !before.subShown, String(before.subShown));
+    // ★ 열 정렬 — 이름의 **왼쪽 끝**과 숫자의 **오른쪽 끝**이 전 행에서 같은 x 에 서는가.
+    //   Irene 2026-09-20: *"프로젝트 이름이 좌측정렬이어야지 왜 우측정렬이야?"* ·
+    //   *"전체, 내 파일, 채팅 업무 회의 등의 폴더이름이랑 오른쪽도 맞춰야지"*
+    //   ★ 행마다 칸 수가 다르면 그리드가 갈라진다 — 그게 이름이 «우측정렬» 로 보인 원인이었다
+    //     (동그라미가 1fr 칸을 차지해 이름을 밀었다). 그래서 **결과 좌표**로 잰다.
+    //   ★ 하위 폴더는 들여쓰기가 목적이므로 **제외**한다(같은 x 면 계층이 안 보인다).
+    const cols = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-testid^="docs-project-row-"]')]
+        .concat([...document.querySelectorAll('div')].filter(d => d.dataset && d.dataset.testid === undefined && false));
+      // 트리의 **최상위 행들** — 프로젝트 행과 같은 부모를 공유하고 들여쓰기(padding-left 8px)가 기본인 것
+      const proj = document.querySelector('[data-testid^="docs-project-row-"]');
+      if (!proj) return null;
+      const tree = proj.parentElement.parentElement;
+      const out = [];
+      [...tree.querySelectorAll('div')].forEach((r) => {
+        if (getComputedStyle(r).display !== 'grid') return;
+        if (Math.round(parseFloat(getComputedStyle(r).paddingLeft)) !== 8) return;   // 들여쓴 하위 폴더 제외
+        const kids = [...r.children];
+        if (kids.length < 3) return;
+        const name = kids[2].getBoundingClientRect();
+        const cnt = kids[3] ? kids[3].getBoundingClientRect() : null;
+        const label = (kids[2].textContent || '').trim().slice(0, 14);
+        if (!label) return;
+        out.push({ label, nameLeft: Math.round(name.left), countRight: cnt && cnt.width ? Math.round(cnt.right) : null });
+      });
+      return out;
+    });
+    if (!cols || cols.length < 3) {
+      results.push({ name: '열 정렬', fail: 0, details: [`⬜ 미측정 — 최상위 행 ${cols ? cols.length : 0}개`] });
+    } else {
+      const lefts = [...new Set(cols.map(c => c.nameLeft))];
+      const rights = [...new Set(cols.filter(c => c.countRight !== null).map(c => c.countRight))];
+      judge('이름의 왼쪽 끝이 전 행에서 같다', lefts.length === 1,
+        `${cols.length}행 · x=${lefts.join('/')} (${cols.slice(0, 4).map(c => c.label).join(', ')}…)`);
+      judge('숫자의 오른쪽 끝이 전 행에서 같다', rights.length <= 1,
+        `x=${rights.join('/') || '(숫자 없음)'}`);
+    }
+
     if (before.hasCaret) {
       const pos = await page.evaluate((p) => {
         const c = document.querySelector(`[data-testid="docs-project-row-${p}"] span[role="button"]`);

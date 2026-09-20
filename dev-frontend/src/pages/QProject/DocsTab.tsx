@@ -1607,8 +1607,9 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
     folders.filter(f => f.project_id === projectId && f.parent_id === parentId);
   const renderSub = (f: FileFolder, depth: number): React.ReactNode => (
     <React.Fragment key={f.id}>
-      <FolderRow $selected={selected === f.id} style={{ paddingLeft: 8 + depth * 14 }}
+      <FolderRow $selected={selected === f.id} style={{ paddingLeft: 8 + depth * 18 }}
         onClick={() => onSelectFolder && onSelectFolder(f.id)}>
+        <CaretSpacer />
         <FolderIconWrap $selected={selected === f.id}><FolderSvg /></FolderIconWrap>
         <FolderName title={f.name}>{f.name}</FolderName>
         {(folderCounts[f.id] || 0) > 0 && <FolderCount>{folderCounts[f.id]}</FolderCount>}
@@ -1619,11 +1620,13 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
   return (
     <TreeRoot>
       <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
+        <CaretSpacer />
         <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
         <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
         <FolderCount>{total}</FolderCount>
       </FolderRow>
       <FolderRow $selected={selected === 'my'} onClick={() => onSelect('my')}>
+        <CaretSpacer />
         <FolderIconWrap $selected={selected === 'my'}><MyFilesSvg /></FolderIconWrap>
         <FolderName>{tr('docs.folder.my', '내 파일')}</FolderName>
         {counts.myFiles > 0 && <FolderCount>{counts.myFiles}</FolderCount>}
@@ -1660,6 +1663,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
       <TreeDivider />
       {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
         <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}>
+          <CaretSpacer />
           <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
           <FolderName>{sourceShortLabel(src, tr)}</FolderName>
           {counts.bySrc[src] > 0 && <FolderCount>{counts.bySrc[src]}</FolderCount>}
@@ -1668,10 +1672,12 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
     </TreeRoot>
   );
 };
-/** 폴더가 없는 프로젝트의 빈 자리 — 캐럿과 같은 폭. 없으면 이름 줄이 프로젝트마다 어긋난다. */
+/** 첫 칸의 빈 자리 — 펼칠 것이 없는 행도 **칸은 차지한다**. 안 그러면 그 행만 왼쪽으로 당겨진다. */
 const CaretSpacer = styled.span`width:14px;flex-shrink:0;`;
 const ProjectDot = styled.span<{ $color: string }>`
-  width:10px;height:10px;border-radius:50%;background:${p => p.$color};flex-shrink:0;
+  /* 아이콘 칸(18px) 안에서 가운데. 동그라미가 칸을 벗어나면 이름 시작점이 프로젝트만 달라진다. */
+  width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  &::before{content:'';width:10px;height:10px;border-radius:50%;background:${p => p.$color};}
 `;
 const ProjectLink = styled(Link)`
   display:inline-flex;align-items:center;gap:6px;
@@ -1749,8 +1755,9 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
     return (
       <React.Fragment key={f.id}>
         <FolderRow $selected={sel} $dropOver={folderDrop(f.id).over} {...folderDrop(f.id).dropProps}
-          style={{ paddingLeft: 8 + depth * 14 }}
+          style={{ paddingLeft: 8 + depth * 18 }}
           onClick={() => onSelect(f.id)}>
+          <CaretSpacer />
           <FolderIconWrap $selected={sel}>{sel ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
           {renamingId === f.id ? (
             <RenameInput autoFocus value={renameDraft}
@@ -1792,7 +1799,8 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         </FolderRow>
         {children.map(c => renderFolder(c, depth + 1))}
         {creatingParent === f.id && (
-          <FolderRow style={{ paddingLeft: 8 + (depth + 1) * 14 }}>
+          <FolderRow style={{ paddingLeft: 8 + (depth + 1) * 18 }}>
+            <CaretSpacer />
             <FolderIconWrap><FolderSvg /></FolderIconWrap>
             <RenameInput autoFocus placeholder={tr('docs.folder.placeholder', '폴더 이름')} value={newName}
               onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
@@ -1833,6 +1841,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
 
   const createRow = creatingParent === null && (
     <FolderRow style={{ paddingLeft: 22 }}>
+      <CaretSpacer />
       <FolderIconWrap><FolderSvg /></FolderIconWrap>
       <RenameInput autoFocus placeholder={tr('docs.folder.placeholder')} value={newName}
         onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
@@ -1877,6 +1886,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
       <TreeRoot>
         {/* 전체 (모든 파일) */}
         <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
+          <CaretSpacer />
           <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
           <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
           <FolderCount>{total}</FolderCount>
@@ -1887,6 +1897,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         {/* 프로젝트 루트 — 프로젝트 이름이 곧 루트, 사용자 폴더 + 자동 수집 전부 하위 */}
         <FolderRow $selected={selected === 'direct'} $dropOver={folderDrop(null).over} {...folderDrop(null).dropProps}
           onClick={() => onSelect('direct')}>
+          <CaretSpacer />
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
           <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '직접 업로드')}</FolderName>
           <FolderCount>{counts.bySrc.direct}</FolderCount>
@@ -1899,6 +1910,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         </FolderRow>
         {creatingParent === null && (
           <FolderRow style={{ paddingLeft: 22 }}>
+            <CaretSpacer />
             <FolderIconWrap><FolderSvg /></FolderIconWrap>
             <RenameInput autoFocus placeholder={tr('docs.folder.placeholder', '폴더 이름')} value={newName}
               onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
@@ -1913,6 +1925,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         {/* 시스템 폴더 — 프로젝트 하위로 들여쓰기, 섹션 제목 없이 1 레벨 들여쓰기로 표현 */}
         {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
           <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)} style={{ paddingLeft: 22 }}>
+            <CaretSpacer />
             <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
             <FolderName>{sourceShortLabel(src, tr)}</FolderName>
             <FolderCount>{counts.bySrc[src]}</FolderCount>
@@ -2120,11 +2133,13 @@ const StorageLeftText = styled.span<{ $warn: boolean }>`
 `;
 
 /** 프로젝트 노드의 펼침 표시. 누르면 그 프로젝트의 폴더가 아래로 열린다. */
+/** 첫 칸(14px) — 펼침 화살표. 없는 행은 `<CaretSpacer/>` 로 **자리를 비워 둔다**. */
 const Caret = styled.span<{ $open: boolean }>`
   display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; flex-shrink: 0; color: #94a3b8;
+  width: 14px; height: 14px; flex-shrink: 0; color: #94a3b8;
   transform: rotate(${p => (p.$open ? 90 : 0)}deg);
   transition: transform 0.12s ease;
+  &:hover { color: #0F766E; }
 `;
 
 const CompactBar = styled.div`
@@ -2212,7 +2227,15 @@ const TreeRoot = styled.div`display:flex;flex-direction:column;gap:1px;`;
 const TreeDivider = styled.div`height:1px;background:#F1F5F9;margin:6px 0;`;
 const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean }>`
   display:grid;
-  grid-template-columns:auto minmax(0,1fr) auto auto;
+  /* ★ 2026-09-20 (Irene: *"프로젝트 이름이 좌측정렬이어야지 왜 우측정렬이야?"* ·
+     *"전체, 내 파일, 채팅 업무 회의 등의 폴더이름이랑 오른쪽도 맞춰야지"*) —
+     칸을 **다섯으로 고정**한다: [펼침 14] [아이콘 18] [이름 1fr] [숫자] [액션].
+     ★ 왜 이렇게까지 하나 — 전에는 4칸이었고, 프로젝트 행에 펼침 화살표를 하나 더 넣자
+       **동그라미가 «이름 칸»(1fr)을 차지**했다. 1fr 이 늘어나면서 이름이 오른쪽으로 밀렸고,
+       그게 "이름이 우측정렬" 로 보인 것이다. 칸 수가 행마다 다르면 열은 반드시 갈라진다.
+     ★ 모든 행이 **펼침 칸과 아이콘 칸을 항상** 차지한다(없으면 빈 칸). 그래야 이름의 왼쪽 끝과
+       숫자의 오른쪽 끝이 전 행에서 같은 x 에 선다. */
+  grid-template-columns:14px 18px minmax(0,1fr) auto auto;
   align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px;
   background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : 'transparent')};
   color:${p => p.$selected ? '#0F766E' : '#0F172A'};
@@ -2223,7 +2246,8 @@ const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean }>`
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
 `;
 const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource }>`
-  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  /* 아이콘 칸은 **고정폭**이다. 아이콘마다 크기가 달라도 이름 시작점이 흔들리지 않게. */
+  width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
   color:${p => {
     if (p.$sys === 'chat') return '#0EA5E9';
     if (p.$sys === 'task') return '#F59E0B';
