@@ -1,0 +1,36 @@
+{
+  "version": "1.54.0",
+  "date": "2026-09-20",
+  "items": [
+    {
+      "ko": {
+        "title": "메일 첨부가 Q file 을 덮지 않습니다",
+        "body": "받은 메일의 첨부가 전부 Q file 에 자동으로 쌓이고 있었습니다. 메일 서명 이미지·회사 로고·아이콘까지 들어와서, 자료를 찾으려면 장식 이미지를 헤집어야 했습니다.\n\n이제 메일 첨부는 Q file 목록에 자동으로 들어가지 않습니다. 필요한 것만 메일 첨부 옆의 [이 워크스페이스에 저장] 으로 올리시면 됩니다. 저장해도 용량은 늘지 않습니다 — 같은 파일을 가리킵니다.\n\n메일 상세에서는 종전대로 모든 첨부를 보고 내려받을 수 있습니다. 지워진 것이 아닙니다."
+      },
+      "en": {
+        "title": "Email attachments no longer flood Q file",
+        "body": "Every incoming email attachment used to pile into Q file — signature images, company logos and icons included — so finding real material meant digging through decorations.\n\nAttachments no longer enter the Q file list on their own. Use [Save to this workspace] next to an attachment for the ones you want. Saving does not consume extra storage; it points at the same file.\n\nAll attachments remain visible and downloadable from the email itself. Nothing was deleted."
+      }
+    },
+    {
+      "ko": {
+        "title": "파일을 끌어서 여러 개 고를 수 있습니다",
+        "body": "빈 공간을 끌면 사각형이 그려지면서 그 안의 파일이 한꺼번에 선택됩니다. Shift 나 ⌘ 를 누른 채 끌면 이미 고른 것에 더해집니다.\n\n그리고 선택한 상태에서도 파일을 끌 수 있습니다. 하나를 끌면 선택한 것 전부가 함께 폴더로 옮겨집니다. 여태는 선택 모드를 켜면 드래그가 아예 꺼져서, 여러 개를 고르고 나면 옮길 방법이 없었습니다."
+      },
+      "en": {
+        "title": "Drag to select several files at once",
+        "body": "Drag from empty space and a selection box appears; every file it covers is selected. Hold Shift or ⌘ while dragging to add to what you already picked.\n\nYou can also drag while files are selected — dragging one moves the whole selection into a folder. Until now, turning on selection mode switched dragging off entirely, so once you picked several there was no way to move them."
+      }
+    },
+    {
+      "ko": {
+        "title": "파일 목록의 폴더 표시를 바로잡았습니다",
+        "body": "「내 업로드」라는 이름이 두 자리에서 서로 다른 뜻으로 쓰이고 있었습니다. 이제 파일의 ⋯ 메뉴는 「폴더 없음」, 왼쪽 목록은 「직접 업로드」로 나뉩니다. 남이 올린 파일도 걸리던 자리라 「내」도 뺐습니다.\n\n파일 옆의 ⋯ 자리에는 그 파일이 지금 들어 있는 폴더 이름이 보입니다. 눌러야 알 수 있던 것을 목록에서 바로 읽을 수 있습니다.\n\n프로젝트에서 만든 폴더도 Q file 에 나옵니다. 프로젝트 이름을 누르면 그 아래 폴더가 펼쳐집니다."
+      },
+      "en": {
+        "title": "Clearer folder labels in the file list",
+        "body": "“My uploads” was being used for two different things. The ⋯ menu on a file now says “No folder”, and the left-hand list says “Direct uploads”. The word “my” is gone too — files uploaded by others landed there as well.\n\nThe ⋯ control beside a file now shows the folder that file is currently in, so you can read it from the list instead of opening a menu.\n\nFolders created inside a project also appear in Q file; click the project name to expand them."
+      }
+    }
+  ]
+}
