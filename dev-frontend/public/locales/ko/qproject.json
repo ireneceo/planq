@@ -564,7 +564,10 @@
       "more": "폴더 메뉴",
       "downloadAll": "폴더 통째 다운로드",
       "downloading": "폴더를 압축해 받는 중… {{p}}",
-      "noFolder": "폴더 없음"
+      "noFolder": "폴더 없음",
+      "newInProject": "이 프로젝트에 폴더 추가",
+      "expand": "펼치기",
+      "collapse": "접기"
     },
     "up": {
       "aria": "업로드 진행 상황",
@@ -613,8 +616,9 @@
       "desc": "잠시 후 다시 시도해 주세요. 계속 안 되면 네트워크 연결을 확인해 주세요."
     },
     "folders": {
-      "section": "폴더",
-      "empty": "+ 를 눌러 폴더를 만들 수 있어요"
+      "section": "워크스페이스 폴더",
+      "empty": "+ 를 눌러 폴더를 만들 수 있어요",
+      "sectionHint": "프로젝트에 속하지 않은 파일을 정리하는 폴더입니다"
     },
     "driveEdit": {
       "open": "Drive 에서 편집",

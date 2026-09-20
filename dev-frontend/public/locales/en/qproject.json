@@ -564,7 +564,10 @@
       "more": "Folder menu",
       "downloadAll": "Download whole folder",
       "downloading": "Zipping the folder… {{p}}",
-      "noFolder": "No folder"
+      "noFolder": "No folder",
+      "newInProject": "Add a folder in this project",
+      "expand": "Expand",
+      "collapse": "Collapse"
     },
     "up": {
       "aria": "Upload progress",
@@ -613,8 +616,9 @@
       "desc": "Please try again in a moment. If it keeps failing, check your network connection."
     },
     "folders": {
-      "section": "FOLDERS",
-      "empty": "Use + to create a folder"
+      "section": "Workspace folders",
+      "empty": "Use + to create a folder",
+      "sectionHint": "Folders for files that do not belong to a project"
     },
     "driveEdit": {
       "open": "Edit in Drive",

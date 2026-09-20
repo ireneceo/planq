@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
+import { FolderSvg, FolderOpenSvg, AllSvg, MyFilesSvg, PlusSvg, SystemFolderIcon } from './docs/treeIcons';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import DetailDrawer from '../../components/Common/DetailDrawer';
@@ -206,6 +207,8 @@ const DocsTab: React.FC<Props> = (props) => {
   // 업로드 큐 — 파일별 진행률·속도·취소 (docs/UploadQueue)
   const { uploads, runUploads, cancelUpload } = useUploadQueue();
   const [deleteConfirm, setDeleteConfirm] = useState<ProjectFile | null>(null);
+  // 프로젝트 안에 새 폴더 — 이름을 받아야 하므로 작은 입력창을 띄운다(이름 없는 폴더를 만들지 않는다).
+  const [newProjectFolder, setNewProjectFolder] = useState<{ projectId: number; name: string } | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -655,6 +658,19 @@ const DocsTab: React.FC<Props> = (props) => {
     })),
   ]), [folders, moveOne, t]);
 
+  /** 프로젝트 안에 폴더를 만든다 — 프로젝트 폴더 라우트(`/api/folders/projects/:id`)를 쓴다.
+   *  워크스페이스 라우트로 만들면 `project_id` 가 비어 그 프로젝트에 안 붙는다. */
+  const commitProjectFolder = useCallback(async () => {
+    if (!newProjectFolder) return;
+    const name = newProjectFolder.name.trim();
+    if (!name) return;
+    try {
+      const f = await createFolder(newProjectFolder.projectId, name, null);
+      setFolders(prev => prev.some(x => x.id === f.id) ? prev : [...prev, { ...f, project_id: newProjectFolder.projectId }]);
+    } catch (e) { void e; }
+    setNewProjectFolder(null);
+  }, [newProjectFolder]);
+
   const onMoveTo = useCallback(async (targetFolderId: number | null) => {
     for (const f of selectedDeletable) {
       await moveFile(businessId, f.id, targetFolderId);
@@ -840,6 +856,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 folders={folders}
                 folderCounts={counts.byFolder}
                 onSelectFolder={id => { setFolderSel(id); clearSelection(); }}
+                onCreateFolder={pid => setNewProjectFolder({ projectId: pid, name: '' })}
               />
               {/* Irene 2026-08-31 — 워크스페이스 파일에도 폴더.
                   프로젝트 그룹(출처별 탐색)은 그대로 두고 **아래에** 폴더를 더한다 —
@@ -1510,6 +1527,27 @@ const DocsTab: React.FC<Props> = (props) => {
         </Modal>
       )}
 
+      {/* 프로젝트 안에 새 폴더 — 이름을 받는다. 이름 없는 폴더를 만들면 목록에서 못 찾는다. */}
+      {newProjectFolder && (
+        <Modal onMouseDown={e => { if (e.target === e.currentTarget) setNewProjectFolder(null); }}>
+          <Dialog>
+            <DTitle>{t('docs.folder.newInProject') as string}</DTitle>
+            <DBody>
+              <RenameInput autoFocus value={newProjectFolder.name}
+                placeholder={tr('docs.folder.placeholder')}
+                onChange={e => setNewProjectFolder(v => (v ? { ...v, name: e.target.value } : v))}
+                onKeyDown={e => { if (isEnterAction(e)) { e.preventDefault(); void commitProjectFolder(); } if (e.key === 'Escape') setNewProjectFolder(null); }} />
+            </DBody>
+            <DFooter>
+              <SecondaryBtn type="button" onClick={() => setNewProjectFolder(null)}>{t('members.cancel', '취소')}</SecondaryBtn>
+              <PrimaryBtn type="button" disabled={!newProjectFolder.name.trim()} onClick={() => void commitProjectFolder()}>
+                {t('docs.folder.new') as string}
+              </PrimaryBtn>
+            </DFooter>
+          </Dialog>
+        </Modal>
+      )}
+
       {/* 대량 이동 */}
       {moveTargetOpen && (
         <Modal onMouseDown={e => { if (e.target === e.currentTarget) setMoveTargetOpen(false); }}>
@@ -1593,6 +1631,8 @@ interface ProjectGroupsProps {
   folders?: FileFolder[];
   folderCounts?: Record<number, number>;
   onSelectFolder?: (id: number) => void;
+  /** 그 프로젝트 안에 폴더를 새로 만든다. 없으면 [+] 를 그리지 않는다. */
+  onCreateFolder?: (projectId: number) => void;
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
   selected: FolderSel;
@@ -1600,7 +1640,7 @@ interface ProjectGroupsProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder }) => {
+const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder }) => {
   const [open, setOpen] = useState<Set<number>>(new Set());
   const toggle = (id: number) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const foldersOf = (projectId: number, parentId: number | null) =>
@@ -1609,7 +1649,6 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
     <React.Fragment key={f.id}>
       <FolderRow $selected={selected === f.id} style={{ paddingLeft: 8 + depth * 18 }}
         onClick={() => onSelectFolder && onSelectFolder(f.id)}>
-        <CaretSpacer />
         <FolderIconWrap $selected={selected === f.id}><FolderSvg /></FolderIconWrap>
         <FolderName title={f.name}>{f.name}</FolderName>
         {(folderCounts[f.id] || 0) > 0 && <FolderCount>{folderCounts[f.id]}</FolderCount>}
@@ -1620,13 +1659,11 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
   return (
     <TreeRoot>
       <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
-        <CaretSpacer />
         <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
         <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
         <FolderCount>{total}</FolderCount>
       </FolderRow>
       <FolderRow $selected={selected === 'my'} onClick={() => onSelect('my')}>
-        <CaretSpacer />
         <FolderIconWrap $selected={selected === 'my'}><MyFilesSvg /></FolderIconWrap>
         <FolderName>{tr('docs.folder.my', '내 파일')}</FolderName>
         {counts.myFiles > 0 && <FolderCount>{counts.myFiles}</FolderCount>}
@@ -1642,19 +1679,27 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
             <FolderRow $selected={sel} data-testid={`docs-project-row-${p.id}`}
               aria-expanded={roots.length ? expanded : undefined}
               onClick={() => onSelect(key)}>
-              {/* 폴더가 있을 때만 펼침 손잡이. 없으면 자리만 비워 이름 줄이 어긋나지 않게 한다. */}
-              {roots.length > 0 ? (
-                <Caret $open={expanded} role="button" tabIndex={-1}
-                  onClick={e => { e.stopPropagation(); toggle(p.id); }}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                </Caret>
-              ) : <CaretSpacer />}
-              <ProjectDot $color={p.color || '#14B8A6'} />
+              {/* 아이콘 = 여닫는 손잡이. 프로젝트 색은 **아이콘 선**에 칠한다(동그라미를 따로 두지 않는다).
+                  아이콘 클릭 = 펼침 / 행 클릭 = 프로젝트 필터 — 갈라 두지 않으면 목록이 통째로 바뀐다. */}
+              <FolderIconWrap $selected={sel} $tint={p.color || '#14B8A6'}
+                role={roots.length ? 'button' : undefined}
+                aria-label={roots.length ? (expanded ? tr('docs.folder.collapse') : tr('docs.folder.expand')) : undefined}
+                onClick={roots.length ? (e => { e.stopPropagation(); toggle(p.id); }) : undefined}>
+                {roots.length > 0 && expanded ? <FolderOpenSvg /> : <FolderSvg />}
+              </FolderIconWrap>
               <FolderName title={p.name}>{p.name}</FolderName>
               <FolderCount>{p.count}</FolderCount>
+              {/* 프로젝트 **안**에 폴더를 만드는 문. 아래 「워크스페이스 폴더」 [+] 는 프로젝트에
+                  속하지 않은 것만 만든다 — Q file 에는 이 문이 없었다(프로젝트 상세 탭에만 있었다). */}
+              {onCreateFolder && (
+                <FolderActions $visible onClick={e => e.stopPropagation()}>
+                  <FolderNewBtn type="button" data-testid={`docs-project-folder-new-${p.id}`}
+                    title={tr('docs.folder.newInProject')}
+                    onClick={() => onCreateFolder(p.id)}>
+                    <PlusSvg size={11} />
+                  </FolderNewBtn>
+                </FolderActions>
+              )}
             </FolderRow>
             {expanded && roots.map(f => renderSub(f, 1))}
           </React.Fragment>
@@ -1663,7 +1708,6 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
       <TreeDivider />
       {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
         <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}>
-          <CaretSpacer />
           <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
           <FolderName>{sourceShortLabel(src, tr)}</FolderName>
           {counts.bySrc[src] > 0 && <FolderCount>{counts.bySrc[src]}</FolderCount>}
@@ -1672,8 +1716,6 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
     </TreeRoot>
   );
 };
-/** 첫 칸의 빈 자리 — 펼칠 것이 없는 행도 **칸은 차지한다**. 안 그러면 그 행만 왼쪽으로 당겨진다. */
-const CaretSpacer = styled.span`width:14px;flex-shrink:0;`;
 const ProjectDot = styled.span<{ $color: string }>`
   /* 아이콘 칸(18px) 안에서 가운데. 동그라미가 칸을 벗어나면 이름 시작점이 프로젝트만 달라진다. */
   width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
@@ -1683,7 +1725,7 @@ const ProjectLink = styled(Link)`
   display:inline-flex;align-items:center;gap:6px;
   padding:2px 8px;background:#F1F5F9;border-radius:999px;
   font-size:0.6875rem;color:#0F172A;text-decoration:none;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;flex-shrink:1;min-width:0;
   &:hover{background:#E0F2FE;color:#075985;}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:1px;}
 `;
@@ -1757,7 +1799,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         <FolderRow $selected={sel} $dropOver={folderDrop(f.id).over} {...folderDrop(f.id).dropProps}
           style={{ paddingLeft: 8 + depth * 18 }}
           onClick={() => onSelect(f.id)}>
-          <CaretSpacer />
           <FolderIconWrap $selected={sel}>{sel ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
           {renamingId === f.id ? (
             <RenameInput autoFocus value={renameDraft}
@@ -1800,8 +1841,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         {children.map(c => renderFolder(c, depth + 1))}
         {creatingParent === f.id && (
           <FolderRow style={{ paddingLeft: 8 + (depth + 1) * 18 }}>
-            <CaretSpacer />
-            <FolderIconWrap><FolderSvg /></FolderIconWrap>
+              <FolderIconWrap><FolderSvg /></FolderIconWrap>
             <RenameInput autoFocus placeholder={tr('docs.folder.placeholder', '폴더 이름')} value={newName}
               onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
               onKeyDown={e => {
@@ -1841,7 +1881,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
 
   const createRow = creatingParent === null && (
     <FolderRow style={{ paddingLeft: 22 }}>
-      <CaretSpacer />
       <FolderIconWrap><FolderSvg /></FolderIconWrap>
       <RenameInput autoFocus placeholder={tr('docs.folder.placeholder')} value={newName}
         onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
@@ -1886,7 +1925,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
       <TreeRoot>
         {/* 전체 (모든 파일) */}
         <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
-          <CaretSpacer />
           <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
           <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
           <FolderCount>{total}</FolderCount>
@@ -1897,7 +1935,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         {/* 프로젝트 루트 — 프로젝트 이름이 곧 루트, 사용자 폴더 + 자동 수집 전부 하위 */}
         <FolderRow $selected={selected === 'direct'} $dropOver={folderDrop(null).over} {...folderDrop(null).dropProps}
           onClick={() => onSelect('direct')}>
-          <CaretSpacer />
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
           <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '직접 업로드')}</FolderName>
           <FolderCount>{counts.bySrc.direct}</FolderCount>
@@ -1910,8 +1947,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         </FolderRow>
         {creatingParent === null && (
           <FolderRow style={{ paddingLeft: 22 }}>
-            <CaretSpacer />
-            <FolderIconWrap><FolderSvg /></FolderIconWrap>
+              <FolderIconWrap><FolderSvg /></FolderIconWrap>
             <RenameInput autoFocus placeholder={tr('docs.folder.placeholder', '폴더 이름')} value={newName}
               onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
               onKeyDown={e => {
@@ -1925,8 +1961,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         {/* 시스템 폴더 — 프로젝트 하위로 들여쓰기, 섹션 제목 없이 1 레벨 들여쓰기로 표현 */}
         {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
           <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)} style={{ paddingLeft: 22 }}>
-            <CaretSpacer />
-            <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
+              <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
             <FolderName>{sourceShortLabel(src, tr)}</FolderName>
             <FolderCount>{counts.bySrc[src]}</FolderCount>
           </FolderRow>
@@ -1978,66 +2013,6 @@ function srcStyle(s: FileSource): string {
 
 // ─── SVG 아이콘 (Lucide 스타일) ───
 
-const FolderSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-  </svg>
-);
-const FolderOpenSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
-  </svg>
-);
-const ChatSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-  </svg>
-);
-const TaskSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="9 11 12 14 22 4" />
-    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-  </svg>
-);
-const MicSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-    <line x1="12" y1="19" x2="12" y2="23" />
-    <line x1="8" y1="23" x2="16" y2="23" />
-  </svg>
-);
-const AllSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-    <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-  </svg>
-);
-const MyFilesSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-    <circle cx="12" cy="7" r="4"/>
-  </svg>
-);
-const PlusSvg: React.FC<{ size?: number }> = ({ size = 12 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-);
-
-// 폴더 트리용 아이콘 (시스템/일반 구분)
-const SystemFolderIcon: React.FC<{ src: FileSource; size?: number }> = ({ src, size = 14 }) => {
-  if (src === 'chat') return <ChatSvg size={size} />;
-  if (src === 'task') return <TaskSvg size={size} />;
-  if (src === 'meeting') return <MicSvg size={size} />;
-  if (src === 'post') return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-      <polyline points="14 2 14 8 20 8"/>
-      <line x1="16" y1="13" x2="8" y2="13"/>
-      <line x1="16" y1="17" x2="8" y2="17"/>
-    </svg>
-  );
-  return <FolderSvg size={size} />;
-};
 
 // 확장자별 색상 아이콘 (Notion/Linear 패턴)
 type ExtPalette = { bg: string; fg: string };
@@ -2132,18 +2107,6 @@ const StorageLeftText = styled.span<{ $warn: boolean }>`
   white-space: nowrap;
 `;
 
-/** 첫 칸(14px) — 펼침 화살표. 누르면 그 프로젝트의 폴더가 아래로 열린다.
- *  없는 행은 CaretSpacer 로 **자리를 비워 둔다**(칸 수가 행마다 다르면 열이 갈라진다). */
-const Caret = styled.span<{ $open: boolean }>`
-  /* ★ height 를 쓰지 않는다 — 컨트롤 높이 토큰(32/36/40/44) 밖이라 가드(uispec)가 잡는다.
-     그리드 셀이 align-items:center 라 세로 가운데는 이미 맞는다. 폭만 정하면 된다.
-     ★ 이 주석에 백틱을 쓰지 말 것 — styled 템플릿이 거기서 끊긴다(방금 그걸로 빌드가 깨졌다). */
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; flex-shrink: 0; color: #94a3b8;
-  transform: rotate(${p => (p.$open ? 90 : 0)}deg);
-  transition: transform 0.12s ease;
-  &:hover { color: #0F766E; }
-`;
 
 const CompactBar = styled.div`
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
@@ -2217,11 +2180,15 @@ const Split = styled.div<{ $single?: boolean }>`
   @media (max-width: 900px){ grid-template-columns:1fr; }
 `;
 const FolderTreePanel = styled.div`
-  background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:6px;
+  /* 좌우 여백 — 6px 이라 이름이 테두리에 붙었다(2026-09-20). 8px + 행 10px. */
+  background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:8px;
   /* ★ components/Docs/assetTabLayout.ts 의 같은 이름 styled 와 **같은 계약**을 읽는다
      (프로젝트 탭 안에서는 탭 막대 아래, 워크스페이스에서는 8px). */
   position:sticky;top:var(--pq-tab-sticky-top, 8px);
-  max-height:calc(100vh - 180px);overflow-y:auto;
+  /* 아래가 잘리던 것 — 손으로 적은 '100vh - 180px' 은 크롬 높이가 달라지면 거짓이 된다.
+     크롬이 끝나는 y 를 토큰으로 읽는다(CLAUDE.md «100vh 를 쓰지 않는다»). */
+  max-height:calc(100vh - var(--pq-chrome-bottom, 0px) - 24px);
+  overflow-y:auto;overscroll-behavior:contain;
   @media (max-width: 900px){ position:static;max-height:none; }
 `;
 const FilesArea = styled.div`display:flex;flex-direction:column;gap:10px;min-width:0;`;
@@ -2230,16 +2197,11 @@ const TreeRoot = styled.div`display:flex;flex-direction:column;gap:1px;`;
 const TreeDivider = styled.div`height:1px;background:#F1F5F9;margin:6px 0;`;
 const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean }>`
   display:grid;
-  /* ★ 2026-09-20 (Irene: *"프로젝트 이름이 좌측정렬이어야지 왜 우측정렬이야?"* ·
-     *"전체, 내 파일, 채팅 업무 회의 등의 폴더이름이랑 오른쪽도 맞춰야지"*) —
-     칸을 **다섯으로 고정**한다: [펼침 14] [아이콘 18] [이름 1fr] [숫자] [액션].
-     ★ 왜 이렇게까지 하나 — 전에는 4칸이었고, 프로젝트 행에 펼침 화살표를 하나 더 넣자
-       **동그라미가 «이름 칸»(1fr)을 차지**했다. 1fr 이 늘어나면서 이름이 오른쪽으로 밀렸고,
-       그게 "이름이 우측정렬" 로 보인 것이다. 칸 수가 행마다 다르면 열은 반드시 갈라진다.
-     ★ 모든 행이 **펼침 칸과 아이콘 칸을 항상** 차지한다(없으면 빈 칸). 그래야 이름의 왼쪽 끝과
-       숫자의 오른쪽 끝이 전 행에서 같은 x 에 선다. */
-  grid-template-columns:14px 18px minmax(0,1fr) auto auto;
-  align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;min-height:30px;
+  /* 칸 **넷 고정**: [아이콘 18][이름 1fr][숫자][액션 22]. 2026-09-20 —
+     여닫는 손잡이는 폴더 아이콘 자체다(화살표 칸을 없앴다: 있으면 전 행이 밀려 «최상단 기준» 이 깨진다).
+     마지막 칸을 고정폭으로 둬야 [+] 있는 행만 숫자가 밀리지 않는다(실측 x=453/420 → 431). */
+  grid-template-columns:18px minmax(0,1fr) auto 22px;
+  align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;min-height:30px;
   background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : 'transparent')};
   color:${p => p.$selected ? '#0F766E' : '#0F172A'};
   /* 끌어온 파일이 여기 떨어진다는 것을 **떨어뜨리기 전에** 알려준다.
@@ -2248,15 +2210,18 @@ const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean }>`
   &:hover{background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : '#F8FAFC')};}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
 `;
-const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource }>`
+const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource; $tint?: string }>`
   /* 아이콘 칸은 **고정폭**이다. 아이콘마다 크기가 달라도 이름 시작점이 흔들리지 않게. */
   width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  /* $tint — 프로젝트 색을 **아이콘 선**에 칠한다(동그라미를 따로 두지 않는다). */
   color:${p => {
+    if (p.$tint) return p.$tint;
     if (p.$sys === 'chat') return '#0EA5E9';
     if (p.$sys === 'task') return '#F59E0B';
     if (p.$sys === 'meeting') return '#14B8A6';
     return p.$selected ? '#0D9488' : '#64748B';
   }};
+  ${p => (p.$tint ? 'cursor:pointer;border-radius:4px;&:hover{background:rgba(20,184,166,0.12);}' : '')}
 `;
 const FolderName = styled.div`
   /* 규격: 목록 항목 — 폰에서 12px 는 읽기 어렵다(tokens LIST_ROW). */
@@ -2447,8 +2412,10 @@ const UnmirrorTag = styled.span`
   flex-shrink:0; padding:1px 6px; border-radius:4px;
   background:#F1F5F9; color:#64748B; font-size:0.75rem; font-weight:600; white-space:nowrap;
 `;
-const RowSrc = styled.div`display:flex;align-items:center;gap:6px;min-width:0;`;
-const SourcePill = styled.span<{ $src: FileSource }>`padding:2px 8px;border-radius:999px;font-size:0.625rem;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}`;
+/* 한 파일이 출처를 여럿 가진다(직접 업로드 + 채팅). 알약에 flex-shrink:0·nowrap 이 없어
+   칸이 좁아지면 **눌려 겹쳤다**(2026-09-20). 넘치면 가로로 자른다 — wrap 은 행 높이를 흔든다. */
+const RowSrc = styled.div`display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;`;
+const SourcePill = styled.span<{ $src: FileSource }>`flex-shrink:0;white-space:nowrap;padding:2px 8px;border-radius:999px;font-size:0.625rem;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}`;
 const RowCtx = styled.span`font-size:0.6875rem;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
 const RowSize = styled.div`font-size:0.75rem;color:#475569;`;
 const RowUp = styled.div`font-size:0.75rem;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;

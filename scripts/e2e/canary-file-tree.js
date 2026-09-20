@@ -49,14 +49,14 @@ async function run() {
       const leaves = [...document.querySelectorAll('div')].map(d => d.children.length === 0 ? (d.textContent || '').trim() : '').filter(Boolean);
       return { rowsForThis: mine.length, projName,
         sameNameCount: projName ? leaves.filter(t => t === projName).length : null,
-        hasCaret: !!(mine[0] && mine[0].querySelector('span[role="button"]')),
+        hasCaret: !!(mine[0] && mine[0].querySelector('[role="button"]')),
         subShown: document.body.innerText.includes(nm),
         files: document.querySelectorAll('[data-file-id]').length };
     }, pid, TAG + '-상위');
 
     judge('프로젝트는 한 줄', before.rowsForThis === 1, `${before.rowsForThis}줄`);
     judge('같은 이름이 트리에 한 번만 (중복 제거)', before.sameNameCount === 1, `"${before.projName}" ×${before.sameNameCount}`);
-    judge('폴더가 있으면 캐럿이 붙는다', before.hasCaret, String(before.hasCaret));
+    judge('폴더가 있으면 펼침 손잡이(폴더 아이콘)가 붙는다', before.hasCaret, String(before.hasCaret));
     judge('누르기 전에는 하위 폴더가 안 보인다 (음성 대조군)', !before.subShown, String(before.subShown));
     // ★ 열 정렬 — 이름의 **왼쪽 끝**과 숫자의 **오른쪽 끝**이 전 행에서 같은 x 에 서는가.
     //   Irene 2026-09-20: *"프로젝트 이름이 좌측정렬이어야지 왜 우측정렬이야?"* ·
@@ -71,25 +71,37 @@ async function run() {
       const proj = document.querySelector('[data-testid^="docs-project-row-"]');
       if (!proj) return null;
       const tree = proj.parentElement.parentElement;
+      const basePad = Math.round(parseFloat(getComputedStyle(proj).paddingLeft));
       const out = [];
       [...tree.querySelectorAll('div')].forEach((r) => {
         if (getComputedStyle(r).display !== 'grid') return;
-        if (Math.round(parseFloat(getComputedStyle(r).paddingLeft)) !== 8) return;   // 들여쓴 하위 폴더 제외
+        // ★ 기준 padding 을 **숫자로 박지 않는다.** 행 여백을 8→10px 로 바꾼 순간 0행이 잡혀
+        //   «미측정» 인데 ✅ 로 읽혔다(빈 픽스처 거짓 판정). 프로젝트 행의 실제 값을 기준으로 쓴다.
+        if (Math.round(parseFloat(getComputedStyle(r).paddingLeft)) !== basePad) return;
         const kids = [...r.children];
-        if (kids.length < 3) return;
-        const name = kids[2].getBoundingClientRect();
-        const cnt = kids[3] ? kids[3].getBoundingClientRect() : null;
-        const label = (kids[2].textContent || '').trim().slice(0, 14);
+        // ★ 숫자는 **0 이면 안 그린다**(`{count > 0 && <FolderCount/>}`). 그래서 자식이 2개인 행이 있다 —
+        //   채팅·업무·회의·문서가 그렇다. 3개 미만을 버리면 **정작 재야 할 행이 통째로 빠지고**
+        //   «3행 전부 같다» 로 초록이 난다(실제로 그랬다). 이름 칸만 있으면 잰다.
+        if (kids.length < 2) return;
+        // 칸: [아이콘][이름][숫자][액션] — 이름은 두 번째다(캐럿 칸을 없앤 뒤 바뀌었다).
+        const name = kids[1].getBoundingClientRect();
+        const cnt = kids[2] ? kids[2].getBoundingClientRect() : null;
+        const label = (kids[1].textContent || '').trim().slice(0, 14);
         if (!label) return;
         out.push({ label, nameLeft: Math.round(name.left), countRight: cnt && cnt.width ? Math.round(cnt.right) : null });
       });
       return out;
     });
     if (!cols || cols.length < 3) {
-      results.push({ name: '열 정렬', fail: 0, details: [`⬜ 미측정 — 최상위 행 ${cols ? cols.length : 0}개`] });
+      // ★ 미측정을 초록으로 내보내지 않는다 — 이름에 ⬜ 를 박아 둔다(한 번 그렇게 읽혔다).
+      results.push({ name: '⬜ 열 정렬 — 미측정', fail: 0, details: [`최상위 행 ${cols ? cols.length : 0}개 — 선택자를 확인할 것`] });
     } else {
       const lefts = [...new Set(cols.map(c => c.nameLeft))];
       const rights = [...new Set(cols.filter(c => c.countRight !== null).map(c => c.countRight))];
+      // ★ **몇 행을 쟀는지** 를 판정에 넣는다. 3행만 재고 초록이면 «채팅·업무·회의·문서가 빠졌다» 를
+      //   못 본다 — 정작 Irene 이 «최상단 기준에 맞춰라» 고 한 행들이 그것이다.
+      //   전체·내 파일 + 프로젝트(≥1) + 시스템 4 = 최소 7행.
+      judge('열 정렬을 잴 행이 충분하다 (최소 7행)', cols.length >= 7, `${cols.length}행: ${cols.map(c => c.label).join(', ')}`);
       judge('이름의 왼쪽 끝이 전 행에서 같다', lefts.length === 1,
         `${cols.length}행 · x=${lefts.join('/')} (${cols.slice(0, 4).map(c => c.label).join(', ')}…)`);
       judge('숫자의 오른쪽 끝이 전 행에서 같다', rights.length <= 1,
@@ -98,7 +110,7 @@ async function run() {
 
     if (before.hasCaret) {
       const pos = await page.evaluate((p) => {
-        const c = document.querySelector(`[data-testid="docs-project-row-${p}"] span[role="button"]`);
+        const c = document.querySelector(`[data-testid="docs-project-row-${p}"] [role="button"]`);
         const r = c.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
       }, pid);
       await page.mouse.click(pos.x, pos.y);
@@ -107,8 +119,8 @@ async function run() {
         top: document.body.innerText.includes(nm1), sub: document.body.innerText.includes(nm2),
         files: document.querySelectorAll('[data-file-id]').length,
       }), TAG + '-상위', TAG + '-하위');
-      judge('캐럿을 누르면 하위 폴더가 열린다', after.top, `상위 ${after.top} · 그 아래 ${after.sub}`);
-      judge('캐럿 클릭이 목록을 바꾸지 않는다', after.files === before.files, `파일 ${before.files} → ${after.files}`);
+      judge('아이콘을 누르면 하위 폴더가 열린다', after.top, `상위 ${after.top} · 그 아래 ${after.sub}`);
+      judge('아이콘 클릭이 목록(프로젝트 필터)을 바꾸지 않는다', after.files === before.files, `파일 ${before.files} → ${after.files}`);
     }
   } finally {
     await sequelize.query('DELETE FROM file_folders WHERE name LIKE :t', { replacements: { t: TAG + '%' } });
