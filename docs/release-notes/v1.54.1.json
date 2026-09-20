@@ -1,0 +1,26 @@
+{
+  "version": "1.54.1",
+  "date": "2026-09-20",
+  "items": [
+    {
+      "ko": {
+        "title": "파일 목록 왼쪽에 프로젝트가 두 번 나오던 것을 고쳤습니다",
+        "body": "프로젝트 이름이 목록에 한 번, 아래 폴더 칸에 또 한 번 나왔습니다. 게다가 두 숫자가 달라서 어느 쪽을 봐야 할지 알 수 없었습니다 — 위는 그 프로젝트의 모든 파일, 아래는 폴더에 든 것만 세고 있었습니다.\n\n이제 프로젝트는 한 줄입니다. 폴더가 있으면 그 줄에 화살표가 붙고, 누르면 하위 폴더가 그 아래로 열립니다."
+      },
+      "en": {
+        "title": "Projects no longer appear twice in the file list sidebar",
+        "body": "A project showed up once in the project list and again in the folders section below, with two different counts — the top one counted every file in the project, the lower one only files inside folders.\n\nA project is now a single row. If it has folders, an arrow appears on that row and expands them underneath."
+      }
+    },
+    {
+      "ko": {
+        "title": "Google Drive 안내가 파일 목록을 밀어내지 않습니다",
+        "body": "Drive 를 연결한 워크스페이스에서 안내 문구가 서너 줄을 차지해 파일 목록이 그만큼 아래로 밀렸습니다.\n\n한 줄로 줄이고 ✕ 로 닫을 수 있게 했습니다. 닫으면 그 워크스페이스에서는 다시 뜨지 않습니다. 다만 Drive 폴더를 찾지 못한 상태에서는 닫히지 않습니다 — 그건 알고 계셔야 하는 내용입니다."
+      },
+      "en": {
+        "title": "The Google Drive notice no longer pushes the file list down",
+        "body": "On workspaces with Drive connected, the notice took three or four lines and shifted the whole file list down.\n\nIt is now a single line with a ✕ to dismiss it, remembered per workspace. It stays put when the Drive folder cannot be reached — that is something you need to see."
+      }
+    }
+  ]
+}
