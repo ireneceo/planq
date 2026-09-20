@@ -752,6 +752,21 @@ function attachWorkspaceScope(opts = {}) {
   };
 }
 
+/** 이 사람이 이 파일을 **내려받을 수 있는가**.
+ *
+ *  ★ 2026-09-20 — 원래 `routes/files.js` 안의 지역 함수였다. 드래그 아웃이 출처별(채팅·업무)로
+ *    넓어지면서 그 술어를 다른 곳에서도 불러야 했고, 라우트 안에 있으면 **복사할 수밖에 없다**.
+ *    복사하면 고객(Client) 분기처럼 한쪽에만 있는 규칙이 조용히 사라진다. 그래서 여기로 옮겼다.
+ *  고객은 자기 참여 프로젝트 파일 또는 본인이 올린 것만. 그 외에는 등급 판정을 따른다. */
+async function canDownloadFile(scope, userId, file) {
+  if (!file) return false;
+  if (scope && scope.isClient) {
+    const inMyProject = !!file.project_id && (scope.projectClientProjectIds || []).includes(file.project_id);
+    return inMyProject || file.uploader_id === userId;
+  }
+  return await canAccessFileByLevel(userId, file, scope);
+}
+
 module.exports = {
   getUserScope,
   assertWorkspaceAccess,
@@ -759,6 +774,7 @@ module.exports = {
   isMemberOrAbove,
   attachWorkspaceScope,
   canAccessConversation,
+  canDownloadFile,
   conversationListWhere,
   canAccessTask,
   taskListWhere,

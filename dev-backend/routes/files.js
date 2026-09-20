@@ -14,7 +14,7 @@ const gdrive = require('../services/gdrive');
 const planEngine = require('../services/plan');
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
+const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope, canDownloadFile } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 // 영구 삭제는 services/filePurge.js 단일 착지점. cron(uploadCleanup)도 같은 함수를 부른다 —
 //   두 벌로 두었더니 cron 이 휴지통을 영영 못 비우는 상태가 됐었다.
@@ -38,9 +38,13 @@ const DRAG_TTL_SEC = 300;
 const DRAG_SIGN_KEY = crypto.createHmac('sha256', String(process.env.JWT_SECRET || ''))
   .update('planq-file-drag-v1').digest();
 
-function dragSig(businessId, fileId, userId, exp) {
+// ★ 2026-09-20 — 서명에 **출처**를 넣는다(v2). 드래그가 채팅·업무 첨부까지 넓어졌는데
+//   `chat-45` 의 45 와 `direct-45` 의 45 는 **다른 표의 다른 파일**이다. 출처가 서명에 없으면
+//   한쪽으로 받은 서명을 다른 쪽으로 상환할 수 있고, 그건 곧 남의 파일을 꺼내는 길이다.
+//   v1 문자열을 그대로 두지 않는 이유: 옛 서명이 새 경로에서 유효해지면 그 구멍이 남는다.
+function dragSig(businessId, source, fileId, userId, exp) {
   return crypto.createHmac('sha256', DRAG_SIGN_KEY)
-    .update(`v1.${Number(businessId)}.${Number(fileId)}.${Number(userId)}.${Number(exp)}`)
+    .update(`v2.${String(source)}.${Number(businessId)}.${Number(fileId)}.${Number(userId)}.${Number(exp)}`)
     .digest('hex');
 }
 
@@ -68,15 +72,9 @@ function isPlayableMedia(mime) {
 
 // 다운로드 권한 술어 — **단일 원천**. 인증 다운로드 / 드래그 발급 / 드래그 상환 세 곳이 같은 함수를 부른다.
 //   같은 판정을 여러 벌로 복제하면 반드시 갈라진다(한 곳만 고쳐진 채 남는다).
-async function canDownloadFile(scope, userId, file) {
-  if (!file) return false;
-  // Client: 자기 참여 프로젝트 파일 또는 본인 업로드만
-  if (scope && scope.isClient) {
-    const inMyProject = !!file.project_id && (scope.projectClientProjectIds || []).includes(file.project_id);
-    return inMyProject || file.uploader_id === userId;
-  }
-  return await canAccessFileByLevel(userId, file, scope);
-}
+// ★ 2026-09-20 — `canDownloadFile` 은 **access_scope 로 옮겼다.** 드래그 아웃이 채팅·업무 첨부까지
+//   넓어지면서 그 술어를 다른 곳에서도 불러야 했는데, 라우트 안에 있으면 복사할 수밖에 없고
+//   복사하면 고객(Client) 분기가 한쪽에서 조용히 사라진다.
 
 // s3 독립 서버 파일이면 presign(또는 public URL)로 redirect. 처리하면 true 반환 (운영 #29).
 async function _s3Redirect(file, res) {
@@ -336,42 +334,38 @@ router.get('/public/:token/download', async (req, res, next) => {
 router.get('/drag/:businessId/:id', perUserLimiter('file-drag-redeem', { windowMs: 60 * 1000, max: 60 }), async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const fileId = Number(req.params.id);
+    const parsed = require('../services/dragTarget').parseDragId(req.params.id);
     const userId = Number(req.query.u);
     const exp = Number(req.query.exp);
     const sig = String(req.query.sig || '');
     // 형식 가드 — timingSafeEqual 은 길이가 다르면 throw 한다(500 크래시 경로).
     if (!/^[a-f0-9]{64}$/.test(sig)) return errorResponse(res, 'invalid_signature', 403);
-    if (!Number.isInteger(businessId) || !Number.isInteger(fileId) || !Number.isInteger(userId) || !Number.isInteger(exp)) {
+    if (!parsed || !Number.isInteger(businessId) || !Number.isInteger(userId) || !Number.isInteger(exp)) {
       return errorResponse(res, 'invalid_signature', 403);
     }
-    const expected = dragSig(businessId, fileId, userId, exp);
+    // ★ 서명은 **출처까지** 포함한다 — chat 로 받은 서명을 direct 로 상환할 수 없다.
+    const expected = dragSig(businessId, parsed.source, parsed.id, userId, exp);
     if (!crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expected, 'hex'))) {
       return errorResponse(res, 'invalid_signature', 403);
     }
     if (exp * 1000 < Date.now()) return errorResponse(res, 'link_expired', 410);
 
-    const file = await File.findOne({
-      where: { id: fileId, business_id: businessId, deleted_at: null, storage_provider: 'planq' },
-    });
-    if (!file) return errorResponse(res, 'file_not_found', 404);
-    // 외부 노출 게이트 — 공유 링크와 같은 술어 (일반 등급만 무인증 URL 발급 대상)
-    if (file.security_level && file.security_level !== 'general') {
-      return errorResponse(res, 'security_level_blocks_drag', 403, 'security_level_blocks_drag');
-    }
     // users 에 is_active 같은 컬럼은 없다 — 계정 상태는 status ENUM('active','suspended','deleted').
-    //   없는 컬럼으로 가드를 쓰면 undefined 라 항상 통과해서, 가드가 있는 것처럼 보이지만 죽어 있다.
     const user = await User.findByPk(userId);
     if (!user || user.status !== 'active') return errorResponse(res, 'forbidden', 403);
-    const scope = await getUserScope(userId, businessId, user.platform_role);
-    if (!(await canDownloadFile(scope, userId, file))) return errorResponse(res, 'forbidden', 403);
+    // ★ **상환 시점에 권한을 다시 본다.** 발급 시점 권한을 신뢰하지 않는다 — 5분 사이에 바뀐다
+    //   (대화방에서 빠졌다 · 업무 담당이 바뀌었다 · 파일 등급이 올라갔다).
+    const t = await require('../services/dragTarget').resolveDragTarget({
+      businessId, raw: req.params.id, userId, platformRole: user.platform_role,
+    });
+    if (t.error) return errorResponse(res, t.error, t.code === 400 ? 400 : t.code, t.error);
 
-    if (!fs.existsSync(file.file_path)) return errorResponse(res, 'physical_file_missing', 410);
+    if (!t.file_path || !fs.existsSync(t.file_path)) return errorResponse(res, 'physical_file_missing', 410);
     // 무인증 URL 이므로 inline 렌더는 절대 허용하지 않는다 (HTML/SVG inline = XSS 벡터).
-    res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
+    res.setHeader('Content-Disposition', buildContentDisposition(t.file_name));
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
-    return res.sendFile(path.resolve(file.file_path));
+    if (t.mime_type) res.setHeader('Content-Type', t.mime_type);
+    return res.sendFile(path.resolve(t.file_path));
   } catch (err) { next(err); }
 });
 
@@ -1569,26 +1563,17 @@ router.post('/:businessId/:id/drag-url', authenticateToken, attachWorkspaceScope
   perUserLimiter('file-drag-url', { windowMs: 60 * 1000, max: 60 }), async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
-      const file = await File.findOne({
-        where: { id: req.params.id, business_id: businessId, deleted_at: null },
+      // ★ 출처별 판정은 services/dragTarget **한 곳**이다. 여기서 표를 직접 보지 않는다 —
+      //   보는 순간 발급과 상환의 술어가 두 벌이 되고, 둘은 반드시 갈라진다.
+      const t = await require('../services/dragTarget').resolveDragTarget({
+        businessId, raw: req.params.id, userId: req.user.id, platformRole: req.user.platform_role,
       });
-      if (!file) return errorResponse(res, 'File not found', 404);
-      if (!(await canDownloadFile(req.scope, req.user.id, file))) {
-        return errorResponse(res, 'forbidden', 403);
-      }
-      // 외부 노출 게이트 — 공유 링크 발급과 같은 기준 (D4 #62)
-      if (file.security_level && file.security_level !== 'general') {
-        return errorResponse(res, 'security_level_blocks_drag', 403, 'security_level_blocks_drag');
-      }
-      // 외부 스토리지(gdrive/s3)는 바이트를 우리가 쥐고 있지 않다 — 리다이렉트 대상의 Content-Disposition
-      // 을 보장할 수 없어 드래그 결과물이 뷰어 HTML 이 될 수 있다. 드래그 대상에서 제외한다.
-      if (file.storage_provider !== 'planq') {
-        return errorResponse(res, 'external_file_not_draggable', 400, 'external_file_not_draggable');
-      }
+      if (t.error) return errorResponse(res, t.error, t.code, t.error);
       const exp = Math.floor(Date.now() / 1000) + DRAG_TTL_SEC;
-      const sig = dragSig(businessId, file.id, req.user.id, exp);
+      const parsed = require('../services/dragTarget').parseDragId(req.params.id);
+      const sig = dragSig(businessId, t.source, parsed.id, req.user.id, exp);
       return successResponse(res, {
-        url: `/api/files/drag/${businessId}/${file.id}?u=${req.user.id}&exp=${exp}&sig=${sig}`,
+        url: `/api/files/drag/${businessId}/${t.source}-${parsed.id}?u=${req.user.id}&exp=${exp}&sig=${sig}`,
         expires_at: new Date(exp * 1000).toISOString(),
       });
     } catch (err) { next(err); }

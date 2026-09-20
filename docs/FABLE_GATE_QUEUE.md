@@ -4303,3 +4303,39 @@ Irene: *"좌측 카테고리에 왜 K-DINE이 두번 나오냐고. 프로젝트�
 누르기 전 안 보임(음성 대조군) · 눌러서 하위·그 아래까지 열림 · **캐럿 클릭이 파일 목록을 안 바꿈(26→26)** ·
 픽스처 잔여 0. 가드가 배너 닫기 버튼 24px(토큰 밖)을 잡아 32/40 으로 고쳤다.
 ★ **Drive 연결 배너는 ⬜ 미측정** — dev 에 Drive 연동이 없어 그 배너가 아예 안 뜬다. 운영엔 점검 계정이 없다.
+
+**(6) 배포 — v1.54.1.** 버전·릴리즈노트·개발현황만 담은 커밋이다(소스 동작 변경 0).
+Fable 은 다음 주 목요일까지 불가 — 위 (6) 항목과 같은 라운드로 본다.
+
+## 2026-09-20 (7) · 저장 사용량 집계 수리 · 드래그 아웃을 출처별로 열기
+
+Irene: *"스토리지 집계 29MB 차이 나는 거 고쳐. 나머지도 고쳐."*
+
+### A. 저장 사용량 집계 (R=1 — 쿼터에 직접 영향)
+- **운영 실측 -74MB** (집계 227MB / 실제 301MB). 내 앞선 추정 29MB 는 `files` 표만 봐서 틀렸다 —
+  같은 집계를 **업무 첨부·채팅 첨부**도 쓴다.
+- 참값 = **고유 물리 파일 경로의 합**(`storage_provider='planq'`, 세 표 UNION, 경로로 접음).
+  `content_hash` 로 접을 수 없다 — 첨부 표에는 해시 컬럼이 아예 없다.
+- `services/storageRecompute.js`(computeTruth/drift/reconcile) · `scripts/reconcile-storage-usage.js`(기본 dry-run).
+- **게이트에 붙였다** — `health-check` retention 카테고리에 «집계가 실제와 맞는가»(임계 10MB 또는 5%).
+  **양성 대조군 확인**: 일부러 500MB 어긋내니 빨간불 + 조치 문구, 원복 OK. 운영 적용 후 불일치 0곳.
+
+### B. 드래그로 OS 에 꺼내기 — 채팅·업무 첨부까지 (#228-b, R=1 — 무인증 서명 URL 표면 확장)
+- `services/dragTarget.js` 한 곳에서 출처별 판정. 권한은 **각 출처의 다운로드와 같은 술어**:
+  direct=`canDownloadFile` · chat=`canAccessConversation` · task=`canAccessTask`.
+- `canDownloadFile` 을 `routes/files.js` 지역 함수에서 **`middleware/access_scope` 로 옮겼다** —
+  라우트 안에 있으면 복사할 수밖에 없고, 복사하면 고객(Client) 분기가 한쪽에서 사라진다.
+- **서명에 출처를 넣었다(v2)**. chat 으로 받은 서명을 direct 로 상환 불가(실측 403).
+- **발급·상환 양쪽에서** 권한을 본다(5분 사이에 바뀐다).
+- 화면: `isDraggableOut` 에서 `source==='direct'` 제거. 반대로 **`isMovableInApp` 에는 되살렸다** —
+  폴더(`folder_id`)는 `files` 표에만 있는 축이라 채팅·업무 첨부는 폴더에 넣을 수 없고,
+  실제로 `moveFile` 이 조용히 false 를 돌려줘 **끌어도 아무 일이 없던** 상태였다.
+- 실측 14/14 — 출처 3종 발급·상환·`attachment` 강제 · **chat→direct 서명 교체 403** ·
+  남의 워크스페이스 번호 404 · 남의 워크스페이스 파일 차단 · 양성 대조군. `scripts/checks/drag-out.js`.
+
+### Fable 이 봐야 할 것 (다음 주 목요일)
+1. **무인증 서명 URL 표면이 3배가 됐다.** 출처별 술어가 각 다운로드 라우트와 **정말 같은지** 전수 대조.
+   특히 `canAccessConversation` 의 고객(Client)·게스트 분기.
+2. `canDownloadFile` 이동이 기존 호출부(파일 다운로드·미디어·drive-edit) 동작을 안 바꿨는지.
+3. 저장 사용량 «참값» 정의 — 경로로 접는 것이 맞는가(하드링크·외부 스토리지 혼재 시).
+4. 임계 10MB/5% 가 운영 규모에서 적절한지.

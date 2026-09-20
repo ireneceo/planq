@@ -1009,6 +1009,27 @@ function defineRetentionTests() {
     return '스탬프 누락 0 · 워크스페이스 누락 0';
   });
 
+  // ★ 2026-09-20 (Irene: *"스토리지 집계 29MB 차이 나는 거 고쳐."*) —
+  //   사용량을 올리고 내리는 곳이 여럿이라(파일·업무첨부·채팅첨부·메일수집·휴지통·각 삭제 경로)
+  //   한 곳이 감산을 빠뜨리면 그때부터 조용히 벌어진다. 실제로 운영에서 **-74MB** 였다.
+  //   집계가 실제보다 작으면 **쿼터가 한도에서 안 막고**, 크면 여유가 있는데 업로드가 거절된다.
+  //   그래서 «맞춰 놓는 것» 으로 끝내지 않고 **게이트에 붙인다** — 다시 벌어지면 여기서 걸린다.
+  //   임계: 10MB 또는 참값의 5% 중 큰 쪽(작은 워크스페이스에서 비율만 쓰면 늘 빨간불이 된다).
+  test('retention', '저장 사용량 집계가 실제와 맞는가', async () => {
+    const r = dbEval(
+      `const{drift}=require('./services/storageRecompute');`
+      + `const d=await drift();`
+      + `const bad=d.filter(x=>{const t=Math.max(10*1024*1024,(x.truth||0)*0.05);return x.counted===null?(x.truth||0)>t:Math.abs(x.diff)>t;});`
+      + `process.stdout.write('<<'+JSON.stringify({n:d.length,bad:bad.map(x=>({b:x.business_id,c:x.counted,t:x.truth,d:x.diff}))}));process.exit(0);`);
+    if (r.err) throw new Error(r.err);
+    const mb = (n) => (n === null ? '(집계행 없음)' : Math.round(n / 1048576) + 'MB');
+    if (r.bad.length > 0) {
+      const list = r.bad.map((x) => `biz${x.b} 집계 ${mb(x.c)} vs 실제 ${mb(x.t)}`).join(' · ');
+      throw new Error(`저장 사용량이 어긋났다 — ${list}. \`node scripts/reconcile-storage-usage.js --apply\` 로 맞추고, 어느 쓰기 경로가 감산을 빠뜨렸는지 찾을 것`);
+    }
+    return `워크스페이스 ${r.n}곳 모두 임계 안`;
+  });
+
   test('retention', '보관기간 회차 — 최근 48시간 안에 돌았고 모드가 무엇인가', async () => {
     const r = dbEval(
       `const{sequelize}=require('./config/database');`

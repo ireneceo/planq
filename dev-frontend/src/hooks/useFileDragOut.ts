@@ -31,7 +31,14 @@ const SAFETY_MS = 30 * 1000;
  *    `folder_id` 는 Q file 의 **정리 축**이라 그 파일이 붙어 있는 대화·업무 소속과 충돌하지 않는다.
  *    권한이 없어 못 옮기는 것은 `deletable` 이 이미 말해 준다(서버와 같은 값). */
 export function isMovableInApp(f: ProjectFile): boolean {
-  return !!f.deletable;
+  // ★ 2026-09-20 — `source === 'direct'` 를 **되살렸다.** 2026-09-17 에 "서버는 source 를 보지
+  //   않는다" 는 이유로 뺐는데, 그 판단이 틀렸다: 폴더(`folder_id`)는 **`files` 표에만 있는 축**이다.
+  //   채팅·업무 첨부는 다른 표(message_attachments · task_attachments)에 있어 폴더에 넣을 수 없고,
+  //   실제로 `services/files.moveFile` 이 `direct` 가 아니면 **조용히 false** 를 돌려준다 —
+  //   즉 끌어다 놓아도 **아무 일이 안 일어나고 이유도 안 알려주는** 상태였다.
+  //   (합성 id 의 숫자를 그대로 보내면 엉뚱한 File 을 옮기므로 그 차단 자체는 옳다.)
+  //   ★ 밖으로 꺼내기(OS)는 별개다 — 그쪽은 출처별로 열려 있다(`isDraggableOut`).
+  return !!f.deletable && f.source === 'direct';
 }
 
 /** 앱 내부 드래그 페이로드 — 폴더 행이 이 타입으로 드롭을 판정한다.
@@ -40,13 +47,10 @@ export const PLANQ_FILE_MIME = 'application/x-planq-file';
 
 /** 이 파일을 OS 로 끌어낼 수 있는가 — 백엔드 발급 조건과 같은 술어(프론트는 무의미한 요청을 줄인다). */
 export function isDraggableOut(f: ProjectFile): boolean {
-  // ★ 2026-09-20 — 이 조건은 «화면만 엄격한 것» 이 아니다(그 계열로 착각해 한 번 풀었다가 되돌렸다).
-  //   `chat-45` 의 숫자는 **MessageAttachment id** 이고 `task-7` 은 TaskAttachment id 다 —
-  //   `files.id` 가 아니다(routes/projects.js:3593 · bulk-download 의 출처별 파싱).
-  //   서버 `drag-url` 은 File 테이블만 보므로 조건만 풀면 **엉뚱한 파일을 내보낸다.**
-  //   여는 방법은 서버가 출처별 id 를 받게 하는 것인데, 그건 무인증 서명 URL 표면을 넓히는 일이라
-  //   (CLAUDE.md R=1) Fable 판정이 선행돼야 한다. 대기열에 있다(#228-b).
-  if (f.source !== 'direct') return false;
+  // ★ 2026-09-20 — 채팅·업무 첨부도 열었다(#228-b). 조건만 풀면 안 됐던 이유는 화면이 엄격해서가
+  //   아니라 **합성 id 가 표마다 다른 번호**였기 때문이다(`chat-45`=MessageAttachment id).
+  //   지금은 서버가 출처별로 받고(`services/dragTarget`) **서명에 출처가 들어간다** —
+  //   chat 으로 받은 서명을 direct 로 상환할 수 없다. 권한은 각 출처의 다운로드와 같은 술어다.
   if (f.storage_provider !== 'planq') return false;         // 외부 스토리지는 바이트를 우리가 안 쥐고 있다
   if (f.security_level && f.security_level !== 'general') return false;  // 외부 노출 게이트
   return true;

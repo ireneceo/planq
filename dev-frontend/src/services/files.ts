@@ -743,8 +743,10 @@ export function extOf(name: string): string {
 // 서버에서 받아 쓴다. 발급은 자체 스토리지의 'direct' 파일만 (backend 가 다시 한 번 막는다).
 export async function issueDragUrl(businessId: number, fileId: string): Promise<string | null> {
   const parsed = parseFileId(fileId);
-  if (!parsed || parsed.source !== 'direct') return null;
-  const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/drag-url`, { method: 'POST' });
+  if (!parsed) return null;
+  // ★ 합성 id 를 **그대로** 보낸다(`chat-45`). 숫자만 보내면 서버가 표를 가릴 수 없어
+  //   엉뚱한 파일이 나간다 — 출처별 판정은 서버 `services/dragTarget` 한 곳이다.
+  const r = await apiFetch(`/api/files/${businessId}/${parsed.source}-${parsed.id}/drag-url`, { method: 'POST' });
   // apiFetch 는 실패해도 throw 하지 않는다 — res.ok 를 안 보면 실패가 성공인 척 지나간다.
   if (!r.ok) return null;
   const j = await r.json();
