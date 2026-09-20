@@ -1,0 +1,16 @@
+{
+  "version": "1.55.1",
+  "date": "2026-09-20",
+  "items": [
+    {
+      "ko": {
+        "title": "파일 목록 왼쪽의 이름과 숫자가 줄을 맞춥니다",
+        "body": "프로젝트 이름이 오른쪽으로 밀려 있고, 파일 개수도 행마다 다른 자리에 있었습니다. 전체·내 파일·채팅·업무·회의와도 줄이 맞지 않았습니다.\n\n이제 모든 행에서 이름의 왼쪽 끝과 숫자의 오른쪽 끝이 같은 자리에 섭니다. 프로젝트 아래 폴더도 프로젝트보다 한 단 안쪽으로 들어갑니다."
+      },
+      "en": {
+        "title": "Names and counts line up in the file list sidebar",
+        "body": "Project names were pushed to the right and file counts sat at different positions on each row, out of line with All, My files, Chat, Tasks and Meetings.\n\nEvery row now shares the same left edge for the name and the same right edge for the count. Folders under a project are indented one step further in."
+      }
+    }
+  ]
+}
