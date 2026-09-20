@@ -493,6 +493,12 @@ async function getWorkspaceMatches({ businessId, scope, query, audience = 'clien
   const internal = audience === 'internal';
 
   const out = { tasks: [], projects: [], clients: [], invoices: [] };
+  // ★ «최근 목록 폴백» 은 **관문 뒤**에 온다 (2026-09-20, Fable 지적으로 순서를 바로잡음).
+  //   2026-09-08 에 일부러 넣은 계약 — "문서 뭐 있어" 처럼 영역을 물으면 그 영역의 최근 N건을 싣는다.
+  //   옛 순서(관문 앞)는 두 가지로 무너진다: ①폴백 결과를 **같은 약한 말**로 다시 재면 반드시 0건이다
+  //   ②LIKE 가 약한 말로 한 건이라도 걸면 폴백 기회를 잃고, 그 한 건마저 관문에서 죽어 **0건**이 된다.
+  //   그래서 «관문을 통과한 것이 없고, 사용자가 그 영역을 물었으면» 그때 최근 목록을 싣는다.
+  const recentFallback = {};
 
   // 업무 — 권한 scope 그대로 (member 이상=전체 / client=본인 관여분)
   try {
@@ -584,10 +590,13 @@ const NOTE_SNIPPET_CHARS = 700;
         attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
         order: [['updated_at', 'DESC']], limit: 5,
       });
-      out.posts = hit.length ? hit : (hints.docs ? await Post.findAll({
-        where: base, attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
-        order: [['updated_at', 'DESC']], limit: 8,
-      }) : []);
+      out.posts = hit;
+      if (hints.docs) {
+        recentFallback.posts = () => Post.findAll({
+          where: base, attributes: ['id', 'title', 'category', 'vlevel', 'updated_at'],
+          order: [['updated_at', 'DESC']], limit: 8,
+        });
+      }
     } catch (e) { void e; }
     {
       try {
@@ -600,10 +609,13 @@ const NOTE_SNIPPET_CHARS = 700;
           attributes: FILE_ATTRS,
           order: [['created_at', 'DESC']], limit: 5,
         });
-        out.files = hit.length ? hit : (hints.files ? await FileModel.findAll({
-          where: base, attributes: FILE_ATTRS,
-          order: [['created_at', 'DESC']], limit: 8,
-        }) : []);
+        out.files = hit;
+        if (hints.files) {
+          recentFallback.files = () => FileModel.findAll({
+            where: base, attributes: FILE_ATTRS,
+            order: [['created_at', 'DESC']], limit: 8,
+          });
+        }
 
         // #227 — **이름으로 찾은 상위 몇 건만** 본문을 읽는다.
         //   여태 제목만 실어서 "파일 내용 알려줘" 에 Cue 가 "열어볼 수 없습니다" 라고 답했다.
@@ -632,10 +644,13 @@ const NOTE_SNIPPET_CHARS = 700;
             attributes: ['id', 'subject', 'status', 'reply_needed', 'last_message_at'],
             order: [['last_message_at', 'DESC']], limit: 4,
           });
-          out.mail = hit.length ? hit : (hints.mail ? await EmailThread.findAll({
-            where: base, attributes: ['id', 'subject', 'status', 'reply_needed', 'last_message_at'],
-            order: [['last_message_at', 'DESC']], limit: 6,
-          }) : []);
+          out.mail = hit;
+          if (hints.mail) {
+            recentFallback.mail = () => EmailThread.findAll({
+              where: base, attributes: ['id', 'subject', 'status', 'reply_needed', 'last_message_at'],
+              order: [['last_message_at', 'DESC']], limit: 6,
+            });
+          }
         }
       } catch (e) { void e; }
     }
@@ -664,11 +679,20 @@ const NOTE_SNIPPET_CHARS = 700;
     (r) => ({ title: [r.display_name, r.company_name, r.biz_name].filter(Boolean).join(' ') }), { limit: 4 });
   if (out.posts?.length) out.posts = rankByRelevance(out.posts, terms, (r) => ({ title: r.title }), { limit: 5 });
   if (out.mail?.length) out.mail = rankByRelevance(out.mail, terms, (r) => ({ title: r.subject }), { limit: 4 });
-  if (out.files?.length) out.files = rankByRelevance(out.files, terms, (r) => ({ title: r.original_name || r.filename }), { limit: 5 });
+  // ★ 컬럼명은 `file_name` 하나뿐이다(models/File.js · 위 FILE_ATTRS). 없는 필드를 읽으면
+  //   제목이 항상 빈 문자열이라 **이름이 정확히 맞은 파일까지 전부 탈락**한다(Fable 실측: 5건 → 0건).
+  if (out.files?.length) out.files = rankByRelevance(out.files, terms, (r) => ({ title: r.file_name }), { limit: 5 });
   // 노트는 q-note 가 돌려준 제목·조각으로 같은 관문을 통과해야 한다 —
   //   신고 사례에서 2,904자 회의록이 「어떻게」 하나로 들어온 자리가 바로 여기다.
   if (out.notes?.length) {
     out.notes = rankByRelevance(out.notes, terms, (r) => ({ title: r.title, body: r.snippet || r.body }), { limit: NOTE_MAX });
+  }
+
+  // 관문을 통과한 것이 없는데 사용자가 그 영역을 물었으면 — 최근 목록을 싣는다(위 주석 참조).
+  for (const key of ['posts', 'files', 'mail']) {
+    if (!out[key]?.length && recentFallback[key]) {
+      try { out[key] = await recentFallback[key](); } catch (e) { void e; }
+    }
   }
 
   const total = out.tasks.length + out.projects.length + out.clients.length + out.invoices.length
