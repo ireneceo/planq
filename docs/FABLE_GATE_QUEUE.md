@@ -4411,3 +4411,7 @@ Irene: *"좌측에 폴더명들이 왜 좌우 여백 없어. 아래 스크롤 �
   아이콘을 `docs/treeIcons.tsx` 로 뺐다(2,535줄). 동결선 위면 더 뺀다.
 - **Fable 이 봐야 할 것**: 트리 부품 추출이 프로젝트 상세 파일 탭(같은 컴포넌트)에서 회귀가 없는가 ·
   `DocsTab.tsx` 는 여전히 god-file 이다 — ProjectGroups/FolderTree 분리가 남은 부채다.
+
+**(9) 배포 — v1.55.2.** 버전·릴리즈노트·개발현황만 담은 커밋(소스 동작 변경 0). 위 (9) 와 같은 라운드.
+배포 전 검사를 각각 따로 돌려 종료코드를 확인했다 — build EXIT 0 · guard **EXIT 0(god-file 포함)** ·
+health 45/45 · tenant 0 · filetree 9/9 · filemarquee 4/4.
