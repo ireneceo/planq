@@ -1,0 +1,36 @@
+{
+  "version": "1.55.2",
+  "date": "2026-09-20",
+  "items": [
+    {
+      "ko": {
+        "title": "파일 목록 왼쪽 폴더 트리를 정리했습니다",
+        "body": "프로젝트를 펼치는 손잡이가 화살표였는데, 그 자리 때문에 모든 줄이 안쪽으로 밀리고 채팅·업무·회의·문서가 하위 항목처럼 보였습니다.\n\n이제 폴더 아이콘 자체가 열리고 닫힙니다. 프로젝트 색은 그 아이콘 선에 들어갑니다. 전체·내 파일·프로젝트·채팅·업무·회의·문서가 모두 같은 줄에서 시작하고, 오른쪽 숫자도 한 자리에 섭니다.\n\n이름이 테두리에 붙던 여백과, 목록 아래쪽이 잘리던 문제도 함께 고쳤습니다."
+      },
+      "en": {
+        "title": "A tidier folder tree in the file list",
+        "body": "The expand control for a project was an arrow, and the space it took pushed every row inward, making Chat, Tasks, Meetings and Documents look like nested items.\n\nThe folder icon itself now opens and closes, tinted with the project colour. All, My files, projects, Chat, Tasks, Meetings and Documents all start on the same line, and the counts on the right line up too.\n\nNames no longer touch the panel edge, and the list is no longer cut off at the bottom."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 안에 폴더를 만들 수 있습니다",
+        "body": "Q file 에서는 프로젝트에 속하지 않은 폴더만 만들 수 있었습니다. 프로젝트 안에 폴더를 만들려면 프로젝트 상세로 들어가야 했습니다.\n\n이제 왼쪽 목록의 프로젝트 줄에서 바로 만들 수 있습니다. 아래 칸은 이름을 「워크스페이스 폴더」로 바꿨습니다 — 프로젝트에 속하지 않은 파일을 정리하는 자리입니다."
+      },
+      "en": {
+        "title": "Create folders inside a project",
+        "body": "Q file could only create folders that belong to no project; making one inside a project meant opening the project itself.\n\nYou can now create one straight from the project row in the sidebar. The section below is renamed “Workspace folders” — the place for files that belong to no project."
+      }
+    },
+    {
+      "ko": {
+        "title": "파일 목록의 출처 표시가 겹치지 않습니다",
+        "body": "한 파일이 여러 곳에 붙어 있으면(직접 업로드 + 채팅) 그 표시들이 서로 눌려 겹쳐 보였습니다. 이제 겹치지 않고, 자리가 모자라면 잘려서 보입니다."
+      },
+      "en": {
+        "title": "Source labels no longer overlap",
+        "body": "When a file belonged to more than one place (a direct upload that is also a chat attachment), the labels were squeezed into each other. They now keep their size and are clipped when space runs short."
+      }
+    }
+  ]
+}
