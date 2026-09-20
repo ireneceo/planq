@@ -1,0 +1,56 @@
+{
+  "version": "1.53.0",
+  "date": "2026-09-20",
+  "items": [
+    {
+      "ko": {
+        "title": "파일 하나에 올릴 수 있는 용량이 커졌습니다",
+        "body": "플랜별 파일당 용량 한도를 올렸습니다. Free 25MB · Starter 100MB · Basic 250MB · Pro 500MB · Enterprise 1GB 입니다. 워크스페이스 전체 저장공간은 그대로입니다.\n\n그리고 파일을 올리는 자리에서 남은 저장공간이 바로 보입니다. 여태는 대시보드에서만 알 수 있어서, 올리다 막혔을 때 이유를 그 자리에서 알 수 없었습니다. 80% 를 넘으면 빨간 글씨로 알려 드립니다."
+      },
+      "en": {
+        "title": "Larger per-file upload limits",
+        "body": "Per-file size limits are now Free 25MB, Starter 100MB, Basic 250MB, Pro 500MB and Enterprise 1GB. Total workspace storage is unchanged.\n\nRemaining storage is also shown right where you upload. It used to appear only on the dashboard, so when an upload was blocked you could not tell why from that screen. Once you pass 80% the figure turns red."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q file 에서 프로젝트 폴더와 그 하위 폴더가 보입니다",
+        "body": "프로젝트에서 만든 폴더가 Q file 폴더 목록에 나오지 않았습니다. 파일 자체는 Q file 에 이미 들어와 있었는데 폴더만 빠져 있어서, 파일은 보이는데 그 파일이 든 폴더로는 갈 수 없었습니다.\n\n이제 프로젝트 이름 아래로 그 프로젝트의 폴더가, 하위 폴더까지 함께 나옵니다."
+      },
+      "en": {
+        "title": "Project folders — and their subfolders — now appear in Q file",
+        "body": "Folders created inside a project were missing from the Q file folder list. The files themselves were already there, so you could see a file but could not open the folder holding it.\n\nProject folders now appear grouped under the project name, subfolders included."
+      }
+    },
+    {
+      "ko": {
+        "title": "메일 목록에 「문의」 표시가 생겼습니다",
+        "body": "Q sale 상담 목록에 들어오는 메일에 「문의」 표시가 붙습니다. 어떤 메일이 상담으로 잡히는지 메일함에서 바로 알 수 있습니다.\n\n판정 기준은 Q sale 과 똑같습니다 — 우리가 답한 스레드, 개인 주소에서 온 것, 사람이 직접 올린 것. 메일함에서 따로 다시 세지 않습니다."
+      },
+      "en": {
+        "title": "An “Inquiry” marker in the mail list",
+        "body": "Emails that feed the Q sale consult list are now marked “Inquiry”, so you can tell from the mailbox which threads are being picked up as consults.\n\nThe rule is exactly the one Q sale uses — threads we replied to, mail from a personal address, and anything a person promoted by hand. Nothing is counted twice."
+      }
+    },
+    {
+      "ko": {
+        "title": "Cue 가 팀이 공개한 회의록도 참고합니다",
+        "body": "여태 Cue 는 질문한 사람 **본인의** 회의록만 찾아봤습니다. 팀원이 워크스페이스에 공개해 둔 회의록은 화면에서는 볼 수 있는데 Cue 는 못 봐서, 물어보면 \"본인 노트만 봅니다\" 라고 답했습니다.\n\n이제 그 사람이 열람할 수 있는 회의록까지 찾아봅니다. 공개하지 않은 개인 노트는 종전대로 본인만 볼 수 있습니다."
+      },
+      "en": {
+        "title": "Cue now reads meeting notes your team has shared",
+        "body": "Cue used to search only your own meeting notes. Notes a teammate had shared with the workspace were visible on screen but invisible to Cue, so it would answer that it could only see your own.\n\nCue now searches every note you are allowed to open. Private notes stay private to their author, as before."
+      }
+    },
+    {
+      "ko": {
+        "title": "Cue 가 셀 수 없는 것은 셀 수 없다고 말합니다",
+        "body": "\"지연이 가장 많은 사람은 누구야\" 처럼 전체를 세어야 답이 나오는 질문에, Cue 가 일부만 보고 단정하던 문제를 고쳤습니다. 이제 못 한다는 것과 왜 못 하는지를 먼저 밝히고, 어느 메뉴에서 볼 수 있는지 알려 드립니다.\n\n검색 결과도 정확해졌습니다. \"어떻게\" 같은 흔한 말 하나 때문에 상관없는 회의록이 딸려 오던 것을 막았습니다."
+      },
+      "en": {
+        "title": "Cue says so when a question needs a full count",
+        "body": "Questions like “who has the most overdue work?” need a count across everything, and Cue used to answer them from a partial sample. It now says up front that it cannot do that, explains why, and points you to the menu where you can see it.\n\nSearch results are sharper too: a single common word such as “how” no longer drags in unrelated meeting notes."
+      }
+    }
+  ]
+}
