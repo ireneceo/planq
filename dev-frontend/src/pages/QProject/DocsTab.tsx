@@ -2132,11 +2132,14 @@ const StorageLeftText = styled.span<{ $warn: boolean }>`
   white-space: nowrap;
 `;
 
-/** 프로젝트 노드의 펼침 표시. 누르면 그 프로젝트의 폴더가 아래로 열린다. */
-/** 첫 칸(14px) — 펼침 화살표. 없는 행은 `<CaretSpacer/>` 로 **자리를 비워 둔다**. */
+/** 첫 칸(14px) — 펼침 화살표. 누르면 그 프로젝트의 폴더가 아래로 열린다.
+ *  없는 행은 CaretSpacer 로 **자리를 비워 둔다**(칸 수가 행마다 다르면 열이 갈라진다). */
 const Caret = styled.span<{ $open: boolean }>`
+  /* ★ height 를 쓰지 않는다 — 컨트롤 높이 토큰(32/36/40/44) 밖이라 가드(uispec)가 잡는다.
+     그리드 셀이 align-items:center 라 세로 가운데는 이미 맞는다. 폭만 정하면 된다.
+     ★ 이 주석에 백틱을 쓰지 말 것 — styled 템플릿이 거기서 끊긴다(방금 그걸로 빌드가 깨졌다). */
   display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px; flex-shrink: 0; color: #94a3b8;
+  width: 14px; flex-shrink: 0; color: #94a3b8;
   transform: rotate(${p => (p.$open ? 90 : 0)}deg);
   transition: transform 0.12s ease;
   &:hover { color: #0F766E; }
