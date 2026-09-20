@@ -671,4 +671,7 @@ async function listConsults(businessId, opts = {}) {
   return { items: merged, counts };
 }
 
-module.exports = { listUnlinkedTouchpoints, listConsults, SOURCES };
+// ★ classifyMailThreads 를 내보낸다 — Q mail 의 「문의」 표시가 **이 함수**를 읽는다.
+//   Irene 2026-09-20 (#421): 「문의」 태그를 넣되 기준은 Q sale 유입과 **같은 술어**여야 한다.
+//   키워드로 다시 가르면 두 벌이 되고, CLAUDE.md 가 적어 둔 대로 그 길은 두 번 다 샜다.
+module.exports = { listUnlinkedTouchpoints, listConsults, SOURCES, classifyMailThreads };

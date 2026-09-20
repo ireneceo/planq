@@ -40,7 +40,13 @@ export const PLANQ_FILE_MIME = 'application/x-planq-file';
 
 /** 이 파일을 OS 로 끌어낼 수 있는가 — 백엔드 발급 조건과 같은 술어(프론트는 무의미한 요청을 줄인다). */
 export function isDraggableOut(f: ProjectFile): boolean {
-  if (f.source !== 'direct') return false;                 // 채팅·업무 첨부는 후속(#228-b)
+  // ★ 2026-09-20 — 이 조건은 «화면만 엄격한 것» 이 아니다(그 계열로 착각해 한 번 풀었다가 되돌렸다).
+  //   `chat-45` 의 숫자는 **MessageAttachment id** 이고 `task-7` 은 TaskAttachment id 다 —
+  //   `files.id` 가 아니다(routes/projects.js:3593 · bulk-download 의 출처별 파싱).
+  //   서버 `drag-url` 은 File 테이블만 보므로 조건만 풀면 **엉뚱한 파일을 내보낸다.**
+  //   여는 방법은 서버가 출처별 id 를 받게 하는 것인데, 그건 무인증 서명 URL 표면을 넓히는 일이라
+  //   (CLAUDE.md R=1) Fable 판정이 선행돼야 한다. 대기열에 있다(#228-b).
+  if (f.source !== 'direct') return false;
   if (f.storage_provider !== 'planq') return false;         // 외부 스토리지는 바이트를 우리가 안 쥐고 있다
   if (f.security_level && f.security_level !== 'general') return false;  // 외부 노출 게이트
   return true;

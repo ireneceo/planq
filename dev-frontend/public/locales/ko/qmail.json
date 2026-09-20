@@ -684,5 +684,7 @@
       "auth_fail": "발신 인증에 실패했습니다 — {{detail}}",
       "auth_unknown": "발신 인증 정보가 없어 확인하지 못했습니다"
     }
-  }
+  },
+  "inquiryBadge": "문의",
+  "inquiryBadgeHint": "Q sale 상담 목록에 들어오는 메일입니다"
 }

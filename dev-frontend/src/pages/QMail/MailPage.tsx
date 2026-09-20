@@ -90,6 +90,7 @@ import {
   Composer,
   ComposerActions,
   KeepNeededRow,
+  InquiryBadge,
   HoldingBadge,
   ComposerError, AiWorkingLine, AiDot,
   ComposerFrom,
@@ -215,6 +216,10 @@ interface Thread {
   reply_needed_at?: string | null;
   /** 'holding' = 임시 답변을 보내고 답변 필요에 남겨 둔 것 (2026-09-10) */
   reply_needed_reason?: string | null;
+  /** 이 스레드가 Q sale 의 «상담» 기준에 드는가 — 서버가 `saleInbox.classifyMailThreads`
+   *  **한 함수**로 판정해 내려준다(#421). 판정을 못 했으면 필드가 아예 없다
+   *  (false 를 붙이면 "문의가 아니다" 라고 단언하는 것이라 거짓이 된다). */
+  is_inquiry?: boolean;
   rule_id?: number | null;        // 학습 규칙으로 분류된 스레드 (몰래 걸러지지 않도록 화면에 표시)
   is_starred: boolean;
   unread_count: number;
@@ -2443,6 +2448,15 @@ const MailPage: React.FC = () => {
                     <ReplyNeededBadge>
                       {t('replyNeededBadge', { defaultValue: '답변 필요' }) as string}
                     </ReplyNeededBadge>
+                  )}
+                  {/* 「문의」 — Q sale 의 상담 기준(`saleInbox.classifyMailThreads`)에 드는 메일.
+                      ★ 상태를 말하는 **명사**다(누르는 버튼이 아니다). 같은 글자를 상태와 행위에
+                        같이 쓰지 않는다 — 2026-09-17 에 그 때문에 목록이 "같은 표시가 두 번" 으로 읽혔다.
+                      ★ 서버가 판정을 못 했으면 필드가 없고, 그때는 **아무 것도 그리지 않는다.** */}
+                  {mt.is_inquiry === true && (
+                    <InquiryBadge title={t('inquiryBadgeHint', { defaultValue: 'Q sale 상담 목록에 들어오는 메일입니다' }) as string}>
+                      {t('inquiryBadge', { defaultValue: '문의' }) as string}
+                    </InquiryBadge>
                   )}
                   {/* ★ 2026-09-10 — **임시 답변**으로 남겨둔 것. 목록이 "왜 아직 여기 있는지" 를 말해야 한다.
                       이 표시가 없으면 다음 날 그 메일을 보고 답장을 했는지 안 했는지 또 알 수 없다. */}

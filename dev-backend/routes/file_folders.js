@@ -53,11 +53,25 @@ router.get('/workspace/:businessId', authenticateToken, async (req, res, next) =
     if (!(scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin)) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // ★ 2026-09-20 (Irene #417: *"프로젝트>파일에서 만든 폴더가 Q file 에 안 나온다"*) —
+    //   **프로젝트 폴더와 그 하위 폴더까지** 같이 준다.
+    //   Q file 의 파일 목록(`GET /api/files/:businessId`)은 `project_id` 로 거르지 **않는다** —
+    //   즉 프로젝트 파일은 이미 이 화면에 들어와 있었는데 **폴더만 빠져** 있었다.
+    //   그래서 파일은 보이는데 그 파일이 든 폴더로는 갈 수 없었다(사용자에게는 "폴더가 사라졌다").
+    //   parent_id 사슬은 그대로 오므로 하위 폴더도 같이 온다 — 트리는 화면이 조립한다.
     const folders = await FileFolder.findAll({
-      where: { business_id: businessId, project_id: null },
+      where: { business_id: businessId },
       order: [['parent_id', 'ASC'], ['sort_order', 'ASC'], ['created_at', 'ASC']],
+      include: [{ model: Project, attributes: ['id', 'name'], required: false }],
     });
-    successResponse(res, folders);
+    // 프로젝트 이름은 **폴더가 어느 프로젝트 것인지** 화면이 묶는 데 쓴다.
+    //   이름을 화면이 따로 조회하면 목록이 프로젝트 수만큼 요청을 쏘고, 이름이 갈린다.
+    successResponse(res, folders.map((f) => {
+      const j = f.toJSON();
+      j.project_name = j.Project ? j.Project.name : null;
+      delete j.Project;
+      return j;
+    }));
   } catch (error) { next(error); }
 });
 

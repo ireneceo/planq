@@ -465,6 +465,17 @@ export const ReplyNeededBadge = styled.span`
   font-size: 0.6875rem; font-weight: 700;
 `;
 
+/* 「문의」 — Q sale 상담 기준에 드는 메일(#421, 2026-09-20).
+   규격은 답변 필요·임시답변 뱃지와 **같다**(패딩·라운드·글자 크기·굵기). 색만 다르다 —
+   같은 줄에 서는 표시들이 규격을 각자 쓰면 줄이 들쭉날쭉해진다.
+   붉은색(답변 필요)·노란색(임시답변)과 구별되는 남색 계열: 「해야 할 일」이 아니라 **분류**다. */
+export const InquiryBadge = styled.span`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 7px; border-radius: 999px;
+  background: #E0E7FF; color: #3730A3;
+  font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
+`;
+
 /* 임시답변 — 답장은 보냈지만 본 답변이 남아 있다는 표시(2026-09-10). 답변 필요 뱃지와 같은 규격. */
 export const HoldingBadge = styled.span`
   display: inline-flex; align-items: center; gap: 4px;

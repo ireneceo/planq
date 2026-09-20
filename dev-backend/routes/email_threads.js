@@ -373,6 +373,12 @@ router.get('/:businessId/email-threads',
         folder, senderByThread, lastOutByThread, attachCountByThread, nameByEmail,
       }));
 
+      // 「문의」 표시 — 판정은 Q sale 유입과 **같은 함수**다(`saleInbox.classifyMailThreads`).
+      //   여기서 키워드로 다시 가르지 않는다. 실패해도 목록은 그대로 나간다(아래 검색 강조와 같은 방침).
+      await require('../services/mailInquiryTag')
+        .attachInquiryFlag(data, { businessId, userId: req.user.id })
+        .catch((err) => { console.error('[email-threads] inquiry tag err:', err.message); });
+
       // 2026-09-11 — "왜 이 메일이 검색에 걸렸나". 행마다 match: { field, snippet }.
       //   이 페이지 행(= 위 계정 격리를 통과한 스레드)만 본다. 규칙·쿼리는 services/mailSearchMatch.
       //   설명을 못 만들어도 목록은 그대로 나가야 한다 — 실패는 로그만 남기고 match 없이 보낸다.

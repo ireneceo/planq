@@ -4158,3 +4158,38 @@ Fable 이 위 커밋을 검증해 실제 회귀 2건(파일 컬럼명 · 폴백 
 **Fable 이 봐야 할 것**: ①폴백을 관문 뒤로 옮긴 순서가 다른 질문 유형을 망가뜨리지 않는지
 (Fable 이 쓴 운영 A/B 방식으로 전/후 비교) ②`KO_WEAK_TERMS` 손목록 → 빈도 기반 전환
 ③0건일 때의 화법(없는 것과 막힌 것을 사용자는 구별 못 한다).
+
+## 2026-09-20 · Irene 결정 6건 일괄 (Cue 범위·Q file·한도·문의 태그)
+
+**Fable 을 두 번 띄웠고 두 번째는 한도 소진(429)으로 실패했다.** 첫 라운드는 Cue 검색 관문만
+검증해 FAIL 2건을 반려했고(그건 고쳐서 커밋), **이번 변경은 미검증(자체 검증)** 이다.
+
+**판정: 일부 R=1** — Q Note 가시성 술어 추출(사적 공간 계약, PERMISSION_MATRIX §5.8)과
+파일 한도 상향이 여기 해당한다. 나머지는 R=0·F=1.
+
+- **만든 것**
+  - `q-note/routers/sessions.py` — 가시성 사다리를 `session_read_allowed()` **단일 술어**로 추출
+    (`_load_session_or_403` 과 `internal/search` 가 같이 쓴다) · Cue 노트 검색을 **읽을 수 있는 노트**로 확대 · `is_mine`
+  - `dev-backend/services/cue_context.js` — 집계 불가 계약(전수 못 셈을 분명히 말하기) · 회의록 문구 갱신
+  - `dev-backend/routes/file_folders.js` — Q file 에 프로젝트 폴더 + 하위 폴더(+`project_name`)
+  - `dev-backend/config/plans.js` — 파일당 한도 5/20/50/100/200MB → 25/100/250/500MB/1GB (총 저장공간 무변경)
+  - `dev-backend/services/mailInquiryTag.js`(신규) + `saleInbox.classifyMailThreads` export + `routes/email_threads.js` — 「문의」 표시
+  - 프론트: `DocsTab.tsx`(프로젝트별 폴더 묶음 · 저장공간 잔량) · `MailPage.tsx`(문의 배지) · `services/files.ts` · ko/en
+- **자체 검증 수치**
+  - Q Note 권한 **7/7** — L1 차단 · 녹화 중 차단 · **L2 비멤버 403(음성 대조군)** · L2 멤버 200 ·
+    L3 200 · **쓰기(PUT) 403** · **녹음 락 403**. ★ 대조군을 owner 로 잡아 한 번 거짓 FAIL 이 났다 —
+    owner 는 모든 프로젝트 멤버로 간주되는 기존 설계라(routes/internal.js) 대조군이 못 된다. **평멤버**로 다시 쟀다.
+  - 노트 검색 확대 4/4 + **양성 대조군**(옛 범위로 되돌리면 빨간불) 확인
+  - 폴더 6/6(하위·parent 사슬·프로젝트 이름·음성 대조군) · 격리 3/3 · 한도 경계 2/2
+  - 「문의」 태그 — 50건 중 Q sale 판정과 **어긋난 행 0** · 캐시 키 격리(계정 2개 사용자 38건 vs 1개 3건)
+  - 비용: `classifyMailThreads` dev 906건 65ms / 227건 10ms · **운영 최대 biz1 239건** → 30초 캐시로 충분
+  - 가드: health 44/44 · guard-invariants EXIT 0(58/59, 경고=문서 신선도) · e2e tenant 실패 0 · `npm run build` EXIT 0 · `error TS` 0
+- **Fable 이 봐야 할 것**
+  1. **`session_read_allowed` 추출이 다른 호출 경로를 깨지 않았는가** — `_load_session_or_403` 을 부르는
+     라우트 전수(내가 잰 것은 GET·PUT·recorder/acquire 셋뿐이다).
+  2. **파일당 한도 상향의 운영 영향** — 운영 nginx 는 600MB 까지 통과하는 것을 실측했으나
+     **1GB(Enterprise) 는 안 재 봤다.** 그 사이 어딘가에 상한이 있으면 413 이 나고 사용자에게는
+     "안 올라간다" 로 보인다. dev nginx 는 50M 이라 dev 에서 재현이 **불가능**하다(sudo 필요).
+  3. **「문의」 태그의 30초 캐시** — 스레드가 수천 건인 워크스페이스가 생겼을 때 목록 응답이 느려지는 지점.
+  4. **드래그 아웃(#228-b)** — 채팅·업무 첨부를 OS 로 끌어내려면 서버가 출처별 id 를 받아야 하는데
+     그건 무인증 서명 URL 표면 확장이다(R=1). **구현하지 않고 남겼다.** 판정 필요.

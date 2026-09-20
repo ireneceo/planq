@@ -633,6 +633,10 @@
     "security": {
       "driveOrigin": "This file lives in Google Drive, so PlanQ cannot remove the copy. Please move or delete it in Drive.",
       "driveFailed": "Could not remove the Google Drive copy. Check the Drive connection and try again."
+    },
+    "storage": {
+      "left": "{{left}} left of {{quota}}",
+      "full": "Storage is full ({{used}} / {{quota}})"
     }
   },
   "pinnedDoc": {

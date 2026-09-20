@@ -684,5 +684,7 @@
       "auth_fail": "Sender authentication failed — {{detail}}",
       "auth_unknown": "No sender authentication data, so this couldn't be checked"
     }
-  }
+  },
+  "inquiryBadge": "Inquiry",
+  "inquiryBadgeHint": "This email appears in the Q sale consult list"
 }

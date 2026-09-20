@@ -139,6 +139,12 @@ export interface FileFolder {
   name: string;
   parent_id: number | null;
   sort_order: number;
+  /** 이 폴더가 어느 프로젝트 것인가 — Q file(워크스페이스) 목록에서만 채워진다.
+   *  프로젝트 상세의 폴더 목록은 그 프로젝트 것만 오므로 null 이다.
+   *  ★ Q file 의 파일 목록은 프로젝트 파일을 **이미** 담고 있었는데 폴더만 빠져 있어서,
+   *    파일은 보이는데 그 폴더로 갈 수 없었다(#417). */
+  project_id?: number | null;
+  project_name?: string | null;
 }
 
 export interface StorageStatus {
@@ -375,6 +381,12 @@ export interface UploadLimits {
   /** Drive·S3 로 흘릴 준비가 됐는가(토큰+루트 폴더). 실제로 타려면 맥락도 필요하다 — 아래 참조. */
   external_ready: boolean;
   external_provider: 'gdrive' | 's3' | null;
+  /** 워크스페이스 저장공간 — 파일을 올리는 화면이 **한도에 언제 닿는지 미리** 말하려면 필요하다.
+   *  (Irene 2026-09-20: *"언제 한도에 도달하는지 미리 알려주고"*)
+   *  경고 카드는 대시보드에만 있어서, 정작 올리는 자리에서는 남은 양을 알 수 없었다.
+   *  `bytes_quota === null` 은 무제한(Enterprise). */
+  bytes_used: number;
+  bytes_quota: number | null;
 }
 
 const LIMITS_TTL_MS = 60 * 1000;
@@ -393,6 +405,8 @@ export async function getUploadLimits(businessId: number): Promise<UploadLimits 
       external_max_bytes: Number(u.external_max_bytes) || 0,
       external_ready: !!u.external_ready,
       external_provider: (u.external_provider as UploadLimits['external_provider']) ?? null,
+      bytes_used: Number(j?.data?.bytes_used) || 0,
+      bytes_quota: j?.data?.bytes_quota == null ? null : Number(j.data.bytes_quota),
     };
     limitsCache.set(businessId, { at: Date.now(), v });
     return v;

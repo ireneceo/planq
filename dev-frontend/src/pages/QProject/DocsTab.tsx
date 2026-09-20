@@ -688,6 +688,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 : t('docs.drop.hintLimit', '파일 하나에 {{limit}}까지 · 더 큰 파일은 Google Drive 를 연결하면 그대로 올라갑니다', { limit: formatBytes(uploadLimits.self_max_bytes) })) as string
               : t('docs.drop.hintPlain', '여러 파일을 한 번에 올릴 수 있습니다') as string}
           </DzHint>
+          <DzHint><StorageLeft limits={uploadLimits} /></DzHint>
         </Dropzone>
       ) : (
         <CompactBar>
@@ -708,6 +709,7 @@ const DocsTab: React.FC<Props> = (props) => {
             {uploadLimits && (
               <LimitPart>{t('docs.drop.limitOnly', '파일 하나에 {{limit}}까지', { limit: formatBytes(uploadLimits.self_max_bytes) }) as string}</LimitPart>
             )}
+            <LimitPart>{uploadLimits && uploadLimits.bytes_quota != null ? ' · ' : ''}<StorageLeft limits={uploadLimits} /></LimitPart>
             <DragPart>
               {uploadLimits
                 ? (t('docs.drop.compactHintTail', ' · 여기나 리스트 영역에 끌어다 놓아도 됩니다') as string)
@@ -1630,6 +1632,18 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
   const [deleteTarget, setDeleteTarget] = useState<FileFolder | null>(null);
 
   const rootFolders = folders.filter(f => f.parent_id === null);
+  // ★ 2026-09-20 (#417) — Q file 에는 **프로젝트 폴더도 같이 온다**(서버 `/api/folders/workspace/:biz`).
+  //   그냥 한 덩어리로 그리면 워크스페이스 폴더와 프로젝트 폴더가 **구분 없이 섞여** 어느 프로젝트
+  //   것인지 알 수 없다. 프로젝트별로 묶어 머리말을 단다. 하위 폴더는 `childrenOf` 가 그대로 따라온다.
+  const wsRootFolders = rootFolders.filter(f => !f.project_id);
+  const projectGroups: { id: number; name: string; folders: FileFolder[] }[] = [];
+  for (const f of rootFolders) {
+    if (!f.project_id) continue;
+    let g = projectGroups.find(x => x.id === f.project_id);
+    if (!g) { g = { id: f.project_id, name: f.project_name || '', folders: [] }; projectGroups.push(g); }
+    g.folders.push(f);
+  }
+  projectGroups.sort((a, b) => a.name.localeCompare(b.name));
   const childrenOf = (id: number) => folders.filter(f => f.parent_id === id);
 
   const startCreate = (parentId: number | null) => {
@@ -1776,7 +1790,13 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
           {rootFolders.length === 0 && creatingParent !== null && (
             <EmptyHint>{tr('docs.folders.empty')}</EmptyHint>
           )}
-          {rootFolders.map(f => renderFolder(f, 0))}
+          {wsRootFolders.map(f => renderFolder(f, 0))}
+          {projectGroups.map(g => (
+            <React.Fragment key={`pg-${g.id}`}>
+              <ProjectFolderLabel title={g.name}>{g.name}</ProjectFolderLabel>
+              {g.folders.map(f => renderFolder(f, 1))}
+            </React.Fragment>
+          ))}
         </TreeRoot>
         {deleteModal}
       </>
@@ -2001,6 +2021,49 @@ const DzIcon = styled.div<{ $large?: boolean }>`color:#94A3B8;margin-bottom:${p 
 const DzTitle = styled.div`font-size:0.8125rem;font-weight:600;color:#334155;`;
 const DzHint = styled.div`font-size:0.6875rem;color:#94A3B8;`;
 /* 업로드 진행 패널 — 파일별 한 줄 */
+/** 남은 저장공간 한 줄 — 드롭존과 컴팩트 줄이 **같은 조각**을 쓴다.
+ *  각자 계산하면 두 자리의 숫자가 갈라진다(memory `feedback_same_value_multiple_formulas`).
+ *  한도의 80% 를 넘으면 경고 톤 — 대시보드 `UsageWarningCard` 의 WARN_THRESHOLD 와 같은 값이다.
+ *  ★ 사용자가 파일을 올리는 자리에서 «언제 한도에 닿는지» 를 본다(Irene 2026-09-20).
+ *    여태 경고는 대시보드에만 있어서, 올리다 막힌 사람은 이유를 그 자리에서 알 수 없었다. */
+const STORAGE_WARN = 0.8;
+const StorageLeft: React.FC<{ limits: UploadLimits | null }> = ({ limits }) => {
+  const { t } = useTranslation('qproject');
+  if (!limits || limits.bytes_quota == null || limits.bytes_quota <= 0) return null;
+  const left = Math.max(0, limits.bytes_quota - limits.bytes_used);
+  const pct = limits.bytes_used / limits.bytes_quota;
+  return (
+    <StorageLeftText $warn={pct >= STORAGE_WARN}>
+      {pct >= 1
+        ? (t('docs.storage.full', '저장공간이 가득 찼습니다 ({{used}} / {{quota}})', {
+            used: formatBytes(limits.bytes_used), quota: formatBytes(limits.bytes_quota) }) as string)
+        : (t('docs.storage.left', '남은 저장공간 {{left}} / {{quota}}', {
+            left: formatBytes(left), quota: formatBytes(limits.bytes_quota) }) as string)}
+    </StorageLeftText>
+  );
+};
+
+const StorageLeftText = styled.span<{ $warn: boolean }>`
+  font-size: 0.75rem;
+  color: ${p => (p.$warn ? '#b91c1c' : '#64748b')};
+  font-weight: ${p => (p.$warn ? 600 : 400)};
+  white-space: nowrap;
+`;
+
+/** 프로젝트 폴더 묶음의 머리말. 폴더가 아니라 **분류 라벨**이므로 누를 수 없다 —
+ *  누를 수 있게 하면 "프로젝트 전체 파일" 이라는 또 다른 필터 축이 생기는데, 그 축은
+ *  이미 좌측 프로젝트 목록이 갖고 있다(같은 일을 두 곳에서 하지 않는다). */
+const ProjectFolderLabel = styled.div`
+  padding: 6px 8px 2px 8px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #94a3b8;
+  letter-spacing: -0.1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
 const CompactBar = styled.div`
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   padding:8px 12px;background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;

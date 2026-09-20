@@ -633,6 +633,10 @@
     "security": {
       "driveOrigin": "이 파일은 Google Drive 에 원본이 있어 PlanQ 가 사본을 거둘 수 없습니다. Drive 에서 직접 옮기거나 지워 주세요.",
       "driveFailed": "Google Drive 사본을 거두지 못했습니다. Drive 연결 상태를 확인한 뒤 다시 시도해 주세요."
+    },
+    "storage": {
+      "left": "남은 저장공간 {{left}} / {{quota}}",
+      "full": "저장공간이 가득 찼습니다 ({{used}} / {{quota}})"
     }
   },
   "pinnedDoc": {

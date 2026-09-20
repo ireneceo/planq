@@ -94,6 +94,23 @@ async def internal_sessions_by_entity(
 #   **`personalScope='self'` 이고 `audience='internal'` 일 때만** 부른다.
 #   즉 답이 **묻는 사람 화면에만** 뜨는 경로(Q helper 드로어)뿐이다.
 #   대화방에 게시되는 Cue 답변(cue_orchestrator)은 이 경로를 절대 타지 않는다.
+async def _filter_readable(rows, user_id: int, limit: int):
+  """후보 중 **이 사람이 읽을 수 있는 것**만 남긴다(상한까지).
+
+  판정은 `session_read_allowed` 하나 — 상세 조회와 같은 문이다.
+  본인 노트를 먼저 놓는다(같은 질문이면 내 기록이 더 맞을 때가 많다).
+  """
+  mine = [r for r in rows if r.get('user_id') == user_id]
+  others = [r for r in rows if r.get('user_id') != user_id]
+  out = mine[:limit]
+  for r in others:
+    if len(out) >= limit:
+      break
+    if await session_read_allowed(r, user_id):
+      out.append(r)
+  return out
+
+
 @router.get('/internal/search')
 async def internal_search_my_sessions(
     business_id: int = Query(...),
@@ -103,7 +120,14 @@ async def internal_search_my_sessions(
     snippet_chars: int = Query(700, ge=100, le=2000),
     x_internal_api_key: Optional[str] = Header(None),
 ):
-  """질문과 겹치는 **본인** 노트 몇 건 + 그 근처 발췌."""
+  """질문과 겹치는 **내가 읽을 수 있는** 노트 몇 건 + 그 근처 발췌.
+
+  ★ 2026-09-20 (Irene: *"해당 유저에게 공개된 정보 내에서 모든 범위로 지정해"*) —
+    여태 `user_id = ?` 로 **본인 노트만** 봤다. 그래서 팀이 워크스페이스에 공개(L3)한 회의록을
+    화면에서는 볼 수 있는데 Cue 는 "회의록은 본인 것만 봅니다" 라고 답했다.
+    지금은 후보를 넓게 뽑고 `session_read_allowed`(상세 조회와 **같은 술어**)로 거른다 —
+    생성자가 연 범위만 열리고 L1(개인)은 그대로 본인 것만이다.
+  """
   expected = os.environ.get('INTERNAL_API_KEY')
   if not expected or x_internal_api_key != expected:
     raise HTTPException(status_code=401, detail='invalid internal key')
@@ -136,27 +160,31 @@ async def internal_search_my_sessions(
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     cur = await db.execute(
-      'SELECT id, title, created_at, status, capture_mode, project_id, visibility, '
+      'SELECT id, title, created_at, status, capture_mode, project_id, visibility, user_id, business_id, '
       '       summary_full, summary_key_points, body, brief '
       'FROM sessions '
-      'WHERE business_id = ? AND user_id = ? AND (' + ' OR '.join(clauses) + ') '
+      "WHERE business_id = ? AND (user_id = ? OR visibility <> 'L1') AND (" + ' OR '.join(clauses) + ') '
+      # 상한을 넉넉히 — 아래 권한 필터에서 줄어든다. 여기서 limit 으로 자르면 남의 노트가 앞을 채워
+      # 내 노트가 밀려날 수 있다(자기 것이 먼저 보이도록 ORDER 뒤에 필터).
       'ORDER BY created_at DESC LIMIT ?',
-      tuple(params + [limit]),
+      tuple(params + [limit * 5]),
     )
     rows = [dict(r) for r in await cur.fetchall()]
+    rows = await _filter_readable(rows, user_id, limit)
 
     # 제목·요약에 없으면 **발화**에서 찾는다 — 회의는 요약보다 말에 남는 것이 많다.
     if not rows:
       ucl = ' OR '.join(['LOWER(u.original_text) LIKE ?'] * len(terms))
       cur = await db.execute(
-        'SELECT s.id, s.title, s.created_at, s.status, s.capture_mode, s.project_id, s.visibility, '
+        'SELECT s.id, s.title, s.created_at, s.status, s.capture_mode, s.project_id, s.visibility, s.user_id, s.business_id, '
         '       s.summary_full, s.summary_key_points, s.body, s.brief '
         'FROM sessions s JOIN utterances u ON u.session_id = s.id '
-        'WHERE s.business_id = ? AND s.user_id = ? AND (' + ucl + ') '
+        "WHERE s.business_id = ? AND (s.user_id = ? OR s.visibility <> 'L1') AND (" + ucl + ') '
         'GROUP BY s.id ORDER BY s.created_at DESC LIMIT ?',
-        tuple([business_id, user_id] + [f'%{t}%' for t in terms] + [limit]),
+        tuple([business_id, user_id] + [f'%{t}%' for t in terms] + [limit * 5]),
       )
       rows = [dict(r) for r in await cur.fetchall()]
+      rows = await _filter_readable(rows, user_id, limit)
 
     out = []
     for r in rows:
@@ -182,6 +210,9 @@ async def internal_search_my_sessions(
         'status': r.get('status'),
         'capture_mode': r.get('capture_mode'),
         'project_id': r.get('project_id'),
+        # 내 노트인지 팀이 공개한 노트인지 **말해 준다** — 안 알려주면 Cue 가 남의 회의록을
+        # "내 회의록" 이라고 부른다(사용자에게는 곧 거짓말이다).
+        'is_mine': r.get('user_id') == user_id,
         'snippet': (text or '')[:snippet_chars],
       })
   return success(out)
@@ -642,6 +673,37 @@ async def recorder_release(
     return success({'released': True})
 
 
+async def session_read_allowed(row, user_id: int) -> bool:
+  """이 사람이 이 노트를 **읽을 수 있는가** — 생성자가 연 범위만 연다.
+
+  ★ 이 함수가 가시성 판정의 **단일 원천**이다. `_load_session_or_403`(상세 조회)과
+    `internal/search`(Cue 가 읽는 검색)가 같이 부른다. 베껴 두면 한쪽만 고쳐져서,
+    화면에서는 보이는 노트를 Cue 는 못 보거나 그 반대가 된다.
+  ★ 확인 실패(None)는 **거부**다 — 확인 못 한 것을 통과시키면 검사가 없는 것과 같다.
+  """
+  if row['user_id'] == user_id:
+    return True
+  # 녹화 중은 생성자만 — 잠정 데이터 절대 노출 금지
+  if row['status'] == 'recording':
+    return False
+  visibility = row['visibility'] if 'visibility' in row.keys() else 'L1'
+  if visibility == 'L1':
+    return False
+  # L3 / L4: 같은 워크스페이스 멤버 → Node internal API 로 **지금** 멤버인지 확인
+  #   ★ 2026-09-11 — 여태 토큰의 businessId 클레임과 비교했는데 Node 액세스 토큰에는 그 클레임이 **없다**
+  #     (services/authTokens.js generateAccessToken). 그래서 user_business_id 가 늘 None 이라 화면의
+  #     "워크스페이스 공개(L3)" 가 **한 번도 동작하지 않았다**(QNoteShareModal). 클레임을 넣어도 전환하면 낡는다.
+  if visibility in ('L3', 'L4'):
+    return await check_membership(user_id, row['business_id']) is True
+  # L2: 같은 프로젝트 멤버
+  if visibility == 'L2':
+    proj_id = row['project_id'] if 'project_id' in row.keys() else None
+    if not proj_id:
+      return False
+    return await _is_user_in_project(user_id, proj_id)
+  return False
+
+
 async def _load_session_or_403(db, session_id: int, user_id: int, user_business_id: Optional[int] = None, *, access: str = 'write') -> aiosqlite.Row:
   """세션 로딩 + visibility 권한 검사 (사이클 N+14).
 
@@ -673,35 +735,8 @@ async def _load_session_or_403(db, session_id: int, user_id: int, user_business_
   if row['status'] == 'recording':
     raise HTTPException(status_code=403, detail='recording_owner_only')
 
-  visibility = row['visibility'] if 'visibility' in row.keys() else 'L1'
-  if visibility == 'L1':
-    raise HTTPException(status_code=403, detail='Forbidden')
-
-  # L3: same business 멤버 → Node internal API 로 **지금** 멤버인지 확인
-  #   ★ 2026-09-11 — 여태 토큰의 businessId 클레임과 비교했는데 Node 액세스 토큰에는 그 클레임이 **없다**
-  #     (services/authTokens.js generateAccessToken). 그래서 user_business_id 가 늘 None 이라 화면의
-  #     "워크스페이스 공개(L3)" 가 **한 번도 동작하지 않았다**(QNoteShareModal). 클레임을 넣어도 전환하면 낡으므로
-  #     세션의 워크스페이스에 대한 현재 멤버십(해제 제외)을 묻는다. 확인 실패(None)는 거부(보수적).
-  if visibility == 'L3':
-    if await check_membership(user_id, row['business_id']) is True:
-      return row
-    raise HTTPException(status_code=403, detail='Forbidden')
-
-  # L2: project 멤버 → Node internal API 검사
-  if visibility == 'L2':
-    proj_id = row['project_id'] if 'project_id' in row.keys() else None
-    if not proj_id:
-      raise HTTPException(status_code=403, detail='L2 requires project_id')
-    if await _is_user_in_project(user_id, proj_id):
-      return row
-    raise HTTPException(status_code=403, detail='Forbidden')
-
-  # L4: 인증된 사용자가 동일 워크스페이스 멤버라면 OK (외부 token 사용자는 별도 endpoint) — L3 와 같은 판정
-  if visibility == 'L4':
-    if await check_membership(user_id, row['business_id']) is True:
-      return row
-    raise HTTPException(status_code=403, detail='Forbidden')
-
+  if await session_read_allowed(row, user_id):
+    return row
   raise HTTPException(status_code=403, detail='Forbidden')
 
 
