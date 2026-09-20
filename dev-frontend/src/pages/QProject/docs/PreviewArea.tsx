@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import { postContentTableCss } from '../../../styles/postContentView';
 import { useTranslation } from 'react-i18next';
 import { useImageLightbox } from '../../../components/Common/ImageLightbox';
-import { extOf, isImage, isVideo, isAudio, requestMediaUrl, type ProjectFile } from '../../../services/files';
+import { extOf, isImage, isVideo, isAudio, requestMediaUrl, isGoogleShortcut, type ProjectFile } from '../../../services/files';
 import { objectUrlFromApi } from '../../../utils/download';
 import { apiFetch } from '../../../contexts/AuthContext';
 import { marked } from 'marked';
@@ -15,7 +15,11 @@ import DOMPurify from 'dompurify';
 const withW = (u: string | undefined | null, w: number): string | undefined =>
   u && u !== '#' ? `${u}${u.includes('?') ? '&' : '?'}w=${w}` : undefined;
 
-export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = ({ file, businessId }) => {
+export const PreviewArea: React.FC<{
+  file: ProjectFile; businessId: number; shortcutUrl?: string | null;
+  /** 이 파일을 «연다» — 헤더의 [새 탭에서 열기] 와 **같은 문**이다(두 곳이 따로 열면 갈라진다). */
+  onOpen?: () => void;
+}> = ({ file, businessId, shortcutUrl, onOpen }) => {
   const { t } = useTranslation('qproject');
   const { open: openLightbox, lightbox } = useImageLightbox();
   // ★ 훅은 어떤 early return 보다 먼저 — 조건부 훅은 실브라우저에서만 터진다(React #310).
@@ -177,13 +181,45 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
     if (!pdfUrl) return <PreviewLoading>{t('docs.preview.loadingMedia', '재생 준비 중…')}</PreviewLoading>;
     return <PreviewIframe src={pdfUrl} title={file.file_name} />;
   }
+  /* ★ 2026-09-20 (Irene: *"이 구글문서가 플랜큐에 올라갔는데 오픈을 하면 No preview available
+     이렇게 떠"* · *"왜 구글 드라이브에서 열려? 문서로 열려야지?"*) —
+     `.gdoc` 은 문서가 아니라 **172 바이트짜리 링크**다(운영 실측). 미리보기할 본문이 애초에 없다.
+     "다운로드 후 확인" 은 여기서 **거짓말**이다 — 내려받아도 172 바이트 JSON 이 나온다.
+     무엇인지 말해 주고 **문서로 가는 문**을 준다. 링크는 서버가 문서 id 로 조립한 것만 쓴다. */
+  if (isGoogleShortcut(file.file_name)) {
+    return (
+      <PreviewFallback as={shortcutUrl ? 'a' : 'div'}
+        {...(shortcutUrl ? { href: shortcutUrl, target: '_blank', rel: 'noopener noreferrer' } : {})}
+        $clickable={!!shortcutUrl} data-testid="file-preview-area">
+        <PvExtCircle>{extOf(file.file_name).toUpperCase()}</PvExtCircle>
+        <PvShortcutTitle>{t('docs.preview.shortcutTitle', '구글 문서 바로가기') as string}</PvShortcutTitle>
+        <PvFallbackHint>{t('docs.preview.shortcutHint') as string}</PvFallbackHint>
+        {shortcutUrl ? (
+          <PvShortcutLink href={shortcutUrl} target="_blank" rel="noopener noreferrer"
+            data-testid="file-preview-shortcut">
+            {t('docs.preview.shortcutOpen', '구글 문서 열기') as string}
+          </PvShortcutLink>
+        ) : (
+          <PvFallbackHint>{t('docs.preview.shortcutUnresolved') as string}</PvFallbackHint>
+        )}
+      </PreviewFallback>
+    );
+  }
+
+  /* ★ 2026-09-20 — 폴백은 «안내문» 이기만 했다. 눌러도 아무 일이 없으니 사용자는 고장으로 읽는다.
+     여기서도 **열 수 있으면 연다**(헤더 버튼과 같은 문). 열 수 없으면 종전대로 안내만 한다. */
+  const canOpenHere = !!onOpen && !!file.download_url && file.download_url !== '#';
   return (
-    <PreviewFallback>
+    <PreviewFallback as={canOpenHere ? 'button' : 'div'}
+      {...(canOpenHere ? { type: 'button' as const, onClick: onOpen } : {})}
+      $clickable={canOpenHere} data-testid="file-preview-area">
       <PvExtCircle>{extOf(file.file_name).toUpperCase() || '—'}</PvExtCircle>
       <PvFallbackHint>{imgFailed
         ? (t('docs.preview.imageBlocked', { defaultValue: '이 형식은 안전을 위해 앱 안에서 열지 않습니다. 내려받아 확인해 주세요.' }) as string)
         : textErr
         ? (t('docs.preview.tooLargeOrFailed', { defaultValue: '이 파일은 앱에서 열기에 너무 크거나 열 수 없습니다. 내려받아 확인해 주세요.' }) as string)
+        : canOpenHere
+        ? (t('docs.preview.clickToOpen', { defaultValue: '눌러서 열기 — 앱에서 못 여는 형식은 내려받습니다' }) as string)
         : (t('docs.preview.fallbackHint', '미리보기는 다운로드 후 확인 가능합니다') as string)}</PvFallbackHint>
     </PreviewFallback>
   );
@@ -194,6 +230,18 @@ export const PreviewArea: React.FC<{ file: ProjectFile; businessId: number }> = 
    (Irene: "미리보기는 보통 짧은 쪽 기준으로 보이게 해야 하는 거 아니야?").
    → 그림을 늘이지 않고 **짧은 쪽이 상자에 닿을 때까지만** 키운다(max-width/max-height + auto).
      상자는 그림을 감싸고 가운데 정렬한다 — 가로 사진도 세로 사진도 같은 규칙으로 자연스럽다. */
+const PvShortcutTitle = styled.div`
+  font-size:0.9375rem;font-weight:700;color:#0F172A;margin-top:4px;
+`;
+/* 문서로 가는 문 — 액션 3톤의 Primary. 링크지만 누르는 것이므로 버튼처럼 보인다. */
+const PvShortcutLink = styled.a`
+  display:inline-flex;align-items:center;justify-content:center;height:40px;padding:0 18px;
+  margin-top:4px;border-radius:8px;background:#14B8A6;color:#fff;
+  font-size:0.8125rem;font-weight:700;text-decoration:none;
+  &:hover{background:#0D9488;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+`;
+
 const PreviewImageBtn = styled.button`
   display:flex;align-items:center;justify-content:center;
   width:100%;padding:0;border:none;background:#F8FAFC;border-radius:10px;cursor:zoom-in;
@@ -222,7 +270,16 @@ const PreviewLoading = styled.div`
   background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
   font-size:0.8125rem;color:#64748B;
 `;
-const PreviewFallback = styled.div`display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:40px 20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;`;
+const PreviewFallback = styled.div<{ $clickable?: boolean }>`
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  padding:40px 20px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
+  width:100%;text-align:center;text-decoration:none;
+  ${p => (p.$clickable ? `
+    cursor:pointer;transition:background .15s,border-color .15s;
+    &:hover{background:#F0FDFA;border-color:#99F6E4;}
+    &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  ` : '')}
+`;
 const PvExtCircle = styled.div`width:72px;height:72px;border-radius:50%;background:#fff;border:1px solid #E2E8F0;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:800;color:#475569;letter-spacing:.5px;`;
 const PvFallbackHint = styled.div`font-size:0.75rem;color:#64748B;text-align:center;`;
 

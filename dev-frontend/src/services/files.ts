@@ -340,6 +340,37 @@ export async function reorderFolder(folderId: number, direction: 'up' | 'down'):
   return !!j.success;
 }
 
+/**
+ * 구글 문서 **바로가기 파일**인가 — 확장자로만 판정한다(mime 은 octet-stream 으로 온다).
+ * ★ 서버 `services/googleShortcut.js` 의 KINDS 와 **같은 목록**이어야 한다. 한쪽만 늘리면
+ *   화면은 버튼을 띄우는데 서버가 400 을 주거나, 그 반대가 된다.
+ */
+const GOOGLE_SHORTCUT_EXTS = ['gdoc', 'gsheet', 'gslides', 'gdraw', 'gform', 'gscript'];
+export function isGoogleShortcut(fileName: string | null | undefined): boolean {
+  const m = /\.([a-z0-9]+)$/i.exec(String(fileName || ''));
+  return !!m && GOOGLE_SHORTCUT_EXTS.includes(m[1].toLowerCase());
+}
+
+/**
+ * 바로가기 안에 든 **문서 주소**를 받아온다. 바로가기가 아니거나 못 읽으면 null.
+ *
+ * ★ 2026-09-20 (Irene: *"왜 구글 드라이브에서 열려? 문서로 열려야지?"*) — `.gdoc` 은 문서가
+ *   아니라 172 바이트짜리 링크다. 그 «링크 파일» 의 Drive 주소를 열면 Drive 가 미리보기를
+ *   만들지 못해 "No preview available" 이 뜬다. 안에 든 문서 id 로 docs.google.com 을 연다.
+ */
+export async function fetchShortcutUrl(businessId: number, fileId: string): Promise<string | null> {
+  const parsed = parseFileId(fileId);
+  if (!parsed || parsed.source !== 'direct') return null;
+  try {
+    const r = await apiFetch(`/api/files/${businessId}/${parsed.id}/shortcut`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const url = j?.data?.url;
+    // 주소는 서버가 조립하지만, 화면도 한 번 더 본다 — 링크를 보증하는 것은 우리 화면이다.
+    return typeof url === 'string' && /^https:\/\/(docs|script)\.google\.com\//.test(url) ? url : null;
+  } catch { return null; }
+}
+
 export async function moveFile(businessId: number, fileId: string, folderId: number | null): Promise<boolean> {
   const parsed = parseFileId(fileId);
   if (!parsed || parsed.source !== 'direct') return false;

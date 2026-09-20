@@ -11,6 +11,7 @@ import {
   TreeRoot, TreeDivider, FolderRow, FolderIconWrap, FolderName, FolderCount, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
 } from './docs/treeStyles';
 import TreeRow from './docs/TreeRow';
+import { useFileOpen } from './docs/useFileOpen';
 import { useFolderDrop, isExternalFileDrag, type FolderDropFn } from './docs/folderDrop';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
@@ -40,7 +41,6 @@ import {
   createShareLink, bulkDownloadZip, updateFileVisibility, updateFileSecurityLevel,
   formatBytes, extOf, isImage, getUploadLimits, type UploadLimits,
   type ProjectFile, type FileSource, type FileFolder, parseFileId, canOpenInNewTab } from '../../services/files';
-import { objectUrlFromApi } from '../../utils/download';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -527,7 +527,6 @@ const DocsTab: React.FC<Props> = (props) => {
 
   const [downloading, setDownloading] = useState(false);
   const [zipProgress, setZipProgress] = useState<{ received: number; total: number | null } | null>(null);
-  const [opening, setOpening] = useState(false);   // 새 탭 열기 중 (중복 클릭 가드)
   // 단건 다운로드 — 인증 fetch + "받는 중…" 표시 (링크 방식은 401 이라 못 쓴다)
   const dl = useFileDownload();
 
@@ -681,6 +680,8 @@ const DocsTab: React.FC<Props> = (props) => {
   /* 좌측 트리의 드롭 — **한 인스턴스**를 두 트리가 나눠 쓴다. 각자 훅을 부르면 «끌어온 표시»
      상태가 두 벌이 되어 한쪽에 올렸는데 다른 쪽이 안 밝아진다. */
   const treeDrop = useFolderDrop(onDropToFolder, (fid, fl) => handleFiles(fl, fid));
+  /* 여는 문 한 곳 — 헤더 버튼과 미리보기 영역 클릭이 같은 함수를 쓴다. */
+  const { opening, shortcutUrl, openPreviewTarget } = useFileOpen(businessId, preview, dl);
 
   const isEmpty = !loading && files.length === 0;
 
@@ -1264,113 +1265,102 @@ const DocsTab: React.FC<Props> = (props) => {
             <DetailDrawer.Header onClose={() => setPreview(null)}>
               <PvHeaderInner>
                 <PvHeaderText>
-                  <PvTitle>{preview.file_name}</PvTitle>
-                  <PvSubRow>
+                  <PvTitle data-testid="file-preview-title">{preview.file_name}</PvTitle>
+                  <PvSubRow data-testid="file-preview-meta">
                     <SourcePill $src={preview.source}>{sourceShortLabel(preview.source, tr)}</SourcePill>
                     <PvSub>{formatBytes(preview.file_size)} · {preview.uploader_name}</PvSub>
+                    {/* ★ 2026-09-20 (Irene: *"제목은 첫줄에 다 나오고 버튼들은 직접 업로드 172b
+                        업로드한 사람 이름 나오는 줄에 같은 줄로 나와야 하는 거 아니야? 우측 정렬해서?
+                        제목이 다 잘리고 불필요하게 두 줄이 되는데."*) —
+                        버튼을 제목 **옆**에 두면 제목 칸이 그만큼 줄어 긴 파일명이 두 줄로 접힌다.
+                        메타 줄로 내리고 우측 끝에 붙인다(빈 칸막이가 아니라 margin-left:auto —
+                        줄이 바뀔 때 버튼이 새 줄 왼쪽으로 떨어지지 않게). */}
+                  <PvActions data-testid="file-preview-actions">
+                    {/* 공유는 **직접 업로드 파일**만. 채팅·업무 첨부는 id 체계가 달라(chat-45 는
+                        MessageAttachment id) 같은 라우트를 때리면 남의 파일을 가리키거나 404 다.
+                        되지도 않는 버튼을 보여주면 사용자는 "눌렀는데 아무 일도 안 난다" 로 읽는다. */}
+                    {preview.source === 'direct' && (
+                    <HeaderIconBtn type="button" onClick={() => setShareTarget(preview)}
+                      title={tr('docs.share', '공유')} aria-label={tr('docs.share', '공유')}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="18" cy="5" r="3" />
+                        <circle cx="6" cy="12" r="3" />
+                        <circle cx="18" cy="19" r="3" />
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                      </svg>
+                    </HeaderIconBtn>
+                    )}
+                    {/* ★ "열기" — 내려받지 않고 원본을 새 탭에서 본다 (Irene 2026-08-31 "오픈기능이 필요해").
+                      * 팝업 차단을 피하려면 **클릭과 같은 틱에** 탭을 열어야 한다. 그래서 빈 탭을 먼저 열고,
+                      * 인증 fetch 로 받은 blob 주소를 나중에 넣는다(다운로드 라우트는 Bearer 를 요구해
+                      * 링크로 직접 걸면 401 이다). noopener 를 주면 핸들이 null 이라 넣을 곳이 없어진다.
+                      * 서버가 attachment 로만 내보내는 형식(html·svg 등)에는 버튼을 두지 않는다 —
+                      * 눌러도 다운로드가 시작될 뿐이다(services/files.ts canOpenInNewTab). */}
+                    {canOpenInNewTab(preview) && (() => {
+                    const openLabel = t('docs.preview.openInNewTab', '새 탭에서 열기') as string;
+                    return (
+                    <HeaderIconBtn type="button"
+                      data-testid="file-preview-open"
+                      disabled={opening}
+                      onClick={() => { void openPreviewTarget(preview, shortcutUrl); }}
+                      title={openLabel} aria-label={openLabel}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                    </HeaderIconBtn>
+                    ); })()}
+                    {/* 편집 열기 — 바이트가 Drive 에 있는 파일만. Drive 편집기가 docx/xlsx/pptx 를 그대로 연다.
+                      * ★ 링크만으로는 **연결 계정 본인에게만** 열린다 — 서버가 요청자에게 권한을 주고 링크를 준다. */}
+                    {preview.storage_provider === 'gdrive' && (
+                      <HeaderIconBtn type="button"
+                        data-testid="file-drive-edit"
+                        disabled={editOpening}
+                        onClick={() => openDriveEdit(preview)}
+                        title={tr('docs.driveEdit.open')} aria-label={tr('docs.driveEdit.open')}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                        </svg>
+                      </HeaderIconBtn>
+                    )}
+                    {/* ★ 여기는 원래 `<a href download>` 였다 — 그 라우트는 Bearer 헤더를 요구해서
+                      * 링크로는 100% 401 이었다(실측). 인증 fetch 로 받고, 받는 동안 상태를 보여준다. */}
+                    {(() => { const dlLabel = tr('docs.download', '다운로드'); return (
+                    <HeaderIconBtn type="button"
+                      data-testid="file-preview-download"
+                      disabled={dl.downloading}
+                      onClick={() => dl.start(preview.download_url, preview.file_name)}
+                      title={dl.downloading ? (dl.progressText || '') : dlLabel}
+                      aria-label={dlLabel}>
+                      {dl.downloading ? (
+                        <DownloadingText>{dl.progressText}</DownloadingText>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                      )}
+                    </HeaderIconBtn>
+                    ); })()}
+                    {preview.deletable && (
+                      <HeaderIconBtn $danger type="button" onClick={() => setDeleteConfirm(preview)}
+                        title={tr('docs.delete', '삭제')} aria-label={tr('docs.delete', '삭제')}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </HeaderIconBtn>
+                    )}
+                  </PvActions>
                   </PvSubRow>
                 </PvHeaderText>
-                <PvActions>
-                  {/* 공유는 **직접 업로드 파일**만. 채팅·업무 첨부는 id 체계가 달라(chat-45 는
-                      MessageAttachment id) 같은 라우트를 때리면 남의 파일을 가리키거나 404 다.
-                      되지도 않는 버튼을 보여주면 사용자는 "눌렀는데 아무 일도 안 난다" 로 읽는다. */}
-                  {preview.source === 'direct' && (
-                  <HeaderIconBtn type="button" onClick={() => setShareTarget(preview)}
-                    title={tr('docs.share', '공유')} aria-label={tr('docs.share', '공유')}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="18" cy="5" r="3" />
-                      <circle cx="6" cy="12" r="3" />
-                      <circle cx="18" cy="19" r="3" />
-                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                    </svg>
-                  </HeaderIconBtn>
-                  )}
-                  {/* ★ "열기" — 내려받지 않고 원본을 새 탭에서 본다 (Irene 2026-08-31 "오픈기능이 필요해").
-                    * 팝업 차단을 피하려면 **클릭과 같은 틱에** 탭을 열어야 한다. 그래서 빈 탭을 먼저 열고,
-                    * 인증 fetch 로 받은 blob 주소를 나중에 넣는다(다운로드 라우트는 Bearer 를 요구해
-                    * 링크로 직접 걸면 401 이다). noopener 를 주면 핸들이 null 이라 넣을 곳이 없어진다.
-                    * 서버가 attachment 로만 내보내는 형식(html·svg 등)에는 버튼을 두지 않는다 —
-                    * 눌러도 다운로드가 시작될 뿐이다(services/files.ts canOpenInNewTab). */}
-                  {canOpenInNewTab(preview) && (() => {
-                  const openLabel = t('docs.preview.openInNewTab', '새 탭에서 열기') as string;
-                  return (
-                  <HeaderIconBtn type="button"
-                    data-testid="file-preview-open"
-                    disabled={opening}
-                    onClick={async () => {
-                      if (opening) return;
-                      if (preview.storage_provider === 'gdrive' && preview.external_url) {
-                        window.open(preview.external_url, '_blank', 'noopener,noreferrer');
-                        return;
-                      }
-                      const w = window.open('', '_blank');
-                      if (!w) { dl.start(preview.download_url, preview.file_name); return; }  // 팝업이 막히면 내려받기로
-                      setOpening(true);
-                      try {
-                        const url = await objectUrlFromApi(`${preview.download_url}${preview.download_url.includes('?') ? '&' : '?'}inline=1`);
-                        w.location.href = url;
-                        // blob 주소는 이 문서가 살아 있는 동안 유효해야 한다 — 새 탭이 읽고 난 뒤 회수.
-                        window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-                      } catch {
-                        w.close();
-                        dl.start(preview.download_url, preview.file_name);
-                      } finally { setOpening(false); }
-                    }}
-                    title={openLabel} aria-label={openLabel}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                      <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-                    </svg>
-                  </HeaderIconBtn>
-                  ); })()}
-                  {/* 편집 열기 — 바이트가 Drive 에 있는 파일만. Drive 편집기가 docx/xlsx/pptx 를 그대로 연다.
-                    * ★ 링크만으로는 **연결 계정 본인에게만** 열린다 — 서버가 요청자에게 권한을 주고 링크를 준다. */}
-                  {preview.storage_provider === 'gdrive' && (
-                    <HeaderIconBtn type="button"
-                      data-testid="file-drive-edit"
-                      disabled={editOpening}
-                      onClick={() => openDriveEdit(preview)}
-                      title={tr('docs.driveEdit.open')} aria-label={tr('docs.driveEdit.open')}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                      </svg>
-                    </HeaderIconBtn>
-                  )}
-                  {/* ★ 여기는 원래 `<a href download>` 였다 — 그 라우트는 Bearer 헤더를 요구해서
-                    * 링크로는 100% 401 이었다(실측). 인증 fetch 로 받고, 받는 동안 상태를 보여준다. */}
-                  {(() => { const dlLabel = tr('docs.download', '다운로드'); return (
-                  <HeaderIconBtn type="button"
-                    data-testid="file-preview-download"
-                    disabled={dl.downloading}
-                    onClick={() => dl.start(preview.download_url, preview.file_name)}
-                    title={dl.downloading ? (dl.progressText || '') : dlLabel}
-                    aria-label={dlLabel}>
-                    {dl.downloading ? (
-                      <DownloadingText>{dl.progressText}</DownloadingText>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                        <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
-                      </svg>
-                    )}
-                  </HeaderIconBtn>
-                  ); })()}
-                  {preview.deletable && (
-                    <HeaderIconBtn $danger type="button" onClick={() => setDeleteConfirm(preview)}
-                      title={tr('docs.delete', '삭제')} aria-label={tr('docs.delete', '삭제')}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                        <path d="M10 11v6M14 11v6" />
-                      </svg>
-                    </HeaderIconBtn>
-                  )}
-                </PvActions>
               </PvHeaderInner>
             </DetailDrawer.Header>
             <DetailDrawer.Body>
-              <PreviewArea file={preview} businessId={businessId} />
+              <PreviewArea file={preview} businessId={businessId} shortcutUrl={shortcutUrl}
+                onOpen={() => { void openPreviewTarget(preview, shortcutUrl); }} />
               {/* 이름·설명·태그 — 파일명만으로 못 찾는 자료를 검색 가능하게 (자동저장) */}
               {preview.source === 'direct' && preview.deletable && (
                 <FileMetaEditor
@@ -2452,11 +2442,12 @@ const Dim = styled.div`padding:30px;text-align:center;font-size:0.8125rem;color:
 
 // 드로어 내부
 const PvHeaderInner = styled.div`display:flex;align-items:flex-start;gap:10px;min-width:0;width:100%;`;
+/* 제목은 **첫 줄을 통째로** 쓴다 — 옆에 버튼을 두면 그만큼 줄어 긴 파일명이 두 줄로 접힌다. */
 const PvHeaderText = styled.div`flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;`;
 const PvTitle = styled.div`font-size:0.9375rem;font-weight:700;color:#0F172A;word-break:break-all;`;
-const PvSubRow = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;`;
+const PvSubRow = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;`;
 const PvSub = styled.div`font-size:0.75rem;color:#64748B;`;
-const PvActions = styled.div`display:flex;gap:4px;flex-shrink:0;`;
+const PvActions = styled.div`display:flex;gap:4px;flex-shrink:0;margin-left:auto;`;
 const HeaderIconBtn = styled.button<{ $danger?: boolean }>`
   width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
   background:transparent;color:${p => p.$danger ? '#DC2626' : '#475569'};

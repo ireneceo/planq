@@ -1517,6 +1517,48 @@ function isRestorable(file) {
 
 // ─── Download ───
 
+// GET /api/files/:businessId/:id/shortcut
+//   구글 문서 **바로가기 파일**(.gdoc/.gsheet/…) 안에 든 문서 주소를 돌려준다.
+//
+// ★ 2026-09-20 (Irene: *"오픈을 하면 No preview available 이렇게 떠"* · *"왜 구글 드라이브에서
+//   열려? 문서로 열려야지?"*) — 그 파일은 문서가 아니라 **172 바이트짜리 링크**다. 여태는 그
+//   «링크 파일» 의 Drive 주소를 열어서 Drive 가 미리보기를 못 만들었다. 안에 든 문서 id 로
+//   docs.google.com 을 열어 주면 소유자·공유받은 사람은 그대로 열린다.
+// ★ 권한은 다운로드와 **같은 술어**(canDownloadFile) — 이 응답은 곧 그 문서로 가는 길이다.
+//   바이트를 읽어야 하므로 실제로 파일을 받을 수 있는 사람만 통과시킨다.
+router.get('/:businessId/:id/shortcut', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const file = await File.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null },
+    });
+    if (!file) return errorResponse(res, 'File not found', 404);
+    if (!(await canDownloadFile(req.scope, req.user.id, file))) return errorResponse(res, 'forbidden', 403);
+
+    const gs = require('../services/googleShortcut');
+    if (!gs.looksLikeShortcut(file.file_name, file.file_size)) {
+      return errorResponse(res, 'not_shortcut', 400, 'not_shortcut');
+    }
+    const body = await require('../services/attachmentStorage').readAttachmentBody(file);
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return errorResponse(res, 'not_shortcut', 400, 'not_shortcut');
+
+    const chunks = [];
+    let bytes = 0;
+    const buf = await new Promise((resolve, reject) => {
+      body.stream.on('data', (c) => {
+        bytes += c.length;
+        if (bytes > gs.MAX_BYTES) { body.stream.destroy(); reject(new Error('too_large')); return; }
+        chunks.push(c);
+      });
+      body.stream.on('end', () => resolve(Buffer.concat(chunks)));
+      body.stream.on('error', reject);
+    }).catch(() => null);
+    const parsed = buf ? gs.parseShortcut(buf, file.file_name) : null;
+    if (!parsed) return errorResponse(res, 'not_shortcut', 400, 'not_shortcut');
+    return successResponse(res, parsed);
+  } catch (err) { next(err); }
+});
+
 router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
     const file = await File.findOne({

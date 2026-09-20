@@ -504,7 +504,12 @@
       "zipTooBig": "Archive is too large to list here. Download it to check.",
       "zipUnreadable": "Could not read the archive listing. Download it to check.",
       "imageBlocked": "This format is not opened inside the app for safety. Download it to view.",
-      "openInNewTab": "Open in new tab"
+      "openInNewTab": "Open in new tab",
+      "shortcutTitle": "Google Docs shortcut",
+      "shortcutHint": "This file is a link to a Google document, not the document itself. To keep the content in PlanQ, export it as PDF or Word from Google Docs and upload that.",
+      "shortcutOpen": "Open in Google Docs",
+      "shortcutUnresolved": "Could not read the link. The file may be damaged or you may not have access.",
+      "clickToOpen": "Click to open — formats we cannot show are downloaded"
     },
     "wsUpload": {
       "title": "Which project should these go to?",

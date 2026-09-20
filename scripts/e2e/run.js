@@ -127,6 +127,7 @@ const SUITES = {
   //   ★ folderdnd 와 다른 축이다 — 그쪽은 «한 건을 끌어 옮기는가», 여기는 «여러 건을 고르고
   //     그 전부가 옮겨지는가». 선택모드가 드래그를 꺼 버리던 결함이 여기서 잡힌다.
   filemarquee: () => require('./canary-file-marquee'),
+  filepreview: () => require('./canary-file-preview'),
   // 좌측 트리 — 프로젝트가 **한 줄**인가(폴더 섹션에 같은 이름이 또 나오지 않는가) ·
   //   캐럿으로 하위 폴더가 열리는가 · 그 클릭이 파일 목록을 바꾸지 않는가.
   filetree: () => require('./canary-file-tree'),
