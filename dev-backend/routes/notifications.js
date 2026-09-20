@@ -115,7 +115,7 @@ router.isAllowed = isAllowed;
 //     프론트 t() 로는 번역할 수 없어서 발송 시점 해석이 유일한 방법이다.
 //   titleSpec 없이 title 만 주는 옛 호출부는 그대로 동작한다(점진 전환).
 /**
- * @param {'internal_only'|undefined} previewPolicy
+ * @param {'internal_only'|'excerpt'|undefined} previewPolicy
  *   ★ 2026-09-17 (#407) — **사람이 쓴 자유 텍스트는 우리 울타리 밖으로 내보내지 않는다.**
  *
  *   Irene: *"채팅에서 비번과 같은 중요내용 보내면 어떻게 보안처리 해?
@@ -170,15 +170,21 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
   if (typeof body === 'function') body = body(await langOf());
   if (typeof ctaLabel === 'function') ctaLabel = ctaLabel(await langOf());
 
-  // 울타리 밖(메일·푸시)으로 나갈 본문. 기본은 그대로, internal_only 면 중립 문구.
+  // 울타리 밖(메일·푸시)으로 나갈 본문.
+  //   · 기본        — 그대로
+  //   · internal_only — 중립 문구 (본문은 우리 울타리 안에만)
+  //   · excerpt     — **앞 40자만** (2026-09-20)
+  //
+  // ★ 2026-09-20 (Irene: *"채팅은 바로 내용을 알려야지 … 모바일에서는 메시지를 확인하라고 나오고
+  //   내용 안나와."* → 셋 중 «앞 40자만» 을 골랐다 — *"보통 3번 아니야?"*) —
+  //   #407 은 «비밀번호 한 줄이 Apple/Google 푸시 서버와 잠금화면에 평문으로 남는다» 는 이유로
+  //   채팅 본문을 통째로 가렸다. 그 걱정은 **긴 내용·붙여넣은 값**에 대한 것이고,
+  //   «누가 무슨 얘기인지» 까지 가리면 알림이 쓸모를 잃는다. 앞 40자는 그 둘의 가운데다.
+  //   ★ 줄바꿈을 공백으로 눕힌다 — 잠금화면은 한 줄이라 개행이 있으면 뒷부분이 통째로 안 보인다.
   let outsideBody = body;
-  if (previewPolicy === 'internal_only') {
-    const lang = await langOf();
-    outsideBody = lang === 'en'
-      ? 'Open PlanQ to read it.'
-      : 'PlanQ 에서 내용을 확인하세요.';
+  if (previewPolicy === 'internal_only' || previewPolicy === 'excerpt') {
+    outsideBody = require('../services/outsidePreview').outsideBodyFor(body, previewPolicy, await langOf());
   }
-
   if (titleSpec && titleSpec.feature && titleSpec.action) {
     try {
       const { buildTitle, FEATURES, ACTIONS } = require('../services/notifyTitle');
@@ -236,6 +242,9 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         entity_id: entityId || null,
         // ★ 정책을 **행에 적는다** (Fable 13차 차단1). 이 행을 나중에 읽는 쪽
         //   (미읽음 에스컬레이션 크론)이 종류를 추측하지 않고 이 값을 따른다.
+        // ★ 이 컬럼은 **인앱 표시용 기록**이다(ENUM('default','internal_only')).
+        //   `excerpt` 는 **밖으로 나갈 때만** 잘라 보내는 정책이고 인앱에는 원문이 그대로 남으므로
+        //   여기서는 `default` 가 맞다 — 운영 ENUM 을 늘리지 않는다.
         preview_policy: previewPolicy === 'internal_only' ? 'internal_only' : 'default',
       });
       results.inbox = !!row.id;
