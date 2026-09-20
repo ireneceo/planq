@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import DetailDrawer from '../../components/Common/DetailDrawer';
@@ -449,6 +450,25 @@ const DocsTab: React.FC<Props> = (props) => {
         setFiles(prev => [withCtx, ...prev]);
       });
   }, [pendingUpload, workspaceUploadProject, businessId, projectGroups, runUploads]);
+
+  // ★ 빈 공간을 끌어 여러 개 고르기 (Irene 2026-09-20: *"드래그해서 여러 개 선택하는 것도 안되는데"*).
+  //   고르면 **선택모드가 자동으로 켜진다** — 안 켜면 고른 티가 안 나고 일괄 버튼도 안 나온다.
+  //   Shift/⌘/Ctrl 을 누른 채 끌면 기존 선택에 더한다.
+  const filesAreaRef = useRef<HTMLDivElement>(null);
+  const onMarquee = useCallback((ids: string[], additive: boolean) => {
+    if (!ids.length && !additive) { setSelectedIds(new Set()); return; }
+    setSelectMode(true);
+    setSelectedIds(prev => {
+      const next = additive ? new Set(prev) : new Set<string>();
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+  }, []);
+  const { rect: marquee } = useMarqueeSelect({
+    containerRef: filesAreaRef,
+    itemSelector: '[data-file-id]',
+    onSelect: onMarquee,
+  });
 
   const toggleSelect = (id: string, e?: React.MouseEvent) => {
     setSelectedIds(prev => {
@@ -899,7 +919,7 @@ const DocsTab: React.FC<Props> = (props) => {
         </FolderTreePanel>
         )}
 
-        <FilesArea>
+        <FilesArea ref={filesAreaRef}>
           {selectMode && selectedIds.size > 0 && (
             <BulkBar>
               <BulkBarLeft>
@@ -1003,8 +1023,8 @@ const DocsTab: React.FC<Props> = (props) => {
                   { field: 'tag', text: f.tags || [] },
                 ], query) : null;
                 return (
-                  <Card key={f.id} $selected={checked} data-testid="file-card"
-                    {...(selectMode ? {} : getDragProps(f))}
+                  <Card key={f.id} $selected={checked} data-testid="file-card" data-file-id={f.id}
+                    {...getDragProps(f)}
                     onClick={e => selectMode ? toggleSelect(f.id, e) : setPreview(f)}>
                     {selectMode && (
                       <CardCheck onClick={e => e.stopPropagation()}>
@@ -1094,9 +1114,9 @@ const DocsTab: React.FC<Props> = (props) => {
                   { field: 'tag', text: f.tags || [] },
                 ], query) : null;
                 return (
-                  <ListRow key={f.id} $selected={checked}
+                  <ListRow key={f.id} $selected={checked} data-file-id={f.id}
                     $selectMode={selectMode}
-                    {...(selectMode ? {} : getDragProps(f))}
+                    {...getDragProps(f)}
                     onClick={() => selectMode ? toggleSelect(f.id) : setPreview(f)}>
                     {selectMode && <RowChk onClick={e => e.stopPropagation()}>
                       <input type="checkbox" checked={checked} onChange={() => toggleSelect(f.id)} disabled={!f.deletable} />
@@ -1176,6 +1196,9 @@ const DocsTab: React.FC<Props> = (props) => {
                 );
               })}
             </ListTable>
+          )}
+          {marquee && (
+            <MarqueeBox style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }} />
           )}
         </FilesArea>
       </Split>
@@ -2317,6 +2340,12 @@ const ShareUrl = styled.code`
   font-size:0.6875rem;word-break:break-all;color:#0F766E;
 `;
 
+/* 끌어서 고르는 사각형. `position:fixed` — 좌표를 viewport 기준으로 쓰므로 스크롤·조상 변환에
+   영향받지 않는다. 클릭을 먹으면 안 되므로 pointer-events 는 끈다. */
+const MarqueeBox = styled.div`
+  position:fixed;z-index:30;pointer-events:none;
+  background:rgba(20,184,166,0.12);border:1px solid #14B8A6;border-radius:4px;
+`;
 const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;`;
 const Card = styled.div<{ $selected?: boolean }>`
   position:relative;background:#fff;
