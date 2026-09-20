@@ -372,6 +372,42 @@ async function getClientSnapshot(clientId, businessId, scope, internal = false) 
 // 조사 목록 — **긴 것부터** (최장일치). '에서' 를 '에' 보다 먼저 봐야 "회의에서" → "회의" 가 된다.
 // LIKE OR 총량 상한 — 어절 8 + 변형 8. 2필드면 LIKE 32개로 묶인다(상한 없으면 쿼리가 폭주).
 const TERM_CAP = 16;
+
+// ★ 2026-09-20 — **말버릇은 검색어가 아니다.** (Irene: *"Cue 대화수준이 너무 낮아서 곤란해"*)
+//   여태 질문을 통째로 쪼개 **OR + LIKE %…%** 로 걸고 **최근순**으로 잘랐다. 관련성 개념이 없었다.
+//   운영 실측 2026-09-20 — 「퍼플히어 회의록 정리해줘」가 업무 **29건**, 「고객 중에 제안서 보낸 곳
+//   어디야」가 **38건**, 「이번 주에 마감인 업무 알려줘」가 **72건**을 끌어왔다. 실제 신고 사례에서는
+//   *"이걸 **어떻게** 정리해서…"* 의 「어떻게」 한 단어로 2,904자 회의록이 딸려와 **답을 지배했다.**
+//   → ①말버릇·질문형 어휘는 검색어에서 뺀다 ②남은 것으로 **점수**를 매겨 threshold 아래는 버린다.
+//   불용어를 뺀 뒤 남는 것이 없으면 **검색을 하지 않는다**(메타 질문 — 워크스페이스 자료가 필요 없다).
+const KO_STOPWORDS = new Set([
+  // 질문·지시 말버릇
+  '어떻게', '어떤', '무엇', '뭐야', '뭔가', '누구', '누구야', '언제', '어디', '어디야', '왜',
+  '알려줘', '알려', '말해줘', '말해', '보여줘', '보여', '정리해줘', '정리해', '정리', '해줘', '해봐',
+  '물었잖아', '물었어', '하려는데', '하려고', '할까', '될지', '좋을지', '싶어', '싶은데', '이걸', '그걸',
+  '정리해서', '정리하면', '작성해서', '확인해서', '추가해서', '수정해서', '만들어서', '넣어서',
+  // 일반 업무 어휘 — 이것만으로는 아무것도 좁히지 못한다
+  '요청', '요청하면', '요청을', '확인', '확인해', '필요', '내용', '관련', '상황', '부분', '경우',
+  '지금', '현재', '오늘', '이번', '다음', '최근', '전체', '우리', '저희', '그리고', '그런데', '하지만',
+  '있는', '있나', '있어', '없는', '없어', '많은', '적은', '같은', '중에', '대한', '대해', '통해',
+  '보낸', '받은', '만든', '했던', '하는', '되는', '주에', '한번', '좀더', '다시', '그냥', '이제',
+]);
+// **약한 말** — 뜻은 있지만 그것만으로는 아무것도 좁히지 못하는 일반 명사.
+//   혼자 걸리면 통과시키지 않는다(다른 말이 하나 더 걸려야 한다).
+//   ★ 길이로 구체성을 재려다 실패했다 — 「제안서」(3자)·「청구서」(3자) 같은 **찾아야 할 말**까지
+//     막혔다(2026-09-20 운영 실측: 「고객 중에 제안서 보낸 곳」이 0건). 길이가 아니라 **목록**으로 가른다.
+const KO_WEAK_TERMS = new Set([
+  '고객', '업무', '일정', '문서', '파일', '메일', '프로젝트', '상태', '진행', '담당', '담당자',
+  '회의', '기록', '노트', '목록', '화면', '기능', '사람', '직원', '멤버', '팀원', '회사', '작업',
+]);
+// 정렬용 가중치 — 긴 어절일수록 고유명사·전문어일 확률이 높다. **문턱이 아니라 순위에만** 쓴다.
+function termWeight(t) {
+  const n = String(t || '').length;
+  if (n >= 5) return 4;
+  if (n === 4) return 3;
+  if (n === 3) return 2;
+  return 1;
+}
 const KO_PARTICLES = ['에서는', '에서도', '으로는', '에게는', '까지는', '부터는',
   '에서', '에게', '으로', '까지', '부터', '이라', '라고', '이나', '거나',
   '은', '는', '이', '가', '을', '를', '의', '에', '와', '과', '도', '만', '로'];
@@ -384,6 +420,7 @@ function queryTerms(q) {
     .split(/[\s,.;:!?()[\]{}"'`/\\]+/)
     .map((s) => s.trim())
     .filter((s) => s.length >= 2)
+    .filter((s) => !KO_STOPWORDS.has(s))   // ★ 말버릇은 검색어가 아니다
     .slice(0, 8);                       // 상한은 **원어절 기준** (변형은 별도 상한)
 
   const out = [];
@@ -399,6 +436,47 @@ function queryTerms(q) {
   }
   return out.slice(0, TERM_CAP);
 }
+/**
+ * ★ 관련성 관문 — SQL 은 **후보 생성기**로만 쓰고, 프롬프트에 넣을지는 여기서 정한다.
+ *
+ * SQL 은 `OR LIKE %…%` 라 한 단어만 겹쳐도 걸린다(그것이 신고의 원인이었다). 여기서 **몇 개가,
+ * 얼마나 구체적인 말이 걸렸는지**를 세어 문턱 아래를 버리고 **점수순**으로 돌려준다.
+ *
+ * 문턱: 검색어가 하나뿐인 질문(「퍼플히어」)은 1개 일치로 충분하다 — 그때까지 막으면 정작 찾는 것을
+ * 못 찾는다. 검색어가 여럿이면 **2개 이상** 또는 **아주 구체적인 말 하나**(5자 이상)를 요구한다.
+ * @param {Array} rows  후보
+ * @param {string[]} terms  queryTerms 결과
+ * @param {(r:any)=>{title?:string, body?:string}} pick  행에서 제목/본문을 꺼내는 함수
+ */
+function rankByRelevance(rows, terms, pick, { limit = 6 } = {}) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const uniq = [...new Set(terms.map((t) => String(t).toLowerCase()))];
+  if (uniq.length === 0) return [];
+  const scored = [];
+  for (const r of rows) {
+    const { title = '', body = '' } = pick(r) || {};
+    const t = String(title || '').toLowerCase();
+    const b = String(body || '').toLowerCase();
+    let score = 0; let hits = 0; let strongHits = 0;
+    for (const term of uniq) {
+      const inTitle = t.includes(term);
+      const inBody = b.includes(term);
+      if (!inTitle && !inBody) continue;
+      hits += 1;
+      if (!KO_WEAK_TERMS.has(term)) strongHits += 1;
+      const w = termWeight(term);
+      score += inTitle ? w * 3 : w;      // 제목 일치는 본문보다 무겁다
+    }
+    if (hits === 0) continue;
+    // 문턱 — **구체적인 말이 하나라도** 걸렸거나, 약한 말이라도 **둘 이상** 겹쳤을 때.
+    //   「퍼플히어」·「제안서」 하나면 충분하고, 「고객」 하나로는 들어오지 못한다.
+    if (strongHits < 1 && hits < 2) continue;
+    scored.push({ row: r, score });
+  }
+  scored.sort((a, b2) => b2.score - a.score);
+  return scored.slice(0, limit).map((x) => x.row);
+}
+
 function likeAny(fields, terms) {
   return { [Op.or]: fields.flatMap((f) => terms.map((t) => ({ [f]: { [Op.like]: `%${t}%` } }))) };
 }
@@ -420,11 +498,13 @@ async function getWorkspaceMatches({ businessId, scope, query, audience = 'clien
   try {
     const base = await taskListWhere(scope.userId, businessId, scope);
     if (base) {
+      // SQL 은 **후보 생성기** — 넉넉히(40) 뽑고 관련성 관문이 추린다(아래 rankByRelevance).
+      //   여기서 limit 6 + 최근순으로 자르면 «한 단어만 걸린 최근 업무» 가 올라온다(신고 원인).
       out.tasks = await Task.findAll({
         where: { [Op.and]: [base, likeAny(['title', 'description'], terms)] },
-        attributes: ['id', 'title', 'status', 'progress_percent', 'due_date'],
+        attributes: ['id', 'title', 'description', 'status', 'progress_percent', 'due_date'],
         include: [{ model: User, as: 'assignee', attributes: ['name'] }],
-        order: [['updated_at', 'DESC']], limit: 6,
+        order: [['updated_at', 'DESC']], limit: 40,
       });
     }
   } catch (e) { /* best-effort */ void e; }
@@ -439,7 +519,7 @@ async function getWorkspaceMatches({ businessId, scope, query, audience = 'clien
     }
     out.projects = await Project.findAll({
       where, attributes: ['id', 'name', 'description', 'status'],
-      order: [['updated_at', 'DESC']], limit: 4,
+      order: [['updated_at', 'DESC']], limit: 30,
     });
   } catch (e) { void e; }
 
@@ -450,7 +530,7 @@ async function getWorkspaceMatches({ businessId, scope, query, audience = 'clien
       out.clients = await Client.findAll({
         where: { business_id: businessId, ...likeAny(['display_name', 'company_name', 'biz_name'], terms) },
         attributes: ['id', 'display_name', 'company_name', 'biz_name', 'status'],
-        order: [['updated_at', 'DESC']], limit: 4,
+        order: [['updated_at', 'DESC']], limit: 30,
       });
     } catch (e) { void e; }
   }
@@ -574,6 +654,21 @@ const NOTE_SNIPPET_CHARS = 700;
       const { searchMyNotes } = require('./qnoteContext');
       out.notes = await searchMyNotes({ businessId, userId, query, limit: NOTE_MAX, snippetChars: NOTE_SNIPPET_CHARS });
     } catch (e) { void e; }
+  }
+
+  // ★ 관련성 관문 — 여기가 **단 하나의 추리는 자리**다(각 쿼리에서 따로 자르면 갈라진다).
+  //   SQL 이 뽑아 온 후보를 점수로 세워 문턱 아래를 버린다. 한 단어만 걸린 것은 들어오지 못한다.
+  out.tasks = rankByRelevance(out.tasks, terms, (r) => ({ title: r.title, body: r.description }), { limit: 6 });
+  out.projects = rankByRelevance(out.projects, terms, (r) => ({ title: r.name, body: r.description }), { limit: 4 });
+  out.clients = rankByRelevance(out.clients, terms,
+    (r) => ({ title: [r.display_name, r.company_name, r.biz_name].filter(Boolean).join(' ') }), { limit: 4 });
+  if (out.posts?.length) out.posts = rankByRelevance(out.posts, terms, (r) => ({ title: r.title }), { limit: 5 });
+  if (out.mail?.length) out.mail = rankByRelevance(out.mail, terms, (r) => ({ title: r.subject }), { limit: 4 });
+  if (out.files?.length) out.files = rankByRelevance(out.files, terms, (r) => ({ title: r.original_name || r.filename }), { limit: 5 });
+  // 노트는 q-note 가 돌려준 제목·조각으로 같은 관문을 통과해야 한다 —
+  //   신고 사례에서 2,904자 회의록이 「어떻게」 하나로 들어온 자리가 바로 여기다.
+  if (out.notes?.length) {
+    out.notes = rankByRelevance(out.notes, terms, (r) => ({ title: r.title, body: r.snippet || r.body }), { limit: NOTE_MAX });
   }
 
   const total = out.tasks.length + out.projects.length + out.clients.length + out.invoices.length
@@ -1035,6 +1130,14 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
 
   if (matches) {
     parts.push('\n## 워크스페이스 검색 결과 (질문 관련 · 질문자 권한 내)');
+    // ★ 이 목록은 **표본**이다 — 질문어와 겹치는 것 중 관련도 상위 몇 건만 싣는다.
+    //   이 사실을 적지 않으면 Cue 가 표본을 전수로 착각해 "가장 지연이 많은 사람은 A" 처럼
+    //   **세어야 답할 수 있는 것을 단정**한다(2026-09-19 실측: 업무 10건만 보고 단정했다).
+    //   전수는 아래 「워크스페이스 현황」의 집계 숫자뿐이다.
+    parts.push('> 아래는 질문어와 겹치는 것 중 **관련도 상위 일부**다(전수 아님).');
+    parts.push('> 그래서 "가장 많은/적은", "몇 건", "누가 제일" 처럼 **전수를 세야 답할 수 있는 것**을');
+    parts.push('> 이 목록만으로 단정하지 마라. 아래 「워크스페이스 현황」의 집계 숫자가 있으면 그것을 쓰고,');
+    parts.push('> 없으면 세어 본 범위를 밝히고 (예: "검색에 걸린 N건 기준") 답하거나, 무엇을 봐야 하는지 말하라.');
     if (matches.tasks?.length) {
       parts.push(`- 업무 ${matches.tasks.length}건:`);
       matches.tasks.forEach((t) => {
