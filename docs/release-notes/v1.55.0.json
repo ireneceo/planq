@@ -1,0 +1,26 @@
+{
+  "version": "1.55.0",
+  "date": "2026-09-20",
+  "items": [
+    {
+      "ko": {
+        "title": "채팅·업무에 붙은 파일도 끌어서 바탕화면에 꺼낼 수 있습니다",
+        "body": "여태는 직접 올린 파일만 끌어서 내보낼 수 있었습니다. 채팅이나 업무에서 온 첨부는 끌어도 아무 일이 없었습니다.\n\n이제 세 가지 모두 됩니다. 파일을 끌어 바탕화면이나 폴더에 놓으면 그대로 내려받아집니다. 볼 수 있는 파일만 나갑니다 — 대화방에 참여하지 않았거나 업무에 관여하지 않았다면 끌어도 나가지 않습니다.\n\n(크롬 계열 브라우저에서 동작합니다. 파이어폭스·사파리는 이 기능을 지원하지 않습니다.)"
+      },
+      "en": {
+        "title": "Drag chat and task attachments out to your desktop",
+        "body": "Until now only directly uploaded files could be dragged out; attachments from chats or tasks did nothing.\n\nAll three now work. Drag a file onto your desktop or a folder and it downloads as-is. Only files you can already open will leave — if you are not in the conversation or not involved in the task, nothing is exported.\n\n(Chromium-based browsers only. Firefox and Safari do not support this.)"
+      }
+    },
+    {
+      "ko": {
+        "title": "저장 용량 표시가 실제와 맞지 않던 것을 바로잡았습니다",
+        "body": "워크스페이스 저장 용량 표시가 실제 사용량보다 적게 잡혀 있었습니다. 표시가 실제보다 작으면 한도에 도달해도 막히지 않고, 반대면 여유가 있는데 업로드가 거절됩니다.\n\n실제 값으로 맞췄고, 앞으로 다시 어긋나면 배포 전에 걸리도록 점검 항목을 추가했습니다."
+      },
+      "en": {
+        "title": "Storage usage figures corrected",
+        "body": "Workspace storage usage was being reported lower than the real figure. When the number is too low, quotas stop enforcing; when it is too high, uploads are refused while space remains.\n\nThe figures now match reality, and a check was added so any future drift is caught before release."
+      }
+    }
+  ]
+}
