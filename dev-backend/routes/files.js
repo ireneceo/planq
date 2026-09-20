@@ -285,12 +285,23 @@ router.get('/public-image/:storedName', async (req, res, next) => {
       auditWouldDeny(file, resolveImageViewerDetailed(req), 'files/public-image', req);
     }
 
+    const resize = require('../services/imageResize');
+    // ★ 2026-09-20 — 캐시본이 있으면 **바이트를 가지러 가기 전에** 끝낸다.
+    //   Drive 저장분은 readAttachmentBody 자체가 0.8~1.0초(운영 실측)다. 캐시가 있는데도
+    //   한 번 다녀오면 그 시간이 그대로 사용자 대기가 된다.
+    const cacheId = file.storage_provider === 'gdrive' && file.external_id
+      ? `drive:${file.external_id}` : null;
+    if (cacheId && resize.serveCachedIfPresent(req, res, file.mime_type, cacheId)) return;
+
     // 저장소 단일 원천 — 로컬이면 로컬, Drive 면 서버가 워크스페이스 토큰으로 받아서 흘려준다.
     const body = await require('../services/attachmentStorage').readAttachmentBody(file);
     if (!body.ok) return errorResponse(res, body.msg, body.code);
     if (body.redirect) return res.redirect(body.redirect);
-    // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로) — task 첨부와 같은 규칙
-    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, file.mime_type)) return;
+    // ?w= 리사이즈 — 로컬은 경로로, Drive 는 스트림으로. **둘 다 디스크 캐시를 쓴다.**
+    //   여태 Drive 는 원본이 통째로 나갔다(7.9MB 스크린샷 → 8.1MB 전송).
+    if (body.abs && await resize.maybeServeResized(req, res, body.abs, file.mime_type)) return;
+    if (!body.abs && body.stream && cacheId
+        && await resize.resizeStreamAndServe(req, res, body.stream, file.mime_type, cacheId)) return;
 
     // ★ SVG 는 image/* 라 isRenderableImage 를 통과한다 — 하지만 스크립트를 담는 문서다.
     //   sandbox CSP + attachment 로 떨어뜨린다 (services/fileServing 단일 판정).

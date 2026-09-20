@@ -77,9 +77,12 @@ export function useFileDragOut(businessId: number | null | undefined) {
     if (!businessId) return;
     /* ★ 끌기 시작한 것을 **화면 전체가 안다** — 좌측 폴더 행이 «여기 놓을 수 있다» 를 점선으로
        알려 주고, 끌고 있는 카드는 반투명해진다. 끌어 보기 전에는 폴더에 놓을 수 있다는 사실을
-       알 길이 없었다(Irene 2026-09-20: "알기 쉽게 이동할 때나 마우스 오버나 … 디테일 좀 챙겨줘"). */
+       알 길이 없었다(Irene 2026-09-20: "알기 쉽게 이동할 때나 마우스 오버나 … 디테일 좀 챙겨줘").
+       ★ 단, «폴더에 넣을 수 있는 것» 일 때만 점선을 켠다. 밖으로 꺼내기만 되는 파일
+         (채팅·업무 첨부 등)은 폴더에 놓아도 아무 일이 없는데 점선이 뜨면 **거짓말**이 되고,
+         사용자는 "넣었는데 안 들어간다" 로 읽는다. 끌고 있는 표시(반투명)는 둘 다 켠다. */
     try {
-      document.body.dataset.pqDragfile = '1';
+      if (isMovableInApp(f)) document.body.dataset.pqDragfile = '1';
       (e.currentTarget as HTMLElement).dataset.dragging = '1';
     } catch { /* noop */ }
 
