@@ -9,7 +9,7 @@ import type { FileSource } from '../../../services/files';
 
 export const TreeRoot = styled.div`display:flex;flex-direction:column;gap:1px;`;
 export const TreeDivider = styled.div`height:1px;background:#F1F5F9;margin:6px 0;`;
-export const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean; $actions?: boolean }>`
+export const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean; $actions?: boolean; $flash?: boolean }>`
   display:grid;
   /* 칸 **넷 고정**: [아이콘 18][이름 1fr][숫자][액션 22]. 2026-09-20 —
      여닫는 손잡이는 폴더 아이콘 자체다(화살표 칸을 없앴다: 있으면 전 행이 밀려 «최상단 기준» 이 깨진다).
@@ -27,6 +27,16 @@ export const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean; 
   /* 끌어온 파일이 여기 떨어진다는 것을 **떨어뜨리기 전에** 알려준다.
      안쪽 그림자로 그린다 — border 를 켜면 행 높이가 2px 튀어 목록이 흔들린다. */
   box-shadow:${p => p.$dropOver ? 'inset 0 0 0 2px #14B8A6' : 'none'};
+  /* ★ 끌고 있는 동안 «놓을 수 있는 곳» 을 점선으로 보여 준다. 여태는 **정확히 그 행 위에
+     올렸을 때만** 반응해서, 폴더에 놓을 수 있다는 사실 자체를 모른 채 지나쳤다.
+     바깥에서 파일을 끌고 올 때도 같다(body 표시를 양쪽에서 켠다). */
+  body[data-pq-dragfile] &[data-drop-target]{ outline:1px dashed #94A3B8;outline-offset:-3px; }
+  /* 놓은 직후 그 폴더가 잠깐 반짝인다 — 어디로 갔는지 알려 준다.
+     성공 팝업은 쓰지 않는다(금지). 대신 **목적지 자체**가 말한다. */
+  ${p => (p.$flash ? 'animation:pq-folder-flash .7s ease-out 1;' : '')}
+  @keyframes pq-folder-flash {
+    0%{ background:#99F6E4; } 60%{ background:#CCFBF1; } 100%{ background:transparent; }
+  }
   &:hover{background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : '#F8FAFC')};}
   /* 행에 마우스를 올리거나 선택하면 겹쳐 둔 액션이 나온다. 선언 순서 때문에 styled 참조 대신
      data 속성으로 고른다(FolderActions 가 아래에 선언된다). */

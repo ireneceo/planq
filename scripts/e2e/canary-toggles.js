@@ -41,7 +41,41 @@ async function login(who = ADMIN) {
   const token = body?.data?.token;
   const m = /refresh_token=([^;]+)/.exec(res.headers.get('set-cookie') || '');
   if (!token || !m) throw new Error(`로그인 실패 (${who.email})`);
+  await acceptTermsIfStale(token);
   return { token, refresh: m[1] };
+}
+
+/**
+ * 약관 재동의 모달을 **미리 없앤다.**
+ *
+ * ★ 2026-09-20 실측 — 이 카나리는 `lib/browser.login` 을 쓰지 않고 fetch 로 직접 로그인해서,
+ *   거기 붙어 있는 자동 동의를 **한 번도 받지 못했다.** 그래서 platform_settings.terms_version 이
+ *   1.0 → 1.1 로 오른 날부터 `admin@test.planq.kr`(1.0) 에게 전면 모달이 떴고,
+ *   스위치 4개가 전부 "다른 층에 덮여 있다" 로 실패했다. 기능은 멀쩡했다.
+ *   (검출기가 «저장이 안 갔다» 가 아니라 «덮여 있다» 로 말해 준 덕에 원인이 바로 짚였다 —
+ *    memory feedback_overlay_eats_click_false_reason.)
+ *   계정마다 손으로 버전을 맞추는 것은 답이 아니다. 개정할 때마다 잊는다.
+ */
+async function acceptTermsIfStale(token) {
+  const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  try {
+    const r = await fetch(`${BACKEND}/api/auth/me`, { headers: H });
+    if (!r.ok) return;
+    const u = (await r.json())?.data;
+    if (!u || !u.platform) return;
+    const patch = {};
+    if (u.platform.current_terms_version && u.platform.current_terms_version !== u.terms_version) {
+      patch.terms_version = u.platform.current_terms_version;
+      patch.terms_accepted_at = new Date().toISOString();
+    }
+    if (u.platform.current_privacy_version && u.platform.current_privacy_version !== u.privacy_version) {
+      patch.privacy_version = u.platform.current_privacy_version;
+      patch.privacy_accepted_at = new Date().toISOString();
+    }
+    if (!Object.keys(patch).length) return;
+    const w = await fetch(`${BACKEND}/api/users/${u.id}`, { method: 'PUT', headers: H, body: JSON.stringify(patch) });
+    if (!w.ok) console.warn(`  [toggles] 약관 자동 동의 실패 ${w.status} — 재동의 모달이 클릭을 가릴 수 있다`);
+  } catch (e) { console.warn('  [toggles] 약관 자동 동의 오류:', e.message); }
 }
 
 // 원복은 화면이 아니라 API 로 한다 — 화면이 고장난 상태(=이 카나리가 잡으려는 상태)에서도

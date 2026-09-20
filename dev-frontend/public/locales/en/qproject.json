@@ -541,7 +541,9 @@
       "more": "and {{n}} more"
     },
     "move": {
-      "title": "Move to folder"
+      "title": "Move to folder",
+      "current": "Current",
+      "here": "This file is already here"
     },
     "folder": {
       "all": "All",

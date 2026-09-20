@@ -12,6 +12,8 @@ import { FolderRow, FolderName, FolderCount, FolderActions } from './treeStyles'
 export interface TreeRowProps {
   selected?: boolean;
   dropOver?: boolean;
+  /** 놓은 직후 잠깐 반짝인다 — 어디로 갔는지 알려 준다(성공 팝업 금지의 대안). */
+  flash?: boolean;
   /** 들여쓰기 단계(0 = 최상단). 최상단 기준선은 한 곳에서 정한다. */
   depth?: number;
   icon: React.ReactNode;
@@ -35,12 +37,14 @@ export const INDENT_PX = 18;
 export const BASE_PAD_PX = 8;
 
 const TreeRow: React.FC<TreeRowProps> = ({
-  selected, dropOver, depth = 0, icon, name, title, count, actions, actionsVisible,
+  selected, dropOver, flash, depth = 0, icon, name, title, count, actions, actionsVisible,
   testId, ariaExpanded, onClick, onDoubleClick, dropProps,
 }) => (
   <FolderRow
     $selected={selected}
     $dropOver={dropOver}
+    $flash={flash}
+    data-drop-target={dropProps && Object.keys(dropProps).length ? '' : undefined}
     $actions={!!actions}
     data-testid={testId}
     aria-expanded={ariaExpanded}

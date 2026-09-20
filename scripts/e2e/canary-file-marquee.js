@@ -98,6 +98,13 @@ async function run() {
     movedIds = sel.ids.map((x) => Number(String(x).replace('direct-', ''))).filter(Boolean);
     await page.setDragInterception(true);
     await page.mouse.dragAndDrop(sel.from, sel.to).catch(() => {});
+    // ★ 반짝임은 0.7초다 — 2초 자고 재면 언제나 «없음» 이다. 놓자마자 본다.
+    const flashed = await page.evaluate((fid) => {
+      const menu = document.querySelector(`[data-testid="docs-folder-menu-${fid}"]`);
+      const row = menu ? menu.closest('[data-folder-actions]').parentElement : null;
+      return row ? getComputedStyle(row).animationName : null;
+    }, folderId);
+    push('놓은 폴더가 잠깐 반짝인다', !!flashed && flashed !== 'none', `animation ${flashed}`);
     await b.sleep(2000);
     const [rows] = await sequelize.query('SELECT id, folder_id FROM files WHERE id IN (:ids)', { replacements: { ids: movedIds } });
     const okAll = rows.length === movedIds.length && rows.every((r) => Number(r.folder_id) === Number(folderId));
@@ -108,6 +115,53 @@ async function run() {
     //   화면을 새로 연다.
     await b.goto(page, '/files');
     await b.sleep(3500);
+
+    // ★ 합성 DragEvent 는 CDP 드래그 상태를 흔든다 — **실제 드래그를 끝낸 뒤**에 잰다
+    //   (앞에 두었더니 그 다음 진짜 드롭이 0건으로 실패했다).
+    // ── 끌기 전/끌기 중/끝난 뒤 — «놓을 수 있는 곳» 이 보이는가.
+    //   Irene 2026-09-20: *"알기 쉽게 이동할 때나 마우스 오버나 등등 … 디테일 좀 챙겨주고"*
+    //   여태는 **정확히 그 행 위에 올렸을 때만** 반응해서 폴더에 놓을 수 있다는 사실을 몰랐다.
+    const hint = await (async () => {
+      const read = () => page.evaluate((fid) => {
+        const menu = document.querySelector(`[data-testid="docs-folder-menu-${fid}"]`);
+        const row = menu ? menu.closest('[data-folder-actions]').parentElement : null;
+        const card = document.querySelector('[data-file-id][draggable="true"]');
+        return {
+          outline: row ? getComputedStyle(row).outlineStyle : null,
+          flag: !!document.body.dataset.pqDragfile,
+          cursor: card ? getComputedStyle(card).cursor : null,
+          dimmed: card ? getComputedStyle(card).opacity : null,
+        };
+      }, folderId);
+      const idle = await read();
+      const started = await page.evaluate(() => {
+        const card = document.querySelector('[data-file-id][draggable="true"]');
+        if (!card) return false;
+        card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }));
+        return true;
+      });
+      if (!started) return { idle, during: null, after: null };
+      await b.sleep(350);
+      const during = await read();
+      await page.evaluate(() => {
+        const card = document.querySelector('[data-file-id][draggable="true"]');
+        if (card) card.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: new DataTransfer() }));
+      });
+      await b.sleep(350);
+      return { idle, during, after: await read() };
+    })();
+    if (!hint.during) skip('끌 때 놓을 곳이 보인다', '끌 수 있는 카드를 못 찾았다');
+    else {
+      push('끌기 전에는 점선이 없다 (음성 대조군)', hint.idle.outline === 'none' && !hint.idle.flag,
+        `outline ${hint.idle.outline} · flag ${hint.idle.flag}`);
+      push('끌기 시작하면 폴더에 점선이 뜬다', hint.during.outline === 'dashed' && hint.during.flag,
+        `outline ${hint.during.outline} · flag ${hint.during.flag}`);
+      push('끌던 카드가 흐려진다', Number(hint.during.dimmed) < 0.9, `opacity ${hint.during.dimmed}`);
+      push('끝나면 점선이 사라진다', hint.after.outline === 'none' && !hint.after.flag,
+        `outline ${hint.after.outline} · flag ${hint.after.flag}`);
+      push('끌 수 있는 카드는 커서가 grab', hint.idle.cursor === 'grab', `cursor ${hint.idle.cursor}`);
+    }
+
 
     // ── 끌고 있는 것이 «우리 파일» 이면 업로드 오버레이를 띄우지 않는다.
     //   Irene 2026-09-20: *"파일을 드래그 해서 좌측 폴더에 넣으면 그리로 들어가는 거 아니야?
@@ -187,6 +241,64 @@ async function run() {
       push('날짜 줄에는 폴더 칩이 없다', card.chipInDateLine === false, `마지막 줄 "${card.dateLineText}"`);
       if (card.dateClipped === null) skip('날짜가 잘리지 않는다', '날짜 칸을 못 찾았다');
       else push('날짜가 잘리지 않는다', !card.dateClipped, `"${card.dateText}"`);
+    }
+
+    // ── 첫 화면 썸네일은 **바로** 받는다. lazy 는 화면 안에 있어도 우선순위가 낮아
+    //   HTTP/1.1(연결 6개)에서 한참 뒤에 뜬다(Irene 2026-09-20: "엄청 오래 걸린다고").
+    const thumbs = await page.evaluate(() => {
+      const imgs = [...document.querySelectorAll('[data-file-id] img')];
+      if (!imgs.length) return null;
+      const head = imgs.slice(0, 8).map((i) => `${i.loading}/${i.getAttribute('fetchpriority') || '-'}`);
+      const tail = imgs.length > 20 ? imgs.slice(20).map((i) => i.loading) : [];
+      return { total: imgs.length, head, tailAllLazy: tail.length ? tail.every((l) => l === 'lazy') : null };
+    });
+    if (!thumbs) skip('첫 화면 썸네일 우선순위', '썸네일이 있는 카드가 없다');
+    else {
+      // ★ eager 판정은 **카드 순서**다(이미지가 아닌 카드에 매긴다). 그래서 «앞 8장이 전부 eager»
+      //   로 재면 틀린다 — 이미지가 드문드문 있으면 5번째 이미지가 이미 17번째 카드다(실측).
+      //   계약은 «eager 가 먼저, lazy 가 나중 — 뒤섞이지 않는다» 이다.
+      const firstLazy = thumbs.head.findIndex((h) => h.startsWith('lazy'));
+      const ordered = firstLazy === -1 || thumbs.head.slice(firstLazy).every((h) => h.startsWith('lazy'));
+      push('첫 화면 썸네일이 eager + 높은 우선순위로 먼저 온다',
+        thumbs.head[0] === 'eager/high' && ordered, `${thumbs.head.join(' ')} (총 ${thumbs.total})`);
+      if (thumbs.tailAllLazy === null) skip('나머지는 lazy 로 남는다', `썸네일 ${thumbs.total}개 — 21번째가 없다`);
+      else push('나머지는 lazy 로 남는다', thumbs.tailAllLazy, `${thumbs.tailAllLazy}`);
+    }
+
+    // ── 이동 모달은 «지금 어디에 있는지» 를 표시한다.
+    //   Irene 2026-09-20: *"기존에 들어있는 폴더는 표시해 놔야 다른 폴더를 선택하지"*
+    const modal = await (async () => {
+      const opened = await page.evaluate(() => {
+        const btn = document.querySelector('[data-testid^="docs-file-move-"]');
+        if (!btn) return false;
+        btn.click();
+        return true;
+      });
+      if (!opened) return null;
+      await b.sleep(900);
+      return page.evaluate(() => {
+        const dlg = document.querySelector('[data-testid="docs-move-modal"]');
+        if (!dlg) return { rows: 0, currentCount: 0, currentText: null, noModal: true };
+        const rows = [...dlg.querySelectorAll('button')].filter((e) => e.textContent && e.textContent.trim());
+        const cur = rows.filter((e) => e.disabled);
+        return {
+          rows: rows.length,
+          currentCount: cur.length,
+          currentText: cur.length ? cur[0].textContent.trim().slice(0, 30) : null,
+        };
+      });
+    })();
+    if (!modal) skip('이동 모달 — 현재 위치 표시', '[이동] 버튼을 못 찾았다');
+    else {
+      if (modal.noModal) skip('이동 모달 — 현재 위치 표시', '모달이 열리지 않았다');
+      else push('이동 목록에 «현재 위치» 가 정확히 하나 표시된다', modal.currentCount === 1,
+        `표시 ${modal.currentCount}개 · "${modal.currentText}" (행 ${modal.rows})`);
+      await page.keyboard.press('Escape');
+      await page.evaluate(() => {
+        const cancel = [...document.querySelectorAll('button')].find((e) => /취소|Cancel/.test(e.textContent || ''));
+        if (cancel) cancel.click();
+      });
+      await b.sleep(500);
     }
 
     // ── 목록 행의 «폴더이름 버튼» → 분류 칩 + 이동 아이콘 두 개로 갈랐다.

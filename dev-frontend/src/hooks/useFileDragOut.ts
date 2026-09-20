@@ -75,6 +75,13 @@ export function useFileDragOut(businessId: number | null | undefined) {
 
   const onDragStart = useCallback((f: ProjectFile, e: React.DragEvent) => {
     if (!businessId) return;
+    /* ★ 끌기 시작한 것을 **화면 전체가 안다** — 좌측 폴더 행이 «여기 놓을 수 있다» 를 점선으로
+       알려 주고, 끌고 있는 카드는 반투명해진다. 끌어 보기 전에는 폴더에 놓을 수 있다는 사실을
+       알 길이 없었다(Irene 2026-09-20: "알기 쉽게 이동할 때나 마우스 오버나 … 디테일 좀 챙겨줘"). */
+    try {
+      document.body.dataset.pqDragfile = '1';
+      (e.currentTarget as HTMLElement).dataset.dragging = '1';
+    } catch { /* noop */ }
 
     // 앱 안에서 폴더로 옮기기 — 밖으로 못 빼내는 파일도 여기까지는 온다.
     if (isMovableInApp(f)) {
@@ -114,6 +121,14 @@ export function useFileDragOut(businessId: number | null | undefined) {
       draggable: true,
       onPointerDown: () => prefetch(f),   // 드래그 아웃 대상만 실제로 발급한다(prefetch 안에서 판정)
       onDragStart: (e: React.DragEvent) => onDragStart(f, e),
+      // ★ dragend 는 **드롭이 실패해도** 온다 — 표시를 여기서 끈다.
+      //   드롭 쪽에서만 지우면 밖으로 놓거나 Esc 로 취소했을 때 점선이 남는다.
+      onDragEnd: (e: React.DragEvent) => {
+        try {
+          delete document.body.dataset.pqDragfile;
+          delete (e.currentTarget as HTMLElement).dataset.dragging;
+        } catch { /* noop */ }
+      },
     };
   }, [prefetch, onDragStart]);
 

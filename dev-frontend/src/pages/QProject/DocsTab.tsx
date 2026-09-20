@@ -11,6 +11,7 @@ import {
   TreeRoot, TreeDivider, FolderRow, FolderIconWrap, FolderName, FolderCount, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
 } from './docs/treeStyles';
 import TreeRow from './docs/TreeRow';
+import { useFolderDrop, isExternalFileDrag, type FolderDropFn } from './docs/folderDrop';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import DetailDrawer from '../../components/Common/DetailDrawer';
@@ -46,7 +47,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TrashDrawer from './TrashDrawer';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
-import { useFileDragOut, PLANQ_FILE_MIME, isMovableInApp } from '../../hooks/useFileDragOut';
+import { useFileDragOut, isMovableInApp } from '../../hooks/useFileDragOut';
 import OverflowMenu from '../../components/Common/OverflowMenu';
 import { isEnterAction } from '../../utils/imeKey';
 import { openDriveEditor } from '../../utils/driveEdit';
@@ -57,6 +58,8 @@ export type DocScope =
   | { type: 'personal'; businessId: number };  // N+30 — 개인 보관함 (본인 + L1 + project_id=null)
 
 // #97 — 이미지 preview_url 에 리사이즈 폭 부여 (그리드 썸네일/미리보기용, 원본은 파라미터 없이)
+/** 첫 화면에 들어오는 카드 수(1440px 기준 6열 × 2행 + 여유). 이만큼은 바로 받는다. */
+const EAGER_THUMBS = 16;
 const withW = (u: string | undefined | null, w: number): string | undefined =>
   u && u !== '#' ? `${u}${u.includes('?') ? '&' : '?'}w=${w}` : undefined;
 
@@ -645,6 +648,14 @@ const DocsTab: React.FC<Props> = (props) => {
     setNewProjectFolder(null);
   }, [newProjectFolder]);
 
+  /** 지금 들어 있는 폴더. 여러 건이면 **모두 같을 때만** 값이 나온다(제각각이면 표시가 거짓이 된다). */
+  const moveFrom = useMemo<number | null | undefined>(() => {
+    const targets = moveSingle ? [moveSingle] : selectedDeletable;
+    if (!targets.length) return undefined;
+    const first = targets[0].folder_id ?? null;
+    return targets.every(f => (f.folder_id ?? null) === first) ? first : undefined;
+  }, [moveSingle, selectedDeletable]);
+
   const onMoveTo = useCallback(async (targetFolderId: number | null) => {
     // 한 건(아이콘 버튼)과 여러 건(일괄 바)이 **같은 문**을 쓴다 — 따로 쓰면 한쪽만 고쳐진다.
     const targets = moveSingle ? [moveSingle] : selectedDeletable;
@@ -680,12 +691,23 @@ const DocsTab: React.FC<Props> = (props) => {
          이 껍데기가 **모든** 드래그에 업로드 오버레이를 띄웠다. 오버레이는 안쪽을 통째로 덮으므로
          좌측 폴더 행이 드롭을 **받지 못한다** — 옮기기가 되는데도 "안 된다" 로 보였다.
          바깥(OS)에서 끌어온 것만 업로드다. 우리 파일을 끌 때는 전용 MIME 이 실려 온다. */
-      onDragEnter={e => { if (!isExternalFileDrag(e)) return; e.preventDefault(); setDragOver(true); }}
-      onDragLeave={e => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setDragOver(false); }}
+      onDragEnter={e => {
+        if (!isExternalFileDrag(e)) return;
+        e.preventDefault(); setDragOver(true);
+        // 바깥 파일도 폴더에 놓을 수 있다 — 좌측 점선을 같이 켠다.
+        try { document.body.dataset.pqDragfile = '1'; } catch { /* noop */ }
+      }}
+      onDragLeave={e => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDragOver(false);
+        try { delete document.body.dataset.pqDragfile; } catch { /* noop */ }
+      }}
       onDragOver={e => { if (!isExternalFileDrag(e)) return; e.preventDefault(); }}
       onDrop={e => {
         if (!isExternalFileDrag(e)) { setDragOver(false); return; }
-        e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files);
+        e.preventDefault(); setDragOver(false);
+        try { delete document.body.dataset.pqDragfile; } catch { /* noop */ }
+        handleFiles(e.dataTransfer.files);
       }}
     >
       <Inner>
@@ -879,6 +901,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 }}
                 onDropFiles={onDropToFolder}
                 onDropExternal={(fid, fl) => handleFiles(fl, fid)}
+                folderDrop={treeDrop}
                 onDownloadFolder={onDownloadFolder}
                 tr={tr}
               />
@@ -923,6 +946,7 @@ const DocsTab: React.FC<Props> = (props) => {
               }}
               onDropFiles={onDropToFolder}
               onDropExternal={(fid, fl) => handleFiles(fl, fid)}
+              folderDrop={treeDrop}
               onDownloadFolder={onDownloadFolder}
               tr={tr}
             />
@@ -1025,7 +1049,7 @@ const DocsTab: React.FC<Props> = (props) => {
             )
           ) : view === 'grid' ? (
             <Grid>
-              {visible.map(f => {
+              {visible.map((f, idx) => {
                 const checked = selectedIds.has(f.id);
                 // 파일명에 없으면 설명·태그 중 어디서 찾았는지 한 줄로 알려준다 (필터 술어와 같은 순서)
                 const hit = query.trim() ? pickMatch([
@@ -1056,7 +1080,16 @@ const DocsTab: React.FC<Props> = (props) => {
                                  object-fit 으로 유지 — 보이는 모양은 그대로다(#121 규칙 보존). */
                             ? (
                               <ThumbImg
-                                src={withW(f.preview_url, 400)} alt="" loading="lazy" decoding="async"
+                                src={withW(f.preview_url, 400)} alt=""
+                                /* ★ 2026-09-20 (Irene: *"계속 바로 바로 안뜨고 엄청 오래 걸린다고. 리스트 썸네일이"*)
+                                   — `loading="lazy"` 는 **화면 안에 있어도 낮은 우선순위**로 받는다.
+                                   운영 nginx 가 HTTP/1.1 이라 연결이 6개뿐인데, 그 6개를 API 호출과
+                                   나눠 쓰면서 낮은 우선순위로 밀리니 첫 화면 썸네일이 한참 뒤에 뜬다.
+                                   **첫 화면에 보이는 것들**은 바로 받고(eager+high), 나머지만 lazy 로 둔다.
+                                   서버는 빠르다 — 운영 실측 40ms(디스크 캐시 적중). 줄서기가 문제였다. */
+                                loading={idx < EAGER_THUMBS ? 'eager' : 'lazy'}
+                                fetchPriority={idx < EAGER_THUMBS ? 'high' : 'low'}
+                                decoding="async"
                                 /* ★ 못 받은 이미지는 **감춘다.** 옛 background-image 는 실패해도 배경색만
                                      보였는데, <img> 로 바꾸면 깨진 아이콘이 그대로 뜬다(실측 3건).
                                      고치면서 새 흠집을 내지 않는다 — 실패하면 파일 종류 아이콘으로 되돌린다. */
@@ -1549,21 +1582,33 @@ const DocsTab: React.FC<Props> = (props) => {
       {/* 대량 이동 */}
       {moveTargetOpen && (
         <Modal onMouseDown={e => { if (e.target === e.currentTarget) { setMoveTargetOpen(false); setMoveSingle(null); } }}>
-          <Dialog>
+          {/* 이 창은 §17 손잡이가 없어 검사 하니스가 «떴는지» 를 못 쟀다 — 열림 판정 축을 붙인다. */}
+          <Dialog role="dialog" aria-modal="true" data-testid="docs-move-modal"
+            aria-label={t('docs.move.title', '이동할 폴더 선택') as string}>
             <DTitle>{t('docs.move.title', '이동할 폴더 선택')}</DTitle>
             <DBody>
               <MoveTargetList>
-                <MoveTargetRow type="button" onClick={() => onMoveTo(null)}>
+                {/* ★ 2026-09-20 (Irene: *"이동할 폴더 리스트 … 현재 들어있는 폴더가 어딘지 모르게
+                    폴더리스트를 보여주는데? 기존에 들어있는 폴더는 표시해 놔야 다른 폴더를 선택하지"*) —
+                    «어디서» 를 모르면 «어디로» 를 고를 수 없다. 지금 자리는 눌리지 않게 두고 표시를 단다.
+                    여러 건을 한 번에 옮길 때는 자리가 제각각일 수 있으므로 **모두 같은 폴더일 때만** 단다. */}
+                <MoveTargetRow type="button" disabled={moveFrom === null}
+                  $current={moveFrom === null} onClick={() => onMoveTo(null)}>
                   <span>{t('docs.folder.noFolder', '폴더 없음')}</span>
+                  {moveFrom === null && <MoveCurrentTag>{t('docs.move.current', '현재 위치')}</MoveCurrentTag>}
                 </MoveTargetRow>
                 {folders.filter(f => f.parent_id === null).map(f => (
                   <React.Fragment key={f.id}>
-                    <MoveTargetRow type="button" onClick={() => onMoveTo(f.id)}>
+                    <MoveTargetRow type="button" disabled={moveFrom === f.id}
+                      $current={moveFrom === f.id} onClick={() => onMoveTo(f.id)}>
                       <MoveTargetIcon><FolderSvg /></MoveTargetIcon><span>{f.name}</span>
+                      {moveFrom === f.id && <MoveCurrentTag>{t('docs.move.current', '현재 위치')}</MoveCurrentTag>}
                     </MoveTargetRow>
                     {folders.filter(c => c.parent_id === f.id).map(c => (
-                      <MoveTargetRow key={c.id} type="button" onClick={() => onMoveTo(c.id)} style={{ paddingLeft: 34 }}>
+                      <MoveTargetRow key={c.id} type="button" disabled={moveFrom === c.id}
+                        $current={moveFrom === c.id} onClick={() => onMoveTo(c.id)} style={{ paddingLeft: 34 }}>
                         <MoveTargetIcon><FolderSvg /></MoveTargetIcon><span>{c.name}</span>
+                        {moveFrom === c.id && <MoveCurrentTag>{t('docs.move.current', '현재 위치')}</MoveCurrentTag>}
                       </MoveTargetRow>
                     ))}
                   </React.Fragment>
@@ -1590,61 +1635,6 @@ export default DocsTab;
 // 각자 손으로 쓰면 반드시 갈라진다. 한 훅으로 묶어 그대로 스프레드한다.
 //   ★ 판정은 **전용 MIME** 으로만 한다 — text/plain 으로 받으면 브라우저 밖에서 끌어온
 //     아무 텍스트나 "파일 이동" 으로 읽힌다.
-/** 바깥(OS)에서 끌어온 진짜 파일인가. 우리 목록에서 끄는 중이면 전용 MIME 이 같이 실린다. */
-function isExternalFileDrag(e: React.DragEvent) {
-  const types = Array.from(e.dataTransfer?.types || []);
-  return types.includes('Files') && !types.includes(PLANQ_FILE_MIME);
-}
-
-function useFolderDrop(
-  onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>,
-  /** 바깥(OS)에서 끌어온 파일을 **그 폴더로** 올린다. 없으면 종전대로 상위 드롭존으로 흘린다. */
-  onDropExternal?: (folderId: number | null, files: FileList) => void | Promise<void>,
-) {
-  const [overKey, setOverKey] = useState<string | null>(null);
-  return (folderId: number | null) => {
-    if (!onDropFiles && !onDropExternal) return { dropProps: {}, over: false };
-    const key = String(folderId);
-    return {
-      over: overKey === key,
-      dropProps: {
-        onDragOver: (e: React.DragEvent) => {
-          // dragover 에서는 getData 가 빈 문자열이다 — types 로만 판정할 수 있다.
-          const types = Array.from(e.dataTransfer.types);
-          const mine = !!onDropFiles && types.includes(PLANQ_FILE_MIME);
-          const outside = !mine && !!onDropExternal && types.includes('Files');
-          if (!mine && !outside) return;
-          e.preventDefault();
-          // 우리 파일은 «옮기기», 바깥 파일은 «복사(=올리기)» — 커서가 무엇이 일어날지 말해 준다.
-          e.dataTransfer.dropEffect = mine ? 'move' : 'copy';
-          if (overKey !== key) setOverKey(key);
-        },
-        onDragLeave: () => setOverKey(k => (k === key ? null : k)),
-        onDrop: (e: React.DragEvent) => {
-          const id = e.dataTransfer.getData(PLANQ_FILE_MIME);
-          const dropped = e.dataTransfer.files;
-          setOverKey(null);
-          if (id && onDropFiles) {
-            e.preventDefault();
-            e.stopPropagation();
-            void onDropFiles(folderId, id);
-            return;
-          }
-          // 바깥에서 끌어온 파일 — **그 폴더로** 올린다. 상위 드롭존으로 흘리면
-          // 보고 있던 폴더로 들어가 «어디 갔지» 가 된다.
-          if (onDropExternal && dropped && dropped.length) {
-            e.preventDefault();
-            e.stopPropagation();
-            void onDropExternal(folderId, dropped);
-            return;
-          }
-          // 그 외에는 상위(업로드 드롭존)로 흘려보낸다.
-        },
-      },
-    };
-  };
-}
-
 interface ProjectGroupsProps {
   projectGroups: Array<{ id: number; name: string; color?: string | null; count: number }>;
   /** 이 워크스페이스에 보이는 **프로젝트 폴더**(하위 포함). 프로젝트 행 아래로 펼쳐진다.
@@ -1658,7 +1648,7 @@ interface ProjectGroupsProps {
   /** 그 프로젝트 안에 폴더를 새로 만든다. 없으면 [+] 를 그리지 않는다. */
   onCreateFolder?: (projectId: number, parentId?: number | null) => void;
   /** 하위 폴더 행의 드롭 — FolderTree 와 **같은 훅**이 만든다(베끼면 한쪽만 고쳐진다). */
-  folderDrop?: (folderId: number | null) => { over: boolean; dropProps: Record<string, unknown> };
+  folderDrop?: FolderDropFn;
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
   selected: FolderSel;
@@ -1689,6 +1679,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
       <TreeRow
         selected={selected === f.id}
         dropOver={folderDrop ? folderDrop(f.id).over : undefined}
+        flash={folderDrop ? folderDrop(f.id).flash : undefined}
         dropProps={folderDrop ? folderDrop(f.id).dropProps : undefined}
         depth={depth}
         icon={<FolderIconWrap $selected={selected === f.id}><FolderSvg /></FolderIconWrap>}
@@ -1800,11 +1791,14 @@ interface FolderTreeProps {
   onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>;
   /** 바깥(OS)에서 끌어온 파일을 이 폴더로 올린다. */
   onDropExternal?: (folderId: number | null, files: FileList) => void | Promise<void>;
+  /** 드롭 인스턴스를 밖에서 받는다 — ProjectGroups 와 **같은 것**을 써야 표시가 갈라지지 않는다. */
+  folderDrop?: FolderDropFn;
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, tr, foldersOnly }) => {
-  const folderDrop = useFolderDrop(onDropFiles, onDropExternal);
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, folderDrop: folderDropProp, tr, foldersOnly }) => {
+  const ownDrop = useFolderDrop(onDropFiles, onDropExternal);
+  const folderDrop = folderDropProp || ownDrop;
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -1848,6 +1842,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
         <TreeRow
           selected={sel}
           dropOver={folderDrop(f.id).over}
+          flash={folderDrop(f.id).flash}
           dropProps={folderDrop(f.id).dropProps as Record<string, unknown>}
           depth={depth}
           onClick={() => onSelect(f.id)}
@@ -2347,7 +2342,11 @@ const Card = styled.div<{ $selected?: boolean }>`
   position:relative;background:#fff;
   border:2px solid ${p => p.$selected ? '#14B8A6' : '#E2E8F0'};
   border-radius:10px;overflow:hidden;cursor:pointer;
-  display:flex;flex-direction:column;transition:border-color .15s, box-shadow .15s;
+  display:flex;flex-direction:column;transition:border-color .15s, box-shadow .15s, opacity .15s;
+  /* 끌 수 있는 것은 커서로 말한다 — 끌어 보기 전에는 알 수 없었다. */
+  &[draggable="true"]{ cursor:grab; }
+  &[draggable="true"]:active{ cursor:grabbing; }
+  &[data-dragging="1"]{ opacity:.45; }
   &:hover{border-color:${p => p.$selected ? '#14B8A6' : '#14B8A6'};box-shadow:0 2px 8px rgba(20,184,166,.08);}
 `;
 const CardCheck = styled.div`
@@ -2400,6 +2399,10 @@ const ListRow = styled.div<{ $selected?: boolean; $selectMode?: boolean }>`
   grid-template-columns:${p => p.$selectMode ? `36px ${LIST_COLS}` : LIST_COLS};
   gap:8px;padding:10px 14px;align-items:center;cursor:pointer;
   border-bottom:1px solid #F1F5F9;background:${p => p.$selected ? '#F0FDFA' : 'transparent'};
+  transition:opacity .15s;
+  &[draggable="true"]{ cursor:grab; }
+  &[draggable="true"]:active{ cursor:grabbing; }
+  &[data-dragging="1"]{ opacity:.45; }
   &:last-child{border-bottom:none;}
   &:hover{background:${p => p.$selected ? '#F0FDFA' : '#F8FAFC'};}
 `;
@@ -2534,11 +2537,19 @@ const BulkFileItem = styled.li`font-size:0.75rem;color:#0F172A;white-space:nowra
 const BulkFileMore = styled.li`font-size:0.6875rem;color:#94A3B8;`;
 
 const MoveTargetList = styled.div`display:flex;flex-direction:column;gap:2px;max-height:320px;overflow-y:auto;`;
-const MoveTargetRow = styled.button`
+const MoveTargetRow = styled.button<{ $current?: boolean }>`
   display:flex;align-items:center;gap:8px;padding:10px 12px;
-  background:transparent;border:1px solid transparent;border-radius:8px;
+  background:${p => (p.$current ? '#F0FDFA' : 'transparent')};
+  border:1px solid ${p => (p.$current ? '#99F6E4' : 'transparent')};border-radius:8px;
   cursor:pointer;font-size:0.8125rem;color:#0F172A;text-align:left;
-  &:hover{background:#F8FAFC;border-color:#E2E8F0;}
+  &:hover{background:${p => (p.$current ? '#F0FDFA' : '#F8FAFC')};border-color:${p => (p.$current ? '#99F6E4' : '#E2E8F0')};}
+  /* 지금 자리는 고를 수 없다 — 눌러도 아무 일이 없으면 «고장» 으로 읽힌다. */
+  &:disabled{ cursor:default; }
+`;
+/* «현재 위치» 표시 — 어디서 어디로 가는지 알려 준다. */
+const MoveCurrentTag = styled.span`
+  margin-left:auto;flex-shrink:0;padding:2px 8px;border-radius:999px;
+  background:#CCFBF1;color:#0F766E;font-size:0.625rem;font-weight:700;letter-spacing:.2px;
 `;
 const MoveTargetIcon = styled.span`display:inline-flex;color:#64748B;flex-shrink:0;`;
 
