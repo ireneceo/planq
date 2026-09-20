@@ -545,7 +545,7 @@
       "all": "All",
       "my": "My files",
       "directSection": "Direct uploads",
-      "directRoot": "My uploads",
+      "directRoot": "Direct uploads",
       "autoSection": "Auto-collected",
       "auto": "auto",
       "new": "New folder",
@@ -556,12 +556,13 @@
       "moveDown": "Move down",
       "placeholder": "Folder name",
       "deleteTitle": "Delete folder?",
-      "deleteDesc": "Files inside will be moved to \"Direct root\"",
-      "deleteWithFiles": "{{n}} files inside will be moved to \"Direct root\"",
+      "deleteDesc": "Files inside move to “No folder”",
+      "deleteWithFiles": "The {{n}} files in this folder move to “No folder”",
       "deleteEmpty": "This folder is empty",
       "more": "Folder menu",
       "downloadAll": "Download whole folder",
-      "downloading": "Zipping the folder… {{p}}"
+      "downloading": "Zipping the folder… {{p}}",
+      "noFolder": "No folder"
     },
     "up": {
       "aria": "Upload progress",

@@ -545,7 +545,7 @@
       "all": "전체",
       "my": "내 파일",
       "directSection": "직접 업로드",
-      "directRoot": "내 업로드",
+      "directRoot": "직접 업로드",
       "autoSection": "자동 수집",
       "auto": "자동",
       "new": "새 폴더",
@@ -556,12 +556,13 @@
       "moveDown": "아래로",
       "placeholder": "폴더 이름",
       "deleteTitle": "폴더를 삭제할까요?",
-      "deleteDesc": "폴더 안 파일은 “직접 업로드 루트”로 옮겨집니다",
-      "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 “직접 업로드 루트”로 옮겨집니다",
+      "deleteDesc": "폴더 안 파일은 “폴더 없음”으로 옮겨집니다",
+      "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 “폴더 없음”으로 옮겨집니다",
       "deleteEmpty": "이 폴더는 비어있습니다",
       "more": "폴더 메뉴",
       "downloadAll": "폴더 통째 다운로드",
-      "downloading": "폴더를 압축해 받는 중… {{p}}"
+      "downloading": "폴더를 압축해 받는 중… {{p}}",
+      "noFolder": "폴더 없음"
     },
     "up": {
       "aria": "업로드 진행 상황",

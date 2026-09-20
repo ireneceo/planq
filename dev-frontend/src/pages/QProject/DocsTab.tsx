@@ -605,12 +605,25 @@ const DocsTab: React.FC<Props> = (props) => {
     }
   }, [businessId]);
 
+  /** 이 파일이 지금 들어 있는 폴더 이름 — 트리거에 **보이는 글자**로 쓴다.
+   *  ⋯ 점 세 개는 눌러 보기 전에는 뜻을 모른다(Irene 2026-09-20). 값이 보이면 «어느 폴더에
+   *  있는지» 를 목록에서 바로 읽을 수 있고, 누르면 옮기는 목록이 나온다(ChipPopover 와 같은 규칙). */
+  const currentFolderName = useCallback((f: ProjectFile) => (
+    f.folder_id ? (folders.find(fd => fd.id === f.folder_id)?.name || t('docs.folder.noFolder', '폴더 없음') as string)
+      : t('docs.folder.noFolder', '폴더 없음') as string
+  ), [folders, t]);
+
   /** 행/카드 ⋯ 메뉴의 «폴더로 이동» 묶음. 지금 폴더는 체크로 표시한다. */
   const moveMenuItems = useCallback((f: ProjectFile) => ([
     {
       key: 'mv-root',
       groupLabel: t('docs.moveTo') as string,
-      label: t('docs.folder.directRoot', '폴더 없음') as string,
+      // ★ 2026-09-20 (Irene: *"내 업로드 폴더가 뭐야? 미분류라는 의미야?"*) — 맞다, 미분류다.
+      //   여태 `docs.folder.directRoot`(ko '내 업로드')를 썼는데 **두 가지가 거짓**이었다:
+      //   ①「내」가 아니다 — 남이 올린 파일도 폴더가 없으면 여기 체크된다
+      //   ②같은 키를 좌측 트리의 «출처=직접 업로드» 행도 쓰고 있어, **뜻이 다른 둘이 같은 글자**였다
+      //   여기는 `folder_id === null` 하나만 뜻한다. 그대로 적는다.
+      label: t('docs.folder.noFolder', '폴더 없음') as string,
       checked: !f.folder_id,
       onClick: () => { void moveOne(f, null); },
     },
@@ -1047,6 +1060,7 @@ const DocsTab: React.FC<Props> = (props) => {
                         <span style={{ marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
                           <OverflowMenu
                             label={t('docs.moveTo') as string}
+                            triggerLabel={currentFolderName(f)}
                             data-testid={`docs-file-menu-${f.id}`}
                             items={moveMenuItems(f)}
                           />
@@ -1141,6 +1155,7 @@ const DocsTab: React.FC<Props> = (props) => {
                         <span onClick={e => e.stopPropagation()}>
                           <OverflowMenu
                             label={t('docs.moveTo') as string}
+                            triggerLabel={currentFolderName(f)}
                             data-testid={`docs-file-menu-${f.id}`}
                             items={moveMenuItems(f)}
                           />
@@ -1477,7 +1492,7 @@ const DocsTab: React.FC<Props> = (props) => {
             <DBody>
               <MoveTargetList>
                 <MoveTargetRow type="button" onClick={() => onMoveTo(null)}>
-                  <span>{t('docs.folder.directRoot', '내 업로드')}</span>
+                  <span>{t('docs.folder.noFolder', '폴더 없음')}</span>
                 </MoveTargetRow>
                 {folders.filter(f => f.parent_id === null).map(f => (
                   <React.Fragment key={f.id}>
@@ -1631,6 +1646,10 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
   const [renameDraft, setRenameDraft] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<FileFolder | null>(null);
 
+  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
+  const toggleProject = (id: number) => setExpandedProjects(prev => {
+    const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
+  });
   const rootFolders = folders.filter(f => f.parent_id === null);
   // ★ 2026-09-20 (#417) — Q file 에는 **프로젝트 폴더도 같이 온다**(서버 `/api/folders/workspace/:biz`).
   //   그냥 한 덩어리로 그리면 워크스페이스 폴더와 프로젝트 폴더가 **구분 없이 섞여** 어느 프로젝트
@@ -1791,12 +1810,30 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
             <EmptyHint>{tr('docs.folders.empty')}</EmptyHint>
           )}
           {wsRootFolders.map(f => renderFolder(f, 0))}
-          {projectGroups.map(g => (
-            <React.Fragment key={`pg-${g.id}`}>
-              <ProjectFolderLabel title={g.name}>{g.name}</ProjectFolderLabel>
-              {g.folders.map(f => renderFolder(f, 1))}
-            </React.Fragment>
-          ))}
+          {/* ★ 2026-09-20 (Irene: *"위에 프로젝트 클릭하면 하위폴더가 열려서 나와야 하는 거 아니야?"*) —
+              처음엔 프로젝트 이름을 **누를 수 없는 라벨**로 두고 그 아래 폴더를 항상 펼쳐 놨다.
+              프로젝트가 여럿이면 폴더가 전부 한 줄로 쏟아져 어디까지가 어느 프로젝트인지 안 보인다.
+              폴더 트리에서 «위 칸을 누르면 아래가 열린다» 는 것은 설명이 필요 없는 동작이다. */}
+          {projectGroups.map(g => {
+            const open = expandedProjects.has(g.id);
+            return (
+              <React.Fragment key={`pg-${g.id}`}>
+                <FolderRow $selected={false} onClick={() => toggleProject(g.id)}
+                  aria-expanded={open} data-testid={`docs-project-folder-${g.id}`}>
+                  <Caret $open={open} aria-hidden>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </Caret>
+                  <FolderIconWrap $selected={false}>{open ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
+                  <FolderName title={g.name}>{g.name}</FolderName>
+                  <FolderCount>{g.folders.reduce((n, f) => n + (counts.byFolder[f.id] || 0), 0)}</FolderCount>
+                </FolderRow>
+                {open && g.folders.map(f => renderFolder(f, 1))}
+              </React.Fragment>
+            );
+          })}
         </TreeRoot>
         {deleteModal}
       </>
@@ -1819,7 +1856,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
         <FolderRow $selected={selected === 'direct'} $dropOver={folderDrop(null).over} {...folderDrop(null).dropProps}
           onClick={() => onSelect('direct')}>
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
-          <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '내 업로드')}</FolderName>
+          <FolderName title={projectName}>{projectName || tr('docs.folder.directRoot', '직접 업로드')}</FolderName>
           <FolderCount>{counts.bySrc.direct}</FolderCount>
           <FolderActions $visible onClick={e => e.stopPropagation()}>
             <FolderNewBtn type="button" data-testid="folder-new" title={tr('docs.folder.new')} onClick={() => startCreate(null)}>
@@ -2050,18 +2087,12 @@ const StorageLeftText = styled.span<{ $warn: boolean }>`
   white-space: nowrap;
 `;
 
-/** 프로젝트 폴더 묶음의 머리말. 폴더가 아니라 **분류 라벨**이므로 누를 수 없다 —
- *  누를 수 있게 하면 "프로젝트 전체 파일" 이라는 또 다른 필터 축이 생기는데, 그 축은
- *  이미 좌측 프로젝트 목록이 갖고 있다(같은 일을 두 곳에서 하지 않는다). */
-const ProjectFolderLabel = styled.div`
-  padding: 6px 8px 2px 8px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: #94a3b8;
-  letter-spacing: -0.1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/** 프로젝트 노드의 펼침 표시. 누르면 그 프로젝트의 폴더가 아래로 열린다. */
+const Caret = styled.span<{ $open: boolean }>`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; flex-shrink: 0; color: #94a3b8;
+  transform: rotate(${p => (p.$open ? 90 : 0)}deg);
+  transition: transform 0.12s ease;
 `;
 
 const CompactBar = styled.div`

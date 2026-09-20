@@ -34,11 +34,22 @@ type Props = {
   items: OverflowItem[];
   /** 트리거 버튼의 접근성 이름 (예: "더보기") */
   label: string;
+  /** 트리거에 **보이는 글자**. 넣으면 ⋯ 점 대신 이 글자가 나온다.
+   *
+   *  ★ 2026-09-20 (Irene: *"... 이 뭐야? 뭔지 알 수도 없게"*) — `label` 은 `aria-label`·`title`
+   *    로만 간다. `title` 은 **마우스를 올려야 뜨고 터치 기기에선 아예 안 뜬다.** 그래서 폰에서는
+   *    이 버튼이 «뜻을 모르는 점 세 개» 다. CLAUDE.md 가 이미 적어 둔 문제다
+   *    ("아이콘 전용 버튼은 자리는 먹고 뜻은 안 알려준다").
+   *  ★ 기본값은 종전대로 ⋯ 다 — 쓰고 있는 30여 곳의 모양을 바꾸지 않는다.
+   *    «메뉴 안에 뭐가 들었는지» 가 한 가지로 정해진 자리에서만 글자를 쓴다.
+   *    (파일 행의 이 메뉴는 «폴더로 이동» 전용이라 지금 폴더 이름을 그대로 보여 준다 —
+   *     값이 보이고 고치는 목록은 누를 때만 나오는 ChipPopover 와 같은 규칙.) */
+  triggerLabel?: string;
   className?: string;
   'data-testid'?: string;
 };
 
-export default function OverflowMenu({ items, label, className, ...rest }: Props) {
+export default function OverflowMenu({ items, label, triggerLabel, className, ...rest }: Props) {
   const { open, toggle, close, pos, wrapRef, panelRef } = usePopoverAnchor();
 
   if (items.length === 0) return null;
@@ -55,9 +66,13 @@ export default function OverflowMenu({ items, label, className, ...rest }: Props
         title={label}
         onClick={toggle}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
-        </svg>
+        {triggerLabel ? (
+          <TriggerText>{triggerLabel}</TriggerText>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="1.7" /><circle cx="12" cy="12" r="1.7" /><circle cx="19" cy="12" r="1.7" />
+          </svg>
+        )}
       </Trigger>
       {open && pos && createPortal(
         <Menu ref={panelRef} role="menu" style={{ top: pos.top, right: pos.right }}>
@@ -99,14 +114,22 @@ const Wrap = styled.div`position:relative;display:inline-flex;align-items:center
 // 높이는 토큰 표준(36 / 폰 44) — theme/tokens.ts CONTROL. 액션 줄의 글자 버튼도 같은 36 이라
 // 좌측 검색 박스(36px)와 한 줄로 선다.
 const Trigger = styled.button<{ $open: boolean }>`
-  width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;
+  /* 글자가 들어오면 폭이 늘어야 한다 — 36px 고정이면 글자가 잘린다.
+     높이는 36px 그대로(한 줄 안 컨트롤 기준). 아이콘만일 때의 모양은 바뀌지 않는다. */
+  min-width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;
+  padding:0;max-width:100%;
   background:${p => (p.$open ? '#F0FDFA' : '#FFF')};
   border:1px solid ${p => (p.$open ? '#14B8A6' : '#E2E8F0')};border-radius:8px;
   color:${p => (p.$open ? '#0F766E' : '#475569')};cursor:pointer;
   transition:border-color 0.15s,color 0.15s,background 0.15s;
   &:hover{border-color:#14B8A6;color:#0F766E;}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
-  @media (max-width: 640px){ width:44px;height:44px; }
+  @media (max-width: 640px){ min-width:44px;height:44px; }
+`;
+/* 트리거에 보이는 글자 — 길면 자른다(행 폭을 밀어내면 옆 칸 정렬이 깨진다). */
+const TriggerText = styled.span`
+  padding:0 10px;font-size:0.75rem;font-weight:600;line-height:1;
+  max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 `;
 const Menu = styled.div`
   position:fixed;min-width:200px;max-height:70vh;overflow-y:auto;
