@@ -12,6 +12,7 @@ import {
 } from './docs/treeStyles';
 import TreeRow from './docs/TreeRow';
 import { useFileOpen } from './docs/useFileOpen';
+import { srcsOf, homeSrcOf, sourceShortLabel, srcStyle } from './docs/fileSource';
 import { useFolderDrop, isExternalFileDrag, type FolderDropFn } from './docs/folderDrop';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
@@ -344,9 +345,9 @@ const DocsTab: React.FC<Props> = (props) => {
     let myFiles = 0;
     const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0, post: 0, mail: 0 };
     for (const f of files) {
-      // ★ 출처는 태그다 — 한 파일이 채팅·업무 양쪽에 걸리면 양쪽에서 다 세어야 한다.
-      //   (Irene: "이 폴더들은 그냥 태그같은 필터 기능 아니야? 겹쳐서 나와야지.")
-      for (const s of srcsOf(f)) bySrc[s]++;
+      // ★ 한 파일은 **한 칸**에만 센다 — 그래야 칸들의 합이 «전체» 와 같다(homeSrcOf 참조).
+      //   행에 붙는 출처 «칩» 은 종전대로 전부 보여 준다(어디서 왔나 ≠ 어디에 사나).
+      bySrc[homeSrcOf(f)]++;
       if (f.source === 'direct') {
         if (f.project_context == null) myFiles++;
         if (f.folder_id == null) directRoot++;
@@ -359,10 +360,16 @@ const DocsTab: React.FC<Props> = (props) => {
   const filteredByFolder = useMemo(() => {
     if (folderSel === 'all') return files;
     if (folderSel === 'my') return files.filter(f => f.source === 'direct' && f.project_context == null);
-    if (folderSel === 'direct') return files.filter(f => f.source === 'direct' && f.folder_id == null);
+    // ★ 2026-09-20 — 이 칸은 **프로젝트 기본 폴더**다(Irene: "직접업로드 = 프로젝트 기본 폴더여야
+    //   하고 그 아래에 새로 만든 폴더가 나와야지"). 그래서 폴더 안에 든 것도 **같이** 보여 준다 —
+    //   여태 `folder_id == null` 만 걸러서 **뱃지는 126 인데 목록은 22** 였다(뱃지와 목록이 갈라진 상태).
+    //   폴더를 고르면 그 폴더 것만 좁혀 보는 것이고, 이 칸은 그 위 계층이다.
+    if (folderSel === 'direct') return files.filter(f => homeSrcOf(f) === 'direct');
     if (typeof folderSel === 'string' && folderSel.startsWith('src:')) {
       const src = folderSel.slice(4) as FileSource;
-      return files.filter(f => srcsOf(f).includes(src));
+      // 세는 것과 **같은 술어**를 쓴다 — 다르면 뱃지와 목록이 갈라진다
+      //   (memory feedback_same_value_multiple_formulas).
+      return files.filter(f => homeSrcOf(f) === src);
     }
     if (typeof folderSel === 'string' && folderSel.startsWith('proj:')) {
       const pid = Number(folderSel.slice(5));
@@ -2057,34 +2064,12 @@ function sortLabel(s: SortKey, t: (k: string, fb?: string) => string): string {
 }
 
 /** 이 파일이 걸리는 출처 전부. 서버가 접으면서 합쳐 주지만, 옛 응답에는 없을 수 있다. */
-function srcsOf(f: ProjectFile): FileSource[] {
-  return (f.sources && f.sources.length) ? f.sources : [f.source];
-}
-
-function sourceShortLabel(s: FileSource, t: (k: string, fb?: string) => string): string {
-  if (s === 'chat') return t('docs.source.chat', '채팅');
-  if (s === 'task') return t('docs.source.task', '업무');
-  if (s === 'meeting') return t('docs.source.meeting', '회의');
-  if (s === 'post') return t('docs.source.post', '문서');
-  if (s === 'mail') return t('docs.source.mail', '메일');
-  return t('docs.source.direct', '직접');
-}
-
 function deleteWithFilesMessage(n: number, tr: (k: string, fb?: string) => string): string {
   // i18n 에 {{n}} 이 들어간 문구를 tr(2 arg) 로 단순 치환
   const tpl = tr('docs.folder.deleteWithFiles', '이 폴더 안 {{n}}개 파일은 “직접 업로드 루트”로 옮겨집니다');
   return tpl.replace('{{n}}', String(n));
 }
 
-function srcStyle(s: FileSource): string {
-  switch (s) {
-    case 'chat':    return 'background:#E0F2FE;color:#075985;';
-    case 'task':    return 'background:#FEF3C7;color:#92400E;';
-    case 'meeting': return 'background:#F0FDFA;color:#6B21A8;';
-    case 'mail':    return 'background:#EDE9FE;color:#5B21B6;';
-    default:        return 'background:#F0FDFA;color:#0F766E;';
-  }
-}
 
 // ─── SVG 아이콘 (Lucide 스타일) ───
 

@@ -32,6 +32,29 @@ async function run() {
     { replacements: { b: biz, p: pid, pa: f1[0].id, n: TAG + '-하위', u: me[0].user_id } });
   
 
+  // ── 겹침 픽스처: 같은 `file_path` 를 **채팅 첨부로도** 만든다.
+  //   채팅으로 파일을 올리면 실제로 File 행과 MessageAttachment 행이 **둘 다** 생긴다.
+  //   이 상태가 없으면 «칸들의 합 = 전체» 검사가 아무것도 증명하지 못한다(겹칠 것이 없다).
+  let convId = null;
+  const [srcFile] = await sequelize.query(
+    'SELECT id, file_path, file_name, file_size, mime_type FROM files WHERE project_id=:p AND deleted_at IS NULL LIMIT 1',
+    { replacements: { p: pid } });
+  if (srcFile.length) {
+    const f0 = srcFile[0];
+    await sequelize.query('INSERT INTO conversations (business_id, project_id, created_at, updated_at) VALUES (:b,:p,NOW(),NOW())',
+      { replacements: { b: biz, p: pid } });
+    const [cv] = await sequelize.query('SELECT LAST_INSERT_ID() id');
+    convId = cv[0].id;
+    await sequelize.query('INSERT INTO conversation_participants (conversation_id, user_id, created_at) VALUES (:c,:u,NOW())',
+      { replacements: { c: convId, u: me[0].user_id } });
+    await sequelize.query('INSERT INTO messages (conversation_id, sender_id, content, created_at, updated_at) VALUES (:c,:u,:t,NOW(),NOW())',
+      { replacements: { c: convId, u: me[0].user_id, t: TAG } });
+    const [mg] = await sequelize.query('SELECT LAST_INSERT_ID() id');
+    await sequelize.query(`INSERT INTO message_attachments (message_id, file_name, file_path, file_size, mime_type, storage_provider, file_id, created_at)
+      VALUES (:m,:n,:p,:s,:mt,'planq',:fid,NOW())`,
+      { replacements: { m: mg[0].id, n: f0.file_name, p: f0.file_path, s: f0.file_size || 0, mt: f0.mime_type || 'application/octet-stream', fid: f0.id } });
+  }
+
   const { browser, page } = await b.launch();
   const judge = (n, ok, d) => results.push({ name: n, fail: ok ? 0 : 1, details: [d] });
   try {
@@ -245,6 +268,57 @@ async function run() {
       judge('메일 칸이 있다', align.hasMail, `${align.top.join(', ')}`);
     }
 
+    // ── 칸들의 **합 = 전체** 인가. 그리고 뱃지 = 목록 길이인가.
+    //   Irene 2026-09-20: *"전체가 26인데 직접 업로드 + 채팅, 업무, 회의, 문서 숫자가 왜 동일하지
+    //   않지?"* → *"겹침 원인 해결해."* 한 파일이 두 칸에 세어지던 것을 «한 칸» 으로 고쳤다.
+    const sums = await page.evaluate(() => {
+      const pane0 = document.querySelector('[data-testid="project-tab-body-files"]');
+      const tree = (pane0 || document).querySelector('[data-testid="file-tree"]');
+      if (!tree) return null;
+      const rows = [...tree.children].filter((d) => getComputedStyle(d).display === 'grid');
+      const read = (r) => {
+        const c = r.querySelector('[data-folder-count]');
+        return { label: (r.children[1].textContent || '').trim(), n: c ? Number(c.textContent) : 0 };
+      };
+      const base = Math.min(...rows.map((r) => Math.round(parseFloat(getComputedStyle(r).paddingLeft))));
+      const top = rows
+        .filter((r) => Math.round(parseFloat(getComputedStyle(r).paddingLeft)) === base)
+        .map(read).filter((x) => x.label);
+      const all = top.find((x) => /^전체|^All/.test(x.label));
+      const rest = top.filter((x) => x !== all);
+      return { total: all ? all.n : null, rest, sum: rest.reduce((a, b) => a + b.n, 0) };
+    });
+    if (!sums || sums.total === null) {
+      results.push({ name: '⬜ 칸 합계 — 미측정', fail: 0, details: ['트리 또는 «전체» 칸을 못 찾았다'] });
+    } else {
+      judge('겹치는 파일이 실제로 있다 (이 검사의 전제)', !!convId,
+        convId ? '채팅 첨부로도 같은 파일을 만들었다' : '⬜ 만들지 못했다 — 아래 합계는 아무것도 증명하지 않는다');
+      judge('칸들의 합이 «전체» 와 같다', sums.sum === sums.total,
+        `합 ${sums.sum} vs 전체 ${sums.total} · ${sums.rest.map((x) => x.label + ' ' + x.n).join(' + ')}`);
+      // 뱃지와 목록이 같은가 — 기본 폴더(프로젝트) 칸을 눌러 본다.
+      const badgeVsList = await page.evaluate(async () => {
+        const pane0 = document.querySelector('[data-testid="project-tab-body-files"]');
+        const tree = (pane0 || document).querySelector('[data-testid="file-tree"]');
+        const rows = [...tree.children].filter((d) => getComputedStyle(d).display === 'grid');
+        const base = Math.min(...rows.map((r) => Math.round(parseFloat(getComputedStyle(r).paddingLeft))));
+        const top = rows.filter((r) => Math.round(parseFloat(getComputedStyle(r).paddingLeft)) === base);
+        const row = top[1];      // 0=전체, 1=프로젝트(기본 폴더)
+        if (!row) return null;
+        const c = row.querySelector('[data-folder-count]');
+        const badge = c ? Number(c.textContent) : 0;
+        row.click();
+        await new Promise((r) => setTimeout(r, 1500));
+        // ★ 이 탭 본문 안에서만 센다 — keep-alive 로 살아 있는 **Q file 탭**의 목록이 같이 잡혀
+        //   1,428건으로 나왔다(2026-09-20 실측).
+        const pane = document.querySelector('[data-testid="project-tab-body-files"]') || document;
+        return { badge, list: pane.querySelectorAll('[data-file-id]').length,
+          label: (row.children[1].textContent || '').trim().slice(0, 14) };
+      });
+      if (!badgeVsList) results.push({ name: '⬜ 뱃지 = 목록 — 미측정', fail: 0, details: ['기본 폴더 칸이 없다'] });
+      else judge('뱃지 숫자와 목록 건수가 같다 (기본 폴더)', badgeVsList.badge === badgeVsList.list,
+        `"${badgeVsList.label}" 뱃지 ${badgeVsList.badge} · 목록 ${badgeVsList.list}`);
+    }
+
     if (!pf) {
       results.push({ name: '⬜ 프로젝트>파일 트리 — 미측정', fail: 0, details: ['액션 달린 폴더 행이 없다(폴더 0개)'] });
     } else {
@@ -266,6 +340,12 @@ async function run() {
       }
     }
   } finally {
+    if (convId) {
+      await sequelize.query('DELETE ma FROM message_attachments ma JOIN messages m ON m.id=ma.message_id WHERE m.conversation_id=:c', { replacements: { c: convId } });
+      await sequelize.query('DELETE FROM messages WHERE conversation_id=:c', { replacements: { c: convId } });
+      await sequelize.query('DELETE FROM conversation_participants WHERE conversation_id=:c', { replacements: { c: convId } });
+      await sequelize.query('DELETE FROM conversations WHERE id=:c', { replacements: { c: convId } });
+    }
     await sequelize.query('DELETE FROM file_folders WHERE name LIKE :t', { replacements: { t: TAG + '%' } });
     const [l] = await sequelize.query('SELECT COUNT(*) n FROM file_folders WHERE name LIKE :t', { replacements: { t: TAG + '%' } });
     judge('픽스처 원복', Number(l[0].n) === 0, `잔여 ${l[0].n}`);
