@@ -3502,9 +3502,12 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     const results = [];
 
     // 1) direct 파일 — 프로젝트 소속 + "내 파일"(project_id NULL) 둘 다 포함
-    // ★ 메일 첨부 보관분은 Q file 목록에 넣지 않는다 (2026-09-20 Irene 결정).
-    //   바이트는 그대로 두고 **목록에서만** 뺀다 — services/mailAttachmentFiles 에 이유가 있다.
-    const mailExcl = await require('../services/mailAttachmentFiles').excludeMailAttachmentsWhere(bizId);
+    // ★ 2026-09-20 (Irene: *"메일이 빠졌네. 메일에서도 지금 가져오잖아. … 전체 = 직접업로드 +
+    //   나머지 채팅, 업무, 회의, 문서, 메일 에서 자동으로 가져오는 거."*) —
+    //   메일 첨부를 **목록에서 빼던 것**을 그만두고 «메일» 출처로 **분류**한다.
+    //   빼 버리면 어디에도 안 보여 «없어졌다» 가 되고, 그대로 섞으면 «쓸데없는 파일이 너무 많아» 가 된다.
+    //   답은 제3의 것 — 보이되 **자기 칸**에 있게 한다(채팅·업무·회의·문서와 같은 취급).
+    const mailIds = new Set(await require('../services/mailAttachmentFiles').mailAttachmentFileIds(bizId));
     const directFiles = await File.findAll({
       where: {
         [Op.and]: [
@@ -3514,7 +3517,6 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
             { project_id: { [Op.in]: projIds } },
             { project_id: null }
           ] },
-          ...(mailExcl ? [mailExcl] : []),
         ],
       },
       include: [
@@ -3532,6 +3534,8 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       results.push({
         id: `direct-${f.id}`,
         source: 'direct',
+        // 메일에서 들어온 첨부는 «메일» 칸에도 선다 — 출처는 배타적 폴더가 아니라 **태그**다.
+        ...(mailIds.has(f.id) ? { sources: ['direct', 'mail'] } : {}),
         file_path_key: f.file_path || null,   // 중복 접기 기준(실제 파일)
         file_name: f.file_name,
         file_size: Number(f.file_size),
@@ -3723,6 +3727,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
     const bizId = project.business_id;
     const projId = project.id;
     const results = [];
+    // 메일에서 들어온 첨부를 «메일» 칸으로 분류한다 (워크스페이스 all-files 와 같은 규칙).
+    const mailIds = new Set(await require('../services/mailAttachmentFiles').mailAttachmentFileIds(bizId));
 
     // ★ 가시성 게이트 — loadProjectOrForbidden 은 "워크스페이스 멤버면 통과" 라, 프로젝트 비멤버도
     //   여기까지 들어온다. 그대로 전체를 내려주면 L2(프로젝트 멤버 전용) 파일의 이름·크기·업로더,
@@ -3750,6 +3756,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
       results.push({
         id: `direct-${f.id}`,
         source: 'direct',
+        // 메일에서 들어온 첨부는 «메일» 칸에도 선다 — 출처는 배타적 폴더가 아니라 **태그**다.
+        ...(mailIds.has(f.id) ? { sources: ['direct', 'mail'] } : {}),
         file_path_key: f.file_path || null,   // 중복 접기 기준(실제 파일)
         file_name: f.file_name,
         file_size: Number(f.file_size),

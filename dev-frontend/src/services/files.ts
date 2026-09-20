@@ -6,7 +6,7 @@ import type { UploadProgress } from '../contexts/AuthContext';
 import { downloadBlob } from '../utils/download';
 import i18next from 'i18next';
 
-export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post';
+export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post' | 'mail';
 export type StorageProvider = 'planq' | 'gdrive';
 
 export interface ProjectContext {

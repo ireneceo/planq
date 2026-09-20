@@ -466,7 +466,8 @@
       "chat": "채팅",
       "task": "업무",
       "meeting": "회의",
-      "post": "문서"
+      "post": "문서",
+      "mail": "메일"
     },
     "view": {
       "grid": "그리드",
@@ -575,7 +576,8 @@
       "newInProject": "이 프로젝트에 폴더 추가",
       "expand": "펼치기",
       "collapse": "접기",
-      "newChildAction": "하위 폴더 추가"
+      "newChildAction": "하위 폴더 추가",
+      "nameLabel": "폴더 이름"
     },
     "up": {
       "aria": "업로드 진행 상황",

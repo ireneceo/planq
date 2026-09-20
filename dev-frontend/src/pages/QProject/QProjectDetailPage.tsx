@@ -1175,7 +1175,8 @@ const QProjectDetailPage: React.FC = () => {
           없어 시작점 20px·스크롤 주체가 달랐다(실측 1024 에서 바깥이 128px 스크롤). */}
       {tab === 'files' && (
         <ProjectTabFull data-testid="project-tab-body-files">
-          <DocsTab projectId={projectId} businessId={project.business_id} />
+          <DocsTab projectId={projectId} businessId={project.business_id}
+            projectName={project.name} projectColor={project.color} />
         </ProjectTabFull>
       )}
       {tab === 'docs' && (

@@ -497,6 +497,10 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     //   `?ids=` 로 **콕 집어 물은 것**은 그대로 준다 — 채팅 칩·미리보기가 그 id 로 메타를 읽는데
     //   여기서 빼면 이미 붙어 있는 첨부가 화면에서 «없는 파일» 이 된다(고친 것보다 큰 고장이다).
     if (!req.query.ids) {
+      // ★ 2026-09-20 — Q file 목록(all-files)은 메일 첨부를 **«메일» 칸으로 분류**하도록 바뀌었지만,
+      //   이 라우트는 첨부 고르기·연결 같은 **고르는 화면**이 쓴다. 거기엔 출처 칸이 없어서
+      //   섞으면 수백~수천 건이 그대로 쏟아진다(dev biz5 실측 2,660건). 여기서는 계속 뺀다.
+      //   두 곳이 다른 것은 **의도**다 — 보이는 목록과 고르는 목록은 다른 화면이다.
       const excl = await require('../services/mailAttachmentFiles').excludeMailAttachmentsWhere(req.params.businessId);
       if (excl) where[Op.and] = [...(where[Op.and] || []), excl];
     }

@@ -466,7 +466,8 @@
       "chat": "Chat",
       "task": "Task",
       "meeting": "Meeting",
-      "post": "Docs"
+      "post": "Docs",
+      "mail": "Mail"
     },
     "view": {
       "grid": "Grid",
@@ -575,7 +576,8 @@
       "newInProject": "Add a folder in this project",
       "expand": "Expand",
       "collapse": "Collapse",
-      "newChildAction": "Add subfolder"
+      "newChildAction": "Add subfolder",
+      "nameLabel": "Folder name"
     },
     "up": {
       "aria": "Upload progress",

@@ -192,7 +192,9 @@ async function run() {
       if (!pane) return null;
       const rows = [...pane.querySelectorAll('div')].filter(d =>
         getComputedStyle(d).display === 'grid'
-        && d.querySelector(':scope > [data-folder-actions]')
+        // ★ **폴더 행**만 — 프로젝트(기본 폴더) 행에는 [+] 하나뿐이라 그것을 집으면
+        //   «[+] 와 ⋯ 가 같은 규격» 을 잴 상대가 없다(실측: 버튼 1개).
+        && d.querySelector(':scope > [data-folder-actions] [data-testid^="docs-folder-menu-"]')
         && d.getBoundingClientRect().height > 10);
       if (!rows.length) return null;
       const r = rows[0];
@@ -207,6 +209,42 @@ async function run() {
         sizes: btns.map(x => Math.round(x.getBoundingClientRect().height)),
       };
     });
+    // ── Q file 과 **같은 정돈**인가: 최상단 칸은 모두 같은 왼쪽 기준, 들여쓰는 것은 사람이 만든 폴더뿐.
+    //   Irene 2026-09-20: *"좌측 카테고리들은 다 좌측이 맞아야지 하위폴더는 새로 만든 폴더 뿐이잖아."*
+    const align = await page.evaluate(() => {
+      // ★ 트리만 본다. 탭 본문 전체를 훑으면 **파일 카드**가 grid 라 같이 잡혀
+      //   기준 padding 이 0 이 되고 트리 전체가 «들여쓴 것» 으로 읽힌다(2026-09-20 실측).
+      const tree = document.querySelector('[data-testid="file-tree"]');
+      if (!tree) return null;
+      const rows = [...tree.children].filter((d) =>
+        getComputedStyle(d).display === 'grid' && d.getBoundingClientRect().height > 10
+        && d.children.length >= 2);
+      const info = rows.map((r) => ({
+        pad: Math.round(parseFloat(getComputedStyle(r).paddingLeft)),
+        label: (r.children[1].textContent || '').trim().slice(0, 12),
+      })).filter((x) => x.label);
+      const pads = [...new Set(info.map((x) => x.pad))].sort((a, c) => a - c);
+      const base = pads[0];
+      return {
+        rows: info.length,
+        pads,
+        top: info.filter((x) => x.pad === base).map((x) => x.label),
+        indented: info.filter((x) => x.pad !== base).map((x) => x.label),
+        hasMail: info.some((x) => /메일|Mail/.test(x.label)),
+      };
+    });
+    if (!align) results.push({ name: '⬜ 프로젝트>파일 정돈 — 미측정', fail: 0, details: ['탭 본문을 못 찾았다'] });
+    else {
+      const MUST_TOP = ['전체', '채팅', '업무', '회의', '문서', '메일'];
+      const missing = MUST_TOP.filter((l) => !align.top.some((t) => t.startsWith(l)));
+      judge('전체·출처 칸이 모두 같은 왼쪽 기준이다', missing.length === 0,
+        `최상단(pad ${align.pads[0]}): ${align.top.join(', ')}${missing.length ? ' · 빠짐: ' + missing.join(',') : ''}`);
+      judge('들여쓰는 것은 사람이 만든 폴더뿐',
+        align.indented.every((l) => !MUST_TOP.some((m) => l.startsWith(m))),
+        `들여쓴 것: ${align.indented.join(', ') || '(없음)'}`);
+      judge('메일 칸이 있다', align.hasMail, `${align.top.join(', ')}`);
+    }
+
     if (!pf) {
       results.push({ name: '⬜ 프로젝트>파일 트리 — 미측정', fail: 0, details: ['액션 달린 폴더 행이 없다(폴더 0개)'] });
     } else {

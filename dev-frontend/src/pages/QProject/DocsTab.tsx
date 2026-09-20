@@ -8,7 +8,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
 import { FolderSvg, FolderOpenSvg, AllSvg, MyFilesSvg, PlusSvg, FolderMoveSvg, SystemFolderIcon } from './docs/treeIcons';
 import {
-  TreeRoot, TreeDivider, FolderRow, FolderIconWrap, FolderName, FolderCount, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
+  TreeRoot, TreeDivider, FolderRow, FolderIconWrap, FolderName, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
 } from './docs/treeStyles';
 import TreeRow from './docs/TreeRow';
 import { useFileOpen } from './docs/useFileOpen';
@@ -20,6 +20,7 @@ import DetailFallbackDrawer from '../../components/Common/DetailFallbackDrawer';
 import type { DetailStatus } from '../../hooks/useDetailResource';
 import { findOtherWorkspaceOf } from '../../utils/workspaceMatch';
 import ShareModal from '../../components/Common/ShareModal';
+import { FormInput, FormLabel } from '../../components/UI/Modal';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import VisibilityBadge from '../../components/Common/VisibilityBadge';
@@ -72,6 +73,9 @@ type FolderSel = 'all' | 'direct' | 'my' | `src:${FileSource}` | `proj:${number}
 interface Props {
   // 하위 호환: 기존 호출부 ({ projectId, businessId }) 는 자동으로 project scope
   projectId?: number;
+  /** 프로젝트 모드에서 좌측 «기본 폴더» 행에 쓰는 이름·색 (호출부가 이미 알고 있다 — 다시 조회하지 않는다). */
+  projectName?: string;
+  projectColor?: string | null;
   businessId?: number;
   scope?: DocScope;
   /**
@@ -338,7 +342,7 @@ const DocsTab: React.FC<Props> = (props) => {
     const byFolder: Record<number, number> = {};
     let directRoot = 0;
     let myFiles = 0;
-    const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0, post: 0 };
+    const bySrc: Record<FileSource, number> = { direct: 0, chat: 0, task: 0, meeting: 0, post: 0, mail: 0 };
     for (const f of files) {
       // ★ 출처는 태그다 — 한 파일이 채팅·업무 양쪽에 걸리면 양쪽에서 다 세어야 한다.
       //   (Irene: "이 폴더들은 그냥 태그같은 필터 기능 아니야? 겹쳐서 나와야지.")
@@ -949,6 +953,8 @@ const DocsTab: React.FC<Props> = (props) => {
               onDropExternal={(fid, fl) => handleFiles(fl, fid)}
               folderDrop={treeDrop}
               onDownloadFolder={onDownloadFolder}
+              projectName={props.projectName}
+              projectColor={props.projectColor}
               tr={tr}
             />
           )}
@@ -1554,7 +1560,13 @@ const DocsTab: React.FC<Props> = (props) => {
           <Dialog>
             <DTitle>{t('docs.folder.newInProject') as string}</DTitle>
             <DBody>
-              <RenameInput autoFocus value={newProjectFolder.name}
+              {/* ★ 2026-09-20 (Irene: *"이 팝업에서 폴더이름 넣는 입력란 너무 작아. 제대로 구성해.
+                  입력란 컴포넌트 이거 아닌데?"*) — 트리 행 안에서 이름을 고치는 `RenameInput`(24px)을
+                  모달에 그대로 썼다. 그건 **행 안에 끼워 넣는 칸**이지 폼 입력란이 아니다.
+                  공용 폼 입력(FormInput/FormLabel)을 쓴다 — 다른 모달과 같은 규격이 된다. */}
+              <FormLabel htmlFor="docs-new-folder-name">{tr('docs.folder.nameLabel')}</FormLabel>
+              <FormInput id="docs-new-folder-name" autoFocus value={newProjectFolder.name}
+                data-testid="docs-new-folder-input"
                 placeholder={tr('docs.folder.placeholder')}
                 onChange={e => setNewProjectFolder(v => (v ? { ...v, name: e.target.value } : v))}
                 onKeyDown={e => { if (isEnterAction(e)) { e.preventDefault(); void commitProjectFolder(); } if (e.key === 'Escape') setNewProjectFolder(null); }} />
@@ -1737,7 +1749,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
         );
       })}
       <TreeDivider />
-      {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
+      {(['chat', 'task', 'meeting', 'post', 'mail'] as FileSource[]).map(src => (
         <TreeRow key={src} selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}
           icon={<FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>}
           name={sourceShortLabel(src, tr)} count={counts.bySrc[src]} />
@@ -1766,6 +1778,9 @@ interface FolderTreeProps {
    *  ★ 이걸 안 두면 ProjectGroups 가 이미 그린 전체·내 파일·시스템 폴더를 **한 번 더** 그린다
    *    (Irene 2026-08-31 "내 파일이 왜 두 개야?"). 트리를 통째로 얹은 것이 원인이었다. */
   foldersOnly?: boolean;
+  /** 프로젝트 모드에서 «기본 폴더» 행에 쓰는 이름·색. 없으면 종전 문구로 떨어진다. */
+  projectName?: string;
+  projectColor?: string | null;
   folders: FileFolder[];
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number };
   total: number;
@@ -1786,7 +1801,7 @@ interface FolderTreeProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, folderDrop: folderDropProp, tr, foldersOnly }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, folderDrop: folderDropProp, tr, foldersOnly, projectName, projectColor }) => {
   const ownDrop = useFolderDrop(onDropFiles, onDropExternal);
   const folderDrop = folderDropProp || ownDrop;
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
@@ -1965,37 +1980,46 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
 
   return (
     <>
-      <TreeRoot>
-        {/* 전체 (모든 파일) */}
-        <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
-          <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
-          <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
-          <FolderCount data-folder-count>{total}</FolderCount>
-        </FolderRow>
+      <TreeRoot data-testid="file-tree">
+        {/* ★ 2026-09-20 (Irene: *"지금 그냥 Q file이 잘 정돈되어 있어. 이렇게 해줘. 프로젝트>파일에서 정돈도"* ·
+            *"좌측 카테고리들은 다 좌측이 맞아야지 하위폴더는 새로 만든 폴더 뿐이잖아. 직접 업로드라는
+            이름을 바꿔? 그냥 프로젝트이름 나오면 될 것 같은데."*) —
+            Q file 트리를 **정본**으로 삼아 같은 모양으로 맞춘다:
+              · 최상단 칸(전체 · 프로젝트 · 채팅/업무/회의/문서/메일)은 **모두 같은 왼쪽 기준**
+              · 들여쓰기되는 것은 **사람이 만든 폴더**뿐
+              · 프로젝트 행이 곧 «기본 폴더» — 이름은 프로젝트 이름, [+] 로 그 안에 폴더를 만든다
+            (2026-09-20 오전에 이 행을 «직접 업로드» 로 바꿨던 것을 되돌린다 — 그때는 폴더가
+             별도 섹션으로 떨어져 있어 이름만 중복으로 보였다. 계층이 잡히면 프로젝트 이름이 맞다.) */}
+        <TreeRow selected={selected === 'all'} onClick={() => onSelect('all')}
+          icon={<FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>}
+          name={tr('docs.folder.all', '전체')} count={total} />
 
         <TreeDivider />
 
-        {/* ★ 2026-09-20 (Irene: *"프로젝트에 들어가면 굳이 프로젝트 최상위 폴더가 나와야 해?
-            여기가 프로젝트>파일인데?"*) — 이 행은 사실 **«직접 업로드» 출처 필터**인데
-            프로젝트 이름을 달고 있어 «프로젝트 루트» 처럼 읽혔다. 프로젝트 안에서 프로젝트 이름을
-            한 번 더 보여 주는 것은 정보가 아니다. 출처 이름을 그대로 쓴다.
-            [+ 새 폴더] 는 이 행에서 빼 **폴더 섹션 머리줄**로 옮겼다(Q file 과 같은 자리). */}
-        <FolderRow $selected={selected === 'direct'} $dropOver={folderDrop(null).over} {...folderDrop(null).dropProps}
-          onClick={() => onSelect('direct')}>
-          <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
-          <FolderName title={tr('docs.folder.directRoot')}>{tr('docs.folder.directRoot')}</FolderName>
-          <FolderCount data-folder-count>{counts.bySrc.direct}</FolderCount>
-        </FolderRow>
-        <SectionRow>
-          <FolderSectionLabel>{tr('docs.folders.sectionProject')}</FolderSectionLabel>
-          <FolderNewBtn type="button" data-testid="folder-new" title={tr('docs.folder.new')} onClick={() => startCreate(null)}>
-            <PlusSvg size={11} />
-            <span>{tr('docs.folder.new')}</span>
-          </FolderNewBtn>
-        </SectionRow>
+        <TreeRow
+          selected={selected === 'direct'}
+          dropOver={folderDrop(null).over}
+          flash={folderDrop(null).flash}
+          dropProps={folderDrop(null).dropProps as Record<string, unknown>}
+          onClick={() => onSelect('direct')}
+          icon={(
+            <FolderIconWrap $selected={selected === 'direct'} $tint={projectColor || '#14B8A6'}>
+              {selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}
+            </FolderIconWrap>
+          )}
+          name={projectName || tr('docs.folder.directRoot')}
+          count={counts.bySrc.direct}
+          actions={(
+            <RowPlusBtn type="button" data-testid="folder-new"
+              title={tr('docs.folder.newInProject')} aria-label={tr('docs.folder.newInProject')}
+              onClick={() => startCreate(null)}>
+              <PlusSvg size={13} />
+            </RowPlusBtn>
+          )}
+        />
         {creatingParent === null && (
-          <FolderRow style={{ paddingLeft: 22 }}>
-              <FolderIconWrap><FolderSvg /></FolderIconWrap>
+          <FolderRow style={{ paddingLeft: 8 + 18 }}>
+            <FolderIconWrap><FolderSvg /></FolderIconWrap>
             <RenameInput autoFocus placeholder={tr('docs.folder.placeholder', '폴더 이름')} value={newName}
               onChange={e => setNewName(e.target.value)} onBlur={commitCreate}
               onKeyDown={e => {
@@ -2004,15 +2028,16 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
               }} />
           </FolderRow>
         )}
+        {/* 사람이 만든 폴더 — **프로젝트 행 아래로 들여쓰기**. 여기만 들여쓴다. */}
         {rootFolders.map(f => renderFolder(f, 1))}
 
-        {/* 시스템 폴더 — 프로젝트 하위로 들여쓰기, 섹션 제목 없이 1 레벨 들여쓰기로 표현 */}
-        {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
-          <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)} style={{ paddingLeft: 22 }}>
-              <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
-            <FolderName>{sourceShortLabel(src, tr)}</FolderName>
-            <FolderCount data-folder-count>{counts.bySrc[src]}</FolderCount>
-          </FolderRow>
+        <TreeDivider />
+
+        {/* 자동으로 모이는 출처 — 프로젝트 행과 **같은 왼쪽 기준**이다(하위가 아니다). */}
+        {(['chat', 'task', 'meeting', 'post', 'mail'] as FileSource[]).map(src => (
+          <TreeRow key={src} selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}
+            icon={<FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>}
+            name={sourceShortLabel(src, tr)} count={counts.bySrc[src]} />
         ))}
       </TreeRoot>
 
@@ -2041,6 +2066,7 @@ function sourceShortLabel(s: FileSource, t: (k: string, fb?: string) => string):
   if (s === 'task') return t('docs.source.task', '업무');
   if (s === 'meeting') return t('docs.source.meeting', '회의');
   if (s === 'post') return t('docs.source.post', '문서');
+  if (s === 'mail') return t('docs.source.mail', '메일');
   return t('docs.source.direct', '직접');
 }
 
@@ -2055,6 +2081,7 @@ function srcStyle(s: FileSource): string {
     case 'chat':    return 'background:#E0F2FE;color:#075985;';
     case 'task':    return 'background:#FEF3C7;color:#92400E;';
     case 'meeting': return 'background:#F0FDFA;color:#6B21A8;';
+    case 'mail':    return 'background:#EDE9FE;color:#5B21B6;';
     default:        return 'background:#F0FDFA;color:#0F766E;';
   }
 }
