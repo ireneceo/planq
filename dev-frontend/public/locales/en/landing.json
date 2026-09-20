@@ -111,6 +111,10 @@
       "bill": {
         "name": "Q Bill",
         "desc": "Create and email invoices. Send, payment confirmation, overdue management — all in one place."
+      },
+      "sale": {
+        "name": "Q Sale",
+        "desc": "From first inquiry to signed deal. Collect conversations from mail, chat and meeting notes onto each client, and move them through inquiry → consulting → proposal → negotiation → won."
       }
     }
   },
@@ -352,6 +356,16 @@
           "Auto-linked to email channel of the notification matrix",
           "Per-workspace mail-from-name / mail-reply-to settings",
           "Audit log + auto tracking of send failures (EmailLog)"
+        ]
+      },
+      "sale": {
+        "name": "Q Sale — Sales & Consulting",
+        "lead": "Sales is not a separate system; it is an axis of the client. Consultation records accumulate on the client and flow straight into projects, tasks and billing.",
+        "bullets": [
+          "Track inquiry-stage prospects separately from active clients — no account required",
+          "Send any mail, chat message or Q Note meeting into the record in one click",
+          "Six sales stages (inquiry, consulting, proposal, negotiation, won, lost) with automatic stage history",
+          "See chat, mail, tasks, invoices, notes and events on one client timeline"
         ]
       }
     },

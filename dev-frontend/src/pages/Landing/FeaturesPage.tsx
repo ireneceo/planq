@@ -32,7 +32,7 @@ const FeatureShot: React.FC<{ k: QKey; alt: string }> = ({ k, alt }) => {
     />
   );
 };
-const WORKSPACE = ['project', 'calendar', 'docs', 'mail'] as const;
+const WORKSPACE = ['project', 'calendar', 'docs', 'mail', 'sale'] as const;
 const AI_GROUP = ['cue', 'insights', 'notifications'] as const;
 // 2026-09-08 — 실제로 있는데 이 페이지에 없던 것 3가지를 채웠다(조직·권한 / 데이터 주권 / 모바일).
 //   ★ 없는 기능을 적지 않는다 — 넷 다 코드로 실존을 확인하고 넣었다:

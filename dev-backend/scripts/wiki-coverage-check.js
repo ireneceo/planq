@@ -12,6 +12,9 @@ const REQUIRED = {
   'qcalendar': 1,
   'qnote': 1,
   'qmail': 1,
+  // 2026-09-20 — 메뉴를 늘리면 **게이트도 늘린다.** Q sale 은 메뉴가 생긴 뒤에도 여기 없어서
+  //   위키에 자기 칸이 없는 채로 게이트가 조용히 초록이었다(memory feedback_new_tab_needs_gate_sweep).
+  'qsale': 1,
   'qdocs': 1,
   'qinfo': 1,
   'qfile': 1,
