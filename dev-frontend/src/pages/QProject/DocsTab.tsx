@@ -6,7 +6,11 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
-import { FolderSvg, FolderOpenSvg, AllSvg, MyFilesSvg, PlusSvg, SystemFolderIcon } from './docs/treeIcons';
+import { FolderSvg, FolderOpenSvg, AllSvg, MyFilesSvg, PlusSvg, FolderMoveSvg, SystemFolderIcon } from './docs/treeIcons';
+import {
+  TreeRoot, TreeDivider, FolderRow, FolderIconWrap, FolderName, FolderCount, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
+} from './docs/treeStyles';
+import TreeRow from './docs/TreeRow';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import DetailDrawer from '../../components/Common/DetailDrawer';
@@ -207,11 +211,16 @@ const DocsTab: React.FC<Props> = (props) => {
   const { uploads, runUploads, cancelUpload } = useUploadQueue();
   const [deleteConfirm, setDeleteConfirm] = useState<ProjectFile | null>(null);
   // 프로젝트 안에 새 폴더 — 이름을 받아야 하므로 작은 입력창을 띄운다(이름 없는 폴더를 만들지 않는다).
-  const [newProjectFolder, setNewProjectFolder] = useState<{ projectId: number; name: string } | null>(null);
+  const [newProjectFolder, setNewProjectFolder] = useState<{ projectId: number; parentId: number | null; name: string } | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [moveTargetOpen, setMoveTargetOpen] = useState(false);
+  /* ★ 2026-09-20 (Irene: *"폴더이름 버튼.. 이게 왜 이렇게 크고 뭐야? 카테고리 표시면 좌측 상단에
+     표시되는 거랑 같이 나열되어야 하는 거 아니야? 이동 버튼이면 이동 아이콘만 있으면 되는 거고"*) —
+     한 컨트롤이 **분류 표시**와 **이동 버튼** 두 가지를 겸하고 있었다(폴더 이름을 글자로 단 36px 알약).
+     둘은 다른 것이다: 분류는 출처 칩 옆에 나란히, 이동은 다른 액션과 같은 아이콘 버튼. */
+  const [moveSingle, setMoveSingle] = useState<ProjectFile | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   // N+67 — visibility 변경 UI 용 (preview drawer 안)
@@ -607,49 +616,15 @@ const DocsTab: React.FC<Props> = (props) => {
     setSelectedIds(new Set());
   }, [businessId, files, selectedIds]);
 
-  /**
-   * 파일 한 건을 폴더로 옮긴다 — **드래그 말고도 가는 문**(2026-09-17, Fable 게이트 #57).
-   *
-   * ★ 왜 필요한가: 폴더 이동 수단이 **HTML5 드래그뿐**이었다. 폰·태블릿에서는 그 드래그가
-   *   동작하지 않으므로 **파일을 옮길 방법이 아예 없었다**(Irene #417: "파일 편집에서 폴더를
-   *   이동할 수도 있어야 하고"). 드래그는 가속기이지 유일한 문이면 안 된다.
-   * ★ 허용 조건은 `isMovableInApp`(= 서버 `canMutateFile` 과 같은 값) 하나만 본다.
-   */
-  const moveOne = useCallback(async (f: ProjectFile, targetFolderId: number | null) => {
-    if (await moveFile(businessId, f.id, targetFolderId)) {
-      setFiles(prev => prev.map(x => (x.id === f.id ? { ...x, folder_id: targetFolderId } : x)));
-    }
-  }, [businessId]);
-
-  /** 이 파일이 지금 들어 있는 폴더 이름 — 트리거에 **보이는 글자**로 쓴다.
-   *  ⋯ 점 세 개는 눌러 보기 전에는 뜻을 모른다(Irene 2026-09-20). 값이 보이면 «어느 폴더에
-   *  있는지» 를 목록에서 바로 읽을 수 있고, 누르면 옮기는 목록이 나온다(ChipPopover 와 같은 규칙). */
+  /** 이 파일이 지금 들어 있는 폴더 이름 — **분류 칩**에 쓴다(누르는 것이 아니다).
+   *  ★ 2026-09-20 이전엔 이 이름이 36px 짜리 «버튼» 이었다. 한 컨트롤이 분류 표시와 이동을
+   *    겸해서 행에서 혼자 크고 무슨 버튼인지도 모호했다 — 분류는 칩, 이동은 아이콘으로 갈랐다.
+   *  ★ 폴더가 없으면 칩을 그리지 않는다(«폴더 없음» 을 모든 행에 다는 것은 정보가 아니다).
+   *    드래그 말고 옮기는 문은 [이동] 아이콘 → 폴더 선택 모달이다(일괄 이동과 같은 문). */
   const currentFolderName = useCallback((f: ProjectFile) => (
     f.folder_id ? (folders.find(fd => fd.id === f.folder_id)?.name || t('docs.folder.noFolder', '폴더 없음') as string)
       : t('docs.folder.noFolder', '폴더 없음') as string
   ), [folders, t]);
-
-  /** 행/카드 ⋯ 메뉴의 «폴더로 이동» 묶음. 지금 폴더는 체크로 표시한다. */
-  const moveMenuItems = useCallback((f: ProjectFile) => ([
-    {
-      key: 'mv-root',
-      groupLabel: t('docs.moveTo') as string,
-      // ★ 2026-09-20 (Irene: *"내 업로드 폴더가 뭐야? 미분류라는 의미야?"*) — 맞다, 미분류다.
-      //   여태 `docs.folder.directRoot`(ko '내 업로드')를 썼는데 **두 가지가 거짓**이었다:
-      //   ①「내」가 아니다 — 남이 올린 파일도 폴더가 없으면 여기 체크된다
-      //   ②같은 키를 좌측 트리의 «출처=직접 업로드» 행도 쓰고 있어, **뜻이 다른 둘이 같은 글자**였다
-      //   여기는 `folder_id === null` 하나만 뜻한다. 그대로 적는다.
-      label: t('docs.folder.noFolder', '폴더 없음') as string,
-      checked: !f.folder_id,
-      onClick: () => { void moveOne(f, null); },
-    },
-    ...folders.map(fd => ({
-      key: `mv-${fd.id}`,
-      label: fd.name,
-      checked: f.folder_id === fd.id,
-      onClick: () => { void moveOne(f, fd.id); },
-    })),
-  ]), [folders, moveOne, t]);
 
   /** 프로젝트 안에 폴더를 만든다 — 프로젝트 폴더 라우트(`/api/folders/projects/:id`)를 쓴다.
    *  워크스페이스 라우트로 만들면 `project_id` 가 비어 그 프로젝트에 안 붙는다. */
@@ -658,20 +633,23 @@ const DocsTab: React.FC<Props> = (props) => {
     const name = newProjectFolder.name.trim();
     if (!name) return;
     try {
-      const f = await createFolder(newProjectFolder.projectId, name, null);
+      const f = await createFolder(newProjectFolder.projectId, name, newProjectFolder.parentId);
       setFolders(prev => prev.some(x => x.id === f.id) ? prev : [...prev, { ...f, project_id: newProjectFolder.projectId }]);
     } catch (e) { void e; }
     setNewProjectFolder(null);
   }, [newProjectFolder]);
 
   const onMoveTo = useCallback(async (targetFolderId: number | null) => {
-    for (const f of selectedDeletable) {
+    // 한 건(아이콘 버튼)과 여러 건(일괄 바)이 **같은 문**을 쓴다 — 따로 쓰면 한쪽만 고쳐진다.
+    const targets = moveSingle ? [moveSingle] : selectedDeletable;
+    for (const f of targets) {
       await moveFile(businessId, f.id, targetFolderId);
     }
-    setFiles(prev => prev.map(f => selectedDeletable.find(s => s.id === f.id) ? { ...f, folder_id: targetFolderId } : f));
-    setSelectedIds(new Set());
+    setFiles(prev => prev.map(f => targets.find(s => s.id === f.id) ? { ...f, folder_id: targetFolderId } : f));
+    if (!moveSingle) setSelectedIds(new Set());
+    setMoveSingle(null);
     setMoveTargetOpen(false);
-  }, [selectedDeletable, businessId]);
+  }, [selectedDeletable, businessId, moveSingle]);
 
   const onDeleteConfirmed = useCallback(async () => {
     if (!deleteConfirm) return;
@@ -687,17 +665,25 @@ const DocsTab: React.FC<Props> = (props) => {
 
   return (
     <Wrap
-      onDragEnter={e => { e.preventDefault(); setDragOver(true); }}
+      /* ★ 2026-09-20 (Irene: *"파일을 드래그 해서 좌측 폴더에 넣으면 그리로 들어가는 거 아니야?
+         왜 드래그 해서 당기면 업로드하라는 아이콘이 나와???"*) —
+         이 껍데기가 **모든** 드래그에 업로드 오버레이를 띄웠다. 오버레이는 안쪽을 통째로 덮으므로
+         좌측 폴더 행이 드롭을 **받지 못한다** — 옮기기가 되는데도 "안 된다" 로 보였다.
+         바깥(OS)에서 끌어온 것만 업로드다. 우리 파일을 끌 때는 전용 MIME 이 실려 온다. */
+      onDragEnter={e => { if (!isExternalFileDrag(e)) return; e.preventDefault(); setDragOver(true); }}
       onDragLeave={e => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setDragOver(false); }}
-      onDragOver={e => e.preventDefault()}
-      onDrop={e => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+      onDragOver={e => { if (!isExternalFileDrag(e)) return; e.preventDefault(); }}
+      onDrop={e => {
+        if (!isExternalFileDrag(e)) { setDragOver(false); return; }
+        e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files);
+      }}
     >
       <Inner>
       {/* GDrive 연결 안내 / 연결 추천 (workspace · project 양쪽) */}
       {businessId > 0 && <CloudConnectNotice businessId={businessId} />}
 
       {/* 드롭 오버레이 (전역 드래그 중 표시) */}
-      {dragOver && <DragOverlay>
+      {dragOver && <DragOverlay data-testid="docs-upload-overlay">
         <DragOverlayInner>
           <DzIcon $large>
             <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -792,7 +778,7 @@ const DocsTab: React.FC<Props> = (props) => {
               <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
             </svg>
           </VT>
-          <VT $active={view === 'list'} type="button" onClick={() => setView('list')} title={tr('docs.view.list', '리스트')}>
+          <VT $active={view === 'list'} type="button" data-testid="docs-view-list" onClick={() => setView('list')} title={tr('docs.view.list', '리스트')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" />
               <line x1="8" y1="18" x2="21" y2="18" /><circle cx="4" cy="6" r="1" />
@@ -849,7 +835,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 folders={folders}
                 folderCounts={counts.byFolder}
                 onSelectFolder={id => { setFolderSel(id); clearSelection(); }}
-                onCreateFolder={pid => setNewProjectFolder({ projectId: pid, name: '' })}
+                onCreateFolder={(pid, parentId) => setNewProjectFolder({ projectId: pid, parentId: parentId ?? null, name: '' })}
               />
               {/* Irene 2026-08-31 — 워크스페이스 파일에도 폴더.
                   프로젝트 그룹(출처별 탐색)은 그대로 두고 **아래에** 폴더를 더한다 —
@@ -1088,15 +1074,14 @@ const DocsTab: React.FC<Props> = (props) => {
                       {/* ★ 그리드가 **기본 뷰**다 — 폰도 여기로 시작한다. 여기에 [폴더로 이동] 이 없으면
                           폰에서는 옮길 방법이 여전히 없다(드래그가 안 된다). 리스트 뷰에만 붙였다가
                           Fable 재검증에서 잡혔다: "리스트 뷰에만 있다 · 폰 기본 뷰에서는 0개". */}
+                      {f.folder_id && <FolderChip title={currentFolderName(f)}>{currentFolderName(f)}</FolderChip>}
                       {isMovableInApp(f) && !selectMode && folders.length > 0 && (
-                        <span style={{ marginLeft: 'auto' }} onClick={e => e.stopPropagation()}>
-                          <OverflowMenu
-                            label={t('docs.moveTo') as string}
-                            triggerLabel={currentFolderName(f)}
-                            data-testid={`docs-file-menu-${f.id}`}
-                            items={moveMenuItems(f)}
-                          />
-                        </span>
+                        <MoveBtn type="button" style={{ marginLeft: 'auto' }}
+                          title={t('docs.moveTo') as string} aria-label={t('docs.moveTo') as string}
+                          data-testid={`docs-file-move-${f.id}`}
+                          onClick={e => { e.stopPropagation(); setMoveSingle(f); setMoveTargetOpen(true); }}>
+                          <FolderMoveSvg />
+                        </MoveBtn>
                       )}
                     </CardMeta>
                   </Card>
@@ -1159,6 +1144,7 @@ const DocsTab: React.FC<Props> = (props) => {
                       ) : f.context ? (
                         <RowCtx title={f.context.label}>{f.context.label}</RowCtx>
                       ) : null}
+                      {f.folder_id && <FolderChip title={currentFolderName(f)}>{currentFolderName(f)}</FolderChip>}
                     </RowSrc>
                     <RowSize>{formatBytes(f.file_size)}</RowSize>
                     <RowUp>{f.uploader_name}</RowUp>
@@ -1184,14 +1170,12 @@ const DocsTab: React.FC<Props> = (props) => {
                         </IconBtn>
                       )}
                       {isMovableInApp(f) && !selectMode && folders.length > 0 && (
-                        <span onClick={e => e.stopPropagation()}>
-                          <OverflowMenu
-                            label={t('docs.moveTo') as string}
-                            triggerLabel={currentFolderName(f)}
-                            data-testid={`docs-file-menu-${f.id}`}
-                            items={moveMenuItems(f)}
-                          />
-                        </span>
+                        <MoveBtn type="button"
+                          title={t('docs.moveTo') as string} aria-label={t('docs.moveTo') as string}
+                          data-testid={`docs-file-move-${f.id}`}
+                          onClick={e => { e.stopPropagation(); setMoveSingle(f); setMoveTargetOpen(true); }}>
+                          <FolderMoveSvg />
+                        </MoveBtn>
                       )}
                       {f.deletable && !selectMode && (
                         <IconBtn type="button" title={tr('docs.delete', '삭제')}
@@ -1542,7 +1526,7 @@ const DocsTab: React.FC<Props> = (props) => {
 
       {/* 대량 이동 */}
       {moveTargetOpen && (
-        <Modal onMouseDown={e => { if (e.target === e.currentTarget) setMoveTargetOpen(false); }}>
+        <Modal onMouseDown={e => { if (e.target === e.currentTarget) { setMoveTargetOpen(false); setMoveSingle(null); } }}>
           <Dialog>
             <DTitle>{t('docs.move.title', '이동할 폴더 선택')}</DTitle>
             <DBody>
@@ -1565,7 +1549,7 @@ const DocsTab: React.FC<Props> = (props) => {
               </MoveTargetList>
             </DBody>
             <DFooter>
-              <SecondaryBtn type="button" onClick={() => setMoveTargetOpen(false)}>{t('members.cancel', '취소')}</SecondaryBtn>
+              <SecondaryBtn type="button" onClick={() => { setMoveTargetOpen(false); setMoveSingle(null); }}>{t('members.cancel', '취소')}</SecondaryBtn>
             </DFooter>
           </Dialog>
         </Modal>
@@ -1584,6 +1568,12 @@ export default DocsTab;
 // 각자 손으로 쓰면 반드시 갈라진다. 한 훅으로 묶어 그대로 스프레드한다.
 //   ★ 판정은 **전용 MIME** 으로만 한다 — text/plain 으로 받으면 브라우저 밖에서 끌어온
 //     아무 텍스트나 "파일 이동" 으로 읽힌다.
+/** 바깥(OS)에서 끌어온 진짜 파일인가. 우리 목록에서 끄는 중이면 전용 MIME 이 같이 실린다. */
+function isExternalFileDrag(e: React.DragEvent) {
+  const types = Array.from(e.dataTransfer?.types || []);
+  return types.includes('Files') && !types.includes(PLANQ_FILE_MIME);
+}
+
 function useFolderDrop(onDropFiles?: (folderId: number | null, fileId: string) => void | Promise<void>) {
   const [overKey, setOverKey] = useState<string | null>(null);
   return (folderId: number | null) => {
@@ -1624,7 +1614,7 @@ interface ProjectGroupsProps {
   folderCounts?: Record<number, number>;
   onSelectFolder?: (id: number) => void;
   /** 그 프로젝트 안에 폴더를 새로 만든다. 없으면 [+] 를 그리지 않는다. */
-  onCreateFolder?: (projectId: number) => void;
+  onCreateFolder?: (projectId: number, parentId?: number | null) => void;
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
   selected: FolderSel;
@@ -1637,77 +1627,93 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
   const toggle = (id: number) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const foldersOf = (projectId: number, parentId: number | null) =>
     folders.filter(f => f.project_id === projectId && f.parent_id === parentId);
+  /* 프로젝트 줄은 **파일 집계**에서 나온다. 그래서 «폴더는 만들었는데 아직 파일이 0개» 인
+     프로젝트는 줄 자체가 없었고 — 그 안의 폴더로 들어갈 길도, 폴더를 더 만들 [+] 도 없었다.
+     파일을 다 지우면 폴더가 통째로 숨는다는 뜻이기도 하다. 폴더가 있으면 줄을 세운다. */
+  const groups = useMemo(() => {
+    const seen = new Set(projectGroups.map(p => p.id));
+    const extra: typeof projectGroups = [];
+    for (const f of folders) {
+      if (!f.project_id || seen.has(f.project_id) || !f.project_name) continue;
+      seen.add(f.project_id);
+      extra.push({ id: f.project_id, name: f.project_name, color: null, count: 0 });
+    }
+    return extra.length ? [...projectGroups, ...extra] : projectGroups;
+  }, [projectGroups, folders]);
   const renderSub = (f: FileFolder, depth: number): React.ReactNode => (
     <React.Fragment key={f.id}>
-      <FolderRow $selected={selected === f.id} style={{ paddingLeft: 8 + depth * 18 }}
-        onClick={() => onSelectFolder && onSelectFolder(f.id)}>
-        <FolderIconWrap $selected={selected === f.id}><FolderSvg /></FolderIconWrap>
-        <FolderName title={f.name}>{f.name}</FolderName>
-        {(folderCounts[f.id] || 0) > 0 && <FolderCount>{folderCounts[f.id]}</FolderCount>}
-      </FolderRow>
+      <TreeRow
+        selected={selected === f.id}
+        depth={depth}
+        icon={<FolderIconWrap $selected={selected === f.id}><FolderSvg /></FolderIconWrap>}
+        name={f.name}
+        count={folderCounts[f.id] || 0}
+        onClick={() => onSelectFolder && onSelectFolder(f.id)}
+        actions={onCreateFolder && f.project_id ? (
+          <RowPlusBtn type="button" data-testid={`docs-subfolder-new-${f.id}`}
+            title={tr('docs.folder.newChildAction')} aria-label={tr('docs.folder.newChildAction')}
+            onClick={() => onCreateFolder(f.project_id as number, f.id)}>
+            <PlusSvg size={13} />
+          </RowPlusBtn>
+        ) : undefined}
+      />
       {folders.filter(c => c.parent_id === f.id).map(c => renderSub(c, depth + 1))}
     </React.Fragment>
   );
   return (
     <TreeRoot>
-      <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
-        <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
-        <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
-        <FolderCount>{total}</FolderCount>
-      </FolderRow>
-      <FolderRow $selected={selected === 'my'} onClick={() => onSelect('my')}>
-        <FolderIconWrap $selected={selected === 'my'}><MyFilesSvg /></FolderIconWrap>
-        <FolderName>{tr('docs.folder.my', '내 파일')}</FolderName>
-        {counts.myFiles > 0 && <FolderCount>{counts.myFiles}</FolderCount>}
-      </FolderRow>
+      <TreeRow selected={selected === 'all'} onClick={() => onSelect('all')}
+        icon={<FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>}
+        name={tr('docs.folder.all', '전체')} count={total} />
+      <TreeRow selected={selected === 'my'} onClick={() => onSelect('my')}
+        icon={<FolderIconWrap $selected={selected === 'my'}><MyFilesSvg /></FolderIconWrap>}
+        name={tr('docs.folder.my', '내 파일')} count={counts.myFiles} />
       <TreeDivider />
-      {projectGroups.map(p => {
+      {groups.map(p => {
         const key: FolderSel = `proj:${p.id}`;
         const sel = selected === key;
         const roots = foldersOf(p.id, null);
         const expanded = open.has(p.id);
         return (
           <React.Fragment key={p.id}>
-            <FolderRow $selected={sel} data-testid={`docs-project-row-${p.id}`}
-              aria-expanded={roots.length ? expanded : undefined}
+            <TreeRow
+              selected={sel}
+              testId={`docs-project-row-${p.id}`}
+              ariaExpanded={roots.length ? expanded : undefined}
               /* ★ 2026-09-20 (Irene: *"프로젝트 폴더 이름을 눌러서 선택할 때 하위도 열려야 할 것
                  같아. 자동으로. 폴더 아이콘 눌러야 하위 나오는 건 모를 것 같아"*) —
-                 이름을 누르면 **고르고 동시에 펼친다.** 아이콘만 여닫는 손잡이로 두면
-                 폴더가 있다는 사실 자체를 모른다. 아이콘은 **접을 때** 쓴다(이미 열려 있으면 토글). */
-              onClick={() => { onSelect(key); if (roots.length && !expanded) toggle(p.id); }}>
-              {/* 아이콘 = 여닫는 손잡이. 프로젝트 색은 **아이콘 선**에 칠한다(동그라미를 따로 두지 않는다).
-                  아이콘 클릭 = 펼침 / 행 클릭 = 프로젝트 필터 — 갈라 두지 않으면 목록이 통째로 바뀐다. */}
-              <FolderIconWrap $selected={sel} $tint={p.color || '#14B8A6'}
-                role={roots.length ? 'button' : undefined}
-                aria-label={roots.length ? (expanded ? tr('docs.folder.collapse') : tr('docs.folder.expand')) : undefined}
-                onClick={roots.length ? (e => { e.stopPropagation(); toggle(p.id); }) : undefined}>
-                {roots.length > 0 && expanded ? <FolderOpenSvg /> : <FolderSvg />}
-              </FolderIconWrap>
-              <FolderName title={p.name}>{p.name}</FolderName>
-              <FolderCount>{p.count}</FolderCount>
-              {/* 프로젝트 **안**에 폴더를 만드는 문. 아래 「워크스페이스 폴더」 [+] 는 프로젝트에
-                  속하지 않은 것만 만든다 — Q file 에는 이 문이 없었다(프로젝트 상세 탭에만 있었다). */}
-              {onCreateFolder && (
-                <FolderActions data-folder-actions $visible onClick={e => e.stopPropagation()}>
-                  <FolderNewBtn type="button" data-testid={`docs-project-folder-new-${p.id}`}
-                    title={tr('docs.folder.newInProject')}
-                    onClick={() => onCreateFolder(p.id)}>
-                    <PlusSvg size={11} />
-                  </FolderNewBtn>
-                </FolderActions>
+                 이름을 누르면 **고르고 동시에 펼친다.** 아이콘은 **접을 때** 쓴다. */
+              onClick={() => { onSelect(key); if (roots.length && !expanded) toggle(p.id); }}
+              /* 아이콘 = 여닫는 손잡이. 프로젝트 색은 **아이콘 선**에 칠한다(동그라미를 따로 두지 않는다). */
+              icon={(
+                <FolderIconWrap $selected={sel} $tint={p.color || '#14B8A6'}
+                  role={roots.length ? 'button' : undefined}
+                  aria-label={roots.length ? (expanded ? tr('docs.folder.collapse') : tr('docs.folder.expand')) : undefined}
+                  onClick={roots.length ? (e => { e.stopPropagation(); toggle(p.id); }) : undefined}>
+                  {roots.length > 0 && expanded ? <FolderOpenSvg /> : <FolderSvg />}
+                </FolderIconWrap>
               )}
-            </FolderRow>
+              name={p.name}
+              count={p.count}
+              /* 프로젝트 **안**에 폴더를 만드는 문. 아래 「워크스페이스 폴더」 [+] 는 프로젝트에
+                 속하지 않은 것만 만든다 — Q file 에는 이 문이 없었다(프로젝트 상세 탭에만 있었다). */
+              actions={onCreateFolder ? (
+                <RowPlusBtn type="button" data-testid={`docs-project-folder-new-${p.id}`}
+                  title={tr('docs.folder.newInProject')} aria-label={tr('docs.folder.newInProject')}
+                  onClick={() => onCreateFolder(p.id)}>
+                  <PlusSvg size={13} />
+                </RowPlusBtn>
+              ) : undefined}
+            />
             {expanded && roots.map(f => renderSub(f, 1))}
           </React.Fragment>
         );
       })}
       <TreeDivider />
       {(['chat', 'task', 'meeting', 'post'] as FileSource[]).map(src => (
-        <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}>
-          <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
-          <FolderName>{sourceShortLabel(src, tr)}</FolderName>
-          {counts.bySrc[src] > 0 && <FolderCount>{counts.bySrc[src]}</FolderCount>}
-        </FolderRow>
+        <TreeRow key={src} selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)}
+          icon={<FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>}
+          name={sourceShortLabel(src, tr)} count={counts.bySrc[src]} />
       ))}
     </TreeRoot>
   );
@@ -1791,11 +1797,14 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
     const isLast = sibIdx === siblings.length - 1;
     return (
       <React.Fragment key={f.id}>
-        <FolderRow $selected={sel} $dropOver={folderDrop(f.id).over} {...folderDrop(f.id).dropProps}
-          style={{ paddingLeft: 8 + depth * 18 }}
-          onClick={() => onSelect(f.id)}>
-          <FolderIconWrap $selected={sel}>{sel ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
-          {renamingId === f.id ? (
+        <TreeRow
+          selected={sel}
+          dropOver={folderDrop(f.id).over}
+          dropProps={folderDrop(f.id).dropProps as Record<string, unknown>}
+          depth={depth}
+          onClick={() => onSelect(f.id)}
+          icon={<FolderIconWrap $selected={sel}>{sel ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>}
+          name={renamingId === f.id ? (
             <RenameInput autoFocus value={renameDraft}
               onClick={e => e.stopPropagation()}
               onChange={e => setRenameDraft(e.target.value)}
@@ -1805,34 +1814,40 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
                 if (e.key === 'Escape') setRenamingId(null);
               }} />
           ) : (
+            <FolderName onDoubleClick={e => { e.stopPropagation(); startRename(f); }} title={f.name}>{f.name}</FolderName>
+          )}
+          count={renamingId === f.id ? 0 : count}
+          actionsVisible={sel}
+          /* ★ 2026-09-20 (Irene: *"프로젝트>파일에도 마우스 오버하니 ... 이 이상하게 뜨네.
+             마우스 오버하면 +가 뜨게 통일하면 되겠는데? Q file도 프로젝트>파일도"*) —
+             두 트리가 서로 다른 것을 띄우고 있었다. 자주 쓰는 «폴더 만들기» 를 두 곳 모두 [+] 로
+             앞세우고, 이름 변경·삭제·순서 같은 나머지는 ⋯ 에 남긴다(없애면 이름을 못 바꾼다).
+             ★ 2026-09-17 (#417) 교훈은 그대로 — 아이콘 전용 버튼을 한 줄에 5개 세우면
+             이름 칸(minmax(0,1fr))이 0 까지 줄어 폴더 이름이 한 글자가 된다. 그래서 겹쳐 띄운다. */
+          actions={renamingId === f.id ? undefined : (
             <>
-              <FolderName onDoubleClick={e => { e.stopPropagation(); startRename(f); }} title={f.name}>{f.name}</FolderName>
-              {count > 0 && <FolderCount>{count}</FolderCount>}
-              {/* ★ 2026-09-17 (Irene #417: *"Q file에서 폴더이름들 너무 짧게 나와. 1글자 나오고 ... 이 되는데."*)
-                  아이콘 전용 버튼 **5개**가 한 줄에 서 있었다. 이름 칸은 `minmax(0,1fr)` 이라
-                  버튼이 자리를 먹는 만큼 **0 까지 줄어든다** — 폴더를 고르는 순간 이름이 한 글자가 됐다.
-                  CLAUDE.md 가 이미 금지한 모양이다("상세 헤더에 아이콘 전용 버튼 4개 이상 나열 금지 → OverflowMenu").
-                  메뉴로 접으면 자리를 돌려주고 **글자 라벨이 붙어** 무슨 버튼인지도 알게 된다
-                  ("폴더 안에 또 폴더" 가 안 보였던 것도 이 때문이다 — 하위 폴더 버튼은 내내 있었다). */}
-              <FolderActions data-folder-actions $visible={sel} onClick={e => e.stopPropagation()}>
-                <OverflowMenu
-                  label={tr('docs.folder.more')}
-                  data-testid={`docs-folder-menu-${f.id}`}
-                  items={[
-                    { key: 'child', label: tr('docs.folder.newChild', '하위 폴더'), onClick: () => startCreate(f.id), testId: 'docs-folder-newchild' },
-                    { key: 'rename', label: tr('docs.folder.rename', '이름 변경'), onClick: () => startRename(f), testId: 'docs-folder-rename' },
-                    ...(onDownloadFolder && count > 0
-                      ? [{ key: 'dl', label: tr('docs.folder.downloadAll'), onClick: () => { void onDownloadFolder(f.id); }, testId: 'docs-folder-download' }]
-                      : []),
-                    { key: 'up', label: tr('docs.folder.moveUp', '위로'), onClick: () => onReorder(f.id, 'up'), disabled: isFirst, dividerBefore: true },
-                    { key: 'down', label: tr('docs.folder.moveDown', '아래로'), onClick: () => onReorder(f.id, 'down'), disabled: isLast },
-                    { key: 'del', label: tr('docs.folder.delete', '삭제'), onClick: () => setDeleteTarget(f), danger: true, dividerBefore: true, testId: 'docs-folder-delete' },
-                  ]}
-                />
-              </FolderActions>
+              <RowPlusBtn type="button" data-testid={`docs-folder-newchild-${f.id}`}
+                title={tr('docs.folder.newChildAction')} aria-label={tr('docs.folder.newChildAction')}
+                onClick={() => startCreate(f.id)}>
+                <PlusSvg size={13} />
+              </RowPlusBtn>
+              <OverflowMenu
+                label={tr('docs.folder.more')}
+                data-testid={`docs-folder-menu-${f.id}`}
+                items={[
+                  { key: 'child', label: tr('docs.folder.newChild', '하위 폴더'), onClick: () => startCreate(f.id), testId: 'docs-folder-newchild' },
+                  { key: 'rename', label: tr('docs.folder.rename', '이름 변경'), onClick: () => startRename(f), testId: 'docs-folder-rename' },
+                  ...(onDownloadFolder && count > 0
+                    ? [{ key: 'dl', label: tr('docs.folder.downloadAll'), onClick: () => { void onDownloadFolder(f.id); }, testId: 'docs-folder-download' }]
+                    : []),
+                  { key: 'up', label: tr('docs.folder.moveUp', '위로'), onClick: () => onReorder(f.id, 'up'), disabled: isFirst, dividerBefore: true },
+                  { key: 'down', label: tr('docs.folder.moveDown', '아래로'), onClick: () => onReorder(f.id, 'down'), disabled: isLast },
+                  { key: 'del', label: tr('docs.folder.delete', '삭제'), onClick: () => setDeleteTarget(f), danger: true, dividerBefore: true, testId: 'docs-folder-delete' },
+                ]}
+              />
             </>
           )}
-        </FolderRow>
+        />
         {children.map(c => renderFolder(c, depth + 1))}
         {creatingParent === f.id && (
           <FolderRow style={{ paddingLeft: 8 + (depth + 1) * 18 }}>
@@ -1922,7 +1937,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
         <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
           <FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>
           <FolderName>{tr('docs.folder.all', '전체')}</FolderName>
-          <FolderCount>{total}</FolderCount>
+          <FolderCount data-folder-count>{total}</FolderCount>
         </FolderRow>
 
         <TreeDivider />
@@ -1936,7 +1951,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
           onClick={() => onSelect('direct')}>
           <FolderIconWrap $selected={selected === 'direct'}>{selected === 'direct' ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
           <FolderName title={tr('docs.folder.directRoot')}>{tr('docs.folder.directRoot')}</FolderName>
-          <FolderCount>{counts.bySrc.direct}</FolderCount>
+          <FolderCount data-folder-count>{counts.bySrc.direct}</FolderCount>
         </FolderRow>
         <SectionRow>
           <FolderSectionLabel>{tr('docs.folders.sectionProject')}</FolderSectionLabel>
@@ -1963,7 +1978,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
           <FolderRow key={src} $selected={selected === `src:${src}`} onClick={() => onSelect(`src:${src}`)} style={{ paddingLeft: 22 }}>
               <FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>
             <FolderName>{sourceShortLabel(src, tr)}</FolderName>
-            <FolderCount>{counts.bySrc[src]}</FolderCount>
+            <FolderCount data-folder-count>{counts.bySrc[src]}</FolderCount>
           </FolderRow>
         ))}
       </TreeRoot>
@@ -2193,91 +2208,6 @@ const FolderTreePanel = styled.div`
 `;
 const FilesArea = styled.div`display:flex;flex-direction:column;gap:10px;min-width:0;`;
 
-const TreeRoot = styled.div`display:flex;flex-direction:column;gap:1px;`;
-const TreeDivider = styled.div`height:1px;background:#F1F5F9;margin:6px 0;`;
-const FolderRow = styled.div<{ $selected?: boolean; $dropOver?: boolean }>`
-  display:grid;
-  /* 칸 **넷 고정**: [아이콘 18][이름 1fr][숫자][액션 22]. 2026-09-20 —
-     여닫는 손잡이는 폴더 아이콘 자체다(화살표 칸을 없앴다: 있으면 전 행이 밀려 «최상단 기준» 이 깨진다).
-     ★ 2026-09-20 (Irene: *"새폴더 만드는 버튼 우측 레이아웃 나가버리고, ... 아이콘은 뭐야?
-       불필요하게 공간을 잡고 있으면 어떻게 해?"*) — 액션을 **칸으로 두지 않는다.**
-       고정폭(22px)이면 글자 붙은 [+ 새 폴더]·36px ⋯ 가 넘쳐 레이아웃이 터지고,
-       auto 면 그 행만 숫자가 밀려 열이 갈라진다. 어느 쪽도 답이 아니다.
-       → 액션은 **행 오른쪽에 겹쳐** 띄우고(absolute) 평소엔 숨긴다. 그러면 자리를 안 먹고,
-         숫자 열은 전 행에서 유지된다(탐색기·VS Code 가 쓰는 방식). */
-  position:relative;
-  grid-template-columns:18px minmax(0,1fr) auto;
-  align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;min-height:30px;
-  background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : 'transparent')};
-  color:${p => p.$selected ? '#0F766E' : '#0F172A'};
-  /* 끌어온 파일이 여기 떨어진다는 것을 **떨어뜨리기 전에** 알려준다.
-     안쪽 그림자로 그린다 — border 를 켜면 행 높이가 2px 튀어 목록이 흔들린다. */
-  box-shadow:${p => p.$dropOver ? 'inset 0 0 0 2px #14B8A6' : 'none'};
-  &:hover{background:${p => p.$dropOver ? '#CCFBF1' : (p.$selected ? '#F0FDFA' : '#F8FAFC')};}
-  /* 행에 마우스를 올리거나 선택하면 겹쳐 둔 액션이 나온다. 선언 순서 때문에 styled 참조 대신
-     data 속성으로 고른다(FolderActions 가 아래에 선언된다). */
-  &:hover [data-folder-actions], &:focus-within [data-folder-actions]{opacity:1;pointer-events:auto;}
-  ${p => (p.$selected ? '[data-folder-actions]{opacity:1;pointer-events:auto;}' : '')}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
-`;
-const FolderIconWrap = styled.div<{ $selected?: boolean; $sys?: FileSource; $tint?: string }>`
-  /* 아이콘 칸은 **고정폭**이다. 아이콘마다 크기가 달라도 이름 시작점이 흔들리지 않게. */
-  width:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
-  /* $tint — 프로젝트 색을 **아이콘 선**에 칠한다(동그라미를 따로 두지 않는다). */
-  color:${p => {
-    if (p.$tint) return p.$tint;
-    if (p.$sys === 'chat') return '#0EA5E9';
-    if (p.$sys === 'task') return '#F59E0B';
-    if (p.$sys === 'meeting') return '#14B8A6';
-    return p.$selected ? '#0D9488' : '#64748B';
-  }};
-  ${p => (p.$tint ? 'cursor:pointer;border-radius:4px;&:hover{background:rgba(20,184,166,0.12);}' : '')}
-`;
-const FolderName = styled.div`
-  /* 규격: 목록 항목 — 폰에서 12px 는 읽기 어렵다(tokens LIST_ROW). */
-  min-width:0;font-size:0.8125rem;font-weight:600;
-  @media (max-width: 640px) { font-size: 0.875rem; }
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-`;
-const FolderCount = styled.span`
-  font-size:0.625rem;color:#94A3B8;font-weight:600;
-  min-width:22px;padding:1px 6px;background:#F1F5F9;border-radius:999px;
-  text-align:center;justify-self:end;
-`;
-const SectionRow = styled.div`
-  display:flex;align-items:center;gap:6px;padding:4px 8px;min-height:26px;
-`;
-const FolderSectionLabel = styled.div`
-  flex:1;font-size:0.6875rem;font-weight:700;color:#94A3B8;
-  text-transform:uppercase;letter-spacing:.3px;
-`;
-const EmptyHint = styled.div`
-  padding:6px 10px;font-size:0.6875rem;color:#94A3B8;line-height:1.5;
-`;
-/* 행 오른쪽에 **겹쳐** 뜬다 — 칸을 차지하지 않으므로 숫자 열이 흔들리지 않는다.
-   평소엔 숨고 행에 마우스를 올리거나 선택했을 때 나온다. $visible 이면 항상 보인다. */
-const FolderActions = styled.div<{ $visible?: boolean }>`
-  position:absolute;right:6px;top:50%;transform:translateY(-50%);
-  display:flex;gap:2px;align-items:center;flex-shrink:0;
-  background:inherit;border-radius:6px;padding-left:4px;
-  opacity:${p => (p.$visible ? 1 : 0)};
-  pointer-events:${p => (p.$visible ? 'auto' : 'none')};
-  transition:opacity .1s;
-`;
-/* 폴더 만들기 — 글자를 같이 보여준다. 아이콘만 두면 "폴더 관리가 안 되는" 것으로 읽힌다. */
-const FolderNewBtn = styled.button`
-  display:inline-flex;align-items:center;gap:4px;flex-shrink:0;
-  padding:3px 8px;border:1px solid #E2E8F0;border-radius:999px;background:#fff;
-  font-size:0.6875rem;font-weight:700;color:#0F766E;cursor:pointer;
-  &:hover{background:#F0FDFA;border-color:#99F6E4;}
-  /* 터치 타겟 — 토큰(36/40/44) 안에서. */
-  @media (hover: none), (max-width: 640px){ min-height:36px; padding:0 10px; }
-`;
-const RenameInput = styled.input`
-  flex:1;min-width:0;height:24px;padding:0 6px;
-  background:#fff;border:1px solid #14B8A6;border-radius:4px;font-size:0.75rem;color:#0F172A;
-  &:focus{outline:none;}
-`;
 
 /* Skeleton */
 const skShimmer = `@keyframes sk-shimmer{0%{background-position:-200px 0;}100%{background-position:calc(200px + 100%) 0;}}`;
@@ -2444,6 +2374,17 @@ const IconBtn = styled.button`
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
   background:transparent;border:none;color:#94A3B8;border-radius:6px;cursor:pointer;
   &:hover{background:#FEE2E2;color:#DC2626;}
+`;
+
+/* 분류 표시 — 출처 칩과 **같은 줄에 나란히**. 누르는 것이 아니다(버튼으로 만들면 이동과 헷갈린다). */
+const FolderChip = styled.span`
+  flex-shrink:0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding:2px 8px;border-radius:999px;font-size:0.625rem;font-weight:700;letter-spacing:.2px;
+  background:#F1F5F9;color:#475569;
+`;
+/* 폴더로 이동 — 받기·삭제와 **같은 규격**의 아이콘 버튼. IconBtn 을 상속해 크기를 다시 적지 않는다. */
+const MoveBtn = styled(IconBtn)`
+  &:hover{background:#F0FDFA;color:#0F766E;}
 `;
 
 const Dim = styled.div`padding:30px;text-align:center;font-size:0.8125rem;color:#94A3B8;background:#fff;border:1px solid #E2E8F0;border-radius:10px;`;

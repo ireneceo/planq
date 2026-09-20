@@ -567,7 +567,8 @@
       "noFolder": "No folder",
       "newInProject": "Add a folder in this project",
       "expand": "Expand",
-      "collapse": "Collapse"
+      "collapse": "Collapse",
+      "newChildAction": "Add subfolder"
     },
     "up": {
       "aria": "Upload progress",

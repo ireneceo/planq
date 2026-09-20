@@ -103,6 +103,73 @@ async function run() {
     const okAll = rows.length === movedIds.length && rows.every((r) => Number(r.folder_id) === Number(folderId));
     push('선택한 것이 한 번에 옮겨진다', okAll,
       `${rows.map((r) => r.id + '→' + r.folder_id).join(' · ')} (기대 ${folderId})`);
+
+    // ★ 선택모드가 켜진 채로는 행 액션이 숨는다 — 그 상태로 재면 «0개» 가 나와 결함처럼 보인다.
+    //   화면을 새로 연다.
+    await b.goto(page, '/files');
+    await b.sleep(3500);
+
+    // ── 끌고 있는 것이 «우리 파일» 이면 업로드 오버레이를 띄우지 않는다.
+    //   Irene 2026-09-20: *"파일을 드래그 해서 좌측 폴더에 넣으면 그리로 들어가는 거 아니야?
+    //   왜 드래그 해서 당기면 업로드하라는 아이콘이 나와???"* — 오버레이가 안쪽을 통째로 덮어
+    //   좌측 폴더 행이 드롭을 **받지 못했다**. 두 방향으로 잰다(우리 파일 / 바깥 파일).
+    //   ★ dispatch 직후에 재면 **언제나 «안 뜸»** 이다 — React 가 아직 다시 그리지 않았다.
+    //     처음에 그렇게 짜서 양성 쪽까지 false 로 나왔고, 하마터면 "우리 파일은 안 뜬다 ✅" 라는
+    //     **뜻 없는 초록**을 받을 뻔했다. 뿌리고 → 기다리고 → 본다.
+    const fireDrag = async (kind) => {
+      const ok = await page.evaluate((k) => {
+        const target = document.querySelector('[data-file-id]');
+        if (!target) return false;
+        const dt = new DataTransfer();
+        if (k === 'inner') dt.setData('application/x-planq-file', 'direct-1');
+        else { try { dt.items.add(new File(['x'], 'a.txt', { type: 'text/plain' })); } catch { return false; } }
+        if (k === 'outer' && ![...dt.types].includes('Files')) return false;
+        target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        return true;
+      }, kind);
+      if (!ok) return null;
+      await b.sleep(400);
+      const shown = await page.evaluate(() => !!document.querySelector('[data-testid="docs-upload-overlay"]'));
+      await page.evaluate(() => {
+        const target = document.querySelector('[data-file-id]');
+        if (target) target.dispatchEvent(new DragEvent('dragleave', { bubbles: true, dataTransfer: new DataTransfer() }));
+      });
+      await b.sleep(300);
+      return shown;
+    };
+    const onInner = await fireDrag('inner');
+    const onOuter = await fireDrag('outer');
+    if (onInner === null) skip('업로드 오버레이 판정', '파일 카드를 못 찾았다');
+    else if (onOuter === null) skip('업로드 오버레이 판정', '합성 DataTransfer 에 File 을 못 넣었다 — 대조군 불성립');
+    else {
+      // 대조군이 서야 위 판정이 뜻을 갖는다. 먼저 본다.
+      push('바깥 파일은 오버레이가 뜬다 (양성 대조군)', onOuter, `오버레이 ${onOuter}`);
+      push('우리 파일을 끌 때는 업로드 오버레이가 안 뜬다', !onInner, `오버레이 ${onInner}`);
+    }
+
+    // ── 목록 행의 «폴더이름 버튼» → 분류 칩 + 이동 아이콘 두 개로 갈랐다.
+    //   ★ 리스트 뷰에서 잰다 — 그리드 카드에는 받기·삭제가 없어 «같은 크기인가» 를 잴 상대가 없다.
+    await page.evaluate(() => {
+      const b2 = document.querySelector('[data-testid="docs-view-list"]');
+      if (b2) b2.click();
+    });
+    await b.sleep(1200);
+    const row = await page.evaluate(() => {
+      const moves = [...document.querySelectorAll('[data-testid^="docs-file-move-"]')];
+      const siblings = moves.length
+        ? [...moves[0].parentElement.querySelectorAll('button')].filter((e) => e.getBoundingClientRect().height > 0)
+        : [];
+      return {
+        move: moves.length,
+        oldMenu: document.querySelectorAll('[data-testid^="docs-file-menu-"]').length,
+        sizes: siblings.map((e) => Math.round(e.getBoundingClientRect().height)),
+      };
+    });
+    push('행의 폴더이름 버튼이 사라졌다', row.oldMenu === 0, `옛 버튼 ${row.oldMenu}개`);
+    push('행에 [이동] 아이콘이 있다', row.move >= 1, `${row.move}개`);
+    if (row.sizes.length >= 2) {
+      push('[이동] 이 같은 줄의 다른 아이콘과 같은 크기', new Set(row.sizes).size === 1, `높이 ${row.sizes.join('/')}`);
+    } else skip('[이동] 크기 비교', `같은 줄 버튼 ${row.sizes.length}개`);
   } finally {
     try {
       if (movedIds.length) await sequelize.query('UPDATE files SET folder_id=NULL WHERE id IN (:ids)', { replacements: { ids: movedIds } });

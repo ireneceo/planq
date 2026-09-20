@@ -84,8 +84,12 @@ async function run() {
         //   «3행 전부 같다» 로 초록이 난다(실제로 그랬다). 이름 칸만 있으면 잰다.
         if (kids.length < 2) return;
         // 칸: [아이콘][이름][숫자][액션] — 이름은 두 번째다(캐럿 칸을 없앤 뒤 바뀌었다).
+        // ★ 숫자는 **위치로 찾지 않는다.** 0 이면 안 그려지고, 그 자리에 겹쳐 띄운 액션
+        //   (absolute, 평소엔 opacity 0 이지만 폭은 있다)이 kids[2] 로 잡혀 **엉뚱한 x** 를 잰다.
+        //   2026-09-20 에 프로젝트 행 숫자를 조건부로 바꾸면서 실제로 그렇게 될 뻔했다.
         const name = kids[1].getBoundingClientRect();
-        const cnt = kids[2] ? kids[2].getBoundingClientRect() : null;
+        const cntEl = r.querySelector('[data-folder-count]');
+        const cnt = cntEl ? cntEl.getBoundingClientRect() : null;
         const label = (kids[1].textContent || '').trim().slice(0, 14);
         if (!label) return;
         out.push({ label, nameLeft: Math.round(name.left), countRight: cnt && cnt.width ? Math.round(cnt.right) : null });
@@ -108,6 +112,53 @@ async function run() {
         `x=${rights.join('/') || '(숫자 없음)'}`);
     }
 
+    // ★ 겹침 — [+] 와 숫자 알약이 **같은 자리**를 쓴다. 액션이 뜬 상태에서 숫자가 남아 있으면
+    //   세 자리 숫자에서 회색 알약이 버튼 왼쪽으로 삐져나온다(Irene 2026-09-20 실제 신고).
+    //   그래서 «올렸을 때 숫자가 물러나는가» 와 «안 올렸을 때는 숫자가 보이는가» 를 같이 잰다.
+    const overlap = await page.evaluate((p) => {
+      const row = document.querySelector(`[data-testid="docs-project-row-${p}"]`);
+      if (!row) return null;
+      const cnt = row.querySelector('[data-folder-count]');
+      const act = row.querySelector('[data-folder-actions]');
+      const vis = (el) => !!el && parseFloat(getComputedStyle(el).opacity) > 0.05;
+      const rects = () => {
+        if (!vis(cnt) || !vis(act)) return 0;
+        const a = cnt.getBoundingClientRect(), b = act.getBoundingClientRect();
+        return Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+      };
+      return { idleCount: vis(cnt), idleAction: vis(act), idleOverlap: rects(), has: !!cnt && !!act };
+    }, pid);
+    if (overlap && overlap.has) {
+      judge('평소엔 숫자가 보이고 액션은 숨는다', overlap.idleCount && !overlap.idleAction,
+        `숫자 ${overlap.idleCount} · 액션 ${overlap.idleAction}`);
+      judge('평소 겹침 0px', overlap.idleOverlap === 0, `${overlap.idleOverlap}px`);
+      const hov = await page.evaluate((p) => {
+        const row = document.querySelector(`[data-testid="docs-project-row-${p}"]`);
+        const r = row.getBoundingClientRect();
+        return { x: r.left + 20, y: r.top + r.height / 2 };
+      }, pid);
+      await page.mouse.move(hov.x, hov.y);
+      await b.sleep(400);
+      const on = await page.evaluate((p) => {
+        const row = document.querySelector(`[data-testid="docs-project-row-${p}"]`);
+        const cnt = row.querySelector('[data-folder-count]');
+        const act = row.querySelector('[data-folder-actions]');
+        const vis = (el) => !!el && parseFloat(getComputedStyle(el).opacity) > 0.05;
+        let ov = 0;
+        if (vis(cnt) && vis(act)) {
+          const a = cnt.getBoundingClientRect(), c = act.getBoundingClientRect();
+          ov = Math.max(0, Math.min(a.right, c.right) - Math.max(a.left, c.left));
+        }
+        return { cnt: vis(cnt), act: vis(act), ov };
+      }, pid);
+      judge('마우스를 올리면 [+] 가 나온다', on.act, `액션 ${on.act}`);
+      judge('올린 상태에서 숫자와 [+] 가 겹치지 않는다', on.ov === 0, `겹침 ${on.ov}px · 숫자 ${on.cnt}`);
+      await page.mouse.move(5, 5);
+      await b.sleep(300);
+    } else {
+      results.push({ name: '⬜ [+]·숫자 겹침 — 미측정', fail: 0, details: ['프로젝트 행에 숫자 또는 액션이 없다'] });
+    }
+
     if (before.hasCaret) {
       const pos = await page.evaluate((p) => {
         const c = document.querySelector(`[data-testid="docs-project-row-${p}"] [role="button"]`);
@@ -121,6 +172,60 @@ async function run() {
       }), TAG + '-상위', TAG + '-하위');
       judge('아이콘을 누르면 하위 폴더가 열린다', after.top, `상위 ${after.top} · 그 아래 ${after.sub}`);
       judge('아이콘 클릭이 목록(프로젝트 필터)을 바꾸지 않는다', after.files === before.files, `파일 ${before.files} → ${after.files}`);
+    }
+    // ── 프로젝트 > 파일 트리도 **같은 것**을 띄우는가 (Irene 2026-09-20: "Q file도 프로젝트>파일도")
+    //   두 트리는 서로 다른 컴포넌트(ProjectGroups / FolderTree)라 손으로는 반드시 갈라진다.
+    //   ★ 행 높이(30px)보다 큰 버튼이 들어가면 "... 이 이상하게 뜬다" 가 된다 — 높이를 잰다.
+    // ★ 헤드리스는 `(hover: none)` 으로 뜬다 — 그대로 재면 **터치 분기(40px)** 를 재게 되고
+    //   Irene 이 보는 데스크탑 분기(32px)는 한 번도 안 재진다. 미디어 특성을 고정한다.
+    //   ★ 헤드리스는 `(hover: hover)` 로 못 만든다 — puppeteer 도 CDP setEmulatedMedia 도
+    //     안 먹는다(2026-09-20 실측). 그래서 **화면 규격의 분기 조건을 hover 로 잡지 않는다**:
+    //     폭으로 가르면 하니스가 데스크탑 분기를 그대로 잰다.
+    await b.goto(page, `/projects/p/${pid}?tab=files`);
+    await b.sleep(7000);
+    const pf = await page.evaluate(() => {
+      // ★ **행**을 잡아야 한다. 후손으로 찾으면 트리 전체(299px)가 먼저 걸리고,
+      //   탭은 keep-alive 라 **숨어 있는 Q file 트리**(높이 0)가 같이 잡힌다 —
+      //   2026-09-20 에 그 둘 때문에 «행 0px» 로 두 번 헛돌았다.
+      //   → 이 탭의 본문 안에서, **보이는** 행만 본다.
+      const pane = document.querySelector('[data-testid="project-tab-body-files"]');
+      if (!pane) return null;
+      const rows = [...pane.querySelectorAll('div')].filter(d =>
+        getComputedStyle(d).display === 'grid'
+        && d.querySelector(':scope > [data-folder-actions]')
+        && d.getBoundingClientRect().height > 10);
+      if (!rows.length) return null;
+      const r = rows[0];
+      const act = r.querySelector('[data-folder-actions]');
+      const before = parseFloat(getComputedStyle(act).opacity);
+      const btns = [...act.querySelectorAll('button')];
+      return {
+        wide: window.innerWidth > 640,
+        rowH: Math.round(r.getBoundingClientRect().height),
+        idleVisible: before > 0.05,
+        plus: btns.filter(x => (x.getAttribute('data-testid') || '').includes('newchild')).length,
+        sizes: btns.map(x => Math.round(x.getBoundingClientRect().height)),
+      };
+    });
+    if (!pf) {
+      results.push({ name: '⬜ 프로젝트>파일 트리 — 미측정', fail: 0, details: ['액션 달린 폴더 행이 없다(폴더 0개)'] });
+    } else {
+      judge('프로젝트>파일 — 폴더 행에 [+] 가 있다', pf.plus >= 1, `[+] ${pf.plus}개`);
+      // ★ 잰 것이 없으면 초록으로 내보내지 않는다 — 빈 배열은 `new Set([]).size === 0` 이라
+      //   "한 규격" 이 거짓으로 통과할 뻔했다(행을 잘못 집었을 때 실제로 빈 값이 나왔다).
+      judge('프로젝트>파일 — 액션 버튼을 실제로 쟀다', pf.sizes.length >= 2 && pf.rowH > 10,
+        `행 ${pf.rowH}px · 버튼 ${pf.sizes.length}개`);
+      judge('프로젝트>파일 — [+] 와 ⋯ 가 같은 규격', pf.sizes.length >= 2 && new Set(pf.sizes).size === 1,
+        `높이 ${pf.sizes.join('/')}`);
+      // 데스크탑 분기에서만 «행 밖으로 부푸는가» 를 잰다. 터치 분기(40/44px)는 규격이 그렇게 정해져
+      // 있으므로 행보다 큰 게 정상 — 그걸 실패로 세면 검사기가 거짓말을 한다.
+      if (pf.wide) {
+        judge('프로젝트>파일 — 버튼이 행 밖으로 부풀지 않는다', pf.sizes.every(h => h <= pf.rowH + 4),
+          `행 ${pf.rowH}px · 버튼 ${pf.sizes.join('/')}px`);
+      } else {
+        results.push({ name: '⬜ 프로젝트>파일 — 데스크탑 분기 미측정', fail: 0,
+          details: [`폰 폭에서 쟀다 — 터치 규격 ${pf.sizes.join('/')}px`] });
+      }
     }
   } finally {
     await sequelize.query('DELETE FROM file_folders WHERE name LIKE :t', { replacements: { t: TAG + '%' } });

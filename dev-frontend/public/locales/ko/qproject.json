@@ -567,7 +567,8 @@
       "noFolder": "폴더 없음",
       "newInProject": "이 프로젝트에 폴더 추가",
       "expand": "펼치기",
-      "collapse": "접기"
+      "collapse": "접기",
+      "newChildAction": "하위 폴더 추가"
     },
     "up": {
       "aria": "업로드 진행 상황",

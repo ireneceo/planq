@@ -66,3 +66,12 @@ export const SystemFolderIcon: React.FC<{ src: FileSource; size?: number }> = ({
   );
   return <FolderSvg size={size} />;
 };
+
+/* 폴더로 이동 — 목록 행의 «이동» 아이콘. 글자 알약(폴더 이름)을 겸하던 컨트롤을 가르면서 생겼다.
+   분류는 칩으로 보여 주고, 여기는 **행위**만 한다. */
+export const FolderMoveSvg: React.FC<{ size?: number }> = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+    <polyline points="11 11 14 14 11 17" /><line x1="14" y1="14" x2="8" y2="14" />
+  </svg>
+);
