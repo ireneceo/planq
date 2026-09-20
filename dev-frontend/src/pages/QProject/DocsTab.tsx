@@ -837,6 +837,9 @@ const DocsTab: React.FC<Props> = (props) => {
                 selected={folderSel}
                 onSelect={sel => { setFolderSel(sel); clearSelection(); }}
                 tr={tr}
+                folders={folders}
+                folderCounts={counts.byFolder}
+                onSelectFolder={id => { setFolderSel(id); clearSelection(); }}
               />
               {/* Irene 2026-08-31 — 워크스페이스 파일에도 폴더.
                   프로젝트 그룹(출처별 탐색)은 그대로 두고 **아래에** 폴더를 더한다 —
@@ -1582,6 +1585,14 @@ function useFolderDrop(onDropFiles?: (folderId: number | null, fileId: string) =
 
 interface ProjectGroupsProps {
   projectGroups: Array<{ id: number; name: string; color?: string | null; count: number }>;
+  /** 이 워크스페이스에 보이는 **프로젝트 폴더**(하위 포함). 프로젝트 행 아래로 펼쳐진다.
+   *  ★ 2026-09-20 (Irene: *"좌측 카테고리에 왜 K-DINE이 두번 나오냐고"*) —
+   *    처음엔 「폴더」 섹션에 프로젝트 묶음을 **따로** 그렸다. 그러면 프로젝트 목록에 한 번,
+   *    폴더 섹션에 또 한 번, **같은 이름이 두 번** 나온다. 프로젝트는 한 줄이어야 하고
+   *    폴더는 그 아래에 달려야 한다. */
+  folders?: FileFolder[];
+  folderCounts?: Record<number, number>;
+  onSelectFolder?: (id: number) => void;
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
   selected: FolderSel;
@@ -1589,7 +1600,22 @@ interface ProjectGroupsProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr }) => {
+const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder }) => {
+  const [open, setOpen] = useState<Set<number>>(new Set());
+  const toggle = (id: number) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const foldersOf = (projectId: number, parentId: number | null) =>
+    folders.filter(f => f.project_id === projectId && f.parent_id === parentId);
+  const renderSub = (f: FileFolder, depth: number): React.ReactNode => (
+    <React.Fragment key={f.id}>
+      <FolderRow $selected={selected === f.id} style={{ paddingLeft: 8 + depth * 14 }}
+        onClick={() => onSelectFolder && onSelectFolder(f.id)}>
+        <FolderIconWrap $selected={selected === f.id}><FolderSvg /></FolderIconWrap>
+        <FolderName title={f.name}>{f.name}</FolderName>
+        {(folderCounts[f.id] || 0) > 0 && <FolderCount>{folderCounts[f.id]}</FolderCount>}
+      </FolderRow>
+      {folders.filter(c => c.parent_id === f.id).map(c => renderSub(c, depth + 1))}
+    </React.Fragment>
+  );
   return (
     <TreeRoot>
       <FolderRow $selected={selected === 'all'} onClick={() => onSelect('all')}>
@@ -1606,12 +1632,29 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
       {projectGroups.map(p => {
         const key: FolderSel = `proj:${p.id}`;
         const sel = selected === key;
+        const roots = foldersOf(p.id, null);
+        const expanded = open.has(p.id);
         return (
-          <FolderRow key={p.id} $selected={sel} onClick={() => onSelect(key)}>
-            <ProjectDot $color={p.color || '#14B8A6'} />
-            <FolderName title={p.name}>{p.name}</FolderName>
-            <FolderCount>{p.count}</FolderCount>
-          </FolderRow>
+          <React.Fragment key={p.id}>
+            <FolderRow $selected={sel} data-testid={`docs-project-row-${p.id}`}
+              aria-expanded={roots.length ? expanded : undefined}
+              onClick={() => onSelect(key)}>
+              {/* 폴더가 있을 때만 펼침 손잡이. 없으면 자리만 비워 이름 줄이 어긋나지 않게 한다. */}
+              {roots.length > 0 ? (
+                <Caret $open={expanded} role="button" tabIndex={-1}
+                  onClick={e => { e.stopPropagation(); toggle(p.id); }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </Caret>
+              ) : <CaretSpacer />}
+              <ProjectDot $color={p.color || '#14B8A6'} />
+              <FolderName title={p.name}>{p.name}</FolderName>
+              <FolderCount>{p.count}</FolderCount>
+            </FolderRow>
+            {expanded && roots.map(f => renderSub(f, 1))}
+          </React.Fragment>
         );
       })}
       <TreeDivider />
@@ -1625,6 +1668,8 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
     </TreeRoot>
   );
 };
+/** 폴더가 없는 프로젝트의 빈 자리 — 캐럿과 같은 폭. 없으면 이름 줄이 프로젝트마다 어긋난다. */
+const CaretSpacer = styled.span`width:14px;flex-shrink:0;`;
 const ProjectDot = styled.span<{ $color: string }>`
   width:10px;height:10px;border-radius:50%;background:${p => p.$color};flex-shrink:0;
 `;
@@ -1669,23 +1714,11 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
   const [renameDraft, setRenameDraft] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<FileFolder | null>(null);
 
-  const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
-  const toggleProject = (id: number) => setExpandedProjects(prev => {
-    const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n;
-  });
   const rootFolders = folders.filter(f => f.parent_id === null);
-  // ★ 2026-09-20 (#417) — Q file 에는 **프로젝트 폴더도 같이 온다**(서버 `/api/folders/workspace/:biz`).
-  //   그냥 한 덩어리로 그리면 워크스페이스 폴더와 프로젝트 폴더가 **구분 없이 섞여** 어느 프로젝트
-  //   것인지 알 수 없다. 프로젝트별로 묶어 머리말을 단다. 하위 폴더는 `childrenOf` 가 그대로 따라온다.
+  // ★ 프로젝트 폴더는 여기서 그리지 않는다 — **프로젝트 행 아래**로 갔다(ProjectGroups).
+  //   한때 여기에 프로젝트 묶음을 따로 그렸는데, 그러면 좌측에 같은 프로젝트 이름이
+  //   **두 번** 나온다(프로젝트 목록에 한 번, 폴더 섹션에 한 번). 프로젝트는 한 줄이다.
   const wsRootFolders = rootFolders.filter(f => !f.project_id);
-  const projectGroups: { id: number; name: string; folders: FileFolder[] }[] = [];
-  for (const f of rootFolders) {
-    if (!f.project_id) continue;
-    let g = projectGroups.find(x => x.id === f.project_id);
-    if (!g) { g = { id: f.project_id, name: f.project_name || '', folders: [] }; projectGroups.push(g); }
-    g.folders.push(f);
-  }
-  projectGroups.sort((a, b) => a.name.localeCompare(b.name));
   const childrenOf = (id: number) => folders.filter(f => f.parent_id === id);
 
   const startCreate = (parentId: number | null) => {
@@ -1833,30 +1866,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, project
             <EmptyHint>{tr('docs.folders.empty')}</EmptyHint>
           )}
           {wsRootFolders.map(f => renderFolder(f, 0))}
-          {/* ★ 2026-09-20 (Irene: *"위에 프로젝트 클릭하면 하위폴더가 열려서 나와야 하는 거 아니야?"*) —
-              처음엔 프로젝트 이름을 **누를 수 없는 라벨**로 두고 그 아래 폴더를 항상 펼쳐 놨다.
-              프로젝트가 여럿이면 폴더가 전부 한 줄로 쏟아져 어디까지가 어느 프로젝트인지 안 보인다.
-              폴더 트리에서 «위 칸을 누르면 아래가 열린다» 는 것은 설명이 필요 없는 동작이다. */}
-          {projectGroups.map(g => {
-            const open = expandedProjects.has(g.id);
-            return (
-              <React.Fragment key={`pg-${g.id}`}>
-                <FolderRow $selected={false} onClick={() => toggleProject(g.id)}
-                  aria-expanded={open} data-testid={`docs-project-folder-${g.id}`}>
-                  <Caret $open={open} aria-hidden>
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                      strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </Caret>
-                  <FolderIconWrap $selected={false}>{open ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>
-                  <FolderName title={g.name}>{g.name}</FolderName>
-                  <FolderCount>{g.folders.reduce((n, f) => n + (counts.byFolder[f.id] || 0), 0)}</FolderCount>
-                </FolderRow>
-                {open && g.folders.map(f => renderFolder(f, 1))}
-              </React.Fragment>
-            );
-          })}
         </TreeRoot>
         {deleteModal}
       </>

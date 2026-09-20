@@ -456,7 +456,9 @@
       "inMyDrive": "Stored in: My Drive › {{name}}",
       "inSharedDrive": "Stored in: Team drive › {{name}}",
       "folderUnreachable": "Couldn't check the Drive folder right now. PlanQ will find it again on the next upload.",
-      "changeLocation": "Change location"
+      "changeLocation": "Change location",
+      "connectedOneLine": "Shared files are stored in Google Drive",
+      "dismiss": "Dismiss this notice"
     },
     "source": {
       "all": "All",

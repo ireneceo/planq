@@ -32,6 +32,12 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
   const { user } = useAuth();
   const [loaded, setLoaded] = useState(false);
   const [status, setStatus] = useState<CloudStatus | null>(null);
+  // 닫음은 **이 브라우저의 편의**다 — 워크스페이스별로 기억하되 서버에 저장하지 않는다.
+  //   localStorage 는 사생활 보호 창에서 던질 수 있으므로 읽기·쓰기 둘 다 감싼다.
+  const dismissKey = `planq:cloud-notice-dismissed:${businessId}`;
+  const [dismissed, setDismissed] = useState<boolean>(() => {
+    try { return localStorage.getItem(`planq:cloud-notice-dismissed:${businessId}`) === '1'; } catch { return false; }
+  });
 
   // 고객(client)에게는 Drive 연결·관리 권한이 없으므로 안내 자체를 숨김
   const isClient = user?.business_role === 'client';
@@ -48,6 +54,7 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
 
   if (isClient) return null;
   if (!loaded) return null;
+  if (dismissed) return null;
 
   const gdrive = status?.gdrive;
   const connected = !!gdrive?.connected;
@@ -60,35 +67,42 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
   const inMyDrive = !!folder && folder.reachable !== false && folder.in_shared_drive === false;
 
   if (connected) {
+    // ★ 2026-09-20 (Irene: *"이 배너는 고장이야? 내용이 다 아래로 내려가잖아"*) —
+    //   고장이 아니라 **항상 자리를 먹고 있었다.** 제목·본문·링크·저장위치까지 3~4줄이라
+    //   파일 목록이 그만큼 아래로 밀렸다. 배너는 «지금 상태» 를 알리는 것이지 화면을 차지하는
+    //   설명서가 아니다. 한 줄로 줄이고 **닫을 수 있게** 했다.
+    //   ★ 본문 설명은 뺐다 — `title` 속성으로 옮기면 터치 기기에서 안 뜬다. 설명이 필요한 사람은
+    //     [저장 위치 바꾸기] 로 설정에 간다.
+    //   ★ **문제 상태일 때는 닫히지 않는다**(폴더를 못 찾음). 그건 알아야 하는 정보다.
+    const hasProblem = folder?.reachable === false;
     return (
-      <ConnectedNotice data-testid="cloud-connect-notice">
+      <ConnectedNotice data-testid="cloud-connect-notice" $problem={hasProblem}>
         <NoticeIcon $tone="amber" aria-hidden>!</NoticeIcon>
         <NoticeText>
-          <strong>{t('docs.cloud.connectedTitle', { defaultValue: '공용 파일은 Google Drive 에 저장됩니다.' })}</strong>{' '}
-          {t('docs.cloud.connectedBody', { defaultValue: 'Drive 에서 직접 만들거나 지운 파일은 PlanQ 에 반영되지 않습니다.' })}
+          {hasProblem
+            ? t('docs.cloud.folderUnreachable')
+            : t('docs.cloud.connectedOneLine', {
+              defaultValue: '공용 파일은 Google Drive 에 저장됩니다',
+            })}
         </NoticeText>
         {driveLink && (
           <NoticeAction as="a" href={driveLink} target="_blank" rel="noreferrer">
             {t('docs.cloud.openDrive', { defaultValue: 'Drive 폴더 열기' })} ↗
           </NoticeAction>
         )}
-        {folder?.reachable === false && (
-          <NoticeSub data-testid="cloud-folder-unreachable">
-            {t('docs.cloud.folderUnreachable')}
-          </NoticeSub>
+        {(inMyDrive || folder?.in_shared_drive) && (
+          <SubLink to="/business/settings/storage">{t('docs.cloud.changeLocation')}</SubLink>
         )}
-        {folder?.in_shared_drive && (
-          <NoticeSub data-testid="cloud-folder-shared">
-            {t('docs.cloud.inSharedDrive', { name: folder.name || '' })}
-          </NoticeSub>
-        )}
-        {inMyDrive && (
-          <NoticeSub data-testid="cloud-folder-mydrive">
-            {t('docs.cloud.inMyDrive', { name: folder?.name || '' })}
-            {' · '}
-            {/* 긴 설명 대신 **바꾸러 가는 문**을 준다 — 배너는 지금 상태만 말한다. */}
-            <SubLink to="/business/settings/storage">{t('docs.cloud.changeLocation')}</SubLink>
-          </NoticeSub>
+        {!hasProblem && (
+          <DismissBtn type="button" data-testid="cloud-notice-dismiss"
+            onClick={() => {
+              setDismissed(true);
+              try { localStorage.setItem(dismissKey, '1'); } catch { /* 사생활 보호 창 등 — 화면은 그대로 동작한다 */ }
+            }}
+            aria-label={t('docs.cloud.dismiss', { defaultValue: '이 안내 닫기' }) as string}
+            title={t('docs.cloud.dismiss', { defaultValue: '이 안내 닫기' }) as string}>
+            ✕
+          </DismissBtn>
         )}
       </ConnectedNotice>
     );
@@ -112,35 +126,38 @@ const SubLink = styled(Link)`
   color:#0F766E;font-weight:700;text-decoration:none;
   &:hover{text-decoration:underline;}
 `;
-const NoticeSub = styled.p`
-  /* 안내 본문 아래 한 줄 — **자기 줄을 차지한다**(부모가 wrap 이라 성립).
-     min-width:0 이 없으면 긴 문장이 flex 기본 규칙에 눌려 옆 칸을 밀어낸다. */
-  flex-basis: 100%;
-  min-width: 0;
-  margin: 6px 0 0;
-  font-size: 0.75rem;
-  line-height: 1.55;
-  color: #475569;
-`;
-
 export default CloudConnectNotice;
 
 const baseNotice = `
   display: flex;
   align-items: flex-start;
-  /* ★ 모든 폭에서 감긴다. 데스크탑에서만 wrap 이 없었던 탓에, 아래 줄(NoticeSub)이
-     같은 행에 끼어 **첫 칸이 길게 늘어지고 전체가 한 줄로 뭉갰다**
-     (Irene 2026-09-07: "첫 열이 길게 늘어져서 엉망이야"). */
+  /* 좁은 폭에서만 감긴다. 2026-09-20 부터 배너는 **한 줄**이라 아래 줄이 없다
+     (옛 NoticeSub 은 읽는 곳이 없어져 지웠다 — 남기면 다음 사람이 적용 중이라고 믿는다). */
   flex-wrap: wrap;
   gap: 10px;
   padding: 10px 14px;
   border-radius: 10px;
   margin-bottom: 12px;
 `;
-const ConnectedNotice = styled.div`
+const ConnectedNotice = styled.div<{ $problem?: boolean }>`
   ${baseNotice}
-  background: #FEF3C7;
-  border: 1px solid #FDE68A;
+  /* ★ 한 줄로 끝낸다 — 목록이 밀리지 않게. 좁으면 감기되 세로로 쌓이지는 않는다. */
+  align-items: center;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  background: ${p => (p.$problem ? '#FEE2E2' : '#FEF3C7')};
+  border: 1px solid ${p => (p.$problem ? '#FECACA' : '#FDE68A')};
+`;
+const DismissBtn = styled.button`
+  flex-shrink: 0; margin-left: auto;
+  /* ★ 컨트롤 높이는 토큰(32/36/40/44)만 쓴다 — 24px 로 썼다가 가드(uispec)가 잡았다.
+     한 줄 배너 안이라 가장 작은 32 를 쓰고, 폰에서는 손가락이 닿게 40 으로 키운다. */
+  width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center;
+  @media (max-width: 640px) { width: 40px; height: 40px; }
+  background: transparent; border: 0; border-radius: 6px;
+  color: #92400E; font-size: 0.8125rem; line-height: 1; cursor: pointer;
+  &:hover { background: rgba(146,64,14,0.12); }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; }
 `;
 const RecommendNotice = styled.div`
   ${baseNotice}

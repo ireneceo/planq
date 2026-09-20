@@ -456,7 +456,9 @@
       "inMyDrive": "저장 위치: 내 드라이브 › {{name}}",
       "inSharedDrive": "저장 위치: 팀 드라이브 › {{name}}",
       "folderUnreachable": "지금 Drive 폴더를 확인하지 못했습니다. 다음 업로드 때 자동으로 다시 찾습니다.",
-      "changeLocation": "저장 위치 바꾸기"
+      "changeLocation": "저장 위치 바꾸기",
+      "connectedOneLine": "공용 파일은 Google Drive 에 저장됩니다",
+      "dismiss": "이 안내 닫기"
     },
     "source": {
       "all": "전체",
