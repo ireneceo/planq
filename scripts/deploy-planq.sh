@@ -544,6 +544,11 @@ deploy_frontend() {
   #   → 옛 청크는 지우지 않고 남긴다. index.html 은 no-cache 라 새로고침하면 새 번들로 간다.
   #   정리는 별도 주기 작업으로 (예: 30일 지난 assets 삭제) — 배포 시점에 지우지 않는다.
   RSYNC_FLAGS="-az"
+  # ★ 2026-09-21 — 검색용 생성물(seoArtifacts)은 **운영 DB 로 운영에서** 만든다. dev 에서 만든 것
+  #   (dev DB 의 위키·인사이트 글 페이지 · 그 목록 파일)을 올리면 dev 에만 있는 글이 운영에 샌다.
+  #   루트 index.html 은 올리고, 하위 폴더의 index.html(=생성 페이지)·목록 파일·사이트맵은 뺀다.
+  #   ★ 패턴 주의 — `**/index.html` 은 **루트 index.html 까지** 뺀다(실측). 하위 폴더만 정확히 뺀다.
+  SEO_EXCLUDES=(--exclude='/*/index.html' --exclude='/*/**/index.html' --exclude='/.seo-generated.json' --exclude='/sitemap.xml')
 
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] rsync $RSYNC_FLAGS $DEV_FE_BUILD/ $PROD_HOST:$PROD_FE_BUILD/"
@@ -552,8 +557,15 @@ deploy_frontend() {
     fi
   else
     [ -d "$DEV_FE_BUILD" ] || { error "$DEV_FE_BUILD 없음 — build 먼저"; exit 1; }
-    rsync $RSYNC_FLAGS -e "$RSYNC_SSH" "$DEV_FE_BUILD/" "$PROD_HOST:$PROD_FE_BUILD/"
+    rsync $RSYNC_FLAGS "${SEO_EXCLUDES[@]}" -e "$RSYNC_SSH" "$DEV_FE_BUILD/" "$PROD_HOST:$PROD_FE_BUILD/"
     success "frontend 배포 완료 (옛 청크 보존 — 사용 중 사용자의 화면이 깨지지 않게)"
+    # 새 빌드(index.html 템플릿·seo-pages.json)로 검색용 페이지·사이트맵을 **운영 DB 기준**으로 다시 만든다.
+    #   실패해도 배포는 계속한다(서버 시작 때 한 번 더 돈다) — 대신 조용히 넘기지 않고 경고를 남긴다.
+    if prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/generate-seo.js 2>&1 | tail -3"; then
+      success "검색용 페이지·사이트맵 생성 완료"
+    else
+      warn "검색용 페이지 생성 실패 — 서버 시작 시 재시도 (pm2 logs 의 [seo-artifacts] 확인)"
+    fi
   fi
 }
 

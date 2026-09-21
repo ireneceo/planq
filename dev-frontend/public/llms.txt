@@ -1,0 +1,23 @@
+# PlanQ
+
+> PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다. 고객 대화(Q talk), 업무(Q task), 회의 기록·요약(Q note), 자료(Q file), 청구(Q bill)가 하나의 흐름으로 연결됩니다.
+> PlanQ is a business management and collaboration platform: client chat, tasks, meeting notes, files and billing in one connected workflow.
+
+슬로건: 일을 일답게 하다, PlanQ · 일이 일이 되지 않게, PlanQ
+
+## 소개 (Landing)
+- [홈](https://planq.kr/): 서비스 개요
+- [기능](https://planq.kr/features/): Q talk · Q task · Q note · Q file · Q bill
+- [요금제](https://planq.kr/pricing/): 14일 무료 체험, 팀 규모별 요금제
+- [서비스](https://planq.kr/service/): 업무체계 설계 및 시스템 구축
+- [브랜드 스토리](https://planq.kr/about/)
+- [문의하기](https://planq.kr/contact/)
+- [앱 다운로드](https://planq.kr/app/): iOS · Android
+
+## 읽을거리
+- [인사이트](https://planq.kr/insights/): 업무 자동화 인사이트와 제품 소식
+- [Q위키](https://planq.kr/wiki/): PlanQ 사용법 도움말
+
+## 정책
+- [개인정보처리방침](https://planq.kr/privacy)
+- [이용약관](https://planq.kr/terms)

@@ -591,6 +591,11 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3003;
 const BIND_HOST = process.env.BIND_HOST || '127.0.0.1';
 server.listen(PORT, BIND_HOST, () => {
+  // 검색용 공개 페이지·사이트맵 — 시작할 때 한 번(배포 직후 = 새 빌드 기준). 실패해도 서버는 뜬다.
+  setTimeout(() => {
+    require('./services/seoArtifacts').generateSeoArtifacts()
+      .catch((e) => console.warn('[seo-artifacts] startup failed', e.message));
+  }, 15000);
   console.log(`PlanQ server running on ${BIND_HOST}:${PORT} (${process.env.NODE_ENV})`);
 });
 
@@ -612,6 +617,9 @@ function scheduleNextMidnight() {
       const r = await taskSnapshot.snapshotAllTasks();
       console.log('[daily-snapshot]', r);
     } catch (e) { console.warn('[daily-snapshot] failed', e.message); }
+    // 검색용 공개 페이지·사이트맵 — 새로 발행하거나 내린 위키·인사이트 글을 하루 안에 반영한다
+    try { await require('./services/seoArtifacts').generateSeoArtifacts(); }
+    catch (e) { console.warn('[seo-artifacts] failed', e.message); }
     try {
       const r = await billing.runDailyBillingCron();
       console.log('[billing-cron]', r);

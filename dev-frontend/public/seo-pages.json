@@ -1,0 +1,282 @@
+{
+  "_comment": "공개 페이지 SEO 단일 원천 (2026-09-21). 운영 서버에서 dev-backend/services/seoArtifacts.js 가 이 파일로 페이지별 HTML·사이트맵을 만들고, 화면(hooks/useSeoHead)도 같은 파일을 읽는다. 문구는 실제 랜딩 화면(locales/*/landing.json)과 맞춘다 — 봇과 사람에게 다른 내용을 주지 않는다. 대표 주소는 끝에 슬래시(nginx 가 /x → /x/ 로 보내 미리 만든 x/index.html 을 준다). noPrerender 는 주소를 바꾸면 안 되는 페이지(약관 — Google 심사 등록 주소).",
+  "origin": "https://planq.kr",
+  "siteName": "PlanQ",
+  "ogImage": "https://planq.kr/og-default.png",
+  "pages": [
+    {
+      "path": "/",
+      "changefreq": "weekly",
+      "priority": "1.0",
+      "title": {
+        "ko": "PlanQ — 일을 일답게 하다 | 대화·업무·자료·청구를 한 곳에서",
+        "en": "PlanQ — Work that works | Chat, tasks, files and billing in one place"
+      },
+      "description": {
+        "ko": "PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다. Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다.",
+        "en": "PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place, with Google Calendar sync."
+      },
+      "h1": {
+        "ko": "PlanQ — 일이 일이 되지 않게",
+        "en": "PlanQ — Work that works"
+      },
+      "intro": {
+        "ko": [
+          "업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결합니다.",
+          "대화, 할일, 자료, 회의, 청구까지 — 업무의 모든 흐름이 한 곳에서 실행됩니다."
+        ],
+        "en": [
+          "Connect work, projects, people, time, clients and billing.",
+          "Chat, tasks, files, meetings and billing — every workflow runs in one place."
+        ]
+      },
+      "label": "홈"
+    },
+    {
+      "path": "/features/",
+      "changefreq": "monthly",
+      "priority": "0.9",
+      "title": {
+        "ko": "기능 — Q talk·Q task·Q note·Q file·Q bill | PlanQ",
+        "en": "Features — Q talk, Q task, Q note, Q file, Q bill | PlanQ"
+      },
+      "description": {
+        "ko": "필요한 건 전부 여기 있습니다. 고객 대화(Q talk), 업무(Q task), 회의 기록·요약(Q note), 자료(Q file), 청구(Q bill)가 하나의 흐름으로 연결됩니다.",
+        "en": "Everything you need in one place. Client chat (Q talk), tasks (Q task), meeting notes (Q note), files (Q file) and billing (Q bill), connected in one flow."
+      },
+      "h1": {
+        "ko": "필요한 건 전부 여기 있습니다.",
+        "en": "Everything you need is here."
+      },
+      "intro": {
+        "ko": [
+          "PlanQ는 하나의 흐름으로 연결됩니다. 도구를 옮겨 다닐 일이 없습니다.",
+          "Q talk — 고객과 업무 대화를 나누는 전용 채팅. 메시지에서 바로 할일을 만들고 파일을 공유합니다.",
+          "Q task — 마감일·담당자·우선순위·상태까지. 오늘 할 일과 지연된 일이 한눈에 보입니다.",
+          "Q note — 회의를 실시간으로 기록·번역하고, 끝나면 요약까지.",
+          "Q file · Q bill — 자료와 청구를 같은 공간에서 관리합니다."
+        ],
+        "en": [
+          "PlanQ connects everything in one flow — no more switching tools.",
+          "Q talk — a dedicated chat for client work. Create tasks and share files right from messages.",
+          "Q task — due dates, owners, priority and status. See today's work and overdue items at a glance.",
+          "Q note — record and translate meetings in real time, with a summary at the end.",
+          "Q file · Q bill — manage files and billing in the same space."
+        ]
+      },
+      "label": "기능"
+    },
+    {
+      "path": "/pricing/",
+      "changefreq": "monthly",
+      "priority": "0.8",
+      "title": {
+        "ko": "요금제 — 시작은 무료, 필요한 만큼 확장 | PlanQ",
+        "en": "Pricing — Start free, scale as you grow | PlanQ"
+      },
+      "description": {
+        "ko": "신용카드 없이 14일 무료 체험. 언제든 해지 가능합니다. 팀 규모에 맞는 PlanQ 요금제를 비교해 보세요.",
+        "en": "14-day free trial, no credit card required. Cancel anytime. Compare PlanQ plans for your team."
+      },
+      "h1": {
+        "ko": "시작은 무료, 필요한 만큼 확장",
+        "en": "Start free, scale as you grow"
+      },
+      "intro": {
+        "ko": [
+          "신용카드 없이 14일 무료 체험. 언제든 해지 가능합니다."
+        ],
+        "en": [
+          "14-day free trial, no credit card required. Cancel anytime."
+        ]
+      },
+      "label": "요금제"
+    },
+    {
+      "path": "/service/",
+      "changefreq": "monthly",
+      "priority": "0.7",
+      "title": {
+        "ko": "업무체계 설계 및 시스템 구축 | PlanQ 서비스",
+        "en": "Workflow design & system implementation | PlanQ Service"
+      },
+      "description": {
+        "ko": "일하는 방식을 먼저 설계하고, 그 위에 시스템을 올립니다. 사람·업무·정보·의사결정·AI·시스템을 하나의 업무체계로 설계하고 실제로 구현합니다.",
+        "en": "We design how you work first, then build the system on top. People, work, information, decisions, AI and systems — designed as one operating model and implemented."
+      },
+      "h1": {
+        "ko": "일하는 방식을 먼저 설계하고, 그 위에 시스템을 올립니다",
+        "en": "Design how you work first, then build the system on top"
+      },
+      "intro": {
+        "ko": [
+          "회사의 성장은 더 많은 도구가 아니라 더 나은 업무체계에서 시작됩니다."
+        ],
+        "en": [
+          "Growth starts with a better way of working, not more tools."
+        ]
+      },
+      "label": "서비스"
+    },
+    {
+      "path": "/insights/",
+      "changefreq": "weekly",
+      "priority": "0.7",
+      "title": {
+        "ko": "인사이트 — PlanQ가 일하는 방식 | PlanQ",
+        "en": "Insights — How PlanQ works | PlanQ"
+      },
+      "description": {
+        "ko": "가이드 영상 · 홍보 영상 · 사용 가이드 · 업무 자동화 인사이트 · 고객 사례를 한 곳에서.",
+        "en": "Guide videos, product videos, how-tos, work automation insights and customer stories in one place."
+      },
+      "h1": {
+        "ko": "PlanQ가 일하는 방식",
+        "en": "How PlanQ works"
+      },
+      "intro": {
+        "ko": [
+          "업무 자동화 인사이트와 제품 소식을 모았습니다."
+        ],
+        "en": [
+          "Work automation insights and product updates."
+        ]
+      },
+      "label": "인사이트"
+    },
+    {
+      "path": "/wiki/",
+      "changefreq": "weekly",
+      "priority": "0.6",
+      "title": {
+        "ko": "Q위키 — PlanQ 사용법 | PlanQ",
+        "en": "Q Wiki — How to use PlanQ | PlanQ"
+      },
+      "description": {
+        "ko": "PlanQ 사용법을 검색하고 둘러보세요. 워크스페이스 만들기부터 업무·청구·메일까지 기능별 도움말.",
+        "en": "Search and browse how to use PlanQ — from creating a workspace to tasks, billing and mail."
+      },
+      "h1": {
+        "ko": "Q위키",
+        "en": "Q Wiki"
+      },
+      "intro": {
+        "ko": [
+          "PlanQ 사용법을 검색하고 둘러보세요."
+        ],
+        "en": [
+          "Search and browse how to use PlanQ."
+        ]
+      },
+      "label": "Q위키"
+    },
+    {
+      "path": "/about/",
+      "changefreq": "yearly",
+      "priority": "0.5",
+      "title": {
+        "ko": "브랜드 스토리 | PlanQ",
+        "en": "Brand story | PlanQ"
+      },
+      "description": {
+        "ko": "PlanQ는 이론이 아니라 현장에서 태어났습니다. 일을 일답게 하기 위한 PlanQ의 이야기.",
+        "en": "PlanQ was born in the field, not in theory. The story behind PlanQ."
+      },
+      "h1": {
+        "ko": "PlanQ 브랜드 스토리",
+        "en": "PlanQ brand story"
+      },
+      "intro": {
+        "ko": [
+          "PlanQ는 이론이 아니라 현장에서 태어났습니다."
+        ],
+        "en": [
+          "PlanQ was born in the field, not in theory."
+        ]
+      },
+      "label": "브랜드 스토리"
+    },
+    {
+      "path": "/contact/",
+      "changefreq": "yearly",
+      "priority": "0.5",
+      "title": {
+        "ko": "문의하기 | PlanQ",
+        "en": "Contact | PlanQ"
+      },
+      "description": {
+        "ko": "도입 문의·기술 지원·제휴 어떤 주제든 환영합니다. 24시간 안에 답변드립니다.",
+        "en": "Sales, support or partnerships — we reply within 24 hours."
+      },
+      "h1": {
+        "ko": "편하게 연락 주세요",
+        "en": "Get in touch"
+      },
+      "intro": {
+        "ko": [
+          "도입 문의·기술 지원·제휴 어떤 주제든 환영합니다."
+        ],
+        "en": [
+          "Sales, support or partnerships — all welcome."
+        ]
+      },
+      "label": "문의하기"
+    },
+    {
+      "path": "/app/",
+      "changefreq": "monthly",
+      "priority": "0.5",
+      "title": {
+        "ko": "PlanQ 앱 다운로드 — iOS·Android | PlanQ",
+        "en": "Download the PlanQ app — iOS & Android | PlanQ"
+      },
+      "description": {
+        "ko": "업무 알림을 놓치지 마세요. PlanQ 모바일 앱으로 실시간 알림을 받습니다.",
+        "en": "Never miss a work notification. Get real-time alerts with the PlanQ mobile app."
+      },
+      "h1": {
+        "ko": "PlanQ 앱 다운로드",
+        "en": "Download the PlanQ app"
+      },
+      "intro": {
+        "ko": [
+          "iOS와 Android에서 PlanQ를 설치하고 실시간 푸시 알림을 받으세요."
+        ],
+        "en": [
+          "Install PlanQ on iOS and Android and get real-time push notifications."
+        ]
+      },
+      "label": "앱 다운로드"
+    },
+    {
+      "path": "/privacy",
+      "changefreq": "yearly",
+      "priority": "0.3",
+      "noPrerender": true,
+      "title": {
+        "ko": "개인정보처리방침 | PlanQ",
+        "en": "Privacy Policy | PlanQ"
+      },
+      "description": {
+        "ko": "PlanQ 개인정보처리방침",
+        "en": "PlanQ Privacy Policy"
+      },
+      "label": "개인정보처리방침"
+    },
+    {
+      "path": "/terms",
+      "changefreq": "yearly",
+      "priority": "0.3",
+      "noPrerender": true,
+      "title": {
+        "ko": "이용약관 | PlanQ",
+        "en": "Terms of Service | PlanQ"
+      },
+      "description": {
+        "ko": "PlanQ 이용약관",
+        "en": "PlanQ Terms of Service"
+      },
+      "label": "이용약관"
+    }
+  ]
+}

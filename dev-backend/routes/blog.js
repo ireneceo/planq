@@ -17,18 +17,8 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 //   ★ 반대로 `updates`(제품 소식 8건)는 **인사이트로 들여보낸다.** 여태 What's New 드로어만
 //     읽어서, 인사이트에는 칼럼 3건뿐이라 비어 보였다("내용이 빈약한데" — Irene).
 //     드로어는 자기 엔드포인트(routes/whats_new.js)를 그대로 쓴다 — 두 곳에서 보이는 것이 맞다.
-const BLOG_EXCLUDED_CATEGORIES = ['how-to'];
-
-const BLOG_WHERE = {
-  blog_published_at: { [Op.ne]: null },
-  is_published: true,
-  visibility: 'public',
-  // NULL 안전 — `NOT IN` 은 NULL 에 대해 NULL(=거짓)이라, 그냥 쓰면 카테고리 미지정 글이 통째로 사라진다.
-  [Op.or]: [
-    { blog_category: null },
-    { blog_category: { [Op.notIn]: BLOG_EXCLUDED_CATEGORIES } },
-  ],
-};
+// 조회 조건은 services/publicContent.js 한 곳 — 사이트맵·검색용 페이지 생성(seoArtifacts)도 같은 조건을 쓴다
+const { BLOG_WHERE, BLOG_EXCLUDED_CATEGORIES } = require('../services/publicContent');
 
 function serializeCard(a) {
   return {

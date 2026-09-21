@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -28,7 +28,7 @@
       display=swap: 폰트 다운로드 동안 fallback 표시 → FOIT 차단, FCP 향상.
     -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <title>PlanQ</title>
+    <title>PlanQ — 일을 일답게 하다</title>
     <!-- 기본 메타 (SEO + SNS 카드) — 공유 페이지의 동적 OG 는 backend SSR 라우트가 별도 처리 (운영 nginx 가 /public/* 을 backend 로 proxy 할 때) -->
     <meta name="description" content="PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다. Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다. | PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place, with Google Calendar sync." />
     <meta property="og:type" content="website" />
@@ -43,8 +43,15 @@
     <meta property="og:url" content="https://planq.kr" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="PlanQ — 일이 일이 되지 않게" />
-    <meta name="twitter:description" content="업무·프로젝트·사람·시간·고객·청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진." />
+    <meta name="twitter:description" content="업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리하는 비즈니스 업무관리 및 협업 플랫폼. Google Calendar 연동을 지원합니다." />
     <meta name="twitter:image" content="https://planq.kr/og-default.png" />
+    <!-- 2026-09-21 SEO — 홈의 대표 주소·언어. 다른 공개 페이지(/features/ 등)는 운영에서 seoArtifacts 가
+         이 파일을 틀로 페이지별 머리를 넣어 따로 만든다(public/seo-pages.json). 이 파일은 워크스페이스
+         화면의 공통 틀이기도 하므로 홈 전용 본문은 noscript 에만 둔다(사람 화면에는 안 그려진다). -->
+    <link rel="canonical" href="https://planq.kr/" />
+    <meta property="og:locale" content="ko_KR" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <script type="application/ld+json">[{"@context": "https://schema.org", "@type": "Organization", "name": "PlanQ", "url": "https://planq.kr", "logo": "https://planq.kr/icon-512.png"}, {"@context": "https://schema.org", "@type": "WebSite", "name": "PlanQ", "url": "https://planq.kr", "inLanguage": "ko"}, {"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "PlanQ", "applicationCategory": "BusinessApplication", "operatingSystem": "Web, iOS, Android", "url": "https://planq.kr", "description": "업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리하는 비즈니스 업무관리 및 협업 플랫폼. Google Calendar 연동을 지원합니다.", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "KRW", "description": "14일 무료 체험"}}]</script>
   </head>
   <body>
     <!-- 자바스크립트를 실행하지 않고 받아가는 클라이언트(검색·검수 도구 등)를 위한 최소 본문.
@@ -53,6 +60,7 @@
       <h1>PlanQ</h1>
       <p>PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다. Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다.</p>
       <p>PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place. Users can connect Google Calendar to synchronize their schedules between PlanQ and Google Calendar.</p>
+      <nav><a href="/features/">기능</a> · <a href="/pricing/">요금제</a> · <a href="/service/">서비스</a> · <a href="/insights/">인사이트</a> · <a href="/wiki/">Q위키</a> · <a href="/about/">브랜드 스토리</a> · <a href="/contact/">문의하기</a> · <a href="/app/">앱 다운로드</a></nav>
       <p><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>
     </noscript>
     <div id="root"></div>
