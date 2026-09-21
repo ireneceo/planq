@@ -491,13 +491,13 @@ const IMAP_ERROR_GUIDE: Record<string, { key: string; def: string; preset?: stri
   imap_host_not_found: { key: 'settings.err.hostNotFound', def: 'IMAP 서버 주소를 찾을 수 없습니다. 서버 주소를 확인해 주세요.' },
   imap_connect_failed: { key: 'settings.err.connectFailed', def: '메일 서버에 연결하지 못했습니다. 서버 주소와 포트를 확인해 주세요.' },
   duplicate_email: { key: 'settings.err.duplicate', def: '이미 등록된 이메일입니다.' },
-  // 보내기(SMTP) — 저장 전 실제 로그인 검사 실패 (2026-09-21)
-  gmail_smtp_auth_failed: { key: 'settings.err.gmailSmtp', def: 'Gmail 보내기 로그인에 실패했습니다. 보내기 아이디가 이메일 주소 전체인지, 앱 비밀번호가 맞는지 확인해 주세요.', preset: 'gmail' },
-  naver_smtp_auth_failed: { key: 'settings.err.naverSmtp', def: '네이버 보내기 로그인에 실패했습니다. 네이버 메일 환경설정 > POP3/IMAP 설정에서 «IMAP/SMTP 사용» 을 켜고, 보내기 아이디가 이메일 주소 전체인지 확인해 주세요.', preset: 'naver' },
-  ms_smtp_auth_failed: { key: 'settings.err.msSmtp', def: 'Microsoft 보내기 로그인이 거절됐습니다. 회사(Microsoft 365) 계정은 관리자가 «SMTP 인증» 을 허용해야 하고, 개인 Outlook.com 은 비밀번호 방식 연결을 지원하지 않습니다.', preset: 'outlook' },
-  smtp_auth_failed: { key: 'settings.err.smtpAuth', def: '보내기 로그인에 실패했습니다. 보내기 아이디(보통 이메일 주소 전체)와 비밀번호를 확인해 주세요.' },
-  smtp_host_not_found: { key: 'settings.err.smtpHost', def: '보내기(SMTP) 서버 주소를 찾을 수 없습니다. 서버 주소를 확인해 주세요.' },
-  smtp_connect_failed: { key: 'settings.err.smtpConnect', def: '보내기(SMTP) 서버에 연결하지 못했습니다. 서버 주소와 포트(465 또는 587)를 확인해 주세요.' },
+  // 보내기(SMTP) — 저장 전 실제 로그인 검사 실패 (2026-09-21). 문구는 qmail.json settings.err.* 에만 둔다(하드코딩 래칫)
+  gmail_smtp_auth_failed: { key: 'settings.err.gmailSmtp', def: '', preset: 'gmail' },
+  naver_smtp_auth_failed: { key: 'settings.err.naverSmtp', def: '', preset: 'naver' },
+  ms_smtp_auth_failed: { key: 'settings.err.msSmtp', def: '', preset: 'outlook' },
+  smtp_auth_failed: { key: 'settings.err.smtpAuth', def: '' },
+  smtp_host_not_found: { key: 'settings.err.smtpHost', def: '' },
+  smtp_connect_failed: { key: 'settings.err.smtpConnect', def: '' },
 };
 
 // IMAP host → 안내 가이드 key (편집 모드에서도 provider 안내 표시)
