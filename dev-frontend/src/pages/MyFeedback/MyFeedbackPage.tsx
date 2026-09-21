@@ -26,6 +26,8 @@ interface FeedbackItem {
   id: number;
   parent_id: number | null;
   category: string;
+  /** 문의(질문) · 피드백(버그·개선·기능 요청) — 서버 kind. 옛 행은 없을 수 있어 피드백으로 본다 */
+  kind?: 'feedback' | 'inquiry';
   priority: string;
   title: string;
   body: string;
@@ -91,9 +93,15 @@ const MyFeedbackPage = () => {
   const catLabel = (c: string) => t(`myFeedback.cat.${c}`, { defaultValue: CAT_FALLBACK[c] || c }) as string;
   const statusLabel = (s: string) => t(`myFeedback.status.${s}`, { defaultValue: s }) as string;
 
+  // ★ 종류(문의/피드백)와 분류(버그·개선…)를 **한 선택**으로 — 필터가 셋이면 머리줄이 넘친다.
+  //   피드백 분류는 «피드백 · 버그» 처럼 종류 아래로 들어간다(문의에는 분류가 없다).
+  const isInquiry = (th: { kind?: string }) => th.kind === 'inquiry';
+  const kindLabel = (th: { kind?: string }) => (isInquiry(th) ? t('myFeedback.kind.inquiry') : t('myFeedback.kind.feedback')) as string;
   const catOptions: PlanQSelectOption[] = [
-    { value: 'all', label: t('myFeedback.filter.allCat') as string },
-    ...['bug', 'improve', 'feature', 'other'].map(c => ({ value: c, label: catLabel(c) })),
+    { value: 'all', label: t('myFeedback.filter.allKind') as string },
+    { value: 'kind:inquiry', label: t('myFeedback.kind.inquiry') as string },
+    { value: 'kind:feedback', label: t('myFeedback.kind.feedback') as string },
+    ...['bug', 'improve', 'feature', 'other'].map(c => ({ value: c, label: `${t('myFeedback.kind.feedback') as string} · ${catLabel(c)}` })),
   ];
   const statusOptions: PlanQSelectOption[] = [
     { value: 'all', label: t('myFeedback.filter.allStatus') as string },
@@ -109,7 +117,9 @@ const MyFeedbackPage = () => {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return threads.filter(th => {
-      if (catFilter !== 'all' && th.category !== catFilter) return false;
+      if (catFilter === 'kind:inquiry' && !isInquiry(th)) return false;
+      if (catFilter === 'kind:feedback' && isInquiry(th)) return false;
+      if (!catFilter.startsWith('kind:') && catFilter !== 'all' && (isInquiry(th) || th.category !== catFilter)) return false;
       if (statusFilter !== 'all' && th.status !== statusFilter) return false;
       if (q && !threadText(th).includes(q)) return false;
       return true;
@@ -203,9 +213,16 @@ const MyFeedbackPage = () => {
               Q helper 작성 화면을 연다. 분류(버그·개선·기능 요청·기타)는 그 양식 안에서 고른다.
               자리는 필터 **뒤 맨 오른쪽**, 모양은 머리줄 주 액션 공용 `HeaderCta`(#14B8A6 · 32px) —
               프로젝트 [+ 새 프로젝트] · Q task [+ 업무 추가] 와 같은 버튼이다(Irene: "여기만 진한데?"). */}
+          {/* ★ 2026-09-21 2차 — 문의와 피드백은 **다른 양식**이다(Q helper «문의» 탭 / «피드백»).
+              [작성하기] 하나로 피드백만 열리던 것을 둘로 나눈다(Irene: "버튼이 따로 있어야지. 문의랑 피드백").
+              주 액션은 문의(더 자주 쓴다) — 머리줄 공용 HeaderCta, 피드백은 같은 높이의 흰 버튼. */}
+          <HeaderCtaSecondary type="button" data-testid="myfeedback-compose-feedback"
+            onClick={() => openFeedback({ kind: 'feedback', category: 'improve' })}>
+            {t('myFeedback.composeFeedback') as string}
+          </HeaderCtaSecondary>
           <HeaderCta type="button" data-testid="myfeedback-compose"
-            onClick={() => openFeedback({ category: 'improve' })}>
-            {t('myFeedback.compose') as string}
+            onClick={() => openFeedback({ kind: 'inquiry' })}>
+            {t('myFeedback.composeInquiry') as string}
           </HeaderCta>
         </Filters>
       )}
@@ -222,8 +239,10 @@ const MyFeedbackPage = () => {
             )}
             title={t('myFeedback.emptyTitle') as string}
             description={t('myFeedback.scopeNote') as string}
-            ctaLabel={t('myFeedback.compose') as string}
-            onCta={() => openFeedback({ category: 'improve' })}
+            ctaLabel={t('myFeedback.composeInquiry') as string}
+            onCta={() => openFeedback({ kind: 'inquiry' })}
+            secondaryCtaLabel={t('myFeedback.composeFeedback') as string}
+            onSecondaryCta={() => openFeedback({ kind: 'feedback', category: 'improve' })}
             ctaTestId="myfeedback-empty-compose"
           />
         </EmptyWrap>
@@ -251,7 +270,8 @@ const MyFeedbackPage = () => {
               return (
                 <ListRow key={th.id} $active={selectedId === th.id} type="button" onClick={() => select(th.id)}>
                   <RowTop>
-                    <Cat>{catLabel(th.category)}</Cat>
+                    <KindTag $inq={isInquiry(th)} data-kind={isInquiry(th) ? 'inquiry' : 'feedback'}>{kindLabel(th)}</KindTag>
+                    {!isInquiry(th) && <Cat>{catLabel(th.category)}</Cat>}
                     <Status $bg={tone.bg} $fg={tone.fg}>{statusLabel(th.status)}</Status>
                     {th.awaiting_reply && <AwaitDot title={t('myFeedback.awaiting') as string} />}
                   </RowTop>
@@ -277,6 +297,7 @@ const MyFeedbackPage = () => {
                 <BackBtn type="button" onClick={closeDetail} aria-label={t('myFeedback.back') as string}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
                 </BackBtn>
+                <KindTag $inq={isInquiry(selected)}>{kindLabel(selected)}</KindTag>
                 <DetailTitle>{selected.title}</DetailTitle>
                 <Status $bg={(STATUS_TONE[selected.status] || STATUS_TONE.pending).bg} $fg={(STATUS_TONE[selected.status] || STATUS_TONE.pending).fg}>
                   {statusLabel(selected.status)}
@@ -363,6 +384,11 @@ export default MyFeedbackPage;
 const Filters = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 const SelWrap = styled.div`min-width: 130px;`;
 
+// 머리줄 보조 버튼 — HeaderCta 와 같은 규격(32px)에 흰 배경. 값을 새로 만들지 않고 상속한다
+const HeaderCtaSecondary = styled(HeaderCta)`
+  background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1;
+  &:hover:not(:disabled) { background: #F8FAFC; }
+`;
 const EmptyWrap = styled.div`
   height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px;
 `;
@@ -419,6 +445,13 @@ const ListRow = styled.button<{ $active: boolean }>`
   &:hover { background: ${p => (p.$active ? '#f0fdfa' : '#f8fafc')}; }
 `;
 const RowTop = styled.div`display: flex; align-items: center; gap: 6px;`;
+/* 종류 배지 — 문의는 파랑, 피드백은 회색 테두리. 분류 칩(민트)과 색이 겹치지 않게 */
+const KindTag = styled.span<{ $inq: boolean }>`
+  font-size: 0.6875rem; font-weight: 700; border-radius: 6px; padding: 2px 7px;
+  color: ${p => (p.$inq ? '#1D4ED8' : '#475569')};
+  background: ${p => (p.$inq ? '#EFF6FF' : '#FFFFFF')};
+  border: 1px solid ${p => (p.$inq ? '#BFDBFE' : '#E2E8F0')};
+`;
 const Cat = styled.span`
   font-size: 0.6875rem; font-weight: 700; color: #0f766e;
   background: #f0fdfa; border-radius: 999px; padding: 2px 8px;

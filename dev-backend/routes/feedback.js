@@ -58,7 +58,7 @@ function sanitizeErrorContext(raw) {
 
 router.post('/', authenticateToken, async (req, res, next) => {
   try {
-    const { category, priority, title, body, page_url, attachments, parent_id, client_env, is_popout, error_context } = req.body || {};
+    const { category, priority, title, body, page_url, attachments, parent_id, client_env, is_popout, error_context, kind } = req.body || {};
     if (!body || !String(body).trim()) return errorResponse(res, 'body_required', 400);
 
     // 추가 문의(parent_id) 검증 — 본인 소유 + 답변 받은 최상위 부모만
@@ -97,10 +97,13 @@ router.post('/', authenticateToken, async (req, res, next) => {
     const finalBizId = parent ? parent.business_id : reqBizId;
     const ua = String(req.headers['user-agent'] || '').slice(0, 500);
 
+    // 문의/피드백 — 추가 문의는 부모를 따른다(한 스레드 안에서 종류가 바뀌면 관리가 흐려진다)
+    const finalKind = parent ? (parent.kind || 'feedback') : (kind === 'inquiry' ? 'inquiry' : 'feedback');
     const item = await FeedbackItem.create({
       user_id: req.user.id,
       business_id: finalBizId,
       parent_id: parent ? parent.id : null,
+      kind: finalKind,
       category: finalCategory,
       priority: finalPriority,
       title: finalTitle.slice(0, 200),
@@ -120,11 +123,11 @@ router.post('/', authenticateToken, async (req, res, next) => {
       const { notifyPlatformAdmins, APP_URL } = require('../services/platformNotify');
       const catLabel = { bug: '버그', improve: '개선', feature: '기능 요청', other: '기타' }[finalCategory] || finalCategory;
       const prioMark = finalPriority === 'high' ? '⚠ 긴급 ' : '';
-      const titlePrefix = parent ? '추가 문의' : '새 피드백';
+      const titlePrefix = parent ? '추가 문의' : (finalKind === 'inquiry' ? '새 문의' : '새 피드백');
       notifyPlatformAdmins({
         eventKind: 'feedback',
         title: `${prioMark}${titlePrefix} — [${catLabel}] ${item.title}`,
-        body: `${req.user.email || ''} 가 ${parent ? `"${parent.title}" 에 추가 문의를` : '피드백을'} 제출했습니다.\n\n${String(body).slice(0, 400)}${String(body).length > 400 ? '…' : ''}`,
+        body: `${req.user.email || ''} 가 ${parent ? `"${parent.title}" 에 추가 문의를` : (finalKind === 'inquiry' ? '문의를' : '피드백을')} 제출했습니다.\n\n${String(body).slice(0, 400)}${String(body).length > 400 ? '…' : ''}`,
         link: `${APP_URL}/admin/feedback?id=${parent ? parent.id : item.id}`,
         ctaLabel: '피드백 보기',
         relatedEntityId: parent ? parent.id : item.id,
@@ -181,6 +184,7 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
     const where = {};
     if (req.query.status && ALLOWED_STATUS.includes(req.query.status)) where.status = req.query.status;
     if (req.query.category && ALLOWED_CATS.includes(req.query.category)) where.category = req.query.category;
+    if (req.query.kind === 'inquiry' || req.query.kind === 'feedback') where.kind = req.query.kind;
     if (req.query.q) {
       const q = String(req.query.q).slice(0, 80);
       where[Op.or] = [

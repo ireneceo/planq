@@ -1,30 +1,26 @@
 {
   "working_on": [
-    "메일 연동 점검 · 우측 패널 기준선"
+    "문의·피드백 구분"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "메일 연결 — 보내기(SMTP)까지 저장 전 실검사 · 운영 네이버 계정 발송 복구",
-      "detail": "연결·수정·[연결 테스트]가 받기(IMAP)만 봤다. 운영 네이버 계정은 추가 화면이 이메일 첫 글자를 보내기 아이디로 복사해 smtp_username 이 1글자 → 모든 발송 535. 운영 설정 교정(발송 로그인 OK 확인) + 이메일 입력을 아이디 칸이 끝까지 따라가게 + 저장 전 SMTP verify(메일은 안 보냄) + 테스트가 받기·보내기를 따로 보고 + 서비스별 안내 문구.",
-      "verified": "opus_only"
-    },
-    {
-      "title": "Q helper 우측 패널이 상단 탭까지 덮던 것",
-      "detail": "top 이 0 이었다(삼항 문자열 안이라 overlaytop 가드도 못 잡음). DetailDrawer 와 같은 계약(--pq-chrome-bottom + --vv-top, 높이 --vvh - chrome). 백드롭도 크롬 아래부터. 실측 3폭 패널 시작 56/40/40, 양성 대조군(top 0) 덮음.",
+      "title": "문의와 피드백을 구분해 관리 — 로그인 사용자의 문의도 앱 안에서 답변",
+      "detail": "feedback_items.kind(feedback/inquiry) 신설(멱등 migrate-feedback-kind.js). 로그인 사용자의 Q helper «문의» 는 이메일 창구(contact_inquiries) 대신 이 원장으로 — 개인 > 문의·피드백에 뜨고 답도 거기서 본다(이름·이메일 안 묻는다). 손님 문의는 종전 이메일 창구. 목록·상세·관리자 화면에 «문의/피드백» 배지와 종류 필터, 추가 문의는 부모 종류를 물려받는다. 머리줄·빈 화면에 [피드백 보내기] [+ 문의하기].",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "메일 계정 연결·수정 시 보내기 로그인이 안 되면 저장되지 않고 이유를 알려 준다."
+    "로그인 사용자의 문의 답변이 이메일이 아니라 개인 > 문의·피드백 화면으로 온다.",
+    "플랫폼 관리 > 피드백에 문의가 «문의» 배지로 함께 들어온다."
   ],
-  "issues": [
-    "Outlook 365 비밀번호 방식은 Microsoft 정책상 막혀 있을 가능성이 높다(미실측)."
-  ],
+  "issues": [],
   "blocked_on_human": [],
-  "migrations": [],
+  "migrations": [
+    "feedback_items.kind ENUM('feedback','inquiry') NOT NULL DEFAULT 'feedback' — scripts/migrate-feedback-kind.js (멱등). 롤백은 코드만."
+  ],
   "check_areas": [
-    "설정 > 메일 계정 [연결 테스트] 결과 문구 · Q helper 패널 상단 위치"
+    "개인 > 문의·피드백 두 버튼 · 문의 보내기 → 목록 «문의» · 관리자 피드백 종류 필터"
   ],
   "backlog": [
     "참석자 추가 시 «알릴까요?» 묻기 · 외부 이메일 초대 · 미팅자료 고르기(참석자 열람권) — Fable 판단 대기(FABLE_GATE_QUEUE)"

@@ -35,6 +35,7 @@ type Mode = 'qhelper' | 'workspace' | 'feedback' | 'inquiry' | 'myhistory';
 interface MyFeedbackItem {
   id: number;
   category: string;
+  kind?: 'feedback' | 'inquiry';
   priority: string;
   title: string;
   body: string;
@@ -196,6 +197,7 @@ const CueHelpDrawer: React.FC<{
     const onFb = (e: Event) => {
       if (guestView) return;
       const d = (e as CustomEvent<FeedbackOpenDetail>).detail || {};
+      if (d.kind === 'inquiry') { setMode('inquiry'); setOpen(true); return; }   // 문의는 «문의» 탭으로
       setFbContext(d.context || null);
       if (d.category) setFbCategory(d.category);
       else if (d.context) setFbCategory('bug');   // 맥락이 실려 왔다 = 무언가 잘못됐다
@@ -343,6 +345,36 @@ const CueHelpDrawer: React.FC<{
   // 게스트 문의 제출 — 랜딩 /contact 와 동일 백엔드 (POST /api/inquiries)
   const submitInquiry = useCallback(async () => {
     if (submitting) return;
+    // ★ 2026-09-21 — 로그인 사용자의 문의는 **문의·피드백 원장(feedback_items, kind=inquiry)** 에 쌓는다.
+    //   여태 손님과 같은 이메일 창구(contact_inquiries)로 갔기 때문에 개인 > 문의·피드백 화면에 안 떴고
+    //   답도 메일로만 왔다(Irene: "문의인지 피드백인지 관리되게 해. 알아보기 쉽게."). 누군지는 계정이 말하므로
+    //   이름·이메일을 다시 묻지 않는다. 손님(로그인 없음)은 종전대로 이메일 창구다.
+    if (!isGuest) {
+      if (!inqMessage.trim()) { setInqResultMsg(t('qhelper.inqRequiredMember', '문의 내용을 입력해주세요.') as string); return; }
+      setSubmitting(true); setInqResultMsg(null);
+      try {
+        const res = await apiFetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            kind: 'inquiry', category: 'other',
+            business_id: user?.business_id ?? null,
+            title: (inqMessage.trim().split('\n')[0] || '').slice(0, 60),
+            body: inqMessage.trim(),
+            page_url: typeof window !== 'undefined' ? window.location.pathname : null,
+          }),
+        });
+        const j = await res.json();
+        if (!res.ok || !j.success) throw new Error(j.message || 'inquiry error');
+        setInqResultMsg(t('qhelper.inqThanksMember', '문의가 접수됐어요. 답변은 개인 > 문의·피드백에서 볼 수 있어요.') as string);
+        setInqMessage('');
+        window.dispatchEvent(new CustomEvent('planq:feedback-sent', { detail: { id: j.data?.id } }));
+        window.setTimeout(() => setInqResultMsg(null), 8000);
+      } catch (e) {
+        setInqResultMsg(t('qhelper.inqErr', '제출 실패: {{msg}}', { msg: mapApiError(e, tErr) }) as string);
+      } finally { setSubmitting(false); }
+      return;
+    }
     if (!inqName.trim() || !inqEmail.trim() || !inqMessage.trim()) {
       setInqResultMsg(t('qhelper.inqRequired', '이름·이메일·내용을 모두 입력해주세요.') as string);
       return;
@@ -373,7 +405,7 @@ const CueHelpDrawer: React.FC<{
     } finally {
       setSubmitting(false);
     }
-  }, [inqName, inqEmail, inqMessage, submitting, t]);
+  }, [inqName, inqEmail, inqMessage, submitting, t, isGuest, user, tErr]);
 
   // 피드백 제출 (자동 메타: page_url, user_agent)
   const submitFeedback = useCallback(async () => {
@@ -757,6 +789,7 @@ const CueHelpDrawer: React.FC<{
                   {t('qhelper.myHistoryEnter', { defaultValue: '내가 남긴 문의·피드백 보기' }) as string} →
                 </MyHistoryLink>
               )}
+              {isGuest && (<>
               <FbField>
                 <FbLabel>{t('qhelper.inqName', '이름')}</FbLabel>
                 <FbInput
@@ -775,12 +808,15 @@ const CueHelpDrawer: React.FC<{
                   maxLength={200}
                 />
               </FbField>
+              </>)}
               <FbField>
                 <FbLabel>{t('qhelper.inqMessage', '문의 내용')}</FbLabel>
                 <FbTextArea
                   value={inqMessage}
                   onChange={e => setInqMessage(e.target.value)}
-                  placeholder={t('qhelper.inqMessagePh', '궁금한 점 또는 도입 검토 중인 내용을 알려주세요. 영업일 기준 24시간 내 회신드립니다.') as string}
+                  placeholder={(isGuest
+                    ? t('qhelper.inqMessagePh', '궁금한 점 또는 도입 검토 중인 내용을 알려주세요. 영업일 기준 24시간 내 회신드립니다.')
+                    : t('qhelper.inqMessagePhMember', '궁금한 점을 적어 주세요. 답변은 개인 > 문의·피드백에서 확인할 수 있어요.')) as string}
                   rows={6}
                   maxLength={5000}
                 />
@@ -801,7 +837,10 @@ const CueHelpDrawer: React.FC<{
                 myItems.map(it => (
                   <MyHistoryCard key={it.id}>
                     <MyHistoryTop>
-                      <MyHistCat>{t(`qhelper.fbCat.${it.category}`, { defaultValue: it.category }) as string}</MyHistCat>
+                      {/* 문의는 «문의» 로, 피드백은 분류(버그·개선…)로 — 한 줄에서 종류가 보이게 */}
+                      <MyHistCat>{it.kind === 'inquiry'
+                        ? t('qhelper.kindInquiry', { defaultValue: '문의' }) as string
+                        : t(`qhelper.fbCat.${it.category}`, { defaultValue: it.category }) as string}</MyHistCat>
                       <MyHistStatus $s={it.status}>
                         {t(`qhelper.fbStatus.${it.status}`, { defaultValue: it.status }) as string}
                       </MyHistStatus>
@@ -865,7 +904,7 @@ const CueHelpDrawer: React.FC<{
           )}
           {mode === 'inquiry' && (
             <FbSendBtn type="button" onClick={submitInquiry}
-              disabled={submitting || !inqName.trim() || !inqEmail.trim() || !inqMessage.trim()}
+              disabled={submitting || !inqMessage.trim() || (isGuest && (!inqName.trim() || !inqEmail.trim()))}
               style={{ background: '#0D9488' }}>
               {submitting ? t('qhelper.inqSending', '제출 중…') : t('qhelper.inqSend', '문의 보내기')}
             </FbSendBtn>

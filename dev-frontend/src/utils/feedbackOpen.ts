@@ -34,6 +34,8 @@ export interface FeedbackOpenDetail {
   prefill?: string;
   /** 분류 기본값 */
   category?: 'bug' | 'improve' | 'feature' | 'other';
+  /** 어느 양식으로 여나 — inquiry 면 Q helper «문의» 탭, 없으면 피드백 (2026-09-21) */
+  kind?: 'feedback' | 'inquiry';
 }
 
 /** 맥락을 사람이 읽는 한 줄로. 폼 본문 상단에 들어간다. */

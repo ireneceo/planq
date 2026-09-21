@@ -23,6 +23,14 @@ FeedbackItem.init({
     references: { model: 'feedback_items', key: 'id' },
   },
   // 분류 (사용자 선택)
+  // 문의(질문·도움 요청)와 피드백(버그·개선·기능 요청)을 가르는 축 — 2026-09-21.
+  //   Irene: *"문의인지 피드백인지 관리되게 해. 알아보기 쉽게."* 분류(category)와 다른 축이라 컬럼을 따로 둔다.
+  //   기존 행은 전부 feedback(기본값). 추가 문의(parent_id)는 부모의 kind 를 물려받는다.
+  kind: {
+    type: DataTypes.ENUM('feedback', 'inquiry'),
+    allowNull: false,
+    defaultValue: 'feedback',
+  },
   category: {
     type: DataTypes.ENUM('bug', 'improve', 'feature', 'other'),
     allowNull: false,

@@ -155,6 +155,11 @@
       "reviewing": "Reviewing",
       "done": "Done",
       "wontfix": "Won't fix"
+    },
+    "kind": {
+      "all": "All types",
+      "inquiry": "Question",
+      "feedback": "Feedback"
     }
   },
   "qhelper": {
@@ -303,7 +308,11 @@
     "toggleHint": "to toggle anytime",
     "workspaceFallback": "Workspace",
     "you": "You",
-    "fbAttachNoWorkspace": "Join a workspace to attach images"
+    "fbAttachNoWorkspace": "Join a workspace to attach images",
+    "kindInquiry": "Question",
+    "inqRequiredMember": "Please enter your question.",
+    "inqThanksMember": "Your question was received. See the reply under Personal > Support & feedback.",
+    "inqMessagePhMember": "What would you like to ask? You can see the reply under Personal > Support & feedback."
   },
   "cue": {
     "title": "Cue Help",
@@ -893,7 +902,8 @@
     "filter": {
       "search": "Search title, body, reply",
       "allCat": "All categories",
-      "allStatus": "All statuses"
+      "allStatus": "All statuses",
+      "allKind": "All types"
     },
     "followup": {
       "title": "Follow-up",
@@ -920,7 +930,13 @@
     },
     "scopeNote": "Questions and feedback you sent to the PlanQ team about the product. Only you can see them — not your workspace members or clients.",
     "compose": "+ New",
-    "emptyTitle": "No inquiries or feedback yet"
+    "emptyTitle": "No questions or feedback yet",
+    "composeInquiry": "+ Ask a question",
+    "composeFeedback": "Send feedback",
+    "kind": {
+      "inquiry": "Question",
+      "feedback": "Feedback"
+    }
   },
   "securityLevel": {
     "label": "Security level",

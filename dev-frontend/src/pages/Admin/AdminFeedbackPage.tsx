@@ -23,6 +23,8 @@ interface FeedbackItem {
   user_id: number;
   business_id: number | null;
   category: Category;
+  /** 문의 / 피드백 (2026-09-21) — 옛 행은 없을 수 있어 피드백으로 본다 */
+  kind?: 'feedback' | 'inquiry';
   priority: 'normal' | 'high';
   title: string;
   body: string;
@@ -51,6 +53,8 @@ const AdminFeedbackPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeStatus, setActiveStatus] = useState<Status>('pending');
   const [activeCategory, setActiveCategory] = useState<Category | 'all'>('all');
+  // 문의/피드백 — 사용자 화면(개인 > 문의·피드백)과 같은 축으로 가른다
+  const [activeKind, setActiveKind] = useState<'all' | 'inquiry' | 'feedback'>('all');
   const [search, setSearch] = useState('');
   const [detailId, setDetailId] = useState<number | null>(null);
   const [detail, setDetail] = useState<FeedbackItem | null>(null);
@@ -64,12 +68,13 @@ const AdminFeedbackPage = () => {
       const sp = new URLSearchParams();
       sp.set('status', activeStatus);
       if (activeCategory !== 'all') sp.set('category', activeCategory);
+      if (activeKind !== 'all') sp.set('kind', activeKind);
       if (search.trim()) sp.set('q', search.trim());
       const r = await apiFetch(`/api/feedback/admin?${sp.toString()}`);
       const j = await r.json();
       if (j.success) setItems(j.data || []);
     } finally { setLoading(false); }
-  }, [activeStatus, activeCategory, search]);
+  }, [activeStatus, activeCategory, activeKind, search]);
 
   const loadCounts = useCallback(async () => {
     try {
@@ -122,6 +127,12 @@ const AdminFeedbackPage = () => {
           />
           <PlanQSelect
             size="sm" isSearchable={false}
+            value={{ value: activeKind, label: t(`adminFeedback.kind.${activeKind}`) as string }}
+            onChange={(opt) => setActiveKind(((opt as PlanQSelectOption | null)?.value as 'all' | 'inquiry' | 'feedback') || 'all')}
+            options={(['all', 'inquiry', 'feedback'] as const).map(k => ({ value: k, label: t(`adminFeedback.kind.${k}`) as string }))}
+          />
+          <PlanQSelect
+            size="sm" isSearchable={false}
             value={{ value: activeCategory, label: activeCategory === 'all' ? (t('adminFeedback.allCategories', '전체 분류') as string) : (t(`qhelper.fbCat.${activeCategory}`) as string) }}
             onChange={(opt) => {
               const v = (opt as PlanQSelectOption | null)?.value as Category | 'all' | undefined;
@@ -161,7 +172,8 @@ const AdminFeedbackPage = () => {
             ], search);
             return (
             <Row key={it.id} $active={detailId === it.id} onClick={() => setDetailId(prev => prev === it.id ? null : it.id)}>
-              <CatChip $cat={it.category}>{t(`qhelper.fbCat.${it.category}`)}</CatChip>
+              <KindChip $inq={it.kind === 'inquiry'}>{t(`adminFeedback.kind.${it.kind === 'inquiry' ? 'inquiry' : 'feedback'}`)}</KindChip>
+              {it.kind !== 'inquiry' && <CatChip $cat={it.category}>{t(`qhelper.fbCat.${it.category}`)}</CatChip>}
               {it.priority === 'high' && <UrgentChip>{t('adminFeedback.urgent', '긴급')}</UrgentChip>}
               <RowTitle>
                 {shownBody ? <HighlightText text={shownBody} query={search} /> : `#${it.id}`}
@@ -189,7 +201,8 @@ const AdminFeedbackPage = () => {
             <DrawerSections>
               <Section>
                 <ChipRow>
-                  <CatChip $cat={detail.category}>{t(`qhelper.fbCat.${detail.category}`)}</CatChip>
+                  <KindChip $inq={detail.kind === 'inquiry'}>{t(`adminFeedback.kind.${detail.kind === 'inquiry' ? 'inquiry' : 'feedback'}`)}</KindChip>
+                  {detail.kind !== 'inquiry' && <CatChip $cat={detail.category}>{t(`qhelper.fbCat.${detail.category}`)}</CatChip>}
                   {detail.priority === 'high' && <UrgentChip>{t('adminFeedback.urgent', '긴급')}</UrgentChip>}
                   <StatusChip $s={detail.status}>{t(`adminFeedback.status.${detail.status}`)}</StatusChip>
                 </ChipRow>
@@ -294,6 +307,13 @@ const RowTitle = styled.div`
 const RowMeta = styled.div`
   font-size: 0.75rem; color: #64748B;
   white-space: nowrap; flex-shrink: 0;
+`;
+// 종류 배지 — 사용자 화면(MyFeedbackPage KindTag)과 같은 색: 문의 파랑 · 피드백 회색 테두리
+const KindChip = styled.span<{ $inq: boolean }>`
+  flex-shrink: 0; font-size: 0.6875rem; font-weight: 700; border-radius: 6px; padding: 2px 7px;
+  color: ${p => (p.$inq ? '#1D4ED8' : '#475569')};
+  background: ${p => (p.$inq ? '#EFF6FF' : '#FFFFFF')};
+  border: 1px solid ${p => (p.$inq ? '#BFDBFE' : '#E2E8F0')};
 `;
 const CatChip = styled.span<{ $cat: Category }>`
   flex-shrink: 0;
