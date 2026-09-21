@@ -50,7 +50,7 @@ export interface WorkspaceMember {
   /** 조직 소속 — 설정 > 조직이 정한 값(정본). 멤버 상세·팝오버가 같은 값을 읽는다. */
   job_title?: string | null;
   department?: { id: number; name: string; name_en?: string | null; lead_user_id?: number | null } | null;
-  team?: { id: number; name: string; name_en?: string | null } | null;
+  team?: { id: number; name: string; name_en?: string | null; lead_user_id?: number | null } | null;
   user?: {
     id: number;
     name: string;

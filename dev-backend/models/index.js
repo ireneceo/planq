@@ -204,6 +204,7 @@ Department.belongsTo(Business, { foreignKey: 'business_id' });
 Department.belongsTo(User, { as: 'lead', foreignKey: 'lead_user_id' });
 Department.hasMany(Team, { as: 'teams', foreignKey: 'department_id' });
 Team.belongsTo(Department, { as: 'department', foreignKey: 'department_id' });
+Team.belongsTo(User, { as: 'lead', foreignKey: 'lead_user_id' });
 Department.hasMany(BusinessMember, { as: 'deptMembers', foreignKey: 'department_id' });
 BusinessMember.belongsTo(Department, { as: 'department', foreignKey: 'department_id' });
 BusinessMember.belongsTo(Team, { as: 'team', foreignKey: 'team_id' });

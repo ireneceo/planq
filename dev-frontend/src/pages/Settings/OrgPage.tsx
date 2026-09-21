@@ -14,7 +14,7 @@ import EmptyState from '../../components/Common/EmptyState';
 import { mapApiError } from '../../utils/apiError';
 import {
   listDepartments, createDepartment, updateDepartment, deleteDepartment,
-  createTeam, deleteTeam, assignMember, fetchOrgOverview,
+  createTeam, updateTeam, deleteTeam, assignMember, fetchOrgOverview,
   type OrgDepartment,
 } from '../../services/org';
 import { isEnterAction } from '../../utils/imeKey';
@@ -98,6 +98,21 @@ const OrgPage = () => {
     try { await createTeam(bizId, { department_id: d.id, name }); setTeamDraft((p) => ({ ...p, [d.id]: '' })); load(); }
     catch (e) { setErr(mapApiError(e, tErr)); }
   };
+  // 팀장 — 부서장과 같은 규칙: 서버가 그 멤버를 이 팀(과 팀의 부서)으로 옮긴다. 아래 배정 표도 같이 맞춘다.
+  const setTeamLead = async (d: OrgDepartment, teamId: number, leadId: number | null) => {
+    try {
+      await updateTeam(bizId, teamId, { lead_user_id: leadId });
+      setDepts((prev) => prev.map((x) => x.id === d.id
+        ? { ...x, teams: (x.teams || []).map((tm) => tm.id === teamId ? { ...tm, lead_user_id: leadId } : tm) } : x));
+      if (leadId != null) {
+        setAssign((prev) => {
+          const c = prev[leadId] || { department_id: null, team_id: null, job_title: null };
+          return { ...prev, [leadId]: { ...c, department_id: d.id, team_id: teamId } };
+        });
+        listDepartments(bizId).then(setDepts).catch(() => { /* 인원수만 늦게 맞는다 */ });
+      }
+    } catch (e) { setErr(mapApiError(e, tErr)); }
+  };
   const removeTeam = async (teamId: number) => {
     try { await deleteTeam(bizId, teamId); load(); }
     catch (e) { setErr(mapApiError(e, tErr)); }
@@ -134,6 +149,11 @@ const OrgPage = () => {
   };
   const leadOptionsFor = (): PlanQSelectOption[] => [
     { value: '', label: t('noLead') as string },
+    ...members.map((m) => ({ value: String(m.user_id), label: displayName(m.user, i18n.language) || `#${m.user_id}` })),
+  ];
+
+  const teamLeadOptions = (): PlanQSelectOption[] => [
+    { value: '', label: t('noTeamLead') as string },
     ...members.map((m) => ({ value: String(m.user_id), label: displayName(m.user, i18n.language) || `#${m.user_id}` })),
   ];
 
@@ -184,14 +204,21 @@ const OrgPage = () => {
                     options={leadOptionsFor()}
                     onChange={(o) => setLead(d, (o as PlanQSelectOption)?.value ? Number((o as PlanQSelectOption).value) : null)} />
                   <FieldLabel>{t('teams') as string}</FieldLabel>
-                  <TeamChips>
+                  <TeamList>
                     {(d.teams || []).map((tm) => (
-                      <TeamChip key={tm.id}>
-                        {tm.name}
+                      <TeamRow key={tm.id} data-testid={`org-team-${tm.id}`}>
+                        <TeamName title={tm.name}>{tm.name}</TeamName>
+                        <TeamLeadSlot>
+                          <PlanQSelect size="sm" isClearable={false} isSearchable
+                            aria-label={t('teamLead') as string}
+                            value={teamLeadOptions().find((o) => o.value === String(tm.lead_user_id || ''))}
+                            options={teamLeadOptions()}
+                            onChange={(o) => setTeamLead(d, tm.id, (o as PlanQSelectOption)?.value ? Number((o as PlanQSelectOption).value) : null)} />
+                        </TeamLeadSlot>
                         <TeamX type="button" onClick={() => removeTeam(tm.id)} aria-label={t('deleteTeam') as string}>×</TeamX>
-                      </TeamChip>
+                      </TeamRow>
                     ))}
-                  </TeamChips>
+                  </TeamList>
                   <TeamAdd>
                     <AddInput value={teamDraft[d.id] || ''} onChange={(e) => setTeamDraft((p) => ({ ...p, [d.id]: e.target.value }))}
                       onKeyDown={(e) => { if (isEnterAction(e)) addTeam(d); }}
@@ -297,13 +324,18 @@ const DeptName = styled.input`
 const DeptMeta = styled.div`display: flex; gap: 6px;`;
 const MetaChip = styled.span`font-size: 0.6875rem; font-weight: 700; color: #0f766e; background: #f0fdfa; border-radius: 999px; padding: 2px 10px;`;
 const FieldLabel = styled.div`font-size: 0.6875rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 4px;`;
-const TeamChips = styled.div`display: flex; flex-wrap: wrap; gap: 6px;`;
-const TeamChip = styled.span`
-  display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; font-weight: 600; color: #475569;
-  background: #f1f5f9; border-radius: 999px; padding: 3px 6px 3px 10px;
+/* 팀 한 줄 = 이름 · 팀장 · 삭제 (2026-09-21 — 칩이던 것을 줄로. 팀장을 고를 자리가 필요해졌다) */
+const TeamList = styled.div`display: flex; flex-direction: column; gap: 6px;`;
+const TeamRow = styled.div`
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 24px; align-items: center; gap: 8px;
+  background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; padding: 4px 6px 4px 10px;
 `;
+const TeamName = styled.span`
+  font-size: 0.75rem; font-weight: 600; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const TeamLeadSlot = styled.div`min-width: 0;`;
 const TeamX = styled.button`
-  width: 16px; height: 16px; border: none; background: transparent; color: #94a3b8; font-size: 0.8125rem; cursor: pointer; border-radius: 50%; line-height: 1;
+  width: 24px; height: 24px; border: none; background: transparent; color: #94a3b8; font-size: 0.8125rem; cursor: pointer; border-radius: 50%; line-height: 1;
   &:hover { background: #fee2e2; color: #b91c1c; }
 `;
 const TeamAdd = styled.div`display: flex; gap: 6px; ${AddInput} { flex: 1; padding: 6px 10px; font-size: 0.75rem; }`;

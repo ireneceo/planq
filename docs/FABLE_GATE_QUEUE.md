@@ -4580,3 +4580,10 @@ Fable 은 Irene 지시로 **다음 주 목요일(2026-09-24)까지 사용 불가
 - 멤버 상세: 부서·팀·«부서장» 표시, 직책은 조직 값(business_members.job_title) 우선. 실브라우저 3폭 가시 확인.
 - **Fable 이 볼 것**: 부서장을 바꿀 때 **옛 부서장**의 소속은 그대로 둔다(부서원으로 남는다) — 맞는 규칙인가.
   **팀장**은 시스템에 없다(teams 에 lead 컬럼 없음, 직책 자유 입력뿐) — 넣으려면 `teams.lead_user_id` 스키마 추가(운영 마이그레이션).
+
+### 같은 날 추가 — 팀장 (운영 스키마 변경 · R=1)
+- `teams.lead_user_id INT NULL` — `dev-backend/scripts/migrate-team-lead.js`(멱등·재조회 검증), `deploy-planq.sh` 에 PM2 reload 전 슬롯으로 연결.
+- `routes/org.js` 팀 생성·수정이 `resolveLead` 로 같은 검증 후 `placeLeadInTeam`(부서+팀 이동).
+- 자체 실측: 생성+팀장 → 부서·팀 true · 다른 부서 팀장 → 부서까지 이동 · 남의 워크스페이스 400 · 해제 200 · 원복 true ·
+  실브라우저 3폭 팀 줄 넘침 없음·선택칸 가시 · 화면에서 고른 팀장이 서버 저장.
+- **Fable 이 볼 것**: 한 사람이 A부서 부서장이면서 B부서 팀장이 되면 소속은 B 로 가고 A 의 부서장 표시는 남는다 — 허용할지.

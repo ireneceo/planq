@@ -1522,7 +1522,11 @@ export default function WorkspaceSettingsPage() {
                             </DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.team', '팀')}</DrawerInfoLabel>
                             <DrawerInfoValue data-testid="member-drawer-team">
-                              {target.team ? ((i18n.language?.startsWith('en') && target.team.name_en) || target.team.name) : '—'}
+                              {target.team
+                                ? <>{(i18n.language?.startsWith('en') && target.team.name_en) || target.team.name}
+                                    {target.team.lead_user_id != null && target.team.lead_user_id === target.user_id
+                                      && <> · {t('members.drawer.teamLead', '팀장')}</>}</>
+                                : '—'}
                             </DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.defaultRole', '기본 역할')}</DrawerInfoLabel>
                             <DrawerInfoValue>

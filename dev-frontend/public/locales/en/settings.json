@@ -448,7 +448,8 @@
       "department": "Department",
       "team": "Team",
       "deptLead": "Department head",
-      "unassigned": "Unassigned"
+      "unassigned": "Unassigned",
+      "teamLead": "Team lead"
     },
     "roleAdmin": "Admin",
     "roleMember": "Member",

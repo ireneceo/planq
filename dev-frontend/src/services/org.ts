@@ -1,7 +1,7 @@
 // Q조직 (Workspace Org) D1 — API 클라이언트. /api/org/:businessId/*
 import { apiFetch } from '../contexts/AuthContext';
 
-export interface OrgTeam { id: number; name: string; name_en: string | null; sort_order: number; }
+export interface OrgTeam { id: number; name: string; name_en: string | null; sort_order: number; lead_user_id?: number | null; }
 export interface OrgDepartment {
   id: number;
   name: string;

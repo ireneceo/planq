@@ -55,5 +55,7 @@
     "byMember": "멤버뷰",
     "noUnits": "이 기간에 보고할 대상이 없습니다.",
     "footer": "PlanQ 로 작성된 보고서"
-  }
+  },
+  "teamLead": "팀장",
+  "noTeamLead": "팀장 없음"
 }

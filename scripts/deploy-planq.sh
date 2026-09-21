@@ -325,6 +325,9 @@ sync_database() {
   # Q Mail 발송 상태 — email_messages.delivery_status ENUM 에 'suppressed' append.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"
+  # 2026-09-21 팀장 — teams.lead_user_id INT NULL. sync 가 먼저 만들었으면 skip, 없으면 추가 후 재조회로 검증.
+  #   ★ 순서: PM2 reload 보다 먼저(신 코드가 없는 컬럼을 읽으면 조직 화면이 500).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-team-lead.js 2>&1 | tail -5"
   # 캘린더 연동 토글 — sync_enabled 2컬럼 + calendar_events.gcal_sync + calendar_event_gcal_links 테이블.
   #   이 스크립트는 sync-database 보다 **뒤에** 돌기 때문에(위 222행), 테이블은 대개 sync 가 먼저 만든다.
   #   그래서 FK 보증은 여기가 아니라 **모델 CalendarEventGcalLink 의 references/onDelete** 가 한다

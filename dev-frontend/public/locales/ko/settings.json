@@ -448,7 +448,8 @@
       "department": "부서",
       "team": "팀",
       "deptLead": "부서장",
-      "unassigned": "미배정"
+      "unassigned": "미배정",
+      "teamLead": "팀장"
     },
     "roleAdmin": "관리자",
     "roleMember": "멤버",

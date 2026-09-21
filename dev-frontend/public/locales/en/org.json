@@ -55,5 +55,7 @@
     "byMember": "By member",
     "noUnits": "No items to report for this period.",
     "footer": "Report created with PlanQ"
-  }
+  },
+  "teamLead": "Team lead",
+  "noTeamLead": "No team lead"
 }
