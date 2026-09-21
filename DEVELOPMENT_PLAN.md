@@ -1,6 +1,30 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-21 ([Claude Code] Opus 5, 1M) — **운영 배포 15회 (v1.55.3 유지 · 마지막 14b36eea).** 주제는 **"받기는 되는데 보내기는 안 되는 것처럼, 반쪽만 재면 반쪽만 고쳐진다"** 다. ①★ **멤버 캘린더가 통째로 500 이었다** — 9/17 미팅자료(#411)가 일정 조회에 File·Post 를 JOIN 하면서 공개범위 literal 의 `vlevel` 이 모호해졌다(운영 29회). owner/admin 은 다른 분기라 멀쩡해 아무도 몰랐다. ②**초대받은 참석자가 일정을 못 봤다** — 판정에 «참석자» 가 없었고, 고객 참석자는 `client_id` 로 저장되는데 `user_id` 로만 찾았다 → `attendedEventIds` 한 원천(목록·상세·RSVP·확인필요). ③★ **운영 네이버 메일은 받기만 되고 보내기는 전부 535** — 추가 화면이 이메일 **첫 글자**를 보내기 아이디로 복사했다. 연결·수정·테스트가 **IMAP 만** 검사해서 몰랐다 → 저장 전 SMTP 로그인 검사(메일은 안 보냄) + 운영 계정 교정. ④**조직** — 부서장·팀장(신설 `teams.lead_user_id`) 지정 = 그 부서/팀 소속, 멤버 상세에 조직 표시. ⑤**문의·피드백 정돈** — 로그인 사용자의 문의가 이메일 창구로 가서 화면에 안 떴다 → `feedback_items.kind` 로 문의/피드백 구분(배지·필터·관리자), 문의에도 첨부, 상세 스크롤·회색 띠·추가 문의 접기, 빈 화면. ⑥**흰 화면 두 곳** — 휴가 알림이 없어진 탭(`?tab=team`)을 가리켰다 · Q helper 패널이 top 0 으로 탭 막대를 덮었다(삼항 문자열 안이라 가드도 못 잡음). ⑦**여백 통일(#422)** — `--suite bodygutter`(3폭×33화면) 신설로 이중 여백 4화면. ⑧**안드로이드** — Play 심사 중 `/app` 에서 PWA 설치, 링크가 들어오면 스토어 버튼으로 자동 전환. ⑨**Fable 은 429 한도로 미가용** — 전부 자체 검증, `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목. ⑩**오후 — 랜딩 SEO·네이버·방문 집계**: 모든 공개 페이지가 같은 제목·빈 본문이었고 사이트맵은 5주소였다 → 운영 DB 기준 운영에서 페이지별 HTML·사이트맵(78)·RSS(30) 생성, nginx 무변경. 네이버 서치어드바이저 등록 완료. 방문을 잴 도구가 없어 쿠키 없는 «랜딩 방문» 집계를 붙였다(GA4 는 운영 CSP 해제에 root 가 필요). 사이드바 «시계 · 근무» 제목·화살표를 요약 한 줄로.
+> **최종 업데이트:** 2026-09-21 ([Claude Code] Opus 5, 1M) — **운영 배포 16회 (v1.55.3 유지 · 마지막 9a5c5c59).** 주제는 **"받기는 되는데 보내기는 안 되는 것처럼, 반쪽만 재면 반쪽만 고쳐진다"** 다. ①★ **멤버 캘린더가 통째로 500 이었다** — 9/17 미팅자료(#411)가 일정 조회에 File·Post 를 JOIN 하면서 공개범위 literal 의 `vlevel` 이 모호해졌다(운영 29회). owner/admin 은 다른 분기라 멀쩡해 아무도 몰랐다. ②**초대받은 참석자가 일정을 못 봤다** — 판정에 «참석자» 가 없었고, 고객 참석자는 `client_id` 로 저장되는데 `user_id` 로만 찾았다 → `attendedEventIds` 한 원천(목록·상세·RSVP·확인필요). ③★ **운영 네이버 메일은 받기만 되고 보내기는 전부 535** — 추가 화면이 이메일 **첫 글자**를 보내기 아이디로 복사했다. 연결·수정·테스트가 **IMAP 만** 검사해서 몰랐다 → 저장 전 SMTP 로그인 검사(메일은 안 보냄) + 운영 계정 교정. ④**조직** — 부서장·팀장(신설 `teams.lead_user_id`) 지정 = 그 부서/팀 소속, 멤버 상세에 조직 표시. ⑤**문의·피드백 정돈** — 로그인 사용자의 문의가 이메일 창구로 가서 화면에 안 떴다 → `feedback_items.kind` 로 문의/피드백 구분(배지·필터·관리자), 문의에도 첨부, 상세 스크롤·회색 띠·추가 문의 접기, 빈 화면. ⑥**흰 화면 두 곳** — 휴가 알림이 없어진 탭(`?tab=team`)을 가리켰다 · Q helper 패널이 top 0 으로 탭 막대를 덮었다(삼항 문자열 안이라 가드도 못 잡음). ⑦**여백 통일(#422)** — `--suite bodygutter`(3폭×33화면) 신설로 이중 여백 4화면. ⑧**안드로이드** — Play 심사 중 `/app` 에서 PWA 설치, 링크가 들어오면 스토어 버튼으로 자동 전환. ⑨**Fable 은 429 한도로 미가용** — 전부 자체 검증, `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목. ⑩**오후 — 랜딩 SEO·네이버·방문 집계**: 모든 공개 페이지가 같은 제목·빈 본문이었고 사이트맵은 5주소였다 → 운영 DB 기준 운영에서 페이지별 HTML·사이트맵(78)·RSS(30) 생성, nginx 무변경. 네이버 서치어드바이저 등록 완료. 방문을 잴 도구가 없어 쿠키 없는 «랜딩 방문» 집계를 붙였다(GA4 는 운영 CSP 해제에 root 가 필요). 사이드바 «시계 · 근무» 제목·화살표를 요약 한 줄로. ⑪**저녁 — Sign in with Apple**(App Store 심사 4.8): 구글과 3분기를 한 벌(`routes/oauth/finish.js`)로 합치다 **구글 신규 가입이 운영에서 한 번도 성공하지 못한 결함**(`models.sequelize` = undefined)을 잡았다.
+## ✅ 완료: Sign in with Apple · 구글 신규 가입 결함 수정 (2026-09-21 저녁)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 외부 로그인 끝부분 한 벌 | 구글 콜백의 3분기(연결 subject 로그인 / 같은 이메일 연결 확인 / 신규 가입)·실패 착지를 `routes/oauth/finish.js` 로. 네이티브 여부는 호출부가 명시 | ✅ 완료 |
+| Apple 로그인 | `routes/oauth/apple.js` + `services/apple_oauth_login.js` — form_post 콜백, state 로 native·nonce, JWKS(RS256)·iss·aud·nonce 검증, .p8 ES256 client_secret. 애플 콜백만 CORS 예외 | ✅ 완료 |
+| 자격 관리 | 플랫폼 설정 > Apple 로그인 (Services ID·Team ID·Key ID·.p8 파일, 개인키 암호화·재표시 없음·서명 가능 검사). `GET /api/auth/oauth-providers` 로 버튼 노출 | ✅ 완료 |
+| ★ 구글 신규 가입 결함 | 옛 콜백이 `require('../models').sequelize`(undefined) 로 트랜잭션 → 운영에서 구글 신규 가입 0건(8/27 로그 4건). `config/database` 로 수정 | ✅ 완료 |
+| 관리자 설정 저장 경합 | 저장 응답 전체를 덮어 입력 중 다른 칸이 지워지던 것 → 보낸 칸 + `*_set` 만 반영 | ✅ 완료 |
+| 연결 확인 화면 | 공급자(Google/Apple) 표기 · ko/en 키 신설 · 로그인 오류 문구 공급자별 | ✅ 완료 |
+| 운영 스키마 | `migrate-apple-login.js`(ENUM append 2 · 컬럼 4, 멱등) + 배포 슬롯 | ✅ 완료 |
+
+- 검증: 인프로세스 하니스 Apple 22/22 · Google 회귀 6/6 · 실브라우저 3폭(버튼 음성/양성·관리자 카드 업로드→켜짐→새로고침 유지). **Fable 미검증(자체 검증) — 429 두 번**
+- 운영: 배포 9a5c5c59, 버튼은 자격 입력 전까지 숨김. **내일 Irene 과 Apple Developer 설정 → 운영 입력 → 실제 로그인 확인 → App Store 심사**
+
+### 수정된 파일
+- `dev-backend/routes/oauth/{finish,apple,login,connections}.js` · `routes/auth_oauth.js` · `services/apple_oauth_login.js` · `middleware/security.js` · `routes/admin.js`
+- `dev-backend/models/{OauthConnection,PlatformSetting,EphemeralToken}.js` · `scripts/migrate-apple-login.js` · `scripts/deploy-planq.sh`
+- `dev-frontend/src/components/Auth/GoogleAuthButton.tsx` · `pages/Admin/AdminPlatformSettingsPage.tsx` · `pages/Login/{LoginPage,OauthConnectConfirmPage}.tsx` · `pages/Profile/ProfileIntegrationsPage.tsx` · locales ko/en auth·admin
+
+---
+
 ## ✅ 완료: 랜딩 SEO · 네이버 서치어드바이저 · 랜딩 방문 집계 · 사이드바 정리 (2026-09-21 오후)
 
 ### 완료된 작업
