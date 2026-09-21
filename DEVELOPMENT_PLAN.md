@@ -1,6 +1,43 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-20 (Opus 5, 1M) — **운영 배포 8회 (v1.55.3 유지).** 주제는 **"같은 일을 하는 화면이 둘이면 이미 갈라져 있다"** 와 **"서버가 빠른 것과 화면이 빠른 것은 다르다"** 다. ①★ **Q file 좌측 트리가 두 벌이었다** — Q file(ProjectGroups)과 프로젝트>파일(FolderTree). Irene: *"이런 건 고치면 양쪽 다 제대로 통일해. 왜 각각 고쳐?"* 한쪽엔 [+], 다른 쪽엔 36px ⋯ 하나(30px 행에서 부풀었다). 행 구조를 `docs/TreeRow.tsx`, 규격을 `docs/treeStyles.ts` 로 **빼서 한 곳**으로 모았다. ②**[+]가 파일 수 알약을 덮고 있었다** — 둘 다 행 오른쪽 끝을 쓰는데 [+]는 27px, 세 자리 숫자는 32px 이라 **왼쪽 5~9px 이 삐져나왔다.** 그래서 파일 129개인 프로젝트에서만 보였다(«왜 K-DINE에만?»). ③★ **썸네일이 느린 것은 서버가 아니라 바이트였다** — `?w=` 리사이즈가 **로컬 파일에만** 걸려 있어 Drive 저장 이미지는 원본이 통째로 나갔다. 운영 실측 **7.9MB → 8.1MB 전송·0.8~1.0초**(로컬 같은 크기는 23KB·0.04초), 이미지 371장 중 **154장이 Drive**. 스트림도 리사이즈+디스크 캐시하고 **캐시가 있으면 Drive를 아예 안 다녀온다** → 배포 후 실측 **32KB·0.039초(250배 감소)**. ④★ **`.gdoc` 은 문서가 아니라 172바이트 링크였다** — Irene: *"오픈을 하면 No preview available."* 접근 권한 문제가 아니었다. 그 «링크 파일»의 Drive 주소를 열어서 Drive가 172바이트 JSON을 미리보기하려다 실패한 것. 안의 문서 id로 **docs.google.com**을 연다(주소는 **우리가 조립**한다 — 파일 안의 url을 그대로 쓰면 꾸며 넣은 사이트로 보내는 링크가 된다). 시트·슬라이드·도형·설문·스크립트 전부. ⑤**드래그가 업로드로 읽혔다** — 파일을 끄는 순간 업로드 오버레이가 화면을 덮어 좌측 폴더가 드롭을 **못 받았다.** 이동 기능은 멀쩡했는데 오버레이가 가로챈 것. 바깥 파일만 업로드로 본다. 그리고 **로컬 파일을 폴더 위에 바로 올리기**를 신설했다. ⑥**분류를 다시 세웠다** — Irene: *"메일이 빠졌네."* 메일 첨부를 목록에서 **통째로 빼던 것**을 그만두고 «메일» 칸으로 **분류**한다(빼면 «없어졌다», 섞으면 «쓸데없는 파일이 너무 많아»). 프로젝트>파일 트리를 Q file 모양으로 — 전체·프로젝트·채팅·업무·회의·문서·메일이 **같은 왼쪽 기준**, 들여쓰는 것은 사람이 만든 폴더뿐. ⑦**Q sale 이 랜딩·위키에 없었다** — 게이트(`wiki-coverage-check` REQUIRED)에도 없어서 **조용히 초록**이었다. 셋 다 채웠다. ⑧★ **내 실수 둘** — 배포 **도중에** 프론트를 고쳐 미커밋 변경이 운영에 실려 나갔고(CLAUDE.md 금지 사항), 검사기를 여러 번 고쳐야 했다(감싸는 상자를 재고, dispatch 직후에 재고, 파일 카드를 트리로 집고, 프로젝트 행을 폴더 행으로 집었다). ⑨**toggles 카나리가 죽어 있었다** — 약관 1.0→1.1 이후 그 카나리만 자동 동의를 못 받아 재동의 모달이 클릭 4개를 가렸다(기능은 멀쩡). ⑩**Fable 은 2026-09-24 까지 미가용** — 전부 자체 검증이고 `docs/FABLE_GATE_QUEUE.md` 에 **HTTP/2**(운영 nginx가 HTTP/1.1, purplehere.com과 공유)와 **파일→프로젝트 드롭**(가시성 확대 = 비가역) 2건을 판단 대기로 올렸다. ⑪**추가 4건(같은 날 늦게)** — **출처 칸 겹침 해소**(한 파일 = 한 칸. 「직접 업로드」는 «파일 메뉴에서 직접 올린 것» 만. 겹치는 파일을 일부러 만들어 재고, 옛 계산 대조군에서 «합 2 vs 전체 1»·«뱃지 1 vs 목록 0» 으로 뒤집혔다) · **운영 릴리즈노트 v1.48.4 요약**(ko·en 모두 비어 운영 위키 게이트가 ⛔ 였다. 발행 스크립트는 이미 요약을 만들고 있고 그 수정 **전** 1건만 남아 있었다) · **프로젝트>노트 [새 노트] 버튼**(32×32 아이콘 전용 규격에 글자를 넣어 잘렸다 → `$wide` 변형. 32 → 86×32) · ★ **채팅 푸시에 앞 40자**(#407 완화). Irene: *"이거 아이폰 설정 아니고 알림을 잘못 보내는 거 아니야?"* — **아이폰 설정이 아니라 우리가 일부러 가리고 있었다.** 데스크탑에서 보인 것은 OS 푸시가 아니라 **앱 안 토스터**였다. `services/outsidePreview.js` 단일 원천(default/internal_only/excerpt), 푸시 payload 를 **실제로 가로채** 세 갈래를 다 쟀다. 운영 ENUM 은 늘리지 않았다(그 컬럼은 인앱 표시용이고 인앱엔 원문이 남는다).
+> **최종 업데이트:** 2026-09-21 ([Claude Code] Opus 5, 1M) — **운영 배포 8회 (v1.55.3 유지 · 마지막 632fda3d).** 주제는 **"받기는 되는데 보내기는 안 되는 것처럼, 반쪽만 재면 반쪽만 고쳐진다"** 다. ①★ **멤버 캘린더가 통째로 500 이었다** — 9/17 미팅자료(#411)가 일정 조회에 File·Post 를 JOIN 하면서 공개범위 literal 의 `vlevel` 이 모호해졌다(운영 29회). owner/admin 은 다른 분기라 멀쩡해 아무도 몰랐다. ②**초대받은 참석자가 일정을 못 봤다** — 판정에 «참석자» 가 없었고, 고객 참석자는 `client_id` 로 저장되는데 `user_id` 로만 찾았다 → `attendedEventIds` 한 원천(목록·상세·RSVP·확인필요). ③★ **운영 네이버 메일은 받기만 되고 보내기는 전부 535** — 추가 화면이 이메일 **첫 글자**를 보내기 아이디로 복사했다. 연결·수정·테스트가 **IMAP 만** 검사해서 몰랐다 → 저장 전 SMTP 로그인 검사(메일은 안 보냄) + 운영 계정 교정. ④**조직** — 부서장·팀장(신설 `teams.lead_user_id`) 지정 = 그 부서/팀 소속, 멤버 상세에 조직 표시. ⑤**문의·피드백 정돈** — 로그인 사용자의 문의가 이메일 창구로 가서 화면에 안 떴다 → `feedback_items.kind` 로 문의/피드백 구분(배지·필터·관리자), 문의에도 첨부, 상세 스크롤·회색 띠·추가 문의 접기, 빈 화면. ⑥**흰 화면 두 곳** — 휴가 알림이 없어진 탭(`?tab=team`)을 가리켰다 · Q helper 패널이 top 0 으로 탭 막대를 덮었다(삼항 문자열 안이라 가드도 못 잡음). ⑦**여백 통일(#422)** — `--suite bodygutter`(3폭×33화면) 신설로 이중 여백 4화면. ⑧**안드로이드** — Play 심사 중 `/app` 에서 PWA 설치, 링크가 들어오면 스토어 버튼으로 자동 전환. ⑨**Fable 은 429 한도로 미가용** — 전부 자체 검증, `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목.
+## ✅ 완료: 캘린더 참석자·멤버 500 · 메일 보내기 검사 · 조직 부서장/팀장 · 문의/피드백 구분 (2026-09-21)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 멤버 캘린더 500 | `calendarListWhere` literal 에 표 이름 — File·Post JOIN 으로 `vlevel ambiguous`(운영 29회) | ✅ 배포 |
+| 참석자 공유 | `access_scope.attendedEventIds` — 멤버·고객(client_id) 참석자가 목록·상세·RSVP·확인필요에서 보인다 | ✅ 배포 |
+| 오류 문구 | 5xx 에 오류 번호(request_id) · `Internal server error` → 우리말 · 캘린더 사유 i18n | ✅ 배포 |
+| 조직 | 부서장·팀장(`teams.lead_user_id`, migrate-team-lead) 지정 = 소속 이동 · 멤버 검증 · 멤버 상세 조직 표시 | ✅ 배포 |
+| 여백 통일 #422 | 받은 서명·Q file·알림·새 소식 · `--suite bodygutter` 신설 | ✅ 배포 |
+| 개인 메뉴 #423 | 새 소식·알림 제거 · 「근태·휴가」 · 「문의·피드백」(+PlanQ 보조) | ✅ 배포 |
+| Q file #417 일부 | 미리보기 안 [이동] · 이동 목록 깊이 무제한 · 거절된 이동 표시 · 폴더 zip 하위 포함 · 프로젝트 하위 폴더 ⋯ · nginx 실한도 안내 | ✅ 배포 |
+| 문의·피드백 | [+ 문의하기][피드백 보내기] · `feedback_items.kind`(migrate-feedback-kind) · 배지·종류 필터·관리자 · 상세 스크롤 · 추가 문의 접기 · 빈 화면 · 문의 첨부 | ✅ 배포 |
+| 근태 알림 흰 화면 | 링크 → 설정 > 근태 관리 · 옛 링크 넘김 · 모르는 탭은 내 근태 | ✅ 배포 |
+| 메일 보내기 검사 | `verifySmtpCredentials` 저장 전·[연결 테스트] · 아이디가 이메일을 끝까지 따라감 · 운영 네이버 #6 교정 | ✅ 배포 |
+| Q helper 패널 기준선 | DetailDrawer 계약(`--pq-chrome-bottom`) — 탭 막대를 덮지 않는다 | ✅ 배포 |
+| 안드로이드 PWA | `/app` 안드로이드 칸 PWA 설치 · 스토어 링크 생기면 자동 전환 | ✅ 배포 |
+
+### 수정된 파일 (대표)
+- `dev-backend/middleware/access_scope.js` · `routes/{calendar,dashboard,org,businesses,feedback,email_accounts,attendance,files}.js`
+- `dev-backend/services/{email_credentials,leaveTransition}.js` · `models/{Team,FeedbackItem,index}.js`
+- `dev-backend/scripts/migrate-{team-lead,feedback-kind}.js` · `scripts/deploy-planq.sh`
+- `dev-frontend/src/pages/{MyFeedback,QProject/DocsTab,Settings/{OrgPage,WorkspaceSettingsPage,EmailAccountSettings,AttendanceAdminSettings},Attendance,DownloadApp,Admin/AdminFeedbackPage,QCalendar/EventDrawer}` 
+- `dev-frontend/src/components/Common/CueHelpDrawer.tsx` · `Layout/{MainLayout,PageShell}.tsx` · `utils/apiError.ts`
+- `dev-frontend/src/pages/QProject/docs/{useFolderEditing.tsx,dialogStyles.ts}` (신규) · `scripts/e2e/canary-body-gutter.js` (신규)
+
+### 스키마 (운영 적용 완료)
+- `teams.lead_user_id INT NULL` · `feedback_items.kind ENUM('feedback','inquiry') NOT NULL DEFAULT 'feedback'` — 둘 다 멱등 스크립트, 롤백은 코드만
+
+### 미해결
+- Fable 판단 대기(`docs/FABLE_GATE_QUEUE.md` 2026-09-21): 참석자 알림 묻기 · 외부 이메일 초대 · 미팅자료(참석자 열람권) · 프로젝트 폴더 업로드 L1 · 폴더 목록 누출 의심 · 옛 contact_inquiries 합치기
+- Outlook 365 비밀번호 방식 실측 못 함(Microsoft 정책상 막혔을 가능성)
+- Play 승인 후 운영 관리자 화면에 `app_android_url` 입력(Irene)
+
+---
+
 ## ✅ 완료: Q file 트리 통일 · Drive 썸네일 250배 · 구글 문서 열기 · 분류 재정의 (2026-09-20)
 
 ### 완료된 작업

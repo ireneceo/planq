@@ -496,6 +496,22 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 **게스트 링크 (1):** **guest_links** — 무로그인 링크(#259). **2026-09-05: `scope` ENUM('conversation','project') 추가, 기본값 `conversation`.** 이 컬럼이 곧 **여는 것의 상한**이다 — `conversation` 토큰으로 프로젝트 탭 라우트(`/api/guest/:token/tasks` 등)를 부르면 **404**. 기본값을 conversation 으로 둔 이유: **이미 나가 있는 링크가 조용히 넓어지면 안 된다**(운영 기존 행은 전부 conversation 으로 남는다). 운영 적용은 `dev-backend/scripts/migrate-guest-link-scope.js`(멱등) — **코드 배포 전에** 실행한다(컬럼이 없으면 500). 발급 가능 판정은 `services/guest_link.js assertGuestLinkIssuable` **한 함수**(대화방·프로젝트 두 라우트가 같이 부른다 — 복사했다가 한쪽에서 죽은 코드가 된 전례). 설계 docs/PROJECT_EXTERNAL_VIEW_DESIGN.md
 
+**조직·문의 (2026-09-21 컬럼 추가):** `teams.lead_user_id`(팀장 — 부서의 `lead_user_id` 와 같은 계약: 지정하면 그 멤버가
+그 팀과 팀의 부서로 옮겨진다, `routes/org.js resolveLead`·`placeLead*` 한 벌, 이 워크스페이스 멤버만) ·
+`feedback_items.kind` ENUM('feedback','inquiry')(로그인 사용자의 «문의» 도 이 원장 — 개인 > 문의·피드백에서 답을 본다.
+손님 문의만 `contact_inquiries` 이메일 창구). 둘 다 멱등 스크립트(`migrate-team-lead`·`migrate-feedback-kind`), 롤백은 코드만.
+
+> **캘린더 «누가 보나» 는 `attendedEventIds` 한 원천이다 (2026-09-21).** 초대받은 참석자는 공개 범위와 무관하게 본다.
+> 목록(`calendarListWhere`)·상세·RSVP·확인필요가 같은 함수를 쓴다. 고객 참석자는 **`client_id` 로 저장**되므로
+> `user_id` 로만 찾으면 영영 안 보인다(실제로 그랬다). ★ `sequelize.literal` 안의 컬럼은 **표 이름을 붙인다** —
+> include 가 늘면(9/17 File·Post JOIN) 같은 이름 컬럼이 생겨 `ambiguous` 500 이 된다. owner/admin 은 다른 분기라
+> 멀쩡해 보여서 멤버 전원이 4일간 캘린더를 못 열었다.
+>
+> **메일 계정은 받기와 보내기를 둘 다 잰다.** 연결·수정·[연결 테스트]가 IMAP 만 봐서, 보내기 아이디가 한 글자로
+> 저장된 운영 네이버 계정이 «연결됨» 인 채 모든 발송이 535 였다. `services/email_credentials.verifySmtpCredentials` 는
+> 발송(`emailSend.buildTransport`)과 **같은 규칙**(호스트 추정·포트·아이디 대체)으로 로그인만 한다 — 검사와 실제가 다르면
+> 검사가 초록이어도 발송은 실패한다.
+
 **Q sale (2):** **client_stage_history**, **client_interactions** (2026-09-11 신규 — 영업은 **새 고객 테이블이 아니라 `clients` 의 축**이다. 설계 docs/Q_SALE_DESIGN.md)
 - `clients` 확장: `status` ENUM 끝에 **`prospect`**(문의 고객 = 계정 없음 + 초대 안 함) append · `sales_stage`(none→inquiry→consulting→proposal→negotiation→won/lost) · `sales_source` · `lost_reason/lost_note` · `phone` · `expected_amount/currency` · `last_touch_at`(파생) · 인덱스 2.
 - **단계를 바꾸는 문은 하나다** — `services/salesStage.js setStage`(컬럼 + 이력 + 감사 + broadcast). `client.update({sales_stage})` 를 다른 곳에서 부르면 이력·실시간이 조용히 빠진다.
