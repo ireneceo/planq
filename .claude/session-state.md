@@ -19,10 +19,10 @@
 - **Q helper 패널** — 탭 막대를 덮던 top 0 → `--pq-chrome-bottom`
 - **안드로이드** — `/app` 에서 PWA 설치, `app_android_url` 넣으면 스토어 버튼 자동 전환
 - 운영 피드백 #422 · #423 답글 달고 닫음
-- **랜딩 SEO** (ce1a0618) — `public/seo-pages.json` 단일 원천 · `services/seoArtifacts.js` 가 **운영 DB 기준 운영에서** 공개 페이지·인사이트·위키 글 HTML(머리+noscript 요약+JSON-LD)과 sitemap 생성(운영 124페이지·78주소) · 배포 직후·서버 시작·매일 0시 · rsync 는 생성물 제외 · nginx 무변경(/x→/x/) · 워크스페이스 화면은 대상 아님 · llms.txt
+- **랜딩 SEO** (ce1a0618) — `public/seo-pages.json` 단일 원천 · `services/seoArtifacts.js` 가 **운영 DB 기준 운영에서** 공개 페이지·인사이트·위키 글 HTML(머리+noscript 요약+JSON-LD)과 sitemap 생성(운영 124페이지·78주소) · 배포 직후·서버 시작·매일 0시 · rsync 는 생성물 제외 · nginx 무변경(/x→/x/) · 워크스페이스 화면은 대상 아님 · llms.txt · **rss.xml**(인사이트 30) · 네이버 소유확인 meta
 
 ### 다음 할 일
-- **Irene: 네이버 서치어드바이저 등록 → HTML 태그 인증 코드 전달**(받으면 `dev-frontend/index.html` 에 meta 추가 → 배포 → 인증 → sitemap 제출) · Google Search Console 에 sitemap.xml 재제출
+- ✅ 네이버 서치어드바이저 완료(2026-09-21): 소유확인 · sitemap.xml · rss.xml · 주요 6페이지 수집요청 · robots 재수집. 남은 것: **Google Search Console 에 sitemap.xml 재제출**(Irene)
 - **Fable 가용 시 `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목 일괄 검증** (참석자 가시성 확대 · 조직 부서장 검증 · 팀장 스키마 · 문의 원장 전환)
 - 설계·판단 필요(미착수): 참석자 추가 시 «알릴까요?» · 외부 이메일 초대 · 미팅자료 고르기(참석자 열람권) · 프로젝트 폴더 업로드 L1 · 폴더 목록 누출 의심 · 옛 contact_inquiries 합치기
 - Irene: Play 승인 후 **운영** 관리자 화면에 `app_android_url` 입력
