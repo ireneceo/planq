@@ -17,6 +17,7 @@ import ActionButton from '../../components/Common/ActionButton';
 import { formatDate } from '../../utils/dateFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { openFeedback } from '../../utils/feedbackOpen';
+import { HeaderCta } from '../../components/Common/headerCta';
 import { mapApiError } from '../../utils/apiError';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -178,13 +179,6 @@ const MyFeedbackPage = () => {
       bodyPadding="0"
       actions={(
         <Filters>
-          {/* ★ 2026-09-21 — 이 화면에서도 쓴다. 양식을 새로 만들지 않고 **단일 진입점**(openFeedback)으로
-              Q helper 작성 화면을 연다. 분류(버그·개선·기능 요청·기타)는 그 양식 안에서 고른다 —
-              버튼을 «문의»·«피드백» 둘로 나누면 같은 양식에 문이 둘이 되고 분류 넷 중 둘만 보인다. */}
-          <ActionButton tone="primary" size="sm" data-testid="myfeedback-compose"
-            onClick={() => openFeedback({ category: 'improve' })}>
-            {t('myFeedback.compose') as string}
-          </ActionButton>
           {threads.length > 0 && <>
           <SearchBox
             placeholder={t('myFeedback.filter.search') as string}
@@ -201,6 +195,14 @@ const MyFeedbackPage = () => {
               onChange={(o) => setStatusFilter(String((o as PlanQSelectOption)?.value ?? 'all'))} />
           </SelWrap>
           </>}
+          {/* ★ 2026-09-21 — 이 화면에서도 쓴다. 양식을 새로 만들지 않고 **단일 진입점**(openFeedback)으로
+              Q helper 작성 화면을 연다. 분류(버그·개선·기능 요청·기타)는 그 양식 안에서 고른다.
+              자리는 필터 **뒤 맨 오른쪽**, 모양은 머리줄 주 액션 공용 `HeaderCta`(#14B8A6 · 32px) —
+              프로젝트 [+ 새 프로젝트] · Q task [+ 업무 추가] 와 같은 버튼이다(Irene: "여기만 진한데?"). */}
+          <HeaderCta type="button" data-testid="myfeedback-compose"
+            onClick={() => openFeedback({ category: 'improve' })}>
+            {t('myFeedback.compose') as string}
+          </HeaderCta>
         </Filters>
       )}
     >
