@@ -147,7 +147,7 @@
       "me-notifications": "알림,푸시",
       "me-data": "내 데이터,내보내기"
     },
-    "attendance": "근태",
+    "attendance": "근태·휴가",
     "attendanceAdmin": "근태 관리",
     "updates": "새소식·인사이트",
     "announcement": "공지 배너",
@@ -155,13 +155,14 @@
     "back": "뒤로",
     "devStatus": "개발 현황",
     "statsWeekly": "주간 추세",
-    "myFeedback": "PlanQ 문의·피드백",
+    "myFeedback": "문의·피드백",
     "inquiries": "문의 인박스",
     "adminNotifications": "내 알림 설정",
     "adminAuditLogs": "감사 로그",
     "whatsNew": "새 소식",
     "helpCenter": "도움말",
-    "records": "기록"
+    "records": "기록",
+    "myFeedbackSub": "PlanQ"
   },
   "user": {
     "profile": "내 프로필",

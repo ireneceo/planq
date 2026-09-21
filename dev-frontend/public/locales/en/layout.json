@@ -147,7 +147,7 @@
       "me-notifications": "notification,push",
       "me-data": "my data,export"
     },
-    "attendance": "Attendance",
+    "attendance": "Attendance & leave",
     "attendanceAdmin": "Attendance",
     "updates": "Updates & insights",
     "announcement": "Announcement banner",
@@ -155,13 +155,14 @@
     "back": "Back",
     "devStatus": "Dev status",
     "statsWeekly": "Weekly trends",
-    "myFeedback": "PlanQ support & feedback",
+    "myFeedback": "Support & feedback",
     "inquiries": "Inquiry inbox",
     "adminNotifications": "My notification settings",
     "adminAuditLogs": "Audit logs",
     "whatsNew": "What's new",
     "helpCenter": "Help",
-    "records": "Records"
+    "records": "Records",
+    "myFeedbackSub": "PlanQ"
   },
   "user": {
     "profile": "My Profile",

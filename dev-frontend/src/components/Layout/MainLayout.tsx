@@ -343,6 +343,11 @@ const NavLabel = styled.span<{ $isCollapsed?: boolean }>`
   `}
 `;
 
+// 메뉴 이름 옆 보조 표시(작은 회색 글씨) — 이름을 길게 만들지 않고 성격만 알린다
+const NavSubTag = styled.span`
+  margin-left: 6px; font-size: 0.6875rem; font-weight: 500; color: #94a3b8;
+`;
+
 // 인박스 미처리 카운트 — pill 배지 (확장 상태) / 작은 dot (collapsed 상태)
 // 통일 정책: 모든 알림 카운트는 숫자만 표시. 점 표시 X (Irene 명시).
 // 사이드바 expanded — 메뉴 라벨 우측 inline. collapsed — 아이콘 우상단 absolute (NavItem 안).
@@ -1568,13 +1573,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   {/* ★ 2026-09-21 (#423) — 새 소식·알림을 개인 메뉴에서 **뺐다.** Irene: *"개인 메뉴에서
                       새소식 알림 그냥 빼. 이상해."* 둘은 헤더의 스피커·종 아이콘이 여는 화면이다.
                       탭 이름은 config/navMenus.ts EXTRA_PAGE_LABELS 가 계속 준다. */}
-                  <NavItem to="/me/feedback" $isCollapsed={isCollapsed} $active={isActive('/me/feedback')}
-                    title={isCollapsed ? t('nav.myFeedback', 'PlanQ 문의·피드백') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    </NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.myFeedback', 'PlanQ 문의·피드백')}</NavLabel>
-                  </NavItem>
                   <NavItem to="/signatures/received" $isCollapsed={isCollapsed} $active={isActive('/signatures/received')}
                     title={isCollapsed ? t('nav.receivedSignatures', '받은 서명') : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}>
@@ -1586,11 +1584,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   {/* #208 — 내 출퇴근·내 휴가는 **개인** 것이다. 승인·팀 현황·통계는
                       설정 > 근태 관리(관리자)로 따로 나갔다 — 성격이 다른 둘을 한 화면에 묶지 않는다. */}
                   <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
-                    title={isCollapsed ? t('nav.attendance', '근태') : undefined}>
+                    title={isCollapsed ? t('nav.attendance', '근태·휴가') : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
                     </NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태')}</NavLabel>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태·휴가')}</NavLabel>
+                  </NavItem>
+                  {/* 2026-09-21 — 문의·피드백은 개인 섹션 맨 아래(근태·휴가 다음). 솔루션에 대한 것이라 나의 일 메뉴들 뒤에 둔다 */}
+                  <NavItem to="/me/feedback" $isCollapsed={isCollapsed} $active={isActive('/me/feedback')}
+                    title={isCollapsed ? t('nav.myFeedback', '문의·피드백') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>
+                      {t('nav.myFeedback', '문의·피드백')}
+                      {/* 메뉴명에는 넣지 않고 보조로 — 워크스페이스 안이지만 **솔루션(PlanQ)** 에 대한 문의다 (Irene 2026-09-21) */}
+                      <NavSubTag>{t('nav.myFeedbackSub', 'PlanQ')}</NavSubTag>
+                    </NavLabel>
                   </NavItem>
                 </NavSection>
               )}

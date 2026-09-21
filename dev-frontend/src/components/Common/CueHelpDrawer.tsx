@@ -436,6 +436,8 @@ const CueHelpDrawer: React.FC<{
       const j = await res.json();
       if (!res.ok || !j.success) throw new Error(j.message || 'feedback error');
       setFbResultMsg(t('qhelper.fbThanks', '접수됐습니다 #{{id}} — 빠르게 검토할게요', { id: j.data?.id }) as string);
+      // 문의·피드백 화면이 열려 있으면 방금 보낸 것이 목록에 바로 뜨게 (같은 탭 안전망 — CLAUDE.md §16 (e))
+      window.dispatchEvent(new CustomEvent('planq:feedback-sent', { detail: { id: j.data?.id } }));
       setFbBody('');
       setFbContext(null);
       setFbCategory('improve');

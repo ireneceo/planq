@@ -108,7 +108,7 @@
     "users": "Users",
     "businesses": "Businesses",
     "logout": "Logout",
-    "myFeedback": "PlanQ support & feedback"
+    "myFeedback": "Support & feedback"
   },
   "role": {
     "platform_admin": "Platform Admin",
@@ -880,9 +880,9 @@
     }
   },
   "myFeedback": {
-    "title": "PlanQ Support & Feedback",
+    "title": "Support & Feedback",
     "loading": "Loading…",
-    "empty": "No inquiries or feedback yet. Leave one from Q helper.",
+    "empty": "No inquiries or feedback yet. Use [+ New] at the top right.",
     "noMatch": "No items match your filters.",
     "reply": "Team reply",
     "you": "You",
@@ -916,7 +916,8 @@
       "done": "Done",
       "wontfix": "Won’t fix"
     },
-    "scopeNote": "Questions and feedback you sent to the PlanQ team about the product. Only you can see them — not your workspace members or clients."
+    "scopeNote": "Questions and feedback you sent to the PlanQ team about the product. Only you can see them — not your workspace members or clients.",
+    "compose": "+ New"
   },
   "securityLevel": {
     "label": "Security level",

@@ -16,6 +16,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 import ActionButton from '../../components/Common/ActionButton';
 import { formatDate } from '../../utils/dateFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { openFeedback } from '../../utils/feedbackOpen';
 import { mapApiError } from '../../utils/apiError';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -76,6 +77,12 @@ const MyFeedbackPage = () => {
   useEffect(() => { load(); }, [load]);
   // PWA background→foreground / 탭 복귀 시 server fresh 재조회 (운영팀 답변 즉시 반영)
   useVisibilityRefresh(() => load(true));
+  // Q helper 에서 보낸 직후 — 이 화면에서 [+ 작성하기] 로 보냈든 우측 하단에서 보냈든 목록을 다시 읽는다
+  useEffect(() => {
+    const onSent = () => load(true);
+    window.addEventListener('planq:feedback-sent', onSent);
+    return () => window.removeEventListener('planq:feedback-sent', onSent);
+  }, [load]);
 
   const catLabel = (c: string) => t(`myFeedback.cat.${c}`, { defaultValue: CAT_FALLBACK[c] || c }) as string;
   const statusLabel = (s: string) => t(`myFeedback.status.${s}`, { defaultValue: s }) as string;
@@ -169,8 +176,16 @@ const MyFeedbackPage = () => {
       title={t('myFeedback.title') as string}
       count={filtered.length}
       bodyPadding="0"
-      actions={threads.length > 0 ? (
+      actions={(
         <Filters>
+          {/* ★ 2026-09-21 — 이 화면에서도 쓴다. 양식을 새로 만들지 않고 **단일 진입점**(openFeedback)으로
+              Q helper 작성 화면을 연다. 분류(버그·개선·기능 요청·기타)는 그 양식 안에서 고른다 —
+              버튼을 «문의»·«피드백» 둘로 나누면 같은 양식에 문이 둘이 되고 분류 넷 중 둘만 보인다. */}
+          <ActionButton tone="primary" size="sm" data-testid="myfeedback-compose"
+            onClick={() => openFeedback({ category: 'improve' })}>
+            {t('myFeedback.compose') as string}
+          </ActionButton>
+          {threads.length > 0 && <>
           <SearchBox
             placeholder={t('myFeedback.filter.search') as string}
             value={search} onChange={setSearch} width={200} size="sm"
@@ -185,8 +200,9 @@ const MyFeedbackPage = () => {
               value={statusOptions.find(o => o.value === statusFilter)} options={statusOptions}
               onChange={(o) => setStatusFilter(String((o as PlanQSelectOption)?.value ?? 'all'))} />
           </SelWrap>
+          </>}
         </Filters>
-      ) : undefined}
+      )}
     >
       <Split $detailOpen={!!selected}>
         {/* 좌측 리스트 */}

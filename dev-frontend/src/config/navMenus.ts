@@ -60,8 +60,8 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   //   ★ 표에 올렸으니 EXTRA_PAGE_LABELS 에서는 뺀다 — 같은 값을 두 곳에 두면 갈라진다.
   // ★ 2026-09-21 (#423) — 위 두 줄(새 소식·알림)을 사이드바와 **같이** 뺐다. Irene: "개인 메뉴에서 새소식 알림 그냥 빼."
   //   헤더 아이콘으로만 연다. 탭 이름은 EXTRA_PAGE_LABELS 로 옮겼다(안 옮기면 탭이 «설정» 으로 떨어진다 — #414).
-  { key: 'my-feedback', to: '/me/feedback', labelKey: 'nav.myFeedback', section: 'personal', roles: ['owner', 'member'] },
   { key: 'received-signatures', to: '/signatures/received', labelKey: 'nav.receivedSignatures', section: 'personal', roles: ['owner', 'member'] },
+  { key: 'my-feedback', to: '/me/feedback', labelKey: 'nav.myFeedback', section: 'personal', roles: ['owner', 'member'] },
 
   { key: 'stats-overview', to: '/stats/overview', labelKey: 'nav.statsOverview', section: 'manage', roles: ['owner', 'member'] },
   { key: 'stats-tasks', to: '/stats/tasks', labelKey: 'nav.statsTaskTime', section: 'manage', roles: ['owner', 'member'] },
