@@ -227,6 +227,7 @@
   "sidebar": {
     "statusBlock": "Clock & work",
     "statusCollapse": "Collapse clock & work",
-    "statusExpand": "Expand clock & work"
+    "statusExpand": "Expand clock & work",
+    "statusCollapseShort": "Show less"
   }
 }

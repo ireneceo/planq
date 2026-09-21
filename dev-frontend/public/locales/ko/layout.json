@@ -227,6 +227,7 @@
   "sidebar": {
     "statusBlock": "시계 · 근무",
     "statusCollapse": "시계·근무 접기",
-    "statusExpand": "시계·근무 펼치기"
+    "statusExpand": "시계·근무 펼치기",
+    "statusCollapseShort": "간단히 보기"
   }
 }

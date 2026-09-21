@@ -11,6 +11,7 @@ import LanguageSelector from '../Common/LanguageSelector';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 import GlobalSearchModal from '../Common/GlobalSearchModal';
 import { launchDockTool } from '../Common/RightDock';
+import SidebarStatusSummary from './SidebarStatusSummary';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -491,23 +492,13 @@ const SidebarFooter = styled.div<{ $isCollapsed?: boolean }>`
 `;
 
 // 하단 블록 접기 손잡이 — 메뉴 항목과 글자 시작선을 맞춘다(좌우 여백은 SidebarFooter 가 갖는다).
-// ★ 2026-09-21 — 오른쪽 여백 9px 은 아래 계정 버튼(UserMenuButton padding 8 + 테두리 1)과 **아이콘 세로줄을 맞추려는 값**이다.
-//   둘 다 오른쪽 끝에 작은 아이콘이 있는데 한쪽만 끝에 붙어 있어 줄이 어긋나 보였다(Irene: "위치가 달라서 보기가 안좋아").
-const StatusToggle = styled.button`
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  width: 100%; padding: 3px 9px 3px 0; margin: 0 0 2px 0;   /* 9 = 계정 버튼 padding 8 + 투명 테두리 1. 펼친 상태에서 이 줄이 메뉴 한 칸을 먹지 않게 */
+// 펼친 카드 아래 접기 — 화살표 대신 글자(무엇을 하는지 바로 읽힌다)
+const StatusCollapse = styled.button`
+  display: block; margin: 2px 0 4px auto; padding: 2px 4px;
   background: none; border: none; cursor: pointer;
-  color: rgba(255,255,255,0.62); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em;
-  &:hover { color: rgba(255,255,255,0.9); }
+  color: rgba(255,255,255,0.55); font-size: 0.6875rem; font-weight: 500;
+  &:hover { color: rgba(255,255,255,0.9); text-decoration: underline; }
   &:focus-visible { outline: 2px solid rgba(255,255,255,0.5); outline-offset: 2px; border-radius: 4px; }
-`;
-const StatusToggleLabel = styled.span`
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
-const StatusChevron = styled.svg<{ $open: boolean }>`
-  width: 14px; height: 14px; flex-shrink: 0;
-  transition: transform 0.15s ease;
-  transform: rotate(${p => (p.$open ? '180deg' : '0deg')});
 `;
 // 펼쳐도 하단이 화면을 다 먹지 않게 — 넘치면 **이 안에서** 스크롤한다.
 //   이것이 없으면 창을 줄였을 때 메뉴가 다시 밀려난다(접기만으로는 부족하다).
@@ -1902,16 +1893,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               {/* 폰에서는 이 블록이 메뉴 안(스크롤 영역 끝)으로 옮겨간다 — 아래 statusBlock 참조 */}
               {!isMobileNav && (
                 <>
-                  <StatusToggle type="button" onClick={toggleStatus} aria-expanded={statusOpen}
-                    aria-controls="pq-sidebar-status"
-                    title={statusOpen ? t('sidebar.statusCollapse', '시계·근무 접기') : t('sidebar.statusExpand', '시계·근무 펼치기')}>
-                    <StatusToggleLabel>{t('sidebar.statusBlock', '시계 · 근무')}</StatusToggleLabel>
-                    <StatusChevron $open={statusOpen} viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <polyline points="6 9 12 15 18 9" />
-                    </StatusChevron>
-                  </StatusToggle>
-                  {statusOpen && <StatusSlot id="pq-sidebar-status">{statusBlock}</StatusSlot>}
+                  {/* ★ 2026-09-21 — 제목(«시계 · 근무»)·화살표 줄을 없앴다. 접힌 상태는 요약 한 줄(누르면 펼침),
+                      펼친 상태는 카드 + 아래 [간단히 보기]. Irene: "화살표 말고 다른 방법으로 열리게" */}
+                  {statusOpen ? (
+                    <StatusSlot id="pq-sidebar-status">
+                      {statusBlock}
+                      <StatusCollapse type="button" data-testid="sidebar-status-collapse" onClick={toggleStatus} aria-expanded>
+                        {t('sidebar.statusCollapseShort', '간단히 보기')}
+                      </StatusCollapse>
+                    </StatusSlot>
+                  ) : (
+                    <SidebarStatusSummary workspaceTz={workspaceTz} onOpen={toggleStatus} />
+                  )}
                 </>
               )}
               {/* N+63 — UserMenu 통합: avatar+이름 1줄 + 클릭 popover (Language + 프로필 + 로그아웃).
