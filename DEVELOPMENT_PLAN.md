@@ -1,6 +1,35 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-21 ([Claude Code] Opus 5, 1M) — **운영 배포 8회 (v1.55.3 유지 · 마지막 632fda3d).** 주제는 **"받기는 되는데 보내기는 안 되는 것처럼, 반쪽만 재면 반쪽만 고쳐진다"** 다. ①★ **멤버 캘린더가 통째로 500 이었다** — 9/17 미팅자료(#411)가 일정 조회에 File·Post 를 JOIN 하면서 공개범위 literal 의 `vlevel` 이 모호해졌다(운영 29회). owner/admin 은 다른 분기라 멀쩡해 아무도 몰랐다. ②**초대받은 참석자가 일정을 못 봤다** — 판정에 «참석자» 가 없었고, 고객 참석자는 `client_id` 로 저장되는데 `user_id` 로만 찾았다 → `attendedEventIds` 한 원천(목록·상세·RSVP·확인필요). ③★ **운영 네이버 메일은 받기만 되고 보내기는 전부 535** — 추가 화면이 이메일 **첫 글자**를 보내기 아이디로 복사했다. 연결·수정·테스트가 **IMAP 만** 검사해서 몰랐다 → 저장 전 SMTP 로그인 검사(메일은 안 보냄) + 운영 계정 교정. ④**조직** — 부서장·팀장(신설 `teams.lead_user_id`) 지정 = 그 부서/팀 소속, 멤버 상세에 조직 표시. ⑤**문의·피드백 정돈** — 로그인 사용자의 문의가 이메일 창구로 가서 화면에 안 떴다 → `feedback_items.kind` 로 문의/피드백 구분(배지·필터·관리자), 문의에도 첨부, 상세 스크롤·회색 띠·추가 문의 접기, 빈 화면. ⑥**흰 화면 두 곳** — 휴가 알림이 없어진 탭(`?tab=team`)을 가리켰다 · Q helper 패널이 top 0 으로 탭 막대를 덮었다(삼항 문자열 안이라 가드도 못 잡음). ⑦**여백 통일(#422)** — `--suite bodygutter`(3폭×33화면) 신설로 이중 여백 4화면. ⑧**안드로이드** — Play 심사 중 `/app` 에서 PWA 설치, 링크가 들어오면 스토어 버튼으로 자동 전환. ⑨**Fable 은 429 한도로 미가용** — 전부 자체 검증, `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목.
+> **최종 업데이트:** 2026-09-21 ([Claude Code] Opus 5, 1M) — **운영 배포 15회 (v1.55.3 유지 · 마지막 14b36eea).** 주제는 **"받기는 되는데 보내기는 안 되는 것처럼, 반쪽만 재면 반쪽만 고쳐진다"** 다. ①★ **멤버 캘린더가 통째로 500 이었다** — 9/17 미팅자료(#411)가 일정 조회에 File·Post 를 JOIN 하면서 공개범위 literal 의 `vlevel` 이 모호해졌다(운영 29회). owner/admin 은 다른 분기라 멀쩡해 아무도 몰랐다. ②**초대받은 참석자가 일정을 못 봤다** — 판정에 «참석자» 가 없었고, 고객 참석자는 `client_id` 로 저장되는데 `user_id` 로만 찾았다 → `attendedEventIds` 한 원천(목록·상세·RSVP·확인필요). ③★ **운영 네이버 메일은 받기만 되고 보내기는 전부 535** — 추가 화면이 이메일 **첫 글자**를 보내기 아이디로 복사했다. 연결·수정·테스트가 **IMAP 만** 검사해서 몰랐다 → 저장 전 SMTP 로그인 검사(메일은 안 보냄) + 운영 계정 교정. ④**조직** — 부서장·팀장(신설 `teams.lead_user_id`) 지정 = 그 부서/팀 소속, 멤버 상세에 조직 표시. ⑤**문의·피드백 정돈** — 로그인 사용자의 문의가 이메일 창구로 가서 화면에 안 떴다 → `feedback_items.kind` 로 문의/피드백 구분(배지·필터·관리자), 문의에도 첨부, 상세 스크롤·회색 띠·추가 문의 접기, 빈 화면. ⑥**흰 화면 두 곳** — 휴가 알림이 없어진 탭(`?tab=team`)을 가리켰다 · Q helper 패널이 top 0 으로 탭 막대를 덮었다(삼항 문자열 안이라 가드도 못 잡음). ⑦**여백 통일(#422)** — `--suite bodygutter`(3폭×33화면) 신설로 이중 여백 4화면. ⑧**안드로이드** — Play 심사 중 `/app` 에서 PWA 설치, 링크가 들어오면 스토어 버튼으로 자동 전환. ⑨**Fable 은 429 한도로 미가용** — 전부 자체 검증, `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목. ⑩**오후 — 랜딩 SEO·네이버·방문 집계**: 모든 공개 페이지가 같은 제목·빈 본문이었고 사이트맵은 5주소였다 → 운영 DB 기준 운영에서 페이지별 HTML·사이트맵(78)·RSS(30) 생성, nginx 무변경. 네이버 서치어드바이저 등록 완료. 방문을 잴 도구가 없어 쿠키 없는 «랜딩 방문» 집계를 붙였다(GA4 는 운영 CSP 해제에 root 가 필요). 사이드바 «시계 · 근무» 제목·화살표를 요약 한 줄로.
+## ✅ 완료: 랜딩 SEO · 네이버 서치어드바이저 · 랜딩 방문 집계 · 사이드바 정리 (2026-09-21 오후)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 랜딩 SEO | `public/seo-pages.json` 정본 → `services/seoArtifacts` 가 **운영 DB 기준 운영에서** 공개 페이지·인사이트·위키 글 HTML(머리·noscript 요약·JSON-LD) + sitemap(78) 생성. nginx 무변경(/x → /x/). 워크스페이스는 대상 아님 | ✅ 배포 |
+| 생성 시점·안전 | 배포 직후·서버 시작·매일 0시 · 사라진 글 페이지는 자기가 만든 것만 지움 · rsync 는 생성물 제외(`**/index.html` 이 루트까지 빼는 것을 실측으로 잡음) | ✅ 배포 |
+| 화면 제목 | `useSeoHead` — 사이트 안 이동 시 제목·설명·canonical 전환 | ✅ 배포 |
+| RSS · llms.txt | `/rss.xml`(인사이트 30) · `/llms.txt` | ✅ 배포 |
+| 네이버 서치어드바이저 | 소유확인 meta · sitemap · RSS · 주요 6페이지 수집요청 · robots 재수집 (Irene 계정) | ✅ 완료 |
+| 랜딩 방문 집계 | 플랫폼 관리자 > 랜딩 방문. 쿠키 없음·숫자만 · 순방문자는 하루 비밀 해시 · 봇·로그인 사용자·워크스페이스 주소 제외 | ✅ 배포 |
+| 사이드바 | 계정 메뉴 ⌃⌄ · «시계 · 근무» 제목·화살표 → 요약 한 줄(누르면 펼침) + [간단히 보기] | ✅ 배포 |
+
+### 수정된 파일
+- `dev-backend/services/{seoArtifacts,publicContent}.js` · `scripts/{generate-seo,migrate-landing-visits}.js` · `routes/{landing_visits,blog}.js` · `models/{LandingVisit,LandingVisitor,index}.js` · `server.js`
+- `dev-frontend/public/{seo-pages.json,llms.txt}` · `index.html` · `src/hooks/{useSeoHead,useLandingBeacon}.ts`
+- `dev-frontend/src/components/Layout/{MainLayout,SidebarStatusSummary}.tsx` · `Landing/LandingLayout.tsx` · `pages/Admin/AdminLandingVisitsPage.tsx`
+- `scripts/deploy-planq.sh` (생성 단계 · rsync 제외 · 마이그레이션)
+
+### 스키마 (운영 적용 완료)
+- `landing_visits` · `landing_visitors` 신규 (CREATE IF NOT EXISTS)
+
+### 다음
+- ~2026-10-10: 랜딩 방문 화면에 [AI 마케팅 분석] (Search Console 검색어 CSV 함께)
+- Fable 대기열: 공개 방문 라우트 남용·해시 재식별·방침 문구
+
+---
+
 ## ✅ 완료: 캘린더 참석자·멤버 500 · 메일 보내기 검사 · 조직 부서장/팀장 · 문의/피드백 구분 (2026-09-21)
 
 ### 완료된 작업

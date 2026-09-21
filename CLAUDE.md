@@ -512,6 +512,14 @@ router.get('/', authenticateToken, async (req, res, next) => {
 > 발송(`emailSend.buildTransport`)과 **같은 규칙**(호스트 추정·포트·아이디 대체)으로 로그인만 한다 — 검사와 실제가 다르면
 > 검사가 초록이어도 발송은 실패한다.
 
+**랜딩 SEO · 방문 집계 (2026-09-21):** 대상은 **랜딩(공개 소개·인사이트·Q위키)뿐** — 워크스페이스는 대상 아니다.
+공개 페이지 정본 `dev-frontend/public/seo-pages.json`(새 공개 페이지를 만들면 한 줄 추가). `services/seoArtifacts.js` 가
+**운영 DB 기준으로 운영에서** 페이지별 HTML·`sitemap.xml`·`rss.xml` 을 만든다(배포 직후·서버 시작·매일 0시) — dev 빌드에서 만들면
+dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물을 뺀다). nginx 무변경: `/x` → `/x/` → `x/index.html`.
+홈 description 은 Google OAuth 심사 목적 문장, `naver-site-verification` meta 는 네이버 소유확인 — **둘 다 지우지 말 것.**
+방문 집계 `landing_visits`(숫자만)·`landing_visitors`(하루 비밀 해시) — 쿠키·IP·UA 저장 없음, 무인증 `POST /api/landing-visits` 는
+랜딩 주소만·봇 제외·IP 분당 60. 조회는 플랫폼 관리자 > 랜딩 방문.
+
 **Q sale (2):** **client_stage_history**, **client_interactions** (2026-09-11 신규 — 영업은 **새 고객 테이블이 아니라 `clients` 의 축**이다. 설계 docs/Q_SALE_DESIGN.md)
 - `clients` 확장: `status` ENUM 끝에 **`prospect`**(문의 고객 = 계정 없음 + 초대 안 함) append · `sales_stage`(none→inquiry→consulting→proposal→negotiation→won/lost) · `sales_source` · `lost_reason/lost_note` · `phone` · `expected_amount/currency` · `last_touch_at`(파생) · 인덱스 2.
 - **단계를 바꾸는 문은 하나다** — `services/salesStage.js setStage`(컬럼 + 이력 + 감사 + broadcast). `client.update({sales_stage})` 를 다른 곳에서 부르면 이력·실시간이 조용히 빠진다.
