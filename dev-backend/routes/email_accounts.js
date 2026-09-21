@@ -69,7 +69,8 @@ async function findAccountForMutation(req, { allowRemediation = true } = {}) {
 }
 
 // IMAP 자격 검증·비밀번호 정규화 — services/email_credentials.js (라우트 슬림화)
-const { normalizeImapPassword, verifyImapCredentials } = require('../services/email_credentials');
+const { normalizeImapPassword, verifyImapCredentials, verifySmtpCredentials } = require('../services/email_credentials');
+const { deriveSmtpHost } = require('../services/emailSend');
 
 // 응답 시 비밀번호 hash 제외 (frontend 노출 X)
 function serializeAccount(acc) {
@@ -164,6 +165,16 @@ router.post('/:businessId/email-accounts', authenticateToken, checkBusinessAcces
     //   ★ `detail`(연결 에러 원문)은 돌려주지 않는다 — ECONNREFUSED/timeout/TLS 실패의 차이가
     //     그대로 **내부망 포트 오라클**이 된다(보안감사 H-5). 사용자에겐 code 로 충분하다.
     if (!verify.ok) return res.status(400).json({ success: false, message: verify.code });
+    // 보내기도 **저장 전에** 확인한다 — 받기만 되고 보내기가 막힌 계정이 «연결됨» 으로 남지 않게.
+    //   규칙은 발송(emailSend.buildTransport)과 같다: smtp_* 가 없으면 imap_* 로 대신한다.
+    const smtpVerify = await verifySmtpCredentials({
+      host: b.smtp_host || deriveSmtpHost(b.imap_host),
+      port: Number(b.smtp_port) || 587,   // 발송이 쓰는 값과 같다(account.smtp_port || 587)
+      username: b.smtp_username || b.imap_username,
+      password: smtpPassword || imapPassword,
+      tls: b.smtp_tls !== false,
+    });
+    if (!smtpVerify.ok) return res.status(400).json({ success: false, message: smtpVerify.code });
     // 첫 공용 계정이면 is_default 자동 (개인 계정은 공용 default 후보 아님)
     const teamCount = await EmailAccount.count({ where: { business_id: businessId, owner_user_id: null } });
     const acc = await EmailAccount.create({
@@ -278,6 +289,25 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
 
       Object.assign(patch, oauthToPasswordPatch(acc, b, patch));  // OAuth → 앱 비밀번호 전환 (검증 통과 후에만)
     }
+    // 보내기 자격이 바뀌거나(받기 자격에서 대신 쓰는 경우 포함) — 저장 전 실제 로그인 검사.
+    //   OAuth 계정은 비밀번호 로그인이 아니므로 제외(이번 수정으로 비밀번호 계정으로 바뀌는 경우는 포함).
+    const smtpTouched = imapTouched || ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password'].some((k) => b[k] !== undefined);
+    const willBePassword = (patch.auth_type || acc.auth_type) !== 'google_oauth';
+    if (smtpTouched && willBePassword) {
+      const pick = (k) => (patch[k] !== undefined ? patch[k] : acc[k]);
+      const smtpPass = (b.smtp_password && normalizeImapPassword(pick('smtp_host') || pick('imap_host'), b.smtp_password))
+        || decrypt(pick('smtp_password_encrypted'))
+        || (b.imap_password && normalizeImapPassword(pick('imap_host'), b.imap_password))
+        || decrypt(pick('imap_password_encrypted'));
+      const sv = await verifySmtpCredentials({
+        host: pick('smtp_host') || deriveSmtpHost(pick('imap_host')),
+        port: Number(pick('smtp_port')) || 587,
+        username: pick('smtp_username') || pick('imap_username'),
+        password: smtpPass,
+        tls: pick('smtp_tls') !== false,
+      });
+      if (!sv.ok) return res.status(400).json({ success: false, message: sv.code });
+    }
     const prevOwner = acc.owner_user_id;
     await acc.update(patch);
     await createAuditLog({
@@ -342,7 +372,19 @@ router.post('/:businessId/email-accounts/:id/test', authenticateToken, checkBusi
     } catch (e) {
       errMsg = e.message;
     }
-    successResponse(res, { ok: connOk, error: errMsg });
+    // 보내기도 같이 본다 — 받기만 되는 계정을 «정상» 이라 알려 주면 거짓이다(2026-09-21 운영 네이버 실측)
+    let smtpOk = null; let smtpCode = null;
+    if (acc.auth_type !== 'google_oauth') {
+      const sv = await verifySmtpCredentials({
+        host: acc.smtp_host || deriveSmtpHost(acc.imap_host),
+        port: Number(acc.smtp_port) || 587,
+        username: acc.smtp_username || acc.imap_username,
+        password: decrypt(acc.smtp_password_encrypted) || password,
+        tls: acc.smtp_tls !== false,
+      });
+      smtpOk = sv.ok; smtpCode = sv.ok ? null : sv.code;
+    }
+    successResponse(res, { ok: connOk && smtpOk !== false, imap_ok: connOk, smtp_ok: smtpOk, error: errMsg, smtp_error: smtpCode });
   } catch (err) { next(err); }
 });
 

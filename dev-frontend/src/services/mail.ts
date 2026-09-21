@@ -99,7 +99,7 @@ export async function deleteEmailAccount(businessId: number, id: number): Promis
   await handle(r);
 }
 
-export async function testEmailAccount(businessId: number, id: number): Promise<{ ok: boolean; error: string | null }> {
+export async function testEmailAccount(businessId: number, id: number): Promise<{ ok: boolean; error: string | null; imap_ok?: boolean; smtp_ok?: boolean | null; smtp_error?: string | null }> {
   const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${id}/test`, { method: 'POST' });
   return handle(r);
 }

@@ -881,7 +881,8 @@ export default CueHelpDrawer;
 
 // ─── styled ───
 const Backdrop = styled.div`
-  position: fixed; inset: 0;
+  /* 패널과 같은 기준선 — 탭 막대는 어둡게 덮지 않는다(DetailDrawer 백드롭과 같다) */
+  position: fixed; top: var(--pq-chrome-bottom, 0px); left: 0; right: 0; bottom: 0;
   background: rgba(15, 23, 42, 0.30);
   z-index: 1000;
 `;
@@ -920,9 +921,12 @@ const Drawer = styled.div<{ $standalone?: boolean; $popover?: boolean }>`
       padding-bottom: var(--pq-safe-bottom, 0px);
     }
   ` : `
-    /* 워크스페이스 — 우측 전체 드로어 */
-    top: var(--vv-top, 0px); right: 0; bottom: auto;
-    height: var(--vvh, 100dvh);
+    /* 워크스페이스 — 우측 전체 드로어.
+       ★ 2026-09-21 — 시작 위치는 **상단 크롬이 끝나는 곳**(--pq-chrome-bottom)이다. DetailDrawer.Panel 과 같은 계약.
+         여태 top 이 0 이라 탭 막대까지 덮었다(Irene: "우측 패널 열리는게 왜 상단 탭까지 가려?").
+         이 선언이 삼항 문자열 안에 있어 overlaytop 가드도 못 잡았다. 팝아웃 창(standalone)은 크롬이 없어 0. */
+    top: ${p.$standalone ? 'var(--vv-top, 0px)' : 'calc(var(--pq-chrome-bottom, 0px) + var(--vv-top, 0px))'}; right: 0; bottom: auto;
+    height: ${p.$standalone ? 'var(--vvh, 100dvh)' : 'calc(var(--vvh, 100dvh) - var(--pq-chrome-bottom, 0px))'};
     width: ${p.$standalone ? '100vw' : '440px'};
     ${p.$standalone ? 'left: 0;' : ''}
     border-left: ${p.$standalone ? 'none' : '1px solid #E2E8F0'};

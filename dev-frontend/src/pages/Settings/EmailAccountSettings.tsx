@@ -59,7 +59,7 @@ const EmailAccountSettings: React.FC = () => {
   const [editing, setEditing] = useState<EmailAccountRow | 'new' | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
-  const [testResult, setTestResult] = useState<Record<number, { ok: boolean; error: string | null }>>({});
+  const [testResult, setTestResult] = useState<Record<number, { ok: boolean; error: string | null; imap_ok?: boolean; smtp_ok?: boolean | null; smtp_error?: string | null }>>({});
 
   const load = useCallback(async () => {
     if (!businessId) return;
@@ -84,6 +84,11 @@ const EmailAccountSettings: React.FC = () => {
     return <Empty>{t('settings.noWorkspace', '워크스페이스를 먼저 선택하세요') as string}</Empty>;
   }
 
+  // 보내기 실패 코드 → 같은 안내 문구 표(IMAP_ERROR_GUIDE)에서 읽는다. 문구를 두 곳에 쓰지 않는다
+  const smtpErrorText = (code?: string | null) => {
+    const g = code ? IMAP_ERROR_GUIDE[code] : undefined;
+    return g ? (t(g.key, g.def) as string) : '';
+  };
   const handleTest = async (id: number) => {
     setTestingId(id);
     try {
@@ -204,7 +209,10 @@ const EmailAccountSettings: React.FC = () => {
             testResult[acc.id].ok ? (
               <TestSuccess>✓ {t('settings.testOk', '연결 성공') as string}</TestSuccess>
             ) : (
-              <TestError>✗ {testResult[acc.id].error || t('settings.testFail', '연결 실패') as string}</TestError>
+              /* 받기·보내기를 **따로** 말한다 — 받기는 되는데 보내기만 막힌 계정이 실제로 있었다(2026-09-21) */
+              <TestError>✗ {testResult[acc.id].imap_ok && testResult[acc.id].smtp_ok === false
+                ? `${t('settings.testSmtpFail', '받기는 정상이지만 보내기 로그인이 거절됐습니다.') as string} ${smtpErrorText(testResult[acc.id].smtp_error)}`
+                : (testResult[acc.id].error || t('settings.testFail', '연결 실패') as string)}</TestError>
             )
           )}
         </EmailInfo>
@@ -483,6 +491,13 @@ const IMAP_ERROR_GUIDE: Record<string, { key: string; def: string; preset?: stri
   imap_host_not_found: { key: 'settings.err.hostNotFound', def: 'IMAP 서버 주소를 찾을 수 없습니다. 서버 주소를 확인해 주세요.' },
   imap_connect_failed: { key: 'settings.err.connectFailed', def: '메일 서버에 연결하지 못했습니다. 서버 주소와 포트를 확인해 주세요.' },
   duplicate_email: { key: 'settings.err.duplicate', def: '이미 등록된 이메일입니다.' },
+  // 보내기(SMTP) — 저장 전 실제 로그인 검사 실패 (2026-09-21)
+  gmail_smtp_auth_failed: { key: 'settings.err.gmailSmtp', def: 'Gmail 보내기 로그인에 실패했습니다. 보내기 아이디가 이메일 주소 전체인지, 앱 비밀번호가 맞는지 확인해 주세요.', preset: 'gmail' },
+  naver_smtp_auth_failed: { key: 'settings.err.naverSmtp', def: '네이버 보내기 로그인에 실패했습니다. 네이버 메일 환경설정 > POP3/IMAP 설정에서 «IMAP/SMTP 사용» 을 켜고, 보내기 아이디가 이메일 주소 전체인지 확인해 주세요.', preset: 'naver' },
+  ms_smtp_auth_failed: { key: 'settings.err.msSmtp', def: 'Microsoft 보내기 로그인이 거절됐습니다. 회사(Microsoft 365) 계정은 관리자가 «SMTP 인증» 을 허용해야 하고, 개인 Outlook.com 은 비밀번호 방식 연결을 지원하지 않습니다.', preset: 'outlook' },
+  smtp_auth_failed: { key: 'settings.err.smtpAuth', def: '보내기 로그인에 실패했습니다. 보내기 아이디(보통 이메일 주소 전체)와 비밀번호를 확인해 주세요.' },
+  smtp_host_not_found: { key: 'settings.err.smtpHost', def: '보내기(SMTP) 서버 주소를 찾을 수 없습니다. 서버 주소를 확인해 주세요.' },
+  smtp_connect_failed: { key: 'settings.err.smtpConnect', def: '보내기(SMTP) 서버에 연결하지 못했습니다. 서버 주소와 포트(465 또는 587)를 확인해 주세요.' },
 };
 
 // IMAP host → 안내 가이드 key (편집 모드에서도 provider 안내 표시)
@@ -678,7 +693,14 @@ const AccountEditForm: React.FC<FormProps> = ({ initial, businessId, scope, onSa
               type="email" value={form.email}
               onChange={e => {
                 const email = e.target.value;
-                setForm({ ...form, email, imap_username: form.imap_username || email, smtp_username: form.smtp_username || email });
+                // ★ 아이디 칸은 이메일을 **계속 따라간다**(사용자가 따로 고치기 전까지). 여태 `빈 칸일 때만` 채워서
+                //   첫 글자에서 멈췄다 — 운영 네이버 계정의 보내기 아이디가 한 글자로 저장돼 발송이 전부 거절됐다.
+                const follows = (v?: string | null) => !v || v === form.email;
+                setForm({
+                  ...form, email,
+                  imap_username: follows(form.imap_username) ? email : form.imap_username,
+                  smtp_username: follows(form.smtp_username) ? email : form.smtp_username,
+                });
                 // 도메인 자동 감지 → 서버 정보 자동 완성 + provider 안내 표시
                 const auto = detectPresetByEmail(email);
                 if (!isEdit && auto && auto !== preset) onPresetChange(auto);

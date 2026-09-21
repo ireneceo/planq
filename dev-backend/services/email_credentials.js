@@ -41,8 +41,44 @@ async function verifyImapCredentials({ host, port, tls, username, password, fold
   }
 }
 
+// SMTP(보내기) 자격 실검증 — 로그인만 하고 메일은 보내지 않는다(nodemailer verify = EHLO + AUTH).
+//
+// ★ 2026-09-21 — 여태 연결·수정은 **IMAP(받기)만** 검사했다. 운영의 네이버 계정이 받기는 되는데
+//   보내기는 535 로 거절되고 있었다 — 추가 화면이 이메일 칸 **첫 글자**를 보내기 아이디로 복사해
+//   `smtp_username` 이 한 글자로 저장됐다. 받기는 멀쩡해서 아무도 몰랐고, 보내는 순간에야 실패한다.
+//   발송 코드(emailSend.buildTransport)와 **같은 규칙**으로 호스트·포트·아이디를 정한다 — 검사와 실제가
+//   다르면 검사가 초록이어도 발송은 실패한다.
+async function verifySmtpCredentials({ host, port, username, password, tls }) {
+  const nodemailer = require('nodemailer');
+  const p = Number(port) || 587;
+  const tr = nodemailer.createTransport({
+    host, port: p, secure: p === 465,
+    auth: { user: username, pass: password },
+    requireTLS: tls !== false && p !== 465,
+    connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
+  });
+  try {
+    await tr.verify();
+    return { ok: true };
+  } catch (e) {
+    const msg = String((e && e.message) || e);
+    const h = String(host || '').toLowerCase();
+    if (e && (e.code === 'EAUTH' || /535|534|auth/i.test(msg))) {
+      if (h.includes('gmail') || h.includes('googlemail')) return { ok: false, code: 'gmail_smtp_auth_failed', detail: msg };
+      if (h.includes('naver')) return { ok: false, code: 'naver_smtp_auth_failed', detail: msg };
+      if (h.includes('office365') || h.includes('outlook')) return { ok: false, code: 'ms_smtp_auth_failed', detail: msg };
+      return { ok: false, code: 'smtp_auth_failed', detail: msg };
+    }
+    if (/enotfound|getaddrinfo/i.test(msg)) return { ok: false, code: 'smtp_host_not_found', detail: msg };
+    return { ok: false, code: 'smtp_connect_failed', detail: msg };
+  } finally {
+    try { tr.close(); } catch { /* noop */ }
+  }
+}
+
 module.exports = {
   APP_PASSWORD_HOSTS,
   normalizeImapPassword,
   verifyImapCredentials,
+  verifySmtpCredentials,
 };
