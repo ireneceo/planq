@@ -8,6 +8,11 @@
       "title": "문의·피드백 — 작성 버튼 위치·색 · 상세 스크롤 · 추가 문의 접기 · 빈 화면",
       "detail": "[+ 작성하기] 를 필터 뒤 맨 오른쪽, 머리줄 공용 HeaderCta(#14B8A6). 상세는 대화 영역만 스크롤(넘친 문의·답변이 잘리던 것), 빈 회색 띠(88px) 제거, 추가 문의는 눌러야 열린다. 문의가 없으면 가운데 EmptyState + [+ 작성하기].",
       "verified": "opus_only"
+    },
+    {
+      "title": "휴가·근태 알림을 누르면 흰 화면이던 것",
+      "detail": "알림 링크가 #208 에 없어진 `/attendance?tab=team` 을 가리켰다(그 탭이 없어 본문이 비었다). 링크를 설정 > 근태 관리(`/business/settings/attendance?leave=|date=`)로. 이미 나간 옛 알림은 화면이 넘겨준다. 모르는 탭은 «내 근태» 로. 날짜 링크는 그 날짜로 연다.",
+      "verified": "opus_only"
     }
   ],
   "behavior_changes": [

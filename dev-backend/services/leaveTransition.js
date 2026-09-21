@@ -161,7 +161,8 @@ async function notifyManagers(request, actorUserId) {
       eventKind: 'leave',
       title: `휴가 신청 — ${applicant?.name || ''}`,
       body: `${ymd(request.start_date)}${ymd(request.end_date) !== ymd(request.start_date) ? ` ~ ${ymd(request.end_date)}` : ''}`,
-      link: `/attendance?tab=team&leave=${request.id}`,
+      // 승인은 설정 > 근태 관리에서 한다(#208). 옛 `/attendance?tab=team` 은 없는 탭이라 흰 화면이었다.
+      link: `/business/settings/attendance?leave=${request.id}`,
       workspaceName: biz?.name,
       excludeUserId: actorUserId,
       actorUserId,

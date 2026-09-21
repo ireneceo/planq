@@ -3,7 +3,7 @@
 // 탭 3개. "팀 관리" 는 owner/admin 에게만 보인다 — 남의 근무시간은 관리 목적으로만 열린다(§6).
 // 신청·부여는 제출형 폼이라 저장 버튼을 쓴다(자동저장 예외 — 청구서 작성과 같은 분류).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
@@ -32,7 +32,11 @@ const AttendancePage: React.FC = () => {
   const { user } = useAuth();
   const bizId = user?.business_id ? Number(user.business_id) : null;
   const [params, setParams] = useSearchParams();
-  const tab = (params.get('tab') as Tab) || 'my';
+  // ★ 모르는 탭은 «내 근태» 로 받는다 — 그리지 않으면 본문이 비어 **흰 화면**이 된다.
+  //   `team` 은 #208 에 설정 > 근태 관리로 옮겨졌다. 이미 나간 알림(옛 링크)도 거기로 넘긴다.
+  const rawTab = params.get('tab');
+  const tab: Tab = rawTab === 'leave' ? 'leave' : 'my';
+  const legacyTeam = rawTab === 'team';
 
   // 관리자 여부 — /team 을 실제로 호출해서 판정하지 않고, 서버가 준 역할로 본다.
 
@@ -167,6 +171,14 @@ const AttendancePage: React.FC = () => {
         <Empty>{t('noWorkspace', { defaultValue: '워크스페이스를 먼저 선택해 주세요.' }) as string}</Empty>
       </PageShell>
     );
+  }
+
+  // 옛 알림 링크(`?tab=team`) — 팀 현황·승인은 설정 > 근태 관리에 있다. 날짜·휴가 인자는 그대로 싣는다.
+  if (legacyTeam) {
+    const rest = new URLSearchParams(params);
+    rest.delete('tab');
+    const qs = rest.toString();
+    return <Navigate to={`/business/settings/attendance${qs ? `?${qs}` : ''}`} replace />;
   }
 
   return (

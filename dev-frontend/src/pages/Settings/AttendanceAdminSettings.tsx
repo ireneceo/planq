@@ -6,6 +6,7 @@
 //   여기는 멤버·권한·청구와 같은 줄 — 관리자가 관리하러 오는 곳이다.
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
@@ -28,6 +29,11 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
   const [stats, setStats] = useState<StatRow[]>([]);
   const [members, setMembers] = useState<{ user_id: number; name: string }[]>([]);
   const [teamDate, setTeamDate] = useState(today);
+  // 알림 링크(`?date=YYYY-MM-DD`) — 그날의 팀 근태로 바로 연다. 초기값으로만 읽으면 keep-alive 탭에서
+  //   두 번째 알림부터 안 걸리므로 파라미터가 바뀔 때마다 따라간다.
+  const [params] = useSearchParams();
+  const dateParam = params.get('date');
+  useEffect(() => { if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) setTeamDate(dateParam); }, [dateParam]);
   const [statMonth, setStatMonth] = useState(() => today.slice(0, 7));
   const [fixTarget, setFixTarget] = useState<AttendanceDay | null>(null);
 
