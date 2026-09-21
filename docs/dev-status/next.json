@@ -1,25 +1,25 @@
 {
   "working_on": [
-    "안드로이드 받기"
+    "문의 첨부"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "안드로이드 — Play 심사 중에는 PWA 로 설치",
-      "detail": "/app 의 안드로이드 칸이 링크가 없으면 «준비 중» 뿐이었다. 이제 설치창이 되면 [홈 화면에 앱 설치], 안 되면 Chrome·삼성 인터넷 메뉴 경로, 이미 설치면 안내, 데스크탑은 폰에서 열라고 안내. 관리자 화면에 app_android_url 을 넣으면 스토어 버튼으로 자동 전환(실측).",
+      "title": "문의에도 이미지 첨부",
+      "detail": "피드백과 같은 드롭존·같은 규칙(이미지·1MB·3개)·같은 저장 형식. 검사·읽기를 공용 함수(pickImages·readAttachmentPayload)로 빼 두 양식이 공유. 실측: 이미지 붙여 보낸 문의가 kind=inquiry · 첨부 1(image/png)로 저장.",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "안드로이드 사용자가 /app 에서 PWA 로 앱을 설치할 수 있다."
+    "로그인 사용자의 문의에 스크린샷을 붙일 수 있다."
   ],
   "issues": [],
   "blocked_on_human": [
-    "Play 승인 후 운영 관리자 화면(플랫폼 설정)에 app_android_url 입력"
+    "Play 승인 후 운영 관리자 화면에 app_android_url 입력"
   ],
   "migrations": [],
   "check_areas": [
-    "안드로이드 폰에서 planq.kr/app"
+    "개인 > 문의·피드백 [+ 문의하기] → 이미지 첨부 → 관리자 피드백에서 첨부 확인"
   ],
   "backlog": [
     "참석자 추가 시 «알릴까요?» 묻기 · 외부 이메일 초대 · 미팅자료 고르기(참석자 열람권) — Fable 판단 대기(FABLE_GATE_QUEUE)"

@@ -132,6 +132,9 @@ const CueHelpDrawer: React.FC<{
   //   그 컴포넌트는 File[] 을 다루고 업로드는 호출부 책임이라, base64 변환은 제출 시점에 한다
   //   (피드백 첨부는 워크스페이스 파일이 아니라 feedback_items.attachments JSON 에 직접 저장).
   const [fbFiles, setFbFiles] = useState<File[]>([]);
+  // 문의 첨부 — 피드백과 같은 규칙(이미지 · 1MB · 3개) · 같은 저장 형식
+  const [inqFiles, setInqFiles] = useState<File[]>([]);
+  const [inqAttachError, setInqAttachError] = useState<string | null>(null);
   const businessId = user?.business_id ? Number(user.business_id) : null;
   const [fbAttachError, setFbAttachError] = useState<string | null>(null);
 
@@ -352,6 +355,9 @@ const CueHelpDrawer: React.FC<{
     if (!isGuest) {
       if (!inqMessage.trim()) { setInqResultMsg(t('qhelper.inqRequiredMember', '문의 내용을 입력해주세요.') as string); return; }
       setSubmitting(true); setInqResultMsg(null);
+      let inqAttachments: Array<{ name: string; type: string; dataUrl: string }> = [];
+      try { inqAttachments = await readAttachmentPayload(inqFiles); }
+      catch { setInqAttachError(t('qhelper.fbAttachReadFail', '파일 읽기 실패') as string); setSubmitting(false); return; }
       try {
         const res = await apiFetch('/api/feedback', {
           method: 'POST',
@@ -362,12 +368,13 @@ const CueHelpDrawer: React.FC<{
             title: (inqMessage.trim().split('\n')[0] || '').slice(0, 60),
             body: inqMessage.trim(),
             page_url: typeof window !== 'undefined' ? window.location.pathname : null,
+            attachments: inqAttachments.length > 0 ? inqAttachments : null,
           }),
         });
         const j = await res.json();
         if (!res.ok || !j.success) throw new Error(j.message || 'inquiry error');
         setInqResultMsg(t('qhelper.inqThanksMember', '문의가 접수됐어요. 답변은 개인 > 문의·피드백에서 볼 수 있어요.') as string);
-        setInqMessage('');
+        setInqMessage(''); setInqFiles([]); setInqAttachError(null);
         window.dispatchEvent(new CustomEvent('planq:feedback-sent', { detail: { id: j.data?.id } }));
         window.setTimeout(() => setInqResultMsg(null), 8000);
       } catch (e) {
@@ -405,7 +412,7 @@ const CueHelpDrawer: React.FC<{
     } finally {
       setSubmitting(false);
     }
-  }, [inqName, inqEmail, inqMessage, submitting, t, isGuest, user, tErr]);
+  }, [inqName, inqEmail, inqMessage, inqFiles, submitting, t, isGuest, user, tErr]);
 
   // 피드백 제출 (자동 메타: page_url, user_agent)
   const submitFeedback = useCallback(async () => {
@@ -436,12 +443,7 @@ const CueHelpDrawer: React.FC<{
     //   UI 만 드롭존으로 바뀌었고 서버 계약은 그대로다.
     let fbAttachmentPayload: Array<{ name: string; type: string; dataUrl: string }> = [];
     try {
-      fbAttachmentPayload = await Promise.all(fbFiles.map(f => new Promise<{ name: string; type: string; dataUrl: string }>((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res({ name: f.name, type: f.type, dataUrl: String(reader.result) });
-        reader.onerror = rej;
-        reader.readAsDataURL(f);
-      })));
+      fbAttachmentPayload = await readAttachmentPayload(fbFiles);
     } catch {
       setFbAttachError(t('qhelper.fbAttachReadFail', '파일 읽기 실패') as string);
       setSubmitting(false);
@@ -486,21 +488,20 @@ const CueHelpDrawer: React.FC<{
 
   // 피드백 이미지 첨부 규칙 — 이미지만 / 파일당 1MB / 최대 3개.
   //   AttachmentField 가 고른 File[] 을 받아 여기서 검증한다(통과분만 상태에 남긴다).
-  const onFbFilesChange = useCallback((next: File[]) => {
-    setFbAttachError(null);
+  //   ★ 문의(2026-09-21)도 **같은 규칙**을 쓴다 — 한 함수로 검사해 두 양식이 갈라지지 않게.
+  const pickImages = useCallback((next: File[], setErr: (m: string | null) => void): File[] => {
+    setErr(null);
     const ok: File[] = [];
     for (const f of next) {
-      if (!f.type.startsWith('image/')) { setFbAttachError(t('qhelper.fbAttachImageOnly', '이미지만 첨부 가능') as string); continue; }
-      if (f.size > 1024 * 1024) { setFbAttachError(t('qhelper.fbAttachTooBig', '파일당 1MB 이하', { name: f.name }) as string); continue; }
+      if (!f.type.startsWith('image/')) { setErr(t('qhelper.fbAttachImageOnly', '이미지만 첨부 가능') as string); continue; }
+      if (f.size > 1024 * 1024) { setErr(t('qhelper.fbAttachTooBig', '파일당 1MB 이하', { name: f.name }) as string); continue; }
       ok.push(f);
     }
-    if (ok.length > 3) {
-      setFbAttachError(t('qhelper.fbAttachMax', '최대 3개까지 첨부 가능') as string);
-      setFbFiles(ok.slice(0, 3));
-      return;
-    }
-    setFbFiles(ok);
+    if (ok.length > 3) { setErr(t('qhelper.fbAttachMax', '최대 3개까지 첨부 가능') as string); return ok.slice(0, 3); }
+    return ok;
   }, [t]);
+  const onFbFilesChange = useCallback((next: File[]) => { setFbFiles(pickImages(next, setFbAttachError)); }, [pickImages]);
+  const onInqFilesChange = useCallback((next: File[]) => { setInqFiles(pickImages(next, setInqAttachError)); }, [pickImages]);
 
   // 컨텍스트 기반 자동 숨김 — Q Talk 같이 우하단 입력 영역(전송버튼/IME 도구)을 점유하는 화면에서는
   // FAB 가 충돌하므로 숨긴다. 도움말은 헤더의 ⓘ 아이콘 또는 단축키 (⌘? / Ctrl+/) 로 접근.
@@ -821,6 +822,28 @@ const CueHelpDrawer: React.FC<{
                   maxLength={5000}
                 />
               </FbField>
+              {/* 문의에도 스크린샷을 붙인다 — 피드백과 같은 드롭존·같은 규칙(Irene: "왜 피드백보내기에는 첨부 되는데 문의는 없어?").
+                  손님 문의는 이메일 창구라 첨부를 받지 않는다(그 원장에는 첨부 칸이 없다). */}
+              {!isGuest && (
+                <FbField>
+                  <FbLabel>{t('qhelper.fbAttach', '이미지 첨부 (선택)')}</FbLabel>
+                  {businessId ? (
+                    <AttachmentField
+                      businessId={businessId}
+                      uploads={inqFiles}
+                      onUploadsChange={onInqFilesChange}
+                      existingFileIds={[]}
+                      onExistingFileIdsChange={() => { /* 문의는 기존 파일 연결 없음 */ }}
+                      hideExistingSearch
+                      accept="image/*"
+                      uploadAcceptHint={t('qhelper.fbAttachHint', '최대 3개, 파일당 1MB 이하 (스크린샷 권장)') as string}
+                    />
+                  ) : (
+                    <FbAttachHint>{t('qhelper.fbAttachNoWorkspace', '워크스페이스에 들어가면 이미지를 첨부할 수 있어요')}</FbAttachHint>
+                  )}
+                  {inqAttachError && <FbAttachErr>{inqAttachError}</FbAttachErr>}
+                </FbField>
+              )}
               {inqResultMsg && <FbResult>{inqResultMsg}</FbResult>}
             </FbForm>
           )}
@@ -917,6 +940,16 @@ const CueHelpDrawer: React.FC<{
 };
 
 export default CueHelpDrawer;
+
+/** 첨부 File[] → 저장 형식 { name, type, dataUrl }[] (feedback_items.attachments JSON). 피드백·문의 공용 */
+function readAttachmentPayload(files: File[]): Promise<Array<{ name: string; type: string; dataUrl: string }>> {
+  return Promise.all(files.map(f => new Promise<{ name: string; type: string; dataUrl: string }>((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = () => res({ name: f.name, type: f.type, dataUrl: String(reader.result) });
+    reader.onerror = rej;
+    reader.readAsDataURL(f);
+  })));
+}
 
 // ─── styled ───
 const Backdrop = styled.div`
