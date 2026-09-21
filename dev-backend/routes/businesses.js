@@ -934,7 +934,7 @@ router.get('/:businessId/members', authenticateToken, checkBusinessAccess, async
             'phone', 'job_title', 'organization', 'bio', 'expertise', 'timezone']
         },
         // D1 후속 — 멤버 소속(부서/팀) 표시 확산 (UserInfoPopover 등 공통 표시)
-        { model: Department, as: 'department', attributes: ['id', 'name', 'name_en'], required: false },
+        { model: Department, as: 'department', attributes: ['id', 'name', 'name_en', 'lead_user_id'], required: false },
         { model: Team, as: 'team', attributes: ['id', 'name', 'name_en'], required: false },
       ],
       order: [

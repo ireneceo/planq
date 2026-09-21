@@ -171,7 +171,8 @@ const EmptyIcon = styled.svg` width: 48px; height: 48px; color: #CBD5E1; `;
 const EmptyTitle = styled.div` font-size: 0.9375rem; font-weight: 700; color: #334155; `;
 const EmptyHint = styled.div` font-size: 0.8125rem; color: #94A3B8; `;
 // ★ 알림 전체보기와 **같은 폭·같은 정렬**. 한쪽은 800 가운데, 한쪽은 760 왼쪽이라 따로 놀았다.
-const List = styled.div` display: flex; flex-direction: column; gap: 12px; max-width: 800px; margin: 0 auto; `;
+// #422 — 가운데 800px 기둥을 걷었다. 다른 목록 화면과 같이 본문 폭을 쓴다(데스크탑 좌 210px → 20px)
+const List = styled.div` display: flex; flex-direction: column; gap: 12px; `;
 const Card = styled.div` background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; `;
 const CardHead = styled.button`
   display: block; width: 100%; text-align: left; padding: 14px 16px;

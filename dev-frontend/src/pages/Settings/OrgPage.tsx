@@ -76,7 +76,20 @@ const OrgPage = () => {
     catch (e) { setErr(mapApiError(e, tErr)); }
   };
   const setLead = async (d: OrgDepartment, leadId: number | null) => {
-    try { await updateDepartment(bizId, d.id, { lead_user_id: leadId }); setDepts((prev) => prev.map((x) => x.id === d.id ? { ...x, lead_user_id: leadId } : x)); }
+    try {
+      await updateDepartment(bizId, d.id, { lead_user_id: leadId });
+      setDepts((prev) => prev.map((x) => x.id === d.id ? { ...x, lead_user_id: leadId } : x));
+      // ★ 서버가 부서장을 그 부서 소속으로 옮긴다(다른 부서의 팀이면 팀은 뗀다) — 아래 배정 표도 같은 규칙으로 맞춘다.
+      //   안 그러면 표에는 옛 부서가 남아 있다가 새로고침해야 바뀐다.
+      if (leadId != null) {
+        setAssign((prev) => {
+          const cur = prev[leadId] || { department_id: null, team_id: null, job_title: null };
+          if (cur.department_id === d.id) return prev;
+          return { ...prev, [leadId]: { ...cur, department_id: d.id, team_id: null } };
+        });
+        listDepartments(bizId).then(setDepts).catch(() => { /* 인원수만 늦게 맞는다 — 다음 load 에서 */ });
+      }
+    }
     catch (e) { setErr(mapApiError(e, tErr)); }
   };
   const addTeam = async (d: OrgDepartment) => {

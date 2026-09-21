@@ -444,7 +444,11 @@
       "perHour": "per h",
       "perMonth": "per mo",
       "rateOrder": "The hourly rate is used when set. Otherwise the monthly salary is converted as salary ÷ (weekly capacity × 4.33).",
-      "rateSaveFailed": "Could not save the rate. Please check the value."
+      "rateSaveFailed": "Could not save the rate. Please check the value.",
+      "department": "Department",
+      "team": "Team",
+      "deptLead": "Department head",
+      "unassigned": "Unassigned"
     },
     "roleAdmin": "Admin",
     "roleMember": "Member",

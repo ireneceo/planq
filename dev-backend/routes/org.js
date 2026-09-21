@@ -31,6 +31,23 @@ function broadcast(req, businessId) {
   if (io) io.to(`business:${businessId}`).emit('org:updated', { businessId });
 }
 
+// ★ 2026-09-21 — 부서장을 정하면 그 사람은 **그 부서 소속**이 된다. Irene: *"설정>조직에서 부서장이나 팀장
+//   넣으면 자동으로 해당 멤버가 그 부서나 팀으로 들어가야 하는데 그렇지가 않아."*
+//   여태 lead_user_id 만 적고 멤버의 department_id 는 그대로라, 부서장이 «미배정» 또는 남의 부서원으로 보였다.
+//   또 lead_user_id 가 이 워크스페이스 멤버인지 **확인하지 않았다**(남의 사용자 id 를 넣으면 그 이름이 부서
+//   목록에 실렸다). 두 라우트(생성·수정)가 이 한 함수를 지난다.
+async function resolveLead(businessId, leadUserId) {
+  if (leadUserId === null || leadUserId === '' || leadUserId === undefined) return { ok: true, bm: null };
+  const bm = await BusinessMember.findOne({ where: { business_id: businessId, user_id: Number(leadUserId), removed_at: null } });
+  if (!bm) return { ok: false };
+  return { ok: true, bm };
+}
+async function placeLeadInDepartment(bm, deptId) {
+  if (!bm || bm.department_id === deptId) return;
+  // 팀은 부서 하위다 — 다른 부서의 팀에 걸려 있으면 떼어 낸다(팀만 남으면 소속이 모순된다)
+  await bm.update({ department_id: deptId, team_id: null });
+}
+
 // ─── 부서 목록 (전 멤버) ───
 router.get('/:businessId/departments', authenticateToken, async (req, res, next) => {
   try {
@@ -67,12 +84,15 @@ router.post('/:businessId/departments', authenticateToken, async (req, res, next
     if (!canManage(ctx.scope)) return errorResponse(res, 'forbidden', 403);
     const { name, name_en, color, lead_user_id, sort_order } = req.body || {};
     if (!name || !String(name).trim()) return errorResponse(res, 'name_required', 400);
+    const lead = await resolveLead(ctx.businessId, lead_user_id);
+    if (!lead.ok) return errorResponse(res, 'invalid_lead', 400);
     const dept = await Department.create({
       business_id: ctx.businessId, name: String(name).trim(),
       name_en: name_en ? String(name_en).trim() : null,
-      color: color || null, lead_user_id: lead_user_id || null,
+      color: color || null, lead_user_id: lead.bm ? lead.bm.user_id : null,
       sort_order: Number(sort_order) || 0,
     });
+    await placeLeadInDepartment(lead.bm, dept.id);
     broadcast(req, ctx.businessId);
     return successResponse(res, dept, '생성됨', 201);
   } catch (err) { next(err); }
@@ -85,10 +105,17 @@ router.put('/:businessId/departments/:id', authenticateToken, async (req, res, n
     const dept = await Department.findOne({ where: { id: req.params.id, business_id: ctx.businessId } });
     if (!dept) return errorResponse(res, 'not_found', 404);
     const patch = {};
-    for (const f of ['name', 'name_en', 'color', 'lead_user_id', 'sort_order']) {
+    for (const f of ['name', 'name_en', 'color', 'sort_order']) {
       if (req.body[f] !== undefined) patch[f] = req.body[f];
     }
+    let lead = { ok: true, bm: null };
+    if (req.body.lead_user_id !== undefined) {
+      lead = await resolveLead(ctx.businessId, req.body.lead_user_id);
+      if (!lead.ok) return errorResponse(res, 'invalid_lead', 400);
+      patch.lead_user_id = lead.bm ? lead.bm.user_id : null;
+    }
     await dept.update(patch);
+    await placeLeadInDepartment(lead.bm, dept.id);
     broadcast(req, ctx.businessId);
     return successResponse(res, dept);
   } catch (err) { next(err); }

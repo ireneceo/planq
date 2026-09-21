@@ -277,7 +277,8 @@ function Detail({ signature: s, onClose }: { signature: ReceivedSignature; onClo
 // styled
 // ─────────────────────────────────────────────
 const Container = styled.div`
-  display: flex; flex-direction: column; gap: 12px; padding: 20px;
+  display: flex; flex-direction: column; gap: 12px;
+  /* #422 — 여백은 PageShell Body(20 / 폰 14) 하나가 준다. 여기서 또 주면 폰 34px 로 넓어진다 */
 `;
 const Toolbar = styled.div`display: flex; flex-direction: column; gap: 10px;`;
 const SearchInput = styled.input`

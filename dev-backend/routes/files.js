@@ -574,6 +574,13 @@ router.get('/:businessId/storage', authenticateToken, checkBusinessAccess, async
         external_ready: !!externalProvider,
         external_provider: externalProvider,
         external_needs_context: true,
+        // ★ 2026-09-21 (#417 "용량 큰게 안올라가는 것 같은데. 안되면 안내라도 해야 해. 뭐가 문제인지 기준을 찾아")
+        //   요청이 우리 코드에 닿기 **전에** nginx 가 막는 상한. 플랜·Drive 한도보다 작으면 이게 진짜 한도다.
+        //   화면은 이 값을 몰라 413(HTML) 을 받고 숫자 없는 "최대 크기를 넘었습니다" 만 보였다.
+        //   실측(2026-09-21, Content-Length 탐침): 운영 1.5GB 통과 · 2.2GB 413 / dev 40MB 통과 · 60MB 413.
+        //   nginx 설정을 바꾸면 UPLOAD_PROXY_MAX_BYTES 로 맞춘다(설정 파일은 앱이 읽을 수 없다).
+        proxy_max_bytes: Number(process.env.UPLOAD_PROXY_MAX_BYTES)
+          || (process.env.NODE_ENV === 'production' ? 2 * 1024 * 1024 * 1024 : 50 * 1024 * 1024),
       },
     });
   } catch (error) {

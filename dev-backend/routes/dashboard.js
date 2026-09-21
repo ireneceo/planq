@@ -276,13 +276,15 @@ async function collectTasks(businessId, userId) {
    ──────────────────────────────────────────── */
 async function collectEvents(businessId, userId) {
   const now = new Date();
-  const weekEnd = new Date(now.getTime() + 7 * 86400 * 1000);
   const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
 
+  // ★ 2026-09-21 — 응답 안 한 초대는 **날짜와 무관하게** 뜬다. 여태 7일 안의 것만 모아서
+  //   3주 뒤 회의에 초대받으면 확인필요 어디에도 없었다(Irene: "참석자는 알지를 못해. 확인필요에
+  //   참석요청 떠야 하는 거 아니야?"). 오늘 참석 리마인더(b)는 그대로 오늘 것만이다.
   const events = await CalendarEvent.findAll({
     where: {
       business_id: businessId,
-      start_at: { [Op.between]: [now, weekEnd] },
+      start_at: { [Op.gt]: now },
     },
     attributes: ['id', 'title', 'start_at', 'location', 'createdAt'],
     include: [

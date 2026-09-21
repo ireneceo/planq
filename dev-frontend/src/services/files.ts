@@ -409,6 +409,8 @@ export async function moveFile(businessId: number, fileId: string, folderId: num
 export interface UploadLimits {
   self_max_bytes: number;
   external_max_bytes: number;
+  /** nginx 가 요청 자체를 막는 상한(0 = 모름). 플랜 한도보다 작으면 이것이 진짜 한도다. */
+  proxy_max_bytes: number;
   /** Drive·S3 로 흘릴 준비가 됐는가(토큰+루트 폴더). 실제로 타려면 맥락도 필요하다 — 아래 참조. */
   external_ready: boolean;
   external_provider: 'gdrive' | 's3' | null;
@@ -434,6 +436,7 @@ export async function getUploadLimits(businessId: number): Promise<UploadLimits 
     const v: UploadLimits = {
       self_max_bytes: Number(u.self_max_bytes) || 0,
       external_max_bytes: Number(u.external_max_bytes) || 0,
+      proxy_max_bytes: Number(u.proxy_max_bytes) || 0,
       external_ready: !!u.external_ready,
       external_provider: (u.external_provider as UploadLimits['external_provider']) ?? null,
       bytes_used: Number(j?.data?.bytes_used) || 0,
@@ -463,6 +466,11 @@ export async function preflightUploadSize(
   const lim = await getUploadLimits(businessId);
   if (!lim) return null;
   const external = lim.external_ready && hasContext;
+  // ★ nginx 상한이 먼저다 — 그보다 크면 어느 길(자체·Drive)로도 서버에 닿지 않는다.
+  //   Drive 연결을 권하는 안내를 띄우면 거짓말이 된다(연결해도 똑같이 막힌다).
+  if (lim.proxy_max_bytes && Number(size || 0) > lim.proxy_max_bytes) {
+    return { code: 'file_size_exceeded', limitBytes: lim.proxy_max_bytes };
+  }
   const cap = external ? lim.external_max_bytes : lim.self_max_bytes;
   if (!cap || Number(size || 0) <= cap) return null;
   if (external) return { code: 'file_size_exceeded', limitBytes: cap };

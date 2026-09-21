@@ -128,7 +128,7 @@ const EmptyTitle = styled.div` font-size: 0.9375rem; font-weight: 700; color: #3
 const EmptyHint = styled.div` font-size: 0.8125rem; color: #94A3B8; `;
 const List = styled.div`
   display: flex; flex-direction: column; gap: 4px;
-  max-width: 800px; margin: 0 auto;
+  /* #422 — 가운데 800px 기둥을 걷었다. 다른 목록 화면과 같이 본문 폭을 쓴다(데스크탑 좌 210px → 20px) */
 `;
 const Item = styled.button<{ $unread: boolean }>`
   display: flex; gap: 12px; align-items: flex-start;

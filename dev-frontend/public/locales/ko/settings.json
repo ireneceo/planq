@@ -444,7 +444,11 @@
       "perHour": "원/h",
       "perMonth": "원/월",
       "rateOrder": "시간당 단가가 있으면 그 값을 씁니다. 없고 월급만 있으면 월급 ÷ (주간 가용시간 × 4.33) 으로 환산합니다.",
-      "rateSaveFailed": "단가를 저장하지 못했습니다. 값을 확인해 주세요."
+      "rateSaveFailed": "단가를 저장하지 못했습니다. 값을 확인해 주세요.",
+      "department": "부서",
+      "team": "팀",
+      "deptLead": "부서장",
+      "unassigned": "미배정"
     },
     "roleAdmin": "관리자",
     "roleMember": "멤버",

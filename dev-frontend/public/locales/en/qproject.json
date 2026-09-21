@@ -549,7 +549,8 @@
     "move": {
       "title": "Move to folder",
       "current": "Current",
-      "here": "This file is already here"
+      "here": "This file is already here",
+      "failed": "Couldn't move {{count}} file(s) there — the folder belongs to another project or the file can't be moved."
     },
     "folder": {
       "all": "All",

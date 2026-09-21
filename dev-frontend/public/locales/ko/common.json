@@ -108,7 +108,7 @@
     "users": "사용자",
     "businesses": "비즈니스",
     "logout": "로그아웃",
-    "myFeedback": "내 문의·피드백"
+    "myFeedback": "PlanQ 문의·피드백"
   },
   "role": {
     "platform_admin": "플랫폼 관리자",
@@ -880,7 +880,7 @@
     }
   },
   "myFeedback": {
-    "title": "내 문의·피드백",
+    "title": "PlanQ 문의·피드백",
     "loading": "불러오는 중…",
     "empty": "아직 남긴 문의·피드백이 없어요. Q helper에서 문의나 피드백을 남겨보세요.",
     "noMatch": "조건에 맞는 항목이 없어요.",
@@ -915,7 +915,8 @@
       "reviewing": "검토 중",
       "done": "완료",
       "wontfix": "보류"
-    }
+    },
+    "scopeNote": "PlanQ 운영팀에 보낸 솔루션 문의·피드백이에요. 워크스페이스 멤버나 고객에게는 보이지 않고 나만 봐요."
   },
   "securityLevel": {
     "label": "보안등급",

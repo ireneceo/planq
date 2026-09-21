@@ -8,7 +8,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
 import { FolderSvg, FolderOpenSvg, AllSvg, MyFilesSvg, PlusSvg, FolderMoveSvg, SystemFolderIcon } from './docs/treeIcons';
 import {
-  TreeRoot, TreeDivider, FolderRow, FolderIconWrap, FolderName, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
+  TreeRoot, TreeDivider, FolderRow, FolderIconWrap, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
 } from './docs/treeStyles';
 import TreeRow from './docs/TreeRow';
 import { useFileOpen } from './docs/useFileOpen';
@@ -53,6 +53,8 @@ import { useFileDragOut, isMovableInApp } from '../../hooks/useFileDragOut';
 import OverflowMenu from '../../components/Common/OverflowMenu';
 import { isEnterAction } from '../../utils/imeKey';
 import { openDriveEditor } from '../../utils/driveEdit';
+import { useFolderEditing } from './docs/useFolderEditing';
+import { SecondaryBtn, PrimaryBtn, DangerBtn, Modal, Dialog, DTitle, DBody, DFooter } from './docs/dialogStyles';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -229,6 +231,7 @@ const DocsTab: React.FC<Props> = (props) => {
      한 컨트롤이 **분류 표시**와 **이동 버튼** 두 가지를 겸하고 있었다(폴더 이름을 글자로 단 36px 알약).
      둘은 다른 것이다: 분류는 출처 칩 옆에 나란히, 이동은 다른 액션과 같은 아이콘 버튼. */
   const [moveSingle, setMoveSingle] = useState<ProjectFile | null>(null);
+  const [pvMoveOpen, setPvMoveOpen] = useState(false);   // 미리보기 패널 안 [이동] 펼침
   const inputRef = useRef<HTMLInputElement>(null);
   const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   // N+67 — visibility 변경 UI 용 (preview drawer 안)
@@ -582,14 +585,23 @@ const DocsTab: React.FC<Props> = (props) => {
    * ★ 받을 수 있는 것만 넘긴다(`download_url` 이 있는 것). 빈 폴더면 애초에 메뉴에 안 뜬다.
    */
   const onDownloadFolder = useCallback(async (folderId: number) => {
-    const ids = files.filter(f => f.folder_id === folderId && f.download_url && f.download_url !== '#').map(f => f.id);
+    // ★ 하위 폴더까지 담는다 — 여태 그 폴더 바로 아래 파일만 담아, 하위 폴더를 만든 사람에게는
+    //   «폴더 전체» 가 아니었다(#417). 폴더 트리를 끝까지 따라 내려간다.
+    const tree = new Set<number>([folderId]);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const fo of folders) {
+        if (fo.parent_id != null && tree.has(fo.parent_id) && !tree.has(fo.id)) { tree.add(fo.id); grew = true; }
+      }
+    }
+    const ids = files.filter(f => f.folder_id != null && tree.has(f.folder_id) && f.download_url && f.download_url !== '#').map(f => f.id);
     if (!ids.length) return;
     setDownloading(true); setZipProgress(null); setShareError(null);
     try {
       const r = await bulkDownloadZip(businessId, ids, setZipProgress);
       if (!r.ok) setShareError(t('docs.bulk.zipFailed', 'ZIP 다운로드 실패: {{msg}}', { msg: r.message || '' }) as string);
     } finally { setDownloading(false); setZipProgress(null); }
-  }, [files, businessId, t]);
+  }, [files, folders, businessId, t]);
 
   const zipProgressText = !zipProgress
     ? t('docs.bulk.zipDownloading', '준비 중...')
@@ -669,14 +681,54 @@ const DocsTab: React.FC<Props> = (props) => {
   const onMoveTo = useCallback(async (targetFolderId: number | null) => {
     // 한 건(아이콘 버튼)과 여러 건(일괄 바)이 **같은 문**을 쓴다 — 따로 쓰면 한쪽만 고쳐진다.
     const targets = moveSingle ? [moveSingle] : selectedDeletable;
+    // ★ 서버가 거절한 것은 옮긴 것으로 그리지 않는다 — 여태 결과를 버리고 전부 옮긴 척했다
+    //   (다른 프로젝트 폴더로는 400 인데 화면은 옮겨져 있다가 새로고침하면 제자리 = «이동이 안 된다»).
+    const moved = new Set<string>();
     for (const f of targets) {
-      await moveFile(businessId, f.id, targetFolderId);
+      if (await moveFile(businessId, f.id, targetFolderId)) moved.add(f.id);
     }
-    setFiles(prev => prev.map(f => targets.find(s => s.id === f.id) ? { ...f, folder_id: targetFolderId } : f));
+    setFiles(prev => prev.map(f => moved.has(f.id) ? { ...f, folder_id: targetFolderId } : f));
+    setPreview(p => (p && moved.has(p.id) ? { ...p, folder_id: targetFolderId } : p));
+    setPvMoveOpen(false);
+    const failed = targets.length - moved.size;
+    if (failed > 0) setShareError(t('docs.move.failed', { count: failed, defaultValue: '{{count}}개는 그 폴더로 옮길 수 없어요 — 다른 프로젝트의 폴더이거나 옮길 수 없는 파일이에요.' }) as string);
     if (!moveSingle) setSelectedIds(new Set());
     setMoveSingle(null);
     setMoveTargetOpen(false);
-  }, [selectedDeletable, businessId, moveSingle]);
+  }, [selectedDeletable, businessId, moveSingle, t]);
+
+  // 다른 파일을 열거나 패널을 닫으면 펼친 이동 목록도 접는다(다음 파일에 이전 파일의 «현재 위치» 가 남지 않게)
+  useEffect(() => { setPvMoveOpen(false); }, [preview?.id]);
+
+  // 이동할 폴더 목록 — 가운데 이동 창과 미리보기 패널(인라인 펼침)이 **같은 목록**을 쓴다.
+  //   미리보기 위에 창을 또 띄우지 않는다(팝업 위 팝업 금지) — 패널 안에서 펼친다.
+  const moveTargetList = (
+    <MoveTargetList>
+      {/* ★ 2026-09-20 (Irene: *"이동할 폴더 리스트 … 현재 들어있는 폴더가 어딘지 모르게
+          폴더리스트를 보여주는데? 기존에 들어있는 폴더는 표시해 놔야 다른 폴더를 선택하지"*) —
+          «어디서» 를 모르면 «어디로» 를 고를 수 없다. 지금 자리는 눌리지 않게 두고 표시를 단다.
+          여러 건을 한 번에 옮길 때는 자리가 제각각일 수 있으므로 **모두 같은 폴더일 때만** 단다. */}
+      <MoveTargetRow type="button" disabled={moveFrom === null}
+        $current={moveFrom === null} onClick={() => onMoveTo(null)}>
+        <span>{t('docs.folder.noFolder', '폴더 없음')}</span>
+        {moveFrom === null && <MoveCurrentTag>{t('docs.move.current', '현재 위치')}</MoveCurrentTag>}
+      </MoveTargetRow>
+      {/* ★ 깊이 제한 없이 그린다 — 여태 2단계까지만 그려 손자 폴더로는 옮길 수 없었다(#417) */}
+      {(function renderMoveTargets(parentId: number | null, depth: number): React.ReactNode {
+        return folders.filter(f => (f.parent_id ?? null) === parentId).map(f => (
+          <React.Fragment key={f.id}>
+            <MoveTargetRow type="button" disabled={moveFrom === f.id}
+              $current={moveFrom === f.id} $depth={depth} onClick={() => onMoveTo(f.id)}>
+              <MoveTargetIcon><FolderSvg /></MoveTargetIcon><span>{f.name}</span>
+              {moveFrom === f.id && <MoveCurrentTag>{t('docs.move.current', '현재 위치')}</MoveCurrentTag>}
+            </MoveTargetRow>
+            {depth < 12 && renderMoveTargets(f.id, depth + 1)}
+          </React.Fragment>
+        ));
+      })(null, 0)}
+    </MoveTargetList>
+  );
+
 
   const onDeleteConfirmed = useCallback(async () => {
     if (!deleteConfirm) return;
@@ -722,7 +774,7 @@ const DocsTab: React.FC<Props> = (props) => {
         handleFiles(e.dataTransfer.files);
       }}
     >
-      <Inner>
+      <Inner $flush={scope.type !== 'project'}>
       {/* GDrive 연결 안내 / 연결 추천 (workspace · project 양쪽) */}
       {businessId > 0 && <CloudConnectNotice businessId={businessId} />}
 
@@ -756,8 +808,8 @@ const DocsTab: React.FC<Props> = (props) => {
           <DzHint>
             {uploadLimits
               ? (uploadLimits.external_ready
-                ? t('docs.drop.hintDrive', '파일 하나에 {{limit}}까지 · 그보다 크면 Google Drive 로 저장됩니다', { limit: formatBytes(uploadLimits.self_max_bytes) })
-                : t('docs.drop.hintLimit', '파일 하나에 {{limit}}까지 · 더 큰 파일은 Google Drive 를 연결하면 그대로 올라갑니다', { limit: formatBytes(uploadLimits.self_max_bytes) })) as string
+                ? t('docs.drop.hintDrive', '파일 하나에 {{limit}}까지 · 그보다 크면 Google Drive 로 저장됩니다', { limit: formatBytes(effectiveSelfMax(uploadLimits)) })
+                : t('docs.drop.hintLimit', '파일 하나에 {{limit}}까지 · 더 큰 파일은 Google Drive 를 연결하면 그대로 올라갑니다', { limit: formatBytes(effectiveSelfMax(uploadLimits)) })) as string
               : t('docs.drop.hintPlain', '여러 파일을 한 번에 올릴 수 있습니다') as string}
           </DzHint>
           <DzHint><StorageLeft limits={uploadLimits} /></DzHint>
@@ -779,7 +831,7 @@ const DocsTab: React.FC<Props> = (props) => {
               (`display:none`) 정작 필요한 사람만 못 보고 있었다(실측 0×0). */}
           <CompactHint>
             {uploadLimits && (
-              <LimitPart>{t('docs.drop.limitOnly', '파일 하나에 {{limit}}까지', { limit: formatBytes(uploadLimits.self_max_bytes) }) as string}</LimitPart>
+              <LimitPart>{t('docs.drop.limitOnly', '파일 하나에 {{limit}}까지', { limit: formatBytes(effectiveSelfMax(uploadLimits)) }) as string}</LimitPart>
             )}
             <LimitPart>{uploadLimits && uploadLimits.bytes_quota != null ? ' · ' : ''}<StorageLeft limits={uploadLimits} /></LimitPart>
             <DragPart>
@@ -881,6 +933,17 @@ const DocsTab: React.FC<Props> = (props) => {
                 onSelectFolder={id => { setFolderSel(id); clearSelection(); }}
                 onCreateFolder={(pid, parentId) => setNewProjectFolder({ projectId: pid, parentId: parentId ?? null, name: '' })}
                 folderDrop={treeDrop}
+                onRenameFolder={async (id, name) => {
+                  await renameFolder(id, name);
+                  setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
+                }}
+                onDeleteFolder={async (id) => {
+                  await deleteFolder(id);
+                  setFolders(prev => prev.filter(f => f.id !== id));
+                  setFiles(prev => prev.map(f => f.folder_id === id ? { ...f, folder_id: null } : f));
+                  if (folderSel === id) setFolderSel('all');
+                }}
+                onDownloadFolder={onDownloadFolder}
               />
               {/* Irene 2026-08-31 — 워크스페이스 파일에도 폴더.
                   프로젝트 그룹(출처별 탐색)은 그대로 두고 **아래에** 폴더를 더한다 —
@@ -1356,6 +1419,15 @@ const DocsTab: React.FC<Props> = (props) => {
                       )}
                     </HeaderIconBtn>
                     ); })()}
+                    {/* #417 — 미리보기에서도 옮긴다. 목록 카드의 [이동] 과 같은 목록을 패널 안에 펼친다 */}
+                    {isMovableInApp(preview) && folders.length > 0 && (() => { const mvLabel = t('docs.moveTo') as string; return (
+                      <HeaderIconBtn type="button" data-testid="file-preview-move"
+                        aria-expanded={pvMoveOpen}
+                        onClick={() => { if (pvMoveOpen) { setPvMoveOpen(false); setMoveSingle(null); } else { setMoveSingle(preview); setPvMoveOpen(true); } }}
+                        title={mvLabel} aria-label={mvLabel}>
+                        <FolderMoveSvg />
+                      </HeaderIconBtn>
+                    ); })()}
                     {preview.deletable && (
                       <HeaderIconBtn $danger type="button" onClick={() => setDeleteConfirm(preview)}
                         title={tr('docs.delete', '삭제')} aria-label={tr('docs.delete', '삭제')}>
@@ -1372,6 +1444,12 @@ const DocsTab: React.FC<Props> = (props) => {
               </PvHeaderInner>
             </DetailDrawer.Header>
             <DetailDrawer.Body>
+              {pvMoveOpen && moveSingle?.id === preview.id && (
+                <PvMoveInline data-testid="file-preview-move-list">
+                  <PvMoveTitle>{t('docs.move.title', '이동할 폴더 선택')}</PvMoveTitle>
+                  {moveTargetList}
+                </PvMoveInline>
+              )}
               <PreviewArea file={preview} businessId={businessId} shortcutUrl={shortcutUrl}
                 onOpen={() => { void openPreviewTarget(preview, shortcutUrl); }} />
               {/* 이름·설명·태그 — 파일명만으로 못 찾는 자료를 검색 가능하게 (자동저장) */}
@@ -1596,33 +1674,7 @@ const DocsTab: React.FC<Props> = (props) => {
             aria-label={t('docs.move.title', '이동할 폴더 선택') as string}>
             <DTitle>{t('docs.move.title', '이동할 폴더 선택')}</DTitle>
             <DBody>
-              <MoveTargetList>
-                {/* ★ 2026-09-20 (Irene: *"이동할 폴더 리스트 … 현재 들어있는 폴더가 어딘지 모르게
-                    폴더리스트를 보여주는데? 기존에 들어있는 폴더는 표시해 놔야 다른 폴더를 선택하지"*) —
-                    «어디서» 를 모르면 «어디로» 를 고를 수 없다. 지금 자리는 눌리지 않게 두고 표시를 단다.
-                    여러 건을 한 번에 옮길 때는 자리가 제각각일 수 있으므로 **모두 같은 폴더일 때만** 단다. */}
-                <MoveTargetRow type="button" disabled={moveFrom === null}
-                  $current={moveFrom === null} onClick={() => onMoveTo(null)}>
-                  <span>{t('docs.folder.noFolder', '폴더 없음')}</span>
-                  {moveFrom === null && <MoveCurrentTag>{t('docs.move.current', '현재 위치')}</MoveCurrentTag>}
-                </MoveTargetRow>
-                {folders.filter(f => f.parent_id === null).map(f => (
-                  <React.Fragment key={f.id}>
-                    <MoveTargetRow type="button" disabled={moveFrom === f.id}
-                      $current={moveFrom === f.id} onClick={() => onMoveTo(f.id)}>
-                      <MoveTargetIcon><FolderSvg /></MoveTargetIcon><span>{f.name}</span>
-                      {moveFrom === f.id && <MoveCurrentTag>{t('docs.move.current', '현재 위치')}</MoveCurrentTag>}
-                    </MoveTargetRow>
-                    {folders.filter(c => c.parent_id === f.id).map(c => (
-                      <MoveTargetRow key={c.id} type="button" disabled={moveFrom === c.id}
-                        $current={moveFrom === c.id} onClick={() => onMoveTo(c.id)} style={{ paddingLeft: 34 }}>
-                        <MoveTargetIcon><FolderSvg /></MoveTargetIcon><span>{c.name}</span>
-                        {moveFrom === c.id && <MoveCurrentTag>{t('docs.move.current', '현재 위치')}</MoveCurrentTag>}
-                      </MoveTargetRow>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </MoveTargetList>
+              {moveTargetList}
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => { setMoveTargetOpen(false); setMoveSingle(null); }}>{t('members.cancel', '취소')}</SecondaryBtn>
@@ -1658,6 +1710,10 @@ interface ProjectGroupsProps {
   onCreateFolder?: (projectId: number, parentId?: number | null) => void;
   /** 하위 폴더 행의 드롭 — FolderTree 와 **같은 훅**이 만든다(베끼면 한쪽만 고쳐진다). */
   folderDrop?: FolderDropFn;
+  /** 하위 폴더 ⋯ 메뉴 — FolderTree 와 **같은 처리기**를 받는다(#417: 여태 [+] 뿐이라 이름을 못 바꾸고 못 지웠다). */
+  onRenameFolder?: (id: number, name: string) => Promise<void>;
+  onDeleteFolder?: (id: number) => Promise<void>;
+  onDownloadFolder?: (id: number) => void | Promise<void>;
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
   selected: FolderSel;
@@ -1665,8 +1721,9 @@ interface ProjectGroupsProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop }) => {
+const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop, onRenameFolder, onDeleteFolder, onDownloadFolder }) => {
   const [open, setOpen] = useState<Set<number>>(new Set());
+  const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename: onRenameFolder, onDelete: onDeleteFolder, counts, tr });
   const toggle = (id: number) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const foldersOf = (projectId: number, parentId: number | null) =>
     folders.filter(f => f.project_id === projectId && f.parent_id === parentId);
@@ -1692,16 +1749,36 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
         dropProps={folderDrop ? folderDrop(f.id).dropProps : undefined}
         depth={depth}
         icon={<FolderIconWrap $selected={selected === f.id}><FolderSvg /></FolderIconWrap>}
-        name={f.name}
-        count={folderCounts[f.id] || 0}
+        name={renderName(f)}
+        count={renamingId === f.id ? 0 : (folderCounts[f.id] || 0)}
         onClick={() => onSelectFolder && onSelectFolder(f.id)}
-        actions={onCreateFolder && f.project_id ? (
-          <RowPlusBtn type="button" data-testid={`docs-subfolder-new-${f.id}`}
-            title={tr('docs.folder.newChildAction')} aria-label={tr('docs.folder.newChildAction')}
-            onClick={() => onCreateFolder(f.project_id as number, f.id)}>
-            <PlusSvg size={13} />
-          </RowPlusBtn>
-        ) : undefined}
+        actionsVisible={selected === f.id}
+        actions={renamingId === f.id || !f.project_id ? undefined : (
+          <>
+            {onCreateFolder && (
+              <RowPlusBtn type="button" data-testid={`docs-subfolder-new-${f.id}`}
+                title={tr('docs.folder.newChildAction')} aria-label={tr('docs.folder.newChildAction')}
+                onClick={() => onCreateFolder(f.project_id as number, f.id)}>
+                <PlusSvg size={13} />
+              </RowPlusBtn>
+            )}
+            {/* FolderTree 의 ⋯ 와 같은 항목·같은 순서(순서 바꾸기는 프로젝트 폴더 정렬 라우트가 달라 뺀다) */}
+            {(onRenameFolder || onDeleteFolder || onDownloadFolder) && (
+              <OverflowMenu
+                label={tr('docs.folder.more')}
+                data-testid={`docs-subfolder-menu-${f.id}`}
+                items={[
+                  ...(onCreateFolder ? [{ key: 'child', label: tr('docs.folder.newChild'), onClick: () => onCreateFolder(f.project_id as number, f.id) }] : []),
+                  ...(onRenameFolder ? [{ key: 'rename', label: tr('docs.folder.rename'), onClick: () => startRename(f), testId: 'docs-subfolder-rename' }] : []),
+                  ...(onDownloadFolder && (folderCounts[f.id] || 0) > 0
+                    ? [{ key: 'dl', label: tr('docs.folder.downloadAll'), onClick: () => { void onDownloadFolder(f.id); }, testId: 'docs-subfolder-download' }]
+                    : []),
+                  ...(onDeleteFolder ? [{ key: 'del', label: tr('docs.folder.delete'), onClick: () => setDeleteTarget(f), danger: true, dividerBefore: true, testId: 'docs-subfolder-delete' }] : []),
+                ]}
+              />
+            )}
+          </>
+        )}
       />
       {folders.filter(c => c.parent_id === f.id).map(c => renderSub(c, depth + 1))}
     </React.Fragment>
@@ -1761,6 +1838,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
           icon={<FolderIconWrap $sys={src} $selected={selected === `src:${src}`}><SystemFolderIcon src={src} /></FolderIconWrap>}
           name={sourceShortLabel(src, tr)} count={counts.bySrc[src]} />
       ))}
+      {deleteModal}
     </TreeRoot>
   );
 };
@@ -1813,9 +1891,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
   const folderDrop = folderDropProp || ownDrop;
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
-  const [renamingId, setRenamingId] = useState<number | null>(null);
-  const [renameDraft, setRenameDraft] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<FileFolder | null>(null);
+  const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename, onDelete, counts, tr });
 
   const rootFolders = folders.filter(f => f.parent_id === null);
   // ★ 프로젝트 폴더는 여기서 그리지 않는다 — **프로젝트 행 아래**로 갔다(ProjectGroups).
@@ -1832,14 +1908,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
     await onCreate(creatingParent ?? null, newName.trim());
     setCreatingParent(undefined); setNewName('');
   };
-  const startRename = (f: FileFolder) => { setRenamingId(f.id); setRenameDraft(f.name); };
-  const commitRename = async () => {
-    if (renamingId == null) return;
-    const name = renameDraft.trim();
-    if (name) await onRename(renamingId, name);
-    setRenamingId(null);
-  };
-
   const renderFolder = (f: FileFolder, depth: number): React.ReactNode => {
     const sel = selected === f.id;
     const children = childrenOf(f.id);
@@ -1859,18 +1927,7 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
           depth={depth}
           onClick={() => onSelect(f.id)}
           icon={<FolderIconWrap $selected={sel}>{sel ? <FolderOpenSvg /> : <FolderSvg />}</FolderIconWrap>}
-          name={renamingId === f.id ? (
-            <RenameInput autoFocus value={renameDraft}
-              onClick={e => e.stopPropagation()}
-              onChange={e => setRenameDraft(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={e => {
-                if (isEnterAction(e)) { e.preventDefault(); commitRename(); }
-                if (e.key === 'Escape') setRenamingId(null);
-              }} />
-          ) : (
-            <FolderName onDoubleClick={e => { e.stopPropagation(); startRename(f); }} title={f.name}>{f.name}</FolderName>
-          )}
+          name={renderName(f)}
           count={renamingId === f.id ? 0 : count}
           actionsVisible={sel}
           /* ★ 2026-09-20 (Irene: *"프로젝트>파일에도 마우스 오버하니 ... 이 이상하게 뜨네.
@@ -1918,31 +1975,6 @@ const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selecte
       </React.Fragment>
     );
   };
-
-  const fileCountInFolder = (folderId: number): number => counts.byFolder[folderId] || 0;
-
-  // 삭제 확인 모달 — 두 변형(폴더 전용 / 전체 트리)이 같은 것을 쓴다.
-  const deleteModal = deleteTarget && (
-    <Modal onMouseDown={e => { if (e.target === e.currentTarget) setDeleteTarget(null); }}>
-      <Dialog>
-        <DTitle>{tr('docs.folder.deleteTitle', '폴더를 삭제할까요?')}</DTitle>
-        <DBody>
-          <p><strong>{deleteTarget.name}</strong></p>
-          {fileCountInFolder(deleteTarget.id) > 0 ? (
-            <p>{deleteWithFilesMessage(fileCountInFolder(deleteTarget.id), tr)}</p>
-          ) : (
-            <p>{tr('docs.folder.deleteEmpty', '이 폴더는 비어있습니다')}</p>
-          )}
-        </DBody>
-        <DFooter>
-          <SecondaryBtn type="button" onClick={() => setDeleteTarget(null)}>{tr('members.cancel', '취소')}</SecondaryBtn>
-          <DangerBtn type="button" onClick={async () => { await onDelete(deleteTarget.id); setDeleteTarget(null); }}>
-            {tr('docs.delete', '삭제')}
-          </DangerBtn>
-        </DFooter>
-      </Dialog>
-    </Modal>
-  );
 
   const createRow = creatingParent === null && (
     <FolderRow style={{ paddingLeft: 22 }}>
@@ -2064,11 +2096,6 @@ function sortLabel(s: SortKey, t: (k: string, fb?: string) => string): string {
 }
 
 /** 이 파일이 걸리는 출처 전부. 서버가 접으면서 합쳐 주지만, 옛 응답에는 없을 수 있다. */
-function deleteWithFilesMessage(n: number, tr: (k: string, fb?: string) => string): string {
-  // i18n 에 {{n}} 이 들어간 문구를 tr(2 arg) 로 단순 치환
-  const tpl = tr('docs.folder.deleteWithFiles', '이 폴더 안 {{n}}개 파일은 “직접 업로드 루트”로 옮겨집니다');
-  return tpl.replace('{{n}}', String(n));
-}
 
 
 // ─── SVG 아이콘 (Lucide 스타일) ───
@@ -2118,10 +2145,13 @@ const Wrap = styled.div`
 `;
 /* 문서 탭 ProjBrowse 와 같은 계약(배경 위 20 / ≤900px 16). 노란 안내 박스가 탭 막대에 들러붙던 것도
    여기서 풀린다 (Irene 2026-09-15: "파일탭은 상단에 여백이 없어서 노란 안내박스가 탭에 들러붙어 있어"). */
-const Inner = styled.div`
+/* ★ 2026-09-21 (#422 "다른 페이지랑 다르게 여백이 넓어 … 찾아서 다 통일해") — 이 여백은 프로젝트 탭에
+   **통째로 얹을 때**(ProjectTabFull 이 본문 여백을 상쇄한다)만의 것이다. Q file·개인 보관함은 PageShell
+   본문(20 / 폰 14) 안에 들어가므로 여기서 또 주면 이중이 된다(실측 폰 30 · 태블릿 36 · 데스크탑 40). */
+const Inner = styled.div<{ $flush?: boolean }>`
   display:flex;flex-direction:column;gap:12px;
-  padding:20px;
-  @media (max-width: 900px){ padding:16px; }
+  padding:${p => (p.$flush ? '0' : '20px')};
+  @media (max-width: 900px){ padding:${p => (p.$flush ? '0' : '16px')}; }
 `;
 
 // KnowledgePage 새 지식 등록 폼과 동일 스타일 (UI 일관성 — AttachmentField 와 동일)
@@ -2492,56 +2522,24 @@ const CueReadVal = styled(MetaVal)<{ $ok: boolean }>`
 `;
 
 // Buttons
-const SecondaryBtn = styled.button`
-  height:34px;padding:0 14px;background:#fff;color:#0F172A;
-  border:1px solid #CBD5E1;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
-  &:hover{background:#F8FAFC;}
-`;
-const PrimaryBtn = styled.button`
-  height:34px;padding:0 14px;background:#14B8A6;color:#fff;
-  border:1px solid #14B8A6;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;
-  &:hover:not(:disabled){background:#0D9488;border-color:#0D9488;}
-  &:disabled{opacity:0.5;cursor:not-allowed;}
-  &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
-`;
-const DangerBtn = styled.button`
-  height:34px;padding:0 14px;background:#fff;color:#DC2626;
-  border:1px solid #FCA5A5;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;
-  &:hover{background:#FEF2F2;border-color:#DC2626;}
-`;
-
-// Modals (단일/대량 삭제 / 이동)
-const Modal = styled.div`
-  position:fixed;inset:0;z-index:80;background:rgba(15,23,42,.24);
-  display:flex;align-items:center;justify-content:center;padding:20px;
-  @media (max-width: 640px) { padding:0; align-items:stretch; }
-`;
-const Dialog = styled.div`
-  background:#fff;border-radius:14px;width:100%;max-width:460px;
-  box-shadow:0 20px 50px rgba(15,23,42,.2);
-  display:flex;flex-direction:column;overflow:hidden;max-height:80vh;
-  @media (max-width: 640px) {
-    max-width:none;max-height:none;border-radius:0;
-    margin-top:var(--pq-chrome-bottom, 60px);height:calc(100vh - var(--pq-chrome-bottom, 60px));height:calc(100dvh - var(--pq-chrome-bottom, 60px));
-  }
-`;
-const DTitle = styled.div`padding:18px 20px 10px;font-size:0.9375rem;font-weight:700;color:#0F172A;`;
-const DBody = styled.div`
-  padding:0 20px 16px;font-size:0.8125rem;color:#475569;line-height:1.5;overflow-y:auto;
-  strong{color:#0F172A;}
-  p{margin:4px 0;}
-`;
-const DFooter = styled.div`padding:12px 20px;border-top:1px solid #E2E8F0;display:flex;gap:8px;justify-content:flex-end;`;
-
 const BulkFileList = styled.ul`list-style:none;padding:0;margin:8px 0 12px;display:flex;flex-direction:column;gap:4px;`;
 const BulkFileItem = styled.li`font-size:0.75rem;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
 const BulkFileMore = styled.li`font-size:0.6875rem;color:#94A3B8;`;
 
 const MoveTargetList = styled.div`display:flex;flex-direction:column;gap:2px;max-height:320px;overflow-y:auto;`;
-const MoveTargetRow = styled.button<{ $current?: boolean }>`
+/* 미리보기 안 [이동] 펼침 — 인라인 expand 패턴(테두리로 구분) */
+const PvMoveInline = styled.div`
+  margin-bottom:14px;padding:10px;border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;
+`;
+const PvMoveTitle = styled.div`font-size:0.75rem;font-weight:600;color:#475569;margin:0 0 6px 2px;`;
+/** 안내에 적는 한 파일 한도 — nginx 상한이 더 작으면 그것이 진짜다(#417). 적은 숫자와 실제로 막히는 숫자가 같아야 한다. */
+function effectiveSelfMax(l: { self_max_bytes: number; proxy_max_bytes?: number }): number {
+  return l.proxy_max_bytes && l.proxy_max_bytes < l.self_max_bytes ? l.proxy_max_bytes : l.self_max_bytes;
+}
+const MoveTargetRow = styled.button<{ $current?: boolean; $depth?: number }>`
   display:flex;align-items:center;gap:8px;padding:10px 12px;
+  /* 하위 폴더는 한 단계에 22px 씩 (옛 2단계 표시의 34px = 12 + 22 와 같은 값) */
+  padding-left:${p => 12 + (p.$depth || 0) * 22}px;
   background:${p => (p.$current ? '#F0FDFA' : 'transparent')};
   border:1px solid ${p => (p.$current ? '#99F6E4' : 'transparent')};border-radius:8px;
   cursor:pointer;font-size:0.8125rem;color:#0F172A;text-align:left;

@@ -77,6 +77,14 @@ const ERROR_CODE_MAP: Record<string, string> = {
   'Too many login attempts, please try again later': 'rate_limit_login',
   'Too many requests': 'rate_limit_generic',
 
+  // 서버 내부 오류 — 운영은 원문 대신 이 문장을 보낸다(errorHandler). 그대로 괄호에 붙이면 영어가 샌다
+  'Internal server error': 'server_error',
+
+  // 캘린더
+  'event_not_found': 'event_not_found',
+  'attendee_not_found': 'event_not_found',
+  'only_self_response': 'event_only_self_response',
+
   // 일반
   'invalid_or_expired_invite': 'invite_expired',
   'Accept failed': 'invite_accept_failed',
@@ -99,6 +107,18 @@ function mapByPattern(msg: string): string | null {
  * @param t  useTranslation('errors').t — 메시지 lookup 용
  */
 export function mapApiError(err: unknown, t: TFunction): string {
+  const text = mapApiErrorText(err, t);
+  // ★ 2026-09-21 — 서버 오류(5xx)에는 **오류 번호**를 붙인다. Irene: *"이런 오류 멘트들 이유들이 나오면 안되나?"*
+  //   5xx 의 원인은 사용자 쪽에 없고 우리 로그에 있다. 번호가 있으면 그 한 건을 바로 찾는다
+  //   (2026-09-21 캘린더 500 은 로그의 request_id 로 원인을 찾았다). 부르는 쪽이 번호를 실어 줄 때만 붙는다.
+  const e = err as { status?: number; requestId?: string } | null;
+  if (e && e.requestId && (!e.status || e.status >= 500)) {
+    return `${text} ${t('error_ref', { id: e.requestId, defaultValue: '(오류 번호 {{id}})' })}`;
+  }
+  return text;
+}
+
+function mapApiErrorText(err: unknown, t: TFunction): string {
   let msg = '';
   if (err instanceof Error) msg = err.message;
   else if (typeof err === 'string') msg = err;

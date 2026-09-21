@@ -102,7 +102,7 @@ export default function PageShell({
         </HeaderRight>
       </Header>
       {isPhone && actions && <PhoneActionRow>{actions}</PhoneActionRow>}
-      <Body ref={bodyRef} style={bodyPadding ? { padding: bodyPadding } : undefined}>
+      <Body ref={bodyRef} data-testid="page-body" style={bodyPadding ? { padding: bodyPadding } : undefined}>
         {children}
       </Body>
     </Page>

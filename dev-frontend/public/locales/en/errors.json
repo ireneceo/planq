@@ -2,7 +2,7 @@
   "generic": "An error occurred",
   "network_error": "The connection dropped before the request finished. Please try again",
   "timeout": "Request timed out. Please try again",
-  "server_error": "A temporary server error occurred. Please try again shortly",
+  "server_error": "We couldn't process this on our side. Please try again in a moment.",
   "client_error": "Could not process the request",
   "invalid_credentials": "Email or password does not match",
   "email_password_required": "Please enter both email and password",
@@ -44,5 +44,9 @@
   "gcal_meeting_create_failed": "Could not create the Google Meet link. Please check your Google Calendar connection.",
   "gcal_not_connected": "Workspace Google Calendar is not connected.",
   "gcal_scope_missing": "Google Calendar write permission is missing. Reconnect it in Settings > Files & Integrations.",
-  "post_edit_forbidden": "You don't have permission to edit this document. Check its visibility setting."
+  "post_edit_forbidden": "You don't have permission to edit this document. Check its visibility setting.",
+  "error_ref": "(error ref {{id}} — include it if you contact us)",
+  "event_not_found": "Event not found. It may have been deleted.",
+  "event_only_self_response": "Only the invited person can respond to this invitation.",
+  "invalid_lead": "The department head must be a member of this workspace."
 }

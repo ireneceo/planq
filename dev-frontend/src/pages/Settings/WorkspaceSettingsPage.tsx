@@ -1490,7 +1490,8 @@ export default function WorkspaceSettingsPage() {
                             <DrawerInfoLabel>{t('members.drawer.phone', '전화')}</DrawerInfoLabel>
                             <DrawerInfoValue>{u?.phone || '—'}</DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.jobTitle', '직책')}</DrawerInfoLabel>
-                            <DrawerInfoValue>{u?.job_title || '—'}</DrawerInfoValue>
+                            {/* 조직(설정 > 조직)에서 정한 직책이 정본이다 — 없을 때만 계정 프로필 값 */}
+                            <DrawerInfoValue>{target.job_title || u?.job_title || '—'}</DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.organization', '소속')}</DrawerInfoLabel>
                             <DrawerInfoValue>{u?.organization || '—'}</DrawerInfoValue>
                             {u?.expertise && <>
@@ -1508,6 +1509,21 @@ export default function WorkspaceSettingsPage() {
                         <DrawerSection>
                           <DrawerSectionTitle>{t('members.drawer.workspace', '워크스페이스 정보')}</DrawerSectionTitle>
                           <DrawerInfoGrid>
+                            {/* ★ 2026-09-21 — 조직 소속을 여기서도 본다. Irene: *"개인 멤버관리에 워크스페이스 정보에
+                                기본역할만 나오는데 여기 조직내용이 동기화되어야지."* 값은 멤버 목록 응답 한 곳
+                                (설정 > 조직이 쓰는 같은 컬럼)에서 온다 — 따로 모으지 않는다. */}
+                            <DrawerInfoLabel>{t('members.drawer.department', '부서')}</DrawerInfoLabel>
+                            <DrawerInfoValue data-testid="member-drawer-department">
+                              {target.department
+                                ? <>{(i18n.language?.startsWith('en') && target.department.name_en) || target.department.name}
+                                    {target.department.lead_user_id != null && target.department.lead_user_id === target.user_id
+                                      && <> · {t('members.drawer.deptLead', '부서장')}</>}</>
+                                : t('members.drawer.unassigned', '미배정')}
+                            </DrawerInfoValue>
+                            <DrawerInfoLabel>{t('members.drawer.team', '팀')}</DrawerInfoLabel>
+                            <DrawerInfoValue data-testid="member-drawer-team">
+                              {target.team ? ((i18n.language?.startsWith('en') && target.team.name_en) || target.team.name) : '—'}
+                            </DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.defaultRole', '기본 역할')}</DrawerInfoLabel>
                             <DrawerInfoValue>
                               {isAdmin ? (

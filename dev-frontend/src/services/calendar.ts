@@ -14,9 +14,13 @@ export async function listTasksForCalendar(bizId: number): Promise<Array<{
 }
 
 async function handle<T>(res: Response): Promise<T> {
-  const json = await res.json().catch(() => null) as { success?: boolean; data?: T; message?: string } | null;
+  const json = await res.json().catch(() => null) as { success?: boolean; data?: T; message?: string; request_id?: string } | null;
   if (!res.ok || !json?.success) {
-    throw new Error(json?.message || `HTTP ${res.status}`);
+    // 상태와 요청 번호를 같이 싣는다 — 화면이 «왜» 와 «무엇을 알려 주면 되는지» 를 말할 수 있게 (mapApiError)
+    const err = new Error(json?.message || `HTTP ${res.status}`) as Error & { status?: number; requestId?: string };
+    err.status = res.status;
+    if (json?.request_id) err.requestId = json.request_id;
+    throw err;
   }
   return json.data as T;
 }

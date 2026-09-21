@@ -191,6 +191,8 @@ const MyFeedbackPage = () => {
       <Split $detailOpen={!!selected}>
         {/* 좌측 리스트 */}
         <ListPane $detailOpen={!!selected}>
+          {/* #423 — 워크스페이스 안에 있지만 **솔루션(PlanQ) 문의**라는 것과 누가 보는지를 먼저 말한다 */}
+          <ScopeNote>{t('myFeedback.scopeNote') as string}</ScopeNote>
           {loading ? (
             <Empty>{t('myFeedback.loading') as string}</Empty>
           ) : threads.length === 0 ? (
@@ -338,6 +340,10 @@ const DetailPane = styled.div<{ $detailOpen: boolean }>`
   @media (max-width: 1024px) {
     display: ${p => (p.$detailOpen ? 'flex' : 'none')};
   }
+`;
+const ScopeNote = styled.div`
+  padding: 10px 14px; border-bottom: 1px solid #f1f5f9;
+  font-size: 0.75rem; line-height: 1.5; color: #64748b; background: #f8fafc;
 `;
 const Empty = styled.div`padding: 40px 20px; text-align: center; font-size: 0.8125rem; color: #94a3b8;`;
 const DetailEmpty = styled.div`

@@ -34,7 +34,7 @@ function broadcastEvent(req, event, eventName = 'event:updated') {
 }
 
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, isMemberOrAbove, getUserScope, calendarListWhere, filterWorkspaceMemberIds } = require('../middleware/access_scope');
+const { attachWorkspaceScope, isMemberOrAbove, getUserScope, calendarListWhere, attendedEventIds, filterWorkspaceMemberIds } = require('../middleware/access_scope');
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
 // 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
@@ -72,7 +72,8 @@ const INCLUDE_DETAIL = [
     as: 'attendees',
     include: [
       { model: User, as: 'user', attributes: ['id', 'name', 'email', 'name_localized'] },
-      { model: Client, as: 'client', attributes: ['id', 'display_name', 'company_name'] },
+      // user_id — 고객 본인이 자기 참석 행을 알아보고 응답하게 한다(고객 참석자는 client_id 로 저장된다)
+      { model: Client, as: 'client', attributes: ['id', 'display_name', 'company_name', 'user_id'] },
     ],
   },
   // 미팅자료(#411) — 가리키는 원본을 같이 내려준다. 원본이 지워지면 이 행도 CASCADE 로 사라지므로
@@ -301,16 +302,16 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
         else if (event.visibility === 'personal' && event.created_by === uid) allowed = true;
       }
       // vlevel==='L1' 은 위 created_by 검사에서만 통과 (본인 아니면 차단)
+      // ★ 초대받은 참석자는 공개 범위와 무관하게 연다 — 목록과 **같은 함수**(attendedEventIds).
+      //   여태 여기에 참석자가 없어, 알림을 눌러 들어온 참석자가 403 → "처리 중 오류" 만 봤다.
+      if (!allowed) allowed = (await attendedEventIds(req.user.id, businessId)).includes(Number(event.id));
       if (!allowed) return errorResponse(res, 'forbidden', 403);
     }
 
-    // Client: attendee 인 event 만
+    // Client: attendee 인 event 만 (고객 참석자는 client_id 로 저장된다 — 같은 함수로 판정)
     if (req.scope?.isClient) {
-      const att = await CalendarEventAttendee.findOne({
-        where: { event_id: event.id, user_id: req.user.id },
-        attributes: ['id'],
-      });
-      if (!att) return errorResponse(res, 'forbidden', 403);
+      const ids = await attendedEventIds(req.user.id, businessId);
+      if (!ids.includes(Number(event.id))) return errorResponse(res, 'forbidden', 403);
     }
 
     return successResponse(res, event.toJSON());
@@ -866,8 +867,15 @@ router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateTok
     });
     if (!attendee) return errorResponse(res, 'attendee_not_found', 404);
 
-    // 본인 응답만 변경 가능 (client 도 자기 응답은 변경 가능)
-    if (attendee.user_id !== req.user.id) return errorResponse(res, 'only_self_response', 403);
+    // 본인 응답만 변경 가능 (client 도 자기 응답은 변경 가능).
+    //   고객 참석자는 client_id 로 저장된다 — 그 고객 레코드가 내 것이면 본인이다.
+    let isSelf = attendee.user_id === req.user.id;
+    if (!isSelf && attendee.client_id) {
+      isSelf = !!(await Client.findOne({
+        where: { id: attendee.client_id, business_id: businessId, user_id: req.user.id }, attributes: ['id'],
+      }));
+    }
+    if (!isSelf) return errorResponse(res, 'only_self_response', 403);
 
     const { response } = req.body || {};
     if (!RESPONSE_SET.has(response)) return errorResponse(res, 'invalid response', 400);

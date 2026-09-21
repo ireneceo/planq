@@ -538,7 +538,10 @@ const EventDrawer: React.FC<Props> = ({
                   const rawName = a.user?.name || a.client?.display_name || '—';
                   // ★ 2026-09-14 (Irene: *"나 자신을 넣어도 응답대기가 나와? 나라고 나와야지."*)
                   //   내 행은 이름 대신 **나**로 부르고, 응답을 여기서 바꿀 수 있게 한다.
-                  const isMe = !!a.user_id && String(a.user_id) === String(user?.id ?? '');   // user.id 는 문자열이다
+                  // 고객 참석자는 client_id 로 저장된다 — 그 고객 계정이 나면 나다(서버 RSVP 판정과 같은 기준)
+                  const myUid = String(user?.id ?? '');   // user.id 는 문자열이다
+                  const isMe = (!!a.user_id && String(a.user_id) === myUid)
+                    || (!a.user_id && !!a.client?.user_id && String(a.client.user_id) === myUid);
                   const name = isMe ? (t('drawer.me', '나') as string) : rawName;
                   return (
                     <AttendeeRow key={a.id}>

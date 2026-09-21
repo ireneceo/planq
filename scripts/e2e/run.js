@@ -53,6 +53,7 @@ const SUITES = {
   // 같은 결함이 **다른 화면에도** 있는가 — 전 앱 라우트 × 3폭 머리줄 드리프트 (Irene 2026-09-15:
   //   "다른 모든 곳도 체크해"). 화면마다 눈으로 보는 것은 답이 아니다 — 기계가 전수로 센다.
   headerdrift: () => require('./canary-header-drift'),
+  bodygutter: () => require('./canary-body-gutter'),
   fab: () => require('./canary-fab-reach'),
   mailfwd: () => require('./canary-mail-forward'),   // 전달 컴포저 — 원문 미리보기가 **실제 높이**를 갖는가
   // 메일 상세에서 **첨부가 본문 바로 아래**인가 (2026-09-18 신고).

@@ -369,13 +369,32 @@ async function invoiceListWhere(userId, businessId, scope) {
 //
 // 반환: where 조각 (business_id 포함). null = 볼 수 있는 것 없음.
 // ─────────────────────────────────────────────
+/**
+ * 이 사람이 **참석자로 초대된** 일정 id (이 워크스페이스).
+ *
+ * ★ 2026-09-21 — 참석자 판정은 여기 한 곳이다. 목록(calendarListWhere)·상세(canSeeEventAsAttendee)가
+ *   같이 부른다. Irene: *"참석으로 넣은 사람이 플랜큐에서도 캘린더에 안뜬대."*
+ *   여태 멤버 규칙에는 «참석자» 가 없어 L1·L2 일정에 초대돼도 목록에 없고 상세는 403 이었다.
+ *   고객 규칙은 `user_id` 로만 찾았는데 고객 참석자는 **`client_id` 로 저장된다**(event_actions) —
+ *   그래서 초대받은 고객에게도 한 번도 안 보였다.
+ */
+async function attendedEventIds(userId, businessId) {
+  const uid = parseInt(userId, 10);
+  const myClientIds = (await Client.findAll({
+    where: { business_id: businessId, user_id: uid }, attributes: ['id'],
+  })).map((c) => c.id);
+  const or = [{ user_id: uid }];
+  if (myClientIds.length) or.push({ client_id: { [Op.in]: myClientIds } });
+  const rows = await CalendarEventAttendee.findAll({ where: { [Op.or]: or }, attributes: ['event_id'] });
+  return [...new Set(rows.map((a) => a.event_id))];
+}
+
 async function calendarListWhere(userId, businessId, scope) {
   if (!scope) scope = await getUserScope(userId, businessId);
   const uid = parseInt(userId, 10);
 
   if (scope?.isClient) {
-    const rows = await CalendarEventAttendee.findAll({ where: { user_id: uid }, attributes: ['event_id'] });
-    const ids = rows.map((a) => a.event_id);
+    const ids = await attendedEventIds(uid, businessId);
     if (ids.length === 0) return null;
     return { business_id: businessId, id: { [Op.in]: ids }, visibility: 'business' };
   }
@@ -391,16 +410,22 @@ async function calendarListWhere(userId, businessId, scope) {
   const myProjectIds = (await ProjectMember.findAll({
     where: { user_id: uid }, attributes: ['project_id'],
   })).map((r) => r.project_id);
+  const attended = await attendedEventIds(uid, businessId);
 
   return {
     business_id: businessId,
     [Op.and]: [{
       [Op.or]: [
         { created_by: uid },
+        // 초대받은 일정은 공개 범위와 무관하게 보인다 — 초대가 곧 공유다(구글 캘린더와 같다)
+        ...(attended.length ? [{ id: { [Op.in]: attended } }] : []),
         { vlevel: 'L3' },
         { vlevel: 'L4' },
         { vlevel: 'L2', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
-        sequelize.literal(`vlevel='L2' AND JSON_CONTAINS(target_member_ids, '${uid}')`),
+        // ★ 2026-09-21 — 표 이름을 붙인다. 일정 조회가 미팅자료(File·Post) 를 JOIN 하면서(#411) 두 표에도
+        //   `vlevel` 이 있어 **"Column 'vlevel' in where clause is ambiguous"** — owner/admin 이 아닌 멤버의
+        //   캘린더 목록이 통째로 500 이었다(운영 2026-09-21 29회). literal 은 Sequelize 가 표 이름을 못 붙인다.
+        sequelize.literal(`\`CalendarEvent\`.\`vlevel\`='L2' AND JSON_CONTAINS(\`CalendarEvent\`.\`target_member_ids\`, '${uid}')`),
         // legacy fallback (vlevel NULL) — 옛 visibility 기반
         { vlevel: null, visibility: 'business' },
         { vlevel: null, visibility: 'personal', created_by: uid },
@@ -784,6 +809,7 @@ module.exports = {
   invoiceListWhere,
   isInvoiceVisibleToClient,   // #274 — PDF·정정·증빙 등 다른 소비처가 같은 술어를 쓰게
   calendarListWhere,
+  attendedEventIds,
   filterWorkspaceMemberIds,
   canAccessInvoice,
   postListWhere,

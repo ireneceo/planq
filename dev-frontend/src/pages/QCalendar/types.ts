@@ -14,7 +14,7 @@ export interface CalendarAttendee {
   client_id?: number | null;
   response: AttendeeResponse;
   user?: { id: number; name: string; email?: string } | null;
-  client?: { id: number; display_name?: string; company_name?: string } | null;
+  client?: { id: number; display_name?: string; company_name?: string; user_id?: number | null } | null;
 }
 
 export interface CalendarEvent {
