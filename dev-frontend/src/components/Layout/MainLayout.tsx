@@ -491,9 +491,11 @@ const SidebarFooter = styled.div<{ $isCollapsed?: boolean }>`
 `;
 
 // 하단 블록 접기 손잡이 — 메뉴 항목과 글자 시작선을 맞춘다(좌우 여백은 SidebarFooter 가 갖는다).
+// ★ 2026-09-21 — 오른쪽 여백 9px 은 아래 계정 버튼(UserMenuButton padding 8 + 테두리 1)과 **아이콘 세로줄을 맞추려는 값**이다.
+//   둘 다 오른쪽 끝에 작은 아이콘이 있는데 한쪽만 끝에 붙어 있어 줄이 어긋나 보였다(Irene: "위치가 달라서 보기가 안좋아").
 const StatusToggle = styled.button`
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  width: 100%; padding: 3px 0; margin: 0 0 2px 0;   /* 펼친 상태에서 이 줄이 메뉴 한 칸을 먹지 않게 */
+  width: 100%; padding: 3px 9px 3px 0; margin: 0 0 2px 0;   /* 9 = 계정 버튼 padding 8 + 투명 테두리 1. 펼친 상태에서 이 줄이 메뉴 한 칸을 먹지 않게 */
   background: none; border: none; cursor: pointer;
   color: rgba(255,255,255,0.62); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.02em;
   &:hover { color: rgba(255,255,255,0.9); }
@@ -566,9 +568,9 @@ const UserMenuName = styled.span`
 const UserMenuChevron = styled.span<{ $open: boolean }>`
   width: 14px; height: 14px;
   display: flex; align-items: center; justify-content: center;
-  color: #99F6E4; flex-shrink: 0;
-  transition: transform 0.15s;
-  transform: ${({ $open }) => $open ? 'rotate(180deg)' : 'rotate(0deg)'};
+  /* «시계·근무» ∨ 와 같은 색 — 열렸을 때만 밝게(회전 대신: 위아래 화살표는 돌리면 뜻이 없다) */
+  color: ${({ $open }) => ($open ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.62)')}; flex-shrink: 0;
+  transition: color 0.15s;
   svg { width: 14px; height: 14px; }
 `;
 const UserMenuPopover = styled.div.attrs<{ 'data-popover'?: string }>({ 'data-popover': 'true' })`
@@ -1944,8 +1946,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 >
                   <UserAvatar>{userDisplayName?.charAt(0)?.toUpperCase() || 'U'}</UserAvatar>
                   <UserMenuName>{userDisplayName}</UserMenuName>
-                  <UserMenuChevron $open={userMenuOpen}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><polyline points="6 9 12 15 18 9"/></svg>
+                  {/* 위로 **메뉴가 뜬다** — 제자리에서 펼치는 «시계·근무» 의 ∨ 와 같은 모양이면 뜻이 섞인다.
+                      위아래 화살표(계정·메뉴 선택기의 관례)로 구분한다. 크기·굵기·색은 위 ∨ 와 같다. */}
+                  <UserMenuChevron $open={userMenuOpen} aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="7 9 12 4 17 9"/><polyline points="7 15 12 20 17 15"/></svg>
                   </UserMenuChevron>
                 </UserMenuButton>
               </UserMenuWrap>
