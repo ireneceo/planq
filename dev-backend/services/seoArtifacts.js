@@ -163,6 +163,30 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
     '</urlset>', ''].join('\n');
   writeAtomic(path.join(dir, 'sitemap.xml'), xml);
 
+  // rss.xml — 인사이트 글(최신 30). 네이버 서치어드바이저 «RSS 제출» 용 (2026-09-21).
+  //   사이트맵과 같은 조건(BLOG_WHERE)·같은 대표 주소를 쓴다 — 둘이 다른 주소를 가리키면 중복 색인이 된다.
+  const rfc822 = (d) => new Date(d).toUTCString();
+  const feed = blog
+    .slice()
+    .sort((x, y) => new Date(y.blog_published_at) - new Date(x.blog_published_at))
+    .slice(0, 30);
+  const rss = ['<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
+    '  <channel>',
+    '    <title>PlanQ 인사이트</title>',
+    `    <link>${esc(origin)}/insights/</link>`,
+    `    <atom:link href="${esc(origin)}/rss.xml" rel="self" type="application/rss+xml" />`,
+    '    <description>업무 자동화 인사이트와 PlanQ 제품 소식</description>',
+    '    <language>ko</language>',
+    feed.length ? `    <lastBuildDate>${rfc822(feed[0].blog_published_at)}</lastBuildDate>` : '',
+    ...feed.map((a) => {
+      const loc = `${origin}/insights/${encodeURIComponent(a.slug)}/`;
+      const desc = a.summary_ko || blocksToParagraphs(a.body_ko, 'ko', 300).join(' ');
+      return `    <item><title>${esc(a.title_ko)}</title><link>${esc(loc)}</link><guid isPermaLink="true">${esc(loc)}</guid><pubDate>${rfc822(a.blog_published_at)}</pubDate><description>${esc(desc)}</description></item>`;
+    }),
+    '  </channel>', '</rss>', ''].filter((l) => l !== '').join('\n');
+  writeAtomic(path.join(dir, 'rss.xml'), rss);
+
   // 지난번에 만들었는데 이번엔 없는 페이지 — 비공개로 바뀌었거나 지운 글. **자기가 만든 파일만** 지운다.
   let removed = 0;
   const manifestPath = path.join(dir, MANIFEST);
@@ -182,7 +206,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
   }
   writeAtomic(manifestPath, JSON.stringify({ generated_at: new Date().toISOString(), files: [...now] }, null, 2));
 
-  const r = { ok: true, dir, pages: safe.length, sitemap_urls: urls.length, removed };
+  const r = { ok: true, dir, pages: safe.length, sitemap_urls: urls.length, rss_items: feed.length, removed };
   if (log && log.log) log.log('[seo-artifacts]', JSON.stringify(r));
   return r;
 }

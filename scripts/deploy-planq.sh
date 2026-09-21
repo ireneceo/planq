@@ -548,7 +548,7 @@ deploy_frontend() {
   #   (dev DB 의 위키·인사이트 글 페이지 · 그 목록 파일)을 올리면 dev 에만 있는 글이 운영에 샌다.
   #   루트 index.html 은 올리고, 하위 폴더의 index.html(=생성 페이지)·목록 파일·사이트맵은 뺀다.
   #   ★ 패턴 주의 — `**/index.html` 은 **루트 index.html 까지** 뺀다(실측). 하위 폴더만 정확히 뺀다.
-  SEO_EXCLUDES=(--exclude='/*/index.html' --exclude='/*/**/index.html' --exclude='/.seo-generated.json' --exclude='/sitemap.xml')
+  SEO_EXCLUDES=(--exclude='/*/index.html' --exclude='/*/**/index.html' --exclude='/.seo-generated.json' --exclude='/sitemap.xml' --exclude='/rss.xml')
 
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] rsync $RSYNC_FLAGS $DEV_FE_BUILD/ $PROD_HOST:$PROD_FE_BUILD/"
