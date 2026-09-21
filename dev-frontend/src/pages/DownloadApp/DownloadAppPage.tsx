@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { usePwaInstall } from '../../contexts/PwaInstallContext';
 import { isNativeApp } from '../../services/native';
 import LandingLayout from '../../components/Landing/LandingLayout';
 
@@ -73,6 +74,11 @@ export default function DownloadAppPage() {
               (2026-09-04 — TestFlight 언급을 전부 걷었더니 사용자가 예고 없이 그 화면을 만났다) */}
           {viaTestFlight(url) && <ViaHint>{t('ios.viaTestFlight')}</ViaHint>}
         </>
+      ) : p === 'android' ? (
+        /* ★ 2026-09-21 — Play 스토어 심사 중에는 **PWA 설치**로 받게 한다. Irene: "안드로이드 pwa 다운받게
+           조치해 놔야 하지 않아? 링크만 나중에 바꾸면 되는 거 아니야?" — 맞다. 관리자 화면에
+           app_android_url 을 넣는 순간 위 분기(스토어 버튼)로 저절로 바뀐다. 여기는 코드 수정 없이 사라진다. */
+        <AndroidPwaInstall onThisDevice={platform === 'android'} />
       ) : (
         <ComingSoon>{t('comingSoon')}</ComingSoon>
       )}
@@ -118,7 +124,52 @@ export default function DownloadAppPage() {
   );
 }
 
+/** 안드로이드 — 스토어 링크가 생기기 전까지의 설치 문. 공용 usePwaInstall 을 쓴다(설정 > 앱 설치와 같은 원천). */
+function AndroidPwaInstall({ onThisDevice }: { onThisDevice: boolean }) {
+  const { t } = useTranslation('appdownload');
+  const pwa = usePwaInstall();
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!onThisDevice) {
+    // 데스크탑에서 보고 있다 — 폰으로 옮겨 설치하게 한다
+    return <PwaNote>{t('androidPwa.onPhone')}</PwaNote>;
+  }
+  if (pwa.isStandalone || pwa.isRelatedInstalled) {
+    return <PwaNote>{t('androidPwa.installed')}</PwaNote>;
+  }
+  const doInstall = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await pwa.install();
+      setMsg(r === 'accepted' ? t('androidPwa.done') as string : r === 'dismissed' ? t('androidPwa.dismissed') as string : null);
+    } finally { setBusy(false); }
+  };
+  return (
+    <>
+      {pwa.canPrompt ? (
+        <PrimaryBtn as="button" type="button" data-testid="app-android-pwa-install" onClick={doInstall} disabled={busy}>
+          {t('androidPwa.cta')}
+        </PrimaryBtn>
+      ) : (
+        <PwaSteps>
+          {/* 브라우저가 설치 창을 못 띄우는 경우(이미 거절했거나 삼성 인터넷 등) — 메뉴 경로를 알려 준다 */}
+          <li>{pwa.platform === 'android-samsung' ? t('androidPwa.stepSamsung') : t('androidPwa.stepChrome')}</li>
+          <li>{t('androidPwa.stepConfirm')}</li>
+        </PwaSteps>
+      )}
+      {msg && <PwaNote>{msg}</PwaNote>}
+      <ViaHint>{t('androidPwa.storeSoon')}</ViaHint>
+    </>
+  );
+}
+
 // ── 아이콘 (인라인 SVG — 외부 의존 0) ──
+const PwaSteps = styled.ol`
+  margin: 4px 0 0; padding-left: 18px; text-align: left;
+  font-size: 0.8125rem; line-height: 1.6; color: #334155;
+`;
+const PwaNote = styled.p`margin: 6px 0 0; font-size: 0.8125rem; color: #475569; line-height: 1.5;`;
 const AppleGlyph = () => (
   <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
     <path d="M16.365 1.43c0 1.14-.42 2.2-1.13 3.02-.86.99-2.28 1.75-3.42 1.66-.14-1.1.42-2.28 1.09-3.02.75-.83 2.06-1.47 3.11-1.53.02.06.02.11.02.17-.02-.11 0 0 .26-.3zM20.9 17.02c-.55 1.27-.82 1.84-1.53 2.96-.99 1.57-2.39 3.52-4.12 3.53-1.54.01-1.93-1.01-4.02-1-2.09.01-2.52 1.02-4.06 1.01-1.73-.02-3.05-1.78-4.04-3.35-2.77-4.4-3.06-9.56-1.35-12.31 1.21-1.95 3.13-3.09 4.93-3.09 1.84 0 2.99 1.01 4.51 1.01 1.47 0 2.37-1.01 4.5-1.01 1.61 0 3.32.88 4.53 2.39-3.98 2.18-3.33 7.86.65 9.86z"/>

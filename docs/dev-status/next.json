@@ -1,26 +1,25 @@
 {
   "working_on": [
-    "문의·피드백 구분"
+    "안드로이드 받기"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "문의와 피드백을 구분해 관리 — 로그인 사용자의 문의도 앱 안에서 답변",
-      "detail": "feedback_items.kind(feedback/inquiry) 신설(멱등 migrate-feedback-kind.js). 로그인 사용자의 Q helper «문의» 는 이메일 창구(contact_inquiries) 대신 이 원장으로 — 개인 > 문의·피드백에 뜨고 답도 거기서 본다(이름·이메일 안 묻는다). 손님 문의는 종전 이메일 창구. 목록·상세·관리자 화면에 «문의/피드백» 배지와 종류 필터, 추가 문의는 부모 종류를 물려받는다. 머리줄·빈 화면에 [피드백 보내기] [+ 문의하기].",
+      "title": "안드로이드 — Play 심사 중에는 PWA 로 설치",
+      "detail": "/app 의 안드로이드 칸이 링크가 없으면 «준비 중» 뿐이었다. 이제 설치창이 되면 [홈 화면에 앱 설치], 안 되면 Chrome·삼성 인터넷 메뉴 경로, 이미 설치면 안내, 데스크탑은 폰에서 열라고 안내. 관리자 화면에 app_android_url 을 넣으면 스토어 버튼으로 자동 전환(실측).",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "로그인 사용자의 문의 답변이 이메일이 아니라 개인 > 문의·피드백 화면으로 온다.",
-    "플랫폼 관리 > 피드백에 문의가 «문의» 배지로 함께 들어온다."
+    "안드로이드 사용자가 /app 에서 PWA 로 앱을 설치할 수 있다."
   ],
   "issues": [],
-  "blocked_on_human": [],
-  "migrations": [
-    "feedback_items.kind ENUM('feedback','inquiry') NOT NULL DEFAULT 'feedback' — scripts/migrate-feedback-kind.js (멱등). 롤백은 코드만."
+  "blocked_on_human": [
+    "Play 승인 후 운영 관리자 화면(플랫폼 설정)에 app_android_url 입력"
   ],
+  "migrations": [],
   "check_areas": [
-    "개인 > 문의·피드백 두 버튼 · 문의 보내기 → 목록 «문의» · 관리자 피드백 종류 필터"
+    "안드로이드 폰에서 planq.kr/app"
   ],
   "backlog": [
     "참석자 추가 시 «알릴까요?» 묻기 · 외부 이메일 초대 · 미팅자료 고르기(참석자 열람권) — Fable 판단 대기(FABLE_GATE_QUEUE)"

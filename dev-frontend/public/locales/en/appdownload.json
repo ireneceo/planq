@@ -20,5 +20,16 @@
     "cta": "Go home"
   },
   "webContinue": "Continue on the web",
-  "notifyNote": "The app supports real-time push notifications on iOS and Android."
+  "notifyNote": "The app supports real-time push notifications on iOS and Android.",
+  "androidPwa": {
+    "cta": "Install on home screen",
+    "stepChrome": "In Chrome, open the menu (⋮) at the top right and tap \"Install app\" or \"Add to Home screen\".",
+    "stepSamsung": "In Samsung Internet, open the menu (≡) at the bottom and tap \"Add page to\" → \"Home screen\".",
+    "stepConfirm": "Tap \"Install\" and a PlanQ icon appears on your home screen.",
+    "installed": "PlanQ is already installed on this device. Open it from the PlanQ icon on your home screen.",
+    "done": "Installed. Launch PlanQ from your home screen.",
+    "dismissed": "Installation was cancelled. You can tap it again anytime.",
+    "onPhone": "Open planq.kr/app on your Android phone to install it.",
+    "storeSoon": "Our Play Store app is in review — once it is live you can get it right here."
+  }
 }
