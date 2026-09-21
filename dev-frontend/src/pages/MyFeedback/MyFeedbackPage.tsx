@@ -18,6 +18,7 @@ import { formatDate } from '../../utils/dateFormat';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { openFeedback } from '../../utils/feedbackOpen';
 import { HeaderCta } from '../../components/Common/headerCta';
+import EmptyState from '../../components/Common/EmptyState';
 import { mapApiError } from '../../utils/apiError';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -209,6 +210,24 @@ const MyFeedbackPage = () => {
         </Filters>
       )}
     >
+      {/* ★ 2026-09-21 — 아직 하나도 없으면 문서·노트와 같은 **가운데 빈 화면**(공용 EmptyState)을 띄운다.
+          여태 왼쪽 목록 칸에 회색 한 줄만 있어 무엇을 해야 하는지가 안 보였다. */}
+      {!loading && threads.length === 0 ? (
+        <EmptyWrap>
+          <EmptyState
+            icon={(
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            )}
+            title={t('myFeedback.emptyTitle') as string}
+            description={t('myFeedback.scopeNote') as string}
+            ctaLabel={t('myFeedback.compose') as string}
+            onCta={() => openFeedback({ category: 'improve' })}
+            ctaTestId="myfeedback-empty-compose"
+          />
+        </EmptyWrap>
+      ) : (
       <Split $detailOpen={!!selected}>
         {/* 좌측 리스트 */}
         <ListPane $detailOpen={!!selected}>
@@ -333,6 +352,7 @@ const MyFeedbackPage = () => {
           )}
         </DetailPane>
       </Split>
+      )}
     </PageShell>
   );
 };
@@ -343,6 +363,9 @@ export default MyFeedbackPage;
 const Filters = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
 const SelWrap = styled.div`min-width: 130px;`;
 
+const EmptyWrap = styled.div`
+  height: 100%; display: flex; align-items: center; justify-content: center; padding: 20px;
+`;
 const Split = styled.div<{ $detailOpen: boolean }>`
   display: flex;
   height: 100%;

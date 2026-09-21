@@ -919,7 +919,8 @@
       "wontfix": "Won’t fix"
     },
     "scopeNote": "Questions and feedback you sent to the PlanQ team about the product. Only you can see them — not your workspace members or clients.",
-    "compose": "+ New"
+    "compose": "+ New",
+    "emptyTitle": "No inquiries or feedback yet"
   },
   "securityLevel": {
     "label": "Security level",
