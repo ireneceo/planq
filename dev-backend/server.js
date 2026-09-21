@@ -483,6 +483,8 @@ app.use('/api/wiki', require('./routes/wiki'));
 app.use('/api/admin/wiki', require('./routes/admin_wiki'));
 // KNOWLEDGE_LOOP 축3 — 랜딩 블로그 (Q위키 발행분 public 조회)
 app.use('/api/blog', require('./routes/blog'));
+// 랜딩 방문 집계(쿠키 없음 · 숫자만) — POST 는 공개(요청 수 제한), /admin 은 플랫폼 관리자
+app.use('/api/landing-visits', require('./routes/landing_visits'));
 // #194 제품 공지/체인지로그 — 인앱 "새 소식" 패널 (updates 발행분 + 미읽음 워터마크)
 app.use('/api/whats-new', require('./routes/whats_new'));
 app.use('/api/org', require('./routes/org'));
@@ -620,6 +622,8 @@ function scheduleNextMidnight() {
     // 검색용 공개 페이지·사이트맵 — 새로 발행하거나 내린 위키·인사이트 글을 하루 안에 반영한다
     try { await require('./services/seoArtifacts').generateSeoArtifacts(); }
     catch (e) { console.warn('[seo-artifacts] failed', e.message); }
+    try { const r = await require('./routes/landing_visits').pruneLandingVisits(); if (r.visits || r.visitors) console.log('[landing-visits prune]', r); }
+    catch (e) { console.warn('[landing-visits prune] failed', e.message); }
     try {
       const r = await billing.runDailyBillingCron();
       console.log('[billing-cron]', r);

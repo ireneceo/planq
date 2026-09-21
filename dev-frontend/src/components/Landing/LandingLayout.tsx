@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useSeoHead } from '../../hooks/useSeoHead';
+import { useLandingBeacon } from '../../hooks/useLandingBeacon';
 import BILLING_ENTITY from '../../config/legalEntities';
 import styled, { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -49,6 +50,8 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
   // 공개 페이지 제목·설명·대표 주소 — public/seo-pages.json (워크스페이스 화면은 대상 아님)
   useSeoHead(location.pathname, i18n.language || 'ko');
+  // 랜딩 방문 집계(쿠키 없음) — 로그인 사용자는 세지 않는다
+  useLandingBeacon(location.pathname, !!user);
 
   // 사업자 정보 (전자상거래법 표시의무) — 공개 API 에서 로드
   useEffect(() => {

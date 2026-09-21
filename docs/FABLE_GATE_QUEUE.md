@@ -4593,3 +4593,9 @@ Fable 은 Irene 지시로 **다음 주 목요일(2026-09-24)까지 사용 불가
   운영팀 답변 경로가 메일 → 앱으로 바뀐다(관리자 피드백 화면에서 답한다).
 - **Fable 이 볼 것**: 옛 contact_inquiries 에 남은 로그인 사용자 문의(from_user_id 있음)를 이 목록에 합칠지 · 문의 답변 시 사용자
   알림(푸시·메일)이 피드백 답변과 같은 경로로 나가는지.
+
+### 같은 날 추가 — 랜딩 방문 집계 (공개 무인증 라우트 신설 · R=1)
+- `POST /api/landing-visits`(무인증) · `GET /api/landing-visits/admin`(platform_admin). 테이블 `landing_visits`(숫자만) · `landing_visitors`(하루 비밀 해시).
+- 받는 것을 좁혔다: 랜딩 주소만(seo-pages.json + 인사이트·위키 글 모양, `/tasks` 등 거부) · 봇 UA 제외 · IP 당 분당 60 · 항상 204 · IP/UA 미저장 · 400일 보관.
+- 자체 실측: 사람 UA → naver/internal 기록 · 헤드리스·curl·Yeti·워크스페이스 주소 미기록 · 관리자 200 · owner 403 · 화면 2폭.
+- **Fable 이 볼 것**: 무인증 쓰기 표면의 남용(분당 60 × 다수 IP 로 숫자 부풀리기 — 통계 왜곡 외 피해는 없음) · 해시의 재식별 가능성(비밀=JWT_SECRET 파생, 날짜별) · 개인정보처리방침 문구가 필요한지.

@@ -119,6 +119,8 @@ const WorkspaceStorageConfig = require('./WorkspaceStorageConfig');
 // ─── Q위키 (Q Wiki) — 제품 도움말 ───
 const HelpCategory = require('./HelpCategory');
 const HelpArticle = require('./HelpArticle');
+const LandingVisit = require('./LandingVisit');
+const LandingVisitor = require('./LandingVisitor');
 const HelpQuestionLog = require('./HelpQuestionLog');
 const CueKnowledge = require('./CueKnowledge');
 // ─── Q Mail (Phase 9 — M1) ───
@@ -542,6 +544,7 @@ EmailAccount.hasMany(EmailAccountAlias, { foreignKey: 'account_id', as: 'aliases
 EmailAccountAlias.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
 
 module.exports = {
+  LandingVisit, LandingVisitor,
   ProjectHistoryEntry,
   ProviderCredit,
   AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest,

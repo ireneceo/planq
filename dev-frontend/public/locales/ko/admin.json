@@ -432,5 +432,31 @@
   },
   "adminFeedback": {
     "errorContext": "사건 맥락"
+  },
+  "landingVisits": {
+    "title": "랜딩 방문",
+    "note": "쿠키 없이 세는 우리 집계입니다. 공개 소개·인사이트·Q위키 페이지만 세고, 로그인한 사용자와 검색봇은 세지 않습니다. «들어온 방문» 은 사이트 안 이동을 뺀 수입니다.",
+    "loading": "불러오는 중…",
+    "emptyTitle": "아직 기록된 방문이 없어요",
+    "emptyDesc": "랜딩 페이지를 누군가 열면 여기에 쌓입니다.",
+    "entries": "들어온 방문",
+    "visitors": "순방문자(일 단위 합)",
+    "daily": "날짜별 들어온 방문",
+    "visitorsShort": "순 {{count}}",
+    "topPages": "많이 본 페이지",
+    "sources": "들어온 경로",
+    "devices": "기기",
+    "lastDays": "최근 {{count}}일",
+    "src": {
+      "direct": "직접 입력·북마크",
+      "naver": "네이버",
+      "google": "구글",
+      "daum_kakao": "다음·카카오",
+      "bing": "Bing"
+    },
+    "dev": {
+      "mobile": "모바일",
+      "desktop": "PC"
+    }
   }
 }

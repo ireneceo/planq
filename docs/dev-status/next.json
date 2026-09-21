@@ -1,27 +1,27 @@
 {
   "working_on": [
-    "랜딩 SEO"
+    "랜딩 방문 집계"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "랜딩 SEO — 페이지별 제목·설명·대표 주소·구조화 데이터 · 사이트맵 34주소 · llms.txt",
-      "detail": "SPA 라 모든 주소가 같은 제목('PlanQ')·설명·빈 본문이었고 사이트맵은 5주소였다. 운영 DB 기준으로 운영에서 seoArtifacts 가 공개 페이지(기능·요금제·서비스·인사이트·Q위키·브랜드·문의·앱)와 공개 인사이트·위키 글마다 HTML(머리 + noscript 본문 요약 + JSON-LD)을 만들고 사이트맵을 쓴다. nginx 무변경(/x → /x/ → x/index.html). 워크스페이스 화면은 대상 아님. 배포 직후·서버 시작·매일 0시 생성, 사라진 글 페이지는 자기가 만든 것만 지운다. rsync 는 생성물을 올리지 않는다(dev DB 글 유출 방지 — 첫 패턴이 루트 index.html 까지 빼는 것을 실측으로 잡았다).",
+      "title": "플랫폼 관리자 > 랜딩 방문 — 쿠키 없는 방문 집계",
+      "detail": "랜딩(공개 소개·인사이트·Q위키)만 센다. 날짜×페이지×유입(네이버·구글·직접…)×기기 숫자만 저장, 순방문자는 하루 비밀 해시(IP·UA 미저장). 봇·로그인 사용자·워크스페이스 주소 제외. GA4 는 운영 CSP 해제(root)가 필요해 택하지 않았다.",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "공개 페이지 주소가 끝 슬래시로 정규화된다(/features → /features/)."
+    "랜딩 페이지를 열면 방문 기록 요청이 한 번 나간다(쿠키 없음)."
   ],
   "issues": [],
   "blocked_on_human": [
-    "네이버 서치어드바이저 사이트 등록 → HTML 태그 인증 코드 전달",
-    "Google Search Console 에 sitemap.xml 다시 제출",
     "Play 승인 후 운영 app_android_url 입력"
   ],
-  "migrations": [],
+  "migrations": [
+    "landing_visits · landing_visitors 신규 — scripts/migrate-landing-visits.js (CREATE IF NOT EXISTS)."
+  ],
   "check_areas": [
-    "planq.kr/features/ 등 제목·canonical · sitemap.xml · Search Console·네이버 서치어드바이저 사이트맵 제출"
+    "플랫폼 관리자 > 랜딩 방문 — 하루 뒤 숫자가 쌓이는지"
   ],
   "backlog": [
     "참석자 추가 시 «알릴까요?» 묻기 · 외부 이메일 초대 · 미팅자료 고르기(참석자 열람권) — Fable 판단 대기(FABLE_GATE_QUEUE)"

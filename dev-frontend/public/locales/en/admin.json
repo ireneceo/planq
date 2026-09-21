@@ -432,5 +432,31 @@
   },
   "adminFeedback": {
     "errorContext": "Error context"
+  },
+  "landingVisits": {
+    "title": "Landing visits",
+    "note": "Cookie-free counts from our own server. Only public landing, insights and Q Wiki pages are counted — not signed-in users or search bots. \"Entries\" excludes navigation within the site.",
+    "loading": "Loading…",
+    "emptyTitle": "No visits recorded yet",
+    "emptyDesc": "Visits appear here once someone opens a landing page.",
+    "entries": "Entries",
+    "visitors": "Unique visitors (sum of days)",
+    "daily": "Entries by day",
+    "visitorsShort": "{{count}} unique",
+    "topPages": "Top pages",
+    "sources": "Sources",
+    "devices": "Devices",
+    "lastDays": "Last {{count}} days",
+    "src": {
+      "direct": "Direct / bookmark",
+      "naver": "Naver",
+      "google": "Google",
+      "daum_kakao": "Daum / Kakao",
+      "bing": "Bing"
+    },
+    "dev": {
+      "mobile": "Mobile",
+      "desktop": "Desktop"
+    }
   }
 }
