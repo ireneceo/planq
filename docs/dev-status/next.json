@@ -1,25 +1,24 @@
 {
   "working_on": [
-    "조직 — 팀장 지정"
+    "개인 메뉴 정리"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "팀장 지정 — 지정하면 그 팀(과 팀의 부서) 소속이 된다",
-      "detail": "teams.lead_user_id 신설(멱등 migrate-team-lead.js, 배포 스크립트에 연결). 조직 화면의 팀 칩을 «이름 · 팀장 · ×» 줄로. 부서장과 같은 규칙·같은 검증(이 워크스페이스 멤버만). 멤버 상세에 «팀장» 표시.",
+      "title": "「근태」→「근태·휴가」 · 문의·피드백 순서와 보조 표시 · 문의 화면 [+ 작성하기]",
+      "detail": "관리자 메뉴 「근태 관리」와 이름이 겹치지 않게 「근태·휴가」. 문의·피드백을 개인 섹션 맨 아래로, 메뉴명에서 PlanQ 를 빼고 회색 보조 표시. [+ 작성하기] 는 단일 진입점 openFeedback() 으로 기존 Q helper 양식을 연다(분류는 양식 안). 보낸 직후 목록 갱신.",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "팀장을 지정하면 그 사람의 부서·팀이 그 팀으로 바뀐다."
+    "개인 메뉴 이름 「근태」가 「근태·휴가」로 바뀌었다.",
+    "문의·피드백 화면에서 바로 작성할 수 있다."
   ],
   "issues": [],
   "blocked_on_human": [],
-  "migrations": [
-    "teams.lead_user_id INT NULL — scripts/migrate-team-lead.js (멱등, 재조회 검증). 롤백은 코드만(컬럼은 남긴다)."
-  ],
+  "migrations": [],
   "check_areas": [
-    "설정 > 조직 — 팀장 선택 후 멤버 배정 표·멤버 상세"
+    "개인 메뉴 순서·이름, 문의·피드백 [+ 작성하기] → 보내면 목록 갱신"
   ],
   "backlog": [
     "참석자 추가 시 «알릴까요?» 묻기 · 외부 이메일 초대 · 미팅자료 고르기(참석자 열람권) — Fable 판단 대기(FABLE_GATE_QUEUE)"
