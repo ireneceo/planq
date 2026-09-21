@@ -62,6 +62,8 @@ const MyFeedbackPage = () => {
 
   // 추가 문의 입력
   const [followup, setFollowup] = useState('');
+  // 추가 문의 입력칸은 **원할 때만** 연다(메일 답장처럼) — 늘 펼쳐 두면 대화 영역을 먹어 문의·답변을 못 읽었다
+  const [composeOpen, setComposeOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const followupRef = useRef<HTMLTextAreaElement>(null);
@@ -132,7 +134,7 @@ const MyFeedbackPage = () => {
   }, [setParams]);
 
   // 선택 바뀌면 추가 문의 입력 초기화
-  useEffect(() => { setFollowup(''); setResultMsg(null); }, [selectedId]);
+  useEffect(() => { setFollowup(''); setResultMsg(null); setComposeOpen(false); }, [selectedId]);
 
   // 스레드가 운영팀 답변을 받았는지 (추가 문의 허용 조건)
   const threadAnswered = (th: FeedbackThread | null) => {
@@ -156,6 +158,7 @@ const MyFeedbackPage = () => {
       const j = await res.json();
       if (!res.ok || !j.success) throw new Error(j.message || 'feedback error');
       setFollowup('');
+      setComposeOpen(false);   // 보냈으면 접는다 — 보낸 글은 위 대화에 붙어 보인다
       setResultMsg(t('myFeedback.followup.success') as string);
       load(true);
       window.setTimeout(() => setResultMsg(null), 6000);
@@ -283,13 +286,24 @@ const MyFeedbackPage = () => {
                   </div>
                 ))}
               </Thread>
-              {/* 추가 문의 — 답변 받은 스레드만 */}
+              {/* 추가 문의 — 답변 받은 스레드만. 평소엔 한 줄 버튼, 눌러야 입력칸이 열린다(메일 [답장] 과 같은 방식) */}
               <Composer>
-                {threadAnswered(selected) ? (
+                {resultMsg && <ResultMsg>{resultMsg}</ResultMsg>}
+                {!threadAnswered(selected) ? (
+                  <LockedHint>{t('myFeedback.followup.locked') as string}</LockedHint>
+                ) : !composeOpen ? (
+                  <ComposerBar>
+                    <ActionButton tone="secondary" size="sm" data-testid="myfeedback-followup-open"
+                      onClick={() => { setComposeOpen(true); setResultMsg(null); window.setTimeout(() => followupRef.current?.focus(), 0); }}>
+                      {t('myFeedback.followup.open') as string}
+                    </ActionButton>
+                  </ComposerBar>
+                ) : (
                   <>
                     <ComposerLabel>{t('myFeedback.followup.title') as string}</ComposerLabel>
                     <FollowTextarea
                       ref={followupRef}
+                      data-testid="myfeedback-followup-input"
                       value={followup}
                       onChange={e => setFollowup(e.target.value)}
                       placeholder={t('myFeedback.followup.placeholder') as string}
@@ -297,19 +311,22 @@ const MyFeedbackPage = () => {
                       onKeyDown={e => {
                         if (e.nativeEvent.isComposing || (e.nativeEvent as KeyboardEvent).keyCode === 229) return;
                         if (isEnterAction(e) && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitFollowup(); }
+                        if (e.key === 'Escape' && !followup.trim()) setComposeOpen(false);
                       }}
                     />
                     <ComposerFooter>
                       <Hint>{t('myFeedback.followup.hint') as string}</Hint>
-                      <ActionButton tone="primary" size="sm" loading={submitting}
-                        disabled={!followup.trim()} onClick={submitFollowup}>
-                        {t('myFeedback.followup.send') as string}
-                      </ActionButton>
+                      <ComposerBtns>
+                        <ActionButton tone="secondary" size="sm" onClick={() => setComposeOpen(false)}>
+                          {t('myFeedback.followup.cancel') as string}
+                        </ActionButton>
+                        <ActionButton tone="primary" size="sm" loading={submitting}
+                          disabled={!followup.trim()} onClick={submitFollowup}>
+                          {t('myFeedback.followup.send') as string}
+                        </ActionButton>
+                      </ComposerBtns>
                     </ComposerFooter>
-                    {resultMsg && <ResultMsg>{resultMsg}</ResultMsg>}
                   </>
-                ) : (
-                  <LockedHint>{t('myFeedback.followup.locked') as string}</LockedHint>
                 )}
               </Composer>
             </>
@@ -348,12 +365,11 @@ const ListPane = styled.div<{ $detailOpen: boolean }>`
 const DetailPane = styled.div<{ $detailOpen: boolean }>`
   flex: 1; min-width: 0;
   background: #f8fafc;
-  overflow-y: auto;
-  /* ★ 안쪽에서 따로 스크롤하는 패널이라 PageShell Body 의 여백이 닿지 않는다 —
-     그래서 추가 문의 입력란이 우측 하단 FAB 밑에 깔려 **누를 수도 볼 수도 없었다**
-     (Irene #416: *"상세에서 스크롤이 안되서 할 수가 없어 … 우측 하단 버튼이 채팅창이랑 겹쳐"*).
-     숫자를 다시 적지 않고 PageShell 이 세운 토큰을 쓴다. */
-  padding-bottom: var(--pq-fab-clearance, 88px);
+  /* ★ 2026-09-21 — 스크롤은 **대화 영역(Thread) 하나**가 한다. 머리줄은 위에, 추가 문의는 아래에 붙는다.
+     여태 이 패널이 스크롤하면서 Thread 는 flex:1·min-height:0 으로 **눌려 줄었는데 자기 스크롤이 없어**
+     넘친 문의·답변이 잘렸다(Irene: "문의 내용을 볼 수가 없어. 스크롤이 안돼. 답변확인도 안돼").
+     FAB 자리(88px)도 뺐다 — 이 상세에서는 FAB 가 숨겨져(RightDock #416) 빈 회색 띠만 남았다. */
+  overflow: hidden;
   display: flex; flex-direction: column;
   @media (max-width: 1024px) {
     display: ${p => (p.$detailOpen ? 'flex' : 'none')};
@@ -428,6 +444,7 @@ const DetailTitle = styled.h2`
 `;
 const Thread = styled.div`
   flex: 1; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
   padding: 20px;
   display: flex; flex-direction: column; gap: 16px;
 `;
@@ -468,7 +485,10 @@ const Composer = styled.div`
   border-top: 1px solid #e2e8f0;
   background: #ffffff;
   display: flex; flex-direction: column; gap: 10px;
+  @media (max-width: 640px) { padding-bottom: calc(16px + var(--pq-safe-bottom, 0px)); }
 `;
+const ComposerBar = styled.div`display: flex; justify-content: flex-end;`;
+const ComposerBtns = styled.div`display: flex; gap: 8px; flex-shrink: 0;`;
 const ComposerLabel = styled.div`font-size: 0.75rem; font-weight: 700; color: #475569;`;
 const FollowTextarea = styled.textarea`
   padding: 10px 12px;
