@@ -195,7 +195,26 @@
     "guestLinksSection": "게스트 링크",
     "guestLinksHint": "고객이 로그인 없이 초대 링크로 대화방에 들어오는 기능입니다. 끄면 이미 발급된 링크까지 전부 즉시 닫힙니다. 다시 켜면 그대로 살아납니다.",
     "guestLinksOn": "켜짐 — 고객이 링크로 들어올 수 있습니다",
-    "guestLinksOff": "꺼짐 — 모든 게스트 링크가 닫혀 있습니다"
+    "guestLinksOff": "꺼짐 — 모든 게스트 링크가 닫혀 있습니다",
+    "apple": {
+      "title": "Apple 로그인",
+      "hint": "네 가지가 모두 들어가면 로그인·회원가입 화면에 [Apple로 계속하기] 가 나타납니다. 값은 Apple Developer > Certificates, Identifiers & Profiles 에서 확인합니다.",
+      "on": "켜짐 — 로그인 화면에 Apple 버튼이 보입니다",
+      "off": "꺼짐 — 네 가지 중 비어 있는 것이 있습니다",
+      "servicesId": "Services ID (웹 로그인용 식별자)",
+      "teamId": "Team ID",
+      "keyId": "Key ID",
+      "privateKey": "개인키 (.p8 파일)",
+      "keySet": "저장됨 (보안상 다시 표시하지 않습니다)",
+      "keyUnset": "없음",
+      "replaceKey": "파일 바꾸기",
+      "pickKey": "파일 선택",
+      "clearKey": "지우기",
+      "keyNotP8": ".p8 개인키 파일이 아닙니다. Apple Developer 에서 받은 AuthKey_XXXX.p8 을 골라 주세요.",
+      "keySaveFailed": "개인키를 저장하지 못했습니다",
+      "returnUrl": "Apple 에 등록할 Return URL",
+      "returnHint": "Services ID 설정의 Website URLs 에 이 서버의 도메인과 이 주소를 등록합니다. 개발 서버와 운영 서버는 각각 따로 넣어야 합니다."
+    }
   },
   "page": {
     "title": "워크스페이스 관리",

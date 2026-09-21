@@ -29,6 +29,9 @@ router.get('/google/connect-confirm/info', async (req, res) => {
       success: true,
       data: {
         existing_user: { id: u.id, email: u.email, name: u.name, avatar_url: u.avatar_url },
+        // 공급자 — 화면이 "Google/Apple 계정을 연결할까요?" 를 고른다(2026-09-21 애플 추가).
+        //   키 이름 `google` 은 옛 화면 호환으로 남긴다(내용은 공급자 계정 정보).
+        provider: stash.provider || 'google',
         google: {
           email: stash.email,
           display_name: stash.display_name,
@@ -57,8 +60,10 @@ router.post('/google/connect-confirm', async (req, res) => {
     if (!user || user.status !== 'active') {
       return res.status(403).json({ success: false, message: 'user_inactive' });
     }
-    // OauthConnection 생성 (이미 다른 sub 가 user_id+google 에 있으면 교체)
-    const existing = await OauthConnection.findOne({ where: { user_id: user.id, provider: 'google' } });
+    // ★ 공급자는 stash 가 정한다 — 여기서 'google' 로 적으면 애플 연결이 구글 행으로 붙는다.
+    const provider = stash.provider === 'apple' ? 'apple' : 'google';
+    // OauthConnection 생성 (이미 다른 sub 가 user_id+provider 에 있으면 교체)
+    const existing = await OauthConnection.findOne({ where: { user_id: user.id, provider } });
     if (existing) {
       await existing.update({
         subject: stash.subject,
@@ -70,7 +75,7 @@ router.post('/google/connect-confirm', async (req, res) => {
     } else {
       await OauthConnection.create({
         user_id: user.id,
-        provider: 'google',
+        provider,
         subject: stash.subject,
         email: stash.email,
         display_name: stash.display_name,

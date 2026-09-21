@@ -4599,3 +4599,26 @@ Fable 은 Irene 지시로 **다음 주 목요일(2026-09-24)까지 사용 불가
 - 받는 것을 좁혔다: 랜딩 주소만(seo-pages.json + 인사이트·위키 글 모양, `/tasks` 등 거부) · 봇 UA 제외 · IP 당 분당 60 · 항상 204 · IP/UA 미저장 · 400일 보관.
 - 자체 실측: 사람 UA → naver/internal 기록 · 헤드리스·curl·Yeti·워크스페이스 주소 미기록 · 관리자 200 · owner 403 · 화면 2폭.
 - **Fable 이 볼 것**: 무인증 쓰기 표면의 남용(분당 60 × 다수 IP 로 숫자 부풀리기 — 통계 왜곡 외 피해는 없음) · 해시의 재식별 가능성(비밀=JWT_SECRET 파생, 날짜별) · 개인정보처리방침 문구가 필요한지.
+
+### 같은 날 추가 — Sign in with Apple (인증 · 공개 라우트 · 운영 스키마 · R=1) [Opus] — Fable 호출 429(한도) → unavailable
+> Irene: *"iOS는 정식으로 하려면 어떻게 해? 심사 올려놓고 베타로 계속 제공은 하고 있을 수 있어?"* → *"응. 해."* (심사 4.8)
+- **공개 라우트 3개**: `GET /api/auth/oauth-providers`(참/거짓만) · `GET /api/auth/apple/initiate` · `POST /api/auth/apple/callback`(form_post).
+- **CORS 예외 1곳**: `middleware/security.js` — `POST /api/auth/apple/callback` 만 cors 미들웨어를 건너뛴다
+  (Origin `https://appleid.apple.com` 이 거부돼 500 이 됐다). 헤더를 안 붙일 뿐, 다른 경로의 외부 출처 거부는 그대로(실측 500 유지).
+- **네이티브 여부·nonce 는 state 로** — 교차 사이트 POST 라 SameSite=Lax `oauth_native` 쿠키가 안 온다.
+  state 는 `ephemeral_tokens(kind='apple_oauth_state')` 10분 · 1회 소비(consume 건수).
+- **id_token 검증**: 애플 JWKS(RS256) · iss · aud=Services ID · nonce 일치. client_secret = .p8 ES256 JWT(5분).
+- **3분기를 구글과 공유**: 구글 콜백에서 `routes/oauth/finish.js` 로 뽑았다(`finishOauthLogin`/`failLogin`). 구글은 쿠키로, 애플은 state 로 native 를 넘긴다.
+  connect-confirm POST 가 `'google'` 하드코딩이었다 → `stash.provider`.
+- ★ **발견한 운영 결함**: 옛 구글 콜백이 `require('../../models').sequelize`(= undefined) 로 트랜잭션을 열어
+  **구글 신규 가입이 운영에서 한 번도 성공하지 못했다**(운영 로그 2026-08-27 4건 · OAuth 전용 가입자 0명). finish.js 에서 `config/database` 로 고쳤다.
+- **자격 저장**: platform_settings `apple_services_id/team_id/key_id`(평문) + `apple_private_key_enc`(AES-GCM, 응답에서 `_set` 로만).
+  저장 전 서명 가능 검사. 운영 fallback 키면 거부(stripe 와 같은 규칙). 감사 로그는 `_enc` 마스킹.
+- **운영 스키마**: `scripts/migrate-apple-login.js`(멱등·재조회 검증) — ENUM 끝 append 2건 + nullable 컬럼 4. deploy 슬롯 PM2 reload 전.
+- 자체 실측(인프로세스 하니스, 애플 토큰·키만 가짜 · 실 라우터·보안 미들웨어·DB): 22/22 —
+  관리자 잘못된 p8/Team ID 400 · 응답에 키 없음 · 저장 즉시 providers apple=true · 신규 가입(사용자+워크스페이스+연결, 한글 이름 «김아이린») ·
+  state 재사용 거부 · 이메일 없는 재로그인(subject) · nonce 불일치/위조 서명/다른 aud 거부 · 기존 이메일 → 연결 확인(provider=apple) · 취소 시 연결 없음 ·
+  네이티브 복귀 페이지(세션 쿠키 없음) · 네이티브/웹 취소 착지 · 해제 후 apple=false. 구글 회귀 6/6(신규 가입 포함). 첫 실행이 sequelize 결함을 잡은 양성 대조군.
+- **Fable 이 볼 것**: ①CORS 예외의 범위(경로·메서드 정확 일치) ②애플 개인 릴레이 주소(@privaterelay)로 가입한 사람이 나중에 실제 주소로
+  같은 사람임을 밝힐 길(현재는 별개 계정) ③애플 "Email Communication" 릴레이 도메인 미등록 시 그 주소로 가는 우리 메일이 막힌다(초대·알림)
+  ④구글 신규 가입이 이제 **처음으로** 실제로 돈다 — 가입 경로(약관 동의 기록·14일 체험)가 운영에서 처음 실행된다.

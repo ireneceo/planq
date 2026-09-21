@@ -1,4 +1,4 @@
-// OauthConnection — N+70 Task 62 외부 OAuth provider 연결 (Google / Microsoft)
+// OauthConnection — N+70 Task 62 외부 OAuth provider 연결 (Google / Microsoft / Apple)
 //
 // 한 사용자는 같은 provider 에 1개 연결만 (UNIQUE user_id+provider).
 // 한 provider 의 subject (Google sub, Microsoft oid) 는 1개 사용자만 (UNIQUE provider+subject).
@@ -15,7 +15,8 @@ class OauthConnection extends Model {}
 OauthConnection.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   user_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' }, onDelete: 'CASCADE' },
-  provider: { type: DataTypes.ENUM('google', 'microsoft'), allowNull: false },
+  // 'apple' 은 2026-09-21 끝에 append(운영 적용: scripts/migrate-apple-login.js)
+  provider: { type: DataTypes.ENUM('google', 'microsoft', 'apple'), allowNull: false },
   subject: { type: DataTypes.STRING(255), allowNull: false },
   email: { type: DataTypes.STRING(255), allowNull: true },
   display_name: { type: DataTypes.STRING(100), allowNull: true },

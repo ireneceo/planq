@@ -332,6 +332,9 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-feedback-kind.js 2>&1 | tail -5"
   # 2026-09-21 랜딩 방문 집계 테이블 2개(CREATE IF NOT EXISTS · 재조회 검증). PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-landing-visits.js 2>&1 | tail -3"
+  # 2026-09-21 Sign in with Apple — oauth_connections.provider·ephemeral_tokens.kind ENUM 끝 append +
+  #   platform_settings 애플 자격 4칸. 신 코드가 'apple'·'apple_oauth_state' 를 쓰므로 PM2 reload 전.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-apple-login.js 2>&1 | tail -8"
   # 캘린더 연동 토글 — sync_enabled 2컬럼 + calendar_events.gcal_sync + calendar_event_gcal_links 테이블.
   #   이 스크립트는 sync-database 보다 **뒤에** 돌기 때문에(위 222행), 테이블은 대개 sync 가 먼저 만든다.
   #   그래서 FK 보증은 여기가 아니라 **모델 CalendarEventGcalLink 의 references/onDelete** 가 한다

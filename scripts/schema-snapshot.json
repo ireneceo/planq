@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-09-14",
+  "_generated": "2026-09-21",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -259,6 +259,7 @@
       "stripe_webhook_secret_enc",
       "deleted_at",
       "mail_signature_html",
+      "mail_signature_html_en",
       "billing_exempt",
       "billing_exempt_kind",
       "billing_exempt_plan",
@@ -268,6 +269,17 @@
       "billing_exempt_set_at",
       "guest_links_enabled",
       "onboarding_dismissed_at"
+    ],
+    "calendar_event_attachments": [
+      "id",
+      "business_id",
+      "event_id",
+      "file_id",
+      "post_id",
+      "sort_order",
+      "created_by",
+      "created_at",
+      "updated_at"
     ],
     "calendar_event_attendees": [
       "id",
@@ -644,6 +656,7 @@
       "email",
       "display_name",
       "signature_html",
+      "signature_html_en",
       "is_default",
       "created_at",
       "updated_at"
@@ -679,6 +692,7 @@
       "oauth_expires_at",
       "oauth_scope",
       "signature_html",
+      "signature_html_en",
       "signature_enabled",
       "notify_scope",
       "auto_extract_scope"
@@ -912,6 +926,7 @@
       "created_at",
       "updated_at",
       "parent_id",
+      "kind",
       "client_env",
       "is_popout",
       "error_context"
@@ -1305,6 +1320,23 @@
       "created_at",
       "updated_at"
     ],
+    "landing_visitors": [
+      "id",
+      "visit_date",
+      "visitor_hash",
+      "created_at",
+      "updated_at"
+    ],
+    "landing_visits": [
+      "id",
+      "visit_date",
+      "path",
+      "source",
+      "device",
+      "views",
+      "created_at",
+      "updated_at"
+    ],
     "leave_grants": [
       "id",
       "business_id",
@@ -1438,7 +1470,8 @@
       "read_at",
       "email_escalated_at",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "preview_policy"
     ],
     "oauth_connections": [
       "id",
@@ -1567,7 +1600,11 @@
       "stripe_webhook_secret_enc",
       "announcement_text_en",
       "guest_links_enabled",
-      "stripe_card_enabled"
+      "stripe_card_enabled",
+      "apple_services_id",
+      "apple_team_id",
+      "apple_key_id",
+      "apple_private_key_enc"
     ],
     "post_attachments": [
       "id",
@@ -2376,6 +2413,7 @@
       "department_id",
       "name",
       "name_en",
+      "lead_user_id",
       "sort_order",
       "created_at",
       "updated_at"

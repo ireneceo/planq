@@ -406,10 +406,23 @@ const LoginPage: React.FC = () => {
       native_exchange: t('login.oauthErr.nativeExchange', { defaultValue: '앱으로 로그인 정보를 넘기지 못했어요. 다시 시도해 주세요.' }) as string,
       invalid_request: t('login.oauthErr.generic', { defaultValue: 'Google 로그인을 마치지 못했어요. 다시 시도해 주세요.' }) as string,
     };
-    setError(known[code] || (t('login.oauthErr.generic', { defaultValue: 'Google 로그인을 마치지 못했어요. 다시 시도해 주세요.' }) as string));
+    // 애플 로그인(2026-09-21) — 서버가 `oauth_provider=apple` 을 같이 붙인다. 문구가 "Google" 이면 거짓이다.
+    const isApple = new URLSearchParams(location.search).get('oauth_provider') === 'apple';
+    const appleKnown: Record<string, string> = {
+      user_cancelled_authorize: t('login.oauthErr.appleDenied', { defaultValue: 'Apple 로그인이 취소됐습니다.' }) as string,
+      email_missing: t('login.oauthErr.emailMissing', { defaultValue: 'Apple 계정의 이메일을 받지 못했어요. 다시 시도해 주세요.' }) as string,
+      apple_not_configured: t('login.oauthErr.appleOff', { defaultValue: 'Apple 로그인이 아직 준비되지 않았어요. 다른 방법으로 로그인해 주세요.' }) as string,
+      invalid_state: known.invalid_state,
+      account_suspended: known.account_suspended,
+    };
+    const genericMsg = isApple
+      ? t('login.oauthErr.appleGeneric', { defaultValue: 'Apple 로그인을 마치지 못했어요. 다시 시도해 주세요.' }) as string
+      : t('login.oauthErr.generic', { defaultValue: 'Google 로그인을 마치지 못했어요. 다시 시도해 주세요.' }) as string;
+    setError((isApple ? appleKnown[code] : known[code]) || genericMsg);
     // 한 번 보여준 뒤 주소에서 지운다 — 새로고침 때마다 다시 뜨지 않게.
     const next = new URLSearchParams(location.search);
     next.delete('oauth_error');
+    next.delete('oauth_provider');
     navigate({ pathname: location.pathname, search: next.toString() }, { replace: true });
   }, [location.search, location.pathname, navigate, t]);
 

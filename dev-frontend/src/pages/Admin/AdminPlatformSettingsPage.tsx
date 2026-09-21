@@ -1,7 +1,7 @@
 // 플랫폼(=PlanQ 운영자) 설정 — platform_admin 만 접근.
 // 메일 푸터·법적 표기·지원 메일 등 .env PLATFORM_*/EMAIL_LOGO_URL 대체.
 // AutoSaveField 패턴: 각 필드 입력 → debounce 후 PUT (부분 업데이트).
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
@@ -34,6 +34,11 @@ interface PlatformSettings {
   seo_keywords: string | null;
   og_image_url: string | null;
   app_ios_url: string | null;
+  // Sign in with Apple (2026-09-21) — 개인키는 응답에 오지 않는다(설정 여부만)
+  apple_services_id: string | null;
+  apple_team_id: string | null;
+  apple_key_id: string | null;
+  apple_private_key_set?: boolean;
   app_android_url: string | null;
 }
 
@@ -45,6 +50,7 @@ const EMPTY: PlatformSettings = {
   announcement_text: '', announcement_text_en: '', announcement_dismissible: true, announcement_severity: 'info',
   seo_title: '', seo_description: '', seo_keywords: '', og_image_url: '',
   app_ios_url: '', app_android_url: '',
+  apple_services_id: '', apple_team_id: '', apple_key_id: '', apple_private_key_set: false,
 };
 
 const AdminPlatformSettingsPage = () => {
@@ -82,6 +88,10 @@ const AdminPlatformSettingsPage = () => {
           og_image_url: r.data.og_image_url || '',
           app_ios_url: r.data.app_ios_url || '',
           app_android_url: r.data.app_android_url || '',
+          apple_services_id: r.data.apple_services_id || '',
+          apple_team_id: r.data.apple_team_id || '',
+          apple_key_id: r.data.apple_key_id || '',
+          apple_private_key_set: !!r.data.apple_private_key_set,
         });
       }
     } finally { setLoading(false); }
@@ -89,14 +99,21 @@ const AdminPlatformSettingsPage = () => {
 
   useEffect(() => { load(); }, [load]);
 
-  const save = async (patch: Partial<PlatformSettings>) => {
+  const save = async (patch: Partial<PlatformSettings> & { apple_private_key?: string }) => {
     const r = await (await apiFetch('/api/admin/platform-settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
     })).json();
     if (r.success && r.data) {
-      setData((prev) => ({ ...prev, ...r.data }));
+      // ★ 보낸 칸(+ 서버가 파생하는 `*_set`)만 되받는다 (2026-09-21 실측). 응답 전체를 덮으면
+      //   저장이 오가는 사이 **다른 칸에 치던 글자가 서버의 옛 값으로 지워진다** — Apple 로그인 칸에서
+      //   Services ID 저장이 도는 동안 입력한 Team ID·Key ID 가 빈칸으로 돌아갔다.
+      const back: Record<string, unknown> = {};
+      for (const k of Object.keys(r.data)) {
+        if (k in patch || k.endsWith('_set')) back[k] = r.data[k];
+      }
+      setData((prev) => ({ ...prev, ...back }));
     } else {
       throw new Error(r.message || 'save_failed');
     }
@@ -394,9 +411,92 @@ const AdminPlatformSettingsPage = () => {
           <OgHint>{t('platform.app_url_hint', '/app 다운로드 페이지가 방문자 환경(iOS/Android)에 맞춰 이 링크로 안내합니다. 비우면 "출시 준비 중"으로 표시됩니다.')}</OgHint>
         </Field>
       </Card>
+
+      <AppleLoginCard data={data} set={set} save={save} />
     </PageShell>
   );
 };
+
+// Sign in with Apple 자격 (2026-09-21) — App Store 심사 4.8.
+//   넷(Services ID·Team ID·Key ID·개인키)이 다 들어가면 로그인·회원가입 화면에 [Apple로 계속하기] 가 뜬다.
+//   개인키(.p8)는 **파일로 고른다** — 붙여넣기는 줄이 빠지기 쉽고, 서버가 저장 전에 서명이 되는지 본다.
+//   저장된 키는 다시 보여 주지 않는다(설정 여부만). 채팅·메일로 주고받지 않게 여기서만 넣는다.
+function AppleLoginCard({ data, set, save }: {
+  data: PlatformSettings;
+  set: <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => void;
+  save: (patch: Partial<PlatformSettings> & { apple_private_key?: string }) => Promise<void>;
+}) {
+  const { t } = useTranslation('admin');
+  const [keyErr, setKeyErr] = useState<string | null>(null);
+  const [keyBusy, setKeyBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const callbackUrl = `${window.location.origin}/api/auth/apple/callback`;
+  const ready = !!(data.apple_services_id && data.apple_team_id && data.apple_key_id && data.apple_private_key_set);
+
+  const onPickKey = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    setKeyErr(null); setKeyBusy(true);
+    try {
+      const text = (await f.text()).trim();
+      if (!text.includes('BEGIN PRIVATE KEY')) { setKeyErr(t('platform.apple.keyNotP8', '.p8 개인키 파일이 아닙니다. Apple Developer 에서 받은 AuthKey_XXXX.p8 을 골라 주세요.') as string); return; }
+      await save({ apple_private_key: text });
+    } catch (err) {
+      setKeyErr(`${t('platform.apple.keySaveFailed', '개인키를 저장하지 못했습니다')}: ${(err as Error).message}`);
+    } finally { setKeyBusy(false); }
+  };
+  const clearKey = async () => {
+    setKeyErr(null); setKeyBusy(true);
+    try { await save({ apple_private_key: '' }); } catch (err) { setKeyErr((err as Error).message); } finally { setKeyBusy(false); }
+  };
+
+  const idField = (key: 'apple_services_id' | 'apple_team_id' | 'apple_key_id', label: string, placeholder: string, max: number) => (
+    <Field>
+      <Label>{label}</Label>
+      <AutoSaveField type="input" onSave={async () => save({ [key]: (data[key] || '').trim() })}>
+        <Input value={data[key] || ''} onChange={(e) => set(key, e.target.value)} placeholder={placeholder} maxLength={max} data-testid={`apple-${key}`} />
+      </AutoSaveField>
+    </Field>
+  );
+
+  return (
+    <Card data-testid="apple-login-card">
+      <SectionTitle>{t('platform.apple.title', 'Apple 로그인')}</SectionTitle>
+      <SectionHint>{t('platform.apple.hint', '네 가지가 모두 들어가면 로그인·회원가입 화면에 [Apple로 계속하기] 가 나타납니다. 값은 Apple Developer > Certificates, Identifiers & Profiles 에서 확인합니다.')}</SectionHint>
+      <StatusLine $on={ready} data-testid="apple-status">
+        {ready ? t('platform.apple.on', '켜짐 — 로그인 화면에 Apple 버튼이 보입니다') : t('platform.apple.off', '꺼짐 — 네 가지 중 비어 있는 것이 있습니다')}
+      </StatusLine>
+      {idField('apple_services_id', t('platform.apple.servicesId', 'Services ID (웹 로그인용 식별자)') as string, 'kr.planq.signin', 200)}
+      <FieldRow>
+        {idField('apple_team_id', t('platform.apple.teamId', 'Team ID') as string, 'ABCDE12345', 10)}
+        {idField('apple_key_id', t('platform.apple.keyId', 'Key ID') as string, 'ABCDE12345', 10)}
+      </FieldRow>
+      <Field>
+        <Label>{t('platform.apple.privateKey', '개인키 (.p8 파일)')}</Label>
+        <KeyRow>
+          <KeyState $on={!!data.apple_private_key_set}>
+            {data.apple_private_key_set ? t('platform.apple.keySet', '저장됨 (보안상 다시 표시하지 않습니다)') : t('platform.apple.keyUnset', '없음')}
+          </KeyState>
+          {/* autosave-exempt: 파일 선택 자체가 저장 행위다(입력란이 아니다) */}
+          <SmallBtn type="button" disabled={keyBusy} onClick={() => fileRef.current?.click()} data-testid="apple-key-pick">
+            {data.apple_private_key_set ? t('platform.apple.replaceKey', '파일 바꾸기') : t('platform.apple.pickKey', '파일 선택')}
+          </SmallBtn>
+          {data.apple_private_key_set && (
+            <SmallBtn type="button" disabled={keyBusy} onClick={clearKey}>{t('platform.apple.clearKey', '지우기')}</SmallBtn>
+          )}
+          <input ref={fileRef} type="file" accept=".p8,text/plain" hidden onChange={onPickKey} />
+        </KeyRow>
+        {keyErr && <KeyErr role="alert">{keyErr}</KeyErr>}
+      </Field>
+      <Field>
+        <Label>{t('platform.apple.returnUrl', 'Apple 에 등록할 Return URL')}</Label>
+        <CodeLine>{callbackUrl}</CodeLine>
+        <OgHint>{t('platform.apple.returnHint', 'Services ID 설정의 Website URLs 에 이 서버의 도메인과 이 주소를 등록합니다. 개발 서버와 운영 서버는 각각 따로 넣어야 합니다.')}</OgHint>
+      </Field>
+    </Card>
+  );
+}
 
 export default AdminPlatformSettingsPage;
 
@@ -496,4 +596,22 @@ const Skeleton = styled.div`
     0% { background-position: -200% 0; }
     100% { background-position: 200% 0; }
   }
+`;
+const StatusLine = styled.div<{ $on: boolean }>`
+  font-size: 0.8125rem; font-weight: 600; color: ${(p) => (p.$on ? '#0F766E' : '#64748B')};
+`;
+const KeyRow = styled.div`display: flex; align-items: center; gap: 8px; flex-wrap: wrap;`;
+const KeyState = styled.span<{ $on: boolean }>`
+  font-size: 0.8125rem; color: ${(p) => (p.$on ? '#0F766E' : '#94A3B8')}; margin-right: 4px;
+`;
+const SmallBtn = styled.button`
+  height: 32px; padding: 0 12px; border-radius: 8px; font-size: 0.8125rem; font-weight: 600;
+  background: #FFFFFF; color: #334155; border: 1px solid #CBD5E1; cursor: pointer; font-family: inherit;
+  &:hover:not(:disabled) { border-color: #14B8A6; color: #0F766E; }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+`;
+const KeyErr = styled.div`font-size: 0.75rem; color: #B91C1C;`;
+const CodeLine = styled.code`
+  font-size: 0.8125rem; color: #0F172A; background: #F1F5F9; border-radius: 6px; padding: 8px 10px;
+  word-break: break-all; user-select: all;
 `;

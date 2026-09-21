@@ -2,15 +2,13 @@
 // 라우터를 **새로 만들지 않는다** — auth_oauth.js 가 준 하나에 그대로 등록해
 // 등록 순서와 마운트 지점(server.js `/api/auth`)을 분리 전과 동일하게 유지한다.
 const jwt = require('jsonwebtoken');
-const { User, OauthConnection, sequelize } = require('../../models');
+const { User } = require('../../models');
 const googleOauthLogin = require('../../services/google_oauth_login');
-const { sendNativeReturn } = require('../../utils/nativeReturn');
 const { logOauthFailure } = require('../../utils/oauthLog');
-const oauthPairing = require('../../services/oauthPairing');
 const {
-  stashConfirm, claimNativeCodeOnce, isNativeOAuth, issueNativeOAuthCode,
-  setupNewWorkspace, buildRedirectTarget, issueSessionCookie,
+  claimNativeCodeOnce, isNativeOAuth, buildRedirectTarget, issueSessionCookie,
 } = require('./core');
+const { finishOauthLogin, failLogin } = require('./finish');
 
 module.exports = function registerLoginRoutes(router) {
 // 1. Google OAuth 시작
@@ -38,28 +36,8 @@ router.get('/google/initiate', async (req, res) => {
   }
 });
 
-// 로그인 실패 착지 — **네이티브 흐름이면 복귀 페이지**, 웹이면 /login?oauth_error= (종전).
-//   ★ 2026-09-10 — 여태 네이티브 실패도 `/login?oauth_error=` 로 302 했다. 그 주소는 **시스템 브라우저
-//     (팝오버) 안의 웹 로그인 화면**이라, 취소·만료 한 번에 사용자는 팝오버 안 로그인 페이지에 갇혔고
-//     팝오버를 닫으면 앱은 6자리 코드를 물었다(로그인은 시작도 안 됐는데). 실패도 앱으로 돌려보내
-//     앱이 **왜 실패했는지 말하게** 한다 — NativeBridge 가 `error` 를 받아 페어링을 지우고
-//     /login?oauth_error= 로 간다.
-function failLogin(req, res, reason) {
-  const code = String(reason || 'oauth_failed').slice(0, 64);
-  if (!isNativeOAuth(req)) return res.redirect(302, buildRedirectTarget({ ok: false, error: code }));
-  res.clearCookie('oauth_native', { path: '/api/auth' });
-  const MSG = {
-    access_denied: 'Google 로그인이 취소됐습니다.',
-    invalid_state: '로그인 시간이 초과됐습니다. 앱에서 다시 시도해 주세요.',
-    email_not_verified: '이메일이 확인되지 않은 Google 계정입니다.',
-    account_suspended: '사용할 수 없는 계정입니다. 관리자에게 문의해 주세요.',
-  };
-  return sendNativeReturn(res, { error: code }, {
-    title: '로그인을 마치지 못했습니다',
-    message: MSG[code] || 'Google 로그인을 마치지 못했습니다. 앱에서 다시 시도해 주세요.',
-    userAgent: req.get('user-agent'),
-  });
-}
+// 로그인 실패 착지·3분기는 oauth/finish.js 한 곳이다(애플과 공유 — 2026-09-21).
+const failGoogle = (req, res, reason) => failLogin(req, res, reason, { native: isNativeOAuth(req), provider: 'google' });
 
 // 2. Google OAuth callback — CSP 정합 (inline script X, fragment redirect)
 router.get('/google/callback', async (req, res) => {
@@ -68,175 +46,36 @@ router.get('/google/callback', async (req, res) => {
     const logCtx = { ua: String(req.get('user-agent') || '').slice(0, 120), native: isNativeOAuth(req) || undefined };
     if (oauthError) {
       logOauthFailure('auth/google callback', String(oauthError), logCtx);
-      return failLogin(req, res, oauthError);
+      return failGoogle(req, res, oauthError);
     }
     if (!code || !state) {
       logOauthFailure('auth/google callback', 'invalid_request', logCtx);
-      return failLogin(req, res, 'invalid_request');
+      return failGoogle(req, res, 'invalid_request');
     }
     const stateEntry = await googleOauthLogin.consumeStateEntry(String(state));
     if (!stateEntry) {
       // 대개 ①서버 재시작으로 메모리 state 가 날아갔거나 ②콜백이 두 번 로드됐거나 ③5분 초과.
       logOauthFailure('auth/google callback', 'invalid_state', logCtx);
-      return failLogin(req, res, 'invalid_state');
+      return failGoogle(req, res, 'invalid_state');
     }
-    const pairId = stateEntry.challenge;   // state 가 나른 흐름 식별자
-
     const profile = await googleOauthLogin.exchangeCodeForProfile(String(code));
     if (!profile.email_verified) {
       logOauthFailure('auth/google callback', 'email_not_verified', logCtx);
-      return failLogin(req, res, 'email_not_verified');
+      return failGoogle(req, res, 'email_not_verified');
     }
-
-    const { Op } = require('sequelize');
-    // N+70 Task 62 — 3분기 OAuth 흐름 (표준 OAuth Connection 패턴)
-    let user = null;
-    let isNewUser = false;
-    let needsConnectionConfirm = false;
-    let prospectUser = null;  // email 매칭 user — 연결 확인 후 attach
-
-    // [분기 1] oauth_connections subject 매칭 → 그 사용자 즉시 로그인
-    const existingConn = await OauthConnection.findOne({
-      where: { provider: 'google', subject: profile.google_sub },
-      include: [{ model: User, attributes: ['id', 'email', 'status'] }],
+    return await finishOauthLogin(req, res, {
+      provider: 'google',
+      profile: {
+        subject: profile.google_sub, email: profile.email, name: profile.name,
+        picture: profile.picture, locale: profile.locale,
+      },
+      native: isNativeOAuth(req),
+      pairId: stateEntry.challenge,   // state 가 나른 흐름 식별자
+      logTag: 'auth/google callback',
     });
-    if (existingConn && existingConn.User) {
-      user = await User.findByPk(existingConn.User.id);
-      await existingConn.update({ last_used_at: new Date() });
-    } else {
-      // [분기 2] email 매칭 (primary or verified secondary) — 연결 확인 페이지로
-      prospectUser = await User.findOne({
-        where: {
-          // #259 — 시스템 계정(Cue·게스트 그림자)에는 절대 붙이지 않는다.
-          //   그림자 주소는 guest+cN@guest.planq.kr 라 구글 계정과 겹칠 일이 없지만,
-          //   매칭 술어에 명시해 둔다 — 나중에 주소 규칙이 바뀌어도 여기가 막는다.
-          is_ai: false,
-          is_guest: false,
-          [Op.or]: [
-            { email: profile.email },
-            { secondary_email: profile.email, secondary_email_verified_at: { [Op.ne]: null } },
-          ],
-        },
-      });
-      if (prospectUser) {
-        // 연결 확인 페이지로 redirect — 사용자 명시 동의 필요
-        // confirm token 5분 — ephemeral_tokens(kind=oauth_confirm). 재시작에도 남는다(2026-09-10).
-        const confirmToken = await stashConfirm({
-          user_id: prospectUser.id,
-          provider: 'google',
-          subject: profile.google_sub,
-          email: profile.email,
-          display_name: profile.name,
-          picture: profile.picture,
-        });
-        // ★ 2026-09-04 — 네이티브 분기가 없어서 이 경로가 **앱에서 막혀 있었다.**
-        //   기존 회원이 구글로 로그인하면(= 아직 연결 안 된 계정) 여기로 오는데, 웹 경로로
-        //   302 하면 그 확인 화면이 **시스템 브라우저 안에** 뜬다. 거기서 확인을 눌러도
-        //   세션 쿠키는 그 브라우저에 심기고 앱 WebView 는 아무것도 못 받는다
-        //   (Irene: "구글로 연결하는 과정이 전에 있었고 이미 했었어. 그런데 지금 전후 엉망이야").
-        //   → 앱으로 먼저 돌아간 뒤, 앱 WebView 안에서 확인 화면을 연다. 그래야 쿠키가 앱에 심긴다.
-        if (isNativeOAuth(req)) {
-          res.clearCookie('oauth_native', { path: '/api/auth' });
-          // ★ 이 분기는 **아직 로그인이 아니다** — "이 계정에 구글을 연결할까요?" 확인이 남았다.
-          //   코드 페어링을 붙일 수 없고(세션이 없다), 그래서 딥링크가 실패하면 갈 곳이 있어야 한다.
-          //   2026-09-06 Fable F-2: webFallbackUrl 을 없앤 뒤 이 호출부만 남아 **옵션이 조용히
-          //   버려지고** 링크가 planq:// 하나뿐인 막다른 길이 됐다(제목도 "로그인이 끝났습니다").
-          return sendNativeReturn(res, { confirm: confirmToken }, {
-            title: '계정 연결 확인이 필요합니다',
-            altUrl: `/oauth/connect-confirm?token=${encodeURIComponent(confirmToken)}`,
-            altLabel: '연결 확인하기',
-            userAgent: req.get('user-agent'),
-          });
-        }
-        return res.redirect(302, `/oauth/connect-confirm?token=${confirmToken}&email=${encodeURIComponent(profile.email)}&existing_email=${encodeURIComponent(prospectUser.email)}&name=${encodeURIComponent(profile.name || '')}`);
-      }
-      // [분기 3] 둘 다 없음 → 신규 가입 (기존 로직 그대로)
-    }
-    // 아래는 분기 1 (existing user) 또는 분기 3 (신규) 흐름 계속
-    if (!user) {
-      // N+70 hotfix — browser Accept-Language 우선 (Google profile.locale 보다 정확)
-      const browserLang = String(req.headers['accept-language'] || '').toLowerCase();
-      const wantsKo = browserLang.startsWith('ko') || (profile.locale && profile.locale.startsWith('ko'));
-      // Transaction — User + Business + Cue 함께
-      const t = await sequelize.transaction();
-      try {
-        user = await User.create({
-          email: profile.email,
-          password_hash: '$2a$12$oauth_no_password_set',
-          name: profile.name || profile.email.split('@')[0],
-          avatar_url: profile.picture || null,
-          language: wantsKo ? 'ko' : 'en',
-          email_verified_at: new Date(),
-          platform_role: 'user',
-          status: 'active',
-          terms_accepted_at: new Date(),
-          terms_version: '1.0',
-          privacy_accepted_at: new Date(),
-          privacy_version: '1.0',
-        }, { transaction: t });
-        // 자동 Business + Cue (옛 /register 정합) — 좌측 메뉴 채워짐 + 14일 trial
-        await setupNewWorkspace(user, wantsKo, t);
-        // OAuth Connection 자동 생성 (subject 박제 — 다음 로그인은 즉시 분기 1)
-        await OauthConnection.create({
-          user_id: user.id,
-          provider: 'google',
-          subject: profile.google_sub,
-          email: profile.email,
-          display_name: profile.name || null,
-          picture: profile.picture || null,
-          connected_at: new Date(),
-          last_used_at: new Date(),
-        }, { transaction: t });
-        await t.commit();
-      } catch (e) {
-        await t.rollback();
-        throw e;
-      }
-      isNewUser = true;
-    } else {
-      const patch = { last_login_at: new Date() };
-      if (!user.avatar_url && profile.picture) patch.avatar_url = profile.picture;
-      if (!user.email_verified_at) patch.email_verified_at = new Date();
-      await user.update(patch);
-    }
-
-    if (user.status !== 'active') {
-      logOauthFailure('auth/google callback', 'account_suspended', logCtx);
-      return failLogin(req, res, 'account_suspended');
-    }
-
-    // 네이티브 앱: 시스템 브라우저에 쿠키를 심지 말고, 일회용 code 를 딥링크로 앱에 전달 (H-2).
-    if (isNativeOAuth(req)) {
-      res.clearCookie('oauth_native', { path: '/api/auth' });
-      const code = issueNativeOAuthCode(user);
-      // 302 가 아니라 HTML 착지 — SFSafariViewController 는 커스텀 스킴 **리다이렉트를 무시**한다.
-      logOauthFailure('auth/google callback', 'native_return(정상)', {
-        ...logCtx, note: 'oauth_native 쿠키로 네이티브 복귀 페이지를 냄',
-      });
-      // 앱을 여는 길 둘(스킴 → App Link) + 웹으로 끝내는 길 하나. 어느 쪽도 막다른 길이 아니다.
-      const origin = `${req.protocol}://${req.get('host')}`;
-      // ★ 앱에 입력할 6자리 — **이 브라우저 화면에서만** 생겨난다. 공격자가 남의 로그인을
-      //   자기 흐름에 붙여도 코드는 피해자 화면에 뜨므로 가져갈 수 없다.
-      const pairCode = await oauthPairing.attach(pairId, user.id);
-      return sendNativeReturn(res, { code, new: isNewUser ? '1' : '0' }, {
-        title: '로그인이 끝났습니다',
-        // ★ https App Link 는 **주지 않는다** — 같은 도메인이라 iOS(SFSafariViewController)·Android(Chrome)
-        //   어느 쪽도 앱을 열지 못하고 팝오버 안에 웹 세션만 심었다(2026-09-10 운영 실측: 그 세션의
-        //   UA 가 SFSVC, client_kind=web). 앱을 여는 길은 utils/nativeReturn.js 가 플랫폼별로 고른다
-        //   (iOS 스킴 탭 · Android intent://). web-return 은 "앱 없이 이 브라우저에서 계속" 이라는
-        //   명시적 선택지로만 노출된다(Android intent 의 fallback 도 이것).
-        webUrl: `${origin}/api/auth/google/web-return?code=${encodeURIComponent(code)}`,
-        userAgent: req.get('user-agent'),
-        pairCode,
-      });
-    }
-
-    // refresh_token cookie 발급 (옛 /login 패턴 정합) — AuthContext 가 mount 시 자동 refresh
-    await issueSessionCookie(req, res, user);
-    return res.redirect(302, buildRedirectTarget({ ok: true, isNewUser }));
   } catch (e) {
     console.error('[auth_oauth/google/callback]', e);
-    return failLogin(req, res, 'oauth_failed');
+    return failGoogle(req, res, 'oauth_failed');
   }
 });
 

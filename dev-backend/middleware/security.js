@@ -221,7 +221,11 @@ const setupSecurity = (app) => {
 
   // CORS
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
-  app.use(cors({
+  // Sign in with Apple 콜백은 appleid.apple.com 이 **form_post(최상위 이동)** 로 부른다 — Origin 이
+  //   https://appleid.apple.com 이라 아래 검사에 걸려 500 이 된다. 이 한 경로·POST 만 CORS 를 건너뛴다.
+  //   CORS 헤더를 안 붙일 뿐이다(애플 출처에 우리 응답을 읽을 권한을 주지 않는다). state 가 CSRF 를 막는다.
+  const APPLE_CALLBACK = '/api/auth/apple/callback';
+  const corsMw = cors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -236,7 +240,8 @@ const setupSecurity = (app) => {
     // X-Internal-Api-Key: Q Note (Python) → Node 내부 호출용. CORS 통과 필요.
     // X-Workspace-Id: 창이 믿는 워크스페이스 (WORKSPACE_SCOPE_DESIGN C2 — middleware/workspaceContext).
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Kind', 'X-Internal-Api-Key', 'X-Workspace-Id']
-  }));
+  });
+  app.use((req, res, next) => (req.method === 'POST' && req.path === APPLE_CALLBACK ? next() : corsMw(req, res, next)));
 
   // Rate Limiting — 전체 API
   //   인증 사용자는 user 별 버킷(사무실 공용 IP NAT 충돌 방지 — 옛 IP 키는 한 팀이 한 버킷을

@@ -10,12 +10,27 @@
 //
 // ★ 노출 스위치는 `GOOGLE_AUTH_ENABLED` 하나다. Google OAuth 검증 승인(2026-08-24) 으로 켜져 있다.
 //   다시 꺼야 할 일이 생기면 여기 한 줄만 false 로 되돌린다.
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { isNativeApp } from '../../services/native';
 
 export const GOOGLE_AUTH_ENABLED = true;
+
+// ★ Sign in with Apple (2026-09-21) — App Store 심사 4.8: 구글 로그인이 있으면 애플도 같은 자리에.
+//   **같은 컴포넌트에 둔다** — 로그인·회원가입이 이 파일 하나를 쓰므로 한 곳만 붙이면 둘 다 생긴다.
+//   노출은 서버가 정한다(플랫폼 관리자에 애플 자격이 다 들어 있을 때만 `apple: true`).
+//   자격이 없는데 버튼을 보이면 누르는 순간 실패한다 — 그래서 묻고 나서 그린다. 한 번만 묻는다.
+let providersPromise: Promise<{ apple: boolean }> | null = null;
+function fetchProviders(): Promise<{ apple: boolean }> {
+  if (!providersPromise) {
+    providersPromise = fetch('/api/auth/oauth-providers', { credentials: 'same-origin' })
+      .then((r) => r.json())
+      .then((j) => ({ apple: !!(j && j.data && j.data.apple) }))
+      .catch(() => { providersPromise = null; return { apple: false }; });
+  }
+  return providersPromise;
+}
 
 interface Props {
   /** OAuth 로 벗어나기 전에 해야 할 정리를 포함한 리다이렉트 실행자. 화면마다 다르다. */
@@ -29,8 +44,15 @@ interface Props {
 
 const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = true, dividerLabel }) => {
   const { t } = useTranslation('auth');
+  const [apple, setApple] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void fetchProviders().then((p) => { if (alive) setApple(p.apple); });
+    return () => { alive = false; };
+  }, []);
   if (!GOOGLE_AUTH_ENABLED) return null;
-  const label = t('login.continueWithGoogle', 'Google 로 계속') as string;
+  const appleLabel = t('login.continueWithApple', 'Apple로 계속하기') as string;
+  const label = t('login.continueWithGoogle', 'Google로 계속하기') as string;
   return (
     <>
       {withDivider && <OAuthDivider><span>{dividerLabel || (t('login.or', '또는') as string)}</span></OAuthDivider>}
@@ -49,6 +71,20 @@ const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = tr
         </GoogleIcon>
         {label}
       </GoogleBtn>
+      {apple && (
+        <AppleBtn
+          type="button"
+          data-testid="apple-auth-btn"
+          onClick={() => onStart(isNativeApp() ? '/api/auth/apple/initiate?client=native' : '/api/auth/apple/initiate')}
+          disabled={disabled}
+          aria-label={appleLabel}
+        >
+          <AppleIcon viewBox="0 0 814 1000" width="16" height="18" aria-hidden="true">
+            <path fill="currentColor" d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76.5 0-103.7 40.8-165.9 40.8s-105.6-57-155.5-127C46.7 790.7 0 663 0 541.8c0-194.4 126.4-297.5 250.8-297.5 66.1 0 121.2 43.4 162.7 43.4 39.5 0 101.1-46 176.3-46 28.5 0 130.9 2.6 198.3 99.2zm-234-181.5c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z"/>
+          </AppleIcon>
+          {appleLabel}
+        </AppleBtn>
+      )}
     </>
   );
 };
@@ -74,3 +110,10 @@ const GoogleBtn = styled.button`
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;
 const GoogleIcon = styled.svg`width: 18px; height: 18px;`;
+// 애플 휴먼 인터페이스 가이드 — 검정 바탕·흰 로고·다른 로그인 버튼과 **같은 크기**.
+const AppleBtn = styled(GoogleBtn)`
+  margin-top: 10px;
+  background: #000000; color: #FFFFFF; border-color: #000000;
+  &:hover:not(:disabled) { background: #1F2937; border-color: #1F2937; }
+`;
+const AppleIcon = styled.svg`flex-shrink: 0; margin-top: -2px;`;

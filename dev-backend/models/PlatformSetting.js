@@ -66,6 +66,13 @@ PlatformSetting.init({
   //   법인·약관 정리가 끝날 때까지 키는 두고 결제만 닫아 두는 것이 실제로 필요하다.
   //   기본 true — 이 칸이 생기기 전 동작(키가 있으면 켜짐)을 그대로 유지한다.
   stripe_card_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  // Sign in with Apple (2026-09-21) — App Store 심사 4.8(구글 로그인이 있으면 애플도).
+  //   Services ID·Team ID·Key ID 는 비밀이 아니라 평문. .p8 개인키만 AES-256-GCM 으로(*_enc 는 응답에서 자동 제거).
+  //   "넷 다 있으면 켜짐" — 로그인 화면의 [Apple 로 계속] 은 이 값으로 노출된다(services/apple_oauth_login.js).
+  apple_services_id: { type: DataTypes.STRING(200), allowNull: true },
+  apple_team_id: { type: DataTypes.STRING(20), allowNull: true },
+  apple_key_id: { type: DataTypes.STRING(20), allowNull: true },
+  apple_private_key_enc: { type: DataTypes.TEXT, allowNull: true },
   // PortOne (폐기 — Stripe 로 대체. 컬럼은 호환 유지)
   portone_store_id: { type: DataTypes.STRING(100), allowNull: true },
   portone_channel_key: { type: DataTypes.STRING(200), allowNull: true },

@@ -668,7 +668,7 @@ router.put('/platform-settings', async (req, res, next) => {
     const b = req.body || {};
     const { encrypt, usingFallbackKey } = require('../services/encryption'); // Stripe secret AES-256-GCM 저장용
     // F3: 운영에서 EMAIL_ENCRYPTION_KEY 없이(JWT 파생 fallback) 결제 시크릿 저장 금지 — 유출/회전 위험.
-    if ((b.stripe_secret || b.stripe_webhook_secret) && usingFallbackKey() && process.env.NODE_ENV === 'production') {
+    if ((b.stripe_secret || b.stripe_webhook_secret || b.apple_private_key) && usingFallbackKey() && process.env.NODE_ENV === 'production') {
       return errorResponse(res, 'encryption_key_required: EMAIL_ENCRYPTION_KEY 를 설정해야 결제 시크릿을 저장할 수 있습니다.', 400);
     }
     if (b.brand !== undefined && (!String(b.brand).trim() || String(b.brand).length > 100)) {
@@ -680,6 +680,18 @@ router.put('/platform-settings', async (req, res, next) => {
       return errorResponse(res, `invalid_stripe_key_format: ${badKey.field} must start with ${badKey.expected.join(' or ')}`, 400);
     }
     const setStr = (k, max) => (b[k] !== undefined ? { [k]: b[k] ? String(b[k]).slice(0, max) : null } : {});
+    // Sign in with Apple (2026-09-21) — 개인키(.p8)는 **실제로 서명이 되는지** 저장 전에 본다.
+    //   붙여넣기에서 한 줄이 빠지면 로그인 순간에야 실패하고, 그때는 사용자가 이유를 모른다.
+    if (b.apple_private_key) {
+      const bad = require('../services/apple_oauth_login').validatePrivateKey(String(b.apple_private_key).trim());
+      if (bad) return errorResponse(res, `apple_private_key_invalid: ${bad}`, 400);
+    }
+    for (const k of ['apple_team_id', 'apple_key_id']) {
+      if (b[k] && !/^[A-Z0-9]{10}$/.test(String(b[k]).trim())) return errorResponse(res, `${k}_invalid (10자 영문 대문자·숫자)`, 400);
+    }
+    if (b.apple_services_id && !/^[A-Za-z0-9.-]{3,200}$/.test(String(b.apple_services_id).trim())) {
+      return errorResponse(res, 'apple_services_id_invalid', 400);
+    }
     const setNum = (k, fb) => (b[k] !== undefined && Number.isFinite(Number(b[k])) ? { [k]: Number(b[k]) } : (fb !== undefined ? {} : {}));
     const updates = {
       ...(b.brand !== undefined ? { brand: String(b.brand).trim() } : {}),
@@ -709,6 +721,12 @@ router.put('/platform-settings', async (req, res, next) => {
         ? { stripe_secret_enc: b.stripe_secret ? encrypt(String(b.stripe_secret)) : null } : {}),
       ...(b.stripe_webhook_secret !== undefined
         ? { stripe_webhook_secret_enc: b.stripe_webhook_secret ? encrypt(String(b.stripe_webhook_secret)) : null } : {}),
+      // Sign in with Apple — ID 셋은 평문, 개인키는 암호화. 빈 문자열이면 해제, 미전송이면 보존.
+      ...(b.apple_services_id !== undefined ? { apple_services_id: String(b.apple_services_id || '').trim() || null } : {}),
+      ...(b.apple_team_id !== undefined ? { apple_team_id: String(b.apple_team_id || '').trim() || null } : {}),
+      ...(b.apple_key_id !== undefined ? { apple_key_id: String(b.apple_key_id || '').trim() || null } : {}),
+      ...(b.apple_private_key !== undefined
+        ? { apple_private_key_enc: b.apple_private_key ? encrypt(String(b.apple_private_key).trim()) : null } : {}),
       // 카드 결제 사용 스위치 (2026-09-15) — 키를 지우지 않고 결제만 닫을 수 있게
       ...(b.stripe_card_enabled !== undefined ? { stripe_card_enabled: !!b.stripe_card_enabled } : {}),
       // PortOne 은 걷어냈다(입력 경로 제거). DB 컬럼·결제 이력 ENUM 은 보존.
@@ -754,6 +772,7 @@ router.put('/platform-settings', async (req, res, next) => {
     try { require('../services/emailService').invalidatePlatformCache?.(); } catch { /* */ }
     try { require('../middleware/maintenance').invalidateMaintenanceCache?.(); } catch { /* */ }
     try { require('../middleware/ogMeta').invalidatePlatformCache?.(); } catch { /* */ }
+    try { require('../services/apple_oauth_login').invalidateAppleConfig(); } catch { /* */ }
     require('../services/auditService').logAudit(req, {
       action: 'platform_settings.update',
       targetType: 'platform_setting',

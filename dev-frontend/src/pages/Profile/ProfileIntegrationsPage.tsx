@@ -41,7 +41,7 @@ type PermissionStatus = 'ok' | 'read_only' | 'insufficient' | 'error';
 
 interface OauthConnectionRow {
   id: number;
-  provider: 'google' | 'microsoft';
+  provider: 'google' | 'microsoft' | 'apple';
   email: string;
   display_name: string | null;
   picture: string | null;
@@ -340,9 +340,9 @@ const ProfileIntegrationsPage: React.FC = () => {
           <ConnList>
             {oauthConns.map(c => (
               <ConnRow key={`oauth-${c.id}`}>
-                <ConnIcon>{c.provider === 'google' ? '🔐' : '🪟'}</ConnIcon>
+                <ConnIcon>{c.provider === 'microsoft' ? '🪟' : '🔐'}</ConnIcon>
                 <ConnInfo>
-                  <ConnTitle>{c.provider === 'google' ? 'Google' : 'Microsoft'}</ConnTitle>
+                  <ConnTitle>{c.provider === 'google' ? 'Google' : c.provider === 'apple' ? 'Apple' : 'Microsoft'}</ConnTitle>
                   <ConnSub>{c.email}{c.display_name && ` · ${c.display_name}`}</ConnSub>
                   <ConnMeta>{t('integrations.connectedAt', '연결: {{date}}', { date: formatDate(c.connected_at) }) as string}</ConnMeta>
                 </ConnInfo>

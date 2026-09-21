@@ -195,7 +195,26 @@
     "guestLinksSection": "Guest links",
     "guestLinksHint": "Lets customers open a conversation through an invite link without signing in. Turning this off closes every link already issued, immediately. Turning it back on restores them.",
     "guestLinksOn": "On — customers can enter through a link",
-    "guestLinksOff": "Off — every guest link is closed"
+    "guestLinksOff": "Off — every guest link is closed",
+    "apple": {
+      "title": "Sign in with Apple",
+      "hint": "Once all four values are filled in, [Continue with Apple] appears on the sign-in and sign-up screens. Find them in Apple Developer > Certificates, Identifiers & Profiles.",
+      "on": "On — the Apple button is shown on the sign-in screen",
+      "off": "Off — one of the four values is missing",
+      "servicesId": "Services ID (web sign-in identifier)",
+      "teamId": "Team ID",
+      "keyId": "Key ID",
+      "privateKey": "Private key (.p8 file)",
+      "keySet": "Saved (not shown again for security)",
+      "keyUnset": "None",
+      "replaceKey": "Replace file",
+      "pickKey": "Choose file",
+      "clearKey": "Remove",
+      "keyNotP8": "That isn't a .p8 private key. Choose the AuthKey_XXXX.p8 file you downloaded from Apple Developer.",
+      "keySaveFailed": "Couldn't save the private key",
+      "returnUrl": "Return URL to register with Apple",
+      "returnHint": "Register this server's domain and this URL under Website URLs in the Services ID settings. The dev and production servers each need their own entry."
+    }
   },
   "page": {
     "title": "Workspace Admin",

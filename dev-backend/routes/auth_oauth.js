@@ -25,5 +25,6 @@ const router = express.Router();
 require('./oauth/login')(router);        // /google/initiate · /google/callback · /google/web-return
 require('./oauth/pairing')(router);      // /google/pair/start · /google/claim · /google/native-exchange
 require('./oauth/connections')(router);  // /google/connect-confirm{,/info} · /oauth-connections ×3
+require('./oauth/apple')(router);        // /oauth-providers · /apple/initiate · /apple/callback (2026-09-21)
 
 module.exports = router;

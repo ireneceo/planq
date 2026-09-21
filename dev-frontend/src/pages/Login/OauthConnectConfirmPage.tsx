@@ -13,7 +13,9 @@ import { detectClientKind } from '../../services/native';
 
 interface ConnectInfo {
   existing_user: { id: number; email: string; name: string; avatar_url: string | null };
+  // 공급자 계정 정보 — 키 이름은 옛 응답 호환으로 `google` 이지만 애플일 수도 있다(provider 로 가른다).
   google: { email: string; display_name: string | null; picture: string | null };
+  provider?: 'google' | 'apple';
 }
 
 const OauthConnectConfirmPage: React.FC = () => {
@@ -103,13 +105,17 @@ const OauthConnectConfirmPage: React.FC = () => {
     );
   }
 
+  // 공급자 이름은 브랜드명이라 번역하지 않는다.
+  const providerLabel = info.provider === 'apple' ? 'Apple' : 'Google';
+
   return (
     <Wrap>
       <Card>
-        <Title>{t('oauth.connect.title', { defaultValue: 'Google 계정 연결' }) as string}</Title>
+        <Title>{t('oauth.connect.title', { provider: providerLabel, defaultValue: '{{provider}} 계정 연결' }) as string}</Title>
         <Desc>
           {t('oauth.connect.desc', {
-            defaultValue: '이 Google 계정의 이메일이 기존 PlanQ 계정과 일치해요. 연결할까요?',
+            provider: providerLabel,
+            defaultValue: '이 {{provider}} 계정의 이메일이 기존 PlanQ 계정과 일치해요. 연결할까요?',
           }) as string}
         </Desc>
 
@@ -124,7 +130,7 @@ const OauthConnectConfirmPage: React.FC = () => {
           <ConnectArrow>↔</ConnectArrow>
 
           <AccountCard>
-            <AccountBadge $google>Google</AccountBadge>
+            <AccountBadge $google>{providerLabel}</AccountBadge>
             {info.google.picture && <Avatar src={info.google.picture} alt="" />}
             <AccountName>{info.google.display_name || '—'}</AccountName>
             <AccountEmail>{info.google.email}</AccountEmail>
@@ -133,7 +139,8 @@ const OauthConnectConfirmPage: React.FC = () => {
 
         <Hint>
           {t('oauth.connect.hint', {
-            defaultValue: '연결하면 이후 Google 로 한 번에 로그인할 수 있어요. 기존 비밀번호도 그대로 사용 가능합니다.',
+            provider: providerLabel,
+            defaultValue: '연결하면 이후 {{provider}}로 한 번에 로그인할 수 있어요. 기존 비밀번호도 그대로 사용할 수 있습니다.',
           }) as string}
         </Hint>
 
