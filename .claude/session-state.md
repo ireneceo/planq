@@ -20,8 +20,10 @@
 - **안드로이드** — `/app` 에서 PWA 설치, `app_android_url` 넣으면 스토어 버튼 자동 전환
 - 운영 피드백 #422 · #423 답글 달고 닫음
 - **랜딩 SEO** (ce1a0618) — `public/seo-pages.json` 단일 원천 · `services/seoArtifacts.js` 가 **운영 DB 기준 운영에서** 공개 페이지·인사이트·위키 글 HTML(머리+noscript 요약+JSON-LD)과 sitemap 생성(운영 124페이지·78주소) · 배포 직후·서버 시작·매일 0시 · rsync 는 생성물 제외 · nginx 무변경(/x→/x/) · 워크스페이스 화면은 대상 아님 · llms.txt · **rss.xml**(인사이트 30) · 네이버 소유확인 meta
+- **랜딩 방문 집계** (14b36eea) — 플랫폼 관리자 > 랜딩 방문. 쿠키 없음·숫자만(landing_visits · landing_visitors 하루 해시) · 랜딩 주소만 · 봇·로그인 사용자 제외
 
 ### 다음 할 일
+- **~2026-10-10 이후: 플랫폼 관리자 > 랜딩 방문에 [AI 마케팅 분석] 버튼** — 방문 집계(14b36eea, 9/22 시작)가 2~3주 쌓인 뒤. 플랫폼 관리자 전용 + costGuard. Search Console 검색어 CSV 를 함께 넣으면 정확(Irene 이 내려받아 올림)
 - ✅ 네이버 서치어드바이저 완료(2026-09-21): 소유확인 · sitemap.xml · rss.xml · 주요 6페이지 수집요청 · robots 재수집. Google Search Console 은 6/5 부터 등록돼 있음(9/19 마지막 읽음, 5주소) — 다시 읽으면 78 근처로 늘어야 정상
 - **Fable 가용 시 `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목 일괄 검증** (참석자 가시성 확대 · 조직 부서장 검증 · 팀장 스키마 · 문의 원장 전환)
 - 설계·판단 필요(미착수): 참석자 추가 시 «알릴까요?» · 외부 이메일 초대 · 미팅자료 고르기(참석자 열람권) · 프로젝트 폴더 업로드 L1 · 폴더 목록 누출 의심 · 옛 contact_inquiries 합치기
