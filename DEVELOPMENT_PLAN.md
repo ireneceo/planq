@@ -1,6 +1,29 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-21 ([Claude Code] Opus 5, 1M) — **운영 배포 16회 (v1.55.3 유지 · 마지막 9a5c5c59).** 주제는 **"받기는 되는데 보내기는 안 되는 것처럼, 반쪽만 재면 반쪽만 고쳐진다"** 다. ①★ **멤버 캘린더가 통째로 500 이었다** — 9/17 미팅자료(#411)가 일정 조회에 File·Post 를 JOIN 하면서 공개범위 literal 의 `vlevel` 이 모호해졌다(운영 29회). owner/admin 은 다른 분기라 멀쩡해 아무도 몰랐다. ②**초대받은 참석자가 일정을 못 봤다** — 판정에 «참석자» 가 없었고, 고객 참석자는 `client_id` 로 저장되는데 `user_id` 로만 찾았다 → `attendedEventIds` 한 원천(목록·상세·RSVP·확인필요). ③★ **운영 네이버 메일은 받기만 되고 보내기는 전부 535** — 추가 화면이 이메일 **첫 글자**를 보내기 아이디로 복사했다. 연결·수정·테스트가 **IMAP 만** 검사해서 몰랐다 → 저장 전 SMTP 로그인 검사(메일은 안 보냄) + 운영 계정 교정. ④**조직** — 부서장·팀장(신설 `teams.lead_user_id`) 지정 = 그 부서/팀 소속, 멤버 상세에 조직 표시. ⑤**문의·피드백 정돈** — 로그인 사용자의 문의가 이메일 창구로 가서 화면에 안 떴다 → `feedback_items.kind` 로 문의/피드백 구분(배지·필터·관리자), 문의에도 첨부, 상세 스크롤·회색 띠·추가 문의 접기, 빈 화면. ⑥**흰 화면 두 곳** — 휴가 알림이 없어진 탭(`?tab=team`)을 가리켰다 · Q helper 패널이 top 0 으로 탭 막대를 덮었다(삼항 문자열 안이라 가드도 못 잡음). ⑦**여백 통일(#422)** — `--suite bodygutter`(3폭×33화면) 신설로 이중 여백 4화면. ⑧**안드로이드** — Play 심사 중 `/app` 에서 PWA 설치, 링크가 들어오면 스토어 버튼으로 자동 전환. ⑨**Fable 은 429 한도로 미가용** — 전부 자체 검증, `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목. ⑩**오후 — 랜딩 SEO·네이버·방문 집계**: 모든 공개 페이지가 같은 제목·빈 본문이었고 사이트맵은 5주소였다 → 운영 DB 기준 운영에서 페이지별 HTML·사이트맵(78)·RSS(30) 생성, nginx 무변경. 네이버 서치어드바이저 등록 완료. 방문을 잴 도구가 없어 쿠키 없는 «랜딩 방문» 집계를 붙였다(GA4 는 운영 CSP 해제에 root 가 필요). 사이드바 «시계 · 근무» 제목·화살표를 요약 한 줄로. ⑪**저녁 — Sign in with Apple**(App Store 심사 4.8): 구글과 3분기를 한 벌(`routes/oauth/finish.js`)로 합치다 **구글 신규 가입이 운영에서 한 번도 성공하지 못한 결함**(`models.sequelize` = undefined)을 잡았다.
+> **최종 업데이트:** 2026-09-22 ([Claude Code] Opus 5, 1M) — **운영 배포 5회 (v1.55.3 유지 · 마지막 llms.txt 9/22).** 주제는 **"사람에게 보이는 것과 검색엔진·AI 가 읽는 것이 달랐다"** 다. ①Apple 로그인 운영 동작(Team ID 오입력 교정) · App Store 정식 심사 제출(수동 출시). ②데모 계정 대화 본문이 비어 있던 것·Q docs 휴지통 영어 누락. ③**휴지통 하나로**(전체·파일·문서·정보 탭, 아이콘 버튼, Q info 진입점) — 탭 줄이 0px 로 눌려 안 눌리던 것 잡음. ④**SEO/AEO** — 크롤러가 받는 본문 홈 513→2,732자·기능 367→5,481 등(시각숨김 prerender, 옛 .gz 가 새 파일을 가리던 것), 요금제 FAQ·추가구매 가격을 실제 청구와 맞춤, 개발 용어 25곳 제거, 업무 가이드 9편(FAQ 구조화 자동), 본문 <strong> 노출 수정. Fable 은 429 로 전부 자체 검증.
+## ✅ 완료: App Store 제출 · 휴지통 통합 · SEO/AEO 1·2단계 (2026-09-22)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Apple 로그인 운영 | Developer 설정 → 운영 입력 → 실제 로그인 성공(기존 계정 연결). Team ID 오입력(invalid_client) 교정 | ✅ 완료 |
+| App Store 제출 | 스크린샷 iPhone 6.5"·iPad 13"(한국어) · 메타 · App Privacy 10항목 · 연령 4+ · EU DSA · 대한민국 BRN · 수동 출시 | ✅ 완료 |
+| 데모 계정 | 한국어 시드(하나커피·미래건설) · 본문 빈 대화 삭제 · 시드 --dry 결함 수정 | ✅ 완료 |
+| 휴지통 통합 | components/Trash — 서랍 1 + 아이콘 버튼 1, Q file·Q docs·Q info 같은 자리 · Q info 진입점 신설 · 날짜 형식 통일 | ✅ 완료 |
+| SEO/AEO 1단계 | seoArtifacts: #root 시각숨김 본문(화면 문구) · 홈 생성 · Breadcrumb/FAQPage · .gz 동시 기록 | ✅ 완료 |
+| 랜딩 문구 교정 | 요금제 FAQ·추가구매 가격 → config/plans 실제 청구 · Pro «API 접근» 제거 · 기능 페이지 개발 용어 25곳 | ✅ 완료 |
+| SEO/AEO 2단계 | 업무 가이드 9편(업종 4·질문 3·비교 1·FAQ 26) · 글 «?» 소제목 → FAQPage 자동 · llms.txt | ✅ 완료 |
+| 본문 굵게 표시 | 위키·인사이트·새 소식 <strong> 글자 노출 → utils/inlineBold | ✅ 완료 |
+
+### 수정된 파일
+- `dev-backend/services/seoArtifacts.js` · `dev-backend/seed-wiki-content.js` · `scripts/seed-appstore-demo.js`
+- `dev-frontend/src/components/Trash/*` (신규) · `pages/QProject/DocsTab.tsx` · `components/Docs/PostsPage.tsx` · `pages/Knowledge/KnowledgePage.tsx`
+- `dev-frontend/src/utils/inlineBold.tsx` · `pages/{Landing/BlogPostPage,Wiki/WikiArticlePage,WhatsNew/WhatsNewPage}.tsx`
+- `dev-frontend/public/{seo-pages.json,llms.txt}` · locales(common·qdocs·landing ko/en)
+
+---
+
 ## ✅ 완료: Sign in with Apple · 구글 신규 가입 결함 수정 (2026-09-21 저녁)
 
 ### 완료된 작업

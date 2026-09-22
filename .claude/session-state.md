@@ -1,37 +1,24 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-09-22
-**작업 상태:** 완료 (운영 배포 16회 · v1.55.3 유지 · 마지막 배포 9a5c5c59) [Claude Code]
+**작업 상태:** 완료 (운영 배포 5회 · v1.55.3 유지 · 마지막 배포 cd852d9d 계열) [Claude Code]
 
 ### 진행 중인 작업
 - 없음
 
 ### 완료된 작업 (이번 세션 — 전부 운영 배포됨, Fable 미검증(자체 검증) · 429 한도)
-**오전**
-- 멤버 캘린더 500(`calendarListWhere` literal 표 이름) · 참석자 공유(`attendedEventIds`) · 오류 번호
-- 조직 부서장·팀장(`teams.lead_user_id`) = 소속 이동 · 멤버 상세 조직 표시
-- #422 여백 통일(`--suite bodygutter`) · #423 개인 메뉴(「근태·휴가」·「문의·피드백」) · Q file #417 일부
-- 문의/피드백 구분(`feedback_items.kind`) · 문의 첨부 · 상세 스크롤·추가 문의 접기·빈 화면
-- 근태 알림 흰 화면 · Q helper 패널 기준선 · 메일 보내기(SMTP) 검사 + 운영 네이버 #6 교정 · 안드로이드 PWA
-**오후**
-- **Sign in with Apple** (9a5c5c59) — 구글과 3분기 공유(`routes/oauth/finish.js`) · 플랫폼 설정 > Apple 로그인 · 구글 신규 가입 결함 수정
-- **랜딩 SEO** (ce1a0618) — `public/seo-pages.json` 정본 · `services/seoArtifacts.js` 가 운영 DB 기준 운영에서 페이지별 HTML·sitemap(78)·rss(30) 생성 · nginx 무변경 · 워크스페이스는 대상 아님 · llms.txt
-- **네이버 서치어드바이저 완료** — 소유확인 meta · sitemap · RSS · 주요 6페이지 수집요청 · robots 재수집. Google Search Console 은 6/5 부터 등록돼 있음
-- **랜딩 방문 집계** (14b36eea) — 플랫폼 관리자 > 랜딩 방문. 쿠키 없음·숫자만 · 봇·로그인 사용자·워크스페이스 주소 제외
-- **사이드바** — 계정 메뉴 ⌃⌄ · «시계 · 근무» 제목·화살표 → 요약 한 줄(누르면 펼침) + [간단히 보기]
+- Apple 로그인 운영 동작 (Team ID 교정) · App Store 정식 심사 제출(빌드 16, 수동 출시)
+- 데모 계정 한국어 시드 · 빈 메시지 대화 삭제 · Q docs 휴지통 영어 번역
+- 휴지통 통합 (components/Trash — 전체·파일·문서·정보, 아이콘 버튼, Q info 진입점)
+- SEO/AEO 1단계: 크롤러 본문 prerender(#root 시각숨김) · 홈 생성 · FAQPage/Breadcrumb · .gz 동시 기록
+- 랜딩 문구 교정: 요금제 FAQ·추가구매 가격을 실제 청구에 · Pro API 제거 · 개발 용어 25곳
+- SEO/AEO 2단계: 업무 가이드 9편(FAQ 26 포함) · 글 FAQ 자동 구조화 · llms.txt · <strong> 노출 수정
 
 ### 다음 할 일
-- **App Store 심사 대기 (2026-09-22 제출, 수동 출시)** — 승인 → Irene [출시] → 운영 `app_ios_url` 을 App Store 주소로(내가). 반려면 사유 원문으로 대응. memory `project_app_release_status`
-- 9/22 운영 배포: Apple 로그인 운영 동작 확인 · 휴지통 통합(components/Trash) · Q docs 휴지통 영어 번역 · 데모 계정 한국어 시드
-- **★ 내일(9/22) Irene 에게 Apple 로그인 설정 안내** — 코드는 운영 배포됨(9a5c5c59), 버튼은 자격 입력 전까지 숨김.
-  순서·값은 memory `project_app_release_status` «iOS 정식 출시» 절. 입력 후 운영에서 실제 Apple 로그인 확인 → App Store 심사 자료 → 제출
-- 같은 배포로 **구글 신규 가입 결함 수정**(운영에서 한 번도 성공 못 하던 것) — 첫 실제 가입이 들어오면 로그 확인
-- Fable 가용 시 queue «Sign in with Apple» 항목 검증(429 로 미검증)
-- **~2026-10-10 이후: 랜딩 방문 화면에 [AI 마케팅 분석] 버튼** — 방문 집계(9/22 시작)가 2~3주 쌓인 뒤. 플랫폼 관리자 전용 + costGuard. Search Console 검색어 CSV 를 함께(Irene 이 내려받아 올림)
-- **Fable 가용 시 `docs/FABLE_GATE_QUEUE.md` 2026-09-21 항목 일괄 검증** (참석자 가시성 · 조직 검증 · 팀장 스키마 · 문의 원장 전환 · 공개 방문 라우트)
-- 설계·판단 필요(미착수): 참석자 추가 시 «알릴까요?» · 외부 이메일 초대 · 미팅자료(참석자 열람권) · 프로젝트 폴더 업로드 L1 · 폴더 목록 누출 의심 · 옛 contact_inquiries 합치기
-- ✅ Play 공개(#1 9/15) · 운영 app_android_url 반영(9/21). #2(9/18 AAB 업데이트)는 심사 대기 — 기다리면 됨
-- 2026-09-24 이후 기존 대기: nginx HTTP/2 · 파일→프로젝트 드롭
-- 남은 운영 피드백: #381·#382(Q sale — 요약 자동생성 방침 결정 대기) · #411(일정 미팅자료·알림) · #417/#418/#419(Q file 나머지·Drive 공유) · #412(장기) · #415
+- **App Store 심사 대기** — 승인 → Irene [출시] → 운영 `app_ios_url` 을 App Store 주소로(내가). 반려면 사유 원문으로. memory `project_app_release_status`
+- **Irene 결정 대기**: 추가구매 가격(페이지를 청구 설정 ₩4,900 등에 맞췄다 — 반대가 의도면 청구 설정 변경) · Apple .p8 키 교체 권장
+- **~2026-10-10**: Search Console 검색어 + 랜딩 방문 집계로 업무 가이드 효과 분석 → 잘 되는 주제 추가 · [AI 마케팅 분석] 버튼
+- Fable 가용 시 `docs/FABLE_GATE_QUEUE.md` 9/21~9/22 항목 일괄(Apple 로그인 최우선)
+- 보류: 요금제 추가구매 카드 3→5 · 캘린더 참석자 알림 묻기·외부 이메일 초대 · #381·#382·#411·#417~#419
 
 ---
 
