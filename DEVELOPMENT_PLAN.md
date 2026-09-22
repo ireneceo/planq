@@ -1,6 +1,52 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-22 ([Claude Code] Opus 5, 1M) — **운영 배포 6회 (v1.55.3 유지 · 마지막 e5fe6d71 Q mail 보안 메일).** 주제는 **"사람에게 보이는 것과 검색엔진·AI 가 읽는 것이 달랐다"** 다. ①Apple 로그인 운영 동작(Team ID 오입력 교정) · App Store 정식 심사 제출(수동 출시). ②데모 계정 대화 본문이 비어 있던 것·Q docs 휴지통 영어 누락. ③**휴지통 하나로**(전체·파일·문서·정보 탭, 아이콘 버튼, Q info 진입점) — 탭 줄이 0px 로 눌려 안 눌리던 것 잡음. ④**SEO/AEO** — 크롤러가 받는 본문 홈 513→2,732자·기능 367→5,481 등(시각숨김 prerender, 옛 .gz 가 새 파일을 가리던 것), 요금제 FAQ·추가구매 가격을 실제 청구와 맞춤, 개발 용어 25곳 제거, 업무 가이드 9편(FAQ 구조화 자동), 본문 <strong> 노출 수정. Fable 은 429 로 전부 자체 검증.
+> **최종 업데이트:** 2026-09-22 ([Claude Code] Opus 5, 1M) — **운영 배포 8회 · v1.56.0 · v1.56.1.**
+> 주제는 **"만들어 놓고 화면에 안 보이던 것"** 이다. ①**서명란** — 서명이 signature_requests 에만 저장되고
+> 문서·공유 링크·PDF 어디에도 안 나오던 것을 «고정본 + 서명» 조립(서버 한 곳)으로 잇고, 우리 측 서명은
+> 로그인으로, 거절은 «서명 전» 과 구별해 표시. 채팅 카드에 실려 있던 **남의 서명 토큰 링크 제거**.
+> ②**문서 복사** — 업무에만 있던 복사를 문서에 추가(이력은 안 따라간다), Q docs 상단 [템플릿] 을 [+] 안으로.
+> 검증 중 결함 3건을 더 찾아 고침(고객이 서명본 못 봄 / 거절이 «서명 전» / 공개 화면 날짜 ko-KR 하드코딩).
+> 실브라우저 카나리 3종 신설(signature 16 · signflow 15 · docsdup 5). Fable 은 429 로 전부 자체 검증.
+
+## ✅ 완료: 서명란·서명본·우리 측 서명 · 문서 복사 (2026-09-22, v1.56.0 / v1.56.1)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 서명란 | TipTap `signatureField`(slot·party·label) · 편집기 툴바 · 요청 창 칸 배정(보내는 쪽=멤버 선택) · 기본 양식 4종 교체 | ✅ 완료 |
+| 서명본 조립 | `services/signedDocument.js` 한 곳 — 앱 문서·공유 링크·공개 서명 화면·PDF 가 같은 결과. 증명서(이메일·IP)는 멤버 PDF 에만 | ✅ 완료 |
+| 우리 측 서명 | `POST /api/signatures/:id/sign-internal` — 인증번호 대신 로그인. 증거는 공개 서명과 동일. 메일 없으므로 상태 `pending` | ✅ 완료 |
+| 거절 표시 | 거절이 문서·PDF·공유 링크에 «서명 전» 으로만 보이던 것 → «서명 거절» + 이름·시각(사유는 진행 표에만) | ✅ 완료 |
+| 채팅 카드 토큰 제거 | 카드에 첫 서명자 링크가 실려 방의 누구나 대신 서명 가능하던 것 → 본인 이메일로만 발송 | ✅ 완료 |
+| 고객 서명본 열람 | `/signed-html` 이 `assertMember` 라 고객은 본문 200 / 서명본 403 이던 것 → 본문과 같은 술어 `canReadPost()` | ✅ 완료 |
+| 공개 화면 날짜 | `toLocaleString('ko-KR')` 하드코딩 3곳 → 화면 언어(`utils/dateFormat`) | ✅ 완료 |
+| 문서 복사 | `POST /api/posts/:id/duplicate` + 상세 [편집] 옆 아이콘 버튼. 서명·공유 토큰·조회수·고정은 안 따라감 | ✅ 완료 |
+| Q docs 상단 정리 | [템플릿] 버튼 → [+] 드롭다운 «템플릿에서 시작». 헤더 글자 버튼은 [AI] 하나 | ✅ 완료 |
+| 회귀 카나리 3종 | `--suite signature`(16) · `signflow`(15) · `docsdup`(5) — 전부 실브라우저, 반증 확인 | ✅ 완료 |
+
+### 검증 (실측)
+
+- `signature 16/16` · `signflow 15/15` · `docsdup 5/5` · `tenant 실패 0` · health `45/45` · guard `58/59` · build `error TS 0`
+- **반증** — `injectSignatures` 를 no-op 으로 깨뜨리면 16검사 중 **5건이 빨간불**, 원복 후 16/16
+- PDF 바이트 — 멤버본 2쪽(증명서·지문·이메일·IP) / 공개본 1쪽(증명서 0 · 이메일·IP 0)
+- 거래 단계 — 한쪽 서명 `contract=active` → 양쪽 `completed`(문서 연결)
+- 복사 경계 — L1 남의 문서 읽기 403 · 복사 403(일치) · 다른 워크스페이스 403 · 원본 삭제해도 복사본 첨부 유지
+
+### 수정된 파일
+- 백엔드: `routes/{posts,signatures,signature_public,signature_internal}.js` · `services/{signedDocument,pdfTemplates}.js` · `models/SignatureRequest.js` · `scripts/{migrate-signature-slot,seed-document-templates}.js` · `server.js`
+- 프론트: `components/Docs/{PostsPage,PostEditor,PostSignatureModal,SignatureProgressSection,SignatureField,EditorSignatureButton,InternalSignModal}` · `components/Common/SignaturePad.tsx` · `components/QTalk/SignatureLinkModal.tsx` · `pages/QDocs/{PublicSignPage,PublicPostPage}` · `pages/QTalk/{ChatPanel,types}` · `services/posts.ts` · `utils/{sanitizeHtml,postContentHtml,dateFormat,signatureFields}`
+- 검사: `scripts/e2e/canary-signature-{field,flow}.js` · `canary-docs-duplicate.js` · `run.js`
+- 문서: `docs/SIGNATURE_FIELD_DESIGN.md` · `CLAUDE.md` · `docs/FABLE_GATE_QUEUE.md` · 릴리즈노트 2건
+
+### 남은 것
+- **Fable 미검증** — 서명은 R=1(법적 증빙·공개 무인증 라우트·운영 스키마). 한도 429 로 전부 자체 검증.
+  판단 대기 8건 `docs/FABLE_GATE_QUEUE.md`
+- 복사는 업무·문서 둘뿐 — 청구서·프로젝트·Q info·일정·표·메일에는 없음(요청 대기)
+- 옛 `Document` 모델의 «이름 입력» 서명 방식은 범위 밖
+
+---
+
 ## ✅ 완료: App Store 제출 · 휴지통 통합 · SEO/AEO 1·2단계 (2026-09-22)
 
 ### 완료된 작업
