@@ -17,7 +17,7 @@ import {
   markInstallmentTaxInvoice, cancelInstallment, updateInvoiceStatus,
   markInvoiceTaxInvoice, markInvoiceCashReceipt,
   findConversationForClient, deleteInvoice, sendInvoiceReminder, sendInvoicePreview, resendInvoice, downloadInvoicePdf,
-  sendInvoice,
+  sendInvoice, duplicateInvoice,
   setInvoiceOverdueNotify,
   listInvoiceCorrections, getInvoiceStatusHistory, getInvoiceTimeline,
   type ApiInvoice, type ApiInstallment, type ApiReceiptCorrection, type ApiInvoiceStatusEvent, type ApiBillEvent,
@@ -92,6 +92,26 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // 복사 — 문서·업무와 같은 계약. 만든 뒤 **그 청구서를 연다**(어디 갔는지 찾게 만들지 않는다).
+  const [dupBusy, setDupBusy] = useState(false);
+  const handleDuplicate = async () => {
+    if (!invoice || dupBusy) return;
+    setDupBusy(true);
+    try {
+      const copy = await duplicateInvoice(invoice.business_id, invoice.id);
+      onChanged?.();
+      setInvoice(copy);       // 복사본으로 갈아 끼운다 — 드로어가 그대로 그 청구서를 보여준다
+    } catch (e) {
+      setConfirm({
+        open: true,
+        title: t('detail.duplicate.failedTitle', { defaultValue: '복사하지 못했습니다' }) as string,
+        message: (e as Error).message || (t('detail.duplicate.failed', { defaultValue: '잠시 후 다시 시도해주세요.' }) as string),
+        tone: 'default',
+        onConfirm: async () => {},
+      });
+    } finally { setDupBusy(false); }
+  };
 
   const handleDelete = () => {
     if (!invoice) return;
@@ -493,6 +513,19 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
                 : t('detail.header.actions.edit', { defaultValue: '편집' }) as string}
             </ActionBtn>
           )}
+          {/* 복사 — 문서·업무와 **같은 계약**(내용만, 이력은 두고 온다)·같은 아이콘.
+              발행된 청구서도 복사할 수 있다: 다음 달 같은 내용으로 다시 청구하는 것이 흔한 일이다. */}
+          <ActionBtn
+            data-testid="invoice-duplicate"
+            onClick={handleDuplicate}
+            disabled={dupBusy}
+            title={t('detail.header.actions.duplicateHint', { defaultValue: '같은 내용으로 새 청구서 만들기 (번호는 새로 매겨지고 발행·결제·증빙 이력은 복사되지 않습니다)' }) as string}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            {dupBusy
+              ? t('detail.header.actions.duplicating', { defaultValue: '복사 중…' }) as string
+              : t('detail.header.actions.duplicate', { defaultValue: '복사' }) as string}
+          </ActionBtn>
           {/* 발송 — draft 를 고객에게 보낸다. 편집을 거치지 않고 여기서 바로. */}
           {isOwner && invoice.status === 'draft' && (
             <ActionBtn

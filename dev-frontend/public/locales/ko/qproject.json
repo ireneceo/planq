@@ -86,7 +86,9 @@
     "pmLabel": "프로젝트 매니저",
     "noClient": "고객사 미지정",
     "noDept": "부서 미지정",
-    "noTeam": "팀 미지정"
+    "noTeam": "팀 미지정",
+    "duplicate": "복사",
+    "duplicateHint": "설정만 복사해 새 프로젝트를 만듭니다 (업무·문서·대화는 복사되지 않습니다)"
   },
   "common": {
     "cancel": "취소",
@@ -889,5 +891,8 @@
     "projectLink": "외부 열람 링크",
     "projectLinkLead": "로그인 없이 {{name}} 의 진행 상황·업무를 보고 문의할 수 있는 링크입니다. 카톡·메일로 보내세요.",
     "projectLinkLive": "외부 열람 링크 — 지금 열려 있습니다"
+  },
+  "duplicate": {
+    "failed": "복사하지 못했습니다. 잠시 후 다시 시도해주세요."
   }
 }

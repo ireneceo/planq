@@ -1,0 +1,36 @@
+{
+  "version": "1.57.0",
+  "date": "2026-09-22",
+  "items": [
+    {
+      "ko": {
+        "title": "청구서를 복사할 수 있습니다",
+        "body": "매달 같은 내용으로 청구할 때 처음부터 다시 만들지 않아도 됩니다. 청구서 상세에서 [복사]를 누르면 고객·품목·금액·세율·결제조건·메모·증빙 설정이 그대로 담긴 새 청구서가 만들어집니다.\n\n복사되지 않는 것: 청구서 번호(새로 매겨집니다) · 발행/전송/열람/입금 기록 · 세금계산서와 현금영수증 발급 이력 · 공개 결제 링크. 복사본은 항상 «작성 중» 으로 시작하므로, 내용을 확인하고 발행을 다시 누르시면 됩니다.\n\n계좌 정보는 지금 설정된 계좌로 다시 담기고, 금액은 품목에서 다시 계산합니다."
+      },
+      "en": {
+        "title": "You can duplicate an invoice",
+        "body": "Billing the same thing every month no longer means starting over. Press [Duplicate] in the invoice view and you get a new invoice carrying the client, line items, amounts, tax rate, payment terms, notes and receipt settings.\n\nNot copied: the invoice number (a new one is assigned), issuing/sending/viewing/payment records, tax invoice and cash receipt history, and the public payment link. The copy always starts as a draft, so you review it and issue it yourself.\n\nBank details are taken from your current settings, and amounts are recalculated from the line items."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트를 복사할 수 있습니다",
+        "body": "비슷한 프로젝트를 다시 시작할 때, 프로젝트 카드의 ⋮ 메뉴에서 [복사]를 누르면 설정이 그대로인 새 프로젝트가 만들어집니다. 멤버·고객 연결·상태 옵션·프로세스 컬럼·추진과제·거래 단계·계약 구조·전략 캔버스가 따라옵니다.\n\n★ 업무·문서·대화·파일·청구서는 복사되지 않습니다. 해 온 일까지 복제하면 하지 않은 일이 완료된 것처럼 보이기 때문입니다. 기간은 비워지고, 자동 청구는 꺼진 상태로 시작합니다."
+      },
+      "en": {
+        "title": "You can duplicate a project",
+        "body": "Starting a similar project? Use [Duplicate] in the ⋮ menu on a project card and you get a new project with the same setup: members, client links, status options, process columns, workstreams, deal stages, contract structure and the strategy canvas.\n\n★ Tasks, documents, conversations, files and invoices are not copied — duplicating work already done would make unfinished work look complete. Dates start empty and automatic billing starts turned off."
+      }
+    },
+    {
+      "ko": {
+        "title": "복사 기능이 모든 메뉴에서 같은 모양입니다",
+        "body": "업무·문서·청구서·프로젝트의 복사가 같은 글자(복사), 같은 아이콘, 같은 규칙을 씁니다. 어디서든 «내용은 가져오고 이력은 두고 온다» 가 규칙입니다 — 복사본이 원본인 척하지 않게 하기 위해서입니다.\n\n복사한 기록은 이제 모든 메뉴에서 감사 로그에 남습니다(업무 복사는 그동안 빠져 있었습니다)."
+      },
+      "en": {
+        "title": "Duplication now works the same everywhere",
+        "body": "Tasks, documents, invoices and projects all use the same wording, the same icon and the same rule: the content comes along, the history stays behind — so a copy never passes for the original.\n\nDuplication is now recorded in the audit log across all of them (task duplication had been missing)."
+      }
+    }
+  ]
+}

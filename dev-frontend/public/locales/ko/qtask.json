@@ -695,7 +695,9 @@
     },
     "meSuffix": " (나)",
     "versionAdded": "결과물 v{{n}} 추가됨",
-    "versionSubmitted": "확인 요청"
+    "versionSubmitted": "확인 요청",
+    "duplicate": "복사 (담당자·날짜 리셋)",
+    "duplicateShort": "복사"
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",
@@ -1037,7 +1039,7 @@
   "rowAction": {
     "title": "업무 액션 메뉴",
     "addBelow": "아래에 업무 추가",
-    "copy": "복제",
+    "copy": "복사",
     "delete": "삭제",
     "newTaskTitle": "새 업무",
     "confirmDelete": "이 업무를 삭제할까요?",

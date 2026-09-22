@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// canary-docs-duplicate.js — 문서 복사 · 상단 버튼 정리 (2026-09-22)
+// canary-docs-duplicate.js — **복사 기능 전체** (문서·청구서·프로젝트) + Q docs 상단 정리 (2026-09-22)
 //
 // Irene: *"문서 복사기능이 없네? 그리고 + 버튼 아래로 템플릿을 넣어줘. Q docs가 제대로 안보여.
 //         버튼이 많아서. 그리고 편집버튼 옆에 복사버튼 넣어줘. 아이콘만 있으면 될 것 같아."*
@@ -10,6 +10,9 @@
 //   ③ 상세 밴드2 에 **아이콘만** 복사 버튼이 편집 옆에 있다 (글자 없음 · 32px)
 //   ④ 눌러 보면 복사본이 만들어지고 **그 문서가 열린다**
 //   ⑤ 복사본에 서명·공유 링크는 따라가지 않는다 (음성 대조군)
+//   ⑥ 청구서 — 상세에서 복사 버튼이 보이고, 눌러 만든 복사본은 번호가 새로 붙고 draft 다
+//   ⑦ 프로젝트 — 카드 ⋮ 에 «복사» 가 있고, 눌러 만든 복사본에 업무·문서가 안 따라온다
+//   ★ 글자는 전 메뉴가 «복사» 하나다(«복제» 가 남아 있으면 같은 기능이 둘로 읽힌다)
 const b = require('./lib/browser');
 
 const API = (process.env.E2E_BASE || 'https://dev.planq.kr') + '/api';
@@ -38,6 +41,7 @@ const VISIBLE = `(el) => {
 
 async function run() {
   let token = null, bizId = null, srcId = null, copyId = null;
+  let srcInvId = null, copyInvId = null, srcPrjId = null, copyPrjId = null;
   try {
     const lj = await api('/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -164,6 +168,101 @@ async function run() {
     } else {
       P('⑤ 복사본에 서명·공유 링크가 따라가지 않는다 (원본에는 있다 = 양성 대조군)', false, '🔴 복사본이 없어 재지 못했다');
     }
+    // ── ⑥ 청구서 복사 — 상세에서 버튼을 눌러 만든다 ─────────────
+    const H3 = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    const invCr = await api(`/invoices/${bizId}`, {
+      method: 'POST', headers: H3,
+      body: JSON.stringify({ title: '[카나리] 복사 원본 청구서', vat_rate: 0.1, currency: 'KRW',
+        items: [{ description: '용역', quantity: 1, unit_price: 100000 }] }),
+    });
+    srcInvId = invCr.json?.data?.id || null;
+    if (!srcInvId) console.warn('  [하니스] 청구서 생성 실패:', invCr.status, JSON.stringify(invCr.json).slice(0, 160));
+    if (srcInvId) {
+      // ★ Q Bill 은 탭 페이지다 — 기본 탭은 overview 라 ?tab=invoices 를 붙이지 않으면
+      //   청구서 목록이 아예 안 그려지고 드로어도 안 열린다(2026-09-22 실측: 드로어=false).
+      await b.goto(page, `/bills?tab=invoices&invoice=${srcInvId}`);
+      await b.sleep(3000); await b.dismissBlockers(page).catch(() => {});
+      // ★ 못 찾았을 때 **왜** 인지 말하게 한다 — 드로어가 안 열린 것과 버튼이 없는 것은 다른 문제다
+      const btn = await page.evaluate(`(() => {
+        const el = document.querySelector('[data-testid="invoice-duplicate"]');
+        if (el) return Object.assign((${VISIBLE})(el), { why: null });
+        const drawer = document.querySelector('[data-pq-drawer-panel], [aria-modal="true"]');
+        const body = document.body.innerText || '';
+        return { found: false, why: '드로어=' + !!drawer + ' · url=' + location.pathname + location.search
+          + ' · 편집=' + body.includes('편집') + ' · 발송=' + body.includes('발송') + ' · PDF=' + body.includes('PDF') };
+      })()`);
+      let made = null;
+      if (btn.found) {
+        await page.click('[data-testid="invoice-duplicate"]').catch(() => {});
+        await b.sleep(3500);
+        const list = await api(`/invoices/${bizId}?limit=200`, { headers: H3 });
+        made = (list.json?.data || []).find((x) => x.title === '[카나리] 복사 원본 청구서 (복사)') || null;
+        if (made) copyInvId = made.id;
+      }
+      P('⑥ 청구서 — 상세에서 [복사]를 눌러 새 청구서가 만들어진다',
+        btn.found && btn.painted && !!made && made.invoice_number !== invCr.json?.data?.invoice_number && made.status === 'draft',
+        btn.found
+          ? (made ? `버튼 ${btn.w}×${btn.h} · ${invCr.json?.data?.invoice_number} → ${made.invoice_number} · 상태 ${made.status}`
+                  : '🔴 눌렀는데 복사본이 안 생겼다')
+          : `🔴 청구서 상세에 복사 버튼이 없다 — ${btn.why}`);
+    } else {
+      P('⑥ 청구서 — 상세에서 [복사]를 눌러 새 청구서가 만들어진다', false, '🔴 원본 청구서를 못 만들어 미측정');
+    }
+
+    // ── ⑦ 프로젝트 복사 — 카드 ⋮ 메뉴에서 ───────────────────────
+    const prjCr = await api('/projects', {
+      method: 'POST', headers: H3,
+      body: JSON.stringify({ business_id: bizId, name: '[카나리] 복사 원본 프로젝트', project_type: 'fixed', kind: 'client' }),
+    });
+    srcPrjId = prjCr.json?.data?.id || null;
+    if (srcPrjId) {
+      // 내용물 1건 — 복사본에 따라오면 안 된다(음성 대조군의 재료)
+      await api('/tasks', { method: 'POST', headers: H3,
+        body: JSON.stringify({ business_id: bizId, project_id: srcPrjId, title: '[카나리] 원본 업무' }) });
+
+      await b.goto(page, '/projects');
+      await b.sleep(3000); await b.dismissBlockers(page).catch(() => {});
+      const opened = await page.evaluate(`(() => {
+        const card = document.querySelector('[data-testid="project-card-${srcPrjId}"]');
+        if (!card) return { noCard: true };
+        const menuBtn = card.querySelector('[data-project-menu] button');
+        if (!menuBtn) return { noMenu: true };
+        menuBtn.click();
+        return { ok: true };
+      })()`);
+      await b.sleep(800);
+      const item = await page.evaluate(`(() => {
+        const el = document.querySelector('[data-testid="project-duplicate"]');
+        return el ? { ...(${VISIBLE})(el), label: (el.innerText || '').trim() } : { found: false };
+      })()`);
+      let prjMade = null;
+      if (item.found) {
+        await page.click('[data-testid="project-duplicate"]').catch(() => {});
+        await b.sleep(4000);
+        const list = await api(`/projects?business_id=${bizId}&limit=200`, { headers: H3 });
+        prjMade = (list.json?.data || []).find((x) => x.name === '[카나리] 복사 원본 프로젝트 (복사)') || null;
+        if (prjMade) copyPrjId = prjMade.id;
+      }
+      P('⑦ 프로젝트 — 카드 ⋮ 의 [복사]로 새 프로젝트가 만들어진다',
+        item.found && item.painted && !!prjMade,
+        item.found
+          ? (prjMade ? `메뉴 "${item.label}" ${item.w}×${item.h} · 복사본 #${prjMade.id}`
+                     : '🔴 눌렀는데 복사본이 안 생겼다')
+          : `🔴 카드 메뉴에 복사 항목이 없다 (카드 ${opened.noCard ? '없음' : '있음'} · 메뉴 ${opened.noMenu ? '없음' : '있음'})`);
+
+      if (copyPrjId) {
+        const tk = await api(`/tasks?business_id=${bizId}&project_id=${copyPrjId}&limit=50`, { headers: H3 });
+        const n = (tk.json?.data || []).length;
+        P('⑦-b 프로젝트 복사는 «설정» 만 — 업무는 따라오지 않는다 (음성 대조군)',
+          n === 0,
+          n === 0 ? '복사본의 업무 0건 (원본에는 1건 있다)' : `🔴 업무 ${n}건이 따라왔다 — 가짜 실적이 된다`);
+      } else {
+        P('⑦-b 프로젝트 복사는 «설정» 만 — 업무는 따라오지 않는다 (음성 대조군)', false, '🔴 복사본이 없어 미측정');
+      }
+    } else {
+      P('⑦ 프로젝트 — 카드 ⋮ 의 [복사]로 새 프로젝트가 만들어진다', false, '🔴 원본 프로젝트를 못 만들어 미측정');
+      P('⑦-b 프로젝트 복사는 «설정» 만 — 업무는 따라오지 않는다 (음성 대조군)', false, '🔴 미측정');
+    }
   } catch (e) {
     P('복사 검사 중 오류', false, `🔴 ${e.message}`);
   } finally {
@@ -171,6 +270,12 @@ async function run() {
     const H = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     if (copyId) await api(`/posts/${copyId}`, { method: 'DELETE', headers: H }).catch(() => {});
     if (srcId) await api(`/posts/${srcId}`, { method: 'DELETE', headers: H }).catch(() => {});
+    for (const id of [copyInvId, srcInvId]) {
+      if (id) await api(`/invoices/${bizId}/${id}`, { method: 'DELETE', headers: H }).catch(() => {});
+    }
+    for (const id of [copyPrjId, srcPrjId]) {
+      if (id) await api(`/projects/${id}`, { method: 'DELETE', headers: H }).catch(() => {});
+    }
   }
   return { name: 'docsdup', results };
 }

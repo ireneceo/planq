@@ -232,6 +232,19 @@ export async function getInvoice(businessId: number, invoiceId: number): Promise
   return expectOk<ApiInvoice>(r);
 }
 
+/**
+ * 청구서 복사 — 계약은 문서·업무와 **같다**: 내용은 가져오고 이력은 두고 온다.
+ * 번호는 새로 채번되고, 발행·결제·증빙·공유 토큰은 따라가지 않는다. 복사본은 항상 `draft`.
+ */
+export async function duplicateInvoice(businessId: number, invoiceId: number): Promise<ApiInvoice> {
+  const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}/duplicate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  return expectOk<ApiInvoice>(r);
+}
+
 export async function createInvoice(businessId: number, payload: CreateInvoicePayload): Promise<ApiInvoice> {
   const r = await apiFetch(`/api/invoices/${businessId}`, {
     method: 'POST',

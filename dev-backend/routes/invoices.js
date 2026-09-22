@@ -701,6 +701,137 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
 });
 
 // Create invoice (Invoice + Items 를 단일 transaction 으로 원자화)
+// ─── 청구서 복사 (2026-09-22) ───
+// POST /api/invoices/:businessId/:id/duplicate
+//
+// Irene: *"다른 메뉴도 복사해야 하는데 … 전체적으로 통일해서 넣어줘."*
+// 계약은 문서·업무와 **같다** (CLAUDE.md 「복사는 내용만 가져오고 이력은 두고 온다」):
+//
+//   따라간다 — 고객 · 제목 · 품목 · 금액/세율/통화 · 메모 · 결제조건 · 받는 사람 정보 ·
+//             담당자 · 프로젝트/출처 문서 연결 · 증빙 의향(receipt_type) · 분할 «계획»(회차·라벨·비율·금액)
+//   두고 온다 — **번호(새로 채번)** · 발행/전송/열람/입금 시각 · 결제 상태·입금액 ·
+//             세금계산서·현금영수증 번호와 발급 이력 · 공유 토큰 · Stripe 세션 · 알림 기록 · 멱등키 · 상태 이력
+//
+// ★ 번호를 그대로 복사하면 **같은 번호의 청구서가 둘**이 된다 — 회계에서 그건 중복 발행이다.
+// ★ 회차의 «계획»(몇 회에 얼마)은 내용이고, 회차의 «결제·증빙 마킹»은 이력이다. 계획만 가져온다.
+// ★ 복사본은 항상 `draft` 로 시작한다. 발행은 사람이 다시 누른다(증빙·메일이 나가는 행위다).
+router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
+  const t = await sequelize.transaction();
+  try {
+    const src = await Invoice.findOne({
+      where: { id: req.params.id, business_id: req.params.businessId },
+      include: [{ model: InvoiceItem, as: 'items' }],
+      transaction: t,
+    });
+    if (!src) { await t.rollback(); return errorResponse(res, 'not_found', 404); }
+
+    // ★ 계좌 스냅샷은 **발행 시점의 사실**이다 — 원본 것을 물려주면 그 사이 계좌를 바꿨을 때
+    //   복사본이 옛 계좌를 그대로 고객에게 보낸다. 생성 라우트와 같은 방식으로 지금 시점에 다시 뜬다.
+    const business = await Business.findByPk(req.params.businessId, { transaction: t });
+    const bank_snapshot = business ? {
+      bank_name: business.bank_name,
+      account_number: business.bank_account_number,
+      account_holder: business.bank_account_name || business.name,
+    } : src.bank_snapshot;
+
+    const invoice_number = await generateInvoiceNumber();
+    const copy = await Invoice.create({
+      business_id: src.business_id,
+      client_id: src.client_id,
+      invoice_number,                      // ★ 새 번호
+      title: `${String(src.title || '').slice(0, 180)} (복사)`.slice(0, 200),
+      due_date: null,                      // 날짜는 리셋 — 업무 복사와 같은 규칙
+      recipient_email: src.recipient_email,
+      recipient_business_name: src.recipient_business_name,
+      recipient_business_number: src.recipient_business_number,
+      notes: src.notes,
+      payment_terms: src.payment_terms,
+      created_by: req.user.id,
+      owner_user_id: src.owner_user_id || req.user.id,
+      installment_mode: src.installment_mode,
+      bank_snapshot,
+      vat_rate: src.vat_rate,
+      // 금액은 아래에서 품목으로 **재계산**해 덮어쓴다(생성 라우트와 같은 공식).
+      //   원본 금액을 그대로 옮기면 원본이 어긋나 있을 때 그 오류까지 복사된다.
+      subtotal: 0, total_amount: 0, tax_amount: 0, grand_total: 0,
+      source_post_id: src.source_post_id,
+      project_id: src.project_id,
+      quote_id: src.quote_id,
+      currency: src.currency,
+      receipt_type: src.receipt_type,
+      receipt_profile: src.receipt_profile,
+      status: 'draft',                     // ★ 발행은 사람이 다시 누른다
+      paid_amount: 0,
+      ...(src.receipt_type === 'tax_invoice' ? { tax_invoice_status: 'pending' } : {}),
+      ...(src.receipt_type === 'cash_receipt' ? { cash_receipt_status: 'pending' } : {}),
+    }, { transaction: t });
+
+    // 품목 — 내용이므로 그대로. 금액은 생성 라우트와 **같은 공식**으로 다시 센다.
+    const items = src.items || [];
+    let subtotal = 0;
+    for (const it of items) {
+      const amount = Number(it.quantity || 1) * Number(it.unit_price || 0);
+      subtotal += amount;
+      await InvoiceItem.create({
+        invoice_id: copy.id,
+        description: it.description, detail: it.detail,
+        quantity: it.quantity, unit_price: it.unit_price, amount,
+        sort_order: it.sort_order,
+      }, { transaction: t });
+    }
+    const vatRateNum = Number(src.vat_rate ?? 0.1);
+    const taxAmount = Math.round(subtotal * vatRateNum);
+    const grandTotal = subtotal + taxAmount;
+    await copy.update({ subtotal, total_amount: subtotal, tax_amount: taxAmount, grand_total: grandTotal }, { transaction: t });
+
+    // 회차 — **계획만** 가져오고 결제·증빙 마킹은 두고 온다
+    let instCount = 0;
+    // 범위는 **부모가 이미 걸었다** — `src` 는 위에서 `business_id: req.params.businessId` 로 찾은 청구서다.
+    //   그 id 로만 좁히므로 남의 워크스페이스 회차가 섞일 수 없다(business_id 를 여기 또 적지 않는다).
+    const srcInst = await InvoiceInstallment.findAll({
+      where: { invoice_id: src.id, /* business_id: 부모 청구서가 이미 확인함 */ },
+      order: [['installment_no', 'ASC']], transaction: t,
+    });
+    for (const inst of srcInst) {
+      await InvoiceInstallment.create({
+        invoice_id: copy.id,
+        installment_no: inst.installment_no,
+        label: inst.label,
+        percent: inst.percent,
+        amount: Math.round(grandTotal * Number(inst.percent || 0) / 100),
+        due_date: null,                    // 날짜 리셋
+        milestone_ref: inst.milestone_ref,
+        status: 'pending',
+      }, { transaction: t });
+      instCount += 1;
+    }
+
+    await t.commit();
+
+    const full = await Invoice.findByPk(copy.id, { include: [{ model: InvoiceItem, as: 'items' }] });
+    // 감사 기록 — 이 파일이 쓰는 헬퍼와 같은 것(`logAudit`). 문서·업무 복사와 같은 계열로 남긴다.
+    require('../services/auditService').logAudit(req, {
+      action: 'invoice.duplicate',
+      targetType: 'invoice',
+      targetId: copy.id,
+      businessId: copy.business_id,
+      newValue: { from_invoice_id: src.id, invoice_number: copy.invoice_number, items: items.length, installments: instCount },
+    });
+    // 생성 라우트가 부르는 후속을 **같이** 부른다 — 하나만 빠지면 복사본만 타임라인·거래단계에서 빠진다
+    if (copy.project_id) {
+      require('../services/projectStageEngine').onInvoiceChanged(copy.id).catch(() => null);
+    }
+    try { await logBillEvent('invoice', copy.id, 'created', { actorUserId: req.user.id, detail: { from_invoice_id: src.id } }); }
+    catch (e) { console.warn('[invoice.duplicate] billEvent 실패', e.message); }
+    // 실시간 반영 — 생성 라우트와 **같은 헬퍼**를 쓴다(직접 emit 하면 payload 가 갈라진다)
+    broadcastInvoice(req, full, 'invoice:new');
+    return successResponse(res, full, 'Invoice duplicated', 201);
+  } catch (err) {
+    try { await t.rollback(); } catch { /* 이미 끝난 트랜잭션 */ }
+    next(err);
+  }
+});
+
 router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   const t = await sequelize.transaction();
   try {

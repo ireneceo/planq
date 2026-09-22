@@ -140,7 +140,9 @@
         "duplicate": "Duplicate",
         "cancel": "Cancel",
         "delete": "Delete",
-        "editReissue": "Edit & reissue"
+        "editReissue": "Edit & reissue",
+        "duplicating": "Duplicating…",
+        "duplicateHint": "Create a new invoice with the same content (a new number is assigned; issuing, payment and receipt history are not copied)"
       }
     },
     "progress": {
@@ -370,6 +372,10 @@
         "timeout": "Did not finish in time"
       },
       "reportMsg": "{{invoiceNumber}} delivery failed"
+    },
+    "duplicate": {
+      "failedTitle": "Could not duplicate",
+      "failed": "Please try again shortly."
     }
   },
   "newInvoice": {

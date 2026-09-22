@@ -156,7 +156,12 @@ function checkI18n() {
     //   전부 하드코딩으로 셌다. 오탐이 쌓이면 --update-baseline 을 부르고, 그 순간 진짜 부채가
     //   같이 통과한다 (memory feedback_guard_must_be_falsified). 별칭은 파일에서 읽어 정확히 좁힌다.
     const aliases = new Set(['t']);
-    for (const m of srcAll.matchAll(/\{\s*t\s*:\s*([A-Za-z_$][\w$]*)\s*\}\s*=\s*useTranslation/g)) {
+    // ★ 2026-09-22 — `{ t: tl }` 만 읽고 **`{ t: tl, i18n }` 는 못 읽었다.**
+    //   닫는 중괄호를 바로 요구해서, 구조분해에 속성이 하나만 더 있어도 별칭을 놓쳤다.
+    //   그러면 그 파일의 `tl('key', '한국어')` 가 **전부 하드코딩으로 세어진다** —
+    //   규격을 지킨 코드가 래칫을 올리는 것이다(memory feedback_guard_punishes_conformant_code).
+    //   실측: QProjectPage.tsx 는 `{ t: tl, i18n }` 이라 정상 호출 11건이 부채로 동결돼 있었다.
+    for (const m of srcAll.matchAll(/\{[^{}]*\bt\s*:\s*([A-Za-z_$][\w$]*)[^{}]*\}\s*=\s*useTranslation/g)) {
       aliases.add(m[1]);
     }
     // ★ 지역 래퍼도 t() 다 — `const tr = (k, fb) => t(k, fb)` 처럼 기본값을 넘기기 쉽게 감싼 것.

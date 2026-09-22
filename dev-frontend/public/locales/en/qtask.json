@@ -695,7 +695,9 @@
     },
     "meSuffix": " (me)",
     "versionAdded": "Deliverable v{{n}} added",
-    "versionSubmitted": "submitted for review"
+    "versionSubmitted": "submitted for review",
+    "duplicate": "Duplicate (assignee and dates reset)",
+    "duplicateShort": "Duplicate"
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",

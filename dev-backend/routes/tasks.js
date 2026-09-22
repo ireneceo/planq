@@ -1919,6 +1919,15 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       broadcastInboxRefresh(io, src.business_id, src.project_id, 'task_copy', full.id);
     }
 
+    // ★ 2026-09-22 — 복사도 **원장에 남긴다.** 문서 복사(`post.duplicate`)는 남기는데 여기만 빠져 있어,
+    //   "이 업무가 어디서 왔는지" 를 추적할 수 없었다. 같은 기능이면 같은 흔적을 남긴다.
+    require('../services/auditService').logAudit(req, {
+      action: 'task.duplicate',
+      targetType: 'task',
+      targetId: copy.id,
+      businessId: copy.business_id,
+      newValue: { from_task_id: src.id, title: copy.title, project_id: copy.project_id },
+    });
     return successResponse(res, full.toJSON(), 'copied', 201);
   } catch (err) { next(err); }
 });

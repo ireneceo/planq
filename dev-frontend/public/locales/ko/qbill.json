@@ -137,10 +137,12 @@
         "pdfBusy": "PDF 생성 중…",
         "pdfError": "PDF 생성 실패",
         "edit": "편집",
-        "duplicate": "복제",
+        "duplicate": "복사",
         "cancel": "취소",
         "delete": "삭제",
-        "editReissue": "편집·재발행"
+        "editReissue": "편집·재발행",
+        "duplicating": "복사 중…",
+        "duplicateHint": "같은 내용으로 새 청구서 만들기 (번호는 새로 매겨지고 발행·결제·증빙 이력은 복사되지 않습니다)"
       }
     },
     "progress": {
@@ -370,6 +372,10 @@
         "timeout": "시간 안에 끝나지 않았습니다"
       },
       "reportMsg": "{{invoiceNumber}} 발송 실패"
+    },
+    "duplicate": {
+      "failedTitle": "복사하지 못했습니다",
+      "failed": "잠시 후 다시 시도해주세요."
     }
   },
   "newInvoice": {

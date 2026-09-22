@@ -78,6 +78,179 @@ async function requireProjectAdmin(projectId, user) {
 // POST /api/projects — 신규 프로젝트 생성
 // 바디: { business_id, name, description?, client_company?, start_date?, end_date?, members: [{user_id, role, is_default}], clients: [{name, email}] }
 // ============================================
+// 성과지표는 **목표만** 가져온다 — `current`(지금까지 달성한 값)는 실적이라 복사하면 가짜 성과가 된다.
+function resetMetricCurrents(metrics) {
+  if (!Array.isArray(metrics)) return metrics ?? null;
+  return metrics.map((m) => (m && typeof m === 'object' ? { ...m, current: null } : m));
+}
+
+// ─── 프로젝트 복사 (2026-09-22) ───
+// POST /api/projects/:id/duplicate   body: { name? }
+//
+// Irene: *"다른 메뉴도 복사해야 하는데 … 전체적으로 통일해서 넣어줘."*
+// 계약은 문서·업무·청구서와 **같다**(CLAUDE.md 「복사는 내용만 가져오고 이력은 두고 온다」).
+// 다만 프로젝트는 «내용» 의 범위를 먼저 못 박아야 한다:
+//
+//   ★ **프로젝트 복사는 «설정» 을 복사하는 것이지 «해 온 일» 을 복사하는 것이 아니다.**
+//     업무·문서·대화·파일·청구서를 같이 복제하면 그건 복사가 아니라 **가짜 실적**이다
+//     (완료된 업무가 복사본에도 완료로 서 있고, 남에게 보낸 계약서가 두 벌이 된다).
+//     반복되는 업무 구조가 필요하면 그건 이미 있는 **업무 템플릿**(`task_templates`)의 일이다.
+//
+//   따라간다 — 이름 · 설명 · 고객사명 · 색 · 종류(project_type·kind) · 담당/소유자 ·
+//             계약 구조(contract_amount·billing_type·monthly_fee) · 전략 캔버스 · 성과지표(목표만) ·
+//             프로세스 탭 라벨 · 멤버 · 고객(연결만) · 상태 옵션 · 프로세스 컬럼 · 추진과제 골격 · 거래 단계 골격
+//   두고 온다 — 기간(start/end) · 진행 상태 · 업무·문서·대화·파일·청구서 ·
+//             **자동청구 설정(항상 꺼서 만든다)** · 구글 드라이브 폴더 · 고객 초대 토큰 ·
+//             단계의 연결·완료 시각 · 정기청구 실행 이력 · 이력/히스토리
+router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
+  const t = await sequelize.transaction();
+  try {
+    const src = await Project.findByPk(req.params.id, { transaction: t });
+    if (!src) { await t.rollback(); return errorResponse(res, 'not_found', 404); }
+    // 생성 라우트와 **같은 판정** — 워크스페이스 멤버여야 하고 AI 역할은 만들지 못한다
+    const bm = await requireBusinessMember(req.user.id, src.business_id);
+    if (!bm) { await t.rollback(); return errorResponse(res, 'forbidden', 403); }
+    if (bm.role === 'ai') { await t.rollback(); return errorResponse(res, 'forbidden', 403); }
+    // 복사본도 **새 프로젝트**다 — 플랜 쿼터를 그대로 통과해야 한다(생성 라우트와 같은 게이트).
+    const planEngine = require('../services/plan');
+    const planCan = await planEngine.can(src.business_id, 'create_project');
+    if (!planCan.ok) {
+      await t.rollback();
+      return res.status(422).json(planEngine.buildQuotaError(planCan, src.business_id));
+    }
+
+    const baseName = String(req.body?.name || src.name || '').slice(0, 180);
+    const name = req.body?.name ? baseName : `${baseName} (복사)`.slice(0, 200);
+    const copy = await Project.create({
+      business_id: src.business_id,
+      name,
+      description: src.description,
+      client_company: src.client_company,
+      start_date: null, end_date: null,            // 기간은 리셋 — 업무·청구서 복사와 같은 규칙
+      color: src.color,
+      project_type: src.project_type,
+      kind: src.kind,
+      default_assignee_user_id: src.default_assignee_user_id,
+      owner_user_id: req.user.id,                  // 복사본의 주인은 복사한 사람
+      process_tab_label: src.process_tab_label,
+      contract_amount: src.contract_amount,
+      billing_type: src.billing_type,
+      monthly_fee: src.monthly_fee,
+      invoice_billing_day: src.invoice_billing_day,
+      // ★ 자동청구는 **끄고** 만든다. 켠 채로 복사하면 복사본이 고객에게 **자동으로 청구서를 보낸다**.
+      auto_invoice_enabled: false,
+      auto_invoice_mode: src.auto_invoice_mode,
+      strategy_context: src.strategy_context,
+      strategy_key_question: src.strategy_key_question,
+      strategy_goal: src.strategy_goal,
+      strategy_governing_thought: src.strategy_governing_thought,
+      strategy_approach: src.strategy_approach,
+      success_metrics: resetMetricCurrents(src.success_metrics),
+      strategy_sources: src.strategy_sources,
+      timeline_key_only: src.timeline_key_only,
+      status: 'active',
+      gdrive_folder_id: null,                      // 같은 외부 폴더를 두 프로젝트가 공유하면 안 된다
+    }, { transaction: t });
+
+    // ★ 아래 하위표 조회는 전부 `project_id: src.id` 로만 좁힌다 — 범위는 **부모가 이미 걸었다**
+    //   (`src` 는 위에서 `requireBusinessMember(req.user.id, src.business_id)` 로 확인한 프로젝트다).
+    //   하위표에는 business_id 컬럼이 없는 것도 있어(상태옵션·프로세스컬럼·단계) 여기 적을 수도 없다.
+    const counts = { members: 0, clients: 0, statuses: 0, columns: 0, workstreams: 0, stages: 0 };
+
+    // 멤버 — 설정이다. is_pm 은 복사한 사람 기준으로 다시 잡는다
+    const members = await ProjectMember.findAll({ where: { project_id: src.id }, transaction: t });
+    const seen = new Set();
+    for (const m of members) {
+      if (!m.user_id || seen.has(m.user_id)) continue;
+      seen.add(m.user_id);
+      await ProjectMember.create({
+        project_id: copy.id, user_id: m.user_id, role: m.role,
+        role_order: m.role_order, is_pm: m.user_id === req.user.id,
+      }, { transaction: t });
+      counts.members += 1;
+    }
+    if (!seen.has(req.user.id)) {
+      await ProjectMember.create({ project_id: copy.id, user_id: req.user.id, is_pm: true }, { transaction: t });
+      counts.members += 1;
+    }
+
+    // 고객 — **연결만** 가져온다. 초대 토큰·수락 기록은 그 사람에게 이미 나간 열쇠라 복사하지 않는다
+    const clients = await ProjectClient.findAll({ where: { project_id: src.id }, transaction: t });
+    for (const c of clients) {
+      await ProjectClient.create({
+        project_id: copy.id, client_id: c.client_id,
+        contact_name: c.contact_name, contact_email: c.contact_email,
+        invite_token: crypto.randomBytes(24).toString('hex'),   // 새 열쇠
+      }, { transaction: t });
+      counts.clients += 1;
+    }
+
+    // 상태 옵션 · 프로세스 컬럼 — 순수 설정
+    for (const o of await ProjectStatusOption.findAll({ where: { project_id: src.id }, order: [['order_index', 'ASC']], transaction: t })) {
+      await ProjectStatusOption.create({
+        project_id: copy.id, status_key: o.status_key, label: o.label, color: o.color, order_index: o.order_index,
+      }, { transaction: t });
+      counts.statuses += 1;
+    }
+    for (const c of await ProjectProcessColumn.findAll({ where: { project_id: src.id }, order: [['order_index', 'ASC']], transaction: t })) {
+      await ProjectProcessColumn.create({
+        project_id: copy.id, col_key: c.col_key, label: c.label, col_type: c.col_type, order_index: c.order_index,
+      }, { transaction: t });
+      counts.columns += 1;
+    }
+
+    // 추진과제 — 골격만(상태는 처음부터).
+    //   (범위: `src` 는 business_id 를 확인한 프로젝트다. 이 표에는 business_id 가 있지만
+    //    **부모로 좁히는 것이 정확하다** — 같은 워크스페이스의 다른 프로젝트 것이 섞이면 안 된다.)
+    for (const w of await ProjectWorkstream.findAll({ where: { project_id: src.id }, order: [['order_index', 'ASC']], transaction: t })) {
+      await ProjectWorkstream.create({
+        // ★ `business_id` 는 이 표에서만 필수다(다른 프로젝트 하위표엔 없다).
+        //   빼면 «Field 'business_id' doesn't have a default value» 로 복사 전체가 실패한다.
+        business_id: copy.business_id,
+        project_id: copy.id, title: w.title, description: w.description,
+        order_index: w.order_index, color: w.color,
+      }, { transaction: t });
+      counts.workstreams += 1;
+    }
+
+    // 거래 단계 — 골격만. **연결(linked_entity)·완료 시각은 리셋** —
+    //   원본의 계약서·청구서에 묶인 채로 복사하면 복사본이 남의 계약을 완료 처리한다.
+    // (범위: `src` 는 business_id 를 확인한 프로젝트다 — 하위표엔 business_id 컬럼이 없다)
+    const stages = await ProjectStage.findAll({ where: { project_id: src.id }, order: [['order_index', 'ASC']], transaction: t });
+    for (const st of stages) {
+      await ProjectStage.create({
+        project_id: copy.id, order_index: st.order_index, kind: st.kind, label: st.label,
+        status: 'pending', linked_entity_type: null, linked_entity_id: null,
+        metadata: st.metadata, is_template_seeded: st.is_template_seeded,
+      }, { transaction: t });
+      counts.stages += 1;
+    }
+    if (!stages.length) {
+      // 원본에 단계가 없으면 생성 라우트와 같은 방식으로 기본 템플릿을 심는다
+      const { seedStages } = require('../services/projectStageEngine');
+      await seedStages(copy.id, src.project_type === 'ongoing' ? 'subscription' : 'fixed', t);
+    }
+
+    await t.commit();
+
+    require('../services/auditService').logAudit(req, {
+      action: 'project.duplicate',
+      targetType: 'project',
+      targetId: copy.id,
+      businessId: copy.business_id,
+      newValue: { from_project_id: src.id, name: copy.name, ...counts },
+    });
+    const io = req.app.get('io');
+    if (io) io.to(`business:${copy.business_id}`).emit('project:new', { id: copy.id, actor_user_id: req.user.id });
+
+    const detail = await loadProjectDetail(copy.id);
+    return successResponse(res, { ...(detail?.toJSON ? detail.toJSON() : detail), copied: counts }, 'Project duplicated', 201);
+  } catch (err) {
+    try { await t.rollback(); } catch { /* 이미 끝난 트랜잭션 */ }
+    next(err);
+  }
+});
+
 router.post('/', authenticateToken, async (req, res, next) => {
   const t = await sequelize.transaction();
   try {

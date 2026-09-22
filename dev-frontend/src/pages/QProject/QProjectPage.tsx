@@ -277,6 +277,26 @@ const QProjectPage: React.FC = () => {
     }
   }, []);
 
+  // ★ 이 페이지에는 실패를 보여줄 자리가 없었다(상태 전환도 조용히 무시됐다).
+  //   복사는 **쿼터 초과(422)** 로 막힐 수 있으므로 이유가 화면에 나와야 한다
+  //   (memory feedback_apifetch_no_throw_silent_save — 조용한 실패는 «눌러도 아무 일 없음» 이다).
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // 프로젝트 복사 — 문서·업무·청구서와 **같은 계약**.
+  //   ★ 프로젝트는 «설정» 만 복사한다. 업무·문서·대화는 따라오지 않는다(따라오면 가짜 실적이 된다).
+  const duplicateProject = useCallback(async (projectId: number) => {
+    const r = await apiFetch(`/api/projects/${projectId}/duplicate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j?.success) {
+      // 쿼터 초과(422)는 서버 문구를 그대로 보여준다 — 무엇이 막혔는지 사용자가 알아야 한다
+      setActionError(j?.message || (t('duplicate.failed', { defaultValue: '복사하지 못했습니다. 잠시 후 다시 시도해주세요.' }) as string));
+      return;
+    }
+    navigate(`/projects/p/${j.data.id}`);
+  }, [navigate, t]);
+
   const setView = (v: ViewMode) => {
     navigate(v === 'list' ? '/projects' : `/projects/${v}`);
   };
@@ -308,6 +328,13 @@ const QProjectPage: React.FC = () => {
         </>
       }
     >
+      {/* 실패는 조용히 지나가지 않는다 — 특히 복사는 플랜 쿼터(422)로 막힐 수 있다 */}
+      {actionError && (
+        <ActionErrorBar role="alert" data-testid="project-action-error">
+          <span>{actionError}</span>
+          <ErrorClose type="button" onClick={() => setActionError(null)} aria-label={t('common.close', { defaultValue: '닫기' }) as string}>×</ErrorClose>
+        </ActionErrorBar>
+      )}
       {/* #183 — 필터 행 (헤더 아래, 다른 페이지 레이아웃처럼). 좁은 화면에서 줄바꿈. */}
       <FilterBar>
         <SearchSlot>
@@ -421,7 +448,7 @@ const QProjectPage: React.FC = () => {
           )}
         </EmptyState>
       ) : view === 'list' ? (
-        <ListView projects={sortedProjects} query={query} groupBy={groupBy} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} />
+        <ListView projects={sortedProjects} query={query} groupBy={groupBy} formatDate={formatDate} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} onStatusChange={changeProjectStatus} onDuplicate={duplicateProject} />
       ) : view === 'timeline' ? (
         <TimelineView projects={sortedProjects} query={query} todayStr={todayStr} t={t} onOpen={(id) => navigate(`/projects/p/${id}`)} />
       ) : (
@@ -455,9 +482,11 @@ const ListView: React.FC<{
   t: (k: string, o?: Record<string, unknown>) => string;
   onOpen: (projectId: number) => void;
   onStatusChange: (id: number, next: 'active' | 'paused' | 'closed') => Promise<void>;
+  /** 복사 — 설정만 가져온 새 프로젝트를 만들고 그 프로젝트로 이동한다 */
+  onDuplicate?: (id: number) => Promise<void>;
   /** 검색어 — 카드 하이라이트·매칭 이유 줄에만 쓴다(필터는 부모 visibleProjects 가 이미 했다) */
   query?: string;
-}> = ({ projects, groupBy = 'none', formatDate, t, onOpen, onStatusChange, query = '' }) => {
+}> = ({ projects, groupBy = 'none', formatDate, t, onOpen, onStatusChange, onDuplicate, query = '' }) => {
   const { t: tl, i18n } = useTranslation('qproject');
   const lang = i18n.language;
   const [menuOpen, setMenuOpen] = useState<number | null>(null);
@@ -526,6 +555,16 @@ const ListView: React.FC<{
               </MenuBtn>
               {menuOpen === p.id && (
                 <MenuDropdown onClick={(e) => e.stopPropagation()}>
+                  {onDuplicate && (
+                    <MenuItem
+                      type="button"
+                      data-testid="project-duplicate"
+                      onClick={async () => { setMenuOpen(null); await onDuplicate(p.id); }}
+                      title={tl('card.duplicateHint', '설정만 복사해 새 프로젝트를 만듭니다 (업무·문서·대화는 복사되지 않습니다)')}
+                    >
+                      {tl('card.duplicate', '복사')}
+                    </MenuItem>
+                  )}
                   {p.status !== 'active' && (
                     <MenuItem type="button" onClick={async () => { setMenuOpen(null); await onStatusChange(p.id, 'active'); }}>
                       {tl('card.resume', '진행 중으로 전환')}
@@ -1317,3 +1356,16 @@ const CalEventText = styled.span`
   white-space: nowrap;
 `;
 const CalMore = styled.div`font-size: 0.625rem; color: #94A3B8; padding: 2px 6px;`;
+
+// 액션 실패 배너 — 이 페이지에는 오류를 말할 자리가 없었다(2026-09-22).
+const ActionErrorBar = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 12px; padding: 10px 12px;
+  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px;
+  color: #B91C1C; font-size: 0.8125rem; line-height: 1.5;
+`;
+const ErrorClose = styled.button`
+  margin-left: auto; border: none; background: none; color: #B91C1C;
+  font-size: 1rem; line-height: 1; cursor: pointer; padding: 2px 6px;
+  &:hover { color: #7F1D1D; }
+`;

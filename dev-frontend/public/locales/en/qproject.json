@@ -86,7 +86,9 @@
     "pmLabel": "Project manager",
     "noClient": "No client",
     "noDept": "No department",
-    "noTeam": "No team"
+    "noTeam": "No team",
+    "duplicate": "Duplicate",
+    "duplicateHint": "Creates a new project with the settings only (tasks, documents and conversations are not copied)"
   },
   "common": {
     "cancel": "Cancel",
@@ -889,5 +891,8 @@
     "projectLink": "External view link",
     "projectLinkLead": "A link to view {{name}} progress and tasks — and ask questions — without signing in. Share it by chat or email.",
     "projectLinkLive": "External view link — currently open"
+  },
+  "duplicate": {
+    "failed": "Could not duplicate. Please try again shortly."
   }
 }
