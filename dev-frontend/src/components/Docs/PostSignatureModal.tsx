@@ -16,6 +16,9 @@ import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { isEnterAction } from '../../utils/imeKey';
+import { readSignatureFields, type DocSignatureField } from '../../utils/signatureFields';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface Props {
   open: boolean;
@@ -31,6 +34,9 @@ let nextRowId = 1;
 
 const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) => {
   const navigate = useNavigate();
+  const { user: me } = useAuth();
+  // 만료일도 화면 언어를 따른다 — 'ko-KR' 를 못 박으면 영어 화면에 한국어 날짜가 섞인다
+  const { formatDate } = useTimeFormat();
   const { t } = useTranslation('qdocs');
   const [signers, setSigners] = useState<SignerRow[]>([{ id: nextRowId++, email: '', name: '' }]);
   // 운영 #239 — 서명 요청 vs 확인 요청. 확인은 OTP·서명 캔버스 없이 "확인했습니다 / 의견" 만.
@@ -44,6 +50,14 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
   const [convId, setConvId] = useState<number | null>(post.conversation_id);
   // 워크스페이스 멤버 + 고객 — 서명자 picker 옵션
   const [contactOptions, setContactOptions] = useState<Array<PlanQSelectOption & { email: string; name: string }>>([]);
+  // 워크스페이스 멤버만 — «보내는 쪽» 칸에 세울 수 있는 사람(설계 §3: 기본값은 요청을 보낸 사람)
+  const [memberOptions, setMemberOptions] = useState<Array<PlanQSelectOption & { userId: number; name: string }>>([]);
+  // 문서에 그려진 서명란. 있으면 «칸마다 배정», 없으면 종전처럼 문서 끝 서명 영역.
+  const fields = useMemo<DocSignatureField[]>(
+    () => (open ? readSignatureFields(post.content_json) : []), [open, post.content_json]);
+  const useSlots = fields.length > 0 && kind === 'sign';
+  // 칸 → 서명자. 받는 쪽은 email/name, 보내는 쪽은 멤버 user_id.
+  const [slotMap, setSlotMap] = useState<Record<number, { email: string; name: string; userId: number | null }>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ count: number; viaChat: boolean; convId: number | null } | null>(null);
@@ -90,6 +104,14 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
         }
       });
       setContactOptions(opts);
+      setMemberOptions(members
+        .filter(m => m.user_id)
+        .map(m => ({
+          value: String(m.user_id),
+          label: `${m.name || m.user?.name || ''}${m.user?.email ? ` · ${m.user.email}` : ''}`,
+          userId: Number(m.user_id),
+          name: m.name || m.user?.name || '',
+        })));
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,6 +131,24 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
       return [...prev, { id: nextRowId++, email: opt.email, name: opt.name }];
     });
   };
+
+  // 칸 기본값 — «보내는 쪽» 은 요청을 보낸 사람(= 나). Irene 2026-09-22 결정.
+  //   이미 사람이 고른 칸은 건드리지 않는다(다시 열 때 고른 값이 튕기면 안 된다).
+  useEffect(() => {
+    if (!open || !useSlots) return;
+    setSlotMap(prev => {
+      const next = { ...prev };
+      let changed = false;
+      fields.forEach(f => {
+        if (next[f.slot]) return;
+        next[f.slot] = f.party === 'us'
+          ? { email: '', name: me?.name || '', userId: me?.id == null ? null : Number(me.id) }
+          : { email: '', name: '', userId: null };
+        changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [open, useSlots, fields, me?.id, me?.name]);
 
   // 대화방 목록 (프로젝트 scope면 그 프로젝트, 전역이면 워크스페이스 전체)
   useEffect(() => {
@@ -172,15 +212,28 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
   };
 
   const validSigners = signers.filter(s => EMAIL_RE.test(s.email.trim()));
-  const canSubmit = validSigners.length > 0 && !busy;
+  // 칸 배정 모드 — 칸 하나라도 비면 보내지 않는다. 빈 칸으로 보내면 그 칸은 영영 서명되지 않는다.
+  const slotPayload = useMemo(() => fields.map(f => {
+    const v = slotMap[f.slot] || { email: '', name: '', userId: null };
+    return f.party === 'us'
+      ? { slot: f.slot, party: 'us' as const, user_id: v.userId ?? undefined, email: '', name: v.name.trim() || undefined }
+      : { slot: f.slot, party: 'them' as const, email: v.email.trim().toLowerCase(), name: v.name.trim() || undefined };
+  }), [fields, slotMap]);
+  const slotsFilled = slotPayload.every(p => (p.party === 'us' ? !!p.user_id : EMAIL_RE.test(p.email)));
+  const canSubmit = (useSlots ? slotsFilled : validSigners.length > 0) && !busy;
 
   const submit = async () => {
     setError(null);
-    if (validSigners.length === 0) { setError(t('sign.noSigners', '서명자 이메일을 1명 이상 입력하세요') as string); return; }
+    if (useSlots && !slotsFilled) { setError(t('sign.slotIncomplete', { defaultValue: '모든 서명란에 서명할 사람을 지정하세요' }) as string); return; }
+    if (!useSlots && validSigners.length === 0) { setError(t('sign.noSigners', '서명자 이메일을 1명 이상 입력하세요') as string); return; }
     setBusy(true);
     try {
       const r = await requestSignatures(post.id, {
-        signers: validSigners.map(s => ({ email: s.email.trim().toLowerCase(), name: s.name.trim() || undefined })),
+        signers: useSlots
+          ? slotPayload.map(p => (p.party === 'us'
+            ? { email: '', name: p.name, party: 'us' as const, slot: p.slot, user_id: p.user_id }
+            : { email: p.email, name: p.name, party: 'them' as const, slot: p.slot }))
+          : validSigners.map(s => ({ email: s.email.trim().toLowerCase(), name: s.name.trim() || undefined })),
         kind,
         note: note.trim() || undefined,
         expires_in_days: expiresInDays,
@@ -260,8 +313,68 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
               <SectionLabel>{kind === 'confirm'
                 ? t('sign.confirmers', { defaultValue: '확인 요청 받는 분' }) as string
                 : t('sign.signers', '서명자')}</SectionLabel>
-              <SectionHint>{t('sign.signersHintV2', { defaultValue: '멤버·고객을 검색해 빠르게 추가하거나, 아래에 이메일을 직접 입력하세요. Enter 로 새 행 추가.' }) as string}</SectionHint>
-              {contactOptions.length > 0 && (
+              <SectionHint>{useSlots
+                ? t('sign.slotHint', { defaultValue: '이 문서에는 서명란이 있습니다. 칸마다 서명할 사람을 지정하세요.' }) as string
+                : t('sign.signersHintV2', { defaultValue: '멤버·고객을 검색해 빠르게 추가하거나, 아래에 이메일을 직접 입력하세요. Enter 로 새 행 추가.' }) as string}</SectionHint>
+
+              {useSlots ? (
+                <SlotList data-testid="sign-slot-list">
+                  {fields.map(f => {
+                    const v = slotMap[f.slot] || { email: '', name: '', userId: null };
+                    const invalid = f.party === 'them' && !!v.email && !EMAIL_RE.test(v.email.trim());
+                    return (
+                      <SlotRow key={f.slot} $invalid={invalid}>
+                        <SlotCap>
+                          <SlotNo>{f.slot}</SlotNo>
+                          <SlotParty $us={f.party === 'us'}>
+                            {f.label || (f.party === 'us'
+                              ? t('sign.partyUs', { defaultValue: '보내는 쪽' }) as string
+                              : t('sign.partyThem', { defaultValue: '받는 쪽' }) as string)}
+                          </SlotParty>
+                        </SlotCap>
+                        {f.party === 'us' ? (
+                          <SlotBody>
+                            <PlanQSelect
+                              size="sm"
+                              options={memberOptions}
+                              value={memberOptions.find(o => o.userId === v.userId) || null}
+                              onChange={(opt) => {
+                                const m = opt as (typeof memberOptions)[number] | null;
+                                setSlotMap(prev => ({ ...prev, [f.slot]: { email: '', name: m?.name || '', userId: m?.userId ?? null } }));
+                              }}
+                              placeholder={t('sign.pickMember', { defaultValue: '서명할 멤버 선택' }) as string}
+                              isSearchable
+                            />
+                            <SlotNote>{t('sign.usNote', { defaultValue: '보내는 쪽은 메일 없이 앱 안에서 서명합니다(로그인이 본인 확인).' }) as string}</SlotNote>
+                          </SlotBody>
+                        ) : (
+                          <SlotBody>
+                            <SignerFields>
+                              <SignerEmailInput
+                                type="email"
+                                value={v.email}
+                                onChange={e => setSlotMap(prev => ({ ...prev, [f.slot]: { ...v, email: e.target.value } }))}
+                                placeholder="email@example.com"
+                                autoComplete="off"
+                                spellCheck={false}
+                              />
+                              <SignerNameInput
+                                type="text"
+                                value={v.name}
+                                onChange={e => setSlotMap(prev => ({ ...prev, [f.slot]: { ...v, name: e.target.value } }))}
+                                placeholder={t('sign.namePh', '이름 (선택)') as string}
+                                autoComplete="off"
+                              />
+                            </SignerFields>
+                          </SlotBody>
+                        )}
+                      </SlotRow>
+                    );
+                  })}
+                </SlotList>
+              ) : null}
+
+              {!useSlots && contactOptions.length > 0 && (
                 <ContactPickWrap>
                   <PlanQSelect
                     size="sm"
@@ -274,7 +387,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
                   />
                 </ContactPickWrap>
               )}
-              <SignerList>
+              {!useSlots && <SignerList>
                 {signers.map((s, idx) => {
                   const valid = !s.email || EMAIL_RE.test(s.email.trim());
                   return (
@@ -308,11 +421,13 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
                     </SignerRowWrap>
                   );
                 })}
-              </SignerList>
-              <AddSigner type="button" onClick={addRow}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                {t('sign.addSigner', '서명자 추가')}
-              </AddSigner>
+              </SignerList>}
+              {!useSlots && (
+                <AddSigner type="button" onClick={addRow}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  {t('sign.addSigner', '서명자 추가')}
+                </AddSigner>
+              )}
             </Section>
 
             <Section>
@@ -338,7 +453,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
                     minDate={new Date(Date.now() + 86400000).toISOString().slice(0,10)}
                     size="md" />
                 )}
-                <SectionHint>{t('sign.expiresOn', '{{date}} 까지 유효', { date: new Date(Date.now() + expiresInDays * 86400000).toLocaleDateString('ko-KR') })}</SectionHint>
+                <SectionHint>{t('sign.expiresOn', '{{date}} 까지 유효', { date: formatDate(new Date(Date.now() + expiresInDays * 86400000)) })}</SectionHint>
               </SectionHalf>
               <SectionHalf>
                 <SectionLabel>{t('sign.chatChannel', '채팅 카드')}</SectionLabel>
@@ -589,3 +704,21 @@ const KindBtn = styled.button<{ $on: boolean }>`
   &:hover { background: ${p => (p.$on ? '#0F766E' : '#F8FAFC')}; }
   &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: -2px; }
 `;
+
+// ── 서명란 칸 배정 (2026-09-22) ───────────────────────────────
+const SlotList = styled.div`display:flex;flex-direction:column;gap:8px;`;
+const SlotRow = styled.div<{ $invalid: boolean }>`
+  display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+  border:1px solid ${p => (p.$invalid ? '#FCA5A5' : '#E2E8F0')};border-radius:10px;background:#fff;
+  @media (max-width: 640px) { flex-direction:column;align-items:stretch;gap:6px; }
+`;
+const SlotCap = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;min-width:120px;padding-top:6px;`;
+const SlotNo = styled.span`
+  display:inline-flex;align-items:center;justify-content:center;min-width:20px;padding:2px 5px;border-radius:6px;
+  background:#F1F5F9;color:#475569;font-size:0.6875rem;font-weight:700;line-height:1.2;
+`;
+const SlotParty = styled.span<{ $us: boolean }>`
+  font-size:0.75rem;font-weight:700;color:${p => (p.$us ? '#0F766E' : '#475569')};
+`;
+const SlotBody = styled.div`flex:1;min-width:0;`;
+const SlotNote = styled.div`margin-top:4px;font-size:0.6875rem;color:#94A3B8;`;

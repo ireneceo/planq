@@ -84,11 +84,31 @@ export function formatTimeAgo(iso: string | Date, tz: string, locale = 'ko-KR', 
  * 워크스페이스 타임존을 쓰지 않는다 — 공개 화면에는 그 맥락이 없고, 날짜만 보여주므로
  * 기기 로케일이면 충분하다. 시각까지 필요하면 formatDateTime(tz) 을 쓸 것.
  */
+/** 공개 화면의 로케일 — 기기 언어. 여기 한 곳에서만 고른다(2026-09-22). */
+export function publicLocale(): string {
+  return typeof navigator !== 'undefined' && navigator.language.startsWith('en') ? 'en-US' : 'ko-KR';
+}
+
 export function formatPublicDate(v?: string | Date | null): string {
   if (!v) return '';
   const raw = typeof v === 'string' ? `${v.slice(0, 10)}T00:00:00` : v;
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return String(v);
-  const locale = typeof navigator !== 'undefined' && navigator.language.startsWith('en') ? 'en-US' : 'ko-KR';
-  return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric' }).format(d);
+  return new Intl.DateTimeFormat(publicLocale(), { year: 'numeric', month: 'short', day: 'numeric' }).format(d);
+}
+
+/**
+ * 공개 화면의 **날짜+시각**.
+ *
+ * ★ 2026-09-22 — 공개 서명 완료 화면이 `toLocaleString('ko-KR')` 를 못 박고 있어,
+ *   영어 화면에 «Signed at 2026. 9. 22. 오후 6:21» 처럼 **글자는 영어인데 시각만 한국어**로 섞였다.
+ *   서명은 링크를 받은 외부 사람이 보는 화면이다 — 기기 언어를 따른다.
+ */
+export function formatPublicDateTime(v?: string | Date | null): string {
+  if (!v) return '';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  return new Intl.DateTimeFormat(publicLocale(), {
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  }).format(d);
 }

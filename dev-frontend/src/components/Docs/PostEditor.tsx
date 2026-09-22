@@ -12,6 +12,8 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { TrailingNode } from '@tiptap/extensions';
 import Link from '@tiptap/extension-link';
+import { signatureFieldExtension } from './SignatureField';
+import EditorSignatureButton from './EditorSignatureButton';
 import { ResizableImage } from './ResizableImage';
 import { resizableImageCss } from './resizableImageStyles';
 import { Table } from '@tiptap/extension-table';
@@ -190,6 +192,8 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
       Placeholder.configure({ placeholder: placeholder || t('editor.placeholder', { defaultValue: '본문을 작성하세요…' }) }),
       Link.configure({ openOnClick: false, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
       ResizableImage.configure({ inline: false, allowBase64: false, HTMLAttributes: { class: 'editor-image' } }),
+      // 서명란 — 문서 안의 «여기에 서명이 들어간다» 자리. 문구는 여기서 t() 로 넣는다(확장 안에 글자를 박지 않는다).
+      signatureFieldExtension(t),
       // #363 — 정렬(좌/가운데/우). 문단과 제목에만 적용한다.
       //   목록·인용·코드블록은 정렬을 걸면 구조가 깨져 보이므로 대상에서 뺀다.
       //   렌더는 style="text-align:..." — 저장 JSON 에 textAlign attr 로 들어간다.
@@ -421,6 +425,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
               </svg>
             </ToolBtn>
             <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onImageInput} />
+            <EditorSignatureButton editor={editor} as={ToolBtn} />
             <ToolBtn
               type="button"
               data-testid="editor-insert-table"

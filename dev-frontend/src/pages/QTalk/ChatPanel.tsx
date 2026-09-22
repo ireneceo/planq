@@ -17,6 +17,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
 import PostPreviewModal from '../../components/Docs/PostPreviewModal';
+import SignatureLinkModal from '../../components/QTalk/SignatureLinkModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
@@ -164,6 +165,8 @@ const ChatPanel: React.FC<Props> = ({
   };
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [previewCard, setPreviewCard] = useState<PostCardMeta | null>(null);
+  // 서명 카드 — 링크를 방에 올리지 않고 본인 이메일로 보낸다(설계 §4)
+  const [signLinkCard, setSignLinkCard] = useState<import('./types').SignatureCardMeta | null>(null);
 
   // 메시지 본문 안 URL 자동 링크 — 정규식·앵커는 utils/linkify 단일 원천 (Q Task 댓글과 공유, #270).
   // #68 — 평문 세그먼트에서 @멘션(실제 멤버 이름) 강조
@@ -1608,7 +1611,13 @@ const ChatPanel: React.FC<Props> = ({
                   </EditActions>
                 </EditFormWrap>
               ) : m.card?.card_type === 'signature_request' ? (
-                <SignCard onClick={() => openPreviewWindow(m.card!.card_type === 'signature_request' ? (m.card as { sign_url: string }).sign_url : '')}>
+                // ★ 2026-09-22 — 카드로 서명 화면에 바로 들어가지 않는다. 방에 있는 누구나
+                //   남의 서명 링크를 여는 것과 같았다. 본인 이메일로 링크를 받는다(설계 §4).
+                //   옛 카드에 남아 있는 sign_url 도 **쓰지 않는다** — 안 쓰면 노출이 멈춘다.
+                <SignCard
+                  data-testid="chat-sign-card"
+                  onClick={() => setSignLinkCard(m.card as import('./types').SignatureCardMeta)}
+                >
                   <SignCardIcon>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                   </SignCardIcon>
@@ -2297,6 +2306,13 @@ const ChatPanel: React.FC<Props> = ({
           </SendBtn>
         </InputWrap>
       </InputBar>
+      <SignatureLinkModal
+        open={!!signLinkCard}
+        onClose={() => setSignLinkCard(null)}
+        entityType={signLinkCard?.entity_type || 'post'}
+        entityId={signLinkCard?.entity_id || 0}
+        docTitle={signLinkCard?.title || ''}
+      />
       {previewCard && (
         <PostPreviewModal postId={previewCard.post_id} title={previewCard.title} onClose={() => setPreviewCard(null)} />
       )}

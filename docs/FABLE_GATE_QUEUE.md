@@ -4668,3 +4668,69 @@ Fable 은 Irene 지시로 **다음 주 목요일(2026-09-24)까지 사용 불가
 - **Fable 이 볼 것**: 형제 목록 GET 도 문서 공개범위(L1 개인 문서)와 무관하게 멤버 전원에게 서명 진행을 준다 —
   서명 이미지도 같은 범위로 열렸다. 개인 문서의 서명을 다른 멤버가 볼 수 있어도 되는지(형제 문과 함께 판단). Client 역할이 assertMember 를 통과하는지.
 - 설계 승인 대기: `docs/SIGNATURE_FIELD_DESIGN.md`(서명란·서명본 PDF·우리 측 서명 — 구현 시 Fable 필수).
+
+### 2026-09-22 — 서명란·서명본·우리 측 서명·공개 링크요청 (R=1 · 3축 모두) [Opus] — Fable 429 → unavailable
+판정: **R=1** — ①법적 증빙(전자서명 증거·증명서) ②**공개 무인증 라우트 신설**(표면 확장)
+③운영 DB 스키마 변경 ④공개 페이지 응답에 서명 정보 추가. S=1(무엇을 검증할지부터 설계해야 함).
+Fable 호출 실패 사유: `claude-fable-5-1` HTTP 429 (한도 소진, req_011CfJtHAixv4kwUn4aR1iKn).
+
+**무엇을 만들었나**
+- 스키마(운영 미적용): `signature_requests.slot INT NULL` · `party ENUM('us','them') DEFAULT 'them'` ·
+  `signer_user_id INT NULL` — `dev-backend/scripts/migrate-signature-slot.js`(멱등). **코드 배포 전에** 실행.
+- 조립 단일 원천 `services/signedDocument.js` — 고정본(content_snapshot)에 서명 주입 + 증명서(이메일·IP) 생성.
+  소비처 4: `GET /api/posts/:id/signed-html`(멤버) · `GET /api/posts/public/:token` 의 `signed_html`(무인증) ·
+  `GET /api/sign/:token` 의 `entity.signed_html`(무인증) · `postPdfHtml(..., {cert})`.
+- 신규 인증 라우트 `POST /api/signatures/:id/sign-internal` (`routes/signature_internal.js`) —
+  **인증번호 대신 로그인**이 본인 확인. party='us' + signer_user_id 일치 + 멤버.
+- 신규 **공개 무인증** 라우트 `POST /api/sign/request-link` (`routes/signature_public.js`) —
+  채팅 카드 [서명하기] 가 본인 이메일로 링크 재발송. rate-limit 10분 5회(entity+IP), 열거 차단(같은 응답).
+- 채팅 카드 meta 에서 `sign_url` 제거(방에 남의 서명 토큰이 실려 있었다). 프론트는 옛 카드의 것도 쓰지 않는다.
+- 프론트: TipTap `signatureField` · 요청 창 칸 배정(보내는 쪽=멤버 선택) · 진행 표 [서명하기] ·
+  공개 서명 페이지 «내 칸» 강조 · 템플릿 4종의 `—` → 서명란.
+
+**자체 검증 (실 API 왕복, 숫자)**
+- 요청 2건 `slot1/us/pending` `slot2/them/sent` · 서명 전 빈 칸 2 · 원본 `data-signature-field` 잔존 0.
+- 우리 측 서명 200 → 채워진 칸 1 / 빈 칸 1 · 서명 이미지 포함 · 고정본 사용 yes.
+- 받는 쪽을 앱에서 서명 400 `not_internal_signer` · 중복 409 `already_signed` ·
+  비소속 일반 사용자 서명 403 / 서명본 조회 403 (platform_admin 200 은 형제 라우트와 동일, 의도).
+- 공개 서명 페이지 `slot=2/party=them` · 서명본 있음 · 내 칸 표시 · **`pq-cert` 없음**.
+- PDF: 멤버본 `pq-cert` 있음 / 공개본 없음(같은 입력, `cert` 만 다른 대조쌍).
+- request-link: 명단 주소 발송(reminder 0→1) · 명단 밖 **같은 응답** · 잘못된 주소 400 · 6회째 429 ·
+  만료 ✗발송 / 정상 ✓발송 / 취소 ✗발송(양성·음성 대조군).
+- 가드: health-check 45/45 · guard-invariants 58/59 · e2e `--suite tenant` 실패 0 · `npm run build` `error TS` 0.
+  (가드 3건 빨간불은 베이스라인을 올리지 않고 원인 수정: 스키마 스냅샷 재생성 · `signatures.js` 분리 ·
+   `PostEditor.tsx` 800줄 아래로 분리.)
+
+**Fable 이 봐야 할 것** — 내가 못 가른 지점
+1. **공개 무인증 라우트의 표면** — `POST /api/sign/request-link` 의 rate-limit 키가 `entity_id + IP` 다.
+   IP 를 바꾸면 같은 문서로 계속 메일을 보낼 수 있다(서명자 1인 대상 스팸). 서명자별 일일 상한이
+   필요한지, `costGuard.perUserDaily` 계열을 어떻게 적용할지(무인증이라 user 가 없다).
+2. **공개 응답에 실리는 서명 정보의 범위** — 공개 문서 링크·서명 페이지가 **다른 서명자의 이름과 서명
+   이미지**를 보여준다(증명서는 뺐다). 계약서로는 자연스럽지만, 링크 소지자 누구나 본다는 점에서
+   이것이 맞는 경계인지 판단이 필요하다.
+3. **증거 수준의 동등성** — `sign-internal` 이 공개 서명과 같은 항목을 남기는지 코드 대조는 했으나,
+   «로그인 = 본인 확인» 이 전자서명법상 이메일 OTP 와 같은 무게인지는 내가 가를 수 없다.
+4. **고정본 선택 규칙** — 같은 문서에 서명 라운드가 여러 번이면 `loadSignedView` 가 **가장 먼저 만든
+   요청의 동결분**을 쓴다. 2차 요청이 새 본문으로 나갔다면 1차 고정본이 그려진다(서명자가 본 것과 다를 수 있다).
+5. **운영 마이그레이션** — ENUM 신설 컬럼이라 append 규칙 대상이 아니지만, 운영 행 수·잠금 시간 미측정.
+
+#### 위 항목 2차 — 실브라우저 검증 + 결함 1건 수정 (2026-09-22, Irene "실제 테스트 하면서 일일이 검증해놔")
+- 회귀 카나리 신설 `scripts/e2e/canary-signature-field.js` (`--suite signature`, 16검사, 실브라우저).
+  **반증 완료** — `injectSignatures` 를 no-op 으로 깨뜨리니 5건이 빨간불, 원복 후 16/16 · EXIT 0.
+- PDF 를 실제로 뽑아 `pdftotext` 로 확인: 멤버본 2쪽(증명서·지문·이메일·IP) / 공개본 1쪽(증명서 0 · 이메일·IP 문자열 0).
+- 채팅 카드 meta 실측: `sign_url` 없음 · 64자리 토큰 없음 · 보내는 쪽은 명단에서 제외.
+- **결함 수정**: `/signed-html` 이 `assertMember` 라 **고객은 본문 200 / 서명본 403** 이었다(자기 계약서인데 서명이 «서명 전» 으로 보였다).
+  본문 조회와 같은 술어 `canReadPost()` 로 통합. 양성 대조군으로 403→200 뒤집힘 확인.
+- **Fable 이 봐야 할 것 (추가)**: 이제 **고객(Client)도 서명본을 본다** — 거기엔 다른 서명자의 이름·서명 이미지가 들어간다.
+  본문 열람 권한과 같은 경계로 둔 판단이 맞는지(증명서는 여전히 멤버 PDF 에만).
+
+#### 위 항목 3차 — 전체 여정 실브라우저 (2026-09-22, Irene "버튼 다 눌러보고 유저 입장에서")
+- 카나리 신설 `--suite signflow` (11검사) — 멤버 서명 → **고객이 로그인 없이 링크·인증번호로 서명** →
+  양쪽 완료 → 서명 뒤 원본 변경에도 고정본 불변 → PDF 실수신. 최종 **16/16 + 11/11 · EXIT 0**.
+- 틀린 인증번호 음성 대조군 · 맞는 코드 양성 대조군 포함. 인증 해시는 픽스처가 심는다(라우트·화면은 실제).
+- 부수 수정: 공개 화면 3곳의 `toLocaleString('ko-KR')` 하드코딩 → 화면 언어(영어 화면에 한국어 시각이 섞였다).
+- 하니스 손잡이 추가: `sign-otp-send` · `sign-otp-verify` · `sign-submit` · `sign-row[data-party]` · `sign-row-actions`.
+- 4차: 거절·취소·옛요청(slot NULL)·칸초과·템플릿 갈래 확인. **결함 1건 수정 — 거절이 문서에 «서명 전» 으로 보였다**
+  (거절 표시 추가, 사유는 서명본에 미포함/진행 표에만). 여정 카나리 ⑫ 로 못 박음. 최종 16/16 + 12/12.
+- 5차: 채팅 카드 실클릭(토큰 노출 0) · 폰 **터치** 서명(CDP) · 거래 단계(active→completed) 확인.
+  최종 `signature 16/16` + `signflow 15/15`.

@@ -16,13 +16,15 @@ import { useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
+import { sanitizeRichText } from '../../utils/sanitizeHtml';
+import { formatPublicDateTime } from '../../utils/dateFormat';
 import {
   ActionRow, Brand, Canvas, CanvasClear, CanvasPlaceholder, CanvasWrap, ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
   ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, NoteBox, OtpActions, OtpInput,
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
-  SectionTitle, SignatureSnap, Spinner, Step, Textarea, TopMeta, Topbar,
+  SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea, TopMeta, Topbar,
   AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize,
 } from './PublicSignPage.styles';
 
@@ -39,6 +41,9 @@ interface PublicSignData {
   signed_at: string | null;
   signature_image_b64: string | null;
   note: string | null;
+  // 서명란(2026-09-22) — 내 칸이 문서 어디인지. null 이면 서명란 없는 옛 요청.
+  slot?: number | null;
+  party?: 'us' | 'them';
   entity: {
     type: 'post' | 'document';
     id: number;
@@ -47,6 +52,8 @@ interface PublicSignData {
     // 별첨 — 서명 요청 시점에 동결된 목록(이후 문서에 붙은 파일은 서명 대상이 아니다)
     attachments?: { file_id: number; name: string | null; size: number | null; mime: string | null }[];
     snapshot_at?: string | null;
+    // 서명본 — 서버가 조립한다(services/signedDocument). 이미 서명된 칸은 그 서명이 보인다.
+    signed_html?: string | null;
     project?: { id: number; name: string } | null;
   };
 }
@@ -381,7 +388,7 @@ const PublicSignPage: React.FC = () => {
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             </ResultIcon>
             <ResultTitle>{t('publicSign.doneTitle', '서명 완료')}</ResultTitle>
-            <ResultMeta>{t('publicSign.doneAt', '{{at}} 에 서명하셨습니다', { at: new Date(doc.signed_at!).toLocaleString('ko-KR') })}</ResultMeta>
+            <ResultMeta>{t('publicSign.doneAt', '{{at}} 에 서명하셨습니다', { at: formatPublicDateTime(doc.signed_at!) })}</ResultMeta>
             <ResultHint>{t('publicSign.doneHint', '양 당사자가 모두 서명을 완료하면 발송자에게 자동으로 통보됩니다. 이 창을 닫으셔도 됩니다.')}</ResultHint>
             {doc.signature_image_b64 && doc.signature_image_b64 !== '(present)' && (
               <SignatureSnap><img src={doc.signature_image_b64} alt="signature" /></SignatureSnap>
@@ -417,8 +424,18 @@ const PublicSignPage: React.FC = () => {
                   : t('publicSign.scopeNoticeNoAttach', { defaultValue: '서명 대상은 아래 본문입니다.' }) as string}
               </NoteBox>
               {doc.note && <NoteBox>{doc.note}</NoteBox>}
-              <DocBody>
-                <PostEditor value={doc.entity.content_json} onChange={() => {}} editable={false} />
+              {/* 내 칸이 문서 어디인지 먼저 말한다 — 모른 채 서명하게 두지 않는다(설계 §1) */}
+              {doc.slot != null && (
+                <NoteBox data-testid="sign-my-slot">
+                  {t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸이 회원님의 서명 자리입니다. 테두리로 표시해 두었습니다.', n: doc.slot }) as string}
+                </NoteBox>
+              )}
+              <DocBody $mySlot={doc.slot ?? null}>
+                {doc.entity.signed_html ? (
+                  <SignedHtml dangerouslySetInnerHTML={{ __html: sanitizeRichText(doc.entity.signed_html) }} />
+                ) : (
+                  <PostEditor value={doc.entity.content_json} onChange={() => {}} editable={false} />
+                )}
               </DocBody>
               {/* ★ 2026-08-27 — 별첨. 여태 이 화면에 없었다. 본문이 "별첨 2에 정한…" 을 인용하는데
                   서명자는 그것을 볼 수 없는 상태로 서명했다(운영 계약서 실사례).
@@ -487,7 +504,7 @@ const PublicSignPage: React.FC = () => {
                   {t('publicSign.otpDesc', '{{email}} 으로 인증 코드를 발송해 본인을 확인합니다.', { email: doc.signer_email })}
                 </SectionDesc>
                 {!otpSent ? (
-                  <PrimaryBtn type="button" onClick={sendOtp} disabled={otpSending}>
+                  <PrimaryBtn type="button" data-testid="sign-otp-send" onClick={sendOtp} disabled={otpSending}>
                     {otpSending ? <><InlineSpinner />{t('publicSign.otpSending', '발송 중…')}</> : t('publicSign.otpSend', '인증 코드 받기')}
                   </PrimaryBtn>
                 ) : (
@@ -511,7 +528,7 @@ const PublicSignPage: React.FC = () => {
                       <ResendBtn type="button" disabled={otpSending || otpCooldown > 0} onClick={sendOtp}>
                         {otpCooldown > 0 ? t('publicSign.otpResendCooldown', '{{n}}초 후 재발송', { n: otpCooldown }) : t('publicSign.otpResend', '재발송')}
                       </ResendBtn>
-                      <PrimaryBtn type="button" onClick={verifyOtp} disabled={otpVerifying || otpDigits.join('').length !== 6}>
+                      <PrimaryBtn type="button" data-testid="sign-otp-verify" onClick={verifyOtp} disabled={otpVerifying || otpDigits.join('').length !== 6}>
                         {otpVerifying ? <><InlineSpinner />{t('publicSign.otpVerifying', '확인 중…')}</> : t('publicSign.otpVerify', '확인')}
                       </PrimaryBtn>
                     </OtpActions>
@@ -553,7 +570,7 @@ const PublicSignPage: React.FC = () => {
                   <RejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>
                     {t('publicSign.reject', '거절')}
                   </RejectBtn>
-                  <PrimaryBtn type="button" onClick={submitSign} disabled={signing || canvasEmpty || !consent}>
+                  <PrimaryBtn type="button" data-testid="sign-submit" onClick={submitSign} disabled={signing || canvasEmpty || !consent}>
                     {signing ? <><InlineSpinner />{t('publicSign.signing', '서명 중…')}</> : t('publicSign.signNow', '서명하기')}
                   </PrimaryBtn>
                 </ActionRow>

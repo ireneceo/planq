@@ -40,7 +40,9 @@ export interface SignatureCardMeta {
   entity_type: 'post' | 'document';
   entity_id: number;
   title: string;
-  sign_url: string;
+  // 2026-09-22 — 새 카드에는 **없다.** 방에 올린 링크는 곧 남의 열쇠다(설계 §4).
+  //   옛 카드에는 남아 있지만 화면은 쓰지 않는다.
+  sign_url?: string;
   signers: Array<{ email: string; status: string }>;
   note: string | null;
 }

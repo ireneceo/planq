@@ -13,7 +13,8 @@ import { listSignatures, cancelSignature, remindSignature, type SignatureRequest
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import ImageLightbox from '../Common/ImageLightbox';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
+import InternalSignModal from './InternalSignModal';
 
 interface Props {
   postId: number;
@@ -29,6 +30,9 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const { t } = useTranslation('qdocs');
   const { formatDateTime, formatTimeAgo } = useTimeFormat();
   const navigate = useNavigate();
+  const { user: me } = useAuth();
+  // 보내는 쪽(우리) 서명 — 내 칸이면 앱 안에서 바로 서명한다(메일·인증번호 없음)
+  const [signTarget, setSignTarget] = useState<SignatureRequest | null>(null);
   const [list, setList] = useState<SignatureRequest[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
@@ -211,12 +215,24 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         </THead>
         <TBody>
           {visible.map(sr => (
-            <Tr key={sr.id} $rejected={sr.status === 'rejected'} $signed={sr.status === 'signed'}>
+            <Tr
+              key={sr.id}
+              data-testid="sign-row"
+              data-party={sr.party === 'us' ? 'us' : 'them'}
+              $rejected={sr.status === 'rejected'}
+              $signed={sr.status === 'signed'}
+            >
               <Td>
                 <SignerCell>
                   <Avatar $signed={sr.status === 'signed'}>{(sr.signer_name || sr.signer_email)[0]?.toUpperCase()}</Avatar>
                   <SignerInfo>
-                    <SignerName>{sr.signer_name || sr.signer_email}</SignerName>
+                    <SignerName>
+                      {sr.signer_name || sr.signer_email}
+                      {sr.party === 'us' && (
+                        <PartyChip $us>{t('signProgress.partyUs', { defaultValue: '보내는 쪽' }) as string}</PartyChip>
+                      )}
+                      {sr.slot != null && <SlotChip>{sr.slot}</SlotChip>}
+                    </SignerName>
                     {sr.signer_name && <SignerEmail>{sr.signer_email}</SignerEmail>}
                     {sr.note && sr.id === visible[0].id && <SignerNote title={sr.note}>{sr.note}</SignerNote>}
                   </SignerInfo>
@@ -255,9 +271,16 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
                 ) : null}
               </Td>
               <Td>
-                {sr.status !== 'signed' && sr.status !== 'rejected' && sr.status !== 'expired' && (
+                {/* 보내는 쪽 내 칸 — 메일 링크가 없다. 여기서 바로 서명한다. */}
+                {sr.party === 'us' && sr.status !== 'signed' && sr.status !== 'rejected' && sr.status !== 'expired'
+                  && Number(sr.signer_user_id ?? sr.requester_user_id) === Number(me?.id) && (
+                  <SignNowBtn type="button" data-testid="sign-internal-open" onClick={() => setSignTarget(sr)}>
+                    {t('signProgress.signNow', { defaultValue: '서명하기' }) as string}
+                  </SignNowBtn>
+                )}
+                {sr.party !== 'us' && sr.status !== 'signed' && sr.status !== 'rejected' && sr.status !== 'expired' && (
                   <ActionWrap>
-                    <ActionToggle type="button" onClick={() => setActionMenuId(actionMenuId === sr.id ? null : sr.id)} aria-label={t('signProgress.action', '액션') as string} title={t('signProgress.action', '액션') as string}>
+                    <ActionToggle type="button" data-testid="sign-row-actions" onClick={() => setActionMenuId(actionMenuId === sr.id ? null : sr.id)} aria-label={t('signProgress.action', '액션') as string} title={t('signProgress.action', '액션') as string}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="6" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="18" r="1"/></svg>
                     </ActionToggle>
                     {actionMenuId === sr.id && (
@@ -293,6 +316,13 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         confirmText={t('signProgress.cancelConfirmBtn', '취소하기') as string}
         cancelText={t('common.close', '닫기') as string}
         variant="danger"
+      />
+
+      <InternalSignModal
+        open={!!signTarget}
+        request={signTarget}
+        onClose={() => setSignTarget(null)}
+        onSigned={() => { setSignTarget(null); void reload(); }}
       />
 
       {/* 서명 이미지 라이트박스 — 공통 ImageLightbox */}
@@ -504,4 +534,20 @@ const SkeletonRow = styled.div`
   border-radius: 8px;
   animation: shimmer 1.4s infinite ease-in-out;
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+`;
+
+// 서명란 — 칸 번호 · 구분 (2026-09-22)
+const PartyChip = styled.span<{ $us?: boolean }>`
+  margin-left:6px;padding:1px 6px;border-radius:999px;font-size:0.625rem;font-weight:700;
+  background:${p => (p.$us ? '#F0FDFA' : '#F1F5F9')};color:${p => (p.$us ? '#0F766E' : '#475569')};
+`;
+const SlotChip = styled.span`
+  margin-left:4px;display:inline-flex;align-items:center;justify-content:center;
+  min-width:16px;padding:1px 4px;border-radius:5px;background:#F1F5F9;color:#64748B;
+  font-size:0.5625rem;font-weight:700;line-height:1.2;
+`;
+const SignNowBtn = styled.button`
+  border:1px solid #14B8A6;background:#14B8A6;color:#fff;border-radius:8px;
+  padding:5px 10px;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;
+  &:hover { background:#0F9488;border-color:#0F9488; }
 `;

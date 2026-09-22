@@ -117,6 +117,8 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
       await t.rollback(); return errorResponse(res, 'forbidden', 403);
     }
 
+    // 서명란(2026-09-22) — signers[].slot(칸 번호) · party('us' 보내는 쪽 | 'them' 받는 쪽) · user_id(보내는 쪽 멤버)
+    //   보내는 쪽은 **이메일 링크를 보내지 않는다.** 멤버가 앱 안에서(로그인 상태) 서명한다 — POST /signatures/:id/sign-internal
     const signers = Array.isArray(req.body?.signers) ? req.body.signers : [];
     if (signers.length === 0) { await t.rollback(); return errorResponse(res, 'signers_required', 400); }
     if (signers.length > 10) { await t.rollback(); return errorResponse(res, 'too_many_signers', 400); }
@@ -141,8 +143,22 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     // 멱등 처리: 같은 (entity, signer_email) 의 pending/sent/viewed 가 있으면 그것 갱신
     const created = [];
     for (const s of signers) {
-      const email = String(s.email || '').trim().toLowerCase();
-      const name = s.name ? String(s.name).slice(0, 100) : null;
+      const party = s.party === 'us' ? 'us' : 'them';
+      const slot = Number.isFinite(Number(s.slot)) && Number(s.slot) > 0 ? Number(s.slot) : null;
+      let email = String(s.email || '').trim().toLowerCase();
+      let name = s.name ? String(s.name).slice(0, 100) : null;
+      let signerUserId = null;
+      if (party === 'us') {
+        // 보내는 쪽 — 우리 워크스페이스 멤버여야 한다. 아무 이메일이나 «우리» 로 둔갑시키지 않는다.
+        signerUserId = Number(s.user_id) || req.user.id;
+        if (!(await assertMember(signerUserId, post.business_id, false))) {
+          await t.rollback(); return errorResponse(res, 'invalid_internal_signer', 400);
+        }
+        const u = await User.findByPk(signerUserId, { attributes: ['email', 'name'], transaction: t });
+        if (!u) { await t.rollback(); return errorResponse(res, 'invalid_internal_signer', 400); }
+        email = String(u.email).toLowerCase();
+        name = name || u.name || null;
+      }
       if (!EMAIL_RE.test(email)) { await t.rollback(); return errorResponse(res, `invalid_email: ${email}`, 400); }
       const existing = await SignatureRequest.findOne({
         where: {
@@ -160,10 +176,13 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
         // 만료·메모 갱신, 토큰 그대로 (재발송)
         await existing.update({
           signer_name: name || existing.signer_name,
+          slot: slot != null ? slot : existing.slot,
+          party, signer_user_id: signerUserId,
           note, expires_at: expiresAt,
           reminder_count: existing.reminder_count + 1,
           last_reminder_at: new Date(),
-          status: 'sent',
+          // 보내는 쪽은 메일이 나가지 않는다 — 'sent' 로 두면 «발송됨» 이 거짓말이 된다.
+          status: party === 'us' ? 'pending' : 'sent',
         }, { transaction: t });
         row = existing;
       } else {
@@ -171,9 +190,10 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
           entity_type: 'post', entity_id: post.id, business_id: post.business_id,
           requester_user_id: req.user.id,
           signer_email: email, signer_name: name,
+          slot, party, signer_user_id: signerUserId,
           token: genToken(),
           kind,
-          note, expires_at: expiresAt, status: 'sent',
+          note, expires_at: expiresAt, status: party === 'us' ? 'pending' : 'sent',
           // 서명 대상 동결 — 재발송(existing)에는 다시 찍지 않는다.
           //   이미 상대가 본 대상을 조용히 바꾸면 그게 더 큰 사고다.
           ...snapshot,
@@ -188,6 +208,8 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     // 트랜잭션 커밋 후 외부 호출 (이메일·채팅)
     const docTitle = post.title;
     for (const row of created) {
+      // 보내는 쪽(우리 멤버)에게는 서명 링크 메일을 보내지 않는다 — 앱 안에서 서명한다
+      if (row.party === 'us') continue;
       const signUrl = `${APP_URL}/sign/${row.token}`;
       await sendSignatureRequestEmail({
         to: row.signer_email,
@@ -208,9 +230,9 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     if (sendChat && convId) {
       const conv = await Conversation.findOne({ where: { id: convId, business_id: post.business_id } });
       if (conv) {
-        // 첫 서명자의 token URL을 카드 메시지로 (개별 서명자는 이메일로도 받음)
-        const first = created[0];
-        const signUrl = `${APP_URL}/sign/${first.token}`;
+        // ★ 2026-09-22 — 카드에 **토큰 URL 을 싣지 않는다.** 방에 있는 누구나 그 사람 대신
+        //   서명 화면에 들어갈 수 있었다(링크 자체가 열쇠다). 카드는 제목·서명자·진행만 보여주고,
+        //   [서명하기] 는 본인 이메일을 받아 그 주소로 링크를 보낸다(POST /api/sign/request-link).
         const msg = await Message.create({
           conversation_id: conv.id,
           sender_id: req.user.id,
@@ -219,7 +241,8 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
           meta: {
             card_type: 'signature_request',
             entity_type: 'post', entity_id: post.id,
-            title: docTitle, sign_url: signUrl, signers: created.map(c => ({ email: c.signer_email, status: c.status })),
+            title: docTitle,
+            signers: created.filter(c => c.party !== 'us').map(c => ({ email: c.signer_email, status: c.status })),
             note: created[0]?.note || null,
           },
           is_ai: false, is_internal: false,
@@ -602,6 +625,8 @@ function serialize(sr) {
     business_id: sr.business_id,
     requester_user_id: sr.requester_user_id,
     signer_email: sr.signer_email, signer_name: sr.signer_name,
+    // 서명란 — 화면이 «몇 번 칸 · 보내는/받는 쪽» 을 그리고, 내 칸이면 [서명하기] 를 띄운다
+    slot: sr.slot ?? null, party: sr.party || 'them', signer_user_id: sr.signer_user_id ?? null,
     token: sr.token,
     sign_url: `${APP_URL}/sign/${sr.token}`,
     status: sr.status,

@@ -548,5 +548,13 @@
     "desc": "Send a link and they can join the conversation and view files — no sign-in needed.",
     "cta": "Send client link",
     "later": "Not now"
+  },
+  "signLink": {
+    "title": "Get the signing link",
+    "hint": "The signing link is sent only to your own email. Enter the address that received the request.",
+    "send": "Send link",
+    "sentMsg": "If that address is on the signer list, the link is on its way. Please check your inbox.",
+    "failed": "Could not send. Please try again shortly.",
+    "tooMany": "Too many requests. Please try again shortly."
   }
 }

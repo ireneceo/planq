@@ -569,6 +569,9 @@ app.use('/api', require('./routes/signature_confirm'));
 // 서명 공개 조회 — /api/sign/:token · /api/sign/:token/attachments/:fileId (무인증, 토큰 범위 한정).
 //   signatures.js god-file 분리(2026-08-27). base 는 같다.
 app.use('/api', require('./routes/signature_public'));
+// 보내는 쪽(우리 멤버) 서명 — /api/signatures/:id/sign-internal (로그인이 본인 확인).
+//   2026-09-22 분리. 꼬리 경로가 고유해 signatures 와 겹치지 않는다(가드 --category=duproute 가 센다).
+app.use('/api', require('./routes/signature_internal'));
 app.use('/api/inquiries', require('./routes/inquiries'));
 app.use('/api', require('./routes/kb'));
 app.use('/api/weekly-reviews', require('./routes/weekly_reviews'));

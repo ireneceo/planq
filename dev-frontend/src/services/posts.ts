@@ -487,6 +487,10 @@ export interface SignatureRequest {
   requester_user_id: number;
   signer_email: string;
   signer_name: string | null;
+  // 서명란 (2026-09-22) — slot NULL 이면 서명란 없이 받은 옛 요청(문서 끝 서명 영역)
+  slot?: number | null;
+  party?: 'us' | 'them';
+  signer_user_id?: number | null;
   token: string;
   sign_url: string;
   status: SignatureStatus;
@@ -505,7 +509,8 @@ export interface SignatureRequest {
 }
 
 export async function requestSignatures(postId: number, payload: {
-  signers: Array<{ email: string; name?: string }>;
+  //   서명란(2026-09-22) — slot(칸 번호) · party('us' 보내는 쪽 = 멤버가 앱 안에서 서명 | 'them' 받는 쪽)
+  signers: Array<{ email: string; name?: string; slot?: number; party?: 'us' | 'them'; user_id?: number }>;
   /** #239 — 'confirm' 이면 확인 요청(OTP 없음), 미지정/'sign' 이면 기존 서명 요청 */
   kind?: 'sign' | 'confirm';
   note?: string;
@@ -521,6 +526,34 @@ export async function requestSignatures(postId: number, payload: {
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'signature request failed');
   return j.data;
+}
+
+export interface SignedDocView {
+  has_signatures: boolean;
+  html?: string; css?: string; title?: string;
+  total?: number; signed?: number; complete?: boolean; frozen?: boolean;
+}
+/**
+ * 서명본 — **서버가 조립한다**(services/signedDocument). 화면이 서명을 직접 끼우면
+ * PDF·공유 링크와 갈라진다(설계 docs/SIGNATURE_FIELD_DESIGN.md §2).
+ */
+export async function getSignedHtml(postId: number): Promise<SignedDocView> {
+  const r = await apiFetch(`/api/posts/${postId}/signed-html`);
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j?.success) return { has_signatures: false };
+  return j.data as SignedDocView;
+}
+
+/** 보내는 쪽 서명 — 인증번호 없이 로그인으로 본인 확인. 서버: POST /api/signatures/:id/sign-internal */
+export async function signInternal(signatureId: number, imageDataUrl: string): Promise<void> {
+  const r = await apiFetch(`/api/signatures/${signatureId}/sign-internal`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ signature_image_b64: imageDataUrl, consent: true }),
+  });
+  const j = await r.json().catch(() => null);
+  // ★ 실패를 삼키지 않는다 — 삼키면 «눌렀는데 아무 일도 안 남» 이 된다.
+  if (!r.ok || !j?.success) throw new Error(j?.message || 'sign_failed');
 }
 
 export async function listSignatures(postId: number): Promise<SignatureRequest[]> {

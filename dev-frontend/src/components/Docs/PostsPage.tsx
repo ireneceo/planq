@@ -10,6 +10,7 @@ import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { postContentToHtml } from '../../utils/postContentHtml';
+import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import HelpDot from '../Common/HelpDot';
 import AiActionButton from '../Common/AiActionButton';
 import SlotFormModal from './SlotFormModal';
@@ -40,8 +41,8 @@ import {
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory, renameCategory, deleteCategory,
   updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
-  downloadPostDocx,
-  type PostRow, type PostDetail, type PostsMeta,
+  downloadPostDocx, getSignedHtml,
+  type PostRow, type PostDetail, type PostsMeta, type SignedDocView,
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
 import DetailFallback from '../Common/DetailFallback';
@@ -370,6 +371,17 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // content_json → HTML 변환. 변환·정화는 utils/postContentHtml 한 곳 —
   //   무로그인 열람 화면(GuestDocsTab)이 같은 함수를 쓴다.
   const renderContentToHtml = useCallback((contentJson: unknown): string => postContentToHtml(contentJson), []);
+
+  // 서명본 — 서명 요청이 하나라도 있으면 본문 자리에 «고정본 + 서명» 을 그린다.
+  //   서명 진행이 바뀌면(요청·서명 완료) 같이 다시 읽는다 — signReloadKey 가 그 신호다.
+  const [signedDoc, setSignedDoc] = useState<SignedDocView | null>(null);
+  useEffect(() => {
+    const id = detail?.id;
+    if (!id) { setSignedDoc(null); return undefined; }
+    let alive = true;
+    void getSignedHtml(id).then((v) => { if (alive) setSignedDoc(v); });
+    return () => { alive = false; };
+  }, [detail?.id, signReloadKey]);
 
   const filteredTemplates = useMemo(() => {
     const q = tplSearch.trim().toLowerCase();
@@ -2264,6 +2276,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                     {detail.content_json && <SectionGap />}
                     <PostTableGrid recordId={detail.q_record_id} businessId={scope.businessId} readOnly />
                   </>
+                ) : signedDoc?.has_signatures && signedDoc.html ? (
+                  // 서명본 — 고정본 + 서명. 조립은 서버 한 곳이라 PDF·공유 링크와 같은 그림이다.
+                  //   ★ 편집기로 그리지 않는다 — 편집기는 서명란을 «빈 자리» 로만 안다.
+                  <SignedBody
+                    data-testid="doc-signed-body"
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichText(signedDoc.html) }}
+                  />
                 ) : (
                   <PostEditor value={detail.content_json} onChange={() => {}} editable={false} borderless />
                 )}
@@ -3295,4 +3314,25 @@ const StaleBtn = styled.button<{ $danger?: boolean }>`
   background: #fff;
   border: 1px solid ${(p) => (p.$danger ? '#FECACA' : '#99F6E4')};
   &:hover { background: ${(p) => (p.$danger ? '#FEF2F2' : '#F0FDFA')}; }
+`;
+
+// 서명본 본문 — 서버가 조립한 HTML 을 그대로 그린다. 서명 칸 규격은 서버
+// services/signedDocument.js `SIGNED_CSS` 가 정본이고, 여기서는 **본문 타이포만** 맞춘다.
+const SignedBody = styled.div`
+  font-size: 0.9375rem; line-height: 1.75; color: #1E293B;
+  h1, h2, h3 { margin: 1.2em 0 0.5em; line-height: 1.35; }
+  p { margin: 0 0 0.75em; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #E2E8F0; padding: 6px 8px; }
+  img { max-width: 100%; }
+  .pq-sig { border: 1px solid #CBD5E1; border-radius: 8px; padding: 10px 12px; margin: 12px 0; min-height: 64px; }
+  .pq-sig-cap { font-size: 0.6875rem; font-weight: 700; color: #64748B; margin-bottom: 4px; }
+  .pq-sig-empty { color: #94A3B8; font-size: 0.75rem; border-bottom: 1px dashed #CBD5E1; padding-bottom: 14px; }
+  .pq-sig-done { border-color: #14B8A6; background: #F0FDFA; }
+  .pq-sig-img { display: block; max-height: 64px; max-width: 220px; }
+  .pq-sig-meta { font-size: 0.75rem; color: #334155; margin-top: 4px; }
+  .pq-sig-badge { font-size: 0.625rem; color: #0F766E; margin-top: 2px; }
+  .pq-sig-rejected { border-color: #FCA5A5; background: #FEF2F2; }
+  .pq-sig-no { color: #B91C1C; font-size: 0.75rem; font-weight: 700; padding: 6px 0; }
+  .pq-sig-zone { margin-top: 20px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 `;

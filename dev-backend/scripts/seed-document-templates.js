@@ -102,7 +102,7 @@ const QUOTE_BODY = `<h1>견 적 서 (QUOTATION)</h1>
 <tr><th></th><th>공급자</th><th>공급받는 자</th></tr>
 <tr><td>회사명</td><td>{{business.name}}</td><td>{{client.name}}</td></tr>
 <tr><td>대표자</td><td>{{business.ceo}}</td><td>—</td></tr>
-<tr><td>서명 / 날인</td><td>—</td><td>—</td></tr>
+<tr><td>서명 / 날인</td><td><div data-signature-field data-slot="1" data-party="us"></div></td><td><div data-signature-field data-slot="2" data-party="them"></div></td></tr>
 <tr><td>일자</td><td>{{issued_at}}</td><td>—</td></tr>
 </tbody></table>`;
 
@@ -252,8 +252,8 @@ const NDA_BODY = `<h1>비밀유지계약서 (Non-Disclosure Agreement)</h1>
 <h2>서명</h2>
 <table><tbody>
 <tr><th>구분</th><th>회사명</th><th>대표자</th><th>서명 / 날인</th><th>일자</th></tr>
-<tr><td>갑</td><td>{{party_a.name}}</td><td>—</td><td>—</td><td>{{effective_date}}</td></tr>
-<tr><td>을</td><td>{{party_b.name}}</td><td>—</td><td>—</td><td>{{effective_date}}</td></tr>
+<tr><td>갑</td><td>{{party_a.name}}</td><td>—</td><td><div data-signature-field data-slot="1" data-party="us"></div></td><td>{{effective_date}}</td></tr>
+<tr><td>을</td><td>{{party_b.name}}</td><td>—</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>{{effective_date}}</td></tr>
 </tbody></table>`;
 
 // ════════════════════════════════════════════════════════════════
@@ -543,8 +543,8 @@ const CONTRACT_BODY = `<h1>용역 계약서 (Service Agreement)</h1>
 <h2>서명</h2>
 <table><tbody>
 <tr><th>구분</th><th>회사명</th><th>대표자</th><th>서명 / 날인</th><th>일자</th></tr>
-<tr><td>갑</td><td>{{business.name}}</td><td>{{business.ceo}}</td><td>—</td><td>{{effective_date}}</td></tr>
-<tr><td>을</td><td>{{client.name}}</td><td>—</td><td>—</td><td>{{effective_date}}</td></tr>
+<tr><td>갑</td><td>{{business.name}}</td><td>{{business.ceo}}</td><td><div data-signature-field data-slot="1" data-party="us"></div></td><td>{{effective_date}}</td></tr>
+<tr><td>을</td><td>{{client.name}}</td><td>—</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>{{effective_date}}</td></tr>
 </tbody></table>`;
 
 // ════════════════════════════════════════════════════════════════
@@ -652,8 +652,8 @@ const SOW_BODY = `<h1>작업 명세서 (Statement of Work)</h1>
 <h2>승인</h2>
 <table><tbody>
 <tr><th>구분</th><th>회사명</th><th>담당자</th><th>서명</th><th>일자</th></tr>
-<tr><td>갑</td><td>{{business.name}}</td><td>—</td><td>—</td><td>—</td></tr>
-<tr><td>을</td><td>{{client.name}}</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>갑</td><td>{{business.name}}</td><td>—</td><td><div data-signature-field data-slot="1" data-party="us"></div></td><td>—</td></tr>
+<tr><td>을</td><td>{{client.name}}</td><td>—</td><td><div data-signature-field data-slot="2" data-party="them"></div></td><td>—</td></tr>
 </tbody></table>`;
 
 const TEMPLATES = [

@@ -269,7 +269,9 @@
       "toSplit": "Create a split-payment schedule from this contract",
       "rejected": "Signature rejected",
       "rejectedDesc": "The signer rejected. Review the reason and send a new request after discussion."
-    }
+    },
+    "partyUs": "Sender",
+    "signNow": "Sign now"
   },
   "publicSign": {
     "loading": "Loading document...",
@@ -337,7 +339,8 @@
     },
     "attachments": "Attachments ({{n}}) — part of this document",
     "scopeNotice": "You are signing the document below and its {{n}} attachment(s). The content is frozen as of the request, so what you see here is what you sign.",
-    "scopeNoticeNoAttach": "You are signing the document below. The content is frozen as of the request, so what you see here is what you sign."
+    "scopeNoticeNoAttach": "You are signing the document below. The content is frozen as of the request, so what you see here is what you sign.",
+    "mySlot": "Block {{n}} in the document below is your signature space. It is outlined for you."
   },
   "sign": {
     "button": "Get signatures",
@@ -377,7 +380,13 @@
     "kindConfirm": "Confirmation request",
     "confirmers": "Who should confirm",
     "kindSignHint": "The recipient verifies by email code (6 digits), then signs. Use for contracts and anything that needs weight.",
-    "kindConfirmHint": "The recipient opens the link and taps the review button, or leaves a comment. No extra verification, so it stays light."
+    "kindConfirmHint": "The recipient opens the link and taps the review button, or leaves a comment. No extra verification, so it stays light.",
+    "slotHint": "This document has signature blocks. Assign a signer to each block.",
+    "slotIncomplete": "Assign a signer to every signature block",
+    "partyUs": "Sender",
+    "partyThem": "Recipient",
+    "pickMember": "Choose a member to sign",
+    "usNote": "The sender side signs inside the app — no email, no code (login proves identity)."
   },
   "ai": {
     "btn": "AI",
@@ -572,7 +581,12 @@
     "alignCenter": "Align center",
     "alignRight": "Align right",
     "codeInsertAbove": "Add a paragraph above the code block",
-    "codeInsertBelow": "Add a paragraph below the code block"
+    "codeInsertBelow": "Add a paragraph below the code block",
+    "insertSignature": "Insert signature block — you assign a signer to it when requesting signatures",
+    "sigFieldUs": "Sender",
+    "sigFieldThem": "Recipient",
+    "sigFieldEmpty": "Signature",
+    "insertSignatureAria": "Insert signature block"
   },
   "tab": {
     "title": "Docs",
@@ -751,5 +765,17 @@
     "notFoundHint": "The document was deleted or sharing was stopped. Please ask the sender for a new link.",
     "openInApp": "Open in the PlanQ app",
     "downloadPdf": "Download PDF"
+  },
+  "internalSign": {
+    "title": "Sign",
+    "hint": "Draw your signature in the box below. Mouse or finger both work.",
+    "padLabel": "Draw signature",
+    "clear": "Clear",
+    "submit": "Complete signature",
+    "consent": "I have reviewed this document and agree that this signature is legally binding as an electronic signature.",
+    "idNote": "Your login stands in for identity verification. The time and connection details are recorded with the signature.",
+    "drawRequired": "Please draw your signature.",
+    "consentRequired": "You must check the consent box to sign.",
+    "failed": "Could not sign."
   }
 }

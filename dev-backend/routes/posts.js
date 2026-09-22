@@ -62,6 +62,25 @@ async function assertMember(userId, businessId, isPlatformAdmin) {
   return assertMemberOrAbove(userId, businessId, isPlatformAdmin ? 'platform_admin' : null);
 }
 
+/**
+ * 문서를 **읽을 수 있는가** — 본문 조회와 서명본이 **같은 판정**을 쓴다 (2026-09-22).
+ *
+ * ★ 서명본(`/signed-html`)을 처음엔 `assertMember` 로 막았는데, 본문은 고객(Client)에게도 열린다.
+ *   그러면 고객이 자기 계약서를 앱에서 열었을 때 **본문은 보이는데 서명 칸만 «서명 전»** 으로 남는다 —
+ *   사용자에게는 "내가 서명했는데 안 들어갔다" 로 읽힌다(memory feedback_predicate_must_match_both_sides).
+ *   판정을 두 벌로 두지 않는다.
+ */
+async function canReadPost(user, post) {
+  const scope = await getUserScope(user.id, post.business_id, user.platform_role);
+  // 사이클 N+9: 옵션 A — vlevel 단계별 권한.
+  // Client 는 옛 헬퍼 사용 (project-client 자기 프로젝트 post 만).
+  if (scope.isClient) {
+    const { canAccessPost } = require('../middleware/access_scope');
+    return await canAccessPost(user.id, post, scope);
+  }
+  return await canAccessPostByLevel(user.id, post, scope);
+}
+
 // 워크스페이스 + client 통합 (조회 액션용)
 async function assertWorkspaceOrClient(userId, businessId, platformRole) {
   const scope = await getUserScope(userId, businessId, platformRole);
@@ -402,17 +421,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       ],
     });
     if (!post) return errorResponse(res, 'not_found', 404);
-    const scope = await getUserScope(req.user.id, post.business_id, req.user.platform_role);
-    // 사이클 N+9: 옵션 A — vlevel 단계별 권한.
-    // Client 는 옛 헬퍼 사용 (project-client 자기 프로젝트 post 만).
-    let allowed;
-    if (scope.isClient) {
-      const { canAccessPost } = require('../middleware/access_scope');
-      allowed = await canAccessPost(req.user.id, post, scope);
-    } else {
-      allowed = await canAccessPostByLevel(req.user.id, post, scope);
-    }
-    if (!allowed) {
+    if (!(await canReadPost(req.user, post))) {
       return errorResponse(res, 'forbidden', 403);
     }
     // ★ silent — 조회수 증가가 updated_at 을 건드리면 안 된다.
@@ -1531,7 +1540,25 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
 });
 
 // ─── PDF 다운로드 (멤버) ───
-async function buildPostPdf(post) {
+// 서명본 — **고정본 + 서명**. 서명 요청이 하나라도 있으면 PDF 는 서명본으로 나간다.
+//   재료를 모으는 곳은 services/signedDocument.loadSignedView **한 곳**이다.
+async function postSignedView(post, req) {
+  const sd = require('../services/signedDocument');
+  const view = await sd.loadSignedView('post', post.id);
+  if (!view.total) return { view: null, doc: post, labels: null };
+  const doc = view.frozen
+    ? {
+      ...post.toJSON(),
+      title: view.frozen.title || post.title,
+      content_json: view.frozen.content_json,
+      content_html: null, content_text: null,
+    }
+    : post;
+  return { view, doc, labels: sd.labelsFor(req) };
+}
+
+// @param {boolean} withCert  증명서 장(이메일·IP 포함) — 멤버 PDF 만 true. 공개 링크 PDF 는 false.
+async function buildPostPdf(post, req, withCert) {
   let author = post.author ? { id: post.author.id, name: post.author.name } : null;
   // 워크스페이스 표시명 우선 (PDF 작성자도 닉네임)
   if (author?.id) {
@@ -1544,9 +1571,38 @@ async function buildPostPdf(post) {
   });
   const { postPdfHtml } = require('../services/pdfTemplates');
   const { renderPdfFromHtml } = require('../services/pdfService');
-  const html = postPdfHtml(post, author, business?.toJSON() || {});
+  const { view, doc, labels } = await postSignedView(post, req);
+  const html = postPdfHtml(doc, author, business?.toJSON() || {},
+    view ? { requests: view.requests, labels, cert: !!withCert } : null);
   return renderPdfFromHtml(html);
 }
+
+// GET /api/posts/:id/signed-html — 앱 안 문서 화면이 서명본을 그릴 때 쓴다.
+//   화면이 스스로 서명을 끼우면 PDF·공유 링크와 갈라진다 — 조립은 서버 한 곳이다.
+router.get('/:id/signed-html', authenticateToken, async (req, res, next) => {
+  try {
+    const post = await Post.findByPk(req.params.id);
+    if (!post) return errorResponse(res, 'not_found', 404);
+    // ★ 본문 조회(GET /:id)와 **같은 술어**. 멤버로만 막으면 고객이 자기 계약서를 열었을 때
+    //   본문은 보이는데 서명만 «서명 전» 으로 남는다.
+    if (!(await canReadPost(req.user, post))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const sd = require('../services/signedDocument');
+    const { view, doc, labels } = await postSignedView(post, req);
+    if (!view) return successResponse(res, { has_signatures: false });
+    const { richBodyToHtml } = require('../services/pdfTemplates');
+    const body = richBodyToHtml(doc.content_json, doc.content_html, doc.content_text);
+    return successResponse(res, {
+      has_signatures: true,
+      html: sd.injectSignatures(body, view.requests, labels),
+      css: sd.SIGNED_CSS,
+      title: doc.title,
+      total: view.total, signed: view.signed, complete: view.complete,
+      frozen: !!view.frozen,
+    });
+  } catch (err) { next(err); }
+});
 
 router.get('/:id/pdf', authenticateToken, async (req, res, next) => {
   try {
@@ -1557,7 +1613,7 @@ router.get('/:id/pdf', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    const pdf = await buildPostPdf(post);
+    const pdf = await buildPostPdf(post, req, true);
     res.setHeader('Content-Type', 'application/pdf');
     // ASCII filename + RFC 5987 UTF-8 filename* (한글 등 비 ASCII 문자 지원)
     const asciiName = (post.title || 'document').replace(/[^\w-]/g, '_').slice(0, 80) || 'document';
@@ -1606,7 +1662,7 @@ router.get('/public/:token/pdf', async (req, res, next) => {
       }
       if (why) return errorResponse(res, 'not_found', 404);
     }
-    const pdf = await buildPostPdf(post);
+    const pdf = await buildPostPdf(post, req);
     res.setHeader('Content-Type', 'application/pdf');
     // ASCII filename + RFC 5987 UTF-8 filename* (한글 등 비 ASCII 문자 지원)
     const asciiName = (post.title || 'document').replace(/[^\w-]/g, '_').slice(0, 80) || 'document';
@@ -1684,6 +1740,20 @@ router.get('/public/:token', async (req, res, next) => {
       void hidden;
     }
     delete safe.share_token;
+    // 서명본 — 앱 안 문서·PDF 와 **같은 조립**(services/signedDocument). 화면이 따로 끼우면 갈라진다.
+    //   ★ 증명서 장은 싣지 않는다 — 이메일·IP 가 들어가고, 이 링크는 소지자 누구나 연다.
+    {
+      const sd = require('../services/signedDocument');
+      const { view, doc, labels } = await postSignedView(post, req);
+      if (view) {
+        const { richBodyToHtml } = require('../services/pdfTemplates');
+        safe.signed_html = sd.injectSignatures(
+          richBodyToHtml(doc.content_json, doc.content_html, doc.content_text), view.requests, labels);
+        safe.signed_css = sd.SIGNED_CSS;
+        safe.signature_progress = { total: view.total, signed: view.signed, complete: view.complete };
+        if (doc.title) safe.title = doc.title;   // 고정본의 제목이 계약의 제목이다
+      }
+    }
     await applyMemberDisplayNameOne(safe, post.business_id, ['author', 'editor']);
     return successResponse(res, safe);
   } catch (err) { next(err); }

@@ -64,6 +64,12 @@ const SUITES = {
   imgresize: () => require('./canary-image-resize'),
   mobileboot: () => require('./canary-mobile-boot'), // 콜드스타트 착지 · 재진입 즉시표시 · Cue 키보드 (저장소+뷰포트+키보드가 합쳐진 뒤에만 존재)
   trash: () => require('./canary-file-trash'),
+  // 서명란·서명본·우리 측 서명 (2026-09-22). API 가 맞는데 **화면에 안 보이는** 계열이라
+  //   rect + elementFromPoint + 실제 테두리 색으로 잰다. 대조군: 동의 전 제출 막힘 · 남의 칸은 강조 아님.
+  signature: () => require('./canary-signature-field'),
+  // 서명 **전체 여정** — 멤버 서명 → 고객이 링크·인증번호로 서명 → 완료 → 고정본·PDF.
+  //   조각별 검사(signature)와 다른 축이다: 끝까지 걸어야 «중간에 막히는» 것이 드러난다.
+  signflow: () => require('./canary-signature-flow'),
   // Q sale 우측 패널이 **한 벌인가** — 문의로 열어도 고객 액션이 있는가 · 이름 중복 · 푸터 한 줄 ·
   //   저장 액션이 묻고 나서 나가는가 · **패널이 열려도 뒤 목록이 스크롤되는가**(2026-09-13 계약 변경).
   //   전부 CSS·런타임이 합쳐진 뒤에만 존재하는 종류라 정적 검사로는 안 잡힌다.

@@ -27,6 +27,18 @@ router.get('/sign/:token', async (req, res, next) => {
     const entity = await loadEntity(sr.entity_type, sr.entity_id);
     if (!entity) return errorResponse(res, 'entity_missing', 404);
 
+    // 서명본 조립 — 실패해도 서명 자체는 막지 않는다(본문은 content_json 으로 그려진다).
+    let signedHtml = null;
+    try {
+      const sd = require('../services/signedDocument');
+      const view = await sd.loadSignedView(sr.entity_type, sr.entity_id);
+      if (view.total) {
+        const body = require('../services/pdfTemplates').richBodyToHtml(
+          parseMaybeJson(sr.content_snapshot) ?? parseMaybeJson(entity.content_json), null, null);
+        signedHtml = sd.injectSignatures(body, view.requests, sd.labelsFor(req));
+      }
+    } catch (e) { console.warn('[sign] 서명본 조립 실패', e.message); }
+
     return successResponse(res, {
       token: sr.token,
       signer_email: sr.signer_email,
@@ -41,6 +53,10 @@ router.get('/sign/:token', async (req, res, next) => {
       signed_at: sr.signed_at,
       signature_image_b64: sr.signature_image_b64,  // 서명 후 미리보기
       note: sr.note,
+      // 서명란(2026-09-22) — 화면이 «내 칸» 을 문서 안에서 강조한다. 어디에 들어가는지 모른 채
+      //   서명하게 두지 않는다(설계 §1). slot NULL 이면 서명란 없는 옛 요청이다.
+      slot: sr.slot == null ? null : sr.slot,
+      party: sr.party || 'them',
       entity: {
         type: sr.entity_type,
         id: sr.entity_id,
@@ -58,6 +74,9 @@ router.get('/sign/:token', async (req, res, next) => {
           file_id: a.file_id, name: a.name, size: a.size, mime: a.mime,
         })),
         snapshot_at: sr.snapshot_at,
+        // 서명본 — 이미 서명된 칸은 그 서명이 보인다(다른 사람이 먼저 서명했을 수 있다).
+        //   조립은 services/signedDocument 한 곳. ★ 증명서(이메일·IP)는 싣지 않는다.
+        signed_html: signedHtml,
         project: entity.Project ? { id: entity.Project.id, name: entity.Project.name } : null,
       },
     });
@@ -99,6 +118,63 @@ router.get('/sign/:token/attachments/:fileId', async (req, res, next) => {
       disposition: `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.file_name || asciiName)}`,
     });
     return res.sendFile(require('path').resolve(file.file_path));
+  } catch (err) { next(err); }
+});
+
+// POST /api/sign/request-link — 채팅 카드의 [서명하기] (2026-09-22, 설계 §4)
+//
+// ★ 여러 사람이 보는 방에 **서명자별 링크(=그 사람의 열쇠)를 올리지 않는다.**
+//   여태 카드에 첫 서명자의 토큰 URL 이 그대로 실려, 방에 있는 누구나 그 사람 대신
+//   서명 화면에 들어갈 수 있었다(본인 확인은 그 뒤 이메일 인증번호가 하지만, 링크 자체가 열쇠다).
+//   대신 «내 이메일» 을 받아 **그 주소로** 링크를 보낸다 — 주소의 주인만 받는다.
+//
+// 열거 방지: 명단에 없어도 **같은 응답**을 준다. 다르게 답하면 이 문이 "이 사람이 서명자인가" 를
+//   알려 주는 조회 창구가 된다. 실패도 성공도 { sent: true }.
+const linkLimiter = require('express-rate-limit')({
+  windowMs: 10 * 60 * 1000, max: 5,
+  keyGenerator: (req) => `${req.body?.entity_id || ''}:${require('express-rate-limit').ipKeyGenerator(req.ip)}`,
+  message: { success: false, message: 'rate_limit_link' },
+});
+router.post('/sign/request-link', linkLimiter, async (req, res, next) => {
+  try {
+    const entityType = req.body?.entity_type === 'document' ? 'document' : 'post';
+    const entityId = Number(req.body?.entity_id || 0);
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!entityId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return errorResponse(res, 'invalid_request', 400);
+    }
+    const { SignatureRequest, User, Business } = require('../models');
+    const { Op } = require('sequelize');
+    const sr = await SignatureRequest.findOne({
+      where: {
+        entity_type: entityType, entity_id: entityId, signer_email: email,
+        kind: 'sign', party: 'them',           // 보내는 쪽(멤버)에게는 메일 링크가 없다
+        status: { [Op.in]: ['pending', 'sent', 'viewed'] },
+      },
+      order: [['id', 'DESC']],
+    });
+    if (sr && !isExpiredNow(sr)) {
+      const entity = await loadEntity(sr.entity_type, sr.entity_id);
+      const business = await Business.findByPk(sr.business_id, { attributes: ['name'] });
+      const sender = await User.findByPk(sr.requester_user_id, { attributes: ['name'] });
+      await require('../services/emailService').sendSignatureRequestEmail({
+        to: sr.signer_email,
+        docTitle: sr.title_snapshot || entity?.title || '문서',
+        senderName: sender?.name || '',
+        workspaceName: business?.name || '',
+        signerName: sr.signer_name,
+        message: sr.note,
+        signUrl: `${process.env.APP_URL || 'https://dev.planq.kr'}/sign/${sr.token}`,
+        expiresAt: sr.expires_at,
+      }).catch((e) => console.warn('[sign] 링크 재발송 실패', e.message));
+      await sr.update({ reminder_count: sr.reminder_count + 1, last_reminder_at: new Date() });
+      createAuditLog({
+        userId: sr.requester_user_id, businessId: sr.business_id, action: 'signature.link_requested',
+        targetType: 'SignatureRequest', targetId: sr.id, metadata: { signer: sr.signer_email },
+      });
+    }
+    // 명단에 없어도 같은 응답 — 열거 차단
+    return successResponse(res, { sent: true });
   } catch (err) { next(err); }
 });
 

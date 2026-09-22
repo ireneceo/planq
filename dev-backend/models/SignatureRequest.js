@@ -64,6 +64,13 @@ SignatureRequest.init({
   },
 
   // 서명자 정보 (외부 — 이메일 기반)
+  // ── 서명란 (2026-09-22) — 문서 어디에 이 서명이 들어가는지. scripts/migrate-signature-slot.js
+  //   slot NULL = 서명란 없이 받은 옛 요청(문서 끝 서명 영역으로 그린다)
+  slot: { type: DataTypes.INTEGER, allowNull: true },
+  //   us  = 보내는 쪽(멤버가 앱 안에서 로그인 상태로 서명 — 인증번호 없음)
+  //   them= 받는 쪽(이메일 링크 + 인증번호). 기본값 them 이라 옛 행·옛 코드와 같다
+  party: { type: DataTypes.ENUM('us', 'them'), allowNull: false, defaultValue: 'them' },
+  signer_user_id: { type: DataTypes.INTEGER, allowNull: true },
   signer_email: { type: DataTypes.STRING(255), allowNull: false },
   signer_name: { type: DataTypes.STRING(100), allowNull: true },
 

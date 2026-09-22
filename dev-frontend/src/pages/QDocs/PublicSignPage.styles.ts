@@ -69,9 +69,42 @@ export const ProjectChip = styled.div`
   font-size: 0.75rem; font-weight: 600; color: #0F766E;
   background: #F0FDFA; border: 1px solid #99F6E4; border-radius: 999px;
 `;
-export const DocBody = styled.div`
+// $mySlot — 이 서명자의 칸. 문서 안에서 **그 칸만** 테두리로 집어 준다.
+//   서명란 규격(.pq-sig*)은 서버 services/signedDocument.js `SIGNED_CSS` 가 정본이고,
+//   여기서는 화면 톤과 «내 칸» 강조만 얹는다.
+export const DocBody = styled.div<{ $mySlot?: number | null }>`
   margin-top: 12px; padding-top: 16px;
   border-top: 1px solid #E2E8F0;
+
+  .pq-sig { border: 1px solid #CBD5E1; border-radius: 8px; padding: 10px 12px; margin: 12px 0; min-height: 64px; }
+  .pq-sig-cap { font-size: 0.6875rem; font-weight: 700; color: #64748B; margin-bottom: 4px; }
+  .pq-sig-empty { color: #94A3B8; font-size: 0.75rem; border-bottom: 1px dashed #CBD5E1; padding-bottom: 14px; }
+  .pq-sig-done { border-color: #14B8A6; background: #F0FDFA; }
+  .pq-sig-img { display: block; max-height: 64px; max-width: 220px; }
+  .pq-sig-meta { font-size: 0.75rem; color: #334155; margin-top: 4px; }
+  .pq-sig-badge { font-size: 0.625rem; color: #0F766E; margin-top: 2px; }
+  .pq-sig-rejected { border-color: #FCA5A5; background: #FEF2F2; }
+  .pq-sig-no { color: #B91C1C; font-size: 0.75rem; font-weight: 700; padding: 6px 0; }
+  .pq-sig-zone { margin-top: 20px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+  ${p => (p.$mySlot != null ? `
+  .pq-sig[data-slot="${p.$mySlot}"] {
+    border: 2px solid #F43F5E; background: #FFF1F2;
+    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
+  }
+  .pq-sig[data-slot="${p.$mySlot}"] .pq-sig-cap::after {
+    content: ' ←';
+    color: #F43F5E;
+  }
+  ` : '')}
+`;
+export const SignedHtml = styled.div`
+  font-size: 0.9375rem; line-height: 1.75; color: #1E293B;
+  h1, h2, h3 { margin: 1.2em 0 0.5em; line-height: 1.35; }
+  p { margin: 0 0 0.75em; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #E2E8F0; padding: 6px 8px; }
+  img { max-width: 100%; }
 `;
 
 // 별첨 (2026-08-27) — 서명 대상에 포함된 파일 목록. 기존 카드 톤(NoteBox·DocBody)과 같은 결.

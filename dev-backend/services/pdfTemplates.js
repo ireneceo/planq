@@ -278,6 +278,11 @@ function nodeToHtml(n) {
   // 표 셀 병합 속성 — 웹(generateHTML)은 colspan/rowspan 을 그대로 낸다. 빠지면 표가 어긋난다.
   const span = `${a.colspan && a.colspan > 1 ? ` colspan="${Number(a.colspan)}"` : ''}${a.rowspan && a.rowspan > 1 ? ` rowspan="${Number(a.rowspan)}"` : ''}`;
   switch (n.type) {
+    // 서명란(2026-09-22) — 문서 안의 «여기에 서명이 들어간다» 자리. 값은 여기서 그리지 않는다:
+    //   services/signedDocument.js 가 고정본 HTML 에 서명(이미지·이름·일시)을 끼운다. 빠지면 PDF 에서 자리가 사라진다.
+    case 'signatureField':
+      return `<div data-signature-field data-slot="${Number(a.slot) || 1}" data-party="${a.party === 'us' ? 'us' : 'them'}"`
+        + `${a.label ? ` data-label="${escapeHtml(a.label)}"` : ''}></div>`;
     case 'paragraph': return `<p>${inner}</p>`;
     case 'heading': return `<h${a.level || 2}>${inner}</h${a.level || 2}>`;
     case 'bulletList': return `<ul>${inner}</ul>`;
@@ -302,9 +307,20 @@ function nodeToHtml(n) {
   }
 }
 
-function postPdfHtml(post, author, business) {
+// @param {object} [sig]  서명본으로 그릴 때 — { requests, labels, cert }. 조립은 services/signedDocument
+//   한 곳이고 여기서는 «끼운 결과» 를 받을 뿐이다(화면·공유 링크·PDF 가 같은 그림이 되게).
+//   ★ `cert`(증명서 장)는 **이메일·IP 가 실린다.** 링크만 있으면 누구나 여는 공개 PDF 에는 넣지 않는다.
+function postPdfHtml(post, author, business, sig) {
   // content_json(TEXT 문자열) 파싱 → TipTap 렌더. kb.js 는 content_html 로 넘어온다.
-  const bodyHtml = richBodyToHtml(post.content_json, post.content_html, post.content_text);
+  let bodyHtml = richBodyToHtml(post.content_json, post.content_html, post.content_text);
+  let certHtml = '';
+  let sigCss = '';
+  if (sig && Array.isArray(sig.requests) && sig.requests.length) {
+    const sd = require('./signedDocument');
+    bodyHtml = sd.injectSignatures(bodyHtml, sig.requests, sig.labels);
+    certHtml = sig.cert ? sd.certificateHtml(post, sig.requests, sig.labels) : '';
+    sigCss = sd.SIGNED_CSS + (sig.cert ? sd.CERT_CSS : '');
+  }
   const senderName = business?.legal_name || business?.brand_name || business?.name || '—';
   // routes/posts.js:buildPostPdf 는 Sequelize **인스턴스**를 넘긴다. 모델이 underscored 라
   // 인스턴스 속성은 `createdAt` 이고 `created_at` 은 undefined — 그래서 날짜가 '—' 로 찍혔다.
@@ -313,7 +329,7 @@ function postPdfHtml(post, author, business) {
   return `<!DOCTYPE html>
 <html lang="ko">
 <head><meta charset="utf-8"><title>${escapeHtml(post.title || '문서')}</title>
-<style>${BASE_CSS}</style></head>
+<style>${BASE_CSS}${sigCss}</style></head>
 <body>
   <div class="header">
     <div>
@@ -323,6 +339,7 @@ function postPdfHtml(post, author, business) {
     </div>
   </div>
   <div class="body-content">${bodyHtml}</div>
+  ${certHtml}
 </body>
 </html>`;
 }

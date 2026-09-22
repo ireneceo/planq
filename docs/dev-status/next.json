@@ -1,33 +1,73 @@
 {
   "working_on": [
-    "랜딩 방문 집계"
+    "서명란 · 서명본 (Q docs 서명)"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "플랫폼 관리자 > 랜딩 방문 — 쿠키 없는 방문 집계",
-      "detail": "랜딩(공개 소개·인사이트·Q위키)만 센다. 날짜×페이지×유입(네이버·구글·직접…)×기기 숫자만 저장, 순방문자는 하루 비밀 해시(IP·UA 미저장). 봇·로그인 사용자·워크스페이스 주소 제외. GA4 는 운영 CSP 해제(root)가 필요해 택하지 않았다.",
+      "title": "서명란 — 문서 안에 «보내는 쪽/받는 쪽» 칸",
+      "detail": "TipTap 노드 signatureField(slot·party·label). 편집기 툴바 [서명란], 서명 요청 창에서 칸마다 서명자 배정(보내는 쪽은 멤버 선택, 기본값=요청자). 기본 양식 4종(견적·NDA·용역계약·SOW)의 «—» 칸을 서명란으로 교체.",
+      "verified": "opus_only"
+    },
+    {
+      "title": "서명본 = 고정본 + 서명 — 조립은 서버 한 곳",
+      "detail": "services/signedDocument.js 가 요청 시점에 동결된 본문에 서명을 끼운다. 앱 문서(GET /api/posts/:id/signed-html)·공유 링크·공개 서명 화면·PDF 넷이 같은 결과를 쓴다. PDF 마지막 장 전자서명 증명서(지문·이메일·본인확인·서명시각·IP)는 멤버 PDF 에만 — 공개 PDF·공개 페이지에는 싣지 않는다.",
+      "verified": "opus_only"
+    },
+    {
+      "title": "우리 측 서명 — 로그인이 본인 확인",
+      "detail": "POST /api/signatures/:id/sign-internal (routes/signature_internal.js). 인증번호 대신 로그인. 동의·시각·IP·UA·고정본 재해시·감사·알림·거래단계는 공개 서명과 같은 것을 남긴다. 메일이 안 나가므로 요청 상태는 sent 가 아니라 pending.",
+      "verified": "opus_only"
+    },
+    {
+      "title": "거절이 문서에 드러난다",
+      "detail": "거절해도 문서·공유 링크·PDF 에 «서명 전» 으로만 보이던 것 수정. 칸에 «서명 거절» + 이름·시각. 사유는 서명본에 싣지 않고 멤버 진행 표에만 둔다(서명본 HTML 은 공개 링크로도 나간다).",
+      "verified": "opus_only"
+    },
+    {
+      "title": "채팅 카드에서 서명 토큰 링크 제거",
+      "detail": "서명 요청 카드 meta 에 첫 서명자의 토큰 URL 이 실려 있어, 그 대화방의 누구나 그 사람 대신 서명 화면에 들어갈 수 있었다. 카드에서 sign_url 을 빼고, [서명하기] 는 본인 이메일을 받아 그 주소로 보낸다(POST /api/sign/request-link · 무인증 · 10분 5회 · 명단에 없어도 같은 응답).",
+      "verified": "opus_only"
+    },
+    {
+      "title": "고객이 서명본을 볼 수 있게 — 본문과 같은 술어",
+      "detail": "/signed-html 이 assertMember 라 고객은 본문 200 / 서명본 403 이었다(자기 계약서인데 서명 칸이 «서명 전» 으로 보였다). routes/posts.js canReadPost() 한 함수로 통합.",
+      "verified": "opus_only"
+    },
+    {
+      "title": "공개 화면 날짜가 화면 언어를 따른다",
+      "detail": "공개 서명 완료·공개 문서·서명 요청 창 3곳이 toLocaleString('ko-KR') 을 못 박아, 영어 화면에 «Signed at 2026. 9. 22. 오후 6:21» 처럼 시각만 한국어로 섞였다. utils/dateFormat 의 publicLocale/formatPublicDateTime 으로 통일.",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "랜딩 페이지를 열면 방문 기록 요청이 한 번 나간다(쿠키 없음)."
+    "문서 편집기 툴바에 [서명란] 버튼이 생긴다.",
+    "서명 요청 창이 문서의 서명란마다 서명자를 지정하는 줄을 보여준다(서명란이 있는 문서에 한해).",
+    "서명 진행 표의 «보내는 쪽» 행에 [서명하기] 가 뜨고, 그 행에는 재발송·URL 복사 메뉴가 없다.",
+    "서명 요청 채팅 카드를 누르면 바로 서명 화면으로 가지 않고 본인 이메일을 묻는다.",
+    "서명이 끝난 문서는 본문 자리에 서명본이 그려진다(요청 시점 내용으로 고정).",
+    "기본 양식 4종으로 만든 새 문서에는 서명란이 들어 있다(이미 만든 문서는 그대로)."
   ],
   "issues": [],
   "blocked_on_human": [
-    "Play 승인 후 운영 app_android_url 입력"
+    "Play 승인 후 운영 app_android_url 입력",
+    "Fable 검증 대기 — 서명은 R=1(법적 증빙·공개 무인증 라우트·운영 스키마)인데 Fable 한도 소진으로 자체 검증만 했다. 판단 대기 항목은 docs/FABLE_GATE_QUEUE.md"
   ],
   "migrations": [
-    "landing_visits · landing_visitors 신규 — scripts/migrate-landing-visits.js (CREATE IF NOT EXISTS)."
+    "signature_requests 에 slot INT NULL · party ENUM('us','them') DEFAULT 'them' · signer_user_id INT NULL — dev-backend/scripts/migrate-signature-slot.js (멱등). 코드 배포 **전에** 실행. 기본값 them 이라 기존 행·기존 코드와 같다."
   ],
   "check_areas": [
-    "플랫폼 관리자 > 랜딩 방문 — 하루 뒤 숫자가 쌓이는지"
+    "Q docs 문서 상세 — 서명 요청이 있는 문서는 본문이 서명본으로 그려진다",
+    "서명 공유 링크 · 공개 문서 링크",
+    "서명 요청 채팅 카드"
   ],
   "backlog": [
-    "참석자 추가 시 «알릴까요?» 묻기 · 외부 이메일 초대 · 미팅자료 고르기(참석자 열람권) — Fable 판단 대기(FABLE_GATE_QUEUE)"
+    "옛 Document 모델의 «이름 입력» 서명 방식 정리 (이번 범위 밖)",
+    "request-link 의 서명자별 일일 상한 — 지금은 문서+IP 기준 10분 5회"
   ],
   "tooling_health": [
-    "Fable 한도 초과(429) — 이번 배포 전부 자체 검증"
+    "회귀 카나리 2종 신설: --suite signature (16검사) · --suite signflow (15검사). 둘 다 실브라우저.",
+    "signature 카나리는 반증 완료 — 서명 주입을 no-op 으로 깨뜨리면 5건이 빨간불로 뒤집힌다."
   ],
   "undeployed": []
 }

@@ -11,11 +11,16 @@ import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀌어야 한다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
+import { sanitizeRichText } from '../../utils/sanitizeHtml';
+import { formatPublicDate } from '../../utils/dateFormat';
 
 interface PublicPost {
   id: number;
   title: string;
   content_json: { type: 'doc'; content: unknown[] } | null;
+  // 서명본 — 서명 요청이 있는 문서는 서버가 «고정본 + 서명» 을 조립해 보낸다.
+  //   화면이 직접 끼우면 앱 안 문서·PDF 와 갈라진다(설계 §2).
+  signed_html?: string | null;
   author: { id: number; name: string } | null;
   created_at: string;
   attachments: Array<{
@@ -104,9 +109,14 @@ const PublicPostPage: React.FC = () => {
       <>
         <PublicTitle>{post.title}</PublicTitle>
         <PublicMeta>
-          {post.author?.name || '—'} · {new Date(post.created_at).toLocaleDateString('ko-KR')}
+          {post.author?.name || '—'} · {formatPublicDate(post.created_at)}
         </PublicMeta>
-        <PostEditor value={post.content_json} onChange={() => {}} editable={false} borderless />
+        {post.signed_html ? (
+          <SignedBody data-testid="public-signed-body"
+            dangerouslySetInnerHTML={{ __html: sanitizeRichText(post.signed_html) }} />
+        ) : (
+          <PostEditor value={post.content_json} onChange={() => {}} editable={false} borderless />
+        )}
 
         {post.attachments && post.attachments.length > 0 && (
           <AttachSection>
@@ -142,4 +152,24 @@ const SubHint = styled.div`
 const AttachSection = styled.section`
   margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0;
   display: flex; flex-direction: column; gap: 8px;
+`;
+
+// 서명본 본문 — 칸 규격의 정본은 서버 services/signedDocument.js `SIGNED_CSS` 다.
+const SignedBody = styled.div`
+  font-size: 0.9375rem; line-height: 1.75; color: #1E293B;
+  h1, h2, h3 { margin: 1.2em 0 0.5em; line-height: 1.35; }
+  p { margin: 0 0 0.75em; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #E2E8F0; padding: 6px 8px; }
+  img { max-width: 100%; }
+  .pq-sig { border: 1px solid #CBD5E1; border-radius: 8px; padding: 10px 12px; margin: 12px 0; min-height: 64px; }
+  .pq-sig-cap { font-size: 0.6875rem; font-weight: 700; color: #64748B; margin-bottom: 4px; }
+  .pq-sig-empty { color: #94A3B8; font-size: 0.75rem; border-bottom: 1px dashed #CBD5E1; padding-bottom: 14px; }
+  .pq-sig-done { border-color: #14B8A6; background: #F0FDFA; }
+  .pq-sig-img { display: block; max-height: 64px; max-width: 220px; }
+  .pq-sig-meta { font-size: 0.75rem; color: #334155; margin-top: 4px; }
+  .pq-sig-badge { font-size: 0.625rem; color: #0F766E; margin-top: 2px; }
+  .pq-sig-rejected { border-color: #FCA5A5; background: #FEF2F2; }
+  .pq-sig-no { color: #B91C1C; font-size: 0.75rem; font-weight: 700; padding: 6px 0; }
+  .pq-sig-zone { margin-top: 20px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 `;
