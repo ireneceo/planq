@@ -47,7 +47,8 @@ import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityV
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
-import TrashDrawer from './TrashDrawer';
+import TrashDrawer from '../../components/Trash/TrashDrawer';
+import TrashButton from '../../components/Trash/TrashButton';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useFileDragOut, isMovableInApp } from '../../hooks/useFileDragOut';
 import OverflowMenu from '../../components/Common/OverflowMenu';
@@ -885,16 +886,9 @@ const DocsTab: React.FC<Props> = (props) => {
         <SelectToggle $on={selectMode} type="button" onClick={() => setSelectMode(v => !v)}>
           {selectMode ? t('docs.bulk.exit', '선택 종료') : t('docs.bulk.enter', '선택')}
         </SelectToggle>
-        {/* 휴지통 — 지운 파일을 되돌리는 유일한 경로. 이게 없어서 삭제가 사실상 영구였다. */}
-        <SelectToggle
-          $on={trashOpen}
-          type="button"
-          data-testid="files-trash-open"
-          onClick={() => setTrashOpen(true)}
-          title={t('docs.trash.title', '휴지통') as string}
-        >
-          {t('docs.trash.title', '휴지통') as string}
-        </SelectToggle>
+        {/* 휴지통 — 지운 파일을 되돌리는 유일한 경로. 이게 없어서 삭제가 사실상 영구였다.
+            ★ 2026-09-22 휴지통은 하나다 — 공용 버튼·서랍(components/Trash). 여기서 열면 «파일» 칸이 먼저. */}
+        <TrashButton active={trashOpen} data-testid="files-trash-open" onClick={() => setTrashOpen(true)} />
         </ToolbarRight>
       </Toolbar>
 
@@ -908,6 +902,7 @@ const DocsTab: React.FC<Props> = (props) => {
 
       <TrashDrawer
         open={trashOpen}
+        initialTab="file"
         businessId={Number(businessId)}
         projectId={scope.type === 'project' ? scope.projectId : undefined}
         onClose={() => setTrashOpen(false)}

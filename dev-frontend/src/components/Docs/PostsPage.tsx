@@ -28,7 +28,8 @@ import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile, updateFileVisibility } from '../../services/files';
 import ConfirmDialog from '../Common/ConfirmDialog';
-import ContentTrashDrawer from './ContentTrashDrawer';
+import TrashDrawer from '../Trash/TrashDrawer';
+import TrashButton from '../Trash/TrashButton';
 import PostEditor from './PostEditor';
 import DocToc from './DocToc';
 import PostTableGrid from './PostTableGrid';
@@ -1653,8 +1654,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           </HeaderBtnRow>
         </PanelHeader>
 
+        {/* 휴지통 — 검색줄 오른쪽 끝(Q file·Q info 와 같은 자리). ★ 2026-09-22 휴지통은 하나다(components/Trash).
+            예전엔 필터 아래 얇은 줄의 «아이콘+글자» 링크였고 파일 휴지통은 글자 버튼이라 모양이 갈라져 있었다. */}
         <SearchWrap>
           <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
+          <TrashButton active={trashOpen} data-testid="docs-trash-open" onClick={() => setTrashOpen(true)} />
         </SearchWrap>
 
         <FilterSection>
@@ -1765,21 +1769,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           )}
         </FilterSection>
 
-        {/* 휴지통 — 삭제한 문서·정보를 30일 안에 되돌린다.
-            ★ 헤더(PanelHeader)에 두었더니 좁은 리스트 패널에서 제목을 밀어내 글자가 틀어졌다
-              (Irene 2026-08-31). 상시 노출이 필요한 만큼 자주 쓰는 버튼은 아니므로,
-              필터 아래 얇은 줄로 내린다 — 파일 화면의 툴바 자리와 같은 위계. */}
-        <ListFooterRow>
-          <TrashLinkBtn type="button" data-testid="docs-trash-open" onClick={() => setTrashOpen(true)}
-            title={t('trash.openHint', { defaultValue: '삭제한 문서·정보 되돌리기 (30일)' }) as string}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-              <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
-            {t('trash.btn', { defaultValue: '휴지통' })}
-          </TrashLinkBtn>
-        </ListFooterRow>
 
         <RowList>
           {/* data-testid — 하니스가 "재진입에 또 로딩되는가" 를 판정하는 신호(CLAUDE.md §17) */}
@@ -2378,9 +2367,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
         variant="danger"
       />
 
-      <ContentTrashDrawer
+      <TrashDrawer
         open={trashOpen}
+        initialTab="doc"
         businessId={scope.businessId}
+        projectId={scope.type === 'project' ? scope.projectId : undefined}
         onClose={() => setTrashOpen(false)}
         onChanged={() => { void loadMeta(); void load(); }}
       />
@@ -2805,23 +2796,13 @@ const TplCardDesc = styled.div`font-size:0.6875rem;color:#64748B;line-height:1.4
 const Empty = styled.div`grid-column:1/-1;padding:32px;text-align:center;color:#94A3B8;font-size:0.8125rem;`;
 const SearchWrap = styled.div`
   padding: 12px 16px 8px; border-bottom: 1px solid #F1F5F9;
+  display: flex; align-items: center; gap: 8px;
+  & > :first-child { flex: 1; min-width: 0; }
 `;
 const FilterSection = styled.div`
   padding: 10px 16px; border-bottom: 1px solid #F1F5F9;
   display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
   max-height: 160px; overflow-y: auto;
-`;
-const ListFooterRow = styled.div`
-  padding: 6px 16px; border-bottom: 1px solid #F1F5F9;
-  display: flex; align-items: center;
-`;
-const TrashLinkBtn = styled.button`
-  all: unset; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 28px; padding: 0 8px; border-radius: 6px;
-  font-size: 0.6875rem; font-weight: 600; color: #64748B;
-  &:hover { background: #F1F5F9; color: #334155; }
-  &:focus-visible { outline: 2px solid #94A3B8; outline-offset: 2px; }
 `;
 const FilterGroupLabel = styled.div`
   width: 100%; font-size: 0.625rem; font-weight: 700; color: #94A3B8;

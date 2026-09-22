@@ -56,6 +56,8 @@ import { fetchWorkspaceFiles, uploadMyFile, formatBytes, type ProjectFile } from
 import { fetchPosts, type PostRow } from '../../services/posts';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import AiActionButton from '../../components/Common/AiActionButton';
+import TrashDrawer from '../../components/Trash/TrashDrawer';
+import TrashButton from '../../components/Trash/TrashButton';
 import { isEnterAction } from '../../utils/imeKey';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
@@ -212,6 +214,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
 
   // ─── 새 지식 등록 모달 (사이클 P3 — 단일 폼) ───
   const [modalOpen, setModalOpen] = useState(false);
+  // 휴지통 — 2026-09-22 전엔 Q info 에 여는 문이 없었다(지운 정보는 Q docs 휴지통에서만 되살릴 수 있었다)
+  const [trashOpen, setTrashOpen] = useState(false);
   // N+42 — Q Note 정리하기 → 지식 등록 prefill (?prefill=encodedText 으로 진입)
   const [searchParams, setSearchParams] = useSearchParams();
   const prefillAppliedRef = useRef(false);
@@ -871,6 +875,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
             {bundleSharing ? t('select.sharing', '공유 링크 생성 중...') : t('select.shareCategory', '이 카테고리 공유')}
           </BulkShareBtn>
         )}
+        {/* 휴지통 — 필터줄 오른쪽 끝(Q file·Q docs 와 같은 자리·같은 버튼). 여기서 열면 «정보» 칸이 먼저. */}
+        <TrashButton active={trashOpen} data-testid="info-trash-open" onClick={() => setTrashOpen(true)} />
       </Toolbar>
 
       {/* ─── 좌측 카테고리 트리 + 메인 영역 (Q file 과 같은 패턴) ─── */}
@@ -1869,6 +1875,15 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
       )}
       {csvIngestOpen && businessId && (
         <KbCsvIngestModal businessId={businessId} onClose={() => setCsvIngestOpen(false)} onSaved={() => { setCsvIngestOpen(false); load(); }} />
+      )}
+      {businessId && (
+        <TrashDrawer
+          open={trashOpen}
+          initialTab="info"
+          businessId={businessId}
+          onClose={() => setTrashOpen(false)}
+          onChanged={() => { void load(); }}
+        />
       )}
     </PageShell>
   );

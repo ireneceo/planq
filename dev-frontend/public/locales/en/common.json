@@ -1232,5 +1232,17 @@
     "clientPick": "Select a client",
     "projectHintAutoClient": "Picking a project links its client automatically",
     "projectHintWorkspace": "Leave unlinked to make it a workspace task"
+  },
+  "trash": {
+    "title": "Trash",
+    "open": "Trash — restore deleted items",
+    "tab": {
+      "all": "All",
+      "file": "Files",
+      "doc": "Docs",
+      "info": "Info"
+    },
+    "sectionContent": "Docs & info",
+    "retention": "You can restore items within {{count}} days of deleting. After that they are removed automatically."
   }
 }

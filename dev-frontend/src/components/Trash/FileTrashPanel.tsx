@@ -1,32 +1,33 @@
-// TrashDrawer — 파일 휴지통.
+// FileTrashPanel — 휴지통의 «파일» 칸. 서랍 껍데기는 components/Trash/TrashDrawer 한 곳이다.
 //
 // 왜 생겼나: 여태 파일 삭제는 되돌릴 방법이 **없었다.** DB 에 deleted_at 은 찍혔지만
-//   복구 라우트도 화면도 0건이었고, 같은 함수가 바이트까지 지웠다. 사용자 입장에서는
-//   그냥 영구 삭제였다(2026-08-28 정정 기록 → memory feedback_soft_delete_without_trash_ui).
+//   복구 라우트도 화면도 0건이었고, 같은 함수가 바이트까지 지웠다(memory feedback_soft_delete_without_trash_ui).
+// ★ 2026-09-22 — 파일 휴지통과 문서·정보 휴지통이 **서랍 두 개·버튼 두 모양**으로 갈라져 있었다
+//   (Irene: *"휴지통이 분산되어 있는 거 이상한데"*). 목록만 이 칸으로 남기고 껍데기는 하나로 합쳤다.
 //
 // 계약:
 //   - 목록에는 **되돌릴 수 있는 것만** 온다. 서버가 바이트 실존까지 보고 걸러 준다.
-//     눌러도 안 되는 버튼을 주지 않는 것이 이 화면의 핵심이다.
 //   - 보존기간이 지나면 자동으로 비워진다 — 그 시각을 행마다 보여준다.
-//   - 공용 프리미티브 DetailDrawer 를 쓴다(반응형 3구간·Esc·포커스 트랩·스크롤 잠금 내장).
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import DetailDrawer from '../../components/Common/DetailDrawer';
-import ConfirmDialog from '../../components/Common/ConfirmDialog';
-import ActionButton from '../../components/Common/ActionButton';
-import EmptyState from '../../components/Common/EmptyState';
+import ConfirmDialog from '../Common/ConfirmDialog';
+import ActionButton from '../Common/ActionButton';
+import EmptyState from '../Common/EmptyState';
 import { fetchTrash, restoreFile, purgeFile, emptyTrash } from '../../services/files';
 import type { TrashedFile } from '../../services/files';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
 interface Props {
-  open: boolean;
+  /** 서랍이 열려 있고 이 칸이 보일 때만 불러온다 */
+  active: boolean;
   businessId: number;
   projectId?: number;
-  onClose: () => void;
-  /** 복구/영구삭제 후 바깥 목록을 다시 그리게 한다 */
+  /** 파일 탭일 때만 [휴지통 비우기] — 전체 탭에서 누르면 문서·정보도 지워지는 것처럼 읽힌다 */
+  showEmpty?: boolean;
   onChanged: () => void;
+  onRetention?: (days: number | null) => void;
+  onCount?: (n: number) => void;
 }
 
 function formatSize(bytes: number): string {
@@ -37,7 +38,7 @@ function formatSize(bytes: number): string {
   return `${n < 10 ? n.toFixed(1) : Math.round(n)} ${u[i]}`;
 }
 
-const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, onChanged }) => {
+const FileTrashPanel: React.FC<Props> = ({ active, businessId, projectId, showEmpty, onChanged, onRetention, onCount }) => {
   const { t } = useTranslation('qproject');
   const { formatDate } = useTimeFormat();
 
@@ -62,7 +63,9 @@ const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, on
     setLoading(false);
   }, [businessId, projectId]);
 
-  useEffect(() => { if (open) { setErr(null); void load(); } }, [open, load]);
+  useEffect(() => { if (active) { setErr(null); void load(); } }, [active, load]);
+  useEffect(() => { onRetention?.(retentionDays); }, [retentionDays, onRetention]);
+  useEffect(() => { if (!loading) onCount?.(total); }, [total, loading, onCount]);
 
   const onRestore = async (f: TrashedFile) => {
     if (busyId) return;              // 중복 제출 가드
@@ -106,18 +109,7 @@ const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, on
 
   return (
     <>
-      <DetailDrawer open={open} onClose={onClose} ariaLabel={(t('docs.trash.title', '휴지통') as string)}>
-        <DetailDrawer.Header onClose={onClose}>
-          <HeadTitle>{(t('docs.trash.title', '휴지통') as string)}</HeadTitle>
-          {!loading && <HeadCount>{total}</HeadCount>}
-        </DetailDrawer.Header>
-        <DetailDrawer.Body>
-          {retentionDays != null && (
-            <Notice>
-              {(t('docs.trash.retention', '{{days}}일이 지나면 자동으로 비워집니다. 그 전까지는 되돌릴 수 있습니다.') as string)
-                .replace('{{days}}', String(retentionDays))}
-            </Notice>
-          )}
+      <div>
           {err && <ErrorBar role="alert">{err}</ErrorBar>}
           {loading ? (
             <Dim data-testid="trash-loading">{(t('docs.trash.loading', '불러오는 중…') as string)}</Dim>
@@ -169,15 +161,14 @@ const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, on
               ))}
             </List>
           )}
-        </DetailDrawer.Body>
-        {items.length > 0 && (
-          <DetailDrawer.Footer>
-            <ActionButton tone="danger" size="md" type="button" onClick={() => setEmptyOpen(true)} disabled={emptying}>
+        {showEmpty && items.length > 0 && (
+          <EmptyRow>
+            <ActionButton tone="danger" size="sm" type="button" onClick={() => setEmptyOpen(true)} disabled={emptying}>
               {(t('docs.trash.empty', '휴지통 비우기') as string)}
             </ActionButton>
-          </DetailDrawer.Footer>
+          </EmptyRow>
         )}
-      </DetailDrawer>
+      </div>
 
       <ConfirmDialog
         isOpen={!!purgeTarget}
@@ -204,17 +195,9 @@ const TrashDrawer: React.FC<Props> = ({ open, businessId, projectId, onClose, on
   );
 };
 
-export default TrashDrawer;
+export default FileTrashPanel;
 
-const HeadTitle = styled.div`font-size:1rem;font-weight:700;color:#0F172A;`;
-const HeadCount = styled.span`
-  margin-left:8px;padding:1px 8px;border-radius:999px;
-  background:#F1F5F9;color:#475569;font-size:0.75rem;font-weight:700;
-`;
-const Notice = styled.div`
-  padding:10px 12px;margin-bottom:12px;border-radius:8px;
-  background:#F8FAFC;border:1px solid #E2E8F0;color:#475569;font-size:0.78125rem;line-height:1.5;
-`;
+
 const ErrorBar = styled.div`
   padding:10px 12px;margin-bottom:12px;border-radius:8px;
   background:#FEF2F2;border:1px solid #FECACA;color:#B91C1C;font-size:0.8125rem;
@@ -237,3 +220,4 @@ const RowActions = styled.div`
   display:flex;gap:6px;flex-shrink:0;
   @media (max-width: 640px) { margin-top:10px; }
 `;
+const EmptyRow = styled.div`display: flex; justify-content: flex-end; padding: 12px 0 4px;`;

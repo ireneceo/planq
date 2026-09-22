@@ -1232,5 +1232,17 @@
     "clientPick": "고객 선택",
     "projectHintAutoClient": "프로젝트를 고르면 고객이 자동으로 연결됩니다",
     "projectHintWorkspace": "연결하지 않으면 워크스페이스 업무가 됩니다"
+  },
+  "trash": {
+    "title": "휴지통",
+    "open": "휴지통 — 삭제한 항목 되돌리기",
+    "tab": {
+      "all": "전체",
+      "file": "파일",
+      "doc": "문서",
+      "info": "정보"
+    },
+    "sectionContent": "문서·정보",
+    "retention": "삭제 후 {{count}}일 안에는 되돌릴 수 있어요. 지나면 자동으로 비워집니다."
   }
 }
