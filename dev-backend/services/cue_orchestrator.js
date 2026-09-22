@@ -424,17 +424,18 @@ async function generateDocumentDraft(businessId, { systemPrompt, userPrompt, max
 //     · 새 프롬프트 — 4/4 정상. 즉 실제 수정은 프롬프트의 역할 명시 + 베끼기 금지 쪽이다.
 //   따라서 이 함수를 "베낌 방어" 로 믿지 말 것. 축자 복사만 막는다.
 function looksLikeEcho(draft, inbound) {
-  const norm = (v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase();
-  const a = norm(draft), b = norm(inbound);
-  if (!a || !b || a.length < 20) return false;
-  const tok = (v) => v.split(/[^0-9a-z가-힣]+/).filter(w => w.length > 1);
-  const at = tok(a), bset = new Set(tok(b));
-  // 짧은 초안("확인했습니다. 감사합니다.")은 어휘가 겹쳐도 베낀 것이 아니다 — 판정 대상에서 뺀다.
-  if (at.length < 8) return false;
-  const hit = at.filter(w => bset.has(w)).length / at.length;
-  // 실측 분리도(Irene 실사례 스레드): 그대로 1.00 · 요약 베낌 0.63 · 진짜 답장 0.05 · 짧은 감사 0.33.
-  //   0.55 가 베낌과 답장 사이의 골이다. 걸려도 곧바로 실패가 아니라 **한 번 더 세게 지시**해 다시 받는다.
-  return hit >= 0.55;
+  // ★ 2026-09-22 — **세 단어 묶음(3-gram)** 겹침으로 판정한다. 옛 판정은 «초안 단어 중 받은 메일에도 있는
+  //   단어 비율» 이었는데, 영어에서는 the·you·your·for·please·any·further 같은 흔한 단어가 겹쳐
+  //   **정상적인 감사 답장이 0.56~0.60 으로 거절**됐다(운영 3135 에임커피 환불 전표 — Irene: "AI 답변 초안
+  //   눌렀는데 안 만들어져"). 기준(0.55)은 한국어 사례로만 맞춘 값이었다.
+  //   실측: 정상 답장 0.00~0.08(ko·en) · 베낀 초안 0.93~1.00 · 0.4 가 골이다. 짧은 초안은 종전대로 판정 제외.
+  const tok = (v) => String(v || '').replace(/\s+/g, ' ').trim().toLowerCase().split(/[^0-9a-z가-힣]+/).filter(Boolean);
+  const at = tok(draft), bt = tok(inbound);
+  if (at.length < 8 || !bt.length) return false;
+  const grams = (arr) => { const out = []; for (let i = 0; i + 3 <= arr.length; i++) out.push(arr.slice(i, i + 3).join(' ')); return out; };
+  const dg = grams(at); const bset = new Set(grams(bt));
+  if (!dg.length) return false;
+  return dg.filter((g) => bset.has(g)).length / dg.length >= 0.4;
 }
 
 async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko', faqContext = null, userInstruction = null, currentDraft = null, threadContext = null }) {
