@@ -1,0 +1,26 @@
+{
+  "version": "1.56.1",
+  "date": "2026-09-22",
+  "items": [
+    {
+      "ko": {
+        "title": "문서를 복사할 수 있습니다",
+        "body": "문서 상세의 [편집] 옆에 복사 버튼이 생겼습니다. 누르면 같은 내용의 새 문서가 만들어지고 바로 열립니다.\n\n복사본은 새 문서입니다 — 본문·분류·프로젝트 연결·공개 범위·첨부는 그대로 가져오지만, 서명 요청과 공유 링크는 따라가지 않습니다. 복사본이 원본인 척하지 않도록 한 것입니다."
+      },
+      "en": {
+        "title": "You can duplicate a document",
+        "body": "A duplicate button now sits next to [Edit] in the document view. It creates a copy with the same content and opens it right away.\n\nThe copy is a new document: content, category, project link, visibility and attachments carry over, but signature requests and share links do not — so a copy never passes for the original."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q docs 상단이 한결 넓어졌습니다",
+        "body": "목록 위쪽에 버튼이 많아 제목과 검색이 좁았습니다. [템플릿] 버튼을 [+] 안으로 옮겨 «빈 문서 · 표 · 템플릿에서 시작» 을 한자리에서 고르도록 했습니다."
+      },
+      "en": {
+        "title": "More room at the top of Q docs",
+        "body": "The toolbar above the list was crowded. The Templates button moved inside [+], so Blank document, Table and Start from a template are all in one place."
+      }
+    }
+  ]
+}

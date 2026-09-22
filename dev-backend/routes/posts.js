@@ -578,6 +578,82 @@ router.post('/', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── 문서 복사 (2026-09-22) ───
+// POST /api/posts/:id/duplicate  body: { title? }
+//
+// Irene: *"문서 복사기능이 없네? 일단 문서는 필수니까 복사 넣어줘."*
+//
+// **복사본은 새 문서다 — 원본의 «이력» 은 따라가지 않는다.**
+//   서명 요청·공유 토큰·조회수·확정 상태·고정을 그대로 복제하면, 복사본이 원본인 척하게 된다
+//   (서명본이 두 벌이 되고, 살아 있는 공유 링크가 복사본에도 생긴다). 그래서 **본문과 편집 재료만** 옮긴다:
+//     따라가는 것 — 제목(복사본 표시) · 본문 · 분류 · 종류 · 프로젝트/대화방 연결 · 공개 범위 · 보안등급 · 첨부 연결
+//     따라가지 않는 것 — 서명 요청 · 공유 토큰/만료/비밀번호 · 조회수 · 고정 · 작성자(=지금 사람) · 표 데이터(아래)
+// ★ 표(kind='table') 는 `q_record_id` 로 **다른 표에 연결**돼 있다. 그 id 를 그대로 복사하면
+//   복사본과 원본이 **같은 표를 공유**해 한쪽에서 고치면 양쪽이 바뀐다. 표 복사는 이번 범위 밖이라
+//   복사본은 표 연결 없이 본문만 가져간다(화면이 그 사실을 말한다).
+router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
+  try {
+    const src = await Post.findByPk(req.params.id);
+    if (!src) return errorResponse(res, 'not_found', 404);
+    // 읽을 수 있으면 복사할 수 있다 — 본문 조회와 **같은 술어**(canReadPost).
+    if (!(await canReadPost(req.user, src))) return errorResponse(res, 'forbidden', 403);
+    // 쓰기는 이 워크스페이스 멤버만 — 고객(Client)은 문서를 만들지 못한다.
+    if (!(await assertMember(req.user.id, src.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+
+    // 제목 꼬리표는 **업무 복사와 같은 글자**다(`routes/tasks.js` `' (복사)'`) —
+    //   같은 뜻에 다른 글자를 쓰면 사용자는 다른 기능으로 읽는다.
+    const baseTitle = String(req.body?.title || src.title || '').slice(0, 180);
+    const title = req.body?.title ? baseTitle : `${baseTitle} (복사)`.slice(0, 200);
+    const copy = await Post.create({
+      business_id: src.business_id,
+      project_id: src.project_id || null,
+      conversation_id: src.conversation_id || null,
+      title,
+      content_json: src.content_json,
+      content_text: src.content_text,
+      category: src.category,
+      author_id: req.user.id,          // 복사본의 주인은 **복사한 사람**이다
+      status: 'published',
+      is_pinned: false,
+      parent_post_id: src.parent_post_id || null,
+      kind: src.kind === 'table' ? 'doc' : src.kind,   // 표는 본문만 (위 주석)
+      q_record_id: null,
+      vlevel: src.vlevel || 'L3',
+      security_level: src.security_level || null,
+    });
+
+    // 첨부는 **같은 파일을 가리키게** 한다(바이트를 두 번 쓰지 않는다 — dedup 과 같은 생각).
+    let attached = 0;
+    try {
+      const atts = await PostAttachment.findAll({ where: { post_id: src.id }, order: [['sort_order', 'ASC']] });
+      for (const a of atts) {
+        await PostAttachment.create({ post_id: copy.id, file_id: a.file_id, sort_order: a.sort_order || 0 });
+        attached += 1;
+      }
+    } catch (e) { console.warn('[post.duplicate] 첨부 복사 실패', e.message); }
+
+    const full = await Post.findByPk(copy.id, {
+      include: [
+        { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
+        { model: Project, attributes: ['id', 'name', 'color'], required: false },
+        { model: Conversation, attributes: ['id', 'title', 'display_name'], required: false },
+        { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
+      ],
+    });
+    require('../services/auditService').logAudit(req, {
+      action: 'post.duplicate',
+      targetType: 'post',
+      targetId: copy.id,
+      businessId: copy.business_id,
+      newValue: { from_post_id: src.id, title: copy.title, attachments: attached },
+    });
+    broadcastPost(req, full, 'post:new');
+    return successResponse(res, serialize(full, true), 'Post duplicated', 201);
+  } catch (err) { next(err); }
+});
+
 // ─── 자료정리 후속 문서 생성 (Manual / AI) ───
 // POST /api/posts/:id/follow-up
 //   parent post (category='brief') 의 brief_meta 기반으로 새 post 생성

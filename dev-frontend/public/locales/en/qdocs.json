@@ -600,7 +600,9 @@
     "blankLabel": "Blank doc",
     "blankDesc": "Start with an empty body",
     "tableLabel": "Table",
-    "tableDesc": "Rows & columns (accounts, assets, etc.)"
+    "tableDesc": "Rows & columns (accounts, assets, etc.)",
+    "templateLabel": "Start from a template",
+    "templateDesc": "Quote, NDA, contract, SOW, meeting notes"
   },
   "new": "New",
   "edit": "Edit",
@@ -777,5 +779,11 @@
     "drawRequired": "Please draw your signature.",
     "consentRequired": "You must check the consent box to sign.",
     "failed": "Could not sign."
+  },
+  "duplicate": {
+    "btn": "Duplicate",
+    "hint": "Copy this document into a new one (signatures and share links are not copied)",
+    "failed": "Could not duplicate. Please try again shortly.",
+    "forbidden": "You do not have permission to duplicate this document."
   }
 }

@@ -600,7 +600,9 @@
     "blankLabel": "빈 문서",
     "blankDesc": "빈 본문으로 즉시 시작",
     "tableLabel": "표",
-    "tableDesc": "계정·자산 등 행/열 데이터"
+    "tableDesc": "계정·자산 등 행/열 데이터",
+    "templateLabel": "템플릿에서 시작",
+    "templateDesc": "견적·NDA·계약·SOW·회의록 양식"
   },
   "new": "새 문서",
   "edit": "편집",
@@ -777,5 +779,11 @@
     "drawRequired": "서명을 그려주세요.",
     "consentRequired": "동의에 체크해야 서명할 수 있습니다.",
     "failed": "서명하지 못했습니다."
+  },
+  "duplicate": {
+    "btn": "복사",
+    "hint": "이 문서를 복사해 새 문서로 시작 (서명·공유 링크는 복사되지 않습니다)",
+    "failed": "복사하지 못했습니다. 잠시 후 다시 시도해주세요.",
+    "forbidden": "이 문서를 복사할 권한이 없습니다."
   }
 }

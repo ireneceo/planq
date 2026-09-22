@@ -41,7 +41,7 @@ import {
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory, renameCategory, deleteCategory,
   updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
-  downloadPostDocx, getSignedHtml,
+  downloadPostDocx, getSignedHtml, duplicatePost,
   type PostRow, type PostDetail, type PostsMeta, type SignedDocView,
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
@@ -371,6 +371,24 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // content_json → HTML 변환. 변환·정화는 utils/postContentHtml 한 곳 —
   //   무로그인 열람 화면(GuestDocsTab)이 같은 함수를 쓴다.
   const renderContentToHtml = useCallback((contentJson: unknown): string => postContentToHtml(contentJson), []);
+
+  // ── 문서 복사 (2026-09-22, Irene: "편집버튼 옆에 복사버튼 넣어줘. 아이콘만 있으면 될 것 같아.")
+  //    복사본은 새 문서다 — 만들고 **바로 그 문서를 연다**(어디 갔는지 찾게 만들지 않는다).
+  const [dupBusy, setDupBusy] = useState(false);
+  const duplicateCurrent = useCallback(async () => {
+    const d = detailRef.current;
+    if (!d || dupBusy) return;
+    setDupBusy(true); setError(null);
+    try {
+      const copy = await duplicatePost(d.id);
+      await load();                 // 목록에 바로 보이게
+      await selectPost(copy.id);    // 그리고 그 문서를 연다 — 어디 갔는지 찾게 만들지 않는다
+    } catch (e) {
+      setError((e as Error).message === 'forbidden'
+        ? (t('duplicate.forbidden', { defaultValue: '이 문서를 복사할 권한이 없습니다.' }) as string)
+        : (t('duplicate.failed', { defaultValue: '복사하지 못했습니다. 잠시 후 다시 시도해주세요.' }) as string));
+    } finally { setDupBusy(false); }
+  }, [dupBusy]);
 
   // 서명본 — 서명 요청이 하나라도 있으면 본문 자리에 «고정본 + 서명» 을 그린다.
   //   서명 진행이 바뀌면(요청·서명 완료) 같이 다시 읽는다 — signReloadKey 가 그 신호다.
@@ -1467,7 +1485,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             </AtSortWrap>
             <AtToolbarRight>
             <AiActionButton size="filter" onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
-            <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '템플릿에서 시작') as string}>{t('templates.btn', '템플릿')}</TemplateBtn>
             <NewBtnWrap>
               <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1482,6 +1499,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <NewItem type="button" onClick={() => { setNewDropdownOpen(false); setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}>
                     <NewItemTitle>{t('newDropdown.tableLabel', { defaultValue: '표' }) as string}</NewItemTitle>
                     <NewItemDesc>{t('newDropdown.tableDesc', { defaultValue: '계정·자산 등 행/열 데이터' }) as string}</NewItemDesc>
+                  </NewItem>
+                  <NewItem type="button" data-testid="docs-new-template" onClick={() => { setNewDropdownOpen(false); openTemplateModal(); }}>
+                    <NewItemTitle>{t('newDropdown.templateLabel', { defaultValue: '템플릿에서 시작' }) as string}</NewItemTitle>
+                    <NewItemDesc>{t('newDropdown.templateDesc', { defaultValue: '견적·NDA·계약·SOW·회의록 양식' }) as string}</NewItemDesc>
                   </NewItem>
                 </NewDropdown>
               )}
@@ -1641,9 +1662,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
               label={t('ai.btn', 'AI')}
               title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string}
             />
-            <TemplateBtn type="button" onClick={openTemplateModal} title={t('templates.openHint', '견적·청구·NDA·제안서·회의록 5종 템플릿에서 시작') as string}>
-              {t('templates.btn', '템플릿')}
-            </TemplateBtn>
             <NewBtnWrap>
               <NewBtn type="button" data-testid="docs-new" onClick={() => setNewDropdownOpen(v => !v)} title={t('btn.new') as string} aria-label={t('btn.new') as string} aria-expanded={newDropdownOpen}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1659,6 +1677,10 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <NewItem type="button" onClick={() => { setNewDropdownOpen(false); setAiIntent('manual'); setAiDefaultMode('table'); setAiOpen(true); }}>
                     <NewItemTitle>{t('newDropdown.tableLabel', { defaultValue: '표' }) as string}</NewItemTitle>
                     <NewItemDesc>{t('newDropdown.tableDesc', { defaultValue: '계정·자산 등 행/열 데이터' }) as string}</NewItemDesc>
+                  </NewItem>
+                  <NewItem type="button" data-testid="docs-new-template" onClick={() => { setNewDropdownOpen(false); openTemplateModal(); }}>
+                    <NewItemTitle>{t('newDropdown.templateLabel', { defaultValue: '템플릿에서 시작' }) as string}</NewItemTitle>
+                    <NewItemDesc>{t('newDropdown.templateDesc', { defaultValue: '견적·NDA·계약·SOW·회의록 양식' }) as string}</NewItemDesc>
                   </NewItem>
                 </NewDropdown>
               )}
@@ -2241,6 +2263,20 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   {t('edit', '편집')}
                 </EditBtn>
+                {/* 복사 — **아이콘만**(Irene). 밴드2 액션 3개 계약을 지키려고 글자를 빼고 title·aria 로 말한다. */}
+                <IconActionBtn
+                  type="button"
+                  data-testid="post-duplicate"
+                  onClick={() => { void duplicateCurrent(); }}
+                  disabled={dupBusy}
+                  title={t('duplicate.hint', { defaultValue: '이 문서를 복사해 새 문서로 시작 (서명·공유 링크는 복사되지 않습니다)' }) as string}
+                  aria-label={t('duplicate.btn', { defaultValue: '복사' }) as string}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </IconActionBtn>
                 <PrimaryBtn type="button" data-testid="post-share" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                   {t('share.button', '공유')}
@@ -2687,15 +2723,6 @@ const TitleGroup = styled.div`
 const HeaderBtnRow = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;`;
 /* ★ 2026-09-15 — 툴바 한 줄 안의 컨트롤은 **같은 높이 36px** 이다(검색 36 · 정렬 셀렉트 36).
      실측에서 버튼만 32/30 이라 줄이 들쭉날쭉했다. components/Common/filterBar 의 같은 계약. */
-const TemplateBtn = styled.button`
-  height: 36px; padding: 0 12px;
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 0.75rem; font-weight: 600; color: #0F766E;
-  background: #F0FDFA; border: 1px solid #14B8A6; border-radius: 8px; cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  &:hover { background: #14B8A6; color: #FFF; }
-  &:focus-visible { outline: 2px solid #0D9488; outline-offset: 2px; }
-`;
 const NewBtn = styled.button`
   height: 36px; padding: 0 14px; gap: 6px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -3234,6 +3261,13 @@ const EditBtn = styled.button`
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   &:hover:not(:disabled) { background: #F8FAFC; border-color: #94A3B8; color: #0F172A; }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
+// 아이콘 전용 액션 — 규격은 `EditBtn` 과 같다(높이 32 · 같은 테두리·hover).
+//   밴드2 의 액션 3개 계약을 지키려고 글자를 뺐다. 뜻은 title·aria-label 이 말한다.
+const IconActionBtn = styled(EditBtn)`
+  width: 32px; padding: 0; justify-content: center;
+  &:disabled { opacity: 0.5; cursor: default; }
+  @media (max-width: 640px) { width: 40px; height: 40px; }
 `;
 const SignBtn = styled.button`
   height: 32px; padding: 0 14px;

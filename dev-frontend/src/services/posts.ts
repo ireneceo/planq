@@ -556,6 +556,21 @@ export async function signInternal(signatureId: number, imageDataUrl: string): P
   if (!r.ok || !j?.success) throw new Error(j?.message || 'sign_failed');
 }
 
+/**
+ * 문서 복사 — 복사본은 **새 문서**다. 서명·공유 토큰·조회수는 따라가지 않는다
+ * (따라가면 복사본이 원본인 척하게 된다). 서버 `POST /api/posts/:id/duplicate`.
+ */
+export async function duplicatePost(postId: number, title?: string): Promise<PostDetail> {
+  const r = await apiFetch(`/api/posts/${postId}/duplicate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(title ? { title } : {}),
+  });
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j?.success) throw new Error(j?.message || 'duplicate_failed');
+  return j.data as PostDetail;
+}
+
 export async function listSignatures(postId: number): Promise<SignatureRequest[]> {
   const r = await apiFetch(`/api/posts/${postId}/signatures`);
   const j = await r.json();
