@@ -3,6 +3,7 @@
 //   나가버려서 알림(/notifications)과 동작이 달랐다. 같은 자리에 같은 모양의 인앱 페이지를 둔다.
 //   레이아웃은 NotificationsPage 를 그대로 따른다 (PageShell + 목록 + 빈 상태).
 import React, { useEffect, useState } from 'react';
+import { renderInlineBold } from '../../utils/inlineBold';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -41,9 +42,9 @@ const WhatsNewPage: React.FC = () => {
     new Date(d).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 
   const renderBody = (body: WhatsNewBlock[] | null) => (body || []).map((b, i) => {
-    if (b.type === 'heading') return <BH key={i}>{blockText(b)}</BH>;
-    if (b.type === 'callout') return <BCallout key={i}>{blockText(b)}</BCallout>;
-    if (b.type === 'step') return <BStep key={i}><em>{i + 1}</em><span>{blockText(b)}</span></BStep>;
+    if (b.type === 'heading') return <BH key={i}>{renderInlineBold(blockText(b))}</BH>;
+    if (b.type === 'callout') return <BCallout key={i}>{renderInlineBold(blockText(b))}</BCallout>;
+    if (b.type === 'step') return <BStep key={i}><em>{i + 1}</em><span>{renderInlineBold(blockText(b))}</span></BStep>;
     if (b.type === 'image') {
       return b.file_id ? (
         <BFigure key={i}>
@@ -52,7 +53,7 @@ const WhatsNewPage: React.FC = () => {
         </BFigure>
       ) : null;
     }
-    return <BP key={i}>{blockText(b)}</BP>;
+    return <BP key={i}>{renderInlineBold(blockText(b))}</BP>;
   });
 
   const toggle = (slug: string) => {

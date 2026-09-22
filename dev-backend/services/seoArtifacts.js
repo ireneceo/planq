@@ -91,6 +91,32 @@ function faqPairs(landing, dotted) {
   return out;
 }
 
+
+/** 글 본문 블록 → 검색용 HTML 블록(소제목은 h2, 단계는 li) + FAQ 쌍.
+ *  «?» 로 끝나는 소제목과 그 아래 문단을 질문·답으로 읽는다 — 글쓴이가 따로 표시하지 않아도
+ *  업무 가이드의 «자주 묻는 질문» 이 FAQPage 로 나간다(AI 답변 엔진이 가장 잘 가져가는 형식). */
+function articleStructure(body, lang = 'ko') {
+  let arr = body;
+  if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch { arr = []; } }
+  if (!Array.isArray(arr)) return { blocks: [], faq: [] };
+  const blocks = []; const faq = []; let q = null;
+  for (const b of arr) {
+    const raw = b && (b[`text_${lang}`] || b.text);
+    if (typeof raw !== 'string' || !raw.trim()) continue;
+    const text = stripTags(raw.replace(/\*\*/g, ''));
+    if (b.type === 'heading') {
+      blocks.push({ tag: 'h2', text });
+      q = /[?？]$/.test(text) ? { q: text, a: [] } : null;
+      if (q) faq.push(q);
+    } else {
+      blocks.push({ tag: b.type === 'step' ? 'li' : 'p', text });
+      if (q) q.a.push(text);
+    }
+  }
+  return { blocks, faq: faq.filter((f) => f.a.length).map((f) => ({ q: f.q, a: f.a.join(' ') })) };
+}
+const faqLd = (faq) => ({ '@type': 'FAQPage', mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) });
+
 const breadcrumb = (origin, trail) => ({
   '@type': 'BreadcrumbList',
   itemListElement: trail.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: t.name, item: origin + t.path })),
@@ -231,13 +257,16 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
     blogSlugs.add(a.slug);
     const loc = `${origin}/insights/${encodeURIComponent(a.slug)}/`;
     const desc = a.summary_ko || blocksToParagraphs(a.body_ko, 'ko', 160)[0] || '';
+    const st = articleStructure(a.body_ko);
     urls.push({ loc, lastmod: isoDate(a.updatedAt || a.blog_published_at), changefreq: 'monthly', priority: '0.6' });
     out.push({
       rel: path.join('insights', a.slug, 'index.html'),
       html: renderPage(template, {
         title: `${a.title_ko} | PlanQ`, description: desc, url: loc, canonical: loc, ogType: 'article',
         h1: a.title_ko, paragraphs: [a.summary_ko, ...blocksToParagraphs(a.body_ko)].filter(Boolean), nav,
+        blocks: [...(a.summary_ko ? [{ tag: 'p', text: a.summary_ko }] : []), ...st.blocks],
         jsonld: { '@context': 'https://schema.org', '@graph': [
+          ...(st.faq.length ? [faqLd(st.faq)] : []),
           { '@type': 'Article', headline: a.title_ko, description: desc, url: loc, inLanguage: 'ko', datePublished: a.blog_published_at, dateModified: a.updatedAt, author: org, publisher: org },
           breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: '인사이트', path: '/insights/' }, { name: a.title_ko, path: `/insights/${encodeURIComponent(a.slug)}/` }]),
         ] },
@@ -250,13 +279,17 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
     const own = `${origin}/wiki/a/${encodeURIComponent(a.slug)}/`;
     const canonical = blogSlugs.has(a.slug) ? `${origin}/insights/${encodeURIComponent(a.slug)}/` : own;
     const desc = a.summary_ko || blocksToParagraphs(a.body_ko, 'ko', 160)[0] || '';
+    const st = articleStructure(a.body_ko);
     if (canonical === own) urls.push({ loc: own, lastmod: isoDate(a.updatedAt), changefreq: 'monthly', priority: '0.5' });
     out.push({
       rel: path.join('wiki', 'a', a.slug, 'index.html'),
       html: renderPage(template, {
         title: `${a.title_ko} | Q위키 — PlanQ`, description: desc, url: own, canonical, ogType: 'article',
         h1: a.title_ko, paragraphs: [a.summary_ko, ...blocksToParagraphs(a.body_ko)].filter(Boolean), nav,
+        blocks: [...(a.summary_ko ? [{ tag: 'p', text: a.summary_ko }] : []), ...st.blocks],
         jsonld: { '@context': 'https://schema.org', '@graph': [
+          // 같은 글이 인사이트에 있으면 FAQ 는 대표 주소(인사이트) 한 곳에만 — 중복 FAQ 는 검색엔진이 싫어한다
+          ...(st.faq.length && canonical === own ? [faqLd(st.faq)] : []),
           { '@type': 'TechArticle', headline: a.title_ko, description: desc, url: canonical, inLanguage: 'ko', dateModified: a.updatedAt, publisher: org },
           breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: 'Q위키', path: '/wiki/' }, { name: a.title_ko, path: `/wiki/a/${encodeURIComponent(a.slug)}/` }]),
         ] },
@@ -326,4 +359,4 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
   return r;
 }
 
-module.exports = { generateSeoArtifacts, renderPage, blocksToParagraphs, frontendDir, _test: { sectionBlocks, faqPairs } };
+module.exports = { generateSeoArtifacts, renderPage, blocksToParagraphs, frontendDir, _test: { sectionBlocks, faqPairs, articleStructure } };

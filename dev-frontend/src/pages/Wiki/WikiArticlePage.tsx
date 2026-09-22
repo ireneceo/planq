@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { renderInlineBold } from '../../utils/inlineBold';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -67,9 +68,9 @@ export default function WikiArticlePage() {
               const imgs = (article.body || []).filter(b => b.type === 'image' && b.file_id)
                 .map(b => ({ src: `/api/wiki/image/${b.file_id}`, alt: blockCaption(b) }));
               return (article.body || []).map((b, i) => {
-                if (b.type === 'heading') return <H3 key={i}>{blockText(b)}</H3>;
-                if (b.type === 'callout') return <Callout key={i}>{blockText(b)}</Callout>;
-                if (b.type === 'step') return <Step key={i}><span>{i + 1}</span><p>{blockText(b)}</p></Step>;
+                if (b.type === 'heading') return <H3 key={i}>{renderInlineBold(blockText(b))}</H3>;
+                if (b.type === 'callout') return <Callout key={i}>{renderInlineBold(blockText(b))}</Callout>;
+                if (b.type === 'step') return <Step key={i}><span>{i + 1}</span><p>{renderInlineBold(blockText(b))}</p></Step>;
                 if (b.type === 'image') {
                   const cap = blockCaption(b);
                   const src = `/api/wiki/image/${b.file_id}`;
@@ -83,7 +84,7 @@ export default function WikiArticlePage() {
                     </Figure>
                   ) : null;
                 }
-                return <P key={i}>{blockText(b)}</P>;
+                return <P key={i}>{renderInlineBold(blockText(b))}</P>;
               });
             })()}
           </Body>

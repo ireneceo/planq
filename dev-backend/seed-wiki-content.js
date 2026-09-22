@@ -17,6 +17,9 @@ const note = (ko, en) => ({ type: 'callout', text_ko: ko, text_en: en });
 const CATEGORIES = [
   { slug: 'getting-started', icon: 'rocket', sort: 1, title: t('시작하기', 'Getting Started'),
     summary: t('워크스페이스 만들기부터 팀·고객 초대까지 첫 걸음', 'From creating a workspace to inviting your team and clients') },
+  // 2026-09-22 — 업종·상황별 업무 가이드(AEO). 기능 사용법이 아니라 «이런 팀은 어떻게 일하면 되나» 에 답한다.
+  { slug: 'playbook', icon: 'rocket', sort: 1.5, title: t('업무 가이드', 'Work playbooks'),
+    summary: t('업종·상황별로 PlanQ 로 일하는 방법', 'How to run your work in PlanQ, by industry and situation') },
   { slug: 'qtalk', icon: 'chat', sort: 2, title: t('Q Talk (대화)', 'Q Talk (Chat)'),
     summary: t('고객·팀과 대화하고 대화에서 업무를 자동 추출', 'Chat with clients and teams, auto-extract tasks from conversations') },
   { slug: 'qtask', icon: 'check', sort: 3, title: t('Q Task (할일)', 'Q Task (Tasks)'),
@@ -79,6 +82,7 @@ const BLOG_MAP = {
   'what-is-cue': 'insights',
   'insights-overview': 'insights',
   'client-vs-internal': 'insights',
+  'agency-workflow': 'insights',
 };
 // 발행일 결정적 기준 — 배포/재시드마다 동일 (clock 비의존). 리스트 순서대로 하루씩 과거로.
 const BLOG_BASE_TS = Date.parse('2026-07-07T00:00:00Z');
@@ -891,6 +895,47 @@ const ARTICLES = [
     ] },
 
   // ── Insights ──
+  // ── 업무 가이드 (2026-09-22 · AEO) — 사실만 쓴다: 각 문장은 실제 기능과 대조했다 ──
+  { cat: 'playbook', slug: 'agency-workflow', visibility: 'public', linked_route: null, est: 6, published: '2026-09-22',
+    title: t('에이전시·디자인 스튜디오 업무관리 — 고객 요청부터 청구까지 한 흐름으로', 'Work management for agencies and design studios — from client request to invoice in one flow'),
+    summary: t('카톡·메일로 흩어지는 고객 요청, 끝없는 시안 수정, 빠지는 청구를 한 곳에서 정리하는 방법', 'How to stop client requests scattering across chat and email, keep revision rounds under control and never miss an invoice'),
+    body: [
+      p('에이전시와 디자인 스튜디오의 하루는 대개 이렇게 흘러갑니다. 고객은 카톡으로 "로고 조금만 더 키워 주세요" 를 보내고, 다른 담당자는 메일로 수정 사항을 보냅니다. 시안 파일은 누군가의 PC 와 메신저 곳곳에 흩어지고, 몇 번째 수정인지는 기억에 의존합니다. 프로젝트가 끝날 즈음에는 "이번 달 어디까지 청구했지?" 를 다시 맞춰 봐야 합니다.',
+        'An agency or design studio day usually goes like this. One client messages "could you make the logo a little bigger", another contact sends revisions by email. Design files end up on someone\'s laptop and scattered across chats, and which revision round you are on depends on memory. By the end of the project you are reconciling "what have we invoiced this month?" all over again.'),
+      p('문제는 사람이 아니라 <strong>일이 여러 도구에 나뉘어 있다</strong>는 데 있습니다. PlanQ 는 고객 대화, 업무, 자료, 회의, 청구를 한 흐름으로 잇습니다. 아래는 에이전시가 실제로 쓰는 순서대로 정리한 방법입니다.',
+        'The problem is not the people — it is that <strong>the work is split across tools</strong>. PlanQ connects client conversations, tasks, files, meetings and billing in one flow. Here is how an agency uses it, in the order the work actually happens.'),
+      h('1. 고객 요청은 고객별 대화방으로 모읍니다', '1. Gather client requests in one room per client'),
+      p('고객마다 대화방을 만들고 프로젝트에 연결합니다. 고객에게는 링크를 보내면 됩니다 — 회원가입 없이 링크로 바로 대화에 들어올 수 있습니다. 대화 속에 "금요일까지 배너 2종" 같은 요청이 나오면 AI(Cue)가 업무 후보로 뽑아 주고, 담당자가 확인하고 업무로 등록합니다. 같은 요청이 두 번 뽑히지는 않습니다.',
+        'Create a room for each client and link it to the project. Send the client a link — they can join the conversation without signing up. When a request like "two banner sizes by Friday" comes up, the AI teammate Cue suggests it as a task candidate, and your team member confirms and adds it. The same request is never extracted twice.'),
+      h('2. 시안과 수정은 «확인 요청 → 수정 요청 → 승인» 으로 남깁니다', '2. Track drafts through "review request → revision → approval"'),
+      p('업무를 끝낸 담당자는 확인 요청을 보냅니다. 확인자(디렉터나 고객 담당)가 수정을 요청하면 업무가 담당자에게 되돌아가고, 무엇을 고쳐야 하는지가 기록으로 남습니다. 승인이 끝나면 담당자가 최종 완료를 눌러 닫습니다. 그래서 "이번이 몇 번째 수정이었지?" 를 기억할 필요가 없습니다 — 업무 이력에 그대로 있습니다.',
+        'When the assignee finishes, they send a review request. If the reviewer — a director or the account lead — asks for changes, the task goes back to the assignee with the requested changes on record. Once approved, the assignee closes it with a final completion. You never have to remember which revision round you are on — it is in the task history.'),
+      s('업무마다 담당자와 마감을 정하면, 담당자의 «이번 주 업무» 에 자동으로 모입니다.', 'Give each task an assignee and a due date, and it lands in the assignee\'s "this week" list automatically.'),
+      s('확인이 필요한 일은 요청한 사람·확인할 사람 모두의 «확인 필요» 에 뜹니다. 놓치는 확인이 없습니다.', 'Anything waiting for review shows in "Needs attention" for both the requester and the reviewer, so nothing waits unnoticed.'),
+      h('3. 시안 파일과 문서는 프로젝트에 붙입니다', '3. Keep files and documents with the project'),
+      p('시안 파일은 프로젝트별로 올려 둡니다. 같은 파일을 여러 번 올려도 저장 공간은 한 번만 씁니다. 제안서·견적서·계약서는 Q docs 로 작성하고, 고객 서명이 필요하면 링크로 보내 인증번호 확인을 거쳐 서명받습니다. 누가 언제 서명했는지 이력이 남습니다.',
+        'Upload design files to the project. Uploading the same file again does not use more storage. Write proposals, quotes and contracts in Q docs, and when you need the client\'s signature, send a link — they sign after a verification code, and who signed when is kept on record.'),
+      h('4. 회의는 녹음하고 결정 사항만 남깁니다', '4. Record meetings and keep only the decisions'),
+      p('고객 미팅을 Q note 로 녹음하면 실시간으로 받아 적고, 끝나면 요약해 줍니다. 요약에서 결정 사항을 뽑아 업무로 만들면, "그때 뭐라고 했더라" 로 다시 전화하는 일이 줄어듭니다.',
+        'Record client meetings with Q note and it transcribes live and summarizes when you finish. Turn the decisions into tasks and there are far fewer "what did we agree again?" follow-up calls.'),
+      h('5. 청구는 견적에서 이어서 합니다', '5. Invoice straight from the quote'),
+      p('Q bill 은 견적 → 계약 → 청구 → 세금계산서 순서로 이어집니다. 착수금·중도금·잔금처럼 나눠 받는 프로젝트는 분할 청구로 회차별 입금을 따로 확인합니다. 고객에게는 결제 안내 링크를 보내고, 입금이 확인되면 표시합니다. 세금계산서는 외부에서 발행한 뒤 PlanQ 에 기록해 두면, 발행이 빠진 회차가 한눈에 보입니다.',
+        'Q bill runs quote → contract → invoice → tax invoice in order. For projects paid in stages — deposit, interim, final — installment billing tracks each payment separately. Send the client a payment link and mark it when the money arrives. Tax invoices are issued outside PlanQ and recorded here, so any installment missing one stands out.'),
+      h('6. 어느 프로젝트가 남는지 숫자로 봅니다', '6. See which projects actually pay off'),
+      p('업무 시간과 청구가 같은 곳에 있으니, 통계·분석에서 프로젝트마다 매출·원가·이익·시간당 이익이 계산됩니다. "수정이 많았던 그 브랜딩 프로젝트" 가 실제로 얼마를 남겼는지, 다음 견적에서 무엇을 조정해야 할지가 보입니다.',
+        'Because task time and billing live in one place, Insights calculates revenue, cost, profit and profit per hour for every project. You can see what "that branding project with endless revisions" really earned, and what to adjust in the next quote.'),
+      h('고객도 PlanQ 에 가입해야 하나요?', 'Do clients need a PlanQ account?'),
+      p('아니요. 고객에게는 대화 링크를 보내면 로그인 없이 대화에 참여합니다. 더 많은 것을 함께 보려면 고객을 초대해 계정으로 쓰게 할 수도 있습니다.',
+        'No. Send the client a conversation link and they can join without signing in. If you want to share more with them, you can also invite them to use an account.'),
+      h('수정 요청이 몇 번 있었는지 나중에 확인할 수 있나요?', 'Can I check later how many revision rounds there were?'),
+      p('네. 확인 요청과 수정 요청은 업무 이력에 순서대로 남습니다. 누가 언제 무엇을 고쳐 달라고 했는지 다시 볼 수 있습니다.',
+        'Yes. Review requests and revision requests stay in the task history in order, so you can see who asked for what and when.'),
+      h('작은 스튜디오도 쓸 수 있나요?', 'Does it work for a small studio?'),
+      p('네. 1인 스튜디오는 Starter(월 9,900원), 5명까지의 팀은 Basic(월 39,000원), 10명까지는 Pro(월 79,000원)로 시작할 수 있고, 가입하면 14일 동안 무료로 먼저 써 볼 수 있습니다.',
+        'Yes. A one-person studio can start on Starter (₩9,900/month), teams of up to 5 on Basic (₩39,000/month) and up to 10 on Pro (₩79,000/month), with a 14-day free trial when you sign up.'),
+      note('처음에는 진행 중인 프로젝트 하나만 옮겨 보세요. 고객 대화방 하나, 업무 몇 개, 청구 한 건이면 흐름이 어떻게 이어지는지 바로 보입니다.', 'Start by moving just one active project. One client room, a few tasks and a single invoice are enough to see how the flow connects.'),
+    ] },
+
   { cat: 'insights', slug: 'insights-overview', visibility: 'authenticated', linked_route: '/stats/overview', est: 4,
     title: t('통계 한눈에 보기', 'Insights at a glance'),
     summary: t('업무·시간·청구 기록을 모아 어느 프로젝트가 돈이 되는지 보여 주는 통계 화면 둘러보기', 'A tour of Insights — which projects make money, from the task, time and billing records you already keep'),
@@ -1080,9 +1125,10 @@ async function run() {
     if (blogCat) {
       payload.blog_category = blogCat;
       // 멱등: 기존 발행일(관리자 수동 발행 포함) 보존, 없으면 결정적 날짜 부여 → 배포마다 동일
+      // 글에 `published` 가 있으면 그 날짜(새로 쓴 글이 7월 날짜로 보이던 것 — 2026-09-22). 이미 있으면 보존.
       payload.blog_published_at = (existing && existing.blog_published_at)
         ? existing.blog_published_at
-        : new Date(BLOG_BASE_TS - (blogSeq * DAY_MS));
+        : (a.published ? new Date(`${a.published}T12:00:00+09:00`) : new Date(BLOG_BASE_TS - (blogSeq * DAY_MS)));
       blogSeq += 1;
       blogCount += 1;
     }

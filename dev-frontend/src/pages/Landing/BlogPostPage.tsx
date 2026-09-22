@@ -1,6 +1,7 @@
 // KNOWLEDGE_LOOP 축3 — 랜딩 블로그 글 상세 (/blog/:slug). 소스 = Q위키 발행분.
 // 블록 렌더는 WikiArticlePage 와 같은 구조 (heading/text/step/callout/image), 랜딩 톤(teal).
 import { useEffect, useState } from 'react';
+import { renderInlineBold } from '../../utils/inlineBold';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -86,9 +87,9 @@ const BlogPostPage: React.FC = () => {
               )}
               <Body>
                 {blocks.map((b, i) => {
-                  if (b.type === 'heading') { stepNo = 0; return <H3 key={i}>{blockText(b)}</H3>; }
-                  if (b.type === 'callout') return <Callout key={i}>{blockText(b)}</Callout>;
-                  if (b.type === 'step') { stepNo += 1; return <Step key={i}><span>{stepNo}</span><p>{blockText(b)}</p></Step>; }
+                  if (b.type === 'heading') { stepNo = 0; return <H3 key={i}>{renderInlineBold(blockText(b))}</H3>; }
+                  if (b.type === 'callout') return <Callout key={i}>{renderInlineBold(blockText(b))}</Callout>;
+                  if (b.type === 'step') { stepNo += 1; return <Step key={i}><span>{stepNo}</span><p>{renderInlineBold(blockText(b))}</p></Step>; }
                   if (b.type === 'image' && b.file_id) {
                     const cap = (lang === 'en' ? b.caption_en : b.caption_ko) || b.caption_ko || '';
                     return (
@@ -98,7 +99,7 @@ const BlogPostPage: React.FC = () => {
                       </Figure>
                     );
                   }
-                  return <P key={i}>{blockText(b)}</P>;
+                  return <P key={i}>{renderInlineBold(blockText(b))}</P>;
                 })}
               </Body>
               <CtaBand>
