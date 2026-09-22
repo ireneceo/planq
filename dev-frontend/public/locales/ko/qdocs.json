@@ -714,7 +714,20 @@
   "revertEdit": "이번 편집 되돌리기",
   "doneEditing": "편집 완료",
   "trash": {
-    "retentionDays": "삭제 후 {{count}}일 안에는 되돌릴 수 있어요"
+    "retentionDays": "삭제 후 {{count}}일 안에는 되돌릴 수 있어요",
+    "title": "휴지통",
+    "btn": "휴지통",
+    "openHint": "삭제한 문서·정보 되돌리기 (30일)",
+    "loading": "불러오는 중…",
+    "empty": "휴지통이 비어 있어요",
+    "kindKb": "정보",
+    "kindPost": "문서",
+    "expired": "보관 기간 지남",
+    "restore": "복원",
+    "purge": "영구 삭제",
+    "purgeTitle": "영구 삭제",
+    "purgeMessage": "\"{{title}}\" 을(를) 완전히 지웁니다. 이 작업은 되돌릴 수 없습니다.",
+    "cancel": "취소"
   },
   "public": {
     "signError": "서명 실패: {{message}}",

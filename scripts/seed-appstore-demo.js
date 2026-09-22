@@ -35,6 +35,11 @@ let token = null;
 const log = (...a) => console.log(...a);
 
 async function api(method, path, body, opts = {}) {
+  // ★ --dry 는 **쓰기를 하나도 보내지 않는다** (2026-09-22). 예전엔 가입 단계만 건너뛰고 나머지를
+  //   그대로 만들어서, 운영에서 "미리보기" 로 돌린 것이 실제 생성이 됐다. 로그인만 통과시킨다.
+  if (DRY && method !== 'GET' && path !== '/api/auth/login') {
+    return { status: 299, ok: false, json: { dry: true } };
+  }
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {

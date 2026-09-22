@@ -714,7 +714,20 @@
   "revertEdit": "Undo this edit",
   "doneEditing": "Done",
   "trash": {
-    "retentionDays": "You can restore within {{count}} days of deleting"
+    "retentionDays": "You can restore within {{count}} days of deleting",
+    "title": "Trash",
+    "btn": "Trash",
+    "openHint": "Restore deleted docs and info (30 days)",
+    "loading": "Loading…",
+    "empty": "Trash is empty",
+    "kindKb": "Info",
+    "kindPost": "Doc",
+    "expired": "Retention period passed",
+    "restore": "Restore",
+    "purge": "Delete forever",
+    "purgeTitle": "Delete forever",
+    "purgeMessage": "\"{{title}}\" will be permanently deleted. This can't be undone.",
+    "cancel": "Cancel"
   },
   "public": {
     "signError": "Signing failed: {{message}}",
