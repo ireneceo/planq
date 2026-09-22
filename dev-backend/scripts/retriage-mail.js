@@ -16,6 +16,8 @@ const { applyRules } = require('../services/mailSenderRules');
 const { isKnownContact } = require('../services/emailImapCron');
 
 const APPLY = process.argv.includes('--apply');
+// --list: 바뀌는 스레드를 전부 출력(기본은 예시 8건) — 반영 전에 오승격이 없는지 한 줄씩 보려고 (2026-09-22)
+const SAMPLE_MAX = process.argv.includes('--list') ? Infinity : 8;
 
 (async () => {
   const accounts = await EmailAccount.findAll({ where: { is_active: true }, attributes: ['id', 'business_id', 'email'] });
@@ -112,9 +114,9 @@ const APPLY = process.argv.includes('--apply');
     // 바뀐 게 없으면 건드리지 않는다 (멱등)
     if (nextReply === !!th.reply_needed && nextStatus === th.status && nextTriage === th.triage) { kept++; continue; }
     changed++;
-    if (samples.length < 8) {
+    if (samples.length < SAMPLE_MAX) {
       const to = nextReply ? '답변 필요' : (nextStatus === 'uncertain' ? '확인 권장' : nextStatus);
-      samples.push(`${th.id} | ${(th.subject || '').slice(0, 30)} | ${fromEmail} → ${to}`);
+      samples.push(`${th.id} | ${(th.subject || '').slice(0, 60)} | ${fromEmail} → ${to}`);
     }
     if (APPLY) {
       await th.update({
