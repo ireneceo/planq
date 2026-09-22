@@ -563,6 +563,30 @@ const ARTICLES = [
         'The certificate is included only in the PDF members download. Shared PDFs and public pages never carry emails or connection details.'),
     ] },
 
+  { cat: 'qbill', slug: 'duplicate-invoice', visibility: 'authenticated', linked_route: '/bills', est: 2,
+    title: t('청구서 복사하기', 'Duplicate an invoice'),
+    summary: t('매달 같은 내용으로 청구할 때 처음부터 다시 만들지 않기', 'Bill the same thing each month without starting over'),
+    body: [
+      s('청구서를 열고 [복사] 를 누릅니다. 고객·품목·금액·세율·결제조건·메모·증빙 설정이 그대로 담긴 새 청구서가 만들어집니다.',
+        'Open an invoice and press [Duplicate]. You get a new invoice carrying the client, line items, amounts, tax rate, payment terms, notes and receipt settings.'),
+      note('복사되지 않는 것: 청구서 번호(새로 매겨집니다) · 발행/전송/열람/입금 기록 · 세금계산서·현금영수증 발급 이력 · 공개 결제 링크.',
+        'Not copied: the invoice number (a new one is assigned), issuing/sending/viewing/payment records, tax invoice and cash receipt history, and the public payment link.'),
+      note('복사본은 항상 «작성 중» 으로 시작합니다. 내용을 확인한 뒤 발행을 다시 누르세요. 계좌는 지금 설정된 것으로, 금액은 품목에서 다시 계산됩니다.',
+        'The copy always starts as a draft — review it and issue it yourself. Bank details come from your current settings and amounts are recalculated from the line items.'),
+    ] },
+
+  { cat: 'qproject', slug: 'duplicate-project', visibility: 'authenticated', linked_route: '/projects', est: 2,
+    title: t('프로젝트 복사하기', 'Duplicate a project'),
+    summary: t('비슷한 프로젝트를 같은 설정으로 다시 시작하기', 'Start a similar project with the same setup'),
+    body: [
+      s('프로젝트 카드의 ⋮ 메뉴에서 [복사] 를 누릅니다. 멤버·고객 연결·상태 옵션·프로세스 컬럼·추진과제·거래 단계·계약 구조·전략 캔버스가 따라옵니다.',
+        'Use [Duplicate] in the ⋮ menu on a project card. Members, client links, status options, process columns, workstreams, deal stages, contract structure and the strategy canvas all carry over.'),
+      note('업무·문서·대화·파일·청구서는 복사되지 않습니다. 해 온 일까지 복제하면 하지 않은 일이 완료된 것처럼 보이기 때문입니다.',
+        'Tasks, documents, conversations, files and invoices are not copied — duplicating work already done would make unfinished work look complete.'),
+      note('기간은 비워지고 자동 청구는 꺼진 상태로 시작합니다. 고객 초대 링크도 새로 발급되며, 복사만으로 고객에게 메일이 가지는 않습니다.',
+        'Dates start empty and automatic billing starts off. Client invite links are reissued, and duplicating alone never emails anyone.'),
+    ] },
+
   { cat: 'qdocs', slug: 'duplicate-document', visibility: 'authenticated', linked_route: '/docs', est: 1,
     title: t('문서 복사하기', 'Duplicate a document'),
     summary: t('같은 내용으로 새 문서를 시작하기', 'Start a new document from an existing one'),
