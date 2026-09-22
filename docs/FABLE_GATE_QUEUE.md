@@ -4832,3 +4832,7 @@ Fable 호출 실패: HTTP 429 (req_011CfK7CPrciotm2ptE4ku3n). **오늘 6회 모�
    발행은 owner 전용이다. 복사가 draft 생성과 같은 무게인지.
 4. **프로젝트 복사가 멤버 누구나**인 것(생성과 같은 급). 계약구조·전략까지 복사되는데 그 급이 맞는지.
 5. i18n 가드 정규식이 **너무 넓어졌는지** — `{[^{}]*\bt\s*:\s*(\w+)[^{}]*\}` 로 완화했다(오탐 13건 해소).
+- 6차: Q위키 2건(duplicate-invoice · duplicate-project). Fable 429(req_011CfK7UDnqPBEfXXPZ9ZumG) — **오늘 7회 모두 429**.
+  문구를 코드와 대조: 번호 새 채번 ✓ · 복사본 draft ✓ · 계좌 재스냅샷 ✓ · 금액 재계산 ✓ · 자동청구 OFF ✓ ·
+  초대토큰 재발급 ✓ · 프로젝트 복사 코드에 Task/Post/Conversation create **0건**(업무·문서·대화 미복사 확인) ✓.
+  visibility 둘 다 `authenticated`(BLOG_MAP 미포함) · 운영 접근 401.
