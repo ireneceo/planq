@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-22 ([Claude Code] Opus 5, 1M) — **운영 배포 5회 (v1.55.3 유지 · 마지막 llms.txt 9/22).** 주제는 **"사람에게 보이는 것과 검색엔진·AI 가 읽는 것이 달랐다"** 다. ①Apple 로그인 운영 동작(Team ID 오입력 교정) · App Store 정식 심사 제출(수동 출시). ②데모 계정 대화 본문이 비어 있던 것·Q docs 휴지통 영어 누락. ③**휴지통 하나로**(전체·파일·문서·정보 탭, 아이콘 버튼, Q info 진입점) — 탭 줄이 0px 로 눌려 안 눌리던 것 잡음. ④**SEO/AEO** — 크롤러가 받는 본문 홈 513→2,732자·기능 367→5,481 등(시각숨김 prerender, 옛 .gz 가 새 파일을 가리던 것), 요금제 FAQ·추가구매 가격을 실제 청구와 맞춤, 개발 용어 25곳 제거, 업무 가이드 9편(FAQ 구조화 자동), 본문 <strong> 노출 수정. Fable 은 429 로 전부 자체 검증.
+> **최종 업데이트:** 2026-09-22 ([Claude Code] Opus 5, 1M) — **운영 배포 6회 (v1.55.3 유지 · 마지막 e5fe6d71 Q mail 보안 메일).** 주제는 **"사람에게 보이는 것과 검색엔진·AI 가 읽는 것이 달랐다"** 다. ①Apple 로그인 운영 동작(Team ID 오입력 교정) · App Store 정식 심사 제출(수동 출시). ②데모 계정 대화 본문이 비어 있던 것·Q docs 휴지통 영어 누락. ③**휴지통 하나로**(전체·파일·문서·정보 탭, 아이콘 버튼, Q info 진입점) — 탭 줄이 0px 로 눌려 안 눌리던 것 잡음. ④**SEO/AEO** — 크롤러가 받는 본문 홈 513→2,732자·기능 367→5,481 등(시각숨김 prerender, 옛 .gz 가 새 파일을 가리던 것), 요금제 FAQ·추가구매 가격을 실제 청구와 맞춤, 개발 용어 25곳 제거, 업무 가이드 9편(FAQ 구조화 자동), 본문 <strong> 노출 수정. Fable 은 429 로 전부 자체 검증.
 ## ✅ 완료: App Store 제출 · 휴지통 통합 · SEO/AEO 1·2단계 (2026-09-22)
 
 ### 완료된 작업
@@ -15,12 +15,14 @@
 | 랜딩 문구 교정 | 요금제 FAQ·추가구매 가격 → config/plans 실제 청구 · Pro «API 접근» 제거 · 기능 페이지 개발 용어 25곳 | ✅ 완료 |
 | SEO/AEO 2단계 | 업무 가이드 9편(업종 4·질문 3·비교 1·FAQ 26) · 글 «?» 소제목 → FAQPage 자동 · llms.txt | ✅ 완료 |
 | 본문 굵게 표시 | 위키·인사이트·새 소식 <strong> 글자 노출 → utils/inlineBold | ✅ 완료 |
+| Q mail 보안 메일 | 비밀번호 재설정·변경·보안 경고·계정 복구 → 확인 권장(SECURITY_CODE +13) · 운영 시뮬 오승격 0 · retriage 56통(--list 전수 확인 후 반영) | ✅ 완료 |
 
 ### 수정된 파일
 - `dev-backend/services/seoArtifacts.js` · `dev-backend/seed-wiki-content.js` · `scripts/seed-appstore-demo.js`
 - `dev-frontend/src/components/Trash/*` (신규) · `pages/QProject/DocsTab.tsx` · `components/Docs/PostsPage.tsx` · `pages/Knowledge/KnowledgePage.tsx`
 - `dev-frontend/src/utils/inlineBold.tsx` · `pages/{Landing/BlogPostPage,Wiki/WikiArticlePage,WhatsNew/WhatsNewPage}.tsx`
 - `dev-frontend/public/{seo-pages.json,llms.txt}` · locales(common·qdocs·landing ko/en)
+- `dev-backend/services/emailTriage.js` · `dev-backend/scripts/retriage-mail.js`
 
 ---
 

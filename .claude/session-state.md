@@ -1,6 +1,6 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-09-22
-**작업 상태:** 완료 (운영 배포 5회 · v1.55.3 유지 · 마지막 배포 cd852d9d 계열) [Claude Code]
+**작업 상태:** 완료 (운영 배포 6회 · v1.55.3 유지 · 마지막 배포 cd852d9d 계열) [Claude Code]
 
 ### 진행 중인 작업
 - 없음
@@ -12,6 +12,7 @@
 - SEO/AEO 1단계: 크롤러 본문 prerender(#root 시각숨김) · 홈 생성 · FAQPage/Breadcrumb · .gz 동시 기록
 - 랜딩 문구 교정: 요금제 FAQ·추가구매 가격을 실제 청구에 · Pro API 제거 · 개발 용어 25곳
 - SEO/AEO 2단계: 업무 가이드 9편(FAQ 26 포함) · 글 FAQ 자동 구조화 · llms.txt · <strong> 노출 수정
+- Q mail: 비밀번호 재설정·보안 경고 메일 → 확인 권장 · 운영 retriage 56통
 
 ### 다음 할 일
 - **App Store 심사 대기** — 승인 → Irene [출시] → 운영 `app_ios_url` 을 App Store 주소로(내가). 반려면 사유 원문으로. memory `project_app_release_status`
