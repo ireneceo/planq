@@ -28,8 +28,9 @@ function frontendDir() {
 const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-/** 위키 본문 블록 → 평문 문단들 (text_ko 만). 검색용 요약이라 1,500자에서 자른다. */
-function blocksToParagraphs(body, lang = 'ko', max = 1500) {
+/** 위키 본문 블록 → 평문 문단들. ★ 2026-09-22 — 1,500자에서 자르던 것을 **본문 전체**로.
+ *  AI 답변 엔진은 본문을 읽어야 인용한다. 자르면 뒤쪽의 답이 영영 안 읽힌다. */
+function blocksToParagraphs(body, lang = 'ko', max = 20000) {
   let arr = body;
   if (typeof arr === 'string') { try { arr = JSON.parse(arr); } catch { arr = []; } }
   if (!Array.isArray(arr)) return [];
@@ -43,6 +44,57 @@ function blocksToParagraphs(body, lang = 'ko', max = 1500) {
   }
   return out;
 }
+
+
+// ── 랜딩 문구 → 검색용 본문 (2026-09-22) ─────────────────────────────
+// 화면이 쓰는 **같은 문구**(빌드에 실린 locales/ko/landing.json)를 읽는다 — 봇과 사람에게 다른 내용을 주지 않는다.
+// 화면 조작용 짧은 글자(버튼·자리표시·로딩)는 뺀다.
+const SKIP_KEY = /^(shotAlt|alt|placeholder|searchPlaceholder|loading|error|empty|noResults|readMinutes|anchors|form|icon|href|url|img|image)$/i;
+const HEAD_KEY = /^(title|title1|title2|titleTop|name|head|headline1|headline2)$/;
+
+function pick(obj, dotted) {
+  return String(dotted).split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), obj);
+}
+const stripTags = (t) => String(t).replace(/<\/?\d+>/g, '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+/** 섹션 → [{ tag: 'h2'|'h3'|'p'|'li', text }] (문서 순서 그대로, 중복 제거) */
+function sectionBlocks(landing, sections) {
+  const out = []; const seen = new Set();
+  const walk = (v, key) => {
+    if (key && SKIP_KEY.test(key)) return;
+    if (typeof v === 'string') {
+      if (v.includes('{{')) return;
+      const t = stripTags(v);
+      if (t.length < 2 || seen.has(t)) return;
+      seen.add(t);
+      out.push({ tag: HEAD_KEY.test(key || '') ? 'h2' : (key === 'q' || /^q\d+$/.test(key || '')) ? 'h3' : 'p', text: t });
+    } else if (Array.isArray(v)) {
+      for (const x of v) {
+        if (typeof x === 'string') { const t = stripTags(x); if (t.length >= 2 && !seen.has(t) && !t.includes('{{')) { seen.add(t); out.push({ tag: 'li', text: t }); } }
+        else walk(x, key);
+      }
+    } else if (v && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) walk(x, k);
+    }
+  };
+  for (const sec of sections || []) walk(pick(landing, sec), String(sec).split('.').pop());
+  return out;
+}
+
+/** FAQ 출처 → [{q,a}]. 두 모양을 읽는다: { key: {q,a} } 와 { q1, a1, q2, a2 } */
+function faqPairs(landing, dotted) {
+  const v = pick(landing, dotted);
+  if (!v || typeof v !== 'object') return [];
+  const out = [];
+  for (const x of Object.values(v)) if (x && typeof x === 'object' && x.q && x.a) out.push({ q: stripTags(x.q), a: stripTags(x.a) });
+  for (let i = 1; i < 50; i++) if (typeof v[`q${i}`] === 'string' && typeof v[`a${i}`] === 'string') out.push({ q: stripTags(v[`q${i}`]), a: stripTags(v[`a${i}`]) });
+  return out;
+}
+
+const breadcrumb = (origin, trail) => ({
+  '@type': 'BreadcrumbList',
+  itemListElement: trail.map((t, i) => ({ '@type': 'ListItem', position: i + 1, name: t.name, item: origin + t.path })),
+});
 
 /** 템플릿(index.html)의 머리·noscript 를 페이지 것으로 바꾼다. 템플릿에 없는 태그는 </head> 앞에 더한다. */
 function renderPage(template, p) {
@@ -64,20 +116,42 @@ function renderPage(template, p) {
     const ld = JSON.stringify(p.jsonld).replace(/</g, '\\u003c');
     h = h.replace('</head>', `    <script type="application/ld+json">${ld}</script>\n  </head>`);
   }
+  const navHtml = `<nav>${(p.nav || []).map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join(' · ')}</nav>`;
   const body = [
     `<h1>${esc(p.h1 || p.title)}</h1>`,
     ...(p.paragraphs || []).map((t) => `<p>${esc(t)}</p>`),
-    `<nav>${(p.nav || []).map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join(' · ')}</nav>`,
+    navHtml,
   ].join('\n      ');
   h = h.replace(/<noscript>[\s\S]*?<\/noscript>/, `<noscript>\n      ${body}\n    </noscript>`);
+  // ★ 2026-09-22 — 본문을 <div id="root"> **안에도** 넣는다. <noscript> 는 구글이 가볍게 보고 AI 크롤러의
+  //   본문 추출기는 버린다(네이버·GPTBot·Perplexity 는 JS 를 대개 돌리지 않는다 → 그동안 제목 한 줄만 봤다).
+  //   화면에는 안 보이고(시각 숨김), 앱이 뜨면 React(createRoot)가 root 를 통째로 갈아끼워 사라진다 —
+  //   렌더된 DOM 에는 남지 않으므로 사람과 봇이 보는 내용이 다르지 않다(같은 문구에서 뽑았다).
+  const blocks = (p.blocks && p.blocks.length) ? p.blocks : (p.paragraphs || []).map((t) => ({ tag: 'p', text: t }));
+  const rich = [
+    `<h1>${esc(p.h1 || p.title)}</h1>`,
+    ...blocks.map((b) => (b.tag === 'a' ? `<p><a href="${esc(b.href)}">${esc(b.text)}</a>${b.sub ? ` — ${esc(b.sub)}` : ''}</p>`
+      : b.tag === 'li' ? `<ul><li>${esc(b.text)}</li></ul>` : `<${b.tag}>${esc(b.text)}</${b.tag}>`)),
+    navHtml,
+  ].join('\n        ');
+  const SR = 'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
+  h = h.replace(/<div id="root"><\/div>/, `<div id="root"><main id="seo-prerender" style="${SR}">\n        ${rich}\n      </main></div>`);
   return h;
 }
 
-function writeAtomic(file, content) {
+function writeAtomic(file, content, { gz = false } = {}) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp-${process.pid}`;
   fs.writeFileSync(tmp, content);
   fs.renameSync(tmp, file);
+  // ★ 2026-09-22 — nginx 가 gzip_static 이다. 빌드가 만든 옛 `index.html.gz` 가 옆에 있으면 압축을 받는 쪽
+  //   (브라우저·구글봇 등 대부분의 크롤러)은 **새로 쓴 파일이 아니라 옛 압축본**을 받는다 — curl 로 재면 멀쩡해 보인다.
+  //   그래서 생성물은 압축본도 같이 쓴다(원본과 늘 짝).
+  if (gz) {
+    const tz = `${file}.gz.tmp-${process.pid}`;
+    fs.writeFileSync(tz, require('zlib').gzipSync(Buffer.from(content), { level: 9 }));
+    fs.renameSync(tz, `${file}.gz`);
+  }
 }
 
 const isoDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : undefined);
@@ -88,9 +162,21 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
   if (!fs.existsSync(templatePath) || !fs.existsSync(pagesPath)) {
     return { ok: false, reason: 'build_missing', dir };
   }
-  const template = fs.readFileSync(templatePath, 'utf8');
-  // 템플릿이 이미 생성본이면(누가 루트에 덮어썼다) 멈춘다 — 생성본을 다시 템플릿으로 쓰면 태그가 겹친다
-  if (template.includes('data-seo-generated')) return { ok: false, reason: 'template_is_generated', dir };
+  // ★ 2026-09-22 — 홈(루트 index.html)도 생성한다. 그러려면 빌드 원본을 **따로 보관**해야 한다:
+  //   생성본을 다시 틀로 쓰면 태그가 겹친다. 새 빌드(생성 표시 없음)가 오면 그것을 원본으로 저장하고,
+  //   생성본만 남아 있으면(서버 재시작·자정) 보관한 원본을 쓴다.
+  const pristinePath = path.join(dir, 'index.template.html');
+  let template = fs.readFileSync(templatePath, 'utf8');
+  if (!template.includes('data-seo-generated')) {
+    writeAtomic(pristinePath, template);
+  } else if (fs.existsSync(pristinePath)) {
+    template = fs.readFileSync(pristinePath, 'utf8');
+    if (template.includes('data-seo-generated')) return { ok: false, reason: 'template_is_generated', dir };
+  } else {
+    return { ok: false, reason: 'template_is_generated', dir };
+  }
+  let landing = {};
+  try { landing = JSON.parse(fs.readFileSync(path.join(dir, 'locales', 'ko', 'landing.json'), 'utf8')); } catch { landing = {}; }
   const cfg = JSON.parse(fs.readFileSync(pagesPath, 'utf8'));
   const origin = cfg.origin || 'https://planq.kr';
 
@@ -100,23 +186,46 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
   const out = [];      // { rel: 'features/index.html', html }
   const urls = [];     // sitemap 항목
 
-  // ① 공개 정적 페이지
+  // 글 목록은 목록 페이지(/insights/ · /wiki/)의 본문 링크로도 쓴다 — 크롤러가 글로 따라 들어가게
+  const blog = await HelpArticle.findAll({ where: BLOG_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'blog_published_at', 'updatedAt'] });
+  const wiki = await HelpArticle.findAll({ where: WIKI_PUBLIC_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'updatedAt'] });
+  const blogSlugSet = new Set(blog.map((a) => a.slug));
+  const listBlocks = (kind) => (kind === 'insights'
+    ? blog.slice().sort((x, y) => new Date(y.blog_published_at) - new Date(x.blog_published_at))
+      .map((a) => ({ tag: 'a', href: `/insights/${encodeURIComponent(a.slug)}/`, text: a.title_ko, sub: a.summary_ko || '' }))
+    : wiki.filter((a) => !blogSlugSet.has(a.slug))
+      .map((a) => ({ tag: 'a', href: `/wiki/a/${encodeURIComponent(a.slug)}/`, text: a.title_ko, sub: a.summary_ko || '' })));
+
+  // ① 공개 정적 페이지 (홈 포함)
   for (const p of cfg.pages) {
     const loc = origin + p.path;
     urls.push({ loc, changefreq: p.changefreq, priority: p.priority });
-    if (p.noPrerender || p.path === '/') continue;   // 홈은 index.html 자체(소스에 이미 홈 머리)
+    if (p.noPrerender) continue;
+    const intro = ((p.intro && p.intro.ko) || []).map((t) => ({ tag: 'p', text: t }));
+    const blocks = [...intro, ...sectionBlocks(landing, p.sections), ...(p.list ? listBlocks(p.list) : [])];
+    const faq = p.faq ? faqPairs(landing, p.faq) : [];
+    const graph = [
+      { '@type': 'WebPage', name: p.title.ko, description: p.description.ko, url: loc, inLanguage: 'ko', isPartOf: { '@type': 'WebSite', name: 'PlanQ', url: origin }, publisher: org },
+      ...(p.path === '/' ? [] : [breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: p.label || p.title.ko, path: p.path }])]),
+      ...(faq.length ? [{ '@type': 'FAQPage', mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) }] : []),
+    ];
+    let html = renderPage(template, {
+      title: p.title.ko, description: p.description.ko, url: loc, canonical: loc,
+      h1: p.h1 && p.h1.ko, paragraphs: (p.intro && p.intro.ko) || [], blocks, nav,
+      jsonld: { '@context': 'https://schema.org', '@graph': graph },
+    });
+    if (p.path === '/') {
+      // 홈의 머리(제목·설명·기존 JSON-LD)는 index.html 원본이 정본이다 — 본문만 채운다
+      html = template.replace(/<div id="root"><\/div>/, (html.match(/<div id="root">[\s\S]*?<\/main><\/div>/) || ['<div id="root"></div>'])[0]);
+      html = html.replace(/<\/head>/, `    <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph.slice(1).length ? graph.slice(1) : [graph[0]] }).replace(/</g, '\\u003c')}</script>\n  </head>`);
+    }
     out.push({
-      rel: path.join(p.path.replace(/^\/|\/$/g, ''), 'index.html'),
-      html: renderPage(template, {
-        title: p.title.ko, description: p.description.ko, url: loc, canonical: loc,
-        h1: p.h1 && p.h1.ko, paragraphs: (p.intro && p.intro.ko) || [], nav,
-        jsonld: { '@context': 'https://schema.org', '@type': 'WebPage', name: p.title.ko, description: p.description.ko, url: loc, inLanguage: 'ko', isPartOf: { '@type': 'WebSite', name: 'PlanQ', url: origin }, publisher: org },
-      }).replace('<html lang="ko">', '<html lang="ko" data-seo-generated="1">'),
+      rel: p.path === '/' ? 'index.html' : path.join(p.path.replace(/^\/|\/$/g, ''), 'index.html'),
+      html: html.replace('<html lang="ko">', '<html lang="ko" data-seo-generated="1">'),
     });
   }
 
   // ② 인사이트 글 — 위키와 같은 글이면 **대표 주소는 여기** (중복 페이지 방지)
-  const blog = await HelpArticle.findAll({ where: BLOG_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'blog_published_at', 'updatedAt'] });
   const blogSlugs = new Set();
   for (const a of blog) {
     blogSlugs.add(a.slug);
@@ -128,13 +237,15 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
       html: renderPage(template, {
         title: `${a.title_ko} | PlanQ`, description: desc, url: loc, canonical: loc, ogType: 'article',
         h1: a.title_ko, paragraphs: [a.summary_ko, ...blocksToParagraphs(a.body_ko)].filter(Boolean), nav,
-        jsonld: { '@context': 'https://schema.org', '@type': 'Article', headline: a.title_ko, description: desc, url: loc, inLanguage: 'ko', datePublished: a.blog_published_at, dateModified: a.updatedAt, author: org, publisher: org },
+        jsonld: { '@context': 'https://schema.org', '@graph': [
+          { '@type': 'Article', headline: a.title_ko, description: desc, url: loc, inLanguage: 'ko', datePublished: a.blog_published_at, dateModified: a.updatedAt, author: org, publisher: org },
+          breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: '인사이트', path: '/insights/' }, { name: a.title_ko, path: `/insights/${encodeURIComponent(a.slug)}/` }]),
+        ] },
       }).replace('<html lang="ko">', '<html lang="ko" data-seo-generated="1">'),
     });
   }
 
   // ③ 위키 글 (게스트 공개분만)
-  const wiki = await HelpArticle.findAll({ where: WIKI_PUBLIC_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'updatedAt'] });
   for (const a of wiki) {
     const own = `${origin}/wiki/a/${encodeURIComponent(a.slug)}/`;
     const canonical = blogSlugs.has(a.slug) ? `${origin}/insights/${encodeURIComponent(a.slug)}/` : own;
@@ -145,7 +256,10 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
       html: renderPage(template, {
         title: `${a.title_ko} | Q위키 — PlanQ`, description: desc, url: own, canonical, ogType: 'article',
         h1: a.title_ko, paragraphs: [a.summary_ko, ...blocksToParagraphs(a.body_ko)].filter(Boolean), nav,
-        jsonld: { '@context': 'https://schema.org', '@type': 'TechArticle', headline: a.title_ko, description: desc, url: canonical, inLanguage: 'ko', dateModified: a.updatedAt, publisher: org },
+        jsonld: { '@context': 'https://schema.org', '@graph': [
+          { '@type': 'TechArticle', headline: a.title_ko, description: desc, url: canonical, inLanguage: 'ko', dateModified: a.updatedAt, publisher: org },
+          breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: 'Q위키', path: '/wiki/' }, { name: a.title_ko, path: `/wiki/a/${encodeURIComponent(a.slug)}/` }]),
+        ] },
       }).replace('<html lang="ko">', '<html lang="ko" data-seo-generated="1">'),
     });
   }
@@ -155,13 +269,13 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
     const abs = path.resolve(dir, o.rel);
     return abs.startsWith(path.resolve(dir) + path.sep) && !o.rel.split(path.sep).includes('..');
   });
-  for (const o of safe) writeAtomic(path.join(dir, o.rel), o.html);
+  for (const o of safe) writeAtomic(path.join(dir, o.rel), o.html, { gz: true });
 
   // sitemap.xml
   const xml = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ...urls.map((u) => `  <url><loc>${esc(u.loc)}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ''}${u.changefreq ? `<changefreq>${u.changefreq}</changefreq>` : ''}${u.priority ? `<priority>${u.priority}</priority>` : ''}</url>`),
     '</urlset>', ''].join('\n');
-  writeAtomic(path.join(dir, 'sitemap.xml'), xml);
+  writeAtomic(path.join(dir, 'sitemap.xml'), xml, { gz: true });
 
   // rss.xml — 인사이트 글(최신 30). 네이버 서치어드바이저 «RSS 제출» 용 (2026-09-21).
   //   사이트맵과 같은 조건(BLOG_WHERE)·같은 대표 주소를 쓴다 — 둘이 다른 주소를 가리키면 중복 색인이 된다.
@@ -185,7 +299,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
       return `    <item><title>${esc(a.title_ko)}</title><link>${esc(loc)}</link><guid isPermaLink="true">${esc(loc)}</guid><pubDate>${rfc822(a.blog_published_at)}</pubDate><description>${esc(desc)}</description></item>`;
     }),
     '  </channel>', '</rss>', ''].filter((l) => l !== '').join('\n');
-  writeAtomic(path.join(dir, 'rss.xml'), rss);
+  writeAtomic(path.join(dir, 'rss.xml'), rss, { gz: true });
 
   // 지난번에 만들었는데 이번엔 없는 페이지 — 비공개로 바뀌었거나 지운 글. **자기가 만든 파일만** 지운다.
   let removed = 0;
@@ -201,6 +315,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
       const txt = fs.readFileSync(abs, 'utf8');
       if (!txt.includes('data-seo-generated')) continue;   // 우리가 만든 것이 아니면 손대지 않는다
       fs.unlinkSync(abs); removed++;
+      try { fs.unlinkSync(`${abs}.gz`); } catch { /* 압축본 없음 */ }
       try { fs.rmdirSync(path.dirname(abs)); } catch { /* 비어 있지 않으면 둔다 */ }
     } catch { /* 이미 없음 */ }
   }
@@ -211,4 +326,4 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
   return r;
 }
 
-module.exports = { generateSeoArtifacts, renderPage, blocksToParagraphs, frontendDir };
+module.exports = { generateSeoArtifacts, renderPage, blocksToParagraphs, frontendDir, _test: { sectionBlocks, faqPairs } };

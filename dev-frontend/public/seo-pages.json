@@ -30,7 +30,18 @@
           "Chat, tasks, files, meetings and billing — every workflow runs in one place."
         ]
       },
-      "label": "홈"
+      "label": "홈",
+      "sections": [
+        "hero",
+        "problem",
+        "value",
+        "features",
+        "engine",
+        "compare",
+        "trust",
+        "target",
+        "finalCta"
+      ]
     },
     {
       "path": "/features/",
@@ -64,7 +75,10 @@
           "Q file · Q bill — manage files and billing in the same space."
         ]
       },
-      "label": "기능"
+      "label": "기능",
+      "sections": [
+        "featuresPage"
+      ]
     },
     {
       "path": "/pricing/",
@@ -90,7 +104,11 @@
           "14-day free trial, no credit card required. Cancel anytime."
         ]
       },
-      "label": "요금제"
+      "label": "요금제",
+      "sections": [
+        "pricingPage"
+      ],
+      "faq": "pricingPage.faq.items"
     },
     {
       "path": "/service/",
@@ -116,7 +134,10 @@
           "Growth starts with a better way of working, not more tools."
         ]
       },
-      "label": "서비스"
+      "label": "서비스",
+      "sections": [
+        "servicePage"
+      ]
     },
     {
       "path": "/insights/",
@@ -142,7 +163,8 @@
           "Work automation insights and product updates."
         ]
       },
-      "label": "인사이트"
+      "label": "인사이트",
+      "list": "insights"
     },
     {
       "path": "/wiki/",
@@ -168,7 +190,8 @@
           "Search and browse how to use PlanQ."
         ]
       },
-      "label": "Q위키"
+      "label": "Q위키",
+      "list": "wiki"
     },
     {
       "path": "/about/",
@@ -194,7 +217,10 @@
           "PlanQ was born in the field, not in theory."
         ]
       },
-      "label": "브랜드 스토리"
+      "label": "브랜드 스토리",
+      "sections": [
+        "aboutPage"
+      ]
     },
     {
       "path": "/contact/",
@@ -220,7 +246,13 @@
           "Sales, support or partnerships — all welcome."
         ]
       },
-      "label": "문의하기"
+      "label": "문의하기",
+      "sections": [
+        "contactPage.eyebrow",
+        "contactPage.title",
+        "contactPage.sub",
+        "contactPage.side"
+      ]
     },
     {
       "path": "/app/",
@@ -246,7 +278,11 @@
           "Install PlanQ on iOS and Android and get real-time push notifications."
         ]
       },
-      "label": "앱 다운로드"
+      "label": "앱 다운로드",
+      "sections": [
+        "betaPage"
+      ],
+      "faq": "betaPage.faq"
     },
     {
       "path": "/privacy",
@@ -278,5 +314,6 @@
       },
       "label": "이용약관"
     }
-  ]
+  ],
+  "_comment_sections": "sections = 이 페이지 화면이 쓰는 locales/ko/landing.json 의 키(점 경로). 검색용 HTML 본문은 여기서 뽑는다 — 사람과 봇에게 같은 문구. faq = FAQPage 구조화 데이터 출처(q/a 쌍). list = 목록 페이지에 글 링크를 넣는다(insights|wiki). (2026-09-22)"
 }
