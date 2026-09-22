@@ -18,6 +18,17 @@
 - [인사이트](https://planq.kr/insights/): 업무 자동화 인사이트와 제품 소식
 - [Q위키](https://planq.kr/wiki/): PlanQ 사용법 도움말
 
+## 업무 가이드 (업종·상황별)
+- [에이전시·디자인 스튜디오 업무관리](https://planq.kr/insights/agency-workflow/): 고객 요청부터 청구까지 한 흐름
+- [외주 개발사 프로젝트 관리](https://planq.kr/insights/dev-agency-workflow/): 요구사항·일정·검수·분할 청구
+- [컨설팅·전문 서비스 업무관리](https://planq.kr/insights/consulting-workflow/): 시간 기록과 시간당 이익
+- [영상·콘텐츠 제작사 업무관리](https://planq.kr/insights/production-studio-workflow/): 촬영 일정·시안 컨펌·외주 파트너
+- [흩어진 고객 요청 한 곳으로 모으기](https://planq.kr/insights/scattered-client-requests/): 카톡·메일·전화 요청을 업무로
+- [도구를 따로 쓸 때 생기는 일](https://planq.kr/insights/too-many-tools/): 하나로 합칠지 정하는 기준
+- [프로젝트 수익성 계산하는 법](https://planq.kr/insights/project-profitability/): 시간당 이익으로 견적 고치기
+- [회의록 자동 정리](https://planq.kr/insights/meeting-notes-to-tasks/): 녹음·요약·후속 업무
+- [PlanQ 자주 묻는 질문](https://planq.kr/insights/planq-faq/): 요금·고객·기능·보안·앱 26문항
+
 ## 정책
 - [개인정보처리방침](https://planq.kr/privacy)
 - [이용약관](https://planq.kr/terms)
