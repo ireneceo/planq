@@ -362,6 +362,23 @@ const SECURITY_CODE = new RegExp([
   '코드[\\s\\S]{0,30}로그인',
   '인증[\\s\\S]{0,20}코드',
   '코드[\\s\\S]{0,20}인증',
+  // ★ 2026-09-22 (Irene: "이런 거 인증문자나 리셋 등 이런 건 확인권장으로 가야 하는데 안들어와") —
+  //   비밀번호 재설정·변경 통지, 의심 로그인, 계정 복구, 이메일 확인이 빠져 있었다. Threads(Meta)의
+  //   «Reset your password» 가 수신거부 헤더 때문에 marketing 으로 묻혔다(운영 스레드 3442·3443·2663).
+  //   «password» 단독은 쓰지 않는다 — «비밀번호 관리자 할인» 같은 광고가 걸린다. 행위와 짝으로만.
+  '비밀번호\\s*(재설정|초기화|변경|찾기)',
+  '비밀번호가\\s*(변경|재설정|초기화)',
+  '\\breset (your )?([\\w-]+ )?password\\b',
+  '\\bpassword (reset|change|recovery)\\b',
+  '\\bpassword (has been|was) (changed|reset|updated)\\b',
+  '\\bchanged your password\\b',
+  '\\b(suspicious|unusual) (sign[- ]?in|login|activity)\\b',
+  '\\bsecurity alert\\b',
+  '보안\\s*(알림|경고)',
+  '\\baccount recovery\\b',
+  '계정\\s*(복구|보안)',
+  '\\bconfirm your (email|e-mail|email address|account)\\b',
+  '이메일\\s*(주소\\s*)?(인증|확인)',
 ].join('|'), 'i');
 
 function isSecurityNotice(subject, bodyText) {
