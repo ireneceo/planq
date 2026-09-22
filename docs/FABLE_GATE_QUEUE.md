@@ -4758,3 +4758,21 @@ Fable 호출 실패: `claude-fable-5-1` HTTP 429 (한도 소진, req_011CfK2NBwx
 2. 복사본이 `vlevel`·`security_level` 을 **그대로 승계**한다(좁히지 않는다). 읽을 수 있는 사람만 복사하므로 확대는 없지만,
    «복사는 항상 L1 로 시작» 이 더 안전한 기본값인지는 제품 판단이다.
 3. 표(kind='table') 복사를 `doc` 강등으로 처리했다 — 사용자에게 그 사실을 알리지 않는다(화면 문구 없음).
+
+### 2026-09-22 — Q위키 아티클 3건 (R=0 · S=0 · F=1 → 자체 검증) [Opus] — Fable 429 → unavailable
+커밋 `eab3eca8`, 소스 변경은 `dev-backend/seed-wiki-content.js` 하나. 스키마·라우트·권한 변경 없음.
+Fable 호출 실패: HTTP 429 (한도 소진, req_011CfK3PTSG5hc8gQDH9N7Ak). **오늘 5회 모두 429.**
+
+**무엇을 썼나**: `collect-signature`(보강) · `signed-copy-pdf`(신규) · `duplicate-document`(신규), ko/en 양쪽.
+
+**자체 검증 — 문구를 코드와 한 줄씩 대조**(memory `feedback_copy_must_match_code_line_by_line`)
+- "보내는 쪽은 메일을 거치지 않는다" → `routes/signatures.js:212` `if (row.party === 'us') continue;` ✅
+- "증명서는 멤버 PDF 에만" → `pdfTemplates.js:321-322` 가 `sig.cert` 로만 붙이고, 멤버 라우트만 `cert:true`
+  (`routes/posts.js:1652` `cert: !!withCert`) ✅
+- "복사본에 서명·공유 링크는 안 따라감" → duplicate 는 `share_token` 을 쓰지 않고 서명 요청을 만들지 않는다.
+  실측으로도 확인(공유토큰 없음·서명 0건) ✅
+- "표 복사는 본문만" → `q_record_id: null` + `kind` 강등 ✅
+- visibility 는 셋 다 `authenticated` (공개 위키에 내부 동작이 새지 않는다) ✅
+- `wiki-coverage-check.js` 통과 — 영어 누락 발행글 0건.
+
+**Fable 이 봐야 할 것**: 위 문구가 **운영에도 맞는지**(운영 seed 는 아직 안 돌렸다 — 다음 배포 슬롯).
