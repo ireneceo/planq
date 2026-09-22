@@ -257,15 +257,15 @@
         "bullets": [
           "Dedicated 1:1 channel per customer + workspace group channels",
           "AI extracts tasks from messages — one click into Q Task",
-          "File · image attachments (SHA-256 dedup) + auto KO/EN translation",
-          "Realtime via Socket.IO + per-user pinning + edit/delete with audit log",
-          "Two-way Project ↔ chat linking + AI candidate dedup"
+          "Photo and file attachments — identical files stored once + automatic KO/EN translation",
+          "Real-time chat + pin your own conversations + edit/delete history kept",
+          "Projects and chats linked both ways — AI never extracts the same request twice"
         ],
         "shotAlt": "Q talk screen — client conversation channels and message list in a workspace"
       },
       "task": {
         "name": "Q Task — Task execution",
-        "lead": "Assign, review, complete in one flow. 7-state ENUM, 4 perspectives (assignee · reviewer · requester · observer), hours tracking.",
+        "lead": "Request, progress, review and completion in one flow. Everyone sees it from their own role — assignee, reviewer, requester or watcher — with time tracked along the way.",
         "bullets": [
           "7 statuses (not_started → waiting → in_progress → reviewing → revision_requested → completed)",
           "Perspective-aware labels (assignee/reviewer/requester/observer) — same task reads differently per role",
@@ -277,22 +277,22 @@
       },
       "note": {
         "name": "Q Note — Voice meetings · memos",
-        "lead": "Deepgram live STT + auto translation + question detection + RAG answer suggestion. Auto summary when meeting ends.",
+        "lead": "Live transcription + automatic translation + question detection + answer suggestions from your own materials. Automatic summary when the meeting ends.",
         "bullets": [
-          "Deepgram-powered live KO/EN transcription (live + review modes)",
-          "Auto question detection — RAG answer suggestions from pre-uploaded materials",
-          "Auto vocabulary extraction (verbatim from materials) — improves STT accuracy",
-          "Pre-registered speakers + post-matching (no in-meeting modals)",
-          "Two-tier model split (gpt-4.1-nano + gpt-4o-mini) for cost efficiency"
+          "Live Korean/English transcription (during the meeting and for review afterwards)",
+          "Detects questions automatically and suggests answers from materials you uploaded",
+          "Learns the terms in your materials to transcribe more accurately",
+          "Register participants' voices ahead of time and confirm speakers afterwards (nothing interrupts the meeting)",
+          "Uses the right AI for each step, so it stays fast and affordable"
         ],
         "shotAlt": "Q note screen — meeting transcript with automatic summary"
       },
       "file": {
         "name": "Q File — Files",
-        "lead": "Organized per project · per customer. SHA-256 dedup. Two-way Google Drive sync (workspace shared).",
+        "lead": "Organized by project and client. Identical files stored once. Two-way sync with your workspace Google Drive.",
         "bullets": [
           "Folders organized by project · customer with auto categorization",
-          "SHA-256 deduplication — only one physical copy of identical files",
+          "Uploading the same file again doesn't use more storage",
           "Two-way Google Drive sync (workspace only) + native PlanQ storage (personal)",
           "1GB / 50GB / 500GB storage and 10MB / 30MB / 50MB per file by plan",
           "External share token links + previews"
@@ -301,13 +301,13 @@
       },
       "bill": {
         "name": "Q Bill — Billing · payments",
-        "lead": "Auto sequence quote → contract → invoice → tax invoice. 4 templates (fixed/subscription/consulting/custom) + installment + multi-currency.",
+        "lead": "Quote → contract → invoice → tax invoice, in order. Templates per project type (fixed, subscription, consulting, custom) + installments + foreign currency.",
         "bullets": [
-          "ProjectStage auto-progression engine — idempotent recalculation by entity state",
-          "Installment billing (invoice_installments) — per-installment payment & tax-invoice marking",
-          "5 currencies (KRW/USD/EUR/JPY/CNY) + KR + SWIFT/EN bank info shown together",
-          "Native bank-transfer billing as primary + card payment (Stripe) secondary",
-          "Tax invoice tracking (KR businesses — issued externally, marked here) + public payment page (token)"
+          "Deal stages move forward automatically as documents and invoices progress",
+          "Installment billing — track payment and tax invoices per installment",
+          "Five currencies (KRW, USD, EUR, JPY, CNY) + domestic and international transfer details shown together",
+          "Bank transfer confirmation + card payment support",
+          "Tax invoice tracking (issued externally, recorded here) + payment link for your client"
         ],
         "shotAlt": "Q bill screen — monthly revenue with invoice and payment status"
       }
@@ -340,10 +340,10 @@
       },
       "docs": {
         "name": "Q docs — Documents · signatures",
-        "lead": "Create and manage contracts, quotes, SOWs, proposals. OTP-based external signing + expiry + audit log.",
+        "lead": "Write and manage contracts, quotes, statements of work and proposals. External signatures with verification code, deadline and history.",
         "bullets": [
           "Documents (post / document) + templates + revisions",
-          "External signing (OTP hash + expiry + IP audit)",
+          "Collect external signatures (verification code + deadline + signing history)",
           "Public document pages (token-based) — accessible without login",
           "Received signature inbox + Brief AI document organization tool"
         ]
@@ -355,7 +355,7 @@
           "Member-only menu — unified customer email handling",
           "Auto-linked to email channel of the notification matrix",
           "Per-workspace mail-from-name / mail-reply-to settings",
-          "Audit log + auto tracking of send failures (EmailLog)"
+          "Sending history and failures recorded automatically"
         ]
       },
       "sale": {
@@ -379,7 +379,7 @@
         "lead": "Not just automation — a teammate you can hand off to. Same capability across all plans, with monthly action limits as the only difference.",
         "bullets": [
           "Task extraction (messages → Q Task) + answer generation (Q Note)",
-          "Meeting summary · vocabulary extraction · STT correction (auto-learning)",
+          "Learns meeting summaries, your terminology and transcription corrections over time",
           "Action limits per plan (Free 0 / Basic 100 / Pro 500)",
           "Global help drawer (⌘?) + cue:ask event receiver"
         ]
@@ -401,7 +401,7 @@
         "lead": "7 events × 3 channels = 21 toggles. Inbox · in-app · device · email — 4 channels with inbox unified.",
         "bullets": [
           "Inbox (permanent) · in-app toaster · device push · email — 4 channels",
-          "7 event kinds × 3 channels = 21-toggle matrix (notification_prefs)",
+          "Turn each notification type and channel (app, email, push) on or off",
           "In-app toaster — top right, no focus steal, context-aware",
           "PWA Web Push (per user + browser) + dismissible inbox banner when push is off"
         ]
@@ -413,7 +413,7 @@
       "desc": "Korean data centre and tenant isolation, org permissions, data export, mobile install — built to production standards from day one.",
       "security": {
         "name": "Security · multi-tenant",
-        "lead": "JWT (Access 15min + Refresh 7d) · enforced WHERE business_id isolation · audit log · Helmet · CORS · rate limits · SSRF protection."
+        "lead": "Secure sign-in (short-lived tokens) · complete data separation between workspaces · change history · abuse and attack protection."
       },
       "i18n": {
         "name": "Multilingual (KO · EN)",
@@ -424,8 +424,8 @@
         "lead": "Workspace shared files → Drive · personal files → PlanQ native. Option B+1 policy (one-way)."
       },
       "billing": {
-        "name": "Stripe payments · tax invoice tracking",
-        "lead": "Bank-transfer first + card payment (Stripe) second + tax invoice tracking (issued externally, marked here). 4-stage cron (overdue / recurring / report)."
+        "name": "Payments · tax invoice tracking",
+        "lead": "Bank transfer confirmation + card payments + tax invoice tracking (issued externally, recorded here). Overdue reminders, recurring invoices and reports handled automatically."
       },
       "org": {
         "name": "Org & permissions",
@@ -475,7 +475,7 @@
         "name": "Q info · Wiki",
         "lead": "Build up FAQs and product how-tos as knowledge, reused across AI replies and help.",
         "bullets": {
-          "0": "Embedding search over workspace knowledge (FAQ)",
+          "0": "Search your workspace knowledge (FAQ) by meaning, not just keywords",
           "1": "Korean-language help (wiki) search",
           "2": "Grounds Cue & mail AI replies"
         }
@@ -653,7 +653,7 @@
           "20GB storage",
           "Cue — 7,500 actions/mo",
           "Q Note — 60 hours/mo",
-          "API access · priority support"
+          "Priority support"
         ],
         "cta": "Start Pro"
       }
@@ -664,18 +664,18 @@
       "items": [
         {
           "name": "Extra members",
-          "price": "₩5,000/seat/mo",
-          "desc": "When you exceed Basic's 5-seat limit. Add per-seat as needed."
+          "price": "₩4,900/seat/mo",
+          "desc": "Add one seat at a time when you need more people than your plan includes."
         },
         {
           "name": "Extra storage",
-          "price": "₩3,000/10GB/mo",
-          "desc": "Expand Q File capacity in 10GB blocks."
+          "price": "₩4,900/5GB/mo",
+          "desc": "Expand Q file capacity in 5GB blocks."
         },
         {
           "name": "More Cue actions",
-          "price": "₩10,000/100 actions",
-          "desc": "When you go past your monthly AI extraction / summary / answer limit."
+          "price": "₩4,900/1,000 actions/mo",
+          "desc": "When you need more AI extraction, summaries and reply suggestions than your monthly limit."
         }
       ]
     },
@@ -685,23 +685,23 @@
       "items": {
         "cancel": {
           "q": "Can I cancel anytime?",
-          "a": "Yes. After cancellation your data is preserved for 30 days, so if you resume in that window everything continues. Try 14 days free with no credit card before deciding."
+          "a": "Yes. Your data isn't deleted when you cancel, and if you subscribe again you pick up right where you left off. Every new account starts with a 14-day free trial, no credit card needed."
         },
         "team": {
           "q": "How many teammates can I invite?",
-          "a": "Free is 1 person, Basic up to 5, Pro unlimited. You can add seats per-person as Addons."
+          "a": "Starter includes 1 person, Basic 5 and Pro 10. On any plan you can add more members one at a time (₩4,900/seat/mo)."
         },
         "data": {
-          "q": "Can I bring my existing Kakao or email data?",
-          "a": "Customer info and contacts can be imported via CSV. Chat history starts fresh inside PlanQ — upload prior materials to Q File and they stay searchable and linked."
+          "q": "Can I bring over my existing files and email?",
+          "a": "Upload existing files to Q file or import them straight from Google Drive. Connect your mailbox to Q mail to bring in received email. Knowledge and FAQs can be uploaded to Q info in one CSV, and chat starts fresh in PlanQ."
         },
         "addon": {
           "q": "When do Addons get charged?",
-          "a": "Addons can only be added on top of Basic or Pro. Member, storage, and Cue action add-ons are settled by usage and billed together on your next billing date."
+          "a": "Add-ons are available on Starter, Basic and Pro, as many as you need, and are billed monthly."
         },
         "enterprise": {
           "q": "Is there an enterprise plan for larger teams?",
-          "a": "Yes. For 50+ teams or those needing SSO/SAML/dedicated instances, we handle it via custom agreement. Reach out via /contact."
+          "a": "Yes. For teams of more than 50 people or with special requirements, we arrange terms separately. Reach us through the contact page."
         }
       }
     },
