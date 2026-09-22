@@ -4661,3 +4661,10 @@ Fable 은 Irene 지시로 **다음 주 목요일(2026-09-24)까지 사용 불가
 ### 2026-09-22 — Q mail AI 답변 초안 되풀이 판정 (R=0 · F=1 → 자체 검증) [Opus]
 - cue_orchestrator.looksLikeEcho: 단어 비율 → 3-gram 겹침(기준 0.4). 운영 3135 정상 영어 답장이 0.56~0.60 으로 거절되던 것.
 - 실측 정상 0.00~0.08 · 베낌 0.93~1.00. 운영 재현: 422 ai_echoed_inbound → 200 초안 생성.
+
+### 2026-09-22 — 서명 이미지 GET (인증 라우트 신설 · R=1 성격) [Opus] — Fable 429 → unavailable
+- `GET /api/signatures/:id/image` — 형제 목록 GET 과 같은 `assertMember`. 화면은 apiFetch→blob.
+- 자체 실측: 멤버 200 image/png · 타 워크스페이스 403 · 비로그인 401 · 없음 404 · 실화면 썸네일 로드.
+- **Fable 이 볼 것**: 형제 목록 GET 도 문서 공개범위(L1 개인 문서)와 무관하게 멤버 전원에게 서명 진행을 준다 —
+  서명 이미지도 같은 범위로 열렸다. 개인 문서의 서명을 다른 멤버가 볼 수 있어도 되는지(형제 문과 함께 판단). Client 역할이 assertMember 를 통과하는지.
+- 설계 승인 대기: `docs/SIGNATURE_FIELD_DESIGN.md`(서명란·서명본 PDF·우리 측 서명 — 구현 시 Fable 필수).
