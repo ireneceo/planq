@@ -274,6 +274,26 @@ router.get('/posts/:id/signatures', authenticateToken, async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
+// GET /api/signatures/:id/image — 서명 이미지 (진행 표 썸네일·크게 보기)
+//   ★ 2026-09-22 — 진행 표 응답은 이미지 본문 대신 '(present)' 를 싣고 «별도 GET» 으로 받는다고 적혀 있었는데
+//     그 GET 이 **없었다.** 화면은 '(present)' 면 이미지를 숨겨서, 서명된 행이 늘 «—» 였다.
+//   권한은 형제 문(목록 GET)과 같다 — 같은 워크스페이스 멤버.
+router.get('/signatures/:id/image', authenticateToken, async (req, res, next) => {
+  try {
+    const sr = await SignatureRequest.findByPk(req.params.id);
+    if (!sr || !sr.signature_image_b64) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, sr.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const m = /^data:(image\/(png|jpeg|webp));base64,(.+)$/i.exec(String(sr.signature_image_b64));
+    if (!m) return errorResponse(res, 'invalid_image', 422);
+    res.set('Content-Type', m[1].toLowerCase());
+    res.set('Cache-Control', 'private, no-store');
+    res.set('X-Content-Type-Options', 'nosniff');
+    return res.send(Buffer.from(m[3], 'base64'));
+  } catch (err) { next(err); }
+});
+
 // DELETE /api/signatures/:id — 취소
 router.delete('/signatures/:id', authenticateToken, async (req, res, next) => {
   try {
