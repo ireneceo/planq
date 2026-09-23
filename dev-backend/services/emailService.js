@@ -242,14 +242,20 @@ function plainPreheader(text, max = 140) {
  *         제목엔 [워크스페이스명] 으로 통일해라. 지금은 어떤 건 들어가고 어떤 건 플랜큐가 들어간다."
  *
  * 규칙: 워크스페이스 맥락이 있는 메일(업무·청구·문서·서명·초대·알림)은 **[워크스페이스명]**.
- *       계정/플랫폼 메일(비밀번호 재설정·이메일 인증·문의 접수)만 [PlanQ] — 그건 정말 PlanQ 가 보낸다.
+ *       계정/플랫폼 메일은 **접두어 없음**.
+ *
+ * ★ 2026-09-23 개정 (운영 #425) — Irene: "보내는 사람이 PlanQ인데 [PlanQ]라고 할 필요가 있어?"
+ *   발신자는 항상 `"PlanQ" <noreply@planq.kr>` 다(sendEmail 의 from — fromName 이 없으면 브랜드명).
+ *   그래서 플랫폼 메일은 **받은편지함에 「PlanQ | [PlanQ] 새 피드백 …」처럼 두 번** 나왔다.
+ *   워크스페이스 접두어는 남긴다 — 발신자(PlanQ)가 말해 주지 않는 정보라 중복이 아니다.
+ *   빈 접두어가 만드는 앞쪽 공백은 sendEmail 이 한 곳에서 정리한다(호출부 14곳을 고치지 않는다).
  *
  * 주의: Subject 는 plain-text 헤더다. escapeHtml 을 적용하면 안 된다 —
  *       워크스페이스명이 'A&B' 면 제목이 '[A&amp;B]' 로 나간다 (옛 코드의 실제 버그).
  */
 function subjectPrefix(workspaceName) {
   const ws = String(workspaceName || '').trim();
-  return ws ? `[${ws}]` : `[${PLATFORM.brand}]`;
+  return ws ? `[${ws}]` : '';
 }
 
 // ─── 공통 layout — 헤더 + body + 푸터 ───
@@ -361,9 +367,14 @@ function emailBlockReason(to) {
 }
 
 const sendEmail = async ({
-  to, subject, html, attachments, fromName, replyTo,
+  to, subject: rawSubject, html, attachments, fromName, replyTo,
   template, businessId, relatedEntityType, relatedEntityId, initiatedBy,
 }) => {
+  // 제목 공백 정규화 — **단일 지점**. subjectPrefix 가 빈 문자열을 돌려주면 호출부의
+  //   `${subjectPrefix(ws)} ${title}` 이 앞쪽 공백을 남긴다. 호출부 14곳을 고치는 대신
+  //   여기서 한 번 정리한다(새 호출부가 생겨도 자동으로 적용된다).
+  //   메일 헤더에서 연속 공백은 의미가 없으므로 접는 것이 안전하다.
+  const subject = String(rawSubject == null ? '' : rawSubject).replace(/\s+/g, ' ').trim();
   const baseLog = {
     to_email: to, subject,
     template: template || null,
@@ -584,7 +595,7 @@ function otpEmailHtml({ docTitle, code }) {
 
 async function sendSignatureOtpEmail({ to, docTitle, code }) {
   if (!to) return false;
-  const subject = `[${PLATFORM.brand}] 서명 인증 코드 ${code}`;
+  const subject = `서명 인증 코드 ${code}`;
   return sendEmail({
     to, subject, html: otpEmailHtml({ docTitle, code }),
     template: 'signature_otp', relatedEntityType: 'signature',
@@ -604,13 +615,13 @@ async function sendSignatureOtpEmail({ to, docTitle, code }) {
 //   여기서 처음으로 두 벌을 갖는다 — 링크는 카톡·메일로 국경을 넘어 다닌다.
 const GUEST_MAIL_TEXT = {
   ko: {
-    otpSubject: (code) => `[${PLATFORM.brand}] 확인 코드 ${code}`,
+    otpSubject: (code) => `확인 코드 ${code}`,
     otpTitle: `${PLATFORM.brand} 확인 코드`,
     otpLead: '답글 알림 신청 확인 코드입니다.',
     otpTtl: (m) => `코드는 <b>${m}분간</b> 유효합니다.`,
     otpIgnore: '본인이 신청하지 않았다면 이 메일을 무시해 주세요. 무시하면 아무 알림도 가지 않습니다.',
     otpPre: '답글 알림 신청 확인 코드',
-    replySubject: `[${PLATFORM.brand}] 새 답글이 도착했습니다`,
+    replySubject: '새 답글이 도착했습니다',
     replyTitle: '새 답글',
     replyLead: (who) => `${who} 에서 새 답글이 도착했습니다.`,
     replyWhyNoBody: '내용은 보안을 위해 메일에 담지 않았습니다. 아래 버튼으로 대화를 열어 확인해 주세요.',
@@ -619,13 +630,13 @@ const GUEST_MAIL_TEXT = {
     replyPre: '새 답글이 도착했습니다',
   },
   en: {
-    otpSubject: (code) => `[${PLATFORM.brand}] Your code ${code}`,
+    otpSubject: (code) => `Your code ${code}`,
     otpTitle: `${PLATFORM.brand} verification code`,
     otpLead: 'Here is your code to turn on reply alerts.',
     otpTtl: (m) => `This code is valid for <b>${m} minutes</b>.`,
     otpIgnore: "If you didn't request this, please ignore this email. Nothing will be sent to you.",
     otpPre: 'Verification code for reply alerts',
-    replySubject: `[${PLATFORM.brand}] You have a new reply`,
+    replySubject: 'You have a new reply',
     replyTitle: 'New reply',
     replyLead: (who) => `There's a new reply from ${who}.`,
     replyWhyNoBody: 'For your privacy the message itself is not included. Open the conversation to read it.',
@@ -886,7 +897,7 @@ async function sendVerificationCodeEmail({ to, code, ttlMinutes = 10, userName =
   if (!to || !code) return false;
   return sendEmail({
     to,
-    subject: `[${PLATFORM.brand}] 이메일 변경 코드 ${code}`,
+    subject: `이메일 변경 코드 ${code}`,
     html: verificationCodeEmailHtml({ code, ttlMinutes, userName }),
     template: 'email_change_otp',
   });
@@ -1037,8 +1048,8 @@ async function sendInquiryReceivedEmail({ to, name, message, inquiryId, locale }
   if (!to) return false;
   const en = String(locale || '').toLowerCase().startsWith('en');
   const subject = en
-    ? `[${PLATFORM.brand}] We received your inquiry #${inquiryId}`
-    : `[${PLATFORM.brand}] 문의가 접수됐습니다 #${inquiryId}`;
+    ? `We received your inquiry #${inquiryId}`
+    : `문의가 접수됐습니다 #${inquiryId}`;
   return sendEmail({
     to, subject,
     html: inquiryReceivedEmailHtml({ name, message, inquiryId, locale }),
@@ -1096,7 +1107,7 @@ async function sendPasswordResetEmail({ to, name, resetToken, ttlMinutes = 60 })
   if (!to || !resetToken) return false;
   const resetUrl = `${APP_URL}/reset-password/${resetToken}`;
   return sendEmail({
-    to, subject: `[${PLATFORM.brand}] 비밀번호 재설정 안내`,
+    to, subject: '비밀번호 재설정 안내',
     html: passwordResetEmailHtml({ name, resetUrl, ttlMinutes }),
     template: 'password_reset',
   });
@@ -1125,7 +1136,7 @@ async function sendSignupVerifyEmail({ to, name, verifyToken, ttlHours = 72 }) {
   if (!to || !verifyToken) return false;
   const verifyUrl = `${APP_URL}/verify-email/${verifyToken}`;
   return sendEmail({
-    to, subject: `[${PLATFORM.brand}] 이메일 인증 안내`,
+    to, subject: '이메일 인증 안내',
     html: signupVerifyEmailHtml({ name, verifyUrl, ttlHours }),
     template: 'signup_verify',
   });
@@ -1184,7 +1195,7 @@ function unreadNotificationEmailHtml({ name, items, count, workspaceName }) {
 async function sendUnreadNotificationEmail({ to, name, items, count, workspaceName, businessId }) {
   if (!to) return false;
   // 제목만으로 무슨 알림인지 유추 가능하게 — 첫 알림 제목을 노출 (없으면 일반 문구 fallback)
-  //   접두어는 subjectPrefix 단일 원천 재사용 — 워크스페이스 맥락이면 [워크스페이스명], 없으면 [PlanQ] (#149).
+  //   접두어는 subjectPrefix 단일 원천 재사용 — 워크스페이스 맥락이면 [워크스페이스명], 없으면 **없음** (#149 · #425).
   const first = (items && items[0] && items[0].title) ? String(items[0].title).trim() : '';
   const subject = first
     ? (count > 1

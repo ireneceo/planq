@@ -295,6 +295,32 @@ function planSummaryForPrompt() {
   }).join('\n');
 }
 
+// ─── 가입 체험 선택지 (2026-09-23, Irene 지시) ─────────────────────────────
+// 「무료 14일」 과 「지금 결제하면 1개월 추가」 중 고른다.
+//
+// ★ 보너스 개월 수는 **여기 하나**가 정본이다. 프론트가 보낸 숫자를 그대로 쓰면
+//   요청 본문에 12 를 적어 1년을 공짜로 가져갈 수 있다 — 라우트는 «어느 선택지냐»(문자열)
+//   만 받고 개월 수는 서버가 이 표에서 읽는다.
+// ★ 선불 상품이라 결제 수단과 무관하다(카드·계좌이체 동일). 자동청구는 이 안에 없다 —
+//   2개월 뒤 기존 갱신 흐름(ensureRenewalPayment)이 그대로 청구를 만든다.
+const TRIAL_OPTIONS = {
+  // 현행 — 결제 없이 14일. 결제가 없으므로 보너스도 없다.
+  trial_14d: { code: 'trial_14d', trial_days: 14, bonus_months: 0, requires_payment: false },
+  // 지금 1개월치를 결제하고 1개월을 더 받는다 → 첫 기간 2개월, 다음 결제는 2개월 후.
+  prepay_1m_bonus: { code: 'prepay_1m_bonus', trial_days: 0, bonus_months: 1, requires_payment: true },
+};
+const DEFAULT_TRIAL_OPTION = 'trial_14d';
+
+function getTrialOption(code) {
+  return TRIAL_OPTIONS[code] || TRIAL_OPTIONS[DEFAULT_TRIAL_OPTION];
+}
+
+/** 선택지 코드 → 보너스 개월. 모르는 코드는 0(보너스 없음)으로 떨어진다 — fail-closed. */
+function bonusMonthsForTrialOption(code) {
+  const o = TRIAL_OPTIONS[code];
+  return o ? o.bonus_months : 0;
+}
+
 function toPublicJson(code) {
   const p = getPlan(code);
   const convert = v => v === Infinity ? null : v;
@@ -317,6 +343,10 @@ module.exports = {
   PLANS,
   PLAN_ORDER,
   ADDONS,
+  TRIAL_OPTIONS,
+  DEFAULT_TRIAL_OPTION,
+  getTrialOption,
+  bonusMonthsForTrialOption,
   getPlan,
   getAddon,
   listAddonsForPlan,

@@ -4836,3 +4836,95 @@ Fable 호출 실패: HTTP 429 (req_011CfK7CPrciotm2ptE4ku3n). **오늘 6회 모�
   문구를 코드와 대조: 번호 새 채번 ✓ · 복사본 draft ✓ · 계좌 재스냅샷 ✓ · 금액 재계산 ✓ · 자동청구 OFF ✓ ·
   초대토큰 재발급 ✓ · 프로젝트 복사 코드에 Task/Post/Conversation create **0건**(업무·문서·대화 미복사 확인) ✓.
   visibility 둘 다 `authenticated`(BLOG_MAP 미포함) · 운영 접근 401.
+
+### 2026-09-23 — 체험 선택지 「지금 결제하면 1개월 추가」 (R=0 · S=0 · F=1 → 자체 검증) [Opus] — Fable 429 → unavailable
+Fable 호출 실패: HTTP 429 (한도 소진, req_011CfLqgYqnf9753voyKQKag, `claude-fable-5-1`).
+
+**판정 근거** — 처음엔 «자동 정기결제» 를 전제로 깔아 R=1 로 보고 Fable 을 부르려 했으나 **범위를 부풀린 것**이었다.
+Irene: *"카드 결제 자동구독이 중요한게 아니라 결제를 시키는 것이 중요한건데."* 선불 상품이라 자동청구가 필요 없고,
+그러면 ①돈이 자동으로 나가지 않는다(사용자가 기존과 같이 결제 버튼을 누른다) ②외부발송·무인증 표면·대규모 스키마 변경 없음
+③틀려도 기간이 틀어질 뿐 DB 로 되돌릴 수 있다 → **R=0**. 그리고 결제→기간→갱신이 전부 실HTTP+DB 로 참/거짓이 갈린다 → **F=1**.
+`R=0 AND F=1` → 내가 검증한다.
+
+**무엇을 만들었나**
+- `config/plans.js` `TRIAL_OPTIONS`(정책 정본) · `services/billing.js` `computePeriodEnd()`(기간 공식 단일화) ·
+  `isFirstPlanPayment()`(자격) · `markPaymentPaid` 의 `wasFirst` 분기 · `routes/plan.js` checkout `trial_option` + `/status.prepay_bonus`
+- `subscriptions.bonus_months` 컬럼 + 멱등 `scripts/migrate-subscription-bonus-months.js`
+- 프론트 플랜 카드(`plan-prepay-bonus`) · 결제 모달 「이용 기간 2개월」 · locales ko/en
+- 카나리 `scripts/e2e/canary-prepay-bonus.js` + run.js 등록
+
+**자체 검증 (실측 수치)**
+- API **21/21** — 결제 9/23 → 만료 **11/23**(+2개월) · `next_billing_at`·`payments.period_end`·`plan_expires_at` 일치 ·
+  금액 9,900 그대로 · 2회차 +1개월 · 본문 `bonus_months:12` 무시(→1) · 모르는 코드 →0 · 재결제 →0 · 옛 호출 200/+1개월
+- cron **9/9** — 선불분은 체험 만료 cron 이 안 건드림(active 유지) · 미결제는 past_due → canceled · 갱신 청구 9,900원
+- 실브라우저 **15/15** (3폭, `elementFromPoint` 로 가시성) · health **45/45** · guard **58/59**(기존 동결 1) · build EXIT 0 · `error TS` 0
+- **반증 4종** — ①보너스 미가산 ②`wasFirst` 제거 ③자격판정 제거 ④카드 숨김 → 각각 다른 검사가 빨간불, 원복 후 초록
+  (④ 는 1차 시도에서 빌드가 `exit 2` 라 **옛 번들을 재고 «실패 0» 을 읽은 거짓 초록**이었다. 컴파일되는 조건으로 다시 심어 5건 확인)
+- 테스트 데이터 원복 — 임시 워크스페이스 0 · pending 결제 0 · 임시 스크립트 삭제
+
+**★ Fable 이 봐야 할 것 — 내가 기계로 못 가른 것**
+1. **`isFirstPlanPayment` 의 동시 요청 경합.** 트랜잭션 안에서 `Payment.count` 로 세는데, 같은 워크스페이스가
+   **동시에 두 번** checkout 하면 둘 다 «첫 결제» 로 보고 보너스를 받을 수 있다. 방어는 없다(UNIQUE 도 없음).
+   실제로 일어날 확률과, 막아야 한다면 어디서 막을지(구독 행 잠금 / 유니크 제약 / 애초에 무해한지).
+2. **플랜 변경(`/change`)·애드온(`kind='addon'`) 경로로 보너스가 새는가.** 나는 checkout 경로만 쳤다.
+   `createPendingSubscription` 을 부르는 다른 진입점(trial cron 포함)에 `trialOption` 을 안 넘기므로 0 이어야 하는데,
+   **«안 넘기니까 안 샌다» 는 코드 근거이지 실측이 아니다.**
+3. **업그레이드 중 보너스.** 보너스를 받은 2개월짜리 구독이 중간에 상위 플랜으로 바뀌면 남은 보너스 기간을
+   어떻게 다뤄야 하는가(지금은 `markPaymentPaid` 가 `current_period_end` 를 이어붙인다 — 그게 맞는 정책인지).
+4. **환불 문구의 법적 무게.** 「이미 낸 1개월치는 환불되지 않는다」로 적었는데 전자상거래법 청약철회 7일과의 관계.
+   (Irene 확인 대기 항목으로도 올려 뒀다.)
+5. **계좌이체에 보너스를 주는 판단.** 자동청구가 없으므로 수단 무관으로 열었다(운영 실결제 6건 전원 이체).
+   Irene 의 원래 말은 *"무료 1달은 무조건 자동구독 신청까지 이어서 붙이고"* 였는데 자동구독을 빼면서
+   그 조건도 함께 뺐다 — 이 해석이 맞는지.
+
+### 2026-09-23 — 메일 제목 `[PlanQ]` 중복 제거 (운영 #425) · 휴가 알림 딥링크 (운영 #424 일부) [Opus] — Fable 429 → unavailable
+Fable 호출 실패: HTTP 429 (req_011CfLuHFNPRHhgquqsfgZYB). **오늘 3회 모두 429** (앞 항목 포함).
+위의 「지금 결제하면 1개월 추가」와 **묶어서 한 번** 올렸다(CLAUDE.md 소모 규칙). 셋 다 미검증이다.
+
+#### B. 메일 제목 `[PlanQ]` 중복 (R=0 · S=0 · F=1)
+> Irene: *"보내는 사람이 PlanQ인데 [PlanQ]라고 할 필요가 있어? … 모든 메일 체크 좀 해봐."*
+
+발신자는 언제나 `"PlanQ" <noreply@planq.kr>`(`sendEmail` 의 from — fromName 이 없으면 브랜드명)인데
+제목에도 `[PlanQ]` 가 붙어 받은편지함에 **「PlanQ | [PlanQ] 새 피드백 …」** 으로 두 번 나왔다.
+
+- **고친 것**: `subjectPrefix()` 가 워크스페이스 없으면 **빈 문자열**(#149 규칙의 연장) · 하드코딩 `[PlanQ]` **8곳** 제거
+  (서명 OTP · 확인 코드 ko/en · 답글 ko/en · 이메일 변경 코드 · 문의 접수 ko/en · 비밀번호 재설정 · 이메일 인증)
+  · `services/providerCredit.js` 2곳 · 빈 접두어가 남기는 앞 공백은 **`sendEmail` 한 곳**에서 정리(호출부 14곳 무변경).
+- **`[워크스페이스명]` 은 유지** — 발신자가 말해 주지 않는 정보라 중복이 아니다.
+- **자체 검증**: 실발송 경로(EmailLog.subject) **7/7** · 반증 2종(subjectPrefix 원복 → 신고 제목 그대로 재현 / 하드코딩 1곳 복원 → 그 건만 빨간불).
+- **★ Fable 이 봐야 할 것**
+  1. `subjectPrefix` 를 쓰는 **호출부 14곳 전수** — 초대·문서공유·서명요청·청구서·결제안내·증빙·알림요약.
+     나는 4곳만 실발송으로 쟀다. 빈 접두어로 제목이 이상해진 곳이 없는지.
+  2. `sendEmail` 의 공백 정규화(`replace(/\s+/g,' ').trim()`)가 **의미 있는 공백을 망가뜨리는 경로**가 있는지.
+  3. **보안 메일에서 브랜드를 빼는 판단** — 비밀번호 재설정·OTP 제목에 브랜드가 없어도 되는가
+     (잠금화면 알림에서 발신자가 잘릴 때). 스팸 필터·사용자 메일 규칙(「[PlanQ] 로 필터」)에 미치는 영향.
+
+#### C. 휴가 알림 딥링크 (R=0 · S=0 · F=1)
+`services/leaveTransition.js:165,186` 이 만드는 `?leave=<id>` 를 **읽는 코드가 0곳**이었다
+(memory `feedback_produced_link_no_consumer`). 알림을 눌러도 설정 화면만 뜨고 그 신청을 못 찾았다 —
+사용자에겐 *"알림은 오는데 승인하거나 관리하는 화면이 안떠"*.
+
+- **고친 것**: 관리자(`AttendanceAdminSettings`)·신청자(`AttendancePage`) 양쪽이 파라미터를 읽어 행 강조 +
+  공용 훅 `useRevealSelectedRow` 로 목록 안에서 보이게 · `HighlightRow` 를 `shared.tsx` 로 **빼서 공유**(베끼면 갈라진다) ·
+  **이미 처리된 신청**은 대기 목록에 없어 링크가 막다른 길이 되므로 안내 한 줄(`leave-linked-decided`) 추가.
+- **자체 검증**: 실브라우저 **12/12**(관리자·신청자·음성 대조군·처리된 건) · 반증 1종(파라미터 소비 제거 → **4건** 빨간불).
+- **★ 판정기가 두 번 틀렸다(기록)** — ①고정 sleep 으로 재서 렌더 전 h=0 을 읽음(직접 열면 y=434·h=62) →
+  폴링으로 교체 ②**탭 keep-alive** 로 같은 `data-row-id` 가 **2개**라 숨은 사본을 집고 있었음 → 보이는 것으로 판정.
+  둘 다 «기능 고장» 으로 보고할 뻔한 거짓 실패였다. 승인 400 은 **잔여 연차 0**(제품 규칙)이라 반려로 바꿔 판정.
+- **★ Fable 이 봐야 할 것**
+  1. `?date=` 와 `?leave=` 가 **같은 링크에 있을 때** 서로 싸우는가(관리자 화면은 둘 다 읽는다).
+  2. #424 는 이 딥링크가 **전부가 아니다** — 남은 요구(휴가·휴일이 Q task 근무일수에 반영 · 국가별 워크스페이스
+     휴일 관리 · 기본 근무일수 통합)는 **손대지 않았다.** Irene 이 *"fable 이 제대로 설계해서 반영해야 해"* 라고
+     명시한 부분이라 **설계 자체가 대기 중**이다(S=1 · F=0).
+
+#### D. 배포 배선 (v1.58.0) — Fable 429 (req_011CfLvJs8bN8tNr7d6bi4pC). **오늘 4회 모두 429.**
+- `scripts/deploy-planq.sh` 에 `migrate-subscription-bonus-months.js` 를 **PM2 reload 앞** 슬롯에 등록했다.
+  문서에만 「배포 전 실행」이라 적어 두면 잊힌다(memory `feedback_unwired_guard_is_no_guard`).
+  운영에 컬럼이 없는 상태로 새 백엔드가 뜨면 `markPaymentPaid`·`createPendingSubscription` 이
+  `ER_BAD_FIELD_ERROR` 로 죽어 **결제가 전멸**한다.
+- 자체 검증: 마이그레이션 2회 실행 → 두 번째 `[skip]` · `bash -n` 통과 · 운영 `bonus_months` 부재 확인(정상, 배포 전).
+- **Fable 이 봐야 할 것**: 마이그레이션이 실제로 PM2 reload 앞에서 도는지 **배포 로그로** 확인해야 한다
+  (스크립트 순서를 읽은 것은 정적 확인이다). 이번 배포 직후 로그로 검증할 것.
+- 버전 1.57.0 → **1.58.0** (frontend·backend 양쪽).
+
+**★ 이번 배포는 Irene 지시로 진행한다("다 하면 배포 해"). Fable 미검증 상태임을 보고에 명시했다.**

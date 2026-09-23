@@ -30,6 +30,8 @@ interface Props {
   // 기존 pending payment 가 있으면 재사용 (또 만들지 않음)
   existingPaymentId?: number | null;
   existingAmount?: number | null;
+  // 체험 선택지 코드 (예: 'prepay_1m_bonus'). 보너스 개월은 **서버**가 정한다 — 여기로 숫자를 보내지 않는다.
+  trialOption?: string | null;
   onClose: () => void;
   onPaid: () => void;
 }
@@ -37,7 +39,7 @@ interface Props {
 type Step = 'instructions' | 'notified';
 
 export default function CheckoutModal({
-  open, businessId, plan, cycle, bankInfo, stripeEnabled, existingPaymentId, existingAmount, onClose, onPaid,
+  open, businessId, plan, cycle, bankInfo, stripeEnabled, existingPaymentId, existingAmount, trialOption, onClose, onPaid,
 }: Props) {
   const { t, i18n } = useTranslation('plan');
   // 영어권 고객이면 영문 은행 표기(값 있을 때만, 없으면 국문 fallback). 계좌번호는 언어 무관.
@@ -56,6 +58,8 @@ export default function CheckoutModal({
     cycle === 'monthly' ? plan.price_monthly.KRW || 0 : plan.price_yearly.KRW || 0
   );
   const [payerName, setPayerName] = useState('');
+  // 서버가 붙인 보너스 개월 (0 이면 안내를 띄우지 않는다 — 자격 미달이면 거짓말이 된다)
+  const [bonusMonths, setBonusMonths] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 복사 피드백 — Q Bill PublicInvoicePage 패턴 재사용 (계좌·금액 클립보드 복사)
@@ -78,6 +82,7 @@ export default function CheckoutModal({
     setStep('instructions');
     setError(null);
     setPayerName('');
+    setBonusMonths(0);
     if (existingPaymentId) {
       setPaymentId(existingPaymentId);
       setAmount(Number(existingAmount || 0));
@@ -86,17 +91,19 @@ export default function CheckoutModal({
     if (plan.code === 'free' || plan.code === 'enterprise') return;
     let alive = true;
     setSubmitting(true);
-    checkout(businessId, plan.code as Exclude<PlanCode, 'free' | 'enterprise'>, cycle)
+    checkout(businessId, plan.code as Exclude<PlanCode, 'free' | 'enterprise'>, cycle, 'KRW', trialOption)
       .then(res => {
         if (!alive) return;
         if (!res) { setError(t('checkout.errors.checkoutFailed')); return; }
         setPaymentId(res.payment_id);
         setAmount(Number(res.amount || 0));
+        // 서버가 실제로 보너스를 붙였는지는 응답이 말한다 — 화면이 추정하지 않는다.
+        setBonusMonths(Number(res.bonus_months || 0));
       })
       .catch(() => { if (alive) setError(t('checkout.errors.checkoutFailed')); })
       .finally(() => { if (alive) setSubmitting(false); });
     return () => { alive = false; };
-  }, [open, businessId, plan.code, cycle, existingPaymentId, existingAmount, t]);
+  }, [open, businessId, plan.code, cycle, existingPaymentId, existingAmount, trialOption, t]);
 
   if (!open) return null;
 
@@ -203,6 +210,19 @@ export default function CheckoutModal({
               <SummaryRow>
                 <SummaryLabel>{t('checkout.summary.paymentId')}</SummaryLabel>
                 <SummaryValue>#{paymentId}</SummaryValue>
+              </SummaryRow>
+            )}
+            {/* 보너스는 **서버 응답이 1 이상일 때만** 적는다. 자격 미달인데 띄우면 그 문구가 거짓이 된다. */}
+            {bonusMonths > 0 && (
+              <SummaryRow>
+                <SummaryLabel>{t('checkout.summary.period', '이용 기간')}</SummaryLabel>
+                <BonusValue>
+                  {t('checkout.bonusPeriod', {
+                    total: bonusMonths + 1,
+                    bonus: bonusMonths,
+                    defaultValue: '{{total}}개월 (1개월 요금 + {{bonus}}개월 추가)',
+                  })}
+                </BonusValue>
               </SummaryRow>
             )}
           </Summary>
@@ -438,6 +458,7 @@ const SummaryRow = styled.div`display: flex; justify-content: space-between; ali
 const SummaryLabel = styled.span`font-size: 0.75rem; color: #64748B; font-weight: 500;`;
 const SummaryValue = styled.span`font-size: 0.8125rem; color: #0F172A; font-weight: 600;`;
 const SummaryAmount = styled.span`font-size: 1.125rem; color: #0F172A; font-weight: 700;`;
+const BonusValue = styled.span`font-size: 0.875rem; color: #0F766E; font-weight: 700;`;
 
 const BankBox = styled.div`
   background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 10px;

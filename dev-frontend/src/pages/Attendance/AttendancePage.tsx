@@ -19,10 +19,11 @@ import {
   type LeaveRequestRow, type Balance,
   hhmm, unitKey,
   Empty, TableWrap, Table, Th, Td, Muted, Badge,
-  List, Row, RowMain, RowTitle, RowMeta, ErrorBar,
+  List, HighlightRow, RowMain, RowTitle, RowMeta, ErrorBar,
 } from './shared';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 
 type Tab = 'my' | 'leave';
 
@@ -37,6 +38,12 @@ const AttendancePage: React.FC = () => {
   const rawTab = params.get('tab');
   const tab: Tab = rawTab === 'leave' ? 'leave' : 'my';
   const legacyTeam = rawTab === 'team';
+  // 휴가 알림 링크(`?tab=leave&leave=<id>`) — 신청자에게 가는 쪽(`leaveTransition.notifyApplicant`).
+  //   여기도 2026-09-23 이전엔 읽는 곳이 없어 눌러도 목록만 떴다(#424).
+  //   초기값으로만 읽으면 keep-alive 탭에서 **두 번째 알림부터** 안 걸린다 — 파라미터를 따라간다.
+  const leaveParam = Number(params.get('leave')) || null;
+  // 목록 안에서 보이게 — 공용 훅. 칠해져 있어도 화면 밖이면 «선택 안 됨» 과 구별되지 않는다.
+  useRevealSelectedRow(leaveParam);
 
   // 관리자 여부 — /team 을 실제로 호출해서 판정하지 않고, 서버가 준 역할로 본다.
 
@@ -292,7 +299,7 @@ const AttendancePage: React.FC = () => {
           ) : (
             <List>
               {requests.map((r) => (
-                <Row key={r.id}>
+                <HighlightRow key={r.id} data-row-id={r.id} $highlight={r.id === leaveParam}>
                   <RowMain>
                     <RowTitle>{r.start_date}{r.end_date !== r.start_date ? ` ~ ${r.end_date}` : ''}</RowTitle>
                     <RowMeta>
@@ -307,7 +314,7 @@ const AttendancePage: React.FC = () => {
                       {t('leave.cancel')}
                     </ActionButton>
                   )}
-                </Row>
+                </HighlightRow>
               ))}
             </List>
           )}

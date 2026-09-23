@@ -105,7 +105,13 @@
       "family": "Family event",
       "other": "Other"
     },
-    "categoryLabel": "Leave type"
+    "categoryLabel": "Leave type",
+    "linkedDecided": {
+      "approved": "{{name}}'s request for {{date}} has already been approved.",
+      "rejected": "{{name}}'s request for {{date}} has already been rejected.",
+      "canceled": "{{name}}'s request for {{date}} was canceled.",
+      "pending": "{{name}}'s request for {{date}} is still pending."
+    }
   },
   "team": {
     "presence": "Today",

@@ -335,6 +335,11 @@ sync_database() {
   # 2026-09-21 Sign in with Apple — oauth_connections.provider·ephemeral_tokens.kind ENUM 끝 append +
   #   platform_settings 애플 자격 4칸. 신 코드가 'apple'·'apple_oauth_state' 를 쓰므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-apple-login.js 2>&1 | tail -8"
+  # 2026-09-23 「지금 결제하면 1개월 추가」 — subscriptions.bonus_months INT NOT NULL DEFAULT 0.
+  #   ★ 반드시 PM2 reload **앞**. 모델이 이 컬럼을 선언하므로 컬럼 없이 새 백엔드가 뜨면
+  #     markPaymentPaid / createPendingSubscription 이 ER_BAD_FIELD_ERROR 로 죽는다(결제 전멸).
+  #   기존 행은 전부 0 이라 옛 구독의 기간 계산은 그대로다. 롤백은 컬럼을 두고 코드만 되돌린다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-subscription-bonus-months.js 2>&1 | tail -5"
   # 캘린더 연동 토글 — sync_enabled 2컬럼 + calendar_events.gcal_sync + calendar_event_gcal_links 테이블.
   #   이 스크립트는 sync-database 보다 **뒤에** 돌기 때문에(위 222행), 테이블은 대개 sync 가 먼저 만든다.
   #   그래서 FK 보증은 여기가 아니라 **모델 CalendarEventGcalLink 의 references/onDelete** 가 한다

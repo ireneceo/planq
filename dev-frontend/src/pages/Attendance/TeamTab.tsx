@@ -8,11 +8,18 @@ import { LEAVE_CATEGORY_KEYS, type LeaveCategory } from './leaveCategory';
 import SingleDateField from '../../components/Common/SingleDateField';
 import { apiFetch } from '../../contexts/AuthContext';
 import { formatHours, type AttendanceDay } from '../../hooks/useAttendance';
+import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import {
   type LeaveRequestRow, type PresenceRow, type StatRow, hhmm, unitKey, shiftMonth,
   Section, SectionTitle, Empty, TableWrap, Table, Th, Td, Muted, Badge,
-  List, Row, RowMain, RowTitle, RowMeta, Hint, NumInput, TextInput,
+  List, HighlightRow, RowMain, RowTitle, RowMeta, Hint, NumInput, TextInput,
 } from './shared';
+
+const DecidedNote = styled.div`
+  margin-bottom: 10px; padding: 10px 12px; border-radius: 8px;
+  background: #F1F5F9; border: 1px solid #E2E8F0;
+  font-size: 0.8125rem; color: #475569; line-height: 1.5;
+`;
 
 // ─── 팀 관리 탭 ─────────────────────────────────────────────────
 export const TeamTab: React.FC<{
@@ -22,11 +29,21 @@ export const TeamTab: React.FC<{
   stats: StatRow[]; statMonth: string; setStatMonth: (v: string) => void;
   onFix: (d: AttendanceDay) => void;
   onDecide: (id: number, a: 'approve' | 'reject' | 'cancel') => void;
+  // 알림 링크(`?leave=<id>`)로 들어왔을 때 가리킬 신청. 화면이 URL 을 직접 읽지 않는다 —
+  //   부모가 파라미터를 쥐고 내려 준다(같은 파라미터를 두 곳에서 읽으면 갈라진다).
+  highlightLeaveId?: number | null;
   onReload: () => Promise<void>;
 }> = ({ presence, teamDays, allRequests, nameOf, members, bizId, year, teamDate, setTeamDate,
-        stats, statMonth, setStatMonth, onFix, onDecide, onReload }) => {
+        stats, statMonth, setStatMonth, onFix, onDecide, onReload, highlightLeaveId }) => {
   const { t } = useTranslation('attendance');
   const pending = allRequests.filter((r) => r.status === 'pending');
+  // 알림에서 들어온 신청이 **이미 처리됐으면** 대기 목록에 없다 → 링크가 막다른 길이 된다
+  //   (사용자에게는 «알림은 오는데 화면이 안 뜬다» 로 보인다 — 신고 #424 의 절반이 이것이다).
+  //   그래서 처리된 건은 결과를 한 줄로 알려 준다.
+  const linked = highlightLeaveId ? allRequests.find((r) => r.id === highlightLeaveId) : null;
+  const linkedDecided = linked && linked.status !== 'pending' ? linked : null;
+  // 목록 안에서 보이게 — 공용 훅(화면마다 스크롤 코드를 쓰지 않는다)
+  useRevealSelectedRow(highlightLeaveId ?? null);
   const [grantUser, setGrantUser] = useState<number | null>(null);
   const [grantDays, setGrantDays] = useState('15');
   // ★ 2026-09-09 — 휴가 **종류** (Irene: "종류별로 제공하는 거 어떻게 줘?").
@@ -67,17 +84,26 @@ export const TeamTab: React.FC<{
 
       <Section>
         <SectionTitle>{t('leave.new')} — {t('leave.status.pending')}</SectionTitle>
+        {linkedDecided && (
+          <DecidedNote role="status" data-testid="leave-linked-decided">
+            {t(`leave.linkedDecided.${linkedDecided.status}`, {
+              name: nameOf(linkedDecided.user_id),
+              date: linkedDecided.start_date,
+              defaultValue: '{{name}} · {{date}} 신청은 이미 처리됐습니다.',
+            })}
+          </DecidedNote>
+        )}
         {pending.length === 0 ? <Empty>{t('leave.noPending')}</Empty> : (
           <List>
             {pending.map((r) => (
-              <Row key={r.id}>
+              <HighlightRow key={r.id} data-row-id={r.id} $highlight={r.id === highlightLeaveId}>
                 <RowMain>
                   <RowTitle>{nameOf(r.user_id)} · {r.start_date}{r.end_date !== r.start_date ? ` ~ ${r.end_date}` : ''}</RowTitle>
                   <RowMeta>{t(`leave.${r.leave_type}`)} · {t(`leave.${unitKey(r.unit)}`)}{r.reason ? ` · ${r.reason}` : ''}</RowMeta>
                 </RowMain>
                 <ActionButton tone="primary" size="sm" onClick={() => onDecide(r.id, 'approve')}>{t('leave.approve')}</ActionButton>
                 <ActionButton tone="danger" size="sm" onClick={() => onDecide(r.id, 'reject')}>{t('leave.reject')}</ActionButton>
-              </Row>
+              </HighlightRow>
             ))}
           </List>
         )}

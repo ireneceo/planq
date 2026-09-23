@@ -227,8 +227,8 @@ async function runCreditAlerts() {
       const empty = st.remaining_usd <= 0;
       const daysTxt = st.days_left == null ? '—' : `${st.days_left}일`;
       const title = empty
-        ? `[PlanQ] ${st.label} 크레딧 소진 — 지금 충전이 필요합니다`
-        : `[PlanQ] ${st.label} 크레딧 잔여 ${daysTxt} — 충전을 권장합니다`;
+        ? `${st.label} 크레딧 소진 — 지금 충전이 필요합니다`
+        : `${st.label} 크레딧 잔여 ${daysTxt} — 충전을 권장합니다`;
       const body = [
         empty
           ? '예상 잔액이 0 에 도달했습니다. 충전 전까지 해당 기능은 이용할 수 없습니다.'

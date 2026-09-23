@@ -105,7 +105,13 @@
       "family": "경조사",
       "other": "기타"
     },
-    "categoryLabel": "휴가 종류"
+    "categoryLabel": "휴가 종류",
+    "linkedDecided": {
+      "approved": "{{name}} · {{date}} 신청은 이미 승인됐습니다.",
+      "rejected": "{{name}} · {{date}} 신청은 이미 반려됐습니다.",
+      "canceled": "{{name}} · {{date}} 신청은 취소됐습니다.",
+      "pending": "{{name}} · {{date}} 신청은 아직 대기 중입니다."
+    }
   },
   "team": {
     "presence": "오늘 현황",

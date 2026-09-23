@@ -68,6 +68,12 @@ export const Row = styled.div`
   display: flex; align-items: center; gap: 10px; padding: 12px 14px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
 `;
+// 알림 링크(`?leave=<id>`)가 가리킨 행 — 공용 `Row` 규격(배경·테두리·라운드)은 그대로 두고
+//   테두리 색만 얹는다. 관리자 화면(TeamTab)과 신청자 화면(AttendancePage)이 **같은 것을 쓴다** —
+//   각자 선언하면 같은 강조가 두 모양이 된다.
+export const HighlightRow = styled(Row)<{ $highlight?: boolean }>`
+  ${(p) => (p.$highlight ? 'border-color:#0F766E; box-shadow:0 0 0 2px rgba(15,118,110,0.15);' : '')}
+`;
 export const RowMain = styled.div` flex: 1; min-width: 0; `;
 export const RowTitle = styled.div`
   ${listRowTitleCss}  font-weight: 600; color: #0F172A; `;

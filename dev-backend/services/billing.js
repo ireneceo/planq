@@ -33,6 +33,18 @@ function addCycle(date, cycle) {
   return d;
 }
 
+// ─── 기간 끝 계산 — **이 공식 하나만 쓴다** ───────────────────────────────
+// 보너스(「지금 결제하면 1개월 추가」)는 **첫 결제에만** 더한다. 갱신 결제에 또 더하면
+// 한 번 고른 선택지가 영원히 1개월씩 공짜가 된다.
+// 공식을 라우트나 cron 이 따로 적기 시작하면 반드시 갈라진다
+// (memory feedback_same_value_multiple_formulas).
+function computePeriodEnd(periodStart, cycle, bonusMonths = 0) {
+  const end = addCycle(periodStart, cycle);
+  const bonus = Number(bonusMonths) || 0;
+  if (bonus > 0) end.setMonth(end.getMonth() + bonus);
+  return end;
+}
+
 function getPlanPrice(planCode, cycle, currency = 'KRW') {
   const plan = PLANS.PLANS?.[planCode] || PLANS[planCode];
   if (!plan) return null;
@@ -138,7 +150,17 @@ async function restoreExemptSubscription(businessId, { transaction } = {}) {
 }
 
 // ─── 1. 플랜 변경 (사용자 요청) — 신규 Subscription + pending Payment 생성 ───
-async function createPendingSubscription({ businessId, planCode, cycle, userId, currency = 'KRW', taxInvoice = null }) {
+// 이 워크스페이스가 아직 한 번도 플랜 결제를 완료한 적이 없는가 (보너스 자격 판정 단일 원천).
+//   addon 결제는 세지 않는다 — 부가 구매는 «첫 구독» 이 아니다.
+async function isFirstPlanPayment(businessId, transaction = null) {
+  const paid = await Payment.count({
+    where: { business_id: businessId, kind: 'plan', status: 'paid' },
+    transaction,
+  });
+  return paid === 0;
+}
+
+async function createPendingSubscription({ businessId, planCode, cycle, userId, currency = 'KRW', taxInvoice = null, trialOption = null }) {
   // ★ 게이트는 라우트가 아니라 여기(서비스)에 있다 — 청구를 만드는 진입점은 체크아웃 라우트와
   //   services/trial.js 의 cron **둘 다**다. 라우트에만 걸면 cron 이 그대로 지나가 면제
   //   워크스페이스에 청구서와 입금 안내 메일이 나간다 (Fable 설계 게이트 C2).
@@ -172,11 +194,21 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
       }
     );
 
+    // 보너스 개월 — 값은 정책표에서 읽고(요청 본문 신뢰 금지), 자격은 서버가 판정한다.
+    //   자격: 이 워크스페이스에 **결제 완료된 플랜 결제가 한 건도 없을 때**(= 첫 유료 결제).
+    //   두 번째부터 다시 주면 해지 후 재결제로 무한히 1개월씩 받을 수 있다.
+    let bonusMonths = 0;
+    if (trialOption) {
+      const candidate = PLANS.bonusMonthsForTrialOption(trialOption);
+      if (candidate > 0 && await isFirstPlanPayment(businessId, t)) bonusMonths = candidate;
+    }
+
     const sub = await Subscription.create({
       business_id: businessId,
       plan_code: planCode,
       cycle, status: 'pending',
       price, currency,
+      bonus_months: bonusMonths,
       created_by: userId,
     }, { transaction: t });
 
@@ -263,7 +295,11 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
     const periodStart = sub.current_period_end && sub.current_period_end > now
       ? sub.current_period_end // 연장 (이미 active 상태에서 다음 cycle 결제)
       : now;                   // 신규 활성화
-    const periodEnd = addCycle(periodStart, sub.cycle);
+    // ★ 보너스는 **첫 결제(pending → active)에만**. 갱신 결제는 bonus_months 가 남아 있어도 0 으로 센다.
+    //   wasFirst 를 기간 계산보다 먼저 읽는다 — sub.update() 뒤에 읽으면 항상 false 다.
+    const wasFirst = sub.status === 'pending';
+    const appliedBonusMonths = wasFirst ? (Number(sub.bonus_months) || 0) : 0;
+    const periodEnd = computePeriodEnd(periodStart, sub.cycle, appliedBonusMonths);
 
     // 세금계산서 신청 입력 (옵션) — checkout 시 안 받았어도 mark-paid 시점에 추가 가능
     const taxFields = (taxInvoice && taxInvoice.biz_no) ? {
@@ -295,7 +331,6 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
       ...taxFields,
     }, { transaction: t });
 
-    const wasFirst = sub.status === 'pending';
     await sub.update({
       status: 'active',
       started_at: sub.started_at || now,
@@ -769,6 +804,8 @@ async function getCurrentSubscription(businessId) {
 
 module.exports = {
   createPendingSubscription,
+  computePeriodEnd,
+  isFirstPlanPayment,
   markPaymentPaid,
   downgradeToFree,
   runDailyBillingCron,

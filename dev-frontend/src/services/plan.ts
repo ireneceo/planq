@@ -140,6 +140,8 @@ export interface PlanStatus {
   recent_payments: PaymentRecord[];
   usage: PlanUsage;
   history: PlanHistoryItem[];
+  // 「지금 결제하면 1개월 추가」 — 자격·개월 수 모두 서버 판정. 화면이 결제 이력으로 스스로 세지 않는다.
+  prepay_bonus?: { available: boolean; months: number; option: string } | null;
 }
 
 export async function fetchCatalog(): Promise<PlanDef[]> {
@@ -191,12 +193,14 @@ export async function checkout(
   businessId: number,
   planCode: Exclude<PlanCode, 'free' | 'enterprise'>,
   cycle: BillingCycle,
-  currency: Currency = 'KRW'
-): Promise<{ subscription_id: number; payment_id: number; amount: number; currency: Currency } | null> {
+  currency: Currency = 'KRW',
+  // 체험 선택지 코드. 개월 수는 **서버가 정한다** — 여기로 숫자를 보내지 않는다.
+  trialOption?: string | null
+): Promise<{ subscription_id: number; payment_id: number; amount: number; currency: Currency; bonus_months?: number } | null> {
   const r = await apiFetch(`/api/plan/${businessId}/checkout`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plan_code: planCode, cycle, currency }),
+    body: JSON.stringify({ plan_code: planCode, cycle, currency, ...(trialOption ? { trial_option: trialOption } : {}) }),
   });
   const j = await r.json();
   return j.success ? j.data : null;

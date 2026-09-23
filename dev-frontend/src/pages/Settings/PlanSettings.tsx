@@ -162,10 +162,25 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     }
   };
 
+  // ─── 체험 선택지 (2026-09-23) — 「지금 결제하면 1개월 추가」 ───
+  // 보너스 개월·자격은 서버가 판정한다(status.prepay_bonus). 화면은 «선택지 코드»만 실어 보낸다.
+  const [prepayOption, setPrepayOption] = useState<string | null>(null);
+  const prepay = status?.prepay_bonus || null;
+  const openPrepay = useCallback(() => {
+    if (!status || !prepay?.available) return;
+    const code = (status.plan?.code as PlanCode);
+    if (!code || code === 'free' || code === 'enterprise') return;
+    setCycle('monthly');           // 보너스는 월간 선불 상품이다
+    setPrepayOption(prepay.option);
+    setActionPlan(code);
+    setPaymentOpen(true);
+  }, [status, prepay]);
+
   // P-2 자체 결제 흐름 — CheckoutModal 의 onPaid 가 직접 status 갱신
   const handleCheckoutPaid = useCallback(async () => {
     setPaymentOpen(false);
     setActionPlan(null);
+    setPrepayOption(null);
     await load();
   }, [load]);
 
@@ -290,6 +305,35 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           )}
         </MetaRow>
       </CurrentCard>
+
+      {/* 체험 선택지 — 「지금 결제하면 1개월 추가」 (2026-09-23).
+          canPurchaseInApp(): App Store 3.1.1 — 앱 안에서는 구매 표면을 띄우지 않는다.
+          자격(prepay.available)은 서버 판정이라 화면이 결제 이력을 따로 세지 않는다. */}
+      {canPurchaseInApp() && prepay?.available && !status.exempt && prepay.months > 0 && (
+        <PrepayCard data-testid="plan-prepay-card">
+          <PrepayHead>
+            <PrepayLabel>{t('prepay.label', '체험 선택')}</PrepayLabel>
+          </PrepayHead>
+          <PrepayRow>
+            <PrepayInfo>
+              <PrepayTitle>{t('prepay.title', { months: prepay.months, defaultValue: '지금 결제하면 {{months}}개월을 더 드립니다' })}</PrepayTitle>
+              <PrepayHint>
+                {t('prepay.desc', {
+                  months: prepay.months,
+                  total: prepay.months + 1,
+                  defaultValue: '1개월 요금으로 {{total}}개월을 이용합니다. 다음 결제는 {{total}}개월 뒤이고, 그 전에 해지하면 추가 청구가 없습니다.',
+                })}
+              </PrepayHint>
+              <PrepayNote>
+                {t('prepay.refundNote', '이미 결제한 1개월 요금은 해지해도 환불되지 않습니다.')}
+              </PrepayNote>
+            </PrepayInfo>
+            <PrepayBtn type="button" data-testid="plan-prepay-bonus" onClick={openPrepay}>
+              {t('prepay.cta', '지금 결제하기')}
+            </PrepayBtn>
+          </PrepayRow>
+        </PrepayCard>
+      )}
 
       {/* 사용량 바 — #usage 앵커로 외부 링크 (UsageWarningCard / LimitReachedDialog) 에서 점프 가능. */}
       <Section id="usage">
@@ -552,7 +596,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             stripeEnabled={stripeEnabled}
             existingPaymentId={status.pending_payment?.id || null}
             existingAmount={status.pending_payment ? Number(status.pending_payment.amount) : null}
-            onClose={() => { setPaymentOpen(false); setActionPlan(null); }}
+            trialOption={prepayOption}
+            onClose={() => { setPaymentOpen(false); setActionPlan(null); setPrepayOption(null); }}
             onPaid={handleCheckoutPaid}
           />
         );
@@ -766,6 +811,25 @@ const PayDueBtn = styled.button<{ $notified?: boolean }>`
     ? 'background:#fff;color:#0F766E;border:1px solid #5EEAD4;'
     : 'background:#DC2626;color:#fff;border:none;'}
   &:hover{background:${p => p.$notified ? '#F0FDFA' : '#B91C1C'};}
+  &:active{transform:scale(0.98);}
+`;
+
+const PrepayCard = styled.div`
+  background:#F0FDFA;border:1px solid #5EEAD4;border-radius:14px;padding:20px 24px;
+  display:flex;flex-direction:column;gap:10px;
+`;
+const PrepayHead = styled.div`display:flex;align-items:center;gap:10px;`;
+const PrepayLabel = styled.div`font-size:0.8125rem;font-weight:700;color:#0F766E;letter-spacing:-0.1px;`;
+const PrepayRow = styled.div`display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;`;
+const PrepayInfo = styled.div`display:flex;flex-direction:column;gap:4px;min-width:0;`;
+const PrepayTitle = styled.div`font-size:1rem;font-weight:700;color:#0F172A;letter-spacing:-0.2px;`;
+const PrepayHint = styled.div`font-size:0.8125rem;color:#334155;line-height:1.5;`;
+const PrepayNote = styled.div`font-size:0.75rem;color:#64748B;line-height:1.45;`;
+const PrepayBtn = styled.button`
+  flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;min-height:44px;
+  padding:0 24px;border-radius:10px;border:none;background:#0F766E;color:#fff;
+  font-size:0.875rem;font-weight:700;cursor:pointer;transition:background 0.15s;
+  &:hover{background:#115E59;}
   &:active{transform:scale(0.98);}
 `;
 

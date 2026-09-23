@@ -34,6 +34,11 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
   const [params] = useSearchParams();
   const dateParam = params.get('date');
   useEffect(() => { if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) setTeamDate(dateParam); }, [dateParam]);
+  // 휴가 알림 링크(`?leave=<id>`) — `services/leaveTransition.js` 가 만든다.
+  //   ★ 2026-09-23 이전엔 **이 값을 읽는 코드가 어디에도 없었다.** 알림을 눌러도 설정 화면만 뜨고
+  //     그 신청이 어디 있는지 알 수 없어 «알림은 오는데 화면이 안 떠» 로 신고됐다(#424).
+  //     만든 링크는 반드시 읽는 곳이 있어야 한다(memory feedback_produced_link_no_consumer).
+  const leaveParam = Number(params.get('leave')) || null;
   const [statMonth, setStatMonth] = useState(() => today.slice(0, 7));
   const [fixTarget, setFixTarget] = useState<AttendanceDay | null>(null);
 
@@ -112,6 +117,7 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
         stats={stats} statMonth={statMonth} setStatMonth={setStatMonth}
         onFix={setFixTarget}
         onDecide={decide} onReload={load}
+        highlightLeaveId={leaveParam}
       />
       <AdminFixDrawer
         day={fixTarget} onClose={() => setFixTarget(null)}

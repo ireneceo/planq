@@ -146,7 +146,8 @@
     "summary": {
       "plan": "Plan",
       "amount": "Total",
-      "paymentId": "Payment ID"
+      "paymentId": "Payment ID",
+      "period": "Period"
     },
     "cycle": {
       "monthly": "Monthly",
@@ -189,7 +190,8 @@
       "notConfigured": "Card payment isn't available yet. Please use bank transfer.",
       "failed": "Couldn't start the card payment. Please try again in a moment.",
       "taxBlocked": "Tax invoices (세금계산서) are issued for bank transfers only — card payments are collected by our overseas entity, which cannot issue them. If you need a tax invoice, please pay by bank transfer above."
-    }
+    },
+    "bonusPeriod": "{{total}} months (1 month paid + {{bonus}} free)"
   },
   "billing": {
     "history": {
@@ -278,5 +280,12 @@
     },
     "desc": "You can keep using PlanQ with no payment, grace period, or downgrade. Contact the platform admin if you need higher limits.",
     "until": "Until {{date}}"
+  },
+  "prepay": {
+    "label": "Trial option",
+    "title": "Pay now and get {{months}} extra month",
+    "desc": "Use PlanQ for {{total}} months at the price of one. Your next charge is in {{total}} months — cancel before then and nothing further is billed.",
+    "refundNote": "The month you pay for now is not refunded if you cancel.",
+    "cta": "Pay now"
   }
 }

@@ -44,6 +44,14 @@ Subscription.init({
   price: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
   currency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: 'KRW' },
 
+  // 첫 결제에만 더해지는 보너스 개월 (2026-09-23 — 「지금 결제하면 1개월 추가」 선택지).
+  //   가격은 1개월치 그대로이고 **기간만** 늘어난다 → 첫 기간 2개월, 다음 결제 2개월 후.
+  //   ★ 두 번째 결제부터는 적용하지 않는다(markPaymentPaid 의 wasFirst 분기 한 곳).
+  //     여기에 값이 남아 있어도 갱신 때 다시 늘어나지 않는다 — 그러려면 기간 공식이
+  //     두 벌이 되어야 하는데 공식은 computePeriodEnd() 하나뿐이다.
+  //   값의 정본은 config/plans.js TRIAL_OPTIONS — 요청 본문이 아니다.
+  bonus_months: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+
   // 활성 기간
   started_at: { type: DataTypes.DATE, allowNull: true },          // 첫 활성화 시각
   current_period_start: { type: DataTypes.DATE, allowNull: true },

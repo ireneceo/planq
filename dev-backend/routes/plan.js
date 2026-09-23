@@ -5,7 +5,8 @@ const { BusinessPlanHistory, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const planEngine = require('../services/plan');
-const { PLANS, PLAN_ORDER, ADDONS, toPublicJson, planAtLeast, getAddon, listAddonsForPlan } = require('../config/plans');
+const { PLANS, PLAN_ORDER, ADDONS, toPublicJson, planAtLeast, getAddon, listAddonsForPlan,
+  bonusMonthsForTrialOption } = require('../config/plans');
 
 // ─── 결제 면제 워크스페이스 진입 차단 (운영 #275) ───
 // 진짜 게이트는 서비스(createPendingSubscription / requestAddon)에 있다 — cron 도 지나가야 하므로.
@@ -130,6 +131,13 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         payer_name: p.payer_name, method: p.method,
       })),
       usage,
+      // 「지금 결제하면 1개월 추가」를 띄울 수 있는가 — 판정은 서버(billing.isFirstPlanPayment) 한 곳.
+      //   화면이 결제 이력을 보고 스스로 판정하면 서버 자격 규칙과 갈라진다.
+      prepay_bonus: {
+        available: await billing.isFirstPlanPayment(businessId),
+        months: bonusMonthsForTrialOption('prepay_1m_bonus'),
+        option: 'prepay_1m_bonus',
+      },
       history: historyRows.map(h => ({
         id: h.id,
         from_plan: h.from_plan,
@@ -361,15 +369,19 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
       return errorResponse(res, 'owner_only', 403);
     }
     const businessId = Number(req.params.businessId);
-    const { plan_code, cycle = 'monthly', currency = 'KRW', tax_invoice } = req.body || {};
+    const { plan_code, cycle = 'monthly', currency = 'KRW', tax_invoice, trial_option } = req.body || {};
     if (!plan_code || !PLANS[plan_code]) return errorResponse(res, 'invalid_plan_code', 400);
     if (!['monthly', 'yearly'].includes(cycle)) return errorResponse(res, 'invalid_cycle', 400);
     if (plan_code === 'free') return errorResponse(res, 'use_downgrade_for_free', 400);
     if (await blockIfExempt(businessId, res)) return;
 
+    // ★ 보너스 개월은 **선택지 코드**로만 받는다. 개월 수를 본문으로 받으면 12 를 적어 1년을 가져간다.
+    //   모르는 코드는 서비스가 0 으로 떨어뜨린다(fail-closed) — 여기서 400 을 내지 않는 이유는
+    //   옛 프론트가 이 필드 없이 부르는 것을 그대로 통과시키기 위해서다.
     const result = await billing.createPendingSubscription({
       businessId, planCode: plan_code, cycle, userId: req.user.id, currency,
       taxInvoice: tax_invoice && tax_invoice.biz_no ? tax_invoice : null,
+      trialOption: typeof trial_option === 'string' ? trial_option : null,
     });
     // 사이클 N+51 — audit. 결제 요청 (Subscription + pending Payment)
     require('../services/auditService').logAudit(req, {
@@ -384,6 +396,9 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
         payment_id: result.payment.id,
         amount: result.payment.amount,
         tax_invoice_requested: !!(tax_invoice && tax_invoice.biz_no),
+        // 요청한 선택지와 **실제로 부여된** 개월을 같이 남긴다 — 자격 미달로 0 이 된 경우가 보여야 한다.
+        trial_option: typeof trial_option === 'string' ? trial_option : null,
+        bonus_months: result.subscription.bonus_months,
       },
     });
     return successResponse(res, {
@@ -392,6 +407,8 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
       amount: result.payment.amount,
       currency: result.payment.currency,
       status: result.payment.status,
+      // 화면이 «1개월 추가가 실제로 붙었는지» 를 스스로 판정하지 않게 서버가 알려준다.
+      bonus_months: result.subscription.bonus_months,
     });
   } catch (err) { next(err); }
 });
