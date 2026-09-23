@@ -4958,3 +4958,22 @@ Fable 429 (req_011CfLzLSXGsAqJ6u6a2AfXF · req_011CfM2XFnQC7A1rNniyfwjs). **오�
    써야 하는지. 지금은 dev 전용이지만 그 경계가 코드에 없다.
 2. **`measure.js` 가 세 함정을 정말 막는가** — 나는 만든 사람이라 내 가정 안에서만 확인했다.
 3. 카드 한 줄이 **긴 한글 업로더 이름·외국어**에서도 유지되는지(나는 'Health Check Bot' 하나로만 쟀다).
+
+### 2026-09-23 — Q위키 `trial-options` + 개발완료 문서 (`67492bd3`) [Opus] — Fable 429 → unavailable
+Fable 429 (req_011CfM3oETb6RGQYU44qzt1f). **오늘 7회 모두 429.** 런타임 코드 변경 없음(문서·위키 시드 전용).
+
+**자체 검증 — 문구를 코드와 한 줄씩 대조 (11/11)**
+- «14일 무료 체험» → `routes/plan.js start-trial` 14일 · «7일 유예 후 잠금» → `trial.js GRACE_DAYS = 7`
+- «1개월 요금으로 2개월» → `billing.js` 의 `wasFirst ? bonus_months : 0` · «다음 결제 2개월 뒤» → `next_billing_at: periodEnd`
+- «카드·계좌이체 모두» → `createPendingSubscription` 이 수단을 가리지 않음
+- «자동으로 빠져나가지 않는다» → `mode:'subscription'`·`off_session`·`customer.subscription` **전부 0건** 재확인
+- «첫 유료 결제 전에만» → 서버 `isFirstPlanPayment` + `/status.prepay_bonus` + 화면 `prepay?.available` 가드
+- **환불 문구가 화면과 같은 말인가** → 위키 «이미 결제하신 1개월 요금은 해지하셔도 환불되지 않습니다» /
+  화면 `plan.prepay.refundNote` «이미 결제한 1개월 요금은 해지해도 환불되지 않습니다» — 같은 뜻 ✅
+- `bonus_months=1` 정책값 일치 · 시드 멱등(81건 업서트) · 커버리지 게이트 exit 0
+
+**★ Fable 이 봐야 할 것**
+1. **환불 문구의 법적 타당성** — 전자상거래법 청약철회 7일과의 관계. 나는 «화면과 같은 말인가» 만 쟀지
+   «그 말이 법적으로 성립하는가» 는 못 판단한다. 약관 개정 때 전문가 확인 항목.
+2. `visibility: 'authenticated'` 가 맞는지 — 본문에 토큰·내부 경로는 없지만 «요금 정책» 이 공개여야 하는지는 제품 판단.
+3. 운영 반영은 다음 배포 슬롯 — `ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`.
