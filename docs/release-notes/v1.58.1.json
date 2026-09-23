@@ -1,0 +1,16 @@
+{
+  "version": "1.58.1",
+  "date": "2026-09-23",
+  "items": [
+    {
+      "ko": {
+        "title": "파일 카드가 한 줄로 정돈됐습니다",
+        "body": "파일 이름 아래에 용량·올린 사람·날짜가 세 줄로 나뉘어 있던 것을 한 줄로 합쳤습니다. 공유 범위 표시가 없는 파일에서도 그 자리가 빈 줄로 남아 있었는데, 그것도 없앴습니다.\n\n카드 높이가 198px 에서 169px 로 줄어 한 화면에 더 많은 파일이 보입니다. 이름이 길면 올린 사람 이름만 줄어들고, 용량과 날짜는 항상 그대로 보입니다.\n\nQ file 과 프로젝트 > 파일이 똑같이 보입니다."
+      },
+      "en": {
+        "title": "File cards are now a single tidy line",
+        "body": "Size, uploader and date used to sit on three separate lines under the file name — they are now one line. Files without a sharing-scope badge no longer leave an empty line where it would have been.\n\nCards went from 198px to 169px tall, so more files fit on screen. When space runs short only the uploader name is shortened; size and date always stay fully visible.\n\nQ file and Project › Files now look identical."
+      }
+    }
+  ]
+}

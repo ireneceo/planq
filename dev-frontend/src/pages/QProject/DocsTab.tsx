@@ -1191,13 +1191,19 @@ const DocsTab: React.FC<Props> = (props) => {
                     {/* 공유 범위 (Irene 2026-08-31): "리스트에 … 공유범위가 같이 표시되어야 맞는 것 같은데?"
                         누가 올렸는지는 보이는데 **누가 볼 수 있는지**는 안 보였다. 파일 목록에서
                         가장 알고 싶은 것이 그것이다(특히 개인 보관함에서 L1 인지 눈으로 확인). */}
+                    {/* ★ 2026-09-23 (Irene: *"아이콘이랑 용량, 업로더, 날짜 다 1줄로 나오게 해.
+                        다 들어가겠는데 왜 3줄이야?"*) — 여기는 **한 줄**이다.
+                        전에는 CardMeta 가 셋이었고, 배지 줄은 **배지가 없어도 빈 줄로 자리를 먹었다**
+                        (대부분의 파일이 그렇다). 그래서 «3줄» 로 보였다.
+                        한 줄에 다 넣되 **업로더만 줄인다** — 용량·날짜는 길이가 정해져 있고,
+                        이름은 사람마다 달라 거기서 흡수하는 것이 옳다. */}
                     <CardMeta>
                       {f.visibility && <VisibilityBadge level={f.visibility as 'L1' | 'L2' | 'L3' | 'L4'} compact />}
                       {f.security_level && f.security_level !== 'general' && <SecurityLevelBadge level={f.security_level} />}
-                    </CardMeta>
-                    <CardMeta><span>{formatBytes(f.file_size)}</span><span>·</span><span>{f.uploader_name}</span></CardMeta>
-                    <CardMeta>
-                      <span>{formatDate(f.uploaded_at)}</span>
+                      <MetaFixed>{formatBytes(f.file_size)}</MetaFixed>
+                      {f.uploader_name && <><MetaSep>·</MetaSep><MetaFlex title={f.uploader_name}>{f.uploader_name}</MetaFlex></>}
+                      <MetaSep>·</MetaSep>
+                      <MetaFixed>{formatDate(f.uploaded_at)}</MetaFixed>
                       {/* ★ 그리드가 **기본 뷰**다 — 폰도 여기로 시작한다. 여기에 [폴더로 이동] 이 없으면
                           폰에서는 옮길 방법이 여전히 없다(드래그가 안 된다). 리스트 뷰에만 붙였다가
                           Fable 재검증에서 잡혔다: "리스트 뷰에만 있다 · 폰 기본 뷰에서는 0개".
@@ -2403,8 +2409,15 @@ const SourceTag = styled.div<{ $src: FileSource }>`
 `;
 const CardName = styled.div`padding:8px 10px 2px;font-size:0.875rem;font-weight:600;@media(max-width:640px){font-size:0.9375rem;}color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
 const CardMeta = styled.div`padding:0 10px;font-size:0.6875rem;color:#64748B;display:flex;gap:4px;
+  /* 한 줄 계약 — 넘치면 업로더가 줄어든다(아래 MetaFlex). 줄바꿈하지 않는다. */
+  align-items:center;flex-wrap:nowrap;min-width:0;white-space:nowrap;
   &:last-child{padding-bottom:10px;margin-top:2px;}
 `;
+/* 길이가 정해진 것 — 용량·날짜. 줄어들지 않는다(잘리면 뜻을 잃는다). */
+const MetaFixed = styled.span`flex-shrink:0;`;
+/* 사람 이름 — 여기서 흡수한다. 좁아지면 말줄임. */
+const MetaFlex = styled.span`flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;`;
+const MetaSep = styled.span`flex-shrink:0;color:#CBD5E1;`;
 
 const ListTable = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;`;
 const LIST_COLS = 'minmax(200px,3fr) minmax(140px,1.3fr) 80px 90px 100px 36px';

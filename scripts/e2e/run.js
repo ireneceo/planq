@@ -262,6 +262,16 @@ async function main() {
     const results = await suite.run();
     totalFail += printSuite(suite.name || key, results);
   }
+  // ★ 카나리 잔여 **일괄 청소** (2026-09-23). 각자 치우게 해 뒀는데 쌓였다 —
+  //   실측: 복사 카나리가 5회 돌며 프로젝트 10개, 문서 48건이 dev 에 남아 있었다.
+  //   예외로 빠져나가거나 러너가 끊기면 각자 청소는 실행되지 않는다. 여기서 한 번 더 쓸어낸다.
+  //   남으면 **실패로 센다** — 조용히 쌓이던 것이 지금까지의 문제였다.
+  try {
+    const { sweepCanaryLeftovers } = require('./lib/cleanup');
+    const swept = await sweepCanaryLeftovers();
+    totalFail += printSuite('cleanup', [swept]);
+  } catch (e) { console.log(`⚠️ 잔여 청소를 돌리지 못했다: ${e.message}`); totalFail += 1; }
+
   console.log(`\n━━━ 총 실패: ${totalFail} ━━━`);
   // ★ DB 풀은 **여기서 한 번만** 닫는다. 카나리가 각자 닫으면 뒤 스위트가
   //   "connection manager was closed" 로 죽는다(2026-09-07 실측). 안 닫으면 프로세스가 안 끝난다.
