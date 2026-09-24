@@ -100,10 +100,10 @@ async function sweepCanaryLeftovers() {
     //   DB 행만 지우면 바이트가 고아로 남는다.
     const FILE_RE = '^zz[a-z0-9]*-[a-z0-9]{6}([- ].*)?\\.[a-z0-9]+$';
     const [[me]] = await sequelize.query('SELECT id FROM users WHERE email=?', { replacements: [CREDS.email] });
-    let files = 0, folders = 0, fileFail = 0;
+    let files = 0, folders = 0, fileFail = 0, leakedTags = '';
     if (me) {
       const fileWhere = 'uploader_id=? AND purged_at IS NULL AND file_name REGEXP ?';
-      const [fs] = await sequelize.query(`SELECT id, business_id, deleted_at FROM files WHERE ${fileWhere}`,
+      const [fs] = await sequelize.query(`SELECT id, business_id, deleted_at, file_name FROM files WHERE ${fileWhere}`,
         { replacements: [me.id, FILE_RE] });
       if (fs.length) {
         const tok = await loginToken();
@@ -114,6 +114,10 @@ async function sweepCanaryLeftovers() {
           const p = await fetch(`${BASE}/api/files/${f.business_id}/${f.id}/purge`, { method: 'DELETE', headers: H }).catch(() => null);
           if (p && p.ok) files += 1; else fileFail += 1;
         }
+        // 어느 카나리가 흘렸는지 보이게 — 이름 접두어(zz<태그>)가 곧 출처다. 흘린 쪽을 고칠 근거다.
+        const tags = {};
+        for (const f of fs) { const m = /^zz([a-z0-9]*)-/.exec(f.file_name || ''); const k = m ? m[1] : '?'; tags[k] = (tags[k] || 0) + 1; }
+        leakedTags = Object.entries(tags).map(([k, n]) => `zz${k}×${n}`).join(' ');
       }
       const [fd] = await sequelize.query("SELECT id FROM file_folders WHERE created_by=? AND name LIKE 'ZZ카나리%'",
         { replacements: [me.id] });
@@ -138,7 +142,7 @@ async function sweepCanaryLeftovers() {
         + `${fileFail ? ` · 영구삭제 실패 ${fileFail}` : ''}) — 다음 실행에 또 쌓인다`);
     }
     return row(0, projects + posts + files + folders === 0 ? '카나리 잔여 없음'
-      : `잔여 청소 — 프로젝트 ${projects} · 문서 ${posts} · 파일 ${files} · 폴더 ${folders}`);
+      : `잔여 청소 — 프로젝트 ${projects} · 문서 ${posts} · 파일 ${files}${leakedTags ? ` (${leakedTags})` : ''} · 폴더 ${folders}`);
   } catch (e) {
     return row(1, `🔴 청소 중 오류: ${e.message}`);
   }

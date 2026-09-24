@@ -170,12 +170,15 @@ async function run() {
 
     // ── 화면 — 3폭 × 두 scope
     ({ browser } = await launch());
-    const BAND_MAX = 80;   // 제목+부제 두 줄 = 71~76 (2026-09-24 Fable 실측). 한 줄 더 쌓이면 걸린다.
+    // 제목+부제 두 줄 = 71~76 (2026-09-24 Fable 실측). 한 줄 더 쌓이면 걸린다.
+    // ★ 폰만 110 — 프로젝트 헤더 오른쪽에 «고객으로 등록» 문이 생겨(§G) 좁은 폭에서는 **제목이 두 줄로 감긴다**
+    //   (실측 98). 제목은 자르지 않는다는 계약이라 감기는 것이 맞다. 세 줄째(=부제가 또 감김)부터 걸린다.
+    const bandMax = (w) => (w <= 640 ? 110 : 80);
     for (const [kind, token] of Object.entries(links)) {
       for (const vp of VIEWPORTS) {
         const m = await measure(browser, token, vp, false);
         const ok = m.mark && m.name && m.mark.hit && m.name.hit && m.mark.inView && m.name.inView
-          && !m.hscroll && m.band !== null && m.band <= BAND_MAX;
+          && !m.hscroll && m.band !== null && m.band <= bandMax(vp.w);
         push(`[${kind}@${vp.w}] 로고·발신자 이름이 그려져 있다`, ok,
           `band=${m.band} mark=${m.mark ? `${m.mark.x},${m.mark.y} hit=${m.mark.hit}` : '없음'} ` +
           `name=${m.name ? `«${m.name.text}» hit=${m.name.hit}` : '없음'} hscroll=${m.hscroll}`);

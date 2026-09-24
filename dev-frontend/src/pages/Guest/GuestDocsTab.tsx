@@ -6,11 +6,11 @@
 //   `security_level` = 잠금 — general 열림 / internal 자리는 보이고 잠김 /
 //                      confidential 은 제목도 안 나가고 **건수만**.
 //
-// ★ 잠긴 줄은 "안 눌린다" 가 아니라 **왜 잠겼는지 말하는 시트**를 띄운다. 눌러도 아무 일 없는
-//   줄은 사용자에게 고장으로 보인다(memory feedback_rules_must_be_explained_briefly).
+// ★ 잠긴 카드는 "안 눌린다" 가 아니라 **로그인·계정 요청 시트**(LoginRequiredSheet, 페이지 한 벌)를 띄운다.
+//   눌러도 아무 일 없는 카드는 사용자에게 고장으로 보인다(memory feedback_rules_must_be_explained_briefly).
+// ★ 2026-09-24 카드형(§D)·필터(§F)·껍데기(§C) — 목록은 Q file 카드와 같은 숫자(guestCards.ts).
 // ★ 본문은 편집기를 띄우지 않고 headless 변환 + 정화만 한다(utils/postContentHtml).
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { listRowTitleCss } from '../../theme/tokens';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { postContentToSafeHtml } from '../../utils/postContentHtml';
@@ -18,6 +18,13 @@ import { postContentTableCss } from '../../styles/postContentView';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import PlanQSelect from '../../components/Common/PlanQSelect';
+import SearchBox from '../../components/Common/SearchBox';
+import { FilterBar, FilterSlot, FilterSearchSlot, axisOption } from '../../components/Common/filterBar';
+import { GuestTabPane, Empty, RetryInline, HiddenNote, Lock, Sheet, SheetPortal } from './guestShell';
+import { CardGrid, Card, CardName, CardMeta, CardChipRow, CardChip, LockCaption, MetaFixed } from './guestCards';
+import { formatPublicDate } from '../../utils/dateFormat';
+import type { LoginSheetReason } from './LoginRequiredSheet';
 
 type DocRow = {
   id: number; title: string; category: string | null;
@@ -28,27 +35,24 @@ type DocDetail = {
   updated_at: string | null; author_name: string | null; content: unknown;
 };
 
-type Props = { token: string; onGone: () => void };
+type Props = { token: string; onGone: () => void; onNeedLogin: (reason: LoginSheetReason) => void };
 
-export default function GuestDocsTab({ token, onGone }: Props) {
+export default function GuestDocsTab({ token, onGone, onNeedLogin }: Props) {
   const { t } = useTranslation('guest');
   const [rows, setRows] = useState<DocRow[] | null>(null);
   const [lockedCount, setLockedCount] = useState(0);
   const [err, setErr] = useState(false);
   const [openDoc, setOpenDoc] = useState<DocDetail | null>(null);
   const [openBusy, setOpenBusy] = useState<number | null>(null);
-  const [lockedNotice, setLockedNotice] = useState(false);
+  // 필터 — **화면 안에서만** 거른다(§F). 서버 인자를 늘리면 무인증 표면의 질의 자유도가 넓어진다.
+  //   URL 에도 싣지 않는다 — 공유되는 주소에 검색어가 실리면 안 된다.
+  const [q, setQ] = useState('');
+  const [cat, setCat] = useState('');
 
-  // ★ 시트는 모달이다 — CLAUDE.md "드로어 접근성" 3훅 필수.
-  //   없으면 Esc 를 눌러도 안 닫히고 포커스가 시트 밖에 남는다(Fable 게이트 2026-09-05 실측).
-  //   무인증 화면이라 키보드만 쓰는 사람에게 빠져나갈 길이 더더욱 있어야 한다.
-  const noticeRef = useRef<HTMLDivElement>(null);
+  // ★ 읽기 시트는 모달이다 — CLAUDE.md "드로어 접근성" 3훅 필수.
   const docRef = useRef<HTMLDivElement>(null);
-  const anySheet = lockedNotice || !!openDoc;
-  useBodyScrollLock(anySheet);
-  useEscapeStack(lockedNotice, () => setLockedNotice(false));
+  useBodyScrollLock(!!openDoc);
   useEscapeStack(!!openDoc, () => setOpenDoc(null));
-  useFocusTrap(noticeRef, lockedNotice);
   useFocusTrap(docRef, !!openDoc);
 
   const load = useCallback(async () => {
@@ -68,7 +72,8 @@ export default function GuestDocsTab({ token, onGone }: Props) {
   useEffect(() => { void load(); }, [load]);
 
   const open = useCallback(async (row: DocRow) => {
-    if (row.locked) { setLockedNotice(true); return; }
+    // 잠긴 카드는 «왜 잠겼는지 + 다음 행동» 을 말하는 시트 — 눌러도 아무 일 없는 카드는 고장으로 읽힌다.
+    if (row.locked) { onNeedLogin('locked-doc'); return; }
     setOpenBusy(row.id);
     try {
       const r = await fetch(`/api/guest/${token}/posts/${row.id}`);
@@ -78,16 +83,19 @@ export default function GuestDocsTab({ token, onGone }: Props) {
       if (j?.success) setOpenDoc(j.data as DocDetail);
       else setErr(true);
     } catch { setErr(true); } finally { setOpenBusy(null); }
-  }, [token, onGone]);
+  }, [token, onGone, onNeedLogin]);
 
-  const fmt = (s: string | null) => {
-    if (!s) return '';
-    const d = new Date(s);
-    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString();
-  };
+  const catOptions = useMemo(() => {
+    const cats = [...new Set((rows || []).map((r) => r.category).filter(Boolean) as string[])].sort();
+    return [axisOption(t('filter.category', { defaultValue: '분류' }) as string), ...cats.map((c) => ({ value: c, label: c }))];
+  }, [rows, t]);
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (rows || []).filter((r) => (!cat || r.category === cat) && (!needle || r.title.toLowerCase().includes(needle)));
+  }, [rows, q, cat]);
 
   return (
-    <Scroll data-testid="guest-docs">
+    <GuestTabPane data-testid="guest-tab-body-docs">
       {err ? (
         <Empty>
           {t('docs.failed', { defaultValue: '문서를 불러오지 못했습니다.' })}{' '}
@@ -99,29 +107,55 @@ export default function GuestDocsTab({ token, onGone }: Props) {
         <Empty>{t('docs.empty', { defaultValue: '아직 공유된 문서가 없어요.' })}</Empty>
       ) : (
         <>
-          <List>
-            {rows.map((d) => (
-              <Row key={d.id} type="button" onClick={() => void open(d)}
-                $locked={d.locked} data-testid={`guest-doc-${d.id}`}
-                aria-label={d.locked
-                  ? (t('docs.lockedAria', { defaultValue: '{{title}} — 잠긴 문서', title: d.title }) as string)
-                  : d.title}>
-                <RowMain>
-                  <RowTitle>
-                    {d.locked && <Lock aria-hidden>🔒</Lock>}
-                    {d.title}
-                  </RowTitle>
-                  <RowMeta>
-                    {d.category && <span>{d.category}</span>}
-                    {/* 잠긴 문서는 작성자도 알리지 않는다 — 서버가 이미 null 로 준다. */}
-                    {d.author_name && <span>{d.author_name}</span>}
-                    {d.updated_at && <span>{fmt(d.updated_at)}</span>}
-                  </RowMeta>
-                </RowMain>
-                {openBusy === d.id && <RowBusy>{t('loading', { defaultValue: '불러오는 중…' })}</RowBusy>}
-              </Row>
-            ))}
-          </List>
+          {/* 필터 줄은 목록이 **있을 때만** — 빈 탭의 필터줄은 소음이다. */}
+          {rows.length > 0 && (
+            <FilterBar data-testid="guest-docs-filter">
+              <FilterSearchSlot>
+                <SearchBox value={q} onChange={setQ} width="100%"
+                  placeholder={t('filter.search', { defaultValue: '제목 검색' }) as string}
+                  ariaLabel={t('filter.search', { defaultValue: '제목 검색' }) as string} />
+              </FilterSearchSlot>
+              {catOptions.length > 1 && (
+                <FilterSlot width={140} testId="guest-docs-cat">
+                  <PlanQSelect size="sm" isSearchable={false} options={catOptions}
+                    aria-label={t('filter.category', { defaultValue: '분류' }) as string}
+                    value={catOptions.find((o) => o.value === cat) || catOptions[0]}
+                    onChange={(opt: unknown) => setCat(String((opt as { value?: string } | null)?.value ?? ''))} />
+                </FilterSlot>
+              )}
+            </FilterBar>
+          )}
+          {rows.length > 0 && shown.length === 0 ? (
+            <Empty data-testid="guest-docs-nomatch">{t('filter.noMatch', { defaultValue: '조건에 맞는 항목이 없어요.' })}</Empty>
+          ) : (
+            <CardGrid>
+              {shown.map((d) => (
+                <Card key={d.id} type="button" onClick={() => void open(d)}
+                  $dim={d.locked} data-testid={`guest-doc-${d.id}`}
+                  aria-label={d.locked
+                    ? (t('docs.lockedAria', { defaultValue: '{{title}} — 잠긴 문서', title: d.title }) as string)
+                    : d.title}>
+                  <CardChipRow>
+                    {d.category && <CardChip>{d.category}</CardChip>}
+                  </CardChipRow>
+                  <CardName $clamp>
+                    {d.locked && <Lock />}
+                    <span>{d.title}</span>
+                  </CardName>
+                  {d.locked ? (
+                    <LockCaption>{t('login.lockedCaption', { defaultValue: '로그인하면 볼 수 있어요' })}</LockCaption>
+                  ) : (
+                    <CardMeta>
+                      {d.updated_at && <MetaFixed>{formatPublicDate(d.updated_at)}</MetaFixed>}
+                      {/* 작성자는 서버가 정한다(§A) — 멤버면 비어 있고, 고객이면 고객 이름. */}
+                      {d.author_name && <span>{d.author_name}</span>}
+                      {openBusy === d.id && <span>{t('loading', { defaultValue: '불러오는 중…' })}</span>}
+                    </CardMeta>
+                  )}
+                </Card>
+              ))}
+            </CardGrid>
+          )}
           {/* confidential 은 **제목도 정보다.** 자리를 만들지 않고 건수만 알린다. */}
           {lockedCount > 0 && (
             <HiddenNote data-testid="guest-docs-hidden">
@@ -134,26 +168,15 @@ export default function GuestDocsTab({ token, onGone }: Props) {
         </>
       )}
 
-      {/* 잠긴 줄 안내 — 규칙을 설명하지 않고 **지금 상태와 다음 행동**만 말한다. */}
-      {lockedNotice && (
-        <Sheet role="dialog" aria-modal="true" aria-label={t('docs.lockedTitle', { defaultValue: '열 수 없는 문서' }) as string}
-          onClick={() => setLockedNotice(false)}>
-          <SheetBox ref={noticeRef} onClick={(e) => e.stopPropagation()}>
-            <SheetTitle>{t('docs.lockedTitle', { defaultValue: '열 수 없는 문서' })}</SheetTitle>
-            <SheetBody>{t('docs.lockedBody', { defaultValue: '이 문서는 담당자만 볼 수 있게 되어 있어요. 필요하시면 대화 탭에서 담당자에게 요청해 주세요.' })}</SheetBody>
-            <SheetBtn type="button" onClick={() => setLockedNotice(false)}>{t('close', { defaultValue: '닫기' })}</SheetBtn>
-          </SheetBox>
-        </Sheet>
-      )}
-
       {openDoc && (
+        <SheetPortal>
         <Sheet role="dialog" aria-modal="true" aria-label={openDoc.title} onClick={() => setOpenDoc(null)}>
           <DocBox ref={docRef} onClick={(e) => e.stopPropagation()}>
             <DocHead>
               <DocTitle>{openDoc.title}</DocTitle>
               <DocMeta>
                 {openDoc.author_name && <span>{openDoc.author_name}</span>}
-                {openDoc.updated_at && <span>{fmt(openDoc.updated_at)}</span>}
+                {openDoc.updated_at && <span>{formatPublicDate(openDoc.updated_at)}</span>}
               </DocMeta>
               <CloseBtn type="button" onClick={() => setOpenDoc(null)}
                 aria-label={t('close', { defaultValue: '닫기' }) as string}>×</CloseBtn>
@@ -163,61 +186,12 @@ export default function GuestDocsTab({ token, onGone }: Props) {
               dangerouslySetInnerHTML={{ __html: postContentToSafeHtml(openDoc.content) }} />
           </DocBox>
         </Sheet>
+        </SheetPortal>
       )}
-    </Scroll>
+    </GuestTabPane>
   );
 }
 
-const Scroll = styled.div`flex:1;min-height:0;overflow-y:auto;padding:16px 20px;`;
-const Empty = styled.div`font-size:0.8125rem;color:#64748b;padding:12px 0;`;
-const RetryInline = styled.button`
-  border:none;background:none;padding:0;font-size:0.8125rem;font-weight:700;
-  color:#0d9488;cursor:pointer;text-decoration:underline;
-`;
-const List = styled.div`display:flex;flex-direction:column;gap:8px;`;
-const Row = styled.button<{ $locked: boolean }>`
-  display:flex;align-items:center;gap:10px;width:100%;
-  padding:12px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;
-  text-align:left;cursor:pointer;
-  opacity:${(p) => (p.$locked ? 0.7 : 1)};
-  &:hover{border-color:#cbd5e1;}
-  &:focus-visible{outline:2px solid #0d9488;outline-offset:2px;}
-`;
-const RowMain = styled.div`flex:1 1 0;min-width:0;`;
-const RowTitle = styled.div`
-  ${listRowTitleCss}
-  display:flex;align-items:center;gap:6px;
-  font-weight:600;color:#0f172a;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-`;
-const Lock = styled.span`font-size:0.75rem;`;
-const RowMeta = styled.div`
-  display:flex;flex-wrap:wrap;gap:8px;margin-top:3px;
-  font-size:0.75rem;color:#64748b;
-`;
-const RowBusy = styled.span`font-size:0.75rem;color:#94a3b8;flex-shrink:0;`;
-const HiddenNote = styled.div`
-  margin-top:12px;padding:10px 12px;background:#f1f5f9;border-radius:8px;
-  font-size:0.75rem;line-height:1.5;color:#64748b;
-`;
-const Sheet = styled.div`
-  position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;
-  background:rgba(15,23,42,0.45);
-  @media (min-width:641px){align-items:center;}
-`;
-const SheetBox = styled.div`
-  width:100%;max-width:420px;margin:0;padding:20px;
-  background:#fff;border-radius:16px 16px 0 0;
-  padding-bottom:calc(20px + env(safe-area-inset-bottom));
-  @media (min-width:641px){border-radius:16px;margin:0 16px;padding-bottom:20px;}
-`;
-const SheetTitle = styled.div`font-size:1rem;font-weight:700;color:#0f172a;`;
-const SheetBody = styled.div`margin-top:8px;font-size:0.8125rem;line-height:1.6;color:#475569;`;
-const SheetBtn = styled.button`
-  margin-top:16px;width:100%;height:2.75rem;
-  background:#0f172a;color:#fff;border:none;border-radius:10px;
-  font-size:0.875rem;font-weight:600;cursor:pointer;
-`;
 const DocBox = styled.div`
   display:flex;flex-direction:column;width:100%;max-width:720px;max-height:88dvh;
   background:#fff;border-radius:16px 16px 0 0;overflow:hidden;

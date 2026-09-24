@@ -9,6 +9,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { READ_W } from './guestShell';
+
+// 탭 본문(GuestTabPane)과 같은 기둥 규칙 — 폰 여백까지 같아야 글의 왼쪽 x 가 탭마다 같다.
+const columnCss = `
+  @media (max-width:640px){ padding-left:16px; padding-right:16px; }
+  > * { width:100%; max-width:${READ_W}; margin-left:auto; margin-right:auto; }
+`;
 import { isEnterAction } from '../../utils/imeKey';
 
 export type GuestCard = {
@@ -28,11 +35,13 @@ type Props = {
   canWrite: boolean;
   /** 이 패널이 화면에 보이는가 — 폴링을 여기에만 건다 */
   active?: boolean;
+  /** 프로젝트 화면의 탭 하나일 때 — 다른 탭과 **같은 읽기 기둥(880)** 에 세운다(§C). 대화 전용 링크 화면은 그대로. */
+  column?: boolean;
   /** 링크가 죽었을 때(404) 부모가 만료 화면으로 바꾸게 */
   onGone: () => void;
 };
 
-export default function GuestChatPanel({ token, canWrite, active = true, onGone }: Props) {
+export default function GuestChatPanel({ token, canWrite, active = true, onGone, column = false }: Props) {
   const { t } = useTranslation('guest');
   const [msgs, setMsgs] = useState<GuestMsg[]>([]);
   const [draft, setDraft] = useState('');
@@ -146,7 +155,7 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone 
 
   return (
     <>
-      <Body>
+      <Body $column={column}>
         {msgs.length === 0 && <Empty>{t('empty', { defaultValue: '아직 주고받은 메시지가 없습니다.' })}</Empty>}
         {msgs.map((m) => (
           <Row key={m.id} $mine={m.is_mine}>
@@ -181,7 +190,7 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone 
         <div ref={bottomRef} />
       </Body>
       {canWrite ? (
-        <Foot>
+        <Foot $column={column}>
           {err && <ErrLine>{err}</ErrLine>}
           {askName ? (
             <NameRow>
@@ -230,13 +239,16 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone 
           <SendHint aria-hidden>{t('sendHint', { defaultValue: 'Enter 로 보내기 · Shift+Enter 줄바꿈' })}</SendHint>
         </Foot>
       ) : (
-        <Foot><ReadOnly>{t('readOnly', { defaultValue: '읽기 전용 링크입니다.' })}</ReadOnly></Foot>
+        <Foot $column={column}><ReadOnly>{t('readOnly', { defaultValue: '읽기 전용 링크입니다.' })}</ReadOnly></Foot>
       )}
     </>
   );
 }
 
-const Body = styled.div`flex:1;min-height:0;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;`;
+const Body = styled.div<{ $column: boolean }>`
+  flex:1;min-height:0;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;
+  ${p => (p.$column ? columnCss : '')}
+`;
 const Row = styled.div<{ $mine: boolean }>`display:flex;justify-content:${p => (p.$mine ? 'flex-end' : 'flex-start')};`;
 const Bubble = styled.div<{ $mine: boolean }>`
   max-width:min(560px,80%);padding:9px 12px;border-radius:14px;
@@ -246,7 +258,10 @@ const Bubble = styled.div<{ $mine: boolean }>`
 const Who = styled.div`font-size:0.75rem;font-weight:700;color:#64748b;margin-bottom:2px;`;
 const Text = styled.div`font-size:0.875rem;line-height:1.55;white-space:pre-wrap;word-break:break-word;`;
 const Empty = styled.div`margin:auto;color:#94a3b8;font-size:0.875rem;`;
-const Foot = styled.div`background:#fff;border-top:1px solid #e2e8f0;padding:10px 20px;padding-bottom:calc(10px + env(safe-area-inset-bottom));`;
+const Foot = styled.div<{ $column: boolean }>`
+  background:#fff;border-top:1px solid #e2e8f0;padding:10px 20px;padding-bottom:calc(10px + env(safe-area-inset-bottom));
+  ${p => (p.$column ? columnCss : '')}
+`;
 const InputRow = styled.div`display:flex;gap:8px;align-items:flex-end;`;
 const ErrLine = styled.div`font-size:0.75rem;color:#dc2626;margin-bottom:6px;`;
 const SendHint = styled.div`

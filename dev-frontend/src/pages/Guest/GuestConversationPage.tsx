@@ -122,6 +122,7 @@ export default function GuestConversationPage() {
         token={token || ''}
         project={ctx.project}
         workspace={ctx.workspace ?? null}
+        accountRequested={!!ctx.account_requested}
         canWrite={!!ctx.can_write}
         onGone={() => setGone(true)}
       />

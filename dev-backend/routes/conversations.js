@@ -386,7 +386,10 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
     // 플랜 쿼터 — 대화방 수 한도
     const planCan = await require('../services/plan').can(req.params.businessId, 'create_conversation');
     if (!planCan.ok) {
-      return errorResponse(res, `대화방 수 한도 초과 (최대 ${planCan.limit}개) — 플랜 업그레이드 필요`, 403);
+      // ★ 거절 이유는 **한도만이 아니다** — 구독 비활성(subscription_inactive)도 여기로 온다. 여태 이유를 안 보고
+      //   "대화방 수 한도 초과 (최대 undefined개)" 를 말했다(limit 이 없는 거절이라 undefined). 이유→문구는
+      //   형제 라우트(projects·voice)와 같은 buildQuotaError 한 곳이다. 상태 코드는 기존 403 을 유지한다.
+      return res.status(403).json(require('../services/plan').buildQuotaError(planCan, req.params.businessId));
     }
 
     // project_id 가 있으면 해당 프로젝트가 같은 워크스페이스인지 검증

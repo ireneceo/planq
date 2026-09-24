@@ -7,20 +7,26 @@
 //
 // ★ 토큰은 화면에 오지 않는다. "받기" 는 서버 라우트를 열고 서버가 302 로 보낸다 —
 //   공유 토큰을 프론트에 실으면 그 자체가 유출 지점이 된다.
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { listRowTitleCss } from '../../theme/tokens';
+// ★ 2026-09-24 카드형(§D) — 썸네일은 서버가 **받을 수 있는 이미지에만** preview_url 을 준다.
+//   받을 수 없는 파일을 누르면 로그인·계정 요청 시트(페이지 한 벌)가 뜬다.
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import styled from 'styled-components';
-import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
-import { useEscapeStack } from '../../hooks/useEscapeStack';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
+import PlanQSelect from '../../components/Common/PlanQSelect';
+import SearchBox from '../../components/Common/SearchBox';
+import { FilterBar, FilterSlot, FilterSearchSlot, axisOption } from '../../components/Common/filterBar';
+import { GuestTabPane, Empty, RetryInline, HiddenNote, Lock } from './guestShell';
+import { CardGrid, Card, Thumb, ThumbImg, CardName, CardMeta, CardTag, MetaFixed } from './guestCards';
+import { formatPublicDate } from '../../utils/dateFormat';
+import type { LoginSheetReason } from './LoginRequiredSheet';
 
 type FileRow = {
   id: number; file_name: string; file_size: number; mime_type: string | null;
   updated_at: string | null; locked: boolean; downloadable: boolean; uploader_name: string | null;
+  /** 받을 수 있는 이미지에만 서버가 싣는다(§D). 없으면 종류 글자로 그린다. */
+  preview_url?: string;
 };
 
-type Props = { token: string; onGone: () => void };
+type Props = { token: string; onGone: () => void; onNeedLogin: (reason: LoginSheetReason) => void };
 
 const formatSize = (n: number) => {
   if (!n || n < 0) return '';
@@ -29,19 +35,26 @@ const formatSize = (n: number) => {
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i += 1; }
   return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)}${u[i]}`;
 };
+/** 종류 — mime 에서 파생한다(서버 인자를 늘리지 않는다, §F). */
+type Kind = 'image' | 'doc' | 'other';
+const kindOf = (f: FileRow): Kind => {
+  const m = (f.mime_type || '').toLowerCase();
+  if (m.startsWith('image/')) return 'image';
+  if (/pdf|word|excel|sheet|presentation|powerpoint|msword|officedocument|text\//.test(m)) return 'doc';
+  return 'other';
+};
+const extOf = (name: string) => {
+  const i = name.lastIndexOf('.');
+  return i > 0 ? name.slice(i + 1).toUpperCase().slice(0, 5) : '';
+};
 
-export default function GuestFilesTab({ token, onGone }: Props) {
+export default function GuestFilesTab({ token, onGone, onNeedLogin }: Props) {
   const { t } = useTranslation('guest');
   const [rows, setRows] = useState<FileRow[] | null>(null);
   const [lockedCount, setLockedCount] = useState(0);
   const [err, setErr] = useState(false);
-  const [notice, setNotice] = useState<'locked' | 'login' | null>(null);
-
-  // 시트 = 모달. CLAUDE.md 드로어 접근성 3훅 (문서 탭과 같은 이유).
-  const noticeRef = useRef<HTMLDivElement>(null);
-  useBodyScrollLock(!!notice);
-  useEscapeStack(!!notice, () => setNotice(null));
-  useFocusTrap(noticeRef, !!notice);
+  const [q, setQ] = useState('');
+  const [kind, setKind] = useState('');
 
   const load = useCallback(async () => {
     setErr(false);
@@ -59,22 +72,27 @@ export default function GuestFilesTab({ token, onGone }: Props) {
   useEffect(() => { void load(); }, [load]);
 
   const openFile = (row: FileRow) => {
-    if (row.locked) { setNotice('locked'); return; }
-    if (!row.downloadable) { setNotice('login'); return; }
-    // 서버가 302 로 공개 파일 주소로 보낸다. 새 탭으로 열어 이 화면(그리고 쓰던 글)을 지키지 않는다.
+    if (row.locked) { onNeedLogin('locked-file'); return; }
+    if (!row.downloadable) { onNeedLogin('download'); return; }
+    // 서버가 302 로 공개 파일 주소로 보낸다. 새 탭으로 열어 이 화면(그리고 쓰던 글)을 지킨다.
     //   ★ noopener 를 주면 반환값이 null 이다 — 반환값으로 성공을 판정하지 않는다
     //     (memory feedback_window_open_noopener_null).
     window.open(`/api/guest/${token}/files/${row.id}/open`, '_blank', 'noopener,noreferrer');
   };
 
-  const fmt = (s: string | null) => {
-    if (!s) return '';
-    const d = new Date(s);
-    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString();
-  };
+  const kindOptions = useMemo(() => [
+    axisOption(t('filter.kind', { defaultValue: '종류' }) as string),
+    { value: 'image', label: t('filter.kindImage', { defaultValue: '이미지' }) as string },
+    { value: 'doc', label: t('filter.kindDoc', { defaultValue: '문서' }) as string },
+    { value: 'other', label: t('filter.kindOther', { defaultValue: '기타' }) as string },
+  ], [t]);
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (rows || []).filter((f) => (!kind || kindOf(f) === kind) && (!needle || f.file_name.toLowerCase().includes(needle)));
+  }, [rows, q, kind]);
 
   return (
-    <Scroll data-testid="guest-files">
+    <GuestTabPane data-testid="guest-tab-body-files">
       {err ? (
         <Empty>
           {t('files.failed', { defaultValue: '파일을 불러오지 못했습니다.' })}{' '}
@@ -86,30 +104,53 @@ export default function GuestFilesTab({ token, onGone }: Props) {
         <Empty>{t('files.empty', { defaultValue: '아직 공유된 파일이 없어요.' })}</Empty>
       ) : (
         <>
-          <List>
-            {rows.map((f) => (
-              <Row key={f.id} type="button" onClick={() => openFile(f)}
-                $dim={f.locked || !f.downloadable} data-testid={`guest-file-${f.id}`}>
-                <RowMain>
-                  <RowTitle>
-                    {f.locked && <Lock aria-hidden>🔒</Lock>}
-                    {f.file_name}
-                  </RowTitle>
-                  <RowMeta>
-                    {formatSize(f.file_size) && <span>{formatSize(f.file_size)}</span>}
-                    {f.uploader_name && <span>{f.uploader_name}</span>}
-                    {f.updated_at && <span>{fmt(f.updated_at)}</span>}
-                  </RowMeta>
-                </RowMain>
-                {/* 받을 수 있는지 **줄에서** 말한다 — 눌러 봐야 아는 것은 안내가 아니다. */}
-                <RowTag $on={f.downloadable}>
-                  {f.downloadable
-                    ? t('files.download', { defaultValue: '받기' })
-                    : t('files.loginNeeded', { defaultValue: '로그인 필요' })}
-                </RowTag>
-              </Row>
-            ))}
-          </List>
+          {rows.length > 0 && (
+            <FilterBar data-testid="guest-files-filter">
+              <FilterSearchSlot>
+                <SearchBox value={q} onChange={setQ} width="100%"
+                  placeholder={t('filter.searchFile', { defaultValue: '파일 이름 검색' }) as string}
+                  ariaLabel={t('filter.searchFile', { defaultValue: '파일 이름 검색' }) as string} />
+              </FilterSearchSlot>
+              <FilterSlot width={120} testId="guest-files-kind">
+                <PlanQSelect size="sm" isSearchable={false} options={kindOptions}
+                  aria-label={t('filter.kind', { defaultValue: '종류' }) as string}
+                  value={kindOptions.find((o) => o.value === kind) || kindOptions[0]}
+                  onChange={(opt: unknown) => setKind(String((opt as { value?: string } | null)?.value ?? ''))} />
+              </FilterSlot>
+            </FilterBar>
+          )}
+          {rows.length > 0 && shown.length === 0 ? (
+            <Empty data-testid="guest-files-nomatch">{t('filter.noMatch', { defaultValue: '조건에 맞는 항목이 없어요.' })}</Empty>
+          ) : (
+            <CardGrid>
+              {shown.map((f) => (
+                <Card key={f.id} type="button" onClick={() => openFile(f)}
+                  $dim={f.locked || !f.downloadable} data-testid={`guest-file-${f.id}`}>
+                  <Thumb>
+                    {f.preview_url
+                      ? <ThumbImg src={f.preview_url} alt="" loading="lazy" data-testid={`guest-file-thumb-${f.id}`} />
+                      : <span aria-hidden>{f.locked ? <Lock size={20} /> : (extOf(f.file_name) || 'FILE')}</span>}
+                    {/* 받을 수 있는지 **카드에서** 말한다 — 눌러 봐야 아는 것은 안내가 아니다. */}
+                    <CardTag $on={f.downloadable} data-testid={`guest-file-tag-${f.id}`}>
+                      {f.downloadable
+                        ? t('files.download', { defaultValue: '받기' })
+                        : f.locked
+                          ? t('files.lockedTag', { defaultValue: '잠김' })
+                          : t('files.loginDownload', { defaultValue: '로그인 후 받기' })}
+                    </CardTag>
+                  </Thumb>
+                  <CardName>
+                    {f.locked && <Lock />}
+                    <span>{f.file_name}</span>
+                  </CardName>
+                  <CardMeta data-card-meta="">
+                    {formatSize(f.file_size) && <MetaFixed>{formatSize(f.file_size)}</MetaFixed>}
+                    {f.updated_at && <MetaFixed>{formatPublicDate(f.updated_at)}</MetaFixed>}
+                  </CardMeta>
+                </Card>
+              ))}
+            </CardGrid>
+          )}
           {lockedCount > 0 && (
             <HiddenNote data-testid="guest-files-hidden">
               {t('files.hiddenCount', {
@@ -120,82 +161,6 @@ export default function GuestFilesTab({ token, onGone }: Props) {
           )}
         </>
       )}
-
-      {notice && (
-        <Sheet role="dialog" aria-modal="true"
-          aria-label={t(notice === 'locked' ? 'files.lockedTitle' : 'files.loginTitle',
-            { defaultValue: notice === 'locked' ? '열 수 없는 파일' : '로그인이 필요해요' }) as string}
-          onClick={() => setNotice(null)}>
-          <SheetBox ref={noticeRef} onClick={(e) => e.stopPropagation()}>
-            <SheetTitle>
-              {notice === 'locked'
-                ? t('files.lockedTitle', { defaultValue: '열 수 없는 파일' })
-                : t('files.loginTitle', { defaultValue: '로그인이 필요해요' })}
-            </SheetTitle>
-            <SheetBody>
-              {notice === 'locked'
-                ? t('files.lockedBody', { defaultValue: '이 파일은 담당자만 받을 수 있게 되어 있어요. 필요하시면 대화 탭에서 요청해 주세요.' })
-                : t('files.loginBody', { defaultValue: '이 파일은 받으려면 로그인이 필요해요. 대화 탭에서 담당자에게 계정을 요청하실 수 있어요.' })}
-            </SheetBody>
-            <SheetBtn type="button" onClick={() => setNotice(null)}>{t('close', { defaultValue: '닫기' })}</SheetBtn>
-          </SheetBox>
-        </Sheet>
-      )}
-    </Scroll>
+    </GuestTabPane>
   );
 }
-
-const Scroll = styled.div`flex:1;min-height:0;overflow-y:auto;padding:16px 20px;`;
-const Empty = styled.div`font-size:0.8125rem;color:#64748b;padding:12px 0;`;
-const RetryInline = styled.button`
-  border:none;background:none;padding:0;font-size:0.8125rem;font-weight:700;
-  color:#0d9488;cursor:pointer;text-decoration:underline;
-`;
-const List = styled.div`display:flex;flex-direction:column;gap:8px;`;
-const Row = styled.button<{ $dim: boolean }>`
-  display:flex;align-items:center;gap:10px;width:100%;
-  padding:12px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;
-  text-align:left;cursor:pointer;
-  opacity:${(p) => (p.$dim ? 0.7 : 1)};
-  &:hover{border-color:#cbd5e1;}
-  &:focus-visible{outline:2px solid #0d9488;outline-offset:2px;}
-`;
-const RowMain = styled.div`flex:1 1 0;min-width:0;`;
-const RowTitle = styled.div`
-  ${listRowTitleCss}
-  display:flex;align-items:center;gap:6px;
-  font-weight:600;color:#0f172a;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-`;
-const Lock = styled.span`font-size:0.75rem;`;
-const RowMeta = styled.div`
-  display:flex;flex-wrap:wrap;gap:8px;margin-top:3px;
-  font-size:0.75rem;color:#64748b;
-`;
-const RowTag = styled.span<{ $on: boolean }>`
-  flex-shrink:0;padding:2px 9px;border-radius:999px;
-  font-size:0.6875rem;font-weight:700;
-  background:${(p) => (p.$on ? '#ccfbf1' : '#f1f5f9')};
-  color:${(p) => (p.$on ? '#0f766e' : '#94a3b8')};
-`;
-const HiddenNote = styled.div`
-  margin-top:12px;padding:10px 12px;background:#f1f5f9;border-radius:8px;
-  font-size:0.75rem;line-height:1.5;color:#64748b;
-`;
-const Sheet = styled.div`
-  position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;
-  background:rgba(15,23,42,0.45);
-  @media (min-width:641px){align-items:center;}
-`;
-const SheetBox = styled.div`
-  width:100%;max-width:420px;padding:20px;background:#fff;border-radius:16px 16px 0 0;
-  padding-bottom:calc(20px + env(safe-area-inset-bottom));
-  @media (min-width:641px){border-radius:16px;margin:0 16px;padding-bottom:20px;}
-`;
-const SheetTitle = styled.div`font-size:1rem;font-weight:700;color:#0f172a;`;
-const SheetBody = styled.div`margin-top:8px;font-size:0.8125rem;line-height:1.6;color:#475569;`;
-const SheetBtn = styled.button`
-  margin-top:16px;width:100%;height:2.75rem;
-  background:#0f172a;color:#fff;border:none;border-radius:10px;
-  font-size:0.875rem;font-weight:600;cursor:pointer;
-`;

@@ -16,6 +16,7 @@ const { blocksExternalShare } = require('../services/securityLevel');
 const { guestLimiter, attachGuest } = require('./guest_common');
 // 누구로 보이는가(담당자·작성자·올린 사람) — services/guestParty.js **한 술어**(§A). 여기서 다시 쓰지 않는다.
 const { guestPartyLabels } = require('../services/guestParty');
+const { previewUrlForFile } = require('../services/filePreview');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -91,6 +92,21 @@ async function requireProjectScope(req, res) {
   // 테넌트 이중 검증 — 링크의 워크스페이스와 프로젝트가 어긋나면 없는 것으로 친다.
   if (!project || project.business_id !== link.business_id) { errorResponse(res, 'not_found', 404); return null; }
   return project;
+}
+
+/**
+ * 게스트가 이 파일을 **받을 수 있는가** — 목록(downloadable·preview_url)과 `/open` 이 **이 한 술어**를 쓴다.
+ *   L4(외부 공개) + general + 공유 토큰이 있고, 그 공유에 **비밀번호·만료가 걸려 있지 않을 때만**.
+ * ★ 2026-09-24 Fable F1 — 비밀번호·만료를 안 봐서, 공개 다운로드는 401/410 으로 막는 파일의 썸네일(= stored name)을
+ *   게스트 목록이 내주고 있었다. stored name 은 회수·만료가 없는 **영구 열쇠**라 `?w=` 를 떼면 원본이 나왔다.
+ *   «이미 원본을 받을 수 있으니 새 노출이 아니다» 는 이 두 상태에서 거짓이다 — 그래서 받기 조건 자체를 좁힌다.
+ */
+function guestDownloadable(r) {
+  if ((r.security_level || 'general') !== 'general') return false;
+  if (r.vlevel !== 'L4' || !r.share_token) return false;
+  if (r.share_password_hash) return false;
+  if (r.share_expires_at && new Date(r.share_expires_at).getTime() <= Date.now()) return false;
+  return true;
 }
 
 /** 외부에 내보낼 수 있는 노출 범위인가 — L2·L3·L4 만. L1(개인)은 프로젝트에 묶여 있어도 남의 것이다. */
@@ -200,8 +216,11 @@ router.get('/:token/files', guestLimiter('guest-files', { windowMs: 60 * 1000, m
         deleted_at: null,
         vlevel: GUEST_VLEVELS,
       },
+      // ★ file_path·external_id·storage_provider 는 **썸네일 주소를 만드는 데만** 읽는다 —
+      //   응답에는 싣지 않는다(아래 list 는 나열한 키만 낸다).
       attributes: ['id', 'file_name', 'file_size', 'mime_type', 'security_level', 'vlevel',
-        'uploader_id', 'share_token', 'updatedAt'],
+        'uploader_id', 'share_token', 'share_password_hash', 'share_expires_at',
+        'updatedAt', 'file_path', 'external_id', 'storage_provider'],
       order: [['updated_at', 'DESC']],
       limit: 200,
     });
@@ -215,6 +234,10 @@ router.get('/:token/files', guestLimiter('guest-files', { windowMs: 60 * 1000, m
     const list = visible.map((r) => {
       const lv = r.security_level || 'general';
       const locked = lv !== 'general';
+      // ★ 내려받기는 **이미 외부로 공개된 파일(L4)만**. Irene 원안 "파일 다운로드만 로그인 유도"
+      //   (GUEST_LINK §1). 문서는 읽는 것이고 파일은 반출이라 비대칭은 의도다.
+      //   토큰은 응답에 싣지 않는다 — 열 때 서버가 302 로 보낸다.
+      const downloadable = !locked && guestDownloadable(r);
       return {
         id: r.id,
         file_name: r.file_name,
@@ -222,11 +245,13 @@ router.get('/:token/files', guestLimiter('guest-files', { windowMs: 60 * 1000, m
         mime_type: r.mime_type || null,
         updated_at: r.updatedAt || null,
         locked,
-        // ★ 내려받기는 **이미 외부로 공개된 파일(L4)만**. Irene 원안 "파일 다운로드만 로그인 유도"
-        //   (GUEST_LINK §1). 문서는 읽는 것이고 파일은 반출이라 비대칭은 의도다.
-        //   토큰은 응답에 싣지 않는다 — 열 때 서버가 302 로 보낸다.
-        downloadable: !locked && r.vlevel === 'L4' && !!r.share_token,
+        downloadable,
         uploader_name: locked ? null : (nameMap.get(r.uploader_id) || null),
+        // 썸네일 — **받을 수 있는 이미지에만**(docs/GUEST_PROJECT_VIEW_DECISIONS.md §D).
+        //   public-image 는 stored name 을 아는 사람에게 무인증으로 준다. L2/L3 는 «자리는 보이되
+        //   받을 수 없음» 이 계약이라, 여기에 썸네일을 주면 320px 사본을 받게 한 것이다.
+        //   L4 general 은 이미 원본을 받을 수 있으니 새 노출이 아니다. 조건 밖이면 키 자체를 싣지 않는다.
+        ...(downloadable && previewUrlForFile(r) ? { preview_url: `${previewUrlForFile(r)}?w=320` } : {}),
       };
     });
     return successResponse(res, { items: list, locked_count: lockedCount });
@@ -247,10 +272,11 @@ router.get('/:token/files/:fileId/open',
         project_id: project.id, business_id: link.business_id,
         deleted_at: null, vlevel: 'L4',
       },
-      attributes: ['id', 'security_level', 'share_token'],
+      attributes: ['id', 'security_level', 'vlevel', 'share_token', 'share_password_hash', 'share_expires_at'],
     });
-    // 목록에서 거른 것과 **같은 술어**를 다시 태운다 — 주소로 직접 두드리는 경로를 막는다.
-    if (!file || !file.share_token) return errorResponse(res, 'not_found', 404);
+    // 목록과 **같은 술어**를 다시 태운다 — 주소로 직접 두드리는 경로를 막는다.
+    //   — 비밀번호·만료가 걸린 공유는 여기서도 없는 것이다(Fable F1).
+    if (!file || !guestDownloadable(file)) return errorResponse(res, 'not_found', 404);
     if (blocksExternalShare(file)) return errorResponse(res, 'not_found', 404);
 
     await link.update({ last_used_at: new Date() }).catch(() => null);

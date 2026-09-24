@@ -51,10 +51,15 @@
     "taskCount": "{{done}} / {{total}} done",
     "docs": "Shared documents",
     "untitled": "Untitled",
-    "chatHint2": "Ask the team anything in the Chat tab.",
     "projectSub": "Progress and questions",
     "stagesEmpty": "No stages yet.",
-    "tasksEmpty": "No tasks yet."
+    "tasksEmpty": "No tasks yet.",
+    "nextDue": "Next due",
+    "milestones": "Milestones",
+    "recentDocs": "Recent documents",
+    "allDocs": "See all documents",
+    "askWs": "Ask {{name}}",
+    "ask": "Ask the team"
   },
   "notify": {
     "cta": "Get notified when they reply?",
@@ -119,21 +124,45 @@
     "lockedAria": "{{title}} — locked document",
     "hiddenCount_one": "{{count}} document is not shown because it cannot be shared.",
     "hiddenCount_other": "{{count}} documents are not shown because they cannot be shared.",
-    "lockedTitle": "This document is not open",
-    "lockedBody": "Only the team can view this one. Ask them in the chat tab if you need it.",
     "hiddenCount": "{{count}} document(s) that cannot be shared are not listed."
   },
   "files": {
     "failed": "Could not load the files.",
     "empty": "No files have been shared yet.",
     "download": "Download",
-    "loginNeeded": "Sign-in needed",
     "hiddenCount_one": "{{count}} file is not shown because it cannot be shared.",
     "hiddenCount_other": "{{count}} files are not shown because they cannot be shared.",
-    "lockedTitle": "This file is not open",
-    "lockedBody": "Only the team can download this one. Ask them in the chat tab if you need it.",
-    "loginTitle": "Sign-in needed",
-    "loginBody": "You need to sign in to download this file. Ask the team for an account in the chat tab.",
-    "hiddenCount": "{{count}} file(s) that cannot be shared are not listed."
+    "hiddenCount": "{{count}} file(s) that cannot be shared are not listed.",
+    "lockedTag": "Locked",
+    "loginDownload": "Sign in to download"
+  },
+  "filter": {
+    "category": "Category",
+    "search": "Search titles",
+    "searchFile": "Search file names",
+    "kind": "Type",
+    "kindImage": "Images",
+    "kindDoc": "Documents",
+    "kindOther": "Other",
+    "noMatch": "Nothing matches these filters.",
+    "state": "Status",
+    "stateAll": "All",
+    "stateOpen": "In progress",
+    "stateDone": "Done"
+  },
+  "login": {
+    "lockedDocTitle": "Sign in to view",
+    "lockedFileTitle": "Sign in to download",
+    "downloadTitle": "Sign in to download this file",
+    "registerTitle": "Register as a client",
+    "registerBody": "This link is view-only. To download files and check invoices and tasks, sign in to the workspace with a client account.",
+    "lockedBody": "Sign in with a client account to view this. If you don't have one, ask for an account.",
+    "notInvited": "This account isn't invited to this project. Ask for an account instead.",
+    "login": "Sign in",
+    "requestFailed": "Couldn't send the request. Please try again shortly.",
+    "lockedCaption": "Sign in to view",
+    "openInApp": "Open in app",
+    "register": "Register as a client",
+    "registerSent": "Request sent"
   }
 }

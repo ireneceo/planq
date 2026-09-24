@@ -152,6 +152,9 @@ const SUITES = {
   // 게스트 링크가 **누가 보낸 것인지 말하는가** (2026-09-24, CLIENT_ENTRY P0-①) — 이 무인증 표면을 재는
   //   첫 검사. 응답 원문 화이트리스트 · 외부 로고 차단 · 3폭 가시성 · workspace 제거 대조군 · 회수 404.
   guestentry: () => require('./canary-guest-entry'),
+  // 고객용 프로젝트 링크의 탭·카드·필터·등록 문 (2026-09-24, GUEST_PROJECT_VIEW §C~G · §H 가 요구).
+  //   다섯 탭 기둥 left 3폭 · 카드 열 · preview_url 4케이스 · 필터 중 요청 0 · 개요 파생 · 시트·redirect 착지.
+  guestproject: () => require('./canary-guest-project'),
 
   // 끌어서 여러 개 고르기 + 선택한 것 통째로 폴더 이동 (2026-09-20).
   //   ★ folderdnd 와 다른 축이다 — 그쪽은 «한 건을 끌어 옮기는가», 여기는 «여러 건을 고르고
