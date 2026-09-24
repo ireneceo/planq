@@ -12,7 +12,13 @@ const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleW
 const KEYBOARD_H = 330; // iOS 실측 근사 (main.tsx: 793→417)
 
 async function launch({ mobile = false } = {}) {
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  // ★ `protocolTimeout` — 파일이 수천 건인 화면에서 evaluate 가 기본 180s 를 넘겨
+  //   `Runtime.callFunctionOn timed out` 으로 죽었다(2026-09-24). 판정이 아니라 하니스가 죽는 것이라
+  //   원인을 찾기 어렵다. 넉넉히 준다.
+  const browser = await puppeteer.launch({
+    headless: 'new', protocolTimeout: 300000,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
   const page = await browser.newPage();
   if (mobile) { await page.setViewport(MOBILE_VP); await page.setUserAgent(MOBILE_UA); }
   page.setDefaultTimeout(30000);

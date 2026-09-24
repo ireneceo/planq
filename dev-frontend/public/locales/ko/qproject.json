@@ -443,10 +443,11 @@
       "release": "여기에 놓아 업로드",
       "hintDrive": "파일 하나에 {{limit}}까지 · 그보다 크면 Google Drive 로 저장됩니다",
       "hintLimit": "파일 하나에 {{limit}}까지 · 더 큰 파일은 Google Drive 를 연결하면 그대로 올라갑니다",
-      "hintPlain": "여러 파일을 한 번에 올릴 수 있습니다",
+      "hintPlain": "여러 파일이나 폴더를 한 번에 올릴 수 있습니다",
       "compactHintLimit": "파일 하나에 {{limit}}까지 · 여기나 리스트 영역에 끌어다 놓아도 됩니다",
       "limitOnly": "파일 하나에 {{limit}}까지",
-      "compactHintTail": " · 여기나 리스트 영역에 끌어다 놓아도 됩니다"
+      "compactHintTail": " · 여기나 리스트 영역에 끌어다 놓아도 됩니다",
+      "uploadFolder": "폴더 올리기"
     },
     "cloud": {
       "connectedTitle": "공용 파일은 Google Drive 에 저장됩니다.",
@@ -570,7 +571,6 @@
       "placeholder": "폴더 이름",
       "deleteTitle": "폴더를 삭제할까요?",
       "deleteDesc": "폴더 안 파일은 “폴더 없음”으로 옮겨집니다",
-      "deleteWithFiles": "이 폴더 안 {{n}}개 파일은 “폴더 없음”으로 옮겨집니다",
       "deleteEmpty": "이 폴더는 비어있습니다",
       "more": "폴더 메뉴",
       "downloadAll": "폴더 통째 다운로드",
@@ -580,7 +580,12 @@
       "expand": "펼치기",
       "collapse": "접기",
       "newChildAction": "하위 폴더 추가",
-      "nameLabel": "폴더 이름"
+      "nameLabel": "폴더 이름",
+      "deleteCount": "이 폴더와 하위 폴더에 파일 {{n}}개가 있습니다.",
+      "deleteChoiceMove": "「폴더만 삭제」를 고르면 파일은 바로 위 폴더로 옮겨지고 그대로 남습니다.",
+      "deleteChoiceTrash": "「파일도 함께 삭제」를 고르면 파일도 휴지통으로 갑니다. 30일 안에 되돌릴 수 있습니다.",
+      "deleteOnlyFolder": "폴더만 삭제",
+      "deleteWithFilesAction": "파일도 함께 삭제"
     },
     "up": {
       "aria": "업로드 진행 상황",
@@ -598,7 +603,8 @@
       "headFailed": "실패 {{n}}개",
       "retryAll": "전체 재시도",
       "clearFailed": "실패 목록 지우기",
-      "cancelAll": "모두 중단"
+      "cancelAll": "모두 중단",
+      "truncated": "한 번에 {{n}}개까지만 가져옵니다. 나머지는 다시 올려 주세요."
     },
     "meta": {
       "name": "파일명",
@@ -666,6 +672,14 @@
     "storage": {
       "left": "남은 저장공간 {{left}} / {{quota}}",
       "full": "저장공간이 가득 찼습니다 ({{used}} / {{quota}})"
+    },
+    "dup": {
+      "title": "같은 이름의 파일이 {{n}}개 있습니다",
+      "desc": "어떻게 할지 고르면 이번에 올리는 파일 전부에 같이 적용됩니다.",
+      "descOverwrite": "「덮어쓰기」는 새 파일을 올리고 이전 파일을 휴지통으로 보냅니다. 30일 안에 되돌릴 수 있습니다.",
+      "skip": "건너뛰기",
+      "rename": "이름 바꿔 저장",
+      "overwrite": "덮어쓰기"
     }
   },
   "pinnedDoc": {

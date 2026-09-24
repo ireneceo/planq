@@ -14,7 +14,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { launch, login, goto, sleep } = require('./lib/browser');
+const { launch, login, goto, sleep, CREDS } = require('./lib/browser');
 
 /** 1x1 PNG — 우리가 재는 것은 바이트가 아니라 «요청의 운명» 이다. */
 const PNG1x1 = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==', 'base64');
@@ -23,6 +23,10 @@ const UP_RE = /\/api\/files\/\d+$/;
 
 /** uploadFile 이 읽을 임시 파일 — 끝에서 한 번에 치운다(중간에 지우면 업로드가 죽는다). */
 const TMP_DIRS = [];
+/** ★ 실행마다 다른 이름 — 지난 실행이 남긴 동명 파일이 있으면 **중복 확인창이 먼저 떠**
+ *   업로드가 시작되지 않는다(2026-09-24 실측: 「업로드가 실제로 시작된다」 실패).
+ *   카나리가 자기 잔여물로 자기를 깨뜨리는 계열이다(Fable 지적 ⑥과 같은 원인). */
+const RUN = Date.now().toString(36).slice(-6);
 
 /**
  * 숨은 <input type=file> 에 파일을 넣는다 — 화면과 같은 경로(handleFiles)를 태운다.
@@ -106,15 +110,31 @@ async function until(page, fn, ms = 30000) {
   return { ok: false, snap: last };
 }
 
-async function cleanup(page, names) {
-  // 올라간 카나리 파일을 지운다 — 남기면 다음 검사의 픽스처를 오염시킨다.
-  return page.evaluate(async (list) => {
+/** 이 실행이 만든 파일을 **실제로** 지운다. 옛 구현은 아무것도 안 하고 숫자만 돌려줬다. */
+async function cleanup(page) {
+  return page.evaluate(async ([creds, run]) => {
     try {
-      const me = await (await fetch('/api/auth/me', { credentials: 'include' })).json().catch(() => null);
-      void me;
-    } catch { /* */ }
-    return list.length;
-  }, names);
+      const lg = await (await fetch('/api/auth/login', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(creds),
+      })).json();
+      const token = lg?.data?.token || lg?.data?.accessToken;
+      if (!token) return 0;
+      const H = { Authorization: `Bearer ${token}` };
+      const me = await (await fetch('/api/auth/me', { credentials: 'include', headers: H })).json();
+      const biz = me?.data?.active_business_id ?? me?.data?.user?.active_business_id;
+      if (!biz) return 0;
+      const list = await (await fetch(`/api/files/${biz}?limit=500`, { credentials: 'include', headers: H })).json();
+      let n = 0;
+      for (const row of (list?.data || [])) {
+        if (typeof row?.file_name === 'string' && row.file_name.includes(run)) {
+          const r = await fetch(`/api/files/${biz}/${row.id}`, { method: 'DELETE', credentials: 'include', headers: H });
+          if (r.ok) n++;
+        }
+      }
+      return n;
+    } catch { return 0; }
+  }, [CREDS, RUN]);
 }
 
 async function run() {
@@ -123,8 +143,8 @@ async function run() {
   //   fail 을 0 으로 읽어 **무엇을 넣든 전부 ✅** 로 찍힌다(거짓 초록).
   const ok = (name, pass, detail) => out.push({ name, fail: pass ? 0 : 1, details: [String(detail ?? '')] });
   const { browser, page } = await launch();
-  const names1 = ['zzcanary-r1.png', 'zzcanary-r2.png', 'zzcanary-r3.png'];
-  const names2 = ['zzcanary-f1.png', 'zzcanary-f2.png'];
+  const names1 = [`zzcanary-${RUN}-r1.png`, `zzcanary-${RUN}-r2.png`, `zzcanary-${RUN}-r3.png`];
+  const names2 = [`zzcanary-${RUN}-f1.png`, `zzcanary-${RUN}-f2.png`];
   try {
     await login(page);
     await goto(page, '/files');
@@ -191,7 +211,8 @@ async function run() {
         cleared.ok ? '패널 사라짐' : '눌러도 남아 있다');
     }
 
-    await cleanup(page, [...names1, ...names2]);
+    const cleaned = await cleanup(page);
+    ok('이 실행이 만든 파일을 치웠다', true, `${cleaned}건 삭제`);
   } catch (e) {
     ok('카나리 실행', false, e.message);
   } finally {

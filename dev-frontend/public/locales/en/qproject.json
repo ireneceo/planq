@@ -443,10 +443,11 @@
       "release": "Release to upload",
       "hintDrive": "Up to {{limit}} per file · larger files are stored in Google Drive",
       "hintLimit": "Up to {{limit}} per file · connect Google Drive to upload larger files as-is",
-      "hintPlain": "You can upload several files at once",
+      "hintPlain": "You can upload several files or whole folders at once",
       "compactHintLimit": "Up to {{limit}} per file · you can also drop files here or on the list",
       "limitOnly": "Up to {{limit}} per file",
-      "compactHintTail": " · you can also drop files here or on the list"
+      "compactHintTail": " · you can also drop files here or on the list",
+      "uploadFolder": "Upload folder"
     },
     "cloud": {
       "connectedTitle": "Shared files are stored in Google Drive.",
@@ -570,7 +571,6 @@
       "placeholder": "Folder name",
       "deleteTitle": "Delete folder?",
       "deleteDesc": "Files inside move to “No folder”",
-      "deleteWithFiles": "The {{n}} files in this folder move to “No folder”",
       "deleteEmpty": "This folder is empty",
       "more": "Folder menu",
       "downloadAll": "Download whole folder",
@@ -580,7 +580,12 @@
       "expand": "Expand",
       "collapse": "Collapse",
       "newChildAction": "Add subfolder",
-      "nameLabel": "Folder name"
+      "nameLabel": "Folder name",
+      "deleteCount": "This folder and its subfolders hold {{n}} file(s).",
+      "deleteChoiceMove": "Delete folder only moves the files up one level, where they stay.",
+      "deleteChoiceTrash": "Delete files too sends the files to the trash. You can restore them within 30 days.",
+      "deleteOnlyFolder": "Delete folder only",
+      "deleteWithFilesAction": "Delete files too"
     },
     "up": {
       "aria": "Upload progress",
@@ -598,7 +603,8 @@
       "headFailed": "{{n}} failed",
       "retryAll": "Retry all",
       "clearFailed": "Clear failed",
-      "cancelAll": "Cancel all"
+      "cancelAll": "Cancel all",
+      "truncated": "Only {{n}} files are taken at once. Please upload the rest separately."
     },
     "meta": {
       "name": "File name",
@@ -666,6 +672,14 @@
     "storage": {
       "left": "{{left}} left of {{quota}}",
       "full": "Storage is full ({{used}} / {{quota}})"
+    },
+    "dup": {
+      "title": "{{n}} file(s) with the same name already exist",
+      "desc": "Your choice applies to every file in this upload.",
+      "descOverwrite": "Overwrite uploads the new file and sends the previous one to the trash. You can restore it within 30 days.",
+      "skip": "Skip",
+      "rename": "Save with a new name",
+      "overwrite": "Overwrite"
     }
   },
   "pinnedDoc": {

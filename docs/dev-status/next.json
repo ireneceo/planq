@@ -1,43 +1,47 @@
 {
-  "working_on": "Q file 업로드·폴더 — 운영 신고 당일 처리 (v1.59.0)",
+  "working_on": "Q file 폴더·중복 이름 (v1.60.0 예정) — Fable 게이트 4라운드",
   "in_progress": [
-    "폴더 삭제 확인창 UI — 서버는 contents=move|delete 를 받지만 화면이 아직 안 묻는다",
-    "폴더째 업로드(webkitdirectory) · 같은 파일 재업로드 시 덮어쓰기/이름변경/중단 선택"
+    "Fable 4차 게이트 판정 대기"
   ],
   "completed": [
-    "업로드 분당 상한 30 → 300. upload.single(1파일=1요청) + 순차 전송이라 분당 상한이 곧 «한 번에 올릴 수 있는 파일 수» 였다. 운영 실측: 메뉴 사진 48장 중 정확히 30장에서 절단",
-    "429 를 실패가 아니라 «재시도 대기» 로 읽고 자동 재개(MAX_WAITS 12). 서버 RateLimit-Reset 을 실제로 사용",
-    "xhrSend 가 rate-limit 헤더를 넘긴다 — 여태 Content-Type 만 베껴 대기 시간이 늘 기본 15초로 떨어졌다",
-    "업로드 실패 목록 일괄 조치 — [전체 재시도]·[실패 목록 지우기]·[모두 중단] + 머리줄 건수",
-    "«대기 중»(순서 대기)과 «재시도 대기»(상한) 라벨 분리 — 같은 글자라 왜 멈췄는지 알 수 없었다",
-    "폴더 삭제 시 안의 파일 처리 선택 — DELETE ?contents=move|delete (기본 move = 종전 동작)",
-    "폴더 CUD 감사 로그 신설 — 이 파일에 logAudit 호출이 0건이었다",
-    "운영 데이터 정리 — K-DINE 메뉴 폴더의 옛 사본 18장 휴지통 이동(IPC 30장 보존)",
-    "회귀 카나리 신설 — scripts/e2e/canary-upload-retry.js (12검사)"
+    "폴더 삭제 시 [폴더만 삭제]/[파일도 함께 삭제] 선택 — 기존 공용 모달(useFolderEditing)에 넣었다. 중복 확인창을 새로 만들었다가 철회",
+    "옛 문구 「직접 업로드 루트로 옮겨집니다」가 거짓이었다 — 서버는 바로 위 폴더로 옮긴다. 세는 것도 하위 폴더까지 재귀로",
+    "폴더 contents=delete 에 소켓 브로드캐스트(file:deleted / file:updated) — 형제 라우트와 같은 신호",
+    "폴더째 업로드 — webkitGetAsEntry 트리 순회 + webkitdirectory 를 같은 모양으로(dropEntries.ts). 폴더별로 기존 handleFiles 재사용",
+    "상한(2000)에 닿으면 화면이 말한다 — export 만 해두고 읽는 곳이 0이던 것을 소비자로 연결",
+    "같은 이름 재업로드 선택 — 덮어쓰기/이름 바꿔 저장/건너뛰기. 한 번 묻고 배치 전체 적용",
+    "자리 판정 단일 술어 sameSpotAs — 폴더가 정해지면 폴더만, 프로젝트 축은 루트일 때만. 모드 분기 제거",
+    "피해자 삭제를 업로드 성공 콜백 안으로 — 실패해도 옛 파일이 남는다(분기 4곳 복사 제거)",
+    "중복 확인 배치 경계를 handleFiles(모든 입구의 공통 통로)로",
+    "i18n 가드가 인자로 받은 번역기를 인정하도록 확장 + 베이스라인 i18n 만 조임(276→242)",
+    "카나리 2종 신설·분리(dupname / folderops) + 픽스처를 브라우저 밖 Node 로"
   ],
   "behavior_changes": [
-    "업로드 분당 상한 30 → 300 · 일당 1500 → 5000",
-    "업로드가 상한에 닿으면 실패가 아니라 «재시도 대기» 로 표시되고 스스로 이어서 올린다",
-    "폴더 삭제 API 가 ?contents=delete 를 받으면 안의 파일도 휴지통으로 보낸다 (기본값은 종전대로 이동)",
-    "폴더 생성·이름변경·삭제가 감사 기록에 남는다"
+    "폴더 삭제가 안의 파일 처리를 묻는다(빈 폴더는 안 묻는다). 기본값은 종전대로 이동",
+    "폴더를 통째로 올릴 수 있고 하위 폴더 구조가 재현된다",
+    "같은 자리에 같은 이름이면 묻는다. 덮어쓰기는 업로드 성공 뒤에만 옛 파일을 휴지통으로 보낸다"
   ],
   "issues": [
-    "폴더 contents=delete 에 소켓 브로드캐스트가 없다 — 형제 라우트(DELETE /:biz/:id·bulk-delete)는 file:deleted 를 쏜다. 다른 탭에서 지운 파일이 새로고침 전까지 남는다(규칙 16). Fable 비차단 권고",
-    "«같이 삭제할지 물어보는» 화면이 아직 없다 — DocsTab.onDeleteFolder 3곳이 무인자 호출. Irene 신고 ② 미충족"
+    "⚪ 미측정 — 「워크스페이스 모드 + 프로젝트 폴더」 중복 확인. Q file 에서 프로젝트 폴더는 접혀 있고 프로젝트 클릭은 페이지를 옮겨 UI 로 그 상태에 못 닿는다. 실제 경로는 바깥 파일을 폴더 행에 끌어다 놓기(헤드리스가 못 만든다). 코드 수리는 들어가 있으나 증명은 못 했다",
+    "services/files.ts deleteFolder 가 files_affected 를 돌려주는데 화면이 안 읽는다(Fable 3차 관찰, 비차단)"
   ],
   "blocked_on_human": [
-    "온프렘/전용 클라우드 제품화 방향 — Irene 판단 대기. 라이선스 개념이 코드에 0건이고 AI 기능이 외부 API(OpenAI·Deepgram)에 묶여 있다"
+    "배포 시점 — Irene 지시 대기",
+    "온프렘 0단계 착수 여부(docs/ONPREM_DESIGN.md)",
+    "고객 유입 P0~P2 착수 순서(docs/CLIENT_ENTRY_DESIGN.md)"
   ],
   "check_areas": [
-    "Q file 에서 사진 수십 장 한 번에 업로드 — 끊기지 않는지, 상한에 닿으면 자동으로 이어지는지",
-    "업로드 실패 목록의 [전체 재시도]·[실패 목록 지우기]",
-    "폴더 삭제 후 안의 파일이 위쪽 폴더로 옮겨지는지(화면이 아직 안 물으므로 종전 동작)"
+    "폴더 삭제 시 확인창이 뜨고 두 선택지가 보이는지",
+    "폴더를 통째로 끌어다 놓거나 [폴더 올리기]로 올렸을 때 하위 폴더가 만들어지는지",
+    "같은 이름 파일을 올렸을 때 묻는지, 고른 답이 다음 업로드로 새지 않는지"
   ],
   "backlog": [
     "운영 신고 #418 #419 Google Drive 동기화·공유",
     "운영 신고 #424 본체 — 휴가·휴일의 Q task 근무일수 반영(Fable 설계 대기)",
     "Fable 판단 대기 — docs/FABLE_GATE_QUEUE.md"
   ],
-  "tooling_health": "guard 58/59(동결 1) · health 45/45 · --suite tenant 9/9 · --suite uploadretry 12/12 · build EXIT 0 · error TS 0 · Fable 게이트 PASS",
-  "undeployed": []
+  "tooling_health": "guard 58/59 · health 45/45 · dupname+folderops+tenant+uploadretry 44통과/실패0/미측정1 · build EXIT 0 · error TS 0",
+  "undeployed": [
+    "v1.60.0 예정 — Fable 게이트 통과 후 커밋·배포"
+  ]
 }

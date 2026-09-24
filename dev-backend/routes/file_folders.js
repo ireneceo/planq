@@ -6,6 +6,7 @@ const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, canAccessProject, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
+const { broadcastFile } = require('../services/fileBroadcast');   // 파일 실시간 반영 단일 원천
 
 async function requireProjectInBusiness(projectId, businessId) {
   const project = await Project.findOne({ where: { id: projectId, business_id: businessId } });
@@ -296,9 +297,12 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
         for (const f of inside) await trashFile(f, req, t, mirrorQueue);
       } else {
         // 종전 동작 — parent_id 로 이동 (null = 루트)
+        // ★ 2026-09-24 (Fable 관찰) — 여기에도 `business_id` 를 건다. `delete` 분기만 걸고
+        //   이쪽을 비워 두면 **같은 라우트 안에서 술어가 비대칭**이 된다. 실측으로 통제군
+        //   (남의 워크스페이스 파일 행을 내 폴더에 매단 것)의 `folder_id` 가 실제로 바뀌었다.
         await File.update(
           { folder_id: folder.parent_id },
-          { where: { folder_id: { [Op.in]: allFolderIds } }, transaction: t }
+          { where: { business_id: folder.business_id, folder_id: { [Op.in]: allFolderIds } }, transaction: t }
         );
       }
 
@@ -332,6 +336,20 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
       if (mirrorQueue.length) {
         try { await require('./files').flushMirrorRecalls(mirrorQueue); }
         catch (e) { console.warn('[file_folders] 파일 Drive 사본 회수 실패', e.message); }
+      }
+
+      // ★ 2026-09-24 (Fable 게이트 지적) — **형제 라우트와 같은 신호를 쏜다.**
+      //   `DELETE /api/files/:biz/:id` 와 `bulk-delete` 는 `file:deleted` 를 방송하는데
+      //   여기만 안 쏘면, 다른 탭·다른 사람 화면에서 **지운 파일이 새로고침 전까지 남는다**
+      //   (CLAUDE.md 운영 안정성 §16). 파일을 지우는 경로면 파일 삭제 신호도 같이 나가야 한다.
+      //   `move` 일 때는 파일이 살아 있고 자리만 옮겼으므로 `file:updated` 다.
+      for (const f of inside) {
+        try {
+          broadcastFile(req, {
+            id: f.id, business_id: f.business_id, project_id: f.project_id,
+            folder_id: mode === 'delete' ? f.folder_id : folder.parent_id,
+          }, mode === 'delete' ? 'file:deleted' : 'file:updated');
+        } catch (e) { console.warn('[file_folders] 파일 방송 실패', f.id, e.message); }
       }
 
       // ★ 2026-09-24 — 폴더 CUD 감사. 여태 `logAudit` 호출이 **0건**이어서 폴더 생성·이동·삭제가

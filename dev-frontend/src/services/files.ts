@@ -329,10 +329,23 @@ export async function renameFolder(folderId: number, name: string): Promise<bool
   return !!j.success;
 }
 
-export async function deleteFolder(folderId: number): Promise<boolean> {
-  const r = await apiFetch(`/api/folders/${folderId}`, { method: 'DELETE' });
+/**
+ * 폴더 삭제. `contents` 로 **안의 파일을 어떻게 할지** 고른다.
+ *   · `'move'`(기본) — 파일은 부모 폴더로 옮긴다(종전 동작).
+ *   · `'delete'`     — 파일도 휴지통으로. 복구 가능.
+ * 서버가 `files_affected` 로 **몇 개가 영향받았는지** 돌려준다 — 화면이 결과를 말할 수 있어야 한다.
+ */
+export async function deleteFolder(
+  folderId: number,
+  contents: 'move' | 'delete' = 'move',
+): Promise<{ ok: boolean; filesAffected: number; contents: 'move' | 'delete' }> {
+  const r = await apiFetch(`/api/folders/${folderId}?contents=${contents}`, { method: 'DELETE' });
   const j = await r.json();
-  return !!j.success;
+  return {
+    ok: !!j.success,
+    filesAffected: Number(j?.data?.files_affected) || 0,
+    contents: (j?.data?.contents === 'delete' ? 'delete' : 'move'),
+  };
 }
 
 export async function reorderFolder(folderId: number, direction: 'up' | 'down'): Promise<boolean> {

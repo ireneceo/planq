@@ -31,6 +31,7 @@ import HighlightText from '../../components/Common/HighlightText';
 import MatchReason from '../../components/Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
 import { useUploadQueue, UploadQueuePanel } from './docs/UploadQueue';
+import { collectDropped, fromDirectoryInput, wasTruncated, DROP_MAX_FILES, type DroppedFile } from './docs/dropEntries';
 import FileMetaEditor from './docs/FileMetaEditor';
 import PreviewArea from './docs/PreviewArea';
 import CloudConnectNotice from '../../components/Common/CloudConnectNotice';
@@ -221,6 +222,19 @@ const DocsTab: React.FC<Props> = (props) => {
   // 업로드 큐 — 파일별 진행률·속도·취소 (docs/UploadQueue)
   const { uploads, runUploads, cancelUpload, retryFailed, clearFailed, cancelAll } = useUploadQueue();
   const [deleteConfirm, setDeleteConfirm] = useState<ProjectFile | null>(null);
+  /* ★ 2026-09-24 (Irene: *"같은 파일 넣으면 덮어쓰기 할지 같이 이름바꿔서 저장할지 스톱할지도
+     물어봐야지."*) — **같은 폴더에 같은 이름**이 이미 있을 때 묻는다.
+     서버 의미를 먼저 확인했다: 같은 **바이트**는 SHA-256 dedup 으로 조용히 넘어가고(행이 안 늘어난다),
+     내용이 다른데 이름만 같으면 **행이 하나 더 생겨** 목록에 같은 이름이 둘이 된다 — 그게 이 창의 대상이다.
+     배치로 올릴 때 파일마다 묻는 창이 뜨면 그게 더 큰 고통이라 **한 번 묻고 배치 전체에 적용**한다. */
+  const [dupAsk, setDupAsk] = useState<{ names: string[] } | null>(null);
+  const dupResolve = useRef<((v: 'overwrite' | 'rename' | 'skip' | null) => void) | null>(null);
+  /** 이번 배치에서 고른 답 — 폴더째 업로드처럼 handleFiles 가 여러 번 불려도 **한 번만** 묻는다. */
+  const batchDupChoice = useRef<'overwrite' | 'rename' | 'skip' | undefined>(undefined);
+  /** 중첩 배치 깊이 — 가장 바깥 배치가 끝날 때만 답을 잊는다. */
+  const batchDepth = useRef(0);
+  /** 드롭이 상한에 걸려 잘렸으면 화면이 말한다 — 말없이 자르면 사용자는 일부만 올라간 줄 모른다. */
+  const [dropTruncated, setDropTruncated] = useState<number | null>(null);
   // 프로젝트 안에 새 폴더 — 이름을 받아야 하므로 작은 입력창을 띄운다(이름 없는 폴더를 만들지 않는다).
   const [newProjectFolder, setNewProjectFolder] = useState<{ projectId: number; parentId: number | null; name: string } | null>(null);
   const [selectMode, setSelectMode] = useState(false);
@@ -234,6 +248,7 @@ const DocsTab: React.FC<Props> = (props) => {
   const [moveSingle, setMoveSingle] = useState<ProjectFile | null>(null);
   const [pvMoveOpen, setPvMoveOpen] = useState(false);   // 미리보기 패널 안 [이동] 펼침
   const inputRef = useRef<HTMLInputElement>(null);
+  const dirInputRef = useRef<HTMLInputElement>(null);   // 폴더째 업로드 입력
   const secLabel = useSecurityLevelLabel();  // D4 #62 보안등급 라벨
   // N+67 — visibility 변경 UI 용 (preview drawer 안)
   const [projects, setProjects] = useState<ApiProject[]>([]);
@@ -361,6 +376,41 @@ const DocsTab: React.FC<Props> = (props) => {
     return { total: files.length, bySrc, byFolder, directRoot, myFiles };
   }, [files]);
 
+  /* ─── 폴더 삭제 — **한 곳**에서 묻고 한 곳에서 지운다 (2026-09-24) ───────────────
+     여태 같은 코드가 세 군데(프로젝트 그룹 트리 · 워크스페이스 폴더 트리 · 프로젝트 폴더 트리)에
+     복사돼 있었다. 베끼면 반드시 갈라진다 — 확인창을 한 곳에만 붙이면 나머지 두 곳은 여전히
+     말없이 지운다(memory `feedback_copied_component_drifts_extract_shell`). */
+
+  /** 이 폴더와 **하위 폴더 전부**에 든 파일 수. 서버가 재귀로 지우므로 묻는 숫자도 재귀여야 한다. */
+  const folderFileCount = useCallback((id: number) => {
+    const ids = [id];
+    for (let i = 0; i < ids.length; i++) {
+      for (const f of folders) if (f.parent_id === ids[i]) ids.push(f.id);
+    }
+    return ids.reduce((n, fid) => n + (counts.byFolder[fid] || 0), 0);
+  }, [folders, counts.byFolder]);
+
+  /** 실제 삭제 + 화면 반영. `mode` 는 사용자가 고른 것. */
+  const runDeleteFolder = useCallback(async (id: number, mode: 'move' | 'delete' = 'move') => {
+    const ids = [id];
+    for (let i = 0; i < ids.length; i++) {
+      for (const f of folders) if (f.parent_id === ids[i]) ids.push(f.id);
+    }
+    const r = await deleteFolder(id, mode);
+    if (!r.ok) return;
+    setFolders(prev => prev.filter(f => !ids.includes(f.id)));
+    setFiles(prev => (mode === 'delete'
+      // 같이 지웠으면 목록에서도 **사라져야** 한다 — 남기면 눌렀을 때 404 가 난다.
+      ? prev.filter(f => !(f.folder_id != null && ids.includes(f.folder_id)))
+      // 옮겼으면 부모로. 부모를 모르면 루트(null) — 서버가 하는 것과 같은 규칙.
+      : prev.map(f => (f.folder_id != null && ids.includes(f.folder_id)
+        ? { ...f, folder_id: folders.find(x => x.id === id)?.parent_id ?? null } : f))));
+    if (typeof folderSel === 'number' && ids.includes(folderSel)) {
+      setFolderSel(isWorkspace ? 'all' : 'direct');
+    }
+  }, [folders, folderSel, isWorkspace]);
+
+
   const filteredByFolder = useMemo(() => {
     if (folderSel === 'all') return files;
     if (folderSel === 'my') return files.filter(f => f.source === 'direct' && f.project_context == null);
@@ -422,15 +472,181 @@ const DocsTab: React.FC<Props> = (props) => {
    * (Irene 2026-09-20: *"로컬 파일로 있는 것도 폴더 위에 바로 올려서 못 넣어?"*).
    * 주지 않으면 지금 보고 있는 폴더(`folderSel`)로 — 종전과 같다.
    */
+  /** `보고서.pdf` → `보고서 (1).pdf`. 이미 있는 이름은 건너뛰며 번호를 올린다. */
+  const nextFreeName = useCallback((name: string, taken: Set<string>) => {
+    const dot = name.lastIndexOf('.');
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    const ext = dot > 0 ? name.slice(dot) : '';
+    for (let i = 1; i < 500; i++) {
+      const cand = `${base} (${i})${ext}`;
+      if (!taken.has(cand)) return cand;
+    }
+    return `${base} (${Date.now()})${ext}`;
+  }, []);
+
+  /**
+   * 같은 폴더에 같은 이름이 있으면 **한 번 묻고** 배치 전체에 적용한다.
+   *   · overwrite — 새로 올리고 **옛 파일은 휴지통으로**. 되돌릴 수 있다.
+   *   · rename    — `이름 (1).png` 로 저장. 둘 다 남는다.
+   *   · skip      — 겹치는 것만 빼고 나머지는 올린다.
+   * 반환 `null` = 사용자가 취소(아무것도 올리지 않는다).
+   */
+  /* ── 중복 확인의 «한 배치» 경계 (Fable 3차 FAIL-1 수리) ─────────────────────────
+     ★ 고른 답(`batchDupChoice`)을 **폴더 드롭 배치에서만** 지우고 있었다. 파일 입력·폴더 없는
+       드롭은 그 배치를 열지 않으므로 ref 가 **화면이 살아 있는 내내** 남았다.
+       실측 — A 를 올려 「덮어쓰기」를 고른 뒤 **다른 이름** B 를 올리니 **묻지도 않고**
+       B 의 옛 파일이 휴지통으로 갔다(`POST 201 | DELETE 200`). 사용자는 B 에 대해 한 번도
+       답한 적이 없다. 확인창 문구(«이번에 올리는 파일 전부에 같이 적용»)가 거짓이 되고,
+       CLAUDE.md 의 «확인을 받는다» 원칙이 깨진다. 원래 결함(중복이 쌓임)보다 나쁘다.
+     → 경계를 **모든 입구가 지나는 곳**에 둔다. `handleFiles` 가 유일한 공통 통로이고,
+       폴더 드롭은 그 위를 한 겹 감싸 폴더마다 다시 묻지 않게 한다(깊이로 중첩을 센다). */
+  const openDupBatch = useCallback(() => {
+    if (batchDepth.current === 0) batchDupChoice.current = undefined;
+    batchDepth.current += 1;
+  }, []);
+  const closeDupBatch = useCallback(() => {
+    batchDepth.current = Math.max(0, batchDepth.current - 1);
+    if (batchDepth.current === 0) batchDupChoice.current = undefined;
+  }, []);
+
+  /**
+   * **같은 자리인가** — 중복 판정의 단일 술어. (Fable 3차 FAIL-2 수리)
+   *
+   * ★ 규칙은 하나다: **폴더가 정해져 있으면 폴더 id 만으로 자리가 확정된다.**
+   *   프로젝트 축은 **루트(folder = null)** 를 가를 때만 필요하다. 폴더 위에 프로젝트를 AND 로
+   *   걸면 거짓 음성만 만든다 — 워크스페이스 모드에서 **프로젝트 폴더**로 올리면 그 행은
+   *   `uploadMyFile` + `moveFile` 을 타서 `project_id = null` 인데 프로젝트 폴더에 앉는다.
+   *   그러면 «폴더의 프로젝트» 와 영원히 안 맞아 **한 번도 안 묻고 같은 이름이 쌓였다**(실측 2행).
+   *
+   * ★ 그리고 **모드 분기를 쓰지 않는다.** 앞서 나는 화면 모드마다 다른 필드를 믿게 만들었는데
+   *   (2차 FAIL 의 원인), 두 목록 응답이 **둘 다 `project_id` 를 싣는다.** 한 원천으로 읽는다 —
+   *   모드 분기 자체가 다음 갈라짐의 씨앗이다.
+   */
+  const sameSpotAs = useCallback((
+    f: ProjectFile, targetFolder: number | null, targetProject: number | null,
+  ): boolean => {
+    if (f.source !== 'direct') return false;
+    if ((f.folder_id ?? null) !== targetFolder) return false;
+    if (targetFolder !== null) return true;          // 폴더가 자리를 확정했다
+    return (f.project_id ?? null) === targetProject; // 루트끼리는 프로젝트로 가른다
+  }, []);
+
+  /**
+   * 고른 답을 적용한다. **여기서 지우지 않는다** — victims 를 돌려주고, 호출부가 업로드가
+   * 끝난 뒤에 버린다. 먼저 지우면 업로드가 실패했을 때 사용자는 새 것도 옛 것도 못 본다
+   * (휴지통엔 있지만 그것을 알 길이 없다 — Fable 지적 ⑤-2).
+   */
+  const applyDupChoice = useCallback((
+    choice: 'overwrite' | 'rename' | 'skip',
+    arr: File[], taken: Set<string>, targetFolder: number | null, targetProject: number | null,
+  ): { files: File[]; victims: ProjectFile[] } => {
+    if (choice === 'skip') return { files: arr.filter(f => !taken.has(f.name)), victims: [] };
+    if (choice === 'rename') {
+      const seen = new Set(taken);
+      return {
+        files: arr.map((f) => {
+          if (!seen.has(f.name)) { seen.add(f.name); return f; }
+          const nm = nextFreeName(f.name, seen);
+          seen.add(nm);
+          // 이름만 바꾼 같은 바이트 — File 을 새로 만든다(원본은 읽기 전용이다).
+          return new File([f], nm, { type: f.type, lastModified: f.lastModified });
+        }),
+        victims: [],
+      };
+    }
+    const victims = files.filter(f => sameSpotAs(f, targetFolder, targetProject)
+      && arr.some(n => n.name === f.file_name));
+    return { files: arr, victims };
+  }, [files, nextFreeName, sameSpotAs]);
+
+  const resolveDuplicates = useCallback(async (
+    arr: File[], targetFolder: number | null, targetProject: number | null | 'unknown',
+  ): Promise<{ files: File[]; victims: ProjectFile[] } | null> => {
+    // ★ 2026-09-24 (Fable 게이트 FAIL) — **목적지가 정해지기 전에는 묻지 않는다.**
+    //   워크스페이스 모드에서 폴더를 안 고르면 뒤에 «어느 프로젝트에» 모달이 온다. 그 전에 물으면
+    //   비교 대상이 «아직 정해지지 않은 자리» 라 아무 뜻이 없다.
+    if (targetProject === 'unknown') return { files: arr, victims: [] };
+
+    // ★ **프로젝트 축을 반드시 같이 본다.** Q file 의 `files` 에는 모든 프로젝트 + 개인 보관함이
+    //   섞여 있다. 폴더 id 만 비교하면 «루트(null)» 끼리 전부 같은 자리로 읽힌다 —
+    //   Fable 실측: 프로젝트 300 루트의 `fable-victim.txt` 가 있는데 **개인 보관함**에 같은 이름을
+    //   올리자 확인창이 떴고 [덮어쓰기] 가 **프로젝트 300 의 파일을 휴지통으로 보냈다.**
+    //   사용자는 남의 프로젝트 자료를 지운 줄 모른다. 확인창 문구도 거짓이 된다.
+    const sameSpot = (f: ProjectFile) => sameSpotAs(f, targetFolder, targetProject);
+    const takenList = files.filter(sameSpot).map(f => f.file_name);
+    const taken = new Set(takenList);
+    const clash = arr.filter(f => taken.has(f.name));
+    if (!clash.length) return { files: arr, victims: [] };
+
+    // ★ 이번 배치에서 이미 고른 답이 있으면 **다시 묻지 않는다** — 폴더째 업로드는 폴더마다
+    //   `handleFiles` 를 부르므로, 이것이 없으면 폴더 수만큼 창이 뜬다(Fable 실측 4번).
+    //   문구가 «이번에 올리는 파일 전부에 같이 적용» 이라고 약속하므로 그 약속을 지켜야 한다.
+    if (batchDupChoice.current !== undefined) {
+      return applyDupChoice(batchDupChoice.current, arr, taken, targetFolder, targetProject);
+    }
+    // ★ 창이 이미 떠 있으면 **그 답을 기다린다.** 단일 슬롯 resolver 를 덮어쓰면 먼저 기다리던
+    //   promise 가 영영 안 풀려 **그 배치가 소리 없이 사라진다**(Fable 지적 ⑥).
+    while (dupResolve.current) await new Promise(r => setTimeout(r, 120));
+    if (batchDupChoice.current !== undefined) {
+      return applyDupChoice(batchDupChoice.current, arr, taken, targetFolder, targetProject);
+    }
+
+    setDupAsk({ names: clash.map(f => f.name) });
+    const choice = await new Promise<'overwrite' | 'rename' | 'skip' | null>((resolve) => {
+      dupResolve.current = resolve;
+    });
+    setDupAsk(null);
+    dupResolve.current = null;
+    if (!choice) return null;
+    if (batchDupChoice.current === undefined) batchDupChoice.current = choice;
+    return applyDupChoice(choice, arr, taken, targetFolder, targetProject);
+  }, [files, nextFreeName, applyDupChoice, sameSpotAs]);
+
   const handleFiles = useCallback(async (fileList: FileList | File[], folderOverride?: number | null) => {
-    const arr = Array.from(fileList);
-    if (arr.length === 0) return;
+    const incoming = Array.from(fileList);
+    if (incoming.length === 0) return;
+    openDupBatch();
+    try {
     const sel: FolderSel | null = folderOverride !== undefined ? folderOverride : folderSel;
+    // ★ 같은 이름이 있으면 **여기 한 곳**에서 묻는다 — 입구(드롭·버튼·트리 드롭·폴더째)가
+    //   여럿이라 각자 붙이면 어디는 묻고 어디는 안 묻는 상태가 된다.
+    // ★ 목적지의 **프로젝트 축**을 같이 넘긴다. 폴더 id 만으로는 «루트(null)» 끼리 전부 같은 자리로
+    //   읽혀 다른 프로젝트 파일을 덮어쓴다(Fable 게이트 FAIL, 2026-09-24).
+    const destFolder = typeof sel === 'number' ? sel : null;
+    const destProject: number | null | 'unknown' = isPersonal
+      ? null
+      : isWorkspace
+        ? (sel === 'my' ? null
+          : typeof sel === 'number' ? (folders.find(f => f.id === sel)?.project_id ?? null)
+            : 'unknown')   // 아직 «어느 프로젝트에» 를 안 골랐다 — 물을 자리가 없다
+        : projectId;
+    const resolved = await resolveDuplicates(incoming, destFolder, destProject);
+    if (!resolved || resolved.files.length === 0) return;
+    const arr = resolved.files;
+
+    /**
+     * ★ 옛 파일은 **그 파일의 업로드가 성공했을 때만** 버린다 (Fable 재검증 S4 = 차단 결함).
+     *   전에는 `runUploads` 가 끝난 뒤 한꺼번에 버렸는데, `runUploads` 는 **성공 여부를 돌려주지
+     *   않는다.** 그래서 업로드가 500 으로 죽어도 옛 파일이 지워졌다 — 실측(2회 재현):
+     *   `POST /api/files/5 → 500` 뒤에 `DELETE /api/files/5/6710 → 200`, 피해자 404, 새 행 없음.
+     *   화면은 「실패 1개」만 말하고 옛 파일이 휴지통에 갔다는 말은 하지 않는다.
+     *   → 성공 콜백(`onDone`)이 유일하게 «그 파일이 올라갔다» 를 아는 자리다. 거기서 버린다.
+     *   덤으로 분기마다 복사돼 있던 호출 4곳이 사라진다(복사는 곧 빠뜨림이다).
+     */
+    const victimByName = new Map(resolved.victims.map(v => [v.file_name, v]));
+    const afterUploaded = (uploaded: ProjectFile) => {
+      const v = victimByName.get(uploaded.file_name);
+      if (!v) return;
+      victimByName.delete(uploaded.file_name);
+      void deleteProjectFile(businessId, v.id).then((ok) => {
+        if (ok) setFiles(prev => prev.filter(x => x.id !== v.id));
+      });
+    };
     // N+30 — 개인 보관함 모드: project_id 없이 uploadMyFile → backend 가 자동 visibility=L1 (files.js:390)
     if (isPersonal) {
       await runUploads(arr,
         (f, hooks) => uploadMyFile(businessId, f, hooks),
-        (file) => setFiles(prev => [file, ...prev]));
+        (file) => { setFiles(prev => [file, ...prev]); afterUploaded(file); });
       return;
     }
     if (isWorkspace) {
@@ -440,7 +656,7 @@ const DocsTab: React.FC<Props> = (props) => {
       if (sel === 'my') {
         await runUploads(arr,
           (f, hooks) => uploadMyFile(businessId, f, hooks),
-          (file) => setFiles(prev => [file, ...prev]));
+          (file) => { setFiles(prev => [file, ...prev]); afterUploaded(file); });
         return;
       }
       // 폴더를 골라 놓고 올리면 **그 폴더로** 들어간다 — 안 그러면 올린 파일이
@@ -453,6 +669,7 @@ const DocsTab: React.FC<Props> = (props) => {
             const parsed = parseFileId(file.id);
             if (parsed?.source === 'direct') await moveFile(businessId, file.id, targetFolder);
             setFiles(prev => [{ ...file, folder_id: targetFolder }, ...prev]);
+            afterUploaded(file);
           });
         return;
       }
@@ -462,23 +679,116 @@ const DocsTab: React.FC<Props> = (props) => {
     const targetFolderId = typeof sel === 'number' ? sel : null;
     await runUploads(arr,
       (f, hooks) => uploadProjectFile(businessId, projectId, f, { folderId: targetFolderId, ...hooks }),
-      (file) => setFiles(prev => [file, ...prev]));
-  }, [businessId, projectId, folderSel, isWorkspace, isPersonal, runUploads]);
+      (file) => { setFiles(prev => [file, ...prev]); afterUploaded(file); });
+    } finally { closeDupBatch(); }
+  }, [businessId, projectId, folderSel, folders, isWorkspace, isPersonal, runUploads,
+      resolveDuplicates, openDupBatch, closeDupBatch]);
+
+  /* ─── 폴더째 업로드 (2026-09-24, Irene: *"폴더째로 업로드할 수 없어?"*) ─────────────
+     `dataTransfer.files` 는 폴더를 못 준다 → `docs/dropEntries` 가 트리를 걸어 들어가
+     `{ file, dir }` 로 맞춰 준다. 여기서는 **그 dir 을 PlanQ 폴더로 재현**하고,
+     폴더별로 기존 `handleFiles(files, folderId)` 를 **그대로** 부른다 —
+     업로드 분기(개인/워크스페이스/프로젝트)를 다시 쓰지 않는다(베끼면 갈라진다). */
+
+  /** `a/b` 같은 상대 경로를 폴더 사슬로 만들어 **맨 끝 폴더 id** 를 돌려준다. 이미 있으면 재사용. */
+  const ensureFolderPath = useCallback(async (
+    dir: string, rootParentId: number | null, known: FileFolder[],
+  ): Promise<{ id: number | null; created: FileFolder[] }> => {
+    const created: FileFolder[] = [];
+    if (!dir) return { id: rootParentId, created };
+    let parent: number | null = rootParentId;
+    const pool = [...known];
+    for (const name of dir.split('/')) {
+      if (!name) continue;
+      const hit = pool.find(f => f.name === name && (f.parent_id ?? null) === parent);
+      if (hit) { parent = hit.id; continue; }
+      // 서버는 같은 자리에 같은 이름이 있으면 **기존 행을 돌려준다**(중복을 만들지 않는다).
+      const f = isWorkspace || isPersonal
+        ? await createWorkspaceFolder(businessId, name, parent)
+        : await createFolder(projectId, name, parent);
+      pool.push(f); created.push(f);
+      parent = f.id;
+    }
+    return { id: parent, created };
+  }, [businessId, projectId, isWorkspace, isPersonal]);
+
+  /** 끌어다 놓거나 골라 온 것 — 폴더가 섞여 있으면 구조를 만들고, 없으면 종전 경로 그대로. */
+  const handleDropped = useCallback(async (items: DroppedFile[], folderOverride?: number | null) => {
+    if (!items.length) return;
+    setDropTruncated(wasTruncated(items) ? DROP_MAX_FILES : null);
+    // 폴더가 하나도 없으면 **종전과 완전히 같은 길**로 간다(프로젝트 선택 모달 포함).
+    if (items.every(it => !it.dir)) {
+      await handleFiles(items.map(it => it.file), folderOverride);
+      return;
+    }
+    // ★ 이 드롭 전체가 **한 배치**다. 폴더마다 `handleFiles` 를 부르므로 이 문을 안 열면
+    //   확인창이 폴더 수만큼 뜬다(Fable 실측 4번) — 문구의 «전부에 같이 적용» 이 거짓이 된다.
+    // ★ 폴더 드롭은 **한 배치**다 — 폴더마다 `handleFiles` 를 부르므로 이 겹이 없으면
+    //   확인창이 폴더 수만큼 뜬다. 안쪽 `handleFiles` 의 경계는 깊이로 중첩된다.
+    openDupBatch();
+    try {
+    const rootParent = folderOverride !== undefined
+      ? folderOverride
+      : (typeof folderSel === 'number' ? folderSel : null);
+
+    // 경로별로 묶어 **폴더 하나당 한 번** 만든다. 파일마다 만들면 요청이 파일 수만큼 나간다.
+    const byDir = new Map<string, File[]>();
+    for (const it of items) {
+      const k = it.dir;
+      if (!byDir.has(k)) byDir.set(k, []);
+      byDir.get(k)!.push(it.file);
+    }
+    let pool = folders;
+    // 얕은 것부터 만들어야 부모가 먼저 생긴다.
+    const dirs = [...byDir.keys()].sort((a, b) => a.split('/').length - b.split('/').length);
+    for (const dir of dirs) {
+      const { id, created } = await ensureFolderPath(dir, rootParent, pool);
+      if (created.length) {
+        pool = [...pool, ...created];
+        setFolders(prev => {
+          const seen = new Set(prev.map(f => f.id));
+          return [...prev, ...created.filter(f => !seen.has(f.id))];
+        });
+      }
+      await handleFiles(byDir.get(dir)!, id);
+    }
+    } finally { closeDupBatch(); }
+  }, [folders, folderSel, ensureFolderPath, handleFiles, openDupBatch, closeDupBatch]);
+
 
   const commitWorkspaceUpload = useCallback(async () => {
     if (!pendingUpload || !workspaceUploadProject) return;
     const arr = pendingUpload;
     const targetProject = workspaceUploadProject;
     setPendingUpload(null); setWorkspaceUploadProject(null);
-    await runUploads(arr,
+    // ★ **여기서도 묻는다** (Fable 재검증 S5). `handleFiles` 는 목적지를 모르는 상태(`'unknown'`)라
+    //   묻지 않고 프로젝트 선택 모달로 넘겼다. 그 모달을 통과한 **지금이 목적지가 확정된 시점**이다.
+    //   여기서 안 물으면 «[내 파일]에서는 묻고 기본 보기에서는 조용히 같은 이름이 둘» 이 된다 —
+    //   같은 화면에서 규칙이 둘로 갈린다(실측: `byProject {300:2}`).
+    openDupBatch();
+    try {
+    const resolved = await resolveDuplicates(arr, null, targetProject);
+    if (!resolved || resolved.files.length === 0) return;
+    const victimByName = new Map(resolved.victims.map(v => [v.file_name, v]));
+    await runUploads(resolved.files,
       (f, hooks) => uploadProjectFile(businessId, targetProject, f, { folderId: null, ...hooks }),
       (file) => {
         // project_context 수동 주입 (워크스페이스 뷰 유지)
         const proj = projectGroups.find(p => p.id === targetProject);
         const withCtx = proj ? { ...file, project_context: { id: proj.id, name: proj.name, color: proj.color } } : file;
         setFiles(prev => [withCtx, ...prev]);
+        // 성공한 것만 옛 것을 버린다 (S4 와 같은 규칙).
+        const v = victimByName.get(file.file_name);
+        if (v) {
+          victimByName.delete(file.file_name);
+          void deleteProjectFile(businessId, v.id).then((ok) => {
+            if (ok) setFiles(prev => prev.filter(x => x.id !== v.id));
+          });
+        }
       });
-  }, [pendingUpload, workspaceUploadProject, businessId, projectGroups, runUploads]);
+    } finally { closeDupBatch(); }
+  }, [pendingUpload, workspaceUploadProject, businessId, projectGroups, runUploads,
+      resolveDuplicates, openDupBatch, closeDupBatch]);
 
   // ★ 빈 공간을 끌어 여러 개 고르기 (Irene 2026-09-20: *"드래그해서 여러 개 선택하는 것도 안되는데"*).
   //   고르면 **선택모드가 자동으로 켜진다** — 안 켜면 고른 티가 안 나고 일괄 버튼도 안 나온다.
@@ -772,7 +1082,10 @@ const DocsTab: React.FC<Props> = (props) => {
         if (!isExternalFileDrag(e)) { setDragOver(false); return; }
         e.preventDefault(); setDragOver(false);
         try { delete document.body.dataset.pqDragfile; } catch { /* noop */ }
-        handleFiles(e.dataTransfer.files);
+        // ★ `dataTransfer` 는 **동기 접근**만 유효하다 — await 뒤에는 비어 있다.
+        //   그래서 여기서 바로 읽어 넘긴다(dropEntries 가 내부에서 트리를 걸어 들어간다).
+        const dt = e.dataTransfer;
+        void collectDropped(dt).then(items => handleDropped(items));
       }}
     >
       <Inner $flush={scope.type !== 'project'}>
@@ -811,7 +1124,7 @@ const DocsTab: React.FC<Props> = (props) => {
               ? (uploadLimits.external_ready
                 ? t('docs.drop.hintDrive', '파일 하나에 {{limit}}까지 · 그보다 크면 Google Drive 로 저장됩니다', { limit: formatBytes(effectiveSelfMax(uploadLimits)) })
                 : t('docs.drop.hintLimit', '파일 하나에 {{limit}}까지 · 더 큰 파일은 Google Drive 를 연결하면 그대로 올라갑니다', { limit: formatBytes(effectiveSelfMax(uploadLimits)) })) as string
-              : t('docs.drop.hintPlain', '여러 파일을 한 번에 올릴 수 있습니다') as string}
+              : t('docs.drop.hintPlain', '여러 파일이나 폴더를 한 번에 올릴 수 있습니다') as string}
           </DzHint>
           <DzHint><StorageLeft limits={uploadLimits} /></DzHint>
         </Dropzone>
@@ -823,6 +1136,17 @@ const DocsTab: React.FC<Props> = (props) => {
               <polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             {t('docs.drop.upload', '업로드')}
+          </CompactUploadBtn>
+          {/* ★ 폴더째 올리기 (2026-09-24, Irene: *"폴더째로 업로드할 수 없어?"*).
+              드래그로도 되지만 **버튼이 없으면 되는 줄을 모른다** — 안내가 곧 기능이다.
+              같은 줄·같은 규격으로 둔다(기존 업로드 버튼을 베낀 것이 아니라 같은 컴포넌트다). */}
+          <CompactUploadBtn type="button" data-testid="docs-folder-upload"
+            onClick={() => dirInputRef.current?.click()}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              <polyline points="12 17 12 11" /><polyline points="9.5 13.5 12 11 14.5 13.5" />
+            </svg>
+            {t('docs.drop.uploadFolder', '폴더 올리기')}
           </CompactUploadBtn>
           {/* ★ 한도는 **여기에도** 있어야 한다 — 드롭존은 워크스페이스가 완전히 빌 때만 나오고,
               파일이 하나라도 있으면 이 줄로 바뀐다. 즉 사용자가 실제로 보는 것은 거의 항상 이쪽인데
@@ -849,10 +1173,19 @@ const DocsTab: React.FC<Props> = (props) => {
         onRetryFailed={retryFailed}
         onClearFailed={clearFailed}
         onCancelAll={cancelAll}
+        truncatedAt={dropTruncated}
       />
       {/* data-testid — 검사 하니스가 파일을 밀어 넣는 유일한 손잡이(§17). 숨은 입력은 selector 로 못 찾는다. */}
       <input ref={inputRef} type="file" multiple hidden data-testid="docs-file-input"
         onChange={e => { if (e.target.files) handleFiles(e.target.files); e.target.value = ''; }} />
+      {/* 폴더 고르기 — `webkitdirectory` 는 `File.webkitRelativePath` 로 경로를 준다.
+          같은 입력에 둘을 겸할 수 없어(폴더 전용이 된다) **입력을 따로** 둔다. */}
+      <input ref={dirInputRef} type="file" multiple hidden data-testid="docs-folder-input"
+        {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+        onChange={e => {
+          if (e.target.files && e.target.files.length) void handleDropped(fromDirectoryInput(e.target.files));
+          e.target.value = '';
+        }} />
 
       {/* 툴바 */}
       <Toolbar>
@@ -939,12 +1272,8 @@ const DocsTab: React.FC<Props> = (props) => {
                   await renameFolder(id, name);
                   setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
                 }}
-                onDeleteFolder={async (id) => {
-                  await deleteFolder(id);
-                  setFolders(prev => prev.filter(f => f.id !== id));
-                  setFiles(prev => prev.map(f => f.folder_id === id ? { ...f, folder_id: null } : f));
-                  if (folderSel === id) setFolderSel('all');
-                }}
+                onDeleteFolder={runDeleteFolder}
+                countDeep={folderFileCount}
                 onDownloadFolder={onDownloadFolder}
               />
               {/* Irene 2026-08-31 — 워크스페이스 파일에도 폴더.
@@ -965,12 +1294,8 @@ const DocsTab: React.FC<Props> = (props) => {
                   await renameFolder(id, name);
                   setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
                 }}
-                onDelete={async (id) => {
-                  await deleteFolder(id);
-                  setFolders(prev => prev.filter(f => f.id !== id));
-                  setFiles(prev => prev.map(f => f.folder_id === id ? { ...f, folder_id: null } : f));
-                  if (folderSel === id) setFolderSel('all');
-                }}
+                onDelete={runDeleteFolder}
+                countDeep={folderFileCount}
                 onReorder={async (id, dir) => {
                   await reorderFolder(id, dir);
                   const fd = await fetchWorkspaceFolders(businessId);
@@ -998,12 +1323,8 @@ const DocsTab: React.FC<Props> = (props) => {
                 await renameFolder(id, name);
                 setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
               }}
-              onDelete={async (id) => {
-                await deleteFolder(id);
-                setFolders(prev => prev.filter(f => f.id !== id));
-                setFiles(prev => prev.map(f => f.folder_id === id ? { ...f, folder_id: null } : f));
-                if (folderSel === id) setFolderSel('direct');
-              }}
+              onDelete={runDeleteFolder}
+              countDeep={folderFileCount}
               onReorder={async (id, direction) => {
                 setFolders(prev => {
                   const target = prev.find(f => f.id === id);
@@ -1617,6 +1938,42 @@ const DocsTab: React.FC<Props> = (props) => {
         </Modal>
       )}
 
+      {/* 같은 이름이 이미 있을 때 — **한 번 묻고 배치 전체에 적용**한다 (2026-09-24, Irene 신고).
+          파일마다 물으면 수십 장 올릴 때 그것이 더 큰 고통이다. */}
+      {dupAsk && (
+        <Modal onMouseDown={e => { if (e.target === e.currentTarget) { dupResolve.current?.(null); } }}>
+          <Dialog>
+            <DTitle>
+              {t('docs.dup.title', '같은 이름의 파일이 {{n}}개 있습니다', { n: dupAsk.names.length })}
+            </DTitle>
+            <DBody>
+              <BulkFileList>
+                {dupAsk.names.slice(0, 5).map(n => (<BulkFileItem key={n}>• {n}</BulkFileItem>))}
+                {dupAsk.names.length > 5 && (
+                  <BulkFileMore>{t('docs.bulkDelete.more', '외 {{n}}개', { n: dupAsk.names.length - 5 })}</BulkFileMore>
+                )}
+              </BulkFileList>
+              <p>{t('docs.dup.desc', '어떻게 할지 고르면 이번에 올리는 파일 전부에 같이 적용됩니다.')}</p>
+              <p>{t('docs.dup.descOverwrite', '「덮어쓰기」는 새 파일을 올리고 이전 파일을 휴지통으로 보냅니다. 30일 안에 되돌릴 수 있습니다.')}</p>
+            </DBody>
+            <DFooter>
+              <SecondaryBtn type="button" onClick={() => dupResolve.current?.(null)}>
+                {t('members.cancel', '취소')}
+              </SecondaryBtn>
+              <SecondaryBtn type="button" data-testid="dup-skip" onClick={() => dupResolve.current?.('skip')}>
+                {t('docs.dup.skip', '건너뛰기')}
+              </SecondaryBtn>
+              <SecondaryBtn type="button" data-testid="dup-rename" onClick={() => dupResolve.current?.('rename')}>
+                {t('docs.dup.rename', '이름 바꿔 저장')}
+              </SecondaryBtn>
+              <DangerBtn type="button" data-testid="dup-overwrite" onClick={() => dupResolve.current?.('overwrite')}>
+                {t('docs.dup.overwrite', '덮어쓰기')}
+              </DangerBtn>
+            </DFooter>
+          </Dialog>
+        </Modal>
+      )}
+
       {/* 워크스페이스 업로드: 프로젝트 선택 */}
       {pendingUpload && (
         <Modal onMouseDown={e => { if (e.target === e.currentTarget) setPendingUpload(null); }}>
@@ -1720,7 +2077,9 @@ interface ProjectGroupsProps {
   folderDrop?: FolderDropFn;
   /** 하위 폴더 ⋯ 메뉴 — FolderTree 와 **같은 처리기**를 받는다(#417: 여태 [+] 뿐이라 이름을 못 바꾸고 못 지웠다). */
   onRenameFolder?: (id: number, name: string) => Promise<void>;
-  onDeleteFolder?: (id: number) => Promise<void>;
+  onDeleteFolder?: (id: number, contents: 'move' | 'delete') => Promise<void>;
+  /** 하위 폴더까지 합한 파일 수 — 확인창이 묻는 숫자. 서버가 재귀로 지우므로 세는 것도 재귀다. */
+  countDeep?: (id: number) => number;
   onDownloadFolder?: (id: number) => void | Promise<void>;
   counts: { total: number; bySrc: Record<FileSource, number>; byFolder: Record<number, number>; directRoot: number; myFiles: number };
   total: number;
@@ -1729,9 +2088,9 @@ interface ProjectGroupsProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop, onRenameFolder, onDeleteFolder, onDownloadFolder }) => {
+const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, total, selected, onSelect, tr, folders = [], folderCounts = {}, onSelectFolder, onCreateFolder, folderDrop, onRenameFolder, onDeleteFolder, onDownloadFolder, countDeep }) => {
   const [open, setOpen] = useState<Set<number>>(new Set());
-  const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename: onRenameFolder, onDelete: onDeleteFolder, counts, tr });
+  const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename: onRenameFolder, onDelete: onDeleteFolder, counts, countDeep, tr });
   const toggle = (id: number) => setOpen(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const foldersOf = (projectId: number, parentId: number | null) =>
     folders.filter(f => f.project_id === projectId && f.parent_id === parentId);
@@ -1883,7 +2242,8 @@ interface FolderTreeProps {
   onSelect: (sel: FolderSel) => void;
   onCreate: (parentId: number | null, name: string) => Promise<void>;
   onRename: (id: number, name: string) => Promise<void>;
-  onDelete: (id: number) => Promise<void>;
+  onDelete: (id: number, contents: 'move' | 'delete') => Promise<void>;
+  countDeep?: (id: number) => number;
   onReorder: (id: number, direction: 'up' | 'down') => Promise<void>;
   /** 폴더 통째 다운로드 (zip). 파일을 하나씩 고르지 않고 폴더째 받는다 — Irene #417. */
   onDownloadFolder?: (id: number) => void | Promise<void>;
@@ -1896,12 +2256,12 @@ interface FolderTreeProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, folderDrop: folderDropProp, tr, foldersOnly, projectName, projectColor }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, folderDrop: folderDropProp, tr, foldersOnly, projectName, projectColor, countDeep }) => {
   const ownDrop = useFolderDrop(onDropFiles, onDropExternal);
   const folderDrop = folderDropProp || ownDrop;
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
-  const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename, onDelete, counts, tr });
+  const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename, onDelete, counts, countDeep, tr });
 
   const rootFolders = folders.filter(f => f.parent_id === null);
   // ★ 프로젝트 폴더는 여기서 그리지 않는다 — **프로젝트 행 아래**로 갔다(ProjectGroups).

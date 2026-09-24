@@ -1,0 +1,36 @@
+{
+  "version": "1.60.0",
+  "date": "2026-09-24",
+  "items": [
+    {
+      "ko": {
+        "title": "폴더를 지울 때 안의 파일을 어떻게 할지 고릅니다",
+        "body": "폴더를 삭제하면 안에 있던 파일이 말없이 위쪽 폴더로 옮겨지던 것을 바꿨습니다. 이제 삭제 확인창에서 「폴더만 삭제」와 「파일도 함께 삭제」 중에 고를 수 있습니다.\n\n확인창이 이 폴더와 하위 폴더에 파일이 몇 개 있는지 먼저 알려 줍니다. 파일도 함께 지우면 휴지통으로 가므로 30일 안에 되돌릴 수 있습니다. 빈 폴더는 물어보지 않고 바로 지웁니다.\n\n폴더를 만들고 이름을 바꾸고 지운 기록이 감사 기록에 남습니다."
+      },
+      "en": {
+        "title": "Choose what happens to the files when you delete a folder",
+        "body": "Deleting a folder used to move its files up to the parent folder without saying so. The confirmation now lets you pick between Delete folder only and Delete files too.\n\nIt tells you first how many files the folder and its subfolders hold. Files deleted this way go to the trash, so you can restore them within 30 days. Empty folders are deleted straight away without asking.\n\nCreating, renaming and deleting folders is now recorded in the audit log."
+      }
+    },
+    {
+      "ko": {
+        "title": "폴더째 올릴 수 있습니다",
+        "body": "폴더를 통째로 끌어다 놓거나 [폴더 올리기] 버튼으로 고르면, 안의 하위 폴더 구조를 그대로 만들면서 올립니다. 같은 이름의 폴더가 이미 있으면 그 폴더에 합쳐집니다.\n\n한 번에 가져오는 파일 수에 상한이 있고, 상한에 닿으면 화면이 알려 줍니다."
+      },
+      "en": {
+        "title": "Upload a whole folder",
+        "body": "Drag a folder in, or use the Upload folder button, and the subfolder structure is recreated as the files upload. If a folder with the same name already exists, the files join it.\n\nThere is a limit on how many files are taken at once, and the screen tells you when it is reached."
+      }
+    },
+    {
+      "ko": {
+        "title": "같은 이름의 파일을 올리면 물어봅니다",
+        "body": "같은 자리에 같은 이름의 파일이 이미 있으면 「덮어쓰기」 · 「이름 바꿔 저장」 · 「건너뛰기」 중에서 고를 수 있습니다. 고른 답은 이번에 올리는 파일 전부에 같이 적용되므로 파일마다 묻지 않습니다.\n\n덮어쓰기를 고르면 새 파일이 올라간 뒤에 이전 파일이 휴지통으로 갑니다. 업로드가 실패하면 이전 파일은 그대로 남습니다.\n\n다음에 다시 올릴 때는 새로 물어봅니다."
+      },
+      "en": {
+        "title": "You're asked before a same-named file is replaced",
+        "body": "When a file of the same name already sits in the same place you can choose Overwrite, Save with a new name, or Skip. Your choice applies to every file in that upload, so you are not asked file by file.\n\nOverwrite sends the previous file to the trash only after the new one has uploaded. If the upload fails, the previous file stays.\n\nThe next upload asks again."
+      }
+    }
+  ]
+}

@@ -171,6 +171,18 @@ function checkI18n() {
     for (const m of srcAll.matchAll(/const\s+([A-Za-z_$][\w$]*)\s*=\s*\([^)]*\)(?::[^=]*)?\s*=>\s*(?:\([^)]*\)\s*)?([A-Za-z_$][\w$]*)\s*\(/g)) {
       if (aliases.has(m[2])) aliases.add(m[1]);
     }
+    // ★ 2026-09-24 — **인자로 받은 번역기**도 t() 다.
+    //   `useFolderEditing({ ..., tr })` 처럼 상위가 넘겨 주는 경우 이 파일 안에는 선언이 없어
+    //   위 두 규칙이 못 본다. 그러면 `tr('key', '한국어')` 가 전부 하드코딩으로 세어져
+    //   **규격을 지킨 코드가 래칫을 올린다**(memory feedback_guard_punishes_conformant_code).
+    //   실측 2026-09-24: useFolderEditing.tsx 에서 정상 호출 4건이 신규 위반으로 잡혔다.
+    //   ★ 좁게 인정한다 — 첫 인자가 `k`/`key`(string) 이고 **string 을 돌려주는** 서명만.
+    //     `format: (n: number) => string` 같은 것까지 인정하면 그 안에 진짜 하드코딩이 숨는다.
+    //   ★ 옵셔널(`tr?: (k: string) => string`)도 같다 — 2026-09-24 Fable 반증 D 에서
+    //     `?:` 를 안 받아 **규격 지킨 옵셔널 prop 이 다시 처벌**됐다(+9). 한 글자를 연다.
+    for (const m of srcAll.matchAll(/\b([A-Za-z_$][\w$]*)\s*\??\s*:\s*\(\s*(?:k|key)\s*:\s*string[^)]*\)\s*=>\s*string\b/g)) {
+      aliases.add(m[1]);
+    }
     const callRe = new RegExp(`\\b(?:${[...aliases].join('|')})\\(`);
     srcAll.split('\n').forEach((l, i) => {
       const t = l.trim();

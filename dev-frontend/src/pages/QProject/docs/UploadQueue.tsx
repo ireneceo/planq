@@ -197,14 +197,21 @@ export const UploadQueuePanel: React.FC<{
   onRetryFailed?: () => void;
   onClearFailed?: () => void;
   onCancelAll?: () => void;
-}> = ({ uploads, onCancel, onRetryFailed, onClearFailed, onCancelAll }) => {
+  /** 한 번에 가져올 수 있는 상한에 닿아 **일부만** 들어왔을 때. 말없이 자르지 않는다. */
+  truncatedAt?: number | null;
+}> = ({ uploads, onCancel, onRetryFailed, onClearFailed, onCancelAll, truncatedAt }) => {
   const { t } = useTranslation('qproject');
-  if (uploads.length === 0) return null;
+  if (uploads.length === 0 && !truncatedAt) return null;
   const failed = uploads.filter((u) => u.status === 'error').length;
   const waiting = uploads.filter((u) => u.status === 'waiting').length;
   const active = uploads.length - failed;
   return (
     <UpPanel role="status" aria-live="polite" aria-label={t('docs.up.aria', '업로드 진행 상황')}>
+      {truncatedAt ? (
+        <UpTruncated>
+          {t('docs.up.truncated', '한 번에 {{n}}개까지만 가져옵니다. 나머지는 다시 올려 주세요.', { n: truncatedAt })}
+        </UpTruncated>
+      ) : null}
       <UpHead>
         <UpHeadText>
           {active > 0 && <span>{t('docs.up.headRunning', '올리는 중 {{n}}개', { n: active })}</span>}
@@ -301,6 +308,10 @@ const UpHeadText = styled.div`
   font-size:0.8125rem;font-weight:700;color:#0F172A;
 `;
 const UpHeadWait = styled.span`color:#B45309;`;
+const UpTruncated = styled.div`
+  font-size:0.78125rem;font-weight:700;color:#B45309;
+  padding:6px 8px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;
+`;
 const UpHeadErr = styled.span`color:#DC2626;`;
 const UpHeadBtns = styled.div`display:flex;align-items:center;gap:6px;flex-shrink:0;`;
 const UpAct = styled.button<{ $primary?: boolean }>`
