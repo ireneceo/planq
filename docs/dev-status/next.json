@@ -1,43 +1,34 @@
 {
   "working_on": [
-    "감사 로그 구멍 4곳 · 게스트 표면 보안 점검 · 이미지 보안 Stage 2a (v1.63.0)"
+    "이미지 보안 Stage 2b 0단계 — 첨부 사본 경로 개인(L1) 게이트 (v1.63.1)"
   ],
   "in_progress": [],
   "completed": [
-    "감사 — 로그인 성공/실패/로그아웃/재사용(authAudit 한 문) · 결제 확정 서비스 안 트랜잭션 writeAudit · 소유권 이전 · 프로젝트 멤버 교체",
-    "auditcover 가드(래칫 328) — 감사 없는 변경 라우트가 늘면 실패",
-    "logAudit 가 명시 businessId:null 을 뚫고 요청 본문 business_id 를 집던 구멍(무인증 로그인 행을 남의 워크스페이스에) 수정",
-    "보안 점검(치명·높음 0) — SVG 심볼 fileServing 경유 · CORS 403 · 로그인 ?next=",
-    "이미지 Stage 2a — 개인(L1) 이미지는 올린 사람만(public-image·editor-image, 캐시 앞, 킬스위치 시각)",
-    "카나리 자체 정리 · imagegate 카나리 신설"
+    "채팅·업무 첨부 사본 경로가 원본 File 등급으로 판정 — 운영 L1 이미지 23장이 사본 경로로 익명 노출이던 것 차단",
+    "기존 파일 첨부(link-existing·attachments/link) — 붙이는 사람이 못 보는 파일은 404",
+    "업무 공개 이미지 라우트 분리(task_attachments_public.js)",
+    "관측 — 배포 후 운영 imagegate 상태 Summary · health-check imagegate 카테고리"
   ],
   "behavior_changes": [
-    "개인(L1) 이미지 주소를 올린 사람이 아닌 사람이 열면 404",
-    "Stripe 결제 확정 시 감사 기록이 실패하면 결제도 롤백(웹훅 500 → Stripe 재시도)",
-    "허용 안 된 출처의 요청이 500 대신 403"
+    "개인(L1) 이미지를 채팅·업무 첨부 주소로 열어도 올린 사람이 아니면 404",
+    "볼 수 없는 파일은 채팅·업무에 첨부 불가"
   ],
-  "migrations": [
-    "dev-backend/scripts/migrate-image-gate-flag.js — platform_settings.image_gate_l1_off_until DATETIME NULL (멱등, 배포 슬롯 앞)"
-  ],
+  "migrations": [],
   "issues": [
-    "nginx server_tokens off 미적용(운영 sudo 필요 — Irene/lua)"
+    "findSourceFile 파일명 폴백 — dedup 다중 행일 때 가장 좁은 등급 우선으로(비차단, 다음 라운드)"
   ],
   "blocked_on_human": [
-    "운영 nginx server_tokens off",
-    "교차 모드 구멍 — 워크스페이스 모드로 프로젝트 폴더에 올린 파일의 가시성 결정"
+    "운영 nginx server_tokens off"
   ],
   "check_areas": [
-    "개인 보관함·Q file 에서 내 개인 이미지 썸네일이 보이는지",
-    "공유 링크 이미지가 그대로 보이는지",
-    "관리자 > 감사 로그에 auth.login 이 쌓이는지"
+    "채팅·업무에 첨부한 내 이미지 미리보기가 그대로 보이는지"
   ],
   "backlog": [
-    "health-check --category=imagegate · 관리자 메일 경보(FABLE_GATE_QUEUE)",
-    "이미지 Stage 2b(L2/L3) 설계",
-    "감사 0건 파일 33개 갚기"
+    "감사 1순위 25 라우트",
+    "이미지 2b 1~4단계"
   ],
   "tooling_health": [
-    "guard 59/60 · health 45/45 · imagegate 14/14 · 감사 실호출 32/32(Fable) · filepreview+guestproject+guestentry+tenant 80/0 · build EXIT 0"
+    "imagegate 17/17 · 회귀 44/0 · health 47/47 · guard 59/60"
   ],
   "undeployed": []
 }
