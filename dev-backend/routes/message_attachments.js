@@ -189,6 +189,10 @@ router.post('/:conversationId/:messageId/link-existing',
         where: { id: file_id, business_id: req._conversation.business_id }
       });
       if (!file) return errorResponse(res, 'file_not_found', 404);
+      // ★ 붙이는 사람이 **볼 수 있는 파일만** — 못 보는 파일(남의 개인 L1 등)을 붙이면 대화방 전원·사본 경로로 퍼진다.
+      if (!(await require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, file))) {
+        return errorResponse(res, 'file_not_found', 404);   // 존재 은닉 — 볼 수 없는 파일은 없는 것이다
+      }
 
       // file_path 를 항상 backend 루트 기준 상대경로로 정규화.
       // routes/files.js 는 절대경로(req.file.path)로 저장. /raw·/public 의 path.join(__dirname, '..', X)
@@ -305,6 +309,10 @@ router.get('/public/:storedName', async (req, res, next) => {
     if (!isRenderableImage(att.mime_type, att.file_name)) {
       return errorResponse(res, 'not_public_image', 403);
     }
+    // ★ 원본 File 이 있으면 **그 등급으로** 판정한다 — files/public-image 와 같은 함수(docs/IMAGE_STAGE2B_DECISIONS.md §0).
+    //   안 보면 개인(L1) 이미지가 채팅 사본 경로로 익명에게 열린다(운영 23장). 원본이 없는 첨부는 후속(§4단계).
+    if (await require('../middleware/imageViewer').denyPrivateCopy(req, res,
+      { fileId: att.file_id, externalId: att.external_id, storedName: looksLocal ? stored : null }, 'message-attachments/public')) return;
 
     // 저장소 단일 원천. Drive 는 서버가 워크스페이스 토큰으로 받아서 흘려준다.
     //   MessageAttachment 에는 business_id 가 없어 대화방을 거쳐 찾는다(‥/:id/raw 와 같은 경로).

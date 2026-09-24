@@ -315,4 +315,12 @@ router.get('/health/pdf', pdfHealthLimiter, async (req, res, next) => {
   }
 });
 
+// GET /api/internal/health/imagegate — 이미지 보안 Stage 2a 관측(docs/IMAGE_STAGE2_DECISIONS.md §4).
+//   gate_on · 끈 시각 · 거부 수(anon/expired/other_user) · **최근 24h 세션 사용자 막힘 수**(= 켜서 깨진 것).
+router.get('/health/imagegate', async (req, res, next) => {
+  try {
+    return successResponse(res, await require('../middleware/imageViewer').imageGateStats());
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

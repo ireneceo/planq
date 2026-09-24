@@ -22,7 +22,14 @@
 - `platform_settings.image_gate_l1_off_until` DATETIME — NULL/과거 = 켬, 미래 = 그때까지 끔(24h 자동 복귀용). 못 읽으면 켬. 30초 캐시(재시작 불필요).
   운영 적용: `dev-backend/scripts/migrate-image-gate-flag.js`(멱등). 코드는 컬럼이 없어도 켬으로 동작 — 순서 제약 없음.
 - 로그 `[imageGate:deny] … referer=<경로, 긴 조각 가림> flag=on|off` (file,viewer 당 1줄) · 세션 있는 사용자가 신원 없이 막히면 `[imageGate:ALERT]` 24h 1회.
-- (Fable 권고 중 미구현, 후속) 관리자 메일 경보 · `health-check --category=imagegate` 카운터 — 카운터는 서버 프로세스 안(`imageGateStats`)에 있다.
+- **관측 = `node scripts/health-check.js --category=imagegate`** (2026-09-24 후속) — 서버 안 카운터를 내부 키로 `GET /api/internal/health/imagegate` 에서 읽는다.
+  ① 게이트 켬(꺼졌다면 24h 안에 복귀 — 넘으면 실패) ② 최근 24h 세션 사용자 신원 없이 막힘 0(1건이라도 실패). 둘 다 양성 대조군으로 뒤집힘 확인.
+  ★ dev 사전 게이트의 health-check 는 **dev** 카운터다. 운영은 `deploy-planq.sh` 가 배포 뒤 운영 내부에서
+  `/api/internal/health/imagegate` 를 읽어 켜짐 여부를 Summary 에 남긴다(PDF 검사 옆).
+  ★ 스위치를 바꾼 직후 30초는 서버가 옛 값을 읽는다(캐시). 세션 경보 카운터는 **프로세스 재시작으로만 리셋**된다 —
+  dev 에서 `has_session=1` 로 손검사를 하면 재시작 전까지 health-check ② 가 빨갛다.
+- 관리자 **메일** 경보는 두지 않았다 — 검증하려면 실제 관리자에게 메일이 나가고(외부 발송), health-check 실패가 같은 사건을
+  배포·점검 때마다 드러낸다. 필요해지면 `platformNotify` 로 붙인다(플랫폼 이벤트 종류 추가 필요).
 
 ## 2b 선결 조건 (보류)
 위키 L3 스크린샷 · 공개 공유 문서 본문(L2/L3 editor-image) · 게스트 «자리는 보이되» 계약이 전부 익명이다 — 무엇이 옳은 동작인지부터 별도 설계.

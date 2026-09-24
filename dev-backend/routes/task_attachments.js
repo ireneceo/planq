@@ -258,6 +258,7 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
     const files = await File.findAll({
       where: { id: fileIds, business_id: req._task.business_id, deleted_at: null }
     });
+    for (const f of files) if (!(await require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, f))) return errorResponse(res, 'file_not_found', 404); // ★ 볼 수 있는 파일만 — 남의 L1 이 사본으로 퍼진다, 통째로 거절
     const created = [];
     for (const f of files) {
       const att = await TaskAttachment.create({
@@ -407,42 +408,6 @@ async function serveAttachment(req, res, next, asDownload) {
 //   되살리지 말 것 — <img> 는 Authorization 헤더를 못 실으므로 인증을 붙일 수도 없다.
 //   미리보기는 응답의 `preview_url`(= /api/tasks/public/attach/:stored_name)만 쓴다.
 router.get('/attachments/:id/download', authenticateToken, (req, res, next) => serveAttachment(req, res, next, true));
-
-// ============================================
-// GET /api/tasks/public/attach/:storedName — 공개 (UUID stored_name 으로 접근 제어)
-// 이미지 인라인 삽입용. <img src> 에서 Authorization 헤더 못 보내는 제약 대응.
-// 보안:
-//   - image/* MIME 타입만 허용 (HTML/JS 임베딩으로 인한 XSS 차단)
-//   - X-Content-Type-Options: nosniff (브라우저 MIME 추론 차단)
-//   - Content-Disposition: inline 로 렌더 컨텍스트 제한
-//   - 비이미지 파일은 인증된 /attachments/:id/download 엔드포인트 사용
-// ============================================
-router.get('/public/attach/:storedName', async (req, res, next) => {
-  try {
-    const att = await TaskAttachment.findOne({ where: { stored_name: req.params.storedName } });
-    if (!att) return errorResponse(res, 'not_found', 404);
-    // octet-stream 을 그대로 내보내면 판정만 통과하고 <img> 는 안 그린다 — Content-Type 도 되살린다.
-    const serveMime = effectiveMimeType(att.mime_type, att.original_name);
-    if (!isRenderableImage(att.mime_type, att.original_name)) {
-      return errorResponse(res, 'not_public_image', 403);
-    }
-    // #134 — 여기가 <img> 가 실제로 부르는 경로. Drive 저장분은 로컬 파일이 없어 410 이었다.
-    const body = await readAttachmentBody(att);
-    if (!body.ok) return errorResponse(res, body.msg, body.code);
-    if (body.redirect) return res.redirect(body.redirect);
-
-    // ?w= 리사이즈는 로컬 파일일 때만 (Drive 스트림은 원본 그대로)
-    if (body.abs && await require('../services/imageResize').maybeServeResized(req, res, body.abs, serveMime)) return;
-
-    require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: serveMime, file_name: att.file_name || att.original_name }, { inline: true });
-    res.setHeader('Cache-Control', 'private, max-age=3600');
-    body.stream.on('error', (e) => {
-      console.error('[task_attachments] public image stream error:', e.message);
-      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
-    });
-    body.stream.pipe(res);
-  } catch (err) { next(err); }
-});
 
 // ============================================
 // DELETE /api/tasks/attachments/:id — 첨부 삭제 (업로더 or 관리자)

@@ -63,6 +63,7 @@ async function l1GateOn() {
 
 const denyStats = { anon: 0, expired: 0, other_user: 0, since: Date.now() };
 let lastSessionAlert = 0;
+const sessionAlerts = [];   // 시각 목록 — health-check 가 «최근 24h 에 우리 사용자가 신원 없이 막혔나» 를 읽는다
 /** 어디서 왔는가 — **경로만**, 긴 토큰 조각은 가린다(`/g/<token>` 이 로그에 남으면 그 자체가 유출이다). */
 function refererPath(req) {
   try {
@@ -105,6 +106,12 @@ async function isImageViewable(file, req, route) {
       console.warn(`[imageGate:deny] route=${route} file=${file.id} level=L1 uploader=${file.uploader_id} viewer=${viewer ?? 'anon'} reason=${v.reason || '-'} has_session=${hasSession} referer=${refererPath(req)} flag=${on ? 'on' : 'off'}`);
     }
     // 우리 사용자가 **신원 없이** 막혔다(세션은 있는데 이미지 쿠키가 없음·만료) = 켜서 깨진 것. 24h 에 한 번 크게 남긴다.
+    if (on && hasSession === '1' && viewer == null) {
+      // 상한 — 쿠키가 깨진 사용자 한 명이 갤러리를 스크롤하면 시간당 수천 건이다(Fable 소견 2). 판정에는 «있다» 면 충분하다.
+      if (sessionAlerts.length >= 1000) sessionAlerts.shift();
+      sessionAlerts.push(Date.now());
+      while (sessionAlerts.length && Date.now() - sessionAlerts[0] > 86400000) sessionAlerts.shift();
+    }
     if (on && hasSession === '1' && viewer == null && Date.now() - lastSessionAlert > 86400000) {
       lastSessionAlert = Date.now();
       console.error(`[imageGate:ALERT] 세션 있는 사용자가 신원 없이 L1 이미지에서 막혔다 route=${route} file=${file.id} reason=${v.reason || '-'} referer=${refererPath(req)}`);
@@ -116,7 +123,63 @@ async function isImageViewable(file, req, route) {
     return false;
   }
 }
-function imageGateStats() { return { ...denyStats, gate_cache: { ...gateCache } }; }
+/**
+ * 첨부 **사본**의 원본 File 행 — 채팅·업무 첨부는 같은 저장 파일(stored name)을 다른 라우트로 서빙한다.
+ * 등급의 정본은 File 행 하나다(docs/IMAGE_STAGE2B_DECISIONS.md §0). 사본 라우트가 이 행을 찾아 **같은 판정**을 하지 않으면
+ * `files/public-image` 에서 404 인 개인 이미지가 사본 경로로는 익명에게 열린다(운영 L1 이미지 23장, Fable 실측 2026-09-24).
+ * 우선순위: 명시 file_id → Drive external_id → 로컬 파일명 **정확 일치**(LIKE 접미사만으로 인정하지 않는다).
+ */
+async function findSourceFile({ fileId = null, externalId = null, storedName = null } = {}) {
+  const { File } = require('../models');
+  const { Op } = require('sequelize');
+  if (fileId) {
+    const f = await File.findByPk(fileId);
+    if (f) return f;
+  }
+  if (externalId) {
+    const f = await File.findOne({ where: { external_id: externalId, storage_provider: 'gdrive' } });
+    if (f) return f;
+  }
+  if (storedName) {
+    const f = await File.findOne({ where: { file_path: { [Op.like]: `%${storedName}` }, storage_provider: 'planq' } });
+    if (f && require('path').basename(f.file_path) === storedName) return f;
+  }
+  return null;
+}
+
+/**
+ * 첨부 **사본** 라우트의 게이트 한 줄 — 원본 File 을 찾아 같은 판정을 하고, 거부면 404(존재 은닉)+no-store 로 **응답까지** 한다.
+ * @returns {Promise<boolean>} true = 응답했다(호출자는 return)
+ */
+async function denyPrivateCopy(req, res, source, route) {
+  const src = await findSourceFile(source);
+  if (!src || (await isImageViewable(src, req, route))) return false;
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(404).json({ success: false, message: 'not_found' });
+  return true;
+}
+
+/** 이 사람이 이 파일을 **목록에서 볼 수 있는가** — 첨부로 끌어올 때(link-existing) 검사한다.
+ *  못 보는 파일을 붙이면 그 순간 채팅·업무 사본으로 퍼진다(남의 L1 을 붙일 수 있었다). */
+async function canUserSeeFile(userId, platformRole, file) {
+  const { canAccessFileByLevel, getUserScope } = require('./access_scope');
+  const scope = await getUserScope(userId, file.business_id, platformRole);
+  return canAccessFileByLevel(userId, file, scope);
+}
+
+/** 관측 — `GET /api/internal/health/imagegate` 가 읽고 `health-check --category=imagegate` 가 판정한다.
+ *  ★ 만들어 놓고 읽는 곳이 없던 카운터였다(Fable 게이트 후속, 2026-09-24) — 안 붙은 가드는 없는 가드. */
+async function imageGateStats() {
+  while (sessionAlerts.length && Date.now() - sessionAlerts[0] > 86400000) sessionAlerts.shift();
+  const on = await l1GateOn();
+  return {
+    gate_on: on,
+    off_until: gateCache.offUntil ? gateCache.offUntil.toISOString() : null,
+    deny: { anon: denyStats.anon, expired: denyStats.expired, other_user: denyStats.other_user },
+    session_alerts_24h: sessionAlerts.length,
+    since: new Date(denyStats.since).toISOString(),
+  };
+}
 
 // ── Stage 1 계측 ──────────────────────────────────────────────────────────────
 //   "게이트가 켜졌다면 막혔을" 건수를 센다. 이미지 요청은 한 화면에 수백 건이라
@@ -167,4 +230,4 @@ function auditStats() {
 }
 
 module.exports = {
-  isImageViewable, imageGateStats, l1GateOn, resolveImageViewer, resolveImageViewerDetailed, auditWouldDeny, auditStats };
+  isImageViewable, imageGateStats, l1GateOn, findSourceFile, canUserSeeFile, denyPrivateCopy, resolveImageViewer, resolveImageViewerDetailed, auditWouldDeny, auditStats };

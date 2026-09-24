@@ -5117,7 +5117,12 @@ guard 58/59 · health 45/45 · build EXIT 0 · `error TS` 0 · 잔여 0 ·
 >   (`docs-project-row-<id>` 는 이동 없이 펼쳐진다)을 다음 라운드에서 처리한다.
 
 ## 2026-09-24 — 이미지 Stage 2a 후속 (Fable 게이트 PASS, 비차단 후속)
-- `imageGateStats` 가 export 만 되고 **읽는 곳이 없다**(안 붙은 가드는 없는 가드) → `health-check --category=imagegate` 로 묶는다(deny{anon,expired,other_user} · `[imageGate:ALERT]` 24h 건수).
+- ~~`imageGateStats` 읽는 곳 없음~~ → **해소**: `/api/internal/health/imagegate` + `health-check --category=imagegate`(양성 대조군 2건 확인). 메일 경보는 두지 않음(결정문 §4).
 - 결정문 §4 의 관리자 메일 경보(세션 있는 사용자가 신원 없이 막힘) 미구현 — 지금은 `[imageGate:ALERT]` error 로그 한 줄.
 - 2b 몫 관찰: `/api/message-attachments/public/*` · `/api/tasks/public/attach/*` 는 stored name 만으로 서빙 — 사람이 L1 파일을 채팅·업무에 첨부한 사본 경로에는 게이트 없음.
 - 배포 후 확인: 운영 file 1018(icon.png) 익명 404 / uploader 200 · `[imageGate:ALERT]` 24h 0건.
+
+## 2026-09-24 — 이미지 2b 0단계 후속 (Fable PASS, 비차단)
+- `findSourceFile` 파일명 폴백이 dedup 으로 **한 stored name 에 File 여러 행**(등급 다름)일 때 임의 행을 집는다 — 운영 2건(현재 첨부 연결 0). **가장 좁은 등급 우선**(`FIELD(vlevel,'L1','L2','L3','L4')`)으로 fail-closed.
+- `findSourceFile` 의 file_id·external_id 조회가 deleted_at 을 안 본다(판정엔 무해, 운영 0건).
+- 배포 후 실측: 사본 경로 익명 404 1건 + 올린 사람 200 1건으로 «운영 23장» 닫기.

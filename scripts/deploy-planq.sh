@@ -812,6 +812,24 @@ verify_deployment() {
     echo ""
     PDF_CHECK_RESULT="FAILED — 위 조치 참고"
   fi
+
+  # 5) 이미지 보안 Stage 2a 관측 (docs/IMAGE_STAGE2_DECISIONS.md §4) — **운영 서버 안 카운터**를 읽는다.
+  #    dev 사전 게이트의 health-check 는 dev 카운터만 본다 — 사용자는 운영에 있으므로 여기서 봐야 판정이 된다
+  #    (Fable 게이트 소견 1). 재시작 직후라 거부 수는 0 에서 시작한다 — 볼 것은 **게이트가 켜져 있는가**다.
+  IG_OUT=$(ssh $SSH_OPTS "$PROD_HOST" \
+    "K=\$(grep -m1 '^INTERNAL_API_KEY=' $PROD_BE/.env | cut -d= -f2- | tr -d '\"'\\''' | tr -d '\r'); \
+     [ -z \"\$K\" ] && echo 'NOKEY' && exit 0; \
+     curl -s --max-time 15 -H \"x-internal-api-key: \$K\" http://localhost:$PROD_PORT/api/internal/health/imagegate" 2>/dev/null || echo "SSHFAIL")
+  if echo "$IG_OUT" | grep -q '"gate_on":true'; then
+    success "운영 이미지 게이트(L1) 켜짐"
+    IMAGEGATE_CHECK_RESULT="ON"
+  elif echo "$IG_OUT" | grep -q '"gate_on":false'; then
+    warn "운영 이미지 게이트(L1) 꺼짐 — platform_settings.image_gate_l1_off_until 확인: $(echo "$IG_OUT" | head -c 200)"
+    IMAGEGATE_CHECK_RESULT="OFF — off_until 확인"
+  else
+    warn "운영 이미지 게이트 관측 실패: $(echo "$IG_OUT" | head -c 200)"
+    IMAGEGATE_CHECK_RESULT="UNKNOWN"
+  fi
 }
 
 # ──────────────────────────────────────────
@@ -1038,6 +1056,7 @@ show_summary() {
   echo "  Backup:    $BACKUP_DIR (on prod)"
   echo ""
   echo "  PDF 렌더:  ${PDF_CHECK_RESULT:-미실행}"
+  echo "  이미지게이트: ${IMAGEGATE_CHECK_RESULT:-미실행}"
   echo "  운영 CSP:  ${CSP_CHECK_RESULT:-미실행}"
   echo ""
   echo "  Production:"

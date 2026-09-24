@@ -31,7 +31,7 @@ const get = (path, cookie, headers = {}) => fetch(`${API}${path}`, { headers: { 
 async function run() {
   const results = [];
   const push = (name, ok, msg) => results.push({ name, fail: ok ? 0 : 1, details: [String(msg ?? '')] });
-  const made = { users: [], files: [], bm: [] };
+  const made = { users: [], files: [], bm: [], msgs: [], taskAtt: [] };
   let origOff, editorRow = null, psId = null;
   try {
     const bcrypt = require('/opt/planq/dev-backend/node_modules/bcryptjs');
@@ -64,8 +64,11 @@ async function run() {
       const id = (await r.json()).data?.id; made.files.push(id);
       await q('UPDATE files SET vlevel=?, security_level=? WHERE id=?', [vlevel, 'general', id]);
       const [[f]] = [await q('SELECT file_path FROM files WHERE id=?', [id])];
-      return `/api/files/public-image/${require('path').basename(f.file_path)}`;
+      const stored = require('path').basename(f.file_path);
+      fileMeta[`/api/files/public-image/${stored}`] = { id, stored };
+      return `/api/files/public-image/${stored}`;
     };
+    const fileMeta = {};
     const L1 = await up('l1', 'L1'); const L3 = await up('l3', 'L3'); const L4 = await up('l4', 'L4');
 
     const [[ps]] = [await q('SELECT id, image_gate_l1_off_until o FROM platform_settings ORDER BY id LIMIT 1')];
@@ -108,6 +111,44 @@ async function run() {
       push('⑥ editor-image 도 같은 함수 — 익명 L1 404 · platform_admin 200', e1 === 404 && e2 === 200, `익명 ${e1} · admin ${e2}`);
     } else results.push({ name: '⑥ editor-image', unmeasured: true, optional: true, details: ['⚪ dev 에 editor-image 파일 없음'] });
 
+    // ⑦ 첨부 **사본** 경로 — 같은 파일을 채팅·업무에 붙여도 등급이 따라간다(docs/IMAGE_STAGE2B_DECISIONS.md §0)
+    const conv = (await q("SELECT c.id FROM conversations c JOIN conversation_participants p ON p.conversation_id=c.id WHERE c.business_id=? AND p.user_id=? AND c.channel_type='internal' ORDER BY c.id DESC LIMIT 1", [biz, meRow.id]))[0];
+    const task = (await q('SELECT id FROM tasks WHERE business_id=? AND created_by=? ORDER BY id DESC LIMIT 1', [biz, meRow.id]))[0];
+    if (conv) {
+      const mr = await fetch(`${API}/api/conversations/${biz}/${conv.id}/messages`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ content: `zzimg ${RUN}` }) });
+      const msgId = (await mr.json()).data?.id;
+      if (msgId) {
+        made.msgs.push(msgId);
+        const link = (fid) => fetch(`${API}/api/message-attachments/${conv.id}/${msgId}/link-existing`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ file_id: fid }) });
+        const l1 = await link(fileMeta[L1].id); const l3 = await link(fileMeta[L3].id);
+        const mp1 = `/api/message-attachments/public/${fileMeta[L1].stored}`; const mp3 = `/api/message-attachments/public/${fileMeta[L3].stored}`;
+        const a1 = await s(mp1, ''); const b1 = await s(mp1, me.img); const c3 = await s(mp3, '');
+        push('⑦ 채팅 사본 — L1 익명 404 · 올린 사람 200 · L3 익명 200', l1.status < 300 && l3.status < 300 && a1 === 404 && b1 === 200 && c3 === 200,
+          `link ${l1.status}/${l3.status} · L1 익명 ${a1} · 본인 ${b1} · L3 익명 ${c3}`);
+      } else results.push({ name: '⑦ 채팅 사본', unmeasured: true, details: [`⚪ 메시지 생성 실패 ${mr.status}`] });
+    } else results.push({ name: '⑦ 채팅 사본', unmeasured: true, optional: true, details: ['⚪ 참여 중인 내부 대화방 없음 — 고객 대화방은 쓰지 않는다(고객 알림이 나갈 수 있다)'] });
+    if (task) {
+      const tl = await fetch(`${API}/api/tasks/${task.id}/attachments/link`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ file_ids: [fileMeta[L1].id] }) });
+      const tj = await tl.json().catch(() => ({}));
+      for (const a of (Array.isArray(tj.data) ? tj.data : [])) if (a && a.id) made.taskAtt.push(a.id);
+      const tp = `/api/tasks/public/attach/${fileMeta[L1].stored}`;
+      const ta = await s(tp, ''); const tb = await s(tp, me.img);
+      push('⑦ 업무 사본 — L1 익명 404 · 올린 사람 200', tl.status < 300 && ta === 404 && tb === 200, `link ${tl.status} · 익명 ${ta} · 본인 ${tb}`);
+      // 남의 L1 을 내 업무에 붙이기 → 거절
+      const fd = new FormData();
+      fd.append('file', new Blob([PNG, Buffer.from(RUN + 'others')], { type: 'image/png' }), `zzimg-${RUN}-others.png`);
+      const ou = await fetch(`${API}/api/files/${biz}`, { method: 'POST', headers: { Authorization: `Bearer ${O.token}` }, body: fd });
+      const oid = (await ou.json()).data?.id;
+      if (oid) {
+        made.files.push(oid);
+        await q("UPDATE files SET vlevel='L1', security_level='general' WHERE id=?", [oid]);
+        const bad = await fetch(`${API}/api/tasks/${task.id}/attachments/link`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ file_ids: [oid] }) });
+        const badJ = await bad.json().catch(() => ({}));
+        for (const a of (Array.isArray(badJ.data) ? badJ.data : [])) if (a && a.id) made.taskAtt.push(a.id);
+        push('⑦ 남의 개인(L1) 파일을 내 업무에 붙이기 → 거절', bad.status === 404, String(bad.status));
+      } else results.push({ name: '⑦ 남의 L1 붙이기', unmeasured: true, details: [`⚪ 다른 멤버 업로드 실패 ${ou.status}`] });
+    } else results.push({ name: '⑦ 업무 사본', unmeasured: true, optional: true, details: ['⚪ 내 업무 없음'] });
+
     // ① 킬스위치 — 미래로 끄면 30초 안에 익명 200, 되돌리면 404
     await q('UPDATE platform_settings SET image_gate_l1_off_until=DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id=?', [psId]);
     await sleep(31000);
@@ -124,6 +165,11 @@ async function run() {
     try {
       if (psId != null) await q('UPDATE platform_settings SET image_gate_l1_off_until=? WHERE id=?', [origOff || null, psId]);
       if (editorRow) await q('UPDATE files SET vlevel=? WHERE id=?', [editorRow.vlevel, editorRow.id]);
+      if (made.taskAtt.length) await q('DELETE FROM task_attachments WHERE id IN (?)', [made.taskAtt]);
+      if (made.msgs.length) {
+        await q('DELETE FROM message_attachments WHERE message_id IN (?)', [made.msgs]);
+        await q('DELETE FROM messages WHERE id IN (?)', [made.msgs]);
+      }
       const me = await login(CREDS.email, CREDS.password);
       for (const id of made.files.filter(Boolean)) {
         const [[f]] = [await q('SELECT business_id FROM files WHERE id=?', [id])];
@@ -133,6 +179,8 @@ async function run() {
       }
       for (const [b, u] of made.bm) await q('DELETE FROM business_members WHERE business_id=? AND user_id=?', [b, u]);
       if (made.users.length) {
+        // 임시 사용자가 올린 파일은 위에서 바이트까지 지웠고 행만 남는다 — 사용자 FK 때문에 행을 먼저 지운다.
+        await q('DELETE FROM files WHERE uploader_id IN (?) AND purged_at IS NOT NULL', [made.users]);
         await q('DELETE FROM audit_logs WHERE user_id IN (?)', [made.users]);
         await q('DELETE FROM refresh_tokens WHERE user_id IN (?)', [made.users]);
         await q('DELETE FROM users WHERE id IN (?)', [made.users]);

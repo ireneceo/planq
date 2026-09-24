@@ -44,6 +44,7 @@ const path = require('path');
 const CATEGORIES = [
   'infra', 'auth', 'security', 'qnote', 'voice', 'external',
   'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly', 'retention', 'secrets',
+  'imagegate',
 ];
 
 const args = process.argv.slice(2);
@@ -340,6 +341,49 @@ function defineInfraTests() {
 // ============================================
 // 카테고리 2: auth
 // ============================================
+// ============================================
+// 카테고리: imagegate — 이미지 보안 Stage 2a 관측 (docs/IMAGE_STAGE2_DECISIONS.md §4)
+//   ① 게이트가 **켜져 있거나**, 꺼져 있어도 24h 안에 돌아온다(무기한 끈 스위치는 실패)
+//   ② 최근 24h 에 **세션 있는 우리 사용자가 신원 없이 막힌** 건 0 — 1건이라도 있으면 켜서 깨진 것이다
+//   서버 프로세스 안의 카운터라 내부 키로 서버에 묻는다(PDF 렌더 검사와 같은 방식). 원격 모드는 측정 불가.
+// ============================================
+function defineImageGateTests() {
+  const isLocal = BACKEND.startsWith('http://localhost');   // defineInfraTests 와 같은 판정
+  if (!isLocal) {
+    console.log(c.yellow('  ⊘ imagegate — 원격 모드에서는 측정 불가 (서버 안 카운터)'));
+    return;
+  }
+  const readKey = () => {
+    const env = fs.readFileSync('/opt/planq/dev-backend/.env', 'utf-8');
+    const m = /^INTERNAL_API_KEY=(.*)$/m.exec(env);
+    const key = m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
+    if (!key) throw new Error('INTERNAL_API_KEY 없음 — 거짓 통과 방지 위해 실패 처리');
+    return key;
+  };
+  let stats = null;
+  const load = async () => {
+    if (stats) return stats;
+    const r = await http('GET', `${BACKEND}/api/internal/health/imagegate`, { headers: { 'x-internal-api-key': readKey() } });
+    if (!r.data || typeof r.data.gate_on !== 'boolean') throw new Error(`응답 이상: ${JSON.stringify(r.data || r).slice(0, 200)}`);
+    stats = r.data;
+    return stats;
+  };
+  test('imagegate', 'L1 게이트가 켜져 있다 (꺼졌다면 24h 안에 돌아온다)', async () => {
+    const d = await load();
+    if (d.gate_on) return true;
+    const until = d.off_until ? new Date(d.off_until).getTime() : Infinity;
+    if (until - Date.now() > 24 * 3600 * 1000) throw new Error(`게이트가 ${d.off_until} 까지 꺼져 있다 — 24h 넘게 끈 스위치는 잊힌다`);
+    if (opts.verbose) console.log(c.gray(`      꺼짐(${d.off_until} 까지)`));
+    return true;
+  });
+  test('imagegate', '최근 24h 세션 사용자가 신원 없이 막힌 건 0', async () => {
+    const d = await load();
+    if (d.session_alerts_24h > 0) throw new Error(`${d.session_alerts_24h}건 — 로그 [imageGate:ALERT] 의 referer 로 화면을 찾을 것`);
+    if (opts.verbose) console.log(c.gray(`      거부 anon ${d.deny.anon} · expired ${d.deny.expired} · other_user ${d.deny.other_user} (since ${d.since})`));
+    return true;
+  });
+}
+
 function defineAuthTests() {
   test('auth', 'Test user 토큰 확보 (cache or login)', async () => {
     await setup();
@@ -1290,6 +1334,7 @@ async function runTests(allTests, category) {
   defineDateOnlyTests();
   defineRetentionTests();
   defineSecretTests();
+  defineImageGateTests();
 
   const allPass = await runTests(tests, opts.category);
   process.exit(allPass ? 0 : 1);

@@ -521,6 +521,7 @@ app.use('/api/messages', require('./routes/message_reactions'));   // #138 이�
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/tasks', require('./routes/task_workflow'));
 app.use('/api/tasks', require('./routes/task_attachments'));
+app.use('/api/tasks', require('./routes/task_attachments_public'));   // 공개 이미지 서빙 — 위와 같은 순서(옮긴 것)
 // #259 무로그인 게스트 링크 — **인증 없는 공개 라우트**. 공개 라우트끼리 모아 둔다
 //   (인증 라우트 사이에 흩어지면 다음 사람이 이게 공개인 줄 모른다).
 app.use('/api/guest', require('./routes/guest'));
