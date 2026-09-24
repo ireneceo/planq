@@ -2111,6 +2111,7 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
     <React.Fragment key={f.id}>
       <TreeRow
         selected={selected === f.id}
+        testId={`docs-subfolder-row-${f.id}`}
         dropOver={folderDrop ? folderDrop(f.id).over : undefined}
         flash={folderDrop ? folderDrop(f.id).flash : undefined}
         dropProps={folderDrop ? folderDrop(f.id).dropProps : undefined}

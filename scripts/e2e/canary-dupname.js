@@ -76,28 +76,25 @@ async function pushTo(page, testId, paths, scope) {
   return true;
 }
 
-/**
- * 좌측 트리에서 **이름으로 폴더 행을 클릭**한다.
- * ★ `querySelectorAll('*')` 전수 스캔은 파일이 많은 화면에서 레이아웃을 수만 번 강제해
- *   **메인 스레드를 막고** `Runtime.callFunctionOn timed out` 으로 하니스가 죽는다(2026-09-24).
- *   좁히려고 `button, a` 로 바꿨더니 이번엔 **안 잡혔다**(트리 행은 styled div 다).
- *   정답은 제품이 이미 달아 둔 손잡이다 — `FolderName` 이 `title={f.name}` 을 단다.
- */
-async function clickTreeRow(page, name) {
-  return page.evaluate((nm) => {
-    // ★ `querySelector` 는 **첫 번째**를 준다 — 탭 keep-alive 로 같은 이름이 두 벌이면
-    //   숨은 사본(높이 0)을 집어 «못 찾음» 이 된다. 오늘만 세 번째 같은 함정이다.
-    //   **보이는 것 중 첫 번째**를 고른다(measure.js 의 `visible` 과 같은 규칙).
-    const all = [...document.querySelectorAll(`[title="${nm.replace(/"/g, '\\"')}"]`)];
-    const el = all.find((e) => e.getBoundingClientRect().height > 1);
+/** 보이는 것 중 첫 번째 `[data-testid]` 를 누른다 — keep-alive 숨은 사본(높이 0)을 피한다. */
+async function clickVisibleTestId(page, id) {
+  return page.evaluate((tid) => {
+    const el = [...document.querySelectorAll(`[data-testid="${tid}"]`)]
+      .find((e) => e.getBoundingClientRect().height > 1);
     if (!el) return false;
-    let p = el;
-    for (let i = 0; i < 5 && p; i++, p = p.parentElement) {
-      if (p.onclick || p.getAttribute('data-drop-target') !== null || p.tagName === 'BUTTON') break;
-    }
-    (p || el).click();
+    el.click();
     return true;
-  }, name);
+  }, id);
+}
+
+/** 판정용 DB 조회 — Node 에서 직접(브라우저 밖). 풀은 러너가 마지막에 닫는다. */
+let _seq = null;
+async function sqlQuery(q, replacements) {
+  if (!_seq) {
+    require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env', quiet: true });
+    ({ sequelize: _seq } = require('/opt/planq/dev-backend/config/database'));
+  }
+  return _seq.query(q, { replacements });
 }
 
 /**
@@ -309,36 +306,42 @@ async function run() {
         await goto(page, '/files');
         await sleep(3000);
         // ★ 워크스페이스 트리에서 프로젝트 폴더는 **프로젝트 행 아래**에 있다 — 먼저 펼쳐야 보인다.
-        //   안 펼치고 이름으로 찾으면 «못 찾음» 이 나오고, 그것을 기능 결함으로 읽게 된다.
-        // 프로젝트 행을 먼저 펼쳐야 그 아래 폴더가 보인다
-        await clickTreeRow(page, proj.name || '');
-        await sleep(1800);
-        const picked2 = await clickTreeRow(page, 'ZZ카나리-프폴더');
-        push('워크스페이스 트리에서 프로젝트 폴더를 고를 수 있다', picked2,
-          picked2 ? 'ZZ카나리-프폴더 선택' : '못 찾음 — 이하 미측정');
+        // ★ 2026-09-25 — 전에는 프로젝트 **이름**의 첫 `[title]` 을 눌렀는데 그건 트리 행이 아니라
+        //   프로젝트 링크였다 → 페이지가 **프로젝트로 이동**해 프로젝트 모드를 쟀고, 그래서
+        //   «UI 로 도달 불가» 라고 잘못 적었다. 트리 행은 **이동 없이 고르고 펼친다**(2026-09-20 동작).
+        //   확정 손잡이 `docs-project-row-<id>` · `docs-subfolder-row-<id>` 로 누른다.
+        const rowOk = await clickVisibleTestId(page, `docs-project-row-${proj.id}`);
+        await sleep(1500);
+        const subOk = rowOk && await clickVisibleTestId(page, `docs-subfolder-row-${fx2}`);
+        await sleep(1200);
+        const stay = new URL(page.url()).pathname;
+        const picked2 = rowOk && subOk && stay === '/files';
+        push('워크스페이스 트리에서 프로젝트 폴더를 고를 수 있다 (페이지 이동 없이)', picked2,
+          picked2 ? `프로젝트 행 → 하위 폴더 ${fx2} · 경로 ${stay}`
+            : `프로젝트 행 ${rowOk ? '○' : '×'} · 하위 폴더 ${subOk ? '○' : '×'} · 경로 ${stay} — 이하 미측정`);
         if (picked2) {
-          await sleep(1200);
           const [w1] = writeFiles([{ rel: `zzwsf-${RUN}.png`, tag: 'w1' }]);
           await pushToVisible(page, [w1]);
           await sleep(7000);
-          const [w2] = writeFiles([{ rel: `zzwsf-${RUN}.png`, tag: 'w2' }]);
-          await pushToVisible(page, [w2]);
-          const wd = await until(page, (s) => !!s.dupOverwrite, 15000);
-          // ★ **미측정으로 적는다.** 이 검사는 «워크스페이스 모드 + 프로젝트 폴더» 를 재려던 것인데,
-          //   Q file 에서 프로젝트 폴더는 **접혀 있어 보이지 않고**(실측: 프로젝트 안 누르면 0건)
-          //   프로젝트 행을 누르면 **프로젝트 페이지로 이동**한다. 즉 이 경로는 UI 로 닿을 수 없고,
-          //   위에서 재는 것은 사실상 **프로젝트 모드**다 — 양성 대조군(옛 결함 복원)에서 판정이
-          //   **뒤집히지 않아** 그 사실이 드러났다(2026-09-24).
-          //   실제 도달 경로는 **바깥 파일을 프로젝트 폴더 행에 끌어다 놓기**(`onDropExternal` →
-          //   `handleFiles(fl, 프로젝트폴더id)`)인데, 헤드리스는 OS 드롭을 만들 수 없다.
-          //   ⚪ 로 남겨 «잰 것이 없다» 를 보이게 한다 — 못 잡는 초록보다 낫다.
-          results.push({
-            name: '워크스페이스 모드 · 프로젝트 폴더에서도 묻는다', unmeasured: true, optional: true,
-            details: [`⚪ UI 로 그 상태에 도달 불가(프로젝트 폴더는 접힘 · 프로젝트 클릭은 페이지 이동). ` +
-              `실제 경로는 바깥 파일을 폴더에 끌어다 놓기 — 헤드리스가 못 만든다. 관측값 ${wd.ok ? '확인창 떴음(=프로젝트 모드를 잰 것)' : '안 뜸'}`],
-          });
-          if (wd.ok) await page.click('[data-testid="dup-skip"]');
-          await sleep(2500);
+          // ★ **이 검사가 옛 결함을 가르는 상태인지 먼저 못을 박는다** — 행이 `project_id = null` 인데
+          //   프로젝트 폴더에 앉아 있어야 한다. 옛 술어(폴더 위에 프로젝트를 AND)는 바로 이 상태에서만
+          //   거짓 음성이 된다. 프로젝트 모드로 올라가면(`project_id = 프로젝트`) 옛 술어도 맞으므로
+          //   아무것도 가르지 못한다 — 지난번 ⚪ 가 정확히 그 자리였다.
+          const [seed] = await sqlQuery(
+            'SELECT project_id, folder_id FROM files WHERE file_name=? AND business_id=? AND deleted_at IS NULL',
+            [`zzwsf-${RUN}.png`, proj.biz]);
+          const discriminating = seed.length === 1 && seed[0].project_id == null && Number(seed[0].folder_id) === Number(fx2);
+          push('픽스처가 옛 결함을 가르는 상태다 (project_id 없음 + 프로젝트 폴더)', discriminating,
+            seed.length ? seed.map((r) => `project_id=${r.project_id} folder_id=${r.folder_id}`).join(' / ') : '행 없음 — 업로드가 안 나갔다');
+          if (discriminating) {
+            const [w2] = writeFiles([{ rel: `zzwsf-${RUN}.png`, tag: 'w2' }]);
+            await pushToVisible(page, [w2]);
+            const wd = await until(page, (s) => !!s.dupOverwrite, 15000);
+            push('워크스페이스 모드 · 프로젝트 폴더에서도 같은 이름이면 묻는다', wd.ok,
+              wd.ok ? '확인창 떴다' : '안 물었다 — 같은 이름이 그대로 쌓인다(Fable 3차 FAIL-2)');
+            if (wd.ok) await page.click('[data-testid="dup-skip"]');
+            await sleep(2500);
+          }
         }
         // 정리 — 폴더와 안의 파일 함께
         await api(`/api/folders/${fx2}?contents=delete`, { method: 'DELETE' });

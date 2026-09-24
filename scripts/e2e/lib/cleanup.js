@@ -90,13 +90,55 @@ async function sweepCanaryLeftovers() {
       ]) await sequelize.query(q, { replacements: [id] }).catch(() => null);
       posts += 1;
     }
-    const [[left]] = await sequelize.query(`SELECT (SELECT COUNT(*) FROM projects WHERE ${like}) p, (SELECT COUNT(*) FROM posts WHERE ${titleLike}) d`,
-      { replacements: [...args, ...args] });
+    // ── 파일·폴더 (2026-09-24 추가) ──────────────────────────────────────────
+    // 왜: 업로드 카나리(dupname·folderops·uploadretry)는 끝에서 제 것을 치우지만, 중간에 끊기면
+    //   **파일은 휴지통에 바이트째** 남는다. 2026-09-24 실측 dev 32건(전부 휴지통·미영구삭제) —
+    //   지난 세션 타임아웃의 원인이 그 누적이었다. 폴더(`ZZ카나리-*`)도 이 청소 밖이었다.
+    // ★ 사람 자료를 건드리지 않게 **세 겹**으로 좁힌다 — 검사 계정이 올렸고 · 이름이
+    //   `zz<태그>-<실행id 6자>…` 모양이고 · 아직 영구삭제 안 된 것. `zz%` 만으로는 사람 파일과 겹친다.
+    // ★ 바이트는 API(휴지통 → 영구삭제)로 지운다 — purgeFile 이 ref_count·원격·쿼터를 같이 다룬다.
+    //   DB 행만 지우면 바이트가 고아로 남는다.
+    const FILE_RE = '^zz[a-z0-9]*-[a-z0-9]{6}([- ].*)?\\.[a-z0-9]+$';
+    const [[me]] = await sequelize.query('SELECT id FROM users WHERE email=?', { replacements: [CREDS.email] });
+    let files = 0, folders = 0, fileFail = 0;
+    if (me) {
+      const fileWhere = 'uploader_id=? AND purged_at IS NULL AND file_name REGEXP ?';
+      const [fs] = await sequelize.query(`SELECT id, business_id, deleted_at FROM files WHERE ${fileWhere}`,
+        { replacements: [me.id, FILE_RE] });
+      if (fs.length) {
+        const tok = await loginToken();
+        if (!tok) return row(1, `🔴 청소용 로그인 실패 — 카나리 파일 ${fs.length}건이 남는다`);
+        const H = { Authorization: `Bearer ${tok}` };
+        for (const f of fs) {
+          if (!f.deleted_at) await fetch(`${BASE}/api/files/${f.business_id}/${f.id}`, { method: 'DELETE', headers: H }).catch(() => null);
+          const p = await fetch(`${BASE}/api/files/${f.business_id}/${f.id}/purge`, { method: 'DELETE', headers: H }).catch(() => null);
+          if (p && p.ok) files += 1; else fileFail += 1;
+        }
+      }
+      const [fd] = await sequelize.query("SELECT id FROM file_folders WHERE created_by=? AND name LIKE 'ZZ카나리%'",
+        { replacements: [me.id] });
+      if (fd.length) {
+        const ids = fd.map((x) => x.id);
+        // 폴더 안에 사람 파일이 있을 리 없지만, 있다면 지우지 않고 루트로 내린다.
+        await sequelize.query('UPDATE files SET folder_id=NULL WHERE folder_id IN (?)', { replacements: [ids] });
+        await sequelize.query('DELETE FROM file_folders WHERE id IN (?)', { replacements: [ids] }); // parent_id 는 SET NULL
+        folders = ids.length;
+      }
+    }
+    const [[left]] = await sequelize.query(
+      `SELECT (SELECT COUNT(*) FROM projects WHERE ${like}) p, (SELECT COUNT(*) FROM posts WHERE ${titleLike}) d,
+              (SELECT COUNT(*) FROM files WHERE uploader_id=? AND purged_at IS NULL AND file_name REGEXP ?) f,
+              (SELECT COUNT(*) FROM file_folders WHERE created_by=? AND name LIKE 'ZZ카나리%') ff`,
+      { replacements: [...args, ...args, me ? me.id : 0, FILE_RE, me ? me.id : 0] });
     // ★ 여기서 닫지 않는다 — 러너(run.js)가 **마지막에 한 번만** 닫는 규약이다.
     //   각자 닫으면 뒤 스위트가 "connection manager was closed" 로 죽는다(2026-09-07 실측).
-    const remaining = Number(left.p) + Number(left.d);
-    if (remaining > 0) return row(1, `🔴 ${remaining}건이 남았다 — 다음 실행에 또 쌓인다`);
-    return row(0, projects + posts === 0 ? '카나리 잔여 없음' : `잔여 청소 — 프로젝트 ${projects} · 문서 ${posts}`);
+    const remaining = Number(left.p) + Number(left.d) + Number(left.f) + Number(left.ff);
+    if (remaining > 0) {
+      return row(1, `🔴 ${remaining}건이 남았다(프로젝트 ${left.p} · 문서 ${left.d} · 파일 ${left.f} · 폴더 ${left.ff}`
+        + `${fileFail ? ` · 영구삭제 실패 ${fileFail}` : ''}) — 다음 실행에 또 쌓인다`);
+    }
+    return row(0, projects + posts + files + folders === 0 ? '카나리 잔여 없음'
+      : `잔여 청소 — 프로젝트 ${projects} · 문서 ${posts} · 파일 ${files} · 폴더 ${folders}`);
   } catch (e) {
     return row(1, `🔴 청소 중 오류: ${e.message}`);
   }
