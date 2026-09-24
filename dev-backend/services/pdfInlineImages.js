@@ -21,15 +21,21 @@
 //   · 상한을 둔다 — data: 는 PDF HTML 안에 통째로 들어가므로 큰 이미지가 렌더를 죽인다.
 const fs = require('fs').promises;
 const { resolveEditorImage } = require('./editorImage');
+const { resizedBuffer } = require('./imageResize');
+
+// ★ 원본을 통째로 넣지 않는다 — 11장 14MB 문서가 puppeteer setContent 15초를 넘겨 **PDF 자체가 500** 이 됐다
+//   (운영 post 76, 2026-09-24 — `?w=` 인라인을 고친 직후. 그 전엔 이미지가 빠진 채로라도 나왔다).
+//   화면이 받는 것과 같은 폭(`?w=`, 없으면 1600)으로 줄여 넣는다. A4 인쇄에는 1600px 이면 넉넉하다.
+const PDF_MAX_W = 1600;
 
 const MAX_ONE = 6 * 1024 * 1024;    // 한 장 6MB
-const MAX_TOTAL = 24 * 1024 * 1024; // 문서 전체 24MB
+const MAX_TOTAL = 12 * 1024 * 1024; // 문서 전체 12MB — 줄인 뒤 기준. 넘는 이미지는 빼고 문서는 낸다(24MB 는 렌더 시간 초과)
 
 // src="…/api/posts/editor-image/<uuid>.<ext>[?w=…]" — 상대경로도, loopback 절대주소도 잡는다.
 // ★ 뒤의 `?w=1600` 도 받는다 — 에디터 업로드가 돌려주는 주소가 늘 `…png?w=1600` 이다(routes/posts.js).
 //   따옴표가 확장자 바로 뒤에 와야 한다고 적어 두었더니 그 이미지들이 인라인되지 않고 차단돼
 //   **PDF 에서 사라졌다**(운영 editor-image 본문 17건 중 11건, Fable 2026-09-24 실측). 바이트는 원본을 넣는다.
-const SRC_RE = /(src\s*=\s*["'])([^"']*\/api\/posts\/editor-image\/([0-9a-fA-F-]+\.(?:png|jpe?g|gif|webp|svg))(?:\?[^"']*)?)(["'])/g;
+const SRC_RE = /(src\s*=\s*["'])([^"']*\/api\/posts\/editor-image\/([0-9a-fA-F-]+\.(?:png|jpe?g|gif|webp|svg))(\?[^"']*)?)(["'])/g;
 
 /**
  * @returns {{ html: string, inlined: number, skipped: number, bytes: number }}
@@ -51,12 +57,17 @@ async function inlineEditorImages(html) {
     try {
       const r = await resolveEditorImage(name);
       if (!r) { cache.set(name, null); skipped += 1; continue; }
-      const buf = await fs.readFile(r.absPath);
+      const qw = parseInt((/[?&]w=(\d+)/.exec(m[4] || '') || [])[1], 10);
+      const width = Math.min(qw > 0 ? qw : PDF_MAX_W, PDF_MAX_W);
+      // 줄일 수 있는 형식이면 줄인 것을, 아니면(gif·svg) 원본을 넣는다.
+      const small = await resizedBuffer(r.absPath, r.mime, width);
+      const buf = small ? small.buf : await fs.readFile(r.absPath);
+      const mime = small ? small.mime : r.mime;
       if (buf.length > MAX_ONE || bytes + buf.length > MAX_TOTAL) {
         cache.set(name, null); skipped += 1; continue;
       }
       bytes += buf.length;
-      cache.set(name, `data:${r.mime};base64,${buf.toString('base64')}`);
+      cache.set(name, `data:${mime};base64,${buf.toString('base64')}`);
       inlined += 1;
     } catch (e) {
       cache.set(name, null);
@@ -64,7 +75,7 @@ async function inlineEditorImages(html) {
     }
   }
 
-  const out = src.replace(SRC_RE, (whole, pre, _url, name, post) => {
+  const out = src.replace(SRC_RE, (whole, pre, _url, name, _q, post) => {
     const uri = cache.get(name);
     return uri ? `${pre}${uri}${post}` : whole;   // 못 넣은 것은 원본 그대로(그리고 종전대로 차단된다)
   });

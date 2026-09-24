@@ -143,6 +143,7 @@ async function renderPdfFromHtml(html, opts = {}) {
   //   차단은 그대로 두고 — 브라우저가 가져오게 하지 않고 **서버가 읽어 data: 로 심는다.**
   //   여기 한 곳에 두는 이유: 이 렌더러를 부르는 경로가 넷이다(문서·게시글·청구서·KB).
   //   호출부마다 넣으면 반드시 한쪽이 빠진다.
+  const plainHtml = html;   // 이미지를 넣기 전 원본 — 넣은 렌더가 시간 초과면 이것으로 한 번 더 간다
   try {
     const { inlineEditorImages } = require('./pdfInlineImages');
     const r = await inlineEditorImages(html);
@@ -153,6 +154,21 @@ async function renderPdfFromHtml(html, opts = {}) {
   } catch (e) {
     console.warn('[pdf] 이미지 인라인 실패 — 이미지 없이 계속:', e.message);
   }
+  try {
+    return await renderOnce(html, opts);
+  } catch (err) {
+    // ★ 이미지를 넣은 렌더가 **시간 초과**면 이미지 없이 한 번 더 — 500 보다 이미지 없는 PDF 가 낫다
+    //   (2026-09-24 운영 post 76: 이미지 11장을 원본대로 넣었더니 setContent 15초 초과로 PDF 자체가 500).
+    //   이미지는 줄여서 넣지만(pdfInlineImages), 극단적인 본문에서도 문서는 받을 수 있어야 한다.
+    if (html !== plainHtml && /timeout/i.test(`${err && err.name} ${err && err.message}`)) {
+      console.warn('[pdf] 이미지 포함 렌더 시간 초과 — 이미지 없이 다시 렌더한다');
+      return renderOnce(plainHtml, opts);
+    }
+    throw err;
+  }
+}
+
+async function renderOnce(html, opts) {
   let lastErr;
   for (let attempt = 0; attempt < 2; attempt++) {
     let page;

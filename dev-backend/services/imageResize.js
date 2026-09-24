@@ -141,4 +141,32 @@ async function maybeServeResized(req, res, absPath, mimeType) {
   }
 }
 
-module.exports = { maybeServeResized, serveCachedIfPresent, resizeStreamAndServe, ALLOWED_WIDTHS };
+/**
+ * 파일을 `width` 로 줄인 WebP **바이트**를 돌려준다 — 응답이 아니라 값이 필요한 곳(PDF 인라인)용.
+ *   화면 `?w=` 와 **같은 캐시 파일**을 쓴다(같은 폭 스냅·같은 인코딩 문). 못 줄이는 형식·실패면 null.
+ */
+async function resizedBuffer(absPath, mimeType, width) {
+  const p0 = plan({ query: { w: String(width) } }, mimeType, absPath);
+  if (!p0) return null;
+  const { width: w, cacheDir, cachePath } = p0;
+  try {
+    if (!fs.existsSync(cachePath)) {
+      await acquireEncode();
+      try {
+        if (!fs.existsSync(cachePath)) {
+          fs.mkdirSync(cacheDir, { recursive: true });
+          const sharp = require('sharp');
+          const tmp = `${cachePath}.tmp-${process.pid}-${Date.now()}`;
+          await sharp(absPath).rotate().resize({ width: w, withoutEnlargement: true }).webp({ quality: 80 }).toFile(tmp);
+          fs.renameSync(tmp, cachePath);
+        }
+      } finally { releaseEncode(); }
+    }
+    return { buf: fs.readFileSync(cachePath), mime: 'image/webp' };
+  } catch (e) {
+    console.warn('[imageResize] resizedBuffer 실패:', e.message);
+    return null;
+  }
+}
+
+module.exports = { maybeServeResized, serveCachedIfPresent, resizeStreamAndServe, resizedBuffer, ALLOWED_WIDTHS };
