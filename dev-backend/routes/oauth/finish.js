@@ -184,7 +184,7 @@ async function finishOauthLogin(req, res, { provider, profile, native, pairId, l
     });
   }
 
-  await issueSessionCookie(req, res, user);
+  await issueSessionCookie(req, res, user, { method: provider });
   // 303 — 애플 콜백은 POST 라 302 면 일부 브라우저가 POST 를 다시 보낸다. GET 콜백에도 무해하다.
   return res.redirect(303, buildRedirectTarget({ ok: true, isNewUser }));
 }

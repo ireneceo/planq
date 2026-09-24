@@ -1040,10 +1040,16 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
       })).map((x) => x.user_id)
     );
 
+    // 무엇이 바뀌었나 — 지우기 **전에** 잡는다(감사 AUDIT_GAPS §D).
+    const beforeRows = await ProjectMember.findAll({
+      where: { project_id: project.id }, attributes: ['user_id', 'role', 'is_pm'], transaction: t,
+    });
     await ProjectMember.destroy({ where: { project_id: project.id }, transaction: t });
     const rows = [];
+    const skipped = [];
     for (const m of members) {
-      if (!validUserIds.has(m.user_id)) continue;
+      // 워크스페이스 비멤버는 버린다 — 지금까지 **조용히 사라졌다.** 원장에라도 남긴다.
+      if (!validUserIds.has(m.user_id)) { skipped.push(m.user_id); continue; }
       rows.push({
         project_id: project.id,
         user_id: m.user_id,
@@ -1054,6 +1060,26 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
       });
     }
     await ProjectMember.bulkCreate(rows, { transaction: t });
+
+    // ★ 전면 교체라 감사가 0건이었다. 화면은 저장할 때마다 **전체를** PUT 하므로 같은 집합은 사건이 아니다 —
+    //   diff 가 비면 쓰지 않는다. 트랜잭션 안·writeAudit(기록이 실패하면 교체도 안 된다).
+    const pick = (r) => ({ user_id: r.user_id, role: r.role, is_pm: !!r.is_pm });
+    const before = beforeRows.map(pick);
+    const after = rows.map(pick);
+    const bMap = new Map(before.map((r) => [r.user_id, r]));
+    const aMap = new Map(after.map((r) => [r.user_id, r]));
+    const added = after.filter((r) => !bMap.has(r.user_id)).map((r) => r.user_id);
+    const removed = before.filter((r) => !aMap.has(r.user_id)).map((r) => r.user_id);
+    const roleChanged = after.filter((r) => bMap.has(r.user_id)
+      && (bMap.get(r.user_id).role !== r.role || bMap.get(r.user_id).is_pm !== r.is_pm)).map((r) => r.user_id);
+    if (added.length || removed.length || roleChanged.length || skipped.length) {
+      await require('../services/auditService').writeAudit({
+        userId: req.user.id, businessId: project.business_id, action: 'project.members.replace',
+        targetType: 'project', targetId: project.id, ipAddress: req.ip,
+        oldValue: { members: before },
+        newValue: { members: after, added, removed, role_changed: roleChanged, skipped },
+      }, { transaction: t });
+    }
     await t.commit();
 
     const detail = await loadProjectDetail(project.id);

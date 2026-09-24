@@ -9,6 +9,7 @@ const { getStripeForMerchant, getStripeKeysForMerchant } = require('../services/
 const billing = require('../services/billing');
 const Payment = require('../models/Payment');
 
+// audit-exempt: 결제 확정 감사는 services/billing.markPaymentPaid 가 쓴다. 서명 실패·불일치는 무인증 입력이라 감사하지 않는다(AUDIT_GAPS §B)
 router.post('/', async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let stripe, webhookSecret;
@@ -42,7 +43,7 @@ router.post('/', async (req, res) => {
             stripe_customer_id: obj.customer || pay.stripe_customer_id,
           });
           // 멱등 단일 착지점 — 이미 paid 면 내부에서 alreadyPaid 반환(webhook 재전송 안전). system 호출(marked_by=null).
-          await billing.markPaymentPaid({ paymentId: pay.id, markedByUserId: null, payerName: 'Stripe' });
+          await billing.markPaymentPaid({ paymentId: pay.id, markedByUserId: null, payerName: 'Stripe', source: 'stripe_webhook' });
         }
       }
     }

@@ -8,6 +8,7 @@ const router = express.Router({ mergeParams: true }); // :businessId 접근
 const { getStripeForMerchant, getStripeKeysForMerchant } = require('../services/stripeService');
 const { markInstallmentPaid, markInvoicePaid } = require('../services/invoicePayments');
 
+// audit-exempt: 결제 확정 감사는 services/invoicePayments 가 쓴다. 서명 실패·불일치는 무인증 입력이라 감사하지 않는다(AUDIT_GAPS §B)
 router.post('/', async (req, res) => {
   const businessId = Number(req.params.businessId);
   if (!businessId) return res.status(400).send('bad business id');
@@ -48,13 +49,13 @@ router.post('/', async (req, res) => {
             await markInstallmentPaid({
               businessId, invoiceId, installmentId,
               paidAt: new Date(), payerMemo: 'Stripe 카드결제',
-              markedByUserId: null, method: 'stripe', pgTransactionId: pi, io,
+              markedByUserId: null, method: 'stripe', pgTransactionId: pi, io, source: 'stripe_webhook',
             });
           } else {
             await markInvoicePaid({
               businessId, invoiceId,
               paidAt: new Date(),
-              markedByUserId: null, method: 'stripe', pgTransactionId: pi, io,
+              markedByUserId: null, method: 'stripe', pgTransactionId: pi, io, source: 'stripe_webhook',
             });
           }
         } catch (e) {

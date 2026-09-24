@@ -274,7 +274,14 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
 }
 
 // ─── 2. mark-paid (admin 액션) — Subscription 활성화 ───
-async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo, taxInvoice }) {
+/**
+ * @param {object} p
+ * @param {'admin'|'manual'|'stripe_webhook'} [p.source] — 누가 확정했나(감사 원장의 source). 웹훅은 사람이 없다.
+ * @param {{userId?:number, ip?:string}} [p.actor] — 감사 행의 행위자·IP. 서비스에는 req 가 없어 호출부가 넘긴다.
+ * ★ 결제 확정 감사는 **여기 한 곳**이다(docs/AUDIT_GAPS_DECISIONS.md §B). 수동 문(관리자 2곳)과 Stripe 웹훅이
+ *   같은 함수를 부르므로 이 한 줄이 모든 문을 덮는다. 라우트에서 같은 사건을 또 쓰지 않는다(두 줄이 된다).
+ */
+async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo, taxInvoice, source = 'manual', actor = null }) {
   const t = await sequelize.transaction();
   try {
     const pay = await Payment.findByPk(paymentId, { transaction: t, lock: t.LOCK.UPDATE });
@@ -376,6 +383,20 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
         note: `Payment #${pay.id} marked-paid`,
       }, { transaction: t });
     }
+
+    // ★ 감사는 **트랜잭션 안·writeAudit** — 돈이다. 감사 행이 실패하면 결제도 롤백되고(웹훅이면 500 → Stripe 재시도),
+    //   «결제는 됐는데 기록이 없는» 상태가 생기지 않는다. alreadyPaid(멱등 재전송)는 위에서 먼저 return 해 0행이다.
+    await require('./auditService').writeAudit({
+      userId: (actor && actor.userId) || markedByUserId || null,
+      businessId: sub.business_id,
+      action: 'payment.paid', targetType: 'payment', targetId: pay.id,
+      ipAddress: (actor && actor.ip) || null,
+      newValue: {
+        method: pay.method, pg_provider: pay.stripe_payment_intent ? 'stripe' : null,
+        pg_transaction_id: pay.stripe_payment_intent || null,
+        amount: Number(pay.amount), source, was_first: wasFirst,
+      },
+    }, { transaction: t });
 
     await t.commit();
     // plan engine 캐시 무효화 (Business.plan 변경 후 status 조회가 stale 안 되게)

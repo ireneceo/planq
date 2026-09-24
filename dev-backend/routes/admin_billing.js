@@ -156,6 +156,7 @@ router.get('/subscriptions/summary', async (req, res, next) => {
 });
 
 // POST /api/admin/subscriptions/:id/mark-paid — pending Payment 활성화 (계좌이체 확인 후)
+// audit-exempt: 감사는 services/billing.markPaymentPaid 안(트랜잭션 안·writeAudit, `payment.paid`) 한 곳 — 여기서 또 쓰면 두 줄
 router.post('/subscriptions/:id/mark-paid', async (req, res, next) => {
   try {
     const sub = await Subscription.findByPk(req.params.id);
@@ -168,18 +169,13 @@ router.post('/subscriptions/:id/mark-paid', async (req, res, next) => {
     if (!pending) return errorResponse(res, 'no_pending_payment', 400);
 
     const billing = require('../services/billing');
+    // 감사는 services/billing.markPaymentPaid 안(트랜잭션 안·writeAudit, `payment.paid`) 한 곳이다 — 여기서 또 쓰면 두 줄이 된다.
     const result = await billing.markPaymentPaid({
       paymentId: pending.id,
       markedByUserId: req.user.id,
       payerName: req.body?.payer_name || null,
       payerMemo: req.body?.payer_memo || null,
-    });
-
-    require('../services/auditService').logAudit(req, {
-      action: 'admin.subscription.mark_paid',
-      targetType: 'subscription',
-      targetId: sub.id,
-      newValue: { payment_id: pending.id, plan: sub.plan_code, cycle: sub.cycle, amount: Number(pending.amount) },
+      source: 'admin', actor: { userId: req.user.id, ip: req.ip },
     });
 
     return successResponse(res, result, 'marked_paid');
@@ -347,6 +343,7 @@ router.post('/payments/:id/refund', async (req, res, next) => {
 
 // POST /admin/payments/:id/mark-paid — kind 자동 판별 (plan 또는 addon)
 //   body: { payer_name?, payer_memo?, tax_invoice? }
+// audit-exempt: 감사는 서비스 안 — 플랜 billing.markPaymentPaid(`payment.paid`) · 애드온 addonBilling.markAddonPaid(`addon_payment_paid`)
 router.post('/payments/:id/mark-paid', async (req, res, next) => {
   try {
     const p = await Payment.findByPk(req.params.id);
@@ -366,15 +363,11 @@ router.post('/payments/:id/mark-paid', async (req, res, next) => {
       result = await require('../services/billing').markPaymentPaid({
         paymentId: p.id, markedByUserId: req.user.id,
         payerName: req.body?.payer_name, payerMemo: req.body?.payer_memo,
-        taxInvoice,
+        taxInvoice, source: 'admin', actor: { userId: req.user.id, ip: req.ip },
       });
     }
-    require('../services/auditService').logAudit(req, {
-      action: 'admin.payment.mark_paid',
-      targetType: 'payment',
-      targetId: p.id,
-      newValue: { kind: p.kind, business_id: p.business_id, amount: Number(p.amount), tax_invoice: !!taxInvoice },
-    });
+    // 감사는 서비스 안 한 곳이다 — 플랜 결제는 billing.markPaymentPaid(`payment.paid`),
+    //   애드온은 addonBilling.markAddonPaid(`addon_payment_paid`). 둘 다 트랜잭션 안 writeAudit. 여기서 또 쓰면 두 줄이 된다.
     return successResponse(res, result, 'marked_paid');
   } catch (err) { next(err); }
 });

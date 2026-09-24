@@ -2,6 +2,7 @@
 //   수동 mark-paid(routes/invoices.js) + Stripe 카드결제 webhook(routes/stripeWorkspaceWebhook.js) 공용.
 //   구독측 billing.markPaymentPaid 와 대칭 — 멱등(재전송/재클릭 안전) + 부작용 일괄.
 //   분리: SAAS_BILLING_VS_QBILL_SEPARATION.md (invoices/installments = Business 수취, payments 무관).
+const { writeAudit } = require('./auditService');
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { Invoice, InvoiceInstallment, InvoiceStatusHistory, InvoicePayment, Message } = require('../models');
@@ -100,14 +101,16 @@ async function notifyOwnerCardPaid({ invoice, label, amount, io }) {
  * 회차(installment) 결제 확정 — 단일 착지점.
  *   멱등: 이미 paid 면 { alreadyPaid:true } 반환 (webhook 재전송·중복 클릭 안전).
  *   커밋 후 부작용(status history, 채팅 카드, socket, stage engine, overdue, bill event) 일괄.
- *   audit / owner 알림은 호출자 맥락(요청 vs 시스템)이 달라 호출자가 수행.
+ *   owner 알림은 호출자 맥락이 달라 호출자가 수행.
+ *   ★ 감사는 **여기서**(트랜잭션 안·writeAudit, docs/AUDIT_GAPS_DECISIONS.md §B) — 옛 주석은 «호출자가» 였는데
+ *     Stripe 웹훅이 그 호출자였고 안 썼다. 수동 문과 웹훅이 같은 함수를 부르므로 여기 한 줄이 둘 다 덮는다.
  * @param {number} businessId  멀티테넌트 격리 — invoice.business_id 강제 대조
  * @param {number} markedByUserId  수동=요청자 / 카드결제(webhook)=null(system)
  * @param {'bank_transfer'|'stripe'} method
  * @param {string|null} pgTransactionId  Stripe PaymentIntent id (installment 에 기록)
  * @param {object|null} io  socket.io 인스턴스 (business room broadcast)
  */
-async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidAt, payerMemo, markedByUserId = null, method = 'bank_transfer', pgTransactionId = null, io = null }) {
+async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidAt, payerMemo, markedByUserId = null, method = 'bank_transfer', pgTransactionId = null, io = null, source = 'manual', actor = null }) {
   const t = await sequelize.transaction();
   let invoice, inst, prevStatus, newStatus, paidSum, totalSum;
   try {
@@ -159,6 +162,18 @@ async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidA
       ...toPaymentFields(method, pgTransactionId),
     }, { transaction: t });
 
+    // 감사 — 돈이다. 트랜잭션 안에서 쓰고, 실패하면 결제도 롤백한다(웹훅이면 Stripe 재시도).
+    await writeAudit({
+      userId: (actor && actor.userId) || markedByUserId || null, businessId: invoice.business_id,
+      action: 'invoice.installment.paid', targetType: 'invoice_installment', targetId: inst.id,
+      ipAddress: (actor && actor.ip) || null,
+      newValue: {
+        invoice_id: invoice.id, installment_no: inst.installment_no, method,
+        pg_provider: pgTransactionId ? 'stripe' : null, pg_transaction_id: pgTransactionId || null,
+        amount: Number(inst.amount), source, invoice_status: newStatus,
+      },
+    }, { transaction: t });
+
     await t.commit();
   } catch (e) { try { await t.rollback(); } catch { /* */ } throw e; }
 
@@ -191,7 +206,7 @@ async function markInstallmentPaid({ businessId, invoiceId, installmentId, paidA
  *   분할은 markInstallmentPaid, 단일은 이 함수. 멱등(이미 paid 면 alreadyPaid).
  *   부작용은 PATCH /:id/status(paid) 라우트와 동일.
  */
-async function markInvoicePaid({ businessId, invoiceId, paidAt, markedByUserId = null, method = 'bank_transfer', pgTransactionId = null, io = null }) {
+async function markInvoicePaid({ businessId, invoiceId, paidAt, markedByUserId = null, method = 'bank_transfer', pgTransactionId = null, io = null, source = 'manual', actor = null }) {
   // ★ 트랜잭션 신설(R1) — 원래는 트랜잭션이 없어 invoice.update 와 payment.create 를 원자화할 수 없었다.
   //   FOR UPDATE 락(R2)으로 Stripe 2이벤트 동시 도착 시 payment 이중 생성 방지.
   const t = await sequelize.transaction();
@@ -219,6 +234,16 @@ async function markInvoicePaid({ businessId, invoiceId, paidAt, markedByUserId =
       currency: invoice.currency || 'KRW',
       recorded_by: markedByUserId,
       ...toPaymentFields(method, pgTransactionId),
+    }, { transaction: t });
+
+    await writeAudit({
+      userId: (actor && actor.userId) || markedByUserId || null, businessId: invoice.business_id,
+      action: 'invoice.paid', targetType: 'invoice', targetId: invoice.id,
+      ipAddress: (actor && actor.ip) || null,
+      newValue: {
+        from: prevStatus, method, pg_provider: pgTransactionId ? 'stripe' : null,
+        pg_transaction_id: pgTransactionId || null, amount: Number(invoice.grand_total), source,
+      },
     }, { transaction: t });
 
     await t.commit();

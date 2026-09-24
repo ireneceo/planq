@@ -1654,6 +1654,7 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
 });
 
 // ─── Installment: 결제 완료 마킹 ───
+// audit-exempt: 감사는 services/invoicePayments.markInstallmentPaid 안(트랜잭션 안, `invoice.installment.paid`) 한 곳
 router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateToken, checkBusinessAccess, requireMenu('qbill','write'), async (req, res, next) => {
   if (!assertInvoiceMutationOwner(req, res)) return;
   try {
@@ -1671,6 +1672,7 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
         markedByUserId: req.user.id,
         method: 'bank_transfer',
         io: req.app.get('io'),
+        source: 'manual', actor: { userId: req.user.id, ip: req.ip },
       });
     } catch (e) {
       if (e.code === 'NOT_FOUND') return errorResponse(res, e.message === 'invoice_not_found' ? 'Invoice not found' : 'Installment not found', 404);
@@ -1678,13 +1680,8 @@ router.post('/:businessId/:id/installments/:installId/mark-paid', authenticateTo
       throw e;
     }
     if (result.alreadyPaid) return errorResponse(res, 'invalid_state', 400);
-    const { invoice: refreshed, installment: inst, newStatus } = result;
-    require('../services/auditService').logAudit(req, {
-      action: 'invoice.installment.mark_paid',
-      targetType: 'invoice_installment',
-      targetId: inst.id,
-      newValue: { invoice_id: refreshed.id, installment_no: inst.installment_no, paid_at: paidAt, payer_memo: memo, invoice_status: newStatus },
-    });
+    const { invoice: refreshed } = result;
+    // 감사는 services/invoicePayments.markInstallmentPaid 안(트랜잭션 안, `invoice.installment.paid`) 한 곳 — 여기서 또 쓰면 두 줄이 된다.
     successResponse(res, refreshed, 'Installment paid');
   } catch (error) { next(error); }
 });
@@ -2274,11 +2271,9 @@ router.patch('/:businessId/:id/status', authenticateToken, checkBusinessAccess, 
         markedByUserId: req.user.id,
         method: 'bank_transfer',
         io: req.app.get('io'),
+        source: 'manual', actor: { userId: req.user.id, ip: req.ip },
       });
-      require('../services/auditService').logAudit(req, {
-        action: 'invoice.status.change', targetType: 'invoice', targetId: invoice.id,
-        oldValue: { status: prevStatus }, newValue: { status: 'paid', already_paid: !!result.alreadyPaid },
-      });
+      // 감사는 markInvoicePaid 안(트랜잭션 안, `invoice.paid`) 한 곳이다. 이미 paid(멱등)면 사건이 아니라 0행.
       return successResponse(res, result.invoice || invoice);
     }
 

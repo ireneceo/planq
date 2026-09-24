@@ -17,6 +17,7 @@ const {
   SESSION_HINT, setSessionHint, setRefreshCookies, DELIVERY_EPOCH_MS,
   setImageCookie, clearImageCookie, cookieSecure,
 } = require('../services/authTokens');
+const authAudit = require('../services/authAudit');
 
 // ============================================
 // Helper: slug 생성
@@ -424,6 +425,8 @@ router.post('/register', async (req, res, next) => {
     await createRefreshTokenRow(user, refreshToken, req, transaction, { clientKind });
 
     await transaction.commit();
+    // 가입 = 곧 첫 로그인(세션을 준다). commit **뒤**에 쓴다 — 롤백된 가입에 로그인 기록이 남지 않게.
+    authAudit.signInOk(req, user, { method: 'register', clientKind, remember });
 
     // 6. Set refresh token as HttpOnly cookie
     const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)
@@ -504,6 +507,8 @@ router.post('/login', async (req, res, next) => {
       where: isEmail ? { email } : { username: email }
     });
     if (!user) {
+      // 없는 계정은 감사 행을 만들지 않는다(무인증 INSERT·열거 흔적) — 경고 한 줄만. 입력값은 싣지 않는다.
+      authWarn('login 401 no_account ip=%s', req.ip);
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
@@ -511,11 +516,13 @@ router.post('/login', async (req, res, next) => {
     // #259 — 게스트 그림자 계정도 같이 막는다. 로그인용이 아니라 **메시지 작성자 자리**를 채우는
     //   계정이다(messages.sender_id NOT NULL). 뚫리면 그 고객 명의로 워크스페이스에 들어온다.
     if (user.is_ai || user.is_guest) {
+      authAudit.signInFail(req, user, 'blocked_account', { clientKind: resolveClientKind(req) });
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
     const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
+      authAudit.signInFail(req, user, 'bad_password', { clientKind: resolveClientKind(req) });
       return errorResponse(res, 'Invalid email or password', 401);
     }
 
@@ -524,14 +531,17 @@ router.post('/login', async (req, res, next) => {
     if (user.status === 'deleted') {
       const pending = user.deletion_scheduled_at && new Date(user.deletion_scheduled_at) > new Date();
       if (pending) {
+        authAudit.signInFail(req, user, 'deleted_pending', { clientKind: resolveClientKind(req) });
         return res.status(403).json({
           success: false, message: 'Account pending deletion', code: 'account_deleted_pending',
           recoverable: true, grace_until: user.deletion_scheduled_at,
         });
       }
+      authAudit.signInFail(req, user, 'deleted', { clientKind: resolveClientKind(req) });
       return errorResponse(res, 'Account deleted', 403, 'account_deleted');
     }
     if (user.status !== 'active') {
+      authAudit.signInFail(req, user, 'suspended', { clientKind: resolveClientKind(req) });
       return errorResponse(res, 'Account suspended', 403, 'account_suspended');
     }
 
@@ -561,6 +571,7 @@ router.post('/login', async (req, res, next) => {
     // Get user with business info
     const userData = await getUserWithBusiness(user.id);
 
+    authAudit.signInOk(req, user, { method: 'password', clientKind, remember });
     successResponse(res, {
       token: accessToken,
       user: userData
@@ -738,6 +749,7 @@ router.post('/refresh', async (req, res, next) => {
         'refresh 401 stale_reuse user=%d row=%d revoked_ago_min=%d reason=%s',
         tokenRow.user_id, tokenRow.id, Math.round(revokedAgo / 60000), tokenRow.revoked_reason
       );
+      authAudit.refreshReuse(req, tokenRow.user_id, { revokedReason: tokenRow.revoked_reason });
       return errorResponse(res, 'Refresh token reuse detected', 401, 'stale_reuse');
     }
 
@@ -848,6 +860,9 @@ router.post('/logout', async (req, res, next) => {
     if (refreshToken) {
       // 이 디바이스의 row 만 revoke — 다른 디바이스 세션은 유지 (다중 디바이스 핵심 정책)
       const tokenHash = hashRefreshToken(refreshToken);
+      // 누가 로그아웃했는가 — revoke **전에** 행에서 user_id 를 잡는다(쿠키가 없으면 감사하지 않는다).
+      const row = await RefreshToken.findOne({ where: { token_hash: tokenHash }, attributes: ['user_id'] });
+      if (row && row.user_id) authAudit.signOut(req, row.user_id);
       const [n] = await RefreshToken.update(
         { revoked_at: new Date(), revoked_reason: 'logout' },
         { where: { token_hash: tokenHash, revoked_at: null } }

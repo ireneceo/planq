@@ -2816,6 +2816,58 @@ function checkAuditEntry() {
     rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// auditcover — 변경 라우트는 **감사를 남기거나, 안 남기는 이유를 적는다** (2026-09-24, docs/AUDIT_GAPS_DECISIONS.md §E)
+//   `auditentry` 는 «잘못된 입구» 만 막고 «입구가 없는 것» 은 못 봤다 — 로그인·결제 웹훅·소유권 이전·
+//   프로젝트 멤버 교체가 감사 0건이었는데 아무 검사도 울리지 않았다.
+//   판정: routes/*.js 의 router.(post|put|patch|delete)( 핸들러 본문(중괄호 매칭)에
+//     logAudit( · writeAudit( · createAuditLog( · authAudit. 가 없고,
+//     라우트 줄·바로 윗줄·본문 첫 줄에 `// audit-exempt: <이유>` 도 없으면 1건.
+//   ★ 감사를 **서비스가** 쓰는 라우트(결제 확정 등)는 표식에 그 사실을 적는다 — 그래야 이유가 보인다.
+//   파일별 카운트 래칫 — 기존 부채 동결, **증가만 실패**. 베이스라인은 전체 실행으로만 갱신.
+function checkAuditCover() {
+  const files = walk(`${ROOT}/dev-backend/routes`, ['.js']);
+  const current = {};
+  const samples = [];
+  const AUDIT = /\b(logAudit|writeAudit|createAuditLog)\s*\(|\bauthAudit\.\w+\s*\(/;
+  const EXEMPT = /\/\/\s*audit-exempt:\s*\S/;
+  const START = /\brouter\.(post|put|patch|delete)\s*\(/g;
+  for (const f of files) {
+    const r = rel(f);
+    const src = read(f);
+    const lineOf = (idx) => src.slice(0, idx).split('\n').length;
+    const lines = src.split('\n');
+    let n = 0;
+    let m;
+    START.lastIndex = 0;
+    while ((m = START.exec(src))) {
+      // 주석 안의 router.x( 는 세지 않는다
+      const ln = lineOf(m.index);
+      if (/^\s*(\/\/|\*)/.test(lines[ln - 1])) continue;
+      // 핸들러 본문 — 라우트 호출 안에서 처음 나오는 `=> {` 또는 `function (...) {` 의 중괄호를 맞춘다
+      const arrow = src.slice(m.index).search(/=>\s*\{|function\s*\w*\s*\([^)]*\)\s*\{/);
+      if (arrow < 0) continue;
+      let i = m.index + arrow + src.slice(m.index + arrow).indexOf('{');
+      const bodyStart = i;
+      let depth = 0;
+      for (; i < src.length; i++) {
+        const ch = src[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) break; }
+      }
+      const body = src.slice(bodyStart, i + 1);
+      const around = [lines[ln - 2] || '', lines[ln - 1] || '', lines[lineOf(bodyStart)] || ''].join('\n');
+      if (AUDIT.test(body) || EXEMPT.test(around) || EXEMPT.test(body.split('\n').slice(0, 2).join('\n'))) continue;
+      n += 1;
+      if (samples.length < 12) samples.push(`${r}:${ln}: 변경 라우트에 감사 없음 → logAudit/writeAudit 또는 // audit-exempt: <이유>`);
+    }
+    if (n) current[r] = n;
+  }
+  const rt = ratchet('auditcover', current, samples);
+  report('auditcover', `변경 라우트 감사 커버리지 래칫 (감사 없음 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
 // ═══════════════════════════════════════════════
 // wsscope — 서버가 워크스페이스를 **추측하지 않는다** (2026-09-11 박제, docs/WORKSPACE_SCOPE_DESIGN.md C5·C8)
 //   Irene: "모든 페이지가 하나의 워크스페이스로만 연결되어야지" · "왜 자꾸 단편적으로 해?"
@@ -3096,6 +3148,7 @@ const CATEGORIES = {
   rawmarkup: checkRawMarkup,
   statstext: checkStatsText,
   auditentry: checkAuditEntry,
+  auditcover: checkAuditCover,
 };
 
 try {

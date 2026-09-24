@@ -76,11 +76,19 @@ async function writeAudit(opts = {}, options = undefined) {
   }, options);
 }
 
-function logAudit(req, { action, targetType, targetId = null, oldValue = null, newValue = null, businessId = null, userId = null, actingForUserId = null }) {
+function logAudit(req, opts) {
+  const { action, targetType, targetId = null, oldValue = null, newValue = null, businessId = null, userId = null, actingForUserId = null } = opts;
+  // ★ 호출부가 businessId 를 **명시로 넘겼으면 그 값을 그대로** 쓴다(null 포함). 넘기지 않았을 때만 req 에서 추정한다.
+  //   2026-09-24 Fable 실측 — 로그인 감사가 `businessId: null`(계정 사건)을 넘겨도 `??` 가 null 을 뚫고
+  //   **요청 본문의 business_id** 를 집었다. 무인증 클라이언트가 자기 로그인 행을 아무 워크스페이스 원장에 꽂을 수 있었고,
+  //   보관기간도 그 워크스페이스 플랜(30일)으로 찍혔다(플랫폼 티어 7년 대신).
+  const explicitBiz = Object.prototype.hasOwnProperty.call(opts || {}, 'businessId');
   setImmediate(async () => {
     try {
       const { AuditLog } = require('../models');
-      const bizId = businessId ?? req?.businessId ?? req?.body?.business_id ?? req?.params?.businessId ?? null;
+      const bizId = explicitBiz
+        ? businessId
+        : (req?.businessId ?? req?.body?.business_id ?? req?.params?.businessId ?? null);
       await AuditLog.create({
         user_id: userId ?? req?.user?.id ?? null,
         // on-behalf-of — Cue 처럼 위임받아 행동할 때 그 권한의 원소유자.

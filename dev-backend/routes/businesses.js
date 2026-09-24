@@ -1079,7 +1079,8 @@ router.put('/:businessId/members/:userId/role', authenticateToken, checkBusiness
       action: 'member_role.change',
       targetType: 'business_member',
       targetId: targetMember.id,
-      oldValue: { role: oldRole },
+      // 두 문(PUT 권한 · PATCH 소유권)이 **같은 이름·같은 모양** — 원장에서 한 사건으로 읽혀야 한다(AUDIT_GAPS §C).
+      oldValue: { role: oldRole, user_id: targetMember.user_id },
       newValue: { role },
     });
     return successResponse(res, { user_id: targetUserId, role });
@@ -1307,7 +1308,15 @@ router.patch('/:id/members/:memberId/role', authenticateToken, async (req, res, 
       if (otherOwners === 0) { await t.rollback(); return errorResponse(res, 'last_owner_protection', 409); }
     }
 
+    const prevRole = member.role;
     await member.update({ role: nextRole }, { transaction: t });
+    // ★ 소유권 이전 문이다 — 감사가 **0건**이었다(AUDIT_GAPS §C). 트랜잭션 안·writeAudit: 기록이 실패하면 이전도 안 된다.
+    //   PUT /:businessId/members/:userId/role 과 같은 이름·같은 모양.
+    await require('../services/auditService').writeAudit({
+      userId: req.user.id, businessId, action: 'member_role.change',
+      targetType: 'business_member', targetId: member.id, ipAddress: req.ip,
+      oldValue: { role: prevRole, user_id: member.user_id }, newValue: { role: nextRole },
+    }, { transaction: t });
     await t.commit();
     return successResponse(res, member.toJSON());
   } catch (err) { await t.rollback().catch(() => {}); next(err); }

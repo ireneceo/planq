@@ -161,7 +161,9 @@ function buildRedirectTarget({ ok, error }) {
 }
 
 // refresh_token cookie 발급 — 옛 login 라우트와 동일
-async function issueSessionCookie(req, res, user) {
+// ★ 외부 로그인의 세션은 **전부 이 함수**로 나간다(OAuth 완료 · 앱 페어링 2곳 · 웹 복귀 · 계정 연결 확인).
+//   그래서 로그인 감사(docs/AUDIT_GAPS_DECISIONS.md §A)도 여기 한 곳에서 쓴다 — 호출부마다 쓰면 앱 로그인만 빠진다.
+async function issueSessionCookie(req, res, user, { method = 'oauth' } = {}) {
   const clientKind = resolveClientKind(req);
   const refreshToken = generateRefreshToken(user, clientKind);
   await createRefreshTokenRow(user, refreshToken, req, null, { clientKind });
@@ -179,6 +181,7 @@ async function issueSessionCookie(req, res, user) {
   helpers.setImageCookie(res, user);
   // #244 — 동반 세션 힌트도 같은 수명으로 (OAuth 로그인 누락 시 그 사용자만 진단 사각지대가 된다).
   setSessionHint(res, { maxAge: cookieOpts.maxAge, secure });
+  require('../../services/authAudit').signInOk(req, user, { method, clientKind });
 }
 
 module.exports = {
