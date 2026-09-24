@@ -116,8 +116,8 @@ export const PublicWorkspaceMark: React.FC<{ workspace: PublicWorkspace }> = ({ 
   </MarkSlot>
 );
 
-/** 부제 한 줄 — «워크스페이스 · 부제». 제목+부제 두 줄이라 밴드1 은 **71px** 다(2026-09-24 실측 —
- *  min-height 60 을 내용 43 + 패딩 28 이 넘긴다). 부제 없던 대화 링크(60)가 고객명 부제 있던 것과
+/** 부제 한 줄 — «워크스페이스 · 부제». 제목+부제 두 줄이라 밴드1 은 min-height 60 을 **넘는다**
+ *  (2026-09-24 실측 71~76 — 글꼴 환경에 따라 다르다. 카나리 guestentry 는 80 이하로 판정). 부제 없던 대화 링크(60)가 고객명 부제 있던 것과
  *  같은 규격으로 합류한 것이고, 발신자 표시는 이 줄 없이는 불가능하다(Fable 허용 판정). */
 export const PublicSubline: React.FC<{ workspace?: PublicWorkspace | null; sub?: React.ReactNode }> = ({ workspace, sub }) => {
   if (!workspace?.name && !sub) return null;
