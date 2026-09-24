@@ -92,7 +92,8 @@ const errorHandler = (err, req, res, next) => {
   const logPayload = {
     request_id: req.id,
     method: req.method,
-    url: req.originalUrl,
+    // 주소가 곧 열쇠인 공개 링크가 있다 — 토큰·파일명·쿼리 값은 가려서 남긴다(utils/redactUrl).
+    url: require('../utils/redactUrl').redactUrl(req.originalUrl),
     status: statusCode,
     user_id: req.user?.id,
     business_id: req.businessId,
