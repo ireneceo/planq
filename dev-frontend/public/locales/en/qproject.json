@@ -590,7 +590,15 @@
       "errGeneric": "Upload failed",
       "remain": "{{s}}s left",
       "cancel": "Cancel upload",
-      "dismiss": "Dismiss"
+      "dismiss": "Dismiss",
+      "waiting": "Retrying",
+      "retryIn": "Too many uploads at once · resuming automatically in {{s}}s",
+      "headRunning": "Uploading {{n}}",
+      "headWaiting": "{{n}} waiting",
+      "headFailed": "{{n}} failed",
+      "retryAll": "Retry all",
+      "clearFailed": "Clear failed",
+      "cancelAll": "Cancel all"
     },
     "meta": {
       "name": "File name",

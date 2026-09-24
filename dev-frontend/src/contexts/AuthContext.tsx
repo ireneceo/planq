@@ -573,6 +573,15 @@ function xhrSend(url: string, body: FormData, token: string | null, opts?: ApiUp
       const headers = new Headers();
       const ct = xhr.getResponseHeader('Content-Type');
       if (ct) headers.set('Content-Type', ct);
+      // ★ 2026-09-24 — **rate-limit 헤더도 넘긴다.** 여기서 Content-Type 만 베껴 주고 있었다.
+      //   업로드 큐는 429 를 받으면 «언제 다시 시도할지» 를 이 헤더로 정하는데(services/files
+      //   `retryAfterMsOf`), 값이 안 와서 늘 기본 15초로 떨어졌다 — 서버가 실제로 준 값은 54초였다.
+      //   실측으로 잡았다: 리셋 3초를 주입했는데 화면이 «15초 후» 라고 말했다.
+      //   ★ 열거식이라 새 헤더를 쓰려면 여기 한 줄을 늘려야 한다. 그게 보이도록 이름을 적어 둔다.
+      for (const h of ['RateLimit-Reset', 'RateLimit-Remaining', 'Retry-After']) {
+        const v = xhr.getResponseHeader(h);
+        if (v) headers.set(h, v);
+      }
       resolve(new Response(xhr.responseText, { status: xhr.status, headers }));
     };
     xhr.onerror = () => { cleanup(); reject(new TypeError('Network request failed')); };

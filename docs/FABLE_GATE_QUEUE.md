@@ -4977,3 +4977,54 @@ Fable 429 (req_011CfM3oETb6RGQYU44qzt1f). **오늘 7회 모두 429.** 런타임 
    «그 말이 법적으로 성립하는가» 는 못 판단한다. 약관 개정 때 전문가 확인 항목.
 2. `visibility: 'authenticated'` 가 맞는지 — 본문에 토큰·내부 경로는 없지만 «요금 정책» 이 공개여야 하는지는 제품 판단.
 3. 운영 반영은 다음 배포 슬롯 — `ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`.
+
+---
+
+## 2026-09-24 — Q file 업로드 잘림 + 폴더 삭제 선택 + 폴더 감사 [Opus] — **Fable PASS**
+
+> 운영 신고 당일 처리. Irene: *"올리다가 오류가 나서 뭐가 안올라갔는지 모르겠어"* ·
+> *"실패리스트 이렇게 많이 뜨면 … 지금 하나씩 삭제하게 해. 아니면 그냥 나가야 해."* ·
+> *"폴더 삭제하니까 파일이 다른 폴더로 옮겨진다고 나오더니 옮겨졌어. 같이 삭제할건지 물어봐야지."*
+
+**판정: R=1** — ①운영 rate-limit 상한 완화 ②폴더 삭제가 **파일을 지우는** 경로를 새로 열었다
+(`?contents=delete`) ③그 삭제 대상을 고르는 쿼리가 처음엔 `business_id` 없이 나갔다
+(가드 TENANT 래칫 26→27 로 잡혀 수정, 26 복귀).
+
+### 무엇을 만들었나
+- `routes/files.js` — 업로드 `perMin: 30 → 300` · `perDay: 1500 → 5000`. **1파일=1요청 + 순차 전송**이라
+  분당 상한이 곧 «한 번에 올릴 수 있는 파일 수» 였다(운영 실측: 48장 중 30장에서 정확히 절단).
+  `trashFile`·`flushMirrorRecalls` export(기존 `file_trash.js` 관례).
+- `routes/file_folders.js` — `DELETE ?contents=move|delete`(기본 `move` = 종전 동작, fail-safe) ·
+  `delete` 는 `trashFile` 재사용(휴지통, 복구 가능) · **폴더 CUD 감사 신설**(여태 `logAudit` 0건).
+- 프론트 `services/files.ts`(실패에 `status`·`retryAfterMs`) · `contexts/AuthContext.tsx`(`xhrSend` 가
+  rate-limit 헤더 전달 — 여태 Content-Type 만 베꼈다) · `docs/UploadQueue.tsx`(429 = 재시도 대기 +
+  자동 재개 MAX_WAITS 12 + 머리줄 건수 + 일괄 3버튼) · `DocsTab.tsx` 배선 + testid 2 · locales ko/en 8키.
+- 카나리 `scripts/e2e/canary-upload-retry.js`(신규, `uploadretry` 등록).
+
+### Fable 독립 검증 (2026-09-24, PASS)
+- ①diff 범위 — 설계 밖 변경 0.
+- ②가드 — health **45/45** · guard **58/59**(동결 1, TENANT 26/26 복귀) · `--suite tenant` **9/9** ·
+  build **EXIT 0 · error TS 0** · 새 청크 해시가 dev 에서 서빙됨.
+- ③실호출 **21/21** — 48건 연속 **48/48 성공** · **301번째 429** + `RateLimit-Reset: 57`·`RateLimit-Limit: 300` ·
+  폴더 삭제 3모드(인자없음=move · delete=휴지통+복구 200 · `purge`=400) ·
+  **멀티테넌트 통제 실증**(폴더 안에 타 워크스페이스 파일 행을 심었더니 **내 2건만** 지워지고 통제 행 생존,
+  `files_affected=2`) · 남의 폴더 DELETE **403** · 감사 `file_folder.*` 0행 → create×3·rename×1·delete×2 ·
+  테스트 데이터 전수 원복.
+- ④배포 — 스키마 무변경 · 롤백은 코드 되돌림 · 배포 순서 제약 없음.
+- ⑤`drain()` 반증 — 총 시도가 **정확히 26 = 2×(1+12)**(루프 두 벌이면 넘친다) ·
+  [전체 재시도] 4연타 → **+2**(파일당 1회) · 두 배치 겹쳐 투입 → 5회·id 5개 상이. 결함 없음.
+
+### ★ Fable 이 잡은 것 (기록)
+- **내 자체 검증 시점에 pm2 가 최종 코드를 안 싣고 있었다** — `file_folders.js` 최종 수정 05:09,
+  pm2 기동 05:04. Fable 이 재시작 후 ③을 다시 돌려 통과. **코드를 고친 뒤 재시작을 확인하지 않으면
+  «옛 프로세스를 잰 것»** 이다(번들의 옛 청크 문제와 같은 계열).
+- 이 문서 자체가 낡아 있었다("게이트 미실행·카나리 6통과"). 실측으로 고쳤다.
+
+### 남은 것 (다음 라운드)
+1. **«같이 삭제할지 물어보는» 화면이 아직 없다.** 서버 문(`contents=delete`)만 열렸고
+   `DocsTab.onDeleteFolder` 3곳은 전부 무인자 호출이다 — Irene 신고 ②는 **미충족**.
+2. **폴더 `contents=delete` 에 소켓 브로드캐스트가 없다** — 형제 라우트(`DELETE /:biz/:id`·`bulk-delete`)는
+   `broadcastFile(…, 'file:deleted')` 를 쏜다. 다른 탭에서 지운 파일이 새로고침 전까지 남는다(규칙 16).
+   `inside.forEach(broadcastFile 'file:deleted')` 한 줄.
+3. 폴더째 업로드(`webkitdirectory`) · 같은 파일 재업로드 시 덮어쓰기/이름변경/중단 선택.
+4. `trashFile` 을 `services/` 로 빼는 것(범위 밖, 공유 지점이 늘면 계약이 어긋날 위험).

@@ -592,9 +592,19 @@ router.get('/:businessId/storage', authenticateToken, checkBusinessAccess, async
 
 // 업로드 rate-limit — 옛 app.use('/api/files', 10/분·IP) 를 여기로 이관 (#228).
 //   서브트리 마운트는 조회·다운로드까지 같이 막았고 IP 버킷이라 NAT 을 한 통에 담았다.
-//   30/분은 드롭존 다중 파일 일괄 업로드를 통과시키는 값. 실비용(디스크) 가드는 이 핸들러 안의
-//   플랜 스토리지 쿼터 검사가 계속 담당한다 — 리미터는 해머링 방지 역할만 한다.
-router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { perMin: 30, perDay: 1500 }),
+//   실비용(디스크) 가드는 이 핸들러 안의 플랜 스토리지 쿼터 검사가 계속 담당한다 —
+//   리미터는 해머링 방지 역할만 한다.
+//
+// ★ 2026-09-24 — **30/분은 «드롭존 다중 파일 일괄 업로드를 통과시키는 값» 이 아니었다.**
+//   `upload.single` 이라 **1파일 = 1요청**이고 화면(useUploadQueue)은 **순차로** 보낸다.
+//   그래서 분당 상한이 곧 **한 번에 끌어다 놓을 수 있는 파일 수의 상한**이다.
+//   운영 실측(2026-09-24 04:27) — 메뉴 사진 48장을 한 번에 올렸더니 23초 만에 **정확히 30장**이
+//   올라가고 나머지 18장이 전부 「요청이 너무 잦습니다」로 떨어졌다. 사용자에게는 무엇이 빠졌는지도
+//   안 보인다(Irene: *"올리다가 오류가 나서 뭐가 안올라갔는지 모르겠어"*).
+//   사진 폴더 한 개가 수백 장인 것은 평범하다 → 300/분.
+//   ★ 그래도 상한은 상한이다. 화면이 429 를 **실패가 아니라 대기**로 읽고 자동 재시도한다
+//     (`UploadQueue.tsx`) — 상한을 올려도 그 안전망이 있어야 배치가 조용히 잘리지 않는다.
+router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { perMin: 300, perDay: 5000 }),
   checkBusinessAccess, upload.single('file'), async (req, res, next) => {
   let tempPath = req.file && req.file.path;
   try {
@@ -1901,3 +1911,8 @@ module.exports.getOrCreateUsage = getOrCreateUsage;
 module.exports.applyMemberDisplayName = applyMemberDisplayName;
 module.exports.broadcastFile = broadcastFile;
 module.exports.isRestorable = isRestorable;
+// ★ 폴더 삭제(routes/file_folders.js)가 「안의 파일도 같이 삭제」를 할 때 **같은 함수**를 쓴다.
+//   베껴 쓰면 쿼터 비대칭·Drive 사본 회수·색인 회수가 한쪽에만 남는다 — 이 파일에서만 고쳐지게 둔다.
+//   (file_trash.js 가 이미 같은 방식으로 헬퍼를 가져간다.)
+module.exports.trashFile = trashFile;
+module.exports.flushMirrorRecalls = flushMirrorRecalls;

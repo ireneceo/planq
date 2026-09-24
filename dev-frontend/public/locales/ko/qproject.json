@@ -590,7 +590,15 @@
       "errGeneric": "업로드하지 못했습니다",
       "remain": "{{s}}초 남음",
       "cancel": "업로드 취소",
-      "dismiss": "지우기"
+      "dismiss": "지우기",
+      "waiting": "재시도 대기",
+      "retryIn": "한 번에 올릴 수 있는 수를 넘었습니다 · {{s}}초 후 자동으로 이어서 올립니다",
+      "headRunning": "올리는 중 {{n}}개",
+      "headWaiting": "대기 {{n}}개",
+      "headFailed": "실패 {{n}}개",
+      "retryAll": "전체 재시도",
+      "clearFailed": "실패 목록 지우기",
+      "cancelAll": "모두 중단"
     },
     "meta": {
       "name": "파일명",

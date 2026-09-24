@@ -163,6 +163,11 @@ export interface UploadResult {
   message?: string;
   /** 그 사유가 크기 한도일 때의 한도(바이트). 문장에 숫자를 넣기 위한 것. */
   limitBytes?: number;
+  /** HTTP 상태. 화면이 **«실패» 와 «잠깐 기다리면 되는 것»** 을 가르는 유일한 단서다.
+   *  (2026-09-24 — 여태 문장만 넘겨서 429 도 영구 실패로 그려졌다.) */
+  status?: number;
+  /** 429 일 때 다시 시도해도 되는 시점까지의 밀리초. 서버 `RateLimit-Reset`/`Retry-After` 에서 읽는다. */
+  retryAfterMs?: number;
 }
 
 // ─── id 접두어 파서 ───
@@ -480,20 +485,38 @@ export async function preflightUploadSize(
     : { code: 'needs_drive_for_large_file', limitBytes: cap };    // 연결부터 필요하다
 }
 
-async function readUploadResponse(r: Response): Promise<{ ok: true; data: any } | { ok: false; message: string }> {
+/**
+ * 429 일 때 «언제 다시 시도해도 되는가». express-rate-limit 이 `standardHeaders` 로 주는
+ *   `RateLimit-Reset`(초) 를 먼저 보고, 없으면 `Retry-After`(초), 그것도 없으면 보수적으로 15초.
+ *   ★ 상한을 둔다 — 서버가 큰 값을 주더라도 화면이 몇 분씩 멈춰 있으면 «멈춘 것» 으로 보인다.
+ */
+function retryAfterMsOf(r: Response): number {
+  const raw = r.headers.get('RateLimit-Reset') || r.headers.get('Retry-After') || '';
+  const sec = Number(String(raw).trim());
+  const ms = Number.isFinite(sec) && sec > 0 ? sec * 1000 : 15000;
+  return Math.min(Math.max(ms, 1000), 65000);
+}
+
+async function readUploadResponse(r: Response): Promise<
+  { ok: true; data: any } | { ok: false; message: string; status: number; retryAfterMs?: number }
+> {
+  const retryAfterMs = r.status === 429 ? retryAfterMsOf(r) : undefined;
   let j: any = null;
   try {
     j = await r.json();
   } catch {
     // JSON 이 아니다 = 프록시/서버가 낸 오류 페이지 (대표적으로 nginx 413)
-    return { ok: false, message: r.status === 413 ? 'file_size_exceeded' : `upload_failed_${r.status}` };
+    return {
+      ok: false, status: r.status, retryAfterMs,
+      message: r.status === 413 ? 'file_size_exceeded' : `upload_failed_${r.status}`,
+    };
   }
   if (!r.ok || !j?.success || !j?.data) {
     // 서버는 사람 문장을 ko/en 두 벌로 준다(`buildQuotaError`). 보는 사람 언어로 고른다 —
     //   공개 링크가 아니어도 워크스페이스에 영어 사용자가 있다(2026-09-14).
     const lng = String(i18next.language || 'ko').toLowerCase();
     const msg = lng.startsWith('ko') ? j?.message : (j?.message_en || j?.message);
-    return { ok: false, message: msg || `upload_failed_${r.status}` };
+    return { ok: false, status: r.status, retryAfterMs, message: msg || `upload_failed_${r.status}` };
   }
   return { ok: true, data: j.data };
 }
@@ -521,7 +544,9 @@ export async function uploadProjectFile(
   const r = await apiUpload(`/api/files/${businessId}`, fd,
     { onProgress: options?.onProgress, signal: options?.signal });
   const parsed = await readUploadResponse(r);
-  if (!parsed.ok) return { success: false, message: parsed.message };
+  if (!parsed.ok) {
+    return { success: false, message: parsed.message, status: parsed.status, retryAfterMs: parsed.retryAfterMs };
+  }
 
   const f = parsed.data;
   return {
@@ -562,7 +587,9 @@ export async function uploadMyFile(
   const r = await apiUpload(`/api/files/${businessId}`, fd,
     { onProgress: opts?.onProgress, signal: opts?.signal });
   const parsed = await readUploadResponse(r);
-  if (!parsed.ok) return { success: false, message: parsed.message };
+  if (!parsed.ok) {
+    return { success: false, message: parsed.message, status: parsed.status, retryAfterMs: parsed.retryAfterMs };
+  }
   const f = parsed.data;
   return {
     success: true,

@@ -19,6 +19,23 @@ async function assertMemberWrite(userId, businessId, platformRole) {
   return !!bm;
 }
 
+// ★ 2026-09-24 — 폴더 CUD 감사. 여태 이 파일에 `logAudit` 호출이 **0건**이었다(운영 원장 0행).
+//   폴더에는 `deleted_at` 이 없어 지우면 행 자체가 사라지므로, 원장이 없으면 «그 폴더에 무엇이
+//   있었나» 를 영영 답할 수 없다 — 실제로 2026-09-24 에 시각으로 역추적해야 했다.
+//   실패해도 본 작업을 막지 않는다(감사 실패가 기능 실패가 되면 안 된다).
+function logFolderAudit(req, action, folder, extra) {
+  try {
+    require('../services/auditService').logAudit(req, {
+      action,
+      targetType: 'file_folder',
+      targetId: folder.id,
+      ...(action === 'file_folder.create'
+        ? { newValue: { name: folder.name, parent_id: folder.parent_id, project_id: folder.project_id, ...extra } }
+        : { oldValue: extra?.old, newValue: extra?.next }),
+    });
+  } catch (e) { console.warn('[file_folders] audit 실패', action, e.message); }
+}
+
 // List folders of a project — client 도 자기 참여 프로젝트면 통과
 router.get('/projects/:projectId', authenticateToken, async (req, res, next) => {
   try {
@@ -101,6 +118,7 @@ router.post('/workspace/:businessId', authenticateToken, async (req, res, next) 
       business_id: businessId, project_id: null, parent_id: parentId,
       name, sort_order: 0, created_by: req.user.id,
     });
+    logFolderAudit(req, 'file_folder.create', row);
     successResponse(res, row, 'Folder created', 201);
   } catch (error) { next(error); }
 });
@@ -132,6 +150,7 @@ router.post('/projects/:projectId', authenticateToken, async (req, res, next) =>
       sort_order: Number(req.body.sort_order) || 0,
       created_by: req.user.id
     });
+    logFolderAudit(req, 'file_folder.create', folder);
     successResponse(res, folder, 'Folder created', 201);
   } catch (error) {
     next(error);
@@ -202,8 +221,10 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
     const name = (req.body.name || '').trim();
     if (!name) return errorResponse(res, 'name required', 400);
+    const prevName = folder.name;
     folder.name = name;
     await folder.save();
+    logFolderAudit(req, 'file_folder.rename', folder, { old: { name: prevName }, next: { name } });
     // Drive 에도 같은 이름으로 (Irene 2026-08-31 — 한쪽만 정리되면 두 곳이 갈라진다).
     //   실패해도 이름 변경 자체는 되돌리지 않는다 — Drive 는 사본이고 PlanQ 가 정본이다.
     if (folder.gdrive_folder_id) {
@@ -220,12 +241,28 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
 });
 
 // Delete folder (재귀: 하위 폴더 삭제, 안 파일은 parent 또는 루트로 이동)
+// DELETE /api/file-folders/:id?contents=move|delete
+//
+// ★ 2026-09-24 — **안의 파일을 어떻게 할지 사람이 고른다.**
+//   여태는 말없이 `folder.parent_id` 로 옮겼다. 사용자에게는 «폴더를 지웠는데 사진이 엉뚱한 폴더에
+//   나타난» 것으로 보인다(Irene: *"파일이 다른 폴더로 옮겨진다고 나오더니 옮겨졌어. 같이 삭제할건지
+//   물어봐야지."*). 실제로 그 때문에 옛 사본 18장이 루트에 남아 있었고, 어느 폴더에 있었는지는
+//   폴더 감사 로그가 없어 시각으로 역추적해야 했다(아래 감사 추가).
+//
+//   · `move`(기본) — 종전 동작. 파일은 부모 폴더로. **기본값을 바꾸지 않는다** —
+//     옛 화면·앱 번들이 인자를 안 보내는데 기본이 삭제면 조용히 지워진다(fail-safe).
+//   · `delete`   — 안의 파일도 **휴지통으로**. `routes/files.js` 의 `trashFile` 을 그대로 쓴다
+//     (쿼터·Drive 사본 회수·색인 회수가 한 벌로 따라온다). 영구삭제가 아니라 복구 가능하다.
 router.delete('/:id', authenticateToken, async (req, res, next) => {
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
     if (!(await assertMemberWrite(req.user.id, folder.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
+    }
+    const mode = String(req.query.contents || 'move').toLowerCase();
+    if (mode !== 'move' && mode !== 'delete') {
+      return errorResponse(res, 'contents must be "move" or "delete"', 400);
     }
 
     const t = await sequelize.transaction();
@@ -244,11 +281,26 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
         }
       }
 
-      // 안 파일은 parent_id 로 이동 (null = 루트)
-      await File.update(
-        { folder_id: folder.parent_id },
-        { where: { folder_id: { [Op.in]: allFolderIds } }, transaction: t }
-      );
+      // 안의 파일 — 고른 대로 처리한다.
+      // ★ `business_id` 를 **반드시** 건다. 폴더 id 사슬은 `parent_id` 로만 모았으므로, 어떤 이유로든
+      //   남의 워크스페이스 폴더가 사슬에 섞이면 그쪽 파일까지 집는다 — 그리고 아래 `delete` 분기는
+      //   그것을 **지운다.** 상위에서 `folder.business_id` 를 확인했다는 사실에 기대지 않는다
+      //   (CLAUDE.md 멀티테넌트 격리: 모든 쿼리에 WHERE business_id).
+      const inside = await File.findAll({
+        where: { business_id: folder.business_id, folder_id: { [Op.in]: allFolderIds }, deleted_at: null },
+        transaction: t,
+      });
+      const mirrorQueue = [];   // ★ 요청 스코프 — 전역이면 롤백 잔여가 다음 요청에서 터진다
+      if (mode === 'delete') {
+        const { trashFile } = require('./files');
+        for (const f of inside) await trashFile(f, req, t, mirrorQueue);
+      } else {
+        // 종전 동작 — parent_id 로 이동 (null = 루트)
+        await File.update(
+          { folder_id: folder.parent_id },
+          { where: { folder_id: { [Op.in]: allFolderIds } }, transaction: t }
+        );
+      }
 
       // ★ Drive 쪽 폴더 id 를 **먼저 챙겨 둔다** — destroy 뒤엔 읽을 수 없다 (2026-09-17, Fable 8차 ⑤).
       //   여태 PlanQ 폴더만 지우고 Drive 폴더는 그대로 남겼다(실측: 빈 폴더가 공유 폴더 안에 잔존).
@@ -276,6 +328,28 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
 
       await t.commit();
 
+      // ★ 파일 사본 회수도 **커밋 뒤**다 (trashFile 계약 — routes/files.js 와 같은 순서).
+      if (mirrorQueue.length) {
+        try { await require('./files').flushMirrorRecalls(mirrorQueue); }
+        catch (e) { console.warn('[file_folders] 파일 Drive 사본 회수 실패', e.message); }
+      }
+
+      // ★ 2026-09-24 — 폴더 CUD 감사. 여태 `logAudit` 호출이 **0건**이어서 폴더 생성·이동·삭제가
+      //   원장에 한 줄도 남지 않았다(운영 실측 0행). 그래서 «지운 폴더에 어떤 파일이 있었나» 를
+      //   물었을 때 답할 방법이 없었다 — `file_folders` 에는 `deleted_at` 도 없어 행 자체가 사라진다.
+      //   지운 목록을 **여기서** 남긴다(CLAUDE.md: 모든 CUD 는 AuditLog).
+      require('../services/auditService').logAudit(req, {
+        action: 'file_folder.delete',
+        targetType: 'file_folder',
+        targetId: folder.id,
+        oldValue: {
+          name: folder.name, parent_id: folder.parent_id, project_id: folder.project_id,
+          removed_folder_ids: allFolderIds,
+          contents: mode,
+          files: inside.map((f) => ({ id: f.id, name: f.file_name })),
+        },
+      });
+
       // ★ Drive 호출은 **커밋 뒤**에 — 되돌릴 수 없는 외부 호출을 트랜잭션 안에 두지 않는다(⑦과 같은 이유).
       //   파일은 위에서 부모 폴더로 이미 옮겼으므로 여기서 지우는 것은 **빈 폴더**다.
       //   실패해도 삭제 자체는 되돌리지 않는다(PlanQ 가 정본이고, 빈 폴더는 다음 정리에서 걷힌다).
@@ -299,7 +373,12 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
           }
         } catch (e) { console.warn('[file_folders] Drive 정리 건너뜀', e.message); }
       }
-      successResponse(res, { removed_folders: allFolderIds.length }, 'Folder deleted');
+      successResponse(res, {
+        removed_folders: allFolderIds.length,
+        contents: mode,
+        // 화면이 «몇 장이 어디로 갔는지» 말할 수 있게 — 숫자가 없으면 결과를 설명할 수 없다.
+        files_affected: inside.length,
+      }, 'Folder deleted');
     } catch (e) { await t.rollback(); throw e; }
   } catch (error) {
     next(error);

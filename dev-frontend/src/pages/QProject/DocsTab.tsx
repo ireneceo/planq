@@ -219,7 +219,7 @@ const DocsTab: React.FC<Props> = (props) => {
   const [shareTarget, setShareTarget] = useState<ProjectFile | null>(null);
   const [dragOver, setDragOver] = useState(false);
   // 업로드 큐 — 파일별 진행률·속도·취소 (docs/UploadQueue)
-  const { uploads, runUploads, cancelUpload } = useUploadQueue();
+  const { uploads, runUploads, cancelUpload, retryFailed, clearFailed, cancelAll } = useUploadQueue();
   const [deleteConfirm, setDeleteConfirm] = useState<ProjectFile | null>(null);
   // 프로젝트 안에 새 폴더 — 이름을 받아야 하므로 작은 입력창을 띄운다(이름 없는 폴더를 만들지 않는다).
   const [newProjectFolder, setNewProjectFolder] = useState<{ projectId: number; parentId: number | null; name: string } | null>(null);
@@ -843,8 +843,15 @@ const DocsTab: React.FC<Props> = (props) => {
           </CompactHint>
         </CompactBar>
       )}
-      <UploadQueuePanel uploads={uploads} onCancel={cancelUpload} />
-      <input ref={inputRef} type="file" multiple hidden
+      <UploadQueuePanel
+        uploads={uploads}
+        onCancel={cancelUpload}
+        onRetryFailed={retryFailed}
+        onClearFailed={clearFailed}
+        onCancelAll={cancelAll}
+      />
+      {/* data-testid — 검사 하니스가 파일을 밀어 넣는 유일한 손잡이(§17). 숨은 입력은 selector 로 못 찾는다. */}
+      <input ref={inputRef} type="file" multiple hidden data-testid="docs-file-input"
         onChange={e => { if (e.target.files) handleFiles(e.target.files); e.target.value = ''; }} />
 
       {/* 툴바 */}
@@ -1789,7 +1796,9 @@ const ProjectGroups: React.FC<ProjectGroupsProps> = ({ projectGroups, counts, to
       <TreeRow selected={selected === 'all'} onClick={() => onSelect('all')}
         icon={<FolderIconWrap $selected={selected === 'all'}><AllSvg /></FolderIconWrap>}
         name={tr('docs.folder.all', '전체')} count={total} />
-      <TreeRow selected={selected === 'my'} onClick={() => onSelect('my')}
+      {/* testId — 업로드 카나리가 «목적지를 고른 상태» 를 만드는 손잡이(§17).
+          목적지가 없으면 업로드가 아니라 프로젝트 선택 모달이 뜬다(handleFiles). */}
+      <TreeRow selected={selected === 'my'} onClick={() => onSelect('my')} testId="docs-folder-my"
         icon={<FolderIconWrap $selected={selected === 'my'}><MyFilesSvg /></FolderIconWrap>}
         name={tr('docs.folder.my', '내 파일')} count={counts.myFiles} />
       <TreeDivider />
