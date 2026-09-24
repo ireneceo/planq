@@ -12,6 +12,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
 const { todayInTz, mondayOfDateStr } = require('../utils/datetime');
+const { logAudit, auditDiff } = require('../services/auditService');
 
 const ACTIVE_STATUS = { [Op.notIn]: ['completed', 'canceled'] };
 
@@ -99,6 +100,7 @@ router.post('/:businessId/departments', authenticateToken, async (req, res, next
     });
     await placeLeadInDepartment(lead.bm, dept.id);
     broadcast(req, ctx.businessId);
+    logAudit(req, { action: 'org.department_create', targetType: 'department', targetId: dept.id, businessId: ctx.businessId, newValue: { name: dept.name, lead_user_id: dept.lead_user_id } });
     return successResponse(res, dept, '생성됨', 201);
   } catch (err) { next(err); }
 });
@@ -119,9 +121,12 @@ router.put('/:businessId/departments/:id', authenticateToken, async (req, res, n
       if (!lead.ok) return errorResponse(res, 'invalid_lead', 400);
       patch.lead_user_id = lead.bm ? lead.bm.user_id : null;
     }
+    const deptBefore = dept.get({ plain: true, clone: true });
     await dept.update(patch);
     await placeLeadInDepartment(lead.bm, dept.id);
     broadcast(req, ctx.businessId);
+    const deptDiff = auditDiff(deptBefore, dept.get({ plain: true }), Object.keys(patch));
+    if (deptDiff) logAudit(req, { action: 'org.department_update', targetType: 'department', targetId: dept.id, businessId: ctx.businessId, ...deptDiff });
     return successResponse(res, dept);
   } catch (err) { next(err); }
 });
@@ -137,6 +142,7 @@ router.delete('/:businessId/departments/:id', authenticateToken, async (req, res
     await Team.destroy({ where: { business_id: ctx.businessId, department_id: dept.id } });
     await dept.destroy();
     broadcast(req, ctx.businessId);
+    logAudit(req, { action: 'org.department_delete', targetType: 'department', targetId: dept.id, businessId: ctx.businessId, oldValue: { name: dept.name, lead_user_id: dept.lead_user_id } });
     return successResponse(res, { id: dept.id }, '삭제됨');
   } catch (err) { next(err); }
 });
@@ -160,6 +166,7 @@ router.post('/:businessId/teams', authenticateToken, async (req, res, next) => {
     });
     await placeLeadInTeam(lead.bm, team);
     broadcast(req, ctx.businessId);
+    logAudit(req, { action: 'org.team_create', targetType: 'team', targetId: team.id, businessId: ctx.businessId, newValue: { name: team.name, department_id: team.department_id, lead_user_id: team.lead_user_id } });
     return successResponse(res, team, '생성됨', 201);
   } catch (err) { next(err); }
 });
@@ -178,9 +185,12 @@ router.put('/:businessId/teams/:id', authenticateToken, async (req, res, next) =
       if (!lead.ok) return errorResponse(res, 'invalid_lead', 400);
       patch.lead_user_id = lead.bm ? lead.bm.user_id : null;
     }
+    const teamBefore = team.get({ plain: true, clone: true });
     await team.update(patch);
     await placeLeadInTeam(lead.bm, team);
     broadcast(req, ctx.businessId);
+    const teamDiff = auditDiff(teamBefore, team.get({ plain: true }), Object.keys(patch));
+    if (teamDiff) logAudit(req, { action: 'org.team_update', targetType: 'team', targetId: team.id, businessId: ctx.businessId, ...teamDiff });
     return successResponse(res, team);
   } catch (err) { next(err); }
 });
@@ -194,6 +204,7 @@ router.delete('/:businessId/teams/:id', authenticateToken, async (req, res, next
     await BusinessMember.update({ team_id: null }, { where: { business_id: ctx.businessId, team_id: team.id } });
     await team.destroy();
     broadcast(req, ctx.businessId);
+    logAudit(req, { action: 'org.team_delete', targetType: 'team', targetId: team.id, businessId: ctx.businessId, oldValue: { name: team.name, department_id: team.department_id } });
     return successResponse(res, { id: team.id }, '삭제됨');
   } catch (err) { next(err); }
 });
@@ -225,8 +236,11 @@ router.put('/:businessId/members/:userId/assignment', authenticateToken, async (
       }
     }
     if (job_title !== undefined) patch.job_title = job_title ? String(job_title).slice(0, 100) : null;
+    const bmBefore = bm.get({ plain: true, clone: true });
     await bm.update(patch);
     broadcast(req, ctx.businessId);
+    const bmDiff = auditDiff(bmBefore, bm.get({ plain: true }), Object.keys(patch));
+    if (bmDiff) logAudit(req, { action: 'org.member_assign', targetType: 'business_member', targetId: bm.id, businessId: ctx.businessId, ...bmDiff, newValue: { user_id: bm.user_id, ...bmDiff.newValue } });
     return successResponse(res, { user_id: bm.user_id, department_id: bm.department_id, team_id: bm.team_id, job_title: bm.job_title });
   } catch (err) { next(err); }
 });

@@ -66,7 +66,7 @@ async function canAccessTask(task, userId) {
 // ─────────────────────────────────────────────
 // POST /api/tasks/:id/ack — 담당자 요청 확인완료
 // ─────────────────────────────────────────────
-router.post('/:id/ack', authenticateToken, async (req, res, next) => {
+router.post('/:id/ack', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -81,7 +81,7 @@ router.post('/:id/ack', authenticateToken, async (req, res, next) => {
 //   ★ `body` 는 **제출 시점의 결과물 본문**이다. 화면이 자동저장을 기다리지 않고 제출해도
 //     마지막 타이핑이 박제본에서 빠지지 않게 같이 받아 한 트랜잭션에 쓴다.
 // ─────────────────────────────────────────────
-router.post('/:id/submit-review', authenticateToken, async (req, res, next) => {
+router.post('/:id/submit-review', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -97,7 +97,7 @@ router.post('/:id/submit-review', authenticateToken, async (req, res, next) => {
 // ─────────────────────────────────────────────
 // POST /api/tasks/:id/cancel-review — 담당자 컨펌 요청 취소
 // ─────────────────────────────────────────────
-router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => {
+router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -110,7 +110,7 @@ router.post('/:id/cancel-review', authenticateToken, async (req, res, next) => {
 // POST /api/tasks/:id/reviewers/me/approve — 컨펌자 승인
 // Body: { note?: string }
 // ─────────────────────────────────────────────
-router.post('/:id/reviewers/me/approve', authenticateToken, async (req, res, next) => {
+router.post('/:id/reviewers/me/approve', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -124,7 +124,7 @@ router.post('/:id/reviewers/me/approve', authenticateToken, async (req, res, nex
 // POST /api/tasks/:id/reviewers/me/revision — 컨펌자 수정 요청
 // Body: { note: string (필수) }
 // ─────────────────────────────────────────────
-router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, next) => {
+router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -138,7 +138,7 @@ router.post('/:id/reviewers/me/revision', authenticateToken, async (req, res, ne
 // ─────────────────────────────────────────────
 // POST /api/tasks/:id/reviewers/me/revert — 컨펌자 본인 판단 되돌리기 (라운드당 1회)
 // ─────────────────────────────────────────────
-router.post('/:id/reviewers/me/revert', authenticateToken, async (req, res, next) => {
+router.post('/:id/reviewers/me/revert', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -151,7 +151,7 @@ router.post('/:id/reviewers/me/revert', authenticateToken, async (req, res, next
 // POST /api/tasks/:id/revert-status — 업무 단계 되돌리기 (#10)
 //   직전 상태로 복귀. 권한: 담당자 / admin / owner.
 // ─────────────────────────────────────────────
-router.post('/:id/revert-status', authenticateToken, async (req, res, next) => {
+router.post('/:id/revert-status', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -164,7 +164,7 @@ router.post('/:id/revert-status', authenticateToken, async (req, res, next) => {
 // POST /api/tasks/:id/hold — 업무 보류 (#206)
 //   body: { reason?: string }  권한: 담당자 / 작성자 / owner / admin
 // ─────────────────────────────────────────────
-router.post('/:id/hold', authenticateToken, async (req, res, next) => {
+router.post('/:id/hold', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -177,7 +177,7 @@ router.post('/:id/hold', authenticateToken, async (req, res, next) => {
 // POST /api/tasks/:id/resume — 보류/외부컨펌 해제 (#206)
 //   on_hold → hold_prev_status 복귀 / external_review → in_progress
 // ─────────────────────────────────────────────
-router.post('/:id/resume', authenticateToken, async (req, res, next) => {
+router.post('/:id/resume', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -189,7 +189,7 @@ router.post('/:id/resume', authenticateToken, async (req, res, next) => {
 // ─────────────────────────────────────────────
 // POST /api/tasks/:id/complete — 담당자 최종 완료 (컨펌자 0명일 때만)
 // ─────────────────────────────────────────────
-router.post('/:id/complete', authenticateToken, async (req, res, next) => {
+router.post('/:id/complete', authenticateToken, async (req, res, next) => { // audit-exempt: 상태 전이는 task_status_history 가 원장이다(행동 계층 logHistory)
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -216,7 +216,7 @@ router.post('/:id/complete', authenticateToken, async (req, res, next) => {
 //   · 결과물은 담당자만 쓴다 — 책임선에 직급 예외 없음(FIELD_RULES.body 와 같은 술어).
 // Body: { note?: string, start_new?: boolean }  start_new=true 면 남긴 뒤 입력란을 비운다.
 // ─────────────────────────────────────────────
-router.post('/:id/deliverable-versions', authenticateToken, async (req, res, next) => {
+router.post('/:id/deliverable-versions', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층(services/actions/task_actions.js audit())이 남긴다 — 라우트에서 또 쓰면 한 사건이 두 행
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -392,7 +392,7 @@ async function applyToSeries(req, task, run) {
   return { scope, applied };
 }
 
-router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
+router.post('/:id/reviewers', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층(services/actions/task_actions.js audit())이 남긴다 — 라우트에서 또 쓰면 한 사건이 두 행
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -409,7 +409,7 @@ router.post('/:id/reviewers', authenticateToken, async (req, res, next) => {
 // ─────────────────────────────────────────────
 // DELETE /api/tasks/:id/reviewers/:userId — 컨펌자 제거
 // ─────────────────────────────────────────────
-router.delete('/:id/reviewers/:userId', authenticateToken, async (req, res, next) => {
+router.delete('/:id/reviewers/:userId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층(services/actions/task_actions.js audit())이 남긴다 — 라우트에서 또 쓰면 한 사건이 두 행
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;
@@ -428,7 +428,7 @@ router.delete('/:id/reviewers/:userId', authenticateToken, async (req, res, next
 // PATCH /api/tasks/:id/policy — 컨펌 정책 변경
 // Body: { review_policy: 'all' | 'any' }
 // ─────────────────────────────────────────────
-router.patch('/:id/policy', authenticateToken, async (req, res, next) => {
+router.patch('/:id/policy', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층(services/actions/task_actions.js audit())이 남긴다 — 라우트에서 또 쓰면 한 사건이 두 행
   try {
     const task = await loadTaskOrFail(req.params.id, res);
     if (!task) return;

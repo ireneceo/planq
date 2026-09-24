@@ -16,6 +16,10 @@ function isAdmin(req) {
   return r === 'owner' || r === 'admin' || req.user?.platform_role === 'platform_admin';
 }
 
+// 감사 — 발신 신원(별칭·도메인)은 누가 무엇을 바꿨는지 남긴다. 서명 본문(수만 자)은 싣지 않고 «바뀜» 만 적는다.
+const { logAudit, auditDiff } = require('../services/auditService');
+const ALIAS_AUDIT_KEYS = ['email', 'display_name', 'is_default', 'signature_html', 'signature_html_en'];
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 async function loadAccountForEdit(req) {
@@ -68,13 +72,15 @@ router.post('/:businessId/email-accounts/:id/aliases', authenticateToken, checkB
     if (alias.is_default) {
       await EmailAccountAlias.update({ is_default: false }, { where: { account_id: acc.id, id: { [Op.ne]: alias.id } } });
     }
+    logAudit(req, { action: 'mail_alias.create', targetType: 'email_account_alias', targetId: alias.id, businessId,
+      newValue: { account_id: acc.id, email: alias.email, display_name: alias.display_name, is_default: alias.is_default } });
     return successResponse(res, alias.toJSON(), 'created', 201);
   } catch (err) { next(err); }
 });
 
 router.put('/:businessId/email-accounts/:id/aliases/:aliasId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const { acc, error } = await loadAccountForEdit(req);
+    const { acc, businessId, error } = await loadAccountForEdit(req);
     if (error) return errorResponse(res, error, error === 'account_not_found' ? 404 : 403);
     const alias = await EmailAccountAlias.findOne({ where: { id: Number(req.params.aliasId), account_id: acc.id } });
     if (!alias) return errorResponse(res, 'alias_not_found', 404);
@@ -89,21 +95,26 @@ router.put('/:businessId/email-accounts/:id/aliases/:aliasId', authenticateToken
     if (b.signature_html !== undefined) patch.signature_html = b.signature_html ? String(b.signature_html).slice(0, 20000) : null;
     if (b.signature_html_en !== undefined) patch.signature_html_en = b.signature_html_en ? String(b.signature_html_en).slice(0, 20000) : null;
     if (b.is_default !== undefined) patch.is_default = !!b.is_default;
+    const aliasBefore = alias.get({ plain: true, clone: true });
     await alias.update(patch);
     if (patch.is_default) {
       await EmailAccountAlias.update({ is_default: false }, { where: { account_id: acc.id, id: { [Op.ne]: alias.id } } });
     }
+    const diff = auditDiff(aliasBefore, alias.get({ plain: true }), ALIAS_AUDIT_KEYS, { nameOnly: ['signature_html', 'signature_html_en'] });
+    if (diff) logAudit(req, { action: 'mail_alias.update', targetType: 'email_account_alias', targetId: alias.id, businessId, ...diff });
     return successResponse(res, alias.toJSON());
   } catch (err) { next(err); }
 });
 
 router.delete('/:businessId/email-accounts/:id/aliases/:aliasId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const { acc, error } = await loadAccountForEdit(req);
+    const { acc, businessId, error } = await loadAccountForEdit(req);
     if (error) return errorResponse(res, error, error === 'account_not_found' ? 404 : 403);
     const alias = await EmailAccountAlias.findOne({ where: { id: Number(req.params.aliasId), account_id: acc.id } });
     if (!alias) return errorResponse(res, 'alias_not_found', 404);
     await alias.destroy();
+    logAudit(req, { action: 'mail_alias.delete', targetType: 'email_account_alias', targetId: alias.id, businessId,
+      oldValue: { account_id: acc.id, email: alias.email, display_name: alias.display_name, is_default: alias.is_default } });
     return successResponse(res, { id: alias.id, deleted: true });
   } catch (err) { next(err); }
 });
@@ -163,6 +174,7 @@ router.post('/:businessId/email-domain-rules', authenticateToken, checkBusinessA
       note: req.body?.note ? String(req.body.note).slice(0, 200) : null,
       created_by: req.user.id,
     });
+    logAudit(req, { action: 'mail_domain_rule.create', targetType: 'email_domain_rule', targetId: rule.id, businessId, newValue: { domain: rule.domain, note: rule.note } });
     return successResponse(res, rule.toJSON(), 'created', 201);
   } catch (err) { next(err); }
 });
@@ -194,7 +206,13 @@ router.put('/:businessId/email-domain-rules/:ruleId', authenticateToken, checkBu
     if (req.body?.note !== undefined) {
       patch.note = req.body.note ? String(req.body.note).slice(0, 200) : null;
     }
+    const ruleBefore = { domain: rule.domain, note: rule.note };
     if (Object.keys(patch).length) await rule.update(patch);
+    const changed = ['domain', 'note'].filter((k) => (ruleBefore[k] ?? null) !== (rule[k] ?? null));
+    if (changed.length) {
+      logAudit(req, { action: 'mail_domain_rule.update', targetType: 'email_domain_rule', targetId: rule.id, businessId,
+        oldValue: Object.fromEntries(changed.map((k) => [k, ruleBefore[k] ?? null])), newValue: Object.fromEntries(changed.map((k) => [k, rule[k] ?? null])) });
+    }
     return successResponse(res, rule.toJSON());
   } catch (err) { next(err); }
 });
@@ -208,6 +226,7 @@ router.delete('/:businessId/email-domain-rules/:ruleId', authenticateToken, chec
     if (!rule) return errorResponse(res, 'rule_not_found', 404);
     // 삭제해도 이미 저장된 분류는 그대로다 — 되돌리려면 scripts/retriage-mail.js 를 돌린다.
     await rule.destroy();
+    logAudit(req, { action: 'mail_domain_rule.delete', targetType: 'email_domain_rule', targetId: rule.id, businessId: rule.business_id, oldValue: { domain: rule.domain, note: rule.note } });
     return successResponse(res, { id: rule.id, deleted: true });
   } catch (err) { next(err); }
 });

@@ -360,6 +360,9 @@ router.post('/signatures/:id/reminder', authenticateToken, async (req, res, next
       signUrl, expiresAt: sr.expires_at,
     }).catch(() => null);
     await sr.update({ reminder_count: sr.reminder_count + 1, last_reminder_at: new Date() });
+    // 감사 — 외부 발송 트리거. 서명 링크(토큰)는 싣지 않는다.
+    createAuditLog({ userId: req.user.id, businessId: sr.business_id, action: 'signature.reminder', targetType: 'SignatureRequest', targetId: sr.id,
+      newValue: { signer_email: sr.signer_email, entity_type: sr.entity_type, entity_id: sr.entity_id, reminder_count: sr.reminder_count } });
     if (!process.env.SMTP_HOST) console.log(`[DEV-SIGN-REMIND] ${sr.signer_email} ${signUrl}`);
     return successResponse(res, { sent: true, reminder_count: sr.reminder_count });
   } catch (err) { next(err); }
@@ -443,6 +446,7 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
 
 // GET /api/sign/:token — 토큰 페이지 진입 (문서 본문 + 진행 상태)
 // POST /api/sign/:token/otp — OTP 발송
+// audit-exempt: 무인증 서명 절차 — 증거는 signature_requests(otp_sent_at·otp_attempts·otp_locked_until)가 남긴다
 router.post('/sign/:token/otp', otpSendLimiter, async (req, res, next) => {
   try {
     const sr = await loadByToken(req.params.token);
@@ -472,6 +476,7 @@ router.post('/sign/:token/otp', otpSendLimiter, async (req, res, next) => {
 
 // POST /api/sign/:token/verify — OTP 검증
 // body: { code: '123456' }
+// audit-exempt: 무인증 서명 절차 — 증거는 signature_requests(otp_verified_at·otp_attempts·otp_locked_until)가 남긴다
 router.post('/sign/:token/verify', otpVerifyLimiter, async (req, res, next) => {
   try {
     const code = String(req.body?.code || '').trim();

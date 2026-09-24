@@ -410,6 +410,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
 
     // 재조회 (연관 포함)
     const detail = await loadProjectDetail(project.id);
+    require('../services/auditService').logAudit(req, { action: 'project.create', targetType: 'project', targetId: project.id, businessId: Number(project.business_id),
+      newValue: { name: project.name, kind: project.kind, project_type: project.project_type, member_count: members.length, client_count: Array.isArray(clients) ? clients.length : 0 } });
     return successResponse(res, detail);
   } catch (err) {
     await t.rollback();
@@ -848,6 +850,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
 
     const prevStatus = project.status;
     const prevName = project.name;
+    const projBefore = project.get({ plain: true, clone: true });   // 감사용
     await project.update(patch);
     // 프로젝트 'closed' 전환 시 연결 대화 자동 archived (cascade, soft). 데이터는 보존.
     //   Irene 결정(2026-08-18): **삭제하지 않는다.** 업무 정보가 쌓이는 게 이 제품의 핵심 가치인데
@@ -989,6 +992,9 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         }
       }
     } catch (e) { console.warn('[projects] broadcast failed', e.message); }
+    // 감사 — 바뀐 칸만(설명 본문은 «바뀜» 만). 정기청구 설정도 여기 실린다.
+    const projDiff = require('../services/auditService').auditDiff(projBefore, project.get({ plain: true }), Object.keys(patch), { nameOnly: ['description'] });
+    if (projDiff) require('../services/auditService').logAudit(req, { action: 'project.update', targetType: 'project', targetId: project.id, businessId: project.business_id, ...projDiff });
     return successResponse(res, detail);
   } catch (err) { next(err); }
 });
@@ -3385,6 +3391,9 @@ router.post('/:id/clients/:clientId/resend-invite', authenticateToken, async (re
       console.warn('resend project invite email failed:', e.message);
       return errorResponse(res, 'email_send_failed', 502);
     }
+    // 감사 — 외부 발송 트리거. 초대 토큰(링크)은 싣지 않는다.
+    require('../services/auditService').logAudit(req, { action: 'project_invite.resend', targetType: 'project_client', targetId: row.id, businessId: project.business_id,
+      newValue: { project_id: project.id, contact_email: row.contact_email } });
     return successResponse(res, { id: row.id, invited_at: row.invited_at, resent: true });
   } catch (err) { next(err); }
 });

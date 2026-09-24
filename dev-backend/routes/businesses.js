@@ -8,6 +8,7 @@ const { Business, BusinessMember, User, CueUsage, Client, Department, Team } = r
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
+const { logAudit, auditDiff } = require('../services/auditService');
 const { perUserDaily } = require('../middleware/costGuard');
 
 // 워크스페이스 심볼 (brand symbol) 업로드 디렉토리 — 공개 서빙용
@@ -183,7 +184,10 @@ router.put('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
     // name 이 오면 brand_name 에도 반영 (legacy 호환)
     if (updates.name && !updates.brand_name) updates.brand_name = updates.name;
 
+    const bizBefore = business.get({ plain: true, clone: true });
     await business.update(updates);
+    const bizDiff = auditDiff(bizBefore, business.get({ plain: true }), Object.keys(updates));
+    if (bizDiff) logAudit(req, { action: 'business.update', targetType: 'business', targetId: business.id, businessId: business.id, ...bizDiff });
     successResponse(res, business);
   } catch (error) {
     next(error);
@@ -194,6 +198,7 @@ router.put('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
 // POST /api/businesses/:businessId/symbol  (multipart 'file')
 //   업로드 후 brand_logo_url 자동 갱신, 공개 URL 반환.
 //   <img> 태그 직접 로드 가능 (인증 없이) — UUID 파일명으로 추측 불가.
+// audit-exempt: 이미 감사한다 — 두 번째 핸들러의 createAuditLog(business.symbol_upload). 가드는 첫 화살표(업로드 미들웨어)만 읽는다
 router.post('/:businessId/symbol',
   authenticateToken, checkBusinessAccess,
   (req, res, next) => {
@@ -361,7 +366,11 @@ router.put('/:businessId/mail', authenticateToken, checkBusinessAccess, async (r
       }
       updates.mail_reply_to = v;
     }
+    const mailBefore = business.get({ plain: true, clone: true });
     await business.update(updates);
+    // 감사 — 발신 표시이름·회신 주소는 옛/새 값, 서명 HTML 은 «바뀜» 만
+    const mailDiff = auditDiff(mailBefore, business.get({ plain: true }), Object.keys(updates), { nameOnly: ['mail_signature_html', 'mail_signature_html_en'] });
+    if (mailDiff) logAudit(req, { action: 'business.mail_settings_update', targetType: 'business', targetId: business.id, businessId: business.id, ...mailDiff });
     // ★ GET 과 **같은 모양**으로 돌려준다. 저장 응답만 좁으면 화면이 그것으로 상태를 갈아끼울 때
     //   서명이 조용히 사라진다(2026-09-18 — 같은 계열을 Q note·프로젝트·Q docs 에서 실측했다).
     return successResponse(res, {
@@ -459,6 +468,7 @@ router.put('/:businessId/storage', authenticateToken, checkBusinessAccess, async
 });
 
 // POST — 연결 테스트 (저장된 자격 또는 요청 자격으로 headBucket). 성공 시 verified.
+// audit-exempt: 읽기 전용 연결 시험(headBucket) — 설정 저장은 PUT /storage 가 감사한다
 router.post('/:businessId/storage/test', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') return errorResponse(res, 'owner_only', 403);
@@ -733,7 +743,10 @@ router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, asyn
     }
     if (work_hours !== undefined) updates.work_hours = work_hours || null;
 
+    const settingsBefore = business.get({ plain: true, clone: true });
     await business.update(updates);
+    const settingsDiff = auditDiff(settingsBefore, business.get({ plain: true }), Object.keys(updates));
+    if (settingsDiff) logAudit(req, { action: 'business.settings_update', targetType: 'business', targetId: business.id, businessId: business.id, ...settingsDiff });
     successResponse(res, business);
   } catch (error) {
     next(error);
@@ -749,7 +762,10 @@ router.put('/:businessId/report-settings', authenticateToken, checkBusinessAcces
     const updates = {};
     if (req.body.report_integrated_confirm !== undefined) updates.report_integrated_confirm = !!req.body.report_integrated_confirm;
     if (req.body.monthly_finalize_enabled !== undefined) updates.monthly_finalize_enabled = !!req.body.monthly_finalize_enabled;
+    const reportBefore = business.get({ plain: true, clone: true });
     await business.update(updates);
+    const reportDiff = auditDiff(reportBefore, business.get({ plain: true }), Object.keys(updates));
+    if (reportDiff) logAudit(req, { action: 'business.report_settings_update', targetType: 'business', targetId: business.id, businessId: business.id, ...reportDiff });
     successResponse(res, { report_integrated_confirm: business.report_integrated_confirm, monthly_finalize_enabled: business.monthly_finalize_enabled });
   } catch (error) { next(error); }
 });
@@ -1259,7 +1275,10 @@ router.patch('/:id/members/:memberId/work-hours', authenticateToken, async (req,
     if (req.body.weekly_work_days !== undefined) updates.weekly_work_days = Math.max(1, Math.min(7, Number(req.body.weekly_work_days) || 5));
     if (req.body.participation_rate !== undefined) updates.participation_rate = Math.max(0, Math.min(1, Number(req.body.participation_rate) || 1));
     if (req.body.weekly_holidays !== undefined) updates.weekly_holidays = Math.max(0, Math.min(7, Number(req.body.weekly_holidays) || 0));  // 운영 #50
+    const whBefore = member.get({ plain: true, clone: true });
     await member.update(updates);
+    const whDiff = auditDiff(whBefore, member.get({ plain: true }), Object.keys(updates));
+    if (whDiff) logAudit(req, { action: 'member.work_hours_change', targetType: 'business_member', targetId: member.id, businessId, ...whDiff, newValue: { user_id: member.user_id, ...whDiff.newValue } });
     return successResponse(res, member.toJSON());
   } catch (err) { next(err); }
 });
@@ -1582,6 +1601,7 @@ router.get('/:businessId/me/profile', authenticateToken, checkBusinessAccess, as
 // 워크스페이스별 멤버 표시명 (BusinessMember 또는 Client) 수정
 // body: { name?, name_localized? } — name_localized 는 { ko, en, ja, zh, es } 객체 또는 null
 // ============================================
+// audit-exempt: 개인 워크스페이스 프로필(표시명·소개) — 본인 표시 정보, 권한·신원 변경 아님
 router.put('/:businessId/me/profile', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
@@ -1713,6 +1733,7 @@ router.get('/:businessId/onboarding', authenticateToken, checkBusinessAccess, as
   } catch (err) { next(err); }
 });
 
+// audit-exempt: 개인 표시 설정(온보딩 카드 닫기)
 router.put('/:businessId/onboarding/dismiss', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const { setOnboardingDismissed } = require('../services/onboarding');

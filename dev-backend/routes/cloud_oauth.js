@@ -203,6 +203,8 @@ router.get('/callback/gdrive', async (req, res) => {
       record.root_folder_id = folderId;
     }
     await record.save();
+    // 감사 — 연결이 실제로 생기는 곳은 여기다(POST /connect/gdrive 는 동의 화면 주소만 만든다). 토큰 값은 싣지 않는다.
+    require('../services/auditService').logAudit(req, { action: 'cloud.connect', targetType: 'business_cloud_token', targetId: record.id, userId: parsed.userId, businessId: parsed.businessId, newValue: { provider: 'gdrive', account_email: record.account_email } });
 
     return res.send(buildCallbackHtml({
       provider: 'gdrive', ok: true, title: '연동 완료',
@@ -278,6 +280,7 @@ router.get('/callback/gcal', async (req, res) => {
     record.last_error = null;          // 재연결 성공 — 옛 오류 배지 해제
     record.last_error_at = null;
     await record.save();
+    require('../services/auditService').logAudit(req, { action: 'cloud.connect', targetType: 'business_cloud_token', targetId: record.id, userId: parsed.userId, businessId: parsed.businessId, newValue: { provider: 'gcal', account_email: record.account_email } });
 
     // ★ 재연결 직후 **밀린 일정을 팀 캘린더로 올린다** (#242, 설계 게이트 치명-5).
     //   권한이 죽어 있던 기간의 일정은 목적지 목록에서 제외돼 **워크스페이스 링크가 아예 없다** —

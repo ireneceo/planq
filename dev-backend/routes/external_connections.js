@@ -184,6 +184,7 @@ router.post('/me/external-connections', authenticateToken, async (req, res, next
       smtp_port: b.smtp_port || null,
       is_active: true,
     });
+    require('../services/auditService').logAudit(req, { action: 'external_connection.connect', targetType: 'external_connection', targetId: conn.id, businessId: conn.business_id ?? null, newValue: { provider: conn.provider, auth_type: conn.auth_type, account_email: conn.account_email, owner_scope: 'user' } });
     successResponse(res, sanitize(conn), 'connected', 201);
   } catch (err) { next(err); }
 });
@@ -198,7 +199,9 @@ router.put('/me/external-connections/:id/sync', authenticateToken, async (req, r
     });
     if (!conn) return errorResponse(res, 'not_found', 404);
     const enabled = !!req.body?.sync_enabled;
+    const prevSync = !!conn.sync_enabled;
     await conn.update({ sync_enabled: enabled });
+    if (prevSync !== enabled) require('../services/auditService').logAudit(req, { action: 'external_connection.sync_toggle', targetType: 'external_connection', targetId: conn.id, businessId: conn.business_id ?? null, oldValue: { sync_enabled: prevSync }, newValue: { sync_enabled: enabled, provider: conn.provider } });
     successResponse(res, { id: conn.id, sync_enabled: enabled });
   } catch (err) { next(err); }
 });
@@ -218,6 +221,7 @@ router.delete('/me/external-connections/:id', authenticateToken, async (req, res
       await CalendarEventGcalLink.destroy({ where: { connection_id: conn.id, target: 'personal' } });
     } catch (e) { console.warn('[ext-conn delete] 캘린더 링크 정리 실패:', e.message); }
     await conn.destroy();
+    require('../services/auditService').logAudit(req, { action: 'external_connection.disconnect', targetType: 'external_connection', targetId: conn.id, businessId: conn.business_id ?? null, oldValue: { provider: conn.provider, account_email: conn.account_email, owner_scope: 'user' } });
     successResponse(res, null, 'disconnected');
   } catch (err) { next(err); }
 });
@@ -225,6 +229,7 @@ router.delete('/me/external-connections/:id', authenticateToken, async (req, res
 // ─── 개인 OAuth 흐름 (Phase 2-4) ──────────────────────────
 // POST /api/me/oauth/google/initiate  body: { provider, business_id }
 // → Google 동의 화면 auth_url 반환. 프론트가 popup 으로 연다.
+// audit-exempt: 동의 화면 주소(state)만 만든다 — 저장·연결 변경 없음
 router.post('/me/oauth/google/initiate', authenticateToken, async (req, res, next) => {
   try {
     if (!personalOauth.isConfigured()) return errorResponse(res, 'google_oauth_not_configured', 500);
@@ -433,6 +438,7 @@ router.delete('/me/email-accounts/:id', authenticateToken, async (req, res, next
     // 스레드 삭제 시 EmailMessage·EmailAttachment 는 onDelete CASCADE 로 함께 제거.
     await EmailThread.destroy({ where: { account_id: acct.id, business_id: acct.business_id } });
     await acct.destroy();
+    require('../services/auditService').logAudit(req, { action: 'email_account.disconnect', targetType: 'email_account', targetId: acct.id, businessId: acct.business_id ?? null, oldValue: { email: acct.email, owner_scope: 'user' } });
     successResponse(res, null, 'disconnected');
   } catch (err) { next(err); }
 });

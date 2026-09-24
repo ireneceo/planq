@@ -64,6 +64,7 @@ router.post('/google/connect-confirm', async (req, res) => {
     const provider = stash.provider === 'apple' ? 'apple' : 'google';
     // OauthConnection 생성 (이미 다른 sub 가 user_id+provider 에 있으면 교체)
     const existing = await OauthConnection.findOne({ where: { user_id: user.id, provider } });
+    const prevEmail = existing ? existing.email : null;   // 감사용 — 교체면 옛 연결 주소
     if (existing) {
       await existing.update({
         subject: stash.subject,
@@ -84,6 +85,9 @@ router.post('/google/connect-confirm', async (req, res) => {
         last_used_at: new Date(),
       });
     }
+    // 감사 — 로그인 수단(신원)이 계정에 붙었다. 무인증 라우트라 userId 를 명시한다. 로그인 행은 issueSessionCookie 가 따로 남긴다.
+    require('../../services/auditService').logAudit(req, { action: 'oauth_connection.connect', targetType: 'User', targetId: user.id, userId: user.id, businessId: null,
+      oldValue: existing ? { provider, email: prevEmail } : null, newValue: { provider, email: stash.email, replaced: !!existing } });
     // 즉시 로그인 (refresh_token cookie set)
     await issueSessionCookie(req, res, user);
     res.json({ success: true, data: { action: 'connected', user_id: user.id, next: '/inbox' } });
@@ -112,6 +116,7 @@ router.get('/oauth-connections', authenticateToken, async (req, res) => {
 });
 
 // POST /api/auth/oauth-connections/google/initiate — 로그인된 사용자가 Settings 에서 Google 연결 시작
+// audit-exempt: 동의 화면 주소만 만든다 — 연결은 connect-confirm 이 남긴다
 router.post('/oauth-connections/google/initiate', authenticateToken, async (req, res) => {
   // state 에 user_id 추가 — callback 에서 분기 2 거치지 않고 직접 연결
   // 단순화 — 기존 initiate 그대로 사용. callback 시 email 매칭으로 attach.
@@ -137,6 +142,7 @@ router.delete('/oauth-connections/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'cannot_remove_last_oauth_method_set_password_first' });
     }
     await conn.destroy();
+    require('../../services/auditService').logAudit(req, { action: 'oauth_connection.disconnect', targetType: 'oauth_connection', targetId: conn.id, businessId: null, oldValue: { provider: conn.provider, email: conn.email } });
     res.json({ success: true, data: { disconnected: true } });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });

@@ -121,6 +121,7 @@ function requireOwnerForCloud(req, res, next) {
 }
 
 // ─── Google Drive OAuth 시작 ───
+// audit-exempt: 동의 화면 주소만 만든다 — 연결 감사(cloud.connect)는 저장하는 콜백(cloud_oauth.js)이 남긴다
 router.post('/connect/gdrive/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     if (!gdrive.isConfigured()) return errorResponse(res, 'Google Drive not configured on server', 500);
@@ -141,6 +142,7 @@ router.use(require('./cloud_oauth'));
 // ─── Google Calendar OAuth 시작 (Google Meet 자동 생성용) ───
 // 사이클 N+13: Daily.co 완전 교체. 워크스페이스 owner 가 Google 계정 1개 OAuth →
 //   그 calendar 의 events.insert 시 conferenceData.createRequest 로 Meet 링크 자동 발급.
+// audit-exempt: 동의 화면 주소만 만든다 — 연결 감사(cloud.connect)는 저장하는 콜백(cloud_oauth.js)이 남긴다
 router.post('/connect/gcal/:businessId', authenticateToken, checkBusinessAccess, requireOwnerForCloud, async (req, res, next) => {
   try {
     if (!gcal.isConfigured()) return errorResponse(res, 'Google Calendar not configured on server', 500);
@@ -197,6 +199,7 @@ router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusin
 // Python Q Note 서비스에서 문서 업로드 완료 후 이 엔드포인트로 동기화 요청.
 // 인증: INTERNAL_API_KEY 헤더 (Python ↔ Node 내부 통신).
 //   ★ `/api/internal/*` 밖이라 nginx deny 가 덮지 않는다 — 관문을 직접 건다 (보안감사 C-2)
+// audit-exempt: 내부 서비스(Q Note) 호출 — 사용자 없음, 회의자료 사본을 Drive 에 올리기만 한다
 router.post('/qnote/sync', requireInternalKey, async (req, res, next) => {
   try {
     const { business_id, session_id, session_title, session_date, document_id, local_path, file_name, mime_type } = req.body || {};
@@ -261,6 +264,7 @@ router.post('/watch/start/:businessId', authenticateToken, checkBusinessAccess, 
       watch_expires_at: channel.expiration ? new Date(Number(channel.expiration)) : null,
       watch_page_token: startPageToken,
     });
+    require('../services/auditService').logAudit(req, { action: 'cloud.watch_start', targetType: 'business_cloud_token', targetId: token.id, businessId: token.business_id, newValue: { provider: 'gdrive', expires_at: token.watch_expires_at } });
     return successResponse(res, {
       channel_id: channel.id,
       resource_id: channel.resourceId,
@@ -271,6 +275,7 @@ router.post('/watch/start/:businessId', authenticateToken, checkBusinessAccess, 
 
 // ─── Drive webhook 수신기 — Google 이 호출 (공개, 검증은 header 로) ───
 // 첫 호출은 'sync' 타입 (채널 생성 확인). 이후는 파일 변경 시 push.
+// audit-exempt: 외부(구글) 콜백 — 사용자 행위가 아니다. 반영 결과 원장은 gdrive_sync_logs(services/gdriveApply)
 router.post('/webhook/gdrive', async (req, res) => {
   try {
     const channelId = req.header('x-goog-channel-id');
@@ -357,6 +362,7 @@ router.post('/watch/stop/:businessId', authenticateToken, checkBusinessAccess, r
       await gdrive.stopChannel(drive, { channelId: token.watch_channel_id, resourceId: token.watch_resource_id });
     } catch (e) { console.warn('[watch stop]', e.message); }
     await token.update({ watch_channel_id: null, watch_resource_id: null, watch_expires_at: null });
+    require('../services/auditService').logAudit(req, { action: 'cloud.watch_stop', targetType: 'business_cloud_token', targetId: token.id, businessId: token.business_id, newValue: { provider: 'gdrive' } });
     return successResponse(res, { stopped: true });
   } catch (err) { next(err); }
 });

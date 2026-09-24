@@ -148,5 +148,34 @@ function createAuditLog(opts = {}) {
   });
 }
 
+/**
+ * 감사용 변경분 — `keys` 중 **실제로 바뀐 칸만** { oldValue, newValue } 로 돌려준다. 바뀐 것이 없으면 null
+ * (같은 값을 다시 보낸 요청은 변경이 아니다 → 호출부는 행을 쓰지 않는다).
+ *   before/after: 평범한 객체(`inst.get({ plain: true })` 등).
+ *   nameOnly: 값이 길거나(서명 HTML·소개글) 싣지 않을 칸 — 값 대신 `newValue.changed` 에 이름만 적는다.
+ * 비교는 느슨하다 — DECIMAL('1.00' vs 1)·BOOLEAN(true vs 1)·JSON 키 순서(MySQL 이 재정렬한다)를 같은 값으로 본다.
+ */
+function auditDiff(before, after, keys, { nameOnly = [] } = {}) {
+  const stable = (v) => (v && typeof v === 'object' && !(v instanceof Date)
+    ? (Array.isArray(v) ? `[${v.map(stable).join(',')}]` : `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${stable(v[k])}`).join(',')}}`)
+    : JSON.stringify(v instanceof Date ? v.toISOString() : v));
+  const same = (a, b) => {
+    if (a == null || b == null) return a == null && b == null;
+    if (typeof a === 'object' || typeof b === 'object') return stable(a) === stable(b);
+    const na = Number(a); const nb = Number(b);
+    if (String(a).trim() !== '' && String(b).trim() !== '' && !Number.isNaN(na) && !Number.isNaN(nb)) return na === nb;
+    return String(a) === String(b);
+  };
+  const oldValue = {}; const newValue = {}; const changed = [];
+  for (const k of keys) {
+    const a = before ? before[k] : undefined; const b = after ? after[k] : undefined;
+    if (same(a, b)) continue;
+    if (nameOnly.includes(k)) { changed.push(k); continue; }
+    oldValue[k] = a ?? null; newValue[k] = b ?? null;
+  }
+  if (changed.length) newValue.changed = changed;
+  return Object.keys(newValue).length ? { oldValue, newValue } : null;
+}
+
 module.exports = {
-  writeAudit, logAudit, createAuditLog };
+  writeAudit, logAudit, createAuditLog, auditDiff };

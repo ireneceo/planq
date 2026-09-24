@@ -16,6 +16,7 @@ module.exports = function registerPairingRoutes(router) {
 // 들어오면 안 되는지**(첫 설계의 ATO). 여기서는 얇게 통과시키기만 한다.
 
 // ① 앱(WebView)이 흐름을 연다. 응답의 pair_id 는 **비밀이 아니다**.
+// audit-exempt: 페어링 흐름을 열기만 한다 — 세션이 생기는 claim 에서 로그인 감사가 남는다
 router.post('/google/pair/start', limit('google-pair-start', 20), async (req, res) => {
   try {
     return res.json({ success: true, data: { pair_id: await oauthPairing.start() } });
@@ -26,6 +27,7 @@ router.post('/google/pair/start', limit('google-pair-start', 20), async (req, re
 });
 
 // ④ 앱이 pair_id + **사용자가 브라우저 화면에서 읽어 입력한 6자리**로 세션을 받아간다.
+// audit-exempt: 로그인 감사(auth.login)는 issueSessionCookie(oauth/core.js)가 authAudit.signInOk 로 남긴다 — 여기서 또 쓰면 한 로그인이 두 행
 router.post('/google/claim', limit('google-claim', 10), async (req, res) => {
   try {
     const { pair_id: pairId, code, client_kind } = req.body || {};
@@ -51,6 +53,7 @@ router.post('/google/claim', limit('google-claim', 10), async (req, res) => {
   }
 });
 
+// audit-exempt: 로그인 감사(auth.login)는 issueSessionCookie(oauth/core.js)가 authAudit.signInOk 로 남긴다 — 여기서 또 쓰면 한 로그인이 두 행
 router.post('/google/native-exchange', async (req, res) => {
   try {
     const { code, client_kind } = req.body || {};

@@ -825,6 +825,7 @@ function diagThrottled(ip) {
 }
 const trunc = (v, n) => String(v == null ? '' : v).slice(0, n);
 
+// audit-exempt: 세션 종료 진단 로그(authWarn)만 남긴다 — 저장·변경 없음
 router.post('/session-diag', (req, res) => {
   try {
     if (diagThrottled(req.ip)) return successResponse(res, null);
@@ -914,6 +915,7 @@ router.get('/me', authenticateToken, async (req, res, next) => {
 // 권한: 본인이 멤버 또는 클라이언트로 속한 워크스페이스만 가능.
 // 응답: 갱신된 user 객체 (workspaces[] + 새 active 정보 포함)
 // ============================================
+// audit-exempt: 세션 범위(active_business_id) 전환 — 업무 데이터·권한 변경 아님
 router.post('/switch-workspace', authenticateToken, async (req, res, next) => {
   try {
     const { business_id } = req.body || {};
@@ -991,6 +993,8 @@ router.post('/forgot-password', async (req, res, next) => {
       emailService.sendPasswordResetEmail({
         to: user.email, name: user.name, resetToken: tokenRaw, ttlMinutes: 60,
       }).catch(() => null);
+      // 감사 — 있는 활성 계정일 때만 쓴다(없는 이메일은 행을 만들지 않는다 — 열거 흔적·무인증 INSERT 방지). 이메일·토큰은 싣지 않는다.
+      require('../services/auditService').logAudit(req, { action: 'auth.password_reset_request', targetType: 'User', targetId: user.id, userId: user.id, businessId: null });
     }
     return successResponse(res, { sent: true }, '이메일을 발송했습니다. 받은편지함을 확인해주세요. (메일이 안 오면 입력한 이메일이 가입돼있지 않을 수 있습니다.)');
   } catch (err) { next(err); }
@@ -1041,11 +1045,13 @@ router.post('/verify-email-confirm', async (req, res, next) => {
       },
     });
     if (!user) return errorResponse(res, 'invalid_or_expired_token', 400);
+    const wasVerified = !!user.email_verified_at;
     await user.update({
       email_verified_at: new Date(),
       email_verify_token: null,
       email_verify_expires: null,
     });
+    if (!wasVerified) require('../services/auditService').logAudit(req, { action: 'user.email_verified', targetType: 'User', targetId: user.id, userId: user.id, businessId: null, newValue: { email: user.email, method: 'signup_link' } });
     return successResponse(res, { verified: true, email: user.email }, 'email_verified');
   } catch (err) { next(err); }
 });
@@ -1053,6 +1059,7 @@ router.post('/verify-email-confirm', async (req, res, next) => {
 // ============================================
 // POST /api/auth/resend-verify-email
 // ============================================
+// audit-exempt: 인증 메일 재발송 요청만 — 확정은 verify-email-confirm 이 남긴다
 router.post('/resend-verify-email', authenticateToken, async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id);

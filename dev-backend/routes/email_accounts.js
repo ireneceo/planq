@@ -341,6 +341,7 @@ router.delete('/:businessId/email-accounts/:id', authenticateToken, checkBusines
 });
 
 // POST /test — IMAP 연결 테스트
+// audit-exempt: 읽기 전용 연결 시험 — 저장하는 것이 없다
 router.post('/:businessId/email-accounts/:id/test', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const acc = await EmailAccount.findOne({
@@ -399,14 +400,24 @@ router.post('/:businessId/email-accounts/:id/set-default', authenticateToken, ch
     if (!acc) return errorResponse(res, 'not_found', 404);
     // 기본 계정은 워크스페이스 공용 발송 기본값 → 회사 공용 계정만 가능 (개인 계정 제외)
     if (acc.owner_user_id != null) return errorResponse(res, 'personal_cannot_be_default', 400);
+    // 감사용 — 직전 기본 계정(이미 이 계정이면 변경이 아니다)
+    const prevDefault = await EmailAccount.findOne({ where: { business_id: businessId, owner_user_id: null, is_default: true }, attributes: ['id', 'email'] });
     // 공용 계정 default 해제 → 이 계정만 true
     await EmailAccount.update({ is_default: false }, { where: { business_id: businessId, owner_user_id: null } });
-    await acc.update({ is_default: true });
+    // ★ 인스턴스 update 가 아니라 행 update — 이미 기본인 계정은 메모리 값이 이미 true 라
+    //   Sequelize 가 UPDATE 를 건너뛰고, 바로 위에서 false 로 내린 것만 남아 **기본 발신 계정이 사라졌다**(Fable 실측).
+    await EmailAccount.update({ is_default: true }, { where: { id: acc.id } });
+    acc.set('is_default', true);
+    if (!prevDefault || prevDefault.id !== acc.id) {
+      require('../services/auditService').logAudit(req, { action: 'email_account.set_default', targetType: 'email_account', targetId: acc.id, businessId,
+        oldValue: { default_account_id: prevDefault ? prevDefault.id : null, email: prevDefault ? prevDefault.email : null }, newValue: { default_account_id: acc.id, email: acc.email } });
+    }
     successResponse(res, serializeAccount(acc));
   } catch (err) { next(err); }
 });
 
 // POST /sync-now — 즉시 IMAP fetch 트리거 (cron 대기 없이)
+// audit-exempt: 받은편지 가져오기 트리거 — 설정·권한 변경 없음(가져온 메일은 email_messages 가 원장)
 router.post('/:businessId/email-accounts/:id/sync-now', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const acc = await EmailAccount.findOne({
@@ -425,6 +436,7 @@ router.post('/:businessId/email-accounts/:id/sync-now', authenticateToken, check
 //   계정을 연결하면 그 뒤로 오는 메일만 담기던 옛 동작 때문에, 방금 연결한 사용자는 빈 화면을 봤다.
 //   신규 연결은 이제 자동 백필되지만, 이미 연결된 계정은 이 버튼으로 과거분을 채운다.
 //   과거 메일은 읽기만 — "답변 필요" 로 올리지 않는다 (이미 다른 데서 처리했을 가능성).
+// audit-exempt: 과거 메일 가져오기 트리거 — 설정·권한 변경 없음(가져온 메일은 email_messages 가 원장)
 router.post('/:businessId/email-accounts/:id/backfill', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const acc = await EmailAccount.findOne({

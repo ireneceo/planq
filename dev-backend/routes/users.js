@@ -244,7 +244,18 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       updates.privacy_version = privacy_version;
     }
 
+    // 감사용 — 실제로 바뀐 칸만. 옛/새 값은 신원·동의 칸만 싣는다(소개글·답변 스타일 같은 긴 자유글은 이름만).
+    const norm = (v) => (v instanceof Date ? v.toISOString() : JSON.stringify(v ?? null));
+    const changedKeys = Object.keys(updates).filter((k) => norm(user.get(k)) !== norm(updates[k]));
+    const VALUE_KEYS = ['name', 'username', 'phone', 'language', 'timezone', 'terms_version', 'privacy_version'];
+    const prevValues = Object.fromEntries(changedKeys.filter((k) => VALUE_KEYS.includes(k)).map((k) => [k, user.get(k) ?? null]));
+
     await user.update(updates);
+
+    if (changedKeys.length) {
+      require('../services/auditService').logAudit(req, { action: 'user.profile_update', targetType: 'User', targetId: user.id, businessId: null,
+        oldValue: prevValues, newValue: { changed: changedKeys, ...Object.fromEntries(Object.keys(prevValues).map((k) => [k, user.get(k) ?? null])) } });
+    }
 
     const updated = await User.findByPk(req.params.id, {
       attributes: { exclude: USER_SENSITIVE_FIELDS }
@@ -260,6 +271,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
 // 새 이메일 받음 → 6자리 OTP 생성·해시 저장 → 새 이메일에 발송
 // body: { new_email }
 // ============================================
+// audit-exempt: 요청(인증 코드 발송)만 — 확정은 *-verify/*-confirm 라우트가 감사를 남긴다
 router.post('/:id/email-change-request', authenticateToken, async (req, res, next) => {
   try {
     if (req.user.id !== parseInt(req.params.id, 10)) {
@@ -391,6 +403,7 @@ router.post('/:id/email-change-verify', authenticateToken, async (req, res, next
 // 현재 primary 이메일이 미인증 상태일 때 — 그 이메일로 OTP 발송 (변경 없음, 인증만)
 // email_change_otp_* 필드 재활용. pending_email 은 user.email 로 둠.
 // ============================================
+// audit-exempt: 요청(인증 코드 발송)만 — 확정은 *-verify/*-confirm 라우트가 감사를 남긴다
 router.post('/:id/email-verify-request', authenticateToken, ...perUserDaily('otp-email', { perMin: 3, perDay: 20, message: '인증 메일 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     if (req.user.id !== parseInt(req.params.id, 10)) {
@@ -486,6 +499,7 @@ router.post('/:id/email-verify-confirm', authenticateToken, async (req, res, nex
       email_change_otp_expires_at: null,
       email_change_otp_attempts: 0,
     });
+    require('../services/auditService').logAudit(req, { action: 'user.email_verified', targetType: 'User', targetId: user.id, businessId: null, newValue: { email: user.email } });
     return successResponse(res, { email: user.email, verified: true });
   } catch (err) { next(err); }
 });
@@ -494,6 +508,7 @@ router.post('/:id/email-verify-confirm', authenticateToken, async (req, res, nex
 // POST /api/users/:id/secondary-email-verify-request
 // 현재 secondary 이메일이 미인증 상태일 때 — 그 이메일로 OTP 발송
 // ============================================
+// audit-exempt: 요청(인증 코드 발송)만 — 확정은 *-verify/*-confirm 라우트가 감사를 남긴다
 router.post('/:id/secondary-email-verify-request', authenticateToken, ...perUserDaily('otp-email', { perMin: 3, perDay: 20, message: '인증 메일 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     if (req.user.id !== parseInt(req.params.id, 10)) {
@@ -588,6 +603,7 @@ router.post('/:id/secondary-email-verify-confirm', authenticateToken, async (req
       secondary_email_otp_expires_at: null,
       secondary_email_otp_attempts: 0,
     });
+    require('../services/auditService').logAudit(req, { action: 'user.secondary_email_verified', targetType: 'User', targetId: user.id, businessId: null, newValue: { secondary_email: user.secondary_email } });
     return successResponse(res, { email: user.secondary_email, verified: true });
   } catch (err) { next(err); }
 });
@@ -597,6 +613,7 @@ router.post('/:id/secondary-email-verify-confirm', authenticateToken, async (req
 // 보조 이메일 추가/변경. 새 이메일에 6자리 OTP 발송. verify 시 secondary_email 로 교체.
 // body: { new_email }
 // ============================================
+// audit-exempt: 요청(인증 코드 발송)만 — 확정은 *-verify/*-confirm 라우트가 감사를 남긴다
 router.post('/:id/secondary-email-change-request', authenticateToken, ...perUserDaily('otp-email', { perMin: 3, perDay: 20, message: '인증 메일 요청이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     if (req.user.id !== parseInt(req.params.id, 10)) {
@@ -832,6 +849,7 @@ function avatarPathOf(userId) {
   return null;
 }
 
+// audit-exempt: 개인 표시(프로필 사진) — 권한·신원 변경 아님
 router.post('/:id/avatar', authenticateToken,
   ...perUserDaily('avatar-upload', { perMin: 5, perDay: 50 }),
   (req, res, next) => {
@@ -884,6 +902,7 @@ router.get('/:id/avatar', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// audit-exempt: 개인 표시(프로필 사진) — 권한·신원 변경 아님
 router.delete('/:id/avatar', authenticateToken, async (req, res, next) => {
   try {
     if (Number(req.params.id) !== Number(req.user.id)) return errorResponse(res, 'only_self', 403);
