@@ -62,6 +62,52 @@ async function l1GateOn() {
 }
 
 const denyStats = { anon: 0, expired: 0, other_user: 0, since: Date.now() };
+
+// ── Stage 2b 2단계 계측 — «L2/L3 를 켰다면 익명에게 막혔을» 요청 (docs/IMAGE_STAGE2B_DECISIONS.md §2) ──
+//   센다 = «3단계 판정이라면 막혔을 것» — 유효한 공개 문맥(ctx) 이 없고, 익명이거나 **쿠키 신원이 그 파일을 못 보는** 경우.
+//   ctx 가 있는 요청까지 세면 공개 문서 조회가 전부 잡음이 된다.
+//   ★ 쿠키가 있다고 멤버가 아니다 — 게스트 링크는 그림자 사용자에게 이미지 쿠키를 준다(routes/guest.js).
+//     처음엔 «쿠키 있으면 안 센다» 로 짰고, 카나리가 게스트 문서 이미지를 **0건** 으로 세는 것을 잡았다.
+//     3단계에서 막힐 사람을 계측이 못 보면 켜는 순간 게스트 화면이 깨진다.
+//   ★ **아무것도 막지 않는다.** 이 수가 0 에 수렴하는지 보고 3단계(켜기)를 판정한다.
+const l23Stats = { would_deny: 0, ctx_ok: 0, ctx_bad: 0, since: Date.now() };
+const l23Seen = new Set();
+// 쿠키 신원 판정 — 앱 안 목록은 같은 이미지를 수십 번 부른다. (사람, 파일) 60초 캐시.
+const seeCache = new Map();
+async function viewerCanSee(userId, file) {
+  const k = `${userId}:${file.id}`;
+  const hit = seeCache.get(k);
+  if (hit && Date.now() - hit.at < 60000) return hit.ok;
+  let ok = false;
+  try {
+    const { canAccessFileByLevel, getUserScope } = require('./access_scope');
+    const { User } = require('../models');
+    const u = await User.findByPk(userId, { attributes: ['platform_role'] });
+    const scope = await getUserScope(userId, file.business_id, u && u.platform_role);
+    ok = !!(await canAccessFileByLevel(userId, file, scope));
+  } catch { ok = false; }
+  if (seeCache.size >= 5000) seeCache.delete(seeCache.keys().next().value);
+  seeCache.set(k, { at: Date.now(), ok });
+  return ok;
+}
+async function meterL23(file, req, route) {
+  try {
+    const v = resolveImageViewerDetailed(req);
+    const ctx = req && req.query && typeof req.query.ctx === 'string' ? req.query.ctx : null;
+    if (ctx) {
+      if (await require('../services/imageCtx').imageCtxAllows(ctx, file)) { l23Stats.ctx_ok += 1; return; }
+      l23Stats.ctx_bad += 1;
+    }
+    if (v.userId != null && (await viewerCanSee(v.userId, file))) return;   // 목록과 같은 술어
+    l23Stats.would_deny += 1;
+    const key = `l23:${route}:${file.id}:${v.userId ?? 'anon'}:${ctx ? 'badctx' : 'noctx'}`;
+    if (!l23Seen.has(key) && l23Seen.size < SEEN_CAP) {
+      l23Seen.add(key);
+      const hasSession = req && req.cookies ? (req.cookies.has_session ? '1' : '0') : '?';
+      console.warn(`[imageGate:would-deny-l23] route=${route} file=${file.id} level=${file.vlevel || file.visibility} viewer=${v.userId ?? 'anon'} ctx=${ctx ? 'invalid' : 'none'} reason=${v.reason || '-'} has_session=${hasSession} referer=${refererPath(req)}`);
+    }
+  } catch { /* 계측이 서빙을 방해하면 안 된다 */ }
+}
 let lastSessionAlert = 0;
 const sessionAlerts = [];   // 시각 목록 — health-check 가 «최근 24h 에 우리 사용자가 신원 없이 막혔나» 를 읽는다
 /** 어디서 왔는가 — **경로만**, 긴 토큰 조각은 가린다(`/g/<token>` 이 로그에 남으면 그 자체가 유출이다). */
@@ -83,7 +129,8 @@ async function isImageViewable(file, req, route) {
   try {
     if (!file) return false;
     const level = file.vlevel || file.visibility || 'L3';
-    if (level !== 'L1') return true;                       // 2a 범위 밖 — 불변
+    if (level === 'L2' || level === 'L3') { await meterL23(file, req, route); return true; }   // 2b 2단계 — 세기만 한다
+    if (level !== 'L1') return true;                       // L4 — 불변
     const v = resolveImageViewerDetailed(req);
     const viewer = v.userId;
     if (viewer != null && file.uploader_id != null && String(file.uploader_id) === String(viewer)) return true;
@@ -182,6 +229,7 @@ async function imageGateStats() {
     off_until: gateCache.offUntil ? gateCache.offUntil.toISOString() : null,
     deny: { anon: denyStats.anon, expired: denyStats.expired, other_user: denyStats.other_user },
     session_alerts_24h: sessionAlerts.length,
+    l23: { would_deny: l23Stats.would_deny, ctx_ok: l23Stats.ctx_ok, ctx_bad: l23Stats.ctx_bad, distinct: l23Seen.size, since: new Date(l23Stats.since).toISOString() },
     since: new Date(denyStats.since).toISOString(),
   };
 }

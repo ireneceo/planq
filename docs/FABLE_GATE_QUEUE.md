@@ -5133,3 +5133,10 @@ guard 58/59 · health 45/45 · build EXIT 0 · `error TS` 0 · 잔여 0 ·
 - **설계 결정 대기(비차단)**: `findSourceFile` 이 **휴지통(deleted_at) 에 든 L1 행**도 최우선으로 집는다 → 같은 바이트의 **살아 있는 L3 첨부 사본**이
   남에게 404. 지금은 fail-closed 로 둔다(개인 바이트는 휴지통에서도 개인). dev 에 `deleted_at IS NOT NULL AND L1` 677행 —
   운영에서 걸리면 «첨부 이미지가 안 보인다» 신고로 온다. 바꾸려면 «산 행 중 가장 좁은 등급, 산 행이 없으면 지운 행» 순서.
+
+## 2026-09-24 — 이미지 2b 1·2단계 (image_ctx · L2/L3 계측) — Fable PASS
+- 권고 2건은 PASS 뒤 반영·자체검증: ①`utils/imageCtx.ts` IMG_RE 앞 고정(`^/api/…`) — 외부 호스트 주소에 ctx 가 붙던 것 ②암호화 키·IV HMAC 키 분리.
+  (imagectx 9/9 · signature 16/16 재실행 · 정규식 단위 5건)
+- **범위 밖 기존 결함(Fable 발견)**: `pdfInlineImages.SRC_RE` 가 확장자 바로 뒤 따옴표를 요구해 `?w=1600` 붙은 editor-image 는
+  PDF 에 인라인되지 않고 사라진다. 운영 editor-image 본문 17건 중 **11건**이 `?w=` — 그 문서 PDF 에 이미지가 없다. → 다음 작업.
+- 3단계 켜기 전 판단: 문서 캐시 60초(회수 반영 지연)를 줄일지.

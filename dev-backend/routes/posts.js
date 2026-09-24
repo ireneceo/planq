@@ -1678,8 +1678,9 @@ router.get('/:id/signed-html', authenticateToken, async (req, res, next) => {
     const sd = require('../services/signedDocument');
     const { view, doc, labels } = await postSignedView(post, req);
     if (!view) return successResponse(res, { has_signatures: false });
-    const { richBodyToHtml } = require('../services/pdfTemplates');
-    const body = richBodyToHtml(doc.content_json, doc.content_html, doc.content_text);
+    const { richBodyToHtml, browserAssetHtml } = require('../services/pdfTemplates');
+    // 화면으로 나가는 조립 — PDF 용 서버 자기 주소를 걷어낸다(안 걷으면 이미지가 전부 깨진다).
+    const body = browserAssetHtml(richBodyToHtml(doc.content_json, doc.content_html, doc.content_text));
     return successResponse(res, {
       has_signatures: true,
       html: sd.injectSignatures(body, view.requests, labels),
@@ -1826,6 +1827,8 @@ router.get('/public/:token', async (req, res, next) => {
       //   소비처도 0곳이었다 — 죽은 채로 두지 않는다(Fable 권고).
       void hidden;
     }
+    // 이미지 문맥(2b 1단계) — 본문 이미지가 익명에게도 이 문서 안에서는 열리게 한다. 비밀번호를 통과한 응답에만 준다(위에서 걸렀다).
+    safe.image_ctx = require('../services/imageCtx').issueImageCtx('post', { token, pwHash: post.share_password_hash });
     delete safe.share_token;
     // 서명본 — 앱 안 문서·PDF 와 **같은 조립**(services/signedDocument). 화면이 따로 끼우면 갈라진다.
     //   ★ 증명서 장은 싣지 않는다 — 이메일·IP 가 들어가고, 이 링크는 소지자 누구나 연다.
@@ -1833,9 +1836,9 @@ router.get('/public/:token', async (req, res, next) => {
       const sd = require('../services/signedDocument');
       const { view, doc, labels } = await postSignedView(post, req);
       if (view) {
-        const { richBodyToHtml } = require('../services/pdfTemplates');
+        const { richBodyToHtml, browserAssetHtml } = require('../services/pdfTemplates');
         safe.signed_html = sd.injectSignatures(
-          richBodyToHtml(doc.content_json, doc.content_html, doc.content_text), view.requests, labels);
+          browserAssetHtml(richBodyToHtml(doc.content_json, doc.content_html, doc.content_text)), view.requests, labels);
         safe.signed_css = sd.SIGNED_CSS;
         safe.signature_progress = { total: view.total, signed: view.signed, complete: view.complete };
         if (doc.title) safe.title = doc.title;   // 고정본의 제목이 계약의 제목이다

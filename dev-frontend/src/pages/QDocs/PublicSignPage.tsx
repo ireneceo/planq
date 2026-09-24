@@ -10,7 +10,7 @@
 // 모바일 friendly · 터치 캔버스 · OTP autofocus 자동 이동 · 60초 쿨다운
 // 상태별 화면: 진행 / 이미 서명 / 거절됨 / 만료 / 취소
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
@@ -18,6 +18,7 @@ import PostEditor from '../../components/Docs/PostEditor';
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { formatPublicDateTime } from '../../utils/dateFormat';
+import { withImageCtxJson, withImageCtxHtml } from '../../utils/imageCtx';
 import {
   ActionRow, Brand, Canvas, CanvasClear, CanvasPlaceholder, CanvasWrap, ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
@@ -44,6 +45,8 @@ interface PublicSignData {
   // 서명란(2026-09-22) — 내 칸이 문서 어디인지. null 이면 서명란 없는 옛 요청.
   slot?: number | null;
   party?: 'us' | 'them';
+  // 본문 이미지 문맥 — 서명자(익명)에게 고정본 이미지를 여는 증명(utils/imageCtx)
+  image_ctx?: string | null;
   entity: {
     type: 'post' | 'document';
     id: number;
@@ -345,6 +348,9 @@ const PublicSignPage: React.FC = () => {
   };
 
   // ─── 렌더 ───
+  // ★ early return 위 — 훅 수가 로딩 전후로 같아야 한다.
+  const bodyJson = useMemo(() => withImageCtxJson(doc?.entity.content_json ?? null, doc?.image_ctx), [doc?.entity.content_json, doc?.image_ctx]);
+  const signedHtml = useMemo(() => withImageCtxHtml(doc?.entity.signed_html, doc?.image_ctx), [doc?.entity.signed_html, doc?.image_ctx]);
   if (loading) {
     return <Page><LoadingCenter><Spinner /><span>{t('publicSign.loading', '문서 로드 중...')}</span></LoadingCenter></Page>;
   }
@@ -432,9 +438,9 @@ const PublicSignPage: React.FC = () => {
               )}
               <DocBody $mySlot={doc.slot ?? null}>
                 {doc.entity.signed_html ? (
-                  <SignedHtml dangerouslySetInnerHTML={{ __html: sanitizeRichText(doc.entity.signed_html) }} />
+                  <SignedHtml dangerouslySetInnerHTML={{ __html: sanitizeRichText(signedHtml) }} />
                 ) : (
-                  <PostEditor value={doc.entity.content_json} onChange={() => {}} editable={false} />
+                  <PostEditor value={bodyJson} onChange={() => {}} editable={false} />
                 )}
               </DocBody>
               {/* ★ 2026-08-27 — 별첨. 여태 이 화면에 없었다. 본문이 "별첨 2에 정한…" 을 인용하는데

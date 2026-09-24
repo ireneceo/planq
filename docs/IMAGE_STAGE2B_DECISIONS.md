@@ -1,4 +1,4 @@
-# 이미지 보안 Stage 2b — 결정문 (Fable 설계 2026-09-24, 구현 미착수)
+# 이미지 보안 Stage 2b — 결정문 (Fable 설계 2026-09-24 · 0~2단계 구현 2026-09-24)
 
 대상 무인증 이미지 표면 **여섯**. 2a(개인 L1, `files/public-image`·`posts/editor-image`)는 켜져 있다. 이 문서는 «L2/L3 를 누구에게 여는가» 를 정한다.
 
@@ -66,3 +66,16 @@
 - **R**: 켜는 것은 시각 스위치로 되돌린다(R=0). 단 `link-existing` 403 과 ctx 배관은 코드라 배포 단위 — 3단계 **켜기 직전 한 번** Fable(운영 계측 로그 대조 · 공유 문서 11건 실열람).
 - **S=1**: 이 문서가 그 판단이다. 구현은 설계 밖을 더하지 않는다(예: 첨부 행에 등급 컬럼).
 - **F=1**: 위 9항목이 기계 판정이다. 0~2단계는 Opus 자체검증(«Fable 미검증(자체 검증)» 표기).
+
+## 5. 구현 기록 (2026-09-24, 0~2단계)
+
+- **0단계** v1.63.1 배포 · `findSourceFile` 좁은 등급 우선 v1.63.2.
+- **1단계** `services/imageCtx.js` — AES-256-GCM(파생 키 `JWT_SECRET:planq-imgctx-v1`), IV=평문 HMAC(같은 시간창이면 같은 값 → 60초 재조회마다 이미지 재다운로드 없음). 유효 1~2h(정시 경계).
+  발급 3곳: `GET /api/posts/public/:token`(비밀번호 통과 뒤) · `GET /api/guest/:token/posts/:postId` · `GET /api/sign/:token`. 화면 3곳이 `utils/imageCtx.ts` 한 벌로 붙인다(우리 이미지 두 경로에만 — 외부 이미지로 토큰이 새지 않게).
+  판정 `imageCtxAllows(ctx, file)` — 문서가 **지금도** 그 문맥으로 열리는가(공유: `shareOpenable` + 비밀번호 지문 · 게스트: `resolveGuestToken` + `services/guestPost`(라우트와 한 술어) · 서명: 410 상태와 같은 판정) + **파일 워크스페이스 = 문서 워크스페이스** + 본문에 그 파일명이 이미지 주소로 박혀 있음(접미사 일치 불인정).
+  ★ 문서 조회는 60초 캐시 — 공유 해제·비번 변경은 **최대 60초 뒤** 반영된다(3단계 켜기 전에 줄일지 판단).
+- **2단계** `meterL23` — L2/L3 에서 «유효 ctx 없음 + (익명 **또는 쿠키 신원이 목록 술어로 못 봄**)» 을 `would_deny` 로 센다. 막지 않는다.
+  ★ 설계는 «익명만» 이었다 — **게스트 링크는 그림자 사용자에게 이미지 쿠키를 준다**(`routes/guest.js`). 익명만 세면 게스트 문서 이미지가 0건으로 잡혀(카나리가 잡음) 3단계에서 게스트 화면이 조용히 깨진다. 그래서 3단계 판정 술어 그대로 센다(쿠키 신원 판정은 (사람,파일) 60초 캐시).
+  관측: `/api/internal/health/imagegate` 의 `l23{would_deny, ctx_ok, ctx_bad, distinct}` · 로그 `[imageGate:would-deny-l23]` · `health-check --category=imagegate`.
+- 같이 고친 기존 결함 — 서명본 HTML(`richBodyToHtml`)이 PDF 용 서버 자기 주소(`http://127.0.0.1:3003/api/…`)를 품은 채 **화면**으로 나가 서명 요청이 있는 문서의 본문 이미지가 공유 링크·서명 화면·앱 안 서명본에서 전부 깨져 있었다 → `pdfTemplates.browserAssetHtml` 로 세 곳에서 걷어낸다.
+- 회귀: `--suite imagectx`(실브라우저 익명 · 3화면 src·그려짐·계측 + 대조군 2) · 실호출 18건.

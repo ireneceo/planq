@@ -382,6 +382,14 @@ function defineImageGateTests() {
     if (opts.verbose) console.log(c.gray(`      거부 anon ${d.deny.anon} · expired ${d.deny.expired} · other_user ${d.deny.other_user} (since ${d.since})`));
     return true;
   });
+  // 2b 2단계 — L2/L3 계측이 살아 있는가. 막지 않으므로 수치로 실패시키지 않는다(3단계 켜기 판정은 사람이 로그로 한다).
+  //   ★ 칸이 없으면 실패 — 계측이 빠진 채 3단계를 켜면 무엇이 깨질지 모른다.
+  test('imagegate', 'L2/L3 계측(2b) 이 살아 있다', async () => {
+    const d = await load();
+    if (!d.l23 || typeof d.l23.would_deny !== 'number') throw new Error('l23 칸 없음 — middleware/imageViewer.js meterL23 확인');
+    if (opts.verbose) console.log(c.gray(`      would_deny ${d.l23.would_deny} · ctx_ok ${d.l23.ctx_ok} · ctx_bad ${d.l23.ctx_bad} · 서로 다른 ${d.l23.distinct} (since ${d.l23.since})`));
+    return true;
+  });
 }
 
 function defineAuthTests() {

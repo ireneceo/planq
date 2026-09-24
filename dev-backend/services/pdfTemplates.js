@@ -259,6 +259,15 @@ function absolutizeSrc(src) {
   return base.replace(/\/+$/, '') + s;
 }
 
+/** 브라우저로 내보낼 HTML — absolutizeSrc 가 PDF(puppeteer)용으로 붙인 서버 자기 주소를 **걷어낸다.**
+ *  ★ 서명본(signedDocument)이 이 조립을 재사용해 화면에도 나간다. 그대로 보내면 사용자 브라우저가
+ *    `http://127.0.0.1:3003/api/…` 를 불러 **서명 문서의 이미지가 전부 깨진다**(2026-09-24 카나리가 잡았다). */
+function browserAssetHtml(html) {
+  if (!html) return html;
+  const base = (process.env.PDF_ASSET_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3003}`).replace(/\/+$/, '');
+  return String(html).split(`${base}/api/`).join('/api/');
+}
+
 function nodeToHtml(n) {
   if (!n || typeof n !== 'object') return '';
   if (n.type === 'text') {
@@ -557,4 +566,4 @@ function reportPdfHtml({ period, business, generatedAt, tabs }) {
 // richBodyToHtml 은 내보내기 zip(routes/export.js)도 쓴다 — 본문 렌더러를 새로 만들면
 //   "TipTap JSON 원문이 그대로 찍히는" 2026-08-07 포스트 PDF 파손이 zip 에서 재현된다.
 //   ★ 신규 렌더러 작성 금지 — 이 하나를 공유한다.
-module.exports = { invoicePdfHtml, postPdfHtml, documentPdfHtml, reportPdfHtml, richBodyToHtml };
+module.exports = { browserAssetHtml, invoicePdfHtml, postPdfHtml, documentPdfHtml, reportPdfHtml, richBodyToHtml };

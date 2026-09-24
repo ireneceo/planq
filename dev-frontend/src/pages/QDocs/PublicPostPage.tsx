@@ -1,7 +1,7 @@
 // 공개 포스트 페이지 — share_token 기반 (인증 없음)
 // 라우트: /public/posts/:token
 // 기능: 본문 표시 + 인쇄(PDF)
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import PublicPageShell, { PublicCenter, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,7 @@ import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { formatPublicDate } from '../../utils/dateFormat';
+import { withImageCtxJson, withImageCtxHtml } from '../../utils/imageCtx';
 
 interface PublicPost {
   id: number;
@@ -21,6 +22,8 @@ interface PublicPost {
   // 서명본 — 서명 요청이 있는 문서는 서버가 «고정본 + 서명» 을 조립해 보낸다.
   //   화면이 직접 끼우면 앱 안 문서·PDF 와 갈라진다(설계 §2).
   signed_html?: string | null;
+  // 본문 이미지 문맥 — 서버가 준 값을 이미지 주소에 붙인다(utils/imageCtx)
+  image_ctx?: string | null;
   author: { id: number; name: string } | null;
   created_at: string;
   attachments: Array<{
@@ -81,6 +84,11 @@ const PublicPostPage: React.FC = () => {
       .catch(() => { /* silent */ });
   }, [token, post]);
 
+  // ★ early return 위 — 훅 수가 로딩 전후로 달라지면 React 가 깨진다.
+  //   ctx 는 같은 시간창이면 같은 값이라 60초 재조회마다 이미지를 다시 받지 않는다.
+  const bodyJson = useMemo(() => withImageCtxJson(post?.content_json ?? null, post?.image_ctx), [post?.content_json, post?.image_ctx]);
+  const signedHtml = useMemo(() => withImageCtxHtml(post?.signed_html, post?.image_ctx), [post?.signed_html, post?.image_ctx]);
+
   if (loading) return <PublicCenter>{t('public.loading', '문서 로드 중...')}</PublicCenter>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
   //   ★ 서버 코드(not_found 등)를 그대로 뿌리지 않는다 — 사용자에게는 뜻 없는 영어 한 단어로 보인다
@@ -113,9 +121,9 @@ const PublicPostPage: React.FC = () => {
         </PublicMeta>
         {post.signed_html ? (
           <SignedBody data-testid="public-signed-body"
-            dangerouslySetInnerHTML={{ __html: sanitizeRichText(post.signed_html) }} />
+            dangerouslySetInnerHTML={{ __html: sanitizeRichText(signedHtml) }} />
         ) : (
-          <PostEditor value={post.content_json} onChange={() => {}} editable={false} borderless />
+          <PostEditor value={bodyJson} onChange={() => {}} editable={false} borderless />
         )}
 
         {post.attachments && post.attachments.length > 0 && (

@@ -17,6 +17,7 @@ const { guestLimiter, attachGuest } = require('./guest_common');
 // 누구로 보이는가(담당자·작성자·올린 사람) — services/guestParty.js **한 술어**(§A). 여기서 다시 쓰지 않는다.
 const { guestPartyLabels } = require('../services/guestParty');
 const { previewUrlForFile } = require('../services/filePreview');
+const { GUEST_VLEVELS, guestProjectOf, findGuestPost } = require('../services/guestPost');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -85,12 +86,9 @@ router.get('/:token/tasks', guestLimiter('guest-tasks', { windowMs: 60 * 1000, m
 
 /** 이 링크가 프로젝트를 여는가 — 아니면 여기 라우트들은 전부 없는 것이다. */
 async function requireProjectScope(req, res) {
-  const { link } = req.guest;
-  if (link.scope !== 'project' || !link.project_id) { errorResponse(res, 'not_found', 404); return null; }
-  const { Project } = require('../models');
-  const project = await Project.findByPk(link.project_id, { attributes: ['id', 'business_id'] });
-  // 테넌트 이중 검증 — 링크의 워크스페이스와 프로젝트가 어긋나면 없는 것으로 친다.
-  if (!project || project.business_id !== link.business_id) { errorResponse(res, 'not_found', 404); return null; }
+  // 판정은 services/guestPost 한 곳 — 이미지 문맥(services/imageCtx)도 같은 함수를 부른다.
+  const project = await guestProjectOf(req.guest.link);
+  if (!project) { errorResponse(res, 'not_found', 404); return null; }
   return project;
 }
 
@@ -110,7 +108,6 @@ function guestDownloadable(r) {
 }
 
 /** 외부에 내보낼 수 있는 노출 범위인가 — L2·L3·L4 만. L1(개인)은 프로젝트에 묶여 있어도 남의 것이다. */
-const GUEST_VLEVELS = ['L2', 'L3', 'L4'];
 
 // GET /api/guest/:token/posts — 문서 목록
 router.get('/:token/posts', guestLimiter('guest-posts', { windowMs: 60 * 1000, max: 30 }), attachGuest, async (req, res, next) => {
@@ -170,17 +167,9 @@ router.get('/:token/posts/:postId', guestLimiter('guest-post', { windowMs: 60 * 
     const project = await requireProjectScope(req, res);
     if (!project) return;
     const { link } = req.guest;
-    const { Post } = require('../models');
-    const post = await Post.findOne({
-      where: {
-        id: Number(req.params.postId) || 0,
-        project_id: project.id, business_id: link.business_id,
-        status: 'published', vlevel: GUEST_VLEVELS,
-      },
-      attributes: ['id', 'title', 'category', 'security_level', 'author_id', 'updatedAt', 'content_json'],
-    });
+    const post = await findGuestPost(link, project.id, req.params.postId,
+      ['id', 'title', 'category', 'security_level', 'author_id', 'updatedAt', 'content_json']);
     if (!post) return errorResponse(res, 'not_found', 404);
-    if ((post.security_level || 'general') !== 'general') return errorResponse(res, 'not_found', 404);
 
     const nameMap = await guestPartyLabels(link.business_id, [post.author_id].filter(Boolean), { surface: 'doc' });
     let content = null;
@@ -198,6 +187,8 @@ router.get('/:token/posts/:postId', guestLimiter('guest-post', { windowMs: 60 * 
       updated_at: post.updatedAt || null,
       author_name: nameMap.get(post.author_id) || null,
       content,
+      // 이미지 문맥(2b 1단계) — 이 링크·이 문서 안에서만 본문 이미지를 연다(services/imageCtx).
+      image_ctx: require('../services/imageCtx').issueImageCtx('guest', { token: req.params.token, postId: post.id }),
     });
   } catch (err) { next(err); }
 });

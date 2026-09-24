@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { postContentToSafeHtml } from '../../utils/postContentHtml';
+import { withImageCtxJson } from '../../utils/imageCtx';
 import { postContentTableCss } from '../../styles/postContentView';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -33,6 +34,8 @@ type DocRow = {
 type DocDetail = {
   id: number; title: string; category: string | null;
   updated_at: string | null; author_name: string | null; content: unknown;
+  // 본문 이미지 문맥 — 이 링크·이 문서 안에서만 이미지가 열린다(utils/imageCtx)
+  image_ctx?: string | null;
 };
 
 type Props = { token: string; onGone: () => void; onNeedLogin: (reason: LoginSheetReason) => void };
@@ -181,9 +184,9 @@ export default function GuestDocsTab({ token, onGone, onNeedLogin }: Props) {
               <CloseBtn type="button" onClick={() => setOpenDoc(null)}
                 aria-label={t('close', { defaultValue: '닫기' }) as string}>×</CloseBtn>
             </DocHead>
-            <DocBody
+            <DocBody data-testid="guest-doc-body"
               // 정화를 지난 HTML 만 넣는다(utils/postContentHtml).
-              dangerouslySetInnerHTML={{ __html: postContentToSafeHtml(openDoc.content) }} />
+              dangerouslySetInnerHTML={{ __html: postContentToSafeHtml(withImageCtxJson(openDoc.content, openDoc.image_ctx)) }} />
           </DocBox>
         </Sheet>
         </SheetPortal>

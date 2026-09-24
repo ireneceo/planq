@@ -33,8 +33,10 @@ router.get('/sign/:token', async (req, res, next) => {
       const sd = require('../services/signedDocument');
       const view = await sd.loadSignedView(sr.entity_type, sr.entity_id);
       if (view.total) {
-        const body = require('../services/pdfTemplates').richBodyToHtml(
-          parseMaybeJson(sr.content_snapshot) ?? parseMaybeJson(entity.content_json), null, null);
+        const tpl = require('../services/pdfTemplates');
+        // 화면으로 나가는 조립 — PDF 용 서버 자기 주소를 걷어낸다(안 걷으면 이미지가 전부 깨진다).
+        const body = tpl.browserAssetHtml(tpl.richBodyToHtml(
+          parseMaybeJson(sr.content_snapshot) ?? parseMaybeJson(entity.content_json), null, null));
         signedHtml = sd.injectSignatures(body, view.requests, sd.labelsFor(req));
       }
     } catch (e) { console.warn('[sign] 서명본 조립 실패', e.message); }
@@ -45,6 +47,8 @@ router.get('/sign/:token', async (req, res, next) => {
       signer_name: sr.signer_name,
       status: sr.status,
       expires_at: sr.expires_at,
+      // 이미지 문맥(2b 1단계) — 고정본 본문 이미지가 서명자(익명)에게 열리게 한다(services/imageCtx).
+      image_ctx: require('../services/imageCtx').issueImageCtx('sign', { token: sr.token }),
       kind: sr.kind || 'sign',   // #239 — 공개 페이지가 확인 뷰/서명 뷰를 가르는 값
     confirmed_at: sr.confirmed_at,
     comment: sr.comment,
