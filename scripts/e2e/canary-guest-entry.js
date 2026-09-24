@@ -127,8 +127,10 @@ async function run() {
     ]) {
       const r = await api(path, { method: 'POST', body: '{}' });
       const url = r.body?.data?.url;
-      if (r.status !== 201 || !url) { unmeasured(`${kind} 링크 발급`, `${r.status} ${r.body?.message || ''}`); continue; }
-      issued.push({ kind, id: r.body.data.id, convId: conv.id, projId: conv.project_id });
+      // ★ 발급은 멱등이다(2026-09-24 §B) — 이미 살아 있는 링크가 있으면 200 reused 로 **남의 링크**를 준다.
+      //   그것은 읽기 검사에만 쓰고 **회수·삭제하지 않는다**(남이 보낸 주소가 죽는다). 내가 만든 것(201)만 치운다.
+      if (!url || (r.status !== 201 && r.status !== 200)) { unmeasured(`${kind} 링크 발급`, `${r.status} ${r.body?.message || ''}`); continue; }
+      if (r.status === 201) issued.push({ kind, id: r.body.data.id, convId: conv.id, projId: conv.project_id });
       links[kind] = url.split('/g/')[1];
     }
     if (!links.conversation) return results;
@@ -193,9 +195,13 @@ async function run() {
         : `/api/projects/${l.projId}/guest-links/${l.id}`;
       await api(path, { method: 'DELETE' });
     }
-    for (const [kind, token] of Object.entries(links)) {
-      const r = await fetch(`${API}/api/guest/${token}`);
-      push(`[${kind}] 회수 후 404`, r.status === 404, String(r.status));
+    for (const l of issued) {
+      const r = await fetch(`${API}/api/guest/${links[l.kind]}`);
+      push(`[${l.kind}] 회수 후 404`, r.status === 404, String(r.status));
+    }
+    for (const kind of Object.keys(links).filter((k) => !issued.some((l) => l.kind === k))) {
+      results.push({ name: `[${kind}] 회수 후 404`, unmeasured: true, optional: true,
+        details: ['⚪ 이미 살아 있던 링크를 재사용했다 — 남의 링크라 회수하지 않는다'] });
     }
     return results;
   } catch (e) {

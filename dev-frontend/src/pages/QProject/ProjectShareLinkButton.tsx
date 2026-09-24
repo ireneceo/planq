@@ -43,6 +43,7 @@ export default function ProjectShareLinkButton({ projectId, projectName, busines
         conversationId={0}          /* 주소를 endpoints 로 넘기므로 쓰이지 않는다 */
         clientName={projectName}
         autoOpen
+        scope="project"
         onClosed={() => { setOpen(false); void loadLive(); }}
         title={label}
         lead={t('share.projectLinkLead', {

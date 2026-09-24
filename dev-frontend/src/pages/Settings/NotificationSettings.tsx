@@ -7,6 +7,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { InboxIcon, ChatIcon, MailIcon } from '../../components/Common/Icons';
 import AutoSaveField from '../../components/Common/AutoSaveField';
+import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import PwaInstallSection from './PwaInstallSection';
 import WeeklyReviewAutoSection from '../../components/QTask/WeeklyReviewAutoSection';
 
@@ -510,19 +511,6 @@ const EventLabel = styled.div`font-size: 0.8125rem; font-weight: 600; color: #0F
 const EventDesc = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.4;`;
 const ToggleCell = styled.div`padding: 14px 0; display: flex; align-items: center; justify-content: center;`;
 // $saving 은 없앴다 — 저장 중 표시는 AutoSaveField 의 스피너가 맡는다(한 곳에서).
-const Switch = styled.button<{ $on: boolean }>`
-  width: 36px; height: 20px; border-radius: 999px; border: none;
-  background: ${p => p.$on ? '#14B8A6' : '#CBD5E1'};
-  position: relative; cursor: pointer;
-  transition: background 0.15s;
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-`;
-const SwitchKnob = styled.span<{ $on: boolean }>`
-  position: absolute; top: 2px; left: ${p => p.$on ? '18px' : '2px'};
-  width: 16px; height: 16px; border-radius: 50%; background: #fff;
-  transition: left 0.15s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-`;
 const FooterNote = styled.div`
   font-size: 0.6875rem; color: #94A3B8; line-height: 1.5;
   padding-top: 4px;

@@ -208,26 +208,37 @@ function serializeGuestLink(l) {
   };
 }
 
-async function issueGuestLink({ businessId, conversationId, projectId = null, client = null, createdBy, canWrite = true, guestName = null, scope = 'conversation' }) {
+/**
+ * 공유 링크 발급(본체). **토큰은 파생이다**(docs/GUEST_PROJECT_VIEW_DECISIONS.md §B-1) —
+ *   난수로 만들면 해시만 남아 **주소를 다시 볼 수 없고**, 그래서 사람들이 링크를 새로 만들었다(§0-⑦).
+ * ★ 두 단계다: 자리표시 해시로 행을 만들고 → **DB 에서 다시 읽은** createdAt 으로 파생 토큰을 계산해 붙인다.
+ *   `created_at` 은 DATETIME(초 단위)이라, 만든 직후 메모리 값(밀리초 포함)으로 계산하면
+ *   나중에 목록에서 다시 계산한 토큰과 **달라져 주소가 안 열린다.**
+ * ★ 비밀키가 없으면 **던진다**(`guest_link_secret_missing`). 난수로 조용히 떨어지면 «다시 못 보는
+ *   링크» 가 또 생긴다.
+ * 트랜잭션은 부르는 쪽(issueOrReuseSharedLink)이 준다.
+ */
+async function issueGuestLink({ businessId, conversationId, projectId = null, client = null, createdBy, canWrite = true, guestName = null, scope = 'conversation', transaction } = {}) {
+  if (!sharedSecret()) { const e = new Error('guest_link_secret_missing'); e.code = 'guest_link_secret_missing'; throw e; }
   // client 는 **선택**이다. 대화방에 고객이 붙어 있으면 기록해 두고(타임라인 연속성),
   //   없으면 NULL. 멤버에게 묻지 않는다 — 발급은 클릭 한 번이어야 한다.
-  const guestUser = await ensureShadowUser();
+  const guestUser = await ensureShadowUser({ transaction });
   // 대화방 참여자로 등록 — 없으면 메시지 목록·unread 집계가 이 사람을 모른다.
-  const [participant] = await ConversationParticipant.findOrCreate({
+  await ConversationParticipant.findOrCreate({
     where: { conversation_id: conversationId, user_id: guestUser.id },
     defaults: { conversation_id: conversationId, user_id: guestUser.id, role: 'client' },
+    transaction,
   });
-  void participant;
 
-  const token = generateToken();
+  const placeholder = generateToken();   // 버리는 값 — 파생 토큰을 붙이기 전까지 이 행은 열리지 않는다
   const link = await GuestLink.create({
     business_id: businessId,
     conversation_id: conversationId,
     project_id: projectId,
     client_id: client ? client.id : null,
     guest_user_id: guestUser.id,
-    token_hash: hashToken(token),
-    token_hint: token.slice(0, 6),
+    token_hash: hashToken(placeholder),
+    token_hint: '------',
     // 멤버가 붙이는 메모용 이름. 화면 표시명이 아니다(그건 messages.meta.guest.name).
     guest_name: guestName ? String(guestName).slice(0, 100) : null,
     can_write: !!canWrite,
@@ -235,8 +246,64 @@ async function issueGuestLink({ businessId, conversationId, projectId = null, cl
     scope: scope === 'project' ? 'project' : 'conversation',
     expires_at: new Date(Date.now() + SLIDING_TTL_MS),
     created_by: createdBy,
-  });
+  }, { transaction });
+  await link.reload({ transaction });
+  const token = sharedTokenFor(link);
+  if (!token) { const e = new Error('guest_link_secret_missing'); e.code = 'guest_link_secret_missing'; throw e; }
+  await link.update({ token_hash: hashToken(token), token_hint: token.slice(0, 6) }, { transaction });
   return { link, token, guestUser };
+}
+
+/** 이 자리(scope + 프로젝트 또는 대화방)의 **살아 있는** 공유 링크 1건. 두 발급 라우트가 같이 부른다. */
+async function findLiveSharedLink({ businessId, scope, projectId = null, conversationId = null, transaction } = {}) {
+  const where = {
+    business_id: businessId, kind: 'shared', revoked_at: null,
+    scope: scope === 'project' ? 'project' : 'conversation',
+    expires_at: { [Op.gt]: new Date() },
+  };
+  if (where.scope === 'project') where.project_id = projectId; else where.conversation_id = conversationId;
+  return GuestLink.findOne({ where, order: [['id', 'DESC']], transaction });
+}
+
+/**
+ * 발급 **문**(멱등) — 대화방·프로젝트 두 라우트가 이것 하나를 부른다(§B-3·4).
+ *   살아 있는 링크가 있으면 그것을 돌려준다(reused). `replace` 면 그것을 회수하고 새로 만든다.
+ * ★ 동시에 두 번 눌러도 하나다 — 자리의 주인 행(프로젝트 또는 대화방)을 `FOR UPDATE` 로 잡고 찾는다.
+ * ★ `can_write`·`guest_name` 은 **새로 만들 때만** 쓴다(§B-5). 재사용은 기존 값을 그대로 돌려준다.
+ * ★ 재사용 때 `expires_at` 을 밀지 않는다(§B-6) — 발급자가 열어 본 것은 사용이 아니다.
+ * @returns {{ link, url: string|null, reused: boolean, replacedId: number|null }}
+ */
+async function issueOrReuseSharedLink({ businessId, scope, conversationId, projectId = null, client = null, createdBy, canWrite = true, guestName = null, replace = false }) {
+  if (!sharedSecret()) { const e = new Error('guest_link_secret_missing'); e.code = 'guest_link_secret_missing'; throw e; }
+  const { sequelize } = require('../config/database');
+  const { Project } = require('../models');
+  const sc = scope === 'project' ? 'project' : 'conversation';
+  const t = await sequelize.transaction();
+  let out;
+  try {
+    // 자리를 잠근다 — 두 요청이 동시에 "없다" 를 보고 둘 다 만들지 않게.
+    if (sc === 'project') await Project.findByPk(projectId, { transaction: t, lock: t.LOCK.UPDATE });
+    else await Conversation.findByPk(conversationId, { transaction: t, lock: t.LOCK.UPDATE });
+    const live = await findLiveSharedLink({ businessId, scope: sc, projectId, conversationId, transaction: t });
+    let replacedId = null;
+    if (live && !replace) {
+      out = { link: live, url: urlForSharedLink(live), reused: true, replacedId: null };
+    } else {
+      if (live && replace) {
+        await revokeGuestLink(live, { userId: createdBy, transaction: t });
+        replacedId = live.id;
+      }
+      const { link, token } = await issueGuestLink({
+        businessId, conversationId, projectId, client, createdBy, canWrite, guestName, scope: sc, transaction: t,
+      });
+      out = { link, url: `${APP_URL}/g/${token}`, reused: false, replacedId };
+    }
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+  if (out.replacedId && conversationId) {
+    try { require('./guest_notify').invalidateGuestCache(conversationId); } catch { /* 캐시일 뿐이다 */ }
+  }
+  return out;
 }
 
 // ── 답글 알림 개인 링크 (#259 A안, 2026-09-03) ──────────────────────────────
@@ -363,6 +430,37 @@ function personalTokenFor(link) {
   return crypto.createHmac('sha256', secret).update(material).digest('base64url');
 }
 
+const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+function sharedSecret() {
+  const secret = process.env.GUEST_LINK_SECRET;
+  return secret && String(secret).length >= 32 ? secret : null;
+}
+
+/**
+ * **공유** 링크의 토큰 — 개인 링크(personalTokenFor)와 같은 원리, 재료만 다르다(§B-1).
+ *   `shared:` 접두어가 두 종류의 토큰 공간을 가른다(같은 행 값으로 두 토큰이 겹치지 않게).
+ * ★ createdAt 은 **DB 에서 읽은 값**이어야 한다(초 단위). issueGuestLink 가 reload 뒤에 부른다.
+ */
+function sharedTokenFor(link) {
+  const secret = sharedSecret();
+  if (!secret) return null;
+  const createdAt = link?.createdAt || link?.created_at;
+  if (!link || !link.id || !link.business_id || !createdAt) return null;
+  const material = `shared:${link.id}:${new Date(createdAt).getTime()}:${link.business_id}`;
+  return crypto.createHmac('sha256', secret).update(material).digest('base64url');
+}
+
+/**
+ * 살아 있는 공유 링크의 주소 — 파생 토큰의 해시가 저장된 해시와 **같을 때만.**
+ *   옛 난수 링크는 원문을 모르므로 null 이다(마이그레이션할 수 없다 — §B 하지 말 것).
+ */
+function urlForSharedLink(link) {
+  if (!link || link.kind !== 'shared' || link.revoked_at) return null;
+  const token = sharedTokenFor(link);
+  if (!token || hashToken(token) !== link.token_hash) return null;
+  return `${APP_URL}/g/${token}`;
+}
+
 /**
  * 확인을 마친 개인 링크에 **실제로 쓸 토큰**을 붙인다. 파생값이라 회전하지 않는다 —
  * 지난 알림 메일의 링크도 계속 열린다.
@@ -415,18 +513,18 @@ function serializeGuestContact(l) {
   };
 }
 
-async function revokeGuestLink(link, { userId }) {
+async function revokeGuestLink(link, { userId, transaction } = {}) {
   if (!link) return { ok: false };
   if (link.revoked_at) return { ok: true, already: true, link };
   const at = new Date();
-  await link.update({ revoked_at: at, revoked_by: userId || null });
+  await link.update({ revoked_at: at, revoked_by: userId || null }, { transaction });
   // ★ 부모를 회수하면 **자식(개인 링크)도 같이 닫는다.** 읽는 쪽(resolveGuestToken)이
   //   부모를 보므로 이미 닫히지만, 행에 흔적을 남겨야 목록·30일 삭제 타이머가
   //   "언제 닫혔는지" 를 안다. 상태를 파생으로만 두면 그 시각을 아무도 모른다.
   if (link.kind === 'shared') {
     await GuestLink.update(
       { revoked_at: at, revoked_by: userId || null },
-      { where: { parent_link_id: link.id, revoked_at: null } },
+      { where: { parent_link_id: link.id, revoked_at: null }, transaction },
     );
   }
   if (link.conversation_id) {
@@ -443,6 +541,7 @@ module.exports = {
   generateOtpCode, normalizeEmail, ensurePersonalLink, mintPersonalToken, personalTokenFor,
   promotePersonalIdentity,
   resolveGuestToken, ensureShadowUser, issueGuestLink,
+  issueOrReuseSharedLink, findLiveSharedLink, urlForSharedLink, sharedTokenFor,
   serializeGuestLink,
   assertGuestLinkIssuable,
 };

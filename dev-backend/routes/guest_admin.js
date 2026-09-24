@@ -9,9 +9,8 @@ const { authenticateToken } = require('../middleware/auth');
 const { attachWorkspaceScope, assertMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
-const { issueGuestLink, serializeGuestLink, serializeGuestContact, assertGuestLinkIssuable } = require('../services/guest_link');
+const { issueOrReuseSharedLink, urlForSharedLink, serializeGuestLink, serializeGuestContact, assertGuestLinkIssuable } = require('../services/guest_link');
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
 /** 관리 화면용 직렬화 — **원문 토큰은 없다**(해시만 저장하므로 복원 불가). */
 // 직렬화는 services/guest_link.js 한 곳에 있다 — 프로젝트 발급 라우트와 같은 모양이어야 한다.
@@ -51,6 +50,8 @@ router.get('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSco
     }
     return successResponse(res, rows.map((l) => ({
       ...serialize(l),
+      // 주소를 **다시 볼 수 있다**(§B-2) — 파생 토큰의 살아 있는 링크만. 옛 난수 링크·회수된 것은 null.
+      url: urlForSharedLink(l),
       contacts: byParent.get(l.id) || [],
     })));
   } catch (err) { next(err); }
@@ -87,27 +88,40 @@ router.post('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSc
       // 대화방이 가리키는 고객이 다른 워크스페이스면 데이터가 어긋난 것이다 — 붙이지 않고 넘어간다.
     }
 
-    const { link, token } = await issueGuestLink({
-      businessId,
-      conversationId,
-      projectId: conv.project_id || null,
-      client,
-      createdBy: req.user.id,
-      canWrite: req.body?.can_write !== false,
-      guestName: req.body?.guest_name || null,
-    });
+    // 발급은 **멱등**이다(docs/GUEST_PROJECT_VIEW_DECISIONS.md §B-3) — 이 대화방에 살아 있는
+    //   대화 링크가 있으면 그것을 돌려준다. 새로 만드는 문은 `replace` 하나(옛것을 회수하고 만든다).
+    //   본체는 프로젝트 발급과 **같은 함수**다.
+    const replace = req.body?.replace === true;
+    let r;
+    try {
+      r = await issueOrReuseSharedLink({
+        businessId,
+        scope: 'conversation',
+        conversationId,
+        projectId: conv.project_id || null,
+        client,
+        createdBy: req.user.id,
+        canWrite: req.body?.can_write !== false,
+        guestName: req.body?.guest_name || null,
+        replace,
+      });
+    } catch (e) {
+      if (e.code === 'guest_link_secret_missing') return errorResponse(res, 'guest_link_secret_missing', 500);
+      throw e;
+    }
+    const { link } = r;
 
-    createAuditLog({
-      userId: req.user.id, businessId,
-      action: 'guest_link.create', targetType: 'GuestLink', targetId: link.id,
-      newValue: { conversation_id: conversationId, client_id: client ? client.id : null, can_write: link.can_write },
-    });
+    if (!r.reused) {
+      createAuditLog({
+        userId: req.user.id, businessId,
+        action: r.replacedId ? 'guest_link.replace' : 'guest_link.create', targetType: 'GuestLink', targetId: link.id,
+        oldValue: r.replacedId ? { link_id: r.replacedId } : undefined,
+        newValue: { conversation_id: conversationId, client_id: client ? client.id : null, can_write: link.can_write },
+      });
+    }
 
-    return successResponse(res, {
-      ...serialize(link),
-      // ★ 원문은 지금뿐이다. 화면이 이걸 놓치면 사용자는 링크를 다시 만들어야 한다.
-      url: `${APP_URL}/g/${token}`,
-    }, 'issued', 201);
+    return successResponse(res, { ...serialize(link), url: r.url },
+      r.reused ? 'reused' : 'issued', r.reused ? 200 : 201);
   } catch (err) { next(err); }
 });
 

@@ -15,6 +15,10 @@ export type GuestContact = {
 export type GuestLink = {
   id: number; guest_name: string; token_hint: string; can_write: boolean;
   expires_at: string; last_used_at: string | null; message_count: number; revoked_at: string | null;
+  /** 여는 범위 — 'conversation'(대화만) | 'project'(프로젝트 열람). 옛 응답엔 없을 수 있다. */
+  scope?: 'conversation' | 'project';
+  /** 다시 볼 수 있는 주소(파생 토큰, §B). 옛 난수 링크·회수된 링크는 null. */
+  url?: string | null;
   /** 이 링크로 답글 알림을 신청한 사람들 (#259 A안). 링크가 아니라 링크에 딸린 사람이다. */
   contacts?: GuestContact[];
 };

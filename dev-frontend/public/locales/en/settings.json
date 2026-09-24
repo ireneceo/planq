@@ -202,7 +202,14 @@
     "preview_pm": "{{pm}} PMs + owner can do this",
     "loading": "Loading…",
     "saving": "Saving…",
-    "saved": "Saved"
+    "saved": "Saved",
+    "client_party": {
+      "title": "What clients see",
+      "desc": "Choose how your team appears on external links (client pages opened without signing in).",
+      "label": "Show member names on external links and client pages",
+      "preview_off": "Members appear as your workspace name on tasks and chat, and without a name on documents and files. Client names are always shown.",
+      "preview_on": "Members appear with their display names. Client names are always shown."
+    }
   },
   "storage": {
     "title": "Storage & Integrations",

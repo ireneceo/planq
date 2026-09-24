@@ -14,6 +14,8 @@ const router = express.Router();
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { blocksExternalShare } = require('../services/securityLevel');
 const { guestLimiter, attachGuest } = require('./guest_common');
+// 누구로 보이는가(담당자·작성자·올린 사람) — services/guestParty.js **한 술어**(§A). 여기서 다시 쓰지 않는다.
+const { guestPartyLabels } = require('../services/guestParty');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
@@ -52,7 +54,7 @@ router.get('/:token/tasks', guestLimiter('guest-tasks', { windowMs: 60 * 1000, m
     //     name·name_localized 둘 다 없으면 건너뛴다). 그것만 쓰면 표시명을 안 정한 담당자가
     //     전부 빈칸이 된다 — 계정 이름으로 떨어뜨린다. 이메일은 어느 쪽에서도 읽지 않는다.
     const assigneeIds = [...new Set(rows.map((r) => r.assignee_id).filter(Boolean))];
-    const nameMap = await guestDisplayNames(link.business_id, assigneeIds);
+    const nameMap = await guestPartyLabels(link.business_id, assigneeIds, { surface: 'task' });
 
     const list = rows.map((t) => ({
       id: t.id,
@@ -79,25 +81,6 @@ router.get('/:token/tasks', guestLimiter('guest-tasks', { windowMs: 60 * 1000, m
 //   이 구분을 흐리면 화면이 사용자에게 거짓말을 한다.
 // ★ 발행 판정은 `shareOpenable.js` 의 규칙과 **같은 뜻**이어야 한다(post 는 published 만).
 
-/**
- * 사람 이름 — **워크스페이스 표시명 우선, 없으면 계정 이름.** 이메일은 어느 쪽에서도 읽지 않는다.
- *   ★ getMemberNameMap 은 표시명을 따로 지정한 사람만 담는다(실측) — 그것만 쓰면 표시명을 안 정한
- *     담당자·작성자가 전부 빈칸이 된다. 업무·문서·파일이 **같은 규칙**을 쓰도록 한 곳에 둔다.
- */
-async function guestDisplayNames(businessId, userIds) {
-  const ids = [...new Set((userIds || []).filter(Boolean))];
-  const map = new Map();
-  if (!ids.length) return map;
-  const { getMemberNameMap } = require('../services/displayName');
-  const { User } = require('../models');
-  const [wsMap, users] = await Promise.all([
-    getMemberNameMap(businessId, ids),
-    User.findAll({ where: { id: ids }, attributes: ['id', 'name'], raw: true }),
-  ]);
-  for (const u of users) map.set(u.id, u.name || null);
-  for (const [uid, v] of wsMap) if (v && v.name) map.set(uid, v.name);
-  return map;
-}
 
 /** 이 링크가 프로젝트를 여는가 — 아니면 여기 라우트들은 전부 없는 것이다. */
 async function requireProjectScope(req, res) {
@@ -143,7 +126,7 @@ router.get('/:token/posts', guestLimiter('guest-posts', { windowMs: 60 * 1000, m
     // 작성자 표시명은 **열리는 문서만**. 잠긴 문서는 누가 썼는지도 알릴 이유가 없다.
     const openIds = [...new Set(visible.filter((r) => (r.security_level || 'general') === 'general')
       .map((r) => r.author_id).filter(Boolean))];
-    const nameMap = await guestDisplayNames(link.business_id, openIds);
+    const nameMap = await guestPartyLabels(link.business_id, openIds, { surface: 'doc' });
 
     const list = visible.map((r) => {
       const lv = r.security_level || 'general';
@@ -183,7 +166,7 @@ router.get('/:token/posts/:postId', guestLimiter('guest-post', { windowMs: 60 * 
     if (!post) return errorResponse(res, 'not_found', 404);
     if ((post.security_level || 'general') !== 'general') return errorResponse(res, 'not_found', 404);
 
-    const nameMap = await guestDisplayNames(link.business_id, [post.author_id].filter(Boolean));
+    const nameMap = await guestPartyLabels(link.business_id, [post.author_id].filter(Boolean), { surface: 'doc' });
     let content = null;
     try {
       content = post.content_json
@@ -227,7 +210,7 @@ router.get('/:token/files', guestLimiter('guest-files', { windowMs: 60 * 1000, m
     const lockedCount = rows.length - visible.length;
     const openIds = [...new Set(visible.filter((r) => (r.security_level || 'general') === 'general')
       .map((r) => r.uploader_id).filter(Boolean))];
-    const nameMap = await guestDisplayNames(link.business_id, openIds);
+    const nameMap = await guestPartyLabels(link.business_id, openIds, { surface: 'file' });
 
     const list = visible.map((r) => {
       const lv = r.security_level || 'general';

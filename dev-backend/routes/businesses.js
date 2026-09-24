@@ -1440,8 +1440,10 @@ router.get('/:businessId/permissions', authenticateToken, checkBusinessAccess, a
           financial: biz.permissions.financial === 'pm' ? 'pm' : 'all',
           schedule: biz.permissions.schedule === 'pm' ? 'pm' : 'all',
           client_info: biz.permissions.client_info === 'pm' ? 'pm' : 'all',
+          // 고객 링크에 멤버 이름을 보이는가 — 기본 false(숨김, 워크스페이스 이름으로). services/guestParty.js
+          client_show_assignee: biz.permissions.client_show_assignee === true,
         }
-      : { financial: 'all', schedule: 'all', client_info: 'all' };
+      : { financial: 'all', schedule: 'all', client_info: 'all', client_show_assignee: false };
 
     // 프리뷰용 카운트
     // memberTotal = 활성 owner + member (ai 제외, removed_at 자동 필터)
@@ -1485,12 +1487,18 @@ router.put('/:businessId/permissions', authenticateToken, checkBusinessAccess, a
       financial: biz.permissions?.financial || 'all',
       schedule: biz.permissions?.schedule || 'all',
       client_info: biz.permissions?.client_info || 'all',
+      // ★ 여기서 다시 적지 않으면 **다른 토글을 저장할 때마다 이 값이 지워진다**(객체를 새로 만든다).
+      client_show_assignee: biz.permissions?.client_show_assignee === true,
     };
     for (const k of VALID_TOGGLES) {
       if (input[k] !== undefined) {
         if (!VALID_VALUES.includes(input[k])) return errorResponse(res, `invalid value for ${k}`, 400);
         next[k] = input[k];
       }
+    }
+    if (input.client_show_assignee !== undefined) {
+      if (typeof input.client_show_assignee !== 'boolean') return errorResponse(res, 'invalid value for client_show_assignee', 400);
+      next.client_show_assignee = input.client_show_assignee;
     }
 
     const before = { ...next, ...(biz.permissions || {}) };
@@ -1501,7 +1509,10 @@ router.put('/:businessId/permissions', authenticateToken, checkBusinessAccess, a
       action: 'business.permissions_updated',
       targetType: 'business', targetId: businessId,
       oldValue: before, newValue: next,
-    }).catch(() => { /* 감사 실패는 swallow */ });
+    });
+    // ★ createAuditLog 는 **아무것도 돌려주지 않는다**(setImmediate 로 쏘고 실패는 안에서 삼킨다).
+    //   여기 `.catch()` 가 붙어 있어서 `undefined.catch` TypeError 로 **저장은 됐는데 응답은 500** 이었다 —
+    //   이 페이지의 토글은 누를 때마다 «!» 를 띄웠다(2026-09-24 실측).
 
     return successResponse(res, { permissions: next });
   } catch (err) { next(err); }

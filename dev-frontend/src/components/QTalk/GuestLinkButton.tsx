@@ -3,8 +3,11 @@
 // Irene: "카톡 채팅으로 일하는 고객이 하나도 불편하지 않게 우리 채팅에서 요청을 하게 할 방법."
 //   그래서 이 버튼의 목표는 **멤버가 링크를 만들어 카톡으로 붙여넣는 데 3초**다.
 //
-// ★ 원문 토큰은 **발급 응답에만** 있다(서버는 해시만 저장). 이 화면이 놓치면 다시 만들어야 하므로
-//   발급 직후 바로 보여주고 복사·공유를 그 자리에서 끝낸다.
+// ★ 2026-09-24 — 주소를 **다시 볼 수 있다**(docs/GUEST_PROJECT_VIEW_DECISIONS.md §B). 토큰이 파생값이라
+//   목록이 살아 있는 링크의 `url` 을 싣는다. 옛 화면은 "지금만 보입니다 — 나중엔 새로 만드세요" 라고
+//   말했고, 그래서 사람들이 링크를 계속 새로 만들었다(운영 실측: 한 프로젝트에 셋).
+//   → 링크가 있으면 [링크 만들기] 를 **숨기고** [새 링크로 교체] 만 둔다(옛것을 닫고 만든다, 확인 받음).
+//   → 옛 난수 링크는 서버도 원문을 모른다(`url: null`) — 그 사실과 교체 문을 보인다.
 import { useCallback, useEffect, useState } from 'react';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import { formatPublicDate } from '../../utils/dateFormat';
@@ -17,7 +20,7 @@ import ActionButton from '../Common/ActionButton';
 import { isLiveGuestLink, type GuestLink as Link } from './guestLink';
 
 
-export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed, endpoints, lead, title }: {
+export default function GuestLinkButton({ businessId, conversationId, clientName, autoOpen, onClosed, endpoints, lead, title, scope = 'conversation' }: {
   businessId: number; conversationId: number; clientName: string;
   /** 프로젝트 헤더처럼 **다른 화면이 트리거를 그릴 때** 곧바로 열 때 (ProjectShareLinkButton). */
   autoOpen?: boolean;
@@ -32,6 +35,8 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   /** 모달 안내 문구·제목 — 링크가 여는 것이 다르면 문구도 달라야 한다(문구가 거짓말이 되지 않게). */
   lead?: string;
   title?: string;
+  /** 이 모달이 **만드는** 링크의 종류. 발급이 이 종류로 멱등이다 — 다른 종류 링크는 목록에만 보인다. */
+  scope?: 'conversation' | 'project';
 }) {
   const { t } = useTranslation('qtalk');
   const api = endpoints || {
@@ -41,7 +46,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   };
   const [open, setOpen] = useState(!!autoOpen);
   const [links, setLinks] = useState<Link[]>([]);
-  const [fresh, setFresh] = useState<string | null>(null);   // 방금 발급된 원문 URL
+  const [justIssued, setJustIssued] = useState(false);   // 방금 만들었다 — 안내 한 줄만 바뀐다
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   // 문의 허용 — 기본 켬. 끄면 **읽기 전용 링크**다(설계 §5). 여태 화면에 없어서
@@ -60,18 +65,25 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     //   프로젝트 모달이 대화방 목록을 들고 있게 된다(memory feedback_guard_variable_needs_deps).
   }, [api.list]);
 
-  useEffect(() => { if (open) { setFresh(null); setCopied(false); setErr(null); load(); } }, [open, load]);
+  useEffect(() => { if (open) { setJustIssued(false); setCopied(false); setErr(null); load(); } }, [open, load]);
 
-  const issue = async () => {
+  // 이 모달이 책임지는 링크 — 같은 종류로 **하나**다(서버 발급이 멱등). 없으면 만드는 문, 있으면 교체하는 문.
+  const own = links.find((l) => (l.scope || 'conversation') === scope) || null;
+  const others = links.filter((l) => l !== own);
+  // 교체할 때의 «문의 허용» — 기존 링크 값에서 시작한다(재사용은 기존 값을 바꾸지 않는다, §B-5).
+  useEffect(() => { if (own) setCanWrite(!!own.can_write); }, [own?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const issue = async (replace: boolean) => {
     if (busy) return;
     setBusy(true);
+    setErr(null);
     try {
       const r = await apiFetch(api.issue, {
         // 고객(client_id)은 보내지 않는다 — 서버가 **대화방에서** 읽는다.
         //   요청 body 의 client_id 를 서버가 믿으면 테넌트 우회 통로가 된다.
-        //   보내는 것은 이 링크로 **문의까지 되게 할지**뿐이다.
+        //   보내는 것은 이 링크로 **문의까지 되게 할지**와, 기존 링크를 **교체**할지뿐이다.
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ can_write: canWrite }),
+        body: JSON.stringify({ can_write: canWrite, ...(replace ? { replace: true } : {}) }),
       });
       const j = await r.json().catch(() => ({} as { message?: string }));
       if (!r.ok) {
@@ -85,9 +97,12 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
         );
         return;
       }
-      if (j.success && j.data?.url) { setFresh(j.data.url); await load(); }
+      // 200 reused(다른 멤버가 방금 만든 것) · 201 issued 둘 다 목록을 다시 읽으면 주소가 보인다.
+      if (j.success) { setJustIssued(r.status === 201); setConfirmReplace(false); await load(); }
     } finally { setBusy(false); }
   };
+  // 교체는 **밖으로 영향이 가는** 행동이다 — 옛 주소로 들어오던 사람과 알림 신청자가 끊긴다. 확인을 받는다.
+  const [confirmReplace, setConfirmReplace] = useState(false);
 
   // 닫기 전에 **무슨 일이 일어나는지** 먼저 말한다.
   //   Irene 2026-09-10: "회수 누르면 뭐가 어떻게 되지? 링크 삭제야?"
@@ -109,21 +124,49 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     } finally { setBusy(false); }
   };
 
+  const url = own?.url || null;
   const copy = async () => {
-    if (!fresh) return;
-    try { await navigator.clipboard.writeText(fresh); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* noop */ }
+    if (!url) return;
+    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* noop */ }
   };
 
   // ★ 카톡 도달의 실질 — 폰에서 공유 시트를 열면 카톡이 목록에 뜬다.
   //   알림톡 연동(채널 개설·템플릿 심사·대행사 계약) 없이 v1 에서 되는 유일한 길이다.
   const share = async () => {
-    if (!fresh) return;
+    if (!url) return;
     const nav = navigator as Navigator & { share?: (d: { title?: string; text?: string; url?: string }) => Promise<void> };
     if (nav.share) {
-      try { await nav.share({ title: clientName, url: fresh }); return; } catch { /* 사용자가 취소 */ }
+      try { await nav.share({ title: clientName, url }); return; } catch { /* 사용자가 취소 */ }
     }
     copy();
   };
+  const scopeChip = (l: Link) => ((l.scope || 'conversation') === 'project'
+    ? t('guestLink.scopeProject', { defaultValue: '프로젝트 열람' })
+    : t('guestLink.scopeConversation', { defaultValue: '대화만' }));
+  const linkMeta = (l: Link) => (
+    <>
+      {/* "살아 있다" 가 무슨 뜻인지 **날짜로** 말한다. 만료는 열 때마다 뒤로 밀린다. */}
+      {l.expires_at && t('guestLink.until', { defaultValue: '{{d}}까지 열림', d: formatPublicDate(l.expires_at) })}
+      {l.expires_at && ' · '}
+      {l.last_used_at
+        ? t('guestLink.lastUsed', { defaultValue: '마지막 열람 {{d}}', d: formatPublicDate(l.last_used_at) })
+        : t('guestLink.neverUsed', { defaultValue: '아직 아무도 열지 않음' })}
+      {!l.can_write && ` · ${t('guestLink.readOnly', { defaultValue: '읽기 전용' })}`}
+      {l.message_count > 0 && ` · ${t('guestLink.msgs', { defaultValue: '{{n}}건 작성', n: l.message_count })}`}
+    </>
+  );
+  const writeRow = (
+    // 문의 허용 — 기본 켬. 끄면 읽기 전용 링크(설계 §5). 규칙을 설명하지 않고
+    //   **꺼졌을 때 무엇이 되는지**만 한 줄로 말한다. 링크가 있으면 «교체할 새 링크» 의 값이다.
+    <WriteRow>
+      <WriteLabel>
+        <input type="checkbox" checked={canWrite} data-testid="guest-link-canwrite"
+          onChange={(e) => setCanWrite(e.target.checked)} />
+        {t('guestLink.allowWrite', { defaultValue: '문의 보내기 허용' })}
+      </WriteLabel>
+      {!canWrite && <WriteNote>{t('guestLink.readOnlyNote', { defaultValue: '읽기 전용 링크 — 받는 사람은 보기만 합니다.' })}</WriteNote>}
+    </WriteRow>
+  );
 
   return (
     <>
@@ -145,62 +188,70 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
             name: clientName,
           }) as string)}</Lead>
 
-          {fresh ? (
-            <FreshBox>
-              <FreshLabel>{t('guestLink.freshLabel', { defaultValue: '링크가 만들어졌습니다 — 지금 복사해 주세요' })}</FreshLabel>
-              <UrlRow>
-                <UrlText readOnly value={fresh} onFocus={(e) => e.currentTarget.select()} />
-              </UrlRow>
-              <BtnRow>
-                <ActionButton tone="primary" size="sm" onClick={share}>
-                  {t('guestLink.share', { defaultValue: '보내기' })}
-                </ActionButton>
-                <ActionButton tone="secondary" size="sm" onClick={copy}>
-                  {copied ? t('guestLink.copied', { defaultValue: '복사됨' }) : t('guestLink.copy', { defaultValue: '복사' })}
-                </ActionButton>
-              </BtnRow>
-              {/* 원문은 다시 못 본다 — 서버가 해시만 갖는다. 그 사실을 숨기지 않는다. */}
-              <Note>{t('guestLink.onceNote', { defaultValue: '이 주소는 지금만 보입니다. 나중에 다시 필요하면 새로 만들어 주세요 — 이전 링크도 계속 쓸 수 있습니다.' })}</Note>
+          {err && <ErrNote role="alert">{err}</ErrNote>}
+          {own ? (
+            <FreshBox data-testid="guest-link-own">
+              <FreshLabel>
+                {justIssued
+                  ? t('guestLink.freshLabel2', { defaultValue: '링크가 만들어졌습니다' })
+                  : t('guestLink.ownLabel', { defaultValue: '지금 쓰는 링크' })}
+                <ScopeChip>{scopeChip(own)}</ScopeChip>
+              </FreshLabel>
+              {url ? (
+                <>
+                  <UrlRow>
+                    <UrlText readOnly value={url} data-testid="guest-link-url" onFocus={(e) => e.currentTarget.select()} />
+                  </UrlRow>
+                  <BtnRow>
+                    <ActionButton tone="primary" size="sm" onClick={share}>
+                      {t('guestLink.share', { defaultValue: '보내기' })}
+                    </ActionButton>
+                    <ActionButton tone="secondary" size="sm" onClick={copy}>
+                      {copied ? t('guestLink.copied', { defaultValue: '복사됨' }) : t('guestLink.copy', { defaultValue: '복사' })}
+                    </ActionButton>
+                  </BtnRow>
+                  <Note>{t('guestLink.reusableNote', { defaultValue: '이 주소는 언제든 여기서 다시 볼 수 있어요. 같은 링크를 계속 보내면 됩니다.' })}</Note>
+                </>
+              ) : (
+                // 옛 방식(난수) 링크 — 서버도 원문을 모른다. 숨기지 않고 말하고, 교체 문을 준다.
+                <Note data-testid="guest-link-legacy">
+                  <Hint>/g/{own.token_hint}…</Hint>
+                  {t('guestLink.legacyNote', { defaultValue: '이전 방식 링크라 주소를 다시 볼 수 없어요. 주소가 필요하면 새 링크로 교체하세요.' })}
+                </Note>
+              )}
+              <Meta>{linkMeta(own)}</Meta>
+              <ReplaceBox>
+                {writeRow}
+                <ReplaceRow>
+                  <ActionButton tone="secondary" size="sm" onClick={() => setConfirmReplace(true)} disabled={busy}
+                    data-testid="guest-link-replace">
+                    {t('guestLink.replace', { defaultValue: '새 링크로 교체' })}
+                  </ActionButton>
+                  <RevokeBtn type="button" onClick={() => setConfirmId({ id: own.id, kind: 'link' })} disabled={busy}>
+                    {t('guestLink.close', { defaultValue: '링크 닫기' })}
+                  </RevokeBtn>
+                </ReplaceRow>
+              </ReplaceBox>
             </FreshBox>
           ) : (
             <>
-              {err && <ErrNote role="alert">{err}</ErrNote>}
-              {/* 문의 허용 — 기본 켬. 끄면 읽기 전용 링크(설계 §5). 규칙을 설명하지 않고
-                  **꺼졌을 때 무엇이 되는지**만 한 줄로 말한다. */}
-              <WriteRow>
-                <WriteLabel>
-                  <input type="checkbox" checked={canWrite} data-testid="guest-link-canwrite"
-                    onChange={(e) => setCanWrite(e.target.checked)} />
-                  {t('guestLink.allowWrite', { defaultValue: '문의 보내기 허용' })}
-                </WriteLabel>
-                {!canWrite && <WriteNote>{t('guestLink.readOnlyNote', { defaultValue: '읽기 전용 링크 — 받는 사람은 보기만 합니다.' })}</WriteNote>}
-              </WriteRow>
-              <ActionButton tone="primary" size="md" onClick={issue} loading={busy}>
+              {writeRow}
+              <ActionButton tone="primary" size="md" onClick={() => issue(false)} loading={busy} data-testid="guest-link-issue">
                 {t('guestLink.issue', { defaultValue: '링크 만들기' })}
               </ActionButton>
             </>
           )}
 
-          {links.length > 0 && (
+          {(others.length > 0 || links.some((l) => (l.contacts || []).some((c) => !c.revoked_at))) && (
             <ListBox>
-              <ListTitle>{t('guestLink.active', { defaultValue: '지금 열려 있는 링크' })}</ListTitle>
-              {links.map((l) => (
+              {others.length > 0 && <ListTitle>{t('guestLink.active', { defaultValue: '지금 열려 있는 링크' })}</ListTitle>}
+              {others.map((l) => (
                 <Row key={l.id}>
                   <RowMain>
                     {/* 토큰 **앞** 6자다. 여태 `…Fq-386` 으로 그려 접미사처럼 보였고,
                         그래서 보낸 주소(planq.kr/g/Fq-386…)와 눈으로 대조할 수 없었다. */}
-                    <Hint>/g/{l.token_hint}…</Hint>
-                    <Meta>
-                      {/* "살아 있다" 가 무슨 뜻인지 **날짜로** 말한다 — expires_at 은 서버가 이미
-                          내려주는데 화면이 쓰지 않고 있었다. 만료는 열 때마다 뒤로 밀린다. */}
-                      {l.expires_at && t('guestLink.until', { defaultValue: '{{d}}까지 열림', d: formatPublicDate(l.expires_at) })}
-                      {l.expires_at && ' · '}
-                      {l.last_used_at
-                        ? t('guestLink.lastUsed', { defaultValue: '마지막 열람 {{d}}', d: formatPublicDate(l.last_used_at) })
-                        : t('guestLink.neverUsed', { defaultValue: '아직 아무도 열지 않음' })}
-                      {!l.can_write && ` · ${t('guestLink.readOnly', { defaultValue: '읽기 전용' })}`}
-                      {l.message_count > 0 && ` · ${t('guestLink.msgs', { defaultValue: '{{n}}건 작성', n: l.message_count })}`}
-                    </Meta>
+                    <Hint>/g/{l.token_hint}… <ScopeChip>{scopeChip(l)}</ScopeChip></Hint>
+                    <Meta>{linkMeta(l)}</Meta>
                   </RowMain>
                   <RevokeBtn type="button" onClick={() => setConfirmId({ id: l.id, kind: 'link' })} disabled={busy}>
                     {t('guestLink.close', { defaultValue: '링크 닫기' })}
@@ -256,6 +307,16 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
           : (t('guestLink.close', { defaultValue: '링크 닫기' }) as string)}
         cancelText={t('common:cancel', { defaultValue: '취소' }) as string}
       />
+      <ConfirmDialog
+        isOpen={confirmReplace}
+        variant="danger"
+        onClose={() => setConfirmReplace(false)}
+        onConfirm={() => { void issue(true); }}
+        title={t('guestLink.replaceTitle', { defaultValue: '새 링크로 교체할까요?' }) as string}
+        message={t('guestLink.replaceBody', { defaultValue: '지금 링크는 닫히고 새 주소가 만들어집니다. 이전 주소로 들어오던 사람·답글 알림 신청자가 끊깁니다. 주고받은 대화와 파일은 그대로 남습니다.' }) as string}
+        confirmText={t('guestLink.replace', { defaultValue: '새 링크로 교체' }) as string}
+        cancelText={t('common:cancel', { defaultValue: '취소' }) as string}
+      />
     </>
   );
 }
@@ -286,6 +347,12 @@ const UrlText = styled.input`
   font-family:monospace;background:#fff;color:#0f172a;
 `;
 const BtnRow = styled.div`display:flex;gap:8px;`;
+const ScopeChip = styled.span`
+  display:inline-flex;align-items:center;padding:1px 6px;margin-left:6px;border-radius:4px;line-height:16px;
+  background:#F1F5F9;color:#475569;font-size:0.6875rem;font-weight:600;font-family:inherit;vertical-align:middle;
+`;
+const ReplaceBox = styled.div`margin-top:12px;padding-top:12px;border-top:1px solid #CCFBF1;`;
+const ReplaceRow = styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;`;
 const Note = styled.div`font-size:0.75rem;color:#64748b;margin-top:10px;line-height:1.5;`;
 
 // 서버가 거절한 이유. 조용히 삼키면 사용자에게는 "눌러도 아무 일이 없는 것" 이 된다.

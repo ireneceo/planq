@@ -26,7 +26,7 @@ const { guestLimiter, attachGuest } = require('./guest_common');
 const { visibleToGuest } = require('../services/guest_link');
 
 /** 메시지 화이트리스트 — 내부 필드가 자동으로 따라 나가지 않게. */
-const serializeMessage = (m, guestUserId, cardState) => ({
+const serializeMessage = (m, guestUserId, cardState, partyNames) => ({
   id: m.id,
   kind: m.kind || 'text',
   content: m.content,
@@ -40,7 +40,11 @@ const serializeMessage = (m, guestUserId, cardState) => ({
   // 보내는 사람은 **표시명만**. 이메일·id 는 내보내지 않는다.
   //   게스트가 쓴 글은 그 행에 박제된 이름을 쓴다 — 그림자 User 이름은 "게스트" 로 고정이라
   //   이것을 안 보면 고객 화면에서 서로가 전부 "게스트" 로 보인다.
-  sender_name: (m.sender?.is_guest === true && m.meta?.guest?.name) || m.sender?.name || null,
+  //   게스트가 아닌 사람(멤버·고객)은 services/guestParty.js **한 술어**로 — 워크스페이스가 멤버 이름을
+  //   숨기면 워크스페이스 이름이 나간다(§A). 옛 `m.sender.name` 은 스위치를 모른다.
+  sender_name: m.sender?.is_guest === true
+    ? (m.meta?.guest?.name || m.sender.name || null)
+    : ((m.sender && partyNames) ? (partyNames.get(m.sender.id) || null) : null),
 });
 
 // 답글 알림 신청 (#259 A안) — 별도 파일. `/:token/notify/*` 만 가져간다.
@@ -152,7 +156,10 @@ router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000,
       const r = await resolveCard(m.meta, { businessId: conversation.business_id, appUrl: APP_URL });
       states.set(m.id, r.state);
     }
-    const list = visible.map((m) => serializeMessage(m, guestUser.id, states.get(m.id)));
+    const senderIds = visible.filter((m) => m.sender && m.sender.is_guest !== true).map((m) => m.sender.id);
+    const partyNames = await require('../services/guestParty')
+      .guestPartyLabels(conversation.business_id, senderIds, { surface: 'chat' });
+    const list = visible.map((m) => serializeMessage(m, guestUser.id, states.get(m.id), partyNames));
     return successResponse(res, list);
   } catch (err) { next(err); }
 });

@@ -6,6 +6,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import AutoSaveField from '../../components/Common/AutoSaveField';
+import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 // 사이클 N+21 — 멤버 매트릭스 + 기본 청구 담당
 import MemberPermissionMatrix from '../../components/Permissions/MemberPermissionMatrix';
 import DefaultBillingOwnerSection from '../../components/Permissions/DefaultBillingOwnerSection';
@@ -45,6 +47,12 @@ const IconClientInfo = () => (
     <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
   </svg>
 );
+const IconLink = () => (
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1" />
+    <path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" />
+  </svg>
+);
 const IconCheck = () => (
   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M5 12l5 5 9-11" />
@@ -59,6 +67,12 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
 
   const [perms, setPerms] = useState<Permissions>(DEFAULT_PERMS);
   const [loaded, setLoaded] = useState(false);
+  // 고객 링크에 멤버 이름을 보이는가 (docs/GUEST_PROJECT_VIEW_DECISIONS.md §A) — 기본 숨김.
+  //   토글은 AutoSaveField 계약대로 둘로 가른다: 누르면 화면만(flip) · 래퍼가 저장(persist).
+  //   persist 는 ref 로 **뒤집힌 뒤의 값**을 읽는다(클로저는 뒤집기 전 값이다).
+  const [showAssignee, setShowAssignee] = useState(false);
+  const showAssigneeRef = useRef(false);
+  showAssigneeRef.current = showAssignee;
   const [stats, setStats] = useState<MemberStat>({ total: 0, pmTotal: 0 });
   const [saveState, setSaveState] = useState<Record<ToggleKey, 'idle' | 'saving' | 'saved' | 'error'>>({
     financial: 'idle', schedule: 'idle', client_info: 'idle',
@@ -76,6 +90,7 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
             schedule: j.data.permissions.schedule || 'all',
             client_info: j.data.permissions.client_info || 'all',
           });
+          setShowAssignee(j.data.permissions.client_show_assignee === true);
         }
         if (j.success && j.data?.stats) {
           setStats({
@@ -117,6 +132,20 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
     const next = { ...perms, [key]: value };
     setPerms(next);
     saveToggle(key, next);
+  };
+
+  const persistShowAssignee = async () => {
+    const next = showAssigneeRef.current;
+    const r = await apiFetch(`/api/businesses/${businessId}/permissions`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ permissions: { client_show_assignee: next } }),
+    });
+    const j = await r.json();
+    if (!j.success) {
+      setShowAssignee(!next);   // 화면이 서버와 다른 값을 보여주면 안 된다
+      throw new Error(j.message || 'save_failed');   // 래퍼가 ! 뱃지를 띄우려면 던져야 한다
+    }
   };
 
   // ─── 프리뷰 텍스트 ───
@@ -198,6 +227,42 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
           </Card>
         ))}
       </Grid>
+
+      {/* 고객 공개 범위 — 워크스페이스 한 곳의 결정(링크·프로젝트마다 두지 않는다). */}
+      <Card $disabled={!isOwner} data-testid="perm-client-party">
+        <CardHeader>
+          <IconCircle $tone="#0EA5E9"><IconLink /></IconCircle>
+          <div>
+            <CardTitle>{t('permissions.client_party.title')}</CardTitle>
+            <CardDesc>{t('permissions.client_party.desc')}</CardDesc>
+          </div>
+          <span />
+        </CardHeader>
+        <SwitchRow>
+          <SwitchLabel id="perm-client-party-label">{t('permissions.client_party.label')}</SwitchLabel>
+          <AutoSaveField key={`perm-party-${businessId}`} type="toggle" onSave={persistShowAssignee}>
+            <Switch
+              type="button"
+              role="switch"
+              aria-checked={showAssignee}
+              aria-labelledby="perm-client-party-label"
+              data-testid="perm-client-show-assignee"
+              $on={showAssignee}
+              disabled={!isOwner || !loaded}
+              title={!isOwner ? (t('permissions.owner_only_hint') as string) : undefined}
+              onClick={() => setShowAssignee((v) => !v)}
+            >
+              <SwitchKnob $on={showAssignee} />
+            </Switch>
+          </AutoSaveField>
+        </SwitchRow>
+        <Preview $tone="#0EA5E9">
+          <PreviewDot $tone="#0EA5E9" />
+          {loaded
+            ? t(showAssignee ? 'permissions.client_party.preview_on' : 'permissions.client_party.preview_off')
+            : t('permissions.loading')}
+        </Preview>
+      </Card>
 
       {/* 사이클 N+21 — 멤버별 메뉴 권한 매트릭스 + 기본 청구 담당 */}
       <MemberPermissionMatrix businessId={businessId} isOwner={isOwner} />
@@ -319,4 +384,11 @@ const Preview = styled.div<{ $tone: string }>`
 const PreviewDot = styled.span<{ $tone: string }>`
   width: 6px; height: 6px; border-radius: 50%;
   background: ${p => p.$tone}; flex-shrink: 0;
+`;
+// 스위치 본체는 components/Common/switchShell (NotificationSettings 와 한 벌).
+const SwitchRow = styled.div`
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+`;
+const SwitchLabel = styled.div`
+  font-size: 0.8125rem; font-weight: 500; color: #0F172A; line-height: 1.5;
 `;

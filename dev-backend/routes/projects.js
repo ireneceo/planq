@@ -1105,7 +1105,11 @@ router.get('/:id/guest-links', authenticateToken, async (req, res, next) => {
       //   사람 칸이 전원 빈 값으로 나갔다(2026-09-10 Fable 게이트 지적).
       byParent.get(k.parent_link_id).push(serializeGuestContact(k));
     }
-    return successResponse(res, rows.map((l) => ({ ...serializeGuestLink(l), contacts: byParent.get(l.id) || [] })));
+    // 주소를 **다시 볼 수 있다**(§B-2) — 파생 토큰의 살아 있는 링크만. 옛 난수 링크는 null.
+    const { urlForSharedLink } = require('../services/guest_link');
+    return successResponse(res, rows.map((l) => ({
+      ...serializeGuestLink(l), url: urlForSharedLink(l), contacts: byParent.get(l.id) || [],
+    })));
   } catch (err) { next(err); }
 });
 
@@ -1135,29 +1139,40 @@ router.post('/:id/guest-links', authenticateToken, async (req, res, next) => {
       client = await Client.findOne({ where: { id: conv.client_id, business_id: project.business_id } });
     }
 
-    const { issueGuestLink } = require('../services/guest_link');
-    const { link, token } = await issueGuestLink({
-      businessId: project.business_id,
-      conversationId: conv.id,
-      projectId: project.id,
-      client,
-      createdBy: req.user.id,
-      canWrite: req.body?.can_write !== false,
-      guestName: req.body?.guest_name || null,
-      scope: 'project',
-    });
+    // 발급은 **멱등**이다(§B-3) — 이 프로젝트에 살아 있는 프로젝트 링크가 있으면 그것을 돌려준다.
+    //   새로 만드는 문은 `replace` 하나. 본체는 대화방 발급과 **같은 함수**다.
+    const { issueOrReuseSharedLink } = require('../services/guest_link');
+    const replace = req.body?.replace === true;
+    let r;
+    try {
+      r = await issueOrReuseSharedLink({
+        businessId: project.business_id,
+        scope: 'project',
+        conversationId: conv.id,
+        projectId: project.id,
+        client,
+        createdBy: req.user.id,
+        canWrite: req.body?.can_write !== false,
+        guestName: req.body?.guest_name || null,
+        replace,
+      });
+    } catch (e) {
+      if (e.code === 'guest_link_secret_missing') return errorResponse(res, 'guest_link_secret_missing', 500);
+      throw e;
+    }
+    const { link } = r;
 
-    createAuditLog({
-      user_id: req.user.id, business_id: project.business_id,
-      action: 'create', entity_type: 'guest_link', entity_id: link.id,
-      new_value: { scope: 'project', project_id: project.id, conversation_id: conv.id, can_write: link.can_write },
-    });
+    if (!r.reused) {
+      createAuditLog({
+        userId: req.user.id, businessId: project.business_id,
+        action: r.replacedId ? 'guest_link.replace' : 'guest_link.create', targetType: 'GuestLink', targetId: link.id,
+        oldValue: r.replacedId ? { link_id: r.replacedId } : undefined,
+        newValue: { scope: 'project', project_id: project.id, conversation_id: conv.id, can_write: link.can_write },
+      });
+    }
 
-    return successResponse(res, {
-      ...serializeGuestLink(link),
-      // ★ 원문은 지금뿐이다. 화면이 이걸 놓치면 사용자는 링크를 다시 만들어야 한다.
-      url: `${process.env.APP_URL || 'https://dev.planq.kr'}/g/${token}`,
-    }, 'issued', 201);
+    return successResponse(res, { ...serializeGuestLink(link), url: r.url },
+      r.reused ? 'reused' : 'issued', r.reused ? 200 : 201);
   } catch (err) { next(err); }
 });
 
