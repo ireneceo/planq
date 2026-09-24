@@ -217,6 +217,8 @@ async function run() {
     ok('카나리 실행', false, e.message);
   } finally {
     await browser.close().catch(() => {});
+    // 제 파일은 제가 치운다 — 러너 sweep 은 안전망이다(lib/cleanup purgeCanaryFilesByRun).
+    out.push(await require('./lib/cleanup').purgeCanaryFilesByRun(RUN));
     for (const d of TMP_DIRS) {
       try { fs.readdirSync(d).forEach((f) => fs.unlinkSync(path.join(d, f))); fs.rmdirSync(d); } catch { /* */ }
     }

@@ -479,7 +479,11 @@ const LoginPage: React.FC = () => {
       // 진입 → 로그인 후 ?shared=1 query 잃으면 SW Cache 안 읽어 빈 페이지 노출.
       const fromLoc = (location.state as { from?: { pathname: string; search?: string; hash?: string } })?.from;
       const fromPath = fromLoc ? `${fromLoc.pathname || ''}${fromLoc.search || ''}${fromLoc.hash || ''}` : null;
-      const redirectQuery = new URLSearchParams(location.search).get('redirect');
+      // `redirect` 가 정본이지만 공개 페이지 몇 곳(PublicFilePage·PublicTaskPage·PublicCalendarEventPage)이
+      //   `?next=` 로 보낸다 — 여태 읽지 않아 로그인 뒤 조용히 대시보드로 떨어졌다(2026-09-24 Fable 보안 점검 관찰).
+      //   둘 다 **아래 같은 검증**(`/` 시작 · `//` 금지 · `javascript:` 금지)을 지난다 — 인자 이름만 둘이다.
+      const qs = new URLSearchParams(location.search);
+      const redirectQuery = qs.get('redirect') || qs.get('next');
       const target = redirectQuery || fromPath;
       const isValidPath = target && target.startsWith('/') && !target.startsWith('//') && !target.includes('javascript:');
       if (isValidPath && !target.startsWith('/login') && !target.startsWith('/register')) {

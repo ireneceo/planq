@@ -282,6 +282,8 @@ async function run() {
     return results;
   } finally {
     await browser.close().catch(() => {});
+    // 제 파일은 제가 치운다 — 러너 sweep 은 안전망이다(lib/cleanup purgeCanaryFilesByRun).
+    results.push(await require('./lib/cleanup').purgeCanaryFilesByRun(RUN));
     for (const d of TMP) {
       try {
         const walk = (p) => fs.readdirSync(p, { withFileTypes: true }).forEach((e) => {

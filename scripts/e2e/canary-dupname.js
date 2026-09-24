@@ -213,7 +213,7 @@ async function run() {
       const pd = await until(page, (s) => !!s.dupOverwrite, 15000);
       push('프로젝트 모드에서도 같은 이름이면 묻는다', pd.ok,
         pd.ok ? '확인창 떴다' : '안 물었다 — 같은 이름이 그대로 쌓인다(신고의 본 무대)');
-      if (pd.ok) await page.click('[data-testid="dup-skip"]');
+      if (pd.ok) await clickVisibleTestId(page, 'dup-skip');
       await sleep(2500);
       const lst2 = await api(`/api/projects/${proj.id}/files?limit=300`);
       const rows = (lst2.body?.data || []).filter(x => String(x.file_name || '').includes(`zzpdup-${RUN}`)).length;
@@ -265,7 +265,7 @@ async function run() {
     push('문구가 덮어쓰기의 결과(휴지통)를 말한다',
       /휴지통|trash/.test(dup.snap?.text || ''), /휴지통|trash/.test(dup.snap?.text || '') ? 'OK' : '안 말한다');
     if (dup.ok) {
-      await page.click('[data-testid="dup-rename"]');
+      await clickVisibleTestId(page, 'dup-rename');
       await sleep(6000);
       const renamed = await page.evaluate((RUN) => (document.body.innerText || '').includes(`zzdup-${RUN} (1).png`), RUN);
       push('[이름 바꿔 저장] 이 실제로 «(1)» 로 저장한다', renamed, renamed ? 'zzdup (1).png 보인다' : '안 보인다');
@@ -283,7 +283,7 @@ async function run() {
       const again = await until(page, (s) => !!s.dupOverwrite, 15000);
       push('앞서 고른 답이 다음 업로드로 새지 않는다 (다시 묻는다)', again.ok,
         again.ok ? '다시 물었다' : '안 물었다 — 고른 답이 남아 있다(묻지 않고 지운다)');
-      if (again.ok) await page.click('[data-testid="dup-skip"]');
+      if (again.ok) await clickVisibleTestId(page, 'dup-skip');
       await sleep(2500);
     }
 
@@ -339,7 +339,7 @@ async function run() {
             const wd = await until(page, (s) => !!s.dupOverwrite, 15000);
             push('워크스페이스 모드 · 프로젝트 폴더에서도 같은 이름이면 묻는다', wd.ok,
               wd.ok ? '확인창 떴다' : '안 물었다 — 같은 이름이 그대로 쌓인다(Fable 3차 FAIL-2)');
-            if (wd.ok) await page.click('[data-testid="dup-skip"]');
+            if (wd.ok) await clickVisibleTestId(page, 'dup-skip');
             await sleep(2500);
           }
         }
@@ -354,6 +354,8 @@ async function run() {
     return results;
   } finally {
     await browser.close().catch(() => {});
+    // 제 파일은 제가 치운다 — 러너 sweep 은 안전망이다(lib/cleanup purgeCanaryFilesByRun).
+    results.push(await require('./lib/cleanup').purgeCanaryFilesByRun(RUN));
     for (const d of TMP) {
       try {
         const walk = (p) => fs.readdirSync(p, { withFileTypes: true }).forEach((e) => {

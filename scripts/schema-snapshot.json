@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-09-22",
+  "_generated": "2026-09-24",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -1604,7 +1604,8 @@
       "apple_services_id",
       "apple_team_id",
       "apple_key_id",
-      "apple_private_key_enc"
+      "apple_private_key_enc",
+      "image_gate_l1_off_until"
     ],
     "post_attachments": [
       "id",
@@ -2163,6 +2164,7 @@
       "status",
       "price",
       "currency",
+      "bonus_months",
       "started_at",
       "current_period_start",
       "current_period_end",

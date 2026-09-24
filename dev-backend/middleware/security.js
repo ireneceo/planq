@@ -230,7 +230,11 @@ const setupSecurity = (app) => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        // 허용 안 된 출처는 **403** 이다 — 에러만 던지면 공통 핸들러가 500 으로 내보내 서버 고장처럼 보였다
+        //   (2026-09-24 Fable 보안 점검, 운영 실측). CORS 헤더는 어느 쪽이든 안 붙는다(읽기 권한 없음).
+        const e = new Error('Not allowed by CORS');
+        e.statusCode = 403;
+        callback(e);
       }
     },
     credentials: true,

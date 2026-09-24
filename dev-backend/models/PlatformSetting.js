@@ -87,6 +87,9 @@ PlatformSetting.init({
   // ─── 점검 모드 + 운영 공지 배너 (2026-05-05) ───
   // maintenance_mode=true 면 platform_admin 외 모든 요청 503. message 가 사용자에게 표시.
   maintenance_mode: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  // 이미지 보안 Stage 2a(개인 L1 이미지 게이트) **끄는 시각**. NULL/과거 = 켬, 미래 = 그때까지 끔(24h 자동 복귀 용도).
+  //   ★ 불리언이 아니라 시각이다 — 무기한 꺼 둔 채 잊는 스위치를 만들지 않는다(docs/IMAGE_STAGE2_DECISIONS.md §4).
+  image_gate_l1_off_until: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
   // #259 — 플랫폼 전체 킬스위치 (maintenance_mode 와 같은 자리).
   //   ★ 기본값은 **닫힘**이다. 인증 없는 공개 쓰기 표면이라 "켜는 것" 이 의식적 결정이어야 한다.
   //     처음엔 true 로 뒀다가 배포 때 실제로 4분간 열려 있었다 — sync-database 가 모델 선언대로

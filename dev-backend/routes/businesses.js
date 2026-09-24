@@ -240,6 +240,13 @@ router.get('/symbol/:filename', (req, res) => {
   }
   const fp = path.join(SYMBOL_DIR, filename);
   if (!fs.existsSync(fp)) return errorResponse(res, 'not_found', 404);
+  // ★ 업로드 바이트를 내보내는 규칙은 services/fileServing **한 곳**이다(2026-09-24 Fable 보안 점검).
+  //   이 경로만 그것을 우회해 `res.sendFile` 로 SVG 를 inline·sandbox 없이 냈다 — SVG 는 스크립트를 담는 문서다.
+  //   지금은 앱 CSP(script-src 'self')가 막고 있었지만 그 한 겹뿐이었다. 이제 SVG 는 attachment + sandbox,
+  //   래스터는 inline. `<img>` 로고 표시는 어느 쪽이든 그대로다(img 는 이 헤더를 무시하고 스크립트를 돌리지 않는다).
+  const ext = path.extname(filename).toLowerCase();
+  const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+  require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: MIME[ext], file_name: filename }, { inline: true });
   res.sendFile(fp);
 });
 

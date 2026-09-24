@@ -155,6 +155,9 @@ const SUITES = {
   // 고객용 프로젝트 링크의 탭·카드·필터·등록 문 (2026-09-24, GUEST_PROJECT_VIEW §C~G · §H 가 요구).
   //   다섯 탭 기둥 left 3폭 · 카드 열 · preview_url 4케이스 · 필터 중 요청 0 · 개요 파생 · 시트·redirect 착지.
   guestproject: () => require('./canary-guest-project'),
+  // 이미지 보안 Stage 2a — 개인(L1) 이미지는 올린 사람만 (docs/IMAGE_STAGE2_DECISIONS.md). HTTP 만.
+  //   익명·다른 멤버 404 / 올린 사람·platform_admin 200 · L3/L4 불변 · 캐시 앞 게이트 · 만료 쿠키 · 킬스위치 왕복.
+  imagegate: () => require('./canary-image-gate'),
 
   // 끌어서 여러 개 고르기 + 선택한 것 통째로 폴더 이동 (2026-09-20).
   //   ★ folderdnd 와 다른 축이다 — 그쪽은 «한 건을 끌어 옮기는가», 여기는 «여러 건을 고르고

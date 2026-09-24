@@ -42,6 +42,82 @@ function resolveImageViewerDetailed(req) {
   }
 }
 
+// ── Stage 2a 게이트 — **개인(L1) 이미지만** (docs/IMAGE_STAGE2_DECISIONS.md, Fable 2026-09-24) ─────────
+//   L1 은 올린 사람(+ platform_admin)만 본다. 목록·다운로드와 **같은 술어**(`canAccessFileByLevel`)를 쓴다 —
+//   새 술어를 만들면 «목록엔 없는데 URL 로는 열리는» 식으로 갈라진다. L2/L3 는 지금은 통과(2b 자리 — 위키·공개공유가 익명이다).
+//   ★ 킬스위치는 **시각**이다(`platform_settings.image_gate_l1_off_until`) — 과거면 켬, 미래면 끔, 24h 뒤 자동 복귀.
+//     컬럼을 못 읽으면 **켬**(기본 꺼짐 플래그는 운영에서만 조용히 죽는다). 30초 캐시라 재시작 없이 바뀐다.
+let gateCache = { at: 0, offUntil: null };
+async function l1GateOn() {
+  if (Date.now() - gateCache.at > 30000) {
+    let offUntil = null;
+    try {
+      const { PlatformSetting } = require('../models');
+      const row = await PlatformSetting.findOne({ attributes: ['image_gate_l1_off_until'], order: [['id', 'ASC']] });
+      offUntil = row && row.image_gate_l1_off_until ? new Date(row.image_gate_l1_off_until) : null;
+    } catch { offUntil = null; }
+    gateCache = { at: Date.now(), offUntil };
+  }
+  return !(gateCache.offUntil && gateCache.offUntil.getTime() > Date.now());
+}
+
+const denyStats = { anon: 0, expired: 0, other_user: 0, since: Date.now() };
+let lastSessionAlert = 0;
+/** 어디서 왔는가 — **경로만**, 긴 토큰 조각은 가린다(`/g/<token>` 이 로그에 남으면 그 자체가 유출이다). */
+function refererPath(req) {
+  try {
+    const r = req && req.headers && req.headers.referer;
+    if (!r) return '-';
+    return new URL(r).pathname.split('/').map((seg) => (seg.length > 16 ? '*' : seg)).join('/').slice(0, 80) || '/';
+  } catch { return '?'; }
+}
+
+/**
+ * 이 이미지를 이 요청자에게 내보내도 되는가. **두 라우트(files/public-image · posts/editor-image)가 이것 하나를 부른다.**
+ * 거부 시 호출자는 404(존재 은닉) + no-store 로 답한다. 판정 전에 **리사이즈 캐시를 먼저 보지 않는다**
+ * (캐시는 파일 키라 뒤에 두면 캐시본이 익명에게 나간다).
+ * @returns {Promise<boolean>}
+ */
+async function isImageViewable(file, req, route) {
+  try {
+    if (!file) return false;
+    const level = file.vlevel || file.visibility || 'L3';
+    if (level !== 'L1') return true;                       // 2a 범위 밖 — 불변
+    const v = resolveImageViewerDetailed(req);
+    const viewer = v.userId;
+    if (viewer != null && file.uploader_id != null && String(file.uploader_id) === String(viewer)) return true;
+    if (viewer != null) {
+      // ★ 이미지 쿠키에는 userId 만 있다 — platform_role 을 **DB 에서** 읽어 넘긴다. 안 넘기면
+      //   getUserScope 가 isPlatformAdmin=false 로 판정해 관리자도 막힌다(2026-09-24 카나리가 잡았다).
+      const { canAccessFileByLevel, getUserScope } = require('./access_scope');
+      const { User } = require('../models');
+      const u = await User.findByPk(viewer, { attributes: ['platform_role'] });
+      const scope = await getUserScope(viewer, file.business_id, u && u.platform_role);
+      if (await canAccessFileByLevel(viewer, file, scope)) return true;   // 목록과 같은 술어
+    }
+    const on = await l1GateOn();
+    const hasSession = req && req.cookies ? (req.cookies.has_session ? '1' : '0') : '?';
+    const kind = viewer != null ? 'other_user' : (v.reason === 'expired' ? 'expired' : 'anon');
+    denyStats[kind] += 1;
+    const key = `deny:${route}:${file.id}:${viewer ?? 'anon'}`;
+    if (!seen.has(key) && seen.size < SEEN_CAP) {
+      seen.add(key);
+      console.warn(`[imageGate:deny] route=${route} file=${file.id} level=L1 uploader=${file.uploader_id} viewer=${viewer ?? 'anon'} reason=${v.reason || '-'} has_session=${hasSession} referer=${refererPath(req)} flag=${on ? 'on' : 'off'}`);
+    }
+    // 우리 사용자가 **신원 없이** 막혔다(세션은 있는데 이미지 쿠키가 없음·만료) = 켜서 깨진 것. 24h 에 한 번 크게 남긴다.
+    if (on && hasSession === '1' && viewer == null && Date.now() - lastSessionAlert > 86400000) {
+      lastSessionAlert = Date.now();
+      console.error(`[imageGate:ALERT] 세션 있는 사용자가 신원 없이 L1 이미지에서 막혔다 route=${route} file=${file.id} reason=${v.reason || '-'} referer=${refererPath(req)}`);
+    }
+    return !on;
+  } catch (e) {
+    // ★ 판정 오류는 **막는다**(fail-closed) — 이미지 한 장이 안 보이는 것이 개인 이미지가 새는 것보다 낫다.
+    console.warn('[imageGate] 판정 오류 — 막는다:', e.message);
+    return false;
+  }
+}
+function imageGateStats() { return { ...denyStats, gate_cache: { ...gateCache } }; }
+
 // ── Stage 1 계측 ──────────────────────────────────────────────────────────────
 //   "게이트가 켜졌다면 막혔을" 건수를 센다. 이미지 요청은 한 화면에 수백 건이라
 //   건마다 로그를 쓰면 디스크를 태운다 — **파일 단위로 한 번만**, 그리고 총량은 캡을 둔다.
@@ -90,4 +166,5 @@ function auditStats() {
   return { distinct: seen.size, suppressed };
 }
 
-module.exports = { resolveImageViewer, resolveImageViewerDetailed, auditWouldDeny, auditStats };
+module.exports = {
+  isImageViewable, imageGateStats, l1GateOn, resolveImageViewer, resolveImageViewerDetailed, auditWouldDeny, auditStats };

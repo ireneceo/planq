@@ -150,3 +150,41 @@ async function sweepCanaryLeftovers() {
 
 module.exports.sweepCanaryLeftovers = sweepCanaryLeftovers;
 module.exports.CANARY_PREFIXES = CANARY_PREFIXES;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 카나리가 **제 파일을 제가** 치운다 (2026-09-24)
+//   러너 끝 sweep 이 매 실행 dupname 5 · uploadretry 1 · folderops 1 건을 주웠다 — 각자 치우는 코드가
+//   일부만 지웠다(성공 경로의 파일만, 이름 바꿔 저장된 «(1)» 사본은 빠뜨리는 식). 실행 id(RUN)가 박힌
+//   이름은 **그 실행의 것**이 확실하므로 이름에 RUN 이 든 검사 계정 파일을 전부 바이트까지 지운다.
+//   sweep 은 안전망으로 그대로 둔다 — 이것이 새면 sweep 이 줍고, 접두어가 출처를 말한다.
+async function purgeCanaryFilesByRun(run) {
+  const row = (fail, msg) => ({ name: 'cleanup:own-files', fail, details: [msg], hasCanary: true });
+  if (!run || !/^[a-z0-9]{4,}$/.test(run)) return row(1, `🔴 실행 id 가 이상하다(${run}) — 지우지 않는다`);
+  let sequelize;
+  try {
+    require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env', quiet: true });
+    ({ sequelize } = require('/opt/planq/dev-backend/config/database'));
+    const [[me]] = await sequelize.query('SELECT id FROM users WHERE email=?', { replacements: [CREDS.email] });
+    if (!me) return row(1, '🔴 검사 계정을 못 찾았다');
+    const [fs] = await sequelize.query(
+      "SELECT id, business_id, deleted_at FROM files WHERE uploader_id=? AND purged_at IS NULL AND file_name LIKE 'zz%' AND file_name LIKE ?",
+      { replacements: [me.id, `%${run}%`] });
+    if (!fs.length) return row(0, '제 파일 남은 것 없음');
+    const tok = await loginToken();
+    if (!tok) return row(1, `🔴 로그인 실패 — 제 파일 ${fs.length}건이 남는다`);
+    const H = { Authorization: `Bearer ${tok}` };
+    let ok = 0;
+    for (const f of fs) {
+      if (!f.deleted_at) await fetch(`${BASE}/api/files/${f.business_id}/${f.id}`, { method: 'DELETE', headers: H }).catch(() => null);
+      const p = await fetch(`${BASE}/api/files/${f.business_id}/${f.id}/purge`, { method: 'DELETE', headers: H }).catch(() => null);
+      if (p && p.ok) ok += 1;
+    }
+    return ok === fs.length ? row(0, `제 파일 ${ok}건 지움(바이트까지)`) : row(1, `🔴 ${fs.length}건 중 ${ok}건만 지워졌다`);
+  } catch (e) {
+    return row(1, `🔴 제 파일 정리 오류: ${e.message}`);
+  }
+  // ★ 풀은 닫지 않는다 — 러너가 마지막에 한 번 닫는다.
+}
+
+module.exports.purgeCanaryFilesByRun = purgeCanaryFilesByRun;
+

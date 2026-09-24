@@ -279,10 +279,11 @@ router.get('/public-image/:storedName', async (req, res, next) => {
     if (file.security_level && file.security_level !== 'general') {
       return errorResponse(res, 'not_found', 404);   // 존재 은닉
     }
-    // 보안 Stage 1 — **막지 않는다.** 게이트를 켰다면 막혔을 요청만 센다(Stage 2 전 계측).
-    {
-      const { resolveImageViewerDetailed, auditWouldDeny } = require('../middleware/imageViewer');
-      auditWouldDeny(file, resolveImageViewerDetailed(req), 'files/public-image', req);
+    // 보안 Stage 2a — **개인(L1) 이미지는 올린 사람만**(docs/IMAGE_STAGE2_DECISIONS.md). 목록과 같은 술어.
+    //   ★ 리사이즈 캐시(serveCachedIfPresent)보다 **먼저** — 캐시는 파일 키라 뒤에 두면 캐시본이 익명에게 나간다.
+    if (!(await require('../middleware/imageViewer').isImageViewable(file, req, 'files/public-image'))) {
+      res.setHeader('Cache-Control', 'no-store');
+      return errorResponse(res, 'not_found', 404);   // 존재 은닉
     }
 
     const resize = require('../services/imageResize');

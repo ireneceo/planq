@@ -1338,10 +1338,10 @@ router.get('/editor-image/:filename', async (req, res) => {
     const resolved = await resolveEditorImage(filename);
     if (!resolved) return errorResponse(res, 'not_found', 404);   // 존재 은닉
     const { file, absPath: fp } = resolved;
-    // 보안 Stage 1 — 막지 않고 계측만 (Stage 2 에서 게이트).
-    {
-      const { resolveImageViewerDetailed, auditWouldDeny } = require('../middleware/imageViewer');
-      auditWouldDeny(file, resolveImageViewerDetailed(req), 'posts/editor-image', req);
+    // 보안 Stage 2a — files/public-image 와 **같은 함수**(술어를 가르지 않는다). 리사이즈보다 먼저.
+    if (!(await require('../middleware/imageViewer').isImageViewable(file, req, 'posts/editor-image'))) {
+      res.setHeader('Cache-Control', 'no-store');
+      return errorResponse(res, 'not_found', 404);   // 존재 은닉
     }
 
     const mime = file.mime_type;   // 확장자 추측이 아니라 DB 가 아는 실제 타입 (resolveEditorImage 가 실존까지 확인했다)
