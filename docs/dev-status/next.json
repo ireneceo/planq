@@ -1,30 +1,53 @@
 {
   "working_on": [
-    "감사 1순위 25 라우트 + 첨부 사본 원본 판정 좁은 등급 우선 (v1.63.2)"
+    "이미지 보안 2b 1·2단계 + 감사 2순위 + PDF 이미지 수정 (v1.63.3)"
   ],
   "in_progress": [],
   "completed": [
-    { "title": "감사 기록이 없던 변경 라우트 25곳에 감사 — 관리자 요금제·체험 조정, 비밀번호 재설정, 이메일 변경, 역할·스토리지 설정, 대화 참여자, 초대 수락, 프로젝트 종료, 공개범위, 공유 링크 생성·해제, 공유 메일, 업무 삭제, 데이터 내보내기, 기존 파일 첨부", "verified": "fable_pass" },
-    { "title": "첨부 사본 이미지 판정 — 같은 바이트의 File 행이 여럿이면 가장 좁은 등급(L1 우선)으로", "verified": "fable_pass" }
+    {
+      "title": "공개 화면(공유 링크·게스트 문서·서명) 본문 이미지에 문맥 토큰(image_ctx) — L2/L3 잠그기 전 준비, 지금은 세기만",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "서명본 HTML 이 PDF 용 서버 주소를 화면에 실어 이미지가 깨지던 것",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "?w=1600 붙은 에디터 이미지가 PDF 에서 빠지던 것(운영 11건)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "감사 2순위 — 조직·발신 주소·외부 연결·설정·프로젝트 (293→216)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "이미 기본인 메일 계정 재설정 시 기본이 풀리던 것",
+      "verified": "fable_pass"
+    }
   ],
   "behavior_changes": [
-    "화면 동작 변화 없음 — 감사 원장에만 행이 늘어난다"
+    "문서 PDF 에 이미지가 나온다",
+    "기본 발신 계정이 다시 눌러도 유지된다"
   ],
   "migrations": [],
   "issues": [
-    "휴지통에 든 개인(L1) 파일과 같은 바이트의 산 첨부 사본이 남에게 404 — fail-closed 유지, 판단 대기(FABLE_GATE_QUEUE)"
+    "휴지통 L1 행이 산 L3 첨부 사본을 404 로 만드는 판단(FABLE_GATE_QUEUE)",
+    "image_ctx 문서 캐시 60초 — 3단계 켜기 전 판단"
   ],
   "blocked_on_human": [
     "운영 nginx server_tokens off"
   ],
   "check_areas": [
-    "관리자 > 감사 로그에 공유 링크·참여자 변경이 남는지"
+    "문서 PDF 이미지",
+    "서명 요청 문서 이미지",
+    "메일 계정 기본 설정"
   ],
   "backlog": [
-    "감사 2순위 · 이미지 2b 1~4단계"
+    "이미지 2b 3단계(L2/L3 켜기) — 운영 계측 14일 뒤",
+    "감사 3순위(projects.js 잔여 등)"
   ],
   "tooling_health": [
-    "health 47/47 · guard 59/60 · imagegate·tenant 0 실패 · 감사 실호출 18/18 · auditcover 293"
+    "health 48/48 · guard 59/60 · imagectx 9/9 · signature 16/16 · tenant 0 · 감사 실호출 35+71"
   ],
   "undeployed": []
 }

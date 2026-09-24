@@ -1,0 +1,36 @@
+{
+  "version": "1.63.3",
+  "date": "2026-09-24",
+  "items": [
+    {
+      "ko": {
+        "title": "문서 PDF 에 이미지가 다시 나옵니다",
+        "body": "문서에 넣은 이미지 일부가 PDF 로 받으면 빠지던 문제를 고쳤습니다. 이제 본문 이미지가 PDF 에도 그대로 들어갑니다."
+      },
+      "en": {
+        "title": "Images show up in document PDFs again",
+        "body": "Some images inserted in a document were missing when you downloaded it as a PDF. Body images now appear in the PDF as they do on screen."
+      }
+    },
+    {
+      "ko": {
+        "title": "서명 요청 문서의 이미지가 제대로 보입니다",
+        "body": "서명을 요청한 문서의 본문 이미지가 서명 화면·공유 링크에서 깨지지 않고 보입니다."
+      },
+      "en": {
+        "title": "Images display correctly in documents sent for signature",
+        "body": "Body images in documents sent for signature now display correctly on the signing page and share links."
+      }
+    },
+    {
+      "ko": {
+        "title": "기본 발신 메일 계정이 풀리지 않습니다",
+        "body": "이미 기본인 메일 계정에 [기본으로 설정]을 다시 누르면 기본 설정이 풀리던 문제를 고쳤습니다."
+      },
+      "en": {
+        "title": "Your default sending mail account stays set",
+        "body": "Clicking [Set as default] again on the mail account that is already the default no longer clears the default."
+      }
+    }
+  ]
+}
