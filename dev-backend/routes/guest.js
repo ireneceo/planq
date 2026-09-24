@@ -51,10 +51,16 @@ router.use(require('./guest_project'));
 // 인증이 필요한 유일한 게스트 라우트 — Smart Routing(앱에서 열기). 파일로 갈라 둔다.
 router.use(require('./guest_auth'));
 
+const SYMBOL_PATH = /^\/api\/businesses\/symbol\/[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i;
+const workspaceOf = (b) => (b ? {
+  name: b.brand_name || b.name || null,
+  logo_url: b.brand_logo_url && SYMBOL_PATH.test(b.brand_logo_url) ? b.brand_logo_url : null,
+} : null);
+
 // ── GET /api/guest/:token — 대화방 컨텍스트 ────────────────────────────────
 router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }), attachGuest, async (req, res, next) => {
   try {
-    const { link, conversation, guestUser, client } = req.guest;
+    const { link, conversation, guestUser, client, business } = req.guest;
     // ★ 이미지 신원 — 보안 Stage 2 가 켜지면 이미지 접근이 canAccessConversation 판정이 된다.
     //   게스트는 **열람만 해도** 신원이 있어야 그 문을 지난다. 여기서 쿠키를 준다.
     try { require('../services/authTokens').setImageCookie(res, { id: guestUser.id }); } catch { /* 이미지 없이도 화면은 떠야 한다 */ }
@@ -114,6 +120,11 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
       client_name: client ? (client.display_name || client.company_name || null) : null,
       conversation: { id: conversation.id, title: conversation.title || null },
       project,
+      // 누가 보낸 링크인가 — 게스트 화면 밴드1 에 이름·로고(docs/CLIENT_ENTRY_DESIGN.md P0-①).
+      //   ★ **두 필드만.** `business_id`·slug·법인·연락처·요금은 싣지 않는다(무인증 응답이다).
+      //   로고는 우리 심볼 경로(이미 무인증 공개, UUID)일 때만 — 임의 외부 주소를 공개 화면에
+      //   그대로 그리면 보는 사람의 IP 가 제3자에게 간다.
+      workspace: workspaceOf(business),
     });
   } catch (err) { next(err); }
 });

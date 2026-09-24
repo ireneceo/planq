@@ -67,7 +67,12 @@ async function resolveGuestToken(raw, { touch = false, ip = null } = {}) {
     //   설정을 못 읽었으면 "허용" 이 아니라 "모름" 이고, 모르면 닫는 쪽이다.
     const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
     if (!platform || platform.guest_links_enabled !== true) return null;
-    const business = await Business.findByPk(link.business_id, { attributes: ['id', 'guest_links_enabled', 'deleted_at'] });
+    // 이름·로고는 **게스트 화면의 발신자 표시**용(docs/CLIENT_ENTRY_DESIGN.md P0-①).
+    //   내보내는 것은 routes/guest.js 의 `workspace:{name, logo_url}` 두 필드뿐이다 — 여기서 더 읽어도
+    //   화이트리스트가 막는다. 그래도 필요 없는 칸(법인·연락처·slug)은 애초에 읽지 않는다.
+    const business = await Business.findByPk(link.business_id, {
+      attributes: ['id', 'guest_links_enabled', 'deleted_at', 'name', 'brand_name', 'brand_logo_url'],
+    });
     if (!business || business.deleted_at || business.guest_links_enabled === false) return null;
 
     const conversation = await Conversation.findByPk(link.conversation_id);
@@ -108,7 +113,7 @@ async function resolveGuestToken(raw, { touch = false, ip = null } = {}) {
         await parent.update({ last_used_at: new Date(), expires_at: until }).catch(() => null);
       }
     }
-    return { link, parent, client, guestUser, conversation };
+    return { link, parent, client, guestUser, conversation, business };
   } catch (e) {
     console.error('[guest_link] resolve 실패:', e.message);
     return null;   // ★ 절대 throw 하지 않는다 — 게스트 화면이 500 이 되면 안 된다

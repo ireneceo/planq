@@ -17,6 +17,7 @@ import GuestChatPanel from './GuestChatPanel';
 import GuestNotifySection from './GuestNotifySection';
 import GuestDocsTab from './GuestDocsTab';
 import GuestFilesTab from './GuestFilesTab';
+import { PublicWorkspaceMark, PublicSubline, type PublicWorkspace } from '../../components/Layout/PublicPageShell';
 
 export type GuestProject = {
   name: string; description: string | null; status: string | null;
@@ -34,6 +35,7 @@ type GuestTask = {
 type Props = {
   token: string;
   project: GuestProject;
+  workspace: PublicWorkspace | null;
   canWrite: boolean;
   onGone: () => void;
 };
@@ -41,7 +43,7 @@ type Props = {
 type TabKey = 'overview' | 'tasks' | 'docs' | 'files' | 'chat';
 const TABS: TabKey[] = ['overview', 'tasks', 'docs', 'files', 'chat'];
 
-export default function GuestProjectPage({ token, project, canWrite, onGone }: Props) {
+export default function GuestProjectPage({ token, project, workspace, canWrite, onGone }: Props) {
   const { t } = useTranslation('guest');
   // 탭은 URL 에 싱크한다 — 뒤로가기·새로고침·공유가 탭을 지킨다(CLAUDE.md 드로어 URL 싱크와 같은 규칙).
   const [sp, setSp] = useSearchParams();
@@ -108,9 +110,15 @@ export default function GuestProjectPage({ token, project, canWrite, onGone }: P
   return (
     <Wrap>
       <Head>
-        <Title>{project.name}</Title>
-        <Sub>{[projectStatusLabel(project.status), period(project.start_date, project.end_date)].filter(Boolean).join(' · ')
-          || t('ov.projectSub', { defaultValue: '진행 상황과 문의' })}</Sub>
+        <HeadRow>
+          {workspace?.name && <PublicWorkspaceMark workspace={workspace} />}
+          <HeadText>
+            <Title>{project.name}</Title>
+            <PublicSubline workspace={workspace}
+              sub={[projectStatusLabel(project.status), period(project.start_date, project.end_date)].filter(Boolean).join(' · ')
+                || t('ov.projectSub', { defaultValue: '진행 상황과 문의' })} />
+          </HeadText>
+        </HeadRow>
       </Head>
 
       <TabBar role="tablist" aria-label={t('tabs.aria', { defaultValue: '프로젝트 탭' }) as string}>
@@ -225,8 +233,10 @@ const Head = styled.div`
   @media (max-width:640px){ padding:12px 16px; }
   > div { width:100%; max-width:${READ_W}; margin:0 auto; }
 `;
+// 로고 + 제목 칸. Head 의 직계 div 규칙(READ_W 기둥)이 이 줄에 걸리므로 본문과 같은 기둥에 선다.
+const HeadRow = styled.div`display:flex;align-items:center;gap:8px;`;
+const HeadText = styled.div`min-width:0;flex:1;`;
 const Title = styled.div`font-size:1.125rem;font-weight:700;letter-spacing:-0.2px;color:#0f172a;`;
-const Sub = styled.div`font-size:0.8125rem;color:#64748b;margin-top:2px;`;
 const TabBar = styled.div`
   display:flex;gap:2px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;
   overflow-x:auto;-webkit-overflow-scrolling:touch;

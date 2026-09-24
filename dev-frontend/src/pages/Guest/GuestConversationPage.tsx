@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
-import PublicPageShell, { PublicCenter } from '../../components/Layout/PublicPageShell';
+import PublicPageShell, { PublicCenter, type PublicWorkspace } from '../../components/Layout/PublicPageShell';
 import GuestNotifySection from './GuestNotifySection';
 import GuestChatPanel from './GuestChatPanel';
 import GuestProjectPage, { type GuestProject } from './GuestProjectPage';
@@ -26,6 +26,8 @@ type GuestCtx = {
   guest_name: string; can_write: boolean; client_name: string | null; account_requested?: boolean;
   conversation: { id: number; title: string | null };
   project: GuestProject | null;
+  // 누가 보낸 링크인가 — 서버가 이름·로고 두 필드만 준다. 옛 서버면 없다.
+  workspace?: PublicWorkspace | null;
 };
 
 export default function GuestConversationPage() {
@@ -119,6 +121,7 @@ export default function GuestConversationPage() {
       <GuestProjectPage
         token={token || ''}
         project={ctx.project}
+        workspace={ctx.workspace ?? null}
         canWrite={!!ctx.can_write}
         onGone={() => setGone(true)}
       />
@@ -135,6 +138,7 @@ export default function GuestConversationPage() {
       print={false}
       title={ctx.project ? ctx.project.name : (ctx.conversation.title || t('defaultTitle', { defaultValue: '대화' }))}
       subtitle={ctx.client_name || undefined}
+      workspace={ctx.workspace ?? null}
     >
       {/* 답글 알림 신청 (#259 A안) — 등록은 선택이고, 닫으면 이 브라우저에서 다시 안 뜬다. */}
       <GuestNotifySection token={token || ''} onGone={() => setGone(true)} />

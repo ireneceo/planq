@@ -23,6 +23,7 @@
 import React from 'react';
 import styled, { css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import LetterAvatar from '../Common/LetterAvatar';
 
 /** 본문 폭 — 화면마다 제각각이던 8가지 값을 4토큰으로 모은다. */
 export const PUBLIC_WIDTHS = { sm: '420px', md: '640px', lg: '820px', xl: '920px' } as const;
@@ -39,6 +40,9 @@ interface Props {
   /** app 레이아웃의 제목·부제 */
   title?: React.ReactNode;
   subtitle?: React.ReactNode;
+  /** 누가 보낸 화면인가 — 제목 앞 로고 + 부제 앞 이름 (게스트 링크, docs/CLIENT_ENTRY_DESIGN.md P0-①).
+   *  **선택**이다. 없으면 헤더는 예전 그대로다. */
+  workspace?: PublicWorkspace | null;
   /** 헤더 우측 — 버튼 2개 이내 (그 이상은 자리를 먹으면서 뜻은 안 알려준다) */
   actions?: React.ReactNode;
   /** 헤더 우측 텍스트 메타 (서명 화면의 수신자 등) */
@@ -57,7 +61,7 @@ interface Props {
 
 const PublicPageShell: React.FC<Props> = ({
   layout = 'document', width = 'lg', fill = false,
-  brand, title, subtitle, actions, headerMeta, promo = false, print = true, printArea, center = false, children,
+  brand, title, subtitle, workspace, actions, headerMeta, promo = false, print = true, printArea, center = false, children,
 }) => {
   const { t } = useTranslation();
   const showBrand = brand ?? (layout !== 'app');
@@ -68,10 +72,11 @@ const PublicPageShell: React.FC<Props> = ({
       {showHeader && (
         <Toolbar $print={print} $app={layout === 'app'}>
           {showBrand && <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />}
-          {(title || subtitle) && (
+          {workspace?.name && <PublicWorkspaceMark workspace={workspace} />}
+          {(title || subtitle || workspace?.name) && (
             <TitleBox>
               <ShellTitle>{title}</ShellTitle>
-              {subtitle && <ShellSub>{subtitle}</ShellSub>}
+              <PublicSubline workspace={workspace} sub={subtitle} />
             </TitleBox>
           )}
           <Spacer />
@@ -100,6 +105,30 @@ const PublicPageShell: React.FC<Props> = ({
 };
 
 export default PublicPageShell;
+
+export type PublicWorkspace = { name: string | null; logo_url: string | null };
+
+/** 발신 워크스페이스 로고 — 없으면 첫 글자. 게스트 프로젝트 화면처럼 **헤더를 직접 그리는 곳**도
+ *  이것을 쓴다(베끼면 크기·모양이 갈라진다). */
+export const PublicWorkspaceMark: React.FC<{ workspace: PublicWorkspace }> = ({ workspace }) => (
+  <MarkSlot data-testid="public-workspace-mark">
+    <LetterAvatar name={workspace.name || ''} src={workspace.logo_url} size={32} />
+  </MarkSlot>
+);
+
+/** 부제 한 줄 — «워크스페이스 · 부제». 제목+부제 두 줄이라 밴드1 은 **71px** 다(2026-09-24 실측 —
+ *  min-height 60 을 내용 43 + 패딩 28 이 넘긴다). 부제 없던 대화 링크(60)가 고객명 부제 있던 것과
+ *  같은 규격으로 합류한 것이고, 발신자 표시는 이 줄 없이는 불가능하다(Fable 허용 판정). */
+export const PublicSubline: React.FC<{ workspace?: PublicWorkspace | null; sub?: React.ReactNode }> = ({ workspace, sub }) => {
+  if (!workspace?.name && !sub) return null;
+  return (
+    <ShellSub>
+      {workspace?.name && <WsName data-testid="public-workspace-name">{workspace.name}</WsName>}
+      {workspace?.name && sub ? <span aria-hidden="true"> · </span> : null}
+      {sub}
+    </ShellSub>
+  );
+};
 
 /** 로딩·빈 상태 — 화면마다 4벌로 갈라져 있던 것.
  *  ★ `flex-direction: column` 이어야 한다. 옛 `Center` 들이 그랬는데 행으로 만들었더니
@@ -171,7 +200,12 @@ const ShellTitle = styled.div`
   font-size: 1.125rem; font-weight: 700; letter-spacing: -0.2px; color: #0f172a;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 `;
-const ShellSub = styled.div`font-size: 0.8125rem; color: #64748b; margin-top: 2px;`;
+const ShellSub = styled.div`
+  font-size: 0.8125rem; color: #64748b; margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const WsName = styled.span`font-weight: 600; color: #334155;`;
+const MarkSlot = styled.div`flex-shrink: 0; display: flex;`;
 const Spacer = styled.div`flex: 1;`;
 const HeaderMeta = styled.div`font-size: 0.75rem; color: #64748B; flex-shrink: 0;`;
 const PromoBar = styled.div`
