@@ -1,42 +1,43 @@
 {
   "working_on": [
-    "고객용 프로젝트 링크 C~G (v1.62.0)"
+    "감사 로그 구멍 4곳 · 게스트 표면 보안 점검 · 이미지 보안 Stage 2a (v1.63.0)"
   ],
   "in_progress": [],
   "completed": [
-    "§C 다섯 탭 같은 880 기둥 — guestShell 한 벌, 중복 styled 제거",
-    "§D 문서·파일 카드 + 받을 수 있는 이미지에만 preview_url. guestDownloadable 한 술어로 공유 비밀번호·만료까지 막음(Fable F1)",
-    "§E 개요 — 마일스톤·다음 마감·최근 문서·문의 버튼(서버 필드 추가 없음)",
-    "§F 업무·문서·파일 필터 — 화면 안에서만",
-    "§G LoginRequiredSheet 한 벌 · 고객으로 등록 · 앱에서 열기(auth-check) · ?redirect= 착지",
-    "UX 점검 수정 — 받기 꼬리표 썸네일 위(F6) · 잠김 SVG · 시트 × · 폰 탭 한 줄",
-    "대화방 생성 거절 문구 «최대 undefined개» → buildQuotaError",
-    "guestproject 카나리 신설(잰 것 0 이면 실패) · sweep 이 흘린 카나리 접두어 보고"
+    "감사 — 로그인 성공/실패/로그아웃/재사용(authAudit 한 문) · 결제 확정 서비스 안 트랜잭션 writeAudit · 소유권 이전 · 프로젝트 멤버 교체",
+    "auditcover 가드(래칫 328) — 감사 없는 변경 라우트가 늘면 실패",
+    "logAudit 가 명시 businessId:null 을 뚫고 요청 본문 business_id 를 집던 구멍(무인증 로그인 행을 남의 워크스페이스에) 수정",
+    "보안 점검(치명·높음 0) — SVG 심볼 fileServing 경유 · CORS 403 · 로그인 ?next=",
+    "이미지 Stage 2a — 개인(L1) 이미지는 올린 사람만(public-image·editor-image, 캐시 앞, 킬스위치 시각)",
+    "카나리 자체 정리 · imagegate 카나리 신설"
   ],
   "behavior_changes": [
-    "고객용 프로젝트 화면 문서·파일이 카드로, 헤더 오른쪽에 «고객으로 등록»",
-    "비밀번호·만료가 걸린 공유 파일은 고객 링크에서 받기·미리보기가 막힌다",
-    "구독 비활성 워크스페이스의 대화방 생성 거절 문구가 실제 이유를 말한다"
+    "개인(L1) 이미지 주소를 올린 사람이 아닌 사람이 열면 404",
+    "Stripe 결제 확정 시 감사 기록이 실패하면 결제도 롤백(웹훅 500 → Stripe 재시도)",
+    "허용 안 된 출처의 요청이 500 대신 403"
+  ],
+  "migrations": [
+    "dev-backend/scripts/migrate-image-gate-flag.js — platform_settings.image_gate_l1_off_until DATETIME NULL (멱등, 배포 슬롯 앞)"
   ],
   "issues": [
-    "Fable 게이트 3라운드 — F6 은 내 F2 수리가 만든 결함이었다(꼬리표가 카드 밖으로 밀림)"
+    "nginx server_tokens off 미적용(운영 sudo 필요 — Irene/lua)"
   ],
   "blocked_on_human": [
-    "교차 모드 구멍 — 워크스페이스 모드로 프로젝트 폴더에 올린 파일이 프로젝트 탭에 안 나온다(가시성 확대 결정 필요)",
-    "온프렘 0단계 착수 여부"
+    "운영 nginx server_tokens off",
+    "교차 모드 구멍 — 워크스페이스 모드로 프로젝트 폴더에 올린 파일의 가시성 결정"
   ],
   "check_areas": [
-    "고객용 프로젝트 링크 5개 탭 — 폰에서 카드·꼬리표·필터",
-    "«고객으로 등록» 시트 — × 닫기 · 로그인 · 계정 요청",
-    "잠긴 문서·로그인 후 받기 파일을 누르면 시트"
+    "개인 보관함·Q file 에서 내 개인 이미지 썸네일이 보이는지",
+    "공유 링크 이미지가 그대로 보이는지",
+    "관리자 > 감사 로그에 auth.login 이 쌓이는지"
   ],
   "backlog": [
-    "감사 로그 — 로그인 성공/실패 0건 · Stripe 웹훅 · 멤버 역할 변경 · 커버리지 가드",
-    "카나리 자체 정리 누락(sweep 이 줍는다 — 접두어로 출처 추적 시작)",
-    "guestCards ↔ Q file 카드 공용 셸로 추출"
+    "health-check --category=imagegate · 관리자 메일 경보(FABLE_GATE_QUEUE)",
+    "이미지 Stage 2b(L2/L3) 설계",
+    "감사 0건 파일 33개 갚기"
   ],
   "tooling_health": [
-    "guard 58/59 · health 45/45 · guestproject ko/en 39/39 · guestentry+tenant 실패 0 · build EXIT 0 · error TS 0"
+    "guard 59/60 · health 45/45 · imagegate 14/14 · 감사 실호출 32/32(Fable) · filepreview+guestproject+guestentry+tenant 80/0 · build EXIT 0"
   ],
   "undeployed": []
 }

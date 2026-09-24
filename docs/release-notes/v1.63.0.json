@@ -1,0 +1,26 @@
+{
+  "version": "1.63.0",
+  "date": "2026-09-24",
+  "items": [
+    {
+      "ko": {
+        "title": "개인 이미지는 올린 사람만 볼 수 있습니다",
+        "body": "「나만 보기」로 둔 이미지는 이제 올린 사람만 열 수 있습니다. 전에는 이미지 주소를 알면 누구나 열 수 있었습니다. 팀·워크스페이스에 공개한 이미지와 공유 링크의 이미지는 그대로 보입니다."
+      },
+      "en": {
+        "title": "Private images are visible only to the uploader",
+        "body": "Images set to only-me can now be opened only by the person who uploaded them. Before, anyone with the image address could open it. Images shared with your team or workspace, and images on share links, still show as before."
+      }
+    },
+    {
+      "ko": {
+        "title": "로그인하면 보던 페이지로 돌아옵니다",
+        "body": "공유받은 파일·업무·일정 페이지에서 로그인하면 대시보드가 아니라 그 페이지로 돌아옵니다."
+      },
+      "en": {
+        "title": "Signing in brings you back to the page you were on",
+        "body": "When you sign in from a shared file, task or event page, you now return to that page instead of the dashboard."
+      }
+    }
+  ]
+}
