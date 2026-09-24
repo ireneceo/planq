@@ -25,8 +25,11 @@ const { resolveEditorImage } = require('./editorImage');
 const MAX_ONE = 6 * 1024 * 1024;    // 한 장 6MB
 const MAX_TOTAL = 24 * 1024 * 1024; // 문서 전체 24MB
 
-// src="…/api/posts/editor-image/<uuid>.<ext>" — 상대경로도, loopback 절대주소도 잡는다.
-const SRC_RE = /(src\s*=\s*["'])([^"']*\/api\/posts\/editor-image\/([0-9a-fA-F-]+\.(?:png|jpe?g|gif|webp|svg)))(["'])/g;
+// src="…/api/posts/editor-image/<uuid>.<ext>[?w=…]" — 상대경로도, loopback 절대주소도 잡는다.
+// ★ 뒤의 `?w=1600` 도 받는다 — 에디터 업로드가 돌려주는 주소가 늘 `…png?w=1600` 이다(routes/posts.js).
+//   따옴표가 확장자 바로 뒤에 와야 한다고 적어 두었더니 그 이미지들이 인라인되지 않고 차단돼
+//   **PDF 에서 사라졌다**(운영 editor-image 본문 17건 중 11건, Fable 2026-09-24 실측). 바이트는 원본을 넣는다.
+const SRC_RE = /(src\s*=\s*["'])([^"']*\/api\/posts\/editor-image\/([0-9a-fA-F-]+\.(?:png|jpe?g|gif|webp|svg))(?:\?[^"']*)?)(["'])/g;
 
 /**
  * @returns {{ html: string, inlined: number, skipped: number, bytes: number }}
