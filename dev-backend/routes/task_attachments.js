@@ -456,6 +456,7 @@ router.delete('/attachments/:id', authenticateToken, async (req, res, next) => {
       }
     }
     await att.destroy();
+    require('../services/auditService').logAudit(req, { action: 'task_attachment.delete', targetType: 'task_attachment', targetId: att.id, businessId: task.business_id, oldValue: { task_id: task.id, name: att.original_name, storage: att.storage_provider } }); // 감사 — Drive 바이트까지 지운다
     return successResponse(res, { id: Number(req.params.id), deleted: true });
   } catch (err) { next(err); }
 });

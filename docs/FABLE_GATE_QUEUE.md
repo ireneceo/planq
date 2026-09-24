@@ -5126,3 +5126,10 @@ guard 58/59 · health 45/45 · build EXIT 0 · `error TS` 0 · 잔여 0 ·
 - `findSourceFile` 파일명 폴백이 dedup 으로 **한 stored name 에 File 여러 행**(등급 다름)일 때 임의 행을 집는다 — 운영 2건(현재 첨부 연결 0). **가장 좁은 등급 우선**(`FIELD(vlevel,'L1','L2','L3','L4')`)으로 fail-closed.
 - `findSourceFile` 의 file_id·external_id 조회가 deleted_at 을 안 본다(판정엔 무해, 운영 0건).
 - 배포 후 실측: 사본 경로 익명 404 1건 + 올린 사람 200 1건으로 «운영 23장» 닫기.
+
+## 2026-09-24 — 감사 1순위 25라우트 + findSourceFile 좁은 등급 우선
+- 1차 FAIL(Fable) 2건 → 수정: ①`recordCorrection` 에 감사가 **이미 있었는데** 한 벌 더 넣어 정정 1건에 2행 → 추가분 삭제(1건=1행 실측)
+  ②`has_password` 키가 감사 마스킹 정규식(`/password|token|…/`)에 걸려 `"***"` 로 저장 → `access_locked`(첫 개명 `password_protected` 도 걸렸다 — 테스트가 잡음).
+- **설계 결정 대기(비차단)**: `findSourceFile` 이 **휴지통(deleted_at) 에 든 L1 행**도 최우선으로 집는다 → 같은 바이트의 **살아 있는 L3 첨부 사본**이
+  남에게 404. 지금은 fail-closed 로 둔다(개인 바이트는 휴지통에서도 개인). dev 에 `deleted_at IS NOT NULL AND L1` 677행 —
+  운영에서 걸리면 «첨부 이미지가 안 보인다» 신고로 온다. 바꾸려면 «산 행 중 가장 좁은 등급, 산 행이 없으면 지운 행» 순서.

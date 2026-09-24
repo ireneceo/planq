@@ -2139,9 +2139,11 @@ async function recordCorrection(req, res, { installmentId }) {
   return successResponse(res, corr, 'Correction recorded');
 }
 
+// audit-exempt: 감사는 recordCorrection() 이 쓴다(invoice[.installment].receipt.correction)
 router.post('/:businessId/:id/corrections', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
   try { await recordCorrection(req, res, { installmentId: null }); } catch (error) { next(error); }
 });
+// audit-exempt: 감사는 recordCorrection() 이 쓴다(invoice[.installment].receipt.correction)
 router.post('/:businessId/:id/installments/:installId/corrections', authenticateToken, checkBusinessAccess, requireMenu('qbill', 'write'), async (req, res, next) => {
   try { await recordCorrection(req, res, { installmentId: req.params.installId }); } catch (error) { next(error); }
 });

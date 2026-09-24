@@ -368,6 +368,7 @@ router.post('/:businessId/me/export-job', authenticateToken, checkBusinessAccess
       user_id: req.user.id, business_id: businessId, kind: 'export',
       include_qnote: includeQnote, status: 'queued',
     });
+    require('../services/auditService').logAudit(req, { action: 'data_export.request', targetType: 'export_job', targetId: job.id, businessId, newValue: { include_qnote: includeQnote } }); // 감사 — 개인정보 반출
     return successResponse(res, { job_id: job.id, status: job.status }, 'queued', 201);
   } catch (err) { next(err); }
 });

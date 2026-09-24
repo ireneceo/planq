@@ -1157,6 +1157,9 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(ev, req.body || {});
     const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/calendar/${r.token}`;
+    // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
+    require('../services/auditService').logAudit(req, { action: 'event.share_create', targetType: 'event', targetId: ev.id, businessId: ev.business_id,
+      newValue: { access_locked: !!ev.share_password_hash, expires_at: ev.share_expires_at || null } });
     return successResponse(res, {
       share_token: r.token,
       share_url: url,
@@ -1181,6 +1184,7 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
       share_password_hash: null,
       share_expires_at: null,
     });
+    require('../services/auditService').logAudit(req, { action: 'event.share_revoke', targetType: 'event', targetId: ev.id, businessId: ev.business_id });
     return successResponse(res, { revoked: true });
   } catch (err) { next(err); }
 });

@@ -1853,6 +1853,7 @@ router.delete('/by-business/:businessId/:id', authenticateToken, async (req, res
       broadcastInboxRefresh(io, meta.business_id, meta.project_id, 'task_deleted', meta.id);
     }
 
+    require('../services/auditService').logAudit(req, { action: 'task.delete', targetType: 'task', targetId: meta.id, businessId: meta.business_id, oldValue: { title: task.title, project_id: meta.project_id ?? null } }); // 감사 — 되돌릴 수 없다(history 는 행과 함께 사라진다)
     return successResponse(res, { id: meta.id, deleted: true });
   } catch (err) { next(err); }
 });
@@ -2619,6 +2620,9 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(task, req.body || {});
     const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/tasks/${r.token}`;
+    // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
+    require('../services/auditService').logAudit(req, { action: 'task.share_create', targetType: 'task', targetId: task.id, businessId: task.business_id,
+      newValue: { access_locked: !!task.share_password_hash, expires_at: task.share_expires_at || null } });
     return successResponse(res, {
       share_token: r.token,
       share_url: url,
@@ -2643,6 +2647,7 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
       share_password_hash: null,
       share_expires_at: null,
     });
+    require('../services/auditService').logAudit(req, { action: 'task.share_revoke', targetType: 'task', targetId: task.id, businessId: task.business_id });
     return successResponse(res, { revoked: true });
   } catch (err) { next(err); }
 });

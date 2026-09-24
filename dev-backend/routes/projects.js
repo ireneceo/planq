@@ -1011,6 +1011,7 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
       // 멀티테넌트 — project_id 만으로도 사실상 한정되지만 business_id 를 명시한다(CLAUDE.md 격리 규칙).
         { where: { business_id: project.business_id, project_id: project.id, status: 'active' } },
     );
+    require('../services/auditService').logAudit(req, { action: 'project.delete', targetType: 'project', targetId: project.id, businessId: project.business_id, oldValue: { status: project.status, name: project.name }, newValue: { status: 'closed' } }); // 감사 — 프로젝트 종료(보관)
     return successResponse(res, { id: project.id, status: 'closed' });
   } catch (err) { next(err); }
 });
@@ -3674,6 +3675,7 @@ router.post('/invite/:token/accept', authenticateToken, async (req, res, next) =
     // 사용자 연결
     await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() });
 
+    require('../services/auditService').logAudit(req, { action: 'project_invite.accept', targetType: 'project_client', targetId: pc.id, businessId: (await Project.findByPk(pc.project_id, { attributes: ['business_id'] }).catch(() => null))?.business_id ?? null, newValue: { project_id: pc.project_id } }); // 감사 — 계정 결합
     return successResponse(res, { project_id: pc.project_id, linked: true });
   } catch (err) { next(err); }
 });

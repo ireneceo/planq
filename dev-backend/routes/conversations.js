@@ -519,6 +519,11 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
     const created = await ConversationParticipant.create({
       conversation_id: conv.id, user_id, role: role || 'member',
     });
+    // 감사 — 대화 접근권을 준다(AUDIT_GAPS 1순위). 이미 있던 참여자는 위에서 반환돼 여기 안 온다.
+    require('../services/auditService').logAudit(req, {
+      action: 'conversation.participant_add', targetType: 'conversation', targetId: conv.id, businessId,
+      newValue: { user_id: Number(user_id), role: created.role },
+    });
     successResponse(res, created, 'Participant added', 201);
   } catch (error) { next(error); }
 });
@@ -534,7 +539,11 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
     if (!isSelfLeave && !isOwner) {
       return errorResponse(res, '본인 나가기 또는 오너만 대화방에서 멤버를 제거할 수 있습니다', 403);
     }
-    await ConversationParticipant.destroy({ where: { conversation_id: conv.id, user_id: targetUserId } });
+    const removed = await ConversationParticipant.destroy({ where: { conversation_id: conv.id, user_id: targetUserId } });
+    if (removed) require('../services/auditService').logAudit(req, {
+      action: 'conversation.participant_remove', targetType: 'conversation', targetId: conv.id, businessId: conv.business_id,
+      oldValue: { user_id: targetUserId }, newValue: { self_leave: isSelfLeave },
+    });
     successResponse(res, { removed: true });
   } catch (error) { next(error); }
 });

@@ -1019,6 +1019,8 @@ router.post('/reset-password', async (req, res, next) => {
       password_reset_token: null,
       password_reset_expires: null,
     });
+    // 감사 — 비밀번호 재설정은 계정 탈취의 마지막 단계와 모양이 같다. 누구 계정이 언제 어디서 바뀌었나(비밀번호·토큰은 싣지 않는다).
+    require('../services/auditService').logAudit(req, { action: 'auth.password_reset', targetType: 'User', targetId: user.id, userId: user.id, businessId: null });
     return successResponse(res, { reset: true }, 'password_reset_success');
   } catch (err) { next(err); }
 });

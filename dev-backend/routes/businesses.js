@@ -410,6 +410,7 @@ router.put('/:businessId/storage', authenticateToken, checkBusinessAccess, async
     const s3svc = require('../services/s3Storage');
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
+    const prevProvider = business.default_storage_provider;   // 감사용
 
     const { default_storage_provider, s3 } = req.body || {};
 
@@ -452,6 +453,7 @@ router.put('/:businessId/storage', authenticateToken, checkBusinessAccess, async
 
     const fresh = await Business.findByPk(business.id);
     const cfg = await WorkspaceStorageConfig.findOne({ where: { business_id: business.id } });
+    require('../services/auditService').logAudit(req, { action: 'business.storage_change', targetType: 'business', targetId: business.id, businessId: business.id, oldValue: { default_storage_provider: prevProvider }, newValue: { default_storage_provider: fresh.default_storage_provider } }); // 감사 — 저장소 공급자 전환(자격 값은 싣지 않는다)
     return successResponse(res, serializeStorageConfig(fresh, cfg));
   } catch (err) { next(err); }
 });
@@ -1276,7 +1278,12 @@ router.patch('/:id/members/:memberId/default-role', authenticateToken, async (re
     });
     if (!member) return errorResponse(res, 'member_not_found', 404);
     const { default_role } = req.body || {};
+    const prevDefaultRole = member.default_role;
     await member.update({ default_role: default_role ? String(default_role).trim().slice(0, 50) : null });
+    require('../services/auditService').logAudit(req, {
+      action: 'member.default_role_change', targetType: 'business_member', targetId: member.id, businessId,
+      oldValue: { default_role: prevDefaultRole }, newValue: { default_role: member.default_role },
+    });
     return successResponse(res, member.toJSON());
   } catch (err) { next(err); }
 });

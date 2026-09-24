@@ -367,6 +367,7 @@ router.post('/:id/email-change-verify', authenticateToken, async (req, res, next
     }
 
     const newEmail = user.pending_email;
+    const oldEmail = user.email;
     await user.update({
       email: newEmail,
       email_verified_at: new Date(),
@@ -376,6 +377,11 @@ router.post('/:id/email-change-verify', authenticateToken, async (req, res, next
       email_change_otp_attempts: 0,
     });
 
+    // 감사 — 로그인 신원이 바뀌었다. 옛/새 주소를 남긴다(계정 복구·분쟁 때 유일한 근거).
+    require('../services/auditService').logAudit(req, {
+      action: 'user.email_change', targetType: 'User', targetId: user.id, businessId: null,
+      oldValue: { email: oldEmail }, newValue: { email: newEmail },
+    });
     return successResponse(res, { email: newEmail, changed: true });
   } catch (err) { next(err); }
 });

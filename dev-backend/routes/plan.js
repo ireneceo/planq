@@ -776,6 +776,8 @@ router.post('/cron/run', authenticateToken, async (req, res, next) => {
   try {
     if (req.user.platform_role !== 'platform_admin') return errorResponse(res, 'admin_only', 403);
     const stats = await billing.runDailyBillingCron();
+    // 감사 — 청구 생성 트리거를 **사람이** 눌렀다(건별 청구는 서비스가 따로 남긴다).
+    require('../services/auditService').logAudit(req, { action: 'billing.cron_manual_run', targetType: 'platform', targetId: null, businessId: null, newValue: { stats } });
     return successResponse(res, stats);
   } catch (err) { next(err); }
 });

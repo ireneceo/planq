@@ -214,6 +214,7 @@ router.post('/:conversationId/:messageId/link-existing',
         file_id: file.id,
       });
 
+      require('../services/auditService').logAudit(req, { action: 'message.attach_existing', targetType: 'message', targetId: msg.id, businessId: req._conversation.business_id, newValue: { file_id: file.id, conversation_id: req._conversation.id } }); // 감사 — 붙이는 순간 대화방 전원에게 열린다
       const io = req.app.get('io');
       if (io) {
         io.to(`conv:${req._conversation.id}`).emit('message:attachment', {

@@ -302,6 +302,12 @@ router.put('/businesses/:id/plan', async (req, res, next) => {
       }));
     }
 
+    // 감사 — 플랜 조정은 돈이다(AUDIT_GAPS 1순위). 변경은 서비스가 이미 커밋했으므로 기록 실패가 응답을 바꾸지 않게 logAudit.
+    require('../services/auditService').logAudit(req, {
+      action: 'admin.plan_change', targetType: 'business', targetId: id, businessId: id,
+      oldValue: { plan: biz.plan, plan_expires_at: biz.plan_expires_at, scheduled_plan: biz.scheduled_plan },
+      newValue: { plan: to_plan, plan_expires_at: expiresAt, scheduled_plan: scheduled_plan || null, note },
+    });
     successResponse(res, { id, plan: to_plan }, 'Plan updated');
   } catch (err) { next(err); }
 });
@@ -468,6 +474,10 @@ router.put('/businesses/:id/trial', async (req, res, next) => {
       effective_at: new Date(),
     });
 
+    require('../services/auditService').logAudit(req, {
+      action: 'admin.trial_change', targetType: 'business', targetId: id, businessId: id,
+      oldValue: { trial_ends_at: from }, newValue: { trial_ends_at: nextDate },
+    });
     planEngine.invalidateBusinessCache?.(id);
 
     // 안내 — 체험 기간이 바뀌면 언제까지 무료인지가 달라진다.

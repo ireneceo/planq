@@ -1087,8 +1087,12 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
       patch.share_token = crypto.randomBytes(24).toString('base64url');
       patch.shared_at = new Date();
     }
+    const prevVlevel = post.vlevel;   // 감사용 — 바꾸기 전 등급
     await post.update(patch);
     broadcastPost(req, post, 'post:updated');
+    // 감사 — 공개 범위가 바뀐다(L4 면 공유 토큰이 자동 발급된다, AUDIT_GAPS 1순위). 토큰은 싣지 않는다.
+    require('../services/auditService').logAudit(req, { action: 'post.visibility_change', targetType: 'post', targetId: post.id, businessId: post.business_id,
+      oldValue: { vlevel: prevVlevel }, newValue: { vlevel: level, project_id: nextProjectId, shared: !!post.share_token } });
     successResponse(res, { id: post.id, vlevel: level, project_id: nextProjectId, share_token: post.share_token });
   } catch (err) { next(err); }
 });
@@ -1459,6 +1463,9 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(post, req.body || {});
     void expiresAt;   // 만료 계산도 헬퍼가 한다(두 벌로 두면 갈린다)
+    // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
+    require('../services/auditService').logAudit(req, { action: 'post.share_create', targetType: 'post', targetId: post.id, businessId: post.business_id,
+      newValue: { access_locked: !!post.share_password_hash, expires_at: post.share_expires_at || null } });
     return successResponse(res, {
       share_token: post.share_token,
       share_url: `${APP_URL}/public/posts/${post.share_token}`,
@@ -1480,6 +1487,7 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
     }
     // 회수하면 비밀번호도 같이 지운다 — 남겨 두면 다음 발급이 옛 비번을 물려받는다(사용자는 모른다).
     await post.update({ share_token: null, shared_at: null, share_expires_at: null, share_password_hash: null });
+    require('../services/auditService').logAudit(req, { action: 'post.share_revoke', targetType: 'post', targetId: post.id, businessId: post.business_id });
     return successResponse(res, { revoked: true });
   } catch (err) { next(err); }
 });
@@ -1563,6 +1571,9 @@ router.post('/:id/share/email', authenticateToken, ...postShareEmailLimiter, asy
       });
       results.push({ to: email, sent: ok });
     }
+    // 감사 — 외부 발송. 받는 주소와 성공 여부만(본문·링크 토큰은 싣지 않는다).
+    require('../services/auditService').logAudit(req, { action: 'post.share_email', targetType: 'post', targetId: post.id, businessId: post.business_id,
+      newValue: { recipients: results.map((x) => x.to), sent: results.filter((x) => x.sent).length } });
     return successResponse(res, { share_url: shareUrl, results });
   } catch (err) { next(err); }
 });

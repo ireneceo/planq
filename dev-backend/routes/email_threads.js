@@ -1079,6 +1079,7 @@ router.post('/:businessId/email-threads/bulk-handled',
 //   body: { body_html, to?, cc?, bcc?, attachment_file_ids? }
 //   to 미지정 시 마지막 inbound 발신자에게 자동 답장
 // ─────────────────────────────────────────────
+// audit-exempt: 발송 원장은 email_messages 다(sent_by_user_id·수신자·delivery_status 가 행마다 남는다) — 같은 사건을 감사에 두 번 쓰지 않는다
 router.post('/:businessId/email-threads/:id/messages',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), emailSendLimiter,
   async (req, res, next) => {
@@ -1338,6 +1339,7 @@ router.get('/:businessId/email-threads/:id/messages/:messageId/embedded/:index',
 // 새 메일 작성/발송 (compose) — 새 스레드 + outbound 메시지 + SMTP 발송
 // POST /:biz/email-compose  body: { account_id, to[], cc?, bcc?, subject, body_html, attachment_file_ids? }
 // ─────────────────────────────────────────────
+// audit-exempt: 발송 원장은 email_messages 다(sent_by_user_id·수신자·delivery_status 가 행마다 남는다) — 같은 사건을 감사에 두 번 쓰지 않는다
 router.post('/:businessId/email-compose',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), emailSendLimiter,
   async (req, res, next) => {
@@ -1425,6 +1427,7 @@ router.post('/:businessId/email-compose',
 // 전달(Forward) — 원본 메시지를 새 수신자에게. 원본 첨부는 서버가 message_id 로 해석(재유지).
 // POST /:biz/email-threads/:id/forward  body: { account_id, message_id, to[], cc?, bcc?, subject, body_html, attachment_file_ids? }
 // ─────────────────────────────────────────────
+// audit-exempt: 발송 원장은 email_messages 다(sent_by_user_id·수신자·delivery_status 가 행마다 남는다) — 같은 사건을 감사에 두 번 쓰지 않는다
 router.post('/:businessId/email-threads/:id/forward',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), emailSendLimiter,
   async (req, res, next) => {

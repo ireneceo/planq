@@ -1704,6 +1704,9 @@ router.post('/kb-documents/:id/share', authenticateToken, async (req, res, next)
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(doc, req.body || {});
     const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/kb/${r.token}`;
+    // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
+    require('../services/auditService').logAudit(req, { action: 'kb.share_create', targetType: 'kb', targetId: doc.id, businessId: doc.business_id,
+      newValue: { access_locked: !!doc.share_password_hash, expires_at: doc.share_expires_at || null } });
     return successResponse(res, {
       share_token: r.token,
       share_url: url,
@@ -1726,6 +1729,7 @@ router.delete('/kb-documents/:id/share', authenticateToken, async (req, res, nex
       share_password_hash: null,
       share_expires_at: null,
     });
+    require('../services/auditService').logAudit(req, { action: 'kb.share_revoke', targetType: 'kb', targetId: doc.id, businessId: doc.business_id });
     return successResponse(res, { revoked: true });
   } catch (err) { next(err); }
 });
@@ -1916,6 +1920,7 @@ router.post('/businesses/:businessId/kb/share-bundle', authenticateToken, checkB
       expires_at: expiresAt,
     });
     const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/kb-bundle/${token}`;
+    require('../services/auditService').logAudit(req, { action: 'kb.share_bundle_create', targetType: 'kb_share_bundle', targetId: bundle.id, businessId: bundle.business_id, newValue: { kind, count: kind === 'selection' ? docIds.length : null, expires_at: expiresAt || null } }); // 감사 — 외부 노출(토큰 미기록)
     return successResponse(res, { id: bundle.id, share_token: token, share_url: url, kind, count: kind === 'selection' ? docIds.length : null });
   } catch (err) { next(err); }
 });
@@ -1927,6 +1932,7 @@ router.delete('/businesses/:businessId/kb/share-bundle/:id', authenticateToken, 
     const b = await KbShareBundle.findOne({ where: { id: req.params.id, business_id: businessId } });
     if (!b) return errorResponse(res, 'not_found', 404);
     await b.destroy();
+    require('../services/auditService').logAudit(req, { action: 'kb.share_bundle_revoke', targetType: 'kb_share_bundle', targetId: b.id, businessId });
     return successResponse(res, { revoked: true });
   } catch (err) { next(err); }
 });

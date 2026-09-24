@@ -136,13 +136,18 @@ async function findSourceFile({ fileId = null, externalId = null, storedName = n
     const f = await File.findByPk(fileId);
     if (f) return f;
   }
+  // ★ 같은 바이트(SHA-256 dedup)나 같은 Drive 파일에 File 행이 **여럿**이고 등급이 다를 수 있다(운영 2건).
+  //   아무 행이나 집으면 L1 대신 L3 행을 집어 통과한다 — **가장 좁은 등급을 먼저** 본다(fail-closed, Fable 2b 0단계 소견).
+  const { sequelize } = require('../config/database');
+  const narrowest = [[sequelize.literal("FIELD(COALESCE(`File`.`vlevel`, `File`.`visibility`, 'L4'), 'L1', 'L2', 'L3', 'L4')"), 'ASC']];
   if (externalId) {
-    const f = await File.findOne({ where: { external_id: externalId, storage_provider: 'gdrive' } });
+    const f = await File.findOne({ where: { external_id: externalId, storage_provider: 'gdrive' }, order: narrowest });
     if (f) return f;
   }
   if (storedName) {
-    const f = await File.findOne({ where: { file_path: { [Op.like]: `%${storedName}` }, storage_provider: 'planq' } });
-    if (f && require('path').basename(f.file_path) === storedName) return f;
+    const rows = await File.findAll({ where: { file_path: { [Op.like]: `%${storedName}` }, storage_provider: 'planq' }, order: narrowest, limit: 20 });
+    const f = rows.find((r) => require('path').basename(r.file_path) === storedName);
+    if (f) return f;
   }
   return null;
 }

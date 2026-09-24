@@ -115,6 +115,8 @@ router.post('/email', authenticateToken, ...shareEmailLimiter, async (req, res, 
       });
       results.push({ to: email, sent: ok });
     }
+    require('../services/auditService').logAudit(req, { action: 'share.email', targetType: String(entity_type), targetId: entity.id, businessId: entity.business_id ?? null,
+      newValue: { recipients: results.map((x) => x.to), sent: results.filter((x) => x.sent).length } }); // 감사 — 외부 발송(토큰 미기록)
     return successResponse(res, { share_url: shareUrl, share_token: r.token, results });
   } catch (err) { next(err); }
 });

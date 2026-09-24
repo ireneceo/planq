@@ -187,6 +187,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       }
       try { const prj = await Project.findByPk(pc.project_id, { attributes: ['business_id'] }); broadcastAccept(req, prj?.business_id, 'project_client:updated', { project_id: pc.project_id, id: pc.id }); } catch { /* noop */ }
       notifyInviterOnAccept(pc.invited_by, pc.project_id, 'project_client', req.user.id, null).catch((e) => console.warn('[notify invite project_client]', e.message));
+      require('../services/auditService').logAudit(req, { action: 'project_invite.accept', targetType: 'project_client', targetId: pc.id, businessId: (await Project.findByPk(pc.project_id, { attributes: ['business_id'] }).catch(() => null))?.business_id ?? null, newValue: { type: 'project_client' } }); // 감사 — 계정 결합(AUDIT_GAPS 1순위)
       return successResponse(res, { type: 'project_client', project_id: pc.project_id, redirect: '/talk' });
     }
 
@@ -213,6 +214,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
         const { ensureWelcomeConversation } = require('../services/clientOnboarding');
         await ensureWelcomeConversation(cl, { io: req.app.get('io') });
       } catch (e) { console.warn('[onboarding welcome]', e.message); }
+      require('../services/auditService').logAudit(req, { action: 'invite.accept', targetType: 'workspace_client', targetId: cl.id, businessId: cl.business_id, newValue: { type: 'workspace_client' } }); // 감사 — 계정 결합(AUDIT_GAPS 1순위)
       return successResponse(res, { type: 'workspace_client', business_id: cl.business_id, redirect: '/talk' });
     }
 
@@ -241,6 +243,7 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
       await t.commit();
       broadcastAccept(req, bm.business_id, 'member:updated', { id: bm.id });
       notifyInviterOnAccept(bm.invited_by, null, 'workspace_member', req.user.id, bm.business_id).catch((e) => console.warn('[notify invite workspace_member]', e.message));
+      require('../services/auditService').logAudit(req, { action: 'invite.accept', targetType: 'workspace_member', targetId: bm.id, businessId: bm.business_id, newValue: { type: 'workspace_member' } }); // 감사 — 계정 결합(AUDIT_GAPS 1순위)
       return successResponse(res, { type: 'workspace_member', business_id: bm.business_id, redirect: '/dashboard' });
     }
 
