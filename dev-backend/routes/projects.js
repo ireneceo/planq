@@ -35,6 +35,7 @@ const { maskDeletedMessages } = require('../utils/deletedMessage');
 const { CLIENT_VISIBLE_MESSAGE_WHERE } = require('../utils/messageVisibility');
 const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
+const { logAudit, auditDiff } = require('../services/auditService');
 const taskExtractor = require('../services/task_extractor');
 const cueOrchestrator = require('../services/cue_orchestrator');
 // 업무 생성 술어 재사용 — 기본담당자 미리보기가 실제 배정과 같은 코드를 쓰게 한다
@@ -653,7 +654,7 @@ router.get('/:id/pinned-docs', authenticateToken, async (req, res, next) => {
 });
 
 // POST /:id/pinned-docs { post_id } — 탭으로 올리기 (멱등)
-router.post('/:id/pinned-docs', authenticateToken, async (req, res, next) => {
+router.post('/:id/pinned-docs', authenticateToken, async (req, res, next) => { // audit-exempt: 본인 탭에 문서를 올리는 개인 화면 상태(user_id 행) — 문서·권한 무변경
   try {
     const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
@@ -672,7 +673,7 @@ router.post('/:id/pinned-docs', authenticateToken, async (req, res, next) => {
 });
 
 // DELETE /:id/pinned-docs/:postId — 탭에서 내리기
-router.delete('/:id/pinned-docs/:postId', authenticateToken, async (req, res, next) => {
+router.delete('/:id/pinned-docs/:postId', authenticateToken, async (req, res, next) => { // audit-exempt: 본인 탭에서 내리는 개인 화면 상태(user_id 행) — 문서·권한 무변경
   try {
     const { project, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
@@ -1339,7 +1340,10 @@ router.patch('/conversations/:id', authenticateToken, async (req, res, next) => 
     if (Object.keys(patch).length === 0) {
       return errorResponse(res, 'no_valid_fields', 400);
     }
+    const convBefore = conv.get({ plain: true, clone: true });
     await conv.update(patch);
+    const convDiff = auditDiff(convBefore, conv.get({ plain: true }), Object.keys(patch));
+    if (convDiff) logAudit(req, { action: 'conversation.update', targetType: 'conversation', targetId: conv.id, businessId: conv.business_id, ...convDiff });
     return successResponse(res, conv.toJSON());
   } catch (err) { next(err); }
 });
@@ -1358,6 +1362,11 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       if (role === 'client' && conv.channel_type !== 'customer') {
         return errorResponse(res, 'forbidden_channel', 403);
       }
+    } else {
+      // ★ 프로젝트 없는 대화방 — 목록과 **같은 술어**(canAccessConversation: 멤버 이상 · 그 방 참여자·연결 고객).
+      //   여태 else 가 없어 로그인한 누구나 남의 워크스페이스 대화방에 메시지를 넣을 수 있었다(Fable 2026-09-24 실측, 운영에도 있었다).
+      const { canAccessConversation } = require('../middleware/access_scope');
+      if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'forbidden', 403);
     }
     // 운영 #240 (Fable 판정) — 보관된 대화 쓰기. conversations.js 와 **같은 헬퍼**를 쓴다.
     //   두 라우트에 술어를 인라인 복제하면 다음에 한쪽만 고쳐져 갈라진다.
@@ -1595,10 +1604,16 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
     if (msg.ai_draft_approved !== null) return errorResponse(res, 'already_resolved', 400);
 
     const conv = await Conversation.findByPk(msg.conversation_id);
-    if (conv?.project_id) {
+    if (!conv) return errorResponse(res, 'message_not_found', 404);
+    if (conv.project_id) {
       const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
       if (error) return errorResponse(res, error.message, error.code);
       if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    } else {
+      // ★ 프로젝트 없는 대화방도 그 워크스페이스 멤버 이상만 — 없으면 로그인한 누구나 남의 워크스페이스 Cue 초안을
+      //   승인(내용 교체 포함)·거절할 수 있었다(감사 3순위 중 발견). conversations.js 형제 라우트와 같은 기준.
+      const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
+      if (!isMemberOrAbove(await getUserScope(req.user.id, conv.business_id, req.user.platform_role))) return errorResponse(res, 'forbidden', 403);
     }
 
     // 수정된 내용이 있으면 반영
@@ -1610,6 +1625,7 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
       updates.edited_at = new Date();
     }
     await msg.update(updates);
+    logAudit(req, { action: 'cue.draft_approve', targetType: 'message', targetId: msg.id, businessId: conv?.business_id ?? null, newValue: { conversation_id: msg.conversation_id, edited: !!updates.content } }); // 본문은 싣지 않는다
 
     const full = await Message.findByPk(msg.id, {
       include: [{ model: User, as: 'sender', attributes: ['id', 'name', 'email', 'name_localized', 'is_guest'] }],
@@ -1636,7 +1652,7 @@ router.post('/messages/:id/approve-draft', authenticateToken, async (req, res, n
 // POST /api/projects/messages/:id/cue-rating — Cue 답변 평가 (사이클 N+27 Phase 5-4)
 // body: { rating: 1 | -1 | 0 } (1=up, -1=down, 0=취소)
 // ============================================
-router.post('/messages/:id/cue-rating', authenticateToken, async (req, res, next) => {
+router.post('/messages/:id/cue-rating', authenticateToken, async (req, res, next) => { // audit-exempt: Cue 답변 평가(👍/👎) 피드백 — 메시지 내용·공개 범위 무변경
   try {
     const msg = await Message.findByPk(req.params.id);
     if (!msg) return errorResponse(res, 'message_not_found', 404);
@@ -1677,13 +1693,20 @@ router.post('/messages/:id/reject-draft', authenticateToken, async (req, res, ne
     if (msg.ai_draft_approved !== null) return errorResponse(res, 'already_resolved', 400);
 
     const conv = await Conversation.findByPk(msg.conversation_id);
-    if (conv?.project_id) {
+    if (!conv) return errorResponse(res, 'message_not_found', 404);
+    if (conv.project_id) {
       const { role, error } = await loadProjectOrForbidden(conv.project_id, req.user.id);
       if (error) return errorResponse(res, error.message, error.code);
       if (role === 'client') return errorResponse(res, 'forbidden', 403);
+    } else {
+      // ★ 프로젝트 없는 대화방도 그 워크스페이스 멤버 이상만 — 없으면 로그인한 누구나 남의 워크스페이스 Cue 초안을
+      //   승인(내용 교체 포함)·거절할 수 있었다(감사 3순위 중 발견). conversations.js 형제 라우트와 같은 기준.
+      const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
+      if (!isMemberOrAbove(await getUserScope(req.user.id, conv.business_id, req.user.platform_role))) return errorResponse(res, 'forbidden', 403);
     }
 
     await msg.update({ ai_draft_approved: false, ai_draft_approved_by: req.user.id, ai_draft_approved_at: new Date() });
+    logAudit(req, { action: 'cue.draft_reject', targetType: 'message', targetId: msg.id, businessId: conv?.business_id ?? null, newValue: { conversation_id: msg.conversation_id } });
 
     const io = req.app.get('io');
     if (io) {
@@ -1823,10 +1846,12 @@ router.post('/:id/stages/init', authenticateToken, async (req, res, next) => {
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
     const { seedStages, STAGE_TEMPLATE_KEYS, progressProject } = require('../services/projectStageEngine');
     const tplKey = STAGE_TEMPLATE_KEYS.includes(req.body?.template) ? req.body.template : 'fixed';
+    const { ProjectStage } = require('../models');
+    const stagesBefore = await ProjectStage.count({ where: { project_id: project.id } });
     await seedStages(project.id, tplKey);
     progressProject(project.id).catch(() => null);
-    const { ProjectStage } = require('../models');
     const stages = await ProjectStage.findAll({ where: { project_id: project.id }, order: [['order_index', 'ASC']] });
+    if (stages.length > stagesBefore) logAudit(req, { action: 'project.stages_init', targetType: 'project', targetId: project.id, businessId: project.business_id, newValue: { template: tplKey, count: stages.length - stagesBefore } });
     return successResponse(res, stages);
   } catch (err) { next(err); }
 });
@@ -1852,6 +1877,7 @@ router.post('/:id/stages', authenticateToken, async (req, res, next) => {
       expected_due_date,
       is_template_seeded: false,
     });
+    logAudit(req, { action: 'project.stage_create', targetType: 'project_stage', targetId: stage.id, businessId: project.business_id, newValue: { project_id: project.id, kind: stage.kind, label: stage.label, order_index: stage.order_index } });
     return successResponse(res, stage, 'Stage added', 201);
   } catch (err) { next(err); }
 });
@@ -1878,14 +1904,17 @@ router.put('/:id/stages/:stageId', authenticateToken, async (req, res, next) => 
       else meta.manual_locked = true;
       patch.metadata = meta;
     }
+    const stageBefore = stage.get({ plain: true, clone: true });
     await stage.update(patch);
+    const stageDiff = auditDiff(stageBefore, stage.get({ plain: true }), Object.keys(patch).filter((k) => k !== 'metadata' && k !== 'completed_at'));
+    if (stageDiff) logAudit(req, { action: 'project.stage_update', targetType: 'project_stage', targetId: stage.id, businessId: project.business_id, ...stageDiff });
     return successResponse(res, stage);
   } catch (err) { next(err); }
 });
 
 // 인접 stage 와 순서 swap (↑/↓ 버튼)
 // body: { direction: 'up' | 'down' }
-router.post('/:id/stages/:stageId/move', authenticateToken, async (req, res, next) => {
+router.post('/:id/stages/:stageId/move', authenticateToken, async (req, res, next) => { // audit-exempt: 인접 단계와 순서만 바꾼다(내용·상태 무변경)
   const t = await sequelize.transaction();
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
@@ -1940,6 +1969,7 @@ router.delete('/:id/stages/:stageId', authenticateToken, async (req, res, next) 
     if (!stage) return errorResponse(res, 'stage_not_found', 404);
     if (stage.is_template_seeded) return errorResponse(res, 'cannot_delete_template_stage', 400);
     await stage.destroy();
+    logAudit(req, { action: 'project.stage_delete', targetType: 'project_stage', targetId: stage.id, businessId: project.business_id, oldValue: { project_id: project.id, kind: stage.kind, label: stage.label, status: stage.status } });
     return successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });
@@ -2113,7 +2143,11 @@ router.patch('/:id/strategy', authenticateToken, async (req, res, next) => {
       for (const k of editedFields) src[k] = 'manual';
       updates.strategy_sources = src;
     }
+    const stratKeys = Object.keys(updates).filter((k) => k !== 'strategy_sources');
+    const stratBefore = project.get({ plain: true, clone: true });
     await project.update(updates);
+    const stratDiff = auditDiff(stratBefore, project.get({ plain: true }), stratKeys, { nameOnly: stratKeys });
+    if (stratDiff) logAudit(req, { action: 'project.strategy_update', targetType: 'project', targetId: project.id, businessId: project.business_id, ...stratDiff });
     broadcastCanvas(req, project, 'strategy_updated');
     return successResponse(res, {
       context: project.strategy_context, key_question: project.strategy_key_question,
@@ -2144,7 +2178,9 @@ router.put('/:id/success-metrics', authenticateToken, async (req, res, next) => 
         unit: m.unit != null ? String(m.unit).slice(0, 20) : '',
       });
     }
+    const metricsDiff = auditDiff({ success_metrics: project.success_metrics }, { success_metrics: metrics }, ['success_metrics']);
     await project.update({ success_metrics: metrics });
+    if (metricsDiff) logAudit(req, { action: 'project.metrics_update', targetType: 'project', targetId: project.id, businessId: project.business_id, ...metricsDiff });
     broadcastCanvas(req, project, 'metrics_updated');
     return successResponse(res, metrics);
   } catch (err) { next(err); }
@@ -2294,6 +2330,7 @@ router.post('/:id/workstreams', authenticateToken, async (req, res, next) => {
       order_index: (Number.isFinite(max) ? max : -1) + 1,
       created_by: req.user.id,
     });
+    logAudit(req, { action: 'project.workstream_create', targetType: 'project_workstream', targetId: ws.id, businessId: project.business_id, newValue: { project_id: project.id, title: ws.title } });
     broadcastCanvas(req, project, 'workstream_new');
     return successResponse(res, serializeWorkstream(ws, []));
   } catch (err) { next(err); }
@@ -2316,7 +2353,10 @@ router.patch('/:id/workstreams/:wsId', authenticateToken, async (req, res, next)
     if ('color' in req.body) updates.color = req.body.color || null;
     if ('status' in req.body && ['active', 'done', 'dropped'].includes(req.body.status)) updates.status = req.body.status;
     if ('order_index' in req.body && Number.isFinite(Number(req.body.order_index))) updates.order_index = Number(req.body.order_index);
+    const wsBefore = ws.get({ plain: true, clone: true });
     await ws.update(updates);
+    const wsDiff = auditDiff(wsBefore, ws.get({ plain: true }), Object.keys(updates).filter((k) => k !== 'order_index'), { nameOnly: ['description'] });
+    if (wsDiff) logAudit(req, { action: 'project.workstream_update', targetType: 'project_workstream', targetId: ws.id, businessId: project.business_id, ...wsDiff });
     const tasks = await Task.findAll({ where: { project_id: project.id }, attributes: ['id', 'status', 'due_date', 'progress_percent', 'workstream_id'] });
     broadcastCanvas(req, project, 'workstream_updated');
     return successResponse(res, serializeWorkstream(ws, tasks.map((t) => t.toJSON())));
@@ -2335,6 +2375,7 @@ router.delete('/:id/workstreams/:wsId', authenticateToken, async (req, res, next
     const affected = await Task.findAll({ where: { workstream_id: ws.id }, attributes: ['id'] });
     await Task.update({ workstream_id: null }, { where: { workstream_id: ws.id } });
     await ws.destroy();
+    logAudit(req, { action: 'project.workstream_delete', targetType: 'project_workstream', targetId: ws.id, businessId: project.business_id, oldValue: { project_id: project.id, title: ws.title, task_count: affected.length } });
     broadcastCanvas(req, project, 'workstream_deleted');
     // §16 — 각 업무 task:updated 로 workstream_id=null 수렴 (전체 reload 없이 미분류 그룹으로 이동).
     //   누락 시 클라이언트 state 의 옛 workstream_id 가 stale → 삭제된 그룹에도 미분류에도 안 잡혀 리스트에서 사라짐.
@@ -2351,7 +2392,7 @@ router.delete('/:id/workstreams/:wsId', authenticateToken, async (req, res, next
 });
 
 // POST /:id/workstreams/reorder — 일괄 정렬
-router.post('/:id/workstreams/reorder', authenticateToken, async (req, res, next) => {
+router.post('/:id/workstreams/reorder', authenticateToken, async (req, res, next) => { // audit-exempt: 워크스트림 표시 순서만 바꾼다(내용·소속 무변경)
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
@@ -2521,7 +2562,7 @@ router.get('/:id/timeline', authenticateToken, async (req, res, next) => {
 });
 
 // PATCH /:id/timeline-settings — 주요만 보기 기본값 (멤버 전용)
-router.patch('/:id/timeline-settings', authenticateToken, async (req, res, next) => {
+router.patch('/:id/timeline-settings', authenticateToken, async (req, res, next) => { // audit-exempt: 타임라인 표시 기본값(주요만 보기) — 데이터·권한 무변경
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
@@ -2576,7 +2617,8 @@ router.post('/:id/links', authenticateToken, async (req, res, next) => {
     const [a, b] = project.id < targetId ? [project.id, targetId] : [targetId, project.id];
     const exists = await ProjectLink.findOne({ where: { project_a_id: a, project_b_id: b } });
     if (exists) return errorResponse(res, 'already_linked', 409);
-    await ProjectLink.create({ business_id: project.business_id, project_a_id: a, project_b_id: b, relation_label: req.body?.relation_label ? String(req.body.relation_label).slice(0, 40) : null, created_by: req.user.id });
+    const link = await ProjectLink.create({ business_id: project.business_id, project_a_id: a, project_b_id: b, relation_label: req.body?.relation_label ? String(req.body.relation_label).slice(0, 40) : null, created_by: req.user.id });
+    logAudit(req, { action: 'project.link_create', targetType: 'project_link', targetId: link.id, businessId: project.business_id, newValue: { project_id: project.id, target_project_id: targetId, relation_label: link.relation_label } });
     broadcastCanvas(req, project, 'project_linked');
     return successResponse(res, { linked: true });
   } catch (err) { next(err); }
@@ -2593,6 +2635,7 @@ router.delete('/:id/links/:targetId', authenticateToken, async (req, res, next) 
     const link = await ProjectLink.findOne({ where: { business_id: project.business_id, project_a_id: a, project_b_id: b } });
     if (!link) return errorResponse(res, 'link_not_found', 404);
     await link.destroy();
+    logAudit(req, { action: 'project.link_delete', targetType: 'project_link', targetId: link.id, businessId: project.business_id, oldValue: { project_id: project.id, target_project_id: targetId, relation_label: link.relation_label } });
     broadcastCanvas(req, project, 'project_unlinked');
     return successResponse(res, { unlinked: true });
   } catch (err) { next(err); }
@@ -2858,6 +2901,7 @@ router.post('/conversations/:convId/notes', authenticateToken, async (req, res, 
       include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
     const noteJson = full.toJSON();
+    logAudit(req, { action: 'project_note.create', targetType: 'project_note', targetId: note.id, businessId: conversation.business_id, newValue: { conversation_id: conversation.id, visibility: vis } }); // 본문은 싣지 않는다
     await applyMemberDisplayNameOne(noteJson, conversation.business_id, ['author']);  // #87 표시명
     // N+38 — business room broadcast (CLAUDE.md 16번 박제)
     const io = req.app.get('io');
@@ -2899,6 +2943,7 @@ router.post('/conversations/:convId/issues', authenticateToken, async (req, res,
       body: String(body).trim(),
       author_user_id: req.user.id,
     });
+    logAudit(req, { action: 'project_issue.create', targetType: 'project_issue', targetId: issue.id, businessId: conversation.business_id, newValue: { conversation_id: conversation.id } }); // 본문은 싣지 않는다
     const full = await ProjectIssue.findByPk(issue.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
     });
@@ -3034,7 +3079,7 @@ router.get('/:id/task-candidates', authenticateToken, async (req, res, next) => 
 // POST /api/projects/conversations/:convId/task-candidates/extract — 수동 추출 트리거
 // 커서 기반: last_extracted_message_id 이후 메시지만 LLM에 전달
 // ============================================
-router.post('/conversations/:convId/task-candidates/extract', authenticateToken, async (req, res, next) => {
+router.post('/conversations/:convId/task-candidates/extract', authenticateToken, async (req, res, next) => { // audit-exempt: 대기(pending) 후보만 만든다 — 사람의 결정(등록·병합·거절)이 기록된다 · 사용량은 cue_usage
   try {
     const conversationId = Number(req.params.convId);
     const conv = await Conversation.findByPk(conversationId);
@@ -3084,7 +3129,7 @@ router.post('/conversations/:convId/task-candidates/extract', authenticateToken,
 // ============================================
 // POST /api/projects/task-candidates/:id/register — 후보 → 정식 업무 등록
 // ============================================
-router.post('/task-candidates/:id/register', authenticateToken, async (req, res, next) => {
+router.post('/task-candidates/:id/register', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 registerCandidate → taskActions.createTask 가 쓴다(task.create) — 한 사건을 두 행으로 쓰지 않는다
   try {
     const candidate = await TaskCandidate.findByPk(req.params.id);
     if (!candidate) return errorResponse(res, 'candidate_not_found', 404);
@@ -3131,12 +3176,18 @@ router.post('/task-candidates/:id/merge-into/:taskId', authenticateToken, async 
   try {
     const candidate = await TaskCandidate.findByPk(req.params.id);
     if (!candidate) return errorResponse(res, 'candidate_not_found', 404);
-    const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
+    const { project: candProject, role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
     const targetTaskId = Number(req.params.taskId);
+    // ★ 대상 업무는 **같은 워크스페이스 + 요청자가 볼 수 있는 것**만 — id 만 받아 남의 워크스페이스 업무 설명에
+    //   글을 덧붙일 수 있었다(mergeCandidate 는 findByPk 만 한다. 감사 3순위 중 발견). 없는 것과 같은 404.
+    const target = await Task.findByPk(targetTaskId);
+    const { canAccessTask } = require('../middleware/access_scope');
+    if (!target || target.business_id !== candProject.business_id || !(await canAccessTask(req.user.id, target))) return errorResponse(res, 'target_task_not_found', 404);
     const result = await taskExtractor.mergeCandidate(candidate.id, targetTaskId, req.user.id);
+    logAudit(req, { action: 'task_candidate.merge', targetType: 'task_candidate', targetId: candidate.id, businessId: candProject.business_id, newValue: { task_id: targetTaskId } });
     return successResponse(res, result);
   } catch (err) {
     if (err.message === 'candidate_already_resolved') {
@@ -3158,18 +3209,22 @@ router.post('/task-candidates/:id/reject', authenticateToken, async (req, res, n
     if (!candidate) return errorResponse(res, 'candidate_not_found', 404);
     // 운영 #47 — register 와 동일하게 프로젝트 후보 + 독립 대화(채팅) 후보 모두 처리.
     //   기존엔 project_id 만 검사해 conversation_id 만 있는 채팅 추출 후보는 거절이 막혔다(등록만 됨).
+    let candBizId = null;
     if (candidate.project_id) {
-      const { role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
+      const { project: cp, role, error } = await loadProjectOrForbidden(candidate.project_id, req.user.id);
       if (error) return errorResponse(res, error.message, error.code);
       if (role === 'client') return errorResponse(res, 'forbidden', 403);
+      candBizId = cp.business_id;
     } else if (candidate.conversation_id) {
-      const { error } = await loadStandaloneConvOrForbidden(candidate.conversation_id, req.user.id);
+      const { conversation: cc, error } = await loadStandaloneConvOrForbidden(candidate.conversation_id, req.user.id);
       if (error) return errorResponse(res, error.message, error.code);
+      candBizId = cc.business_id;
     } else {
       return errorResponse(res, 'candidate_unowned', 400);
     }
 
     const result = await taskExtractor.rejectCandidate(candidate.id, req.user.id);
+    logAudit(req, { action: 'task_candidate.reject', targetType: 'task_candidate', targetId: candidate.id, businessId: candBizId, oldValue: { title: candidate.title } });
     return successResponse(res, result);
   } catch (err) {
     if (err.message === 'candidate_already_resolved') {
@@ -3447,6 +3502,7 @@ router.post('/:id/issues', authenticateToken, async (req, res, next) => {
       body: String(body).trim(),
       author_user_id: req.user.id,
     });
+    logAudit(req, { action: 'project_issue.create', targetType: 'project_issue', targetId: issue.id, businessId: project.business_id, newValue: { project_id: project.id, conversation_id: convIdToStore } }); // 본문은 싣지 않는다
     const full = await ProjectIssue.findByPk(issue.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
     });
@@ -3468,12 +3524,14 @@ router.put('/issues/:id', authenticateToken, async (req, res, next) => {
   try {
     const issue = await ProjectIssue.findByPk(req.params.id);
     if (!issue) return errorResponse(res, 'issue_not_found', 404);
-    const { role, error } = await loadProjectOrForbidden(issue.project_id, req.user.id);
+    const { project: ip, role, error } = await loadProjectOrForbidden(issue.project_id, req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
     const { body } = req.body || {};
     if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
+    const prevIssueBody = issue.body;
     await issue.update({ body: String(body).trim() });
+    if (prevIssueBody !== issue.body) logAudit(req, { action: 'project_issue.update', targetType: 'project_issue', targetId: issue.id, businessId: ip.business_id, newValue: { project_id: issue.project_id, changed: ['body'] } });
     return successResponse(res, issue.toJSON());
   } catch (err) { next(err); }
 });
@@ -3485,10 +3543,11 @@ router.delete('/issues/:id', authenticateToken, async (req, res, next) => {
   try {
     const issue = await ProjectIssue.findByPk(req.params.id);
     if (!issue) return errorResponse(res, 'issue_not_found', 404);
-    const { role, error } = await loadProjectOrForbidden(issue.project_id, req.user.id);
+    const { project: ip, role, error } = await loadProjectOrForbidden(issue.project_id, req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
     await issue.destroy();
+    logAudit(req, { action: 'project_issue.delete', targetType: 'project_issue', targetId: issue.id, businessId: ip.business_id, oldValue: { project_id: issue.project_id, conversation_id: issue.conversation_id } });
     return successResponse(res, { id: Number(req.params.id), deleted: true });
   } catch (err) { next(err); }
 });
@@ -3518,6 +3577,7 @@ router.post('/:id/notes', authenticateToken, async (req, res, next) => {
       visibility: vis,
       body: String(body).trim(),
     });
+    logAudit(req, { action: 'project_note.create', targetType: 'project_note', targetId: note.id, businessId: project.business_id, newValue: { project_id: project.id, conversation_id: convIdToStore, visibility: vis } }); // 본문은 싣지 않는다
     const full = await ProjectNote.findByPk(note.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
     });
@@ -3542,7 +3602,9 @@ router.delete('/notes/:id', authenticateToken, async (req, res, next) => {
     const note = await ProjectNote.findByPk(req.params.id);
     if (!note) return errorResponse(res, 'note_not_found', 404);
     if (note.author_user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
+    const noteBizId = note.project_id ? (await Project.findByPk(note.project_id, { attributes: ['business_id'] }))?.business_id : (note.conversation_id ? (await Conversation.findByPk(note.conversation_id, { attributes: ['business_id'] }))?.business_id : null);
     await note.destroy();
+    logAudit(req, { action: 'project_note.delete', targetType: 'project_note', targetId: note.id, businessId: noteBizId ?? null, oldValue: { project_id: note.project_id, conversation_id: note.conversation_id, visibility: note.visibility } });
     return successResponse(res, { id: Number(req.params.id), deleted: true });
   } catch (err) { next(err); }
 });
@@ -3561,7 +3623,9 @@ router.patch('/tasks/:id', authenticateToken, async (req, res, next) => {
     const { status } = req.body || {};
     const allowed = ['task_requested', 'task_re_requested', 'waiting', 'not_started', 'in_progress', 'review_requested', 're_review_requested', 'customer_confirm', 'completed', 'canceled'];
     if (!status || !allowed.includes(status)) return errorResponse(res, 'invalid status', 400);
+    const prevTaskStatus = task.status;
     await task.update({ status });
+    if (prevTaskStatus !== status) logAudit(req, { action: 'task.status_change', targetType: 'task', targetId: task.id, businessId: task.business_id, oldValue: { status: prevTaskStatus }, newValue: { status } }); // 이 경로는 task_status_history 를 쓰지 않는다
     return successResponse(res, task.toJSON());
   } catch (err) { next(err); }
 });

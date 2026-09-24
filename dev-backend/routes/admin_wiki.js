@@ -10,6 +10,9 @@ const { successResponse, errorResponse, parsePagination, paginatedResponse } = r
 const HelpCategory = require('../models/HelpCategory');
 const HelpArticle = require('../models/HelpArticle');
 const { indexArticle, removeArticleIndex } = require('../services/wikiSearch');
+const { logAudit, auditDiff } = require('../services/auditService');
+// 감사 — 위키는 플랫폼 공통 콘텐츠라 businessId 는 명시적으로 null. 본문(body_*)은 «바뀜» 만 적는다.
+const WIKI_BODY = ['body_ko', 'body_en'];
 
 router.use(authenticateToken, requireRole('platform_admin'));
 
@@ -41,6 +44,7 @@ router.post('/categories', async (req, res, next) => {
       title_ko, title_en, summary_ko: summary_ko || null, summary_en: summary_en || null,
       icon: icon || null, sort_order: Number(sort_order) || 0,
     });
+    logAudit(req, { action: 'wiki_category.create', targetType: 'help_category', targetId: cat.id, businessId: null, newValue: { slug: cat.slug, title_ko: cat.title_ko, title_en: cat.title_en } });
     return successResponse(res, cat, '생성됨', 201);
   } catch (err) { next(err); }
 });
@@ -53,7 +57,10 @@ router.put('/categories/:id', async (req, res, next) => {
     const patch = {};
     for (const f of fields) if (req.body[f] !== undefined) patch[f] = req.body[f];
     if (patch.slug) patch.slug = slugify(patch.slug);
+    const catBefore = cat.get({ plain: true, clone: true });
     await cat.update(patch);
+    const catDiff = auditDiff(catBefore, cat.get({ plain: true }), Object.keys(patch));
+    if (catDiff) logAudit(req, { action: 'wiki_category.update', targetType: 'help_category', targetId: cat.id, businessId: null, ...catDiff });
     return successResponse(res, cat);
   } catch (err) { next(err); }
 });
@@ -65,6 +72,7 @@ router.delete('/categories/:id', async (req, res, next) => {
     const cnt = await HelpArticle.count({ where: { category_id: cat.id } });
     if (cnt > 0) return errorResponse(res, 'article 이 있는 카테고리는 삭제 불가', 400, 'category_not_empty');
     await cat.destroy();
+    logAudit(req, { action: 'wiki_category.delete', targetType: 'help_category', targetId: cat.id, businessId: null, oldValue: { slug: cat.slug, title_ko: cat.title_ko, title_en: cat.title_en } });
     return successResponse(res, { id: cat.id }, '삭제됨');
   } catch (err) { next(err); }
 });
@@ -121,6 +129,8 @@ router.post('/articles', async (req, res, next) => {
     });
     // 비동기 재인덱싱 (검색/RAG 갱신) — fan-out 패턴
     indexArticle(article.id).catch((e) => console.warn('[admin_wiki] index fail', e.message));
+    logAudit(req, { action: 'wiki_article.create', targetType: 'help_article', targetId: article.id, businessId: null,
+      newValue: { slug: article.slug, category_id: article.category_id, title_ko: article.title_ko, visibility: article.visibility, is_published: article.is_published } });
     return successResponse(res, article, '생성됨', 201);
   } catch (err) { next(err); }
 });
@@ -136,7 +146,10 @@ router.put('/articles/:id', async (req, res, next) => {
     for (const f of fields) if (b[f] !== undefined) patch[f] = b[f];
     if (b.slug !== undefined) patch.slug = slugify(b.slug);
     if (patch.visibility && !['public', 'authenticated'].includes(patch.visibility)) delete patch.visibility;
+    const artBefore = a.get({ plain: true, clone: true });
     await a.update(patch);
+    const artDiff = auditDiff(artBefore, a.get({ plain: true }), Object.keys(patch), { nameOnly: WIKI_BODY });
+    if (artDiff) logAudit(req, { action: 'wiki_article.update', targetType: 'help_article', targetId: a.id, businessId: null, ...artDiff });
     // 본문/제목/요약 바뀌었으면 재인덱싱
     if (['title_ko', 'title_en', 'summary_ko', 'summary_en', 'body_ko', 'body_en'].some((f) => b[f] !== undefined)) {
       indexArticle(a.id).catch((e) => console.warn('[admin_wiki] reindex fail', e.message));
@@ -151,12 +164,13 @@ router.delete('/articles/:id', async (req, res, next) => {
     if (!a) return errorResponse(res, 'not_found', 404);
     await removeArticleIndex(a.id);
     await a.destroy();
+    logAudit(req, { action: 'wiki_article.delete', targetType: 'help_article', targetId: a.id, businessId: null, oldValue: { slug: a.slug, title_ko: a.title_ko, visibility: a.visibility, is_published: a.is_published } });
     return successResponse(res, { id: a.id }, '삭제됨');
   } catch (err) { next(err); }
 });
 
 // ─── 스크린샷 캡처 (Puppeteer) — linked_route 캡처 → File → image 블록 ───
-router.post('/articles/:id/capture', async (req, res, next) => {
+router.post('/articles/:id/capture', async (req, res, next) => { // audit-exempt: 스크린샷 재촬영 트리거 — 사람이 쓴 내용을 바꾸지 않는다(linked_route 화면을 다시 찍을 뿐)
   try {
     const a = await HelpArticle.findByPk(req.params.id);
     if (!a) return errorResponse(res, 'not_found', 404);
@@ -169,7 +183,7 @@ router.post('/articles/:id/capture', async (req, res, next) => {
 });
 
 // ─── 재임베딩 (전체 또는 단일) ───
-router.post('/reembed', async (req, res, next) => {
+router.post('/reembed', async (req, res, next) => { // audit-exempt: 검색 색인(파생값) 재생성 — 원본 글은 바뀌지 않는다
   try {
     const { article_id } = req.body || {};
     if (article_id) {
@@ -195,6 +209,7 @@ router.put('/articles/:id/blog', async (req, res, next) => {
     const article = await HelpArticle.findByPk(req.params.id);
     if (!article) return errorResponse(res, 'not_found', 404);
     const b = req.body || {};
+    const blogBefore = { blog_published_at: article.blog_published_at, blog_category: article.blog_category };
     if (b.published) {
       // 내부용 글이 마케팅 페이지로 새는 것 방지 — public + 발행 글만 블로그 허용
       if (!article.is_published || article.visibility !== 'public') {
@@ -207,6 +222,8 @@ router.put('/articles/:id/blog', async (req, res, next) => {
     } else {
       await article.update({ blog_published_at: null });
     }
+    const blogDiff = auditDiff(blogBefore, article.get({ plain: true }), ['blog_published_at', 'blog_category']);
+    if (blogDiff) logAudit(req, { action: b.published ? 'wiki_article.blog_publish' : 'wiki_article.blog_unpublish', targetType: 'help_article', targetId: article.id, businessId: null, ...blogDiff });
     return successResponse(res, {
       id: article.id,
       blog_published_at: article.blog_published_at,
@@ -250,6 +267,7 @@ router.post('/question-cluster/run', async (req, res, next) => {
   try {
     const { runWikiQuestionClustering } = require('../services/wikiQuestionCluster');
     const result = await runWikiQuestionClustering();
+    if (result && result.created > 0) logAudit(req, { action: 'wiki.question_cluster_run', targetType: 'help_article', targetId: null, businessId: null, newValue: { created: result.created, clusters: result.clusters } });
     return successResponse(res, result);
   } catch (err) { next(err); }
 });

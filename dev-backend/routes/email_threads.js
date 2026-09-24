@@ -51,6 +51,7 @@ const { ipKeyGenerator } = require('express-rate-limit');
 //   — 사용자 1명이 연타로 LLM 비용을 태울 수 있는 상태. 신규 `ai-compose` 와 **양쪽에** 붙인다.
 const { perUserDaily } = require('../middleware/costGuard');
 const { createAuditLog } = require('../middleware/audit');
+const { logAudit, auditDiff } = require('../services/auditService');
 const aiDraftLimiter = perUserDaily('mail-ai-draft', { perMin: 10, perDay: 200 });
 
 // 발송 rate-limit (CLAUDE.md 운영안정성 #1 — 외부발송=quota/비용 = per-user 제한).
@@ -477,7 +478,7 @@ router.post('/:businessId/email-attachments/:attachmentId/save-to-library',
 //     화면은 응답 실패를 `setIdent(null)` 로 처리해 **서명 배지가 통째로 사라졌다**(Fable 실측).
 //   ★ 그리고 원본 HTML 을 그대로 받아 **발송과 같은 함수**로 텍스트화한다 —
 //     화면이 자체 stripHtml 로 2,000자만 잘라 보내던 탓에 장문 이중언어에서 판정이 갈렸다.
-router.post('/:businessId/mail-outgoing-identity',
+router.post('/:businessId/mail-outgoing-identity', // audit-exempt: 발신자·서명 미리보기 계산 — 저장하지 않는다
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
@@ -698,7 +699,7 @@ router.get('/:businessId/email-threads/:id',
 // ─────────────────────────────────────────────
 // POST mark-read — 스레드 unread_count → 0
 // ─────────────────────────────────────────────
-router.post('/:businessId/email-threads/:id/mark-read',
+router.post('/:businessId/email-threads/:id/mark-read', // audit-exempt: 본인 읽음 표시(화면 상태) — 내용·공개 범위·담당 무변경
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
@@ -744,7 +745,9 @@ router.post('/:businessId/email-threads/:id/mark-spam',
         where: { id: req.params.id, business_id: req.params.businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
       });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const spamPrevStatus = thread.status;
       await thread.update({ status: 'spam' });
+      if (spamPrevStatus !== 'spam') logAudit(req, { action: 'mail.mark_spam', targetType: 'email_thread', targetId: thread.id, businessId: Number(req.params.businessId), oldValue: { status: spamPrevStatus }, newValue: { status: 'spam' } });
 
       // 학습 — 같은 도메인을 2번 스팸 처리하면 도메인 단위 규칙 (사용자가 지울 수 있다)
       let learned = null;
@@ -776,6 +779,7 @@ router.post('/:businessId/email-threads/:id/mark-not-spam',
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
       if (thread.status !== 'spam') return errorResponse(res, 'not_spam', 400);
       await thread.update({ status: 'open' });
+      logAudit(req, { action: 'mail.mark_not_spam', targetType: 'email_thread', targetId: thread.id, businessId: Number(req.params.businessId), oldValue: { status: 'spam' }, newValue: { status: 'open' } });
       return successResponse(res, { id: thread.id, status: 'open' });
     } catch (err) { next(err); }
   }
@@ -799,6 +803,7 @@ router.post('/:businessId/email-threads/:id/mark-handled',
         where: { id: req.params.id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
       });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const handledBefore = { status: thread.status, reply_needed: thread.reply_needed };
       await thread.update({
         status: 'archived',
         reply_needed: false,
@@ -814,6 +819,8 @@ router.post('/:businessId/email-threads/:id/mark-handled',
         { where: { thread_id: thread.id, is_read: false } },
       ).catch(() => {});
       // reply_needed:false 를 실어야 위 헬퍼가 뱃지 갱신까지 쏜다 (답변 완료 = 답변필요 해제).
+      const handledDiff = auditDiff(handledBefore, thread.get({ plain: true }), ['status', 'reply_needed']);
+      if (handledDiff) logAudit(req, { action: 'mail.mark_handled', targetType: 'email_thread', targetId: thread.id, businessId, ...handledDiff });
       broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, handled: true, unread: 0, reply_needed: false });
       return successResponse(res, { id: thread.id, status: 'archived', unread_count: 0 });
     } catch (err) { next(err); }
@@ -824,7 +831,7 @@ router.post('/:businessId/email-threads/:id/mark-handled',
 //   "언제쯤까지 답변 안 오면 알려달라" — 대화마다 다르게 정한다.
 //   값: null(기본 3일) · 0(끔) · 1~365(N일). 판정은 services/mailFollowUp 하나만 읽는다.
 // ─────────────────────────────────────────────
-router.post('/:businessId/email-threads/:id/follow-up',
+router.post('/:businessId/email-threads/:id/follow-up', // audit-exempt: 후속 알림 기간(알림 시점) 설정 — 메일 내용·분류·담당 무변경
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
@@ -868,11 +875,13 @@ router.post('/:businessId/email-threads/:id/dismiss-reply',
         where: { id: req.params.id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
       });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
+      const wasReplyNeeded = !!thread.reply_needed;
       await thread.update({
         reply_needed: false,
         reply_needed_at: null,
         reply_needed_reason: 'dismissed',
       });
+      if (wasReplyNeeded) logAudit(req, { action: 'mail.dismiss_reply', targetType: 'email_thread', targetId: thread.id, businessId, oldValue: { reply_needed: true }, newValue: { reply_needed: false } });
 
       // 학습 — 같은 발신자를 2번 "답변 완료" 하면 앞으로 안 묻는다 (규칙 생성 + 그 발신자 미처리 일괄 정리).
       //   LLM 0. 사용자가 클릭으로 알려준 정답을 그대로 규칙화한다.
@@ -1016,13 +1025,14 @@ router.post('/:businessId/email-threads/bulk-dismiss',
         );
         return n;
       });
+      if (count > 0) logAudit(req, { action: 'mail.bulk_dismiss_reply', targetType: 'email_thread', targetId: null, businessId, newValue: { updated: count, requested: ids.length, capped, thread_ids: ids.slice(0, 50) } });
       broadcastMail(req, businessId, 'mail:updated', { bulk: true, reply_needed: false });
       return successResponse(res, { updated: count, requested: ids.length, capped });
     } catch (err) { next(err); }
   },
 );
 
-router.post('/:businessId/email-threads/bulk-read',
+router.post('/:businessId/email-threads/bulk-read', // audit-exempt: 본인 읽음 표시(화면 상태)의 일괄판 — 내용·공개 범위·담당 무변경
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
@@ -1068,6 +1078,7 @@ router.post('/:businessId/email-threads/bulk-handled',
         ).catch(() => {});
         return n;
       });
+      if (count > 0) logAudit(req, { action: 'mail.bulk_handled', targetType: 'email_thread', targetId: null, businessId, newValue: { updated: count, requested: ids.length, capped, thread_ids: ids.slice(0, 50) } });
       broadcastMail(req, businessId, 'mail:updated', { bulk: true, handled: true, unread: 0 });
       return successResponse(res, { updated: count, requested: ids.length, capped });
     } catch (err) { next(err); }
@@ -1591,7 +1602,7 @@ router.get('/:businessId/email-drafts',
     } catch (err) { next(err); }
   }
 );
-router.put('/:businessId/email-drafts',
+router.put('/:businessId/email-drafts', // audit-exempt: 본인 작성 중 초안 자동저장(user_id 행) — 발송은 email_messages 가 원장
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
   async (req, res, next) => {
     try {
@@ -1617,7 +1628,7 @@ router.put('/:businessId/email-drafts',
     } catch (err) { next(err); }
   }
 );
-router.delete('/:businessId/email-drafts',
+router.delete('/:businessId/email-drafts', // audit-exempt: 본인 작성 중 초안 정리(user_id 행) — 발송·수신 메일 무변경
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
   async (req, res, next) => {
     try {
@@ -1633,7 +1644,7 @@ router.delete('/:businessId/email-drafts',
 // M3-C — AI 답변 제안 (Cue) — 마지막 inbound + 비즈니스 컨텍스트 → 답장 초안
 // POST /:biz/email-threads/:id/ai-suggest → { suggestion(html), usage }
 // ─────────────────────────────────────────────
-router.post('/:businessId/email-threads/:id/ai-suggest',
+router.post('/:businessId/email-threads/:id/ai-suggest', // audit-exempt: 답장 초안을 돌려줄 뿐 저장하지 않는다(사용량은 cue_usage)
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), ...aiDraftLimiter,
   async (req, res, next) => {
     try {
@@ -1734,7 +1745,7 @@ router.post('/:businessId/email-threads/:id/ai-suggest',
 //     또는 bulk-* 리터럴) 중 어느 것에도 가려지지 않는다. 나중에 `POST /:businessId/email-threads/:id`
 //     같은 한 세그먼트 라우트를 추가한다면 **그보다 위**에 있어야 한다 (Express 는 선언 순서로 매칭).
 // ─────────────────────────────────────────────
-router.post('/:businessId/email-threads/ai-compose',
+router.post('/:businessId/email-threads/ai-compose', // audit-exempt: 새 메일 초안을 돌려줄 뿐 저장하지 않는다(사용량은 cue_usage)
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'), ...aiDraftLimiter,
   async (req, res, next) => {
     try {
@@ -1773,7 +1784,7 @@ router.post('/:businessId/email-threads/ai-compose',
 // #184 — 메일 본문 번역 (원본보기/번역하기 토글). 지정 언어로 번역, translateWithRetry 재사용(검출+재시도+한도).
 // POST /:biz/email-threads/:id/messages/:msgId/translate  { target_lang } → { detected_language, target_lang, translated }
 // ─────────────────────────────────────────────
-router.post('/:businessId/email-threads/:id/messages/:msgId/translate',
+router.post('/:businessId/email-threads/:id/messages/:msgId/translate', // audit-exempt: 번역 결과(파생값)만 돌려준다 — 원문 무변경
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
@@ -1849,7 +1860,10 @@ router.put('/:businessId/email-threads/:id',
         patch.project_id = pid;
       }
       if (!Object.keys(patch).length) return errorResponse(res, 'no_fields', 400);
+      const thBefore = thread.get({ plain: true, clone: true });
       await thread.update(patch);
+      const thDiff = auditDiff(thBefore, thread.get({ plain: true }), Object.keys(patch).filter((k) => k !== 'is_starred'));   // 별표는 개인 표시라 뺀다
+      if (thDiff) logAudit(req, { action: 'mail.thread_update', targetType: 'email_thread', targetId: thread.id, businessId, ...thDiff });
       broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, ...patch });
       return successResponse(res, { id: thread.id, ...patch });
     } catch (err) { next(err); }
@@ -1867,12 +1881,14 @@ router.post('/:businessId/email-threads/:id/assign',
       const thread = await EmailThread.findOne({ where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } } });
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
       const userId = (req.body || {}).user_id ? Number(req.body.user_id) : null;
+      const prevAssignee = (await EmailThreadParticipant.findOne({ where: { thread_id: threadId, is_assigned: true }, attributes: ['user_id'] }))?.user_id ?? null;
       // 다른 담당 해제 (담당자 1명 정책)
       await EmailThreadParticipant.update({ is_assigned: false }, { where: { thread_id: threadId, is_assigned: true } });
       if (userId) {
         const [p] = await EmailThreadParticipant.findOrCreate({ where: { thread_id: threadId, user_id: userId }, defaults: { thread_id: threadId, user_id: userId } });
         await p.update({ is_assigned: true });
       }
+      if (prevAssignee !== userId) logAudit(req, { action: 'mail.assign', targetType: 'email_thread', targetId: threadId, businessId, oldValue: { assignee_user_id: prevAssignee }, newValue: { assignee_user_id: userId } });
       broadcastMail(req, businessId, 'mail:updated', { thread_id: threadId, assignee_user_id: userId });
       return successResponse(res, { thread_id: threadId, assignee_user_id: userId });
     } catch (err) { next(err); }
@@ -1880,7 +1896,7 @@ router.post('/:businessId/email-threads/:id/assign',
 );
 
 // POST /:biz/email-threads/:id/follow — body { follow: bool } (본인 팔로우)
-router.post('/:businessId/email-threads/:id/follow',
+router.post('/:businessId/email-threads/:id/follow', // audit-exempt: 본인 팔로우(user 행) — 메일·담당 무변경
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   async (req, res, next) => {
     try {
@@ -1939,6 +1955,7 @@ router.post('/:businessId/email-labels',
       if (labels.some(l => l.name === nm)) return errorResponse(res, 'duplicate', 409);
       labels.push({ name: nm, color: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : '#14B8A6' });
       await biz.update({ email_labels: labels });
+      logAudit(req, { action: 'mail_label.create', targetType: 'business', targetId: biz.id, businessId: biz.id, newValue: labels[labels.length - 1] });
       return successResponse(res, labels, 'created', 201);
     } catch (err) { next(err); }
   }
@@ -1956,8 +1973,11 @@ router.put('/:businessId/email-labels/:name',
       if (idx < 0) return errorResponse(res, 'not_found', 404);
       const nm = newName ? String(newName).trim().slice(0, 50) : oldName;
       if (nm !== oldName && labels.some(l => l.name === nm)) return errorResponse(res, 'duplicate', 409);
+      const prevLabel = labels[idx];
       labels[idx] = { name: nm, color: /^#[0-9A-Fa-f]{6}$/.test(color) ? color : labels[idx].color };
       await biz.update({ email_labels: labels });
+      const labelDiff = auditDiff(prevLabel, labels[idx], ['name', 'color']);
+      if (labelDiff) logAudit(req, { action: 'mail_label.update', targetType: 'business', targetId: biz.id, businessId: biz.id, ...labelDiff });
       return successResponse(res, labels);
     } catch (err) { next(err); }
   }
@@ -1970,7 +1990,9 @@ router.delete('/:businessId/email-labels/:name',
       const name = decodeURIComponent(req.params.name);
       const biz = await Business.findByPk(req.params.businessId);
       const labels = Array.isArray(biz.email_labels) ? biz.email_labels.filter(l => l.name !== name) : [];
+      const labelRemoved = Array.isArray(biz.email_labels) && labels.length < biz.email_labels.length;
       await biz.update({ email_labels: labels });
+      if (labelRemoved) logAudit(req, { action: 'mail_label.delete', targetType: 'business', targetId: biz.id, businessId: biz.id, oldValue: { name } });
       return successResponse(res, labels, 'deleted');
     } catch (err) { next(err); }
   }
@@ -2017,6 +2039,7 @@ router.post('/:businessId/email-faq-suggestions/:id/accept',
       });
       require('../services/kb_service').indexDocument(doc.id).catch((e) => console.error('[m4-faq] index', e.message));
       await sug.update({ status: 'accepted', kb_document_id: doc.id, created_by: req.user.id });
+      logAudit(req, { action: 'mail.faq_accept', targetType: 'email_faq_suggestion', targetId: sug.id, businessId, newValue: { kb_document_id: doc.id } });
       return successResponse(res, { ...sug.toJSON(), status: 'accepted', kb_document_id: doc.id });
     } catch (err) { next(err); }
   }
@@ -2029,7 +2052,9 @@ router.post('/:businessId/email-faq-suggestions/:id/dismiss',
       const businessId = Number(req.params.businessId);
       const sug = await EmailFaqSuggestion.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
       if (!sug) return errorResponse(res, 'not_found', 404);
+      const sugPrev = sug.status;
       await sug.update({ status: 'dismissed' });
+      if (sugPrev !== 'dismissed') logAudit(req, { action: 'mail.faq_dismiss', targetType: 'email_faq_suggestion', targetId: sug.id, businessId, oldValue: { status: sugPrev } });
       return successResponse(res, sug.toJSON());
     } catch (err) { next(err); }
   }
@@ -2049,7 +2074,7 @@ async function accessibleThread(req) {
 }
 
 // POST extract-tasks — 이 스레드에서 업무 후보 추출
-router.post('/:businessId/email-threads/:id/extract-tasks',
+router.post('/:businessId/email-threads/:id/extract-tasks', // audit-exempt: 대기(pending) 후보만 만든다 — 사람의 결정(등록·거절)이 기록된다 · 사용량은 cue_usage
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
   async (req, res, next) => {
     try {
@@ -2093,7 +2118,7 @@ router.get('/:businessId/email-threads/:id/task-candidates',
 );
 
 // POST register — 후보 → 정식 업무 (overrides: title/assignee_id/due_date/description)
-router.post('/:businessId/email-threads/:id/task-candidates/:cid/register',
+router.post('/:businessId/email-threads/:id/task-candidates/:cid/register', // audit-exempt: 감사는 registerCandidate → taskActions.createTask 가 쓴다(task.create) — 한 사건을 두 행으로 쓰지 않는다
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
   async (req, res, next) => {
     try {
@@ -2126,6 +2151,7 @@ router.post('/:businessId/email-threads/:id/task-candidates/:cid/reject',
       if (!cand) return errorResponse(res, 'candidate_not_found', 404);
       const extractor = require('../services/task_extractor');
       await extractor.rejectCandidate(cand.id, req.user.id);
+      logAudit(req, { action: 'task_candidate.reject', targetType: 'task_candidate', targetId: cand.id, businessId: thread.business_id, oldValue: { title: cand.title, email_thread_id: thread.id } });
       return successResponse(res, { id: cand.id, status: 'rejected' });
     } catch (err) { next(err); }
   }
@@ -2137,7 +2163,7 @@ router.post('/:businessId/email-threads/:id/task-candidates/:cid/reject',
 const { ProjectIssue, ProjectNote } = require('../models');
 
 // POST summarize — 스레드 AI 요약 (on-demand)
-router.post('/:businessId/email-threads/:id/summarize',
+router.post('/:businessId/email-threads/:id/summarize', // audit-exempt: AI 요약(파생값) 캐시 갱신 — 메일 원문·분류 무변경 · 사용량은 cue_usage
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
   async (req, res, next) => {
     try {
@@ -2174,7 +2200,7 @@ router.post('/:businessId/email-threads/:id/summarize',
 //   ★ 검증(trust)·맥락(links)·상황(situation)은 **LLM 없이** 원장과 헤더로만 만든다.
 //     LLM 이 죽어도 그 세 가지는 그대로 나온다(요약만 비고 ai_error 로 알린다).
 //   POST 인 이유: 요약에 LLM 이 붙어 비용이 나간다 — 캐시 가능한 GET 처럼 보이면 안 된다.
-router.post('/:businessId/email-threads/:id/brief',
+router.post('/:businessId/email-threads/:id/brief', // audit-exempt: 읽기(요약·검증 계산) — 저장하지 않는다
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'read'),
   ...perUserDaily('mail-brief', { perMin: 12, perDay: 200 }),
   async (req, res, next) => {
@@ -2218,6 +2244,7 @@ router.post('/:businessId/email-threads/:id/issues',
         project_id: thread.project_id || null, conversation_id: null, email_thread_id: thread.id,
         body: body.slice(0, 5000), author_user_id: req.user.id,
       });
+      logAudit(req, { action: 'project_issue.create', targetType: 'project_issue', targetId: issue.id, businessId, newValue: { email_thread_id: thread.id, project_id: issue.project_id } }); // 본문은 싣지 않는다
       broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, issue_added: true });
       const nameMap = await authorNameMap(businessId, [req.user.id]);
       return successResponse(res, { ...issue.toJSON(), author_name: nameMap[req.user.id] || null }, 'created', 201);
@@ -2233,6 +2260,7 @@ router.delete('/:businessId/email-threads/:id/issues/:issueId',
       const issue = await ProjectIssue.findOne({ where: { id: Number(req.params.issueId), email_thread_id: thread.id } });
       if (!issue) return errorResponse(res, 'not_found', 404);
       await issue.destroy();
+      logAudit(req, { action: 'project_issue.delete', targetType: 'project_issue', targetId: issue.id, businessId: thread.business_id, oldValue: { email_thread_id: thread.id, project_id: issue.project_id } });
       return successResponse(res, { id: issue.id, deleted: true });
     } catch (err) { next(err); }
   }
@@ -2289,6 +2317,7 @@ router.post('/:businessId/email-threads/:id/notes',
         project_id: thread.project_id || null, conversation_id: null, email_thread_id: thread.id,
         author_user_id: req.user.id, visibility, body: body.slice(0, 5000),
       });
+      logAudit(req, { action: 'project_note.create', targetType: 'project_note', targetId: note.id, businessId, newValue: { email_thread_id: thread.id, visibility } }); // 본문은 싣지 않는다
       if (visibility !== 'personal') broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, note_added: true });
       const nameMap = await authorNameMap(businessId, [req.user.id]);
       return successResponse(res, { ...note.toJSON(), author_name: nameMap[req.user.id] || null }, 'created', 201);
@@ -2305,6 +2334,7 @@ router.delete('/:businessId/email-threads/:id/notes/:noteId',
       if (!note) return errorResponse(res, 'not_found', 404);
       if (note.author_user_id !== req.user.id) return errorResponse(res, 'only_author', 403);
       await note.destroy();
+      logAudit(req, { action: 'project_note.delete', targetType: 'project_note', targetId: note.id, businessId: thread.business_id, oldValue: { email_thread_id: thread.id, visibility: note.visibility } });
       return successResponse(res, { id: note.id, deleted: true });
     } catch (err) { next(err); }
   }

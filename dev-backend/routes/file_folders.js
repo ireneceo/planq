@@ -30,6 +30,7 @@ function logFolderAudit(req, action, folder, extra) {
       action,
       targetType: 'file_folder',
       targetId: folder.id,
+      businessId: folder.business_id,
       ...(action === 'file_folder.create'
         ? { newValue: { name: folder.name, parent_id: folder.parent_id, project_id: folder.project_id, ...extra } }
         : { oldValue: extra?.old, newValue: extra?.next }),
@@ -93,7 +94,7 @@ router.get('/workspace/:businessId', authenticateToken, async (req, res, next) =
   } catch (error) { next(error); }
 });
 
-router.post('/workspace/:businessId', authenticateToken, async (req, res, next) => {
+router.post('/workspace/:businessId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 logFolderAudit 이 쓴다(file_folder.create)
   try {
     const businessId = Number(req.params.businessId);
     if (!businessId) return errorResponse(res, 'business_id required', 400);
@@ -125,7 +126,7 @@ router.post('/workspace/:businessId', authenticateToken, async (req, res, next) 
 });
 
 // Create folder
-router.post('/projects/:projectId', authenticateToken, async (req, res, next) => {
+router.post('/projects/:projectId', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 logFolderAudit 이 쓴다(file_folder.create)
   try {
     const project = await Project.findByPk(req.params.projectId);
     if (!project) return errorResponse(res, 'Project not found', 404);
@@ -159,7 +160,7 @@ router.post('/projects/:projectId', authenticateToken, async (req, res, next) =>
 });
 
 // Reorder folder (up/down within same parent)
-router.put('/:id/reorder', authenticateToken, async (req, res, next) => {
+router.put('/:id/reorder', authenticateToken, async (req, res, next) => { // audit-exempt: 형제 폴더 표시 순서만 바꾼다(내용·가시성 무변경)
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
@@ -207,7 +208,7 @@ router.put('/:id/reorder', authenticateToken, async (req, res, next) => {
 });
 
 // Rename folder
-router.put('/:id', authenticateToken, async (req, res, next) => {
+router.put('/:id', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 logFolderAudit 이 쓴다(file_folder.rename)
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
@@ -225,7 +226,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     const prevName = folder.name;
     folder.name = name;
     await folder.save();
-    logFolderAudit(req, 'file_folder.rename', folder, { old: { name: prevName }, next: { name } });
+    if (prevName !== name) logFolderAudit(req, 'file_folder.rename', folder, { old: { name: prevName }, next: { name } });
     // Drive 에도 같은 이름으로 (Irene 2026-08-31 — 한쪽만 정리되면 두 곳이 갈라진다).
     //   실패해도 이름 변경 자체는 되돌리지 않는다 — Drive 는 사본이고 PlanQ 가 정본이다.
     if (folder.gdrive_folder_id) {
@@ -360,6 +361,7 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
         action: 'file_folder.delete',
         targetType: 'file_folder',
         targetId: folder.id,
+        businessId: folder.business_id,
         oldValue: {
           name: folder.name, parent_id: folder.parent_id, project_id: folder.project_id,
           removed_folder_ids: allFolderIds,

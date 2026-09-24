@@ -11,6 +11,7 @@ const { QRecord, QRecordRow, QRecordAudit, User, Project, BusinessMember } = req
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
+const { logAudit, auditDiff } = require('../services/auditService');
 
 // ─── 권한 헬퍼 ───
 //
@@ -196,6 +197,8 @@ router.post('/', authenticateToken, async (req, res, next) => {
       // 백필 스크립트가 주워 갈 수 있게 로그를 남긴다 — scripts/backfill-orphan-record-posts.js
       console.warn('[records] 연결 post 생성 실패 — 표는 만들어졌으나 도달 불가:', r.id, e.message);
     }
+    // 감사 — q_record_audits 는 표를 지우면 같이 지워지므로 영구 원장(AuditLog)에도 남긴다.
+    logAudit(req, { action: 'record.create', targetType: 'q_record', targetId: r.id, businessId: Number(r.business_id), newValue: { name: r.name, project_id: r.project_id, post_id: linkedPostId, columns_count: cols.length } });
     successResponse(res, { ...r.toJSON(), post_id: linkedPostId }, 'record created', 201);
   } catch (err) { next(err); }
 });
@@ -255,8 +258,11 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         order: i,
       }));
     }
+    const recBefore = r.get({ plain: true, clone: true });
     await r.update(patch);
     await QRecordAudit.create({ q_record_id: r.id, user_id: req.user.id, action: 'record.update', meta: { fields: Object.keys(patch) } });
+    const recDiff = auditDiff(recBefore, r.get({ plain: true }), Object.keys(patch), { nameOnly: ['description', 'columns'] });
+    if (recDiff) logAudit(req, { action: 'record.update', targetType: 'q_record', targetId: r.id, businessId: r.business_id, ...recDiff });
     successResponse(res, r.toJSON());
   } catch (err) { next(err); }
 });
@@ -294,7 +300,7 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
 });
 
 // ─── 행 추가 ───
-router.post('/:id/rows', authenticateToken, async (req, res, next) => {
+router.post('/:id/rows', authenticateToken, async (req, res, next) => { // audit-exempt: 행 단위 편집 원장은 q_record_audits(row.create) — 셀 값(비밀 칼럼 포함)은 AuditLog 에 싣지 않는다
   try {
     const r = await QRecord.findByPk(req.params.id);
     if (!r) return errorResponse(res, 'not_found', 404);
@@ -319,7 +325,7 @@ router.post('/:id/rows', authenticateToken, async (req, res, next) => {
 });
 
 // ─── 행 수정 ───
-router.put('/:id/rows/:rowId', authenticateToken, async (req, res, next) => {
+router.put('/:id/rows/:rowId', authenticateToken, async (req, res, next) => { // audit-exempt: 행 단위 편집 원장은 q_record_audits(row.update) — 셀 값(비밀 칼럼 포함)은 AuditLog 에 싣지 않는다
   try {
     const r = await QRecord.findByPk(req.params.id);
     if (!r) return errorResponse(res, 'not_found', 404);
@@ -364,6 +370,7 @@ router.delete('/:id/rows/:rowId', authenticateToken, async (req, res, next) => {
     if (!row) return errorResponse(res, 'row not_found', 404);
     await QRecordAudit.create({ q_record_id: r.id, q_record_row_id: row.id, user_id: req.user.id, action: 'row.delete' });
     await row.destroy();
+    logAudit(req, { action: 'record.row_delete', targetType: 'q_record_row', targetId: row.id, businessId: r.business_id, oldValue: { q_record_id: r.id, position: row.position } }); // 셀 값은 싣지 않는다(비밀 칼럼)
     successResponse(res, { deleted: true });
   } catch (err) { next(err); }
 });

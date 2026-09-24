@@ -1043,8 +1043,10 @@ router.post('/:businessId/:id/move', authenticateToken, checkBusinessAccess, asy
     if (folderId && !(await verifyFolderOwnership(folderId, file.business_id, file.project_id))) {
       return errorResponse(res, 'Invalid folder_id', 400);
     }
+    const prevFolderId = file.folder_id;
     file.folder_id = folderId;
     await file.save();
+    if (prevFolderId !== folderId) require('../services/auditService').logAudit(req, { action: 'file.move', targetType: 'file', targetId: file.id, businessId: file.business_id, oldValue: { folder_id: prevFolderId }, newValue: { folder_id: folderId } });
     // Drive 사본도 같은 자리로 (Irene 2026-08-31). PlanQ 에서 정리했는데 Drive 가 그대로면
     //   두 곳이 갈라진다. 미러된 파일에만 해당하고, 실패해도 이동 자체는 되돌리지 않는다
     //   (PlanQ 가 정본, Drive 는 사본).
@@ -1638,7 +1640,7 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
 // ─── #228 드래그 아웃 서명 URL 발급 ───
 // POST /api/files/:businessId/:id/drag-url  →  { url, expires_at }
 // 인증 필수. 다운로드와 **같은 권한 술어**(canDownloadFile)를 통과해야만 발급한다.
-router.post('/:businessId/:id/drag-url', authenticateToken, attachWorkspaceScope(),
+router.post('/:businessId/:id/drag-url', authenticateToken, attachWorkspaceScope(), // audit-exempt: 수명 짧은 서명 URL 을 계산해 돌려줄 뿐 저장하지 않는다
   perUserLimiter('file-drag-url', { windowMs: 60 * 1000, max: 60 }), async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
@@ -1661,7 +1663,7 @@ router.post('/:businessId/:id/drag-url', authenticateToken, attachWorkspaceScope
 // ─── 영상·음성 재생 URL 발급 ───
 // POST /api/files/:businessId/:id/media-url  →  { url, expires_at }
 // 다운로드와 **같은 권한 술어**(canDownloadFile)를 통과해야만 발급한다.
-router.post('/:businessId/:id/media-url', authenticateToken, attachWorkspaceScope(),
+router.post('/:businessId/:id/media-url', authenticateToken, attachWorkspaceScope(), // audit-exempt: 수명 짧은 재생 URL 을 계산해 돌려줄 뿐 저장하지 않는다
   perUserLimiter('file-media-url', { windowMs: 60 * 1000, max: 120 }), async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
@@ -1772,7 +1774,7 @@ router.delete('/:businessId/:id/share-link', authenticateToken, checkBusinessAcc
 // composite ID 를 source 별 테이블에서 검색 + 권한 검증 후 ZIP 으로 묶어 스트리밍.
 // 지원 source: direct (File), chat (MessageAttachment), task (TaskAttachment).
 // post/meeting source 는 후속.
-router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess, async (req, res, next) => { // audit-exempt: 읽기(ZIP 스트리밍) — 바꾸는 것이 없다
   try {
     const businessId = Number(req.params.businessId);
     const raw = Array.isArray(req.body?.ids) ? req.body.ids : [];

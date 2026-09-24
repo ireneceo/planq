@@ -20,6 +20,7 @@ function broadcastKb(req, doc, event = 'kb:updated') {
 }
 const { decodeOriginalName } = require('../services/filename');
 const { createAuditLog } = require('../middleware/audit');
+const { logAudit, auditDiff } = require('../services/auditService');
 const kbService = require('../services/kb_service');
 const fs = require('fs');
 const path = require('path');
@@ -441,7 +442,7 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
 // ─── 파일 직접 업로드 → Knowledge ingest ──────────────────────────────
 // "새 지식 등록 → 파일 업로드" 탭. multipart 로 파일 1개 받아 텍스트 추출 + 즉시 인덱싱.
 // 사이클 P1 (재구성).
-router.post('/businesses/:businessId/kb/documents/upload',
+router.post('/businesses/:businessId/kb/documents/upload', // audit-exempt: 감사는 아래 본 핸들러의 createAuditLog(kb.document_upload) 가 쓴다 — 첫 화살표는 업로드 미들웨어
   authenticateToken, checkBusinessAccess,
   (req, res, next) => {
     kbUpload.single('file')(req, res, (err) => {
@@ -963,7 +964,7 @@ router.delete('/businesses/:businessId/kb/documents/:docId', authenticateToken, 
 });
 
 // Reindex
-router.post('/businesses/:businessId/kb/documents/:docId/reindex', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/businesses/:businessId/kb/documents/:docId/reindex', authenticateToken, checkBusinessAccess, async (req, res, next) => { // audit-exempt: 검색 색인(파생값) 재생성 — 문서 내용은 바뀌지 않는다
   try {
     if (!isAdmin(req)) return errorResponse(res, 'Admin permission required', 403);
     const doc = await KbDocument.findOne({
@@ -1025,6 +1026,7 @@ router.post('/businesses/:businessId/kb/categories', authenticateToken, checkBus
     // N+64 — 다른 탭/디바이스 카테고리 즉시 반영 (CLAUDE.md 운영 안정성 16번)
     const io = req.app.get('io');
     if (io && created) io.to(`business:${businessId}`).emit('kb:cat:new', { id: row.id, name: row.name });
+    if (created) logAudit(req, { businessId, action: 'kb.category_create', targetType: 'kb_category', targetId: row.id, newValue: { name: row.name } });
     successResponse(res, { id: row.id, name: row.name, sort_order: row.sort_order, created });
   } catch (err) { next(err); }
 });
@@ -1054,7 +1056,10 @@ router.put('/businesses/:businessId/kb/categories/:id', authenticateToken, check
     }
     const patch = { name: newName };
     if (req.body?.sort_order !== undefined) patch.sort_order = Number(req.body.sort_order) || 0;
+    const catBefore = row.get({ plain: true, clone: true });
     await row.update(patch);
+    const catDiff = auditDiff(catBefore, row.get({ plain: true }), Object.keys(patch));
+    if (catDiff) logAudit(req, { businessId, action: 'kb.category_update', targetType: 'kb_category', targetId: row.id, ...catDiff });
     const io = req.app.get('io');
     if (io) io.to(`business:${businessId}`).emit('kb:cat:updated', { id: row.id, name: row.name });
     successResponse(res, { id: row.id, name: row.name, sort_order: row.sort_order });
@@ -1070,6 +1075,7 @@ router.delete('/businesses/:businessId/kb/categories/:id', authenticateToken, ch
     if (!row) return errorResponse(res, 'not_found', 404);
     const snap = { id: row.id, name: row.name };
     await row.destroy();
+    logAudit(req, { businessId, action: 'kb.category_delete', targetType: 'kb_category', targetId: row.id, oldValue: { name: snap.name } });
     const io = req.app.get('io');
     if (io) io.to(`business:${businessId}`).emit('kb:cat:deleted', snap);
     successResponse(res, null, 'deleted');
@@ -1305,7 +1311,7 @@ async function buildIngestPrompt(businessId) {
 ${names.map((n) => `- ${n}`).join('\n')}`;
 }
 
-router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusinessAccess, async (req, res, next) => { // audit-exempt: 후보만 돌려주고 저장하지 않는다(저장은 documents/batch 가 기록 · 사용량은 cue_usage)
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = parseInt(req.params.businessId, 10);
@@ -1413,7 +1419,7 @@ router.post('/businesses/:businessId/kb/ai-ingest', authenticateToken, checkBusi
 });
 
 // ─── CSV Ingest — 파싱 후 후보 반환 (저장 X) ───
-router.post('/businesses/:businessId/kb/csv-ingest', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/businesses/:businessId/kb/csv-ingest', authenticateToken, checkBusinessAccess, async (req, res, next) => { // audit-exempt: 파싱한 후보만 돌려주고 저장하지 않는다(저장은 documents/batch 가 기록)
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const { csv } = req.body || {};
@@ -1666,6 +1672,7 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
       }
     }
 
+    if (created.length || updated.length) logAudit(req, { businessId, action: 'kb.document_batch', targetType: 'KbDocument', targetId: null, newValue: { created_count: created.length, updated_count: updated.length, skipped_count: skipped.length, created_ids: created.slice(0, 50).map((c) => c.id), updated_ids: updated.slice(0, 50).map((u) => u.id), scope: scope || null } });
     return successResponse(res, {
       created, updated, skipped, errors,
       count: created.length,
@@ -1674,7 +1681,7 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
   } catch (err) { next(err); }
 });
 
-router.post('/businesses/:businessId/kb/search', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/businesses/:businessId/kb/search', authenticateToken, checkBusinessAccess, async (req, res, next) => { // audit-exempt: 읽기(검색) — 바꾸는 것이 없다
   try {
     const { query, limit } = req.body;
     if (!query) return errorResponse(res, 'query required', 400);

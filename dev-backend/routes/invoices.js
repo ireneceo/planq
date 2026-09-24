@@ -327,7 +327,7 @@ async function notifyOwnerPaymentNotified(invoice, { label, payerName, ioApp }) 
 
 // POST /api/invoices/public/:token/notify-paid — 익명 송금 완료 알림
 // body: { installment_id?, payer_name?, payer_memo? }
-router.post('/public/:token/notify-paid', async (req, res, next) => {
+router.post('/public/:token/notify-paid', async (req, res, next) => { // audit-exempt: 고객 입금 통보는 bill_events(payment_notified) 가 원장 — 확정은 mark-paid 가 기록
   try {
     const invoice = await Invoice.findOne({ where: { share_token: req.params.token } });
     if (!invoice) return errorResponse(res, 'not_found', 404);
@@ -414,7 +414,7 @@ const publicStripeLimiter = rateLimit({
   keyGenerator: (req) => `pub-stripe-${ipKeyGenerator(req.ip)}`,
   message: { success: false, message: 'too_many_requests' },
 });
-router.post('/public/:token/stripe-checkout', publicStripeLimiter, async (req, res, next) => {
+router.post('/public/:token/stripe-checkout', publicStripeLimiter, async (req, res, next) => { // audit-exempt: 세션 시작은 bill_events(stripe_checkout_started) 가 원장 — 확정은 webhook 이 기록
   try {
     const invoice = await Invoice.findOne({ where: { share_token: req.params.token } });
     if (!invoice) return errorResponse(res, 'not_found', 404);
@@ -598,6 +598,7 @@ router.post('/public/:token/receipt-request', async (req, res, next) => {
     const io = req.app.get('io');
     if (io) io.to(`business:${invoice.business_id}`).emit('inbox:refresh', { reason: 'receipt_requested', invoice_id: invoice.id });
 
+    require('../services/auditService').logAudit(req, { action: 'invoice.receipt_request', targetType: 'invoice', targetId: invoice.id, businessId: invoice.business_id, newValue: { receipt_type: receiptType, client_id: invoice.client_id || null } }); // 무인증 — 번호·식별값은 싣지 않는다
     return successResponse(res, { receipt_type: receiptType, requested: true }, 'Receipt requested');
   } catch (error) { next(error); }
 });

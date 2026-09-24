@@ -264,7 +264,7 @@ router.get('/documents', authenticateToken, async (req, res, next) => {
 // POST /api/docs/documents — 신규 문서 생성 (template/empty/ai)
 // POST /api/docs/documents — 신규 문서 생성 (template/empty).
 //   얇은 라우트 — 파싱 + actor 구성 + 행동 계층 호출 + 응답. 규칙: services/actions/document_actions.js.
-router.post('/documents', authenticateToken, async (req, res, next) => {
+router.post('/documents', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 createDocument(services/actions/document_actions.js) 가 쓴다(document.create)
   try {
     const b = req.body || {};
     const r = await createDocument(
@@ -288,7 +288,7 @@ router.post('/documents', authenticateToken, async (req, res, next) => {
 // project_id 만 있으면 그 프로젝트의 primary client 자동 매핑.
 // 회의록(meeting_note) / SOP / custom 외에는 client 컨텍스트 필수 — 빈 채로 생성하면 "—" placeholder 만 남음.
 // 응답: { body_html, usage } / 한도 초과 시 429
-router.post('/ai-generate', authenticateToken, async (req, res, next) => {
+router.post('/ai-generate', authenticateToken, async (req, res, next) => { // audit-exempt: 초안 HTML 을 돌려줄 뿐 저장하지 않는다(사용량은 cue_usage 원장)
   try {
     const { business_id, kind, title, user_input, client_id, project_id, template_id } = req.body;
     if (!business_id || !kind || !title) return errorResponse(res, 'invalid_payload', 400);
@@ -812,7 +812,7 @@ router.get('/documents/:id/revisions', authenticateToken, async (req, res, next)
 // AI 생성 (D-3 본 구현 시 OpenAI/Claude 연결)
 // 지금은 stub — 향후 Cue 통합
 // ============================================
-router.post('/ai/generate', authenticateToken, async (req, res) => {
+router.post('/ai/generate', authenticateToken, async (req, res) => { // audit-exempt: 미구현 스텁(501) — 아무것도 바꾸지 않는다
   return errorResponse(res, 'ai_generation_pending_d3', 501);
 });
 

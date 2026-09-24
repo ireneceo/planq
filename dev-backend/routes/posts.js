@@ -1164,6 +1164,7 @@ router.post('/:id/attachments', authenticateToken, async (req, res, next) => {
       const a = await PostAttachment.create({ post_id: post.id, file_id: f.id, sort_order: existing + i });
       created.push({ id: a.id, file_id: f.id, sort_order: a.sort_order });
     }
+    if (created.length) require('../services/auditService').logAudit(req, { action: 'post.attachment_add', targetType: 'post', targetId: post.id, businessId: post.business_id, newValue: { file_ids: created.slice(0, 50).map((c) => c.file_id), count: created.length } });
     broadcastPost(req, post, 'post:updated');
     successResponse(res, created, `${created.length} attached`);
   } catch (err) { next(err); }
@@ -1182,6 +1183,7 @@ router.delete('/:id/attachments/:attId', authenticateToken, async (req, res, nex
       return errorResponse(res, 'forbidden', 403);
     }
     await att.destroy();
+    require('../services/auditService').logAudit(req, { action: 'post.attachment_remove', targetType: 'post', targetId: post.id, businessId: post.business_id, oldValue: { attachment_id: att.id, file_id: att.file_id } });
     broadcastPost(req, post, 'post:updated');
     successResponse(res, null, 'Detached');
   } catch (err) { next(err); }
@@ -1308,6 +1310,7 @@ router.post('/editor-image', authenticateToken, (req, res, next) => {
       broadcastFile(req, file, 'file:new');
       //   ② GDrive 미러 — best-effort, 응답을 막지 않는다. L1 개인·security 제외는 미러가 자체 판단한다.
       setImmediate(() => require('../services/gdriveMirror').mirrorOnUpload(file.id, businessId));
+      require('../services/auditService').logAudit(req, { action: 'file.upload', targetType: 'file', targetId: file.id, businessId, newValue: { file_name: file.file_name, file_size: Number(file.file_size), project_id: file.project_id, visibility: file.visibility, via: 'editor_image', dedup: !!twin } });
       successResponse(res, {
         url: finalUrl,
         file_id: file.id,
@@ -1374,6 +1377,7 @@ router.post('/categories', authenticateToken, async (req, res, next) => {
       where: { business_id: businessId, project_id, name },
       defaults: { business_id: businessId, project_id, name, sort_order: 0 }
     });
+    if (created) require('../services/auditService').logAudit(req, { action: 'post_category.create', targetType: 'post_category', targetId: row.id, businessId, newValue: { name: row.name, project_id } });
     successResponse(res, { id: row.id, name: row.name, created });
   } catch (err) { next(err); }
 });
@@ -1405,6 +1409,7 @@ router.put('/categories/:id', authenticateToken, async (req, res, next) => {
       if (row.project_id === null) scope.project_id = null; else scope.project_id = row.project_id;
       const [moved] = await Post.update({ category: name }, { where: scope, transaction: t });
       await t.commit();
+      require('../services/auditService').logAudit(req, { action: 'post_category.update', targetType: 'post_category', targetId: row.id, businessId: row.business_id, oldValue: { name: oldName }, newValue: { name, moved: moved || 0 } });
       successResponse(res, { id: row.id, name, moved: moved || 0 });
     } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }
@@ -1428,6 +1433,7 @@ router.delete('/categories/:id', authenticateToken, async (req, res, next) => {
       const [cleared] = await Post.update({ category: null }, { where: scope, transaction: t });
       await row.destroy({ transaction: t });
       await t.commit();
+      require('../services/auditService').logAudit(req, { action: 'post_category.delete', targetType: 'post_category', targetId: row.id, businessId: row.business_id, oldValue: { name: row.name, project_id: row.project_id, cleared: cleared || 0 } });
       successResponse(res, { cleared: cleared || 0 }, 'deleted');
     } catch (e) { await t.rollback(); throw e; }
   } catch (err) { next(err); }
@@ -1596,6 +1602,7 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
     }
     // share_token 자동 발급
+    const linkIssued = !post.share_token;
     if (!post.share_token) {
       const token = crypto.randomBytes(32).toString('hex');
       await post.update({ share_token: token, shared_at: new Date() });
@@ -1622,6 +1629,7 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
       is_internal: false,
     });
     await conv.update({ last_message_at: new Date() });
+    require('../services/auditService').logAudit(req, { action: 'post.share_chat', targetType: 'post', targetId: post.id, businessId: post.business_id, newValue: { conversation_id: conv.id, message_id: msg.id, link_issued: linkIssued } }); // 링크(토큰)는 싣지 않는다
     return successResponse(res, { message: msg, share_url: shareUrl });
   } catch (err) { next(err); }
 });

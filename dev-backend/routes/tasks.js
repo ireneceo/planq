@@ -1,5 +1,5 @@
 const express = require('express');
-const { writeAudit } = require('../services/auditService');
+const { writeAudit, logAudit, auditDiff } = require('../services/auditService');
 const { Op, fn, col, literal } = require('sequelize');
 const router = express.Router();
 const { Task, User, Project, BusinessMember, Business, TaskComment, TaskDailyProgress, TaskStatusHistory, TaskReviewer, TaskLink, Client, ProjectClient, AuditLog } = require('../models');
@@ -420,7 +420,10 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
 
     // 사용자 명시 입력 값 — update 전에 캡쳐 (이전값과 다를 때만 이력 기록)
     const prevEst = Number(task.estimated_hours) || 0;
+    const timeBefore = task.get({ plain: true, clone: true });
     await task.update(updates);
+    const timeDiff = auditDiff(timeBefore, task.get({ plain: true }), Object.keys(updates).filter((k) => k !== 'actual_source'));
+    if (timeDiff) logAudit(req, { action: 'task.time_update', targetType: 'task', targetId: task.id, businessId: task.business_id, ...timeDiff });
     if (req.body.estimated_hours !== undefined && updates.estimated_hours !== prevEst) {
       try {
         const { recordUserEstimate } = require('./task_estimations');
@@ -447,7 +450,7 @@ router.patch('/:id/time', authenticateToken, async (req, res, next) => {
 // ============================================
 // POST /api/tasks — 업무 생성 (Q Talk 메시지→할일 포함)
 // ============================================
-router.post('/', authenticateToken, async (req, res, next) => {
+router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 taskActions.createTask(services/actions/task_actions.js) 가 쓴다(task.create)
   try {
     const { business_id, project_id, title, description, assignee_id, due_date,
       estimated_hours, category, source_message_id, conversation_id, planned_week_start, start_date,
@@ -500,7 +503,7 @@ const aiCreateModeLimiter = (req, res, next) => {
   const step = (err) => (err ? next(err) : (i < chain.length ? chain[i++](req, res, step) : next()));
   step();
 };
-router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, res, next) => {
+router.post('/ai-create', authenticateToken, aiCreateModeLimiter, async (req, res, next) => { // audit-exempt: 미리보기 — 후보만 돌려주고 저장하지 않는다(사용량은 cue_usage)
   try {
     const { business_id, project_id, prompt, target_date, language, mode, instruction, instructions, base_candidates, base_areas } = req.body;
     if (!business_id) return errorResponse(res, 'business_id required', 400);
@@ -1493,6 +1496,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       if (resetCount > 0) updates.review_round = (task.review_round || 0) + 1;
     }
 
+    const taskBefore = task.get({ plain: true, clone: true });   // 감사 — 상태·제목·일정은 task_status_history 가 원장이라 뺀다
     await task.update(updates);
 
     const ruleRes = await seriesRecur.applySeriesRuleChange({
@@ -1762,6 +1766,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
 
     // series_applied — 프론트가 "N개 회차에 반영됨" 을 사용자에게 보여줄 수 있게 (조용한 전파 금지).
     //   series_rule_reset — 반복 주기를 바꿔서 **비운** 미착수 회차 수(새 규칙으로 다시 생성된다).
+    const taskDiff = auditDiff(taskBefore, task.get({ plain: true }), Object.keys(updates).filter((k) => !['status', 'completed_at', 'title', 'due_date', 'start_date', 'review_round', 'actual_source'].includes(k)), { nameOnly: ['description', 'body', 'hold_reason'] });
+    if (taskDiff) logAudit(req, { action: 'task.update', targetType: 'task', targetId: task.id, businessId: task.business_id, ...taskDiff });
     return successResponse(res, {
       ...task.toJSON(),
       series_applied: seriesApplied,
@@ -2121,7 +2127,7 @@ async function buildSourceRef(task) {
 // ============================================
 // POST /api/tasks/:id/cue/rerun — Cue 자동실행 재실행
 // ============================================
-router.post('/:id/cue/rerun', authenticateToken, async (req, res, next) => {
+router.post('/:id/cue/rerun', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 executeForTask(services/cue_task_executor.js) 가 쓴다(cue.task_executed/failed)
   try {
     const task = await Task.findByPk(req.params.id);
     if (!task) return errorResponse(res, 'task_not_found', 404);
@@ -2158,6 +2164,7 @@ router.post('/:id/comments', authenticateToken, async (req, res, next) => {
       visibility: req.body?.visibility,
     });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
+    logAudit(req, { action: 'task_comment.create', targetType: 'task_comment', targetId: result.data.id, businessId: task.business_id, newValue: { task_id: task.id, visibility: result.data.visibility } }); // 본문은 싣지 않는다
     return successResponse(res, result.data);
   } catch (err) { next(err); }
 });
@@ -2177,7 +2184,9 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res, next)
     }
     const { content } = req.body || {};
     if (!content || !String(content).trim()) return errorResponse(res, 'content_required', 400);
+    const prevContent = comment.content;
     await comment.update({ content: String(content).trim() });
+    if (prevContent !== comment.content) logAudit(req, { action: 'task_comment.update', targetType: 'task_comment', targetId: comment.id, businessId: task.business_id, newValue: { task_id: task.id, changed: ['content'] } });
     const full = await TaskComment.findByPk(comment.id, {
       include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
@@ -2204,6 +2213,7 @@ router.delete('/:id/comments/:commentId', authenticateToken, async (req, res, ne
       return errorResponse(res, 'only_author_can_delete', 403);
     }
     await comment.destroy();
+    logAudit(req, { action: 'task_comment.delete', targetType: 'task_comment', targetId: comment.id, businessId: task.business_id, oldValue: { task_id: task.id, visibility: comment.visibility } });
     const io = req.app.get('io');
     if (io) io.to(`task:${task.id}`).emit('comment:deleted', { id: Number(req.params.commentId), task_id: task.id });
     return successResponse(res, { deleted: true });
@@ -2587,7 +2597,7 @@ router.get('/daily-progress', authenticateToken, async (req, res, next) => {
 // ============================================
 // POST /api/tasks/snapshot — 수동 스냅샷 트리거 (테스트/관리자용)
 // ============================================
-router.post('/snapshot', authenticateToken, async (req, res, next) => {
+router.post('/snapshot', authenticateToken, async (req, res, next) => { // audit-exempt: 통계 스냅샷(파생값) 재계산 — 업무 자체는 바뀌지 않는다
   try {
     if (req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'admin_only', 403);
