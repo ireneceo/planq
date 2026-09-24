@@ -1,34 +1,30 @@
 {
   "working_on": [
-    "이미지 보안 Stage 2b 0단계 — 첨부 사본 경로 개인(L1) 게이트 (v1.63.1)"
+    "감사 1순위 25 라우트 + 첨부 사본 원본 판정 좁은 등급 우선 (v1.63.2)"
   ],
   "in_progress": [],
   "completed": [
-    "채팅·업무 첨부 사본 경로가 원본 File 등급으로 판정 — 운영 L1 이미지 23장이 사본 경로로 익명 노출이던 것 차단",
-    "기존 파일 첨부(link-existing·attachments/link) — 붙이는 사람이 못 보는 파일은 404",
-    "업무 공개 이미지 라우트 분리(task_attachments_public.js)",
-    "관측 — 배포 후 운영 imagegate 상태 Summary · health-check imagegate 카테고리"
+    { "title": "감사 기록이 없던 변경 라우트 25곳에 감사 — 관리자 요금제·체험 조정, 비밀번호 재설정, 이메일 변경, 역할·스토리지 설정, 대화 참여자, 초대 수락, 프로젝트 종료, 공개범위, 공유 링크 생성·해제, 공유 메일, 업무 삭제, 데이터 내보내기, 기존 파일 첨부", "verified": "fable_pass" },
+    { "title": "첨부 사본 이미지 판정 — 같은 바이트의 File 행이 여럿이면 가장 좁은 등급(L1 우선)으로", "verified": "fable_pass" }
   ],
   "behavior_changes": [
-    "개인(L1) 이미지를 채팅·업무 첨부 주소로 열어도 올린 사람이 아니면 404",
-    "볼 수 없는 파일은 채팅·업무에 첨부 불가"
+    "화면 동작 변화 없음 — 감사 원장에만 행이 늘어난다"
   ],
   "migrations": [],
   "issues": [
-    "findSourceFile 파일명 폴백 — dedup 다중 행일 때 가장 좁은 등급 우선으로(비차단, 다음 라운드)"
+    "휴지통에 든 개인(L1) 파일과 같은 바이트의 산 첨부 사본이 남에게 404 — fail-closed 유지, 판단 대기(FABLE_GATE_QUEUE)"
   ],
   "blocked_on_human": [
     "운영 nginx server_tokens off"
   ],
   "check_areas": [
-    "채팅·업무에 첨부한 내 이미지 미리보기가 그대로 보이는지"
+    "관리자 > 감사 로그에 공유 링크·참여자 변경이 남는지"
   ],
   "backlog": [
-    "감사 1순위 25 라우트",
-    "이미지 2b 1~4단계"
+    "감사 2순위 · 이미지 2b 1~4단계"
   ],
   "tooling_health": [
-    "imagegate 17/17 · 회귀 44/0 · health 47/47 · guard 59/60"
+    "health 47/47 · guard 59/60 · imagegate·tenant 0 실패 · 감사 실호출 18/18 · auditcover 293"
   ],
   "undeployed": []
 }
