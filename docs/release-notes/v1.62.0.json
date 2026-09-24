@@ -1,0 +1,36 @@
+{
+  "version": "1.62.0",
+  "date": "2026-09-24",
+  "items": [
+    {
+      "ko": {
+        "title": "고객용 프로젝트 링크가 읽기 쉬워졌습니다",
+        "body": "로그인 없이 여는 프로젝트 화면의 개요·업무·문서·파일·대화 탭이 모두 같은 폭과 같은 자리에서 시작합니다. 탭을 옮겨도 글이 튀지 않습니다.\n\n문서와 파일은 카드로 보입니다. 받을 수 있는 이미지는 미리보기가 나오고, 카드 위에 「받기」 「로그인 후 받기」 「잠김」이 표시되어 눌러 보기 전에 알 수 있습니다.\n\n업무·문서·파일 탭에서 검색과 분류·종류 필터를 쓸 수 있습니다."
+      },
+      "en": {
+        "title": "Client project links are easier to read",
+        "body": "The Overview, Tasks, Documents, Files and Chat tabs on the no-sign-in project page now share the same width and starting point, so text doesn't jump when you switch tabs.\n\nDocuments and files appear as cards. Images you can download show a preview, and each card is marked Download, Sign in to download or Locked, so you know before you tap.\n\nThe Tasks, Documents and Files tabs have search and category or type filters."
+      }
+    },
+    {
+      "ko": {
+        "title": "개요에 마일스톤·다음 마감·최근 문서가 보입니다",
+        "body": "개요 탭에 다음 마감, 마일스톤, 최근 문서 3개가 함께 나오고 「(워크스페이스)에 문의하기」 버튼으로 바로 대화할 수 있습니다."
+      },
+      "en": {
+        "title": "Overview shows milestones, next due and recent documents",
+        "body": "The Overview tab now shows the next due date, milestones and the three most recent documents, with an Ask (workspace) button that opens the chat."
+      }
+    },
+    {
+      "ko": {
+        "title": "고객이 링크에서 바로 등록을 요청할 수 있습니다",
+        "body": "고객용 프로젝트 화면 오른쪽 위에 「고객으로 등록」이 생겼습니다. 로그인하거나 담당자에게 계정을 요청할 수 있습니다. 이미 이 프로젝트의 계정으로 로그인했다면 「앱에서 열기」로 바뀝니다."
+      },
+      "en": {
+        "title": "Clients can ask to register from the link",
+        "body": "Client project pages now have Register as a client at the top right, to sign in or ask for an account. If you're already signed in with an account on this project, it becomes Open in app."
+      }
+    }
+  ]
+}
