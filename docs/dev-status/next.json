@@ -1,34 +1,54 @@
 {
   "working_on": [
-    "PDF 회귀 핫픽스 (v1.63.4)"
+    "권한 결함 3건 차단 + 감사 3순위 + 로그 토큰 가리기 (v1.63.5)"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "이미지 많은 문서 PDF 가 500 이 되던 회귀(v1.63.3) — 줄여 넣기 + 시간 초과 시 이미지 없이 재렌더",
+      "title": "남의 워크스페이스 Cue 초안 승인·거절 차단(프로젝트 없는 대화방 무검사)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "남의 워크스페이스 업무에 후보 병합 차단",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "남의 워크스페이스 대화방에 메시지 삽입 차단",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "감사 3순위 (216→98)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "오류 로그의 공유·게스트·서명 토큰 가리기",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "이미지가 많은 문서도 PDF 가 나온다(이미지는 1600px 로 줄여 들어간다)"
+    "워크스페이스 멤버·그 방 고객이 아니면 대화방 쓰기·초안 승인·후보 병합이 403/404"
   ],
   "migrations": [],
   "issues": [
-    "image_ctx 문서 캐시 60초 · 휴지통 L1 판단(FABLE_GATE_QUEUE)",
-    "운영 로그에 공유 토큰이 URL 째 남는다(pino url) — 로그 마스킹 검토"
+    "보관된 standalone 고객 대화에 고객이 쓰면 409(재활성 안 됨) — 기존 동작",
+    "invoice 무인증 receipt-request 전용 rate limit 없음",
+    "폴더 삭제 감사 oldValue 파일 목록 상한 없음",
+    "image_ctx 캐시 60초 · 휴지통 L1 판단"
   ],
   "blocked_on_human": [
     "운영 nginx server_tokens off"
   ],
   "check_areas": [
-    "이미지 많은 문서 PDF 다운로드"
+    "Q Talk 메시지 전송(멤버·고객)",
+    "Cue 초안 승인",
+    "업무 후보 병합"
   ],
   "backlog": [
     "이미지 2b 3단계(L2/L3 켜기) — 운영 계측 14일 뒤",
     "감사 3순위(projects.js 잔여 등)"
   ],
   "tooling_health": [
-    "health 48/48 · guard 59/60 · signature·imagectx 0 · 실PDF 전후 실측"
+    "health 48/48 · guard 59/60 · tenant 0 · 권한 HEAD 재현/수정 실측 · 감사 실호출 68"
   ],
   "undeployed": []
 }
