@@ -15,7 +15,7 @@
 |------|------|:----:|
 | 업무 댓글이 위로 붙던 결함 | **운영 신고.** 조회는 `createdAt`, 저장 응답은 `created_at` 만 실어 새 댓글 시각이 `''` → 빈 문자열이 모든 날짜보다 작아 **정렬 맨 위**로. 표시 시각도 빈칸 | ✅ Fable |
 | 업무 히스토리 시각 빈칸 | Fable 이 diff 밖에서 찾았다 — `GET /workflow` 는 `created_at`, 화면은 `createdAt`. **2026-04-25 부터 5개월간 빈칸**이었고 아무도 신고하지 않았다(빈칸은 «고장» 으로 보이지 않는다) | ✅ Fable |
-| 「Q위키」 → 「도움말」 | Irene 결정. ko「도움말」/ en **`Guide`** · 관리 「도움말 관리」/`Guide admin` · **주소 `/wiki/`→`/guide/`, `/admin/wiki`→`/admin/guide`** · `Q helper` 팝업 보존 | 재판정 대기 |
+| 「Q위키」 → 「도움말」 | Irene 결정. ko「도움말」/ en **`Guide`** · 관리 「도움말 관리」/`Guide admin` · **주소 `/wiki/`→`/guide/`, `/admin/wiki`→`/admin/guide`** · 옛 주소 리다이렉트 · `Q helper` 팝업 보존 | ✅ Fable |
 | 랜딩 브랜드 표기 정렬 | 랜딩이 `Q Talk`·`Q talk` 를 **섞어 쓰고 있었다**. 앱 사이드바 소문자 표기를 정본으로 **80건** 정렬 | ↑ 같이 |
 
 ### 정본 — 시각 이름은 한 곳에서 맞춘다
@@ -57,8 +57,9 @@ Cue 가 답변에서 폐기된 이름을 말한다.
 ### 배포 시 주의
 - 운영에 옛 생성물 `wiki/index.html` + `wiki/a/*` (**88 html + 88 .gz**). 배포 직후 `generate-seo.js` 가
   매니페스트 마커 기준으로 삭제 + sitemap/rss 재작성. 확인 명령은 `.claude/session-state.md` 에.
-- ★ **배포 전 필수 확인 — 「빈 폴더 rmdir」 은 내가 검증하지 못했다**(스크래치 하니스가 생성기를
-  못 돌려 `ok=false`). 안 들으면 `/wiki/` **403**, 과하면 **배포마다 남의 파일 삭제(비가역)**.
+- 「빈 폴더 rmdir」은 **4차 라운드에서 PASS** — 양성 대조군(`dirs 6→0` / 되돌리면 `dirs 1`) +
+  음성 대조군 5종 보존(형제 파일·마커 없는 파일·`assets/`·`locales/`·`../outside/`·심볼릭 링크).
+  **수동 삭제 불필요.** 배포 직후 `curl -w "%{http_code}" https://planq.kr/wiki/` → **200** 이면 끝.
 - 스키마 변경 **0**. API 경로·파일명·DB(`kb_chunks.source_type='wiki'`)는 **의도적으로 안 바꿨다**.
 - 스키마 변경 **0**. API 경로·파일명·DB(`kb_chunks.source_type='wiki'`)는 **의도적으로 안 바꿨다**.
 

@@ -5177,3 +5177,23 @@ guard 58/59 · health 45/45 · build EXIT 0 · `error TS` 0 · 잔여 0 ·
 (i18n 242/242 · parity 증가 0) · `--suite tenant` 0 실패 · `--suite delivver` 11/11 ·
 `wiki-coverage-check` EXIT 0 · 실브라우저 `/guide` 목록·상세·뒤로 동작 · DB 아티클 옛 이름 0건.
 **생성기 빈 폴더 수정은 «미측정».**
+
+### → 4차 **PASS** (같은 날 마감)
+Fable 이 세션 마감 직전에 판정을 돌려줬다. 위 「Fable 이 봐야 할 것」 둘 다 실측으로 갈렸다:
+- **빈 폴더 0** — 운영 모양 픽스처(글 5 + 매니페스트 7항목): `removed:8` · `wiki files 12→0 · dirs 6→0`
+  (`exists=false`) · `guide/` 66파일 생성. **양성 대조군**(옛 한 줄 rmdir 로 되돌림) → `dirs 1`(wiki+wiki/a=2,
+  2차 라운드 값과 일치) = **뒤집힘**.
+  ★ 내 자체검증이 `ok=false` 였던 이유: 픽스처에 실 `index.html`(마커 없는 원본)·`seo-pages.json`·
+  `locales/ko/landing.json` 셋이 있어야 `build_missing` 을 넘는다. **픽스처가 부실했던 것이고 코드는 멀쩡했다.**
+- **rmdir 안전성 — 음성 대조군 5종 전부 보존**: 마커 있는 파일의 형제 파일이 있으면 폴더 보존 ·
+  매니페스트에 있지만 마커 없는 파일 보존 · `assets/`·`locales/` 보존 · 매니페스트의 `../outside/` 는
+  `startsWith(dir+sep)` 에 걸러짐 · 심볼릭 링크는 ENOTDIR 로 멈춰 밖의 폴더 보존. 루트도 보존.
+- **리다이렉트** 익명·회원 4경우 모두 경로 도착 + 워크스페이스 크롬 0. 판정기 양성 대조군 `/inbox`=chrome 1.
+- ④ 회귀는 Fable 이 «지금 판정» 지시로 미측정이라 **내가 마감 전에 돌렸다**: health 48/48 ·
+  guard 59/60 · `--suite tenant` 0 실패 · `--suite delivver` 0 실패 (전부 EXIT 0) · 빌드 EXIT 0 · `error TS` 0.
+- **배포 절차 최종**: 수동 삭제 **불필요**. `deploy-planq.sh:574` 가 rsync 뒤 운영에서 `generate-seo.js` 를
+  돌려 `wiki/` 트리(매니페스트 88항목)를 지우고 `guide/` 를 만든다. 확인 한 줄:
+  `curl -s -o /dev/null -w "%{http_code}" https://planq.kr/wiki/` → **200**(403 이면 실패).
+- 관찰(범위 밖, 수정 전부터 있던 것): 매니페스트에 «dir 밖을 가리키는 심볼릭 링크» 를 올리면
+  링크 너머 `index.html` 이 unlink 된다(`readFileSync` 가 링크를 따라간다). 성립 조건이 둘 다 우리 통제라
+  이번 범위에서 제외 — 막으려면 `fs.lstatSync` 한 줄.
