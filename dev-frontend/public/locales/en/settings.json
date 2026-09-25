@@ -659,5 +659,33 @@
   "apitoken": {
     "nameRequired": "Give the token a name — it's the only way to tell tokens apart when revoking.",
     "revokeHint": "Revokes this token. Any external tool using it loses access immediately."
+  },
+  "entry": {
+    "loading": "Loading…",
+    "title": "Customer desk",
+    "desc": "The workspace address where customers can leave inquiries. Put this link on business cards, email signatures and your website.",
+    "disabled": "Guest links are turned off, so a customer desk cannot be created. Please contact the platform administrator.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "preview": "Preview customer view",
+    "replace": "Replace address",
+    "none": "No customer desk address yet.",
+    "create": "Create desk address",
+    "ownerOnly": "Only the owner can create this",
+    "visitors": "{{count}} visitor(s) verified their email",
+    "noVisitors": "No visitor has verified their email yet.",
+    "introLabel": "Introduction",
+    "introPh": "Describe what your company does in two or three lines.",
+    "servicesLabel": "Services",
+    "servicesHint": "Up to {{count}}. Empty rows are not saved.",
+    "servicePh": "e.g. Brand website design",
+    "replaceTitle": "Replace the desk address?",
+    "replaceBody": "The current address will stop working immediately. Links already printed on cards or sent by email will close too, along with the personal links of visitors who verified their email.",
+    "replaceOk": "Replace",
+    "err": {
+      "guest_links_disabled": "Guest links are turned off.",
+      "forbidden": "You don't have permission.",
+      "guest_link_secret_missing": "A server setting is missing. Please tell an administrator."
+    }
   }
 }

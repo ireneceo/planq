@@ -1524,12 +1524,20 @@ router.put('/:businessId/permissions', authenticateToken, checkBusinessAccess, a
     const input = req.body?.permissions;
     if (!input || typeof input !== 'object') return errorResponse(res, 'permissions_required', 400);
 
-    // sanitize — 알려진 키/값만 수용
+    // sanitize — 알려진 키/값만 **수용**한다. 단, 이 컬럼에 사는 **다른 설정은 보존한다.**
+    //
+    // ★ 2026-09-25 — 전에는 `next` 를 빈 객체에서 새로 조립했다. 그래서 이 컬럼에 사는 값 중
+    //   여기 손으로 안 적은 것은 **토글 한 번 누를 때마다 지워졌다.** 바로 아래 줄에 그
+    //   사고(`client_show_assignee`)가 주석으로 남아 있는데, 같은 함정이 키가 늘 때마다 다시 난다 —
+    //   열거식은 컬럼(여기서는 JSON 키)이 늘면 샌다(memory feedback_mask_by_whitelist_not_denylist 계열).
+    //   지금은 `customer_entry`(고객 창구 설정, docs/CLIENT_ENTRY_DESIGN.md §4.6)가 같은 컬럼에 산다.
+    //   → **기존 값에서 출발**하고 그 위에 화이트리스트를 덮는다. 쓰기 가능한 키는 여전히
+    //     VALID_TOGGLES + client_show_assignee 뿐이라 이 라우트로 창구 설정을 바꿀 수는 없다.
     const next = {
+      ...(biz.permissions && typeof biz.permissions === 'object' ? biz.permissions : {}),
       financial: biz.permissions?.financial || 'all',
       schedule: biz.permissions?.schedule || 'all',
       client_info: biz.permissions?.client_info || 'all',
-      // ★ 여기서 다시 적지 않으면 **다른 토글을 저장할 때마다 이 값이 지워진다**(객체를 새로 만든다).
       client_show_assignee: biz.permissions?.client_show_assignee === true,
     };
     for (const k of VALID_TOGGLES) {

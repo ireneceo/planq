@@ -30,6 +30,19 @@ router.get('/:token/auth-check',
       if (!ctx) return errorResponse(res, 'not_found', 404);
       const link = ctx.parent || ctx.link;
 
+      // ★ 워크스페이스 창구(scope='workspace') — 앱 안에 대응하는 화면은 **프로젝트 목록**이다
+      //   (docs/CLIENT_ENTRY_DESIGN.md §4.7: 로그인 + 이 워크스페이스 고객이면 프로젝트 탭이
+      //   [앱에서 열기] 로 바뀐다). 창구 화면 안에 프로젝트 내용을 그리지는 **않는다** —
+      //   이메일 확인은 로그인보다 약하므로 OTP 로 프로젝트를 열지 않는다(§3-D2).
+      //   판정은 앱이 쓰는 그 함수다(`assertWorkspaceAccess` — 멤버·고객·platform_admin 통과).
+      //   여기서 따로 세면 반드시 갈라진다.
+      if (link.scope === 'workspace') {
+        const { assertWorkspaceAccess } = require('../middleware/access_scope');
+        const ws = await assertWorkspaceAccess(req.user.id, link.business_id, req.user.platform_role);
+        // `/projects` 는 고객 역할 메뉴에도 있는 실존 라우트다(config/navMenus.ts).
+        return successResponse(res, { canAccess: !!ws, appUrl: ws ? '/projects' : null });
+      }
+
       // 프로젝트 링크만 앱 안에 대응하는 화면이 있다. 대화 링크는 별도(#259 1차 범위 밖).
       if (link.scope !== 'project' || !link.project_id) {
         return successResponse(res, { canAccess: false, appUrl: null });

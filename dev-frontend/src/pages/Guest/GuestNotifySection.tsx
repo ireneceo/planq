@@ -14,6 +14,20 @@ type Props = {
   token: string;
   /** 만료·회수를 화면 전체에 알리는 통로 — 여기서 404 를 받으면 페이지가 만료 화면으로 간다. */
   onGone: () => void;
+  /**
+   * 어느 자리에 선 띠인가 (2026-09-25, 워크스페이스 창구).
+   *   'notify' — 대화·프로젝트 링크의 «답글 알림». 지금까지의 동작. **기본값이라 옛 화면은 무변경.**
+   *   'entry'  — 워크스페이스 창구의 «신원 띠». 문구가 «문의·예약» 이고 **닫기(×)가 없다** —
+   *              창구에서는 이 띠가 유일한 진입이라 닫으면 방문자가 갈 곳이 없다
+   *              (docs/CLIENT_ENTRY_DESIGN.md §4.2).
+   */
+  variant?: 'notify' | 'entry';
+  /**
+   * 확인이 끝난 순간 — 창구는 이때 **개인 링크 주소로 옮겨간다**(§4.2: "그 주소가 «내 자리» 다").
+   *   개인 링크에만 자기 대화방·«내 문의» 가 있으므로 주소가 바뀌어야 그 탭들이 열린다.
+   *   재확인이면 토큰이 null 이다(회전하지 않는다) — 부르는 쪽이 그때는 옮기지 않는다.
+   */
+  onVerified?: (personalToken: string | null) => void;
 };
 
 type MeState = {
@@ -24,7 +38,8 @@ type MeState = {
   name?: string | null;
 };
 
-export default function GuestNotifySection({ token, onGone }: Props) {
+export default function GuestNotifySection({ token, onGone, variant = 'notify', onVerified }: Props) {
+  const isEntry = variant === 'entry';
   const { t, i18n } = useTranslation('guest');
   const savedKey = `guest:notify:${token}`;
   const hiddenKey = `guest:notifyHidden:${token}`;
@@ -116,6 +131,9 @@ export default function GuestNotifySection({ token, onGone }: Props) {
       if (pt) { setSaved(pt); try { localStorage.setItem(savedKey, pt); } catch { /* 시크릿 창 */ } }
       setMe({ registered: true, verified: true, unsubscribed: false, email: j.data?.email, name: j.data?.name });
       setStep('done');
+      // ★ 창구에서는 여기서 **주소가 바뀐다**(개인 링크). 그 전까지는 자기 대화방이 없어
+      //   「문의하기」·「내 문의」 탭이 열리지 않는다. 옛 화면(variant='notify')은 부르지 않으므로 무변경.
+      if (onVerified) onVerified(pt || null);
     } catch {
       setErr(t('notify.errFailed', { defaultValue: '처리하지 못했어요. 잠시 후 다시 시도해 주세요.' }) as string);
     } finally { setBusy(false); }
@@ -190,21 +208,29 @@ export default function GuestNotifySection({ token, onGone }: Props) {
     );
   }
 
-  if (hidden) return null;
+  // 창구(entry)에서는 숨기지 않는다 — 옛 방문에서 닫아 둔 값이 있어도 창구에서는 띠가 필요하다.
+  if (hidden && !isEntry) return null;
 
   // ── 아직 등록 안 한 사람 ──────────────────────────────────────────────────
   return (
     <Wrap data-testid="guest-notify">
       {!open ? (
         <Row>
-          <Line>{t('notify.cta', { defaultValue: '답글 오면 알려드릴까요?' })}</Line>
+          <Line>{isEntry
+            ? t('entry.identityCta', { defaultValue: '이메일을 확인하면 문의를 남기고 다시 볼 수 있어요.' })
+            : t('notify.cta', { defaultValue: '답글 오면 알려드릴까요?' })}</Line>
           <Btn type="button" onClick={() => setOpen(true)} data-testid="guest-notify-open">
-            {t('notify.submit', { defaultValue: '알림 신청' })}
+            {isEntry
+              ? t('entry.identityVerify', { defaultValue: '확인하기' })
+              : t('notify.submit', { defaultValue: '알림 신청' })}
           </Btn>
-          <Close type="button" aria-label={t('notify.cancel', { defaultValue: '닫기' }) as string}
-            onClick={() => { setHidden(true); try { localStorage.setItem(hiddenKey, '1'); } catch { /* 시크릿 창 */ } }}>
-            ×
-          </Close>
+          {/* ★ 창구에서는 닫기를 두지 않는다 — 이 띠가 유일한 진입이라 닫으면 방문자가 갈 곳이 없다. */}
+          {!isEntry && (
+            <Close type="button" aria-label={t('notify.cancel', { defaultValue: '닫기' }) as string}
+              onClick={() => { setHidden(true); try { localStorage.setItem(hiddenKey, '1'); } catch { /* 시크릿 창 */ } }}>
+              ×
+            </Close>
+          )}
         </Row>
       ) : step === 'code' ? (
         <>

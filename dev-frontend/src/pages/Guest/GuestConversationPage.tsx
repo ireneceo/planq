@@ -19,15 +19,20 @@ import PublicPageShell, { PublicCenter, type PublicWorkspace } from '../../compo
 import GuestNotifySection from './GuestNotifySection';
 import GuestChatPanel from './GuestChatPanel';
 import GuestProjectPage, { type GuestProject } from './GuestProjectPage';
+import GuestWorkspacePage, { type EntryInfo } from './GuestWorkspacePage';
 
 type GuestCtx = {
   // 링크가 여는 것의 종류. 없으면 옛 링크 = 대화(fail-closed: 넓은 쪽으로 추정하지 않는다).
-  scope?: 'conversation' | 'project';
+  scope?: 'conversation' | 'project' | 'workspace';
   guest_name: string; can_write: boolean; client_name: string | null; account_requested?: boolean;
-  conversation: { id: number; title: string | null };
+  // ★ **null 일 수 있다** — 워크스페이스 창구(scope='workspace')의 공유 링크에는 방이 없다.
+  //   방은 방문자가 이메일을 확인하면 개인 링크마다 생긴다(docs/CLIENT_ENTRY_DESIGN.md §4.2).
+  conversation: { id: number; title: string | null } | null;
   project: GuestProject | null;
   // 누가 보낸 링크인가 — 서버가 이름·로고 두 필드만 준다. 옛 서버면 없다.
   workspace?: PublicWorkspace | null;
+  // 창구 «안내» 탭 자료 — scope='workspace' 응답에만 실린다(다른 scope 는 키 자체가 없다).
+  entry?: EntryInfo | null;
 };
 
 export default function GuestConversationPage() {
@@ -115,6 +120,22 @@ export default function GuestConversationPage() {
     return <PublicCenter>{t('loading', { defaultValue: '불러오는 중…' })}</PublicCenter>;
   }
 
+  // ── 워크스페이스 창구 — 화면의 주인이 워크스페이스다(§3-D1: 네 번째 표면이 아니라 세 번째 scope).
+  if (ctx.scope === 'workspace') {
+    return (
+      <GuestWorkspacePage
+        token={token || ''}
+        workspace={ctx.workspace ?? null}
+        entry={ctx.entry ?? null}
+        conversationId={ctx.conversation ? ctx.conversation.id : null}
+        canWrite={!!ctx.can_write}
+        accountRequested={!!ctx.account_requested}
+        onGone={() => setGone(true)}
+        onReload={() => { void load(); }}
+      />
+    );
+  }
+
   // ── 프로젝트 링크 — 화면의 주인이 프로젝트다(대화는 탭 하나).
   if (ctx.scope === 'project' && ctx.project) {
     return (
@@ -137,7 +158,7 @@ export default function GuestConversationPage() {
     <PublicPageShell
       layout="app"
       print={false}
-      title={ctx.project ? ctx.project.name : (ctx.conversation.title || t('defaultTitle', { defaultValue: '대화' }))}
+      title={ctx.project ? ctx.project.name : (ctx.conversation?.title || t('defaultTitle', { defaultValue: '대화' }))}
       subtitle={ctx.client_name || undefined}
       workspace={ctx.workspace ?? null}
     >

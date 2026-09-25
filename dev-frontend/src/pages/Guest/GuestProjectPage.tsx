@@ -25,7 +25,11 @@ import GuestNotifySection from './GuestNotifySection';
 import GuestDocsTab from './GuestDocsTab';
 import GuestFilesTab from './GuestFilesTab';
 import LoginRequiredSheet, { type LoginSheetReason } from './LoginRequiredSheet';
-import { GuestTabPane, Empty, RetryInline, Lock, READ_W } from './guestShell';
+import {
+  GuestTabPane, Empty, RetryInline, Lock,
+  // 껍데기는 한 벌이다 — 워크스페이스 창구 화면(GuestWorkspacePage)이 **같은 것**을 쓴다.
+  Wrap, Head, HeadRow, HeadText, Title, HeadBtn, TabBar, Tab, Count, NotifyColumn,
+} from './guestShell';
 import { CardGrid, Card, CardName, CardMeta, CardChipRow, CardChip, LockCaption, MetaFixed } from './guestCards';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import SearchBox from '../../components/Common/SearchBox';
@@ -404,52 +408,8 @@ export default function GuestProjectPage({ token, project, workspace, canWrite, 
   );
 }
 
-const Wrap = styled.div`display:flex;flex-direction:column;height:100dvh;background:#f8fafc;`;
 // 필터 줄 안의 알약 — 한 줄 안 컨트롤은 **36** 이다(필터줄 계약). 머리줄용 32 를 그대로 쓰면 줄이 들쭉날쭉하다(Fable F4).
 const FilterPills = styled(SegmentedToggle)`height:36px;`;
-const Head = styled.div`
-  min-height:60px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;
-  padding:14px 20px;
-  @media (max-width:640px){ padding:12px 16px; }
-  > div { width:100%; max-width:${READ_W}; margin:0 auto; }
-`;
-// 로고 + 제목 칸. Head 의 직계 div 규칙(READ_W 기둥)이 이 줄에 걸리므로 본문과 같은 기둥에 선다.
-const HeadRow = styled.div`display:flex;align-items:center;gap:8px;`;
-const HeadText = styled.div`min-width:0;flex:1;`;
-const Title = styled.div`font-size:1.125rem;font-weight:700;letter-spacing:-0.2px;color:#0f172a;`;
-// 헤더 오른쪽 문 — Secondary 톤(3톤 규칙). 폰에서도 40 이상.
-const HeadBtn = styled.button`
-  flex-shrink:0;min-height:36px;padding:0 12px;border-radius:8px;cursor:pointer;
-  border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:0.8125rem;font-weight:600;white-space:nowrap;
-  &:hover{border-color:#14B8A6;color:#0F766E;}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
-  @media (max-width:640px){ min-height:40px; }
-`;
-const TabBar = styled.div`
-  display:flex;gap:2px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;
-  overflow-x:auto;-webkit-overflow-scrolling:touch;
-  /* 탭도 본문과 같은 기둥에 세운다 — 안 그러면 탭은 화면 끝, 글은 가운데가 된다. */
-  padding:0 12px;
-  > * { flex-shrink:0; }
-  justify-content:flex-start;
-  &::after { content:''; }
-  @media (min-width:${READ_W}) { padding-left:calc((100% - ${READ_W}) / 2 + 12px); padding-right:calc((100% - ${READ_W}) / 2 + 12px); }
-`;
-const Tab = styled.button<{ $on: boolean }>`
-  display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
-  height:44px;padding:0 14px;border:none;background:none;cursor:pointer;
-  /* 폰에서는 다섯 탭이 **한 줄에 다 보이게** — 영어 375 에서 마지막 탭(Chat)이 잘려 가로로 밀어야 한다는 걸 알 수 없었다. */
-  @media (max-width:640px){ padding:0 9px; }
-  font-size:0.875rem;font-weight:${p => (p.$on ? 700 : 500)};
-  color:${p => (p.$on ? '#0F766E' : '#64748B')};
-  box-shadow:${p => (p.$on ? 'inset 0 -2px 0 #14B8A6' : 'none')};
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
-`;
-// 배지 — 컨트롤이 아니라 표시다. 높이를 px 로 박지 않고 padding·line-height 로 잡는다.
-const Count = styled.span`
-  display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:1px 6px;line-height:1.45;
-  border-radius:999px;background:#F1F5F9;color:#475569;font-size:0.6875rem;font-weight:700;
-`;
 const OvDesc = styled.p`margin-top:0;margin-bottom:0;font-size:0.8125rem;color:#475569;line-height:1.55;white-space:pre-wrap;`;
 const OvSection = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const OvHeadRow = styled.div`display:flex;align-items:center;justify-content:space-between;gap:8px;`;
@@ -494,10 +454,4 @@ const TaskPct = styled.div`flex-shrink:0;font-size:0.75rem;font-weight:700;color
 const ChatWrap = styled.div<{ $on: boolean }>`
   display:${p => (p.$on ? 'flex' : 'none')};
   flex-direction:column;flex:1;min-height:0;
-`;
-// 알림 신청 띠도 같은 기둥 — 안 그러면 대화 탭에서만 띠가 화면 끝까지 늘어난다.
-const NotifyColumn = styled.div`
-  flex-shrink:0;padding:0 20px;
-  @media (max-width:640px){ padding:0 16px; }
-  > * { width:100%; max-width:${READ_W}; margin-left:auto; margin-right:auto; }
 `;

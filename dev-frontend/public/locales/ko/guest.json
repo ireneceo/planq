@@ -164,5 +164,29 @@
     "openInApp": "앱에서 열기",
     "register": "고객으로 등록",
     "registerSent": "요청 보냄"
+  },
+  "entry": {
+    "title": "고객 창구",
+    "identityCta": "이메일을 확인하면 문의를 남기고 다시 볼 수 있어요.",
+    "identityVerify": "확인하기",
+    "tabInfo": "안내",
+    "tabChat": "문의하기",
+    "tabMine": "내 문의",
+    "tabProjects": "프로젝트",
+    "noIntro": "아직 소개가 등록되지 않았어요.",
+    "services": "제공 서비스",
+    "contact": "연락처",
+    "phone": "전화",
+    "email": "이메일",
+    "website": "홈페이지",
+    "address": "주소",
+    "goChat": "문의하기",
+    "chatLocked": "이메일을 확인하면 이 자리에서 바로 문의를 남길 수 있어요. 위의 [확인하기] 를 눌러 주세요.",
+    "mineChat": "대화",
+    "open": "열기",
+    "mineLocked": "이메일을 확인하면 남긴 문의를 여기서 다시 볼 수 있어요.",
+    "projectsOpen": "이 워크스페이스의 프로젝트를 앱에서 볼 수 있어요.",
+    "projectsLocked": "초대된 고객 계정으로 로그인하면 프로젝트를 볼 수 있어요.",
+    "tabsAria": "고객 창구 탭"
   }
 }

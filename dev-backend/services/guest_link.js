@@ -33,6 +33,18 @@ function generateToken() {
 }
 
 /**
+ * scope 정규화 — **한 곳**이다.
+ *
+ * ★ 2026-09-25 전까지 이 삼항(`scope === 'project' ? 'project' : 'conversation'`)이 **세 군데**
+ *   (발급·조회·문)에 흩어져 있었다. 값을 하나 더하면서 그 셋 중 하나만 빠뜨리면 그 경로에서
+ *   조용히 'conversation' 으로 **강등**된다 — 발급은 201 인데 링크를 누르면 채팅 화면이 뜬다.
+ *   오류가 없어서 오래 안 보이는 계열이다(memory feedback_same_value_multiple_formulas).
+ * ★ 모르는 값은 **가장 좁은 쪽**으로 떨어뜨린다(fail-closed). 넓은 쪽 기본값은 곧 가시성 확대다.
+ */
+const GUEST_SCOPES = ['conversation', 'project', 'workspace'];
+const normalizeScope = (v) => (GUEST_SCOPES.includes(v) ? v : 'conversation');
+
+/**
  * 게스트 토큰 → 컨텍스트. **fail-closed** — 조금이라도 미심쩍으면 null 이다.
  * @returns {Promise<null | { link, client, guestUser, conversation }>}
  */
@@ -56,7 +68,17 @@ async function resolveGuestToken(raw, { touch = false, ip = null } = {}) {
       if (new Date(parent.expires_at).getTime() < Date.now()) return null;
       // 부모가 다른 워크스페이스·다른 대화면 데이터가 어긋난 것이다. 닫는다.
       if (parent.business_id !== link.business_id) return null;
-      if (parent.conversation_id !== link.conversation_id) return null;
+      // ★ 대화방 일치 — **scope 로 가른다.** 워크스페이스 창구는 부모에게 방이 없고(NULL) 자식이
+      //   확인을 마치면 **자기 방**을 갖는다(§4.2 — 방문자마다 자기 대화). 그래서 그 경로만 면제한다.
+      //
+      //   ★★ 2026-09-25 Fable FAIL(E6) 로 고친 자리다. 처음에 나는 이것을
+      //      `parent.conversation_id && parent.conversation_id !== link.conversation_id` 로 썼고,
+      //      «기존 링크는 부모가 전부 방을 가지므로 판정이 안 바뀐다» 고 적었다. **반대였다.**
+      //      conversation scope 공유 링크의 방이 비면(이번 마이그레이션이 NULL 을 가능하게 만들었다)
+      //      부모는 404 인데 **자식은 200 으로 열렸다** — truthiness 가 검사 자체를 건너뛴다.
+      //      옛 코드는 `NULL !== 124` 로 자식도 닫았다. scope 로 가르면 옛 scope 는 HEAD 와
+      //      **글자까지 같은 판정**이 된다. 「좁은 조건이 더 안전하다」는 직관이 틀린 경우다.
+      if (parent.scope !== 'workspace' && parent.conversation_id !== link.conversation_id) return null;
     }
 
     // 킬스위치 2단 — 플랫폼 → 워크스페이스. 둘 중 하나만 꺼도 전부 닫힌다.
@@ -70,14 +92,47 @@ async function resolveGuestToken(raw, { touch = false, ip = null } = {}) {
     // 이름·로고는 **게스트 화면의 발신자 표시**용(docs/CLIENT_ENTRY_DESIGN.md P0-①).
     //   내보내는 것은 routes/guest.js 의 `workspace:{name, logo_url}` 두 필드뿐이다 — 여기서 더 읽어도
     //   화이트리스트가 막는다. 그래도 필요 없는 칸(법인·연락처·slug)은 애초에 읽지 않는다.
-    const business = await Business.findByPk(link.business_id, {
-      attributes: ['id', 'guest_links_enabled', 'deleted_at', 'name', 'brand_name', 'brand_logo_url'],
-    });
+    // ★ 워크스페이스 창구(scope='workspace')만 «안내 탭» 자료를 더 읽는다 — 연락처·소개.
+    //   그 외 scope 에서는 **애초에 읽지 않는다**: 읽어 두면 다음 사람이 화이트리스트를 한 줄
+    //   늘릴 때 그 값이 옛 채팅 링크 응답에도 따라 나간다(내보내는 것은 routes/guest.js 가
+    //   가르지만, 안 읽는 것이 한 겹 더 안전하다).
+    const bizAttrs = ['id', 'guest_links_enabled', 'deleted_at', 'name', 'brand_name', 'brand_logo_url'];
+    if (link.scope === 'workspace') {
+      bizAttrs.push('brand_tagline', 'phone', 'email', 'website', 'address', 'permissions');
+    }
+    const business = await Business.findByPk(link.business_id, { attributes: bizAttrs });
     if (!business || business.deleted_at || business.guest_links_enabled === false) return null;
 
-    const conversation = await Conversation.findByPk(link.conversation_id);
-    // 대화방이 사라졌거나 다른 워크스페이스로 옮겨졌으면 닫는다(테넌트 이중 검증).
-    if (!conversation || conversation.business_id !== link.business_id) return null;
+    // 대화방은 **워크스페이스 창구에서만 없을 수 있다**(scope='workspace').
+    //   ★ 그 외 scope 에서 NULL 이면 데이터가 어긋난 것이므로 **닫는다** — fail-closed.
+    //     여기서 "없으면 그냥 통과" 로 두면 옛 채팅 링크의 방이 지워졌을 때 그 링크가
+    //     방 없이 살아남아 아래 라우트들이 undefined 를 읽는다(500 이 곧 무인증 표면의 정보다).
+    let conversation = null;
+    if (link.conversation_id) {
+      conversation = await Conversation.findByPk(link.conversation_id);
+      // 대화방이 사라졌거나 다른 워크스페이스로 옮겨졌으면 닫는다(테넌트 이중 검증).
+      if (!conversation || conversation.business_id !== link.business_id) return null;
+
+      // ★★ 워크스페이스 창구: **이 링크가 그 방의 참여자인가**를 요구한다 (2026-09-25 Fable FAIL D1).
+      //   다른 scope 는 «부모와 같은 방» 이라는 검사가 결속을 지켜 준다. 창구는 방문자마다 방이
+      //   달라 그 검사를 면제했는데, 그 순간 **링크와 방을 잇는 검사가 아무것도 없어졌다** —
+      //   Fable 실측: 개인 링크 A 의 conversation_id 를 B 의 방으로 바꾸면 ctx·messages 가 **200**.
+      //   사용자가 그 값을 정할 HTTP 경로는 지금 0건이지만(쓰는 곳은 ensureVisitorConversation 뿐),
+      //   «오늘 닿을 수 없다» 는 심층방어를 없앨 이유가 못 된다. 면제했으면 대체 검사를 둔다.
+      //   ★ 정확히 맞는 검사인 이유: 확인을 마친 개인 링크의 그림자(guest_user_id)는 **그 사람 고유**이고
+      //     `ensureVisitorConversation` 이 방을 만들 때 참여자로 넣은 뒤 **마지막에** conversation_id 를
+      //     쓴다. 그래서 conversation_id 가 있으면 참여자 행도 반드시 있다(부분 실패 시 링크는 방 없는
+      //     상태로 남고 다음 확인이 멱등으로 복구한다).
+      if (link.scope === 'workspace') {
+        const own = await ConversationParticipant.findOne({
+          where: { conversation_id: link.conversation_id, user_id: link.guest_user_id },
+          attributes: ['id'],
+        });
+        if (!own) return null;
+      }
+    } else if (link.scope !== 'workspace') {
+      return null;
+    }
 
     // 고객은 **선택**이다. 붙어 있으면 테넌트 이중 검증까지 하고, 없으면 그냥 지나간다.
     let client = null;
@@ -96,7 +151,15 @@ async function resolveGuestToken(raw, { touch = false, ip = null } = {}) {
     //   ★ `set()` 은 **메모리에만** 남는다 — 바로 아래 touch 의 `update({세 필드})` 는 그 세 개만
     //     쓰므로 DB 로 새지 않는다(실측). 여기서 `link.save()` 를 부르면 그때부터 자식 행에
     //     false 가 박제되고, 나중에 부모를 다시 쓰기 허용으로 바꿔도 자식은 영영 못 쓴다.
-    if (parent && parent.can_write !== true) link.set('can_write', false);
+    //   ★ 2026-09-25 — 상한이 지키는 것은 «그 방» 이다: 부모를 열람 전용으로 바꾸면 그 방에
+    //     자식이 못 쓰게 된다. 워크스페이스 창구는 부모에게 방이 **없고** 자식은 자기 방을 갖는다 —
+    //     공유하는 방이 없으니 상한도 뜻이 없다. 그대로 두면 창구 공유 링크의 `can_write=false`
+    //     (routes/customer_entry.js 가 강제하는 값)가 자식에게 내려와 **이메일을 확인한 방문자가
+    //     자기 방에 한 글자도 못 쓴다** — 「문의하기」 탭이 통째로 죽는다.
+    //   ★★ 위 대화방 일치 검사와 **같은 방식으로 가른다(scope)** — 전에 `parent.conversation_id &&`
+    //      로 썼다가 Fable FAIL(E6) 을 받았다. 같은 전제를 두 곳에서 다르게 표현하면 한쪽만 새고,
+    //      실제로 그렇게 됐다. 두 줄이 같은 조건을 쓰는지 눈으로 확인할 수 있게 둔다.
+    if (parent && parent.scope !== 'workspace' && parent.can_write !== true) link.set('can_write', false);
 
     if (touch) {
       // 슬라이딩 갱신 — 쓸 때마다 만료가 뒤로 밀린다.
@@ -169,12 +232,17 @@ async function ensureShadowUser({ transaction } = {}) {
  *
  * @returns {Promise<null|{code: string, status: number}>} null 이면 발급 가능
  */
-async function assertGuestLinkIssuable(conv, businessId) {
+async function assertGuestLinkIssuable(conv, businessId, { scope = 'conversation' } = {}) {
   const { PlatformSetting, Business } = require('../models');
-  // ① 내부 대화방에 링크를 내주면 **내부 대화가 통째로 밖으로 열린다.**
-  if (!conv || conv.channel_type !== 'customer') return { code: 'not_customer_channel', status: 403 };
-  // ② 보관된 방 — 끝난 대화를 다시 여는 링크는 만들 수 없다.
-  if (conv.status === 'archived' || conv.archived_at) return { code: 'conversation_archived', status: 409 };
+  // ★ 워크스페이스 창구(scope='workspace')는 **대화방에 붙지 않는다** — 검사할 방이 없다.
+  //   그래서 ①② 를 건너뛴다. 그래도 이 함수를 지나게 하는 이유는 ③ 이다: 킬스위치가 꺼져 있는데
+  //   발급만 201 이 나면 담당자가 죽은 주소를 고객에게 보낸다(아래 ③ 주석과 같은 사고).
+  if (normalizeScope(scope) !== 'workspace') {
+    // ① 내부 대화방에 링크를 내주면 **내부 대화가 통째로 밖으로 열린다.**
+    if (!conv || conv.channel_type !== 'customer') return { code: 'not_customer_channel', status: 403 };
+    // ② 보관된 방 — 끝난 대화를 다시 여는 링크는 만들 수 없다.
+    if (conv.status === 'archived' || conv.archived_at) return { code: 'conversation_archived', status: 409 };
+  }
   // ③ 킬스위치가 꺼져 있으면 **발급도 막는다.** 여태 발급은 201 이 났고 그 링크는 열리지 않았다 —
   //    담당자가 죽은 주소를 고객에게 보내고 고객은 없는 페이지를 본다.
   const platform = await PlatformSetting.findOne({ attributes: ['guest_links_enabled'] });
@@ -224,16 +292,21 @@ async function issueGuestLink({ businessId, conversationId, projectId = null, cl
   //   없으면 NULL. 멤버에게 묻지 않는다 — 발급은 클릭 한 번이어야 한다.
   const guestUser = await ensureShadowUser({ transaction });
   // 대화방 참여자로 등록 — 없으면 메시지 목록·unread 집계가 이 사람을 모른다.
-  await ConversationParticipant.findOrCreate({
-    where: { conversation_id: conversationId, user_id: guestUser.id },
-    defaults: { conversation_id: conversationId, user_id: guestUser.id, role: 'client' },
-    transaction,
-  });
+  //   ★ 워크스페이스 창구(scope='workspace')에는 방이 없다 — 방은 방문자가 이메일을 확인한 뒤
+  //     개인 링크마다 생기고(ensureVisitorConversation), 참여자도 그때 붙는다.
+  if (conversationId) {
+    await ConversationParticipant.findOrCreate({
+      where: { conversation_id: conversationId, user_id: guestUser.id },
+      defaults: { conversation_id: conversationId, user_id: guestUser.id, role: 'client' },
+      transaction,
+    });
+  }
 
   const placeholder = generateToken();   // 버리는 값 — 파생 토큰을 붙이기 전까지 이 행은 열리지 않는다
   const link = await GuestLink.create({
     business_id: businessId,
-    conversation_id: conversationId,
+    // NULL 은 scope='workspace' 에서만 — 모델 주석 참조(그 외 NULL 은 resolve 가 닫는다).
+    conversation_id: conversationId || null,
     project_id: projectId,
     client_id: client ? client.id : null,
     guest_user_id: guestUser.id,
@@ -243,7 +316,7 @@ async function issueGuestLink({ businessId, conversationId, projectId = null, cl
     guest_name: guestName ? String(guestName).slice(0, 100) : null,
     can_write: !!canWrite,
     // ★ 기본은 대화방이다 — 부르는 쪽이 명시하지 않으면 넓어지지 않는다(fail-closed).
-    scope: scope === 'project' ? 'project' : 'conversation',
+    scope: normalizeScope(scope),
     expires_at: new Date(Date.now() + SLIDING_TTL_MS),
     created_by: createdBy,
   }, { transaction });
@@ -254,14 +327,22 @@ async function issueGuestLink({ businessId, conversationId, projectId = null, cl
   return { link, token, guestUser };
 }
 
-/** 이 자리(scope + 프로젝트 또는 대화방)의 **살아 있는** 공유 링크 1건. 두 발급 라우트가 같이 부른다. */
+/**
+ * 이 **자리**의 살아 있는 공유 링크 1건. 세 발급 라우트가 같이 부른다.
+ *   자리의 키가 scope 마다 다르다:
+ *     project     → 그 프로젝트          conversation → 그 대화방
+ *     workspace   → **워크스페이스 자체** (한 워크스페이스에 창구는 하나 — §3-D2)
+ */
 async function findLiveSharedLink({ businessId, scope, projectId = null, conversationId = null, transaction } = {}) {
+  const sc = normalizeScope(scope);
   const where = {
     business_id: businessId, kind: 'shared', revoked_at: null,
-    scope: scope === 'project' ? 'project' : 'conversation',
+    scope: sc,
     expires_at: { [Op.gt]: new Date() },
   };
-  if (where.scope === 'project') where.project_id = projectId; else where.conversation_id = conversationId;
+  if (sc === 'project') where.project_id = projectId;
+  else if (sc === 'conversation') where.conversation_id = conversationId;
+  // workspace 는 좁히는 조건이 없다 — business_id + scope 가 곧 자리다.
   return GuestLink.findOne({ where, order: [['id', 'DESC']], transaction });
 }
 
@@ -277,12 +358,16 @@ async function issueOrReuseSharedLink({ businessId, scope, conversationId, proje
   if (!sharedSecret()) { const e = new Error('guest_link_secret_missing'); e.code = 'guest_link_secret_missing'; throw e; }
   const { sequelize } = require('../config/database');
   const { Project } = require('../models');
-  const sc = scope === 'project' ? 'project' : 'conversation';
+  const sc = normalizeScope(scope);
   const t = await sequelize.transaction();
   let out;
   try {
     // 자리를 잠근다 — 두 요청이 동시에 "없다" 를 보고 둘 다 만들지 않게.
+    //   ★ 잠그는 행이 곧 «자리» 다. workspace 는 자리가 워크스페이스 자체이므로 businesses 행을 잡는다 —
+    //     여기서 아무것도 잠그지 않으면 [링크 만들기] 를 두 번 누른 순간 창구가 둘이 되고,
+    //     둘 중 어느 것이 «그 워크스페이스의 주소» 인지 아무도 모른다.
     if (sc === 'project') await Project.findByPk(projectId, { transaction: t, lock: t.LOCK.UPDATE });
+    else if (sc === 'workspace') await Business.findByPk(businessId, { transaction: t, lock: t.LOCK.UPDATE });
     else await Conversation.findByPk(conversationId, { transaction: t, lock: t.LOCK.UPDATE });
     const live = await findLiveSharedLink({ businessId, scope: sc, projectId, conversationId, transaction: t });
     let replacedId = null;
@@ -366,13 +451,18 @@ async function ensurePersonalLink({ parentLink, email, name = null, locale = nul
     // ★ 여는 범위는 부모를 **그대로 물려받는다.** 안 물려주면 프로젝트 링크로 받은 사람이
     //   알림 메일의 개인 링크를 눌렀을 때 채팅 화면으로 떨어진다(좁아지는 쪽이라 누수는
     //   아니지만, 받은 사람에게는 "그 화면이 안 나온다" 는 고장이다 — 2026-09-05 Fable 지적).
-    scope: parentLink.scope || 'conversation',
+    scope: normalizeScope(parentLink.scope),
     client_id: parentLink.client_id,
     guest_user_id: parentLink.guest_user_id,   // 확인 전까지는 부모의 익명 신원
     email_verified_at: null,
     token_hash: hashToken(placeholder),
     token_hint: '------',                      // 확인 전에는 보여줄 힌트가 없다
-    can_write: parentLink.can_write,           // 권한은 부모를 넘지 않는다(판정은 resolve 에서)
+    // 권한은 부모를 넘지 않는다(판정은 resolve 에서).
+    //   ★ 예외는 워크스페이스 창구뿐이다: 자식은 **자기 방**을 갖고(부모에게는 방이 없다)
+    //     그 방은 이 방문자 한 사람의 것이다. 창구 공유 링크는 열람 전용으로 강제되므로
+    //     그 값을 그대로 물려받으면 확인을 마친 사람이 자기 방에도 못 쓴다.
+    //     여는 범위가 넓어지는 것이 아니다 — 쓸 수 있는 방이 자기 방 하나로 그대로다.
+    can_write: normalizeScope(parentLink.scope) === 'workspace' ? true : parentLink.can_write,
     expires_at: new Date(Date.now() + SLIDING_TTL_MS),
     created_by: parentLink.created_by,
     kind: 'personal',
@@ -395,12 +485,110 @@ async function ensurePersonalLink({ parentLink, email, name = null, locale = nul
  */
 async function promotePersonalIdentity(link) {
   const guestUser = await ensureShadowUser();
-  await ConversationParticipant.findOrCreate({
-    where: { conversation_id: link.conversation_id, user_id: guestUser.id },
-    defaults: { conversation_id: link.conversation_id, user_id: guestUser.id, role: 'client' },
-  });
+  // ★ 워크스페이스 창구에서는 이 시점에 방이 **없다**(conversation_id NULL). 참여자 행을 먼저
+  //   만들려 하면 NOT NULL 로 죽고, 그러면 확인 자체가 실패한다.
+  //   그 경로의 방·참여자는 바로 다음에 `ensureVisitorConversation` 이 만든다 — 순서가 계약이다
+  //   (신원을 먼저 갈라야 그 방이 «그 사람의 방» 이 된다. 부모 그림자로 만들면 무리 전체가 들어온다).
+  if (link.conversation_id) {
+    await ConversationParticipant.findOrCreate({
+      where: { conversation_id: link.conversation_id, user_id: guestUser.id },
+      defaults: { conversation_id: link.conversation_id, user_id: guestUser.id, role: 'client' },
+    });
+  }
   await link.update({ guest_user_id: guestUser.id });
   return guestUser;
+}
+
+/**
+ * 워크스페이스 창구로 들어와 이메일을 확인한 방문자에게 **자기 대화방**을 준다 (§4.2 «문의하기»).
+ *
+ * ★ 왜 여기서 만드나: 창구(shared) 링크에는 방이 없다 — «아직 아무와도 대화하지 않은 문» 이다.
+ *   방을 창구에 하나 두고 모두가 같이 쓰게 하면, 링크를 받은 사람 전원이 **남의 문의를 읽는다.**
+ *   그래서 방은 «확인을 마친 사람» 단위다. 그 시점이 신원이 생기는 시점이기도 하다.
+ * ★ **멱등**이다 — 이미 방이 붙어 있으면 그것을 돌려준다. 재확인(두 번째 verify)에서 다시
+ *   불려도 방이 둘이 되지 않는다.
+ * ★ `client_id` 는 **붙이지 않는다.** P1 에서는 고객 행을 만들지 않는다(prospect 생성은 P2 예약의
+ *   몫이다 — §5). 고객 없는 customer 대화방은 Q sale «상담» 탭이 `client_id IS NULL` 축으로
+ *   이미 모아 보는 형태다(Q_SALE §5.2-A) — 그래서 팀 쪽에 **새 화면이 필요 없다.**
+ * ★ 환영 문구는 `clientOnboarding.welcomeText` **한 곳**에서 가져온다. 여기에 문구를 새로 쓰면
+ *   초대로 들어온 고객과 창구로 들어온 고객이 다른 인사를 받는다(같은 값의 공식 두 벌).
+ *
+ * @returns {Promise<object|null>} 붙인(또는 이미 있던) Conversation. 실패하면 null — 확인 자체는 성공해야 한다.
+ */
+async function ensureVisitorConversation(link) {
+  try {
+    if (!link || normalizeScope(link.scope) !== 'workspace') return null;
+    // 이미 자기 방이 있으면 그것이다(멱등).
+    if (link.conversation_id) {
+      const existing = await Conversation.findByPk(link.conversation_id);
+      if (existing && existing.business_id === link.business_id) return existing;
+      // 가리키는 방이 사라졌거나 어긋났으면 새로 만든다 — 그대로 두면 resolve 가 링크를 닫는다.
+    }
+    const { Message } = require('../models');
+    const biz = await Business.findByPk(link.business_id, {
+      attributes: ['id', 'name', 'brand_name', 'default_language', 'cue_user_id'],
+    });
+    const lang = biz?.default_language === 'en' ? 'en' : 'ko';
+    const workspaceName = biz?.brand_name || biz?.name || 'PlanQ';
+
+    const conversation = await Conversation.create({
+      business_id: link.business_id,
+      project_id: null,
+      // ★ 제목은 **방문자가 적은 이름**이다. 없으면 워크스페이스 이름으로 떨어진다 —
+      //   `contact_email` 을 제목에 쓰지 않는다: 대화방 제목은 Q Talk 목록·알림·검색에 뜨고,
+      //   주소는 그 자리들에 필요하지 않다(최소 노출).
+      title: link.contact_name || workspaceName,
+      client_id: null,
+      channel_type: 'customer',
+      cue_enabled: true,
+      auto_extract_enabled: true,
+    });
+
+    // 참여자 — 방문자(그림자 User)는 필수. 확인 직후라 `promotePersonalIdentity` 가 이미
+    //   자기 그림자를 붙여 두었다(호출 순서가 계약이다 — 부모 것으로 만들면 무리 전체가 한 방에 들어온다).
+    await ConversationParticipant.findOrCreate({
+      where: { conversation_id: conversation.id, user_id: link.guest_user_id },
+      defaults: { conversation_id: conversation.id, user_id: link.guest_user_id, role: 'client' },
+    });
+    // 팀 쪽 참여자 — 창구를 만든 사람(created_by). 없으면 방이 **아무에게도 안 보인다.**
+    if (link.created_by && link.created_by !== link.guest_user_id) {
+      await ConversationParticipant.findOrCreate({
+        where: { conversation_id: conversation.id, user_id: link.created_by },
+        defaults: { conversation_id: conversation.id, user_id: link.created_by, role: 'owner' },
+      });
+    }
+    if (biz?.cue_user_id && biz.cue_user_id !== link.created_by) {
+      await ConversationParticipant.findOrCreate({
+        where: { conversation_id: conversation.id, user_id: biz.cue_user_id },
+        defaults: { conversation_id: conversation.id, user_id: biz.cue_user_id, role: 'member' },
+      });
+    }
+
+    // 환영 메시지 — 초대 경로와 **같은 문구**(clientOnboarding 한 곳).
+    const senderId = link.created_by || biz?.cue_user_id || null;
+    const content = require('./clientOnboarding')
+      .welcomeText(lang, { workspaceName, clientName: link.contact_name });
+    const welcome = await Message.create({
+      conversation_id: conversation.id,
+      business_id: link.business_id,
+      sender_id: senderId,
+      content,
+      message_type: senderId ? 'text' : 'system',
+      is_read: false,
+    });
+    await conversation.update({ last_message_at: welcome.created_at || new Date() });
+
+    // 링크가 자기 방을 가리키게 — 이 한 줄이 «내 자리» 를 만든다.
+    await link.update({ conversation_id: conversation.id });
+    return conversation;
+  } catch (e) {
+    // ★ 던지지 않는다. 방을 못 만들어도 **이메일 확인 자체는 성공해야 한다** — 확인이 실패로
+    //   보이면 방문자는 코드를 다시 받으려 하고, 그 사이 한도에 걸린다.
+    //   방이 없으면 화면은 «문의하기» 탭에서 안내를 보여 주고(대화가 없는 상태), 다음 확인·
+    //   다음 진입에서 이 함수가 다시 불린다(멱등).
+    console.error('[guest_link] 방문자 대화방 생성 실패:', e.message);
+    return null;
+  }
 }
 
 /**
@@ -539,7 +727,7 @@ module.exports = {
   SLIDING_TTL_MS, hashToken, generateToken, visibleToGuest,
   OTP_TTL_MS, OTP_MAX_ATTEMPTS, OTP_LOCK_MS, NOTIFY_COOLDOWN_MS,
   generateOtpCode, normalizeEmail, ensurePersonalLink, mintPersonalToken, personalTokenFor,
-  promotePersonalIdentity,
+  promotePersonalIdentity, ensureVisitorConversation, normalizeScope,
   resolveGuestToken, ensureShadowUser, issueGuestLink,
   issueOrReuseSharedLink, findLiveSharedLink, urlForSharedLink, sharedTokenFor,
   serializeGuestLink,

@@ -16,7 +16,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 // 카드 302 대상 주소를 만들 때 쓴다 — guest_admin 과 같은 원천.
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 
-const { guestLimiter, attachGuest } = require('./guest_common');
+const { guestLimiter, attachGuest, requireRoom } = require('./guest_common');
 
 /** 고객에게 보여도 되는 메시지만 — **정의는 services/guest_link.js 한 곳**이다.
  *  ★ 여기 있던 술어를 서비스로 옮겼다. 답글 알림(services/guest_notify.js)이 같은 판단을
@@ -60,6 +60,49 @@ const workspaceOf = (b) => (b ? {
   name: b.brand_name || b.name || null,
   logo_url: b.brand_logo_url && SYMBOL_PATH.test(b.brand_logo_url) ? b.brand_logo_url : null,
 } : null);
+
+/** 외부 주소는 https 만, 길이 제한. 공개 화면에 임의 스킴(`javascript:`·`data:`)을 그리지 않는다. */
+const httpsUrl = (v) => {
+  const s = String(v || '').trim().slice(0, 500);
+  if (!s) return null;
+  try { return new URL(s).protocol === 'https:' ? s : null; } catch { return null; }
+};
+
+/**
+ * 워크스페이스 창구(scope='workspace')의 **안내 탭** 자료 — §4.2.
+ *
+ * ★ **화이트리스트다.** 여기 적힌 것만 나간다. 담는 것은 워크스페이스가 이미 고객에게
+ *   내보내고 있는 값들이다 — 전화·이메일·주소·홈페이지는 청구서·계약서에 인쇄되어
+ *   고객 손에 들어가는 것과 **같은 컬럼**이다(models/Business.js 법인 정보 블록).
+ * ★ **담지 않는 것과 이유**(무인증 응답이다):
+ *   · `legal_name`·`tax_id`·`representative`·`biz_type`·`biz_item` — 증빙용이고 창구에 쓸 데가 없다
+ *   · `slug`·`id`·요금제·멤버 수 — 열거·정찰 재료
+ *   · `work_hours` — 컬럼에 **정해진 모양이 없다**(`routes/businesses.js:744` 가 `req.body` 를
+ *     그대로 저장하고, 읽는 곳이 0곳이다). 원문을 무인증으로 내보내면 멤버가 적어 넣은
+ *     아무 JSON 이 그대로 나간다. 모양은 **P2(예약 슬롯 계산)가 정의**하고 그때 같이 싣는다.
+ */
+function entryOf(b) {
+  if (!b) return null;
+  const p = b.permissions && typeof b.permissions === 'object' ? b.permissions : {};
+  const ce = p.customer_entry && typeof p.customer_entry === 'object' ? p.customer_entry : {};
+  const str = (v, max) => {
+    const s2 = typeof v === 'string' ? v.trim() : '';
+    return s2 ? s2.slice(0, max) : null;
+  };
+  return {
+    tagline: str(b.brand_tagline, 200),
+    intro: str(ce.intro, 2000),
+    services: Array.isArray(ce.services)
+      ? ce.services.map((s2) => str(s2, 120)).filter(Boolean).slice(0, 6)
+      : [],
+    contact: {
+      phone: str(b.phone, 50),
+      email: str(b.email, 200),
+      website: httpsUrl(b.website),
+      address: str(b.address, 500),
+    },
+  };
+}
 
 // ── GET /api/guest/:token — 대화방 컨텍스트 ────────────────────────────────
 router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }), attachGuest, async (req, res, next) => {
@@ -122,19 +165,24 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
       //   화면은 대화방 제목으로 떨어진다. 여기서 `client.display_name` 을 그냥 읽다가
       //   고객 없는 방에서 **500** 이 났다(읽는 곳 전수 확인을 빠뜨린 것).
       client_name: client ? (client.display_name || client.company_name || null) : null,
-      conversation: { id: conversation.id, title: conversation.title || null },
+      // ★ 워크스페이스 창구(scope='workspace')의 공유 링크에는 방이 **없다** — null 이다.
+      //   방은 이메일을 확인한 뒤 개인 링크마다 생긴다. 화면은 이 값으로 «대화를 쓸 수 있는가» 를 안다.
+      conversation: conversation ? { id: conversation.id, title: conversation.title || null } : null,
       project,
       // 누가 보낸 링크인가 — 게스트 화면 밴드1 에 이름·로고(docs/CLIENT_ENTRY_DESIGN.md P0-①).
       //   ★ **두 필드만.** `business_id`·slug·법인·연락처·요금은 싣지 않는다(무인증 응답이다).
       //   로고는 우리 심볼 경로(이미 무인증 공개, UUID)일 때만 — 임의 외부 주소를 공개 화면에
       //   그대로 그리면 보는 사람의 IP 가 제3자에게 간다.
       workspace: workspaceOf(business),
+      // ★ 창구(scope='workspace')에서만 «안내 탭» 자료가 실린다. 다른 scope 에서는 **키 자체가 없다** —
+      //   옛 채팅·프로젝트 링크의 응답이 바이트 그대로여야 한다(설계 §5 P1 양성 대조군).
+      ...(link.scope === 'workspace' ? { entry: entryOf(business) } : {}),
     });
   } catch (err) { next(err); }
 });
 
 // ── GET /api/guest/:token/messages ────────────────────────────────────────
-router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000, max: 120 }), attachGuest, async (req, res, next) => {
+router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000, max: 120 }), attachGuest, requireRoom, async (req, res, next) => {
   try {
     const { conversation, guestUser } = req.guest;
     const rows = await Message.findAll({
@@ -170,7 +218,7 @@ router.get('/:token/messages', guestLimiter('guest-msgs', { windowMs: 60 * 1000,
 //   고객이 빈 화면에 떨어지고 이 대화는 못 본다(Fable 설계 판정 2026-09-02).
 //   여기서는 **담당자에게 알림만** 보내고, 계정 생성은 멤버가 보내는 초대 메일 한 곳으로 몬다.
 router.post('/:token/account-request',
-  guestLimiter('guest-account-req', { windowMs: 60 * 60 * 1000, max: 5 }), attachGuest, async (req, res, next) => {
+  guestLimiter('guest-account-req', { windowMs: 60 * 60 * 1000, max: 5 }), attachGuest, requireRoom, async (req, res, next) => {
   try {
     const { link, conversation } = req.guest;
     // 링크당 1회. 24시간 지나면 다시 보낼 수 있다 — 담당자가 놓쳤을 수 있으므로 영구 차단은 아니다.
@@ -238,7 +286,7 @@ router.post('/:token/account-request',
 //   응답 JSON 에 토큰을 실어 보내지 않는 이유는 cardResolver 파일 주석 참조.
 //   실패는 전부 404 — 왜 실패했는지 게스트에게 알려 주면 그것이 곧 정찰 수단이 된다.
 router.get('/:token/cards/:messageId/open',
-  guestLimiter('guest-card-open', { windowMs: 60 * 1000, max: 60 }), attachGuest, async (req, res, next) => {
+  guestLimiter('guest-card-open', { windowMs: 60 * 1000, max: 60 }), attachGuest, requireRoom, async (req, res, next) => {
   try {
     const { link, conversation } = req.guest;
     const msg = await Message.findOne({
@@ -262,7 +310,7 @@ router.get('/:token/cards/:messageId/open',
 
 // ── POST /api/guest/:token/messages ───────────────────────────────────────
 //   게스트가 글을 쓴다. **텍스트만** — 파일 업로드는 2단계(쿼터·악성파일 축이 별도 설계).
-router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000, max: 10 }), attachGuest, async (req, res, next) => {
+router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000, max: 10 }), attachGuest, requireRoom, async (req, res, next) => {
   try {
     const { link, conversation, guestUser } = req.guest;
     if (!link.can_write) return errorResponse(res, 'read_only_link', 403);

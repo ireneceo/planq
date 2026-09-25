@@ -457,6 +457,10 @@ app.use('/api/projects', require('./routes/project_process'));
 app.use('/api/projects', require('./routes/schedule_edit'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/users', require('./routes/account_deletion'));
+// ★ customer_entry 를 businesses.js **앞**에 마운트한다 — `/:businessId/customer-entry` 처럼
+//   고유한 꼬리 경로만 들었다(client_links.js + clients.js 와 같은 패턴, CLAUDE.md 라우트 순서 절).
+//   businesses.js 에 `/:businessId/:xxx` 2-세그먼트 와일드카드가 없음을 실측으로 확인했다.
+app.use('/api/businesses', require('./routes/customer_entry'));
 app.use('/api/businesses', require('./routes/businesses'));
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드
 app.use('/api/businesses', require('./routes/cue_knowledge'));

@@ -164,5 +164,29 @@
     "openInApp": "Open in app",
     "register": "Register as a client",
     "registerSent": "Request sent"
+  },
+  "entry": {
+    "title": "Customer desk",
+    "identityCta": "Verify your email to leave an inquiry and come back to it.",
+    "identityVerify": "Verify",
+    "tabInfo": "About",
+    "tabChat": "Ask",
+    "tabMine": "My inquiries",
+    "tabProjects": "Projects",
+    "noIntro": "No introduction has been added yet.",
+    "services": "Services",
+    "contact": "Contact",
+    "phone": "Phone",
+    "email": "Email",
+    "website": "Website",
+    "address": "Address",
+    "goChat": "Ask a question",
+    "chatLocked": "Verify your email to send an inquiry right here. Tap [Verify] above.",
+    "mineChat": "Conversation",
+    "open": "Open",
+    "mineLocked": "Verify your email to see the inquiries you've left here.",
+    "projectsOpen": "You can view this workspace's projects in the app.",
+    "projectsLocked": "Sign in with your invited customer account to view projects.",
+    "tabsAria": "Customer desk tabs"
   }
 }

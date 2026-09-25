@@ -27,14 +27,26 @@ GuestLink.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   business_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'businesses', key: 'id' } },
   // 열람·작성 범위 = 이 대화방 하나. 이 컬럼이 곧 피해 상한이다.
-  conversation_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'conversations', key: 'id' } },
+  //
+  // ★ NULL 이 허용되는 것은 **scope='workspace' 인 shared 행 하나뿐**이다 (2026-09-25).
+  //   워크스페이스 창구(§3-D1)는 «아직 아무와도 대화하지 않은 문» 이라 가리킬 방이 없다 —
+  //   방은 OTP 확인 뒤 **개인 링크마다** 하나씩 생긴다(services/guest_link.js ensureVisitorConversation).
+  //   판정은 스키마가 아니라 `resolveGuestToken` 이 fail-closed 로 한다: conversation_id 가
+  //   NULL 인데 scope 가 workspace 가 아니면 **닫는다**(데이터가 어긋난 것이다).
+  //   설계 이탈 1건 — docs/CLIENT_ENTRY_DESIGN.md §5 는 스키마를 ENUM append 1건으로 적었다.
+  //   판단 주체는 Opus, 근거는 scripts/migrate-guest-link-scope-workspace.js 머리말.
+  conversation_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'conversations', key: 'id' } },
   // ★ 이 링크가 여는 것의 **종류**. 파생 열쇠를 막는 축이다 (docs/PROJECT_EXTERNAL_VIEW_DESIGN §2.2).
   //   'conversation' — 대화방 하나(지금까지의 채팅 링크). 프로젝트 탭 라우트는 **404**.
   //   'project'      — 프로젝트 페이지(개요·업무·대화). 대화 탭은 같은 방을 그대로 쓴다.
+  //   'workspace'    — 워크스페이스 창구(안내·문의·상담 예약·내 문의). **프로젝트 내용은 안 연다**
+  //                    (docs/CLIENT_ENTRY_DESIGN.md §3-D2 — 이메일 확인은 로그인보다 약하다).
   //   기본값이 'conversation' 인 이유: **이미 나가 있는 링크가 조용히 넓어지면 안 된다.**
-  //   기존 행은 전부 conversation 으로 남고, 프로젝트 링크는 새로 발급해야만 생긴다.
+  //   기존 행은 전부 conversation 으로 남고, 넓은 링크는 새로 발급해야만 생긴다.
+  //   ★ ENUM 값은 **끝에만 붙인다** — MySQL ENUM 은 순서가 곧 정수라 중간에 끼우면
+  //     기존 행이 조용히 다른 라벨이 된다.
   scope: {
-    type: DataTypes.ENUM('conversation', 'project'),
+    type: DataTypes.ENUM('conversation', 'project', 'workspace'),
     allowNull: false,
     defaultValue: 'conversation',
   },

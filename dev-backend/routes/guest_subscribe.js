@@ -146,7 +146,7 @@ router.post('/:token/notify/verify',
     const { GuestLink } = require('../models');
     const {
       normalizeEmail, hashToken, mintPersonalToken, promotePersonalIdentity,
-      OTP_MAX_ATTEMPTS, OTP_LOCK_MS,
+      ensureVisitorConversation, OTP_MAX_ATTEMPTS, OTP_LOCK_MS,
     } = require('../services/guest_link');
     const email = normalizeEmail(req.body?.email);
     const code = String(req.body?.code || '').trim();
@@ -185,6 +185,13 @@ router.post('/:token/notify/verify',
     const first = !link.email_verified_at;
     // 신원은 여기서 갈린다 — 확인 전에는 부모의 익명 신원을 쓰고 있었다(열거 타이밍·쓰레기 행 방지).
     if (first) await promotePersonalIdentity(link);
+    // ★ 워크스페이스 창구(scope='workspace')는 여기서 **방문자 자기 대화방**이 생긴다
+    //   (docs/CLIENT_ENTRY_DESIGN.md §4.2 — 창구 링크에는 방이 없다).
+    //   · **매번** 부른다(first 뿐이 아니다) — 첫 확인에서 방 만들기가 실패했으면 다음 확인에서
+    //     회복되어야 한다. 함수가 멱등이고 scope 로 잠겨 있어 다른 링크에는 아무 일도 안 한다.
+    //   · `promotePersonalIdentity` **뒤**여야 한다: 그 방의 주인이 «이 사람» 이어야 하고,
+    //     부모의 익명 그림자로 만들면 그 링크로 들어온 무리 전체가 한 방에 들어온다.
+    await ensureVisitorConversation(link);
     const minted = first ? await mintPersonalToken(link) : null;
     await link.update({
       email_verified_at: link.email_verified_at || new Date(),

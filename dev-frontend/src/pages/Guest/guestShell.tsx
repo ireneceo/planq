@@ -20,6 +20,67 @@ export const GuestTabPane = styled.div`
   > * { width:100%; max-width:${READ_W}; margin-left:auto; margin-right:auto; flex-shrink:0; }
 `;
 
+// ── 페이지 껍데기 (밴드1 + 탭 막대) ────────────────────────────────────────
+//
+// ★ 2026-09-25 — 이 열 개는 `GuestProjectPage.tsx` 안에 **private** 으로 있었다. 워크스페이스 창구
+//   화면(scope='workspace')이 같은 모양을 써야 하는데, 베끼면 갈라진다 —
+//   이 파일 머리말이 바로 그 이유로 존재한다(Empty·Lock·시트가 탭 파일마다 복사돼 있었다).
+//   **값은 한 글자도 바꾸지 않고** 옮겼다(색·높이·여백·미디어쿼리 그대로).
+
+/** 화면 루트 — 바깥은 100dvh 고정이고 스크롤 주체는 GuestTabPane 이다. */
+export const Wrap = styled.div`display:flex;flex-direction:column;height:100dvh;background:#f8fafc;`;
+
+/** 밴드1 — 로고·워크스페이스·제목. 직계 div 가 READ_W 기둥이라 본문과 왼쪽이 맞는다. */
+export const Head = styled.div`
+  min-height:60px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;
+  padding:14px 20px;
+  @media (max-width:640px){ padding:12px 16px; }
+  > div { width:100%; max-width:${READ_W}; margin:0 auto; }
+`;
+// 로고 + 제목 칸. Head 의 직계 div 규칙(READ_W 기둥)이 이 줄에 걸리므로 본문과 같은 기둥에 선다.
+export const HeadRow = styled.div`display:flex;align-items:center;gap:8px;`;
+export const HeadText = styled.div`min-width:0;flex:1;`;
+export const Title = styled.div`font-size:1.125rem;font-weight:700;letter-spacing:-0.2px;color:#0f172a;`;
+// 헤더 오른쪽 문 — Secondary 톤(3톤 규칙). 폰에서도 40 이상.
+export const HeadBtn = styled.button`
+  flex-shrink:0;min-height:36px;padding:0 12px;border-radius:8px;cursor:pointer;
+  border:1px solid #cbd5e1;background:#fff;color:#334155;font-size:0.8125rem;font-weight:600;white-space:nowrap;
+  &:hover{border-color:#14B8A6;color:#0F766E;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  @media (max-width:640px){ min-height:40px; }
+`;
+export const TabBar = styled.div`
+  display:flex;gap:2px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;
+  /* 탭도 본문과 같은 기둥에 세운다 — 안 그러면 탭은 화면 끝, 글은 가운데가 된다. */
+  padding:0 12px;
+  > * { flex-shrink:0; }
+  justify-content:flex-start;
+  &::after { content:''; }
+  @media (min-width:${READ_W}) { padding-left:calc((100% - ${READ_W}) / 2 + 12px); padding-right:calc((100% - ${READ_W}) / 2 + 12px); }
+`;
+export const Tab = styled.button<{ $on: boolean }>`
+  display:inline-flex;align-items:center;gap:6px;flex-shrink:0;
+  height:44px;padding:0 14px;border:none;background:none;cursor:pointer;
+  /* 폰에서는 다섯 탭이 **한 줄에 다 보이게** — 영어 375 에서 마지막 탭(Chat)이 잘려 가로로 밀어야 한다는 걸 알 수 없었다. */
+  @media (max-width:640px){ padding:0 9px; }
+  font-size:0.875rem;font-weight:${p => (p.$on ? 700 : 500)};
+  color:${p => (p.$on ? '#0F766E' : '#64748B')};
+  box-shadow:${p => (p.$on ? 'inset 0 -2px 0 #14B8A6' : 'none')};
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:-2px;}
+`;
+// 배지 — 컨트롤이 아니라 표시다. 높이를 px 로 박지 않고 padding·line-height 로 잡는다.
+export const Count = styled.span`
+  display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:1px 6px;line-height:1.45;
+  border-radius:999px;background:#F1F5F9;color:#475569;font-size:0.6875rem;font-weight:700;
+`;
+// 알림 신청 띠도 같은 기둥 — 안 그러면 대화 탭에서만 띠가 화면 끝까지 늘어난다.
+export const NotifyColumn = styled.div`
+  flex-shrink:0;padding:0 20px;
+  @media (max-width:640px){ padding:0 16px; }
+  > * { width:100%; max-width:${READ_W}; margin-left:auto; margin-right:auto; }
+`;
+
 export const Empty = styled.div`font-size:0.8125rem;color:#64748b;padding:12px 0;`;
 export const RetryInline = styled.button`
   border:none;background:none;padding:0;font-size:0.8125rem;font-weight:700;

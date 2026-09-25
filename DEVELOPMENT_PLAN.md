@@ -1,9 +1,110 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-25 ([Opus] Opus 5, 1M) — 오후: **업무 댓글 정렬 · 히스토리 시각 · 「Q위키」→「도움말」 개명(주소까지).** (미배포)
+> **최종 업데이트:** 2026-09-25 ([Opus] Opus 5, 1M) — 오후2: **고객 창구(CLIENT_ENTRY P1) — Fable 2라운드 PASS(1차 FAIL 2건).** (미배포)
+> 오후: 업무 댓글 정렬 · 히스토리 시각 · 「Q위키」→「도움말」 개명(주소까지). (미배포)
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료(미배포) · Fable 2라운드 PASS (1차 FAIL): 고객 창구 (CLIENT_ENTRY P1) (2026-09-25 오후2) [Opus]
+
+> **P2(예약)는 미착수다.** 설계 §6 은 P1+P2 를 한 사이클로 정했고 Fable 게이트도 한 번이다 —
+> 지금 올린 게이트는 **P1 범위**에 대한 것이고, P2 를 얹은 뒤 같은 라운드로 다시 판정받는다.
+
+### 무엇을 만들었나 (설계 `docs/CLIENT_ENTRY_DESIGN.md` §5 P1)
+
+| 항목 | 내용 |
+|---|---|
+| 스키마 2건 | `guest_links.scope` ENUM 끝에 `'workspace'` append · **`conversation_id` NULL 허용**. 멱등 `dev-backend/scripts/migrate-guest-link-scope-workspace.js`, **코드 배포 전** 슬롯 |
+| 창구 관리 | `routes/customer_entry.js` 신규 — 멱등 발급(워크스페이스당 1개)·회수·소개/서비스 저장. `/api/businesses` 에 `businesses.js` **앞** 마운트 |
+| 술어 단일화 | `services/guest_link.js` `normalizeScope` 한 곳 — 전엔 `scope === 'project' ? … : 'conversation'` 삼항이 **세 군데**에 흩어져 있었다(하나만 빠뜨리면 조용히 강등된다) |
+| 방문자 본인 대화방 | `ensureVisitorConversation` — OTP 확인 시 생성(멱등). 환영 문구는 초대 경로(`clientOnboarding.welcomeText`)와 **같은 함수** |
+| 공용 문 | `routes/guest_common.js` `requireRoom` — 대화방을 전제하는 4라우트에 건다. 없으면 무인증 GET 이 **500** 이 된다(실측) |
+| 무인증 응답 | `routes/guest.js` `entryOf` 화이트리스트(tagline·intro·services·contact 4). **workspace scope 에만** 실린다 — 옛 링크 응답에는 키 자체가 없다 |
+| 화면 | `GuestWorkspacePage`(안내·문의하기·내 문의·프로젝트🔒) — 껍데기 10개를 `guestShell.tsx` 로 **빼서** 프로젝트 화면과 공유. `GuestNotifySection` 은 `variant='entry'` 로 재사용 |
+| 설정 | `components/Permissions/CustomerEntrySection.tsx` — 설정 › 권한 «고객 창구» 카드(주소·복사·미리보기·교체·소개/서비스 AutoSave) |
+
+### ★ Fable 1차 **FAIL** — 내가 틀린 두 곳 (고쳤다)
+
+내가 프롬프트에 «제일 위험한 지점» 이라고 적어 놓은 바로 그 자리에서 결함 2건이 나왔다.
+**그리고 내 근거가 정반대였다.**
+
+| # | 무엇이 틀렸나 |
+|---|---|
+| **E6** | `parent.conversation_id && …` 로 쓴 대화방 일치 완화가 **옛 scope 판정을 바꿨다.** conversation 링크의 방이 비면(이번 마이그레이션이 NULL 을 가능하게 만들었다) **부모는 404 인데 자식(개인 링크)이 200** 으로 열렸다. 옛 코드는 `NULL !== 124` 로 자식도 닫았다. 나는 «scope 로 가르면 옛 링크 무변경 대조군이 성립하지 않는다» 고 적었는데 **반대였다** — `parent.scope !== 'workspace'` 로 가르면 옛 scope 는 HEAD 와 **글자까지 같은 판정**이 된다 |
+| **D1** | 창구에서 그 검사를 면제한 순간 **링크와 방을 잇는 검사가 아무것도 없어졌다.** 개인 링크 A 의 `conversation_id` 를 B 의 방으로 바꾸면 ctx·messages 가 **200**. 사용자가 그 값을 정할 HTTP 경로는 0건이지만 «오늘 닿을 수 없다» 는 심층방어를 없앨 이유가 못 된다 |
+
+**수정**: ① 두 검사(대화방 일치 · `can_write` 상한)를 **같은 방식으로** `parent.scope !== 'workspace'` 로 가른다.
+② workspace scope 이고 방이 있으면 **`ConversationParticipant` 소유 검사**를 요구한다(면제했으면 대체 검사를 둔다).
+
+**교훈**: 「좁은 조건이 더 안전하다」는 직관이 틀렸다. truthiness 로 가르면 **값이 빈 경우에 검사 자체가
+사라진다** — 규칙이 지키려는 전제(같은 방을 공유하나)를 그대로 쓰지 않고 그 전제의 *징후*(방이 있나)를
+쓴 것이 원인이다. 그리고 같은 전제를 두 곳에서 다르게 표현하면 한쪽만 샌다.
+
+**E6·D1 은 카나리에 상주시켰다**(`runE6`·`runD1`) — 임시 스크립트에 뒀다가 `rm` 을 먼저 해서 한 번 잃었다.
+
+### Fable 관찰 반영 3건
+- 카나리 `FORBIDDEN_WS` 에서 `owner`·`brand_` 를 뺐던 것 복원 — **둘 다 0건**이라 뺄 이유가 없었다(빨간불 선제 소등)
+- 창구 PUT/POST/DELETE 를 `assertEntryAdmin`(오너/플랫폼 관리자)로 좁혀 **화면 기준과 일치**시켰다.
+  화면은 `disabled={!isOwner}` 인데 서버는 멤버+ 였다 — 화면이 서버보다 좁으면 서버가 허용하는 것을 아무도 못 한다
+- 내 스크립트가 남긴 dev 데이터(`businesses.permissions.customer_entry`) 정리 + 스크립트가 원복하도록 수정
+
+### 설계 이탈 3건 — **판단 주체는 Opus**, Fable 재판정 대상
+1. **`conversation_id` nullable** — 설계 §5 는 스키마를 「ENUM append 1건」으로 적었다. 설계가 말하는
+   공유 workspace 링크는 **가리킬 대화방이 없다**(방은 OTP 뒤 개인 링크마다 생긴다). 대안은 워크스페이스마다
+   빈 앵커 대화방 1개였는데, 그러면 Q Talk·Q sale 상담 탭에 **메시지 0건 고객 대화방**이 영구히 남는다.
+2. **`resolveGuestToken` 완화 2곳** — 부모·자식 «대화방 일치» 와 «`can_write` 상한» 을
+   **「부모가 방을 가졌을 때만」** 으로 좁혔다. 두 규칙이 지키는 것은 «그 방» 인데 창구는 부모에게 방이 없다.
+   scope 분기로 가르지 않은 이유: 기존 링크는 부모가 **전부** 방을 가지므로 판정이 한 줄도 안 바뀐다.
+   ★ 안 고치면 **이메일을 확인한 방문자가 자기 방에 한 글자도 못 쓴다**(「문의하기」 탭이 통째로 죽는다).
+3. **공유 창구 글쓰기가 404**(설계 실측 항목은 403) — 방이 없어 `requireRoom` 이 앞에서 막는다. 설계보다 좁다.
+   **근무시간·QR 은 P1 에서 제외** — `businesses.work_hours` 는 읽는 곳이 0곳이고 `req.body` 원문을 저장하므로
+   무인증 응답에 실을 수 없다(모양은 P2 슬롯 계산이 정의). QR 은 저장소에 라이브러리가 없어 Irene 결정 대기.
+
+### 부수 수정 1건 (P1 의 전제)
+`routes/businesses.js` `PUT /permissions` 가 화이트리스트로 객체를 **새로 조립**해 모르는 JSON 키를 버렸다.
+그대로 두면 권한 토글을 한 번 누를 때마다 **창구 설정이 지워진다.** 그 파일 주석에 이미 같은 사고
+(`client_show_assignee`)가 적혀 있던 자리다 → 기존 값에서 출발하도록 고쳤다(쓰기 가능한 키는 그대로).
+
+### 자체 검증 수치 (Fable 판정 전 — 「통과」가 아니다)
+- 실HTTP **57/57**(E6·D1·권한 5검사 추가) · `--suite guestentry`·`guestproject`·`tenant` 실패 **0**(창구 축 신설: 4탭이 **3폭에서 그려지는지** 좌표+`elementFromPoint`)
+- `npm run build` EXIT 0 · `error TS` 0 · health **48/48** · guard **59/60**(평소값, i18n/parity 증가 0)
+- 마이그레이션: 멱등 재실행 무해 · 기존 **55행 무변경**을 스크립트가 직접 판정 · FK 유지
+- **대조군 9종 전부 뒤집힘**(H·I 추가 — 고친 두 줄을 되돌려 원래 결함 재현) — A `can_write` 상한 복원→쓰기 403 / B 대화방 일치 복원→개인 링크 404 /
+  C `conversation_id` 를 NULL 로 망가뜨린 conversation 링크→404(fail-closed) / D `requireRoom` 제거→POST 403·**GET 500** /
+  E `permissions` 보존 제거→창구 설정 소실 / F ctx scope 위조→카나리 **화면 판정 3폭 전부** 실패 / G `entry` 키 추가→실패 /
+  **H** E6 수정 되돌림→`부모 404 자식 200`(Fable 실측값 재현) / **I** D1 소유검사 제거→`ctx 200 messages 200`
+- DB 잔여 0(검사기가 스스로 판정. ★ 첫 실행은 **부모를 먼저 지우려다 자식 FK 에 막혀 조용히 1건 남겼다** —
+  `.catch(()=>null)` 이 가렸다. 자식→부모 순으로 고치고 잔여를 판정 항목으로 넣었다)
+
+### Fable 2차 판정 — **PASS** (독립 실측)
+- ①diff 범위: 판정 두 줄이 HEAD 에 `parent.scope !== 'workspace' &&` **만 앞에 붙은 형태**라
+  옛 scope 에서 그 항이 항상 참 → **HEAD 와 판정이 같다**(Fable 이 소스로 확인).
+- ②가드: health 48/48 · guard 59/60 · `guestentry`·`guestproject`·`tenant` 실패 0 · 빌드 EXIT 0·`error TS` 0 ·
+  locale `.json.gz` == 평문 `cmp` 일치.
+- ③실호출 **48/48**(Fable 자체 프로브) — E6 `404/404`(전 `404/200`) · D1 `404/404`(전 `200/200`) ·
+  옛 scope 무변경 재확인 · 격리(A 의 비밀 문자열이 B 방에 없음) · **권한 정렬 실측: 멤버 GET 200 / PUT·POST·DELETE 403** ·
+  비멤버 403×4 · 고객 403×4 · 남의 워크스페이스 창구 회수 404+살아 있음 · Q Talk·Q sale 유입 확인.
+- ④배포 안전성: 마이그레이션 무변경(멱등·FK 유지·STRICT 1048 fail-safe·롤백). 이번 수리는 코드 2줄이라 절차 무영향.
+- **질문 1 답(소유 검사가 정당한 거부를 만드나)**: 순서는 맞다 — `ensureVisitorConversation` 이 참여자
+  `findOrCreate` **뒤** `conversation_id` 를 쓴다. 참여자 삭제 경로는 «오너 또는 본인» 뿐이고 cron·정리 경로 0.
+
+### 비차단 관찰 (P2 에서 처리)
+**방문자를 방에서 빼면 그 링크는 영구 404 이고 회복 문이 없다** — 재확인해도
+`ensureVisitorConversation` 이 기존 방을 그대로 돌려주고 참여자를 되살리지 않는다(Fable 실측 D2).
+오너가 의도적으로 뺀 것이므로 닫히는 것은 옳지만, 되돌릴 길이 없다. P2 에서 재확인 시 참여자
+`findOrCreate` 한 줄로 회복 가능. ★ **지금 고치지 않은 이유**: 마커 기록 뒤 코드를 바꾸면 지문이 달라져
+이 PASS 가 무효가 된다. P2 와 함께 한 라운드로 올린다.
+
+### 수정된 파일 (22)
+- 신규 4: `dev-backend/routes/customer_entry.js` · `dev-backend/scripts/migrate-guest-link-scope-workspace.js` ·
+  `dev-frontend/src/pages/Guest/GuestWorkspacePage.tsx` · `dev-frontend/src/components/Permissions/CustomerEntrySection.tsx`
+- BE 8: `models/GuestLink.js` · `services/guest_link.js` · `routes/{guest,guest_common,guest_subscribe,guest_auth,businesses}.js` · `server.js`
+- FE 6: `pages/Guest/{GuestConversationPage,GuestNotifySection,GuestProjectPage,guestShell}.tsx` · `pages/Settings/PermissionsSettings.tsx`
+- i18n 4: `public/locales/{ko,en}/{guest,settings}.json` (`entry` 블록 22키씩, 패리티 0)
+- E2E 1: `scripts/e2e/canary-guest-entry.js` (창구 축 + **E6·D1 회귀 상주**(`runE6`·`runD1`, 음성 대조군 포함) + `cleanup:visitor-rooms`)
 
 ---
 

@@ -11,6 +11,8 @@ import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 // 사이클 N+21 — 멤버 매트릭스 + 기본 청구 담당
 import MemberPermissionMatrix from '../../components/Permissions/MemberPermissionMatrix';
 import DefaultBillingOwnerSection from '../../components/Permissions/DefaultBillingOwnerSection';
+// 고객 창구 — «고객 공개 범위» 와 같은 축(«고객에게 무엇이 보이는가»)이라 이 탭에 둔다.
+import CustomerEntrySection from '../../components/Permissions/CustomerEntrySection';
 
 type ToggleKey = 'financial' | 'schedule' | 'client_info';
 type ToggleValue = 'all' | 'pm';
@@ -263,6 +265,10 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
             : t('permissions.loading')}
         </Preview>
       </Card>
+
+      {/* 고객 창구 — 워크스페이스 주소·소개(docs/CLIENT_ENTRY_DESIGN.md §4.5).
+          «고객 공개 범위» 바로 아래다 — 둘 다 고객에게 보이는 것의 결정이다. */}
+      <CustomerEntrySection businessId={businessId} isOwner={isOwner} />
 
       {/* 사이클 N+21 — 멤버별 메뉴 권한 매트릭스 + 기본 청구 담당 */}
       <MemberPermissionMatrix businessId={businessId} isOwner={isOwner} />
