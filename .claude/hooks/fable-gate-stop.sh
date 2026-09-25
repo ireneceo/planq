@@ -27,6 +27,10 @@
 
 cat >/dev/null 2>&1   # hook stdin 소비 (사용 안 함)
 
+# 지문 경로 — 단일 정본(fable-gate-paths.sh). 2026-09-25 부터 scripts·게이트 자체 포함, docs 제외.
+#   이유는 그 파일 머리말. 검사기만 약화시키는 변경이 게이트를 울리지 않던 구멍을 막는다.
+source "$(dirname "$0")/fable-gate-paths.sh"
+
 REPO=/opt/planq
 MARKER="$REPO/.claude/.fable-gate.json"
 SKIP="$REPO/.claude/.fable-gate-skip"
@@ -42,7 +46,7 @@ if [ -f "$SKIP" ]; then
 fi
 
 # 소스 미커밋 변경 상태 (추적/미추적 모두)
-CHANGED=$(git -C "$REPO" status --porcelain -- dev-backend dev-frontend q-note 2>/dev/null)
+CHANGED=$(git -C "$REPO" status --porcelain -- "${GATE_PATHS[@]}" 2>/dev/null)
 
 # ★ 2026-09-10 — **커밋은 검증이 아니다.**
 #   여태 이 훅은 미커밋 변경만 봤다. 그래서 작업을 끝내고 커밋하는 순간 $CHANGED 가 비어
@@ -52,7 +56,7 @@ CHANGED=$(git -C "$REPO" status --porcelain -- dev-backend dev-frontend q-note 2
 #   → 마지막 게이트 통과 **이후에 쌓인 소스 커밋**도 미검증으로 센다.
 LAST=$(jq -r '.commit // empty' "$MARKER" 2>/dev/null)
 if [ -n "$LAST" ] && git -C "$REPO" cat-file -e "${LAST}^{commit}" 2>/dev/null; then
-  COMMITTED=$(git -C "$REPO" log --format=%H "${LAST}..HEAD" -- dev-backend dev-frontend q-note 2>/dev/null)
+  COMMITTED=$(git -C "$REPO" log --format=%H "${LAST}..HEAD" -- "${GATE_PATHS[@]}" 2>/dev/null)
 else
   # 마커에 커밋이 없다(옛 형식) → 소스 커밋 이력을 판정할 수 없으므로 미커밋 변경만 본다.
   COMMITTED=""

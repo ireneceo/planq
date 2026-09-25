@@ -322,6 +322,10 @@ sync_database() {
   # #259 2차 — 게스트 링크에서 고객 의존을 뗀다 (client_id NULL 허용 · guest_links.guest_user_id 신설
   #   · clients.guest_user_id DROP). ★ 반드시 1차 뒤에. 멱등이며 운영 링크 0건이라 백필 없음.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-guest-link-owner.js 2>&1 | tail -12"
+  # 2026-09-25 고객 창구(CLIENT_ENTRY P1) — guest_links.scope ENUM 끝에 'workspace' append
+  #   · conversation_id NULL 허용. 멱등(2회차 no-op). ★ 순서: PM2 reload 보다 먼저 —
+  #   ENUM 에 값이 없는 채 신 코드가 뜨면 창구 발급이 1265/잘림으로 죽는다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-guest-link-scope-workspace.js 2>&1 | tail -10"
   # Q Mail 발송 상태 — email_messages.delivery_status ENUM 에 'suppressed' append.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"

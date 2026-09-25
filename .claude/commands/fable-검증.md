@@ -13,7 +13,7 @@ CLAUDE.md **'역할 분담 — 기획·설계·검증·테스트 = Fable (무조
 
 > 너는 PlanQ 독립 검증관(Fable)이다. 방금 Opus 가 구현한 변경을 **코드 리뷰가 아니라 실제 실행/호출로** 검증하고, 통과/실패를 근거와 함께 판정하라. 통과를 남발하지 말고 의심되면 실패로 판정하라.
 >
-> **대상 변경 파악**: `cd /opt/planq && git status --porcelain -- dev-backend dev-frontend q-note` 와 `git diff` 로 이번 미커밋 변경 범위를 확인.
+> **대상 변경 파악**: `cd /opt/planq && source .claude/hooks/fable-gate-paths.sh && git status --porcelain -- "${GATE_PATHS[@]}"` 와 `git diff` 로 이번 미커밋 변경 범위를 확인.
 >
 > **① diff 범위 대조** — 변경이 사전 합의된 설계/요구 범위 안인가. 설계 외 변경(임의 추가·부수 수정) 0 인지 확인. 벗어난 게 있으면 목록화.
 >
@@ -53,7 +53,8 @@ REPO=/opt/planq
 # ★ 훅은 미커밋 변경 **+ 마지막 통과 이후의 소스 커밋** 을 함께 해시한다.
 #   마커에 `commit` 을 반드시 남겨야 다음 판정의 기준점이 생긴다 — 빠뜨리면 훅이
 #   커밋 이력을 못 보고 옛 동작(커밋하면 침묵)으로 되돌아간다.
-CHANGED=$(git -C "$REPO" status --porcelain -- dev-backend dev-frontend q-note)
+source "$REPO/.claude/hooks/fable-gate-paths.sh"
+CHANGED=$(git -C "$REPO" status --porcelain -- "${GATE_PATHS[@]}")
 HEADC=$(git -C "$REPO" rev-parse HEAD)
 FP=$(printf '%s\n%s' "$CHANGED" "" | sha256sum | cut -d' ' -f1)
 printf '{"fingerprint":"%s","commit":"%s","ts":%s,"by":"fable"}\n' "$FP" "$HEADC" "$(date +%s)" > "$REPO/.claude/.fable-gate.json"
@@ -79,11 +80,12 @@ Irene 2026-09-10: *"페이블 토큰 있을 때 페이블 쓰고 아닐 때 스�
 
 ```bash
 REPO=/opt/planq
-CHANGED=$(git -C "$REPO" status --porcelain -- dev-backend dev-frontend q-note)
+source "$REPO/.claude/hooks/fable-gate-paths.sh"
+CHANGED=$(git -C "$REPO" status --porcelain -- "${GATE_PATHS[@]}")
 HEADC=$(git -C "$REPO" rev-parse HEAD)
 LAST=$(jq -r '.commit // empty' "$REPO/.claude/.fable-gate.json" 2>/dev/null)
 if [ -n "$LAST" ] && git -C "$REPO" cat-file -e "${LAST}^{commit}" 2>/dev/null; then
-  COMMITTED=$(git -C "$REPO" log --format=%H "${LAST}..HEAD" -- dev-backend dev-frontend q-note)
+  COMMITTED=$(git -C "$REPO" log --format=%H "${LAST}..HEAD" -- "${GATE_PATHS[@]}")
 else COMMITTED=""; fi
 FP=$(printf '%s\n%s' "$CHANGED" "$COMMITTED" | sha256sum | cut -d' ' -f1)
 printf '{"fingerprint":"%s","commit":"%s","ts":%s,"by":"unavailable"}\n' "$FP" "$HEADC" "$(date +%s)" > "$REPO/.claude/.fable-gate.json"
