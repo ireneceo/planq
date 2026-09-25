@@ -1,6 +1,39 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-24 ([Opus] Opus 5, 1M) — **운영 배포 2회(v1.59.0 · v1.60.0).**
+> **최종 업데이트:** 2026-09-25 ([Opus] Opus 5.5, 1M) — **운영 배포 6회(v1.61.0 ~ v1.63.5).**
+> 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
+> ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 보안 점검 · 감사 커버리지 · 이미지 보안 2b (2026-09-24~25, v1.61.0 ~ v1.63.5)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 게스트 진입 P0·A·B | `/g/` 밴드1 워크스페이스 이름·로고 · 파생 HMAC 공유 링크 멱등 발급/교체 · 고객 공개 범위 설정 · 로그인 시트 (v1.61~62) | ✅ |
+| 이미지 보안 2a | 개인(L1) 이미지는 올린 사람만 · 킬스위치(시각) · 캐시 앞 게이트 · health imagegate (v1.63.0) | ✅ Fable |
+| 이미지 2b 0단계 | 채팅·업무 첨부 사본도 원본 File 등급 · 못 보는 파일 첨부 불가 · findSourceFile 좁은 등급 우선 (v1.63.1~2) | ✅ Fable |
+| 이미지 2b 1·2단계 | 공개 화면 3곳 `image_ctx`(AES-GCM) + L2/L3 계측(막지 않음) · `--suite imagectx` (v1.63.3) | ✅ Fable |
+| 감사 1~3순위 | 변경 라우트 감사 없음 **328 → 98** · auditDiff 헬퍼 · 이중 기록은 사유 명시 제외 | ✅ Fable |
+| 권한 결함 3건 | Cue 초안 승인/거절 · 후보 병합 · 대화방 메시지 — 프로젝트 없는 대화방/업무 id 무검사로 **남의 워크스페이스에 쓰기** 가능했다. 운영 흔적 0 (v1.63.5) | ✅ Fable |
+| PDF 이미지 | `?w=` 이미지 누락(운영 11건) → 인라인 · 그 수정이 만든 500 회귀 → 1600px 줄여 넣기 + 시간 초과 시 이미지 없이 재렌더 (v1.63.3~4) | ✅ 자체 |
+| 기존 결함 | 서명본 HTML 이미지 깨짐(127.0.0.1) · 기본 발신 계정 재설정 시 해제 · 로그 토큰 노출(redactUrl) | ✅ |
+
+### 수정된 파일 (주요)
+- `dev-backend/middleware/imageViewer.js` · `services/imageCtx.js` · `services/guestPost.js` · `services/pdfInlineImages.js` · `services/imageResize.js` · `services/pdfService.js` · `services/pdfTemplates.js` · `services/auditService.js` · `utils/redactUrl.js`
+- `dev-backend/routes/{projects,posts,guest_project,signature_public,email_accounts,…}.js` (감사 3라운드 약 50파일)
+- `dev-frontend/src/utils/imageCtx.ts` · `pages/QDocs/{PublicPostPage,PublicSignPage}.tsx` · `pages/Guest/GuestDocsTab.tsx`
+- `scripts/e2e/canary-image-ctx.js` · `scripts/health-check.js` · `docs/IMAGE_STAGE2B_DECISIONS.md` §5 · `docs/FABLE_GATE_QUEUE.md`
+
+### 다음
+- **고객 워크스페이스 링크(CLIENT_ENTRY P1)** — 설정 «고객 창구» 카드(주소·QR·복사·교체·미리보기) + Q sale 복사 버튼. P2(예약)와 묶을지 결정 대기. R=1 · ENUM append 마이그레이션
+- 이미지 2b 3단계(운영 계측 ~14일 뒤) · 감사 잔여 98 · receipt-request 전용 limiter · 폴더 삭제 감사 목록 상한
+
+---
+
+> 이전 업데이트: 2026-09-24 ([Opus] Opus 5, 1M) — **운영 배포 2회(v1.59.0 · v1.60.0).**
 > 오전: 사진 배치 업로드가 30장에서 잘리던 것(운영 신고) + 실패 목록 일괄 조치 + K-DINE 옛 사진 18장 정리.
 > 오후: 폴더 삭제 시 파일 처리 선택 · 폴더째 업로드 · 같은 이름 재업로드 확인.
 > **Fable 게이트 4라운드(1~3차 FAIL, 4차 PASS).** 차단 결함 3건이 배포 전에 잡혔고 **둘은 내가 고치면서
