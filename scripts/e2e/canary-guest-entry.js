@@ -295,6 +295,46 @@ async function runD2(push, unmeasured, deskToken) {
     back.status === 200 && again?.conversation_id === row.conversation_id, `ctx=${back.status} room ${row.conversation_id}→${again?.conversation_id}`);
 }
 
+/** D3 — 오너가 방문자 **한 사람만** 막는다. 막힌 사람은 재확인해도 못 들어오고, 다른 방문자는 그대로다. */
+async function runD3(push, unmeasured, biz, deskToken) {
+  if (!deskToken) { unmeasured('D3 방문자 막기', '창구 토큰 없음'); return; }
+  const crypto = require('crypto');
+  const mk = async (tag) => {
+    const mail = `d3${tag}-canary-${Date.now()}@example.com`;
+    await fetch(`${API}/api/guest/${deskToken}/notify/request`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: `D3${tag}`, email: mail, consent: true, locale: 'ko' }),
+    });
+    const code = tag === 'a' ? '112233' : '445566';
+    await sql('UPDATE guest_links SET otp_hash=?, otp_expires_at=DATE_ADD(NOW(), INTERVAL 5 MINUTE), otp_attempts=0, otp_locked_until=NULL WHERE contact_email=?',
+      [crypto.createHash('sha256').update(code).digest('hex'), mail]);
+    const r = await fetch(`${API}/api/guest/${deskToken}/notify/verify`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: mail, code }) });
+    const j = await r.json().catch(() => null);
+    const [row] = await sql('SELECT id, conversation_id FROM guest_links WHERE contact_email=?', [mail]);
+    if (row?.conversation_id) createdRooms.push(row.conversation_id);
+    return { mail, code, ptok: j?.data?.personal_token, id: row?.id };
+  };
+  const A = await mk('a'); const Bv = await mk('b');
+  if (!A.ptok || !Bv.ptok) { unmeasured('D3 방문자 막기', '확인 실패'); return; }
+  const wrong = await api(`/api/businesses/${biz === 1 ? 2 : 1}/customer-entry/contacts/${A.id}`, { method: 'DELETE' });
+  push('D3: 남의 워크스페이스 경로로 막기 → 403/404', [403, 404].includes(wrong.status), String(wrong.status));
+  const blk = await api(`/api/businesses/${biz}/customer-entry/contacts/${A.id}`, { method: 'DELETE' });
+  const aCtx = await fetch(`${API}/api/guest/${A.ptok}`);
+  const bCtx = await fetch(`${API}/api/guest/${Bv.ptok}`);
+  push('D3: 막기 200 → 그 사람 링크 404 · 다른 방문자 200', blk.status === 200 && aCtx.status === 404 && bCtx.status === 200,
+    `block=${blk.status} A=${aCtx.status} B=${bCtx.status}`);
+  await sql('UPDATE guest_links SET otp_hash=?, otp_expires_at=DATE_ADD(NOW(), INTERVAL 5 MINUTE), otp_attempts=0 WHERE contact_email=?',
+    [crypto.createHash('sha256').update(A.code).digest('hex'), A.mail]);
+  const re = await fetch(`${API}/api/guest/${deskToken}/notify/verify`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: A.mail, code: A.code }) });
+  const aAfter = await fetch(`${API}/api/guest/${A.ptok}`);
+  push('D3: 막힌 사람은 이메일을 다시 확인해도 못 들어온다(D2 회복과 짝)', re.status === 400 && aAfter.status === 404,
+    `verify=${re.status} ctx=${aAfter.status}`);
+  const shared = await api(`/api/businesses/${biz}/customer-entry/contacts/${(await sql("SELECT parent_link_id p FROM guest_links WHERE id=?", [A.id]))[0].p}`, { method: 'DELETE' });
+  push('D3: 공유 창구 링크 id 로는 막기 경로가 안 먹는다(404)', shared.status === 404, String(shared.status));
+}
+
 /** 창구 축 — 발급 → 서버 응답 모양 → 화면 → 회수. `issued` 에 만든 것을 적어 둔다(정리용). */
 // 설정 «고객 창구» 카드의 QR (설계 §4.5) — 창구 주소가 살아 있는 동안 3폭에서 잰다.
 //   크기만 재지 않고 **그 좌표가 QR 자신인지**(elementFromPoint) 와 **이미지가 실제로 디코드됐는지**
@@ -403,6 +443,8 @@ async function runDesk(browser, biz, push, unmeasured, issuedWs) {
 
   // ── ★ D2 회복 (2026-09-25 Fable 관찰 → 설계대로 반영) ─────────────────────
   await runD2(push, unmeasured, token);
+  // ── D3 방문자 한 사람 막기 (2026-09-25 Fable 관찰 → 반영)
+  await runD3(push, unmeasured, biz, token);
 
   // ── 회수 → 404
   if (issuedWs.length) {

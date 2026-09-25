@@ -713,6 +713,11 @@
         "sat": "Sat",
         "sun": "Sun"
       }
-    }
+    },
+    "block": "Block",
+    "blocked": "Blocked",
+    "blockTitle": "Block this visitor?",
+    "blockOk": "Block",
+    "blockBody": "Their personal link closes right away, and verifying the email again won't let them back in. The conversation history stays."
   }
 }

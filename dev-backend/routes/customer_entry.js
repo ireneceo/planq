@@ -252,4 +252,36 @@ router.delete('/:businessId/customer-entry/link/:linkId', authenticateToken, att
   } catch (err) { next(err); }
 });
 
+// ── DELETE /api/businesses/:businessId/customer-entry/contacts/:linkId ─────
+//   **방문자 한 사람만** 막는다(2026-09-25, Fable 관찰 D3). 창구 전체 회수는 모두를 막고,
+//   대화방에서 빼는 것은 이메일 재확인으로 돌아온다(D2 — 의도한 회복 문). 한 사람을 영구히
+//   막는 문은 그 사람의 **개인 링크 회수**다 — 회수된 개인 링크는 재확인해도 400 이다(guest_subscribe verify).
+//   그 문이 화면에 없어서 오너가 한 사람을 막을 길이 없었다.
+// ★ 창구(scope=workspace)의 **자식**만 잡는다 — id 만 믿으면 남의 워크스페이스·다른 scope 링크를 회수한다.
+// ★ 방·대화 기록은 지우지 않는다. 닫는 것은 그 사람의 입구다(대화는 팀 쪽 원장이다).
+router.delete('/:businessId/customer-entry/contacts/:linkId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!(await assertEntryAdmin(req, businessId))) return errorResponse(res, 'forbidden', 403);
+    const link = await GuestLink.findOne({
+      where: { id: Number(req.params.linkId) || 0, business_id: businessId, kind: 'personal', scope: 'workspace' },
+    });
+    if (!link || !link.parent_link_id) return errorResponse(res, 'not_found', 404);
+    const parent = await GuestLink.findOne({
+      where: { id: link.parent_link_id, business_id: businessId, kind: 'shared', scope: 'workspace' },
+      attributes: ['id'],
+    });
+    if (!parent) return errorResponse(res, 'not_found', 404);
+    const r = await revokeGuestLink(link, { userId: req.user.id });
+    if (!r.already) {
+      createAuditLog({
+        userId: req.user.id, businessId,
+        action: 'guest_link.revoke', targetType: 'GuestLink', targetId: link.id,
+        oldValue: { scope: 'workspace', kind: 'personal', parent_link_id: link.parent_link_id },
+      });
+    }
+    return successResponse(res, { revoked: true, already: !!r.already });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

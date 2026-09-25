@@ -24,7 +24,7 @@ type EntryLink = {
   url: string | null;
   can_write: boolean;
   last_used_at: string | null;
-  contacts: { id: number; name: string | null; email: string | null; verified_at: string | null }[];
+  contacts: { id: number; name: string | null; email: string | null; verified_at: string | null; revoked_at?: string | null }[];
 };
 type Settings = { intro: string; services: string[] };
 
@@ -39,6 +39,8 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [askReplace, setAskReplace] = useState(false);
+  // 방문자 한 사람 막기(D3) — 되돌릴 수 없으므로 한 번 묻는다. 막은 사람은 이메일을 다시 확인해도 못 들어온다.
+  const [askBlock, setAskBlock] = useState<EntryLink['contacts'][number] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [qr, setQr] = useState<string | null>(null);
 
@@ -120,6 +122,17 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
 
   const verified = (link?.contacts || []).filter((c) => c.verified_at);
 
+  const block = async (c: EntryLink['contacts'][number]) => {
+    if (busy) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await apiFetch(`/api/businesses/${businessId}/customer-entry/contacts/${c.id}`, { method: 'DELETE' });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success) { setErr(j?.message || `error_${r.status}`); return; }
+      await load();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+  };
+
   return (
     <Card data-testid="settings-customer-entry">
       <CardHeader>
@@ -156,6 +169,23 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
               ? t('entry.visitors', { count: verified.length, defaultValue: '이메일을 확인한 방문자 {{count}}명' })
               : t('entry.noVisitors', '아직 이메일을 확인한 방문자가 없습니다.')}
           </Hint>
+          {verified.length > 0 && (
+            <Visitors data-testid="entry-visitors">
+              {verified.map((c) => (
+                <VRow key={c.id} data-testid={`entry-visitor-${c.id}`}>
+                  <VName>{c.name || '—'}</VName>
+                  <VMail title={c.email || ''}>{c.email}</VMail>
+                  {c.revoked_at ? (
+                    <VBlocked>{t('entry.blocked', '막음')}</VBlocked>
+                  ) : isOwner && (
+                    <Btn type="button" $danger disabled={busy} data-testid={`entry-visitor-block-${c.id}`} onClick={() => setAskBlock(c)}>
+                      {t('entry.block', '막기')}
+                    </Btn>
+                  )}
+                </VRow>
+              ))}
+            </Visitors>
+          )}
           {qr && (
             <QrRow>
               <QrImg src={qr} alt={t('entry.qrAlt', '창구 주소 QR 코드') as string} data-testid="entry-qr" width={160} height={160} />
@@ -222,6 +252,16 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
       {link?.url && <BookingSettings businessId={businessId} isOwner={isOwner} />}
 
       <ConfirmDialog
+        isOpen={!!askBlock}
+        title={t('entry.blockTitle', '이 방문자를 막을까요?') as string}
+        message={askBlock ? `${askBlock.name || ''} ${askBlock.email || ''}\n${t('entry.blockBody', '이 사람의 개인 링크가 즉시 닫힙니다. 이메일을 다시 확인해도 들어올 수 없습니다. 대화 기록은 남습니다.')}` : ''}
+        confirmText={t('entry.blockOk', '막기') as string}
+        cancelText={t('common.cancel', '취소') as string}
+        variant="danger"
+        onConfirm={() => { const c = askBlock; setAskBlock(null); if (c) void block(c); }}
+        onClose={() => setAskBlock(null)}
+      />
+      <ConfirmDialog
         isOpen={askReplace}
         title={t('entry.replaceTitle', '창구 주소를 교체할까요?') as string}
         message={t('entry.replaceBody', '지금 주소는 즉시 열리지 않게 됩니다. 이미 배포한 명함·메일의 링크도 함께 닫힙니다. 이메일을 확인한 방문자의 개인 링크도 닫힙니다.') as string}
@@ -262,6 +302,15 @@ const Btn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
   @media (max-width:640px){ height:40px; }
 `;
+const Visitors = styled.div`display:flex;flex-direction:column;gap:6px;`;
+const VRow = styled.div`
+  display:flex;align-items:center;gap:8px;min-height:36px;padding:0 0 0 10px;
+  border:1px solid #F1F5F9;border-radius:8px;
+  @media (max-width:640px){ flex-wrap:wrap;padding:6px 10px; }
+`;
+const VName = styled.span`flex-shrink:0;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.8125rem;font-weight:600;color:#0F172A;`;
+const VMail = styled.span`flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.75rem;color:#64748B;`;
+const VBlocked = styled.span`flex-shrink:0;padding:0 10px;font-size:0.75rem;font-weight:600;color:#94A3B8;`;
 const QrRow = styled.div`display:flex;align-items:center;gap:12px;flex-wrap:wrap;`;
 const QrImg = styled.img`
   flex-shrink:0;width:160px;height:160px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;

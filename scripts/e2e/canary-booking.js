@@ -74,6 +74,27 @@ async function click(page, sel) {
   await page.click(sel);
 }
 
+/** 발급한 공유 링크의 익명 그림자 id — 지우기 전에 모은다(purgeShadows 가 지운다) — 링크 행만 지우면 그림자 User 와 (대화방 링크면) 참여자 행이 남는다
+ *  (2026-09-25 Fable 관찰: 실행마다 is_guest User 가 쌓였다). 메시지를 쓴 그림자는 대화 기록이라 남긴다. */
+async function sharedShadowIds(qf, linkIds) {
+  const ids = linkIds.filter(Boolean);
+  if (!ids.length) return [];   // ★ 배열이어야 한다 — 0 을 돌려주면 purgeShadows 가 for…of 에서 던지고 설정 원복이 건너뛰어진다(Fable FAIL)
+  const us = (await qf('SELECT guest_user_id FROM guest_links WHERE id IN (?) AND guest_user_id IS NOT NULL', [ids])).map((r) => r.guest_user_id);
+  return us;
+}
+async function purgeShadows(qf, uids) {
+  let n = 0;
+  for (const uid of uids) {
+    const talked = await qf('SELECT COUNT(*) n FROM messages WHERE sender_id=?', [uid]);
+    const linked = await qf('SELECT COUNT(*) n FROM guest_links WHERE guest_user_id=?', [uid]);
+    if (Number(talked[0].n) || Number(linked[0].n)) continue;
+    await qf('DELETE FROM conversation_participants WHERE user_id=?', [uid]);
+    await qf('DELETE FROM users WHERE id=? AND is_guest=1', [uid]);
+    n += 1;
+  }
+  return n;
+}
+
 async function run() {
   const results = [];
   const push = (name, ok, msg) => results.push({ name, fail: ok ? 0 : 1, details: [String(msg ?? '')] });
@@ -228,6 +249,8 @@ async function run() {
         const tg = await visible(page, '[data-testid="entry-booking-toggle"]');
         const hr = await visible(page, '[data-testid="entry-hours-mon"]');
         const checked = await page.$eval('[data-testid="entry-booking-toggle"]', (el) => el.getAttribute('aria-checked')).catch(() => null);
+        const vb = await visible(page, '[data-testid^="entry-visitor-block-"]');
+        push(`설정@${vp.w}: 확인한 방문자 줄에 [막기] 가 보인다(D3)`, !!vb?.ok && !vb.hscroll, JSON.stringify(vb));
         push(`설정@${vp.w}: 예약 스위치(켜짐)·근무시간이 보인다`, !!tg?.ok && !!hr?.ok && checked === 'true' && !hr.hscroll,
           `toggle=${JSON.stringify(tg)} hours=${JSON.stringify(hr)} checked=${checked}`);
       } finally { await page.close().catch(() => {}); }
@@ -251,6 +274,13 @@ async function run() {
   } finally {
     if (browser) await browser.close().catch(() => {});
     // ── 정리 — 자식 → 부모 순. 남으면 실패로 센다.
+    // ★ 설정 원복을 **맨 먼저, 따로** 한다 — 뒤 단계가 던지면 원복이 건너뛰어져 워크스페이스에
+    //   카나리 값(예약 켜짐·리드 0)이 남았다(Fable FAIL 실증: 창구가 이미 있는 워크스페이스).
+    try {
+      if (cleanup.biz && cleanup.permsBefore !== undefined) {
+        await sql('UPDATE businesses SET permissions=? WHERE id=?', [JSON.stringify(cleanup.permsBefore), cleanup.biz]);
+      }
+    } catch (e) { results.push({ name: 'cleanup:booking-perms', fail: 1, details: [`🔴 설정 원복 실패: ${e.message}`] }); }
     try {
       const biz = cleanup.biz;
       if (biz) {
@@ -279,11 +309,13 @@ async function run() {
           await sql('DELETE FROM clients WHERE id IN (?)', [clientIds]);
         }
         if (shadows.length) await sql('DELETE FROM users WHERE id IN (?) AND is_guest=1', [shadows]).catch(() => null);
+        const sharedShadows = await sharedShadowIds(sql, [cleanup.entryIssued]);
         if (cleanup.entryIssued) {
           await sql('DELETE FROM guest_links WHERE parent_link_id=?', [cleanup.entryIssued]);
           await sql('DELETE FROM guest_links WHERE id=?', [cleanup.entryIssued]);
         }
         if (cleanup.emails.length) await sql('DELETE FROM email_logs WHERE to_email IN (?)', [cleanup.emails]);
+        await purgeShadows(sql, sharedShadows);
         if (cleanup.permsBefore !== undefined) {
           await sql('UPDATE businesses SET permissions=? WHERE id=?', [JSON.stringify(cleanup.permsBefore), biz]);
         }
