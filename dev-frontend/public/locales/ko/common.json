@@ -949,7 +949,7 @@
     "blockedShare": "보안등급(내부·기밀) 자료는 외부 공유할 수 없어요. 등급을 일반으로 낮추면 공유할 수 있어요."
   },
   "adminWiki": {
-    "title": "Q위키 관리",
+    "title": "도움말 관리",
     "searchPh": "제목·slug 검색",
     "allCategories": "전체 카테고리",
     "manageCategories": "카테고리 관리",

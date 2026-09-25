@@ -20,7 +20,7 @@ const HelpStandalonePage: React.FC = () => {
   useEffect(() => {
     document.title = t('qhelper.title', 'Q helper') as string;
     document.body.dataset.popout = '1';
-    markPopoutWindow(); // #84 — 창 단위 영속(내부 /wiki 이동에도 팝아웃 유지)
+    markPopoutWindow(); // #84 — 창 단위 영속(내부 /guide 이동에도 팝아웃 유지)
     return () => { delete document.body.dataset.popout; };
   }, [t]);
 

@@ -32,7 +32,7 @@ const NAV_ITEMS: { to: string; key: string; newTab?: boolean }[] = [
   { to: '/insights', key: 'nav.blog' },
   { to: '/about', key: 'nav.about' },
   { to: '/contact', key: 'nav.contact' },
-  { to: '/wiki', key: 'nav.help', newTab: true },   // F7 — Q위키(도움말) 공개 진입
+  { to: '/guide', key: 'nav.help', newTab: true },   // F7 — 도움말 공개 진입
   // ★ 앱 다운로드는 **푸터에만** 있었다 (Irene 2026-09-05, 안드로이드 태블릿:
   //   "앱다운로드를 어디서 해? 도저히 모르겠어"). 폰·태블릿에서 랜딩에 온 사람이
   //   가장 먼저 찾는 것이라 상단 내비(+모바일 시트)에 둔다.
@@ -167,7 +167,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterLink to="/pricing">{t('nav.pricing')}</FooterLink>
               <FooterLink to="/service">{t('nav.service')}</FooterLink>
               <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
-              <FooterLink to="/wiki" target="_blank" rel="noopener noreferrer">{t('nav.help')}</FooterLink>{/* F7 — Q위키 도움말 (새 탭) */}
+              <FooterLink to="/guide" target="_blank" rel="noopener noreferrer">{t('nav.help')}</FooterLink>{/* F7 — 도움말 (새 탭) */}
               {/* 앱 다운로드 — `/app` 라우트는 있었지만 **앱 어디에서도 링크가 없어**
                   주소를 아는 사람만 닿을 수 있었다(2026-09-04 Irene 신고: "아이폰 다운로드가 안 나와").
                   만들어 놓고 진입점을 안 붙이면 없는 기능과 같다. */}

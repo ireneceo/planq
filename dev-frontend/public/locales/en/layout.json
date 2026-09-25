@@ -60,7 +60,7 @@
     "users": "Users",
     "businesses": "Workspaces",
     "feedback": "User feedback",
-    "wiki": "Help center",
+    "wiki": "Guide admin",
     "emailLogs": "Email monitoring",
     "pushLogs": "Push delivery monitoring",
     "platformSettings": "Platform settings",
@@ -160,7 +160,7 @@
     "adminNotifications": "My notification settings",
     "adminAuditLogs": "Audit logs",
     "whatsNew": "What's new",
-    "helpCenter": "Help",
+    "helpCenter": "Guide",
     "records": "Records",
     "myFeedbackSub": "PlanQ",
     "landingVisits": "Landing visits"

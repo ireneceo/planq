@@ -65,7 +65,7 @@ const ROUTES = [
   ['관리자·대시보드', '/admin/dashboard'],
   ['관리자·워크스페이스', '/admin/businesses'],
   ['관리자·피드백', '/admin/feedback'],
-  ['관리자·위키', '/admin/wiki'],
+  ['관리자·도움말', '/admin/guide'],
   ['관리자·업데이트', '/admin/updates'],
   ['관리자·구독', '/admin/subscriptions'],
   ['관리자·결제', '/admin/payments'],

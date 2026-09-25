@@ -141,9 +141,9 @@ async function runWikiQuestionClustering() {
       const { notifyPlatformAdmins } = require('./platformNotify');
       await notifyPlatformAdmins({
         eventKind: 'feedback',
-        title: `Q위키 초안 ${created}건 자동 제안`,
+        title: `도움말 초안 ${created}건 자동 제안`,
         body: '반복 질문 클러스터에서 위키 초안이 생성되었습니다. 검토 후 발행해 주세요.',
-        link: '/admin/wiki',
+        link: '/admin/guide',
       });
     } catch (e) { console.warn('[wikiQuestionCluster] notify failed:', e.message); }
   }

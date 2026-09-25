@@ -212,7 +212,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
   const out = [];      // { rel: 'features/index.html', html }
   const urls = [];     // sitemap 항목
 
-  // 글 목록은 목록 페이지(/insights/ · /wiki/)의 본문 링크로도 쓴다 — 크롤러가 글로 따라 들어가게
+  // 글 목록은 목록 페이지(/insights/ · /guide/)의 본문 링크로도 쓴다 — 크롤러가 글로 따라 들어가게
   const blog = await HelpArticle.findAll({ where: BLOG_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'blog_published_at', 'updatedAt'] });
   const wiki = await HelpArticle.findAll({ where: WIKI_PUBLIC_WHERE, attributes: ['slug', 'title_ko', 'summary_ko', 'body_ko', 'updatedAt'] });
   const blogSlugSet = new Set(blog.map((a) => a.slug));
@@ -220,7 +220,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
     ? blog.slice().sort((x, y) => new Date(y.blog_published_at) - new Date(x.blog_published_at))
       .map((a) => ({ tag: 'a', href: `/insights/${encodeURIComponent(a.slug)}/`, text: a.title_ko, sub: a.summary_ko || '' }))
     : wiki.filter((a) => !blogSlugSet.has(a.slug))
-      .map((a) => ({ tag: 'a', href: `/wiki/a/${encodeURIComponent(a.slug)}/`, text: a.title_ko, sub: a.summary_ko || '' })));
+      .map((a) => ({ tag: 'a', href: `/guide/a/${encodeURIComponent(a.slug)}/`, text: a.title_ko, sub: a.summary_ko || '' })));
 
   // ① 공개 정적 페이지 (홈 포함)
   for (const p of cfg.pages) {
@@ -276,22 +276,22 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
 
   // ③ 위키 글 (게스트 공개분만)
   for (const a of wiki) {
-    const own = `${origin}/wiki/a/${encodeURIComponent(a.slug)}/`;
+    const own = `${origin}/guide/a/${encodeURIComponent(a.slug)}/`;
     const canonical = blogSlugs.has(a.slug) ? `${origin}/insights/${encodeURIComponent(a.slug)}/` : own;
     const desc = a.summary_ko || blocksToParagraphs(a.body_ko, 'ko', 160)[0] || '';
     const st = articleStructure(a.body_ko);
     if (canonical === own) urls.push({ loc: own, lastmod: isoDate(a.updatedAt), changefreq: 'monthly', priority: '0.5' });
     out.push({
-      rel: path.join('wiki', 'a', a.slug, 'index.html'),
+      rel: path.join('guide', 'a', a.slug, 'index.html'),
       html: renderPage(template, {
-        title: `${a.title_ko} | Q위키 — PlanQ`, description: desc, url: own, canonical, ogType: 'article',
+        title: `${a.title_ko} | 도움말 — PlanQ`, description: desc, url: own, canonical, ogType: 'article',
         h1: a.title_ko, paragraphs: [a.summary_ko, ...blocksToParagraphs(a.body_ko)].filter(Boolean), nav,
         blocks: [...(a.summary_ko ? [{ tag: 'p', text: a.summary_ko }] : []), ...st.blocks],
         jsonld: { '@context': 'https://schema.org', '@graph': [
           // 같은 글이 인사이트에 있으면 FAQ 는 대표 주소(인사이트) 한 곳에만 — 중복 FAQ 는 검색엔진이 싫어한다
           ...(st.faq.length && canonical === own ? [faqLd(st.faq)] : []),
           { '@type': 'TechArticle', headline: a.title_ko, description: desc, url: canonical, inLanguage: 'ko', dateModified: a.updatedAt, publisher: org },
-          breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: 'Q위키', path: '/wiki/' }, { name: a.title_ko, path: `/wiki/a/${encodeURIComponent(a.slug)}/` }]),
+          breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: '도움말', path: '/guide/' }, { name: a.title_ko, path: `/guide/a/${encodeURIComponent(a.slug)}/` }]),
         ] },
       }).replace('<html lang="ko">', '<html lang="ko" data-seo-generated="1">'),
     });
@@ -349,7 +349,17 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
       if (!txt.includes('data-seo-generated')) continue;   // 우리가 만든 것이 아니면 손대지 않는다
       fs.unlinkSync(abs); removed++;
       try { fs.unlinkSync(`${abs}.gz`); } catch { /* 압축본 없음 */ }
-      try { fs.rmdirSync(path.dirname(abs)); } catch { /* 비어 있지 않으면 둔다 */ }
+      // ★ 빈 상위 폴더를 `dir` 까지 거슬러 지운다 (2026-09-25).
+      //   잎만 지우면 `wiki/`·`wiki/a/` 같은 **빈 폴더가 남고 nginx 는 빈 디렉터리에 403** 을 낸다
+      //   (운영 실측: 빈 `/sounds/` → 403). 개명으로 경로가 바뀔 때 옛 주소가 «없음» 이 아니라
+      //   «금지» 로 보이는 것이 그 때문이다. 프런트 rsync 는 `--delete` 가 없어(2026-08-24 사고)
+      //   우리가 지우지 않으면 영영 남는다.
+      let up = path.dirname(abs);
+      const root = path.resolve(dir);
+      while (up.startsWith(root + path.sep)) {          // 생성물 경로 안에서만
+        try { fs.rmdirSync(up); } catch { break; }      // 비어 있지 않으면 여기서 멈춘다
+        up = path.dirname(up);
+      }
     } catch { /* 이미 없음 */ }
   }
   writeAtomic(manifestPath, JSON.stringify({ generated_at: new Date().toISOString(), files: [...now] }, null, 2));

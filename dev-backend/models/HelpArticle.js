@@ -13,7 +13,7 @@ HelpArticle.init({
     primaryKey: true,
     autoIncrement: true,
   },
-  // /wiki/a/:slug
+  // /guide/a/:slug
   slug: {
     type: DataTypes.STRING(80),
     allowNull: false,

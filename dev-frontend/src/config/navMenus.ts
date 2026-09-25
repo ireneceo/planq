@@ -102,7 +102,7 @@ export const ADMIN_MENUS: NavMenuEntry[] = [
   { key: 'admin-feedback', to: '/admin/feedback', labelKey: 'nav.feedback', section: 'admin', roles: 'any' },
   { key: 'admin-dev-status', to: '/admin/dev-status', labelKey: 'nav.devStatus', section: 'admin', roles: 'any' },
   { key: 'admin-landing-visits', to: '/admin/landing-visits', labelKey: 'nav.landingVisits', section: 'admin', roles: 'any' },
-  { key: 'admin-wiki', to: '/admin/wiki', labelKey: 'nav.wiki', section: 'admin', roles: 'any' },
+  { key: 'admin-wiki', to: '/admin/guide', labelKey: 'nav.wiki', section: 'admin', roles: 'any' },
   { key: 'admin-email-logs', to: '/admin/email-logs', labelKey: 'nav.emailLogs', section: 'admin', roles: 'any' },
   { key: 'admin-push-logs', to: '/admin/push-logs', labelKey: 'nav.pushLogs', section: 'admin', roles: 'any' },
   { key: 'admin-platform-settings', to: '/admin/platform-settings', labelKey: 'nav.platformSettings', section: 'admin', roles: 'any' },
@@ -149,7 +149,7 @@ export function visibleNavMenus(opts: {
  * ★ 화면마다 `useTabTitle` 을 부르게 하지 않는다 — 관리자 화면 15개 중 하나만 빠뜨려도
  *   그 탭만 조용히 "설정" 으로 떨어진다(기본값으로 떨어지는 것이 곧 버그다).
  *   표가 이미 단일 원천이니 표를 읽는다. 메뉴를 추가하면 탭 이름도 자동으로 따라온다.
- * 접두어가 가장 긴 항목을 고른다 — `/admin/wiki/123` 같은 하위 경로도 부모 라벨을 받는다.
+ * 접두어가 가장 긴 항목을 고른다 — `/admin/guide/123` 같은 하위 경로도 부모 라벨을 받는다.
  */
 
 /**
@@ -162,7 +162,7 @@ const EXTRA_PAGE_LABELS: Array<[string, string]> = [
   ['/profile', 'user.profile'],
   ['/knowledge', 'nav.qinfo'],
   ['/attendance', 'nav.attendance'],
-  ['/wiki', 'nav.helpCenter'],
+  ['/guide', 'nav.helpCenter'],
   ['/billing', 'nav.billing'],
   ['/records', 'nav.records'],
   ['/personal-vault', 'nav.personalVault'],

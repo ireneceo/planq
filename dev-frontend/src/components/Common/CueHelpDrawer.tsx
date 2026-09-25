@@ -626,7 +626,7 @@ const CueHelpDrawer: React.FC<{
                 <WikiSectionLabel>{tw('drawer.searchResults', { defaultValue: '검색 결과' }) as string}</WikiSectionLabel>
                 {wikiSearchResults.length > 0 ? (
                   wikiSearchResults.map((a) => (
-                    <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/wiki/a/${a.slug}`)}>
+                    <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/guide/a/${a.slug}`)}>
                       <WikiCardTitle><HighlightText text={a.title} query={wikiSearch} /></WikiCardTitle>
                       {a.summary && <WikiCardSummary><HighlightText text={a.summary} query={wikiSearch} /></WikiCardSummary>}
                     </WikiContextCard>
@@ -645,7 +645,7 @@ const CueHelpDrawer: React.FC<{
                   <WikiSection>
                     <WikiSectionLabel>{tw('drawer.thisScreen')}</WikiSectionLabel>
                     {wikiContext.slice(0, 3).map((a) => (
-                      <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/wiki/a/${a.slug}`)}>
+                      <WikiContextCard key={a.id} type="button" onClick={() => openWikiPath(`/guide/a/${a.slug}`)}>
                         <WikiCardTitle>{a.title}</WikiCardTitle>
                         {a.summary && <WikiCardSummary>{a.summary}</WikiCardSummary>}
                       </WikiContextCard>
@@ -655,7 +655,7 @@ const CueHelpDrawer: React.FC<{
                 {wikiCats.length > 0 && (
                   <QuickChips>
                     {wikiCats.map((c) => (
-                      <QuickChip key={c.id} type="button" onClick={() => openWikiPath(`/wiki?category=${c.slug}`)}>
+                      <QuickChip key={c.id} type="button" onClick={() => openWikiPath(`/guide?category=${c.slug}`)}>
                         {c.title}
                       </QuickChip>
                     ))}
@@ -663,7 +663,7 @@ const CueHelpDrawer: React.FC<{
                 )}
               </>
             )}
-            <WikiFullLink type="button" onClick={() => openWikiPath('/wiki')}>
+            <WikiFullLink type="button" onClick={() => openWikiPath('/guide')}>
               {tw('drawer.openFullWiki')} →
             </WikiFullLink>
           </WikiPanel>
@@ -718,7 +718,7 @@ const CueHelpDrawer: React.FC<{
                 onActionExecuted={onActionExecuted}
                 onActionDismiss={onActionDismiss}
                 onOpenResult={(r) => { navigate(cueActionDeepLink(r)); closeDrawer(); }}
-                onOpenSource={(slug) => openWikiPath(`/wiki/a/${slug}`)}
+                onOpenSource={(slug) => openWikiPath(`/guide/a/${slug}`)}
               />
             )
           )}

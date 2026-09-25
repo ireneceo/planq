@@ -77,15 +77,15 @@
     "desc": "Each Q is its own thing — and connects into one flow.",
     "q": {
       "talk": {
-        "name": "Q Talk",
+        "name": "Q talk",
         "desc": "Customer-focused chat. Turn messages into tasks, share files, record agreements. As easy as Kakao, structured for work."
       },
       "task": {
-        "name": "Q Task",
+        "name": "Q task",
         "desc": "Tasks from chat or made by hand — all in one place. Due dates, assignees, priorities, statuses. Today's work and overdue items at a glance."
       },
       "note": {
-        "name": "Q Note",
+        "name": "Q note",
         "desc": "Live transcript and translation during meetings. Auto-detect key questions, suggest answers from materials you uploaded. Auto summary after."
       },
       "mail": {
@@ -97,23 +97,23 @@
         "desc": "Create contracts, quotes, and proposals, then collect signatures with a single link. Customers open and sign without logging in, and every step is recorded automatically."
       },
       "calendar": {
-        "name": "Q Calendar",
+        "name": "Q calendar",
         "desc": "Workspace and personal schedules at a glance. Task deadlines appear automatically, and booking a meeting creates a Google Meet link right with it."
       },
       "file": {
-        "name": "Q File",
+        "name": "Q file",
         "desc": "Files organized per project. \"Where is that file?\" goes away."
       },
       "project": {
-        "name": "Q Project",
+        "name": "Q project",
         "desc": "Bring conversations, tasks, documents, and files into one workbench per project. Progress is calculated automatically, and deals flow from quote to invoice."
       },
       "bill": {
-        "name": "Q Bill",
+        "name": "Q bill",
         "desc": "Create and email invoices. Send, payment confirmation, overdue management — all in one place."
       },
       "sale": {
-        "name": "Q Sale",
+        "name": "Q sale",
         "desc": "From first inquiry to signed deal. Collect conversations from mail, chat and meeting notes onto each client, and move them through inquiry → consulting → proposal → negotiation → won."
       }
     }
@@ -122,7 +122,7 @@
     "tag": "Profitability Engine",
     "title1": "Not just a collaboration tool.",
     "title2": "An organizational profitability engine.",
-    "desc1": "Customer chat, tasks, and billing in one — Q Talk, Q Task, and Q Bill organize what's scattered",
+    "desc1": "Customer chat, tasks, and billing in one — Q talk, Q task, and Q bill organize what's scattered",
     "desc2": "and recover revenue you almost lost.",
     "left": {
       "task": "Tasks",
@@ -252,11 +252,11 @@
     },
     "q": {
       "talk": {
-        "name": "Q Talk — Customer chat",
+        "name": "Q talk — Customer chat",
         "lead": "Easy chat with work structure built in. 1:1 customer channels + file sharing + agreement records + AI task extraction in one screen.",
         "bullets": [
           "Dedicated 1:1 channel per customer + workspace group channels",
-          "AI extracts tasks from messages — one click into Q Task",
+          "AI extracts tasks from messages — one click into Q task",
           "Photo and file attachments — identical files stored once + automatic KO/EN translation",
           "Real-time chat + pin your own conversations + edit/delete history kept",
           "Projects and chats linked both ways — AI never extracts the same request twice"
@@ -264,7 +264,7 @@
         "shotAlt": "Q talk screen — client conversation channels and message list in a workspace"
       },
       "task": {
-        "name": "Q Task — Task execution",
+        "name": "Q task — Task execution",
         "lead": "Request, progress, review and completion in one flow. Everyone sees it from their own role — assignee, reviewer, requester or watcher — with time tracked along the way.",
         "bullets": [
           "7 statuses (not_started → waiting → in_progress → reviewing → revision_requested → completed)",
@@ -276,7 +276,7 @@
         "shotAlt": "Q task screen — this week's tasks with available hours and progress chart"
       },
       "note": {
-        "name": "Q Note — Voice meetings · memos",
+        "name": "Q note — Voice meetings · memos",
         "lead": "Live transcription + automatic translation + question detection + answer suggestions from your own materials. Automatic summary when the meeting ends.",
         "bullets": [
           "Live Korean/English transcription (during the meeting and for review afterwards)",
@@ -288,7 +288,7 @@
         "shotAlt": "Q note screen — meeting transcript with automatic summary"
       },
       "file": {
-        "name": "Q File — Files",
+        "name": "Q file — Files",
         "lead": "Organized by project and client. Identical files stored once. Two-way sync with your workspace Google Drive.",
         "bullets": [
           "Folders organized by project · customer with auto categorization",
@@ -300,7 +300,7 @@
         "shotAlt": "Q file screen — project files organized in per-client folders"
       },
       "bill": {
-        "name": "Q Bill — Billing · payments",
+        "name": "Q bill — Billing · payments",
         "lead": "Quote → contract → invoice → tax invoice, in order. Templates per project type (fixed, subscription, consulting, custom) + installments + foreign currency.",
         "bullets": [
           "Deal stages move forward automatically as documents and invoices progress",
@@ -319,7 +319,7 @@
     },
     "ws": {
       "project": {
-        "name": "Q Project — Project workbench",
+        "name": "Q project — Project workbench",
         "lead": "Conversations, tasks, notes, issues, and files unified per project. Auto progress + transaction sequence.",
         "bullets": [
           "Per-project unified workbench (chat · tasks · notes · issues · files)",
@@ -329,11 +329,11 @@
         ]
       },
       "calendar": {
-        "name": "Q Calendar — Schedule",
+        "name": "Q calendar — Schedule",
         "lead": "Workspace and personal calendars separated. Task deadlines auto-displayed + Google Meet rooms.",
         "bullets": [
           "Events + attendees (workspace members / external guests)",
-          "Q Task deadlines auto-displayed (assignee + created_by)",
+          "Q task deadlines auto-displayed (assignee + created_by)",
           "Google Meet rooms auto-generated + link sharing",
           "Workspace / Mine — two views with conflict detection"
         ]
@@ -359,11 +359,11 @@
         ]
       },
       "sale": {
-        "name": "Q Sale — Sales & Consulting",
+        "name": "Q sale — Sales & Consulting",
         "lead": "Sales is not a separate system; it is an axis of the client. Consultation records accumulate on the client and flow straight into projects, tasks and billing.",
         "bullets": [
           "Track inquiry-stage prospects separately from active clients — no account required",
-          "Send any mail, chat message or Q Note meeting into the record in one click",
+          "Send any mail, chat message or Q note meeting into the record in one click",
           "Six sales stages (inquiry, consulting, proposal, negotiation, won, lost) with automatic stage history",
           "See chat, mail, tasks, invoices, notes and events on one client timeline"
         ]
@@ -378,7 +378,7 @@
         "name": "Cue — Autonomous AI teammate",
         "lead": "Not just automation — a teammate you can hand off to. Same capability across all plans, with monthly action limits as the only difference.",
         "bullets": [
-          "Task extraction (messages → Q Task) + answer generation (Q Note)",
+          "Task extraction (messages → Q task) + answer generation (Q note)",
           "Learns meeting summaries, your terminology and transcription corrections over time",
           "Action limits per plan (Free 0 / Basic 100 / Pro 500)",
           "Global help drawer (⌘?) + cue:ask event receiver"
@@ -472,11 +472,11 @@
         }
       },
       "wiki": {
-        "name": "Q info · Wiki",
+        "name": "Q info · Guide",
         "lead": "Build up FAQs and product how-tos as knowledge, reused across AI replies and help.",
         "bullets": {
           "0": "Search your workspace knowledge (FAQ) by meaning, not just keywords",
-          "1": "Korean-language help (wiki) search",
+          "1": "Korean-language help search",
           "2": "Grounds Cue & mail AI replies"
         }
       },
@@ -508,7 +508,7 @@
         }
       },
       "meeting": {
-        "name": "Meeting notes (Q Note)",
+        "name": "Meeting notes (Q note)",
         "lead": "A personal tool that transcribes meetings live, detects questions and even drafts answers.",
         "bullets": {
           "0": "Live voice → transcript · speaker labels",
@@ -566,7 +566,7 @@
       "items": [
         {
           "category": "Guide video",
-          "title": "Q Talk in 5 minutes",
+          "title": "Q talk in 5 minutes",
           "desc": "For first-time users — workspace setup and inviting your first customer."
         },
         {
@@ -586,12 +586,12 @@
         },
         {
           "category": "Customer case",
-          "title": "A design studio using Q Project",
+          "title": "A design studio using Q project",
           "desc": "Per-project workbench through to billing — a real operations interview."
         },
         {
           "category": "How-to",
-          "title": "Q Note answer generation — preparing materials",
+          "title": "Q note answer generation — preparing materials",
           "desc": "Tips for uploading and tagging materials to improve RAG answer accuracy."
         }
       ]
@@ -624,8 +624,8 @@
           "5 customers / 5 projects",
           "2GB storage",
           "Cue (AI teammate) — 50 actions/mo",
-          "Q Note — 60 minutes/mo",
-          "Q Talk · Q Task · Q File · Q Bill basics"
+          "Q note — 60 minutes/mo",
+          "Q talk · Q task · Q file · Q bill basics"
         ],
         "cta": "Start 14-day trial"
       },
@@ -638,7 +638,7 @@
           "Unlimited projects",
           "5GB storage",
           "Cue — 1,500 actions/mo",
-          "Q Note — 15 hours/mo",
+          "Q note — 15 hours/mo",
           "Google Drive integration"
         ],
         "cta": "Start Basic"
@@ -652,7 +652,7 @@
           "Unlimited projects",
           "20GB storage",
           "Cue — 7,500 actions/mo",
-          "Q Note — 60 hours/mo",
+          "Q note — 60 hours/mo",
           "Priority support"
         ],
         "cta": "Start Pro"
@@ -756,7 +756,7 @@
         {
           "year": "2025",
           "label": "Beta release",
-          "desc": "Beta of 5 modules — Q Talk · Q Task · Q Note · Q File · Q Bill. Korean and English supported."
+          "desc": "Beta of 5 modules — Q talk · Q task · Q note · Q file · Q bill. Korean and English supported."
         },
         {
           "year": "2026",

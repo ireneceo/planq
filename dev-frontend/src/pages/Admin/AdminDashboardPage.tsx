@@ -150,7 +150,7 @@ const AdminDashboardPage: React.FC = () => {
               {/* 운영 #289 — "공지는 어디에 올리는 거야? 메뉴가 없는데?" 두 발행 경로가 서로 다른 페이지 안쪽에
                   묻혀 있어 찾을 수 없었다. 운영자가 실제로 서 있는 이 화면에서 바로 가게 한다. */}
               <QuickLink to="/admin/platform-settings#announcement">{t('dashboard.quick.announcement', '공지 배너')}</QuickLink>
-              <QuickLink to="/admin/wiki">{t('dashboard.quick.updates', '제품 업데이트 발행')}</QuickLink>
+              <QuickLink to="/admin/guide">{t('dashboard.quick.updates', '제품 업데이트 발행')}</QuickLink>
             </QuickLinks>
           </Panel>
         </>

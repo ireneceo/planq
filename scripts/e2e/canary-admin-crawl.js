@@ -21,7 +21,7 @@ const b = require('./lib/browser');
 
 // App.tsx 의 /admin 라우트 전부. 새 관리자 화면을 만들면 여기 같이 추가한다.
 const ROUTES = [
-  '/admin/dashboard', '/admin/businesses', '/admin/feedback', '/admin/dev-status', '/admin/wiki',
+  '/admin/dashboard', '/admin/businesses', '/admin/feedback', '/admin/dev-status', '/admin/guide',
   '/admin/updates', '/admin/email-logs', '/admin/push-logs', '/admin/platform-settings',
   '/admin/subscriptions', '/admin/payments', '/admin/billing-settings', '/admin/inquiries',
   '/admin/notifications', '/admin/audit-logs', '/admin/users',

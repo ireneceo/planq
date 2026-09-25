@@ -1351,7 +1351,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.landingVisits', '랜딩 방문')}</NavLabel>
                 </NavItem>
                 {/* 도움말(Q위키) — 개발 사이클이 seed-wiki-content.js 로 채우는 쪽. 여기서는 확인·수정. */}
-                <NavItem to="/admin/wiki" $isCollapsed={isCollapsed} $active={isActive('/admin/wiki')}
+                <NavItem to="/admin/guide" $isCollapsed={isCollapsed} $active={isActive('/admin/guide')}
                   title={isCollapsed ? t('nav.wiki', '도움말 관리') : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>

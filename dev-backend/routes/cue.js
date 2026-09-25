@@ -359,7 +359,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             wikiSources.push({ slug: a.slug, title });
           }
           if (docBlocks.length) {
-            ctxBlock += `\n\n# Q위키 문서 (이 내용만 근거로 답변)\n${docBlocks.join('\n\n')}`;
+            ctxBlock += `\n\n# 도움말 문서 (이 내용만 근거로 답변)\n${docBlocks.join('\n\n')}`;
           }
         }
       } catch (e) {

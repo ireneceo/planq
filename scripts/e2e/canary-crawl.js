@@ -21,7 +21,7 @@ const EMAIL = 'health-check@planq.kr';
 // 워크스페이스 컨텍스트 라우트만 (계정/개인 컨텍스트 /profile·/me·/personal-vault 는 계정명 정상이라 제외)
 const ROUTES = [
   '/dashboard', '/inbox', '/tasks', '/talk', '/calendar', '/notes', '/docs',
-  '/files', '/bills', '/insights', '/wiki', '/info', '/signatures/received',
+  '/files', '/bills', '/insights', '/guide', '/info', '/signatures/received',
   '/business/clients', '/business/members', '/business/org',
   '/attendance',
 ];

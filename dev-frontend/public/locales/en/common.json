@@ -949,7 +949,7 @@
     "blockedShare": "Internal/Confidential files can't be shared externally. Lower the level to General to share."
   },
   "adminWiki": {
-    "title": "Q Wiki Admin",
+    "title": "Guide admin",
     "searchPh": "Search title or slug",
     "allCategories": "All categories",
     "manageCategories": "Manage categories",

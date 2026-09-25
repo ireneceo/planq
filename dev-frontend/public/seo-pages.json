@@ -167,20 +167,20 @@
       "list": "insights"
     },
     {
-      "path": "/wiki/",
+      "path": "/guide/",
       "changefreq": "weekly",
       "priority": "0.6",
       "title": {
-        "ko": "Q위키 — PlanQ 사용법 | PlanQ",
-        "en": "Q Wiki — How to use PlanQ | PlanQ"
+        "ko": "도움말 — PlanQ 사용법 | PlanQ",
+        "en": "Guide — How to use PlanQ | PlanQ"
       },
       "description": {
         "ko": "PlanQ 사용법을 검색하고 둘러보세요. 워크스페이스 만들기부터 업무·청구·메일까지 기능별 도움말.",
         "en": "Search and browse how to use PlanQ — from creating a workspace to tasks, billing and mail."
       },
       "h1": {
-        "ko": "Q위키",
-        "en": "Q Wiki"
+        "ko": "도움말",
+        "en": "Guide"
       },
       "intro": {
         "ko": [
@@ -190,7 +190,7 @@
           "Search and browse how to use PlanQ."
         ]
       },
-      "label": "Q위키",
+      "label": "도움말",
       "list": "wiki"
     },
     {

@@ -12,7 +12,7 @@ const OUT = process.env.AUDIT_OUT || '/tmp/planq-audit';
 // 운영 핵심(워크스페이스/개인 앱) 화면. 마케팅/admin/auth 는 2차.
 const ROUTES = [
   '/dashboard', '/inbox', '/tasks', '/todo', '/talk', '/calendar', '/notes', '/docs',
-  '/files', '/mail', '/bills', '/insights', '/wiki', '/records', '/info', '/knowledge',
+  '/files', '/mail', '/bills', '/insights', '/guide', '/records', '/info', '/knowledge',
   '/signatures/received', '/personal-vault',
   '/business/clients', '/business/members', '/business/org', '/business/settings',
   '/profile', '/me/work-settings', '/profile/integrations',

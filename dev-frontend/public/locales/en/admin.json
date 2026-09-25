@@ -454,7 +454,7 @@
   },
   "landingVisits": {
     "title": "Landing visits",
-    "note": "Cookie-free counts from our own server. Only public landing, insights and Q Wiki pages are counted — not signed-in users or search bots. \"Entries\" excludes navigation within the site.",
+    "note": "Cookie-free counts from our own server. Only public landing, insights and Guide pages are counted — not signed-in users or search bots. \"Entries\" excludes navigation within the site.",
     "loading": "Loading…",
     "emptyTitle": "No visits recorded yet",
     "emptyDesc": "Visits appear here once someone opens a landing page.",

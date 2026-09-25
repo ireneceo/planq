@@ -287,7 +287,7 @@ const AdminWikiPage = ({ mode = 'help' }: { mode?: 'help' | 'blog' }) => {
                 </BackBtn>
                 <EditorTitle>{form.id ? form.title_ko || t('adminWiki.editArticle') : t('adminWiki.newArticle')}</EditorTitle>
                 {form.id && form.slug && (
-                  <PreviewLink href={`/wiki/a/${form.slug}`} target="_blank" rel="noopener noreferrer">{t('adminWiki.preview') as string} ↗</PreviewLink>
+                  <PreviewLink href={`/guide/a/${form.slug}`} target="_blank" rel="noopener noreferrer">{t('adminWiki.preview') as string} ↗</PreviewLink>
                 )}
               </EditorHeader>
               <EditorBody>

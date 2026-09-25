@@ -43,7 +43,7 @@ export default function WikiArticlePage() {
 
   return (
     <PageShell title={t('page.title')}>
-      <Back onClick={() => navigate('/wiki')}>← {t('article.back')}</Back>
+      <Back onClick={() => navigate('/guide')}>← {t('article.back')}</Back>
 
       {loading ? (
         <Muted>{t('page.loading')}</Muted>
@@ -95,7 +95,7 @@ export default function WikiArticlePage() {
               <RelatedHead>{t('article.related')}</RelatedHead>
               <RelatedList>
                 {article.related.map((r) => (
-                  <RelatedItem key={r.id} onClick={() => navigate(`/wiki/a/${r.slug}`)}>
+                  <RelatedItem key={r.id} onClick={() => navigate(`/guide/a/${r.slug}`)}>
                     <span>{r.title}</span>
                     {r.summary && <small>{r.summary}</small>}
                   </RelatedItem>

@@ -34,6 +34,7 @@ const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../displa
 //   resolveSubject: Cue 는 위임자 권한으로만 · assertMenuWrite: qtask/qcalendar/qdocs='none' 봉합.
 const { resolveSubject, assertMenuWrite, fail, done } = require('./_subject');
 const { dateOnlyOf } = require('../../utils/dateOnly');
+const { serializeTaskComment } = require('../../utils/rowTimestamps');
 
 // #353 ⑤ 중요도 허용값 — models/Task.js 의 ENUM 과 **같은 순서·같은 값**이어야 한다.
 //   갈라지면 한쪽만 아는 값이 생기고, 그 값은 저장 시점에 조용히 떨어진다.
@@ -595,7 +596,9 @@ async function createComment(actor, task, { content, visibility } = {}) {
   const full = await TaskComment.findByPk(comment.id, {
     include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
   });
-  const fullJson = full.toJSON();
+  // 조회(GET /detail)와 **같은 모양**으로 맞춘다 — 저장 응답만 시각 이름이 달라
+  // 새 댓글이 정렬 맨 위로 올라갔다 (utils/rowTimestamps.js 주석)
+  const fullJson = serializeTaskComment(full);
   await applyMemberDisplayName([fullJson], task.business_id, ['author']);
 
   const io = getIO();

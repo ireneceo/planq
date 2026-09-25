@@ -17,6 +17,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { applyMemberDisplayName } = require('../services/displayName');
 // §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타 차단)
 const { serializeTaskForClient } = require('../utils/taskClientView');
+const { withBothTimestamps } = require('../utils/rowTimestamps');
 const actions = require('../services/actions/task_actions');
 
 // 이 워크스페이스의 멤버가 아니면 고객(요청자)으로 간주 — 응답에서 내부 운영 데이터를 지운다.
@@ -469,7 +470,10 @@ router.get('/:id/workflow', authenticateToken, async (req, res, next) => {
 
     const wfTaskJson = task.toJSON();
     const reviewersJson = reviewers.map((r) => r.toJSON());
-    const historyJson = history.map((h) => h.toJSON());
+    // ★ 시각은 **두 이름으로** 싣는다 (utils/rowTimestamps.js) — `h.toJSON()` 은 최상위라
+    //   전역 override 가 `createdAt` 을 지우는데 화면은 그 이름을 읽어, 히스토리 시각이
+    //   2026-04-25 부터 **빈칸**이었다(Fable 실측: 업무 #692 2건 모두 ""). 댓글과 같은 계열.
+    const historyJson = history.map((h) => withBothTimestamps(h));
     await applyMemberDisplayName(reviewersJson, task.business_id, ['user']);
     await applyMemberDisplayName(historyJson, task.business_id, ['actor', 'target']);
     // 옛 행 가리기 — 2026-08-25 이전 assignee_change/project_change 는 note 에 **id 원문**이

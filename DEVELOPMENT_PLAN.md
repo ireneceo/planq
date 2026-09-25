@@ -1,8 +1,78 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-25 ([Opus] Opus 5.5, 1M) — **운영 배포 6회(v1.61.0 ~ v1.63.5).**
+> **최종 업데이트:** 2026-09-25 ([Opus] Opus 5, 1M) — 오후: **업무 댓글 정렬 · 히스토리 시각 · 「Q위키」→「도움말」 개명(주소까지).** (미배포)
+> 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료(미배포): 업무 댓글 정렬 · 히스토리 시각 · 「도움말」 개명 (2026-09-25 오후) [Opus]
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 업무 댓글이 위로 붙던 결함 | **운영 신고.** 조회는 `createdAt`, 저장 응답은 `created_at` 만 실어 새 댓글 시각이 `''` → 빈 문자열이 모든 날짜보다 작아 **정렬 맨 위**로. 표시 시각도 빈칸 | ✅ Fable |
+| 업무 히스토리 시각 빈칸 | Fable 이 diff 밖에서 찾았다 — `GET /workflow` 는 `created_at`, 화면은 `createdAt`. **2026-04-25 부터 5개월간 빈칸**이었고 아무도 신고하지 않았다(빈칸은 «고장» 으로 보이지 않는다) | ✅ Fable |
+| 「Q위키」 → 「도움말」 | Irene 결정. ko「도움말」/ en **`Guide`** · 관리 「도움말 관리」/`Guide admin` · **주소 `/wiki/`→`/guide/`, `/admin/wiki`→`/admin/guide`** · `Q helper` 팝업 보존 | 재판정 대기 |
+| 랜딩 브랜드 표기 정렬 | 랜딩이 `Q Talk`·`Q talk` 를 **섞어 쓰고 있었다**. 앱 사이드바 소문자 표기를 정본으로 **80건** 정렬 | ↑ 같이 |
+
+### 정본 — 시각 이름은 한 곳에서 맞춘다
+`dev-backend/utils/rowTimestamps.js` **신설**(`withBothTimestamps`). 원인은 전역 `Model.prototype.toJSON`
+override(`models/index.js:165`)가 **최상위만** `createdAt→created_at` 으로 바꾸고 **중첩 include 행은
+camelCase 로 남긴다**는 것 — 그래서 조회와 저장이 같은 값에 다른 이름을 쓴다. 화면도 `rowAt` 한 함수로 읽는다.
+★ 전역 override 를 중첩까지 재귀시키는 방식은 **쓰지 않았다** — 조회 응답의 중첩 행 이름이 한꺼번에 바뀌어
+`createdAt` 을 읽는 화면들이 동시에 시각을 잃는다(넓히는 쪽이 위험하다).
+
+### 개명에서 **이름만 바꾸면 고장 나는 것 3건** (전수로 찾아 같이 고쳤다)
+| 지점 | 무엇이 문제였나 |
+|---|---|
+| `utils/publicSurface.ts` | 공개 표면 판정이 `/wiki` 기준. 주소만 바꾸면 **회원이 도움말에서 워크스페이스 크롬**을 본다. 주석에 「전에 같은 회귀가 있었다」고 적힌 자리다 |
+| `services/seoArtifacts.js` | 빵조각 **3번째 항목만** 옛 주소로 남아 있었다 |
+| `services/wikiQuestionCluster.js` | 알림 링크가 `/admin/wiki` — 라우트를 바꾸면 **죽은 링크**가 된다 |
+
+Fable 이 1차에서 **FAIL** 을 주며 잔존 4계열을 더 찾았다: 홈 `<noscript>` nav 의 죽은 링크(생성기가
+홈 머리를 바꾸지 않으므로 **운영 홈 HTML 에 그대로 실린다**) · `llms.txt`(AI 크롤러) ·
+생성 글 `<title>`·알림 제목의 「Q위키」 · **e2e 7곳이 옛 주소를 쳐서 초록이 거짓이 되는 것**.
+추가로 Cue LLM 프롬프트의 「Q위키 문서」도 고쳤다(`cuePrompts.js`·`routes/cue.js` **짝으로**) — 안 고치면
+Cue 가 답변에서 폐기된 이름을 말한다.
+
+### 회귀
+`node scripts/e2e/run.js --suite delivver` — 검사 5개 추가:
+새 댓글이 **맨 아래** · **좌표로도** 과거가 위(행을 내용으로 찾아 비교) · 새 댓글 시각이 보임 ·
+히스토리 섹션 펼침 · **히스토리 시각이 빈칸 아님**(손잡이 `task-history-toggle`·`task-history-time` 신설).
+
+### Fable 게이트 4라운드 — 1·2차 FAIL 이 잡은 것
+- **1차**: 잔존 4계열(홈 `<noscript>` 죽은 링크 — 생성기가 홈 머리를 안 바꿔 **운영 홈 HTML 에 그대로
+  실린다** · `llms.txt` · 생성 글 `<title>`·알림 제목 · **e2e 7곳이 옛 주소를 쳐 초록이 거짓**).
+- **2차**: **배포 결론이 달라졌다.** `rmdirSync(path.dirname(abs))` 가 **잎만** 지워 빈 `wiki/`·`wiki/a/`
+  가 남고 **nginx 는 빈 디렉터리에 403** 을 낸다(Fable 이 운영 `/sounds/` 403 으로 실증). 프런트 rsync 는
+  `--delete` 가 없어 우리가 지우지 않으면 영영 남는다 → 광고했던 `/wiki/` 가 «없음» 이 아니라 «금지» 가 된다.
+  → 빈 상위 디렉터리를 `dir` 까지 거슬러 rmdir(생성물 경로 안에서만).
+- **옛 주소를 살렸다** — 그 전에는 색인된 옛 글 32건이 **랜딩 홈**으로 떨어졌다. 앱 안 리다이렉트
+  (`/wiki`→`/guide`, `/wiki/a/:slug`→`/guide/a/:slug` slug 보존) + 게스트 순간 크롬 번쩍임 방지로
+  `publicSurface` 에 옛 경로 유지.
+
+### 배포 시 주의
+- 운영에 옛 생성물 `wiki/index.html` + `wiki/a/*` (**88 html + 88 .gz**). 배포 직후 `generate-seo.js` 가
+  매니페스트 마커 기준으로 삭제 + sitemap/rss 재작성. 확인 명령은 `.claude/session-state.md` 에.
+- ★ **배포 전 필수 확인 — 「빈 폴더 rmdir」 은 내가 검증하지 못했다**(스크래치 하니스가 생성기를
+  못 돌려 `ok=false`). 안 들으면 `/wiki/` **403**, 과하면 **배포마다 남의 파일 삭제(비가역)**.
+- 스키마 변경 **0**. API 경로·파일명·DB(`kb_chunks.source_type='wiki'`)는 **의도적으로 안 바꿨다**.
+- 스키마 변경 **0**. API 경로·파일명·DB(`kb_chunks.source_type='wiki'`)는 **의도적으로 안 바꿨다**.
+
+### 수정된 파일 (43)
+- 신규: `dev-backend/utils/rowTimestamps.js`
+- BE: `routes/tasks.js` · `routes/task_workflow.js` · `routes/cue.js` · `services/actions/task_actions.js` ·
+  `services/cuePrompts.js` · `services/seoArtifacts.js` · `services/wikiQuestionCluster.js` · `models/HelpArticle.js`
+- FE: `components/QTask/TaskDetailDrawer.tsx` · `App.tsx` · `utils/publicSurface.ts` · `config/navMenus.ts` ·
+  `routes/appRoutes.tsx` · `components/{Common/CueHelpDrawer,Landing/LandingLayout,Layout/MainLayout,Layout/PageShell}.tsx` ·
+  `pages/{Wiki/WikiPage,Wiki/WikiArticlePage,Admin/AdminWikiPage,Admin/AdminDashboardPage,Help/HelpStandalonePage,Landing/BlogPage}.tsx`
+- 공개·i18n: `dev-frontend/index.html` · `public/llms.txt` · `public/seo-pages.json` ·
+  `public/locales/{ko,en}/{layout,wiki,common,admin,landing}.json`
+- E2E: `canary-deliverable-version.js` + 경로 정렬 7(`canary-crawl`·`canary-header-drift`·`canary-admin-crawl`·
+  `canary-body-gutter`·`mobile-keyboard`·`narrow-text-audit`·`visual-audit`)
 
 ---
 

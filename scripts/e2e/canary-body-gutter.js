@@ -30,7 +30,7 @@ const ROUTES = (process.env.GUT_ROUTES || [
   '/stats', '/business/settings', '/business/members', '/business/clients', '/business/org',
   '/business/settings/notifications', '/business/settings/billing', '/business/settings/email',
   '/profile', '/profile/integrations', '/me/work-settings', '/me/feedback',
-  '/notifications', '/whats-new', '/settings', '/admin/dashboard', '/admin/users', '/admin/wiki',
+  '/notifications', '/whats-new', '/settings', '/admin/dashboard', '/admin/users', '/admin/guide',
 ].join(',')).split(',').map((s) => s.trim()).filter(Boolean);
 
 const results = [];

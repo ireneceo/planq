@@ -169,6 +169,14 @@ function BlogSlugRedirect() {
   return <Navigate to={`/insights/${slug || ''}`} replace />;
 }
 
+// 옛 /wiki/a/:slug → /guide/a/:slug (2026-09-25 「Q위키」→「도움말」 개명).
+//   리다이렉트가 없으면 색인된 옛 글 32건이 **랜딩 홈**으로 떨어진다(SPA catch-all) —
+//   사용자에게는 «링크가 엉뚱한 데로 간다» 로 보인다. Fable 실측으로 잡았다.
+function WikiSlugRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={`/guide/a/${slug || ''}`} replace />;
+}
+
 /**
  * NativeMarketingRedirect — 네이티브 앱(iOS/Android WebView)에서 마케팅 랜딩 라우트 봉쇄.
  *
@@ -184,9 +192,9 @@ function NativeMarketingRedirect() {
 }
 
 /**
- * WikiShell — /wiki 를 랜딩 GNB/푸터로 감싼다.
+ * WikiShell — /guide 를 랜딩 GNB/푸터로 감싼다.
  *
- * 여태 /wiki 는 레이아웃 없는 standalone 이라 홈·로그인·워크스페이스로 갈 방법이 없는 막다른 길이었다.
+ * 여태 /guide 는 레이아웃 없는 standalone 이라 홈·로그인·워크스페이스로 갈 방법이 없는 막다른 길이었다.
  * LandingLayout 의 GNB 가 비로그인엔 로그인/가입을, 로그인엔 "내 워크스페이스"(→/inbox)를 이미 제공한다.
  * transparentTop=false — 위키는 다크 Hero 가 없어 흰 sticky GNB 로 시작해야 한다.
  *
@@ -207,7 +215,7 @@ function ShellApp() {
   const isPopout = /\/(talk-popout|task-popout|note-popout|help-popout)(\/|$)/.test(_loc.pathname)
     || _loc.pathname.startsWith('/memo/')
     || _loc.pathname.startsWith('/public/')
-    || isPopoutWindow(); // #84 — 팝아웃 창 안에서 /wiki 등으로 이동해도 chrome 숨김 유지
+    || isPopoutWindow(); // #84 — 팝아웃 창 안에서 /guide 등으로 이동해도 chrome 숨김 유지
   // #71 — 공개 표면(랜딩/마케팅 + Q위키). 비로그인 외부 트래픽 영역이라
   // 로그인 상태로 방문해도 인앱 chrome(토스터·공지배너·Dock)을 안 띄운다.
   // 판정은 utils/publicSurface 단일 원천 — 새 공개 페이지는 거기만 갱신.
@@ -246,10 +254,13 @@ function ShellApp() {
         {/* 계정 삭제 안내 — 스토어(구글플레이·애플)가 요구하는 공개 주소. 로그인 없이 열려야 한다. */}
         <Route path="/account-deletion" element={<AccountDeletion />} />
         <Route path="/terms" element={<TermsOfService />} />
-        {/* Q위키 (Q Wiki) — 게스트 허용 공개 라우트 (public article) + 로그인 시 전체.
+        {/* 도움말 — 게스트 허용 공개 라우트 (public article) + 로그인 시 전체.
             WikiShell 로 GNB/푸터를 붙여 막다른 길 해소 (랜딩·로그인·가입·내 워크스페이스 진입로). */}
-        <Route path="/wiki" element={<WikiShell><WikiPage /></WikiShell>} />
-        <Route path="/wiki/a/:slug" element={<WikiShell><WikiArticlePage /></WikiShell>} />
+        <Route path="/guide" element={<WikiShell><WikiPage /></WikiShell>} />
+        <Route path="/guide/a/:slug" element={<WikiShell><WikiArticlePage /></WikiShell>} />
+        {/* 옛 주소 — 개명 전 링크·색인을 살린다 (위 WikiSlugRedirect 주석) */}
+        <Route path="/wiki" element={<Navigate to="/guide" replace />} />
+        <Route path="/wiki/a/:slug" element={<WikiSlugRedirect />} />
 
         {/* Authenticated routes with MainLayout */}
         <Route path="/dashboard" element={
@@ -559,7 +570,7 @@ function ShellApp() {
             <MainLayout><AdminLandingVisitsPage /></MainLayout>
           </ProtectedRoute>
         } />
-        <Route path="/admin/wiki" element={
+        <Route path="/admin/guide" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminWikiPage /></MainLayout>
           </ProtectedRoute>

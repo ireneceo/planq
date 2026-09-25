@@ -89,10 +89,21 @@ interface CommentAttach {
 interface CommentRow {
   id: number;
   content: string;
-  createdAt: string;
+  createdAt?: string;
+  /** 저장·소켓 응답은 snake_case 로 온다 — 둘 다 받는다 (아래 rowAt) */
+  created_at?: string;
   author?: { id?: number; name: string };
   attachments?: CommentAttach[];
 }
+
+/** 행 시각을 **한 곳**에서 읽는다 — 이 저장소는 같은 값에 두 이름이 있다(중첩 조회는
+ *  `createdAt`, 최상위 저장·소켓·일부 라우트는 `created_at`). 한쪽만 읽어서 두 번 샜다:
+ *  ①새 댓글의 시각이 빈 값이 되고, 빈 문자열이 모든 날짜보다 작아 **정렬 맨 위로** 올라갔다
+ *  (2026-09-25 신고) ②히스토리 시각이 **2026-04-25 부터 빈칸**이었다.
+ *  서버도 두 이름을 함께 싣지만(`dev-backend/utils/rowTimestamps.js`) 옛 응답·옛 캐시를
+ *  위해 화면도 둘을 읽는다. 새 시각 표시를 넣을 때도 이 함수를 쓴다. */
+const rowAt = (r: { createdAt?: string; created_at?: string } | null | undefined): string =>
+  (r && (r.createdAt || r.created_at)) || '';
 interface ReviewerRow {
   id: number; user_id: number; state: 'pending'|'approved'|'revision';
   is_client: boolean; reverted_once: boolean; action_at: string | null;
@@ -101,7 +112,9 @@ interface ReviewerRow {
 interface HistoryRow {
   id: number; event_type: string; from_status: string | null; to_status: string | null;
   actor_user_id: number | null; actor_role: string | null; target_user_id: number | null;
-  round: number | null; note: string | null; createdAt: string;
+  round: number | null; note: string | null;
+  /** 서버는 `created_at` 으로 보낸다 — 둘 다 받는다 (rowAt) */
+  createdAt?: string; created_at?: string;
   actor?: { id: number; name: string }; target?: { id: number; name: string };
 }
 type CueKind = 'summarize' | 'draft_reply' | 'categorize' | 'research';
@@ -567,10 +580,17 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const mergedThread = useMemo(() => {
     type Node = { at: string; kind: 'comment'; comment: CommentRow } | { at: string; kind: 'version'; ver: VerEvent };
     const nodes: Node[] = [
-      ...((detailTask?.comments || []).map((c) => ({ at: c.createdAt || '', kind: 'comment' as const, comment: c }))),
+      ...((detailTask?.comments || []).map((c) => ({ at: rowAt(c), kind: 'comment' as const, comment: c }))),
       ...verEvents.map((v) => ({ at: v.at, kind: 'version' as const, ver: v })),
     ];
-    return nodes.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+    // ★ 시각을 모르는 항목은 **맨 아래**로. 빈 문자열은 모든 날짜보다 작아서 그냥 정렬하면
+    //   맨 위로 올라가는데, 시각이 없는 것은 대개 **방금 만든 것**이라 정반대다.
+    //   위로 올라가면 사용자는 달린 줄 모른다 (2026-09-25 신고).
+    const rank = (s: string) => (s ? s : '￿');
+    return nodes.sort((a, b) => {
+      const x = rank(a.at); const y = rank(b.at);
+      return x < y ? -1 : x > y ? 1 : 0;
+    });
   }, [detailTask?.comments, verEvents]);
 
 
@@ -2357,10 +2377,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <VersionEventTime>{node.ver.at.slice(5, 16).replace('T', ' ')}</VersionEventTime>
                 </VersionEventRow>
               ) : (((c: CommentRow) => (
-                <CommentItem key={c.id}>
+                <CommentItem key={c.id} data-testid={`task-comment-${c.id}`}>
                   <CommentHead>
                     <strong>{c.author?.name}</strong>
-                    <span>{c.createdAt?.slice(5, 16).replace('T', ' ')}</span>
+                    <span>{rowAt(c).slice(5, 16).replace('T', ' ')}</span>
                     {c.author?.id === myId && (
                       <CommentMoreBtn type="button" data-testid="task-comment-more"
                         title={t('detail.commentMenu', { defaultValue: '편집/삭제' }) as string}
@@ -2747,7 +2767,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
             {/* 히스토리 — 가장 아래. 비어있어도 노출 (사용자: 단계이동·변경 이력은 항상 추적되어야) */}
             <Collapsible>
-              <ColHeader onClick={() => setOpenHistory(v => !v)}>
+              <ColHeader data-testid="task-history-toggle" onClick={() => setOpenHistory(v => !v)}>
                 <ColArrow $open={openHistory}>▸</ColArrow>
                 <span>{t('detail.history.title', 'History')} ({history.length})</span>
               </ColHeader>
@@ -2776,7 +2796,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                             {h.round != null && <TimelineRound>R{h.round}</TimelineRound>}
                           </TimelineHead>
                           {h.note && <TimelineNote>{h.note}</TimelineNote>}
-                          <TimelineTime>{h.createdAt?.slice(5, 16).replace('T', ' ')}</TimelineTime>
+                          <TimelineTime data-testid="task-history-time">{rowAt(h).slice(5, 16).replace('T', ' ')}</TimelineTime>
                         </TimelineBody>
                       </TimelineItem>
                     ))}

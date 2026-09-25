@@ -43,7 +43,7 @@ const DRIFT_OK = 2;
 const ROUTES = (process.env.HDR_ROUTES || [
   '/dashboard', '/inbox', '/todo', '/talk', '/mail', '/tasks', '/projects', '/calendar',
   '/notes', '/docs', '/info', '/files', '/bills', '/billing', '/sale', '/knowledge',
-  '/personal-vault', '/records', '/attendance', '/insights', '/signatures/received', '/wiki',
+  '/personal-vault', '/records', '/attendance', '/insights', '/signatures/received', '/guide',
   '/stats',
   '/business/settings', '/business/members', '/business/clients', '/business/org',
   '/business/settings/notifications',

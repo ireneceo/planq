@@ -5140,3 +5140,40 @@ guard 58/59 · health 45/45 · build EXIT 0 · `error TS` 0 · 잔여 0 ·
 - **범위 밖 기존 결함(Fable 발견)**: `pdfInlineImages.SRC_RE` 가 확장자 바로 뒤 따옴표를 요구해 `?w=1600` 붙은 editor-image 는
   PDF 에 인라인되지 않고 사라진다. 운영 editor-image 본문 17건 중 **11건**이 `?w=` — 그 문서 PDF 에 이미지가 없다. → 다음 작업.
 - 3단계 켜기 전 판단: 문서 캐시 60초(회수 반영 지연)를 줄일지.
+
+## 2026-09-25 — 「Q위키 → 도움말」 개명 + 주소 `/wiki/`→`/guide/` (라운드 1·2 FAIL → 3 진행 중)
+
+**판정**: R=0(되돌릴 수 있다 · 스키마 0) · S=0(올바른 동작이 요구사항에서 나온다) · F=1(가드·실브라우저·
+생성기 반증으로 갈린다) → 규칙상 자체 검증이지만 **훅이 막아 Fable 에 올렸고, 올린 것이 옳았다** —
+내가 못 본 잔존이 두 라운드에 걸쳐 6건 나왔다.
+
+**1차 FAIL — 내가 놓친 잔존 4계열**
+- `dev-frontend/index.html` `<noscript>` nav 의 `/wiki/` — **생성기는 홈 머리를 바꾸지 않으므로
+  운영 홈 HTML 에 죽은 링크로 실린다**(운영 홈에 3건 있었다)
+- `public/llms.txt` (AI 크롤러) · 생성 글 `<title>… | Q위키` · 알림 제목 `Q위키 초안 N건`
+- **e2e 7곳이 옛 주소를 쳐서 초록이 거짓이 된다**(홈·빈 화면을 재고 있었다)
+
+**2차 FAIL — 배포 결론이 달라졌다 (⑥)**
+`rmdirSync(path.dirname(abs))` 가 **잎만** 지워 빈 `wiki/`·`wiki/a/` 가 남는다. 그리고 **nginx 는 빈
+디렉터리에 403** 을 낸다 — Fable 이 운영 읽기로 실증(`https://planq.kr/sounds/ → 403`). 프런트 rsync 는
+`--delete` 가 없어(2026-08-24 사고로 제거) 우리가 지우지 않으면 영영 남는다. 즉 배포 후
+**사이트맵·llms.txt·noscript 로 광고했던 `/wiki/` 가 «없음» 이 아니라 «금지» 로 보인다.**
+
+**수정 (3차 올린 것)**
+1. `services/seoArtifacts.js` — 빈 상위 디렉터리를 `dir` 까지 거슬러 rmdir(생성물 경로 안에서만).
+2. Fable 의 «판정 외 관찰» 도 반영 — 옛 주소가 랜딩 홈으로 떨어지던 것을 앱 안 리다이렉트로
+   (`/wiki`→`/guide`, `/wiki/a/:slug`→`/guide/a/:slug` slug 보존). 게스트 순간 크롬 번쩍임 방지로
+   `publicSurface` 공개 표면에 옛 경로를 남겼다.
+
+**★ Fable 이 봐야 할 것 (내가 못 가른 지점)**
+- **①번 수정을 내가 검증하지 못했다.** 스크래치 픽스처로 `generateSeoArtifacts({dir})` 를 불렀더니
+  `ok=false · pages=undefined · guide 생성 false` — 생성기가 돌지 않았다(내 `index.html` 템플릿 부실 추정).
+  Fable 하니스는 같은 함수를 `{"ok":true,"pages":55}` 로 돌렸으므로 **그쪽으로 재야 한다.**
+- **rmdir 의 안전성이 제일 중요하다** — `dir` 밖으로 나가지 않는지, 비어 있지 않은 폴더
+  (`assets/`·`locales/`·마커 없는 파일이 든 폴더)를 지우지 않는지. 잘못하면 **배포마다 남의 파일을
+  지운다(비가역)**. 음성 대조군 필수.
+
+**자체 검증 수치 (3차 올린 상태)**: 빌드 EXIT 0 · `error TS` 0 · health 48/48 · guard 59/60
+(i18n 242/242 · parity 증가 0) · `--suite tenant` 0 실패 · `--suite delivver` 11/11 ·
+`wiki-coverage-check` EXIT 0 · 실브라우저 `/guide` 목록·상세·뒤로 동작 · DB 아티클 옛 이름 0건.
+**생성기 빈 폴더 수정은 «미측정».**

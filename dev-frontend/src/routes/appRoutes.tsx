@@ -117,7 +117,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/admin/feedback', roles: ['platform_admin'], element: <AdminFeedbackPage /> },
   { path: '/admin/dev-status', roles: ['platform_admin'], element: <DevStatusPage /> },
   { path: '/admin/landing-visits', roles: ['platform_admin'], element: <AdminLandingVisitsPage /> },
-  { path: '/admin/wiki', roles: ['platform_admin'], element: <AdminWikiPage /> },
+  { path: '/admin/guide', roles: ['platform_admin'], element: <AdminWikiPage /> },
   // ★ 라우트 표는 두 벌이다(App.tsx = shell / 여기 = 탭 모드). 한쪽만 넣으면 탭에서 빈 화면이 된다
   //   (memory feedback_unwired_guard_is_no_guard).
   { path: '/admin/updates', roles: ['platform_admin'], element: <AdminWikiPage mode="blog" /> },

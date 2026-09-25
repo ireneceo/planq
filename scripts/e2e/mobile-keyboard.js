@@ -121,7 +121,7 @@ const SCENARIOS = [
   { name: 'qnote-list', path: '/notes', open: null, assert: assertQNoteListVisible },       // #283 모바일 리스트 미노출 회귀 가드
   { name: 'calendar-add', path: '/calendar?create=1', open: null },     // 새 일정 모달(URL 자동 오픈)
   { name: 'docs', path: '/docs', open: null },
-  { name: 'wiki', path: '/wiki', open: null },
+  { name: 'guide', path: '/guide', open: null },
   { name: 'settings-profile', path: '/business/settings', open: null },
 ];
 

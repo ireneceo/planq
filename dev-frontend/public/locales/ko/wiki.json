@@ -1,6 +1,6 @@
 {
   "page": {
-    "title": "Q위키",
+    "title": "도움말",
     "subtitle": "PlanQ 사용법을 검색하고 둘러보세요",
     "searchPlaceholder": "무엇을 찾고 계신가요? (예: 청구서 발행)",
     "overviewTitle": "어디서부터 시작할까요?",
@@ -14,7 +14,7 @@
     "minutes": "{{count}}분"
   },
   "article": {
-    "back": "Q위키로 돌아가기",
+    "back": "도움말로 돌아가기",
     "openScreen": "이 화면 열기",
     "zoom": "클릭하여 확대",
     "related": "관련 도움말",
@@ -26,17 +26,17 @@
     "title": "Q helper",
     "tabCue": "Cue",
     "tabCueSub": "내 워크스페이스",
-    "tabWiki": "Q위키",
+    "tabWiki": "도움말",
     "tabWikiSub": "PlanQ 사용법",
     "tabInquiry": "문의",
     "tabInquirySub": "운영팀에 직접 문의",
     "thisScreen": "이 화면에서",
-    "searchWiki": "Q위키 검색",
+    "searchWiki": "도움말 검색",
     "searchPlaceholder": "도움말 검색",
     "searchResults": "검색 결과",
     "searching": "검색 중…",
     "searchNoResults": "검색 결과가 없어요",
-    "openFullWiki": "전체 Q위키 열기",
+    "openFullWiki": "전체 도움말 열기",
     "sources": "참고한 도움말"
   }
 }

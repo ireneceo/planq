@@ -16,6 +16,7 @@ const { rruleFromRecurrence, sanitizeRRule } = require('../services/rruleFromRec
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
 // §8.5 — 고객용 task 직렬화 (공수 시간·예측 출처·내부 메타·internal 댓글 차단)
 const { serializeTaskForClient, serializeTasksForClient } = require('../utils/taskClientView');
+const { serializeTaskComment } = require('../utils/rowTimestamps');
 // 생성·전이는 행동 계층 단일 착지점을 지난다 (사람도 Cue 도 같은 문).
 const taskActions = require('../services/actions/task_actions');
 const { myWeekWhere } = require('../services/weekTaskSet');
@@ -2191,7 +2192,8 @@ router.put('/:id/comments/:commentId', authenticateToken, async (req, res, next)
       include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
     });
     // #87 — 댓글 작성자 워크스페이스 표시명으로 (emit·return 동일)
-    const fullJson = full.toJSON();
+    // 시각 이름은 조회와 같게 (utils/rowTimestamps.js) — 편집 응답으로 갈아끼워도 정렬이 안 튀게
+    const fullJson = serializeTaskComment(full);
     await applyMemberDisplayName([fullJson], task.business_id, ['author']);
     const io = req.app.get('io');
     if (io) io.to(`task:${task.id}`).emit('comment:updated', fullJson);

@@ -16,7 +16,7 @@
 
 ## 읽을거리
 - [인사이트](https://planq.kr/insights/): 업무 자동화 인사이트와 제품 소식
-- [Q위키](https://planq.kr/wiki/): PlanQ 사용법 도움말
+- [도움말](https://planq.kr/guide/): PlanQ 사용법 도움말
 
 ## 업무 가이드 (업종·상황별)
 - [에이전시·디자인 스튜디오 업무관리](https://planq.kr/insights/agency-workflow/): 고객 요청부터 청구까지 한 흐름

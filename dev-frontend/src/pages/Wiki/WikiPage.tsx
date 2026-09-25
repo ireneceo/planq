@@ -71,7 +71,7 @@ export default function WikiPage() {
     setSp(next, { replace: true });
   };
 
-  const openArticle = (slug: string) => navigate(`/wiki/a/${slug}`);
+  const openArticle = (slug: string) => navigate(`/guide/a/${slug}`);
 
   const catById = useMemo(() => {
     const m = new Map<number, WikiCategory>();
