@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { apiFetch } from '../../contexts/AuthContext';
 import { GuestTabPane, Empty, RetryInline } from './guestShell';
 
 const PURPOSES = ['new_project', 'quote', 'ongoing', 'other'] as const;
@@ -16,6 +17,8 @@ type Purpose = typeof PURPOSES[number];
 
 type Props = {
   token: string;
+  /** 로그인 고객 홈(P3) — 같은 화면을 계정 API 로 부른다. 없으면 게스트 링크 API. */
+  apiBase?: string;
   /** 이메일을 확인했는가 — 확인 전에는 슬롯도 못 본다(서버도 403). */
   verified: boolean;
   /** 다른 시간을 고르는 중이면 그 예약 id. */
@@ -29,7 +32,10 @@ const browserTz = (() => {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
 })();
 
-export default function GuestBookingPanel({ token, verified, reschedule, onDone, onCancelReschedule }: Props) {
+export default function GuestBookingPanel({ token, apiBase, verified, reschedule, onDone, onCancelReschedule }: Props) {
+  // ★ 같은 화면·같은 서버 함수(services/booking.js), 신원만 다르다 — 게스트는 무인증 fetch, 계정은 apiFetch.
+  const base = apiBase || `/api/guest/${token}`;
+  const call = (u: string, init?: RequestInit) => (apiBase ? apiFetch(u, init) : fetch(u, init));
   const { t, i18n } = useTranslation('guest');
   const locale = i18n.language?.startsWith('en') ? 'en-US' : 'ko-KR';
   const [step, setStep] = useState<1 | 2 | 3>(reschedule ? 2 : 1);
@@ -50,13 +56,13 @@ export default function GuestBookingPanel({ token, verified, reschedule, onDone,
     if (!verified) return;
     setLoadErr(false);
     try {
-      const r = await fetch(`/api/guest/${token}/booking/slots`);
+      const r = await call(`${base}/booking/slots`);
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { setLoadErr(true); return; }
       setSlots(j.data.slots || []);
       setMeta({ duration: j.data.duration_minutes, tz: j.data.timezone, enabled: !!j.data.enabled });
     } catch { setLoadErr(true); }
-  }, [token, verified]);
+  }, [base, verified]);
   useEffect(() => { void load(); }, [load]);
 
   // 방문자 시간대의 날짜별로 묶는다
@@ -87,10 +93,10 @@ export default function GuestBookingPanel({ token, verified, reschedule, onDone,
     setSending(true); setErr(null);
     try {
       const url = reschedule
-        ? `/api/guest/${token}/booking/${reschedule.id}/reschedule`
-        : `/api/guest/${token}/booking`;
+        ? `${base}/booking/${reschedule.id}/reschedule`
+        : `${base}/booking`;
       const body = reschedule ? { start: pick } : { start: pick, purpose, memo };
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await call(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) {
         const code = j?.message || 'error';

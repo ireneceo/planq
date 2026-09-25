@@ -10,6 +10,7 @@ import type { TabKind } from '../../stores/tabStore';
 interface IconComp { (props: { size?: number }): ReturnType<FC>; }
 
 const KIND_ICON: Record<TabKind, IconComp> = {
+  home: DashboardIcon,   // 고객 홈 — 대시보드와 같은 «첫 화면» 아이콘
   dashboard: DashboardIcon,
   inbox: TodoCheckIcon,
   talk: ChatIcon,

@@ -34,6 +34,8 @@ export const SECTION_LABEL_KEY: Record<NavSection, string> = {
 
 // ── 워크스페이스 메뉴 (사이드바 일반 모드) ──
 export const WORKSPACE_MENUS: NavMenuEntry[] = [
+  // P3 — 고객의 첫 화면(창구의 app 모드). 고객에게만 보인다.
+  { key: 'home', to: '/home', labelKey: 'nav.home', section: 'main', roles: ['client'] },
   { key: 'dashboard', to: '/dashboard', labelKey: 'nav.dashboard', section: 'main', roles: 'any' },
   { key: 'inbox', to: '/inbox', labelKey: 'nav.inbox', section: 'main', roles: 'any' },
 

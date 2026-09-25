@@ -1435,6 +1435,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
           ) : (
             <>
               <NavSection>
+                {/* P3 — 고객의 첫 화면(창구의 app 모드). 메뉴 표(navMenus 'home')와 같은 값·같은 역할 */}
+                {hasBiz('client') && (
+                  <NavItem to="/home" $isCollapsed={isCollapsed} $active={isActive('/home')}
+                    data-testid="nav-home" title={isCollapsed ? t('nav.home', '홈') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+                    </NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.home', '홈')}</NavLabel>
+                  </NavItem>
+                )}
                 <NavItem to="/dashboard" $isCollapsed={isCollapsed} $active={isActive('/dashboard')}
                   title={isCollapsed ? t('nav.dashboard') : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}><IconDashboard /></NavIcon>

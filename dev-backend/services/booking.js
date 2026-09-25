@@ -319,32 +319,77 @@ async function recipientLinkOf(ev) {
   });
 }
 
+/** 이 예약의 **받는 사람** — 한 곳에서 정한다(확인창 주소 = 실제 발송 주소).
+ *  ① 그 고객의 확인된 창구 개인 링크(게스트) → 그 링크 주소로 «내 문의»
+ *  ② 없으면 그 고객의 **계정**(P3 로그인 고객) → 계정 이메일 · 앱 «홈 › 내 문의»
+ *  둘 다 없으면 null(메일 없음). 계정 쪽은 앱 알림도 같이 간다(notifyClientUser). */
+async function recipientOf(ev) {
+  const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+  const link = await recipientLinkOf(ev);
+  if (link) {
+    const { personalTokenFor } = require('./guest_link');
+    const token = personalTokenFor(link);
+    if (token) {
+      return { email: link.contact_email, openUrl: `${appUrl}/g/${token}?tab=mine`, locale: link.locale === 'en' ? 'en' : 'ko', via: 'guest' };
+    }
+  }
+  const att = await clientAttendeeOf(ev.id);
+  if (!att) return null;
+  const client = await Client.findOne({ where: { id: att.client_id, business_id: ev.business_id }, attributes: ['id', 'user_id'] });
+  if (!client || !client.user_id) return null;
+  const { User } = require('../models');
+  const u = await User.findByPk(client.user_id, { attributes: ['id', 'email', 'is_guest', 'language'] });
+  if (!u || u.is_guest || !u.email) return null;
+  return { email: u.email, openUrl: `${appUrl}/home?tab=mine`, locale: u.language === 'en' ? 'en' : 'ko', via: 'account', userId: u.id };
+}
+
 /** 팀 화면용 — 확인창에 적을 받는 주소. */
 async function guestRecipientOf(user, businessId, eventId) {
   const ev = await loadTeamBooking(user, businessId, eventId);
-  const link = await recipientLinkOf(ev);
-  return { email: link ? link.contact_email : null };
+  const r = await recipientOf(ev);
+  return { email: r ? r.email : null };
 }
 
-/** 고객에게 메일 — 그 고객의 **확인된 창구 개인 링크**로만. 없으면 조용히 건너뛴다(보낼 주소가 없다). */
-async function mailGuest(ev, kind, { biz }) {
+/** 로그인 고객에게 **앱 알림** — 팀이 상태를 바꿨을 때만(고객 자신의 동작은 알릴 필요가 없다). */
+async function notifyClientUser(ev, kind, { biz }) {
   try {
-    const link = await recipientLinkOf(ev);
-    if (!link) return false;
-    const { personalTokenFor } = require('./guest_link');
-    const token = personalTokenFor(link);
-    if (!token) return false;   // 비밀키가 없으면 열 수 없는 링크를 보내지 않는다
-    const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    const att = await clientAttendeeOf(ev.id);
+    if (!att) return;
+    const client = await Client.findOne({ where: { id: att.client_id, business_id: ev.business_id }, attributes: ['user_id'] });
+    if (!client || !client.user_id) return;
+    const { notify } = require('../routes/notifications');
     const tz = safeTz(biz.timezone || 'Asia/Seoul');
-    const locale = link.locale === 'en' ? 'en' : 'ko';
+    await notify({
+      userId: client.user_id, businessId: ev.business_id, eventKind: 'event',
+      titleSpec: { feature: 'calendar', action: `booking_${kind}`, subject: ev.title },
+      body: whenText(ev, tz, 'ko'),
+      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/home?tab=mine`,
+      workspaceName: biz.brand_name || biz.name || null,
+      entityType: 'calendar_event', entityId: ev.id,
+      // ★ 메일은 빼고 앱·푸시만 (Fable FAIL D1). 메일은 바로 뒤 sendGuestBookingEmail 이 **한 통** 보낸다 —
+      //   notify 의 메일 채널까지 태우면 팀 동작 한 번에 고객 메일이 두 통이고, 게스트 링크가 있으면
+      //   확인창에 적은 주소가 아닌 **계정 주소로도** 나간다(«확인창 주소 = 실제 발송 주소» 위반).
+      skipChannels: ['email'],
+    });
+  } catch (e) { console.warn('[booking] 고객 앱 알림 실패:', e.message); }
+}
+
+/** 고객에게 메일 — recipientOf 가 정한 곳으로. 없으면 조용히 건너뛴다(보낼 주소가 없다). */
+async function mailGuest(ev, kind, { biz, byTeam = false }) {
+  if (byTeam) await notifyClientUser(ev, kind, { biz });
+  try {
+    const to = await recipientOf(ev);
+    if (!to) return false;
+    const tz = safeTz(biz.timezone || 'Asia/Seoul');
+    const locale = to.locale;
     const wsName = biz.brand_name || biz.name || null;
     const meetingUrl = kind === 'confirmed' ? ev.meeting_url : null;
     const { sendGuestBookingEmail } = require('./emailService');
     return await sendGuestBookingEmail({
-      to: link.contact_email, kind, workspaceName: wsName,
+      to: to.email, kind, workspaceName: wsName,
       whenText: whenText(ev, tz, locale),
       meetingUrl,
-      openUrl: `${appUrl}/g/${token}?tab=mine`,
+      openUrl: to.openUrl,
       ics: kind === 'confirmed' ? buildIcs(ev, { workspaceName: wsName, meetingUrl }) : null,
       businessId: ev.business_id, eventId: ev.id, locale,
     });
@@ -411,6 +456,34 @@ function assertVerifiedEntryLink(ctx) {
   return link;
 }
 
+/** 신원 — 게스트 링크 방문자. 판정은 assertVerifiedEntryLink 그대로. */
+function guestActor(ctx) {
+  const link = assertVerifiedEntryLink(ctx);
+  return { kind: 'guest', businessId: link.business_id, client: ctx.client || null,
+    email: link.contact_email, name: link.contact_name, link };
+}
+
+/** 신원 — 로그인 고객(P3). **이 워크스페이스의 고객 행이 자기 것**이어야 한다(Client.user_id = 나).
+ *  ★ 멤버는 여기로 오지 않는다 — 멤버는 팀 쪽 문(teamApprove 등)을 쓴다. 고객 행이 없으면 403. */
+async function accountActor(user, businessId) {
+  if (!user || !businessId) throw new BookingError('forbidden', 403);
+  const client = await Client.findOne({ where: { business_id: businessId, user_id: user.id } });
+  if (!client || client.status === 'archived') throw new BookingError('forbidden', 403);
+  const biz = await loadBiz(businessId);
+  if (!biz || biz.deleted_at) throw new BookingError('not_found', 404);
+  return { kind: 'account', businessId, client, email: user.email || null,
+    name: client.display_name || client.company_name || null, link: null, userId: user.id };
+}
+
+async function slotsForActor(actor) {
+  const biz = await loadBiz(actor.businessId);
+  if (!biz) throw new BookingError('not_found', 404);
+  const cfg = bookingOf(biz);
+  if (!cfg.enabled) return { enabled: false, slots: [], duration: cfg.duration, timezone: safeTz(biz.timezone) };
+  const r = await computeSlots(biz, { client: actor.client });
+  return { enabled: true, slots: r.slots, duration: r.duration, timezone: r.timezone };
+}
+
 async function slotsForGuest(ctx) {
   const root = ctx && (ctx.parent || ctx.link);
   if (!root || root.scope !== 'workspace') throw new BookingError('not_found', 404);
@@ -429,29 +502,29 @@ async function slotsForGuest(ctx) {
  * 신청. 없으면 문의 고객(prospect)을 만든다 — `add_prospect` 한도와 «같은 이메일이면 잇기» 는
  * 고객으로 저장(routes/sale_save.js)과 **같은 함수**다.
  */
-async function requestBooking(ctx, { start, purpose, memo }) {
-  const link = assertVerifiedEntryLink(ctx);
+async function requestForActor(actor, { start, purpose, memo }) {
+  const link = actor.link;   // 게스트만 있다 — 계정 고객은 null
   if (!PURPOSES.includes(purpose)) throw new BookingError('invalid_purpose');
   const memoText = typeof memo === 'string' ? memo.trim().slice(0, MEMO_MAX) : '';
   const startDate = new Date(String(start || ''));
   if (Number.isNaN(startDate.getTime())) throw new BookingError('invalid_start');
   const startIso = startDate.toISOString();
 
-  const bizPre = await loadBiz(link.business_id);
+  const bizPre = await loadBiz(actor.businessId);
   if (!bizPre || bizPre.deleted_at) throw new BookingError('not_found', 404);
   if (!bookingOf(bizPre).enabled) throw new BookingError('booking_disabled', 409);
 
   // 고객 행 — 링크에 붙어 있으면 그것, 아니면 같은 이메일, 그래도 없으면 새 문의 고객.
   const { findExistingByContact } = require('./saleCommon');
-  let client = ctx.client || null;
-  if (!client) client = await findExistingByContact(link.business_id, { email: link.contact_email });
+  let client = actor.client || null;
+  if (!client && actor.email) client = await findExistingByContact(actor.businessId, { email: actor.email });
   let createdClient = false;
   if (!client) {
     const planEngine = require('./plan');
-    const can = await planEngine.can(link.business_id, 'add_prospect');
+    const can = await planEngine.can(actor.businessId, 'add_prospect');
     if (!can.ok) {
       const err = new BookingError('prospect_limit', 422);
-      err.quota = planEngine.buildQuotaError(can, link.business_id);
+      err.quota = planEngine.buildQuotaError(can, actor.businessId);
       throw err;
     }
   }
@@ -459,7 +532,7 @@ async function requestBooking(ctx, { start, purpose, memo }) {
   // 대기 중 신청 상한 — 한 사람이 달력을 채우지 못하게
   if (client) {
     const open = await CalendarEvent.count({
-      where: { business_id: link.business_id, booking_status: { [Op.in]: ['requested', 'proposed'] } },
+      where: { business_id: actor.businessId, booking_status: { [Op.in]: ['requested', 'proposed'] } },
       include: [{ model: CalendarEventAttendee, as: 'attendees', required: true, where: { client_id: client.id } }],
       distinct: true,
     });
@@ -471,7 +544,7 @@ async function requestBooking(ctx, { start, purpose, memo }) {
   try {
     // ★ 워크스페이스 행을 잠근다 — 같은 슬롯에 두 사람이 동시에 신청하면 둘 다 «비어 있음» 을 본다.
     //   잠근 뒤 **다시** 계산해 그 슬롯이 아직 있는지 확인한다(검사와 쓰기 사이의 틈을 닫는다).
-    const biz = await Business.findByPk(link.business_id, {
+    const biz = await Business.findByPk(actor.businessId, {
       attributes: ['id', 'name', 'brand_name', 'owner_id', 'timezone', 'work_hours', 'permissions', 'default_language'],
       transaction: t, lock: t.LOCK.UPDATE,
     });
@@ -483,8 +556,8 @@ async function requestBooking(ctx, { start, purpose, memo }) {
     if (!client) {
       client = await Client.create({
         business_id: biz.id,
-        display_name: (link.contact_name || '').trim().slice(0, 100) || link.contact_email.split('@')[0],
-        invite_email: link.contact_email,
+        display_name: (actor.name || '').trim().slice(0, 100) || String(actor.email || '').split('@')[0],
+        invite_email: actor.email,
         kind: 'customer',
         status: 'prospect',
         sales_source: 'guest_link',
@@ -495,7 +568,7 @@ async function requestBooking(ctx, { start, purpose, memo }) {
     }
 
     const lang = biz.default_language === 'en' ? 'en' : 'ko';
-    const who = client.display_name || client.company_name || link.contact_name || link.contact_email;
+    const who = client.display_name || client.company_name || actor.name || actor.email;
     ev = await CalendarEvent.create({
       business_id: biz.id,
       title: `${PURPOSE_LABEL[lang][purpose]} · ${who}`.slice(0, 300),
@@ -522,8 +595,8 @@ async function requestBooking(ctx, { start, purpose, memo }) {
     // 연결 — 링크와 방문자 대화방이 이 고객을 가리키게(비어 있을 때만. 사람이 건 연결을 덮지 않는다).
     //   ★ 부모(공유 창구 링크)에는 **붙이지 않는다** — 창구는 워크스페이스의 얼굴이고, 붙이면
     //     그 창구로 들어오는 모두가 이 고객이 된다(routes/sale_save.js 의 부모 연결과 다른 이유).
-    if (!link.client_id) await link.update({ client_id: client.id }, { transaction: t });
-    if (link.conversation_id) {
+    if (link && !link.client_id) await link.update({ client_id: client.id }, { transaction: t });
+    if (link && link.conversation_id) {
       await Conversation.update({ client_id: client.id },
         { where: { id: link.conversation_id, business_id: biz.id, client_id: null }, transaction: t });
     }
@@ -533,7 +606,7 @@ async function requestBooking(ctx, { start, purpose, memo }) {
     throw e;
   }
 
-  const biz = await loadBiz(link.business_id);
+  const biz = await loadBiz(actor.businessId);
   if (createdClient) {
     try { require('./plan').invalidateBusinessCache(biz.id); } catch { /* 캐시일 뿐이다 */ }
   }
@@ -542,7 +615,7 @@ async function requestBooking(ctx, { start, purpose, memo }) {
     const { setStage } = require('./salesStage');
     await setStage(client, 'inquiry', { origin: 'auto', reason: '상담 예약 신청', sourceRef: { calendar_event_id: ev.id } });
   } catch (e) { console.warn('[booking] 단계 전이 실패:', e.message); }
-  audit(ev, 'booking.request', { extra: { client_id: client.id, created_client: createdClient } });
+  audit(ev, 'booking.request', { userId: actor.userId || null, extra: { client_id: client.id, created_client: createdClient, by: actor.kind } });
   broadcast(ev, 'event:created');
   if (createdClient && global.__planqIo) {
     global.__planqIo.to(`business:${biz.id}`).emit('client:new', { id: client.id, business_id: biz.id });
@@ -552,25 +625,30 @@ async function requestBooking(ctx, { start, purpose, memo }) {
   return ev;
 }
 
-/** 이 고객(링크)의 예약 한 건 — 남의 것은 없는 것으로 친다. */
-async function findGuestBooking(ctx, eventId, transaction) {
-  const link = assertVerifiedEntryLink(ctx);
-  if (!link.client_id) throw new BookingError('not_found', 404);
+/** 이 고객의 예약 한 건 — 남의 것은 없는 것으로 친다. 축은 **client_id** 다
+ *  (게스트 링크든 로그인 계정이든 같은 고객이면 같은 건이 보인다 — §4.4). */
+function actorClientId(actor) {
+  if (actor.link) return actor.link.client_id || null;
+  return actor.client ? actor.client.id : null;
+}
+async function findActorBooking(actor, eventId, transaction) {
+  const cid = actorClientId(actor);
+  if (!cid) throw new BookingError('not_found', 404);
   const ev = await CalendarEvent.findOne({
-    where: { id: Number(eventId) || 0, business_id: link.business_id, booking_status: { [Op.ne]: null } },
-    include: [{ model: CalendarEventAttendee, as: 'attendees', required: true, where: { client_id: link.client_id } }],
+    where: { id: Number(eventId) || 0, business_id: actor.businessId, booking_status: { [Op.ne]: null } },
+    include: [{ model: CalendarEventAttendee, as: 'attendees', required: true, where: { client_id: cid } }],
     transaction,
   });
   if (!ev) throw new BookingError('not_found', 404);
   return ev;
 }
 
-async function listGuestBookings(ctx) {
-  const link = assertVerifiedEntryLink(ctx);
-  if (!link.client_id) return [];
+async function listActorBookings(actor) {
+  const cid = actorClientId(actor);
+  if (!cid) return [];
   const rows = await CalendarEvent.findAll({
-    where: { business_id: link.business_id, booking_status: { [Op.ne]: null } },
-    include: [{ model: CalendarEventAttendee, as: 'attendees', required: true, where: { client_id: link.client_id }, attributes: [] }],
+    where: { business_id: actor.businessId, booking_status: { [Op.ne]: null } },
+    include: [{ model: CalendarEventAttendee, as: 'attendees', required: true, where: { client_id: cid }, attributes: [] }],
     attributes: ['id', 'title', 'start_at', 'end_at', 'booking_status', 'meeting_url'],
     order: [['start_at', 'DESC']],
     limit: 50,
@@ -590,21 +668,21 @@ async function listGuestBookings(ctx) {
   });
 }
 
-async function guestAccept(ctx, eventId) {
-  const ev = await findGuestBooking(ctx, eventId);
+async function acceptForActor(actor, eventId) {
+  const ev = await findActorBooking(actor, eventId);
   if (ev.booking_status !== 'proposed') throw new BookingError('invalid_state', 409);
   if (new Date(ev.start_at).getTime() <= Date.now()) throw new BookingError('past', 409);
-  return confirmInternal(ev, { actorUserId: null, via: 'guest' });
+  return confirmInternal(ev, { actorUserId: actor.userId || null, via: actor.kind });
 }
 
-async function guestCancel(ctx, eventId) {
-  const ev = await findGuestBooking(ctx, eventId);
+async function cancelForActor(actor, eventId) {
+  const ev = await findActorBooking(actor, eventId);
   if (!ACTIVE.includes(ev.booking_status)) throw new BookingError('invalid_state', 409);
   if (new Date(ev.end_at).getTime() <= Date.now()) throw new BookingError('past', 409);
   const from = ev.booking_status;
   await ev.update({ booking_status: 'canceled', reminder_minutes: null });
   const biz = await loadBiz(ev.business_id);
-  audit(ev, 'booking.cancel', { from, extra: { by: 'guest' } });
+  audit(ev, 'booking.cancel', { userId: actor.userId || null, from, extra: { by: actor.kind } });
   broadcast(ev);
   await notifyMember(ev, 'booking_canceled', { biz });
   await mailGuest(ev, 'canceled', { biz });
@@ -613,13 +691,13 @@ async function guestCancel(ctx, eventId) {
 }
 
 /** 제안받은 시간 대신 다른 시간 — 다시 «신청» 이 된다(§4.6). 슬롯 검사는 신청과 같다. */
-async function guestReschedule(ctx, eventId, { start }) {
+async function rescheduleForActor(actor, eventId, { start }) {
   const startDate = new Date(String(start || ''));
   if (Number.isNaN(startDate.getTime())) throw new BookingError('invalid_start');
   const t = await sequelize.transaction();
   let ev; let from;
   try {
-    ev = await findGuestBooking(ctx, eventId, t);
+    ev = await findActorBooking(actor, eventId, t);
     if (!['requested', 'proposed'].includes(ev.booking_status)) throw new BookingError('invalid_state', 409);
     const biz = await Business.findByPk(ev.business_id, {
       attributes: ['id', 'owner_id', 'timezone', 'work_hours', 'permissions'], transaction: t, lock: t.LOCK.UPDATE,
@@ -627,7 +705,7 @@ async function guestReschedule(ctx, eventId, { start }) {
     const cfg = bookingOf(biz);
     if (!cfg.enabled) throw new BookingError('booking_disabled', 409);
     // 자기 자신은 막는 일정에서 뺀다 — 안 빼면 제안받은 그 시간이 «이미 찼음» 이 된다
-    const { slots } = await computeSlots(biz, { client: ctx.client, transaction: t, excludeEventId: ev.id });
+    const { slots } = await computeSlots(biz, { client: actor.client, transaction: t, excludeEventId: ev.id });
     if (!slots.includes(startDate.toISOString())) throw new BookingError('slot_unavailable', 409);
     from = ev.booking_status;
     await ev.update({
@@ -640,12 +718,19 @@ async function guestReschedule(ctx, eventId, { start }) {
     throw e;
   }
   const biz = await loadBiz(ev.business_id);
-  audit(ev, 'booking.reschedule', { from, extra: { by: 'guest' } });
+  audit(ev, 'booking.reschedule', { userId: actor.userId || null, from, extra: { by: actor.kind } });
   broadcast(ev);
   await notifyMember(ev, 'booking_request', { biz });
   await mailGuest(ev, 'requested', { biz });
   return ev;
 }
+
+// 게스트 링크 입구 — 판정(창구 확인된 개인 링크)을 지난 뒤 같은 함수로.
+const requestBooking = (ctx, body) => requestForActor(guestActor(ctx), body);
+const listGuestBookings = async (ctx) => listActorBookings(guestActor(ctx));
+const guestAccept = (ctx, id) => acceptForActor(guestActor(ctx), id);
+const guestCancel = (ctx, id) => cancelForActor(guestActor(ctx), id);
+const guestReschedule = (ctx, id, body) => rescheduleForActor(guestActor(ctx), id, body);
 
 // ══════════════════════════════════════════════════════════════════════════
 // 팀 쪽 — 승인 · 다른 시간 제안 · 거절 · 취소
@@ -722,8 +807,10 @@ async function confirmInternal(ev, { actorUserId, via, createMeeting = false }) 
   }
   audit(ev, 'booking.confirm', { userId: actorUserId, from, extra: { by: via } });
   broadcast(ev);
-  if (via === 'guest') await notifyMember(ev, 'booking_accepted', { biz });
-  await mailGuest(ev, 'confirmed', { biz });
+  // 고객이 수락했으면(게스트든 계정이든) 담당에게 알린다 — 전에 `via === 'guest'` 라 **계정 고객 수락은
+  //   아무에게도 안 알려졌다**(Fable FAIL D2). «같은 함수, 신원만 다르다» 가 이 줄에서 깨졌던 것이다.
+  if (via !== 'team') await notifyMember(ev, 'booking_accepted', { biz });
+  await mailGuest(ev, 'confirmed', { biz, byTeam: via === 'team' });
   return { ev, meetWarning };
 }
 
@@ -747,7 +834,7 @@ async function teamPropose(user, businessId, eventId, { start }) {
   const biz = await loadBiz(ev.business_id);
   audit(ev, 'booking.propose', { userId: user.id, from });
   broadcast(ev);
-  await mailGuest(ev, 'proposed', { biz });
+  await mailGuest(ev, 'proposed', { biz, byTeam: true });
   return { ev };
 }
 
@@ -759,7 +846,7 @@ async function teamDecline(user, businessId, eventId) {
   const biz = await loadBiz(ev.business_id);
   audit(ev, 'booking.decline', { userId: user.id, from });
   broadcast(ev);
-  await mailGuest(ev, 'declined', { biz });
+  await mailGuest(ev, 'declined', { biz, byTeam: true });
   return { ev };
 }
 
@@ -771,7 +858,7 @@ async function teamCancel(user, businessId, eventId) {
   const biz = await loadBiz(ev.business_id);
   audit(ev, 'booking.cancel', { userId: user.id, from: 'confirmed', extra: { by: 'team' } });
   broadcast(ev);
-  await mailGuest(ev, 'canceled', { biz });
+  await mailGuest(ev, 'canceled', { biz, byTeam: true });
   await syncGoogle(ev);
   return { ev };
 }
@@ -831,6 +918,7 @@ module.exports = {
   BookingError, PURPOSES, BOOKING_DEFAULTS,
   normalizeBooking, bookingOf, normalizeWorkHours, serializeWorkHours, workHoursOf,
   computeSlots, slotsForGuest, requestBooking, listGuestBookings, guestAccept, guestCancel, guestReschedule,
+  accountActor, slotsForActor, requestForActor, listActorBookings, acceptForActor, cancelForActor, rescheduleForActor,
   teamApprove, teamPropose, teamDecline, teamCancel, guestRecipientOf,
   recordFinishedBookings, initBookingCron, buildIcs,
   // 테스트용

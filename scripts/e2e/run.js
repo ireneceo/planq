@@ -157,6 +157,9 @@ const SUITES = {
   booking: () => require('./canary-booking'),
   // 같은 기능의 **서버 판정** 실 HTTP 검사(화면 없음) — 슬롯 모양·한도·전이·한 건=한 버킷·메일 시도·수정/삭제 409.
   bookingapi: () => require('./canary-booking-api'),
+  // 로그인 고객 홈 /home (2026-09-25, CLIENT_ENTRY P3) — 고객만 200 · 계정 고객 예약(같은 함수) → 팀 승인 → 앱 알림 ·
+  //   로그인 착지 /home · 3폭 탭 · 사이드바 «홈» · 오너는 /dashboard(음성) · 예약 끄면 탭 없음(음성).
+  clienthome: () => require('./canary-client-home'),
   // 고객용 프로젝트 링크의 탭·카드·필터·등록 문 (2026-09-24, GUEST_PROJECT_VIEW §C~G · §H 가 요구).
   //   다섯 탭 기둥 left 3폭 · 카드 열 · preview_url 4케이스 · 필터 중 요청 0 · 개요 파생 · 시트·redirect 착지.
   guestproject: () => require('./canary-guest-project'),

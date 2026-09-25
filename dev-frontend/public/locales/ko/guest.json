@@ -251,5 +251,13 @@
     "cancelTitle": "상담을 취소할까요?",
     "cancelOk": "취소하기",
     "keep": "그대로 두기"
+  },
+  "home": {
+    "title": "홈",
+    "todo": "확인할 일이 {{count}}건 있어요",
+    "todoOpen": "확인필요 열기",
+    "loadFail": "홈 정보를 불러오지 못했어요.",
+    "tabsAria": "홈 탭",
+    "bills": "청구"
   }
 }

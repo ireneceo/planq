@@ -251,5 +251,13 @@
     "cancelTitle": "Cancel this consultation?",
     "cancelOk": "Cancel it",
     "keep": "Keep it"
+  },
+  "home": {
+    "title": "Home",
+    "todo": "You have {{count}} items to check",
+    "todoOpen": "Open To-do",
+    "loadFail": "Couldn't load your home.",
+    "tabsAria": "Home tabs",
+    "bills": "Bills"
   }
 }

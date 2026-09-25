@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { apiFetch } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 
 export type GuestBooking = {
@@ -21,6 +22,8 @@ export type GuestBooking = {
 
 type Props = {
   token: string;
+  /** 로그인 고객 홈(P3) — 계정 API 로 부른다. 없으면 게스트 링크 API. */
+  apiBase?: string;
   /** 제안받은 건에서 [다른 시간] — 예약 탭을 재신청 모드로 연다. */
   onReschedule: (id: number) => void;
   /** 바깥에서 다시 읽게 할 때 바꾼다(재신청을 마치고 돌아온 경우). */
@@ -31,7 +34,9 @@ const browserTz = (() => {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
 })();
 
-export default function GuestBookingList({ token, onReschedule, reloadKey = 0 }: Props) {
+export default function GuestBookingList({ token, apiBase, onReschedule, reloadKey = 0 }: Props) {
+  const base = apiBase || `/api/guest/${token}`;
+  const call = (u: string, init?: RequestInit) => (apiBase ? apiFetch(u, init) : fetch(u, init));
   const { t, i18n } = useTranslation('guest');
   const locale = i18n.language?.startsWith('en') ? 'en-US' : 'ko-KR';
   const [rows, setRows] = useState<GuestBooking[] | null>(null);
@@ -41,18 +46,18 @@ export default function GuestBookingList({ token, onReschedule, reloadKey = 0 }:
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`/api/guest/${token}/booking/mine`);
+      const r = await call(`${base}/booking/mine`);
       const j = await r.json().catch(() => null);
       setRows(r.ok && j?.success && Array.isArray(j.data) ? j.data : []);
     } catch { setRows([]); }
-  }, [token]);
+  }, [base]);
   useEffect(() => { void load(); }, [load, reloadKey]);
 
   const act = async (b: GuestBooking, action: 'accept' | 'cancel') => {
     if (busy) return;
     setBusy(b.id); setErr(null);
     try {
-      const r = await fetch(`/api/guest/${token}/booking/${b.id}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const r = await call(`${base}/booking/${b.id}/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) setErr(j?.message || 'error');
       await load();

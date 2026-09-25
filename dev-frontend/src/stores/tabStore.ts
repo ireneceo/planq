@@ -10,6 +10,8 @@
 import { isTabsSpike } from '../utils/tabsBeta';
 
 export type TabKind =
+  // P3 로그인 고객 홈 — other 로 두면 설정 탭과 identity 가 같아 서로 덮어쓴다
+  | 'home'
   | 'dashboard' | 'inbox' | 'talk' | 'task' | 'note' | 'docs' | 'calendar'
   | 'bill' | 'mail' | 'sale' | 'project' | 'projectDetail' | 'files' | 'clients' | 'info'
   // 플랫폼 관리자 화면. 워크스페이스 kind 와 **반드시 갈라야 한다** — 예전엔 /admin 이
@@ -104,6 +106,7 @@ const PREFIX_KIND: Array<[RegExp, TabKind]> = [
   [/^\/clients/, 'clients'],
   [/^\/info/, 'info'],
   [/^\/inbox/, 'inbox'],
+  [/^\/home/, 'home'],
   [/^\/dashboard/, 'dashboard'],
 ];
 

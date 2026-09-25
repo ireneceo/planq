@@ -129,6 +129,8 @@ const LandingBlog = lazy(() => import('./pages/Landing/BlogPage'));
 const LandingBlogPost = lazy(() => import('./pages/Landing/BlogPostPage'));
 const RootRoute = lazy(() => import('./pages/Landing/RootRoute'));
 const DashboardPage = lazy(() => import('./pages/Dashboard/DashboardPage'));
+// P3 — 로그인 고객 홈(창구의 app 모드). 고객이 아니면 페이지가 /dashboard 로 보낸다.
+const ClientHomePage = lazy(() => import('./pages/ClientHome/ClientHomePage'));
 const TodoPage = lazy(() => import('./pages/Todo/TodoPage'));
 const AttendancePage = lazy(() => import('./pages/Attendance/AttendancePage'));
 const NotificationsPage = lazy(() => import('./pages/Notifications/NotificationsPage'));
@@ -266,6 +268,11 @@ function ShellApp() {
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <MainLayout><DashboardPage /></MainLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/home" element={
+          <ProtectedRoute>
+            <MainLayout><ClientHomePage /></MainLayout>
           </ProtectedRoute>
         } />
         <Route path="/inbox" element={

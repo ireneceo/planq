@@ -11,6 +11,8 @@ import type { ReactElement } from 'react';
 
 const DashboardPage = lazy(() => import('../pages/Dashboard/DashboardPage'));
 const TodoPage = lazy(() => import('../pages/Todo/TodoPage'));
+// P3 — 로그인 고객 홈(창구의 app 모드). App.tsx 의 /home 과 **같은 목록**이어야 한다(guard-app-routes).
+const ClientHomePage = lazy(() => import('../pages/ClientHome/ClientHomePage'));
 const NotificationsPage = lazy(() => import('../pages/Notifications/NotificationsPage'));
 const ShareReceivePage = lazy(() => import('../pages/ShareReceive/ShareReceivePage'));
 const WorkspaceSettingsPage = lazy(() => import('../pages/Settings/WorkspaceSettingsPage'));
@@ -69,6 +71,7 @@ const BIZ: PlatformRole[] = ['business_owner', 'business_member'];
 // App.tsx 의 MainLayout 래핑 인증 라우트와 1:1 (drift 가드가 대조). 순서·path 동일 유지.
 export const APP_ROUTES: AppRouteDef[] = [
   { path: '/dashboard', element: <DashboardPage /> },
+  { path: '/home', element: <ClientHomePage /> },
   { path: '/inbox', element: <TodoPage /> },
   { path: '/notifications', element: <NotificationsPage /> },
   // 드리프트 가드가 찾아낸 누락 — 탭 모드에서는 빈 화면이 될 자리였다(#306 과 같은 계열).

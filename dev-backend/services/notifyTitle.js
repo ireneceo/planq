@@ -81,6 +81,10 @@ const ACTIONS = {
   booking_request: { ko: '상담 신청', en: 'Consultation request' },
   booking_accepted: { ko: '상담 시간 수락', en: 'Proposed time accepted' },
   booking_canceled: { ko: '상담 취소', en: 'Consultation canceled' },
+  // 고객(로그인 계정) 쪽 — 팀이 상태를 바꿨을 때
+  booking_confirmed: { ko: '상담 확정', en: 'Consultation confirmed' },
+  booking_proposed: { ko: '상담 시간 제안', en: 'New time proposed' },
+  booking_declined: { ko: '상담 신청 결과', en: 'Consultation request update' },
   // Q Bill
   bill_payment_notice: { ko: '송금 통보', en: 'Payment notice' },
   bill_receipt_request: { ko: '증빙 발행 요청', en: 'Receipt requested' },

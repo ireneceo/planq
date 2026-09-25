@@ -489,7 +489,8 @@ const LoginPage: React.FC = () => {
       if (isValidPath && !target.startsWith('/login') && !target.startsWith('/register')) {
         navigate(target, { replace: true });
       } else {
-        navigate('/dashboard', { replace: true });
+        // P3 — 고객의 착지는 홈(창구의 app 모드)이다. 멤버·오너는 종전대로 대시보드.
+        navigate(user.business_role === 'client' ? '/home' : '/dashboard', { replace: true });
       }
     }
   }, [authLoading, isAuthenticated, user, navigate, location]);

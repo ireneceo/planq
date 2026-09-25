@@ -540,6 +540,8 @@ app.use('/api/calendar', require('./routes/calendar'));
 // 통합 공유 시스템 alias — ShareModal 의 /api/calendar-events/:id/share 매칭
 app.use('/api/calendar-events', require('./routes/calendar'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+// P3 로그인 고객 홈(/home) — 창구와 같은 자료·같은 예약 함수, 신원만 계정 고객(routes/client_home.js)
+app.use('/api/client-home', require('./routes/client_home'));
 // 오늘의 업무 리뷰(Context Center) — dashboard.js 가 이미 1,000줄대라 별도 파일로 둔다(god-file 래칫).
 //   같은 마운트 경로를 공유하므로 경로는 /api/dashboard/today-review 그대로다.
 app.use('/api/dashboard', require('./routes/today_review'));

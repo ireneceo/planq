@@ -422,3 +422,6 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
 });
 
 module.exports = router;
+// P3 로그인 고객 홈이 **같은 화이트리스트**를 쓴다(routes/client_home.js) — 베끼면 갈라진다.
+module.exports.entryOf = entryOf;
+module.exports.workspaceOf = workspaceOf;
