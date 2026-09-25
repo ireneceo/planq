@@ -1,0 +1,66 @@
+{
+  "version": "1.64.0",
+  "date": "2026-09-25",
+  "items": [
+    {
+      "ko": {
+        "title": "고객 창구 — 워크스페이스 전용 문의 주소",
+        "body": "설정 › 권한의 «고객 창구» 에서 주소를 만들면, 고객이 그 주소로 들어와 이메일만 확인하고 바로 문의를 남길 수 있습니다. 명함·전단용 QR 도 함께 나옵니다."
+      },
+      "en": {
+        "title": "Customer entry page — one link for your workspace",
+        "body": "Create an entry link in Settings › Permissions. Customers open it, verify their email, and leave an inquiry right away. A QR code for business cards and flyers is included."
+      }
+    },
+    {
+      "ko": {
+        "title": "상담 예약",
+        "body": "고객 창구에서 고객이 담당자의 빈 시간을 골라 상담을 신청합니다. 신청은 확인필요에 뜨고, 승인·다른 시간 제안·거절을 일정 상세에서 바로 처리합니다. 확정되면 고객에게 일정 파일이 담긴 메일이 갑니다."
+      },
+      "en": {
+        "title": "Consultation booking",
+        "body": "Customers can pick an open time from the entry page. Requests appear in your To-do, and you can approve, propose another time, or decline right from the event details. Once confirmed, the customer gets an email with a calendar file."
+      }
+    },
+    {
+      "ko": {
+        "title": "고객 홈",
+        "body": "로그인한 고객은 «홈» 에서 워크스페이스 안내·상담 예약·내 문의·프로젝트·청구를 한곳에서 봅니다."
+      },
+      "en": {
+        "title": "Customer home",
+        "body": "Signed-in customers now land on «Home», where they can see your intro, book a consultation, track their requests, and open projects and bills."
+      }
+    },
+    {
+      "ko": {
+        "title": "방문자 막기",
+        "body": "고객 창구 설정에서 이메일을 확인한 방문자 한 사람만 골라 막을 수 있습니다. 막힌 사람은 다시 확인해도 들어올 수 없고, 대화 기록은 남습니다."
+      },
+      "en": {
+        "title": "Block a single visitor",
+        "body": "In the entry settings you can block one verified visitor. They can't get back in by verifying again, and the conversation history is kept."
+      }
+    },
+    {
+      "ko": {
+        "title": "업무 댓글이 제자리에 붙습니다",
+        "body": "새로 단 댓글이 목록 맨 위로 올라가던 문제와, 업무 히스토리 시각이 비어 보이던 문제를 고쳤습니다."
+      },
+      "en": {
+        "title": "Task comments land in the right place",
+        "body": "New comments no longer jump to the top of the list, and task history now shows its timestamps."
+      }
+    },
+    {
+      "ko": {
+        "title": "「Q위키」 이름이 「도움말」 로 바뀌었습니다",
+        "body": "사용법 안내의 이름과 주소가 「도움말」(/guide) 로 바뀌었습니다. 예전 주소로 들어와도 새 주소로 이어집니다."
+      },
+      "en": {
+        "title": "«Q Wiki» is now «Guide»",
+        "body": "The help center is now called Guide and lives at /guide. Old links redirect automatically."
+      }
+    }
+  ]
+}

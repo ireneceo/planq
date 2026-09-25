@@ -1,54 +1,67 @@
 {
   "working_on": [
-    "권한 결함 3건 차단 + 감사 3순위 + 로그 토큰 가리기 (v1.63.5)"
+    "고객 창구 P1~P3 · 상담 예약 · 로그인 고객 홈 (v1.64.0)"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "남의 워크스페이스 Cue 초안 승인·거절 차단(프로젝트 없는 대화방 무검사)",
+      "title": "고객 창구 P1 — workspace 링크·방문자 본인 대화방·설정 카드",
       "verified": "fable_pass"
     },
     {
-      "title": "남의 워크스페이스 업무에 후보 병합 차단",
+      "title": "상담 예약(P2) — 슬롯·신청·승인/제안/거절·.ics 메일·끝남 기록",
       "verified": "fable_pass"
     },
     {
-      "title": "남의 워크스페이스 대화방에 메시지 삽입 차단",
+      "title": "설정 카드 QR",
       "verified": "fable_pass"
     },
     {
-      "title": "감사 3순위 (216→98)",
+      "title": "방문자 방 복귀(D2) · 방문자 한 사람 막기(D3)",
       "verified": "fable_pass"
     },
     {
-      "title": "오류 로그의 공유·게스트·서명 토큰 가리기",
-      "verified": "opus_only"
+      "title": "로그인 고객 홈 /home(P3)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "업무 댓글 정렬·히스토리 시각 · Q위키→도움말 개명",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "Fable 게이트 지문에 scripts·게이트 자체 포함",
+      "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
-    "워크스페이스 멤버·그 방 고객이 아니면 대화방 쓰기·초안 승인·후보 병합이 403/404"
+    "고객 계정 로그인 첫 화면이 /dashboard 에서 /home 으로",
+    "예약 일정은 일반 수정으로 시간·참석자·공개범위를 바꾸거나 지울 수 없다(409)",
+    "/wiki → /guide (앱 안 리다이렉트)"
   ],
-  "migrations": [],
+  "migrations": [
+    "migrate-guest-link-scope-workspace.js (guest_links.scope ENUM append · conversation_id NULL)",
+    "migrate-calendar-booking-status.js (calendar_events.booking_status ENUM NULL + 인덱스)"
+  ],
   "issues": [
-    "보관된 standalone 고객 대화에 고객이 쓰면 409(재활성 안 됨) — 기존 동작",
-    "invoice 무인증 receipt-request 전용 rate limit 없음",
-    "폴더 삭제 감사 oldValue 파일 목록 상한 없음",
-    "image_ctx 캐시 60초 · 휴지통 L1 판단"
+    "팀 «다른 시간 제안» 은 담당 일정 겹침을 안 본다(설계 허용)",
+    "canary-guest-entry 가 email_logs 를 매 실행 2행 남긴다"
   ],
   "blocked_on_human": [
     "운영 nginx server_tokens off"
   ],
   "check_areas": [
-    "Q Talk 메시지 전송(멤버·고객)",
-    "Cue 초안 승인",
-    "업무 후보 병합"
+    "설정 › 권한 «고객 창구» 카드",
+    "고객 창구 상담 예약·내 문의",
+    "Q calendar 예약 일정(점선·처리 줄)",
+    "고객 계정 로그인 → 홈",
+    "확인필요 «상담 신청»"
   ],
   "backlog": [
-    "이미지 2b 3단계(L2/L3 켜기) — 운영 계측 14일 뒤",
-    "감사 3순위(projects.js 잔여 등)"
+    "인사이트 «유입→예약→확정→등록» 퍼널(P3 잔여)",
+    "이미지 2b 3단계(L2/L3) — 운영 계측 14일 뒤"
   ],
   "tooling_health": [
-    "health 48/48 · guard 59/60 · tenant 0 · 권한 HEAD 재현/수정 실측 · 감사 실호출 68"
+    "health 48/48 · guard 59/60 · clienthome 21 · bookingapi 56 · booking 20 · guestentry 55 · tenant 0"
   ],
   "undeployed": []
 }
