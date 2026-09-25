@@ -42,6 +42,8 @@ export interface CalendarEvent {
   target_client_ids?: number[] | null;
   created_by: number;
   created_via?: string | null;
+  /** 고객 창구 상담 예약(P2) — null = 보통 일정. 바꾸는 문은 BookingActions → /api/calendar/booking/* 하나. */
+  booking_status?: 'requested' | 'proposed' | 'confirmed' | 'declined' | 'canceled' | null;
   creator?: { id: number; name: string; email?: string } | null;
   Project?: { id: number; name: string; color?: string | null } | null;
   attendees?: CalendarAttendee[];

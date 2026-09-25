@@ -644,6 +644,7 @@ const QCalendarPage: React.FC = () => {
           myBusinessRole={user?.business_role || null}
           onClose={() => setSelectedEventId(null)}
           onUpdate={handleUpdate}
+          onLocalPatch={(patch) => setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? { ...e, ...patch } as CalendarEvent : e)))}
           onDelete={handleDelete}
           onCreateMeetingRoom={handleCreateMeetingRoom}
           gcalCanWrite={gcalCanWrite}

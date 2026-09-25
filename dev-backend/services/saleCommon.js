@@ -191,6 +191,34 @@ async function serializeClients(businessId, rows) {
   }));
 }
 
+/**
+ * 이메일·전화 **정확 일치**로 이미 있는 고객을 찾는다(LLM 0). 없으면 null.
+ * ★ «새로 만들기 전에 반드시 이것부터» — 고객으로 저장(routes/sale_save.js)과 상담 예약
+ *   (services/booking.js)이 **같은 함수**를 쓴다. 각자 찾으면 같은 사람이 두 행이 된다.
+ */
+async function findExistingByContact(businessId, { email, phone }) {
+  if (email) {
+    const { matchClientByAddresses } = require('../services/mailLink');
+    const id = await matchClientByAddresses(businessId, [email]);
+    if (id) return Client.findOne({ where: { id, business_id: businessId } });
+    const byUser = await Client.findOne({
+      where: { business_id: businessId },
+      include: [{ model: User, as: 'user', attributes: ['id'], where: { email }, required: true }],
+    });
+    if (byUser) return byUser;
+  }
+  const digits = normPhoneDigits(phone);
+  if (digits.length >= 8) {
+    const rows = await Client.findAll({
+      where: { business_id: businessId, phone: { [Op.ne]: null } },
+      attributes: ['id', 'phone'], limit: 2000,
+    });
+    const hit = rows.find((r) => normPhoneDigits(r.phone) === digits);
+    if (hit) return Client.findOne({ where: { id: hit.id, business_id: businessId } });
+  }
+  return null;
+}
+
 module.exports = {
   noteTargetOf, noteCountsForItems, applyNoteCounts,
 
@@ -198,5 +226,6 @@ module.exports = {
   blockClient, readChain, writeChain, broadcast,
   trimOrNull, normEmail, normPhoneDigits,
   CLIENT_INCLUDE, findClient, loadClientWithIncludes, isAssignableMember, touchClient, serializeClients,
+  findExistingByContact,
   saleOwnerWhere,
 };

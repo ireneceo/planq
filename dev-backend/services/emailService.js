@@ -717,6 +717,89 @@ async function sendGuestReplyNotifyEmail({ to, workspaceName, openUrl, unsubscri
   });
 }
 
+// ── 상담 예약 (고객 창구 P2, docs/CLIENT_ENTRY_DESIGN.md §4.5·§4.6) ─────────────
+//   받는 사람은 **이메일을 확인한 방문자**(개인 링크의 contact_email)뿐이다 — 부르는 쪽(services/booking.js)이 고른다.
+//   ★ 메모(방문자가 적은 글)는 싣지 않는다 — 메일은 전달·전송 중 노출될 수 있고, 본인이 이미 안다.
+//   ★ 확정 메일에만 .ics 가 붙는다 — 고객 캘린더에 들어가야 예약이 끝난다(§4.5). 그 외 상태는
+//     캘린더에 넣을 것이 없다(아직 안 정해졌거나 없어졌다).
+const BOOKING_MAIL_TEXT = {
+  ko: {
+    subject: {
+      requested: (ws) => `[${ws}] 상담 신청을 받았습니다`,
+      confirmed: (ws) => `[${ws}] 상담이 확정되었습니다`,
+      proposed: (ws) => `[${ws}] 상담 시간 변경을 제안했습니다`,
+      declined: (ws) => `[${ws}] 상담 신청이 성사되지 않았습니다`,
+      canceled: (ws) => `[${ws}] 상담이 취소되었습니다`,
+    },
+    lead: {
+      requested: '상담 신청을 받았습니다. 담당자가 확인하면 다시 알려 드립니다.',
+      confirmed: '상담이 확정되었습니다. 첨부한 일정 파일을 열면 캘린더에 추가됩니다.',
+      proposed: '담당자가 다른 시간을 제안했습니다. 아래 버튼에서 수락하거나 다른 시간을 고를 수 있습니다.',
+      declined: '이번 신청은 진행하기 어렵다는 답을 받았습니다. 다른 시간으로 다시 신청하거나 문의를 남겨 주세요.',
+      canceled: '상담이 취소되었습니다.',
+    },
+    when: '일시',
+    meeting: '화상 회의',
+    cta: '내 문의 열기',
+    pre: '상담 예약 안내',
+  },
+  en: {
+    subject: {
+      requested: (ws) => `[${ws}] We received your consultation request`,
+      confirmed: (ws) => `[${ws}] Your consultation is confirmed`,
+      proposed: (ws) => `[${ws}] A new time was proposed for your consultation`,
+      declined: (ws) => `[${ws}] Your consultation request could not be accepted`,
+      canceled: (ws) => `[${ws}] Your consultation was canceled`,
+    },
+    lead: {
+      requested: "We received your request. We'll let you know once it's reviewed.",
+      confirmed: 'Your consultation is confirmed. Open the attached calendar file to add it to your calendar.',
+      proposed: 'A different time was proposed. You can accept it or pick another time from the button below.',
+      declined: "This request couldn't be accepted. You can request another time or leave a message.",
+      canceled: 'Your consultation was canceled.',
+    },
+    when: 'When',
+    meeting: 'Video call',
+    cta: 'Open my requests',
+    pre: 'Consultation booking update',
+  },
+};
+const bookingText = (locale) => BOOKING_MAIL_TEXT[String(locale || 'ko').slice(0, 2)] || BOOKING_MAIL_TEXT.ko;
+
+/**
+ * @param {{ to, kind: 'requested'|'confirmed'|'proposed'|'declined'|'canceled', workspaceName, whenText,
+ *           meetingUrl?, openUrl, ics?, businessId, eventId, locale }} p
+ */
+async function sendGuestBookingEmail(p) {
+  if (!p || !p.to || !p.openUrl || !BOOKING_MAIL_TEXT.ko.lead[p.kind]) return false;
+  const T = bookingText(p.locale);
+  const ws = p.workspaceName || PLATFORM.brand;
+  // 화상 회의 주소는 https 만 싣는다 — 메일 본문에 임의 스킴을 그리지 않는다.
+  let meet = null;
+  try { if (p.meetingUrl && new URL(p.meetingUrl).protocol === 'https:') meet = p.meetingUrl; } catch { meet = null; }
+  const body = `
+    <div style="font-size:15px;color:#0F172A;line-height:1.6;font-weight:600;">${escapeHtml(T.lead[p.kind])}</div>
+    ${p.whenText ? `<div style="margin-top:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;font-size:13px;color:#334155;line-height:1.7;">
+      <b>${escapeHtml(T.when)}</b> · ${escapeHtml(p.whenText)}
+      ${meet ? `<br><b>${escapeHtml(T.meeting)}</b> · <a href="${escapeHtml(meet)}" target="_blank" style="color:#0F766E;">${escapeHtml(meet)}</a>` : ''}
+    </div>` : ''}
+    <div style="margin-top:20px;text-align:center;">${ctaButton(p.openUrl, T.cta)}</div>
+    ${fallbackLink(p.openUrl)}`;
+  const attachments = p.ics && p.kind === 'confirmed'
+    ? [{ filename: 'invite.ics', content: p.ics, contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }]
+    : undefined;
+  return sendEmail({
+    to: p.to,
+    subject: T.subject[p.kind](ws),
+    html: emailWrap({ title: T.subject[p.kind](ws), body, preheader: T.pre, footerOptions: { workspaceName: p.workspaceName } }),
+    attachments,
+    template: `guest_booking_${p.kind}`,
+    businessId: p.businessId || null,
+    relatedEntityType: 'calendar_event',
+    relatedEntityId: p.eventId || null,
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 5. 청구서 발송 (외부 client)
 // ═══════════════════════════════════════════════════════════════
@@ -1216,7 +1299,7 @@ module.exports = {
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,
   sendUnreadNotificationEmail,
-  sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail,
+  sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail, sendGuestBookingEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendNotificationEmail,

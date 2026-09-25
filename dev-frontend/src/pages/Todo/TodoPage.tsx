@@ -44,6 +44,8 @@ const TYPE_TO_TAB: Record<string, Exclude<InboxTab, 'all'>> = {
   // Q sale — 영업은 업무와 성격이 다르다(고객을 향한 응답·확인). 여기 없으면 'all' 탭 그룹이
   //   undefined 로 떨어져 **목록에서 조용히 사라진다**(상태값 규약).
   sale: 'sale',
+  // 상담 신청(창구 P2) — 영업 탭. 여기 없으면 탭 분류에서 떨어져 목록에서 사라진다.
+  booking: 'sale',
   signature: 'signature',
   invoice: 'billing', payment_notify: 'billing', tax_invoice: 'billing',
   invoice_draft: 'billing',

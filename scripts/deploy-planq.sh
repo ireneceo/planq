@@ -326,6 +326,9 @@ sync_database() {
   #   · conversation_id NULL 허용. 멱등(2회차 no-op). ★ 순서: PM2 reload 보다 먼저 —
   #   ENUM 에 값이 없는 채 신 코드가 뜨면 창구 발급이 1265/잘림으로 죽는다.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-guest-link-scope-workspace.js 2>&1 | tail -10"
+  # 2026-09-25 상담 예약(CLIENT_ENTRY P2) — calendar_events.booking_status ENUM NULL + 인덱스. 멱등.
+  #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-booking-status.js 2>&1 | tail -10"
   # Q Mail 발송 상태 — email_messages.delivery_status ENUM 에 'suppressed' append.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"

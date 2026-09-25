@@ -741,7 +741,17 @@ router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, asyn
         .slice(0, 20);
       updates.reference_timezones = cleaned.length ? cleaned : null;
     }
-    if (work_hours !== undefined) updates.work_hours = work_hours || null;
+    // ★ 근무시간은 상담 예약 슬롯 계산의 입력이다(services/booking.js). 원문을 그대로 저장하면
+    //   아무 JSON 이나 들어가 계산이 조용히 기본값으로 떨어진다 — **모양을 여기서 한 번 정한다.**
+    //   `{ mon:[9,18], …, sat:null }` 이 아니면 400.
+    if (work_hours !== undefined) {
+      if (work_hours === null) updates.work_hours = null;
+      else {
+        const norm = require('../services/booking').serializeWorkHours(work_hours);
+        if (!norm) return errorResponse(res, 'Invalid work_hours', 400);
+        updates.work_hours = norm;
+      }
+    }
 
     const settingsBefore = business.get({ plain: true, clone: true });
     await business.update(updates);

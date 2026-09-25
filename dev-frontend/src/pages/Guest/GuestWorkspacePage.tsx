@@ -19,6 +19,8 @@ import { PublicWorkspaceMark, PublicSubline, type PublicWorkspace } from '../../
 import GuestChatPanel from './GuestChatPanel';
 import GuestNotifySection from './GuestNotifySection';
 import LoginRequiredSheet from './LoginRequiredSheet';
+import GuestBookingPanel from './GuestBookingPanel';
+import GuestBookingList from './GuestBookingList';
 import {
   GuestTabPane, Empty, Lock,
   Wrap, Head, HeadRow, HeadText, Title, HeadBtn, TabBar, Tab, NotifyColumn,
@@ -29,6 +31,8 @@ export type EntryInfo = {
   intro: string | null;
   services: string[];
   contact: { phone: string | null; email: string | null; website: string | null; address: string | null };
+  /** 상담 예약(P2) — 켜져 있으면 «상담 예약» 탭이 보인다. 옛 응답에는 없을 수 있다. */
+  booking?: { enabled: boolean; duration_minutes: number };
 };
 
 type Props = {
@@ -44,7 +48,7 @@ type Props = {
   onReload: () => void;
 };
 
-const TAB_KEYS = ['info', 'chat', 'mine', 'projects'] as const;
+const TAB_KEYS = ['info', 'chat', 'book', 'mine', 'projects'] as const;
 type TabKey = typeof TAB_KEYS[number];
 
 export default function GuestWorkspacePage({
@@ -55,7 +59,10 @@ export default function GuestWorkspacePage({
 
   // 탭은 URL 싱크 — 프로젝트 화면과 **같은 규약**(`?tab=`, 기본 탭은 파라미터를 지운다).
   const raw = sp.get('tab');
-  const tab: TabKey = (TAB_KEYS as readonly string[]).includes(raw || '') ? (raw as TabKey) : 'info';
+  // 예약이 꺼진 창구에서 `?tab=book` 으로 들어오면 안내로 떨어진다 — 없는 탭을 그리지 않는다.
+  const bookingOn = !!entry?.booking?.enabled;
+  const tab: TabKey = (TAB_KEYS as readonly string[]).includes(raw || '') && (raw !== 'book' || bookingOn)
+    ? (raw as TabKey) : 'info';
   const go = (k: TabKey) => {
     const n = new URLSearchParams(sp);
     if (k === 'info') n.delete('tab'); else n.set('tab', k);
@@ -90,6 +97,9 @@ export default function GuestWorkspacePage({
   }, [onReload]);
 
   const hasRoom = !!conversationId;
+  // 제안받은 건에서 [다른 시간] 을 누르면 예약 탭이 재신청 모드로 열린다.
+  const [reschedule, setReschedule] = useState<{ id: number } | null>(null);
+  const [mineKey, setMineKey] = useState(0);
 
   return (
     <Wrap>
@@ -124,6 +134,12 @@ export default function GuestWorkspacePage({
           data-testid="guest-tab-chat" onClick={() => go('chat')}>
           {t('entry.tabChat', { defaultValue: '문의하기' })}
         </Tab>
+        {bookingOn && (
+          <Tab type="button" role="tab" aria-selected={tab === 'book'} $on={tab === 'book'}
+            data-testid="guest-tab-book" onClick={() => { setReschedule(null); go('book'); }}>
+            {t('entry.tabBook', { defaultValue: '상담 예약' })}
+          </Tab>
+        )}
         <Tab type="button" role="tab" aria-selected={tab === 'mine'} $on={tab === 'mine'}
           data-testid="guest-tab-mine" onClick={() => go('mine')}>
           {t('entry.tabMine', { defaultValue: '내 문의' })}
@@ -174,10 +190,27 @@ export default function GuestWorkspacePage({
               )}
             </Section>
           )}
-          <AskBtn type="button" data-testid="entry-go-chat" onClick={() => go('chat')}>
-            {t('entry.goChat', { defaultValue: '문의하기' })}
-          </AskBtn>
+          <BtnRow>
+            <AskBtn type="button" data-testid="entry-go-chat" onClick={() => go('chat')}>
+              {t('entry.goChat', { defaultValue: '문의하기' })}
+            </AskBtn>
+            {bookingOn && (
+              <AskGhost type="button" data-testid="entry-go-book" onClick={() => { setReschedule(null); go('book'); }}>
+                {t('entry.goBook', { defaultValue: '상담 예약' })}
+              </AskGhost>
+            )}
+          </BtnRow>
         </GuestTabPane>
+      )}
+
+      {tab === 'book' && bookingOn && (
+        <GuestBookingPanel
+          token={token}
+          verified={hasRoom}
+          reschedule={reschedule}
+          onDone={() => { setReschedule(null); setMineKey((k) => k + 1); go('mine'); }}
+          onCancelReschedule={() => { setReschedule(null); go('mine'); }}
+        />
       )}
 
       {/* 대화 — 방이 있을 때만 그린다. 언마운트로 쓰던 글이 날아가지 않게 `display:none` 으로 접는다
@@ -200,13 +233,14 @@ export default function GuestWorkspacePage({
         <GuestTabPane data-testid="guest-tab-body-mine">
           {hasRoom ? (
             <>
+              {/* 위 = 상태가 있는 것(상담·미팅) · 아래 = 흐름(대화) — §4.4. 없으면 묶음 자체가 안 그려진다. */}
+              <GuestBookingList token={token} reloadKey={mineKey}
+                onReschedule={(id) => { setReschedule({ id }); go('book'); }} />
               <Label>{t('entry.mineChat', { defaultValue: '대화' })}</Label>
               <MineRow type="button" data-testid="entry-mine-chat" onClick={() => go('chat')}>
                 <span>{workspace?.name || t('entry.title', { defaultValue: '고객 창구' })}</span>
                 <MineGo>{t('entry.open', { defaultValue: '열기' })}</MineGo>
               </MineRow>
-              {/* 상담·미팅 묶음은 **P2(예약)** 에서 이 위에 붙는다 — 설계 §4.4.
-                  없는 칸을 미리 그려 두지 않는다(빈 자리는 고장으로 읽힌다). */}
             </>
           ) : (
             <Notice data-testid="entry-mine-locked">
@@ -277,6 +311,14 @@ const AskBtn = styled.button`
   align-self:flex-start;min-height:40px;padding:0 16px;border-radius:10px;cursor:pointer;
   border:none;background:#14B8A6;color:#fff;font-size:0.875rem;font-weight:700;
   &:hover{background:#0D9488;}
+  &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
+`;
+const BtnRow = styled.div`display:flex;flex-wrap:wrap;gap:8px;`;
+// 보조 행동 — 3톤 규칙의 Secondary. 높이·모서리는 AskBtn 과 같다.
+const AskGhost = styled.button`
+  min-height:40px;padding:0 16px;border-radius:10px;cursor:pointer;
+  border:1px solid #CBD5E1;background:#fff;color:#334155;font-size:0.875rem;font-weight:700;
+  &:hover{border-color:#14B8A6;}
   &:focus-visible{outline:2px solid #0D9488;outline-offset:2px;}
 `;
 const MineRow = styled.button`

@@ -5,6 +5,7 @@ import { CheckIcon } from '../../components/Common/Icons';
 import type { CalendarEvent, CalendarItem } from './types';
 import { clipEventToDay, eventOverlapsDay, formatTime, isSameDay, startOfDay } from './dateUtils';
 import { getEventColors } from './categoryColors';
+import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { isTaskEvent } from './taskToEvent';
 
 interface Props {
@@ -98,8 +99,10 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                     $fg={c.fg}
                     $border={c.border}
                     data-testid={isTask ? 'calendar-task' : 'calendar-event'}
+                    data-booking={bookingAttr(e as CalendarEvent)}
                     onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                   >
+                    <BookingTag e={e as CalendarEvent} />
                     {isTask && <CheckIcon size={11} style={{ marginRight: 3, verticalAlign: '-2px' }} />}{e.title}
                     {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' })}>✎</ExceptionMark>}
                   </AllDayChip>
@@ -168,10 +171,12 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                         $fg={c.fg}
                         $border={c.border}
                         data-testid={isTask ? 'calendar-task' : 'calendar-event'}
+                        data-booking={bookingAttr(e as CalendarEvent)}
                         onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       >
                         <EventHeader>
                           <EventTitle>
+                            <BookingTag e={e as CalendarEvent} />
                             {e.title}
                             {(e as { _is_exception?: boolean })._is_exception && <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' })}>✎</ExceptionMark>}
                           </EventTitle>
@@ -248,6 +253,7 @@ const AllDayCell = styled.div`
   &:last-child { border-right: none; }
 `;
 const AllDayChip = styled.div<{ $bg: string; $fg: string; $border: string }>`
+  ${bookingCss}
   padding: 3px 8px; border-radius: 4px; font-size: 0.71875rem; font-weight: 500;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};
   border-left: 3px solid ${({ $border }) => $border};
@@ -298,6 +304,7 @@ const NowDot = styled.div`
   background: #F43F5E;
 `;
 const TimeEvent = styled.div<{ $bg: string; $fg: string; $border: string }>`
+  ${bookingCss}
   position: absolute; left: 2px; right: 2px;
   padding: 4px 7px; border-radius: 6px;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};

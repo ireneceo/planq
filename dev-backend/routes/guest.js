@@ -54,6 +54,8 @@ router.use(require('./guest_subscribe'));
 router.use(require('./guest_project'));
 // 인증이 필요한 유일한 게스트 라우트 — Smart Routing(앱에서 열기). 파일로 갈라 둔다.
 router.use(require('./guest_auth'));
+// 상담 예약(창구 P2) — `/:token/booking/*` 만 가져간다. 판정은 services/booking.js 한 곳.
+router.use(require('./guest_booking'));
 
 const SYMBOL_PATH = /^\/api\/businesses\/symbol\/[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i;
 const workspaceOf = (b) => (b ? {
@@ -101,6 +103,12 @@ function entryOf(b) {
       website: httpsUrl(b.website),
       address: str(b.address, 500),
     },
+    // 상담 예약 탭을 보일지·한 번 길이 — **두 값만.** 담당 멤버·하루 상한·리드타임은 싣지 않는다
+    //   (무인증 응답이고, 화면은 슬롯 API 가 준 시각만 있으면 된다).
+    booking: (() => {
+      const bk = require('../services/booking').bookingOf(b);
+      return { enabled: bk.enabled, duration_minutes: bk.duration };
+    })(),
   };
 }
 

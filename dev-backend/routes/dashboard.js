@@ -81,6 +81,7 @@ function toIsoDateOnlyAsDate(dateOnlyStr) {
 // 상한·시각 변환은 수집기와 **같은 원천**을 쓴다(services/todo/common.js) — 복사하면 숫자가 갈라진다
 const { COLLECT_LIMIT, safeToIso } = require('../services/todo/common');
 const { collectSale } = require('../services/todo/saleBucket');
+const { collectBookings } = require('../services/todo/bookingBucket');
 
 async function collectTasks(businessId, userId) {
   const items = [];
@@ -285,6 +286,9 @@ async function collectEvents(businessId, userId) {
     where: {
       business_id: businessId,
       start_at: { [Op.gt]: now },
+      // 상담 예약은 **확정된 것만** 보통 일정처럼 센다. 신청 대기는 «상담 신청» 버킷이 세고
+      //   (한 건 = 한 버킷), 거절·취소된 것은 참석할 일이 없다. NULL = 예약이 아닌 보통 일정.
+      [Op.or]: [{ booking_status: null }, { booking_status: 'confirmed' }],
     },
     attributes: ['id', 'title', 'start_at', 'location', 'createdAt'],
     include: [
@@ -1139,7 +1143,7 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
     // 각 워크스페이스에서 collector 돌리고 항목마다 workspace 라벨 부착
     const allBuckets = await Promise.all(workspaces.map(async (w) => {
       const userRole = w.role === 'admin' ? 'admin' : w.role;
-      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails, chats, leaveApprovals, sales] = await Promise.all([
+      const [tasks, events, candidates, invoices, signatures, paymentNotifies, taxInvoices, planqSubs, recurringDrafts, mails, chats, leaveApprovals, sales, bookings] = await Promise.all([
         collectTasks(w.business_id, userId),
         collectEvents(w.business_id, userId),
         // N+30 — 사용자 정책: task_candidate 는 채팅 옆 (RightPanel) + 본인 전체 업무 옆 (QTaskPage 인박스) 만 노출.
@@ -1158,8 +1162,10 @@ router.get('/todo', authenticateToken, async (req, res, next) => {
         collectLeaveApprovals(w.business_id, userRole, userId),
         // Q sale — 고객 역할에게는 이 수집기가 애초에 돌지 않는다(아래 role 검사)
         w.role === 'client' ? Promise.resolve([]) : collectSale(w.business_id, userId, userRole),
+        // 상담 신청(창구 P2) — 담당 멤버에게. 고객 역할은 일정을 만들지 않으므로 늘 0건이지만 명시로 막는다.
+        w.role === 'client' ? Promise.resolve([]) : collectBookings(w.business_id, userId),
       ]);
-      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails, ...chats, ...leaveApprovals, ...sales];
+      const items = [...tasks, ...events, ...candidates, ...invoices, ...signatures, ...paymentNotifies, ...taxInvoices, ...planqSubs, ...recurringDrafts, ...mails, ...chats, ...leaveApprovals, ...sales, ...bookings];
       // 워크스페이스 라벨 부착
       for (const it of items) it.workspace = { business_id: w.business_id, brand_name: w.brand_name, role: w.role };
       return items;

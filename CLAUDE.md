@@ -496,6 +496,18 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 **게스트 링크 (1):** **guest_links** — 무로그인 링크(#259). **2026-09-05: `scope` ENUM('conversation','project') 추가, 기본값 `conversation`.** 이 컬럼이 곧 **여는 것의 상한**이다 — `conversation` 토큰으로 프로젝트 탭 라우트(`/api/guest/:token/tasks` 등)를 부르면 **404**. 기본값을 conversation 으로 둔 이유: **이미 나가 있는 링크가 조용히 넓어지면 안 된다**(운영 기존 행은 전부 conversation 으로 남는다). 운영 적용은 `dev-backend/scripts/migrate-guest-link-scope.js`(멱등) — **코드 배포 전에** 실행한다(컬럼이 없으면 500). 발급 가능 판정은 `services/guest_link.js assertGuestLinkIssuable` **한 함수**(대화방·프로젝트 두 라우트가 같이 부른다 — 복사했다가 한쪽에서 죽은 코드가 된 전례). 설계 docs/PROJECT_EXTERNAL_VIEW_DESIGN.md
 
+**상담 예약 (2026-09-25, 고객 창구 P2):** `calendar_events.booking_status` ENUM('requested','proposed','confirmed','declined','canceled') **NULL**
+(NULL = 보통 일정 · 끝남은 값이 아니라 `confirmed && end_at < now` 파생). 새 표 없음 — 설정은 `permissions.customer_entry.booking`,
+받는 시간은 `businesses.work_hours`(모양 `{mon:[9,18],…,sat:null}` — `services/booking.js serializeWorkHours` 한 곳이 정하고 PUT /settings 가 400 으로 막는다).
+- **상태를 바꾸는 문은 `services/booking.js` 하나다** — 감사·실시간·팀 알림·고객 메일(.ics)·영업 단계가 전이 함수 안에 있다.
+  일반 일정 수정(PUT)은 예약의 시간·참석자·공개범위를, 삭제는 살아 있는 예약을 **409 `booking_use_actions`** 로 막는다.
+- **고객은 일정을 «만들지» 않는다** — 신청은 `created_by = 담당 멤버`(고객 담당 → 설정 담당 → 오너) · vlevel L1 행이다.
+  Meet 은 담당 멤버 **본인** 구글 연동으로만(워크스페이스 토큰 = 오너 캘린더에 고객 이름이 올라간다).
+- 무인증 표면 `routes/guest_booking.js` — **창구의 확인된 개인 링크만**(공유 링크 403). 슬롯 응답은 시각 배열·길이·시간대뿐.
+- 한 건 = 한 버킷: 신청은 확인필요 `type:'booking'`(담당 멤버)만 센다 — `collectEvents`·saleBucket ①③ 에서 뺀다.
+- 확인창의 받는 주소와 실제 발송 주소는 **같은 함수**(`recipientLinkOf`). 운영: `migrate-calendar-booking-status.js`(멱등, 배포 슬롯 등록).
+- 회귀: 실 HTTP 53검사(임시) · `node scripts/e2e/run.js --suite booking`(3폭·양성 대조군 확인).
+
 **조직·문의 (2026-09-21 컬럼 추가):** `teams.lead_user_id`(팀장 — 부서의 `lead_user_id` 와 같은 계약: 지정하면 그 멤버가
 그 팀과 팀의 부서로 옮겨진다, `routes/org.js resolveLead`·`placeLead*` 한 벌, 이 워크스페이스 멤버만) ·
 `feedback_items.kind` ENUM('feedback','inquiry')(로그인 사용자의 «문의» 도 이 원장 — 개인 > 문의·피드백에서 답을 본다.

@@ -686,6 +686,33 @@
       "guest_links_disabled": "Guest links are turned off.",
       "forbidden": "You don't have permission.",
       "guest_link_secret_missing": "A server setting is missing. Please tell an administrator."
+    },
+    "qrAlt": "QR code for your customer entry link",
+    "qrHint": "Print it on business cards or flyers. Long-press or right-click the image to save it.",
+    "booking": {
+      "title": "Accept consultation bookings",
+      "desc": "Adds a «Book» tab to your entry page. Only customers who verified their email can pick a time, and requests appear in the host's To-do.",
+      "member": "Host",
+      "memberOwner": "Owner",
+      "memberHint": "If the customer already has an assigned member, that person hosts first.",
+      "duration": "Length",
+      "minN": "{{count}} min",
+      "lead": "Minimum notice",
+      "leadN": "{{count}} hours ahead",
+      "max": "Daily limit",
+      "maxN": "{{count}} per day",
+      "hours": "Bookable hours",
+      "hoursHint": "In your workspace time zone. Times that overlap the host's existing events are hidden from customers.",
+      "closed": "Closed",
+      "day": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      }
     }
   }
 }

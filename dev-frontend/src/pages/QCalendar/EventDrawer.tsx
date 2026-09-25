@@ -18,6 +18,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { ProvenanceBadge } from '../../components/Common/SourceHint';
+import BookingActions from './BookingActions';
 import { formatRRuleLabel } from '../../utils/recurrence';
 import { isEnterAction } from '../../utils/imeKey';
 import { reminderOptions, reminderLabel, REMINDER_NONE } from './reminderOptions';
@@ -69,6 +70,8 @@ interface Props {
   workspaceCanWrite?: boolean;
   // 개인 Google Calendar 가 연결 + 쓰기 권한까지 있는가 (NewEventModal 과 같은 기준)
   personalCalWritable?: boolean;
+  /** 서버가 이미 바꾼 값을 화면에만 반영한다(PUT 없음) — 상담 예약 처리처럼 전용 라우트가 저장한 경우. */
+  onLocalPatch?: (patch: Partial<CalendarEvent>) => void;
 }
 
 // 시간 + 날짜 → ISO 변환 (로컬 타임존 기준, NewEventModal 의 mkISO 동일 패턴)
@@ -83,7 +86,7 @@ const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean
 
 const EventDrawer: React.FC<Props> = ({
   event, instanceDate, projects = [], members = [], clients = [], myUserId, myBusinessRole,
-  onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalCanWrite, workspaceCanWrite, personalCalWritable,
+  onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalCanWrite, workspaceCanWrite, personalCalWritable, onLocalPatch,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
@@ -109,6 +112,12 @@ const EventDrawer: React.FC<Props> = ({
 
   // 편집 권한: 작성자 또는 owner (백엔드 PUT 라우트와 일치)
   const canEdit = !!event && (event.created_by === myUserId || myBusinessRole === 'owner');
+  // ★ 상담 예약(창구 P2)은 시간·참석자·반복·공개범위를 여기서 못 바꾼다 — 고객이 받은 확정 메일·.ics 와
+  //   조용히 달라진다. 시간은 BookingActions 의 «다른 시간 제안», 끝내기는 «취소» 로(서버도 409 로 막는다).
+  //   살아 있는 예약은 삭제도 막는다 — 지우면 고객은 아무 연락도 못 받는다.
+  const canEditSchedule = canEdit && !event?.booking_status;
+  const bookingLive = !!event?.booking_status && ['requested', 'proposed', 'confirmed'].includes(event.booking_status)
+    && new Date(event.end_at).getTime() > Date.now();
   // 저장된 알림 설정(분). 목록·읽기 표시가 **같은 값**을 보게 한 곳에서 꺼낸다.
   const curReminder = (event as (CalendarEvent & { reminder_minutes?: number | null }) | null)?.reminder_minutes ?? null;
 
@@ -333,6 +342,11 @@ const EventDrawer: React.FC<Props> = ({
         {event.created_via === 'cue' && (
           <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common' })} /></ProvenanceRow>
         )}
+        {/* 고객 창구 상담 예약 — 승인·다른 시간 제안·거절이 여기서 끝난다(확인필요 «상담 신청» 이 이 일정을 연다) */}
+        {event.booking_status && user?.business_id && (
+          <BookingActions event={event} businessId={user.business_id}
+            onChanged={(patch) => onLocalPatch?.(patch)} />
+        )}
         {/* 시간 — 인라인 편집 */}
         <Section>
           <SectionIcon>
@@ -343,7 +357,7 @@ const EventDrawer: React.FC<Props> = ({
           </SectionIcon>
           <SectionBody>
             <MutedSmall>{t('drawer.schedule', '일정')}</MutedSmall>
-            {canEdit ? (
+            {canEditSchedule ? (
               <ScheduleEditor>
                 {/* #119 — 시작/마감 각각 [날짜 + 시간] 한 줄로 묶어 표시 (시간이 자기 날짜에 붙음). */}
                 <DateTimeRow>
@@ -569,7 +583,7 @@ const EventDrawer: React.FC<Props> = ({
                       ) : (
                         <ResponsePill $response={a.response}>{t(`response.${a.response}`)}</ResponsePill>
                       )}
-                      {canEdit && (
+                      {canEditSchedule && (
                         <AttendeeRemoveBtn
                           type="button"
                           title={t('drawer.removeAttendee', '제거') as string}
@@ -591,7 +605,7 @@ const EventDrawer: React.FC<Props> = ({
                 })}
               </AttendeeList>
             )}
-            {canEdit && (members.length > 0 || clients.length > 0) && (() => {
+            {canEditSchedule && (members.length > 0 || clients.length > 0) && (() => {
               const existingUserIds = new Set((event.attendees || []).map(a => a.user_id).filter(Boolean));
               const existingClientIds = new Set((event.attendees || []).map(a => a.client_id).filter(Boolean));
               const addableMembers = members.filter(m => !existingUserIds.has(m.user_id));
@@ -707,7 +721,7 @@ const EventDrawer: React.FC<Props> = ({
           </SectionIcon>
           <SectionBody>
             <MutedSmall>{t('recurrence.label', '정기 일정')}</MutedSmall>
-            {canEdit ? (
+            {canEditSchedule ? (
               <RecurrencePicker
                 value={event.rrule}
                 onChange={(rrule) => {
@@ -918,7 +932,7 @@ const EventDrawer: React.FC<Props> = ({
         {/* 공개 범위 — **가장 아래** (Irene 2026-09-14: *"공개범위는 가장 아래가 맞지 않아?"*)
             자주 건드리는 것이 위, 한 번 정하고 마는 것이 아래다. 일정에서 매번 바꾸는 것은
             시간·설명·참석자이고 공개 범위는 처음에 한 번 정한다. */}
-        {canEdit && (
+        {canEditSchedule && (
           <Section>
             <SectionIcon>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1005,7 +1019,7 @@ const EventDrawer: React.FC<Props> = ({
                 {t('drawer.share', '공유') as string}
               </ShareBtn>
             )}
-            {canEdit && (
+            {canEdit && !bookingLive && (
               <DangerBtn type="button" onClick={() => setConfirmDelete(true)}>
                 {t('button.delete')}
               </DangerBtn>

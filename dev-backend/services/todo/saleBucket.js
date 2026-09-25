@@ -73,6 +73,12 @@ async function collectSale(businessId, userId, userRole) {
       attributes: ['client_id'], group: ['client_id'], raw: true,
     });
     const hasTask = new Set(tasks.map((r) => r.client_id));
+    // 상담 예약(창구 P2)과 겹치는 것을 뺀다 — 한 건 = 한 버킷.
+    //   ① 대기 중 신청이 있으면 «상담 신청» 버킷이 센다(여기서도 세면 두 번 뜬다)
+    //   ③ 앞으로 잡힌 상담이 있으면 «다음 할 일» 이 이미 있는 것이다
+    const { clientIdsWithBooking } = require('./bookingBucket');
+    const pendingBooking = await clientIdsWithBooking(businessId, ids, ['requested']);
+    const upcomingBooking = await clientIdsWithBooking(businessId, ids, ['requested', 'proposed', 'confirmed'], { upcomingOnly: true });
 
     for (const c of clients) {
       const name = c.display_name || c.company_name || `#${c.id}`;
@@ -80,7 +86,7 @@ async function collectSale(businessId, userId, userRole) {
       const days = Math.floor((now - since.getTime()) / DAY);
       // ① 답 안 한 문의 — 메일에서 온 문의는 Q mail 이 이미 센다(한 항목 = 한 버킷)
       const unanswered = c.sales_stage === 'inquiry' && c.sales_source !== 'email'
-        && !repliedTo.has(c.id) && !hasTask.has(c.id) && days >= 1;
+        && !repliedTo.has(c.id) && !hasTask.has(c.id) && !pendingBooking.has(c.id) && days >= 1;
       if (unanswered) {
         out.push({
           id: `sale-${c.id}-first-reply`,
@@ -96,7 +102,7 @@ async function collectSale(businessId, userId, userRole) {
         continue;                       // ③으로 또 세지 않는다
       }
       // ③ 다음 할 일 없음 — 진행 중인데 살아 있는 할 일이 하나도 없다
-      if (!hasTask.has(c.id)) {
+      if (!hasTask.has(c.id) && !upcomingBooking.has(c.id)) {
         out.push({
           id: `sale-${c.id}-next-action`,
           type: 'sale',

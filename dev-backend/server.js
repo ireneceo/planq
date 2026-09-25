@@ -534,6 +534,8 @@ app.use('/api/conversations', require('./routes/guest_admin'));
 // ★ 동기화 조치 라우트를 **먼저** 마운트한다 — calendar.js 에 `/:id/share` 같은 와일드카드 형태가
 //   있어 뒤에 붙이면 경로가 그쪽에 먹힐 위험이 있다(라우트 순서 함정).
 app.use('/api/calendar', require('./routes/calendar_sync'));
+// 상담 예약 팀 동작(창구 P2) — `/booking/:biz/:id/*` 만. calendar.js 와일드카드보다 먼저.
+app.use('/api/calendar', require('./routes/booking_admin'));
 app.use('/api/calendar', require('./routes/calendar'));
 // 통합 공유 시스템 alias — ShareModal 의 /api/calendar-events/:id/share 매칭
 app.use('/api/calendar-events', require('./routes/calendar'));
@@ -731,6 +733,8 @@ initReportUnitCron();
 // N+63 — 일정 임박 알림 cron (5분 단위)
 const { initCalendarReminderCron } = require('./services/calendarReminderCron');
 initCalendarReminderCron();
+// 창구 P2 — 끝난 상담 예약을 상담 원장(client_interactions)에 1행씩(멱등, 15분 단위)
+require('./services/booking').initBookingCron();
 
 // #208 — 퇴근 안 누른 어제 기록 자동 마감
 const { initAttendanceAutoClose } = require('./services/attendanceAutoClose');

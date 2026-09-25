@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../Common/AutoSaveField';
 import ConfirmDialog from '../Common/ConfirmDialog';
+import BookingSettings from './BookingSettings';
 
 interface Props { businessId: number; isOwner: boolean; }
 
@@ -39,6 +40,7 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
   const [copied, setCopied] = useState(false);
   const [askReplace, setAskReplace] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
 
   // ★ 최신값은 **클로저가 아니라 ref** 로 읽는다 — AutoSaveField 의 onSave 가 불릴 때
   //   클로저는 뒤집기 전 값을 본다(CLAUDE.md 자동저장 절의 실사례).
@@ -62,6 +64,21 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
     finally { setLoading(false); }
   }, [businessId]);
   useEffect(() => { void load(); }, [load]);
+
+  // QR — 설계 §4.5 «주소·QR·[복사][교체]». 명함·전단 인쇄용이라 이미지 한 장이면 된다
+  //   (브라우저 «이미지 저장» 으로 충분 — 다운로드·크기 옵션은 설계에 없다).
+  //   라이브러리는 **이 카드에서만** 쓰므로 동적 import 로 설정 화면을 열 때만 받는다.
+  //   주소를 교체하면 url 이 바뀌어 다시 그린다 — 옛 QR 이 남으면 닫힌 링크를 인쇄하게 된다.
+  const linkUrl = link?.url || null;
+  useEffect(() => {
+    if (!linkUrl) { setQr(null); return; }
+    let alive = true;
+    import('qrcode')
+      .then(m => m.toDataURL(linkUrl, { margin: 1, width: 160 }))
+      .then(d => { if (alive) setQr(d); })
+      .catch(() => { if (alive) setQr(null); });
+    return () => { alive = false; };
+  }, [linkUrl]);
 
   /** 저장 — **던진다.** `if (j.success)` 로 삼키면 저장이 안 돼도 화면은 바뀐 채라
    *  사용자는 값이 슬쩍 되돌아가는 것만 보고 이유를 모른다(CLAUDE.md). 던져야 «!» 배지가 뜬다. */
@@ -139,6 +156,12 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
               ? t('entry.visitors', { count: verified.length, defaultValue: '이메일을 확인한 방문자 {{count}}명' })
               : t('entry.noVisitors', '아직 이메일을 확인한 방문자가 없습니다.')}
           </Hint>
+          {qr && (
+            <QrRow>
+              <QrImg src={qr} alt={t('entry.qrAlt', '창구 주소 QR 코드') as string} data-testid="entry-qr" width={160} height={160} />
+              <Hint>{t('entry.qrHint', '명함·전단에 인쇄할 수 있습니다. 이미지를 길게 누르거나 우클릭해 저장하세요.')}</Hint>
+            </QrRow>
+          )}
         </>
       ) : (
         <UrlRow>
@@ -195,6 +218,9 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
         </AutoSaveField>
       </Field>
 
+      {/* 상담 예약(P2) — 창구가 있어야 뜻이 있다(예약 탭은 창구 화면 안에 있다). */}
+      {link?.url && <BookingSettings businessId={businessId} isOwner={isOwner} />}
+
       <ConfirmDialog
         isOpen={askReplace}
         title={t('entry.replaceTitle', '창구 주소를 교체할까요?') as string}
@@ -235,6 +261,10 @@ const Btn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   &:disabled{opacity:.55;cursor:default;}
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
   @media (max-width:640px){ height:40px; }
+`;
+const QrRow = styled.div`display:flex;align-items:center;gap:12px;flex-wrap:wrap;`;
+const QrImg = styled.img`
+  flex-shrink:0;width:160px;height:160px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;
 `;
 const Field = styled.div`display:flex;flex-direction:column;gap:6px;`;
 const Label = styled.label`font-size:0.75rem;font-weight:600;color:#475569;`;

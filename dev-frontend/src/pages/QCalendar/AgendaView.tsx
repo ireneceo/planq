@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { CalendarEvent, CalendarItem, PersonalCalendarEvent } from './types';
 import { toDateKey, isSameDay, isSameMonth, startOfMonth, startOfDay, addMonths } from './dateUtils';
 import { getEventColors } from './categoryColors';
+import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { isTaskEvent } from './taskToEvent';
 
 interface Props {
@@ -143,6 +144,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onS
                 key={`${task ? 't' : personal ? 'p' : 'e'}-${(e as { _instance_key?: string })._instance_key || e.id}-${g.key}`}
                 $border={c.border}
                 data-testid={task ? 'calendar-task' : 'calendar-event'}
+                data-booking={bookingAttr(e as CalendarEvent)}
                 onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
               >
                 <CardTime>{timeLabel}</CardTime>
@@ -154,6 +156,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onS
                     {(e as CalendarEvent).visibility === 'personal' && (
                       <LockIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></LockIcon>
                     )}
+                    <BookingTag e={e as CalendarEvent} />
                     <TitleText>{e.title}</TitleText>
                     {(e as { _is_exception?: boolean })._is_exception && (
                       <ExceptionMark title={t('exceptionMark', { defaultValue: '변경된 회차' }) as string}>✎</ExceptionMark>
@@ -219,6 +222,7 @@ const AddBtn = styled.button`
 `;
 const NoItems = styled.div`font-size: 0.75rem; color: #CBD5E1; padding: 8px 12px 10px;`;
 const Card = styled.div<{ $border: string }>`
+  ${bookingCss}
   position: relative; display: flex; align-items: flex-start; gap: 12px;
   min-height: 44px; padding: 10px 12px; margin: 4px 0;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; cursor: pointer;

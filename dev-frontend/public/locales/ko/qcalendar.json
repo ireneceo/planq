@@ -255,5 +255,66 @@
     "deleteConfirm": "이 일정을 Google 캘린더에서 삭제합니다.",
     "deleteConfirmRecurring": "이 회차만 Google 캘린더에서 삭제합니다."
   },
-  "meetLinkFailed": "일정은 저장됐지만 Google Meet 링크를 만들지 못했습니다. 설정 > 파일·외부 연동에서 Google 캘린더를 다시 연결해 주세요."
+  "meetLinkFailed": "일정은 저장됐지만 Google Meet 링크를 만들지 못했습니다. 설정 > 파일·외부 연동에서 Google 캘린더를 다시 연결해 주세요.",
+  "booking": {
+    "chip": "신청",
+    "status": {
+      "requested": "상담 신청",
+      "proposed": "시간 제안함",
+      "confirmed": "상담 확정",
+      "declined": "거절함",
+      "canceled": "취소됨",
+      "done": "상담 끝남"
+    },
+    "lead": {
+      "requested": "고객이 이 시간으로 상담을 신청했어요.",
+      "proposed": "고객에게 다른 시간을 제안했어요. 고객이 수락하면 확정돼요.",
+      "confirmed": "확정된 상담이에요. 고객에게 일정 파일을 보냈어요.",
+      "declined": "거절한 신청이에요.",
+      "canceled": "취소된 상담이에요.",
+      "done": "끝난 상담이에요. 상담 기록은 고객 상세에 자동으로 남아요."
+    },
+    "withMeet": "승인할 때 Google Meet 링크 만들기 (내 구글 캘린더 연동 필요)",
+    "sendPropose": "제안 보내기",
+    "close": "닫기",
+    "approve": "승인",
+    "propose": "다른 시간 제안",
+    "decline": "거절",
+    "cancel": "상담 취소",
+    "recipientLoading": "받는 주소를 확인하는 중…",
+    "recipientTo": "{{email}} 로 안내 메일이 갑니다.",
+    "recipientNone": "고객의 확인된 이메일이 없어 메일은 가지 않습니다.",
+    "ask": {
+      "approve": "이 시간으로 상담을 확정합니다.",
+      "propose": "고객에게 이 시간을 제안합니다.",
+      "decline": "이 신청을 거절합니다.",
+      "cancel": "확정된 상담을 취소합니다."
+    },
+    "askTitle": {
+      "approve": "상담을 확정할까요?",
+      "propose": "다른 시간을 제안할까요?",
+      "decline": "신청을 거절할까요?",
+      "cancel": "상담을 취소할까요?"
+    },
+    "askOk": {
+      "approve": "확정",
+      "propose": "제안 보내기",
+      "decline": "거절",
+      "cancel": "취소하기"
+    },
+    "meetWarn": {
+      "meet_needs_personal_calendar": "확정했어요. Meet 링크는 내 구글 캘린더를 연동해야 만들 수 있어요(팀 캘린더로는 만들지 않아요).",
+      "gcal_not_connected": "확정했어요. 구글 캘린더가 연동돼 있지 않아 Meet 링크는 만들지 않았어요.",
+      "gcal_scope_missing": "확정했어요. 구글 캘린더 쓰기 권한이 없어 Meet 링크는 만들지 않았어요. 연동을 다시 해 주세요.",
+      "gcal_meeting_create_failed": "확정했어요. Meet 링크 만들기는 실패했어요.",
+      "default": "확정했지만 Meet 링크는 만들지 못했어요."
+    },
+    "err": {
+      "invalid_state": "이미 처리된 신청이에요. 새로고침해 주세요.",
+      "past": "이미 지난 시간이에요.",
+      "invalid_start": "시간을 다시 골라 주세요.",
+      "forbidden": "담당자나 관리자만 처리할 수 있어요.",
+      "error": "처리하지 못했어요. 잠시 뒤 다시 시도해 주세요."
+    }
+  }
 }

@@ -521,7 +521,20 @@ async function ensureVisitorConversation(link) {
     // 이미 자기 방이 있으면 그것이다(멱등).
     if (link.conversation_id) {
       const existing = await Conversation.findByPk(link.conversation_id);
-      if (existing && existing.business_id === link.business_id) return existing;
+      if (existing && existing.business_id === link.business_id) {
+        // ★ 참여자를 **되살린다** (2026-09-25, Fable 관찰 D2 의 설계 그대로).
+        //   오너가 방문자를 방에서 빼면 resolveGuestToken 의 소유 검사(D1)가 그 링크를 닫는다 — 옳다.
+        //   그런데 회복 문이 없어 그 링크는 **영구 404** 였다. 이 함수는 «이메일 확인» 때만 불리므로
+        //   (guest_subscribe verify), 그 사람이 **주소를 다시 증명한 순간**에만 자리가 돌아온다.
+        //   그림자(guest_user_id)는 이 사람 고유라 남이 이 줄로 들어올 수 없다.
+        if (link.guest_user_id) {
+          await ConversationParticipant.findOrCreate({
+            where: { conversation_id: existing.id, user_id: link.guest_user_id },
+            defaults: { conversation_id: existing.id, user_id: link.guest_user_id, role: 'client' },
+          });
+        }
+        return existing;
+      }
       // 가리키는 방이 사라졌거나 어긋났으면 새로 만든다 — 그대로 두면 resolve 가 링크를 닫는다.
     }
     const { Message } = require('../models');

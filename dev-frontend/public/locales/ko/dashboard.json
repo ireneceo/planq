@@ -118,7 +118,8 @@
       "sale_next_action": "대응 필요 — 다음 할 일 없음",
       "sale_account_request": "대응 필요 — 계정 요청",
       "sale_inbox_reply": "대응 필요 — 새 문의",
-      "chat_unread": "새 메시지"
+      "chat_unread": "새 메시지",
+      "schedule": "상담 신청 — 확인 대기"
     },
     "relTime": {
       "now": "방금",

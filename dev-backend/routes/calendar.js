@@ -528,6 +528,15 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       reminder_minutes,  // N+63 — 변경 시 reminder_sent_at 도 리셋 (다시 보낼 수 있게)
     } = req.body || {};
 
+    // ★ 상담 예약(창구 P2)은 시간·참석자·공개범위를 **여기서 바꾸지 않는다.** 바꾸면 고객이 받은
+    //   확정 메일·.ics 와 조용히 달라진다 — 시간은 «다른 시간 제안», 끝내기는 «취소» 로
+    //   (services/booking.js 한 문이 메일·감사·단계를 같이 한다). 제목·메모 같은 우리 쪽 정리는 된다.
+    if (event.booking_status && (start_at !== undefined || end_at !== undefined || all_day !== undefined
+      || rrule !== undefined || attendees !== undefined || visibility !== undefined || req.body?.vlevel !== undefined)) {
+      await t.rollback();
+      return errorResponse(res, 'booking_use_actions', 409);
+    }
+
     const updates = {};
     if (title !== undefined) {
       if (!title.trim()) { await t.rollback(); return errorResponse(res, 'title cannot be empty', 400); }
@@ -740,6 +749,13 @@ router.delete('/by-business/:businessId/:id', authenticateToken, checkBusinessAc
     // 판정은 services/calendarPermission 단일 원천 (PUT·삭제·Meet 재발급·역방향 동기화 공유)
     if (!calendarPermission.canEditEvent(event, bm, req.user.id)) {
       return errorResponse(res, calendarPermission.editDenyReason(event, bm, req.user.id), 403);
+    }
+
+    // ★ 살아 있는 상담 예약(창구 P2)은 지우지 않는다 — 지우면 고객은 아무 연락도 못 받고 받은 .ics 만 남는다.
+    //   «취소» 는 services/booking.js 가 메일과 함께 한다. 끝났거나 거절·취소된 것은 정리로 지울 수 있다.
+    if (event.booking_status && ['requested', 'proposed', 'confirmed'].includes(event.booking_status)
+      && new Date(event.end_at).getTime() > Date.now()) {
+      return errorResponse(res, 'booking_use_actions', 409);
     }
 
     // N+63 P2a — scope 분기. master event 일 때만 적용.

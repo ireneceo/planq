@@ -53,6 +53,7 @@ function TypeIcon({ type }: { type: TodoItem['type'] }) {
   if (type === 'leave') return <IconLeave />;
   if (type === 'planq_subscription') return <IconCash />;  // PlanQ 구독 청구 (받는 청구)
   if (type === 'sale') return <IconSale />;                 // Q sale — 영업 확인 항목
+  if (type === 'booking') return <IconEvent />;             // 상담 신청 — 일정이다(고객이 시간을 골랐다)
   if (type === 'chat') return <IconChat />;                 // Q Talk — 안 읽은 대화방
   return <IconMention />;
 }
@@ -110,6 +111,8 @@ const CATEGORY_OF: Record<string, string> = {
   email: 'mail',
   // Q sale — 여기 없으면 '전체' 탭 그룹에서 어느 섹션에도 안 들어가 **목록에서 사라진다**
   sale: 'sale',
+  // 상담 신청 — 고객을 향한 응답이라 영업 묶음이다. 여기 없으면 '전체' 탭에서 **사라진다**(상태값 규약).
+  booking: 'sale',
   chat: 'chat',
   signature: 'signature',
   invoice: 'billing', invoice_draft: 'billing', payment_notify: 'billing',

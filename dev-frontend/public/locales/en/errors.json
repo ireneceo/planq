@@ -48,5 +48,6 @@
   "error_ref": "(error ref {{id}} — include it if you contact us)",
   "event_not_found": "Event not found. It may have been deleted.",
   "event_only_self_response": "Only the invited person can respond to this invitation.",
-  "invalid_lead": "The department head must be a member of this workspace."
+  "invalid_lead": "The department head must be a member of this workspace.",
+  "booking_use_actions": "A customer's consultation can't be moved or deleted here. Use «Propose another time» or «Cancel consultation» in its details."
 }

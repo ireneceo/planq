@@ -23,31 +23,8 @@ const { setStage } = require('../services/salesStage');
 const planEngine = require('../services/plan');
 const {
   writeChain, broadcast, trimOrNull, normEmail, normPhoneDigits, EMAIL_RE, SOURCES,
-  CLIENT_INCLUDE, loadClientWithIncludes, touchClient, serializeClients,
+  CLIENT_INCLUDE, loadClientWithIncludes, touchClient, serializeClients, findExistingByContact,
 } = require('../services/saleCommon');
-
-async function findExistingByContact(businessId, { email, phone }) {
-  if (email) {
-    const { matchClientByAddresses } = require('../services/mailLink');
-    const id = await matchClientByAddresses(businessId, [email]);
-    if (id) return Client.findOne({ where: { id, business_id: businessId } });
-    const byUser = await Client.findOne({
-      where: { business_id: businessId },
-      include: [{ model: User, as: 'user', attributes: ['id'], where: { email }, required: true }],
-    });
-    if (byUser) return byUser;
-  }
-  const digits = normPhoneDigits(phone);
-  if (digits.length >= 8) {
-    const rows = await Client.findAll({
-      where: { business_id: businessId, phone: { [Op.ne]: null } },
-      attributes: ['id', 'phone'], limit: 2000,
-    });
-    const hit = rows.find((r) => normPhoneDigits(r.phone) === digits);
-    if (hit) return Client.findOne({ where: { id: hit.id, business_id: businessId } });
-  }
-  return null;
-}
 
 /** 게스트 표시명의 원천은 messages.meta.guest.name 박제다 — 서버가 새로 짓지 않는다. */
 async function guestDisplayName(link) {

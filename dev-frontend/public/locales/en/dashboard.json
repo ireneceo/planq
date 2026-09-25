@@ -118,7 +118,8 @@
       "sale_next_action": "Needs response — no next task",
       "sale_account_request": "Needs response — account request",
       "sale_inbox_reply": "Needs response — new inquiry",
-      "chat_unread": "New messages"
+      "chat_unread": "New messages",
+      "schedule": "Consultation request — review"
     },
     "relTime": {
       "now": "Just now",

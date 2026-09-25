@@ -18,6 +18,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { attachWorkspaceScope, assertMemberOrAbove, getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
+const { normalizeBooking } = require('../services/booking');
 const {
   issueOrReuseSharedLink, urlForSharedLink, serializeGuestLink, serializeGuestContact,
   assertGuestLinkIssuable, findLiveSharedLink, revokeGuestLink,
@@ -65,6 +66,9 @@ function normalizeIntro(raw) {
     services: Array.isArray(src.services)
       ? src.services.map((s) => str(s, 120)).filter(Boolean).slice(0, SERVICE_MAX)
       : [],
+    // 상담 예약 설정(P2) — 모양은 services/booking.js normalizeBooking **한 곳**이 정한다
+    //   (슬롯 계산이 읽는 값과 저장하는 값이 갈라지지 않게).
+    booking: normalizeBooking(src.booking),
   };
 }
 
@@ -129,9 +133,27 @@ router.put('/:businessId/customer-entry', authenticateToken, attachWorkspaceScop
     if (!biz) return errorResponse(res, 'business_not_found', 404);
 
     const before = introOf(biz);
-    const next = normalizeIntro(req.body?.intro !== undefined || req.body?.services !== undefined
+    const body = req.body?.intro !== undefined || req.body?.services !== undefined || req.body?.booking !== undefined
       ? req.body
-      : req.body?.customer_entry);
+      : (req.body?.customer_entry || {});
+    // ★ **보낸 칸만 바꾼다.** 화면의 소개 칸은 {intro, services} 만 보낸다 — 통째로 정규화하면
+    //   보내지 않은 예약 설정이 기본값(꺼짐)으로 **조용히 되돌아간다.** 예약 칸도 부분만 보낼 수 있다.
+    const merged = { ...before };
+    if (body.intro !== undefined) merged.intro = body.intro;
+    if (body.services !== undefined) merged.services = body.services;
+    if (body.booking !== undefined && body.booking && typeof body.booking === 'object') {
+      merged.booking = { ...before.booking, ...body.booking };
+    }
+    const next = normalizeIntro(merged);
+    // 담당 멤버는 **이 워크스페이스의 사람 멤버**만 — 남의 id·AI 멤버·떠난 사람을 저장하면
+    //   슬롯 계산이 조용히 오너로 떨어지고, 설정 화면은 그 사람을 담당으로 보여 준다(거짓).
+    if (next.booking.member_id) {
+      const { BusinessMember } = require('../models');
+      const bm = await BusinessMember.findOne({
+        where: { business_id: businessId, user_id: next.booking.member_id }, attributes: ['role'],
+      });
+      if (!bm || bm.role === 'ai') return errorResponse(res, 'invalid_member', 400);
+    }
     // ★ 이 컬럼에 사는 **다른 설정(권한 토글)을 보존한다.** 객체를 새로 조립하면 권한이 지워진다 —
     //   `routes/businesses.js` PUT /permissions 가 정확히 그 함정을 겪은 자리다.
     const permissions = {

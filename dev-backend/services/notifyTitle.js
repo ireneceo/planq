@@ -77,6 +77,10 @@ const ACTIONS = {
   calendar_invite: { ko: '일정 초대', en: 'Event invitation' },
   calendar_soon: { ko: '곧 시작', en: 'Starting soon' },
   calendar_response: { ko: '참석 응답', en: 'RSVP' },
+  // 고객 창구 상담 예약 (CLIENT_ENTRY P2) — 팀 쪽 알림
+  booking_request: { ko: '상담 신청', en: 'Consultation request' },
+  booking_accepted: { ko: '상담 시간 수락', en: 'Proposed time accepted' },
+  booking_canceled: { ko: '상담 취소', en: 'Consultation canceled' },
   // Q Bill
   bill_payment_notice: { ko: '송금 통보', en: 'Payment notice' },
   bill_receipt_request: { ko: '증빙 발행 요청', en: 'Receipt requested' },

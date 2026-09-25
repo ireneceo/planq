@@ -16,7 +16,7 @@
 // ★ 픽스처·판정용 호출은 **Node 에서** 한다(브라우저 안 fetch 는 서버가 느려지면 하니스를 죽인다 —
 //   memory feedback_fixture_inside_browser_kills_harness). 브라우저는 화면을 재는 데만 쓴다.
 // ★ 발급한 링크·그림자 사용자는 끝에서 **지운다**(회수만 하면 행이 쌓인다).
-const { launch, sleep, BASE, CREDS } = require('./lib/browser');
+const { launch, login, sleep, BASE, CREDS } = require('./lib/browser');
 
 const API = process.env.E2E_API || 'http://localhost:3003';
 const OLD_KEYS = ['account_requested', 'can_write', 'client_name', 'conversation', 'guest_name', 'project', 'scope'];
@@ -34,7 +34,10 @@ const SYMBOL = /^\/api\/businesses\/symbol\/[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)
 const FORBIDDEN_WS = [/business_id/, /"slug"/, /user_id/, /legal_/, /tax_id/, /representative/,
   /biz_type/, /biz_item/, /"plan"/, /subscription/, /work_hours/, /token_hash/, /invite_token/,
   /owner/, /brand_/];
-const ENTRY_KEYS = 'contact,intro,services,tagline';
+// 2026-09-25 P2 — `booking`({enabled, duration_minutes}) 이 더해졌다(예약 탭을 보일지). 의도한 확장이고
+//   그 안의 키도 아래 ENTRY_BOOKING_KEYS 로 **정확히** 잰다(담당 멤버·하루 상한이 새면 실패).
+const ENTRY_KEYS = 'booking,contact,intro,services,tagline';
+const ENTRY_BOOKING_KEYS = 'duration_minutes,enabled';
 const ENTRY_CONTACT_KEYS = 'address,email,phone,website';
 const WS_TABS = ['info', 'chat', 'mine', 'projects'];
 const VIEWPORTS = [
@@ -259,7 +262,62 @@ async function runD1(push, unmeasured, biz, deskToken, issuedWs) {
   push('D1 (음성 대조) 자기 방으로 되돌리면 다시 200', back.status === 200, `ctx=${back.status}`);
 }
 
+/** D2 회복 — 방에서 빠진 방문자는 404, **이메일을 다시 확인하면** 자기 방으로 돌아온다(Fable 설계). */
+async function runD2(push, unmeasured, deskToken) {
+  if (!deskToken) { unmeasured('D2 회복', '창구 토큰 없음'); return; }
+  const crypto = require('crypto');
+  const mail = `d2-canary-${Date.now()}@example.com`;
+  const verify = async (code) => {
+    await sql('UPDATE guest_links SET otp_hash=?, otp_expires_at=DATE_ADD(NOW(), INTERVAL 5 MINUTE),'
+      + ' otp_attempts=0, otp_locked_until=NULL WHERE contact_email=?',
+    [crypto.createHash('sha256').update(code).digest('hex'), mail]);
+    const r = await fetch(`${API}/api/guest/${deskToken}/notify/verify`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: mail, code }),
+    });
+    return r.json().catch(() => null);
+  };
+  await fetch(`${API}/api/guest/${deskToken}/notify/request`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'D2', email: mail, consent: true, locale: 'ko' }),
+  });
+  const v1 = await verify('246813');
+  const ptok = v1?.data?.personal_token;
+  const [row] = await sql('SELECT conversation_id, guest_user_id FROM guest_links WHERE contact_email=?', [mail]);
+  if (row?.conversation_id) createdRooms.push(row.conversation_id);
+  if (!ptok || !row?.conversation_id) { unmeasured('D2 회복', `확인 실패 token=${!!ptok}`); return; }
+  await sql('DELETE FROM conversation_participants WHERE conversation_id=? AND user_id=?', [row.conversation_id, row.guest_user_id]);
+  const gone = await fetch(`${API}/api/guest/${ptok}`);
+  push('D2: 방에서 빠진 방문자 링크는 404', gone.status === 404, String(gone.status));
+  await verify('135792');
+  const back = await fetch(`${API}/api/guest/${ptok}`);
+  const [again] = await sql('SELECT conversation_id FROM guest_links WHERE contact_email=?', [mail]);
+  push('D2: 이메일을 다시 확인하면 **같은 방**으로 돌아온다(200)',
+    back.status === 200 && again?.conversation_id === row.conversation_id, `ctx=${back.status} room ${row.conversation_id}→${again?.conversation_id}`);
+}
+
 /** 창구 축 — 발급 → 서버 응답 모양 → 화면 → 회수. `issued` 에 만든 것을 적어 둔다(정리용). */
+// 설정 «고객 창구» 카드의 QR (설계 §4.5) — 창구 주소가 살아 있는 동안 3폭에서 잰다.
+//   크기만 재지 않고 **그 좌표가 QR 자신인지**(elementFromPoint) 와 **이미지가 실제로 디코드됐는지**
+//   (naturalWidth) 를 같이 본다. 내용 일치(디코드 == 주소)는 저장소에 QR 디코더가 없어 여기서 재지 않는다.
+async function measureEntryQr(browser, vp) {
+  const page = await browser.newPage();
+  try {
+    await page.setViewport({ width: vp.w, height: vp.h, isMobile: !!vp.mobile, hasTouch: !!vp.mobile });
+    await login(page);
+    await page.goto(BASE + '/business/settings/permissions', { waitUntil: 'networkidle2' });
+    await page.waitForSelector('[data-testid="entry-qr"]', { timeout: 15000 }).catch(() => null);
+    return await page.evaluate(() => {
+      const img = document.querySelector('[data-testid="entry-qr"]');
+      if (!img) return null;
+      img.scrollIntoView({ block: 'center' });
+      const r = img.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === img;
+      return { w: Math.round(r.width), h: Math.round(r.height), hit, png: /^data:image\/png;base64,/.test(img.src),
+        decoded: img.complete && img.naturalWidth > 0, alt: !!img.getAttribute('alt') };
+    });
+  } finally { await page.close().catch(() => {}); }
+}
+
 async function runDesk(browser, biz, push, unmeasured, issuedWs) {
   const a = await api(`/api/businesses/${biz}/customer-entry/link`, { method: 'POST', body: '{}' });
   if (!a.body?.data?.url || (a.status !== 200 && a.status !== 201)) {
@@ -288,7 +346,9 @@ async function runDesk(browser, biz, push, unmeasured, issuedWs) {
   push('창구: scope=workspace', d.scope === 'workspace', String(d.scope));
   push('창구: 공유 링크에는 방이 없다 (conversation null)', d.conversation === null, JSON.stringify(d.conversation));
   const ek = Object.keys(d.entry || {}).sort().join(',');
-  push('창구: entry 키가 정확히 4개', ek === ENTRY_KEYS, ek || '없음');
+  push('창구: entry 키가 정확히 5개', ek === ENTRY_KEYS, ek || '없음');
+  const bk = Object.keys(d.entry?.booking || {}).sort().join(',');
+  push('창구: entry.booking 키가 정확히 2개', bk === ENTRY_BOOKING_KEYS, bk || '없음');
   const ck = Object.keys(d.entry?.contact || {}).sort().join(',');
   push('창구: entry.contact 키가 정확히 4개', ck === ENTRY_CONTACT_KEYS, ck || '없음');
   const top = Object.keys(d).filter((k) => k !== 'workspace' && k !== 'entry').sort();
@@ -320,6 +380,14 @@ async function runDesk(browser, biz, push, unmeasured, issuedWs) {
     }
   }
 
+  // ── 설정 카드 QR — 3폭
+  for (const vp of VIEWPORTS) {
+    const q = await measureEntryQr(browser, vp);
+    push(`창구 설정@${vp.w}: QR 이 보인다 (PNG·디코드·가림 없음)`,
+      !!q && q.png && q.decoded && q.hit && q.alt && q.w >= 120,
+      q ? `w=${q.w} h=${q.h} png=${q.png} decoded=${q.decoded} hit=${q.hit} alt=${q.alt}` : 'entry-qr 없음');
+  }
+
   // ── ★ E6 회귀 (2026-09-25 Fable FAIL) ─────────────────────────────────────
   //   옛 scope(conversation) **공유** 링크의 `conversation_id` 가 비면 부모도 자식도 닫혀야 한다.
   //   첫 구현은 `parent.conversation_id && …` 라 부모 방이 비면 일치검사를 **건너뛰어**
@@ -332,6 +400,9 @@ async function runDesk(browser, biz, push, unmeasured, issuedWs) {
   //   창구 개인 링크의 `conversation_id` 를 **남의 방**으로 바꾸면 닫혀야 한다.
   //   창구는 «부모와 같은 방» 검사를 면제하므로, 그 대체로 **참여자 소유 검사**를 둔다.
   await runD1(push, unmeasured, biz, token, issuedWs);
+
+  // ── ★ D2 회복 (2026-09-25 Fable 관찰 → 설계대로 반영) ─────────────────────
+  await runD2(push, unmeasured, token);
 
   // ── 회수 → 404
   if (issuedWs.length) {

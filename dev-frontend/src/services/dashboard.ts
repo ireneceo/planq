@@ -15,6 +15,7 @@ export type TodoType =
   | 'invoice_draft'  // 발행 대기 정기 청구서 초안 (owner/admin)
   | 'sale'           // Q sale — 답 안 한 문의·미확인 자동기록·다음 할 일 없음·계정 요청 (담당자 귀속)
   | 'planq_subscription'
+  | 'booking'        // 고객 창구 상담 신청(담당 멤버에게) — services/todo/bookingBucket.js
   | 'chat';  // PlanQ 플랫폼 → 워크스페이스 구독 청구 (owner 만)
 
 export type TodoVerb =
@@ -44,7 +45,8 @@ export type TodoVerb =
   | 'sale_unreviewed'       // 자동으로 쌓인 기록을 확인한다
   | 'sale_next_action'      // 다음 할 일이 없다 — 정한다
   | 'sale_account_request'
-  | 'chat_unread'; // 게스트가 계정을 요청했다 — 초대를 보낸다
+  | 'chat_unread' // 게스트가 계정을 요청했다 — 초대를 보낸다
+  | 'schedule';   // 상담 신청 — 승인·다른 시간 제안·거절 중 하나를 정한다
 
 export interface TodoWorkspace {
   business_id: number;

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { CalendarEvent, CalendarItem } from './types';
 import { getMonthGridDays, isSameMonth, isSameDay, toDateKey } from './dateUtils';
 import { getEventColors } from './categoryColors';
+import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { isTaskEvent } from './taskToEvent';
 
 // 날짜 키 별 인덱스 — 멀티데이 이벤트는 걸친 모든 날짜에 등장
@@ -109,9 +110,11 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                       $border={c.border}
                       $allDay={e.all_day || !isSameDay(new Date(e.start_at), new Date(e.end_at))}
                       data-testid={isTask ? 'calendar-task' : 'calendar-event'}
+                      data-booking={bookingAttr(e as CalendarEvent)}
                       onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       title={e.title}
                     >
+                      <BookingTag e={e as CalendarEvent} />
                       {isTask && (
                         <TaskIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="9 11 12 14 22 4" />
@@ -170,12 +173,14 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                     $fg={c.fg}
                     $border={c.border}
                     data-testid={isTask ? 'calendar-task' : 'calendar-event'}
+                    data-booking={bookingAttr(e as CalendarEvent)}
                     onClick={() => { onSelectEvent(e.id, e.start_at?.slice(0, 10)); setPopoverDay(null); }}
                   >
                     <PopoverItemTime>
                       {e.all_day ? t('allDay') : formatChipTime(e.start_at, t)}
                     </PopoverItemTime>
                     <PopoverItemTitle>
+                      <BookingTag e={e as CalendarEvent} />
                       {isTask && (
                         <TaskIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                           <polyline points="9 11 12 14 22 4" />
@@ -265,6 +270,7 @@ const MoreLinkWrap = styled.div`
   margin-top: auto; flex-shrink: 0;
 `;
 const EventChip = styled.div<{ $bg: string; $fg: string; $border: string; $allDay: boolean }>`
+  ${bookingCss}
   display: flex; align-items: center; gap: 4px;
   padding: 2px 6px; border-radius: 4px;
   font-size: 0.71875rem; font-weight: 500; line-height: 1.3;
@@ -330,6 +336,7 @@ const PopoverList = styled.div`
   display: flex; flex-direction: column; gap: 4px;
 `;
 const PopoverItem = styled.div<{ $bg: string; $fg: string; $border: string }>`
+  ${bookingCss}
   display: flex; align-items: center; gap: 10px;
   padding: 8px 10px; border-radius: 6px;
   background: ${({ $bg }) => $bg}; color: ${({ $fg }) => $fg};

@@ -91,6 +91,16 @@ CalendarEvent.init({
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
   // provenance(정보성 표시 전용) — 'cue'=Cue 대화형 실행. 권한/전이 로직 무접촉 display-only.
   created_via: { type: DataTypes.STRING(20), allowNull: true, defaultValue: null },
+  // 고객 창구 상담 예약(CLIENT_ENTRY P2) — NULL = 보통 일정. 값이 있으면 «고객이 신청한 일정» 이다.
+  //   ★ 이 값을 바꾸는 문은 **services/booking.js 하나**다(승인·제안·거절·수락·취소).
+  //     다른 곳에서 update 하면 메일·알림·감사·영업 단계가 조용히 빠진다(salesStage.setStage 와 같은 규약).
+  //   ★ 끝남(done)은 값이 아니다 — confirmed && end_at < now 로 파생한다(설계 §4.6).
+  //   운영 스키마: scripts/migrate-calendar-booking-status.js (코드 배포 전).
+  booking_status: {
+    type: DataTypes.ENUM('requested', 'proposed', 'confirmed', 'declined', 'canceled'),
+    allowNull: true,
+    defaultValue: null,
+  },
   // ★ DATETIME(3) — 역방향 동기화(구글→PlanQ)의 충돌 판정 기준 컬럼이다.
   //   구글의 `updated` 는 밀리초인데 이쪽이 초 정밀도면 **같은 초 안의 두 변경이 동률**이 되어
   //   "최신 우선" 규칙이 사실상 동전 던지기가 된다. posts 에서 같은 계열의 사고가 이미 있었다
@@ -109,6 +119,7 @@ CalendarEvent.init({
     { fields: ['created_by'] },
     { unique: true, fields: ['share_token'], name: 'calendar_events_share_token_unique' },
     { fields: ['business_id', 'vlevel'], name: 'calendar_events_biz_vlevel' },
+    { fields: ['business_id', 'booking_status'], name: 'calendar_events_biz_booking' },
   ],
 });
 

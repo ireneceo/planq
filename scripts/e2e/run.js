@@ -152,6 +152,11 @@ const SUITES = {
   // 게스트 링크가 **누가 보낸 것인지 말하는가** (2026-09-24, CLIENT_ENTRY P0-①) — 이 무인증 표면을 재는
   //   첫 검사. 응답 원문 화이트리스트 · 외부 로고 차단 · 3폭 가시성 · workspace 제거 대조군 · 회수 404.
   guestentry: () => require('./canary-guest-entry'),
+  // 고객 창구 상담 예약 (2026-09-25, CLIENT_ENTRY P2) — 방문자 신청(3폭) → 팀 승인(확인창이 받는 주소를 말하는가)
+  //   → 방문자 «확정» · 설정 카드 3폭 · 끄면 탭이 없다(음성 대조). 서버 판정은 실 HTTP 검사가 따로 잰다.
+  booking: () => require('./canary-booking'),
+  // 같은 기능의 **서버 판정** 실 HTTP 검사(화면 없음) — 슬롯 모양·한도·전이·한 건=한 버킷·메일 시도·수정/삭제 409.
+  bookingapi: () => require('./canary-booking-api'),
   // 고객용 프로젝트 링크의 탭·카드·필터·등록 문 (2026-09-24, GUEST_PROJECT_VIEW §C~G · §H 가 요구).
   //   다섯 탭 기둥 left 3폭 · 카드 열 · preview_url 4케이스 · 필터 중 요청 0 · 개요 파생 · 시트·redirect 착지.
   guestproject: () => require('./canary-guest-project'),

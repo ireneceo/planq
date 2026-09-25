@@ -255,5 +255,66 @@
     "deleteConfirm": "This deletes the event from your Google Calendar.",
     "deleteConfirmRecurring": "This deletes only this occurrence from your Google Calendar."
   },
-  "meetLinkFailed": "Event saved, but the Google Meet link could not be created. Please reconnect Google Calendar in Settings > Files & Integrations."
+  "meetLinkFailed": "Event saved, but the Google Meet link could not be created. Please reconnect Google Calendar in Settings > Files & Integrations.",
+  "booking": {
+    "chip": "Request",
+    "status": {
+      "requested": "Consultation request",
+      "proposed": "New time proposed",
+      "confirmed": "Consultation confirmed",
+      "declined": "Declined",
+      "canceled": "Canceled",
+      "done": "Consultation finished"
+    },
+    "lead": {
+      "requested": "A customer requested a consultation at this time.",
+      "proposed": "You proposed a different time. It's confirmed once the customer accepts.",
+      "confirmed": "Confirmed. The customer was sent a calendar file.",
+      "declined": "You declined this request.",
+      "canceled": "This consultation was canceled.",
+      "done": "This consultation is over. A record is added to the customer's page automatically."
+    },
+    "withMeet": "Create a Google Meet link when approving (needs your own Google Calendar)",
+    "sendPropose": "Send proposal",
+    "close": "Close",
+    "approve": "Approve",
+    "propose": "Propose another time",
+    "decline": "Decline",
+    "cancel": "Cancel consultation",
+    "recipientLoading": "Checking the recipient…",
+    "recipientTo": "An email will be sent to {{email}}.",
+    "recipientNone": "The customer has no verified email, so no email will be sent.",
+    "ask": {
+      "approve": "Confirm the consultation at this time.",
+      "propose": "Propose this time to the customer.",
+      "decline": "Decline this request.",
+      "cancel": "Cancel the confirmed consultation."
+    },
+    "askTitle": {
+      "approve": "Confirm this consultation?",
+      "propose": "Propose another time?",
+      "decline": "Decline this request?",
+      "cancel": "Cancel this consultation?"
+    },
+    "askOk": {
+      "approve": "Confirm",
+      "propose": "Send proposal",
+      "decline": "Decline",
+      "cancel": "Cancel it"
+    },
+    "meetWarn": {
+      "meet_needs_personal_calendar": "Confirmed. A Meet link needs your own Google Calendar connection (we don't use the team calendar).",
+      "gcal_not_connected": "Confirmed. Google Calendar isn't connected, so no Meet link was created.",
+      "gcal_scope_missing": "Confirmed. Calendar write access is missing, so no Meet link was created. Please reconnect.",
+      "gcal_meeting_create_failed": "Confirmed, but creating the Meet link failed.",
+      "default": "Confirmed, but the Meet link couldn't be created."
+    },
+    "err": {
+      "invalid_state": "This request was already handled. Please refresh.",
+      "past": "That time has already passed.",
+      "invalid_start": "Please pick the time again.",
+      "forbidden": "Only the host or an admin can do this.",
+      "error": "Something went wrong. Please try again shortly."
+    }
+  }
 }
