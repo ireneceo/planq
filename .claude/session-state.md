@@ -1,23 +1,99 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-09-25 09:30 UTC (오후 세션)
-**작업 상태:** 커밋·푸시 완료(`ab2b07a7`) · **Fable 게이트 4라운드 PASS** · **운영 미배포**
-**주체:** [Opus] Opus 5 (1M) · 검증 [Fable]
+**마지막 업데이트:** 2026-09-25 19:30 UTC
+**작업 상태:** 완료(개발완료 처리) — **v1.64.0 운영 배포 완료** (commit `50dac6b9`, backup `/opt/planq/backups/20260925_191726`)
+**주체:** [Opus] Opus 5.5 (1M)
 
-> ⚠️ 아래 **「오전 세션」** 절은 다른 세션([Opus] Opus 5.5)이 남긴 것이다. 지우지 말 것 —
-> 그쪽 「다음 할 일」이 아직 유효하다.
+### 이번 세션(저녁~밤)에 한 것 — 전부 Fable PASS
+| 커밋 | 내용 | Fable |
+|---|---|---|
+| `e9c956bc` | 고객 창구 P1 | 2라운드 PASS(이전 세션) |
+| `42cab97b` | 게이트 지문 확장(scripts·.claude/hooks·commands, `fable-gate-paths.sh`) + 창구 마이그레이션 배포 슬롯 | Fable 결정 |
+| `8a5330d1` | P2 상담 예약 + QR + D2(방문자 방 복귀) | PASS · D2 델타 PASS |
+| `b0b3748f` | D3 방문자 막기 + 카나리 정리 | 1 FAIL(정리 throw) → PASS |
+| `4e5a4e6f` | P3 로그인 고객 홈 `/home` | 1 FAIL(메일 2통·계정 수락 알림 누락) → PASS |
+| `50dac6b9` | v1.64.0 버전·릴리즈노트·개발현황 | — |
+
+### 운영 반영 확인 (배포 후 실측)
+- health 200 · pm2 3개 online · 운영 버전 1.64.0 · `/api/client-home`·`/api/calendar/booking` 무인증 401
+- 마이그레이션: guest_links conversation_id NULL 적용(기존 5행 무변경) · booking_status 이미 있음(sync 가 먼저 만듦) → no-op
+- 옛 `/wiki` 생성물 0 · sitemap `/wiki/` 0 · `/guide/a` 88
+- 릴리즈노트 v1.64.0 발행 · 개발현황 발행 · `seed-wiki-content.js` 운영 실행(article 83)
+
+### 다음 할 일
+- ★ 도움말 «고객 창구와 상담 예약»(slug customer-entry-booking) 은 dev 에만 있다 — 다음 배포 뒤 운영에서 `node seed-wiki-content.js`
+- 인사이트 «유입→예약→확정→등록» 퍼널(P3 잔여, 팀 화면)
+- 팀 «다른 시간 제안» 이 담당 일정 겹침을 안 본다(설계 허용 — 요청 있으면)
+- `canary-guest-entry.js` 가 email_logs 를 매 실행 2행 남긴다
+- dev DB 잔여(내 것 아님): `fz_gl_probe2` 테이블 · `clients#177` · 고아 게스트 그림자 73
+- ★ `50dac6b9` 가 package.json·lock(게이트 경로)을 바꿔 게이트가 한 번 울린다 — 버전 숫자만 바뀐 커밋
+
+### 배운 것
+- **같은 브라우저 컨텍스트에서 신원을 바꾸면** 앞 세션 상태가 섞여 판정이 뒤집힌다 → 신원마다 `createBrowserContext()`
+- 탭 모드는 `routes/appRoutes.tsx` **와** App.tsx 두 목록에 라우트를 넣어야 한다(한쪽만이면 데스크탑 본문이 빈다) · 새 경로는 tabStore `PREFIX_KIND` 에도(없으면 `other` 로 설정 탭과 덮어쓴다)
+- `notify()` 는 기본으로 메일 채널까지 태운다 — 전용 메일을 따로 보내는 곳에서는 `skipChannels:['email']`
+- 헬퍼가 빈 경우 `0` 을 돌려주면 `for…of` 에서 던져 **뒤의 원복이 건너뛰어진다** → 원복은 finally 맨 앞 별도 단계
+- 빌드가 외부 SIGTERM(143)으로 두 번 끊겼다(메모리 여유) — 재시도로 통과
+
+### Git
+- 브랜치 main · HEAD `50dac6b9` · 미커밋: `.claude/session-state.md` 만
+
+> ⚠️ 아래 **「오후 세션」·「오전 세션」** 절은 다른 작업 기록이다. 지우지 말 것.
 
 ### 다음 세션에서 가장 먼저 할 일
-1. **Fable 판정 결과 확인** — `jq -r '.by, .fingerprint' .claude/.fable-gate.json` +
-   `docs/FABLE_GATE_QUEUE.md` 맨 아래 항목. 게이트를 **4라운드** 돌렸다(1·2차 FAIL).
-   `by=fable` 이고 지문이 현재 상태와 같아야 통과다.
-2. **게이트 4라운드 PASS 로 마감됐다** (1·2차 FAIL). `services/seoArtifacts.js` 의 빈 폴더 rmdir 은
-   Fable 이 **양성 대조군까지** 갈랐다(`dirs 6→0` / 되돌리면 `dirs 1`) + **음성 대조군 5종 보존**
-   (형제 파일·마커 없는 파일·`assets/`·`locales/`·`../outside/`·심볼릭 링크).
-   내 자체검증이 `ok=false` 였던 것은 **내 픽스처가 부실했던 것**이고 코드는 멀쩡했다.
-3. **배포 직후 확인 한 줄**: `curl -s -o /dev/null -w "%{http_code}" https://planq.kr/wiki/` → **200**.
-   403 이면 생성기의 매니페스트 정리가 실패한 것(`pm2 logs` 의 `[seo-artifacts] removed:88` 확인).
-2. **커밋·배포는 Irene 지시 대기.**
-3. **`Q sale` → `Q sales` 답을 못 받았다** — 이번 변경에 **안 들어 있다**(대문자만 소문자로 정렬).
+1. **게이트는 통과 상태다** — `.claude/.fable-gate.json` `by=fable` · fp `84b1d2a6` · commit `91f1c450`.
+   ★ **코드를 한 줄이라도 바꾸면 지문이 달라져 다시 판정받아야 한다**(정상 동작).
+   1차는 **FAIL** 이었다 — `resolveGuestToken` 완화 2곳(E6·D1). 회귀는 카나리 `runE6`·`runD1` 상주.
+2. **커밋 안 했다** — 22파일 미커밋. 오후분(도움말 개명)은 이미 커밋돼 있고 이건 별건이다.
+3. **P2(예약) 미착수** — 설계 §6 은 P1+P2 를 **한 사이클**로 정했다(P1 단독은 새 가치가 거의 없다).
+   P2 범위: 슬롯 API(무인증·개인 링크 필수) · 신청(prospect 생성) · 확인필요 버킷 + 승인/제안/거절 ·
+   고객 수락/취소 · 메일(.ics) · 끝남 cron → `client_interactions` · `sales_stage` 자동 전이 · Q calendar 점선.
+   스키마 1: `calendar_events.booking_status` NULL 컬럼(멱등, **코드 배포 전**).
+   ★ P2 를 얹으면 지문이 달라지므로 **같은 라운드로 Fable 재판정**한다.
+4. **Irene 결정 대기 — QR**: 설정 «고객 창구» 카드에 QR 을 넣을지. 저장소에 QR 라이브러리가 **없다**(새 의존성).
+   안 넣어도 주소·복사·미리보기로 기능은 완결이다.
+5. **배포 순서(지시 받으면)**: `node dev-backend/scripts/migrate-guest-link-scope-workspace.js` 를
+   **코드 배포 전에** 운영에서 실행 → rsync → `seed-wiki-content.js`(어제분 도움말 2건).
+   오후분(도움말 개명 43파일)과 **함께** 나간다.
+
+### 이번 세션(오후2)에 한 것
+`docs/CLIENT_ENTRY_DESIGN.md` §5 **P1** 전부 — 상세는 `DEVELOPMENT_PLAN.md` 맨 위 절.
+요약: 스키마 2건 · `routes/customer_entry.js` 신규 · `resolveGuestToken` 완화 2곳 ·
+`requireRoom` 공용 문 · `entryOf` 화이트리스트 · `GuestWorkspacePage` 4탭 ·
+`guestShell` 로 껍데기 10개 추출 · 설정 «고객 창구» 카드 · i18n 22키×2 · 카나리 창구 축.
+
+### ★★ Fable 1차 FAIL — 내가 틀린 두 곳 (가장 중요)
+내가 프롬프트에 «제일 위험한 지점» 이라고 적은 그 줄에서 나왔고 **내 근거가 정반대였다.**
+- **E6**: 대화방 일치 완화를 `parent.conversation_id && …`(truthiness)로 썼더니 **부모 방이 비는 순간
+  검사 자체가 사라져** 부모 404 · 자식 **200**. 그 상태는 **내가 컬럼을 nullable 로 만들어 새로 가능해진 것**이다.
+  → `parent.scope !== 'workspace' &&` 로 가르면 옛 scope 는 HEAD 와 **글자까지 같은 판정**이 된다.
+- **D1**: 창구에서 그 검사를 면제한 자리에 **대체 검사를 두지 않았다** → 개인 링크가 남의 방을 가리켜도 200.
+  → `ConversationParticipant` 소유 검사.
+- **교훈(memory 갱신함 `feedback_optional_branch_skips_auth`)**: 전제의 *징후*(값이 있나)가 아니라
+  **전제의 이름**으로 가른다 · 검사를 면제했으면 대체 검사를 둔다 · **컬럼을 넓히면 그 컬럼을 읽는 판정을 전수로** 본다.
+- ★ E6·D1 을 **카나리에 상주**시켰다 — 임시 스크립트에 뒀다가 `rm` 을 먼저 해서 그 버전을 한 번 잃었다.
+
+### ★ 이번 세션에서 배운 것 / 내가 틀린 것
+1. **설계가 절단면을 놓칠 수 있다** — 설계는 스키마를 「ENUM append 1건」으로 적었지만 공유 창구 링크가
+   가리킬 대화방이 없다는 것을 못 봤다. 이탈을 **선언하고** 게이트에 명시했다(숨기지 않는다).
+2. **완화는 «왜 그 규칙이 있나» 로 좁힌다** — 부모·자식 대화방 일치와 `can_write` 상한은 둘 다
+   «같은 방을 공유한다» 는 전제 위에 있었다. scope 로 가르면 workspace 쪽만 무검사가 되고 옛 링크
+   무변경 대조군도 성립하지 않는다. 「부모가 방을 가졌을 때만」 이 두 규칙을 **한 술어**로 좁힌다.
+3. **can_write 를 강제했다가 기능을 죽일 뻔했다** — 공유 창구를 열람 전용으로 못박으니 자식이 그 값을
+   물려받아 **확인을 마친 방문자도 자기 방에 못 썼다.** 실HTTP 로 잡았다(코드만 봤으면 못 봤다).
+4. **`.catch(()=>null)` 이 정리 실패를 삼켰다** — 부모를 먼저 지우려다 자식 FK 에 막혀 조용히 실패하고
+   행 1건이 남았다. 자식→부모 순 + **잔여를 판정 항목으로** 넣었다.
+5. **`grep -c` 가 0건이면 exit 1** 이라 `&&` 사슬이 끊겼다(또 겪었다).
+6. **`tsc` 만 보고 넘기지 않았다** — 첫 빌드가 EXIT 2(`error TS` 1, 절대경로 import)였는데 «1.86s 완료» 같은
+   낙관적 로그에 속지 않고 종료코드를 따로 셌다.
+7. **가드가 규격 지킨 코드를 벌하는 자리** — `const Header = styled` 라는 이름만으로 «자체 페이지 헤더» 로
+   세어졌다(실제로는 카드 머리). 베이스라인을 올리거나 검사기를 약화시키지 않고 **형제 파일 규약대로
+   `CardHeader` 로 개명**해 634 로 되돌렸다.
+
+### ⚠️ 발견한 게이트 구멍 (내가 고치지 않았다 — 판단 필요)
+`fable-gate-stop.sh` 의 지문은 **`dev-backend dev-frontend q-note` 만** 해시한다.
+그래서 `scripts/e2e/*`·`scripts/guard-invariants.js`·`docs/*` 변경은 **지문에 안 들어간다** —
+카나리만 고치면 게이트가 조용하다. 검사기를 약화시키는 변경이 무검증으로 지나갈 수 있는 모양이다
+(memory `feedback_unwired_guard_is_no_guard` 계열). 고치면 기존 마커가 전부 무효가 되므로 Irene 판단 대기.
 
 ### 완료된 작업 (오후 세션)
 

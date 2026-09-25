@@ -506,7 +506,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
 - 무인증 표면 `routes/guest_booking.js` — **창구의 확인된 개인 링크만**(공유 링크 403). 슬롯 응답은 시각 배열·길이·시간대뿐.
 - 한 건 = 한 버킷: 신청은 확인필요 `type:'booking'`(담당 멤버)만 센다 — `collectEvents`·saleBucket ①③ 에서 뺀다.
 - 확인창의 받는 주소와 실제 발송 주소는 **같은 함수**(`recipientLinkOf`). 운영: `migrate-calendar-booking-status.js`(멱등, 배포 슬롯 등록).
-- 회귀: 실 HTTP 53검사(임시) · `node scripts/e2e/run.js --suite booking`(3폭·양성 대조군 확인).
+- **신원은 둘, 함수는 하나** — 게스트 링크 방문자(`guestActor`)와 로그인 고객(`accountActor`, Client.user_id = 나, P3 `/home`)이
+  같은 전이 함수를 부른다. «내 문의» 축은 client_id 라 어느 입구로 신청했든 같은 건이 보인다. 받는 사람은 `recipientOf`
+  (확인된 창구 링크 → 없으면 계정 이메일). 계정 고객 앱 알림은 `skipChannels:['email']` — `notify()` 는 기본으로 메일까지 태워 **두 통**이 됐다.
+- 회귀: `--suite bookingapi`(서버) · `--suite booking`(화면 3폭) · `--suite clienthome`(로그인 고객 홈).
 
 **조직·문의 (2026-09-21 컬럼 추가):** `teams.lead_user_id`(팀장 — 부서의 `lead_user_id` 와 같은 계약: 지정하면 그 멤버가
 그 팀과 팀의 부서로 옮겨진다, `routes/org.js resolveLead`·`placeLead*` 한 벌, 이 워크스페이스 멤버만) ·
