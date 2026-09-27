@@ -16,7 +16,7 @@ const columnCss = `
   @media (max-width:640px){ padding-left:16px; padding-right:16px; }
   > * { width:100%; max-width:${READ_W}; margin-left:auto; margin-right:auto; }
 `;
-import { isEnterAction } from '../../utils/imeKey';
+import { isEnterAction, enterSends } from '../../utils/imeKey';
 
 export type GuestCard = {
   card_type: string | null;
@@ -222,11 +222,10 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
             <TArea data-testid="guest-input" value={draft} onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 // 멤버 채팅창(ChatPanel)과 **같은 규칙** — 같은 제품에서 엔터가 다르게 동작하면 안 된다.
-                //   데스크탑은 Enter 전송 / Shift+Enter 줄바꿈, 터치·좁은 화면은 Enter 가 줄바꿈(#110).
+                //   데스크탑은 Enter 전송 / Shift+Enter 줄바꿈, 터치 기기는 Enter 가 줄바꿈(#110 · 판정은 입력 장치, #428).
                 //   한글 조합 중 Enter 는 **확정**이지 전송이 아니다(utils/imeKey).
                 if (isEnterAction(e) && !e.shiftKey) {
-                  const enterSends = !window.matchMedia('(hover: none), (max-width: 640px)').matches;
-                  if (enterSends) { e.preventDefault(); void send(); }
+                  if (enterSends()) { e.preventDefault(); void send(); }
                 }
               }}
               placeholder={t('placeholder', { defaultValue: '메시지를 입력하세요' }) as string}
@@ -266,7 +265,7 @@ const InputRow = styled.div`display:flex;gap:8px;align-items:flex-end;`;
 const ErrLine = styled.div`font-size:0.75rem;color:#dc2626;margin-bottom:6px;`;
 const SendHint = styled.div`
   margin-top:6px;font-size:0.6875rem;color:#94a3b8;
-  @media (hover: none), (max-width: 640px) { display:none; }
+  @media (hover: none) and (pointer: coarse) { display:none; }
 `;
 const NameRow = styled.div`
   display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;

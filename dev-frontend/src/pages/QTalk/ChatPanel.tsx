@@ -30,7 +30,7 @@ import MessageReactions from './MessageReactions';   // #138 이모지 리액션
 import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
-import { isEnterAction } from '../../utils/imeKey';
+import { isEnterAction, enterSends } from '../../utils/imeKey';
 import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
 import GuestLinkPrompt from '../../components/QTalk/GuestLinkPrompt';
 import { isNativeApp } from '../../services/native';
@@ -1120,10 +1120,9 @@ const ChatPanel: React.FC<Props> = ({
       if (e.key === 'Escape') { e.preventDefault(); closeMention(); return; }
     }
     if (isEnterAction(e) && !e.shiftKey) {
-      // #110 — 모바일/터치에서는 Enter = 줄바꿈(기본 동작 유지), 전송은 Send 버튼만.
-      //   데스크탑(마우스)에서만 Enter 전송. 오발송 + 줄바꿈 불가 문제 해소.
-      const enterSends = !window.matchMedia('(hover: none), (max-width: 640px)').matches;
-      if (enterSends) {
+      // #110 — 터치 기기에서는 Enter = 줄바꿈(기본 동작 유지), 전송은 Send 버튼만.
+      //   판정은 입력 장치로 한다(utils/imeKey enterSends — 폭으로 가르면 팝아웃이 폰이 된다, #428).
+      if (enterSends()) {
         e.preventDefault();
         handleSend();
       }

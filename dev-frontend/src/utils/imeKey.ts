@@ -32,3 +32,12 @@ export function isComposingEvent(e: AnyKeyEvent): boolean {
 export function isEnterAction(e: AnyKeyEvent): boolean {
   return e.key === 'Enter' && !isComposingEvent(e);
 }
+
+// Enter 가 곧 «보내기» 인 입력 장치인가 — 채팅 입력(멤버·게스트) 공용.
+//   #110: 터치 기기에서는 Enter = 줄바꿈, 전송은 버튼. 그 판정은 **입력 장치**로 한다.
+//   ★ 화면 폭으로 가르면 안 된다 — 데스크탑 팝아웃 채팅은 520px 창이라 «폰» 으로 읽혀
+//     Enter 가 줄바꿈이 됐다(#428). pinHost.ts 가 같은 이유로 폭 판정을 경고한다.
+export const TOUCH_INPUT_MEDIA = '(hover: none) and (pointer: coarse)';
+export function enterSends(): boolean {
+  return !window.matchMedia(TOUCH_INPUT_MEDIA).matches;
+}
