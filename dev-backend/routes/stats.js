@@ -21,6 +21,8 @@ const stats = require('../services/stats');
 // stats.js 는 코드+원시값만 담고, 문자열이 되는 곳은 여기 한 곳이다.
 const { localizeTab } = require('../services/statsInsights');
 const { getMemberNameMap } = require('../services/displayName');
+const { requireMenu } = require('../middleware/menu_permission');
+const { buildEntryFunnel } = require('../services/entryFunnel');
 
 // 기간 파싱 — ?from=YYYY-MM-DD&to=YYYY-MM-DD or ?range=30d|90d|month|prev-month|quarter
 function parsePeriod(q) {
@@ -205,6 +207,16 @@ router.get('/:businessId/finance', authenticateToken, checkBusinessAccess, async
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildFinanceTab(req.businessId, period, parseSegment(req.query));
+    return sendTab(req, res, data);
+  } catch (err) { next(err); }
+});
+
+// GET /api/stats/:businessId/entry — 고객 창구 퍼널 (services/entryFunnel.js 머리말)
+//   고객 정보(방문자·예약)를 다루므로 인사이트 메뉴 권한을 본다 — 다른 통계 탭보다 한 겹 더.
+router.get('/:businessId/entry', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
+  try {
+    const period = parsePeriod(req.query);
+    const data = await buildEntryFunnel(req.businessId, period);
     return sendTab(req, res, data);
   } catch (err) { next(err); }
 });

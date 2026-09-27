@@ -15,7 +15,8 @@
     "team": "팀 생산성",
     "finance": "비용·재무",
     "reports": "보고서",
-    "comingSoon": "준비 중"
+    "comingSoon": "준비 중",
+    "entry": "고객 유입"
   },
   "comingSoon": {
     "hint": "준비 중인 영역입니다. 곧 업데이트됩니다."
@@ -334,5 +335,23 @@
     "hourMin": "{{h}}시간 {{m}}분",
     "day": "{{d}}일",
     "dayHour": "{{d}}일 {{h}}시간"
+  },
+  "entry": {
+    "kpi": {
+      "pending": "처리 대기",
+      "declined": "거절",
+      "canceled": "취소"
+    },
+    "funnel": {
+      "title": "고객 창구 퍼널",
+      "empty": "이 기간에 창구 방문자·상담 신청이 없습니다",
+      "note": "방문자는 창구에서 이메일을 확인한 사람입니다. 로그인한 고객의 신청은 방문자 단계를 거치지 않아 첫 전환율이 100%를 넘을 수 있습니다."
+    },
+    "step": {
+      "visitors": "방문자 확인",
+      "requested": "상담 신청",
+      "confirmed": "확정",
+      "registered": "고객 등록"
+    }
   }
 }

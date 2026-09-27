@@ -164,7 +164,8 @@
     "records": "기록",
     "myFeedbackSub": "PlanQ",
     "landingVisits": "랜딩 방문",
-    "home": "홈"
+    "home": "홈",
+    "statsEntry": "고객 유입"
   },
   "user": {
     "profile": "내 프로필",

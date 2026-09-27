@@ -164,7 +164,8 @@
     "records": "Records",
     "myFeedbackSub": "PlanQ",
     "landingVisits": "Landing visits",
-    "home": "Home"
+    "home": "Home",
+    "statsEntry": "Client entry"
   },
   "user": {
     "profile": "My Profile",

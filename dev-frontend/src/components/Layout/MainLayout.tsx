@@ -1651,6 +1651,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       <AccordionItem to="/stats/finance" $active={isActive('/stats/finance')}>
                         <IconStatsFinance /> {t('nav.statsFinance', '비용·재무')}
                       </AccordionItem>
+                      <AccordionItem to="/stats/entry" $active={isActive('/stats/entry')}>
+                        <IconStatsTeam /> {t('nav.statsEntry', '고객 유입')}
+                      </AccordionItem>
                       <AccordionItem to="/stats/reports" $active={isActive('/stats/reports')}>
                         <IconStatsReports /> {t('nav.statsReports', '보고서')}
                       </AccordionItem>
@@ -2021,6 +2024,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             </SecondaryNavItem>
             <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/finance" $active={isActive('/stats/finance')}>
               <IconStatsFinance /> {t('nav.statsFinance', '비용·재무')}
+            </SecondaryNavItem>
+            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/entry" $active={isActive('/stats/entry')}>
+              <IconStatsTeam /> {t('nav.statsEntry', '고객 유입')}
             </SecondaryNavItem>
             <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/reports" $active={isActive('/stats/reports')}>
               <IconStatsReports /> {t('nav.statsReports', '보고서')}

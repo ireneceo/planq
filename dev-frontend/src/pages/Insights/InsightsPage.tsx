@@ -18,9 +18,10 @@ import TeamTab from './tabs/TeamTab';
 import FinanceTab from './tabs/FinanceTab';
 import ReportsTab from './tabs/ReportsTab';
 import WeeklyTrendTab from './tabs/WeeklyTrendTab';
+import EntryTab from './tabs/EntryTab';
 
-type TabKey = 'overview' | 'tasks' | 'weekly' | 'profit' | 'team' | 'finance' | 'reports';
-const ALL_TABS: TabKey[] = ['overview', 'tasks', 'weekly', 'profit', 'team', 'finance', 'reports'];
+type TabKey = 'overview' | 'tasks' | 'weekly' | 'profit' | 'team' | 'finance' | 'entry' | 'reports';
+const ALL_TABS: TabKey[] = ['overview', 'tasks', 'weekly', 'profit', 'team', 'finance', 'entry', 'reports'];
 
 
 const InsightsPage: React.FC = () => {
@@ -124,6 +125,7 @@ const InsightsPage: React.FC = () => {
       {tab === 'profit' && <ProfitTab businessId={bizId} range={range} segment={segment} />}
       {tab === 'team' && <TeamTab businessId={bizId} range={range} />}
       {tab === 'finance' && <FinanceTab businessId={bizId} range={range} />}
+      {tab === 'entry' && <EntryTab businessId={bizId} range={range} />}
       {tab === 'reports' && <ReportsTab businessId={bizId} range={range} />}
     </PageShell>
   );

@@ -71,6 +71,7 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'stats-profit', to: '/stats/profit', labelKey: 'nav.statsProfit', section: 'manage', roles: ['owner', 'member'] },
   { key: 'stats-team', to: '/stats/team', labelKey: 'nav.statsTeam', section: 'manage', roles: ['owner', 'member'] },
   { key: 'stats-finance', to: '/stats/finance', labelKey: 'nav.statsFinance', section: 'manage', roles: ['owner', 'member'] },
+  { key: 'stats-entry', to: '/stats/entry', labelKey: 'nav.statsEntry', section: 'manage', roles: ['owner', 'member'] },
   { key: 'stats-reports', to: '/stats/reports', labelKey: 'nav.statsReports', section: 'manage', roles: ['owner', 'member'] },
 
   { key: 'ws-settings', to: '/business/settings', labelKey: 'nav.workspaceSettings', section: 'settings', roles: ['owner', 'member'] },
