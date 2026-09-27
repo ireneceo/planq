@@ -130,7 +130,8 @@ const PublicTaskPage = () => {
           {task.category && <MetaItem># {task.category}</MetaItem>}
         </MetaRow>
 
-        {task.description && (
+        {/* 빈 편집기 값(`<p></p>`)은 비어 있는 것이다 — 제목만 있는 빈 칸을 그리지 않는다. 이미지만 있는 설명은 남긴다. */}
+        {task.description && (/<img\b/i.test(task.description) || task.description.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()) && (
           <Section>
             <SectionLabel>{t('public.task.description', { defaultValue: '설명' }) as string}</SectionLabel>
             <DescBox dangerouslySetInnerHTML={{ __html: sanitizeRichText(task.description) }} />
