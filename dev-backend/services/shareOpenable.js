@@ -51,4 +51,18 @@ function shareOpenReason(kind, entity) {
   return rule ? rule(entity) : null;
 }
 
-module.exports = { OPEN_RULES, shareOpenReason };
+/**
+ * 공개 링크에 **실어도 되는 파일**인가 — 외부 공개(L4)로 표시된 파일만.
+ *   문서 공유(목록·다운로드)와 업무 공유가 **이 함수 하나**를 쓴다. 전에는 posts.js 두 곳에
+ *   같은 식이 따로 적혀 있었다(한쪽만 고치면 목록과 다운로드가 갈라진다).
+ *   ★ 판정은 원본 File 인스턴스로 한다 — 직렬화본은 vlevel 을 빼서 "전부 비공개" 로 읽힌다.
+ */
+function isPublicFile(f) {
+  if (!f) return false;
+  // 보안등급(internal·confidential)은 L4 여도 밖으로 내보내지 않는다 — L4 인 채로 등급만 올린 파일이
+  //   문서·업무 공개 첨부로 무인증 다운로드되던 구멍(2026-09-27 점검).
+  if (f.security_level && f.security_level !== 'general') return false;
+  return f.vlevel === 'L4' || (!f.vlevel && f.visibility === 'L4');
+}
+
+module.exports = { OPEN_RULES, shareOpenReason, isPublicFile };

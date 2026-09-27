@@ -17,11 +17,15 @@ import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { formatPublicDate } from '../../utils/dateFormat';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
+import PublicAttachmentList from '../../components/Common/PublicAttachmentList';
 
 // #99b — 공개 페이지 날짜는 보는 사람 로케일로. (여태 '2026-07-11' 원본 문자열이 그대로 노출)
 //   ★ 2026-09-10 — 여기 지역 선언으로 두었더니 게스트 화면이 이 수리를 못 받았다.
 //     utils/dateFormat.ts 한 곳으로 옮긴다. 빈 값 표시(—)만 이 화면의 규칙이라 여기서 감싼다.
 const fmtDate = (v?: string | null): string => (v ? formatPublicDate(v) : '—');
+// 빈 편집기 값(`<p></p>`)은 비어 있는 것이다 — 이미지만 있으면 내용이 있는 것이다. 설명·결과물 공용.
+const hasRichContent = (html?: string | null): boolean =>
+  !!html && (/<img\b/i.test(html) || html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length > 0);
 
 interface TaskPreview {
   id: number;
@@ -37,6 +41,10 @@ interface TaskPreview {
   project?: { id: number; name: string } | null;
   workspace?: { id: number; name: string } | null;
   shared_at: string | null;
+  // 2026-09-27 — 문서 공유와 같은 맥락: 최신 결과물 + 외부 공개 첨부 + 이전 회차 **수**만(내용은 PlanQ 안에서).
+  body?: string | null;
+  attachments?: Array<{ id: number; kind: 'file' | 'post'; name: string; download_url?: string; url?: string }>;
+  prev_versions_count?: number;
 }
 
 const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
@@ -130,12 +138,23 @@ const PublicTaskPage = () => {
           {task.category && <MetaItem># {task.category}</MetaItem>}
         </MetaRow>
 
-        {/* 빈 편집기 값(`<p></p>`)은 비어 있는 것이다 — 제목만 있는 빈 칸을 그리지 않는다. 이미지만 있는 설명은 남긴다. */}
-        {task.description && (/<img\b/i.test(task.description) || task.description.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()) && (
+        {hasRichContent(task.description) && (
           <Section>
             <SectionLabel>{t('public.task.description', { defaultValue: '설명' }) as string}</SectionLabel>
             <DescBox dangerouslySetInnerHTML={{ __html: sanitizeRichText(task.description) }} />
           </Section>
+        )}
+
+        {hasRichContent(task.body) && (
+          <Section data-testid="public-task-deliverable">
+            <SectionLabel>{t('public.task.deliverable', { defaultValue: '결과물' }) as string}</SectionLabel>
+            <DescBox dangerouslySetInnerHTML={{ __html: sanitizeRichText(task.body || '') }} />
+          </Section>
+        )}
+        {(task.prev_versions_count || 0) > 0 && (
+          <PrevNote data-testid="public-task-prev-versions">
+            {t('public.task.prevVersions', { count: task.prev_versions_count, defaultValue: '이전 버전 {{count}}개가 있어요. PlanQ 에서 볼 수 있어요.' }) as string}
+          </PrevNote>
         )}
 
         <Grid>
@@ -171,6 +190,11 @@ const PublicTaskPage = () => {
             </V>
           </KV>
         </Grid>
+
+        <PublicAttachmentList
+          title={t('public.task.attachments', { defaultValue: '첨부 파일' }) as string}
+          items={(task.attachments || []).map((a) => ({ id: a.id, name: a.name, href: (a.kind === 'post' ? a.url : a.download_url) || '#' }))}
+        />
 
         <CTAArea>
           {isAuthed ? (
@@ -233,3 +257,4 @@ const CTASecondary = styled.a`
 const Hint = styled.div`font-size: 0.75rem; color: #94A3B8; padding: 12px 0;`;
 const ErrorTitle = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A; margin-bottom: 8px;`;
 const Footer = styled.div`font-size: 0.6875rem; color: #94A3B8; text-align: center; margin-top: 12px;`;
+const PrevNote = styled.p`margin: -8px 0 20px; font-size: 0.8125rem; color: #64748B;`;

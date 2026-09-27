@@ -3,9 +3,16 @@
 
 const express = require('express');
 const router = express.Router();
+
+// 원본 자료 읽기 권한 — Q info 가 파일·문서를 **첨부하거나 본문을 복사해 올 때**, 그리고 첨부를 **보여 줄 때**
+//   같은 술어를 쓴다(2026-09-27 점검: 남의 «나만 보기» 파일·문서 본문을 Q info 로 복사해 팀에 공개할 수 있었고,
+//   상세 화면은 첨부 제목·파일명을 보는 사람 권한과 무관하게 내보냈다). 파일은 imageViewer.canUserSeeFile,
+//   문서는 routes/posts.canReadPost — 각 원본의 읽기 술어 한 벌.
+const canSeeSourceFile = (req, f) => require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, f);
+const canSeeSourcePost = (req, p) => require('./posts').canReadPost(req.user, p);
 const { KbDocument, KbChunk, KbPinnedFaq, KbCategory, File: FileModel, Post, KbShareBundle } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { isMemberOrAbove, getUserScope } = require('../middleware/access_scope');
+const { isMemberOrAbove, getUserScope, canAccessKbDocumentByLevel, kbDocumentsListWhereByLevel } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
 const { applyMemberDisplayNameOne, getMemberDisplayName } = require('../services/displayName');
@@ -14,7 +21,9 @@ const { applyMemberDisplayNameOne, getMemberDisplayName } = require('../services
 function broadcastKb(req, doc, event = 'kb:updated') {
   const io = req.app.get('io');
   if (!io) return;
-  const data = doc.toJSON ? doc.toJSON() : doc;
+  // 신호만(id·소속) — 행 전체를 뿌리면 «나만 보기» 문서 본문이 멤버 전원·프로젝트 고객에게 갔다(2026-09-27 점검).
+  //   받는 화면(KnowledgePage)은 id 도 안 보고 다시 읽는다.
+  const data = { id: doc.id, business_id: doc.business_id, project_id: doc.project_id || null };
   if (doc.business_id) io.to(`business:${doc.business_id}`).emit(event, data);
   if (doc.project_id) io.to(`project:${doc.project_id}`).emit(event, data);
 }
@@ -227,31 +236,11 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
     // #364 — 검색어 조합형 통일 (저장측 NFC 와 같은 축)
     if (req.query.q) where.title = { [Op.like]: `%${String(req.query.q).normalize('NFC').slice(0, 80)}%` };
 
-    // N+67 — 권한 query refactor. L1/L2-members 등 visibility 권한 검증.
-    // owner/admin = 모든 row 노출. member = L1 (본인) / L2 (참여 프로젝트 또는 target_member_ids) / L3 / L4.
-    const isAdmin = req.businessRole === 'owner' || req.businessRole === 'admin' || req.user?.platform_role === 'platform_admin';
-    if (!isAdmin) {
-      const userId = parseInt(req.user.id, 10);
-      const myProjectIds = (await ProjectMember.findAll({
-        where: { user_id: userId },
-        attributes: ['project_id'],
-      })).map(r => r.project_id);
-      where[Op.and] = [{
-        [Op.or]: [
-          // 본인 업로드는 vlevel 무관 노출 (개인 보관함 패턴)
-          { uploaded_by: userId },
-          // 신규 vlevel 기반
-          { vlevel: 'L3' },
-          { vlevel: 'L4' },
-          { vlevel: 'L2', scope: 'project', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
-          // L2-members — JSON contains. user_id 는 숫자라 SQL injection 안전.
-          sequelize.literal(`vlevel='L2' AND scope='workspace' AND JSON_CONTAINS(target_member_ids, '${userId}')`),
-          // legacy fallback (vlevel NULL) — 옛 scope/read_policy 기반
-          { vlevel: null, scope: 'workspace', read_policy: 'all' },
-          { vlevel: null, scope: 'project', project_id: { [Op.in]: myProjectIds.length > 0 ? myProjectIds : [0] } },
-          { vlevel: null, scope: 'client' },
-        ],
-      }];
+    // 권한 — 읽기 술어 **한 벌**(access_scope.kbDocumentsListWhereByLevel). 상세·공유·검색·Cue 가 같은 함수를 쓴다.
+    //   (2026-09-27 전에는 여기 인라인·상세 인라인·access_scope 세 벌이 서로 달랐다.)
+    {
+      const kbScope = await getUserScope(req.user.id, Number(req.params.businessId), req.user.platform_role);
+      where[Op.and] = [...(where[Op.and] || []), kbDocumentsListWhereByLevel(kbScope)];
     }
 
     // 자동 색인된 파일 본문은 **목록에 넣지 않는다.** Cue 가 내용으로 찾으라고 넣어 둔 것이지
@@ -311,6 +300,12 @@ router.post('/businesses/:businessId/kb/documents', authenticateToken, checkBusi
     //   Q info 의 핵심 용도**다. 그런 자료를 넣으려면 본문에 아무 글자나 억지로 채워야 했다.
     const fileIds = Array.isArray(attached_file_ids) ? attached_file_ids.map(Number).filter(Boolean) : [];
     const postIds = Array.isArray(attached_post_ids) ? attached_post_ids.map(Number).filter(Boolean) : [];
+    for (const f of (fileIds.length ? await FileModel.findAll({ where: { id: fileIds, business_id: parseInt(req.params.businessId, 10) } }) : [])) {
+      if (!(await canSeeSourceFile(req, f))) return errorResponse(res, 'file_not_found', 404);
+    }
+    for (const p of (postIds.length ? await Post.findAll({ where: { id: postIds, business_id: parseInt(req.params.businessId, 10) } }) : [])) {
+      if (!(await canSeeSourcePost(req, p))) return errorResponse(res, 'post_not_found', 404);
+    }
     const hasCustomValues = custom_values && typeof custom_values === 'object'
       && Object.values(custom_values).some((v) => v != null && String(v).trim() !== '');
     if (!body && fileIds.length === 0 && postIds.length === 0 && !hasCustomValues) {
@@ -535,6 +530,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-file', authenticat
 
     const file = await FileModel.findOne({ where: { id: file_id, business_id: businessId } });
     if (!file) return errorResponse(res, 'file_not_found', 404);
+    if (!(await canSeeSourceFile(req, file))) return errorResponse(res, 'file_not_found', 404);
 
     // 텍스트 추출 가능한 mime/extension 만 허용
     const ext = path.extname(file.file_name || '').toLowerCase();
@@ -623,6 +619,7 @@ router.post('/businesses/:businessId/kb/documents/import-from-post', authenticat
 
     const post = await Post.findOne({ where: { id: post_id, business_id: businessId } });
     if (!post) return errorResponse(res, 'post_not_found', 404);
+    if (!(await canSeeSourcePost(req, post))) return errorResponse(res, 'post_not_found', 404);
 
     // N+72-7 fix — 실제 컬럼명 `content_text` / `content_json` 사용 (옛: body_text/body_html 오참조 → 항상 empty_post_body 회귀).
     // ★ #234 — **content_json 을 먼저 본다.** posts.js 가 저장하는 `content_text` 는 검색/프리뷰용이라
@@ -732,41 +729,28 @@ router.get('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
       }]
     });
     if (!doc) return errorResponse(res, 'Document not found', 404);
-    // N+67 — 권한 검증: list 와 같은 정책. owner/admin 또는 본인 업로드 또는 vlevel-based 접근.
-    const isAdmin = req.businessRole === 'owner' || req.businessRole === 'admin' || req.user?.platform_role === 'platform_admin';
-    if (!isAdmin && doc.uploaded_by !== req.user.id) {
-      const vl = doc.vlevel || (doc.scope === 'private' ? 'L1' : doc.scope === 'project' ? 'L2' : doc.scope === 'client' ? 'L4' : 'L3');
-      if (vl === 'L1') return errorResponse(res, 'forbidden', 403);
-      if (vl === 'L2' && doc.scope === 'workspace') {
-        // L2-members 검사
-        const targetIds = Array.isArray(doc.target_member_ids) ? doc.target_member_ids : [];
-        if (!targetIds.includes(req.user.id)) return errorResponse(res, 'forbidden', 403);
-      }
-      if (vl === 'L2' && doc.scope === 'project' && doc.project_id) {
-        const { ProjectMember } = require('../models');
-        const isProjectMember = await ProjectMember.findOne({ where: { user_id: req.user.id, project_id: doc.project_id }, attributes: ['id'] });
-        if (!isProjectMember) return errorResponse(res, 'forbidden', 403);
-      }
+    // 권한 — 목록과 **같은 함수**(access_scope.canAccessKbDocumentByLevel).
+    {
+      const kbScope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
+      if (!(await canAccessKbDocumentByLevel(req.user.id, doc, kbScope))) return errorResponse(res, 'forbidden', 403);
     }
 
     const result = doc.toJSON();
     // 첨부 파일 메타 (다운로드 가능)
     if (Array.isArray(doc.attached_file_ids) && doc.attached_file_ids.length > 0) {
-      const files = await FileModel.findAll({
-        where: { id: doc.attached_file_ids, business_id: req.params.businessId },
-        attributes: ['id', 'file_name', 'file_size', 'mime_type', 'storage_provider', 'external_url'],
-      });
-      result.attached_files = files.map(f => f.toJSON());
+      const files = await FileModel.findAll({ where: { id: doc.attached_file_ids, business_id: req.params.businessId } });
+      // 보는 사람 기준 — 못 보는 파일은 이름도 내지 않는다(2026-09-27 점검)
+      const pick = (f) => ({ id: f.id, file_name: f.file_name, file_size: f.file_size, mime_type: f.mime_type, storage_provider: f.storage_provider, external_url: f.external_url });
+      result.attached_files = [];
+      for (const f of files) if (await canSeeSourceFile(req, f)) result.attached_files.push(pick(f));
     } else {
       result.attached_files = [];
     }
     // 첨부 문서 (post) 메타 (열기 가능)
     if (Array.isArray(doc.attached_post_ids) && doc.attached_post_ids.length > 0) {
-      const posts = await Post.findAll({
-        where: { id: doc.attached_post_ids, business_id: req.params.businessId },
-        attributes: ['id', 'title', 'project_id', 'category'],
-      });
-      result.attached_posts = posts.map(p => p.toJSON());
+      const posts = await Post.findAll({ where: { id: doc.attached_post_ids, business_id: req.params.businessId } });
+      result.attached_posts = [];
+      for (const p of posts) if (await canSeeSourcePost(req, p)) result.attached_posts.push({ id: p.id, title: p.title, project_id: p.project_id, category: p.category });
     } else {
       result.attached_posts = [];
     }
@@ -779,18 +763,14 @@ router.get('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
     result.source_post = null;
     result.source_file = null;
     if (doc.source_post_id) {
-      const sp = await Post.findOne({
-        where: { id: doc.source_post_id, business_id: req.params.businessId },
-        attributes: ['id', 'title', 'project_id', 'category'],
-      });
-      result.source_post = sp ? sp.toJSON() : null;
+      const sp = await Post.findOne({ where: { id: doc.source_post_id, business_id: req.params.businessId } });
+      result.source_post = sp && await canSeeSourcePost(req, sp) ? { id: sp.id, title: sp.title, project_id: sp.project_id, category: sp.category } : null;
     }
     if (doc.source_file_id) {
-      const sf = await FileModel.findOne({
-        where: { id: doc.source_file_id, business_id: req.params.businessId, deleted_at: null },
-        attributes: ['id', 'file_name', 'file_size', 'mime_type', 'storage_provider', 'external_url'],
-      });
-      result.source_file = sf ? sf.toJSON() : null;
+      const sf = await FileModel.findOne({ where: { id: doc.source_file_id, business_id: req.params.businessId, deleted_at: null } });
+      result.source_file = sf && await canSeeSourceFile(req, sf)
+        ? { id: sf.id, file_name: sf.file_name, file_size: sf.file_size, mime_type: sf.mime_type, storage_provider: sf.storage_provider, external_url: sf.external_url }
+        : null;
     }
     successResponse(res, result);
   } catch (err) { next(err); }
@@ -805,6 +785,11 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
       where: { id: req.params.docId, business_id: req.params.businessId }
     });
     if (!doc) return errorResponse(res, 'Document not found', 404);
+    // 못 보는 문서는 고치지도 못한다 — 멤버가 남의 «나만 보기»(L1) 문서를 L3 로 넓힐 수 있었다(2026-09-27 점검).
+    {
+      const kbScope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
+      if (!(await canAccessKbDocumentByLevel(req.user.id, doc, kbScope))) return errorResponse(res, 'Document not found', 404);
+    }
 
     const patch = {};
     if (req.body.title !== undefined) patch.title = String(req.body.title).slice(0, 300);
@@ -828,6 +813,14 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
     // N+64 — vlevel 통합 visibility 적용
     const vUpd = resolveVisibility(req.body);
     if (vUpd) {
+      if (vUpd.vlevel === 'L4' && blocksExternalShare(doc)) {
+        return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+      }
+      // 좁히면(L1·L2) 이미 나간 링크를 끊는다 — 달력과 같은 규칙(services/share_helper.shareOffPatch).
+      {
+        const sh = require('../services/share_helper');
+        if (sh.narrowsShare(vUpd.vlevel)) Object.assign(patch, sh.shareOffPatch(doc));
+      }
       patch.vlevel = vUpd.vlevel;
       patch.target_member_ids = vUpd.target_member_ids;
       patch.scope = vUpd.scope;
@@ -882,10 +875,21 @@ router.put('/businesses/:businessId/kb/documents/:docId', authenticateToken, che
     if (req.body.attached_file_ids !== undefined) {
       patch.attached_file_ids = Array.isArray(req.body.attached_file_ids)
         ? req.body.attached_file_ids.map(Number).filter(Boolean) : null;
+      // 새로 붙이는 파일은 붙이는 사람이 볼 수 있어야 한다(이미 붙어 있던 것은 그대로 둔다).
+      const prevF = new Set((doc.attached_file_ids || []).map(Number));
+      const addF = (patch.attached_file_ids || []).filter((id) => !prevF.has(id));
+      for (const f of (addF.length ? await FileModel.findAll({ where: { id: addF, business_id: doc.business_id } }) : [])) {
+        if (!(await canSeeSourceFile(req, f))) return errorResponse(res, 'file_not_found', 404);
+      }
     }
     if (req.body.attached_post_ids !== undefined) {
       patch.attached_post_ids = Array.isArray(req.body.attached_post_ids)
         ? req.body.attached_post_ids.map(Number).filter(Boolean) : null;
+      const prevP = new Set((doc.attached_post_ids || []).map(Number));
+      const addP = (patch.attached_post_ids || []).filter((id) => !prevP.has(id));
+      for (const p of (addP.length ? await Post.findAll({ where: { id: addP, business_id: doc.business_id } }) : [])) {
+        if (!(await canSeeSourcePost(req, p))) return errorResponse(res, 'post_not_found', 404);
+      }
     }
     // #408 — 항목을 지웠는데 **그 값이 본문에 남아 있었다.**
     //   생성 때 본문이 비어 있으면 서버가 항목들로 본문을 합성해 둔다(#332). 그 본문은
@@ -1685,7 +1689,9 @@ router.post('/businesses/:businessId/kb/search', authenticateToken, checkBusines
   try {
     const { query, limit } = req.body;
     if (!query) return errorResponse(res, 'query required', 400);
-    const result = await kbService.hybridSearch(req.params.businessId, query, { limit: limit || 5 });
+    // 권한 — 부른 사람이 볼 수 있는 문서 안에서만 찾는다(전에는 워크스페이스 전체였다).
+    const kbScope = await getUserScope(req.user.id, Number(req.params.businessId), req.user.platform_role);
+    const result = await kbService.hybridSearch(req.params.businessId, query, { limit: limit || 5, docWhere: kbDocumentsListWhereByLevel(kbScope) });
     successResponse(res, result);
   } catch (err) { next(err); }
 });
@@ -1703,6 +1709,8 @@ router.post('/kb-documents/:id/share', authenticateToken, async (req, res, next)
     if (!doc) return errorResponse(res, 'kb_document_not_found', 404);
     const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    // 볼 수 있는 사람만 밖으로 내보낸다(읽기와 같은 술어).
+    if (!(await canAccessKbDocumentByLevel(req.user.id, doc, scope))) return errorResponse(res, 'forbidden', 403);
     // D4 #62 — 보안등급 게이트: 일반 외 자료는 외부 공유 차단
     if (blocksExternalShare(doc)) {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -1816,6 +1824,8 @@ router.get('/kb-documents/public/by-token/:token', async (req, res, next) => {
       custom_values: pubVals,
     };
     await applyMemberDisplayNameOne(payload, doc.business_id, ['uploader']);
+    // PDF 주소 — 비밀번호 걸린 문서는 서명을 붙여 준다(window.open 은 헤더를 못 싣는다).
+    payload.pdf_url = `/api/kb-documents/public/by-token/${req.params.token}/pdf${require('../services/share_helper').shareSubQuery(doc, req.params.token, 'pdf')}`;
     return successResponse(res, payload);
   } catch (err) { next(err); }
 });
@@ -1833,8 +1843,12 @@ router.get('/kb-documents/public/by-token/:token/pdf', async (req, res, next) =>
         'share_password_hash', 'business_id', 'created_at'],
     });
     if (!doc) return errorResponse(res, 'not_found', 404);
-    const { checkShareExpiry } = require('../services/share_helper');
+    const { checkShareExpiry, verifyShareSub } = require('../services/share_helper');
     if (checkShareExpiry(doc, res)) return;
+    // 비밀번호 — 본문 GET 과 같은 자격(서명 또는 헤더). 전에는 없어 주소만 알면 PDF 가 받아졌다.
+    if (!(await verifyShareSub(doc, req, req.params.token, 'pdf'))) {
+      return res.status(401).json({ success: false, message: 'password_required', requires_password: true });
+    }
     const { postPdfHtml } = require('../services/pdfTemplates');
     const { renderPdfFromHtml } = require('../services/pdfService');
     // KB body(HTML) → post 형태로 매핑해 동일 PDF 템플릿 재사용
@@ -1912,6 +1926,11 @@ router.post('/businesses/:businessId/kb/share-bundle', authenticateToken, checkB
       // D4 #62 — 보안등급 게이트: 일반 외 자료가 하나라도 있으면 번들 생성 차단
       const blocked = await KbDocument.count({ where: { id: docIds, business_id: businessId, security_level: { [Op.ne]: 'general' } } });
       if (blocked > 0) return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+      // 볼 수 있는 문서만 묶는다 — 남의 «나만 보기» 문서 id 를 넣어 공개할 수 있었다(2026-09-27 점검).
+      const picked = await KbDocument.findAll({ where: { id: docIds, business_id: businessId } });
+      for (const d of picked) {
+        if (!(await canAccessKbDocumentByLevel(req.user.id, d, scope))) return errorResponse(res, 'invalid_documents', 400);
+      }
     } else {
       if (!category || !String(category).trim()) return errorResponse(res, 'category_required', 400);
     }
@@ -1944,6 +1963,17 @@ router.delete('/businesses/:businessId/kb/share-bundle/:id', authenticateToken, 
   } catch (err) { next(err); }
 });
 
+// 묶음 공개에 들어갈 수 있는 범위 — 팀 전체(L3)·외부(L4) 공개 문서만. 개인(L1)·한정(L2)은
+//   카테고리가 같아도 들어가지 않는다(2026-09-27 — 카테고리 묶음이 개인 문서 본문까지 무인증으로 보여 주고 있었다).
+//   vlevel 이 없는 옛 자료는 scope 로(workspace·client 만).
+const BUNDLE_OPEN_WHERE = {
+  [Op.or]: [
+    { vlevel: { [Op.in]: ['L3', 'L4'] } },
+    { vlevel: null, scope: 'workspace', read_policy: { [Op.or]: ['all', null] } },
+    { vlevel: null, scope: 'client' },
+  ],
+};
+
 // GET 공개 번들 뷰 — 인증 없음, token 기반. category 는 live 조회.
 router.get('/kb-bundle/public/by-token/:token', async (req, res, next) => {
   try {
@@ -1956,7 +1986,7 @@ router.get('/kb-bundle/public/by-token/:token', async (req, res, next) => {
     if (bundle.kind === 'selection') {
       const rows = await KbDocument.findAll({
         // D4 #62 — 번들 생성 후 등급이 상향된 자료는 공개에서 즉시 제외 (general 만)
-        where: { id: bundle.doc_ids || [], business_id: bundle.business_id, security_level: 'general' },
+        where: { id: bundle.doc_ids || [], business_id: bundle.business_id, security_level: 'general', [Op.and]: [BUNDLE_OPEN_WHERE] },
         attributes: ['id', 'title', 'body', 'source_type', 'file_name', 'mime_type', 'categories', 'category', 'created_at'],
       });
       // doc_ids 순서 유지
@@ -1966,7 +1996,7 @@ router.get('/kb-bundle/public/by-token/:token', async (req, res, next) => {
       // 카테고리는 free(categories JSON 배열) + legacy(category 컬럼) 둘 다 매칭.
       const rows = await KbDocument.findAll({
         // D4 #62 — 카테고리 번들도 general 자료만 외부 노출
-        where: { business_id: bundle.business_id, security_level: 'general' },
+        where: { business_id: bundle.business_id, security_level: 'general', [Op.and]: [BUNDLE_OPEN_WHERE] },
         attributes: ['id', 'title', 'body', 'source_type', 'file_name', 'mime_type', 'categories', 'category', 'created_at'],
         order: [['created_at', 'DESC']],
         limit: 500,

@@ -1162,10 +1162,13 @@ router.get('/:businessId/:id/cue/suggestions', authenticateToken, checkBusinessA
     if (!lastClientMsg) return successResponse(res, { suggestions: [] });
 
     // 사이클 G — conversation 의 project/client 컨텍스트 전달
+    // 권한 — 부른 사람이 볼 수 있는 KB 안에서만 추천한다(목록과 같은 술어). 전에는 워크스페이스 전체였다.
+    const kbScope = await require('../middleware/access_scope').getUserScope(req.user.id, Number(req.params.businessId), req.user.platform_role);
     const searchResults = await kbService.hybridSearch(req.params.businessId, lastClientMsg.content, {
       limit: 3,
       project_id: conversation.project_id || null,
       client_id: conversation.client_id || null,
+      docWhere: require('../middleware/access_scope').kbDocumentsListWhereByLevel(kbScope),
     });
     successResponse(res, { suggestions: searchResults });
   } catch (err) { next(err); }

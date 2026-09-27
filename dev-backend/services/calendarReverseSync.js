@@ -448,7 +448,7 @@ async function pollSourceInner(source, { io, key, out }) {
       //   결정: broadcast 만.
       if (io && event.business_id) {
         const full = await CalendarEvent.findByPk(event.id);
-        io.to(`business:${event.business_id}`).emit('event:updated', full.toJSON());
+        io.to(`business:${event.business_id}`).emit('event:updated', { id: full.id, business_id: full.business_id, project_id: full.project_id || null });   // 신호만(2026-09-27 점검)
       }
       out.applied += 1;
     } catch (e) {

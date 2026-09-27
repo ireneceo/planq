@@ -49,5 +49,9 @@
   "event_not_found": "Event not found. It may have been deleted.",
   "event_only_self_response": "Only the invited person can respond to this invitation.",
   "invalid_lead": "The department head must be a member of this workspace.",
-  "booking_use_actions": "A customer's consultation can't be moved or deleted here. Use «Propose another time» or «Cancel consultation» in its details."
+  "booking_use_actions": "A customer's consultation can't be moved or deleted here. Use «Propose another time» or «Cancel consultation» in its details.",
+  "share_blocked_security": "Internal or confidential items cannot be shared externally.",
+  "share_blocked_private_event": "Private or team-only events cannot have a share link.",
+  "attachment_not_allowed": "One of the attachments cannot be sent. You may not have access to it, or its security level blocks external sharing.",
+  "not_found_generic": "This item was not found or you do not have access to it."
 }

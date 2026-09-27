@@ -80,6 +80,14 @@ const ERROR_CODE_MAP: Record<string, string> = {
   // 서버 내부 오류 — 운영은 원문 대신 이 문장을 보낸다(errorHandler). 그대로 괄호에 붙이면 영어가 샌다
   'Internal server error': 'server_error',
 
+  // 공유·첨부 권한 (2026-09-27 보안 점검)
+  'security_level_blocks_share': 'share_blocked_security',
+  'cannot_share_private_event': 'share_blocked_private_event',
+  'attachment_not_allowed': 'attachment_not_allowed',
+  'comment_not_found': 'not_found_generic',
+  'post_not_found': 'not_found_generic',
+  'file_not_found': 'not_found_generic',
+
   // 캘린더
   'event_not_found': 'event_not_found',
   'attendee_not_found': 'event_not_found',

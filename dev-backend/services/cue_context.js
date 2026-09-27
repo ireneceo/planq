@@ -1363,9 +1363,11 @@ async function buildCueContext({ businessId, conversationId, emailThreadId = nul
   //    답하는 것이 Cue 자동응답의 존재 이유. "어떤 KB 를 고객에게 인용해도 되는가" 는 별도 제품 정책
   //    (KB 문서에 고객 공개 플래그) 이며 이번 절단면 밖.
   const internalAsker = !!(scope && (scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin));
+  //   ★ 단 보안등급(internal·confidential)은 «외부 공유 금지» 표시다 — 고객에게 인용하면 그 표시가 무의미해진다.
+  //     그래서 외부 질문자에게는 일반(general) 자료만 쓴다(2026-09-27 점검).
   const kbDocWhere = internalAsker
     ? require('../middleware/access_scope').kbDocumentsListWhereByLevel(scope)
-    : null;
+    : { business_id: businessId, security_level: 'general' };
   const kbP = query
     ? kbService.hybridSearch(businessId, query, {
         limit: 5, project_id: projectId, client_id: clientId, docWhere: kbDocWhere,

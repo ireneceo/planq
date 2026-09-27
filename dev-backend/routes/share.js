@@ -55,6 +55,38 @@ const ENTITY_CONFIG = {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * 이 사람이 이 자료를 **밖으로 내보낼 수 있나** — 각 자료의 자기 공유 라우트와 **같은 검사**를 여기서도 한다.
+ *   2026-09-27 점검: 이 공용 경로는 «멤버인가» 만 봐서, 자기 라우트가 막는 것(남의 «나만 보기» 파일·Q info,
+ *   L1/L2 일정, 외부 공유 금지 첨부가 붙은 업무)을 이메일·채팅으로 우회해 링크를 뽑을 수 있었다.
+ * @returns {null | { status: number, code: string }}
+ */
+async function shareDenied(entityType, entity, req, scope) {
+  const as = require('../middleware/access_scope');
+  const uid = req.user.id;
+  if (entityType === 'task') {
+    if (!(await as.canAccessTask(uid, entity, scope))) return { status: 403, code: 'forbidden' };
+    if (scope.isClient && entity.created_by !== uid && entity.assignee_id !== uid) return { status: 403, code: 'forbidden' };
+    if (await require('../services/taskPublicShare').shareBlockedBy(entity)) return { status: 403, code: 'security_level_blocks_share' };
+    return null;
+  }
+  if (entityType === 'file') {
+    if (!(await as.canDownloadFile(scope, uid, entity))) return { status: 403, code: 'forbidden' };
+    return null;
+  }
+  if (entityType === 'kb_document') {
+    if (!(await as.canAccessKbDocumentByLevel(uid, entity, scope))) return { status: 403, code: 'forbidden' };
+    return null;
+  }
+  if (entityType === 'calendar_event') {
+    if (!isMemberOrAbove(scope) && entity.created_by !== uid) return { status: 403, code: 'forbidden' };
+    // #104 — 달력 자기 공유 라우트와 같은 규칙: 나만보기(L1)·팀 비공개(L2) 일정은 공개 링크 금지.
+    if (entity.vlevel === 'L1' || entity.vlevel === 'L2' || entity.visibility === 'personal') return { status: 403, code: 'cannot_share_private_event' };
+    return null;
+  }
+  return { status: 400, code: 'unsupported_entity_type' };
+}
+
 // 비용폭탄 H2 — 공유 메일 발송 per-user rate-limit (수신자 캡과 함께 무제한 발송 루프 차단).
 const shareEmailLimiter = require('../middleware/costGuard').perUserDaily('share-email', { perMin: 10, perDay: 100, message: '공유 메일 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' });
 router.post('/email', authenticateToken, ...shareEmailLimiter, async (req, res, next) => {
@@ -88,6 +120,10 @@ router.post('/email', authenticateToken, ...shareEmailLimiter, async (req, res, 
     const scope = await getUserScope(req.user.id, entity.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope) && entity.created_by !== req.user.id && entity.uploader_id !== req.user.id) {
       return errorResponse(res, 'forbidden', 403);
+    }
+    {
+      const denied = await shareDenied(entity_type, entity, req, scope);
+      if (denied) return errorResponse(res, denied.code, denied.status, denied.code);
     }
 
     // share_token 자동 발급 (없으면)
@@ -146,10 +182,18 @@ router.post('/chat', authenticateToken, async (req, res, next) => {
     if (!isMemberOrAbove(scope) && entity.created_by !== req.user.id && entity.uploader_id !== req.user.id) {
       return errorResponse(res, 'forbidden', 403);
     }
+    {
+      const denied = await shareDenied(entity_type, entity, req, scope);
+      if (denied) return errorResponse(res, denied.code, denied.status, denied.code);
+    }
 
     // 대화방은 같은 워크스페이스여야 함
     const conv = await Conversation.findOne({ where: { id: convId, business_id: entity.business_id } });
     if (!conv) return errorResponse(res, 'invalid_conversation_id', 400);
+    // 내가 들어갈 수 있는 대화방에만 카드를 꽂는다(같은 워크스페이스라도).
+    if (!(await require('../middleware/access_scope').canAccessConversation(req.user.id, conv, scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
 
     // share_token 자동 발급
     const r = await applyShareUpdate(entity, {});

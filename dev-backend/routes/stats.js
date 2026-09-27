@@ -100,7 +100,7 @@ function prevPeriod(period) {
 //   insights: [{ severity, title, value, action_label, action_link }]
 //   filters_applied: { from, to, assignee_id?, category?, source? }
 // ============================================
-router.get('/:businessId/tasks', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/tasks', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const businessId = req.businessId;
     const period = parsePeriod(req.query);
@@ -176,7 +176,7 @@ function parseSegment(q) {
 
 // ============================================
 // GET /api/stats/:businessId/overview
-router.get('/:businessId/overview', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/overview', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildOverviewTab(req.businessId, period, parseSegment(req.query));
@@ -185,7 +185,7 @@ router.get('/:businessId/overview', authenticateToken, checkBusinessAccess, asyn
 });
 
 // GET /api/stats/:businessId/profit
-router.get('/:businessId/profit', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/profit', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildProfitTab(req.businessId, period, parseSegment(req.query));
@@ -194,7 +194,7 @@ router.get('/:businessId/profit', authenticateToken, checkBusinessAccess, async 
 });
 
 // GET /api/stats/:businessId/team
-router.get('/:businessId/team', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/team', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildTeamTab(req.businessId, period, parseSegment(req.query));
@@ -203,7 +203,7 @@ router.get('/:businessId/team', authenticateToken, checkBusinessAccess, async (r
 });
 
 // GET /api/stats/:businessId/finance
-router.get('/:businessId/finance', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/finance', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
     const data = await stats.buildFinanceTab(req.businessId, period, parseSegment(req.query));
@@ -212,7 +212,7 @@ router.get('/:businessId/finance', authenticateToken, checkBusinessAccess, async
 });
 
 // GET /api/stats/:businessId/entry — 고객 창구 퍼널 (services/entryFunnel.js 머리말)
-//   고객 정보(방문자·예약)를 다루므로 인사이트 메뉴 권한을 본다 — 다른 통계 탭보다 한 겹 더.
+//   인사이트 메뉴 권한 — 2026-09-27 부터 통계 라우트 전부가 같은 권한을 본다(그 전엔 이 탭만 봤다).
 router.get('/:businessId/entry', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const period = parsePeriod(req.query);
@@ -222,7 +222,7 @@ router.get('/:businessId/entry', authenticateToken, checkBusinessAccess, require
 });
 
 // GET /api/stats/:businessId/reports
-router.get('/:businessId/reports', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/reports', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const data = await stats.buildReportsTab(req.businessId);
     // 지금은 insights 가 없지만 **경계는 하나로 유지한다** — 나중에 카드가 붙었을 때
@@ -232,7 +232,7 @@ router.get('/:businessId/reports', authenticateToken, checkBusinessAccess, async
 });
 
 // POST /api/stats/:businessId/reports — 즉시 생성 (kind=monthly|quarterly|yearly|adhoc, 옵션: from/to)
-router.post('/:businessId/reports', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/reports', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const reportGenerator = require('../services/report_generator');
     const kind = String(req.body.kind || 'monthly');
@@ -263,7 +263,7 @@ router.post('/:businessId/reports', authenticateToken, checkBusinessAccess, asyn
 });
 
 // GET /api/stats/:businessId/reports/:id/pdf — 인증 사용자 다운로드
-router.get('/:businessId/reports/:id/pdf', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/reports/:id/pdf', authenticateToken, checkBusinessAccess, requireMenu('insights', 'read'), async (req, res, next) => {
   try {
     const { Report } = require('../models');
     const report = await Report.findOne({

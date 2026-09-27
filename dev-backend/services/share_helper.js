@@ -86,4 +86,51 @@ function checkShareExpiry(entity, res) {
   return false;
 }
 
-module.exports = { applyShareUpdate, verifySharePassword, checkShareExpiry };
+// ── 하위 주소 서명 (2026-09-27) ────────────────────────────────────────────
+// 공개 페이지의 하위 주소(첨부 다운로드·PDF)는 `<a href>`·window.open 이라 비밀번호 헤더를 못 싣는다.
+//   그래서 비밀번호를 **통과한 응답에만** 짧게 유효한 서명(`dl`)을 주소에 붙이고, 하위 라우트가 그것을 본다.
+//   ★ 전에는 하위 라우트가 비밀번호를 아예 안 봐서, 비밀번호를 건 문서도 PDF·첨부 주소만 알면 받아졌다.
+//   서명은 (토큰, 대상, 만료, 비밀번호 해시 지문)을 묶는다 — 비밀번호를 바꾸면 옛 서명은 죽는다.
+//   비밀번호 없는 공유는 토큰이 곧 자격이라 서명이 필요 없다.
+const SUB_TTL_S = 2 * 3600;
+const subKey = () => crypto.createHash('sha256').update(`${process.env.JWT_SECRET}:planq-share-sub-v1`).digest();
+const pwFp = (h) => crypto.createHash('sha256').update(String(h || '')).digest('hex').slice(0, 12);
+const macOf = (token, target, exp, pwHash) => crypto.createHmac('sha256', subKey())
+  .update(`${token}.${target}.${exp}.${pwFp(pwHash)}`).digest('base64url').slice(0, 32);
+function signShareSub(token, target, pwHash) {
+  const exp = Math.floor(Date.now() / 1000) + SUB_TTL_S;
+  return `${exp}.${macOf(token, String(target), exp, pwHash)}`;
+}
+/** 하위 주소 자격 — 비밀번호가 없으면 true, 있으면 유효한 서명 또는 비밀번호 헤더. */
+async function verifyShareSub(entity, req, token, target) {
+  if (!entity.share_password_hash) return true;
+  const [expS, mac] = String((req.query && req.query.dl) || '').split('.');
+  const exp = Number(expS);
+  if (exp && mac && exp * 1000 >= Date.now()) {
+    const want = macOf(token, String(target), exp, entity.share_password_hash);
+    if (want.length === mac.length && crypto.timingSafeEqual(Buffer.from(want), Buffer.from(mac))) return true;
+  }
+  const v = await verifySharePassword(entity, req);   // 헤더로 비밀번호를 보낸 호출도 받는다
+  return v.ok;
+}
+/** 하위 주소에 붙일 꼬리 — 비밀번호 없는 공유면 빈 문자열. */
+function shareSubQuery(entity, token, target) {
+  return entity.share_password_hash ? `?dl=${signShareSub(token, target, entity.share_password_hash)}` : '';
+}
+
+// ── 공유 끄기 (2026-09-27) ────────────────────────────────────────────────
+// 공개 범위를 좁히거나(L1 나만·L2 한정) 보안등급을 올리면 **이미 나간 링크를 끊는다.** 달력이 선례였고
+//   문서·파일·Q info 는 토큰을 그대로 둬서, «나만 보기» 로 바꾼 문서가 옛 링크로 계속 열렸다.
+//   비밀번호 해시도 같이 지운다 — 남기면 다시 공유할 때 옛 비밀번호가 조용히 승계된다.
+//   모델마다 칸 이름이 조금씩 달라(shared_at / share_created_at) **그 모델에 있는 칸만** 비운다.
+const SHARE_COLS = ['share_token', 'shared_at', 'share_created_at', 'share_expires_at', 'share_password_hash'];
+function shareOffPatch(entity) {
+  if (!entity || (!entity.share_token && !entity.share_password_hash)) return {};
+  const attrs = (entity.constructor && entity.constructor.rawAttributes) || {};
+  const patch = {};
+  for (const c of SHARE_COLS) if (attrs[c]) patch[c] = null;
+  return patch;
+}
+const narrowsShare = (level) => level === 'L1' || level === 'L2';
+
+module.exports = { applyShareUpdate, verifySharePassword, checkShareExpiry, verifyShareSub, shareSubQuery, shareOffPatch, narrowsShare };

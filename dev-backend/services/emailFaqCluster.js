@@ -5,7 +5,7 @@
 //   임베딩은 email_messages.faq_embedding 에 캐시 → 메시지당 1회만 (재실행 재사용).
 const { Op } = require('sequelize');
 const cron = require('node-cron');
-const { EmailMessage, EmailAccount, EmailFaqSuggestion } = require('../models');
+const { EmailMessage, EmailAccount, EmailThread, EmailFaqSuggestion } = require('../models');
 const { embedText, blobToFloats, cosineSimilarity } = require('./kb_service');
 
 const SIM_THRESHOLD = 0.85;   // 클러스터 유사도
@@ -23,8 +23,17 @@ function clean(text) {
 async function clusterForBusiness(businessId) {
   const since = new Date(Date.now() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
   // 1) 최근 inbound 질문 (상한)
+  // ★ **공용 메일 계정만**(owner_user_id NULL). 개인 계정 메일은 그 사람만 보는 메일함인데, 여기서 모으면
+  //   FAQ 제안으로 Q mail 멤버 전원에게 보이고 수락하면 팀 공개 Q info 가 된다(2026-09-27 점검).
+  const sharedAccts = await EmailAccount.findAll({ where: { business_id: businessId, owner_user_id: null }, attributes: ['id'] });
+  if (!sharedAccts.length) return { businessId, candidates: 0, reason: 'no_shared_account' };
+  const sharedThreads = await EmailThread.findAll({
+    where: { business_id: businessId, account_id: { [Op.in]: sharedAccts.map((a) => a.id) } },
+    attributes: ['id'],
+  });
+  if (!sharedThreads.length) return { businessId, candidates: 0, reason: 'too_few_inbound' };
   const inbound = await EmailMessage.findAll({
-    where: { business_id: businessId, direction: 'inbound', sent_at: { [Op.gte]: since } },
+    where: { business_id: businessId, direction: 'inbound', sent_at: { [Op.gte]: since }, thread_id: { [Op.in]: sharedThreads.map((t) => t.id) } },
     order: [['sent_at', 'DESC']],
     limit: MAX_INBOUND,
   });

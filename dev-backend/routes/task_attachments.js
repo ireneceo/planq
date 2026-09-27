@@ -63,6 +63,9 @@ async function loadTaskAndGuard(req, res) {
   return task;
 }
 
+// 댓글 첨부 소속·고객 가시성 — services/taskAttachmentAccess 한 곳(2026-09-27 점검)
+const { commentBelongs, clientHiddenCommentIds } = require('../services/taskAttachmentAccess');
+
 // description 첨부 권한 = description 편집 권한 (PERMISSION_MATRIX §5.7 책임선)
 //   ★ 2026-09-07 — **작성자만.** owner·admin·platform_admin 예외를 걷었다.
 //   `routes/tasks.js` FIELD_RULES.description 과 **같은 술어**여야 한다 — 갈라지면
@@ -97,6 +100,7 @@ router.post('/:taskId/attachments',
       const context = ['description', 'description_attach', 'comment'].includes(req.query.context) ? req.query.context : 'task';
       const commentId = context === 'comment' ? Number(req.query.commentId || 0) || null : null;
       if (context === 'comment' && !commentId) return errorResponse(res, 'commentId_required', 400);
+      if (!(await commentBelongs(req._task, commentId))) return errorResponse(res, 'comment_not_found', 404);
       // description_attach: 의뢰자 영역 = **작성자만** (2026-09-07 — owner/admin 예외 걷음)
       if (context === 'description_attach') {
         const ok = await canEditDescriptionAttach(req._task, req.user.id, req.user.platform_role);
@@ -250,6 +254,7 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
     const context = ['comment', 'description_attach'].includes(req.body?.context) ? req.body.context : 'task';
     const commentId = context === 'comment' ? Number(req.body?.comment_id || 0) || null : null;
     if (context === 'comment' && !commentId) return errorResponse(res, 'comment_id required', 400);
+    if (!(await commentBelongs(req._task, commentId))) return errorResponse(res, 'comment_not_found', 404);
     if (context === 'description_attach') {
       const ok = await canEditDescriptionAttach(req._task, req.user.id, req.user.platform_role);
       if (!ok) return errorResponse(res, 'only_creator_can_attach_description', 403);
@@ -295,10 +300,11 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
     //   물리 파일이 없다. NOT NULL 컬럼은 값으로 채운다(스키마 nullability 에 기대지 않는다).
     if (postIds.length > 0) {
       const { Post } = require('../models');
-      const posts = await Post.findAll({
-        where: { id: postIds, business_id: req._task.business_id },
-        attributes: ['id', 'title'],
-      });
+      const posts = await Post.findAll({ where: { id: postIds, business_id: req._task.business_id } });
+      // ★ 볼 수 있는 문서만 붙인다 — 제목이 첨부 이름으로 복사돼 업무를 보는 사람(고객 포함)에게 보인다.
+      //   남의 «나만 보기» 문서 제목이 그렇게 샜다(2026-09-27 점검). 파일과 같이 통째로 거절한다.
+      const { canReadPost } = require('./posts');
+      for (const p of posts) if (!(await canReadPost(req.user, p))) return errorResponse(res, 'post_not_found', 404);
       for (const p of posts) {
         // 같은 문서를 같은 자리에 두 번 붙이지 않는다
         const dup = await TaskAttachment.findOne({
@@ -343,10 +349,27 @@ router.get('/:taskId/attachments', authenticateToken, async (req, res, next) => 
       // default: task/description 만 (description_attach·comment 제외 — 결과물 영역용)
       where.context = { [require('sequelize').Op.in]: ['task', 'description'] };
     }
-    const rows = await TaskAttachment.findAll({
+    const allRows = await TaskAttachment.findAll({
       where,
       include: [{ model: User, as: 'uploader', attributes: ['id', 'name'] }],
       order: [['created_at', 'DESC']],
+    });
+    // 보는 사람 기준으로 거른다(2026-09-27 점검):
+    //   · 고객 — 숨겨진(내부·개인) 댓글의 첨부는 빼다(댓글은 안 보이는데 첨부는 보였다)
+    //   · 문서 첨부 — 지금 그 문서를 못 보는 사람에게는 제목째 빼다(붙인 뒤 범위가 좁혀졌을 수 있다)
+    const hiddenComments = req._scope.isClient ? await clientHiddenCommentIds(req._task.id) : null;
+    const postRows = allRows.filter((r) => r.post_id);
+    const readablePosts = new Set();
+    if (postRows.length) {
+      const { Post } = require('../models');
+      const { canReadPost } = require('./posts');
+      const ps = await Post.findAll({ where: { id: [...new Set(postRows.map((r) => r.post_id))], business_id: req._task.business_id } });
+      for (const p of ps) if (await canReadPost(req.user, p)) readablePosts.add(p.id);
+    }
+    const rows = allRows.filter((r) => {
+      if (hiddenComments && r.comment_id && hiddenComments.has(r.comment_id)) return false;
+      if (r.post_id && !readablePosts.has(r.post_id)) return false;
+      return true;
     });
     const items = rows.map(r => ({
       id: r.id,
@@ -380,6 +403,10 @@ async function serveAttachment(req, res, next, asDownload) {
     const scope = await getUserScope(req.user.id, att.business_id, req.user.platform_role);
     if (!(await canAccessTask(req.user.id, task, scope))) {
       return errorResponse(res, 'forbidden', 403);
+    }
+    // 고객 — 숨겨진(내부·개인) 댓글의 첨부는 목록과 같은 기준으로 막는다(한쪽만 막은 것은 막은 게 아니다).
+    if (scope.isClient && att.comment_id && (await clientHiddenCommentIds(task.id)).has(att.comment_id)) {
+      return errorResponse(res, 'attachment_not_found', 404);
     }
     const body = await readAttachmentBody(att);
     if (!body.ok) return errorResponse(res, body.msg, body.code);

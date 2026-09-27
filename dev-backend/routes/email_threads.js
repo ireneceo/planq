@@ -80,11 +80,22 @@ function htmlToPreview(html) {
 const { broadcastMail } = require('../services/mailBroadcast');
 
 // attachment_file_ids → nodemailer attachments + 검증된 File rows (멀티테넌트 + 물리 존재)
-async function resolveAttachments(fileIds, businessId) {
+//   ★ 2026-09-27 — **보내는 사람이 볼 수 있고 밖으로 내보내도 되는 파일만.** 전에는 워크스페이스만 봐서
+//     남의 «나만 보기»·대외비 파일 id 를 넣으면 외부로 발송됐다(본문 이미지는 이미 등급을 보고 있었다).
+//     하나라도 안 되면 `denied` — 호출부가 발송 전체를 거절한다(일부만 빼고 보내면 사용자가 모른다).
+//     `trustedIds` 는 전달할 때 **원본 메일의 첨부**다 — 그 메일에 접근할 수 있다는 것을 호출부가 이미 확인했다.
+async function resolveAttachments(fileIds, businessId, user, trustedIds = []) {
   if (!Array.isArray(fileIds) || !fileIds.length) return { atts: [], files: [] };
   const files = await File.findAll({
     where: { id: { [Op.in]: fileIds.map(Number) }, business_id: businessId, deleted_at: null },
   });
+  const trusted = new Set(trustedIds.map(Number));
+  const { canUserSeeFile } = require('../middleware/imageViewer');
+  const { blocksExternalShare } = require('../services/securityLevel');
+  for (const f of files) {
+    if (trusted.has(Number(f.id))) continue;
+    if (!user || !(await canUserSeeFile(user.id, user.platform_role, f)) || blocksExternalShare(f)) return { atts: [], files: [], denied: true };
+  }
   const atts = files
     .map(f => {
       const abs = path.isAbsolute(f.file_path) ? f.file_path : path.join(__dirname, '..', f.file_path);
@@ -1138,7 +1149,8 @@ router.post('/:businessId/email-threads/:id/messages',
       const inReplyTo = lastMsg ? lastMsg.message_id : null;
       const references = msgs.map(m => m.message_id).filter(Boolean);
 
-      const { atts, files } = await resolveAttachments(attachment_file_ids, businessId);
+      const { atts, files, denied: attDenied } = await resolveAttachments(attachment_file_ids, businessId, req.user);
+      if (attDenied) return errorResponse(res, 'attachment_not_allowed', 403, 'attachment_not_allowed');
 
       // 이 스레드가 "어느 주소로" 왔는지 — 그 주소로 답한다 (별칭 자동 선택의 근거)
       let lastInboundTo = null;
@@ -1368,7 +1380,8 @@ router.post('/:businessId/email-compose',
       const account = await EmailAccount.findOne({ where: { id: accId, business_id: businessId } });
       if (!account) return errorResponse(res, 'account_not_found', 404);
 
-      const { atts, files } = await resolveAttachments(attachment_file_ids, businessId);
+      const { atts, files, denied: attDenied } = await resolveAttachments(attachment_file_ids, businessId, req.user);
+      if (attDenied) return errorResponse(res, 'attachment_not_allowed', 403, 'attachment_not_allowed');
       const subj = String(subject || '').trim() || '(제목 없음)';
       const bodyHtmlOut2 = inlineMailTableStyles(body_html);
 
@@ -1468,6 +1481,13 @@ router.post('/:businessId/email-threads/:id/forward',
       const account = await EmailAccount.findOne({ where: { id: accId, business_id: businessId } });
       if (!account) return errorResponse(res, 'account_not_found', 404);
 
+      // 스레드 접근 — 답장과 **같은 검사**(내가 볼 수 있는 계정의 스레드). 전에는 이게 없어 같은 워크스페이스
+      //   다른 멤버의 개인 메일함 메시지를 내 계정으로 외부 전달할 수 있었다(2026-09-27 점검).
+      const srcThread = await EmailThread.findOne({
+        where: { id: threadId, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+        attributes: ['id'],
+      });
+      if (!srcThread) return errorResponse(res, 'thread_not_found', 404);
       // 원본 메시지 — 스레드·비즈 격리. 원본 첨부 file_id 서버 해석(클라 신뢰 X).
       const srcMsg = await EmailMessage.findOne({ where: { id: Number(message_id), thread_id: threadId, business_id: businessId } });
       if (!srcMsg) return errorResponse(res, 'source_message_not_found', 404);
@@ -1475,7 +1495,8 @@ router.post('/:businessId/email-threads/:id/forward',
       const origFileIds = srcAtts.map(a => a.file_id).filter(Boolean);
       const userFileIds = Array.isArray(attachment_file_ids) ? attachment_file_ids : [];
       // 원본 첨부 + 사용자 추가분의 **합집합** — 사용자가 원본 첨부를 다시 고르면 이중 첨부되던 것을 막는다.
-      const { atts, files } = await resolveAttachments([...new Set([...origFileIds, ...userFileIds])], businessId);
+      const { atts, files, denied: attDenied } = await resolveAttachments([...new Set([...origFileIds, ...userFileIds])], businessId, req.user, origFileIds);
+      if (attDenied) return errorResponse(res, 'attachment_not_allowed', 403, 'attachment_not_allowed');
       const subj = String(subject || '').trim() || `Fwd: ${srcMsg.subject || ''}`;
       // 상세 응답이 base64 이미지를 `cid:planq-embed-N` 자리표시자로 바꿔 내려주므로 원본에서 되채운다.
       let composedHtml = String(body_html || '');
@@ -1679,7 +1700,11 @@ router.post('/:businessId/email-threads/:id/ai-suggest', // audit-exempt: 답장
       let faqContext = null; let faqSources = [];
       try {
         const kbService = require('../services/kb_service');
-        const search = await kbService.hybridSearch(businessId, latestInboundText, { category: 'faq', limit: 3 });
+        // 권한 — 부른 사람이 볼 수 있는 FAQ 이면서, 밖으로 나가는 답장이라 **일반 등급**만(2026-09-27 점검).
+        const as = require('../middleware/access_scope');
+        const faqScope = await as.getUserScope(req.user.id, Number(businessId), req.user.platform_role);
+        const faqWhere = { [Op.and]: [as.kbDocumentsListWhereByLevel(faqScope), { security_level: 'general' }] };
+        const search = await kbService.hybridSearch(businessId, latestInboundText, { category: 'faq', limit: 3, docWhere: faqWhere });
         // text-embedding-3-small(한국어) 기준 — genuine 매칭 ~0.6+, 비매칭 ~0.5↓. 0.55 로 분리.
         //   주입해도 LLM 이 "질문과 매칭될 때만 사용" 지시 받으므로 borderline 도 안전(날조 금지 유지).
         const strong = (search.kb_chunks || []).filter(c => (c.raw_score || 0) >= 0.55);

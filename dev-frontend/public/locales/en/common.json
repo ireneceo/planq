@@ -808,7 +808,9 @@
       "network": "Network error"
     },
     "passwordHide": "Hide",
-    "passwordShow": "Show"
+    "passwordShow": "Show",
+    "blockedByAttachment": "This task has an attachment whose security level (internal or confidential) blocks external sharing. Set that file to general or remove it to create a link.",
+    "blocked": "Internal or confidential items cannot be shared externally. Lower the security level to general to share."
   },
   "candidate": {
     "noAssignee": "Unassigned",
@@ -855,7 +857,11 @@
       "creator": "Requester",
       "start": "Start date",
       "due": "Due date",
-      "progress": "Progress"
+      "progress": "Progress",
+      "deliverable": "Deliverable",
+      "attachments": "Attachments",
+      "prevVersions_one": "There is {{count}} earlier version. You can see it in PlanQ.",
+      "prevVersions_other": "There are {{count}} earlier versions. You can see them in PlanQ."
     },
     "file": {
       "previewLoading": "Preparing preview…",

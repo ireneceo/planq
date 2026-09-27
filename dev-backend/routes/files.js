@@ -113,6 +113,14 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     if (!file || file.deleted_at) return errorResponse(res, 'file_not_found', 404);
     const scope = await getUserScope(req.user.id, file.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    // 볼 수 있는 사람만 밖으로 내보낸다 — 남의 «나만 보기»(L1) 파일에도 링크를 뽑을 수 있었다(2026-09-27 점검).
+    if (!(await require('../middleware/access_scope').canAccessFileByLevel(req.user.id, file, scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    // 보안등급 — share-link 경로에는 있고 이 경로에만 없었다(대외비 파일도 공개 링크가 나갔다).
+    if (require('../services/securityLevel').blocksExternalShare(file)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
 
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(file, req.body || {});
@@ -260,14 +268,12 @@ router.get('/public-image/:storedName', async (req, res, next) => {
     const looksDriveId = /^[A-Za-z0-9_-]{10,200}$/.test(stored);
     if (!looksLocal && !looksDriveId) return errorResponse(res, 'invalid_filename', 400);
 
-    const file = looksLocal
-      ? await File.findOne({ where: { file_path: { [Op.like]: `%${stored}` }, deleted_at: null, storage_provider: 'planq' } })
-        // ★ LIKE 는 **접미사** 매칭이라 `e.png`·`8.png` 같은 짧은 값으로도 아무 이미지가 걸린다 —
-        //   토큰을 몰라도 **타 워크스페이스 이미지가 무인증으로 열렸다**(2026-08-20 Fable 실측 200 반환).
-        //   추측 불가능성이 이 경로의 유일한 방벽이므로, 파일명 전체와 정확히 같을 때만 인정한다.
-        //   (message_attachments 의 같은 결함은 이미 같은 방식으로 막았다 — 규칙을 갈라 두지 말 것.)
-        .then((row) => (row && require('path').basename(row.file_path) === stored ? row : null))
-      : await File.findOne({ where: { external_id: stored, deleted_at: null, storage_provider: 'gdrive' } });
+    // ★ 같은 바이트(dedup)·같은 Drive 파일에 File 행이 **여럿**이고 등급이 다를 수 있다 — 아무 행이나 집으면
+    //   L1 행 대신 L3 행을 집어 개인 이미지 게이트를 통과한다(2026-09-27 점검). **가장 좁은 등급 우선**은
+    //   imageViewer.findSourceFile 한 곳이다(사본 이미지 경로와 같은 함수). 파일명은 정확히 일치할 때만 인정한다
+    //   — LIKE 접미사로는 `e.png` 같은 짧은 값에 아무 이미지가 걸렸다(2026-08-20).
+    const file = await require('../middleware/imageViewer').findSourceFile(
+      looksLocal ? { storedName: stored, liveOnly: true } : { externalId: stored, liveOnly: true });
     if (!file) return errorResponse(res, 'not_found', 404);
     // image/* 만 — HTML/JS 를 inline 으로 흘리면 XSS 가 된다 (기존 계약 유지)
     // ★ 2026-09-17 — **파일명까지 넘긴다.** 목록은 `previewUrlForFile`(파일명을 본다)이 preview_url 을
@@ -329,6 +335,10 @@ router.get('/public/:token/download', async (req, res, next) => {
     if (!file) return errorResponse(res, 'invalid_token', 404);
     if (file.share_expires_at && new Date(file.share_expires_at) < new Date()) {
       return errorResponse(res, 'link_expired', 410);
+    }
+    // 비밀번호 — by-token 경로와 **같은 토큰**이다. 이 옛 주소만 비밀번호를 안 봐서 우회로가 됐다.
+    if (!(await require('../services/share_helper').verifyShareSub(file, req, req.params.token, 'download'))) {
+      return res.status(401).json({ success: false, message: 'password_required', requires_password: true });
     }
     if (await _s3Redirect(file, res)) return;
     // Drive 는 리다이렉트하지 않는다 — 수신자에게 401 이다 (by-token 경로와 같은 이유·같은 함수).
@@ -1131,6 +1141,15 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
       project_id: nextProjectId,
       target_member_ids: nextTargetMemberIds,
     };
+    // 외부 공개(L4)는 보안등급을 본다 — 대외비 파일이 L4 가 되면 문서·업무 공개 첨부로 무인증 다운로드된다.
+    if (level === 'L4' && require('../services/securityLevel').blocksExternalShare(file)) {
+      return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
+    // 좁히면(L1·L2) 이미 나간 링크를 끊는다 — 달력과 같은 규칙(services/share_helper.shareOffPatch).
+    {
+      const sh = require('../services/share_helper');
+      if (sh.narrowsShare(level)) Object.assign(visPatch, sh.shareOffPatch(file));
+    }
     //   ★ **`isEligible` 과 같은 술어로 판정한다** (2026-09-17, Fable 4차 FAIL).
     //     여태 `level === 'L1'` 만 봐서, 새로 넣은 «L2 + 특정 멤버 지정» 제외가 런타임에서 안 돌았다
     //     (실측: L3→L2+targets 전환 뒤 미러가 그대로 남았다). 판정이 스크립트·isEligible·런타임
@@ -1217,7 +1236,8 @@ router.put('/:businessId/:id/security-level', authenticateToken, attachWorkspace
     const patch = { security_level: level };
     // 일반 외로 상향 시 기존 외부 공유 링크 즉시 무효화
     let revokedShare = false;
-    if (level !== 'general' && file.share_token) { patch.share_token = null; patch.share_expires_at = null; revokedShare = true; }
+    // 비밀번호 해시까지 지운다 — 남기면 다시 공유할 때 옛 비밀번호가 승계된다(share_helper.shareOffPatch).
+    if (level !== 'general' && file.share_token) { Object.assign(patch, require('../services/share_helper').shareOffPatch(file)); revokedShare = true; }
 
     // ★ 2026-09-17 (Fable 게이트 #57) — **Drive 사본도 거둔다.**
     //   미러(`gdriveMirror.isEligible`)는 올리는 **그 시점에만** 보안등급을 본다. 그래서 일반으로
@@ -1704,6 +1724,12 @@ router.post('/:businessId/:id/share-link', authenticateToken, checkBusinessAcces
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'File not found', 404);
+    // 볼 수 있는 사람만 밖으로 내보낸다(/:id/share 와 같은 술어).
+    {
+      const as = require('../middleware/access_scope');
+      const sc = await as.getUserScope(req.user.id, file.business_id, req.user.platform_role);
+      if (!(await as.canDownloadFile(sc, req.user.id, file))) return errorResponse(res, 'forbidden', 403);
+    }
 
     // D4 #62 — 보안등급 게이트: 일반(general) 외 외부 공유 링크 발급 차단
     if (file.security_level && file.security_level !== 'general') {

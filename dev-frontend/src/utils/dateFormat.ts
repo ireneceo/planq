@@ -1,3 +1,5 @@
+import i18n from '../i18n';
+
 // 워크스페이스 타임존 기준 날짜/시간 표시 포맷터.
 // DB 는 UTC 저장, 모든 사용자 대면 표시는 워크스페이스 tz 로 변환한다.
 // useTimeFormat 훅을 통해 컴포넌트에서 사용한다.
@@ -84,9 +86,13 @@ export function formatTimeAgo(iso: string | Date, tz: string, locale = 'ko-KR', 
  * 워크스페이스 타임존을 쓰지 않는다 — 공개 화면에는 그 맥락이 없고, 날짜만 보여주므로
  * 기기 로케일이면 충분하다. 시각까지 필요하면 formatDateTime(tz) 을 쓸 것.
  */
-/** 공개 화면의 로케일 — 기기 언어. 여기 한 곳에서만 고른다(2026-09-22). */
+/** 공개 화면의 로케일 — **화면 글자와 같은 언어**(i18n). 여기 한 곳에서만 고른다(2026-09-22).
+ *  ★ 2026-09-27 — 기기 언어(navigator)를 따로 읽었더니, 한국어로 쓰는 사람의 기기 언어가 영어면
+ *    글자는 한국어인데 요일만 «Mon» 이 됐다(공유 일정 링크, Irene 신고). i18n 도 처음 방문자는
+ *    기기 언어로 정해지므로 외부 방문자에게는 결과가 같고, 언어를 고른 사람에게는 그 언어를 따른다. */
 export function publicLocale(): string {
-  return typeof navigator !== 'undefined' && navigator.language.startsWith('en') ? 'en-US' : 'ko-KR';
+  const lang = i18n.language || (typeof navigator !== 'undefined' ? navigator.language : '') || 'ko';
+  return lang.startsWith('en') ? 'en-US' : 'ko-KR';
 }
 
 export function formatPublicDate(v?: string | Date | null): string {

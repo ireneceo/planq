@@ -176,7 +176,7 @@ async function isImageViewable(file, req, route) {
  * `files/public-image` 에서 404 인 개인 이미지가 사본 경로로는 익명에게 열린다(운영 L1 이미지 23장, Fable 실측 2026-09-24).
  * 우선순위: 명시 file_id → Drive external_id → 로컬 파일명 **정확 일치**(LIKE 접미사만으로 인정하지 않는다).
  */
-async function findSourceFile({ fileId = null, externalId = null, storedName = null } = {}) {
+async function findSourceFile({ fileId = null, externalId = null, storedName = null, liveOnly = false } = {}) {
   const { File } = require('../models');
   const { Op } = require('sequelize');
   if (fileId) {
@@ -188,11 +188,11 @@ async function findSourceFile({ fileId = null, externalId = null, storedName = n
   const { sequelize } = require('../config/database');
   const narrowest = [[sequelize.literal("FIELD(COALESCE(`File`.`vlevel`, `File`.`visibility`, 'L4'), 'L1', 'L2', 'L3', 'L4')"), 'ASC']];
   if (externalId) {
-    const f = await File.findOne({ where: { external_id: externalId, storage_provider: 'gdrive' }, order: narrowest });
+    const f = await File.findOne({ where: { external_id: externalId, storage_provider: 'gdrive', ...(liveOnly ? { deleted_at: null } : {}) }, order: narrowest });
     if (f) return f;
   }
   if (storedName) {
-    const rows = await File.findAll({ where: { file_path: { [Op.like]: `%${storedName}` }, storage_provider: 'planq' }, order: narrowest, limit: 20 });
+    const rows = await File.findAll({ where: { file_path: { [Op.like]: `%${storedName}` }, storage_provider: 'planq', ...(liveOnly ? { deleted_at: null } : {}) }, order: narrowest, limit: 20 });
     const f = rows.find((r) => require('path').basename(r.file_path) === storedName);
     if (f) return f;
   }
@@ -205,7 +205,9 @@ async function findSourceFile({ fileId = null, externalId = null, storedName = n
  */
 async function denyPrivateCopy(req, res, source, route) {
   const src = await findSourceFile(source);
-  if (!src || (await isImageViewable(src, req, route))) return false;
+  // 대외비·내부용은 무인증 경로로 내보내지 않는다 — files/public-image 와 같은 규칙(사본 경로만 이 검사가 없었다, 2026-09-27 점검).
+  const blocked = !!src && !!src.security_level && src.security_level !== 'general';
+  if (!src || (!blocked && (await isImageViewable(src, req, route)))) return false;
   res.setHeader('Cache-Control', 'no-store');
   res.status(404).json({ success: false, message: 'not_found' });
   return true;

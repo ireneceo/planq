@@ -6,6 +6,7 @@
 // 보안: React 엘리먼트로 만든다 — dangerouslySetInnerHTML 을 쓰지 않으므로 본문이 HTML 로
 //   해석될 여지가 없다. 매칭도 http/https 로 한정해 javascript: 같은 스킴은 애초에 안 걸린다.
 import React from 'react';
+import { handleOwnLinkClick } from './openOwnLink';
 import styled from 'styled-components';
 
 // http(s):// + 공백 아닌 문자. 문장 끝에 자주 붙는 . , ) ] 등은 링크에서 제외한다.
@@ -36,7 +37,8 @@ export function renderTextWithLinks(text: string, opts: Options = {}): React.Rea
     if (m.index > lastIdx) parts.push(...seg(text.slice(lastIdx, m.index), `s-${lastIdx}`));
     parts.push(
       // 댓글/메시지 행 자체가 클릭 대상인 화면이 있어 전파를 끊는다 (링크 클릭이 행 선택으로 새지 않게)
-      <AutoLink key={`l-${m.index}`} href={m[0]} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+      <AutoLink key={`l-${m.index}`} href={m[0]} target="_blank" rel="noopener noreferrer"
+        onClick={(e) => { e.stopPropagation(); handleOwnLinkClick(e, e.currentTarget.href); }}>
         {m[0]}
       </AutoLink>,
     );

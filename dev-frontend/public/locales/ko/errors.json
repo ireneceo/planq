@@ -49,5 +49,9 @@
   "event_not_found": "일정을 찾을 수 없어요. 삭제됐을 수 있어요.",
   "event_only_self_response": "참석 응답은 초대받은 본인만 할 수 있어요.",
   "invalid_lead": "부서장은 이 워크스페이스의 멤버 중에서만 고를 수 있어요.",
-  "booking_use_actions": "고객이 신청한 상담은 여기서 시간을 바꾸거나 지울 수 없어요. 상세의 «다른 시간 제안» 이나 «상담 취소» 를 써 주세요."
+  "booking_use_actions": "고객이 신청한 상담은 여기서 시간을 바꾸거나 지울 수 없어요. 상세의 «다른 시간 제안» 이나 «상담 취소» 를 써 주세요.",
+  "share_blocked_security": "보안등급(내부·기밀) 자료는 외부로 공유할 수 없어요.",
+  "share_blocked_private_event": "나만 보기·팀 비공개 일정은 공유 링크를 만들 수 없어요.",
+  "attachment_not_allowed": "보낼 수 없는 첨부가 있어요. 볼 권한이 없거나 외부 공유가 막힌 등급의 파일이에요.",
+  "not_found_generic": "찾을 수 없거나 볼 권한이 없는 항목이에요."
 }

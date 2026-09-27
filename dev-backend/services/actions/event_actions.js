@@ -233,14 +233,19 @@ async function createEvent(actor, params = {}) {
       const { CalendarEventAttachment, File, Post } = require('../../models');
       const wantFiles = atts.map((a) => Number(a.file_id)).filter(Boolean);
       const wantPosts = atts.map((a) => Number(a.post_id)).filter(Boolean);
-      const okFiles = new Set((wantFiles.length ? await File.findAll({
-        where: { business_id: businessId, id: wantFiles, deleted_at: null },
-        attributes: ['id'], transaction: t,
-      }) : []).map((x) => x.id));
-      const okPosts = new Set((wantPosts.length ? await Post.findAll({
-        where: { business_id: businessId, id: wantPosts },
-        attributes: ['id'], transaction: t,
-      }) : []).map((x) => x.id));
+      // ★ 워크스페이스 축에 더해 **붙이는 사람이 볼 수 있는 것만** — 남의 «나만 보기» 파일·문서를 미팅자료로
+      //   붙이면 참석자에게 제목·파일명이 보인다(2026-09-27 점검). 읽기와 같은 술어를 쓴다.
+      const as = require('../../middleware/access_scope');
+      const subjScope = await as.getUserScope(subjectId, businessId);
+      const okFiles = new Set();
+      for (const f of (wantFiles.length ? await File.findAll({ where: { business_id: businessId, id: wantFiles, deleted_at: null }, transaction: t }) : [])) {
+        if (await as.canDownloadFile(subjScope, subjectId, f)) okFiles.add(f.id);
+      }
+      const okPosts = new Set();
+      for (const p of (wantPosts.length ? await Post.findAll({ where: { business_id: businessId, id: wantPosts }, transaction: t }) : [])) {
+        const readable = subjScope.isClient ? await as.canAccessPost(subjectId, p, subjScope) : await as.canAccessPostByLevel(subjectId, p, subjScope);
+        if (readable) okPosts.add(p.id);
+      }
       const arows = [];
       const aseen = new Set();
       atts.forEach((a, i) => {
@@ -327,8 +332,8 @@ async function createEvent(actor, params = {}) {
   // socket — business room (Q Calendar 페이지가 듣는다). CLAUDE.md §16.
   const io = getIO();
   if (io) {
-    const data = full.toJSON();
-    io.to(`business:${businessId}`).emit('event:created', data);
+    // 신호만(id·소속) — 행 전체를 방에 뿌리면 «나만 보기» 일정의 설명·미팅자료가 전원에게 갔다(2026-09-27 점검).
+    io.to(`business:${businessId}`).emit('event:created', { id: full.id, business_id: full.business_id, project_id: full.project_id || null });
   }
 
   // 표시명 적용은 라우트가 응답 직전에 하지 않는다 — 옛 라우트도 안 했다(생성 응답은 raw). 무변경.

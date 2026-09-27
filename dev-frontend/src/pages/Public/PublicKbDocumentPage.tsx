@@ -13,6 +13,8 @@ import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface KbPreview {
+  // 서버가 조립한 PDF 주소 — 비밀번호 걸린 문서는 서명이 붙어 온다
+  pdf_url?: string;
   id: number;
   title: string;
   body: string | null;
@@ -101,7 +103,7 @@ const PublicKbDocumentPage = () => {
               {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
             </PublicBtn>
           )}
-          <PublicBtn type="button" onClick={() => window.open(`/api/kb-documents/public/by-token/${token}/pdf`, '_blank')}>
+          <PublicBtn type="button" onClick={() => window.open(doc.pdf_url || `/api/kb-documents/public/by-token/${token}/pdf`, '_blank')}>
             {t('public.downloadPdf', { defaultValue: 'PDF 다운로드' }) as string}
           </PublicBtn>
         </>

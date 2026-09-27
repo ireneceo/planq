@@ -234,7 +234,7 @@ async function importDriveFile(ctx, meta, opts = {}) {
   // 실시간 반영 (CLAUDE.md 운영 규칙 16)
   try {
     const io = global.__planqIo || null;
-    if (io) io.to(`business:${businessId}`).emit('file:new', created.toJSON());
+    if (io) io.to(`business:${businessId}`).emit('file:new', { id: created.id, business_id: created.business_id, project_id: created.project_id || null });   // 신호만(2026-09-27 점검)
   } catch { /* 브로드캐스트 실패가 인제스트를 죽이면 안 된다 */ }
 
   // 들여온 파일도 업로드와 똑같이 본문을 색인한다 — 경로에 따라 Cue 가 아는 파일과

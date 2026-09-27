@@ -30,7 +30,10 @@ const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
 function broadcastPost(req, post, event = 'post:updated') {
   const io = req.app.get('io');
   if (!io) return;
-  const data = post.toJSON ? post.toJSON() : post;
+  // ★ 2026-09-27 — **신호만** 보낸다(id·소속). 행 전체(toJSON)를 워크스페이스·프로젝트 방에 뿌려서
+  //   «나만 보기» 문서 본문·공유 토큰이 멤버 전원과 **프로젝트 고객** 소켓에 도착했다. 받는 화면은 전부
+  //   id 만 보고 자기 권한으로 다시 읽는다(PostsPage·DocsTab·QCalendar·Todo·Dashboard 확인).
+  const data = { id: post.id, business_id: post.business_id, project_id: post.project_id || null };
   if (post.business_id) io.to(`business:${post.business_id}`).emit(event, data);
   if (post.project_id) io.to(`project:${post.project_id}`).emit(event, data);
 }
@@ -440,10 +443,10 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     // 연결된 다른 post 메타 (title/kind) 같이 — 표시용 chip
     const linkedIds = result.linked_post_ids;
     if (linkedIds.length > 0) {
-      const linked = await Post.findAll({
-        where: { id: linkedIds, business_id: post.business_id },
-        attributes: ['id', 'title', 'kind'],
-      });
+      const linkedAll = await Post.findAll({ where: { id: linkedIds, business_id: post.business_id } });
+      // 보는 사람 기준 — 연결된 문서를 못 보면 제목도 내지 않는다(2026-09-27 점검).
+      const linked = [];
+      for (const lp of linkedAll) if (await canReadPost(req.user, lp)) linked.push(lp);
       const linkedMap = new Map(linked.map(p => [p.id, { id: p.id, title: p.title, kind: p.kind }]));
       result.linked_posts = linkedIds.map(id => linkedMap.get(id)).filter(Boolean);
     } else {
@@ -621,6 +624,8 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
       kind: src.kind === 'table' ? 'doc' : src.kind,   // 표는 본문만 (위 주석)
       q_record_id: null,
       vlevel: src.vlevel || 'L3',
+      // 지정 멤버(L2 + 명단)도 같이 — 빠지면 «청중 없는 L2» 가 되어 워크스페이스 전체가 본다(2026-09-27 점검).
+      target_member_ids: Array.isArray(src.target_member_ids) ? src.target_member_ids : null,
       security_level: src.security_level || null,
     });
 
@@ -831,6 +836,14 @@ router.post('/brief', authenticateToken, async (req, res, next) => {
     if (blocks.length === 0 && fileIds.length === 0 && postIds.length === 0) {
       return errorResponse(res, 'at least one text block, file, or post required', 400);
     }
+    // 원본은 **부른 사람이 볼 수 있는 것만** — 남의 «나만 보기» 파일·문서 본문이 LLM 요약을 거쳐
+    //   팀 문서로 저장될 수 있었다(2026-09-27 점검). 파일·문서 각자의 읽기 술어를 쓴다.
+    for (const f of (fileIds.length ? await File.findAll({ where: { id: fileIds, business_id: Number(business_id), deleted_at: null } }) : [])) {
+      if (!(await require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, f))) return errorResponse(res, 'file_not_found', 404);
+    }
+    for (const sp of (postIds.length ? await Post.findAll({ where: { id: postIds, business_id: Number(business_id) } }) : [])) {
+      if (!(await canReadPost(req.user, sp))) return errorResponse(res, 'post_not_found', 404);
+    }
     const briefSvc = require('../services/brief_service');
     let result;
     try {
@@ -964,18 +977,27 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     }
     // 공개 범위 변경 (visibility — vlevel)
     if (req.body.vlevel !== undefined && ['L1', 'L2', 'L3', 'L4'].includes(req.body.vlevel)) {
+      // 외부 공개(L4)는 보안등급을 본다 — /visibility 라우트와 같은 게이트(이 문으로는 우회됐다).
+      if (req.body.vlevel === 'L4' && blocksExternalShare(post)) {
+        return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+      }
       patch.vlevel = req.body.vlevel;
+      // 좁히면 이미 나간 링크를 끊는다(services/share_helper.shareOffPatch).
+      const sh = require('../services/share_helper');
+      if (sh.narrowsShare(req.body.vlevel)) Object.assign(patch, sh.shareOffPatch(post));
     }
     // 다른 post 연결 — 자기 자신·중복 제거 + 같은 워크스페이스 내 post 만 허용
     if (req.body.linked_post_ids !== undefined) {
       const raw = Array.isArray(req.body.linked_post_ids) ? req.body.linked_post_ids : [];
       const candidate = [...new Set(raw.map(Number).filter(n => Number.isFinite(n) && n !== post.id))];
       if (candidate.length > 0) {
-        const valid = await Post.findAll({
-          where: { id: candidate, business_id: post.business_id },
-          attributes: ['id'],
-        });
-        patch.linked_post_ids = valid.map(p => p.id);
+        const valid = await Post.findAll({ where: { id: candidate, business_id: post.business_id } });
+        // ★ 새로 거는 연결은 **거는 사람이 볼 수 있는 문서**만 — 연결 칩에 제목이 보이기 때문이다(2026-09-27 점검).
+        //   이미 걸려 있던 연결은 이 사람이 못 보더라도 남긴다(다른 사람이 건 연결을 조용히 지우지 않는다).
+        const prevLinked = new Set((Array.isArray(post.linked_post_ids) ? post.linked_post_ids : []).map(Number));
+        const kept = [];
+        for (const lp of valid) if (prevLinked.has(lp.id) || await canReadPost(req.user, lp)) kept.push(lp.id);
+        patch.linked_post_ids = kept;
       } else {
         patch.linked_post_ids = [];
       }
@@ -1081,6 +1103,11 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
     }
     const patch = { vlevel: level, project_id: nextProjectId };
+    // 좁히면(L1·L2) 이미 나간 링크를 끊는다 — 달력과 같은 규칙(services/share_helper.shareOffPatch).
+    {
+      const sh = require('../services/share_helper');
+      if (sh.narrowsShare(level)) Object.assign(patch, sh.shareOffPatch(post));
+    }
     // N+67 — L4 선택 시 share_token 자동 발급 (없으면)
     if (level === 'L4' && !post.share_token) {
       const crypto = require('crypto');
@@ -1154,9 +1181,12 @@ router.post('/:id/attachments', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // 못 보는 문서에 첨부를 달 수 없고, 못 보는 파일을 붙일 수 없다(업무 첨부와 같은 기준 — 2026-09-27 점검).
+    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
     const fileIds = Array.isArray(req.body?.file_ids) ? req.body.file_ids.map(Number).filter(Boolean) : [];
     if (fileIds.length === 0) return errorResponse(res, 'file_ids required', 400);
     const files = await File.findAll({ where: { id: fileIds, business_id: post.business_id, deleted_at: null } });
+    for (const f of files) if (!(await require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, f))) return errorResponse(res, 'file_not_found', 404);
     const existing = await PostAttachment.count({ where: { post_id: post.id } });
     const created = [];
     for (let i = 0; i < files.length; i++) {
@@ -1450,6 +1480,9 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // 볼 수 있는 사람만 밖으로 내보낼 수 있다 — 멤버라는 것만 보면 남의 «나만 보기»(L1) 문서에도
+    //   링크를 뽑아 열어 볼 수 있었다(2026-09-27 점검). 읽기와 **같은 술어**(canReadPost).
+    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
     // D4 #62 — 보안등급 게이트
     if (blocksExternalShare(post)) {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -1516,6 +1549,7 @@ router.put('/:id/security-level', authenticateToken, async (req, res, next) => {
     let revokedShare = false;
     if (level !== 'general' && post.share_token) {
       patch.share_token = null; patch.shared_at = null; patch.share_expires_at = null;
+      patch.share_password_hash = null;   // 남기면 다시 공유할 때 옛 비밀번호가 승계된다
       if (post.vlevel === 'L4') patch.vlevel = 'L3'; // 외부 공개였으면 워크스페이스로 내림
       revokedShare = true;
     }
@@ -1551,6 +1585,9 @@ router.post('/:id/share/email', authenticateToken, ...postShareEmailLimiter, asy
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // 볼 수 있는 사람만 밖으로 내보낼 수 있다 — 멤버라는 것만 보면 남의 «나만 보기»(L1) 문서에도
+    //   링크를 뽑아 열어 볼 수 있었다(2026-09-27 점검). 읽기와 **같은 술어**(canReadPost).
+    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
     // D4 #62 — 보안등급 게이트
     if (blocksExternalShare(post)) {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -1595,8 +1632,17 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // 볼 수 있는 사람만 밖으로 내보낼 수 있다 — 멤버라는 것만 보면 남의 «나만 보기»(L1) 문서에도
+    //   링크를 뽑아 열어 볼 수 있었다(2026-09-27 점검). 읽기와 **같은 술어**(canReadPost).
+    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
     const conv = await Conversation.findOne({ where: { id: convId, business_id: post.business_id } });
     if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
+    // 내가 들어가 있지 않은 대화방에 카드를 꽂지 않는다(같은 워크스페이스라도).
+    {
+      const { canAccessConversation, getUserScope: gus } = require('../middleware/access_scope');
+      const cscope = await gus(req.user.id, post.business_id, req.user.platform_role);
+      if (!(await canAccessConversation(req.user.id, conv, cscope))) return errorResponse(res, 'forbidden', 403);
+    }
     // D4 #62 — 보안등급 게이트
     if (blocksExternalShare(post)) {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -1758,6 +1804,10 @@ router.get('/public/:token/pdf', async (req, res, next) => {
       }
       if (why) return errorResponse(res, 'not_found', 404);
     }
+    // 비밀번호 — 본문 GET 과 같은 자격(서명 또는 헤더). 전에는 이 검사가 없어 주소만 알면 PDF 가 받아졌다.
+    if (!(await require('../services/share_helper').verifyShareSub(post, req, req.params.token, 'pdf'))) {
+      return res.status(401).json({ success: false, message: 'password_required', requires_password: true });
+    }
     const pdf = await buildPostPdf(post, req);
     res.setHeader('Content-Type', 'application/pdf');
     // ASCII filename + RFC 5987 UTF-8 filename* (한글 등 비 ASCII 문자 지원)
@@ -1821,13 +1871,13 @@ router.get('/public/:token', async (req, res, next) => {
       //     화이트리스트로 추리면서 vlevel 을 빼기 때문에, 직렬화 결과로 판단하면
       //     "전부 비공개" 로 읽혀 동의한 첨부까지 사라진다(실측: 다운로드는 200 인데 목록만 0건).
       //     파생본을 원본으로 쓰지 않는다.
-      const isPublicFile = (f) => !!f && (f.vlevel === 'L4' || (!f.vlevel && f.visibility === 'L4'));
+      const { isPublicFile } = require('../services/shareOpenable');
       const publicAttIds = new Set(
         (post.attachments || []).filter(a => isPublicFile(a.file)).map(a => a.id));
       const hidden = safe.attachments.filter(a => !publicAttIds.has(a.id)).length;
       safe.attachments = safe.attachments.filter(a => publicAttIds.has(a.id)).map(a => ({
         ...a,
-        file: { ...a.file, download_url: `/api/posts/public/${token}/attachments/${a.id}/download` },
+        file: { ...a.file, download_url: `/api/posts/public/${token}/attachments/${a.id}/download${require('../services/share_helper').shareSubQuery(post, token, `att:${a.id}`)}` },
       }));
       // ★ 숨긴 건수를 **익명 뷰어에게 내보내지 않는다.** 처음엔 "조용히 사라지면 오해한다" 며
       //   실었는데, 공개 페이지를 보는 사람은 문서 소유자가 아니다 — 숨긴 파일이 몇 개인지는
@@ -1837,6 +1887,8 @@ router.get('/public/:token', async (req, res, next) => {
     }
     // 이미지 문맥(2b 1단계) — 본문 이미지가 익명에게도 이 문서 안에서는 열리게 한다. 비밀번호를 통과한 응답에만 준다(위에서 걸렀다).
     safe.image_ctx = require('../services/imageCtx').issueImageCtx('post', { token, pwHash: post.share_password_hash });
+    // PDF 주소 — 비밀번호 걸린 문서는 서명을 붙여 준다(window.open 은 헤더를 못 싣는다).
+    safe.pdf_url = `/api/posts/public/${token}/pdf${require('../services/share_helper').shareSubQuery(post, token, 'pdf')}`;
     delete safe.share_token;
     // 서명본 — 앱 안 문서·PDF 와 **같은 조립**(services/signedDocument). 화면이 따로 끼우면 갈라진다.
     //   ★ 증명서 장은 싣지 않는다 — 이메일·IP 가 들어가고, 이 링크는 소지자 누구나 연다.
@@ -1882,9 +1934,13 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
   try {
     const post = await Post.findOne({
       where: { share_token: req.params.token, status: 'published' },
-      attributes: ['id', 'share_expires_at'],
+      attributes: ['id', 'share_token', 'share_expires_at', 'share_password_hash', 'status', 'deleted_at'],
     });
     if (!post) return errorResponse(res, 'not_found_or_expired', 404);
+    // 비밀번호 — 목록 응답이 준 서명(또는 헤더). 전에는 이 검사가 없었다.
+    if (!(await require('../services/share_helper').verifyShareSub(post, req, req.params.token, `att:${req.params.attId}`))) {
+      return res.status(401).json({ success: false, message: 'password_required', requires_password: true });
+    }
     {
       const { shareOpenReason } = require('../services/shareOpenable');
       const why = shareOpenReason('post', post);
@@ -1901,7 +1957,7 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
     const file = att.file;
     // ★ 목록에서 뺐어도 URL 을 알면 그대로 받아진다 — 여기서도 같은 기준으로 막는다.
     //   (한쪽만 막는 것은 막은 게 아니다)
-    if (!(file.vlevel === 'L4' || (!file.vlevel && file.visibility === 'L4'))) {
+    if (!require('../services/shareOpenable').isPublicFile(file)) {
       return errorResponse(res, 'attachment_not_shared', 403);
     }
     // Drive 는 리다이렉트하지 않는다 — 공유 문서를 받은 사람에게 구글 401 이다 (files.js 와 같은 함수).
@@ -1926,4 +1982,6 @@ module.exports.extractBlockText = extractBlockText;
 module.exports.extractText = extractText;
 // post_revisions.js 가 같은 권한·격리·broadcast 규칙을 쓰도록 공유한다 — 사본을 만들면 규칙이 갈라진다.
 module.exports.canEditPost = canEditPost;
+// 읽기 술어 — 업무 첨부·일정 미팅자료·Q info 가 «이 문서를 붙여도/보여 줘도 되나» 를 같은 함수로 판정한다.
+module.exports.canReadPost = canReadPost;
 module.exports.broadcastPost = broadcastPost;

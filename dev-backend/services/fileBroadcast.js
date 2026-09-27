@@ -11,7 +11,10 @@
 function broadcastFile(req, file, event = 'file:updated') {
   const io = req.app.get('io');
   if (!io) return;
-  const data = file.toJSON ? file.toJSON() : file;
+  // ★ 2026-09-27 — **신호만** 보낸다(id·소속). 행 전체(toJSON)를 워크스페이스·프로젝트 방에 뿌려서
+  //   «나만 보기» 문서 본문·공유 토큰이 멤버 전원과 **프로젝트 고객** 소켓에 도착했다. 받는 화면은 전부
+  //   id 만 보고 자기 권한으로 다시 읽는다(PostsPage·DocsTab·QCalendar·Todo·Dashboard 확인).
+  const data = { id: file.id, business_id: file.business_id, project_id: file.project_id || null };
   if (file.business_id) io.to(`business:${file.business_id}`).emit(event, data);
   if (file.project_id) io.to(`project:${file.project_id}`).emit(event, data);
 }

@@ -52,6 +52,7 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
   const { formatDate } = useTimeFormat();
   const [loading, setLoading] = useState(true);
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const [issueError, setIssueError] = useState<'blockedByAttachment' | 'blocked' | null>(null);
   const [shareUrl, setShareUrl] = useState<string>('');
   const [expires, setExpires] = useState<7 | 30 | 90 | null>(null);
   // 발급된 토큰의 실제 만료일 (백엔드 응답에서 받음). UI 표시용.
@@ -94,6 +95,7 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
   // payload 가 undefined 면 보내지 않음 — 기존 값 유지.
   const issueToken = useCallback(async (payload: { expires_in_days?: number | null; password?: string | null }) => {
     setBusy(true);
+    setIssueError(null);
     try {
       const r = await apiFetch(`/api/${apiPath}/${entityId}/share`, {
         method: 'POST',
@@ -106,6 +108,9 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
         setShareUrl(j.data.share_url || `${window.location.origin}${PUBLIC_PATH_MAP[entityType]}/${j.data.share_token}`);
         setPasswordSet(!!j.data.password_set);
         setShareExpiresAt(j.data.share_expires_at || null);
+      } else if (j.code === 'security_level_blocks_share' || j.message === 'security_level_blocks_share') {
+        // 왜 못 만드는지 말한다 — «발급 실패» 만으로는 무엇을 고쳐야 할지 모른다.
+        setIssueError(entityType === 'task' ? 'blockedByAttachment' : 'blocked');
       }
     } finally {
       setBusy(false);
@@ -369,7 +374,7 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
           ) : loading ? (
             <Hint>{t('share.loading', { defaultValue: '링크 발급 중...' }) as string}</Hint>
           ) : !shareToken ? (
-            <Hint>{t('share.failed', { defaultValue: '링크 발급 실패' }) as string}</Hint>
+            <Hint>{issueError ? t(`share.${issueError}`) as string : t('share.failed', { defaultValue: '링크 발급 실패' }) as string}</Hint>
           ) : (
             <>
               <SectionLabel>{t('share.link', { defaultValue: '공유 링크' }) as string}</SectionLabel>

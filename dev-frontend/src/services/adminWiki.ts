@@ -119,8 +119,10 @@ export function blocksFromBodies(
     const type = (k.type || e.type || 'text') as WikiBlockType;
     out.push({
       type,
-      text_ko: (k.text_ko as string) || '',
-      text_en: (e.text_en as string) || '',
+      // 옛 릴리즈노트(2026-09-26 전 발행)는 언어 없는 `text` 키로 저장돼 있다(#432). 그걸 안 읽으면 편집기가
+      //   빈칸으로 열리고, 그대로 저장하면 **본문이 지워진다**(Fable 2026-09-27 — 운영 61건). 화면 세 곳과 같은 규칙.
+      text_ko: (k.text_ko as string) || (k.text as string) || '',
+      text_en: (e.text_en as string) || (e.text as string) || '',
       file_id: (k.file_id as number) ?? (e.file_id as number) ?? null,
       caption_ko: (k.caption_ko as string) || '',
       caption_en: (e.caption_en as string) || '',

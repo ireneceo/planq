@@ -496,7 +496,17 @@ async function postListWhere(userId, businessId, scope) {
   if (scope.projectClientProjectIds.length === 0) {
     return { business_id: businessId, id: { [Op.in]: [-1] } };
   }
-  return { business_id: businessId, project_id: { [Op.in]: scope.projectClientProjectIds } };
+  // ★ 남의 «나만 보기»(L1)는 고객에게도 안 보인다(2026-09-27 점검 — 프로젝트 문서를 나만 보기로 바꿔도
+  //   소속이 유지되어(posts.js visibility) 그 프로젝트 고객이 열 수 있었다). 상세·목록이 같은 조건.
+  //   ★ 조건은 전부 `Op.and` 안에 둔다 — 호출부가 `where.project_id = ?` 로 필터를 덧붙이면 최상위 키는
+  //     **덮어써진다.** 실제로 고객이 `?project_id=남의프로젝트` 를 넣으면 제한이 사라져 그 목록이 나왔다.
+  return {
+    business_id: businessId,
+    [Op.and]: [
+      { project_id: { [Op.in]: scope.projectClientProjectIds } },
+      { [Op.or]: [{ vlevel: { [Op.ne]: 'L1' } }, { vlevel: null }, { author_id: userId }] },
+    ],
+  };
 }
 
 async function canAccessPost(userId, post, scope) {
@@ -504,6 +514,7 @@ async function canAccessPost(userId, post, scope) {
   if (!scope) scope = await getUserScope(userId, post.business_id);
   if (isMemberOrAbove(scope)) return true;
   if (!scope.isClient) return false;
+  if (post.vlevel === 'L1' && post.author_id !== userId) return false;   // 목록과 같은 조건
   if (post.project_id && scope.projectClientProjectIds.includes(post.project_id)) return true;
   return false;
 }
@@ -658,57 +669,58 @@ function postListWhereByLevel(scope) {
   return { business_id: scope.businessId, [Op.or]: conds };
 }
 
-// KbDocument — 본인 + scope (private/workspace/project/client) + N+72 vlevel L2-members
+// KbDocument(Q info) 읽기 — **한 벌**(2026-09-27). 목록·상세·공유 발급·통합검색·Cue 가 모두 이 두 함수를 쓴다.
+//   전에는 세 벌이었다: 목록(routes/kb.js 인라인, vlevel 기준) · 상세(인라인, 다른 옛 매핑) · 여기(scope 기준 —
+//   vlevel 을 안 봐서 L2 «지정 멤버» 문서를 Cue 가 비대상자에게 보여 줬다). 화면이 쓰는 **목록 규칙을 정본**으로 옮겼다.
+//   규칙: 본인 업로드 · owner/admin · L3/L4 → 보임. L1 → 본인만. L2 → 프로젝트형은 그 프로젝트 멤버, 지정형은 지정된 멤버.
+//         vlevel 이 없는 옛 자료 → scope: workspace(read_policy='all')·client 는 멤버, project 는 그 프로젝트 멤버, private 는 본인.
+//   고객(client) 은 종전 그대로 — 자기 고객 건(scope 'client' · client_id)만.
 async function canAccessKbDocumentByLevel(userId, doc, scope) {
   if (!doc) return false;
   if (!scope) scope = await getUserScope(userId, doc.business_id);
   if (scope.isPlatformAdmin) return true;
-  // 본인 업로드 무조건 OK
   if (doc.uploaded_by === userId) return true;
-  // admin(N+21) 은 owner 급 전권 (Post/File 헬퍼 동일 패턴)
-  const fullView = scope.isOwner || scope.isAdmin;
-  // N+72 — vlevel L2-members 분기 우선 (KbDocument 도 target_member_ids 있음)
-  if (doc.vlevel === 'L2' && doc.scope !== 'project') {
-    const targetIds = Array.isArray(doc.target_member_ids) ? doc.target_member_ids : [];
-    if (targetIds.length > 0) {
-      return targetIds.includes(userId) || fullView;
-    }
+  if (scope.isClient && !scope.isMember && !scope.isOwner && !scope.isAdmin) {
+    return doc.scope === 'client' && (scope.clientIds || []).includes(doc.client_id);
   }
-  const s = doc.scope;
-  if (s === 'private') return false;  // 본인 외 차단 (위에서 본인 통과)
-  if (s === 'workspace') return fullView || scope.isMember;
-  if (s === 'project') {
-    if (doc.project_id) {
-      return (scope.projectMemberIds || []).includes(doc.project_id) || fullView;
-    }
-    return fullView || scope.isMember;
+  if (scope.isOwner || scope.isAdmin) return true;
+  if (!scope.isMember) return false;
+  const myProjects = scope.projectMemberIds || [];
+  const v = doc.vlevel;
+  if (v === 'L3' || v === 'L4') return true;
+  if (v === 'L1') return false;
+  if (v === 'L2') {
+    if (doc.scope === 'project') return !!doc.project_id && myProjects.includes(doc.project_id);
+    const targets = Array.isArray(doc.target_member_ids) ? doc.target_member_ids.map(Number) : [];
+    return targets.includes(Number(userId));
   }
-  if (s === 'client') {
-    if (fullView) return true;
-    if (scope.isClient && scope.clientIds.includes(doc.client_id)) return true;
-    return scope.isMember;
-  }
-  return fullView || scope.isMember;
+  // 옛 자료(vlevel 없음)
+  if (doc.scope === 'workspace') return doc.read_policy === 'all' || doc.read_policy == null;
+  if (doc.scope === 'client') return true;
+  if (doc.scope === 'project') return !!doc.project_id && myProjects.includes(doc.project_id);
+  return false;   // private
 }
 
 function kbDocumentsListWhereByLevel(scope) {
   if (scope.isPlatformAdmin) return { business_id: scope.businessId };
-  const fullView = scope.isOwner || scope.isAdmin;  // admin(N+21) = owner 급 가시성
-  const conds = [];
-  conds.push({ scope: 'private', uploaded_by: scope.userId });
-  if (fullView || scope.isMember) {
-    conds.push({ scope: 'workspace' });
-    conds.push({ scope: 'client' }); // 멤버는 client KB 도 접근 (열린 문화)
-  }
-  if (fullView) {
-    conds.push({ scope: 'project' });
-  } else if ((scope.projectMemberIds || []).length > 0) {
-    conds.push({ scope: 'project', project_id: { [Op.in]: scope.projectMemberIds } });
-  }
-  if (scope.isClient && scope.clientIds.length > 0) {
+  if (scope.isOwner || scope.isAdmin) return { business_id: scope.businessId };
+  const uid = Number(scope.userId);
+  const conds = [{ uploaded_by: uid }];
+  if (scope.isMember) {
+    const myProjects = (scope.projectMemberIds || []).length ? scope.projectMemberIds : [0];
+    conds.push(
+      { vlevel: 'L3' },
+      { vlevel: 'L4' },
+      { vlevel: 'L2', scope: 'project', project_id: { [Op.in]: myProjects } },
+      // L2 지정 멤버 — user_id 는 숫자라 SQL injection 안전.
+      sequelize.literal(`vlevel = 'L2' AND scope <> 'project' AND JSON_CONTAINS(target_member_ids, '${uid}')`),
+      { vlevel: null, scope: 'workspace', read_policy: { [Op.or]: ['all', null] } },
+      { vlevel: null, scope: 'client' },
+      { vlevel: null, scope: 'project', project_id: { [Op.in]: myProjects } },
+    );
+  } else if (scope.isClient && (scope.clientIds || []).length > 0) {
     conds.push({ scope: 'client', client_id: { [Op.in]: scope.clientIds } });
   }
-  if (conds.length === 0) return { business_id: scope.businessId, id: { [Op.in]: [-1] } };
   return { business_id: scope.businessId, [Op.or]: conds };
 }
 
@@ -786,8 +798,12 @@ function attachWorkspaceScope(opts = {}) {
 async function canDownloadFile(scope, userId, file) {
   if (!file) return false;
   if (scope && scope.isClient) {
-    const inMyProject = !!file.project_id && (scope.projectClientProjectIds || []).includes(file.project_id);
-    return inMyProject || file.uploader_id === userId;
+    if (file.uploader_id === userId) return true;
+    // ★ 남의 «나만 보기»(L1)는 내 프로젝트 파일이어도 안 된다 — 비공개로 올린 본문 이미지(inline=private)가
+    //   L1 + project_id 로 저장돼 그 프로젝트 고객이 받을 수 있었다(2026-09-27 점검).
+    const lv = file.vlevel || file.visibility;
+    if (lv === 'L1') return false;
+    return !!file.project_id && (scope.projectClientProjectIds || []).includes(file.project_id);
   }
   return await canAccessFileByLevel(userId, file, scope);
 }

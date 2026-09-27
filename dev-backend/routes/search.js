@@ -8,6 +8,7 @@
 //     ★ 본문 전체는 응답에 싣지 않는다(스니펫 계산에 쓴 컬럼은 내보내기 전에 뺀다).
 //     ★ 비밀(secret) 항목 값에서는 스니펫을 만들지 않는다.
 // 권한: 사용자 scope 기준 — client 격리 + project 멤버 한정 + KB 차단 등.
+const searchGates = require('../services/searchGates');
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
@@ -21,7 +22,7 @@ const {
   assertWorkspaceAccess, taskListWhere, fileListWhereByLevel, postListWhereByLevel,
   conversationListWhere,
 } = require('../middleware/access_scope');
-const { pickMatch, makeSnippet, textMatches, toPlainText } = require('../utils/searchMatch');
+const { pickMatch } = require('../utils/searchMatch');
 
 
 // ─────────────────────────────────────────────────────────────
@@ -65,72 +66,8 @@ async function buildScopedWheres(userId, businessId, platformRole) {
   };
 }
 
-const asObj = (v) => {
-  if (!v) return null;
-  if (typeof v === 'object') return v;
-  try { return JSON.parse(v); } catch { return null; }
-};
-
-// 셀·항목 값 → 검색용 평문. 배열(multi_select)은 쉼표로, 객체는 버린다(구조값에서 문장을 지어내지 않는다).
-const cellText = (raw) => {
-  if (raw == null) return '';
-  if (Array.isArray(raw)) return raw.filter((x) => x != null && typeof x !== 'object').join(', ');
-  if (typeof raw === 'object') return '';
-  return String(raw);
-};
-
-// { 항목명: 값 } 에서 **비밀이 아닌** 첫 매칭 → "항목명: …값…" 스니펫. 없으면 null.
-//   columns: [{ id, name, type }] — type==='secret' 인 칸은 후보에서 뺀다.
-function columnValueSnippet(columns, values, q) {
-  const cols = Array.isArray(columns) ? columns : [];
-  const vals = values && typeof values === 'object' ? values : {};
-  const secretIds = new Set(cols.filter((c) => c && c.type === 'secret').map((c) => String(c.id)));
-  const nameOf = new Map(cols.filter(Boolean).map((c) => [String(c.id), c.name || c.label || '']));
-  for (const [colId, raw] of Object.entries(vals)) {
-    if (secretIds.has(String(colId))) continue;
-    const text = toPlainText(cellText(raw));
-    if (!text || !textMatches(text, q)) continue;
-    const name = nameOf.get(String(colId)) || '';
-    const sn = makeSnippet(text, q, { plain: true, max: name ? Math.max(40, 150 - name.length) : 158 });
-    const body = sn ? sn.display : text.slice(0, 150);
-    return name ? `${name}: ${body}` : body;
-  }
-  return null;
-}
-
-// 셀 값 → 판정용 원자 문자열들. 구조값(배열·객체)은 안의 원시값까지 편다.
-//   각 원자는 **SQL 이 보는 JSON 표기 그대로**(이스케이프 포함) — 아래 판정이 SQL 후보 조건보다 넓어지지 않게.
-const cellAtoms = (raw, out = []) => {
-  if (raw == null) return out;
-  if (Array.isArray(raw)) { for (const x of raw) cellAtoms(x, out); return out; }
-  if (typeof raw === 'object') { for (const x of Object.values(raw)) cellAtoms(x, out); return out; }
-  out.push(JSON.stringify(String(raw)).slice(1, -1));
-  return out;
-};
-
-// ★ 표 셀·Q info 항목 값 검색의 **단일 판정** (#334 → 2026-09-11 표 분기까지).
-//   SQL 은 values JSON 을 통째로 LIKE 해 **후보만** 좁힌다 — 거기엔 비밀 칸 값과 칸 id(JSON 키)가 섞여 있다.
-//   결과에 올리는 것은 **비밀이 아닌 칸** 하나라도 SQL 과 같은 규칙(부분일치 / 공백 제거 부분일치)으로 맞을 때뿐이다.
-//   판정 규칙을 SQL 보다 넓히지 않는다 — 넓히면 비밀 칸이 후보로 끌어온 행이 비밀 아닌 칸의 느슨한 규칙으로
-//   통과해, "결과가 뜨는가" 가 다시 비밀 값에 좌우된다.
-//   호출부는 SQL 에 두 조건(`LIKE :like` · `REPLACE(…,' ','') LIKE :likeSq`)을 **둘 다** 건다.
-function matchesNonSecretCell(columns, values, q) {
-  const cols = Array.isArray(columns) ? columns : [];
-  const vals = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
-  const secretIds = new Set(cols.filter((c) => c && c.type === 'secret').map((c) => String(c.id)));
-  const needle = q.toLowerCase();
-  const needleSquashed = q.replace(/\s+/g, '').toLowerCase();
-  for (const [colId, raw] of Object.entries(vals)) {
-    if (secretIds.has(String(colId))) continue;
-    for (const atom of cellAtoms(raw)) {
-      const v = atom.toLowerCase();
-      if (!v) continue;
-      if (needle && v.includes(needle)) return true;
-      if (needleSquashed && v.replace(/ /g, '').includes(needleSquashed)) return true;
-    }
-  }
-  return false;
-}
+// 표 셀·Q info 항목 값 검색 판정(비밀 칸 제외) — utils/searchCells 한 곳(2026-09-27 이 파일 500줄 한도로 옮겼다, 동작 동일).
+const { asObj, columnValueSnippet, matchesNonSecretCell } = require('../utils/searchCells');
 
 // 판정 전 후보 행 상한 — 비밀 칸에서만 맞은 행이 자리를 먹어 정상 결과를 밀어내지 않을 만큼.
 const CELL_CANDIDATE_ROWS = 500;
@@ -232,7 +169,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
     //  다음 사람이 "레코드 검색이 있다" 고 읽는다.)
 
     // KB — client 는 차단 (memory project_client_permission_matrix)
-    const kbWhere = isClient ? { id: -1 } : { business_id: businessId };
+    //   멤버는 볼 수 있는 문서만(목록·상세와 같은 술어 — 2026-09-27 전에는 워크스페이스 전체였다).
+    const kbWhere = isClient ? { id: -1 } : require('../middleware/access_scope').kbDocumentsListWhereByLevel(scope);
 
     // Client 목록 — client 자신은 본인만, member/owner 는 워크스페이스 전체
     //   ★ 필드명 주의 — `clientId`(단수)도 존재하지 않는다. getUserScope 는 `clientIds` 배열을 준다.
@@ -404,8 +342,10 @@ router.get('/', authenticateToken, async (req, res, next) => {
           { replacements: { bid: businessId, like: `%${qEsc}%`, likeSq: `%${qSquashed}%` }, type: sequelize.QueryTypes.SELECT }
         ).catch(err => { console.error('[search] kb val err:', err.message); return []; });
 
+        // raw SQL 은 권한 술어를 모른다 — 같은 kbWhere 로 다시 거른다(services/searchGates).
+        const allowedIds = await searchGates.allowedKbIds(rawValHits, kbWhere, businessId);
         // 비밀 아닌 항목 중 하나라도 맞으면 통과. 전부 secret 에서만 맞았으면 제외 — 표 셀과 같은 판정 한 곳.
-        const valHits = rawValHits.filter((row) => (
+        const valHits = rawValHits.filter((row) => allowedIds.has(row.id)).filter((row) => (
           matchesNonSecretCell(asObj(row.custom_columns), asObj(row.custom_values), q)
         )).map(({ custom_columns: cc, custom_values: cv, ...rest }) => ({
           ...rest,
@@ -440,6 +380,9 @@ router.get('/', authenticateToken, async (req, res, next) => {
     ]);
 
     const toPlain = (m) => (m && typeof m.toJSON === 'function') ? m.toJSON() : m;
+
+    // 메뉴 권한 — Q task·Q sale 이 «숨김» 인 멤버에게는 검색에서도 그 결과를 내지 않는다(services/searchGates).
+    await searchGates.applyMenuGates({ tasks, clients }, businessId, req.user, isClient);
 
     // ── match 후처리 — 후보 순서 = 우선순위. 행에 보이는 필드를 앞에 둔다. ──
     const taskOut = tasks.map((m) => {

@@ -808,7 +808,9 @@
       "network": "네트워크 오류"
     },
     "passwordHide": "숨기기",
-    "passwordShow": "보이기"
+    "passwordShow": "보이기",
+    "blockedByAttachment": "외부 공유가 막힌 등급(내부·기밀)의 첨부 파일이 있어 링크를 만들 수 없어요. 그 파일의 등급을 일반으로 바꾸거나 첨부에서 빼면 공유할 수 있어요.",
+    "blocked": "보안등급(내부·기밀) 자료는 외부 공유할 수 없어요. 등급을 일반으로 낮추면 공유할 수 있어요."
   },
   "candidate": {
     "noAssignee": "담당 미정",
@@ -855,7 +857,11 @@
       "creator": "요청자",
       "start": "시작일",
       "due": "마감일",
-      "progress": "진행률"
+      "progress": "진행률",
+      "deliverable": "결과물",
+      "attachments": "첨부 파일",
+      "prevVersions_one": "이전 버전 {{count}}개가 있어요. PlanQ 에서 볼 수 있어요.",
+      "prevVersions_other": "이전 버전 {{count}}개가 있어요. PlanQ 에서 볼 수 있어요."
     },
     "file": {
       "previewLoading": "미리보기 준비 중…",

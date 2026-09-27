@@ -3957,8 +3957,11 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
     // 4) 문서(포스트) 첨부 — File 참조 기반. 좌측 "문서" 필터에서 모아 볼 수 있도록
     //    direct 와 중복되더라도 post source 로 별도 등록 (의도된 이중 노출)
     const { Post, PostAttachment } = require('../models');
+    // ★ 보는 사람이 **볼 수 있는 문서**의 첨부만, 그리고 첨부 파일도 그 사람이 볼 수 있는 것만(2026-09-27 점검 —
+    //   남의 «나만 보기» 문서 제목과 거기 붙은 개인 파일명·미리보기가 멤버 전원에게 나갔다). 문서 목록과 같은 술어.
+    const { postListWhereByLevel, canAccessFileByLevel } = require('../middleware/access_scope');
     const postsInBiz = await Post.findAll({
-      where: { business_id: bizId },
+      where: postListWhereByLevel(fileScope),
       attributes: ['id', 'title', 'project_id']
     });
     if (postsInBiz.length > 0) {
@@ -3972,6 +3975,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
       for (const a of postAtts) {
         const f = a.file;
         if (!f || f.deleted_at) continue;
+        if (!(await canAccessFileByLevel(req.user.id, f, fileScope))) continue;
         const post = postMap.get(a.post_id);
         const proj = post && post.project_id ? projMap.get(post.project_id) : null;
         results.push({
@@ -4171,8 +4175,11 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
     //   direct 와 중복 노출되는 것은 all-files 와 같은 의도(좌측 "문서" 필터에서 모아 보기).
     {
       const { Post, PostAttachment } = require('../models');
+      // 문서도 보는 사람 기준 — 파일은 등급으로 걸렀지만 문서 제목(context.label)은 L1 이어도 나갔다(2026-09-27 점검).
+      const { postListWhereByLevel: plw, postListWhere: plwClient } = require('../middleware/access_scope');
+      const postScopeWhere = scope.isClient ? await plwClient(req.user.id, bizId, scope) : plw(scope);
       const projPosts = await Post.findAll({
-        where: { business_id: bizId, project_id: projId },
+        where: { [Op.and]: [postScopeWhere || { id: -1 }, { business_id: bizId, project_id: projId }] },
         attributes: ['id', 'title'],
       });
       if (projPosts.length > 0) {

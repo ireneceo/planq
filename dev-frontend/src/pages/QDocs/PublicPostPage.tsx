@@ -1,13 +1,15 @@
 // 공개 포스트 페이지 — share_token 기반 (인증 없음)
 // 라우트: /public/posts/:token
 // 기능: 본문 표시 + 인쇄(PDF)
-import React, { useEffect, useCallback, useMemo, useState } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import PublicPageShell, { PublicCenter, PublicTitle, PublicMeta, PublicBtn } from '../../components/Layout/PublicPageShell';
 import { useTranslation } from 'react-i18next';
+import PublicAttachmentList from '../../components/Common/PublicAttachmentList';
 import { useParams, useNavigate } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
+import SharePasswordPrompt from '../Public/SharePasswordPrompt';
 import { apiFetch, getAccessToken } from '../../contexts/AuthContext';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀌어야 한다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
@@ -24,6 +26,8 @@ interface PublicPost {
   signed_html?: string | null;
   // 본문 이미지 문맥 — 서버가 준 값을 이미지 주소에 붙인다(utils/imageCtx)
   image_ctx?: string | null;
+  // 서버가 조립한 PDF 주소 — 비밀번호 걸린 문서는 서명이 붙어 온다(window.open 은 헤더를 못 싣는다)
+  pdf_url?: string;
   author: { id: number; name: string } | null;
   created_at: string;
   attachments: Array<{
@@ -44,17 +48,29 @@ const PublicPostPage: React.FC = () => {
 
   // ★ silent=true 는 **다시 읽기**다 — 로딩 화면으로 되돌리지 않는다.
   //   읽던 문서가 스피너로 바뀌면 갱신이 아니라 고장으로 읽힌다.
-  const load = useCallback(async (silent = false) => {
+  // 비밀번호 — 업무·일정 공유와 같은 방식(SharePasswordPrompt). 전에는 입력창이 없어 비밀번호를 건
+  //   문서는 받는 사람에게 «없는 링크» 화면으로만 보였다. 성공한 비밀번호는 다시 읽기에도 쓴다(갱신이 곧 잠금이 되지 않게).
+  const [needPw, setNeedPw] = useState(false);
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
+  const pwRef = useRef<string | undefined>(undefined);
+  const load = useCallback(async (silent = false, pw?: string) => {
     if (!token) return;
-    if (!silent) setLoading(true);
+    if (!silent) { if (pw) setPwBusy(true); else setLoading(true); setPwError(null); }
     try {
-      const r = await fetch(`/api/posts/public/${token}`);
+      const r = await fetch(`/api/posts/public/${token}`, pw ? { headers: { 'X-Share-Password': pw } } : undefined);
       const j = await r.json().catch(() => ({}));
       if (r.status === 410 && j.code === 'share_expired') {
         setExpired({ at: j.expired_at || null });
+      } else if (r.status === 401 && j.requires_password) {
+        if (silent) return;   // 이미 열어 본 화면을 잠금 화면으로 되돌리지 않는다
+        setNeedPw(true);
+        if (pw) setPwError(j.message === 'password_wrong' ? 'wrong' : null);
       } else if (!j.success) {
         throw new Error(j.message || 'load_failed');
       } else {
+        pwRef.current = pw;
+        setNeedPw(false);
         setPost(j.data);
         setExpired(null);
         setErr(null);
@@ -63,12 +79,12 @@ const PublicPostPage: React.FC = () => {
       // 조용한 재조회가 실패했다고 보고 있던 문서를 에러 화면으로 덮지 않는다
       if (!silent) setErr((e as Error).message);
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent) { setLoading(false); setPwBusy(false); }
     }
   }, [token]);
 
   useEffect(() => { void load(); }, [load]);
-  usePublicRevalidate(() => load(true));
+  usePublicRevalidate(() => load(true, pwRef.current));
 
   // N+72-3 fix — 옛 자동 redirect 제거 (사용자 호소 "로그인했어도 따로 보이는게 맞다").
   // share link 의 의도는 외부 뷰. in-app 으로 가고 싶으면 별도 버튼 (아래 InAppOpenLink) 명시 클릭.
@@ -91,6 +107,7 @@ const PublicPostPage: React.FC = () => {
 
   if (loading) return <PublicCenter>{t('public.loading', '문서 로드 중...')}</PublicCenter>;
   if (expired) return <ExpiredShareLink expiredAt={expired.at} />;
+  if (needPw) return <SharePasswordPrompt onSubmit={(pw) => void load(false, pw)} busy={pwBusy} error={pwError} />;
   //   ★ 서버 코드(not_found 등)를 그대로 뿌리지 않는다 — 사용자에게는 뜻 없는 영어 한 단어로 보인다
   //     (Irene 2026-08-31: 죽은 공유 링크를 열었더니 무엇이 잘못됐는지 알 수 없었다).
   //     원인은 셋 다 같은 결과다: 문서가 지워졌거나 · 공유를 중지했거나 · 링크가 만료됐다.
@@ -110,7 +127,7 @@ const PublicPostPage: React.FC = () => {
               {t('public.openInApp', { defaultValue: 'PlanQ 앱에서 열기' }) as string}
             </PublicBtn>
           )}
-          <PublicBtn type="button" onClick={() => window.open(`/api/posts/public/${token}/pdf`, '_blank')}>{t('public.downloadPdf', 'PDF 다운로드')}</PublicBtn>
+          <PublicBtn type="button" onClick={() => window.open(post.pdf_url || `/api/posts/public/${token}/pdf`, '_blank')}>{t('public.downloadPdf', 'PDF 다운로드')}</PublicBtn>
         </>
       )}
     >
@@ -126,20 +143,10 @@ const PublicPostPage: React.FC = () => {
           <PostEditor value={bodyJson} onChange={() => {}} editable={false} borderless />
         )}
 
-        {post.attachments && post.attachments.length > 0 && (
-          <AttachSection>
-            <AttachTitle>{t('attachments', '첨부 파일')}</AttachTitle>
-            {post.attachments.map(a => (
-              a.file ? (
-                <AttachRow key={a.id}>
-                  <AttachLink href={a.file.download_url} target="_blank" rel="noreferrer">
-                    {a.file.file_name}
-                  </AttachLink>
-                </AttachRow>
-              ) : null
-            ))}
-          </AttachSection>
-        )}
+        <PublicAttachmentList
+          title={t('attachments', '첨부 파일') as string}
+          items={(post.attachments || []).filter((a) => a.file).map((a) => ({ id: a.id, name: a.file!.file_name, href: a.file!.download_url }))}
+        />
       </>
     </PublicPageShell>
   );
@@ -147,20 +154,10 @@ const PublicPostPage: React.FC = () => {
 
 export default PublicPostPage;
 
-const AttachTitle = styled.h3`font-size:0.8125rem;font-weight:700;color:#334155;margin:0;`;
-const AttachRow = styled.div`font-size:0.8125rem;`;
-const AttachLink = styled.a`
-  color: #0F766E; text-decoration: none;
-  &:hover { text-decoration: underline; }
-`;
 const SubHint = styled.div`
   margin-top: 8px; font-size: 0.8125rem; color: #94A3B8; line-height: 1.5;
 `;
 
-const AttachSection = styled.section`
-  margin-top: 24px; padding-top: 16px; border-top: 1px solid #E2E8F0;
-  display: flex; flex-direction: column; gap: 8px;
-`;
 
 // 서명본 본문 — 칸 규격의 정본은 서버 services/signedDocument.js `SIGNED_CSS` 다.
 const SignedBody = styled.div`

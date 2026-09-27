@@ -117,17 +117,23 @@ function isShareExpired(row, field = 'share_expires_at') {
   return !!v && new Date(v) < new Date();
 }
 
+// 비밀번호 공유 — 미리보기는 **종류만** 말한다(제목·설명·본문 0). 2026-09-27 전에는 봇 UA 로 요청하면
+//   비밀번호를 건 문서도 제목과 본문 전문이 SSR 로 나갔다(UA 는 위장할 수 있다). 비밀번호를 건 것은
+//   «아는 사람만» 이라는 뜻이다 — 크롤러 캐시·AI 응답에 제목이 박제되는 것도 그 뜻에 어긋난다.
+const isLocked = (row) => !!(row && row.share_password_hash);
+
 // 라우트별 OG 컨텐츠 resolver — 자기 source 우선, 없으면 platform 기본.
 async function resolvePostShare(token, settings) {
   try {
     const { Post } = require('../models');
     const post = await Post.findOne({
       where: { share_token: token, status: 'published' },
-      attributes: ['id', 'title', 'content_text', 'content_json', 'category', 'share_expires_at', 'updated_at'],
+      attributes: ['id', 'title', 'content_text', 'content_json', 'category', 'share_expires_at', 'share_password_hash', 'updated_at'],
     });
     if (!post) return null;
     if (isShareExpired(post)) return null;
     const baseTitle = (settings?.seo_title || settings?.brand || 'PlanQ');
+    if (isLocked(post)) return ogPack(baseTitle, null, '문서', null, settings);
     // description 은 200자 — OG 표준 길이 (미리보기 카드용).
     const preview = (post.content_text || '').trim().replace(/\s+/g, ' ').slice(0, 200);
     // 본문은 **원본에서 다시 뽑는다.** content_text 는 검색용 파생값이라 개행이 없고 5000자에서 잘린다.
@@ -205,17 +211,20 @@ async function resolveTypedShare(type, token, settings) {
         return (r && !isShareExpired(r)) ? ogPack(baseTitle, r.title, '문서', null, settings) : null;
       }
       case 'tasks': {
-        const r = await M.Task.findOne({ where: { share_token: token }, attributes: ['title', 'description', 'share_expires_at'] });
+        const r = await M.Task.findOne({ where: { share_token: token }, attributes: ['title', 'description', 'share_expires_at', 'share_password_hash'] });
         if (!r || isShareExpired(r)) return null;
+        if (isLocked(r)) return ogPack(baseTitle, null, '업무', null, settings);
         const preview = (r.description || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
         return ogPack(baseTitle, r.title, '업무', preview || `PlanQ 에서 공유한 업무: ${r.title}`, settings);
       }
       case 'files': {
-        const r = await M.File.findOne({ where: { share_token: token }, attributes: ['file_name', 'share_expires_at'] });
+        const r = await M.File.findOne({ where: { share_token: token }, attributes: ['file_name', 'share_expires_at', 'share_password_hash'] });
+        if (r && !isShareExpired(r) && isLocked(r)) return ogPack(baseTitle, null, '파일', null, settings);
         return (r && !isShareExpired(r)) ? ogPack(baseTitle, r.file_name, '파일', `PlanQ 에서 공유한 파일: ${r.file_name}`, settings) : null;
       }
       case 'kb': {
-        const r = await M.KbDocument.findOne({ where: { share_token: token }, attributes: ['title', 'file_name', 'share_expires_at'] });
+        const r = await M.KbDocument.findOne({ where: { share_token: token }, attributes: ['title', 'file_name', 'share_expires_at', 'share_password_hash'] });
+        if (r && !isShareExpired(r) && isLocked(r)) return ogPack(baseTitle, null, '지식', null, settings);
         return (r && !isShareExpired(r)) ? ogPack(baseTitle, r.title || r.file_name, '지식', null, settings) : null;
       }
       case 'kb-bundle': {
@@ -225,7 +234,10 @@ async function resolveTypedShare(type, token, settings) {
         return (r && !isShareExpired(r, 'expires_at')) ? ogPack(baseTitle, r.title, '지식 모음', null, settings) : null;
       }
       case 'calendar': {
-        const r = await M.CalendarEvent.findOne({ where: { share_token: token }, attributes: ['title', 'share_expires_at'] });
+        // 열림 판정은 공개 일정 라우트와 **같은 함수** — L1/L2 로 좁힌 일정의 제목이 미리보기로 새지 않게.
+        const r = await M.CalendarEvent.findOne({ where: { share_token: token }, attributes: ['title', 'share_token', 'share_expires_at', 'share_password_hash', 'vlevel', 'visibility'] });
+        if (!r || require('../services/shareOpenable').shareOpenReason('calendar_event', r)) return null;
+        if (isLocked(r)) return ogPack(baseTitle, null, '일정', null, settings);
         return (r && !isShareExpired(r)) ? ogPack(baseTitle, r.title, '일정', `PlanQ 에서 공유한 일정: ${r.title}`, settings) : null;
       }
       case 'invoices': {

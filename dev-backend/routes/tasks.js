@@ -1878,6 +1878,13 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
     if (!(await assertBusinessAccess(req.user.id, src.business_id, req.user.platform_role))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // ★ 복사 = 읽기 + 쓰기(CLAUDE.md «복사(복제)» 계약): 읽을 수 있어야 하고, 만드는 것은 멤버만.
+    //   전에는 워크스페이스 접근만 봐서 고객이 임의 업무 id 로 복사해 원본의 설명·결과물을 받아 갔다(2026-09-27 점검).
+    {
+      const cscope = await getUserScope(req.user.id, src.business_id, req.user.platform_role);
+      if (!isMemberOrAbove(cscope)) return errorResponse(res, 'forbidden', 403);
+      if (!(await canAccessTask(req.user.id, src, cscope))) return errorResponse(res, 'not_found', 404);
+    }
 
     // 복제 제목 — "원제목 (복사)"
     const copyTitle = src.title + ' (복사)';
@@ -2629,6 +2636,12 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
       return errorResponse(res, 'forbidden', 403);
     }
 
+    // 공유를 막는 기준 — 업무에는 보안등급 칸이 없어 **실릴 파일**에서 파생한다(services/taskPublicShare 머리말).
+    //   문서 공유와 같은 코드를 쓴다 — 화면은 이미 이 코드를 안다.
+    {
+      const blocker = await require('../services/taskPublicShare').shareBlockedBy(task);
+      if (blocker) return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
+    }
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(task, req.body || {});
     const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/tasks/${r.token}`;
@@ -2666,7 +2679,8 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
 
 // ============================================
 // 공개 미리보기 (인증 X) — /api/public/tasks/:token
-// 응답 — read-only 메타. 댓글·첨부·내부 진행기록 X (개인정보 보호)
+// 응답 — 메타 + 설명 + **최신 결과물** + 외부 공개 첨부 + 이전 회차 **수**(2026-09-27, 문서 공유와 같은 맥락).
+//   댓글·제출 메모·수정요청·컨펌자·상태 이력은 싣지 않는다. 무엇이 실리는지는 services/taskPublicShare 한 곳.
 // ============================================
 router.get('/public/by-token/:token', async (req, res, next) => {
   try {
@@ -2679,8 +2693,8 @@ router.get('/public/by-token/:token', async (req, res, next) => {
         { model: Project, attributes: ['id', 'name'], required: false },
         { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
       ],
-      attributes: ['id', 'title', 'description', 'status', 'priority_order', 'progress_percent',
-        'start_date', 'due_date', 'category', 'shared_at', 'share_expires_at', 'share_password_hash',
+      attributes: ['id', 'title', 'description', 'body', 'status', 'priority_order', 'progress_percent',
+        'start_date', 'due_date', 'category', 'shared_at', 'share_expires_at', 'share_password_hash', 'share_token',
         'business_id', 'project_id', 'created_by', 'assignee_id'],
     });
     if (!task) return errorResponse(res, 'not_found', 404);
@@ -2688,6 +2702,7 @@ router.get('/public/by-token/:token', async (req, res, next) => {
     if (checkShareExpiry(task, res)) return;
     const v = await verifySharePassword(task, req);
     if (!v.ok) return res.status(v.status).json({ success: false, message: v.error, requires_password: v.requires_password });
+    const tps = require('../services/taskPublicShare');
     return successResponse(res, {
       id: task.id,
       title: task.title,
@@ -2702,6 +2717,9 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       project: task.Project ? { id: task.Project.id, name: task.Project.name } : null,
       workspace: task.Business ? { id: task.Business.id, name: task.Business.brand_name || task.Business.name } : null,
       shared_at: task.shared_at,
+      body: task.body || null,
+      attachments: await tps.publicAttachmentList(task, req.params.token),
+      prev_versions_count: await tps.prevVersionsCount(task),
     });
   } catch (err) { next(err); }
 });
@@ -2724,6 +2742,38 @@ router.get('/public/by-token/:token/auth-check', authenticateToken, async (req, 
       // SPA 라우트는 복수형 `/tasks` — 단수 `/task` 는 라우트가 없어 대시보드로 튕겼다
       appUrl: canAccess ? `/tasks?task=${task.id}` : null,
     });
+  } catch (err) { next(err); }
+});
+
+// ============================================
+// 공유 업무 첨부 다운로드 (인증 X) — /api/tasks/public/by-token/:token/attachments/:attId/download
+//   목록과 **같은 집합·같은 술어**(services/taskPublicShare)로 다시 본다 — 목록에서 뺀 첨부 id 를
+//   주소로 직접 불러도 받아지지 않는다. 비밀번호가 걸린 공유는 목록 응답이 준 서명(`dl`)이 있어야 한다.
+// ============================================
+router.get('/public/by-token/:token/attachments/:attId/download', async (req, res, next) => {
+  try {
+    const task = await Task.findOne({
+      where: { share_token: req.params.token },
+      attributes: ['id', 'business_id', 'share_token', 'share_expires_at', 'share_password_hash'],
+    });
+    if (!task) return errorResponse(res, 'not_found', 404);
+    const { checkShareExpiry } = require('../services/share_helper');
+    if (checkShareExpiry(task, res)) return;
+    const tps = require('../services/taskPublicShare');
+    if (!(await require('../services/share_helper').verifyShareSub(task, req, req.params.token, `att:${req.params.attId}`))) {
+      return res.status(401).json({ success: false, message: 'password_required', requires_password: true });
+    }
+    const att = await tps.downloadableAttachment(task, req.params.attId);
+    if (!att) return errorResponse(res, 'attachment_not_shared', 403);
+    const body = await require('../services/attachmentStorage').readAttachmentBody(att);
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
+    if (body.redirect) return res.redirect(body.redirect);
+    const { buildContentDisposition } = require('../services/filename');
+    res.setHeader('Content-Disposition', buildContentDisposition(att.original_name));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (att.mime_type) res.setHeader('Content-Type', att.mime_type);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return body.stream.pipe(res);
   } catch (err) { next(err); }
 });
 

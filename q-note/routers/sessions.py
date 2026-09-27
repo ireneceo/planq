@@ -1555,6 +1555,19 @@ async def create_share_token(session_id: int, user: dict = Depends(get_current_u
       raise HTTPException(status_code=403, detail='owner_only')
     if row['status'] == 'recording':
       raise HTTPException(status_code=400, detail='cannot_share_while_recording')
+    # 외부 참석자가 있는 회의록 — 공개 범위(L3/L4)를 넓힐 때와 **같은 동의 검사**. 외부 링크는 그보다 더 넓은데
+    #   여기만 이 검사가 없어 동의 없이 외부 참석자 발언 전문이 링크로 나갔다(2026-09-27 점검).
+    participants_raw = row['participants'] if 'participants' in row.keys() else None
+    has_external = False
+    if participants_raw:
+      try:
+        participants = json.loads(participants_raw) if isinstance(participants_raw, str) else participants_raw
+        if isinstance(participants, list):
+          has_external = any(p.get('external') or p.get('is_external') for p in participants)
+      except Exception:
+        has_external = False
+    if has_external and not row['shared_consent']:
+      raise HTTPException(status_code=400, detail='external_consent_required')
 
     if row['share_token']:
       return success({'share_token': row['share_token'], 'shared_at': row['shared_at']})

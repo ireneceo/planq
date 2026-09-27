@@ -395,6 +395,24 @@ router.get('/', authenticateToken, async (req, res, next) => {
 - 노출된 뒤에는 **회전 여부를 데이터로 판단한다** — 2026-09-13 운영 실측은 고객 7명 중 토큰 보유 1건,
   그중 미수락 0건이어서 **살아 있는 링크가 없었다**(회전하면 이미 보낸 메일의 링크가 죽는다).
 
+### 공유·참조는 **다섯 규칙**이다 (2026-09-27 박제 — 보안 설정 점검)
+
+> Irene: *"개별 업무나 개별 문서마다 보안 설정한 거, 공유범위랑 제대로 구조화되서 엇나가는 문제 없는지 확인해."*
+> 점검 결과·체크리스트 정본: `docs/SECURITY_SWEEP_2026-09-27.md`
+
+1. **공유 링크 발급 = 읽기와 같은 술어** — 문서 `canReadPost` · 파일 `canAccessFileByLevel`/`canDownloadFile` · Q info
+   `canAccessKbDocumentByLevel` · 업무 `canAccessTask`. `/api/share/*` 공용 경로도 `shareDenied` 로 **각 자료의 자기 공유 라우트와 같은 검사**.
+2. **범위를 L1/L2 로 좁히면 이미 나간 링크를 끊는다** — `services/share_helper.shareOffPatch`(비밀번호 해시까지). 달력이 선례.
+   (예외: Q note — 공유 창이 외부 링크를 별도 컨트롤·해제 버튼으로 다룬다. 생성자만 발급.)
+3. **비밀번호 공유는 하위 주소(PDF·첨부·옛 다운로드·OG 미리보기)도 비밀번호를 본다** — `<a href>` 는 헤더를 못 실으므로
+   비밀번호를 통과한 응답에만 서명(`shareSubQuery` → `?dl=`)을 붙이고 하위 라우트가 `verifyShareSub` 로 본다.
+4. **보안등급(internal·confidential)은 밖으로 나가는 모든 문에서 막는다** — 공개 첨부 판정 `shareOpenable.isPublicFile` 은 L4 **+ general**.
+5. **참조(첨부·연결·미팅자료·복사·brief·KB 가져오기)는 붙일 때 원본 읽기 권한, 보여줄 때 보는 사람 기준.** 제목을 복사해 두지 않는다.
+
+- **Q info 읽기 판정은 한 벌**(`access_scope.canAccessKbDocumentByLevel`·`kbDocumentsListWhereByLevel`) — 목록·상세·검색·Cue·추천이 같은 함수.
+- **실시간 방송은 신호만**(`{id, business_id, project_id}`) — 행 전체를 방에 뿌리면 L1 본문·공유 토큰이 멤버 전원·프로젝트 고객에게 간다. 받는 화면은 id 로 다시 읽는다.
+- **목록 범위 조건은 `Op.and` 안에** — 호출부가 `where.project_id = ?` 로 필터를 덧붙이면 최상위 키는 덮어써진다(고객 문서 목록이 그랬다).
+
 ### 외부 발송은 **확인을 받는다** (2026-09-13, Irene 지시 "확인을 받아")
 
 고객·외부에 **메일이 나가는 버튼**은 누르는 즉시 보내지 않는다. `ConfirmDialog` 로 묻고,

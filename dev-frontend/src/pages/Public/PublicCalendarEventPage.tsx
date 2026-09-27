@@ -9,6 +9,7 @@ import PublicPageShell, { PublicCenter, PublicWorkspaceLabel } from '../../compo
 import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
+import { publicLocale } from '../../utils/dateFormat';
 
 interface CalendarPreview {
   id: number;
@@ -44,14 +45,16 @@ const formatRange = (startISO: string, endISO: string, allDay: boolean): string 
     const sameDay = s.toDateString() === e.toDateString();
     const dateOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', timeZone: 'Asia/Seoul' };
     const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' };
+    // 요일·월 이름은 화면 글자와 같은 언어로 — 기기 언어(undefined)를 따르면 한국어 화면에 «Mon» 이 섞였다.
+    const loc = publicLocale();
     if (allDay) {
-      if (sameDay) return s.toLocaleDateString(undefined, dateOpts);
-      return `${s.toLocaleDateString(undefined, dateOpts)} — ${e.toLocaleDateString(undefined, dateOpts)}`;
+      if (sameDay) return s.toLocaleDateString(loc, dateOpts);
+      return `${s.toLocaleDateString(loc, dateOpts)} — ${e.toLocaleDateString(loc, dateOpts)}`;
     }
     if (sameDay) {
-      return `${s.toLocaleDateString(undefined, dateOpts)} ${s.toLocaleTimeString(undefined, timeOpts)} — ${e.toLocaleTimeString(undefined, timeOpts)}`;
+      return `${s.toLocaleDateString(loc, dateOpts)} ${s.toLocaleTimeString(loc, timeOpts)} — ${e.toLocaleTimeString(loc, timeOpts)}`;
     }
-    return `${s.toLocaleDateString(undefined, dateOpts)} ${s.toLocaleTimeString(undefined, timeOpts)} — ${e.toLocaleDateString(undefined, dateOpts)} ${e.toLocaleTimeString(undefined, timeOpts)}`;
+    return `${s.toLocaleDateString(loc, dateOpts)} ${s.toLocaleTimeString(loc, timeOpts)} — ${e.toLocaleDateString(loc, dateOpts)} ${e.toLocaleTimeString(loc, timeOpts)}`;
   } catch {
     return `${startISO} — ${endISO}`;
   }

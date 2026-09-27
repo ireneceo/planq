@@ -29,7 +29,10 @@ async function applyEventDisplayNames(items, businessId) {
 function broadcastEvent(req, event, eventName = 'event:updated') {
   const io = req.app.get('io');
   if (!io) return;
-  const data = event.toJSON ? event.toJSON() : event;
+  // ★ 2026-09-27 — **신호만** 보낸다(id·소속). 행 전체(toJSON)를 워크스페이스·프로젝트 방에 뿌려서
+  //   «나만 보기» 문서 본문·공유 토큰이 멤버 전원과 **프로젝트 고객** 소켓에 도착했다. 받는 화면은 전부
+  //   id 만 보고 자기 권한으로 다시 읽는다(PostsPage·DocsTab·QCalendar·Todo·Dashboard 확인).
+  const data = { id: event.id, business_id: event.business_id, project_id: event.project_id || null };
   if (event.business_id) io.to(`business:${event.business_id}`).emit(eventName, data);
 }
 
@@ -88,6 +91,33 @@ const INCLUDE_DETAIL = [
     ],
   },
 ];
+
+// 고객 참석자에게는 **열 수 있는 미팅자료만** 보인다(2026-09-27 점검 — 고객에게 내부 문서 제목·파일명이 보였다).
+//   멤버 참석자는 그대로다: 미팅자료는 참석자에게 보여 주려고 붙이는 것이고, 붙일 때 이미 붙이는 사람의 권한을 본다.
+async function stripClientMaterials(eventsJson, userId, scope) {
+  if (!scope || !scope.isClient) return eventsJson;
+  const as = require('../middleware/access_scope');
+  const { File: FileM, Post: PostM } = require('../models');
+  const memo = new Map();
+  const can = async (kind, id) => {
+    const k = kind + id;
+    if (memo.has(k)) return memo.get(k);
+    let ok = false;
+    if (kind === 'f') { const f = await FileM.findByPk(id); ok = !!f && await as.canDownloadFile(scope, userId, f); }
+    else { const p = await PostM.findByPk(id); ok = !!p && await as.canAccessPost(userId, p, scope); }
+    memo.set(k, ok);
+    return ok;
+  };
+  for (const ev of eventsJson) {
+    if (!Array.isArray(ev.attachments)) continue;
+    const kept = [];
+    for (const a of ev.attachments) {
+      if (a.file_id ? await can('f', a.file_id) : a.post_id ? await can('p', a.post_id) : false) kept.push(a);
+    }
+    ev.attachments = kept;
+  }
+  return eventsJson;
+}
 
 // 날짜 파싱 (ISO8601) — 유효하지 않으면 null
 function parseDate(value) {
@@ -227,6 +257,7 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
 
     events.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
     await applyEventDisplayNames(events, businessId);
+    await stripClientMaterials(events, req.user.id, req.scope);
     return successResponse(res, events);
   } catch (err) { next(err); }
 });
@@ -314,7 +345,8 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
       if (!ids.includes(Number(event.id))) return errorResponse(res, 'forbidden', 403);
     }
 
-    return successResponse(res, event.toJSON());
+    const [evJson] = await stripClientMaterials([event.toJSON()], req.user.id, req.scope);
+    return successResponse(res, evJson);
   } catch (err) { next(err); }
 });
 
