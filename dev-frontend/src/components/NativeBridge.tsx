@@ -10,6 +10,7 @@ import { useCallback, useEffect } from 'react';
 import { useChromeNav } from '../hooks/useChromeNav';
 import { isNativeApp, nativePlatform } from '../services/native';
 import { clearPair } from '../services/oauth';
+import { markDeepLinkInflight, markDeepLinkArrived } from '../services/nativePush';
 
 // 딥링크가 착지하기를 기다리는 시간 — 400ms × 6 = 2.4초.
 //   실측(2026-09-14, 모바일 뷰포트)상 웹에서는 한 번에 착지하므로, 기다림이 도는 것은
@@ -35,7 +36,9 @@ export default function NativeBridge() {
    */
   const deepLinkNav = useCallback((path: string) => {
     const here = () => window.location.pathname + window.location.search;
-    if (path === here()) return;                       // 이미 그 자리
+    // 이미 그 자리 — 그래도 보관값은 지운다. 안 그러면 루트(/)가 나중에 지난 알림 자리로 끌려간다(Fable 2026-09-27 재현).
+    if (path === here()) { markDeepLinkArrived(path); return; }
+    markDeepLinkInflight(path);                        // 루트 리다이렉트가 /inbox 대신 여기로 가게(#431)
 
     // ★ 판정은 "주소가 **바뀌었나**" 가 아니라 "**목적지에 있나**" 여야 한다.
     //   아이폰 앱은 루트(/)로 뜨고 그 경로는 인증 사용자를 /inbox 로 **스스로 보낸다**
@@ -57,7 +60,7 @@ export default function NativeBridge() {
     try { chromeNav(path); } catch { /* 아래 폴백이 받는다 */ }
     let waited = 0;
     const tick = () => {
-      if (here() === path) return;                     // 도착 — 끝
+      if (here() === path) { markDeepLinkArrived(path); return; }   // 도착 — 끝
       if (waited < DEEP_LINK_RETRY_MS * DEEP_LINK_SPA_TRIES) {
         waited += DEEP_LINK_RETRY_MS;
         window.setTimeout(tick, DEEP_LINK_RETRY_MS);

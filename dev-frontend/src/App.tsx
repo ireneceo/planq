@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PwaInstallProvider } from './contexts/PwaInstallContext';
@@ -12,6 +12,7 @@ import TabAppShell from './components/Tab/TabAppShell';
 import { isTabsSpike } from './utils/tabsBeta';
 import { tabStore } from './stores/tabStore';
 import { isNativeApp } from './services/native';
+import { takeDeepLinkTarget } from './services/nativePush';
 import NativeBridge from './components/NativeBridge';
 import PairCodePrompt from './components/Auth/PairCodePrompt';
 import { installRoutePrefetch } from './lib/routePrefetch';
@@ -189,8 +190,13 @@ function WikiSlugRedirect() {
  */
 function NativeMarketingRedirect() {
   const { isAuthenticated, isLoading } = useAuth();
+  // 알림을 눌러 켜졌으면 확인필요를 거치지 않고 그 자리로 바로 간다(#431 — 중간 화면이 차례로 보였다).
+  //   보관값은 꺼내면서 지우므로 렌더마다 부르지 않고 **인증이 확정된 첫 렌더에 한 번** 꺼낸다.
+  const targetRef = useRef<string | null | undefined>(undefined);
   if (isLoading) return null;
-  return <Navigate to={isAuthenticated ? '/inbox' : '/login'} replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (targetRef.current === undefined) targetRef.current = takeDeepLinkTarget();
+  return <Navigate to={targetRef.current || '/inbox'} replace />;
 }
 
 /**

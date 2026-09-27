@@ -126,6 +126,40 @@ function handleTap(action: { notification?: { data?: unknown } }) {
 }
 
 /**
+ * 지금 가려는 알림 목적지 — 보관(콜드 스타트) 중이거나 NativeBridge 가 이동 중인 것.
+ *   ★ 앱 루트(/)의 네이티브 리다이렉트는 로그인 사용자를 /inbox(확인필요)로 보낸다. 알림으로 켜진
+ *     순간에도 그렇게 하면 «확인필요 → … → 메일» 이 차례로 보인다(#431). 리다이렉트가 이 값을 먼저 본다.
+ *   이동 중 표시는 15초만 믿는다(도착 확인이 안 와도 영영 붙들지 않게).
+ */
+let inflightDeepLink: { path: string; at: number } | null = null;
+export function markDeepLinkInflight(path: string | null): void {
+  inflightDeepLink = path ? { path, at: Date.now() } : null;
+}
+/** 도착했으면 같은 목적지의 보관값도 지운다 — 앱이 켜진 상태의 알림 탭은 보관과 이동을 둘 다 해서
+ *  보관값이 남았다가, 나중에 `/` 로 들어오는 순간 지난 알림 자리로 끌려갔다(Fable 2026-09-26 관찰). */
+export function markDeepLinkArrived(path: string): void {
+  inflightDeepLink = null;
+  try { if (sessionStorage.getItem(PENDING_PUSH_LINK_KEY) === path) sessionStorage.removeItem(PENDING_PUSH_LINK_KEY); } catch { /* 무시 */ }
+}
+// 루트(/)는 목적지가 아니다 — 서버는 링크 없는 알림에 '/' 를 넣어 보낸다(apns/fcm sender·notification_link).
+//   그 값을 루트 리다이렉트가 받으면 `/` → `/` 로 제자리에 멈춰 **빈 화면**이 된다(Fable 2026-09-27 재현).
+//   `/?…`·`/#…` 도 pathname 이 `/` 면 같은 것으로 본다.
+function isRootLink(path: string): boolean {
+  return path.split(/[?#]/)[0] === '/';
+}
+export function takeDeepLinkTarget(): string | null {
+  try {
+    const pending = sessionStorage.getItem(PENDING_PUSH_LINK_KEY);
+    if (pending && pending.startsWith('/') && !pending.startsWith('/api/')) {
+      sessionStorage.removeItem(PENDING_PUSH_LINK_KEY);
+      if (!isRootLink(pending)) return pending;
+    }
+  } catch { /* 무시 */ }
+  if (inflightDeepLink && Date.now() - inflightDeepLink.at < 15000 && !isRootLink(inflightDeepLink.path)) return inflightDeepLink.path;
+  return null;
+}
+
+/**
  * 알림 탭 리스너를 **부팅 즉시** 건다 (권한·등록과 무관).
  * 등록(registerNative)은 로그인 후에야 불리므로, 그때까지 온 탭 이벤트를 놓치지 않으려면 별도로 필요하다.
  */
