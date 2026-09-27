@@ -533,7 +533,7 @@ const CueHelpDrawer: React.FC<{
       {!standalone && !publicSurface && <Backdrop onClick={() => setOpen(false)} />}
       {!standalone && publicSurface && <PopoverBackdrop onClick={() => setOpen(false)} />}
       <Drawer ref={drawerRef} $standalone={standalone} $popover={!standalone && publicSurface} role="dialog" aria-label={t('qhelper.title', 'Q helper') as string}>
-        <Header>
+        <Header $safeTop={standalone}>
           <HeaderTitle>
             {/* N+93 — 타이틀은 탭과 무관하게 항상 'Q helper' 고정 (Irene). Sparkle 도 항상 민트. */}
             <Sparkle aria-hidden $cue={false}>
@@ -1016,14 +1016,16 @@ const Drawer = styled.div<{ $standalone?: boolean; $popover?: boolean }>`
 const PopoverBackdrop = styled.div`
   position: fixed; inset: 0; z-index: 1000; background: transparent;
 `;
-const Header = styled.div`
+const Header = styled.div<{ $safeTop?: boolean }>`
   flex-shrink: 0;
   min-height: 56px; box-sizing: border-box;
   padding: 0 16px;
   display: flex; align-items: center; justify-content: space-between;
   border-bottom: 1px solid #E2E8F0;
-  /* #84 — 모바일(풀스크린) 노치/상태바 대응 (전 팝아웃 헤더 통일). */
-  @media (max-width: 640px) { padding-top: var(--pq-safe-top, 0px); }
+  /* #84 — 화면 맨 위에서 시작하는 팝아웃 창(standalone)만 상태바 자리를 비운다.
+     ★ 워크스페이스 드로어는 이미 --pq-chrome-bottom(= 모바일 헤더 + 상태바) 아래서 시작한다 —
+       여기서 한 번 더 비우면 머리 위에 빈 띠가 생긴다(#433). 바텀시트(랜딩)도 맨 위에 닿지 않는다. */
+  ${p => p.$safeTop ? '@media (max-width: 640px) { padding-top: var(--pq-safe-top, 0px); }' : ''}
 `;
 const HeaderTitle = styled.div`
   display: inline-flex; align-items: center; gap: 8px;

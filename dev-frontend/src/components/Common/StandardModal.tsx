@@ -93,8 +93,9 @@ const StandardModal: React.FC<Props> & {
   //   (Irene 2026-09-07: "이게 우측패널 뒤로 떠. 모든 팝업은 무조건 최상위 아니야?")
   //   숫자를 올려서 될 일이 아니다 — 층 밖으로 나가야 한다.
   const tree = (
-    <Backdrop onClick={() => closeOnBackdrop && onClose()}>
+    <Backdrop $compact={size === 'sm'} onClick={() => closeOnBackdrop && onClose()}>
       <Dialog
+        $compact={size === 'sm'}
         $maxWidth={SIZE_MAP[size]}
         onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={ariaLabel || title}
@@ -124,22 +125,32 @@ StandardModal.Footer = Footer;
 export default StandardModal;
 
 // ─── styled ───
-const Backdrop = styled.div`
+// 모바일(≤640):
+//   · md 이상 — 풀스크린. 단 **상태바 자리는 비운다**(--pq-safe-top). 그 자리에 모달 머리가 들어가
+//     «팝업이 헤더 위까지 들어간다» 로 보였다(#433).
+//   · sm — 풀스크린으로 키우지 않고 가운데 카드. 한두 줄짜리 확인(출근 기록 등)이 화면 전체를 덮으면
+//     보던 화면을 통째로 잃은 것처럼 보인다(#433).
+const Backdrop = styled.div<{ $compact?: boolean }>`
   position: fixed; inset: 0; background: rgba(15,23,42,0.4);
   display: flex; align-items: center; justify-content: center; z-index: 1100;
   padding: 20px;
   /* 모바일: 키보드가 올라오면 visual viewport(--vvh)로 줄여 하단 입력·버튼이 안 가리게 (운영 #23). */
   @media (max-width: 640px) {
-    height: var(--vvh, 100vh); bottom: auto; align-items: stretch; padding: 0;
+    height: var(--vvh, 100vh); bottom: auto;
+    ${p => p.$compact
+      ? 'padding: calc(var(--pq-safe-top, 0px) + 16px) 16px 16px;'
+      : 'align-items: stretch; padding: var(--pq-safe-top, 0px) 0 0;'}
   }
 `;
-const Dialog = styled.div<{ $maxWidth: string }>`
+const Dialog = styled.div<{ $maxWidth: string; $compact?: boolean }>`
   background: #fff; border-radius: 14px;
   width: 100%; max-width: ${p => p.$maxWidth};
   max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: 0 24px 48px rgba(15,23,42,0.18);
   @media (max-width: 640px) {
-    max-height: var(--vvh, 100vh); height: var(--vvh, 100vh); border-radius: 0;
+    ${p => p.$compact
+      ? 'max-height: 100%;'
+      : 'max-height: 100%; height: 100%; border-radius: 0;'}
   }
 `;
 const Header = styled.div`
