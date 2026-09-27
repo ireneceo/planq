@@ -36,7 +36,9 @@ const WhatsNewPage: React.FC = () => {
     if (items.some((it) => it.slug === focusSlug && it.is_new)) void markRead(focusSlug);
   }, [focusSlug, items, markRead]);
 
-  const blockText = (b: WhatsNewBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || '';
+  // 릴리즈노트 발행 스크립트가 2026-09-26 전까지 언어 없는 `text` 로 썼다(#432 — 열면 빈 글).
+  //   서버(seoArtifacts·wikiSearch)는 이미 `text_${lang} || text` 로 읽는다 — 화면도 같은 규칙.
+  const blockText = (b: WhatsNewBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || b.text || '';
   const blockCap = (b: WhatsNewBlock) => (lang === 'en' ? b.caption_en : b.caption_ko) || b.caption_ko || b.caption_en || '';
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });

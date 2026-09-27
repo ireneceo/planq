@@ -41,8 +41,11 @@ function blocksFrom(items, lang) {
   for (const it of items) {
     const v = it[lang] || it.ko;
     if (!v) continue;
-    if (v.title) blocks.push({ type: 'heading', text: v.title });
-    if (v.body) blocks.push({ type: 'text', text: v.body });
+    // ★ 블록 글자는 `text_<언어>` 다(도움말 블록과 같은 모양). 2026-09-26 전까지 `text` 로 써서
+    //   화면 세 곳이 빈 글을 그렸다(#432). 옛 행은 화면이 `text` 도 읽어 그대로 둔다.
+    const key = `text_${lang}`;
+    if (v.title) blocks.push({ type: 'heading', [key]: v.title });
+    if (v.body) blocks.push({ type: 'text', [key]: v.body });
   }
   return blocks;
 }

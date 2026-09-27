@@ -10,7 +10,7 @@ import type { BlogPostCard } from './BlogPage';
 
 interface BlogBlock {
   type: 'heading' | 'text' | 'step' | 'callout' | 'image';
-  text_ko?: string; text_en?: string;
+  text_ko?: string; text_en?: string; text?: string;
   caption_ko?: string; caption_en?: string;
   file_id?: number;
 }
@@ -62,7 +62,9 @@ const BlogPostPage: React.FC = () => {
   }, [post, lang]);
 
   const blocks: BlogBlock[] = (lang === 'en' ? post?.body_en : post?.body_ko) || post?.body_ko || post?.body_en || [];
-  const blockText = (b: BlogBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || '';
+  // 릴리즈노트 발행 스크립트가 2026-09-26 전까지 언어 없는 `text` 로 썼다(#432 — 열면 빈 글).
+  //   서버(seoArtifacts·wikiSearch)는 이미 `text_${lang} || text` 로 읽는다 — 화면도 같은 규칙.
+  const blockText = (b: BlogBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || b.text || '';
   let stepNo = 0;
 
   return (

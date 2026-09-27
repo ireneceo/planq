@@ -5,6 +5,7 @@ import { apiFetch } from '../contexts/AuthContext';
 export interface WikiBlock {
   type: 'heading' | 'text' | 'step' | 'callout' | 'image';
   text_ko?: string;
+  text?: string;   // 옛 릴리즈노트 모양(언어 없음) — 읽기만
   text_en?: string;
   // image 블록
   file_id?: number;

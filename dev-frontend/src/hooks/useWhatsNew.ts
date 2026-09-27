@@ -10,6 +10,7 @@ import { apiFetch, useAuth } from '../contexts/AuthContext';
 export interface WhatsNewBlock {
   type: 'heading' | 'text' | 'step' | 'image' | 'callout';
   text_ko?: string;
+  text?: string;   // 옛 릴리즈노트 모양(언어 없음) — 읽기만
   text_en?: string;
   caption_ko?: string;
   caption_en?: string;
