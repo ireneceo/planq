@@ -189,6 +189,22 @@ User.init({
     type: DataTypes.JSON,
     allowNull: true
   },
+  // 날짜·시간 표시 형식 (2026-09-28, Irene 승인 09-27). **NULL = 화면 언어별 자동**
+  //   (ko `2026. 9. 27.`·24시간·일요일 시작 / en `Sep 27, 2026`·12시간·일요일 시작).
+  //   값의 뜻은 dev-frontend/src/utils/dateFormat.ts 가 정본 — 여기 ENUM 과 같이 바꾼다.
+  //   운영 적용: scripts/migrate-user-date-prefs.js (멱등, 코드 배포 전).
+  date_format: {
+    type: DataTypes.ENUM('ymd', 'mdy', 'dmy'),
+    allowNull: true
+  },
+  time_format: {
+    type: DataTypes.ENUM('24h', '12h'),
+    allowNull: true
+  },
+  week_start: {
+    type: DataTypes.ENUM('sun', 'mon'),
+    allowNull: true
+  },
   // #194 제품 공지/체인지로그 — "새 소식" 미읽음 워터마크.
   //   이 시각 이후 발행된 updates 공지(help_articles.blog_category='updates')를 미읽음으로 집계.
   //   null = 아직 한 번도 안 봄 → 최근 공지 전부 미읽음(온보딩).

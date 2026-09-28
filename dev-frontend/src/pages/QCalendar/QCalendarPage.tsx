@@ -46,6 +46,8 @@ const QCalendarPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  // 주 시작 요일 — 사용자 설정(내 업무 설정 > 날짜·시간 표시). 자동 = 일요일. 격자·범위·제목이 같은 값을 쓴다.
+  const weekStart: 0 | 1 = user?.week_start === 'mon' ? 1 : 0;
   const bizId = user?.business_id || null;
   const myUserId = user?.id ? Number(user.id) : null;
 
@@ -167,10 +169,10 @@ const QCalendarPage: React.FC = () => {
       } else if (view === 'month') {
         // 월 뷰: 앞뒤 여유 포함 (6주 그리드)
         const firstOfMonth = startOfMonth(anchor);
-        rangeStart = startOfWeek(firstOfMonth, 0);
+        rangeStart = startOfWeek(firstOfMonth, weekStart);
         rangeEnd = addDays(rangeStart, 42);
       } else if (view === 'week') {
-        rangeStart = startOfWeek(anchor, 0);
+        rangeStart = startOfWeek(anchor, weekStart);
         rangeEnd = addDays(rangeStart, 7);
       } else {
         rangeStart = startOfDay(anchor);
@@ -203,7 +205,7 @@ const QCalendarPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [bizId, view, anchor, scope, personalConnected, showPersonal]);
+  }, [bizId, view, anchor, scope, personalConnected, showPersonal, weekStart]);
 
   // 구글에서 당겨온 변경이 있으면 화면을 다시 그린다.
   const pullFromGoogle = useCallback(async () => {
@@ -318,7 +320,7 @@ const QCalendarPage: React.FC = () => {
       return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'long' }).format(anchor);
     }
     if (view === 'week') {
-      const ws = startOfWeek(anchor, 0);
+      const ws = startOfWeek(anchor, weekStart);
       const we = addDays(ws, 6);
       const sameMonth = ws.getMonth() === we.getMonth();
       const startFmt = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(ws);
@@ -332,7 +334,7 @@ const QCalendarPage: React.FC = () => {
     return new Intl.DateTimeFormat(locale, {
       year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
     }).format(anchor);
-  }, [anchor, view, i18n.language]);
+  }, [anchor, view, i18n.language, weekStart]);
 
   const goPrev = useCallback(() => {
     if (view === 'month' || view === 'agenda') setAnchor((d) => startOfMonth(addMonths(d, -1)));
@@ -489,7 +491,7 @@ const QCalendarPage: React.FC = () => {
     }
   }, [selectedEventId, bizId, fetchRange]);
 
-  const days = view === 'week' ? getWeekDays(anchor, 0) : view === 'day' ? [anchor] : [];
+  const days = view === 'week' ? getWeekDays(anchor, weekStart) : view === 'day' ? [anchor] : [];
 
   const viewOptions = useMemo(() => [
     { value: 'agenda', label: t('view.agenda', '아젠다') },
@@ -598,6 +600,7 @@ const QCalendarPage: React.FC = () => {
         {view === 'month' && (
           <MonthView
             anchor={anchor}
+            weekStart={weekStart}
             today={today}
             events={filteredEvents}
             onSelectEvent={handleSelectEvent}

@@ -1,5 +1,5 @@
 // N+32 — 내 업무 설정 페이지. ProfilePage 에서 분리.
-// 포함: 타임존 (UserTimezoneSection) + 업무 흐름 (FocusSettingsCard)
+// 포함: 타임존 (UserTimezoneSection) + 날짜·시간 형식 (DateFormatSection) + 업무 흐름 (FocusSettingsCard)
 // 사이드바 secondary nav 의 "개인" 그룹에 추가.
 
 import React from 'react';
@@ -7,7 +7,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import FocusSettingsCard from '../../components/Focus/FocusSettingsCard';
-import { UserTimezoneSection } from './ProfilePage';
+import { UserTimezoneSection, DateFormatSection } from './ProfilePage';
 
 const MyWorkSettingsPage: React.FC = () => {
   const { t } = useTranslation(['common', 'focus']);
@@ -15,6 +15,7 @@ const MyWorkSettingsPage: React.FC = () => {
     <PageShell title={t('common:nav.myWorkSettings', '내 업무 설정') as string}>
       <Body>
         <UserTimezoneSection />
+        <DateFormatSection />
         <FocusSettingsCard />
       </Body>
     </PageShell>

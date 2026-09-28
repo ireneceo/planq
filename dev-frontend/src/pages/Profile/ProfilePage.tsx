@@ -1860,6 +1860,97 @@ const BrowserHint = styled.button`
   &:hover { color: #134e4a; }
 `;
 
+// 날짜·시간 표시 형식 (2026-09-28, Irene 승인 09-27) — users.date_format / time_format / week_start.
+//   «자동» = null = 화면 언어를 따른다. 값의 뜻·표시는 utils/dateFormat.ts 가 정본이다.
+//   저장 후 updateUser 가 AuthContext.setUser → setDatePrefs 를 지나므로 앱 전체 표시가 곧바로 바뀐다.
+export function DateFormatSection() {
+  const { t, i18n } = useTranslation('profile');
+  const { user, updateUser } = useAuth();
+  const locale = i18n.language?.startsWith('en') ? 'en-US' : 'ko-KR';
+  const [dateFmt, setDateFmt] = useState<string>(user?.date_format || '');
+  const [timeFmt, setTimeFmt] = useState<string>(user?.time_format || '');
+  const [weekStart, setWeekStart] = useState<string>(user?.week_start || '');
+  // 래퍼가 onSave 를 부를 때 **클로저가 아니라 ref** 로 최신값을 읽는다(자동저장 절 — 뒤집기 전 값을 저장하는 사고)
+  const latest = useRef({ date_format: dateFmt, time_format: timeFmt, week_start: weekStart });
+  latest.current = { date_format: dateFmt, time_format: timeFmt, week_start: weekStart };
+
+  const persist = useCallback(async (key: 'date_format' | 'time_format' | 'week_start') => {
+    if (!user) throw new Error('no user');
+    const val = latest.current[key] || null;
+    const res = await apiFetch(`/api/users/${user.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: val }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) throw new Error(data.message || t('messages.errorSave'));
+    updateUser({ [key]: val } as Partial<User>);
+  }, [user, updateUser, t]);
+
+  // 보기 예시는 오늘 날짜로 — 고르기 전에 결과를 보여준다
+  const now = new Date();
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  const y = now.getFullYear(); const m = p2(now.getMonth() + 1); const d = p2(now.getDate());
+  const autoDate = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(now);
+  const sample = new Date(y, now.getMonth(), now.getDate(), 14, 30);
+  const time24 = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false }).format(sample);
+  const time12 = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', hour12: true }).format(sample);
+  const autoTime = locale.startsWith('en') ? time12 : time24;
+
+  const dateOpts = [
+    { value: '', label: t('dateFormat.auto', { example: autoDate }) as string },
+    { value: 'ymd', label: `${y}-${m}-${d}` },
+    { value: 'mdy', label: `${m}/${d}/${y}` },
+    { value: 'dmy', label: `${d}/${m}/${y}` },
+  ];
+  const timeOpts = [
+    { value: '', label: t('dateFormat.auto', { example: autoTime }) as string },
+    { value: '24h', label: t('dateFormat.time24', { example: time24 }) as string },
+    { value: '12h', label: t('dateFormat.time12', { example: time12 }) as string },
+  ];
+  const weekOpts = [
+    { value: '', label: t('dateFormat.auto', { example: t('dateFormat.sun') }) as string },
+    { value: 'sun', label: t('dateFormat.sun') as string },
+    { value: 'mon', label: t('dateFormat.mon') as string },
+  ];
+  const pick = <O extends { value: string; label: string }>(opts: O[], v: string): O => opts.find((o) => o.value === v) || opts[0];
+
+  return (
+    <Card id="section-date-format" data-testid="settings-date-format">
+      <SectionTitle>{t('dateFormat.title')}</SectionTitle>
+      <Description>{t('dateFormat.desc')}</Description>
+      <FieldRow>
+        <Label>{t('dateFormat.dateLabel')}</Label>
+        <FieldBody>
+          <AutoSaveField key={`date_format-${user?.id}`} type="select" onSave={() => persist('date_format')}>
+            <PlanQSelect size="sm" value={pick(dateOpts, dateFmt)} options={dateOpts}
+              onChange={(o) => setDateFmt(String((o as { value: string } | null)?.value ?? ''))} />
+          </AutoSaveField>
+        </FieldBody>
+      </FieldRow>
+      <FieldRow>
+        <Label>{t('dateFormat.timeLabel')}</Label>
+        <FieldBody>
+          <AutoSaveField key={`time_format-${user?.id}`} type="select" onSave={() => persist('time_format')}>
+            <PlanQSelect size="sm" value={pick(timeOpts, timeFmt)} options={timeOpts}
+              onChange={(o) => setTimeFmt(String((o as { value: string } | null)?.value ?? ''))} />
+          </AutoSaveField>
+        </FieldBody>
+      </FieldRow>
+      <FieldRow>
+        <Label>{t('dateFormat.weekLabel')}</Label>
+        <FieldBody>
+          <AutoSaveField key={`week_start-${user?.id}`} type="select" onSave={() => persist('week_start')}>
+            <PlanQSelect size="sm" value={pick(weekOpts, weekStart)} options={weekOpts}
+              onChange={(o) => setWeekStart(String((o as { value: string } | null)?.value ?? ''))} />
+          </AutoSaveField>
+          <Hint>{t('dateFormat.weekHint')}</Hint>
+        </FieldBody>
+      </FieldRow>
+    </Card>
+  );
+}
+
 export function UserTimezoneSection() {
   const { t } = useTranslation('profile');
   const { userTz, userRefs, update } = useTimezones();

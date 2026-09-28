@@ -4,6 +4,37 @@ import i18n from '../i18n';
 // DB 는 UTC 저장, 모든 사용자 대면 표시는 워크스페이스 tz 로 변환한다.
 // useTimeFormat 훅을 통해 컴포넌트에서 사용한다.
 
+// ─── 사용자 날짜·시간 형식 (2026-09-28, Irene 승인 09-27) ─────────────────────────────
+//   users.date_format / time_format / week_start. **null = 화면 언어별 자동** — 자동일 때의 결과는
+//   이 설정이 생기기 전과 한 글자도 같다(날짜 = 'M월 d일'/'Sep 27', 다른 해면 연도).
+//   단 시각은 자동일 때 **언어를 따른다**(ko 24시간 / en 12시간) — 영어 화면에 «14:30» 만 나오던 것.
+//   값은 AuthContext.setUser 한 곳이 넣는다(요청 헤더 사본과 같은 자리 — 렌더보다 먼저).
+//   ★ 백엔드 ENUM(models/User.js)과 값이 같아야 한다.
+export type DateFormatPref = 'ymd' | 'mdy' | 'dmy';
+export type TimeFormatPref = '24h' | '12h';
+export type WeekStartPref = 'sun' | 'mon';
+export interface DatePrefs { date_format: DateFormatPref | null; time_format: TimeFormatPref | null; week_start: WeekStartPref | null }
+let prefs: DatePrefs = { date_format: null, time_format: null, week_start: null };
+export function setDatePrefs(next: DatePrefs): void { prefs = { ...next }; }
+export function getDatePrefs(): DatePrefs { return prefs; }
+
+/** 주의 시작 요일 (0=일, 1=월). 자동 = 일요일(ko·en 공통). 달력 격자·주간 범위가 이것을 읽는다. */
+export function weekStartDay(): 0 | 1 { return prefs.week_start === 'mon' ? 1 : 0; }
+
+/** 12시간제 여부 — 설정 > 자동이면 언어(en = 12시간). */
+export function uses12h(locale: string): boolean {
+  if (prefs.time_format) return prefs.time_format === '12h';
+  return locale.startsWith('en');
+}
+
+// 숫자형 날짜 — 설정한 순서로. 연도는 늘 붙인다(숫자만 있으면 몇 년도인지가 더 헷갈린다).
+function numericDate(d: Date, tz: string, fmt: DateFormatPref): string {
+  const [y, m, day] = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d).split('-');
+  if (fmt === 'mdy') return `${m}/${day}/${y}`;
+  if (fmt === 'dmy') return `${day}/${m}/${y}`;
+  return `${y}-${m}-${day}`;
+}
+
 function safeDate(iso: string | Date): Date | null {
   if (!iso) return null;
   const d = iso instanceof Date ? iso : new Date(iso);
@@ -18,6 +49,7 @@ function safeDate(iso: string | Date): Date | null {
 export function formatDate(iso: string | Date, tz: string, locale = 'ko-KR'): string {
   const d = safeDate(iso);
   if (!d) return '';
+  if (prefs.date_format) return numericDate(d, tz, prefs.date_format);
   // '올해' 판정도 워크스페이스 tz 기준이어야 한다 — 로컬 연도로 비교하면 연말에 어긋난다.
   const yearIn = (x: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(x);
   const sameYear = yearIn(d) === yearIn(new Date());
@@ -29,18 +61,18 @@ export function formatDate(iso: string | Date, tz: string, locale = 'ko-KR'): st
   }).format(d);
 }
 
-// 'HH:mm' 24h (tz 기준)
+// 'HH:mm' (tz 기준) — 12/24시간은 uses12h()
 export function formatTime(iso: string | Date, tz: string, locale = 'ko-KR'): string {
   const d = safeDate(iso);
   if (!d) return '';
-  return new Intl.DateTimeFormat(locale, { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  return new Intl.DateTimeFormat(locale, { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: uses12h(locale) }).format(d);
 }
 
-// 'YYYY-MM-DD HH:mm' (tz 기준)
+// 'YYYY-MM-DD HH:mm' (tz 기준) — 날짜 순서는 설정을 따르고, 자동이면 종전 그대로 YYYY-MM-DD
 export function formatDateTime(iso: string | Date, tz: string, locale = 'ko-KR'): string {
   const d = safeDate(iso);
   if (!d) return '';
-  const date = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  const date = numericDate(d, tz, prefs.date_format || 'ymd');
   const time = formatTime(d, tz, locale);
   return `${date} ${time}`;
 }

@@ -33,15 +33,19 @@ interface Props {
   onSelectDate: (date: Date) => void;
   /** #131 — 날짜 칸의 + 버튼으로 그 날짜 일정 생성 (칸 클릭 자체는 기존대로 그 날짜 상세 이동) */
   onCreateAt?: (date: Date) => void;
+  /** 주 시작 요일 (0=일, 1=월) — 사용자 설정 */
+  weekStart?: 0 | 1;
 }
 
 const MAX_VISIBLE = 3;
 
-const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSelectDate, onCreateAt }) => {
+const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSelectDate, onCreateAt, weekStart = 0 }) => {
   const { t, i18n } = useTranslation('qcalendar');
-  const days = useMemo(() => getMonthGridDays(anchor, 0), [anchor]);
+  const days = useMemo(() => getMonthGridDays(anchor, weekStart), [anchor, weekStart]);
   const eventMap = useMemo(() => indexByDayKey(events), [events]);
-  const weekdayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  // 머리줄도 격자와 같은 요일부터 — 요일 키와 원래 요일 번호(토·일 색)를 같이 들고 돈다
+  const ALL_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+  const weekdayKeys = [...ALL_DAYS.slice(weekStart), ...ALL_DAYS.slice(0, weekStart)];
 
   // "+N 더보기" 팝오버 — 해당 날짜 전체 이벤트 리스트
   const [popoverDay, setPopoverDay] = useState<Date | null>(null);
@@ -55,8 +59,8 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
   return (
     <Wrap>
       <Weekdays>
-        {weekdayKeys.map((k, i) => (
-          <WeekdayCell key={k} $isSaturday={i === 6} $isSunday={i === 0}>
+        {weekdayKeys.map((k) => (
+          <WeekdayCell key={k} $isSaturday={k === 'sat'} $isSunday={k === 'sun'}>
             {t(`weekday.${k}`)}
           </WeekdayCell>
         ))}

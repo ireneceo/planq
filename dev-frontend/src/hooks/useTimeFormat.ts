@@ -17,6 +17,8 @@ export function useTimeFormat() {
   const { t, i18n } = useTranslation('common');
   const tz = user?.workspace_timezone || detectBrowserTz();
   const locale = i18n.language?.startsWith('en') ? 'en-US' : 'ko-KR';
+  // 포맷터는 모듈 사본(setDatePrefs)을 읽는다 — 설정을 바꾸면 다시 그려지도록 값을 의존성에 싣는다.
+  const prefKey = `${user?.date_format || ''}|${user?.time_format || ''}|${user?.week_start || ''}`;
 
   return useMemo(() => ({
     tz,
@@ -24,5 +26,6 @@ export function useTimeFormat() {
     formatTime: (iso: string | Date) => fmtTime(iso, tz, locale),
     formatDateTime: (iso: string | Date) => fmtDateTime(iso, tz, locale),
     formatTimeAgo: (iso: string | Date) => fmtTimeAgo(iso, tz, locale, t as unknown as (k: string, o?: Record<string, unknown>) => string),
-  }), [tz, locale, t]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [tz, locale, t, prefKey]);
 }

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import type { ReactNode } from 'react';
 import i18n from '../i18n';
 import { detectClientKind } from '../services/native';
+import { setDatePrefs, type DateFormatPref, type TimeFormatPref, type WeekStartPref } from '../utils/dateFormat';
 import { clearPageCache } from '../lib/pageCache';
 import {
   purgeDraftsNotOwnedBy, purgeDraftsOf, setDraftOwner, sweepExpiredDrafts, setDraftsSuppressed, listLeaveBlockers,
@@ -70,6 +71,10 @@ export interface User {
   // active workspace 의 타임존 (표시 전용 — 워크스페이스 수정 API 로만 변경)
   workspace_timezone?: string | null;
   workspace_reference_timezones?: string[] | null;
+  // 날짜·시간 표시 형식 — null = 화면 언어별 자동 (utils/dateFormat.ts 가 정본)
+  date_format?: DateFormatPref | null;
+  time_format?: TimeFormatPref | null;
+  week_start?: WeekStartPref | null;
   // 약관 동의 시점·버전 (재동의 모달 트리거용)
   terms_accepted_at?: string | null;
   terms_version?: string | null;
@@ -637,6 +642,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 모든 user 갱신이 지나는 한 곳 — 요청 헤더 사본(requestWorkspaceId)을 **렌더보다 먼저** 맞춘다(위 C2 주석).
   const setUser = useCallback((next: User | null) => {
     requestWorkspaceId = next?.business_id ? Number(next.business_id) : null;
+    // 날짜 형식도 같은 이유로 모듈 사본 — 포맷터는 훅 밖(유틸·서비스)에서도 불린다. 렌더보다 먼저.
+    setDatePrefs({ date_format: next?.date_format ?? null, time_format: next?.time_format ?? null, week_start: next?.week_start ?? null });
     setUserState(next);
   }, []);
   const [isLoading, setIsLoading] = useState(true);
@@ -675,6 +682,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     email_verified_at: (apiUser.email_verified_at as string) || null,
     platform: (apiUser.platform as User['platform']) || null,
     workspace_reference_timezones: (apiUser.workspace_reference_timezones as string[]) || null,
+    date_format: (apiUser.date_format as DateFormatPref) || null,
+    time_format: (apiUser.time_format as TimeFormatPref) || null,
+    week_start: (apiUser.week_start as WeekStartPref) || null,
   });
 
   // (이전 getUserRole 은 platform_admin 을 business_role 보다 우선시켜 멀티 롤 체크를 망가뜨렸음.

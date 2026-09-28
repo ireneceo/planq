@@ -93,6 +93,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       language_levels, expertise_level,
       answer_style_default, answer_length_default,
       timezone, reference_timezones,
+      date_format, time_format, week_start,
     } = req.body;
     const updates = {};
 
@@ -160,6 +161,16 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
         .filter((t) => typeof t === 'string' && /^[A-Za-z_+\-0-9]+(\/[A-Za-z_+\-0-9]+){0,2}$/.test(t))
         .slice(0, 20);
       updates.reference_timezones = cleaned.length ? cleaned : null;
+    }
+    // 날짜·시간 표시 형식 — null(자동) 또는 허용값만. 모르는 값은 400(조용히 무시하면 저장된 줄 안다).
+    for (const [key, val, allowed] of [
+      ['date_format', date_format, ['ymd', 'mdy', 'dmy']],
+      ['time_format', time_format, ['24h', '12h']],
+      ['week_start', week_start, ['sun', 'mon']],
+    ]) {
+      if (val === undefined) continue;
+      if (val !== null && !allowed.includes(val)) return errorResponse(res, `Invalid ${key}`, 400);
+      updates[key] = val;
     }
     if (language !== undefined) {
       if (typeof language !== 'string' || !/^[a-z]{2}(-[A-Z]{2})?$/.test(language)) {

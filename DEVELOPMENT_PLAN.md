@@ -1,11 +1,42 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-27 ([Opus] Opus 5.5) — **보안 설정 점검·수리**(공유·참조·권한 5규칙 통일, 실HTTP 44 + Fable 78칸 행렬 PASS) · 업무 공유 링크 = 문서 수준 · 앱 안 공유 링크 → 앱 새 탭 · 공개 페이지 날짜 언어 · 09-26 미커밋 6묶음(유입 퍼널·#428·#431·#432·#433) 이어받기. **미배포.**
+> **최종 업데이트:** 2026-09-28 ([Opus] Opus 5.5) — 반복업무 자동 넘김(워크스페이스 시간대·매시·진행중 포함) · #435 모바일(우측패널 이중 여백·iOS 입력 확대·버튼 글자) · 채팅 반응(도구줄·팝오버·폰 유령 클릭) · 날짜 형식 설정 **진행 중**. **미배포 · Fable 미검증(자체 검증).**
+> ── 이전(2026-09-27) ──
+> 보안 설정 점검·수리 · 업무 공유 문서 수준 · 09-26 미커밋 6묶음 이어받기.
 > ── 이전(2026-09-25) ──
 > 오후: 업무 댓글 정렬 · 히스토리 시각 · 「Q위키」→「도움말」 개명(주소까지). (v1.64.0 로 배포)
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## 🔄 2026-09-28 [Opus] — 운영 신고 대응 + 날짜 형식(진행 중) · 미배포 · Fable 미검증(자체 검증)
+
+| 작업 | 설명 | 상태 |
+|---|---|:-:|
+| 반복업무 자동 넘김 기준일 | «오늘» = 워크스페이스 시간대(전엔 UTC) + 매시 정리(`runMissedOccurrenceCleanup`). 서울 00~09시 지연 노출 해소 | ✅ `4e0b663b` |
+| 자동 넘김 대상 | `SKIPPABLE_STATUSES` = 시작 전·대기·진행중. 컨펌·수정요청·승인완료·보류·외부컨펌 제외. 운영 #262·#331 배포 후 닫힘 | ✅ `957159ba` |
+| #435 모바일 | `DetailDrawer` 머리 상태바 이중 여백(앱 47px) · iOS 한정 maximum-scale=1 · 폰 ActionButton ≥15px · 피드백 제출 16px | ✅ `c70b2ab4` |
+| 채팅 반응 | 반응 버튼 → 메시지 도구줄 · `ReactionPickerPopover`(메시지 위/아래, 본문 안 밈) · **폰 탭 유령 클릭**(:hover 가 도구줄을 손가락 밑에 띄움) 차단 · 카나리 `--suite chatreaction` 17검사 | ✅ `63388222` |
+| 날짜 형식 설정 1차 | users 칸 3(`date_format`·`time_format`·`week_start`, NULL=자동) · PUT 검증 · `migrate-user-date-prefs.js`(멱등, 배포 슬롯) · `setDatePrefs`(AuthContext.setUser 한 곳) · `useTimeFormat`/`dateFormat.ts` · 내 업무 설정 카드 · 캘린더 주 시작 | 🔄 진행 중 |
+
+### 날짜 형식 — 남은 것
+- 화면 3폭 실측(설정 카드 · 캘린더 월요일 시작 · 형식 반영) · 2차 전수 적용(직접 포맷 155곳/69파일 + slice 128곳) · 가드 `datefmt` 래칫
+- `CalendarPicker`(공용 날짜 고르기)도 주 시작 적용 검토
+- **R=1(운영 스키마) → 배포 전 Fable 한 라운드** (`docs/FABLE_GATE_QUEUE.md`)
+- 자체 검증: API 6/6(저장→조회 · 잘못된 값 400 · null 복귀 · 다른 칸 무영향) · 마이그레이션 멱등 2회 · build EXIT 0
+
+### 검토만 한 것 — #434 모바일 공유
+네이티브 앱에 공유 수신 없음(PWA share_target 만) · 받은 파일 → 채팅/업무 첨부 미통합 · 프로젝트/폴더 선택 없음.
+Irene 결정: **네이티브까지**. 순서 = 공유 후 화면(공용) → 안드로이드+iOS 한 앱 빌드.
+
+### 수정된 파일
+- `dev-backend/services/recurringTaskGenerator.js` · `server.js` · `scripts/fix-series-miss-policy.js`
+- `dev-backend/models/User.js` · `routes/users.js` · `scripts/migrate-user-date-prefs.js` · `scripts/deploy-planq.sh`
+- `dev-frontend/src/main.tsx` · `components/Common/{ActionButton,CueHelpDrawer,DetailDrawer}.tsx`
+- `dev-frontend/src/pages/QTalk/{ChatPanel,MessageReactions,ReactionPickerPopover}.tsx` · `scripts/e2e/{canary-chat-reaction,run}.js`
+- `dev-frontend/src/{utils/dateFormat.ts,hooks/useTimeFormat.ts,contexts/AuthContext.tsx}` · `pages/Profile/{ProfilePage,MyWorkSettingsPage}.tsx` · `pages/QCalendar/{QCalendarPage,MonthView}.tsx` · locales profile ko/en
 
 ---
 

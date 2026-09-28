@@ -288,5 +288,18 @@
     "large": "Large",
     "xlarge": "Larger",
     "hint": "Applies to this device only. Only the text grows — the layout stays the same."
+  },
+  "dateFormat": {
+    "title": "Date & time display",
+    "desc": "Choose how dates and times appear across PlanQ. «Auto» follows your display language.",
+    "dateLabel": "Date",
+    "timeLabel": "Time",
+    "weekLabel": "Week starts on",
+    "auto": "Auto ({{example}})",
+    "time24": "24-hour ({{example}})",
+    "time12": "12-hour ({{example}})",
+    "sun": "Sunday",
+    "mon": "Monday",
+    "weekHint": "Calendar week and month views start on this day."
   }
 }
