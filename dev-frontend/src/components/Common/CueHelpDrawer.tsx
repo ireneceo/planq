@@ -1362,6 +1362,8 @@ const FbSendBtn = styled.button`
   cursor: pointer;
   height: 40px;
   transition: background 0.15s;
+  /* 폰에서는 입력칸(1rem)보다 작지 않게 — 운영 #435 */
+  @media (max-width: 1024px) { font-size: 1rem; height: 44px; }
   &:hover:not(:disabled) { background: #E11D48; }
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;

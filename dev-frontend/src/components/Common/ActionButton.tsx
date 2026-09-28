@@ -133,8 +133,14 @@ const BtnEl = styled.button<{ $tone: ActionButtonTone; $size: ActionButtonSize; 
      ★ xs 는 제외한다 — 목록 행·헤더에 여러 개가 줄지어 서는 크기라 44 로 키우면 그 줄이
        통째로 커진다(상세 헤더 2밴드 계약·행 높이가 폰에서만 무너진다). 대신 xs 는
        **단독 주 액션에 쓰지 않는다**(주 액션은 sm 이상). */
+  /* 폰 글자 하한 15px (운영 #435, 2026-09-28) — Irene: *"제출 글자가 내가 입력하는 내용보다 작아."*
+     폰 입력칸은 index.css 가 16px 로 올리는데 버튼은 13·14px 에 머물러, 44px 로 커진 버튼 안에서
+     글자만 작아 보였다. 높이를 키우는 것과 같은 조건(xs 제외)으로 글자도 올린다. */
   @media (max-width: 640px) {
-    ${(p) => p.$size !== 'xs' && css`min-height: ${Math.max(sizeMap[p.$size].h, 44)}px;`}
+    ${(p) => p.$size !== 'xs' && css`
+      min-height: ${Math.max(sizeMap[p.$size].h, 44)}px;
+      font-size: ${Math.max(sizeMap[p.$size].font, 15) / 16}rem;
+    `}
   }
 `;
 const IconSlot = styled.span<{ $size: ActionButtonSize }>`

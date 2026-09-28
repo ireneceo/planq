@@ -9,6 +9,23 @@ import App from './App.tsx'
 import { bindPermissionSync } from './services/push.ts'
 import { isNativeApp, nativePlatform } from './services/native'
 
+// iOS 입력 자동확대 끄기 (운영 #435, 2026-09-28).
+//   Irene: *"업무상세를 입력하려고 하니 입력창이 확대되고 위아래 제대로 안보여 … 확대된 채로 다른 모든
+//   페이지가 확대되어서 레이아웃 다 망가졌더라."*
+//   index.css 의 «폰 입력칸 1rem» 규칙은 input·textarea·select 만 덮는다. 업무 설명·결과물(TipTap)은
+//   contenteditable 이라 그 밖이었고, 태블릿 폭(>640px)도 밖이었다. iOS 는 확대한 뒤 스스로 되돌리지 않는다.
+//   → **iOS 에만** maximum-scale=1. iOS 10+ Safari 는 이 값을 손가락 확대에는 적용하지 않고 포커스
+//     자동확대에만 적용한다(접근성 유지). Android 는 이 값이 손가락 확대까지 막으므로 건드리지 않는다
+//     (2026-08-30 에 그 이유로 걷어냈다 — Android 는 1rem 규칙이 계속 맡는다).
+{
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (isIOS && vp && !/maximum-scale/.test(vp.getAttribute('content') || '')) {
+    vp.setAttribute('content', `${vp.getAttribute('content')}, maximum-scale=1`);
+  }
+}
+
 // Service Worker 등록 — Push 알림 + Share Target POST + PWA install 모두 SW 필요.
 // updateViaCache:'none' — 브라우저가 sw.js 자체를 캐시하지 않게 강제 (옛 SW 잔류 방지).
 // 새 SW 가 install 되면 activate 단계에서 모든 client 자동 navigate (옛 chunk 잔재 정리).

@@ -269,8 +269,13 @@ const HeaderWrap = styled.div`
   padding: 16px 18px 14px;
   border-bottom: 1px solid #E2E8F0;
   flex-shrink: 0;
-  /* iOS safe-area 상단 여유 — 상태바 영역 */
-  padding-top: calc(16px + var(--pq-safe-top, 0px));
+  /* iOS safe-area 상단 여유 — 상태바 영역.
+     ★ 운영 #435 (2026-09-28) — Irene: *"우측패널 업무상세가 상단에 모바일에서 여백이 생겨. 왜 우측패널들
+       이런 문제가 있는 거야?"* 패널은 이미 --pq-chrome-bottom(= 모바일 헤더 + 상태바) 아래에서 시작하는데
+       여기서 상태바를 **한 번 더** 더해, 앱(아이폰 47px)에서 모든 우측패널 머리에 빈 띠가 생겼다.
+       브라우저는 safe-top 이 0 이라 보이지 않았다. 크롬이 상태바를 이미 덮은 만큼은 빼고, 크롬이 없을 때
+       (넓은 폭 미러 모드 = chrome-bottom 0)만 상태바 자리를 비운다. */
+  padding-top: calc(16px + max(0px, var(--pq-safe-top, 0px) - var(--pq-chrome-bottom, 0px)));
 `;
 
 const HeaderContent = styled.div` flex: 1; min-width: 0; `;
