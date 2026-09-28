@@ -236,6 +236,8 @@ const SUITES = {
   //   바닥 고정 판정이 시간창·증감방향 같은 추정이라 조건이 어긋나면 조용히 풀렸다.
   //   스크롤 호출 여부가 아니라 좌표·가시성으로 재고, 위로 올린 뒤에는 안 끌어내리는지도 본다.
   chatbottom: () => require('./canary-chat-bottom'),
+  // 메시지 반응 — 3폭에서 «가만히 있으면 안 보임·겹침 없음·고르는 줄이 글자를 밀지도 덮지도 않음» (2026-09-28)
+  chatreaction: () => require('./canary-chat-reaction'),
   // 쓰다 만 글이 남는가 · 남의 글과 섞이지 않는가 (DRAFT_PERSISTENCE_DESIGN D-C6). 창 두 개·같은 문서 두 탭·
   //   로그아웃·사칭·옛 키 이관을 실브라우저로 — 인스턴스끼리 덮어쓰는 유실은 한 창 검사로는 안 드러난다.
   drafts: () => require('./canary-drafts'),

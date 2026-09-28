@@ -27,6 +27,7 @@ import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { useNavigate } from 'react-router-dom';
 import MessageReactions from './MessageReactions';   // #138 이모지 리액션 (메시지에 다는 것)
+import ReactionPickerPopover from './ReactionPickerPopover';   // 반응 고르기 — 도구줄에서 떠 있는 팝오버
 import EmojiPickerButton from './EmojiPickerButton';   // #380 입력창 이모지 (보내는 것)
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar, DetailMetaLeft } from '../../components/Layout/PanelHeader';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
@@ -475,6 +476,9 @@ const ChatPanel: React.FC<Props> = ({
   // 사이클 N+16-F — 더보기 메뉴는 anchor 함께 저장 → portal 렌더 + fixed 좌표
   const [moreMenu, setMoreMenu] = useState<{ msgId: number; anchorEl: HTMLElement } | null>(null);
   const moreMenuMsgId = moreMenu?.msgId ?? null;
+  // 반응 고르기 팝오버 — 도구줄의 😊 에서 연다(메시지 아래 줄에 따로 두지 않는다, ReactionPickerPopover 머리말).
+  const [reactionPicker, setReactionPicker] = useState<{ msgId: number; anchorEl: HTMLElement } | null>(null);
+  const closeReactionPicker = React.useCallback(() => setReactionPicker(null), []);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [pinnedBarOpen, setPinnedBarOpen] = useState(true);
   const [pinnedBarFlashId, setPinnedBarFlashId] = useState<number | null>(null);
@@ -2041,7 +2045,23 @@ const ChatPanel: React.FC<Props> = ({
             {/* 사이클 N+16-E — hover toolbar (Slack 패턴). 데스크탑 hover / 모바일 long-press 패턴은 추후 추가.
                 선택 모드 / 편집 모드 / 삭제된 메시지 / Cue 메시지는 toolbar 숨김. */}
             {!selectionMode && !isEditing && !isDeleted && m.sender_role !== 'cue' && (
-              <MessageToolbar $touchActive={activeToolbarMsgId === m.id}>
+              <MessageToolbar $touchActive={activeToolbarMsgId === m.id || reactionPicker?.msgId === m.id} $pinnedOpen={reactionPicker?.msgId === m.id}>
+                {user && (
+                  <ToolBarBtn type="button"
+                    data-testid={`chat-reaction-open-${m.id}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const el = e.currentTarget;
+                      setReactionPicker((cur) => (cur?.msgId === m.id ? null : { msgId: m.id, anchorEl: el }));
+                    }}
+                    title={t('reaction.add', { defaultValue: '반응 남기기' }) as string}
+                    aria-label={t('reaction.add', { defaultValue: '반응 남기기' }) as string}
+                    $active={reactionPicker?.msgId === m.id}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="9" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><path d="M9 9h.01M15 9h.01" />
+                    </svg>
+                  </ToolBarBtn>
+                )}
                 <ToolBarBtn type="button" onClick={(e) => { e.stopPropagation(); handleCopyText(m.body || ''); }} title={t('chat.action.copy', '메시지 복사') as string} aria-label={t('chat.action.copy', '메시지 복사') as string}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
@@ -2339,6 +2359,20 @@ const ChatPanel: React.FC<Props> = ({
       )}
       {/* 사이클 N+16-F — 더보기 메뉴 portal 렌더 (overflow 클립 회피, InputBar 위로 노출 보장).
           anchor 버튼 rect 기준 fixed 좌표. 아래 공간 부족하면 위로 flip. */}
+      {reactionPicker && user && (() => {
+        const m = convMessages.find((x) => x.id === reactionPicker.msgId);
+        if (!m) return null;
+        return (
+          <ReactionPickerPopover
+            anchorEl={reactionPicker.anchorEl}
+            businessId={Number(businessId)}
+            messageId={m.id}
+            reactions={m.reactions}
+            myUserId={Number(user.id)}
+            onClose={() => { closeReactionPicker(); setActiveToolbarMsgId(null); }}
+          />
+        );
+      })()}
       {moreMenu && (() => {
         const m = convMessages.find((x) => x.id === moreMenu.msgId);
         if (!m) return null;
@@ -2861,8 +2895,15 @@ const MessageItem = styled.div<{ $continuation?: boolean; $selected?: boolean; $
     background: rgba(245, 158, 11, 0.18);
     transition: background 0.4s;
   `}
-  &:hover button.pq-msg-toolbar-btn { opacity: 1; }
-  &:hover > .pq-msg-toolbar { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  /* ★ hover 로 여는 것은 **마우스 기기에서만** (2026-09-28 실측).
+     폰은 탭하는 순간 :hover 가 켜진다 → 도구줄이 **손가락 바로 밑에** 나타나고, 이어지는 click 이
+     메시지가 아니라 도구줄 버튼(복사·반응…)에 떨어졌다. Irene: "다른 메뉴랑 누르는게 겹쳐서 제대로
+     누를 수가 없어." 조건은 위 isTouchDevice 와 **같은 술어** — (hover:none AND pointer:coarse) 만 뺀다.
+     '(hover:hover),(pointer:fine)' 로 쓰면 pointer:none 환경(헤드리스 등)에서 JS 와 답이 갈린다(실측). */
+  @media not all and (hover: none) and (pointer: coarse) {
+    &:hover button.pq-msg-toolbar-btn { opacity: 1; }
+    &:hover > .pq-msg-toolbar { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  }
   /* N+93 (#7) — 모바일: 간격 압축으로 채팅 더 많이 보이게 */
   @media (max-width: 640px) {
     gap: 8px;
@@ -2988,7 +3029,7 @@ const EditHint = styled.span`
 
 // hover toolbar (Slack 패턴). MessageItem 우측 상단 absolute, hover 시 등장.
 // 터치(hover:none)는 tap-to-reveal — $touchActive(탭된 메시지)일 때만 노출.
-const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })<{ $touchActive?: boolean }>`
+const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })<{ $touchActive?: boolean; $pinnedOpen?: boolean }>`
   position: absolute;
   top: 0;
   right: 8px;
@@ -3005,6 +3046,8 @@ const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })<{ $touc
   pointer-events: none;
   transition: opacity 0.15s, transform 0.15s;
   z-index: 5;
+  /* 반응 팝오버가 열린 동안은 마우스가 도구줄을 벗어나도 기준(😊)이 사라지지 않게 */
+  ${(p) => (p.$pinnedOpen ? 'opacity: 1; pointer-events: auto;' : '')}
   @media (hover: none) {
     /* N+93 — 터치 기기(마우스 없음): tap-to-reveal. 평소엔 숨김(opacity 0)이라 글 안 가림,
        메시지 탭 시 그 메시지만 우측 하단 컴팩트 오버레이로 노출. (max-width:640px) 제거 —
@@ -3023,6 +3066,8 @@ const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })<{ $touc
     padding: 1px;
     gap: 0;
     transition: opacity 0.12s;
+    /* 손가락 목표 — 28px 는 이웃 버튼과 겹쳐 눌렸다(운영 신고 2026-09-28) */
+    & > button { width: 36px; height: 36px; }
   }
 `;
 const ToolBarBtn = styled.button<{ $active?: boolean }>`
