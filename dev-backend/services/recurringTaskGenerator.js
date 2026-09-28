@@ -286,7 +286,12 @@ async function flushRecurringNotifications(notifyBucket, io = null) {
  * ★ **생성 여부와 무관하게 돈다.** 처음엔 회차 생성 루프 안에 뒀는데, 다음 회차가 아직 멀면
  *   (주간·월간 시리즈) `not_due_yet` 으로 조기 반환돼 **정리가 영영 실행되지 않았다**(실측).
  *   정리는 생성의 곁가지가 아니라 독립된 일이다.
- * ★ 대상은 **지난 회차 중 손도 안 댄 것(not_started)** 뿐이다. 진행 중·컨펌 중·보류는
+ * ★ 대상은 **지난 회차 중 끝나지 않은 것(`SKIPPABLE_STATUSES`: 시작 전·대기·진행 중)** 이다.
+ *   컨펌 중·수정요청·승인완료·보류·외부컨펌은 남에게 걸려 있거나 사람이 멈춰 둔 것이라 넘기지 않는다.
+ *   ★ 2026-09-28 (Irene: *"자동으로 넘기기 설정했는데도 지연업무로 계속 남아있는 것들이 있어"*) —
+ *     원래는 not_started 만 넘겼는데, 진행중으로 눌러 둔 채 지난 회차(운영 #262·#331)가 몇 주씩 지연으로 남았다.
+ *     «못 한 회차» 는 끝내지 못한 회차다. 실제시간은 행에 그대로 남는다.
+ *   (옛 문장: 진행 중·컨펌 중·보류는
  *   사람이 이미 손을 댄 일이라 건드리지 않는다.
  * ★ 이력을 남긴다 — 남기지 않으면 사용자에겐 "업무가 조용히 사라진" 것으로 보인다.
  *
@@ -317,6 +322,9 @@ async function workspaceTodayStr(parent, today, tzCache) {
   return dateStrInTz(today, tz);
 }
 
+const SKIPPABLE_STATUSES = ['not_started', 'waiting', 'in_progress'];
+const SKIP_NOTE = '미수행 회차 자동 마감 (시리즈 설정: 지난 회차 자동 넘김)';
+
 async function skipMissedOccurrences(parent, today = new Date(), io = null, tzCache = null) {
   if (parent.miss_policy !== 'auto_skip') return [];
   const todayStr = await workspaceTodayStr(parent, today, tzCache);
@@ -329,16 +337,17 @@ async function skipMissedOccurrences(parent, today = new Date(), io = null, tzCa
   //     skipped:0 이 나왔다 — dev 검증은 전부 통과한 채로. (memory feedback_dev_cannot_reproduce_prod_schema)
   //     자식 쪽은 SQL `Op.lt` 라 MySQL 이 알아서 비교해 멀쩡했다 — JS 비교를 한 이 줄만 깨졌다.
   const dueStr = dateOnlyOf(parent.due_date);
-  if (parent.status === 'not_started' && dueStr && dueStr < todayStr) {
+  if (SKIPPABLE_STATUSES.includes(parent.status) && dueStr && dueStr < todayStr) {
+    const from = parent.status;
     await parent.update({ status: 'canceled', completed_at: null });
     try {
       await TaskStatusHistory.create({
         task_id: parent.id,
         event_type: 'status_change',
-        from_status: 'not_started',
+        from_status: from,
         to_status: 'canceled',
         actor_user_id: null,
-        note: '미수행 회차 자동 마감 (시리즈 설정: 지난 회차 자동 넘김)',
+        note: SKIP_NOTE,
       });
     } catch (e) { console.warn('[recurringTask] skip history(parent)', e.message); }
     skippedIds.push(parent.id);
@@ -348,21 +357,22 @@ async function skipMissedOccurrences(parent, today = new Date(), io = null, tzCa
   const stale = await Task.findAll({
     where: {
       recurrence_parent_id: parent.id,
-      status: 'not_started',
+      status: { [Op.in]: SKIPPABLE_STATUSES },
       due_date: { [Op.lt]: todayStr },
     },
-    attributes: ['id'],
+    attributes: ['id', 'status'],
   });
   for (const inst of stale) {
+    const from = inst.status;
     await inst.update({ status: 'canceled', completed_at: null });
     try {
       await TaskStatusHistory.create({
         task_id: inst.id,
         event_type: 'status_change',
-        from_status: 'not_started',
+        from_status: from,
         to_status: 'canceled',
         actor_user_id: null,
-        note: '미수행 회차 자동 마감 (시리즈 설정: 지난 회차 자동 넘김)',
+        note: SKIP_NOTE,
       });
     } catch (e) { console.warn('[recurringTask] skip history', e.message); }
     skippedIds.push(inst.id);
@@ -556,6 +566,7 @@ async function runMissedOccurrenceCleanup(now = new Date(), io = null) {
 module.exports = {
   runDailyRecurringTaskGen,
   runMissedOccurrenceCleanup,
+  SKIPPABLE_STATUSES,
   generateOneSeries,
   skipMissedOccurrences,
   createOccurrence,

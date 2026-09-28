@@ -15,8 +15,8 @@
 //   · 기본은 **dry-run**. 실제 적용은 `--apply`.
 //   · 부모를 바꾸는 것은 **자식 중 auto_skip 이 하나라도 있는 시리즈뿐**이다.
 //     (사용자가 그 시리즈를 보면서 명시적으로 고른 값이다 — 없는 의도를 지어내지 않는다.)
-//   · 마감 대상은 **오늘보다 이전 + not_started** 뿐이다. 오늘·앞으로의 회차는 건드리지 않는다
-//     ("오늘부터 남아있으면 돼"). 진행중·컨펌중·보류·완료는 사람이 손댄 것이라 제외.
+//   · 마감 대상은 **오늘보다 이전 + 끝나지 않은 회차(시작 전·대기·진행 중)** 뿐이다. 오늘·앞으로의 회차는 건드리지 않는다
+//     ("오늘부터 남아있으면 돼"). 컨펌중·수정요청·승인완료·보류·외부컨펌·완료는 제외(2026-09-28 부터 진행중은 넘긴다).
 //   · 마감은 앱과 **같은 함수**(skipMissedOccurrences)로 한다 — 여기서 따로 지우면 이력·상태
 //     전이가 앱과 갈라진다.
 //
@@ -28,7 +28,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') }
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { Task } = require('../models');
-const { skipMissedOccurrences } = require('../services/recurringTaskGenerator');
+const { skipMissedOccurrences, SKIPPABLE_STATUSES } = require('../services/recurringTaskGenerator');
 
 const APPLY = process.argv.includes('--apply');
 // ★ 2026-09-08 (Irene: "응. 넘겨 자동으로 넘기기로 해줘. 모든 반복업무 자동으로 넘어가게 해줘.")
@@ -63,7 +63,7 @@ async function main() {
   }
 
   // ② 지난 미수행 회차 마감 — 앱과 같은 함수로.
-  //    dry-run 에서는 **무엇이 대상인지만** 센다(같은 술어: 오늘 이전 + not_started).
+  //    dry-run 에서는 **무엇이 대상인지만** 센다(같은 술어: 오늘 이전 + SKIPPABLE_STATUSES).
   const today = new Date();
   const todayStr = today.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
   let closed = 0;
@@ -79,7 +79,7 @@ async function main() {
       const n = await Task.count({
         where: {
           [Op.or]: [{ recurrence_parent_id: p.id }, { id: p.id }],
-          status: 'not_started',
+          status: { [Op.in]: SKIPPABLE_STATUSES },
           due_date: { [Op.lt]: todayStr },
         },
       });
