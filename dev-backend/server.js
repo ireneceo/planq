@@ -773,6 +773,12 @@ setInterval(() => { exportJobWorker.cleanupExpiredExports().catch(() => {}); }, 
 //   ★ 부팅 직후 1회 + 5분 주기. 이전 프로세스가 남긴 것을 켜자마자 치운다.
 const invoiceDelivery = require('./services/invoiceDelivery');
 setTimeout(() => { invoiceDelivery.sweepStaleDeliveries().catch(e => console.warn('[invoiceDelivery sweep]', e.message)); }, 20 * 1000);
+// 반복업무 «못 한 회차 자동 넘김» — 워크스페이스 시간대의 자정 직후에 닿도록 매시(자정 배치만으로는 서울 09시).
+setInterval(() => {
+  recurringTask.runMissedOccurrenceCleanup(new Date(), io)
+    .then((r) => { if (r.skipped || r.fail) console.log('[recurring-task cleanup]', r); })
+    .catch((e) => console.warn('[recurring-task cleanup]', e.message));
+}, 60 * 60 * 1000);
 setInterval(() => { invoiceDelivery.sweepStaleDeliveries().catch(e => console.warn('[invoiceDelivery sweep]', e.message)); }, 5 * 60 * 1000);
 
 // 미읽음 알림 이메일 에스컬레이션 — push silent-drop 안전망 (운영: 알림 미수신 미팅 누락 사고)

@@ -30,7 +30,8 @@
 
 const { Op } = require('sequelize');
 const { RRule } = require('rrule');
-const { Task, TaskReviewer, TaskTagLink, TaskStatusHistory } = require('../models');
+const { Task, TaskReviewer, TaskTagLink, TaskStatusHistory, Business } = require('../models');
+const { dateStrInTz } = require('../utils/datetime');
 
 // 시리즈 하나가 한 번의 실행에서 만들 수 있는 회차 상한.
 // 밀린 회차 캐치업용 — 일간 시리즈가 한 달 밀려도 한 번에 따라잡되, 잘못된 RRULE 폭주는 막는다.
@@ -301,9 +302,24 @@ async function flushRecurringNotifications(notifyBucket, io = null) {
  *     createOccurrence 는 부모 상태를 보지 않으며(항상 not_started 로 새 회차를 만든다),
  *     반복 설정 편집 권한도 상태와 무관하다(작성자·소유자 기준). `next_occurrence_at` 은 건드리지 않는다.
  */
-async function skipMissedOccurrences(parent, today = new Date(), io = null) {
+// ★ 2026-09-28 운영 신고 — Irene: *"못 한 회차는 자동으로 넘기기 설정했는데도 지연업무로 계속 남아있는 것들이 있어."*
+//   "오늘" 을 **서버 시계(UTC)** 로 잡고 있었다. 자정 배치는 UTC 00시 = 서울 09시에 돈다.
+//   화면은 서울 날짜로 지연을 판정하므로 **매일 00~09시(서울) 동안 어제 회차가 지연으로 떠 있었다.**
+//   → "오늘" 은 **워크스페이스 시간대**의 날짜다(utils/datetime 규약). 정리는 매시 돈다(server.js).
+async function workspaceTodayStr(parent, today, tzCache) {
+  const bid = parent.business_id;
+  let tz = tzCache && tzCache.has(bid) ? tzCache.get(bid) : undefined;
+  if (tz === undefined) {
+    const biz = bid ? await Business.findByPk(bid, { attributes: ['id', 'timezone'] }) : null;
+    tz = (biz && biz.timezone) || null;
+    if (tzCache) tzCache.set(bid, tz);
+  }
+  return dateStrInTz(today, tz);
+}
+
+async function skipMissedOccurrences(parent, today = new Date(), io = null, tzCache = null) {
   if (parent.miss_policy !== 'auto_skip') return [];
-  const todayStr = toDateOnlyStr(today);
+  const todayStr = await workspaceTodayStr(parent, today, tzCache);
   const skippedIds = [];
 
   // ① 부모 행 자신 = 시리즈의 첫 회차.
@@ -512,8 +528,34 @@ async function runDailyRecurringTaskGen(today = new Date(), io = null) {
   return out;
 }
 
+// 지난 미수행 회차 정리만 — 매시 실행(server.js). 워크스페이스마다 자정이 다르므로
+//   하루 한 번(UTC 00시)으로는 서울 00~09시 동안 어제 회차가 지연으로 남는다.
+//   생성은 하지 않는다(7일 앞까지 미리 만들어 두므로 자정 배치로 충분하다).
+async function runMissedOccurrenceCleanup(now = new Date(), io = null) {
+  const parents = await Task.findAll({
+    where: {
+      recurrence_rule: { [Op.ne]: null },
+      recurrence_parent_id: null,
+      miss_policy: 'auto_skip',
+    },
+  });
+  const tzCache = new Map();
+  const out = { series: parents.length, skipped: 0, fail: 0 };
+  for (const p of parents) {
+    try {
+      const ids = await skipMissedOccurrences(p, now, io, tzCache);
+      out.skipped += ids.length;
+    } catch (e) {
+      console.warn('[recurringTask] cleanup parent', p.id, 'crash', e.message);
+      out.fail += 1;
+    }
+  }
+  return out;
+}
+
 module.exports = {
   runDailyRecurringTaskGen,
+  runMissedOccurrenceCleanup,
   generateOneSeries,
   skipMissedOccurrences,
   createOccurrence,
