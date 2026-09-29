@@ -10,16 +10,18 @@
 | `1e0cc312` | 프로젝트 폴더 업로드 = 프로젝트 파일(L2) — **R=1, Fable 미검증** |
 | `d3fae6be` | 날짜 형식 2차 — `formatDay/formatClock/formatDayTime` · ~50곳 이전 · 가드 `datefmt` 래칫(베이스 31) |
 | `2a09b144` | #434 ① 공유 받기 — 대화방 고르기 · 저장 위치(프로젝트·폴더·새 폴더) · 문서가 받음 · e2e `sharereceive` · 네이티브 설계 `docs/NATIVE_SHARE_RECEIVE.md` |
+| `5eb699e7` | 탭 모드 X 로 닫은 업무가 뒤로 가기에 재열림 — UrlMirror pqIdx·trail(닫기=back) · TabAppShell pqIdx 보존 |
+| `96aa28b4` | #430 Q task 헤더 «전체 업무에서 찾기» (e2e `taskquicksearch`) |
 
 ### 운영 신고 장부
 - #428·431·432·433·435·438 — 답글 달고 **done 처리 완료**(운영 DB, close-deployed-feedback)
-- #427·436·437·441 — `0938a2f2` 에 `Feedback-Closes` 트레일러. **배포 후 답글 → 닫기**
+- #427·436·437·441·430 — `Feedback-Closes` 트레일러. **배포 후 답글 → 닫기**
 
 ### 다음 할 일
 1. **Fable 한 라운드**(토큰 생기면) — `docs/FABLE_GATE_QUEUE.md` 맨 위(5-a + 오늘 참고 묶음). 그 전 운영 배포는 Irene 판단
 2. 배포 시: 운영 `node seed-wiki-content.js`(Q sales 문구) · 스키마 변경 없음
 3. #434 ② 네이티브 — Irene/Apple 계정 작업(App Group·확장 번들 ID·프로필 → Codemagic) 후 안드로이드+iOS 한 빌드
-4. 탭 모드(태블릿·데스크탑)에서 «X 로 닫은 업무가 뒤로 가기에 다시 열림»(UrlMirror 가 닫기도 push) — 기존 동작, 필요하면 별건
+4. #429(동료 출퇴근 상태 표시·채팅 이름 옆) — 누가 볼 수 있는지 Irene 결정 필요 · #424 근무일수 통합은 Fable 설계 대기
 5. nginx 자동 적용 — Irene «이따» (미룸)
 
 ### 배운 것

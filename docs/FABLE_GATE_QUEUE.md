@@ -24,6 +24,7 @@ Fable 호출 HTTP 429(한도 초과) → 보고는 **"Fable 미검증(자체 검
 3. 채택 조회와 뒤의 verifyFolderOwnership(projectId 조건) 순서 — 남의 프로젝트로 들어갈 길 없음
 
 ### 같은 라운드 참고 (자체 검증, R=0 판단)
+- `96aa28b4` #430 Q task «전체 업무에서 찾기» — 기존 search 라우트에 칸 6 추가 · null 범위 500→[] · 3폭 18/18 · 비소속 403
 - `5eb699e7` 탭 모드 히스토리 — UrlMirror 가 replace 로 «바로 전 칸» 복귀면 back(pqIdx·trail) · TabAppShell pqIdx 보존 · useBackToClose 탭 모드 비킴. **Fable 이 봐야 할 것**: 탭 전환·새 탭·popstate 가 섞일 때 pqIdx 가 틀린 칸을 가리켜 엉뚱한 back 이 나는 경로가 없는가. 자체: mobilepanels 3폭 + tabs·scopetabs·admintabs 등 149/149
 - `0938a2f2` 모바일 #437·#441·#436·#427 — history 칸 쌓기 훅(useBackToClose, 미러 모드만) · 메뉴 z 1060 · 쓰기 모드 CSS · 선택 줄. e2e mobilepanels 21/21 · screenbreak 57/57
 - `b1a0f755` 표시명 Q sales · `d3fae6be` 날짜 형식 2차 + 가드 datefmt(반증 31→32) — 3폭 dd/mm/yyyy·12h 반영 · 자동 복귀 확인
