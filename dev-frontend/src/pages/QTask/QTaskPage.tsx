@@ -18,6 +18,7 @@ import { todayInTz, mondayOfDateStr, addDaysStr, detectBrowserTz } from '../../u
 import { inTodaySet } from '../../utils/todayTaskSet';
 import { STATUS_CODES, STATUS_COLOR, displayStatus, getStatusLabel, statusOptionsFor, type StatusCode } from '../../utils/taskLabel';
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
+import TaskQuickSearch from '../../components/QTask/TaskQuickSearch';
 import TaskDetailDrawer from '../../components/QTask/TaskDetailDrawer';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
@@ -1703,6 +1704,11 @@ const QTaskPage:React.FC=()=>{
               options={[{value:'mine',label:t('scope.mine','내 업무')},{value:'workspace',label:t('scope.workspace','전체 업무')}]}
             />
           </ScopeMobileWrap>
+          {/* #430 — 탭과 무관하게 볼 수 있는 모든 업무(끝난 것·남의 것 포함)를 제목으로 찾아 바로 연다 */}
+          {bizId && (
+            <TaskQuickSearch bizId={bizId} myId={myId} todayStr={todayStr} members={members}
+              onOpen={(id)=>{ if(detailTaskId!==id) openDetail(id); }} />
+          )}
         </Header>
 
         {/* Tabs — 내 업무 모드 (이번 주 내 / 내 전체 / 요청하기 / 지난주 내 업무보고) */}

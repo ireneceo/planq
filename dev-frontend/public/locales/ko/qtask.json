@@ -1425,5 +1425,18 @@
     "normal": "보통",
     "high": "높음",
     "urgent": "긴급"
+  },
+  "quickSearch": {
+    "open": "전체 업무에서 찾기",
+    "placeholder": "업무 제목으로 찾기",
+    "hint": "모든 탭·끝난 업무·다른 사람 업무까지 찾습니다",
+    "loading": "찾는 중…",
+    "empty": "맞는 업무가 없습니다",
+    "emptyHint": "제목에 들어간 낱말로 찾아 보세요",
+    "rel": {
+      "mine": "내 담당",
+      "requested": "내가 요청",
+      "others": "다른 사람"
+    }
   }
 }

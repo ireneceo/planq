@@ -158,6 +158,8 @@ const SUITES = {
   screenbreak: () => require('./canary-screen-break'),
   // 공유 받기 (#434 ①) — SW 캐시를 채워 같은 입구로: 파일→프로젝트 폴더(새 폴더) · 채팅→대화방 · 문서. 만든 것 정리.
   sharereceive: () => require('./canary-share-receive'),
+  // Q task 헤더 «전체 업무에서 찾기» (#430) — 3폭 버튼 가시성 · 끝난/남의 업무 검색 · 눌러서 상세 · 빈 상태 대조
+  taskquicksearch: () => require('./canary-task-quick-search'),
   // 고객 창구 상담 예약 (2026-09-25, CLIENT_ENTRY P2) — 방문자 신청(3폭) → 팀 승인(확인창이 받는 주소를 말하는가)
   //   → 방문자 «확정» · 설정 카드 3폭 · 끄면 탭이 없다(음성 대조). 서버 판정은 실 HTTP 검사가 따로 잰다.
   booking: () => require('./canary-booking'),

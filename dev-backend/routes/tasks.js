@@ -2912,6 +2912,8 @@ router.get('/by-business/:businessId/search', authenticateToken, checkBusinessAc
 
     const scope = await getUserScope(req.user.id, businessId, req.user.platform_role);
     const where = await taskListWhere(req.user.id, businessId, scope);
+    // 볼 수 있는 업무가 없는 사람(멤버도 고객도 아님) — null 에 조건을 덧붙이면 500 이 났다
+    if (!where) return successResponse(res, []);
     where.title = { [Op.like]: `%${q}%` };
     const allExcluded = [...excludeIds];
     if (excludeId) allExcluded.push(excludeId);
@@ -2920,7 +2922,8 @@ router.get('/by-business/:businessId/search', authenticateToken, checkBusinessAc
     const rows = await Task.findAll({
       where,
       include: [{ model: Project, attributes: ['id', 'name'], required: false }],
-      attributes: ['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id'],
+      // created_by·request_by_user_id — Q task 헤더 «전체 업무 찾기»(#430)가 «내 담당/내 요청/다른 사람» 을 가른다
+      attributes: ['id', 'title', 'status', 'project_id', 'due_date', 'assignee_id', 'created_by', 'request_by_user_id', 'source', 'request_ack_at', 'start_date', 'planned_week_start'],
       order: [['updated_at', 'DESC']],
       limit,
     });

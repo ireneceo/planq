@@ -1425,5 +1425,18 @@
     "normal": "Normal",
     "high": "High",
     "urgent": "Urgent"
+  },
+  "quickSearch": {
+    "open": "Find in all tasks",
+    "placeholder": "Search by task title",
+    "hint": "Searches every tab, finished tasks and other people's tasks",
+    "loading": "Searching…",
+    "empty": "No matching tasks",
+    "emptyHint": "Try a word from the title",
+    "rel": {
+      "mine": "Assigned to me",
+      "requested": "Requested by me",
+      "others": "Someone else"
+    }
   }
 }
