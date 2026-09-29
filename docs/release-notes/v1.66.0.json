@@ -1,0 +1,76 @@
+{
+  "version": "1.66.0",
+  "date": "2026-09-29",
+  "items": [
+    {
+      "ko": {
+        "title": "뒤로 가기로 패널이 닫힙니다",
+        "body": "폰에서 업무·상세 패널이나 Q helper 를 열고 뒤로 가면 패널만 닫히고 보던 화면으로 돌아갑니다. 태블릿·데스크탑에서는 X 로 닫은 업무가 뒤로 가기에 다시 열리지 않습니다."
+      },
+      "en": {
+        "title": "Back closes the panel",
+        "body": "On phones, going back from a task or detail panel (or Q helper) now just closes the panel and returns you to where you were. On tablets and desktops, a task you closed with X no longer reopens when you go back."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q task — 전체 업무에서 찾기",
+        "body": "Q task 오른쪽 위 돋보기로 탭과 상관없이 모든 업무(끝난 업무·다른 사람 업무 포함)를 제목으로 찾고 바로 엽니다."
+      },
+      "en": {
+        "title": "Q task — find in all tasks",
+        "body": "Use the magnifier at the top right of Q task to search every task by title — including finished ones and other people's — regardless of the tab, and open it right away."
+      }
+    },
+    {
+      "ko": {
+        "title": "모바일에서 메일 답장 쓰기가 편해졌습니다",
+        "body": "키보드가 올라오면 상단 헤더와 메타 줄이 접히고 버튼 줄은 따라 올라오지 않아, 원문을 보면서 답장을 쓸 수 있습니다."
+      },
+      "en": {
+        "title": "Easier email replies on mobile",
+        "body": "When the keyboard opens, the top header and info row fold away and the button row stays put, so you can read the original while you write."
+      }
+    },
+    {
+      "ko": {
+        "title": "공유 받기 — 대화방·폴더를 골라서",
+        "body": "다른 앱에서 PlanQ 로 공유하면 채팅은 대화방을 고른 뒤 입력칸에 담기고, 파일은 회사 파일이나 프로젝트의 원하는 폴더(새 폴더도 가능)에 저장됩니다. 문서로 보내면 새 문서로 열립니다."
+      },
+      "en": {
+        "title": "Sharing into PlanQ — pick a chat or folder",
+        "body": "When you share into PlanQ from another app, choose the chat and the content lands in its message box; files can be saved to company files or any project folder (you can create one). Sending to Docs opens a new document."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 폴더에 올린 파일은 프로젝트 파일로",
+        "body": "Q file 에서 프로젝트 안 폴더에 올린 파일이 그 프로젝트의 파일(프로젝트 멤버 공개)로 저장되어 프로젝트 › 파일 탭에도 보입니다."
+      },
+      "en": {
+        "title": "Files uploaded to a project folder belong to the project",
+        "body": "Files you upload into a project folder from Q file are now saved as that project's files (visible to project members) and appear in the project's Files tab."
+      }
+    },
+    {
+      "ko": {
+        "title": "날짜·시간 형식이 더 많은 화면에",
+        "body": "내 업무 설정에서 고른 날짜 순서와 12/24시간제가 프로젝트·설정·캘린더 상세·새 소식 등 대부분의 화면에 적용됩니다."
+      },
+      "en": {
+        "title": "Date & time format on more screens",
+        "body": "The date order and 12/24-hour clock you chose in My work settings now apply across most screens — projects, settings, calendar details, What's new and more."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖에",
+        "body": "폴더 안에서 [선택] 을 누르면 바로 [전체 선택] 이 보이고, 패널 위에서도 메뉴(☰)가 맨 위에 열립니다. 메뉴 이름 Q sale 은 Q sales 로 바뀌었습니다."
+      },
+      "en": {
+        "title": "Also",
+        "body": "In a folder, [Select] now shows [Select all] right away, and the menu (☰) opens on top even over panels. The Q sale menu is now called Q sales."
+      }
+    }
+  ]
+}

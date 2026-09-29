@@ -1,49 +1,74 @@
 {
   "working_on": [
-    "날짜·시간 표시 형식 1차 · #438 메일 누락 · 반복업무 자동 넘김 · 모바일 신고(#428·#431·#432·#433·#435) · 보안 설정 점검 (v1.65.0)"
+    "모바일 묶음 #437·#441·#436·#427 · #430 전체 업무 찾기 · Q sales · 프로젝트 폴더 업로드 · 날짜 형식 2차 · 공유 받기 ① · 탭 모드 뒤로 가기 (v1.66.0)"
   ],
   "in_progress": [
-    "날짜 형식 2차 — 직접 포맷 155곳 + slice 128곳 전수 적용 · 가드 datefmt"
+    "#429 동료 출퇴근 상태(멤버 전원·상태만, 고객 제외 — Irene 결정 1번) — 다음 세션"
   ],
   "completed": [
-    { "title": "날짜·시간 표시 형식 1차(users 칸 3 · 설정 카드 · 캘린더·날짜선택 주 시작)", "verified": "fable_pass" },
-    { "title": "#438 IMAP 실패 uid 커서 유지·Message-ID 없는 메일 보존·답변필요 행 reply_preview", "verified": "fable_pass" },
-    { "title": "반복업무 자동 넘김 — 워크스페이스 시간대·매시·진행중/대기 포함·포커스 세션 종료", "verified": "fable_pass" },
-    { "title": "#435 모바일 우측패널 여백·iOS 확대·버튼 글자 · 채팅 반응 팝오버", "verified": "fable_pass" },
-    { "title": "후속 5건 — 증빙신청 한도·폴더삭제 감사 상한·일정 공유 헤더·날짜선택 주 시작·카나리 정리", "verified": "fable_pass" },
-    { "title": "보안 설정 점검(공유·참조 다섯 규칙) · 업무 공유 문서 수준", "verified": "fable_pass" },
-    { "title": "#428 팝아웃 Enter · #431 알림 딥링크 · #432 새 소식 본문 · #433 폰 팝업 · 유입 퍼널", "verified": "fable_pass" }
+    {
+      "title": "#437 뒤로 가기 = 패널 닫기(폰 useBackToClose) · 탭 모드 X 닫은 업무 재열림(UrlMirror pqIdx)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "#441 메뉴 맨 위 · #436 메일 쓰기 모드 · #427 폴더 안 전체 선택",
+      "verified": "opus_only"
+    },
+    {
+      "title": "#430 Q task 헤더 전체 업무에서 찾기",
+      "verified": "opus_only"
+    },
+    {
+      "title": "표시명 Q sale → Q sales",
+      "verified": "opus_only"
+    },
+    {
+      "title": "프로젝트 폴더 업로드 = 프로젝트 파일(L2) — R=1, Fable 429 로 미검증",
+      "verified": "opus_only"
+    },
+    {
+      "title": "날짜 형식 2차(~50곳) · 가드 datefmt",
+      "verified": "opus_only"
+    },
+    {
+      "title": "#434 ① 공유 받기 — 대화방·저장 위치·문서",
+      "verified": "opus_only"
+    },
+    {
+      "title": "e2e screenbreak(18화면×3폭) · mobilepanels · sharereceive · taskquicksearch",
+      "verified": "opus_only"
+    }
   ],
   "behavior_changes": [
-    "반복업무 자동 넘김이 진행중·대기 회차도 취소한다(포커스 세션 종료, 실제시간 보존). 컨펌·보류는 제외",
-    "영어 화면의 시각이 12시간제로 표시된다(날짜 형식 자동 = 언어별)",
-    "일정 공유 버튼이 푸터 좌측 → 헤더 우측 아이콘",
-    "답변필요 행 미리보기가 마지막 받은 메일(임시답변 뒤)"
+    "폰에서 뒤로 가기가 페이지 대신 열린 패널을 닫는다",
+    "프로젝트 폴더에 올린 파일은 프로젝트 멤버에게 보인다(전: 올린 사람만)",
+    "메일 답장 중 키보드가 올라오면 앱 헤더·메타 줄이 접힌다(폰)",
+    "사이드바 시계가 12/24시간 설정을 따른다"
   ],
-  "migrations": [
-    "migrate-user-date-prefs.js (users.date_format·time_format·week_start ENUM NULL, 멱등)"
-  ],
+  "migrations": [],
   "issues": [
-    "날짜 형식 설정을 바꾸면 아직 일부 화면(캘린더·날짜선택·useTimeFormat 경유)만 따른다 — 2차 전수 적용 예정",
-    "운영 uid 59961(irene@ 계정, 2026-09-03) 1통은 이미 유실 — 이번 수정은 재발 방지"
+    "Fable 이 오늘 4회 모두 429 — 이번 배포 전체가 Fable 미검증(자체 검증). 대기열 docs/FABLE_GATE_QUEUE.md 맨 위"
   ],
   "blocked_on_human": [
-    "nginx 설정 자동 적용(sudo 허용 1회) 결정 대기",
-    "#428·431·432·433·435·438 답글 필요 — 답글 뒤 다음 배포에 장부 닫힘"
+    "#434 ② 네이티브 공유 — Apple App Group·확장 번들 ID·프로필 → Codemagic",
+    "nginx 자동 적용 결정",
+    "#427·430·436·437·441 답글(배포 후)"
   ],
   "check_areas": [
-    "내 업무 설정 › 날짜·시간 표시",
-    "Q mail 답변 필요 목록(임시답변 스레드)",
-    "반복업무 지난 회차 자동 넘김",
-    "모바일 우측 패널·팝업·채팅 반응"
+    "폰: 확인필요→업무→뒤로",
+    "Q task 돋보기 검색",
+    "폰 메일 답장 키보드",
+    "Q file 프로젝트 폴더 업로드",
+    "/share-receive",
+    "내 업무 설정 날짜 형식 → 각 화면"
   ],
   "backlog": [
-    "모바일 UI 묶음 #437·#441·#436·#427",
-    "Q sale → Q sales 영문 이름",
-    "프로젝트 폴더 업로드 파일의 프로젝트 연결(Fable 판단)"
+    "#429 동료 상태",
+    "#424 근무일수·휴일 통합(Fable 설계)",
+    "탭 모드 화면 상태 패널(확인필요) 뒤로=닫기"
   ],
   "tooling_health": [
-    "health 48/48 · guard 59/60 · tenant 0 · build EXIT 0 · Fable PASS(1차 FAIL 1건 수정 후)"
+    "guard 60/61 · build EXIT 0 · 회귀 149/149 · mobilepanels·screenbreak·sharereceive·taskquicksearch 0 실패 · Fable 미검증"
   ],
   "undeployed": []
 }
