@@ -532,6 +532,7 @@
       "selected": "{{n}} selected",
       "deletable": "{{n}} deletable",
       "selectAll": "Select all",
+      "pickHint": "Pick files or press Select all",
       "clear": "Clear",
       "move": "Move",
       "delete": "Delete",

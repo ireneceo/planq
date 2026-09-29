@@ -94,6 +94,10 @@ const Sidebar = styled.div<{ $isOpen?: boolean; $isCollapsed?: boolean; $tabMode
   transition: width 0.25s ease; overflow-x: hidden;
   ${mediaTablet} {
     transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
+    /* ★ 2026-09-29 #441 — 열린 메뉴는 **맨 위**다. 헤더의 햄버거는 우측패널(130)·Q helper(1001)가
+       떠 있어도 보이므로 누를 수 있는데, 메뉴가 100 층이면 그 패널들 **뒤로** 열려 아무 일이
+       없는 것처럼 보였다. 가운데 모달(1100↑)은 헤더까지 덮어 햄버거를 누를 수 없으니 그 아래면 된다. */
+    ${props => props.$isOpen ? 'z-index: 1060;' : ''}
     width: 240px; transition: transform 0.3s, width 0.3s ease;
     /* 높이는 --vvh(=visualViewport.height, main.tsx 가 계속 sync) 하나로 잡는다.
        ★ -webkit-fill-available 을 쓰지 않는다 — WKWebView 에서 이 값은 가시영역이 아니라
@@ -699,6 +703,8 @@ const Overlay = styled.div<{ $show?: boolean }>`
   display: ${props => props.$show ? 'block' : 'none'};
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(0,0,0,0.4); z-index: 95;
+  /* 열린 메뉴(1060) 바로 밑 — 우측패널·Q helper 위를 덮어야 바깥 탭이 메뉴를 닫는다 (#441) */
+  ${mediaTablet} { z-index: 1055; }
 `;
 
 const MobileContentPadding = styled.div`
@@ -1147,7 +1153,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
       <WhatsNewDropdown open={whatsNewOpen} onClose={() => setWhatsNewOpen(false)} anchorRef={megaphoneRef}
         items={whatsNewItems} loading={whatsNewLoading}
         onMarkAllRead={markWhatsNewSeen} onItemRead={markWhatsNewRead} />
-      <MobileHeader $tabMode={tabMode}>
+      <MobileHeader $tabMode={tabMode} data-pq-mobile-header="">
         <HamburgerButton onClick={() => setSidebarOpen(true)} aria-label={t('nav.expandSidebar')}>
           <IconHamburger />
         </HamburgerButton>
@@ -1271,7 +1277,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             <CueTrigger
               type="button"
               data-testid="nav-cue"
-              onClick={() => launchDockTool('qhelper')}
+              /* 메뉴에서 Cue 를 열면 메뉴는 닫는다 — 열린 채로 두면 헤더에 X(메뉴 닫기)가 남은 채
+                 Cue 창이 떠서 무엇을 닫는 버튼인지 알 수 없었다 (#441). */
+              onClick={() => { setSidebarOpen(false); launchDockTool('qhelper'); }}
               title={t('nav.askCue', 'Cue 에게 묻기') as string}
               aria-label={t('nav.askCue', 'Cue 에게 묻기') as string}
             >
@@ -1493,12 +1501,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   {hasBiz('owner', 'member') && (
                     <NavItem to="/sale" $isCollapsed={isCollapsed}
                       $active={isActive('/sale')}
-                      title={isCollapsed ? `${t('nav.qsale', 'Q sale')}${saleMenuCount > 0 ? ` (${saleMenuCount})` : ''}` : undefined}>
+                      title={isCollapsed ? `${t('nav.qsale', 'Q sales')}${saleMenuCount > 0 ? ` (${saleMenuCount})` : ''}` : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconSale /></NavIcon>
-                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qsale', 'Q sale')}</NavLabel>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qsale', 'Q sales')}</NavLabel>
                       {saleMenuCount > 0 && (
                         <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sale"
-                          aria-label={`${t('nav.qsale', 'Q sale')} ${saleMenuCount}`}>
+                          aria-label={`${t('nav.qsale', 'Q sales')} ${saleMenuCount}`}>
                           {saleMenuCount > 99 ? '99+' : saleMenuCount}
                         </InboxBadge>
                       )}

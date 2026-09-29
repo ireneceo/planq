@@ -863,7 +863,10 @@ export const DetailFooter = styled.div`
   padding: 14px 24px;
   border-top: 1px solid #E2E8F0;
   background: #FFFFFF;
-  max-height: 55vh;
+  /* ★ 55vh 만 쓰면 아이폰에서 거짓이다 — vh 는 키보드가 올라와도 줄지 않아(844 기준 464px)
+     답장 칸이 보이는 영역(약 500)을 다 먹고 원문이 0 으로 눌렸다(#436). 보이는 높이(--vvh)로도 상한을 건다.
+     --vvh 가 없는 환경(데스크탑 등)에서는 100vh 로 떨어져 종전과 같다. */
+  max-height: min(55vh, calc(var(--vvh, 100vh) * 0.55));
   overflow-y: auto;
   /* ★ 2026-08-24 (Irene: "에디터 영역 위로 비어서 스크롤 내리면 내용이 지저분하게 비치잖아.
      스티키할 때 위로 바짝 붙여") — sticky 의 기준선은 스크롤 컨테이너의 **콘텐츠 박스**라
@@ -946,6 +949,12 @@ export const ComposerActions = styled.div`
      (Irene 2026-08-28 "키보드 올라간 상태에서 넓게 잡혀서 이상한 여백" 과 같은 계열).
      ※ 이 주석에 백틱을 쓰지 말 것 — styled 템플릿 리터럴이 그 자리에서 끊긴다. */
   padding: 10px 24px calc(14px + var(--pq-safe-bottom, 0px));
+  /* 폰에서 키보드가 올라오면 버튼 줄은 **따라 올라오지 않는다** (#436 — "키보드 올라오면 버튼이 꼭 같이
+     올라와야 해?"). 붙박이로 두면 키보드 바로 위 69px 을 늘 차지해 쓰는 칸이 그만큼 준다.
+     본문 끝에 두면 다 쓴 뒤 내려서 누른다. 키보드를 내리면 다시 바닥에 붙는다. */
+  @media (max-width: 768px) {
+    body[data-keyboard-up='1'] & { position: static; margin-bottom: 0; }
+  }
 `;
 // #192 — AI 초안 수정 요청 입력. 초안이 있을 때만 노출. 지시를 넣고 "다시 생성" 하면 refine.
 export const AiInstructionRow = styled.div`

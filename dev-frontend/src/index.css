@@ -225,6 +225,26 @@ html.pq-native body::after {
     --pq-safe-bottom: 0px;
   }
 
+  /* ★ 쓰기 모드 (2026-09-29 #436 — Irene: "메일 답장하기를 모바일에서 했더니 수정하려고 키보드
+     올리면 내용이 아예 안보여. 헤더가 너무 많이 내려와 있기도 하고 … 내용을 보면서 메일 수정
+     가능하게").
+     키보드가 올라오면 보이는 높이가 절반이 된다(iPhone 844 → 약 500). 그 절반을 앱 헤더(56+상태바)·
+     메타 줄·버튼 줄이 나눠 먹어 정작 읽을 원문이 0 에 가깝게 눌렸다(실측 16px).
+     글을 쓰는 동안에는 **쓰는 것과 읽는 것만** 남긴다:
+       · 앱 헤더(햄버거·로고)를 접는다 — 상태바 자리만 칠한다(--pq-mobile-header 0 → 크롬 = safe-top).
+       · data-pq-writing-hide 가 붙은 줄(메타·칩)을 숨긴다.
+     발동 조건은 **키보드 up + 포커스가 data-pq-writing 안** 둘 다다. 표식을 단 화면만 바뀐다 —
+     채팅처럼 입력하면서 머리말을 봐야 하는 화면은 표식을 달지 않는다. 키보드를 내리면 즉시 원래대로. */
+  html:has(body[data-keyboard-up='1'] [data-pq-writing]:focus-within) {
+    --pq-mobile-header: 0px;
+  }
+  body[data-keyboard-up='1']:has([data-pq-writing]:focus-within) [data-pq-mobile-header] > * {
+    visibility: hidden;
+  }
+  body[data-keyboard-up='1']:has([data-pq-writing]:focus-within) [data-pq-writing-hide] {
+    display: none !important;
+  }
+
   /* 뷰포트 고정 락은 앱 셸(MainLayout·팝아웃)에만 opt-in.
      `pq-app-shell` 클래스는 useAppShellLock() 이 <html> 에 부여한다.
      이 클래스가 없으면(랜딩/회원가입/로그인/공개 위키·공유 등) body 가 정상

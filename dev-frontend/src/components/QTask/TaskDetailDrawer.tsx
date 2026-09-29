@@ -56,6 +56,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { CheckIcon } from '../Common/Icons';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { useBackToClose } from '../../hooks/useBackToClose';
 import SeriesScopeDialog, { type SeriesScope } from './SeriesScopeDialog';
 import { isSeriesTask, needsSeriesScope } from '../../utils/taskSeries';
 import { isEnterAction } from '../../utils/imeKey';
@@ -232,6 +233,8 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const drawerRef = useRef<HTMLElement>(null);
   useBodyScrollLock(!!taskId);
   useEscapeStack(!!taskId, onClose);
+  // 폰·태블릿: 뒤로 가기 = 업무 상세 닫기 (#437). 주소로 연 경우(?task=)는 훅이 알아서 비킨다.
+  useBackToClose(!!taskId, onClose);
   // 이 인스턴스가 "보류 직후 재마운트된 것" 인지 마운트 시 한 번만 판정하고 즉시 소비한다.
   const resumeFocusRef = useRef<boolean | null>(null);
   if (resumeFocusRef.current === null) {

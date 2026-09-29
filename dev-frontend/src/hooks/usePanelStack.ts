@@ -16,6 +16,7 @@
 //
 // 이 훅은 "무엇을 보여줄지" 만 정한다. 그리기는 각 페이지가 한다(점진 이관 가능).
 import { useCallback, useEffect, useState } from 'react';
+import { useBackToClose } from './useBackToClose';
 import { PANEL_BP } from '../theme/tokens';
 
 export type PanelPane = 'list' | 'detail' | 'aside';
@@ -82,6 +83,10 @@ export function usePanelStack(
   const showList = drilldown ? active === 'list' : true;
   const showDetail = drilldown ? active === 'detail' : hasDetail || cols >= 2;
   const showAside = hasAside && (drilldown ? active === 'aside' : (cols === 3 ? true : asideOpen));
+
+  // 보조 패널이 오버레이/드릴다운으로 떠 있을 때 뒤로 가기 = 그 패널 닫기 (#437). 3단에선 붙박이라 제외.
+  const closeAside = useCallback(() => setAsideOpen(false), []);
+  useBackToClose(hasAside && asideOpen && cols < 3, closeAside);
 
   const goBack = useCallback((): boolean => {
     if (asideOpen) { setAsideOpen(false); return true; }

@@ -152,6 +152,10 @@ const SUITES = {
   // 게스트 링크가 **누가 보낸 것인지 말하는가** (2026-09-24, CLIENT_ENTRY P0-①) — 이 무인증 표면을 재는
   //   첫 검사. 응답 원문 화이트리스트 · 외부 로고 차단 · 3폭 가시성 · workspace 제거 대조군 · 회수 404.
   guestentry: () => require('./canary-guest-entry'),
+  // 폰·태블릿 우측패널 뒤로=닫기 · 메뉴 맨 위 · 메일 쓰기 모드 · 폴더 전체 선택 (2026-09-29, #437·#441·#436·#427)
+  mobilepanels: () => require('./canary-mobile-panels'),
+  // 화면 깨짐 전수 점검 — 주요 18화면 × 3폭 가로 넘침·버튼 겹침·안 그려진 버튼 (2026-09-29, 대조군 포함)
+  screenbreak: () => require('./canary-screen-break'),
   // 고객 창구 상담 예약 (2026-09-25, CLIENT_ENTRY P2) — 방문자 신청(3폭) → 팀 승인(확인창이 받는 주소를 말하는가)
   //   → 방문자 «확정» · 설정 카드 3폭 · 끄면 탭이 없다(음성 대조). 서버 판정은 실 HTTP 검사가 따로 잰다.
   booking: () => require('./canary-booking'),

@@ -235,6 +235,11 @@ const Banner = styled.div`
     padding: 8px 36px 8px 10px;
     margin-bottom: 8px;
   }
+  /* 키보드가 올라온 동안에는 숨긴다 — 인플로우 배너가 세로를 먹으면 입력칸이 밀려난다(CLAUDE.md §17,
+     InstallPromptBanner 와 같은 계약). #436 메일 답장에서 이 배너가 보이는 영역 337 중 52 를 먹고 있었다. */
+  @media (max-width: 768px) {
+    body[data-keyboard-up='1'] & { display: none; }
+  }
 `;
 const BellIcon = styled.div`
   width: 36px; height: 36px; flex-shrink: 0;

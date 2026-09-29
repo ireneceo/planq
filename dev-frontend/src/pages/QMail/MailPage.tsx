@@ -54,6 +54,7 @@ import { makePendingMessage, nextTempId, insertPending, removePending, replacePe
 import { useThreadMessageExpansion } from './useThreadMessageExpansion';
 import FloatingPanelToggle from '../../components/Common/FloatingPanelToggle';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useBackToClose } from '../../hooks/useBackToClose';
 import HelpDot from '../../components/Common/HelpDot';
 import MailMessageBody from './MailMessageBody';
 import { isEnterAction } from '../../utils/imeKey';
@@ -1999,6 +2000,9 @@ const MailPage: React.FC = () => {
   const ctxAvailable = !!detail && !!businessId && !composeOpen;
   const [ctxOverlayOpen, setCtxOverlayOpen] = useState(false);
   useBodyScrollLock(ctxNarrow && ctxOverlayOpen);
+  // 좁은 폭 맥락 패널 오버레이: 뒤로 가기 = 닫기 (#437)
+  const closeCtxOverlay = useCallback(() => setCtxOverlayOpen(false), []);
+  useBackToClose(ctxNarrow && ctxOverlayOpen, closeCtxOverlay);
   // #262 M2 — 최신 메시지만 펼친 채 시작 (접기 상태·스크롤 앵커). 훅으로 절출.
   const { expandedMsgIds, toggleMsg, scrollRef } = useThreadMessageExpansion(
     detail ? detail.id : null,
@@ -2462,7 +2466,7 @@ const MailPage: React.FC = () => {
                         같이 쓰지 않는다 — 2026-09-17 에 그 때문에 목록이 "같은 표시가 두 번" 으로 읽혔다.
                       ★ 서버가 판정을 못 했으면 필드가 없고, 그때는 **아무 것도 그리지 않는다.** */}
                   {mt.is_inquiry === true && (
-                    <InquiryBadge title={t('inquiryBadgeHint', { defaultValue: 'Q sale 상담 목록에 들어오는 메일입니다' }) as string}>
+                    <InquiryBadge title={t('inquiryBadgeHint', { defaultValue: 'Q sales 상담 목록에 들어오는 메일입니다' }) as string}>
                       {t('inquiryBadge', { defaultValue: '문의' }) as string}
                     </InquiryBadge>
                   )}
@@ -2634,7 +2638,7 @@ const MailPage: React.FC = () => {
           )}
           {composeOpen ? (
             /* 메일 작성 — 중앙 패널 풀페이지(센터모달 폐기, Fable 승인). 좌측 리스트 유지·맥락패널 숨김. */
-            <ComposeFull data-testid="mail-compose-panel">
+            <ComposeFull data-testid="mail-compose-panel" data-pq-writing="">
               {/* ★ 2026-09-07 — 상세와 **같은 밴드1**(PanelHeader 60px)로 통일한다.
                   Irene: "우측패널은 돌아가기 있고 닫기도 나온다. 이게 좋겠네. 다 통일하는 거."
                   좁은 화면에서 목록이 접혀 있을 때만 돌아가기를 띄운다 — 데스크탑은 목록이
@@ -2841,7 +2845,7 @@ const MailPage: React.FC = () => {
                 </DetailHeaderRight>
               </PanelHeader>
               {/* 밴드2 — 좌: 이 스레드의 **상태**(메시지 수·고객·담당·라벨) / 우: 자주 쓰는 액션 3개. */}
-              <DetailMetaBar data-testid="detail-meta-bar">
+              <DetailMetaBar data-testid="detail-meta-bar" data-pq-writing-hide="">
                 <DetailMetaLeft>
                   {/* ★ 2026-09-07 — 좁은 폰에서는 감춘다. 밴드2 를 한 줄로 만들려면 여기서 자리를
                       내줘야 하는데(실측 390px: 좌 243 + 우 145 = 388 > 쓸 수 있는 362), 이 칩이
@@ -2971,7 +2975,7 @@ const MailPage: React.FC = () => {
                     $on={promoteDone === detail.id}
                     data-testid="mail-detail-promote-sale-inline"
                     onClick={() => { void promoteThread(detail.id); }}
-                    title={t('actions.promoteToSaleHint', { defaultValue: '이 메일을 Q sale 상담 목록으로 보냅니다' }) as string}
+                    title={t('actions.promoteToSaleHint', { defaultValue: '이 메일을 Q sales 상담 목록으로 보냅니다' }) as string}
                   >
                     {promoteDone === detail.id
                       ? t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string
@@ -3008,7 +3012,7 @@ const MailPage: React.FC = () => {
                   t={t}
                 />
               </MessagesScroll>
-              <DetailFooter>
+              <DetailFooter data-pq-writing="">
                 {!replyOpen ? (
                   <ReplyBar>
                     <ActionButton tone="primary" size="md" data-testid="mail-reply-open" onClick={() => setReplyOpen(true)}>

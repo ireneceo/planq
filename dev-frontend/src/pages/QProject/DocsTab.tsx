@@ -7,6 +7,7 @@ import type { TFunction } from 'i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
 import { FolderSvg, FolderOpenSvg, AllSvg, MyFilesSvg, PlusSvg, FolderMoveSvg, SystemFolderIcon } from './docs/treeIcons';
+import { BulkBar, BulkBarLeft, BulkBarRight, BulkBtnSep, BulkBtn } from './docs/bulkBarStyles';
 import {
   TreeRoot, TreeDivider, FolderRow, FolderIconWrap, SectionRow, FolderSectionLabel, EmptyHint, RowPlusBtn, FolderNewBtn, RenameInput
 } from './docs/treeStyles';
@@ -57,6 +58,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import { openDriveEditor } from '../../utils/driveEdit';
 import { useFolderEditing } from './docs/useFolderEditing';
 import { SecondaryBtn, PrimaryBtn, DangerBtn, Modal, Dialog, DTitle, DBody, DFooter } from './docs/dialogStyles';
+import { formatDay } from '../../utils/dateFormat';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -818,6 +820,16 @@ const DocsTab: React.FC<Props> = (props) => {
     void e;
   };
   const selectAllVisible = () => setSelectedIds(new Set(visible.map(f => f.id)));
+  // 폰에서는 폴더 트리가 목록 **위에** 쌓여 선택 줄이 화면 밖(아래)에 생긴다 — [선택] 을 눌러도 아무 변화가
+  //   없어 보였다(#427 실측 y 990 / 화면 844). 선택 모드에 들어가면 그 줄을 화면 안으로 끌어온다.
+  const bulkBarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!selectMode) return;
+    const el = bulkBarRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > window.innerHeight) el.scrollIntoView({ block: 'nearest' });
+  }, [selectMode]);
   const clearSelection = () => setSelectedIds(new Set());
 
   const onBulkDeleteConfirmed = useCallback(async () => {
@@ -1355,15 +1367,20 @@ const DocsTab: React.FC<Props> = (props) => {
         )}
 
         <FilesArea ref={filesAreaRef}>
-          {selectMode && selectedIds.size > 0 && (
-            <BulkBar>
+          {/* ★ 2026-09-29 #427 (Irene: "폴더 통삭제는 있는데 폴더 안에서 전체삭제가 없어.")
+              여태 이 줄은 **하나라도 고른 뒤에만** 떴다 — [전체 선택]이 이 줄 안에 있으니, 선택 모드를
+              켜도 격자 보기에는 전체를 고를 문이 없었다(목록 보기의 머리 체크박스뿐). 선택 모드면 늘 띄운다. */}
+          {selectMode && (
+            <BulkBar ref={bulkBarRef} data-testid="files-bulk-bar">
               <BulkBarLeft>
                 <strong>{t('docs.bulk.selected', '{{n}}개 선택됨', { n: selectedIds.size })}</strong>
-                <span>· {t('docs.bulk.deletable', '삭제 가능 {{n}}개', { n: selectedDeletable.length })}</span>
+                {selectedIds.size > 0
+                  ? <span>· {t('docs.bulk.deletable', '삭제 가능 {{n}}개', { n: selectedDeletable.length })}</span>
+                  : <span>· {t('docs.bulk.pickHint', '파일을 고르거나 전체 선택을 누르세요')}</span>}
               </BulkBarLeft>
               <BulkBarRight>
-                <BulkBtn type="button" onClick={selectAllVisible}>{t('docs.bulk.selectAll', '전체 선택')}</BulkBtn>
-                <BulkBtn type="button" onClick={clearSelection}>{t('docs.bulk.clear', '해제')}</BulkBtn>
+                <BulkBtn type="button" data-testid="files-bulk-select-all" disabled={visible.length === 0} onClick={selectAllVisible}>{t('docs.bulk.selectAll', '전체 선택')}</BulkBtn>
+                <BulkBtn type="button" disabled={selectedIds.size === 0} onClick={clearSelection}>{t('docs.bulk.clear', '해제')}</BulkBtn>
                 <BulkBtnSep />
                 <BulkBtn type="button" $primary
                   disabled={selectedDownloadable.length === 0 || downloading}
@@ -1406,7 +1423,7 @@ const DocsTab: React.FC<Props> = (props) => {
             <ShareLinkBar>
               <strong>{t('docs.bulk.shareCreated', '공유 링크 생성 — 클립보드에 복사됨')}</strong>
               <ShareUrl>{shareLinkInfo.url}</ShareUrl>
-              <small>{t('docs.bulk.shareExpires', '만료: {{date}}', { date: new Date(shareLinkInfo.expires).toLocaleDateString() })}</small>
+              <small>{t('docs.bulk.shareExpires', '만료: {{date}}', { date: formatDay(shareLinkInfo.expires, { year: 'always' }) })}</small>
               <BulkBtn type="button" onClick={() => setShareLinkInfo(null)}>{t('common.close', '닫기')}</BulkBtn>
             </ShareLinkBar>
           )}
@@ -2686,32 +2703,6 @@ const SkIcon = styled.div`
 // Bulk bar
 // 액션 바 — UI_DESIGN_GUIDE 1.7 액션 버튼 3톤 규칙 준수.
 // 흰 배경 + 옅은 그림자, Primary teal CTA / Secondary gray outline / Danger red outline.
-const BulkBar = styled.div`
-  position:sticky;top:0;z-index:5;
-  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-  padding:10px 14px;background:#FFFFFF;color:#0F172A;border-radius:10px;
-  border:1px solid #E2E8F0;
-  box-shadow:0 1px 2px rgba(15,23,42,.05);
-`;
-const BulkBarLeft = styled.div`display:flex;gap:8px;align-items:baseline;font-size:0.8125rem;color:#0F172A;
-  strong{font-weight:700;}
-  span{color:#64748B;font-size:0.6875rem;}
-`;
-const BulkBarRight = styled.div`display:flex;gap:6px;align-items:center;flex-wrap:wrap;`;
-const BulkBtnSep = styled.div`width:1px;height:18px;background:#E2E8F0;margin:0 4px;`;
-const BulkBtn = styled.button<{ $danger?: boolean; $primary?: boolean }>`
-  height:28px;padding:0 12px;
-  background:${p => p.$primary ? '#14B8A6' : '#FFFFFF'};
-  color:${p => p.$primary ? '#FFFFFF' : (p.$danger ? '#DC2626' : '#334155')};
-  border:1px solid ${p => p.$primary ? '#14B8A6' : (p.$danger ? '#FECACA' : '#E2E8F0')};
-  border-radius:6px;font-size:0.75rem;font-weight:600;cursor:pointer;
-  transition:background .15s, border-color .15s;
-  &:hover:not(:disabled){
-    background:${p => p.$primary ? '#0D9488' : (p.$danger ? '#FEF2F2' : '#F8FAFC')};
-    border-color:${p => p.$primary ? '#0D9488' : (p.$danger ? '#FCA5A5' : '#CBD5E1')};
-  }
-  &:disabled{opacity:.4;cursor:not-allowed;}
-`;
 /* 받는 중 표시 — 아이콘 자리에 그대로 들어가 버튼 크기를 흔들지 않는다 */
 const DownloadingText = styled.span`
   font-size: 0.625rem; font-weight: 700; line-height: 1; white-space: nowrap;

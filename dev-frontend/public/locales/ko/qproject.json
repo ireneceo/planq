@@ -532,6 +532,7 @@
       "selected": "{{n}}개 선택됨",
       "deletable": "삭제 가능 {{n}}개",
       "selectAll": "전체 선택",
+      "pickHint": "파일을 고르거나 전체 선택을 누르세요",
       "clear": "해제",
       "move": "이동",
       "delete": "삭제",

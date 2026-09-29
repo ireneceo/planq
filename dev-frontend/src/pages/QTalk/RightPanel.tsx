@@ -11,6 +11,7 @@ import LetterAvatar from '../../components/Common/LetterAvatar';
 import FloatingPanelToggle, { PANEL_WIDTH_CSS } from '../../components/Common/FloatingPanelToggle';
 import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useBackToClose } from '../../hooks/useBackToClose';
 import TaskCandidateCard from '../../components/Common/TaskCandidateCard';
 import type { RegisterCandidateOverrides } from '../../services/qtalk';
 import NoteThread from '../../components/Common/NoteThread';
@@ -163,6 +164,9 @@ const RightPanel: React.FC<Props> = ({
 
   const isNarrow = useIsNarrow(1200);
   const [narrowOpen, setNarrowOpen] = useState(false);
+  // 좁은 폭 오버레이 작업대: 뒤로 가기 = 닫기 (#437)
+  const closeNarrow = React.useCallback(() => setNarrowOpen(false), []);
+  useBackToClose(isNarrow && narrowOpen, closeNarrow);
   useBodyScrollLock(isNarrow && narrowOpen);
 
   // 키보드 토글 — ⌘/ (mac) · Ctrl+\ (win)
