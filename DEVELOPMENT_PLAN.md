@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-29 오후 ([Opus] Opus 5.5) — 모바일 #437·#441·#436·#427 · Q sales · 프로젝트 폴더 업로드 · 날짜 형식 2차 · 공유 받기 ①. **미배포**.
+> **최종 업데이트:** 2026-09-29 밤 ([Opus] Opus 5.5) — **v1.66.0 운영 배포** (Fable 429 ×4 → 미검증·대기열). 모바일 #437·#441·#436·#427 · #430 전체 업무 찾기 · 탭 모드 뒤로 가기 · Q sales · 프로젝트 폴더 업로드 · 날짜 형식 2차 · 공유 받기 ①.
 > ── 이전(2026-09-29 오전) ──
 > **v1.65.0 운영 배포** (Fable PASS). #438 메일 누락 구멍 2 · 답변필요 행 미리보기 · 자잘한 후속 5건 · 자동 넘김 포커스 세션 종료. 09-26~28 분(날짜 형식 1차·반복업무·#428·431·432·433·435·보안 점검)도 함께 나감.
 > ── 이전(2026-09-28) ──
@@ -15,7 +15,24 @@
 
 ---
 
-## ✅ 2026-09-29 오후 [Opus] — 모바일 묶음 · Q sales · 날짜 형식 2차 · 공유 받기 · **미배포**
+## ✅ 2026-09-29 밤 [Opus] — v1.66.0 배포 · #430 · 탭 모드 뒤로 가기
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 탭 모드 뒤로 가기 | X 로 닫은 업무가 뒤로 가기에 재열림 → UrlMirror pqIdx·trail(닫기 replace = back) · TabAppShell pqIdx 보존 | ✅ `5eb699e7` |
+| #430 전체 업무 찾기 | Q task 헤더 돋보기 → 기존 search 라우트(칸 6 추가·null 범위 500→[]) · e2e `taskquicksearch` 18/18 | ✅ `96aa28b4` |
+| v1.66.0 배포 | 헬스 200 · PM2 3 online · 릴리즈노트 발행 · 운영 도움말 시드 · #427·430·436·437·441 답글+닫기 | ✅ backup `20260929_180016` |
+| #429 동료 상태 | Irene 결정 1번(멤버 전원·상태만·고객 제외) — 기존 `/api/attendance/presence` 사용. 훅 초안만(저장소 밖 보관), **다음 세션** | ⏳ |
+
+### 수정된 파일
+- `dev-frontend/src/components/Tab/{UrlMirror,TabAppShell}.tsx` · `stores/tabHistory.ts` · `hooks/useBackToClose.ts`
+- `dev-frontend/src/components/QTask/TaskQuickSearch.tsx`(신규) · `pages/QTask/QTaskPage.tsx` · `dev-backend/routes/tasks.js` · locales qtask
+- `dev-backend/seed-wiki-content.js`(create-task 에 돋보기 안내 — dev 시드 완료, **운영은 다음 배포 뒤**) · `CLAUDE.md`(뒤로 가기 계약)
+- `scripts/e2e/canary-{mobile-panels,task-quick-search}.js`
+
+---
+
+## ✅ 2026-09-29 오후 [Opus] — 모바일 묶음 · Q sales · 날짜 형식 2차 · 공유 받기 · (v1.66.0 로 배포)
 
 | 작업 | 설명 | 상태 |
 |---|---|:-:|

@@ -1475,6 +1475,18 @@ useBodyScrollLock(open);                 // ★ **가운데 모달에만.** 우�
 
 **키보드 단축키 표준:** 우측 패널 토글은 `⌘/` (mac) · `Ctrl+\` (win). Q Task · Q Talk 에 구현됨.
 
+### 뒤로 가기 = 패널 닫기 (2026-09-29 박제 — 운영 #437)
+> Irene: *"확인필요에서 업무 누르면 닫지도 못하고 뒤로도 못가고 … 다른 우측패널도 다 동일해야 할 듯 해. 헬프도."*
+
+- **폰(미러 모드)** — `hooks/useBackToClose(open, onClose)` 가 패널이 열릴 때 같은 주소로 히스토리 한 칸을 쌓고,
+  뒤로 가면 닫고, X 로 닫으면 칸을 스스로 걷는다. `DetailDrawer`·`TaskDetailDrawer`·`CueHelpDrawer`·`usePanelStack`·
+  Q Talk/Q mail 작업대 오버레이에 붙어 있다. **새 오버레이 패널도 이 훅 한 줄**을 붙인다.
+- **탭 모드(폭 550↑ — 태블릿·데스크탑)** — 훅은 비킨다. 히스토리 주인은 `components/Tab/UrlMirror` **하나**다:
+  탭 안 이동은 push, 단 replace 가 **바로 전 칸 주소로 돌아가는 것**(= 닫기)이면 `history.back()`(칸 번호 `pqIdx`·`trail`).
+  `TabAppShell` 은 같은 주소를 다시 쓸 때 `pqIdx` 를 보존한다 — 통째로 덮으면 X 로 닫은 업무가 뒤로 가기에 다시 열린다.
+- ★ 둘이 같이 쌓으면 엇갈린다 — 탭 안 효과는 브라우저 타이머보다도 늦게 돌아 훅이 창 주소를 믿을 수 없다(실측).
+- 회귀: `--suite mobilepanels`(3폭 ①·①b).
+
 > ★ **"프리미티브는 이미 내장" 을 믿지 말 것 (2026-09-13).** 가운데 모달의 공용 껍데기
 > `components/UI/Modal.tsx` 에는 **세 훅이 하나도 없었고 `role="dialog"`·`aria-modal` 도 없었다.**
 > `ConfirmDialog` 를 비롯해 **15곳**이 그 상태였다 — Esc 로 닫히지 않고, 열린 동안 배경이 스크롤되고,

@@ -1,0 +1,98 @@
+// 동료의 **오늘 근무 상태**(근무중·휴게중·퇴근·미출근·휴가) — 워크스페이스 멤버끼리 (2026-09-29, 운영 #429)
+//
+//   Irene: "출근 표시있는 곳 근처에 직원들 출퇴근 및 상태 볼 수 없어? 그리고 아이디들에도 채팅에? 거기도 표시되서
+//           업무대화에 참고하게." → 결정: 멤버 전원이 서로의 **상태만** 본다(시각·기록 없음) · 고객에게는 안 보인다.
+//
+//   ★ 새 API 없음 — `GET /api/attendance/presence` 가 이미 «멤버 전원 — 뱃지만» 으로 있었다(관리자 설정 화면만 썼다).
+//     고객·비멤버는 서버가 403 이고, 실시간 `attendance:updated` 는 멤버만 들어가는 business 방으로만 간다.
+//   ★ 워크스페이스당 **한 번만** 부른다 — 사이드바·채팅 이름 옆 점 여러 개가 같은 저장소를 나눠 본다
+//     (컴포넌트마다 부르면 채팅 한 화면에서 수십 번 요청이 나간다).
+import { useEffect, useSyncExternalStore } from 'react';
+import { apiFetch } from '../contexts/AuthContext';
+import { onSocket, joinRoom, leaveRoom } from '../services/socket';
+
+export type PresenceState = 'working' | 'on_break' | 'done' | 'none' | 'leave';
+export interface Presence { state: PresenceState }
+
+type Store = { map: Map<number, Presence>; loaded: boolean; forbidden: boolean };
+const stores = new Map<number, Store>();
+const subs = new Map<number, Set<() => void>>();
+const refCount = new Map<number, number>();
+const inflight = new Map<number, Promise<void>>();
+const EMPTY: Store = { map: new Map(), loaded: false, forbidden: false };
+
+function emit(biz: number) { (subs.get(biz) || new Set()).forEach((f) => f()); }
+
+function toState(row: { state: string | null; on_leave_today: boolean }): PresenceState {
+  // 휴가가 근무 기록보다 앞선다 — 휴가인데 실수로 출근이 찍혀도 동료에게 필요한 정보는 «오늘 휴가» 다
+  if (row.on_leave_today) return 'leave';
+  if (row.state === 'working' || row.state === 'on_break' || row.state === 'done') return row.state;
+  return 'none';
+}
+
+async function load(biz: number): Promise<void> {
+  if (inflight.has(biz)) return inflight.get(biz);
+  const p = (async () => {
+    try {
+      const r = await apiFetch(`/api/attendance/presence?business_id=${biz}`);
+      if (r.status === 403) { stores.set(biz, { map: new Map(), loaded: true, forbidden: true }); return; }
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success || !Array.isArray(j.data)) return; // 일시 실패 — 보던 값을 유지한다
+      const map = new Map<number, Presence>();
+      for (const row of j.data) map.set(Number(row.user_id), { state: toState(row) });
+      stores.set(biz, { map, loaded: true, forbidden: false });
+    } finally {
+      inflight.delete(biz);
+      emit(biz);
+    }
+  })();
+  inflight.set(biz, p);
+  return p;
+}
+
+let debounce: number | undefined;
+function reloadSoon(biz: number) {
+  window.clearTimeout(debounce);
+  debounce = window.setTimeout(() => { void load(biz); }, 250);
+}
+
+/** 워크스페이스 멤버들의 오늘 상태. bizId 가 없거나 고객이면 빈 지도(forbidden). */
+export function useTeamPresence(bizId: number | null | undefined): Store {
+  const biz = bizId ? Number(bizId) : 0;
+  const snap = useSyncExternalStore(
+    (cb) => {
+      if (!biz) return () => {};
+      const set = subs.get(biz) || new Set();
+      set.add(cb); subs.set(biz, set);
+      return () => { set.delete(cb); };
+    },
+    () => (biz ? stores.get(biz) || EMPTY : EMPTY),
+  );
+
+  useEffect(() => {
+    if (!biz) return undefined;
+    const n = (refCount.get(biz) || 0) + 1;
+    refCount.set(biz, n);
+    if (!stores.get(biz)) void load(biz);
+    let offSock: (() => void) | null = null;
+    const onVis = () => { if (document.visibilityState === 'visible') reloadSoon(biz); };
+    if (n === 1) {
+      joinRoom(`business:${biz}`);
+      offSock = onSocket('attendance:updated', () => reloadSoon(biz));
+      document.addEventListener('visibilitychange', onVis);
+      window.addEventListener('focus', onVis);
+    }
+    return () => {
+      const m = (refCount.get(biz) || 1) - 1;
+      refCount.set(biz, m);
+      if (offSock) {
+        offSock();
+        leaveRoom(`business:${biz}`);
+        document.removeEventListener('visibilitychange', onVis);
+        window.removeEventListener('focus', onVis);
+      }
+    };
+  }, [biz]);
+
+  return snap;
+}

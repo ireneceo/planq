@@ -325,6 +325,10 @@ const ARTICLES = [
         'If a deliverable needs changing, send it back with “Request changes” during review. If you are not the assignee, that area is marked read-only.'),
       note('업무 삭제·프로젝트 이관 같은 관리 기능은 종전대로 소유자·관리자가 할 수 있습니다. 바뀐 것은 "누가 그 칸의 내용을 쓰는가" 뿐입니다.',
         'Management actions such as deleting a task or moving it between projects remain available to owners and admins. What changed is only who writes the content of each field.'),
+      // 2026-09-29 #430 — 탭과 무관한 업무 찾기
+      s('지나간 업무나 남의 업무는 오른쪽 위 돋보기로 찾습니다.', 'Find past tasks or other people’s tasks with the magnifier at the top right.'),
+      p('돋보기(전체 업무에서 찾기)는 지금 보고 있는 탭과 상관없이, 볼 수 있는 모든 업무를 제목으로 찾습니다 — 끝난 업무·다른 사람 업무도 나옵니다. 결과마다 나와의 관계(내 담당 / 내가 요청 / 다른 사람)가 보이고, 누르면 그 업무가 바로 열립니다.',
+        'The magnifier (Find in all tasks) searches every task you can see by title, whatever tab you are on — finished tasks and other people’s tasks included. Each result shows how it relates to you (assigned to me / requested by me / someone else), and clicking it opens the task.'),
     ] },
   { cat: 'qtask', slug: 'task-importance', visibility: 'authenticated', linked_route: '/tasks', est: 2,
     title: t('업무 중요도 — 무엇을 먼저 볼지 표시하기', 'Task importance — marking what to look at first'),
