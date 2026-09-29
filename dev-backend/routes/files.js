@@ -630,7 +630,20 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
     }
 
     const businessId = Number(req.params.businessId);
-    const projectId = req.body.project_id ? Number(req.body.project_id) : null;
+    const folderId = req.body.folder_id ? Number(req.body.folder_id) : null;
+    // ★ 2026-09-29 (결정 5-a) — **프로젝트 폴더에 올린 파일은 그 프로젝트의 파일이다.**
+    //   Q file(워크스페이스 모드)의 좌측 트리에서 프로젝트 밑 폴더를 골라 올리면 화면은 folder_id 만 보낸다.
+    //   그러면 project_id=null·L1(개인)로 저장돼 **프로젝트 > 파일 탭에는 폴더만 있고 파일이 안 보였다**
+    //   (올린 사람만 Q file 에서 본다). 같은 폴더에 프로젝트 탭에서 올리면 L2 프로젝트 파일이 되는데,
+    //   들어온 문에 따라 같은 폴더의 파일이 둘로 갈렸다. 폴더가 곧 소속이다 — 폴더의 프로젝트를 쓴다.
+    //   가시성은 L1 → L2(프로젝트 멤버)로 넓어진다. 프로젝트 탭에서 올린 것과 **같은 결과**라서
+    //   새 권한이 생기는 것은 아니다(그 문도 워크스페이스 멤버면 누구나 연다 — verifyProjectOwnership 는 소속만 본다).
+    //   ★ 본문 인라인 이미지(inline=1|private)는 폴더를 보내지 않으므로 이 분기를 타지 않는다.
+    let projectId = req.body.project_id ? Number(req.body.project_id) : null;
+    if (!projectId && folderId) {
+      const f = await FileFolder.findOne({ where: { id: folderId, business_id: businessId }, attributes: ['id', 'project_id'] });
+      if (f && f.project_id) projectId = Number(f.project_id);
+    }
     // ★ 운영 #378 후속 — **본문에 넣은 이미지는 그 글과 같은 노출 범위**여야 한다.
     //   일반 파일 업로드의 기본값은 개인(L1)이 맞지만, 에디터 본문 인라인은 다르다:
     //   글은 팀에 보이는데 그 안의 그림만 개인이면, 남들에게는 **글은 보이고 그림만 깨진다.**
@@ -648,7 +661,6 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
     const isInline = inlineMode === '1' || inlineMode === 'private';
     const uploadLevel = inlineMode === 'private' ? 'L1'
       : (projectId ? 'L2' : (isInline ? 'L3' : 'L1'));
-    const folderId = req.body.folder_id ? Number(req.body.folder_id) : null;
     // 채팅/대화에서 올라온 첨부 — project_id 없어도 Drive 의 "Conversations" 폴더로 라우팅 가능
     const conversationId = req.body.conversation_id ? Number(req.body.conversation_id) : null;
 
