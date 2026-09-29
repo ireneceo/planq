@@ -216,6 +216,8 @@ interface Thread {
   reply_needed_at?: string | null;
   /** 'holding' = 임시 답변을 보내고 답변 필요에 남겨 둔 것 (2026-09-10) */
   reply_needed_reason?: string | null;
+  /** 답변 필요인데 마지막이 우리 메일(임시 답변)일 때 — 기다리는 **마지막 받은 메일** 미리보기 (#438) */
+  reply_preview?: string | null;
   /** 이 스레드가 Q sale 의 «상담» 기준에 드는가 — 서버가 `saleInbox.classifyMailThreads`
    *  **한 함수**로 판정해 내려준다(#421). 판정을 못 했으면 필드가 아예 없다
    *  (false 를 붙이면 "문의가 아니다" 라고 단언하는 것이라 거짓이 된다). */
@@ -2405,7 +2407,9 @@ const MailPage: React.FC = () => {
                         1건이라도 있으면 포함) 상대가 답장한 스레드도 들어오는데, 태그는 *마지막* 메시지
                         방향을 보므로 같은 폴더 안에서 태그가 붙었다 안 붙었다 했다
                         (Irene: "왜 [보낸]이란 표시가 있고 없고 달라?"). 전부 보낸 메일인 폴더라 정보량도 0. */}
-                    {folder !== 'sent' && mt.last_message_direction === 'outbound' && (
+                    {/* #438 — 답을 기다리는 스레드는 고객 메일을 미리보기로 보여주므로 「보낸」 태그를 달지 않는다
+                        (태그와 미리보기가 서로 다른 메일을 가리키게 된다). */}
+                    {folder !== 'sent' && mt.last_message_direction === 'outbound' && !mt.reply_preview && (
                       <SentTag>{t('thread.sent', { defaultValue: '보낸' }) as string}</SentTag>
                     )}
                     {/* 보냈다는 것은 **행에 조용히** 남긴다 — 성공 토스트는 쓰지 않는다(운영 규칙). */}
@@ -2416,7 +2420,11 @@ const MailPage: React.FC = () => {
                     )}
                     <HighlightText text={mt.subject || '(no subject)'} query={qDebounced} />
                   </ThreadSubject>
-                  {mt.last_message_preview && <ThreadPreview><HighlightText text={mt.last_message_preview} query={qDebounced} /></ThreadPreview>}
+                  {(mt.reply_preview || mt.last_message_preview) && (
+                    <ThreadPreview data-testid="mail-thread-preview">
+                      <HighlightText text={(mt.reply_preview || mt.last_message_preview) as string} query={qDebounced} />
+                    </ThreadPreview>
+                  )}
                   {/* 2026-09-11 — 검색은 스레드의 **모든 메시지**(본문·제목·보낸 사람)를 본다. 행에 안 보이는 곳에서
                       맞았으면 서버가 준 주변 문장을 한 줄로 보여 "왜 떴는지" 를 알린다(services/mailSearchMatch). */}
                   {qDebounced && mt.match?.snippet && (

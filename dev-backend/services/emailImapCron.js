@@ -40,6 +40,10 @@ async function liveBusinessIdSet() {
   } catch { return null; }
 }
 const FETCH_LIMIT_PER_ACCOUNT = 50;
+// 같은 uid 연속 실패 횟수 — 일시 오류(배포 중 모듈 교체·DB 끊김)는 재시도로 살리고, 깨진 메일만 넘긴다.
+//   메모리 보관: 프로세스가 재시작되면 0 부터 다시 센다(재시작 자체가 일시 오류의 해소이므로 맞다).
+const MAX_UID_RETRIES = 3;
+const uidFailures = new Map();
 // 계정을 처음 연결하면 최근 N일 메일을 가져온다 (Irene 결정 2026-07-12).
 //   여태는 "연결 이후 새로 오는 메일만" 가져와서, 방금 연결한 사용자는 빈 화면을 봤다.
 //   "연결됐습니다" 라고 해놓고 아무것도 안 보이면 고장난 것으로 보인다.
@@ -440,15 +444,19 @@ async function syncOne(account, opts = {}) {
       try {
         const fullBody = r.parts.find(p => p.which === '').body;
         const parsed = await simpleParser(fullBody);
-        const messageId = parsed.messageId;
-        if (!messageId) { maxUid = Math.max(maxUid, uid); continue; }
+        // ★ 2026-09-29 운영 #438 — Message-ID 가 없는 메일을 **버리지 않는다.**
+        //   여태 `continue` 로 조용히 건너뛰어 그 메일은 어디에도 남지 않았다(일부 시스템·폼 메일이 헤더를 안 붙인다).
+        //   계정·메일함 세대(UIDVALIDITY)·uid 로 만든 id 는 같은 메일에 대해 늘 같으므로 재수집해도 중복이 안 생긴다.
+        //   답장 연결(In-Reply-To)은 원래 없는 메일이라 잃을 것이 없다.
+        const uidValidity = (box && box.uidvalidity) || 0;
+        const messageId = parsed.messageId || `<planq-imap-${account.id}-${uidValidity}-${uid}@no-message-id.local>`;
 
         // 중복 검사 (이미 동기화된 message_id)
         const existing = await EmailMessage.findOne({
           where: { business_id: account.business_id, message_id: messageId },
           attributes: ['id'],
         });
-        if (existing) { maxUid = Math.max(maxUid, uid); continue; }
+        if (existing) { uidFailures.delete(`${account.id}:${uid}`); maxUid = Math.max(maxUid, uid); continue; }
 
         const fromAddr = parsed.from && parsed.from.value && parsed.from.value[0];
         const fromEmail = (fromAddr && fromAddr.address) ? fromAddr.address.toLowerCase() : '';
@@ -666,9 +674,25 @@ async function syncOne(account, opts = {}) {
         }
 
         newCount++;
+        uidFailures.delete(`${account.id}:${uid}`); // 성공하면 실패 횟수를 지운다(«연속» 실패만 센다)
         maxUid = Math.max(maxUid, uid);
       } catch (e) {
-        console.error(`[emailImapCron] message parse failed uid=${uid}:`, e.message);
+        // ★ 2026-09-29 운영 #438 — **실패한 메일 위로 커서를 넘기지 않는다.**
+        //   여태 실패해도 maxUid 를 올려서, 다음 tick 의 검색 범위(UID cursor+1:*) 밖으로 **영영** 나갔다.
+        //   운영 실측: 배포 중 node_modules 교체 순간 `Cannot find module …sequelize` 로 uid 59961 이
+        //   실패했고 그 메일은 DB 에 없다 — 원인은 일시적이었는데 결과는 영구 유실이었다.
+        //   → 멈추고 다음 tick 에 같은 uid 부터 다시 한다(중복은 위 message_id 검사가 막으므로 재시도는 멱등).
+        //   같은 uid 가 MAX_UID_RETRIES 번 연속 실패하면(메일 자체가 깨진 경우) 그때만 넘어간다 —
+        //   한 통 때문에 그 계정 수신 전체가 멈추면 그게 더 큰 유실이다. 넘어갈 때는 크게 남긴다.
+        const key = `${account.id}:${uid}`;
+        const n = (uidFailures.get(key) || 0) + 1;
+        uidFailures.set(key, n);
+        if (n < MAX_UID_RETRIES) {
+          console.error(`[emailImapCron] message failed uid=${uid} (${n}/${MAX_UID_RETRIES}) — 커서 유지, 다음 tick 재시도:`, e.message);
+          break;
+        }
+        uidFailures.delete(key);
+        console.error(`[emailImapCron] GAVE UP account #${account.id} uid=${uid} after ${n} tries — 건너뜀:`, e.message);
         maxUid = Math.max(maxUid, uid);
       }
     }

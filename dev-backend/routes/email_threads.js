@@ -385,6 +385,30 @@ router.get('/:businessId/email-threads',
         folder, senderByThread, lastOutByThread, attachCountByThread, nameByEmail,
       }));
 
+      // ★ 2026-09-29 운영 #438 — **답을 기다리는 쪽의 말을 보여준다.**
+      //   Irene: *"답변필요한 고객의 리플이 우리 보낸메일로 표시되고 아예 안나와서 볼 수 없어."*
+      //   임시 답변(holding)을 보내면 스레드는 답변 필요에 남는데 행 미리보기는 `last_message_preview`
+      //   (= 방금 우리가 보낸 임시 답변)에 「보낸」 태그까지 붙어, 답해야 할 고객 메일이 목록에서 사라져 보였다.
+      //   답변 필요 행의 미리보기는 **마지막 받은 메일**이다. 1 쿼리(N+1 없음), 이 페이지 행만.
+      const waitingIds = data.filter((d) => d.reply_needed && d.last_message_direction === 'outbound').map((d) => d.id);
+      if (waitingIds.length > 0) {
+        const lastIn = await sequelize.query(
+          `SELECT em.thread_id, em.from_email, em.from_name, em.sent_at,
+                  LEFT(COALESCE(em.body_text, ''), 480) AS preview
+             FROM email_messages em
+             JOIN (SELECT thread_id, MAX(id) AS mid
+                     FROM email_messages
+                    WHERE business_id = :bid AND thread_id IN (:ids) AND direction = 'inbound'
+                 GROUP BY thread_id) last ON last.mid = em.id`,
+          { replacements: { bid: businessId, ids: waitingIds }, type: sequelize.QueryTypes.SELECT }
+        );
+        const byThread = new Map(lastIn.map((m) => [m.thread_id, m]));
+        for (const d of data) {
+          const m = byThread.get(d.id);
+          if (m) d.reply_preview = htmlToPreview(m.preview) || null;
+        }
+      }
+
       // 「문의」 표시 — 판정은 Q sale 유입과 **같은 함수**다(`saleInbox.classifyMailThreads`).
       //   여기서 키워드로 다시 가르지 않는다. 실패해도 목록은 그대로 나간다(아래 검색 강조와 같은 방침).
       await require('../services/mailInquiryTag')
