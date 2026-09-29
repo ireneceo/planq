@@ -26,7 +26,7 @@ const FEATURES = {
   bill: { ko: 'Q Bill', en: 'Q Bill' },
   docs: { ko: 'Q docs', en: 'Q docs' },
   note: { ko: 'Q Note', en: 'Q Note' },
-  sale: { ko: 'Q sale', en: 'Q sale' },
+  sale: { ko: 'Q sales', en: 'Q sales' },
   system: { ko: '시스템', en: 'System' },
 };
 
@@ -92,7 +92,7 @@ const ACTIONS = {
   bill_invoice_sent: { ko: '청구서 도착', en: 'Invoice received' },
   bill_paid: { ko: '결제 완료', en: 'Payment received' },
   bill_recurring_review: { ko: '정기 청구서 검토', en: 'Recurring invoice review' },
-  // Q sale
+  // Q sales
   sale_account_request: { ko: '계정 요청', en: 'Account requested' },
   sale_unanswered: { ko: '답 안 한 문의', en: 'Unanswered inquiry' },
 };

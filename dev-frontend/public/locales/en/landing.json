@@ -113,7 +113,7 @@
         "desc": "Create and email invoices. Send, payment confirmation, overdue management — all in one place."
       },
       "sale": {
-        "name": "Q sale",
+        "name": "Q sales",
         "desc": "From first inquiry to signed deal. Collect conversations from mail, chat and meeting notes onto each client, and move them through inquiry → consulting → proposal → negotiation → won."
       }
     }
@@ -359,7 +359,7 @@
         ]
       },
       "sale": {
-        "name": "Q sale — Sales & Consulting",
+        "name": "Q sales — Sales & Consulting",
         "lead": "Sales is not a separate system; it is an axis of the client. Consultation records accumulate on the client and flow straight into projects, tasks and billing.",
         "bullets": [
           "Track inquiry-stage prospects separately from active clients — no account required",

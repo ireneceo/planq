@@ -36,7 +36,7 @@ const CATEGORIES = [
     summary: t('일정 만들기·구글 캘린더/Meet 연동·공유·나만보기', 'Create events, Google Calendar/Meet sync, sharing, private events') },
   { slug: 'qmail', icon: 'mail', sort: 9, title: t('Q Mail (메일)', 'Q Mail'),
     summary: t('메일 계정 연결·인박스·메일과 대화 통합', 'Connect mail accounts, inbox, unify mail with chat') },
-  // 2026-09-20 — Q sale 은 메뉴가 생긴 뒤에도 위키에 **자기 칸이 없었다**(아티클 1건이 qmail 에 얹혀 있었다).
+  // 2026-09-20 — Q sales 은 메뉴가 생긴 뒤에도 위키에 **자기 칸이 없었다**(아티클 1건이 qmail 에 얹혀 있었다).
   //   커버리지 게이트에도 없어서 누락이 조용히 통과했다 — 게이트도 같이 늘린다
   //   (scripts/wiki-coverage-check.js REQUIRED).
   { slug: 'qsale', icon: 'star', sort: 9.5, title: t('Q Sale (영업·상담)', 'Q Sale (Sales)'),
@@ -209,7 +209,7 @@ const ARTICLES = [
       note('한 사람만 막으려면 고객 창구 카드의 방문자 목록에서 [막기] 를 누릅니다. 막힌 사람은 이메일을 다시 확인해도 들어올 수 없고, 대화 기록은 남습니다.',
         'To block one person, click [Block] next to them in the visitor list on the entry card. They can\'t get back in by verifying again, and the conversation history is kept.'),
     ] },
-  // 2026-09-20 — Q sale 메뉴 소개. 다른 메뉴는 모두 «q<메뉴>» 소개 글이 있는데 여기만 없었다.
+  // 2026-09-20 — Q sales 메뉴 소개. 다른 메뉴는 모두 «q<메뉴>» 소개 글이 있는데 여기만 없었다.
   { cat: 'qsale', slug: 'qsale', visibility: 'authenticated', linked_route: '/sale', est: 3,
     title: t('Q Sale 로 문의부터 계약까지 관리하기', 'Manage from first inquiry to signed deal with Q Sale'),
     summary: t('문의 고객을 따로 관리하고, 상담을 고객에 쌓고, 영업 단계로 옮깁니다',
@@ -234,8 +234,8 @@ const ARTICLES = [
     summary: t('관계가 확인된 메일만 자동으로 들어오고, 나머지는 «후보» 에 모입니다',
       'Only mail with a confirmed relationship enters automatically; the rest gather under Candidates'),
     body: [
-      s('Q sale 의 **상담** 목록에는 아무 메일이나 들어오지 않습니다. 자동으로 들어오는 것은 두 가지입니다 — ①우리가 한 번이라도 **답장한** 메일 ②**개인 주소**에서 온 첫 문의.',
-        'The Consults list in Q sale does not take every email. Two kinds enter automatically: threads you have replied to at least once, and first inquiries from a personal address.'),
+      s('Q sales 의 **상담** 목록에는 아무 메일이나 들어오지 않습니다. 자동으로 들어오는 것은 두 가지입니다 — ①우리가 한 번이라도 **답장한** 메일 ②**개인 주소**에서 온 첫 문의.',
+        'The Consults list in Q sales does not take every email. Two kinds enter automatically: threads you have replied to at least once, and first inquiries from a personal address.'),
       s('그 기준에 안 걸린 메일은 상담에 들어오지 않습니다. 주문 알림·약관 안내·홍보 메일이 그렇습니다. 놓친 것이 있으면 **[상담으로 보내기]** 로 직접 올릴 수 있습니다.',
         'Mail that does not meet those conditions simply does not enter Consults — order notifications, terms updates and promotional mail, for example. If something was missed, bring it in yourself with Send to consults.'),
       s('올리는 문은 세 곳입니다. 메일 목록에서 그 줄을 **마우스 오른쪽 버튼**으로 누르거나, 메일을 연 뒤 우측 위 **⋯** 메뉴, 또는 상세 화면의 도구 막대에서 누릅니다.',
@@ -504,8 +504,8 @@ const ARTICLES = [
         'Pick the client and the kind of contact (meeting, call, visit) and it is kept as that client\'s consult record. If a summary exists it pre-fills the memo.'),
       s('저장한 상담 기록에서 [노트 열기] 로 원래 회의록으로 돌아갈 수 있습니다. 그 노트도 해당 고객에 연결되어 고객 프로필의 노트 목록에 나옵니다.',
         'From the saved consult record, [Open note] takes you back to the meeting note. The note is also linked to that client and appears in the client\'s note list.'),
-      s('Q sale 상담 목록 위 [상담 진행] 을 누르면 반대 방향으로도 시작할 수 있습니다 — 메모·음성메모·녹음 파일·음성 노트 중에서 고르면 Q note 가 열립니다.',
-        'You can also start from the other direction: [Start consult] above the Q sale list opens Q note in the mode you pick.'),
+      s('Q sales 상담 목록 위 [상담 진행] 을 누르면 반대 방향으로도 시작할 수 있습니다 — 메모·음성메모·녹음 파일·음성 노트 중에서 고르면 Q note 가 열립니다.',
+        'You can also start from the other direction: [Start consult] above the Q sales list opens Q note in the mode you pick.'),
       note('노트를 상담으로 저장할 수 있는 사람은 그 노트를 만든 본인입니다.',
         'Only the person who created a note can save it as a consult record.'),
     ] },
@@ -1303,8 +1303,8 @@ const ARTICLES = [
       p('링크로 들어온 고객은 그 링크가 허용한 대화나 프로젝트만 봅니다. 초대받아 계정으로 쓰는 고객은 자기가 참여한 대화방과 자기와 관련된 업무·파일만 봅니다. 팀 내부 대화나 다른 고객의 자료는 보이지 않습니다.',
         'Clients who join by link see only the conversation or project that link allows. Clients with an account see only the rooms they are in and the tasks and files related to them. Internal team chat and other clients\' material are never visible.'),
       h('아직 계약 전인 문의 고객도 관리할 수 있나요?', 'Can we track prospects who have not signed yet?'),
-      p('네. Q sale 에서 문의 고객을 따로 관리하고, 문의 → 상담 → 제안 → 협상 → 성사·실패 단계로 진행 상황을 봅니다. 문의 고객은 정식 고객 한도와 별도로 셉니다.',
-        'Yes. Q sale tracks prospects separately and shows their progress through inquiry → consultation → proposal → negotiation → won or lost. Prospects are counted separately from your client limit.'),
+      p('네. Q sales 에서 문의 고객을 따로 관리하고, 문의 → 상담 → 제안 → 협상 → 성사·실패 단계로 진행 상황을 봅니다. 문의 고객은 정식 고객 한도와 별도로 셉니다.',
+        'Yes. Q sales tracks prospects separately and shows their progress through inquiry → consultation → proposal → negotiation → won or lost. Prospects are counted separately from your client limit.'),
       h('— 기능', '— Features'),
       h('AI 팀원 Cue 는 무엇을 하나요?', 'What does the AI teammate Cue do?'),
       p('대화와 메일에서 할 일을 업무 후보로 뽑고, 고객 답장 초안을 쓰고, 회의와 자료를 요약합니다. 업무 담당자로 지정하면 결과물 초안을 만들어 줍니다. Cue 는 부탁한 사람이 볼 수 있는 범위 안에서만 일합니다.',

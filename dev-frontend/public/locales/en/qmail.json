@@ -222,7 +222,7 @@
     "assignSearch": "Find by name",
     "meShort": "Me",
     "promoteToSale": "Send to consults",
-    "promoteToSaleHint": "Send this email to the Q sale consult list",
+    "promoteToSaleHint": "Send this email to the Q sales consult list",
     "promotedToSale": "Sent to consults"
   },
   "selectWorkspace": "Select a workspace.",
@@ -288,7 +288,7 @@
     "customerTitle": "This customer",
     "loading": "Loading…",
     "openTimeline": "Open unified timeline",
-    "openInSale": "Open in Q sale",
+    "openInSale": "Open in Q sales",
     "noActivity": "No activity on other channels yet.",
     "linkClientHint": "Link a customer to see their chats, tasks, and invoices here.",
     "channel": {
@@ -696,5 +696,5 @@
     }
   },
   "inquiryBadge": "Inquiry",
-  "inquiryBadgeHint": "This email appears in the Q sale consult list"
+  "inquiryBadgeHint": "This email appears in the Q sales consult list"
 }

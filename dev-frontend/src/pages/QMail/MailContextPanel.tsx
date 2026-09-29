@@ -552,7 +552,7 @@ const MailContextPanel: React.FC<Props> = ({ businessId, thread, members, myUser
                 </SaleSummaryBox>
               )}
               <WorkbenchSectionLink type="button" onClick={() => navigate(`/sale/${clientId}`)}>
-                {t('context.openInSale', { defaultValue: 'Q sale 에서 보기' }) as string}<span aria-hidden>›</span>
+                {t('context.openInSale', { defaultValue: 'Q sales 에서 보기' }) as string}<span aria-hidden>›</span>
               </WorkbenchSectionLink>
               <WorkbenchSectionLink type="button" onClick={() => navigate(`/business/clients/${clientId}/timeline`)}>
                 {t('context.openTimeline', { defaultValue: '통합 타임라인 보기' }) as string}<span aria-hidden>›</span>
