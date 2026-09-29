@@ -1,4 +1,38 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-09-29 오후 · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료(커밋까지) — **미배포** · 5-a 는 Fable 429 → unavailable(대기열 맨 위) · 나머지 R=0 자체 검증
+
+### 이번 세션 커밋
+| 커밋 | 내용 |
+|---|---|
+| `0938a2f2` | 모바일 #437 뒤로=패널 닫기(`hooks/useBackToClose`, 미러 모드만) · #441 메뉴 z1060·Cue 누르면 메뉴 닫힘 · #436 쓰기 모드(키보드 up 시 헤더 접힘·메타 숨김·버튼 줄 붙박이 해제·답장 칸 --vvh 상한) · #427 선택 모드면 [전체 선택] 늘 표시 · e2e `mobilepanels` 21 · `screenbreak`(18화면×3폭, 대조군) |
+| `b1a0f755` | 표시명 Q sale → **Q sales** (주소·API·ENUM·i18n 키 유지) · dev 도움말 재시드 84 |
+| `1e0cc312` | 프로젝트 폴더 업로드 = 프로젝트 파일(L2) — **R=1, Fable 미검증** |
+| `d3fae6be` | 날짜 형식 2차 — `formatDay/formatClock/formatDayTime` · ~50곳 이전 · 가드 `datefmt` 래칫(베이스 31) |
+| `2a09b144` | #434 ① 공유 받기 — 대화방 고르기 · 저장 위치(프로젝트·폴더·새 폴더) · 문서가 받음 · e2e `sharereceive` · 네이티브 설계 `docs/NATIVE_SHARE_RECEIVE.md` |
+
+### 운영 신고 장부
+- #428·431·432·433·435·438 — 답글 달고 **done 처리 완료**(운영 DB, close-deployed-feedback)
+- #427·436·437·441 — `0938a2f2` 에 `Feedback-Closes` 트레일러. **배포 후 답글 → 닫기**
+
+### 다음 할 일
+1. **Fable 한 라운드**(토큰 생기면) — `docs/FABLE_GATE_QUEUE.md` 맨 위(5-a + 오늘 참고 묶음). 그 전 운영 배포는 Irene 판단
+2. 배포 시: 운영 `node seed-wiki-content.js`(Q sales 문구) · 스키마 변경 없음
+3. #434 ② 네이티브 — Irene/Apple 계정 작업(App Group·확장 번들 ID·프로필 → Codemagic) 후 안드로이드+iOS 한 빌드
+4. 탭 모드(태블릿·데스크탑)에서 «X 로 닫은 업무가 뒤로 가기에 다시 열림»(UrlMirror 가 닫기도 push) — 기존 동작, 필요하면 별건
+5. nginx 자동 적용 — Irene «이따» (미룸)
+
+### 배운 것
+- `--update-baseline` 전체 실행은 **godfile 동결값을 현재 크기로 올려** 래칫을 느슨하게 만든다 → 새 카테고리만 넣을 땐 godfile 을 되돌릴 것
+- 태블릿(가로 550↑)은 **탭 모드** — 브라우저 히스토리를 UrlMirror 가 맡는다. 폭(≤1024)이 아니라 모드로 가른다
+- 화면 깨짐 판정은 «층» 을 봐야 한다 — FAB·배너·목록 aside(absolute z30)가 덮는 것은 의도. 첫 실행 35건 대부분이 판정기 탓
+- 앱 셸이 html 을 고정해 `scrollWidth` 로는 가로 넘침을 못 잰다(대조군이 잡았다)
+
+---
+
+> ⚠️ 아래는 09-29 오전 기록.
+
+## 현재 작업 상태
 **마지막 업데이트:** 2026-09-29 · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료(개발완료 처리) — **v1.65.0 운영 배포 완료** (commit `cb174f51`, backup `/opt/planq/backups/20260929_070541`) · Fable PASS
 
