@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-28 ([Opus] Opus 5.5) — 반복업무 자동 넘김(워크스페이스 시간대·매시·진행중 포함) · #435 모바일(우측패널 이중 여백·iOS 입력 확대·버튼 글자) · 채팅 반응(도구줄·팝오버·폰 유령 클릭) · 날짜 형식 설정 **진행 중**. **미배포 · Fable 미검증(자체 검증).**
+> **최종 업데이트:** 2026-09-29 ([Opus] Opus 5.5) — **v1.65.0 운영 배포** (Fable PASS). #438 메일 누락 구멍 2 · 답변필요 행 미리보기 · 자잘한 후속 5건 · 자동 넘김 포커스 세션 종료. 09-26~28 분(날짜 형식 1차·반복업무·#428·431·432·433·435·보안 점검)도 함께 나감.
+> ── 이전(2026-09-28) ──
+> 반복업무 자동 넘김 · #435 모바일 · 채팅 반응 · 날짜 형식 설정 1차.
 > ── 이전(2026-09-27) ──
 > 보안 설정 점검·수리 · 업무 공유 문서 수준 · 09-26 미커밋 6묶음 이어받기.
 > ── 이전(2026-09-25) ──
@@ -11,7 +13,33 @@
 
 ---
 
-## 🔄 2026-09-28 [Opus] — 운영 신고 대응 + 날짜 형식(진행 중) · 미배포 · Fable 미검증(자체 검증)
+## ✅ 완료: v1.65.0 배포 · #438 메일 누락 · 자잘한 후속 (2026-09-29) [Opus] · Fable PASS
+
+| 작업 | 설명 | 상태 |
+|---|---|:-:|
+| #438 IMAP 커서 | 처리 실패 uid 에서 커서 멈춤 → 다음 tick 재시도, 같은 uid 3연속 실패만 건너뜀(GAVE UP 로그). 운영 uid 59961(09-03 배포 중 모듈 교체) 영구 유실이 근거 | ✅ `1b83ff61` |
+| #438 Message-ID 없음 | `continue` 로 버리던 것 → 계정·UIDVALIDITY·uid 합성 id 로 보존(재수집 멱등) | ✅ `1b83ff61` |
+| #438 답변필요 행 | 임시답변 뒤 우리 메일이 「보낸」 태그로 보이던 것 → `reply_preview`(마지막 받은 메일, 1쿼리·business_id 격리) | ✅ `1b83ff61` |
+| 자동 넘김 포커스 | 진행중 회차 취소 시 `syncFocusOnTaskStatus` — 세션 stop + 실제시간 재계산 (Fable 1차 FAIL 지적) | ✅ `297a9065` |
+| 후속 5건 | 무인증 증빙신청 per-IP 20/시간 · 폴더삭제 감사 상한 50+총수 · 일정 공유 버튼 헤더 우측 · CalendarPicker 주 시작 · 카나리 email_logs 정리 | ✅ `ae4b707e` |
+| 배포 | v1.65.0 — 18커밋(09-26~29) · 마이그레이션(users 칸 3) · 릴리즈노트 · 개발현황 · 도움말 운영 seed(customer-entry-booking) | ✅ backup `20260929_070541` |
+
+### 검증
+- 자체: 한도 21번째 429 · 감사 files_total · 공유 버튼·날짜선택 3폭 실측 · 실패 주입 A/B(내 첫 구현의 카운터 미초기화를 B 가 잡음) · reply_preview 실API+3폭
+- **Fable**: 1차 FAIL(포커스 세션) → 델타 PASS · 릴리즈노트 FAIL(자동일 때 영어 12시간제를 «그대로» 로 씀) → 정정 PASS
+- 배포 후: health 200 · PM2 3 online · 1.65.0 · users 칸 3 존재 · 장부 6건은 **답글 없어 미닫힘**(트레일러 남김)
+
+### 멈춘 것
+- nginx 자동 적용(sudo 허용 wrapper) — 권한 검사가 «승인 없는 지속 권한» 으로 막음. 파일은 scratchpad 로 빼 둠, Irene 결정 대기
+
+### 수정된 파일
+- `dev-backend/services/{emailImapCron,recurringTaskGenerator}.js` · `routes/{email_threads,file_folders,invoices}.js`
+- `dev-frontend/src/pages/QMail/MailPage.tsx` · `pages/QCalendar/EventDrawer.tsx` · `components/Common/CalendarPicker.tsx`
+- `scripts/e2e/canary-guest-entry.js` · `docs/{FABLE_GATE_QUEUE.md,release-notes/v1.65.0.json,dev-status/next.json}` · package.json ×2
+
+---
+
+## ✅ 2026-09-28 [Opus] — 운영 신고 대응 + 날짜 형식 1차 · (09-29 v1.65.0 로 배포, Fable PASS)
 
 | 작업 | 설명 | 상태 |
 |---|---|:-:|
