@@ -22,6 +22,7 @@ import BookingActions from './BookingActions';
 import { formatRRuleLabel } from '../../utils/recurrence';
 import { isEnterAction } from '../../utils/imeKey';
 import { reminderOptions, reminderLabel, REMINDER_NONE } from './reminderOptions';
+import { formatDay, formatClock, formatDayTime } from '../../utils/dateFormat';
 
 // 30분 스텝 시간 옵션 — NewEventModal 과 동일 패턴
 const TIME_OPTIONS = (() => {
@@ -187,11 +188,10 @@ const EventDrawer: React.FC<Props> = ({
   const copyMeetingLink = async () => {
     if (!event.meeting_url) return;
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-    const dayFmt = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' });
-    const timeFmt = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' });
+    const day = formatDay(start, { locale, weekday: true, year: 'always' });
     const when = event.all_day
-      ? dayFmt.format(start)
-      : `${dayFmt.format(start)} ${timeFmt.format(start)}–${timeFmt.format(end)}`;
+      ? day
+      : `${day} ${formatClock(start, { locale })}–${formatClock(end, { locale })}`;
     const text = [event.title, when, event.meeting_url].filter(Boolean).join('\n');
     try {
       await navigator.clipboard.writeText(text);
@@ -204,7 +204,7 @@ const EventDrawer: React.FC<Props> = ({
   const fmtDay = (dstr: string) => {
     if (!dstr) return '';
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-    return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', weekday: 'short' }).format(new Date(`${dstr}T00:00:00`));
+    return formatDay(dstr, { locale, weekday: true });
   };
 
   // 시간/날짜 저장 (4 필드 묶음) — debounce 300ms (select)
@@ -1076,14 +1076,10 @@ const EventDrawer: React.FC<Props> = ({
 function formatDateTimeInTz(d: Date, lang: string, tz: string): string {
   const locale = lang === 'en' ? 'en-US' : 'ko-KR';
   try {
-    return new Intl.DateTimeFormat(locale, {
-      year: 'numeric', month: 'short', day: 'numeric', weekday: 'short',
-      hour: '2-digit', minute: '2-digit', timeZone: tz,
-    }).format(d);
+    return formatDayTime(d, { locale, tz, weekday: true, year: 'always' });
   } catch {
     // 잘못된 tz fallback — 브라우저 로컬
-    const dateFmt = new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', weekday: 'short' });
-    return `${dateFmt.format(d)} ${formatTime(d)}`;
+    return formatDayTime(d, { locale, weekday: true, year: 'always' });
   }
 }
 // 타임존 짧은 라벨 (예: KST, GMT+9). 실패 시 IANA 이름 끝부분.

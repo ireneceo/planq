@@ -35,6 +35,7 @@ import { isEnterAction, enterSends } from '../../utils/imeKey';
 import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
 import GuestLinkPrompt from '../../components/QTalk/GuestLinkPrompt';
 import { isNativeApp } from '../../services/native';
+import { formatDayTime } from '../../utils/dateFormat';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
@@ -1761,8 +1762,7 @@ const ChatPanel: React.FC<Props> = ({
                   const fmt = (iso?: string) => {
                     if (!iso) return '';
                     try {
-                      const d = new Date(iso);
-                      return d.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' });
+                      return formatDayTime(iso, { tz: 'Asia/Seoul' });
                     } catch { return ''; }
                   };
                   return (

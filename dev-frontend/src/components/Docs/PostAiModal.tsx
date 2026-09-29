@@ -23,6 +23,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
 import AttachmentField from '../Common/AttachmentField';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { formatDay } from '../../utils/dateFormat';
 
 interface Props {
   open: boolean;
@@ -187,7 +188,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
       setError(t('brief.emptyError', '자료를 입력하거나 파일·기존 문서를 첨부하세요.') as string);
       return;
     }
-    const finalTitle = briefTitle.trim() || `${t('brief.defaultTitlePrefix', '자료정리')} — ${new Date().toLocaleDateString('ko-KR')}`;
+    const finalTitle = briefTitle.trim() || `${t('brief.defaultTitlePrefix', '자료정리')} — ${formatDay(new Date(), { year: 'always' })}`;
     setBusy(true);
     try {
       // 1) 로컬 업로드 → file_id 수집
@@ -229,7 +230,7 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
     if (busy) return;
     setBusy(true); setError(null);
     try {
-      const autoTitle = title.trim() || `${t('ai.tableDefaultPrefix', '표')} — ${new Date().toLocaleDateString('ko-KR')}`;
+      const autoTitle = title.trim() || `${t('ai.tableDefaultPrefix', '표')} — ${formatDay(new Date(), { year: 'always' })}`;
       const { apiFetch } = await import('../../contexts/AuthContext');
       const r = await apiFetch('/api/posts', {
         method: 'POST',

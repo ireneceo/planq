@@ -77,6 +77,59 @@ export function formatDateTime(iso: string | Date, tz: string, locale = 'ko-KR')
   return `${date} ${time}`;
 }
 
+// ─── 날짜 한 개 · 시각 한 개 — 화면이 직접 부르지 않게 (2차, 2026-09-29) ─────────────────────
+//   화면이 toLocaleDateString()·new Intl.DateTimeFormat 을 직접 부르면 **설정이 안 먹는다**(1차 뒤 실측
+//   60여 곳). 모양이 조금씩 다른 자리(요일 붙임·연도 늘 붙임·긴 달 이름)도 이 두 함수의 옵션으로 받는다.
+//   · tz 를 안 주면 기기 시간대 — 옛 코드(toLocaleDateString())와 같은 기준이라 그 자리들은 결과가 안 바뀐다.
+//   · 'YYYY-MM-DD'(날짜만)는 그날 자정(기기)으로 읽는다 — UTC 로 읽으면 서쪽 시간대에서 하루 밀린다.
+//   · 로케일은 화면 언어(publicLocale 과 같은 규칙).
+//   ★ 설정이 «자동» 이면 종전 모양 그대로, 숫자형을 골랐으면 연도까지 숫자로(요일은 괄호로 뒤에).
+export interface DayOpts { tz?: string; locale?: string; weekday?: boolean; year?: 'auto' | 'always'; month?: 'short' | 'long' }
+
+function dayDate(v: string | Date | null | undefined): Date | null {
+  if (!v) return null;
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return safeDate(`${v}T00:00:00`);
+  return safeDate(v);
+}
+function deviceTz(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
+}
+
+export function formatDay(v: string | Date | null | undefined, o: DayOpts = {}): string {
+  const d = dayDate(v);
+  if (!d) return '';
+  const locale = o.locale || publicLocale();
+  const dateOnly = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+  const tz = dateOnly ? undefined : o.tz;
+  if (prefs.date_format) {
+    const s = numericDate(d, tz || deviceTz(), prefs.date_format);
+    if (!o.weekday) return s;
+    return `${s} (${new Intl.DateTimeFormat(locale, { timeZone: tz, weekday: 'short' }).format(d)})`;
+  }
+  const yearIn = (x: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric' }).format(x);
+  const withYear = o.year === 'always' || yearIn(d) !== yearIn(new Date());
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: tz,
+    ...(withYear ? { year: 'numeric' } : {}),
+    month: o.month || 'short',
+    day: 'numeric',
+    ...(o.weekday ? { weekday: 'short' } : {}),
+  }).format(d);
+}
+
+export function formatClock(v: string | Date | null | undefined, o: { tz?: string; locale?: string } = {}): string {
+  const d = safeDate(v as string | Date);
+  if (!d) return '';
+  const locale = o.locale || publicLocale();
+  return new Intl.DateTimeFormat(locale, { timeZone: o.tz, hour: '2-digit', minute: '2-digit', hour12: uses12h(locale) }).format(d);
+}
+
+export function formatDayTime(v: string | Date | null | undefined, o: DayOpts = {}): string {
+  const day = formatDay(v, o);
+  const clock = formatClock(v, o);
+  return day && clock ? `${day} ${clock}` : day;
+}
+
 // "방금"/"5분 전"/"3시간 전"/"어제"/"M월 d일" — tz 는 하루 경계 판단에 사용
 export function formatTimeAgo(iso: string | Date, tz: string, locale = 'ko-KR', t?: (key: string, opts?: Record<string, unknown>) => string): string {
   const d = safeDate(iso);

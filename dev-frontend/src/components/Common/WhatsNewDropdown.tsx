@@ -15,6 +15,7 @@ import {
   ItemLink, ItemIcon, ItemBody, ItemTitle, ItemDesc, ItemMeta, UnreadDot, Footer, FooterLink,
 } from './dropdownShell';
 import type { WhatsNewItem } from '../../hooks/useWhatsNew';
+import { formatDay } from '../../utils/dateFormat';
 
 interface Props {
   open: boolean;
@@ -54,7 +55,7 @@ const WhatsNewDropdown: React.FC<Props> = ({ open, onClose, anchorRef, items, lo
   if (!open) return null;
 
   const fmtDate = (d: string) =>
-    new Date(d).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+    formatDay(d, { locale: lang === 'en' ? 'en-US' : 'ko-KR', year: 'always', month: 'long' });
   const hasUnread = items.some((it) => it.is_new);
 
   return (

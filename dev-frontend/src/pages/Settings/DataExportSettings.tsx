@@ -13,6 +13,7 @@ import {
   fetchTransferTargets, type ExportPreview, type TransferTarget,
   createTransferJob, createExportJob, fetchExportJobs, downloadExportJob, deleteExportJob, type ExportJob,
 } from '../../services/export';
+import { formatDayTime } from '../../utils/dateFormat';
 
 interface Props {
   businessId: number;
@@ -325,7 +326,7 @@ const DataExportSettings: React.FC<Props> = ({ businessId, isOwner }) => {
                 <JobRow key={j.id}>
                   <JobMain>
                     <JobKind>{j.kind === 'transfer' ? (j.mode === 'move' ? tr('dataExport.jobMove', '이동') : tr('dataExport.jobCopy', '복사')) : tr('dataExport.jobExport', '내보내기')}{j.include_qnote ? tr('dataExport.jobQnoteTag', ' · Q Note 포함') : ''}</JobKind>
-                    <JobMeta>{new Date(j.created_at).toLocaleString()}</JobMeta>
+                    <JobMeta>{formatDayTime(j.created_at, { year: 'always' })}</JobMeta>
                   </JobMain>
                   <JobRight>
                     <JobStatus $s={j.status}>

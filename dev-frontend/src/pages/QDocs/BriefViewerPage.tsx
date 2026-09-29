@@ -14,6 +14,7 @@ import DetailFallback from '../../components/Common/DetailFallback';
 import { useAuth } from '../../contexts/AuthContext';
 import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import { fetchPost, fetchPostChildren, createFollowUp, type PostDetail, type FollowUpChild } from '../../services/posts';
+import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 interface BriefMeta {
   view_kind: 'time' | 'file';
@@ -135,7 +136,7 @@ const BriefViewerPage = () => {
           <SummaryMeta>
             {hasTimeline && <Chip>{t('brief.timelineCount', { count: meta.timeline.length, defaultValue: '시점 {{count}}건' })}</Chip>}
             {hasFileView && <Chip>{t('brief.sourceCount', { count: meta.by_file.length, defaultValue: '자료 {{count}}건' })}</Chip>}
-            <ChipGray>{new Date(meta.generated_at).toLocaleString('ko-KR')}</ChipGray>
+            <ChipGray>{formatDayTime(meta.generated_at, { year: 'always' })}</ChipGray>
           </SummaryMeta>
         </SummaryCard>
 
@@ -235,7 +236,7 @@ const BriefViewerPage = () => {
                   <ChildKind>{(() => { const k = KIND_LABEL_KO[c.category || 'custom']; return k ? t(k.tk, { defaultValue: k.ko }) : c.category; })()}</ChildKind>
                   <ChildTitle>{c.title}</ChildTitle>
                   <ChildMeta>
-                    {c.author?.name || ''} · {new Date(c.created_at).toLocaleDateString('ko-KR')}
+                    {c.author?.name || ''} · {formatDay(c.created_at, { year: 'always' })}
                   </ChildMeta>
                 </ChildCard>
               ))}

@@ -59,6 +59,7 @@ import AiActionButton from '../../components/Common/AiActionButton';
 import TrashDrawer from '../../components/Trash/TrashDrawer';
 import TrashButton from '../../components/Trash/TrashButton';
 import { isEnterAction } from '../../utils/imeKey';
+import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 // N+64 — 옛 ENUM 6 (i18n cat.{key} 라벨 보유, fallback 표시용). 자유 카테고리는 string 그대로.
 const CATEGORIES: KbCategory[] = [...LEGACY_KB_CATEGORIES];
@@ -87,7 +88,7 @@ const formatDateSafe = (input: string | number | Date | null | undefined, kind: 
   if (!input) return '—';
   const d = new Date(input);
   if (isNaN(d.getTime())) return '—';
-  return kind === 'date' ? d.toLocaleDateString() : d.toLocaleString();
+  return kind === 'date' ? formatDay(d, { year: 'always' }) : formatDayTime(d, { year: 'always' });
 };
 
 // N+30 — 개인 보관함 통합용 props. mode='personal' 시 fetchPersonalKb (본인 + scope='private') 호출

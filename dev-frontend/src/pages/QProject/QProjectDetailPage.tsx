@@ -143,6 +143,7 @@ import {
   HeaderBtn,
   BtnNone,
 } from './QProjectDetailPage.styles';
+import { formatDay } from '../../utils/dateFormat';
 
 const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 
@@ -887,7 +888,7 @@ const QProjectDetailPage: React.FC = () => {
                         onClick={() => setPeriodPickerOpen(v => !v)}>
                         {(project.start_date || project.end_date) ?
                           (project.project_type === 'fixed'
-                            ? `${project.start_date?.slice(0, 10) || t('info.noValue', '—')} ~ ${project.end_date?.slice(0, 10) || t('info.noValue', '—')}`
+                            ? `${formatDay(project.start_date?.slice(0, 10), { year: 'always' }) || t('info.noValue', '—')} ~ ${formatDay(project.end_date?.slice(0, 10), { year: 'always' }) || t('info.noValue', '—')}`
                             : project.start_date?.slice(0, 10) || t('info.noValue', '—'))
                           : <DatePH>{t('edit.periodPlaceholder', '기간 선택')}</DatePH>}
                       </EditDateRangeTrigger>

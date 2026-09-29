@@ -8,6 +8,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { openPreviewWindow } from '../../utils/openPreviewWindow';
 import { isEnterAction } from '../../utils/imeKey';
+import { formatDay } from '../../utils/dateFormat';
 
 interface Signer {
   id: number; signer_email: string; signer_name: string | null;
@@ -102,7 +103,7 @@ function formatMoney(n: number, currency: string = 'KRW'): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString();
+  return formatDay(iso, { year: 'always' });
 }
 
 interface Props { projectId: number; }

@@ -22,6 +22,7 @@ import MailAliasSection from './MailAliasSection';
 import MailDomainRuleSection from './MailDomainRuleSection';
 import MailAuthDiagSection from './MailAuthDiagSection';
 import { useSettingsHeaderAction } from './settingsHeaderAction';
+import { formatDay } from '../../utils/dateFormat';
 
 // Gmail 원클릭(OAuth) 연결 버튼 — Google 앱 심사(mail.google.com 제한 scope) 통과 전까지 숨긴다.
 // 심사 완료 시 true 로만 바꾸면 됨. 그 전에도 Gmail 을 포함한 모든 메일이 "앱 비밀번호" 방식으로 정상 연결된다.
@@ -138,7 +139,7 @@ const EmailAccountSettings: React.FC = () => {
     if (mins < 1) return t('settings.justNow', '방금') as string;
     if (mins < 60) return t('settings.minutesAgo', '{{n}}분 전', { n: mins }) as string;
     if (mins < 1440) return t('settings.hoursAgo', '{{n}}시간 전', { n: Math.floor(mins / 60) }) as string;
-    return d.toLocaleDateString();
+    return formatDay(d, { year: 'always' });
   };
 
   const connectGmail = async () => {

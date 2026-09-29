@@ -14,6 +14,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { isEnterAction } from '../../utils/imeKey';
+import { formatDay } from '../../utils/dateFormat';
 
 // N+44 — ShareModal 실 사용 5 entity 만 유지. document/invoice/quote/report 는 별도 UI 흐름
 // (PostSignatureModal, Invoice send 라우트 자체 발급) 사용 — ShareModal 통한 호출 dead code 였음.
@@ -297,7 +298,7 @@ const ShareModal: React.FC<Props> = ({ open, entityType, entityId, entityTitle, 
                       $active={chatTarget === c.id}
                       onClick={() => setChatTarget(chatTarget === c.id ? null : c.id)}>
                       <ConvName>{c.title}</ConvName>
-                      {c.last_message_at && <ConvDate>{new Date(c.last_message_at).toLocaleDateString(undefined, { month: '2-digit', day: '2-digit', timeZone: user?.workspace_timezone || 'Asia/Seoul' })}</ConvDate>}
+                      {c.last_message_at && <ConvDate>{formatDay(c.last_message_at, { tz: user?.workspace_timezone || 'Asia/Seoul' })}</ConvDate>}
                     </ConvRow>
                   ))}
                 </ConvList>

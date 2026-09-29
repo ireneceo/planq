@@ -18,6 +18,7 @@ import AiRegenerateBar from '../Common/AiRegenerateBar';
 import AiAreaBlock, { type AiArea } from './AiAreaBlock';
 import AiLoadSummary from './AiLoadSummary';
 import { isEnterAction } from '../../utils/imeKey';
+import { formatDay } from '../../utils/dateFormat';
 
 interface Member { user_id: number; name: string; }
 interface Project { id: number; name: string; }
@@ -302,7 +303,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           {stage === 'input' && (
             <AIForm>
               <AIDesc>
-                {t('ai.todayLabel', '오늘')}: {new Date().toISOString().slice(0, 10)} · {t('ai.membersLabel', '멤버')} {members.length}
+                {t('ai.todayLabel', '오늘')}: {formatDay(new Date(), { year: 'always' })} · {t('ai.membersLabel', '멤버')} {members.length}
               </AIDesc>
               <FieldRow>
                 <FieldLabel>{t('ai.startDate', '시작일')}</FieldLabel>

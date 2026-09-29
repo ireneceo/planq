@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { formatClock } from '../../utils/dateFormat';
 
 const OPEN_KEY = 'planq.todayReview.open';
 
@@ -127,7 +128,7 @@ const TodayReview: React.FC<Props> = ({ businessId, refreshKey }) => {
                     <CtxTop>
                       <KindTag $kind="event">{e.all_day
                         ? t('review.allDay', { defaultValue: '종일' }) as string
-                        : new Date(e.start_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</KindTag>
+                        : formatClock(e.start_at)}</KindTag>
                       <RowLink to={e.link}>{e.title}</RowLink>
                       {e.location && <RowWhy>{e.location}</RowWhy>}
                     </CtxTop>

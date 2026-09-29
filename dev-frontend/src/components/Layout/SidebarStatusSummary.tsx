@@ -8,13 +8,15 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAttendance } from '../../hooks/useAttendance';
+import { formatClock } from '../../utils/dateFormat';
 
 const DOT: Record<string, string> = { working: '#5EEAD4', on_break: '#FCD34D', done: '#94A3B8', none: '#CBD5E1' };
 
 function hhmm(tz: string | undefined): string {
+  // 12/24시간은 사용자 설정(자동이면 화면 언어)을 따른다
   try {
-    return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz || undefined }).format(new Date());
-  } catch { return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()); }
+    return formatClock(new Date(), { tz: tz || undefined });
+  } catch { return formatClock(new Date()); }
 }
 
 const SidebarStatusSummary: React.FC<{ workspaceTz?: string; onOpen: () => void }> = ({ workspaceTz, onOpen }) => {

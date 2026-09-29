@@ -87,6 +87,7 @@ import { ProjBrowse, Toolbar as AtToolbar, ToolbarRight as AtToolbarRight, Grid 
   Card as AtCard, CardName as AtCardName, CardMeta as AtCardMeta } from '../../components/Docs/assetTabLayout';
 import { PanelBackButton, PanelHeaderBar, DetailMetaBar } from '../../components/Layout/PanelHeader';
 import { isEnterAction } from '../../utils/imeKey';
+import { formatDayTime } from '../../utils/dateFormat';
 
 /**
  * Q Note 페이지
@@ -1594,7 +1595,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     void handleStartMeeting({
       title: t('page.quickRecord.title', {
         defaultValue: '음성메모 {{time}}',
-        time: new Date().toLocaleString(undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        time: formatDayTime(new Date()),
       }) as string,
       brief: '',
       participants: [],

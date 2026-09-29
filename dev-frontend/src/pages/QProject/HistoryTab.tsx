@@ -16,6 +16,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 interface HistoryEvent {
   id: string;
@@ -280,8 +281,8 @@ export default function HistoryTab({ projectId }: Props) {
               const first = en.items[en.items.length - 1];
               const last = en.items[0];
               const span = sameDay(first.at, last.at)
-                ? new Date(last.at).toLocaleDateString()
-                : `${new Date(first.at).toLocaleDateString()} ~ ${new Date(last.at).toLocaleDateString()}`;
+                ? formatDay(last.at, { year: 'always' })
+                : `${formatDay(first.at, { year: 'always' })} ~ ${formatDay(last.at, { year: 'always' })}`;
               const on = expanded.has(bundleKey(en));
               return (
                 <BundleWrap key={bundleKey(en)}>
@@ -298,7 +299,7 @@ export default function HistoryTab({ projectId }: Props) {
                     <BundleItem key={e.id} to={linkFor(e) || '#'}>
                       <BundleDot aria-hidden="true">·</BundleDot>
                       <BundleTitle title={e.title || ''}>{e.title}</BundleTitle>
-                      <BundleWhen>{new Date(e.at).toLocaleDateString()}</BundleWhen>
+                      <BundleWhen>{formatDay(e.at, { year: 'always' })}</BundleWhen>
                     </BundleItem>
                   ))}
                 </BundleWrap>
@@ -318,7 +319,7 @@ export default function HistoryTab({ projectId }: Props) {
                   </Row1>
                   {e.note && <NoteLine>{e.note}</NoteLine>}
                   <Row2>
-                    <span>{new Date(e.at).toLocaleString()}</span>
+                    <span>{formatDayTime(e.at, { year: 'always' })}</span>
                     {e.actor_name && <><Sep>·</Sep><span>{e.actor_name}{e.actor_is_ai ? ' (AI)' : ''}</span></>}
                   </Row2>
                 </Body>

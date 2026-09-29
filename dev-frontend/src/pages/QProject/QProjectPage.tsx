@@ -18,6 +18,7 @@ import MatchReason from '../../components/Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { isEnterAction } from '../../utils/imeKey';
+import { formatDay } from '../../utils/dateFormat';
 
 // ─── Types ───
 type ViewMode = 'list' | 'timeline' | 'calendar';
@@ -470,7 +471,7 @@ function formatRelativeTime(iso: string | Date, t: (k: string, o?: Record<string
     if (diff < 3600_000) return t('relTime.minutesAgo', { count: Math.floor(diff / 60_000), defaultValue: '{{count}}분 전' });
     if (diff < 86_400_000) return t('relTime.hoursAgo', { count: Math.floor(diff / 3_600_000), defaultValue: '{{count}}시간 전' });
     if (diff < 7 * 86_400_000) return t('relTime.daysAgo', { count: Math.floor(diff / 86_400_000), defaultValue: '{{count}}일 전' });
-    return d.toLocaleDateString();
+    return formatDay(d, { year: 'always' });
   } catch { return ''; }
 }
 

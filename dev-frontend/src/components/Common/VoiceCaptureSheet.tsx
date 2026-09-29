@@ -12,6 +12,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import ActionButton from './ActionButton';
 import { parseVoiceWhen, type VoiceHandoff, type VoiceKind } from '../../utils/voiceHandoff';
+import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 const MAX_SECONDS = 30;
 
@@ -186,10 +187,11 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     const d = parseVoiceWhen(it.when_start);
     if (!d) return null;
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-    const opts: Intl.DateTimeFormatOptions = it.when_all_day
-      ? { month: 'short', day: 'numeric', weekday: 'short' }
-      : { month: 'short', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' };
-    try { return new Intl.DateTimeFormat(locale, opts).format(d); } catch { return it.when_start || null; }
+    try {
+      return it.when_all_day
+        ? formatDay(d, { locale, weekday: true })
+        : formatDayTime(d, { locale, weekday: true });
+    } catch { return it.when_start || null; }
   };
 
   const kindLabel = (k: Kind) => t(`voice.kind.${k}`, {

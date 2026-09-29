@@ -30,6 +30,7 @@ import {
   type KbDocumentRow, type KbCategory,
 } from '../../services/knowledge';
 import { fetchWorkspaceFiles, uploadMyFile, type ProjectFile } from '../../services/files';
+import { formatDay } from '../../utils/dateFormat';
 
 const CATEGORIES: KbCategory[] = ['policy', 'manual', 'incident', 'faq', 'about', 'pricing'];
 
@@ -192,7 +193,7 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
     if (fileCount + postCount > 0) parts.push(t('row.attached', '첨부 {{n}}', { n: fileCount + postCount }) as string);
     if (d.chunk_count > 0) parts.push(`chunk ${d.chunk_count}`);
     const when = d.updated_at || d.created_at;
-    if (when) { const dt = new Date(when); if (!isNaN(dt.getTime())) parts.push(dt.toLocaleDateString()); }
+    if (when) { const dt = new Date(when); if (!isNaN(dt.getTime())) parts.push(formatDay(dt, { year: 'always' })); }
     return parts.join(' · ');
   }, [t]);
 

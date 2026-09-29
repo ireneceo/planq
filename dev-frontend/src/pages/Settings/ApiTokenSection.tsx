@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
+import { formatDay } from '../../utils/dateFormat';
 
 interface TokenRow {
   id: number;
@@ -111,8 +112,8 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
               <div>
                 <ItemName>{r.name || t('apitoken.unnamed', '(이름 없음)')}</ItemName>
                 <ItemMeta>
-                  {t('apitoken.created', '발급')} {String(r.created_at).slice(0, 10)}
-                  {r.last_used_at ? ` · ${t('apitoken.lastUsed', '최근 사용')} ${String(r.last_used_at).slice(0, 10)}` : ` · ${t('apitoken.neverUsed', '미사용')}`}
+                  {t('apitoken.created', '발급')} {formatDay(r.created_at, { year: 'always' })}
+                  {r.last_used_at ? ` · ${t('apitoken.lastUsed', '최근 사용')} ${formatDay(r.last_used_at, { year: 'always' })}` : ` · ${t('apitoken.neverUsed', '미사용')}`}
                 </ItemMeta>
               </div>
               <ActionButton tone="danger" size="sm" onClick={() => revoke(r.id)}

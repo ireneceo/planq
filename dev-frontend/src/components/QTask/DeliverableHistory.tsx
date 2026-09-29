@@ -14,6 +14,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
+import { formatDayTime } from '../../utils/dateFormat';
 
 type Outcome = 'approved' | 'revision' | 'pending';
 
@@ -157,7 +158,7 @@ const DeliverableHistory: React.FC<Props> = ({ taskId, canRestore, onRestored, o
                   {v.submitted ? outcomeLabel(v.outcome) : t('deliv.savedOnly', '저장본')}
                 </Badge>
                 <Who>{v.submitter?.name || '—'}</Who>
-                <When>{new Date(v.submitted_at).toLocaleString()}</When>
+                <When>{formatDayTime(v.submitted_at, { year: 'always' })}</When>
               </RowHead>
 
               {/* ★ 2026-09-10 — 제출 메모·수정요청 글을 여기 싣지 않는다.

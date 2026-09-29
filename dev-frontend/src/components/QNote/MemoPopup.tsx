@@ -30,6 +30,7 @@ import HighlightText from '../Common/HighlightText';
 import { makeSnippet } from '../../utils/searchMatch';
 import { useLeaveSave } from '../../hooks/useLeaveSave';
 import { IconClose, IconDetach, IconPlus, IconSearch, IconResize } from './MemoPopupIcons';
+import { formatDay } from '../../utils/dateFormat';
 
 // 사이클 N+17 — RichEditor 도입 (TipTap). lazy 로 첫 메모 작성 시점에만 받음.
 // vendor-tiptap (417KB) + vendor-highlight (162KB) 가 lazy chunk 로 떨어져 첫 로드 부담 0.
@@ -610,7 +611,7 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
   if (!open) return null;
 
   const fmtDate = (s: string) => {
-    try { return new Date(s).toLocaleDateString(); } catch { return ''; }
+    try { return formatDay(s, { year: 'always' }); } catch { return ''; }
   };
 
   return createPortal(

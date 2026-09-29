@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import { useWhatsNew, type WhatsNewBlock } from '../../hooks/useWhatsNew';
+import { formatDay } from '../../utils/dateFormat';
 
 const PAGE = 20;   // 한 번에 보여줄 건수
 
@@ -41,7 +42,7 @@ const WhatsNewPage: React.FC = () => {
   const blockText = (b: WhatsNewBlock) => (lang === 'en' ? b.text_en : b.text_ko) || b.text_ko || b.text_en || b.text || '';
   const blockCap = (b: WhatsNewBlock) => (lang === 'en' ? b.caption_en : b.caption_ko) || b.caption_ko || b.caption_en || '';
   const fmtDate = (d: string) =>
-    new Date(d).toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+    formatDay(d, { locale: lang === 'en' ? 'en-US' : 'ko-KR', year: 'always', month: 'long' });
 
   const renderBody = (body: WhatsNewBlock[] | null) => (body || []).map((b, i) => {
     if (b.type === 'heading') return <BH key={i}>{renderInlineBold(blockText(b))}</BH>;

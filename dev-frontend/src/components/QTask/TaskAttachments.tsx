@@ -10,6 +10,7 @@ import AttachmentField from '../Common/AttachmentField';
 import { useImageLightbox } from '../Common/ImageLightbox';
 import AttachmentPreviewDrawer from '../Common/AttachmentPreviewDrawer';
 import { uploadErrorText } from '../../utils/uploadError';
+import { formatDayTime } from '../../utils/dateFormat';
 
 type AttachRow = {
   id: number;
@@ -180,7 +181,7 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
                     )}
                     <Meta onClick={() => openAttachment(r)}>
                       <Name>{r.original_name}</Name>
-                      <Sub>{r.post_id ? (t('attachments.docKind', { defaultValue: 'Q docs 문서' }) as string) : fmtSize(r.file_size)} · {r.uploader?.name || '-'}{!pickerOpen ? ` · ${new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</Sub>
+                      <Sub>{r.post_id ? (t('attachments.docKind', { defaultValue: 'Q docs 문서' }) as string) : fmtSize(r.file_size)} · {r.uploader?.name || '-'}{!pickerOpen ? ` · ${formatDayTime(r.created_at, { year: 'always' })}` : ''}</Sub>
                     </Meta>
                     <DelBtn type="button" onClick={() => setPendingDelete(r)} title={t('attachments.delete')}>×</DelBtn>
                   </Row>

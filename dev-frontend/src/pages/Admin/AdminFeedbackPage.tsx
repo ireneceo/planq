@@ -14,6 +14,7 @@ import HighlightText from '../../components/Common/HighlightText';
 import MatchReason from '../../components/Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
+import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 type Status = 'pending' | 'reviewing' | 'done' | 'wontfix';
 type Category = 'bug' | 'improve' | 'feature' | 'other';
@@ -180,7 +181,7 @@ const AdminFeedbackPage = () => {
                 {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
               </RowTitle>
               <RowMeta>
-                {it.user?.name || `#${it.user_id}`} · {new Date(it.created_at).toLocaleDateString()}
+                {it.user?.name || `#${it.user_id}`} · {formatDay(it.created_at, { year: 'always' })}
               </RowMeta>
             </Row>
             );
@@ -222,7 +223,7 @@ const AdminFeedbackPage = () => {
                     </MetaRow>
                   )}
                   <MetaRow><MetaLabel>{t('adminFeedback.ua', '브라우저')}</MetaLabel><MetaValue>{(detail.user_agent || '—').slice(0, 80)}</MetaValue></MetaRow>
-                  <MetaRow><MetaLabel>{t('adminFeedback.createdAt', '제출')}</MetaLabel><MetaValue>{new Date(detail.created_at).toLocaleString()}</MetaValue></MetaRow>
+                  <MetaRow><MetaLabel>{t('adminFeedback.createdAt', '제출')}</MetaLabel><MetaValue>{formatDayTime(detail.created_at, { year: 'always' })}</MetaValue></MetaRow>
                 </Meta>
               </Section>
               <Section>

@@ -8,6 +8,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import EmptyState from '../Common/EmptyState';
 import { askCue } from '../../utils/cueAsk';
 import { isEnterAction } from '../../utils/imeKey';
+import { formatDayTime } from '../../utils/dateFormat';
 
 /* ─────────────────────────────────────────────
    우선순위 컬러 토큰
@@ -273,7 +274,7 @@ const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 
                     </CardLine1>
                     <CardLine2>
                       {it.dueAt && <DueBadge $priority={it.priority}>{formatDue(it, t, fmt)}</DueBadge>}
-                      {it.createdAt && <CreatedChip title={new Date(it.createdAt).toLocaleString()}>{formatRelativeTime(it.createdAt, t)}</CreatedChip>}
+                      {it.createdAt && <CreatedChip title={formatDayTime(it.createdAt, { year: 'always' })}>{formatRelativeTime(it.createdAt, t)}</CreatedChip>}
                       {it.context && <CtxText>{it.context}</CtxText>}
                       {/* 채팅 — 항목은 방 1개지만 "몇 건 쌓였는지" 는 알려준다 */}
                       {it.type === 'chat' && !!it.count && (

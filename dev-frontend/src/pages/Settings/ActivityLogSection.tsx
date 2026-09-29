@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
 import EmptyState from '../../components/Common/EmptyState';
+import { formatDayTime } from '../../utils/dateFormat';
 
 interface ActivityEvent {
   id: string;
@@ -93,7 +94,7 @@ const ActivityLogSection: React.FC<{ businessId: number | null }> = ({ businessI
         <List data-testid="activity-list">
           {visible.map((e) => (
             <Row key={e.id} $danger={isDestructive(e.kind)}>
-              <When>{new Date(e.at).toLocaleString()}</When>
+              <When>{formatDayTime(e.at, { year: 'always' })}</When>
               <Who>{e.actor_name || t('activity.unknownActor', { defaultValue: '알 수 없음' })}</Who>
               <What $danger={isDestructive(e.kind)}>{e.summary || e.kind}</What>
               <Where>{e.entity_type ? `${e.entity_type}${e.entity_id ? ` #${e.entity_id}` : ''}` : ''}</Where>

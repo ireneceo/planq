@@ -3096,7 +3096,38 @@ function checkDraft() {
     rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
 }
 
+// ─── datefmt — 화면이 날짜·시각을 **직접** 포맷하지 않는다 (2026-09-29 신설, 날짜 형식 2차) ───
+//   사용자 설정(users.date_format·time_format)은 utils/dateFormat 의 함수(formatDay·formatClock·formatDayTime·
+//   useTimeFormat)를 거칠 때만 먹는다. 화면이 toLocaleDateString()·new Intl.DateTimeFormat 을 직접 부르면
+//   설정을 바꿔도 그 자리만 **옛 모양**이다(1차 뒤 실측 60여 곳 → 2차에서 옮김).
+//   래칫 — 남은 것(공개·게스트 화면: 설정이 없는 방문자, 달력 머리글: 월 이름·요일 칸, 시간대 이름)은 동결.
+//   예외는 그 줄에 `// datefmt-exempt: <이유>`.
+function checkDateFmt() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const SKIP = new Set(['utils/dateFormat.ts', 'utils/timezones.ts']);
+  const RE = /\.toLocaleDateString\(|\.toLocaleTimeString\(|new Intl\.DateTimeFormat\(|new Date\([^()]*\)\.toLocaleString\(/;
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const r = rel(f).replace(/^dev-frontend\/src\//, '');
+    if (SKIP.has(r) || /__tests__/.test(r)) continue;
+    const lines = read(f).split('\n');
+    let n = 0;
+    lines.forEach((ln, i) => {
+      if (!RE.test(ln)) return;
+      if (/datefmt-exempt:/.test(ln) || /^\s*(\/\/|\*)/.test(ln)) return;
+      n += 1;
+      if (samples.length < 12) samples.push(`${rel(f)}:${i + 1}: 날짜·시각 직접 포맷 → formatDay / formatClock / formatDayTime (utils/dateFormat)`);
+    });
+    if (n) current[rel(f)] = n;
+  }
+  const rt = ratchet('datefmt', current, samples);
+  report('datefmt', `날짜·시각 직접 포맷 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
 const CATEGORIES = {
+  datefmt: checkDateFmt,
   draft: checkDraft,
   wsscope: checkWsScope,
   mock: checkMock,

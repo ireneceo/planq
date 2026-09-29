@@ -10,6 +10,7 @@ import {
   type AttendanceEventRow, toLocalInput,
   Muted, Hint, Field, FieldLabel, TextInput, TextArea, ErrorBar,
 } from './shared';
+import { formatDayTime } from '../../utils/dateFormat';
 
 // ─── 관리자 정정 드로어 ──────────────────────────────────────────
 // ★ 기존 기록을 고치는 화면이 아니다 — **바로잡는 시각을 새로 얹는** 화면이다.
@@ -75,7 +76,7 @@ export const AdminFixDrawer: React.FC<{
           {events.length === 0 ? <Muted>–</Muted> : events.map((e) => (
             <LedgerRow key={e.id} $dead={!!e.superseded_at}>
               <b>{t(`fix.kind.${e.kind}`)}</b>
-              <span>{new Date(e.at).toLocaleString()}</span>
+              <span>{formatDayTime(e.at, { year: 'always' })}</span>
               {e.source !== 'user' && <SourceTag>{t(`fix.source.${e.source}`)}</SourceTag>}
               {e.superseded_at && <SourceTag>{t('fix.superseded')}</SourceTag>}
             </LedgerRow>

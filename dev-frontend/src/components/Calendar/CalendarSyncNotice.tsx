@@ -25,6 +25,7 @@ import {
   syncCalendarNow, listGcalOrphans, cleanupGcalOrphans, type GcalOrphan,
 } from '../../services/calendar';
 import { onSocket } from '../../services/socket';
+import { formatDay } from '../../utils/dateFormat';
 
 export interface CalendarSyncStatus {
   workspace_connected: boolean;
@@ -249,7 +250,7 @@ const CalendarSyncNotice: React.FC<Props> = ({ businessId, status, onChanged, on
                     aria-label={o.title}
                   />
                   <OrphanName>{o.title}</OrphanName>
-                  {o.start && <OrphanDate>{new Date(o.start).toLocaleDateString()}</OrphanDate>}
+                  {o.start && <OrphanDate>{formatDay(o.start, { year: 'always' })}</OrphanDate>}
                 </OrphanItem>
               ))}
             </OrphanList>

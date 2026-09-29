@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { formatDayTime } from '../../utils/dateFormat';
 
 interface Settings {
   timezone: string;
@@ -83,7 +84,7 @@ const WorkspaceFinalizeBanner: React.FC<{ businessId: number }> = ({ businessId 
         </Title>
         {nextDate && (
           <Desc>
-            {t('workspaceWeekly.banner.nextLabel', { defaultValue: '다음 자동 확정' })}: <strong>{nextDate.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</strong>
+            {t('workspaceWeekly.banner.nextLabel', { defaultValue: '다음 자동 확정' })}: <strong>{formatDayTime(nextDate, { year: 'always' })}</strong>
           </Desc>
         )}
       </Body>

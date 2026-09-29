@@ -12,6 +12,7 @@ import HighlightText from '../../components/Common/HighlightText';
 import MatchReason from '../../components/Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
+import { formatDay } from '../../utils/dateFormat';
 
 type PayStatus = 'all' | 'paid' | 'pending' | 'failed' | 'refunded' | 'canceled';
 
@@ -87,7 +88,7 @@ const AdminPaymentsPage = () => {
 
   const fmtKRW = (n: number) => new Intl.NumberFormat('ko-KR').format(Math.round(n));
   const fmtDate = (s: string | null) =>
-    s ? new Date(s).toLocaleDateString(i18n.language === 'ko' ? 'ko-KR' : 'en-US', { timeZone: 'Asia/Seoul' }) : '—';
+    s ? formatDay(s, { locale: i18n.language === 'ko' ? 'ko-KR' : 'en-US', tz: 'Asia/Seoul', year: 'always' }) : '—';
 
   const statusColor = (s: PaymentRow['status']) => {
     switch (s) {

@@ -6,6 +6,7 @@ import { getMonthGridDays, isSameMonth, isSameDay, toDateKey } from './dateUtils
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { isTaskEvent } from './taskToEvent';
+import { formatDay } from '../../utils/dateFormat';
 
 // 날짜 키 별 인덱스 — 멀티데이 이벤트는 걸친 모든 날짜에 등장
 const indexByDayKey = (events: CalendarItem[]): Record<string, CalendarItem[]> => {
@@ -51,9 +52,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
   const [popoverDay, setPopoverDay] = useState<Date | null>(null);
   const popoverEvents = popoverDay ? eventMap[toDateKey(popoverDay)] || [] : [];
   const popoverTitle = popoverDay
-    ? new Intl.DateTimeFormat(i18n.language === 'en' ? 'en-US' : 'ko-KR', {
-        month: 'long', day: 'numeric', weekday: 'short',
-      }).format(popoverDay)
+    ? formatDay(popoverDay, { locale: i18n.language === 'en' ? 'en-US' : 'ko-KR', month: 'long', weekday: true })
     : '';
 
   return (

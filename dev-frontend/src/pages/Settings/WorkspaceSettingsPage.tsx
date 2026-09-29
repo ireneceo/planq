@@ -43,6 +43,7 @@ import {
 } from '../../services/workspace';
 import { isEnterAction } from '../../utils/imeKey';
 import { belowTabs } from '../../theme/layout';
+import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 type TabKey = 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity';   // activity — 팀원 활동 기록(owner 전용)
 
@@ -1449,7 +1450,7 @@ export default function WorkspaceSettingsPage() {
             // 드로어도 리스트와 같은 워크스페이스 표시명을 쓴다 — 한 화면에서 리스트는 표시명,
             //   드로어는 계정명이면 같은 사람이 두 이름으로 보인다 (계정 이메일·최근 로그인은 아래 별도 표시).
             const targetName = isPending ? (target.invite_email || '') : memberDisplayName(u, i18n.language);
-            const fmtLastLogin = u?.last_login_at ? new Date(u.last_login_at).toLocaleString() : '—';
+            const fmtLastLogin = u?.last_login_at ? formatDayTime(u.last_login_at, { year: 'always' }) : '—';
             return (
               <>
                 <MemberDrawerBackdrop onClick={() => openMember(null)} />
@@ -1556,7 +1557,7 @@ export default function WorkspaceSettingsPage() {
                               )}
                             </DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.joinedAt', '참여일')}</DrawerInfoLabel>
-                            <DrawerInfoValue>{target.joined_at ? new Date(target.joined_at).toLocaleDateString() : '—'}</DrawerInfoValue>
+                            <DrawerInfoValue>{target.joined_at ? formatDay(target.joined_at, { year: 'always' }) : '—'}</DrawerInfoValue>
                             <DrawerInfoLabel>{t('members.drawer.lastLogin', '마지막 활동')}</DrawerInfoLabel>
                             <DrawerInfoValue>{fmtLastLogin}</DrawerInfoValue>
                           </DrawerInfoGrid>

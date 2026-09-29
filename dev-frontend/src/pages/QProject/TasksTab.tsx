@@ -18,6 +18,7 @@ import { STATUS_COLOR, displayStatus, getStatusLabel, type StatusCode } from '..
 import { getRoles, primaryPerspective } from '../../utils/taskRoles';
 import { listWorkstreams, type Workstream } from '../../services/projectCanvas';
 import { useTranslation } from 'react-i18next';
+import { formatDay } from '../../utils/dateFormat';
 
 type ViewMode = 'split' | 'list' | 'timeline' | 'calendar';
 
@@ -307,7 +308,7 @@ const TimelineView: React.FC<{ tasks: TaskRow[]; onOpen: (id: number) => void; t
               <GanttBar range={range} start={task.start_date} end={task.due_date}
                 bg={sc.bg} fg={sc.fg} label={task.assignee?.name || ''}
                 onClick={(e) => { e.stopPropagation(); onOpen(task.id); }}
-                title={`${task.start_date?.slice(0,10) || ''} ~ ${task.due_date?.slice(0,10) || ''}`} />
+                title={`${formatDay(task.start_date?.slice(0,10))} ~ ${formatDay(task.due_date?.slice(0,10))}`} />
             </GanttRowTrack>
           </TLRow>
         );

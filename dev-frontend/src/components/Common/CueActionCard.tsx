@@ -9,6 +9,7 @@ import { listMembers, type WorkspaceMember } from '../../services/workspace';
 import ActionButton from './ActionButton';
 import SingleDateField from './SingleDateField';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
+import { formatDayTime, formatClock } from '../../utils/dateFormat';
 
 const DOC_KIND_KEYS = ['quote', 'contract', 'nda', 'proposal', 'sow', 'meeting_note', 'sop', 'custom'] as const;
 
@@ -264,8 +265,8 @@ function fmtRange(startIso: string, endIso: string): string {
   try {
     const s = new Date(startIso), e = new Date(endIso);
     if (isNaN(s.getTime())) return startIso;
-    const d = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(s);
-    const et = isNaN(e.getTime()) ? '' : new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(e);
+    const d = formatDayTime(s, { year: 'always' });
+    const et = isNaN(e.getTime()) ? '' : formatClock(e);
     return et ? `${d} – ${et}` : d;
   } catch { return startIso; }
 }

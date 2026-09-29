@@ -22,6 +22,7 @@ import {
   listDevStatus, getDevStatus,
   type DevStatusSummary, type DevStatusDetail, type DevStatusSections,
 } from '../../services/devStatus';
+import { formatDayTime } from '../../utils/dateFormat';
 
 type SectionKey = keyof DevStatusSections;
 
@@ -83,7 +84,7 @@ export default function DevStatusPage() {
 
   const options: PlanQSelectOption[] = list.map((r) => ({
     value: r.commit_to,
-    label: `${new Date(r.deployed_at).toLocaleString()} · ${r.commit_to.slice(0, 8)}${r.version ? ` · v${r.version}` : ''}`,
+    label: `${formatDayTime(r.deployed_at, { year: 'always' })} · ${r.commit_to.slice(0, 8)}${r.version ? ` · v${r.version}` : ''}`,
   }));
 
   // 라벨은 locales/{ko,en}/admin.json 의 devStatus.section.* 가 정본이다.
@@ -119,7 +120,7 @@ export default function DevStatusPage() {
         <>
           {/* 기계가 채운 사실 — 사람이 적지 않는 값이라 항상 맞다 */}
           <FactGrid>
-            <Fact><FLabel>{t('devStatus.deployedAt', '배포 시각')}</FLabel><FVal>{new Date(detail.deployed_at).toLocaleString()}</FVal></Fact>
+            <Fact><FLabel>{t('devStatus.deployedAt', '배포 시각')}</FLabel><FVal>{formatDayTime(detail.deployed_at, { year: 'always' })}</FVal></Fact>
             <Fact><FLabel>{t('devStatus.range', '커밋 범위')}</FLabel><FVal><Mono>{(detail.commit_from || '—').slice(0, 8)} → {detail.commit_to.slice(0, 8)}</Mono></FVal></Fact>
             <Fact><FLabel>{t('devStatus.version', '버전')}</FLabel><FVal>{detail.version ? `v${detail.version}` : '—'}</FVal></Fact>
             <Fact><FLabel>{t('devStatus.schema', '스키마 변경')}</FLabel><FVal>{detail.schema_changed ? t('devStatus.yes', '있음') : t('devStatus.no', '없음')}</FVal></Fact>

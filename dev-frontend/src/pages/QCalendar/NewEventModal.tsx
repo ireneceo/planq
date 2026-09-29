@@ -16,6 +16,7 @@ import { getVideoStatus } from '../../services/calendar';
 import VisibilityField, { serializeVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qtalk';
 import { isEnterAction } from '../../utils/imeKey';
+import { formatDay } from '../../utils/dateFormat';
 
 interface Props {
   initialStart: Date;
@@ -266,11 +267,9 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
 
   const dateLabel = useMemo(() => {
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-    const s = new Date(`${startDate}T00:00:00`);
-    const e = new Date(`${endDate}T00:00:00`);
-    const fmt = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', weekday: 'short' });
-    if (startDate === endDate) return fmt.format(s);
-    return `${fmt.format(s)} ~ ${fmt.format(e)}`;
+    const fmt = (v: string) => formatDay(v, { locale, weekday: true });
+    if (startDate === endDate) return fmt(startDate);
+    return `${fmt(startDate)} ~ ${fmt(endDate)}`;
   }, [startDate, endDate, i18n.language]);
 
   const canSubmit = title.trim().length > 0 && !submitting;

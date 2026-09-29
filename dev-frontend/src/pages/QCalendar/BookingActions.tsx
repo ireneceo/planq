@@ -14,6 +14,7 @@ import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import type { CalendarEvent } from './types';
+import { formatDay } from '../../utils/dateFormat';
 
 export type BookingStatus = 'requested' | 'proposed' | 'confirmed' | 'declined' | 'canceled';
 type Action = 'approve' | 'propose' | 'decline' | 'cancel';
@@ -74,7 +75,7 @@ export default function BookingActions({ event, businessId, onChanged }: Props) 
     const base = new Date();
     for (let i = 0; i < 30; i += 1) {
       const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-      out.push({ value: localDateKey(d), label: new Intl.DateTimeFormat(lc, { month: 'short', day: 'numeric', weekday: 'short' }).format(d) });
+      out.push({ value: localDateKey(d), label: formatDay(d, { locale: lc, weekday: true }) });
     }
     return out;
   }, [i18n.language]);

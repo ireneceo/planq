@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
+import { formatDayTime } from '../../utils/dateFormat';
 
 interface Rev {
   id: number;
@@ -82,7 +83,7 @@ const PostHistoryPanel: React.FC<Props> = ({ postId, open, onClose, onRestored }
           <Row key={r.id}>
             <RowMain>
               <RowWho>{r.editor?.name || t('history.unknown', '알 수 없음')}</RowWho>
-              <RowWhen>{new Date(r.created_at).toLocaleString()}</RowWhen>
+              <RowWhen>{formatDayTime(r.created_at, { year: 'always' })}</RowWhen>
               {r.source === 'restore' && <Tag>{t('history.restored', '되돌림')}</Tag>}
               {i === 0 && <TagNow>{t('history.current', '현재')}</TagNow>}
             </RowMain>

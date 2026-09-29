@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import AutoSaveField from '../Common/AutoSaveField';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect from '../Common/PlanQSelect';
+import { formatDayTime } from '../../utils/dateFormat';
 
 interface Settings {
   timezone: string;
@@ -151,7 +152,7 @@ const WorkManagementSettings: React.FC<Props> = ({ businessId, isAdmin }) => {
 
       {nextFinalize && (
         <NextHint>
-          {t('workManagement.autoFinalize.nextLabel', '다음 자동 확정')}: <strong>{nextFinalize.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</strong>
+          {t('workManagement.autoFinalize.nextLabel', '다음 자동 확정')}: <strong>{formatDayTime(nextFinalize, { year: 'always' })}</strong>
         </NextHint>
       )}
 
