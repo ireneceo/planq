@@ -1,0 +1,86 @@
+{
+  "version": "1.65.0",
+  "date": "2026-09-29",
+  "items": [
+    {
+      "ko": {
+        "title": "날짜·시간 표시 형식을 고를 수 있습니다",
+        "body": "내 업무 설정 › «날짜·시간 표시» 에서 날짜 순서·12/24시간제·한 주의 시작 요일(일/월)을 정합니다. 캘린더와 날짜 선택이 먼저 따르고, 나머지 화면도 차례로 맞춰집니다. 고르지 않으면 지금과 같습니다."
+      },
+      "en": {
+        "title": "Choose how dates and times appear",
+        "body": "In My work settings › «Date & time display», pick the date order, 12/24-hour clock, and the first day of the week (Sun/Mon). The calendar and date pickers follow it first; other screens will follow soon. Nothing changes if you leave it on automatic."
+      }
+    },
+    {
+      "ko": {
+        "title": "놓치는 메일을 막았습니다",
+        "body": "일시적인 오류로 받지 못한 메일을 다음 수신 때 다시 가져오고, 메일 ID 가 없는 메일도 받습니다. 임시답변을 보낸 «답변 필요» 메일은 목록에 고객의 마지막 메일이 보입니다."
+      },
+      "en": {
+        "title": "No more missed emails",
+        "body": "Emails that failed to arrive because of a temporary error are fetched again on the next sync, and emails without a message ID are now received too. In «Needs reply», threads where you sent a holding reply now show the customer's last message."
+      }
+    },
+    {
+      "ko": {
+        "title": "반복 업무 — 지난 회차 자동 넘김",
+        "body": "«못 한 회차 자동 넘김» 이 워크스페이스 시간대의 오늘 기준으로 매시간 정리합니다. 진행 중·대기 회차도 넘기며(포커스 중이면 함께 종료, 시간은 기록), 컨펌·보류 단계는 그대로 둡니다."
+      },
+      "en": {
+        "title": "Recurring tasks — auto-skip missed occurrences",
+        "body": "Auto-skip now uses today in your workspace time zone and runs every hour. In-progress and waiting occurrences are skipped too (an active focus session is stopped and its time is kept); items in review or on hold are left alone."
+      }
+    },
+    {
+      "ko": {
+        "title": "인사이트 — 고객 유입 퍼널",
+        "body": "고객 창구 방문자가 이메일 확인 → 상담 신청 → 확정 → 고객 등록까지 어디서 멈추는지 인사이트에서 봅니다."
+      },
+      "en": {
+        "title": "Insights — customer entry funnel",
+        "body": "See where entry-page visitors drop off: email verified → booking requested → confirmed → registered as a customer."
+      }
+    },
+    {
+      "ko": {
+        "title": "알림을 누르면 바로 그 화면으로",
+        "body": "앱에서 알림을 누르면 확인필요를 거치지 않고 곧바로 해당 메일·업무로 갑니다."
+      },
+      "en": {
+        "title": "Notifications open the right screen",
+        "body": "Tapping a notification in the app now goes straight to the email or task instead of passing through To-do first."
+      }
+    },
+    {
+      "ko": {
+        "title": "모바일 화면 다듬기",
+        "body": "우측 패널 위 빈 여백, 입력할 때 화면이 확대되던 문제, 작은 팝업 위치, 버튼 글자 크기를 고쳤습니다. 채팅 반응은 메시지 도구줄에서 고릅니다."
+      },
+      "en": {
+        "title": "Mobile polish",
+        "body": "Fixed the empty space above side panels, zooming while typing, small pop-up placement, and button text size. Chat reactions are now picked from the message toolbar."
+      }
+    },
+    {
+      "ko": {
+        "title": "팝아웃 채팅에서 Enter 로 전송",
+        "body": "데스크탑 팝아웃 채팅에서 Enter 가 줄바꿈되던 문제를 고쳤습니다."
+      },
+      "en": {
+        "title": "Enter sends in pop-out chat",
+        "body": "Enter now sends in the desktop pop-out chat instead of adding a new line."
+      }
+    },
+    {
+      "ko": {
+        "title": "공유·권한 정리와 작은 개선",
+        "body": "공유 링크와 공개 범위 규칙을 한 가지로 맞췄습니다. 업무 공유 링크는 최신 결과물과 공개 첨부를 보여 줍니다. 일정 공유 버튼은 업무와 같은 자리(상단 오른쪽)로 옮겼고, 새 소식을 열면 자세한 내용이 보입니다."
+      },
+      "en": {
+        "title": "Sharing and permissions, plus small fixes",
+        "body": "Sharing links and visibility now follow one set of rules. Shared task links show the latest deliverable and public attachments. The event share button moved to the top right, same as tasks, and What's new now shows full details."
+      }
+    }
+  ]
+}

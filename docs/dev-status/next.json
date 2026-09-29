@@ -1,67 +1,49 @@
 {
   "working_on": [
-    "고객 창구 P1~P3 · 상담 예약 · 로그인 고객 홈 (v1.64.0)"
+    "날짜·시간 표시 형식 1차 · #438 메일 누락 · 반복업무 자동 넘김 · 모바일 신고(#428·#431·#432·#433·#435) · 보안 설정 점검 (v1.65.0)"
   ],
-  "in_progress": [],
+  "in_progress": [
+    "날짜 형식 2차 — 직접 포맷 155곳 + slice 128곳 전수 적용 · 가드 datefmt"
+  ],
   "completed": [
-    {
-      "title": "고객 창구 P1 — workspace 링크·방문자 본인 대화방·설정 카드",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "상담 예약(P2) — 슬롯·신청·승인/제안/거절·.ics 메일·끝남 기록",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "설정 카드 QR",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "방문자 방 복귀(D2) · 방문자 한 사람 막기(D3)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "로그인 고객 홈 /home(P3)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "업무 댓글 정렬·히스토리 시각 · Q위키→도움말 개명",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "Fable 게이트 지문에 scripts·게이트 자체 포함",
-      "verified": "fable_pass"
-    }
+    { "title": "날짜·시간 표시 형식 1차(users 칸 3 · 설정 카드 · 캘린더·날짜선택 주 시작)", "verified": "fable_pass" },
+    { "title": "#438 IMAP 실패 uid 커서 유지·Message-ID 없는 메일 보존·답변필요 행 reply_preview", "verified": "fable_pass" },
+    { "title": "반복업무 자동 넘김 — 워크스페이스 시간대·매시·진행중/대기 포함·포커스 세션 종료", "verified": "fable_pass" },
+    { "title": "#435 모바일 우측패널 여백·iOS 확대·버튼 글자 · 채팅 반응 팝오버", "verified": "fable_pass" },
+    { "title": "후속 5건 — 증빙신청 한도·폴더삭제 감사 상한·일정 공유 헤더·날짜선택 주 시작·카나리 정리", "verified": "fable_pass" },
+    { "title": "보안 설정 점검(공유·참조 다섯 규칙) · 업무 공유 문서 수준", "verified": "fable_pass" },
+    { "title": "#428 팝아웃 Enter · #431 알림 딥링크 · #432 새 소식 본문 · #433 폰 팝업 · 유입 퍼널", "verified": "fable_pass" }
   ],
   "behavior_changes": [
-    "고객 계정 로그인 첫 화면이 /dashboard 에서 /home 으로",
-    "예약 일정은 일반 수정으로 시간·참석자·공개범위를 바꾸거나 지울 수 없다(409)",
-    "/wiki → /guide (앱 안 리다이렉트)"
+    "반복업무 자동 넘김이 진행중·대기 회차도 취소한다(포커스 세션 종료, 실제시간 보존). 컨펌·보류는 제외",
+    "영어 화면의 시각이 12시간제로 표시된다(날짜 형식 자동 = 언어별)",
+    "일정 공유 버튼이 푸터 좌측 → 헤더 우측 아이콘",
+    "답변필요 행 미리보기가 마지막 받은 메일(임시답변 뒤)"
   ],
   "migrations": [
-    "migrate-guest-link-scope-workspace.js (guest_links.scope ENUM append · conversation_id NULL)",
-    "migrate-calendar-booking-status.js (calendar_events.booking_status ENUM NULL + 인덱스)"
+    "migrate-user-date-prefs.js (users.date_format·time_format·week_start ENUM NULL, 멱등)"
   ],
   "issues": [
-    "팀 «다른 시간 제안» 은 담당 일정 겹침을 안 본다(설계 허용)",
-    "canary-guest-entry 가 email_logs 를 매 실행 2행 남긴다"
+    "날짜 형식 설정을 바꾸면 아직 일부 화면(캘린더·날짜선택·useTimeFormat 경유)만 따른다 — 2차 전수 적용 예정",
+    "운영 uid 59961(irene@ 계정, 2026-09-03) 1통은 이미 유실 — 이번 수정은 재발 방지"
   ],
   "blocked_on_human": [
-    "운영 nginx server_tokens off"
+    "nginx 설정 자동 적용(sudo 허용 1회) 결정 대기",
+    "#428·431·432·433·435·438 답글 필요 — 답글 뒤 다음 배포에 장부 닫힘"
   ],
   "check_areas": [
-    "설정 › 권한 «고객 창구» 카드",
-    "고객 창구 상담 예약·내 문의",
-    "Q calendar 예약 일정(점선·처리 줄)",
-    "고객 계정 로그인 → 홈",
-    "확인필요 «상담 신청»"
+    "내 업무 설정 › 날짜·시간 표시",
+    "Q mail 답변 필요 목록(임시답변 스레드)",
+    "반복업무 지난 회차 자동 넘김",
+    "모바일 우측 패널·팝업·채팅 반응"
   ],
   "backlog": [
-    "인사이트 «유입→예약→확정→등록» 퍼널(P3 잔여)",
-    "이미지 2b 3단계(L2/L3) — 운영 계측 14일 뒤"
+    "모바일 UI 묶음 #437·#441·#436·#427",
+    "Q sale → Q sales 영문 이름",
+    "프로젝트 폴더 업로드 파일의 프로젝트 연결(Fable 판단)"
   ],
   "tooling_health": [
-    "health 48/48 · guard 59/60 · clienthome 21 · bookingapi 56 · booking 20 · guestentry 55 · tenant 0"
+    "health 48/48 · guard 59/60 · tenant 0 · build EXIT 0 · Fable PASS(1차 FAIL 1건 수정 후)"
   ],
   "undeployed": []
 }
