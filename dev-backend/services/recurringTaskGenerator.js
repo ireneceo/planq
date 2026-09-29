@@ -32,6 +32,7 @@ const { Op } = require('sequelize');
 const { RRule } = require('rrule');
 const { Task, TaskReviewer, TaskTagLink, TaskStatusHistory, Business } = require('../models');
 const { dateStrInTz } = require('../utils/datetime');
+const { syncFocusOnTaskStatus } = require('./focusSync');
 
 // 시리즈 하나가 한 번의 실행에서 만들 수 있는 회차 상한.
 // 밀린 회차 캐치업용 — 일간 시리즈가 한 달 밀려도 한 번에 따라잡되, 잘못된 RRULE 폭주는 막는다.
@@ -340,6 +341,10 @@ async function skipMissedOccurrences(parent, today = new Date(), io = null, tzCa
   if (SKIPPABLE_STATUSES.includes(parent.status) && dueStr && dueStr < todayStr) {
     const from = parent.status;
     await parent.update({ status: 'canceled', completed_at: null });
+    // ★ 2026-09-29 (Fable 게이트) — 진행중 회차도 넘기므로 **포커스 세션을 같이 닫는다.**
+    //   status 전이 지점은 전부 syncFocusOnTaskStatus 를 부른다는 계약이다. 안 부르면 취소된 업무에
+    //   [포커스 중] 배너가 남고 시간이 계속 쌓인다(세션 stop + 실제시간 재계산을 이 한 줄이 한다).
+    await syncFocusOnTaskStatus(parent, from, 'canceled');
     try {
       await TaskStatusHistory.create({
         task_id: parent.id,
@@ -360,11 +365,12 @@ async function skipMissedOccurrences(parent, today = new Date(), io = null, tzCa
       status: { [Op.in]: SKIPPABLE_STATUSES },
       due_date: { [Op.lt]: todayStr },
     },
-    attributes: ['id', 'status'],
+    attributes: ['id', 'status', 'assignee_id'], // assignee_id — 포커스 세션 정리(syncFocusOnTaskStatus)가 쓴다
   });
   for (const inst of stale) {
     const from = inst.status;
     await inst.update({ status: 'canceled', completed_at: null });
+    await syncFocusOnTaskStatus(inst, from, 'canceled'); // 위 ① 과 같은 이유
     try {
       await TaskStatusHistory.create({
         task_id: inst.id,
