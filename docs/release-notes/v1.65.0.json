@@ -5,20 +5,20 @@
     {
       "ko": {
         "title": "날짜·시간 표시 형식을 고를 수 있습니다",
-        "body": "내 업무 설정 › «날짜·시간 표시» 에서 날짜 순서·12/24시간제·한 주의 시작 요일(일/월)을 정합니다. 캘린더와 날짜 선택이 먼저 따르고, 나머지 화면도 차례로 맞춰집니다. 고르지 않으면 지금과 같습니다."
+        "body": "내 업무 설정 › «날짜·시간 표시» 에서 날짜 순서·12/24시간제·한 주의 시작 요일(일/월)을 정합니다. 캘린더와 날짜 선택이 먼저 따르고, 나머지 화면도 차례로 맞춰집니다. 고르지 않으면 화면 언어를 따릅니다(한국어는 지금과 같고, 영어는 시각이 12시간제로 바뀝니다)."
       },
       "en": {
         "title": "Choose how dates and times appear",
-        "body": "In My work settings › «Date & time display», pick the date order, 12/24-hour clock, and the first day of the week (Sun/Mon). The calendar and date pickers follow it first; other screens will follow soon. Nothing changes if you leave it on automatic."
+        "body": "In My work settings › «Date & time display», pick the date order, 12/24-hour clock, and the first day of the week (Sun/Mon). The calendar and date pickers follow it first; other screens will follow soon. Left on automatic, it follows your language — Korean stays as before; English now shows a 12-hour clock."
       }
     },
     {
       "ko": {
-        "title": "놓치는 메일을 막았습니다",
+        "title": "놓치던 메일을 다시 가져옵니다",
         "body": "일시적인 오류로 받지 못한 메일을 다음 수신 때 다시 가져오고, 메일 ID 가 없는 메일도 받습니다. 임시답변을 보낸 «답변 필요» 메일은 목록에 고객의 마지막 메일이 보입니다."
       },
       "en": {
-        "title": "No more missed emails",
+        "title": "Missed emails are now fetched again",
         "body": "Emails that failed to arrive because of a temporary error are fetched again on the next sync, and emails without a message ID are now received too. In «Needs reply», threads where you sent a holding reply now show the customer's last message."
       }
     },
