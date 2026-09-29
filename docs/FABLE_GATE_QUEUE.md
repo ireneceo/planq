@@ -8,6 +8,27 @@
 
 ---
 
+## ⏳ 2026-09-29 오후 — 프로젝트 폴더 업로드 = 프로젝트 파일 (결정 5-a) · **by:"unavailable"(Fable 429)**
+
+**판정: R=1** — 가시성 확대(L1 → 프로젝트 멤버 L2). 커밋 `1e0cc312` (`dev-backend/routes/files.js` 업로드 라우트).
+Fable 호출 HTTP 429(한도 초과) → 보고는 **"Fable 미검증(자체 검증)"**. 토큰이 생기면 아래 참고 묶음과 한 라운드로.
+
+**무엇을 바꿨나**: project_id 가 없고 folder_id 가 있으면 같은 business_id 의 폴더를 찾아 그 project_id 를 채택 → L2 · Drive 라우팅도 프로젝트 기준.
+옮기기(PATCH folder_id)는 범위 밖(그대로).
+**자체 검증(실 HTTP, business 5)**: 프로젝트 폴더+folder_id 만 → project 57·L2 ✅ · 워크스페이스 폴더 → L1(대조) ✅ · 폴더 없음 → L1(대조) ✅ ·
+남의 워크스페이스 프로젝트 폴더 → 400 ✅ · 프로젝트 탭 목록에 보임 ✅ · 픽스처·자동 생성 KB 문서 정리.
+
+### Fable 이 봐야 할 것
+1. 이 문으로 프로젝트에 파일을 넣을 수 있는 사람 집합이 기존 문(project_id 명시)과 같은가 — client 차단 유지 · 멤버 누구나(verifyProjectOwnership 은 소속만 봄)
+2. folder_id 를 FormData 에 싣는 **다른 호출부**(인라인 이미지·채팅 첨부·개인 보관함)가 이 분기를 타서 의도 밖으로 넓어지지 않는가
+3. 채택 조회와 뒤의 verifyFolderOwnership(projectId 조건) 순서 — 남의 프로젝트로 들어갈 길 없음
+
+### 같은 라운드 참고 (자체 검증, R=0 판단)
+- `0938a2f2` 모바일 #437·#441·#436·#427 — history 칸 쌓기 훅(useBackToClose, 미러 모드만) · 메뉴 z 1060 · 쓰기 모드 CSS · 선택 줄. e2e mobilepanels 21/21 · screenbreak 57/57
+- `b1a0f755` 표시명 Q sales · `d3fae6be` 날짜 형식 2차 + 가드 datefmt(반증 31→32) — 3폭 dd/mm/yyyy·12h 반영 · 자동 복귀 확인
+
+---
+
 ## ✅ 2026-09-28 — 날짜 형식 설정 (진행 중) + 같은 날 자체 검증 4건 · **배포 전 한 라운드**
 
 > **2026-09-29 해소 — Fable PASS 후 v1.65.0 배포.** 1차 FAIL 1건(자동 넘김 취소 시 포커스 세션 잔존 → `297a9065` 수정) ·

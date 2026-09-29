@@ -156,6 +156,8 @@ const SUITES = {
   mobilepanels: () => require('./canary-mobile-panels'),
   // 화면 깨짐 전수 점검 — 주요 18화면 × 3폭 가로 넘침·버튼 겹침·안 그려진 버튼 (2026-09-29, 대조군 포함)
   screenbreak: () => require('./canary-screen-break'),
+  // 공유 받기 (#434 ①) — SW 캐시를 채워 같은 입구로: 파일→프로젝트 폴더(새 폴더) · 채팅→대화방 · 문서. 만든 것 정리.
+  sharereceive: () => require('./canary-share-receive'),
   // 고객 창구 상담 예약 (2026-09-25, CLIENT_ENTRY P2) — 방문자 신청(3폭) → 팀 승인(확인창이 받는 주소를 말하는가)
   //   → 방문자 «확정» · 설정 카드 3폭 · 끄면 탭이 없다(음성 대조). 서버 판정은 실 HTTP 검사가 따로 잰다.
   booking: () => require('./canary-booking'),

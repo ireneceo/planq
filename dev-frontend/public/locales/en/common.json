@@ -600,12 +600,30 @@
       "doc": "Document",
       "docDesc": "Insert into new document",
       "file": "Q File",
-      "fileDesc": "Save to workspace files"
+      "fileDesc": "Save to a folder you choose"
     },
     "uploading": "Uploading...",
-    "fileNote": "Files are auto-saved to your workspace. Chat / Task / Note / Document destinations prefill text only; file attachment integration is coming in a future cycle.",
+    "fileNote": "Files are first saved to your files, then attached where you choose.",
     "staleNote": "The shared data has expired and was cleared automatically. Please share again.",
-    "hint": "File and image sharing will arrive in a future update. For now, please attach directly inside PlanQ."
+    "hint": "File and image sharing will arrive in a future update. For now, please attach directly inside PlanQ.",
+    "loadFailed": "Could not load the list",
+    "uploadFailed": "Could not upload the files. Please try again.",
+    "back": "← Somewhere else",
+    "pickConv": "Which chat should it go to?",
+    "convEmpty": "No chats to send to",
+    "convCustomer": "Client",
+    "convTeam": "Team",
+    "convHint": "The chat opens with your text and files in the message box. You press Send yourself.",
+    "place": {
+      "title": "Where should it be saved?",
+      "company": "Company files",
+      "root": "Top level (no folder)",
+      "newFolderPh": "New folder name (created inside the selected folder)",
+      "create": "+ Folder",
+      "save": "Save here",
+      "createFailed": "Could not create the folder",
+      "projectNote": "Files saved to a project are visible to its members."
+    }
   },
   "pwa": {
     "installAria": "Install app",

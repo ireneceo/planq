@@ -20,6 +20,8 @@ import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
 import { ChatIcon, CheckIcon, EditIcon, FileIcon } from '../../components/Common/Icons';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
+import { listBusinessConversations, listProjects, type ApiConversation, type ApiProject } from '../../services/qtalk';
+import { fetchFolders, fetchWorkspaceFolders, createFolder, createWorkspaceFolder, type FileFolder } from '../../services/files';
 
 interface SharePayload {
   title: string;
@@ -82,6 +84,16 @@ const ShareReceivePage: React.FC = () => {
   const [loading, setLoading] = useState(params.get('shared') === '1');
   const [busy, setBusy] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
+  // #434 — 고르는 단계. 채팅은 **어느 대화방**, 파일은 **어느 폴더** 인지까지 여기서 정한다.
+  //   예전엔 채팅을 누르면 /talk 로만 보내 대화방을 고르는 사이 글자가 사라졌고, 파일은 워크스페이스 루트에만 쌓였다.
+  const [step, setStep] = useState<'dest' | 'conv' | 'place'>('dest');
+  const [convs, setConvs] = useState<ApiConversation[] | null>(null);
+  const [projects, setProjects] = useState<ApiProject[]>([]);
+  const [placeProject, setPlaceProject] = useState<number | null>(null);   // null = 회사 파일
+  const [allFolders, setAllFolders] = useState<FileFolder[]>([]);
+  const [placeFolder, setPlaceFolder] = useState<number | null>(null);      // null = 맨 위
+  const [newFolderName, setNewFolderName] = useState('');
+  const [err, setErr] = useState<string | null>(null);
 
   // POST 공유 — SW 가 파일 + 텍스트 Cache 에 저장 후 ?shared=1 로 redirect.
   // 사이클 N+53: cache.delete 는 sendTo 완료 후 (새로고침 안전망).
@@ -113,50 +125,108 @@ const ShareReceivePage: React.FC = () => {
   const fmtSize = (n: number) => n < 1024 ? `${n} B` : n < 1024*1024 ? `${(n/1024).toFixed(1)} KB` : `${(n/1024/1024).toFixed(1)} MB`;
 
   // 파일 업로드 (배열) — 워크스페이스 파일로
-  const uploadFilesToWorkspace = async (): Promise<number[]> => {
+  const uploadFilesToWorkspace = async (loc?: { projectId: number | null; folderId: number | null }): Promise<number[]> => {
     if (!businessId || files.length === 0) return [];
     const ids: number[] = [];
     for (const f of files) {
       const fd = new FormData();
       fd.append('file', f);
+      if (loc?.projectId) fd.append('project_id', String(loc.projectId));
+      if (loc?.folderId) fd.append('folder_id', String(loc.folderId));
       const r = await apiFetch(`/api/files/${businessId}`, { method: 'POST', body: fd });
-      const j = await r.json();
+      const j = await r.json().catch(() => ({}));
       if (j.success && j.data?.id) ids.push(Number(j.data.id));
     }
+    // 하나라도 못 올렸으면 말한다 — 조용히 줄어든 채 넘어가면 «보냈는데 없다» 가 된다
+    if (ids.length < files.length) throw new Error('upload_failed');
     return ids;
   };
 
-  const sendTo = async (target: 'chat' | 'task' | 'note' | 'doc' | 'file') => {
+  // 채팅 — 대화방 목록(보관 제외)
+  const openConvPicker = async () => {
+    if (!businessId) return;
+    setErr(null); setStep('conv');
+    try {
+      const list = await listBusinessConversations(businessId);
+      setConvs(list.filter((c) => c.status !== 'archived'));
+    } catch { setConvs([]); setErr(t('shareReceive.loadFailed', '목록을 불러오지 못했습니다') as string); }
+  };
+  const convLabel = (c: ApiConversation) => c.display_name || c.title || c.Client?.display_name || c.Client?.company_name || `#${c.id}`;
+
+  // 파일 — 저장 위치
+  const openPlacePicker = async () => {
+    if (!businessId) return;
+    setErr(null); setStep('place');
+    try {
+      const [ps, ws] = await Promise.all([listProjects(businessId, 'active'), fetchWorkspaceFolders(businessId)]);
+      setProjects(ps);
+      setAllFolders(ws);
+    } catch { setErr(t('shareReceive.loadFailed', '목록을 불러오지 못했습니다') as string); }
+  };
+  const pickProject = async (pid: number | null) => {
+    setPlaceProject(pid); setPlaceFolder(null);
+    if (pid) {
+      try { const fs = await fetchFolders(pid); setAllFolders((prev) => [...prev.filter((f) => f.project_id !== pid), ...fs.map((f) => ({ ...f, project_id: pid }))]); } catch { /* 목록만 비어 보인다 */ }
+    }
+  };
+  // 지금 고른 범위의 폴더를 트리 순서(부모 → 자식)로 펼친다
+  const scopedFolders = useMemo(() => {
+    const inScope = allFolders.filter((f) => (placeProject ? f.project_id === placeProject : !f.project_id));
+    const byParent = new Map<number | null, FileFolder[]>();
+    for (const f of inScope) { const k = f.parent_id ?? null; byParent.set(k, [...(byParent.get(k) || []), f]); }
+    const out: { f: FileFolder; depth: number }[] = [];
+    const walk = (pid: number | null, depth: number) => {
+      for (const f of (byParent.get(pid) || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))) { out.push({ f, depth }); walk(f.id, depth + 1); }
+    };
+    walk(null, 0);
+    return out;
+  }, [allFolders, placeProject]);
+  const addFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name || !businessId || busy) return;
+    setBusy('folder'); setErr(null);
+    try {
+      const f = placeProject
+        ? await createFolder(placeProject, name, placeFolder)
+        : await createWorkspaceFolder(businessId, name, placeFolder);
+      setAllFolders((prev) => [...prev, { ...f, project_id: placeProject }]);
+      setPlaceFolder(f.id);
+      setNewFolderName('');
+    } catch { setErr(t('shareReceive.place.createFailed', '폴더를 만들지 못했습니다') as string); }
+    finally { setBusy(null); }
+  };
+  const saveToPlace = async () => {
+    if (busy || files.length === 0) return;
+    setBusy('file'); setErr(null);
+    try {
+      await uploadFilesToWorkspace({ projectId: placeProject, folderId: placeFolder });
+      await cleanupShareCache(fileCount);
+      navigate(placeProject ? `/projects/p/${placeProject}?tab=files` : '/files');
+    } catch { setErr(t('shareReceive.uploadFailed', '파일을 올리지 못했습니다. 다시 시도해 주세요.') as string); }
+    finally { setBusy(null); }
+  };
+
+  // 받는 화면이 글자(prefill)와 첨부(attachFileIds)를 **실제로 읽는다** — 업무·채팅·메모·문서 넷 다(#434).
+  //   파일은 먼저 워크스페이스에 올리고(개인 L1) 그 id 를 넘긴다 — 받는 화면이 기존 파일 첨부로 붙인다.
+  const sendTo = async (target: 'chat' | 'task' | 'note' | 'doc', convId?: number) => {
     if (busy) return;
-    setBusy(target);
+    setBusy(target); setErr(null);
     try {
       const encoded = encodeURIComponent(content);
-      // Q File 로 — 파일 그대로 워크스페이스에 업로드 + /files 이동
-      if (target === 'file') {
-        if (files.length === 0) { setBusy(null); return; }
-        await uploadFilesToWorkspace();
-        await cleanupShareCache(fileCount);
-        navigate('/files');
-        return;
-      }
-      // 사이클 N+56 — 파일 첨부 통합. fileNote i18n 약속 (파일 자동 저장) 코드 정합.
-      // 다른 destination 도 파일 있으면 우선 워크스페이스 업로드 → ?attachFileIds 로 같이 전달.
-      // destination 페이지 (chat/task/note/doc) 가 attachFileIds 받아 첨부 prefill 통합은 다음 사이클.
-      // 지금은 워크스페이스 저장 보장 + URL 에 file id 박제 (사용자가 destination 에서 직접 첨부).
       let attachQuery = '';
       if (files.length > 0) {
         const ids = await uploadFilesToWorkspace();
         if (ids.length > 0) attachQuery = `&attachFileIds=${ids.join(',')}`;
       }
-      switch (target) {
-        case 'chat':  navigate(`/talk?prefill=${encoded}${attachQuery}`); break;
-        case 'task':  navigate(`/tasks?prefill=${encoded}${attachQuery}`); break;
-        // 라우트는 /notes 다 (App.tsx). /qnote 는 존재하지 않아 catch-all 로 대시보드에 튕겼다.
-        case 'note':  navigate(`/notes?prefill=${encoded}${attachQuery}`); break;
-        case 'doc':   navigate(`/docs?prefill=${encoded}${attachQuery}`); break;
-      }
+      if (target === 'chat' && convId) navigate(`/talk/${convId}?prefill=${encoded}${attachQuery}`);
+      else if (target === 'task') navigate(`/tasks?prefill=${encoded}${attachQuery}`);
+      // 라우트는 /notes 다 (App.tsx). /qnote 는 존재하지 않아 catch-all 로 대시보드에 튕겼다.
+      else if (target === 'note') navigate(`/notes?prefill=${encoded}${attachQuery}`);
+      else navigate(`/docs?prefill=${encoded}${attachQuery}`);
       // 사이클 N+53 — destination 선택 완료 시 cache 정리 (새로고침 안전망 해제)
       await cleanupShareCache(fileCount);
+    } catch {
+      setErr(t('shareReceive.uploadFailed', '파일을 올리지 못했습니다. 다시 시도해 주세요.') as string);
     } finally {
       setBusy(null);
     }
@@ -198,40 +268,103 @@ const ShareReceivePage: React.FC = () => {
           <PreviewBox>{t('shareReceive.empty', '(빈 내용)')}</PreviewBox>
         )}
 
+        {step === 'dest' && (<>
         <ChooseLabel>{t('shareReceive.chooseDest', '어디로 보낼까요?')}</ChooseLabel>
         <DestGrid>
-          <DestBtn type="button" onClick={() => sendTo('chat')} disabled={busy !== null}>
+          <DestBtn type="button" data-testid="share-dest-chat" onClick={() => void openConvPicker()} disabled={busy !== null}>
             <DestIcon><ChatIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.chat', '채팅')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.chatDesc', '대화방에 메시지로')}</DestDesc>
           </DestBtn>
-          <DestBtn type="button" onClick={() => sendTo('task')} disabled={busy !== null}>
+          <DestBtn type="button" data-testid="share-dest-task" onClick={() => void sendTo('task')} disabled={busy !== null}>
             <DestIcon><CheckIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.task', '업무')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.taskDesc', '새 업무로 등록')}</DestDesc>
           </DestBtn>
-          <DestBtn type="button" onClick={() => sendTo('note')} disabled={busy !== null}>
+          <DestBtn type="button" data-testid="share-dest-note" onClick={() => void sendTo('note')} disabled={busy !== null}>
             <DestIcon><EditIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.note', '메모')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.noteDesc', 'Q Note 에 저장')}</DestDesc>
           </DestBtn>
-          <DestBtn type="button" onClick={() => sendTo('doc')} disabled={busy !== null}>
+          <DestBtn type="button" data-testid="share-dest-doc" onClick={() => void sendTo('doc')} disabled={busy !== null}>
             <DestIcon><EditIcon size={22} /></DestIcon>
             <DestTitle>{t('shareReceive.dest.doc', '문서')}</DestTitle>
             <DestDesc>{t('shareReceive.dest.docDesc', '새 문서 본문에')}</DestDesc>
           </DestBtn>
           {files.length > 0 && (
-            <DestBtn type="button" onClick={() => sendTo('file')} disabled={busy !== null} $highlight>
+            <DestBtn type="button" data-testid="share-dest-file" onClick={() => void openPlacePicker()} disabled={busy !== null} $highlight>
               <DestIcon><FileIcon size={22} /></DestIcon>
               <DestTitle>{t('shareReceive.dest.file', 'Q File')}</DestTitle>
-              <DestDesc>{t('shareReceive.dest.fileDesc', '워크스페이스 파일로 저장')}</DestDesc>
+              <DestDesc>{t('shareReceive.dest.fileDesc', '원하는 폴더에 저장')}</DestDesc>
             </DestBtn>
           )}
         </DestGrid>
+        </>)}
 
-        {busy && <Hint>{t('shareReceive.uploading', '업로드 중...')}</Hint>}
-        {!busy && files.length > 0 && (
-          <Hint>{t('shareReceive.fileNote', '파일은 워크스페이스에 자동 저장됩니다. 채팅·업무 destination 선택 시 텍스트만 prefill 되며, 파일 첨부는 다음 사이클에 통합됩니다.')}</Hint>
+        {step === 'conv' && (
+          <PickBox data-testid="share-conv-picker">
+            <PickHead>
+              <BackLink type="button" onClick={() => setStep('dest')}>{t('shareReceive.back', '← 다른 곳')}</BackLink>
+              <ChooseLabel>{t('shareReceive.pickConv', '어느 대화방에 보낼까요?')}</ChooseLabel>
+            </PickHead>
+            {convs === null && <Hint>{t('common.loading', '불러오는 중...')}</Hint>}
+            {convs && convs.length === 0 && <Hint>{t('shareReceive.convEmpty', '보낼 수 있는 대화방이 없습니다')}</Hint>}
+            {convs && convs.map((c) => (
+              <PickRow key={c.id} type="button" data-testid="share-conv-row" data-conv-id={c.id} disabled={busy !== null}
+                onClick={() => void sendTo('chat', c.id)}>
+                <span>{convLabel(c)}</span>
+                <PickMeta>{c.channel_type === 'customer' ? t('shareReceive.convCustomer', '고객') : t('shareReceive.convTeam', '팀')}</PickMeta>
+              </PickRow>
+            ))}
+            <Hint>{t('shareReceive.convHint', '대화방이 열리면 글과 파일이 입력칸에 담겨 있습니다. 보내기는 직접 누릅니다.')}</Hint>
+          </PickBox>
+        )}
+
+        {step === 'place' && (
+          <PickBox data-testid="share-place-picker">
+            <PickHead>
+              <BackLink type="button" onClick={() => setStep('dest')}>{t('shareReceive.back', '← 다른 곳')}</BackLink>
+              <ChooseLabel>{t('shareReceive.place.title', '어디에 저장할까요?')}</ChooseLabel>
+            </PickHead>
+            <ScopeRow>
+              <ScopeChip type="button" $on={placeProject === null} onClick={() => void pickProject(null)}>
+                {t('shareReceive.place.company', '회사 파일')}
+              </ScopeChip>
+              {projects.map((p) => (
+                <ScopeChip key={p.id} type="button" $on={placeProject === p.id} onClick={() => void pickProject(p.id)}>{p.name}</ScopeChip>
+              ))}
+            </ScopeRow>
+            <PickRow type="button" $on={placeFolder === null} onClick={() => setPlaceFolder(null)}>
+              <span>{t('shareReceive.place.root', '맨 위 (폴더 없이)')}</span>
+            </PickRow>
+            {scopedFolders.map(({ f, depth }) => (
+              <PickRow key={f.id} type="button" data-testid="share-folder-row" $on={placeFolder === f.id} $depth={depth} onClick={() => setPlaceFolder(f.id)}>
+                <span>{f.name}</span>
+              </PickRow>
+            ))}
+            <NewFolderRow>
+              <NewFolderInput
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder={t('shareReceive.place.newFolderPh', '새 폴더 이름 (고른 폴더 안에 만듭니다)') as string}
+                maxLength={100}
+                data-testid="share-new-folder"
+              />
+              <SmallBtn type="button" onClick={() => void addFolder()} disabled={!newFolderName.trim() || busy !== null}>
+                {t('shareReceive.place.create', '+ 폴더')}
+              </SmallBtn>
+            </NewFolderRow>
+            <SaveBtn type="button" data-testid="share-place-save" onClick={() => void saveToPlace()} disabled={busy !== null}>
+              {t('shareReceive.place.save', '여기에 저장')}
+            </SaveBtn>
+            {placeProject !== null && <Hint>{t('shareReceive.place.projectNote', '프로젝트에 저장한 파일은 그 프로젝트 멤버가 봅니다.')}</Hint>}
+          </PickBox>
+        )}
+
+        {err && <ErrLine role="alert">{err}</ErrLine>}
+        {busy && busy !== 'folder' && <Hint>{t('shareReceive.uploading', '업로드 중...')}</Hint>}
+        {!busy && step === 'dest' && files.length > 0 && (
+          <Hint>{t('shareReceive.fileNote', '파일은 먼저 내 파일로 저장된 뒤, 고른 곳에 첨부로 붙습니다.')}</Hint>
         )}
       </Wrap>
     </PageShell>
@@ -272,3 +405,45 @@ const StaleNote = styled.div`
   background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 10px;
   padding: 12px 14px; font-size: 0.8125rem; color: #92400E; line-height: 1.5;
 `;
+const PickBox = styled.div`display: flex; flex-direction: column; gap: 8px;`;
+const PickHead = styled.div`display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px;`;
+const BackLink = styled.button`
+  align-self: flex-start; background: none; border: none; padding: 0; min-height: 32px;
+  color: #0F766E; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
+`;
+const PickRow = styled.button<{ $on?: boolean; $depth?: number }>`
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 44px; padding: 10px 14px; padding-left: ${p => 14 + (p.$depth || 0) * 18}px;
+  background: ${p => p.$on ? '#F0FDFA' : '#FFFFFF'};
+  border: 1px solid ${p => p.$on ? '#14B8A6' : '#E2E8F0'}; border-radius: 10px;
+  font-size: 0.875rem; color: #0F172A; text-align: left; cursor: pointer;
+  span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  &:hover:not(:disabled) { border-color: #14B8A6; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const PickMeta = styled.span`font-size: 0.6875rem; color: #64748B; flex-shrink: 0;`;
+const ScopeRow = styled.div`display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;`;
+const ScopeChip = styled.button<{ $on?: boolean }>`
+  flex-shrink: 0; min-height: 36px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  background: ${p => p.$on ? '#0F766E' : '#F1F5F9'}; color: ${p => p.$on ? '#FFFFFF' : '#334155'};
+  border: 1px solid ${p => p.$on ? '#0F766E' : '#E2E8F0'}; font-size: 0.8125rem; font-weight: 600;
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+`;
+const NewFolderRow = styled.div`display: flex; gap: 8px; margin-top: 4px;`;
+const NewFolderInput = styled.input`
+  flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid #E2E8F0; border-radius: 8px;
+  font-size: 1rem; color: #0F172A;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.2); }
+`;
+const SmallBtn = styled.button`
+  flex-shrink: 0; height: 40px; padding: 0 14px; border-radius: 8px; cursor: pointer;
+  background: #FFFFFF; border: 1px solid #CBD5E1; color: #334155; font-size: 0.8125rem; font-weight: 600;
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const SaveBtn = styled.button`
+  margin-top: 8px; height: 44px; border-radius: 10px; cursor: pointer;
+  background: #14B8A6; border: 1px solid #14B8A6; color: #FFFFFF; font-size: 0.9375rem; font-weight: 700;
+  &:hover:not(:disabled) { background: #0D9488; }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+const ErrLine = styled.div`font-size: 0.8125rem; color: #B91C1C; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 12px;`;

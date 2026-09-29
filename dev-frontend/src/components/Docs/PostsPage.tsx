@@ -580,6 +580,33 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setError(null);
   };
 
+  // #434 — 다른 앱에서 «공유» 로 들어온 글·파일(?prefill= · ?attachFileIds=)을 **새 문서**로 연다.
+  //   공유 화면이 /docs 로 보내기만 하고 여기서 읽는 곳이 없어 글이 사라졌다(업무·메모·채팅은 이미 읽고 있었다).
+  //   첫 줄 = 제목, 나머지 = 본문. 파일은 기존 파일 첨부로 붙인다(공유 화면이 먼저 올려 둔 id).
+  const sharePrefillRef = useRef(false);
+  useEffect(() => {
+    if (sharePrefillRef.current) return;
+    const text = searchParams.get('prefill');
+    const ids = (searchParams.get('attachFileIds') || '').split(',').map(Number).filter((n) => Number.isFinite(n) && n > 0);
+    if (!text && ids.length === 0) return;
+    sharePrefillRef.current = true;
+    void (async () => {
+      await startNew();
+      if (text) {
+        const lines = text.split('\n');
+        const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        setTitleDraft((lines[0] || '').slice(0, 200));
+        const rest = lines.slice(1).filter((l, i, a) => l.trim() || (i > 0 && a[i - 1].trim()));
+        if (rest.length) setContentDraft(rest.map((l) => `<p>${esc(l)}</p>`).join('') as unknown);
+      }
+      if (ids.length) setPendingExistingIds(ids);
+      const next = new URLSearchParams(searchParams);
+      next.delete('prefill'); next.delete('attachFileIds');
+      setSearchParams(next, { replace: true });
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   // 편집 폼 옵션용: 워크스페이스 프로젝트 목록 (편집/신규 진입 시점에만 fetch)
   useEffect(() => {
     const isEditing = mode === 'edit' || mode === 'new';
