@@ -488,7 +488,17 @@ router.post('/public/:token/stripe-checkout', publicStripeLimiter, async (req, r
 //         biz_name, biz_tax_id, biz_ceo, biz_category, biz_item, biz_address, tax_email,   // 사업자(세금계산서)
 //         cr_purpose:'income_deduction'|'expense_proof', cr_identifier,                     // 개인(현금영수증)
 //         requested_by_name }
-router.post('/public/:token/receipt-request', async (req, res, next) => {
+// 무인증인데 제출마다 팀 알림(notifyMany → 푸시·메일)이 나간다 → 전용 per-IP 한도(운영 안정성 1번).
+//   고객이 오타를 고쳐 다시 내는 몇 번은 넉넉히 통과하고, 스크립트 반복은 막는다.
+const publicReceiptLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1시간
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `pub-receipt-${ipKeyGenerator(req.ip)}`,
+  message: { success: false, message: 'too_many_requests' },
+});
+router.post('/public/:token/receipt-request', publicReceiptLimiter, async (req, res, next) => {
   try {
     const invoice = await Invoice.findOne({ where: { share_token: req.params.token } });
     if (!invoice) return errorResponse(res, 'not_found', 404);

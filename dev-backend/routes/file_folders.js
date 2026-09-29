@@ -366,7 +366,9 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
           name: folder.name, parent_id: folder.parent_id, project_id: folder.project_id,
           removed_folder_ids: allFolderIds,
           contents: mode,
-          files: inside.map((f) => ({ id: f.id, name: f.file_name })),
+          // 감사 행 한 줄이 무한히 커지지 않게 목록은 앞 50개 + 총수(나머지는 removed_folder_ids 로 추적).
+          files: inside.slice(0, 50).map((f) => ({ id: f.id, name: f.file_name })),
+          files_total: inside.length,
         },
       });
 

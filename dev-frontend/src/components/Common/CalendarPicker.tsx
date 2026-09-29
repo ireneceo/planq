@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import { weekStartDay, getDatePrefs } from '../../utils/dateFormat';
 
 interface CalendarPickerProps {
   startDate?: string;
@@ -150,14 +151,16 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
 
   const renderMonth = (y: number, m: number) => {
     const days: (Date | null)[] = [];
-    const firstDay = getFirstDayOfMonth(y, m);
+    // 주 시작 요일은 사용자 설정(캘린더 격자와 같은 원천 — utils/dateFormat.weekStartDay)
+    const ws = weekStartDay();
+    const lead = (getFirstDayOfMonth(y, m) - ws + 7) % 7;
     const daysIn = getDaysInMonth(y, m);
-    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let i = 0; i < lead; i++) days.push(null);
     for (let d = 1; d <= daysIn; d++) days.push(new Date(y, m, d));
     return (
       <MonthBox>
         <MonthLabel>{t('calendar.monthLabel', { defaultValue: '{{year}}년 {{month}}월', year: y, month: m + 1 })}</MonthLabel>
-        <WeekdayRow>{WEEKDAY_KEYS.map(w => <Weekday key={w}>{t(`calendar.weekday.${w}`, { defaultValue: WEEKDAY_FALLBACK[w] })}</Weekday>)}</WeekdayRow>
+        <WeekdayRow>{[...WEEKDAY_KEYS.slice(ws), ...WEEKDAY_KEYS.slice(0, ws)].map(w => <Weekday key={w}>{t(`calendar.weekday.${w}`, { defaultValue: WEEKDAY_FALLBACK[w] })}</Weekday>)}</WeekdayRow>
         <DaysGrid>
           {days.map((date, i) => {
             if (!date) return <EmptyCell key={`e-${i}`} />;
@@ -186,7 +189,10 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
     const now = new Date();
     let start: Date; let end = now;
     if (preset === 'this_week') {
-      start = new Date(now); start.setDate(now.getDate() - now.getDay() + 1);
+      // 설정한 주 시작 기준. 자동(미설정)은 종전대로 월요일. 일요일에 «+1» 로 계산하면 시작이
+      //   **내일**이 되어 끝보다 뒤에 오던 결함도 같이 막는다(나머지 연산).
+      const ws = getDatePrefs().week_start === 'sun' ? 0 : 1;
+      start = new Date(now); start.setDate(now.getDate() - ((now.getDay() - ws + 7) % 7));
     } else if (preset === 'this_month') {
       start = new Date(now.getFullYear(), now.getMonth(), 1);
     } else if (preset === 'today') {

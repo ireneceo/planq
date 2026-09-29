@@ -330,6 +330,20 @@ const EventDrawer: React.FC<Props> = ({
               )}
             </MetaRow>
           </HeaderTexts>
+          {/* 공유는 업무 상세와 같은 자리(헤더 우측, 닫기 옆 아이콘)다 — 전엔 푸터 좌측이라 상세마다 찾는 곳이 달랐다.
+              나만보기(L1)는 발급 불가라 버튼을 두지 않고, 이유는 푸터 문구가 말한다. */}
+          {event.vlevel !== 'L1' && (
+            <HeaderShareBtn type="button" data-testid="event-share-open" onClick={() => setShareOpen(true)}
+              title={t('drawer.share', '공유') as string} aria-label={t('drawer.share', '공유') as string}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            </HeaderShareBtn>
+          )}
         </HeaderInner>
       </DetailDrawer.Header>
 
@@ -365,6 +379,7 @@ const EventDrawer: React.FC<Props> = ({
                   <DateTrigger
                     ref={dateTriggerRef}
                     type="button"
+                    data-testid="event-date-start"
                     onClick={() => setDatePickerOpen((x) => !x)}
                   >
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1007,18 +1022,7 @@ const EventDrawer: React.FC<Props> = ({
             {/* #104 — 나만보기(L1) 일정은 공개 링크 발급 불가 (개인 자원 누출 차단) */}
             {event.vlevel === 'L1' ? (
               <PrivateShareNote>{t('share.privateBlocked', { defaultValue: '나만보기 일정은 공유할 수 없어요' }) as string}</PrivateShareNote>
-            ) : (
-              <ShareBtn type="button" onClick={() => setShareOpen(true)} title={t('drawer.share', '공유') as string}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="18" cy="5" r="3" />
-                  <circle cx="6" cy="12" r="3" />
-                  <circle cx="18" cy="19" r="3" />
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                </svg>
-                {t('drawer.share', '공유') as string}
-              </ShareBtn>
-            )}
+            ) : <span />}
             {canEdit && !bookingLive && (
               <DangerBtn type="button" onClick={() => setConfirmDelete(true)}>
                 {t('button.delete')}
@@ -1373,11 +1377,14 @@ const FooterRow = styled.div`
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
 `;
 const PrivateShareNote = styled.span`font-size: 0.6875rem; color: #94A3B8;`;
-const ShareBtn = styled.button`
-  padding: 7px 12px; border-radius: 6px; font-size: 0.75rem; font-weight: 500;
-  background: transparent; color: #475569; border: 1px solid #CBD5E1; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-  &:hover { background: #F0FDFA; color: #0F766E; border-color: #99F6E4; }
+const HeaderShareBtn = styled.button`
+  /* DetailDrawer 닫기 버튼과 같은 규격(34px · 폰 44px) — 나란히 서므로 크기가 다르면 줄이 흔들린다 */
+  width: 34px; height: 34px; flex-shrink: 0; border: none; background: transparent;
+  color: #0F766E; border-radius: 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  &:hover { background: #F0FDFA; color: #134E4A; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: -2px; }
+  @media (max-width: 640px) { min-width: 44px; min-height: 44px; }
 `;
 
 // N+63 P2a — RecurrenceScopeModal styled

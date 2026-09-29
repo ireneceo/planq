@@ -574,6 +574,10 @@ async function run() {
     return results;
   } finally {
     if (browser) await browser.close().catch(() => {});
+    // 정리 0 — 카나리 주소(`*-canary-<ts>@example.com`)로 나간 OTP 메일 기록. 매 실행 2행씩 쌓였다.
+    //   다른 정리보다 **먼저, 따로** 한다(뒤 단계가 던져도 이건 남지 않게).
+    try { await sql("DELETE FROM email_logs WHERE to_email LIKE '%-canary-%@example.com'"); }
+    catch (e) { console.warn('[canary-guest-entry] email_logs 정리 실패', e.message); }
     // 정리 — 링크 + 그림자 사용자(참여자 행 먼저). 그림자는 is_guest=1 이고 이 링크의 것만.
     try {
       if (issued.length) {
