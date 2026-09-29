@@ -273,7 +273,7 @@ const CueHelpDrawer: React.FC<{
   }, [mode, guestView, open, location.pathname]);
 
   useBodyScrollLock(open);
-  // 폰·태블릿: 뒤로 가기 = Q helper 닫기 (#437 "헬프도"). 분리 창(standalone)은 창 자체라 제외.
+  // 뒤로 가기 = Q helper 닫기 (#437 "헬프도"). 분리 창(standalone)은 창 자체라 제외.
   const closeHelper = useCallback(() => setOpen(false), []);
   useBackToClose(open && !standalone, closeHelper);
 

@@ -16,7 +16,15 @@ export default function TabAppShell() {
   // 활성 탭 변경 → 브라우저 주소창 replaceState(전환은 히스토리에 안 쌓음) + document.title.
   useEffect(() => {
     if (!active) return;
-    try { window.history.replaceState({ pqTab: active.id }, '', active.path); } catch { /* noop */ }
+    // ★ 같은 주소를 다시 쓰는 것이면(탭 안 이동을 UrlMirror 가 이미 push 한 직후) 칸 번호 pqIdx 를 보존한다.
+    //   통째로 덮으면 번호가 지워져 UrlMirror 가 «바로 전 칸» 을 모르고, X 로 닫은 업무가 뒤로 가기에 다시 열렸다.
+    //   다른 주소로 바뀌는 것(탭 전환)이면 그 칸의 번호는 더 이상 맞지 않으므로 버린다.
+    try {
+      const here = window.location.pathname + (window.location.search || '');
+      const cur = (window.history.state || {}) as { pqIdx?: number };
+      const keep = here === active.path && typeof cur.pqIdx === 'number' ? { pqIdx: cur.pqIdx } : {};
+      window.history.replaceState({ ...keep, pqTab: active.id }, '', active.path);
+    } catch { /* noop */ }
     if (active.title) document.title = `${active.title} · PlanQ`;
   }, [active?.id, active?.path, active?.title]);
 

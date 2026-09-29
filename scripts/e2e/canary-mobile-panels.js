@@ -6,10 +6,11 @@
 //   운영 #427 "폴더 안에서 전체 삭제를 할 수 있어야 해" (전체 선택이 파일을 하나 고른 뒤에만 보였다)
 //
 // 재는 것
-//   ① 뒤로 가기 = 패널 닫기 (폰 = 미러 모드. 태블릿·데스크탑은 탭 모드라 tabStore 가 히스토리를 맡는다) — 확인필요에서 업무를 열고 뒤로 → 패널 닫힘 + 같은 페이지
+//   ① 뒤로 가기 = 패널 닫기 — 폰(미러 모드, useBackToClose). 탭 모드는 음성 대조
+//   ①b 주소로 여는 패널(Q task) — 세 폭 모두: 뒤로=닫힘 · X 로 닫으면 주소가 깨끗하고 뒤로 가도 다시 안 열림(탭 모드는 UrlMirror) — 확인필요에서 업무를 열고 뒤로 → 패널 닫힘 + 같은 페이지
 //      · 버튼(X)으로 닫으면 쌓아 둔 칸이 걷혀, 뒤로 한 번에 페이지를 떠난다(먹통 뒤로 없음)
 //      · Q task(주소를 replace 로 바꿔 여는 패널)도 같다 · X 로 닫은 뒤 뒤로 가도 다시 열리지 않는다
-//      · 음성 대조군: 탭 모드(태블릿·데스크탑)는 칸을 쌓지 않는다
+//      · 탭 모드는 UrlMirror 가 탭 안 replace 를 replace 로 옮겨야 성립한다(push 로 쌓으면 닫은 업무가 다시 열렸다)
 //   ② 패널이 떠 있어도 햄버거 메뉴는 **맨 위**에 그려진다(elementFromPoint) · 메뉴의 Cue 를 누르면 메뉴가 닫힌다
 //      · 양성 대조군: 메뉴 z-index 를 옛 값(100)으로 되돌리면 ② 가 실패로 뒤집힌다
 //   ③ 메일 답장 쓰기 모드(키보드 up): 앱 헤더 접힘 · 메타 줄 숨김 · 버튼 줄 붙박이 해제 · 원문이 보인다
@@ -58,7 +59,10 @@ async function run() {
         await page.goBack().catch(() => null); await sleep(1200);
         const after = await page.evaluate(() => location.pathname);
         const open = await drawerOpen(page);
-        if (v.mirror) {
+        if (!v.mirror) {
+          // 탭 모드(태블릿·데스크탑): 화면 상태로 여는 패널은 훅이 비킨다(히스토리는 UrlMirror 한 곳) — 종전 동작
+          push(`${v.key} · ① 음성 대조: 탭 모드는 훅이 칸을 쌓지 않는다(뒤로=페이지 떠남)`, after !== '/inbox', `주소=${after} · 패널=${open ? '열림' : '닫힘'}`);
+        } else {
           push(`${v.key} · ① 뒤로 가기 → 패널만 닫힘`, !open && after === '/inbox', `패널=${open ? '열림' : '닫힘'} · 주소=${after}`);
           // X 로 닫은 뒤 뒤로 한 번이면 /inbox 를 떠나야 한다(칸이 걷혔는가)
           await openInboxTask(page);
@@ -71,14 +75,11 @@ async function run() {
           await page.goBack().catch(() => null); await sleep(1200);
           const after2 = await page.evaluate(() => location.pathname);
           push(`${v.key} · ① X 로 닫은 뒤 뒤로 한 번 = 페이지를 떠남`, closed && after2 !== '/inbox', `닫기 버튼=${closed} · 뒤로 뒤 주소=${after2}`);
-        } else {
-          // 탭 모드(폭 550↑ — 태블릿·데스크탑)는 히스토리를 tabStore 가 맡는다 → 우리는 칸을 쌓지 않는다
-          push(`${v.key} · ① 음성 대조: 탭 모드는 칸을 쌓지 않는다(뒤로=페이지 떠남)`, after !== '/inbox', `주소=${after} · 패널=${open ? '열림' : '닫힘'}`);
         }
       }
 
-      // ── ①b 주소로 여는 패널(Q task ?task= — replace 로 연다) ──
-      if (v.mirror) {
+      // ── ①b 주소로 여는 패널(Q task ?task= — replace 로 연다) ── 미러(폰)·탭 모드(태블릿·데스크탑) 모두
+      {
         await b.goto(page, '/dashboard');
         await b.goto(page, '/tasks');
         await b.dismissBlockers(page);
@@ -108,7 +109,7 @@ async function run() {
           await page.goBack().catch(() => null); await sleep(1300);
           const c2 = await page.evaluate(() => location.pathname + location.search);
           const reopened = await drawerOpen(page);
-          push(`${v.key} · ①b X 로 닫은 뒤 뒤로 = 다시 열리지 않고 떠남`, !reopened && !/task=/.test(c2) && !c2.startsWith('/tasks'), `닫은 뒤 ${c1} → 뒤로 ${c2} · 패널=${reopened ? '다시 열림' : '닫힘'}`);
+          push(`${v.key} · ①b X 로 닫으면 주소에서 ?task= 가 빠지고, 뒤로 = 다시 열리지 않고 떠남`, !/task=/.test(c1) && !reopened && !/task=/.test(c2) && !c2.startsWith('/tasks'), `닫은 뒤 ${c1} → 뒤로 ${c2} · 패널=${reopened ? '다시 열림' : '닫힘'}`);
         }
       }
 

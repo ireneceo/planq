@@ -69,7 +69,7 @@ const DetailDrawerRoot: React.FC<DetailDrawerProps> = ({
   const panelRef = useRef<HTMLElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   useEscapeStack(open && closeOnEsc, onClose);
-  // 폰·태블릿: 뒤로 가기 = 이 패널 닫기 (#437 — 모든 우측패널이 여기서 한 번에)
+  // 뒤로 가기 = 이 패널 닫기 (#437 — 모든 우측패널이 여기서 한 번에)
   useBackToClose(open, onClose);
   useFocusTrap(panelRef, open);
   // 백드롭이 먹은 스크롤을 **밑으로 넘긴다** (위 머리말 ②)

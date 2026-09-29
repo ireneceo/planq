@@ -8,12 +8,21 @@ import { identityOfPath, type Tab } from './tabStore';
 // (1) pane 내부 location 변경 → 브라우저 히스토리 조작 결정.
 //   활성 탭의 내부 네비만 pushState(브라우저 back 엔트리 생성). 비활성 탭 내부 네비는 히스토리 무손상.
 //   초기 마운트(prevPath=null)·동일 path 는 push 안 함(StrictMode 이중마운트 멱등).
+// ★ 2026-09-29 (#437 후속) — 탭 안 이동의 브라우저 히스토리 반영.
+//   · 새 칸을 쌓는다(push) — 화면이 replace 를 골랐어도 여는 이동은 쌓는다. 그래야 뒤로 가기로 닫힌다
+//     (Q task 는 `?task=` 를 replace 로 여닫는다 — 예전부터 탭 모드는 그걸 push 로 쌓아 뒤로=닫기였다).
+//   · 단 **replace 가 바로 전 칸 주소로 돌아가는 것**(= X 로 닫기)이면 새 칸 대신 **뒤로 한 칸**(back).
+//     예전엔 닫기도 push 로 쌓아서, X 로 닫은 뒤 뒤로 가면 **닫은 업무가 다시 열렸다**(태블릿·데스크탑 실측).
+//   · 창 주소가 이미 그 주소면(뒤로 가기로 도착해 탭을 맞추는 중) 아무것도 하지 않는다.
 export function decidePaneNav(opts: {
   path: string; tabId: string; isActive: boolean; prevPath: string | null;
-}): { op: 'push' | 'none'; path: string; tabId: string } {
-  const { path, tabId, isActive, prevPath } = opts;
+  navType?: 'PUSH' | 'REPLACE' | 'POP'; windowPath?: string; prevEntryPath?: string | null;
+}): { op: 'push' | 'back' | 'none'; path: string; tabId: string } {
+  const { path, tabId, isActive, prevPath, navType, windowPath, prevEntryPath } = opts;
   if (!isActive) return { op: 'none', path, tabId };
   if (prevPath === null || prevPath === path) return { op: 'none', path, tabId };
+  if (windowPath !== undefined && windowPath === path) return { op: 'none', path, tabId };
+  if (navType === 'REPLACE' && prevEntryPath && prevEntryPath === path) return { op: 'back', path, tabId };
   return { op: 'push', path, tabId };
 }
 
