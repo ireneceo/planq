@@ -8,6 +8,21 @@
 
 ---
 
+## ⏳ 2026-09-30 — #429 동료 상태 · 모바일 입력 전후 · 시간 칸 blur · 구형 WebView 폴리필 · **by:"unavailable"(Fable 429, Irene «내일로»)**
+
+**판정: 전부 R=0 · F=1** (자체 검증 대상이지만 게이트가 미검증 커밋 4건으로 막아 기록한다). 커밋 `2524b4aa` `b5bca160` `3a87d6ae` `3c1e70eb`.
+
+**무엇을 바꿨나**: ①#429 — 기존 `GET /api/attendance/presence`(서버 무변경)를 읽는 훅·사이드바 목록·채팅 점 ②`main.tsx ensureFocusedVisible` 이
+스크롤 상자 경계·덮은 sticky/fixed 줄까지 보고 스크롤 · 채팅 폰 입력 중 카드/정보밴드 접기 · `PanelHeaderBar` 폰 액션칸 margin -5px(밴드1 56 통일)
+③시간 칸 blur 가 `input.defaultValue` 와 같으면 저장 안 함(`utils/hours.sameHours`) ④`public/legacy-polyfill.js` · dev DB 로거 정규식.
+**자체 검증**: mobilesweep 61/61(양성 대조군 2) · teampresence 전부(고객 403·키 화이트리스트·3폭·실시간 음성대조) · 회귀 8스위트 통과 ·
+가드 60/61 · 빌드 EXIT 0 · 시간칸 blur PATCH 0/값 변경 시 창 뜸 · 구형 흉내 폴리필 있음 정상/막음 크래시.
+
+### Fable 이 봐야 할 것
+1. ensureFocusedVisible 의 덮개 판정(elementFromPoint→sticky/fixed 조상)이 **의도된 떠 있는 요소**(FAB·토스터·배너) 때문에 불필요한 스크롤을 만들지 않는가(#111 "자꾸 내려감" 회귀)
+2. 밴드1 액션칸 음수 margin 이 폰에서 액션이 줄바꿈될 때(flex-wrap) 제목과 겹치지 않는가
+3. sameHours 로 건너뛴 경로가 «AI 예측을 그대로 확정» 같은 의도적 동일값 저장을 막지 않는가
+
 ## ⏳ 2026-09-29 오후 — 프로젝트 폴더 업로드 = 프로젝트 파일 (결정 5-a) · **by:"unavailable"(Fable 429)**
 
 > 2026-09-30 재시도 — Fable HTTP 429(한도) 다시 실패. Irene: «fable 관련은 내일로». 대기 유지.
