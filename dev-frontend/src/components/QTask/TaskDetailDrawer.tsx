@@ -1,6 +1,7 @@
 // 업무 상세 드로어 — 오버레이(position:fixed) 패널.
 // QTaskPage / QProjectDetailPage 양쪽에서 공용. 단일 taskId 를 받아 상세 + 워크플로우
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
+import { sameHours } from '../../utils/hours';
 import { downloadBlob } from '../../utils/download';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
@@ -74,6 +75,7 @@ export interface DrawerTaskPatch {
   progress_percent?: number;
   is_milestone?: boolean;
 }
+
 
 interface DrawerOrgUnit { id: number; name: string; name_en?: string | null }
 export interface DrawerMemberOption { user_id: number; name: string; department?: DrawerOrgUnit | null; team?: DrawerOrgUnit | null; }
@@ -1927,7 +1929,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                               ? (t('detail.meta.aiEstHint', { defaultValue: 'AI 자동 예측 — 직접 입력하면 확정됩니다' }) as string)
                               : (isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string)
                           }
-                          onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee) saveField('estimated_hours', v); }} />
+                          onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee && !sameHours(e.target.value, e.target.defaultValue)) saveField('estimated_hours', v); }} />
                         <MetaUnit>h</MetaUnit>
                         {isAssignee && (
                           <AiBtn type="button" disabled={aiEstLoading}
@@ -1977,7 +1979,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                               ? (t('detail.meta.actHint', { defaultValue: '진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다' }) as string)
                               : (isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string)
                           }
-                          onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee) saveField('actual_hours', v); }} />
+                          onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee && !sameHours(e.target.value, e.target.defaultValue)) saveField('actual_hours', v); }} />
                         <MetaUnit>h</MetaUnit>
                       </MetaValueRow>
                     </MetaCell>

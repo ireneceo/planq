@@ -41,7 +41,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useListKeyboardNav } from '../../hooks/useListKeyboardNav';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
-import { formatHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
+import { formatHours, sameHours, utilizationPercent, utilizationStatus, UTIL_COLOR } from '../../utils/hours';
 import HelpDot from '../../components/Common/HelpDot';
 import { displayName } from '../../utils/displayName';
 import { friendlyDeleteError } from '../../utils/taskDeleteError';
@@ -2232,7 +2232,7 @@ const QTaskPage:React.FC=()=>{
                                   : (editable ? undefined : (t('list.notMyHours','담당자만 수정 가능 (참고용)') as string))
                               }
                               onClick={ev=>ev.stopPropagation()}
-                              onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'estimated_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
+                              onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable&&!sameHours(ev.target.value,ev.target.defaultValue)){saveField(task.id,'estimated_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
                               onKeyDown={ev=>{if(isEnterAction(ev))(ev.target as HTMLInputElement).blur();}} />
                             {task.latest_estimation_source==='ai' && e>0 && (
                               <AiInlineBadge title={t('list.aiEstimateHint', { defaultValue: 'AI 자동 예측' }) as string} aria-hidden="true">
@@ -2264,7 +2264,7 @@ const QTaskPage:React.FC=()=>{
                                   : (editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string)
                               }
                               onClick={ev=>ev.stopPropagation()}
-                              onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable){saveField(task.id,'actual_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
+                              onBlur={ev=>{const v=Number(ev.target.value);if(!isNaN(v)&&editable&&!sameHours(ev.target.value,ev.target.defaultValue)){saveField(task.id,'actual_hours',v);(ev.target as HTMLInputElement).value=formatHours(v);}}}
                               onKeyDown={ev=>{if(isEnterAction(ev))(ev.target as HTMLInputElement).blur();}} />
                             {task.status==='in_progress' && (
                               <InProgressDotMini role="img"
