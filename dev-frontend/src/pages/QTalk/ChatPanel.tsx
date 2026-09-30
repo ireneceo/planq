@@ -36,6 +36,7 @@ import GuestLinkButton from '../../components/QTalk/GuestLinkButton';
 import GuestLinkPrompt from '../../components/QTalk/GuestLinkPrompt';
 import { isNativeApp } from '../../services/native';
 import { formatDayTime } from '../../utils/dateFormat';
+import { useTeamPresence, PRESENCE_DOT } from '../../hooks/useTeamPresence';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
@@ -125,6 +126,9 @@ const ChatPanel: React.FC<Props> = ({
   const { t: tErr } = useTranslation('errors');
   const { t: tq } = useTranslation('qtask');   // #206 — 업무 상태 라벨 단일 원천
   const { user } = useAuth();
+  const { t: tAtt } = useTranslation('attendance');
+  // #429 — 멤버 이름 옆 오늘 상태 점. 고객이 보는 화면에서는 부르지도 않는다(서버도 403).
+  const presence = useTeamPresence(user?.business_role !== 'client' && user?.business_id ? Number(user.business_id) : null);
   const { formatTime } = useTimeFormat();
   const isClient = user?.business_role === 'client';
 
@@ -1582,6 +1586,13 @@ const ChatPanel: React.FC<Props> = ({
                       {m.sender_name}
                     </SenderName>
                   )}
+                  {(m.sender_role === 'owner' || m.sender_role === 'member') && (() => {
+                    const st = presence.map.get(Number(m.sender_id))?.state;
+                    // 미출근은 점을 찍지 않는다 — 근태를 안 쓰는 워크스페이스에선 모두가 회색 점이 되어 소음이다
+                    if (!st || st === 'none') return null;
+                    const label = tAtt(`state.${st}`) as string;
+                    return <PresenceDot data-testid="chat-presence-dot" style={{ background: PRESENCE_DOT[st] }} title={label} aria-label={label} role="img" />;
+                  })()}
                   <TimeStamp>{formatGroupTime(m.created_at)}</TimeStamp>
                   {m.is_edited && !m.is_deleted && <EditedMark>({t('chat.edited', '수정됨')})</EditedMark>}
                   {m.sender_role === 'cue' && <CueBadge>Cue</CueBadge>}
@@ -3319,6 +3330,10 @@ const MessageHeader = styled.div`
   margin-bottom: 4px;
 `;
 
+const PresenceDot = styled.span`
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; align-self: center;
+  box-shadow: 0 0 0 1.5px #FFFFFF;
+`;
 const SenderName = styled.button`
   /* 사이클 N+15-E — 발신자 이름 클릭 시 유저 정보 popover. button 으로 변경 (a11y + hover 영향). */
   background: transparent;

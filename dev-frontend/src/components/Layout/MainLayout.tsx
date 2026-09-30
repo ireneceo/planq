@@ -12,6 +12,7 @@ import WorkspaceSwitcher from './WorkspaceSwitcher';
 import GlobalSearchModal from '../Common/GlobalSearchModal';
 import { launchDockTool } from '../Common/RightDock';
 import SidebarStatusSummary from './SidebarStatusSummary';
+import TeamPresenceRow from './TeamPresenceRow';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -902,6 +903,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         <AttendanceWidget variant="sidebar" embedded />
         <FocusWidget isCollapsed={false} embedded />
       </WorkBlock>
+      {/* #429 — 동료 오늘 상태(상태만, 고객에겐 없음) */}
+      <TeamPresenceRow />
     </>
   );
 
