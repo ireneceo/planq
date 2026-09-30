@@ -15,7 +15,9 @@ const sequelize = new Sequelize(
     port: parseInt(process.env.DB_PORT) || 3306,
     dialect: 'mysql',
     logging: process.env.NODE_ENV === 'production' ? false : (msg) => {
-      if (msg.includes('ERROR') || msg.includes('timeout') || msg.includes('connection')) {
+      // ★ 쿼리 문자열 안의 단어로 거르면 안 된다 — `external_connections` 테이블을 읽는 평범한 SELECT 가
+      //   전부 "DB Query Error" 로 찍혀(2026-09-30 실측 수백 줄) 진짜 오류를 덮었다. 드라이버 오류 표식만 본다.
+      if (/\bER_[A-Z_]+|ETIMEDOUT|ECONNREFUSED|ECONNRESET|PROTOCOL_CONNECTION_LOST/.test(msg)) {
         console.error('DB Query Error:', msg);
       }
     },
