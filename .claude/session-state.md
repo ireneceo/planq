@@ -1,4 +1,30 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-09-30 · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료(커밋까지) — **미배포** · 오늘 변경은 전부 R=0·F=1 → **Fable 미검증(자체 검증)** · Fable 429 재시도 실패(대기열 5-a 는 내일)
+
+### 이번 세션 커밋
+| 커밋 | 내용 |
+|---|---|
+| `2524b4aa` | #429 동료 오늘 상태 — 사이드바 «팀 N명 근무 중» 목록(포털) · 채팅 이름 옆 점 · e2e `teampresence`(고객 403·3폭·실시간) · `Feedback-Closes: 429` |
+| `b5bca160` | 모바일: ensureFocusedVisible 이 스크롤 상자 경계·덮은 sticky 줄까지 본다 · 채팅 폰 입력 중 고객링크 카드·정보밴드 접기 · 폰 밴드1 56 통일 · e2e `mobilesweep`(27화면×390/360) |
+| `3a87d6ae` | Q task 시간 칸 blur 무변경 저장 차단(반복 업무 창 오작동·자동 누적 정지) — `utils/hours.sameHours` |
+| `3c1e70eb` | 구형 WebView 폴리필 `public/legacy-polyfill.js`(운영 크래시 Object.hasOwn) · dev DB 로거 오탐 제거 |
+
+### 검증(자체)
+- mobilesweep 61/61 · teampresence 전부 · 회귀(mobile·mobilechrome·headerdrift·mobilepanels·screenbreak·chatbottom·docsheader·caret) 통과(mobilepanels ③ 은 연속 실행 중 로딩 플레이크 → 단독 0) · 가드 60/61 · 빌드 EXIT 0
+- 검사 중 dev 데이터 오염 → 원복: 업무 575 예측 7.5→5.0(감사·예측 이력 행 삭제) · 594/613 actual_source user→auto
+
+### 다음 할 일
+1. **Fable 한 라운드**(토큰 생기면) — 대기열 맨 위 5-a(이미 운영) + 참고 묶음
+2. 배포 시: 운영 `node seed-wiki-content.js` · 스키마 변경 없음 · #429 는 배포 후 답글→닫기
+3. #434 ② 네이티브 공유(Irene/Apple) · #424 근무일수 통합(Fable 설계) · nginx 자동 적용(Irene «이따»)
+4. 운영 열린 신고 중 대형 기획: #381·382·411·412·426·439·440 — Irene 논의
+
+---
+
+> ⚠️ 아래는 09-29 기록.
+
+## (09-29) 작업 상태
 **마지막 업데이트:** 2026-09-29 밤 · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료(개발완료 처리) — **v1.66.0 운영 배포 완료** (commit `3646b92d`, backup `/opt/planq/backups/20260929_180016`) · **Fable 미검증**(429 ×4, 대기열 맨 위)
 
