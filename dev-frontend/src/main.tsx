@@ -254,13 +254,43 @@ if (typeof window !== 'undefined' && window.visualViewport) {
           }
         }
         const margin = 24;
-        const visibleBottom = vv.height;               // offsetTop 0 강제라 상단=0, 하단=vv.height
+        const scroller = findScrollParent(el);
+        // ★ 2026-09-30 — «보이는 아래 끝» 은 키보드만이 아니다. (Irene: "입력란 누르면 전후 확인하면서
+        //   입력하는데 문제 없게") 실측 폰 390/360 — 청구서 발행·업무 추가에서 입력이 화면(vvh) 안에 있는데도
+        //   ①모달의 스크롤 상자 경계 밖(아래 버튼 줄 뒤)이거나 ②sticky 하단 줄([취소][추가])에 덮여 있었다.
+        //   옛 판정은 vv.height 만 봐서 "보인다" 고 끝냈다. 그래서 아래 끝을 셋 중 가장 위로 잡는다:
+        //   키보드 위 · 스크롤 상자의 아래 경계 · 입력을 덮고 있는 떠 있는 줄(sticky/fixed)의 위 끝.
+        let visibleBottom = vv.height;                 // offsetTop 0 강제라 상단=0, 하단=vv.height
+        let visibleTop = 0;
+        if (scroller) {
+          const sr = scroller.getBoundingClientRect();
+          visibleBottom = Math.min(visibleBottom, sr.bottom);
+          visibleTop = Math.max(visibleTop, sr.top);
+        }
+        const coverTop = (() => {
+          // 입력 자리를 찍어 본다 — 입력(또는 그 안/바깥 조상)이 아닌 것이 잡히면 덮인 것이다
+          const x = rect.left + Math.min(rect.width / 2, 40);
+          for (const y of [rect.bottom - 3, rect.top + Math.min(rect.height, 20) / 2]) {
+            if (y <= 0 || y >= vv.height) continue;
+            const hit = document.elementFromPoint(x, y) as HTMLElement | null;
+            if (!hit || hit === el || el.contains(hit) || hit.contains(el)) continue;
+            for (let q: HTMLElement | null = hit; q && q !== document.body; q = q.parentElement) {
+              if (q.contains(el)) break;               // 입력을 품은 상자까지 올라오면 덮개가 아니다
+              const pos = getComputedStyle(q).position;
+              if (pos === 'sticky' || pos === 'fixed') return q.getBoundingClientRect().top;
+            }
+          }
+          return null;
+        })();
+        if (coverTop !== null && coverTop > rect.top - rect.height) visibleBottom = Math.min(visibleBottom, coverTop);
         if (rect.bottom > visibleBottom - margin) {
-          // 키보드에 가려짐 — 넘친 만큼만 스크롤 컨테이너를 내린다(과도한 center 점프 방지).
+          // 가려짐 — 넘친 만큼만 스크롤 컨테이너를 내린다(과도한 center 점프 방지).
           const delta = rect.bottom - (visibleBottom - margin);
-          const scroller = findScrollParent(el);
           if (scroller) scroller.scrollTop += delta;
           else if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' });
+        } else if (scroller && rect.height < visibleBottom - visibleTop && rect.top < visibleTop) {
+          // 스크롤 상자 위 경계(머리줄) 밑으로 숨음 — 숨은 만큼만 올린다
+          scroller.scrollTop -= (visibleTop - rect.top) + 8;
         }
         // 이미 보이면 아무것도 안 함 (#111 자동 스크롤 방지).
       } catch { /* noop */ }

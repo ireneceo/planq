@@ -2474,7 +2474,10 @@ const Container = styled.main<{ $mobileHidden?: boolean }>`
 //   제목 아래 정보는 밴드2(ChatMetaBar)로 내렸으므로 이 밴드는 자랄 이유가 없다.
 const HeaderBar = styled(PanelHeaderBar)``;
 // 밴드2 — DetailMetaBar 상속. 정보만 담는다(액션은 밴드1).
-const ChatMetaBar = styled(DetailMetaBar)``;
+const ChatMetaBar = styled(DetailMetaBar)`
+  /* 폰 입력 중에는 정보 밴드(분류·소속·고객)를 접어 메시지 자리를 돌려준다 — 메일 쓰기 모드(#436)와 같은 계약 */
+  @media (max-width: 768px) { body[data-keyboard-up='1'] & { display: none; } }
+`;
 
 // 좁은 폭 전용 핀 자리 — 넓은 폭에서는 리스트 헤더의 핀과 중복되므로 숨긴다.
 const NarrowPinSlot = styled.span`

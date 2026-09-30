@@ -156,6 +156,9 @@ const SUITES = {
   mobilepanels: () => require('./canary-mobile-panels'),
   // 화면 깨짐 전수 점검 — 주요 18화면 × 3폭 가로 넘침·버튼 겹침·안 그려진 버튼 (2026-09-29, 대조군 포함)
   screenbreak: () => require('./canary-screen-break'),
+  // 폰 전 화면 — 상단 헤더 통일 · 크롬(헤더+서브헤더+필터) 비율 · 입력 누르기 전/중/후 복원 (2026-09-30)
+  mobilesweep: () => require('./canary-mobile-sweep'),
+  teampresence: () => require('./canary-team-presence'),   // #429 동료 오늘 상태 — 고객 403·3폭·실시간
   // 공유 받기 (#434 ①) — SW 캐시를 채워 같은 입구로: 파일→프로젝트 폴더(새 폴더) · 채팅→대화방 · 문서. 만든 것 정리.
   sharereceive: () => require('./canary-share-receive'),
   // Q task 헤더 «전체 업무에서 찾기» (#430) — 3폭 버튼 가시성 · 끝난/남의 업무 검색 · 눌러서 상세 · 빈 상태 대조

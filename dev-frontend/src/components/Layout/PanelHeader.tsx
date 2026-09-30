@@ -109,7 +109,10 @@ export const PanelHeaderBar = styled.div`
        ★ :first-child 로 잡으면 안 된다 — 메일 상세는 onBack 을 써서 **첫 자식이 뒤로가기
        버튼**이다. 버튼을 빼고, 마지막(액션 칸)도 빼고 남는 것이 제목 칸이다. */
     > *:not(button):not(:last-child) { flex: 1 1 0; }
-    > *:last-child { flex-shrink: 0; }
+    /* ★ 액션 칸은 줄 높이에 34px 까지만 차지한다(위아래 -5px) — 터치 영역(⋯·버튼 44px)은 그대로 두고
+       패딩 안으로 겹쳐 그린다. 안 그러면 폰 밴드1 이 목록 56px · 상세 65px 로 화면마다 갈렸다
+       (2026-09-30 실측: 문서·고객·채팅 상세 65, 목록 56~57). 제목이 두 줄이면 제목이 밴드를 키운다. */
+    > *:last-child { flex-shrink: 0; margin-top: -5px; margin-bottom: -5px; }
   }
 `;
 
@@ -213,7 +216,9 @@ const BackBtn = styled.button<{ $always?: boolean }>`
   svg { width: 20px; height: 20px; }
   &:hover { background: #F1F5F9; }
   @media (max-width: 1024px) { display: inline-flex; }
-  @media (max-width: 640px) { width: 44px; height: 44px; }
+  /* 터치 영역은 44 로 두되 줄 높이에는 36 만 차지한다(위아래 -4px) — 44 그대로면 폰 밴드1 이
+     목록 화면 56px 과 달리 상세 화면만 65px 로 커졌다(2026-09-30 실측: 채팅·문서·고객·메일 상세). */
+  @media (max-width: 640px) { width: 44px; height: 44px; margin-top: -5px; margin-bottom: -5px; }
 `;
 
 /**

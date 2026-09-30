@@ -93,6 +93,10 @@ const Box = styled.div`
   border: 1px solid #99F6E4;
   border-radius: 10px;
   background: #F0FDFA;
+  /* 폰에서 입력 중(키보드 올라옴)에는 접는다 — 360px 폭에서 이 카드(155px)가 남으면 메시지 영역이 32px 로
+     줄어 앞 대화를 보며 쓸 수 없었다(2026-09-30 실측). 키보드를 내리면 그대로 돌아온다.
+     max-width 게이트 필수 — 표식은 데스크탑 창을 세로로 줄이기만 해도 켜진다(CLAUDE.md §17). */
+  @media (max-width: 768px) { body[data-keyboard-up='1'] & { display: none; } }
 `;
 const Title = styled.div`
   font-size: 0.875rem; font-weight: 700; color: #0F766E; line-height: 1.5;
