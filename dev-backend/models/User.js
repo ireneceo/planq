@@ -37,6 +37,10 @@ User.init({
   terms_version: { type: DataTypes.STRING(20), allowNull: true },
   privacy_accepted_at: { type: DataTypes.DATE, allowNull: true },
   privacy_version: { type: DataTypes.STRING(20), allowNull: true },
+  // 가입 출처(처음 들어온 곳) — 2026-10-01. 'l.threads.com'·'naver'·'direct'·'utm:<값>' 처럼 도메인/표식 하나뿐.
+  //   쿠키·IP 는 저장하지 않는다(랜딩 방문 집계와 같은 원칙). NULL = 기록 이전 가입자 또는 출처 미상.
+  //   쓰는 문은 하나 — routes/landing_visits.js POST /signup-source (가입 24시간 안 · 비어 있을 때만).
+  signup_source: { type: DataTypes.STRING(80), allowNull: true },
   // 보조 이메일 (복구용) — primary 와 별도. 인증된 후에만 활성.
   secondary_email: { type: DataTypes.STRING(100), allowNull: true },
   secondary_email_verified_at: { type: DataTypes.DATE, allowNull: true },

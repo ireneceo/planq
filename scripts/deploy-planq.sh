@@ -344,6 +344,8 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-apple-login.js 2>&1 | tail -8"
   # 2026-09-28 날짜·시간 표시 형식 — users 칸 3개(ENUM NULL). 모델이 선언하므로 PM2 reload 전(없으면 users 조회 500).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-date-prefs.js 2>&1 | tail -5"
+  # 2026-10-01 가입 출처 — users.signup_source VARCHAR(80) NULL. 모델이 선언하므로 PM2 reload 전(없으면 users 조회 500).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-user-signup-source.js 2>&1 | tail -5"
   # 2026-09-23 「지금 결제하면 1개월 추가」 — subscriptions.bonus_months INT NOT NULL DEFAULT 0.
   #   ★ 반드시 PM2 reload **앞**. 모델이 이 컬럼을 선언하므로 컬럼 없이 새 백엔드가 뜨면
   #     markPaymentPaid / createPendingSubscription 이 ER_BAD_FIELD_ERROR 로 죽는다(결제 전멸).

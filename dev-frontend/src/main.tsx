@@ -5,6 +5,7 @@ import './i18n'
 import './index.css'
 // 글씨 크기 배율 — 첫 페인트 전에 적용해야 글자가 커지며 튀지 않는다.
 import { initFontScale } from './services/fontScale'
+import { captureFirstTouch } from './services/firstTouch'
 import App from './App.tsx'
 import { bindPermissionSync } from './services/push.ts'
 import { isNativeApp, nativePlatform } from './services/native'
@@ -352,6 +353,8 @@ if (typeof window !== 'undefined' && window.visualViewport) {
 
 // ⑥ 멀티탭 — BrowserRouter 는 App 내부 ModeGate 가 shell 경로에서만 감싼다(tree-swap 은 router-less zone).
 initFontScale();
+// 가입 출처 — 처음 들어온 곳을 한 번 적어 둔다(services/firstTouch). 렌더 전에 — referrer·utm 이 아직 그대로일 때.
+captureFirstTouch();
 
 // 크래시 직전 조작을 남긴다 — 보고에 '어디서' 뿐 아니라 '무엇을 눌렀을 때' 가 실린다.
 installCrashTrail();

@@ -16,6 +16,8 @@ interface Data {
   totals: { entries: number; visitor_days: number };
   daily: Array<{ date: string; views: number; visitors: number }>;
   pages: Row[]; sources: Row[]; devices: Row[];
+  // 같은 기간 가입자의 처음 들어온 곳 — key null = 기록 이전 가입 또는 출처 미상
+  signups?: { key: string | null; count: number }[];
 }
 
 export default function AdminLandingVisitsPage() {
@@ -39,6 +41,9 @@ export default function AdminLandingVisitsPage() {
   const dayOptions: PlanQSelectOption[] = [7, 30, 90, 180].map((d) => ({ value: String(d), label: t('landingVisits.lastDays', { count: d }) as string }));
   const max = Math.max(1, ...(data?.daily || []).map((d) => d.views));
   const srcLabel = (k: string) => (['direct', 'naver', 'google', 'daum/kakao', 'bing'].includes(k) ? t(`landingVisits.src.${k.replace('/', '_')}`) as string : k);
+  const signupLabel = (k: string | null) => (k === null
+    ? t('landingVisits.signupUnknown') as string
+    : k.startsWith('utm:') ? `UTM · ${k.slice(4)}` : srcLabel(k));
 
   return (
     <PageShell
@@ -88,6 +93,15 @@ export default function AdminLandingVisitsPage() {
               <Table>{data.sources.map((r) => <TRow key={r.key}><TKey title={r.key}>{srcLabel(r.key)}</TKey><TNum>{r.views}</TNum></TRow>)}</Table>
               <CardTitle $gap>{t('landingVisits.devices')}</CardTitle>
               <Table>{data.devices.map((r) => <TRow key={r.key}><TKey>{t(`landingVisits.dev.${r.key}`)}</TKey><TNum>{r.views}</TNum></TRow>)}</Table>
+            </Card>
+            {/* 2026-10-01 — 방문만 세면 «Threads 방문 65» 가 가입으로 이어졌는지 알 수 없다. 같은 판정(sourceOf)으로 센 가입 출처. */}
+            <Card data-testid="lv-signups">
+              <CardTitle>{t('landingVisits.signups')}</CardTitle>
+              {(data.signups || []).length === 0
+                ? <Dim>{t('landingVisits.signupsEmpty')}</Dim>
+                : <Table>{(data.signups || []).map((r) => (
+                    <TRow key={r.key ?? '__unknown'}><TKey title={r.key ?? ''}>{signupLabel(r.key)}</TKey><TNum>{r.count}</TNum></TRow>
+                  ))}</Table>}
             </Card>
           </Grid>
         </>

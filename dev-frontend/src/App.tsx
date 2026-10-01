@@ -26,6 +26,7 @@ const OpenInAppBanner = lazy(() => import('./components/Common/OpenInAppBanner')
 const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGuard'));
 // 다른 창·기기의 워크스페이스 전환을 이 창에 반영 (docs/WORKSPACE_SCOPE_DESIGN.md C4)
 const WorkspaceSyncGuard = lazy(() => import('./components/Common/WorkspaceSyncGuard'));
+const SignupSourceReporter = lazy(() => import('./components/Common/SignupSourceReporter'));
 const LeaveDecisionGuard = lazy(() => import('./components/Common/LeaveDecisionGuard'));
 const AppContextMenu = lazy(() => import('./components/Common/AppContextMenu'));
 const PopoutBridge = lazy(() => import('./components/Common/PopoutBridge'));
@@ -787,6 +788,8 @@ function App() {
           트리 안쪽에 두면 한쪽에만 걸린다(2026-09-11 실측: ShellApp 에만 있어 데스크탑 메인 탭 창이 전부 무반응).
           Router 를 쓰지 않는다(재부팅은 window.location). */}
       <Suspense fallback={null}><WorkspaceSyncGuard /></Suspense>
+      {/* 가입 출처 보고(로그인된 순간 한 번) — 같은 이유로 루트 한 곳 */}
+      <Suspense fallback={null}><SignupSourceReporter /></Suspense>
       {/* 로그아웃 전 확인 — 범위를 골라야 저장되는 글이 남았을 때. 같은 이유로 **루트 한 곳**(두 렌더 트리 공통) */}
       <Suspense fallback={null}><LeaveDecisionGuard /></Suspense>
       {/* 우리 우클릭 메뉴 — 링크는 "새 탭에서 열기 · 링크 복사", 탭은 "복제 · 복사 · 닫기".

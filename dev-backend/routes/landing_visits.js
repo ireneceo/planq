@@ -67,6 +67,17 @@ function sourceOf(ref) {
   if (host.includes('bing')) return 'bing';
   return host.slice(0, 80);
 }
+// 가입 출처 — 랜딩 방문과 **같은 판정**(sourceOf)을 쓴다. 두 표가 다른 말을 하면 «Threads 방문 65 · 가입 0» 같은
+//   비교가 거짓이 된다. utm_source 가 있으면 그것이 우선(링크에 직접 붙인 표식이 referrer 보다 정확하다).
+const UTM_RE = /^[a-z0-9._-]{1,40}$/i;
+function signupSourceOf({ r, utm } = {}) {
+  const u = String(utm || '').trim();
+  if (u && UTM_RE.test(u)) return `utm:${u.toLowerCase()}`;
+  const s = sourceOf(r);
+  return s === 'internal' ? 'direct' : s;
+}
+const SIGNUP_SOURCE_WINDOW_MS = 24 * 3600 * 1000;
+
 const kstDate = (d = new Date()) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(d);
 
 const visitLimiter = perUserLimiter('landing-visit', { windowMs: 60 * 1000, max: 60 });
@@ -99,6 +110,27 @@ router.post('/', visitLimiter, async (req, res) => {
   return res.status(204).end();
 });
 
+// 가입 출처 기록 — 가입 직후 로그인된 화면이 **한 번** 보낸다(이메일·구글·애플 가입이 같은 문을 쓴다).
+//   가입 라우트마다 받으면 한쪽(OAuth 리다이렉트)이 빠진다. 그래서 «가입 24시간 안 + 아직 비어 있음» 일 때만 쓴다 —
+//   오래된 계정이 보내는 값은 조용히 버린다(로그아웃 후 랜딩을 거쳐 다시 로그인한 기존 고객).
+// audit-exempt: 본인 계정의 마케팅 집계용 값 1개를 한 번만 채운다(덮어쓰기 없음) — 감사 대상 변경이 아니다.
+router.post('/signup-source', authenticateToken, perUserLimiter('signup-source', { windowMs: 60 * 1000, max: 10 }), async (req, res) => {
+  try {
+    const { User } = require('../models');
+    const u = await User.findByPk(req.user.id, { attributes: ['id', 'created_at', 'signup_source'] });
+    if (!u || u.signup_source) return res.status(204).end();
+    // ★ 속성 접근(u.created_at)은 undefined 다 — 이 모델은 값을 dataValues 에만 싣는다. 그대로 쓰면 모든 가입이
+    //   «시각 없음 → 무시» 로 빠져 조용히 0건이 된다(2026-10-01 실측). 값을 직접 읽는다.
+    const created = new Date(u.getDataValue('created_at') || u.getDataValue('createdAt') || 0).getTime();
+    if (!created || Date.now() - created > SIGNUP_SOURCE_WINDOW_MS) return res.status(204).end();
+    const b = req.body || {};
+    const src = signupSourceOf({ r: b.r, utm: b.utm });
+    // 비어 있을 때만 — 동시에 두 번 와도 먼저 쓴 값이 남는다
+    await User.update({ signup_source: src }, { where: { id: u.id, signup_source: null } });
+  } catch (e) { console.warn('[signup-source]', e.message); }
+  return res.status(204).end();
+});
+
 // 플랫폼 관리자 — 최근 N일(7~180) 요약
 router.get('/admin', authenticateToken, requireRole('platform_admin'), async (req, res, next) => {
   try {
@@ -121,13 +153,22 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
       sum('path'), sum('source', "AND source <> 'internal'"), sum('device'),
     ]);
     const [[vt]] = await sequelize.query('SELECT COUNT(*) n FROM landing_visitors WHERE visit_date >= ?', { replacements: [since] });
+    // 같은 기간 가입자의 출처 — NULL 은 «기록 이전 가입 또는 출처 미상»(화면이 그렇게 말한다)
+    const [signupRows] = await sequelize.query(
+      `SELECT COALESCE(signup_source, '') k, COUNT(*) n FROM users
+        WHERE created_at >= ? AND platform_role <> 'platform_admin'
+          AND is_guest = 0 AND is_ai = 0   -- 게스트 링크 그림자 계정·Cue 계정은 «가입» 이 아니다(Fable 2026-10-01: dev 148 중 130 이 게스트)
+        GROUP BY k ORDER BY n DESC LIMIT 20`,
+      { replacements: [`${since} 00:00:00`] },
+    );
+    const signups = signupRows.map((x) => ({ key: x.k || null, count: Number(x.n) }));
     const totalViews = daily.reduce((a, r) => a + Number(r.views), 0);
     // 들어온 경로 합계에서 사이트 안 이동(internal)은 빼고 «들어온 방문» 만 센다 — 페이지별은 전부 센다
     return successResponse(res, {
       days, since,
       totals: { entries: totalViews, visitor_days: Number(vt.n) },
       daily: daily.map((r) => ({ date: r.date, views: Number(r.views), visitors: Number(r.visitors) })),
-      pages, sources, devices,
+      pages, sources, devices, signups,
     });
   } catch (err) { next(err); }
 });
@@ -142,4 +183,4 @@ async function pruneLandingVisits() {
 
 module.exports = router;
 module.exports.pruneLandingVisits = pruneLandingVisits;
-module.exports._test = { normPath, allowedPath, sourceOf, BOT_RE };
+module.exports._test = { normPath, allowedPath, sourceOf, signupSourceOf, BOT_RE };

@@ -476,6 +476,9 @@
     "dev": {
       "mobile": "Mobile",
       "desktop": "Desktop"
-    }
+    },
+    "signups": "Signup sources",
+    "signupsEmpty": "No signups in this period",
+    "signupUnknown": "Before tracking / unknown"
   }
 }
