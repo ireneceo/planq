@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-09-29 밤 ([Opus] Opus 5.5) — **v1.66.0 운영 배포** (Fable 429 ×4 → 미검증·대기열). 모바일 #437·#441·#436·#427 · #430 전체 업무 찾기 · 탭 모드 뒤로 가기 · Q sales · 프로젝트 폴더 업로드 · 날짜 형식 2차 · 공유 받기 ①.
+> **최종 업데이트:** 2026-10-01 밤 ([Opus] Opus 5.5) — **v1.67.0 · v1.67.1 운영 배포** (Fable PASS, 확인필요 카드·필터 뒤로는 자체 검증). 메일 실시간 · 랜딩 포지셔닝 · 가입 출처 · 답장 발신 주소(Cc) · 탭 뒤로 가기 마무리 · 확인필요 카드 정돈 · 앱스토어 출시.
+> ── 이전(2026-09-29 밤) ──
+> **v1.66.0 운영 배포** (Fable 429 ×4 → 미검증·대기열 — 10-01 라운드에서 해소). 모바일 #437·#441·#436·#427 · #430 전체 업무 찾기 · 탭 모드 뒤로 가기 · Q sales · 프로젝트 폴더 업로드 · 날짜 형식 2차 · 공유 받기 ①.
 > ── 이전(2026-09-29 오전) ──
 > **v1.65.0 운영 배포** (Fable PASS). #438 메일 누락 구멍 2 · 답변필요 행 미리보기 · 자잘한 후속 5건 · 자동 넘김 포커스 세션 종료. 09-26~28 분(날짜 형식 1차·반복업무·#428·431·432·433·435·보안 점검)도 함께 나감.
 > ── 이전(2026-09-28) ──
@@ -12,6 +14,34 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 2026-10-01 [Opus] — v1.67.0 · v1.67.1 배포 · Fable 라운드 · 랜딩·가입 출처 · 답장 주소 · 확인필요 카드
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 앱스토어 출시 | id6804790919 확인 · 운영 `app_ios_url` 교체 | ✅ |
+| Fable 라운드 | 대기열(5-a·09-30) → FAIL 3건(폴더 업로드 화면 경로·입력 스크롤 방향·탭 A→B) 수정 → PASS | ✅ `8a1ad68b` |
+| 메일 실시간 | 거절된 소켓(만료 토큰) 재연결 + 재연결 시 목록 재조회 · e2e mailrt reconnect | ✅ `f16535a6` |
+| 랜딩 홈 | «의뢰받은 일, 고객 요청부터 청구까지» · 무료 업무 진단 신청 · 업종 2축 · 프리렌더 | ✅ `42b0b54a` |
+| 가입 출처 | `users.signup_source` · firstTouch · 관리자 «가입 출처»(게스트·Cue 제외) | ✅ `489a4261` |
+| v1.67.0 배포 | 릴리즈노트 · 개발 현황 · 운영 도움말 재시드 | ✅ backup `20261001_200409` |
+| 탭 뒤로 가기 | 탭 왕복 뒤 닫기·갈아타기 재열림 · 필터 유지(①d·①e·①f) | ✅ `5a2b88d5` `5d19cb47` `6d57439e` |
+| 사용자 수·문구 | 대시보드 사람 계정만 · 옛 «수익성 엔진» 3곳 | ✅ `5a2b88d5` |
+| 답장 발신 주소 | To→Cc 순서 첫 우리 주소 · 발송·미리보기·화면 한 함수 · 미등록 안내 | ✅ `f9df034d` `c68c6d8f` |
+| 확인필요 카드 | 윗줄 할 일·마감·사람 / 둘째 줄 제목 · 워크스페이스 칩 제거 | ✅ `179bc1e2` |
+| v1.67.1 배포 | 릴리즈노트 발행 | ✅ backup `20261001_220533` |
+
+### 수정된 파일
+- `dev-frontend/src/services/socket.ts` · `pages/QMail/MailPage.tsx` · `stores/tabHistory.ts` · `components/Tab/UrlMirror.tsx` · `main.tsx`
+- `dev-frontend/src/pages/Landing/HomePage.tsx` · `services/firstTouch.ts` · `components/Common/SignupSourceReporter.tsx` · `pages/Admin/AdminLandingVisitsPage.tsx`
+- `dev-frontend/src/components/Dashboard/TodoList.tsx` · `pages/QProject/DocsTab.tsx` · locales(landing·admin·auth·common·qmail·qtask)
+- `dev-backend/routes/{landing_visits,admin,email_threads}.js` · `services/{emailSend,mailIdentity}.js` · `models/User.js` · `scripts/migrate-user-signup-source.js`
+- `scripts/deploy-planq.sh` · `scripts/schema-snapshot.json` · `scripts/e2e/{canary-mail-realtime,canary-mobile-panels}.js`
+
+### 남은 것
+- 앱 이름 변경 심사(빌드 16 선택 가능 여부 → 불가면 1.0.1 빌드+푸시) · 받은 주소 별칭 등록(@gitconsulting.group) · #429 답글 · 와디즈 수정 7건 · 업종별 랜딩 2장
 
 ---
 

@@ -625,6 +625,10 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 >     첫 N개를 다시 집어 `updated:0` 이 되고 "다시 누르면 이어서" 가 거짓말이 된다(실측 `1000 → 0`).
 >   memory `feedback_bulk_scope_on_ids_not_only_rows`.
 >
+> ⑥ **답장 발신 주소 = «받은 주소»** — `services/mailIdentity.receivedAddressesOf`(마지막 inbound 의 **To 다음 Cc**) 한 함수를
+>   답장 발송·미리보기가 같이 쓰고, `emailSend.resolveSender ②` 가 그 순서로 **처음 나오는 우리 주소**(별칭·계정 본주소)를 고른다.
+>   답장 화면 자동 선택도 같은 규칙. 미등록 주소로는 보낼 수 없다 → 화면이 «별칭으로 등록» 을 안내한다(2026-10-01).
+>
 > 회귀: `node scripts/e2e/run.js --suite maillabel` (16검사 — 폴더 술어 · i18n 원천 ko/en · 실화면 문구 ·
 > 배지 축 · **폰(375) 가시 단서** · 누르기 전후 수 일치).
 > ★ **빌드된 locales 는 `gzip_static`** 이다 — 대조군으로 문구를 되돌릴 때 평문 `.json` 만 바꾸면
@@ -1653,6 +1657,11 @@ import DetailDrawer from 'components/Common/DetailDrawer';
     **(d) visibility/focus 복귀 안전망** — `useVisibilityRefresh(silentLoad)` 훅 추가. PWA background → foreground 또는 socket 끊김 → 재연결 시 missed event 회복. 모바일 PWA 에서 시스템이 socket 끊을 때 정합.
 
     **(e) 같은 탭 안 안전망 (선택)** — workflow 액션 (status 변경 등) 시 `window.dispatchEvent(new CustomEvent('inbox:refresh'))` + 페이지가 `window.addEventListener('inbox:refresh', debouncedReload)`. socket broadcast 와 별개로 자체 액션 즉시 sync (TaskDetailDrawer + TodoPage N+35 패턴).
+
+    **(f) 서버가 거절한 소켓은 다시 붙지 않는다 (2026-10-01 박제)** — socket.io v4 는 미들웨어 거절(만료 토큰)이면
+       자동 재연결을 멈춘다(`active:false`). 오래 연 화면이 배포·끊김 뒤 영영 실시간 0 이었다(메일 목록 신고).
+       `services/socket.ts` 가 토큰 갱신 후 직접 `connect()` 하고, 재연결마다 `window` 에 `socket:reconnected` 를 쏜다 —
+       **끊긴 동안 온 broadcast 는 다시 오지 않으므로** 실시간이 중요한 화면은 그 신호에 silentLoad 를 건다(MailPage 선례).
 
     **검증 시나리오 — 신규 페이지 추가 시 필수 통과:**
        1. **2 브라우저 탭** (다른 사용자 시뮬레이션) — A 가 추가/수정 → B 가 그 페이지 열고 있으면 즉시 보임 (≤ 1초)
