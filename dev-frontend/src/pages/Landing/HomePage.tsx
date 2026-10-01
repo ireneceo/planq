@@ -15,7 +15,11 @@ const PROBLEM_ITEMS = [
   { icon: 'doc', label: 'problem.items.3.label', tool: 'problem.items.3.tool' },
 ] as const;
 const COMPARE_ROWS = ['request', 'task', 'file', 'agreement', 'meeting', 'invoice', 'profitability'] as const;
-const TARGET_ITEMS = ['agency', 'dev', 'studio', 'construction', 'consulting', 'legal'] as const;
+// 2026-10-01 — 업종은 «의뢰받아 일하는 팀» 두 축으로 좁힌다(전략: 의뢰형 비즈니스의 고객 업무).
+//   여섯 칸 나열은 누구에게도 꽂히지 않았고, 프랜차이즈 같은 내부 운영 업종이 섞여 방향을 흐렸다.
+const TARGET_AXES = ['outsource', 'pro'] as const;
+// 무료 업무 진단 — 업무체계 설계 서비스 페이지(ServicePage AUDIT_URL)와 **같은 문**을 쓴다.
+const AUDIT_URL = '/contact?type=quote&scope=audit';
 const ENGINE_LEFT = ['task', 'project', 'member', 'hours', 'client', 'invoice'] as const;
 const ENGINE_RIGHT = ['revenue', 'cost', 'overhead'] as const;
 
@@ -34,11 +38,20 @@ const HomePage: React.FC = () => {
           {/* #196 — 랜딩 유일한 하드코딩이었다(영어 모드에서도 한국어 노출). 하이라이트 조각이
               중간에 끼어 있어 3조각으로 나눠 키를 준다 — 어순이 다른 영어에서도 자연스럽게. */}
           <HeroHeadline>
-            {t('hero.headline1', '하나로 연결해')}<br />
-            <HeroHighlight>{t('hero.headlineHighlight', '시간을 돈으로 바꾸는')}</HeroHighlight><br />
-            {t('hero.headline2', '수익성 엔진')}
+            {t('hero.headline1', '의뢰받은 일,')}<br />
+            <HeroHighlight>{t('hero.headlineHighlight', '고객 요청부터 청구까지')}</HeroHighlight><br />
+            {t('hero.headline2', '한 화면에서')}
           </HeroHeadline>
-          <HeroCta to="/register">{t('hero.cta', '무료로 시작하기')}</HeroCta>
+          <HeroSub>
+            {t('hero.sub1', '고객은 링크로 바로 들어오고,')}<br />
+            {t('hero.sub2', '대화가 업무·문서·서명·청구로 이어집니다.')}
+          </HeroSub>
+          {/* 버튼 줄은 마지막 CTA 와 **같은 컴포넌트** — 히어로도 같은 어두운 바탕이라 따로 그리지 않는다. */}
+          <CtaButtons>
+            <CtaPrimary to="/register" data-testid="landing-hero-signup">{t('hero.cta', '14일 무료로 시작')}</CtaPrimary>
+            <CtaSecondary to={AUDIT_URL} data-testid="landing-hero-audit">{t('hero.ctaAudit', '무료 업무 진단 신청')}</CtaSecondary>
+          </CtaButtons>
+          <HeroNote>{t('hero.note', '카드 없이 14일 · 언제든 해지')}</HeroNote>
         </HeroInner>
       </Hero>
 
@@ -46,8 +59,8 @@ const HomePage: React.FC = () => {
       <Section $bg="white">
         <Container>
           <Reveal as="div"><SectionTag>{t('problem.tag', 'Problem')}</SectionTag></Reveal>
-          <Reveal as="h2"><SectionTitle>{t('problem.title1', '지금, 당신의 업무는')}<br />{t('problem.title2', '몇 개의 도구에 흩어져 있나요?')}</SectionTitle></Reveal>
-          <Reveal as="p"><SectionDesc>{t('problem.desc1', '도구가 많아질수록 정작 일은 느려집니다.')}<br />{t('problem.desc2', '어디서 뭘 확인해야 하는지 찾는 것 자체가 업무가 됩니다.')}</SectionDesc></Reveal>
+          <Reveal as="h2"><SectionTitle>{t('problem.title1', '고객 일은 카톡에서 시작해')}<br />{t('problem.title2', '엑셀 청구서로 끝납니다.')}</SectionTitle></Reveal>
+          <Reveal as="p"><SectionDesc>{t('problem.desc1', '그 사이 어디에 무엇이 있는지 아는 사람은 한 명뿐입니다.')}<br />{t('problem.desc2', '어디서 뭘 확인해야 하는지 찾는 것 자체가 업무가 됩니다.')}</SectionDesc></Reveal>
           <Reveal>
             <ProblemGrid>
               {PROBLEM_ITEMS.map((it, i) => (
@@ -201,11 +214,15 @@ const HomePage: React.FC = () => {
       <Section $bg="white">
         <Container>
           <Reveal as="div"><SectionTag>{t('target.tag', 'For Teams')}</SectionTag></Reveal>
-          <Reveal as="h2"><SectionTitle>{t('target.title1', '이런 팀에게')}<br />{t('target.title2', 'PlanQ가 필요합니다.')}</SectionTitle></Reveal>
+          <Reveal as="h2"><SectionTitle>{t('target.title1', '의뢰받아 일하는 팀이라면')}<br />{t('target.title2', 'PlanQ가 맞습니다.')}</SectionTitle></Reveal>
           <Reveal>
             <TargetGrid>
-              {TARGET_ITEMS.map((k, i) => (
-                <TargetItem key={k} style={{ transitionDelay: `${i * 50}ms` }}>{t(`target.${k}`)}</TargetItem>
+              {TARGET_AXES.map((k, i) => (
+                <TargetItem key={k} style={{ transitionDelay: `${i * 50}ms` }} data-testid={`landing-target-${k}`}>
+                  <TargetTitle>{t(`target.${k}.title`)}</TargetTitle>
+                  <TargetItems>{t(`target.${k}.items`)}</TargetItems>
+                  <TargetPain>{t(`target.${k}.pain`)}</TargetPain>
+                </TargetItem>
               ))}
             </TargetGrid>
           </Reveal>
@@ -220,8 +237,8 @@ const HomePage: React.FC = () => {
           <CtaHead>{t('finalCta.head', '일이 일이 되지 않게, PlanQ')}</CtaHead>
           <CtaSub>{t('finalCta.sub', '설치 없이 웹에서 바로 시작하세요.')}</CtaSub>
           <CtaButtons>
-            <CtaPrimary to="/register">{t('finalCta.primary', '무료로 시작하기')}</CtaPrimary>
-            <CtaSecondary to="/features">{t('finalCta.secondary', '기능 둘러보기')}</CtaSecondary>
+            <CtaPrimary to="/register">{t('finalCta.primary', '14일 무료로 시작')}</CtaPrimary>
+            <CtaSecondary to={AUDIT_URL}>{t('finalCta.secondary', '무료 업무 진단 신청')}</CtaSecondary>
           </CtaButtons>
         </CtaInner>
       </CtaSection>
@@ -320,22 +337,22 @@ const HeroPreHeadline = styled.div`
 `;
 const HeroHeadline = styled.h1`
   font-size: 3rem; font-weight: 700; color: #FFFFFF;
-  line-height: 1.31; margin: 0 0 48px 0;
+  line-height: 1.31; margin: 0 0 24px 0;
   word-break: keep-all;
   @media (max-width: 768px) { font-size: 1.875rem; }
 `;
 const HeroHighlight = styled.span`
   color: #14B8A6;
 `;
-const HeroCta = styled(Link)`
-  display: inline-block; padding: 16px 48px;
-  border-radius: 999px;
-  background: #14B8A6; color: #FFFFFF;
-  font-size: 1rem; font-weight: 500;
-  text-decoration: none;
-  transition: all 0.3s;
-  box-shadow: 0 0 40px rgba(20,184,166,0.3);
-  &:hover { background: #0D9488; transform: translateY(-2px); box-shadow: 0 0 60px rgba(20,184,166,0.4); }
+const HeroSub = styled.p`
+  margin: 0 0 32px;
+  font-size: 1.0625rem; line-height: 1.7; color: #CBD5E1;
+  word-break: keep-all;
+  @media (max-width: 640px) { font-size: 0.9375rem; }
+`;
+const HeroNote = styled.div`
+  margin-top: 16px;
+  font-size: 0.8125rem; color: #94A3B8;
 `;
 
 // 서비스명 + 목적 한 문장. 히어로 시각 위계를 건드리지 않도록 CTA 아래 작은 보조 문단으로 둔다.
@@ -572,15 +589,17 @@ const TrustCite = styled.cite`
 // ===== Target =====
 const TargetGrid = styled.div`
   margin-top: 48px;
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
-  @media (max-width: 768px) { grid-template-columns: 1fr 1fr; }
-  @media (max-width: 480px) { grid-template-columns: 1fr; }
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
 `;
+const TargetTitle = styled.div`font-size: 1.125rem; font-weight: 700; color: #0F172A;`;
+const TargetItems = styled.div`margin-top: 10px; font-size: 0.9375rem; color: #334155; word-break: keep-all;`;
+const TargetPain = styled.div`margin-top: 12px; font-size: 0.875rem; color: #0D9488; word-break: keep-all;`;
 const TargetItem = styled.div`
   padding: 28px 24px; border-radius: 12px;
   background: #FAFBFC;
   font-size: 0.9375rem; color: #0F172A; font-weight: 400;
-  text-align: center;
+  text-align: left;
   border: 1px solid transparent;
   transition: opacity 0.7s ease-out, transform 0.7s ease-out, background 0.3s, border-color 0.3s;
   &:hover { border-color: #99F6E4; background: #F0FDFA; transform: translateY(-2px); }

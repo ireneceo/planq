@@ -17,17 +17,17 @@
         "en": "PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place, with Google Calendar sync."
       },
       "h1": {
-        "ko": "PlanQ — 일이 일이 되지 않게",
-        "en": "PlanQ — Work that works"
+        "ko": "PlanQ — 의뢰받은 일, 고객 요청부터 청구까지 한 화면에서",
+        "en": "PlanQ — Client work, from first request to final invoice, in one place"
       },
       "intro": {
         "ko": [
-          "업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결합니다.",
-          "대화, 할일, 자료, 회의, 청구까지 — 업무의 모든 흐름이 한 곳에서 실행됩니다."
+          "의뢰형 비즈니스를 위한 고객 업무 플랫폼입니다.",
+          "고객은 링크로 바로 들어오고, 대화가 업무·문서·서명·청구로 이어집니다."
         ],
         "en": [
-          "Connect work, projects, people, time, clients and billing.",
-          "Chat, tasks, files, meetings and billing — every workflow runs in one place."
+          "The client work platform for service businesses.",
+          "Clients join with a single link, and every conversation flows into tasks, documents, signatures and invoices."
         ]
       },
       "label": "홈",

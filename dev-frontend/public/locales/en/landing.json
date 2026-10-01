@@ -15,21 +15,23 @@
   },
   "hero": {
     "slogan": "WORK, JUST WORK",
-    "preHeadline": "Tasks, projects, people, time, clients, billing —",
-    "headline1": "One connected flow that",
-    "headlineHighlight": "turns time into money",
-    "headline2": "— your profitability engine",
-    "sub1": "Conversations, tasks, files, meetings, billing —",
-    "sub2": "every workflow runs in one place.",
-    "cta": "Start free",
+    "preHeadline": "The client work platform for service businesses",
+    "headline1": "Client work,",
+    "headlineHighlight": "from first request to final invoice,",
+    "headline2": "in one place",
+    "sub1": "Clients join with a single link,",
+    "sub2": "and every conversation flows into tasks, documents, signatures and invoices.",
+    "cta": "Start your 14-day free trial",
     "purpose1": "PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place.",
-    "purpose2": "Users can connect Google Calendar to synchronize their schedules between PlanQ and Google Calendar."
+    "purpose2": "Users can connect Google Calendar to synchronize their schedules between PlanQ and Google Calendar.",
+    "ctaAudit": "Book a free workflow review",
+    "note": "No card required · Cancel anytime"
   },
   "problem": {
     "tag": "Problem",
-    "title1": "How many tools is your work",
-    "title2": "scattered across right now?",
-    "desc1": "More tools means slower work.",
+    "title1": "Client work starts in a chat app",
+    "title2": "and ends in a spreadsheet invoice.",
+    "desc1": "Only one person knows where everything in between lives.",
     "desc2": "Searching for where to check what becomes the work itself.",
     "items": [
       {
@@ -166,9 +168,9 @@
         "planq": "Per-project file libraries"
       },
       "agreement": {
-        "label": "Recording agreements",
+        "label": "Agreements & signatures",
         "old": "Kakao screenshots, email saves",
-        "planq": "Auto-record + audit log"
+        "planq": "Auto-recorded + e-signature by link"
       },
       "meeting": {
         "label": "Meeting notes",
@@ -197,20 +199,24 @@
   },
   "target": {
     "tag": "For Teams",
-    "title1": "Teams who need",
-    "title2": "PlanQ.",
-    "agency": "Ad agencies",
-    "dev": "Dev shops · IT outsourcing",
-    "studio": "Branding studios",
-    "construction": "Construction · Interior",
-    "consulting": "Consulting · Accounting",
-    "legal": "Legal · IP"
+    "title1": "If your team works on client requests,",
+    "title2": "PlanQ is built for you.",
+    "outsource": {
+      "title": "Agencies & outsourcing",
+      "items": "Marketing · Software outsourcing · Design studios · Interior",
+      "pain": "Lots of requests, frequent revisions"
+    },
+    "pro": {
+      "title": "Professional firms",
+      "items": "Legal & IP · Accounting & tax · Consulting",
+      "pain": "Client history and agreements are your evidence"
+    }
   },
   "finalCta": {
     "head": "Stop letting work feel like a job — PlanQ",
     "sub": "No install. Start in your browser.",
-    "primary": "Start free",
-    "secondary": "Explore features"
+    "primary": "Start your 14-day free trial",
+    "secondary": "Book a free workflow review"
   },
   "footer": {
     "tagline": "Don't let work become work. PlanQ",
