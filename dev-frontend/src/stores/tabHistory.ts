@@ -33,7 +33,10 @@ export function decidePaneNav(opts: {
   // ★ 2026-10-01 — 바로 전 칸을 모르는데(다른 탭에 갔다 오면 탭 전환이 칸 번호를 버린다) **닫는** replace 면
   //   새 칸을 쌓지 않고 지금 칸을 갈아끼운다. 쌓으면 뒤로 가기가 «열린 주소» 칸으로 돌아가 닫은 패널이 다시 열렸다.
   //   «닫기» = 같은 화면에서 쿼리 조각이 **빠지기만** 하는 이동(?task=12 → 없음). 여는 이동(조각이 생김)은 종전대로 쌓는다.
-  if (navType === 'REPLACE' && !prevEntryPath && windowPath !== undefined && isClosingNav(windowPath, path)) {
+  //   «갈아타기»(같은 쿼리 키, 값만 바뀜 — ?task=A → ?task=B)도 같다. 쌓으면 그 아래 칸이 A 열린 주소라
+  //   B 를 닫고 뒤로 가면 A 가 다시 열렸다(Fable 2026-10-01 실측: A 열기 → 탭 왕복 → B → X → 뒤로).
+  if (navType === 'REPLACE' && !prevEntryPath && windowPath !== undefined
+      && (isClosingNav(windowPath, path) || isSwitchingNav(windowPath, path))) {
     return { op: 'swap', path, tabId };
   }
   return { op: 'push', path, tabId };
@@ -50,6 +53,18 @@ export function isClosingNav(from: string, to: string): boolean {
   for (const [k, v] of ts) { if (fs.get(k) !== v) return false; }
   for (const k of fs.keys()) { if (!ts.has(k)) removed++; }
   return removed > 0;
+}
+
+/** from → to 가 같은 화면에서 쿼리 키는 그대로이고 값만 바뀌는 이동인가(열린 패널의 대상 갈아타기). */
+export function isSwitchingNav(from: string, to: string): boolean {
+  const [fp, fq = ''] = from.split('?');
+  const [tp, tq = ''] = to.split('?');
+  if (fp !== tp || !fq || !tq) return false;
+  const fs = new URLSearchParams(fq);
+  const ts = new URLSearchParams(tq);
+  const fk = [...new Set(fs.keys())].sort().join('&');
+  const tk = [...new Set(ts.keys())].sort().join('&');
+  return fk === tk && fs.toString() !== ts.toString();
 }
 
 // (2) 탭 전환 → replaceState (전환은 브라우저 히스토리에 안 쌓음).

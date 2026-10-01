@@ -183,6 +183,43 @@ async function run() {
                 push(`${v.key} · ①d 다른 탭 갔다 와서 X → 뒤로 = 다시 열리지 않음`, ok2, `${q1} → 탭 왕복 ${q2} → 닫음 ${e1} → 뒤로 ${e2} · 패널=${re2 ? '다시 열림' : '닫힘'}`);
               }
             }
+
+            // ── ①e 탭 왕복 뒤 A→B 갈아타기 → X → 뒤로 = A 도 B 도 다시 열리지 않음 (Fable 2026-10-01 실측 잔존 경로)
+            {
+              const tabsInfo2 = () => page.evaluate(() => Array.from(document.querySelectorAll('[data-testid^="tabstrip-tab-"]'))
+                .map((el) => ({ id: el.getAttribute('data-testid'), sel: el.getAttribute('aria-selected') === 'true' })));
+              await b.goto(page, '/mail'); await sleep(1200);
+              await b.goto(page, '/tasks'); await b.dismissBlockers(page); await sleep(1200);
+              if (await drawerOpen(page)) { await page.keyboard.press('Escape'); await sleep(800); }
+              const a3 = await clickRow(0); await sleep(1500);
+              const p1 = await page.evaluate(() => location.search);
+              const tl2 = await tabsInfo2();
+              const me2 = tl2.find((x) => x.sel); const other2 = tl2.find((x) => !x.sel);
+              if (!a3 || !/task=/.test(p1) || !me2 || !other2) {
+                push(`${v.key} · ①e 픽스처`, false, `탭 ${tl2.length}개 · ${p1} — 미측정`);
+              } else {
+                await page.click(`[data-testid="${other2.id}"]`); await sleep(1200);
+                await page.click(`[data-testid="${me2.id}"]`); await sleep(1500);
+                const b3 = await clickRow(0); await sleep(1500);
+                const p2 = await page.evaluate(() => location.search);
+                if (!b3 || p2 === p1 || !/task=/.test(p2)) {
+                  push(`${v.key} · ①e 픽스처`, false, `갈아타기 실패 ${p1} → ${p2} — 미측정`);
+                } else {
+                  await page.evaluate(() => {
+                    const btn = Array.from(document.querySelectorAll('[data-pq-drawer-panel] button, [role="dialog"][aria-modal="true"] button'))
+                      .find((x) => /닫기|close/i.test((x.getAttribute('aria-label') || '') + (x.getAttribute('title') || '')));
+                    btn && btn.click();
+                  });
+                  await sleep(1000);
+                  const f1 = await page.evaluate(() => location.pathname + location.search);
+                  await page.goBack().catch(() => null); await sleep(1300);
+                  const f2 = await page.evaluate(() => location.pathname + location.search);
+                  const re3 = await drawerOpen(page);
+                  const ok3 = !/task=/.test(f1) && !(f2.startsWith('/tasks') && /task=/.test(f2)) && !re3;
+                  push(`${v.key} · ①e 탭 왕복 뒤 A→B → X → 뒤로 = 다시 열리지 않음`, ok3, `${p1} → 탭 왕복 → ${p2} → 닫음 ${f1} → 뒤로 ${f2} · 패널=${re3 ? '다시 열림' : '닫힘'}`);
+                }
+              }
+            }
           }
         }
       }
