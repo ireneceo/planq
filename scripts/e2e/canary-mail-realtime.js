@@ -239,10 +239,68 @@ async function runOrder() {
   return [rec];
 }
 
+// ── 2026-10-01 — 끊겼다 다시 붙은 화면도 따라오는가 ─────────────────────────────
+//   Irene: "메일리스트에 메일이 실시간으로 안들어와." 서버는 매번 mail:new 를 쏘고 있었다(운영 로그).
+//   죽어 있던 것은 **오래 열어 둔 화면의 소켓**이었다 — 만료 토큰으로 재연결이 거절되면 socket.io 는
+//   다시 시도하지 않는다(services/socket.ts). 거기에 더해, 끊긴 동안 온 메일은 신호가 다시 오지 않는다.
+//   이 검사: 화면을 오프라인으로 끊고 → 그 사이 DB 에서 메일이 «도착»(broadcast 없음) → 다시 연결.
+//   목록이 새로고침 없이 그 스레드를 최상단에 올려야 한다.
+//   음성 대조군: 연결을 끊지 않고 DB 만 바꾸면 신호가 없으니 **안 올라와야** 한다(올라오면 다른 경로가
+//   갱신하고 있는 것이라 이 검사는 아무것도 증명하지 못한다).
+async function runReconnect() {
+  const rec = { name: 'mail-realtime-reconnect', path: '/mail?folder=all', inputs: 0, pass: 0, fail: 0, details: [] };
+  let browser = null; const bumped = [];
+  try {
+    browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const B = await browser.newPage(); await B.setViewport({ width: 1440, height: 900 });
+    B.setDefaultTimeout(30000);
+    await b.login(B); await b.goto(B, '/mail?folder=all');
+    await b.sleep(3000);
+    const ids0 = await B.evaluate(rowIds);
+    if (ids0.length < 8) { rec.details.push(`행 ${ids0.length}건 — 판정 스킵(데이터 부족)`); return [rec]; }
+
+    // 음성 대조군 — 신호 없이 DB 만 바뀌면 화면은 그대로여야 한다
+    const neg = ids0[5];
+    bumped.push({ id: neg, prev: bumpTime(neg).prev });
+    await b.sleep(3000);
+    const idsN = await B.evaluate(rowIds);
+    if (idsN[0] === neg) { rec.details.push(`⚠ 음성 대조군: 신호 없이도 ${neg} 가 올라옴 — 판정 무효`); return [rec]; }
+    rec.details.push(`음성 대조군: 신호 없이는 그대로 (top=${idsN[0]})`);
+
+    // 끊기 → 그 사이 도착 → 다시 연결
+    const cdp = await B.target().createCDPSession();
+    await cdp.send('Network.enable');
+    await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    await b.sleep(4000);
+    const target = ids0[6];
+    bumped.push({ id: target, prev: bumpTime(target).prev });
+    await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    let at = null;
+    for (let i = 1; i <= 30; i++) {
+      await b.sleep(500);
+      const ids = await B.evaluate(rowIds);
+      if (ids[0] === target) { at = i * 0.5; break; }
+    }
+    if (at !== null) { rec.pass++; rec.details.push(`재연결 후 ${at}s 만에 끊긴 동안 온 스레드 ${target} 이 최상단`); }
+    else { rec.fail++; rec.details.push(`🔴 재연결 후 15초가 지나도 끊긴 동안 온 스레드 ${target} 이 안 보임 — 새로고침 전까지 실시간 누락`); }
+  } catch (e) {
+    rec.fail++;
+    rec.details.push('🔴 ERROR: ' + String(e.message).slice(0, 140));
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+    for (const x of bumped.reverse()) {
+      try { restoreTime(x.id, x.prev); } catch (e) { rec.fail++; rec.details.push('🔴 원복 실패: ' + e.message); }
+    }
+    if (bumped.length) rec.details.push(`원복 완료 (thread ${bumped.map((x) => x.id).join(',')})`);
+  }
+  return [rec];
+}
+
 async function runAll() {
   const a = await run();
   const c = await runOrder();
-  return [...a, ...c];
+  const d = await runReconnect();
+  return [...a, ...c, ...d];
 }
 
 module.exports = { run: runAll, name: 'mail-realtime' };

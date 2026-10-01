@@ -8,6 +8,16 @@
 
 ---
 
+## 🔁 2026-10-01 Fable 라운드 — 대기열 두 묶음 + 메일 소켓 재연결 · **FAIL 3건 → 수정 후 재검증**
+
+가드 health 48/48 · guard 60/61 · 실HTTP 15 + 실브라우저 3스위트.
+- `1e0cc312` 프로젝트 폴더 업로드: 항목1·2·3 **PASS**(비멤버 새문/옛문 동일 201·L2 · 고객 403 · 남의 폴더 400 · inline private L1 · 다른 호출부 2곳 모두 project_id 동반).
+  ★ **FAIL(기능)**: 화면 경로(Q file 트리→프로젝트 폴더→업로드)는 folder_id 를 안 싣고 uploadMyFile→/move 라 새 분기를 안 탄다 → 여전히 project null·L1·탭에 안 보임.
+  운영: 배포 후 채택 0건·신규 증상 0건·기존 30건 L1 그대로 — **보안 영향 없음**. 수정 `DocsTab.tsx` 업로드 분기. 기존 30건 백필(L1→L2)은 Irene 결정.
+- `5eb699e7` 탭 모드 히스토리: A 열고 X→뒤로 PASS · ★ **FAIL(부분)** A→B 전환 뒤 X→뒤로 B 재열림(trail[idx-1]≠base → push). 엉뚱한 back 없음.
+- 09-30 ① ensureFocusedVisible ★ **FAIL(가장자리)** — sticky 머리줄에 걸친 입력을 아래로 밀어 더 숨김(상단 덮개를 하단으로 취급). ② 밴드1 음수 margin wrap PASS ③ sameHours PASS(actual 동일값 «확정» 경로 소실 — 문구 보정 권고).
+- 미커밋 소켓 재연결(메일 실시간 신고): **PASS · R=0** (거절 후 active=false·재시도 0 → connect() 복귀 · 로그아웃 시 중단 · 지연 사슬 1개 ≤60s).
+
 ## ⏳ 2026-09-30 — #429 동료 상태 · 모바일 입력 전후 · 시간 칸 blur · 구형 WebView 폴리필 · **by:"unavailable"(Fable 429, Irene «내일로»)**
 
 **판정: 전부 R=0 · F=1** (자체 검증 대상이지만 게이트가 미검증 커밋 4건으로 막아 기록한다). 커밋 `2524b4aa` `b5bca160` `3a87d6ae` `3c1e70eb`.

@@ -47,17 +47,40 @@ function ensureSocket(): Socket | null {
   });
   // 토큰 만료 connect_error → access token 갱신 후 자동 재시도 (24곳 중복 로직 1곳 통합).
   //   apiFetch('/api/auth/me') 가 401 받으면 AuthContext 가 refresh + getAccessToken 갱신.
+  //
+  // ★ 2026-10-01 (Irene: "메일리스트에 메일이 실시간으로 안들어와") — **서버가 거절한 연결은
+  //   socket.io 가 다시 시도하지 않는다**(v4: 미들웨어 거절 = `active:false`, 자동 재연결 중단).
+  //   화면을 15분 넘게 열어 두면 access token 이 만료돼 있다. 그 상태에서 서버 재시작(배포)·
+  //   네트워크 끊김이 한 번이라도 나면 재연결이 거절되고, 토큰을 갱신해도 소켓은 **영영 죽은 채**
+  //   남았다 — 창이 계속 보이는 데스크탑은 visibility 복귀도 없어 새로고침 전까지 실시간 0.
+  //   실측(node 클라이언트): 만료 토큰 1회 거절 → 토큰 갱신 후 6초 동안 재시도 0회.
+  //   → 토큰을 갱신한 뒤 **직접 connect()** 한다. 로그아웃 상태(토큰 없음)면 붙지 않는다.
+  //     갱신이 계속 실패하는 경우를 위해 지연을 늘려 간다(재연결 폭주 차단).
+  let authRetryDelay = 1500;
   s.on('connect_error', async (err: Error) => {
     const msg = String(err?.message || '');
     if (/auth|token|jwt|unauthorized/i.test(msg)) {
       await apiFetch('/api/auth/me').catch(() => null);
     }
+    if (s.active) return;                    // socket.io 가 스스로 재시도 중이다
+    const delay = authRetryDelay;
+    authRetryDelay = Math.min(authRetryDelay * 2, 60_000);
+    window.setTimeout(() => {
+      if (socket !== s || s.connected || s.active) return;   // 로그아웃·이미 붙음
+      if (!getAccessToken()) return;
+      s.connect();
+    }, delay);
   });
   // 최초 connect + 재연결 시 활성 room 전부 재join (서버 auto-join 과 이중 보장, 멱등).
+  let everConnected = false;
   s.on('connect', () => {
+    authRetryDelay = 1500;
     roomRefs.forEach((count, room) => {
       if (count > 0) emitRoom('join', room);
     });
+    // 끊겨 있던 동안의 broadcast 는 다시 오지 않는다 — 화면이 서버 상태를 다시 읽게 알린다.
+    if (everConnected) window.dispatchEvent(new CustomEvent('socket:reconnected'));
+    everConnected = true;
   });
   // 미인증 시점에 버퍼된 리스너 일괄 부착 (연결 전에 부착돼야 첫 이벤트 유실 없음).
   listeners.forEach(({ event, handler }) => s.on(event, handler));

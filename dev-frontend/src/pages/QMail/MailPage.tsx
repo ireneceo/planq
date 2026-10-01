@@ -1364,9 +1364,12 @@ const MailPage: React.FC = () => {
     const offUpdated = onSocket('mail:updated', debounced);
     const onLocal = () => debounced();
     window.addEventListener('mail:refresh', onLocal);
+    // 소켓이 끊겼다 다시 붙으면 그 사이 도착한 메일은 신호가 다시 오지 않는다 — 서버에서 다시 읽는다.
+    window.addEventListener('socket:reconnected', onLocal);
     return () => {
       if (pending) window.clearTimeout(pending);
       window.removeEventListener('mail:refresh', onLocal);
+      window.removeEventListener('socket:reconnected', onLocal);
       leaveRoom(`business:${businessId}`);
       offNew(); offUpdated();
     };
