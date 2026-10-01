@@ -42,10 +42,12 @@ export default function UrlMirror({ tabId, active }: { tabId: string; active: bo
       trail.length = ni;
       trail[ni] = path;
       try { window.history.pushState({ pqTab: tabId, pqIdx: ni }, '', path); } catch { /* noop */ }
-    } else if (d.op === 'swap' && idx > 0) {
-      trail[idx] = path;
-      trail.length = idx + 1;
-      try { window.history.replaceState({ pqTab: tabId, pqIdx: idx }, '', path); } catch { /* noop */ }
+    } else if (d.op === 'swap') {
+      // 칸 번호를 모르면(-1) 이 칸을 새 기준(0)으로 삼는다 — 이후 이 탭 안 이동은 다시 번호를 갖는다.
+      const at = idx >= 0 ? idx : 0;
+      trail[at] = path;
+      trail.length = at + 1;
+      try { window.history.replaceState({ pqTab: tabId, pqIdx: at }, '', path); } catch { /* noop */ }
     } else if (d.op === 'back') {
       try { window.history.back(); } catch { /* noop */ }
     }

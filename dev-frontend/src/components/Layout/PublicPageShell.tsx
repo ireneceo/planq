@@ -87,7 +87,7 @@ const PublicPageShell: React.FC<Props> = ({
       {promo && (
         <PromoBar className="no-print">
           <PromoText>
-            {t('public.promoCopy', { defaultValue: '업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진' }) as string}
+            {t('public.promoCopy', { defaultValue: '의뢰받은 일, 고객 요청부터 청구까지 한 화면에서' }) as string}
           </PromoText>
           <PromoLink href="https://planq.kr" target="_blank" rel="noreferrer">
             {t('public.promoCta', { defaultValue: '플랜큐 바로가기' }) as string} <span aria-hidden="true">→</span>

@@ -149,6 +149,40 @@ async function run() {
               const re = await drawerOpen(page);
               push(`${v.key} · ①c A→B 갈아탄 뒤 X → 뒤로 = 다시 열리지 않음`, !/task=/.test(d1) && !re && !/task=/.test(d2), `${qa} → ${qb} → 닫음 ${d1} → 뒤로 ${d2} · 패널=${re ? '다시 열림' : '닫힘'}`);
             }
+
+            // ── ①d 다른 탭에 갔다 온 뒤 X → 뒤로 = 다시 열리지 않음 (2026-10-01, Fable 잔존 지적)
+            //   탭 전환은 주소창을 replace 하며 칸 번호(pqIdx)를 버린다 → 닫기가 «전 칸» 을 몰라 push 로 떨어지고
+            //   뒤로 가면 닫은 업무가 다시 열렸다.
+            {
+              const tabsInfo = () => page.evaluate(() => Array.from(document.querySelectorAll('[data-testid^="tabstrip-tab-"]'))
+                .map((el) => ({ id: el.getAttribute('data-testid'), sel: el.getAttribute('aria-selected') === 'true', text: el.innerText.trim() })));
+              await b.goto(page, '/mail'); await sleep(1200);
+              await b.goto(page, '/tasks'); await b.dismissBlockers(page); await sleep(1200);
+              if (await drawerOpen(page)) { await page.keyboard.press('Escape'); await sleep(800); }
+              const a2 = await clickRow(0); await sleep(1500);
+              const q1 = await page.evaluate(() => location.search);
+              const tl = await tabsInfo();
+              const me = tl.find((x) => x.sel); const other = tl.find((x) => !x.sel);
+              if (!a2 || !/task=/.test(q1) || !me || !other) {
+                push(`${v.key} · ①d 픽스처`, false, `탭 ${tl.length}개 · ${q1} — 미측정`);
+              } else {
+                await page.click(`[data-testid="${other.id}"]`); await sleep(1200);
+                await page.click(`[data-testid="${me.id}"]`); await sleep(1500);
+                const q2 = await page.evaluate(() => location.search);
+                await page.evaluate(() => {
+                  const btn = Array.from(document.querySelectorAll('[data-pq-drawer-panel] button, [role="dialog"][aria-modal="true"] button'))
+                    .find((x) => /닫기|close/i.test((x.getAttribute('aria-label') || '') + (x.getAttribute('title') || '')));
+                  btn && btn.click();
+                });
+                await sleep(1000);
+                const e1 = await page.evaluate(() => location.pathname + location.search);
+                await page.goBack().catch(() => null); await sleep(1300);
+                const e2 = await page.evaluate(() => location.pathname + location.search);
+                const re2 = await drawerOpen(page);
+                const ok2 = /task=/.test(q2) && !/task=/.test(e1) && !(e2.startsWith('/tasks') && /task=/.test(e2)) && !re2;
+                push(`${v.key} · ①d 다른 탭 갔다 와서 X → 뒤로 = 다시 열리지 않음`, ok2, `${q1} → 탭 왕복 ${q2} → 닫음 ${e1} → 뒤로 ${e2} · 패널=${re2 ? '다시 열림' : '닫힘'}`);
+              }
+            }
           }
         }
       }

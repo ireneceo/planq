@@ -30,7 +30,26 @@ export function decidePaneNav(opts: {
   if (navType === 'REPLACE' && prevEntryPath && prevEntryPath.split('?')[0] === path.split('?')[0]) {
     return { op: 'swap', path, tabId };
   }
+  // ★ 2026-10-01 — 바로 전 칸을 모르는데(다른 탭에 갔다 오면 탭 전환이 칸 번호를 버린다) **닫는** replace 면
+  //   새 칸을 쌓지 않고 지금 칸을 갈아끼운다. 쌓으면 뒤로 가기가 «열린 주소» 칸으로 돌아가 닫은 패널이 다시 열렸다.
+  //   «닫기» = 같은 화면에서 쿼리 조각이 **빠지기만** 하는 이동(?task=12 → 없음). 여는 이동(조각이 생김)은 종전대로 쌓는다.
+  if (navType === 'REPLACE' && !prevEntryPath && windowPath !== undefined && isClosingNav(windowPath, path)) {
+    return { op: 'swap', path, tabId };
+  }
   return { op: 'push', path, tabId };
+}
+
+/** from → to 가 같은 화면에서 쿼리 조각이 빠지기만 하는 이동인가(패널 닫기). */
+export function isClosingNav(from: string, to: string): boolean {
+  const [fp, fq = ''] = from.split('?');
+  const [tp, tq = ''] = to.split('?');
+  if (fp !== tp) return false;
+  const fs = new URLSearchParams(fq);
+  const ts = new URLSearchParams(tq);
+  let removed = 0;
+  for (const [k, v] of ts) { if (fs.get(k) !== v) return false; }
+  for (const k of fs.keys()) { if (!ts.has(k)) removed++; }
+  return removed > 0;
 }
 
 // (2) 탭 전환 → replaceState (전환은 브라우저 히스토리에 안 쌓음).

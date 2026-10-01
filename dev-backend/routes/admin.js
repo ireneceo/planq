@@ -64,8 +64,10 @@ router.get('/overview', async (req, res, next) => {
     const [bizTotal, bizNew, userTotal, userNew] = await Promise.all([
       Business.count({ where: { deleted_at: null } }),
       Business.count({ where: { deleted_at: null, createdAt: { [Op.gte]: d30 } } }),
-      User.count(),
-      User.count({ where: { createdAt: { [Op.gte]: d30 } } }),
+      // 사람 계정만 — 게스트 링크 그림자 계정·Cue 계정은 «사용자» 가 아니다.
+      //   랜딩 방문 «가입 출처» 카드(routes/landing_visits.js)와 같은 술어 — 두 화면이 같은 기간을 다른 숫자로 말하지 않게.
+      User.count({ where: { is_guest: false, is_ai: false } }),
+      User.count({ where: { is_guest: false, is_ai: false, createdAt: { [Op.gte]: d30 } } }),
     ]);
 
     // 구독 — 상태별 카운트 + 활성 구독의 플랜 분포

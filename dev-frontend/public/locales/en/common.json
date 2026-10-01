@@ -910,7 +910,8 @@
       "wrong": "That password is not correct.",
       "checking": "Checking…",
       "submit": "Continue"
-    }
+    },
+    "promoCopy": "Client work, from first request to final invoice, in one place"
   },
   "myFeedback": {
     "title": "Support & Feedback",
