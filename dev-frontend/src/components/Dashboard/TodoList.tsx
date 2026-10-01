@@ -259,7 +259,11 @@ const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 
                     <TypeIcon type={it.type} />
                   </CardIcon>
                   <CardBody>
-                    <CardLine1>
+                    {/* 2026-10-01 (Irene) — 윗줄 = 할 일·마감·시각·사람, 둘째 줄 = 제목. 폰에서 동사 칩이 폭을 먹어
+                        제목이 잘렸다 — 목록에서 찾는 것은 결국 제목이라 한 줄을 통째로 준다.
+                        워크스페이스 칩은 뺐다: 확인필요는 «지금 워크스페이스» 만 보인다(2026-09-10 범위 계약)라
+                        모든 줄에 같은 이름이 붙을 뿐이었다. 초대 항목은 제목에 이미 워크스페이스 이름이 있다. */}
+                    <CardMeta data-testid="todo-card-meta">
                       {/* 카테고리로 묶으면(전체 탭) 우선순위 그룹 제목이 없다 → 카드가 스스로 말해야 한다.
                           여태 좌측 빨간 라인만 있어서 그 라인이 왜 있는지 알 수 없었다 (Irene). */}
                       {groupBy === 'category' && (
@@ -270,20 +274,17 @@ const TodoList: React.FC<Props> = ({ items, hiddenCount = 0, loading, groupBy = 
                       {it.stage === 'external_review' && (
                         <StageChip data-testid="todo-stage-external-review">{t('todo.stage.external_review', '외부컨펌중')}</StageChip>
                       )}
-                      <Subject>{it.subject}</Subject>
-                    </CardLine1>
-                    <CardLine2>
                       {it.dueAt && <DueBadge $priority={it.priority}>{formatDue(it, t, fmt)}</DueBadge>}
                       {it.createdAt && <CreatedChip title={formatDayTime(it.createdAt, { year: 'always' })}>{formatRelativeTime(it.createdAt, t)}</CreatedChip>}
-                      {it.context && <CtxText>{it.context}</CtxText>}
                       {/* 채팅 — 항목은 방 1개지만 "몇 건 쌓였는지" 는 알려준다 */}
                       {it.type === 'chat' && !!it.count && (
                         <CtxText data-testid="todo-chat-unread">
                           {t('todo.chatUnread', { count: it.count, defaultValue: '안 읽음 {{count}}건' })}
                         </CtxText>
                       )}
-                      {it.workspace && <WsChip $role={it.workspace.role}>{it.workspace.brand_name}</WsChip>}
-                    </CardLine2>
+                      {it.context && <CtxText>{it.context}</CtxText>}
+                    </CardMeta>
+                    <Subject data-testid="todo-card-title">{it.subject}</Subject>
                   </CardBody>
                   <CardRight>
                     {it.inline === 'invite' ? (
@@ -458,11 +459,17 @@ const CardBody = styled.div`
   min-width: 0;
 `;
 
-const CardLine1 = styled.div`
+// 윗줄 — 할 일·마감·시각·사람. 줄바꿈하지 않는다(카드 높이가 데이터에 따라 흔들리지 않게) — 넘치면 사람·주소부터 줄인다.
+const CardMeta = styled.div`
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+  color: #64748B;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
 `;
 
 const Verb = styled.span`
@@ -488,26 +495,22 @@ const StageChip = styled.span`
   white-space: nowrap;
 `;
 
-const Subject = styled.span`
+// 둘째 줄 — 제목. 한 줄을 통째로 쓰고 두 줄까지 보인다(폰에서 한 줄 제한이면 여전히 잘린다).
+const Subject = styled.div`
   /* 규격: theme/tokens LIST_ROW — 데스크탑 14 / 폰 15 · 600 */
   font-size: 0.875rem;
   font-weight: 600;
+  line-height: 1.4;
   @media (max-width: 640px) { font-size: 0.9375rem; }
   color: #0F172A;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1;
-  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 `;
 
-const CardLine2 = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.75rem;
-  color: #64748B;
-`;
 
 const DueBadge = styled.span<{ $priority: TodoPriority }>`
   font-size: 0.6875rem;
@@ -523,6 +526,8 @@ const CtxText = styled.span`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;   /* 윗줄이 넘치면 사람·주소가 먼저 줄어든다(칩들은 flex-shrink:0) */
 `;
 
 // 발생 시점 chip — "방금 / 5분 전 / 어제 14:30" 식. hover 시 절대 시각 표시.
@@ -534,27 +539,6 @@ const CreatedChip = styled.span`
   white-space: nowrap;
 `;
 
-// 워크스페이스 라벨 chip — cross-workspace 알림에서 어느 워크스페이스인지 표시
-const WsChip = styled.span<{ $role: 'owner' | 'member' | 'client' | 'admin' }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.625rem;
-  font-weight: 600;
-  background: ${p =>
-    p.$role === 'client' ? '#FEF3C7' :
-    p.$role === 'owner' ? '#FFE4E6' :
-    p.$role === 'admin' ? '#FFE4E6' :
-    '#CCFBF1'};
-  color: ${p =>
-    p.$role === 'client' ? '#92400E' :
-    p.$role === 'owner' ? '#9F1239' :
-    p.$role === 'admin' ? '#9F1239' :
-    '#0F766E'};
-  white-space: nowrap;
-`;
 
 const CardRight = styled.div`
   display: flex;
