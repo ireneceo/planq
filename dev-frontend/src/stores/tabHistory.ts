@@ -17,12 +17,19 @@ import { identityOfPath, type Tab } from './tabStore';
 export function decidePaneNav(opts: {
   path: string; tabId: string; isActive: boolean; prevPath: string | null;
   navType?: 'PUSH' | 'REPLACE' | 'POP'; windowPath?: string; prevEntryPath?: string | null;
-}): { op: 'push' | 'back' | 'none'; path: string; tabId: string } {
+}): { op: 'push' | 'back' | 'swap' | 'none'; path: string; tabId: string } {
   const { path, tabId, isActive, prevPath, navType, windowPath, prevEntryPath } = opts;
   if (!isActive) return { op: 'none', path, tabId };
   if (prevPath === null || prevPath === path) return { op: 'none', path, tabId };
   if (windowPath !== undefined && windowPath === path) return { op: 'none', path, tabId };
   if (navType === 'REPLACE' && prevEntryPath && prevEntryPath === path) return { op: 'back', path, tabId };
+  // ★ 2026-10-01 (Fable FAIL) — 열린 상태에서 **다른 항목으로 갈아타기**(A→B, replace)는 칸을 새로 쌓지 않고
+  //   지금 칸을 갈아끼운다. 쌓으면 바로 전 칸이 A 주소가 되어, B 를 X 로 닫을 때 «전 칸 복귀» 가 안 맞아
+  //   push 로 떨어지고 뒤로 가면 B 가 다시 열렸다. 같은 화면(pathname) 안의 replace 일 때만 —
+  //   다른 화면으로 가는 replace 는 종전대로 쌓는다.
+  if (navType === 'REPLACE' && prevEntryPath && prevEntryPath.split('?')[0] === path.split('?')[0]) {
+    return { op: 'swap', path, tabId };
+  }
   return { op: 'push', path, tabId };
 }
 

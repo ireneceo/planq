@@ -1976,7 +1976,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           disabled={!isAssignee}
                           title={
                             (detailTask.actual_source ?? 'auto') === 'auto' && Number(detailTask.actual_hours) > 0
-                              ? (t('detail.meta.actHint', { defaultValue: '진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다' }) as string)
+                              ? (t('detail.meta.actHint', { defaultValue: '진행 시작·완료 시 자동 누적 — 값을 바꿔 입력하면 확정됩니다' }) as string)
                               : (isAssignee ? undefined : t('detail.meta.assigneeOnly', '담당자만 수정 가능 (참고용)') as string)
                           }
                           onBlur={e => { const v = e.target.value === '' ? null : Number(e.target.value); if ((v === null || !isNaN(v)) && isAssignee && !sameHours(e.target.value, e.target.defaultValue)) saveField('actual_hours', v); }} />
@@ -2004,7 +2004,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <TimeAutoHintIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                 </TimeAutoHintIcon>
-                {t('detail.meta.timeHint', { defaultValue: '진행 시작·완료 시 실제 시간이 자동 누적됩니다 (직접 입력하면 확정)' })}
+                {t('detail.meta.timeHint', { defaultValue: '진행 시작·완료 시 실제 시간이 자동 누적됩니다 (값을 바꿔 입력하면 확정)' })}
               </TimeAutoHint>
               {/* 100% 도달 + reviewer 있는 task — 자동 completed 안 됨. "확인 요청 보내기" 명시 클릭 안내. */}
               {(detailTask.progress_percent || 0) === 100

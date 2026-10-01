@@ -267,22 +267,28 @@ if (typeof window !== 'undefined' && window.visualViewport) {
           visibleBottom = Math.min(visibleBottom, sr.bottom);
           visibleTop = Math.max(visibleTop, sr.top);
         }
-        const coverTop = (() => {
+        const cover = (() => {
           // 입력 자리를 찍어 본다 — 입력(또는 그 안/바깥 조상)이 아닌 것이 잡히면 덮인 것이다
           const x = rect.left + Math.min(rect.width / 2, 40);
-          for (const y of [rect.bottom - 3, rect.top + Math.min(rect.height, 20) / 2]) {
+          for (const y of [rect.bottom - 3, rect.top + 2, rect.top + Math.min(rect.height, 20) / 2]) {
             if (y <= 0 || y >= vv.height) continue;
             const hit = document.elementFromPoint(x, y) as HTMLElement | null;
             if (!hit || hit === el || el.contains(hit) || hit.contains(el)) continue;
             for (let q: HTMLElement | null = hit; q && q !== document.body; q = q.parentElement) {
               if (q.contains(el)) break;               // 입력을 품은 상자까지 올라오면 덮개가 아니다
               const pos = getComputedStyle(q).position;
-              if (pos === 'sticky' || pos === 'fixed') return q.getBoundingClientRect().top;
+              if (pos === 'sticky' || pos === 'fixed') return q.getBoundingClientRect();
             }
           }
           return null;
         })();
-        if (coverTop !== null && coverTop > rect.top - rect.height) visibleBottom = Math.min(visibleBottom, coverTop);
+        // ★ 2026-10-01 (Fable FAIL) — 덮개가 **위에서** 덮었는지 **아래에서** 덮었는지 가른다.
+        //   여태 위 끝만 받아 "입력 한 칸 위까지" 를 아래 덮개로 쳤다 → sticky 머리줄에 26px 걸친 입력을
+        //   아래로 +22 밀어 48px 숨겼다(악화). 위에서 덮으면 그 아래 끝이 «보이는 위 끝» 이다.
+        if (cover) {
+          if (cover.top <= rect.top && cover.bottom < rect.bottom) visibleTop = Math.max(visibleTop, cover.bottom);
+          else if (cover.top > rect.top) visibleBottom = Math.min(visibleBottom, cover.top);
+        }
         if (rect.bottom > visibleBottom - margin) {
           // 가려짐 — 넘친 만큼만 스크롤 컨테이너를 내린다(과도한 center 점프 방지).
           const delta = rect.bottom - (visibleBottom - margin);

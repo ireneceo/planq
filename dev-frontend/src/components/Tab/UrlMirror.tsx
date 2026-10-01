@@ -42,6 +42,10 @@ export default function UrlMirror({ tabId, active }: { tabId: string; active: bo
       trail.length = ni;
       trail[ni] = path;
       try { window.history.pushState({ pqTab: tabId, pqIdx: ni }, '', path); } catch { /* noop */ }
+    } else if (d.op === 'swap' && idx > 0) {
+      trail[idx] = path;
+      trail.length = idx + 1;
+      try { window.history.replaceState({ pqTab: tabId, pqIdx: idx }, '', path); } catch { /* noop */ }
     } else if (d.op === 'back') {
       try { window.history.back(); } catch { /* noop */ }
     }

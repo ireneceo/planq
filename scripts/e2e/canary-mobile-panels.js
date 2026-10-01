@@ -110,6 +110,46 @@ async function run() {
           const c2 = await page.evaluate(() => location.pathname + location.search);
           const reopened = await drawerOpen(page);
           push(`${v.key} · ①b X 로 닫으면 주소에서 ?task= 가 빠지고, 뒤로 = 다시 열리지 않고 떠남`, !/task=/.test(c1) && !reopened && !/task=/.test(c2) && !c2.startsWith('/tasks'), `닫은 뒤 ${c1} → 뒤로 ${c2} · 패널=${reopened ? '다시 열림' : '닫힘'}`);
+
+          // ── ①c 열린 채 다른 업무로 갈아타기(A→B) → X → 뒤로 = B 가 다시 열리면 안 된다 (2026-10-01 Fable FAIL)
+          //   탭 모드에서 갈아타기를 새 칸으로 쌓으면 «바로 전 칸» 이 A 주소가 되어 닫기가 back 이 아니라 push 가 됐다.
+          //   폰(미러)은 패널이 전면이라 옆 행을 누를 수 없다 — 탭 모드 폭만 잰다.
+          if (!v.mirror) {
+            await b.goto(page, '/dashboard');
+            await b.goto(page, '/tasks');
+            await b.dismissBlockers(page);
+            if (await drawerOpen(page)) { await page.keyboard.press('Escape'); await sleep(800); }
+            const clickRow = (i) => page.evaluate((i) => {
+              // ★ 패널이 열리면 배경막이 목록을 덮어 실제 클릭은 옆 행에 안 닿는다(닫기가 된다).
+              //   A→B 는 패널 안 «관련 업무» 링크·업무 찾기로 생긴다 — 같은 replace 이동을 행 click() 으로 재현한다.
+              const rows = Array.from(document.querySelectorAll('[data-task-row]')).filter((r) => r.getBoundingClientRect().height > 0);
+              // 지금 열린 업무가 아닌 행 — 같은 행을 다시 누르면 토글로 닫힌다
+              const cur = (location.search.match(/task=(\d+)/) || [])[1];
+              const row = rows.filter((r) => r.getAttribute('data-row-id') !== cur)[i];
+              if (!row) return null;
+              row.click();
+              return row.getAttribute('data-row-id');
+            }, i);
+            const a = await clickRow(0); await sleep(1500);
+            const qa = await page.evaluate(() => location.search);
+            const bId = await clickRow(0); await sleep(1500);
+            const qb = await page.evaluate(() => location.search);
+            if (!a || !bId || !/task=/.test(qa) || !/task=/.test(qb) || qa === qb) {
+              push(`${v.key} · ①c 픽스처`, false, `두 업무로 갈아타지 못했다 — 미측정 (${qa} → ${qb})`);
+            } else {
+              await page.evaluate(() => {
+                const btn = Array.from(document.querySelectorAll('[data-pq-drawer-panel] button, [role="dialog"][aria-modal="true"] button'))
+                  .find((x) => /닫기|close/i.test((x.getAttribute('aria-label') || '') + (x.getAttribute('title') || '')));
+                btn && btn.click();
+              });
+              await sleep(1000);
+              const d1 = await page.evaluate(() => location.pathname + location.search);
+              await page.goBack().catch(() => null); await sleep(1300);
+              const d2 = await page.evaluate(() => location.pathname + location.search);
+              const re = await drawerOpen(page);
+              push(`${v.key} · ①c A→B 갈아탄 뒤 X → 뒤로 = 다시 열리지 않음`, !/task=/.test(d1) && !re && !/task=/.test(d2), `${qa} → ${qb} → 닫음 ${d1} → 뒤로 ${d2} · 패널=${re ? '다시 열림' : '닫힘'}`);
+            }
+          }
         }
       }
 

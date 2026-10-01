@@ -665,6 +665,17 @@ const DocsTab: React.FC<Props> = (props) => {
       //   보고 있던 폴더에 안 보여 "어디 갔지" 가 된다(프로젝트 모드와 같은 규칙).
       if (typeof sel === 'number') {
         const targetFolder = sel;
+        // ★ 2026-10-01 (결정 5-a · Fable FAIL) — 고른 폴더가 **프로젝트 폴더**면 프로젝트 파일로 올린다.
+        //   여태 이 분기는 프로젝트 폴더도 uploadMyFile → /move 로 보냈고, move 는 project_id 를
+        //   바꾸지 않아 파일이 L1 개인 파일로 남았다 — 프로젝트 > 파일 탭에는 폴더만 있고 파일이 없었다.
+        //   한 요청에 project_id + folder_id 를 같이 싣는다(서버가 폴더·프로젝트 일치를 검증).
+        const folderProjectId = folders.find((x) => x.id === targetFolder)?.project_id ?? null;
+        if (folderProjectId) {
+          await runUploads(arr,
+            (f, hooks) => uploadProjectFile(businessId, folderProjectId, f, { folderId: targetFolder, ...hooks }),
+            (file) => { setFiles(prev => [file, ...prev]); afterUploaded(file); });
+          return;
+        }
         await runUploads(arr,
           (f, hooks) => uploadMyFile(businessId, f, hooks),
           async (file) => {

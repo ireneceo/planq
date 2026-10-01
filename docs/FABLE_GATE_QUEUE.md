@@ -8,7 +8,16 @@
 
 ---
 
-## 🔁 2026-10-01 Fable 라운드 — 대기열 두 묶음 + 메일 소켓 재연결 · **FAIL 3건 → 수정 후 재검증**
+## ✅ 2026-10-01 Fable 재검증 — FAIL 3건 수정 + 랜딩 홈 + 가입 출처 · **PASS**
+
+> 해소: ①DocsTab 프로젝트 폴더면 uploadProjectFile(한 요청 project+folder, 워크스페이스·내 파일·드롭·중복 회귀 없음) PASS
+> ②ensureFocusedVisible 덮개 위/아래 판정(26px→-34 위로 · 보이는 입력 0 · 전면 덮개 0 · mobilesweep 61/61) PASS
+> ③탭 히스토리 swap(A→B +0 칸, X=back, 탭 간 popstate 정상) PASS — 잔존(비회귀): 다른 탭 갔다 오면 TabAppShell 이 pqIdx 를 버려 재열림 → 후속(탭별 pqIdx 보존)
+> A 랜딩 홈 3폭×ko/en PASS(주석: «언제든 해지» 는 선불이라 뜻 성립) · B 가입 출처 1차 FAIL(관리자 카드가 게스트 그림자 계정 계수 136) →
+> `is_guest=0 AND is_ai=0` → 델타 PASS(API 12 = DB 실제 12). 후속: 플랫폼 대시보드 User.count 도 같은 술어로 맞출지(136 vs 12).
+> 가드 health 48/48 · guard 60/61. nit: 새 업로드 분기 onDone 이 project_context 를 안 심음(소켓 재조회로 4초 내 정상).
+
+## (지난) 2026-10-01 Fable 라운드 — 대기열 두 묶음 + 메일 소켓 재연결 · FAIL 3건 → 수정 후 재검증
 
 가드 health 48/48 · guard 60/61 · 실HTTP 15 + 실브라우저 3스위트.
 - `1e0cc312` 프로젝트 폴더 업로드: 항목1·2·3 **PASS**(비멤버 새문/옛문 동일 201·L2 · 고객 403 · 남의 폴더 400 · inline private L1 · 다른 호출부 2곳 모두 project_id 동반).

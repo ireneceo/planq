@@ -2260,7 +2260,7 @@ const QTaskPage:React.FC=()=>{
                               disabled={!editable}
                               title={
                                 (task.actual_source ?? 'auto') === 'auto' && a > 0
-                                  ? (t('list.actHint', { defaultValue: '진행 시작·완료 시 자동 누적 — 직접 입력하면 확정됩니다' }) as string)
+                                  ? (t('list.actHint', { defaultValue: '진행 시작·완료 시 자동 누적 — 값을 바꿔 입력하면 확정됩니다' }) as string)
                                   : (editable?undefined:t('list.notMyHours','담당자만 수정 가능 (참고용)') as string)
                               }
                               onClick={ev=>ev.stopPropagation()}
