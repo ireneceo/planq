@@ -107,17 +107,18 @@ async function resolveSender(account, { fromAliasId = null, replyToAddresses = n
     return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null, signatureHtmlEn: hit.signature_html_en || null, aliasId: hit.id };
   }
 
-  // ② 답장 — 받은 주소가 계정/별칭 중 하나면 그 주소로
+  // ② 답장 — 받은 주소(To 먼저, 그다음 Cc — 호출부가 그 순서로 준다) 중 **처음 나오는 우리 주소**로.
+  //   ★ 계정 본주소로 온 메일이면 본주소로 끝낸다. ③ 기본별칭으로 흘려보내면 help@ 로 받은 메일에
+  //     답장했는데 실제 From 이 support@(기본별칭)로 나간다 — 화면은 help@ 를 표시하므로 표시≠실발신(Fable 실측).
+  //   ★ 2026-10-01 — 순서를 지킨다. 예전처럼 «별칭 먼저 찾기» 면 To=본주소·Cc=별칭인 메일이 별칭으로 나간다.
   if (Array.isArray(replyToAddresses) && replyToAddresses.length) {
-    const lower = replyToAddresses.map((a) => String(a || '').toLowerCase());
-    const hit = aliases.find((a) => lower.includes(String(a.email).toLowerCase()));
-    if (hit) return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null, signatureHtmlEn: hit.signature_html_en || null, aliasId: hit.id };
-    // ★ 계정 본주소로 온 메일이면 **여기서 끝낸다**. 아래 ③ 기본별칭으로 흘려보내면
-    //   help@ 로 받은 메일에 답장했는데 실제 From 이 support@(기본별칭)로 나간다 —
-    //   화면은 help@ 를 표시하므로 **표시≠실발신** 사고가 된다(Fable 실측 확인).
-    //   주석은 원래 이 동작을 전제했는데 코드가 ③으로 떨어지고 있었다.
-    if (lower.includes(String(account.email).toLowerCase())) {
-      return { email: account.email, displayName: null, signatureHtml: null, signatureHtmlEn: null, aliasId: null };
+    const acctEmail = String(account.email).toLowerCase();
+    for (const raw of replyToAddresses) {
+      const addr = String(raw || '').toLowerCase();
+      if (!addr) continue;
+      const hit = aliases.find((a) => String(a.email).toLowerCase() === addr);
+      if (hit) return { email: hit.email, displayName: hit.display_name || null, signatureHtml: hit.signature_html || null, signatureHtmlEn: hit.signature_html_en || null, aliasId: hit.id };
+      if (addr === acctEmail) return { email: account.email, displayName: null, signatureHtml: null, signatureHtmlEn: null, aliasId: null };
     }
   }
 

@@ -28,7 +28,7 @@ const { buildQuote, buildForwardHeader, isolateForwardedHtml } = require('../ser
 // 폴더 정의·정렬은 services/mailFolders 가 단일 원천 (리스트 라우트 + 벌크 처리 공용)
 const { folderWhere, searchFolderWhere, folderOf, sentOrder, BULK_FOLDERS } = require('../services/mailFolders');
 // accessibleAccountIds 도 여기서 온다 — 프라이버시 격리 정의를 두 벌 두지 않는다
-const { outgoingIdentityFor, accessibleAccountIds } = require('../services/mailIdentity');
+const { outgoingIdentityFor, accessibleAccountIds, receivedAddressesOf } = require('../services/mailIdentity');
 const { serializeThreadRow, resolveRecipientNames } = require('../services/mailSerialize');
 // 검색 결과의 "왜 걸렸나" (match: { field, snippet }) — 2026-09-11
 const { attachMailMatches } = require('../services/mailSearchMatch');
@@ -42,7 +42,7 @@ function parseFromAliasId(body) {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
-const { emailsOf, mergeParticipants, selfEmailsForAccount } = require('../services/emailAddress');
+const { mergeParticipants, selfEmailsForAccount } = require('../services/emailAddress');
 const { isEmbedded, isNoiseAttachment, NOISE_MIMES } = require('../services/emailAttachments');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
@@ -1177,16 +1177,10 @@ router.post('/:businessId/email-threads/:id/messages',
       if (attDenied) return errorResponse(res, 'attachment_not_allowed', 403, 'attachment_not_allowed');
 
       // 이 스레드가 "어느 주소로" 왔는지 — 그 주소로 답한다 (별칭 자동 선택의 근거)
+      //   미리보기(services/mailIdentity)와 **같은 함수** — To 먼저, 그다음 Cc.
       let lastInboundTo = null;
       try {
-        const lastIn = await EmailMessage.findOne({
-          where: { thread_id: thread.id, direction: 'inbound' },
-          order: [['sent_at', 'DESC']],
-          attributes: ['to_emails'],
-        });
-        //   #200(b') — 여기서 `x?.address` 로 읽던 탓에 저장 shape `{email,name}` 이 통째로
-        //   걸러져 항상 빈 배열이었다 (resolveSender ② 별칭 자동 선택이 죽어 있었다).
-        if (lastIn) lastInboundTo = emailsOf(lastIn.to_emails);
+        lastInboundTo = await receivedAddressesOf(thread.id);
       } catch (e) { console.warn('[qmail] lastInboundTo', e.message); }
 
       // 표 인라인 — 저장본과 발송본 **양쪽**에 같은 값을 쓴다(보낸메일함도 같이 고쳐진다).

@@ -252,6 +252,7 @@ export interface Message {
   from_email: string | null;
   from_name: string | null;
   to_emails: Array<string | { name?: string; email: string }>;   // 백엔드는 [{name,email}] 로 준다
+  cc_emails?: Array<string | { name?: string; email: string }> | null;
   subject: string | null;
   body_html: string | null;
   body_text: string | null;
@@ -1583,11 +1584,19 @@ const MailPage: React.FC = () => {
   }, [businessId, detail?.account?.id]);
 
   // 이 메일이 도착한 주소 — 답장은 여기로 보내야 한다 (도메인이 여러 개인 메일함)
-  const receivedAt = useMemo(() => {
-    if (!detail) return '';
+  //   ★ 2026-10-01 — 서버(services/mailIdentity.receivedAddressesOf + emailSend.resolveSender ②)와 **같은 규칙**:
+  //     To 먼저, 그다음 Cc 에서 **처음 나오는 우리 주소**(계정 본주소 또는 등록 별칭). 우리 주소가 없으면 To 첫 주소
+  //     (등록 안 된 주소 — 아래 «별칭으로 등록» 안내의 대상). 화면이 다른 규칙을 쓰면 표시≠실발신이 된다.
+  const receivedList = useMemo(() => {
+    if (!detail) return [] as string[];
     const lastInbound = [...detail.messages].reverse().find(m => m.direction === 'inbound');
-    return (toAddrList(lastInbound?.to_emails)[0] || '').toLowerCase();
+    return [...toAddrList(lastInbound?.to_emails), ...toAddrList(lastInbound?.cc_emails)].map((x) => x.toLowerCase());
   }, [detail]);
+  const receivedAt = useMemo(() => {
+    const acct = String(detail?.account?.email || '').toLowerCase();
+    const own = receivedList.find((x) => x === acct || aliases.some((a) => a.email.toLowerCase() === x));
+    return own || receivedList[0] || '';
+  }, [receivedList, detail?.account?.email, aliases]);
   // 받은 주소가 계정 주소도, 등록된 별칭도 아니면 → 한 번에 등록해서 그 주소로 보낼 수 있게
   const unknownReceived = !!receivedAt
     && receivedAt !== String(detail?.account?.email || '').toLowerCase()
@@ -1614,11 +1623,10 @@ const MailPage: React.FC = () => {
   useEffect(() => {
     if (!detail) { setFromAliasId(null); fromAliasTouched.current = false; return; }
     if (fromAliasTouched.current) return;   // 사용자가 고른 값을 목록 재로딩이 덮지 않게
-    const lastInbound = [...detail.messages].reverse().find(m => m.direction === 'inbound');
-    const to = toAddrList(lastInbound?.to_emails).map((x) => x.toLowerCase());
-    const hit = aliases.find(a => to.includes(a.email.toLowerCase()));
+    // 받은 주소(위 receivedAt — 서버와 같은 순서 규칙)가 별칭이면 그 별칭, 본주소·미등록이면 미지정(서버가 같은 답을 낸다)
+    const hit = aliases.find(a => a.email.toLowerCase() === receivedAt);
     setFromAliasId(hit ? hit.id : null);
-  }, [detail, aliases]);
+  }, [detail, aliases, receivedAt]);
 
   // 스레드를 바꾸면 사용자 선택 흔적을 지운다 (다음 스레드는 다시 자동 결정)
   useEffect(() => { fromAliasTouched.current = false; }, [activeId]);

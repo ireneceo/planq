@@ -22,6 +22,22 @@ async function accessibleAccountIds(businessId, userId) {
 }
 
 /**
+ * 이 스레드의 마지막 받은 메일이 **어느 주소로** 왔는가 — To 먼저, 그다음 Cc (순서가 우선순위).
+ *   답장 발송(routes/email_threads.js)과 미리보기(아래 outgoingIdentityFor)가 **이 함수 하나**를 쓴다.
+ *   두 곳이 각자 계산하면 «표시된 발신 주소 ≠ 실제 발신 주소» 가 된다.
+ *   ★ 2026-10-01 — 여태 To 만 봐서, 우리 별칭이 참조(Cc)로만 들어온 메일은 받은 주소를 못 찾고
+ *     기본 별칭으로 답장이 나갔다.
+ */
+async function receivedAddressesOf(threadId) {
+  const lastIn = await EmailMessage.findOne({
+    where: { thread_id: threadId, direction: 'inbound' },
+    order: [['sent_at', 'DESC']], attributes: ['to_emails', 'cc_emails'],
+  });
+  if (!lastIn) return null;
+  return [...emailsOf(lastIn.to_emails), ...emailsOf(lastIn.cc_emails)];
+}
+
+/**
  * 답장 제목 — `Re:` 접두(이미 있으면 그대로). **미리보기와 발송이 같은 공식을 쓴다.**
  *   `detectLang` 이 제목을 ×3 가중하므로, 화면이 제목을 안 보내면 서명 언어가 갈린다
  *   (Fable 실측: 한국어 제목 스레드에 영어 답장 → 미리보기 en / 실발송 ko).
@@ -46,11 +62,7 @@ async function outgoingIdentityFor({ businessId, userId, accountId = null, threa
     });
     if (!thread) return { error: 'thread_not_found', status: 404 };
     resolvedAccountId = thread.account_id;
-    const lastIn = await EmailMessage.findOne({
-      where: { thread_id: thread.id, direction: 'inbound' },
-      order: [['sent_at', 'DESC']], attributes: ['to_emails'],
-    });
-    if (lastIn) replyToAddresses = emailsOf(lastIn.to_emails);
+    replyToAddresses = await receivedAddressesOf(thread.id);
     // ★ 답장 제목은 **서버가 만든다** — 발송 라우트와 같은 공식(replySubjectOf).
     //   화면이 제목을 안 보내던 탓에 «미리보기 en / 실발송 ko» 가 났다(Fable 실측).
     if (!subject) {
@@ -99,4 +111,5 @@ async function outgoingIdentityFor({ businessId, userId, accountId = null, threa
 }
 
 module.exports = {
+  receivedAddressesOf,
   replySubjectOf, outgoingIdentityFor, accessibleAccountIds };
