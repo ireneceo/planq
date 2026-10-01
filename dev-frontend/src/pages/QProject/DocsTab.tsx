@@ -665,22 +665,15 @@ const DocsTab: React.FC<Props> = (props) => {
       //   보고 있던 폴더에 안 보여 "어디 갔지" 가 된다(프로젝트 모드와 같은 규칙).
       if (typeof sel === 'number') {
         const targetFolder = sel;
-        // ★ 2026-10-01 (결정 5-a · Fable FAIL) — 고른 폴더가 **프로젝트 폴더**면 프로젝트 파일로 올린다.
-        //   여태 이 분기는 프로젝트 폴더도 uploadMyFile → /move 로 보냈고, move 는 project_id 를
-        //   바꾸지 않아 파일이 L1 개인 파일로 남았다 — 프로젝트 > 파일 탭에는 폴더만 있고 파일이 없었다.
-        //   한 요청에 project_id + folder_id 를 같이 싣는다(서버가 폴더·프로젝트 일치를 검증).
-        const folderProjectId = folders.find((x) => x.id === targetFolder)?.project_id ?? null;
-        if (folderProjectId) {
-          // 형제 경로(commitWorkspaceUpload)처럼 project_context 를 바로 심는다 — 안 심으면 왼쪽 트리의
-          //   프로젝트 파일 수가 실시간 재조회가 올 때까지 0 으로 보였다(Fable 메모, 최대 4초).
-          const proj = projectGroups.find(p => p.id === folderProjectId);
-          await runUploads(arr,
-            (f, hooks) => uploadProjectFile(businessId, folderProjectId, f, { folderId: targetFolder, ...hooks }),
-            (file) => {
-              const withCtx = proj ? { ...file, project_context: { id: proj.id, name: proj.name, color: proj.color } } : file;
-              setFiles(prev => [withCtx, ...prev]);
-              afterUploaded(file);
-            });
+        // ★ 프로젝트 폴더면 프로젝트 파일로(결정 5-a) — uploadMyFile→/move 는 project_id 를 안 바꿔 L1 로 남았다.
+        //   project_context 도 바로 심는다(형제 commitWorkspaceUpload 와 같게 — 안 심으면 트리 수가 늦게 뜬다).
+        const fp = folders.find((x) => x.id === targetFolder)?.project_id ?? null;
+        const proj = fp ? projectGroups.find(p => p.id === fp) : null;
+        if (fp) {
+          await runUploads(arr, (f, hooks) => uploadProjectFile(businessId, fp, f, { folderId: targetFolder, ...hooks }), (file) => {
+            setFiles(prev => [proj ? { ...file, project_context: { id: proj.id, name: proj.name, color: proj.color } } : file, ...prev]);
+            afterUploaded(file);
+          });
           return;
         }
         await runUploads(arr,
