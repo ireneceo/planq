@@ -1,0 +1,34 @@
+{
+  "version": "1.67.0",
+  "date": "2026-10-01",
+  "items": [
+    {
+      "ko": { "title": "메일 목록에 새 메일이 바로 뜹니다", "body": "Q mail 을 오래 열어 둔 채로 연결이 잠깐 끊겼다 돌아와도, 그 사이 도착한 메일까지 새로고침 없이 목록에 나타납니다." },
+      "en": { "title": "New mail shows up right away", "body": "Even if Q mail has been open for a long time and the connection drops for a moment, new mail — including anything that arrived in between — appears in the list without refreshing." }
+    },
+    {
+      "ko": { "title": "동료의 오늘 상태", "body": "사이드바의 «팀 N명 근무 중» 을 누르면 멤버별 오늘 상태(근무·휴식·퇴근)를 볼 수 있고, 채팅에서는 멤버 이름 옆 점으로 보입니다. 시각과 기록은 보이지 않고 고객에게는 표시되지 않습니다." },
+      "en": { "title": "Your teammates' status today", "body": "Tap \"N on the team working\" in the sidebar to see each member's status today (working, on break, off), also shown as a dot next to member names in chat. Times and logs aren't shown, and clients never see it." }
+    },
+    {
+      "ko": { "title": "모바일 입력이 가려지지 않습니다", "body": "폰에서 입력칸을 누르면 키보드나 하단 버튼 줄, 위쪽 고정 줄에 가려지지 않도록 화면이 맞춰 움직이고, 입력을 마치면 원래대로 돌아옵니다. 채팅은 입력하는 동안 안내 카드를 접어 대화를 더 넓게 보여 줍니다." },
+      "en": { "title": "Inputs stay visible on mobile", "body": "When you tap a field on your phone, the screen adjusts so it isn't hidden by the keyboard, the bottom button bar or a sticky header, and returns to normal when you're done. In chat, info cards fold away while you type so you see more of the conversation." }
+    },
+    {
+      "ko": { "title": "프로젝트 폴더에 올린 파일은 프로젝트 파일로", "body": "Q file 에서 프로젝트 폴더를 골라 올린 파일이 그 프로젝트의 파일로 저장되어, 프로젝트 > 파일 탭과 프로젝트 멤버에게도 보입니다." },
+      "en": { "title": "Files uploaded to a project folder belong to the project", "body": "Files you upload into a project's folder in Q file are now saved as that project's files, so they appear in the project's Files tab and to project members." }
+    },
+    {
+      "ko": { "title": "업무 시간 칸을 눌렀다 떼기만 하면 저장되지 않습니다", "body": "시간 칸을 눌렀다가 값을 바꾸지 않고 나오면 아무것도 저장하지 않아, 반복 업무 «어디까지 반영» 창이 까닭 없이 뜨거나 실제 시간 자동 누적이 멈추지 않습니다." },
+      "en": { "title": "Tapping a time field no longer saves it", "body": "If you tap a time field and leave without changing the value, nothing is saved — so the recurring-task \"apply to\" prompt no longer pops up for no reason and automatic actual-time tracking keeps running." }
+    },
+    {
+      "ko": { "title": "업무를 갈아타고 닫은 뒤 뒤로 가도 다시 열리지 않습니다", "body": "태블릿·데스크탑에서 업무 상세를 열어 둔 채 다른 업무로 넘어간 뒤 닫고 뒤로 가면, 방금 닫은 업무가 다시 열리지 않습니다." },
+      "en": { "title": "Switching tasks then going back no longer reopens them", "body": "On tablets and desktops, if you switch to another task while the detail panel is open and then close it, going back no longer reopens the task you just closed." }
+    },
+    {
+      "ko": { "title": "오래된 휴대폰 앱에서도 열립니다", "body": "일부 오래된 안드로이드 기기의 앱 화면이 열리지 않던 문제를 고쳤습니다." },
+      "en": { "title": "Works on older phones", "body": "Fixed an issue where the app screen wouldn't open on some older Android devices." }
+    }
+  ]
+}

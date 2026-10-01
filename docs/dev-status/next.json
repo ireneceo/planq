@@ -1,74 +1,53 @@
 {
   "working_on": [
-    "모바일 묶음 #437·#441·#436·#427 · #430 전체 업무 찾기 · Q sales · 프로젝트 폴더 업로드 · 날짜 형식 2차 · 공유 받기 ① · 탭 모드 뒤로 가기 (v1.66.0)"
+    "메일 실시간 반영 · 랜딩 홈 포지셔닝(의뢰형 비즈니스의 고객 업무) · 가입 출처 기록 · Fable FAIL 3건 수정 · #429 동료 상태 · 모바일 입력 전후 (v1.67.0)"
   ],
   "in_progress": [
-    "#429 동료 출퇴근 상태(멤버 전원·상태만, 고객 제외 — Irene 결정 1번) — 다음 세션"
+    "탭 모드에서 다른 탭을 갔다 오면 pqIdx 가 버려져 닫은 업무가 뒤로 가기에 재열림(비회귀, 탭별 pqIdx 보존 필요)"
   ],
   "completed": [
-    {
-      "title": "#437 뒤로 가기 = 패널 닫기(폰 useBackToClose) · 탭 모드 X 닫은 업무 재열림(UrlMirror pqIdx)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "#441 메뉴 맨 위 · #436 메일 쓰기 모드 · #427 폴더 안 전체 선택",
-      "verified": "opus_only"
-    },
-    {
-      "title": "#430 Q task 헤더 전체 업무에서 찾기",
-      "verified": "opus_only"
-    },
-    {
-      "title": "표시명 Q sale → Q sales",
-      "verified": "opus_only"
-    },
-    {
-      "title": "프로젝트 폴더 업로드 = 프로젝트 파일(L2) — R=1, Fable 429 로 미검증",
-      "verified": "opus_only"
-    },
-    {
-      "title": "날짜 형식 2차(~50곳) · 가드 datefmt",
-      "verified": "opus_only"
-    },
-    {
-      "title": "#434 ① 공유 받기 — 대화방·저장 위치·문서",
-      "verified": "opus_only"
-    },
-    {
-      "title": "e2e screenbreak(18화면×3폭) · mobilepanels · sharereceive · taskquicksearch",
-      "verified": "opus_only"
-    }
+    { "title": "메일 목록 실시간 — 거절된 소켓 재연결(토큰 갱신 후 connect) · 재연결 시 목록 재조회", "verified": "fable_pass" },
+    { "title": "랜딩 홈 — 히어로·문제·비교표·업종 2축·무료 업무 진단 신청 버튼 · 프리렌더 본문", "verified": "fable_pass" },
+    { "title": "가입 출처 기록(users.signup_source) · 관리자 «가입 출처» 카드(게스트·Cue 제외)", "verified": "fable_pass" },
+    { "title": "Q file 프로젝트 폴더 업로드 = 프로젝트 파일(화면 경로까지)", "verified": "fable_pass" },
+    { "title": "폰 입력 — 위쪽 고정 줄에 걸친 입력을 위로 올림(덮개 위/아래 판정) · 입력 중 카드 접기 · 머리줄 56 통일", "verified": "fable_pass" },
+    { "title": "탭 모드 A→B 갈아탄 뒤 닫고 뒤로 = 재열림 없음(swap)", "verified": "fable_pass" },
+    { "title": "업무 시간 칸 blur 무변경 저장 차단 · 안내 문구 «값을 바꿔 입력하면 확정»", "verified": "fable_pass" },
+    { "title": "#429 동료 오늘 상태(사이드바 목록·채팅 점, 고객 제외)", "verified": "fable_pass" },
+    { "title": "구형 WebView 폴리필(Object.hasOwn 등)", "verified": "fable_pass" }
   ],
   "behavior_changes": [
-    "폰에서 뒤로 가기가 페이지 대신 열린 패널을 닫는다",
-    "프로젝트 폴더에 올린 파일은 프로젝트 멤버에게 보인다(전: 올린 사람만)",
-    "메일 답장 중 키보드가 올라오면 앱 헤더·메타 줄이 접힌다(폰)",
-    "사이드바 시계가 12/24시간 설정을 따른다"
+    "랜딩 홈 첫 화면 문구·버튼이 바뀌었다(무료 업무 진단 신청 버튼 추가, 업종 2축)",
+    "가입 직후 처음 들어온 곳(도메인/utm 하나)이 계정에 기록된다",
+    "실제 시간 칸을 같은 값으로 다시 입력해도 «확정»(자동 누적 정지)되지 않는다 — 값을 바꿔야 확정"
   ],
-  "migrations": [],
+  "migrations": [
+    "users.signup_source VARCHAR(80) NULL — migrate-user-signup-source.js(멱등, PM2 reload 전)"
+  ],
   "issues": [
-    "Fable 이 오늘 4회 모두 429 — 이번 배포 전체가 Fable 미검증(자체 검증). 대기열 docs/FABLE_GATE_QUEUE.md 맨 위"
+    "플랫폼 대시보드 «최근 30일 사용자» 는 게스트·Cue 계정까지 센다(랜딩 «가입 출처» 카드와 숫자가 다름) — 다음 작업에서 같은 술어로 맞춤"
   ],
   "blocked_on_human": [
-    "#434 ② 네이티브 공유 — Apple App Group·확장 번들 ID·프로필 → Codemagic",
-    "nginx 자동 적용 결정",
-    "#427·430·436·437·441 답글(배포 후)"
+    "와디즈 상세페이지 수정 7건(Free 플랜 표기·Import·혜택 금액·주체 이름·스크린샷 실명 등) — 담당자 전달",
+    "#434 ② 네이티브 공유 — Apple App Group·확장 번들 ID·프로필",
+    "#429 답글(배포 후)"
   ],
   "check_areas": [
-    "폰: 확인필요→업무→뒤로",
-    "Q task 돋보기 검색",
-    "폰 메일 답장 키보드",
-    "Q file 프로젝트 폴더 업로드",
-    "/share-receive",
-    "내 업무 설정 날짜 형식 → 각 화면"
+    "planq.kr 홈 첫 화면 3폭 · 진단 신청 버튼 → 문의",
+    "Q mail 오래 열어 둔 뒤 새 메일 도착",
+    "관리자 > 랜딩 방문 «가입 출처»",
+    "Q file 프로젝트 폴더 업로드 → 프로젝트 > 파일 탭",
+    "폰 입력칸(청구서 발행·업무 추가·채팅)"
   ],
   "backlog": [
-    "#429 동료 상태",
-    "#424 근무일수·휴일 통합(Fable 설계)",
-    "탭 모드 화면 상태 패널(확인필요) 뒤로=닫기"
+    "탭별 pqIdx 보존",
+    "플랫폼 대시보드 사용자 수 술어 통일",
+    "로그인·공개 페이지 옛 «수익성 엔진» 문구",
+    "업종별 랜딩 페이지 2장",
+    "#424 근무일수·휴일 통합(Fable 설계)"
   ],
   "tooling_health": [
-    "guard 60/61 · build EXIT 0 · 회귀 149/149 · mobilepanels·screenbreak·sharereceive·taskquicksearch 0 실패 · Fable 미검증"
+    "guard 60/61 · health 48/48 · build EXIT 0 · mailrt 4/4 · mobilepanels 28/28 · mobilesweep 61/61 · Fable PASS(재검증 + 델타)"
   ],
   "undeployed": []
 }
