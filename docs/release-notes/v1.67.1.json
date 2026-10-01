@@ -1,0 +1,22 @@
+{
+  "version": "1.67.1",
+  "date": "2026-10-02",
+  "items": [
+    {
+      "ko": { "title": "확인필요 — 제목이 한 줄을 통째로 씁니다", "body": "카드 윗줄에 할 일·마감·날짜·사람이 모이고, 제목은 둘째 줄에 두 줄까지 보입니다. 모바일에서 제목이 잘리지 않습니다. 모든 줄에 붙던 워크스페이스 이름도 뺐습니다." },
+      "en": { "title": "Needs attention — titles get their own line", "body": "Each card now shows the action, due date, time and person on the top line, with the title on its own line (up to two lines), so titles aren't cut off on mobile. The workspace name that appeared on every row has been removed." }
+    },
+    {
+      "ko": { "title": "참조로 받은 메일도 그 주소로 답장", "body": "우리 별칭이 참조(Cc)로 들어간 메일에 답장해도 그 별칭으로 나갑니다. 등록되지 않은 주소로 받은 메일이면 «별칭으로 등록하면 그 주소로 보낼 수 있다» 고 안내합니다." },
+      "en": { "title": "Reply from the address you were CC'd at", "body": "When one of your aliases was CC'd on an email, your reply is now sent from that alias. If the email came to an address that isn't registered, you'll see a note that registering it as an alias lets you reply from it." }
+    },
+    {
+      "ko": { "title": "뒤로 가기가 더 자연스러워졌습니다", "body": "태블릿·데스크탑에서 다른 탭에 갔다 오거나 업무를 갈아탄 뒤 닫고 뒤로 가도 닫은 업무가 다시 열리지 않고, 필터를 바꾼 뒤 연 업무는 뒤로 가면 필터가 그대로 남습니다." },
+      "en": { "title": "Smoother back navigation", "body": "On tablets and desktops, a task you closed no longer reopens when you go back after switching tabs or tasks, and going back from a task opened under a filter keeps that filter." }
+    },
+    {
+      "ko": { "title": "프로젝트 폴더 업로드가 목록에 바로", "body": "Q file 에서 프로젝트 폴더에 올린 파일이 왼쪽 목록의 프로젝트 파일 수에 바로 반영됩니다." },
+      "en": { "title": "Project-folder uploads show up immediately", "body": "Files uploaded into a project folder in Q file are counted under that project in the left list right away." }
+    }
+  ]
+}
