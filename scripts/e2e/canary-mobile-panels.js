@@ -220,6 +220,29 @@ async function run() {
                 }
               }
             }
+
+            // ── ①f 필터를 바꾼 뒤 업무 열기 → 뒤로 = 패널만 닫히고 필터는 그대로 (Fable 메모 2026-10-01)
+            {
+              await b.goto(page, '/dashboard');
+              await b.goto(page, '/tasks'); await b.dismissBlockers(page); await sleep(1200);
+              if (await drawerOpen(page)) { await page.keyboard.press('Escape'); await sleep(800); }
+              const tabBtn = await page.$('[data-testid="qtask-tab-all"]');
+              if (!tabBtn) { push(`${v.key} · ①f 픽스처`, false, '전체 업무 탭 버튼 없음 — 미측정'); }
+              else {
+                await tabBtn.click(); await sleep(1500);
+                const g0 = await page.evaluate(() => location.search);
+                const a4 = await clickRow(0); await sleep(1500);
+                const g1 = await page.evaluate(() => location.search);
+                if (!a4 || !/task=/.test(g1)) { push(`${v.key} · ①f 픽스처`, false, `업무 못 엶 ${g0} → ${g1} — 미측정`); }
+                else {
+                  await page.goBack().catch(() => null); await sleep(1300);
+                  const g2 = await page.evaluate(() => location.pathname + location.search);
+                  const re4 = await drawerOpen(page);
+                  const ok4 = !re4 && g2.startsWith('/tasks') && !/task=/.test(g2) && g2.includes(g0.replace(/^\?/, '') || '__none__');
+                  push(`${v.key} · ①f 필터 바꾼 뒤 업무 → 뒤로 = 패널만 닫히고 필터 유지`, ok4, `필터 ${g0} → 열기 ${g1} → 뒤로 ${g2} · 패널=${re4 ? '열림' : '닫힘'}`);
+                }
+              }
+            }
           }
         }
       }

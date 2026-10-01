@@ -27,7 +27,10 @@ export function decidePaneNav(opts: {
   //   지금 칸을 갈아끼운다. 쌓으면 바로 전 칸이 A 주소가 되어, B 를 X 로 닫을 때 «전 칸 복귀» 가 안 맞아
   //   push 로 떨어지고 뒤로 가면 B 가 다시 열렸다. 같은 화면(pathname) 안의 replace 일 때만 —
   //   다른 화면으로 가는 replace 는 종전대로 쌓는다.
-  if (navType === 'REPLACE' && prevEntryPath && prevEntryPath.split('?')[0] === path.split('?')[0]) {
+  // ★ 단 **여는** 이동(쿼리 키가 새로 생김 — 필터 화면에서 업무 열기)은 쌓는다. 갈아끼우면 뒤로 가기가
+  //   전 칸(필터 없는 주소)으로 떨어져 패널은 닫혀도 고른 필터가 풀렸다(Fable 메모 2026-10-01).
+  if (navType === 'REPLACE' && prevEntryPath && prevEntryPath.split('?')[0] === path.split('?')[0]
+      && !(windowPath !== undefined && isClosingNav(path, windowPath))) {
     return { op: 'swap', path, tabId };
   }
   // ★ 2026-10-01 — 바로 전 칸을 모르는데(다른 탭에 갔다 오면 탭 전환이 칸 번호를 버린다) **닫는** replace 면
