@@ -3095,10 +3095,16 @@ const MailPage: React.FC = () => {
                         </FromSelect>
                         {receivedAt && receivedAt !== String(detail?.account?.email || '').toLowerCase() && (
                           <HelpDot>
-                            {t('reply.aliasHelp', {
-                              defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 답장도 그 주소에서 발송됩니다.',
-                              addr: receivedAt,
-                            }) as string}
+                            {/* 등록 안 된 주소면 그 주소로 보낼 수 없다(계정 주소로 나간다) — «그 주소에서 발송» 은 거짓이 된다 */}
+                            {(unknownReceived
+                              ? t('reply.aliasHelpUnregistered', {
+                                defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 이 주소를 별칭으로 등록하면 답장도 그 주소에서 발송됩니다.',
+                                addr: receivedAt,
+                              })
+                              : t('reply.aliasHelp', {
+                                defaultValue: '이 고객은 {{addr}} 주소로 메일을 보냈습니다. 답장도 그 주소에서 발송됩니다.',
+                                addr: receivedAt,
+                              })) as string}
                           </HelpDot>
                         )}
                         {unknownReceived ? (

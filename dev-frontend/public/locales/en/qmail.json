@@ -273,7 +273,8 @@
     "keepNeeded": "Keep in “Needs reply” after sending (holding reply)",
     "aiWorking": "AI is drafting your reply…",
     "aiSlow": "AI is still writing. This can take a little longer — you can also just write it yourself.",
-    "aiEmpty": "AI could not produce a draft this time. Try again, or tell it below what you want."
+    "aiEmpty": "AI could not produce a draft this time. Try again, or tell it below what you want.",
+    "aliasHelpUnregistered": "This customer wrote to {{addr}}. Register it as an alias and your reply will be sent from that address too."
   },
   "errors": {
     "loadList": "Failed to load inbox"
