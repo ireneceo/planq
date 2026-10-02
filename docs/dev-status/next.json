@@ -1,53 +1,37 @@
 {
   "working_on": [
-    "v1.70.0 — #426 무료 자가진단 · #439 AI 에이전트 연동 M1(운영은 키 없어 꺼진 채) · /about 첫 방문 크래시"
+    "#439 AI 에이전트 M2 — 도구 17개 · MEDIUM 확인 2단계 · 업무 필드 권한표·담당자 후속을 행동 계층으로(PUT 동작 불변) — 운영은 여전히 꺼짐"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "#426 무료 업무체계 자가진단(공개 /service/diagnosis · 관리자 리드·통계)",
+      "title": "#439 M2-a 조회 도구(고객·프로젝트·멤버·일정)·일정 생성·마감 변경/완료(확인 2단계)",
       "verified": "fable_pass"
     },
     {
-      "title": "관리자 문의 인박스 목록 500(2026-08-25~) · 끝 슬래시 공개 페이지 셸",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "#439 AI 에이전트 연동 M1 — MCP + OAuth 2.1 · 도구 6 · 동의 화면 · 연결된 AI 앱",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "/about 첫 방문 크래시(returnObjects) — 공용 i18nArray",
+      "title": "#439 M2-b 담당자 변경·필드 수정 — PUT /tasks FIELD_RULES·담당자 이력·후속을 task_actions 로 이동(A/B 56건 동일)",
       "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
-    "/service·/about·/pricing 등 공개 페이지를 로그인 데스크탑에서 열면 워크스페이스 셸이 아니라 공개 화면",
-    "관리자 문의 인박스에 «자가진단 리드» 종류"
+    "새 담당자 알림 push tag 가 task:<업무id> 로(다른 업무 알림과 같은 묶음 규칙) — DB 알림·문구 동일"
   ],
-  "migrations": [
-    "migrate-agent-oauth.js(agent_clients·agent_grants·ephemeral kind 4)",
-    "migrate-diagnosis.js(diagnosis_responses·contact_inquiries.kind diagnosis)"
-  ],
+  "migrations": [],
   "issues": [],
   "blocked_on_human": [
-    "#439 운영 켜기: .env AGENT_ENABLED·AGENT_TOKEN_SECRET + nginx /agent/·/.well-known/oauth- → 3005",
-    "dev nginx 같은 2경로(실 ChatGPT 연결 확인)",
-    "Codemagic ios-testflight 1.0.1"
+    "#439 켜기: dev·운영 nginx /agent/·/.well-known/oauth- → 3005 + 운영 .env AGENT_ENABLED·AGENT_TOKEN_SECRET",
+    "#434② 네이티브 공유(Apple App Group·실기기)",
+    "#426 문항 문구 검토"
   ],
   "check_areas": [
-    "/service/diagnosis 12문항·결과",
-    "관리자 › 문의 인박스 «자가진단 리드»",
-    "내 외부 연동 «연결된 AI 앱»",
-    "/about 첫 방문"
+    "Q task 담당자 변경(화면) — 이력·알림",
+    "업무 제목·설명 수정 권한"
   ],
   "backlog": [
-    "#439 M2(담당자·마감 변경 MEDIUM 확인·나머지 도구·Cue 통합)",
-    "#434② 네이티브 공유",
-    "관리자 문의 인박스 기존 문구 i18n"
+    "#439 M3: 실 ChatGPT·Claude 연결 확인 · CIMD · 디렉터리 제출 · cue_tools 레지스트리 통합 · 감사 화면 «AI 경유» 필터"
   ],
   "tooling_health": [
-    "Fable PASS 4라운드 · guard 61/62 · health 48/48 · tenant·diagnosis·agentconsent·landingfirst 0 실패"
+    "Fable PASS(M2-a 33검사·M2-b A/B 56건) · guard 61/62 · health 48/48 · tenant·tenantwrite·leavesave·agentconsent 0 실패"
   ],
   "undeployed": []
 }
