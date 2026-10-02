@@ -27,6 +27,7 @@ import {
 } from '../Common/cueBarShell';
 import {
   extractInquiry, saveAsClient, type InquiryExtract, type InteractionKind, type SaleSource,
+  SALE_PREFILL_EVENT, type SalePrefillDetail,
 } from '../../services/sale';
 
 interface Props {
@@ -53,6 +54,22 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
   const taRef = useRef<HTMLTextAreaElement>(null);
   // 쓰다 닫아도 남는다 — 긴 통화 메모를 여기 바로 붙여넣는다
   const draft = useDraftText(useDraftKey('sale-inquiry-add', 'cuebar', businessId));
+  // #449 D5 — 웹폼 행에서 넘어온 본문이면 그 메일 스레드를 등록과 함께 고객에 붙인다
+  const threadRef = useRef<number | null>(null);
+  const sendRef = useRef<(text?: string) => void>(() => {});
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<SalePrefillDetail>).detail;
+      if (!d || !d.text) return;
+      threadRef.current = d.emailThreadId;
+      draft.setText(d.text);
+      taRef.current?.scrollIntoView({ block: 'nearest' });
+      sendRef.current(d.text);
+    };
+    window.addEventListener(SALE_PREFILL_EVENT, on);
+    return () => window.removeEventListener(SALE_PREFILL_EVENT, on);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 높이 자동 — 한 줄에서 시작해 내용만큼 늘어난다(Q task 바와 같은 거동)
   useEffect(() => {
@@ -73,8 +90,8 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
   );
 
   /** ① 정리한다 — 저장하지 않는다. 맞는지 보여주는 것이 이 단계의 전부다. */
-  const send = async () => {
-    const text = draft.text.trim();
+  const send = async (given?: string) => {
+    const text = (given ?? draft.text).trim();
     if (!text || stage === 'loading') return;
     setStage('loading'); setErr(null);
     try {
@@ -85,6 +102,8 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
       setErr(mapErr((e as Error).message)); setStage('idle');
     }
   };
+
+  sendRef.current = (txt?: string) => { void send(txt); };
 
   /** ② 확인하면 들어간다 — 그 자리(상담 목록)에서 보인다. 패널은 열지 않는다. */
   const addNow = async () => {
@@ -99,11 +118,13 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
         company_name: v.company_name || undefined,
         phone: v.phone || undefined,
         email: v.email || undefined,
-        sales_source: (v.sales_source as SaleSource) || 'manual',
+        sales_source: (v.sales_source as SaleSource) || (threadRef.current ? 'email' : 'manual'),
+        ...(threadRef.current ? { email_thread_id: threadRef.current } : {}),
         // 원문을 첫 상담 기록으로 — 종류는 유입 경로에 맞춘다
         interaction: { kind: KIND_BY_SOURCE[v.sales_source || ''] || 'memo', body: text, direction: 'inbound' },
       });
       draft.clear();                           // 저장 성공에만 비운다
+      threadRef.current = null;
       setGot(null); setEdit({}); setStage('idle');
       onCreated(out.client.id);
     } catch (e) {
@@ -111,7 +132,7 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
     } finally { setSaving(false); }
   };
 
-  const close = () => { setGot(null); setEdit({}); setErr(null); setStage('idle'); };
+  const close = () => { threadRef.current = null; setGot(null); setEdit({}); setErr(null); setStage('idle'); };
   const val = (k: keyof InquiryExtract) => String((edit[k] ?? got?.[k] ?? '') || '');
   const set = (k: keyof InquiryExtract, v: string) => setEdit((p) => ({ ...p, [k]: v || null }));
 

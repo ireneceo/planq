@@ -337,6 +337,8 @@ export type SaveAsClientInput =
   | { from: 'email_thread'; email_thread_id: number }
   | { from: 'manual'; display_name?: string; company_name?: string; phone?: string; email?: string;
       sales_source?: SaleSource;
+      /** #449 D5 — 웹폼 문의를 본문으로 등록할 때 그 메일 스레드를 새 고객에 붙인다 */
+      email_thread_id?: number;
       /** 첫 상담 기록 — 전화·방문 내용은 **등록하는 그 순간**에만 손에 있다. 같이 보낸다 */
       // 응대 내역 — 공용 칸(InteractionFields)이 적는 것을 **그대로** 보낸다.
       //   칸이 생겼는데 안 보내면 사용자가 적은 것이 조용히 사라진다.
@@ -350,6 +352,16 @@ export const saveAsClient = (businessId: number, input: SaveAsClientInput) =>
   apiFetch(`/api/sale/${businessId}/save-as-client`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
   }).then(j<{ client: SaleClient; linked_existing: boolean }>);
+
+/** #449 D5 — 웹폼 문의의 마지막 수신 본문(등록 폼에 미리 채운다). */
+export const getWebformText = (businessId: number, emailThreadId: number) =>
+  apiFetch(`/api/sale/${businessId}/inbox/webform-text`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email_thread_id: emailThreadId }),
+  }).then(j<{ text: string; subject: string | null; email_thread_id: number }>);
+
+/** 웹폼 행 → 문의 추가(Cue 바)로 본문을 넘기는 신호. 바가 받아 채우고 정리(추출)까지 돌린다. */
+export const SALE_PREFILL_EVENT = 'sale:prefill-inquiry';
+export interface SalePrefillDetail { text: string; emailThreadId: number }
 
 /** 붙여넣은 글에서 문의 정보 뽑기 (AI). **저장하지 않는다** — 폼에 채우고 사람이 확인해 저장한다. */
 export interface InquiryExtract {

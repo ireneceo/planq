@@ -4,6 +4,7 @@
 // (같은 페이지도 중복 허용). 아이콘 없이 이름(경로) 텍스트만. 디자인 = 사이드바 색 토큰 수평 연장.
 // 설계: docs/MULTITAB_DESIGN.md §1.
 import { useLayoutEffect, useRef, useState } from 'react';
+import { BetaChip } from '../Common/BetaChip';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTabs, useActiveTab } from '../../hooks/useTabStore';
@@ -119,6 +120,7 @@ export default function TabStrip({ leftOffset = 0, onMenu }: {
               onMouseDown={(e) => { if (e.button === 1 && tabs.length > 1) { e.preventDefault(); tryClose(tab.id, isActive); } }}
             >
               <TabLabel>{label(tab)}</TabLabel>
+              <BetaChip path={tab.path} />{/* #449 — 베타 메뉴 탭(navMenus maturity 한 곳) */}
               {tab.indicator === 'recording' && <RecDot aria-label={t('tabs.recording', { defaultValue: '녹음 중' }) as string} />}
               {tabs.length > 1 && (
                 <Close

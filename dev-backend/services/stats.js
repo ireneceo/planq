@@ -489,14 +489,14 @@ async function buildOverviewTab(businessId, period) {
     where: { business_id: businessId, removed_at: null },
     attributes: ['user_id', 'daily_work_hours', 'weekly_work_days', 'participation_rate'],
   });
-  const weeklyHours = members.reduce((s, m) => {
-    const dh = Number(m.daily_work_hours || 8);
-    const wd = Number(m.weekly_work_days || 5);
-    const pr = Number(m.participation_rate || 1);
-    return s + dh * wd * pr;
-  }, 0);
-  const weeks = days / 7;
-  const availableHours = weeklyHours * weeks;
+  // #424 — 가용시간은 services/memberCapacity **한 벌**(수동 휴일·워크스페이스 휴일·승인 휴가를 뺀 기간 가용시간).
+  //   여기 있던 `daily × days × rate × 주` 사본은 셋 다 무시해, 같은 사람의 가용시간이 Q task·보고서와 달랐다.
+  const capSvc = require('./memberCapacity');
+  let availableHours = 0;
+  for (const m of members) {
+    const cap = await capSvc.getMemberCapacity(m.user_id, businessId);
+    availableHours += await capSvc.periodHoursEffective(m.user_id, businessId, cap, period.from, period.to);
+  }
 
   const tasks = await Task.findAll({
     where: {
@@ -922,7 +922,6 @@ async function buildTeamTab(businessId, period, segment = 'client') {
     attributes: ['user_id', 'role', 'daily_work_hours', 'weekly_work_days', 'participation_rate'],
   });
 
-  const days = Math.max(1, (toDt - fromDt) / 86400000);
 
   // 직원별 actual_hours / 정확도 / Bias / 완료 task 수
   const tasks = await Task.findAll({
@@ -948,15 +947,20 @@ async function buildTeamTab(businessId, period, segment = 'client') {
   // 매출배분 분모 = 고객 프로젝트 시간만 (내부업무 시간이 인당매출을 희석/오배분하던 것 차단)
   const totalClientHours = tasks.filter(isClientTask).reduce((s, t) => s + Number(t.actual_hours || 0), 0);
 
+  const capSvc = require('./memberCapacity');
+  const availByUser = new Map();
+  for (const m of members) {
+    const cap = await capSvc.getMemberCapacity(m.user_id, businessId);
+    availByUser.set(m.user_id, await capSvc.periodHoursEffective(m.user_id, businessId, cap, period.from, period.to));
+  }
+
   const rows = members.map((m) => {
     const memberTasks = tasks.filter((t) => t.assignee_id === m.user_id);
     const actualH = memberTasks.reduce((s, t) => s + Number(t.actual_hours || 0), 0);
     const clientActualH = memberTasks.filter(isClientTask).reduce((s, t) => s + Number(t.actual_hours || 0), 0);
 
-    const dh = Number(m.daily_work_hours || 8);
-    const wd = Number(m.weekly_work_days || 5);
-    const pr = Number(m.participation_rate || 1);
-    const availableH = (dh * wd * pr) * (days / 7);
+    // #424 — 가용시간은 memberCapacity 한 벌(위 개요와 같은 함수). 미리 계산한 맵에서 읽는다.
+    const availableH = availByUser.get(m.user_id) || 0;
 
     const utilization = availableH > 0 ? (actualH / availableH) * 100 : null;
 

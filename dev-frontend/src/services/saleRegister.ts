@@ -5,6 +5,7 @@
 //   (memory feedback_copied_component_drifts_extract_shell).
 // ★ 문구는 여기 두지 않는다. 화면이 자기 네임스페이스로 번역한다 — 서비스가 사용자 문장을 짓지 않는다.
 import { apiFetch } from '../contexts/AuthContext';
+import { getWebformText, SALE_PREFILL_EVENT, type SalePrefillDetail } from './sale';
 import type { SaleInboxItem } from './sale';
 
 /** 등록에 필요한 것만 — 상담 목록 행이든 확인 필요 payload 든 이 모양이면 된다 */
@@ -49,6 +50,14 @@ export async function registerInquiryAsClient(
   const j = await r.json().catch(() => null);
   if (!r.ok || j?.success === false) {
     // #449 D5 — 웹폼 릴레이(no-reply@…)는 서버 코드 `relay_sender_use_manual` 로 온다. 화면이 번역한다(위 머리말).
+    //   등록 자체는 막되 **다음 행동을 대신 준비한다** — 마지막 수신 본문을 Q sales 문의 추가(Cue 바)로 넘겨
+    //   이름·연락처를 뽑고 사람이 확인해 등록한다(그 스레드도 같이 붙는다). 세 진입점이 이 함수 하나를 지난다.
+    if (j?.message === 'relay_sender_use_manual' && it.ref.kind === 'email_thread') {
+      try {
+        const w = await getWebformText(businessId, it.ref.id);
+        window.dispatchEvent(new CustomEvent<SalePrefillDetail>(SALE_PREFILL_EVENT, { detail: { text: w.text, emailThreadId: it.ref.id } }));
+      } catch { /* 본문을 못 읽어도 사유는 그대로 알린다 */ }
+    }
     return { ok: false, clientId: null, message: j?.message || `HTTP ${r.status}` };
   }
   const clientId = j?.data?.client?.id ?? j?.data?.id ?? null;

@@ -211,7 +211,7 @@ const SaleInboxList: React.FC<Props> = ({
     setActionError(null);
     try {
       const res = await registerInquiryAsClient(businessId, it);
-      if (!res.ok) { setActionError(res.message || (t('error.loadFailed') as string)); return; }
+      if (!res.ok) { setActionError(res.message === 'relay_sender_use_manual' ? t('inbox.relayUseManual') as string : (res.message || (t('error.loadFailed') as string))); return; }
       // 등록은 됐고 초대만 어긋난 경우 — 조용히 넘어가지 않는다
       if (res.warn === 'invite_failed') setActionError(res.message || (t('inbox.inviteFailed') as string));
       else if (res.warn === 'invite_no_email') setActionError(t('inbox.inviteNoEmail') as string);

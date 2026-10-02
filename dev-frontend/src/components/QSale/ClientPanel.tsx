@@ -216,7 +216,7 @@ const ClientPanel: React.FC<Props> = ({
         ref: inquiry.ref, who: inquiry.who, email: inquiry.email, company: inquiry.company,
       }, { invite: false });
       if (!out.ok || !out.clientId) {
-        setLocalNotice(out.message || (t('error.saveFailed') as string));
+        setLocalNotice(out.message === 'relay_sender_use_manual' ? t('inbox.relayUseManual') as string : (out.message || (t('error.saveFailed') as string)));
         return;
       }
       setAutoId(out.clientId);

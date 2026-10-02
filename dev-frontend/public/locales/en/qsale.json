@@ -383,7 +383,7 @@
     "removeFromSales": "Remove from Sales",
     "demoteTitle": "Remove this chat from Sales?",
     "demoteBody": "It only leaves the Sales list. The chat stays in Q talk and you can send it again with [Send to Sales].",
-    "relayUseManual": "Web-form inquiries can't be registered directly because the sender isn't a person. Use the name and contact in the message with [+ Add customer record]."
+    "relayUseManual": "Web-form inquiries can't be registered directly because the sender isn't a person. The message has been put into the inquiry box at the top of Q sales — check the name and contact, then add it."
   },
   "cuebar": {
     "placeholder": "Paste the conversation — \"Call from GreenTech, Seojun Park, quote request, 010-2345-6789\" (Ctrl+Enter)",

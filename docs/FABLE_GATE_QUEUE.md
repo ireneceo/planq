@@ -8,6 +8,14 @@
 
 ---
 
+## 📝 2026-10-02 밤 — 자체 검증(R=0·F=1) · Fable 미검증 · 다음 라운드 참고 (미배포)
+
+- 웹폼 문의 등록 — `POST /api/sale/:biz/inbox/webform-text`(읽기, 계정 범위) · save-as-client manual + `email_thread_id` 연결 ·
+  `saleRegister` 가 relay 400 이면 본문을 Q sales Cue 바로 넘김(`sale:prefill-inquiry`). 자체: 실HTTP 5(본문·404·연결·이메일=본문 사람·already_client).
+- Insights 가동률 분모 → `memberCapacity.periodHoursEffective`(stats.js 개요·팀 2곳). 자체: 분모 직접 비교 — 운영 22명 중 1명만 변함
+  (biz1 u3, 옛 수동휴일 1 + 9/30 휴가 → 9월 85.7→64.6h, Q task·보고서와 같은 값), dev 67명 중 1명. Fable 이 볼 것: 개요가 AI 멤버(Cue)까지 분모에 넣는 기존 동작.
+- 탭 이름 「베타」 칩(TabStrip) · saleintake 3폭 0 실패(칩 2곳 보임).
+
 ## 📝 2026-10-02 저녁 — 자체 검증(R=0·F=1) · Fable 미검증 · 다음 라운드 참고
 
 - `4c316b4b` e2e bodygutter — 가운데 정렬(선언된 center + 좌우 대칭 ±4, 형제 묶음 포함)인 빈 상태를 여백으로 보지 않는다.

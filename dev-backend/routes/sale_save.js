@@ -65,6 +65,35 @@ router.post('/:businessId/inquiry/extract', ...writeChain, ...extractLimit, asyn
   } catch (err) { next(err); }
 });
 
+// ── 웹폼 문의 본문 — 등록 폼(Cue 문의 추가)에 미리 채울 글 (#449 D5) ─────────────────
+//   웹폼 릴레이(no-reply@…)는 보낸 주소가 사람이 아니라 그 주소로 고객을 만들 수 없다(save-as-client 400).
+//   사람의 이름·연락처는 **본문**에 있다 — 마지막 수신 메일 본문을 돌려주면 화면이 기존 문의 추가(추출→확인)로 연다.
+//   새 폼을 만들지 않는다(CLAUDE.md «새로 만들지 않는다»).
+// audit-exempt: 읽기만 한다(마지막 수신 본문 조회) — 바꾸는 것이 없다
+router.post('/:businessId/inbox/webform-text', ...writeChain, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const id = Number(req.body?.email_thread_id || 0);
+    if (!id) return errorResponse(res, 'thread_not_found', 404);
+    const { accessibleAccountIds } = require('../services/clientTimeline');
+    const acctIds = await accessibleAccountIds(businessId, req.user.id);
+    const thread = await EmailThread.findOne({
+      where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+      attributes: ['id', 'subject', 'client_id'],
+    });
+    if (!thread) return errorResponse(res, 'thread_not_found', 404);
+    if (thread.client_id) return errorResponse(res, 'already_client', 400);
+    const last = await EmailMessage.findOne({
+      where: { business_id: businessId, thread_id: thread.id, direction: 'inbound' },
+      order: [['id', 'DESC']], attributes: ['body_text', 'body_html'],
+    });
+    const raw = (last && (last.body_text || String(last.body_html || '').replace(/<[^>]+>/g, ' '))) || '';
+    const text = raw.replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim().slice(0, 4000);
+    if (!text) return errorResponse(res, 'empty', 400);
+    return successResponse(res, { text, subject: thread.subject || null, email_thread_id: thread.id });
+  } catch (err) { next(err); }
+});
+
 // ── [문의 아님] — 사람이 분류를 정정한다 ───────────────────────────────────
 //   Irene 2026-09-12: "메일이 문의가 아닌데 가져오고 있어. 이런 걸 왜 가져와?" (은행 거래 알림)
 //   기계가 못 가르는 것(브랜드 주소로 오는 알림·명세서)은 **한 번 눌러 끝내는 길**이 답이다.
@@ -315,6 +344,16 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
         touchAt: thread.last_message_at,
       };
     } else if (from === 'manual') {
+      // #449 D5 — 웹폼 문의를 본문으로 등록할 때 **그 스레드를 새 고객에 붙인다**(손으로 쓴 등록과 같은 문, 연결만 더한다).
+      if (body.email_thread_id) {
+        const { accessibleAccountIds } = require('../services/clientTimeline');
+        const acctIds = await accessibleAccountIds(businessId, req.user.id);
+        thread = await EmailThread.findOne({
+          where: { id: Number(body.email_thread_id), business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } },
+        });
+        if (!thread) return errorResponse(res, 'thread_not_found', 404);
+        if (thread.client_id) return errorResponse(res, 'already_client', 400);
+      }
       seed = {
         display_name: trimOrNull(body.display_name, 100),
         company_name: trimOrNull(body.company_name, 200),

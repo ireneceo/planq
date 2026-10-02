@@ -76,6 +76,14 @@ async function run() {
         await sleep(2000);
         const beta = await visible(page, '[data-testid="beta-notice"]');
         push(`${v.key} · Q sales 베타 안내 줄이 보인다`, beta.ok, JSON.stringify(beta));
+        // 베타 칩 — 데스크탑은 사이드바·탭 두 곳에 보여야 한다(navMenus 한 곳을 같이 읽는다)
+        if (v.key === '데스크탑 1440') {
+          const chips = await page.evaluate(() => [...document.querySelectorAll('[data-testid="beta-chip"]')].filter((el) => {
+            const r = el.getBoundingClientRect(); if (r.width < 4 || r.height < 4) return false;
+            const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!h && (h === el || el.contains(h));
+          }).length);
+          push('데스크탑 1440 · 「베타」 칩이 사이드바·탭에 보인다(2곳 이상)', chips >= 2, `보이는 칩 ${chips}`);
+        }
         const why = await visible(page, '[data-testid^="sale-inbox-why-"]');
         push(`${v.key} · (자동) 메일 행 이유 칩이 보인다`, c1.email > 0 ? why.ok : true, c1.email > 0 ? JSON.stringify(why) : '상담 메일 0 — 대상 없음', c1.email > 0 ? {} : { unmeasured: true });
         const noteAuto = await page.evaluate(() => !!document.querySelector('[data-testid="sale-inbox-intake-note"]'));
