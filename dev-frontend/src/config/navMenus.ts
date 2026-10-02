@@ -19,6 +19,9 @@ export interface NavMenuEntry {
   section: NavSection;
   // 워크스페이스 역할 조건 — any 는 로그인만 하면 노출
   roles: NavRole[] | 'any';
+  /** #449 — 다듬는 중인 메뉴. **여기 한 곳**에 적으면 사이드바·통합검색·그 페이지 머리 안내가 같이 붙는다
+   *  (Irene 결정 2026-10-02: 아이콘이 아니라 글자 칩). 워크스페이스별이 아니라 제품 단위다. */
+  maturity?: 'beta';
 }
 
 /** 섹션 헤더 i18n 키 (layout ns) */
@@ -41,7 +44,7 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
 
   { key: 'talk', to: '/talk', labelKey: 'nav.talk', section: 'features', roles: ['owner', 'member', 'client'] },
   { key: 'mail', to: '/mail', labelKey: 'nav.qmail', section: 'features', roles: ['owner', 'member'] },
-  { key: 'sale', to: '/sale', labelKey: 'nav.qsale', section: 'features', roles: ['owner', 'member'] },
+  { key: 'sale', to: '/sale', labelKey: 'nav.qsale', section: 'features', roles: ['owner', 'member'], maturity: 'beta' },
   { key: 'task', to: '/tasks', labelKey: 'nav.task', section: 'features', roles: ['owner', 'member', 'client'] },
   { key: 'project', to: '/projects', labelKey: 'nav.project', section: 'features', roles: ['owner', 'member', 'client'] },
   { key: 'calendar', to: '/calendar', labelKey: 'nav.calendar', section: 'features', roles: ['owner', 'member', 'client'] },
@@ -214,4 +217,10 @@ export function adminLabelKeyForPath(path: string): string | null {
     }
   }
   return best ? best.labelKey : null;
+}
+
+/** 이 경로가 베타 메뉴(또는 그 하위)인가 — 사이드바·검색·페이지 안내가 같은 표를 읽는다(#449). */
+export function isBetaPath(path: string): boolean {
+  const p = String(path || '').split('?')[0];
+  return WORKSPACE_MENUS.some((m) => m.maturity === 'beta' && (p === m.to || p.startsWith(`${m.to}/`)));
 }

@@ -2,6 +2,7 @@
 // GET /api/search?business_id=X&q=... → 도메인별 결과 (tasks/posts/records/files/...).
 // 좌측 카테고리 (필터) + 우측 결과. Notion / Linear / Slack 패턴.
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { BetaChip } from './BetaChip';   // #449
 import { createPortal } from 'react-dom';
 import { useChromeNav } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
@@ -291,7 +292,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
                 <Hit key={`menu-${m.key}`} type="button" data-testid={`gsearch-menu-${m.key}`} onClick={() => goto(m.to)}>
                   <TypeBadge $color="#0F766E">{tNav(SECTION_LABEL_KEY[m.section]) as string}</TypeBadge>
                   <HitMain>
-                    <HitTitle><HighlightText text={menuLabel(m)} query={query} /></HitTitle>
+                    <HitTitle><HighlightText text={menuLabel(m)} query={query} />{m.maturity === 'beta' && <BetaChip path={m.to} />}</HitTitle>
                     <HitSub>{m.to}</HitSub>
                   </HitMain>
                 </Hit>

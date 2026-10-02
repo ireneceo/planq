@@ -698,5 +698,11 @@
     }
   },
   "inquiryBadge": "문의",
-  "inquiryBadgeHint": "Q sales 상담 목록에 들어오는 메일입니다"
+  "inquiryBadgeHint": "Q sales 상담 목록에 들어오는 메일입니다",
+  "inquiryBadgeCandidate": "문의 후보",
+  "inquiryBadgeCandidateHint": "자동 기준에는 들지만 상담 유입이 수동이라 상담에 넣지 않았습니다. [상담으로 보내기]로 올립니다.",
+  "filter": {
+    "inquiryOnly": "문의 후보만",
+    "clear": "해제"
+  }
 }

@@ -11,6 +11,7 @@
 //   그 대화에 링크가 붙고, 서버는 그 링크로 등록할 수 있다(2026-09-12 Irene: "채팅할 때 고객이 이메일 넣으면?").
 //   링크가 없는 순수 대화방(`ref.kind === 'conversation'`)에만 버튼을 숨긴다.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { InboxWhyTag, IntakeNoteLine } from './SaleInboxBits';   // #449·#450 이유 칩 · 수동 모드 안내
 import styled from 'styled-components';
 import { useInboxItemActions } from './useInboxItemActions';
 import { useTranslation } from 'react-i18next';
@@ -240,6 +241,7 @@ const SaleInboxList: React.FC<Props> = ({
   const { restoreItem, ensureClient, applyStage } = useInboxItemActions({
     businessId, busyId, setBusyId, setActionError,
     errorText: t('error.loadFailed') as string, saveErrorText: t('error.saveFailed') as string,
+    codeText: (code) => (code === 'relay_sender_use_manual' ? t('inbox.relayUseManual') as string : null),
     reload: () => load({ silent: true }),
   });
 
@@ -300,6 +302,7 @@ const SaleInboxList: React.FC<Props> = ({
       {/* ★ 기준은 화면이 **짧게** 알려준다 — 왜 여기 없는지 모르면 사용자는 고장으로 읽는다
           (memory feedback_rules_must_be_explained_briefly). */}
       <Hint>{t('inbox.hint') as string}</Hint>
+      <IntakeNoteLine businessId={businessId} counts={counts} onOpenMail={() => navigate('/mail?folder=all&inquiry=1')} />
 
       {actionError && <ErrorBar role="alert">{actionError}</ErrorBar>}
 
@@ -345,6 +348,7 @@ const SaleInboxList: React.FC<Props> = ({
                           안 그러면 처리한 것과 안 한 것이 같은 모양이라 왜 여기 있는지 알 수 없다
                           (memory feedback_backend_done_ui_missing — 서버만 넣고 화면을 안 붙이면 안 고친 것이다). */}
                       {it.handled && <HandledTag>{t('inbox.handled', { defaultValue: '확인완료' }) as string}</HandledTag>}
+                      <InboxWhyTag it={it} />{/* #450 왜 여기 있는지(SaleInboxBits) */}
                       <At title={it.at ? formatDateTime(it.at) : ''}>{it.at ? formatTimeAgo(it.at) : '—'}</At>
                     </RowTop>
                     {/* ★ 2026-09-13 (Irene: "전화나 채팅은 제목 없는데 제목 내용 분리하면 안되는 거 아니야?
@@ -457,6 +461,13 @@ const SaleInboxList: React.FC<Props> = ({
                           strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
                       </IconX>
                     </>
+                  ) : it.ref.kind === 'conversation' && it.meta?.promoted ? (
+                    <IconX type="button" disabled={busy} data-testid={`sale-inbox-demote-${it.id}`}
+                      aria-label={t('inbox.removeFromSales') as string} title={t('inbox.removeFromSales') as string}
+                      onClick={() => setDismissAsk(it)}>{/* #449 D4 올린 채팅 빼기 */}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        strokeWidth="2.4" strokeLinecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+                    </IconX>
                   ) : it.ref.kind !== 'email_thread' ? (
                     /* ★ 2026-09-14 (Irene: *"X가 왜 따로 추가한 고객응대내역 추가한 리스트에는 안 떠?"*)
                        여태 ✕ 는 **메일에서 온 행에만** 있었다. 손으로 추가한 상담(고객 행)에는 치울 길이
@@ -512,9 +523,9 @@ const SaleInboxList: React.FC<Props> = ({
       {/* ✕ — 상담 목록에서 치울지 묻는다. 삭제가 아니라 보관이며 되돌릴 수 있다고 적는다 */}
       <ConfirmDialog
         isOpen={!!dismissAsk}
-        title={t('action.removeFromInboxTitle') as string}
-        message={t('action.removeFromInboxBody') as string}
-        confirmText={t('action.removeFromInbox') as string}
+        title={(dismissAsk?.ref.kind === 'conversation' ? t('inbox.demoteTitle') : t('action.removeFromInboxTitle')) as string}
+        message={(dismissAsk?.ref.kind === 'conversation' ? t('inbox.demoteBody') : t('action.removeFromInboxBody')) as string}
+        confirmText={(dismissAsk?.ref.kind === 'conversation' ? t('inbox.removeFromSales') : t('action.removeFromInbox')) as string}
         cancelText={t('inquiry.cancel') as string}
         variant="danger"
         onClose={() => setDismissAsk(null)}
@@ -523,7 +534,7 @@ const SaleInboxList: React.FC<Props> = ({
           if (!it || busyId) return;
           setBusyId(it.id); setActionError(null);
           try {
-            await dismissInboxItem(businessId, 'email_thread', it.ref.id);
+            await dismissInboxItem(businessId, it.ref.kind === 'conversation' ? 'conversation' : 'email_thread', it.ref.id);
             if (selected?.id === it.id) setSelected(null);
             await load({ silent: true });
           } catch { setActionError(t('error.saveFailed') as string); }

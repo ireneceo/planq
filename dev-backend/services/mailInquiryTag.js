@@ -9,24 +9,26 @@
 // 메일 목록은 한 페이지(수십 건)만 필요한데 매 요청마다 전체를 돌리면 비싸다.
 // 반대로 페이지만 따로 판정하면 **술어가 두 벌**이 된다(그게 이 규칙이 막으려는 것이다).
 // 그래서 결과를 짧게 캐시하고 페이지 id 로 교집합만 낸다.
+// ★ #449 — 표시가 둘이다: 상담에 있는 메일 = 「문의」(inquiry) · 수동 모드에서 자동 기준에만 드는 메일 = 「문의 후보」(candidate).
+//   [상담으로 보내기]·모드 전환 직후에는 invalidate(biz) 로 캐시를 비운다(D3 — 30초 동안 옛 표시가 남았다).
 const TTL_MS = 30 * 1000;
-const cache = new Map();   // key: `${businessId}:${userId}` → { at, ids: Set }
+const cache = new Map();   // key: `${businessId}:${userId}` → { at, ids: Set, candidates: Set }
 
-async function inquiryIdSet(businessId, userId) {
+async function inquirySets(businessId, userId) {
   const key = `${businessId}:${userId || 0}`;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.ids;
+  if (hit && Date.now() - hit.at < TTL_MS) return hit;
   try {
     const { classifyMailThreads } = require('./saleInbox');
-    const { inquiryIds } = await classifyMailThreads(businessId, { userId });
-    const ids = new Set(inquiryIds);
-    cache.set(key, { at: Date.now(), ids });
+    const { inquiryIds, autoIds } = await classifyMailThreads(businessId, { userId });
+    const entry = { at: Date.now(), ids: new Set(inquiryIds), candidates: new Set(autoIds || []) };
+    cache.set(key, entry);
     // 워크스페이스가 늘어도 이 맵이 무한히 자라지 않게 — 오래된 것부터 버린다.
     if (cache.size > 200) {
       const oldest = [...cache.entries()].sort((a, b) => a[1].at - b[1].at).slice(0, 50);
       for (const [k] of oldest) cache.delete(k);
     }
-    return ids;
+    return entry;
   } catch (err) {
     // ★ 표시를 못 만들어도 **목록은 그대로 나가야 한다.** 부가 정보 하나 때문에 메일함이
     //   비면 그게 훨씬 큰 고장이다(검색 하이라이트와 같은 방침).
@@ -39,9 +41,23 @@ async function inquiryIdSet(businessId, userId) {
  *  (false 를 붙이면 "문의가 아니다" 라고 단언하는 것이라 거짓이 된다). */
 async function attachInquiryFlag(rows, { businessId, userId }) {
   if (!Array.isArray(rows) || rows.length === 0) return;
-  const ids = await inquiryIdSet(businessId, userId);
-  if (!ids) return;
-  for (const r of rows) r.is_inquiry = ids.has(r.id);
+  const sets = await inquirySets(businessId, userId);
+  if (!sets) return;
+  for (const r of rows) {
+    r.is_inquiry = sets.ids.has(r.id);
+    r.is_inquiry_candidate = sets.candidates.has(r.id);
+  }
 }
 
-module.exports = { attachInquiryFlag, inquiryIdSet };
+/** 옛 호출부 호환 — 상담 메일 id 집합. */
+async function inquiryIdSet(businessId, userId) {
+  const sets = await inquirySets(businessId, userId);
+  return sets ? sets.ids : null;
+}
+
+/** 그 워크스페이스의 캐시를 비운다 — 올리기·빼기·모드 전환 직후. */
+function invalidate(businessId) {
+  for (const k of [...cache.keys()]) if (k.startsWith(`${businessId}:`)) cache.delete(k);
+}
+
+module.exports = { attachInquiryFlag, inquiryIdSet, inquirySets, invalidate };

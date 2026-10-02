@@ -71,11 +71,33 @@ router.post('/:businessId/inquiry/extract', ...writeChain, ...extractLimit, asyn
 //   패턴을 계속 늘리면 진짜 문의를 떨어뜨린다(실측: 과한 기준이 상담 903건을 10건으로 잘랐다).
 //   ★ 정정은 메일 분류 자체에 남긴다(`email_threads.triage='automated'`) — 그래야 Q mail 에서도
 //     같은 판단이 보이고, 상담 목록은 그 값을 읽어 자연히 내려간다(목록 전용 플래그를 새로 만들지 않는다).
+// 사람의 판단(올림·빼기·되돌림·영구 빼기)이 바뀐 직후 — 상담 목록과 Q mail 「문의」 표시를 **즉시** 맞춘다.
+//   (#449 D3 — 「문의」 표시가 30초 캐시라 올린 직후에도 옛 표시였다.)
+function judgmentChanged(req, businessId, threadId, isInquiry) {
+  require('../services/mailInquiryTag').invalidate(businessId);
+  broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+  broadcast(req, businessId, 'mail:updated', { business_id: businessId, thread_id: threadId, is_inquiry: isInquiry });
+}
+
 router.post('/:businessId/inbox/dismiss', ...writeChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
     const kind = String(req.body?.kind || '');
     const id = Number(req.body?.id || 0);
+    // ★ #449 D4 — 올린 **대화방**을 상담에서 빼는 문. 읽는 쪽(promotedConversationIds 의 `sale_inbox_demote`)만
+    //   있고 쓰는 라우트가 없어, 채팅을 한 번 올리면 되돌릴 수 없었다. 같은 원장에 새 기록으로 뒤집는다.
+    if (kind === 'conversation' && id) {
+      const { Conversation } = require('../models');
+      const conv = await Conversation.findOne({ where: { id, business_id: businessId, channel_type: 'customer' } });
+      if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+      await writeAudit({
+        userId: req.user.id, businessId, action: 'sale.inbox_promote',
+        targetType: 'conversation', targetId: conv.id,
+        oldValue: null, newValue: { origin: 'sale_inbox_demote' },
+      });
+      broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+      return successResponse(res, { id: conv.id, kind }, 'demoted');
+    }
     if (kind !== 'email_thread' || !id) return errorResponse(res, 'unsupported_kind', 400);
 
     const { accessibleAccountIds } = require('../services/clientTimeline');
@@ -92,7 +114,7 @@ router.post('/:businessId/inbox/dismiss', ...writeChain, async (req, res, next) 
       targetType: 'email_thread', targetId: thread.id,
       oldValue: { triage: before }, newValue: { triage: 'automated', origin: 'sale_inbox_dismiss' },
     });
-    broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+    judgmentChanged(req, businessId, thread.id, false);
     return successResponse(res, { id: thread.id, triage: 'automated' }, 'dismissed');
   } catch (err) { next(err); }
 });
@@ -128,7 +150,7 @@ router.post('/:businessId/inbox/purge', ...writeChain, async (req, res, next) =>
       targetType: 'email_thread', targetId: thread.id,
       oldValue: { triage: before }, newValue: { triage: 'automated', origin: 'sale_inbox_purge' },
     });
-    broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+    judgmentChanged(req, businessId, thread.id, false);
     return successResponse(res, { id: thread.id }, 'purged');
   } catch (err) { next(err); }
 });
@@ -159,7 +181,7 @@ router.post('/:businessId/inbox/restore', ...writeChain, async (req, res, next) 
       targetType: 'email_thread', targetId: thread.id,
       oldValue: { triage: before }, newValue: { triage: 'human', origin: 'sale_inbox_restore' },
     });
-    broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+    judgmentChanged(req, businessId, thread.id, true);
     return successResponse(res, { id: thread.id, triage: 'human' }, 'restored');
   } catch (err) { next(err); }
 });
@@ -209,7 +231,7 @@ router.post('/:businessId/inbox/promote', ...writeChain, async (req, res, next) 
         targetType: 'email_thread', targetId: thread.id,
         oldValue: { triage: before }, newValue: { triage: 'human', origin: 'sale_inbox_promote' },
       });
-      broadcast(req, businessId, 'inbox:refresh', { business_id: businessId });
+      judgmentChanged(req, businessId, thread.id, true);
       return successResponse(res, { id: thread.id, kind }, 'promoted');
     }
 
@@ -279,6 +301,11 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
         attributes: ['from_email', 'from_name'],
       });
       if (!first || !first.from_email) return errorResponse(res, 'no_inbound_sender', 400);
+      // ★ #449 D5 — 웹폼 릴레이(no-reply@…)가 첫 발신자면 그 주소로 고객을 만들지 않는다
+      //   (`invite_email = noreply@…` 고객이 생긴다). 사람의 연락처는 본문에 있다 — 문의 추가 폼으로 등록한다.
+      if (require('../services/emailTriage').isAutomatedSenderAddress(first.from_email)) {
+        return errorResponse(res, 'relay_sender_use_manual', 400);
+      }
       seed = {
         display_name: trimOrNull(first.from_name, 100) || normEmail(first.from_email),
         company_name: null,

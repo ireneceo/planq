@@ -362,7 +362,28 @@
     "inviteNoEmail": "고객으로 등록했습니다. 이메일 주소가 없어 초대는 보내지 못했어요.",
     "stageAll": "단계 전체",
     "hideClosed": "종료 가리기",
-    "handled": "확인완료"
+    "handled": "확인완료",
+    "why": {
+      "promoted": "직접 올림",
+      "replied_theirs": "답장함 · 상대 차례",
+      "replied_needs": "답장함 · 답변 필요",
+      "personal": "개인 주소",
+      "webform": "웹폼"
+    },
+    "whyHint": {
+      "promoted": "메일·채팅에서 [상담으로 보내기]로 올린 건입니다",
+      "replied_theirs": "답장해서 메일함에서는 상대 차례입니다. 고객으로 등록하거나 치우기 전까지 상담에 남습니다",
+      "replied_needs": "답장한 적이 있고 지금 다시 답할 차례입니다",
+      "personal": "개인 주소에서 온 메일이라 자동으로 들어왔습니다",
+      "webform": "웹폼(발송 전용 주소)으로 들어온 문의입니다. 연락처는 본문에 있습니다"
+    },
+    "switchedManual": "자동 유입이 꺼져 있습니다. 자동 기준에 드는 메일 {{n}}건은 Q mail 에서 「문의 후보」로 볼 수 있습니다.",
+    "openInMail": "Q mail 에서 보기",
+    "dismissNote": "안내 닫기",
+    "removeFromSales": "상담에서 빼기",
+    "demoteTitle": "이 채팅을 상담에서 뺄까요?",
+    "demoteBody": "상담 목록에서만 빠집니다. 대화는 Q talk 에 그대로 있고, 다시 [상담으로 보내기]로 올릴 수 있습니다.",
+    "relayUseManual": "웹폼으로 들어온 문의는 보낸 주소가 사람이 아니라서 바로 등록할 수 없습니다. 본문의 이름·연락처로 [+ 고객응대 내역 추가]에서 등록하세요."
   },
   "cuebar": {
     "placeholder": "상담 내용을 그대로 붙여넣으세요 — \"오늘 전화로 (주)그린테크 박서준 팀장이 견적 문의. 010-2345-6789\" (Ctrl+Enter)",
@@ -421,5 +442,11 @@
     "noTarget": "이 행에는 메모를 붙일 수 없습니다.",
     "empty": "아직 메모가 없습니다",
     "placeholder": "메모 작성... (Enter 저장 · Shift+Enter 줄바꿈)"
+  },
+  "promoteError": {
+    "already_client": "이미 고객에 연결된 대화입니다 — 고객 이력에서 보세요",
+    "thread_is_spam": "스팸함의 메일은 상담으로 보낼 수 없습니다. 먼저 스팸을 해제하세요",
+    "not_customer_chat": "팀 대화방은 상담으로 보낼 수 없습니다",
+    "generic": "상담으로 보내지 못했습니다. 다시 시도하세요"
   }
 }

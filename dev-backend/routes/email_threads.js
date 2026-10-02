@@ -168,6 +168,17 @@ router.get('/:businessId/email-threads',
       }
       if (String(unread) === 'true') where.unread_count = { [Op.gt]: 0 };
       if (String(starred) === 'true') where.is_starred = true;
+      // #449 — 「문의 후보만」(수동 모드에서 자동 기준에만 드는 메일). 판정은 상담 유입과 **같은 함수**의 캐시다.
+      //   ★ id 조건은 Op.and 안에 넣는다 — assigned/following 의 where.id 를 덮어쓰지 않게.
+      //   판정을 못 하면 400 이 아니라 빈 목록 + meta 로 알린다(부가 필터 하나 때문에 메일함이 깨지면 안 된다).
+      let inquiryUnavailable = false;
+      if (String(req.query.inquiry) === '1') {
+        const sets = await require('../services/mailInquiryTag').inquirySets(businessId, req.user.id);
+        if (!sets) { inquiryUnavailable = true; }
+        const ids = sets ? [...sets.candidates] : [];
+        if (!ids.length) return res.json({ success: true, data: [], pagination: { total: 0, limit, page, offset, has_more: false }, meta: { inquiry_unavailable: inquiryUnavailable } });
+        where[Op.and] = [...(where[Op.and] || []), { id: { [Op.in]: ids } }];
+      }
       // 풀텍스트 — subject + last_message_preview + 메시지(본문·제목·보낸사람)
       // #212 — 공백은 토큰 구분자. "wordpress org" 는 두 토큰이 각각 어딘가에 있으면 매칭(AND).
       //        옛 동작(공백 포함 단일 LIKE)은 "wordpress.org" 같은 실제 문자열을 못 찾았다.

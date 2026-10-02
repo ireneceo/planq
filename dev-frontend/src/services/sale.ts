@@ -186,7 +186,17 @@ export interface SaleInboxCounts {
   /** 후보 — 자동 유입 기준(관계)에 안 걸린 메일. 버리지 않고 여기 모아 사람이 올린다 (2026-09-16) */
   /** 등록된 진행 중 상담 수 */
   client?: number;
+  /** #449 — 수동 모드에서 자동 기준에만 드는 메일 수(Q mail 「문의 후보」). 자동 모드면 0 */
+  auto_candidates?: number;
+  /** #449 — 메일 유입 모드 */
+  intake_mode?: 'manual' | 'auto';
 }
+
+/** #449 — Q sales 메일 유입 모드 저장(owner). 읽기는 customer-entry GET 의 `sales_intake`. */
+export const saveSalesIntake = (businessId: number, mail: 'manual' | 'auto') =>
+  apiFetch(`/api/businesses/${businessId}/sales-intake`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mail }),
+  }).then(j<{ sales_intake: { mail: 'manual' | 'auto' } }>);
 
 export async function listSaleInbox(
   businessId: number,
@@ -358,7 +368,7 @@ export const extractInquiry = (businessId: number, text: string) =>
   }).then(j<InquiryExtract>);
 
 /** [문의 아님] — 사람이 메일 분류를 정정한다. 상담에서 내려가고 Q mail 판정도 같이 고쳐진다. */
-export const dismissInboxItem = (businessId: number, kind: 'email_thread', id: number) =>
+export const dismissInboxItem = (businessId: number, kind: 'email_thread' | 'conversation', id: number) =>
   apiFetch(`/api/sale/${businessId}/inbox/dismiss`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id }),
   }).then(j<{ id: number; triage: string }>);
@@ -379,6 +389,14 @@ export const promoteInboxItem = (
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ kind, id, ...(messageId ? { message_id: messageId } : {}) }),
   }).then(j<{ id: number; kind: string }>);
+
+/** [상담으로 보내기] 실패 사유 → i18n 키(qsale `promoteError.*`). 서버 코드가 아니면 일반 사유. (#449 D1)
+ *  ★ 여태 두 화면 모두 실패를 `catch {}` 로 삼켜 400 이 «아무 일도 안 일어남» 이었다. */
+export const promoteErrorKey = (e: unknown): string => {
+  const code = String((e as { payload?: { message?: string; code?: string } })?.payload?.message
+    || (e as { payload?: { code?: string } })?.payload?.code || '');
+  return ['already_client', 'thread_is_spam', 'not_customer_chat'].includes(code) ? code : 'generic';
+};
 
 /** 보관함에서 되돌리기 — [문의 아님]은 사람의 판단이고 사람은 틀린다. 되돌릴 길이 없으면 삭제나 마찬가지다. */
 export const restoreInboxItem = (businessId: number, kind: 'email_thread', id: number) =>

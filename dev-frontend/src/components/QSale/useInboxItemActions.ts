@@ -16,13 +16,15 @@ type Deps = {
   busyId: string | null;
   setBusyId: (v: string | null) => void;
   setActionError: (v: string | null) => void;
+  /** 서버 실패 코드 → 화면 문장. 모르는 코드면 null(일반 문구로 떨어진다). */
+  codeText?: (code: string) => string | null;
   reload: () => Promise<unknown> | unknown;
   errorText: string;
   /** 저장 실패 문구 — 읽기 실패와 뜻이 다르다(사용자가 한 행동이 안 남은 것이다) */
   saveErrorText: string;
 };
 
-export function useInboxItemActions({ businessId, busyId, setBusyId, setActionError, reload, errorText, saveErrorText }: Deps) {
+export function useInboxItemActions({ businessId, busyId, setBusyId, setActionError, reload, errorText, saveErrorText, codeText }: Deps) {
   /** 공통 껍데기 — 잠금·에러·다시 읽기. 동작마다 다른 것은 `fn` 하나뿐이다. */
   const run = useCallback(async (it: SaleInboxItem, fn: () => Promise<unknown>) => {
     if (busyId) return;
@@ -69,10 +71,14 @@ export function useInboxItemActions({ businessId, busyId, setBusyId, setActionEr
     if (it.client_id) return it.client_id;
     if (it.ref.kind === 'client') return it.ref.id;
     const out = await registerInquiryAsClient(businessId, it, { invite: false });
-    if (!out.ok || !out.clientId) { setActionError(out.message || saveErrorText); return null; }
+    if (!out.ok || !out.clientId) {
+      // 서버 코드는 화면 문장으로(#449 D5 웹폼 릴레이) — 모르는 코드는 일반 실패 문구
+      setActionError((out.message && codeText?.(out.message)) || saveErrorText);
+      return null;
+    }
     await reload();
     return out.clientId;
-  }, [businessId, reload, setActionError, saveErrorText]);
+  }, [businessId, reload, setActionError, saveErrorText, codeText]);
 
   /** 단계 바꾸기 — **고객 기준**이라 같은 고객의 다른 상담 행도 함께 바뀐다(서버가 고객을 바꾼다).
    *  어느 문의에서 바꿨는지를 `source_ref` 로 같이 보낸다(Irene: "히스토리에 어느 문의 내용에서

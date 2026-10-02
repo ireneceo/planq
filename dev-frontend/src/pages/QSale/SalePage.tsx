@@ -2,6 +2,8 @@
 //   관리 리스트 패턴(PageShell) — 고객 관리 목록과 같은 규격.
 //   ★ 접근 종류·한도 포함 여부는 서버가 준 값만 쓴다(화면이 user_id 로 판정하지 않는다).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BetaNotice } from '../../components/Common/BetaChip';   // #449
+import { openFeedback } from '../../utils/feedbackOpen';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -293,6 +295,8 @@ export default function SalePage() {
           · 같은 축(단계·접근·담당)을 **두 탭에 똑같이** 건다.
           · 대응 필요만 = 알약(지금 이것만 본다) / 종료 가리기 = 체크박스(늘 이렇게 본다). 쓰임이 다르다.
           · 좁아지면 가로로 숨기지 않고 **줄이 바뀐다**. */}
+      {/* #449 — 다듬는 중인 메뉴라는 것을 화면이 말한다(베타 여부는 navMenus 한 곳). */}
+      <BetaNotice path="/sale" onFeedback={() => openFeedback()} />
       <FilterBar data-testid="sale-filter-row">
         {/* ★ 2026-09-14 3차 (Irene: *"Q sale 에서 검색창 왜 위에 있어? 필터들 맨 앞에 둬.
             단계 셀렉트 앞에."*) — 오전에 헤더로 올렸던 검색을 **필터줄 맨 앞**으로 되돌렸다.

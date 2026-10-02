@@ -166,7 +166,11 @@
     "landingVisits": "Landing visits",
     "home": "Home",
     "statsEntry": "Client entry",
-    "activityLog": "Activity log"
+    "activityLog": "Activity log",
+    "beta": "Beta",
+    "betaHint": "This menu is still being refined",
+    "betaNotice": "Beta — automatic sorting may be wrong.",
+    "betaFeedback": "Send feedback"
   },
   "user": {
     "profile": "My Profile",

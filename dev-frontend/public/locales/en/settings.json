@@ -750,5 +750,17 @@
     },
     "notWorkday": "Not a workday — no effect",
     "delete": "Delete"
+  },
+  "salesIntake": {
+    "title": "Sales intake",
+    "ownerOnly": "Only the workspace owner can change this.",
+    "mail": {
+      "label": "Email into Sales inquiries",
+      "manualShort": "Manual",
+      "autoShort": "Auto",
+      "manual": "Manual — only what you send with [Send to Sales] from mail or chat.",
+      "auto": "Auto — also emails from people you replied to or personal addresses.",
+      "hint": "In manual mode, emails matching the auto rule are tagged \"Possible lead\" in Q mail. Chat and guest inquiries come in regardless."
+    }
   }
 }

@@ -61,10 +61,20 @@ async function promotedConversationIds(businessId) {
  *   그래서 한쪽만 고치면 "숫자는 903인데 목록엔 889" 가 될 수 있는 구조였다.
  *   판정 자체는 services/saleMailCriteria 한 곳이다.
  */
-async function classifyMailThreads(businessId, { userId = null, like = null, judgments = null } = {}) {
-  const empty = { inquiryIds: [], candidateIds: [], meta: new Map(), acctIds: [] };
+async function classifyMailThreads(businessId, { userId = null, like = null, judgments = null, mode = null } = {}) {
+  const empty = { inquiryIds: [], candidateIds: [], autoIds: [], meta: new Map(), acctIds: [], mode: mode || 'manual' };
   const acctIds = await accessibleAccountIds(businessId, userId);
   if (!acctIds.length) return empty;
+  // #449 — 유입 모드(services/salesIntake 한 곳). manual 이면 사람이 올린 것만 상담이고,
+  //   자동 기준에 드는 것은 autoIds(Q mail 「문의 후보」)로만 돌려준다.
+  const intake = mode || await require('./salesIntake').mailIntakeMode(businessId);
+  // ★ 사람의 판단 원장은 **항상** 읽는다 — 올린 메일은 triage 와 무관하게 상담이어야 한다(D2, 아래 where).
+  const judged = judgments || await latestMailJudgments(businessId);
+  const promotedThreadIds = [];
+  for (const [tid, l] of judged) {
+    const o = l.new_value && l.new_value.origin;
+    if (o === 'sale_inbox_promote' || o === 'sale_inbox_restore') promotedThreadIds.push(tid);
+  }
   const w = {
     business_id: businessId, client_id: null, account_id: { [Op.in]: acctIds },
     // ★ 2026-09-17 — **`archived` 를 빼지 않는다.** Q mail 의 [확인완료] 가 찍는 값이
@@ -75,15 +85,19 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
     //   실제 거래(멤버십 문의·계약갱신·POS 교체·협력 제안 등)가 최소 7~8건 들어 있었다.
     //   상담에서 나가는 문은 «고객으로 등록»(client_id 가 채워져 자연히 빠진다) 또는 [보관] 이지
     //   «메일 확인완료» 가 아니다. spam 만 계속 뺀다.
-    status: { [Op.ne]: 'spam' }, triage: 'human',
+    status: { [Op.ne]: 'spam' },
+    // ★ #449 D2 — 사람이 올린 메일은 **triage 와 무관하게** 들인다. 올리기가 triage 를 human 으로 맞춰 두지만
+    //   재판정(scripts/retriage-mail.js)이 marketing 으로 되돌리면 올린 것이 상담에서 사라졌다(웹폼 릴레이가 그 모양).
+    //   사람의 판단이 기계 판정 아래에 있으면 안 된다.
+    [Op.or]: [{ triage: 'human' }, ...(promotedThreadIds.length ? [{ id: { [Op.in]: promotedThreadIds } }] : [])],
   };
-  if (like) w[Op.or] = [{ subject: like }, { last_message_preview: like }];
+  if (like) w[Op.and] = [{ [Op.or]: [{ subject: like }, { last_message_preview: like }] }];
   // 가볍게 전부 받아 분류한다 — 상한에서 자르면 **숫자가 잘린다**(목록만 뒤에서 자른다).
   const rows = await EmailThread.findAll({
     where: w, order: [['last_message_at', 'DESC']],
-    attributes: ['id', 'participants', 'reply_needed', 'last_message_at', 'status'], raw: true, limit: 5000,
+    attributes: ['id', 'participants', 'reply_needed', 'last_message_at', 'status', 'triage', 'last_message_direction'], raw: true, limit: 5000,
   });
-  if (!rows.length) return { ...empty, acctIds };
+  if (!rows.length) return { ...empty, acctIds, mode: intake };
 
   const { EmailMessage } = require('../models');
   const ids = rows.map((r) => r.id);
@@ -110,7 +124,7 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
   }
 
   const { isAutomatedSenderAddress } = require('./emailTriage');
-  const inquiryIds = []; const candidateIds = []; const meta = new Map();
+  const inquiryIds = []; const candidateIds = []; const autoIds = []; const meta = new Map();
   for (const r of rows) {
     const outside = (Array.isArray(r.participants) ? r.participants : []).find((x) => x && !x.is_internal)
       || (() => { const e = firstInbound.get(r.id); return e ? { name: e.from_name, email: e.from_email } : null; })();
@@ -121,12 +135,14 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
     //   내주는데 아무 일도 안 일어난다(Fable 실측: 상담 35→35 · 후보 854→854).
     //   자동발송 판정은 **자동 유입을 좁히는 휴리스틱**이다. 사람이 "이건 문의다" 라고 말한 것을
     //   휴리스틱이 덮으면 그 문은 존재하지 않는 것과 같다.
-    const j = judgments ? judgments.get(r.id) : null;
+    const j = judged.get(r.id);
     const origin = j && j.new_value && j.new_value.origin;
     // 보관·영구삭제는 이 칸의 소관이 아니다(2-B 가 따로 본다). 여기서 또 세면 두 곳에 뜬다.
     if (origin === 'sale_inbox_dismiss' || origin === 'sale_inbox_purge') continue;
     // 되돌리기도 올리기와 같은 뜻이다(아래 `promoted` 와 **같은 목록**을 쓴다 — 두 벌이면 갈라진다).
     const humanPromoted = origin === 'sale_inbox_promote' || origin === 'sale_inbox_restore';
+    // 올리지 않은 비-human(재판정으로 marketing 등)은 종전대로 들이지 않는다 — 위 where 가 올린 것 때문에 넓어졌을 뿐이다.
+    if (!humanPromoted && r.triage !== 'human') continue;
     // 발송 전용 주소는 **어느 칸에도** 넣지 않는다 — 후보로도 볼 일이 없다(2026-09-12 판정 그대로).
     //   단, 사람이 올린 것은 예외다(위 주석).
     if (!humanPromoted && outside?.email && isAutomatedSenderAddress(outside.email)) continue;
@@ -144,10 +160,15 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
     // ★ 확인완료(archived)한 건은 목록에 **남되 «답할 차례» 로 세지 않는다.**
     //   그 숫자는 «지금 내가 할 일» 의 수다 — 처리한 것을 거기 넣으면 숫자가 거짓이 된다.
     const handled = r.status === 'archived';
-    meta.set(r.id, { outside, verdict: v, reply_needed: handled ? false : !!r.reply_needed, handled });
-    (v.kind === 'inquiry' ? inquiryIds : candidateIds).push(r.id);
+    // 메일 폴더(«지금 내 차례인가» 축) — 화면이 status·방향으로 다시 계산하지 않게 서버가 싣는다(§4.2).
+    const mail_folder = require('./mailFolders').folderOf(r);
+    meta.set(r.id, { outside, verdict: v, reply_needed: handled ? false : !!r.reply_needed, handled, mail_folder });
+    if (v.kind !== 'inquiry') { candidateIds.push(r.id); continue; }
+    // manual: 사람이 올린 것만 상담. 자동 기준에 든 나머지는 «문의 후보»(autoIds) — 목록엔 안 넣는다.
+    if (intake === 'manual' && v.reason !== 'promoted') autoIds.push(r.id);
+    else inquiryIds.push(r.id);
   }
-  return { inquiryIds, candidateIds, meta, acctIds };
+  return { inquiryIds, candidateIds, autoIds, meta, acctIds, mode: intake };
 }
 
 
@@ -292,9 +313,13 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
         attributes: ['id', 'subject', 'last_message_at', 'last_message_preview',
           'last_message_direction', 'unread_count', 'reply_needed', 'reply_needed_reason', 'created_at'],
       });
+      const { isAutomatedSenderAddress } = require('./emailTriage');
       for (const t of threads) {
         const m = mailClass.meta.get(t.id);
-        const outside = m ? m.outside : null;
+        // ★ #449 D5 — 웹폼 릴레이(no-reply@…)로 온 문의를 올리면 **상대 = 릴레이 주소**로 보였다.
+        //   릴레이는 사람이 아니다 — 이름·주소를 비우고 «(웹폼) 제목» 으로 보인다. 등록은 문의 추가 폼으로.
+        const relay = !!(m && m.outside && m.outside.email && isAutomatedSenderAddress(m.outside.email));
+        const outside = relay ? null : (m ? m.outside : null);
         items.push({
           source: asCandidate ? 'candidate' : 'email',
           id: `${asCandidate ? 'candidate' : 'email'}:${t.id}`,
@@ -313,7 +338,10 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
             unread_count: t.unread_count, direction: t.last_message_direction,
             reason: t.reply_needed_reason,
             // 왜 이 칸에 있는지 — 화면이 기준을 한 줄로 알려줄 근거다(feedback_rules_must_be_explained_briefly)
-            verdict: m ? m.verdict.reason : null,
+            verdict: m ? (relay ? 'webform' : m.verdict.reason) : null,
+            webform: relay,
+            // 메일 폴더 축(«지금 내 차례인가») — 이유 칩이 «답장함 · 상대 차례» 를 말할 근거(#450)
+            mail_folder: m ? m.mail_folder : null,
           },
           open_path: `/mail?thread=${t.id}`,
         });
@@ -382,7 +410,12 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   //   (메일에서 903 → 300 으로 잘렸던 것과 같은 계열). 목록만 끝에서 자른다.
   const wantChat = want.includes('chat');
   const wantGuest = want.includes('guest_link');
-  const convWhere = { business_id: businessId, client_id: null, channel_type: 'customer', archived_at: null };
+  // ★ #449 D6 — 사람이 올린 방은 **보관돼 있어도** 보인다. 올린 것(판단)이 보관(상태) 아래에 있으면
+  //   200 을 받고도 목록에 안 나와 «눌렀는데 아무 일도 없다» 가 된다.
+  const convWhere = {
+    business_id: businessId, client_id: null, channel_type: 'customer',
+    [Op.and]: [{ [Op.or]: [{ archived_at: null }, ...(promotedConvs.size ? [{ id: { [Op.in]: [...promotedConvs] } }] : [])] }],
+  };
   // 검색어가 **게스트 이름·이메일**에 맞은 대화도 들어온다 — 영업에서 사람을 찾는 방식이 그것이다.
   // 대화방 제목만 보면 "이메일로 찾았는데 안 나온다" 가 된다.
   if (like) {
@@ -479,6 +512,8 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
             email_verified: !!(link && link.email_verified_at),
             account_requested_at: link?.account_requested_at || null,
             message_count: link?.message_count ?? null,
+            // 사람이 올린 방인가 — ✕ 가 «상담에서 빼기»(되돌릴 수 있는 기록) 가 된다(#449 D4)
+            promoted: promotedConvs.has(c.id),
           },
           open_path: `/talk?conv=${c.id}`,
         });
@@ -537,6 +572,9 @@ async function listUnlinkedTouchpoints(businessId, opts = {}) {
   //   여태는 목록과 집계가 각자 같은 술어를 적어 두 벌이었다. 한 벌로 줄이면 갈라질 수가 없다.
   //   칩 선택과 무관하게 옮긴다 — 보관함에서 "칩엔 1건인데 숫자는 0" 이 났던 것과 같은 계열이다.
   counts.email = mailClass.inquiryIds.length;
+  // #449 — 수동 모드에서 자동 기준에만 드는 메일 수(Q mail 「문의 후보」). 화면의 전환 안내 줄이 이 숫자를 쓴다.
+  counts.auto_candidates = mailClass.mode === 'manual' ? mailClass.autoIds.length : 0;
+  counts.intake_mode = mailClass.mode;
   counts.needs_reply += mailClass.inquiryIds.filter((id) => mailClass.meta.get(id)?.reply_needed).length;
   if (wantChat || wantGuest) {
     // ★ 자격(외부 발화)을 통과한 것만 센다. 목록을 만들며 함께 세었으므로 두 숫자가 갈라지지 않는다.

@@ -166,7 +166,11 @@
     "landingVisits": "랜딩 방문",
     "home": "홈",
     "statsEntry": "고객 유입",
-    "activityLog": "활동 기록"
+    "activityLog": "활동 기록",
+    "beta": "베타",
+    "betaHint": "다듬는 중인 메뉴입니다",
+    "betaNotice": "베타 — 자동 분류가 틀릴 수 있어요.",
+    "betaFeedback": "피드백 보내기"
   },
   "user": {
     "profile": "내 프로필",

@@ -60,7 +60,7 @@ import MailMessageBody from './MailMessageBody';
 import { isEnterAction } from '../../utils/imeKey';
 import { onFlushPendingSaves } from '../../services/pendingSaves';
 import { keepaliveJson } from '../../services/keepaliveFetch';
-import { promoteInboxItem } from '../../services/sale';
+import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
 import {
   AcctFilterRow,
   FilterToggleRow,
@@ -181,6 +181,7 @@ import {
   FwdPreview, FwdPreviewHead, FwdChevron, FwdPreviewBody, FwdPreviewMeta,
   KeptDraftNote,
   DraftStatusLine,
+  PromoteErrTag, InquiryFilterBar, InquiryFilterClear,
 } from './MailPage.styles';
 
 type Folder = 'reply_needed' | 'uncertain' | 'all' | 'sent' | 'marketing' | 'following' | 'spam' | 'archived';
@@ -223,6 +224,8 @@ interface Thread {
    *  **한 함수**로 판정해 내려준다(#421). 판정을 못 했으면 필드가 아예 없다
    *  (false 를 붙이면 "문의가 아니다" 라고 단언하는 것이라 거짓이 된다). */
   is_inquiry?: boolean;
+  /** #449 — 수동 모드에서 자동 기준에만 드는 메일(「문의 후보」) */
+  is_inquiry_candidate?: boolean;
   rule_id?: number | null;        // 학습 규칙으로 분류된 스레드 (몰래 걸러지지 않도록 화면에 표시)
   is_starred: boolean;
   unread_count: number;
@@ -378,6 +381,7 @@ const FOLLOW_UP_OPTIONS = (t: (k: string, o?: Record<string, unknown>) => unknow
 
 const MailPage: React.FC = () => {
   const { t, i18n } = useTranslation('qmail');
+  const { t: tSale } = useTranslation('qsale');
   const { user } = useAuth();
   // 운영 #213 — 필터 접기. 기본 닫힘(Irene: "그냥 닫혀있게"), 사용자가 연 상태는 기억한다.
   const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
@@ -400,6 +404,8 @@ const MailPage: React.FC = () => {
     [folderParam],
   );
   const threadIdParam = sp.get('thread');
+  // #449 — 「문의 후보만」(Q sales 안내 줄에서 넘어온다). URL 이 정본 — keep-alive 탭에서도 매번 다시 읽는다.
+  const inquiryOnly = sp.get('inquiry') === '1';
   const activeId = threadIdParam ? Number(threadIdParam) : null;
   const navigate = useNavigate();
   // 계정(회사/개인) 필터 — null = 전체
@@ -724,8 +730,9 @@ const MailPage: React.FC = () => {
     let s2 = '';
     if (labelFilter) s2 += `&label=${encodeURIComponent(labelFilter)}`;
     if (projectFilter) s2 += `&project_id=${projectFilter}`;
+    if (inquiryOnly) s2 += '&inquiry=1';
     return s2;
-  }, [labelFilter, projectFilter]);
+  }, [labelFilter, projectFilter, inquiryOnly]);
   // 목록 갱신 — **읽고 있던 자리를 지킨다**.
   //   여태 무조건 1페이지(30건)만 다시 받아 threads 를 통째로 교체했다. 그래서 무한스크롤로 90건을
   //   내려본 상태에서 "확인 완료" 를 누르면(→ socket mail:updated → silentReload) 목록이 30건으로
@@ -736,15 +743,21 @@ const MailPage: React.FC = () => {
   // ★ 2026-09-16 — 목록 행 우클릭 [상담으로 보내기]. 메뉴 껍데기는 AppContextMenu 하나이고,
   //   **무엇을 할지**만 여기서 정한다. 이벤트는 그 행에서 올라오므로 이 목록만 받는다.
   const [promoteDone, setPromoteDone] = useState<number | null>(null);
+  // #449 D1 — 실패는 **사유를 말한다**(그 행·그 버튼 옆). 조용히 삼키면 400 이 «아무 일도 안 일어남» 이다.
+  const [promoteErr, setPromoteErr] = useState<{ id: number; key: string } | null>(null);
   const promoteThread = useCallback(async (threadId: number) => {
     if (!businessId || !threadId) return;
+    setPromoteErr(null);
     try {
       await promoteInboxItem(businessId, 'email_thread', threadId);
       setPromoteDone(threadId);
       window.setTimeout(() => setPromoteDone((v) => (v === threadId ? null : v)), 2500);
       // 상담 목록을 보고 있는 다른 화면도 즉시 따라온다(확인필요·Q sale 공통 신호)
       window.dispatchEvent(new CustomEvent('inbox:refresh'));
-    } catch { /* 실패는 조용히 — 행은 그대로 남아 다시 누를 수 있다 */ }
+    } catch (e) {
+      setPromoteErr({ id: threadId, key: promoteErrorKey(e) });
+      window.setTimeout(() => setPromoteErr((v) => (v && v.id === threadId ? null : v)), 6000);
+    }
   }, [businessId]);
   useEffect(() => {
     const el = listRef.current;
@@ -2339,6 +2352,14 @@ const MailPage: React.FC = () => {
             </FaqSuggestBox>
           )}
           {errorMsg && <ErrorBar>{errorMsg}</ErrorBar>}
+          {inquiryOnly && (
+            <InquiryFilterBar data-testid="mail-inquiry-filter" role="status">
+              <span>{t('filter.inquiryOnly', { defaultValue: '문의 후보만' }) as string}</span>
+              <InquiryFilterClear type="button" onClick={() => { const n = new URLSearchParams(sp); n.delete('inquiry'); setSp(n, { replace: true }); }}>
+                {t('filter.clear', { defaultValue: '해제' }) as string}
+              </InquiryFilterClear>
+            </InquiryFilterBar>
+          )}
           {listLoading && threads.length === 0 ? (
             <Loading>
               <Spinner />
@@ -2433,6 +2454,11 @@ const MailPage: React.FC = () => {
                         {t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string}
                       </SentTag>
                     )}
+                    {promoteErr && promoteErr.id === mt.id && (
+                      <PromoteErrTag data-testid="mail-promote-error" role="status">
+                        {tSale(`promoteError.${promoteErr.key}`) as string}
+                      </PromoteErrTag>
+                    )}
                     <HighlightText text={mt.subject || '(no subject)'} query={qDebounced} />
                   </ThreadSubject>
                   {(mt.reply_preview || mt.last_message_preview) && (
@@ -2479,6 +2505,13 @@ const MailPage: React.FC = () => {
                   {mt.is_inquiry === true && (
                     <InquiryBadge title={t('inquiryBadgeHint', { defaultValue: 'Q sales 상담 목록에 들어오는 메일입니다' }) as string}>
                       {t('inquiryBadge', { defaultValue: '문의' }) as string}
+                    </InquiryBadge>
+                  )}
+                  {/* #449 — 수동 모드에서 자동 기준에만 드는 메일. 상태 명사다(누르는 버튼이 아니다). */}
+                  {mt.is_inquiry !== true && mt.is_inquiry_candidate === true && (
+                    <InquiryBadge $candidate data-testid="mail-inquiry-candidate"
+                      title={t('inquiryBadgeCandidateHint') as string}>
+                      {t('inquiryBadgeCandidate') as string}
                     </InquiryBadge>
                   )}
                   {/* ★ 2026-09-10 — **임시 답변**으로 남겨둔 것. 목록이 "왜 아직 여기 있는지" 를 말해야 한다.
@@ -2992,6 +3025,11 @@ const MailPage: React.FC = () => {
                       ? t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string
                       : t('actions.promoteToSale', { defaultValue: '상담으로 보내기' }) as string}
                   </CtrlBtn>
+                  {promoteErr && promoteErr.id === detail.id && (
+                    <PromoteErrTag data-testid="mail-detail-promote-error" role="status">
+                      {tSale(`promoteError.${promoteErr.key}`) as string}
+                    </PromoteErrTag>
+                  )}
                 </DetailMetaRight>
               </DetailMetaBar>
               <MessagesScroll ref={scrollRef}>

@@ -48,6 +48,7 @@ export async function registerInquiryAsClient(
   });
   const j = await r.json().catch(() => null);
   if (!r.ok || j?.success === false) {
+    // #449 D5 — 웹폼 릴레이(no-reply@…)는 서버 코드 `relay_sender_use_manual` 로 온다. 화면이 번역한다(위 머리말).
     return { ok: false, clientId: null, message: j?.message || `HTTP ${r.status}` };
   }
   const clientId = j?.data?.client?.id ?? j?.data?.id ?? null;

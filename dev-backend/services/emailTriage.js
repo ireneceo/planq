@@ -436,6 +436,12 @@ function needsReply({ subject, bodyText, fromEmail, headers, ownEmails, ownMatch
   // ★ 수신 축만 matcher(도메인 규칙 포함). 위의 isSelfSender/isAutomated 는 ownEmails(정확 주소)를
   //   그대로 쓴다 — 도메인이 발신 축으로 새면 우리 도메인 동료의 문의가 자기발신으로 강등된다.
   if (!isAddressedToUs(headers, ownMatcher || ownEmails)) return false;
+  // ★ #450 (Irene 결정 2026-10-02) — **보낸 사람이 사람인가**를 Q sales 상담과 같은 부품으로 본다.
+  //   역할·브랜드 주소(hosting@·mailmaster@·iclub@·account@)의 약관·마일리지·명세서가 물음표 하나로
+  //   답변 필요에 올라왔다(운영 미연결 7건 중 6건). 상담 기준에는 이미 있던 조건이다(services/contactRelation).
+  //   걸러진 메일은 사라지지 않고 **확인 권장**으로 간다. 운영 전수 시뮬: 뒤집히는 8건 중 진짜 문의 0건.
+  //   ★ 아는 상대(③)는 위에서 이미 참이다 — 단일 토막 회사 주소의 기존 고객은 영향이 없다.
+  if (!require('./contactRelation').isPersonalSender(fromEmail)) return false;
   const body = plainText(bodyText).slice(0, 1200);
   return hasStrongRequest(subject, body) || hasQuestion(`${subject || ''}\n${body}`);
 }

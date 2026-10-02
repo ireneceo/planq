@@ -1,6 +1,6 @@
 # Q sales 상담 유입 — 자동·수동 모드 · 메일 판정과의 정합 설계 (운영 #449 · #450)
 
-> 작성: Fable 설계 게이트, 2026-10-02. 상태: **설계 — Irene 결정 §7 대기. 코드 변경 0.**
+> 작성: Fable 설계 게이트, 2026-10-02. 상태: **구현 완료(2026-10-02 [Opus]) — Irene 결정 Q1·Q2·Q3 모두 «예»**. 구현 기록은 맨 끝 §9.
 > 선행 정본: CLAUDE.md «상담에 무엇이 들어오는가는 «관계» 로 가른다» · «Q mail 폴더·배지 계약» · «상담은 «고객에 달리는 기록»» ·
 > `docs/Q_SALE_DESIGN.md` §5.2-A · `services/saleMailCriteria.js` 머리말(2026-09-16·17 결정).
 > 신고 원문(owner Irene, 운영 `/sale`, 2026-10-02):
@@ -373,3 +373,25 @@ mode = intakeOf(biz).mail
 - `AppContextMenu` 가 `contextmenu` 만 듣는다(:208) — iOS long-press 대응은 목록 전반의 문제라 별건.
 - 확인필요 `collectMails`(`routes/dashboard.js`:966-990) 는 `reply_needed` 축을 그대로 센다 — Q2 적용 시 숫자가 함께 줄어든다(같은 원천이라 따로 고칠 것 없음, 보고에 적는다).
 - 상담 «답할 차례» 의 채팅 판정(마지막 발화자)과 메일 판정(`reply_needed`)은 여전히 두 축이다 — 이 문서는 메일만 다뤘다.
+
+
+---
+
+## 9. 구현 기록 (2026-10-02 [Opus])
+
+| 항목 | 위치 |
+|---|---|
+| 유입 모드(기본 manual) | `services/salesIntake.js` · `PUT /api/businesses/:id/sales-intake`(customer_entry.js, owner) · GET customer-entry 응답 `sales_intake` |
+| 상담 판정 | `saleInbox.classifyMailThreads` — 원장 항상 읽음 · promoted 는 triage 무관(D2) · manual 이면 autoIds(문의 후보) 분리 · meta `mail_folder` · counts `auto_candidates`·`intake_mode` |
+| 관계 부품 한 벌 | `services/contactRelation.js`(isPersonalSender 이동 · knownContact). 상담 `replied` 는 **스레드 단위 유지**(§2.3 주소 단위 승격은 하지 않았다 — 움직임 측정 후 결정할 후속) |
+| D1 | 메일 행·상세·채팅 메시지에 실패 사유(`qsale promoteError.*`) |
+| D3 | `mailInquiryTag.invalidate` + `mail:updated` 방송(올림·빼기·되돌림·영구빼기·모드 전환) |
+| D4 | `inbox/dismiss {kind:'conversation'}` → 원장 `sale_inbox_demote` · 목록 ✕ |
+| D5 | 릴레이 행 who/email 비움 · verdict `webform` · `save-as-client` 400 `relay_sender_use_manual`(화면이 [+ 고객응대 내역 추가] 안내). 본문 추출 프리필은 하지 않았다(후속) |
+| D6 | 올린 대화방은 archived_at 무시 |
+| 화면 | 설정 › 권한 «상담 유입» 카드(`SalesIntakeSection`) · 상담 행 이유 칩·수동 안내 줄(`SaleInboxBits`) · Q mail 「문의 후보」 표시 + `?inquiry=1` 막대 |
+| Q2 | `emailTriage.needsReply` ④ + `scripts/backfill-reply-needed-450.js`(운영은 배포 후 Fable 판정에 따라) |
+| Q3 베타 | `navMenus.maturity:'beta'`(Q sales) · `BetaChip`(사이드바·통합검색) · `BetaNotice`(Q sales 머리). 탭 이름 칩은 넣지 않았다(탭 폭) |
+
+자체 검증: dev 실HTTP 19/19(I1·I6·D1~D6·필터) · `--suite saleintake` 3폭 0 실패 · salecriteria·inboxcount·maillabel 0 · health 48/48 · 가드 60/61 · 빌드 EXIT 0.
+운영 Q2 시뮬(읽기전용): 답변필요 10 중 8 뒤집힘 — 전부 역할·브랜드 주소(도메인 안내·약관·마일리지 ×3·채무명세·배송 제안·HitPay 벤더 제안), 진짜 문의 0.

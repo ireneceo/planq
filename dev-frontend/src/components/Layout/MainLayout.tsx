@@ -1,4 +1,5 @@
 import React, { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import { BetaChip } from '../Common/BetaChip';   // #449 베타 메뉴 표시(navMenus maturity 한 곳)
 import styled, { css } from 'styled-components';
 // ⑥ 멀티탭 chrome RR 탈피 — MainLayout 은 router-less zone 후보라 react-router 훅/Link 미사용.
 //   TabStore 소비로 전환(미러 모드에서 단일탭 동작 동일). Link → ChromeLink, useLocation/Navigate → chromeNav.
@@ -1516,6 +1517,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       title={isCollapsed ? `${t('nav.qsale', 'Q sales')}${saleMenuCount > 0 ? ` (${saleMenuCount})` : ''}` : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconSale /></NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.qsale', 'Q sales')}</NavLabel>
+                      {!isCollapsed && <BetaChip path="/sale" />}
                       {saleMenuCount > 0 && (
                         <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-sale"
                           aria-label={`${t('nav.qsale', 'Q sales')} ${saleMenuCount}`}>

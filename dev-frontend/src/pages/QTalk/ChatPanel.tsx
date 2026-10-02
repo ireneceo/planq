@@ -12,7 +12,7 @@ import {
 } from './types';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import * as qtalkApi from '../../services/qtalk';
-import { promoteInboxItem } from '../../services/sale';
+import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
@@ -126,6 +126,7 @@ const ChatPanel: React.FC<Props> = ({
   const navigate = useNavigate();
   const { t: tErr } = useTranslation('errors');
   const { t: tq } = useTranslation('qtask');   // #206 — 업무 상태 라벨 단일 원천
+  const { t: tSale } = useTranslation('qsale');   // #449 — [상담으로 보내기] 실패 사유
   const { user } = useAuth();
   const { t: tAtt } = useTranslation('attendance');
   // #429 — 멤버 이름 옆 오늘 상태 점. 고객이 보는 화면에서는 부르지도 않는다(서버도 403).
@@ -700,14 +701,20 @@ const ChatPanel: React.FC<Props> = ({
   const canPromoteConv = !!activeConv && activeConv.channel_type === 'customer'
     && !activeConv.client && !isClient && !!businessId;
   const [promotedMsgId, setPromotedMsgId] = useState<number | null>(null);
+  // #449 D1 — 실패 사유를 그 메시지 아래에 한 줄로(조용히 삼키면 «눌렀는데 아무 일도 없다»).
+  const [promoteErr, setPromoteErr] = useState<{ id: number; key: string } | null>(null);
   const handlePromoteToSale = useCallback(async (messageId: number) => {
     if (!canPromoteConv || !activeConv || !businessId) return;
+    setPromoteErr(null);
     try {
       await promoteInboxItem(Number(businessId), 'conversation', Number(activeConv.id), messageId);
       setPromotedMsgId(messageId);
       window.setTimeout(() => setPromotedMsgId((v) => (v === messageId ? null : v)), 2500);
       window.dispatchEvent(new CustomEvent('inbox:refresh'));
-    } catch { /* 실패는 조용히 — 버튼은 그대로라 다시 누를 수 있다 */ }
+    } catch (e) {
+      setPromoteErr({ id: messageId, key: promoteErrorKey(e) });
+      window.setTimeout(() => setPromoteErr((v) => (v && v.id === messageId ? null : v)), 6000);
+    }
   }, [canPromoteConv, activeConv, businessId]);
 
 
@@ -2058,6 +2065,11 @@ const ChatPanel: React.FC<Props> = ({
                 if (read > 0) return <ReadMark $read>{t('chat.read.someRead', { read, total, defaultValue: '읽음 {{read}}/{{total}}' }) as string}</ReadMark>;
                 return <ReadMark $read={false}>{t('chat.read.sent', '전송됨')}</ReadMark>;
               })()}
+              {promoteErr && promoteErr.id === m.id && (
+                <PromoteErrLine data-testid="chat-promote-error" role="status">
+                  {tSale(`promoteError.${promoteErr.key}`) as string}
+                </PromoteErrLine>
+              )}
             </MessageBody>
             {/* #138 — 이모지 리액션 (삭제된 메시지 제외) */}
             {!isDeleted && user && (
@@ -3958,3 +3970,8 @@ const AttachDl = styled.span`
   svg { width: 14px; }
 `;
 const AttachAllWrap = styled.div`flex-basis: 100%;`;
+
+// #449 D1 — [상담으로 보내기] 실패 사유 한 줄(메시지 아래)
+const PromoteErrLine = styled.div`
+  margin-top: 4px; font-size: 0.75rem; color: #B91C1C; line-height: 1.4;
+`;

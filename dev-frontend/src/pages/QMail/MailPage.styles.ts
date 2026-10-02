@@ -469,11 +469,24 @@ export const ReplyNeededBadge = styled.span`
    규격은 답변 필요·임시답변 뱃지와 **같다**(패딩·라운드·글자 크기·굵기). 색만 다르다 —
    같은 줄에 서는 표시들이 규격을 각자 쓰면 줄이 들쭉날쭉해진다.
    붉은색(답변 필요)·노란색(임시답변)과 구별되는 남색 계열: 「해야 할 일」이 아니라 **분류**다. */
-export const InquiryBadge = styled.span`
+export const InquiryBadge = styled.span<{ $candidate?: boolean }>`
   display: inline-flex; align-items: center; gap: 4px;
   padding: 1px 7px; border-radius: 999px;
-  background: #E0E7FF; color: #3730A3;
+  /* 문의 후보(#449)는 같은 모양 · 테두리만 — 아직 상담이 아니라는 것을 색 세기로 말한다 */
+  background: ${(p) => (p.$candidate ? '#FFFFFF' : '#E0E7FF')}; color: #3730A3;
+  border: ${(p) => (p.$candidate ? '1px dashed #A5B4FC' : '1px solid transparent')};
   font-size: 0.6875rem; font-weight: 700; white-space: nowrap;
+`;
+// #449 — 「문의 후보만」 필터가 걸려 있음을 목록 위에서 말한다(걸린 줄 모르면 «메일이 사라졌다» 로 읽힌다).
+export const InquiryFilterBar = styled.div`
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+  background: #EEF2FF; color: #3730A3; font-size: 0.75rem; font-weight: 600;
+  border-bottom: 1px solid #E0E7FF;
+`;
+export const InquiryFilterClear = styled.button`
+  border: none; background: none; padding: 4px 6px; margin-left: auto;
+  color: #4338CA; font-size: 0.75rem; font-weight: 600; cursor: pointer; border-radius: 6px;
+  &:hover { background: #E0E7FF; }
 `;
 
 /* 임시답변 — 답장은 보냈지만 본 답변이 남아 있다는 표시(2026-09-10). 답변 필요 뱃지와 같은 규격. */
@@ -489,6 +502,13 @@ export const SentTag = styled.span`
   margin-right: 5px; padding: 1px 6px; border-radius: 4px;
   background: rgba(20, 184, 166, 0.14); color: #0F766E;
   font-size: 0.625rem; font-weight: 700; vertical-align: middle;
+`;
+// #449 D1 — [상담으로 보내기] 실패 사유. 상태(명사) 칩과 같은 크기, 위험 색.
+export const PromoteErrTag = styled.span`
+  display: inline-flex; align-items: center; flex-shrink: 1; min-width: 0;
+  margin-right: 5px; padding: 1px 6px; border-radius: 4px;
+  background: #FEF2F2; color: #B91C1C;
+  font-size: 0.6875rem; font-weight: 600; vertical-align: middle;
 `;
 // #184 — 번역 컨트롤 바 + 번역 본문
 export const TransBar = styled.div`

@@ -115,6 +115,8 @@ router.get('/:businessId/customer-entry', authenticateToken, attachWorkspaceScop
       // ★ 키 이름은 저장 위치(`permissions.customer_entry`)와 같게 둔다 — 전에 `intro` 로 뒀다가
       //   안에 또 `intro` 가 들어가 `data.intro.intro` 가 됐다(화면이 잘못 읽기 좋은 모양이다).
       customer_entry: introOf(biz),
+      // #449 — Q sales 상담 유입 모드(services/salesIntake 한 곳이 모양을 정한다).
+      sales_intake: require('../services/salesIntake').intakeOf(biz),
       // 화면이 «왜 발급 버튼이 막혀 있는지» 를 말할 수 있어야 한다 — 눌리게 두고 403 으로
       //   거절하면 사용자에게는 "아무 일도 안 일어남" 이다(CLAUDE.md 외부 발송 절과 같은 규약).
       guest_links_enabled: biz.guest_links_enabled !== false,
@@ -168,6 +170,39 @@ router.put('/:businessId/customer-entry', authenticateToken, attachWorkspaceScop
       oldValue: before, newValue: next,
     });
     return successResponse(res, { customer_entry: next });
+  } catch (err) { next(err); }
+});
+
+// ── PUT /api/businesses/:businessId/sales-intake ───────────────────────────
+//   #449 — Q sales 상담 유입 모드 { mail: 'manual' | 'auto' }. 고치는 사람은 창구 설정과 같은 판정(assertEntryAdmin).
+//   ★ 원장·메일 원본은 바꾸지 않는다 — 상담 목록은 원본에서 **파생**되므로 모드만 바꾸면 구성이 바뀐다(되돌리면 복귀).
+router.put('/:businessId/sales-intake', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    if (!(await assertEntryAdmin(req, businessId))) return errorResponse(res, 'forbidden', 403);
+    const { MODES, intakeOf, normalizeIntake } = require('../services/salesIntake');
+    const mail = req.body?.mail;
+    if (!MODES.includes(mail)) return errorResponse(res, 'invalid_mode', 400);
+    const biz = await Business.findByPk(businessId);
+    if (!biz) return errorResponse(res, 'business_not_found', 404);
+    const before = intakeOf(biz);
+    const next = normalizeIntake({ ...before, mail });
+    await biz.update({
+      permissions: { ...(biz.permissions && typeof biz.permissions === 'object' ? biz.permissions : {}), sales_intake: next },
+    });
+    createAuditLog({
+      userId: req.user.id, businessId,
+      action: 'sales_intake.update', targetType: 'business', targetId: businessId,
+      oldValue: before, newValue: next,
+    });
+    // 상담 목록 구성과 Q mail 「문의 / 문의 후보」 표시가 같이 바뀐다 — 열린 화면이 새로고침 없이 따라오게.
+    require('../services/mailInquiryTag').invalidate(businessId);
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`business:${businessId}`).emit('inbox:refresh', { business_id: businessId });
+      io.to(`business:${businessId}`).emit('mail:updated', { business_id: businessId, bulk: true });
+    }
+    return successResponse(res, { sales_intake: next });
   } catch (err) { next(err); }
 });
 

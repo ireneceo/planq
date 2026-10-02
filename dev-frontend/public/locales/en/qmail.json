@@ -698,5 +698,11 @@
     }
   },
   "inquiryBadge": "Inquiry",
-  "inquiryBadgeHint": "This email appears in the Q sales consult list"
+  "inquiryBadgeHint": "This email appears in the Q sales consult list",
+  "inquiryBadgeCandidate": "Possible lead",
+  "inquiryBadgeCandidateHint": "Matches the auto rule, but Sales intake is manual. Use [Send to Sales].",
+  "filter": {
+    "inquiryOnly": "Possible leads only",
+    "clear": "Clear"
+  }
 }

@@ -362,7 +362,28 @@
     "inviteNoEmail": "Registered as a customer. No email address, so no invitation was sent.",
     "stageAll": "All stages",
     "hideClosed": "Hide closed",
-    "handled": "Handled"
+    "handled": "Handled",
+    "why": {
+      "promoted": "Sent manually",
+      "replied_theirs": "You replied · their turn",
+      "replied_needs": "You replied · needs reply",
+      "personal": "Personal address",
+      "webform": "Web form"
+    },
+    "whyHint": {
+      "promoted": "Sent here with [Send to Sales] from mail or chat",
+      "replied_theirs": "You replied, so it's their turn in mail. It stays here until registered or removed",
+      "replied_needs": "You've replied before and it's your turn again",
+      "personal": "Came in automatically because it was sent from a personal address",
+      "webform": "Came in through a web form (a send-only address). The contact details are in the message"
+    },
+    "switchedManual": "Auto intake is off. {{n}} emails matching the auto rule are tagged \"Possible lead\" in Q mail.",
+    "openInMail": "Open in Q mail",
+    "dismissNote": "Dismiss",
+    "removeFromSales": "Remove from Sales",
+    "demoteTitle": "Remove this chat from Sales?",
+    "demoteBody": "It only leaves the Sales list. The chat stays in Q talk and you can send it again with [Send to Sales].",
+    "relayUseManual": "Web-form inquiries can't be registered directly because the sender isn't a person. Use the name and contact in the message with [+ Add customer record]."
   },
   "cuebar": {
     "placeholder": "Paste the conversation — \"Call from GreenTech, Seojun Park, quote request, 010-2345-6789\" (Ctrl+Enter)",
@@ -421,5 +442,11 @@
     "noTarget": "Notes cannot be attached to this row.",
     "empty": "No notes yet",
     "placeholder": "Write a note… (Enter to save · Shift+Enter for a new line)"
+  },
+  "promoteError": {
+    "already_client": "Already linked to a client — see the client history",
+    "thread_is_spam": "Spam can't be sent to Sales. Unmark spam first",
+    "not_customer_chat": "Team chats can't be sent to Sales",
+    "generic": "Couldn't send to Sales. Try again"
   }
 }
