@@ -5313,3 +5313,13 @@ Fable 이 세션 마감 직전에 판정을 돌려줬다. 위 「Fable 이 봐�
 - 관찰(범위 밖, 수정 전부터 있던 것): 매니페스트에 «dir 밖을 가리키는 심볼릭 링크» 를 올리면
   링크 너머 `index.html` 이 unlink 된다(`readFileSync` 가 링크를 따라간다). 성립 조건이 둘 다 우리 통제라
   이번 범위에서 제외 — 막으려면 `fs.lstatSync` 한 줄.
+
+## 2026-10-02 · 흰 화면에 « 가 그린다. -->» 글자 — 홈 SEO 생성기 주석 오매칭 · [Opus] Fable 미검증(자체 검증)
+**판정**: R=0(생성물은 배포·서버 시작·자정마다 다시 만든다 — 되돌리기 쉽다) · S=0 · F=1(root 개수·주석 밖 `-->` 유무로 참/거짓이 갈린다) → 자체 검증.
+**원인**: `services/seoArtifacts.js` 홈 분기가 `/<div id="root">[\s\S]*?<\/main><\/div>/` 로 본문을 떼어 왔는데,
+`index.html` 의 **주석 안에도** `<div id="root">` 글자가 있어 거기서 매칭이 시작됐다. 그래서 주석 꼬리(« 가 그린다. -->»)와
+noscript 가 진짜 root 앞에 통째로 복제됐다(운영 `/` · `/login` 등 SPA 전 경로 root 3개). JS 가 뜨기 전·청크 실패 시 흰 화면에 그 글자가 보였다.
+**수정**: 매칭 시작을 `<div id="root"><main id="seo-prerender"` 로 묶음 + `index.html` 주석에서 태그 글자 제거(이중 방어).
+**자체 검증**: 같은 옛 템플릿으로 옛 코드 → roots 3 · 주석 밖 `-->` 있음(대조군 재현) / 새 코드 → 누출 없음.
+새 빌드 템플릿으로 생성 → `index.html`·`pricing/index.html` roots 1 · 누출 없음 · prerender 유지. 빌드 EXIT 0 · `error TS` 0.
+**Fable 이 봐야 할 것**: 없음(배포 후 `curl -s --compressed https://planq.kr/login | grep -c 'id="root"'` = 1 확인만).

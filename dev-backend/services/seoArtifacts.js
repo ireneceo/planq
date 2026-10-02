@@ -242,7 +242,10 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
     });
     if (p.path === '/') {
       // 홈의 머리(제목·설명·기존 JSON-LD)는 index.html 원본이 정본이다 — 본문만 채운다
-      html = template.replace(/<div id="root"><\/div>/, (html.match(/<div id="root">[\s\S]*?<\/main><\/div>/) || ['<div id="root"></div>'])[0]);
+      // ★ 2026-10-02 — 시작을 `<main id="seo-prerender"` 까지 묶는다. `<div id="root">` 만으로 찾으면
+      //   index.html 주석 안의 같은 글자에서 시작해 주석 꼬리(« 가 그린다. -->»)와 noscript 를 통째로 복제했다 —
+      //   JS 가 뜨기 전(느린 망·앱 콜드 스타트·청크 실패) 흰 화면에 그 꼬리 글자가 보였다.
+      html = template.replace(/<div id="root"><\/div>/, (html.match(/<div id="root"><main id="seo-prerender"[\s\S]*?<\/main><\/div>/) || ['<div id="root"></div>'])[0]);
       html = html.replace(/<\/head>/, `    <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph.slice(1).length ? graph.slice(1) : [graph[0]] }).replace(/</g, '\\u003c')}</script>\n  </head>`);
     }
     out.push({
