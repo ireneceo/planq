@@ -10,6 +10,7 @@ const { AgentError, err, envelope } = require('./errors');
 const store = require('../ephemeralStore');
 
 const IDEM_TTL_MS = 10 * 60 * 1000;
+const CONFIRM_TTL_MS = 5 * 60 * 1000;   // MEDIUM 미리보기 → 동의 → 재호출까지
 
 function stableStringify(v) {
   if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
@@ -71,9 +72,21 @@ async function runTool(p, name, rawArgs) {
       const can = await plan.can(p.businessId, 'use_cue', { actions: 1 });
       if (!can.ok) throw err('QUOTA_EXCEEDED', can.reason || 'quota', { limit: can.limit ?? null, current: can.current ?? null });
 
-      // 멱등 — 키를 주면 그 키, 아니면 파라미터 지문. 10분 안에 같은 요청은 한 번만 실행한다(설계 §8).
-      const { idempotency_key: k, ...rest } = args;
-      idemKey = crypto.createHash('sha256').update(`${p.grantId}|${name}|${k || stableStringify(rest)}`).digest('hex');
+      const { idempotency_key: k, confirmation_token: ct, ...rest } = args;
+      const fp = crypto.createHash('sha256').update(`${p.grantId}|${name}|${stableStringify(rest)}`).digest('hex');
+
+      // MEDIUM — 확인 2단계(설계 §7, provider 와 무관). 토큰 없이 오면 **실행하지 않고** 미리보기 + 1회용 토큰을 준다.
+      //   토큰은 (연결·도구·인자 지문)에 묶인다 — 다른 업무·다른 날짜에 쓰면 거절한다.
+      if (tool.risk === 'MEDIUM' && !ct) {
+        const preview = await tool.preview(p, args);
+        const token = crypto.randomBytes(24).toString('base64url');
+        await store.set('agent_confirm', crypto.createHash('sha256').update(token).digest('hex'), { grant: p.grantId, tool: name, fp }, CONFIRM_TTL_MS);
+        throw err('CONFIRMATION_REQUIRED', 'confirm_with_user', { preview, confirmation_token: token, expires_in_sec: CONFIRM_TTL_MS / 1000 });
+      }
+
+      // 멱등 — 키 > 확인 토큰 > 파라미터 지문. 10분 안에 같은 요청은 한 번만 실행한다(설계 §8).
+      //   MEDIUM 은 확인 토큰이 곧 키다 — 같은 토큰으로 재시도하면 이미 한 결과를 돌려준다(토큰을 다시 소비하지 않는다).
+      idemKey = crypto.createHash('sha256').update(`${p.grantId}|${name}|${k || ct || stableStringify(rest)}`).digest('hex');
       const fresh = await store.setIfAbsent('agent_idem', idemKey, { status: 'pending' }, IDEM_TTL_MS);
       if (!fresh) {
         const row = await store.get('agent_idem', idemKey);
@@ -83,6 +96,13 @@ async function runTool(p, name, rawArgs) {
           return out;
         }
         throw err('CONFLICT', 'in_progress', { retry_after_sec: 2 });
+      }
+      if (tool.risk === 'MEDIUM') {
+        const h = crypto.createHash('sha256').update(ct).digest('hex');
+        const row = await store.get('agent_confirm', h);
+        const okToken = row && row.payload?.grant === p.grantId && row.payload?.tool === name && row.payload?.fp === fp
+          && (await store.consume('agent_confirm', h)) === 1;
+        if (!okToken) throw err('PERMISSION_DENIED', 'confirmation_invalid');
       }
     }
 

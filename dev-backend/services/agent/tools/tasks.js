@@ -188,6 +188,49 @@ async function addTaskNote(p, a, actor) {
   return { note: noteItem(r.data), task: { task_id: t.id, title: t.title }, created: true };
 }
 
+// ── reschedule_task / complete_task — MEDIUM(설계 §7): execute 가 먼저 preview 로 «무엇이 바뀌는지» 를 돌려주고,
+//    사용자가 동의한 뒤 confirmation_token 과 함께 다시 부를 때만 실행한다. 실행은 행동 계층(이력·알림·broadcast).
+const dateOf = (v) => (v ? String(v instanceof Date ? v.toISOString() : v).slice(0, 10) : null);
+
+async function previewReschedule(p, a) {
+  if (a.due_date === undefined && a.start_date === undefined) throw err('VALIDATION_ERROR', 'no_fields');
+  if (!validDate(a.due_date) || !validDate(a.start_date)) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { due_date: a.due_date, start_date: a.start_date } });
+  await assertMenu(p, 'qtask', 'read');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const before = { start_date: dateOf(t.start_date), due_date: dateOf(t.due_date) };
+  const after = { start_date: a.start_date !== undefined ? a.start_date : before.start_date, due_date: a.due_date !== undefined ? a.due_date : before.due_date };
+  return { task: { task_id: t.id, title: t.title }, before, after };
+}
+
+async function rescheduleTask(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.updateSchedule(t, actor, { start_date: a.start_date, due_date: a.due_date });
+  if (!r.ok) throw fromActionFailure(r);
+  const fresh = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([fresh], p.businessId);
+  return { task: item, changed: r.data?.changed !== false };
+}
+
+async function previewComplete(p, a) {
+  await assertMenu(p, 'qtask', 'read');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  return { task: { task_id: t.id, title: t.title }, before: { status: t.status }, after: { status: 'completed' } };
+}
+
+async function completeTask(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.complete(t, actor);
+  if (!r.ok) throw fromActionFailure(r);
+  const fresh = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([fresh], p.businessId);
+  return { task: item };
+}
+
 module.exports = {
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
+  previewReschedule, rescheduleTask, previewComplete, completeTask,
 };
