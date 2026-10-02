@@ -159,6 +159,7 @@ const SUITES = {
   // 폰 전 화면 — 상단 헤더 통일 · 크롬(헤더+서브헤더+필터) 비율 · 입력 누르기 전/중/후 복원 (2026-09-30)
   mobilesweep: () => require('./canary-mobile-sweep'),
   teampresence: () => require('./canary-team-presence'),   // #429 동료 오늘 상태 — 고객 403·3폭·실시간
+  saleextract: () => require('./canary-sale-extract'),   // #382 상담 기록 → 업무 추출 — 3폭 보임 · AI 창에 기록 전문
   eventmaterials: () => require('./canary-event-materials'),   // #411 일정 미팅자료 — 3폭·추가·떼기·«알릴까요» · 안 누르면 0건
   holidaycap: () => require('./canary-holiday-capacity'),   // #424 근무일·휴일 — Q task 가용시간 3폭·서버 일치·실시간
   saleintake: () => require('./canary-sale-intake'),   // #449·#450 상담 유입 모드 — 설정·이유 칩·문의 후보·폰 문 3폭

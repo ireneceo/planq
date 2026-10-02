@@ -163,6 +163,8 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
           origin: r.origin, reviewed: !!r.reviewed_at, stt_status: r.stt_status,
           project_id: r.project_id, created_by: r.created_by,
           source_kind: r.source_kind, qnote_session_id: r.qnote_session_id,
+          // #382 업무 추출 입력 — 미리보기(140자)로는 잘린다. 요약이 있으면 요약, 없으면 본문.
+          text: String(r.summary || r.body || '').slice(0, 2000),
         },
       });
     }

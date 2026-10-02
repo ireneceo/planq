@@ -34,6 +34,8 @@ import LostReasonModal from '../../components/QSale/LostReasonModal';
 import RecordModal from '../../components/QSale/RecordModal';
 // 업무 추가는 **업무 추가 폼의 단일 원천**을 쓴다 — 우측 패널과 같은 창이다(자리마다 새로 만들지 않는다)
 import TaskCreateForm from '../../components/QTask/TaskCreateForm';
+import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
+import { listMembers } from '../../services/workspace';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
 import {
   getSaleClient, patchSaleClient, setSaleStage, getSaleTimeline, deleteInteraction, reviewInteraction,
@@ -80,6 +82,18 @@ export default function SaleDetailPage() {
   // 업무 추가 — 우측 패널과 같은 폼을 같은 방식으로 연다(Irene 2026-09-13: "우측 패널 고객프로필하고
   // 전체프로필 모두 … 업무추가도 여러 번 할 수 있게 해서 추가되면 연결이 계속되서 보이게")
   const [taskOpen, setTaskOpen] = useState(false);
+  // #382 — 상담 기록에서 업무 추출: 공용 AI 업무 추가 창에 그 기록을 채워 연다(새 창을 그리지 않는다).
+  const [extractText, setExtractText] = useState<string | null>(null);
+  const [extractMembers, setExtractMembers] = useState<Array<{ user_id: number; name: string }>>([]);
+  const openExtract = useCallback(async (text: string) => {
+    setExtractText(text);
+    if (!businessId || extractMembers.length) return;
+    try {
+      const ms = await listMembers(businessId);
+      setExtractMembers(ms.filter((m) => m.user_id && m.role !== 'ai')
+        .map((m) => ({ user_id: m.user_id as number, name: m.user?.display_name || m.user?.name || '' })));
+    } catch { /* 멤버를 못 읽어도 분해는 된다 — 담당자 추정만 빠진다 */ }
+  }, [businessId, extractMembers.length]);
   const [lostOpen, setLostOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   // 요약 문장의 ⓘ근거 — 누르면 타임라인이 **그 항목들만** 보여준다(§10.6 ①)
@@ -351,6 +365,11 @@ export default function SaleDetailPage() {
                       {t('record.openNote', { defaultValue: '노트 열기' }) as string}
                     </MiniBtn>
                   )}
+                  {/* #382 — 이 상담 기록에서 업무를 뽑는다. 만든 업무는 이 고객의 업무다. */}
+                  <MiniBtn type="button" data-testid={`sale-record-extract-${it.id}`}
+                    onClick={() => openExtract([it.title, (meta.text as string) || ''].filter(Boolean).join('\n'))}>
+                    {t('record.extractTasks') as string}
+                  </MiniBtn>
                   {meta.origin === 'auto' && meta.reviewed === false && (
                     <MiniBtn type="button" onClick={async () => {
                       if (!businessId) return;
@@ -380,6 +399,17 @@ export default function SaleDetailPage() {
         <TaskCreateForm businessId={businessId} layout="drawer" fixedClientId={cid}
           onClose={() => setTaskOpen(false)}
           onCreated={() => { setTaskOpen(false); silentReload(); }} />
+      )}
+      {businessId && (
+        <AiTaskCreateModal
+          open={extractText !== null}
+          onClose={() => setExtractText(null)}
+          businessId={businessId}
+          members={extractMembers}
+          initialPrompt={extractText || ''}
+          clientId={cid}
+          onCreated={() => { setExtractText(null); silentReload(); }}
+        />
       )}
       <RecordModal
         open={recordOpen}

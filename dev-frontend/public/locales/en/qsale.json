@@ -210,7 +210,8 @@
     "contentRequired": "Add a title or notes",
     "draftRestored": "Restored the notes you were writing",
     "futureNotAllowed": "A touchpoint cannot be in the future",
-    "openNote": "Open note"
+    "openNote": "Open note",
+    "extractTasks": "Extract tasks"
   },
   "list": {
     "searchPlaceholder": "Search name, company, phone, email",

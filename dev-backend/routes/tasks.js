@@ -703,6 +703,13 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         const th = await EmailThread.findOne({ where: { id: thrId, business_id }, attributes: ['id', 'project_id', 'client_id'] });
         if (!th) return errorResponse(res, 'thread_not_found', 404);
         ctxFields = { emailThreadId: th.id, ...(th.client_id ? { clientId: th.client_id } : {}) };
+      } else if (Number(context.client_id)) {
+        // #382 — Q sale 상담 기록에서 추출한 업무는 그 고객의 업무다(tasks.client_id). 대화·메일과 같은 방식으로
+        //   이 워크스페이스 고객인지 DB 에 되묻는다 — 보낸 id 를 그대로 쓰면 남의 고객에 업무가 붙는다.
+        const { Client } = require('../models');
+        const cl = await Client.findOne({ where: { id: Number(context.client_id), business_id }, attributes: ['id'] });
+        if (!cl) return errorResponse(res, 'client_not_found', 404);
+        ctxFields = { clientId: cl.id };
       }
     }
 

@@ -37,6 +37,10 @@ interface Props {
   // AI 분해 전 "이 템플릿이랑 거의 같아요" 추천 → 클릭 시 부모가 템플릿 적용 모달 열기.
   // 미제공 시 추천 배너 자체를 숨김 (graceful).
   onUseTemplate?: (templateId: number) => void;
+  /** 열 때 채워 둘 글 — 상담 기록에서 «업무 추출» 할 때 그 기록 본문(#382). 사람이 고친 뒤 분해한다. */
+  initialPrompt?: string;
+  /** 만든 업무를 이 고객의 업무로(tasks.client_id). 서버가 이 워크스페이스 고객인지 다시 확인한다. */
+  clientId?: number | null;
 }
 
 interface TemplateMatch {
@@ -50,7 +54,7 @@ interface TemplateMatch {
 
 type Stage = 'input' | 'loading' | 'preview';
 
-export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated, onUseTemplate }: Props) {
+export default function AiTaskCreateModal({ open, onClose, businessId, projectId, projectFixed, projects = [], members, onCreated, onUseTemplate, initialPrompt, clientId }: Props) {
   const { t } = useTranslation('qtask');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
@@ -96,7 +100,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
   useEffect(() => {
     if (open) {
       setStage('input');
-      setPrompt('');
+      setPrompt(initialPrompt || '');
       setCandidates([]);
       setReasoning('');
       setError(null);
@@ -111,7 +115,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
       setAiInstructions([]);
       // autoFocus 제거 — 모달이 길면 textarea 위치로 스크롤 점프해서 헤더/탭이 안 보임
     }
-  }, [open, projectId]);
+  }, [open, projectId, initialPrompt]);
 
   // 추천 매칭 — prompt 변경 시 600ms debounce + 이전 요청 취소(AbortController).
   // onUseTemplate 미제공이면 호출 안 함(배너 못 띄우므로 비용 0).
@@ -249,6 +253,7 @@ export default function AiTaskCreateModal({ open, onClose, businessId, projectId
           project_id: selectedProjectId,
           candidates: selected,
           base_date: baseDate,
+          ...(clientId ? { context: { client_id: clientId } } : {}),
           ...(routineMode ? {
             mode: 'routine',
             // 폐기한 영역은 adopted:false 로 그대로 보낸다 — 서버가 "안 만든다" 를 판단한다.
