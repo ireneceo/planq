@@ -538,6 +538,8 @@ app.use('/api/conversations', require('./routes/guest_admin'));
 app.use('/api/calendar', require('./routes/calendar_sync'));
 // 상담 예약 팀 동작(창구 P2) — `/booking/:biz/:id/*` 만. calendar.js 와일드카드보다 먼저.
 app.use('/api/calendar', require('./routes/booking_admin'));
+// 미팅자료(#411) — `/by-business/:biz/:id/attachments`·`/notify-materials` 꼬리만. calendar.js 와 겹치는 경로 없음.
+app.use('/api/calendar', require('./routes/calendar_materials'));
 app.use('/api/calendar', require('./routes/calendar'));
 // 통합 공유 시스템 alias — ShareModal 의 /api/calendar-events/:id/share 매칭
 app.use('/api/calendar-events', require('./routes/calendar'));

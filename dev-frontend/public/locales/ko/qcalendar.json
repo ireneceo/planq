@@ -316,5 +316,24 @@
       "forbidden": "담당자나 관리자만 처리할 수 있어요.",
       "error": "처리하지 못했어요. 잠시 뒤 다시 시도해 주세요."
     }
+  },
+  "materials": {
+    "title": "미팅자료",
+    "empty": "붙인 자료가 없습니다",
+    "add": "+ 자료 추가",
+    "close": "닫기",
+    "docKind": "Q docs 문서",
+    "uploading": "올리는 중…",
+    "failed": "자료를 붙이지 못했습니다",
+    "skipped": "볼 수 없는 자료 {{count}}개는 붙이지 않았습니다",
+    "visibilityHint": "여기서 올린 파일은 프로젝트가 있으면 프로젝트 멤버, 없으면 워크스페이스 멤버가 열 수 있습니다",
+    "askNotify": "미팅자료가 바뀌었습니다. 참석자 {{count}}명({{names}})에게 알릴까요?",
+    "notify": "알리기",
+    "notNow": "알리지 않음",
+    "notifying": "알리는 중…",
+    "notified": "{{count}}명에게 알렸습니다",
+    "notifyFailed": "알리지 못했습니다",
+    "remove": "자료 떼기",
+    "notifyOnCreate": "참석자 {{count}}명에게 미팅자료도 알리기"
   }
 }

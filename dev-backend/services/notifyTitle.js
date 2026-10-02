@@ -77,6 +77,7 @@ const ACTIONS = {
   calendar_invite: { ko: '일정 초대', en: 'Event invitation' },
   calendar_soon: { ko: '곧 시작', en: 'Starting soon' },
   calendar_response: { ko: '참석 응답', en: 'RSVP' },
+  calendar_materials: { ko: '미팅자료', en: 'Meeting materials' },
   // 고객 창구 상담 예약 (CLIENT_ENTRY P2) — 팀 쪽 알림
   booking_request: { ko: '상담 신청', en: 'Consultation request' },
   booking_accepted: { ko: '상담 시간 수락', en: 'Proposed time accepted' },

@@ -17,6 +17,15 @@ export interface CalendarAttendee {
   client?: { id: number; display_name?: string; company_name?: string; user_id?: number | null } | null;
 }
 
+export interface CalendarEventMaterial {
+  id: number;
+  file_id: number | null;
+  post_id: number | null;
+  sort_order?: number;
+  file?: { id: number; file_name: string; mime_type?: string | null; file_size?: number | null } | null;
+  post?: { id: number; title: string } | null;
+}
+
 export interface CalendarEvent {
   id: number;
   business_id: number;
@@ -47,6 +56,8 @@ export interface CalendarEvent {
   creator?: { id: number; name: string; email?: string } | null;
   Project?: { id: number; name: string; color?: string | null } | null;
   attendees?: CalendarAttendee[];
+  /** 미팅자료(#411) — 파일 또는 문서 하나를 가리킨다. 고객에게는 열 수 있는 것만 온다. */
+  attachments?: CalendarEventMaterial[];
   createdAt?: string;
   updatedAt?: string;
   // N+63 — 임박 알림

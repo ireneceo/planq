@@ -588,7 +588,7 @@ export async function uploadProjectFile(
 export async function uploadMyFile(
   businessId: number,
   file: File,
-  opts?: { conversationId?: number | null; projectId?: number | null } & UploadHooks
+  opts?: { conversationId?: number | null; projectId?: number | null; attachFor?: 'event' } & UploadHooks
 ): Promise<UploadResult> {
   // 맥락(프로젝트·대화)이 있을 때만 Drive 로 흐른다 — 서버 `useGdrive` 와 같은 조건.
   const pre = await preflightUploadSize(businessId, file.size, !!(opts?.conversationId || opts?.projectId));
@@ -597,6 +597,8 @@ export async function uploadMyFile(
   fd.append('file', file);
   if (opts?.conversationId) fd.append('conversation_id', String(opts.conversationId));
   if (opts?.projectId) fd.append('project_id', String(opts.projectId));
+  // 일정 미팅자료 — 서버가 «나만 보기» 대신 참석자가 열 수 있는 범위(L2/L3)로 올린다(#411).
+  if (opts?.attachFor) fd.append('attach_for', opts.attachFor);
   const r = await apiUpload(`/api/files/${businessId}`, fd,
     { onProgress: opts?.onProgress, signal: opts?.signal });
   const parsed = await readUploadResponse(r);

@@ -13,7 +13,9 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import CreateDrawer from '../../components/Common/CreateDrawer';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
-import { getVideoStatus } from '../../services/calendar';
+import { getVideoStatus, notifyEventMaterials } from '../../services/calendar';
+import AttachmentField from '../../components/Common/AttachmentField';
+import { uploadMaterialFiles } from './EventMaterials';
 import VisibilityField, { serializeVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qtalk';
 import { isEnterAction } from '../../utils/imeKey';
@@ -29,7 +31,8 @@ interface Props {
   projects: Array<{ id: number; name: string; color?: string | null }>;
   businessId?: number | null;
   onClose: () => void;
-  onCreate: (payload: Partial<CalendarEvent>) => void;
+  /** 만든 일정을 돌려주면 미팅자료 알림(고른 경우)을 이어서 보낸다(#411). */
+  onCreate: (payload: Partial<CalendarEvent>) => Promise<CalendarEvent | void> | void;
 }
 
 // 30분 스텝 시간 옵션 (00:00 ~ 23:30)
@@ -97,6 +100,12 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   //     (memory `feedback_client_stricter_than_server_kills_feature`).
   //     한 목록에 섞이므로 값은 `u:<id>` / `c:<id>` 로 구분한다.
   const [attendeeKeys, setAttendeeKeys] = useState<string[]>([]);
+  // 미팅자료(#411) — 업로드는 저장할 때 올린다(취소하면 남지 않게). 알리기는 고른 경우에만.
+  const [matFileIds, setMatFileIds] = useState<number[]>([]);
+  const [matPostIds, setMatPostIds] = useState<number[]>([]);
+  const [matUploads, setMatUploads] = useState<File[]>([]);
+  const [notifyMaterials, setNotifyMaterials] = useState(false);
+  const hasMaterials = matFileIds.length + matPostIds.length + matUploads.length > 0;
 
   // 종일이면 분 단위가 의미 없다 — 옵션 세트를 바꾼다(크론이 종일은 시작일 09:00 을 기준으로 잡는다).
   //   목록과 라벨은 상세 드로어와 **같은 모듈**에서 온다(reminderOptions.ts) — 각자 들고 있던
@@ -272,7 +281,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
 
   const canSubmit = title.trim().length > 0 && !submitting;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) return;
     // ISO 변환 — 로컬 타임존 기준
     const mkISO = (dateStr: string, timeStr: string, endOfDay = false): string => {
@@ -294,6 +303,16 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
     const finalProjectId = vis.variant === 'L2_project'
       ? ser.project_id
       : (projectId === '' ? null : Number(projectId));
+    // 미팅자료 업로드 — 참석자가 열 수 있는 범위로 올라간다(서버 attach_for=event)
+    let uploadedIds: number[] = [];
+    if (matUploads.length && businessId) {
+      try { uploadedIds = (await uploadMaterialFiles(businessId, matUploads, finalProjectId)).ids; }
+      catch { uploadedIds = []; }
+    }
+    const materials = [
+      ...[...matFileIds, ...uploadedIds].map((file_id) => ({ file_id })),
+      ...matPostIds.map((post_id) => ({ post_id })),
+    ];
     const created = onCreate({
       title: title.trim(),
       description: description.trim() || null,
@@ -322,7 +341,15 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
         ? { client_id: Number(k.slice(2)) }
         : { user_id: Number(k.slice(2)) })),
       target_client_ids: vis.variant === 'L4' ? ser.client_ids : [],
+      attachments: materials,
     } as unknown as Partial<CalendarEvent>);
+    // 고른 경우에만 알린다. 실제로 붙은 자료가 없으면(볼 수 없는 자료는 서버가 거른다) 서버가 no_materials 로 보내지 않는다.
+    //   ★ 생성 응답에는 첨부 목록이 실리지 않는다 — 그 길이로 판정하면 영영 안 보낸다(실측).
+    if (notifyMaterials && materials.length && businessId) {
+      Promise.resolve(created).then((ev) => {
+        if (ev && ev.id) notifyEventMaterials(businessId, ev.id, false).catch(() => {});
+      });
+    }
     // #242 — 실패 경로에서 submitting 이 영영 안 풀려 버튼이 잠기던 것. 성공 시엔 모달이 사라지므로 무해.
     Promise.resolve(created).finally(() => setSubmitting(false));
   };
@@ -462,6 +489,29 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
             />
             <TzHint>{t('form.attendeesHint', { defaultValue: '고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다.' }) as string}</TzHint>
           </Field>
+
+          {!!businessId && <Field data-testid="new-event-materials">
+            <Label>{t('materials.title')}</Label>
+            <AttachmentField
+              businessId={businessId}
+              uploads={matUploads}
+              onUploadsChange={setMatUploads}
+              existingFileIds={matFileIds}
+              onExistingFileIdsChange={setMatFileIds}
+              includePosts
+              existingPostIds={matPostIds}
+              onExistingPostIdsChange={setMatPostIds}
+              projectId={projectId === '' ? null : Number(projectId)}
+            />
+            {hasMaterials && <TzHint>{t('materials.visibilityHint')}</TzHint>}
+            {hasMaterials && attendeeKeys.length > 0 && (
+              <CheckboxLabel>
+                <input type="checkbox" checked={notifyMaterials} onChange={(e) => setNotifyMaterials(e.target.checked)}
+                  data-testid="new-event-materials-notify" />
+                <span>{t('materials.notifyOnCreate', { count: attendeeKeys.length })}</span>
+              </CheckboxLabel>
+            )}
+          </Field>}
 
           <Field>
             <Label>{t('form.reminder', { defaultValue: '알림' }) as string}</Label>

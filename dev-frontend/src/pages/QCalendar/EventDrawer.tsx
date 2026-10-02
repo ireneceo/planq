@@ -18,6 +18,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { ProvenanceBadge } from '../../components/Common/SourceHint';
+import EventMaterials from './EventMaterials';
 import BookingActions from './BookingActions';
 import { formatRRuleLabel } from '../../utils/recurrence';
 import { isEnterAction } from '../../utils/imeKey';
@@ -673,6 +674,22 @@ const EventDrawer: React.FC<Props> = ({
             })()}
           </SectionBody>
         </Section>
+
+        {/* 미팅자료(#411) — 붙이기·떼기·참석자에게 알리기. 고객은 서버가 열 수 있는 것만 보낸다. */}
+        {(canEdit || (event.attachments || []).length > 0) && (
+          <Section>
+            <SectionIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+            </SectionIcon>
+            <SectionBody>
+              <MutedSmall>{t('materials.title')}</MutedSmall>
+              <EventMaterials event={event} businessId={event.business_id} canEdit={canEdit}
+                onChange={(attachments) => onLocalPatch?.({ attachments })} />
+            </SectionBody>
+          </Section>
+        )}
 
         {/* 회의 — 재발급 버튼 포함 (P1) */}
         {(event.meeting_url || (gcalCanWrite && onCreateMeetingRoom)) && (

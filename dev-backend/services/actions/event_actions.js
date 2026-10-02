@@ -228,40 +228,13 @@ async function createEvent(actor, params = {}) {
     //   ★ 참석자와 **같은 방식으로 워크스페이스 축을 검증한다** — 남의 워크스페이스 파일·문서를
     //     일정에 붙이면 그 일정을 보는 사람에게 남의 자료가 새는 문이 된다.
     //     «id 를 받았으니 붙인다» 가 아니라 «이 워크스페이스 것인가» 를 DB 에 되묻는다.
-    const atts = Array.isArray(params.attachments) ? params.attachments : [];
-    if (atts.length > 0) {
-      const { CalendarEventAttachment, File, Post } = require('../../models');
-      const wantFiles = atts.map((a) => Number(a.file_id)).filter(Boolean);
-      const wantPosts = atts.map((a) => Number(a.post_id)).filter(Boolean);
-      // ★ 워크스페이스 축에 더해 **붙이는 사람이 볼 수 있는 것만** — 남의 «나만 보기» 파일·문서를 미팅자료로
-      //   붙이면 참석자에게 제목·파일명이 보인다(2026-09-27 점검). 읽기와 같은 술어를 쓴다.
-      const as = require('../../middleware/access_scope');
-      const subjScope = await as.getUserScope(subjectId, businessId);
-      const okFiles = new Set();
-      for (const f of (wantFiles.length ? await File.findAll({ where: { business_id: businessId, id: wantFiles, deleted_at: null }, transaction: t }) : [])) {
-        if (await as.canDownloadFile(subjScope, subjectId, f)) okFiles.add(f.id);
-      }
-      const okPosts = new Set();
-      for (const p of (wantPosts.length ? await Post.findAll({ where: { business_id: businessId, id: wantPosts }, transaction: t }) : [])) {
-        const readable = subjScope.isClient ? await as.canAccessPost(subjectId, p, subjScope) : await as.canAccessPostByLevel(subjectId, p, subjScope);
-        if (readable) okPosts.add(p.id);
-      }
-      const arows = [];
-      const aseen = new Set();
-      atts.forEach((a, i) => {
-        const fid = Number(a.file_id) || null;
-        const pid = Number(a.post_id) || null;
-        // 정확히 하나만 — 둘 다이거나 둘 다 아니면 버린다(조용히 반쪽 행을 만들지 않는다).
-        if (!!fid === !!pid) return;
-        const key = `f${fid || ''}p${pid || ''}`;
-        if (aseen.has(key)) return;
-        aseen.add(key);
-        if (fid && !okFiles.has(fid)) return;
-        if (pid && !okPosts.has(pid)) return;
-        arows.push({ business_id: businessId, event_id: event.id, file_id: fid, post_id: pid,
-          sort_order: i, created_by: subjectId });
-      });
-      if (arows.length) await CalendarEventAttachment.bulkCreate(arows, { transaction: t });
+    //   판정은 services/eventAttachments 한 곳 — 상세에서 붙이는 문(routes/calendar_materials.js)과 같은 함수.
+    const arows = await require('../eventAttachments').attachableRows({
+      atts: params.attachments, businessId, userId: subjectId, eventId: event.id, transaction: t,
+    });
+    if (arows.length) {
+      const { CalendarEventAttachment } = require('../../models');
+      await CalendarEventAttachment.bulkCreate(arows, { transaction: t });
     }
 
     await t.commit();

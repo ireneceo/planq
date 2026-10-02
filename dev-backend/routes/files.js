@@ -659,8 +659,12 @@ router.post('/:businessId', authenticateToken, ...perUserDaily('file-upload', { 
     //     프로젝트 소속이어도 private 이면 개인이 이긴다 — 좁은 쪽으로 결정한다.
     const inlineMode = String(req.body.inline || '');
     const isInline = inlineMode === '1' || inlineMode === 'private';
+    //   ★ 2026-10-02 (#411) — **일정 미팅자료로 올린 파일**도 같은 규칙이다(`attach_for=event`).
+    //     «미리 참석자들이 보게» 붙이는 것인데 L1 로 올리면 올린 사람만 열 수 있다(업무 첨부 #444 와 같은 모양).
+    //     고객 참석자는 종전대로 프로젝트 파일(L2)일 때만 연다(canDownloadFile) — 넓히지 않는다.
+    const sharedAttach = isInline || String(req.body.attach_for || '') === 'event';
     const uploadLevel = inlineMode === 'private' ? 'L1'
-      : (projectId ? 'L2' : (isInline ? 'L3' : 'L1'));
+      : (projectId ? 'L2' : (sharedAttach ? 'L3' : 'L1'));
     // 채팅/대화에서 올라온 첨부 — project_id 없어도 Drive 의 "Conversations" 폴더로 라우팅 가능
     const conversationId = req.body.conversation_id ? Number(req.body.conversation_id) : null;
 

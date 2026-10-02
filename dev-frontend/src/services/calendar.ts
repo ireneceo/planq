@@ -1,5 +1,5 @@
 import { apiFetch } from '../contexts/AuthContext';
-import type { CalendarEvent, AttendeeResponse } from '../pages/QCalendar/types';
+import type { CalendarEvent, CalendarEventMaterial, AttendeeResponse } from '../pages/QCalendar/types';
 
 // 업무 목록 (캘린더 통합용) — by-business 엔드포인트 재사용
 export async function listTasksForCalendar(bizId: number): Promise<Array<{
@@ -176,4 +176,25 @@ export async function respondAttendee(
     body: JSON.stringify({ response }),
   });
   await handle<unknown>(res);
+}
+
+// 미팅자료(#411) — 붙이기·떼기·참석자에게 알리기. 붙일 수 있는가는 서버 한 곳(services/eventAttachments)이 정한다.
+export async function addEventMaterials(bizId: number, eventId: number, attachments: Array<{ file_id?: number; post_id?: number }>): Promise<{ added: number; attachments: CalendarEventMaterial[] }> {
+  const res = await apiFetch(`/api/calendar/by-business/${bizId}/${eventId}/attachments`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attachments }),
+  });
+  return handle<{ added: number; attachments: CalendarEventMaterial[] }>(res);
+}
+
+export async function removeEventMaterial(bizId: number, eventId: number, attId: number): Promise<{ attachments: CalendarEventMaterial[] }> {
+  const res = await apiFetch(`/api/calendar/by-business/${bizId}/${eventId}/attachments/${attId}`, { method: 'DELETE' });
+  return handle<{ attachments: CalendarEventMaterial[] }>(res);
+}
+
+/** dry=true 면 보내지 않고 받을 사람만 돌려준다 — 묻는 문구와 실제 대상이 같은 함수에서 나온다. */
+export async function notifyEventMaterials(bizId: number, eventId: number, dry: boolean): Promise<{ count?: number; names?: string[]; notified?: number }> {
+  const res = await apiFetch(`/api/calendar/by-business/${bizId}/${eventId}/notify-materials`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dry }),
+  });
+  return handle<{ count?: number; names?: string[]; notified?: number }>(res);
 }
