@@ -81,3 +81,54 @@
 ① 문항·결과 문구 ko/en(JSON) → ② `diagnosis_responses` + 멱등 마이그레이션 + `contact_inquiries.kind` append →
 ③ 공개 POST(IP 제한·입력 검증·화이트리스트 필드) → ④ `/service/diagnosis` 화면 3폭 + seo-pages 등록 →
 ⑤ 관리자 화면 → ⑥ 카나리(제출·결과·제한·관리자 노출 · 음성 대조군: 비관리자 403) → Fable 게이트(R=1 공개 표면).
+
+---
+
+## 부록 A. 문항 초안 (ko/en) — Irene 검토용 · 2026-10-02 [Opus]
+
+점수: ① 0 · ② 1 · ③ 2. 층 점수 = 두 문항 합(0~4). 결과 구간: 0~1 «먼저 손볼 곳» · 2~3 «다듬을 곳» · 4 «잘 되고 있음».
+
+### 업무구조 (Business Structure)
+**S1.** 우리 회사가 돈을 버는 핵심 업무가 무엇인지, 팀원 모두가 같은 말로 설명할 수 있나요? / *Could everyone on the team describe your core revenue-generating work the same way?*
+① 사람마다 다르게 말한다 / *Everyone says something different* ② 대표·팀장은 알지만 정리된 문서는 없다 / *Leaders know, but it isn't written down* ③ 정리돼 있고 모두 안다 / *It's documented and everyone knows*
+**S2.** 일이 자주 막히는 지점(병목)을 알고 있나요? / *Do you know where work usually gets stuck?*
+① 막히면 그때 안다 / *We find out when it happens* ② 감으로는 안다 / *We have a rough sense* ③ 어디서 막히는지 알고 관리한다 / *We know and manage it*
+
+### 업무흐름 (Workflow)
+**W1.** 고객 요청은 주로 어디로 들어오나요? / *Where do customer requests come in?*
+① 카톡·전화·메일 등 여기저기 / *Everywhere — chat apps, calls, email* ② 한두 곳으로 모이지만 정리는 사람이 / *A couple of channels, sorted by hand* ③ 한 곳에 모이고 담당자가 정해진다 / *One place, with an owner assigned*
+**W2.** 일을 넘기거나 확인받을 때(승인·검수) 어떻게 하나요? / *How do handoffs and approvals happen?*
+① 말로·메신저로 그때그때 / *Ad hoc, by word or chat* ② 정해진 사람은 있지만 기록이 흩어진다 / *Set people, but records are scattered* ③ 단계가 정해져 있고 기록이 남는다 / *Defined steps, and it's recorded*
+
+### 정보흐름 (Information)
+**I1.** 지난 프로젝트의 자료·고객 대화를 찾는 데 얼마나 걸리나요? / *How long does it take to find past project files or customer conversations?*
+① 사람에게 물어봐야 한다 / *We have to ask someone* ② 찾을 수는 있지만 여러 곳을 뒤진다 / *Findable, across several places* ③ 한 곳에서 바로 찾는다 / *Instantly, in one place*
+**I2.** 담당자가 바뀌거나 쉬면 고객 이력을 이어받을 수 있나요? / *If someone is away, can others pick up the customer's history?*
+① 그 사람만 안다 / *Only that person knows* ② 일부는 남아 있다 / *Partly* ③ 누구나 이어받는다 / *Anyone can pick it up*
+
+### 의사결정 (Decision)
+**D1.** 대표 확인 없이 팀원이 결정할 수 있는 범위가 정해져 있나요? / *Is it clear what team members can decide without the owner?*
+① 거의 모든 것이 대표에게 온다 / *Almost everything goes to the owner* ② 암묵적으로는 있다 / *Implicitly* ③ 기준이 정해져 있다 / *There are clear rules*
+**D2.** 결정한 내용과 이유가 남나요? / *Are decisions and their reasons recorded?*
+① 남지 않는다 / *No* ② 메신저에 흩어져 있다 / *Scattered in chats* ③ 업무·문서에 남는다 / *Recorded with the work*
+
+### 자동화 (Automation)
+**A1.** 매주 반복되는 일(보고·청구·안내 메일 등)을 어떻게 처리하나요? / *How do you handle weekly repeat work (reports, invoices, notices)?*
+① 매번 손으로 / *Manually every time* ② 템플릿은 있지만 손으로 / *Templates, but manual* ③ 일정 부분은 자동으로 돈다 / *Partly automated*
+**A2.** AI 를 업무에 어떻게 쓰고 있나요? / *How do you use AI at work?*
+① 거의 안 쓴다 / *Hardly* ② 각자 따로 쓴다 / *Each person on their own* ③ 팀 업무 흐름 안에서 쓴다 / *Within the team's workflow*
+
+### 구현 플랫폼 (Platform)
+**P1.** 업무에 쓰는 도구는 몇 개인가요? / *How many tools does your team use for work?*
+① 5개 이상, 서로 연결 안 됨 / *5+, not connected* ② 2~4개, 일부 연결 / *2–4, partly connected* ③ 한두 개로 정리돼 있다 / *One or two, consolidated*
+**P2.** 고객이 진행 상황·자료·청구를 직접 볼 수 있나요? / *Can customers see progress, files and invoices themselves?*
+① 매번 우리가 보내 준다 / *We send it each time* ② 일부만 / *Some of it* ③ 링크 하나로 다 본다 / *All in one link*
+
+### 선택 문항 (점수 없음 — 맞춤 문장에만)
+- 업종 / *Industry*: 에이전시·디자인 / 컨설팅·교육 / IT·개발 / 제조·유통 / 기타
+- 인원 / *Team size*: 1~5 / 6~20 / 21~50 / 50+
+
+### 결과 문장 예시 (업무흐름 0~1점)
+> **지금:** 요청이 여러 곳으로 들어와 누가 맡았는지가 흐려집니다.
+> **이렇게 바꾸면:** 요청을 한 곳에 모으고, 들어오는 순간 담당자와 마감을 정하세요. 확인·승인은 정해진 단계로 남기세요.
+> **PlanQ 에서는:** Q talk·Q mail 로 들어온 요청을 Q task 로 바로 넘기고, 요청 → 확인 → 완료 단계가 기록됩니다.
