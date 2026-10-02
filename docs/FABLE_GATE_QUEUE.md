@@ -5323,3 +5323,15 @@ noscript 가 진짜 root 앞에 통째로 복제됐다(운영 `/` · `/login` �
 **자체 검증**: 같은 옛 템플릿으로 옛 코드 → roots 3 · 주석 밖 `-->` 있음(대조군 재현) / 새 코드 → 누출 없음.
 새 빌드 템플릿으로 생성 → `index.html`·`pricing/index.html` roots 1 · 누출 없음 · prerender 유지. 빌드 EXIT 0 · `error TS` 0.
 **Fable 이 봐야 할 것**: 없음(배포 후 `curl -s --compressed https://planq.kr/login | grep -c 'id="root"'` = 1 확인만).
+
+## 2026-10-02 · /about 첫 방문 크래시(returnObjects 레이스) · [Opus] Fable 미검증(자체 검증) — 커밋 b561416b
+**판정**: R=0(화면 렌더 가드) · S=0 · F=1(첫 방문 크래시 횟수로 갈린다) → 자체 검증.
+**출처**: Fable #426 재검증 라운드의 범위 밖 관찰(«/about 비로그인 4/4 크래시»).
+**수정**: 공용 `utils/i18nArray`(배열일 때만 통과) — 소개·CueTaskBar 예시·자가진단 문항·법률 페이지(기존 asItems 대체).
+**자체 검증**: `--suite landingfirst`(새, 4페이지 × 캐시 없는 새 컨텍스트 4회).
+양성 대조군 — 수정 되돌린 빌드 **EXIT 0 확인 후**(첫 시도는 import 가 남아 EXIT 2 → 고친 빌드를 잰 거짓 대조였다, 다시 함) /about 크래시 **4/4** → 원복 **0/4**. 빌드 EXIT 0.
+**Fable 이 봐야 할 것**: 없음.
+
+## 2026-10-02 · #426 · #439 Fable 판정 요약
+- #426 53183cb6: FAIL 2(관리자 문의 목록 500 — 8/25부터의 기존 결함 · 끝 슬래시로 로그인 데스크탑 공개 페이지가 셸) → 7bc02a34 수정 → **재검증 PASS**
+- #439 M1(미커밋 작업 트리): **PASS**(독립 68검사). 커밋은 자동 권한 검사가 «Permission Grant» 로 막아 Irene 허가 대기.
