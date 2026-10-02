@@ -1277,5 +1277,15 @@
     "downloadFailed": "Download failed. Please try again.",
     "remove": "Delete",
     "doc": "Doc"
+  },
+  "adminInq": {
+    "kindDiagnosis": "Self-check leads",
+    "kindDiagnosisShort": "Self-check",
+    "diagStats": {
+      "title": "Self-check responses — last {{days}} days",
+      "counts": "{{count}} responses · {{email}} left an email",
+      "weakestN": "weakest {{n}}",
+      "failed": "Couldn't load stats"
+    }
   }
 }

@@ -8,7 +8,7 @@ class ContactInquiry extends Model {}
 ContactInquiry.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   kind: {
-    type: DataTypes.ENUM('enterprise', 'general', 'landing'),
+    type: DataTypes.ENUM('enterprise', 'general', 'landing', 'diagnosis'),   // diagnosis — #426 자가진단에서 이메일을 남긴 잠재고객(끝에 append)
     allowNull: false,
     defaultValue: 'general',
   },

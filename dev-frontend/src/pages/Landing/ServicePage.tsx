@@ -8,10 +8,10 @@
 //
 // 견적 문의는 새 폼을 만들지 않는다 — 기존 /contact 를 `?type=quote` 로 재사용한다
 //   (문의 접수 경로가 둘로 갈라지면 admin 장부도 둘로 갈라진다).
-import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
+import { Container, Eyebrow, PrimaryCta, SecondaryCta } from '../../components/Landing/landingShell';
 import { useReveal } from '../../hooks/useReveal';
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
@@ -47,6 +47,8 @@ const ServicePage: React.FC = () => {
             <PrimaryCta to={AUDIT_URL}>{S('cta')}</PrimaryCta>
             <SecondaryCta to={QUOTE_URL}>{S('ctaSecondary')}</SecondaryCta>
           </HeroActions>
+          {/* #426 — 유료 진단 앞의 무료 자가진단. 왜 업무체계부터인지 5분 안에 스스로 확인하게 한다. */}
+          <DiagnosisLink to="/service/diagnosis" data-testid="service-diagnosis-link">{t('diagnosisPage.entryLink')}</DiagnosisLink>
           <ByLine>{S('by')}</ByLine>
         </Container>
       </SubHero>
@@ -227,18 +229,17 @@ const ServicePage: React.FC = () => {
 export default ServicePage;
 
 // ─── styled ───
-const Container = styled.div`max-width: 1080px; margin: 0 auto; padding: 0 24px; @media (max-width: 640px) { padding: 0 16px; }`;
+const DiagnosisLink = styled(PrimaryCta).attrs({})`
+  min-height: 0; padding: 0; margin-top: 18px; background: none; color: #0F766E;
+  font-size: 0.875rem; text-decoration: underline; text-underline-offset: 3px;
+  &:hover { background: none; color: #115E59; transform: none; }
+`;
 const Narrow = styled.div`max-width: 760px; margin: 0 auto;`;
 
 const SubHero = styled.section`
   padding: 96px 0 72px;
   background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%);
   text-align: center;
-`;
-const Eyebrow = styled.div`
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.8125rem; font-weight: 500; color: #0D9488;
-  letter-spacing: 3px; margin-bottom: 16px;
 `;
 const TitleTop = styled.div`
   font-size: 0.9375rem; font-weight: 600; color: #0D9488;
@@ -257,23 +258,6 @@ const Sub = styled.p`
 const HeroActions = styled.div`
   display: flex; justify-content: center; flex-wrap: wrap; gap: 12px;
   margin-top: 32px;
-`;
-const PrimaryCta = styled(Link)`
-  display: inline-flex; align-items: center; justify-content: center;
-  min-height: 48px; padding: 0 28px;
-  border-radius: 999px; background: #0F766E; color: #FFFFFF;
-  font-size: 0.9375rem; font-weight: 600; text-decoration: none;
-  transition: background 0.2s, transform 0.2s;
-  &:hover { background: #115E59; transform: translateY(-1px); }
-`;
-const SecondaryCta = styled(Link)`
-  display: inline-flex; align-items: center; justify-content: center;
-  min-height: 48px; padding: 0 28px;
-  border-radius: 999px; background: #FFFFFF; color: #0F766E;
-  border: 1px solid #99F6E4;
-  font-size: 0.9375rem; font-weight: 600; text-decoration: none;
-  transition: background 0.2s, border-color 0.2s;
-  &:hover { background: #F0FDFA; border-color: #5EEAD4; }
 `;
 const ByLine = styled.div`
   margin-top: 20px; font-size: 0.8125rem; color: #94A3B8; word-break: keep-all;

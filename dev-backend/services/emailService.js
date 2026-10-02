@@ -1140,6 +1140,43 @@ async function sendInquiryReceivedEmail({ to, name, message, inquiryId, locale }
   });
 }
 
+// #426 무료 업무체계 자가진단 — 결과 요약 1통(이메일을 남기고 «결과 메일로 받기» 를 고른 사람에게만).
+//   층별 점수 막대 + 가장 먼저 손볼 곳 + 두 갈래 안내(무료로 시작 / 전문가 진단). 마케팅 후속 메일은 보내지 않는다.
+function diagnosisResultEmailHtml({ scores, weakest, layerNames, locale, appUrl }) {
+  const en = String(locale || '').toLowerCase().startsWith('en');
+  const rows = Object.keys(scores).map((k) => {
+    const v = Number(scores[k]) || 0;
+    const bar = `<span style="display:inline-block;width:${v * 30}px;height:8px;background:#14B8A6;border-radius:4px;"></span><span style="display:inline-block;width:${(4 - v) * 30}px;height:8px;background:#E2E8F0;border-radius:4px;"></span>`;
+    return `<tr><td style="padding:6px 0;font-size:13px;color:#334155;width:120px;">${escapeHtml(layerNames[k] || k)}</td><td style="padding:6px 0;">${bar}</td><td style="padding:6px 0 6px 8px;font-size:12px;color:#64748B;">${v}/4</td></tr>`;
+  }).join('');
+  const title = en ? 'Your work-system self-check result' : '업무체계 자가진단 결과';
+  const inner = `
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(title)}</div>
+    <table role="presentation" style="margin-top:16px;border-collapse:collapse;">${rows}</table>
+    <div style="margin-top:16px;font-size:14px;color:#0F172A;line-height:1.7;">
+      ${escapeHtml(en ? `Start with: ${layerNames[weakest] || weakest}` : `가장 먼저 손볼 곳: ${layerNames[weakest] || weakest}`)}
+    </div>
+    <div style="margin-top:8px;font-size:13px;color:#475569;line-height:1.7;">
+      ${escapeHtml(en ? 'See the full feedback for each area on the result page, or start PlanQ free.' : '층별 자세한 피드백은 진단 화면에서 볼 수 있습니다. PlanQ 는 무료로 바로 시작할 수 있어요.')}
+    </div>
+    <div style="margin-top:20px;text-align:center;">${ctaButton(`${appUrl}/register`, en ? 'Start PlanQ free' : 'PlanQ 무료로 시작')}</div>
+    <div style="margin-top:10px;text-align:center;font-size:12px;"><a href="${escapeHtml(`${appUrl}/contact?type=quote&scope=audit`)}" style="color:#0F766E;">${escapeHtml(en ? 'Request an expert assessment' : '전문가 진단 신청')}</a></div>`;
+  return emailWrap({ title, body: inner, preheader: plainPreheader(en ? `Start with: ${layerNames[weakest]}` : `가장 먼저 손볼 곳: ${layerNames[weakest]}`) });
+}
+
+async function sendDiagnosisResultEmail({ to, scores, weakest, locale, responseId }) {
+  if (!to) return false;
+  const en = String(locale || '').toLowerCase().startsWith('en');
+  const { LAYER_NAMES } = require('./diagnosis');
+  const appUrl = (process.env.APP_URL || 'https://planq.kr').replace(/\/+$/, '');
+  return sendEmail({
+    to,
+    subject: en ? 'Your PlanQ work-system self-check result' : 'PlanQ 업무체계 자가진단 결과',
+    html: diagnosisResultEmailHtml({ scores, weakest, layerNames: LAYER_NAMES[en ? 'en' : 'ko'], locale, appUrl }),
+    template: 'diagnosis_result', relatedEntityType: 'diagnosis', relatedEntityId: responseId || null,
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 9. 멤버 알림 (generic — 매트릭스 적용 대상)
 // ═══════════════════════════════════════════════════════════════
@@ -1302,6 +1339,7 @@ module.exports = {
   sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail, sendGuestBookingEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
+  sendDiagnosisResultEmail,
   sendNotificationEmail,
   sendPasswordResetEmail,
   sendSignupVerifyEmail,

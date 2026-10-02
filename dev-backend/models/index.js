@@ -151,6 +151,7 @@ const ClientInteraction = require('./ClientInteraction');
 const RefreshToken = require('./RefreshToken');
 const EphemeralToken = require('./EphemeralToken');
 const ApiToken = require('./ApiToken');
+const DiagnosisResponse = require('./DiagnosisResponse');
 const FocusSession = require('./FocusSession');
 const ScheduleBatch = require('./ScheduleBatch');
 
@@ -685,6 +686,7 @@ module.exports = {
   RefreshToken,
   EphemeralToken,
   ApiToken,
+  DiagnosisResponse,
   FocusSession,
   ScheduleBatch,
 };

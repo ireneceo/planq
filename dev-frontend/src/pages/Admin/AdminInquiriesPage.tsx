@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import DiagnosisStatsCard from '../../components/Admin/DiagnosisStatsCard';
 import { useSearchParams } from 'react-router-dom';
 import PageShell from '../../components/Layout/PageShell';
 import { Tabs, Tab } from '../../components/Common/TabComponents';
@@ -15,7 +16,7 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { formatDateTime } from '../../utils/dateFormat';
 
 type Status = 'new' | 'in_progress' | 'resolved' | 'spam';
-type Kind = 'enterprise' | 'general' | 'landing';
+type Kind = 'enterprise' | 'general' | 'landing' | 'diagnosis';
 
 interface InquiryItem {
   id: number;
@@ -110,6 +111,7 @@ const AdminInquiriesPage = () => {
     { value: 'general', label: t('adminInq.kindGeneral', '일반 문의') as string },
     { value: 'landing', label: t('adminInq.kindLanding', '랜딩 페이지') as string },
     { value: 'enterprise', label: t('adminInq.kindEnterprise', '기업 문의') as string },
+    { value: 'diagnosis', label: t('adminInq.kindDiagnosis') as string },
   ], [t]);
 
   return (
@@ -135,6 +137,9 @@ const AdminInquiriesPage = () => {
           </Tab>
         ))}
       </Tabs>
+
+      {/* #426 자가진단 — 고른 종류가 자가진단이면 응답 통계를 위에 */}
+      {kindFilter === 'diagnosis' && <DiagnosisStatsCard />}
 
       {loading ? (
         <Loading>{t('common.loading', '불러오는 중...')}</Loading>
@@ -257,6 +262,7 @@ function statusLabel(s: Status): string {
 
 function kindLabel(k: Kind, t: (key: string, fallback: string) => string): string {
   return k === 'enterprise' ? t('adminInq.kindEnterprise', '기업')
+    : k === 'diagnosis' ? t('adminInq.kindDiagnosisShort', '자가진단')
     : k === 'landing' ? t('adminInq.kindLanding', '랜딩')
     : t('adminInq.kindGeneral', '일반');
 }

@@ -140,6 +140,32 @@
       ]
     },
     {
+      "path": "/service/diagnosis/",
+      "changefreq": "monthly",
+      "priority": "0.6",
+      "title": {
+        "ko": "업무체계 5분 자가진단 — 무료 | PlanQ",
+        "en": "5-minute work-system self-check — free | PlanQ"
+      },
+      "description": {
+        "ko": "업무구조·업무흐름·정보흐름·의사결정·자동화·구현 플랫폼 6개 층을 12문항으로 진단하고, 가장 먼저 손볼 곳과 바꾸는 방법을 바로 알려드립니다.",
+        "en": "Twelve questions across six layers — structure, workflow, information, decision, automation and platform — with instant feedback on where to start."
+      },
+      "h1": {
+        "ko": "우리 회사 업무체계, 5분 자가진단",
+        "en": "Check your work system in 5 minutes"
+      },
+      "intro": {
+        "ko": [
+          "12문항 · 무료 · 결과는 바로 화면에 나옵니다."
+        ],
+        "en": [
+          "12 questions · free · results right away."
+        ]
+      },
+      "label": "자가진단"
+    },
+    {
       "path": "/insights/",
       "changefreq": "weekly",
       "priority": "0.7",

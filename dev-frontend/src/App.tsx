@@ -125,6 +125,7 @@ const SaleDetailPage = lazy(() => import('./pages/QSale/SaleDetailPage'));
 const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
 const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
 const LandingService = lazy(() => import('./pages/Landing/ServicePage'));
+const LandingDiagnosis = lazy(() => import('./pages/Landing/DiagnosisPage'));
 const LandingAbout = lazy(() => import('./pages/Landing/AboutPage'));
 const LandingContact = lazy(() => import('./pages/Landing/ContactPage'));
 const LandingBlog = lazy(() => import('./pages/Landing/BlogPage'));
@@ -674,6 +675,8 @@ function ShellApp() {
         <Route path="/pricing" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingPricing />} />
         {/* 서비스 — 업무체계 설계·시스템 구축 (2026-08-24) */}
         <Route path="/service" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingService />} />
+        {/* #426 무료 업무체계 자가진단 — 공개 */}
+        <Route path="/service/diagnosis" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingDiagnosis />} />
         <Route path="/insights" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBlog />} />
         <Route path="/insights/:slug" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBlogPost />} />
         {/* 옛 /blog URL → /insights 영구 이전 (SEO·외부 링크 보존) */}

@@ -1115,5 +1115,254 @@
       "q3": "How do I report a problem?",
       "a3": "Send it from Settings > Feedback inside the app. It arrives with the screen you were on."
     }
+  },
+  "diagnosisPage": {
+    "title": "Check your work system in 5 minutes",
+    "sub": "12 questions · free · results right away. No sign-in needed.",
+    "start": "Start",
+    "prev": "Back",
+    "next": "Next",
+    "finish": "See results",
+    "progress": "{{n}} / {{total}}",
+    "optionalTitle": "Optional — used only to tailor the feedback",
+    "industry": "Industry",
+    "teamSize": "Team size",
+    "skip": "Skip",
+    "industries": {
+      "agency": "Agency / design",
+      "consulting": "Consulting / education",
+      "it": "IT / software",
+      "commerce": "Manufacturing / retail",
+      "other": "Other"
+    },
+    "resultTitle": "Your result",
+    "total": "Total {{total}} / 24",
+    "weakest": "Start with: {{layer}}",
+    "labelNow": "Now",
+    "labelChange": "What to change",
+    "ctaStart": "Start PlanQ free",
+    "ctaExpert": "Request an expert assessment (paid)",
+    "retry": "Retake",
+    "mailTitle": "Get the result by email (optional)",
+    "email": "Email",
+    "company": "Company (optional)",
+    "consent": "I agree to share my email and company to receive one result email and to be contacted about it. (No marketing emails.)",
+    "send": "Send to email",
+    "sent": "Sent — please check your inbox.",
+    "sendFailed": "Couldn’t send. Please try again shortly.",
+    "submitFailed": "Couldn’t load the result. Please try again shortly.",
+    "invalidEmail": "Please check the email address.",
+    "entryLink": "Try the free 5-minute self-check first →",
+    "layers": {
+      "structure": "Business Structure",
+      "workflow": "Workflow",
+      "information": "Information",
+      "decision": "Decision",
+      "automation": "Automation",
+      "platform": "Platform"
+    },
+    "questions": {
+      "S1": {
+        "q": "리",
+        "o": [
+          "Everyone says something different",
+          "Leaders know, but it isn't written down",
+          "It's documented and everyone knows"
+        ]
+      },
+      "S2": {
+        "q": "이",
+        "o": [
+          "We find out when it happens",
+          "We have a rough sense",
+          "We know and manage it"
+        ]
+      },
+      "W1": {
+        "q": "객",
+        "o": [
+          "Everywhere — chat apps, calls, email",
+          "A couple of channels, sorted by hand",
+          "One place, with an owner assigned"
+        ]
+      },
+      "W2": {
+        "q": "을",
+        "o": [
+          "Ad hoc, by word or chat",
+          "Set people, but records are scattered",
+          "Defined steps, and it's recorded"
+        ]
+      },
+      "I1": {
+        "q": "난",
+        "o": [
+          "We have to ask someone",
+          "Findable, across several places",
+          "Instantly, in one place"
+        ]
+      },
+      "I2": {
+        "q": "당",
+        "o": [
+          "Only that person knows",
+          "Partly",
+          "Anyone can pick it up"
+        ]
+      },
+      "D1": {
+        "q": "표",
+        "o": [
+          "Almost everything goes to the owner",
+          "Implicitly",
+          "There are clear rules"
+        ]
+      },
+      "D2": {
+        "q": "정",
+        "o": [
+          "No",
+          "Scattered in chats",
+          "Recorded with the work"
+        ]
+      },
+      "A1": {
+        "q": "주",
+        "o": [
+          "Manually every time",
+          "Templates, but manual",
+          "Partly automated"
+        ]
+      },
+      "A2": {
+        "q": "I",
+        "o": [
+          "Hardly",
+          "Each person on their own",
+          "Within the team's workflow"
+        ]
+      },
+      "P1": {
+        "q": "무",
+        "o": [
+          "5+, not connected",
+          "2–4, partly connected",
+          "One or two, consolidated"
+        ]
+      },
+      "P2": {
+        "q": "객",
+        "o": [
+          "We send it each time",
+          "Some of it",
+          "All in one link"
+        ]
+      }
+    },
+    "results": {
+      "structure": {
+        "low": {
+          "now": "The core work and roles mean different things to different people.",
+          "change": "Map how revenue is made on one page and name an owner for each step.",
+          "planq": "In PlanQ: build that flow as projects and task groups, with owners attached."
+        },
+        "mid": {
+          "now": "The big picture is shared but not written down.",
+          "change": "Pick one bottleneck and define just that stretch: steps, owner, deadline.",
+          "planq": "In PlanQ: save the repeating structure as a task template and reuse it."
+        },
+        "high": {
+          "now": "Your work structure is clear and shared.",
+          "change": "Check whether a new hire could follow it in a day.",
+          "planq": "In PlanQ: project templates keep that structure identical across the team."
+        }
+      },
+      "workflow": {
+        "low": {
+          "now": "Requests arrive everywhere, so it's unclear who owns them.",
+          "change": "Collect requests in one place and set an owner and due date on arrival. Keep approvals as defined steps.",
+          "planq": "In PlanQ: requests from Q talk and Q mail become Q tasks, and request → review → done is recorded."
+        },
+        "mid": {
+          "now": "Owners are set, but approvals are scattered.",
+          "change": "For work that needs sign-off, move review → approval into one place.",
+          "planq": "In PlanQ: add a reviewer and every review, revision and approval stays on the task."
+        },
+        "high": {
+          "now": "Request-to-done runs on a defined flow.",
+          "change": "Measure which step most often causes delays.",
+          "planq": "In PlanQ: weekly reports and overdue flags show that step at a glance."
+        }
+      },
+      "information": {
+        "low": {
+          "now": "Files and customer history live in people’s heads.",
+          "change": "Start by gathering conversations, files and tasks per customer in one place.",
+          "planq": "In PlanQ: one customer page brings together chat, mail, tasks and billing."
+        },
+        "mid": {
+          "now": "It can be found, but only by searching several places.",
+          "change": "Pick the five things you look up most and pin them in one place.",
+          "planq": "In PlanQ: Q file and Q info attach materials to projects and customers."
+        },
+        "high": {
+          "now": "Information is in one place and anyone can pick it up.",
+          "change": "Review the line between what customers see and what stays internal.",
+          "planq": "In PlanQ: visibility levels set that line on every item."
+        }
+      },
+      "decision": {
+        "low": {
+          "now": "Almost every decision lands on the owner.",
+          "change": "Pick one area — budget, scope or schedule — and write down what the team can decide alone.",
+          "planq": "In PlanQ: per-member permissions and review policies put that rule in the system."
+        },
+        "mid": {
+          "now": "There are implicit rules, but decisions are scattered.",
+          "change": "Make a habit of logging each decision in one line on the related task or doc.",
+          "planq": "In PlanQ: decisions stay in task comments, history and project notes."
+        },
+        "high": {
+          "now": "Decision rules and records are in place.",
+          "change": "See which recurring decisions could become rules.",
+          "planq": "In PlanQ: recurring tasks and templates run those rules for you."
+        }
+      },
+      "automation": {
+        "low": {
+          "now": "Repeat work is done by hand every time.",
+          "change": "List three weekly tasks and standardise just one first.",
+          "planq": "In PlanQ: recurring tasks and scheduled invoices recreate that work automatically."
+        },
+        "mid": {
+          "now": "There are templates, but still lots of manual work.",
+          "change": "Instead of everyone using AI separately, attach it to one step of the team flow.",
+          "planq": "In PlanQ: Cue extracts tasks from chats and summarises meetings straight into tasks."
+        },
+        "high": {
+          "now": "Much of your repeat work is automated.",
+          "change": "Check who notices when an automation fails.",
+          "planq": "In PlanQ: the Needs-attention list surfaces only what a person must check."
+        }
+      },
+      "platform": {
+        "low": {
+          "now": "There are many tools and they don’t connect.",
+          "change": "Start by bringing customer communication and task management into one tool.",
+          "planq": "In PlanQ: chat, tasks, files and billing connect on one screen."
+        },
+        "mid": {
+          "now": "You use a few tools, partly connected.",
+          "change": "Give customers one link where they can follow progress themselves.",
+          "planq": "In PlanQ: one client link shows progress, files and invoices."
+        },
+        "high": {
+          "now": "Tools are consolidated and customers see everything in one place.",
+          "change": "Next, let AI read that data and act on it.",
+          "planq": "In PlanQ: connect ChatGPT or Claude to look up and create work in plain language."
+        }
+      }
+    },
+    "eyebrow": "SELF-CHECK"
   }
 }

@@ -586,6 +586,7 @@ app.use('/api', require('./routes/signature_public'));
 //   2026-09-22 분리. 꼬리 경로가 고유해 signatures 와 겹치지 않는다(가드 --category=duproute 가 센다).
 app.use('/api', require('./routes/signature_internal'));
 app.use('/api/inquiries', require('./routes/inquiries'));
+app.use('/api/diagnosis', require('./routes/diagnosis'));   // #426 무료 업무체계 자가진단 — 공개 제출 + 관리자 통계
 app.use('/api', require('./routes/kb'));
 app.use('/api/weekly-reviews', require('./routes/weekly_reviews'));
 // 통합 공유 — entity 무관 발송 (사이클 N+4 5차)
