@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { i18nArray } from '../../utils/i18nArray';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
 
@@ -39,7 +40,7 @@ const AboutPage: React.FC = () => {
       <StorySection>
         <Container>
           <StoryBody>
-            {(t('aboutPage.story.blocks', { returnObjects: true }) as StoryBlock[]).map((blk, i) => (
+            {i18nArray<StoryBlock>(t('aboutPage.story.blocks', { returnObjects: true })).map((blk, i) => (
               <Reveal key={i}>
                 {blk.pull
                   ? <StoryPull>{blk.text}</StoryPull>

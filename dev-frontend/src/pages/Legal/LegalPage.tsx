@@ -2,6 +2,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { i18nArray } from '../../utils/i18nArray';
 import { Link } from 'react-router-dom';
 import { billingEntityVars } from '../../config/legalEntities';
 
@@ -18,8 +19,8 @@ interface Props {
   effectiveDate: string;           // '2026-04-22'
 }
 
-/** t(...,{returnObjects:true}) 는 리소스 미도착 시 키 문자열을 준다 — 배열일 때만 통과시킨다. */
-const asItems = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+/** t(...,{returnObjects:true}) 는 리소스 미도착 시 키 문자열을 준다 — 배열일 때만 통과시킨다(공용 utils/i18nArray). */
+const asItems = (v: unknown): string[] => i18nArray<string>(v);
 
 const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
   const { t, i18n, ready } = useTranslation('legal');

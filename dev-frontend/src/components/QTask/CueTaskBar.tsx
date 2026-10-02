@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 // styled 는 이 파일에 더 남아 있지 않다 — 껍데기는 Common/cueBarShell 한 곳이다
 import { useTranslation } from 'react-i18next';
+import { i18nArray } from '../../utils/i18nArray';
 import ModalActionButton from '../Common/ModalActionButton';
 import AiRegenerateBar from '../Common/AiRegenerateBar';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -53,10 +54,10 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   const baseDate = todayISO();
 
   // 예시 placeholder 회전 (idle + 비어있을 때만). 언어별 예시 문장.
-  const examples = t('ai.bar.examples', {
+  const examples = i18nArray<string>(t('ai.bar.examples', {
     returnObjects: true,
     defaultValue: ['내일까지 메인 시안 완성', '이번 주 안에 경쟁사 비교표 작성', '다음 주 월요일 발표자료 초안'],
-  }) as string[];
+  }));
   useEffect(() => {
     if (stage !== 'idle' || prompt) return;
     const id = setInterval(() => setPhIdx(i => (i + 1) % (examples.length || 1)), 4000);

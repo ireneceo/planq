@@ -9,6 +9,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { i18nArray } from '../../utils/i18nArray';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { Container, Eyebrow, PrimaryCta, SecondaryCta } from '../../components/Landing/landingShell';
 
@@ -109,7 +110,7 @@ const DiagnosisPage: React.FC = () => {
 
             {step >= 0 && step <= 11 && (() => {
               const qid = QIDS[step];
-              const opts = t(`diagnosisPage.questions.${qid}.o`, { returnObjects: true }) as string[];
+              const opts = i18nArray<string>(t(`diagnosisPage.questions.${qid}.o`, { returnObjects: true }));
               return (
                 <Card>
                   <Progress aria-label={D('progress', { n: step + 1, total: 12 })}>
@@ -118,7 +119,7 @@ const DiagnosisPage: React.FC = () => {
                   <Meta>{D(`layers.${LAYER_OF[qid[0]]}`)} · {D('progress', { n: step + 1, total: 12 })}</Meta>
                   <Question>{D(`questions.${qid}.q`)}</Question>
                   <Options role="radiogroup">
-                    {(Array.isArray(opts) ? opts : []).map((o, i) => (
+                    {opts.map((o, i) => (
                       <Option key={i} type="button" role="radio" aria-checked={answers[qid] === i} $on={answers[qid] === i}
                         onClick={() => choose(qid, i)} data-testid={`diagnosis-opt-${qid}-${i}`}>{o}</Option>
                     ))}
