@@ -382,7 +382,14 @@
     "doneCarried": "이월 진척 {{h}}h",
     "plannedWork": "계획 (예측시간)",
     "overBy": "{{h}}h 초과",
-    "remainingEst": "남은 예측시간"
+    "remainingEst": "남은 예측시간",
+    "workDays": "이번 주 근무일",
+    "workDaysValue": "{{n}}일",
+    "workDaysFormula": "업무일수 {{base}} − 공휴일 {{holiday}} − 휴가 {{leave}}",
+    "manualHoliday": "수동 휴일 +{{n}}",
+    "manualHolidayClear": "수동 휴일 지우기",
+    "requestLeave": "휴가 신청",
+    "manageHolidays": "휴일 관리"
   },
   "chart": {
     "weekly": "주간 업무 진척",

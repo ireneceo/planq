@@ -243,15 +243,24 @@ async function computeSlots(biz, { client = null, now = new Date(), transaction,
     perDay.set(k, (perDay.get(k) || 0) + 1);
   }
 
+  // #424 — 워크스페이스 휴일(공휴일·직접 추가, 켜진 것만)에는 슬롯을 내지 않는다.
+  //   근무 달력은 가용시간·휴가와 같은 한 벌(services/workspaceHolidays).
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const ymdOf = (p) => `${p.y}-${pad2(p.m)}-${pad2(p.d)}`;
+  const today = partsIn(now, tz);
+  const { getWorkCalendar } = require('./workspaceHolidays');
+  const horizonLast = partsIn(new Date(now.getTime() + (HORIZON_DAYS + 1) * 86400000), tz);
+  const offDays = (await getWorkCalendar(biz.id, ymdOf(today), ymdOf(horizonLast), { biz, transaction })).holidaySet;
+
   const step = cfg.duration * 60000;
   const slots = [];
-  const today = partsIn(now, tz);
   for (let i = 0; i <= HORIZON_DAYS; i += 1) {
     // 날짜 i 일 뒤 — 정오 기준으로 더해 서머타임 경계에서 날짜가 밀리지 않게 한다
     const noon = wallToUtc(today.y, today.m, today.d, 12 * 60, tz).getTime() + i * 86400000;
     const p = partsIn(new Date(noon), tz);
     const h = hours[p.dow];
     if (!h) continue;
+    if (offDays.has(ymdOf(p))) continue;
     if ((perDay.get(dayKey(p)) || 0) >= cfg.daily_max) continue;
     for (let m = h[0]; m + cfg.duration <= h[1]; m += cfg.duration) {
       const start = wallToUtc(p.y, p.m, p.d, m, tz).getTime();

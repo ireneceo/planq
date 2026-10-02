@@ -1069,8 +1069,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     }).catch(() => null);
   }, [user?.id]);
 
-  const hasBiz = (...roles: Array<'owner' | 'member' | 'client'>) =>
-    !!user?.business_role && roles.includes(user.business_role as 'owner' | 'member' | 'client');
+  // ★ #424 — 워크스페이스 `admin` 역할(서버 BusinessMember.role)은 **멤버이면서 관리 권한이 있다**.
+  //   여태 타입이 'owner'|'member'|'client' 뿐이라 admin 은 `hasBiz('owner','member')` 항목까지 전부 못 봤다
+  //   (승인 권한은 서버 isManager = owner ∥ admin 인데 메뉴가 없었다). admin 은 'member' 요구를 만족하고,
+  //   관리 메뉴는 `hasBiz('owner','admin')` 로 명시한다. owner 전용(플랜·청구 등)은 그대로 'owner' 하나.
+  const hasBiz = (...roles: Array<'owner' | 'admin' | 'member' | 'client'>) => {
+    const r = user?.business_role as 'owner' | 'admin' | 'member' | 'client' | undefined;
+    if (!r) return false;
+    if (roles.includes(r)) return true;
+    return r === 'admin' && roles.includes('member');
+  };
 
   const getRoleLabel = (u: typeof user) => {
     if (!u) return '';
@@ -1079,6 +1087,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     if (isAdminMode && u.platform_role === 'platform_admin') return t('role.platform_admin');
     if (u.business_role === 'owner') return t('role.business_owner');
     if (u.business_role === 'member') return t('role.business_member');
+    if (u.business_role === 'admin') return t('role.business_admin');
     if (u.business_role === 'client') return t('role.client', '고객');
     if (u.platform_role === 'platform_admin') return t('role.platform_admin');
     return t('role.user');
@@ -1703,7 +1712,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconCreditCard /> {t('nav.plan', '구독 플랜')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner') && (
+                      {hasBiz('owner', 'admin') && (
                         <AccordionItem
                           to="/business/settings/attendance"
                           $active={location.pathname.includes('/business/settings/attendance')}
@@ -1714,7 +1723,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       )}
                       {/* 활동 기록 — 누가 언제 무엇을 했는지(삭제 포함). owner/admin 만.
                           (Irene 2026-08-31: "잘못해서 삭제하고 문제되면 책임여부 문제") */}
-                      {hasBiz('owner') && (
+                      {hasBiz('owner', 'admin') && (
                         <AccordionItem
                           to="/business/settings/activity"
                           data-testid="nav-activity-log"
@@ -2080,6 +2089,26 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 $active={location.pathname.includes('/plan')}
               >
                 <IconCreditCard /> {t('nav.plan', '구독 플랜')}
+              </SecondaryNavItem>
+            )}
+            {/* #424 — 근태 관리·활동 기록은 폰 아코디언에만 있었다(데스크탑 보조 패널에서는 owner 도 못 갔다).
+                두 목록이 같은 항목을 같은 조건으로 갖는다 — owner/admin(서버 isManager·activity 와 같은 술어). */}
+            {hasBiz('owner', 'admin') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
+                to="/business/settings/attendance"
+                $active={location.pathname.includes('/business/settings/attendance')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                {t('nav.attendanceAdmin', '근태 관리')}
+              </SecondaryNavItem>
+            )}
+            {hasBiz('owner', 'admin') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
+                to="/business/settings/activity"
+                $active={location.pathname.includes('/business/settings/activity')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><polyline points="7 14 11 10 15 13 21 7"/></svg>
+                {t('nav.activityLog', { defaultValue: '활동 기록' })}
               </SecondaryNavItem>
             )}
             {hasBiz('owner', 'member') && (

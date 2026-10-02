@@ -136,7 +136,8 @@ export function visibleNavMenus(opts: {
   /** 'admin' = 플랫폼 관리자 범위(관리자 메뉴만) · 'workspace' = 워크스페이스 범위(워크스페이스 메뉴만) */
   scope?: 'admin' | 'workspace';
 }): NavMenuEntry[] {
-  const role = (opts.businessRole || null) as NavRole | null;
+  // #424 — 워크스페이스 admin 은 멤버 메뉴를 그대로 본다(사이드바 hasBiz·라우트 hasRole 과 같은 규칙).
+  const role = (opts.businessRole === 'admin' ? 'member' : (opts.businessRole || null)) as NavRole | null;
   const ws = WORKSPACE_MENUS.filter((m) => {
     if (m.roles === 'any') return true;
     return !!role && (m.roles as NavRole[]).includes(role);

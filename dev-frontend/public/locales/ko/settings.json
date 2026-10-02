@@ -719,5 +719,36 @@
     "blockTitle": "이 방문자를 막을까요?",
     "blockOk": "막기",
     "blockBody": "이 사람의 개인 링크가 즉시 닫힙니다. 이메일을 다시 확인해도 들어올 수 없습니다. 대화 기록은 남습니다."
+  },
+  "holidays": {
+    "title": "휴일·근무일",
+    "desc": "근무 요일(기본 월~금)에 해당하는 휴일만 가용시간·휴가 차감일에서 빠지고, 그날은 상담 예약을 받지 않습니다. 개인 휴가는 근태 > 휴가에서 신청합니다.",
+    "country": "국가 공휴일",
+    "countryNone": "사용 안 함",
+    "countryKR": "대한민국",
+    "readOnly": "워크스페이스 관리자만 변경할 수 있습니다.",
+    "loadError": "휴일을 불러오지 못했습니다.",
+    "prevYear": "이전 해",
+    "nextYear": "다음 해",
+    "add": "휴일 추가",
+    "addSubmit": "추가",
+    "cancel": "취소",
+    "namePlaceholder": "이름 (예: 창립기념일)",
+    "duplicate": "이미 있는 날짜입니다",
+    "addError": "추가하지 못했습니다. 다시 시도하세요.",
+    "showPast": "지난 휴일 보기 ({{count}})",
+    "hidePast": "지난 휴일 접기",
+    "emptyYear": "이 해에 표시할 휴일이 없습니다.",
+    "emptyOff": "국가 공휴일을 켜거나 휴일을 직접 추가하세요.",
+    "col": {
+      "date": "날짜",
+      "off": "휴무"
+    },
+    "source": {
+      "national": "공휴일",
+      "custom": "직접"
+    },
+    "notWorkday": "근무 요일 아님 — 반영 없음",
+    "delete": "삭제"
   }
 }

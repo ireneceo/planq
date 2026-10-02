@@ -100,6 +100,24 @@ router.get('/balance', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── 차감일 미리보기 (#424) ────────────────────────────────────
+// 신청 화면의 "이번 신청은 N일" 은 승인 때 박제될 값과 **같은 함수**(computeDaysCharged)로 센다.
+//   화면이 달력 일수를 따로 세면 근무일 기준(주말·휴일 제외)으로 바뀐 순간 거짓 안내가 된다.
+router.get('/preview', authenticateToken, async (req, res, next) => {
+  try {
+    const businessId = Number(req.query.business_id);
+    const scope = await requireMember(req, res, businessId);
+    if (!scope) return;
+    const unit = ['full_day', 'half_day', 'hours'].includes(req.query.unit) ? req.query.unit : 'full_day';
+    const ok = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    const start = req.query.start_date;
+    const end = unit === 'full_day' ? (req.query.end_date || start) : start;
+    if (!ok(start) || !ok(end) || end < start) return errorResponse(res, 'invalid_range', 400);
+    const days = await L.computeDaysCharged({ unit, start_date: start, end_date: end, hours: Number(req.query.hours) || 0 }, businessId, req.user.id);
+    return successResponse(res, { days });
+  } catch (err) { next(err); }
+});
+
 // ─── 신청 ───────────────────────────────────────────────────────
 router.get('/requests', authenticateToken, async (req, res, next) => {
   try {

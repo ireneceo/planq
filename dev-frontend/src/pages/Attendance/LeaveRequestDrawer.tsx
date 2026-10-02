@@ -1,5 +1,5 @@
 // 근태 — 휴가 신청 드로어 (#208). AttendancePage 에서 분리.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -46,22 +46,27 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
     return () => { alive = false; };
   }, [open, bizId, start, category]);
 
-  // 이번 신청이 며칠인가 — 서버 `computeDaysCharged` 와 **같은 규칙**이어야 한다.
-  //   ★ 시간 단위는 8 로 나누는 것이 아니라 **그 사람의 하루 근무시간**으로 나눈다.
-  //     처음에 8 로 적었다가 서버를 읽고 고쳤다 — 하루 6시간 근무자에게 거짓 안내가 나갔을 것이다.
-  //     그래서 그 값을 화면이 정하지 않고 `/api/leave/balance` 가 내려준 것을 쓴다
-  //     (memory feedback_same_value_multiple_formulas).
+  // 이번 신청이 며칠인가 — **서버 `computeDaysCharged` 가 센다**(`/api/leave/preview`).
+  //   ★ 2026-10-02 (#424) — 종일 휴가는 근무일(근무 요일 ∧ 워크스페이스 휴일 아님)만 센다.
+  //     전에는 화면이 달력 일수를 직접 셌는데, 규칙이 바뀌면 그 사본이 거짓 안내가 된다
+  //     (memory feedback_same_value_multiple_formulas). 시간 단위의 하루 근무시간도 서버가 안다.
   //   ★ 이 숫자는 **안내**다. 최종 판정은 승인 시점에 서버가 한다.
-  const requestedDays = useMemo(() => {
-    if (unit === 'half_day') return 0.5;
-    if (unit === 'hours') {
-      const daily = balance?.daily_work_hours || 8;
-      return Math.round((Number(hours) / daily) * 10) / 10;
-    }
-    const a = new Date(start), b = new Date(end);
-    if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return 0;
-    return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000) + 1);
-  }, [unit, hours, start, end, balance]);
+  const [requestedDays, setRequestedDays] = useState(0);
+  useEffect(() => {
+    if (!open || !bizId || !start) return;
+    let alive = true;
+    const qs = new URLSearchParams({
+      business_id: String(bizId), unit, start_date: start,
+      end_date: unit === 'full_day' ? end : start, hours: unit === 'hours' ? String(Number(hours) || 0) : '0',
+    });
+    const timer = window.setTimeout(() => {
+      apiFetch(`/api/leave/preview?${qs.toString()}`)
+        .then((r) => r.json())
+        .then((j) => { if (alive) setRequestedDays(j?.success ? Number(j.data.days) || 0 : 0); })
+        .catch(() => { /* 안내를 못 불러도 신청 자체는 막지 않는다 */ });
+    }, 200);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [open, bizId, unit, hours, start, end]);
 
   // 서버는 승인 시 `remaining`(= 부여 − 승인분)으로 검사한다. 화면도 **같은 값**으로 판정한다.
   //   신청 중(pending)까지 뺀 값은 따로 보여주기만 한다 — 판정을 둘로 하면 어긋난다.
@@ -128,7 +133,7 @@ export const LeaveRequestDrawer: React.FC<{ open: boolean; onClose: () => void; 
               <BalanceSub>
                 {t('leave.balance.thisRequest', {
                   days: requestedDays,
-                  defaultValue: '이번 신청은 {{days}}일로 계산됩니다',
+                  defaultValue: '이번 신청은 근무일 기준 {{days}}일로 계산됩니다(쉬는 요일·휴일 제외)',
                 }) as string}
               </BalanceSub>
             )}

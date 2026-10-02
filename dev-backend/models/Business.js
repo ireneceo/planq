@@ -122,6 +122,12 @@ Business.init({
     type: DataTypes.JSON,
     allowNull: true
   },
+  // #424 — 국가 공휴일 데이터셋 키(ISO-2). NULL = 자동 공휴일 안 씀(기본).
+  //   timezone 으로 추측하지 않는다 — 켜지 않은 워크스페이스의 가용시간이 조용히 바뀌면 안 된다.
+  holiday_country: {
+    type: DataTypes.STRING(2),
+    allowNull: true
+  },
   // ─── 구독 ───
   plan: {
     type: DataTypes.ENUM('free', 'starter', 'basic', 'pro', 'enterprise'),

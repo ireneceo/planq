@@ -1,6 +1,6 @@
 # 근무일·휴일·휴가 통합 설계 (운영 #424 잔여분)
 
-> 작성: Fable 설계 게이트, 2026-10-02. 상태: **Irene 승인 대기** (설계만 — 코드 변경 0).
+> 작성: Fable 설계 게이트, 2026-10-02. 상태: **구현 완료(2026-10-02 [Opus]) — Irene 결정 Q1·Q2·Q3 모두 «예»**. 구현 기록은 맨 끝 §9.
 > 선행: `docs/ATTENDANCE_LEAVE_DESIGN.md` (#208·#285, 휴가 차감 §7) · `services/memberCapacity.js` (#288 단일 원천).
 > 신고 원문(#424, owner, 2026-09): *"휴가 승인 화면이 안 떠 / 근태관리 관리자 화면이 없어 / 휴가·휴일이 Q task 근무일수에 반영되어야 / 워크스페이스 휴일을 국가에 맞게 / 기본 근무일수·휴일·휴가 통합 / 일일 시간 강제 말고 주간 관리."*
 > 추가 지시(10-02): *"기존 계산 및 정리 문제되게 바꾸는 거 아니면 맞춰서 수정해."*
@@ -292,3 +292,27 @@ periodHoursEffective(from,to) = max(0, round1( periodHours(weekly) − daily×ra
 - `services/stats.js:492,956` Insights 가동률 분모 2벌 — 휴일·휴가·수동휴일 전부 무시하는 사본. 별건으로 `periodHoursEffective` 로 흡수.
 - 멤버별 근무 요일 매핑(주 4일 근무자) — `work_hours` 는 워크스페이스 단위. 요구가 오면 `business_members.work_weekdays` 로.
 - MY 등 데이터셋 — 요청 시 `config/holidays/<CC>.json` 추가만으로 켜진다.
+
+
+---
+
+## 9. 구현 기록 (2026-10-02 [Opus])
+
+Irene 결정: Q1 예 · Q2 예 · Q3 예(예약 슬롯. 캘린더 표시는 후속).
+
+| 항목 | 위치 |
+|---|---|
+| 데이터셋 KR 2026·2027 (노동절·제헌절 2026 개정 반영, 2026-06-03 지방선거 포함) | `dev-backend/config/holidays/KR.json` |
+| 근무 달력 단일 원천 | `services/workspaceHolidays.js` (`getWorkCalendar`·`countWorkdays`·`ensureNationalRows`·`applyCountryChange`·cron) |
+| 가용시간 공식(공휴일·휴가·이중차감) | `services/memberCapacity.js` `getDeductionsInRange` · `getMemberCapacityForWeek`(+`holiday_days`·`holiday_list`·`work_days`·`work_weekdays`) · `periodHoursEffective` |
+| ④ 워크스페이스 주간보고 인라인 사본 제거 | `weeklyReviewSnapshot.fetchMemberUtilization` → `getMemberCapacityForWeek` |
+| Q1 휴가 차감일 = 근무일 | `leaveTransition.computeDaysCharged` · 근무일 0 인 신청 400 `no_workdays_in_range` · 신청 화면 미리보기는 `GET /api/leave/preview`(같은 함수) |
+| Q3 예약 슬롯 휴일 제외 | `booking.computeSlots` |
+| 설정 API | `routes/business_holidays.js` — **국가는 `PUT /:id/holiday-country`** 로 분리(§5 의 `PUT /settings` 는 owner 전용이라 owner/admin 술어와 섞지 않았다) |
+| 설정 화면 | `pages/Settings/HolidaySettingsSection.tsx` (근태 관리 탭 상단) |
+| Q task 패널 | `components/QTask/CapacityWorkdays.tsx` — 수동 휴일칸 제거, 서버 `work_days` 로 곱하기만. 패널 전체 분리는 하지 않았다(범위 축소) |
+| admin 역할 | 사이드바 `hasBiz`(admin ⊇ member) · 라우트 `hasRole`(admin → business_member) · `visibleNavMenus` · **데스크탑 설정 보조 패널에 근태 관리·활동 기록 추가**(owner 도 폰 아코디언에서만 갈 수 있었다) |
+| 마이그레이션 | `dev-backend/scripts/migrate-workspace-holidays.js` (멱등, 배포 슬롯 등록 필요) |
+
+자체 검증: P0 기준선 871값 diff 0 · 휴일 API 26/26 · 휴가·이중차감·예약 13/13 · 미리보기 6/6 · `--suite holidaycap`(3폭).
+2027 노동절 대체공휴일(5/3)은 출처가 갈려 넣지 않았다 — 관보 확정 뒤 데이터셋에 추가.

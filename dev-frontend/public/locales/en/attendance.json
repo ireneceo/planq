@@ -95,7 +95,7 @@
       "remaining": "Paid leave left",
       "days": "{{count}} day(s)",
       "detail": "Granted {{granted}} · Used {{used}} · Pending {{pending}}",
-      "thisRequest": "This request counts as {{days}} day(s)",
+      "thisRequest": "This request counts as {{days}} workday(s) (days off and holidays excluded)",
       "short": "{{days}} day(s) short. Request unpaid leave, or ask an admin to grant more.",
       "none": "No {{cat}} granted this year. An admin can grant it in Settings > Attendance.",
       "remainingOf": "{{cat}} left"
@@ -136,7 +136,8 @@
     "fix_reason_required": "Please enter a reason for the correction.",
     "events_required": "Add at least one time.",
     "invalid_at": "That time is not valid.",
-    "timeline_must_start_with_clock_in": "A clock-in time is required — the corrected record must start with one."
+    "timeline_must_start_with_clock_in": "A clock-in time is required — the corrected record must start with one.",
+    "no_workdays_in_range": "There are no workdays in the selected dates (only weekends or holidays)."
   },
   "stats": {
     "title": "Team stats",

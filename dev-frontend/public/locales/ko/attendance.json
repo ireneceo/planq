@@ -95,7 +95,7 @@
       "remaining": "남은 유급 휴가",
       "days": "{{count}}일",
       "detail": "부여 {{granted}}일 · 사용 {{used}}일 · 신청 중 {{pending}}일",
-      "thisRequest": "이번 신청은 {{days}}일로 계산됩니다",
+      "thisRequest": "이번 신청은 근무일 기준 {{days}}일로 계산됩니다(쉬는 요일·휴일 제외)",
       "short": "{{days}}일이 모자랍니다. 무급으로 신청하거나 관리자에게 휴가 부여를 요청하세요.",
       "none": "올해 부여받은 {{cat}} 가 없습니다. 관리자가 설정 > 근태에서 부여할 수 있어요.",
       "remainingOf": "남은 {{cat}}"
@@ -136,7 +136,8 @@
     "fix_reason_required": "정정 사유를 입력해 주세요.",
     "events_required": "추가할 시각을 하나 이상 넣어 주세요.",
     "invalid_at": "시각 형식이 올바르지 않습니다.",
-    "timeline_must_start_with_clock_in": "출근 시각이 있어야 합니다. 확정 기록은 출근으로 시작합니다."
+    "timeline_must_start_with_clock_in": "출근 시각이 있어야 합니다. 확정 기록은 출근으로 시작합니다.",
+    "no_workdays_in_range": "선택한 기간에 근무일이 없습니다(주말·휴일만 포함)."
   },
   "stats": {
     "title": "팀 통계",

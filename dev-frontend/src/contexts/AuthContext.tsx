@@ -986,6 +986,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user.platform_role === 'platform_admin' && roles.includes('platform_admin')) return true;
     if (user.business_role === 'owner' && roles.includes('business_owner')) return true;
     if (user.business_role === 'member' && roles.includes('business_member')) return true;
+    // #424 — 워크스페이스 admin(BusinessMember.role) 은 **멤버이면서 관리 권한**이 있다. 여태 어느 분기에도
+    //   안 걸려 멤버 화면(설정 전체 포함)이 「접근 권한 없음」 이었다 — 서버는 admin 을 이미 허용하고 있었다.
+    if (user.business_role === 'admin' && roles.includes('business_member')) return true;
     if (user.business_role === 'client' && roles.includes('client')) return true;
     // business_role 이 전혀 없는 유저도 client 로 간주 (하위 호환)
     if (!user.business_role && user.platform_role !== 'platform_admin' && roles.includes('client')) return true;

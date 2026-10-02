@@ -461,6 +461,8 @@ app.use('/api/users', require('./routes/account_deletion'));
 //   고유한 꼬리 경로만 들었다(client_links.js + clients.js 와 같은 패턴, CLAUDE.md 라우트 순서 절).
 //   businesses.js 에 `/:businessId/:xxx` 2-세그먼트 와일드카드가 없음을 실측으로 확인했다.
 app.use('/api/businesses', require('./routes/customer_entry'));
+// #424 휴일·근무일 — `/:businessId/holiday…` 꼬리 경로만 둔다(위와 같은 패턴).
+app.use('/api/businesses', require('./routes/business_holidays'));
 app.use('/api/businesses', require('./routes/businesses'));
 // KNOWLEDGE_LOOP 축1 — Cue 워크스페이스 지식 카드
 app.use('/api/businesses', require('./routes/cue_knowledge'));
@@ -654,6 +656,11 @@ function scheduleNextMidnight() {
       const r = await require('./services/monthlyReport').runMonthlyReportsIfDay1();
       if (!r.skipped) console.log('[monthly-report]', r);
     } catch (e) { console.warn('[monthly-report] failed', e.message); }
+    try {
+      // #424 — 국가 공휴일을 켠 워크스페이스에 올해·(11월부터) 내년 행을 채운다. 데이터셋에 그 해가 없으면 0.
+      const r = await require('./services/workspaceHolidays').runHolidayYearCron();
+      if (r.added) console.log('[holiday-year]', r);
+    } catch (e) { console.warn('[holiday-year] failed', e.message); }
     try {
       const r = await recurringInvoice.runDailyRecurringBilling();
       console.log('[recurring-invoice]', { ok: r.ok, skip: r.skip, fail: r.fail });

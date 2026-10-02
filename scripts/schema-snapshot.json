@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-01",
+  "_generated": "2026-10-02",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -268,7 +268,8 @@
       "billing_exempt_set_by",
       "billing_exempt_set_at",
       "guest_links_enabled",
-      "onboarding_dismissed_at"
+      "onboarding_dismissed_at",
+      "holiday_country"
     ],
     "calendar_event_attachments": [
       "id",
@@ -998,6 +999,11 @@
       "end_reason",
       "created_at",
       "updated_at"
+    ],
+    "fz_gl_probe2": [
+      "id",
+      "conversation_id",
+      "scope"
     ],
     "gdrive_sync_logs": [
       "id",
@@ -2516,6 +2522,18 @@
       "user_id",
       "slug",
       "read_at",
+      "created_at",
+      "updated_at"
+    ],
+    "workspace_holidays": [
+      "id",
+      "business_id",
+      "date",
+      "name",
+      "name_en",
+      "source",
+      "is_off",
+      "created_by",
       "created_at",
       "updated_at"
     ],

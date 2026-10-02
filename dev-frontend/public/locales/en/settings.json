@@ -719,5 +719,36 @@
     "blockTitle": "Block this visitor?",
     "blockOk": "Block",
     "blockBody": "Their personal link closes right away, and verifying the email again won't let them back in. The conversation history stays."
+  },
+  "holidays": {
+    "title": "Holidays & workdays",
+    "desc": "Only holidays that fall on a workday (Mon–Fri by default) reduce capacity and leave days, and no consultations can be booked on them. Personal time off is requested under Attendance > Leave.",
+    "country": "National holidays",
+    "countryNone": "Off",
+    "countryKR": "South Korea",
+    "readOnly": "Only workspace admins can change this.",
+    "loadError": "Couldn't load holidays.",
+    "prevYear": "Previous year",
+    "nextYear": "Next year",
+    "add": "Add holiday",
+    "addSubmit": "Add",
+    "cancel": "Cancel",
+    "namePlaceholder": "Name (e.g. Founding Day)",
+    "duplicate": "That date already exists",
+    "addError": "Couldn't add it. Please try again.",
+    "showPast": "Show past holidays ({{count}})",
+    "hidePast": "Hide past holidays",
+    "emptyYear": "No holidays to show for this year.",
+    "emptyOff": "Turn on national holidays or add your own.",
+    "col": {
+      "date": "Date",
+      "off": "Off"
+    },
+    "source": {
+      "national": "National",
+      "custom": "Custom"
+    },
+    "notWorkday": "Not a workday — no effect",
+    "delete": "Delete"
   }
 }

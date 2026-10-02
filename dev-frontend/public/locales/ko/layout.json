@@ -165,7 +165,8 @@
     "myFeedbackSub": "PlanQ",
     "landingVisits": "랜딩 방문",
     "home": "홈",
-    "statsEntry": "고객 유입"
+    "statsEntry": "고객 유입",
+    "activityLog": "활동 기록"
   },
   "user": {
     "profile": "내 프로필",
@@ -186,7 +187,8 @@
     "business_owner": "관리자",
     "business_member": "멤버",
     "ai": "Cue",
-    "user": "사용자"
+    "user": "사용자",
+    "business_admin": "관리자"
   },
   "clock": {
     "header": "시간대",

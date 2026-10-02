@@ -46,6 +46,7 @@ const AttendanceDay = require('./AttendanceDay');
 const AttendanceEvent = require('./AttendanceEvent');
 const LeaveGrant = require('./LeaveGrant');
 const LeaveRequest = require('./LeaveRequest');
+const WorkspaceHoliday = require('./WorkspaceHoliday');
 const TaskAttachment = require('./TaskAttachment');
 const TaskLink = require('./TaskLink');
 const TaskTag = require('./TaskTag');
@@ -486,6 +487,7 @@ LeaveGrant.belongsTo(Business, { foreignKey: 'business_id' });
 LeaveGrant.belongsTo(User, { foreignKey: 'user_id' });
 LeaveGrant.belongsTo(User, { as: 'granter', foreignKey: 'granted_by' });
 LeaveRequest.belongsTo(Business, { foreignKey: 'business_id' });
+WorkspaceHoliday.belongsTo(Business, { foreignKey: 'business_id' });
 LeaveRequest.belongsTo(User, { foreignKey: 'user_id' });
 LeaveRequest.belongsTo(User, { as: 'decider', foreignKey: 'decided_by' });
 
@@ -547,7 +549,7 @@ module.exports = {
   LandingVisit, LandingVisitor,
   ProjectHistoryEntry,
   ProviderCredit,
-  AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest,
+  AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest, WorkspaceHoliday,
   TaskDeliverableVersion,
   EmailAccountAlias,
   EmailDomainRule,

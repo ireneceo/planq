@@ -165,7 +165,8 @@
     "myFeedbackSub": "PlanQ",
     "landingVisits": "Landing visits",
     "home": "Home",
-    "statsEntry": "Client entry"
+    "statsEntry": "Client entry",
+    "activityLog": "Activity log"
   },
   "user": {
     "profile": "My Profile",
@@ -186,7 +187,8 @@
     "business_owner": "Admin",
     "business_member": "Member",
     "ai": "Cue",
-    "user": "User"
+    "user": "User",
+    "business_admin": "Admin"
   },
   "clock": {
     "header": "Timezones",

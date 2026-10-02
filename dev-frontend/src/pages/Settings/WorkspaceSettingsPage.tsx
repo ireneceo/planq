@@ -942,7 +942,9 @@ export default function WorkspaceSettingsPage() {
       <SettingsHeaderActionProvider value={publishHeaderAction}>
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {/* mail-accounts 탭은 멤버도 개인 메일을 관리할 수 있어 admin 안내 배너 숨김 */}
-      {!isAdmin && tab !== 'mail-accounts' && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
+      {/* 근태 관리·활동 기록은 owner/admin 이 관리한다(서버 isManager) — admin 에게 «관리자만» 배너를 띄우면 거짓이다(#424). */}
+      {!isAdmin && tab !== 'mail-accounts' && !(user?.business_role === 'admin' && (tab === 'attendance' || tab === 'activity'))
+        && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
 
       {/* 탭 UI 완전 제거 — 사이드바 설정 Secondary 에서 직접 섹션 접근.
          브랜드+법인정보는 `tab === 'brand'` OR `tab === 'legal'` 일 때 통합 렌더. */}

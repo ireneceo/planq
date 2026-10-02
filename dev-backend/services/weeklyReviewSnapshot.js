@@ -601,17 +601,13 @@ async function fetchMemberUtilization(businessId, monday, sunday) {
       actual_hours = Number(sumRow) || 0;
     }
     // #288 — 세 번째 사본이었다(같은 파일 안에서도 공식이 갈렸다). 서비스 공식으로 통일.
-    const capacity_hours_nominal = capacityService.weeklyHours({
-      daily: m.daily_work_hours, days: m.weekly_work_days,
-      rate: m.participation_rate, holidays: m.weekly_holidays,
-    });
-    // #208 — 그 주 승인된 휴가만큼 실제 가용시간이 준다. 안 빼면 휴가 간 사람이 매번
-    //   'underloaded' 로 찍혀 "쉬었는데 일 안 했다" 는 보고서가 된다.
-    const leave_days = await capacityService.getLeaveDaysInRange(m.user_id, businessId, monday, sunday);
-    const capacity_hours = leave_days
-      ? Math.max(0, Math.round((capacity_hours_nominal
-          - (Number(m.daily_work_hours) || 8) * (Number(m.participation_rate) || 1) * leave_days) * 10) / 10)
-      : capacity_hours_nominal;
+    // #208·#424 — 그 주의 공휴일·승인 휴가만큼 실제 가용시간이 준다. 안 빼면 쉰 사람이 매번
+    //   'underloaded' 로 찍혀 "쉬었는데 일 안 했다" 는 보고서가 된다. 차감도 서비스 한 벌(인라인 사본 제거).
+    const capW = await capacityService.getMemberCapacityForWeek(m.user_id, businessId, monday);
+    const capacity_hours_nominal = capW.weekly;
+    const capacity_hours = capW.weekly_effective;
+    const leave_days = capW.leave_days;
+    const holiday_days = capW.holiday_days;
     const utilization_pct = capacity_hours > 0 ? Math.round((actual_hours / capacity_hours) * 100) : 0;
     const today = new Date().toISOString().slice(0, 10);
     const completed_tasks = tasks.filter(t => t.status === 'completed').length;
@@ -624,7 +620,7 @@ async function fetchMemberUtilization(businessId, monday, sunday) {
     memberStats.push({
       user_id: m.user_id,
       name: pickMemberName(m.user, m),
-      capacity_hours, capacity_hours_nominal, leave_days,
+      capacity_hours, capacity_hours_nominal, leave_days, holiday_days,
       actual_hours: Math.round(actual_hours * 10) / 10,
       utilization_pct, completed_tasks, overdue_tasks, status,
     });
@@ -737,5 +733,6 @@ module.exports = {
   buildSnapshot,
   buildWorkspaceSnapshot,
   getUserCapacity,
+  fetchMemberUtilization,  // #424 — 가용시간 기준선·회귀 검사가 같은 함수를 부른다
   fetchProjectStats,  // #64 프로젝트뷰 — health·진행델타 정규 로직 재사용
 };

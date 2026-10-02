@@ -340,7 +340,14 @@
     "doneCarried": "{{h}}h carried over",
     "plannedWork": "Planned (estimate)",
     "overBy": "{{h}}h over",
-    "remainingEst": "Estimate left"
+    "remainingEst": "Estimate left",
+    "workDays": "Workdays this week",
+    "workDaysValue": "{{n}} d",
+    "workDaysFormula": "{{base}} workdays − {{holiday}} holiday − {{leave}} leave",
+    "manualHoliday": "Manual day off +{{n}}",
+    "manualHolidayClear": "Clear manual day off",
+    "requestLeave": "Request leave",
+    "manageHolidays": "Manage holidays"
   },
   "chart": {
     "weekly": "Weekly Progress",

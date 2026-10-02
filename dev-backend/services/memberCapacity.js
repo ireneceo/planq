@@ -54,9 +54,28 @@ function periodHours(weekly, startYmd, endYmd) {
 // 수학적 동치: weekly − daily×rate×L === daily×(days − holidays − L)×rate
 //   — 즉 "휴가는 휴일과 같은 방식으로 근무일에서 빠진다".
 
-/** 기간 [start,end] 과 겹치는 승인 휴가의 차감일 합. 휴가가 없으면 0 → 기존 값과 diff 0. */
-async function getLeaveDaysInRange(userId, businessId, startYmd, endYmd) {
-  if (!userId || !businessId || !startYmd || !endYmd) return 0;
+// ─── 공휴일 (#424) ─────────────────────────────────────────────
+// 날짜 축은 services/workspaceHolidays.getWorkCalendar 한 곳에서 온다(근무 요일 · 휴일).
+// 세 축이 같은 날을 두 번 세지 않는다(설계 §3.2):
+//   · 공휴일이 먼저 — 휴가가 공휴일에 걸친 날은 휴가에서 0
+//   · 비근무 요일(기본 토·일)에 떨어진 공휴일·휴가는 0
+//   · 수동 weekly_holidays 는 그대로 더한다(호환 — 입력칸은 화면에서 없앴다)
+
+/**
+ * 기간 [start,end] 의 휴일 일수 · 휴가 일수.
+ *  - full_day 휴가: 겹친 날짜 중 **근무일**(근무 요일 ∧ 휴일 아님)만 센다.
+ *    (#424 전에는 days_charged 를 달력 일수 비율로 일할했다 — 금~월 휴가가 주말까지 빠졌다.)
+ *  - half_day / hours: days_charged 그대로. 단 그 날이 근무일이 아니면 0.
+ * 휴일 행 0 · 승인 휴가 0 이면 {0,0} → 종전 값과 diff 0.
+ */
+async function getDeductionsInRange(userId, businessId, startYmd, endYmd, { cal = null } = {}) {
+  const empty = { holiday_days: 0, holiday_list: [], leave_days: 0, work_weekdays: [1, 2, 3, 4, 5] };
+  if (!businessId || !startYmd || !endYmd) return empty;
+  const { getWorkCalendar, countWorkdays, isWorkday } = require('./workspaceHolidays');
+  const c = cal || await getWorkCalendar(businessId, startYmd, endYmd);
+  const holiday_list = c.holidays.filter((h) => h.date >= startYmd && h.date <= endYmd);
+  const work_weekdays = [...c.weekdays].sort();
+  if (!userId) return { ...empty, holiday_days: holiday_list.length, holiday_list, work_weekdays };
   const { Op } = require('sequelize');
   const { LeaveRequest } = require('../models');
   const rows = await LeaveRequest.findAll({
@@ -67,20 +86,20 @@ async function getLeaveDaysInRange(userId, businessId, startYmd, endYmd) {
     attributes: ['unit', 'start_date', 'end_date', 'days_charged'],
   });
   const { ymd } = require('../utils/datetime');
-  const dayNum = (v) => Math.floor(Date.parse(`${ymd(v)}T00:00:00Z`) / 86400000);
   let total = 0;
   for (const r of rows) {
-    const charged = Number(r.days_charged || 0);
-    if (r.unit !== 'full_day') { total += charged; continue; }   // 반차·시간은 하루짜리다
-    // 기간 휴가가 조회 구간에 걸쳐 있으면 **겹친 만큼만** 센다.
-    //   안 그러면 2주짜리 휴가가 두 주 모두에서 전체 일수로 빠져 이중 차감된다.
-    const s = Math.max(dayNum(r.start_date), dayNum(startYmd));
-    const e = Math.min(dayNum(r.end_date), dayNum(endYmd));
-    const overlap = Math.max(0, e - s + 1);
-    const span = Math.max(1, dayNum(r.end_date) - dayNum(r.start_date) + 1);
-    total += charged * (overlap / span);
+    const s = ymd(r.start_date) > startYmd ? ymd(r.start_date) : startYmd;
+    const e = ymd(r.end_date) < endYmd ? ymd(r.end_date) : endYmd;
+    if (r.unit === 'full_day') { total += countWorkdays(s, e, c); continue; }
+    if (isWorkday(s, c)) total += Number(r.days_charged || 0);   // 반차·시간은 하루짜리다
   }
-  return Math.round(total * 10) / 10;
+  return { holiday_days: holiday_list.length, holiday_list, leave_days: Math.round(total * 10) / 10, work_weekdays };
+}
+
+/** 옛 호출부 호환 — 휴가 일수만. */
+async function getLeaveDaysInRange(userId, businessId, startYmd, endYmd) {
+  if (!userId) return 0;
+  return (await getDeductionsInRange(userId, businessId, startYmd, endYmd)).leave_days;
 }
 
 function addDays(ymd, n) {
@@ -90,28 +109,46 @@ function addDays(ymd, n) {
 }
 
 /**
- * 그 주의 실질 가용시간. 기존 키(weekly 등)는 그대로 두고 키만 **추가**한다 —
- * 아직 안 고친 소비처가 있어도 값이 변하지 않는다(회귀 0).
+ * 그 주의 실질 가용시간. 기존 키(weekly 등)는 그대로 두고 키만 **추가**한다.
+ *   work_days        = max(0, days − 수동휴일 − 공휴일 − 휴가)
+ *   weekly_effective = daily × work_days × rate   (곱을 한 번만 반올림 — weeklyHours 와 같은 순서)
+ * 휴일·휴가가 0 이면 work_days = days − holidays → weekly_effective === weekly (불변 조건).
  */
 async function getMemberCapacityForWeek(userId, businessId, weekStartYmd) {
   const cap = await getMemberCapacity(userId, businessId);
-  if (!weekStartYmd) return { ...cap, leave_days: 0, leave_deduction: 0, weekly_effective: cap.weekly };
-  const leaveDays = await getLeaveDaysInRange(userId, businessId, weekStartYmd, addDays(weekStartYmd, 6));
-  const deduction = Math.round(cap.daily * cap.rate * leaveDays * 10) / 10;
-  const weekly_effective = Math.max(0, Math.round((cap.weekly - deduction) * 10) / 10);
-  return { ...cap, leave_days: leaveDays, leave_deduction: deduction, weekly_effective };
+  const base = Math.max(0, cap.days - cap.holidays);
+  if (!weekStartYmd) {
+    return {
+      ...cap, leave_days: 0, leave_deduction: 0, holiday_days: 0, holiday_list: [], holiday_deduction: 0,
+      work_days: base, work_weekdays: [1, 2, 3, 4, 5], weekly_effective: cap.weekly,
+    };
+  }
+  const d = await getDeductionsInRange(userId, businessId, weekStartYmd, addDays(weekStartYmd, 6));
+  const holidayDays = Math.min(d.holiday_days, base);
+  const leaveDays = Math.min(d.leave_days, base - holidayDays);
+  const workDays = Math.max(0, Math.round((base - holidayDays - leaveDays) * 10) / 10);
+  const r1 = (n) => Math.round(n * 10) / 10;
+  return {
+    ...cap,
+    leave_days: leaveDays, leave_deduction: r1(cap.daily * cap.rate * leaveDays),
+    holiday_days: holidayDays, holiday_list: d.holiday_list, holiday_deduction: r1(cap.daily * cap.rate * holidayDays),
+    work_days: workDays, work_weekdays: d.work_weekdays,
+    weekly_effective: weeklyHours({ daily: cap.daily, days: workDays, rate: cap.rate, holidays: 0 }),
+  };
 }
 
-/** 기간 가용시간에서 휴가를 뺀 값 — 월간·보고서용. 0 아래로는 내려가지 않는다. */
-async function periodHoursWithLeave(userId, businessId, weekly, daily, rate, startYmd, endYmd) {
-  const base = periodHours(weekly, startYmd, endYmd);
-  const leaveDays = await getLeaveDaysInRange(userId, businessId, startYmd, endYmd);
-  if (!leaveDays) return base;
-  const deduction = (Number(daily) || 0) * (Number(rate) || 0) * leaveDays;
+/** 기간 가용시간에서 공휴일·휴가를 뺀 값 — 월간·단위 보고서용. 0 아래로는 내려가지 않는다.
+ *  (#424 전 이름 periodHoursWithLeave — 휴일까지 빼게 되어 이름을 넓혔다. 이름이 동작보다 좁으면 다음 사람이 속는다.) */
+async function periodHoursEffective(userId, businessId, cap, startYmd, endYmd) {
+  const base = periodHours(cap.weekly, startYmd, endYmd);
+  const d = await getDeductionsInRange(userId, businessId, startYmd, endYmd);
+  const days = d.holiday_days + d.leave_days;
+  if (!days) return base;
+  const deduction = (Number(cap.daily) || 0) * (Number(cap.rate) || 0) * days;
   return Math.max(0, Math.round((base - deduction) * 10) / 10);
 }
 
 module.exports = {
   getMemberCapacity, weeklyHours, periodHours,
-  getLeaveDaysInRange, getMemberCapacityForWeek, periodHoursWithLeave,
+  getDeductionsInRange, getLeaveDaysInRange, getMemberCapacityForWeek, periodHoursEffective,
 };

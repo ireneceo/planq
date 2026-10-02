@@ -10,6 +10,7 @@ import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/Auto
 import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
 import { useAuth } from '../../contexts/AuthContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
+import CapacityWorkdays, { type CapacityInfo } from '../../components/QTask/CapacityWorkdays';
 import { apiFetch } from '../../contexts/AuthContext';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PanelLayout, Panel } from '../../components/Layout/PanelLayout';
@@ -276,7 +277,7 @@ const QTaskPage:React.FC=()=>{
   const[assigneeFilter,setAssigneeFilter]=useState<number|null>(null); // workspace mode 담당자 필터
   // ★ "못 불러옴" 과 "업무 없음" 은 다른 상태다(500 재현으로 실측 — 오류인데 빈 상태가 떴다).
   const[loadError,setLoadError]=useState(false);
-  const[capacity,setCapacity]=useState<{daily:number;days:number;rate:number;weekly:number}>({daily:8,days:5,rate:1,weekly:40});
+  const[capacity,setCapacity]=useState<CapacityInfo>({daily:8,days:5,rate:1,weekly:40});
   const[issues,setIssues]=useState<IssueRow[]>([]);
   const[notes,setNotes]=useState<NoteRow[]>([]);
   const[loading,setLoading]=useState(()=>!hasCache(cacheKey('qtask',myId,bizId)));
@@ -631,6 +632,27 @@ const QTaskPage:React.FC=()=>{
 
   useEffect(()=>{load();},[load]);
 
+  // 가용시간 — 서버 정본(/api/tasks/my-week capacity). 근무일·공휴일·휴가 차감은 서버가 센다(#424).
+  // ★ capacity 가 없으면 **넣지 않는다** — undefined 가 상태에 들어가면 화면 전체가 죽었다.
+  const refreshCapacity=useCallback(async()=>{
+    if(!bizId)return;
+    const wr=await(await apiFetch(`/api/tasks/my-week?business_id=${bizId}`)).json().catch(()=>null);
+    if(wr?.success&&wr.data?.capacity){
+      setCapacity(wr.data.capacity);
+      // 운영 #50 — 수동 휴일도 백엔드에서 복원 (페이지 이탈 후 0 리셋 버그 fix)
+      if(typeof wr.data.capacity?.holidays==='number')setHolidayDays(wr.data.capacity.holidays);
+    }
+  },[bizId]);
+  // 휴일 설정·휴가 승인이 바뀌면 근무일이 바뀐다 — 새로고침 없이 반영(CLAUDE.md §16).
+  useEffect(()=>{
+    if(!bizId)return;
+    let timer:number|null=null;
+    const debounced=()=>{ if(timer)window.clearTimeout(timer); timer=window.setTimeout(()=>{void refreshCapacity();},250); };
+    const offH=onSocket('holiday:updated',debounced);
+    const offL=onSocket('leave:updated',debounced);
+    return()=>{ if(timer)window.clearTimeout(timer); offH(); offL(); };
+  },[bizId,refreshCapacity]);
+
   // 2단계: 탭별 lazy 로드 (한 번만)
   const loadedExtrasRef=useRef<{insights?:boolean;requested?:boolean;all?:boolean}>({});
   // scope 바뀌면 insights 재로드 (mine ↔ workspace 프로젝트 범위 다름)
@@ -643,16 +665,7 @@ const QTaskPage:React.FC=()=>{
       ran.insights=true;
       (async()=>{
         try{
-          const wr=await(await apiFetch(`/api/tasks/my-week?business_id=${bizId}`)).json();
-          // ★ capacity 가 없으면 **넣지 않는다**. 여태는 그대로 넣어서 undefined 가 상태에 들어가고
-          //   effectiveCapacity 의 `capacity.daily` 에서 Q Task 화면 전체가 죽었다(React 오류 화면).
-          //   바로 아랫줄은 `?.` 로 방어하고 있는데 이 줄만 빠져 있었다.
-          //   ※ 계산식·기본값은 건드리지 않는다 — 가용시간은 동결 영역이다.
-          if(wr.success&&wr.data?.capacity){
-            setCapacity(wr.data.capacity);
-            // 운영 #50 — 이번 주 휴일도 백엔드에서 복원 (페이지 이탈 후 0 리셋 버그 fix)
-            if(typeof wr.data.capacity?.holidays==='number')setHolidayDays(wr.data.capacity.holidays);
-          }
+          await refreshCapacity();
         }catch{/* ignore */}
         // WORK_FLOW §6 (U5) — 실측 참여율 제안 (서버가 커버리지 충분할 때만 suggested_rate 반환)
         try{
@@ -743,9 +756,10 @@ const QTaskPage:React.FC=()=>{
   // task:new/updated/deleted 는 영구 손실되므로 load() 로 보정
   useVisibilityRefresh(useCallback(() => {
     load();
+    void refreshCapacity();
     const s = getSocket();
     if (s && !s.connected) s.connect();
-  }, [load]));
+  }, [load, refreshCapacity]));
 
   // Esc 키로 드로어 닫기 (상세 + 업무 추가)
   useEffect(() => {
@@ -1371,7 +1385,11 @@ const QTaskPage:React.FC=()=>{
     return m;
   },[allTasks,myId,scope]);
 
-  const effectiveCapacity=Math.round(capacity.daily*(capacity.days-holidayDays)*capacity.rate*10)/10;
+  // #424 — 근무일은 **서버가 센다**(work_days = 업무일수 − 수동휴일 − 공휴일 − 휴가). 화면은 곱하기만 한다.
+  //   전에는 `days − 휴일칸` 을 여기서 다시 계산해 서버가 빼던 휴가가 화면에 안 나왔다.
+  //   공휴일·휴가가 0 이면 work_days = days − holidays 라 종전 값과 같다.
+  const workDays=capacity.work_days??Math.max(0,capacity.days-holidayDays);
+  const effectiveCapacity=Math.round(capacity.daily*workDays*capacity.rate*10)/10;
 
   // WORK_FLOW §6 — 잔여(remaining) 기반 부하 + 이월(carried) 도출.
   //  잔여 = 예측 × (1 − 진행률) — 거의 끝난 carried-over 업무가 가용을 거짓으로 잡아먹는 왜곡 제거.
@@ -1434,9 +1452,11 @@ const QTaskPage:React.FC=()=>{
   //     ②화면은 **즉시** 바꾸고(낙관적), 저장이 실패하면 되돌린다. 자동저장 규약(성공 토스트 금지)과 정합.
   const applyCapacity=(field:string,value:number)=>{
     if(field==='daily_work_hours')setCapacity(prev=>({...prev,daily:value,weekly:Math.round(value*prev.days*prev.rate*10)/10}));
-    if(field==='weekly_work_days')setCapacity(prev=>({...prev,days:value,weekly:Math.round(prev.daily*value*prev.rate*10)/10}));
+    if(field==='weekly_work_days')setCapacity(prev=>({...prev,days:value,weekly:Math.round(prev.daily*value*prev.rate*10)/10,
+      ...(prev.work_days!=null?{work_days:Math.max(0,prev.work_days+(value-prev.days))}:{})}));   // 즉시 반영 — 저장 뒤 서버 값으로 맞춘다
     if(field==='participation_rate')setCapacity(prev=>({...prev,rate:value,weekly:Math.round(prev.daily*prev.days*value*10)/10}));
-    if(field==='weekly_holidays')setHolidayDays(value);
+    if(field==='weekly_holidays'){setHolidayDays(value);setCapacity(prev=>({...prev,holidays:value,
+      ...(prev.work_days!=null?{work_days:Math.max(0,prev.work_days+((prev.holidays||0)-value))}:{})}));}
   };
   // ★ 2026-09-09 — 저장 표시를 붙인다(Irene 확인: "계산 건드리는 거 아니면 더 좋은 거면 해").
   //   계산식·집합·라벨·축은 **한 글자도 안 건드린다**(memory feedback_capacity_graph_frozen).
@@ -1447,7 +1467,6 @@ const QTaskPage:React.FC=()=>{
   const capSaveRefs = {
     daily: useRef<AutoSaveHandle>(null),
     days: useRef<AutoSaveHandle>(null),
-    hol: useRef<AutoSaveHandle>(null),
     rate: useRef<AutoSaveHandle>(null),
   };
   const pendingCapRef = useRef<{ field: string; value: number } | null>(null);
@@ -1470,6 +1489,7 @@ const QTaskPage:React.FC=()=>{
       // ★ apiFetch 는 throw 하지 않는다 — res.ok 를 봐야 실패를 안다(memory: apifetch_no_throw).
       if(!r.ok){ setCapacity(prevCap); setHolidayDays(prevHol); throw new Error('save_failed'); }
     }catch(e){ setCapacity(prevCap); setHolidayDays(prevHol); throw e; }
+    void refreshCapacity();   // #424 — 클램프(근무일 0 아래)까지 서버 값으로 맞춘다
   };
   // 래퍼가 부른다 — 마지막으로 blur 된 칸의 값을 보낸다(한 번에 한 칸만 편집된다).
   const persistCapacity=async()=>{
@@ -1626,8 +1646,11 @@ const QTaskPage:React.FC=()=>{
     const ac=today.actual_cumulative??0;
     if(ev<=0&&ac<=0) return null; // 아직 시작 전 — 칩 숨김
     let elapsedBiz=0;
-    for(const p of pts){const[y,m,d]=p.date.split('-').map(Number);const wd=new Date(Date.UTC(y,m-1,d)).getUTCDay();if(wd>=1&&wd<=5)elapsedBiz++;}
-    const totalBiz=Math.max(1,(capacity.days||5)-holidayDays);
+    // #424 — 근무 요일·휴일은 서버 달력을 따른다(월~금 고정 · 휴일 무시였다).
+    const wds=new Set(capacity.work_weekdays||[1,2,3,4,5]);
+    const offDates=new Set((capacity.holiday_list||[]).map(h=>h.date));
+    for(const p of pts){const[y,m,d]=p.date.split('-').map(Number);const wd=new Date(Date.UTC(y,m-1,d)).getUTCDay();if(wds.has(wd)&&!offDates.has(p.date))elapsedBiz++;}
+    const totalBiz=Math.max(1,workDays);
     const weekProgress=elapsedBiz/totalBiz;
     const pv=weekTotalEst*Math.min(1,weekProgress);
     const spi=ev/Math.max(pv,0.1);
@@ -1645,7 +1668,7 @@ const QTaskPage:React.FC=()=>{
     else if(spi>1.15){ key='ahead'; tone='good'; }
     else { key='onTrack'; tone='good'; }
     return { key, tone, ev:Math.round(ev*10)/10, ac:Math.round(ac*10)/10 };
-  },[computedBurndown,weekTotalEst,capacity.days,holidayDays]);
+  },[computedBurndown,weekTotalEst,workDays,capacity.work_weekdays,capacity.holiday_list]);
 
   if(!bizId)return<EmptyFull>No workspace</EmptyFull>;
   // 로딩 중에 영어 "Loading..." 한 줄만 띄우던 자리. 목록 화면이므로 목록 모양으로 기다린다 —
@@ -2763,15 +2786,6 @@ const QTaskPage:React.FC=()=>{
                         onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
                       </AutoSaveField>
                     </CapSettingsField>
-                    <CapSettingsField>
-                      <CapFieldLabel>{t('capacity.holidays','휴일')}</CapFieldLabel>
-                      <AutoSaveField ref={capSaveRefs.hol} type="select" debounceMs={0} onSave={persistCapacity}>
-                      <CapFieldInput key={`hol-${holidayDays}`} data-testid="capacity-holidays" type="number" step="1" min="0" max="5" defaultValue={holidayDays}
-                        onBlur={e=>{const v=Math.max(0,Number(e.target.value)||0);
-                          if(v===holidayDays)return; stageCapacity('weekly_holidays',v,capSaveRefs.hol);}}
-                        onKeyDown={e=>{if(isEnterAction(e))(e.target as HTMLInputElement).blur();}} />
-                      </AutoSaveField>
-                    </CapSettingsField>
                     {/* 실작업률 — 근무시간 중 회의·잡무 제외하고 실제 업무에 쓰는 비율(%). 백엔드 participation_rate(0~1). */}
                     <CapSettingsField>
                       <CapFieldLabel title={t('capacity.participationHint','회의·잡무를 뺀, 근무시간 중 실제 업무에 쓰는 비율. 예: 회의가 많으면 85') as string}>{t('capacity.participation','실작업률 %')}</CapFieldLabel>
@@ -2790,12 +2804,15 @@ const QTaskPage:React.FC=()=>{
                   <CapFormulaHint>
                     {t('capacity.formula', {
                       daily: formatHours(capacity.daily||8),
-                      days: Math.max(0,(capacity.days||5)-holidayDays),
+                      days: workDays,
                       rate: Math.round((capacity.rate||1)*100),
                       total: formatHours(effectiveCapacity),
                       defaultValue: '{{daily}}h × {{days}}일 × {{rate}}% = 주 {{total}}h',
                     })}
                   </CapFormulaHint>
+                  <CapacityWorkdays capacity={capacity}
+                    canManageHolidays={user?.business_role==='owner'||user?.business_role==='admin'||user?.platform_role==='platform_admin'}
+                    onClearManual={()=>saveCapacity('weekly_holidays',0)} />
                   {rateSuggestion && (
                     <CapSuggest title={t('capacity.suggestHint', { focus: formatHours(rateSuggestion.focusHours), weeks: rateSuggestion.weeks, defaultValue: '최근 {{weeks}}주 포커스 실측 {{focus}}h 기준. 포커스를 주 업무 추적에 쓸 때 정확합니다.' }) as string}>
                       {t('capacity.suggest', { weeks: rateSuggestion.weeks, pct: rateSuggestion.percent, defaultValue: '최근 {{weeks}}주 실측 {{pct}}%' })}

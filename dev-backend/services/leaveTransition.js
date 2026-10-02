@@ -41,8 +41,17 @@ async function computeDaysCharged(req_, businessId, userId) {
     const daily = Number(bm?.daily_work_hours) || 8;
     return Math.round((Number(req_.hours || 0) / daily) * 10) / 10;
   }
-  // full_day — 기간의 날짜 수를 그대로 센다. 요일제 근무 캘린더는 이 시스템에 없다(설계 §7.1 한계 명시).
-  return daysBetween(req_.start_date, req_.end_date);
+  // full_day — #424(Irene 결정 2026-10-02): **근무일만** 센다(근무 요일 ∧ 워크스페이스 휴일 아님).
+  //   금~월 휴가는 4일이 아니라 2일이다. 달력은 가용시간과 같은 한 벌(services/workspaceHolidays).
+  //   ★ 이미 승인된 건은 days_charged 가 박제라 바뀌지 않는다 — 이 규칙은 앞으로의 승인·대기 추정에만 쓰인다.
+  return countLeaveWorkdays(businessId, req_.start_date, req_.end_date);
+}
+
+async function countLeaveWorkdays(businessId, startYmd, endYmd) {
+  const { getWorkCalendar, countWorkdays } = require('./workspaceHolidays');
+  const s = ymd(startYmd); const e = ymd(endYmd);
+  const cal = await getWorkCalendar(businessId, s, e);
+  return countWorkdays(s, e, cal);
 }
 
 /** 휴가 종류 — 부여·신청·잔여가 모두 이 축으로 갈린다.
@@ -208,6 +217,8 @@ async function createRequest({ businessId, userId, payload, actorUserId }) {
   if (daysBetween(start, end) < 1) throw new LeaveError('invalid_range');
   if (unit === 'half_day' && !['am', 'pm'].includes(payload.half_kind)) throw new LeaveError('half_kind_required');
   if (unit === 'hours' && !(Number(payload.hours) > 0)) throw new LeaveError('hours_required');
+  // #424 — 근무일이 하루도 없는 기간(주말·공휴일만)은 쉴 날이 없다. 0일짜리 승인 대기를 만들지 않는다.
+  if (await countLeaveWorkdays(businessId, start, end) < 1) throw new LeaveError('no_workdays_in_range');
 
   const overlap = await LeaveRequest.findOne({
     where: {
