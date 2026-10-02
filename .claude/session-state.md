@@ -8,11 +8,11 @@
 - v1.68.0 배포 · 릴리즈노트 발행 · 운영 신고 #424·442·443·445·446·447·448·451·452 답글 + done
 
 ### 다음 할 일
-1. #444 운영 기존 4업무 5개 첨부 백필 — Irene 승인 후
-2. #449·#450 Q sales 판정 — 설계(S=1)
-3. Codemagic `ios-testflight`(1.0.1) 실행
-4. 검사기 bodygutter `/me/feedback` 빈 화면 오판 수리
-5. 후속: 2027 노동절 대체공휴일(관보 확정 후) · 캘린더 휴일 표시 · Insights 가동률 분모 휴일 반영
+1. ~~#444 백필~~ ✅ 운영 적용 완료(att 29·32·33·37·40, 기록 /opt/planq/backups/backfill-444-2026-10-02T11-23-34-401Z.json) · #444 답글·done
+2. #449·#450 Q sales 판정 — Fable 설계 진행 중 → `docs/SALES_INTAKE_DESIGN.md` → Irene 결정 후 구현
+3. Codemagic `ios-testflight`(1.0.1) — GitHub 푸시 완료, **Irene 이 Codemagic 에서 Start new build**(API 토큰 없음)
+4. ~~bodygutter 오판~~ ✅ `4c316b4b`
+5. 후속: 2027 노동절 대체공휴일(관보 확정 후) · 캘린더 휴일 표시 · Insights 가동률 분모 휴일 반영 · 메일 «답변 필요» 오판(약관·항공사 안내)
 6. 남은 운영 대형 신고: #381·382·411·412·417·418·419·426·434②·439·440
 
 ---
