@@ -1,0 +1,26 @@
+{
+  "version": "1.69.0",
+  "date": "2026-10-02",
+  "items": [
+    {
+      "ko": { "title": "Q sales 상담 유입을 수동·자동 중에서 고릅니다 (기본: 수동)", "body": "설정 › 권한 › 상담 유입에서 정합니다. 수동이면 메일·채팅에서 [상담으로 보내기] 한 것만 상담에 들어오고, 자동 기준에 맞는 메일은 Q mail 에 「문의 후보」로 표시되어 «문의 후보만» 으로 모아 볼 수 있습니다. 채팅·게스트 문의는 설정과 관계없이 들어옵니다." },
+      "en": { "title": "Choose manual or automatic Sales intake (default: manual)", "body": "Set it in Settings › Permissions › Sales intake. In manual mode only what you send with [Send to Sales] from mail or chat enters Sales; emails that match the automatic rule are tagged \"Possible lead\" in Q mail and can be filtered. Chat and guest inquiries come in either way." }
+    },
+    {
+      "ko": { "title": "상담이 왜 여기 있는지 보입니다", "body": "상담 행마다 「직접 올림」·「답장함 · 상대 차례」·「개인 주소」·「웹폼」 표시가 붙습니다. 답장한 메일은 메일함에서는 상대 차례라 답변 필요에서 빠지지만, 상담에는 남는 이유가 여기 있습니다." },
+      "en": { "title": "See why an inquiry is in Sales", "body": "Each row now shows \"Sent manually\", \"You replied · their turn\", \"Personal address\" or \"Web form\" — e.g. a mail you replied to leaves Needs reply in Q mail but stays in Sales." }
+    },
+    {
+      "ko": { "title": "[상담으로 보내기]가 확실히 동작합니다", "body": "보내지 못하면 그 자리에 이유가 보이고, 올린 메일은 자동 분류가 바뀌어도 사라지지 않습니다. 올린 채팅은 다시 뺄 수 있고, 웹폼으로 들어온 문의는 발송 주소로 고객이 만들어지지 않게 막았습니다." },
+      "en": { "title": "[Send to Sales] is more reliable", "body": "If it fails you see why, sent mail no longer disappears when auto-sorting changes, sent chats can be removed again, and web-form inquiries are no longer registered under the form's no-reply address." }
+    },
+    {
+      "ko": { "title": "답변 필요에 공지·약관 메일이 덜 올라옵니다", "body": "회사 대표 주소(안내·약관·마일리지·명세서 등)에서 온 메일은 물음표가 있어도 «답변 필요» 대신 «확인 권장» 으로 갑니다. 아는 상대와 개인 주소의 메일은 그대로입니다." },
+      "en": { "title": "Fewer notices in Needs reply", "body": "Mail from company role addresses (notices, terms, mileage, statements) now goes to Review instead of Needs reply even with a question mark. Mail from known contacts and personal addresses is unchanged." }
+    },
+    {
+      "ko": { "title": "「베타」 표시", "body": "다듬는 중인 메뉴(Q sales)에 「베타」 표시와 피드백 보내기 안내를 붙였습니다." },
+      "en": { "title": "Beta label", "body": "Menus still being refined (Q sales) now show a \"Beta\" label with a quick way to send feedback." }
+    }
+  ]
+}

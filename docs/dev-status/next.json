@@ -1,66 +1,53 @@
 {
   "working_on": [
-    "v1.68.0 — #424 근무일·휴일 통합 · 운영 신고 10/2 묶음(#442~452) · 공용 첨부 목록 · 묶음 다운로드 권한 구멍"
+    "v1.69.0 — #449·#450 Q sales 상담 유입 수동/자동 · 이유 칩 · 상담으로 보내기 수리 · 메일 답변필요 개인 주소 · 베타 표시"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "#424 근무일·휴일 통합 — 국가 공휴일·직접 휴일·가용시간·보고서·휴가 근무일 차감·예약 휴일 제외",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "#424 후속 — 국가 껐다 켜도 꺼 둔 휴일 유지 · admin 역할 라벨",
+      "title": "Q sales 유입 모드(기본 수동)·문의 후보·이유 칩·막다른 길 D1~D6",
       "verified": "opus_only"
     },
     {
-      "title": "admin 역할 — 설정 화면 접근·근태 관리·활동 기록 메뉴(데스크탑 보조 패널 포함)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "#444 업무 추가 첨부 → 업무 첨부 라우트(담당자 404 해소, 신규분)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "/bulk-download 항목별 읽기 술어(남의 L1·대화방 zip 차단) · Drive 포함 · 깨진 스트림 hang",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "공용 첨부 목록(AttachmentList) · 채팅/메일 전체 다운로드 · 이미지 보기 Esc",
+      "title": "메일 답변필요 ④ 개인 주소 조건(운영 시뮬 8건 확인권장 이동, 진짜 문의 0)",
       "verified": "opus_only"
     },
     {
-      "title": "운영 신고 #442·443·445·446·447·448·451·452 화면 수리",
+      "title": "베타 표시(Q sales)",
+      "verified": "opus_only"
+    },
+    {
+      "title": "#444 운영 첨부 백필(5개)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "bodygutter 검사기 오판 수리",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "Q task 「이번 주 휴일」 수동 입력칸 삭제 — 옛 수동값은 칩으로 보이고 ✕ 로 지운다",
-    "종일 휴가 차감일이 근무일 기준(앞으로 승인분만). 근무일 0 인 신청은 400 no_workdays_in_range",
-    "국가 공휴일을 켠 워크스페이스는 가용시간·보고서·예약 슬롯이 공휴일만큼 줄어든다(기본 꺼짐 — 켜기 전 수치 불변)",
-    "admin 역할이 멤버 화면·설정에 들어간다(전에는 「접근 권한 없음」)"
+    "배포 즉시 모든 워크스페이스 상담 메일 유입이 «수동»(설정에서 자동으로 전환 가능) — 운영 biz 1 상담 메일 18건이 Q mail 「문의 후보」로 이동",
+    "역할·브랜드 주소 메일은 물음표가 있어도 답변 필요 대신 확인 권장(새로 들어오는 메일부터)"
   ],
-  "migrations": [
-    "migrate-workspace-holidays.js — businesses.holiday_country + workspace_holidays (멱등, 백필 없음, PM2 reload 전)"
-  ],
+  "migrations": [],
   "issues": [],
   "blocked_on_human": [
-    "#444 운영 기존 4업무 5개 첨부 백필 승인",
-    "#449·#450 Q sales 판정(설계 필요)",
-    "Codemagic ios-testflight 1.0.1 실행"
+    "Codemagic ios-testflight 1.0.1 Start new build",
+    "#450 기존 답변필요 8건 백필 — Fable 판정 후 실행"
   ],
   "check_areas": [
-    "설정 > 근태 관리 「휴일·근무일」 — 국가 켜기·끄기·직접 추가",
-    "Q task 우측 「이번 주 근무일」(폰·데스크탑)",
-    "근태 > 휴가 신청 «근무일 기준 N일» 안내",
-    "업무 상세 첨부 전체 다운로드"
+    "설정 › 권한 «상담 유입»",
+    "Q sales 상담 행 칩·안내 줄·베타 줄",
+    "Q mail ?inquiry=1 문의 후보",
+    "[상담으로 보내기] 실패 사유"
   ],
   "backlog": [
-    "2027 노동절 대체공휴일 — 관보 확정 뒤 데이터셋 추가",
-    "캘린더에 휴일 표시(Q3 후속)",
-    "Insights 가동률 분모(stats.js) 휴일 반영"
+    "상담 replied 주소 단위 승격 여부(측정 후)",
+    "웹폼 문의 본문 추출 프리필",
+    "탭 이름 베타 칩"
   ],
   "tooling_health": [
-    "guard 60/61 · health 48/48 · holidaycap 0 실패(3폭, 양성 대조 3 FAIL 확인) · bookingapi·leavelink 0 · Fable 44검사 결함 0"
+    "guard 60/61 · health 48/48 · saleintake 3폭 0 · salecriteria·inboxcount·maillabel 0 · dev HTTP 19/19"
   ],
   "undeployed": []
 }
