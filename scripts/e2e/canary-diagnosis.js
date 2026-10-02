@@ -80,6 +80,24 @@ async function run() {
         push(`${v.key} · 오류`, false, e.message.slice(0, 160));
       } finally { await page.close().catch(() => {}); await ctx.close().catch(() => {}); }
     }
+    // 로그인 데스크탑 — 끝 슬래시 주소(nginx 301 결과)로 열어도 워크스페이스 셸이 아니라 진단 화면이어야 한다
+    //   (2026-10-02 Fable: 비로그인만 재서 놓쳤다. 셸로 뜨면 diagnosis-page 가 없다)
+    {
+      const ctx = await browser.createBrowserContext();
+      const page = await ctx.newPage();
+      try {
+        await page.setViewport(VPS[2].vp);
+        await b.login(page);
+        for (const path of ['/service/diagnosis/', '/service/']) {
+          await page.goto(`${b.BASE}${path}`, { waitUntil: 'domcontentloaded' });
+          const sel = path === '/service/' ? '[data-testid="service-diagnosis-link"]' : '[data-testid="diagnosis-page"]';
+          let v2 = null;
+          for (let i = 0; i < 14; i++) { await sleep(500); v2 = await visible(page, sel); if (v2.vis) break; }
+          push(`로그인 데스크탑 · ${path} 가 공개 화면(워크스페이스 셸 아님)`, !!v2?.vis, JSON.stringify(v2));
+        }
+      } catch (e) { push('로그인 데스크탑 오류', false, e.message.slice(0, 160)); }
+      finally { await page.close().catch(() => {}); await ctx.close().catch(() => {}); }
+    }
   } catch (e) {
     push('오류', false, e.message.slice(0, 200));
   } finally {

@@ -145,7 +145,8 @@ router.get('/admin', authenticateToken, requireRole('platform_admin'), async (re
       ],
       order: [['created_at', 'DESC']],
       limit: 200,
-      locale: inquiry.locale,   // 문의자 언어로 회신 (ko/en)
+      // ★ 2026-10-02 — 여기 `locale: inquiry.locale` 이 잘못 붙어 있어(없는 변수) 이 목록이 **2026-08-25 부터 늘 500** 이었다.
+      //   언어는 행의 locale 컬럼에 이미 있다(회신 메일이 읽는다). 조회 옵션에 둘 것이 아니다.
     });
     return successResponse(res, items.map(i => i.toJSON()));
   } catch (err) { next(err); }

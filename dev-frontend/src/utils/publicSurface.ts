@@ -26,10 +26,14 @@ const EXACT = ['/', '/features', '/pricing', '/insights', '/blog', '/about', '/c
 const PREFIX = ['/insights/', '/blog/', '/guide/', '/wiki/', '/g/'];
 
 export function isPublicSurfacePath(pathname: string): boolean {
-  if (EXACT.includes(pathname)) return true;
+  // ★ 끝 슬래시를 벗겨 비교한다(2026-10-02 Fable 실측). 공개 페이지는 SEO 생성 디렉터리라 nginx 가
+  //   `/service/diagnosis` → 301 `/service/diagnosis/` 로 보낸다. 그대로 비교하면 EXACT 에 걸리지 않아
+  //   로그인 데스크탑에서 `/about/`·`/pricing/`·`/service/` 까지 워크스페이스 셸로 떴다(PREFIX 인 /insights/ 만 멀쩡했다).
+  const p = pathname.replace(/\/+$/, '') || '/';
+  if (EXACT.includes(p)) return true;
   // '/guide' 자체(목록) + '/guide/a/:slug'. pathname 에는 query 가 없으므로
   // '/guide?category=' 는 '/guide' 로 들어온다. '/guidebook' 같은 오탐은 prefix 에 '/' 를 붙여 차단.
-  if (pathname === '/guide') return true;
-  if (pathname === '/wiki') return true;   // 옛 주소 — 위 주석
+  if (p === '/guide') return true;
+  if (p === '/wiki') return true;   // 옛 주소 — 위 주석
   return PREFIX.some((p) => pathname.startsWith(p));
 }
