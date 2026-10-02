@@ -1,6 +1,6 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-02 밤 ([Opus] Opus 5.5) — **v1.70.0 운영 배포** (#426 무료 자가진단 · #439 AI 에이전트 연동 M1(운영 꺼짐 — .env·nginx 대기) · 관리자 문의 인박스 500 · 공개 페이지 끝 슬래시 셸 · /about 첫 방문 크래시). Fable PASS 4라운드. 신고 #412·426 done, #439·440 reviewing. 앞서 v1.69.2.
+> **최종 업데이트:** 2026-10-02 밤 ([Opus] Opus 5.5) — **v1.70.0 + #439 M2 운영 배포**(backup 20261002_201605) · #426 자가진단 · #439 AI 에이전트 M1·M2(도구 17, 운영 꺼짐 — nginx·.env 대기) · #411·#382 · 흰 화면·/about·문의 인박스 수정. Fable PASS 6라운드.
 > ── 이전(2026-10-01 밤) ──
 > **v1.67.0 · v1.67.1 운영 배포** (Fable PASS, 확인필요 카드·필터 뒤로는 자체 검증). 메일 실시간 · 랜딩 포지셔닝 · 가입 출처 · 답장 발신 주소(Cc) · 탭 뒤로 가기 마무리 · 확인필요 카드 정돈 · 앱스토어 출시.
 > ── 이전(2026-09-29 밤) ──
@@ -16,6 +16,36 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 2026-10-02 밤 [Opus] — v1.69.1·v1.69.2·v1.70.0 + #439 M2 배포 · 흰 화면 · #411·#382·#426·#439
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 흰 화면 « 가 그린다. -->» | 홈 SEO 생성기가 index.html 주석 안 `<div id="root">` 에서 매칭 → 주석 꼬리·noscript 복제(운영 SPA 전 경로 root 3개) | ✅ v1.69.1 |
+| #411 일정 미팅자료 | 상세 붙이기·떼기 · «참석자에게 알릴까요?»(dry 대상) · 새 일정 선택칸 · 업로드 attach_for=event → L2/L3 | ✅ v1.69.2 · Fable PASS |
+| #382 상담 기록 → 업무 추출 | 공용 AI 업무 추가 창 + ai-create/confirm context.client_id | ✅ v1.69.2 · Fable PASS |
+| #426 무료 자가진단 | `/service/diagnosis` 12문항 · 서버 채점 · 규칙 기반 피드백 · claim 메일 1통 · 문의 인박스 «자가진단 리드»+통계 | ✅ v1.70.0 · Fable PASS(FAIL 2 수리) |
+| 관리자 문의 인박스 500 · 공개 페이지 끝 슬래시 셸 | `inquiry.locale` 없는 변수(08-25~) · publicSurface 끝 슬래시 정규화 | ✅ v1.70.0 · Fable PASS |
+| /about 첫 방문 크래시 | returnObjects 레이스 — 공용 `utils/i18nArray` · `--suite landingfirst` 대조군 4/4→0/4 | ✅ v1.70.0 · 자체 검증 |
+| #439 AI 에이전트 M1 | MCP + OAuth 2.1 AS · 도구 6 · `/connect/agent` · 연결된 AI 앱 · 가드 agentsurface | ✅ v1.70.0(운영 꺼짐) · Fable PASS 68검사 |
+| #439 M2-a·M2-b | 도구 17 · MEDIUM 확인 2단계 · PUT /tasks FIELD_RULES·담당자 후속을 task_actions 로 이동(A/B 56건 동일) | ✅ 배포(꺼짐) · Fable PASS |
+| 설계 | `docs/AI_AGENT_INTEGRATION_DESIGN.md`(Fable) · `docs/FREE_DIAGNOSIS_DESIGN.md` | ✅ |
+| 신고 | #381·382·411·412·417·418·419·426 done · #439·440 reviewing | ✅ |
+
+### 수정된 파일 (주요)
+- `dev-backend/services/agent/*` · `services/agent_oauth/*` · `mcp/server.js` · `routes/agent_oauth.js` · `models/Agent{Client,Grant}.js`
+- `dev-backend/services/actions/task_actions.js` · `routes/tasks.js`(PUT 위임) · `routes/calendar_materials.js` · `services/eventAttachments.js`
+- `dev-backend/routes/diagnosis.js` · `services/diagnosis.js` · `models/DiagnosisResponse.js` · `routes/inquiries.js` · `services/seoArtifacts.js`
+- `dev-frontend/src/pages/{Connect,Landing/DiagnosisPage,Profile/ConnectedAiAppsSection,QCalendar/EventMaterials}` · `utils/{publicSurface,i18nArray}.ts`
+- 스키마: `migrate-agent-oauth.js` · `migrate-diagnosis.js`(멱등, 배포 슬롯)
+
+### 남은 것
+- #439 켜기 — nginx `/agent/`·`/.well-known/oauth-` → 3005(dev·운영) + 운영 .env `AGENT_ENABLED`·`AGENT_TOKEN_SECRET` → 실 ChatGPT 4시나리오
+- #434② 네이티브 공유 · #426 문항 문구 검토
 
 ---
 

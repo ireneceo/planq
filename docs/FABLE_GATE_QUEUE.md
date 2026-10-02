@@ -5335,3 +5335,8 @@ noscript 가 진짜 root 앞에 통째로 복제됐다(운영 `/` · `/login` �
 ## 2026-10-02 · #426 · #439 Fable 판정 요약
 - #426 53183cb6: FAIL 2(관리자 문의 목록 500 — 8/25부터의 기존 결함 · 끝 슬래시로 로그인 데스크탑 공개 페이지가 셸) → 7bc02a34 수정 → **재검증 PASS**
 - #439 M1(미커밋 작업 트리): **PASS**(독립 68검사). 커밋은 자동 권한 검사가 «Permission Grant» 로 막아 Irene 허가 대기.
+
+## 2026-10-02 · 도움말 글 «일정 미팅자료» (seed-wiki-content.js) · [Opus] Fable 미검증(자체 검증)
+**판정**: R=0(도움말 텍스트 — 시드 재실행으로 되돌린다) · S=0 · F=1(wiki-coverage-check EXIT·시드 멱등) → 자체 검증.
+**자체 검증**: dev `node seed-wiki-content.js` 완료 · `scripts/wiki-coverage-check.js` EXIT 0(qcalendar 5/1) · 본문 ko/en 쌍 · 문구는 #411 실제 동작(알리기 선택·L2/L3·고객 앱 알림만)과 대조.
+**운영**: 다음 배포 뒤 `ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`.

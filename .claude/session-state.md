@@ -1,4 +1,40 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-10-02 밤(5) · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료 — **#439 M2 운영 배포 완료**(backup /opt/planq/backups/20261002_201605, v1.70.0 유지) · 미커밋 0 · Fable PASS(마커 4e7e761d)
+
+### 진행 중인 작업
+- 없음
+
+### 완료된 작업 (이번 세션 전체)
+- 폰 세션 끊김 확인(12:37 정상 종료) · 흰 화면 « 가 그린다. -->» 원인·수정(v1.69.1)
+- #411 일정 미팅자료 · #382 상담 기록 업무 추출(v1.69.2, Fable PASS)
+- #426 무료 자가진단 + Fable FAIL 2(관리자 문의 인박스 500 · 공개 페이지 끝 슬래시 셸) 수리 · /about 첫 방문 크래시(v1.70.0)
+- #439 AI 에이전트 연동 M1(MCP+OAuth 2.1·도구 6·동의 화면·연결된 AI 앱) · M2-a(조회·일정·MEDIUM 확인 2단계) · M2-b(담당자·필드 수정 — PUT /tasks FIELD_RULES·담당자 후속을 task_actions 로 이동, A/B 56건 동일). **운영은 꺼짐**
+- 신고: #381·382·411·412·417·418·419·426 done · #439·440 reviewing
+- 도움말 글 «일정 미팅자료» 추가(dev 시드 완료 · **운영 시드는 다음 배포 뒤** `ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`)
+
+### 다음 할 일
+1. **Irene: dev nginx** `location /agent/` · `location /.well-known/oauth-` → 127.0.0.1:3005 (dev.planq.kr, sudo) → 실 ChatGPT(Developer mode 커스텀 커넥터 `https://dev.planq.kr/agent/mcp`) 시나리오: 업무 찾기·생성·«두 번째에 메모»·마감 변경 확인
+2. 운영 켜기: 운영 .env `AGENT_ENABLED=1` · `AGENT_TOKEN_SECRET`(JWT_SECRET 과 다른 32자+) + 운영 nginx 같은 2경로 + `pm2 restart planq-prod-mcp`
+3. #439 M3: Claude 커넥터 실연결 · CIMD(SDK 업그레이드) · ChatGPT 디렉터리 제출 자료 · cue_tools 를 레지스트리 위로 · 감사 화면 «AI 경유» 필터·지표
+4. #426 문항 문구 Irene 검토 반영(docs/FREE_DIAGNOSIS_DESIGN.md 부록 A)
+5. #434② 네이티브 공유(iOS App Group 선행·안드로이드 실기기) · Codemagic ios-testflight 1.0.1
+6. 관찰: 관리자 문의 인박스 기존 문구 대부분 t() 기본값(ko 고정) · 새 담당자 알림 push tag 가 task:<업무id> 로 바뀜(의도)
+
+---
+
+## 복구 가이드
+
+```
+이전 세션 이어서 작업하고 싶어.
+/opt/planq/.claude/session-state.md 읽어줘.
+```
+
+---
+
+> ⚠️ 아래는 10-02 밤(4) 기록.
+
+## 현재 작업 상태
 **마지막 업데이트:** 2026-10-02 밤(4) · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료 — **v1.70.0 운영 배포 완료**(backup /opt/planq/backups/20261002_182040) · 미커밋 0 · Fable PASS(마커 f334c7d1)
 
