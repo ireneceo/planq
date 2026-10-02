@@ -1,0 +1,30 @@
+{
+  "version": "1.68.0",
+  "date": "2026-10-02",
+  "items": [
+    {
+      "ko": { "title": "휴일·근무일 — 공휴일과 휴가가 가용시간에 반영됩니다", "body": "설정 > 근태 관리에서 국가 공휴일(대한민국)을 켜고, 공휴일을 날짜별로 끄거나 창립기념일 같은 휴일을 직접 추가할 수 있습니다. 근무 요일에 걸린 휴일과 승인된 휴가만큼 Q task 「주간 가용시간」과 주간·월간 보고서의 가용시간이 줄어들고, Q task 에는 「이번 주 근무일」과 그 내역이 보입니다. 국가 공휴일을 켜면 올해 지난 주의 실시간 화면 숫자도 함께 바뀝니다(이미 확정한 보고서는 그대로)." },
+      "en": { "title": "Holidays & workdays — holidays and leave now reduce capacity", "body": "In Settings > Attendance you can turn on national holidays (South Korea), switch individual holidays off, or add your own (e.g. a founding day). Holidays on workdays and approved leave now reduce weekly capacity in Q task and in weekly/monthly reports, and Q task shows this week's workdays with a breakdown. Turning on national holidays also updates live figures for past weeks this year (finalized reports stay as they were)." }
+    },
+    {
+      "ko": { "title": "휴가는 근무일 기준으로 차감됩니다", "body": "종일 휴가는 쉬는 요일과 휴일을 빼고 셉니다(금~월 휴가 = 2일). 신청 화면이 «이번 신청은 근무일 기준 N일» 로 미리 보여주고, 근무일이 없는 기간은 신청할 수 없습니다. 이미 승인된 휴가는 바뀌지 않습니다. 기존 「이번 주 휴일」 직접 입력칸은 없어졌습니다." },
+      "en": { "title": "Leave is counted in workdays", "body": "Full-day leave now excludes days off and holidays (Fri–Mon = 2 days). The request form shows how many workdays it will use, and ranges with no workdays can't be requested. Leave that's already approved is unchanged. The manual \"holidays this week\" field has been removed." }
+    },
+    {
+      "ko": { "title": "공휴일에는 상담 예약을 받지 않습니다", "body": "고객 창구의 상담 예약 시간에서 워크스페이스 휴일이 빠집니다." },
+      "en": { "title": "No consultation bookings on holidays", "body": "Workspace holidays are removed from the consultation booking slots offered to clients." }
+    },
+    {
+      "ko": { "title": "업무·채팅·메일 첨부 — 내려받기가 쉬워졌습니다", "body": "첨부 목록 어디서나 이미지는 눌러서 크게 보고, 행마다 내려받기 버튼이 있으며, 둘 이상이면 「전체 다운로드」로 한 번에 받을 수 있습니다. 이미지 보기를 닫아도 뒤의 패널이 닫히지 않습니다." },
+      "en": { "title": "Attachments are easier to download", "body": "In tasks, chat and mail, images open in a viewer, every row has a download button, and \"Download all\" grabs everything at once. Closing the image viewer no longer closes the panel behind it." }
+    },
+    {
+      "ko": { "title": "모바일 화면 다듬기", "body": "Q sales 필터가 한 줄로 접히고, 우측 패널 여백이 페이지와 같아졌으며, Q talk 작업대가 헤더 아래에 제대로 열립니다. 답장 화면의 보낸 주소 줄, 별칭 서명 표시와 수정도 고쳤습니다." },
+      "en": { "title": "Mobile polish", "body": "Q sales filters collapse into one row, side-panel margins match the page, and the Q talk workbench opens below the header. The reply sender line and alias signature badge/editing were also fixed." }
+    },
+    {
+      "ko": { "title": "워크스페이스 관리자 역할", "body": "관리자(admin) 역할 멤버도 설정 화면과 근태 관리·활동 기록에 들어갈 수 있습니다." },
+      "en": { "title": "Workspace admin role", "body": "Members with the admin role can now open settings, attendance management and the activity log." }
+    }
+  ]
+}

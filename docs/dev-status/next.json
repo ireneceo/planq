@@ -1,44 +1,66 @@
 {
   "working_on": [
-    "v1.67.1 — 확인필요 카드 정돈 · 답장 발신 주소(Cc) · 탭 모드 뒤로 가기 마무리 · 관리자 사용자 수 술어 · 옛 문구 정리"
+    "v1.68.0 — #424 근무일·휴일 통합 · 운영 신고 10/2 묶음(#442~452) · 공용 첨부 목록 · 묶음 다운로드 권한 구멍"
   ],
   "in_progress": [],
   "completed": [
-    { "title": "확인필요 카드 — 윗줄 할 일·마감·시각·사람 / 둘째 줄 제목(2줄) · 워크스페이스 칩 제거", "verified": "opus_only" },
-    { "title": "답장 발신 주소 — To→Cc 순서로 처음 나오는 우리 주소(Cc 별칭 지원) · 발송·미리보기·화면 한 함수", "verified": "fable_pass" },
-    { "title": "답장 «보내는 사람» 안내 — 미등록 주소면 «등록하면 그 주소에서 발송»", "verified": "fable_pass" },
-    { "title": "탭 모드 뒤로 가기 — 탭 왕복 뒤 닫기·갈아타기 재열림 없음", "verified": "fable_pass" },
-    { "title": "탭 모드 — 필터 바꾼 뒤 연 업무 뒤로 = 필터 유지", "verified": "opus_only" },
-    { "title": "관리자 대시보드 사용자 수 = 사람 계정(게스트·Cue 제외)", "verified": "fable_pass" },
-    { "title": "로그인·가입·공개 페이지 옛 «수익성 엔진» 문구 → 새 포지셔닝(en 키 누락 해결)", "verified": "fable_pass" },
-    { "title": "Q file 프로젝트 폴더 업로드 즉시 트리 반영", "verified": "opus_only" }
+    {
+      "title": "#424 근무일·휴일 통합 — 국가 공휴일·직접 휴일·가용시간·보고서·휴가 근무일 차감·예약 휴일 제외",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "#424 후속 — 국가 껐다 켜도 꺼 둔 휴일 유지 · admin 역할 라벨",
+      "verified": "opus_only"
+    },
+    {
+      "title": "admin 역할 — 설정 화면 접근·근태 관리·활동 기록 메뉴(데스크탑 보조 패널 포함)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "#444 업무 추가 첨부 → 업무 첨부 라우트(담당자 404 해소, 신규분)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "/bulk-download 항목별 읽기 술어(남의 L1·대화방 zip 차단) · Drive 포함 · 깨진 스트림 hang",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "공용 첨부 목록(AttachmentList) · 채팅/메일 전체 다운로드 · 이미지 보기 Esc",
+      "verified": "opus_only"
+    },
+    {
+      "title": "운영 신고 #442·443·445·446·447·448·451·452 화면 수리",
+      "verified": "opus_only"
+    }
   ],
   "behavior_changes": [
-    "확인필요 카드에서 워크스페이스 이름이 사라지고 제목이 둘째 줄로 내려갔다",
-    "참조(Cc)로 받은 별칭이 있으면 답장이 그 별칭으로 나간다(To 에 우리 주소가 있으면 그쪽이 우선)",
-    "관리자 대시보드 «사용자» 숫자가 사람 계정만 센다(이전 234 → 약 64)"
+    "Q task 「이번 주 휴일」 수동 입력칸 삭제 — 옛 수동값은 칩으로 보이고 ✕ 로 지운다",
+    "종일 휴가 차감일이 근무일 기준(앞으로 승인분만). 근무일 0 인 신청은 400 no_workdays_in_range",
+    "국가 공휴일을 켠 워크스페이스는 가용시간·보고서·예약 슬롯이 공휴일만큼 줄어든다(기본 꺼짐 — 켜기 전 수치 불변)",
+    "admin 역할이 멤버 화면·설정에 들어간다(전에는 「접근 권한 없음」)"
   ],
-  "migrations": [],
+  "migrations": [
+    "migrate-workspace-holidays.js — businesses.holiday_country + workspace_holidays (멱등, 백필 없음, PM2 reload 전)"
+  ],
   "issues": [],
   "blocked_on_human": [
-    "앱스토어 이름 변경 심사 — 기존 빌드 16 선택 가능 여부 확인(불가 시 1.0.1 빌드 + 푸시)",
-    "@gitconsulting.group 등 받은 주소 별칭 등록",
-    "#429 답글",
-    "와디즈 상세페이지 수정 7건 전달"
+    "#444 운영 기존 4업무 5개 첨부 백필 승인",
+    "#449·#450 Q sales 판정(설계 필요)",
+    "Codemagic ios-testflight 1.0.1 실행"
   ],
   "check_areas": [
-    "폰 /inbox 카드 제목",
-    "Cc 로 받은 메일 답장 화면 «보내는 사람»",
-    "태블릿·데스크탑 Q task 필터 → 업무 → 뒤로",
-    "관리자 대시보드 사용자 수"
+    "설정 > 근태 관리 「휴일·근무일」 — 국가 켜기·끄기·직접 추가",
+    "Q task 우측 「이번 주 근무일」(폰·데스크탑)",
+    "근태 > 휴가 신청 «근무일 기준 N일» 안내",
+    "업무 상세 첨부 전체 다운로드"
   ],
   "backlog": [
-    "업종별 랜딩 페이지 2장(와이어부터)",
-    "#424 근무일수·휴일 통합(Fable 설계)",
-    "#434 ② 네이티브 공유"
+    "2027 노동절 대체공휴일 — 관보 확정 뒤 데이터셋 추가",
+    "캘린더에 휴일 표시(Q3 후속)",
+    "Insights 가동률 분모(stats.js) 휴일 반영"
   ],
   "tooling_health": [
-    "guard 60/61 · health 48/48 · mobilepanels 0 실패(①b~①f 3폭) · inboxcount 0 실패 · 답장 주소 6경우 + 양성 대조"
+    "guard 60/61 · health 48/48 · holidaycap 0 실패(3폭, 양성 대조 3 FAIL 확인) · bookingapi·leavelink 0 · Fable 44검사 결함 0"
   ],
   "undeployed": []
 }
