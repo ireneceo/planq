@@ -1,46 +1,53 @@
 {
   "working_on": [
-    "v1.69.2 — #411 일정 미팅자료 · #382 상담 기록 업무 추출"
+    "v1.70.0 — #426 무료 자가진단 · #439 AI 에이전트 연동 M1(운영은 키 없어 꺼진 채) · /about 첫 방문 크래시"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "#411 일정 미팅자료(붙이기·떼기·알릴까요·새 일정 선택·업로드 L2/L3)",
+      "title": "#426 무료 업무체계 자가진단(공개 /service/diagnosis · 관리자 리드·통계)",
       "verified": "fable_pass"
     },
     {
-      "title": "#382 상담 기록 → 업무 추출(고객 연결)",
+      "title": "관리자 문의 인박스 목록 500(2026-08-25~) · 끝 슬래시 공개 페이지 셸",
       "verified": "fable_pass"
     },
     {
-      "title": "#411 후속 — 편집 권한 admin 포함 · 알림 버튼 ko/en",
+      "title": "#439 AI 에이전트 연동 M1 — MCP + OAuth 2.1 · 도구 6 · 동의 화면 · 연결된 AI 앱",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "/about 첫 방문 크래시(returnObjects) — 공용 i18nArray",
       "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
-    "업로드에 attach_for=event 가 붙으면 L2(프로젝트)/L3(워크스페이스) — 일정 미팅자료로 올린 파일만",
-    "일정 상세 편집 권한이 화면에서도 admin 포함(서버와 같게)"
+    "/service·/about·/pricing 등 공개 페이지를 로그인 데스크탑에서 열면 워크스페이스 셸이 아니라 공개 화면",
+    "관리자 문의 인박스에 «자가진단 리드» 종류"
   ],
-  "migrations": [],
+  "migrations": [
+    "migrate-agent-oauth.js(agent_clients·agent_grants·ephemeral kind 4)",
+    "migrate-diagnosis.js(diagnosis_responses·contact_inquiries.kind diagnosis)"
+  ],
   "issues": [],
   "blocked_on_human": [
-    "#439·#440 AI 연동 설계 결정 10건",
-    "#426 자가진단 결정 4건",
-    "#418 Drive 양방향 동기화 여부",
+    "#439 운영 켜기: .env AGENT_ENABLED·AGENT_TOKEN_SECRET + nginx /agent/·/.well-known/oauth- → 3005",
+    "dev nginx 같은 2경로(실 ChatGPT 연결 확인)",
     "Codemagic ios-testflight 1.0.1"
   ],
   "check_areas": [
-    "캘린더 일정 상세 «미팅자료»",
-    "새 일정 창 미팅자료·알리기 선택",
-    "Q sales 상담 기록 [업무 추출]"
+    "/service/diagnosis 12문항·결과",
+    "관리자 › 문의 인박스 «자가진단 리드»",
+    "내 외부 연동 «연결된 AI 앱»",
+    "/about 첫 방문"
   ],
   "backlog": [
-    "#434② 네이티브 공유(iOS App Group 선행)",
-    "#426 자가진단 구현",
-    "#439 M1"
+    "#439 M2(담당자·마감 변경 MEDIUM 확인·나머지 도구·Cue 통합)",
+    "#434② 네이티브 공유",
+    "관리자 문의 인박스 기존 문구 i18n"
   ],
   "tooling_health": [
-    "Fable PASS 2회 · guard 60/61 · health 48/48 · eventmaterials·saleextract·tenant 0 실패"
+    "Fable PASS 4라운드 · guard 61/62 · health 48/48 · tenant·diagnosis·agentconsent·landingfirst 0 실패"
   ],
   "undeployed": []
 }
