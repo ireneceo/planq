@@ -10,6 +10,7 @@
 //   까지의 거리. 카드 안쪽 여백은 디자인이므로 카드 **테두리**가 제자리면 맞는 것이다(카드 안 글자는
 //   카드 상자보다 오른쪽이라 min 에 안 걸린다). 음수(탭바가 여백을 상쇄해 가장자리까지 뻗는 것)는 의도라
 //   실패로 보지 않는다 — 넓어진 것만 잡는다.
+// ★ 가운데 정렬된 블록·글자(좌우 빈 칸이 같다)는 여백으로 보지 않는다 — 빈 상태 안내가 그 모양이다.
 // ★ bodyPadding="0" 으로 여백을 자기가 책임지는 화면도 **같은 표준**으로 잰다(계약은 결과다).
 const b = require('./lib/browser');
 
@@ -57,13 +58,39 @@ const MEASURE = `() => {
     const boxy = (parseFloat(s.borderLeftWidth) > 0 && s.borderLeftStyle !== 'none')
       || (s.backgroundColor && s.backgroundColor !== 'rgba(0, 0, 0, 0)' && s.backgroundColor !== 'transparent')
       || el.tagName === 'IMG' || el.tagName === 'svg' || el.tagName === 'INPUT' || el.tagName === 'BUTTON';
-    let x = null;
-    if (boxy) x = r.left;
+    let x = null, xr = null;
+    if (boxy) { x = r.left; xr = r.right; }
     else {
       const t = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
-      if (t) { const rg = document.createRange(); rg.selectNodeContents(t); const rr = rg.getBoundingClientRect(); if (rr.width > 0) x = rr.left; }
+      if (t) { const rg = document.createRange(); rg.selectNodeContents(t); const rr = rg.getBoundingClientRect(); if (rr.width > 0) { x = rr.left; xr = rr.right; } }
     }
     if (x === null) continue;
+    // ★ **가운데 정렬된 것은 여백이 아니다** (2026-10-02 — /me/feedback 빈 상태가 폰 61·데스크탑 306 으로 오판됐다).
+    //   좌우 빈 칸이 같으면(±4) 일부러 가운데 둔 블록·글자다. 여백 결함은 **왼쪽만** 넓어진다.
+    // ★ 대칭만으로는 안 된다 — 이중 여백(좌우 padding 20 을 또 준 목록)도 대칭이다(양성 대조군이 그렇게 빠져나갔다).
+    //   **가운데 정렬을 선언한 조상**(text-align·justify-content·align-items center)이 가까이 있어야 한다.
+    const centerDeclared = (() => {
+      for (let n = el, d = 0; n && n !== body && d < 5; n = n.parentElement, d++) {
+        const cs = getComputedStyle(n);
+        if (cs.textAlign === 'center') return true;
+        const p = n.parentElement && getComputedStyle(n.parentElement);
+        if (p && /flex/.test(p.display)) {
+          const col = /column/.test(p.flexDirection);   // 가로 가운데 = 행이면 justify, 열이면 align
+          if ((!col && p.justifyContent === 'center') || (col && p.alignItems === 'center')) return true;
+        }
+        if (p && /grid/.test(p.display) && (p.justifyItems === 'center' || p.justifyContent === 'center')) return true;
+      }
+      return false;
+    })();
+    const centered = (L, R) => { const lg = L - br.left, rg2 = br.right - R; return centerDeclared && lg > 24 && Math.abs(lg - rg2) <= 4; };
+    if (centered(x, xr)) continue;
+    // 나란히 놓인 버튼 둘처럼 **묶음째** 가운데인 것 — 각자는 비대칭이지만 줄(형제들의 합)은 가운데다.
+    { let n = el, grouped = false;
+      for (let d = 0; d < 4 && n && n.parentElement && n !== body; d++, n = n.parentElement) {
+        const sib = [...n.parentElement.children].map((c) => c.getBoundingClientRect()).filter((q) => q.width >= 4 && q.height >= 4);
+        if (sib.length > 1 && centered(Math.min(...sib.map((q) => q.left)), Math.max(...sib.map((q) => q.right)))) { grouped = true; break; }
+      }
+      if (grouped) continue; }
     // 조상 클리핑으로 안 보이는 것 제외
     const hit = document.elementFromPoint(Math.max(0, Math.min(innerWidth - 1, x + 2)), Math.max(0, Math.min(innerHeight - 1, r.top + Math.min(r.height / 2, 10))));
     if (!hit || !(el.contains(hit) || hit.contains(el))) continue;
@@ -127,6 +154,23 @@ async function run() {
     P('양성 대조군 — 이중 여백을 되살리면 **잡는다**',
       !before.none && !after.none && before.gutter <= vp.std + TOL && after.gutter > vp.std + TOL,
       `전 ${before.gutter}px → 되살림 ${after.gutter}px (${vp.key})`);
+
+    // ★ 양성 대조군 2 — «가운데 정렬 제외» 가 진짜 여백 결함을 덮지 않는가.
+    //   빈 상태 화면의 가운데 정렬을 풀고 왼쪽 여백 60 을 주면 **잡아야** 한다.
+    await b.goto(page, '/me/feedback');
+    await b.sleep(1500); await b.dismissBlockers(page).catch(() => {});
+    const c0 = await page.evaluate((src) => eval(src)(), MEASURE);
+    await page.evaluate(() => {
+      const body = [...document.querySelectorAll('[data-testid="page-body"]')].find((el) => el.getBoundingClientRect().width >= 40);
+      if (!body) return;
+      for (const el of body.querySelectorAll('*')) { el.style.textAlign = 'left'; el.style.justifyContent = 'flex-start'; el.style.alignItems = 'flex-start'; }
+      if (body.firstElementChild) body.firstElementChild.style.paddingLeft = '60px';
+    });
+    await b.sleep(200);
+    const c1 = await page.evaluate((src) => eval(src)(), MEASURE);
+    P('양성 대조군 2 — 가운데 정렬을 풀고 여백을 넓히면 **잡는다**',
+      !!c0.none === false && (c0.empty || c0.gutter <= vp.std + TOL) && !c1.none && !c1.empty && c1.gutter > vp.std + TOL,
+      `전 ${c0.empty ? '측정 대상 없음(가운데 정렬만)' : c0.gutter + 'px'} → 되살림 ${c1.gutter}px`);
 
     P('커버리지', true, `${VPS.length}폭 × ${ROUTES.length}라우트 · 판정 ${measured}건 · 미측정 ${unmeasured.length}${unmeasured.length ? ': ' + unmeasured.join(' ') : ''}`);
   } finally { await browser.close(); }
