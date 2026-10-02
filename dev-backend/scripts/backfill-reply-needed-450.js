@@ -46,7 +46,7 @@ async function main() {
   const { createAuditLog } = require(`${BASE}/services/auditService`);
   const [rows] = await sequelize.query(
     `SELECT t.id, t.business_id, t.subject, t.status, t.reply_needed_reason, t.uncertain_reason,
-            m.from_email, m.in_reply_to
+            m.from_email, m.in_reply_to, m.references_chain
        FROM email_threads t
        JOIN email_messages m ON m.id = (SELECT MAX(id) FROM email_messages x WHERE x.thread_id = t.id AND x.direction = 'inbound')
       WHERE t.reply_needed = 1 AND t.status IN ('open','uncertain') AND t.reply_needed_reason = 'inbound'
@@ -55,7 +55,8 @@ async function main() {
   const recFile = path.join(recDir, `backfill-450-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   const done = [];
   for (const r of rows) {
-    if (r.in_reply_to) { console.log(TAG, `keep #${r.id} 회신 헤더 있음(①)`); continue; }
+    // 엔진 ① isThreadReply 는 In-Reply-To 와 References 둘 다 본다(Fable 2026-10-02) — 같은 기준으로 건너뛴다.
+    if (r.in_reply_to || (r.references_chain && String(r.references_chain).trim())) { console.log(TAG, `keep #${r.id} 회신 헤더 있음(①)`); continue; }
     if (await isKnownContact(r.business_id, r.from_email)) { console.log(TAG, `keep #${r.id} 아는 상대 ${r.from_email}`); continue; }
     if (isPersonalSender(r.from_email)) { console.log(TAG, `keep #${r.id} 개인 주소 ${r.from_email}`); continue; }
     console.log(TAG, `${APPLY ? 'FLIP' : 'flip(dry)'} biz ${r.business_id} #${r.id} ${r.from_email} | ${String(r.subject || '').slice(0, 60)}`);
