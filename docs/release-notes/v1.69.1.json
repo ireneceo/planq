@@ -1,0 +1,22 @@
+{
+  "version": "1.69.1",
+  "date": "2026-10-02",
+  "items": [
+    {
+      "ko": { "title": "캘린더에 휴일이 보입니다", "body": "공휴일과 워크스페이스에서 정한 휴일 이름이 월 보기 날짜 칸과 주·일 보기 종일 칸에 붉은 글자로 나옵니다. 휴일을 추가하거나 지우면 새로고침 없이 바로 바뀝니다." },
+      "en": { "title": "Holidays on the calendar", "body": "Public holidays and your workspace's own holidays now appear in red on the month view and in the all-day row of week/day views, and update instantly when added or removed." }
+    },
+    {
+      "ko": { "title": "웹폼 문의를 바로 고객으로 등록", "body": "웹폼(발송 전용 주소)으로 들어온 문의는 본문이 Q sales 문의 추가 칸에 자동으로 채워집니다. 이름·연락처를 확인하고 등록하면 그 메일도 새 고객에 연결됩니다." },
+      "en": { "title": "Register web-form inquiries in one step", "body": "Inquiries that arrive through a web form (no-reply sender) now prefill the Add inquiry form in Q sales. Confirm the name and contact and the mail is linked to the new client." }
+    },
+    {
+      "ko": { "title": "Insights 가동률이 휴일·휴가를 반영합니다", "body": "Insights 의 가용시간이 Q task·보고서와 같은 계산을 써서 공휴일·휴일·휴가를 뺀 값으로 나옵니다." },
+      "en": { "title": "Insights utilization accounts for holidays and leave", "body": "Available hours in Insights now use the same calculation as Q task and reports, excluding holidays and leave." }
+    },
+    {
+      "ko": { "title": "로딩 중 흰 화면에 이상한 글자가 보이던 것 수정", "body": "앱이 뜨기 전 잠깐 흰 화면에 « 가 그린다. -->» 같은 글자가 보이던 문제를 고쳤습니다." },
+      "en": { "title": "Fixed stray text on the loading screen", "body": "A stray text fragment could appear on the blank screen while the app was loading. It no longer shows." }
+    }
+  ]
+}

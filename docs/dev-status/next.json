@@ -1,53 +1,51 @@
 {
   "working_on": [
-    "v1.69.0 — #449·#450 Q sales 상담 유입 수동/자동 · 이유 칩 · 상담으로 보내기 수리 · 메일 답변필요 개인 주소 · 베타 표시"
+    "v1.69.1 — 캘린더 휴일 표시 · 웹폼 문의 프리필 · Insights 가용시간 한 벌 · 탭 베타 칩 · 로딩 흰 화면 글자 누출 수정"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "Q sales 유입 모드(기본 수동)·문의 후보·이유 칩·막다른 길 D1~D6",
+      "title": "캘린더 워크스페이스 휴일 표시(#424 Q3 후속)",
       "verified": "opus_only"
     },
     {
-      "title": "메일 답변필요 ④ 개인 주소 조건(운영 시뮬 8건 확인권장 이동, 진짜 문의 0)",
+      "title": "웹폼 문의 본문 → 문의 추가 프리필",
       "verified": "opus_only"
     },
     {
-      "title": "베타 표시(Q sales)",
+      "title": "Insights 가용시간을 Q task·보고서와 한 벌로",
       "verified": "opus_only"
     },
     {
-      "title": "#444 운영 첨부 백필(5개)",
-      "verified": "fable_pass"
+      "title": "탭 이름 베타 칩",
+      "verified": "opus_only"
     },
     {
-      "title": "bodygutter 검사기 오판 수리",
+      "title": "홈 SEO 생성기 주석 오매칭 — 흰 화면에 « 가 그린다. -->» 누출",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "배포 즉시 모든 워크스페이스 상담 메일 유입이 «수동»(설정에서 자동으로 전환 가능) — 운영 biz 1 상담 메일 18건이 Q mail 「문의 후보」로 이동",
-    "역할·브랜드 주소 메일은 물음표가 있어도 답변 필요 대신 확인 권장(새로 들어오는 메일부터)"
+    "Insights 가동률 분모가 휴일·휴가를 뺀 값으로 바뀜(운영 22명 중 1명 값 변동 — biz1 u3 9월 85.7h→64.6h)"
   ],
   "migrations": [],
   "issues": [],
   "blocked_on_human": [
-    "Codemagic ios-testflight 1.0.1 Start new build",
-    "#450 기존 답변필요 8건 백필 — Fable 판정 후 실행"
+    "Codemagic ios-testflight 1.0.1 Start new build"
   ],
   "check_areas": [
-    "설정 › 권한 «상담 유입»",
-    "Q sales 상담 행 칩·안내 줄·베타 줄",
-    "Q mail ?inquiry=1 문의 후보",
-    "[상담으로 보내기] 실패 사유"
+    "캘린더 월·주·일 휴일 이름",
+    "Q sales 웹폼 문의 프리필",
+    "Insights 가동률",
+    "https://planq.kr/login root 1개"
   ],
   "backlog": [
     "상담 replied 주소 단위 승격 여부(측정 후)",
-    "웹폼 문의 본문 추출 프리필",
-    "탭 이름 베타 칩"
+    "2027 노동절 대체공휴일",
+    "Insights 개요가 AI 멤버(Cue)를 분모에 넣는 기존 동작"
   ],
   "tooling_health": [
-    "guard 60/61 · health 48/48 · saleintake 3폭 0 · salecriteria·inboxcount·maillabel 0 · dev HTTP 19/19"
+    "guard 60/61 · 빌드 EXIT 0 · holidaycap 3폭 0"
   ],
   "undeployed": []
 }
