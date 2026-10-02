@@ -1,0 +1,14 @@
+{
+  "version": "1.69.2",
+  "date": "2026-10-02",
+  "items": [
+    {
+      "ko": { "title": "일정에 미팅자료를 붙입니다", "body": "일정 상세나 새 일정에서 파일·문서를 미팅자료로 붙일 수 있습니다. 자료가 바뀌면 «참석자에게 알릴까요?» 를 묻고, 고른 경우에만 참석자에게 알립니다. 여기서 올린 파일은 참석자가 열 수 있습니다." },
+      "en": { "title": "Meeting materials on events", "body": "Attach files and documents to an event from its detail or when creating it. When materials change you're asked whether to notify attendees — nothing is sent unless you choose to. Files uploaded here can be opened by attendees." }
+    },
+    {
+      "ko": { "title": "상담 기록에서 업무 추출", "body": "Q sales 상담 기록마다 [업무 추출] 이 생겼습니다. 기록 내용을 AI 업무 추가 창에 채워 열고, 만든 업무는 그 고객에 연결됩니다." },
+      "en": { "title": "Extract tasks from sales records", "body": "Each Q sales record now has [Extract tasks]. It opens AI task creation with the record filled in, and the tasks are linked to that client." }
+    }
+  ]
+}

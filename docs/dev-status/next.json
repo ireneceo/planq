@@ -1,51 +1,46 @@
 {
   "working_on": [
-    "v1.69.1 — 캘린더 휴일 표시 · 웹폼 문의 프리필 · Insights 가용시간 한 벌 · 탭 베타 칩 · 로딩 흰 화면 글자 누출 수정"
+    "v1.69.2 — #411 일정 미팅자료 · #382 상담 기록 업무 추출"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "캘린더 워크스페이스 휴일 표시(#424 Q3 후속)",
-      "verified": "opus_only"
+      "title": "#411 일정 미팅자료(붙이기·떼기·알릴까요·새 일정 선택·업로드 L2/L3)",
+      "verified": "fable_pass"
     },
     {
-      "title": "웹폼 문의 본문 → 문의 추가 프리필",
-      "verified": "opus_only"
+      "title": "#382 상담 기록 → 업무 추출(고객 연결)",
+      "verified": "fable_pass"
     },
     {
-      "title": "Insights 가용시간을 Q task·보고서와 한 벌로",
-      "verified": "opus_only"
-    },
-    {
-      "title": "탭 이름 베타 칩",
-      "verified": "opus_only"
-    },
-    {
-      "title": "홈 SEO 생성기 주석 오매칭 — 흰 화면에 « 가 그린다. -->» 누출",
-      "verified": "opus_only"
+      "title": "#411 후속 — 편집 권한 admin 포함 · 알림 버튼 ko/en",
+      "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
-    "Insights 가동률 분모가 휴일·휴가를 뺀 값으로 바뀜(운영 22명 중 1명 값 변동 — biz1 u3 9월 85.7h→64.6h)"
+    "업로드에 attach_for=event 가 붙으면 L2(프로젝트)/L3(워크스페이스) — 일정 미팅자료로 올린 파일만",
+    "일정 상세 편집 권한이 화면에서도 admin 포함(서버와 같게)"
   ],
   "migrations": [],
   "issues": [],
   "blocked_on_human": [
-    "Codemagic ios-testflight 1.0.1 Start new build"
+    "#439·#440 AI 연동 설계 결정 10건",
+    "#426 자가진단 결정 4건",
+    "#418 Drive 양방향 동기화 여부",
+    "Codemagic ios-testflight 1.0.1"
   ],
   "check_areas": [
-    "캘린더 월·주·일 휴일 이름",
-    "Q sales 웹폼 문의 프리필",
-    "Insights 가동률",
-    "https://planq.kr/login root 1개"
+    "캘린더 일정 상세 «미팅자료»",
+    "새 일정 창 미팅자료·알리기 선택",
+    "Q sales 상담 기록 [업무 추출]"
   ],
   "backlog": [
-    "상담 replied 주소 단위 승격 여부(측정 후)",
-    "2027 노동절 대체공휴일",
-    "Insights 개요가 AI 멤버(Cue)를 분모에 넣는 기존 동작"
+    "#434② 네이티브 공유(iOS App Group 선행)",
+    "#426 자가진단 구현",
+    "#439 M1"
   ],
   "tooling_health": [
-    "guard 60/61 · 빌드 EXIT 0 · holidaycap 3폭 0"
+    "Fable PASS 2회 · guard 60/61 · health 48/48 · eventmaterials·saleextract·tenant 0 실패"
   ],
   "undeployed": []
 }
