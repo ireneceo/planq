@@ -111,9 +111,9 @@ const EventDrawer: React.FC<Props> = ({
   // N+63 P2a — 정기 master 시간 변경 modal (single/future/all 분기)
   const [scopeModalOpen, setScopeModalOpen] = useState(false);
   const [pendingPatch, setPendingPatch] = useState<Partial<CalendarEvent> | null>(null);
-
+  // 편집 권한: 작성자 또는 owner·admin (백엔드 PUT 라우트 calendarPermission.canEditEvent 와 일치)
   // 편집 권한: 작성자 또는 owner (백엔드 PUT 라우트와 일치)
-  const canEdit = !!event && (event.created_by === myUserId || myBusinessRole === 'owner');
+  const canEdit = !!event && (event.created_by === myUserId || (myBusinessRole === 'owner' || myBusinessRole === 'admin'));   // 서버 calendarPermission.canEditEvent 와 같은 술어(admin 포함)
   // ★ 상담 예약(창구 P2)은 시간·참석자·반복·공개범위를 여기서 못 바꾼다 — 고객이 받은 확정 메일·.ics 와
   //   조용히 달라진다. 시간은 BookingActions 의 «다른 시간 제안», 끝내기는 «취소» 로(서버도 409 로 막는다).
   //   살아 있는 예약은 삭제도 막는다 — 지우면 고객은 아무 연락도 못 받는다.

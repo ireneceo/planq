@@ -151,7 +151,7 @@ router.post('/by-business/:businessId/:id/notify-materials', authenticateToken, 
         titleSpec: { feature: 'calendar', action: 'calendar_materials', subject: event.title },
         body: `"${event.title}" · ${count}`,
         link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
-        ctaLabel: '일정 보기', workspaceName: biz?.brand_name || biz?.name || null,
+        ctaLabel: (lang) => (lang === 'en' ? 'View event' : '일정 보기'), workspaceName: biz?.brand_name || biz?.name || null,
         actorUserId: req.user.id, entityType: 'calendar_event', entityId: event.id, ioApp: req.app,
       };
       if (members.length) await notifyMany({ ...base, userIds: members.map((m) => m.user_id) });
