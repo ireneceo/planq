@@ -969,6 +969,8 @@
     "basis": "{{interval}} billing",
     "next": "Next on {{date}}",
     "paused": "Recurring paused",
-    "ended": "Recurring ended"
+    "ended": "Recurring ended",
+    "editScopeProject": "Editing this invoice does not change the next ones. To change future invoices, edit the project's monthly billing settings.",
+    "editScopeSub": "Editing this invoice does not change the next ones. To change future invoices, edit the client's subscription (plan name, amount)."
   }
 }

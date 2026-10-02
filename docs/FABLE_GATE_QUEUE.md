@@ -8,6 +8,18 @@
 
 ---
 
+## ✅ 2026-10-02 Fable 게이트 — #444 업무 추가 첨부 경로 · 묶음 다운로드 권한 · **PASS(지적 2건 수정 → 재검증 GATE PASS)**
+
+- #444 `TaskCreateForm` 새 첨부를 `/api/tasks/:id/attachments?context=description_attach` 로 직접(상세와 한 문) — **PASS**
+  (담당자 목록·다운로드·미리보기 200, 비작성자·고객·비소속 403, 옛 경로 양성 대조군 404 재현).
+  ★ 운영 기존 5개(업무 4건)는 안 고쳐진다 → **백필 필요**(File vlevel 변경 X — 바이트를 새 UUID 로 복사해 업무 소유로 재저장, 멱등 스크립트). Irene 결정 대기.
+- `POST /api/files/:biz/bulk-download` 항목별 단건 술어(canDownloadFile·canAccessConversation·canAccessTask+고객 숨김 댓글) + readAttachmentBody(Drive 포함) — 권한 **PASS**
+  (옛 코드 음성 대조군: 멤버 zip 에 오너 L1 포함 → 새 코드 제외).
+  FAIL 2건 → 수정: ①열린 뒤 터지는 스트림이면 zip 이 영영 안 끝남 → PassThrough 래핑(재현 EISDIR: 0.28초 완료, `_not_included.txt` 기재)
+  ②고객에게 「전체 다운로드」 버튼이 보이나 라우트는 멤버 이상 → 버튼을 고객에게 숨김. — **Fable 재검증 GATE PASS**(EISDIR 200·29ms, 권한 매트릭스 재실행 PASS). 메모: 실패 항목이 0바이트 entry 로도 남는다 → 다음 라운드에 생략 고려
+- 같은 묶음(자체 검증, R=0·F=1): 공용 `AttachmentList`(결과물·의뢰 명세·댓글) · 채팅/메일 「전체 다운로드」 · 라이트박스 Esc 스택(+ QTaskPage window Esc 가 스택 처리분을 건너뜀, CueHelpDrawer·NewEventModal 스택 이전)
+  · #452 별칭 서명 · #447 Q sales 폰 필터 접기·칩 한 줄·Cue 칸 · #446 드로어 폰 좌우 14·하단 안전영역 중복 · #443 Q talk 작업대 기준선 · #451 답장 보낸 주소 줄 · #448 문의 원본 링크 · #442 정기청구 안내.
+
 ## 📝 2026-10-01 밤 — 자체 검증(R=0·F=1) 참고 묶음 · 다음 라운드에 묶어서 볼 것 · **v1.67.1 로 운영 반영됨**
 
 - `179bc1e2` 확인필요 카드 — 윗줄 할 일·마감·사람 / 둘째 줄 제목(2줄 clamp) · 워크스페이스 칩 제거. 자체: 3폭 /inbox 36카드 윗줄 1줄·제목 아래·가림 0·칩 0 · inboxcount 0 실패

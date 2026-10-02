@@ -1099,6 +1099,22 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
 - **drive.file scope** — PlanQ 가 만들었거나 사용자가 PlanQ 로 연 파일만 보인다. "내 드라이브에 있는데
   여기 없다" 가 정상이므로 **화면이 그 이유를 말한다**(빈 목록에 안내 문구).
 
+### 붙은 첨부를 **보여주는** 것도 한 벌이다 (2026-10-02)
+> Irene: *"이미지 누르면 이미지가 열리는데 리스트 누르면 우측 팝업이 또 뜨네 … 다운로드 링크가 리스트에 있어야지 …
+> 전체 다운로드 버튼도 … 이미지 전체로 보다가 닫으면 팝업이든 우측패널이든 없어져. 안돼."*
+
+- 목록은 `components/Common/AttachmentList.tsx`(`layout="rows"|"chips"`) — 이미지는 썸네일·이름 **어디를 눌러도 이미지 보기**,
+  문서는 문서 미리보기, 그 외는 `AttachmentPreviewDrawer`. **행마다 내려받기**, 둘 이상이면 **「전체 다운로드」**.
+  말풍선처럼 모양이 다른 곳(채팅·메일)은 `DownloadAllButton` 만 가져다 쓴다. 고객에게는 그리지 않는다(라우트가 멤버 이상).
+- 「전체 다운로드」는 새 API 없이 `POST /api/files/:biz/bulk-download`(`task-`·`chat-`·`direct-` id).
+  ★ 이 라우트는 **항목마다 단건과 같은 술어**를 본다(canDownloadFile·canAccessConversation·canAccessTask) — 2026-10-02 전까지
+  business_id 만 봐서 남의 L1·남의 대화방 첨부가 zip 으로 나갔다(음성 대조군으로 확인). 저장소는 `readAttachmentBody`(Drive 포함),
+  항목 스트림은 PassThrough 로 감싼다(열린 뒤 터지는 스트림이 zip 을 영영 안 끝냈다).
+- **위에 뜬 창(이미지 보기·모달)을 닫는 Esc 는 아래 패널을 닫지 않는다** — 공용 `useEscapeStack` 만 쓴다. 스택이 처리한 Esc 는
+  `escapeConsumedByOverlay(e)` 가 참이 되므로, 창(window)에서 Esc 를 따로 듣는 화면은 **그 함수를 먼저 부른다**(QTaskPage 선례).
+- 업무에 올리는 새 파일은 **업무 첨부 라우트로 직접** 올린다(`/api/tasks/:id/attachments`). `/api/files` 로 올려 연결하면
+  «올린 사람 L1» 원본 등급으로 판정돼 담당자에게도 이미지가 404 다(운영 #444).
+
 ## Q file 의 좌측 트리·썸네일·분류 (2026-09-20 박제)
 
 ### 트리는 **한 벌**이다

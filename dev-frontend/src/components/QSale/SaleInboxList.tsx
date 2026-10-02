@@ -668,7 +668,9 @@ const Row = styled.div`
   display: flex; align-items: flex-start; gap: 12px;
   padding: 12px 14px; border: 1px solid #E2E8F0; border-radius: 10px; background: #FFFFFF;
   &:hover { border-color: #CBD5E1; }
-  @media (max-width: 640px) { flex-direction: column; gap: 8px; }
+  /* 폰 — 세로로 쌓을 때 본문이 카드 폭에 맞춰져야 한다(stretch). flex-start 면 내용 길이만큼 늘어나
+     시각·미리보기가 카드 밖으로 나갔다(#445). */
+  @media (max-width: 640px) { flex-direction: column; align-items: stretch; gap: 8px; }
 `;
 const RowMain = styled.button<{ $sel?: boolean }>`
   display: flex; align-items: flex-start; gap: 12px; flex: 1; min-width: 0;
@@ -694,7 +696,7 @@ const HandledTag = styled.span`
   font-size: 0.6875rem; font-weight: 700; padding: 1px 7px; border-radius: 999px;
   color: #64748B; background: #F1F5F9;
 `;
-const At = styled.span`margin-left: auto; font-size: 0.6875rem; color: #94A3B8;`;
+const At = styled.span`margin-left: auto; font-size: 0.6875rem; color: #94A3B8; white-space: nowrap;`;
 const Title = styled.div`
   margin-top: 2px; font-size: 0.8125rem; color: #334155;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

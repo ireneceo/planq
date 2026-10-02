@@ -67,6 +67,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   const autoGrow = useCallback(() => {
     const el = taRef.current;
     if (!el) return;
+    if (!el.value) { el.style.height = ''; return; }   // 비면 한 줄 — 안내 문구 길이로 늘지 않는다(#447)
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 140) + 'px';
   }, []);

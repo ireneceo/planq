@@ -7,6 +7,7 @@
 // 탭:
 //   - guide: PlanQ 사용법·기능 안내 (LLM 답변, 마지막 5턴)
 //   - feedback: 운영팀에 버그·개선·기능요청 제출 (POST /api/feedback)
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -90,6 +91,7 @@ const CueHelpDrawer: React.FC<{
   // 게스트/Client 는 런처가 없으므로 기존 floating FAB 유지.
   const dockManaged = !!user?.business_id && ['owner', 'admin', 'member'].includes(user.business_role || '');
   const [open, setOpen] = useState(standalone); // standalone(/help-popout)은 항상 열림으로 시작
+  useEscapeStack(open, () => setOpen(false));
   const [mode, setMode] = useState<Mode>('workspace'); // N+93 — 첫 탭(워크스페이스 안내)이 디폴트 (Irene)
   // #293 — 피드백에서 "안내로 돌아가기" 는 **왔던 탭**으로 돌아가야 한다.
   //   여태 무조건 qhelper(Q위키) 로 보내서, Cue 에서 들어간 사용자는 "Q위키로 갔는데
@@ -286,9 +288,7 @@ const CueHelpDrawer: React.FC<{
         e.preventDefault();
         setOpen(v => !v);
       }
-      if (e.key === 'Escape' && open) {
-        setOpen(false);
-      }
+      // Esc 닫기는 아래 공용 Esc 스택 — 패널 안에서 연 이미지 보기를 Esc 로 닫을 때 패널까지 닫히지 않게(2026-10-02)
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);

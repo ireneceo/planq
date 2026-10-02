@@ -1269,5 +1269,13 @@
     },
     "sectionContent": "문서·정보",
     "retention": "삭제 후 {{count}}일 안에는 되돌릴 수 있어요. 지나면 자동으로 비워집니다."
+  },
+  "attachList": {
+    "download": "내려받기",
+    "downloadAll": "전체 다운로드 ({{n}})",
+    "downloadingAll": "묶는 중…",
+    "downloadFailed": "내려받지 못했어요. 다시 시도해 주세요.",
+    "remove": "삭제",
+    "doc": "문서"
   }
 }

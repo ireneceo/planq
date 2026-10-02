@@ -13,9 +13,15 @@ function fmtDate(iso: string | null): string {
   return iso;
 }
 
-interface Props { recurring?: InvoiceRecurring | null; }
+interface Props {
+  recurring?: InvoiceRecurring | null;
+  /** 청구서를 고치는 쪽(사업자 상세)에서만 — «이 청구서만 바뀐다» 를 알린다 (운영 #442).
+   *  다음 회차는 이 청구서가 아니라 구독(또는 프로젝트 월정액) 설정에서 새로 만든다
+   *  (services/clientSubscriptionBilling.js · recurring_invoice.js). 고객 결제 페이지에는 띄우지 않는다. */
+  showEditScope?: boolean;
+}
 
-const RecurringBillingNote: React.FC<Props> = ({ recurring }) => {
+const RecurringBillingNote: React.FC<Props> = ({ recurring, showEditScope }) => {
   const { t } = useTranslation('qbill');
   if (!recurring || !recurring.source) return null;
 
@@ -61,6 +67,13 @@ const RecurringBillingNote: React.FC<Props> = ({ recurring }) => {
           {statusLine && <Sep>·</Sep>}
           {statusLine && <Strong>{statusLine}</Strong>}
         </Detail>
+        {showEditScope && (
+          <Detail>
+            {recurring.source === 'project'
+              ? t('recurring.editScopeProject', { defaultValue: '이 청구서를 고쳐도 다음 회차는 바뀌지 않아요. 다음부터 바꾸려면 프로젝트의 월정액 설정에서 고치세요.' })
+              : t('recurring.editScopeSub', { defaultValue: '이 청구서를 고쳐도 다음 회차는 바뀌지 않아요. 다음부터 바꾸려면 고객의 정기 구독 설정(상품명·금액)에서 고치세요.' })}
+          </Detail>
+        )}
       </Text>
     </Wrap>
   );

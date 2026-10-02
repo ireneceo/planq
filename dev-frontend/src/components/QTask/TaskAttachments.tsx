@@ -1,14 +1,11 @@
 // Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제 + 기존 파일/문서 선택 (모두 인라인)
-import { downloadBlob } from '../../utils/download';
-import PostPreviewModal from '../Docs/PostPreviewModal';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import AttachmentField from '../Common/AttachmentField';
-import { useImageLightbox } from '../Common/ImageLightbox';
-import AttachmentPreviewDrawer from '../Common/AttachmentPreviewDrawer';
+import AttachmentList, { type AttachmentListItem } from '../Common/AttachmentList';
 import { uploadErrorText } from '../../utils/uploadError';
 import { formatDayTime } from '../../utils/dateFormat';
 
@@ -68,15 +65,13 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
   // description 이미지는 에디터 안에 인라인으로만 나타남
   const visibleRows = rows.filter(r => r.context !== 'description');
 
-  // 이미지 첨부만 모아 갤러리 라이트박스 — 클릭한 이미지부터 좌우 이동
-  const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
-  // 문서 첨부는 그 문서만 미리보기로 연다 (화면 전체 이동 X).
-  const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
-  // #404 — 파일 첨부는 **열어서 보여주고**, 내려받기는 그 안에서 고르게 한다.
-  const [filePreview, setFilePreview] = useState<AttachRow | null>(null);
-  const imageRows = visibleRows.filter(r => r.mime_type?.startsWith('image/') && r.preview_url);
-  const lightboxItems = imageRows.map(r => ({ src: r.preview_url as string, alt: r.original_name }));
-
+  // 여는 동작(이미지 보기 · 문서 · 파일 미리보기) · 내려받기 · 전체 다운로드는 공용 AttachmentList 가 맡는다.
+  const listItems: AttachmentListItem[] = visibleRows.map((r) => ({
+    id: r.id, name: r.original_name, size: r.file_size, mime: r.mime_type,
+    previewUrl: r.preview_url, downloadUrl: r.download_url, postId: r.post_id ?? null,
+    zipId: r.post_id ? null : `task-${r.id}`,
+    sub: `${r.post_id ? (t('attachments.docKind', { defaultValue: 'Q docs 문서' }) as string) : fmtSize(r.file_size)} · ${r.uploader?.name || '-'}${!pickerOpen ? ` · ${formatDayTime(r.created_at, { year: 'always' })}` : ''}`,
+  }));
   useEffect(() => { onChangeCount?.(visibleRows.length); }, [visibleRows.length, onChangeCount]);
 
   const upload = useCallback(async (files: FileList | File[]) => {
@@ -109,12 +104,6 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
     if (files) upload(files);
   };
 
-  const fmtSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  };
-
   const confirmDelete = async () => {
     if (!pendingDelete) return;
     const id = pendingDelete.id;
@@ -122,21 +111,6 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
     const r = await apiFetch(`/api/tasks/attachments/${id}`, { method: 'DELETE' });
     const j = await r.json();
     if (j.success) setRows(prev => prev.filter(x => x.id !== id));
-  };
-
-  const download = async (row: { download_url: string; original_name: string }) => {
-    try {
-      const r = await apiFetch(row.download_url);
-      const blob = await r.blob();
-      await downloadBlob(blob, row.original_name);
-    } catch { /* silent */ }
-  };
-
-  // 첨부를 **연다**. 문서(post)는 문서 미리보기로, 파일은 파일 미리보기 드로어로.
-  //   내려받기는 드로어 안에서 고른다 — 누르자마자 내려받지 않는다(#404).
-  const openAttachment = (row: AttachRow) => {
-    if (row.post_id) { setDocPreview({ id: row.post_id, title: row.original_name }); return; }
-    setFilePreview(row);
   };
 
   return (
@@ -162,32 +136,8 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
           {loading && <Dim>{t('attachments.loading')}</Dim>}
           {!loading && visibleRows.length === 0 && !pickerOpen && <Dim>{t('attachments.empty', '첨부된 파일 없음')}</Dim>}
           {!loading && visibleRows.length > 0 && (
-            <List>
-              {visibleRows.map(r => {
-                const isImg = r.mime_type?.startsWith('image/');
-                return (
-                  <Row key={r.id}>
-                    {isImg && r.preview_url ? (
-                      <PreviewImg
-                        src={r.preview_url}
-                        alt={r.original_name}
-                        onClick={() => {
-                          const idx = imageRows.findIndex(x => x.id === r.id);
-                          openImageLightbox(lightboxItems, idx < 0 ? 0 : idx);
-                        }}
-                      />
-                    ) : (
-                      <FileIcon>{r.post_id ? (t('attachments.docTag', { defaultValue: '문서' }) as string) : extIcon(r.original_name)}</FileIcon>
-                    )}
-                    <Meta onClick={() => openAttachment(r)}>
-                      <Name>{r.original_name}</Name>
-                      <Sub>{r.post_id ? (t('attachments.docKind', { defaultValue: 'Q docs 문서' }) as string) : fmtSize(r.file_size)} · {r.uploader?.name || '-'}{!pickerOpen ? ` · ${formatDayTime(r.created_at, { year: 'always' })}` : ''}</Sub>
-                    </Meta>
-                    <DelBtn type="button" onClick={() => setPendingDelete(r)} title={t('attachments.delete')}>×</DelBtn>
-                  </Row>
-                );
-              })}
-            </List>
+            <AttachmentList items={listItems} businessId={businessId} layout="rows" testId="task-attachments"
+              onRemove={(it) => { const row = visibleRows.find((x) => x.id === it.id); if (row) setPendingDelete(row); }} />
           )}
           {uploading && <Uploading>{t('attachments.uploading')}</Uploading>}
           {error && <Err>{error}</Err>}
@@ -202,16 +152,6 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
         confirmText={t('attachments.delete')}
         cancelText={t('attachments.cancel')}
         variant="danger"
-      />
-      {imageLightbox}
-      {docPreview && (
-        <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />
-      )}
-      <AttachmentPreviewDrawer
-        attachment={filePreview}
-        businessId={businessId}
-        onClose={() => setFilePreview(null)}
-        onDownload={(a) => download(a)}
       />
       {pickerOpen && (
         <PickerInline>
@@ -279,15 +219,10 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
   );
 }
 
-function extIcon(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase() || '';
-  if (['pdf'].includes(ext)) return 'PDF';
-  if (['doc', 'docx'].includes(ext)) return 'DOC';
-  if (['xls', 'xlsx', 'csv'].includes(ext)) return 'XLS';
-  if (['ppt', 'pptx'].includes(ext)) return 'PPT';
-  if (['zip'].includes(ext)) return 'ZIP';
-  if (['txt', 'md'].includes(ext)) return 'TXT';
-  return (ext || 'FILE').slice(0, 3).toUpperCase();
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
 const Wrap = styled.div`padding:14px 20px;border-bottom:1px solid #F1F5F9;`;
@@ -299,13 +234,5 @@ const ListArea = styled.div<{$over:boolean}>`border:1px ${p=>p.$over?'solid':'da
 // 인라인 picker — 모달 대신 같은 영역에 펼쳐짐 (Irene: popup-on-popup 금지).
 const PickerInline = styled.div`margin-top:8px;background:#FAFBFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px;`;
 const Dim = styled.div`font-size:0.75rem;color:#94A3B8;text-align:center;padding:14px 0;`;
-const List = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const Row = styled.div`display:flex;align-items:center;gap:10px;padding:6px 8px;background:#FFF;border:1px solid #E2E8F0;border-radius:6px;`;
-const PreviewImg = styled.img`width:36px;height:36px;object-fit:cover;border-radius:4px;flex-shrink:0;cursor:pointer;`;
-const FileIcon = styled.div`width:36px;height:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#F1F5F9;color:#475569;font-size:0.625rem;font-weight:700;border-radius:4px;`;
-const Meta = styled.div`flex:1;min-width:0;cursor:pointer;`;
-const Name = styled.div`font-size:0.8125rem;color:#0F172A;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const Sub = styled.div`font-size:0.6875rem;color:#94A3B8;`;
-const DelBtn = styled.button`width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#94A3B8;cursor:pointer;border-radius:4px;font-size:1rem;&:hover{background:#FEE2E2;color:#DC2626;}`;
 const Uploading = styled.div`margin-top:6px;font-size:0.6875rem;color:#0D9488;`;
 const Err = styled.div`margin-top:6px;font-size:0.6875rem;color:#DC2626;`;

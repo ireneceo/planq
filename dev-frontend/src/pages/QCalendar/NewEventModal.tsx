@@ -1,3 +1,4 @@
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
@@ -259,11 +260,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { titleRef.current?.focus(); }, []);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  // Esc 는 공용 스택 — 이 창 위에 뜬 것(이미지 보기·확인창)이 먼저 닫힌다(2026-10-02)
+  useEscapeStack(true, onClose);
 
   const dateLabel = useMemo(() => {
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';

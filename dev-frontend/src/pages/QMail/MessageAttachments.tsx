@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { downloadFromApi } from '../../utils/download';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
+import { DownloadAllButton } from '../../components/Common/AttachmentList';
 import { isNativeApp } from '../../services/native';
 import { Attachments, Attachment, AttachmentGroup, AttachDownloadBtn, AttachDlPct, AttachErr, ClipIcon } from './MailPage.styles';
 
@@ -209,6 +210,9 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
           );
         })}
       </Attachments>
+      {/* 전체 다운로드 — 업무·채팅 첨부와 **같은 버튼·같은 묶음 zip**(2026-10-02). 둘 이상일 때만 */}
+      <DownloadAllButton businessId={businessId} testId="mail-attach-download-all"
+        zipIds={attachments.filter((a) => !!a.file_id).map((a) => `direct-${a.file_id}`)} />
       {/* 공통 ImageLightbox — Esc·백드롭·swipe-down 닫기, zoom/pan 내장 */}
       {lightbox}
     </>

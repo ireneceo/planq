@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { downloadBlob } from '../../utils/download';
 import styled from 'styled-components';
 import { createPortal } from 'react-dom';
+import { useEscapeStack } from '../../hooks/useEscapeStack';
 
 export interface LightboxItem {
   /** 화면에 **먼저** 띄우는 것 — 리사이즈본(빠름). 없으면 원본이 곧 이것이다. */
@@ -89,12 +90,17 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
     setIdx(i => (i + 1) % normalized.length);
   }, [normalized]);
 
-  // Esc / ← / → / + / - / 0 + body scroll lock
+  // ★ Esc 는 **공용 Esc 스택**으로 받는다 (2026-10-02, Irene: *"이미지 전체로 보다가 닫으면 팝업이든
+  //   우측패널이든 없어져. 안돼. 열려있던 거 그대로 있어야지."*).
+  //   여태 document keydown 으로 직접 받아, 같은 Esc 를 아래 드로어(useEscapeStack)도 받아서
+  //   라이트박스와 그 밑 패널이 **함께** 닫혔다. 스택이면 맨 위(= 라이트박스)만 닫힌다.
+  useEscapeStack(!!normalized, onClose);
+
+  // ← / → / + / - / 0 + body scroll lock
   useEffect(() => {
     if (!normalized) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'ArrowLeft') prev();
       else if (e.key === 'ArrowRight') next();
       else if (e.key === '+' || e.key === '=') zoomIn();
       else if (e.key === '-' || e.key === '_') zoomOut();

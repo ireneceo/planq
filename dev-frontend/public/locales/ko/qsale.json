@@ -120,7 +120,9 @@
     "menuGroup": {
       "make": "만들기",
       "go": "이동·관리"
-    }
+    },
+    "openOriginalMail": "메일에서 보기",
+    "openOriginal": "원본 보기"
   },
   "action": {
     "addInquiry": "+ 문의 추가",
@@ -177,7 +179,8 @@
     "memoWith": "메모 {{n}}개 — 눌러서 보기",
     "memoNone": "메모 없음 — 눌러서 남기기",
     "promoteToInbox": "상담으로 보내기",
-    "proceedConsult": "상담 진행"
+    "proceedConsult": "상담 진행",
+    "addRecordShort": "응대 추가"
   },
   "record": {
     "kind": {
@@ -226,7 +229,8 @@
     "noTouch": "접점 없음",
     "count": "{{count}}명",
     "tabInbox": "상담",
-    "tabClients": "고객"
+    "tabClients": "고객",
+    "filters": "필터"
   },
   "detail": {
     "profile": "프로필",

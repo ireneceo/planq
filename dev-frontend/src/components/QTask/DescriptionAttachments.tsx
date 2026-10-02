@@ -6,15 +6,12 @@
 // context='description_attach'. 결과물 영역 첨부와 완전 분리.
 // 권한: description 편집 권한 (작성자/owner/admin) — 사이클 N+5 책임선 일치.
 
-import { downloadBlob } from '../../utils/download';
-import AttachmentPreviewDrawer from '../Common/AttachmentPreviewDrawer';
+import AttachmentList from '../Common/AttachmentList';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { apiFetch } from '../../contexts/AuthContext';
 import AttachmentField from '../Common/AttachmentField';
-import PostPreviewModal from '../Docs/PostPreviewModal';
-import { useImageLightbox } from '../Common/ImageLightbox';
 import { uploadErrorText } from '../../utils/uploadError';
 
 /** 서버가 내는 '권한 없음' 코드 — 옛 이름도 같이 받는다(2026-09-07 개명). */
@@ -51,11 +48,6 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
   const [existingPostIds, setExistingPostIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
-  // 문서 첨부는 그 문서만 미리보기로 연다 (화면 전체 이동 X).
-  const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
-  // #404 — 파일 첨부는 열어서 보여주고, 내려받기는 그 안에서 고르게 한다.
-  const [filePreview, setFilePreview] = useState<AttachmentRow | null>(null);
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -126,73 +118,22 @@ const DescriptionAttachments: React.FC<Props> = ({ taskId, businessId, canEdit, 
     } catch { /* silent */ }
   };
 
-  const downloadFile = async (att: { download_url: string; original_name: string }) => {
-    try {
-      const r = await apiFetch(att.download_url);
-      if (!r.ok) return;
-      const blob = await r.blob();
-      await downloadBlob(blob, att.original_name);
-    } catch { /* silent */ }
-  };
-
   if (loading) return null;
   if (list.length === 0 && !canEdit) return null;
 
   return (
     <Wrap>
-      {list.length > 0 && (() => {
-        // 이미지 첨부만 모아 갤러리 라이트박스
-        const imgList = list.filter(a => a.mime_type?.startsWith('image/') && a.preview_url);
-        const lbItems = imgList.map(a => ({ src: a.preview_url as string, alt: a.original_name }));
-        return (
-        <ChipList>
-          {list.map((a) => {
-            const isImg = a.mime_type?.startsWith('image/');
-            // 문서 첨부는 내려받을 파일이 없다 — 누르면 그 문서를 연다.
-            const isDoc = !!a.post_id;
-            const ext = isDoc
-              ? (t('descAttach.docTag', { defaultValue: '문서' }) as string)
-              : (a.original_name.split('.').pop()?.slice(0, 4).toUpperCase() || 'FILE');
-            const canRemove = canEdit || a.uploader?.id === myId;
-            return isImg && a.preview_url ? (
-              <ImgChip key={a.id} title={a.original_name}>
-                <ImgBtn type="button" onClick={() => {
-                  const idx = imgList.findIndex(x => x.id === a.id);
-                  openImageLightbox(lbItems, idx < 0 ? 0 : idx);
-                }} aria-label={a.original_name}>
-                  <ImgPreview src={a.preview_url} alt={a.original_name} />
-                </ImgBtn>
-                {canRemove && <ImgRemove type="button" onClick={() => remove(a.id)}
-                  title={t('descAttach.remove', { defaultValue: '삭제' }) as string}
-                  aria-label={t('descAttach.remove', { defaultValue: '삭제' }) as string}>×</ImgRemove>}
-              </ImgChip>
-            ) : (
-              <FileChip key={a.id}>
-                <FileChipBody type="button"
-                  onClick={() => { if (isDoc) setDocPreview({ id: a.post_id as number, title: a.original_name }); else setFilePreview(a); }}
-                  title={a.original_name}>
-                  <FileChipExt>{ext}</FileChipExt>
-                  <FileChipName>{a.original_name}</FileChipName>
-                </FileChipBody>
-                {canRemove && <FileChipX type="button" onClick={() => remove(a.id)}
-                  title={t('descAttach.remove', { defaultValue: '삭제' }) as string}
-                  aria-label={t('descAttach.remove', { defaultValue: '삭제' }) as string}>×</FileChipX>}
-              </FileChip>
-            );
-          })}
-        </ChipList>
-        );
-      })()}
-      {imageLightbox}
-      {docPreview && (
-        <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />
+      {/* 여는 동작·내려받기·전체 다운로드는 공용 AttachmentList — 결과물·댓글과 같은 규칙(2026-10-02) */}
+      {list.length > 0 && (
+        <AttachmentList layout="chips" businessId={businessId || 0} testId="task-desc-attachments"
+          items={list.map((a) => ({
+            id: a.id, name: a.original_name, size: a.file_size, mime: a.mime_type,
+            previewUrl: a.preview_url, downloadUrl: a.download_url, postId: a.post_id ?? null,
+            zipId: a.post_id ? null : `task-${a.id}`,
+            canRemove: canEdit || a.uploader?.id === myId,
+          }))}
+          onRemove={(it) => remove(it.id)} />
       )}
-      <AttachmentPreviewDrawer
-        attachment={filePreview}
-        businessId={businessId || 0}
-        onClose={() => setFilePreview(null)}
-        onDownload={(a) => void downloadFile(a)}
-      />
 
       {canEdit && (
         <>
@@ -245,39 +186,6 @@ export default DescriptionAttachments;
 
 // ─── Styled ───
 const Wrap = styled.div`margin-top:8px;`;
-const ChipList = styled.div`display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;`;
-const FileChip = styled.div`display:inline-flex;align-items:center;gap:0;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;`;
-const FileChipBody = styled.button`
-  display:inline-flex;align-items:center;gap:6px;padding:6px 8px;
-  background:transparent;border:none;cursor:pointer;font-family:inherit;
-  max-width:240px;
-  &:hover{background:#F8FAFC;}
-`;
-const FileChipExt = styled.span`
-  display:inline-flex;align-items:center;justify-content:center;
-  min-width:34px;height:20px;padding:0 6px;border-radius:4px;
-  background:#F1F5F9;color:#475569;font-size:0.625rem;font-weight:700;letter-spacing:0.3px;flex-shrink:0;
-`;
-const FileChipName = styled.span`font-size:0.75rem;color:#0F172A;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
-const FileChipX = styled.button`
-  display:inline-flex;align-items:center;justify-content:center;
-  width:24px;height:32px;background:transparent;border:none;border-left:1px solid #E2E8F0;
-  color:#94A3B8;font-size:0.875rem;cursor:pointer;font-family:inherit;
-  &:hover{background:#FEE2E2;color:#DC2626;}
-`;
-const ImgChip = styled.div`position:relative;display:inline-block;border-radius:8px;overflow:hidden;border:1px solid #E2E8F0;`;
-const ImgBtn = styled.button`
-  all: unset; display: block; cursor: zoom-in;
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-`;
-const ImgPreview = styled.img`display:block;width:64px;height:64px;object-fit:cover;`;
-const ImgRemove = styled.button`
-  position:absolute;top:2px;right:2px;
-  width:20px;height:20px;border-radius:10px;
-  background:rgba(0,0,0,0.5);color:#FFFFFF;border:none;cursor:pointer;
-  font-size:0.875rem;line-height:1;font-family:inherit;
-  &:hover{background:rgba(220,38,38,0.85);}
-`;
 const ActionRow = styled.div`display:flex;align-items:center;gap:8px;`;
 const AttachBtn = styled.button`
   display:inline-flex;align-items:center;gap:4px;

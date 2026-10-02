@@ -1834,58 +1834,62 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
     const dlScope = await getUserScope(req.user.id, businessId, req.user.platform_role);
     const canExportConfidential = !!(dlScope.isOwner || dlScope.isAdmin || dlScope.isPlatformAdmin);
 
-    const items = []; // { name, path }
+    // ★ 2026-10-02 — **항목마다 단건 다운로드와 같은 읽기 검사**를 한다.
+    //   여태 business_id 만 보고 묶어 줘서, 같은 워크스페이스 멤버면 남의 개인 파일(L1)·참여 안 한 대화방 첨부·
+    //   볼 수 없는 업무 첨부도 id 만 알면 zip 으로 받을 수 있었다. 술어는 단건 라우트와 **같은 함수**다:
+    //   File = canDownloadFile · 채팅 = canAccessConversation · 업무 = canAccessTask(+고객 숨김 댓글).
+    //   못 보는 것은 **조용히 뺀다**(존재를 알리지 않는다 — 단건은 403/404).
+    // ★ 저장소도 단건과 같은 함수(readAttachmentBody)로 읽는다 — 여태 `storage_provider: 'planq'` 로 걸러
+    //   Drive 에 있는 첨부(운영 업무 첨부 대부분)가 묶음에서 **말없이 빠졌다.**
+    const items = []; // { name, src: {storage_provider, file_path, external_id, business_id} }
     let confidentialSkipped = 0;
+    const { canAccessConversation, canAccessTask } = require('../middleware/access_scope');
+    const { clientHiddenCommentIds } = require('../services/taskAttachmentAccess');
 
-    // 1) direct = File 테이블, business_id 직접 검증
+    // 1) direct = File
     if (directIds.length > 0) {
-      const direct = await File.findAll({
-        where: {
-          id: { [Op.in]: directIds },
-          business_id: businessId, deleted_at: null, storage_provider: 'planq',
-        }
-      });
+      const direct = await File.findAll({ where: { id: { [Op.in]: directIds }, business_id: businessId, deleted_at: null } });
       for (const f of direct) {
         if (f.security_level === 'confidential' && !canExportConfidential) { confidentialSkipped++; continue; }
-        if (f.file_path && fs.existsSync(f.file_path)) {
-          items.push({ name: f.file_name, path: f.file_path });
-        }
+        if (!(await canDownloadFile(dlScope, req.user.id, f))) continue;
+        items.push({ name: f.file_name, src: { storage_provider: f.storage_provider, file_path: f.file_path, external_id: f.external_id, business_id: f.business_id } });
       }
     }
 
-    // 2) chat = MessageAttachment, message → conversation → business 검증
+    // 2) chat = MessageAttachment — 대화방 접근 판정은 방마다 한 번
     if (chatIds.length > 0) {
       const chats = await MessageAttachment.findAll({
-        where: { id: { [Op.in]: chatIds }, storage_provider: 'planq' },
-        include: [{
-          model: Message,
-          attributes: ['id', 'conversation_id'],
-          include: [{
-            model: Conversation,
-            attributes: ['id', 'business_id'],
-            where: { business_id: businessId },
-          }],
-        }],
+        where: { id: { [Op.in]: chatIds } },
+        include: [{ model: Message, attributes: ['id', 'conversation_id'],
+          include: [{ model: Conversation, where: { business_id: businessId } }] }],
       });
+      const convOk = new Map();
       for (const a of chats) {
-        if (a.file_path && fs.existsSync(a.file_path)) {
-          items.push({ name: a.file_name, path: a.file_path });
-        }
+        const conv = a.Message && a.Message.Conversation;
+        if (!conv) continue;
+        if (!convOk.has(conv.id)) convOk.set(conv.id, await canAccessConversation(req.user.id, conv));
+        if (!convOk.get(conv.id)) continue;
+        items.push({ name: a.file_name, src: { storage_provider: a.storage_provider, file_path: a.file_path, external_id: a.external_id || a.file_path, business_id: businessId } });
       }
     }
 
-    // 3) task = TaskAttachment, business_id 직접 검증
+    // 3) task = TaskAttachment — 업무 접근 판정은 업무마다 한 번
     if (taskIds.length > 0) {
-      const tasks = await TaskAttachment.findAll({
-        where: {
-          id: { [Op.in]: taskIds },
-          business_id: businessId, storage_provider: 'planq',
+      const atts = await TaskAttachment.findAll({ where: { id: { [Op.in]: taskIds }, business_id: businessId } });
+      const taskOk = new Map();
+      const hiddenByTask = new Map();
+      for (const a of atts) {
+        if (a.post_id) continue;   // 문서 첨부는 내려받을 바이트가 없다
+        if (!taskOk.has(a.task_id)) {
+          const task = await Task.findByPk(a.task_id);
+          taskOk.set(a.task_id, !!task && await canAccessTask(req.user.id, task, dlScope));
         }
-      });
-      for (const a of tasks) {
-        if (a.file_path && fs.existsSync(a.file_path)) {
-          items.push({ name: a.original_name, path: a.file_path });
+        if (!taskOk.get(a.task_id)) continue;
+        if (dlScope.isClient && a.comment_id) {
+          if (!hiddenByTask.has(a.task_id)) hiddenByTask.set(a.task_id, await clientHiddenCommentIds(a.task_id));
+          if (hiddenByTask.get(a.task_id).has(a.comment_id)) continue;
         }
+        items.push({ name: a.original_name, src: { storage_provider: a.storage_provider, file_path: a.file_path, external_id: a.external_id, business_id: a.business_id } });
       }
     }
 
@@ -1906,6 +1910,10 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
 
     // 파일명 충돌 방지 — 동명이 있으면 (1), (2) 접미사
     const usedNames = new Map();
+    const { readAttachmentBody } = require('../services/attachmentStorage');
+    // ★ 하나씩 연다 — Drive 스트림을 200개 한꺼번에 열면 구글 쪽 동시 연결이 터진다.
+    //   한 항목이 끝나야(entry) 다음을 연다. 읽지 못한 항목은 건너뛰고 끝에 사유를 남긴다.
+    const failed = [];
     for (const it of items) {
       let name = it.name;
       const seen = usedNames.get(it.name) || 0;
@@ -1915,8 +1923,18 @@ router.post('/:businessId/bulk-download', authenticateToken, checkBusinessAccess
         name = `${base} (${seen})${ext}`;
       }
       usedNames.set(it.name, seen + 1);
-      archive.file(it.path, { name });
+      const body = await readAttachmentBody(it.src).catch(() => ({ ok: false }));
+      if (!body.ok || !body.stream) { failed.push(name); continue; }   // redirect(S3)·실패는 묶지 못한다
+      // ★ 원본 스트림을 PassThrough 로 감싼다(Fable 2026-10-02) — 열린 뒤 터지는 스트림(EISDIR·Drive 중간 끊김)을
+      //   archiver 에 그대로 주면 그 entry 가 영영 안 닫혀 finalize 가 멈추고 응답이 끝나지 않았다.
+      //   오류면 감싼 쪽을 닫아 entry 를 끝내고, 그 파일은 _not_included 에 적는다.
+      const { PassThrough } = require('stream');
+      const pt = new PassThrough();
+      body.stream.on('error', (e) => { console.warn('[bulk-zip] item stream', e.message); failed.push(name); pt.end(); });
+      body.stream.pipe(pt);
+      await new Promise((resolve) => { archive.once('entry', resolve); archive.append(pt, { name }); });
     }
+    if (failed.length) archive.append(`${failed.join('\n')}\n`, { name: '_not_included.txt' });
     await archive.finalize();
   } catch (err) { next(err); }
 });

@@ -2,7 +2,6 @@
 // QTaskPage / QProjectDetailPage 양쪽에서 공용. 단일 taskId 를 받아 상세 + 워크플로우
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
 import { sameHours } from '../../utils/hours';
-import { downloadBlob } from '../../utils/download';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import DetailFallback from '../Common/DetailFallback';
@@ -44,7 +43,6 @@ import AttachmentField from '../Common/AttachmentField';
 import { useDraftText, useDraftKey } from '../../hooks/useDraftText';
 import DraftRestoredNote from '../Common/DraftRestoredNote';
 import CueTip from '../Common/CueTip';
-import { useImageLightbox } from '../Common/ImageLightbox';
 import TaskFocusBar from '../Focus/TaskFocusBar';
 import DeliverableHistory from './DeliverableHistory';
 import TaskAttachments from './TaskAttachments';
@@ -57,6 +55,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { CheckIcon } from '../Common/Icons';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import AttachmentList from '../Common/AttachmentList';
 import { useBackToClose } from '../../hooks/useBackToClose';
 import SeriesScopeDialog, { type SeriesScope } from './SeriesScopeDialog';
 import { isSeriesTask, needsSeriesScope } from '../../utils/taskSeries';
@@ -210,7 +209,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const { t, i18n } = useTranslation('qtask');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   // 댓글 첨부 이미지 라이트박스 — 한 댓글의 이미지들이 갤러리로 묶임
-  const { open: openImageLightbox, lightbox: imageLightbox } = useImageLightbox();
   // 문서 첨부 미리보기 — 화면 전체를 갈아끼우지 않고 그 문서만 연다.
   const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
   // 프로젝트 옵션 — props 우선, 없으면 자체 fetch (TodoPage / QCalendarPage 같은 호출 측 호환)
@@ -2430,53 +2428,20 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   ) : (
                     c.content && c.content !== '(첨부파일)' && <CommentBody>{linkify(c.content)}</CommentBody>
                   )}
-                  {(c.attachments || []).length > 0 && (() => {
-                    // 한 댓글 안의 이미지 첨부만 갤러리로 묶음 — 다른 댓글 이미지와는 별개
-                    const cmtImgs = (c.attachments || [])
-                      .filter(a => a.mime_type?.startsWith('image/') && a.stored_name)
-                      .map(a => ({ id: a.id, src: `/api/tasks/public/attach/${a.stored_name}`, alt: a.original_name }));
-                    const cmtItems = cmtImgs.map(x => ({ src: x.src, alt: x.alt }));
-                    return (
-                  <CmtAtts>
-                    {(c.attachments || []).map(a => {
-                      const isImg = a.mime_type?.startsWith('image/');
-                      const preview = (isImg && a.stored_name) ? `/api/tasks/public/attach/${a.stored_name}` : null;
-                      const dl = `/api/tasks/attachments/${a.id}/download`;
-                      // 문서(post) 첨부는 내려받을 파일이 없다 — 그 문서를 연다.
-                      const docId = (a as { post_id?: number | null }).post_id || null;
-                      // 이미지는 ImageLightbox 로 — 새 탭 대신 같은 페이지 갤러리.
-                      // 비이미지는 fetch 로 blob 받아 다운로드 (auth header 포함).
-                      return isImg && preview ? (
-                        <CmtAttImgBtn key={a.id} type="button" onClick={(e) => {
-                          e.stopPropagation();
-                          const idx = cmtImgs.findIndex(x => x.id === a.id);
-                          openImageLightbox(cmtItems, idx < 0 ? 0 : idx);
-                        }} aria-label={a.original_name}>
-                          <CmtAttImg src={preview} alt={a.original_name}/>
-                        </CmtAttImgBtn>
-                      ) : (
-                        <CmtAttFile key={a.id} as="button" type="button" onClick={async (e) => {
-                          e.preventDefault();
-                          // ★ window.open 은 PWA·팝업 차단에서 **아무 일도 안 일어난다**
-                          //   (Irene 2026-08-31 "댓글에 문서 첨부했는데 클릭 안돼").
-                          //   앱 안 탭으로 연다 — 보던 업무 화면을 덮지 않는다(CLAUDE.md 탭 규칙).
-                          // 문서만 상세로 연다 — /docs 로 보내면 리스트까지 딸린 화면 전체가 뜬다.
-                          if (docId) { setDocPreview({ id: docId, title: a.original_name }); return; }
-                          try {
-                            const r = await apiFetch(dl);
-                            if (!r.ok) return;
-                            const blob = await r.blob();
-                            await downloadBlob(blob, a.original_name);
-                          } catch { /* silent */ }
-                        }}>
-                          <CmtAttIcon>{a.original_name.split('.').pop()?.slice(0, 3).toUpperCase() || 'FILE'}</CmtAttIcon>
-                          <CmtAttName>{a.original_name}</CmtAttName>
-                        </CmtAttFile>
-                      );
-                    })}
-                  </CmtAtts>
-                    );
-                  })()}
+                  {/* 댓글 첨부 — 결과물·의뢰 명세와 **같은 공용 목록**(2026-10-02). 여태 여기만 파일을 누르면
+                      미리보기 없이 곧바로 내려받았다. 이미지는 한 댓글 안끼리 넘겨 본다. */}
+                  {(c.attachments || []).length > 0 && (
+                    <CmtAtts onClick={(e) => e.stopPropagation()}>
+                      <AttachmentList layout="chips" businessId={Number(bizId) || 0}
+                        items={(c.attachments || []).map((a) => ({
+                          id: a.id, name: a.original_name, size: a.file_size, mime: a.mime_type,
+                          previewUrl: (a.mime_type?.startsWith('image/') && a.stored_name) ? `/api/tasks/public/attach/${a.stored_name}` : null,
+                          postId: (a as { post_id?: number | null }).post_id || null,
+                          downloadUrl: (a as { post_id?: number | null }).post_id ? null : `/api/tasks/attachments/${a.id}/download`,
+                          zipId: (a as { post_id?: number | null }).post_id ? null : `task-${a.id}`,
+                        }))} />
+                    </CmtAtts>
+                  )}
                 </CommentItem>
               ))(node.comment))))}
               <CommentComposer>
@@ -2885,7 +2850,6 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       cancelText={t('common.cancel', '취소') as string}
       variant="danger"
     />
-    {imageLightbox}
     {docPreview && (
       <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />
     )}
@@ -3367,15 +3331,7 @@ const CmtPickerInline = styled.div`background:#FAFBFC;border:1px solid #E2E8F0;b
 const CmtStagedRow = styled.div`display:flex;flex-wrap:wrap;gap:4px;`;
 const CmtStaged = styled.span`display:inline-flex;align-items:center;gap:4px;padding:2px 6px 2px 8px;background:#F0FDFA;color:#0F766E;border:1px solid #99F6E4;border-radius:12px;font-size:0.6875rem;`;
 const CmtStagedX = styled.button`width:16px;height:16px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#0F766E;cursor:pointer;font-size:0.875rem;line-height:1;&:hover{color:#DC2626;}`;
-const CmtAtts = styled.div`display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;`;
-const CmtAttImgBtn = styled.button`
-  all: unset; display: inline-block; cursor: zoom-in; border-radius: 6px;
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-`;
-const CmtAttImg = styled.img`max-width:160px;max-height:120px;object-fit:cover;border-radius:6px;border:1px solid #E2E8F0;display:block;`;
-const CmtAttFile = styled.a`display:inline-flex;align-items:center;gap:6px;padding:4px 8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;text-decoration:none;color:#0F172A;font-size:0.6875rem;max-width:200px;&:hover{border-color:#14B8A6;background:#F0FDFA;color:#0F766E;}`;
-const CmtAttIcon = styled.span`width:22px;height:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#E2E8F0;color:#475569;font-size:0.5625rem;font-weight:700;border-radius:3px;`;
-const CmtAttName = styled.span`overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`;
+const CmtAtts = styled.div`margin-top:6px;`;
 
 // Reviewers
 const Collapsible = styled.div`padding:10px 20px;border-bottom:1px solid #F1F5F9;`;

@@ -38,6 +38,8 @@ export const Field = styled.textarea`
   padding: 1px 0;
   max-height: 140px;
   &::placeholder { color: #94A3B8; }
+  /* 비어 있을 때 안내 문구는 한 줄에서 말줄임 — 칸 높이는 문구가 아니라 입력이 정한다(#447). */
+  &:placeholder-shown { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   &:disabled { color: #94A3B8; }
 `;
 export const SendBtn = styled.button`

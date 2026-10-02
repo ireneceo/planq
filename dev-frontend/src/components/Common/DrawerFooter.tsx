@@ -58,7 +58,7 @@ const Wrap = styled.div<{ $sticky: boolean; $size: 'sm' | 'md' }>`
   flex-shrink: 0;
   z-index: 2;
   @media (max-width: 640px) {
-    padding: 12px 16px;
+    padding: 12px 14px;   /* 폰 좌우 = 페이지·드로어 본문과 같은 14px (#446) */
     padding-bottom: calc(12px + var(--pq-safe-bottom, 0px));
   }
 `;

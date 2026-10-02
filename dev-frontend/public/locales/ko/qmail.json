@@ -495,6 +495,7 @@
     "signaturePh": "예) 워프로랩 · 홍길동 · 010-0000-0000",
     "signatureHint": "비워 두면 아래 \"기본 서명\"이 대신 붙습니다.",
     "hasSignature": "전용 서명",
+    "hasSignatureEnOnly": "전용 서명(영문만 — 한국어 메일엔 기본 서명)",
     "noSignature": "기본 서명 사용",
     "signaturePhEn": "예) WorproLab · Gildong Hong · +82 10-0000-0000"
   },

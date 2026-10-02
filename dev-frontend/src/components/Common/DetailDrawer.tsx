@@ -130,14 +130,19 @@ const Body = styled.div`
   overscroll-behavior: contain;
   padding: 18px;
   display: flex; flex-direction: column; gap: 18px;
-  /* iOS safe-area 하단 여유 */
-  padding-bottom: calc(18px + var(--pq-safe-bottom, 0px));
+  /* iOS safe-area 하단 여유 — **본문이 맨 아래일 때만.**
+     ★ 운영 #446 — 아래에 버튼 줄(Footer·DrawerFooter)이 있으면 그 줄이 안전영역을 이미 보정한다.
+       본문에도 더하면 앱(아이폰 34px)에서 본문 끝과 버튼 줄 사이에 빈 띠가 생겼다. */
+  padding-bottom: 18px;
+  &:last-child { padding-bottom: calc(18px + var(--pq-safe-bottom, 0px)); }
+  /* ★ 폰 좌우 여백은 페이지 본문(PageShell 폰 14px)과 같은 값 — 패널만 넓으면 화면을 오갈 때 튄다(#446). */
+  @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
 `;
 
 const Footer = styled.div`
   padding: 12px 18px; border-top: 1px solid #E2E8F0;
   display: flex; justify-content: flex-end; gap: 8px; align-items: center;
-  padding-bottom: calc(12px + var(--pq-safe-bottom, 0px));
+  padding-bottom: calc(12px + var(--pq-safe-bottom, 0px));  @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
 `;
 
 type DetailDrawerType = React.FC<DetailDrawerProps> & {
@@ -279,6 +284,7 @@ const HeaderWrap = styled.div`
        브라우저는 safe-top 이 0 이라 보이지 않았다. 크롬이 상태바를 이미 덮은 만큼은 빼고, 크롬이 없을 때
        (넓은 폭 미러 모드 = chrome-bottom 0)만 상태바 자리를 비운다. */
   padding-top: calc(16px + max(0px, var(--pq-safe-top, 0px) - var(--pq-chrome-bottom, 0px)));
+  @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
 `;
 
 const HeaderContent = styled.div` flex: 1; min-width: 0; `;

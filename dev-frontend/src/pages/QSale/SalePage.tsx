@@ -16,7 +16,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 // 새 노트 메뉴는 Q note 사이드바의 ＋ 와 **같은 한 벌** — 베끼지 않고 가져다 쓴다
 import { NewNoteMenu, NewSessionWrap, openQNoteWithKind } from '../../components/QNote/newNoteMenu';
 import { usePopoverAnchor } from '../../components/Common/popoverAnchor';
-import { FilterBar, FilterSlot, FilterSearchSlot, ToggleFilter, CheckFilter, axisOption } from '../../components/Common/filterBar';
+import { FilterBar, FilterSlot, FilterSearchSlot, ToggleFilter, CheckFilter, axisOption, FilterCollapsible, FilterMoreToggle } from '../../components/Common/filterBar';
 import SearchBox from '../../components/Common/SearchBox';
 import { HeaderCta } from '../../components/Common/headerCta';
 import { ChipRow, FilterChip, ChipDivider, ChipRight } from '../../components/Common/filterChip';
@@ -67,6 +67,10 @@ export default function SalePage() {
   //   탭을 오갈 때 고른 것이 유지되고, 필터 UI 도 한 벌만 그린다(자식 안에 또 그리면 갈라진다).
   const [replyOnly, setReplyOnly] = useState(false);
   const [hideClosed, setHideClosed] = useState(true);
+  // 폰에서 필터 접기 — 기본 닫힘, 사용자가 연 상태는 기억한다(Q mail 과 같은 거동, #447)
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem('planq.sale.filtersOpen') === '1'; } catch { return false; }
+  });
   const [inboxCounts, setInboxCounts] = useState<{ needs_reply: number } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   // [상담 진행] 드롭다운 — 좌표·바깥클릭·Esc·포커스는 공용 앵커 한 벌(각자 계산하면 갈라진다).
@@ -233,7 +237,9 @@ export default function SalePage() {
               세 화면을 나란히 놓으면 여기만 눌리지 않는 버튼처럼 보였다. */}
           <HeaderCta data-testid="sale-add-inquiry" onClick={() => setAddOpen(true)}>
             <PlusIcon aria-hidden />
-            <span>{t('action.addRecord') as string}</span>
+            {/* 폰은 짧은 이름 — 세 컨트롤이 한 줄(폭 365)을 넘어 버튼이 화면 끝에 붙었다(#445) */}
+            <LongLabel>{t('action.addRecord') as string}</LongLabel>
+            <ShortLabel>{t('action.addRecordShort', { defaultValue: '응대 추가' }) as string}</ShortLabel>
           </HeaderCta>
           {/* ★ 2026-09-18 (Irene: *"Q sale에 상 진행 이라고 버튼 넣고 고객응대 내역 추가 뒤에 넣어줘.
               그리고 Q note + 드롭다운 그대로 넣고 누르면 Q note로 열리게 해."*)
@@ -298,6 +304,12 @@ export default function SalePage() {
             placeholder={t('list.searchPlaceholder') as string}
             ariaLabel={t('list.searchPlaceholder') as string} />
         </FilterSearchSlot>
+        <FilterMoreToggle testId="sale-filter-toggle" open={filtersOpen}
+          onToggle={() => setFiltersOpen((v) => { const n = !v; try { localStorage.setItem('planq.sale.filtersOpen', n ? '1' : '0'); } catch { /* private mode */ } return n; })}
+          activeCount={(stage ? 1 : 0) + (access ? 1 : 0) + (assignee ? 1 : 0) + (tab === 'inbox' && replyOnly ? 1 : 0) + (tab === 'inbox' && !hideClosed ? 1 : 0)}
+          label={t('list.filters', { defaultValue: '필터' }) as string} />
+        {/* 폰에서는 접힌다(#447) — 데스크탑·태블릿은 이 상자가 레이아웃에 끼어들지 않는다 */}
+        <FilterCollapsible $open={filtersOpen}>
         <FilterSlot width={130} testId="sale-stage-filter">
           <PlanQSelect size="sm" isSearchable={false} options={stageOptions}
             aria-label={t('stage.label') as string}
@@ -333,6 +345,7 @@ export default function SalePage() {
             </CheckFilter>
           </>
         )}
+        </FilterCollapsible>
       </FilterBar>
 
       {tab === 'inbox' ? (
@@ -626,6 +639,8 @@ function AddInquiryModal({ open, businessId, onClose, onDone }: {
 /* 폰에서는 액션 줄이 가로로 스크롤된다(PageShell). 그대로 두면 **주 액션이 화면 밖 오른쪽**에 있어
    스크롤해야 닿는다(실측 390px: 앞의 컨트롤이 자리를 다 먹고 "+ 고객응대 내역 추가" 가 뷰포트 밖).
    → 폰에서는 주 액션을 맨 앞으로 돌린다. 탭은 오른쪽으로 흘러도 스크롤로 닿는다. */
+const LongLabel = styled.span`@media (max-width: 640px) { display: none; }`;
+const ShortLabel = styled.span`display: none; @media (max-width: 640px) { display: inline; }`;
 const Actions = styled.div`
   display: flex; align-items: center; gap: 8px;
   @media (max-width: 640px) { > *:last-child { order: -1; } }

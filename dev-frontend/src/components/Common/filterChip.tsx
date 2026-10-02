@@ -22,6 +22,12 @@ export const ChipRow = styled.div`
   display: flex; align-items: center; flex-wrap: wrap;
   column-gap: 6px; row-gap: 6px;
   padding: 10px 0 4px;
+  /* 폰 — 칩은 **한 줄**로 두고 옆으로 민다(운영 #447: "필터가 두세줄이라 쓸데없이 길어").
+     넓은 화면은 지금처럼 줄이 바뀐다. 오른쪽 끝 묶음(ChipRight)은 스크롤 줄 안에서도 끝에 선다. */
+  @media (max-width: 640px) {
+    flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain;
+    scrollbar-width: none; &::-webkit-scrollbar { display: none; }
+  }
 `;
 
 /** 고르는 알약. `$accent` 는 주의를 끄는 축(대응 필요 등). */

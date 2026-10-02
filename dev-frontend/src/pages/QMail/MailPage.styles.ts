@@ -1025,9 +1025,18 @@ export const CtxBackdrop = styled.div`
   @media (min-width: 1025px) { display: none; }
 `;
 // 보내는 사람(Send-as) — 주소가 2개 이상일 때만 뜬다
-export const ComposerFrom = styled.div`display: flex; align-items: center; gap: 8px;`;
+// ★ 운영 #451 (2026-10-02, Irene: *"메일 답장할 때 모바일에서 보내는 사람 칸이 다 망가져. 좁게."*)
+//   한 줄에 라벨 · 주소 선택 · 도움말 · [주소로 보내기(등록)] 이 다 서 있어 폰(폭 ~360)에서 주소 칸이
+//   100px 남짓으로 눌렸다. 폰에서는 줄을 바꾸고 **주소 칸이 남는 폭을 다 쓴다** — 보조 버튼은 다음 줄로.
+export const ComposerFrom = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  @media (max-width: 640px) { flex-wrap: wrap; row-gap: 6px; }
+`;
 export const FromLbl = styled.span`font-size: 0.75rem; color: #64748B; flex-shrink: 0;`;
-export const FromSelect = styled.div`flex: 1; min-width: 0; max-width: 320px;`;
+export const FromSelect = styled.div`
+  flex: 1; min-width: 0; max-width: 320px;
+  @media (max-width: 640px) { flex: 1 1 calc(100% - 120px); max-width: none; }
+`;
 // 처리됨 — 그 자리에 남되 조용히 물러난다 (행을 지우면 아래가 위로 밀려 읽던 자리가 흔들린다)
 export const HandledBadge = styled.span`
   height: 24px; padding: 0 8px; margin-left: auto;
@@ -1055,6 +1064,8 @@ export const FromManage = styled.button`
   flex-shrink: 0; border: none; background: none; padding: 0 2px; cursor: pointer;
   font-size: 0.6875rem; font-weight: 600; color: #0F766E;
   &:hover { text-decoration: underline; }
+  /* 폰 — 주소 칸 아래 자기 줄로, 긴 주소는 줄바꿈(#451) */
+  @media (max-width: 640px) { flex-basis: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; padding: 6px 2px; }
 `;
 
 // 폴더 맥락 일괄 액션 버튼 — Secondary(ghost). $confirm 이면 2단계 확인(Coral 강조).

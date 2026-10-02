@@ -120,7 +120,9 @@
     "menuGroup": {
       "make": "Create",
       "go": "Open & manage"
-    }
+    },
+    "openOriginalMail": "Open in mail",
+    "openOriginal": "Open original"
   },
   "action": {
     "addInquiry": "+ Add inquiry",
@@ -177,7 +179,8 @@
     "memoWith": "{{n}} note(s) — click to view",
     "memoNone": "No notes — click to add one",
     "promoteToInbox": "Send to consults",
-    "proceedConsult": "Start consult"
+    "proceedConsult": "Start consult",
+    "addRecordShort": "Add"
   },
   "record": {
     "kind": {
@@ -226,7 +229,8 @@
     "noTouch": "No touchpoints",
     "count": "{{count}}",
     "tabInbox": "Inquiries",
-    "tabClients": "Clients"
+    "tabClients": "Clients",
+    "filters": "Filters"
   },
   "detail": {
     "profile": "Profile",

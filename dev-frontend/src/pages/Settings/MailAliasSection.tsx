@@ -3,7 +3,7 @@
 // Gmail·Outlook 의 "다른 주소로 메일 보내기" 와 같다. PlanQ 는 주소를 등록해 두고 고르게 하고,
 // 그 주소로 보낼 권한 자체는 메일 제공자에서 인증돼 있어야 한다 — 그 사실을 화면에 밝힌다
 // (여기서 등록만 하면 다 되는 것처럼 보이면 발송 실패의 원인을 사용자가 찾을 수 없다).
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import ActionButton from '../../components/Common/ActionButton';
@@ -11,6 +11,7 @@ import RichEditor from '../../components/Common/RichEditor';
 import SignatureLangTabs, { type SigLang } from '../../components/Common/SignatureLangTabs';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import { apiFetch } from '../../contexts/AuthContext';
+import { readDraftRecord } from '../../services/draftStore';
 
 export interface MailAlias {
   id: number;
@@ -46,10 +47,31 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
 
   // 쓰다 만 서명은 남는다 — 행(별칭)마다, 언어마다 키를 가른다.
   //   같은 인스턴스를 다른 행에 재사용하면 떠난 행의 글이 새 행에 나타난다.
-  const koDraft = useDraftText(useDraftKey('mail-signature-alias', `${editId ?? 0}:ko`, businessId));
-  const enDraft = useDraftText(useDraftKey('mail-signature-alias', `${editId ?? 0}:en`, businessId));
+  const koKey = useDraftKey('mail-signature-alias', `${editId ?? 0}:ko`, businessId);
+  const enKey = useDraftKey('mail-signature-alias', `${editId ?? 0}:en`, businessId);
+  const koDraft = useDraftText(koKey);
+  const enDraft = useDraftText(enKey);
   const editSignature = koDraft.text; const setEditSignature = koDraft.setText;
   const editSignatureEn = enDraft.text; const setEditSignatureEn = enDraft.setText;
+  // ★ 서버 서명은 **키가 새 행으로 바뀐 뒤에** 채운다 (운영 #452).
+  //   startEdit 안에서 바로 setText 하면 그 순간 훅은 아직 **앞 키**(0)를 들고 있어
+  //   서명이 엉뚱한 초안 칸에 쓰이고, 새 키를 읽으면서 편집기는 빈 칸이 된다 —
+  //   그대로 [저장]을 누르면 빈 서명(null)이 나가 저장된 서명을 지웠다.
+  //   훅의 키 전환 효과가 먼저 돌고(선언 순서) 이 효과가 뒤에 돌므로 여기서는 새 키에 쓴다.
+  const seedRef = useRef<MailAlias | null>(null);
+  useEffect(() => {
+    const a = seedRef.current;
+    if (!a || a.id !== editId) return;
+    seedRef.current = null;
+    const hasDraft = (k: string | null) => {
+      const rec = readDraftRecord<string>(k);
+      return !!rec && !rec.cleared && typeof rec.value === 'string' && !isEmptyHtml(rec.value);
+    };
+    // 저장된 초안이 있으면 그것이 이긴다 — 없을 때만 서버 값으로 채운다.
+    if (!hasDraft(koKey)) setEditSignature(a.signature_html || '');
+    if (!hasDraft(enKey)) setEditSignatureEn(a.signature_html_en || '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editId, koKey, enKey]);
   const [editEmail, setEditEmail] = useState('');
   const [editName, setEditName] = useState('');
   // 주소마다 다른 서비스라 서명도 주소마다 달라야 한다 (Irene).
@@ -108,9 +130,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
     setEditId(a.id);
     setEditEmail(a.email);
     setEditName(a.display_name || '');
-    // 저장된 초안이 있으면 그것이 이긴다 — 없을 때만 서버 값으로 채운다.
-    if (!koDraft.text) setEditSignature(a.signature_html || '');
-    if (!enDraft.text) setEditSignatureEn(a.signature_html_en || '');
+    seedRef.current = a;   // 서명은 키가 바뀐 뒤 위 효과가 채운다
     setSigLang('ko');
   };
   const cancelEdit = () => { setEditId(null); setEditEmail(''); setEditName(''); koDraft.clear(); enDraft.clear(); setSigLang('ko'); };
@@ -231,9 +251,14 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
                 ? <Who>{a.display_name}</Who>
                 : <WhoEmpty>{t('alias.noName', { defaultValue: '표시 이름 없음' }) as string}</WhoEmpty>}
               {/* 주소별 서명이 있는지 한눈에 — 없으면 계정 공통 서명이 붙는다 */}
+              {/* ★ 한국어·영문 **둘 다** 본다 — 영문만 넣은 주소가 «기본 서명 사용» 으로 보여
+                  저장이 안 된 것으로 읽혔다(운영 #452). 영문만 있으면 그 사실을 적는다:
+                  한국어 메일에는 이 서명이 아니라 기본 서명이 붙기 때문이다(emailSend.resolveSignature). */}
               {a.signature_html && !isEmptyHtml(a.signature_html)
                 ? <Who>· {t('alias.hasSignature', { defaultValue: '전용 서명' }) as string}</Who>
-                : <WhoEmpty>· {t('alias.noSignature', { defaultValue: '기본 서명 사용' }) as string}</WhoEmpty>}
+                : a.signature_html_en && !isEmptyHtml(a.signature_html_en)
+                  ? <Who>· {t('alias.hasSignatureEnOnly', { defaultValue: '전용 서명(영문만 — 한국어 메일엔 기본 서명)' }) as string}</Who>
+                  : <WhoEmpty>· {t('alias.noSignature', { defaultValue: '기본 서명 사용' }) as string}</WhoEmpty>}
             </Addr>
             {a.is_default
               ? <Tag $on>{t('alias.default', { defaultValue: '새 메일 기본' }) as string}</Tag>

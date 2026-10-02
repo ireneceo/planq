@@ -22,6 +22,7 @@ import FilePicker, { type FilePickerResult } from '../../components/Common/FileP
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import { fetchWorkspaceFiles, uploadMyFile, isImage as isRenderableImage } from '../../services/files';
 import AttachmentPreviewDrawer, { type PreviewAttachment } from '../../components/Common/AttachmentPreviewDrawer';
+import { DownloadAllButton } from '../../components/Common/AttachmentList';
 import { mediaTablet } from '../../theme/breakpoints';
 import { mapApiError } from '../../utils/apiError';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
@@ -1909,9 +1910,23 @@ const ChatPanel: React.FC<Props> = ({
                         <AttachIcon>{a.file_name.split('.').pop()?.slice(0, 3).toUpperCase() || 'FILE'}</AttachIcon>
                         <AttachName>{a.file_name}</AttachName>
                         <AttachSize>{(a.file_size / 1024).toFixed(0)}KB</AttachSize>
+                        {/* 카드에서 바로 내려받기 — 업무 첨부와 같은 규칙(2026-10-02). 카드 자체는 미리보기를 연다. */}
+                        <AttachDl role="button" tabIndex={0} title={t('attachList.download', { ns: 'common', defaultValue: '내려받기' }) as string}
+                          aria-label={`${t('attachList.download', { ns: 'common', defaultValue: '내려받기' })}: ${a.file_name}`}
+                          onClick={(e) => { e.stopPropagation(); void downloadAttachment(a.id, a.file_name); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); void downloadAttachment(a.id, a.file_name); } }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M12 3v12" /><polyline points="7 10 12 15 17 10" /><path d="M5 21h14" />
+                          </svg>
+                        </AttachDl>
                       </AttachFileLink>
                     );
                   })}
+                  {m.attachments.length > 1 && businessId && (
+                    <AttachAllWrap>
+                      <DownloadAllButton businessId={Number(businessId)} zipIds={m.attachments.map((a) => `chat-${a.id}`)} />
+                    </AttachAllWrap>
+                  )}
                 </AttachRow>
                 );
               })()}
@@ -3936,3 +3951,10 @@ const AttachIcon = styled.span`
 `;
 const AttachName = styled.span`font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;`;
 const AttachSize = styled.span`color: #94A3B8; font-size: 0.625rem;`;
+const AttachDl = styled.span`
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 28px; aspect-ratio: 1; margin-left: 2px; border-radius: 6px; color: #64748B; cursor: pointer;
+  &:hover { background: #E2E8F0; color: #0F766E; }
+  svg { width: 14px; }
+`;
+const AttachAllWrap = styled.div`flex-basis: 100%;`;

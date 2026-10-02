@@ -25,7 +25,8 @@ if (typeof document !== 'undefined') {
 }
 
 /**
- * 이 Esc 가 그 순간 열려 있던 드롭다운(셀렉트 등)의 몫이면 true.
+ * 이 Esc 가 이미 **다른 것의 몫**이면 true — 그 순간 열려 있던 드롭다운(셀렉트 등)이거나,
+ * 공용 Esc 스택이 맨 위 창(이미지 보기·모달·드로어)을 닫는 데 썼다.
  * 패널·드로어를 닫는 쪽은 **이 함수를 부른 뒤** 닫는다. 각자 판정하면 반드시 갈라진다 —
  * 실제로 Q Task 화면은 Esc 를 세 곳에서 듣고 있었고 그중 둘이 이 사실을 몰랐다.
  */
@@ -46,6 +47,11 @@ const attachKeyOnce = (() => {
       // 최상단만 실행
       const top = stack[stack.length - 1];
       top.handler();
+      // ★ 이 Esc 는 **스택이 처리했다** — 창(window)에서 따로 Esc 를 듣는 화면이 같은 Esc 로 한 번 더 닫지 않게
+      //   같은 표식(escapeConsumedByOverlay)에 올린다(2026-10-02). Q task 화면이 window 에서 Esc 로 업무 상세를
+      //   닫고 있어서, 이미지 보기(맨 위)를 닫은 Esc 가 그 아래 업무 패널까지 닫았다.
+      //   document 리스너가 window 리스너보다 먼저 돌므로 window 쪽은 이 표식을 본다.
+      consumedByOverlay.add(e);
     });
   };
 })();

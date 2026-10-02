@@ -292,15 +292,19 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
       })).json();
       if (!r?.success) return;
       const newTaskId = r.data.id;
-      // 1) 새 업로드 파일 — 워크스페이스 업로드 후 fileId 수집
+      // 1) 새 업로드 파일 — **업무에 바로** 올린다(업무 상세의 의뢰 명세 첨부와 같은 문).
+      //   ★ 운영 #444 (2026-10-02, Irene: *"업무설명에 이미지 첨부했는데 다른 직원이 안보인대."*)
+      //     여태 `/api/files/:biz` 로 **올린 사람의 내 파일(L1·프로젝트 없음)** 을 만든 뒤 업무에 연결했다.
+      //     첨부 사본은 원본 File 등급으로 판정되므로(imageViewer.denyPrivateCopy) 그 업무의 담당자에게도
+      //     이미지가 404 였다. 상세 화면(DescriptionAttachments)은 처음부터 업무 첨부 라우트로 올려 문제가 없었다
+      //     — 같은 일을 하는 두 문이 갈라져 있었다. 업무를 볼 수 있는 사람이 첨부도 본다(canAccessTask).
       const uploadedFileIds: number[] = [...existingFileIds];
       for (const f of uploads) {
         try {
           const fd = new FormData();
-          fd.append('file', f);
-          const upR = await apiFetch(`/api/files/${bizId}`, { method: 'POST', body: fd });
-          const upJ = await upR.json();
-          if (upJ.success && upJ.data?.id) uploadedFileIds.push(Number(upJ.data.id));
+          fd.append('file', f, f.name);
+          const upR = await apiFetch(`/api/tasks/${newTaskId}/attachments?context=description_attach`, { method: 'POST', body: fd });
+          if (!upR.ok) console.warn('[task upload] HTTP', upR.status);
         } catch (err) { console.warn('[task upload]', err); }
       }
       // 2) 모은 fileId·post 를 task 에 link.
@@ -519,7 +523,9 @@ export default TaskCreateForm;
 // ── 스타일 — QTaskPage 에서 그대로 옮겨왔다(두 벌이 되지 않게 여기 한 곳에 둔다) ──
 const AddInput = styled.input`flex:1 1 auto;min-width:0;font-size:0.875rem;color:#0F172A;border:1px solid #14B8A6;background:#F0FDFA;padding:6px 10px;border-radius:6px;font-family:inherit;&:focus{outline:none;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}&::placeholder{color:#94A3B8;}`;
 const InlineAddBox = styled.div`display:flex;flex-direction:column;gap:8px;margin:8px 14px 20px;padding:12px;background:#F8FAFC;border:1px solid #14B8A6;border-radius:10px;`;
-const PanelAddForm = styled.div`display:flex;flex-direction:column;gap:10px;padding:20px;background:transparent;border:none;`;
+// ★ 여백은 드로어 본문(DetailDrawer.Body)이 준다 — 여기서 20px 을 또 주면 폰에서 좌우가 38px 이 되어
+//   다른 화면(14px)보다 눈에 띄게 넓었다(운영 #446). 자기 여백을 두지 않는다.
+const PanelAddForm = styled.div`display:flex;flex-direction:column;gap:10px;padding:0;background:transparent;border:none;`;
 const AddOptRow = styled.div`display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;`;
 const DescEditorWrap = styled.div`background:#FFF;border:1px solid #E2E8F0;border-radius:8px;padding:0;overflow:hidden;&:focus-within{border-color:#14B8A6;}`;
 const AttachToggleRow = styled.div`display:flex;`;

@@ -58,6 +58,9 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
   useEffect(() => {
     const el = taRef.current;
     if (!el) return;
+    // ★ 비어 있으면 **한 줄**이다 — scrollHeight 는 안내 문구(placeholder)까지 재서, 폰에서는
+    //   긴 예시 문구가 세 줄로 접혀 빈 입력칸이 세 줄 높이가 됐다(운영 #447).
+    if (!el.value) { el.style.height = ''; return; }
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
   }, [draft.text]);

@@ -498,7 +498,7 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
         </HeaderTop>
         <HeaderTitle>{invoice.title}</HeaderTitle>
         {invoice.notes && <HeaderSub>{invoice.notes}</HeaderSub>}
-        <RecurringBillingNote recurring={invoice.recurring} />
+        <RecurringBillingNote recurring={invoice.recurring} showEditScope />
 
         {/* 액션 바 — 운영 #274: **블록 단위** 분기.
             버튼 단위로 조건을 달면 다음에 추가되는 버튼이 또 새 나간다.

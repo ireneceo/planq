@@ -1269,5 +1269,13 @@
     },
     "sectionContent": "Docs & info",
     "retention": "You can restore items within {{count}} days of deleting. After that they are removed automatically."
+  },
+  "attachList": {
+    "download": "Download",
+    "downloadAll": "Download all ({{n}})",
+    "downloadingAll": "Zipping…",
+    "downloadFailed": "Download failed. Please try again.",
+    "remove": "Delete",
+    "doc": "Doc"
   }
 }

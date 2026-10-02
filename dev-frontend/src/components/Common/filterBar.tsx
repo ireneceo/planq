@@ -38,6 +38,8 @@ export const FilterSearchSlot = styled.div`
   flex: 0 1 240px; min-width: 160px;
   display: flex; align-items: center;
   > * { width: 100%; }
+  /* 폰 — [필터] 버튼과 한 줄에 서서 남는 폭을 다 쓴다(#447). */
+  @media (max-width: 640px) { flex: 1 1 0; min-width: 0; }
 `;
 
 /** 여기서부터 **오른쪽 끝**에 붙는다. 감싸서 쓴다 — 빈 칸막이(spacer)로 밀면
@@ -95,3 +97,49 @@ export const CheckFilter = styled.label`
   font-size: 0.75rem; font-weight: 600; color: #475569; cursor: pointer; user-select: none;
   input { width: 16px; height: 16px; accent-color: #0D9488; cursor: pointer; margin: 0; }
 `;
+
+/**
+ * 폰에서 필터를 **접는다** (운영 #447, 2026-10-02 — Irene: *"Q sales 모바일에서 필터가 두세줄이라
+ * 쓸데없이 길어. 행을 좀 줄이거나 메일처럼 접거나 안돼?"*).
+ *
+ * Q mail 과 같은 모양이다 — [검색][필터 N] 한 줄, 누르면 아래로 펼친다. 데스크탑·태블릿은
+ * 감싸는 상자가 레이아웃에 끼어들지 않는다(`display: contents`) — 지금 한 줄 배치 그대로다.
+ * ★ 접었을 때 **걸려 있는 필터 수**를 버튼에 적는다 — 안 보이면 "왜 목록이 이상하지" 가 된다(Q mail #213 과 같은 규칙).
+ */
+export const FilterCollapsible = styled.div<{ $open: boolean }>`
+  display: contents;
+  @media (max-width: 640px) {
+    display: ${p => (p.$open ? 'contents' : 'none')};
+  }
+`;
+
+const MoreBtn = styled.button`
+  display: none;
+  @media (max-width: 640px) {
+    display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+    height: 36px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+    background: #fff; border: 1px solid #E2E8F0;
+    font-family: inherit; font-size: 0.75rem; font-weight: 600; color: #475569;
+    &[aria-expanded='true'] { border-color: #0F766E; color: #0F766E; }
+    b {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 18px; padding: 2px 5px; line-height: 1.4; border-radius: 9px;
+      background: #0F766E; color: #fff; font-size: 0.625rem; font-weight: 700;
+    }
+    svg { width: 13px; transition: transform .15s; }
+    &[aria-expanded='true'] svg { transform: rotate(90deg); }
+  }
+`;
+
+/** 폰에서만 보이는 [필터 N] 버튼. `label` 은 호출부가 t() 로 넘긴다. */
+export const FilterMoreToggle: React.FC<{
+  open: boolean; onToggle: () => void; activeCount: number; label: string; testId?: string;
+}> = ({ open, onToggle, activeCount, label, testId }) => (
+  <MoreBtn type="button" aria-expanded={open} onClick={onToggle} data-testid={testId}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+    {label}
+    {activeCount > 0 && <b>{activeCount}</b>}
+  </MoreBtn>
+);

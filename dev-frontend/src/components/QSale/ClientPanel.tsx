@@ -45,6 +45,7 @@ import ClientLinksSection from './ClientLinksSection';
 // 프로필 입력 — 전체 프로필과 **같은 폼**. 여기서 고칠 수 있어야 한다(Irene 2026-09-13)
 import ClientProfileForm from './ClientProfileForm';
 import { openSaleTimelineItem } from '../../utils/saleTimelineTarget';
+import { tabStore } from '../../stores/tabStore';
 // 불발 사유 창은 **공용**(상세 페이지와 같은 것) — 여기서 단계만 넘기면 왜 깨졌는지가 원장에 안 남는다
 import LostReasonModal from './LostReasonModal';
 // 단계 칩은 전체 프로필과 **같은 것**을 쓴다 — 화면마다 따로 그리면 동작이 갈라진다.
@@ -461,12 +462,23 @@ const ClientPanel: React.FC<Props> = ({
               )}
               {inquiry.at && <span>{formatDateTime(inquiry.at)}</span>}
             </InquiryMeta>
-            {/* ★ 2026-09-13 — [보기] 를 뺐다 (Irene: *"[보기]라고 나오는게 필요없어 보여.
-                리스트에서 알아서 하면 되는 거야. 그거보다 문의가 어디를 통해 들어온건지 표시 해야 해."*)
-                원본으로 가는 길은 목록의 액션이 맡는다. 여기서는 **어디로 들어온 문의인지**를 말한다. */}
-            <InquiryVia data-testid="client-panel-inquiry-via">
-              {t('panel.cameVia', { via: t(`inbox.source.${inquiry.source}`, { defaultValue: inquiry.source }) as string }) as string}
-            </InquiryVia>
+            {/* 9/13 뜻 없는 [보기] 낱말은 뺐고(Irene), #448(10/2) 로 «어디로 들어왔는지» 줄 자체가
+                원본(서버 open_path)으로 가는 링크다 — 원본으로 가는 길까지 없애면 결손이다. 새 탭. */}
+            {inquiry.openPath ? (
+              <InquiryViaLink type="button" data-testid="client-panel-inquiry-via"
+                onClick={() => tabStore.openInNewTab(inquiry.openPath)}>
+                {t('panel.cameVia', { via: t(`inbox.source.${inquiry.source}`, { defaultValue: inquiry.source }) as string }) as string}
+                <span aria-hidden> · </span>
+                {(inquiry.source === 'email'
+                  ? t('panel.openOriginalMail', { defaultValue: '메일에서 보기' })
+                  : t('panel.openOriginal', { defaultValue: '원본 보기' })) as string}
+                <span aria-hidden> →</span>
+              </InquiryViaLink>
+            ) : (
+              <InquiryVia data-testid="client-panel-inquiry-via">
+                {t('panel.cameVia', { via: t(`inbox.source.${inquiry.source}`, { defaultValue: inquiry.source }) as string }) as string}
+              </InquiryVia>
+            )}
           </InquiryBox>
         )}
 
@@ -779,4 +791,8 @@ const Dim = styled.div`padding: 32px 0; text-align: center; color: #94A3B8; font
 const InquiryVia = styled.div`
   font-size: 0.75rem; font-weight: 600; color: #4338CA;
   background: #EEF2FF; border-radius: 999px; padding: 3px 10px; align-self: flex-start;
+`;
+const InquiryViaLink = styled(InquiryVia).attrs({ as: 'button' })`
+  border: none; cursor: pointer; font-family: inherit; text-align: left;
+  &:hover { background: #E0E7FF; } &:focus-visible { outline: 2px solid rgba(67,56,202,0.5); outline-offset: 2px; }
 `;

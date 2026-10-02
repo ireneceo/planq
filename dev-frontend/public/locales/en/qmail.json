@@ -495,6 +495,7 @@
     "signaturePh": "e.g. WOR-PRO Lab · John Doe · +82 10-0000-0000",
     "signatureHint": "Leave empty to use the \"Default signature\" below.",
     "hasSignature": "own signature",
+    "hasSignatureEnOnly": "Own signature (English only — Korean mail uses the default)",
     "noSignature": "uses default",
     "signaturePhEn": "e.g. WorproLab · Gildong Hong · +82 10-0000-0000"
   },

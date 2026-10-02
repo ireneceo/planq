@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-01 밤 ([Opus] Opus 5.5) — **v1.67.0 · v1.67.1 운영 배포** (Fable PASS, 확인필요 카드·필터 뒤로는 자체 검증). 메일 실시간 · 랜딩 포지셔닝 · 가입 출처 · 답장 발신 주소(Cc) · 탭 뒤로 가기 마무리 · 확인필요 카드 정돈 · 앱스토어 출시.
+> **최종 업데이트:** 2026-10-02 ([Opus] Opus 5.5) — **미배포.** 운영 신고 10/2 묶음(#442~452) · 공용 첨부 목록 · 묶음 다운로드 권한 구멍 수리 · #424 근무일 통합 Fable 설계.
+> ── 이전(2026-10-01 밤) ──
+> **v1.67.0 · v1.67.1 운영 배포** (Fable PASS, 확인필요 카드·필터 뒤로는 자체 검증). 메일 실시간 · 랜딩 포지셔닝 · 가입 출처 · 답장 발신 주소(Cc) · 탭 뒤로 가기 마무리 · 확인필요 카드 정돈 · 앱스토어 출시.
 > ── 이전(2026-09-29 밤) ──
 > **v1.66.0 운영 배포** (Fable 429 ×4 → 미검증·대기열 — 10-01 라운드에서 해소). 모바일 #437·#441·#436·#427 · #430 전체 업무 찾기 · 탭 모드 뒤로 가기 · Q sales · 프로젝트 폴더 업로드 · 날짜 형식 2차 · 공유 받기 ①.
 > ── 이전(2026-09-29 오전) ──
@@ -14,6 +16,33 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 2026-10-02 [Opus] — 운영 신고 #442~452 · 공용 첨부 목록 · 묶음 다운로드 권한 · #424 설계
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| #452 별칭 전용 서명 | 저장은 됐는데 ①배지가 한국어만 봐 «기본 서명 사용» ②[수정] 시 서명이 편집기에 안 채워져 재저장하면 지워짐(초안 키 전환 전 setText) → 둘 다 수리 | ✅ 클릭 검증 PASS |
+| #442 정기 청구서 | 답: 발행된 청구서를 고쳐도 다음 회차는 안 바뀜(구독·월정액 설정에서 생성). 상세에 안내 한 줄 | ✅ |
+| #443 Q talk 작업대 | 오버레이 기준선 --chrome-top(폰=0) → --pq-chrome-bottom, 폰 전체폭. 아이폰에서 머리가 헤더 밑에 깔리던 것 | ✅ (확인필요→업무 패널 경로는 재현 안 됨) |
+| #445·#447 Q sales 폰 | 필터 [검색][필터 N] 한 줄 접기(공용 filterBar) · 칩 한 줄 스크롤(공용 ChipRow) · 빈 Cue 칸 한 줄 · 머리 CTA 짧은 이름 · 카드 넘침 | ✅ 3폭 실측 |
+| #446 드로어 폰 여백 | DetailDrawer 폰 좌우 14(페이지와 같게) · 폼 이중 여백 제거(38→14) · 본문 하단 안전영역 중복 제거 | ✅ |
+| #448 문의 원본 링크 | 문의 상세 «어디로 들어왔는지» 줄이 원본(메일)으로 가는 링크 | ✅ |
+| #451 답장 보낸 주소 | 폰에서 주소 칸이 줄 폭을 다 쓰고 보조 버튼은 다음 줄 | ✅ |
+| #444 업무 추가 첨부 | 업무 추가 창 첨부가 «내 파일 L1» 로 올라가 담당자에게 404 → 업무 첨부 라우트로 직접(상세와 한 문) | ✅ Fable PASS · 운영 기존 4업무 5개 백필은 결정 대기 |
+| 공용 첨부 목록 | `AttachmentList` — 결과물·의뢰 명세·댓글 같은 동작(이미지=이미지 보기, 행마다 내려받기, 전체 다운로드) · 채팅/메일 전체 다운로드 · 이미지 보기 Esc 가 아래 패널을 안 닫음(Esc 스택 표식 + QTaskPage/CueHelp/NewEvent) | ✅ 2폭 클릭 PASS · Esc 회귀 3폭 PASS |
+| 묶음 다운로드 권한 | `/bulk-download` 가 business_id 만 보던 구멍(남의 L1·남의 대화방 zip) → 항목별 단건 술어 · Drive 포함 · 깨진 스트림 hang 수리 · 고객 버튼 숨김 | ✅ 음성 대조군 FAIL→PASS |
+| #424 설계 | Fable 설계 `docs/WORKDAY_HOLIDAY_DESIGN.md` — 구현은 Irene 결정 3개 후 | ⏳ |
+| iOS 1.0.1 | MARKETING_VERSION 1.0 → 1.0.1 (App Store 이름 변경 심사용 빌드) | ✅ 푸시 후 Codemagic |
+
+### 수정된 파일
+- `dev-backend/routes/files.js`
+- `dev-frontend/src/components/Common/{AttachmentList(신규),DetailDrawer,DrawerFooter,ImageLightbox,filterBar,filterChip,cueBarShell,CueHelpDrawer}.tsx` · `hooks/useEscapeStack.ts`
+- `dev-frontend/src/components/QTask/{TaskAttachments,DescriptionAttachments,TaskCreateForm,TaskDetailDrawer,CueTaskBar}.tsx`
+- `dev-frontend/src/components/QSale/{ClientPanel,SaleCueBar,SaleInboxList}.tsx` · `pages/QSale/SalePage.tsx`
+- `dev-frontend/src/pages/{QTalk/ChatPanel,QTalk/RightPanel,QMail/MessageAttachments,QMail/MailPage.styles,Settings/MailAliasSection,QBill/InvoiceDetailDrawer,QCalendar/NewEventModal}` · `components/QBill/RecurringBillingNote.tsx`
+- locales ko/en (common·qbill·qmail·qsale) · `ios/App/App.xcodeproj/project.pbxproj` · `docs/WORKDAY_HOLIDAY_DESIGN.md` · `docs/FABLE_GATE_QUEUE.md`
 
 ---
 
