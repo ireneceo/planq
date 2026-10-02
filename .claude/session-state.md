@@ -1,4 +1,26 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-10-02 밤(4) · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료 — **v1.70.0 운영 배포 완료**(backup /opt/planq/backups/20261002_182040) · 미커밋 0 · Fable PASS(마커 f334c7d1)
+
+### 완료된 작업
+- #426 무료 자가진단(/service/diagnosis·관리자 리드/통계) 53183cb6 + Fable FAIL 2 수리 7bc02a34
+- #439 AI 에이전트 연동 M1 f334c7d1 — MCP+OAuth 2.1 · 도구 6 · /connect/agent · 연결된 AI 앱. **운영은 꺼짐**(.env 키 없음 → /agent/* 미노출)
+- /about 첫 방문 크래시 b561416b(공용 i18nArray · --suite landingfirst 대조군 4/4→0/4)
+- 신고 답글: #412·#426 done · #439·#440 reviewing
+
+### 다음 할 일
+1. **Irene: dev nginx** `location /agent/` · `location /.well-known/oauth-` → 127.0.0.1:3005 (dev.planq.kr 서버 블록, sudo). 끝나면 실 ChatGPT(Developer mode 커스텀 커넥터 https://dev.planq.kr/agent/mcp)로 M1-d 4시나리오
+2. 그 뒤 운영 켜기: 운영 .env AGENT_ENABLED=1 · AGENT_TOKEN_SECRET(JWT_SECRET 과 다른 값) + 운영 nginx 같은 2경로 + planq-prod-mcp restart
+3. #439 M2: reassign·updateFields 행동 계층 추출 · MEDIUM 확인 2단계 · 나머지 도구 · cue_tools 레지스트리로
+4. #426 문항 문구 Irene 검토 반영
+5. #434② 네이티브 공유(iOS App Group 선행) · Codemagic ios-testflight 1.0.1
+6. 관찰: 관리자 문의 인박스 기존 문구 대부분 t() 기본값(ko 고정)
+
+---
+
+> ⚠️ 아래는 10-02 밤(3) 기록.
+
+## 현재 작업 상태
 **마지막 업데이트:** 2026-10-02 밤(3) · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료 — **v1.69.2 운영 배포 완료**(backup /opt/planq/backups/20261002_161311) · 신고 6건 답글·done · Fable PASS(#411·#382·후속)
 
