@@ -7,6 +7,8 @@ import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { isTaskEvent } from './taskToEvent';
 import { formatDay } from '../../utils/dateFormat';
+import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
+import { HolidayName, holidayLabel } from './holidayLook';
 
 // 날짜 키 별 인덱스 — 멀티데이 이벤트는 걸친 모든 날짜에 등장
 const indexByDayKey = (events: CalendarItem[]): Record<string, CalendarItem[]> => {
@@ -36,11 +38,13 @@ interface Props {
   onCreateAt?: (date: Date) => void;
   /** 주 시작 요일 (0=일, 1=월) — 사용자 설정 */
   weekStart?: 0 | 1;
+  /** #424 — 워크스페이스 휴일(쉬는 날만, dateKey → 이름). 읽기 전용 표시 */
+  holidays?: Record<string, HolidayMark>;
 }
 
 const MAX_VISIBLE = 3;
 
-const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSelectDate, onCreateAt, weekStart = 0 }) => {
+const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSelectDate, onCreateAt, weekStart = 0, holidays }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const days = useMemo(() => getMonthGridDays(anchor, weekStart), [anchor, weekStart]);
   const eventMap = useMemo(() => indexByDayKey(events), [events]);
@@ -72,6 +76,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
           const isToday = isSameDay(day, today);
           const visible = list.slice(0, MAX_VISIBLE);
           const hidden = list.length - visible.length;
+          const hol = holidays?.[key];
 
           return (
             <Cell
@@ -81,9 +86,10 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
               onClick={() => onSelectDate(day)}
             >
               <CellHead>
-                <DateBadge $today={isToday} $isSaturday={day.getDay() === 6} $isSunday={day.getDay() === 0}>
+                <DateBadge $today={isToday} $isSaturday={day.getDay() === 6} $isSunday={day.getDay() === 0 || !!hol}>
                   {day.getDate()}
                 </DateBadge>
+                {hol && <HolidayName data-testid="calendar-holiday" title={holidayLabel(hol, i18n.language)}>{holidayLabel(hol, i18n.language)}</HolidayName>}
                 {onCreateAt && (
                   <AddBtn
                     type="button"
@@ -245,6 +251,7 @@ const Cell = styled.div<{ $outMonth: boolean; $today: boolean }>`
 `;
 const CellHead = styled.div`
   display: flex; align-items: center; gap: 4px;
+  flex-wrap: wrap;   /* #424 — 폰에서 휴일 이름이 다음 줄로 내려간다(holidayLook) */
 `;
 // 데스크탑은 hover 시 노출, 터치 기기는 hover 가 없으므로 상시 노출 (CLAUDE.md 반응형 원칙)
 const AddBtn = styled.button`

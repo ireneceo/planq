@@ -3,12 +3,16 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon } from '../../components/Common/Icons';
 import type { CalendarEvent, CalendarItem } from './types';
-import { clipEventToDay, eventOverlapsDay, formatTime, isSameDay, startOfDay } from './dateUtils';
+import { clipEventToDay, eventOverlapsDay, formatTime, isSameDay, startOfDay, toDateKey } from './dateUtils';
+import type { HolidayMark } from '../../hooks/useWorkspaceHolidays';
+import { HolidayName, holidayLabel } from './holidayLook';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { isTaskEvent } from './taskToEvent';
 
 interface Props {
+  /** #424 — 워크스페이스 휴일(쉬는 날만, dateKey → 이름) */
+  holidays?: Record<string, HolidayMark>;
   anchor: Date; // 주 뷰면 주의 시작일, 일 뷰면 그 날짜
   today: Date;
   days: Date[]; // 1 (day) or 7 (week)
@@ -22,8 +26,8 @@ const HOUR_HEIGHT = 48; // 1 hour = 48px
 const TIME_COL_WIDTH = 56;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
-const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onSelectDate, onCreateAt }) => {
-  const { t } = useTranslation('qcalendar');
+const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onSelectDate, onCreateAt, holidays }) => {
+  const { t, i18n } = useTranslation('qcalendar');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 처음 렌더 시 08:00 위치로 스크롤
@@ -89,6 +93,10 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
         <AllDayCells $cols={days.length}>
           {dayBuckets.map(({ day, allDay }) => (
             <AllDayCell key={day.toISOString()}>
+              {(() => {
+                const hol = holidays?.[toDateKey(day)];
+                return hol ? <HolidayName $block data-testid="calendar-holiday" title={holidayLabel(hol, i18n.language)}>{holidayLabel(hol, i18n.language)}</HolidayName> : null;
+              })()}
               {allDay.map((e) => {
                 const c = getEventColors(e as CalendarEvent);
                 const isTask = isTaskEvent(e);

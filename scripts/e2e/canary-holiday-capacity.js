@@ -139,6 +139,47 @@ async function run() {
       } finally { await page.close().catch(() => {}); await ctx.close().catch(() => {}); }
     }
 
+    // ── 캘린더 휴일 표시 (#424 Q3 후속) — 월 보기 날짜 칸에 이름이 보이고, 지우면 새로고침 없이 사라진다
+    for (const v of VPS) {
+      const ctx = await browser.createBrowserContext();
+      const page = await ctx.newPage();
+      let hid = null;
+      try {
+        await page.setViewport(v.vp);
+        if (v.touch) await page.setUserAgent(UA);
+        await b.login(page);
+        await b.goto(page, '/calendar?view=month');
+        await b.dismissBlockers(page);
+        await sleep(1800);
+        const before = await page.evaluate((nm) => [...document.querySelectorAll('[data-testid="calendar-holiday"]')].some((e) => e.textContent.includes(nm)), NAME);
+        const add = await call(owner.id, `/api/businesses/${biz}/holidays`, { method: 'POST', body: JSON.stringify({ date: target, name: NAME }) });
+        hid = add.body?.data?.id || null;
+        let shown = null;
+        for (let i = 0; i < 12; i++) {
+          await sleep(500);
+          shown = await page.evaluate((nm) => {
+            const el = [...document.querySelectorAll('[data-testid="calendar-holiday"]')].find((e) => e.textContent.includes(nm));
+            if (!el) return null;
+            el.scrollIntoView({ block: 'center' });
+            const r = el.getBoundingClientRect();
+            const h = document.elementFromPoint(r.left + Math.min(4, r.width / 2), r.top + r.height / 2);
+            return { w: Math.round(r.width), vis: r.width > 0 && !!h && (h === el || el.contains(h)) };
+          }, NAME);
+          if (shown && shown.vis) break;
+        }
+        push(`${v.key} · 캘린더 월 보기에 휴일 이름이 보인다(대조: 추가 전 없음 · 새로고침 없이)`, !before && !!shown && shown.vis, JSON.stringify({ before, shown }));
+        await call(owner.id, `/api/businesses/${biz}/holidays/${hid}`, { method: 'DELETE' }); hid = null;
+        let gone = false;
+        for (let i = 0; i < 12; i++) { await sleep(500); gone = await page.evaluate((nm) => ![...document.querySelectorAll('[data-testid="calendar-holiday"]')].some((e) => e.textContent.includes(nm)), NAME); if (gone) break; }
+        push(`${v.key} · 휴일을 지우면 캘린더에서 사라진다`, gone, String(gone));
+      } catch (e) {
+        push(`${v.key} · 캘린더 오류`, false, e.message.slice(0, 160));
+      } finally {
+        if (hid) await call(owner.id, `/api/businesses/${biz}/holidays/${hid}`, { method: 'DELETE' }).catch(() => {});
+        await page.close().catch(() => {}); await ctx.close().catch(() => {});
+      }
+    }
+
     // ── admin 역할 메뉴 (설계 §1.4) — admin 은 「근태 관리」 가 보이고 휴일을 고칠 수 있다 · member 는 메뉴가 없다
     const [ps] = await sql('SELECT terms_version, privacy_version FROM platform_settings LIMIT 1').then((x) => [x]);
     const tv = ps[0]?.terms_version || '1.0'; const pv = ps[0]?.privacy_version || '1.0';
