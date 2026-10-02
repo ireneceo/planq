@@ -22,7 +22,8 @@ function stableStringify(v) {
 function maskArgs(args) {
   const out = {};
   for (const [k, v] of Object.entries(args || {})) {
-    if (k === 'idempotency_key') continue;
+    // 키·확인 토큰은 감사에 남기지 않는다 — 토큰 로깅 금지(CLAUDE.md 체크리스트, Fable M2-a 관찰)
+    if (k === 'idempotency_key' || k === 'confirmation_token') continue;
     out[k] = typeof v === 'string' && v.length > 120 ? `<${v.length} chars>` : v;
   }
   return out;

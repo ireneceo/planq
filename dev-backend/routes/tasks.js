@@ -1397,62 +1397,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     const isWsAdmin = myScope.isAdmin;
     const isOwnerOrAdmin = isPlatformAdmin || myScope.isOwner || isWsAdmin;
 
-    const FIELD_RULES = {
-      title: () => isCreator || isAssignee || isOwnerOrAdmin,
-      // ★ 2026-09-07 (Irene: "작성자가 아니면 업무설명을 수정못하게 하고, 결과물은 담당자만
-      //   작성하게 해야 하는데 지금 내가 관리자라서 다 되거든. 관리자도 안되어야 하지?"
-      //   그리고 "owner든 admin이든 누구든 그 기준이 맞는 거 아냐?")
-      //   **책임선에는 직급 예외를 두지 않는다.** 옛 규칙은 description 에 owner/admin 을,
-      //   body 에 admin·platform_admin 을 백도어로 남겨 뒀는데, 그러면
-      //     ① 의뢰 명세를 발주자가 아닌 사람이 바꿔도 이력에 "누가 왜" 가 안 남고
-      //     ② 결과물을 수행자가 아닌 사람이 고쳐 놓고 그 사람에게 컨펌을 요구하게 된다.
-      //   결과물을 바꿔야 하면 **컨펌 반려(revision_requested)** 로 담당자에게 돌려준다 —
-      //   그 문이 이미 있고, 그래야 바뀐 사실이 원장에 남는다.
-      //   ★ 삭제·이관 같은 **운영 권한**은 종전대로 owner/admin 이다(그건 책임선이 아니라 관리 행위).
-      description: () => isCreator,
-      body: () => isAssignee,
-      category: () => isCreator || isAssignee || isOwnerOrAdmin,
-      // #353 ⑤ 중요도 — "이 일이 얼마나 중요한가" 는 의뢰자·수행자 **둘 다** 말할 수 있다.
-      //   description(의뢰자 전용)·body(수행자 전용) 어느 배타축도 아니라 title/category 와 같은 집합.
-      priority_level: () => isCreator || isAssignee || isOwnerOrAdmin,
-      status: () => isAssignee || isCreator || isOwnerOrAdmin,
-      // #206 보류 사유 — 상태를 바꿀 수 있는 사람이 사유도 쓴다 (같은 집합)
-      hold_reason: () => isAssignee || isCreator || isOwnerOrAdmin,
-      assignee_id: () => isCreator || isOwnerOrAdmin,
-      // 운영 #279 (2026-08-16) — 담당자 포함. 여태 담당자가 빠져 있어 "요청받은 업무" 의 기간을
-      //   담당자가 잡으려 하면 403 → 화면엔 "저장 실패" 만 떴다. 근본은 규칙이 두 벌이었던 것:
-      //   CLAUDE.md 운영 정책은 "마감 연장은 담당자 이상" 인데 여기 코드와 PERMISSION_MATRIX §5.7 은
-      //   담당자를 뺐다. 담당자가 자기 일의 착수일·마감을 못 잡으면 "마감 책임은 담당자" 라는
-      //   Q Task 의 전제와 모순된다. status·title·project_id 가 이미 isAssignee 를 포함하는 흐름과도 정합.
-      //   발주자 보호는 ①기존 due_change 이력(아래 TaskStatusHistory) ②요청자 알림으로 한다.
-      //   ★ recurrence_rule 은 열지 않는다 — 반복 정의는 의뢰 명세(발주자 영역)다. 그리고
-      //     recurringTaskGenerator 는 next_occurrence_at 만 신뢰하고 그 값은 recurrence_rule 이
-      //     payload 에 있을 때만 재계산되므로, 담당자의 due 단독 변경은 시리즈를 옮기지 않는다.
-      due_date: () => isAssignee || isCreator || isOwnerOrAdmin,
-      start_date: () => isAssignee || isCreator || isOwnerOrAdmin,
-      planned_week_start: () => isCreator || isAssignee || isOwnerOrAdmin,
-      recurrence_rule: () => isCreator || isOwnerOrAdmin,
-      // #349 — 반복 규칙과 **같은 축**이다. 빠뜨리면 담당자가 아닌 멤버는 물론 client 까지
-      //   (assertBusinessAccess 는 client 도 통과시킨다) 남의 시리즈를 auto_skip 으로 바꿔
-      //   cron 이 타인의 회차를 자동 취소하게 만들 수 있다(Fable 실측 200). 규칙을 나란히 둔다.
-      miss_policy: () => isCreator || isOwnerOrAdmin,
-      next_occurrence_at: () => isCreator || isOwnerOrAdmin,
-      // 운영 #42 (정책 완화, 2026-06-16) — 프로젝트 이관은 '내 업무 정리'로 보고 담당자·작성자도 허용.
-      //   기존엔 owner/admin 전용(#37)이라 PM(member)이 본인 담당 업무도 못 옮겨 막힘 호소.
-      //   이제 담당자/작성자/owner/admin 모두 이관 가능 (초기 분류·재분류 일관). §5.7 갱신.
-      project_id: () => isAssignee || isCreator || isOwnerOrAdmin,
-      workstream_id: () => isAssignee || isCreator || isOwnerOrAdmin,
-      is_milestone: () => isAssignee || isCreator || isOwnerOrAdmin,
-      estimated_hours: () => isAssignee || isOwnerOrAdmin,
-      actual_hours: () => isAssignee || isOwnerOrAdmin,
-      progress_percent: () => isAssignee || isOwnerOrAdmin,
-      completed_at: () => isAssignee || isCreator || isOwnerOrAdmin,
-    };
-    const denied = [];
-    for (const f of Object.keys(updates)) {
-      const rule = FIELD_RULES[f];
-      if (rule && !rule()) denied.push(f);
-    }
+    // 필드별 권한 표는 행동 계층(task_actions.FIELD_RULES)에 있다 — 외부 AI 에이전트(#439)도 같은 표를 쓴다(2026-10-02 이동).
+    const denied = taskActions.deniedFields(Object.keys(updates), { isCreator, isAssignee, isOwnerOrAdmin });
     if (denied.length > 0) {
       return errorResponse(res, `forbidden_fields:${denied.join(',')}`, 403);
     }
@@ -1614,18 +1560,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         events.push({ event_type: 'status_change', from_status: prev.status, to_status: updates.status });
       }
       if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id) {
-        // ★ 2026-08-25 — 여태 사용자 **id 원문**을 넣어 히스토리에 "5 → 1000279" 로 보였다.
-        //   사람이 읽는 기록인데 내부 식별자를 노출한 것. 이름으로 바꾼다(옛 행은 읽는 쪽에서 가린다).
-        const [fromU, toU] = await Promise.all([
-          prev.assignee_id ? User.findByPk(prev.assignee_id, { attributes: ['id', 'name', 'username'] }) : null,
-          updates.assignee_id ? User.findByPk(updates.assignee_id, { attributes: ['id', 'name', 'username'] }) : null,
-        ]);
-        const nm = (u) => (u ? (u.name || u.username || `#${u.id}`) : '—');
-        events.push({
-          event_type: 'assignee_change',
-          target_user_id: updates.assignee_id,
-          note: `${nm(fromU)} → ${nm(toU)}`,
-        });
+        // 이름으로 남긴다(id 원문 노출 금지, 2026-08-25) — 문구는 행동 계층 한 곳(reassign 도 같은 함수)
+        events.push(await taskActions.assigneeChangeEvent(prev.assignee_id, updates.assignee_id));
       }
       // (일정 이력은 아래 schedChange — taskActions.logScheduleChange 가 남긴다)
       if (updates.title !== undefined && updates.title !== prev.title) {
@@ -1651,19 +1587,6 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     } catch (e) {
       // history 기록 실패는 전체 PUT 을 깨뜨리지 않도록 silent (로그만)
       console.warn('[task PUT] history record failed:', e.message);
-    }
-
-    // #81 — 담당자를 Cue 로 변경하면 자동 실행 (cue_kind 없으면 executor 가 추론). 기존 업무를 Cue 에게 맡기는 경로.
-    if (updates.assignee_id !== undefined && updates.assignee_id && updates.assignee_id !== prev.assignee_id) {
-      try {
-        const cueBiz = await Business.findByPk(businessId, { attributes: ['cue_user_id'] });
-        if (cueBiz?.cue_user_id && updates.assignee_id === cueBiz.cue_user_id) {
-          const { executeForTask } = require('../services/cue_task_executor');
-          executeForTask(task.id, { triggeredBy: req.user.id })
-            .then((r) => console.log('[cue_task_executor] PUT', task.id, r.ok ? 'ok' : `skip: ${r.reason}`))
-            .catch((e) => console.error('[cue_task_executor] PUT crash', e.message));
-        }
-      } catch (e) { console.warn('[task PUT cue check]', e.message); }
     }
 
     // Socket.IO: project + business room 양쪽 broadcast
@@ -1697,14 +1620,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       const wsName = biz?.brand_name || biz?.name || null;
       const taskLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`;
 
-      // 담당자 변경 → 새 담당자에게 알림 (본인이 본인을 담당자로 지정 시 skip)
-      if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id
-          && updates.assignee_id && updates.assignee_id !== req.user.id) {
-        notify({
-          userId: updates.assignee_id, businessId: task.business_id, eventKind: 'task',
-          titleSpec: { feature: 'task', action: 'task_assigned', subject: `"${task.title}"` }, body: `"${task.title}"`,
-          link: taskLink, ctaLabel: '업무 보기', workspaceName: wsName,
-        }).catch((e) => console.warn('[notify reassign]', e.message));
+      // 담당자 변경 → Cue 자동 실행(#81) + 새 담당자 알림(본인 지정이면 생략). reassign() 과 같은 함수.
+      if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id) {
+        await taskActions.afterAssigneeChange({ task, prevAssigneeId: prev.assignee_id, actorUserId: req.user.id });
       }
       // 운영 #279 — 기간(시작·마감) 변경 알림.
       //   담당자에게 기간 편집을 열었으므로, 발주자가 "내가 준 마감이 조용히 밀린" 상태를 겪으면 안 된다.

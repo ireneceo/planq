@@ -197,8 +197,13 @@ async function previewReschedule(p, a) {
   if (!validDate(a.due_date) || !validDate(a.start_date)) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { due_date: a.due_date, start_date: a.start_date } });
   await assertMenu(p, 'qtask', 'read');
   const t = await loadTask(p, a.task_id, await scopeOf(p));
+  // 실행(updateSchedule)과 같은 판정을 미리보기에서 먼저 — 거절될 요청에 확인 토큰을 내주지 않는다(Fable M2-a 관찰)
+  const taskActions = require('../../actions/task_actions');
+  if (!(await taskActions.canChangeStatus(t, previewActor(p)))) throw err('PERMISSION_DENIED', 'forbidden_fields:schedule');
+  if (['completed', 'canceled'].includes(t.status)) throw err('CONFLICT', 'task_closed');
   const before = { start_date: dateOf(t.start_date), due_date: dateOf(t.due_date) };
   const after = { start_date: a.start_date !== undefined ? a.start_date : before.start_date, due_date: a.due_date !== undefined ? a.due_date : before.due_date };
+  if (after.start_date && after.due_date && after.due_date < after.start_date) throw err('VALIDATION_ERROR', 'due_before_start');
   return { task: { task_id: t.id, title: t.title }, before, after };
 }
 
@@ -216,6 +221,12 @@ async function rescheduleTask(p, a, actor) {
 async function previewComplete(p, a) {
   await assertMenu(p, 'qtask', 'read');
   const t = await loadTask(p, a.task_id, await scopeOf(p));
+  // complete() 와 같은 판정을 먼저 — 담당자만 · 닫힌 업무 아님 · 컨펌 대기 아님(승인완료 제외)
+  if (t.assignee_id !== p.userId) throw err('PERMISSION_DENIED', 'only_assignee');
+  if (['completed', 'canceled'].includes(t.status)) throw err('CONFLICT', 'task_closed');
+  if (t.status === 'on_hold') throw err('CONFLICT', 'task_on_hold');
+  const { TaskReviewer } = require('../../../models');
+  if (t.status !== 'done_feedback' && (await TaskReviewer.count({ where: { task_id: t.id } })) > 0) throw err('CONFLICT', 'not_ready_for_complete');
   return { task: { task_id: t.id, title: t.title }, before: { status: t.status }, after: { status: 'completed' } };
 }
 
@@ -230,7 +241,60 @@ async function completeTask(p, a, actor) {
   return { task: item };
 }
 
+// 미리보기는 실행 주체와 같은 모양의 actor 로 판정한다(채널은 감사용이라 미리보기엔 필요 없다)
+const previewActor = (p) => ({ kind: 'user', userId: p.userId, platformRole: p.platformRole, req: null });
+
+// ── assign_task (MEDIUM) / update_task (LOW) — #439 M2-b. 규칙은 PUT /tasks/:id 와 같은 행동 계층 함수 ──
+async function memberName(p, userId) {
+  if (!userId) return null;
+  const { getMemberNameMap } = require('../../displayName');
+  const m = await getMemberNameMap(p.businessId, [userId]).catch(() => new Map());
+  if (m.get(userId)) return m.get(userId);
+  const { User } = require('../../../models');
+  return (await User.findByPk(userId, { attributes: ['name'] }))?.name || null;
+}
+
+async function previewAssign(p, a) {
+  await assertMenu(p, 'qtask', 'read');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const ctx = await taskActions.fieldContext(t, p.userId, p.platformRole);
+  if (taskActions.deniedFields(['assignee_id'], ctx).length) throw err('PERMISSION_DENIED', 'forbidden_fields:assignee_id');
+  const { assertAssignable } = require('../../../middleware/access_scope');
+  const chk = await assertAssignable(a.assignee_user_id, p.businessId, t.project_id);
+  if (!chk.ok) throw err('PERMISSION_DENIED', `cannot_assign:${chk.reason}`);
+  return {
+    task: { task_id: t.id, title: t.title },
+    before: { assignee: t.assignee_id ? { user_id: t.assignee_id, name: await memberName(p, t.assignee_id) } : null },
+    after: { assignee: { user_id: a.assignee_user_id, name: await memberName(p, a.assignee_user_id) } },
+    note: 'The new assignee will be notified.',
+  };
+}
+
+async function assignTask(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.reassign(t, actor, { assigneeId: a.assignee_user_id });
+  if (!r.ok) throw fromActionFailure(r);
+  const fresh = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([fresh], p.businessId);
+  return { task: item, changed: r.data.changed };
+}
+
+async function updateTask(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.updateFields(t, actor, { title: a.title, description: a.description, priority_level: a.priority });
+  if (!r.ok) throw fromActionFailure(r);
+  const fresh = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([fresh], p.businessId);
+  return { task: { ...item, description: fresh.description || null } };
+}
+
 module.exports = {
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
   previewReschedule, rescheduleTask, previewComplete, completeTask,
+  previewAssign, assignTask, updateTask,
 };

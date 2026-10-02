@@ -109,6 +109,188 @@ function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, exclu
   })().catch((e) => console.warn('[task_actions notify]', e.message));
 }
 
+// ─────────────────────────────────────────────
+// 업무 필드별 편집 권한 — PERMISSION_MATRIX §5.7 책임선 (2026-10-02 PUT /tasks/:id 에서 **옮겨 왔다**)
+//   사람(PUT)과 외부 AI 에이전트(#439 assign_task·update_task)가 **같은 표**를 쓴다. 베끼면 한쪽만 고쳐진다.
+//   c = { isCreator, isAssignee, isOwnerOrAdmin } — fieldContext() 가 만든다.
+// ─────────────────────────────────────────────
+const FIELD_RULES = {
+  title: (c) => c.isCreator || c.isAssignee || c.isOwnerOrAdmin,
+  // ★ 2026-09-07 (Irene: "작성자가 아니면 업무설명을 수정못하게 하고, 결과물은 담당자만
+  //   작성하게 해야 하는데 지금 내가 관리자라서 다 되거든. 관리자도 안되어야 하지?"
+  //   그리고 "owner든 admin이든 누구든 그 기준이 맞는 거 아냐?")
+  //   **책임선에는 직급 예외를 두지 않는다.** 옛 규칙은 description 에 owner/admin 을,
+  //   body 에 admin·platform_admin 을 백도어로 남겨 뒀는데, 그러면
+  //     ① 의뢰 명세를 발주자가 아닌 사람이 바꿔도 이력에 "누가 왜" 가 안 남고
+  //     ② 결과물을 수행자가 아닌 사람이 고쳐 놓고 그 사람에게 컨펌을 요구하게 된다.
+  //   결과물을 바꿔야 하면 **컨펌 반려(revision_requested)** 로 담당자에게 돌려준다 —
+  //   그 문이 이미 있고, 그래야 바뀐 사실이 원장에 남는다.
+  //   ★ 삭제·이관 같은 **운영 권한**은 종전대로 owner/admin 이다(그건 책임선이 아니라 관리 행위).
+  description: (c) => c.isCreator,
+  body: (c) => c.isAssignee,
+  category: (c) => c.isCreator || c.isAssignee || c.isOwnerOrAdmin,
+  // #353 ⑤ 중요도 — "이 일이 얼마나 중요한가" 는 의뢰자·수행자 **둘 다** 말할 수 있다.
+  //   description(의뢰자 전용)·body(수행자 전용) 어느 배타축도 아니라 title/category 와 같은 집합.
+  priority_level: (c) => c.isCreator || c.isAssignee || c.isOwnerOrAdmin,
+  status: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
+  // #206 보류 사유 — 상태를 바꿀 수 있는 사람이 사유도 쓴다 (같은 집합)
+  hold_reason: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
+  assignee_id: (c) => c.isCreator || c.isOwnerOrAdmin,
+  // 운영 #279 (2026-08-16) — 담당자 포함. 여태 담당자가 빠져 있어 "요청받은 업무" 의 기간을
+  //   담당자가 잡으려 하면 403 → 화면엔 "저장 실패" 만 떴다. 근본은 규칙이 두 벌이었던 것:
+  //   CLAUDE.md 운영 정책은 "마감 연장은 담당자 이상" 인데 여기 코드와 PERMISSION_MATRIX §5.7 은
+  //   담당자를 뺐다. 담당자가 자기 일의 착수일·마감을 못 잡으면 "마감 책임은 담당자" 라는
+  //   Q Task 의 전제와 모순된다. status·title·project_id 가 이미 isAssignee 를 포함하는 흐름과도 정합.
+  //   발주자 보호는 ①기존 due_change 이력(아래 TaskStatusHistory) ②요청자 알림으로 한다.
+  //   ★ recurrence_rule 은 열지 않는다 — 반복 정의는 의뢰 명세(발주자 영역)다. 그리고
+  //     recurringTaskGenerator 는 next_occurrence_at 만 신뢰하고 그 값은 recurrence_rule 이
+  //     payload 에 있을 때만 재계산되므로, 담당자의 due 단독 변경은 시리즈를 옮기지 않는다.
+  due_date: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
+  start_date: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
+  planned_week_start: (c) => c.isCreator || c.isAssignee || c.isOwnerOrAdmin,
+  recurrence_rule: (c) => c.isCreator || c.isOwnerOrAdmin,
+  // #349 — 반복 규칙과 **같은 축**이다. 빠뜨리면 담당자가 아닌 멤버는 물론 client 까지
+  //   (assertBusinessAccess 는 client 도 통과시킨다) 남의 시리즈를 auto_skip 으로 바꿔
+  //   cron 이 타인의 회차를 자동 취소하게 만들 수 있다(Fable 실측 200). 규칙을 나란히 둔다.
+  miss_policy: (c) => c.isCreator || c.isOwnerOrAdmin,
+  next_occurrence_at: (c) => c.isCreator || c.isOwnerOrAdmin,
+  // 운영 #42 (정책 완화, 2026-06-16) — 프로젝트 이관은 '내 업무 정리'로 보고 담당자·작성자도 허용.
+  //   기존엔 owner/admin 전용(#37)이라 PM(member)이 본인 담당 업무도 못 옮겨 막힘 호소.
+  //   이제 담당자/작성자/owner/admin 모두 이관 가능 (초기 분류·재분류 일관). §5.7 갱신.
+  project_id: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
+  workstream_id: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
+  is_milestone: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
+  estimated_hours: (c) => c.isAssignee || c.isOwnerOrAdmin,
+  actual_hours: (c) => c.isAssignee || c.isOwnerOrAdmin,
+  progress_percent: (c) => c.isAssignee || c.isOwnerOrAdmin,
+  completed_at: (c) => c.isAssignee || c.isCreator || c.isOwnerOrAdmin,
+};
+
+/** 이 사람이 이 업무에서 갖는 역할 — FIELD_RULES 의 입력. owner 판정은 getUserScope 단일 경유(운영 #36). */
+async function fieldContext(task, userId, platformRole = null) {
+  const scope = await getUserScope(userId, task.business_id, platformRole);
+  return {
+    isCreator: task.created_by === userId,
+    isAssignee: task.assignee_id === userId,
+    isOwnerOrAdmin: platformRole === 'platform_admin' || !!scope.isOwner || !!scope.isAdmin,
+    scope,
+  };
+}
+
+/** 바꾸려는 필드 중 권한이 없는 것 — 비어 있으면 통과. */
+function deniedFields(fields, ctx) {
+  return fields.filter((f) => FIELD_RULES[f] && !FIELD_RULES[f](ctx));
+}
+
+/** 담당자 변경 이력 한 줄 — 사람이 읽는 기록이라 id 가 아니라 이름(2026-08-25). */
+async function assigneeChangeEvent(prevId, nextId) {
+  const [fromU, toU] = await Promise.all([
+    prevId ? User.findByPk(prevId, { attributes: ['id', 'name', 'username'] }) : null,
+    nextId ? User.findByPk(nextId, { attributes: ['id', 'name', 'username'] }) : null,
+  ]);
+  const nm = (u) => (u ? (u.name || u.username || `#${u.id}`) : '—');
+  return { event_type: 'assignee_change', target_user_id: nextId, note: `${nm(fromU)} → ${nm(toU)}` };
+}
+
+/**
+ * 담당자가 바뀐 **뒤** 부수효과 — ①새 담당자가 Cue 면 자동 실행(#81) ②새 담당자에게 알림(본인 지정이면 생략).
+ *   PUT /tasks/:id 와 reassign() 이 같은 함수를 부른다.
+ */
+async function afterAssigneeChange({ task, prevAssigneeId, actorUserId }) {
+  const next = task.assignee_id;
+  if (!next || next === prevAssigneeId) return;
+  try {
+    const cueBiz = await Business.findByPk(task.business_id, { attributes: ['cue_user_id'] });
+    if (cueBiz?.cue_user_id && next === cueBiz.cue_user_id) {
+      const { executeForTask } = require('../cue_task_executor');
+      executeForTask(task.id, { triggeredBy: actorUserId })
+        .then((r) => console.log('[cue_task_executor] reassign', task.id, r.ok ? 'ok' : `skip: ${r.reason}`))
+        .catch((e) => console.error('[cue_task_executor] reassign crash', e.message));
+    }
+  } catch (e) { console.warn('[afterAssigneeChange cue]', e.message); }
+  if (next !== actorUserId) {
+    notifyTask({
+      userId: next, task, wsName: await workspaceName(task.business_id),
+      action: 'task_assigned', body: `"${task.title}"`, ctaLabel: '업무 보기',
+    });
+  }
+}
+
+/**
+ * 담당자 변경 — PUT /tasks/:id 와 **같은 규칙**(FIELD_RULES.assignee_id · assertAssignable · 이력 · Cue 자동 실행 · 알림).
+ *   외부 AI 에이전트(#439 assign_task)가 지나는 문. 같은 사람으로 바꾸면 아무것도 안 한다(changed:false).
+ */
+async function reassign(task, actor, { assigneeId } = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const next = assigneeId === null ? null : Number(assigneeId);
+  if (next !== null && !Number.isInteger(next)) return fail('invalid_assignee');
+  const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
+  if (deniedFields(['assignee_id'], ctx).length) return fail('forbidden_fields:assignee_id', 403);
+  if (next === task.assignee_id) return done({ task, changed: false });
+  if (next !== null) {
+    const chk = await assertAssignable(next, task.business_id, task.project_id);
+    if (!chk.ok) return fail(`cannot_assign:${chk.reason}`, 403);
+  }
+  const prevAssigneeId = task.assignee_id;
+  const ev = await assigneeChangeEvent(prevAssigneeId, next);
+  const t = await sequelize.transaction();
+  try {
+    await task.update({ assignee_id: next }, { transaction: t });
+    await TaskStatusHistory.create({ task_id: task.id, actor_user_id: subj.subjectId, ...ev }, { transaction: t });
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+  await task.reload();
+  broadcastTask(task, 'task:updated', actor.userId);
+  await afterAssigneeChange({ task, prevAssigneeId, actorUserId: subj.subjectId });
+  audit(actor, {
+    action: 'task.reassign', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: { assignee_id: prevAssigneeId }, newValue: { assignee_id: next },
+  });
+  return done({ task, changed: true });
+}
+
+/**
+ * 제목·설명·중요도 수정 — PUT 과 같은 책임선(제목=작성자·담당자·owner/admin · 설명=**작성자만** · 중요도=제목과 같은 집합).
+ *   결과물(body)은 여기서 열지 않는다(담당자만 · 편집 상태에서만 — 버전 규칙이 PUT 에 있다).
+ */
+async function updateFields(task, actor, fields = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const patch = {};
+  if (fields.title !== undefined) {
+    const title = String(fields.title || '').trim();
+    if (!title) return fail('title required');
+    patch.title = title.slice(0, 300);
+  }
+  if (fields.description !== undefined) patch.description = fields.description === null ? null : String(fields.description).slice(0, 5000);
+  if (fields.priority_level !== undefined) {
+    if (fields.priority_level !== null && !['low', 'normal', 'high', 'urgent'].includes(fields.priority_level)) return fail('invalid_priority');
+    patch.priority_level = fields.priority_level;
+  }
+  const keys = Object.keys(patch);
+  if (!keys.length) return fail('no_fields');
+  const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
+  const denied = deniedFields(keys, ctx);
+  if (denied.length) return fail(`forbidden_fields:${denied.join(',')}`, 403);
+  const before = { title: task.title, priority_level: task.priority_level };
+  const t = await sequelize.transaction();
+  try {
+    await task.update(patch, { transaction: t });
+    if (patch.title !== undefined && patch.title !== before.title) {
+      await TaskStatusHistory.create({ task_id: task.id, actor_user_id: subj.subjectId, event_type: 'title_change', note: `${before.title} → ${patch.title}` }, { transaction: t });
+    }
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+  await task.reload();
+  broadcastTask(task, 'task:updated', actor.userId);
+  audit(actor, {
+    action: 'task.update_fields', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: before, newValue: { fields: keys },
+  });
+  return done({ task, changed: true });
+}
+
 function audit(actor, entry) {
   // 외부 AI 에이전트(#439)를 거친 변경은 같은 행에 경유를 싣는다 — 사건을 두 행으로 쓰지 않고 «AI 가 한 일» 을 가른다.
   //   channel 은 표시·감사 전용이고 권한 판단에 쓰지 않는다(req 와 같은 지위).
@@ -1576,6 +1758,10 @@ module.exports = {
   createTask, createComment,
   // 행동 — 일정(시작·마감) 수정. 일괄 수정이 지나는 문. 이력·알림은 화면 편집(PUT)도 같은 함수를 부른다.
   updateSchedule, logScheduleChange, notifyScheduleChange,
+  // 행동 — 담당자·필드 수정(#439 M2-b). 필드 권한 표·담당자 이력·후속 처리는 PUT /tasks/:id 도 같은 함수를 쓴다.
+  reassign, updateFields, FIELD_RULES, fieldContext, deniedFields, assigneeChangeEvent, afterAssigneeChange,
+  // 미리보기(에이전트 MEDIUM 확인 1단계)가 실행과 같은 판정을 먼저 보도록
+  canChangeStatus,
   // 행동 — 전이
   ack, submitReview, cancelReview, complete,
   approve, requestRevision, revertReviewerState,

@@ -147,6 +147,26 @@ const TOOLS = [
     preview: (p, a) => t.previewComplete(p, a),
     handler: (p, a, actor) => t.completeTask(p, a, actor),
   },
+  // ── M2-b — 담당자 변경(MEDIUM) · 제목/설명/중요도 수정(LOW). 규칙은 PUT /tasks/:id 와 같은 행동 계층 함수 ──
+  {
+    name: 'assign_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    description: 'Change who a task is assigned to (use search_members for the user_id). The new assignee is notified. Requires confirmation: the first call only returns a preview.',
+    input: { task_id: z.number().int().positive(), assignee_user_id: z.number().int().positive(), confirmation_token: confirm, idempotency_key: idem },
+    preview: (p, a) => t.previewAssign(p, a),
+    handler: (p, a, actor) => t.assignTask(p, a, actor),
+  },
+  {
+    name: 'update_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
+    description: 'Edit a task\'s title, description or priority. Only the fields you pass change. Never deletes. The description (the request) can only be edited by the person who created the task.',
+    input: {
+      task_id: z.number().int().positive(),
+      title: z.string().trim().min(1).max(300).optional(),
+      description: z.string().max(5000).optional(),
+      priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => t.updateTask(p, a, actor),
+  },
 ];
 
 // HIGH — 존재하면 안 되는 이름(가드 agentsurface 도 같은 표를 본다)
