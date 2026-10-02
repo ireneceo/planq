@@ -12,7 +12,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { tabStore, setTabNavigator } from '../../stores/tabStore';
 
 // 탭 대상이 아닌 인증/온보딩 경로 — 미러 seed 제외 (마케팅·팝아웃은 상위 !hideAppChrome 마운트로 이미 제외)
-const NON_TAB_PREFIX = ['/login', '/register', '/invite', '/forgot-password', '/reset-password', '/verify-email', '/legal', '/download', '/onboarding'];
+const NON_TAB_PREFIX = ['/login', '/register', '/invite', '/forgot-password', '/reset-password', '/verify-email', '/legal', '/download', '/onboarding', '/connect'];
 function isSeedable(pathname: string): boolean {
   return !NON_TAB_PREFIX.some((pre) => pathname === pre || pathname.startsWith(pre + '/') || pathname.startsWith(pre + '?') || pathname.startsWith(pre));
 }

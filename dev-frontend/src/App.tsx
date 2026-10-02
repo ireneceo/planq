@@ -77,6 +77,7 @@ const ClientsPage = lazy(() => import('./pages/Clients/ClientsPage'));
 const OrgPage = lazy(() => import('./pages/Settings/OrgPage'));
 const ClientTimelinePage = lazy(() => import('./pages/Clients/ClientTimelinePage'));
 const InvitePage = lazy(() => import('./pages/Invite/InvitePage'));
+const AgentConsentPage = lazy(() => import('./pages/Connect/AgentConsentPage'));
 const QCalendarPage = lazy(() => import('./pages/QCalendar/QCalendarPage'));
 const QDocsPage = lazy(() => import('./pages/QDocs/QDocsPage'));
 const BriefViewerPage = lazy(() => import('./pages/QDocs/BriefViewerPage'));
@@ -654,6 +655,8 @@ function ShellApp() {
 
         {/* Invite (public — no auth required) */}
         <Route path="/invite/:token" element={<InvitePage />} />
+        {/* #439 AI 앱(ChatGPT·Claude) 연결 동의 — 앱 틀 밖 단독 화면. 로그인 안 했으면 로그인 후 돌아온다 */}
+        <Route path="/connect/agent" element={<ProtectedRoute><AgentConsentPage /></ProtectedRoute>} />
         <Route path="/public/docs/:token" element={<PublicDocPage />} />
         <Route path="/public/posts/:token" element={<PublicPostPage />} />
         <Route path="/public/tasks/:token" element={<PublicTaskPage />} />
@@ -749,7 +752,7 @@ function isAppInitialPath(): boolean {
   // 공개 표면(마케팅·위키)은 isPublicSurfacePath 단일 원천을 그대로 쓴다.
   // 여기에 목록을 한 벌 더 두면 갈라진다 — 실제로 /insights 가 이 목록에만 빠져 있어서
   // 로그인 데스크탑이 /insights 를 열면 인사이츠 마케팅 페이지 대신 워크스페이스 셸이 떴다.
-  const nonAppOther = /^\/(login|register|invite|forgot-password|reset-password|verify-email|oauth|legal|privacy|terms|app|public|sign|memo|talk-popout|task-popout|note-popout|help-popout)(\/|$)/;
+  const nonAppOther = /^\/(login|register|invite|forgot-password|reset-password|verify-email|oauth|connect|legal|privacy|terms|app|public|sign|memo|talk-popout|task-popout|note-popout|help-popout)(\/|$)/;
   return !(isPublicSurfacePath(p) || nonAppOther.test(p));
 }
 

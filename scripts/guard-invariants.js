@@ -854,6 +854,55 @@ function checkCueTools() {
 }
 
 // ═══════════════════════════════════════════════
+// 8-g. agentsurface — AI 에이전트 표면(#439, ChatGPT·Claude)의 불변식
+//
+//   외부 AI 가 PlanQ 에 **쓰는** 첫 표면이다. 쓰기는 행동 계층으로만, 범위는 토큰에서만, 고위험 동작은 도구로 두지 않는다.
+//   설계 docs/AI_AGENT_INTEGRATION_DESIGN.md §5·§7·§11.3.
+//   ① services/agent/** 는 도메인 모델을 직접 create/update/destroy 하지 않는다(행동 계층 경유)
+//   ② 재무 모델 참조 0  ③ HIGH 이름(delete_/send_/invoice…) 도구 0  ④ 쓰기 도구는 쓰기 scope + idempotency_key
+//   ⑤ 업무 조회는 토큰의 워크스페이스로 묶인다(`business_id: p.businessId`) — 2026-10-02 양성 대조군에서 이 한 줄을 빼면
+//      남의 업무가 열렸다(canAccessTask 는 «내 워크스페이스 scope» 로 판정하므로 이 조건 없이는 막지 못한다)
+// ═══════════════════════════════════════════════
+function checkAgentSurface() {
+  const bad = [];
+  const dir = path.join(ROOT, 'dev-backend/services/agent');
+  if (!fs.existsSync(dir)) { report('agentsurface', 'AI 에이전트 표면', true, []); return; }
+  const files = [];
+  (function walk(d) { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); if (fs.statSync(p).isDirectory()) walk(p); else if (f.endsWith('.js')) files.push(p); } })(dir);
+  for (const f of files) {
+    const rel = path.relative(ROOT, f);
+    const src = read(f).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    // store.(set|update|del…) 는 단기 상태 저장소 — 도메인 모델이 아니다
+    const writes = (src.match(/\b(?!store\b)[A-Z][A-Za-z]+\.(create|bulkCreate|destroy|update|upsert|increment)\(/g) || []);
+    if (writes.length) bad.push(`${rel}: 도메인 모델 직접 쓰기(${writes.join(',')}) — 행동 계층(services/actions)으로`);
+    if (/\b(Invoice|Payment|InvoiceInstallment|InvoiceItem)\b/.test(src)) bad.push(`${rel}: 재무 모델 참조 — 외부 AI 표면 재무 봉쇄`);
+  }
+  const reg = path.join(dir, 'registry.js');
+  if (!fs.existsSync(reg)) bad.push('services/agent/registry.js 없음');
+  else {
+    const src = read(reg);
+    const tools = [...src.matchAll(/name:\s*'([a-z_]+)',\s*risk:\s*'(LOW|MEDIUM|HIGH)',\s*write:\s*(true|false),\s*scopes:\s*\[([^\]]*)\]/g)];
+    if (!tools.length) bad.push('registry.js: 도구 선언을 찾지 못함(name·risk·write·scopes 한 줄 규약)');
+    for (const [, name, risk, write, scopes] of tools) {
+      if (risk === 'HIGH') bad.push(`registry.js: HIGH 도구 ${name}`);
+      if (/^(delete|remove|send|bulk)_|invoice|payment|contract|refund|permission|role/.test(name)) bad.push(`registry.js: 고위험 이름 ${name}`);
+      if (write === 'true') {
+        if (!/:write'/.test(scopes)) bad.push(`registry.js: 쓰기 도구 ${name} 에 쓰기 scope 없음`);
+        const body = src.slice(src.indexOf(`name: '${name}'`), src.indexOf('handler:', src.indexOf(`name: '${name}'`)));
+        if (!/idempotency_key/.test(body)) bad.push(`registry.js: 쓰기 도구 ${name} 에 idempotency_key 없음`);
+      }
+    }
+    const declared = (src.match(/^\s+name: '/gm) || []).length;
+    if (declared !== tools.length) bad.push(`registry.js: 도구 ${declared}개 중 ${tools.length}개만 규약 한 줄로 선언됨`);
+  }
+  const tasksTool = path.join(dir, 'tools/tasks.js');
+  if (fs.existsSync(tasksTool) && !/Task\.findOne\(\{\s*where:\s*\{\s*id:\s*taskId,\s*business_id:\s*p\.businessId\s*\}/.test(read(tasksTool))) {
+    bad.push('services/agent/tools/tasks.js: loadTask 가 토큰 워크스페이스(business_id: p.businessId)로 묶이지 않음 — 남의 업무가 열린다');
+  }
+  report('agentsurface', `AI 에이전트 표면 불변식 (파일 ${files.length})`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // 8-f. mcpreadonly — MCP 외부 표면(#D-4)은 읽기 전용. 쓰기는 절대 이 문으로 나가지 않는다
 //
 //   외부 에이전트에 쓰기를 열면 "Cue 의 권한 우회 직접 write"를 외부에 복제하는 것 — D-4 순서 엄수.
@@ -3157,6 +3206,7 @@ const CATEGORIES = {
   createlayer: checkCreateLayer,
   cuetools: checkCueTools,
   mcpreadonly: checkMcpReadonly,
+  agentsurface: checkAgentSurface,
   godfile: checkGodfile,
   spalink: checkSpaLink,
   panelhandle: checkPanelHandle,

@@ -13,6 +13,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTranslation } from 'react-i18next';
 import PageShell from '../../components/Layout/PageShell';
+import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnIcon, ConnInfo, ConnTitle, ConnSub, ConnMeta, DangerBtn } from './integrationStyles';
+import ConnectedAiAppsSection from './ConnectedAiAppsSection';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
@@ -467,6 +469,9 @@ const ProfileIntegrationsPage: React.FC = () => {
         )}
       </Section>
 
+      {/* ─── 연결된 AI 앱 (#439) — ChatGPT·Claude 에 준 연결 보기·끊기 ─── */}
+      {businessId && <ConnectedAiAppsSection businessId={businessId} />}
+
       {/* ─── 개인 Drive (옵션) ─── */}
       <Section>
         <SectionTitle>{t('integrations.drive', '파일') as string}</SectionTitle>
@@ -541,28 +546,6 @@ const ErrorBanner = styled.div`
   background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px;
   color: #B91C1C; font-size: 0.8125rem;
 `;
-const Section = styled.div`
-  background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 12px;
-  padding: 20px; margin-bottom: 16px;
-`;
-const SectionTitle = styled.h3`margin: 0 0 4px; font-size: 0.9375rem; font-weight: 700; color: #0F172A;`;
-const SectionSub = styled.p`margin: 0 0 14px; font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
-const Empty = styled.div`
-  padding: 24px 12px; text-align: center; color: #94A3B8;
-  background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px;
-  display: flex; flex-direction: column; gap: 6px;
-  font-size: 0.8125rem;
-`;
-const ConnList = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const ConnRow = styled.div`
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
-`;
-const ConnIcon = styled.div`font-size: 1.5rem;`;
-const ConnInfo = styled.div`flex: 1; display: flex; flex-direction: column; gap: 2px;`;
-const ConnTitle = styled.div`font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
-const ConnSub = styled.div`font-size: 0.75rem; color: #475569;`;
 const SyncToggle = styled.div`display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:0.75rem;color:#475569;`;
 // 표준 스위치 — 누르는 상자 36×36(규격), 보이는 트랙 36×20. 근태 설정과 같은 모양.
 const SyncSwitch = styled.button<{ $on: boolean }>`
@@ -591,16 +574,6 @@ const PermBadge = styled.span<{ $kind: 'ok' | 'warn' | 'bad' }>`
     : $kind === 'warn'
       ? 'background:#FFFBEB;color:#B45309;'
       : 'background:#FEF2F2;color:#B91C1C;'}
-`;
-const ConnMeta = styled.div`font-size: 0.6875rem; color: #94A3B8;`;
-const DangerBtn = styled.button`
-  height: 30px; padding: 0 12px;
-  background: transparent; color: #B91C1C;
-  border: 1px solid #FECACA; border-radius: 6px;
-  font-size: 0.75rem; font-weight: 600;
-  cursor: pointer;
-  &:hover { background: #FEF2F2; border-color: #FCA5A5; color: #991B1B; }
-  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
 `;
 // N+75-C — Google 연결 버튼 (Empty / ConnList 둘 다 사용). Google 브랜드 가이드라인 정합.
 const ConnectGoogleBtn = styled.button`

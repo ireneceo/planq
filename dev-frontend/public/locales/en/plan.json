@@ -63,7 +63,8 @@
       "translation": "Translation",
       "voice_capture": "Voice transcription",
       "canvas_draft": "Canvas draft",
-      "extract": "Inquiry extraction"
+      "extract": "Inquiry extraction",
+      "agent_tool": "AI app connections (ChatGPT·Claude)"
     }
   },
   "comparison": {

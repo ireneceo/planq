@@ -63,7 +63,8 @@
       "translation": "번역",
       "voice_capture": "음성 받아쓰기",
       "canvas_draft": "캔버스 초안",
-      "extract": "문의 정보 추출"
+      "extract": "문의 정보 추출",
+      "agent_tool": "AI 앱 연결(ChatGPT·Claude)"
     }
   },
   "comparison": {

@@ -29,7 +29,9 @@ EphemeralToken.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   // 용도. 새 용도를 더할 때 ENUM 을 늘린다 — 아무 문자열이나 받으면 무엇이 들었는지 알 수 없다.
   kind: {
-    type: DataTypes.ENUM('oauth_pair', 'oauth_used_code', 'oauth_confirm', 'oauth_state', 'apple_oauth_state'),
+    // agent_* — AI 에이전트 연동(#439): 인가 요청·코드·멱등 창·확인 토큰. 끝에만 append(운영 migrate-agent-oauth.js).
+    type: DataTypes.ENUM('oauth_pair', 'oauth_used_code', 'oauth_confirm', 'oauth_state', 'apple_oauth_state',
+      'agent_authreq', 'agent_code', 'agent_idem', 'agent_confirm'),
     allowNull: false,
   },
   // 조회 키. pairId · jti · confirm token 등. **비밀이 아닌 것만** 여기 온다.

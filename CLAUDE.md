@@ -1022,6 +1022,20 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
   옛 구글 콜백이 그렇게 받아 **구글 신규 가입이 운영에서 한 번도 성공하지 못했다**(2026-08-27 로그 · OAuth 전용 가입자 0명).
 - 운영 스키마: `dev-backend/scripts/migrate-apple-login.js`(ENUM 끝 append 2 · 컬럼 4, 멱등) — 코드 배포 전(deploy 슬롯).
 
+## AI 에이전트(ChatGPT·Claude) 연동은 **토큰이 범위다** (2026-10-02 박제 — #439 milestone 1)
+
+> Irene #439·#440: *"ChatGPT 가 PlanQ 의 데이터를 조회하거나 실제 데이터를 생성·수정할 수 있도록 … 기존 권한 그대로."*
+> 설계 정본: `docs/AI_AGENT_INTEGRATION_DESIGN.md`
+
+- **표면**: MCP 프로세스(`mcp/server.js`, :3005)의 `/agent/*` — `/agent/mcp`(도구) · `/agent/{authorize,token,register,revoke}`(OAuth 2.1, SDK 핸들러를 직접 마운트 — SDK 라우터는 최상위 `/register` 를 쓰는데 그건 회원가입 화면이다) · `/.well-known/oauth-*`(디스커버리). 동의 화면 `/connect/agent`(메인 백엔드 `routes/agent_oauth.js`).
+- **신원·범위는 토큰에서만** — grant = 사람 × **워크스페이스 하나** × scopes. 도구 입력에 workspace/user 칸이 없다(`.strict()` 로 거절). 업무는 `business_id: p.businessId` 로 묶어 찾는다 — 이 한 줄을 빼면 `canAccessTask` 가 «내 워크스페이스 scope» 로 남의 업무를 통과시킨다(양성 대조군 실측).
+- **누가 연결할 수 있나는 `services/agent_oauth/grants.canConnect` 한 곳** — 동의할 때와 **매 호출** 같은 판정(멤버 이상, 고객·AI·정지 불가). 멤버십이 끊기면 grant 를 지우지 않아도 닫힌다.
+- **도구는 `services/agent/registry.js` 한 벌, 실행은 `execute.runTool` 하나** — scope → 계량(`use_cue` 1회) → 멱등(키 또는 파라미터 지문 10분) → 행동 계층 → 감사(`agent.<tool>` + 행동 계층 행에 `via: agent:<provider>`).
+- **HIGH(삭제·청구·발송·권한·대량)는 도구로 두지 않는다** — 가드 `--category=agentsurface` 가 막는다(도메인 모델 직접 쓰기 0 · 재무 참조 0 · 고위험 이름 0 · 쓰기 도구 scope·멱등 선언 · 워크스페이스 묶음).
+- **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. 쓰기만 끄기 `AGENT_WRITE_ENABLED=0`.
+- **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).
+- 회귀: `--suite agentconsent`(동의 화면 3폭) · 왕복 검사는 dev 전용 스크립트(OAuth 26검사 — 커밋하지 않는다).
+
 ## 휴지통은 **하나**다 (2026-09-22 박제)
 
 > Irene: *"휴지통이 분산되어 있는 거 이상한데. 그리고 글자로 휴지통 말고 아이콘만 쓰는 거 어때?"*

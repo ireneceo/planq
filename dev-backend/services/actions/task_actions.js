@@ -110,7 +110,13 @@ function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, exclu
 }
 
 function audit(actor, entry) {
-  require('../auditService').logAudit(actor?.req || null, { userId: actor?.userId || null, ...entry });
+  // 외부 AI 에이전트(#439)를 거친 변경은 같은 행에 경유를 싣는다 — 사건을 두 행으로 쓰지 않고 «AI 가 한 일» 을 가른다.
+  //   channel 은 표시·감사 전용이고 권한 판단에 쓰지 않는다(req 와 같은 지위).
+  const via = actor?.channel?.kind === 'agent'
+    ? { via: `agent:${actor.channel.provider || 'unknown'}`, agent_grant_id: actor.channel.grant_id || null }
+    : null;
+  const e = via && entry.newValue && typeof entry.newValue === 'object' ? { ...entry, newValue: { ...entry.newValue, ...via } } : entry;
+  require('../auditService').logAudit(actor?.req || null, { userId: actor?.userId || null, ...e });
 }
 
 // 컨펌자들의 state + 정책 → 메인 status 재계산 (전이 규칙의 단일 원천).
