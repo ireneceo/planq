@@ -10,9 +10,11 @@ import { joinRoom, leaveRoom, onSocket } from '../services/socket';
 
 export interface HolidayMark { name: string; name_en: string | null }
 
-export function useWorkspaceHolidays(businessId: number | null, years: number[]): Record<string, HolidayMark> {
+/** @param anchor 보고 있는 날짜 — 1·12월은 이웃 해 칸이 격자에 섞이므로 그 해도 읽는다. */
+export function useWorkspaceHolidays(businessId: number | null, anchor: Date): Record<string, HolidayMark> {
   const [map, setMap] = useState<Record<string, HolidayMark>>({});
-  const key = [...new Set(years)].sort().join(',');
+  const y = anchor.getFullYear(); const m = anchor.getMonth();
+  const key = (m === 0 ? [y - 1, y] : m === 11 ? [y, y + 1] : [y]).join(',');
   const load = useCallback(async () => {
     if (!businessId || !key) { setMap({}); return; }
     const next: Record<string, HolidayMark> = {};

@@ -54,12 +54,7 @@ const QCalendarPage: React.FC = () => {
 
   const initial = useMemo(() => readUrl(location.search), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [anchor, setAnchor] = useState<Date>(initial.date);
-  // #424 Q3 후속 — 워크스페이스 휴일을 날짜 칸에 표시(정본: 설정 › 근태 관리). 1·12월은 이웃 해 칸이 격자에 섞인다.
-  const holidayYears = useMemo(() => {
-    const y = anchor.getFullYear(); const m = anchor.getMonth();
-    return m === 0 ? [y - 1, y] : m === 11 ? [y, y + 1] : [y];
-  }, [anchor]);
-  const holidays = useWorkspaceHolidays(bizId, holidayYears);
+  const holidays = useWorkspaceHolidays(bizId, anchor);   // #424 — 휴일 표시(정본: 설정 › 근태 관리)
   const [view, setView] = useState<CalendarViewMode>(initial.view);
   const [scope, setScope] = useState<CalendarScope>(initial.scope);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(initial.eventId);
