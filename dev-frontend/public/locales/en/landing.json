@@ -1364,5 +1364,170 @@
       }
     },
     "eyebrow": "SELF-CHECK"
+  },
+  "detailsPage": {
+    "eyebrow": "PlanQ details",
+    "title": "Details that surprise you",
+    "sub": "Small everyday moments save more time than big features. All of these are already in PlanQ.",
+    "ctaStart": "Start free for 14 days",
+    "ctaFeatures": "See all features",
+    "tabs": {
+      "all": "All",
+      "ai": "AI",
+      "client": "Clients",
+      "work": "Tasks",
+      "docs": "Docs & meetings",
+      "files": "Files",
+      "bill": "Billing & attendance"
+    },
+    "howTo": "How to",
+    "tryIt": "Try it",
+    "closingTitle": "Details are best felt by using them",
+    "closingSub": "Try every feature free for 14 days.",
+    "contact": "Contact us",
+    "homeTitle": "Details that surprise you",
+    "homeSub": "We took care of the small everyday moments.",
+    "homeMore": "See all details",
+    "items": {
+      "chatgpt": {
+        "title": "Tell ChatGPT, and the task appears in PlanQ",
+        "body": "Ask «my tasks this week» or «save this call as a consultation» in chat. Due-date changes and completion ask once more; deleting, sending and billing are never possible.",
+        "cond": "Paid ChatGPT or Claude plan"
+      },
+      "replyDraft": {
+        "title": "A reply draft in one click, in the sender's language",
+        "body": "It draws on the recent thread and your FAQ. Refine it with requests like «shorter» — your own edits are never overwritten."
+      },
+      "noteAnswer": {
+        "title": "When a question comes up in a meeting, the answer is already being prepared",
+        "body": "Alongside live transcription and translation, it picks evidence from your Q&A and documents to prepare an answer.",
+        "cond": "Monthly minutes limit"
+      },
+      "estimate": {
+        "title": "AI time estimates follow your team's own history",
+        "body": "The same task title gets a different estimate in each team."
+      },
+      "guestLink": {
+        "title": "Clients join with a single link — no sign-up",
+        "body": "Chat, signing, invoice payment and booking all work from a link. No need to ask clients to install anything."
+      },
+      "booking": {
+        "title": "Clients pick a consultation slot themselves",
+        "body": "Only your open hours show. Once confirmed, a calendar file and a video-call link are sent.",
+        "cond": "Client desk setup · Video calls need the owner's Google account"
+      },
+      "realInquiry": {
+        "title": "Promotional mail stays out of your consultations",
+        "body": "Real inquiries are picked by «did we reply? is it a personal address?», not keywords. Anything missed is one right-click away."
+      },
+      "oneClient": {
+        "title": "Mail, chat and meeting notes gather on one client",
+        "body": "The consultation history builds up in one place instead of scattering."
+      },
+      "chatTranslate": {
+        "title": "Chat is translated into two languages as you send",
+        "body": "Talk with overseas clients, each in their own language.",
+        "cond": "Turn on per chat room"
+      },
+      "popout": {
+        "title": "Your task list floats above Excel while you work",
+        "body": "Keep it on top of other apps and start or stop tasks right there.",
+        "cond": "Desktop Chrome or Edge"
+      },
+      "approveDone": {
+        "title": "Approval doesn't close the task until the owner confirms",
+        "body": "The owner sees the approval and wraps up — nothing slips through."
+      },
+      "responsibility": {
+        "title": "Only the requester edits the brief; only the owner edits the result",
+        "body": "No one overwrites by rank, so every change has an owner."
+      },
+      "autoHours": {
+        "title": "Time worked adds itself up",
+        "body": "Time spent «in progress» is collected into actual hours."
+      },
+      "duplicate": {
+        "title": "Copies bring the content, not the signatures or share links",
+        "body": "A copy never passes for the original."
+      },
+      "toc": {
+        "title": "Document outlines build themselves and never go stale",
+        "body": "Edit a heading and the outline updates instantly."
+      },
+      "pinTab": {
+        "title": "Pin your go-to documents as project tabs",
+        "body": "Open the project and the document is right there.",
+        "cond": "Pinned per person"
+      },
+      "autosave": {
+        "title": "There is no save button",
+        "body": "Everything saves as you type — even the last keystroke when you leave the screen."
+      },
+      "drafts": {
+        "title": "Half-written comments don't disappear",
+        "body": "Close the task and come back — your words are still there.",
+        "cond": "Same browser"
+      },
+      "history": {
+        "title": "Roll back from the history any time",
+        "body": "Edit freely, even without a save button."
+      },
+      "liveShare": {
+        "title": "Edit while a share link is open, and the viewer sees it too",
+        "body": "Clients never keep reading an outdated version."
+      },
+      "privateNote": {
+        "title": "Meeting notes are truly yours",
+        "body": "Only the scope you open is visible — not even the owner can look."
+      },
+      "infoTable": {
+        "title": "Define your own fields in the info library",
+        "body": "Ten field types including number, date, choice and checkbox. Secret fields stay masked and out of search and AI."
+      },
+      "driveImport": {
+        "title": "Bring in Google Drive files straight from the attach window",
+        "body": "Once imported they become PlanQ files anyone on the team can open.",
+        "cond": "Personal Google account"
+      },
+      "trash": {
+        "title": "One trash for everything",
+        "body": "Restore files, documents and info from one place.",
+        "cond": "Retention depends on plan"
+      },
+      "dedup": {
+        "title": "The same file is stored only once",
+        "body": "Upload it again and again — storage is used once."
+      },
+      "export": {
+        "title": "Take your files with you as a zip",
+        "body": "Download your files, documents and meeting notes in one go."
+      },
+      "signField": {
+        "title": "Place a signature field and the signature lands right there",
+        "body": "The text is frozen when you request, and the signed PDF comes with a certificate."
+      },
+      "invoiceLink": {
+        "title": "One invoice link for payment notice, card payment and tax invoices",
+        "body": "Everything the client needs to do is on a single link.",
+        "cond": "Card payment needs your Stripe account"
+      },
+      "installments": {
+        "title": "Bill in installments — deposit, interim, balance",
+        "body": "Track payment and receipts per installment."
+      },
+      "autoAttend": {
+        "title": "Starting a task clocks you in",
+        "body": "Colleagues see only «working»; times are visible to you and admins."
+      },
+      "profitHour": {
+        "title": "See profit per hour by project and client",
+        "body": "Actual hours and rates show where you gain and where you leak.",
+        "cond": "Member rates required"
+      },
+      "badgeSum": {
+        "title": "The to-check count equals the menu badges",
+        "body": "Nothing is counted twice, so you can trust the numbers."
+      }
+    }
   }
 }
