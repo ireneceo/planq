@@ -46,6 +46,25 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '256kb' }));
 
+// ★ 2026-10-04 — AI 에이전트 요청 한 줄 기록(운영 진단용). 운영에서 «ChatGPT 에서 제대로 안 돈다» 신고에
+//   어디서 멈췄는지 볼 방법이 없었다(nginx 로그는 root 전용, 도구 실행 전에 막히면 감사도 안 남는다).
+//   남기는 것: 경로 · JSON-RPC method · 도구 이름 · 상태 코드 · 401 사유 · 소요 ms · 클라이언트 이름.
+//   ★ 토큰·인자·본문은 절대 남기지 않는다.
+app.use((req, res, next) => {
+  if (!/^\/(agent\/|\.well-known\/oauth-)/.test(req.path)) return next();
+  const t0 = Date.now();
+  const p0 = req.path;   // 마운트된 라우터가 req.url 을 잘라내므로 들어올 때 잡아 둔다(쿼리 제외)
+  res.on('finish', () => {
+    const b = req.body && typeof req.body === 'object' ? req.body : {};
+    const rpc = Array.isArray(b) ? b.map((x) => x && x.method).join(',') : b.method;
+    const tool = !Array.isArray(b) && b.method === 'tools/call' ? b.params && b.params.name : null;
+    const why = res.statusCode === 401 ? String(res.get('WWW-Authenticate') || '').match(/error_description="([^"]*)"/)?.[1] : null;
+    const ua = String(req.get('user-agent') || '').slice(0, 40);
+    console.log(`[agent-req] ${req.method} ${p0}${rpc ? ' rpc=' + rpc : ''}${tool ? ' tool=' + tool : ''} -> ${res.statusCode}${why ? ' (' + why + ')' : ''} ${Date.now() - t0}ms ua="${ua}"`);
+  });
+  next();
+});
+
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'planq-mcp' }));
 
 // ── 인증 — Bearer api_token → principal(user_id·business_id·scope) ──
