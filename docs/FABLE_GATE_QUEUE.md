@@ -5373,3 +5373,9 @@ health 48/48 · guard 61/62 · tenant 9/9 · 운영 MCP 가 같은 .env(PORT 300
 
 **Fable 결과(2026-10-04 dev 적용 후)**: 노출은 두 접두어뿐(옛 `/mcp`·경로 조작 `..`·`%2e%2e` 전부 MCP 미도달) · `/api/internal` 403 유지 · socket.io·홈 무회귀 ·
 Host/X-Forwarded-* 위조로 issuer·resource_metadata 안 바뀜(APP_URL 고정) · 적용 스크립트 멱등·원복 PASS. 관찰: `/agent`(슬래시 없음)는 301 → MCP 404(SPA 라우트 없음, 영향 0).
+
+## 2026-10-04 · 도움말 «ChatGPT·Claude 연결하기» + 연결된 AI 앱 안내 문구 · [Opus] Fable 미검증(자체 검증)
+**판정**: R=0(도움말·문구 — 시드 재실행/문구 수정으로 되돌린다) · S=0 · F=1 → 자체 검증.
+**자체 검증**: dev 시드 86건 업서트 · help_articles#149(settings, authenticated) · wiki-coverage-check EXIT 0(영어 누락 0) · i18n·parity 가드 통과 · 빌드 EXIT 0 · 빌드 locales.gz 에 새 문구 확인.
+문구는 실제 도구 목록(registry 19개 — 삭제·청구·발송·권한 없음, 금액 미노출)·확인 2단계·연결 끊기 동작과 대조. ChatGPT 메뉴 이름은 외부 안내 기준(Settings › Apps › Advanced settings › Developer mode › Create app).
+**운영**: 배포 뒤 `ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`.

@@ -305,7 +305,7 @@
   "aiApps": {
     "title": "Connected AI apps",
     "sub": "Apps you connected to this workspace so you can use PlanQ from ChatGPT or Claude. Disconnecting stops access from the next request.",
-    "howTo": "Add this address as a connector in ChatGPT (Developer mode › Custom connector) or Claude to open the PlanQ connection screen.",
+    "howTo": "In ChatGPT (desktop browser), turn on Settings › Apps › Advanced settings › Developer mode, then paste this address into [Create app]. In Claude, add it under Settings › Connectors › Add custom connector. The PlanQ connection screen opens next. Step-by-step: help article «Connect ChatGPT or Claude».",
     "copy": "Copy",
     "copied": "Copied",
     "empty": "No AI apps connected",

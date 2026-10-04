@@ -1503,6 +1503,27 @@ const ARTICLES = [
 
   // ── Q info ──
   // #195 — 'Q info' 카테고리의 유일한 글. authenticated 면 카테고리 자체가 게스트에게 사라진다.
+  { cat: 'settings', slug: 'connect-chatgpt-claude', visibility: 'authenticated', linked_route: '/profile/integrations', est: 3,
+    title: t('ChatGPT·Claude 연결하기', 'Connect ChatGPT or Claude'),
+    summary: t('ChatGPT·Claude 에서 말로 PlanQ 업무를 찾고 만들고 기록하기', 'Find, create and record PlanQ work by talking to ChatGPT or Claude'),
+    body: [
+      p('ChatGPT 나 Claude 에 PlanQ 를 연결하면 «이번 주 내 업무 보여줘», «오늘 통화 내용 상담으로 저장해줘» 처럼 말로 PlanQ 를 씁니다. AI 는 연결한 사람의 권한 안에서만 움직이고, 연결할 때 고른 워크스페이스 하나만 봅니다.',
+        'Once ChatGPT or Claude is connected, you can use PlanQ by talking — «show my tasks this week», «save today\'s call as a consultation». The AI only acts within your own permissions and sees only the one workspace you chose when connecting.'),
+      s('연결 주소를 확인합니다 — PlanQ 에서 개인 설정 › 외부 연동 › «연결된 AI 앱» 에 있는 주소를 [복사] 합니다(https://planq.kr/agent/mcp).',
+        'Get the connection address — in PlanQ, open Personal settings › Integrations › «Connected AI apps» and [Copy] the address (https://planq.kr/agent/mcp).'),
+      s('ChatGPT: 컴퓨터 브라우저로 chatgpt.com 에 로그인 → 왼쪽 아래 프로필 › 설정(Settings) › Apps › 고급 설정(Advanced settings) 에서 Developer mode 를 켭니다. 유료 플랜(Plus·Pro·Business 등)에서만 보입니다.',
+        'ChatGPT: sign in to chatgpt.com in a desktop browser → profile (bottom left) › Settings › Apps › Advanced settings, and turn on Developer mode. It only appears on paid plans (Plus, Pro, Business, etc.).'),
+      s('같은 화면의 [Create app] 을 누르고 이름(예: PlanQ), 주소(위에서 복사한 것), 인증 OAuth 를 넣고 만듭니다. PlanQ 로그인 창이 뜨면 로그인 → 연결할 워크스페이스와 권한을 고르고 [허용] 합니다.',
+        'Choose [Create app] on the same screen, enter a name (e.g. PlanQ), the address you copied, and OAuth for authentication. When the PlanQ sign-in window opens, sign in, pick the workspace and access, and choose [Allow].'),
+      s('대화에서 쓰려면 새 채팅의 입력창 왼쪽 [+] › Developer mode › PlanQ 를 골라야 합니다. 고르지 않으면 ChatGPT 는 PlanQ 를 쓰지 않습니다.',
+        'To use it in a chat, open a new chat and pick [+] (left of the input) › Developer mode › PlanQ. Until you do, ChatGPT will not use PlanQ.'),
+      s('Claude: claude.ai › 설정 › 커넥터(Connectors) › 커스텀 커넥터 추가에 같은 주소를 넣고, 뜨는 PlanQ 창에서 [허용] 합니다.',
+        'Claude: in claude.ai › Settings › Connectors › Add custom connector, paste the same address and choose [Allow] in the PlanQ window that opens.'),
+      p('할 수 있는 것 — 업무 찾기·만들기·메모 남기기, 마감 바꾸기·완료·담당자 바꾸기(실행 전에 확인을 물어요), 고객·프로젝트·멤버·일정 보기, 일정 만들기, 고객 상담 기록 저장, 프로젝트 메모 남기기. AI 가 만든 변경은 열어 둔 PlanQ 화면에 바로 보입니다.',
+        'What it can do — find, create and comment on tasks; change due dates, complete or reassign tasks (it asks you first); look up clients, projects, members and events; create events; save client consultation records; add project notes. Changes made by the AI show up immediately in any PlanQ screen you have open.'),
+      note('삭제·청구·결제·메일 발송·권한 변경은 AI 로 할 수 없습니다. 금액도 AI 에게 보여주지 않습니다. 연결을 끊으려면 «연결된 AI 앱» 에서 [연결 끊기] — 다음 요청부터 바로 막힙니다.',
+        'Deleting, billing, payments, sending email and changing permissions are not available to the AI, and amounts are never shown to it. To disconnect, choose [Disconnect] in «Connected AI apps» — the next request is blocked immediately.'),
+    ] },
   { cat: 'qinfo', slug: 'client-member-360', visibility: 'public', linked_route: '/business/clients', est: 2,
     title: t('고객·멤버 360° 정보', 'Client & member 360° profiles'),
     summary: t('고객·멤버의 대화·업무·청구·파일을 한 곳에서', 'See a person’s chats, tasks, billing, and files in one place'),
