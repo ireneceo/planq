@@ -11,6 +11,19 @@
 const TARGET_RATE = 16000;
 const BUFFER_SIZE = 4096;
 
+/**
+ * 원본(44.1·48kHz) → 16kHz 구간 평균. ★ 2026-10-04 — 예전엔 «가장 가까운 한 표본»만 집어(decimation)
+ *   8kHz 이상 소리가 낮은 주파수로 접혀 들어갔다(에일리어싱 — 치찰음·잡음이 말소리에 섞인다).
+ *   평균은 가장 단순한 저역 통과라 음성 인식 정확도가 오른다. 값의 범위·채널 배치는 그대로다.
+ */
+function avgAt(src: Float32Array, i: number, ratio: number): number {
+  const a = Math.floor(i * ratio);
+  const b = Math.max(a + 1, Math.min(src.length, Math.floor((i + 1) * ratio)));
+  let sum = 0;
+  for (let k = a; k < b; k++) sum += src[k];
+  return sum / (b - a);
+}
+
 export class PCMStreamer {
   private ctx: AudioContext | null = null;
   private source: MediaStreamAudioSourceNode | null = null;
@@ -66,9 +79,8 @@ export class PCMStreamer {
         const outLen = Math.floor(left.length / ratio);
         const out = new Int16Array(outLen * 2);
         for (let i = 0; i < outLen; i++) {
-          const srcIdx = Math.floor(i * ratio);
-          const lSample = Math.max(-1, Math.min(1, left[srcIdx]));
-          const rSample = Math.max(-1, Math.min(1, right[srcIdx]));
+          const lSample = Math.max(-1, Math.min(1, avgAt(left, i, ratio)));
+          const rSample = Math.max(-1, Math.min(1, avgAt(right, i, ratio)));
           out[i * 2] = lSample < 0 ? lSample * 0x8000 : lSample * 0x7fff;
           out[i * 2 + 1] = rSample < 0 ? rSample * 0x8000 : rSample * 0x7fff;
         }
@@ -79,7 +91,7 @@ export class PCMStreamer {
         const outLen = Math.floor(input.length / ratio);
         const out = new Int16Array(outLen);
         for (let i = 0; i < outLen; i++) {
-          const sample = input[Math.floor(i * ratio)];
+          const sample = avgAt(input, i, ratio);
           const clamped = Math.max(-1, Math.min(1, sample));
           out[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
         }

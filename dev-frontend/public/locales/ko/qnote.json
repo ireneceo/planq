@@ -491,8 +491,10 @@
     "errUnavailable": "노트 서비스에 연결할 수 없어 저장하지 못했습니다",
     "errEmpty": "제목이나 내용이 필요합니다",
     "errFailed": "저장에 실패했습니다",
-    "endAndSave": "종료하고 상담 저장",
-    "saveOnly": "상담 저장"
+    "saveOnly": "상담 저장",
+    "endConfirmTitle": "회의를 종료할까요?",
+    "endConfirmMessage": "상담으로 저장하려면 먼저 회의를 종료해야 해요. 종료하면 녹음이 멈추고, 지금까지 기록된 내용으로 상담을 저장합니다.",
+    "endConfirm": "종료하고 저장"
   },
   "extract": {
     "title": "업무 추출",

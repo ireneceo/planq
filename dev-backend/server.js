@@ -364,6 +364,8 @@ app.use(compression({
 }));
 
 // Body parser + Cookie parser — rate limiter skip 함수가 req.body 에 접근하므로 security 보다 먼저 파싱되어야 함
+// 느린 요청만 로그에 남긴다(경로는 id 를 접고, 본문·쿼리·토큰 없음) — 실사용 속도 점검용. middleware/requestTiming.js
+app.use(require('./middleware/requestTiming'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());

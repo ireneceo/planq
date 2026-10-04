@@ -75,6 +75,10 @@ def _extract_keywords(meeting_context: dict | None) -> list[str]:
 #   화면(QNotePage speakerLabelFor · 공개 노트)도 이 값으로 «상대 N» 을 매긴다 — 바꾸면 같이 바꾼다.
 MC_REMOTE_BASE = 100
 
+# 무음 판정 — PCM16 최대값이 이 아래면 «소리 없음»(배경 잡음 수준). 처음 SILENT_WARN_SEC 초 동안 계속이면 화면에 알린다.
+SILENT_PEAK = 300
+SILENT_WARN_SEC = 8.0
+
 
 async def _upsert_speaker(db, session_id: int, dg_speaker_id: int) -> int | None:
   """Insert speaker row if new, return speakers.id. None if dg_speaker_id is None."""
@@ -960,6 +964,9 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   dg = None  # 연결 전 None → finally 의 dg.close 가드용(연결 실패 시에도 안전)
   bytes_received = 0
   chunks_received = 0
+  window_peak = 0
+  heard_sound = False
+  silent_warned = False
   last_log_time = asyncio.get_event_loop().time()
   stream_start = last_log_time
   # 비용폭탄 C1 — 과금 flush 상태. stream_id 는 연결마다 UUID(재연결 시 새 키 → 유실·이중집계 0).
@@ -1056,12 +1063,31 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
           except Exception:
             pass
           break
+        # ★ 2026-10-04 — 소리 크기(peak)를 같이 잰다. 운영 세션 56: 40초 분량이 다 왔는데 인식 0문장이었다 —
+        #   바이트만 세서는 «무음이 왔다» 와 «말이 왔다» 를 가를 수 없었다.
+        try:
+          _pk = int(np.abs(np.frombuffer(chunk[: len(chunk) - (len(chunk) % 2)], dtype='<i2')).max()) if len(chunk) >= 2 else 0
+        except Exception:
+          _pk = 0
+        if _pk > window_peak:
+          window_peak = _pk
+        if _pk > SILENT_PEAK:
+          heard_sound = True
+        # 처음 8초 동안 소리가 한 번도 안 들어오면 화면에 알린다(한 번만) — 마이크 권한·선택·음소거 문제를 «녹음 중» 으로 숨기지 않는다
+        if not heard_sound and not silent_warned and now - stream_start >= SILENT_WARN_SEC:
+          silent_warned = True
+          logger.info(f'session={session_id} audio: silent input for {SILENT_WARN_SEC}s (peak<={SILENT_PEAK})')
+          try:
+            await websocket.send_json({'type': 'warning', 'code': 'silent_input'})
+          except Exception:
+            pass
         if now - last_log_time >= 5.0:
           logger.info(
             f'session={session_id} audio: chunks={chunks_received} '
-            f'bytes={bytes_received} (~{bytes_received / 32000:.1f}s mono16k)'
+            f'bytes={bytes_received} (~{bytes_received / 32000:.1f}s mono16k) peak={window_peak}'
           )
           last_log_time = now
+          window_peak = 0
         # 비용폭탄 C1 — 5분마다 usage flush (비차단 create_task, 오디오 파이프 정지 방지).
         if now - last_flush_time >= FLUSH_INTERVAL_SEC:
           _delta = bytes_received - flushed_bytes

@@ -429,6 +429,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   const [docSaved, setDocSaved] = useState(false);
   const [questionsModal, setQuestionsModal] = useState(false);
   const [settingsViewOpen, setSettingsViewOpen] = useState(false);
+  // 녹음 중 [상담 저장] — 먼저 «종료하고 저장할까요?» 를 묻는다(종료는 되돌릴 수 없다)
+  const [confirmEndSave, setConfirmEndSave] = useState(false);
   // 사이클 N+25 — 공유 모달 (visibility + share_token 통합)
   const [shareModalOpen, setShareModalOpen] = useState(false);
   // N+42 — 정리하기 분기 모달 (4 액션: 업무/지식/문서/공유)
@@ -1127,6 +1129,9 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     }
 
     if (ev.type === 'finalized') {
+      // 말이 실제로 인식됐으면 «소리가 안 들어온다» 안내는 사실이 아니다 — 지운다(다른 오류는 그대로 둔다)
+      const noAudioMsg = t('page.errors.noAudio', { defaultValue: '마이크에서 소리가 들어오지 않습니다. 다른 앱이 마이크를 쓰고 있는지, 입력 장치가 맞는지 확인해 주세요.' }) as string;
+      setLiveError((prev) => (prev === noAudioMsg ? null : prev));
       // speech_final 기반 — 한 utterance = 한 문장. 즉시 블록으로 승격.
       clearInterim();
       pendingRef.current = null;
@@ -1262,6 +1267,11 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
     // ★ 소리가 한 조각도 안 들어옴. 녹음 중 표시만 뜨고 아무것도 안 담기던 사고(2026-08-29)를
     //   사용자가 바로 알 수 있게 한다. 녹음을 끊지는 않는다 — 마이크가 곧 붙는 경우도 있다.
+    if (ev.type === 'warning' && ev.code === 'silent_input') {
+      // 소리 조각은 오는데 계속 무음 — 마이크 음소거·다른 입력 장치·앱 마이크 권한. 같은 안내를 쓴다(원인이 같은 쪽이다).
+      setLiveError(t('page.errors.noAudio', { defaultValue: '마이크에서 소리가 들어오지 않습니다. 다른 앱이 마이크를 쓰고 있는지, 입력 장치가 맞는지 확인해 주세요.' }) as string);
+      return;
+    }
     if (ev.type === 'no_audio') {
       // 기본값은 t() 와 **같은 줄**에 둔다 — 줄을 나누면 한국어만 있는 줄이 생겨 i18n 가드가 잡는다(실제로 잡혔다).
       setLiveError(t('page.errors.noAudio', { defaultValue: '마이크에서 소리가 들어오지 않습니다. 다른 앱이 마이크를 쓰고 있는지, 입력 장치가 맞는지 확인해 주세요.' }) as string);
@@ -2867,20 +2877,22 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                   </SessionMeta>
                 </HeaderLeft>
                 <HeaderRight>
-                  <SecondaryBtn $compact onClick={() => { setEditingSession(true); setShowStartModal(true); }} title={t('page.controls.settings')} aria-label={t('page.controls.settings')}>
-                    <SettingsIcon size={14} />
-                    <BtnLabel>{t('page.controls.settings')}</BtnLabel>
+                  {/* ★ 2026-10-04 (Irene: "상단 버튼이 너무 많은데 길어서 … 상세에서 제목이 제대로 안 보여")
+                      설정·종료는 아이콘만(뜻은 title·aria-label), 상담 저장은 한 버튼 — 녹음 중이면 «종료하고 저장할까요?» 를 묻는다.
+                      옛 [종료하고 상담 저장] 은 라벨만 있는 버튼이라 1100px 이하에서 라벨이 접히면 **빈 버튼**이 됐다. */}
+                  <HeaderIconBtn type="button" data-testid="qnote-settings" onClick={() => { setEditingSession(true); setShowStartModal(true); }} title={t('page.controls.settings')} aria-label={t('page.controls.settings')}>
+                    <SettingsIcon size={16} />
+                  </HeaderIconBtn>
+                  {/* 글자 버튼이라 $compact(폰에서 36px 정사각으로 접힘)를 쓰지 않는다 — 접히면 글자가 넘친다 */}
+                  <SecondaryBtn data-testid="qnote-save-sale"
+                    onClick={() => {
+                      if (phase === 'recording' || phase === 'paused') { setConfirmEndSave(true); return; }
+                      setSaveToSaleOpen(true);
+                    }}
+                    title={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}
+                    aria-label={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}>
+                    {t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}
                   </SecondaryBtn>
-                  {/* 끝난 노트는 [상담 저장] — 녹음 중에는 [종료하고 상담 저장] 이 그 자리를 한다.
-                      둘이 동시에 뜨지 않게 phase 로 가른다. */}
-                  {phase !== 'recording' && phase !== 'paused' && (
-                    <SecondaryBtn $compact data-testid="qnote-save-sale"
-                      onClick={() => setSaveToSaleOpen(true)}
-                      title={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}
-                      aria-label={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}>
-                      <BtnLabel>{t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}</BtnLabel>
-                    </SecondaryBtn>
-                  )}
                   {phase === 'prepared' && (
                     <PrimaryBtn $compact onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.startRecording')} aria-label={t('page.controls.startRecording')}>
                       <MicIcon size={14} />
@@ -2889,43 +2901,26 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                   )}
                   {phase === 'recording' && (
                     <>
-                      <RecordingIndicator>
+                      {/* «녹음 중» 글자는 제목 옆 상태 칩이 이미 말한다 — 여기는 깜빡이는 점만 */}
+                      <RecordingIndicator title={t('page.controls.recordingNow')} aria-label={t('page.controls.recordingNow')}>
                         <RecordDot />
-                        <BtnLabel>{t('page.controls.recordingNow')}</BtnLabel>
                       </RecordingIndicator>
                       <SecondaryBtn $compact onClick={pauseRecording} title={t('page.controls.pause')} aria-label={t('page.controls.pause')}>
                         <StopIcon size={14} />
                         <BtnLabel>{t('page.controls.pause')}</BtnLabel>
                       </SecondaryBtn>
-                      <SecondaryBtn $compact data-testid="qnote-end-and-save-sale"
-                        onClick={() => { void endMeeting({ thenSaveToSale: true }); }}
-                        title={t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}
-                        aria-label={t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}>
-                        <BtnLabel>{t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}</BtnLabel>
-                      </SecondaryBtn>
-                      <DangerBtn $compact onClick={() => { void endMeeting(); }} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
-                        <PowerIcon size={14} />
-                        <BtnLabel>{t('page.controls.endMeeting')}</BtnLabel>
-                      </DangerBtn>
                     </>
                   )}
                   {phase === 'paused' && (
-                    <>
-                      <PrimaryBtn $compact onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.resume')} aria-label={t('page.controls.resume')}>
-                        <MicIcon size={14} />
-                        <BtnLabel>{t('page.controls.resume')}</BtnLabel>
-                      </PrimaryBtn>
-                      <SecondaryBtn $compact data-testid="qnote-end-and-save-sale"
-                        onClick={() => { void endMeeting({ thenSaveToSale: true }); }}
-                        title={t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}
-                        aria-label={t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}>
-                        <BtnLabel>{t('saveToSale.endAndSave', { defaultValue: '종료하고 상담 저장' }) as string}</BtnLabel>
-                      </SecondaryBtn>
-                      <DangerBtn $compact onClick={() => { void endMeeting(); }} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
-                        <PowerIcon size={14} />
-                        <BtnLabel>{t('page.controls.endMeeting')}</BtnLabel>
-                      </DangerBtn>
-                    </>
+                    <PrimaryBtn $compact onClick={startRecording} disabled={lockedByOther} title={lockedByOther ? t('page.errors.recorderLockedBanner') : t('page.controls.resume')} aria-label={t('page.controls.resume')}>
+                      <MicIcon size={14} />
+                      <BtnLabel>{t('page.controls.resume')}</BtnLabel>
+                    </PrimaryBtn>
+                  )}
+                  {(phase === 'recording' || phase === 'paused') && (
+                    <HeaderIconBtn type="button" $danger data-testid="qnote-end" onClick={() => { void endMeeting(); }} title={t('page.controls.endMeeting')} aria-label={t('page.controls.endMeeting')}>
+                      <PowerIcon size={16} />
+                    </HeaderIconBtn>
                   )}
                 </HeaderRight>
               </MainHeader>
@@ -3088,6 +3083,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                   />
                 )}
                 {visibilityError && <span style={{ fontSize: '0.6875rem', color: '#B91C1C' }}>{visibilityError}</span>}
+                {/* 끝난 노트의 [상담 저장] — 녹음 머리줄의 같은 버튼과 같은 문(setSaveToSaleOpen). 2026-10-04 까지 끝난 노트에는
+                    이 문이 아예 없었다(Fable 실측 — 머리줄 주석은 «끝난 노트는 [상담 저장]» 이라고 적혀 있었다). */}
+                <ReviewSecondaryBtn type="button" data-testid="qnote-save-sale"
+                  onClick={() => setSaveToSaleOpen(true)}
+                  title={t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}>
+                  {t('saveToSale.saveOnly', { defaultValue: '상담 저장' }) as string}
+                </ReviewSecondaryBtn>
                 {/* 공유 — Primary (Q docs PrimaryBtn 패턴) */}
                 {String(activeSession.user_id) === String(user?.id) && (
                   <ReviewPrimaryBtn type="button" onClick={() => setShareModalOpen(true)} title={t('page.reviewBar.shareTitle', '회의록 공유') as string}>
@@ -3341,6 +3343,15 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       )}
 
       {/* 녹음 보호 — 녹음을 끊는 모든 경로가 이 문을 지난다 (window.confirm 금지) */}
+      <ConfirmDialog
+        isOpen={confirmEndSave}
+        onClose={() => setConfirmEndSave(false)}
+        onConfirm={() => { setConfirmEndSave(false); void endMeeting({ thenSaveToSale: true }); }}
+        variant="warning"
+        title={t('saveToSale.endConfirmTitle', '회의를 종료할까요?') as string}
+        message={t('saveToSale.endConfirmMessage', '상담으로 저장하려면 먼저 회의를 종료해야 해요. 종료하면 녹음이 멈추고, 지금까지 기록된 내용으로 상담을 저장합니다.') as string}
+        confirmText={t('saveToSale.endConfirm', '종료하고 저장') as string}
+      />
       <ConfirmDialog
         isOpen={!!recGuard}
         onClose={() => setRecGuard(null)}
@@ -4089,6 +4100,13 @@ const IconBtn = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   }
 `;
 
+// 녹음 화면 머리줄의 아이콘 버튼 — 같은 줄의 글자 버튼(36px)과 높이를 맞춘다(한 줄 안 컨트롤은 같은 높이)
+const HeaderIconBtn = styled(IconBtn)`
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+`;
+
 // N+88 — 공유 Primary 버튼 (Q docs PrimaryBtn 패턴 통일)
 const ReviewPrimaryBtn = styled.button`
   height: 32px; padding: 0 14px;
@@ -4098,6 +4116,11 @@ const ReviewPrimaryBtn = styled.button`
   transition: background 0.15s;
   &:hover:not(:disabled) { background: #0D9488; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
+`;
+// 끝난 노트 머리줄의 보조 버튼 — 같은 줄 [공유](32px)와 같은 높이, 색만 보조 톤
+const ReviewSecondaryBtn = styled(ReviewPrimaryBtn)`
+  background: #FFFFFF; color: #334155; border: 1px solid #E2E8F0;
+  &:hover:not(:disabled) { background: #F8FAFC; border-color: #CBD5E1; }  /* 부모의 :hover:not(:disabled) 와 같은 강도로 덮는다 */
 `;
 // 질문 보기 칩 (아이콘 + 카운트, auto-width)
 const QuestionChip = styled.button`
@@ -4200,23 +4223,13 @@ const Badge = styled.span`
 `;
 
 const RecordingIndicator = styled.div`
-  display: flex;
+  /* 2026-10-04 — 점만. «녹음 중» 글자는 제목 옆 상태 칩이 말한다(제목 자리를 돌려준다) */
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
-  padding: 0 14px;
-  background: #f0fdfa;
-  color: #0f766e;
-  border: 1px solid #99f6e4;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  @media (max-width: 768px) {
-    width: 36px;
-    padding: 0;
-    justify-content: center;
-    gap: 0;
-  }
+  justify-content: center;
+  width: 20px;
+  height: 32px;
+  flex-shrink: 0;
 `;
 
 const RecordDot = styled.span`
@@ -4278,26 +4291,6 @@ const SecondaryBtn = styled.button<{ $compact?: boolean }>`
   ${(p) => p.$compact ? compactResponsive : ''}
 `;
 
-const DangerBtn = styled.button<{ $compact?: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 16px;
-  background: #ffffff;
-  color: #9f1239;
-  border: 1px solid #fecdd3;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  &:hover {
-    background: #fff1f2;
-    border-color: #f43f5e;
-  }
-  ${(p) => p.$compact ? compactResponsive : ''}
-`;
 
 const ParticipantBar = styled.div`
   display: flex;

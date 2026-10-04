@@ -1,39 +1,21 @@
 {
-  "working_on": [
-    "iOS 1.0.1 심사 제출(앱스토어 목록 이름 변경 — Irene 진행, 빌드 완료)"
-  ],
+  "working_on": ["운영 오류 즉시 알림 · «모든 버튼 눌러보기» 순찰 검사(다음 작업)"],
   "in_progress": [],
   "completed": [
-    { "title": "AI 에이전트 M3-b/c — 문서·Q info·회의록·메일 읽기(옵트인)·통합 검색·출처 연결·답장 초안(발송 없음) · 도구 34개", "verified": "fable_pass" },
-    { "title": "MCP 서버 안내문 — 일 관련 질문이면 «PlanQ에서 가져와» 없이도 PlanQ 도구를 먼저 쓰게", "verified": "fable_pass" },
-    { "title": "다운로드 속도·진행률 — Drive 파일 디스크 캐시(3GB·14일) · 다운로드 트레이(%·크기·취소·실패 다시 시도) · Drive 연결 해제 시 캐시 삭제", "verified": "fable_pass" },
-    { "title": "SEO — 인사이트·가이드 글 122페이지 전부에 운영사(Organization) 노드", "verified": "fable_pass" },
-    { "title": "앱(iOS·Android) 안 새 창 링크를 앱 안으로 — Cue·Q helper·도움말 링크가 사파리로 튀던 것, /api PDF 는 인앱 브라우저", "verified": "fable_pass" },
-    { "title": "말로 추가(마이크) — 탭 모드(아이패드)에서 화면이 죽던 것(useNavigate) · 날짜 산술을 코드가(«다음 주 화요일» 10/10→10/6)", "verified": "fable_pass" },
-    { "title": "서명 — 메일 링크 서명 화면을 공용 서명판으로(획만 잘라 저장·배율 보정) · 인증번호 6자리 자동 확인·Enter · 완료 후 [서명한 문서 보기]·[닫기] · 서명 표시 크기 키움", "verified": "fable_pass" }
+    { "title": "Q info 상세 — 본문·항목·첨부 먼저, «분류·공개 범위»(옛 메타데이터) 맨 아래 · Enter 빈 줄이 상세·공유 링크에서 접히던 것 · 공유 링크 항목 값 줄바꿈", "verified": "fable_pass" },
+    { "title": "Q Note 화상회의 — 상대 채널도 목소리별 분리(«상대 1·2») · 공개 노트 화자 «unknown» → 이름/작성자/화자 N", "verified": "fable_pass" },
+    { "title": "Q Note 녹음 — 무음 8초 감지 안내 · 다운샘플링 구간 평균(에일리어싱 완화) · 머리줄 정리(설정·종료 아이콘, [상담 저장] 하나 + 녹음 중 종료 확인) · 끝난 노트에도 [상담 저장]", "verified": "fable_pass" },
+    { "title": "느린 요청 기록(백엔드·Q Note, 800ms↑) — 경로는 코드 모양만(값·쿼리·본문 없음)", "verified": "fable_pass" }
   ],
   "behavior_changes": [
-    "앱 안에서는 «새 창으로 분리» 버튼이 숨는다(창 개념 없음) — 데스크탑 웹은 그대로",
-    "서명 화면: 6자리를 다 넣으면 [확인] 없이 인증된다"
+    "Q Note 녹음 중 [상담 저장] 은 «회의를 종료할까요?» 를 먼저 묻는다",
+    "Q info 상세에서 공개 범위·보안등급은 맨 아래로"
   ],
-  "issues": [
-    "nginx 에 /qnote/api/sessions/internal/ 외부 차단 권고(내부 키가 있어야 열리지만 표면 축소) — sudo 필요"
-  ],
-  "blocked_on_human": [
-    "iOS 1.0.1 심사 제출 — App Store Connect",
-    "Google Search Console 사이트맵 제출(sitemap.xml) 확인"
-  ],
+  "issues": ["일시정지 후 재개 직후 8초 무음이면 무음 안내가 뜰 수 있음 — 운영 peak 로그로 임계 조정 예정"],
+  "blocked_on_human": ["iOS 1.0.1 심사 제출(App Store Connect)"],
   "migrations": [],
-  "check_areas": [
-    "아이패드·폰 앱: Cue·Q helper·말하기·받은 서명 PDF",
-    "메일 링크 서명 → 완료 화면 서명 크기"
-  ],
-  "backlog": [
-    "#434② iOS 네이티브 공유(App Group)",
-    "운영 데모 워크스페이스 테스트 서명 문서 정리"
-  ],
-  "tooling_health": [
-    "signflow 카나리: 6자리 자동 확인·완료 후 문서 검사 추가, 공유 DB 풀을 닫던 것 제거"
-  ],
+  "check_areas": ["Q Note 녹음 무음 안내·머리줄 · 화상회의 상대 1·2 · Q info 상세 순서", "운영 로그 [slow] 집계(하루 뒤)"],
+  "backlog": ["목소리 프로필 → 화자 이름 자동(Fable 설계)", "iOS·Android 네이티브 공유 받기(#434)"],
+  "tooling_health": ["signflow 카나리 6자리 자동 확인·완료 후 문서 검사"],
   "undeployed": []
 }

@@ -73,7 +73,9 @@ export type LiveEvent =
   | { type: 'utterance_end' }
   | { type: 'closed'; code?: number }
   // 소리가 한 조각도 안 들어옴 — "녹음 중" 인데 아무것도 안 담기는 상태를 사용자에게 알리기 위한 신호.
-  | { type: 'no_audio' };
+  | { type: 'no_audio' }
+  // 서버가 본 «소리가 들어오는데 무음» — 조각은 오지만 처음 몇 초간 소리 크기가 바닥(2026-10-04 운영 세션 56: 40초 · 인식 0문장)
+  | { type: 'warning'; code: string };
 
 export interface LiveSessionOptions {
   sessionId: number;

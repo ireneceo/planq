@@ -491,8 +491,10 @@
     "errUnavailable": "Could not reach the note service, so nothing was saved",
     "errEmpty": "A title or content is required",
     "errFailed": "Could not save",
-    "endAndSave": "End and save to consults",
-    "saveOnly": "Save to consults"
+    "saveOnly": "Save to consults",
+    "endConfirmTitle": "End the meeting?",
+    "endConfirmMessage": "To save as a consultation, the meeting needs to end first. Recording stops and the consultation is saved with what has been recorded so far.",
+    "endConfirm": "End and save"
   },
   "extract": {
     "title": "Extract tasks",
