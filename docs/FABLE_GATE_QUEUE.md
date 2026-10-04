@@ -5386,3 +5386,8 @@ Fable: 외부 401+WWW-Authenticate · 디스커버리 issuer https://planq.kr/ag
 Host/X-Forwarded 위조 불변 · remoteIo → 3004 loopback · /connect/agent·/api/agent/* 무토큰 401.
 **Fable 지적 → 반영**: 쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다(기본 꺼짐) — 운영에 추가 · CLAUDE.md 의 «쓰기만 끄기 =0» 문구가 실제 기본값과 반대였다 → 정정.
 도움말·앱 안 문구의 ChatGPT 메뉴 이름(2026-07 Connectors→Plugins 개명)을 Irene 실화면 신고로 정정(자체 검증, 다음 배포에 운영 반영).
+
+## 2026-10-04 · MCP serverInfo 이름·아이콘 (6f09c4f3) · [Opus] Fable 미검증(자체 검증)
+**판정**: R=0(initialize 응답의 표시 메타 — 권한·데이터 무관, 되돌리기 쉬움) · S=0 · F=1(initialize 실호출로 갈린다) → 자체 검증.
+**자체 검증**: dev 실 initialize → serverInfo `{name:planq,title:PlanQ,description,websiteUrl,icons[512,192]}` · 아이콘 URL 공개 200 image/png · guard 61/62(mcpreadonly·agentsurface 통과).
+**미배포** — 다음 배포에 실린다. ChatGPT·Claude 사용자 지정 앱이 serverInfo.icons 를 그리는지는 클라이언트 지원 문제(2026-10 기준 대부분 미표시).
