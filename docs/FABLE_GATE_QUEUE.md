@@ -5366,7 +5366,10 @@ MCP 프로세스 실시간 0 결함 수리(`services/remoteIo` → `POST /api/in
 health 48/48 · guard 61/62 · tenant 9/9 · 운영 MCP 가 같은 .env(PORT 3004·INTERNAL_API_KEY)를 읽음 확인. 스키마 변경 없음.
 **사고 기록**: Opus 테스트 스크립트가 INSERT 반환을 잘못 읽어 dev clients#1·projects#1(biz6) 삭제 → 10-03 덤프에서 복구 완료(Irene 실행). 잔여 픽스처 6행 정리.
 
-## 2026-10-04 · nginx 설정 조각 `scripts/nginx-agent.conf` · [Opus] Fable 미검증(대기)
+## 2026-10-04 · nginx 설정 조각 `scripts/nginx-agent.conf` · [Opus] → **Fable PASS**(dev 적용 후 외부 실호출)
 **무엇**: `/agent/`·`/.well-known/oauth-` → 127.0.0.1:3005 (CLAUDE.md «AI 에이전트 연동» 절에 적힌 설계 그대로). 아직 어디에도 include 되지 않았다 — Irene 이 dev 서버에 sudo 로 넣는다.
 **판정**: 적용되는 순간 무인증 도달 표면이 넓어진다(R=1). 다만 그 뒤의 인증(OAuth 2.1·Bearer·디스커버리)은 M1 Fable PASS(68검사) 범위다.
 **Fable 이 봐야 할 것**: 적용 후 외부에서 `https://dev.planq.kr/agent/mcp` 401+WWW-Authenticate · `/.well-known/oauth-authorization-server` JSON · `/agent/` 밖(예: `/agentx`)은 SPA · `/api/internal` 여전히 deny.
+
+**Fable 결과(2026-10-04 dev 적용 후)**: 노출은 두 접두어뿐(옛 `/mcp`·경로 조작 `..`·`%2e%2e` 전부 MCP 미도달) · `/api/internal` 403 유지 · socket.io·홈 무회귀 ·
+Host/X-Forwarded-* 위조로 issuer·resource_metadata 안 바뀜(APP_URL 고정) · 적용 스크립트 멱등·원복 PASS. 관찰: `/agent`(슬래시 없음)는 301 → MCP 404(SPA 라우트 없음, 영향 0).
