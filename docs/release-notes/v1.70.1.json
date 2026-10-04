@@ -1,0 +1,18 @@
+{
+  "version": "1.70.1",
+  "date": "2026-10-04",
+  "items": [
+    {
+      "ko": { "title": "프로필 사진이 나오도록 수정", "body": "올린 프로필 사진이 화면에 안 나오던 문제를 고쳤습니다. 프로필과 좌측 메뉴 계정 아이콘에 사진이 나오고, 사진이 없으면 실명 대신 닉네임 첫 글자가 나옵니다." },
+      "en": { "title": "Profile photos now show", "body": "Uploaded profile photos now appear on your profile and the account icon in the left menu. Without a photo, the icon shows the first letter of your nickname instead of your legal name." }
+    },
+    {
+      "ko": { "title": "모바일 문의·피드백 상세 정돈", "body": "모바일에서 문의 상세를 열면 제목 왼쪽에 뒤로가기가 나오고, 추가 문의를 쓰는 동안 키보드가 올라와도 [추가 문의 보내기] 버튼이 보입니다." },
+      "en": { "title": "Tidier inquiry details on mobile", "body": "On mobile, inquiry details now have a back button next to the title, and the [Send follow-up] button stays visible while the keyboard is open." }
+    },
+    {
+      "ko": { "title": "AI 앱에서 상담 기록·프로젝트 메모 남기기", "body": "ChatGPT·Claude 에 PlanQ 를 연결하면 «오늘 통화 내용 상담으로 저장해줘», «이 내용 프로젝트 메모로 남겨줘» 처럼 말로 기록할 수 있습니다. AI 가 만든 변경은 열어 둔 PlanQ 화면에 바로 보입니다. 연결 방법은 도움말 «ChatGPT·Claude 연결하기» 를 보세요." },
+      "en": { "title": "Save consultation records and project notes from AI apps", "body": "With PlanQ connected to ChatGPT or Claude, you can say «save today's call as a consultation» or «add this as a project note». Changes made by the AI appear right away in any PlanQ screen you have open. See the help article «Connect ChatGPT or Claude»." }
+    }
+  ]
+}

@@ -1,37 +1,38 @@
 {
   "working_on": [
-    "#439 AI 에이전트 M2 — 도구 17개 · MEDIUM 확인 2단계 · 업무 필드 권한표·담당자 후속을 행동 계층으로(PUT 동작 불변) — 운영은 여전히 꺼짐"
+    "#439 운영 켜기 — 배포 뒤 운영 .env AGENT_ENABLED·AGENT_TOKEN_SECRET + 운영 nginx 경로(Irene sudo) → 실 ChatGPT 연결 시험"
   ],
   "in_progress": [],
   "completed": [
-    {
-      "title": "#439 M2-a 조회 도구(고객·프로젝트·멤버·일정)·일정 생성·마감 변경/완료(확인 2단계)",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "#439 M2-b 담당자 변경·필드 수정 — PUT /tasks FIELD_RULES·담당자 이력·후속을 task_actions 로 이동(A/B 56건 동일)",
-      "verified": "fable_pass"
-    }
+    { "title": "#455 프로필 사진 표시(인증 이미지 blob · AuthContext avatar_url) · 첫 글자 닉네임", "verified": "opus_only" },
+    { "title": "#453·#454 문의 상세 모바일 — 표준 뒤로가기 · 목록 필터 내림 · 키보드 중 머리줄 접기", "verified": "opus_only" },
+    { "title": "#453 «2번» AI 기록 도구 add_client_interaction·add_project_note + MCP 쓰기 실시간 대리(remoteIo → /api/internal/broadcast)", "verified": "fable_pass" },
+    { "title": "dev nginx 에이전트 경로(scripts/nginx-agent.conf · apply-nginx-agent.sh)", "verified": "fable_pass" },
+    { "title": "도움말 «ChatGPT·Claude 연결하기» · 연결된 AI 앱 안내 문구", "verified": "opus_only" }
   ],
   "behavior_changes": [
-    "새 담당자 알림 push tag 가 task:<업무id> 로(다른 업무 알림과 같은 묶음 규칙) — DB 알림·문구 동일"
+    "AI 에이전트(MCP 프로세스)의 쓰기가 이제 실시간 방송된다 — 예전엔 열린 화면에 새로고침 전까지 안 보였다",
+    "POST /api/projects/:id/notes 가 행동 계층(project_note_actions)을 거친다 — 응답·권한·감사 동일"
   ],
   "migrations": [],
-  "issues": [],
+  "issues": [
+    "dev 테스트 스크립트 버그로 dev clients#1·projects#1(biz6) 삭제 → 10-03 덤프로 복구 완료(운영 무관)"
+  ],
   "blocked_on_human": [
-    "#439 켜기: dev·운영 nginx /agent/·/.well-known/oauth- → 3005 + 운영 .env AGENT_ENABLED·AGENT_TOKEN_SECRET",
-    "#434② 네이티브 공유(Apple App Group·실기기)",
+    "운영 nginx 에 에이전트 경로: sudo bash /opt/planq/scripts/apply-nginx-agent.sh /etc/nginx/sites-enabled/planq.kr",
+    "#434② iOS 공유 받기 — Apple App Group",
     "#426 문항 문구 검토"
   ],
   "check_areas": [
-    "Q task 담당자 변경(화면) — 이력·알림",
-    "업무 제목·설명 수정 권한"
+    "프로필 사진 업로드·표시(좌측 메뉴 포함)",
+    "모바일 문의·피드백 상세(뒤로가기·추가 문의)",
+    "프로젝트 메모 작성(사람 경로)"
   ],
   "backlog": [
-    "#439 M3: 실 ChatGPT·Claude 연결 확인 · CIMD · 디렉터리 제출 · cue_tools 레지스트리 통합 · 감사 화면 «AI 경유» 필터"
+    "#439 M3: Claude 커넥터 실연결 · CIMD · 디렉터리 제출 · cue_tools 레지스트리 통합 · 감사 화면 «AI 경유» 필터"
   ],
   "tooling_health": [
-    "Fable PASS(M2-a 33검사·M2-b A/B 56건) · guard 61/62 · health 48/48 · tenant·tenantwrite·leavesave·agentconsent 0 실패"
+    "Fable PASS(기록 도구 46검사 · nginx 외부 실호출) · guard 61/62 · health 48/48 · tenant 9/9"
   ],
   "undeployed": []
 }
