@@ -7,6 +7,7 @@ import AutoSaveField from '../../components/Common/AutoSaveField';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import StorageSettings from './StorageSettings';
 import ApiTokenSection from './ApiTokenSection';
+import AiAgentPolicySection from './AiAgentPolicySection';
 import PlanSettings from './PlanSettings';
 import PermissionsSettings from './PermissionsSettings';
 import ActivityLogSection from './ActivityLogSection';
@@ -1312,6 +1313,8 @@ export default function WorkspaceSettingsPage() {
       {tab === 'storage' && businessId && (
         <>
           <StorageSettings businessId={businessId} />
+          {/* AI 앱(ChatGPT·Claude) 메일 읽기 스위치 — owner/admin(설계 docs/AI_AGENT_M3_DESIGN.md §11) */}
+          {(isAdmin || user?.business_role === 'admin') && <AiAgentPolicySection businessId={businessId} />}
           <ApiTokenSection businessId={businessId} />
         </>
       )}

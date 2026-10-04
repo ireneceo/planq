@@ -13,14 +13,8 @@ const { err, fromActionFailure } = require('../errors');
 
 const iso = (v) => (v ? new Date(v).toISOString() : null);
 
-async function menuLevel(p, menu, level) {
-  const { getMemberMenuLevels } = require('../../../middleware/menu_permission');
-  const lv = await getMemberMenuLevels(p.businessId, p.userId);
-  if (!lv) throw err('PERMISSION_DENIED', 'members_only');
-  if (lv.role === 'owner' || lv.role === 'admin') return;
-  const v = lv.menus[menu] || 'write';
-  if (v === 'none' || (level === 'write' && v !== 'write')) throw err('PERMISSION_DENIED', `menu_${level === 'write' ? 'read_only' : 'hidden'}:${menu}`);
-}
+// 메뉴 Layer 판정은 services/agent/menu 한 벌(M3-a 에서 네 벌을 모았다).
+const { assertMenu: menuLevel } = require('../menu');
 
 // ── add_client_interaction ─────────────────────────────────
 async function addClientInteraction(p, a, actor) {

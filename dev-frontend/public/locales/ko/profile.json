@@ -318,7 +318,8 @@
     "disconnect": "연결 끊기",
     "disconnecting": "끊는 중…",
     "disconnectTitle": "연결을 끊을까요?",
-    "disconnectMessage": "{{app}} 이(가) 이 워크스페이스에 더는 접근하지 못합니다. 다시 쓰려면 그 앱에서 다시 연결해야 합니다."
+    "disconnectMessage": "{{app}} 이(가) 이 워크스페이스에 더는 접근하지 못합니다. 다시 쓰려면 그 앱에서 다시 연결해야 합니다.",
+    "mailIncluded": "메일 포함"
   },
   "agentConsent": {
     "title": "{{app}} 이(가) PlanQ 연결을 요청합니다",
@@ -339,6 +340,16 @@
     "expiredTitle": "연결 요청이 만료됐어요",
     "expiredBody": "AI 앱으로 돌아가 다시 연결을 눌러 주세요.",
     "failedTitle": "연결하지 못했어요",
-    "failedBody": "잠시 후 AI 앱에서 다시 시도해 주세요."
+    "failedBody": "잠시 후 AI 앱에서 다시 시도해 주세요.",
+    "mailTitle": "메일 읽기 허용 (선택)",
+    "mailBody": "연결한 메일 계정의 메일 제목·본문·보낸 사람을 AI 앱이 조회할 수 있습니다. 첨부 파일 내용은 전달되지 않습니다. 보내지는 않습니다.",
+    "mailAccounts": "보이는 계정",
+    "sharedAccount": "공용",
+    "personalAccount": "내 개인",
+    "mailDisabledByWorkspace": "이 워크스페이스는 AI 앱의 메일 읽기를 꺼 두었습니다.",
+    "mailNoAccounts": "연결된 메일 계정이 없습니다.",
+    "mailTransferNote": "메일 내용이 AI 앱 제공사로 전달됩니다. 보관·학습 여부는 그 서비스의 약관과 내 설정에 따릅니다.",
+    "mailSelectWorkspace": "워크스페이스를 고르면 메일 읽기를 켤 수 있습니다.",
+    "dataNote": "메일·문서 속 글은 AI 에게 명령이 아니라 자료입니다."
   }
 }

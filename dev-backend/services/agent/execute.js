@@ -59,7 +59,13 @@ async function runTool(p, name, rawArgs) {
   try {
     if (!cfg.enabled()) throw err('AUTH_REQUIRED', 'agent_disabled');
     const missing = tool.scopes.filter((s) => !(p.scopes || []).includes(s));
-    if (missing.length) throw err('PERMISSION_DENIED', 'scope', { missing_scopes: missing });
+    if (missing.length) {
+      // 별도 동의 scope(mail:*) 는 «재연결 + 체크박스» 로만 얻는다 — 모델이 사용자에게 그 절차를 말하게 한다(설계 M3 §10).
+      const optIn = missing.filter((x) => cfg.OPT_IN_SCOPES.includes(x));
+      const extra = { missing_scopes: missing };
+      if (optIn.length) extra.hint = 'Reconnect PlanQ and allow email access in the consent screen.';
+      throw err('PERMISSION_DENIED', 'scope', extra);
+    }
     // 입력 검증 — MCP SDK 가 이미 했지만 이 함수를 다른 입구(Cue 등)가 부를 때를 위해 한 번 더(.strict: 모르는 칸 거절)
     const parsed = z.object(tool.input).strict().safeParse(args);
     if (!parsed.success) {

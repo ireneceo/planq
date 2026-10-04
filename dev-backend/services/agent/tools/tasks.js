@@ -22,14 +22,10 @@ async function scopeOf(p) {
   return getUserScope(p.userId, p.businessId, p.platformRole);
 }
 
-/** 메뉴 Layer — 화면에서 안 보이는 메뉴를 AI 로 보면 안 된다(설계 §5.5). */
-async function assertMenu(p, menu, level) {
-  const { getMemberMenuLevels } = require('../../../middleware/menu_permission');
-  const lv = await getMemberMenuLevels(p.businessId, p.userId);
-  if (!lv || lv.role === 'owner' || lv.role === 'admin') return;
-  const v = lv.menus[menu] || 'write';
-  if (v === 'none' || (level === 'write' && v !== 'write')) throw err('PERMISSION_DENIED', `menu_${level === 'write' ? 'read_only' : 'hidden'}:${menu}`);
-}
+// 메뉴 Layer — 화면에서 안 보이는 메뉴를 AI 로 보면 안 된다(설계 §5.5). 판정은 services/agent/menu 한 벌.
+const { assertMenu } = require('../menu');
+const { parsePage, pageOf, clip } = require('../page');
+const cfg = require('../../agent_oauth/config');
 
 const TASK_INCLUDE = () => {
   const { User, Project, Client } = require('../../../models');
@@ -61,22 +57,51 @@ async function loadTask(p, taskId, scope) {
 const escLike = (s) => s.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 // ── get_context ─────────────────────────────────────────────
+//   M3-a(설계 §4.1) — 날짜는 **사용자 시간대**(users.timezone, 없으면 워크스페이스)로 푼다. 사람이 «오늘» 이라고 말할 때의
+//   기준은 그 사람이 사는 시간대다. 연결이 무엇을 볼 수 있는지(granted)도 같이 알려 준다 — 모델이 메일 권한 없이 메일을 찾다
+//   헤매지 않게.
+function validTz(tz) {
+  if (!tz) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; } catch { return false; }
+}
+
+function localParts(tz, now) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(now).reduce((a, x) => ({ ...a, [x.type]: x.value }), {});
+  const hh = parts.hour === '24' ? '00' : parts.hour;
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, weekday: String(parts.weekday || '').toLowerCase(), local: `${parts.year}-${parts.month}-${parts.day}T${hh}:${parts.minute}` };
+}
+
 async function getContext(p) {
   const { Business, User } = require('../../../models');
   const { getMemberNameMap } = require('../../displayName');
   const biz = await Business.findByPk(p.businessId, { attributes: ['id', 'name', 'brand_name', 'timezone'] });
-  const u = await User.findByPk(p.userId, { attributes: ['id', 'name'] });
+  const u = await User.findByPk(p.userId, { attributes: ['id', 'name', 'timezone'] });
   const names = await getMemberNameMap(p.businessId, [p.userId]).catch(() => new Map());
-  const tz = biz?.timezone || 'Asia/Seoul';
+  const wsTz = validTz(biz?.timezone) ? biz.timezone : 'Asia/Seoul';
+  const userTz = validTz(u?.timezone) ? u.timezone : wsTz;
   const now = new Date();
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' })
-    .formatToParts(now).reduce((a, x) => ({ ...a, [x.type]: x.value }), {});
+  const lp = localParts(userTz, now);
+  const scopes = p.scopes || [];
+  let mailCount = null;
+  if (scopes.includes('mail:read')) {
+    const { accessibleAccountIds } = require('../../mailIdentity');
+    mailCount = (await accessibleAccountIds(p.businessId, p.userId)).length;
+  }
   return {
-    user: { user_id: p.userId, name: names.get(p.userId) || u?.name || null },
-    workspace: { business_id: p.businessId, name: biz?.brand_name || biz?.name || null, timezone: tz },
-    today: `${parts.year}-${parts.month}-${parts.day}`,
-    weekday: String(parts.weekday || '').toLowerCase(),
+    user: { user_id: p.userId, name: names.get(p.userId)?.name || u?.name || null, timezone: userTz },
+    workspace: { business_id: p.businessId, name: biz?.brand_name || biz?.name || null, timezone: wsTz },
+    today: lp.date,
+    weekday: lp.weekday,
+    now_local: lp.local,
     now_iso: now.toISOString(),
+    granted: {
+      write: scopes.some((x) => cfg.WRITE_SCOPES.includes(x)),
+      mail: scopes.includes('mail:read'),
+      mail_drafts: scopes.includes('mail_drafts:write'),
+    },
+    mail_accounts_count: mailCount,
   };
 }
 
@@ -104,25 +129,77 @@ async function searchTasks(p, a) {
   if (a.due_to) conds.push({ due_date: { [Op.lte]: a.due_to } });
   if (a.project_id) conds.push({ project_id: a.project_id });
   if (a.client_id) conds.push({ client_id: a.client_id });
+  if (a.updated_since) {
+    const d = new Date(String(a.updated_since));
+    if (Number.isNaN(d.getTime())) throw err('VALIDATION_ERROR', 'invalid_datetime', { fields: { updated_since: a.updated_since } });
+    conds.push({ updated_at: { [Op.gte]: d } });
+  }
   const q = String(a.query || '').normalize('NFC').trim();
-  if (q) conds.push({ title: { [Op.like]: `%${escLike(q)}%` } });
-  const limit = Math.min(50, a.limit || 20);
+  if (q) {
+    const like = `%${escLike(q)}%`;
+    conds.push({ [Op.or]: [{ title: { [Op.like]: like } }, { description: { [Op.like]: like } }] });
+  }
+  const pg = parsePage(a);
   // 권한 조건은 Op.and 안에 — 최상위 키로 두면 뒤 필터가 덮어쓴다(memory feedback_scope_where_top_key_overwritten)
   const { rows, count } = await Task.findAndCountAll({
     where: { [Op.and]: conds }, include: TASK_INCLUDE(),
-    order: [['due_date', 'ASC'], ['updated_at', 'DESC']], limit, distinct: true,
+    order: [['due_date', 'ASC'], ['updated_at', 'DESC'], ['id', 'DESC']], limit: pg.pageSize, offset: pg.offset, distinct: true,
   });
-  return { items: await shapeTasks(rows, p.businessId), total: count, truncated: count > rows.length };
+  return pageOf(await shapeTasks(rows, p.businessId), count, pg);
 }
 
 // ── get_task ────────────────────────────────────────────────
+//   M3-a(설계 §4.3) — 설명 전체(≤8,000 + truncated) · 첨부 메타 · 출처(메일·채팅) · 관련 업무 · 최근 메모 3 + 더 있나.
+const DESC_MAX = 8000;
+
+async function taskExtras(p, t, scope) {
+  const { TaskAttachment, TaskLink, Task } = require('../../../models');
+  // 첨부 — 업무 자체에 붙은 것만(댓글 첨부는 그 댓글의 공개 범위를 따라야 하므로 여기 싣지 않는다). 바이트·경로는 내보내지 않는다.
+  const atts = await TaskAttachment.findAll({
+    where: { task_id: t.id, business_id: p.businessId, comment_id: null },
+    attributes: ['id', 'context', 'original_name', 'file_size', 'mime_type', 'post_id', 'created_at'],
+    order: [['id', 'ASC']], limit: 50,
+  });
+  const links = await TaskLink.findAll({ where: { [Op.or]: [{ task_a_id: t.id }, { task_b_id: t.id }] }, attributes: ['task_a_id', 'task_b_id', 'link_type'], limit: 50 });
+  const otherIds = links.map((l) => (l.task_a_id === t.id ? l.task_b_id : l.task_a_id));
+  let related = [];
+  if (otherIds.length) {
+    const { taskListWhere } = require('../../../middleware/access_scope');
+    const base = await taskListWhere(p.userId, p.businessId, scope);
+    if (base) {
+      const rows = await Task.findAll({ where: { [Op.and]: [base, { business_id: p.businessId }, { id: { [Op.in]: otherIds } }] }, attributes: ['id', 'title', 'status'] });
+      related = rows.map((r) => ({ task_id: r.id, title: r.title, status: r.status, url: `${cfg.APP_URL}/tasks?task=${r.id}` }));
+    }
+  }
+  let source = null;
+  if (t.email_thread_id) source = { kind: 'mail', thread_id: t.email_thread_id, message_id: t.source_email_message_id || null, url: `${cfg.APP_URL}/mail?thread=${t.email_thread_id}` };
+  else if (t.conversation_id) source = { kind: 'chat', conversation_id: t.conversation_id, url: `${cfg.APP_URL}/talk?conv=${t.conversation_id}` };
+  return {
+    attachments: atts.map((x) => ({ attachment_id: x.id, context: x.context, name: x.original_name || null, size_bytes: x.file_size ?? null, mime_type: x.mime_type || null, post_id: x.post_id || null })),
+    related_tasks: related,
+    source,
+  };
+}
+
 async function getTask(p, a) {
   await assertMenu(p, 'qtask', 'read');
   const scope = await scopeOf(p);
   const t = await loadTask(p, a.task_id, scope);
   const [item] = await shapeTasks([t], p.businessId);
   const notes = await listNotes(p, t, 3);
-  return { task: { ...item, description: t.description || null }, recent_notes: notes.items };
+  const d = clip(t.description, DESC_MAX);
+  const extras = await taskExtras(p, t, scope);
+  return {
+    task: {
+      ...item,
+      description: t.description ? d.text : null,
+      description_total_chars: d.total,
+      truncated_fields: d.cut ? ['description'] : [],
+      ...extras,
+    },
+    recent_notes: notes.items,
+    notes_has_more: notes.truncated,
+  };
 }
 
 // ── create_task ─────────────────────────────────────────────
@@ -167,7 +244,9 @@ async function listNotes(p, task, limit, beforeId) {
   });
   const js = rows.slice(0, limit).map((r) => r.toJSON());
   await applyMemberDisplayName(js, task.business_id, ['author']);
-  return { items: js.map(noteItem), truncated: rows.length > limit };
+  const hasMore = rows.length > limit;
+  // 키셋(id DESC) — 새 댓글이 끼어도 중복 없이 이어진다(설계 §4.0). next_before_note_id 로 다음 묶음을 부른다.
+  return { items: js.map(noteItem), has_more: hasMore, truncated: hasMore, next_before_note_id: hasMore && js.length ? js[js.length - 1].id : null };
 }
 
 async function getTaskNotes(p, a) {
@@ -249,7 +328,7 @@ async function memberName(p, userId) {
   if (!userId) return null;
   const { getMemberNameMap } = require('../../displayName');
   const m = await getMemberNameMap(p.businessId, [userId]).catch(() => new Map());
-  if (m.get(userId)) return m.get(userId);
+  if (m.get(userId)?.name) return m.get(userId).name;
   const { User } = require('../../../models');
   return (await User.findByPk(userId, { attributes: ['name'] }))?.name || null;
 }

@@ -40,6 +40,7 @@
         "{{billingEntity}} (Malaysia, company reg. no. {{billingEntityRegNo}}) — the entity that collects subscription fees for card payments only: amount, email, transaction identifier. Because that entity is located in Malaysia, this data is transferred outside Korea. If you prefer not to have your data transferred abroad, you may pay by bank transfer instead, which is processed domestically with no international transfer. Retention: the transaction-record retention period required by applicable law.",
         "When a workspace connects its own Stripe account to receive card payments from its clients (Q Bill), payment data is processed directly between the client and that workspace's Stripe account and does not pass through the Company. The Company stores only the transaction ID and amount for invoice processing; the workspace operator is the data controller for such payments.",
         "OpenAI, L.L.C. (USA) — Cue AI feature: partial conversation content. Not used for model training (per OpenAI API terms).",
+        "When you connect an external AI app (e.g. ChatGPT, Claude) to PlanQ (optional): tasks, notes, clients, projects and events you ask it about, and — only if you separately allow it — email contents (attachments excluded). Retention and training of transferred data follow that AI service's terms and your settings there. You can disconnect at any time in Settings.",
         "Deepgram, Inc. (USA) — Q Note recording: audio data. Not used for model training."
       ]
     },

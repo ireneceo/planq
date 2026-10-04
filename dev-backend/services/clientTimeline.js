@@ -6,18 +6,13 @@
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const {
-  Message, Conversation, EmailMessage, EmailThread, EmailAccount,
+  Message, Conversation, EmailMessage, EmailThread,
   Task, Invoice,
 } = require('../models');
 
-// 이 사용자가 접근 가능한 메일 계정 (회사 공용 + 본인 개인) — email_threads.js 와 동일 정책
-async function accessibleAccountIds(businessId, userId) {
-  const accts = await EmailAccount.findAll({
-    where: { business_id: businessId, [Op.or]: [{ owner_user_id: null }, { owner_user_id: userId }] },
-    attributes: ['id'],
-  });
-  return accts.map((a) => a.id);
-}
+// 이 사용자가 접근 가능한 메일 계정 (회사 공용 + 본인 개인) — services/mailIdentity 한 벌을 쓴다.
+//   (2026-10-04 AI 에이전트 M3-a: 여기에 같은 본문의 **복사본**이 있었다. 두 벌이면 한쪽만 고쳐진다.)
+const { accessibleAccountIds } = require('./mailIdentity');
 
 const CHANNELS = ['chat', 'email', 'task', 'invoice'];
 // Q sale 채널 (docs/Q_SALE_DESIGN.md §4.1·§6) — **명시로 요청할 때만** 싣는다.

@@ -1143,6 +1143,37 @@ function defineSecretTests() {
     if (!hasUsable) throw new Error('토큰은 없지만 invite_email·display_name 도 없다 — 응답이 통째로 비었을 가능성(거짓 통과)');
     return `목록 ${rows.length}행 · 상세 1건 — 토큰 0 · 쓸 필드 유지`;
   });
+
+  // ★ 2026-10-04 AI 에이전트 M3-a(설계 docs/AI_AGENT_M3_DESIGN.md §7.1) — 메일 도구 응답이 계정 자격증명·동기화 오류 원문
+  //   (호스트·아이디가 들어 있다)·본문 HTML·공유 토큰을 싣지 않는다. 메일 계정 모델은 비밀 칸이 많아(IMAP/SMTP 암호·OAuth 토큰)
+  //   통째로 내보내는 순간 전부 나간다. 판정은 응답 원문 문자열 + «쓸 필드는 그대로 온다» 대조군.
+  test('secrets', 'AI 앱 메일 도구 응답에 계정 자격증명·오류 원문·본문 HTML 이 실리지 않는다', async () => {
+    await setup();
+    const run = (code) => execSync(`node -e "${code}"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    const made = run(`require('dotenv').config();const M=require('./models');const g=require('./services/agent_oauth/grants');(async()=>{`
+      + `const r=await M.AgentGrant.create({user_id:${Number(ctx.userId)},business_id:${Number(ctx.businessId)},client_id:'health-secrets',provider:'local',scopes:['tasks:read','mail:read'],activated_at:new Date()});`
+      + `process.stdout.write('<<'+JSON.stringify({id:r.id,t:g.signAccess(r)}));process.exit(0);})().catch(e=>{process.stdout.write('<<'+JSON.stringify({err:e.message}));process.exit(0);});`);
+    const fx = JSON.parse(made.slice(made.indexOf('<<') + 2));
+    if (fx.err) throw new Error(`grant 픽스처 실패: ${fx.err}`);
+    try {
+      const callTool = async (name, args) => {
+        const r = await fetch('http://127.0.0.1:3005/agent/mcp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${fx.t}` },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }),
+        });
+        return r.text();
+      };
+      const raw = (await callTool('list_mail_accounts', {})) + (await callTool('search_mail', { page_size: 5 }));
+      for (const bad of ['imap_password', 'smtp_password', 'oauth_access', 'oauth_refresh', 'last_sync_error', 'body_html', 'share_token', 'imap_username', 'smtp_username']) {
+        if (raw.includes(bad)) throw new Error(`메일 도구 응답에 ${bad} 가 실려 있다`);
+      }
+      if (!/synced_at/.test(raw) || !/account_id/.test(raw)) throw new Error('응답에 account_id·synced_at 도 없다 — 통째로 비었을 가능성(거짓 통과) 또는 MCP 꺼짐');
+      return '목록·검색 원문 — 비밀 칸 0 · 쓸 필드 유지';
+    } finally {
+      run(`require('dotenv').config();const M=require('./models');M.AgentGrant.destroy({where:{id:${Number(fx.id)},client_id:'health-secrets'}}).then(()=>process.exit(0));`);
+    }
+  });
 }
 
 function defineDateOnlyTests() {

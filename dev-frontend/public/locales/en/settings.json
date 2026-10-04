@@ -762,5 +762,10 @@
       "auto": "Auto — also emails from people you replied to or personal addresses.",
       "hint": "In manual mode, emails matching the auto rule are tagged \"Possible lead\" in Q mail. Chat and guest inquiries come in regardless."
     }
+  },
+  "aiAgent": {
+    "title": "AI apps (ChatGPT, Claude)",
+    "allowMail": "Let members read email through AI apps",
+    "allowMailHelp": "Turning this off also stops already-connected apps from reading email. Tasks, clients, projects and events are unaffected."
   }
 }

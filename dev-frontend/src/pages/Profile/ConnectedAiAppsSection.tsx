@@ -15,6 +15,7 @@ interface Grant {
   provider: string | null;
   client_name: string | null;
   access: 'read' | 'write';
+  mail?: boolean;          // 메일 읽기(mail:read)를 받은 연결 — 「메일 포함」 칩(설계 M3 §3.1: 어느 연결이 메일을 보는지 알아야 끊는다)
   connected: boolean;
   created_at: string;
   last_used_at: string | null;
@@ -79,7 +80,10 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
             <ConnRow key={g.id} data-testid={`ai-app-${g.id}`}>
               <ConnInfo>
                 <ConnTitle>{(g.provider && PROVIDER_LABEL[g.provider]) || g.client_name || t('aiApps.unknownApp')}</ConnTitle>
-                <ConnSub>{g.access === 'write' ? t('aiApps.accessWrite') : t('aiApps.accessRead')}</ConnSub>
+                <ConnSub>
+                  {g.access === 'write' ? t('aiApps.accessWrite') : t('aiApps.accessRead')}
+                  {g.mail && <MailChip data-testid={`ai-app-mail-${g.id}`}>{t('aiApps.mailIncluded')}</MailChip>}
+                </ConnSub>
                 <ConnMeta>
                   {g.last_used_at
                     ? t('aiApps.lastUsed', { date: formatDateTime(g.last_used_at) })
@@ -106,6 +110,10 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
 
 export default ConnectedAiAppsSection;
 
+const MailChip = styled.span`
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; vertical-align: middle;
+  background: #FFF1F2; color: #BE123C; font-size: 0.6875rem; font-weight: 600;
+`;
 const HowTo = styled.div`
   display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;
   font-size: 0.75rem; color: #475569; line-height: 1.5;

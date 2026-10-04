@@ -712,12 +712,24 @@ router.put('/:businessId/legal', authenticateToken, checkBusinessAccess, async (
 // ─── Settings (언어·타임존·근무시간) ───
 router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    if (!isAdmin(req)) return errorResponse(res, 'Admin permission required', 403);
+    // AI 앱 메일 스위치(ai_agent)만 바꾸는 요청은 admin 도 된다(설계 docs/AI_AGENT_M3_DESIGN.md §3.1 «owner/admin»).
+    //   나머지 키(언어·타임존·근무시간)는 종전대로 owner 만.
+    const bodyKeys = Object.keys(req.body || {});
+    const aiAgentOnly = bodyKeys.length > 0 && bodyKeys.every((k) => k === 'ai_agent');
+    if (!isAdmin(req) && !(aiAgentOnly && req.businessRole === 'admin')) return errorResponse(res, 'Admin permission required', 403);
     const business = await Business.findByPk(req.params.businessId);
     if (!business) return errorResponse(res, 'Workspace not found', 404);
 
-    const { default_language, timezone, reference_timezones, work_hours } = req.body;
+    const { default_language, timezone, reference_timezones, work_hours, ai_agent } = req.body;
     const updates = {};
+
+    // AI 앱(ChatGPT·Claude) 메일 읽기 스위치 — permissions JSON 의 ai_agent 칸(새 컬럼 0). 다른 permissions 키는 보존한다.
+    //   읽는 쪽은 services/agent_oauth/grants.workspaceMailAllowed 한 함수(동의 화면 + 매 호출).
+    if (ai_agent !== undefined) {
+      if (!ai_agent || typeof ai_agent !== 'object' || typeof ai_agent.mail !== 'boolean') return errorResponse(res, 'Invalid ai_agent', 400);
+      const base = business.permissions && typeof business.permissions === 'object' ? business.permissions : {};
+      updates.permissions = { ...base, ai_agent: { ...(base.ai_agent && typeof base.ai_agent === 'object' ? base.ai_agent : {}), mail: ai_agent.mail } };
+    }
 
     if (default_language !== undefined) {
       if (!['ko', 'en'].includes(default_language)) {
@@ -757,6 +769,8 @@ router.put('/:businessId/settings', authenticateToken, checkBusinessAccess, asyn
     await business.update(updates);
     const settingsDiff = auditDiff(settingsBefore, business.get({ plain: true }), Object.keys(updates));
     if (settingsDiff) logAudit(req, { action: 'business.settings_update', targetType: 'business', targetId: business.id, businessId: business.id, ...settingsDiff });
+    // admin 이 스위치만 바꾼 경우 business 전체를 돌려주지 않는다(설정 원문은 owner 영역이다) — 바뀐 값만.
+    if (aiAgentOnly) return successResponse(res, { ai_agent: { mail: require('../services/agent_oauth/grants').workspaceMailAllowed(business.permissions) } });
     successResponse(res, business);
   } catch (error) {
     next(error);
@@ -1496,6 +1510,8 @@ router.get('/:businessId/permissions', authenticateToken, checkBusinessAccess, a
           client_show_assignee: biz.permissions.client_show_assignee === true,
         }
       : { financial: 'all', schedule: 'all', client_info: 'all', client_show_assignee: false };
+    // AI 앱 메일 읽기 스위치 — 기본 true(설계 §12-①). 판정은 grants.workspaceMailAllowed 한 함수.
+    permissions.ai_agent = { mail: require('../services/agent_oauth/grants').workspaceMailAllowed(biz.permissions) };
 
     // 프리뷰용 카운트
     // memberTotal = 활성 owner + member (ai 제외, removed_at 자동 필터)

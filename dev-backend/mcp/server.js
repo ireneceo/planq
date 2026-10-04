@@ -120,10 +120,11 @@ function buildServer(principal) {
     });
 
   server.registerTool('get_client_360',
-    { description: '특정 고객 360 스냅샷(프로젝트·업무·청구 요약) — 권한 범위 내.', inputSchema: { client_id: z.number().int().positive().describe('고객 id') } },
+    { description: '특정 고객 360 스냅샷(기본 정보·요약) — 권한 범위 내. 청구 금액은 싣지 않는다.', inputSchema: { client_id: z.number().int().positive().describe('고객 id') } },
     async ({ client_id }) => {
       auditTool(principal, 'get_client_360', { client_id });
-      const r = await ctx.getClientSnapshot(client_id, businessId, scope);
+      // 외부 표면 재무 봉쇄(설계 docs/AI_AGENT_M3_DESIGN.md §3.2·§12-③) — /agent/mcp 와 같은 정책. 금액·청구 내역 없음.
+      const r = await ctx.getClientSnapshot(client_id, businessId, scope, false, { includeFinance: false });
       return asText(r);
     });
 

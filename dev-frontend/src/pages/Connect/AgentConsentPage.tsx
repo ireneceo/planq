@@ -3,6 +3,8 @@
 //   흐름: 외부 AI → /agent/authorize → 302 /connect/agent?request=<id> → (로그인) → 이 화면
 //         → 워크스페이스 하나 + 권한 묶음(읽기만 / 읽기+추가·수정) → [연결] → 외부 AI 로 돌아간다.
 //   «누가 연결할 수 있나» 는 서버(services/agent_oauth/grants.canConnect)가 정한다 — 화면은 받은 목록만 보여준다.
+//   메일 읽기(M3-a, 설계 docs/AI_AGENT_M3_DESIGN.md §3.1)는 묶음과 따로 체크박스 하나(기본 꺼짐). 켜면 **보일 계정**을 그 자리에
+//   그린다 — 어디로 가는지 모르면 확인할 수 없다. 워크스페이스가 꺼 뒀거나 계정이 없으면 비활성 + 이유. 서버도 같은 조건을 다시 본다.
 //   앱 틀(사이드바·탭) 밖의 단독 화면이다(초대 수락 화면과 같은 자리).
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
@@ -12,13 +14,18 @@ import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 
+interface MailAccount { account_id: number; email: string; is_personal: boolean; is_active: boolean }
+interface Workspace {
+  business_id: number; name: string; role: string;
+  mail?: { enabled: boolean; accounts: MailAccount[] };
+}
 interface RequestInfo {
   client_name: string | null;
   provider: string | null;
   provider_label: string | null;
   redirect_host: string | null;
   wants_write: boolean;
-  workspaces: Array<{ business_id: number; name: string; role: string }>;
+  workspaces: Workspace[];
 }
 
 const AgentConsentPage: React.FC = () => {
@@ -29,6 +36,7 @@ const AgentConsentPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [bizId, setBizId] = useState<number | null>(null);
   const [access, setAccess] = useState<'read' | 'write'>('write');
+  const [mail, setMail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -50,6 +58,13 @@ const AgentConsentPage: React.FC = () => {
 
   const appName = info?.provider_label || info?.client_name || t('agentConsent.unknownApp');
   const options = useMemo(() => (info?.workspaces || []).map((w) => ({ value: w.business_id, label: w.name })), [info]);
+  const ws = useMemo(() => (info?.workspaces || []).find((w) => w.business_id === bizId) || null, [info, bizId]);
+  // 체크박스를 못 켜는 이유 — 화면이 말한다(눌리게 두고 서버가 거절하면 «아무 일도 안 일어남» 이다)
+  const mailBlocked: string | null = !ws ? 'mailSelectWorkspace'
+    : !ws.mail?.enabled ? 'mailDisabledByWorkspace'
+      : !(ws.mail?.accounts || []).length ? 'mailNoAccounts' : null;
+  // 워크스페이스를 바꾸면 계정 목록이 달라진다 — 앞 워크스페이스에서 켠 체크를 그대로 들고 가지 않는다
+  useEffect(() => { setMail(false); }, [bizId]);
 
   const submit = async (approve: boolean) => {
     if (submitting || (approve && !bizId)) return;
@@ -57,7 +72,7 @@ const AgentConsentPage: React.FC = () => {
     try {
       const r = await apiFetch('/api/agent/oauth/consent', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: requestId, business_id: bizId, access, approve }),
+        body: JSON.stringify({ request_id: requestId, business_id: bizId, access, approve, mail: approve && mail && !mailBlocked }),
       });
       const j = await r.json();
       if (!j.success || !j.data?.redirect) { setError(j.message === 'request_expired' ? 'expired' : 'failed'); setSubmitting(false); return; }
@@ -106,7 +121,30 @@ const AgentConsentPage: React.FC = () => {
                 <span><strong>{t('agentConsent.writeTitle')}</strong><small>{t('agentConsent.writeBody')}</small></span>
               </Choice>
             </Field>
-            <Note>{t('agentConsent.note')}</Note>
+            <Field data-testid="agent-consent-mail">
+              <Choice $on={mail && !mailBlocked} $disabled={!!mailBlocked}>
+                <input type="checkbox" checked={mail && !mailBlocked} disabled={!!mailBlocked}
+                  onChange={(e) => setMail(e.target.checked)} data-testid="agent-consent-mail-check" />
+                <span>
+                  <strong>{t('agentConsent.mailTitle')}</strong>
+                  <small>{t('agentConsent.mailBody')}</small>
+                  {mailBlocked && <Reason data-testid="agent-consent-mail-reason">{t(`agentConsent.${mailBlocked}`)}</Reason>}
+                </span>
+              </Choice>
+              {mail && !mailBlocked && ws?.mail && (
+                <Accounts data-testid="agent-consent-mail-accounts">
+                  <Label>{t('agentConsent.mailAccounts')}</Label>
+                  {ws.mail.accounts.map((a) => (
+                    <AccountRow key={a.account_id} data-testid={`agent-consent-account-${a.account_id}`}>
+                      <AccountEmail>{a.email}</AccountEmail>
+                      <Badge $personal={a.is_personal}>{a.is_personal ? t('agentConsent.personalAccount') : t('agentConsent.sharedAccount')}</Badge>
+                    </AccountRow>
+                  ))}
+                  <Small>{t('agentConsent.mailTransferNote')}</Small>
+                </Accounts>
+              )}
+            </Field>
+            <Note>{t('agentConsent.note')} {t('agentConsent.dataNote')}</Note>
             <Actions>
               <ActionButton tone="secondary" size="md" onClick={() => submit(false)} disabled={submitting}>{t('agentConsent.cancel')}</ActionButton>
               <ActionButton tone="primary" size="md" onClick={() => submit(true)} disabled={!bizId || submitting} loading={submitting}
@@ -138,8 +176,9 @@ const Body = styled.p`margin: 0; font-size: 0.875rem; color: #475569; line-heigh
 const Muted = styled.div`font-size: 0.75rem; color: #94A3B8;`;
 const Field = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Label = styled.div`font-size: 0.75rem; font-weight: 600; color: #334155;`;
-const Choice = styled.label<{ $on: boolean }>`
-  display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+const Choice = styled.label<{ $on: boolean; $disabled?: boolean }>`
+  display: flex; gap: 10px; align-items: flex-start; cursor: ${(p) => (p.$disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${(p) => (p.$disabled ? 0.75 : 1)};
   padding: 10px 12px; border-radius: 10px;
   border: 1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};
   background: ${(p) => (p.$on ? '#F0FDFA' : '#FFFFFF')};
@@ -148,5 +187,17 @@ const Choice = styled.label<{ $on: boolean }>`
   strong { font-size: 0.8125rem; color: #0F172A; }
   small { font-size: 0.75rem; color: #64748B; line-height: 1.5; }
 `;
+const Reason = styled.em`font-style: normal; font-size: 0.75rem; color: #B45309; line-height: 1.5;`;
+const Accounts = styled.div`
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px; border-radius: 10px; background: #F8FAFC; border: 1px solid #E2E8F0;
+`;
+const AccountRow = styled.div`display: flex; align-items: center; gap: 8px; min-width: 0;`;
+const AccountEmail = styled.span`flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: 0.8125rem; color: #0F172A;`;
+const Badge = styled.span<{ $personal: boolean }>`
+  flex: 0 0 auto; padding: 2px 8px; border-radius: 999px; font-size: 0.6875rem; font-weight: 600;
+  background: ${(p) => (p.$personal ? '#FFF1F2' : '#F0FDFA')}; color: ${(p) => (p.$personal ? '#BE123C' : '#0F766E')};
+`;
+const Small = styled.p`margin: 2px 0 0; font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 const Note = styled.p`margin: 0; font-size: 0.75rem; color: #64748B; line-height: 1.6;`;
 const Actions = styled.div`display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;`;

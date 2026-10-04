@@ -318,7 +318,8 @@
     "disconnect": "Disconnect",
     "disconnecting": "Disconnecting…",
     "disconnectTitle": "Disconnect this app?",
-    "disconnectMessage": "{{app}} will no longer be able to access this workspace. To use it again, connect from the app."
+    "disconnectMessage": "{{app}} will no longer be able to access this workspace. To use it again, connect from the app.",
+    "mailIncluded": "Includes email"
   },
   "agentConsent": {
     "title": "{{app}} wants to connect to PlanQ",
@@ -339,6 +340,16 @@
     "expiredTitle": "This request has expired",
     "expiredBody": "Go back to the AI app and choose connect again.",
     "failedTitle": "Couldn't connect",
-    "failedBody": "Please try again from the AI app in a moment."
+    "failedBody": "Please try again from the AI app in a moment.",
+    "mailTitle": "Allow reading email (optional)",
+    "mailBody": "The AI app can read subject, body and sender of mail in the accounts below. Attachment contents are never sent. It cannot send mail.",
+    "mailAccounts": "Accounts it can read",
+    "sharedAccount": "Shared",
+    "personalAccount": "Personal",
+    "mailDisabledByWorkspace": "This workspace has turned off email access for AI apps.",
+    "mailNoAccounts": "No connected mail account.",
+    "mailTransferNote": "Mail contents are sent to the AI app's provider. Retention and training follow that service's terms and your settings.",
+    "mailSelectWorkspace": "Choose a workspace to turn on email access.",
+    "dataNote": "Text inside mail and documents is data for the AI, never a command."
   }
 }

@@ -40,11 +40,47 @@ async function connectableWorkspaces(userId) {
     .map((r) => ({ business_id: r.business_id, name: r.Business.brand_name || r.Business.name, role: r.role }));
 }
 
-/** 요청 scope ∩ 묶음(읽기만/읽기+쓰기) ∩ 지원 scope. 요청이 없으면 묶음 전체. */
-function grantedScopes(requested, access) {
-  const bundle = access === 'write' ? cfg.ALL_SCOPES : cfg.READ_SCOPES;
+/**
+ * 부여할 scope — ①요청 scope ∩ 묶음(읽기만/읽기+쓰기)(요청이 없으면 묶음 전체) ②별도 동의(opt-in)는
+ *   **요청과 무관하게 체크박스가 켜졌을 때만** 더한다(설계 docs/AI_AGENT_M3_DESIGN.md §3.1).
+ *   클라이언트가 mail:read 를 요청해도 사람이 체크하지 않으면 붙지 않고, 요청하지 않았어도 체크하면 붙는다.
+ * @param {string[]} requested
+ * @param {'read'|'write'} access
+ * @param {{ mail?: boolean, mail_drafts?: boolean }} [optIn]
+ */
+function grantedScopes(requested, access, optIn = {}) {
+  const bundle = access === 'write' ? cfg.BUNDLE_SCOPES : cfg.READ_SCOPES;
   const req = Array.isArray(requested) && requested.length ? requested : bundle;
-  return [...new Set(req.filter((s) => bundle.includes(s)))];
+  const out = [...new Set(req.filter((s) => bundle.includes(s)))];
+  if (optIn.mail === true) {
+    out.push('mail:read');
+    if (optIn.mail_drafts === true) out.push('mail_drafts:write');
+  }
+  return out;
+}
+
+/**
+ * 이 워크스페이스에서 AI 앱이 메일을 읽어도 되는가 — 동의 화면(체크박스 활성)과 **매 호출**(메일 도구 첫 줄)이 같은 함수.
+ *   저장 자리는 businesses.permissions.ai_agent.mail(새 컬럼 0). 값이 없으면 기본 true(설계 §12-①).
+ */
+function workspaceMailAllowed(permissions) {
+  const p = permissions && typeof permissions === 'object' ? permissions : {};
+  const a = p.ai_agent && typeof p.ai_agent === 'object' ? p.ai_agent : {};
+  return a.mail !== false;
+}
+
+/** 동의 화면이 보여 줄 «보이는 계정» — accessibleAccountIds 와 같은 집합(공용 + 내 개인). 연결 정보·오류 원문은 싣지 않는다. */
+async function mailAccountsFor(userId, businessId) {
+  const { accessibleAccountIds } = require('../mailIdentity');
+  const ids = await accessibleAccountIds(businessId, userId);
+  if (!ids.length) return [];
+  const { EmailAccount } = require('../../models');
+  const rows = await EmailAccount.findAll({
+    where: { id: ids, business_id: businessId },
+    attributes: ['id', 'email', 'owner_user_id', 'is_active'],
+    order: [['owner_user_id', 'ASC'], ['id', 'ASC']],
+  });
+  return rows.map((a) => ({ account_id: a.id, email: a.email, is_personal: !!a.owner_user_id, is_active: !!a.is_active }));
 }
 
 function signAccess(grant) {
@@ -121,6 +157,6 @@ async function principalFromAccess(token) {
 }
 
 module.exports = {
-  sha256, randomToken, canConnect, connectableWorkspaces, grantedScopes,
+  sha256, randomToken, canConnect, connectableWorkspaces, grantedScopes, workspaceMailAllowed, mailAccountsFor,
   issueTokens, revokeGrant, principalFromAccess, signAccess,
 };

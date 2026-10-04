@@ -22,6 +22,24 @@ function redirectWith(uri, params) {
   return u.toString();
 }
 
+/**
+ * 워크스페이스마다 «메일 읽기 허용» 체크박스의 재료 — 스위치(workspaceMailAllowed) + 보이는 계정(accessibleAccountIds 와 같은 집합).
+ *   설계 docs/AI_AGENT_M3_DESIGN.md §3.1: 어디로 가는지 모르면 확인할 수 없다 → 계정 주소와 공용/개인을 동의 화면이 그린다.
+ */
+async function withMailInfo(userId, workspaces) {
+  if (!workspaces.length) return workspaces;
+  const { Business } = require('../models');
+  const bizRows = await Business.findAll({ where: { id: workspaces.map((w) => w.business_id) }, attributes: ['id', 'permissions'] });
+  const permOf = new Map(bizRows.map((b) => [b.id, b.permissions]));
+  return Promise.all(workspaces.map(async (w) => ({
+    ...w,
+    mail: {
+      enabled: grants.workspaceMailAllowed(permOf.get(w.business_id)),
+      accounts: await grants.mailAccountsFor(userId, w.business_id),
+    },
+  })));
+}
+
 // GET /api/agent/oauth/request/:id — 동의 화면 데이터
 router.get('/oauth/request/:id', authenticateToken, async (req, res, next) => {
   try {
@@ -38,7 +56,7 @@ router.get('/oauth/request/:id', authenticateToken, async (req, res, next) => {
       redirect_host: (() => { try { return new URL(p.redirect_uri).host; } catch { return null; } })(),
       // 쓰기를 요청했는가 — 묶음 선택지의 기본값
       wants_write: wanted.some((s) => cfg.WRITE_SCOPES.includes(s)),
-      workspaces: await grants.connectableWorkspaces(req.user.id),
+      workspaces: await withMailInfo(req.user.id, await grants.connectableWorkspaces(req.user.id)),
     });
   } catch (err) { next(err); }
 });
@@ -47,7 +65,7 @@ router.get('/oauth/request/:id', authenticateToken, async (req, res, next) => {
 router.post('/oauth/consent', authenticateToken, consentLimit, async (req, res, next) => {
   try {
     if (!cfg.enabled() || !cfg.tokenSecret()) return errorResponse(res, 'agent_disabled', 404);
-    const { request_id, business_id, access, approve } = req.body || {};
+    const { request_id, business_id, access, approve, mail } = req.body || {};
     const row = await store.get('agent_authreq', String(request_id || ''));
     if (!row) return errorResponse(res, 'request_expired', 404);
     const p = row.payload || {};
@@ -60,10 +78,19 @@ router.post('/oauth/consent', authenticateToken, consentLimit, async (req, res, 
     const bizId = Number(business_id);
     const can = await grants.canConnect(req.user.id, bizId);
     if (!can.ok) return errorResponse(res, can.code, 403);
-    const scopes = grants.grantedScopes(p.scopes, access === 'write' ? 'write' : 'read');
+    // 메일 읽기(opt-in) — 화면이 체크박스를 비활성으로 그리는 조건을 서버가 **다시** 본다(화면만 막으면 요청으로 우회된다).
+    //   스위치가 꺼졌거나 보이는 계정이 없으면 요청을 거절한다(조용히 빼면 사람이 켠 줄 알고 연결한다).
+    const { AgentGrant, Business } = require('../models');
+    let wantsMail = false;
+    if (mail === true) {
+      const biz = await Business.findByPk(bizId, { attributes: ['id', 'permissions'] });
+      if (!grants.workspaceMailAllowed(biz?.permissions)) return errorResponse(res, 'workspace_disabled_mail', 403);
+      if (!(await grants.mailAccountsFor(req.user.id, bizId)).length) return errorResponse(res, 'no_mail_account', 400);
+      wantsMail = true;
+    }
+    const scopes = grants.grantedScopes(p.scopes, access === 'write' ? 'write' : 'read', { mail: wantsMail });
     if (!scopes.length) return errorResponse(res, 'no_scopes', 400);
 
-    const { AgentGrant } = require('../models');
     const prov = cfg.providerForRedirect(p.redirect_uri);
     const grant = await AgentGrant.create({
       user_id: req.user.id, business_id: bizId, client_id: p.client_id,
@@ -98,6 +125,8 @@ router.get('/grants', authenticateToken, async (req, res, next) => {
     return paginatedResponse(res, rows.map((g) => ({
       id: g.id, provider: g.provider, client_name: nameOf.get(g.client_id) || null,
       access: (g.scopes || []).some((s) => cfg.WRITE_SCOPES.includes(s)) ? 'write' : 'read',
+      // 「메일 포함」 칩 — 어느 연결이 메일을 보는지 사람이 알아야 끊을 수 있다(설계 §3.1)
+      mail: (g.scopes || []).includes('mail:read'),
       connected: !!g.activated_at, created_at: g.created_at, last_used_at: g.last_used_at,
     })), count, { limit, page, offset });
   } catch (err) { next(err); }

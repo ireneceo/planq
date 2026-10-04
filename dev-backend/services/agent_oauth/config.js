@@ -13,7 +13,14 @@ const CONSENT_URL = `${APP_URL}/connect/agent`;
 // scope — 툴마다 필요한 scope 한 줄. 동의 화면은 «읽기만 / 읽기+쓰기» 두 묶음으로만 보여준다(설계 §4.4).
 const READ_SCOPES = ['tasks:read', 'notes:read', 'clients:read', 'projects:read', 'schedule:read'];
 const WRITE_SCOPES = ['tasks:write', 'notes:write', 'schedule:write'];
-const ALL_SCOPES = [...READ_SCOPES, ...WRITE_SCOPES];
+// 별도 동의(opt-in) — 묶음(읽기만/읽기+쓰기)에 **들지 않는다**(설계 docs/AI_AGENT_M3_DESIGN.md §3.1).
+//   동의 화면의 체크박스를 켰을 때만 붙는다. 묶음 밖이라 이미 받은 연결(grant)은 자동으로 넓어지지 않는다.
+//   mail:read          — 메일 조회(M3-a). 워크스페이스 스위치 permissions.ai_agent.mail 이 꺼지면 호출 때 거절.
+//   mail_drafts:write  — 답장 초안(M3-c). mail:read 없이는 붙지 않는다.
+const OPT_IN_SCOPES = ['mail:read', 'mail_drafts:write'];
+const BUNDLE_SCOPES = [...READ_SCOPES, ...WRITE_SCOPES];
+// 디스커버리(scopes_supported)에 보여야 하므로 ALL 에는 넣는다 — 부여 판단은 grants.grantedScopes 가 묶음과 체크박스로 한다.
+const ALL_SCOPES = [...BUNDLE_SCOPES, ...OPT_IN_SCOPES];
 
 // provider adapter — **인증 모양과 메타만** 다르다. 툴·정책은 services/agent 레지스트리 한 벌.
 //   redirectHosts 밖의 redirect_uri 는 등록(DCR)부터 거절한다 — 인가 코드를 남의 서버로 빼돌리는 문을 닫는다.
@@ -54,7 +61,7 @@ function tokenSecret() {
 
 module.exports = {
   APP_URL, ISSUER, RESOURCE, CONSENT_URL,
-  READ_SCOPES, WRITE_SCOPES, ALL_SCOPES, PROVIDERS, providerForRedirect,
+  READ_SCOPES, WRITE_SCOPES, OPT_IN_SCOPES, BUNDLE_SCOPES, ALL_SCOPES, PROVIDERS, providerForRedirect,
   ACCESS_TTL_SEC, REFRESH_TTL_MS, AUTHREQ_TTL_MS, CODE_TTL_MS, CODE_MAX_ATTEMPTS,
   enabled, writeEnabled, tokenSecret,
 };

@@ -10,13 +10,9 @@ const { err, fromActionFailure } = require('../errors');
 const iso = (v) => (v ? new Date(v).toISOString() : null);
 const MAX_DAYS = 62;
 
-async function assertMenu(p, menu, level) {
-  const { getMemberMenuLevels } = require('../../../middleware/menu_permission');
-  const lv = await getMemberMenuLevels(p.businessId, p.userId);
-  if (!lv || lv.role === 'owner' || lv.role === 'admin') return;
-  const v = lv.menus[menu] || 'write';
-  if (v === 'none' || (level === 'write' && v !== 'write')) throw err('PERMISSION_DENIED', `menu_${level === 'write' ? 'read_only' : 'hidden'}:${menu}`);
-}
+// 메뉴 Layer 판정은 services/agent/menu 한 벌.
+const { assertMenu } = require('../menu');
+const DESC_MAX = 1000;
 
 function parseIso(s, field) {
   const d = new Date(String(s || ''));
@@ -24,7 +20,7 @@ function parseIso(s, field) {
   return d;
 }
 
-const eventItem = (e) => ({
+const eventItem = (e, withDesc = false) => ({
   event_id: e.id,
   title: e.title,
   start_at: iso(e.start_at),
@@ -34,6 +30,7 @@ const eventItem = (e) => ({
   project: e.Project ? { project_id: e.Project.id, name: e.Project.name } : null,
   meeting_url: e.meeting_url || null,
   recurring: !!e.rrule,
+  ...(withDesc ? { description: e.description ? String(e.description).slice(0, DESC_MAX) : null, truncated_fields: e.description && String(e.description).length > DESC_MAX ? ['description'] : [] } : {}),
   url: `${cfg.APP_URL}/calendar?event=${e.id}`,
 });
 
@@ -48,17 +45,32 @@ async function listEvents(p, a) {
   const { getUserScope, calendarListWhere } = require('../../../middleware/access_scope');
   const scope = await getUserScope(p.userId, p.businessId, p.platformRole);
   const base = await calendarListWhere(p.userId, p.businessId, scope);
-  if (!base) return { items: [], total: 0, truncated: false };
+  const empty = { items: [], total: 0, has_more: false, next_page: null, truncated: false };
+  if (!base) return empty;
+  const conds = [base, { business_id: p.businessId }, { [Op.or]: [
+    { start_at: { [Op.lt]: to }, end_at: { [Op.gt]: from } },
+    { rrule: { [Op.ne]: null }, start_at: { [Op.lt]: to } },   // 반복 원본은 시작이 범위 전이어도 걸린다
+  ] }];
+  // M3-a(설계 §4.3) — 프로젝트·고객·제목으로 좁히기. 고객은 참석자(client_id 로 저장된다)로 본다 — 이름 추측 없음.
+  if (a.project_id) conds.push({ project_id: a.project_id });
+  if (a.client_id) {
+    const { CalendarEventAttendee } = require('../../../models');
+    const att = await CalendarEventAttendee.findAll({ where: { client_id: a.client_id }, attributes: ['event_id'] });
+    const ids = [...new Set(att.map((x) => x.event_id))];
+    if (!ids.length) return empty;
+    conds.push({ id: { [Op.in]: ids } });
+  }
+  const q = String(a.query || '').normalize('NFC').trim();
+  if (q) conds.push({ title: { [Op.like]: `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%` } });
   const rows = await CalendarEvent.findAll({
-    where: { [Op.and]: [base, { business_id: p.businessId }, { [Op.or]: [
-      { start_at: { [Op.lt]: to }, end_at: { [Op.gt]: from } },
-      { rrule: { [Op.ne]: null }, start_at: { [Op.lt]: to } },   // 반복 원본은 시작이 범위 전이어도 걸린다
-    ] }] },
+    where: { [Op.and]: conds },
     include: [{ model: Project, attributes: ['id', 'name'], required: false }],
-    order: [['start_at', 'ASC']], limit: 101,
+    order: [['start_at', 'ASC'], ['id', 'ASC']], limit: 101,
   });
-  const items = rows.slice(0, 100).map(eventItem);
-  return { items, total: items.length, truncated: rows.length > 100, note: 'recurring events are returned once (not expanded)' };
+  // 날짜 범위가 곧 페이지다(62일 상한) — has_more 는 범위 안에서 100건을 넘을 때만. 다음은 범위를 좁혀 다시 부른다.
+  const items = rows.slice(0, 100).map((e) => eventItem(e, !!a.include_description));
+  const more = rows.length > 100;
+  return { items, total: items.length, has_more: more, next_page: null, truncated: more, note: 'recurring events are returned once (not expanded). If has_more, call again with a narrower from/to range.' };
 }
 
 // ── create_event ───────────────────────────────────────────

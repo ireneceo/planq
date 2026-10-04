@@ -334,7 +334,9 @@ async function getUserSnapshot(userId, businessId, businessTimezone, scope) {
 }
 
 // ── 고객 360° 요약 — 이전 결제·서명·기본 정보
-async function getClientSnapshot(clientId, businessId, scope, internal = false) {
+// opts.includeFinance=false — 외부 표면(구 /mcp get_client_360)용. 청구 합계·내역·서명 수를 **싣지 않는다**
+//   (설계 docs/AI_AGENT_M3_DESIGN.md §3.2·§12-③: 외부 AI 표면의 재무 봉쇄를 한 벌로). Cue 내부 경로는 기본값(true) 그대로.
+async function getClientSnapshot(clientId, businessId, scope, internal = false, { includeFinance = true } = {}) {
   if (!clientId) return null;
   const client = await Client.findOne({
     where: { id: clientId, business_id: businessId },
@@ -349,7 +351,7 @@ async function getClientSnapshot(clientId, businessId, scope, internal = false) 
   //   - 그 고객 본인(client 계정) → 자기 청구 내역 (invoiceListWhere 가 clientIds 로 격리)
   //   - 그 외(일반 멤버·스코프 없음) → 재무 데이터 없음 (fail-closed)
   const invBase = scope ? await invoiceListWhere(scope.userId, businessId, scope) : null;
-  const canFinance = Boolean(invBase) && (scope.isOwner || scope.isAdmin || scope.isPlatformAdmin || scope.isClient);
+  const canFinance = includeFinance && Boolean(invBase) && (scope.isOwner || scope.isAdmin || scope.isPlatformAdmin || scope.isClient);
   const recentInvoices = canFinance ? await Invoice.findAll({
     where: { [Op.and]: [invBase, { client_id: clientId }] },
     attributes: ['id', 'invoice_number', 'grand_total', 'paid_amount', 'status', 'currency', 'sent_at'],
@@ -376,6 +378,7 @@ async function getClientSnapshot(clientId, businessId, scope, internal = false) 
       timeline = (r?.items || []).slice(0, 10);
     } catch (e) { void e; }
   }
+  if (!includeFinance) return { client, timeline };
   return { client, recentInvoices, totalSent, totalPaid, totalSigs: recentSigs, timeline };
 }
 

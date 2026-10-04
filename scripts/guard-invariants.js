@@ -876,6 +876,9 @@ function checkAgentSurface() {
     const writes = (src.match(/\b(?!store\b)[A-Z][A-Za-z]+\.(create|bulkCreate|destroy|update|upsert|increment)\(/g) || []);
     if (writes.length) bad.push(`${rel}: 도메인 모델 직접 쓰기(${writes.join(',')}) — 행동 계층(services/actions)으로`);
     if (/\b(Invoice|Payment|InvoiceInstallment|InvoiceItem)\b/.test(src)) bad.push(`${rel}: 재무 모델 참조 — 외부 AI 표면 재무 봉쇄`);
+    // M3-a(설계 docs/AI_AGENT_M3_DESIGN.md §3.2) — 모델 이름만 보면 비재무 모델의 금액 컬럼(Client.expected_amount 등)이 안 잡힌다
+    const amt = src.match(/\b(grand_total|paid_amount|expected_amount|contract_amount|unit_price)\b/g);
+    if (amt) bad.push(`${rel}: 금액 컬럼 참조(${[...new Set(amt)].join(',')}) — 외부 AI 표면에 금액 없음`);
   }
   const reg = path.join(dir, 'registry.js');
   if (!fs.existsSync(reg)) bad.push('services/agent/registry.js 없음');
@@ -905,6 +908,21 @@ function checkAgentSurface() {
     const ns = read(notesTool).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
     if (!/findClient\(\s*p\.businessId\s*,/.test(ns)) bad.push('services/agent/tools/notes.js: 고객을 토큰 워크스페이스(findClient(p.businessId, …))로 찾지 않음');
     if (!/createProjectNote\([^)]*businessId:\s*p\.businessId/.test(ns)) bad.push('services/agent/tools/notes.js: 프로젝트 메모에 businessId: p.businessId 묶음 없음');
+  }
+  // M3-a — 메일·고객·프로젝트 조회도 토큰 워크스페이스로 묶인다(빼면 남의 워크스페이스 스레드·고객·프로젝트가 열린다)
+  const mailTool = path.join(dir, 'tools/mail.js');
+  if (fs.existsSync(mailTool)) {
+    const ms = read(mailTool).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    if (!/EmailThread\.findOne\(\{\s*where:\s*\{\s*id:\s*threadId,\s*business_id:\s*p\.businessId,\s*account_id:/.test(ms)) bad.push('services/agent/tools/mail.js: loadThread 가 business_id: p.businessId + account_id(접근 가능 계정)로 묶이지 않음');
+    if (!/EmailMessage\.findOne\(\{\s*where:\s*\{\s*id:\s*a\.message_id,\s*business_id:\s*p\.businessId\s*\}/.test(ms)) bad.push('services/agent/tools/mail.js: get_mail_message 가 business_id: p.businessId 로 묶이지 않음');
+    if (!/accessibleAccountIds\(p\.businessId,\s*p\.userId\)/.test(ms)) bad.push('services/agent/tools/mail.js: 계정 격리(accessibleAccountIds(p.businessId, p.userId)) 없음 — 남의 개인 메일이 열린다');
+    if (!/workspaceMailAllowed\(/.test(ms)) bad.push('services/agent/tools/mail.js: 워크스페이스 메일 스위치 판정 없음');
+  }
+  const dirTool = path.join(dir, 'tools/directory.js');
+  if (fs.existsSync(dirTool)) {
+    const ds = read(dirTool).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    if (!/Client\.findOne\(\{\s*where:\s*\{\s*id:\s*a\.client_id,\s*business_id:\s*p\.businessId/.test(ds)) bad.push('services/agent/tools/directory.js: 고객 조회가 business_id: p.businessId 로 묶이지 않음');
+    if (!/Project\.findOne\(\{\s*where:\s*\{\s*id:\s*(a\.project_id|projectId),\s*business_id:\s*p\.businessId/.test(ds)) bad.push('services/agent/tools/directory.js: 프로젝트 조회가 business_id: p.businessId 로 묶이지 않음');
   }
   const pna = path.join(ROOT, 'dev-backend/services/actions/project_note_actions.js');
   if (fs.existsSync(pna) && !/params\.businessId && Number\(project\.business_id\) !== Number\(params\.businessId\)/.test(read(pna))) {
@@ -951,6 +969,9 @@ function checkMcpReadonly() {
   if (/\b(Invoice|Payment|InvoiceInstallment)\b/.test(src)) {
     bad.push(`${MCP_SERVER}: 재무 모델 참조 — 외부 표면 재무 봉쇄 위반`);
   }
+  // 금액 문자열 금지 + 고객 스냅샷은 재무를 빼고 부른다(설계 docs/AI_AGENT_M3_DESIGN.md §3.2·§12-③ — 두 외부 표면이 한 벌)
+  if (/\b(grand_total|paid_amount|totalSent|totalPaid|recentInvoices)\b/.test(src)) bad.push(`${MCP_SERVER}: 금액 필드 참조 — 외부 표면 재무 봉쇄 위반`);
+  if (/getClientSnapshot\(/.test(src) && !/getClientSnapshot\([^)]*includeFinance:\s*false/.test(src)) bad.push(`${MCP_SERVER}: get_client_360 이 includeFinance:false 없이 고객 스냅샷을 부른다 — 청구 합계가 나간다`);
   // 툴 이름에 쓰기 동사 금지 (이름에 숫자 포함 가능 — get_client_360)
   const toolNames = [...src.matchAll(/registerTool\(\s*['"]([a-z0-9_]+)['"]/g)].map((m) => m[1]);
   const writeVerb = toolNames.filter((n) => /create|update|delete|submit|complete|comment|write|send|mark/.test(n));

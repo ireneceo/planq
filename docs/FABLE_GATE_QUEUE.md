@@ -5404,3 +5404,9 @@ Host/X-Forwarded 위조 불변 · remoteIo → 3004 loopback · /connect/agent·
 **수정**: LegalPage 가 `GET /api/platform/info`(푸터와 같은 원천)를 읽어 operator·대표·사업자번호·주소·이메일을 보간. ko/en 약관·방침 intro 에 «{{operator}}(이하 "회사")가 제공하는 PlanQ», 약관 문의에 상호·대표·사업자등록번호·주소·이메일, 방침 책임자=대표.
 **자체 검증**: 빌드 EXIT 0 · error TS 0 · 실브라우저(운영 값 주입) ko/en ×(약관·방침·삭제) — 법인·대표·이메일 표시, 약관 사업자번호 표시, 임시값·`{{` 잔존 0 · 정보 못 읽을 때 «PlanQ» 대체(빈칸 없음).
 **미배포**. terms_version 은 올리지 않음(운영사 식별 보정 — 권리·의무 변경 없음). M3 개인정보처리방침 개정 때 privacy_version 을 올린다(Fable §12 ②).
+
+## 2026-10-04 · #439 M3-a 메일 조회·기록 보완·페이지 규약·mail:read opt-in · [Opus] 구현 → **Fable PASS**
+도구 19→25 · 스위치 `businesses.permissions.ai_agent.mail` · 방침 §3 + privacy_version 1.2(dev) · 구 /mcp get_client_360 금액 제거 · mailSearchWhere 이동(60/60 SQL·순서 동일).
+Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인 계정 0, owner 대조군 열림) · 워크스페이스 격리 NOT_FOUND · 기존 grant scope 거절+재연결 hint · 체크 안 하면 미부여 · 스위치 OFF 403/호출 거절 · qmail 메뉴 · 고객 토큰 거절 ·
+응답 원문 152KB 에 비밀·html 0 · 금액 0 · 프롬프트 주입 문구 · 읽음 불변 · 재동의 모달 실렌더 · guard 61/62 · health 49/49 · agentconsent·tenant 0 실패 · 빌드 EXIT 0. 설계 이탈 8건 전부 타당 판정.
+**배포 절차**: 코드 배포(MCP reload 포함) → scopes_supported 에 mail:read 확인 → 운영 privacy_version 1.1→1.2 수동 → 기존 연결은 재연결해야 메일.
