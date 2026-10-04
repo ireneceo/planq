@@ -5396,3 +5396,11 @@ Host/X-Forwarded 위조 불변 · remoteIo → 3004 loopback · /connect/agent·
 **판정**: R=0(로그 출력만 — 응답·권한 무변경) · S=0 · F=1 → 자체 검증.
 **자체 검증**: dev·운영에서 실요청 → `[agent-req] POST /agent/mcp rpc=… -> 401 (missing_token)` · 쿼리스트링(`?x=secret`) 미기록 확인 · 토큰·인자·본문 미기록(코드상 b.method·params.name 만) · mcpreadonly 가드 통과 · 배포 health·PDF·CSP OK.
 **Fable 이 봐야 할 것**: 없음.
+
+## 2026-10-04 · 약관·개인정보처리방침·계정 삭제 안내에 운영사 명시 · [Opus] Fable 미검증(자체 검증)
+**판정**: R=0(문구 — 되돌리기 쉬움, 값은 기존 정본 platform_settings) · S=0 · F=1(실브라우저 본문으로 갈린다) → 자체 검증.
+**원인**: 본문이 «회사» 를 정의하지 않았다(«PlanQ(이하 "회사")»). 문의처·개인정보보호책임자는 4월 초안 임시값(«이수민 (Irene)»·irene@irenecompany.com·«Irene Lee»)이 남아 운영 설정(대표 김미정·help@planq.kr)과 달랐다.
+9/03 첫방문 크래시 수리(451cde68)가 삭제 안내 책임자 «김미정» 을 privacy 키(임시값)로 합치며 임시값 쪽으로 기운 것도 이번에 바로잡힘. 삭제 안내 «아이린엔컴퍼니» 오타.
+**수정**: LegalPage 가 `GET /api/platform/info`(푸터와 같은 원천)를 읽어 operator·대표·사업자번호·주소·이메일을 보간. ko/en 약관·방침 intro 에 «{{operator}}(이하 "회사")가 제공하는 PlanQ», 약관 문의에 상호·대표·사업자등록번호·주소·이메일, 방침 책임자=대표.
+**자체 검증**: 빌드 EXIT 0 · error TS 0 · 실브라우저(운영 값 주입) ko/en ×(약관·방침·삭제) — 법인·대표·이메일 표시, 약관 사업자번호 표시, 임시값·`{{` 잔존 0 · 정보 못 읽을 때 «PlanQ» 대체(빈칸 없음).
+**미배포**. terms_version 은 올리지 않음(운영사 식별 보정 — 권리·의무 변경 없음). M3 개인정보처리방침 개정 때 privacy_version 을 올린다(Fable §12 ②).

@@ -6,7 +6,7 @@
   },
   "privacy": {
     "title": "Privacy Policy",
-    "intro": "PlanQ (\"the Company\") values your privacy and complies with applicable data protection laws including the Personal Information Protection Act (Korea) and GDPR. This policy explains how we handle personal data through the PlanQ service.",
+    "intro": "{{operator}} (\"the Company\"), the provider of PlanQ, values your privacy and complies with applicable data protection laws including the Personal Information Protection Act (Korea) and GDPR. This policy explains how we handle personal data through the PlanQ service.",
     "s1": {
       "title": "1. Information We Collect",
       "items": [
@@ -96,14 +96,14 @@
       "content": "For privacy-related inquiries, please contact:",
       "contact": {
         "officer": "Data Protection Officer",
-        "name": "Irene Lee",
-        "email": "irene@irenecompany.com"
+        "name": "{{operatorCeo}}",
+        "email": "{{operatorEmail}}"
       }
     }
   },
   "terms": {
     "title": "Terms of Service",
-    "intro": "These Terms govern the rights, obligations, and responsibilities between PlanQ (\"the Company\") and users.",
+    "intro": "These Terms govern the rights, obligations and responsibilities between {{operator}} (\"the Company\"), which provides PlanQ (\"the Service\"), and its users.",
     "s1": {
       "title": "Article 1 (Definitions)",
       "items": [
@@ -139,7 +139,7 @@
         "Monthly plan: no refund after 7 days",
         "Yearly plan: 100% refund within 14 days of payment",
         "Yearly plan: after 14 days, prorated refund of unused period",
-        "Refund requests: via customer support (irene@irenecompany.com)"
+        "Refund requests: via customer support ({{operatorEmail}})"
       ]
     },
     "s5": {
@@ -222,15 +222,20 @@
     "contact": {
       "title": "Contact",
       "content": "For inquiries regarding service or these Terms:",
-      "company": "PlanQ",
-      "officer": "Operator",
-      "name": "Irene Lee",
-      "email": "irene@irenecompany.com"
+      "company": "Company",
+      "officer": "CEO",
+      "name": "{{operator}}",
+      "email": "{{operatorEmail}}",
+      "ceo": "{{operatorCeo}}",
+      "regNoLabel": "Business registration no.",
+      "regNo": "{{operatorRegNo}}",
+      "addressLabel": "Address",
+      "address": "{{operatorAddress}}"
     }
   },
   "deletion": {
     "title": "Request account deletion",
-    "intro": "This page explains how to request deletion of your PlanQ account (provided by irene&company Inc.) and the data linked to it. You can make the request from here without installing the app.",
+    "intro": "This page explains how to request deletion of your PlanQ account (provided by {{operator}}) and the data linked to it. You can make the request from here without installing the app.",
     "s1": {
       "title": "1. How to request deletion",
       "items": [

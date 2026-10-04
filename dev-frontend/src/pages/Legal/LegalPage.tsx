@@ -1,5 +1,5 @@
 // Privacy / Terms 공용 레이아웃 — 로그인 불필요, 공개 접근
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { i18nArray } from '../../utils/i18nArray';
@@ -30,7 +30,24 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
   //   약관·개인정보처리방침·결제 화면·푸터가 같은 값을 쓰게 하려면 원천이 하나여야 한다.
   //   `returnObjects: true` 로 받는 배열 항목에도 보간이 걸려야 하므로 값을 **여기서** 넘긴다
   //   (넘기지 않으면 화면에 `{{billingEntity}}` 가 그대로 노출된다 — 실제로 열어서 확인했다).
-  const vars = billingEntityVars();
+  // ★ 운영사(한국 법인)는 `platform_settings` 가 정본이다 — 푸터와 같은 `GET /api/platform/info` 를 읽는다(2026-10-04).
+  //   여태 약관·방침 본문은 «회사» 가 누구인지 정의하지 않았고, 문의처·개인정보보호책임자는 4월 초안의 임시값
+  //   («이수민 (Irene)»·irene@irenecompany.com)이 남아 운영 설정(대표 김미정·help@planq.kr)과 달랐다.
+  //   문구에 이름을 박으면 다시 갈라진다 — 값은 여기서 보간한다. 못 읽으면 브랜드명으로 떨어진다(빈칸 금지).
+  const [operator, setOperator] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/platform/info').then((r) => r.json()).then((j) => { if (alive && j && j.data) setOperator(j.data); }).catch(() => null);
+    return () => { alive = false; };
+  }, []);
+  const vars = {
+    ...billingEntityVars(),
+    operator: operator?.legal_entity || 'PlanQ',
+    operatorCeo: operator?.representative_name || '-',
+    operatorEmail: operator?.company_email || 'help@planq.kr',
+    operatorRegNo: operator?.biz_registration_no || '-',
+    operatorAddress: operator?.company_address || '-',
+  };
 
   // 문서별 섹션 목록
   // ★ deletion(계정 삭제 안내)은 **구글플레이가 요구하는 공개 페이지**다 —
@@ -103,7 +120,7 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
           {t('common.effective')}: {effectiveDate} · {t('common.lastUpdated')}: {effectiveDate}
         </Meta>
 
-        <Intro>{t(`${rootKey}.intro`)}</Intro>
+        <Intro>{t(`${rootKey}.intro`, vars)}</Intro>
 
         {sections.map(s => (
           <Section key={s.key}>
@@ -119,8 +136,8 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
             )}
             {s.contact && (
               <ContactBox>
-                <ContactRow><ContactKey>{t(`${rootKey}.s11.contact.officer`)}</ContactKey><ContactVal>{t(`${rootKey}.s11.contact.name`)}</ContactVal></ContactRow>
-                <ContactRow><ContactKey>Email</ContactKey><ContactVal><a href={`mailto:${t(`${rootKey}.s11.contact.email`)}`}>{t(`${rootKey}.s11.contact.email`)}</a></ContactVal></ContactRow>
+                <ContactRow><ContactKey>{t(`${rootKey}.s11.contact.officer`)}</ContactKey><ContactVal>{t(`${rootKey}.s11.contact.name`, vars)}</ContactVal></ContactRow>
+                <ContactRow><ContactKey>Email</ContactKey><ContactVal><a href={`mailto:${t(`${rootKey}.s11.contact.email`, vars)}`}>{t(`${rootKey}.s11.contact.email`, vars)}</a></ContactVal></ContactRow>
               </ContactBox>
             )}
           </Section>
@@ -132,7 +149,7 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
             {/* ★ 책임자 표기는 /privacy 와 **같은 키**를 읽는다. 따로 적어 두었더니 두 법적
                 페이지가 서로 다른 사람을 책임자로 적고 있었다(김미정 vs 이수민). 원천이 하나면
                 갈라질 수 없다. 이메일만 요청 창구(help@)로 따로 둔다. */}
-            <ContactRow><ContactKey>{t('privacy.s11.contact.officer')}</ContactKey><ContactVal>{t('privacy.s11.contact.name')}</ContactVal></ContactRow>
+            <ContactRow><ContactKey>{t('privacy.s11.contact.officer')}</ContactKey><ContactVal>{t('privacy.s11.contact.name', vars)}</ContactVal></ContactRow>
             <ContactRow><ContactKey>Email</ContactKey><ContactVal><a href={`mailto:${t('deletion.s7.contact.email')}`}>{t('deletion.s7.contact.email')}</a></ContactVal></ContactRow>
           </ContactBox>
         )}
@@ -143,8 +160,11 @@ const LegalPage: React.FC<Props> = ({ doc, effectiveDate }) => {
             <SectionTitle>{t('terms.contact.title')}</SectionTitle>
             <SectionP>{t('terms.contact.content')}</SectionP>
             <ContactBox>
-              <ContactRow><ContactKey>{t('terms.contact.company')}</ContactKey><ContactVal>{t('terms.contact.name')}</ContactVal></ContactRow>
-              <ContactRow><ContactKey>Email</ContactKey><ContactVal><a href={`mailto:${t('terms.contact.email')}`}>{t('terms.contact.email')}</a></ContactVal></ContactRow>
+              <ContactRow><ContactKey>{t('terms.contact.company')}</ContactKey><ContactVal>{t('terms.contact.name', vars)}</ContactVal></ContactRow>
+              <ContactRow><ContactKey>{t('terms.contact.officer')}</ContactKey><ContactVal>{t('terms.contact.ceo', vars)}</ContactVal></ContactRow>
+              <ContactRow><ContactKey>{t('terms.contact.regNoLabel')}</ContactKey><ContactVal>{t('terms.contact.regNo', vars)}</ContactVal></ContactRow>
+              <ContactRow><ContactKey>{t('terms.contact.addressLabel')}</ContactKey><ContactVal>{t('terms.contact.address', vars)}</ContactVal></ContactRow>
+              <ContactRow><ContactKey>Email</ContactKey><ContactVal><a href={`mailto:${t('terms.contact.email', vars)}`}>{t('terms.contact.email', vars)}</a></ContactVal></ContactRow>
             </ContactBox>
           </Section>
         )}

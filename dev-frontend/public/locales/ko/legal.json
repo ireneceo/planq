@@ -6,7 +6,7 @@
   },
   "privacy": {
     "title": "개인정보처리방침",
-    "intro": "PlanQ (이하 \"회사\")는 이용자의 개인정보를 소중히 여기며, 「개인정보 보호법」 등 관련 법령을 준수합니다. 본 방침은 회사가 제공하는 PlanQ 서비스 (이하 \"서비스\")의 개인정보 처리에 관한 기준을 설명합니다.",
+    "intro": "{{operator}}(이하 \"회사\")는 이용자의 개인정보를 소중히 여기며, 「개인정보 보호법」 등 관련 법령을 준수합니다. 본 방침은 회사가 제공하는 PlanQ 서비스(이하 \"서비스\")의 개인정보 처리에 관한 기준을 설명합니다.",
     "s1": {
       "title": "1. 수집하는 개인정보 항목",
       "items": [
@@ -96,14 +96,14 @@
       "content": "개인정보 관련 문의는 아래 연락처로 연락 주십시오.",
       "contact": {
         "officer": "개인정보보호책임자",
-        "name": "이수민 (Irene)",
-        "email": "irene@irenecompany.com"
+        "name": "{{operatorCeo}}",
+        "email": "{{operatorEmail}}"
       }
     }
   },
   "terms": {
     "title": "이용약관",
-    "intro": "본 약관은 PlanQ (이하 \"서비스\")를 이용함에 있어 회사와 이용자의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.",
+    "intro": "본 약관은 {{operator}}(이하 \"회사\")가 제공하는 PlanQ(이하 \"서비스\")를 이용함에 있어 회사와 이용자의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.",
     "s1": {
       "title": "제1조 (용어 정의)",
       "items": [
@@ -139,7 +139,7 @@
         "월간 결제: 7일 이후 환불 불가",
         "연간 결제: 결제일로부터 14일 이내 100% 환불",
         "연간 결제: 14일 이후 사용일수 일할 계산 후 남은 기간 환불 가능",
-        "환불 요청은 고객 지원 이메일(irene@irenecompany.com)로 접수"
+        "환불 요청은 고객 지원 이메일({{operatorEmail}})로 접수"
       ]
     },
     "s5": {
@@ -222,15 +222,20 @@
     "contact": {
       "title": "문의",
       "content": "서비스 이용 및 약관에 관한 문의는 아래로 연락 주십시오.",
-      "company": "PlanQ",
-      "officer": "운영자",
-      "name": "이수민 (Irene)",
-      "email": "irene@irenecompany.com"
+      "company": "상호",
+      "officer": "대표",
+      "name": "{{operator}}",
+      "email": "{{operatorEmail}}",
+      "ceo": "{{operatorCeo}}",
+      "regNoLabel": "사업자등록번호",
+      "regNo": "{{operatorRegNo}}",
+      "addressLabel": "주소",
+      "address": "{{operatorAddress}}"
     }
   },
   "deletion": {
     "title": "계정 삭제 요청",
-    "intro": "PlanQ(제공: 주식회사 아이린엔컴퍼니)의 계정과 그에 연결된 데이터의 삭제를 요청하는 방법을 안내합니다. 앱을 설치하지 않아도 이 안내를 통해 요청하실 수 있습니다.",
+    "intro": "PlanQ(제공: {{operator}})의 계정과 그에 연결된 데이터의 삭제를 요청하는 방법을 안내합니다. 앱을 설치하지 않아도 이 안내를 통해 요청하실 수 있습니다.",
     "s1": {
       "title": "1. 삭제를 요청하는 방법",
       "items": [

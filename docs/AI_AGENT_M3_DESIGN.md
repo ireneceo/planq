@@ -5,8 +5,8 @@
 > 이 문서는 그 위에 **얹는** 설계다 — 표면(`/agent/*`)·실행 진입점(`runTool`)·오류 봉투·멱등·확인 2단계·감사는 그대로 쓴다.
 >
 > 결론 한 줄 — **새 술어를 만들지 않는다.** 메일은 `accessibleAccountIds` + `folderWhere`, 문서는 `canReadPost`/`postListWhereByLevel`,
-> 파일은 `fileListWhereByLevel`, 일정은 `calendarListWhere`, 회의록은 q-note `session_read_allowed`, 통합 검색은 `routes/search.js buildScopedWheres` 를
-> **옮겨서**(베끼지 않고) 쓴다. 새로 쓰는 것은 scope 두 개(`mail:read`·`mail_drafts:write`)와 동의 화면의 체크박스 하나, 그리고 도구 13개다.
+> 파일은 `fileListWhereByLevel`, 일정은 `calendarListWhere`, Q info 는 `kbDocumentsListWhereByLevel`, 회의록은 q-note `session_read_allowed`, 통합 검색은 `routes/search.js buildScopedWheres` 를
+> **옮겨서**(베끼지 않고) 쓴다. 새로 쓰는 것은 scope 두 개(`mail:read`·`mail_drafts:write`)와 동의 화면의 체크박스 하나, 그리고 도구 15개다. §12 의 결정 7건은 **확정**됐다(2026-10-04).
 
 ---
 
@@ -15,7 +15,8 @@
 | 항목 | 판정 |
 |---|---|
 | **D1 메일 본문 → 외부 AI** | **허용하되 별도 opt-in scope `mail:read`.** 동의 화면에서 기본 꺼짐 체크박스 + 보일 계정 목록(공용/내 개인) 표시. 워크스페이스 스위치 `businesses.permissions.ai_agent.mail`(owner/admin, 기본 ON) · 멤버 메뉴 Layer(`qmail`)는 그대로 적용. **기존 grant 는 자동 확장 안 됨**(재연결 필요) · 개인정보처리방침 §3 에 «외부 AI 앱 연결» 행 추가(ko/en). 근거 §3.1 |
-| **D2 금액** | **1차 계속 비노출.** 의도된 정책임을 코드 3곳(설계 §7 HIGH 표 · `registry.js`/`directory.js` 주석 · 가드 `agentsurface` 재무 모델 참조 0)으로 확인. 단 **구(舊) `/mcp`(api_token) 표면의 `get_client_360` 은 owner 에게 청구 합계를 준다** — 두 표면이 어긋나 있다. 뒤 단계에 owner 전용 `billing:read` 를 열지, 구 표면을 맞출지 Irene 결정(§3.2) |
+| **D2 금액** | **1차 계속 비노출.** 의도된 정책임을 코드 3곳(설계 §7 HIGH 표 · `registry.js`/`directory.js` 주석 · 가드 `agentsurface` 재무 모델 참조 0)으로 확인. **구(舊) `/mcp`(api_token) 표면의 `get_client_360` 이 owner 에게 청구 합계를 주던 어긋남은 M3-a 에서 그쪽도 비노출로 맞춘다**(확정 §12-③) |
+| **D3·D4 외 확정 4건** | 방침 `privacy_version` **올림** · 온보딩 개인 묶음 **멤버에게 보임** · 사람 통합 검색에 다섯 그룹 **추가** · Q info **M3-b 포함**(도구 34개) — §12 |
 | **D3 처음 사용자 안내** | **배너 없음.** 기존 `OnboardingCard`(서버 판정) 를 **단계 7개로 확장**(메일 연결·캘린더 연결·모바일 앱·AI 앱 연결 추가) + **설정 최상단에 같은 컴포넌트**(접힘 가능). 개인 단계(알림·앱·AI)는 멤버도 본다. 텍스트 와이어 §3.3 |
 | **D4 메일 답장** | **발송은 HIGH 그대로 금지.** 대신 `create_mail_reply_draft`(LOW · `mail_drafts:write`) — 기존 `email_drafts` 행(사용자×스레드 1칸)에 **본문만** 넣고, 받는 사람·발신 주소는 PlanQ 답장 폼이 원 스레드에서 계산한다(입력 칸 없음). 이미 초안이 있으면 **CONFLICT**(덮어쓰지 않는다). 1차 범위 **포함**(M3-c). 근거 §3.4 |
 | 마일스톤 | **M3-a** 메일 조회 + 기록 보완(페이지 규약) → **M3-b** 통합 검색 + 문서·파일·회의록 → **M3-c** 출처 연결 + 답장 초안 → **M3-d** 온보딩 |
@@ -51,7 +52,7 @@
 |---|---|---|---|
 | Q docs(`posts`) | `access_scope.postListWhereByLevel(scope)` | `routes/posts.js canReadPost(user, post)` — **라우트 파일 안의 함수** → `services/postAccess.js` 로 **옮긴다**(라우트도 그것을 import) | `security_level ∈ {internal, confidential}` 은 **본문 비노출**(제목·분류·날짜만, `restricted:true`). 판정 `services/securityLevel.blocksExternalShare` — 공유 다섯 규칙 ④ «보안등급은 밖으로 나가는 모든 문에서 막는다». 외부 AI 는 밖으로 나가는 문이다 |
 | 파일(`files`) | `fileListWhereByLevel(scope)` | `canAccessFileByLevel` / `canDownloadFile` | **메타만**(이름·크기·종류·폴더·연결·올린 사람·날짜). 바이트는 내보내지 않는다. `blocksExternalShare` 파일은 목록에서 `restricted:true` |
-| Q info(`kb_documents`) | `kbDocumentsListWhereByLevel` | `canAccessKbDocumentByLevel` | **M3 범위 밖**(Irene 목록에 없음). 들일 때 통합 검색에 그룹 하나 추가하면 끝(§5) |
+| Q info(`kb_documents`) | `kbDocumentsListWhereByLevel(scope)` — 사람 통합 검색 `routes/search.js:173` 과 같은 함수 | `canAccessKbDocumentByLevel` | **M3-b 포함**(Irene: «info 가 데이터베이스처럼 활용 가능한 것» 이 강점). 항목 칸(`custom_columns`/`custom_values`)은 **`type==='secret'` 칸 값 비노출·검색 제외**(`utils/searchCells` 와 같은 판정, raw 후보는 `searchGates.allowedKbIds` 로 재필터 — 사람 검색 `routes/search.js:312-346` 과 같은 두 단계). 본문 `body` 는 offset/max_chars 로 이어 읽기 |
 | 회의록(Q Note, 별도 FastAPI·SQLite) | `services/qnoteContext.searchMyNotes` → q-note `GET /api/sessions/internal/search`(`session_read_allowed` — 상세와 **같은 술어**, L1 은 본인만) | **없다.** `internal/owns` 는 소유 확인만, `internal/export` 는 전량 덤프 | q-note 에 `GET /api/sessions/internal/read?session_id&user_id&business_id` **신설**(`session_read_allowed` 통과 시 `title·summary_full·summary_key_points·body(offset,chars)`). Node 쪽 통로 `services/qnoteContext.readNote` 한 함수 |
 | 프로젝트 메모(`project_notes`) | `visibility ENUM(personal,internal,shared)` + `vlevel` | — | **personal 은 작성자 본인만**(get_task_notes 와 같은 규칙 — 화면보다 좁게) |
 | 상담(`client_interactions`) | `business_id + client_id + deleted_at IS NULL` · 메뉴 `qsale` | — | `body` 는 ≤2,000자 + `truncated_fields` |
@@ -60,7 +61,7 @@
 
 | 무엇 | 어디 | 판단 |
 |---|---|---|
-| 통합 검색(사람) | `routes/search.js` — `buildScopedWheres(userId,bizId,role)`(deny 센티널 방어 포함) · 도메인 tasks/posts/records/files/conversations/knowledge/clients/projects · `searchGates.applyMenuGates` · `utils/searchMatch`(NFC·공백무시·토큰≤4·`pickMatch`·`makeSnippet`) · `utils/searchCells`(비밀 칸 제외) | **메일·일정·상담·프로젝트 메모·회의록이 없다.** `buildScopedWheres`·`likeAny`·`relevance` 를 `services/searchScope.js` 로 **옮기고** 라우트와 도구가 같이 쓴다. 비밀 칸·표 셀 규칙 그대로 |
+| 통합 검색(사람) | `routes/search.js` — `buildScopedWheres(userId,bizId,role)`(deny 센티널 방어 포함) · 도메인 tasks/posts/records/files/conversations/knowledge/clients/projects · `searchGates.applyMenuGates` · `utils/searchMatch`(NFC·공백무시·토큰≤4·`pickMatch`·`makeSnippet`) · `utils/searchCells`(비밀 칸 제외) | **메일·일정·상담·프로젝트 메모·회의록이 없다.** `buildScopedWheres`·`likeAny`·`relevance` 를 `services/searchScope.js` 로 **옮기고** 라우트와 도구가 같이 쓴다. 비밀 칸·표 셀 규칙 그대로. ★ 확정(§12-⑤): 사람 통합 검색에도 **같은 다섯 그룹**(mail·event·interaction·project_note·meeting_note)을 M3-b 에서 더한다 — 그룹 함수를 `searchScope` 에 두고 라우트와 `search_all` 이 같은 것을 부른다 |
 | Cue 검색 | `services/cue_context.getWorkspaceMatches` — 관련성 관문(`rankByRelevance`)·최근 폴백·**owner 에게 invoices** | 재무가 섞여 있어 **그대로 쓰지 않는다.** 관련성 관문 함수만 참고 |
 | 구 MCP 검색 | `mcp/server.js search_workspace` → 위 Cue 검색 | 표면 그대로 둔다(§3.2 어긋남만 기록) |
 | 메일 검색 | §1.1 | 통합 검색의 mail 그룹은 **같은 함수**(`mailSearchWhere`)를 부른다 |
@@ -108,9 +109,9 @@
 |---|---|---|
 | scope | `mail:read`(읽기) · `mail_drafts:write`(D4) — **READ/WRITE 묶음에 넣지 않는다**(`OPT_IN_SCOPES`). `grantedScopes` 는 요청 scope 와 무관하게 체크박스가 켜졌을 때만 포함 | 「읽기만」을 고른 사람에게 메일이 따라가면 안 된다. 묶음 밖이라 **기존 grant 는 자동으로 넓어지지 않는다**(guest_link scope 기본값 원칙과 같다) |
 | 동의 화면 | 범위 라디오 아래 체크박스 1개(기본 꺼짐) — 켜면 **보일 계정 목록**을 그 자리에 그린다(`accessibleAccountIds` → 주소 + 「공용」/「내 개인」 뱃지). 계정이 0개면 체크박스를 비활성 + 이유 | «어디로 가는지 모르면 확인할 수 없다»(외부 발송 확인 계약과 같은 논리). 개인 계정이 포함된다는 것을 **보이게** 한다 |
-| 워크스페이스 스위치 | `businesses.permissions.ai_agent.mail`(boolean, **기본 true**) — 설정 > 팀 > 외부 연동 안. owner/admin. 끄면 동의 화면 체크박스 비활성 + 이유, 이미 받은 `mail:read` 는 호출 때 `PERMISSION_DENIED workspace_disabled_mail` | 저장 자리는 `customer_entry`·`sales_intake` 와 같은 JSON(새 컬럼 0). 기본 ON 인 이유: 멤버별 `qmail` 메뉴 Layer 가 이미 owner 의 레버이고, 요청자가 owner 본인이다. **Irene 확인 항목(§12-①)** |
+| 워크스페이스 스위치 | `businesses.permissions.ai_agent.mail`(boolean, **기본 true**) — 설정 > 팀 > 외부 연동 안. owner/admin. 끄면 동의 화면 체크박스 비활성 + 이유, 이미 받은 `mail:read` 는 호출 때 `PERMISSION_DENIED workspace_disabled_mail` | 저장 자리는 `customer_entry`·`sales_intake` 와 같은 JSON(새 컬럼 0). 기본 ON 인 이유: 멤버별 `qmail` 메뉴 Layer 가 이미 owner 의 레버이고, 요청자가 owner 본인이다. **확정(§12-①: 기본 ON)** |
 | 멤버 Layer | `assertMenu(p,'qmail','read')` | 화면에서 Q mail 이 숨겨진 멤버는 AI 로도 못 본다(기존 원칙 §5.5) |
-| 방침 | §3 에 행 추가(ko/en) — 「이용자가 ChatGPT·Claude 등 외부 AI 앱을 PlanQ 에 연결한 경우(선택): 이용자의 요청에 따라 그 앱으로 전달되는 업무·메모·고객·프로젝트·일정, 그리고 **이용자가 별도로 허용한 경우** 메일 내용(첨부 파일 제외). 전달된 정보의 보관·학습 여부는 해당 AI 서비스의 약관과 이용자 설정에 따르며, 연결은 설정에서 언제든 해제할 수 있습니다.」 / "When you connect an external AI app (e.g. ChatGPT, Claude) to PlanQ (optional): tasks, notes, clients, projects and events you ask it about, and — only if you separately allow it — email contents (attachments excluded). Retention and training of transferred data follow that AI service's terms and your settings there. You can disconnect at any time in Settings." | `privacy_version` 을 올리면 전 사용자에게 재동의 모달이 뜬다(platform_settings) — 올릴지는 **Irene 결정(§12-②)** |
+| 방침 | §3 에 행 추가(ko/en) — 「이용자가 ChatGPT·Claude 등 외부 AI 앱을 PlanQ 에 연결한 경우(선택): 이용자의 요청에 따라 그 앱으로 전달되는 업무·메모·고객·프로젝트·일정, 그리고 **이용자가 별도로 허용한 경우** 메일 내용(첨부 파일 제외). 전달된 정보의 보관·학습 여부는 해당 AI 서비스의 약관과 이용자 설정에 따르며, 연결은 설정에서 언제든 해제할 수 있습니다.」 / "When you connect an external AI app (e.g. ChatGPT, Claude) to PlanQ (optional): tasks, notes, clients, projects and events you ask it about, and — only if you separately allow it — email contents (attachments excluded). Retention and training of transferred data follow that AI service's terms and your settings there. You can disconnect at any time in Settings." | **확정(§12-②): `privacy_version` 을 올린다** — 제3자 수령자 범주(외부 AI 앱 제공사)와 국외 이전 가능성이 **새로 생기는 것**이라 개인정보보호법상 처리방침 변경 공개 대상이고, PlanQ 의 고지 수단은 재동의 모달 하나다(이메일 발송 안 함). 실제 전달 **동의**는 연결 시점의 체크박스(사람×데이터 단위)가 받는다 — 모달은 「바뀐 방침 확인」이지 전달 동의가 아니다 |
 | 동의 화면 문구 | `agentConsent.mailTitle` 「메일 읽기 허용 (선택)」/ "Allow reading email (optional)" · `agentConsent.mailBody` 「연결한 메일 계정의 메일 제목·본문·보낸 사람을 AI 앱이 조회할 수 있습니다. 첨부 파일 내용은 전달되지 않습니다. 보내지는 않습니다.」/ "The AI app can read subject, body and sender of mail in the accounts below. Attachment contents are never sent. It cannot send mail." · `agentConsent.mailAccounts` 「보이는 계정」/ "Accounts it can read" · 뱃지 `agentConsent.sharedAccount` 「공용」/ "Shared" · `agentConsent.personalAccount` 「내 개인」/ "Personal" · `agentConsent.mailDisabledByWorkspace` 「이 워크스페이스는 AI 앱의 메일 읽기를 꺼 두었습니다.」/ "This workspace has turned off email access for AI apps." · `agentConsent.mailNoAccounts` 「연결된 메일 계정이 없습니다.」/ "No connected mail account." · `agentConsent.mailTransferNote` 「메일 내용이 AI 앱 제공사로 전달됩니다. 보관·학습 여부는 그 서비스의 약관과 내 설정에 따릅니다.」/ "Mail contents are sent to the AI app's provider. Retention and training follow that service's terms and your settings." | 「읽기만」 설명(`readBody`)·「읽기+추가·수정」(`writeBody`)에 메일이 포함되지 않음을 유지 — 체크박스가 메일을 더한다 |
 | 연결된 AI 앱 목록 | `GET /api/agent/grants` 응답에 `mail: true|false` 추가 → 「메일 포함」 칩 | 어느 연결이 메일을 보는지 사람이 알 수 있어야 끊을 수 있다 |
 
@@ -119,7 +120,7 @@
 ### 3.2 D2 — 금액 → **1차 비노출 유지. 의도된 정책이다.**
 
 - 코드·문서로 확인: 설계 §7 「HIGH: 삭제·**금액**·계약·외부 발송·대량·권한 — 툴이 존재하지 않는다」 · `directory.js:3` 「금액은 설계상 HIGH」 · 가드 `agentsurface` ②「재무 모델 참조 0」(`Invoice|Payment|InvoiceInstallment|InvoiceItem`) · CLAUDE.md 「고객·프로젝트 응답에 **금액 없음**(HIGH)」. 2026-10-02 Fable PASS 때 그대로 통과했다.
-- **어긋남 1건**: 구 `/mcp`(api_token, Claude Code 용) 의 `get_client_360` → `cue_context.getClientSnapshot` 은 owner/admin 에게 `grand_total·paid_amount` 합계를 싣는다. OAuth 표면만 막혀 있다. 둘 중 하나를 맞춰야 한다 — **Irene 결정(§12-③)**: (a) 구 표면에서도 금액을 뺀다(일관), (b) 뒤 단계에 `billing:read`(owner + Q Bill write 권한자, opt-in, 금액은 **읽기만**) 를 열고 구 표면도 같은 술어로.
+- **어긋남 1건**: 구 `/mcp`(api_token, Claude Code 용) 의 `get_client_360` → `cue_context.getClientSnapshot` 은 owner/admin 에게 `grand_total·paid_amount` 합계를 싣는다. OAuth 표면만 막혀 있다. **확정(§12-③, (a))**: 구 `/mcp get_client_360` 에서도 금액을 뺀다(M3-a 에 포함 — `getClientSnapshot` 에 `includeFinance:false` 인자, Cue 내부 경로는 그대로). 가드 `mcpreadonly` 에 금액 문자열 검사 추가. `billing:read` 는 열지 않는다(열 때는 별도 설계).
 - M3 에서 허용하는 것(금액 없음): 거래 시퀀스 **단계**(`project_stages.kind/status/label/expected_due_date`) — «이 프로젝트 어디까지?» 에 필요하고 금액 컬럼이 없다. 문서 검색에서 `kind ∈ {quote, contract, invoice…}` 류 문서는 **제목·분류·날짜만**(본문 스니펫 금지 — 본문에 금액이 있다). 상담 `body` 에 사람이 적은 금액은 **막지 않는다**(기록의 일부 — 막으려면 본문 전체를 가려야 한다; 그건 다른 결정).
 - 우회 금지의 기계 검사: 가드 `agentsurface` 에 `grand_total|paid_amount|expected_amount|contract_amount|unit_price` 문자열 참조 0 을 더한다(현재는 모델 이름만 본다 — `Client.expected_amount` 처럼 비재무 모델의 금액 컬럼은 안 잡힌다).
 
@@ -141,7 +142,7 @@ Irene 질문 «설정 최상단 가이드? 배너?» 의 답: **설정 최상단
 | | `connect_ai_app` **신규** | `AgentGrant.count({user_id, business_id, revoked_at:null, activated_at≠null}) > 0` | |
 
 - 응답: `{ dismissed, groups:[{scope:'workspace'|'me', done_count, total, steps:[{key,done}]}] }`. 기존 `steps` 평면 배열은 **유지**(하위 호환) 하고 `groups` 를 더한다.
-- 닫기: 워크스페이스 묶음은 지금처럼 `businesses.onboarding_dismissed_at`. 개인 묶음은 **`business_members.onboarding_dismissed_at`**(사람×워크스페이스) — 컬럼 1개 추가, 멱등 스크립트 `migrate-onboarding-personal-dismiss.js`, 배포 슬롯. **Irene 확인(§12-④)**: 개인 묶음을 멤버에게도 보일지.
+- 닫기: 워크스페이스 묶음은 지금처럼 `businesses.onboarding_dismissed_at`. 개인 묶음은 **`business_members.onboarding_dismissed_at`**(사람×워크스페이스) — 컬럼 1개 추가, 멱등 스크립트 `migrate-onboarding-personal-dismiss.js`, 배포 슬롯. **확정(§12-④): 개인 묶음은 모든 멤버에게 보인다** — 알림·앱·캘린더·AI 연결은 각자 자기 기기·계정에서만 할 수 있는 일이라 owner 가 대신 못 한다.
 - 자격: `getOnboardingState` 의 `ELIGIBLE_ROLES` 는 워크스페이스 묶음에만 적용. 고객(client)·AI 멤버는 둘 다 null.
 
 **화면** — `OnboardingCard` 를 `components/Onboarding/OnboardingChecklist.tsx` 로 **이름만 옮기고**(대시보드는 그대로 그 컴포넌트를 쓴다) `variant="dashboard"|"settings"` 로 두 자리에 얹는다. STEP_META 에 4개 추가: `connect_mail → /business/settings/email`(위키 「메일 계정 연결하기」) · `connect_calendar → /settings/integrations`(위키) · `install_app → /settings/app`(위키 「모바일 앱 설치」) · `connect_ai_app → /settings/integrations#ai`(위키 **신규 글** 「ChatGPT·Claude 연결하기」 ko/en — §10 절차를 그대로 쓴다).
@@ -254,17 +255,19 @@ Irene 질문 «설정 최상단 가이드? 배너?» 의 답: **설정 최상단
 | `list_files` | LOW · `projects:read`(메뉴 `qfile` read) | `query?`(file_name) · `project_id?` · `client_id?` · `folder_id?` · `source?`(direct/chat/task/mail/doc — Q file 출처 태그와 같은 분류) · 페이지 | `file_id, name, size_bytes, mime_type, project, client, uploader, created_at, restricted, url(${APP}/files?file=…)` — **다운로드 없음** | `fileListWhereByLevel` · 메일 첨부(`source:'mail'`)는 Q file 「메일」 칸 규칙과 같이 **명시 요청 때만** 포함(기본 제외 — 수천 건이 쏟아진다, CLAUDE.md Q file 절) |
 | `search_meeting_notes` | LOW · `notes:read`(메뉴 `qnote`) | `query` · `limit?`(≤10) | `session_id, title, created_at, snippet, client{…}, project{…}, url(${APP}/note/${id})` + `status:'ok'|'unavailable'` | `qnoteContext.searchMyNotes`(q-note `internal/search`, `session_read_allowed`) · q-note 가 죽으면 `unavailable`(빈 결과로 위장하지 않는다) |
 | `get_meeting_note` | LOW · `notes:read` | `session_id` · `offset?` · `max_chars?` | `title, created_at, duration, summary, key_points, body 조각, client, project, url` | **q-note 신설** `GET /internal/read`(§1.2) — `session_read_allowed` 를 그대로 호출 |
+| `search_knowledge` | LOW · `projects:read`(메뉴 `qinfo` read) | `query?` · `category?`(policy/manual/incident/faq/about/pricing) · `scope?`(workspace/project/client) · `project_id?` · `client_id?` · 페이지 | `kb_id, title, category, scope, project, client, updated_at, match{field}, snippet(제목·본문·**비밀 아닌 칸 값**만), url(${APP}/info/${id})` | `kbDocumentsListWhereByLevel(scope)` + `business_id` · 칸 값 후보는 raw → `searchGates.allowedKbIds` 재필터 · `searchCells.matchesNonSecretCell/columnValueSnippet` |
+| `get_knowledge_item` | LOW · 같음 | `kb_id` · `offset?` · `max_chars?`(기본 6,000 ≤20,000) | 메타 + `body` 조각 + `fields:[{name,type,value}]` — **`type==='secret'` 칸은 `value:null, secret:true`**(이름만) + 연결 파일/문서 제목 | `canAccessKbDocumentByLevel` |
 
-### 4.5 도구 목록 총괄 (M3 완료 시 32개)
+### 4.5 도구 목록 총괄 (M3 완료 시 34개)
 
-| 영역 | 기존(19) | 신설(13) |
+| 영역 | 기존(19) | 신설(15) |
 |---|---|---|
 | 맥락 | get_context | — |
 | 업무 | search_tasks · get_task · create_task · get_task_notes · add_task_note · reschedule_task(M) · complete_task(M) · assign_task(M) · update_task | — |
 | 고객·프로젝트·멤버 | search_clients · get_client · search_projects · get_project · search_members · add_client_interaction · add_project_note | list_client_interactions · list_project_notes |
 | 일정 | list_events · create_event | — |
 | 메일 | — | list_mail_accounts · search_mail · get_mail_thread · get_mail_message · create_mail_reply_draft |
-| 문서·파일·회의록 | — | search_documents · get_document · list_files · search_meeting_notes · get_meeting_note |
+| 문서·파일·회의록·Q info | — | search_documents · get_document · list_files · search_meeting_notes · get_meeting_note · search_knowledge · get_knowledge_item |
 | 통합 | — | search_all |
 
 레지스트리 한 줄 규약(`name·risk·write·scopes`)은 가드 `agentsurface` 가 세므로 그대로 따른다. scope 상수는 `config.js` 에 `OPT_IN_SCOPES = ['mail:read','mail_drafts:write']` 를 더하고 `ALL_SCOPES` 에 포함(디스커버리 `scopes_supported` 에 보여야 한다), `grantedScopes(requested, access, optIn)` 시그니처 확장.
@@ -299,8 +302,9 @@ Irene 질문 «설정 최상단 가이드? 배너?» 의 답: **설정 최상단
 | project_note | notes:read | qtask | `project_notes` + personal 본인만 | body | |
 | mail | **mail:read** | qmail | `accessibleAccountIds` ∩ `searchFolderWhere` + `mailSearchWhere` | 기존 메일 검색과 같음 | `status:'not_granted'` 가 가장 흔한 상태 — 모델에게 «메일 권한을 켜면 더 찾을 수 있다» 를 말하게 |
 | meeting_note | notes:read | qnote | q-note `internal/search` | q-note 가 정한다 | 죽으면 `unavailable` |
+| knowledge | projects:read | qinfo | `kbDocumentsListWhereByLevel` | title · body · 비밀 아닌 칸 값 | 사람 검색 `knowledge` 그룹과 같은 두 단계(raw 후보 → `allowedKbIds`) |
 
-- 구현 위치: `services/searchScope.js`(라우트에서 **옮긴** `buildScopedWheres`·`likeAny`·`relevance`·`escLike`) + `services/agent/tools/search.js`. 사람 통합 검색 라우트도 `searchScope` 를 import 한다(한 벌). 메일·일정·상담·메모·회의록은 사람 통합 검색에 **지금 없다** — 그쪽에 더하는 것은 별도 결정(이 문서 범위 밖, §12-⑤).
+- 구현 위치: `services/searchScope.js`(라우트에서 **옮긴** `buildScopedWheres`·`likeAny`·`relevance`·`escLike`) + `services/agent/tools/search.js`. 사람 통합 검색 라우트도 `searchScope` 를 import 한다(한 벌). 메일·일정·상담·메모·회의록은 사람 통합 검색에 **지금 없다** → **확정(§12-⑤): M3-b 에서 사람 통합 검색(`GET /api/search` + `GlobalSearchModal`)에도 같은 다섯 그룹을 더한다.** 그룹별 조회 함수(`searchMail/searchEvents/searchInteractions/searchProjectNotes/searchMeetingNotes`)는 `searchScope` 에 **한 벌**만 두고 라우트와 `search_all` 이 부른다 — 「AI 는 찾는데 화면은 못 찾는다」 를 만들지 않는다(«화면에서 볼 수 없는 것은 AI 도 못 본다» 의 역방향도 지킨다). 사람 검색의 메일 그룹은 `qmail` 메뉴 + `accessibleAccountIds`(mail scope 개념은 사람에겐 없다). 모달 그룹 라벨 ko/en: 「메일」/"Mail" · 「일정」/"Events" · 「상담」/"Consultations" · 「프로젝트 메모」/"Project notes" · 「회의록」/"Meeting notes".
 - 그룹 실패 격리: 한 그룹 예외는 그 그룹만 `unavailable` — 결과 전체를 죽이지 않는다. **빈 결과로 위장하지 않는다**(실패·권한부족·없음 세 가지가 사용자에게 다르다 — Irene 요구 6).
 
 ### 5.3 «이름이 같다고 합치지 않는다»
@@ -366,8 +370,8 @@ Irene 질문 «설정 최상단 가이드? 배너?» 의 답: **설정 최상단
 
 | 단계 | 내용 | 변경 범위 | 게이트 |
 |---|---|---|---|
-| **M3-a 메일 조회 + 기록 보완** | scope 2개·`OPT_IN_SCOPES`·동의 화면 체크박스+계정 목록·워크스페이스 스위치·방침 문구(ko/en) · 메일 도구 4(`list_mail_accounts`·`search_mail`·`get_mail_thread`·`get_mail_message`) · 페이지 규약 전면 · `get_context` 시간대 · `get_task`/`get_project`/`get_client` 확대 · `list_project_notes`·`list_client_interactions` · `mailSearchWhere`/`menu` 추출 · `clientTimeline` 복사본 제거 · 가드 확장(business_id 묶음·금액 문자열) · 연결된 AI 앱 「메일 포함」 칩 | 백엔드 ~10 파일 · 프론트 3(동의·외부연동 목록·설정 스위치) · locales | **Fable R=1**(새 scope·동의·개인 메일·제3자 전달) |
-| **M3-b 통합 검색 + 문서·파일·회의록** | `search_all` · `search_documents`/`get_document` · `list_files` · `search_meeting_notes`/`get_meeting_note` · q-note `internal/read` · `searchScope`/`postAccess` 추출 | 백엔드 ~8 · q-note 1 | **Fable R=1**(술어 합집합·보안등급) |
+| **M3-a 메일 조회 + 기록 보완** | scope 2개·`OPT_IN_SCOPES`·동의 화면 체크박스+계정 목록·워크스페이스 스위치·방침 문구(ko/en)+`privacy_version` 올림·구 `/mcp get_client_360` 금액 제거 · 메일 도구 4(`list_mail_accounts`·`search_mail`·`get_mail_thread`·`get_mail_message`) · 페이지 규약 전면 · `get_context` 시간대 · `get_task`/`get_project`/`get_client` 확대 · `list_project_notes`·`list_client_interactions` · `mailSearchWhere`/`menu` 추출 · `clientTimeline` 복사본 제거 · 가드 확장(business_id 묶음·금액 문자열) · 연결된 AI 앱 「메일 포함」 칩 | 백엔드 ~10 파일 · 프론트 3(동의·외부연동 목록·설정 스위치) · locales | **Fable R=1**(새 scope·동의·개인 메일·제3자 전달) |
+| **M3-b 통합 검색 + 문서·파일·회의록·Q info** | `search_all` · `search_documents`/`get_document` · `list_files` · `search_meeting_notes`/`get_meeting_note` · `search_knowledge`/`get_knowledge_item` · q-note `internal/read` · `searchScope`/`postAccess` 추출 · **사람 통합 검색에 다섯 그룹 추가**(`GET /api/search` + `GlobalSearchModal`) | 백엔드 ~10 · q-note 1 · 프론트 1(검색 모달) | **Fable R=1**(술어 합집합·보안등급·비밀 칸) |
 | **M3-c 출처 연결 + 답장 초안** | `source` 입력 3곳 · `create_event` 링크 · `create_mail_reply_draft` · `mailDrafts` 추출 · `MailPage ?reply=1` · `mail_drafts:write` 동의 체크박스 | 백엔드 ~5 · 프론트 2 | **M3-b 와 한 라운드로 묶는다**(쪼개 올리지 않는다) |
 | **M3-d 온보딩** | `onboarding.js` 단계 7·groups · `business_members.onboarding_dismissed_at`(멱등 스크립트) · `OnboardingChecklist` 두 자리 · 위키 글 「ChatGPT·Claude 연결하기」 ko/en | 백엔드 2 · 프론트 3 · 스크립트 1 | F=1 자체 검증(`--suite onboarding` 신설, 3폭) · 컬럼은 배포 슬롯 |
 
@@ -399,6 +403,8 @@ Irene 질문 «설정 최상단 가이드? 배너?» 의 답: **설정 최상단
 | 16 | 가드 | `agentsurface`(business_id 묶음 빠진 양성 대조군 · 금액 문자열 심기) · `duproute` · `i18n`·`parity` · `secrets` | 각 양성 대조군이 빨간불 |
 | 17 | 동의 화면 3폭 | `--suite agentconsent` 확장: 체크박스 기본 꺼짐 · 켜면 계정 목록·개인 뱃지 · 스위치 OFF 면 비활성+이유 · 「읽기만」+메일 → grant scopes 에 `mail:read` 포함·`tasks:write` 미포함 | 좌표·가시성(`elementFromPoint`) |
 | 18 | 온보딩 | `--suite onboarding` 신설: 대시보드·설정 두 자리 **같은 컴포넌트** · 멤버에게 개인 묶음만 · 메일 계정 만들면 `connect_mail` 켜짐 · 개인 닫기가 다른 멤버에 영향 0 | 3폭 |
+| 19 | Q info 비밀 칸 | `search_knowledge{query:<비밀 칸 값>}` · `get_knowledge_item` | 비밀 값으로 검색 0건 · 항목 `fields` 의 secret 칸 `value:null` · 비밀 아닌 칸은 값 있음(양성 대조군) · 남의 `private` 항목 `NOT_FOUND` |
+| 20 | 사람 검색 동형 | 같은 검색어로 `GET /api/search` 와 `search_all` | 다섯 그룹의 id 집합이 같다(메일은 같은 사람·같은 계정 기준) · 구 `/mcp get_client_360` 응답에 `grand_total/paid_amount` 0건 |
 
 **Fable 게이트 묶음**: 라운드 1 = M3-a(#1·2·6·7·8·9·10·15·16·17) · 라운드 2 = M3-b+c(#3·4·5·11·12·13·14·16) · M3-d 는 자체 검증 보고(«Fable 미검증(자체 검증)» 표기).
 
@@ -432,12 +438,14 @@ i18n(`settings.json`): `aiAgent.title` 「AI 앱 연결 (ChatGPT·Claude)」/"AI
 
 ---
 
-## 12. Irene 결정이 더 필요한 것
+## 12. 결정 — 확정 (2026-10-04, Irene: «질문한 건 다 Fable 제안으로»)
 
-1. **워크스페이스 메일 스위치 기본값** — 제안 **ON**(멤버 메뉴 Layer 가 이미 레버). OFF 면 모든 워크스페이스가 한 번 켜야 메일이 된다.
-2. **개인정보처리방침 개정 → `privacy_version` 올림 여부** — 올리면 전 사용자 재동의 모달. 문구 추가만 하고 버전은 두는 선택도 가능(법적 판단).
-3. **금액** — (a) 구 `/mcp get_client_360` 에서도 금액을 빼서 두 표면을 맞춤 / (b) 뒤 단계에 owner·Q Bill write 한정 `billing:read` opt-in. M3 는 어느 쪽이든 비노출.
-4. **온보딩 개인 묶음을 일반 멤버에게도 보일지**(알림·앱·AI 연결). 보이면 `business_members.onboarding_dismissed_at` 컬럼 1개.
-5. **사람 통합 검색에도 메일·일정·상담·메모를 넣을지** — `searchScope` 를 공유하므로 비용은 작지만 화면(GlobalSearchModal) 그룹이 늘어난다. 이 문서는 AI 쪽만 다룬다.
-6. **Q info(KB) 를 M3 에 넣을지** — Irene 목록에 없어 뺐다. 넣으면 `search_all` 그룹 1 + 도구 2.
-7. **답장 초안이 이미 있을 때** — 제안은 `CONFLICT`(덮어쓰기 없음). 「AI 가 바꿔 써 달라」 가 잦으면 MEDIUM 덮어쓰기 도구를 다음에 연다.
+| # | 항목 | 확정 | 근거 |
+|---|---|---|---|
+| ① | 워크스페이스 메일 스위치 기본값 | **ON** | 멤버별 `qmail` 메뉴 Layer 가 이미 owner 의 레버. OFF 면 모든 워크스페이스가 한 번 켜야 메일이 된다 |
+| ② | 방침 개정 시 `privacy_version` 올림 | **올린다** | 제3자 수령자 범주(외부 AI 앱 제공사)와 국외 이전 가능성이 **새로 생긴다** — 개인정보보호법상 처리방침 변경 공개 대상이고 PlanQ 의 고지 수단은 재동의 모달뿐이다. 전달 **동의** 자체는 연결 시점 체크박스가 받는다(모달은 변경 확인) |
+| ③ | 금액 두 표면 어긋남 | **(a) 구 `/mcp get_client_360` 에서도 비노출** | 외부 표면 재무 봉쇄가 한 벌이 된다. `billing:read` 는 열지 않는다(열 때는 별도 설계) |
+| ④ | 온보딩 개인 묶음 멤버 노출 | **보인다** | 알림·앱·캘린더·AI 연결은 각자 기기·계정에서만 가능 — owner 가 대신 못 한다. 컬럼 `business_members.onboarding_dismissed_at` 1개(멱등) |
+| ⑤ | 사람 통합 검색에 메일·일정·상담·메모·회의록 | **M3-b 에 포함** | `searchScope` 한 벌을 두 입구가 쓰면 그룹 수가 같아야 «AI 는 찾는데 화면은 못 찾는다» 가 안 생긴다. 추가 비용은 모달 그룹 라벨 5개 |
+| ⑥ | Q info(KB) | **M3-b 에 포함**(도구 2 · 그룹 1) | Irene 이 «info 가 데이터베이스처럼 활용 가능한 것» 을 강점으로 꼽았다. 술어(`kbDocumentsListWhereByLevel`·`canAccessKbDocumentByLevel`)와 비밀 칸 판정(`searchCells`·`allowedKbIds`)이 이미 있어 새 술어 0 |
+| ⑦ | 답장 초안이 이미 있을 때 | **`CONFLICT`(덮어쓰기 없음)** | 사람이 쓰던 초안을 AI 가 조용히 지우면 글이 사라진 것으로 읽힌다. 덮어쓰기는 다음에 MEDIUM 으로 |
