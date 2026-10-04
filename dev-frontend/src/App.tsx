@@ -125,6 +125,7 @@ const SaleDetailPage = lazy(() => import('./pages/QSale/SaleDetailPage'));
 // Landing — 비로그인 외부 트래픽이 보는 영역 (HomePage 는 RootRoute 에서 직접 import)
 const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
 const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
+const LandingDetails = lazy(() => import('./pages/Landing/DetailsPage'));
 const LandingService = lazy(() => import('./pages/Landing/ServicePage'));
 const LandingDiagnosis = lazy(() => import('./pages/Landing/DiagnosisPage'));
 const LandingAbout = lazy(() => import('./pages/Landing/AboutPage'));
@@ -676,6 +677,7 @@ function ShellApp() {
         <Route path="/" element={isNativeApp() ? <NativeMarketingRedirect /> : <RootRoute />} />
         <Route path="/features" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingFeatures />} />
         <Route path="/pricing" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingPricing />} />
+        <Route path="/details" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingDetails />} />
         {/* 서비스 — 업무체계 설계·시스템 구축 (2026-08-24) */}
         <Route path="/service" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingService />} />
         {/* #426 무료 업무체계 자가진단 — 공개 */}

@@ -8,6 +8,7 @@
 ## 소개 (Landing)
 - [홈](https://planq.kr/): 서비스 개요
 - [기능](https://planq.kr/features/): Q talk · Q task · Q note · Q file · Q bill
+- [디테일](https://planq.kr/details/): 써 보면 놀라는 디테일 32가지 — ChatGPT·Claude 연동, 고객 링크 참여, 회의 중 답변 준비, 항상 위 할 일 목록, 서명 칸, 시간당 이익
 - [요금제](https://planq.kr/pricing/): 14일 무료 체험, 팀 규모별 요금제
 - [서비스](https://planq.kr/service/): 업무체계 설계 및 시스템 구축
 - [브랜드 스토리](https://planq.kr/about/)

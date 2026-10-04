@@ -81,6 +81,27 @@
       ]
     },
     {
+      "path": "/details/",
+      "changefreq": "monthly",
+      "priority": "0.8",
+      "title": {
+        "ko": "써 보면 놀라는 디테일 — PlanQ 의 작은 차이",
+        "en": "Details that surprise you — the small things in PlanQ"
+      },
+      "description": {
+        "ko": "ChatGPT 에게 말하면 업무가 생기고, 고객은 링크 하나로 들어오고, 할 일 목록이 화면 위에 떠 있습니다. PlanQ 에 이미 들어 있는 디테일 32가지.",
+        "en": "Tell ChatGPT and a task appears, clients join with one link, your task list floats on top. 32 details already built into PlanQ."
+      },
+      "h1": {
+        "ko": "써 보면 놀라는 디테일",
+        "en": "Details that surprise you"
+      },
+      "label": "디테일",
+      "sections": [
+        "detailsPage"
+      ]
+    },
+    {
       "path": "/pricing/",
       "changefreq": "monthly",
       "priority": "0.8",

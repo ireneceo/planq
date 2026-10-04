@@ -2,10 +2,10 @@
 // 컨텐츠는 실제 구현된 기능 기준 (CLAUDE.md / 메모리 / 코드).
 // 그룹 1: Q 시리즈 (핵심 5) / 그룹 2: 워크스페이스 (4) / 그룹 3: AI·분석 (3) / 그룹 4: 기반 (4)
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
+import { Container, SubHero, Eyebrow, Title, Sub, Anchors, Anchor, Group, GroupTag, GroupTitle, GroupDesc, SmallCard, SmallName, SmallLead, CtaBand, CtaTitle, CtaSub, CtaBtn } from '../../components/Landing/landingSections';
 import { useReveal } from '../../hooks/useReveal';
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
@@ -228,70 +228,7 @@ const FeaturesPage: React.FC = () => {
 export default FeaturesPage;
 
 // ─── styled ───
-const Container = styled.div`max-width: 1080px; margin: 0 auto; padding: 0 24px; @media (max-width: 640px) { padding: 0 16px; }`;
-const SubHero = styled.section`
-  padding: 96px 0 56px;
-  background: linear-gradient(180deg, #F0FDFA 0%, #FFFFFF 100%);
-  text-align: center;
-`;
-const Eyebrow = styled.div`
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.8125rem; font-weight: 500; color: #0D9488;
-  letter-spacing: 3px; margin-bottom: 16px;
-`;
-const Title = styled.h1`
-  font-size: 2.75rem; font-weight: 700; color: #0F172A;
-  line-height: 1.3; word-break: keep-all; margin-bottom: 20px;
-  @media (max-width: 768px) { font-size: 2rem; }
-`;
-const Sub = styled.p`
-  font-size: 1.0625rem; font-weight: 300; color: #64748B;
-  line-height: 1.7; max-width: 720px; margin: 0 auto;
-  word-break: keep-all;
-`;
-const Anchors = styled.div`
-  margin-top: 32px;
-  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
-`;
-const Anchor = styled.a`
-  height: 36px; padding: 0 16px;
-  display: inline-flex; align-items: center;
-  background: #FFFFFF; color: #0D9488;
-  border: 1px solid #99F6E4; border-radius: 999px;
-  font-size: 0.8125rem; font-weight: 500; text-decoration: none;
-  transition: background 0.15s, transform 0.15s;
-  &:hover { background: #F0FDFA; transform: translateY(-1px); }
-`;
 
-const Group = styled.section<{ $bg?: 'bg' | 'dark' }>`
-  padding: 96px 0;
-  background: ${p => p.$bg === 'dark' ? '#0F172A' : p.$bg === 'bg' ? '#FAFBFC' : '#FFFFFF'};
-  ${p => p.$bg === 'dark' && `color: #FFFFFF;`}
-  scroll-margin-top: 80px;
-  .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.7s ease-out, transform 0.7s ease-out; }
-  .reveal.in { opacity: 1; transform: none; }
-  @media (max-width: 768px) { padding: 64px 0; }
-`;
-const GroupTag = styled.div<{ $light?: boolean }>`
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.8125rem; font-weight: 500;
-  color: ${p => p.$light ? '#5EEAD4' : '#0D9488'};
-  letter-spacing: 3px; margin-bottom: 12px;
-`;
-const GroupTitle = styled.h2<{ $light?: boolean }>`
-  font-size: 2.25rem; font-weight: 700;
-  color: ${p => p.$light ? '#FFFFFF' : '#0F172A'};
-  letter-spacing: -0.6px; margin: 0 0 16px;
-  word-break: keep-all;
-  @media (max-width: 768px) { font-size: 1.75rem; }
-`;
-const GroupDesc = styled.p<{ $light?: boolean }>`
-  font-size: 1rem; font-weight: 300;
-  color: ${p => p.$light ? '#94A3B8' : '#64748B'};
-  line-height: 1.7; max-width: 720px;
-  word-break: keep-all;
-  margin-bottom: 48px;
-`;
 
 // Q Series block (큰)
 const FeatureBlock = styled.div<{ $alt?: boolean }>`
@@ -461,37 +398,4 @@ const DarkItem = styled.li`
 `;
 
 // Foundation small card
-const SmallCard = styled.div`
-  padding: 24px 22px;
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0; border-radius: 12px;
-  display: flex; flex-direction: column; gap: 8px;
-  transition: opacity 0.7s ease-out, transform 0.7s ease-out, border-color 0.2s;
-  &:hover { border-color: #99F6E4; }
-`;
-const SmallName = styled.h3`
-  font-size: 0.9375rem; font-weight: 700; color: #0F172A; margin: 0;
-`;
-const SmallLead = styled.p`
-  font-size: 0.8125rem; color: #64748B; line-height: 1.7;
-  margin: 0; word-break: keep-all;
-`;
 
-const CtaBand = styled.section`
-  padding: 96px 0;
-  background: linear-gradient(160deg, #0F172A 0%, #134E4A 100%);
-  color: #FFFFFF; text-align: center;
-  ${Container} { display: flex; flex-direction: column; align-items: center; gap: 16px; }
-`;
-const CtaTitle = styled.h2`font-size: 2rem; font-weight: 700; line-height: 1.4; margin: 0; word-break: keep-all; @media (max-width: 768px) { font-size: 1.5rem; }`;
-const CtaSub = styled.p`font-size: 0.9375rem; color: #94A3B8; font-weight: 300; margin: 0;`;
-const CtaBtn = styled(Link)`
-  margin-top: 12px;
-  padding: 16px 48px; border-radius: 999px;
-  background: #14B8A6; color: #FFFFFF;
-  font-size: 1rem; font-weight: 500;
-  text-decoration: none;
-  transition: all 0.3s;
-  box-shadow: 0 0 40px rgba(20,184,166,0.3);
-  &:hover { background: #0D9488; transform: translateY(-2px); }
-`;

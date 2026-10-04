@@ -6,6 +6,8 @@ import styled, { keyframes, css } from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
+import { SmallCard, SmallName, SmallLead } from '../../components/Landing/landingSections';
+import { HOME_DETAIL_IDS } from '../../components/Landing/details';
 
 const Q_SERIES = ['talk', 'task', 'note', 'mail', 'sale', 'docs', 'calendar', 'file', 'project', 'bill'] as const;
 const PROBLEM_ITEMS = [
@@ -225,6 +227,26 @@ const HomePage: React.FC = () => {
                 </TargetItem>
               ))}
             </TargetGrid>
+          </Reveal>
+        </Container>
+      </Section>
+
+      {/* 써 보면 놀라는 디테일 — 6장 + 전부 보기(/details/). 목록 정본은 components/Landing/details */}
+      <Section $bg="bg">
+        <Container>
+          <Reveal as="div"><SectionTag>{t('detailsPage.eyebrow')}</SectionTag></Reveal>
+          <Reveal as="h2"><SectionTitle>{t('detailsPage.homeTitle')}</SectionTitle></Reveal>
+          <Reveal as="p"><SectionDesc>{t('detailsPage.homeSub')}</SectionDesc></Reveal>
+          <Reveal>
+            <DetailGrid>
+              {HOME_DETAIL_IDS.map((id) => (
+                <SmallCard key={id} data-testid={`landing-detail-${id}`}>
+                  <SmallName>{t(`detailsPage.items.${id}.title`)}</SmallName>
+                  <SmallLead>{t(`detailsPage.items.${id}.body`)}</SmallLead>
+                </SmallCard>
+              ))}
+            </DetailGrid>
+            <DetailMore to="/details" data-testid="landing-details-more">{t('detailsPage.homeMore')} →</DetailMore>
           </Reveal>
         </Container>
       </Section>
@@ -606,6 +628,15 @@ const TargetItem = styled.div`
 `;
 
 // ===== Final CTA =====
+const DetailGrid = styled.div`
+  margin-top: 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; text-align: left;
+  @media (max-width: 1024px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 640px) { grid-template-columns: minmax(0, 1fr); }
+`;
+const DetailMore = styled(Link)`
+  display: inline-flex; margin-top: 24px; font-size: 0.9375rem; font-weight: 600; color: #0D9488; text-decoration: none;
+  &:hover { text-decoration: underline; }
+`;
 const CtaSection = styled.section`
   padding: 120px 24px;
   text-align: center;

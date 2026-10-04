@@ -5410,3 +5410,9 @@ Host/X-Forwarded 위조 불변 · remoteIo → 3004 loopback · /connect/agent·
 Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인 계정 0, owner 대조군 열림) · 워크스페이스 격리 NOT_FOUND · 기존 grant scope 거절+재연결 hint · 체크 안 하면 미부여 · 스위치 OFF 403/호출 거절 · qmail 메뉴 · 고객 토큰 거절 ·
 응답 원문 152KB 에 비밀·html 0 · 금액 0 · 프롬프트 주입 문구 · 읽음 불변 · 재동의 모달 실렌더 · guard 61/62 · health 49/49 · agentconsent·tenant 0 실패 · 빌드 EXIT 0. 설계 이탈 8건 전부 타당 판정.
 **배포 절차**: 코드 배포(MCP reload 포함) → scopes_supported 에 mail:read 확인 → 운영 privacy_version 1.1→1.2 수동 → 기존 연결은 재연결해야 메일.
+
+## 2026-10-04 · 공개 페이지 «써 보면 놀라는 디테일»(/details/) + 홈 디테일 6 · [Opus] Fable 미검증(자체 검증)
+**판정**: R=0(공개 마케팅 화면·문구 — 데이터·권한 무관, 공개 표면은 정적 콘텐츠) · S=0 · F=1(실브라우저 좌표·프리렌더 본문) → 자체 검증.
+**변경**: DetailsPage + 카드 정본 `components/Landing/details.ts` · 기능 페이지 공용 섹션을 `components/Landing/landingSections.tsx` 로 추출(값 무변경) · 홈 섹션 · App 라우트 · publicSurface · seo-pages.json · llms.txt.
+**자체 검증**: 빌드 EXIT 0 · error TS 0 · 3폭(390/820/1440) × 비로그인/로그인 — 카드 32 · 열 1/2/3 · 가로 넘침 0 · 첫 카드 elementFromPoint · 키 노출 0 · 탭 필터(AI 4) · [사용법] 은 보는 사람이 열 수 있는 글만(비로그인 4 / 로그인 16) · [바로 써 보기] 로그인만 25 · 페이지 오류 0 · 홈 6장+전부 보기 · OAI-SearchBot 프리렌더 본문 32장 포함 · sitemap 등록.
+**관찰**: 사용법 도움말 대부분이 authenticated 라 비로그인 방문자·검색·AI 가 못 읽는다(공개 전환은 Irene 결정 대기).
