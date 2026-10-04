@@ -183,6 +183,8 @@ router.delete('/disconnect/:provider/:businessId', authenticateToken, checkBusin
     const row = await BusinessCloudToken.findOne({ where: { business_id: businessId, provider } });
     if (row) await require('../services/cloudTokenCrypto').revokeCloudToken(row);
     await BusinessCloudToken.destroy({ where: { business_id: businessId, provider } });
+    // 연결을 끊으면 내려받기 캐시본도 지운다 — 캐시 조회가 토큰 확인보다 앞이라 남겨 두면 해제 뒤에도 Drive 파일이 내려간다
+    if (provider === 'gdrive') require('../services/driveCache').dropBusiness(businessId);
     // 주의: 외부 클라우드의 실제 파일/이벤트는 그대로 남음 (의도된 동작)
     // 사이클 N+21 — audit
     require('../services/auditService').logAudit(req, {

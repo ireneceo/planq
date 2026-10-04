@@ -65,24 +65,9 @@ async function assertMember(userId, businessId, isPlatformAdmin) {
   return assertMemberOrAbove(userId, businessId, isPlatformAdmin ? 'platform_admin' : null);
 }
 
-/**
- * 문서를 **읽을 수 있는가** — 본문 조회와 서명본이 **같은 판정**을 쓴다 (2026-09-22).
- *
- * ★ 서명본(`/signed-html`)을 처음엔 `assertMember` 로 막았는데, 본문은 고객(Client)에게도 열린다.
- *   그러면 고객이 자기 계약서를 앱에서 열었을 때 **본문은 보이는데 서명 칸만 «서명 전»** 으로 남는다 —
- *   사용자에게는 "내가 서명했는데 안 들어갔다" 로 읽힌다(memory feedback_predicate_must_match_both_sides).
- *   판정을 두 벌로 두지 않는다.
- */
-async function canReadPost(user, post) {
-  const scope = await getUserScope(user.id, post.business_id, user.platform_role);
-  // 사이클 N+9: 옵션 A — vlevel 단계별 권한.
-  // Client 는 옛 헬퍼 사용 (project-client 자기 프로젝트 post 만).
-  if (scope.isClient) {
-    const { canAccessPost } = require('../middleware/access_scope');
-    return await canAccessPost(user.id, post, scope);
-  }
-  return await canAccessPostByLevel(user.id, post, scope);
-}
+// 문서를 **읽을 수 있는가** — services/postAccess.canReadPost 한 벌(2026-10-04 AI 에이전트 M3-b 에서 옮겼다, 동작 무변경).
+//   본문·서명본·복사·공유·첨부 연결·Q info 가져오기·AI 앱 get_document 가 같은 함수를 쓴다.
+const { canReadPost } = require('../services/postAccess');
 
 // 워크스페이스 + client 통합 (조회 액션용)
 async function assertWorkspaceOrClient(userId, businessId, platformRole) {
@@ -1968,7 +1953,7 @@ router.get('/public/:token/attachments/:attId/download', async (req, res, next) 
     // Content-Disposition 는 ASCII only 라 한글 깨짐 → 직접 헤더 설정.
     res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
     if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
-    return body.stream.pipe(res);
+    return require('../services/attachmentStorage').sendAttachmentBody(res, body, 'posts/public-attachment');
   } catch (err) { next(err); }
 });
 

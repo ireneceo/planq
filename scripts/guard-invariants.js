@@ -924,6 +924,64 @@ function checkAgentSurface() {
     if (!/Client\.findOne\(\{\s*where:\s*\{\s*id:\s*a\.client_id,\s*business_id:\s*p\.businessId/.test(ds)) bad.push('services/agent/tools/directory.js: 고객 조회가 business_id: p.businessId 로 묶이지 않음');
     if (!/Project\.findOne\(\{\s*where:\s*\{\s*id:\s*(a\.project_id|projectId),\s*business_id:\s*p\.businessId/.test(ds)) bad.push('services/agent/tools/directory.js: 프로젝트 조회가 business_id: p.businessId 로 묶이지 않음');
   }
+  // M3-b/c(설계 docs/AI_AGENT_M3_DESIGN.md §4.4·§5·§6·§3.4) — 문서·파일·Q info·회의록·통합 검색·출처·답장 초안.
+  //   각 줄은 «빼면 무엇이 새는가» 를 말한다. 양성 대조군(한 줄 지우기)으로 빨간불이 켜지는 것을 확인했다.
+  const strip = (f) => read(f).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+  const contentTool = path.join(dir, 'tools/content.js');
+  if (fs.existsSync(contentTool)) {
+    const cs = strip(contentTool);
+    const need = [
+      [/Post\.findOne\(\{\s*where:\s*\{\s*id:\s*a\.post_id,\s*business_id:\s*p\.businessId\s*\}/, 'get_document 가 business_id: p.businessId 로 묶이지 않음 — 남의 워크스페이스 문서가 열린다'],
+      [/canReadPost\(/, 'get_document 가 canReadPost(문서 읽기 술어)를 지나지 않음 — 남의 개인(L1) 문서가 열린다'],
+      [/postListWhereByLevel\(scope\),\s*\{\s*business_id:\s*p\.businessId\s*\}/, 'search_documents 가 postListWhereByLevel + business_id 로 묶이지 않음'],
+      [/fileListWhereByLevel\(scope\),\s*\{\s*business_id:\s*p\.businessId\s*\}/, 'list_files 가 fileListWhereByLevel + business_id 로 묶이지 않음'],
+      [/KbDocument\.findOne\(\{\s*where:\s*\{\s*id:\s*a\.kb_id,\s*business_id:\s*p\.businessId\s*\}/, 'get_knowledge_item 이 business_id: p.businessId 로 묶이지 않음'],
+      [/canAccessKbDocumentByLevel\(/, 'get_knowledge_item 이 Q info 읽기 술어를 지나지 않음 — 남의 «나만 보기» 항목이 열린다'],
+      [/kbDocumentsListWhereByLevel\(scope\)/, 'search_knowledge 가 Q info 목록 술어를 쓰지 않음'],
+      [/type === 'secret'/, 'get_knowledge_item 이 비밀(secret) 칸 값을 가리지 않음'],
+      [/matchesNonSecretCell\(/, 'search_knowledge 칸 값 검색이 비밀 칸을 빼는 판정을 쓰지 않음 — 비밀 값으로 검색이 된다'],
+      [/allowedKbIds\(/, 'search_knowledge 칸 값 후보(raw SQL)를 권한 술어로 다시 거르지 않음'],
+      [/blocksExternalShare\(/, '보안등급(internal·confidential) 판정이 없음 — 본문이 외부 AI 로 나간다'],
+      [/readNote\(\{\s*businessId:\s*p\.businessId,\s*userId:\s*p\.userId/, 'get_meeting_note 가 토큰의 워크스페이스·사람으로 q-note 에 묻지 않음'],
+    ];
+    for (const [re, msg] of need) if (!re.test(cs)) bad.push(`services/agent/tools/content.js: ${msg}`);
+    if (/\bcustom_values\b[^\n]*\bitems\b|value:\s*raw\b/.test(cs)) bad.push('services/agent/tools/content.js: Q info 칸 값을 판정 없이 그대로 내보냄');
+  }
+  const searchTool = path.join(dir, 'tools/search.js');
+  if (fs.existsSync(searchTool)) {
+    const ss = strip(searchTool);
+    if (!/buildScopedWheres\(p\.userId,\s*p\.businessId/.test(ss)) bad.push('services/agent/tools/search.js: search_all 이 토큰의 사람·워크스페이스로 범위를 만들지 않음');
+    if (!/workspaceMailAllowed\(/.test(ss)) bad.push('services/agent/tools/search.js: mail 그룹이 워크스페이스 메일 스위치를 보지 않음');
+    if (!/\(p\.scopes \|\| \[\]\)\.includes\(scope\)/.test(ss)) bad.push('services/agent/tools/search.js: 그룹별 scope 판정이 없음 — 메일 권한 없는 연결에 메일이 나간다');
+    if (!/assertMenu\(p,\s*menu/.test(ss)) bad.push('services/agent/tools/search.js: 그룹별 메뉴 Layer 판정이 없음');
+  }
+  const srcTool = path.join(dir, 'tools/sources.js');
+  if (fs.existsSync(srcTool)) {
+    const ss = strip(srcTool);
+    if (!/mail\.mailGate\(p\)/.test(ss) || !/mail\.loadThread\(p,\s*source\.thread_id,\s*acctIds\)/.test(ss)) bad.push('services/agent/tools/sources.js: 출처 메일을 계정 격리(mailGate + loadThread)로 확인하지 않음 — 읽지 못하는 메일이 출처로 붙는다');
+    if (!/includes\('mail:read'\)/.test(ss)) bad.push('services/agent/tools/sources.js: 출처 메일에 mail:read 권한 확인이 없음');
+    if (!/canAccessConversation\(/.test(ss)) bad.push('services/agent/tools/sources.js: 출처 채팅을 읽기 술어로 확인하지 않음');
+  }
+  if (fs.existsSync(mailTool)) {
+    const ms = strip(mailTool);
+    // 답장 초안 — 받는 사람·발신은 모델이 정하지 않는다(서버가 원 스레드에서). 모델 HTML 을 저장하지 않는다.
+    if (!/loadThread\(p,\s*a\.thread_id,\s*acctIds\)/.test(ms)) bad.push('services/agent/tools/mail.js: 답장 초안이 계정 격리된 스레드에서만 만들어지지 않음');
+    const draftFn = ms.slice(ms.indexOf('async function createMailReplyDraft'), ms.indexOf('module.exports'));
+    if (!draftFn.includes('upsertDraft(')) bad.push('services/agent/tools/mail.js: 답장 초안이 services/mailDrafts.upsertDraft(사람과 같은 문)를 지나지 않음');
+    if (/(to_emails|cc_emails|bcc_emails|account_id|subject):\s*a\./.test(draftFn)) bad.push('services/agent/tools/mail.js: 답장 초안의 받는 사람·발신·제목을 모델 입력에서 받음 — 서버가 원 스레드에서 정해야 한다');
+    if (/body_html:\s*a\./.test(draftFn)) bad.push('services/agent/tools/mail.js: 모델이 보낸 HTML 을 그대로 저장함 — 평문 이스케이프만');
+    if (!/'draft_exists'/.test(ms)) bad.push('services/agent/tools/mail.js: 기존 초안 덮어쓰기 방지(CONFLICT draft_exists)가 없음');
+  }
+  // 사람 검색과 search_all 이 같이 쓰는 새 다섯 그룹 — 워크스페이스·계정 묶음
+  const scopeSvc = path.join(ROOT, 'dev-backend/services/searchScope.js');
+  if (fs.existsSync(scopeSvc)) {
+    const ss = strip(scopeSvc);
+    if (!/accessibleAccountIds\(ctx\.businessId,\s*ctx\.userId\)/.test(ss)) bad.push('services/searchScope.js: 메일 그룹이 계정 격리(accessibleAccountIds) 없이 찾는다 — 남의 개인 메일이 검색된다');
+    if (!/calendarListWhere\(ctx\.userId,\s*ctx\.businessId/.test(ss)) bad.push('services/searchScope.js: 일정 그룹이 캘린더 목록 술어를 쓰지 않음');
+    if (!/projectNoteVisibleWhere\(ctx\.userId\)/.test(ss) || !/visibility:\s*'personal',\s*author_user_id:\s*userId/.test(ss)) bad.push('services/searchScope.js: 프로젝트 메모 그룹이 «남의 개인 메모 제외» 술어를 쓰지 않음');
+    if (!/where:\s*\{\s*business_id:\s*ctx\.businessId\s*\},\s*required:\s*true/.test(ss)) bad.push('services/searchScope.js: 프로젝트 메모 그룹이 워크스페이스(프로젝트 조인)로 묶이지 않음');
+    if (!/\{\s*business_id:\s*ctx\.businessId\s*\},\s*\{\s*deleted_at:\s*null\s*\}/.test(ss)) bad.push('services/searchScope.js: 상담 그룹이 business_id 로 묶이지 않음');
+  }
   const pna = path.join(ROOT, 'dev-backend/services/actions/project_note_actions.js');
   if (fs.existsSync(pna) && !/params\.businessId && Number\(project\.business_id\) !== Number\(params\.businessId\)/.test(read(pna))) {
     bad.push('services/actions/project_note_actions.js: businessId 묶음 판정이 없음 — AI 경로가 남의 워크스페이스 프로젝트에 쓴다');

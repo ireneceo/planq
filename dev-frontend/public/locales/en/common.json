@@ -477,7 +477,12 @@
       "conversations": "Chat",
       "knowledge": "Knowledge",
       "clients": "Client",
-      "projects": "Project"
+      "projects": "Project",
+      "mail": "Mail",
+      "events": "Events",
+      "interactions": "Consultations",
+      "project_notes": "Project notes",
+      "meeting_notes": "Meeting notes"
     },
     "recent": "Recent",
     "cueBadge": "Cue",
@@ -512,7 +517,8 @@
       "table": "table cell",
       "value": "field value",
       "number": "number",
-      "url": "URL"
+      "url": "URL",
+      "location": "location"
     }
   },
   "attach": {
@@ -1287,5 +1293,20 @@
       "weakestN": "weakest {{n}}",
       "failed": "Couldn't load stats"
     }
+  },
+  "downloadTray": {
+    "aria": "Download progress",
+    "preparing": "Starting…",
+    "progress": "{{pct}}% · {{got}} / {{total}}",
+    "received": "{{got}} received",
+    "saving": "Saving…",
+    "done": "Done",
+    "cancel": "Cancel",
+    "dismiss": "Dismiss",
+    "retry": "Try again",
+    "errMissing": "The original file could not be found",
+    "errDrive": "Could not fetch from Google Drive. Please check the connection",
+    "errForbidden": "You don't have permission to download this file",
+    "errGeneric": "Could not download. Please try again"
   }
 }

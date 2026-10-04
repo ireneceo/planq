@@ -13,7 +13,7 @@ import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { isPublicSurfacePath } from '../../utils/publicSurface';
-import { isPopoutWindow } from '../../utils/popout';
+import { isPopoutWindow, canOpenSeparateWindow } from '../../utils/popout';
 import { openPopout, type PinTool } from '../../utils/pinHost';
 import { tabStore } from '../../stores/tabStore';
 import VoiceCaptureSheet from './VoiceCaptureSheet';
@@ -31,8 +31,12 @@ export const openDockTool = (tool: DockTool) => {
  *  한쪽만 고쳐진 채 갈라진다 — openDockTool 은 **모바일 폴백 전용**이라 그것만
  *  부르면 데스크탑에서 아무 일도 안 일어난다(실측). */
 export const launchDockTool = (tool: DockTool) => {
-  const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
-  if (isMobile) { openDockTool(tool); return; }
+  // 창을 못 여는 곳(폰 폭·앱 안 — 아이패드 앱 포함)은 앱 안에서 연다. 판정은 utils/popout 한 곳.
+  if (!canOpenSeparateWindow()) {
+    if (tool === 'qtalk') { tabStore.navigateActive('/talk'); return; }
+    if (tool === 'qtask') { tabStore.navigateActive('/tasks'); return; }
+    openDockTool(tool); return;
+  }
   openPopout(tool);
 };
 
@@ -109,7 +113,7 @@ const RightDock: React.FC = () => {
   //   옛 동작은 `navigate()` = **활성 탭의 경로를 갈아치움**. 채팅을 보다가 +업무를 누르면
   //   보고 있던 채팅 탭이 /tasks 로 바뀌어 사라졌다. 브라우저 탭 모델에서 "빠른 만들기" 가
   //   지금 보던 것을 없애는 것은 맞지 않다 → 새 탭으로 연다(tabStore.newTab).
-  //   모바일은 탭 모델이 아니므로 기존처럼 인앱 이동(아래 handlePick 의 모바일 분기와 같은 기준).
+  //   모바일은 탭 모델이 아니므로 기존처럼 인앱 이동.
   const handleCreate = (kind: 'task' | 'mail' | 'event') => {
     setExpanded(false);
     const path = kind === 'task' ? '/tasks?create=1'
@@ -122,13 +126,6 @@ const RightDock: React.FC = () => {
 
   const handlePick = (tool: DockTool) => {
     setExpanded(false);
-    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
-    if (isMobile) {
-      // 모바일 — 별도 창 대신 in-app.
-      //   qtask 의 정식 모바일 표면은 /tasks (같은 파일 handleCreate('task') 와 동일 착지).
-      if (tool === 'qtalk') { navigate('/talk'); return; }
-      if (tool === 'qtask') { navigate('/tasks'); return; }
-    }
     // 나머지는 공용 진입점 — 데스크탑 팝아웃 / 모바일 in-app 분기가 그 안에 있다.
     //   도구별 고유 창 이름이라 넷 다 동시에 떠 있을 수 있다(#43).
     //   고정하고 싶으면 그 창 위의 핀 아이콘을 누른다. 여기서는 아무것도 묻지 않는다.
@@ -174,7 +171,8 @@ const RightDock: React.FC = () => {
               data-testid={testid}
               role="menuitem"
               type="button"
-              title={t('dock.opensWindow', '새 창으로 엽니다') as string}
+              // 창을 못 여는 곳(앱·폰)에서는 «새 창» 이라고 말하지 않는다 — 앱 안에서 열린다
+              title={canOpenSeparateWindow() ? t('dock.opensWindow', '새 창으로 엽니다') as string : undefined}
               onClick={() => handlePick(tool)}
             >
               <ItemIcon $bg={bg}><Icon /></ItemIcon>

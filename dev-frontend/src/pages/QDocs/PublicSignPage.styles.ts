@@ -80,7 +80,7 @@ export const DocBody = styled.div<{ $mySlot?: number | null }>`
   .pq-sig-cap { font-size: 0.6875rem; font-weight: 700; color: #64748B; margin-bottom: 4px; }
   .pq-sig-empty { color: #94A3B8; font-size: 0.75rem; border-bottom: 1px dashed #CBD5E1; padding-bottom: 14px; }
   .pq-sig-done { border-color: #14B8A6; background: #F0FDFA; }
-  .pq-sig-img { display: block; max-height: 64px; max-width: 220px; }
+  .pq-sig-img { display: block; max-height: 96px; max-width: min(300px, 100%); }
   .pq-sig-meta { font-size: 0.75rem; color: #334155; margin-top: 4px; }
   .pq-sig-badge { font-size: 0.625rem; color: #0F766E; margin-top: 2px; }
   .pq-sig-rejected { border-color: #FCA5A5; background: #FEF2F2; }
@@ -169,10 +169,6 @@ export const CanvasWrap = styled.div`
   display: flex; flex-direction: column;
   overflow: hidden;
   &:hover { border-color: #14B8A6; }
-`;
-export const Canvas = styled.canvas`
-  flex: 1; width: 100%; touch-action: none;
-  cursor: crosshair;
 `;
 export const CanvasPlaceholder = styled.div`
   position: absolute; inset: 0;
@@ -280,7 +276,14 @@ export const ResultHint = styled.p`font-size:0.8125rem;color:#475569;margin:8px 
 export const SignatureSnap = styled.div`
   margin-top: 12px; padding: 10px 14px;
   background: #FAFBFC; border: 1px solid #E2E8F0; border-radius: 10px;
-  & img { max-width: 240px; max-height: 100px; display: block; }
+  & img { max-width: min(320px, 100%); max-height: 140px; display: block; }
+`;
+
+// 서명 완료 뒤 갈 곳 — [서명한 문서 보기] [닫기]
+export const DoneActions = styled.div`
+  margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+  & > button { min-width: 140px; }
+  @media (max-width: 640px) { & > button { flex: 1 1 140px; min-height: 44px; } }
 `;
 
 // 로딩 / 에러

@@ -340,7 +340,11 @@
     "attachments": "Attachments ({{n}}) — part of this document",
     "scopeNotice": "You are signing the document below and its {{n}} attachment(s). The content is frozen as of the request, so what you see here is what you sign.",
     "scopeNoticeNoAttach": "You are signing the document below. The content is frozen as of the request, so what you see here is what you sign.",
-    "mySlot": "Block {{n}} in the document below is your signature space. It is outlined for you."
+    "mySlot": "Block {{n}} in the document below is your signature space. It is outlined for you.",
+    "viewSignedDoc": "View signed document",
+    "hideSignedDoc": "Hide document",
+    "close": "Close",
+    "closeManually": "This browser can't close the window automatically. Please close the tab yourself."
   },
   "sign": {
     "button": "Get signatures",

@@ -101,6 +101,7 @@ async function readFileBuffer(fileRow) {
     file_path: fileRow.file_path,
     external_id: fileRow.external_id || fileRow.file_path,
     business_id: fileRow.business_id,
+    file_size: fileRow.file_size,
   });
   if (!body.ok || !body.stream) return null;    // redirect(S3 presign)는 여기서 읽지 않는다
   const chunks = [];

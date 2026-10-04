@@ -411,6 +411,8 @@ async function uploadFile(drive, { name, mimeType, body, parentId }) {
  */
 async function deleteFile(drive, fileId) {
   await drive.files.delete({ fileId, supportsAllDrives: true, });
+  // 원본이 없어졌으면 내려받기 캐시본도 없앤다 — 삭제 경로가 여럿이라 **여기 한 곳**에서 한다.
+  try { require('./driveCache').dropByExternalId(fileId); } catch { /* 캐시 정리 실패는 삭제를 막지 않는다 */ }
 }
 
 /**
@@ -426,7 +428,34 @@ async function getFileMeta(drive, fileId) {
 
 async function getFileStream(drive, fileId) {
   // alt=media → response.data 는 stream
-  const r = await drive.files.get({ fileId, alt: 'media', supportsAllDrives: true, }, { responseType: 'stream' });
+  //
+  // ★ 2026-10-04 (Irene: *"다운로드들이 너무 느려 … % 가 보이게"*) — `Range: bytes=0-` 를 싣는다.
+  //   Range 없이 받으면 Drive 가 **바이너리까지 즉석 gzip** 해서 보낸다(`warning: 214 UploadServer gzipped`,
+  //   `transfer-encoding: chunked`). 그래서 ①Content-Length 가 없어 화면이 % 를 못 냈고
+  //   ②압축 안 되는 바이트를 압축하느라 느렸다. dev 실측 8MB: 일반 1.1~2.2초 · gzip · 길이 없음 →
+  //   Range 0.88초 · 206 · `content-length: 8388608` · sha256 동일.
+  //   ★ `Accept-Encoding: identity` 는 Drive 가 무시했다(여전히 gzip) — 그래서 Range 다.
+  //   빈 파일은 범위 요청이 416 이라 그때만 범위 없이 다시 받는다.
+  let r;
+  try {
+    r = await drive.files.get({ fileId, alt: 'media', supportsAllDrives: true, },
+      { responseType: 'stream', headers: { Range: 'bytes=0-' } });
+  } catch (e) {
+    const status = e && (e.status || e.code || (e.response && e.response.status));
+    if (Number(status) !== 416) throw e;
+    r = await drive.files.get({ fileId, alt: 'media', supportsAllDrives: true, }, { responseType: 'stream' });
+  }
+  // 길이 — **확실할 때만** 붙인다(틀린 Content-Length 는 다운로드를 잘라먹거나 멈추게 한다).
+  //   206 이면 Content-Range 의 전체 길이, 200 이면 압축되지 않았을 때의 Content-Length.
+  const h = r.headers || {};
+  const get = (k) => (typeof h.get === 'function' ? h.get(k) : h[k]);
+  let len = null;
+  const cr = get('content-range');
+  const m = cr && /\/(\d+)\s*$/.exec(String(cr));
+  const enc = String(get('content-encoding') || '').toLowerCase();
+  if (r.status === 206 && m && !enc) len = Number(m[1]);
+  else if (r.status === 200 && !enc && get('content-length')) len = Number(get('content-length'));
+  if (Number.isFinite(len) && len >= 0) r.data.contentLength = len;
   return r.data;
 }
 

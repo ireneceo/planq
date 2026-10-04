@@ -192,10 +192,16 @@ const ImageLightbox: React.FC<Props> = ({ items, initialIndex = 0, src, alt, onC
       const urlPath = new URL(current.src, window.location.origin).pathname;
       const lastSeg = urlPath.split('/').filter(Boolean).pop() || '';
       const filename = current.alt || (lastSeg && lastSeg.includes('.') ? lastSeg : `${lastSeg || 'image'}.png`);
-      const r = await fetch(current.src, { credentials: 'include' });
-      if (!r.ok) throw new Error(`download failed ${r.status}`);
-      const blob = await r.blob();
-      await downloadBlob(blob, filename);
+      if (/^(blob|data):/i.test(current.src)) {
+        // 이미 메모리에 있는 이미지 — 받을 것이 없다(진행 표시 불필요)
+        const r = await fetch(current.src);
+        await downloadBlob(await r.blob(), filename);
+        return;
+      }
+      // 받는 일은 다운로드 매니저 한 곳 — 우측 하단 트레이에 %·MB·[취소] 가 보인다(이미지 보기 위에 뜬다).
+      //   실패는 아래 새 탭 폴백이 처리하므로 트레이에는 남기지 않는다(quietError).
+      const { startDownload } = await import('../../services/downloadManager');
+      await startDownload({ url: current.src, filename, auth: false, quietError: true });
     } catch {
       // 실패 fallback — direct anchor (브라우저가 view 처리할 수 있음)
       const a = document.createElement('a');

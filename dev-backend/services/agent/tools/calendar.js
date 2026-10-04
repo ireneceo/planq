@@ -78,16 +78,27 @@ async function createEvent(p, a, actor) {
   const start = parseIso(a.start_at, 'start_at');
   const end = parseIso(a.end_at, 'end_at');
   if (end < start) throw err('VALIDATION_ERROR', 'end_before_start');
+  // M3-c 출처(설계 §6) — 일정 표에는 출처 칸이 없다 → 읽을 수 있는 메일·업무임을 확인한 뒤 설명 끝에 원본 링크 한 줄.
+  //   프로젝트는 모델이 안 줬을 때만 그 스레드·업무의 프로젝트를 승계한다(PlanQ 가 건 연결).
+  const { resolveSource, sourceLine } = require('./sources');
+  const src = await resolveSource(p, a.source, ['mail', 'task']);
+  let description = a.description || null;
+  let projectId = a.project_id || null;
+  if (src) {
+    const line = await sourceLine(p, src.kind === 'mail' ? 'mail' : 'task', src.url);
+    description = description ? `${description}\n\n${line}` : line;
+    if (!projectId) projectId = (src.kind === 'mail' ? src.thread.project_id : src.task.project_id) || null;
+  }
   const eventActions = require('../../actions/event_actions');
   const r = await eventActions.createEvent(actor, {
     businessId: p.businessId,
     title: a.title,
-    description: a.description || null,
+    description,
     location: a.location || null,
     startAt: start.toISOString(),
     endAt: end.toISOString(),
     allDay: !!a.all_day,
-    projectId: a.project_id || null,
+    projectId,
     // 기본은 나만 보기 — AI 가 만든 일정을 팀 전체에 바로 뿌리지 않는다. 팀 공개는 사용자가 말했을 때만.
     visibility: a.visibility === 'team' ? 'business' : 'personal',
     vlevel: a.visibility === 'team' ? 'L3' : 'L1',

@@ -360,6 +360,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
         h1: a.title_ko, paragraphs: [a.summary_ko, ...blocksToParagraphs(a.body_ko)].filter(Boolean), nav,
         blocks: [...(a.summary_ko ? [{ tag: 'p', text: a.summary_ko }] : []), ...st.blocks],
         jsonld: { '@context': 'https://schema.org', '@graph': [
+          ent.org,
           ...(st.faq.length ? [faqLd(st.faq)] : []),
           { '@type': 'Article', headline: a.title_ko, description: desc, url: loc, inLanguage: 'ko', datePublished: a.blog_published_at, dateModified: a.updatedAt, author: org, publisher: org },
           breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: '인사이트', path: '/insights/' }, { name: a.title_ko, path: `/insights/${encodeURIComponent(a.slug)}/` }]),
@@ -384,6 +385,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
         jsonld: { '@context': 'https://schema.org', '@graph': [
           // 같은 글이 인사이트에 있으면 FAQ 는 대표 주소(인사이트) 한 곳에만 — 중복 FAQ 는 검색엔진이 싫어한다
           ...(st.faq.length && canonical === own ? [faqLd(st.faq)] : []),
+          ent.org,
           { '@type': 'TechArticle', headline: a.title_ko, description: desc, url: canonical, inLanguage: 'ko', dateModified: a.updatedAt, publisher: org },
           breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: '도움말', path: '/guide/' }, { name: a.title_ko, path: `/guide/a/${encodeURIComponent(a.slug)}/` }]),
         ] },

@@ -5,6 +5,7 @@
 //   «누가 연결할 수 있나» 는 서버(services/agent_oauth/grants.canConnect)가 정한다 — 화면은 받은 목록만 보여준다.
 //   메일 읽기(M3-a, 설계 docs/AI_AGENT_M3_DESIGN.md §3.1)는 묶음과 따로 체크박스 하나(기본 꺼짐). 켜면 **보일 계정**을 그 자리에
 //   그린다 — 어디로 가는지 모르면 확인할 수 없다. 워크스페이스가 꺼 뒀거나 계정이 없으면 비활성 + 이유. 서버도 같은 조건을 다시 본다.
+//   답장 초안 허용(M3-c)은 그 아래 체크박스 하나(기본 꺼짐) — 메일 읽기를 켜야 켤 수 있다. 보내기는 언제나 사람이 PlanQ 에서 한다.
 //   앱 틀(사이드바·탭) 밖의 단독 화면이다(초대 수락 화면과 같은 자리).
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
@@ -37,6 +38,8 @@ const AgentConsentPage: React.FC = () => {
   const [bizId, setBizId] = useState<number | null>(null);
   const [access, setAccess] = useState<'read' | 'write'>('write');
   const [mail, setMail] = useState(false);
+  // 답장 초안(M3-c, 설계 §3.4) — 메일 읽기를 켜야 켤 수 있다(초안은 그 스레드를 읽어야 만든다). 기본 꺼짐.
+  const [drafts, setDrafts] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -64,7 +67,10 @@ const AgentConsentPage: React.FC = () => {
     : !ws.mail?.enabled ? 'mailDisabledByWorkspace'
       : !(ws.mail?.accounts || []).length ? 'mailNoAccounts' : null;
   // 워크스페이스를 바꾸면 계정 목록이 달라진다 — 앞 워크스페이스에서 켠 체크를 그대로 들고 가지 않는다
-  useEffect(() => { setMail(false); }, [bizId]);
+  useEffect(() => { setMail(false); setDrafts(false); }, [bizId]);
+  const mailOn = mail && !mailBlocked;
+  // 메일 읽기를 끄면 초안도 같이 꺼진다 — 체크가 남아 있으면 «켠 줄 알고» 연결한다
+  useEffect(() => { if (!mailOn) setDrafts(false); }, [mailOn]);
 
   const submit = async (approve: boolean) => {
     if (submitting || (approve && !bizId)) return;
@@ -72,7 +78,7 @@ const AgentConsentPage: React.FC = () => {
     try {
       const r = await apiFetch('/api/agent/oauth/consent', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: requestId, business_id: bizId, access, approve, mail: approve && mail && !mailBlocked }),
+        body: JSON.stringify({ request_id: requestId, business_id: bizId, access, approve, mail: approve && mailOn, mail_drafts: approve && mailOn && drafts }),
       });
       const j = await r.json();
       if (!j.success || !j.data?.redirect) { setError(j.message === 'request_expired' ? 'expired' : 'failed'); setSubmitting(false); return; }
@@ -143,6 +149,15 @@ const AgentConsentPage: React.FC = () => {
                   <Small>{t('agentConsent.mailTransferNote')}</Small>
                 </Accounts>
               )}
+              <Choice $on={mailOn && drafts} $disabled={!mailOn} data-testid="agent-consent-drafts">
+                <input type="checkbox" checked={mailOn && drafts} disabled={!mailOn}
+                  onChange={(e) => setDrafts(e.target.checked)} data-testid="agent-consent-drafts-check" />
+                <span>
+                  <strong>{t('agentConsent.draftTitle')}</strong>
+                  <small>{t('agentConsent.draftBody')}</small>
+                  {!mailOn && <Reason data-testid="agent-consent-drafts-reason">{t('agentConsent.draftNeedsMail')}</Reason>}
+                </span>
+              </Choice>
             </Field>
             <Note>{t('agentConsent.note')} {t('agentConsent.dataNote')}</Note>
             <Actions>

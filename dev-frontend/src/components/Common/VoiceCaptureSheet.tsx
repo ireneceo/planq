@@ -6,12 +6,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useChromeNav } from '../../hooks/useChromeNav';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import ActionButton from './ActionButton';
-import { parseVoiceWhen, type VoiceHandoff, type VoiceKind } from '../../utils/voiceHandoff';
+import { parseVoiceWhen, stashVoiceHandoff, type VoiceHandoff, type VoiceKind } from '../../utils/voiceHandoff';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
 const MAX_SECONDS = 30;
@@ -47,7 +47,8 @@ interface Props { onClose: () => void; }
 export default function VoiceCaptureSheet({ onClose }: Props) {
   const { t, i18n } = useTranslation('common');
   const { user } = useAuth();
-  const navigate = useNavigate();
+  // ★ useNavigate 금지 — 탭 모드에서 이 시트는 라우터 밖에 뜬다(utils/voiceHandoff 아래 절)
+  const navigate = useChromeNav();
   const businessId = user?.business_id ? Number(user.business_id) : null;
 
   const [stage, setStage] = useState<Stage>('idle');
@@ -170,9 +171,10 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
     //   `setSearchParams(..., {replace:true})` 가 **state 까지 같이 소거**하므로 별도 정리 navigate 는 없다
     //   (react-router 의 setSearchParams 는 state 를 넘기지 않는다 — 넣으면 오히려 지운 파라미터가 되살아난다).
     const handoff: VoiceHandoff = { ...intent, text };
-    if (intent.kind === 'task') navigate('/tasks?create=1', { state: { voice: handoff } });
-    else if (intent.kind === 'event') navigate('/calendar?create=1', { state: { voice: handoff } });
-    else if (intent.kind === 'mail') navigate('/mail?compose=1', { state: { voice: handoff } });
+    if (intent.kind !== 'memo') stashVoiceHandoff(handoff);
+    if (intent.kind === 'task') navigate('/tasks?create=1');
+    else if (intent.kind === 'event') navigate('/calendar?create=1');
+    else if (intent.kind === 'mail') navigate('/mail?compose=1');
     // 메모는 Q Note 로. `/memo` 는 라우트가 아니다(`/memo/:id` 는 기존 메모의 분리 창) —
     //   베이스 경로로 보내면 catch-all 이 대시보드로 튕겼다. PWA 공유 수신(ShareReceivePage)과
     //   같은 `/notes?prefill=` 착지점으로 통일하고, QNotePage 가 그 파라미터를 읽어

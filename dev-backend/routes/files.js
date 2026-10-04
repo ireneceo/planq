@@ -248,7 +248,8 @@ router.get('/public/by-token/:token/download', async (req, res, next) => {
       inline,
       disposition: `inline; filename*=UTF-8''${encodeURIComponent(file.file_name)}`,
     });
-    body.stream.pipe(res);
+    // 로컬·캐시본은 sendFile(Range·길이), Drive 첫 다운로드는 길이를 실은 스트림 — services/attachmentStorage 한 곳.
+    return require('../services/attachmentStorage').sendAttachmentBody(res, body, 'files/by-token');
   } catch (err) { next(err); }
 });
 
@@ -318,12 +319,7 @@ router.get('/public-image/:storedName', async (req, res, next) => {
     //   sandbox CSP + attachment 로 떨어뜨린다 (services/fileServing 단일 판정).
     require('../services/fileServing').applyFileResponseHeaders(res, file, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    body.stream.on('error', (e) => {
-      console.error('[files] public image stream error:', e.message);
-      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
-      else res.destroy();
-    });
-    body.stream.pipe(res);
+    return require('../services/attachmentStorage').sendAttachmentBody(res, body, 'files/public-image');
   } catch (err) { next(err); }
 });
 
@@ -347,7 +343,7 @@ router.get('/public/:token/download', async (req, res, next) => {
     if (body2.redirect) return res.redirect(body2.redirect);
     res.setHeader('Content-Disposition', buildContentDisposition(file.file_name));
     if (file.mime_type) res.setHeader('Content-Type', file.mime_type);
-    return body2.stream.pipe(res);   // sendFile 은 로컬 경로 전용 — Drive 스트림에는 못 쓴다
+    return require('../services/attachmentStorage').sendAttachmentBody(res, body2, 'files/public-download');   // 로컬·캐시본 sendFile / Drive 는 길이 실은 스트림
   } catch (err) { next(err); }
 });
 
@@ -1642,12 +1638,13 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
     if (!bodyIn.ok) return errorResponse(res, bodyIn.msg, bodyIn.code);
     if (bodyIn.redirect) return res.redirect(bodyIn.redirect);
     if (!bodyIn.abs) {
-      // Drive 스트림 — 리사이즈·sendFile 은 로컬 경로가 있어야 하므로 그대로 흘려준다
+      // Drive 첫 다운로드 — 길이(Content-Length)를 실은 스트림. 받는 길에 디스크 캐시에도 쓴다
+      //   (services/driveCache). 두 번째부터는 캐시본이 abs 로 와서 아래 로컬 갈래(sendFile)를 탄다.
       require('../services/fileServing').applyFileResponseHeaders(res, file, {
         inline: String(req.query.inline || '') === '1',
         disposition: `inline; filename*=UTF-8''${encodeURIComponent(file.file_name)}`,
       });
-      return bodyIn.stream.pipe(res);
+      return require('../services/attachmentStorage').sendAttachmentBody(res, bodyIn, 'files/download');
     }
     const absPath = bodyIn.abs;
     // ★ 2026-08-24 (Irene: "이메일에 이미지가 첨부된게 너무 늦게 떠")
@@ -1667,7 +1664,8 @@ router.get('/:businessId/:id/download', authenticateToken, attachWorkspaceScope(
       inline: String(req.query.inline || '') === '1',
       disposition: `inline; filename*=UTF-8''${encodeURIComponent(file.file_name)}`,
     });
-    return res.sendFile(absPath);
+    // ★ absPath 가 Drive 캐시본(uploads/.cache/…)일 수 있다 — 점 폴더라 기본 sendFile 은 404. 한 곳에서 내보낸다.
+    return require('../services/attachmentStorage').sendAttachmentBody(res, bodyIn, 'files/download');
   } catch (error) {
     next(error);
   }

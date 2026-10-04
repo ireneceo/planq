@@ -14,19 +14,20 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
+import SignaturePad, { type SignaturePadHandle } from '../../components/Common/SignaturePad';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { formatPublicDateTime } from '../../utils/dateFormat';
 import { withImageCtxJson, withImageCtxHtml } from '../../utils/imageCtx';
 import {
-  ActionRow, Brand, Canvas, CanvasClear, CanvasPlaceholder, CanvasWrap, ConfirmActions, ConfirmTextArea,
+  ActionRow, Brand, CanvasClear, CanvasPlaceholder, CanvasWrap, ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
   ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, NoteBox, OtpActions, OtpInput,
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
   SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea, TopMeta, Topbar,
-  AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize,
+  AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions,
 } from './PublicSignPage.styles';
 
 interface PublicSignData {
@@ -95,11 +96,19 @@ const PublicSignPage: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
 
   // 캔버스
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const canvasCtx = useRef<CanvasRenderingContext2D | null>(null);
-  const drawing = useRef(false);
-  const hasInk = useRef(false);
+  // 그리기는 공용 서명판 한 벌(components/Common/SignaturePad) — 앱 안 서명과 같은 것.
+  //   ★ 2026-10-04 까지 이 화면만 자기 캔버스를 따로 갖고 있었다(공용 컴포넌트 머리말은 «같은 것» 이라고
+  //     적혀 있었는데 사실이 아니었다). 그래서 «꽉 채워 그렸는데 작게·위로 붙는» 수리가 여기엔 안 닿았다.
+  const padRef = useRef<SignaturePadHandle | null>(null);
   const [canvasEmpty, setCanvasEmpty] = useState(true);
+  // 서명을 마친 뒤 갈 곳 — 방금 서명한 문서(서명이 들어간 모습)를 이 화면에서 바로 연다(Irene 2026-10-04)
+  const [showSignedDoc, setShowSignedDoc] = useState(false);
+  const [closeFailed, setCloseFailed] = useState(false);
+  const tryClose = () => {
+    window.close();
+    // 메일에서 연 탭은 스크립트로 닫을 수 없는 경우가 많다 — 닫히지 않았으면 직접 닫으라고 말한다
+    window.setTimeout(() => { if (!window.closed) setCloseFailed(true); }, 300);
+  };
 
   // ─── 로드 ───
   const reload = useCallback(async (silent = false) => {
@@ -179,6 +188,8 @@ const PublicSignPage: React.FC = () => {
     }
     if (e.key === 'ArrowLeft' && idx > 0) otpRefs.current[idx - 1]?.focus();
     if (e.key === 'ArrowRight' && idx < 5) otpRefs.current[idx + 1]?.focus();
+    // Enter = 확인. 한글 조합 중 Enter 는 확정이지 실행이 아니다(숫자 칸이라도 IME 가 켜져 있을 수 있다)
+    if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); void verifyOtp(); }
   };
 
   const onOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -191,9 +202,14 @@ const PublicSignPage: React.FC = () => {
     setTimeout(() => otpRefs.current[Math.min(text.length, 5)]?.focus(), 30);
   };
 
+  const verifyingRef = useRef(false);
+  const lastAutoCodeRef = useRef<string | null>(null);
   const verifyOtp = async () => {
     const code = otpDigits.join('');
     if (code.length !== 6) { setOtpError(t('publicSign.otpIncomplete', '6자리를 모두 입력하세요') as string); return; }
+    if (verifyingRef.current) return;   // 자동 확인 + Enter/버튼이 겹쳐도 한 번만 보낸다
+    verifyingRef.current = true;
+    lastAutoCodeRef.current = code;
     setOtpVerifying(true); setOtpError(null);
     try {
       const r = await fetch(`/api/sign/${token}/verify`, {
@@ -209,75 +225,21 @@ const PublicSignPage: React.FC = () => {
       }
       setPhase('sign');
       setOtpDigits(['', '', '', '', '', '']);
-    } finally { setOtpVerifying(false); }
+    } finally { verifyingRef.current = false; setOtpVerifying(false); }
   };
 
-  // ─── 캔버스 ───
-  const setupCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#0F172A';
-    canvasCtx.current = ctx;
-  }, []);
-
+  // 6자리가 다 들어오면 확인을 누르지 않아도 바로 확인한다(요즘 인증 화면의 기본 동작 — Irene 2026-10-04).
+  //   같은 번호로 두 번 보내지 않는다 — 틀린 번호는 고쳐서 번호가 바뀔 때만 다시 확인한다(잠금 카운트 보호).
+  const otpCode = otpDigits.join('');
   useEffect(() => {
-    if (phase !== 'sign') return;
-    setupCanvas();
-    const handle = () => setupCanvas();
-    window.addEventListener('resize', handle);
-    return () => window.removeEventListener('resize', handle);
-  }, [phase, setupCanvas]);
+    // 번호 칸은 phase 'review'·'otp' 둘 다에서 보인다(아래 렌더 조건과 같은 술어) — 'otp' 만 보면 자동 확인이 영영 안 돈다(실측)
+    const otpVisible = otpSent && (phase === 'review' || phase === 'otp');
+    if (!otpVisible || otpCode.length !== 6 || lastAutoCodeRef.current === otpCode) return;
+    void verifyOtp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otpCode, phase, otpSent]);
 
-  const getPos = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    if ('touches' in e && e.touches.length > 0) {
-      return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-    }
-    if ('clientX' in e) return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    return { x: 0, y: 0 };
-  };
-
-  const startDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const ctx = canvasCtx.current; if (!ctx) return;
-    drawing.current = true;
-    const p = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(p.x, p.y);
-  };
-
-  const moveDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!drawing.current) return;
-    e.preventDefault();
-    const ctx = canvasCtx.current; if (!ctx) return;
-    const p = getPos(e);
-    ctx.lineTo(p.x, p.y);
-    ctx.stroke();
-    if (!hasInk.current) { hasInk.current = true; setCanvasEmpty(false); }
-  };
-
-  const endDraw = () => { drawing.current = false; };
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvasCtx.current;
-    if (!canvas || !ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    hasInk.current = false;
-    setCanvasEmpty(true);
-  };
+  const clearCanvas = () => { padRef.current?.clear(); };
 
   // ─── 서명 / 거절 ───
   // #239 — 확인 / 의견. apiFetch 가 아니라 공개 라우트라 fetch 직접. **res.ok 를 반드시 본다.**
@@ -312,9 +274,8 @@ const PublicSignPage: React.FC = () => {
     setSignError(null);
     if (canvasEmpty) { setSignError(t('publicSign.signRequired', '서명을 그려주세요.') as string); return; }
     if (!consent) { setSignError(t('publicSign.consentRequired', '동의를 체크해 주세요.') as string); return; }
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
+    const dataUrl = padRef.current?.toDataURL();
+    if (!dataUrl) { setSignError(t('publicSign.signRequired', '서명을 그려주세요.') as string); return; }
     setSigning(true);
     try {
       const r = await fetch(`/api/sign/${token}/sign`, {
@@ -399,7 +360,25 @@ const PublicSignPage: React.FC = () => {
             {doc.signature_image_b64 && doc.signature_image_b64 !== '(present)' && (
               <SignatureSnap><img src={doc.signature_image_b64} alt="signature" /></SignatureSnap>
             )}
+            <DoneActions>
+              {doc.entity.signed_html && (
+                <PrimaryBtn type="button" data-testid="sign-view-signed" aria-expanded={showSignedDoc}
+                  onClick={() => setShowSignedDoc((v) => !v)}>
+                  {showSignedDoc ? t('publicSign.hideSignedDoc', '문서 접기') : t('publicSign.viewSignedDoc', '서명한 문서 보기')}
+                </PrimaryBtn>
+              )}
+              <SecondaryBtn type="button" data-testid="sign-close" onClick={tryClose}>{t('publicSign.close', '닫기')}</SecondaryBtn>
+            </DoneActions>
+            {closeFailed && <ResultHint>{t('publicSign.closeManually', '이 브라우저에서는 창을 자동으로 닫을 수 없어요. 탭을 직접 닫아 주세요.')}</ResultHint>}
           </ResultCard>
+        )}
+        {signedAlready && showSignedDoc && doc.entity.signed_html && (
+          <Section data-testid="sign-signed-doc">
+            <SectionTitle>{doc.entity.title}</SectionTitle>
+            <DocBody $mySlot={doc.slot ?? null}>
+              <SignedHtml dangerouslySetInnerHTML={{ __html: sanitizeRichText(signedHtml) }} />
+            </DocBody>
+          </Section>
         )}
 
         {rejectedAlready && (
@@ -550,11 +529,11 @@ const PublicSignPage: React.FC = () => {
                 <SectionTitle>{t('publicSign.signTitle', '서명')}</SectionTitle>
                 <SectionDesc>{t('publicSign.signDesc', '아래 영역에 서명을 그려주세요. 마우스 또는 터치 모두 사용 가능합니다.')}</SectionDesc>
                 <CanvasWrap>
-                  <Canvas
-                    ref={canvasRef}
-                    onMouseDown={startDraw} onMouseMove={moveDraw} onMouseUp={endDraw} onMouseLeave={endDraw}
-                    onTouchStart={startDraw} onTouchMove={moveDraw} onTouchEnd={endDraw}
-                    aria-label={t('publicSign.canvasAria', '서명 캔버스') as string}
+                  <SignaturePad
+                    ref={padRef}
+                    bare
+                    onEmptyChange={setCanvasEmpty}
+                    ariaLabel={t('publicSign.canvasAria', '서명 캔버스') as string}
                   />
                   {canvasEmpty && <CanvasPlaceholder>{t('publicSign.canvasPlaceholder', '여기에 서명해 주세요')}</CanvasPlaceholder>}
                   <CanvasClear type="button" onClick={clearCanvas} disabled={canvasEmpty}>

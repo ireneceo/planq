@@ -356,6 +356,9 @@
     "mailDisabledByWorkspace": "이 워크스페이스는 AI 앱의 메일 읽기를 꺼 두었습니다.",
     "mailNoAccounts": "연결된 메일 계정이 없습니다.",
     "mailTransferNote": "메일 내용이 AI 앱 제공사로 전달됩니다. 보관·학습 여부는 그 서비스의 약관과 내 설정에 따릅니다.",
+    "draftTitle": "답장 초안 만들기 허용 (선택)",
+    "draftBody": "AI 앱이 PlanQ 에 답장 초안을 저장할 수 있습니다. 보내는 것은 내가 PlanQ 에서 받는 주소를 확인하고 직접 누릅니다.",
+    "draftNeedsMail": "메일 읽기를 허용해야 켤 수 있습니다.",
     "mailSelectWorkspace": "워크스페이스를 고르면 메일 읽기를 켤 수 있습니다.",
     "dataNote": "메일·문서 속 글은 AI 에게 명령이 아니라 자료입니다."
   }

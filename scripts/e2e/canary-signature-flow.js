@@ -51,12 +51,14 @@ async function draw(page, selector) {
     if (!c) return null;
     c.scrollIntoView({ block: 'center' });
     const r = c.getBoundingClientRect();
-    return { x: r.left + 24, y: r.top + r.height / 2, w: r.width };
+    return { x: r.left + 24, y: r.top + r.height / 2, w: r.width, h: r.height };
   })()`);
   if (!box) return false;
   await page.mouse.move(box.x, box.y);
   await page.mouse.down();
-  for (let i = 1; i <= 10; i++) await page.mouse.move(box.x + i * (box.w / 14), box.y + (i % 2 ? -16 : 16));
+  // 칸을 꽉 채워 그린다(실제 서명처럼) — 위아래로 칸 높이의 35%씩. 납작하게 그리면 «서명이 작다» 를 못 잰다
+  const amp = Math.max(16, Math.round((box.h || 0) * 0.35));
+  for (let i = 1; i <= 10; i++) await page.mouse.move(box.x + i * (box.w / 14), box.y + (i % 2 ? -amp : amp));
   await page.mouse.up();
   await b.sleep(250);
   return true;
@@ -204,15 +206,15 @@ async function run() {
     await b.sleep(300);
     const typed = await guest.page.evaluate(`(() => [...document.querySelectorAll('input[maxlength="1"]')].map((i) => i.value).join(''))()`);
     if (typed !== OTP) console.warn(`  [하니스] 입력된 코드가 "${typed}" 다 — 기대 ${OTP}`);
-    await b.sleep(400);
-    await guest.page.click('[data-testid="sign-otp-verify"]').catch(() => {});
-    await b.sleep(2500);
+    // ★ 2026-10-04 — 6자리가 다 들어가면 [확인] 을 안 눌러도 확인한다(Irene: "요즘은 확인버튼 안눌러도 인증처리").
+    //   그래서 여기서는 버튼을 누르지 않는다 — 누르면 자동 확인이 죽어 있어도 통과한다.
+    await b.sleep(2900);
     const signPhase = await guest.page.evaluate(`(() => {
       const c = document.querySelector('canvas');
       const submit = document.querySelector('[data-testid="sign-submit"]');
       return { canvas: c ? (${VISIBLE})(c) : { found: false }, submitDisabled: submit ? !!submit.disabled : null };
     })()`);
-    P('⑥ 맞는 인증번호 → 서명 칸이 열린다 (양성 대조군)',
+    P('⑥ 맞는 인증번호 6자리 → [확인] 없이 서명 칸이 열린다 (양성 대조군)',
       signPhase.canvas.found && signPhase.canvas.painted && signPhase.submitDisabled === true,
       signPhase.canvas.found ? `캔버스 ${signPhase.canvas.w}×${signPhase.canvas.h} · 그리기 전 제출 막힘=${signPhase.submitDisabled}`
         : '🔴 인증 후에도 서명 칸이 안 열린다');
@@ -233,6 +235,21 @@ async function run() {
       text: (document.body.innerText || '').replace(/\\s+/g, ' ').slice(0, 160),
       noCanvas: !document.querySelector('canvas'),
     }))()`);
+    // 완료 뒤 갈 곳 — [서명한 문서 보기] 를 누르면 서명이 들어간 문서가 열리고, 서명은 작지 않게 보인다
+    const viewBtn = await guest.page.$('[data-testid="sign-view-signed"]');
+    if (viewBtn) { await viewBtn.click(); await b.sleep(800); }
+    const doneNav = await guest.page.evaluate(`(() => {
+      const v = document.querySelector('[data-testid="sign-view-signed"]');
+      const c = document.querySelector('[data-testid="sign-close"]');
+      const doc = document.querySelector('[data-testid="sign-signed-doc"]');
+      const img = doc ? doc.querySelector('.pq-sig-done .pq-sig-img') : null;
+      if (img) img.scrollIntoView({ block: 'center' });
+      const r = img ? img.getBoundingClientRect() : null;
+      const hit = r ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
+      return { view: !!v, close: !!c, doc: !!doc, imgH: r ? Math.round(r.height) : 0, imgW: r ? Math.round(r.width) : 0, imgSeen: !!hit && (hit === img || img.contains(hit)) };
+    })()`);
+    P('⑦b 서명 완료 → [서명한 문서 보기]·[닫기] · 문서 안 서명이 보이고 작지 않다', doneNav.view && doneNav.close && doneNav.doc && doneNav.imgSeen && doneNav.imgH >= 48,
+      `보기=${doneNav.view} 닫기=${doneNav.close} 문서=${doneNav.doc} · 서명 ${doneNav.imgW}×${doneNav.imgH} 보임=${doneNav.imgSeen}`);
     const row = (await db().query(`SELECT status FROM signature_requests WHERE id=${sigThem.id}`))[0][0];
     P('⑦ 고객이 서명을 마친다 — 원장에 signed 로 남는다', row?.status === 'signed',
       row?.status === 'signed' ? `동의 후 제출 가능=${readyToSign.enabled} → status=signed · 완료 화면 "${doneScreen.text.slice(0, 70)}…"`
@@ -460,7 +477,7 @@ async function run() {
     if (touchPostId) await api(`/posts/${touchPostId}`, { method: 'DELETE', headers: H }).catch(() => {});
     // 카드 메시지도 치운다 — 카나리가 남긴 것이 다음 검사의 대화방을 어지럽힌다
     if (cardMsgId && sequelize) await sequelize.query(`DELETE FROM messages WHERE id=${cardMsgId}`).catch(() => {});
-    if (sequelize) await sequelize.close().catch(() => {});
+    // DB 풀은 닫지 않는다 — 러너(run.js)가 마지막에 한 번 닫는다(여기서 닫으면 뒤의 잔여 청소가 죽는다)
   }
   return { name: 'signflow', results };
 }

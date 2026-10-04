@@ -15,7 +15,7 @@ const gdrive = require('../services/gdrive');
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { perUserLimiter } = require('../middleware/costGuard');
 // 첨부 실체 읽기(로컬/Drive/S3) 단일 원천 — #134 provider 무인지 근본fix
-const { readAttachmentBody } = require('../services/attachmentStorage');
+const { readAttachmentBody, sendAttachmentBody } = require('../services/attachmentStorage');
 
 // 비용폭탄 H4 — 업무 첨부 업로드 per-user rate-limit (분당 10회, 라우트 내부 적용).
 const taskAttachUploadLimiter = perUserLimiter('task-attach', { windowMs: 60 * 1000, max: 10, message: '파일 업로드가 너무 잦습니다. 잠시 후 다시 시도하세요.' });
@@ -303,7 +303,7 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
       const posts = await Post.findAll({ where: { id: postIds, business_id: req._task.business_id } });
       // ★ 볼 수 있는 문서만 붙인다 — 제목이 첨부 이름으로 복사돼 업무를 보는 사람(고객 포함)에게 보인다.
       //   남의 «나만 보기» 문서 제목이 그렇게 샜다(2026-09-27 점검). 파일과 같이 통째로 거절한다.
-      const { canReadPost } = require('./posts');
+      const { canReadPost } = require('../services/postAccess');
       for (const p of posts) if (!(await canReadPost(req.user, p))) return errorResponse(res, 'post_not_found', 404);
       for (const p of posts) {
         // 같은 문서를 같은 자리에 두 번 붙이지 않는다
@@ -362,7 +362,7 @@ router.get('/:taskId/attachments', authenticateToken, async (req, res, next) => 
     const readablePosts = new Set();
     if (postRows.length) {
       const { Post } = require('../models');
-      const { canReadPost } = require('./posts');
+      const { canReadPost } = require('../services/postAccess');
       const ps = await Post.findAll({ where: { id: [...new Set(postRows.map((r) => r.post_id))], business_id: req._task.business_id } });
       for (const p of ps) if (await canReadPost(req.user, p)) readablePosts.add(p.id);
     }
@@ -419,11 +419,7 @@ async function serveAttachment(req, res, next, asDownload) {
       disposition: `attachment; filename*=UTF-8''${encodeURIComponent(att.original_name)}`,
     });
     if (!asDownload) res.setHeader('Cache-Control', 'private, max-age=3600');
-    body.stream.on('error', (e) => {
-      console.error('[task_attachments] stream error:', e.message);
-      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
-    });
-    body.stream.pipe(res);
+    return sendAttachmentBody(res, body, 'task_attachments');
   } catch (err) { next(err); }
 }
 // ─── GET /attachments/:id/raw — **삭제됨 (2026-08-20 보안)** ───

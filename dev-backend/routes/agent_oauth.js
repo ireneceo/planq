@@ -65,7 +65,7 @@ router.get('/oauth/request/:id', authenticateToken, async (req, res, next) => {
 router.post('/oauth/consent', authenticateToken, consentLimit, async (req, res, next) => {
   try {
     if (!cfg.enabled() || !cfg.tokenSecret()) return errorResponse(res, 'agent_disabled', 404);
-    const { request_id, business_id, access, approve, mail } = req.body || {};
+    const { request_id, business_id, access, approve, mail, mail_drafts } = req.body || {};
     const row = await store.get('agent_authreq', String(request_id || ''));
     if (!row) return errorResponse(res, 'request_expired', 404);
     const p = row.payload || {};
@@ -88,7 +88,9 @@ router.post('/oauth/consent', authenticateToken, consentLimit, async (req, res, 
       if (!(await grants.mailAccountsFor(req.user.id, bizId)).length) return errorResponse(res, 'no_mail_account', 400);
       wantsMail = true;
     }
-    const scopes = grants.grantedScopes(p.scopes, access === 'write' ? 'write' : 'read', { mail: wantsMail });
+    // 답장 초안(M3-c) — 메일 읽기를 허용했을 때만 붙는다(grantedScopes 도 mail 없이는 붙이지 않는다). 메일 없이 요청하면 거절해서 알린다.
+    if (mail_drafts === true && !wantsMail) return errorResponse(res, 'drafts_need_mail', 400);
+    const scopes = grants.grantedScopes(p.scopes, access === 'write' ? 'write' : 'read', { mail: wantsMail, mail_drafts: wantsMail && mail_drafts === true });
     if (!scopes.length) return errorResponse(res, 'no_scopes', 400);
 
     const prov = cfg.providerForRedirect(p.redirect_uri);

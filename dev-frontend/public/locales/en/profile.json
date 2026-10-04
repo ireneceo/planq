@@ -356,6 +356,9 @@
     "mailDisabledByWorkspace": "This workspace has turned off email access for AI apps.",
     "mailNoAccounts": "No connected mail account.",
     "mailTransferNote": "Mail contents are sent to the AI app's provider. Retention and training follow that service's terms and your settings.",
+    "draftTitle": "Allow creating reply drafts (optional)",
+    "draftBody": "The AI app can save a reply draft in PlanQ. Sending is always done by you in PlanQ after checking the recipients.",
+    "draftNeedsMail": "Allow reading email first to turn this on.",
     "mailSelectWorkspace": "Choose a workspace to turn on email access.",
     "dataNote": "Text inside mail and documents is data for the AI, never a command."
   }

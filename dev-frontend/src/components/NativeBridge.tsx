@@ -11,6 +11,7 @@ import { useChromeNav } from '../hooks/useChromeNav';
 import { isNativeApp, nativePlatform } from '../services/native';
 import { clearPair } from '../services/oauth';
 import { markDeepLinkInflight, markDeepLinkArrived } from '../services/nativePush';
+import { installNativeLinkRouting } from '../services/nativeLinks';
 
 // 딥링크가 착지하기를 기다리는 시간 — 400ms × 6 = 2.4초.
 //   실측(2026-09-14, 모바일 뷰포트)상 웹에서는 한 번에 착지하므로, 기다림이 도는 것은
@@ -93,6 +94,8 @@ export default function NativeBridge() {
       if (path.startsWith('/') && !path.startsWith('/api/')) deepLinkNav(path);
     };
     window.addEventListener('planq:navigate', onNavigate);
+    // 앱 안의 «새 창» 링크(window.open · target=_blank)를 앱 안으로 — 사파리로 튀지 않게(services/nativeLinks)
+    const uninstallLinks = isNativeApp() ? installNativeLinkRouting() : null;
 
     // 콜드 스타트로 보관돼 있던 알림 링크 소비 — 라우터가 준비된 지금 이동한다.
     //   (탭 이벤트가 리스너보다 먼저 오는 경우가 있어 services/nativePush 가 sessionStorage 에 남긴다)
@@ -216,6 +219,7 @@ export default function NativeBridge() {
 
     return () => {
       window.removeEventListener('planq:navigate', onNavigate);
+      if (uninstallLinks) uninstallLinks();
       if (cleanupNative) cleanupNative();
     };
   }, [deepLinkNav]);

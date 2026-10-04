@@ -18,6 +18,7 @@ const { perUserDaily } = require('../middleware/costGuard');
 const { callLLM } = require('../services/llm');
 const { matchMemberByName } = require('../services/aiTaskPlanner');
 const { todayInTz, addDaysStr } = require('../utils/datetime');
+const { correctWhenStart, calendarHint } = require('../services/relativeDate');
 const plan = require('../services/plan');
 const { CueUsage, Business, BusinessMember, User } = require('../models');
 
@@ -86,6 +87,8 @@ function intentSystemPrompt(todayLocal, tz) {
 반드시 아래 JSON 만 출력한다.
 
 오늘은 ${todayLocal} (타임존 ${tz}) 이다. 상대적 날짜 표현은 이 날짜를 기준으로 계산한다.
+한 주는 월요일에 시작한다. 날짜는 아래 달력에서 찾아 쓴다(직접 더하지 않는다):
+${calendarHint(todayLocal)}
 
 {
   "kind": "task" | "event" | "memo" | "mail",
@@ -152,7 +155,8 @@ async function classifyIntent(text, opts = {}) {
       detail: String(j.detail || '').slice(0, 1000),
       assignee_name: j.assignee_name ? String(j.assignee_name).slice(0, 50) : null,
       when: j.when ? String(j.when).slice(0, 60) : null,
-      when_start: sanitizeWhenStart(j.when_start, todayLocal),
+      // 날짜 산술은 코드가 바로잡는다(services/relativeDate) — LLM 이 요일을 틀린 실측이 있다
+      when_start: sanitizeWhenStart(correctWhenStart(sanitizeWhenStart(j.when_start, todayLocal), j.when, todayLocal, j.when_all_day === true), todayLocal),
       when_all_day: j.when_all_day === true,
       confidence: Number(j.confidence) || 0.5,
       fallback: r.fallback,

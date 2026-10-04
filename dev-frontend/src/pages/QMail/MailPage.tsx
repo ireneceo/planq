@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { plainToHtml } from '../../utils/plainToHtml';
-import type { VoiceHandoff } from '../../utils/voiceHandoff';
+import { takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
 import PageShell from '../../components/Layout/PageShell';
 import PanelHeader, { PanelTitle, PanelSubTitle, PanelMetaTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRight } from '../../components/Layout/PanelHeader';
 import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
@@ -1489,6 +1489,20 @@ const MailPage: React.FC = () => {
     setReplyOpen(false); setReplyHtml(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
   }, [activeId]);
 
+  // ?reply=1 — AI 앱(ChatGPT·Claude)이 만든 답장 초안의 링크(설계 docs/AI_AGENT_M3_DESIGN.md §3.4).
+  //   그 스레드가 열리면 답장 폼을 연 채 시작한다 — 초안 본문은 아래 복원 effect 가 서버에서 가져오고,
+  //   받는 사람은 폼이 원 스레드에서 계산한다(초안에 주소를 싣지 않는다). 보내기는 사람이 누른다.
+  //   한 번 열면 주소에서 뺀다 — 남겨 두면 새로고침·뒤로가기마다 폼이 다시 열린다.
+  //   ★ 여는 것과 주소에서 빼는 것을 **다른 커밋**에서 한다 — 같은 커밋에 위 «폴더 맞추기» effect 가 주소를 바꾸면
+  //     여기 setSp 가 그 전 주소를 기준으로 덮어써 폴더 동기화가 사라진다(setSearchParams 는 렌더 시점 주소를 본다).
+  const replyParam = sp.get('reply') === '1';
+  const replyConsumedFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (!replyParam || !activeId || detail?.id !== activeId) return;
+    if (replyConsumedFor.current !== activeId) { replyConsumedFor.current = activeId; setReplyOpen(true); return; }
+    setSp((prev) => { const n = new URLSearchParams(prev); n.delete('reply'); return n; }, { replace: true });
+  }, [replyParam, activeId, detail?.id, replyOpen, setSp]);
+
   // ★ 2026-09-09 — 초안 자동저장의 **결과**를 화면이 말한다
   //   (Irene: "저장된 거 바로 바로 알게 ... 다 통일해줘").
   //   여기는 ✓ 뱃지를 쓰지 않는다 — 저장 대상이 컨트롤 하나가 아니라 **폼 전체**(받는사람·제목·
@@ -1877,7 +1891,7 @@ const MailPage: React.FC = () => {
   // #80 — 퀵메뉴 '+메일' 진입 시 작성 모달 자동 오픈
   useEffect(() => {
     if (sp.get('compose') === '1') {
-      const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? null;
+      const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? takeVoiceHandoff('mail');
       if (voice) pendingVoiceRef.current = voice;
       setComposeOpen(true);
       const next = new URLSearchParams(sp); next.delete('compose'); setSp(next, { replace: true });

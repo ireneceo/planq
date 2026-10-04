@@ -17,8 +17,8 @@
 import React, { useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { apiFetch, useAuth } from '../../contexts/AuthContext';
-import { downloadBlob } from '../../utils/download';
+import { useAuth } from '../../contexts/AuthContext';
+import { downloadFromApi } from '../../utils/download';
 import { bulkDownloadZip } from '../../services/files';
 import { useImageLightbox } from './ImageLightbox';
 import AttachmentPreviewDrawer, { type PreviewAttachment } from './AttachmentPreviewDrawer';
@@ -77,8 +77,9 @@ export function DownloadAllButton({ businessId, zipIds, testId }: { businessId: 
   const run = async () => {
     if (busy) return;
     setBusy(true); setErr(false);
-    try { const r = await bulkDownloadZip(businessId, zipIds); if (!r.ok) setErr(true); }
-    catch { setErr(true); }
+    // 받는 동안·실패는 트레이가 보여 준다. 여기서는 받을 수 있는 항목이 아예 없을 때만 말한다(트레이에 안 뜨는 경우).
+    try { const r = await bulkDownloadZip(businessId, zipIds); if (!r.ok && r.message === 'no_supported_files') setErr(true); }
+    catch { /* 트레이 */ }
     finally { setBusy(false); }
   };
   return (
@@ -102,25 +103,22 @@ export default function AttachmentList({ items, businessId, layout = 'rows', onR
   const [filePreview, setFilePreview] = useState<PreviewAttachment | null>(null);
   const [docPreview, setDocPreview] = useState<{ id: number; title: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
 
   const images = useMemo(() => items.filter(isImage), [items]);
   const downloadable = useMemo(() => items.filter((it) => !!it.downloadUrl && !it.postId), [items]);
 
+  // 받는 일은 다운로드 매니저 한 곳(downloadFromApi) — 우측 하단 트레이에 %·MB·[취소]·실패 문구+[다시 시도].
+  //   여태 fetch → blob 으로 다 받을 때까지 아무 표시가 없었다(큰 첨부는 «눌러도 안 된다» 로 읽혔다).
   const download = async (it: { downloadUrl?: string | null; name: string }) => {
     if (!it.downloadUrl) return;
-    setErr(null);
-    try {
-      const r = await apiFetch(it.downloadUrl);
-      if (!r.ok) throw new Error(String(r.status));
-      await downloadBlob(await r.blob(), it.name);
-    } catch { setErr(t('attachList.downloadFailed', { defaultValue: '내려받지 못했어요. 다시 시도해 주세요.' }) as string); }
+    try { await downloadFromApi(it.downloadUrl, it.name); }
+    catch { /* 실패는 트레이가 말한다 — 여기서 또 띄우면 같은 실패가 두 군데에 나온다 */ }
   };
 
   // 묶음 id 가 없는 첨부가 섞였을 때만 쓰는 대체 경로 — 하나씩 받는다(묶음이면 DownloadAllButton).
   const downloadAll = async () => {
     if (busy || downloadable.length === 0) return;
-    setBusy(true); setErr(null);
+    setBusy(true);
     try { for (const it of downloadable) await download(it); }
     finally { setBusy(false); }
   };
@@ -218,7 +216,6 @@ export default function AttachmentList({ items, businessId, layout = 'rows', onR
           ))}
         </Chips>
       )}
-      {err && <Err role="alert">{err}</Err>}
       {lightbox}
       {docPreview && <PostPreviewModal postId={docPreview.id} title={docPreview.title} onClose={() => setDocPreview(null)} />}
       <AttachmentPreviewDrawer

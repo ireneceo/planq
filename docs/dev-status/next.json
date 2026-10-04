@@ -1,50 +1,39 @@
 {
   "working_on": [
-    "운영 서명 실시험(데모 워크스페이스 → irene@irenewp.com) · #439 M3-b"
+    "iOS 1.0.1 심사 제출(앱스토어 목록 이름 변경 — Irene 진행, 빌드 완료)"
   ],
   "in_progress": [],
   "completed": [
-    {
-      "title": "처음 사용자 안내 — 시작 카드 8단계(워크스페이스/나) · 대시보드+설정 최상단 · 개인 닫기",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "AI 연결 안내 — 4단계 · ChatGPT/Claude 연결 화면 바로 열기 · 온보딩 행에서 바로 이동",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "공개 페이지 «써 보면 놀라는 디테일»(/details/) · 홈 디테일 6",
-      "verified": "fable_pass"
-    },
-    {
-      "title": "사용법 도움말 86글 공개 · 메일 연결 글의 숨겨진 Gmail 버튼 안내 제거",
-      "verified": "fable_pass"
-    }
+    { "title": "AI 에이전트 M3-b/c — 문서·Q info·회의록·메일 읽기(옵트인)·통합 검색·출처 연결·답장 초안(발송 없음) · 도구 34개", "verified": "fable_pass" },
+    { "title": "MCP 서버 안내문 — 일 관련 질문이면 «PlanQ에서 가져와» 없이도 PlanQ 도구를 먼저 쓰게", "verified": "fable_pass" },
+    { "title": "다운로드 속도·진행률 — Drive 파일 디스크 캐시(3GB·14일) · 다운로드 트레이(%·크기·취소·실패 다시 시도) · Drive 연결 해제 시 캐시 삭제", "verified": "fable_pass" },
+    { "title": "SEO — 인사이트·가이드 글 122페이지 전부에 운영사(Organization) 노드", "verified": "fable_pass" },
+    { "title": "앱(iOS·Android) 안 새 창 링크를 앱 안으로 — Cue·Q helper·도움말 링크가 사파리로 튀던 것, /api PDF 는 인앱 브라우저", "verified": "fable_pass" },
+    { "title": "말로 추가(마이크) — 탭 모드(아이패드)에서 화면이 죽던 것(useNavigate) · 날짜 산술을 코드가(«다음 주 화요일» 10/10→10/6)", "verified": "fable_pass" },
+    { "title": "서명 — 메일 링크 서명 화면을 공용 서명판으로(획만 잘라 저장·배율 보정) · 인증번호 6자리 자동 확인·Enter · 완료 후 [서명한 문서 보기]·[닫기] · 서명 표시 크기 키움", "verified": "fable_pass" }
   ],
   "behavior_changes": [
-    "도움말이 로그인 없이 열린다(검색·AI 색인 대상)",
-    "대시보드·설정 최상단에 «업무 효율 높이기» 카드(멤버도 «나» 묶음)"
+    "앱 안에서는 «새 창으로 분리» 버튼이 숨는다(창 개념 없음) — 데스크탑 웹은 그대로",
+    "서명 화면: 6자리를 다 넣으면 [확인] 없이 인증된다"
   ],
-  "migrations": [
-    "migrate-onboarding-personal-dismiss.js — business_members.onboarding_dismissed_at (멱등, PM2 reload 전)"
+  "issues": [
+    "nginx 에 /qnote/api/sessions/internal/ 외부 차단 권고(내부 키가 있어야 열리지만 표면 축소) — sudo 필요"
   ],
-  "issues": [],
   "blocked_on_human": [
-    "Irene: 운영 서명 실시험 메일에서 서명",
-    "Bing 웹마스터 소유 확인"
+    "iOS 1.0.1 심사 제출 — App Store Connect",
+    "Google Search Console 사이트맵 제출(sitemap.xml) 확인"
   ],
+  "migrations": [],
   "check_areas": [
-    "/details/ · 홈",
-    "대시보드·설정 시작 카드",
-    "내 외부 연동 › 연결된 AI 앱",
-    "도움말 비로그인 열림"
+    "아이패드·폰 앱: Cue·Q helper·말하기·받은 서명 PDF",
+    "메일 링크 서명 → 완료 화면 서명 크기"
   ],
   "backlog": [
-    "#439 M3-b 통합 검색·문서/파일/회의록·Q info · M3-c 출처·답장 초안",
-    "GEO 조치(스키마 보강·정의 통일·영어 페이지)"
+    "#434② iOS 네이티브 공유(App Group)",
+    "운영 데모 워크스페이스 테스트 서명 문서 정리"
   ],
   "tooling_health": [
-    "Fable PASS · guard 61/62 · health 49/49 · onboarding·agentconsent 0 실패 · 빌드 EXIT 0"
+    "signflow 카나리: 6자리 자동 확인·완료 후 문서 검사 추가, 공유 DB 풀을 닫던 것 제거"
   ],
   "undeployed": []
 }

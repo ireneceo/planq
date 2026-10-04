@@ -253,18 +253,14 @@ router.get('/:id/download', authenticateToken, async (req, res, next) => {
       file_path: att.file_path,
       external_id: att.external_id || att.file_path,   // 정본은 external_id, 옛 행은 file_path 에 Drive ID
       business_id: conv.business_id,
+      file_size: att.file_size,   // Drive 캐시본 무효 판정(크기가 바뀌면 다시 받는다)
     });
     if (!body.ok) return errorResponse(res, body.msg, body.code);
     if (body.redirect) return res.redirect(body.redirect);
 
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(att.file_name)}`);
     if (att.mime_type) res.setHeader('Content-Type', att.mime_type);
-    body.stream.on('error', (e) => {
-      console.error('[message_attachments] download stream error:', e.message);
-      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
-      else res.destroy();
-    });
-    body.stream.pipe(res);
+    return require('../services/attachmentStorage').sendAttachmentBody(res, body, 'message_attachments/download');
   } catch (err) { next(err); }
 });
 
@@ -330,6 +326,7 @@ router.get('/public/:storedName', async (req, res, next) => {
       file_path: att.file_path,
       external_id: att.external_id || att.file_path,   // 정본은 external_id, 옛 행은 file_path 에 Drive ID
       business_id: businessId,
+      file_size: att.file_size,
     });
     if (!body.ok) return errorResponse(res, body.msg, body.code);
     if (body.redirect) return res.redirect(body.redirect);
@@ -338,12 +335,7 @@ router.get('/public/:storedName', async (req, res, next) => {
 
     require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: serveMime, file_name: att.file_name || att.original_name }, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    body.stream.on('error', (e) => {
-      console.error('[message_attachments] public image stream error:', e.message);
-      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
-      else res.destroy();
-    });
-    body.stream.pipe(res);
+    return require('../services/attachmentStorage').sendAttachmentBody(res, body, 'message_attachments/public');
   } catch (err) { next(err); }
 });
 

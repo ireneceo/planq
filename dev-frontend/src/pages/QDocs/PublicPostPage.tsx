@@ -171,7 +171,7 @@ const SignedBody = styled.div`
   .pq-sig-cap { font-size: 0.6875rem; font-weight: 700; color: #64748B; margin-bottom: 4px; }
   .pq-sig-empty { color: #94A3B8; font-size: 0.75rem; border-bottom: 1px dashed #CBD5E1; padding-bottom: 14px; }
   .pq-sig-done { border-color: #14B8A6; background: #F0FDFA; }
-  .pq-sig-img { display: block; max-height: 64px; max-width: 220px; }
+  .pq-sig-img { display: block; max-height: 96px; max-width: min(300px, 100%); }
   .pq-sig-meta { font-size: 0.75rem; color: #334155; margin-top: 4px; }
   .pq-sig-badge { font-size: 0.625rem; color: #0F766E; margin-top: 2px; }
   .pq-sig-rejected { border-color: #FCA5A5; background: #FEF2F2; }

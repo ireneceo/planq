@@ -28,6 +28,7 @@ const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGua
 const WorkspaceSyncGuard = lazy(() => import('./components/Common/WorkspaceSyncGuard'));
 const SignupSourceReporter = lazy(() => import('./components/Common/SignupSourceReporter'));
 const LeaveDecisionGuard = lazy(() => import('./components/Common/LeaveDecisionGuard'));
+const DownloadTray = lazy(() => import('./components/Common/DownloadTray'));
 const AppContextMenu = lazy(() => import('./components/Common/AppContextMenu'));
 const PopoutBridge = lazy(() => import('./components/Common/PopoutBridge'));
 const LimitReachedDialog = lazy(() => import('./components/Common/LimitReachedDialog'));
@@ -814,6 +815,8 @@ function App() {
       {/* 우리 우클릭 메뉴 — 링크는 "새 탭에서 열기 · 링크 복사", 탭은 "복제 · 복사 · 닫기".
           같은 이유로 **루트 한 곳**: 탭 모드(TabAppShell)와 미러 모드 두 트리에서 다 돌아야 한다. */}
       <Suspense fallback={null}><AppContextMenu /></Suspense>
+      {/* 다운로드 진행 트레이 — 어느 화면에서 눌렀든 같은 카드·같은 숫자(services/downloadManager). 같은 이유로 **루트 한 곳** */}
+      <Suspense fallback={null}><DownloadTray /></Suspense>
     </PwaInstallProvider>
     </AuthProvider>
     </ErrorBoundary>

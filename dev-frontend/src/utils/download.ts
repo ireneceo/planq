@@ -89,39 +89,11 @@ export async function downloadFromApi(
   filename: string,
   opts?: { onProgress?: (p: DownloadProgress) => void; signal?: AbortSignal },
 ): Promise<void> {
-  const { apiFetch } = await import('../contexts/AuthContext');
-  const res = await apiFetch(url, opts?.signal ? { signal: opts.signal } : {});
-  // apiFetch 는 throw 하지 않는다 — res.ok 를 반드시 본다 (memory: apifetch_no_throw)
-  if (!res.ok) {
-    let msg = '';
-    try { msg = (await res.clone().json())?.message || ''; } catch { /* 본문이 파일이거나 비어있음 */ }
-    throw new Error(msg || `HTTP ${res.status}`);
-  }
-
-  const lenHeader = res.headers.get('content-length');
-  const total = lenHeader ? Number(lenHeader) : null;
-  let blob: Blob;
-  // 진행 표시를 원하고 스트림을 읽을 수 있을 때만 조각내어 읽는다.
-  //   못 읽는 환경(구형 브라우저·프록시)에서는 통째로 받는다 — 기능이 먼저다.
-  if (opts?.onProgress && res.body && typeof res.body.getReader === 'function') {
-    const reader = res.body.getReader();
-    const chunks: BlobPart[] = [];
-    let received = 0;
-    opts.onProgress({ received: 0, total: Number.isFinite(total as number) ? total : null });
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        chunks.push(value as unknown as BlobPart);
-        received += value.byteLength;
-        opts.onProgress({ received, total: Number.isFinite(total as number) ? total : null });
-      }
-    }
-    blob = new Blob(chunks, { type: res.headers.get('content-type') || 'application/octet-stream' });
-  } else {
-    blob = await res.blob();
-  }
-  await downloadBlob(blob, filename);
+  // ★ 2026-10-04 — 받는 일은 다운로드 매니저 **한 곳**이다. 거기서 우측 하단 트레이에 %·MB·[취소] 가
+  //   보이고, 화면이 넘긴 onProgress 도 **같은 이벤트**로 불린다(버튼 옆 숫자와 트레이 숫자가 같다).
+  //   사용자 취소는 조용히 끝나고, 실패는 throw 한다(호출부 기존 계약).
+  const { startDownload } = await import('../services/downloadManager');
+  await startDownload({ url, filename, onProgress: opts?.onProgress, signal: opts?.signal });
 }
 
 /** 인증이 필요한 URL → 화면에 바로 쓸 수 있는 blob URL (PDF·이미지 미리보기용).

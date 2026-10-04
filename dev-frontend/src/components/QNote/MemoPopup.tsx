@@ -13,6 +13,7 @@
 // 사용:
 //   <MemoPopup open={open} onClose={close} businessId={biz} existingSessionId={id?} />
 import { openPopout } from '../../utils/pinHost';
+import { canOpenSeparateWindow } from '../../utils/popout';
 import { requestMainNavigate } from '../Common/PopoutBridge';
 import { tabStore } from '../../stores/tabStore';
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
@@ -689,7 +690,7 @@ const MemoPopup: React.FC<Props> = ({ open, onClose, businessId, existingSession
         >
           <IconPlus />
         </HeaderBtn>
-        {!standalone && (
+        {!standalone && canOpenSeparateWindow() && (
           <HeaderBtn
             onClick={detachToWindow}
             title={t('memoPopup.detach') as string}

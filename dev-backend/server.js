@@ -774,6 +774,8 @@ initCueKnowledgeCron();
 // N+36 옵션 D — 업무 후보 만료 cron (30일 hide / 90일 rejected delete / 60일 hidden delete)
 const { initCandidateCleanupCron } = require('./services/candidateCleanup');
 initCandidateCleanupCron();
+// Drive 첨부 내려받기 캐시 정리 — TTL 14일 미사용 · 상한 3GB(LRU) · 남은 임시 파일 (services/driveCache)
+require('./services/driveCache').initDriveCacheSweep();
 // #63 Phase 3 — 자료 이동/내보내기 job 드레인 cron (30초 단위) + 만료 export 정리(6시간)
 const exportJobWorker = require('./services/exportJobWorker');
 setInterval(() => { exportJobWorker.runExportJobTick().catch(e => console.warn('[exportJobWorker]', e.message)); }, 30 * 1000);

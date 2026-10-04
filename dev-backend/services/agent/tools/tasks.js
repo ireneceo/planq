@@ -206,9 +206,15 @@ async function getTask(p, a) {
 async function createTask(p, a, actor) {
   if (!validDate(a.due_date) || !validDate(a.start_date)) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { due_date: a.due_date, start_date: a.start_date } });
   if (a.start_date && a.due_date && a.start_date > a.due_date) throw err('VALIDATION_ERROR', 'start_after_due');
+  // M3-c 출처(설계 §6) — 읽을 수 있는 메일·채팅만 붙인다(services/agent/tools/sources). 메일이면 그 스레드에 PlanQ 가 건
+  //   고객·프로젝트 연결을 승계한다(모델이 안 줬을 때만 — 추측이 아니라 mailLink 완전일치·사람이 건 값이다).
+  const { resolveSource } = require('./sources');
+  const src = await resolveSource(p, a.source, ['mail', 'chat']);
+  const projectId = a.project_id || (src && src.kind === 'mail' ? src.thread.project_id : null) || null;
+  const clientId = a.client_id || (src && src.kind === 'mail' ? src.thread.client_id : null) || null;
   if (a.assignee_user_id) {
     const { assertAssignable } = require('../../../middleware/access_scope');
-    const ok = await assertAssignable(a.assignee_user_id, p.businessId, a.project_id || null);
+    const ok = await assertAssignable(a.assignee_user_id, p.businessId, projectId);
     if (!ok.ok) throw err('PERMISSION_DENIED', `cannot_assign:${ok.reason}`);
   }
   const taskActions = require('../../actions/task_actions');
@@ -219,16 +225,19 @@ async function createTask(p, a, actor) {
     dueDate: a.due_date || null,
     startDate: a.start_date || null,
     assigneeId: a.assignee_user_id || null,
-    projectId: a.project_id || null,
-    clientId: a.client_id || null,
+    projectId,
+    clientId,
     priorityLevel: a.priority || null,
     createdVia: 'agent',
+    ...(src && src.kind === 'mail' ? { emailThreadId: src.thread.id, sourceEmailMessageId: src.messageId } : {}),
+    ...(src && src.kind === 'chat' ? { conversationId: src.conversation.id } : {}),
   }, { autoAiEstimate: false });
   if (!r.ok) throw fromActionFailure(r);
   const scope = await scopeOf(p);
   const t = await loadTask(p, r.data.task.id, scope);
   const [item] = await shapeTasks([t], p.businessId);
-  return { task: item, created: true };
+  const extras = await taskExtras(p, t, scope);
+  return { task: { ...item, source: extras.source }, created: true };
 }
 
 // ── get_task_notes / add_task_note ──────────────────────────
@@ -372,7 +381,13 @@ async function updateTask(p, a, actor) {
   return { task: { ...item, description: fresh.description || null } };
 }
 
+/** 출처로 쓸 업무(create_event source) — get_task 와 같은 문(워크스페이스 묶음 + canAccessTask). */
+async function loadTaskForSource(p, taskId) {
+  return loadTask(p, taskId, await scopeOf(p));
+}
+
 module.exports = {
+  loadTaskForSource,
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
   previewReschedule, rescheduleTask, previewComplete, completeTask,
   previewAssign, assignTask, updateTask,

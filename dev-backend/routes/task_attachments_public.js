@@ -7,7 +7,7 @@ const express = require('express');
 const router = express.Router();
 const { TaskAttachment } = require('../models');
 const { errorResponse } = require('../middleware/errorHandler');
-const { readAttachmentBody } = require('../services/attachmentStorage');
+const { readAttachmentBody, sendAttachmentBody } = require('../services/attachmentStorage');
 const { isRenderableImage, effectiveMimeType } = require('../services/filePreview');
 
 // ============================================
@@ -39,11 +39,7 @@ router.get('/public/attach/:storedName', async (req, res, next) => {
 
     require('../services/fileServing').applyFileResponseHeaders(res, { mime_type: serveMime, file_name: att.file_name || att.original_name }, { inline: true });
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    body.stream.on('error', (e) => {
-      console.error('[task_attachments] public image stream error:', e.message);
-      if (!res.headersSent) errorResponse(res, 'stream_failed', 502);
-    });
-    body.stream.pipe(res);
+    return sendAttachmentBody(res, body, 'tasks/public-attach-image');
   } catch (err) { next(err); }
 });
 

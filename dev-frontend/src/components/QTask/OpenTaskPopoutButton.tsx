@@ -10,6 +10,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { openPopout } from '../../utils/pinHost';
+import { canOpenSeparateWindow } from '../../utils/popout';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 const OpenTaskPopoutButton: React.FC<{ className?: string }> = ({ className }) => {
@@ -22,7 +23,7 @@ const OpenTaskPopoutButton: React.FC<{ className?: string }> = ({ className }) =
   const isPhone = useMediaQuery('(max-width: 768px)');
   const label = t('popout.openBtn', { defaultValue: '오늘 내 업무' }) as string;
   const hint = t('popout.openBtnHint', { defaultValue: '오늘·이번 주 내 업무를 별도 창으로 — 창 안의 핀을 누르면 항상 위로 고정됩니다' }) as string;
-  if (isPhone) return null;   // 모바일은 별도 창이 의미 없다(도크와 같은 판단)
+  if (isPhone || !canOpenSeparateWindow()) return null;   // 모바일·앱 안은 별도 창이 없다(도크와 같은 판단)
   return (
     <Btn type="button" className={className} data-testid="open-task-popout"
       onClick={() => openPopout('qtask')} title={hint} aria-label={hint}>

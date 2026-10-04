@@ -7,9 +7,9 @@ const router = express.Router();
 // 원본 자료 읽기 권한 — Q info 가 파일·문서를 **첨부하거나 본문을 복사해 올 때**, 그리고 첨부를 **보여 줄 때**
 //   같은 술어를 쓴다(2026-09-27 점검: 남의 «나만 보기» 파일·문서 본문을 Q info 로 복사해 팀에 공개할 수 있었고,
 //   상세 화면은 첨부 제목·파일명을 보는 사람 권한과 무관하게 내보냈다). 파일은 imageViewer.canUserSeeFile,
-//   문서는 routes/posts.canReadPost — 각 원본의 읽기 술어 한 벌.
+//   문서는 services/postAccess.canReadPost — 각 원본의 읽기 술어 한 벌.
 const canSeeSourceFile = (req, f) => require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, f);
-const canSeeSourcePost = (req, p) => require('./posts').canReadPost(req.user, p);
+const canSeeSourcePost = (req, p) => require('../services/postAccess').canReadPost(req.user, p);
 const { KbDocument, KbChunk, KbPinnedFaq, KbCategory, File: FileModel, Post, KbShareBundle } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { isMemberOrAbove, getUserScope, canAccessKbDocumentByLevel, kbDocumentsListWhereByLevel } = require('../middleware/access_scope');

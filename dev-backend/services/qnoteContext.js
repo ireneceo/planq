@@ -17,19 +17,22 @@
 const TIMEOUT_MS = 2500;
 
 /**
- * 질문과 겹치는 **본인** 노트 몇 건.
- * @returns {Promise<Array<{id:number,title:string,created_at:string,snippet:string}>>} 실패 시 []
+ * 질문과 겹치는 **읽을 수 있는** 노트 몇 건 — 상태를 같이 준다.
+ *   status 'ok' = q-note 가 답했다(0건일 수도 있다) · 'unavailable' = 못 물었다(키 없음·타임아웃·오류).
+ *   AI 통합 검색(services/searchScope.searchMeetingNotes)은 이 둘을 **다르게** 말해야 한다 — 실패를 빈 결과로 위장하지 않는다.
+ * @returns {Promise<{status:'ok'|'unavailable', items:Array<{id:number,title:string,created_at:string,snippet:string,project_id:?number,client_id:?number,is_mine:boolean}>}>}
  */
-async function searchMyNotes({ businessId, userId, query, limit = 3, snippetChars = 700 }) {
+async function searchNotes({ businessId, userId, query, limit = 3, snippetChars = 700 }) {
   const key = process.env.INTERNAL_API_KEY;
-  if (!key || !businessId || !userId || !String(query || '').trim()) return [];
+  if (!String(query || '').trim()) return { status: 'ok', items: [] };
+  if (!key || !businessId || !userId) return { status: 'unavailable', items: [] };
   const base = process.env.QNOTE_INTERNAL_URL || 'http://localhost:8000';
   const qs = new URLSearchParams({
     business_id: String(businessId),
     user_id: String(userId),
     q: String(query).slice(0, 300),
     limit: String(Math.max(1, Math.min(10, limit))),
-    snippet_chars: String(snippetChars),
+    snippet_chars: String(Math.max(100, snippetChars)),
   });
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -37,11 +40,47 @@ async function searchMyNotes({ businessId, userId, query, limit = 3, snippetChar
     const r = await fetch(`${base}/api/sessions/internal/search?${qs}`, {
       headers: { 'x-internal-api-key': key }, signal: ctrl.signal,
     });
-    if (!r.ok) return [];
+    if (!r.ok) return { status: 'unavailable', items: [] };
     const j = await r.json();
-    return Array.isArray(j?.data) ? j.data : [];
-  } catch { return []; }
+    return { status: 'ok', items: Array.isArray(j?.data) ? j.data : [] };
+  } catch { return { status: 'unavailable', items: [] }; }
   finally { clearTimeout(timer); }
 }
 
-module.exports = { searchMyNotes };
+/**
+ * 질문과 겹치는 **본인** 노트 몇 건(Cue 용 — 실패하면 [] 로 조용히).
+ * @returns {Promise<Array<{id:number,title:string,created_at:string,snippet:string}>>} 실패 시 []
+ */
+async function searchMyNotes(args) {
+  const r = await searchNotes(args);
+  return r.items;
+}
+
+/**
+ * 노트 한 건 읽기(AI 앱 get_meeting_note, 설계 docs/AI_AGENT_M3_DESIGN.md §1.2) — q-note `internal/read`.
+ *   판정은 q-note 의 session_read_allowed(상세 조회와 같은 문). Node 는 판정하지 않는다 — 통로다.
+ * @returns {Promise<{status:'ok', note:object}|{status:'not_found'}|{status:'unavailable'}>}
+ */
+async function readNote({ businessId, userId, sessionId, offset = 0, maxChars = 6000 }) {
+  const key = process.env.INTERNAL_API_KEY;
+  if (!key || !businessId || !userId || !sessionId) return { status: 'unavailable' };
+  const base = process.env.QNOTE_INTERNAL_URL || 'http://localhost:8000';
+  const qs = new URLSearchParams({
+    session_id: String(sessionId), user_id: String(userId), business_id: String(businessId),
+    offset: String(Math.max(0, offset)), max_chars: String(Math.max(100, Math.min(20000, maxChars))),
+  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS * 2);
+  try {
+    const r = await fetch(`${base}/api/sessions/internal/read?${qs}`, {
+      headers: { 'x-internal-api-key': key }, signal: ctrl.signal,
+    });
+    if (r.status === 404) return { status: 'not_found' };
+    if (!r.ok) return { status: 'unavailable' };
+    const j = await r.json();
+    return j?.data ? { status: 'ok', note: j.data } : { status: 'unavailable' };
+  } catch { return { status: 'unavailable' }; }
+  finally { clearTimeout(timer); }
+}
+
+module.exports = { searchMyNotes, searchNotes, readNote };

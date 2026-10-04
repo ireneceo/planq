@@ -3,7 +3,6 @@
 
 import { apiFetch, apiUpload } from '../contexts/AuthContext';
 import type { UploadProgress } from '../contexts/AuthContext';
-import { downloadBlob } from '../utils/download';
 import i18next from 'i18next';
 
 export type FileSource = 'direct' | 'chat' | 'task' | 'meeting' | 'post' | 'mail';
@@ -757,40 +756,21 @@ export async function bulkDownloadZip(
   const skipped = fileIds.length - supportedIds.length;
   if (supportedIds.length === 0) return { ok: false, skipped, message: 'no_supported_files' };
 
-  const r = await apiFetch(`/api/files/${businessId}/bulk-download`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ids: supportedIds }),
-  });
-  if (!r.ok) {
-    const j = await r.json().catch(() => ({}));
-    return { ok: false, skipped, message: j.message || `http_${r.status}` };
-  }
-  // ZIP 은 서버가 만들면서 흘려보내므로 몇 초~수십 초가 걸린다. 아무 표시가 없으면
-  //   사용자는 고장으로 읽는다(Irene: "다운로드 %로 답답함 없게").
-  //   ★ 스트리밍 ZIP 은 Content-Length 가 없다 — 그때는 퍼센트 대신 받은 양을 보여준다.
-  const total = r.headers.get('content-length') ? Number(r.headers.get('content-length')) : null;
-  let blob: Blob;
-  if (onProgress && r.body && typeof r.body.getReader === 'function') {
-    const reader = r.body.getReader();
-    const chunks: BlobPart[] = [];
-    let received = 0;
-    onProgress({ received: 0, total });
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        chunks.push(value as unknown as BlobPart);
-        received += value.byteLength;
-        onProgress({ received, total });
-      }
-    }
-    blob = new Blob(chunks, { type: r.headers.get('content-type') || 'application/zip' });
-  } else {
-    blob = await r.blob();
-  }
+  // ★ 2026-10-04 — 받는 일은 다운로드 매니저 한 곳: 우측 하단 트레이에 받은 MB·[취소]·실패+[다시 시도].
+  //   ZIP 은 서버가 만들면서 흘려보내 **Content-Length 가 없다** — 그때 트레이는 퍼센트 대신 받은 양을 보인다.
+  //   화면이 따로 숫자를 그리는 곳(파일 탭)은 onProgress 로 **같은 이벤트**를 받는다.
   const today = new Date().toISOString().slice(0, 10);
-  await downloadBlob(blob, `planq-files-${today}.zip`);
+  const { startDownload } = await import('./downloadManager');
+  try {
+    await startDownload({
+      url: `/api/files/${businessId}/bulk-download`,
+      filename: `planq-files-${today}.zip`,
+      init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: supportedIds }) },
+      onProgress,
+    });
+  } catch (e) {
+    return { ok: false, skipped, message: e instanceof Error ? e.message : String(e) };
+  }
   return { ok: true, skipped };
 }
 

@@ -298,4 +298,56 @@ async function mailThreadCount(p, where) {
   return EmailThread.count({ where: { [Op.and]: [{ business_id: p.businessId }, { account_id: { [Op.in]: acctIds } }, { status: { [Op.ne]: 'spam' } }, where] } });
 }
 
-module.exports = { listMailAccounts, searchMail, getMailThread, getMailMessage, mailThreadCount, messageText, CONTENT_NOTE };
+// ── create_mail_reply_draft (M3-c, 설계 §3.4) ──────────────────
+//   발송이 아니라 **본인 초안 칸 하나**(email_drafts business×user×thread)에 본문만 넣는다. 보내기는 사람이 PlanQ 답장 폼에서
+//   받는 주소를 보고 직접 누른다(외부 발송 확인 계약 그대로). 받는 사람·발신 주소·제목·첨부는 입력으로 받지 않는다 —
+//   받는 사람은 답장 폼이 원 스레드에서 계산하고, 발신 주소는 보낼 때 resolveSender 가 정한다.
+//   ★ 모델이 보낸 HTML 을 저장하지 않는다 — 평문을 이스케이프해 <p> 로 감싼다(숨은 글·링크 주입 차단).
+//   ★ 이미 초안이 있으면 CONFLICT — 사람이 쓰던 초안을 조용히 덮지 않는다(확정 §12-⑦).
+const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function plainToHtml(text) {
+  const paras = String(text).replace(/\r\n?/g, '\n').split(/\n{2,}/).map((x) => x.trim()).filter(Boolean);
+  return paras.map((para) => `<p>${para.split('\n').map(escHtml).join('<br>')}</p>`).join('');
+}
+
+async function createMailReplyDraft(p, a) {
+  const acctIds = await mailGate(p);
+  await assertMenu(p, 'qmail', 'write');
+  const t = await loadThread(p, a.thread_id, acctIds);
+  const { findDraft, upsertDraft, isBlankHtml } = require('../../mailDrafts');
+  const existing = await findDraft({ businessId: p.businessId, userId: p.userId, threadId: t.id });
+  if (existing && !isBlankHtml(existing.body_html)) {
+    throw err('CONFLICT', 'draft_exists', {
+      existing_draft: { body_chars: String(existing.body_html || '').replace(/<[^>]*>/g, '').length, updated_at: ser.iso(existing.updated_at || existing.updatedAt) },
+      hint: 'A reply draft already exists for this thread. Ask the user to finish or delete it in PlanQ first; it is never overwritten.',
+      url: `${cfg.APP_URL}/mail?thread=${t.id}&reply=1`,
+    });
+  }
+  const { EmailMessage } = require('../../../models');
+  const lastIn = await EmailMessage.findOne({
+    where: { thread_id: t.id, business_id: p.businessId, direction: 'inbound' },
+    attributes: ['id', 'subject'], order: [['sent_at', 'DESC'], ['id', 'DESC']],
+  });
+  const { replySubjectOf } = require('../../mailIdentity');
+  const subject = replySubjectOf(t.subject || (lastIn && lastIn.subject) || '');
+  const bodyHtml = plainToHtml(a.body_text);
+  if (isBlankHtml(bodyHtml)) throw err('VALIDATION_ERROR', 'body_required');
+  const d = await upsertDraft({
+    businessId: p.businessId, userId: p.userId, threadId: t.id,
+    fields: {
+      account_id: t.account_id,
+      in_reply_to_message_id: lastIn ? lastIn.id : null,
+      to_emails: null, cc_emails: null, bcc_emails: null,
+      subject: subject ? String(subject).slice(0, 500) : null,
+      body_html: bodyHtml,
+      attachment_file_ids: null,
+    },
+  });
+  return {
+    draft: { draft_id: d.id, thread_id: t.id, subject, body_chars: String(a.body_text).length, url: `${cfg.APP_URL}/mail?thread=${t.id}&reply=1` },
+    note: 'Saved as a reply draft in PlanQ — nothing was sent. The user reviews the recipients and sends it from PlanQ.',
+    created: true,
+  };
+}
+
+module.exports = { listMailAccounts, searchMail, getMailThread, getMailMessage, mailThreadCount, messageText, CONTENT_NOTE, mailGate, loadThread, createMailReplyDraft };

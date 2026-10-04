@@ -49,7 +49,7 @@ function interactionPatchFrom(body, { creating }) {
  *   req 는 broadcast 용 — 없으면 전역 io 로 보낸다(AI 에이전트 경로). channel 은 감사 표시 전용(권한 판단에 쓰지 않는다).
  * @returns {{ row }} 또는 {{ error }}
  */
-async function createInteraction({ businessId, client, body, userId, req, channel }) {
+async function createInteraction({ businessId, client, body, userId, req, channel, verifiedSource }) {
   const { patch, error } = interactionPatchFrom(body || {}, { creating: true });
   if (error) return { error };
 
@@ -67,6 +67,11 @@ async function createInteraction({ businessId, client, body, userId, req, channe
       const d = Math.max(0, Math.min(24 * 3600, Math.round(Number(v.session.duration_seconds))));
       patch.duration_seconds = d;
     }
+  }
+  // ★ 메일에서 온 기록(2026-10-04 AI 에이전트 M3-c) — 이것도 화면이 고르는 값이 아니다. 부르는 쪽(services/agent/tools/sources)이
+  //   스레드를 계정 격리로 **읽을 수 있음을 확인한 뒤에만** 'email' 을 넘긴다. 허용값은 'email' 하나다.
+  if (verifiedSource && verifiedSource.source_kind === 'email' && source.source_kind === 'manual') {
+    source = { origin: 'manual', source_kind: 'email', qnote_session_id: null };
   }
   if (!patch.title && !patch.body) return { error: 'content_required' };
 

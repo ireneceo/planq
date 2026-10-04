@@ -14,7 +14,7 @@ import EventDrawer from './EventDrawer';
 import PersonalEventDrawerHost from './PersonalEventDrawerHost';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import NewEventModal from './NewEventModal';
-import { parseVoiceWhen, type VoiceHandoff } from '../../utils/voiceHandoff';
+import { parseVoiceWhen, takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
 import type { CalendarEvent, CalendarViewMode, CalendarScope, CalendarItem, PersonalCalendarEvent } from './types';
 import {
   addDays, addMonths, getWeekDays, startOfDay, startOfMonth, startOfWeek, toDateKey,
@@ -74,7 +74,7 @@ const QCalendarPage: React.FC = () => {
   //   (시트는 RightDock 소속이라 /calendar→/calendar 이동은 remount 를 일으키지 않는다).
   useEffect(() => {
     if (calSp.get('create') !== '1') return;
-    const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? null;
+    const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? takeVoiceHandoff('event');
     if (voice) {
       const when = parseVoiceWhen(voice.when_start);
       setNewModalInitial(when || new Date());

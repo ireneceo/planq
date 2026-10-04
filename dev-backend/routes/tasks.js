@@ -2698,7 +2698,7 @@ router.get('/public/by-token/:token/attachments/:attId/download', async (req, re
     res.setHeader('X-Content-Type-Options', 'nosniff');
     if (att.mime_type) res.setHeader('Content-Type', att.mime_type);
     res.setHeader('Cache-Control', 'private, no-store');
-    return body.stream.pipe(res);
+    return require('../services/attachmentStorage').sendAttachmentBody(res, body, 'tasks/public-attach');
   } catch (err) { next(err); }
 });
 

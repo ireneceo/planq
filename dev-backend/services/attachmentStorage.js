@@ -16,9 +16,22 @@ const fs = require('fs');
 const path = require('path');
 const { BusinessCloudToken } = require('../models');
 const gdrive = require('./gdrive');
+const driveCache = require('./driveCache');
 
 // 워크스페이스별 "Drive 인증이 죽어 있는 동안" 창 — 같은 실패를 구글까지 반복해서 묻지 않는다.
 const driveDownUntil = new Map();
+
+// 로컬 파일 본문 — 스트림은 **꺼낼 때** 연다.
+//   sendFile 로 내보내는 호출부는 `stream` 을 한 번도 안 건드리는데, 미리 열어 두면 그 fd 가 닫히지 않는다.
+function localBody(abs, size) {
+  let s = null;
+  return {
+    ok: true,
+    abs,
+    size,
+    get stream() { if (!s) s = fs.createReadStream(abs); return s; },
+  };
+}
 
 async function readAttachmentBody(att) {
   // 자체 저장(planq) — 로컬 파일
@@ -26,13 +39,20 @@ async function readAttachmentBody(att) {
     const abs = path.isAbsolute(att.file_path)
       ? att.file_path
       : path.join(__dirname, '..', att.file_path);
-    if (!fs.existsSync(abs)) return { ok: false, code: 410, msg: 'file_missing' };
-    return { ok: true, stream: fs.createReadStream(abs), abs };
+    let st;
+    try { st = fs.statSync(abs); } catch { return { ok: false, code: 410, msg: 'file_missing' }; }
+    return localBody(abs, st.size);
   }
 
   // 구글 드라이브 — 워크스페이스 토큰으로 서버가 받아서 흘려준다
   if (att.storage_provider === 'gdrive' && att.external_id) {
     // 토큰이 죽은 직후엔 구글을 다시 때리지 않는다 (아래 catch 에서 세운 창).
+    // ★ 2026-10-04 — 캐시본이 있으면 **Drive 에 가지 않는다.** (권한은 호출부가 이미 봤다 — 이 함수는
+    //   언제나 판정 뒤에 불린다.) 캐시본은 로컬 파일과 똑같이 돌려준다 → sendFile·Range·Content-Length·
+    //   리사이즈가 그대로 탄다. 첫 바이트 0.7~2.5초(Drive 왕복) → 수 ms.
+    const hit = driveCache.lookup(att.business_id, att.external_id, att.file_size);
+    // ★ 펼치기(`...`)를 쓰지 않는다 — getter 가 평가돼 스트림이 미리 열린다.
+    if (hit) { const b = localBody(hit.path, hit.size); b.cached = true; return b; }
     const downUntil = driveDownUntil.get(att.business_id) || 0;
     if (downUntil > Date.now()) return { ok: false, code: 409, msg: 'drive_reconnect_required' };
     const cloudToken = await BusinessCloudToken.findOne({
@@ -41,8 +61,11 @@ async function readAttachmentBody(att) {
     if (!cloudToken) return { ok: false, code: 409, msg: 'drive_not_connected' };
     try {
       const drive = await gdrive.getDriveClient(cloudToken);
-      const stream = await gdrive.getFileStream(drive, att.external_id);
-      return { ok: true, stream };
+      const raw = await gdrive.getFileStream(drive, att.external_id);
+      const size = Number.isFinite(raw.contentLength) ? raw.contentLength : null;
+      // 받는 길에 캐시에도 쓴다 — 다음부터는 위 적중 분기로 나간다. 길이가 맞을 때만 캐시가 남는다.
+      const stream = driveCache.teeIntoCache(raw, att.business_id, att.external_id, { expectedLen: size });
+      return { ok: true, stream, size, drive: true };
     } catch (e) {
       // ★ 2026-08-24 — 토큰이 죽으면(invalid_grant) 모든 첨부가 502 가 되고, 화면이 그걸 계속
       //   재시도해 브라우저 자원이 고갈됐다(ERR_INSUFFICIENT_RESOURCES 폭주). 실패를 짧게 기억해
@@ -77,4 +100,35 @@ async function readAttachmentBody(att) {
   return { ok: false, code: 409, msg: 'external_file_no_url' };
 }
 
-module.exports = { readAttachmentBody };
+/**
+ * readAttachmentBody 결과를 응답으로 내보낸다 — **헤더(Content-Type·Disposition 등)는 호출부가 먼저 세운다.**
+ *   · 로컬·캐시본(abs) → sendFile: Range·Content-Length·ETag 를 express 가 처리한다
+ *   · 스트림(Drive 첫 다운로드) → 길이를 알면 Content-Length 를 싣는다(화면이 % 를 낸다)
+ *   · 받는 쪽이 끊으면 원본 스트림도 끊는다(pipe 는 끊지 않아 Drive 연결·반쪽 캐시가 남았다)
+ */
+function sendAttachmentBody(res, body, tag = 'attachment') {
+  // 운영에서 «캐시가 먹는가» 를 응답만 보고 알 수 있게(값은 hit/miss 뿐 — 경로·키는 싣지 않는다).
+  if (body.cached) res.setHeader('X-Storage-Cache', 'hit');
+  else if (body.drive) res.setHeader('X-Storage-Cache', 'miss');
+  if (body.abs) {
+    // uploads/.cache 아래 캐시본은 경로에 점 폴더가 있다 — send 의 기본(dotfiles:ignore)이면 404 가 된다.
+    return res.sendFile(body.abs, { dotfiles: 'allow' }, (err) => {
+      if (!err) return;
+      if (err.code === 'ECONNABORTED' || err.code === 'EPIPE' || res.writableEnded) return;
+      console.error(`[${tag}] sendFile error:`, err.message);
+      if (!res.headersSent) res.status(err.status || 500).json({ success: false, message: 'stream_failed' });
+      else res.destroy();
+    });
+  }
+  if (Number.isFinite(body.size) && body.size >= 0) res.setHeader('Content-Length', String(body.size));
+  return require('stream').pipeline(body.stream, res, (err) => {
+    if (!err || err.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
+    console.error(`[${tag}] stream error:`, err.message);
+    if (!res.headersSent) {
+      res.removeHeader('Content-Length');
+      res.status(502).json({ success: false, message: 'stream_failed' });
+    }
+  });
+}
+
+module.exports = { readAttachmentBody, sendAttachmentBody };

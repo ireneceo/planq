@@ -3,7 +3,7 @@
 //   여태 생성이 `routes/projects.js` POST /:id/notes 안에 인라인으로만 있었다. AI 에이전트 도구(#439 add_project_note)가
 //   같은 일을 해야 해서 여기로 뽑았다 — 베끼면 고객 personal 강제·대화방 소속 확인·감사·실시간이 한쪽에만 남는다.
 //   사람(라우트)과 AI(services/agent/tools/notes.js)가 이 함수 하나를 쓴다.
-const { ProjectNote, Conversation, User } = require('../../models');
+const { ProjectNote, Conversation, User, EmailThread } = require('../../models');
 const { loadProjectOrForbidden } = require('../projectAccess');
 const { resolveSubject, fail } = require('./_subject');
 
@@ -43,16 +43,25 @@ async function createProjectNote(actor, params = {}) {
     const conv = await Conversation.findByPk(params.conversationId);
     if (conv && conv.project_id === project.id) convIdToStore = conv.id;
   }
+  // email_thread_id 옵션(2026-10-04 AI 에이전트 M3-c 출처 연결) — **부르는 쪽이 읽기 권한을 확인한 스레드**만 넘긴다
+  //   (services/agent/tools/sources: 계정 격리 + 워크스페이스 묶음). 여기서는 같은 워크스페이스 스레드인지만 다시 본다.
+  let threadIdToStore = null;
+  if (params.emailThreadId) {
+    const th = await EmailThread.findOne({ where: { id: Number(params.emailThreadId), business_id: project.business_id }, attributes: ['id'] });
+    if (!th) return fail('thread_not_found', 404);
+    threadIdToStore = th.id;
+  }
   const note = await ProjectNote.create({
     project_id: project.id,
     conversation_id: convIdToStore,
+    email_thread_id: threadIdToStore,
     author_user_id: subj.subjectId,
     visibility: vis,
     body: text,
   });
   audit(actor, {
     action: 'project_note.create', targetType: 'project_note', targetId: note.id, businessId: project.business_id,
-    newValue: { project_id: project.id, conversation_id: convIdToStore, visibility: vis }, // 본문은 싣지 않는다
+    newValue: { project_id: project.id, conversation_id: convIdToStore, email_thread_id: threadIdToStore, visibility: vis }, // 본문은 싣지 않는다
   });
   const full = await ProjectNote.findByPk(note.id, {
     include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],

@@ -160,7 +160,7 @@ async def internal_search_my_sessions(
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     cur = await db.execute(
-      'SELECT id, title, created_at, status, capture_mode, project_id, visibility, user_id, business_id, '
+      'SELECT id, title, created_at, status, capture_mode, project_id, client_id, visibility, user_id, business_id, '
       '       summary_full, summary_key_points, body, brief '
       'FROM sessions '
       "WHERE business_id = ? AND (user_id = ? OR visibility <> 'L1') AND (" + ' OR '.join(clauses) + ') '
@@ -176,7 +176,7 @@ async def internal_search_my_sessions(
     if not rows:
       ucl = ' OR '.join(['LOWER(u.original_text) LIKE ?'] * len(terms))
       cur = await db.execute(
-        'SELECT s.id, s.title, s.created_at, s.status, s.capture_mode, s.project_id, s.visibility, s.user_id, s.business_id, '
+        'SELECT s.id, s.title, s.created_at, s.status, s.capture_mode, s.project_id, s.client_id, s.visibility, s.user_id, s.business_id, '
         '       s.summary_full, s.summary_key_points, s.body, s.brief '
         'FROM sessions s JOIN utterances u ON u.session_id = s.id '
         "WHERE s.business_id = ? AND (s.user_id = ? OR s.visibility <> 'L1') AND (" + ucl + ') '
@@ -210,6 +210,8 @@ async def internal_search_my_sessions(
         'status': r.get('status'),
         'capture_mode': r.get('capture_mode'),
         'project_id': r.get('project_id'),
+        # AI 통합 검색(Node services/searchScope)이 «이 고객의 회의록» 으로 좁힐 때 쓴다 — 연결 칸 그대로
+        'client_id': r.get('client_id'),
         # 내 노트인지 팀이 공개한 노트인지 **말해 준다** — 안 알려주면 Cue 가 남의 회의록을
         # "내 회의록" 이라고 부른다(사용자에게는 곧 거짓말이다).
         'is_mine': r.get('user_id') == user_id,
@@ -298,6 +300,73 @@ async def internal_session_owns(
     'capture_mode': row['capture_mode'], 'client_id': row['client_id'],
     'project_id': row['project_id'], 'created_at': row['created_at'],
     'duration_seconds': row['duration_seconds'],
+  })
+
+
+# ─── AI 앱이 노트 한 건을 읽는다 (2026-10-04, AI 에이전트 M3-b · 설계 docs/AI_AGENT_M3_DESIGN.md §1.2) ───
+#   Node `services/qnoteContext.readNote` 한 통로만 부른다. `internal/owns` 는 소유 확인만, `internal/export` 는 전량 덤프라
+#   «읽을 수 있는 사람에게 한 건» 을 주는 문이 없었다.
+#   ★ 판정은 `session_read_allowed` — 상세 조회(_load_session_or_403)·internal/search 와 **같은 문**이다.
+#     L1(개인)은 본인만, L2 는 지금 그 프로젝트 멤버, L3/L4 는 지금 그 워크스페이스 멤버. 녹음 중은 본인만.
+#   ★ 워크스페이스가 다르면 본인 것이라도 "없다" — 토큰의 워크스페이스 밖 노트를 그 연결로 읽지 않는다.
+#   ★ 못 읽는 것과 없는 것을 구분하지 않는다(둘 다 404) — 남의 노트가 있다는 사실도 흘리지 않는다.
+@router.get('/internal/read')
+async def internal_read_session(
+    session_id: int = Query(...),
+    user_id: int = Query(...),
+    business_id: int = Query(...),
+    offset: int = Query(0, ge=0),
+    max_chars: int = Query(6000, ge=100, le=20000),
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cur = await db.execute('SELECT * FROM sessions WHERE id = ?', (int(session_id),))
+    row = await cur.fetchone()
+    if not row or (row['business_id'] or 0) != int(business_id):
+      raise HTTPException(status_code=404, detail='not_found')
+    if not await session_read_allowed(row, int(user_id)):
+      raise HTTPException(status_code=404, detail='not_found')
+    # 본문 — 사람이 쓴 본문(body)이 있으면 그것, 없으면 전사(화자: 말). 상한 2000 발화.
+    text = (row['body'] or '').strip() if 'body' in row.keys() else ''
+    source = 'body'
+    if not text:
+      ucur = await db.execute(
+        'SELECT speaker, original_text FROM utterances WHERE session_id = ? ORDER BY id ASC LIMIT 2000',
+        (int(session_id),),
+      )
+      utts = await ucur.fetchall()
+      text = '\n'.join(f"{(u['speaker'] or '?')}: {u['original_text']}" for u in utts if u['original_text'])
+      source = 'transcript'
+  key_points = None
+  if row['summary_key_points']:
+    try:
+      key_points = json.loads(row['summary_key_points'])
+    except (TypeError, ValueError):
+      key_points = row['summary_key_points']
+  piece = text[offset:offset + max_chars]
+  nxt = offset + len(piece) if offset + len(piece) < len(text) else None
+  keys = row.keys()
+  return success({
+    'id': row['id'],
+    'title': row['title'] or 'Untitled Session',
+    'created_at': row['created_at'],
+    'status': row['status'],
+    'capture_mode': row['capture_mode'] if 'capture_mode' in keys else None,
+    'duration_seconds': row['duration_seconds'] if 'duration_seconds' in keys else None,
+    'project_id': row['project_id'] if 'project_id' in keys else None,
+    'client_id': row['client_id'] if 'client_id' in keys else None,
+    'is_mine': row['user_id'] == int(user_id),
+    'summary': row['summary_full'],
+    'key_points': key_points,
+    'body': piece,
+    'body_source': source,
+    'body_total_chars': len(text),
+    'offset': offset,
+    'next_offset': nxt,
   })
 
 

@@ -1,6 +1,7 @@
 import { openPopout } from '../../utils/pinHost';
+import { canOpenSeparateWindow } from '../../utils/popout';
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { downloadBlob } from '../../utils/download';
+import { downloadFromApi } from '../../utils/download';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
@@ -832,14 +833,13 @@ const ChatPanel: React.FC<Props> = ({
 
   // 비이미지 첨부 다운로드 — Authorization 헤더 동반 fetch + blob 트리거
   // (img 와 달리 클릭 다운로드는 직접 JS 로 받아야 401 안 남)
+  //   ★ 2026-10-04 — 받는 일은 다운로드 매니저 한 곳(downloadFromApi): 우측 하단 트레이에 %·MB·[취소]·실패 문구.
+  //     여태 console 로만 실패를 삼켜 큰 파일은 «눌러도 안 된다» 로 보였다.
   const downloadAttachment = async (attId: number, filename: string) => {
     try {
-      const res = await apiFetch(`/api/message-attachments/${attId}/download`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      await downloadBlob(blob, filename);
+      await downloadFromApi(`/api/message-attachments/${attId}/download`, filename);
     } catch (e) {
-      console.error('[downloadAttachment]', e);
+      console.warn('[downloadAttachment]', e);   // 사용자에게는 트레이가 말한다
     }
   };
 
@@ -1320,7 +1320,7 @@ const ChatPanel: React.FC<Props> = ({
           {/* 좁은 폭(단일 컬럼)에서만 — 리스트가 숨어도 핀에 닿을 수 있어야 한다 */}
           {pinSlot && <NarrowPinSlot>{pinSlot}</NarrowPinSlot>}
           {/* N+93 (#9) — 새 창으로 분리 (데스크탑앱 밖에서 채팅). 이미 팝아웃 창이면 숨김. */}
-          {window.location.pathname !== '/talk-popout' && (
+          {window.location.pathname !== '/talk-popout' && canOpenSeparateWindow() && (
             <PopoutBtn
               type="button"
               onClick={() => openConvPopout(activeConv.id)}

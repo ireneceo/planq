@@ -1539,7 +1539,8 @@ router.post('/:businessId/email-threads/:id/forward',
 // PUT    /:biz/email-drafts             → upsert
 // DELETE /:biz/email-drafts?thread_id=  → 발송/취소 시 삭제
 // ─────────────────────────────────────────────
-function draftThreadKey(v) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; }
+// 초안 쓰기는 services/mailDrafts 한 벌 — AI 앱의 답장 초안(create_mail_reply_draft)도 같은 함수를 지난다(2026-10-04 M3-c).
+const { draftThreadKey, upsertDraft } = require('../services/mailDrafts');
 router.get('/:businessId/email-drafts',
   authenticateToken, checkBusinessAccess, requireMenu('qmail', 'write'),
   async (req, res, next) => {
@@ -1568,11 +1569,7 @@ router.put('/:businessId/email-drafts', // audit-exempt: 본인 작성 중 초�
         body_html: body_html != null ? String(body_html) : null,
         attachment_file_ids: Array.isArray(attachment_file_ids) ? attachment_file_ids : null,
       };
-      const [draft, created] = await EmailDraft.findOrCreate({
-        where: { business_id: businessId, user_id: req.user.id, thread_id: threadId },
-        defaults: { business_id: businessId, user_id: req.user.id, thread_id: threadId, ...fields },
-      });
-      if (!created) await draft.update(fields);
+      const draft = await upsertDraft({ businessId, userId: req.user.id, threadId, fields });
       return successResponse(res, draft);
     } catch (err) { next(err); }
   }

@@ -9,20 +9,15 @@
 import { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { downloadFromApi, type DownloadProgress } from '../utils/download';
-import { mapApiError } from '../utils/apiError';
-
-function humanSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-}
+import { progressPercent, humanBytes } from '../services/downloadManager';
 
 export function useFileDownload() {
   const { t } = useTranslation('common');
-  const { t: tErr } = useTranslation('errors');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // ★ 2026-10-04 — 실패는 우측 하단 트레이가 문구 + [다시 시도] 로 말한다(services/downloadManager).
+  //   여기서도 띄우면 같은 실패가 두 군데에 나온다. 필드는 호출부 호환을 위해 남긴다(언제나 null).
+  const [error] = useState<string | null>(null);
   const busy = useRef(false);
 
   const start = useCallback(async (url: string, filename: string, id?: string) => {
@@ -30,24 +25,23 @@ export function useFileDownload() {
     busy.current = true;
     setDownloadingId(id ?? url);
     setProgress(null);
-    setError(null);
     try {
       await downloadFromApi(url, filename, { onProgress: setProgress });
-    } catch (e) {
-      setError(mapApiError(e, tErr));
+    } catch {
+      /* 트레이가 실패를 보여 준다 */
     } finally {
       busy.current = false;
       setDownloadingId(null);
       setProgress(null);
     }
-  }, [tErr]);
+  }, []);
 
   /** 진행 문구 — 전체 크기를 알면 퍼센트, 모르면 받은 양. 시작 직후엔 "받는 중…". */
   const progressText = !progress
     ? (downloadingId ? (t('download.preparing', { defaultValue: '받는 중…' }) as string) : null)
-    : (progress.total && progress.total > 0
-      ? `${Math.min(99, Math.floor((progress.received / progress.total) * 100))}%`
-      : humanSize(progress.received));
+    : (progressPercent(progress.received, progress.total) !== null
+      ? `${progressPercent(progress.received, progress.total)}%`   // 트레이와 같은 공식
+      : humanBytes(progress.received));
 
   return {
     /** 다운로드 시작 */
@@ -60,6 +54,6 @@ export function useFileDownload() {
     progressText,
     /** 사용자 언어 오류 문구 — 조용히 실패하지 않게 화면이 반드시 보여줄 것 */
     error,
-    clearError: () => setError(null),
+    clearError: () => { /* 실패는 트레이가 다룬다 */ },
   };
 }

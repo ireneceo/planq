@@ -20,4 +20,19 @@ async function applyMenuGates({ tasks, clients }, businessId, user, isClient) {
   if (lv.menus.qsale === 'none') clients.length = 0;
 }
 
-module.exports = { allowedKbIds, applyMenuGates };
+/** 새 다섯 그룹(메일·일정·상담·프로젝트 메모·회의록, 2026-10-04 M3-b)을 이 사람에게 찾아 줄 것인가.
+ *  화면에서 그 메뉴가 숨겨졌으면 검색에서도 안 낸다 — 각 목록 라우트의 requireMenu 와 같은 메뉴 키.
+ *  고객(client)에게는 다섯 그룹 모두 내지 않는다(메일·상담·메모·회의록은 멤버 도구이고, 일정은 고객 화면이 따로 있다). */
+const NEW_GROUP_MENUS = { mail: 'qmail', events: 'qcalendar', interactions: 'qsale', project_notes: 'qtask', meeting_notes: 'qnote' };
+async function newGroupGates(businessId, user, isClient) {
+  const out = {};
+  for (const k of Object.keys(NEW_GROUP_MENUS)) out[k] = !isClient;
+  if (isClient || user.platform_role === 'platform_admin') return out;
+  const lv = await require('../middleware/menu_permission').getMemberMenuLevels(businessId, user.id);
+  if (!lv) { for (const k of Object.keys(out)) out[k] = false; return out; }
+  if (lv.role === 'owner' || lv.role === 'admin' || !lv.menus) return out;
+  for (const [k, menu] of Object.entries(NEW_GROUP_MENUS)) if (lv.menus[menu] === 'none') out[k] = false;
+  return out;
+}
+
+module.exports = { allowedKbIds, applyMenuGates, newGroupGates, NEW_GROUP_MENUS };

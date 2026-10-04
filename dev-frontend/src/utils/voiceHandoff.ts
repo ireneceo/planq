@@ -43,3 +43,29 @@ export function parseVoiceWhen(s?: string | null): Date | null {
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+// ── 라우터 밖에서 넘기기 (2026-10-04) ──
+// 시트는 RightDock 소속이고 데스크탑 탭 모드(아이패드 포함)에서는 **라우터 밖**(ChromeOverlays)에 뜬다.
+// 거기서 useNavigate 를 부르면 화면이 통째로 죽는다(운영 client-crash 2026-10-04 «useNavigate() may be used
+// only in the context of a <Router>», 아이패드 앱 #dock-voice). 그래서 시트는 chrome 이동(tabStore)을 쓰고,
+// 내용은 navigate state 대신 여기 한 번만 꺼낼 수 있는 보관함에 둔다 — URL·히스토리에 안 남는 것은 같다.
+const HANDOFF_TTL_MS = 30_000;
+let pending: { h: VoiceHandoff; at: number } | null = null;
+
+/** 시트가 이동 직전에 맡긴다. */
+export function stashVoiceHandoff(h: VoiceHandoff): void { pending = { h, at: Date.now() }; }
+
+/** 착지 화면이 꺼낸다 — 종류가 맞고 30초 안일 때만.
+ *  ★ 꺼낸 뒤 2초 동안은 같은 값을 다시 준다 — 착지 effect 는 트리거 파라미터(`create=1`)를 지우기 전에
+ *    한 번 더 돌 수 있고, 그때 null 을 받으면 방금 채운 폼을 빈 값으로 덮는다. 그 뒤로는 비운다. */
+const REREAD_MS = 2_000;
+let taken: { h: VoiceHandoff; at: number } | null = null;
+export function takeVoiceHandoff(kind: VoiceKind): VoiceHandoff | null {
+  const now = Date.now();
+  if (taken && taken.h.kind === kind && now - taken.at <= REREAD_MS) return taken.h;
+  const p = pending;
+  if (!p || p.h.kind !== kind || now - p.at > HANDOFF_TTL_MS) return null;
+  pending = null;
+  taken = { h: p.h, at: now };
+  return p.h;
+}

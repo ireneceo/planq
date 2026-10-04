@@ -26,7 +26,7 @@ import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
 import TaskRowActionMenu from '../../components/QTask/TaskRowActionMenu';
 import { responsiveDrawerWidth } from '../../utils/responsiveDrawer';
 import { plainToHtml } from '../../utils/plainToHtml';
-import type { VoiceHandoff } from '../../utils/voiceHandoff';
+import { takeVoiceHandoff, type VoiceHandoff } from '../../utils/voiceHandoff';
 import { identityText } from '../../components/Common/IdentityContext';
 import AiTaskCreateModal from '../../components/QTask/AiTaskCreateModal';
 import TemplateSelectModal from '../../components/QTask/TemplateSelectModal';
@@ -446,7 +446,7 @@ const QTaskPage:React.FC=()=>{
   //   내용이 통째로 버려진다** (시트는 RightDock 소속이라 /tasks→/tasks 이동은 remount 를 안 일으킨다).
   useEffect(() => {
     if (searchParams.get('create') !== '1') return;
-    const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? null;
+    const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? takeVoiceHandoff('task');
     // 음성으로 받은 내용은 폼의 **첫 값**으로 넘긴다(값의 주인은 폼 컴포넌트다).
     //   detail 은 평문 — RichEditor 는 HTML 을 받으므로 여기서 바꿔 넘긴다(그대로 주면 개행이 사라진다).
     //   비어 있으면 **명시적으로 빈 문자열** — 안 그러면 직전 진입의 설명이 그대로 남는다.

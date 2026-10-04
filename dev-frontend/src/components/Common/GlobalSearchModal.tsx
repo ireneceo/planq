@@ -38,7 +38,10 @@ interface Props {
 
 // #359 — 'records' 제거. 폐지된 옛 메뉴다 — Q docs 의 표로 흡수됐다(App.tsx 이름 대응 주석).
 //   백엔드도 이제 빈 배열만 낸다 — 같은 항목이 '문서' 와 '레코드' 로 두 번 뜨던 중복을 없앤다.
-type Category = 'tasks' | 'posts' | 'files' | 'conversations' | 'knowledge' | 'clients' | 'projects';
+// 2026-10-04 M3-b — 메일·일정·상담·프로젝트 메모·회의록 다섯 그룹 추가. 서버 services/searchScope 한 벌을
+//   AI 앱의 search_all 과 같이 쓴다(«AI 는 찾는데 화면은 못 찾는다» 를 만들지 않는다).
+type Category = 'tasks' | 'posts' | 'files' | 'conversations' | 'knowledge' | 'clients' | 'projects'
+  | 'mail' | 'events' | 'interactions' | 'project_notes' | 'meeting_notes';
 
 interface Hit {
   id: number;
@@ -61,6 +64,11 @@ interface SearchResult {
   //   옛 코드가 x.email 을 읽어 보조줄이 늘 비어 있었다(이메일로 찾아도 어느 주소인지 안 보였다).
   clients?: Array<{ id: number; display_name?: string; company_name?: string; invite_email?: string | null; billing_contact_email?: string | null; status?: string | null; sales_stage?: string | null } & WithMatch>;
   projects?: Array<{ id: number; name: string; status?: string } & WithMatch>;
+  mail?: Array<{ id: number; subject?: string | null; last_message_at?: string | null } & WithMatch>;
+  events?: Array<{ id: number; title: string; start_at?: string | null } & WithMatch>;
+  interactions?: Array<{ id: number; client_id: number; client_name?: string | null; title?: string | null; kind?: string } & WithMatch>;
+  project_notes?: Array<{ id: number; project_id: number; project_name?: string | null } & WithMatch>;
+  meeting_notes?: Array<{ id: number; title?: string | null } & WithMatch>;
 }
 
 // 행에 이미 보이는 필드 — 여기서 맞았으면 하이라이트로 충분(사유 줄 없음).
@@ -68,17 +76,20 @@ interface SearchResult {
 const SHOWN_FIELDS: Record<Category, string[]> = {
   tasks: ['title'], posts: ['title', 'category'], files: ['file_name'],
   conversations: ['title'], knowledge: ['title'], clients: ['name', 'email'], projects: ['name'],
+  mail: ['subject'], events: ['title'], interactions: ['title'], project_notes: [], meeting_notes: ['title'],
 };
 
 // 카테고리 라벨 i18n fallback (ko) — 표시는 t('search.cat.<key>') 로
-const CAT_LABEL_KO: Record<Category, string> = {
+const CAT_LABEL_KO: Partial<Record<Category, string>> = {
   tasks: '업무', posts: '문서', files: '파일',
   conversations: '대화', knowledge: '지식', clients: '고객', projects: '프로젝트',
+  // 새 다섯 그룹은 폴백 없이 locales(search.cat.*)만 — 코드에 문자열을 더하지 않는다
 };
 
 const CAT_BADGE_COLOR: Record<Category, string> = {
   tasks: '#0EA5E9', posts: '#F43F5E',
   files: '#64748B', conversations: '#14B8A6', knowledge: '#0D9488', clients: '#F59E0B', projects: '#10B981',
+  mail: '#6366F1', events: '#8B5CF6', interactions: '#D97706', project_notes: '#059669', meeting_notes: '#0891B2',
 };
 
 // #210 — 메뉴 매칭 정규화: 대소문자·공백·중점 무시("q mail" → "qmail", "Q Bill" → "qbill")
@@ -184,6 +195,12 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
       h.push({ id: x.id, title: x.display_name || x.company_name || `#${x.id}`, sub, to: `/sale/${x.id}`, type: 'clients', match: x.match });
     });
     (r.projects || []).forEach(x => h.push({ id: x.id, title: x.name, sub: x.status, to: `/projects/p/${x.id}`, type: 'projects', match: x.match }));
+    // 새 다섯 그룹 — 목적지는 각 화면의 딥링크(알림 링크와 같은 모양)
+    (r.mail || []).forEach(x => h.push({ id: x.id, title: x.subject || `#${x.id}`, to: `/mail?thread=${x.id}`, type: 'mail', match: x.match }));
+    (r.events || []).forEach(x => h.push({ id: x.id, title: x.title, to: `/calendar?event=${x.id}`, type: 'events', match: x.match }));
+    (r.interactions || []).forEach(x => h.push({ id: x.id, title: x.title || x.client_name || `#${x.id}`, sub: x.title ? (x.client_name || undefined) : undefined, to: `/sale/${x.client_id}`, type: 'interactions', match: x.match }));
+    (r.project_notes || []).forEach(x => h.push({ id: x.id, title: x.project_name || `#${x.project_id}`, to: `/projects/p/${x.project_id}?tab=notes`, type: 'project_notes', match: x.match }));
+    (r.meeting_notes || []).forEach(x => h.push({ id: x.id, title: x.title || `#${x.id}`, to: `/notes/${x.id}`, type: 'meeting_notes', match: x.match }));
     return h;
   }, [t]);   // #206 — 상태 라벨 i18n → 언어 전환 시 재계산
 
@@ -307,7 +324,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
                 <GroupTitle>{t('search.recent', { defaultValue: '최근 항목' }) as string}</GroupTitle>
                 {recentHits.map(h => (
                   <Hit key={`recent-${h.type}-${h.id}`} type="button" onClick={() => goto(h.to)}>
-                    <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] })}</TypeBadge>
+                    <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] ?? h.type })}</TypeBadge>
                     <HitMain>
                       <HitTitle>{h.title}</HitTitle>
                       {h.sub && <HitSub>{h.sub}</HitSub>}
@@ -337,7 +354,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
                   : !SHOWN_FIELDS[h.type].includes(field));
                 return (
                   <Hit key={`${h.type}-${h.id}`} type="button" onClick={() => goto(h.to)} data-testid="gsearch-hit">
-                    <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] })}</TypeBadge>
+                    <TypeBadge $color={CAT_BADGE_COLOR[h.type]}>{t(`search.cat.${h.type}`, { defaultValue: CAT_LABEL_KO[h.type] ?? h.type })}</TypeBadge>
                     <HitMain>
                       <HitTitle><HighlightText text={h.title} query={query} /></HitTitle>
                       {h.sub && <HitSub><HighlightText text={h.sub} query={query} /></HitSub>}

@@ -35,7 +35,9 @@ echo "[BACKUP] Code: $CODE_BACKUP_DIR"
 
 # ===== 업로드 파일 백업 =====
 if [ -d "/opt/planq/dev-backend/uploads" ]; then
+  # uploads/.cache = 리사이즈·Drive 내려받기 캐시 — 언제든 다시 만들 수 있으니 백업하지 않는다(최대 수 GB).
   tar -czf "$CODE_BACKUP_DIR/uploads.tar.gz" \
+    --exclude='uploads/.cache' \
     -C /opt/planq/dev-backend uploads
   echo "[BACKUP] Uploads: $CODE_BACKUP_DIR/uploads.tar.gz"
 fi

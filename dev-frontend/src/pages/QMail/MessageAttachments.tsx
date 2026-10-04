@@ -14,6 +14,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { downloadFromApi } from '../../utils/download';
+import { progressPercent } from '../../services/downloadManager';
 import { useImageLightbox } from '../../components/Common/ImageLightbox';
 import { DownloadAllButton } from '../../components/Common/AttachmentList';
 import { isNativeApp } from '../../services/native';
@@ -97,18 +98,16 @@ const MessageAttachments: React.FC<Props> = ({ businessId, attachments }) => {
       await downloadFromApi(
         `/api/files/${businessId}/${a.file_id}/download`,
         a.file_name || 'attachment',
-        { onProgress: (p) => setDlPct(p.total && p.total > 0
-          ? Math.min(99, Math.floor((p.received / p.total) * 100))
-          : null) },
+        // 트레이와 **같은 공식**(progressPercent) — 칩 옆 숫자와 우측 하단 트레이 숫자가 갈라지지 않게.
+        { onProgress: (p) => setDlPct(progressPercent(p.received, p.total)) },
       );
     } catch {
-      // 여태 조용히 삼켜서, 실패해도 사용자는 아무 일도 안 일어난 화면만 봤다.
-      flagAttachErr(a.id);
+      // 실패는 우측 하단 다운로드 트레이가 문구 + [다시 시도] 로 말한다 — 여기서 또 띄우면 두 군데가 된다.
     } finally {
       setDlId(null);
       setDlPct(null);
     }
-  }, [businessId, flagAttachErr]);
+  }, [businessId]);
 
   // 칩 본체 클릭 — 이미지는 라이트박스, PDF 는 새 탭, 그 외는 내려받기.
   const preview = useCallback(async (a: MailAttachment) => {

@@ -116,7 +116,8 @@ async function runTool(p, name, rawArgs) {
     const actor = { kind: 'user', userId: p.userId, platformRole: p.platformRole, req: null,
       channel: { kind: 'agent', provider: p.provider, grant_id: p.grantId, client_id: p.clientId } };
     const data = await tool.handler(p, args, actor);
-    const target = data?.task ? { target_type: 'task', target_id: data.task.task_id }
+    const target = data?.draft ? { target_type: 'email_draft', target_id: data.draft.draft_id }
+      : data?.task ? { target_type: 'task', target_id: data.task.task_id }
       : data?.note ? { target_type: 'task_comment', target_id: data.note.note_id }
         : data?.interaction ? { target_type: 'client_interaction', target_id: data.interaction.interaction_id }
           : data?.project_note ? { target_type: 'project_note', target_id: data.project_note.note_id } : {};
@@ -130,7 +131,10 @@ async function runTool(p, name, rawArgs) {
     return { ok: true, ...data };
   } catch (e) {
     // 실패한 쓰기는 멱등 자리를 비운다 — 같은 요청을 고쳐 다시 보낼 수 있게
-    if (idemKey && !(e instanceof AgentError && e.code === 'CONFLICT')) await store.del('agent_idem', idemKey).catch(() => {});
+    //   단, «같은 요청이 지금 실행 중»(in_progress) 은 남의 자리다 — 지우면 동시 요청이 두 번 실행된다.
+    //   다른 CONFLICT(초안이 이미 있음 등)는 이 요청이 실패한 것이라 자리를 비운다 — 안 그러면 사용자가 원인을 치운 뒤
+    //   같은 요청을 다시 보내도 10분간 in_progress 로 막힌다(2026-10-04 M3-c create_mail_reply_draft).
+    if (idemKey && !(e instanceof AgentError && e.code === 'CONFLICT' && e.message === 'in_progress')) await store.del('agent_idem', idemKey).catch(() => {});
     if (!(e instanceof AgentError)) console.error(`[agent ${name}] ${requestId}`, e.message);
     const out = envelope(e, requestId);
     audit(p, name, args, { ok: false, code: out.error.code });
