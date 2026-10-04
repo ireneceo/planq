@@ -1,17 +1,31 @@
 {
-  "working_on": ["#439 운영 ChatGPT 실연결 — Irene 신고 «제대로 돌지 않는다» 진단(요청 기록 추가)"],
+  "working_on": [
+    "#439 M3-a 메일 조회 시작 · 디테일 기능 콘텐츠·온보딩 안내 정리"
+  ],
   "in_progress": [],
   "completed": [
-    { "title": "MCP serverInfo 이름·설명·아이콘(클라이언트 지원 시 표시)", "verified": "opus_only" },
-    { "title": "AI 에이전트 요청 한 줄 기록(경로·rpc·도구·상태·401 사유·ms, 토큰·인자 미기록)", "verified": "opus_only" },
-    { "title": "도움말·앱 안내의 ChatGPT 메뉴 이름 최신화(Security and login › Developer mode · Plugins › Add › Create MCP App)", "verified": "opus_only" }
+    {
+      "title": "약관·개인정보처리방침·계정 삭제 안내에 운영사 명시(platform_settings 보간) · 임시값 제거",
+      "verified": "opus_only"
+    }
   ],
-  "behavior_changes": ["운영 AGENT_WRITE_ENABLED=1 — AI 쓰기 도구 켜짐(기본 꺼짐이었다)"],
+  "behavior_changes": [
+    "약관·방침·삭제 안내의 문의처·책임자가 운영 설정(대표·공식 메일)을 따른다"
+  ],
   "migrations": [],
-  "issues": ["운영 grant#1 연결 후 도구 호출 0건 — ChatGPT 쪽 단계 확인 중"],
-  "blocked_on_human": ["Irene: ChatGPT 새 채팅 + › Developer mode › PlanQ 선택 후 재시도 · 보이는 문구 공유"],
-  "check_areas": ["planq.kr/agent/mcp 연결·도구 호출"],
-  "backlog": ["#439 M3: 디렉터리 제출(공식 아이콘) · Claude 실연결 · CIMD"],
-  "tooling_health": ["guard 61/62 · health 48/48 · dev ChatGPT 핸드셰이크 모사(initialize→tools/list 19→tools/call 200)"],
+  "issues": [],
+  "blocked_on_human": [
+    "Bing 웹마스터 소유 확인(Irene 계정)"
+  ],
+  "check_areas": [
+    "/terms · /privacy · /account-deletion (ko/en)"
+  ],
+  "backlog": [
+    "#439 M3-a~d (docs/AI_AGENT_M3_DESIGN.md)",
+    "GEO 조치 5종(docs/seo/GEO-ANALYSIS-2026-10-04.md)"
+  ],
+  "tooling_health": [
+    "빌드 EXIT 0 · 실브라우저 법적 페이지 ko/en 확인"
+  ],
   "undeployed": []
 }
