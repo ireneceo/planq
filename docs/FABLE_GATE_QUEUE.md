@@ -5340,3 +5340,19 @@ noscript 가 진짜 root 앞에 통째로 복제됐다(운영 `/` · `/login` �
 **판정**: R=0(도움말 텍스트 — 시드 재실행으로 되돌린다) · S=0 · F=1(wiki-coverage-check EXIT·시드 멱등) → 자체 검증.
 **자체 검증**: dev `node seed-wiki-content.js` 완료 · `scripts/wiki-coverage-check.js` EXIT 0(qcalendar 5/1) · 본문 ko/en 쌍 · 문구는 #411 실제 동작(알리기 선택·L2/L3·고객 앱 알림만)과 대조.
 **운영**: 다음 배포 뒤 `ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`.
+
+## 2026-10-04 · #455 프로필 사진·닉네임 첫 글자 · #453·#454 문의 상세 모바일 · [Opus] Fable 미검증(자체 검증)
+**판정**: R=0(프론트 표시만 — 서버·스키마·인증 표면 무변경) · S=0 · F=1(실브라우저 좌표·naturalWidth·elementFromPoint 로 갈린다) → 자체 검증.
+**원인(#455)**: ①`AuthContext.normalizeUser` 가 서버가 주는 `avatar_url` 을 버렸다(새로고침하면 사진 사라짐)
+②`<img src="/api/users/:id/avatar">` 는 Authorization 헤더를 못 실어 **언제나 401**(운영 u1.jpg 는 저장돼 있었다).
+③프로필 아바타 첫 글자가 실명(users.name) — 좌측 메뉴는 닉네임(displayName).
+**수정**: 공용 `hooks/useAuthedImageSrc`(우리 `/api/` 주소만 apiFetch→blob, 주소별 1회) · `LetterAvatar` 가 사용 + 못 그리면 첫 글자 ·
+좌측 메뉴 계정 아바타(펼침·접힘)에 사진 · 프로필 첫 글자 = displayName. 서버 라우트는 그대로(쿠키 경로 확장 대신 프론트 fetch — 인증 표면 무변경).
+**수정(#453·#454)**: `/me/feedback` 좁은 폭(≤1024)에서 상세를 열면 PageShell `onBack`(제목 왼쪽 표준 자리) + 목록 검색·필터·작성 버튼 내림 ·
+상세 머리줄의 칩 사이 작은 화살표 제거 · 폰 키보드 중 상세 머리줄 접기.
+**자체 검증**: 빌드 EXIT 0 · `error TS` 0 · guard 61/62(문서 신선도 경고만) · health 48/48.
+- 사진 3폭(390·820·1440): 프로필 nat 192·blob·hit ✓ · 좌측 메뉴(폰·태블릿은 열어서) nat 192·hit ✓ · 음성 대조군 헤더 없는 원 주소 **401** · 첫 글자 «닉»(닉네임) ≠ «H»(실명).
+- 문의 상세: 수정 전 실측 = 머리줄 56→325px · 뒤로 버튼 칩 사이 32px. 수정 후 390×852 키보드 380 → vvh 472 · [추가 문의 보내기] y412–456 보임·클릭 ✓ ·
+  360×740 키보드 330 → vvh 410 · 보내기 y350–394 ✓ · 뒤로(목록으로) 폰 6,64 / 태블릿 20,138 보임·hit ✓ · 데스크탑 필터·작성 버튼 유지·뒤로 없음(양쪽 칸) ✓.
+**미검증 커밋 2a2a5406**: 소스는 `seed-wiki-content.js` 도움말 텍스트뿐 — 10-02 항목에서 자체 검증 기록됨.
+**Fable 이 봐야 할 것**: 없음.

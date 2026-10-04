@@ -20,6 +20,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import LetterAvatar from '../../components/Common/LetterAvatar';
+import { displayName } from '../../utils/displayName';
 import ActionButton from '../../components/Common/ActionButton';
 // N+32 — FocusSettingsCard / UserTimezoneSection 은 /me/work-settings 페이지로 이동.
 // UserTimezoneSection 함수는 이 파일 내 정의 (export) — 새 페이지가 import.
@@ -59,7 +60,7 @@ type RecState = 'idle' | 'recording' | 'processing' | 'error';
 type RecPurpose = 'register' | 'verify';
 
 export default function ProfilePage() {
-  const { t } = useTranslation('profile');
+  const { t, i18n } = useTranslation('profile');
   const { t: tErr } = useTranslation('errors');
   const { user, updateUser, refreshUser } = useAuth();
   const { formatDateTime } = useTimeFormat();
@@ -116,20 +117,23 @@ export default function ProfilePage() {
         return;
       }
       setAvatarUrl(j.data.avatar_url);
+      // 좌측 메뉴·다른 화면도 같은 사진을 쓰게 사용자 정보에도 싣는다
+      updateUser?.({ avatar_url: j.data.avatar_url });
     } catch {
       setAvatarMsg(t('basic.photoFailed', '사진을 올리지 못했어요.') as string);
     } finally { setAvatarBusy(false); }
-  }, [user, t]);
+  }, [user, t, updateUser]);
   const removeAvatar = React.useCallback(async () => {
     if (!user || avatarBusy) return;
     setAvatarBusy(true); setAvatarMsg(null);
     try {
       await apiFetch(`/api/users/${user.id}/avatar`, { method: 'DELETE' });
       setAvatarUrl(null);
+      updateUser?.({ avatar_url: null });
     } catch {
       setAvatarMsg(t('basic.photoFailed', '사진을 올리지 못했어요.') as string);
     } finally { setAvatarBusy(false); }
-  }, [user, avatarBusy, t]);
+  }, [user, avatarBusy, t, updateUser]);
 
   const [accountName, setAccountName] = useState<string>(user?.name || '');
   useEffect(() => { setAccountName(user?.name || ''); }, [user?.name]);
@@ -585,7 +589,8 @@ export default function ProfilePage() {
             <Label>{t('basic.photo', '사진')}</Label>
             <FieldBody>
               <PhotoRow>
-                <LetterAvatar name={accountName || '—'} size={64} src={avatarUrl || undefined} />
+                {/* 첫 글자는 **닉네임**에서 — 좌측 메뉴·채팅과 같은 이름(displayName). 실명은 닉네임이 없을 때만(#455) */}
+                <LetterAvatar name={displayName(user, i18n.language) || accountName || '—'} size={64} src={avatarUrl || undefined} />
                 <PhotoBtns>
                   <ActionButton tone="secondary" size="sm" data-testid="profile-avatar-pick"
                     onClick={() => avatarInputRef.current?.click()} disabled={avatarBusy}>

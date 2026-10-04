@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled, { css } from 'styled-components';
+import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
 
 /**
  * LetterAvatar — 통일된 첫글자 아바타
@@ -35,13 +36,18 @@ function initial(name: string): string {
 }
 
 const LetterAvatar: React.FC<Props> = ({ name, size = 32, src, variant = 'neutral', title, className }) => {
-  const content = src ? (
-    <img src={src} alt={name} />
+  // 우리 API 사진은 인증이 필요해 그대로 src 에 넣으면 401 이다(#455) — 받아서 그린다.
+  const drawable = useAuthedImageSrc(src);
+  // 못 그리는 주소(만료된 외부 주소 등)는 깨진 그림 대신 첫 글자로 — 주소가 바뀌면 다시 시도한다
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
+  const showImage = !!drawable && brokenSrc !== drawable;
+  const content = showImage ? (
+    <img src={drawable as string} alt={name} onError={() => setBrokenSrc(drawable)} />
   ) : (
     <span>{initial(name)}</span>
   );
   return (
-    <Circle $size={size} $variant={variant} $hasImage={!!src} title={title || name} className={className}>
+    <Circle $size={size} $variant={variant} $hasImage={showImage} title={title || name} className={className}>
       {content}
     </Circle>
   );

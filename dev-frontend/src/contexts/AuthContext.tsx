@@ -50,6 +50,8 @@ export interface User {
   // 계정 (name) vs 워크스페이스 (display_name) 분리. 사이드바·헤더·UserChip 모두 워크스페이스 표시명 우선.
   display_name?: string | null;
   display_name_localized?: Record<string, string> | null;
+  // 프로필 사진 — `/api/users/:id/avatar?v=…`(인증 필요) 또는 외부 URL(구글 등). 없으면 null
+  avatar_url?: string | null;
   platform_role: string;
   business_id?: number | null;
   business_name?: string | null;
@@ -658,6 +660,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     name_localized: (apiUser.name_localized as Record<string, string>) || null,
     display_name: (apiUser.display_name as string) || null,
     display_name_localized: (apiUser.display_name_localized as Record<string, string>) || null,
+    // ★ 2026-10-04 #455 — 서버는 실어 보내는데 여기서 버려서, 새로고침하면 사진이 사라졌다
+    avatar_url: (apiUser.avatar_url as string) || null,
     platform_role: apiUser.platform_role as string,
     business_id: (apiUser.business_id as number) || null,
     business_name: (apiUser.business_name as string) || null,

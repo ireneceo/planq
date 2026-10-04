@@ -17,6 +17,7 @@ import TeamPresenceRow from './TeamPresenceRow';
 import WorkspaceBillingBanner from './WorkspaceBillingBanner';
 import SidebarClock from './SidebarClock';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
 import FocusWidget from '../Focus/FocusWidget';
 import AttendanceWidget from '../Attendance/AttendanceWidget';   // #208 출퇴근
 import PanelHeader, { PanelTitle } from './PanelHeader';
@@ -521,6 +522,8 @@ const UserAvatar = styled.div`
   background: #0F766E; color: #FFFFFF;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.8125rem; font-weight: 600; flex-shrink: 0;
+  overflow: hidden;
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
 `;
 // N+63 — 옛 UserInfo/UserName/UserRoleText/LogoutButton 제거 (UserMenuButton 통합으로 대체)
 
@@ -530,8 +533,10 @@ const CollapsedAvatarButton = styled.button`
   background: #0F766E; color: #FFFFFF;
   display: flex; align-items: center; justify-content: center;
   font-size: 0.875rem; font-weight: 600;
+  overflow: hidden;
   transition: all 0.15s;
   &:hover { background: #0D5E56; }
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
 `;
 
 const CollapsedLogoutIcon = styled.button`
@@ -856,6 +861,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   const { t } = useTranslation('layout');
   const { user, logout, hasRole } = useAuth();
   const userDisplayName = displayName(user, i18n.language);
+  // 프로필 사진(#455) — 우리 API 주소는 인증이 필요해 받아서 그린다. 없거나 실패하면 첫 글자
+  const userPhoto = useAuthedImageSrc(user?.avatar_url);
+  const userInitial = userDisplayName?.charAt(0)?.toUpperCase() || 'U';
+  const userAvatarContent = userPhoto ? <img src={userPhoto} alt="" /> : userInitial;
   const location = useChromeLocation();
   const navigate = useChromeNav();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1980,7 +1989,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   aria-label={`${userDisplayName} — ${t('user.menu', { defaultValue: '계정 메뉴' }) as string}`}
                   onClick={() => setUserMenuOpen(v => !v)}
                 >
-                  <UserAvatar>{userDisplayName?.charAt(0)?.toUpperCase() || 'U'}</UserAvatar>
+                  <UserAvatar>{userAvatarContent}</UserAvatar>
                   <UserMenuName>{userDisplayName}</UserMenuName>
                   {/* 위로 **메뉴가 뜬다** — 제자리에서 펼치는 «시계·근무» 의 ∨ 와 같은 모양이면 뜻이 섞인다.
                       위아래 화살표(계정·메뉴 선택기의 관례)로 구분한다. 크기·굵기·색은 위 ∨ 와 같다. */}
@@ -2000,7 +2009,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 title={`${userDisplayName || ''} — ${t('user.profile')}`}
                 aria-label={t('user.profile')}
               >
-                {userDisplayName?.charAt(0)?.toUpperCase() || 'U'}
+                {userAvatarContent}
               </CollapsedAvatarButton>
               <CollapsedLogoutIcon
                 onClick={() => logout()}

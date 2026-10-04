@@ -21,6 +21,7 @@ import { HeaderCta } from '../../components/Common/headerCta';
 import EmptyState from '../../components/Common/EmptyState';
 import { mapApiError } from '../../utils/apiError';
 import { isEnterAction } from '../../utils/imeKey';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
 
 interface FeedbackItem {
   id: number;
@@ -62,6 +63,8 @@ const MyFeedbackPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [params, setParams] = useSearchParams();
   const selectedId = params.get('item') ? Number(params.get('item')) : null;
+  // 폰·태블릿(목록/상세가 한 칸씩 보이는 폭 — ListPane 의 1024 와 같은 값)
+  const isNarrow = useMediaQuery('(max-width: 1024px)');
 
   // 추가 문의 입력
   const [followup, setFollowup] = useState('');
@@ -191,7 +194,13 @@ const MyFeedbackPage = () => {
       title={t('myFeedback.title') as string}
       count={filtered.length}
       bodyPadding="0"
-      actions={(
+      // ★ 2026-10-04 #453·#454 — 좁은 폭에서 상세를 열면 **목록의 검색·필터·작성 버튼을 내린다.**
+      //   그대로 두면 폰에서 두 줄로 감겨 화면 위 1/3 을 먹고(390px 실측 56→325), 추가 문의를 쓸 때
+      //   키보드가 올라오면 [추가 문의 보내기] 가 밀려 안 보였다. 뒤로가기는 표준 자리(제목 왼쪽)에 둔다 —
+      //   상세 머리줄 안의 작은 화살표는 칩 사이에 묻혀 «돌아갈 수가 없다» 로 읽혔다.
+      onBack={isNarrow && selected ? closeDetail : undefined}
+      backLabel={t('myFeedback.back') as string}
+      actions={isNarrow && selected ? undefined : (
         <Filters>
           {threads.length > 0 && <>
           <SearchBox
@@ -294,9 +303,6 @@ const MyFeedbackPage = () => {
           ) : (
             <>
               <DetailHeader>
-                <BackBtn type="button" onClick={closeDetail} aria-label={t('myFeedback.back') as string}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-                </BackBtn>
                 <KindTag $inq={isInquiry(selected)}>{kindLabel(selected)}</KindTag>
                 <DetailTitle>{selected.title}</DetailTitle>
                 <Status $bg={(STATUS_TONE[selected.status] || STATUS_TONE.pending).bg} $fg={(STATUS_TONE[selected.status] || STATUS_TONE.pending).fg}>
@@ -483,15 +489,8 @@ const DetailHeader = styled.div`
   padding: 16px 20px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
-`;
-const BackBtn = styled.button`
-  display: none;
-  width: 32px; height: 32px; flex-shrink: 0;
-  align-items: center; justify-content: center;
-  background: transparent; border: none; border-radius: 8px;
-  color: #64748b; cursor: pointer;
-  &:hover { background: #f1f5f9; color: #0f172a; }
-  @media (max-width: 1024px) { display: inline-flex; }
+  /* 입력 중(폰 키보드)에는 접는다 — 제목은 방금 읽었고, 그 자리는 쓰는 칸과 [보내기] 가 써야 한다(CLAUDE.md 모바일 입력 규칙) */
+  @media (max-width: 768px) { body[data-keyboard-up='1'] & { display: none; } }
 `;
 const DetailTitle = styled.h2`
   flex: 1; min-width: 0;
