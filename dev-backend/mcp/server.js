@@ -198,7 +198,17 @@ function unauthorized(res, code) {
 }
 
 function buildAgentServer(principal) {
-  const server = new McpServer({ name: 'planq', version: '1.0.0' });
+  // 클라이언트 목록에 보일 정체 — 이름·설명·아이콘·사이트(MCP serverInfo). 아이콘은 공개 PNG(로그인 없이 열려야 한다).
+  //   ★ 지원은 클라이언트마다 다르다 — 2026-10 기준 ChatGPT·Claude 사용자 지정 앱은 이 아이콘을 안 그리는 사례가 많다(디렉터리 앱만 그림).
+  const server = new McpServer({
+    name: 'planq', title: 'PlanQ', version: '1.0.0',
+    description: 'PlanQ — tasks, clients, projects and schedules of your workspace',
+    websiteUrl: agentCfg.APP_URL,
+    icons: [
+      { src: `${agentCfg.APP_URL}/icon-512.png`, mimeType: 'image/png', sizes: ['512x512'] },
+      { src: `${agentCfg.APP_URL}/icon-192.png`, mimeType: 'image/png', sizes: ['192x192'] },
+    ],
+  });
   for (const tool of AGENT_TOOLS) {
     server.registerTool(tool.name, {
       description: tool.description,
