@@ -1038,7 +1038,7 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
   `PUT /tasks/:id` 인라인을 옮겼다). 사람(PUT)과 AI(`reassign`·`updateFields`)가 같은 함수를 쓴다 — 규칙을 바꾸면 한 곳만 고친다.
   미리보기(MEDIUM 1단계)도 실행과 같은 판정을 먼저 본다(거절될 요청에 확인 토큰을 내주지 않는다).
 - **HIGH(삭제·청구·발송·권한·대량)는 도구로 두지 않는다** — 가드 `--category=agentsurface` 가 막는다(도메인 모델 직접 쓰기 0 · 재무 참조 0 · 고위험 이름 0 · 쓰기 도구 scope·멱등 선언 · 워크스페이스 묶음).
-- **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. 쓰기만 끄기 `AGENT_WRITE_ENABLED=0`.
+- **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. **쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다**(기본 꺼짐 — `config.writeEnabled`). 2026-10-04 운영에 셋 다 넣었다.
 - **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).
 - 회귀: `--suite agentconsent`(동의 화면 3폭) · 왕복 검사는 dev 전용 스크립트(OAuth 26검사 — 커밋하지 않는다).
 

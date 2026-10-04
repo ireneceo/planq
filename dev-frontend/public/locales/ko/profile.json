@@ -305,7 +305,7 @@
   "aiApps": {
     "title": "연결된 AI 앱",
     "sub": "ChatGPT·Claude 에서 PlanQ 를 쓰도록 이 워크스페이스로 연결한 앱입니다. 끊으면 그 앱은 다음 요청부터 PlanQ 에 접근하지 못합니다.",
-    "howTo": "ChatGPT 는 컴퓨터 브라우저에서 설정 › Apps › 고급 설정 › Developer mode 를 켠 뒤 [Create app] 에, Claude 는 설정 › 커넥터 › 커스텀 커넥터 추가에 아래 주소를 넣으면 PlanQ 연결 화면이 열립니다. 자세한 순서는 도움말 «ChatGPT·Claude 연결하기».",
+    "howTo": "ChatGPT 는 컴퓨터 브라우저에서 설정 › Security and login › Developer mode 를 켠 뒤 Plugins › Add › Create MCP App 에, Claude 는 설정 › 커넥터 › 커스텀 커넥터 추가에 아래 주소를 넣으면 PlanQ 연결 화면이 열립니다. 자세한 순서는 도움말 «ChatGPT·Claude 연결하기».",
     "copy": "복사",
     "copied": "복사됨",
     "empty": "연결된 AI 앱이 없어요",
