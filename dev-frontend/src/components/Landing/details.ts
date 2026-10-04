@@ -8,7 +8,7 @@ export interface Detail { id: string; area: DetailArea; help?: string; app?: str
 export const DETAILS: Detail[] = [
   { id: 'chatgpt', area: 'ai', help: 'connect-chatgpt-claude', app: '/profile/integrations' },
   { id: 'replyDraft', area: 'ai', help: 'cue-in-chat-and-mail', app: '/mail' },
-  { id: 'noteAnswer', area: 'ai', help: 'qnote', app: '/notes' },
+  { id: 'noteAnswer', area: 'ai', help: 'record-meeting', app: '/notes' },
   { id: 'estimate', area: 'ai', app: '/tasks' },
   { id: 'guestLink', area: 'client', help: 'project-external-view-link', app: '/projects' },
   { id: 'booking', area: 'client', help: 'customer-entry-booking' },
@@ -26,8 +26,8 @@ export const DETAILS: Detail[] = [
   { id: 'drafts', area: 'docs' },
   { id: 'history', area: 'docs', app: '/docs' },
   { id: 'liveShare', area: 'docs' },
-  { id: 'privateNote', area: 'docs', help: 'qnote', app: '/notes' },
-  { id: 'infoTable', area: 'files', help: 'qinfo', app: '/info' },
+  { id: 'privateNote', area: 'docs', help: 'record-meeting', app: '/notes' },
+  { id: 'infoTable', area: 'files', app: '/info' },
   { id: 'driveImport', area: 'files', app: '/files' },
   { id: 'trash', area: 'files', help: 'file-trash-restore', app: '/files' },
   { id: 'dedup', area: 'files' },
@@ -35,7 +35,7 @@ export const DETAILS: Detail[] = [
   { id: 'signField', area: 'bill', help: 'collect-signature', app: '/docs' },
   { id: 'invoiceLink', area: 'bill', help: 'issue-invoice', app: '/bills' },
   { id: 'installments', area: 'bill', help: 'issue-invoice', app: '/bills' },
-  { id: 'autoAttend', area: 'bill', help: 'attendance', app: '/attendance' },
+  { id: 'autoAttend', area: 'bill', help: 'clock-in-out', app: '/attendance' },
   { id: 'profitHour', area: 'bill', help: 'project-profitability', app: '/insights' },
   { id: 'badgeSum', area: 'bill', app: '/inbox' },
 ];
