@@ -231,7 +231,8 @@ async function entityGraph(origin, cfg) {
 
 /** 영어 페이지를 만드는 공개 페이지 — 문구가 영어로 다 있는 것만(목록·약관은 한국어 글이라 제외) */
 const EN_SKIP = new Set(['/insights/', '/guide/', '/privacy', '/terms']);
-const enPath = (p) => (p === '/' ? '/en/' : `/en${p}`);
+const EN_PREFIX = '/en';
+const enPath = (p) => EN_PREFIX + p;   // '/' → '/en/' · '/features/' → '/en/features/'
 
 async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {}) {
   const templatePath = path.join(dir, 'index.html');

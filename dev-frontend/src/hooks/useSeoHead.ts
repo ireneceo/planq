@@ -22,6 +22,9 @@ function setMeta(sel: string, attr: 'name' | 'property', key: string, value: str
   el.content = value;
 }
 
+/** 영어 공개 페이지 접두어 — /en + 한국어 경로(라우트는 App.tsx 의 /en/* 가 같은 화면을 en 으로 연다) */
+const EN_PREFIX = '/en';
+
 export function useSeoHead(pathname: string, lang: string) {
   useEffect(() => {
     let alive = true;
@@ -33,7 +36,7 @@ export function useSeoHead(pathname: string, lang: string) {
       const page = cfg.pages.find((p) => norm(p.path) === norm(base));
       if (!page) return;
       const l = isEn || lang.startsWith('en') ? 'en' : 'ko';
-      const url = cfg.origin + (isEn ? (page.path === '/' ? '/en/' : `/en${page.path}`) : page.path);
+      const url = cfg.origin + (isEn ? EN_PREFIX + page.path : page.path);
       document.title = page.title[l];
       setMeta('meta[name="description"]', 'name', 'description', page.description[l]);
       setMeta('meta[property="og:title"]', 'property', 'og:title', page.title[l]);
