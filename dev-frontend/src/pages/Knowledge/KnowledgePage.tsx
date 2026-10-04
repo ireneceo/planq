@@ -979,123 +979,6 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
           ) : (
             <DrawerSections>
               <DrawerSection>
-                <SectionLabel>{t('drawer.metadata')}</SectionLabel>
-                <MetaGrid>
-                  <MetaLabel>{t('drawer.category')}</MetaLabel>
-                  <MetaEditWrap>
-                    <PlanQSelect size="sm" isMulti isSearchable
-                      value={docCats(detail).map(c => ({
-                        value: c,
-                        label: LEGACY_KB_CATEGORIES.includes(c as typeof LEGACY_KB_CATEGORIES[number]) ? (t(`cat.${c}`) as string) : c,
-                      }))}
-                      onChange={async (opts) => {
-                        const arr = Array.isArray(opts) ? opts : [];
-                        const next = arr.map(o => String((o as PlanQSelectOption).value));
-                        const cur = docCats(detail);
-                        if (next.length === cur.length && next.every((v, i) => v === cur[i])) return;
-                        if (next.length === 0) return;  // 최소 1개 강제
-                        try {
-                          await updateKnowledge(businessId, detail.id, { categories: next });
-                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, categories: next, category: next[0] } : x));
-                          setDetail(prev => prev ? { ...prev, categories: next, category: next[0] } : prev);
-                          setCatError(null);
-                        } catch (e) { setCatError(t('drawer.catSaveErr') as string); }
-                      }}
-                      options={(() => {
-                        // 모달(1166-1182)과 동일 union — LEGACY 6 + 마스터 + orphan + 현재 문서 카테고리.
-                        const seen = new Set<string>();
-                        const opts: { value: string; label: string }[] = [];
-                        for (const c of LEGACY_KB_CATEGORIES) { seen.add(c); opts.push({ value: c, label: t(`cat.${c}`) as string }); }
-                        for (const m of catMaster) if (!seen.has(m.name)) { seen.add(m.name); opts.push({ value: m.name, label: m.name }); }
-                        for (const o of catOrphan) if (!seen.has(o)) { seen.add(o); opts.push({ value: o, label: o }); }
-                        for (const c of docCats(detail)) if (!seen.has(c)) { seen.add(c); opts.push({ value: c, label: c }); }
-                        return opts;
-                      })()} />
-                    {catError && <span style={{ fontSize: '0.6875rem', color: '#B91C1C' }}>{catError}</span>}
-                  </MetaEditWrap>
-                  {/* N+65 — 상세 패널 visibility 통합 (등록 모달과 동일 VisibilityField). 옛 scope/project/client/read_policy 4 row 폐지. */}
-                  <MetaLabel>{t('drawer.visibility', { defaultValue: '공개' }) as string}</MetaLabel>
-                  <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
-                    <VisibilityField
-                      value={parseVisibility({
-                        vlevel: detail.vlevel ?? null,
-                        scope: detail.scope ?? null,
-                        read_policy: detail.read_policy ?? null,
-                        project_id: detail.project_id ?? null,
-                        client_id: detail.client_id ?? null,
-                        client_ids: detail.client_ids ?? null,
-                        target_member_ids: detail.target_member_ids ?? null,
-                      })}
-                      onChange={async (v: VisibilityValue) => {
-                        const payload = serializeVisibility(v);
-                        try {
-                          const updated = await updateKnowledge(businessId, detail.id, payload);
-                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, ...updated } : x));
-                          setDetail(prev => prev ? { ...prev, ...updated } : prev);
-                        } catch { /* skip */ }
-                      }}
-                      projects={projects.map(p => ({ id: p.id, name: p.name }))}
-                      clients={clients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
-                      members={members}
-                    />
-                  </MetaEditWrap>
-                  {/* D4 #62 — 보안등급 (visibility 와 별개 축. 내부·기밀은 외부 공유·번들 차단) */}
-                  <MetaLabel>
-                    {t('securityLevel.label', { defaultValue: '보안등급', ns: 'common' }) as string}
-                    {detail.security_level && detail.security_level !== 'general' && (
-                      <span style={{ marginLeft: 6 }}><SecurityLevelBadge level={detail.security_level} /></span>
-                    )}
-                  </MetaLabel>
-                  <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
-                    <PlanQSelect
-                      size="sm" isClearable={false} isSearchable={false}
-                      value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
-                      options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
-                      onChange={async (o) => {
-                        const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
-                        try {
-                          const r = await updateKbSecurityLevel(detail.id, lv);
-                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, security_level: lv } : x));
-                          setDetail(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null } : {}) } : prev);
-                        } catch { /* keep current on error */ }
-                      }}
-                    />
-                    <SecLevelHint>{t(`securityLevel.${detail.security_level || 'general'}Hint`, { defaultValue: '', ns: 'common' }) as string}</SecLevelHint>
-                  </MetaEditWrap>
-                  <MetaLabel>{t('drawer.tags', '태그')}</MetaLabel>
-                  <MetaEditWrap>
-                    <TagsEdit
-                      docId={detail.id}
-                      businessId={businessId}
-                      initialValue={Array.isArray(detail.tags) ? detail.tags : []}
-                      onSaved={(tags) => {
-                        setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, tags } : x));
-                        setDetail(prev => prev ? { ...prev, tags } : prev);
-                      }}
-                      onError={() => setActionError(t('errors.saveFailed', '저장에 실패했습니다. 권한을 확인하거나 다시 시도해 주세요.') as string)}
-                    />
-                  </MetaEditWrap>
-                  {/* N+65 — read_policy 옛 2 select 제거. visibility 에 통합됨. */}
-                  <MetaLabel>{t('drawer.status')}</MetaLabel>
-                  {/* #333 — status 만 보고 "사용 가능" 을 찍으면 거짓말이 된다.
-                      Cue 검색은 청크(KbChunk)를 훑는다. 청크가 0 이면 status 가 ready 여도 검색에 안 잡힌다.
-                      운영 실측 2026-08-20: ready·청크 있음 5건 / ready·청크 0 **82건** 이 전부 "사용 가능" 으로 보였다. */}
-                  <MetaValue
-                    title={detail.status === 'ready' && !(Number(detail.chunk_count) > 0)
-                      ? (t('status.readyNoChunksHint', '본문 색인이 아직 만들어지지 않아 Cue 답변에 쓰이지 않습니다. 본문을 저장하면 다시 색인됩니다.') as string)
-                      : undefined}
-                  >
-                    {detail.status === 'ready' && !(Number(detail.chunk_count) > 0)
-                      ? (t('status.readyNoChunks', 'Cue 검색 미반영') as string)
-                      : (t(`status.${detail.status}`) as string)}
-                  </MetaValue>
-                  <MetaLabel>{t('drawer.createdAt')}</MetaLabel>
-                  <MetaValue>{formatDateSafe(detail.created_at ?? (detail as { createdAt?: string }).createdAt)}</MetaValue>
-                  <MetaLabel>{t('drawer.updatedAt')}</MetaLabel>
-                  <MetaValue>{formatDateSafe(detail.updated_at ?? (detail as { updatedAt?: string }).updatedAt)}</MetaValue>
-                </MetaGrid>
-              </DrawerSection>
-              <DrawerSection>
                 <SectionLabel>{t('drawer.body')}</SectionLabel>
                 <DrawerBodyEdit
                   docId={detail.id}
@@ -1540,6 +1423,125 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
                   }}
                   workspaceFiles={wsFiles}
                 />
+              </DrawerSection>
+              {/* ★ 2026-10-04 (Irene: "정보부터 보여야 하는데 불필요한 게 다 위에 있어") — 본문·항목·첨부가 먼저,
+                  분류·공개 범위·보안등급·태그·상태는 맨 아래 설정 칸. 열자마자 보는 것은 내용이어야 한다. */}
+              <DrawerSection>
+                <SectionLabel>{t('drawer.settings', '분류·공개 범위')}</SectionLabel>
+                <MetaGrid>
+                  <MetaLabel>{t('drawer.category')}</MetaLabel>
+                  <MetaEditWrap>
+                    <PlanQSelect size="sm" isMulti isSearchable
+                      value={docCats(detail).map(c => ({
+                        value: c,
+                        label: LEGACY_KB_CATEGORIES.includes(c as typeof LEGACY_KB_CATEGORIES[number]) ? (t(`cat.${c}`) as string) : c,
+                      }))}
+                      onChange={async (opts) => {
+                        const arr = Array.isArray(opts) ? opts : [];
+                        const next = arr.map(o => String((o as PlanQSelectOption).value));
+                        const cur = docCats(detail);
+                        if (next.length === cur.length && next.every((v, i) => v === cur[i])) return;
+                        if (next.length === 0) return;  // 최소 1개 강제
+                        try {
+                          await updateKnowledge(businessId, detail.id, { categories: next });
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, categories: next, category: next[0] } : x));
+                          setDetail(prev => prev ? { ...prev, categories: next, category: next[0] } : prev);
+                          setCatError(null);
+                        } catch (e) { setCatError(t('drawer.catSaveErr') as string); }
+                      }}
+                      options={(() => {
+                        // 모달(1166-1182)과 동일 union — LEGACY 6 + 마스터 + orphan + 현재 문서 카테고리.
+                        const seen = new Set<string>();
+                        const opts: { value: string; label: string }[] = [];
+                        for (const c of LEGACY_KB_CATEGORIES) { seen.add(c); opts.push({ value: c, label: t(`cat.${c}`) as string }); }
+                        for (const m of catMaster) if (!seen.has(m.name)) { seen.add(m.name); opts.push({ value: m.name, label: m.name }); }
+                        for (const o of catOrphan) if (!seen.has(o)) { seen.add(o); opts.push({ value: o, label: o }); }
+                        for (const c of docCats(detail)) if (!seen.has(c)) { seen.add(c); opts.push({ value: c, label: c }); }
+                        return opts;
+                      })()} />
+                    {catError && <span style={{ fontSize: '0.6875rem', color: '#B91C1C' }}>{catError}</span>}
+                  </MetaEditWrap>
+                  {/* N+65 — 상세 패널 visibility 통합 (등록 모달과 동일 VisibilityField). 옛 scope/project/client/read_policy 4 row 폐지. */}
+                  <MetaLabel>{t('drawer.visibility', { defaultValue: '공개' }) as string}</MetaLabel>
+                  <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
+                    <VisibilityField
+                      value={parseVisibility({
+                        vlevel: detail.vlevel ?? null,
+                        scope: detail.scope ?? null,
+                        read_policy: detail.read_policy ?? null,
+                        project_id: detail.project_id ?? null,
+                        client_id: detail.client_id ?? null,
+                        client_ids: detail.client_ids ?? null,
+                        target_member_ids: detail.target_member_ids ?? null,
+                      })}
+                      onChange={async (v: VisibilityValue) => {
+                        const payload = serializeVisibility(v);
+                        try {
+                          const updated = await updateKnowledge(businessId, detail.id, payload);
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, ...updated } : x));
+                          setDetail(prev => prev ? { ...prev, ...updated } : prev);
+                        } catch { /* skip */ }
+                      }}
+                      projects={projects.map(p => ({ id: p.id, name: p.name }))}
+                      clients={clients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
+                      members={members}
+                    />
+                  </MetaEditWrap>
+                  {/* D4 #62 — 보안등급 (visibility 와 별개 축. 내부·기밀은 외부 공유·번들 차단) */}
+                  <MetaLabel>
+                    {t('securityLevel.label', { defaultValue: '보안등급', ns: 'common' }) as string}
+                    {detail.security_level && detail.security_level !== 'general' && (
+                      <span style={{ marginLeft: 6 }}><SecurityLevelBadge level={detail.security_level} /></span>
+                    )}
+                  </MetaLabel>
+                  <MetaEditWrap style={{ gridColumn: '1 / -1' }}>
+                    <PlanQSelect
+                      size="sm" isClearable={false} isSearchable={false}
+                      value={{ value: detail.security_level || 'general', label: secLabel(detail.security_level || 'general') }}
+                      options={(['general', 'internal', 'confidential'] as const).map((lv) => ({ value: lv, label: secLabel(lv) }))}
+                      onChange={async (o) => {
+                        const lv = (((o as { value?: string })?.value) || 'general') as 'general' | 'internal' | 'confidential';
+                        try {
+                          const r = await updateKbSecurityLevel(detail.id, lv);
+                          setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, security_level: lv } : x));
+                          setDetail(prev => prev ? { ...prev, security_level: lv, ...(r.revoked_share ? { share_token: null } : {}) } : prev);
+                        } catch { /* keep current on error */ }
+                      }}
+                    />
+                    <SecLevelHint>{t(`securityLevel.${detail.security_level || 'general'}Hint`, { defaultValue: '', ns: 'common' }) as string}</SecLevelHint>
+                  </MetaEditWrap>
+                  <MetaLabel>{t('drawer.tags', '태그')}</MetaLabel>
+                  <MetaEditWrap>
+                    <TagsEdit
+                      docId={detail.id}
+                      businessId={businessId}
+                      initialValue={Array.isArray(detail.tags) ? detail.tags : []}
+                      onSaved={(tags) => {
+                        setDocs(prev => prev.map(x => x.id === detail.id ? { ...x, tags } : x));
+                        setDetail(prev => prev ? { ...prev, tags } : prev);
+                      }}
+                      onError={() => setActionError(t('errors.saveFailed', '저장에 실패했습니다. 권한을 확인하거나 다시 시도해 주세요.') as string)}
+                    />
+                  </MetaEditWrap>
+                  {/* N+65 — read_policy 옛 2 select 제거. visibility 에 통합됨. */}
+                  <MetaLabel>{t('drawer.status')}</MetaLabel>
+                  {/* #333 — status 만 보고 "사용 가능" 을 찍으면 거짓말이 된다.
+                      Cue 검색은 청크(KbChunk)를 훑는다. 청크가 0 이면 status 가 ready 여도 검색에 안 잡힌다.
+                      운영 실측 2026-08-20: ready·청크 있음 5건 / ready·청크 0 **82건** 이 전부 "사용 가능" 으로 보였다. */}
+                  <MetaValue
+                    title={detail.status === 'ready' && !(Number(detail.chunk_count) > 0)
+                      ? (t('status.readyNoChunksHint', '본문 색인이 아직 만들어지지 않아 Cue 답변에 쓰이지 않습니다. 본문을 저장하면 다시 색인됩니다.') as string)
+                      : undefined}
+                  >
+                    {detail.status === 'ready' && !(Number(detail.chunk_count) > 0)
+                      ? (t('status.readyNoChunks', 'Cue 검색 미반영') as string)
+                      : (t(`status.${detail.status}`) as string)}
+                  </MetaValue>
+                  <MetaLabel>{t('drawer.createdAt')}</MetaLabel>
+                  <MetaValue>{formatDateSafe(detail.created_at ?? (detail as { createdAt?: string }).createdAt)}</MetaValue>
+                  <MetaLabel>{t('drawer.updatedAt')}</MetaLabel>
+                  <MetaValue>{formatDateSafe(detail.updated_at ?? (detail as { updatedAt?: string }).updatedAt)}</MetaValue>
+                </MetaGrid>
               </DrawerSection>
             </DrawerSections>
           )}
@@ -2020,6 +2022,8 @@ const BodyClickable = styled.div`
   & p { margin: 0 0 8px; }
   & img { cursor: zoom-in; max-width: 100%; height: auto; border-radius: 6px; }
   & p:last-child { margin-bottom: 0; }
+  /* Enter 로 만든 빈 줄(<p></p>)은 높이가 0 이라 접혀 보였다 — 한 줄 자리를 지킨다(편집기와 같은 모양) */
+  & p:empty::before { content: '\\00a0'; }
   & ul, & ol { padding-left: 20px; margin: 6px 0; }
   & img { max-width: 100%; height: auto; }
   & a { overflow-wrap: anywhere; }

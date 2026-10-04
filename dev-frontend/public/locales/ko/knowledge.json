@@ -94,7 +94,7 @@
     "body": "본문",
     "source": "출처",
     "chunks": "청크",
-    "metadata": "메타데이터",
+    "settings": "분류·공개 범위",
     "category": "카테고리",
     "scope": "적용 범위",
     "project": "프로젝트",

@@ -113,7 +113,8 @@
       "self": "Me",
       "other": "Other",
       "numbered": "Speaker {{n}}",
-      "manual": "Manual"
+      "manual": "Manual",
+      "otherNumbered": "Other {{n}}"
     },
     "question": {
       "editedMark": "(edited)",
@@ -271,7 +272,7 @@
       "memo": "Memo",
       "other": "Other"
     },
-    "captureModeNote": "Mic mode does NOT separate you from others. Web call mode auto-separates you (mic) from others (tab audio — all shown as 'other' even if multiple speakers).",
+    "captureModeNote": "Mic mode does NOT separate you from others. Web call mode separates you (mic) from others (tab audio), and splits multiple others by voice as 'Other 1·2'. Tap a speaker to link a name.",
     "profileFillHint": "Filling in your profile (organization, expertise, language levels) significantly improves answer quality.",
     "profileFillCta": "Complete profile →",
     "briefLabel": "Brief (optional)",
@@ -464,7 +465,8 @@
     "brief": "Meeting brief",
     "summary": "Summary",
     "memo": "Notes",
-    "transcript": "Transcript"
+    "transcript": "Transcript",
+    "owner": "Author"
   },
   "saveToSale": {
     "title": "Save to consults",

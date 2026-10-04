@@ -3070,7 +3070,9 @@ async def get_public_session_by_token(token: str):
 
     session_id = row['id']
     cursor = await db.execute(
-      '''SELECT id, speaker, original_text, translated_text, original_language,
+      # speaker_id — 화자 행(speakers)과 잇는 열쇠. 옛 `speaker` 텍스트 열은 실시간 경로가 안 쓰는 레거시라
+      #   늘 'unknown' 이었다(공개 노트 화자가 전부 «unknown» 으로 보였다, Fable 2026-10-04).
+      '''SELECT id, speaker, speaker_id, original_text, translated_text, original_language,
                 is_question, start_time, end_time
          FROM utterances WHERE session_id = ? ORDER BY id ASC''',
       (session_id,)

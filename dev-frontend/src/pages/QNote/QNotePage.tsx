@@ -174,7 +174,20 @@ function formatTime(sec: number | string | null | undefined): string {
 interface SpeakerLabelContext {
   speakers: QNoteSpeaker[];
   participants?: { name: string; role?: string | null }[] | null;
-  labels: { self: string; other: string; numbered: (n: number) => string };
+  labels: { self: string; other: string; numbered: (n: number) => string; otherNumbered: (n: number) => string };
+}
+
+// 화상회의 상대 채널의 화자 키 시작값 — q-note routers/live.py MC_REMOTE_BASE 와 같은 값이다(바꾸면 같이).
+const MC_REMOTE_BASE = 100;
+
+/** 화상회의에서 상대가 둘 이상 갈렸을 때만 «상대 1·2» — 하나뿐이면 그냥 «상대». 순서는 처음 말한 순서(행 id). */
+function remoteOrdinal(speakers: QNoteSpeaker[], rowId: number): number | null {
+  const remotes = speakers
+    .filter((s) => !s.is_self && !s.participant_name && (s.deepgram_speaker_id ?? -1) >= MC_REMOTE_BASE)
+    .sort((a, b) => a.id - b.id);
+  if (remotes.length < 2) return null;
+  const i = remotes.findIndex((s) => s.id === rowId);
+  return i >= 0 ? i + 1 : null;
 }
 
 function speakerLabelFor(
@@ -192,6 +205,11 @@ function speakerLabelFor(
       // 참여자 1명만 등록 → 그 이름으로.
       // 그 외(미등록 or 다수 등록)는 그냥 "상대/화자" — Deepgram 화자 ID 신뢰도 낮아 번호 안 붙임.
       if (pCount === 1 && participants![0].name) return participants![0].name;
+      // 화상회의 상대 채널은 탭 소리라 깨끗해 화자 번호를 믿을 수 있다 — 여럿이면 번호를 붙인다(대면 마이크는 종전대로)
+      if ((match.deepgram_speaker_id ?? -1) >= MC_REMOTE_BASE) {
+        const n = remoteOrdinal(speakers, match.id);
+        if (n != null) return labels.otherNumbered(n);
+      }
       return labels.other;
     }
   }
@@ -253,6 +271,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     self: t('page.speaker.self'),
     other: t('page.speaker.other'),
     numbered: (n: number) => t('page.speaker.numbered', { n }),
+    otherNumbered: (n: number) => t('page.speaker.otherNumbered', { n, defaultValue: '상대 {{n}}' }),
   }), [t]);
 
   const { sessionId: routeSessionId } = useParams<{ sessionId?: string }>();

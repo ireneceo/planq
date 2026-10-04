@@ -165,7 +165,7 @@ const CustomRow = styled.div`
   @media (max-width: 560px) { grid-template-columns: 1fr; gap: 2px; }
 `;
 const CustomLabel = styled.div`font-size: 0.8125rem; font-weight: 700; color: #334155; word-break: keep-all;`;
-const CustomValue = styled.div`font-size: 0.875rem; color: #334155; line-height: 1.6; overflow-wrap: anywhere; word-break: break-word;`;
+const CustomValue = styled.div`font-size: 0.875rem; color: #334155; line-height: 1.6; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap;`;  // 항목 값의 줄바꿈 유지 — 상세 화면(InlineCellEdit pre-wrap)과 같게
 const CustomLink = styled.a`
   font-size: 0.875rem; color: #0D9488; line-height: 1.6; text-decoration: underline;
   overflow-wrap: anywhere; word-break: break-word;
@@ -176,6 +176,8 @@ const Body = styled.div`
   overflow-wrap: anywhere; word-break: break-word;
   & p { margin: 0 0 10px; }
   & p:last-child { margin-bottom: 0; }
+  /* Enter 로 만든 빈 줄(<p></p>)은 높이가 0 이라 접혀 보였다 — 한 줄 자리를 지킨다(편집기와 같은 모양) */
+  & p:empty::before { content: '\\00a0'; }
   & ul, & ol { padding-left: 22px; margin: 8px 0; }
   & h1 { font-size: 1.375rem; font-weight: 700; margin: 16px 0 6px; }
   & h2 { font-size: 1.125rem; font-weight: 700; margin: 14px 0 6px; }

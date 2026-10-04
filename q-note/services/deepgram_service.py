@@ -60,8 +60,10 @@ class DeepgramSession:
     ]
     if self.multichannel:
       params_list.append('multichannel=true')
-    else:
-      params_list.append('diarize=true')
+    # 화자 분리 — 화상회의(2채널)에서도 켠다. 상대 채널(탭 소리)에 여러 사람이 있으면 사람별로 갈린다.
+    #   (2026-10-04, Irene: "줌이나 구글 화상미팅이랑 연동해도 상대는 모두 상대가 된다는 거지?" → 사람별로)
+    #   Deepgram 은 multichannel 과 diarize 를 같이 받는다 — 채널마다 따로 번호를 매긴다.
+    params_list.append('diarize=true')
 
     # Keyword boosting — 회의 컨텍스트(참여자 이름, 브리프에 등장한 고유명사 등)를 힌트로 주입.
     # - nova-3: `keyterm` (Keyterm Prompting, 다중 지원)
@@ -181,10 +183,10 @@ class DeepgramSession:
       duration = data.get('duration', 0)
       detected_language = channel.get('detected_language', self.language)
 
-      # Diarization speaker (mono only — multichannel 에서는 channel_index 가 화자)
+      # Diarization speaker — 단일 채널은 그대로 화자, 화상회의는 «채널 안의» 화자(채널마다 0부터)
       words = best.get('words', []) or []
       speaker_id = None
-      if not self.multichannel and words:
+      if words:
         counts: dict[int, int] = {}
         for w in words:
           sp = w.get('speaker')

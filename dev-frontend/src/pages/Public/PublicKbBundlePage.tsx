@@ -167,6 +167,8 @@ const Body = styled.div`
   overflow-wrap: anywhere; word-break: break-word;
   & p { margin: 0 0 10px; }
   & p:last-child { margin-bottom: 0; }
+  /* Enter 로 만든 빈 줄(<p></p>)이 접히지 않게 — 단건 공유 페이지·상세와 같게 */
+  & p:empty::before { content: '\\00a0'; }
   & ul, & ol { padding-left: 22px; margin: 8px 0; }
   & h1 { font-size: 1.375rem; font-weight: 700; margin: 16px 0 6px; }
   & h2 { font-size: 1.125rem; font-weight: 700; margin: 14px 0 6px; }

@@ -19,6 +19,7 @@ interface Speaker {
 interface Utterance {
   id: number;
   speaker: string | null;
+  speaker_id?: number | null;
   original_text: string;
   translated_text: string | null;
   original_language: string | null;
@@ -88,7 +89,18 @@ const PublicQNoteSessionPage: React.FC = () => {
   }
 
   const { session, utterances, speakers, summary } = data;
-  const speakerMap = new Map(speakers.map(s => [s.deepgram_speaker_id, s.participant_name || `${t('public.speaker', '화자')} ${s.deepgram_speaker_id}`]));
+  // 화자 이름 — 발화의 speaker_id 로 화자 행을 찾는다(옛 `speaker` 텍스트 열은 늘 'unknown' 이라 쓰지 않는다).
+  //   이름 연결됨 → 그 이름 · 노트 작성자 본인 → «작성자» · 그 외 → 처음 말한 순서로 «화자 1·2·3»
+  //   (내부 번호 0·100 을 그대로 보이지 않는다 — 화상회의 상대는 100번대다).
+  const unnamedOrder = speakers.filter(s => !s.participant_name && !s.is_self).sort((a, b) => a.id - b.id).map(s => s.id);
+  const speakerById = new Map(speakers.map(s => [s.id, s]));
+  const speakerName = (u: Utterance): string => {
+    const s = u.speaker_id != null ? speakerById.get(u.speaker_id) : undefined;
+    if (!s) return u.speaker && u.speaker !== 'unknown' ? u.speaker : '';
+    if (s.participant_name) return s.participant_name;
+    if (s.is_self) return t('public.owner', '작성자') as string;
+    return `${t('public.speaker', '화자')} ${unnamedOrder.indexOf(s.id) + 1}`;
+  };
 
   // text 메모는 body 가 TipTap JSON. 단순 plain extract.
   let textBody = '';
@@ -160,8 +172,7 @@ const PublicQNoteSessionPage: React.FC = () => {
           <Section>
             <SectionTitle>{t('public.transcript', '대화 기록')}</SectionTitle>
             {utterances.map((u) => {
-              const dg = u.speaker ? Number(u.speaker.replace(/^\D+/, '') || -1) : -1;
-              const name = speakerMap.get(dg) || u.speaker || '';
+              const name = speakerName(u);
               return (
                 <Utt key={u.id}>
                   <UttSpeaker>{name}</UttSpeaker>

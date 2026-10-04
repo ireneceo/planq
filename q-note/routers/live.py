@@ -71,6 +71,11 @@ def _extract_keywords(meeting_context: dict | None) -> list[str]:
   return cleaned
 
 
+# 화상회의 상대 채널의 화자 키 시작값 — 0(나)·1(옛 «상대 전체»)과 겹치지 않게 띄운다.
+#   화면(QNotePage speakerLabelFor · 공개 노트)도 이 값으로 «상대 N» 을 매긴다 — 바꾸면 같이 바꾼다.
+MC_REMOTE_BASE = 100
+
+
 async def _upsert_speaker(db, session_id: int, dg_speaker_id: int) -> int | None:
   """Insert speaker row if new, return speakers.id. None if dg_speaker_id is None."""
   if dg_speaker_id is None:
@@ -664,6 +669,10 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     end_time = buf['end_time']
     language = buf['language']
     channel_index = buf['channel_index']
+    # 화상회의 화자 키 — 0 = 나, 1 = (옛/번호 없음) 상대, MC_REMOTE_BASE+n = 상대 n번째 목소리
+    mc_speaker_key = 0 if channel_index == 0 else (
+      MC_REMOTE_BASE + int(dg_speaker_id) if dg_speaker_id is not None else 1
+    )
     avg_conf = (
       buf['confidence_sum'] / buf['confidence_count']
       if buf['confidence_count'] > 0 else None
@@ -688,9 +697,11 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
             return
 
         if is_multichannel:
-          # multichannel: channel 기반 speaker. channel 0 = 나(mic), channel 1 = 상대(tab)
-          # dg_speaker_id 대신 channel_index 를 speaker 식별자로 사용
-          speaker_row_id = await _upsert_speaker(db, session_id, channel_index)
+          # multichannel: channel 0 = 나(mic), channel 1 = 상대(tab).
+          # ★ 2026-10-04 — 상대 채널도 사람별로 나눈다: 키 = MC_REMOTE_BASE + 채널 안 화자 번호.
+          #   옛 세션은 상대 전체가 키 1 이었다(화자 분리 꺼짐) — 그 행은 그대로 «상대» 로 읽힌다.
+          #   화자 번호를 못 받은 조각은 옛 키 1 로 떨어진다(빈 화자를 새로 만들지 않는다).
+          speaker_row_id = await _upsert_speaker(db, session_id, mc_speaker_key)
           if speaker_row_id and channel_index == 0:
             # channel 0 = mic = 나 → is_self 자동 마킹
             await db.execute(
@@ -727,7 +738,9 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       return
 
     # 화자 PCM 수집 (배치 클러스터링용)
-    if dg_speaker_id is not None and start_time is not None and end_time is not None:
+    # ★ 단일 채널만 — 화상회의는 «나» 가 채널로 이미 정해지고, 채널마다 화자 번호가 0부터라
+    #   두 채널의 번호를 한 수집기에 넣으면 나와 상대가 섞인다.
+    if not is_multichannel and dg_speaker_id is not None and start_time is not None and end_time is not None:
       pcm_slice = audio_buf.extract(float(start_time), float(end_time))
       if pcm_slice:
         speaker_collector.add(dg_speaker_id, pcm_slice)
@@ -752,7 +765,7 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         'utterance_id': utterance_id,
         'transcript': transcript_text,
         'language': language,
-        'deepgram_speaker_id': dg_speaker_id,
+        'deepgram_speaker_id': mc_speaker_key if is_multichannel else dg_speaker_id,
         'speaker_id': speaker_row_id,
         'is_self': finalized_is_self,
         'start': start_time,
