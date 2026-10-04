@@ -1,4 +1,41 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-10-04 밤 · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료 — 운영 배포 82ad802e(backup /opt/planq/backups/20261004_172102) · 미커밋 0 · Fable PASS
+
+### 진행 중인 작업
+- 없음
+
+### 완료된 작업 (이번 세션)
+- AI 에이전트 M3-b/c(도구 34 · 메일 옵트인 · 답장 초안) · MCP 안내문 — 운영 켜짐(AGENT_ENABLED/WRITE)
+- 다운로드 캐시·진행 트레이 · SEO(/en·정체 그래프·IndexNow·글 Organization)
+- 아이패드·폰 앱: 새 창 링크 앱 안으로(services/nativeLinks) · 말하기 크래시(라우터 밖 useNavigate) · 날짜 코드 계산
+- 서명: 공개 화면 공용 서명판 · 6자리 자동 확인 · 완료 후 문서 보기/닫기
+- Q info 상세 순서 · 빈 줄 보존 / Q Note 화상회의 화자 분리 · 공개 노트 화자 라벨 · 무음 감지 · 머리줄 정리 · 끝난 노트 [상담 저장]
+- 느린 요청 기록([slow], 백엔드·Q Note) — 첫 관측: 메일 답장 발송 1.4~2.1초
+
+### 다음 할 일
+1. **운영 오류 즉시 알림** — routes/client_errors.js 의 [client-crash] 를 플랫폼 관리자 알림으로(같은 메시지 1시간 묶음). 외부 발송 트리거라 Fable 게이트
+2. **«모든 버튼 눌러보기» 순찰 검사** — 앱 라우트 × 폰·태블릿·PC × 웹/앱 흉내(scratchpad ipadapp.js 방식: window.webkit 브리지 + Capacitor nativePromise 스텁 + Mac UA) · 위험 버튼(삭제·발송·결제·토글) 제외 · pageerror/빈 화면/사파리 이탈/가로 넘침/잘림 · 매일 밤 dev 실행 + 보고
+3. 운영 [slow] 하루치 집계 → 느린 기능 정리·개선
+4. Q Note 무음 안내 임계(운영 peak 로그로) · 일시정지 후 재개 8초 거짓 안내 면제 검토
+5. 다음 개발 항목: 목소리 프로필 → 화자 이름 자동(memory project_voice_profile_next, Fable 설계부터) · 네이티브 공유 받기 #434(안드로이드 먼저, iOS 는 App Group + 1.0.2)
+6. Irene: iOS 1.0.1 심사 제출(빌드 완료 — 안내 요청함 «다음 섹션에서») · 구글 서치콘솔 sitemap.xml 제출 확인
+7. 정리: 운영 데모 워크스페이스(biz 8) 서명 테스트 문서 post 93·서명 요청 1·2 · (선택) nginx `/qnote/api/sessions/internal/` 외부 차단(sudo)
+
+---
+
+## 복구 가이드
+
+```
+이전 세션 이어서 작업하고 싶어.
+/opt/planq/.claude/session-state.md 읽어줘.
+```
+
+---
+
+> ⚠️ 아래는 10-02 밤(5) 기록.
+
+## 현재 작업 상태
 **마지막 업데이트:** 2026-10-02 밤(5) · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료 — **#439 M2 운영 배포 완료**(backup /opt/planq/backups/20261002_201605, v1.70.0 유지) · 미커밋 0 · Fable PASS(마커 4e7e761d)
 

@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-02 밤 ([Opus] Opus 5.5) — **v1.70.0 + #439 M2 운영 배포**(backup 20261002_201605) · #426 자가진단 · #439 AI 에이전트 M1·M2(도구 17, 운영 꺼짐 — nginx·.env 대기) · #411·#382 · 흰 화면·/about·문의 인박스 수정. Fable PASS 6라운드.
+> **최종 업데이트:** 2026-10-04 밤 ([Opus] Opus 5.5) — **운영 배포 3회(6cb5f1a2 · 82ad802e 포함 20bae851)** · AI 에이전트 M3-b/c(도구 34) · 다운로드 캐시·진행 트레이 · SEO 정체 그래프·/en · 앱 안 링크·말하기 수리 · 서명 화면 보완 · Q info 상세 순서 · 화상회의 화자 분리 · Q Note 무음 감지·머리줄 · 느린 요청 기록. Fable PASS 전 라운드.
+> ── 이전(2026-10-02 밤) ──
+> v1.70.0 + #439 M2 — **v1.70.0 + #439 M2 운영 배포**(backup 20261002_201605) · #426 자가진단 · #439 AI 에이전트 M1·M2(도구 17, 운영 꺼짐 — nginx·.env 대기) · #411·#382 · 흰 화면·/about·문의 인박스 수정. Fable PASS 6라운드.
 > ── 이전(2026-10-01 밤) ──
 > **v1.67.0 · v1.67.1 운영 배포** (Fable PASS, 확인필요 카드·필터 뒤로는 자체 검증). 메일 실시간 · 랜딩 포지셔닝 · 가입 출처 · 답장 발신 주소(Cc) · 탭 뒤로 가기 마무리 · 확인필요 카드 정돈 · 앱스토어 출시.
 > ── 이전(2026-09-29 밤) ──
@@ -152,6 +154,27 @@
 
 ### 남은 것
 - #434 ② 네이티브 — Apple 계정 작업 먼저(`docs/NATIVE_SHARE_RECEIVE.md`) · 탭 모드 X 닫은 업무 뒤로 재열림(기존 동작)
+
+---
+
+## ✅ 완료: AI 에이전트 M3 · 다운로드 · 앱 안 링크·말하기 · 서명 · Q info · Q Note 녹음 (2026-10-04) [Opus] · Fable PASS
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| AI 에이전트 M3-b/c | 문서·Q info·회의록·메일(옵트인) 읽기 · 통합 검색 · 출처 연결 · 답장 초안(발송 없음) · MCP 안내문(일 질문이면 PlanQ 먼저) | ✅ 운영 |
+| 다운로드 | Drive 디스크 캐시(3GB·14일, 연결 해제 시 삭제) · 진행 트레이(%·취소·다시 시도) | ✅ 운영 |
+| SEO | 운영사 정체 그래프 · 정의 문장 · 영어 공개 페이지 /en/ · hreflang · IndexNow · 글 122페이지 Organization | ✅ 운영 |
+| 앱(iOS·Android) | window.open·target=_blank 를 앱 안으로(/api·/uploads 는 인앱 브라우저) · 앱·폰에서 팝아웃 버튼 숨김 | ✅ 운영 |
+| 말로 추가 | 탭 모드(아이패드 Mac UA) 라우터 밖 크래시 수리 · 상대 날짜 코드 계산(services/relativeDate) | ✅ 운영 |
+| 서명 | 공개 서명 화면 공용 서명판(획만 잘라 저장·배율 보정) · 6자리 자동 확인·Enter · 완료 후 문서 보기/닫기 · 표시 96px | ✅ 운영 |
+| Q info 상세 | 본문·항목·첨부 먼저, «분류·공개 범위» 맨 아래 · Enter 빈 줄 보존(상세·공유) · 공유 항목 값 줄바꿈 | ✅ 운영 |
+| Q Note | 화상회의 상대 채널 화자 분리(«상대 1·2») · 공개 노트 화자 라벨 · 무음 8초 감지 · 다운샘플링 구간 평균 · 머리줄(설정·종료 아이콘, [상담 저장] 하나·끝난 노트에도) | ✅ 운영 |
+| 운영 관측 | 느린 요청(800ms↑) 기록 — 백엔드·Q Note, 경로는 코드 모양만 | ✅ 운영 |
+
+### 수정된 주요 파일
+- `dev-backend/services/agent/*` · `mcp/server.js` · `services/driveCache.js` · `services/seoArtifacts.js` · `services/relativeDate.js` · `middleware/requestTiming.js`
+- `dev-frontend/src/services/nativeLinks.ts` · `utils/popout.ts` · `components/Common/{VoiceCaptureSheet,SignaturePad,RightDock,DownloadTray}.tsx` · `pages/QDocs/PublicSignPage.tsx` · `pages/Knowledge/KnowledgePage.tsx` · `pages/QNote/{QNotePage,PublicQNoteSessionPage}.tsx` · `services/audio/PCMStreamer.ts`
+- `q-note/routers/live.py` · `q-note/services/deepgram_service.py` · `q-note/main.py` · `q-note/routers/sessions.py`
 
 ---
 
