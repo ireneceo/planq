@@ -126,7 +126,8 @@ const breadcrumb = (origin, trail) => ({
 function renderPage(template, p) {
   let h = template;
   const set = (re, tag) => { h = re.test(h) ? h.replace(re, tag) : h.replace('</head>', `    ${tag}\n  </head>`); };
-  h = h.replace(/<html lang="[^"]*">/, '<html lang="ko">');
+  const lang = p.lang === 'en' ? 'en' : 'ko';
+  h = h.replace(/<html lang="[^"]*">/, `<html lang="${lang}">`);
   h = h.replace(/<title>[^<]*<\/title>/, `<title>${esc(p.title)}</title>`);
   set(/<meta name="description" content="[^"]*"\s*\/?>/, `<meta name="description" content="${esc(p.description)}" />`);
   set(/<meta property="og:type" content="[^"]*"\s*\/?>/, `<meta property="og:type" content="${esc(p.ogType || 'website')}" />`);
@@ -136,8 +137,17 @@ function renderPage(template, p) {
   set(/<meta name="twitter:title" content="[^"]*"\s*\/?>/, `<meta name="twitter:title" content="${esc(p.title)}" />`);
   set(/<meta name="twitter:description" content="[^"]*"\s*\/?>/, `<meta name="twitter:description" content="${esc(p.description)}" />`);
   set(/<link rel="canonical" href="[^"]*"\s*\/?>/, `<link rel="canonical" href="${esc(p.canonical)}" />`);
-  set(/<meta property="og:locale" content="[^"]*"\s*\/?>/, '<meta property="og:locale" content="ko_KR" />');
+  set(/<meta property="og:locale" content="[^"]*"\s*\/?>/, `<meta property="og:locale" content="${lang === 'en' ? 'en_US' : 'ko_KR'}" />`);
+  // 한국어 ↔ 영어 짝 페이지 (2026-10-04 GEO §7-⑤). x-default 는 한국어(대표 주소).
+  if (p.alternates) {
+    h = h.replace(/\s*<link rel="alternate" hreflang="[^"]*" href="[^"]*"\s*\/?>/g, '');
+    const alt = [['ko', p.alternates.ko], ['en', p.alternates.en], ['x-default', p.alternates.ko]]
+      .filter(([, u]) => u).map(([l, u]) => `<link rel="alternate" hreflang="${l}" href="${esc(u)}" />`).join('\n    ');
+    h = h.replace('</head>', `    ${alt}\n  </head>`);
+  }
   if (p.jsonld) {
+    // 템플릿(index.html)의 얇은 JSON-LD 는 빼고 이 페이지 그래프만 둔다 — 남기면 같은 이름의 Organization 이 두 개가 된다(2026-10-04)
+    h = h.replace(/\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/g, '');
     // JSON-LD 안의 </script> 를 끊는다(본문에 그 문자열이 있어도 스크립트가 닫히지 않게)
     const ld = JSON.stringify(p.jsonld).replace(/</g, '\\u003c');
     h = h.replace('</head>', `    <script type="application/ld+json">${ld}</script>\n  </head>`);
@@ -182,6 +192,47 @@ function writeAtomic(file, content, { gz = false } = {}) {
 
 const isoDate = (d) => (d ? new Date(d).toISOString().slice(0, 10) : undefined);
 
+/**
+ * 사이트의 정체(Organization·SoftwareApplication) — 모든 공개 페이지가 같은 @id 로 가리킨다(2026-10-04 GEO §7-②).
+ *   같은 이름의 다른 «PlanQ»(노션 템플릿·크몽 기획 구독·암호화폐)와 기계가 구분할 근거: 법인명·다른 표기·연락처·앱스토어(sameAs).
+ *   ★ 운영사 값은 `platform_settings` 가 정본이다(푸터·약관과 같은 곳) — 여기 글자로 적지 않는다. 운영 DB 로 운영에서 만든다.
+ *   ★ 정의 한 문장은 seo-pages.json `definition` 한 곳 — llms.txt 첫 문단도 같은 문장이어야 한다.
+ */
+async function entityGraph(origin, cfg) {
+  let ps = null;
+  try {
+    const { PlatformSetting } = require('../models');
+    ps = await PlatformSetting.findOne({ order: [['id', 'ASC']], attributes: ['legal_entity', 'company_email', 'company_phone', 'company_address', 'app_ios_url', 'app_android_url'] });
+  } catch { ps = null; }
+  const v = (k) => (ps && ps[k] ? String(ps[k]) : null);
+  const sameAs = [v('app_ios_url'), v('app_android_url')].filter(Boolean);
+  const def = (cfg.definition && cfg.definition.ko) || null;
+  const org = {
+    '@type': 'Organization', '@id': `${origin}/#org`, name: 'PlanQ', alternateName: ['플랜큐', 'PlanQ 업무관리'],
+    url: origin, logo: `${origin}/icon-512.png`,
+    ...(v('legal_entity') ? { legalName: v('legal_entity') } : {}),
+    ...(def ? { description: def } : {}),
+    ...(v('company_email') ? { email: v('company_email') } : {}),
+    ...(v('company_phone') ? { telephone: v('company_phone') } : {}),
+    address: { '@type': 'PostalAddress', addressCountry: 'KR', ...(v('company_address') ? { streetAddress: v('company_address') } : {}) },
+    ...(sameAs.length ? { sameAs } : {}),
+  };
+  const app = {
+    '@type': 'SoftwareApplication', '@id': `${origin}/#app`, name: 'PlanQ', alternateName: '플랜큐',
+    applicationCategory: 'BusinessApplication', operatingSystem: 'Web, iOS, Android', url: origin,
+    ...(def ? { description: def } : {}),
+    publisher: { '@id': `${origin}/#org` }, inLanguage: ['ko', 'en'],
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'KRW', description: '14일 무료 체험' },
+    ...(sameAs.length ? { sameAs } : {}),
+  };
+  const site = { '@type': 'WebSite', '@id': `${origin}/#site`, name: 'PlanQ', url: origin, inLanguage: ['ko', 'en'], publisher: { '@id': `${origin}/#org` } };
+  return { org, app, site };
+}
+
+/** 영어 페이지를 만드는 공개 페이지 — 문구가 영어로 다 있는 것만(목록·약관은 한국어 글이라 제외) */
+const EN_SKIP = new Set(['/insights/', '/guide/', '/privacy', '/terms']);
+const enPath = (p) => (p === '/' ? '/en/' : `/en${p}`);
+
 async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {}) {
   const templatePath = path.join(dir, 'index.html');
   const pagesPath = path.join(dir, 'seo-pages.json');
@@ -203,11 +254,15 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
   }
   let landing = {};
   try { landing = JSON.parse(fs.readFileSync(path.join(dir, 'locales', 'ko', 'landing.json'), 'utf8')); } catch { landing = {}; }
+  let landingEn = {};
+  try { landingEn = JSON.parse(fs.readFileSync(path.join(dir, 'locales', 'en', 'landing.json'), 'utf8')); } catch { landingEn = {}; }
   const cfg = JSON.parse(fs.readFileSync(pagesPath, 'utf8'));
   const origin = cfg.origin || 'https://planq.kr';
+  const ent = await entityGraph(origin, cfg);
+  const hasEn = (p) => !p.noPrerender && !EN_SKIP.has(p.path) && p.title && p.title.en && p.description && p.description.en;
 
   const nav = cfg.pages.filter((p) => !p.noPrerender).map((p) => ({ href: p.path, label: p.label || (p.h1 && p.h1.ko) || p.title.ko }));
-  const org = { '@type': 'Organization', name: 'PlanQ', url: origin, logo: `${origin}/icon-512.png` };
+  const org = { '@id': `${origin}/#org` };
 
   const out = [];      // { rel: 'features/index.html', html }
   const urls = [];     // sitemap 항목
@@ -231,7 +286,8 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
     const blocks = [...intro, ...sectionBlocks(landing, p.sections), ...(p.list ? listBlocks(p.list) : [])];
     const faq = p.faq ? faqPairs(landing, p.faq) : [];
     const graph = [
-      { '@type': 'WebPage', name: p.title.ko, description: p.description.ko, url: loc, inLanguage: 'ko', isPartOf: { '@type': 'WebSite', name: 'PlanQ', url: origin }, publisher: org },
+      { '@type': 'WebPage', name: p.title.ko, description: p.description.ko, url: loc, inLanguage: 'ko', isPartOf: { '@id': `${origin}/#site` }, publisher: org },
+      ent.org, ent.app, ent.site,
       ...(p.path === '/' ? [] : [breadcrumb(origin, [{ name: 'PlanQ', path: '/' }, { name: p.label || p.title.ko, path: p.path }])]),
       ...(faq.length ? [{ '@type': 'FAQPage', mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) }] : []),
     ];
@@ -239,6 +295,7 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
       title: p.title.ko, description: p.description.ko, url: loc, canonical: loc,
       h1: p.h1 && p.h1.ko, paragraphs: (p.intro && p.intro.ko) || [], blocks, nav,
       jsonld: { '@context': 'https://schema.org', '@graph': graph },
+      alternates: hasEn(p) ? { ko: loc, en: origin + enPath(p.path) } : null,
     });
     if (p.path === '/') {
       // 홈의 머리(제목·설명·기존 JSON-LD)는 index.html 원본이 정본이다 — 본문만 채운다
@@ -246,11 +303,44 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
       //   index.html 주석 안의 같은 글자에서 시작해 주석 꼬리(« 가 그린다. -->»)와 noscript 를 통째로 복제했다 —
       //   JS 가 뜨기 전(느린 망·앱 콜드 스타트·청크 실패) 흰 화면에 그 꼬리 글자가 보였다.
       html = template.replace(/<div id="root"><\/div>/, (html.match(/<div id="root"><main id="seo-prerender"[\s\S]*?<\/main><\/div>/) || ['<div id="root"></div>'])[0]);
-      html = html.replace(/<\/head>/, `    <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph.slice(1).length ? graph.slice(1) : [graph[0]] }).replace(/</g, '\\u003c')}</script>\n  </head>`);
+      // index.html 원본의 얇은 JSON-LD(이름·주소·로고뿐)는 빼고 정체 그래프로 바꾼다 — 둘이 있으면 같은 이름의 Organization 이 두 개다
+      html = html.replace(/\s*<script type="application\/ld\+json">[\s\S]*?<\/script>/g, '');
+      html = html.replace(/<\/head>/, `    <script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }).replace(/</g, '\\u003c')}</script>\n  </head>`);
+      if (hasEn(p)) {
+        html = html.replace(/\s*<link rel="alternate" hreflang="[^"]*" href="[^"]*"\s*\/?>/g, '');
+        html = html.replace('</head>', `    <link rel="alternate" hreflang="ko" href="${esc(loc)}" />\n    <link rel="alternate" hreflang="en" href="${esc(origin + '/en/')}" />\n    <link rel="alternate" hreflang="x-default" href="${esc(loc)}" />\n  </head>`);
+      }
     }
     out.push({
       rel: p.path === '/' ? 'index.html' : path.join(p.path.replace(/^\/|\/$/g, ''), 'index.html'),
       html: html.replace('<html lang="ko">', '<html lang="ko" data-seo-generated="1">'),
+    });
+  }
+
+  // ①-en 영어 공개 페이지 /en/… (2026-10-04 GEO §7-⑤) — 같은 화면을 영어로(SPA 의 /en 경로가 언어를 en 으로 연다).
+  //   문구는 seo-pages.json 의 en 값과 locales/en/landing.json — 한국어 페이지와 같은 키에서 뽑는다(봇·사람 같은 내용).
+  for (const p of cfg.pages) {
+    if (!hasEn(p)) continue;
+    const loc = origin + enPath(p.path);
+    urls.push({ loc, changefreq: p.changefreq, priority: p.priority });
+    const intro = ((p.intro && p.intro.en) || []).map((t) => ({ tag: 'p', text: t }));
+    const blocks = [...intro, ...sectionBlocks(landingEn, p.sections)];
+    const faq = p.faq ? faqPairs(landingEn, p.faq) : [];
+    const graph = [
+      { '@type': 'WebPage', name: p.title.en, description: p.description.en, url: loc, inLanguage: 'en', isPartOf: { '@id': `${origin}/#site` }, publisher: org },
+      ent.org, ent.app, ent.site,
+      ...(faq.length ? [{ '@type': 'FAQPage', mainEntity: faq.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })) }] : []),
+    ];
+    const navEn = cfg.pages.filter(hasEn).map((x) => ({ href: enPath(x.path), label: (x.h1 && x.h1.en) || x.title.en }));
+    const html = renderPage(template, {
+      lang: 'en', title: p.title.en, description: p.description.en, url: loc, canonical: loc,
+      h1: p.h1 && p.h1.en, paragraphs: (p.intro && p.intro.en) || [], blocks, nav: navEn,
+      jsonld: { '@context': 'https://schema.org', '@graph': graph },
+      alternates: { ko: origin + p.path, en: loc },
+    });
+    out.push({
+      rel: path.join('en', p.path.replace(/^\/|\/$/g, ''), 'index.html').replace(/\/index\.html$/, '/index.html'),
+      html: html.replace('<html lang="en">', '<html lang="en" data-seo-generated="1">'),
     });
   }
 

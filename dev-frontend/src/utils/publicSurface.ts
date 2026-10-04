@@ -16,14 +16,15 @@
 /** 정확히 일치해야 하는 마케팅 경로 */
 //   ★ '/service' 는 2026-10-02 에 들어왔다 — 빠져 있어 로그인 데스크탑이 서비스 페이지에서 워크스페이스 크롬을 볼 수 있었다.
 //     그 아래 무료 자가진단(#426)도 공개다.
-const EXACT = ['/', '/features', '/details', '/pricing', '/insights', '/blog', '/about', '/contact', '/service', '/service/diagnosis'];
+const EXACT = ['/', '/en', '/features', '/details', '/pricing', '/insights', '/blog', '/about', '/contact', '/service', '/service/diagnosis'];
 
 /** 하위 경로까지 포함하는 prefix */
 //   ★ '/g/' — #259 무로그인 게스트 링크. 고객이 카톡·메일로 받은 링크로 들어오는 자리라
 //     워크스페이스 chrome 이 하나라도 뜨면 "남의 회사 도구" 로 보인다.
 //   ★ '/wiki/' 는 2026-09-25 개명 전 주소다. 리다이렉트 전용으로 남아 있지만 여기서 빠지면
 //     게스트가 옛 링크로 들어온 **그 순간** 워크스페이스 크롬이 번쩍인다.
-const PREFIX = ['/insights/', '/blog/', '/guide/', '/wiki/', '/g/'];
+// '/en/' — 영어 공개 페이지(2026-10-04). 로그인 데스크탑에서도 워크스페이스 크롬 없이 랜딩으로.
+const PREFIX = ['/insights/', '/blog/', '/guide/', '/wiki/', '/g/', '/en/'];
 
 export function isPublicSurfacePath(pathname: string): boolean {
   // ★ 끝 슬래시를 벗겨 비교한다(2026-10-02 Fable 실측). 공개 페이지는 SEO 생성 디렉터리라 nginx 가

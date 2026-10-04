@@ -27,10 +27,13 @@ export function useSeoHead(pathname: string, lang: string) {
     let alive = true;
     load().then((cfg) => {
       if (!alive || !cfg) return;
-      const page = cfg.pages.find((p) => norm(p.path) === norm(pathname));
+      // 영어 공개 페이지 /en/… 는 같은 항목의 영어판이다(2026-10-04) — 접두어를 벗겨 찾고, 대표 주소도 /en 쪽으로
+      const isEn = /^\/en(\/|$)/.test(pathname);
+      const base = isEn ? (pathname.replace(/^\/en/, '') || '/') : pathname;
+      const page = cfg.pages.find((p) => norm(p.path) === norm(base));
       if (!page) return;
-      const l = lang.startsWith('en') ? 'en' : 'ko';
-      const url = cfg.origin + page.path;
+      const l = isEn || lang.startsWith('en') ? 'en' : 'ko';
+      const url = cfg.origin + (isEn ? (page.path === '/' ? '/en/' : `/en${page.path}`) : page.path);
       document.title = page.title[l];
       setMeta('meta[name="description"]', 'name', 'description', page.description[l]);
       setMeta('meta[property="og:title"]', 'property', 'og:title', page.title[l]);

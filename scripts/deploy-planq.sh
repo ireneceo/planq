@@ -601,6 +601,8 @@ deploy_frontend() {
     #   실패해도 배포는 계속한다(서버 시작 때 한 번 더 돈다) — 대신 조용히 넘기지 않고 경고를 남긴다.
     if prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/generate-seo.js 2>&1 | tail -3"; then
       success "검색용 페이지·사이트맵 생성 완료"
+      # Bing 등 IndexNow 참여 엔진에 공개 주소를 바로 알린다(2026-10-04) — 실패해도 배포는 계속한다
+      prod_run "cd $PROD_BE && NODE_ENV=production node scripts/indexnow-ping.js 2>&1 | tail -1" || warn "IndexNow 알림 실패 — 다음 배포에 다시 보낸다"
     else
       warn "검색용 페이지 생성 실패 — 서버 시작 시 재시도 (pm2 logs 의 [seo-artifacts] 확인)"
     fi

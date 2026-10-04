@@ -126,6 +126,7 @@ const SaleDetailPage = lazy(() => import('./pages/QSale/SaleDetailPage'));
 const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
 const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
 const LandingDetails = lazy(() => import('./pages/Landing/DetailsPage'));
+const EnglishRoute = lazy(() => import('./components/Landing/EnglishRoute'));
 const LandingService = lazy(() => import('./pages/Landing/ServicePage'));
 const LandingDiagnosis = lazy(() => import('./pages/Landing/DiagnosisPage'));
 const LandingAbout = lazy(() => import('./pages/Landing/AboutPage'));
@@ -250,6 +251,7 @@ function ShellApp() {
             이 라우트가 없으면 catch-all 이 잡아 랜딩으로 가고 일회용 code 가 사라진다. */}
         <Route path="/oauth/native-return" element={<NativeReturnPage />} />
         <Route path="/app" element={<DownloadAppPage />} />
+        <Route path="/en/app" element={<EnglishRoute><DownloadAppPage /></EnglishRoute>} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route path="/oauth/connect-confirm" element={<OauthConnectConfirmPage />} />
         <Route path="/register" element={<RegisterPage />} />
@@ -678,6 +680,15 @@ function ShellApp() {
         <Route path="/features" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingFeatures />} />
         <Route path="/pricing" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingPricing />} />
         <Route path="/details" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingDetails />} />
+        {/* 영어 공개 페이지 /en/… — 같은 화면을 언어만 en 으로(검색·AI 용 영어 HTML 은 seoArtifacts 가 만든다) */}
+        <Route path="/en" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><RootRoute /></EnglishRoute>} />
+        <Route path="/en/features" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingFeatures /></EnglishRoute>} />
+        <Route path="/en/details" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingDetails /></EnglishRoute>} />
+        <Route path="/en/pricing" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingPricing /></EnglishRoute>} />
+        <Route path="/en/service" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingService /></EnglishRoute>} />
+        <Route path="/en/service/diagnosis" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingDiagnosis /></EnglishRoute>} />
+        <Route path="/en/about" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingAbout /></EnglishRoute>} />
+        <Route path="/en/contact" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingContact /></EnglishRoute>} />
         {/* 서비스 — 업무체계 설계·시스템 구축 (2026-08-24) */}
         <Route path="/service" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingService />} />
         {/* #426 무료 업무체계 자가진단 — 공개 */}

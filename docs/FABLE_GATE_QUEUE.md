@@ -5420,3 +5420,9 @@ Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인
 ## 2026-10-04 · M3-d 처음 사용자 안내 · AI 연결 안내 · /details/ · 도움말 공개 · [Opus] → **Fable PASS**(1차 FAIL 1 → 수정 → 재검증 PASS)
 온보딩 groups 2·8단계 실데이터 판정 · 개인 닫기 business_members.onboarding_dismissed_at(멱등 스크립트, PM2 reload 전 슬롯 — 컬럼 없으면 BusinessMember 라우트 500 실증) · 대시보드+설정 최상단 · AI 안내 4단계+ChatGPT/Claude 바로 열기 · /details/ 3폭·프리렌더 · 도움말 86 public.
 1차 FAIL: connect-mail 에 내용 없는 «Gmail로 연결 (가장 간편)» 제목 잔존(836f1360 이 문장만 지움) → 제목 제거·재시드 → 재검증 PASS. 죽은 키 howToConnect 제거.
+
+## 2026-10-04 · GEO 조치 — 정체 그래프 · 정의 한 문장 · 영어 공개 페이지(/en/) · IndexNow · [Opus] Fable 미검증(자체 검증)
+**판정**: R=0(공개 마케팅 HTML·메타 — 데이터·권한 무관, 생성물은 매 배포·자정 재생성) · S=0 · F=1(생성 HTML 구조·실브라우저) → 자체 검증. IndexNow 는 공개 sitemap 주소만 검색엔진에 알림(사용자 데이터 없음).
+**변경**: seoArtifacts — Organization(@id·legalName·연락처·주소·sameAs 앱스토어 — platform_settings 정본)·SoftwareApplication·WebSite 를 모든 공개 페이지에 · 템플릿 얇은 JSON-LD 제거(중복 Organization 방지) · 영어 페이지 9개 /en/… + hreflang ko/en/x-default + sitemap · seo-pages.json `definition` 정본 + llms.txt 첫 문단 · SPA `/en/*` 라우트(EnglishRoute — 같은 화면 언어만 en) · publicSurface `/en` · useSeoHead /en 인식 · IndexNow 키 파일 + `scripts/indexnow-ping.js`(배포 후, 운영만).
+**자체 검증**: 빌드 EXIT 0 · error TS 0 · 생성기(빌드 산출물 복사본) — 페이지 122·sitemap 110·영어 9 · 각 페이지 Organization 1개 · hreflang 짝 · 영어 본문 4.8~10.7천 자 · 실브라우저 /en·/en/details·/en/pricing·/en/app × 폰/데스크탑 × 비로그인/로그인 — 영어 h1·title·canonical·워크스페이스 크롬 0·한글 0·페이지 오류 0.
+**운영 확인 남음**: 배포 후 운영 생성물(legalName 값 포함) curl · IndexNow 응답 코드.
