@@ -1,38 +1,17 @@
 {
-  "working_on": [
-    "#439 운영 켜기 — 배포 뒤 운영 .env AGENT_ENABLED·AGENT_TOKEN_SECRET + 운영 nginx 경로(Irene sudo) → 실 ChatGPT 연결 시험"
-  ],
+  "working_on": ["#439 운영 ChatGPT 실연결 — Irene 신고 «제대로 돌지 않는다» 진단(요청 기록 추가)"],
   "in_progress": [],
   "completed": [
-    { "title": "#455 프로필 사진 표시(인증 이미지 blob · AuthContext avatar_url) · 첫 글자 닉네임", "verified": "opus_only" },
-    { "title": "#453·#454 문의 상세 모바일 — 표준 뒤로가기 · 목록 필터 내림 · 키보드 중 머리줄 접기", "verified": "opus_only" },
-    { "title": "#453 «2번» AI 기록 도구 add_client_interaction·add_project_note + MCP 쓰기 실시간 대리(remoteIo → /api/internal/broadcast)", "verified": "fable_pass" },
-    { "title": "dev nginx 에이전트 경로(scripts/nginx-agent.conf · apply-nginx-agent.sh)", "verified": "fable_pass" },
-    { "title": "도움말 «ChatGPT·Claude 연결하기» · 연결된 AI 앱 안내 문구", "verified": "opus_only" }
+    { "title": "MCP serverInfo 이름·설명·아이콘(클라이언트 지원 시 표시)", "verified": "opus_only" },
+    { "title": "AI 에이전트 요청 한 줄 기록(경로·rpc·도구·상태·401 사유·ms, 토큰·인자 미기록)", "verified": "opus_only" },
+    { "title": "도움말·앱 안내의 ChatGPT 메뉴 이름 최신화(Security and login › Developer mode · Plugins › Add › Create MCP App)", "verified": "opus_only" }
   ],
-  "behavior_changes": [
-    "AI 에이전트(MCP 프로세스)의 쓰기가 이제 실시간 방송된다 — 예전엔 열린 화면에 새로고침 전까지 안 보였다",
-    "POST /api/projects/:id/notes 가 행동 계층(project_note_actions)을 거친다 — 응답·권한·감사 동일"
-  ],
+  "behavior_changes": ["운영 AGENT_WRITE_ENABLED=1 — AI 쓰기 도구 켜짐(기본 꺼짐이었다)"],
   "migrations": [],
-  "issues": [
-    "dev 테스트 스크립트 버그로 dev clients#1·projects#1(biz6) 삭제 → 10-03 덤프로 복구 완료(운영 무관)"
-  ],
-  "blocked_on_human": [
-    "운영 nginx 에 에이전트 경로: sudo bash /opt/planq/scripts/apply-nginx-agent.sh /etc/nginx/sites-enabled/planq.kr",
-    "#434② iOS 공유 받기 — Apple App Group",
-    "#426 문항 문구 검토"
-  ],
-  "check_areas": [
-    "프로필 사진 업로드·표시(좌측 메뉴 포함)",
-    "모바일 문의·피드백 상세(뒤로가기·추가 문의)",
-    "프로젝트 메모 작성(사람 경로)"
-  ],
-  "backlog": [
-    "#439 M3: Claude 커넥터 실연결 · CIMD · 디렉터리 제출 · cue_tools 레지스트리 통합 · 감사 화면 «AI 경유» 필터"
-  ],
-  "tooling_health": [
-    "Fable PASS(기록 도구 46검사 · nginx 외부 실호출) · guard 61/62 · health 48/48 · tenant 9/9"
-  ],
+  "issues": ["운영 grant#1 연결 후 도구 호출 0건 — ChatGPT 쪽 단계 확인 중"],
+  "blocked_on_human": ["Irene: ChatGPT 새 채팅 + › Developer mode › PlanQ 선택 후 재시도 · 보이는 문구 공유"],
+  "check_areas": ["planq.kr/agent/mcp 연결·도구 호출"],
+  "backlog": ["#439 M3: 디렉터리 제출(공식 아이콘) · Claude 실연결 · CIMD"],
+  "tooling_health": ["guard 61/62 · health 48/48 · dev ChatGPT 핸드셰이크 모사(initialize→tools/list 19→tools/call 200)"],
   "undeployed": []
 }
