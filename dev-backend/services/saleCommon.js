@@ -23,7 +23,8 @@ const readChain = [authenticateToken, checkBusinessAccess, blockClient, requireM
 const writeChain = [authenticateToken, checkBusinessAccess, blockClient, requireMenu('qsale', 'write')];
 
 function broadcast(req, businessId, event, payload) {
-  const io = req.app.get('io');
+  // req 가 없는 실행 경로(AI 에이전트 도구 — MCP 프로세스)는 전역 참조로 — 거기서는 remoteIo 가 메인으로 넘긴다
+  const io = (req && req.app && req.app.get('io')) || global.__planqIo || null;
   if (io) io.to(`business:${businessId}`).emit(event, payload);
 }
 

@@ -46,10 +46,10 @@ function interactionPatchFrom(body, { creating }) {
 
 /**
  * 상담 기록 1건 생성 — 검증된 patch 로 create + last_touch 갱신 + 감사 + 실시간.
- *   req 는 broadcast 용(없으면 실시간만 생략된다 — 서버 내부 호출).
+ *   req 는 broadcast 용 — 없으면 전역 io 로 보낸다(AI 에이전트 경로). channel 은 감사 표시 전용(권한 판단에 쓰지 않는다).
  * @returns {{ row }} 또는 {{ error }}
  */
-async function createInteraction({ businessId, client, body, userId, req }) {
+async function createInteraction({ businessId, client, body, userId, req, channel }) {
   const { patch, error } = interactionPatchFrom(body || {}, { creating: true });
   if (error) return { error };
 
@@ -88,12 +88,13 @@ async function createInteraction({ businessId, client, body, userId, req }) {
     newValue: {
       client_id: client.id, kind: row.kind, occurred_at: row.occurred_at,
       source_kind: row.source_kind, qnote_session_id: row.qnote_session_id,
+      // 외부 AI 에이전트(#439)를 거친 기록은 같은 감사 행에 경유를 싣는다(행동 계층 task_actions.audit 와 같은 모양)
+      ...(channel && channel.kind === 'agent' ? { via: `agent:${channel.provider || 'unknown'}`, agent_grant_id: channel.grant_id || null } : {}),
     },
   });
-  if (req) {
-    broadcast(req, businessId, 'interaction:new', { id: row.id, client_id: client.id });
-    broadcast(req, businessId, 'client:updated', { id: client.id, business_id: businessId });
-  }
+  // req 가 없어도 방송한다 — AI 에이전트 경로는 req 가 없고, broadcast 가 전역 참조로 떨어진다
+  broadcast(req, businessId, 'interaction:new', { id: row.id, client_id: client.id });
+  broadcast(req, businessId, 'client:updated', { id: client.id, business_id: businessId });
   return { row };
 }
 

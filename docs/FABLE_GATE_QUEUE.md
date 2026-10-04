@@ -5356,3 +5356,12 @@ noscript 가 진짜 root 앞에 통째로 복제됐다(운영 `/` · `/login` �
   360×740 키보드 330 → vvh 410 · 보내기 y350–394 ✓ · 뒤로(목록으로) 폰 6,64 / 태블릿 20,138 보임·hit ✓ · 데스크탑 필터·작성 버튼 유지·뒤로 없음(양쪽 칸) ✓.
 **미검증 커밋 2a2a5406**: 소스는 `seed-wiki-content.js` 도움말 텍스트뿐 — 10-02 항목에서 자체 검증 기록됨.
 **Fable 이 봐야 할 것**: 없음.
+
+## 2026-10-04 · #453 «2번» AI 기록 도구 + MCP 실시간 대리 · [Opus] 구현 · Fable PASS
+**판정**: R=1(멀티테넌트 격리 · 새 내부 라우트) → Fable.
+**변경**: `add_client_interaction`(saleInteraction.createInteraction 재사용) · `add_project_note`(행동 계층 project_note_actions — 사람 라우트도 이관) ·
+MCP 프로세스 실시간 0 결함 수리(`services/remoteIo` → `POST /api/internal/broadcast`, 루프백+키 · 방/이벤트 모양 제한 · 50건 상한) · 가드 agentsurface +3.
+**Fable(46검사)**: 73 케이스(토큰 biz5 → 내가 owner 인 biz73 고객·프로젝트) NOT_FOUND+0행 · 비소속 NOT_FOUND · 저장→조회·감사 via · 실시간 end-to-end ·
+멱등 · scope · 메뉴 read/none 거절+대조군 · 사람 라우트 회귀(고객 personal 강제 · 다른 프로젝트 conversation_id 무시) · 내부 라우트 키/XFF/외부 403 · 모양 밖 10건 sent 0 ·
+health 48/48 · guard 61/62 · tenant 9/9 · 운영 MCP 가 같은 .env(PORT 3004·INTERNAL_API_KEY)를 읽음 확인. 스키마 변경 없음.
+**사고 기록**: Opus 테스트 스크립트가 INSERT 반환을 잘못 읽어 dev clients#1·projects#1(biz6) 삭제 → 10-03 덤프에서 복구 완료(Irene 실행). 잔여 픽스처 6행 정리.

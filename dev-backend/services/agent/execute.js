@@ -111,7 +111,9 @@ async function runTool(p, name, rawArgs) {
       channel: { kind: 'agent', provider: p.provider, grant_id: p.grantId, client_id: p.clientId } };
     const data = await tool.handler(p, args, actor);
     const target = data?.task ? { target_type: 'task', target_id: data.task.task_id }
-      : data?.note ? { target_type: 'task_comment', target_id: data.note.note_id } : {};
+      : data?.note ? { target_type: 'task_comment', target_id: data.note.note_id }
+        : data?.interaction ? { target_type: 'client_interaction', target_id: data.interaction.interaction_id }
+          : data?.project_note ? { target_type: 'project_note', target_id: data.project_note.note_id } : {};
 
     if (tool.write) {
       await store.update('agent_idem', idemKey, { status: 'done', result: data, ...target }).catch(() => {});

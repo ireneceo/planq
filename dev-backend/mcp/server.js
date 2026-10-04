@@ -35,6 +35,10 @@ const { revocationHandler } = require('@modelcontextprotocol/sdk/server/auth/han
 const { metadataHandler } = require('@modelcontextprotocol/sdk/server/auth/handlers/metadata.js');
 
 const PORT = Number(process.env.MCP_PORT) || 3005;
+
+// ★ 2026-10-04 — 이 프로세스에는 socket.io 가 없다. 행동 계층은 `global.__planqIo` 로 방송하므로,
+//   비어 있으면 AI 가 만든 업무·메모가 열린 화면에 새로고침 전까지 안 보였다. 메인 백엔드로 넘기는 대리자를 둔다.
+if (!global.__planqIo) global.__planqIo = require('../services/remoteIo').remoteIo;
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 const app = express();

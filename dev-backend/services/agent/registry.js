@@ -7,6 +7,7 @@ const { z } = require('zod');
 const t = require('./tools/tasks');
 const dir = require('./tools/directory');
 const cal = require('./tools/calendar');
+const notes = require('./tools/notes');
 
 const dateOnly = t.dateOnly;
 const idem = z.string().max(64).optional().describe('같은 요청을 다시 보낼 때 같은 값을 주면 한 번만 실행된다(선택)');
@@ -75,6 +76,33 @@ const TOOLS = [
       idempotency_key: idem,
     },
     handler: (p, a, actor) => t.addTaskNote(p, a, actor),
+  },
+  // ── #453 «2번» — 대화 결과를 PlanQ 에 기록(상담·프로젝트 메모). 추가만 한다 ─────────
+  {
+    name: 'add_client_interaction', risk: 'LOW', write: true, scopes: ['notes:write'],
+    description: 'Save a record of a conversation with a client (call, meeting, visit or memo) to that client\'s history in PlanQ — e.g. "save what we discussed today as a consultation". Find client_id with search_clients first. Only adds — never edits or deletes. Team-only; the client does not see it.',
+    input: {
+      client_id: z.number().int().positive(),
+      content: z.string().trim().min(1).max(20000).describe('What was discussed — the record body'),
+      title: z.string().trim().max(200).optional().describe('Short title (optional)'),
+      kind: z.enum(['call', 'meeting', 'visit', 'memo', 'other']).optional().describe('Default "memo"'),
+      direction: z.enum(['inbound', 'outbound']).optional(),
+      occurred_at: z.string().max(40).optional().describe('When it happened (ISO 8601). Default now. Cannot be in the future.'),
+      project_id: z.number().int().positive().optional().describe('Link to a project of this workspace (optional)'),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => notes.addClientInteraction(p, a, actor),
+  },
+  {
+    name: 'add_project_note', risk: 'LOW', write: true, scopes: ['notes:write'],
+    description: 'Add a note to a PlanQ project — e.g. decisions or a summary of a discussion. Find project_id with search_projects first. Only adds — never edits or deletes. Visibility "internal" (project team, default) or "personal" (only the user).',
+    input: {
+      project_id: z.number().int().positive(),
+      content: z.string().trim().min(1).max(5000),
+      visibility: z.enum(['internal', 'personal']).optional(),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => notes.addProjectNote(p, a, actor),
   },
   // ── M2-a — 조회(고객·프로젝트·멤버·일정) ──────────────────────────
   {

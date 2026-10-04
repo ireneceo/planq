@@ -899,6 +899,17 @@ function checkAgentSurface() {
   if (fs.existsSync(tasksTool) && !/Task\.findOne\(\{\s*where:\s*\{\s*id:\s*taskId,\s*business_id:\s*p\.businessId\s*\}/.test(read(tasksTool))) {
     bad.push('services/agent/tools/tasks.js: loadTask 가 토큰 워크스페이스(business_id: p.businessId)로 묶이지 않음 — 남의 업무가 열린다');
   }
+  // #453 기록 도구 — 고객·프로젝트도 토큰 워크스페이스로 묶여야 한다(빼면 남의 고객·프로젝트에 기록이 남는다)
+  const notesTool = path.join(dir, 'tools/notes.js');
+  if (fs.existsSync(notesTool)) {
+    const ns = read(notesTool).split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+    if (!/findClient\(\s*p\.businessId\s*,/.test(ns)) bad.push('services/agent/tools/notes.js: 고객을 토큰 워크스페이스(findClient(p.businessId, …))로 찾지 않음');
+    if (!/createProjectNote\([^)]*businessId:\s*p\.businessId/.test(ns)) bad.push('services/agent/tools/notes.js: 프로젝트 메모에 businessId: p.businessId 묶음 없음');
+  }
+  const pna = path.join(ROOT, 'dev-backend/services/actions/project_note_actions.js');
+  if (fs.existsSync(pna) && !/params\.businessId && Number\(project\.business_id\) !== Number\(params\.businessId\)/.test(read(pna))) {
+    bad.push('services/actions/project_note_actions.js: businessId 묶음 판정이 없음 — AI 경로가 남의 워크스페이스 프로젝트에 쓴다');
+  }
   report('agentsurface', `AI 에이전트 표면 불변식 (파일 ${files.length})`, bad.length === 0, bad);
 }
 

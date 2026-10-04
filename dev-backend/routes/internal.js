@@ -323,4 +323,25 @@ router.get('/health/imagegate', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ─── 실시간 방송 대리 (#439) ───
+// POST /api/internal/broadcast  { emits: [{ room, event, payload }] }
+//   socket.io 가 없는 같은 서버의 다른 프로세스(MCP :3005 — AI 에이전트 도구)가 행동 계층의 방송을 여기로 넘긴다
+//   (services/remoteIo.js). 인증은 파일 상단 requireInternalKey(루프백 + 키).
+// ★ 방 이름은 우리가 쓰는 모양만 받는다 — 키가 있는 같은 서버 프로세스라도 임의 방(전체 방송 등)으로 쏘지 못하게.
+//   이벤트 이름도 형식만 본다(`task:new`·`inbox:refresh` …). 한 번에 50건까지.
+const BROADCAST_ROOM = /^(business|project|user|conv|task):\d+$/;
+const BROADCAST_EVENT = /^[a-z_]+:[a-z_:]+$/;
+// audit-exempt: 실시간 신호 중계 — 데이터를 바꾸지 않는다(변경 자체의 감사는 보낸 쪽 행동 계층이 남겼다)
+router.post('/broadcast', (req, res) => {
+  const emits = Array.isArray(req.body && req.body.emits) ? req.body.emits.slice(0, 50) : [];
+  const io = req.app.get('io');
+  let sent = 0;
+  for (const e of emits) {
+    if (!e || typeof e.room !== 'string' || typeof e.event !== 'string') continue;
+    if (!BROADCAST_ROOM.test(e.room) || !BROADCAST_EVENT.test(e.event) || e.event.length > 60) continue;
+    if (io) { io.to(e.room).emit(e.event, e.payload === undefined ? null : e.payload); sent += 1; }
+  }
+  return successResponse(res, { sent });
+});
+
 module.exports = router;

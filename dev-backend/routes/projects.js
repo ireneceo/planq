@@ -3555,42 +3555,17 @@ router.delete('/issues/:id', authenticateToken, async (req, res, next) => {
 // ============================================
 // POST /api/projects/:id/notes — 메모 작성 (personal/internal)
 // ============================================
+// audit-exempt: 감사는 행동 계층 project_note_actions.createProjectNote 가 남긴다(AI 경로와 같은 행)
 router.post('/:id/notes', authenticateToken, async (req, res, next) => {
   try {
-    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
-    if (error) return errorResponse(res, error.message, error.code);
+    // 생성은 행동 계층 한 곳 — AI 에이전트 도구(add_project_note)와 같은 함수(고객 personal 강제·대화방 확인·감사·실시간)
     const { body, visibility, conversation_id } = req.body || {};
-    if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
-    // 고객은 personal 만 작성 가능
-    let vis = visibility === 'internal' ? 'internal' : 'personal';
-    if (role === 'client') vis = 'personal';
-    // conversation_id 옵션 — 같은 프로젝트 소속 대화인지 검증
-    let convIdToStore = null;
-    if (conversation_id) {
-      const conv = await Conversation.findByPk(conversation_id);
-      if (conv && conv.project_id === project.id) convIdToStore = conv.id;
-    }
-    const note = await ProjectNote.create({
-      project_id: project.id,
-      conversation_id: convIdToStore,
-      author_user_id: req.user.id,
-      visibility: vis,
-      body: String(body).trim(),
-    });
-    logAudit(req, { action: 'project_note.create', targetType: 'project_note', targetId: note.id, businessId: project.business_id, newValue: { project_id: project.id, conversation_id: convIdToStore, visibility: vis } }); // 본문은 싣지 않는다
-    const full = await ProjectNote.findByPk(note.id, {
-      include: [{ model: User, as: 'author', attributes: ['id', 'name'] }],
-    });
-
-    // Socket.IO: 내부 메모는 프로젝트 room에만 (personal은 본인만 볼 수 있으므로 브로드캐스트 안 함)
-    if (vis === 'internal') {
-      const io = req.app.get('io');
-      if (io) {
-        io.to(`project:${project.id}`).emit('note:new', full.toJSON());
-      }
-    }
-
-    return successResponse(res, full.toJSON());
+    const r = await require('../services/actions/project_note_actions').createProjectNote(
+      { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req },
+      { projectId: Number(req.params.id), body, visibility, conversationId: conversation_id },
+    );
+    if (!r.ok) return errorResponse(res, r.code === 'body_required' ? 'body is required' : r.code, r.http || 400);
+    return successResponse(res, r.data.note.toJSON());
   } catch (err) { next(err); }
 });
 
