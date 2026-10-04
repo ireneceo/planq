@@ -1,12 +1,16 @@
 #!/bin/bash
 # nginx 서버 블록에 AI 에이전트 경로(scripts/nginx-agent.conf)를 끼워 넣는다 (#439).
 #   개발: sudo bash /opt/planq/scripts/apply-nginx-agent.sh
-#   운영: sudo bash /opt/planq/scripts/apply-nginx-agent.sh /etc/nginx/sites-enabled/planq.kr
+#   운영: sudo bash /opt/planq/scripts/apply-nginx-agent.sh   (경로 생략 시 이 서버의 설정을 찾는다)
 #   백업 → 한 번만 삽입 → 문법 검사 실패하면 원복 → 성공하면 reload.
 # ★ 운영 planq.kr 은 sites-available 을 가리키는 **바로가기(symlink)** 다. `sed -i` 는 기본으로 바로가기를
 #   보통 파일로 바꿔 버려 다음에 sites-available 을 고쳐도 안 먹는다 → `--follow-symlinks` 로 원본을 고친다.
 set -e
-CONF=${1:-/etc/nginx/sites-enabled/dev.planq.kr}
+# 경로를 안 주면 이 서버에 있는 것을 찾는다 — 개발(dev.planq.kr) 먼저, 없으면 운영(planq.kr).
+#   (긴 명령을 복사하다 줄이 나뉘어 인자가 빠지는 일이 실제로 있었다 — 인자 없이도 맞게 돈다)
+if [ -n "$1" ]; then CONF=$1
+elif [ -e /etc/nginx/sites-enabled/dev.planq.kr ]; then CONF=/etc/nginx/sites-enabled/dev.planq.kr
+else CONF=/etc/nginx/sites-enabled/planq.kr; fi
 SNIP=/opt/planq/scripts/nginx-agent.conf
 BAK=/tmp/$(basename "$CONF").bak.$(date +%s)
 
