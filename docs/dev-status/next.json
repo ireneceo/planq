@@ -1,31 +1,34 @@
 {
   "working_on": [
-    "#439 M3-a 메일 조회 시작 · 디테일 기능 콘텐츠·온보딩 안내 정리"
+    "디테일 콘텐츠 페이지(/details/) · 처음 사용자 안내(온보딩 7단계)"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "약관·개인정보처리방침·계정 삭제 안내에 운영사 명시(platform_settings 보간) · 임시값 제거",
-      "verified": "opus_only"
+      "title": "#439 M3-a AI 메일 조회·기록 보완·페이지 규약·mail:read opt-in·워크스페이스 스위치·구 /mcp 금액 제거",
+      "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
-    "약관·방침·삭제 안내의 문의처·책임자가 운영 설정(대표·공식 메일)을 따른다"
+    "개인정보처리방침 §3 외부 AI 앱 연결 추가 — 배포 후 privacy_version 1.2 로 올려 전 사용자 재동의",
+    "ChatGPT 기존 연결은 메일을 쓰려면 재연결 필요(자동 확장 없음)"
   ],
   "migrations": [],
   "issues": [],
   "blocked_on_human": [
-    "Bing 웹마스터 소유 확인(Irene 계정)"
+    "도움말 사용법 글 공개 전환 여부(Irene)",
+    "Bing 웹마스터 소유 확인"
   ],
   "check_areas": [
-    "/terms · /privacy · /account-deletion (ko/en)"
+    "ChatGPT 메일 조회(재연결 후)",
+    "설정 › 파일·외부 연동 › AI 메일 스위치",
+    "재동의 모달"
   ],
   "backlog": [
-    "#439 M3-a~d (docs/AI_AGENT_M3_DESIGN.md)",
-    "GEO 조치 5종(docs/seo/GEO-ANALYSIS-2026-10-04.md)"
+    "#439 M3-b 통합 검색·문서/파일/회의록·Q info · M3-c 출처·답장 초안 · M3-d 온보딩"
   ],
   "tooling_health": [
-    "빌드 EXIT 0 · 실브라우저 법적 페이지 ko/en 확인"
+    "Fable PASS · guard 61/62 · health 49/49 · agentconsent·tenant 0 실패"
   ],
   "undeployed": []
 }
