@@ -5391,3 +5391,8 @@ Host/X-Forwarded 위조 불변 · remoteIo → 3004 loopback · /connect/agent·
 **판정**: R=0(initialize 응답의 표시 메타 — 권한·데이터 무관, 되돌리기 쉬움) · S=0 · F=1(initialize 실호출로 갈린다) → 자체 검증.
 **자체 검증**: dev 실 initialize → serverInfo `{name:planq,title:PlanQ,description,websiteUrl,icons[512,192]}` · 아이콘 URL 공개 200 image/png · guard 61/62(mcpreadonly·agentsurface 통과).
 **미배포** — 다음 배포에 실린다. ChatGPT·Claude 사용자 지정 앱이 serverInfo.icons 를 그리는지는 클라이언트 지원 문제(2026-10 기준 대부분 미표시).
+
+## 2026-10-04 · AI 요청 한 줄 기록 (404fc8a5) · [Opus] Fable 미검증(자체 검증) — 운영 배포됨
+**판정**: R=0(로그 출력만 — 응답·권한 무변경) · S=0 · F=1 → 자체 검증.
+**자체 검증**: dev·운영에서 실요청 → `[agent-req] POST /agent/mcp rpc=… -> 401 (missing_token)` · 쿼리스트링(`?x=secret`) 미기록 확인 · 토큰·인자·본문 미기록(코드상 b.method·params.name 만) · mcpreadonly 가드 통과 · 배포 health·PDF·CSP OK.
+**Fable 이 봐야 할 것**: 없음.
