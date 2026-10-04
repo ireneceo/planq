@@ -1,34 +1,50 @@
 {
   "working_on": [
-    "디테일 콘텐츠 페이지(/details/) · 처음 사용자 안내(온보딩 7단계)"
+    "운영 서명 실시험(데모 워크스페이스 → irene@irenewp.com) · #439 M3-b"
   ],
   "in_progress": [],
   "completed": [
     {
-      "title": "#439 M3-a AI 메일 조회·기록 보완·페이지 규약·mail:read opt-in·워크스페이스 스위치·구 /mcp 금액 제거",
+      "title": "처음 사용자 안내 — 시작 카드 8단계(워크스페이스/나) · 대시보드+설정 최상단 · 개인 닫기",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "AI 연결 안내 — 4단계 · ChatGPT/Claude 연결 화면 바로 열기 · 온보딩 행에서 바로 이동",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "공개 페이지 «써 보면 놀라는 디테일»(/details/) · 홈 디테일 6",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "사용법 도움말 86글 공개 · 메일 연결 글의 숨겨진 Gmail 버튼 안내 제거",
       "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
-    "개인정보처리방침 §3 외부 AI 앱 연결 추가 — 배포 후 privacy_version 1.2 로 올려 전 사용자 재동의",
-    "ChatGPT 기존 연결은 메일을 쓰려면 재연결 필요(자동 확장 없음)"
+    "도움말이 로그인 없이 열린다(검색·AI 색인 대상)",
+    "대시보드·설정 최상단에 «업무 효율 높이기» 카드(멤버도 «나» 묶음)"
   ],
-  "migrations": [],
+  "migrations": [
+    "migrate-onboarding-personal-dismiss.js — business_members.onboarding_dismissed_at (멱등, PM2 reload 전)"
+  ],
   "issues": [],
   "blocked_on_human": [
-    "도움말 사용법 글 공개 전환 여부(Irene)",
+    "Irene: 운영 서명 실시험 메일에서 서명",
     "Bing 웹마스터 소유 확인"
   ],
   "check_areas": [
-    "ChatGPT 메일 조회(재연결 후)",
-    "설정 › 파일·외부 연동 › AI 메일 스위치",
-    "재동의 모달"
+    "/details/ · 홈",
+    "대시보드·설정 시작 카드",
+    "내 외부 연동 › 연결된 AI 앱",
+    "도움말 비로그인 열림"
   ],
   "backlog": [
-    "#439 M3-b 통합 검색·문서/파일/회의록·Q info · M3-c 출처·답장 초안 · M3-d 온보딩"
+    "#439 M3-b 통합 검색·문서/파일/회의록·Q info · M3-c 출처·답장 초안",
+    "GEO 조치(스키마 보강·정의 통일·영어 페이지)"
   ],
   "tooling_health": [
-    "Fable PASS · guard 61/62 · health 49/49 · agentconsent·tenant 0 실패"
+    "Fable PASS · guard 61/62 · health 49/49 · onboarding·agentconsent 0 실패 · 빌드 EXIT 0"
   ],
   "undeployed": []
 }

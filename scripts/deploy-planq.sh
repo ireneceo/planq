@@ -305,6 +305,9 @@ sync_database() {
   # 온보딩 안내 카드 — businesses.onboarding_dismissed_at. businesses 는 키가 많아
   # Sequelize alter 가 죽은 전례가 있어 sync 에 맡기지 않는다(조용히 죽으면 기능 전멸).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-onboarding-dismissed.js 2>&1 | tail -10"
+  # 2026-10-04 온보딩 «나» 묶음 닫기 — business_members.onboarding_dismissed_at (M3-d). 멱등.
+  #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 BusinessMember 를 읽는 라우트가 전부 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-onboarding-personal-dismiss.js 2>&1 | tail -10"
   # 계정 삭제(회원 탈퇴) 스키마 — users/businesses/business_members 컬럼.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-account-deletion.js 2>&1 | tail -10"
   # #203/#207 Q Mail 알림 — notification_prefs/notifications ENUM 확장 + email_accounts.notify_scope.

@@ -23,6 +23,7 @@ import { mapApiError } from '../../utils/apiError';
 import { displayName as memberDisplayName } from '../../utils/displayName';
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
+import OnboardingChecklist from '../../components/Onboarding/OnboardingChecklist';
 import ActionButton from '../../components/Common/ActionButton';
 import { SettingsHeaderActionProvider, type SettingsHeaderAction } from './settingsHeaderAction';
 import { useTimezones } from '../../hooks/useTimezones';
@@ -941,6 +942,9 @@ export default function WorkspaceSettingsPage() {
   return (
     <PageShell title={pageTitle} actions={headerActions}>
       <SettingsHeaderActionProvider value={publishHeaderAction}>
+      {/* 시작 안내 — 설정의 첫 화면(사이드바 «설정» 이 여는 /business/settings = 워크스페이스 탭) 최상단.
+          대시보드와 **같은 컴포넌트**다(docs/AI_AGENT_M3_DESIGN.md §3.3 — 배너를 새로 만들지 않는다). */}
+      {tab === 'brand' && <OnboardingChecklist businessId={businessId} variant="settings" />}
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {/* mail-accounts 탭은 멤버도 개인 메일을 관리할 수 있어 admin 안내 배너 숨김 */}
       {/* 근태 관리·활동 기록은 owner/admin 이 관리한다(서버 isManager) — admin 에게 «관리자만» 배너를 띄우면 거짓이다(#424). */}

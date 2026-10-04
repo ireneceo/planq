@@ -188,11 +188,9 @@
     "allDay": "종일"
   },
   "onboarding": {
-    "title": "시작하기",
-    "subtitle": "네 가지만 하면 PlanQ 가 한 바퀴 돕니다.",
+    "title": "업무 효율 높이기",
     "progress": "{{done}}/{{total}}",
     "dismiss": "다시 보지 않기",
-    "do": "하기",
     "howto": "사용법",
     "step": {
       "invite_client": {
@@ -213,7 +211,36 @@
       "enable_notifications": {
         "label": "알림 켜기",
         "why": "PlanQ 를 안 보고 있어도 새 메시지와 마감이 도착합니다."
+      },
+      "connect_mail": {
+        "label": "메일 계정 연결",
+        "why": "받은 메일이 고객·프로젝트에 자동으로 붙습니다",
+        "wikiQuery": "메일 계정 연결하기 (Gmail · IMAP)"
+      },
+      "connect_calendar": {
+        "label": "캘린더 연결",
+        "why": "내 Google 일정이 PlanQ 캘린더에 같이 보입니다",
+        "wikiQuery": "구글 캘린더·Meet 연동"
+      },
+      "install_app": {
+        "label": "모바일 앱 설치",
+        "why": "이동 중에도 알림을 받고 바로 답합니다"
+      },
+      "connect_ai_app": {
+        "label": "AI 앱 연결(ChatGPT·Claude)",
+        "why": "대화로 업무·메일·일정을 조회하고 기록합니다",
+        "wikiQuery": "ChatGPT·Claude 연결하기"
       }
+    },
+    "collapse": "접기",
+    "expand": "펼치기",
+    "groupWorkspace": "워크스페이스",
+    "groupMe": "나",
+    "action": {
+      "open": "열기",
+      "connect": "연결",
+      "turnOn": "켜기",
+      "installGuide": "설치 안내"
     }
   }
 }

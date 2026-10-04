@@ -13,7 +13,7 @@ import OrgScopeOverview from '../../components/Dashboard/OrgScopeOverview';
 import { fetchOrgOverview } from '../../services/org';
 import TrialStatusBanner from '../../components/Common/TrialStatusBanner';
 import UsageWarningCard from '../../components/Common/UsageWarningCard';
-import OnboardingCard from '../../components/Dashboard/OnboardingCard';
+import OnboardingChecklist from '../../components/Onboarding/OnboardingChecklist';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
@@ -123,7 +123,7 @@ const DashboardPage: React.FC = () => {
         </HelpDot>
       }
     >
-      <OnboardingCard businessId={bizId} />
+      <OnboardingChecklist businessId={bizId} variant="dashboard" />
       <TrialStatusBanner businessId={bizId} />
       <UsageWarningCard businessId={bizId} />
       {/* Q조직 D1 — 3단 스코프 토글 (회사/내 부서/개인) */}

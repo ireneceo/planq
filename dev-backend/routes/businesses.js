@@ -1758,7 +1758,7 @@ router.put('/:businessId/me/profile', authenticateToken, checkBusinessAccess, as
 // ─── 온보딩 안내 (신규 워크스페이스) ───
 // 판정·권한은 services/onboarding.js 한 곳이다 — 라우트는 문만 연다.
 // GET  /api/businesses/:businessId/onboarding          → 자격 없으면 data: null
-// PUT  /api/businesses/:businessId/onboarding/dismiss  → { dismissed: true|false }
+// PUT  /api/businesses/:businessId/onboarding/dismiss  → { dismissed: true|false, scope?: 'workspace'|'me'|'all' }
 router.get('/:businessId/onboarding', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
     const { getOnboardingState } = require('../services/onboarding');
@@ -1772,9 +1772,12 @@ router.put('/:businessId/onboarding/dismiss', authenticateToken, checkBusinessAc
   try {
     const { setOnboardingDismissed } = require('../services/onboarding');
     const dismissed = req.body?.dismissed !== false;   // 기본은 닫기. false 면 되살리기.
-    const ok = await setOnboardingDismissed({ businessId: req.params.businessId, userId: req.user.id, dismissed });
+    // 묶음 — 옛 번들은 안 보낸다 = 워크스페이스 묶음(예전 동작). 'me' 는 개인 묶음, 'all' 은 내가 볼 수 있는 묶음 전부.
+    const scope = req.body?.scope === undefined ? 'workspace' : req.body.scope;
+    if (!['workspace', 'me', 'all'].includes(scope)) return errorResponse(res, 'invalid_scope', 400);
+    const ok = await setOnboardingDismissed({ businessId: req.params.businessId, userId: req.user.id, dismissed, scope });
     if (!ok) return errorResponse(res, 'not_allowed', 403);
-    return successResponse(res, { dismissed });
+    return successResponse(res, { dismissed, scope });
   } catch (err) { next(err); }
 });
 

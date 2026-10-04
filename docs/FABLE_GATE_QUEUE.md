@@ -5416,3 +5416,7 @@ Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인
 **변경**: DetailsPage + 카드 정본 `components/Landing/details.ts` · 기능 페이지 공용 섹션을 `components/Landing/landingSections.tsx` 로 추출(값 무변경) · 홈 섹션 · App 라우트 · publicSurface · seo-pages.json · llms.txt.
 **자체 검증**: 빌드 EXIT 0 · error TS 0 · 3폭(390/820/1440) × 비로그인/로그인 — 카드 32 · 열 1/2/3 · 가로 넘침 0 · 첫 카드 elementFromPoint · 키 노출 0 · 탭 필터(AI 4) · [사용법] 은 보는 사람이 열 수 있는 글만(비로그인 4 / 로그인 16) · [바로 써 보기] 로그인만 25 · 페이지 오류 0 · 홈 6장+전부 보기 · OAI-SearchBot 프리렌더 본문 32장 포함 · sitemap 등록.
 **관찰**: 사용법 도움말 대부분이 authenticated 라 비로그인 방문자·검색·AI 가 못 읽는다(공개 전환은 Irene 결정 대기).
+
+## 2026-10-04 · M3-d 처음 사용자 안내 · AI 연결 안내 · /details/ · 도움말 공개 · [Opus] → **Fable PASS**(1차 FAIL 1 → 수정 → 재검증 PASS)
+온보딩 groups 2·8단계 실데이터 판정 · 개인 닫기 business_members.onboarding_dismissed_at(멱등 스크립트, PM2 reload 전 슬롯 — 컬럼 없으면 BusinessMember 라우트 500 실증) · 대시보드+설정 최상단 · AI 안내 4단계+ChatGPT/Claude 바로 열기 · /details/ 3폭·프리렌더 · 도움말 86 public.
+1차 FAIL: connect-mail 에 내용 없는 «Gmail로 연결 (가장 간편)» 제목 잔존(836f1360 이 문장만 지움) → 제목 제거·재시드 → 재검증 PASS. 죽은 키 howToConnect 제거.

@@ -188,11 +188,9 @@
     "allDay": "All day"
   },
   "onboarding": {
-    "title": "Get started",
-    "subtitle": "Four steps and PlanQ completes its loop.",
+    "title": "Get more out of PlanQ",
     "progress": "{{done}}/{{total}}",
     "dismiss": "Don't show again",
-    "do": "Do it",
     "howto": "How to",
     "step": {
       "invite_client": {
@@ -213,7 +211,36 @@
       "enable_notifications": {
         "label": "Turn on notifications",
         "why": "New messages and deadlines reach you even when PlanQ is closed."
+      },
+      "connect_mail": {
+        "label": "Connect a mail account",
+        "why": "Incoming mail is linked to clients and projects automatically",
+        "wikiQuery": "Connect a mail account (Gmail · IMAP)"
+      },
+      "connect_calendar": {
+        "label": "Connect your calendar",
+        "why": "Your Google events show up in the PlanQ calendar",
+        "wikiQuery": "Google Calendar & Meet sync"
+      },
+      "install_app": {
+        "label": "Install the mobile app",
+        "why": "Get notified and reply on the go"
+      },
+      "connect_ai_app": {
+        "label": "Connect an AI app (ChatGPT, Claude)",
+        "why": "Look things up and leave records by chatting",
+        "wikiQuery": "Connect ChatGPT or Claude"
       }
+    },
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "groupWorkspace": "Workspace",
+    "groupMe": "Me",
+    "action": {
+      "open": "Open",
+      "connect": "Connect",
+      "turnOn": "Turn on",
+      "installGuide": "Install guide"
     }
   }
 }

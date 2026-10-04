@@ -113,7 +113,11 @@ BusinessMember.init({
   expertise_level: { type: DataTypes.STRING(20), allowNull: true, comment: 'novice/beginner/intermediate/advanced/expert (5단계)' },
   language_levels: { type: DataTypes.JSON, allowNull: true },
   answer_style_default: { type: DataTypes.STRING(2000), allowNull: true },
-  answer_length_default: { type: DataTypes.STRING(20), allowNull: true, defaultValue: 'medium' }
+  answer_length_default: { type: DataTypes.STRING(20), allowNull: true, defaultValue: 'medium' },
+  // 온보딩 «나» 묶음(알림·캘린더·앱·AI 앱)을 이 사람이 이 워크스페이스에서 닫은 시각. NULL = 아직 보임.
+  //   워크스페이스 묶음은 businesses.onboarding_dismissed_at — 축이 다르다(services/onboarding.js).
+  //   운영 적용: scripts/migrate-onboarding-personal-dismiss.js (멱등, 배포 슬롯)
+  onboarding_dismissed_at: { type: DataTypes.DATE, allowNull: true, comment: 'personal onboarding dismissed at' }
 }, {
   sequelize,
   tableName: 'business_members',

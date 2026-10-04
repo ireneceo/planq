@@ -305,7 +305,6 @@
   "aiApps": {
     "title": "연결된 AI 앱",
     "sub": "ChatGPT·Claude 에서 PlanQ 를 쓰도록 이 워크스페이스로 연결한 앱입니다. 끊으면 그 앱은 다음 요청부터 PlanQ 에 접근하지 못합니다.",
-    "howTo": "ChatGPT 는 컴퓨터 브라우저에서 설정 › Security and login › Developer mode 를 켠 뒤 Plugins › Add › Create MCP App 에, Claude 는 설정 › 커넥터 › 커스텀 커넥터 추가에 아래 주소를 넣으면 PlanQ 연결 화면이 열립니다. 자세한 순서는 도움말 «ChatGPT·Claude 연결하기».",
     "copy": "복사",
     "copied": "복사됨",
     "empty": "연결된 AI 앱이 없어요",
@@ -319,7 +318,15 @@
     "disconnecting": "끊는 중…",
     "disconnectTitle": "연결을 끊을까요?",
     "disconnectMessage": "{{app}} 이(가) 이 워크스페이스에 더는 접근하지 못합니다. 다시 쓰려면 그 앱에서 다시 연결해야 합니다.",
-    "mailIncluded": "메일 포함"
+    "mailIncluded": "메일 포함",
+    "step1": "아래 주소를 복사합니다.",
+    "step2": "ChatGPT 또는 Claude 의 연결 추가 화면을 엽니다.",
+    "step2Hint": "ChatGPT: [Add] › [Create MCP App] · Claude: [커스텀 커넥터 추가] — ChatGPT 는 유료 플랜, Claude 는 무료 플랜도 1개까지 연결됩니다.",
+    "step3": "이름에 PlanQ, 주소에 복사한 주소를 붙여 넣고 인증은 OAuth 로 둔 채 만듭니다.",
+    "step4": "PlanQ 연결 화면이 열리면 워크스페이스와 권한을 고르고 [허용] 합니다. ChatGPT 는 새 채팅의 [+] › Developer mode › PlanQ, Claude 는 도구 메뉴에서 PlanQ 를 켜고 씁니다.",
+    "openChatgpt": "ChatGPT 에서 열기",
+    "openClaude": "Claude 에서 열기",
+    "helpLink": "자세한 사용법"
   },
   "agentConsent": {
     "title": "{{app}} 이(가) PlanQ 연결을 요청합니다",

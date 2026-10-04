@@ -1,8 +1,38 @@
 {
-  "_generated": "2026-10-02",
+  "_generated": "2026-10-04",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
+    "agent_clients": [
+      "id",
+      "client_id",
+      "client_name",
+      "redirect_uris",
+      "provider_hint",
+      "token_endpoint_auth_method",
+      "client_secret_enc",
+      "metadata",
+      "last_used_at",
+      "created_at",
+      "updated_at"
+    ],
+    "agent_grants": [
+      "id",
+      "user_id",
+      "business_id",
+      "client_id",
+      "provider",
+      "scopes",
+      "refresh_token_hash",
+      "prev_refresh_token_hash",
+      "refresh_expires_at",
+      "activated_at",
+      "last_used_at",
+      "revoked_at",
+      "revoked_reason",
+      "created_at",
+      "updated_at"
+    ],
     "api_tokens": [
       "id",
       "user_id",
@@ -140,7 +170,8 @@
       "weekly_holidays",
       "department_id",
       "team_id",
-      "removed_reason"
+      "removed_reason",
+      "onboarding_dismissed_at"
     ],
     "business_plan_history": [
       "id",
@@ -566,6 +597,24 @@
       "author_id",
       "created_at",
       "updated_at"
+    ],
+    "diagnosis_responses": [
+      "id",
+      "answers",
+      "scores",
+      "total",
+      "weakest",
+      "industry",
+      "team_size",
+      "lang",
+      "source",
+      "email",
+      "company",
+      "consent_at",
+      "inquiry_id",
+      "created_at",
+      "updated_at",
+      "claim_hash"
     ],
     "document_revisions": [
       "id",

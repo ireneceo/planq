@@ -305,7 +305,6 @@
   "aiApps": {
     "title": "Connected AI apps",
     "sub": "Apps you connected to this workspace so you can use PlanQ from ChatGPT or Claude. Disconnecting stops access from the next request.",
-    "howTo": "In ChatGPT (desktop browser), turn on Settings › Security and login › Developer mode, then paste this address in Plugins › Add › Create MCP App. In Claude, add it under Settings › Connectors › Add custom connector. The PlanQ connection screen opens next. Step-by-step: help article «Connect ChatGPT or Claude».",
     "copy": "Copy",
     "copied": "Copied",
     "empty": "No AI apps connected",
@@ -319,7 +318,15 @@
     "disconnecting": "Disconnecting…",
     "disconnectTitle": "Disconnect this app?",
     "disconnectMessage": "{{app}} will no longer be able to access this workspace. To use it again, connect from the app.",
-    "mailIncluded": "Includes email"
+    "mailIncluded": "Includes email",
+    "step1": "Copy the address below.",
+    "step2": "Open the \"add connection\" screen in ChatGPT or Claude.",
+    "step2Hint": "ChatGPT: [Add] › [Create MCP App] · Claude: [Add custom connector] — ChatGPT needs a paid plan; Claude allows one on the free plan.",
+    "step3": "Enter PlanQ as the name, paste the address, keep OAuth as the authentication, and create it.",
+    "step4": "When the PlanQ connection screen opens, pick the workspace and access and choose [Allow]. In ChatGPT, use [+] › Developer mode › PlanQ in a new chat; in Claude, turn PlanQ on in the tools menu.",
+    "openChatgpt": "Open in ChatGPT",
+    "openClaude": "Open in Claude",
+    "helpLink": "Full guide"
   },
   "agentConsent": {
     "title": "{{app}} wants to connect to PlanQ",
