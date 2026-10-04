@@ -5379,3 +5379,10 @@ Host/X-Forwarded-* 위조로 issuer·resource_metadata 안 바뀜(APP_URL 고정
 **자체 검증**: dev 시드 86건 업서트 · help_articles#149(settings, authenticated) · wiki-coverage-check EXIT 0(영어 누락 0) · i18n·parity 가드 통과 · 빌드 EXIT 0 · 빌드 locales.gz 에 새 문구 확인.
 문구는 실제 도구 목록(registry 19개 — 삭제·청구·발송·권한 없음, 금액 미노출)·확인 2단계·연결 끊기 동작과 대조. ChatGPT 메뉴 이름은 외부 안내 기준(Settings › Apps › Advanced settings › Developer mode › Create app).
 **운영**: 배포 뒤 `ssh prod "cd /opt/planq/backend && node seed-wiki-content.js"`.
+
+## 2026-10-04 · 운영 AI 에이전트 켜기(v1.70.1 배포 · .env · nginx) · [Opus] → **Fable PASS**(읽기 전용)
+배포 646974b5(health·PDF·이미지게이트·CSP OK) · 운영 .env `AGENT_ENABLED=1`·`AGENT_TOKEN_SECRET`(48자, ≠JWT, 600 유지, 백업 env.before-agent.*) · nginx include(Irene sudo, 바로가기 유지).
+Fable: 외부 401+WWW-Authenticate · 디스커버리 issuer https://planq.kr/agent · DCR redirect 허용목록 · 경로 조작 MCP 미도달 · /api/internal 403(XFF 위조 포함) · 무회귀(AASA·assetlinks·socket.io·health·홈) ·
+Host/X-Forwarded 위조 불변 · remoteIo → 3004 loopback · /connect/agent·/api/agent/* 무토큰 401.
+**Fable 지적 → 반영**: 쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다(기본 꺼짐) — 운영에 추가 · CLAUDE.md 의 «쓰기만 끄기 =0» 문구가 실제 기본값과 반대였다 → 정정.
+도움말·앱 안 문구의 ChatGPT 메뉴 이름(2026-07 Connectors→Plugins 개명)을 Irene 실화면 신고로 정정(자체 검증, 다음 배포에 운영 반영).
