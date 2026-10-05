@@ -2,33 +2,18 @@
   "working_on": ["일정 알림 여러 개(1일 전 + 1시간 전) — 저장 칸 변경이라 Irene 결정 대기"],
   "in_progress": [],
   "completed": [
-    { "title": "서명 요청: 서명자 PDF 다운로드(받은 서명 PDF 늘 404 · 서명 완료 화면) · 확인 필요에 보내는 쪽 서명 요청 · 받은 서명 «대기» 에 열람·보내는 쪽 포함", "verified": "opus_only" },
-    { "title": "서명 요청 창: 받는 쪽 칸 멤버·고객 고르기 + 직접 입력 · 채팅 카드 기본값(연결 대화방 → 프로젝트 고객 채팅방 → 없으면 끔) · 발송 완료 «메일 N명 / 앱 안 서명 N명»", "verified": "opus_only" },
-    { "title": "서명 화면: 내 서명 칸을 누르면 본인 확인으로 이동 + 안내", "verified": "opus_only" },
-    { "title": "문서 렌더 링크는 http(s)·mailto·tel·상대경로만", "verified": "opus_only" },
-    { "title": "Q info 목록 항목 값 잘림 — 제 길이로, 칸보다 길 때만 말줄임", "verified": "opus_only" },
-    { "title": "AI 에이전트(ChatGPT·Claude): 문서 만들기·이어 쓰기·고치기·연결·프로젝트 이동 · 파일 올리기 · 메일 답장 초안 첨부 — 문서 쓰기는 화면과 같은 행동 계층", "verified": "opus_only" },
-    { "title": "문서·메모 할 일 목록(동그라미 체크 + 가운데 줄)", "verified": "opus_only" },
-    { "title": "일정 알림: 저장할 때 이미 지난 알림 시각은 늦게 보내지 않음(새벽에 그날 일정을 «1일 전» 으로 넣으면 즉시 알림이 가던 것)", "verified": "opus_only" }
+    { "title": "모바일 상세(업무·일정·문서 기록·작업대·Q talk 우측·도움말)는 앱 헤더를 덮는 전면 — 뒤로 가기는 목록으로", "verified": "opus_only" },
+    { "title": "서명본 보기 좌우 여백(서명 요청이 생기면 글이 선에 붙던 것)", "verified": "opus_only" },
+    { "title": "확인 필요·받은 서명의 내 서명 → 문서가 서명 창을 바로 연다", "verified": "opus_only" }
   ],
   "behavior_changes": [
-    "AI 연결(ChatGPT·Claude)에 문서·파일 권한이 새로 생겼다 — 이미 연결한 앱은 한 번 끊고 다시 연결해야 보인다",
-    "받은 서명·확인 필요에서 보내는 쪽(우리) 서명은 공개 링크가 아니라 앱 안 문서로 연다",
-    "서명 요청 채팅 카드는 이어진 대화방이 없으면 기본으로 꺼져 있다",
-    "일정 알림: 정할 때 이미 지난 시각의 알림은 보내지 않는다(서버가 놓친 것은 종전대로 늦게라도 보낸다)"
+    "폰에서 상세 패널을 열면 상단 앱 헤더(로고·메뉴)가 가려진다 — 닫기·돌아가기는 패널 머리에 있다. 태블릿·데스크탑은 그대로"
   ],
-  "issues": [
-    "이번 배포분은 Fable 미검증(자체 검증) — docs/FABLE_GATE_QUEUE.md 맨 위 «Fable 검증 대기 목록»",
-    "ChatGPT 파일 주소 허용 도메인(*.oaiusercontent.com 등)이 실제와 맞는지 운영 첫 업로드로 확인 필요"
-  ],
+  "issues": ["Fable 미검증(자체 검증) — docs/FABLE_GATE_QUEUE.md 맨 위 표 9·10행"],
   "blocked_on_human": ["일정 알림 여러 개 진행 여부", "iOS 1.0.1 · Google Play 이름 변경 심사 결과"],
   "migrations": [],
-  "check_areas": [
-    "ChatGPT 재연결 후 «문서 만들어 줘» · 대화에 파일 올리고 «PlanQ 에 저장해 줘»",
-    "Drive 저장 별첨이 있는 서명 요청 링크에서 별첨 다운로드",
-    "받은 서명 PDF 다운로드"
-  ],
+  "check_areas": ["폰 앱: 확인 필요 → 업무 상세 → 뒤로", "K-DINE 계약서 화면 여백", "확인 필요 «서명» 눌러 서명 창이 바로 뜨는지"],
   "backlog": ["스트리밍 헤더 WAV 길이 오인", "드라이브 연결 워크스페이스 업로드 속도", "네이티브 공유 받기(#434)"],
-  "tooling_health": [],
+  "tooling_health": ["--suite mobilechrome 폰 상세 계약 갱신"],
   "undeployed": []
 }
