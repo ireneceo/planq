@@ -5426,3 +5426,9 @@ Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인
 **변경**: seoArtifacts — Organization(@id·legalName·연락처·주소·sameAs 앱스토어 — platform_settings 정본)·SoftwareApplication·WebSite 를 모든 공개 페이지에 · 템플릿 얇은 JSON-LD 제거(중복 Organization 방지) · 영어 페이지 9개 /en/… + hreflang ko/en/x-default + sitemap · seo-pages.json `definition` 정본 + llms.txt 첫 문단 · SPA `/en/*` 라우트(EnglishRoute — 같은 화면 언어만 en) · publicSurface `/en` · useSeoHead /en 인식 · IndexNow 키 파일 + `scripts/indexnow-ping.js`(배포 후, 운영만).
 **자체 검증**: 빌드 EXIT 0 · error TS 0 · 생성기(빌드 산출물 복사본) — 페이지 122·sitemap 110·영어 9 · 각 페이지 Organization 1개 · hreflang 짝 · 영어 본문 4.8~10.7천 자 · 실브라우저 /en·/en/details·/en/pricing·/en/app × 폰/데스크탑 × 비로그인/로그인 — 영어 h1·title·canonical·워크스페이스 크롬 0·한글 0·페이지 오류 0.
 **운영 확인 남음**: 배포 후 운영 생성물(legalName 값 포함) curl · IndexNow 응답 코드.
+
+## 2026-10-05 · 004c463d 버튼 순찰 하니스 복원력 · [Opus] Fable 미검증(자체 검증)
+**왜 Fable 을 안 띄웠나**: Irene 지시 «fable 그만 좀 써»(2026-10-05). 판정도 R=0(검사 스크립트만 — 앱 코드·데이터·권한 무관) · S=0 · F=1.
+**변경**: `scripts/e2e/canary-button-patrol.js` — 화면 하나가 응답 없으면 그 화면만 «화면 응답 없음» FAIL 로 적고 다음 화면으로 · 눌린 요소를 감싼 버튼(h ⊃ x)은 덮인 것으로 세지 않는다.
+**자체 검증**: phone-web /notes·/docs 미니런 실패 0 · 2차 전체 순찰(직전 버전) 4환경 실패 0 · 양성 대조군(PATROL_CONTROL=1)은 이전 커밋에서 빨강 확인.
+**Fable 이 볼 것**: 없음(앱 동작 무관). 다음 정기 묶음 검증 때 순찰 결과만 훑으면 된다.
