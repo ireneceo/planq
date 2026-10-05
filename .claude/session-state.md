@@ -733,3 +733,8 @@
 - ee1049d8: 문서 연결 저장 누락(편집 완료·새 문서) · 양방향 연결(services/postLinks) — Fable PASS 26/26
 - ee1049d8·895603ef: 서명 첨부 — Drive 저장 별첨 404 · 연결 문서 동결·서명자 열람 · 보안등급 내부·기밀 제외 · 요청 창 안내 — **Fable 미검증(자체 검증, 429)**, docs/FABLE_GATE_QUEUE.md
 - 다음: ①운영에서 Drive 저장 별첨 서명 링크 실다운로드 확인 ②Fable 한도 풀리면 서명 첨부 검증 ③AI 에이전트 get_document 역방향 연결 ④WAV 길이 오인 · Drive 업로드 속도
+
+## 2026-10-05 밤 [Opus] 운영 배포 ebeb1cd7 (backup /opt/planq/backups/20261005_181311)
+- 문서 연결 저장·양방향 · 서명 첨부 범위 · 서명자 PDF · 확인필요 보내는 쪽 서명 · 서명자 고르기 · 채팅 카드 기본값 · 서명 화면 안내 · Q info 항목 잘림 ·
+  AI 에이전트 문서·파일 쓰기(재연결 필요) · 할 일 목록 · 일정 알림 늦은 발송 조건 — **전부 Fable 미검증**(FABLE_GATE_QUEUE.md 맨 위 표 8행)
+- 다음: ①Fable 한도 풀리면 위 표 한 라운드 ②일정 알림 여러 개(Irene 결정 대기, DB 변경) ③ChatGPT 재연결 후 첫 upload_file 로 download_url 호스트 확인 ④반송 메일(zzhcobhmuvfyjqx) — bounce2.js 결과 대기
