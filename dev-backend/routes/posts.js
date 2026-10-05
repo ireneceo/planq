@@ -19,6 +19,7 @@ const { requestScope, staleResponse } = require('../middleware/workspaceContext'
 const { sendPostShareEmail } = require('../services/emailService');
 const { isValidLevel, blocksExternalShare } = require('../services/securityLevel');
 const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../services/displayName');
+const postLinks = require('../services/postLinks');
 const { broadcastFile } = require('../services/fileBroadcast');   // 파일 실시간 반영 단일 원천 (#378)
 const { pickMatch } = require('../utils/searchMatch');   // 검색 결과 "왜 걸렸나" (2026-09-11)
 
@@ -425,8 +426,9 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
         result.qrecord = { id: qrec.id, columns: qrec.columns };
       }
     }
-    // 연결된 다른 post 메타 (title/kind) 같이 — 표시용 chip
-    const linkedIds = result.linked_post_ids;
+    // 연결된 다른 post 메타 (title/kind) 같이 — 표시용 chip.
+    //   ★ 연결은 양방향이다 — 내 목록 ∪ «나를 건 문서»(services/postLinks). 옛 단방향 연결도 양쪽에 보인다.
+    const linkedIds = await postLinks.effectiveLinkIds(post);
     if (linkedIds.length > 0) {
       const linkedAll = await Post.findAll({ where: { id: linkedIds, business_id: post.business_id } });
       // 보는 사람 기준 — 연결된 문서를 못 보면 제목도 내지 않는다(2026-09-27 점검).
@@ -437,6 +439,9 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     } else {
       result.linked_posts = [];
     }
+    // 편집 화면의 시작 목록(= 저장 때 linked_base_ids) — 이 사람이 볼 수 있는 연결만. 못 보는 id 가
+    //   «#123» 칩으로 새어 나오지 않고, 저장 때 그 연결을 건드리지도 않는다.
+    result.linked_post_ids = result.linked_posts.map(lp => lp.id);
     await applyMemberDisplayNameOne(result, post.business_id, ['author', 'editor']);
     successResponse(res, result);
   } catch (err) { next(err); }
@@ -971,21 +976,15 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
       const sh = require('../services/share_helper');
       if (sh.narrowsShare(req.body.vlevel)) Object.assign(patch, sh.shareOffPatch(post));
     }
-    // 다른 post 연결 — 자기 자신·중복 제거 + 같은 워크스페이스 내 post 만 허용
+    // 다른 post 연결 — **양방향**(services/postLinks). 같은 워크스페이스 · 거는 사람이 볼 수 있는 문서만.
+    //   이미 걸려 있던 연결은 이 사람이 못 보더라도 남긴다(다른 사람이 건 연결을 조용히 지우지 않는다).
+    let linkChange = null;
     if (req.body.linked_post_ids !== undefined) {
-      const raw = Array.isArray(req.body.linked_post_ids) ? req.body.linked_post_ids : [];
-      const candidate = [...new Set(raw.map(Number).filter(n => Number.isFinite(n) && n !== post.id))];
-      if (candidate.length > 0) {
-        const valid = await Post.findAll({ where: { id: candidate, business_id: post.business_id } });
-        // ★ 새로 거는 연결은 **거는 사람이 볼 수 있는 문서**만 — 연결 칩에 제목이 보이기 때문이다(2026-09-27 점검).
-        //   이미 걸려 있던 연결은 이 사람이 못 보더라도 남긴다(다른 사람이 건 연결을 조용히 지우지 않는다).
-        const prevLinked = new Set((Array.isArray(post.linked_post_ids) ? post.linked_post_ids : []).map(Number));
-        const kept = [];
-        for (const lp of valid) if (prevLinked.has(lp.id) || await canReadPost(req.user, lp)) kept.push(lp.id);
-        patch.linked_post_ids = kept;
-      } else {
-        patch.linked_post_ids = [];
-      }
+      linkChange = await postLinks.resolveLinkChange({
+        post, user: req.user, requested: req.body.linked_post_ids, base: req.body.linked_base_ids,
+        canRead: canReadPost, Post,
+      });
+      patch.linked_post_ids = linkChange.next;
     }
     if (req.body.project_id !== undefined) {
       const pid = req.body.project_id;
@@ -1014,6 +1013,11 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     //   구멍이 안 생긴다 — "모든 CUD 는 AuditLog" 운영 정책.
     const isPromotion = post.status === 'draft' && patch.status === 'published';
     await post.update(patch);
+    // 상대 문서에도 연결을 맞춘다 — 걸면 같이 걸리고 끊으면 같이 끊긴다. 열어 둔 화면이 다시 읽게 신호만.
+    if (linkChange) {
+      const mirrored = await postLinks.mirrorLinkChange(post, linkChange, Post);
+      for (const other of mirrored) if (other.status !== 'draft') broadcastPost(req, other, 'post:updated');
+    }
     // 버전 기록 — 자동저장이든 명시 저장이든 남긴다(서비스가 합치기·상한을 담당).
     //   실패해도 저장 자체는 성공시킨다. 다만 삼키지 말고 로그로 드러낸다.
     if (patch.title !== undefined || patch.content_json !== undefined || patch.category !== undefined) {

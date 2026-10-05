@@ -106,7 +106,10 @@ async function resolveDoc(p) {
     if (sr.entity_type !== 'post') return null;
     const entity = await loadEntity(sr.entity_type, sr.entity_id);
     if (!entity) return null;
-    return { businessId: entity.business_id, bodies: [sr.content_snapshot || entity.content_json] };
+    // 연결 문서(동결본)도 이 서명 화면 안에서 연다 — 그 본문의 이미지도 문맥 안이다(2026-10-05).
+    const linkedBodies = (Array.isArray(sr.attachments_snapshot) ? sr.attachments_snapshot : [])
+      .filter((a) => a && a.kind === 'post').map((a) => a.content_snapshot);
+    return { businessId: entity.business_id, bodies: [sr.content_snapshot || entity.content_json, ...linkedBodies] };
   }
   return null;
 }

@@ -29,6 +29,7 @@ import {
   SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea, TopMeta, Topbar,
   AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions,
 } from './PublicSignPage.styles';
+import SignLinkedDocs from './SignLinkedDocs';
 
 interface PublicSignData {
   token: string;
@@ -57,6 +58,8 @@ interface PublicSignData {
     content_json: { type: 'doc'; content: unknown[] } | null;
     // 별첨 — 서명 요청 시점에 동결된 목록(이후 문서에 붙은 파일은 서명 대상이 아니다)
     attachments?: { file_id: number; name: string | null; size: number | null; mime: string | null }[];
+    // 연결 문서(2026-10-05) — 요청 때 동결한 관련 문서. 본문은 SignLinkedDocs 가 따로 연다.
+    linked_docs?: { post_id: number; title: string }[];
     snapshot_at?: string | null;
     // 서명본 — 서버가 조립한다(services/signedDocument). 이미 서명된 칸은 그 서명이 보인다.
     signed_html?: string | null;
@@ -408,8 +411,8 @@ const PublicSignPage: React.FC = () => {
               )}
               {/* 서명 대상 범위 고지 — 무엇에 서명하는지 사용자 언어로 못 박는다(Fable C4). */}
               <NoteBox>
-                {doc.entity.attachments?.length
-                  ? t('publicSign.scopeNotice', { defaultValue: '서명 대상은 아래 본문과 별첨 {{n}}건입니다.', n: doc.entity.attachments.length }) as string
+                {((doc.entity.attachments?.length || 0) + (doc.entity.linked_docs?.length || 0)) > 0
+                  ? t('publicSign.scopeNotice', { defaultValue: '서명 대상은 아래 본문과 별첨 {{n}}건입니다.', n: (doc.entity.attachments?.length || 0) + (doc.entity.linked_docs?.length || 0) }) as string
                   : t('publicSign.scopeNoticeNoAttach', { defaultValue: '서명 대상은 아래 본문입니다.' }) as string}
               </NoteBox>
               {doc.note && <NoteBox>{doc.note}</NoteBox>}
@@ -447,6 +450,7 @@ const PublicSignPage: React.FC = () => {
                   ))}
                 </AttachBox>
               )}
+              <SignLinkedDocs token={token as string} docs={doc.entity.linked_docs || []} imageCtx={doc.image_ctx} />
             </Section>
 
             {/* #239 확인 요청 — OTP·서명 캔버스를 타지 않는다. 확인 버튼 + 의견 두 가지뿐. */}

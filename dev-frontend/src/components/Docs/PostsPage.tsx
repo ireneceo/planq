@@ -248,6 +248,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const [, setPendingExistingMeta] = useState<Record<number, { name: string; size: number }>>({});
   // 본문 하단 "관련 문서" 연결 — 다른 post(문서/표) 참조. 단방향 (저장 시 PUT linked_post_ids).
   const [pendingPostIds, setPendingPostIds] = useState<number[]>([]);
+  // 편집을 시작할 때 본 연결 목록 — 저장 때 `linked_base_ids` 로 보낸다. 서버는 이것과 비교해
+  //   «더한 것·뺀 것» 만 반영한다(그 사이 상대 문서 쪽에서 걸린 연결을 화면이 몰랐다고 지우지 않는다).
+  const linkBaseRef = useRef<number[]>([]);
   // 표(table) 편집 모드의 본문 설명 에디터 collapsible — 빈 상태 신규일 때 닫혀 시작, 내용 있으면 열린 상태.
   const [tableDescOpen, setTableDescOpen] = useState<boolean>(false);
   const submittingRef = useRef(false);
@@ -267,7 +270,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //     주석은 동작을 설명하는데 코드는 죽어 있었다. 정의부(persistAttachments) 뒤에서 대입한다.
   const persistAttachmentsRef = useRef<
     ((id: number, target: { projectId: number | null; vlevel: 'L1' | 'L2' | 'L3' | 'L4' })
-      => Promise<{ changed: boolean; hasFailure: boolean }>) | null
+      => Promise<{ changed: boolean; hasFailure: boolean; linkFailed?: boolean }>) | null
   >(null);
   // ★ 2026-08-24 — 자동저장이 실패/충돌이면 leaveEditSession() 이 false 를 돌려 **이동을 막는다**.
   //   그 자체는 옳다(저장 안 된 글을 잃지 않는다). 문제는 **아무 말도 안 한다**는 것이었다 —
@@ -577,6 +580,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     setPendingPostIds([]);
+    linkBaseRef.current = [];
     setError(null);
   };
 
@@ -667,6 +671,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     setPendingPostIds([]);
+    linkBaseRef.current = [];
     // #310 — AI 모달에서 고른 프로젝트를 새 문서에 그대로 잇는다.
     //   여태 aiContext 에 projectId 가 담겨 오는데도 초안에 반영하지 않아,
     //   "AI 로 문서 만들 때 프로젝트 연결했는데 새 문서에 동기화가 안 된다" 는 신고가 났다.
@@ -725,6 +730,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     setPendingPostIds([]);
+    linkBaseRef.current = [];
     setError(null);
     setTplModalOpen(false);
   };
@@ -742,6 +748,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setPendingExistingIds([]);
     setPendingExistingMeta({});
     setPendingPostIds([]);
+    linkBaseRef.current = [];
     setError(null);
     setSlotTplId(null);
   };
@@ -754,7 +761,15 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setContentDraft(detail.content_json);
     setCategoryDraft(detail.category || '');
     setProjectDraft(detail.project_id);
-    setPendingPostIds(Array.isArray(detail.linked_post_ids) ? detail.linked_post_ids : []);
+    {
+      // 시작 목록은 **보는 사람이 읽을 수 있는 연결**(linked_posts)에서 만든다. linked_post_ids 는 저장 응답(serialize)이
+      //   덧입혀지면 원시 목록이 돼, 남이 건 못 읽는 문서 id 가 «#1110» 칩으로 뜬다(Fable 2026-10-05 관찰).
+      const startLinks = Array.isArray(detail.linked_posts)
+        ? detail.linked_posts.map(lp => lp.id)
+        : (Array.isArray(detail.linked_post_ids) ? detail.linked_post_ids : []);
+      setPendingPostIds(startLinks);
+      linkBaseRef.current = [...startLinks];
+    }
     // 표 본문 설명 — 기존 내용이 있으면 자동 펼침, 없으면 접어두기
     const hasContent = !!(detail.content_json && JSON.stringify(detail.content_json).length > 30);
     setTableDescOpen(hasContent);
@@ -1055,10 +1070,13 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     if (modeRef.current === 'edit' && detailRef.current?.id) {
       try {
         const d = detailRef.current;
-        await persistAttachmentsRef.current?.(d.id, {
+        const pr = await persistAttachmentsRef.current?.(d.id, {
           projectId: d.project_id ?? null,
           vlevel: (d.vlevel || (d.project_id ? 'L2' : 'L3')) as 'L1' | 'L2' | 'L3' | 'L4',
         });
+        // 연결을 못 저장했으면 편집 화면에 머문다 — 보기로 넘어가면 안내(setError)가 사라지고
+        //   사용자는 «연결됐다» 고 믿는다. (파일 업로드 실패의 기존 동작은 바꾸지 않는다.)
+        if (pr?.linkFailed) { setLeaveBlocked(true); return false; }
       } catch { /* 첨부 반영 실패는 편집 이탈을 막지 않는다 — 본문은 이미 저장됐다 */ }
       // ★ 보기 화면을 **방금 저장한 내용**으로 맞춘다 (Irene 2026-08-31
       //   "저장 후 보이는 화면이 바로 적용이 안돼", "제목 바꾼 게 안 바뀌어서 검색이 안 됐다").
@@ -1250,7 +1268,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const persistAttachments = async (
     postId: number,
     target: { projectId: number | null; vlevel: 'L1' | 'L2' | 'L3' | 'L4' },
-  ): Promise<{ changed: boolean; hasFailure: boolean }> => {
+  ): Promise<{ changed: boolean; hasFailure: boolean; linkFailed?: boolean }> => {
     const fileIds: number[] = [...pendingExistingIds];
     const uploadedIds: number[] = [];
     const failedFiles: File[] = [];
@@ -1299,7 +1317,25 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     } else if (scopeFailed > 0) {
       setError(t('attach.scopeFailed', '첨부는 저장했지만 공개 범위를 문서와 맞추지 못했습니다. 다른 멤버에게 보이지 않을 수 있습니다.') as string);
     }
-    return { changed: fileIds.length > 0, hasFailure: failedLabels.length > 0 };
+    // ★ 연결 문서(«관련 문서») — 첨부와 **같은 마무리 지점**에서 저장한다 (2026-10-05).
+    //   2026-08-25 에 기존 문서 편집의 [저장] 버튼을 없애고 [편집 완료](leaveEditSession)로 바꾸면서
+    //   연결은 그 버튼 안에만 실려 있던 탓에 **어느 경로로도 서버에 가지 않았다** — 칩은 붙는데
+    //   편집 완료 후 사라졌다(Irene: "편집완료 해도 저장안되고 표시 안돼"). 새 문서 저장도 같았다.
+    //   이 함수는 새 문서 저장·편집 완료가 모두 부른다 — 여기 한 곳에 두면 빠지는 길이 없다.
+    const linkBase = linkBaseRef.current;
+    const linkDirty = pendingPostIds.length !== linkBase.length || pendingPostIds.some(id => !linkBase.includes(id));
+    let linkFailed = false;
+    if (linkDirty) {
+      try {
+        const saved = await updatePost(postId, { linked_post_ids: pendingPostIds, linked_base_ids: linkBase });
+        baseUpdatedAtRef.current = saved.updated_at ?? baseUpdatedAtRef.current;
+        linkBaseRef.current = [...pendingPostIds];
+      } catch {
+        linkFailed = true;
+        setError(t('links.saveFailed', '문서는 저장했지만 연결 문서를 저장하지 못했습니다. 다시 시도해 주세요.') as string);
+      }
+    }
+    return { changed: fileIds.length > 0 || (linkDirty && !linkFailed), hasFailure: failedLabels.length > 0 || linkFailed, linkFailed };
   };
   // 매 렌더 갱신 — 위 leaveEditSession 이 이 함수보다 먼저 정의돼 있어 ref 로 건넨다.
   persistAttachmentsRef.current = persistAttachments;
@@ -1370,7 +1406,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           title: titleDraft.trim(),
           content_json: contentDraft as any,
           category: categoryVal,
-          linked_post_ids: pendingPostIds,
           base_updated_at: baseUpdatedAtRef.current,
           // 프로젝트 scope 페이지에선 project_id 변경 막기 (강제 유지)
           ...(scope.type === 'workspace' ? { project_id: projectDraft } : {}),

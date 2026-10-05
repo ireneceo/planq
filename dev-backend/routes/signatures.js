@@ -138,7 +138,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     }
 
     // 서명 대상 동결 — 서명자별로 같은 값이므로 루프 밖에서 한 번만 계산한다.
-    const snapshot = await buildEntitySnapshot('post', post, t);
+    const snapshot = await buildEntitySnapshot('post', post, t, { user: req.user });
 
     // ★ 2026-10-05 서명 항목 — 서명 요청은 **서명 칸이 있어야** 보낸다(화면만 막으면 다른 문이 우회한다).
     //   판정·서명일 표기 고정은 services/signatureItems 한 곳(docs/SIGNATURE_ITEMS_DESIGN.md §9).
@@ -304,6 +304,25 @@ router.get('/posts/:id/signatures', authenticateToken, async (req, res, next) =>
       order: [['created_at', 'ASC']],
     });
     return successResponse(res, list.map(serialize));
+  } catch (err) { next(err); }
+});
+
+// GET /api/posts/:id/signature-scope — 서명 요청을 보내면 **함께 나가는 것** 미리보기 (2026-10-05)
+//   요청 창이 «받는 사람에게 함께 공개되는 문서 N건 · 보안등급으로 빠지는 파일» 을 보내기 전에 말한다.
+//   판정은 동결(buildEntitySnapshot)과 같은 함수 — 창이 말한 것과 실제로 나가는 것이 갈라지지 않는다.
+//   권한은 요청 생성(POST)과 같은 문 — 워크스페이스 멤버.
+router.get('/posts/:id/signature-scope', authenticateToken, async (req, res, next) => {
+  try {
+    const post = await Post.findByPk(req.params.id);
+    if (!post) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    const scope = await require('../services/signatureCore').planOutboundScope(post, { user: req.user });
+    return successResponse(res, {
+      files: scope.files.map((f) => ({ file_id: f.file_id, name: f.name, security_level: f.security_level, included: f.included })),
+      docs: scope.docs.map((d) => ({ post_id: d.post_id, title: d.title, security_level: d.security_level, included: d.included })),
+    });
   } catch (err) { next(err); }
 });
 

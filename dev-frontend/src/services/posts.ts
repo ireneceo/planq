@@ -247,6 +247,8 @@ export async function updatePost(id: number, patch: Partial<{
   title: string; content_json: TiptapDoc; category: string | null; status: 'draft' | 'published'; is_pinned: boolean;
   project_id: number | null; conversation_id: number | null;
   linked_post_ids: number[];
+  // 편집을 시작할 때 본 연결 — 서버가 «더한 것·뺀 것» 만 반영한다(연결은 양방향, services/postLinks).
+  linked_base_ids: number[];
   vlevel: 'L1' | 'L2' | 'L3' | 'L4';
   // #252 — 편집 시작 시점의 updated_at. 서버 것과 어긋나면 409 (남의 저장을 덮지 않는다).
   base_updated_at: string | null;
@@ -282,6 +284,18 @@ export async function updatePost(id: number, patch: Partial<{
 }
 
 // N+67 — Post visibility 변경 (L1-L4 통일)
+// 서명 요청을 보내면 함께 나가는 것 — 서버가 동결과 **같은 함수**로 판정한다(services/signatureCore.planOutboundScope).
+export interface SignatureScope {
+  files: { file_id: number; name: string | null; security_level: string; included: boolean }[];
+  docs: { post_id: number; title: string; security_level: string; included: boolean }[];
+}
+export async function fetchSignatureScope(postId: number): Promise<SignatureScope | null> {
+  const r = await apiFetch(`/api/posts/${postId}/signature-scope`);
+  if (!r.ok) return null;
+  const j = await r.json().catch(() => null);
+  return j && j.success ? (j.data as SignatureScope) : null;
+}
+
 export async function updatePostVisibility(
   postId: number,
   body: { level: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number }

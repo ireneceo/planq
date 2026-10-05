@@ -5453,3 +5453,18 @@ Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인
 - **Fable 결과(배포 후 수신): 조건부 통과** — R=1 표면 전부 통과(무인증 서명 입력 검증·증거 · XSS · 옛 요청 22/22 바이트 동일 · 잠금 409 · 마이그레이션 순서). 실HTTP 26/26.
 - 조건 2건(화면, 가역) → 핫픽스로 반영·자체 검증: ①1단계 저장 후 상세 덮어쓰기 → 덧입히기(linked_posts·author·editor 유지) ②잠긴 문서에서 1단계 읽기 전용 + 409 번역. `--suite signitems`(①-b 신설)·signature 0 실패 · 가드 61/62 · build EXIT 0.
 - 참고(미반영): 라벨 `&`·따옴표 이중 escape(기존 결함) · 설계 §9 «워크스페이스 날짜 표기» 문구 ↔ 구현은 요청자 date_format + 워크스페이스 tz.
+
+## 2026-10-05 · 문서 연결 저장·양방향 + 서명 요청 첨부 범위 · [Opus]
+**Fable 상태**: ①문서 연결(양방향) — **Fable PASS**(실HTTP 26/26 · 멀티테넌트·읽기권한·silent·base 비교). 관찰 1건(못 읽는 id 가 «#번호» 칩) 반영.
+②서명 첨부 — **Fable 미검증(자체 검증)**: 1차 529 과부하로 중단, 재개 후 429 «Fable limit» 로 중단 → `unavailable`.
+**판정**: R=1 — 무인증 표면 확장(`GET /api/sign/:token/linked/:postId`), 외부로 나가는 범위(동결 목록) 변경.
+**변경**: `services/signatureCore.planOutboundScope`(파일 general 만 · 연결 문서는 요청자 canReadPost + general 만, 본문 동결) ·
+`buildEntitySnapshot(...,{user})`(요청 생성만 user) · `GET /api/posts/:id/signature-scope` · `/sign/:token` 응답 linked_docs ·
+`/sign/:token/attachments/:fileId` 를 attachmentStorage 로(Drive 저장 별첨 404 수리) · imageCtx sign 문맥에 동결 연결 본문 ·
+화면 `SignLinkedDocs.tsx` · `PostSignatureModal`(함께 공개되는 것/보안등급 제외 안내) · `PublicSignPage`.
+**자체 검증**: API 18/18(미리보기 포함/제외 4 · 동결 파일1·문서1 · 서명자 응답 · 일반 200 · 기밀 파일 404 · 동결본 불변 · 기밀 문서·목록 밖·잘못된 토큰 404 · 미리보기 비로그인 401) ·
+화면 3폭 24/24(펼침·재클릭 접힘·가로 넘침 0·요청 창 문구) · build EXIT 0 · error TS 0.
+Drive 저장 별첨은 dev Drive 연결이 죽어 502 drive_fetch_failed — 옛 404 file_missing 은 사라짐, **실제 내려받기 200 은 미확인**.
+**Fable 이 볼 것**: 무인증 linked 경로가 kind 혼동(file_id↔post_id)·다른 워크스페이스로 못 여는가 · 요청자 못 읽는 문서가 동결/HTML 어디에도 없는가 ·
+linked HTML XSS(서버는 richBodyToHtml, 화면은 sanitizeRichText) · imageCtx 확장 폭 · 옛 요청(kind 없는 snapshot) 호환 · 운영 Drive 저장 별첨 실다운로드.
+**정리**: 중단된 Fable 실행이 남긴 dev 데이터(문서 1127~1133 · 서명 요청 317 · 첨부 55~58 · 파일 행 7824~7828) 삭제, 물리 파일 유지.

@@ -347,7 +347,10 @@
     "closeManually": "This browser can't close the window automatically. Please close the tab yourself.",
     "itemsRequired": "Please fill every signature spot.",
     "imageTooLarge": "The image is too large. Please upload a smaller one.",
-    "signDescItems": "For each signature spot, draw or upload an image (signature, seal or company stamp). The date and name are filled in automatically when you sign."
+    "signDescItems": "For each signature spot, draw or upload an image (signature, seal or company stamp). The date and name are filled in automatically when you sign.",
+    "linkedDocs": "{{n}} linked document(s) — sent together with this document",
+    "linkedLoading": "Loading…",
+    "linkedError": "Could not open the document. Please tap again in a moment."
   },
   "sign": {
     "button": "Get signatures",
@@ -423,6 +426,12 @@
     "recipientsHint": "Recipients get the signing link by email. Please double-check the addresses.",
     "noFields": {
       "insertFailed": "Couldn’t save the signature spots. Add them in the editor with [Signature items]."
+    },
+    "scope": {
+      "label": "Also shared with the recipient",
+      "counts": "{{files}} attached file(s) · {{docs}} linked document(s)",
+      "held": "Not sent because of security level (internal/confidential): {{names}}",
+      "hint": "Frozen as of now and opened from the signing link. Later edits to the originals do not change what the recipient sees."
     }
   },
   "ai": {
@@ -846,5 +855,8 @@
     "imageHint": "Signature, seal or company stamp image (PNG recommended — a transparent background sits naturally on the document)",
     "replace": "Use another image",
     "pick": "Choose image"
+  },
+  "links": {
+    "saveFailed": "The document was saved, but its linked documents were not. Please try again."
   }
 }

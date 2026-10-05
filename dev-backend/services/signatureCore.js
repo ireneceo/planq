@@ -138,7 +138,49 @@ function parseMaybeJson(v) {
   try { return JSON.parse(v); } catch { return null; }
 }
 
-async function buildEntitySnapshot(entityType, entity, t) {
+// ── 서명 요청과 함께 «밖으로 나가는 것» — 판정 한 곳 (2026-10-05) ──
+//   요청 동결(buildEntitySnapshot)·요청 창 미리보기(GET /posts/:id/signature-scope)·서명자 화면이 같은 결과를 쓴다.
+//   - 첨부 파일: 보안등급 internal·confidential 은 보내지 않는다(CLAUDE.md 공유 규칙 4 — 밖으로 나가는 모든 문).
+//   - 연결 문서(«관련 문서», 양방향): **요청자가 읽을 수 있는 것만** 목록에 오른다(못 보는 문서는 제목도 정보다).
+//     보안등급이 general 이 아니면 목록에는 «보내지 않음» 으로만 남는다. 보내는 것은 본문을 그 시점으로 동결한다.
+//   user 가 없으면(서명 시점 해시 대조) 연결 문서는 계산하지 않는다 — 그 경로는 content_hash 만 쓴다.
+async function planOutboundScope(post, { user = null, transaction = null } = {}) {
+  const tx = transaction ? { transaction } : {};
+  const rows = await PostAttachment.findAll({
+    where: { post_id: post.id },
+    include: [{ model: File, as: 'file' }],
+    order: [['sort_order', 'ASC']],
+    ...tx,
+  });
+  const files = rows.filter((a) => a.file && !a.file.deleted_at).map((a) => {
+    const lv = a.file.security_level || 'general';
+    return {
+      file_id: a.file_id,
+      name: a.file.file_name || null,
+      size: a.file.file_size || null,
+      mime: a.file.mime_type || null,
+      content_hash: a.file.content_hash || null,
+      security_level: lv,
+      included: lv === 'general',
+    };
+  });
+  const docs = [];
+  if (user) {
+    const { canReadPost } = require('../routes/posts');
+    const ids = await require('./postLinks').effectiveLinkIds(post);
+    const linked = ids.length ? await Post.findAll({ where: { id: ids, business_id: post.business_id }, ...tx }) : [];
+    const byId = new Map(linked.map((p) => [p.id, p]));
+    for (const id of ids) {
+      const lp = byId.get(id);
+      if (!lp || !(await canReadPost(user, lp))) continue;
+      const lv = lp.security_level || 'general';
+      docs.push({ post: lp, post_id: lp.id, title: lp.title || '', security_level: lv, included: lv === 'general' });
+    }
+  }
+  return { files, docs };
+}
+
+async function buildEntitySnapshot(entityType, entity, t, opts = {}) {
   const raw = entityType === 'post'
     ? (typeof entity.content_json === 'string' ? entity.content_json : JSON.stringify(entity.content_json ?? null))
     : JSON.stringify(entity.content ?? entity.content_json ?? null);
@@ -149,19 +191,21 @@ async function buildEntitySnapshot(entityType, entity, t) {
   const content_hash = crypto.createHash('sha256').update(`${title}\n${String(raw || '')}`).digest('hex');
   let attachments_snapshot = [];
   if (entityType === 'post') {
-    const rows = await PostAttachment.findAll({
-      where: { post_id: entity.id },
-      include: [{ model: File, as: 'file' }],
-      order: [['sort_order', 'ASC']],
-      ...(t ? { transaction: t } : {}),
-    });
-    attachments_snapshot = rows.map((a) => ({
-      file_id: a.file_id,
-      name: a.file?.file_name || null,
-      size: a.file?.file_size || null,
-      mime: a.file?.mime_type || null,
-      content_hash: a.file?.content_hash || null,
-    }));
+    // 무엇이 나가는지는 planOutboundScope 한 곳이 정한다. 파일 행 모양은 옛 요청과 같다(kind 없음 = 파일).
+    //   연결 문서는 kind:'post' 행 — 제목·본문을 지금 값으로 동결한다(이후 원본이 바뀌어도 서명 대상은 불변).
+    const scope = await planOutboundScope(entity, { user: opts.user || null, transaction: t || null });
+    attachments_snapshot = [
+      ...scope.files.filter((f) => f.included).map((f) => ({
+        file_id: f.file_id, name: f.name, size: f.size, mime: f.mime, content_hash: f.content_hash,
+      })),
+      ...scope.docs.filter((d) => d.included).map((d) => {
+        const body = typeof d.post.content_json === 'string' ? d.post.content_json : JSON.stringify(d.post.content_json ?? null);
+        return {
+          kind: 'post', post_id: d.post_id, title: d.title, content_snapshot: body,
+          content_hash: crypto.createHash('sha256').update(`${d.title}\n${String(body || '')}`).digest('hex'),
+        };
+      }),
+    ];
   }
   return { title_snapshot: title, content_snapshot: raw, content_hash, attachments_snapshot, snapshot_at: new Date() };
 }
@@ -184,7 +228,7 @@ async function maybeUpdateEntityStatus(/* entity_type, entity_id, business_id, t
 }
 
 module.exports = {
-  isPostSignatureLocked, blockIfSigned, parseMaybeJson, buildEntitySnapshot, loadEntity, maybeUpdateEntityStatus,
+  isPostSignatureLocked, blockIfSigned, parseMaybeJson, buildEntitySnapshot, planOutboundScope, loadEntity, maybeUpdateEntityStatus,
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
   isExpiredNow, SIGNATURE_EVENT_COPY, notifyWorkspaceMembersOnSignature,
 };

@@ -76,8 +76,12 @@ router.get('/sign/:token', async (req, res, next) => {
         // ★ 별첨 — 여태 응답에 없어서 서명 화면에 아예 안 나왔다. 본문이 "별첨 2에 정한…" 을
         //   인용하는데 정작 서명자는 그것을 볼 수 없는 상태였다(운영 계약서 실사례).
         //   동결 시점 목록을 그대로 보여준다 — 이후 문서에 첨부가 추가/삭제돼도 서명 대상은 불변이다.
-        attachments: (sr.attachments_snapshot || []).map((a) => ({
+        attachments: (sr.attachments_snapshot || []).filter((a) => a.kind !== 'post').map((a) => ({
           file_id: a.file_id, name: a.name, size: a.size, mime: a.mime,
+        })),
+        // 연결 문서(2026-10-05) — 요청 때 동결한 것. 본문은 GET /sign/:token/linked/:postId 로 따로 연다.
+        linked_docs: (sr.attachments_snapshot || []).filter((a) => a.kind === 'post').map((a) => ({
+          post_id: a.post_id, title: a.title || '',
         })),
         snapshot_at: sr.snapshot_at,
         // 서명본 — 이미 서명된 칸은 그 서명이 보인다(다른 사람이 먼저 서명했을 수 있다).
@@ -103,13 +107,16 @@ router.get('/sign/:token/attachments/:fileId', async (req, res, next) => {
     if (isExpiredNow(sr)) return errorResponse(res, 'expired', 410);
     const list = Array.isArray(sr.attachments_snapshot) ? sr.attachments_snapshot : [];
     const want = Number(req.params.fileId);
-    const entry = list.find((a) => Number(a.file_id) === want);
+    const entry = list.find((a) => a.kind !== 'post' && Number(a.file_id) === want);
     if (!entry) return errorResponse(res, 'not_in_scope', 404);
 
     const file = await File.findOne({ where: { id: want, business_id: sr.business_id } });
     if (!file || file.deleted_at) return errorResponse(res, 'file_missing', 404);
-    const fs = require('fs');
-    if (!file.file_path || !fs.existsSync(file.file_path)) return errorResponse(res, 'file_missing', 404);
+    // ★ 2026-10-05 — 저장소는 한 함수(services/attachmentStorage)로 읽는다. 여태 로컬 디스크만 봐서
+    //   워크스페이스 Drive 에 저장된 별첨은 목록엔 뜨는데 누르면 404 였다(서명자는 별첨을 못 본 채 서명).
+    const storage = require('../services/attachmentStorage');
+    const body = await storage.readAttachmentBody(file);
+    if (!body.ok) return errorResponse(res, body.msg, body.code);
 
     // 열람 사실 기록 — 증거의 일부다 ("별첨을 보지 못했다" 는 주장에 대한 반증).
     try {
@@ -123,7 +130,33 @@ router.get('/sign/:token/attachments/:fileId', async (req, res, next) => {
       inline: true,
       disposition: `inline; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.file_name || asciiName)}`,
     });
-    return res.sendFile(require('path').resolve(file.file_path));
+    if (body.redirect) return res.redirect(body.redirect);
+    return storage.sendAttachmentBody(res, body, 'sign/attachment');
+  } catch (err) { next(err); }
+});
+
+// GET /api/sign/:token/linked/:postId — 서명자용 **연결 문서** 열람 (무인증, 토큰 범위 한정 · 2026-10-05)
+//   본문이 "관련 문서 참조" 를 말하는데 서명자는 그 문서를 볼 길이 없었다. 범위는 별첨과 같은 원칙 —
+//   이 요청에 **동결된 목록**에 있는 문서만, **동결된 본문**만 준다. 원본(posts)은 읽지 않는다
+//   (요청 뒤에 원본이 바뀌거나 범위가 좁혀져도 서명자가 본 것은 요청 때의 것이다).
+router.get('/sign/:token/linked/:postId', async (req, res, next) => {
+  try {
+    const sr = await loadByToken(req.params.token);
+    if (!sr) return errorResponse(res, 'not_found', 404);
+    if (sr.status === 'canceled') return errorResponse(res, 'canceled', 410);
+    if (isExpiredNow(sr)) return errorResponse(res, 'expired', 410);
+    const list = Array.isArray(sr.attachments_snapshot) ? sr.attachments_snapshot : [];
+    const want = Number(req.params.postId);
+    const entry = list.find((a) => a.kind === 'post' && Number(a.post_id) === want);
+    if (!entry) return errorResponse(res, 'not_in_scope', 404);
+    try {
+      const viewed = Array.isArray(sr.attachments_viewed) ? sr.attachments_viewed : [];
+      viewed.push({ post_id: want, at: new Date().toISOString() });
+      await sr.update({ attachments_viewed: viewed.slice(-200) });
+    } catch (e) { console.warn('[sign] 연결 문서 열람 기록 실패', e.message); }
+    const tpl = require('../services/pdfTemplates');
+    const html = tpl.browserAssetHtml(tpl.richBodyToHtml(parseMaybeJson(entry.content_snapshot), null, null));
+    return successResponse(res, { post_id: want, title: entry.title || '', html });
   } catch (err) { next(err); }
 });
 
