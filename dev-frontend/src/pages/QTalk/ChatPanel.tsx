@@ -2147,7 +2147,10 @@ const ChatPanel: React.FC<Props> = ({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setMoreMenu((cur) => cur?.msgId === m.id ? null : { msgId: m.id, anchorEl: e.currentTarget });
+                    // ★ 요소를 먼저 잡는다 — 갱신 함수는 이벤트가 끝난 뒤에 돌 수 있고 그때 e.currentTarget 은 null 이다
+                    //   (운영 2026-10-05 크래시: 렌더 중 anchorEl.getBoundingClientRect of null). 반응 버튼과 같은 방식.
+                    const el = e.currentTarget;
+                    setMoreMenu((cur) => cur?.msgId === m.id ? null : { msgId: m.id, anchorEl: el });
                   }}
                   title={t('chat.action.more', '더보기') as string}
                   aria-label={t('chat.action.more', '더보기') as string}
@@ -2416,6 +2419,8 @@ const ChatPanel: React.FC<Props> = ({
         if (!m) return null;
         const isSenderM = user && Number(m.sender_id) === Number(user.id);
         const canDeleteM = (isSenderM || isOwnerOrAdmin) && !m.is_deleted && m.sender_role !== 'cue';
+        // 기준 요소가 사라졌으면(목록 재렌더로 떼어짐) 메뉴를 그리지 않는다 — 화면 전체를 죽이지 않는다.
+        if (!moreMenu.anchorEl || !moreMenu.anchorEl.isConnected) return null;
         const rect = moreMenu.anchorEl.getBoundingClientRect();
         const MENU_W = 200;
         const MENU_H_EST = canDeleteM ? 84 : 44; // 항목 수 * 42 + padding

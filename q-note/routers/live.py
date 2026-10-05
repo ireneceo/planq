@@ -1074,7 +1074,11 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
         if _pk > SILENT_PEAK:
           heard_sound = True
         # 처음 8초 동안 소리가 한 번도 안 들어오면 화면에 알린다(한 번만) — 마이크 권한·선택·음소거 문제를 «녹음 중» 으로 숨기지 않는다
-        if not heard_sound and not silent_warned and now - stream_start >= SILENT_WARN_SEC:
+        # ★ 2026-10-05 — 8초는 **받은 오디오 길이**로 잰다(벽시계가 아니다). 연결 직후 오디오가 늦게 흘러
+        #   들어오면(마이크 기동·네트워크) 벽시계로는 소리를 8초어치 받기도 전에 «무음» 이 뜬다.
+        #   (일시정지 → 재개는 연결을 새로 맺으므로 stream_start 가 이미 새로 잡힌다.)
+        _audio_sec = bytes_received / (32000 * (2 if is_multichannel else 1))
+        if not heard_sound and not silent_warned and _audio_sec >= SILENT_WARN_SEC:
           silent_warned = True
           logger.info(f'session={session_id} audio: silent input for {SILENT_WARN_SEC}s (peak<={SILENT_PEAK})')
           try:

@@ -823,9 +823,11 @@ async function notifyComment({ task, comment, subjectId, actor, io }) {
       //   notify() 가 1인씩 부를 때 수신자 언어로 해석한다.
       titleSpec: { feature: 'task', action: 'task_comment_mention', subject: `"${task.title}"` },
       body: preview, link, ctaLabel: '댓글 보기', workspaceName: wsName,
-    // ★ #407 — 댓글은 **사람이 쓴 본문**이다(제목·시스템 문구가 아니다).
-    //   메일·푸시로는 내보내지 않고 인앱 알림에만 남긴다.
-    previewPolicy: 'internal_only',
+    // ★ 2026-10-05 (Irene: *"새 댓글은 왜 알림에서 내용이 안보이고 플랜큐에서 확인하라고 해?
+    //   메시지처럼 댓글도 미리보기 되어야"*) — 채팅과 같은 «앞 40자»(services/outsidePreview).
+    //   #407 의 걱정(긴 내용·붙여넣은 값)은 40자 자르기로 막고, 누가 무슨 얘기인지는 보이게 한다.
+    //   개인 메모(personal)는 위에서 아예 알리지 않는다.
+    previewPolicy: 'excerpt',
       actorUserId: actor.userId, entityType: 'task', entityId: task.id, ioApp: io,
     }).catch((e) => console.warn('[notify comment_mention task]', e.message));
   }
@@ -849,9 +851,11 @@ async function notifyComment({ task, comment, subjectId, actor, io }) {
     // #281 — `Q Task · 새 댓글 · {작성자} · "{업무명}"`. 첫 토큰이 기능명이라 출처가 먼저 읽힌다.
     titleSpec: { feature: 'task', action: 'task_comment', subject: `${authorName} · "${task.title}"` },
     body: preview, link, ctaLabel: '댓글 보기', workspaceName: wsName,
-    // ★ #407 — 댓글은 **사람이 쓴 본문**이다(제목·시스템 문구가 아니다).
-    //   메일·푸시로는 내보내지 않고 인앱 알림에만 남긴다.
-    previewPolicy: 'internal_only',
+    // ★ 2026-10-05 (Irene: *"새 댓글은 왜 알림에서 내용이 안보이고 플랜큐에서 확인하라고 해?
+    //   메시지처럼 댓글도 미리보기 되어야"*) — 채팅과 같은 «앞 40자»(services/outsidePreview).
+    //   #407 의 걱정(긴 내용·붙여넣은 값)은 40자 자르기로 막고, 누가 무슨 얘기인지는 보이게 한다.
+    //   개인 메모(personal)는 위에서 아예 알리지 않는다.
+    previewPolicy: 'excerpt',
     actorUserId: actor.userId, entityType: 'task', entityId: task.id, ioApp: io,
   }).catch((e) => console.warn('[notify task comment]', e.message));
 }

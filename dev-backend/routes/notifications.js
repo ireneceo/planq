@@ -31,6 +31,7 @@ const EVENT_KINDS = [
   // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
   'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
   'system',           // 시스템 경고 (메일 계정 sync 실패 등) — 여태 목록에 없어 끌 방법이 없었다
+  'client_crash',     // 2026-10-05 — 화면 크래시 관리자 알림 (services/clientCrashAlert)
 ];
 const CHANNELS = ['inbox', 'chat', 'email', 'push']; // 사이클 J4 — push 채널 추가
 
@@ -242,10 +243,12 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
         entity_id: entityId || null,
         // ★ 정책을 **행에 적는다** (Fable 13차 차단1). 이 행을 나중에 읽는 쪽
         //   (미읽음 에스컬레이션 크론)이 종류를 추측하지 않고 이 값을 따른다.
-        // ★ 이 컬럼은 **인앱 표시용 기록**이다(ENUM('default','internal_only')).
-        //   `excerpt` 는 **밖으로 나갈 때만** 잘라 보내는 정책이고 인앱에는 원문이 그대로 남으므로
-        //   여기서는 `default` 가 맞다 — 운영 ENUM 을 늘리지 않는다.
-        preview_policy: previewPolicy === 'internal_only' ? 'internal_only' : 'default',
+        // ★ ENUM('default','internal_only') — 운영 ENUM 을 늘리지 않는다. 인앱 화면은 이 칸을 안 읽는다
+        //   (인앱엔 원문이 그대로 보인다). 읽는 곳은 재알림 메일 크론 하나뿐이다.
+        // ★ excerpt 도 «원문을 밖으로 내보내지 않는다» 로 저장한다 — 이 칸을 읽는 곳(unreadEscalationCron 의
+        //   재알림 메일)이 'default' 를 보면 본문 140자를 통째로 싣는다. 업무 댓글은 kind 가 'task' 라
+        //   FREE_TEXT_KINDS 로도 안 걸러진다(2026-10-05 댓글 미리보기 전환 때 실측).
+        preview_policy: (previewPolicy === 'internal_only' || previewPolicy === 'excerpt') ? 'internal_only' : 'default',
       });
       results.inbox = !!row.id;
       // N+73 — multi-device sync. socket emit 에 full row 포함 (옛: { id, kind } 만).

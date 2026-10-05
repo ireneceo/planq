@@ -461,6 +461,11 @@ sync_database() {
   log "Creating diagnosis_responses (#426)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-diagnosis.js 2>&1 | tail -5"
 
+  # 2026-10-05 — 화면 크래시 관리자 알림: notifications·notification_prefs.event_kind 끝에 'client_crash' append.
+  #   ★ **코드보다 먼저 돈다** — 관리자 설정에서 끄면 prefs 행을 쓰는데 ENUM 에 없으면 500 이다. 멱등.
+  log "Appending client_crash notification kind..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-client-crash-kind.js 2>&1 | tail -4"
+
   # 2026-09-14 — Q sale 상담 메모(댓글)의 **기준**을 남기는 칸: project_notes.client_id.
   #   Irene: "메모라고 메모남기기가 댓글처럼 … 어떤 문의를 기준으로 저장된건지 남기게 하고."
   #   ★ **코드보다 먼저 돈다** — 모델이 client_id 를 선언하므로 컬럼이 없으면 메모 조회가 500 이다.

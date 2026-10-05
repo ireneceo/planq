@@ -41,6 +41,8 @@ NotificationPref.init({
       'system',           // 메일 계정 sync 실패 등 시스템 경고
       'leave',            // #208 — 휴가 신청·승인·반려 (ENUM 은 반드시 끝에 append)
       'sale',             // Q sale — 통화 전사 완료·단계 자동 변경·답 안 한 문의 (끝에 append)
+      'push_fallback',    // 푸시 실패 시 메일 재알림 안전망 — DB(migrate-push-fallback-pref)에는 있었는데 모델에만 빠져 있었다(2026-10-05 맞춤)
+      'client_crash',     // 2026-10-05 — 화면 크래시 관리자 알림 (플랫폼, business_id NULL · 끝에 append)
     ),
     allowNull: false,
   },

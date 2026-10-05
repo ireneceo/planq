@@ -1308,5 +1308,32 @@
     "errDrive": "Could not fetch from Google Drive. Please check the connection",
     "errForbidden": "You don't have permission to download this file",
     "errGeneric": "Could not download. Please try again"
+  },
+  "adminNotif": {
+    "eventLabel": {
+      "inquiry": "New inquiry",
+      "signup": "New sign-up",
+      "payment": "Payment",
+      "subscription": "Subscription change",
+      "trial": "Trial ending",
+      "feedback": "User feedback",
+      "client_crash": "Screen error"
+    },
+    "eventDesc": {
+      "inquiry": "Someone left an inquiry via the landing form, guest chat or in the app",
+      "signup": "A new user or workspace finished registering",
+      "payment": "Payment confirmed (mark-paid), failed payments, etc.",
+      "subscription": "Plan change / cancellation / downgrade",
+      "trial": "14-day trial expired or ends in 7 days",
+      "feedback": "Bugs, improvements or feature requests users submitted",
+      "client_crash": "A user screen stopped with an error — once per hour for the same error, email only"
+    },
+    "title": "Platform admin notifications",
+    "hint": "Platform operations alerts, separate from any workspace. Choose where to receive each kind.",
+    "ch": {
+      "inbox": "Inbox",
+      "email": "Email",
+      "push": "Device"
+    }
   }
 }

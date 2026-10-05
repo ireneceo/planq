@@ -307,11 +307,13 @@ function emailWrap({ title, body, width = 520, footerOptions = {}, preheader }) 
 }
 
 // 공통 CTA 버튼 (table 기반 — Outlook 호환)
+// ★ href 도 이스케이프한다 (Fable 2026-10-05) — 사용자 입력이 섞인 링크(크래시 보고 경로)에서 `">` 로 속성을 끊고
+//   관리자 메일에 임의 HTML 을 심을 수 있었다. 제목·본문만 이스케이프하고 링크는 열려 있었다.
 function ctaButton(href, label) {
   return `
     <table cellpadding="0" cellspacing="0" role="presentation" style="margin:8px auto 0;">
       <tr><td align="center" bgcolor="#0D9488" style="border-radius:10px;">
-        <a href="${href}" target="_blank" style="display:inline-block;padding:13px 28px;background:#0D9488;color:#FFFFFF;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700;line-height:1;">${escapeHtml(label)}</a>
+        <a href="${escapeHtml(href)}" target="_blank" style="display:inline-block;padding:13px 28px;background:#0D9488;color:#FFFFFF;text-decoration:none;border-radius:10px;font-size:14px;font-weight:700;line-height:1;">${escapeHtml(label)}</a>
       </td></tr>
     </table>`;
 }
@@ -321,7 +323,7 @@ function fallbackLink(url) {
   return `
     <div style="margin-top:18px;padding-top:14px;border-top:1px dashed #E2E8F0;font-size:11px;color:#94A3B8;line-height:1.5;">
       버튼이 동작하지 않으면 아래 링크를 브라우저에 붙여 넣어주세요:<br>
-      <span style="color:#64748B;word-break:break-all;">${url}</span>
+      <span style="color:#64748B;word-break:break-all;">${escapeHtml(url)}</span>
     </div>`;
 }
 

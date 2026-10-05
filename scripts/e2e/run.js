@@ -258,6 +258,8 @@ const SUITES = {
   chatbottom: () => require('./canary-chat-bottom'),
   // 메시지 반응 — 3폭에서 «가만히 있으면 안 보임·겹침 없음·고르는 줄이 글자를 밀지도 덮지도 않음» (2026-09-28)
   chatreaction: () => require('./canary-chat-reaction'),
+  // 메시지 [더보기] 반복 — 갱신 함수 안 e.currentTarget(null) 로 화면이 죽던 운영 크래시 (2026-10-05)
+  chatmore: () => require('./canary-chat-more-menu'),
   // 쓰다 만 글이 남는가 · 남의 글과 섞이지 않는가 (DRAFT_PERSISTENCE_DESIGN D-C6). 창 두 개·같은 문서 두 탭·
   //   로그아웃·사칭·옛 키 이관을 실브라우저로 — 인스턴스끼리 덮어쓰는 유실은 한 창 검사로는 안 드러난다.
   drafts: () => require('./canary-drafts'),

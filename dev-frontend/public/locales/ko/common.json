@@ -1308,5 +1308,32 @@
     "errDrive": "Google Drive 에서 받아오지 못했어요. 연결 상태를 확인해 주세요",
     "errForbidden": "이 파일을 받을 권한이 없어요",
     "errGeneric": "내려받지 못했어요. 다시 시도해 주세요"
+  },
+  "adminNotif": {
+    "eventLabel": {
+      "inquiry": "새 문의 접수",
+      "signup": "신규 가입",
+      "payment": "결제 발생",
+      "subscription": "구독 변경",
+      "trial": "체험 종료",
+      "feedback": "사용자 피드백",
+      "client_crash": "화면 오류"
+    },
+    "eventDesc": {
+      "inquiry": "랜딩 폼·게스트 챗·로그인 사용자가 문의를 남겼을 때",
+      "signup": "새 사용자 또는 워크스페이스 등록 완료",
+      "payment": "입금 확인(mark-paid), 결제 실패 등",
+      "subscription": "플랜 변경 / 해지 / 강등",
+      "trial": "14일 체험 만료 또는 D-7 임박 알림",
+      "feedback": "사용 중 사용자가 제출한 버그·개선·기능 요청",
+      "client_crash": "사용자 화면이 오류로 멈췄을 때 — 같은 오류는 1시간에 한 번, 메일만"
+    },
+    "title": "플랫폼 관리자 알림",
+    "hint": "워크스페이스와 무관한 플랫폼 운영 알림입니다. 종류별로 어디로 받을지 정합니다.",
+    "ch": {
+      "inbox": "인박스",
+      "email": "이메일",
+      "push": "디바이스"
+    }
   }
 }

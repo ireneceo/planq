@@ -15,6 +15,7 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse } = require('../middleware/errorHandler');
 const { perUserDaily } = require('../middleware/costGuard');
+const { alertClientCrash } = require('../services/clientCrashAlert');
 
 // 분당 5회 / 일 100회 — 루프 크래시가 로그를 삼키지 못하게. 넘으면 조용히 버린다(사용자 화면엔 영향 없음).
 const limiter = perUserDaily('client-error', { perMin: 5, perDay: 100 });
@@ -25,7 +26,7 @@ router.post('/', authenticateToken, ...limiter, async (req, res) => {
   const b = req.body || {};
   // ★ 사용자가 보낸 값이다 — 그대로 믿고 로그에 붓지 않는다. 길이를 자르고 개행을 없앤다
   //   (개행이 살아 있으면 한 건이 여러 줄로 흩어져 로그 grep 이 어긋난다).
-  console.error('[client-crash]', JSON.stringify({
+  const entry = {
     at: new Date().toISOString(),
     user_id: req.user.id,
     business_id: Number(b.business_id) || null,
@@ -42,7 +43,11 @@ router.post('/', authenticateToken, ...limiter, async (req, res) => {
     trail: cap(b.trail, 600),
     build: cap(b.build, 60),
     ua: cap(req.get('user-agent'), 160),
-  }));
+  };
+  console.error('[client-crash]', JSON.stringify(entry));
+  // 로그는 누가 열어야 보인다 — 관리자에게 바로 알린다(같은 크래시 1시간 1통 · 전체 시간당 10통).
+  //   기다리지 않는다: 메일이 늦어도 보고 응답은 바로 간다.
+  alertClientCrash(entry).catch((e) => console.warn('[client-crash] alert failed:', e.message));
   // 응답은 언제나 200 — 크래시 보고가 또 실패해서 화면을 두 번 죽이면 안 된다.
   return successResponse(res, { ok: true });
 });
