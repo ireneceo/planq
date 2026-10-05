@@ -1,21 +1,28 @@
 {
-  "working_on": ["운영 오류 즉시 알림 · «모든 버튼 눌러보기» 순찰 검사(다음 작업)"],
+  "working_on": ["앱 스토어 심사 대기 — iOS 1.0.1(영어 현지화 추가) · Google Play 이름 «PlanQ 플랜큐 - 업무관리·협업»"],
   "in_progress": [],
   "completed": [
-    { "title": "Q info 상세 — 본문·항목·첨부 먼저, «분류·공개 범위»(옛 메타데이터) 맨 아래 · Enter 빈 줄이 상세·공유 링크에서 접히던 것 · 공유 링크 항목 값 줄바꿈", "verified": "fable_pass" },
-    { "title": "Q Note 화상회의 — 상대 채널도 목소리별 분리(«상대 1·2») · 공개 노트 화자 «unknown» → 이름/작성자/화자 N", "verified": "fable_pass" },
-    { "title": "Q Note 녹음 — 무음 8초 감지 안내 · 다운샘플링 구간 평균(에일리어싱 완화) · 머리줄 정리(설정·종료 아이콘, [상담 저장] 하나 + 녹음 중 종료 확인) · 끝난 노트에도 [상담 저장]", "verified": "fable_pass" },
-    { "title": "느린 요청 기록(백엔드·Q Note, 800ms↑) — 경로는 코드 모양만(값·쿼리·본문 없음)", "verified": "fable_pass" }
+    { "title": "화면 오류 → 플랫폼 관리자 메일(client_crash) — 같은 오류 1시간 1통·전체 시간당 10통·청크 오류 제외 · 관리자 알림 설정에서 끌 수 있음 · 메일 링크 이스케이프", "verified": "fable_pass" },
+    { "title": "업무 댓글·댓글 멘션 알림 — 푸시·메일에 앞 40자 미리보기(채팅과 같음)", "verified": "fable_pass" },
+    { "title": "채팅 [더보기] 첫 클릭에 화면 전체가 죽던 크래시(운영 로그 10/5)", "verified": "opus_only" },
+    { "title": "목소리 프로필 → Q Note 화자 이름 자동 — 동의 후 등록(내 프로필·고객 홈) · 마이크·화상·업로드·회의 종료 · 사람 고르기/이름 지우기 · 24개월 미사용 삭제·7일 화자 임베딩 삭제 · 처리방침 생체정보 항목", "verified": "fable_pass" },
+    { "title": "프로필 전문성·언어 수준 저장 실패가 화면에 안 보이던 것(버튼 순찰이 잡음)", "verified": "fable_pass" },
+    { "title": "Q Note 무음 안내 8초를 받은 오디오 길이로 판정", "verified": "opus_only" }
   ],
   "behavior_changes": [
-    "Q Note 녹음 중 [상담 저장] 은 «회의를 종료할까요?» 를 먼저 묻는다",
-    "Q info 상세에서 공개 범위·보안등급은 맨 아래로"
+    "목소리 등록은 동의 체크가 있어야 시작된다(옛 등록은 다시 동의·등록해야 자동 인식)",
+    "프로필 «인식 확인» 기준이 0.62 → 0.85(회의에서 쓰는 기준과 같다)",
+    "업로드한 녹음 노트에도 화자 행이 생긴다(손으로 이름 붙이기 가능)"
   ],
-  "issues": ["일시정지 후 재개 직후 8초 무음이면 무음 안내가 뜰 수 있음 — 운영 peak 로그로 임계 조정 예정"],
-  "blocked_on_human": ["iOS 1.0.1 심사 제출(App Store Connect)"],
-  "migrations": [],
-  "check_areas": ["Q Note 녹음 무음 안내·머리줄 · 화상회의 상대 1·2 · Q info 상세 순서", "운영 로그 [slow] 집계(하루 뒤)"],
-  "backlog": ["목소리 프로필 → 화자 이름 자동(Fable 설계)", "iOS·Android 네이티브 공유 받기(#434)"],
-  "tooling_health": ["signflow 카나리 6자리 자동 확인·완료 후 문서 검사"],
+  "issues": [
+    "m4a·webm 업로드는 서버에 ffmpeg 가 없어 목소리 자동 인식을 건너뛴다(전사는 정상)",
+    "스트리밍 헤더 WAV 를 올리면 길이를 잘못 읽어 «너무 김» 으로 거절될 수 있음",
+    "사용자 데이터 내보내기 파일에는 목소리 등록 정보가 아직 없다(관리자 내보내기에는 있음)"
+  ],
+  "blocked_on_human": ["iOS 1.0.1 심사 결과 · Google Play 이름 변경 심사 결과"],
+  "migrations": ["migrate-client-crash-kind.js(멱등, 배포 슬롯) · q-note SQLite 열 추가는 기동 시 자동(멱등)", "첫 기동 1분 뒤 보관기간 작업이 7일 넘게 움직임 없는 회의의 화자 임베딩을 삭제(비가역, Irene 결정 ②)"],
+  "check_areas": ["관리자 메일 — 화면 오류 알림이 실제로 오는지", "Q Note 회의에서 등록한 사람 이름이 자동으로 붙는지", "업무 댓글 푸시 미리보기(폰)"],
+  "backlog": ["드라이브 연결 워크스페이스 업로드 1MB≈3초(동기 Drive 업로드)", "iOS·Android 네이티브 공유 받기(#434)"],
+  "tooling_health": ["버튼 순찰(--suite patrol) 매일 03:30 KST dev · 5환경 · 쓰기 차단", "목소리 실호출 검사 scripts/e2e/voice (수동, Deepgram 사용)"],
   "undeployed": []
 }

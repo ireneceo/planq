@@ -1,4 +1,27 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-10-05 · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료(dev) — ede9ec7f · 0598039d 커밋, 운영 미배포. 미커밋 0. Fable 은 Irene 지시로 더 쓰지 않음(«그만 좀 써»)
+
+### 완료(커밋)
+- ede9ec7f: 화면 오류 관리자 메일(client_crash) · 업무 댓글 알림 앞 40자 · 채팅 [더보기] 크래시 · Q Note 무음 8초=받은 오디오 길이 (Fable PASS)
+
+### 완료(커밋 0598039d, Fable 조건부 PASS + 지적 F-1·2·4·5 반영 자체검증 · F-3 사용자 내보내기 경로 미반영)
+- 목소리 프로필 → 화자 자동 이름 (docs/VOICE_PROFILE_DESIGN.md, Irene «제안대로 다 해»): 동의 게이트·고객 홈·라이브(마이크·화상)·업로드·종료 배치·사람 고르기·24개월/7일 보관·감사·처리방침
+  · 실측으로 기준 0.85 단일(설계 0.72/본인 0.62 폐지) · dev q-note PM2 메모리 512M→2G(인코더 517MB 로 회의 중 재시작)
+  · 검사: scripts/e2e/voice/voice-live.js(16) · voice-more.js(14) · 브라우저 19
+- 버튼 순찰 canary-button-patrol.js + nightly-patrol.sh + cron(18:30 UTC) · 실결함: 프로필 전문성/언어 수준 저장 실패가 조용함 → AutoSaveField
+
+### 다음 할 일
+1. Fable 결과 반영 → 커밋 → (Irene «배포» 시) 운영: ①ede9ec7f 슬롯 migrate-client-crash-kind ②처리방침 문구 바뀜 — 운영 privacy_version 올릴지 Irene 결정 ③첫 보관기간 실행이 운영 끝난 회의 화자 임베딩을 일괄 삭제(결정 ②)
+2. 운영 테스트 데이터 삭제(post 93·서명 요청 1·2) — 자동 권한이 막음, Irene 이 `!` 로 실행(명령은 대화에 있음)
+3. 발견: 스트리밍 헤더 WAV 업로드를 1118분으로 오인해 «너무 김» 거절(audio_probe mutagen) · 드라이브 연결 워크스페이스 업로드 1MB≈3초(동기 Drive 업로드)
+4. 남은 항목: 네이티브 공유 #434(계정·실기기 필요) · Irene: iOS 1.0.1 심사·서치콘솔
+
+---
+
+> ⚠️ 아래는 10-04 밤 기록.
+
+## 현재 작업 상태
 **마지막 업데이트:** 2026-10-04 밤 · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료 — 운영 배포 82ad802e(backup /opt/planq/backups/20261004_172102) · 미커밋 0 · Fable PASS
 
