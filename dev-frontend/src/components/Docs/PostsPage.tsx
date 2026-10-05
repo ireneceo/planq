@@ -3421,6 +3421,9 @@ const StaleBtn = styled.button<{ $danger?: boolean }>`
 // 서명본 본문 — 서버가 조립한 HTML 을 그대로 그린다. 서명 칸 규격은 서버
 // services/signedDocument.js `SIGNED_CSS` 가 정본이고, 여기서는 **본문 타이포만** 맞춘다.
 const SignedBody = styled.div`
+  /* 편집기 보기(PostEditor borderless Body)와 **같은 여백** — 서명 요청이 생겨 서명본으로 바뀌는 순간
+     좌우 여백이 사라져 글이 선에 붙었다(2026-10-05 K-DINE 계약서, Irene). 값은 PostEditor 의 12px 24px. */
+  padding: 12px 24px;
   font-size: 0.9375rem; line-height: 1.75; color: #1E293B;
   h1, h2, h3 { margin: 1.2em 0 0.5em; line-height: 1.35; }
   p { margin: 0 0 0.75em; }

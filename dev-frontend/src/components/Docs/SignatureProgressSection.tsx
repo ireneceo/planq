@@ -8,7 +8,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listSignatures, cancelSignature, remindSignature, type SignatureRequest, type SignatureStatus } from '../../services/posts';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import ConfirmDialog from '../Common/ConfirmDialog';
@@ -33,6 +33,14 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const { user: me } = useAuth();
   // 보내는 쪽(우리) 서명 — 내 칸이면 앱 안에서 바로 서명한다(메일·인증번호 없음)
   const [signTarget, setSignTarget] = useState<SignatureRequest | null>(null);
+  // 내가 지금 이 칸에 서명할 수 있는가 — [서명하기] 버튼과 URL `?sign=` 자동 열기가 **같은 판정**을 쓴다.
+  const canSignNow = useCallback((sr: SignatureRequest) => sr.party === 'us'
+    && sr.status !== 'signed' && sr.status !== 'rejected' && sr.status !== 'expired' && sr.status !== 'canceled'
+    && Number(sr.signer_user_id ?? sr.requester_user_id) === Number(me?.id), [me?.id]);
+  // 확인 필요·받은 서명에서 «서명하기» 로 들어오면 `?sign=<요청 id>` 가 붙는다 → 문서만 열지 말고 서명 창을 바로 연다
+  //   (Irene 2026-10-05: "나보고 서명하라는 건데 링크가 문서로 올 게 아니라 서명하기 누르면 나오는 페이지가 열려야"). 연 뒤에는 떼어
+  //   새로고침·뒤로 가기에 창이 다시 뜨지 않게 한다. keep-alive 탭에서도 다시 들어올 때 걸리도록 searchParams 를 deps 로 본다.
+  const [searchParams, setSearchParams] = useSearchParams();
   const [list, setList] = useState<SignatureRequest[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionMenuId, setActionMenuId] = useState<number | null>(null);
@@ -71,6 +79,16 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SignatureRequest | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const wantSign = Number(searchParams.get('sign')) || null;
+  useEffect(() => {
+    if (!wantSign || !list) return;
+    const sr = list.find((x) => x.id === wantSign);
+    if (sr && canSignNow(sr)) setSignTarget(sr);
+    const next = new URLSearchParams(searchParams);
+    next.delete('sign');
+    setSearchParams(next, { replace: true });
+  }, [wantSign, list, canSignNow, searchParams, setSearchParams]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -272,8 +290,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
               </Td>
               <Td>
                 {/* 보내는 쪽 내 칸 — 메일 링크가 없다. 여기서 바로 서명한다. */}
-                {sr.party === 'us' && sr.status !== 'signed' && sr.status !== 'rejected' && sr.status !== 'expired'
-                  && Number(sr.signer_user_id ?? sr.requester_user_id) === Number(me?.id) && (
+                {canSignNow(sr) && (
                   <SignNowBtn type="button" data-testid="sign-internal-open" onClick={() => setSignTarget(sr)}>
                     {t('signProgress.signNow', { defaultValue: '서명하기' }) as string}
                   </SignNowBtn>

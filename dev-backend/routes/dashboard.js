@@ -652,7 +652,7 @@ async function collectSignatures(businessId, userEmail, userRole) {
         createdAt: safeToIso(sr.createdAt),
         actor: { name: sr.signer_name || sr.signer_email },
         // 보내는 쪽은 앱 안 문서에서 서명한다(인증번호 없이 로그인) — 공개 서명 링크로 보내지 않는다.
-        link: (sr.party === 'us' && sr.entity_type === 'post') ? `/docs?post=${sr.entity_id}` : `/sign/${sr.token}`,
+        link: (sr.party === 'us' && sr.entity_type === 'post') ? `/docs?post=${sr.entity_id}&sign=${sr.id}` : `/sign/${sr.token}`,
       });
     }
   }

@@ -110,7 +110,7 @@ export default function ReceivedSignaturesTab() {
   const handleSign = (it: ReceivedSignature) => {
     // 보내는 쪽(우리) 서명자는 메일·인증번호 없이 **앱 안 문서**에서 서명한다(POST /signatures/:id/sign-internal).
     //   공개 서명 링크로 보내면 본인에게 인증번호 메일을 받게 하는 엉뚱한 길이 된다.
-    if (it.party === 'us' && it.entity_type === 'post') { navigate(`/docs?post=${it.entity_id}`); return; }
+    if (it.party === 'us' && it.entity_type === 'post') { navigate(`/docs?post=${it.entity_id}&sign=${it.id}`); return; }
     window.open(`/sign/${it.token}`, '_blank', 'noopener');
   };
 
