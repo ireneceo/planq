@@ -39,6 +39,7 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', pl
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const hoverOpenedRef = useRef(false);   // 지금 열린 것이 «올려서» 열린 것인가 — 바로 뒤 누름이 닫지 않게
   const popoverRef = useRef<HTMLDivElement>(null);
 
   // Trigger 위치 기반으로 Popover 좌표 계산 — viewport 안에 자동 정렬
@@ -95,8 +96,15 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', pl
       <Trigger
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen(v => !v)}
-        onMouseEnter={() => setOpen(true)}
+        // ★ 2026-10-05 — 올리면 열고(hover) 누르면 뒤집기(toggle)였다. 마우스로 누르면 «올림→열림→누름→닫힘» 이라
+        //   아무 일도 없는 버튼이 됐고, **폰은 탭 한 번에 mouseenter·click 이 같이 와서 한 번도 안 열렸다.**
+        //   (버튼 순찰 «눌러도 반응 없음» 이 잡았다.) 올려서 막 열린 직후의 누름은 «닫기» 가 아니라 «그대로 두기» 다.
+        onClick={() => {
+          if (hoverOpenedRef.current) { hoverOpenedRef.current = false; setOpen(true); return; }
+          setOpen(v => !v);
+        }}
+        onMouseEnter={() => { if (!open) hoverOpenedRef.current = true; setOpen(true); }}
+        onMouseLeave={() => { hoverOpenedRef.current = false; }}
         aria-label={t('helpDot.ariaLabel', '도움말') as string}
         aria-expanded={open}
       >

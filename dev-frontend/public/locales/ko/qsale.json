@@ -116,7 +116,7 @@
     "profile": "프로필",
     "billingPhone": "청구 전화",
     "notClientHint": "아직 고객으로 등록되지 않았습니다. 아래 액션을 누르면 고객으로 등록한 뒤 이어서 진행합니다.",
-    "cameVia": "{{via}} 로 들어온 문의",
+    "cameVia": "{{via}}에서 들어온 문의",
     "menuGroup": {
       "make": "만들기",
       "go": "이동·관리"

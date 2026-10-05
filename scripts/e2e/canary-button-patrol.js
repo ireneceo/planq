@@ -62,7 +62,9 @@ async function setupPage(ctx, env) {
   // ★ 쓰기 차단 — 순찰은 아무것도 바꾸지 않는다.
   await page.setRequestInterception(true);
   page.__blocked = 0;
+  page.__reqs = 0;
   page.on('request', (r) => {
+    if (/\/api\//.test(r.url())) page.__reqs += 1;
     const u = r.url();
     const m = r.method();
     if (m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS' && /\/api\//.test(u)
@@ -215,6 +217,15 @@ async function patrolEnv(browser, env, routes, maxN, report) {
         const t1 = newTargets;
         const nc1 = env.native ? await page.evaluate(() => (window.__nativeCalls || []).length) : 0;
         const p1 = await page.evaluate(() => location.pathname + location.search);
+        // «눌러도 반응 없음» 판정용 — 화면 변화·요청·주소·새 창 어느 것도 없으면 죽은 버튼이다(2026-10-05 Irene:
+        //   «이런 문제를 내가 찾기 전에 너가 안돼?» — 상담 «메일에서 보기» 신고)
+        const r1 = page.__reqs;
+        await page.evaluate(() => {
+          window.__pqMut = 0;
+          if (window.__pqObs) window.__pqObs.disconnect();
+          window.__pqObs = new MutationObserver((m) => { window.__pqMut += m.length; });
+          window.__pqObs.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+        });
         const o1 = await page.evaluate(OVERLAY_SIG);
         try {
           if (env.vp.hasTouch) await page.touchscreen.tap(pt.x, pt.y); else await page.mouse.click(pt.x, pt.y);
@@ -222,6 +233,19 @@ async function patrolEnv(browser, env, routes, maxN, report) {
         clicked += 1;
         await b.sleep(700);
         const after = await page.evaluate(SCREEN_STATE).catch(() => ({ boundary: false, text: 999, overflow: 0 }));
+        const react = await page.evaluate(() => ({
+          mut: window.__pqMut || 0,
+          url: location.pathname + location.search,
+          // 눌렀더니 «찾을 수 없음·권한 없음·오류» 상세 화면 — 공용 DetailFallback 의 손잡이(하니스 계약)
+          fallback: [...document.querySelectorAll('[data-testid="detail-fallback-notfound"],[data-testid="detail-fallback-forbidden"],[data-testid="detail-fallback-error"]')]
+            .filter((e) => !e.closest('[aria-hidden="true"]') && e.getBoundingClientRect().width > 0).map((e) => e.getAttribute('data-testid')),
+        })).catch(() => ({ mut: 1, url: '', fallback: [] }));
+        if (react.fallback.length) findings.push({ route, button: name, kind: '눌렀더니 찾을 수 없음', detail: `${react.fallback.join(',')} @ ${react.url}`, severity: 'FAIL' });
+        // 이미 선택된 탭·필터를 다시 누른 것은 반응이 없는 게 정상이다(aria-selected/pressed/current)
+        const alreadyOn = await el.evaluate((x) => ['aria-selected', 'aria-pressed', 'aria-current'].some((k) => { const v = x.getAttribute(k); return v && v !== 'false'; })).catch(() => false);
+        if (!alreadyOn && react.mut === 0 && page.__reqs === r1 && react.url === p1 && newTargets === t1) {
+          findings.push({ route, button: name, kind: '눌러도 반응 없음', detail: '화면 변화·요청·이동 0', severity: 'WARN' });
+        }
         const newErrs = errs.slice(e1);
         if (after.boundary) findings.push({ route, button: name, kind: '오류 화면', detail: newErrs.join(' / ').slice(0, 200), severity: 'FAIL' });
         else if (newErrs.length) findings.push({ route, button: name, kind: 'pageerror', detail: newErrs.join(' / ').slice(0, 200), severity: 'FAIL' });
@@ -296,7 +320,7 @@ async function run() {
     // ★ 하나도 못 눌렀으면 초록이 아니다 — 미측정이다
     results.push({ name: `${r.env} · 버튼 ${r.clicked}개 눌러 봄`, fail: r.clicked === 0 ? 1 : 0, details: [r.clicked === 0 ? '미측정 — 누른 버튼 0' : `막은 쓰기 ${r.blocked}`] });
     results.push({ name: `${r.env} · 오류·빈 화면·넘침·앱 이탈 0`, fail: fails.length ? 1 : 0, details: fails.length ? fails.slice(0, 12).map((f) => `${f.route} «${f.button}» ${f.kind} — ${f.detail}`) : ['없음'] });
-    if (warns.length) results.push({ name: `${r.env} · (경고) 눌러지지 않는 버튼 ${warns.length}`, fail: 0, details: warns.slice(0, 8).map((f) => `${f.route} «${f.button}» ${f.detail}`) });
+    if (warns.length) results.push({ name: `${r.env} · (경고) 눌러지지 않음·반응 없음 ${warns.length}`, fail: 0, details: warns.slice(0, 8).map((f) => `${f.route} «${f.button}» ${f.detail}`) });
   }
   return results;
 }
