@@ -723,3 +723,8 @@
 이전 세션 이어서 작업하고 싶어.
 /opt/planq/.claude/session-state.md 읽어줘.
 ```
+
+## 2026-10-05 [Claude Code/Opus] 서명 항목 — 커밋 51145043 (배포 대기: Fable 게이트 결과 후)
+- 설계 docs/SIGNATURE_ITEMS_DESIGN.md §9 · 신규 --suite signitems
+- 다음 섹션 남은 것: F-3 사용자 내보내기 목소리 메타 · m4a ffmpeg · 스트리밍 WAV · Drive 업로드 속도 · #457/#415 · #434 네이티브 공유 · AI 에이전트 M3 · 워크스페이스 단위 날짜 표기(원하면)
+- 대기: iOS 1.0.1 · Play 이름 변경 심사
