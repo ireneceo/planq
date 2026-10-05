@@ -1570,6 +1570,10 @@ useBodyScrollLock(open);                 // ★ **가운데 모달에만.** 우�
 | `belowChrome` (`theme/layout.ts`) | 위 토큰을 쓰는 css 조각 | 〃 |
 | `belowTabs` (`theme/layout.ts`) | 탭바 아래(`--chrome-top`). 미러 모드에선 0 | 전면으로 덮는 상세 드로어 |
 
+- ★ **폰(≤640)의 상세 패널은 앱 헤더를 덮는 전면이다** (2026-10-05, Irene: *"모바일 상세 들어가면 상단 헤더가 그대로 있어. 없어져야지"*).
+  우측 상세·곁패널(DetailDrawer·업무 상세·문서 기록·작업대 오버레이·Q talk 우측·도움말)은 `--pq-panel-top`(`theme/layout.panelTop`)을 쓴다 —
+  폰 미러 모드 = 상태바 아래(`--pq-safe-top`), 그 밖 = `--pq-chrome-bottom` 과 같다. 폰에서 앱 헤더(z 100)보다 낮은 패널은 `--pq-z-overlay` 로 올린다.
+  가운데 모달·드롭다운은 종전대로 크롬 아래. 회귀 `--suite mobilechrome`(드로어/폰 = 상태바 아래).
 - **모드 분기는 CSS 가 한다** (`html.pq-tabmode` + `@media (max-width:1024px)`).
   JS 상수를 인라인 `style` 로 넘기면 미디어쿼리가 못 덮는다 — 2026-09-06 하루에 두 번 겪었다
   (탭바 `leftOffset` 이 사이드바 폭만큼 밀렸고, `--chrome-top` 이 40 고정이라 상태바 24px 만큼 어긋났다).

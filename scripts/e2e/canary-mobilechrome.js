@@ -137,8 +137,11 @@ async function run() {
         });
         return a ? Math.round(a.getBoundingClientRect().top) : null;
       });
-      push(`드로어/${w} 상단이 크롬 하단과 일치`, top !== null && Math.abs(top - cb) <= 1,
-        `크롬하단=${cb} 패널top=${top}`);
+      // ★ 2026-10-05 계약 변경(Irene: "모바일 상세 들어가면 상단 헤더가 그대로 있어. 없어져야지") —
+      //   폰(≤640)의 상세 패널은 앱 헤더를 **덮는** 전면(--pq-panel-top = 상태바 아래, 웹은 0). 태블릿·데스크탑은 종전대로 크롬 하단.
+      const expectTop = W <= 640 ? await page.evaluate(() => Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pq-safe-top')) || 0)) : cb;
+      push(`드로어/${w} 상단 = ${W <= 640 ? '상태바 아래(앱 헤더를 덮음)' : '크롬 하단'}`, top !== null && Math.abs(top - expectTop) <= 1,
+        `기대=${expectTop} 크롬하단=${cb} 패널top=${top}`);
 
       // ── ⑤ 같은 메뉴 재클릭 = 그 메뉴 처음으로 ──────────────────────
       const clicked = await page.evaluate(() => {

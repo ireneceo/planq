@@ -117,6 +117,16 @@ html.pq-tabmode { --pq-chrome-bottom: var(--pq-chrome-top); }
   html:not(.pq-tabmode) { --pq-chrome-bottom: var(--pq-mobile-chrome); }
 }
 
+/* ★ --pq-panel-top : **상세 패널(우측 곁패널·상세 드로어)이 서는 y** (2026-10-05).
+   Irene: "모바일 확인필요에서 업무 눌러서 상세 들어가면 상단 헤더가 그대로 있어. 없어져야지 … 다른 요소도."
+   폰에서는 상세가 화면 전체다 — 앱 헤더(로고·메뉴)를 덮고 상태바 바로 아래에서 시작한다(닫기·돌아가기는 패널 머리에 있다).
+   태블릿·데스크탑은 종전대로 크롬 아래(--pq-chrome-bottom) — 목록과 나란히 보는 곁패널이다.
+   가운데 모달·드롭다운은 이 값을 쓰지 않는다(그것들은 앱 헤더 아래 그대로). */
+html { --pq-panel-top: var(--pq-chrome-bottom); }
+@media (max-width: 640px) {
+  html:not(.pq-tabmode) { --pq-panel-top: var(--pq-safe-top); }
+}
+
 
 /* 에디터 버블(표·이미지 편집 컨트롤) — TipTap 이 만드는 래퍼 div 에 붙는다.
    래퍼는 우리 컴포넌트가 아니라서 styled-components 로는 못 잡는다. className 으로만 닿는다. */

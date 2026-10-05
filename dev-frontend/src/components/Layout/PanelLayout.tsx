@@ -107,10 +107,11 @@ export const Panel = styled.div<{
     @media (max-width: 1024px) {
       position: fixed;
       /* ★ 56px 하드코딩이었다 — 상태바도 탭 모드도 모르는 숫자다(2026-09-06). */
-      top: var(--pq-chrome-bottom, 56px);
+      top: var(--pq-panel-top, 56px);   /* 폰은 앱 헤더를 덮는 전면 상세(2026-10-05) */
       right: 0; bottom: 0;
       width: min(400px, 92vw);
       z-index: 41;
+      @media (max-width: 640px) { z-index: var(--pq-z-overlay, 130); }   /* 앱 헤더(100) 위 — 안 그러면 헤더가 머리를 가린다(#443) */
       border-left: 1px solid #E2E8F0;
       box-shadow: -8px 0 24px rgba(15, 23, 42, 0.12);
       padding-bottom: var(--pq-safe-bottom, 0px);

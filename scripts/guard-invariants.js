@@ -1895,7 +1895,7 @@ function checkStatusLabel() {
 //        auto, calc, 50%)도 앵커가 다른 물건이라 뺀다.
 function checkOverlayTop() {
   const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
-  const OK = /--chrome-top|--pq-chrome-bottom|\$\{belowTabs\}|\$\{belowChrome\}/;
+  const OK = /--chrome-top|--pq-chrome-bottom|--pq-panel-top|\$\{belowTabs\}|\$\{belowChrome\}|\$\{panelTop\}/;
   const SKIP_TOP = /^(auto|50%|100%|calc\(|\$\{)/;
   const hits = [];
   for (const f of files) {

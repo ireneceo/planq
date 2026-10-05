@@ -19,3 +19,8 @@ export const belowTabs = css`
 export const belowChrome = css`
   top: var(--pq-chrome-bottom, 0px);
 `;
+
+/** 상세 패널 기준선 — 폰은 앱 헤더를 덮고(상태바 아래), 그 밖은 belowChrome 과 같다(index.css --pq-panel-top). */
+export const panelTop = css`
+  top: var(--pq-panel-top, 0px);
+`;

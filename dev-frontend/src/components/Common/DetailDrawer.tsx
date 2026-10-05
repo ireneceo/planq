@@ -231,7 +231,8 @@ const Backdrop = styled.div`
      --pq-chrome-bottom 은 탭 모드=탭바 아래 / 폰=모바일 헤더 아래 / 그 외 0 이라
      **데스크탑 탭 모드 동작은 그대로**고 폰에서만 헤더가 남는다.
      숫자를 적지 않는다 — 상태바 인셋이 있는 기기에서 거짓이 된다. */
-  position: fixed; top: var(--pq-chrome-bottom, 0px); left: 0; right: 0; bottom: 0;
+  /* ★ 2026-10-05 — 기준선은 --pq-panel-top: 폰은 앱 헤더까지 덮는 전면 상세, 그 밖은 종전 크롬 아래(index.css). */
+  position: fixed; top: var(--pq-panel-top, 0px); left: 0; right: 0; bottom: 0;
   background: rgba(15, 23, 42, 0.08);
   /* RightDock FAB(z-index 120) 위로 — 드로어 열리면 우하단 퀵메뉴가 드로어를 뚫고 나오지 않게.
      위계: 페이지크롬(99·100) < FAB(120) < 드로어(125·130) < 센터모달(1000+). */
@@ -248,8 +249,8 @@ const Panel = styled.aside<{ $width: number }>`
   /* --vv-top: iOS 가 키보드를 올리며 visual viewport 를 밀어낸 양(main.tsx 가 sync).
      이걸 안 더하면 fixed 패널이 화면 위로 밀려 **헤더와 제목이 잘려 나간다**.
      키보드 없음/데스크탑 = 0 → 기존과 동일. */
-  position: fixed; top: calc(var(--pq-chrome-bottom, 0px) + var(--vv-top, 0px)); right: 0;
-  height: calc(var(--vvh, 100dvh) - var(--pq-chrome-bottom, 0px));
+  position: fixed; top: calc(var(--pq-panel-top, 0px) + var(--vv-top, 0px)); right: 0;
+  height: calc(var(--vvh, 100dvh) - var(--pq-panel-top, 0px));
   z-index: 130;
   background: #fff;
   display: flex; flex-direction: column;
@@ -283,7 +284,7 @@ const HeaderWrap = styled.div`
        여기서 상태바를 **한 번 더** 더해, 앱(아이폰 47px)에서 모든 우측패널 머리에 빈 띠가 생겼다.
        브라우저는 safe-top 이 0 이라 보이지 않았다. 크롬이 상태바를 이미 덮은 만큼은 빼고, 크롬이 없을 때
        (넓은 폭 미러 모드 = chrome-bottom 0)만 상태바 자리를 비운다. */
-  padding-top: calc(16px + max(0px, var(--pq-safe-top, 0px) - var(--pq-chrome-bottom, 0px)));
+  padding-top: calc(16px + max(0px, var(--pq-safe-top, 0px) - var(--pq-panel-top, 0px)));
   @media (max-width: 640px) { padding-left: 14px; padding-right: 14px; }
 `;
 
