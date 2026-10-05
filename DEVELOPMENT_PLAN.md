@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-05 ([Opus] Opus 5.5) — **운영 배포 7a47bb70** · 화면 오류 관리자 메일 · 댓글 알림 미리보기 · 채팅 [더보기] 크래시 · 목소리 프로필 → Q Note 화자 자동 이름(M1~M4) · 버튼 순찰(매일 밤) · 프로필 저장 실패 표시. iOS 1.0.1·Play 이름 변경 심사 제출.
+> **최종 업데이트:** 2026-10-05 밤 ([Opus] Opus 5.5) — **운영 배포 3회(895603ef · ebeb1cd7 · 3193e6a5)** · 문서 연결 저장·양방향 · 서명 요청 첨부 범위·서명자 PDF·서명 창 바로 · AI 에이전트 문서·파일 쓰기 · 할 일 목록 · 일정 알림 늦은 발송 조건 · 폰 상세 전면 · Q info 항목 잘림. **Fable 미검증(한도) — FABLE_GATE_QUEUE.md 맨 위 표 10행.**
+> ── 이전(2026-10-05 오전) ──
+> 2026-10-05 ([Opus] Opus 5.5) — **운영 배포 7a47bb70** · 화면 오류 관리자 메일 · 댓글 알림 미리보기 · 채팅 [더보기] 크래시 · 목소리 프로필 → Q Note 화자 자동 이름(M1~M4) · 버튼 순찰(매일 밤) · 프로필 저장 실패 표시. iOS 1.0.1·Play 이름 변경 심사 제출.
 > ── 이전(2026-10-04 밤) ──
 > 2026-10-04 밤 ([Opus] Opus 5.5) — **운영 배포 3회(6cb5f1a2 · 82ad802e 포함 20bae851)** · AI 에이전트 M3-b/c(도구 34) · 다운로드 캐시·진행 트레이 · SEO 정체 그래프·/en · 앱 안 링크·말하기 수리 · 서명 화면 보완 · Q info 상세 순서 · 화상회의 화자 분리 · Q Note 무음 감지·머리줄 · 느린 요청 기록. Fable PASS 전 라운드.
 > ── 이전(2026-10-02 밤) ──
@@ -20,6 +22,33 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-05 밤 [Opus] — 문서 연결 · 서명 첨부·PDF · AI 에이전트 문서/파일 쓰기 · 할 일 목록 · 폰 상세 전면
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 문서 연결 | 편집 완료·새 문서 저장이 연결을 안 보내던 것(8/25 저장 버튼 제거 이후) · 양방향(`services/postLinks`) | ✅ Fable PASS 26/26 |
+| 서명 첨부 범위 | Drive 별첨 404 · 연결 문서 동결·서명자 열람 · 보안등급 제외 · 요청 창 «함께 공개되는 것» | ✅ 자체 44/44 |
+| 서명 흐름 | 서명자 PDF(`/api/sign/:token/pdf`) · 확인필요 보내는 쪽 서명 · 받은 서명 «대기» · 서명자 고르기 · 채팅 카드 기본값 · 서명 화면 안내 · 발송 완료 수 · 서명본 여백 · ?sign= 서명 창 바로 | ✅ 전 과정 재현 41/41 |
+| 공용 렌더러 | 링크 safeHref(javascript:·data: 차단) | ✅ |
+| Q info | 목록 항목 값 잘림 → 제 길이 | ✅ 3폭 |
+| AI 에이전트 | 문서 만들기·이어 쓰기·고치기[M]·연결·프로젝트 이동[M] · upload_file(fileParams) · 메일 초안 첨부 · `post_actions` 행동 계층 · scope docs:write·files:write(재연결) | ✅ 실호출 36/36 |
+| 할 일 목록 | PostEditor(문서·메모·메모 팝업) 동그라미 + 가운데 줄 · PDF/공유 렌더 | ✅ 3폭 22/22 |
+| 일정 알림 | 저장 시각보다 앞선 발송 시각은 늦게 안 보냄 · 크론 표시 silent | ✅ 5/5 |
+| 폰 상세 전면 | `--pq-panel-top` — 상세 패널이 앱 헤더를 덮음 · 뒤로 = 목록 | ✅ 폰·앱·태블릿 실측 |
+| Fable 대기 목록 | `docs/FABLE_GATE_QUEUE.md` 맨 위 10행 | 📝 |
+
+### 수정된 파일 (주요)
+- `dev-backend/services/{postLinks,taskAttachmentLink}.js` · `services/actions/post_actions.js` · `services/agent/{markdown,registry,execute}.js` · `services/agent/tools/{docs_write,mail,content}.js` · `services/agent_oauth/config.js`
+- `dev-backend/services/{signatureCore,imageCtx,driveImport,pdfTemplates,calendarReminderCron}.js` · `routes/{posts,signatures,signature_public,dashboard,task_attachments}.js` · `mcp/server.js`
+- `dev-frontend/src/components/Docs/{PostsPage,PostEditor,editorChecklist,PostSignatureModal,SignOutboundScope,SignSlotThemInput,signerInputs,SignatureProgressSection}.tsx` · `pages/QDocs/{PublicSignPage,SignLinkedDocs}.tsx` · `pages/Signatures/ReceivedSignaturesList.tsx` · `components/Knowledge/kbListShell.tsx`
+- `dev-frontend/src/index.css` · `theme/layout.ts` · `components/Common/{DetailDrawer,CueHelpDrawer}.tsx` · `components/QTask/TaskDetailDrawer.tsx` · `components/Layout/PanelLayout.tsx` · `pages/QTalk/RightPanel.tsx` · `components/Docs/PostHistoryPanel.tsx`
+- `scripts/guard-invariants.js`(overlaytop 허용) · `scripts/e2e/canary-mobilechrome.js`(폰 상세 계약)
+
+### 남은 것
+- Fable 대기 목록 10행 · 일정 알림 여러 개(Irene 결정) · ChatGPT 재연결 후 파일 호스트 확인 · 반송 메일 조회
 
 ---
 

@@ -24,7 +24,8 @@
 3. Irene: ChatGPT PlanQ **재연결** → 첫 upload_file 로 download_url 호스트 확인(허용 *.oaiusercontent.com·*.openai.com·*.chatgpt.com)
 4. 반송 메일 zzhcobhmuvfyjqx@outlook.com — PlanQ 발송 기록 0건(백스캐터 의심) · Q mail 조회 스크립트(scratchpad bounce2.js) 결과 대기
 5. 운영 Drive 저장 별첨 서명 링크 실다운로드 확인(Irene)
-6. 발견·백로그: e2e mobilepanels 픽스처 불안정(태블릿·데스크탑 «업무 행 못 열음» 매번 다른 항목) · 스트리밍 WAV 길이 오인 · Drive 업로드 속도 · #434
+6. 도움말 «ChatGPT·Claude 연결하기» 에 문서·파일·재연결 안내 추가(dev 시드 완료) — **다음 배포 뒤 운영 시드** `ssh 87.106.78.146 "cd /opt/planq/backend && node seed-wiki-content.js"`
+7. 발견·백로그: e2e mobilepanels 픽스처 불안정(태블릿·데스크탑 «업무 행 못 열음» 매번 다른 항목) · 스트리밍 WAV 길이 오인 · Drive 업로드 속도 · #434
 
 ### 주요 변경사항
 - 새 토큰 `--pq-panel-top` / `theme/layout.panelTop` · overlaytop 가드 허용 목록 추가

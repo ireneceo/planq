@@ -437,6 +437,10 @@ const initialId = new URLSearchParams(location.search).get('task');
 - 파라미터명: 단수형 엔티티 (task, client, project …)
 - 닫기 시 파라미터 제거
 - `replace: true` 로 뒤로가기 스택 오염 방지
+- **폰(≤640)에서 상세 패널은 앱 헤더를 덮는 전면**이다(2026-10-05). 상단 기준선은 `--pq-panel-top`(`theme/layout.panelTop`) —
+  폰 = 상태바 아래, 태블릿·데스크탑 = 크롬 아래. 닫기·돌아가기는 패널 머리에 두고, 뒤로 가기는 `useBackToClose` 로 패널만 닫는다.
+  앱 헤더(z 100)보다 낮은 패널은 폰에서 `--pq-z-overlay` 로 올린다. 가운데 모달·드롭다운은 이 규칙 밖(크롬 아래).
+- **«이 사람에게 서명시키는» 링크는 서명 창까지 연다** — 문서만 열고 끝내지 않는다(`?sign=<요청 id>`, `SignatureProgressSection` 이 버튼과 같은 판정으로 연다).
 
 ### 1.10 메시지·발화 번역 표시 (Q note 패턴 — 2026-04-28)
 
