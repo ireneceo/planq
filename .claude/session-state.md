@@ -1,4 +1,46 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-10-05 19:15 UTC · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료 — **운영 배포 3193e6a5** (backup /opt/planq/backups/20261005_190443) · 미커밋 0 · **Fable 미검증(자체 검증)** — 한도 429
+
+### 진행 중인 작업
+- 없음
+
+### 완료된 작업 (이번 세션 — 배포 3회: 895603ef · ebeb1cd7 · 3193e6a5)
+- 문서 연결 저장 누락(편집 완료·새 문서) + **양방향 연결**(services/postLinks) — Fable PASS 26/26
+- 서명 요청 첨부 범위: Drive 별첨 열람 · 연결 문서 동결·서명자 열람 · 보안등급 제외 · 요청 창 «함께 공개되는 것»(SignOutboundScope)
+- 공용 렌더러 링크 safeHref · 서명자 PDF `GET /api/sign/:token/pdf` · 확인필요에 보내는 쪽(pending) 서명 · 받은 서명 «대기» · 서명자 고르기(SignSlotThemInput) · 채팅 카드 기본값 · 서명 화면 안내(내 칸 → 본인 확인)
+- 발송 완료 «메일 N명/앱 안 N명» · 서명본 보기 좌우 여백 · 확인필요/받은 서명 → 서명 창 바로(?sign=)
+- Q info 목록 항목 값 잘림(kbListShell)
+- **AI 에이전트 문서·파일 쓰기**: services/actions/post_actions(화면 POST /api/posts·첨부 라우트도 이전) · 도구 6 + 메일 초안 file_ids · scope docs:write·files:write(**재연결 필요**) · driveImport.ingestDownloadedFile · services/taskAttachmentLink
+- 문서·메모 **할 일 목록**(editorChecklist — 동그라미 + 가운데 줄)
+- 일정 알림: 저장 시각보다 앞선 발송 시각은 늦게 안 보냄(기율 미팅 새벽 3시 알림)
+- **폰 상세 패널 = 앱 헤더 덮는 전면**(--pq-panel-top) — DetailDrawer·업무 상세·문서 기록·작업대·Q talk 우측·도움말 · mobilechrome 계약 갱신
+- 서명 전 과정 재현 41/41 · 각 항목 실측(위 커밋 메시지)
+- `docs/FABLE_GATE_QUEUE.md` 맨 위 **«🔴 Fable 검증 대기 목록» 10행** + memory project_fable_pending_list
+
+### 다음 할 일
+1. **Fable 한도 풀리면** 대기 목록 10행 한 라운드(묶어서)
+2. 일정 알림 여러 개(1일 전 + 1시간 전) — DB 변경, **Irene 결정 대기**
+3. Irene: ChatGPT PlanQ **재연결** → 첫 upload_file 로 download_url 호스트 확인(허용 *.oaiusercontent.com·*.openai.com·*.chatgpt.com)
+4. 반송 메일 zzhcobhmuvfyjqx@outlook.com — PlanQ 발송 기록 0건(백스캐터 의심) · Q mail 조회 스크립트(scratchpad bounce2.js) 결과 대기
+5. 운영 Drive 저장 별첨 서명 링크 실다운로드 확인(Irene)
+6. 발견·백로그: e2e mobilepanels 픽스처 불안정(태블릿·데스크탑 «업무 행 못 열음» 매번 다른 항목) · 스트리밍 WAV 길이 오인 · Drive 업로드 속도 · #434
+
+### 주요 변경사항
+- 새 토큰 `--pq-panel-top` / `theme/layout.panelTop` · overlaytop 가드 허용 목록 추가
+- 새 행동 계층 `services/actions/post_actions.js` (Q docs 쓰기 단일 착지점)
+- 새 무인증 라우트 `/api/sign/:token/linked/:postId` · `/api/sign/:token/pdf`
+- WRITE_SCOPES 에 docs:write·files:write · 동의 화면 문구 ko/en
+- CLAUDE.md: AI 에이전트 문서·파일 쓰기 계약 · 폰 상세 전면 계약
+
+### Git
+- HEAD 3193e6a5 (main) · 미커밋 0 · 운영 = HEAD
+
+---
+
+> ⚠️ 아래는 이전 기록.
+
+## 현재 작업 상태
 **마지막 업데이트:** 2026-10-05 · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료 — **운영 배포 7a47bb70 (backup /opt/planq/backups/20261005_074934)** · 첫 보관기간 실행으로 운영 화자 임베딩 19건 삭제(결정 ②) · 처리방침 버전은 안 올림(Irene) · iOS 1.0.1·Play 이름 심사 제출(결과 대기) · Fable 은 Irene 지시로 더 쓰지 않음
 
