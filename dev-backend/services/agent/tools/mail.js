@@ -332,6 +332,18 @@ async function createMailReplyDraft(p, a) {
   const subject = replySubjectOf(t.subject || (lastIn && lastIn.subject) || '');
   const bodyHtml = plainToHtml(a.body_text);
   if (isBlankHtml(bodyHtml)) throw err('VALIDATION_ERROR', 'body_required');
+  // 첨부(2026-10-05) — 이 사용자가 **볼 수 있는** 이 워크스페이스 파일만. 못 보는 id 는 없는 것과 같다(NOT_FOUND).
+  //   초안일 뿐 보내지 않는다 — 사람이 PlanQ 에서 받는 사람·첨부를 보고 직접 보낸다.
+  let attachIds = null;
+  if (Array.isArray(a.file_ids) && a.file_ids.length) {
+    const { File } = require('../../../models');
+    const { canUserSeeFile } = require('../../../middleware/imageViewer');
+    const ids = [...new Set(a.file_ids.map(Number))];
+    const files = await File.findAll({ where: { id: ids, business_id: p.businessId, deleted_at: null } });
+    if (files.length !== ids.length) throw err('NOT_FOUND', 'file_not_found');
+    for (const f of files) if (!(await canUserSeeFile(p.userId, p.platformRole, f))) throw err('NOT_FOUND', 'file_not_found');
+    attachIds = ids;
+  }
   const d = await upsertDraft({
     businessId: p.businessId, userId: p.userId, threadId: t.id,
     fields: {
@@ -340,11 +352,11 @@ async function createMailReplyDraft(p, a) {
       to_emails: null, cc_emails: null, bcc_emails: null,
       subject: subject ? String(subject).slice(0, 500) : null,
       body_html: bodyHtml,
-      attachment_file_ids: null,
+      attachment_file_ids: attachIds,
     },
   });
   return {
-    draft: { draft_id: d.id, thread_id: t.id, subject, body_chars: String(a.body_text).length, url: `${cfg.APP_URL}/mail?thread=${t.id}&reply=1` },
+    draft: { draft_id: d.id, thread_id: t.id, subject, body_chars: String(a.body_text).length, attached_file_ids: attachIds || [], url: `${cfg.APP_URL}/mail?thread=${t.id}&reply=1` },
     note: 'Saved as a reply draft in PlanQ — nothing was sent. The user reviews the recipients and sends it from PlanQ.',
     created: true,
   };

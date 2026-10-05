@@ -156,6 +156,29 @@ async function importDriveFile(ctx, meta, opts = {}) {
     }
     return { ok: false, reason: 'download_failed', detail: { message: msg.slice(0, 200) } };
   }
+  return ingestDownloadedFile({ businessId, uploaderId }, temp, {
+    projectId, folderId, visibility,
+    fileName: eligible.exportName || meta.name,
+    mimeType: eligible.exportMime || meta.mimeType || 'application/octet-stream',
+    originProvider: 'gdrive', externalId: driveId, externalUrl: meta.webViewLink || null, driveMd5: meta.md5Checksum || null,
+    auditValue: { source: 'gdrive', gdrive_file_id: driveId, actor: opts.actor || 'integration' },
+  });
+}
+
+/**
+ * 이미 내려받은 임시 파일 하나를 PlanQ File 로 들인다 — 커밋 시점 쿼터 재검증 · sha256 dedup · File 행 ·
+ * 사용량 · 실시간 신호 · 본문 색인 · 감사. (2026-10-05 importDriveFile 에서 떼어 냈다 — 동작 무변경.)
+ *   Drive 가져오기와 AI 에이전트 파일 올리기(ChatGPT fileParams)가 **같은 함수**를 부른다.
+ *   호출자 책임: 확장자 판정(checkEligible/ALLOWED_EXT) · 사전 쿼터 · 임시 경로(uploadPathFor).
+ *   실패하면 임시 파일을 지운다.
+ * @param ctx { businessId, uploaderId }
+ * @param opts { projectId, folderId, visibility, fileName, mimeType, originProvider, externalId, externalUrl, driveMd5, auditValue }
+ */
+async function ingestDownloadedFile(ctx, temp, opts) {
+  const { businessId, uploaderId } = ctx;
+  const projectId = opts.projectId ?? null;
+  const folderId = opts.folderId ?? null;
+  const visibility = opts.visibility || 'L3';
   const actualSize = fs.statSync(temp).size;
   const hash = await sha256OfFile(temp);
 
@@ -194,14 +217,14 @@ async function importDriveFile(ctx, meta, opts = {}) {
       uploader_id: uploaderId,
       // 변환해서 들였으면 **변환본의 이름·형식**을 적는다 — 원본 이름에는 확장자가 없고
       //   mime 이 google-apps 로 남으면 미리보기·다운로드가 그 형식으로 열리지 않는다.
-      file_name: String(eligible.exportName || meta.name).slice(0, 255),
+      file_name: String(opts.fileName || 'file').slice(0, 255),
       file_size: actualSize,
-      mime_type: eligible.exportMime || meta.mimeType || 'application/octet-stream',
+      mime_type: opts.mimeType || 'application/octet-stream',
       storage_provider: 'planq',        // 서빙 축 — 바이트는 우리가 가진다
-      origin_provider: 'gdrive',        // 정본 축 — 변경의 진실은 Drive 에 있다
-      external_id: driveId,
-      external_url: meta.webViewLink || null,
-      drive_md5: meta.md5Checksum || null,
+      origin_provider: opts.originProvider || null,   // 정본 축 — Drive 에서 왔으면 변경의 진실은 Drive 에 있다
+      external_id: opts.externalId || null,
+      external_url: opts.externalUrl || null,
+      drive_md5: opts.driveMd5 || null,
       content_hash: hash,
       ref_count: 1,
       // 권위 컬럼 동시 기록 — 한쪽만 쓰면 default 로 새어 전 멤버에게 노출된다.
@@ -244,13 +267,13 @@ async function importDriveFile(ctx, meta, opts = {}) {
   require('./auditService').createAuditLog({
     action: 'file.ingest', targetType: 'file', targetId: created.id,
     businessId, userId: uploaderId,
-    newValue: { source: 'gdrive', gdrive_file_id: driveId, actor: opts.actor || 'integration' },
+    newValue: opts.auditValue || { source: 'unknown' },
   });
 
   return { ok: true, file: created };
 }
 
 module.exports = {
-  importDriveFile, checkEligible, ALLOWED_EXT, GOOGLE_NATIVE_PREFIX,
+  importDriveFile, ingestDownloadedFile, uploadPathFor, extOf, checkEligible, ALLOWED_EXT, GOOGLE_NATIVE_PREFIX,
   exportSpecFor, exportNameFor, GOOGLE_EXPORT,
 };

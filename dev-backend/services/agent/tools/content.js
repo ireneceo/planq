@@ -152,7 +152,8 @@ async function getDocument(p, a) {
   const visibleFiles = [];
   for (const f of files) if (await canAccessFileByLevel(p.userId, f, scope)) visibleFiles.push({ file_id: f.id, name: f.file_name, size_bytes: f.file_size ?? null, mime_type: f.mime_type || null });
   out.document.attachments = visibleFiles;
-  const linkedIds = Array.isArray(post.linked_post_ids) ? post.linked_post_ids.map(Number).filter(Boolean).slice(0, 50) : [];
+  // 연결은 양방향(services/postLinks) — 화면 상세와 같은 집합(내 목록 ∪ 나를 건 문서). Fable 2026-10-05 관찰 반영.
+  const linkedIds = (await require('../../postLinks').effectiveLinkIds(post)).slice(0, 50);
   const linked = linkedIds.length ? await Post.findAll({ where: { id: linkedIds, business_id: p.businessId } }) : [];
   out.document.linked_posts = [];
   for (const lp of linked) {

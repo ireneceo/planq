@@ -265,22 +265,9 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
     });
     for (const f of files) if (!(await require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, f))) return errorResponse(res, 'file_not_found', 404); // ★ 볼 수 있는 파일만 — 남의 L1 이 사본으로 퍼진다, 통째로 거절
     const created = [];
-    for (const f of files) {
-      const att = await TaskAttachment.create({
-        business_id: req._task.business_id,
-        task_id: req._task.id,
-        comment_id: commentId,
-        context,
-        original_name: f.file_name,
-        stored_name: f.file_path.split('/').pop() || f.file_name,
-        file_path: f.file_path,
-        file_size: f.file_size,
-        mime_type: f.mime_type,
-        uploaded_by: req.user.id,
-        storage_provider: f.storage_provider,
-        external_id: f.external_id,
-        external_url: f.external_url,
-      });
+    // 메타 복사는 services/taskAttachmentLink 한 곳(AI 에이전트 upload_file 이 같은 함수를 쓴다)
+    const linked = await require('../services/taskAttachmentLink').linkFilesToTask(req._task, files, req.user.id, { context, commentId });
+    for (const att of linked) {
       created.push({
         id: att.id,
         context: att.context,

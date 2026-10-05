@@ -12,7 +12,9 @@ const CONSENT_URL = `${APP_URL}/connect/agent`;
 
 // scope — 툴마다 필요한 scope 한 줄. 동의 화면은 «읽기만 / 읽기+쓰기» 두 묶음으로만 보여준다(설계 §4.4).
 const READ_SCOPES = ['tasks:read', 'notes:read', 'clients:read', 'projects:read', 'schedule:read'];
-const WRITE_SCOPES = ['tasks:write', 'notes:write', 'schedule:write'];
+// docs:write · files:write — 2026-10-05 추가(문서 쓰기·파일 올리기). 이미 연결된 앱의 grant 에는 없다 →
+//   **다시 연결해야** 생긴다. 동의 화면 문구가 «업무·메모» 였던 grant 를 조용히 넓히지 않는다.
+const WRITE_SCOPES = ['tasks:write', 'notes:write', 'schedule:write', 'docs:write', 'files:write'];
 // 별도 동의(opt-in) — 묶음(읽기만/읽기+쓰기)에 **들지 않는다**(설계 docs/AI_AGENT_M3_DESIGN.md §3.1).
 //   동의 화면의 체크박스를 켰을 때만 붙는다. 묶음 밖이라 이미 받은 연결(grant)은 자동으로 넓어지지 않는다.
 //   mail:read          — 메일 조회(M3-a). 워크스페이스 스위치 permissions.ai_agent.mail 이 꺼지면 호출 때 거절.

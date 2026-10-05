@@ -1037,6 +1037,11 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
 - **업무 필드 권한 표(`FIELD_RULES`)·담당자 이력·담당자 후속(Cue 자동 실행·알림)은 행동 계층에 있다**(2026-10-02 M2-b 에서
   `PUT /tasks/:id` 인라인을 옮겼다). 사람(PUT)과 AI(`reassign`·`updateFields`)가 같은 함수를 쓴다 — 규칙을 바꾸면 한 곳만 고친다.
   미리보기(MEDIUM 1단계)도 실행과 같은 판정을 먼저 본다(거절될 요청에 확인 토큰을 내주지 않는다).
+- **문서·파일 쓰기(2026-10-05)** — `create_document`·`append_to_document`·`link_documents`(LOW) · `update_document`·`move_document_to_project`(MEDIUM 확인 2단계) ·
+  `upload_file`(ChatGPT `openai/fileParams` — 받는 주소는 OpenAI 파일 도메인 https 만 · 리다이렉트 안 따라감 · 받는 중 100MB 바닥 + 요금제 한도) ·
+  메일 답장 초안에 `file_ids`(보내지 않는다). 문서 쓰기는 **`services/actions/post_actions` 한 곳**(화면 `POST /api/posts`·첨부 라우트도 같은 함수),
+  파일 저장은 `driveImport.ingestDownloadedFile`(Drive 가져오기와 같은 함수), 업무 첨부는 `services/taskAttachmentLink`.
+  scope `docs:write`·`files:write` 는 **새로 생겼다 — 이미 연결된 앱은 다시 연결해야** 생긴다(옛 동의를 조용히 넓히지 않는다).
 - **HIGH(삭제·청구·발송·권한·대량)는 도구로 두지 않는다** — 가드 `--category=agentsurface` 가 막는다(도메인 모델 직접 쓰기 0 · 재무 참조 0 · 고위험 이름 0 · 쓰기 도구 scope·멱등 선언 · 워크스페이스 묶음).
 - **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. **쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다**(기본 꺼짐 — `config.writeEnabled`). 2026-10-04 운영에 셋 다 넣었다.
 - **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).

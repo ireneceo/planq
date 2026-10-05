@@ -11,6 +11,7 @@ const notes = require('./tools/notes');
 const mail = require('./tools/mail');
 const content = require('./tools/content');
 const search = require('./tools/search');
+const docsw = require('./tools/docs_write');
 const { pageInput, LIST_SUFFIX } = require('./page');
 
 const dateOnly = t.dateOnly;
@@ -348,13 +349,82 @@ const TOOLS = [
   // ── M3-c — 답장 «초안»(설계 §3.4). 발송 도구는 없다(HIGH) — 사람이 PlanQ 에서 받는 주소를 보고 보낸다 ──
   {
     name: 'create_mail_reply_draft', risk: 'LOW', write: true, scopes: ['mail:read', 'mail_drafts:write'],
-    description: 'Save a reply draft (plain text) for a mail thread in PlanQ. Nothing is sent: the user opens the returned url, checks the recipients PlanQ fills in from the thread, and sends it themselves. You cannot set recipients, sender or subject. If a draft already exists for the thread it is never overwritten (CONFLICT draft_exists).',
+    description: 'Save a reply draft (plain text, optionally with PlanQ files attached) for a mail thread in PlanQ. Nothing is sent: the user opens the returned url, checks the recipients PlanQ fills in from the thread, and sends it themselves. You cannot set recipients, sender or subject. If a draft already exists for the thread it is never overwritten (CONFLICT draft_exists).',
     input: {
       thread_id: z.number().int().positive(),
       body_text: z.string().trim().min(1).max(5000).describe('Reply body as plain text (no HTML)'),
+      file_ids: z.array(z.number().int().positive()).max(10).optional().describe('PlanQ files (file_id from list_files or upload_file) to attach to the draft. Still not sent — the user sends it.'),
       idempotency_key: idem,
     },
     handler: (p, a) => mail.createMailReplyDraft(p, a),
+  },
+  // ── 2026-10-05 — Q docs 문서 쓰기 · 파일 올리기 (Irene: "문서도 작성할 수 있어야지. 파일도 보낼 수 있어야 하고.") ──
+  //   문서는 services/actions/post_actions(화면과 같은 함수), 파일은 driveImport.ingestDownloadedFile.
+  {
+    name: 'create_document', risk: 'LOW', write: true, scopes: ['docs:write'],
+    description: 'Create a document in PlanQ Q docs (title + content written in Markdown: headings, lists, bold, links). Optionally put it in a project (find project_id with search_projects) and link related documents (two-way). Visible to the project members, or to the whole workspace when no project — same as creating it in the app.',
+    input: {
+      title: z.string().trim().min(1).max(200),
+      content: z.string().max(100000).describe('Document body in Markdown'),
+      project_id: z.number().int().positive().optional(),
+      category: z.string().trim().max(50).optional(),
+      link_document_ids: z.array(z.number().int().positive()).max(20).optional().describe('Existing documents (post_id) to link, e.g. from search_documents'),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => docsw.createDocument(p, a, actor),
+  },
+  {
+    name: 'append_to_document', risk: 'LOW', write: true, scopes: ['docs:write'],
+    description: 'Add content (Markdown) to the end of an existing Q docs document. Never removes what is there. Fails if the document has a signature request (signed documents cannot change).',
+    input: { document_id: z.number().int().positive(), content: z.string().trim().min(1).max(50000), idempotency_key: idem },
+    handler: (p, a, actor) => docsw.appendToDocument(p, a, actor),
+  },
+  {
+    name: 'update_document', risk: 'MEDIUM', write: true, scopes: ['docs:write'],
+    description: 'Replace the title and/or the whole content (Markdown) of a Q docs document. The previous version stays in the document history. Requires confirmation: the first call only returns a preview. To add without replacing, use append_to_document.',
+    input: {
+      document_id: z.number().int().positive(),
+      title: z.string().trim().min(1).max(200).optional(),
+      content: z.string().max(100000).optional(),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => docsw.previewUpdate(p, a),
+    handler: (p, a, actor) => docsw.updateDocument(p, a, actor),
+  },
+  {
+    name: 'link_documents', risk: 'LOW', write: true, scopes: ['docs:write'],
+    description: 'Link (or unlink) other documents as related documents of a Q docs document. Links are two-way. Only documents the user can read are linked.',
+    input: {
+      document_id: z.number().int().positive(),
+      link: z.array(z.number().int().positive()).max(20).optional(),
+      unlink: z.array(z.number().int().positive()).max(20).optional(),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => docsw.linkDocuments(p, a, actor),
+  },
+  {
+    name: 'move_document_to_project', risk: 'MEDIUM', write: true, scopes: ['docs:write'],
+    description: 'Put an existing Q docs document into a project (or take it out with project_id omitted). Who can see a project-level document changes with the project, so this requires confirmation: the first call only returns a preview.',
+    input: { document_id: z.number().int().positive(), project_id: z.number().int().positive().optional(), confirmation_token: confirm, idempotency_key: idem },
+    preview: (p, a) => docsw.previewMove(p, a),
+    handler: (p, a, actor) => docsw.moveDocument(p, a, actor),
+  },
+  {
+    name: 'upload_file', risk: 'LOW', write: true, scopes: ['files:write'],
+    description: 'Save a file the user attached in this conversation into PlanQ, optionally attaching it to a document, a task or a project. Allowed types: jpg, jpeg, png, gif, pdf, doc, docx, xls, xlsx, ppt, pptx, zip, txt. Plan size and storage limits apply. Nothing is sent to anyone.',
+    input: {
+      file: z.object({
+        download_url: z.string().url(),
+        file_id: z.string().max(200),
+        file_name: z.string().max(255).optional(),
+        mime_type: z.string().max(200).optional(),
+      }).describe('The attached file (ChatGPT passes this)'),
+      file_name: z.string().trim().max(255).optional().describe('Name to save as (keep the extension)'),
+      attach_to: z.object({ kind: z.enum(['document', 'task', 'project']), id: z.number().int().positive() }).strict().optional(),
+      idempotency_key: idem,
+    },
+    _meta: { 'openai/fileParams': ['file'] },
+    handler: (p, a, actor) => docsw.uploadFile(p, a, actor),
   },
   // ── M2-a — MEDIUM(확인 2단계): 첫 호출은 미리보기만, 동의 후 confirmation_token 으로 실행 ──
   {

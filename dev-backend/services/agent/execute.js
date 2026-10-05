@@ -64,6 +64,7 @@ async function runTool(p, name, rawArgs) {
       const optIn = missing.filter((x) => cfg.OPT_IN_SCOPES.includes(x));
       const extra = { missing_scopes: missing };
       if (optIn.length) extra.hint = 'Reconnect PlanQ and allow email access in the consent screen.';
+      else extra.hint = 'This PlanQ connection was approved before this ability existed. Ask the user to disconnect and reconnect PlanQ (choose read + write) to allow it.';
       throw err('PERMISSION_DENIED', 'scope', extra);
     }
     // 입력 검증 — MCP SDK 가 이미 했지만 이 함수를 다른 입구(Cue 등)가 부를 때를 위해 한 번 더(.strict: 모르는 칸 거절)
@@ -120,7 +121,9 @@ async function runTool(p, name, rawArgs) {
       : data?.task ? { target_type: 'task', target_id: data.task.task_id }
       : data?.note ? { target_type: 'task_comment', target_id: data.note.note_id }
         : data?.interaction ? { target_type: 'client_interaction', target_id: data.interaction.interaction_id }
-          : data?.project_note ? { target_type: 'project_note', target_id: data.project_note.note_id } : {};
+          : data?.project_note ? { target_type: 'project_note', target_id: data.project_note.note_id }
+            : data?.file ? { target_type: 'file', target_id: data.file.file_id }
+              : data?.document ? { target_type: 'post', target_id: data.document.post_id } : {};
 
     if (tool.write) {
       await store.update('agent_idem', idemKey, { status: 'done', result: data, ...target }).catch(() => {});

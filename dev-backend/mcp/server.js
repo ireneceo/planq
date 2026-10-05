@@ -247,6 +247,8 @@ function buildAgentServer(principal) {
       // .strict() — 모르는 칸(business_id·user_id 등)을 조용히 버리지 않고 거절한다. 범위는 토큰에서만 정한다(설계 §5.1).
       inputSchema: z.object(tool.input).strict(),
       annotations: { readOnlyHint: !tool.write, destructiveHint: false, idempotentHint: !tool.write, openWorldHint: false },
+      // 도구별 클라이언트 메타 — 예: upload_file 의 `openai/fileParams`(ChatGPT 가 대화에 올린 파일을 넘겨 주는 칸).
+      ...(tool._meta ? { _meta: tool._meta } : {}),
     }, async (args) => {
       const out = await runTool(principal, tool.name, args || {});
       return { content: [{ type: 'text', text: JSON.stringify(out) }], structuredContent: out };

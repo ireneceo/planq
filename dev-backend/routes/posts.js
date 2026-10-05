@@ -468,27 +468,19 @@ router.get('/by-record/:recordId', authenticateToken, async (req, res, next) => 
   } catch (err) { next(err); }
 });
 
-router.post('/', authenticateToken, async (req, res, next) => {
+router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층 post_actions.createPost 가 쓴다(post.create)
   try {
     const { business_id, project_id = null, conversation_id = null, title, content_json = null, category = null, status = 'published', is_pinned = false, parent_post_id = null, kind = 'doc' } = req.body || {};
     if (!business_id || !title) return errorResponse(res, 'business_id/title required', 400);
+    // ★ 2026-10-05 — 검증·생성·부수효과(거래 단계·감사·실시간)는 행동 계층 한 곳(services/actions/post_actions.createPost).
+    //   AI 에이전트(ChatGPT·Claude)의 create_document 가 같은 함수를 부른다 — 두 벌이면 한쪽에서 감사·실시간이 빠진다.
+    //   여기 남은 것은 표 문서의 표 시드뿐이다(표를 먼저 만들어야 문서가 그 id 를 가진다).
     if (!(await assertMember(req.user.id, Number(business_id), req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    // project_id 가 있으면 business 일치 검증
     if (project_id) {
       const p = await Project.findOne({ where: { id: project_id, business_id } });
       if (!p) return errorResponse(res, 'invalid project_id', 400);
-    }
-    // conversation_id 가 있으면 business 일치 검증
-    if (conversation_id) {
-      const conv = await Conversation.findOne({ where: { id: conversation_id, business_id } });
-      if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
-    }
-    // parent_post_id 가 있으면 같은 워크스페이스 post 검증 (자료정리 → 후속 문서 양방향 링크)
-    if (parent_post_id) {
-      const parent = await Post.findOne({ where: { id: parent_post_id, business_id } });
-      if (!parent) return errorResponse(res, 'invalid parent_post_id', 400);
     }
     // kind='table' 이면 q_record 자동 생성 — #96: 빈 표가 아니라 기본 컬럼 3개 + 빈 행 1개 시드
     //   (옛: columns 0·rows 0 → 처음부터 설정해야 했음. Irene 결정: 즉시 쓸 수 있는 기본 테이블).
@@ -517,30 +509,13 @@ router.post('/', authenticateToken, async (req, res, next) => {
       await QRecordRow.create({ q_record_id: qrec.id, values: {}, position: 0, created_by: req.user.id });
       qRecordId = qrec.id;
     }
-    const post = await Post.create({
-      business_id,
-      project_id: project_id || null,
-      conversation_id: conversation_id || null,
-      title: String(title).slice(0, 200),
-      content_json: content_json ? JSON.stringify(content_json) : null,
-      content_text: extractText(content_json),
-      category,
-      author_id: req.user.id,
-      status,
-      is_pinned: !!is_pinned,
-      parent_post_id: parent_post_id || null,
-      kind: ['doc', 'table', 'brief', 'template'].includes(kind) ? kind : 'doc',
-      q_record_id: qRecordId,
-      // N+72 fix — 신규 문서 default visibility.
-      // 옛: 프로젝트 = L2 / 미연결 = L1 (나만보기) — 사용자 호소 "공유한 문서를 다른 사람이 못 봄"
-      // 새: 프로젝트 = L2 / 워크스페이스 = L3 (멤버 모두) — 일반 SaaS 패턴.
-      //      L1 원하면 등록 후 "공유 범위 → 나만보기" 변경 (UI 명시 동작).
-      // #252 — 임시저장으로 만들어지는 글은 **무조건 L1(작성자 본인만)**.
-      //   자동저장이 첫 입력에 POST 를 쏘므로, 기본 L2/L3 를 그대로 두면 아직 문장도 안 끝난
-      //   글이 프로젝트 멤버·워크스페이스 전원에게 보인다. 명시 저장 시점에 사용자가 고른
-      //   공개 범위로 승격된다(프론트 submit 이 vlevel 을 같이 보낸다).
-      vlevel: status === 'draft' ? 'L1' : (req.body.vlevel || (project_id ? 'L2' : 'L3')),
+    const actor = { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req };
+    const r = await require('../services/actions/post_actions').createPost(actor, {
+      businessId: Number(business_id), projectId: project_id, conversationId: conversation_id, parentPostId: parent_post_id,
+      title, contentJson: content_json, category, status, isPinned: is_pinned, kind, vlevel: req.body.vlevel, qRecordId,
     });
+    if (!r.ok) return errorResponse(res, r.code, r.http || 400);
+    const post = r.data.post;
     const full = await Post.findByPk(post.id, {
       include: [
         { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] },
@@ -549,24 +524,6 @@ router.post('/', authenticateToken, async (req, res, next) => {
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
-    // #252 — 임시저장 단계에서는 부수효과를 일으키지 않는다. 아직 "만들어진 문서" 가 아니라
-    //   타이핑 중인 상태다. stage 진행·감사 기록·전 워크스페이스 broadcast 를 여기서 쏘면
-    //   글 하나 쓰는 동안 거래 단계가 움직이고 남의 화면에 "새 문서" 가 뜬다.
-    //   명시 저장(status='published' 로 승격되는 PUT)에서 전부 발화한다.
-    const isDraft = post.status === 'draft';
-    if (post.project_id && !isDraft) {
-      require('../services/projectStageEngine').onPostChanged(post.id).catch(() => null);
-    }
-    if (!isDraft) {
-      require('../services/auditService').logAudit(req, {
-        action: 'post.create',
-        targetType: 'post',
-        targetId: post.id,
-        businessId: post.business_id,
-        newValue: { title: post.title, category: post.category, status: post.status, project_id: post.project_id },
-      });
-      broadcastPost(req, full, 'post:new');
-    }
     successResponse(res, serialize(full, true), 'Post created', 201);
   } catch (err) { next(err); }
 });
@@ -1161,31 +1118,19 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
 
 // ─── 첨부 연결 (기존 파일) ───
 // POST /api/posts/:id/attachments  body: { file_ids: number[] }
-router.post('/:id/attachments', authenticateToken, async (req, res, next) => {
+router.post('/:id/attachments', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 행동 계층 post_actions.attachFiles 가 쓴다(post.attachment_add)
   try {
-    // 서명 잠금 — 판정은 services/signatureLock 단일 착지점. 별첨 추가.
-    if (await blockIfSigned(res, req.params.id)) return;
-    const post = await Post.findByPk(req.params.id);
-    if (!post) return errorResponse(res, 'not_found', 404);
-    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
-    // 못 보는 문서에 첨부를 달 수 없고, 못 보는 파일을 붙일 수 없다(업무 첨부와 같은 기준 — 2026-09-27 점검).
-    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
+    // 판정·생성·감사·실시간은 행동 계층 한 곳(services/actions/post_actions.attachFiles) — AI 에이전트 upload_file 이 같은 함수를 쓴다.
+    //   서명 잠금 · 멤버 · 읽을 수 있는 문서 · 볼 수 있는 파일(2026-09-27 점검 기준 그대로).
     const fileIds = Array.isArray(req.body?.file_ids) ? req.body.file_ids.map(Number).filter(Boolean) : [];
     if (fileIds.length === 0) return errorResponse(res, 'file_ids required', 400);
-    const files = await File.findAll({ where: { id: fileIds, business_id: post.business_id, deleted_at: null } });
-    for (const f of files) if (!(await require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, f))) return errorResponse(res, 'file_not_found', 404);
-    const existing = await PostAttachment.count({ where: { post_id: post.id } });
-    const created = [];
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      const a = await PostAttachment.create({ post_id: post.id, file_id: f.id, sort_order: existing + i });
-      created.push({ id: a.id, file_id: f.id, sort_order: a.sort_order });
+    const actor = { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req };
+    const r = await require('../services/actions/post_actions').attachFiles(actor, { postId: Number(req.params.id), fileIds });
+    if (!r.ok) {
+      if (r.code === 'post_locked_by_signature') return blockIfSigned(res, req.params.id);   // 409 응답 모양은 종전 그대로
+      return errorResponse(res, r.code, r.http || 400);
     }
-    if (created.length) require('../services/auditService').logAudit(req, { action: 'post.attachment_add', targetType: 'post', targetId: post.id, businessId: post.business_id, newValue: { file_ids: created.slice(0, 50).map((c) => c.file_id), count: created.length } });
-    broadcastPost(req, post, 'post:updated');
-    successResponse(res, created, `${created.length} attached`);
+    successResponse(res, r.data.created, `${r.data.created.length} attached`);
   } catch (err) { next(err); }
 });
 

@@ -5483,3 +5483,16 @@ linked HTML XSS(서버는 richBodyToHtml, 화면은 sanitizeRichText) · imageCt
 서명 화면 내 칸 클릭 → 본인 확인으로 스크롤 + 안내 + [인증 코드 받기] 보임(2폭), 대조군 본문 클릭은 그대로 · 완료 화면 PDF 버튼 ·
 채팅 카드 기본값(프로젝트 없음=꺼짐 / 프로젝트=그 고객 채팅방) · 받은 서명 우리 쪽 [서명하기] → 앱 안 문서. build EXIT 0 · error TS 0.
 **Fable 이 볼 것**: 서명자 PDF 라우트의 범위(토큰 → 그 요청의 문서만 · business 일치) · 확인필요 수집기 술어 확장이 다른 버킷과 중복 계수 없는지.
+
+## 2026-10-05 밤 · AI 에이전트 문서·파일 쓰기(#439 확장) · [Opus] Fable 미검증(자체 검증 — 한도)
+**판정**: R=1 — AI 쓰기 표면 확장(문서 생성·수정·연결·프로젝트 이동·파일 저장), 외부 URL 을 서버가 받는다(upload_file).
+**변경**: `services/actions/post_actions`(createPost·updatePostContent·setPostLinks·movePostToProject·checkEditable·attachFiles) — 화면 `POST /api/posts`·
+`POST /api/posts/:id/attachments` 도 이 함수로 옮김 · `driveImport.ingestDownloadedFile` 추출(Drive 동작 무변경) · `services/taskAttachmentLink` 추출 ·
+도구 6(create_document·append_to_document·update_document[M]·link_documents·move_document_to_project[M]·upload_file) + 메일 초안 file_ids ·
+scope docs:write·files:write(재연결 필요, 동의 문구 ko/en) · mcp `_meta` 전달 · get_document 양방향 연결 · `services/agent/markdown`.
+**자체 검증**: 실호출 36/36 — 생성(L2·마크다운·양방향 연결·감사 via agent) · 옛 grant 거절+재연결 안내 · 남의 프로젝트 NOT_FOUND · strict ·
+append · update 확인 2단계(1단계 무변경·토큰 다른 인자 재사용 거절·2단계 반영+버전) · 못 읽는 L1 NOT_FOUND · 연결 무시 · 해제 양쪽 · 서명 잠금 CONFLICT ·
+move 2단계 · upload: http·남의 도메인·내부망·꼬리 도메인 거절 · 리다이렉트 거절 · 큰 파일 사전 거절 · 확장자 · 문서 첨부(L2·바이트 일치) · dedup · 업무 첨부(L3) ·
+잠긴 문서엔 안 받음 · 메일 초안 첨부·남의 WS 파일 NOT_FOUND · 화면 첨부 200·잠금 409 모양 · 화면 표 문서. 가드 61/62(agentsurface ✓) · build EXIT 0 · --suite agentconsent 0 실패.
+**Fable 이 볼 것**: OpenAI 파일 도메인 허용 목록이 실제 ChatGPT download_url 호스트와 맞는가(운영 첫 호출 로그로 확인) · 화면 POST /api/posts 이전의 부수효과 동일성 ·
+upload_file 공개범위(문서=문서 등급, 업무=L2/L3) · 메일 발송 시 초안 첨부 재검증.
