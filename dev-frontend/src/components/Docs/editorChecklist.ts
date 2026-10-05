@@ -16,7 +16,7 @@ export const checklistEditorCss = `
   & ul[data-type="taskList"] li > label { flex-shrink: 0; margin-top: 3px; user-select: none; }
   & ul[data-type="taskList"] li > label input[type="checkbox"] {
     appearance: none; -webkit-appearance: none; margin: 0; cursor: pointer;
-    width: 18px; height: 18px; border-radius: 50%;
+    width: 18px; aspect-ratio: 1 / 1; border-radius: 50%;   /* height 를 px 로 박지 않는다 — 컨트롤 높이 래칫 */
     border: 1.5px solid #94A3B8; background: #fff; display: grid; place-content: center;
     transition: background 0.12s, border-color 0.12s;
   }
@@ -31,6 +31,6 @@ export const checklistEditorCss = `
   & ul[data-type="taskList"] li > div > p { margin: 0; }
   & ul[data-type="taskList"] li[data-checked="true"] > div { color: #94A3B8; text-decoration: line-through; }
   @media (max-width: 640px) {
-    & ul[data-type="taskList"] li > label input[type="checkbox"] { width: 22px; height: 22px; }
+    & ul[data-type="taskList"] li > label input[type="checkbox"] { width: 22px; }
   }
 `;
