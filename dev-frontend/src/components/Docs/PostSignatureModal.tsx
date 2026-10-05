@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { requestSignatures, updatePost, SignatureLockedError, fetchSignatureScope, type PostDetail, type SignatureRequest, type SignatureScope } from '../../services/posts';
+import { requestSignatures, updatePost, SignatureLockedError, type PostDetail, type SignatureRequest } from '../../services/posts';
 import SingleDateField from '../Common/SingleDateField';
 import { listProjectConversations, listBusinessConversations, listBusinessMembers, type ApiConversation } from '../../services/qtalk';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
@@ -18,6 +18,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { isEnterAction } from '../../utils/imeKey';
 import { readSignatureFields, type DocSignatureField } from '../../utils/signatureFields';
 import SignatureSpotsStep from './SignatureSpotsStep';
+import SignOutboundScope from './SignOutboundScope';
 import { SignStepsBar, SignRecipients, useSignatureLock } from './SignRequestSteps';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -73,21 +74,6 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
   //   Irene: *"UI UX에서 바로 알아야 하는 거야 … 순서가 편집이랑 서명설정 보내기 등이 되는거야"*
   //   확인 요청은 서명 자리가 필요 없으므로 한 장 그대로다.
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  // 함께 나가는 첨부·연결 문서 — 보내기 전에 «무엇이 받는 사람에게 열리는지» 를 말한다(2026-10-05).
-  //   못 읽으면 줄을 그리지 않는다(요청 자체는 서버가 같은 판정으로 동결한다).
-  const [scope, setScope] = useState<SignatureScope | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    let alive = true;
-    fetchSignatureScope(post.id).then((sc) => { if (alive) setScope(sc); }).catch(() => { if (alive) setScope(null); });
-    return () => { alive = false; };
-  }, [open, post.id]);
-  const sentFiles = scope ? scope.files.filter(f => f.included) : [];
-  const sentDocs = scope ? scope.docs.filter(d => d.included) : [];
-  const heldItems = scope ? [
-    ...scope.files.filter(f => !f.included).map(f => f.name || `#${f.file_id}`),
-    ...scope.docs.filter(d => !d.included).map(d => d.title || `#${d.post_id}`),
-  ] : [];
   const stepped = kind === 'sign';
   const [inserting, setInserting] = useState(false);
   // 1단계가 문서를 고친다(서명 자리 바꾸기·추가·이름표·쪽). 저장은 여기 한 곳 — 같은 문서를 두 곳에서 PUT 하지 않는다.
@@ -504,23 +490,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
                 })
                 : validSigners.map((v) => ({ key: String(v.id), label: null, party: 'them' as const, name: v.name, email: v.email }))} />
             )}
-            {(sentFiles.length > 0 || sentDocs.length > 0 || heldItems.length > 0) && (
-              <Section data-testid="sign-outbound-scope">
-                <SectionLabel>{t('sign.scope.label', { defaultValue: '받는 분에게 함께 공개되는 것' })}</SectionLabel>
-                <ScopeLine>
-                  {t('sign.scope.counts', { defaultValue: '첨부 파일 {{files}}건 · 연결 문서 {{docs}}건', files: sentFiles.length, docs: sentDocs.length })}
-                </ScopeLine>
-                {sentDocs.length > 0 && (
-                  <ScopeNames>{sentDocs.map(d => d.title || `#${d.post_id}`).join(', ')}</ScopeNames>
-                )}
-                {heldItems.length > 0 && (
-                  <ScopeHeld data-testid="sign-outbound-held">
-                    {t('sign.scope.held', { defaultValue: '보안등급(내부·기밀)이라 보내지 않습니다: {{names}}', names: heldItems.join(', ') })}
-                  </ScopeHeld>
-                )}
-                <SectionHint>{t('sign.scope.hint', { defaultValue: '지금 내용으로 고정되어 서명 링크에서 열립니다. 이후 원본을 고쳐도 받는 분이 보는 것은 바뀌지 않습니다.' })}</SectionHint>
-              </Section>
-            )}
+            <SignOutboundScope postId={post.id} open={open} />
             <Section>
               <SectionLabel>{t('sign.message', '메모 (선택)')}</SectionLabel>
               <Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder={t('sign.messagePh', '검토 부탁드립니다.') as string} disabled={busy} />
@@ -650,9 +620,6 @@ const SectionTwoCol = styled.section`
 `;
 const SectionHalf = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const SectionLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #0F172A; display: block; margin-bottom: 6px;`;
-const ScopeLine = styled.div`font-size: 0.8125rem; color: #0F172A; line-height: 1.5;`;
-const ScopeNames = styled.div`font-size: 0.75rem; color: #475569; line-height: 1.5; word-break: break-word;`;
-const ScopeHeld = styled.div`font-size: 0.75rem; color: #B45309; background: #FFFBEB; border-radius: 6px; padding: 6px 8px; margin-top: 4px; line-height: 1.5; word-break: break-word;`;
 const SectionHint = styled.div`font-size: 0.6875rem; color: #94A3B8; line-height: 1.5; margin-top: 4px;`;
 
 // 멤버·고객 picker
