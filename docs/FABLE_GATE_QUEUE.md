@@ -5468,3 +5468,9 @@ Drive 저장 별첨은 dev Drive 연결이 죽어 502 drive_fetch_failed — 옛
 **Fable 이 볼 것**: 무인증 linked 경로가 kind 혼동(file_id↔post_id)·다른 워크스페이스로 못 여는가 · 요청자 못 읽는 문서가 동결/HTML 어디에도 없는가 ·
 linked HTML XSS(서버는 richBodyToHtml, 화면은 sanitizeRichText) · imageCtx 확장 폭 · 옛 요청(kind 없는 snapshot) 호환 · 운영 Drive 저장 별첨 실다운로드.
 **정리**: 중단된 Fable 실행이 남긴 dev 데이터(문서 1127~1133 · 서명 요청 317 · 첨부 55~58 · 파일 행 7824~7828) 삭제, 물리 파일 유지.
+- **2026-10-05 추가 자체 검증(Irene «너가 검증해»)** — 서명 첨부 44/44: 미리보기·동결·서명자 응답 원문에 기밀/못 읽는 L1/남의 WS 흔적 0 ·
+  목록 밖 파일·남의 WS 파일·kind 혼동(file↔post)·기밀/L1/남의 WS/본문 자신·숫자 아닌 id 전부 404 · 만료·취소 410(조회·별첨·연결) ·
+  옛 스냅샷 호환 · 서명 시점 해시 불변 · imageCtx(연결 본문 이미지 허용/참조 안 된 파일·남의 WS·만료 토큰 거부) ·
+  **Drive 저장 별첨 200 + 바이트 일치(Drive 캐시본 경로, 대조군: 캐시 없으면 Drive 로 가 502 — 404 아님)** · 화면 XSS 0(대화상자 0).
+  **발견·수리**: 공용 렌더러 `pdfTemplates` 가 `javascript:` 링크를 그대로 냈다(화면 sanitize 가 막고 있었음) → `safeHref`(http(s)·mailto·tel·상대·# 만).
+  회귀: --suite signature 0 실패 · health-check 49/49. 여전히 Fable 미검증(한도).

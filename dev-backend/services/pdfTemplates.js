@@ -1,6 +1,17 @@
 // PDF Templates — HTML 생성 (Puppeteer 가 렌더 → PDF)
 // 청구서 / 문서(post) 두 종류.
 
+// 링크 주소 — http(s)·mailto·tel·상대경로·#만 낸다. 그 외(javascript:·data: 등)는 '#'.
+//   이 HTML 은 화면(서명 화면·공유 링크)과 PDF 로 나간다. 화면은 sanitize 하지만 서버가 애초에 안 내는 것이
+//   맞다(2026-10-05 검증에서 javascript: href 가 그대로 나가는 것을 확인 — 화면 sanitize 가 막고 있었다).
+function safeHref(href) {
+  const h = String(href || '').trim();
+  if (!h) return '#';
+  if (/^(https?:|mailto:|tel:)/i.test(h)) return h;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(h.replace(/[\u0000-\u0020]/g, ''))) return '#';
+  return h;
+}
+
 function escapeHtml(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -278,7 +289,7 @@ function nodeToHtml(n) {
       else if (m.type === 'underline') txt = `<u>${txt}</u>`;
       else if (m.type === 'strike') txt = `<s>${txt}</s>`;
       else if (m.type === 'code') txt = `<code>${txt}</code>`;
-      else if (m.type === 'link') txt = `<a href="${escapeHtml((m.attrs || {}).href || '#')}">${txt}</a>`;
+      else if (m.type === 'link') txt = `<a href="${escapeHtml(safeHref((m.attrs || {}).href))}">${txt}</a>`;
     });
     return txt;
   }
