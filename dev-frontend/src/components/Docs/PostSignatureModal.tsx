@@ -104,7 +104,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
   const [slotMap, setSlotMap] = useState<Record<number, { email: string; name: string; userId: number | null }>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ count: number; viaChat: boolean; convId: number | null } | null>(null);
+  const [done, setDone] = useState<{ count: number; inApp: number; viaChat: boolean; convId: number | null } | null>(null);
   const firstEmailRef = useRef<HTMLInputElement | null>(null);
 
   useBodyScrollLock(open);
@@ -288,7 +288,9 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
         send_chat: sendChat && !!convId,
         conversation_id: sendChat && convId ? convId : undefined,
       });
-      setDone({ count: r.signatures.length, viaChat: !!r.chat_message_id, convId: sendChat && convId ? convId : null });
+      // 메일이 나가는 것은 받는 쪽뿐이다 — 보내는 쪽(우리)은 앱 안에서 서명한다. 전체 수로 세면 «3명에게 메일» 이 거짓이 된다(2026-10-05 실측).
+      const inApp = r.signatures.filter(sg => sg.party === 'us').length;
+      setDone({ count: r.signatures.length - inApp, inApp, viaChat: !!r.chat_message_id, convId: sendChat && convId ? convId : null });
       onSent(r.signatures);
     } catch (e) {
       setError(((e as Error).message) || (t('sign.failed', '서명 요청 실패') as string));
@@ -329,7 +331,8 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
             </DoneCircle>
             <DoneTitle>{t('sign.doneTitle', '서명 요청을 보냈습니다')}</DoneTitle>
             <DoneList>
-              <li>{t('sign.doneEmail', '{{n}}명에게 이메일을 발송했습니다', { n: done.count })}</li>
+              {done.count > 0 && <li>{t('sign.doneEmail', '{{n}}명에게 이메일을 발송했습니다', { n: done.count })}</li>}
+              {done.inApp > 0 && <li>{t('sign.doneInApp', '보내는 쪽 {{n}}명은 메일 없이 이 문서에서 서명합니다(확인 필요에도 뜹니다)', { n: done.inApp })}</li>}
               {done.viaChat && <li>{t('sign.doneChat', '채팅에도 카드 메시지를 보냈습니다')}</li>}
               <li>{t('sign.doneExpiry', '서명 진행 상태는 문서 상세에서 확인할 수 있습니다')}</li>
             </DoneList>

@@ -436,7 +436,8 @@
       "held": "Not sent because of security level (internal/confidential): {{names}}",
       "hint": "Frozen as of now and opened from the signing link. Later edits to the originals do not change what the recipient sees."
     },
-    "slotPickPh": "Search members or clients — or type below"
+    "slotPickPh": "Search members or clients — or type below",
+    "doneInApp": "{{n}} signer(s) on your side sign in this document without email (also listed in Inbox)"
   },
   "ai": {
     "btn": "AI",
