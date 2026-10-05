@@ -1,8 +1,25 @@
 // 서명 요청 창의 단계 표시 · 3단계 «이렇게 보냅니다» 요약 (2026-10-05, docs/SIGNATURE_ITEMS_DESIGN.md §2-1)
 // PostSignatureModal 이 800줄 문턱을 넘어 뺐다 — 창의 흐름(상태)은 그쪽, 보이는 조각은 여기.
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { listSignatures } from '../../services/posts';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+
+/** 서명 요청이 살아 있어 문서가 잠겼는가 — services/signatureCore.isPostSignatureLocked 와 같은 술어(kind sign · pending/sent/viewed/signed).
+ *  잠긴 줄 모르고 1단계에서 고치게 두면 저장이 409 로 거절되고 서버 문구(한국어)가 그대로 뜬다(Fable 2026-10-05).
+ *  판정 못 하면 false — 저장 시 409 를 호출부가 번역하고 잠금으로 바꾼다(setter 를 같이 돌려준다). */
+export function useSignatureLock(open: boolean, postId: number): [boolean, (v: boolean) => void] {
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    if (!open) return undefined;
+    let alive = true;
+    listSignatures(postId).then((list) => {
+      if (alive) setLocked(list.some((r) => (r.kind || 'sign') === 'sign' && ['pending', 'sent', 'viewed', 'signed'].includes(r.status)));
+    }).catch(() => { /* 판정 못 함 — 저장 시 409 로 안다 */ });
+    return () => { alive = false; };
+  }, [open, postId]);
+  return [locked, setLocked];
+}
 
 export const SignStepsBar: React.FC<{ step: 1 | 2 | 3 }> = ({ step }) => {
   const { t } = useTranslation('qdocs');

@@ -405,7 +405,9 @@
       "emptyTitle": "This document has no signature spots, so it can’t be sent",
       "emptyBody": "Add sender and recipient spots at the end, or place them anywhere in the editor with [Signature items].",
       "addEnd": "+ Add signature spots at the end",
-      "openEditor": "Place them in the editor"
+      "openEditor": "Place them in the editor",
+      "lockedSave": "Signature spots can’t be changed after a signature request is sent. Cancel the active request to change them.",
+      "locked": "Signature spots can’t be changed after a signature request is sent. You can still assign more signers to these spots."
     },
     "steps": {
       "aria": "Signature request steps",

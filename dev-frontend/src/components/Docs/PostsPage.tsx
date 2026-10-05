@@ -2562,7 +2562,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           onClose={() => setSignOpen(false)}
           post={detail}
           onSent={() => setSignReloadKey(k => k + 1)}
-          onPostUpdated={(saved) => setDetail(saved)}
+          // 저장 응답에는 linked_posts·표시명(author/editor)이 없다(GET 에만 있다) — 통째로 대입하면 상세의 연결 문서 칩이
+          //   사라지고 이름이 원이름으로 떨어진다(Fable 2026-10-05). 같은 파일의 다른 저장처럼 덧입힌다.
+          onPostUpdated={(saved) => setDetail((prev) => (prev ? {
+            ...prev, ...saved, linked_posts: prev.linked_posts, author: prev.author, editor: prev.editor,
+          } : saved))}
           onOpenEditor={() => { setSignOpen(false); startEdit(); }}
         />
       )}

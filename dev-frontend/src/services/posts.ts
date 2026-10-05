@@ -493,6 +493,7 @@ export interface SignatureRequest {
   signer_user_id?: number | null;
   // 서명 항목 (2026-10-05) — 이 서명자가 채울 서명 칸 수 · 서명일/이름 자리 유무. null = 옛 요청(서명 칸 1)
   required_items?: { sign: number; date: boolean; name: boolean } | null;
+  kind?: 'sign' | 'confirm';
   token: string;
   sign_url: string;
   status: SignatureStatus;

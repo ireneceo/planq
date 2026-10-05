@@ -5450,3 +5450,6 @@ Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인
 - 자체 검증: API 18/18 · --suite signature/signflow/signitems 0 실패(3폭) · 가드 61/62 · health 49/49 · build EXIT 0.
 - Fable 이 볼 것: /sign/:token/sign 입력 검증·증거 · 서명본 dataURL·data-item XSS · 옛 요청 호환 · 1단계 문서 PUT 과 서명 잠금 · 마이그레이션 순서.
 - **결과가 오면 여기에 적고, 지적은 핫픽스로 반영한다.**
+- **Fable 결과(배포 후 수신): 조건부 통과** — R=1 표면 전부 통과(무인증 서명 입력 검증·증거 · XSS · 옛 요청 22/22 바이트 동일 · 잠금 409 · 마이그레이션 순서). 실HTTP 26/26.
+- 조건 2건(화면, 가역) → 핫픽스로 반영·자체 검증: ①1단계 저장 후 상세 덮어쓰기 → 덧입히기(linked_posts·author·editor 유지) ②잠긴 문서에서 1단계 읽기 전용 + 409 번역. `--suite signitems`(①-b 신설)·signature 0 실패 · 가드 61/62 · build EXIT 0.
+- 참고(미반영): 라벨 `&`·따옴표 이중 escape(기존 결함) · 설계 §9 «워크스페이스 날짜 표기» 문구 ↔ 구현은 요청자 date_format + 워크스페이스 tz.

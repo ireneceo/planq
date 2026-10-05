@@ -17,12 +17,15 @@ const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', 
 interface Props {
   contentJson: unknown;
   busy: boolean;
+  /** 서명 요청이 살아 있어 문서가 잠겼다 — 보여주기만 한다 */
+  locked?: boolean;
   onSaveDoc: (next: unknown) => Promise<void>;
   onOpenEditor?: () => void;
 }
 
-const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy, onSaveDoc, onOpenEditor }) => {
+const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy: busyIn, locked = false, onSaveDoc, onOpenEditor }) => {
   const { t } = useTranslation('qdocs');
+  const busy = busyIn || locked;
   const signers = useMemo(() => readSignerItems(contentJson), [contentJson]);
   const spots = useMemo(() => (signers.length ? [] : findManualSignatureSpots(contentJson)), [contentJson, signers.length]);
   const [labels, setLabels] = useState<Record<number, string>>({});
@@ -54,6 +57,7 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy, onSaveDoc, onO
 
   return (
     <Wrap data-testid="sign-step-spots">
+      {locked && <Locked data-testid="sign-spots-locked">{t('sign.spots.locked', { defaultValue: '서명 요청을 보낸 문서라 서명 자리는 바꿀 수 없어요. 아래 자리에 서명할 사람을 더 지정할 수는 있어요.' })}</Locked>}
       <Hint>{t('sign.spots.hint', { defaultValue: '서명·서명일·이름이 들어갈 자리예요. 서명은 이 자리에만 들어가요.' })}</Hint>
 
       {signers.length > 0 && (
@@ -133,6 +137,7 @@ const SignatureSpotsStep: React.FC<Props> = ({ contentJson, busy, onSaveDoc, onO
 export default SignatureSpotsStep;
 
 const Wrap = styled.div`display: flex; flex-direction: column; gap: 10px;`;
+const Locked = styled.div`font-size: 0.8125rem; color: #334155; background: #F1F5F9; border-radius: 8px; padding: 8px 10px; line-height: 1.5;`;
 const Hint = styled.div`font-size: 0.8125rem; color: #475569; line-height: 1.5;`;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
 const Row = styled.div`border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 12px; background: #fff;`;

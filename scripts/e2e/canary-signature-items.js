@@ -114,6 +114,26 @@ async function run() {
         `서명자 ${f2.spots.length} ${JSON.stringify(f2.spots)} · 저장된 서명 항목 ${nodes.length}개 · 다음 잠김=${f2.nextDisabled}`);
       await page.keyboard.press('Escape').catch(() => {}); await b.sleep(400);
 
+      // ── ①-b 서명 요청을 보낸 뒤 다시 열면 — 문서가 잠겨 1단계는 읽기 전용(Fable 2026-10-05) ──
+      if (W.w === 1440) {
+        await api(`/posts/${pid}/signatures`, { method: 'POST', headers: H, body: JSON.stringify({
+          signers: [{ slot: 1, party: 'us', user_id: meId, email: '' }, { slot: 2, party: 'them', email: 'canary-lock@example.com' }],
+          kind: 'sign', send_chat: false, expires_in_days: 3 }) });
+        await b.goto(page, `/docs?post=${pid}`); await b.sleep(2500); await b.dismissBlockers(page).catch(() => {});
+        await page.click('[data-testid="post-sign"]').catch(() => {});
+        await b.sleep(1800);
+        const lk = await page.evaluate(`(() => {
+          const note = document.querySelector('[data-testid="sign-spots-locked"]');
+          const inputs = [...document.querySelectorAll('[data-testid^="sign-spot-"] input')];
+          return { note: (${VISIBLE})(note), inputs: inputs.length, allDisabled: inputs.length > 0 && inputs.every((i) => i.disabled),
+            next: !document.querySelector('[data-testid="sign-step-next"]')?.disabled };
+        })()`);
+        P('[1440] ①-b 서명 요청 뒤 — «바꿀 수 없어요» 안내 · 이름표 입력 잠김 · [다음] 은 열림(사람 추가 가능)',
+          lk.note.painted && lk.allDisabled && lk.next,
+          `안내 ${lk.note.painted} · 입력 ${lk.inputs}개 잠김=${lk.allDisabled} · 다음 열림=${lk.next}`);
+        await page.keyboard.press('Escape').catch(() => {}); await b.sleep(400);
+      }
+
       // ── ② 서명 자리 없는 문서 (음성 대조군) ──
       const pe = await mk(`[카나리] 서명 자리 없음 ${tag}`, [para('그냥 본문')]);
       await b.goto(page, `/docs?post=${pe}`); await b.sleep(2500); await b.dismissBlockers(page).catch(() => {});

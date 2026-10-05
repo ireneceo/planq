@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { requestSignatures, updatePost, type PostDetail, type SignatureRequest } from '../../services/posts';
+import { requestSignatures, updatePost, SignatureLockedError, type PostDetail, type SignatureRequest } from '../../services/posts';
 import SingleDateField from '../Common/SingleDateField';
 import { listProjectConversations, listBusinessConversations, listBusinessMembers, type ApiConversation } from '../../services/qtalk';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
@@ -18,7 +18,7 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { isEnterAction } from '../../utils/imeKey';
 import { readSignatureFields, type DocSignatureField } from '../../utils/signatureFields';
 import SignatureSpotsStep from './SignatureSpotsStep';
-import { SignStepsBar, SignRecipients } from './SignRequestSteps';
+import { SignStepsBar, SignRecipients, useSignatureLock } from './SignRequestSteps';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
@@ -78,6 +78,8 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
   // 1단계가 문서를 고친다(서명 자리 바꾸기·추가·이름표·쪽). 저장은 여기 한 곳 — 같은 문서를 두 곳에서 PUT 하지 않는다.
   const baseUpdatedRef = useRef<string | null>(post.updated_at || null);
   useEffect(() => { baseUpdatedRef.current = post.updated_at || null; }, [post.updated_at]);
+  // 서명 요청이 살아 있으면 문서가 잠긴다 — 그때 1단계는 읽기 전용(SignRequestSteps.useSignatureLock)
+  const [docLocked, setDocLocked] = useSignatureLock(open, post.id);
   const saveDoc = async (next: unknown) => {
     if (inserting) return;
     setInserting(true); setError(null);
@@ -87,6 +89,11 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
       setContentOverride(next);
       onPostUpdated?.(saved);
     } catch (e) {
+      if (e instanceof SignatureLockedError) {
+        setDocLocked(true);
+        setError(t('sign.spots.lockedSave', { defaultValue: '서명 요청을 보낸 문서라 서명 자리를 바꿀 수 없어요. 바꾸려면 진행 중인 서명 요청을 취소하세요.' }) as string);
+        return;
+      }
       setError((e as Error).message || (t('sign.noFields.insertFailed', { defaultValue: '서명 자리를 저장하지 못했어요. 편집에서 [서명 항목] 으로 넣어 주세요.' }) as string));
     } finally { setInserting(false); }
   };
@@ -348,7 +355,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
               </>}
               {stepped && <SignStepsBar step={step} />}
               {stepped && step === 1 && (
-                <SignatureSpotsStep contentJson={contentOverride ?? post.content_json} busy={inserting}
+                <SignatureSpotsStep contentJson={contentOverride ?? post.content_json} busy={inserting} locked={docLocked}
                   onSaveDoc={saveDoc} onOpenEditor={onOpenEditor} />
               )}
               {(!stepped || step === 2) && <>
