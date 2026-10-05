@@ -153,6 +153,8 @@ async function patrolEnv(browser, env, routes, maxN, report) {
     // 머리줄·탭바(공용 크롬)는 환경마다 한 번만 — 화면마다 누르면 예산을 다 먹는다
     const units = [{ route: '/dashboard', scope: 'chrome' }, ...routes.map((r) => ({ route: r, scope: 'content' }))];
     for (const { route, scope } of units) {
+     // 한 화면이 멈추면(브라우저 응답 없음) 그 화면만 기록하고 다음 화면으로 — 환경 전체를 끝내지 않는다
+     try {
       const e0 = errs.length;
       await b.goto(page, route);
       await b.dismissBlockers(page).catch(() => null);
@@ -247,6 +249,10 @@ async function patrolEnv(browser, env, routes, maxN, report) {
         const o2 = await page.evaluate(OVERLAY_SIG).catch(() => 0);
         if (after.boundary || p2 !== p1 || stillModal || o2 > o1) { await b.goto(page, route); await b.sleep(400); await page.evaluate(MARK, markN, DANGER.source, doneSnap, scope); }
       }
+     } catch (e) {
+      findings.push({ route, button: '-', kind: '화면 응답 없음', detail: String(e.message || e).slice(0, 160), severity: 'FAIL' });
+      try { await b.goto(page, '/dashboard'); } catch { /* 다음 화면에서 다시 연다 */ }
+     }
     }
   } catch (e) {
     findings.push({ route: '-', button: '-', kind: 'FATAL', detail: String(e.message || e).slice(0, 200), severity: 'FAIL' });
