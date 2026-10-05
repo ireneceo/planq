@@ -5438,3 +5438,9 @@ Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인
 **변경(커밋)**: HelpDot 올림/누름 충돌 수리 · qsale cameVia «{{via}}에서 들어온 문의» · 순찰 «눌러도 반응 없음»(WARN)·«눌렀더니 찾을 수 없음»(FAIL).
 **자체 검증**: 실브라우저 PC 클릭·폰 탭 1회 열림/2회 닫힘 · 빌드 EXIT 0 · 순찰 /sale·/tasks 미니런 실패 0(반응 없음 경고가 실결함 HelpDot 를 잡음).
 **미커밋(작업 중, Irene 결정 대기)**: `PostSignatureModal.tsx`·`utils/signatureFields.ts` — 서명란 없는 문서는 서명 요청을 막고 «손으로 적은 서명 자리 → 서명란» 바꾸기. 만들지 여부를 Irene 이 정하기 전엔 커밋·배포하지 않는다.
+
+## 2026-10-05 · 서명 작업 진행 중(미커밋) — Irene 결정 대기 · [Opus]
+**상태**: 완료 아님. Irene 에게 «편집 화면 서명란 이름표·쪽 바꾸기 + 손으로 적은 서명 자리 → 서명란 바꾸기» 진행 여부를 물었다.
+**미커밋 파일**: `PostSignatureModal.tsx`(서명란 없으면 서명 요청 막기·끝에 넣기) · `utils/signatureFields.ts`(손 자리 찾기·바꾸기) ·
+`EditorSignatureButton.tsx`(아이콘 옆 «서명란» 글자) · `locales/{ko,en}/qdocs.json`(insertSignatureShort).
+**검증 계획**: 완성되면 서명 흐름(외부 발송 앞단)이라 묶음 검증 때 Fable 에 함께 올린다 — 운영 문서 77(서명 자리 3) 과 같은 모양 픽스처로 서명본 위치까지.
