@@ -175,6 +175,9 @@ const SignedBody = styled.div`
   .pq-sig-meta { font-size: 0.75rem; color: #334155; margin-top: 4px; }
   .pq-sig-badge { font-size: 0.625rem; color: #0F766E; margin-top: 2px; }
   .pq-sig-rejected { border-color: #FCA5A5; background: #FEF2F2; }
+  /* 2026-10-05 서명 항목 — 서명일·이름 칸(services/signedDocument dateItemHtml·nameItemHtml) */
+  .pq-sig-item { display: inline-block; min-width: 120px; padding: 2px 6px; border-bottom: 1px dashed #CBD5E1; color: #94A3B8; font-size: 0.8125rem; }
+  .pq-sig-item.pq-sig-filled { color: #0F172A; border-bottom-color: #14B8A6; }
   .pq-sig-no { color: #B91C1C; font-size: 0.75rem; font-weight: 700; padding: 6px 0; }
   .pq-sig-zone { margin-top: 20px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 `;

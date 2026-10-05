@@ -466,6 +466,10 @@ sync_database() {
   log "Appending client_crash notification kind..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-client-crash-kind.js 2>&1 | tail -4"
 
+  # 2026-10-05 — 서명 항목(사인·이미지·서명일·이름): signature_requests.required_items · item_images. **코드보다 먼저**(모델이 선언). 멱등.
+  log "Adding signature item columns..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-signature-items.js 2>&1 | tail -4"
+
   # 2026-09-14 — Q sale 상담 메모(댓글)의 **기준**을 남기는 칸: project_notes.client_id.
   #   Irene: "메모라고 메모남기기가 댓글처럼 … 어떤 문의를 기준으로 저장된건지 남기게 하고."
   #   ★ **코드보다 먼저 돈다** — 모델이 client_id 를 선언하므로 컬럼이 없으면 메모 조회가 500 이다.

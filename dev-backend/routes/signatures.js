@@ -140,6 +140,14 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     // 서명 대상 동결 — 서명자별로 같은 값이므로 루프 밖에서 한 번만 계산한다.
     const snapshot = await buildEntitySnapshot('post', post, t);
 
+    // ★ 2026-10-05 서명 항목 — 서명 요청은 **서명 칸이 있어야** 보낸다(화면만 막으면 다른 문이 우회한다).
+    //   판정·서명일 표기 고정은 services/signatureItems 한 곳(docs/SIGNATURE_ITEMS_DESIGN.md §9).
+    const items = await require('../services/signatureItems').planRequiredItems({
+      kind, contentSnapshot: snapshot.content_snapshot, signers, userId: req.user.id, businessId: post.business_id, transaction: t,
+    });
+    if (!items.ok) { await t.rollback(); return errorResponse(res, items.code, 400); }
+    const requiredFor = items.requiredFor;
+
     // 멱등 처리: 같은 (entity, signer_email) 의 pending/sent/viewed 가 있으면 그것 갱신
     const created = [];
     for (const s of signers) {
@@ -178,6 +186,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
           signer_name: name || existing.signer_name,
           slot: slot != null ? slot : existing.slot,
           party, signer_user_id: signerUserId,
+          ...(kind === 'sign' ? { required_items: requiredFor(slot != null ? slot : existing.slot) } : {}),
           note, expires_at: expiresAt,
           reminder_count: existing.reminder_count + 1,
           last_reminder_at: new Date(),
@@ -192,6 +201,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
           signer_email: email, signer_name: name,
           slot, party, signer_user_id: signerUserId,
           token: genToken(),
+          required_items: kind === 'sign' ? requiredFor(slot) : null,
           kind,
           note, expires_at: expiresAt, status: party === 'us' ? 'pending' : 'sent',
           // 서명 대상 동결 — 재발송(existing)에는 다시 찍지 않는다.
@@ -522,10 +532,10 @@ router.post('/sign/:token/sign', async (req, res, next) => {
     if (!sr.otp_verified_at) { await t.rollback(); return errorResponse(res, 'otp_required', 400); }
     const consent = !!req.body?.consent;
     if (!consent) { await t.rollback(); return errorResponse(res, 'consent_required', 400); }
-    const sig = String(req.body?.signature_image_b64 || '');
-    if (!sig.startsWith('data:image/') || sig.length > 200_000) {
-      await t.rollback(); return errorResponse(res, 'invalid_signature_image', 400);
-    }
+    // 서명 칸 수만큼(사인·스탬프 — 그리기 또는 이미지). 규칙은 services/signatureItems 한 곳(앱 안 서명과 같다)
+    const got = require('../services/signatureItems').readItemImages(req.body, sr);
+    if (!got.ok) { await t.rollback(); return errorResponse(res, got.code, 400); }
+    const sig = got.first;
     const signerName = req.body?.signer_name ? String(req.body.signer_name).slice(0, 100) : sr.signer_name;
     const ip = req.ip || req.headers['x-forwarded-for'] || null;
     const ua = String(req.headers['user-agent'] || '').slice(0, 500);
@@ -548,6 +558,7 @@ router.post('/sign/:token/sign', async (req, res, next) => {
     await sr.update({
       status: 'signed',
       signature_image_b64: sig,
+      item_images: got.images,
       signed_at: new Date(),
       signed_ip: ip, signed_ua: ua, signed_consent: true,
       signer_name: signerName,
@@ -643,6 +654,8 @@ function serialize(sr) {
     signed_at: sr.signed_at,
     signed_ip: sr.signed_ip,
     signature_image_b64: sr.signature_image_b64 ? '(present)' : null,  // 진행 표 응답에서 이미지 본문 노출 X (대신 별도 GET)
+    // 서명 항목 — 앱 안 서명 창이 «칸 몇 개를 채울지» 를 안다. 채운 이미지(item_images)는 싣지 않는다(위와 같은 이유)
+    required_items: sr.required_items ? { sign: sr.required_items.sign, date: !!sr.required_items.date, name: !!sr.required_items.name } : null,
     rejected_at: sr.rejected_at, rejected_reason: sr.rejected_reason,
     note: sr.note,
     expires_at: sr.expires_at,

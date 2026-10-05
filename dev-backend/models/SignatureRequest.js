@@ -138,6 +138,12 @@ SignatureRequest.init({
   snapshot_mismatch: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   // 서명자가 첨부를 실제로 열어봤는가 — [{file_id, at}] (열람 사실도 증거의 일부)
   attachments_viewed: { type: DataTypes.JSON, allowNull: true },
+  // ─── 서명 항목 (docs/SIGNATURE_ITEMS_DESIGN.md §9, 2026-10-05) ───
+  // 요청 시점에 고정본에서 읽은 «이 서명자가 채울 것» — { sign: N, date: bool, name: bool, date_format, locale, tz }
+  //   서명 화면은 이것만 보고 무엇을 받을지 정한다(문서가 나중에 바뀌어도 고정본과 같다).
+  required_items: { type: DataTypes.JSON, allowNull: true },
+  // 서명 칸 순서대로 채운 값 — [{ index, mode:'draw'|'image', b64, sha256 }]. 첫 칸은 signature_image_b64 에도(옛 화면 호환).
+  item_images: { type: DataTypes.JSON, allowNull: true },
 }, {
   sequelize, tableName: 'signature_requests', timestamps: true, underscored: true,
   indexes: [

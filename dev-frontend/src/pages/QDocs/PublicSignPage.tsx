@@ -14,14 +14,14 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import PostEditor from '../../components/Docs/PostEditor';
-import SignaturePad, { type SignaturePadHandle } from '../../components/Common/SignaturePad';
+import SignatureItemsInput, { type SignatureItemsHandle } from '../../components/Common/SignatureItemsInput';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 import { sanitizeRichText } from '../../utils/sanitizeHtml';
 import { formatPublicDateTime } from '../../utils/dateFormat';
 import { withImageCtxJson, withImageCtxHtml } from '../../utils/imageCtx';
 import {
-  ActionRow, Brand, CanvasClear, CanvasPlaceholder, CanvasWrap, ConfirmActions, ConfirmTextArea,
+  ActionRow, Brand, ConfirmActions, ConfirmTextArea,
   ConfirmedComment, ConsentBox, ConsentHint, ConsentLabel, ConsentTitle, Content, DocBody, ErrorBox,
   ErrorCenter, ErrorHint, ErrorIcon, ErrorTitle, InlineSpinner, LoadingCenter, NoteBox, OtpActions, OtpInput,
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
@@ -46,6 +46,8 @@ interface PublicSignData {
   // 서명란(2026-09-22) — 내 칸이 문서 어디인지. null 이면 서명란 없는 옛 요청.
   slot?: number | null;
   party?: 'us' | 'them';
+  // 서명 항목(2026-10-05) — 채울 서명 칸 수. null = 옛 요청(1칸)
+  required_items?: { sign: number; date: boolean; name: boolean } | null;
   // 본문 이미지 문맥 — 서명자(익명)에게 고정본 이미지를 여는 증명(utils/imageCtx)
   image_ctx?: string | null;
   entity: {
@@ -99,8 +101,9 @@ const PublicSignPage: React.FC = () => {
   // 그리기는 공용 서명판 한 벌(components/Common/SignaturePad) — 앱 안 서명과 같은 것.
   //   ★ 2026-10-04 까지 이 화면만 자기 캔버스를 따로 갖고 있었다(공용 컴포넌트 머리말은 «같은 것» 이라고
   //     적혀 있었는데 사실이 아니었다). 그래서 «꽉 채워 그렸는데 작게·위로 붙는» 수리가 여기엔 안 닿았다.
-  const padRef = useRef<SignaturePadHandle | null>(null);
-  const [canvasEmpty, setCanvasEmpty] = useState(true);
+  // 2026-10-05 — 서명 칸이 여러 개일 수 있다(사인·회사 스탬프). 칸마다 그리기 또는 이미지(components/Common/SignatureItemsInput).
+  const itemsRef = useRef<SignatureItemsHandle | null>(null);
+  const [itemsReady, setItemsReady] = useState(false);
   // 서명을 마친 뒤 갈 곳 — 방금 서명한 문서(서명이 들어간 모습)를 이 화면에서 바로 연다(Irene 2026-10-04)
   const [showSignedDoc, setShowSignedDoc] = useState(false);
   const [closeFailed, setCloseFailed] = useState(false);
@@ -239,7 +242,6 @@ const PublicSignPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [otpCode, phase, otpSent]);
 
-  const clearCanvas = () => { padRef.current?.clear(); };
 
   // ─── 서명 / 거절 ───
   // #239 — 확인 / 의견. apiFetch 가 아니라 공개 라우트라 fetch 직접. **res.ok 를 반드시 본다.**
@@ -272,21 +274,23 @@ const PublicSignPage: React.FC = () => {
   const submitSign = async () => {
     if (signing) return;
     setSignError(null);
-    if (canvasEmpty) { setSignError(t('publicSign.signRequired', '서명을 그려주세요.') as string); return; }
+    if (!itemsReady) { setSignError(t('publicSign.itemsRequired', { defaultValue: '서명 칸을 모두 채워 주세요.' }) as string); return; }
     if (!consent) { setSignError(t('publicSign.consentRequired', '동의를 체크해 주세요.') as string); return; }
-    const dataUrl = padRef.current?.toDataURL();
-    if (!dataUrl) { setSignError(t('publicSign.signRequired', '서명을 그려주세요.') as string); return; }
+    const items = itemsRef.current?.getItems();
+    if (!items) { setSignError(t('publicSign.itemsRequired', { defaultValue: '서명 칸을 모두 채워 주세요.' }) as string); return; }
     setSigning(true);
     try {
       const r = await fetch(`/api/sign/${token}/sign`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature_image_b64: dataUrl, consent: true, signer_name: doc?.signer_name || null }),
+        body: JSON.stringify({ item_images: items, consent: true, signer_name: doc?.signer_name || null }),
       });
       const j = await r.json();
       if (!j.success) {
         if (j.message === 'consent_required') setSignError(t('publicSign.consentRequired', '동의를 체크해 주세요.') as string);
         else if (j.message === 'already_signed') { await reload(); return; }
         else if (j.message === 'expired') setSignError(t('publicSign.expired', '만료된 요청입니다.') as string);
+        else if (j.message === 'signature_items_incomplete') setSignError(t('publicSign.itemsRequired', { defaultValue: '서명 칸을 모두 채워 주세요.' }) as string);
+        else if (j.message === 'signature_image_too_large') setSignError(t('publicSign.imageTooLarge', { defaultValue: '이미지가 너무 커요. 더 작은 이미지로 올려 주세요.' }) as string);
         else setSignError(j.message || (t('publicSign.signFailed', '서명 실패') as string));
         return;
       }
@@ -527,19 +531,8 @@ const PublicSignPage: React.FC = () => {
             {phase === 'sign' && (
               <Section>
                 <SectionTitle>{t('publicSign.signTitle', '서명')}</SectionTitle>
-                <SectionDesc>{t('publicSign.signDesc', '아래 영역에 서명을 그려주세요. 마우스 또는 터치 모두 사용 가능합니다.')}</SectionDesc>
-                <CanvasWrap>
-                  <SignaturePad
-                    ref={padRef}
-                    bare
-                    onEmptyChange={setCanvasEmpty}
-                    ariaLabel={t('publicSign.canvasAria', '서명 캔버스') as string}
-                  />
-                  {canvasEmpty && <CanvasPlaceholder>{t('publicSign.canvasPlaceholder', '여기에 서명해 주세요')}</CanvasPlaceholder>}
-                  <CanvasClear type="button" onClick={clearCanvas} disabled={canvasEmpty}>
-                    {t('publicSign.canvasClear', '지우기')}
-                  </CanvasClear>
-                </CanvasWrap>
+                <SectionDesc>{t('publicSign.signDescItems', { defaultValue: '서명 칸마다 직접 그리거나 이미지(사인·도장·회사 스탬프)를 올려 주세요. 서명일·이름은 서명하면 자동으로 들어갑니다.' })}</SectionDesc>
+                <SignatureItemsInput ref={itemsRef} count={doc.required_items?.sign || 1} disabled={signing} onReadyChange={setItemsReady} />
 
                 <ConsentBox>
                   <input type="checkbox" id="consent" checked={consent} onChange={e => setConsent(e.target.checked)} />
@@ -555,7 +548,7 @@ const PublicSignPage: React.FC = () => {
                   <RejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>
                     {t('publicSign.reject', '거절')}
                   </RejectBtn>
-                  <PrimaryBtn type="button" data-testid="sign-submit" onClick={submitSign} disabled={signing || canvasEmpty || !consent}>
+                  <PrimaryBtn type="button" data-testid="sign-submit" onClick={submitSign} disabled={signing || !itemsReady || !consent}>
                     {signing ? <><InlineSpinner />{t('publicSign.signing', '서명 중…')}</> : t('publicSign.signNow', '서명하기')}
                   </PrimaryBtn>
                 </ActionRow>

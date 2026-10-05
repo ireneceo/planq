@@ -12,11 +12,29 @@
 //   · 서명된 뒤의 이미지·이름·일시는 **문서에 저장하지 않는다.** 문서에는 자리만 있고,
 //     값은 signature_requests 에서 와 그려진다(서명본은 고정본 + 서명의 합).
 import { Node, mergeAttributes } from '@tiptap/core';
+import { css } from 'styled-components';
 
+/** 편집 화면의 서명 항목 모양 (2026-10-05) — 여태 모양이 없어 평범한 글자 두 줄로 보였다(Irene: «편집 들어가도 안나오는데»).
+ *  PostEditor 의 Body 가 이것을 얹는다. 노드와 모양을 한 파일에 둔다. */
+export const signatureFieldEditorCss = css`
+  & .pq-sig-field {
+    border: 1.5px dashed #14B8A6; border-radius: 8px; background: #F0FDFA;
+    padding: 8px 12px; margin: 8px 0; max-width: 360px; cursor: grab;
+  }
+  & .pq-sig-field.ProseMirror-selectednode { outline: 2px solid #0D9488; outline-offset: 2px; }
+  & .pq-sig-field-label { font-size: 0.75rem; font-weight: 700; color: #0F766E; }
+  & .pq-sig-field-line { margin-top: 6px; padding-top: 22px; border-bottom: 1px solid #99F6E4; color: #94A3B8; font-size: 0.75rem; }
+  & .pq-sig-field.pq-sig-field-inline { display: inline-block; padding: 4px 10px; margin: 4px 0; }
+  & .pq-sig-field.pq-sig-field-inline .pq-sig-field-line { display: none; }
+`;
+
+export type SignatureItem = 'sign' | 'date' | 'name';
 export interface SignatureFieldAttrs {
   slot: number;
   label: string | null;
   party: 'us' | 'them';
+  /** 2026-10-05 서명 항목 — sign(그리기·이미지, 사인·스탬프) | date(서명일 자동) | name(이름 자동). 없으면 sign */
+  item: SignatureItem;
 }
 
 declare module '@tiptap/core' {
@@ -31,7 +49,7 @@ export const SIGNATURE_FIELD_TAG = 'div[data-signature-field]';
 
 export interface SignatureFieldOptions {
   /** 화면 문구는 밖에서 준다 — 확장 안에 글자를 박으면 i18n 을 벗어난다(PostEditor 가 t() 로 넘긴다) */
-  labels: { us: string; them: string; empty: string };
+  labels: { us: string; them: string; empty: string; sign?: string; date?: string; name?: string };
 }
 
 export const SignatureField = Node.create<SignatureFieldOptions>({
@@ -62,6 +80,12 @@ export const SignatureField = Node.create<SignatureFieldOptions>({
         parseHTML: (el: HTMLElement) => (el.getAttribute('data-party') === 'us' ? 'us' : 'them'),
         renderHTML: (attrs: { party?: string }) => ({ 'data-party': attrs.party === 'us' ? 'us' : 'them' }),
       },
+      item: {
+        default: 'sign',
+        parseHTML: (el: HTMLElement) => { const v = el.getAttribute('data-item'); return v === 'date' || v === 'name' ? v : 'sign'; },
+        // sign 은 쓰지 않는다 — 옛 문서와 바이트가 같아야 옛 서명본·고정본 지문이 그대로다
+        renderHTML: (attrs: { item?: string }) => (attrs.item === 'date' || attrs.item === 'name' ? { 'data-item': attrs.item } : {}),
+      },
     };
   },
 
@@ -77,7 +101,7 @@ export const SignatureField = Node.create<SignatureFieldOptions>({
     return {
       insertSignatureField: (attrs = {}) => ({ commands }) => commands.insertContent({
         type: this.name,
-        attrs: { slot: attrs.slot ?? 1, label: attrs.label ?? null, party: attrs.party ?? 'them' },
+        attrs: { slot: attrs.slot ?? 1, label: attrs.label ?? null, party: attrs.party ?? 'them', item: attrs.item ?? 'sign' },
       }),
     };
   },
@@ -91,13 +115,19 @@ export const SignatureField = Node.create<SignatureFieldOptions>({
       dom.setAttribute('data-slot', String(node.attrs.slot ?? 1));
       dom.setAttribute('data-party', node.attrs.party === 'us' ? 'us' : 'them');
       if (node.attrs.label) dom.setAttribute('data-label', String(node.attrs.label));
+      const item = node.attrs.item === 'date' || node.attrs.item === 'name' ? node.attrs.item : 'sign';
+      if (item !== 'sign') { dom.setAttribute('data-item', item); dom.classList.add('pq-sig-field-inline'); }
       const cap = document.createElement('div');
       cap.className = 'pq-sig-field-label';
       const L = this.options.labels;
-      cap.textContent = String(node.attrs.label || (node.attrs.party === 'us' ? L.us : L.them));
+      // «① 서명 · 가맹본부» — 번호로 누구의 칸인지, 종류로 무엇이 들어가는지 바로 보인다
+      const kind = item === 'date' ? (L.date || 'Date') : item === 'name' ? (L.name || 'Name') : (L.sign || L.empty);
+      const who = node.attrs.label || (node.attrs.party === 'us' ? L.us : L.them);
+      const circled = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'][(Number(node.attrs.slot) || 1) - 1] || `(${node.attrs.slot})`;
+      cap.textContent = item === 'sign' ? `${circled} ${kind} · ${who}` : `${circled} ${kind}`;
       const line = document.createElement('div');
       line.className = 'pq-sig-field-line';
-      line.textContent = this.options.labels.empty;
+      line.textContent = item === 'sign' ? this.options.labels.empty : '';
       dom.appendChild(cap);
       dom.appendChild(line);
       return { dom };
@@ -115,6 +145,9 @@ export function signatureFieldExtension(t: (k: string, o?: Record<string, unknow
       us: t('editor.sigFieldUs', { defaultValue: '보내는 쪽' }) as string,
       them: t('editor.sigFieldThem', { defaultValue: '받는 쪽' }) as string,
       empty: t('editor.sigFieldEmpty', { defaultValue: '서명란' }) as string,
+      sign: t('editor.sigItemSign', { defaultValue: '서명' }) as string,
+      date: t('editor.sigItemDate', { defaultValue: '서명일' }) as string,
+      name: t('editor.sigItemName', { defaultValue: '이름' }) as string,
     },
   });
 }

@@ -135,7 +135,10 @@ async function run() {
       btn.click();
       return { noBtn: false, before };
     })()`);
+    // 2026-10-05 — 버튼은 [서명 항목 ▾] 메뉴다. 첫 서명자의 «+ 서명» 을 누른다(사용자가 하는 그대로)
     if (!ed.noBtn) {
+      await b.sleep(500);
+      ed.menu = await page.evaluate(`(() => { const m = document.querySelector('[data-testid="editor-sig-insert-1-sign"]'); if (m) m.click(); return !!m; })()`);
       await b.sleep(900);
       ed = { ...ed, ...await page.evaluate(`(() => {
         const list = [...document.querySelectorAll('.pq-sig-field')];
@@ -161,6 +164,17 @@ async function run() {
     await b.sleep(2500); await b.dismissBlockers(page).catch(() => {});
     await page.click('[data-testid="post-sign"]').catch(() => {});
     await b.sleep(1500);
+    // 2026-10-05 — 3단계: ① 서명 자리(문서의 서명자가 보인다) → [다음] → ② 칸마다 사람 배정
+    const step1 = await page.evaluate(`(() => ({
+      spots: document.querySelectorAll('[data-testid^="sign-spot-"]').length,
+      next: !!document.querySelector('[data-testid="sign-step-next"]'),
+      nextDisabled: !!document.querySelector('[data-testid="sign-step-next"]')?.disabled,
+    }))()`);
+    P('서명 요청 1단계 — 문서의 서명자 2명이 보이고 [다음] 이 열려 있다',
+      step1.spots === 2 && step1.next && !step1.nextDisabled,
+      `서명자 ${step1.spots}명 · [다음] ${step1.next ? (step1.nextDisabled ? '잠김' : '열림') : '없음'}`);
+    await page.click('[data-testid="sign-step-next"]').catch(() => {});
+    await b.sleep(700);
     const req = await page.evaluate(`(() => {
       const list = document.querySelector('[data-testid="sign-slot-list"]');
       if (!list) return { found: false, modal: !!document.querySelector('[aria-modal="true"]') };

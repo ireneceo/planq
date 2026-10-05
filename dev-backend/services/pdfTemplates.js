@@ -290,8 +290,10 @@ function nodeToHtml(n) {
     // 서명란(2026-09-22) — 문서 안의 «여기에 서명이 들어간다» 자리. 값은 여기서 그리지 않는다:
     //   services/signedDocument.js 가 고정본 HTML 에 서명(이미지·이름·일시)을 끼운다. 빠지면 PDF 에서 자리가 사라진다.
     case 'signatureField':
+      // 2026-10-05 서명 항목 — data-item: sign(그리기·이미지) | date(서명일) | name(이름). 없으면 sign(옛 문서)
       return `<div data-signature-field data-slot="${Number(a.slot) || 1}" data-party="${a.party === 'us' ? 'us' : 'them'}"`
-        + `${a.label ? ` data-label="${escapeHtml(a.label)}"` : ''}></div>`;
+        + `${a.label ? ` data-label="${escapeHtml(a.label)}"` : ''}`
+        + `${a.item === 'date' || a.item === 'name' ? ` data-item="${a.item}"` : ''}></div>`;
     case 'paragraph': return `<p>${inner}</p>`;
     case 'heading': return `<h${a.level || 2}>${inner}</h${a.level || 2}>`;
     case 'bulletList': return `<ul>${inner}</ul>`;

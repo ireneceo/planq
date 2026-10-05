@@ -344,7 +344,10 @@
     "viewSignedDoc": "서명한 문서 보기",
     "hideSignedDoc": "문서 접기",
     "close": "닫기",
-    "closeManually": "이 브라우저에서는 창을 자동으로 닫을 수 없어요. 탭을 직접 닫아 주세요."
+    "closeManually": "이 브라우저에서는 창을 자동으로 닫을 수 없어요. 탭을 직접 닫아 주세요.",
+    "itemsRequired": "서명 칸을 모두 채워 주세요.",
+    "imageTooLarge": "이미지가 너무 커요. 더 작은 이미지로 올려 주세요.",
+    "signDescItems": "서명 칸마다 직접 그리거나 이미지(사인·도장·회사 스탬프)를 올려 주세요. 서명일·이름은 서명하면 자동으로 들어갑니다."
   },
   "sign": {
     "button": "서명 받기",
@@ -385,12 +388,40 @@
     "confirmers": "확인 요청 받는 분",
     "kindSignHint": "받는 분이 이메일 인증(6자리 코드) 후 서명합니다. 계약처럼 무게가 필요한 문서에 씁니다.",
     "kindConfirmHint": "받는 분이 링크를 열어 \"확인했습니다\" 를 누르거나 의견을 남깁니다. 별도 인증 절차가 없어 가볍습니다.",
-    "slotHint": "이 문서에는 서명란이 있습니다. 칸마다 서명할 사람을 지정하세요.",
+    "slotHint": "서명 자리마다 서명할 사람을 지정하세요.",
     "slotIncomplete": "모든 서명란에 서명할 사람을 지정하세요",
     "partyUs": "보내는 쪽",
     "partyThem": "받는 쪽",
     "pickMember": "서명할 멤버 선택",
-    "usNote": "보내는 쪽은 메일 없이 앱 안에서 서명합니다(로그인이 본인 확인)."
+    "usNote": "보내는 쪽은 메일 없이 앱 안에서 서명합니다(로그인이 본인 확인).",
+    "spots": {
+      "hint": "서명·서명일·이름이 들어갈 자리예요. 서명은 이 자리에만 들어가요.",
+      "labelAria": "서명자 이름표",
+      "partyAria": "보내는 쪽 / 받는 쪽",
+      "signN": "서명 {{n}}칸",
+      "foundTitle": "본문에 손으로 적은 서명 자리 {{n}}곳을 찾았어요",
+      "foundBody": "{{people}}명 · 서명(사인·스탬프) {{sign}} · 서명일 {{date}}. 글자로 적은 자리에는 아무것도 들어가지 않아요 — 서명 항목으로 바꾸면 그 자리에 들어갑니다.",
+      "convert": "이 자리들을 서명 항목으로 바꾸기",
+      "emptyTitle": "이 문서에는 서명 자리가 없어 보낼 수 없어요",
+      "emptyBody": "문서 끝에 보내는 쪽·받는 쪽 서명 자리를 넣거나, 편집에서 [서명 항목] 으로 원하는 위치에 넣으세요.",
+      "addEnd": "+ 문서 끝에 서명 자리 추가",
+      "openEditor": "편집에서 직접 넣기"
+    },
+    "steps": {
+      "aria": "서명 요청 단계",
+      "spots": "서명 자리",
+      "people": "서명할 사람",
+      "send": "보내기",
+      "back": "이전",
+      "next": "다음"
+    },
+    "recipients": "이렇게 보냅니다",
+    "recipientMember": "멤버",
+    "recipientInApp": "(앱에서 서명 — 메일 안 감)",
+    "recipientsHint": "받는 쪽 주소로 서명 링크 메일이 나갑니다. 주소를 한 번 더 확인하세요.",
+    "noFields": {
+      "insertFailed": "서명 자리를 저장하지 못했어요. 편집에서 [서명 항목] 으로 넣어 주세요."
+    }
   },
   "ai": {
     "btn": "AI",
@@ -586,11 +617,18 @@
     "alignRight": "오른쪽 정렬",
     "codeInsertAbove": "코드 블록 위에 문단 추가",
     "codeInsertBelow": "코드 블록 아래에 문단 추가",
-    "insertSignature": "서명란 삽입 — 서명 요청 때 서명자를 이 칸에 짝짓습니다",
+    "insertSignature": "서명 항목 — 서명·서명일·이름이 들어갈 자리",
     "sigFieldUs": "보내는 쪽",
     "sigFieldThem": "받는 쪽",
     "sigFieldEmpty": "서명란",
-    "insertSignatureAria": "서명란 삽입"
+    "insertSignatureAria": "서명 항목 넣기",
+    "insertSignatureShort": "서명 항목",
+    "sigItemSign": "서명",
+    "sigItemDate": "서명일",
+    "sigItemName": "이름",
+    "sigItemSignLong": "서명 (그리기·이미지)",
+    "sigMenuHint": "누구의 칸인지 고르고, 넣을 것을 누르세요. 커서 자리에 들어갑니다.",
+    "sigNewSigner": "새 서명자"
   },
   "tab": {
     "title": "문서",
@@ -782,12 +820,29 @@
     "idNote": "본인 확인은 로그인으로 대신합니다. 서명 시각과 접속 정보가 함께 기록됩니다.",
     "drawRequired": "서명을 그려주세요.",
     "consentRequired": "동의에 체크해야 서명할 수 있습니다.",
-    "failed": "서명하지 못했습니다."
+    "failed": "서명하지 못했습니다.",
+    "hintItems": "서명 칸마다 그리거나 이미지(사인·도장·회사 스탬프)를 올리세요.",
+    "itemsRequired": "서명 칸을 모두 채워 주세요."
   },
   "duplicate": {
     "btn": "복사",
     "hint": "이 문서를 복사해 새 문서로 시작 (서명·공유 링크는 복사되지 않습니다)",
     "failed": "복사하지 못했습니다. 잠시 후 다시 시도해주세요.",
     "forbidden": "이 문서를 복사할 권한이 없습니다."
+  },
+  "signItems": {
+    "badType": "PNG·JPG·WEBP 이미지만 올릴 수 있어요.",
+    "tooLarge": "5MB 이하 이미지만 올릴 수 있어요.",
+    "readFailed": "이미지를 읽지 못했어요. 다른 파일로 해 보세요.",
+    "nth": "서명 칸 {{n}} / {{total}}",
+    "one": "서명",
+    "modeAria": "서명 방법",
+    "draw": "그리기",
+    "image": "이미지 올리기",
+    "padAria": "서명 칸 {{n}} 그리기",
+    "clear": "지우기",
+    "imageHint": "사인·도장·회사 스탬프 이미지(PNG 권장 — 배경이 투명하면 문서에 자연스럽게 얹혀요)",
+    "replace": "다른 이미지로",
+    "pick": "이미지 고르기"
   }
 }

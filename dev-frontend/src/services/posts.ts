@@ -491,6 +491,8 @@ export interface SignatureRequest {
   slot?: number | null;
   party?: 'us' | 'them';
   signer_user_id?: number | null;
+  // 서명 항목 (2026-10-05) — 이 서명자가 채울 서명 칸 수 · 서명일/이름 자리 유무. null = 옛 요청(서명 칸 1)
+  required_items?: { sign: number; date: boolean; name: boolean } | null;
   token: string;
   sign_url: string;
   status: SignatureStatus;
@@ -545,11 +547,11 @@ export async function getSignedHtml(postId: number): Promise<SignedDocView> {
 }
 
 /** 보내는 쪽 서명 — 인증번호 없이 로그인으로 본인 확인. 서버: POST /api/signatures/:id/sign-internal */
-export async function signInternal(signatureId: number, imageDataUrl: string): Promise<void> {
+export async function signInternal(signatureId: number, items: Array<{ mode: 'draw' | 'image'; b64: string }>): Promise<void> {
   const r = await apiFetch(`/api/signatures/${signatureId}/sign-internal`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ signature_image_b64: imageDataUrl, consent: true }),
+    body: JSON.stringify({ item_images: items, consent: true }),
   });
   const j = await r.json().catch(() => null);
   // ★ 실패를 삼키지 않는다 — 삼키면 «눌렀는데 아무 일도 안 남» 이 된다.

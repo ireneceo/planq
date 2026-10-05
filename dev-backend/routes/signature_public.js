@@ -61,6 +61,8 @@ router.get('/sign/:token', async (req, res, next) => {
       //   서명하게 두지 않는다(설계 §1). slot NULL 이면 서명란 없는 옛 요청이다.
       slot: sr.slot == null ? null : sr.slot,
       party: sr.party || 'them',
+      // 서명 항목(2026-10-05) — 이 서명자가 채울 서명 칸 수(그리기·이미지). 없으면 옛 요청 = 1칸
+      required_items: sr.required_items ? { sign: sr.required_items.sign, date: !!sr.required_items.date, name: !!sr.required_items.name } : null,
       entity: {
         type: sr.entity_type,
         id: sr.entity_id,

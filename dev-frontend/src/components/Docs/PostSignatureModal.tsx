@@ -8,7 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { requestSignatures, type PostDetail, type SignatureRequest } from '../../services/posts';
+import { requestSignatures, updatePost, type PostDetail, type SignatureRequest } from '../../services/posts';
 import SingleDateField from '../Common/SingleDateField';
 import { listProjectConversations, listBusinessConversations, listBusinessMembers, type ApiConversation } from '../../services/qtalk';
 import { listClientsForBilling, type ApiClientLite } from '../../services/invoices';
@@ -17,6 +17,8 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { isEnterAction } from '../../utils/imeKey';
 import { readSignatureFields, type DocSignatureField } from '../../utils/signatureFields';
+import SignatureSpotsStep from './SignatureSpotsStep';
+import { SignStepsBar, SignRecipients } from './SignRequestSteps';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 
@@ -25,6 +27,10 @@ interface Props {
   onClose: () => void;
   post: PostDetail;
   onSent: (signatures: SignatureRequest[]) => void;
+  /** 이 창에서 문서에 서명란을 넣었을 때 — 상위가 상세를 새로 고친다 */
+  onPostUpdated?: (post: PostDetail) => void;
+  /** 1단계에서 [편집에서 직접 넣기] — 창을 닫고 편집으로 */
+  onOpenEditor?: () => void;
 }
 
 interface SignerRow { id: number; email: string; name: string; }
@@ -32,7 +38,7 @@ interface SignerRow { id: number; email: string; name: string; }
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 let nextRowId = 1;
 
-const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) => {
+const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPostUpdated, onOpenEditor }) => {
   const navigate = useNavigate();
   const { user: me } = useAuth();
   // 만료일도 화면 언어를 따른다 — 'ko-KR' 를 못 박으면 영어 화면에 한국어 날짜가 섞인다
@@ -53,9 +59,37 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
   // 워크스페이스 멤버만 — «보내는 쪽» 칸에 세울 수 있는 사람(설계 §3: 기본값은 요청을 보낸 사람)
   const [memberOptions, setMemberOptions] = useState<Array<PlanQSelectOption & { userId: number; name: string }>>([]);
   // 문서에 그려진 서명란. 있으면 «칸마다 배정», 없으면 종전처럼 문서 끝 서명 영역.
+  // 이 창에서 서명란을 넣었으면 그 문서로 칸을 읽는다(상위 상세가 새로 고쳐지기 전에도)
+  const [contentOverride, setContentOverride] = useState<unknown>(null);
   const fields = useMemo<DocSignatureField[]>(
-    () => (open ? readSignatureFields(post.content_json) : []), [open, post.content_json]);
+    () => (open ? readSignatureFields(contentOverride ?? post.content_json) : []), [open, post.content_json, contentOverride]);
   const useSlots = fields.length > 0 && kind === 'sign';
+  // ★ 2026-10-05 (Irene: *"서명 보낼 때 서명란 없이 보내? 서명란이 문서에 마음대로 만든 곳에 있는게 의미 없잖아"*)
+  //   서명 요청은 **서명란이 있어야** 보낸다. 없으면 서명이 문서 끝 별도 영역에 붙고, 본문에 손으로 적은
+  //   «서명: ____» 자리는 그대로 비어 있어 서명본이 «어디에 서명했는지» 를 말하지 못한다.
+  //   확인 요청(가벼운 확인)은 서명 칸이 필요 없으므로 그대로다.
+  const needsFields = kind === 'sign' && fields.length === 0;
+  // 서명 요청은 3단계다(docs/SIGNATURE_ITEMS_DESIGN.md §2-1) — ① 서명 자리 ② 서명할 사람 ③ 보내기.
+  //   Irene: *"UI UX에서 바로 알아야 하는 거야 … 순서가 편집이랑 서명설정 보내기 등이 되는거야"*
+  //   확인 요청은 서명 자리가 필요 없으므로 한 장 그대로다.
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const stepped = kind === 'sign';
+  const [inserting, setInserting] = useState(false);
+  // 1단계가 문서를 고친다(서명 자리 바꾸기·추가·이름표·쪽). 저장은 여기 한 곳 — 같은 문서를 두 곳에서 PUT 하지 않는다.
+  const baseUpdatedRef = useRef<string | null>(post.updated_at || null);
+  useEffect(() => { baseUpdatedRef.current = post.updated_at || null; }, [post.updated_at]);
+  const saveDoc = async (next: unknown) => {
+    if (inserting) return;
+    setInserting(true); setError(null);
+    try {
+      const saved = await updatePost(post.id, { content_json: next as never, base_updated_at: baseUpdatedRef.current });
+      baseUpdatedRef.current = saved.updated_at || baseUpdatedRef.current;
+      setContentOverride(next);
+      onPostUpdated?.(saved);
+    } catch (e) {
+      setError((e as Error).message || (t('sign.noFields.insertFailed', { defaultValue: '서명 자리를 저장하지 못했어요. 편집에서 [서명 항목] 으로 넣어 주세요.' }) as string));
+    } finally { setInserting(false); }
+  };
   // 칸 → 서명자. 받는 쪽은 email/name, 보내는 쪽은 멤버 user_id.
   const [slotMap, setSlotMap] = useState<Record<number, { email: string; name: string; userId: number | null }>>({});
   const [busy, setBusy] = useState(false);
@@ -220,7 +254,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
       : { slot: f.slot, party: 'them' as const, email: v.email.trim().toLowerCase(), name: v.name.trim() || undefined };
   }), [fields, slotMap]);
   const slotsFilled = slotPayload.every(p => (p.party === 'us' ? !!p.user_id : EMAIL_RE.test(p.email)));
-  const canSubmit = (useSlots ? slotsFilled : validSigners.length > 0) && !busy;
+  const canSubmit = !needsFields && (useSlots ? slotsFilled : validSigners.length > 0) && !busy;
 
   const submit = async () => {
     setError(null);
@@ -252,7 +286,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
   const reset = () => {
     setSigners([{ id: nextRowId++, email: '', name: '' }]);
     setNote(''); setExpiryPick(14); setCustomExpiry('');
-    setError(null); setDone(null);
+    setError(null); setDone(null); setStep(1);
   };
 
   const closeAll = () => { reset(); onClose(); };
@@ -299,6 +333,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
           <Body>
             <Section>
               {/* #239 — 요청 종류. 라벨이 아래 섹션 문구까지 바꾼다(서명자 vs 확인 요청 대상). */}
+              {(!stepped || step === 1) && <>
               <KindRow role="radiogroup" aria-label={t('sign.kindLabel', { defaultValue: '요청 종류' }) as string}>
                 <KindBtn type="button" role="radio" aria-checked={kind === 'sign'} $on={kind === 'sign'} onClick={() => setKind('sign')}>
                   {t('sign.kindSign', { defaultValue: '서명 요청' }) as string}
@@ -310,11 +345,18 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
               <SectionHint>{kind === 'confirm'
                 ? t('sign.kindConfirmHint', { defaultValue: '받는 분이 링크를 열어 "확인했습니다" 를 누르거나 의견을 남깁니다. 별도 인증 절차가 없어 가볍습니다.' }) as string
                 : t('sign.kindSignHint', { defaultValue: '받는 분이 이메일 인증(6자리 코드) 후 서명합니다. 계약처럼 무게가 필요한 문서에 씁니다.' }) as string}</SectionHint>
+              </>}
+              {stepped && <SignStepsBar step={step} />}
+              {stepped && step === 1 && (
+                <SignatureSpotsStep contentJson={contentOverride ?? post.content_json} busy={inserting}
+                  onSaveDoc={saveDoc} onOpenEditor={onOpenEditor} />
+              )}
+              {(!stepped || step === 2) && <>
               <SectionLabel>{kind === 'confirm'
                 ? t('sign.confirmers', { defaultValue: '확인 요청 받는 분' }) as string
                 : t('sign.signers', '서명자')}</SectionLabel>
               <SectionHint>{useSlots
-                ? t('sign.slotHint', { defaultValue: '이 문서에는 서명란이 있습니다. 칸마다 서명할 사람을 지정하세요.' }) as string
+                ? t('sign.slotHint', { defaultValue: '서명 자리마다 서명할 사람을 지정하세요.' }) as string
                 : t('sign.signersHintV2', { defaultValue: '멤버·고객을 검색해 빠르게 추가하거나, 아래에 이메일을 직접 입력하세요. Enter 로 새 행 추가.' }) as string}</SectionHint>
 
               {useSlots ? (
@@ -428,8 +470,18 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
                   {t('sign.addSigner', '서명자 추가')}
                 </AddSigner>
               )}
+              </>}
             </Section>
 
+            {(!stepped || step === 3) && <>
+            {stepped && (
+              <SignRecipients rows={useSlots
+                ? fields.map((f) => {
+                  const v = slotMap[f.slot] || { email: '', name: '', userId: null };
+                  return { key: String(f.slot), label: f.label, party: f.party, name: v.name, email: f.party === 'us' ? '' : v.email };
+                })
+                : validSigners.map((v) => ({ key: String(v.id), label: null, party: 'them' as const, name: v.name, email: v.email }))} />
+            )}
             <Section>
               <SectionLabel>{t('sign.message', '메모 (선택)')}</SectionLabel>
               <Textarea rows={2} value={note} onChange={e => setNote(e.target.value)} placeholder={t('sign.messagePh', '검토 부탁드립니다.') as string} disabled={busy} />
@@ -473,6 +525,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
                 )}
               </SectionHalf>
             </SectionTwoCol>
+            </>}
 
             {error && <ErrorBox role="alert">{error}</ErrorBox>}
           </Body>
@@ -480,8 +533,17 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
 
         {!done && (
           <Footer>
-            <SecondaryBtn type="button" onClick={closeAll} disabled={busy}>{t('cancel', '취소')}</SecondaryBtn>
-            <PrimaryBtn type="button" onClick={submit} disabled={!canSubmit}>
+            {stepped && step > 1
+              ? <SecondaryBtn type="button" data-testid="sign-step-back" onClick={() => setStep((step - 1) as 1 | 2)} disabled={busy}>{t('sign.steps.back', { defaultValue: '이전' })}</SecondaryBtn>
+              : <SecondaryBtn type="button" onClick={closeAll} disabled={busy}>{t('cancel', '취소')}</SecondaryBtn>}
+            {stepped && step < 3 ? (
+              <PrimaryBtn type="button" data-testid="sign-step-next"
+                disabled={inserting || (step === 1 ? needsFields : !slotsFilled)}
+                onClick={() => setStep((step + 1) as 2 | 3)}>
+                {t('sign.steps.next', { defaultValue: '다음' })}
+              </PrimaryBtn>
+            ) : (
+            <PrimaryBtn type="button" data-testid="sign-submit" onClick={submit} disabled={!canSubmit}>
               {busy ? (
                 <><Spinner />{t('sign.sending', '발송 중…')}</>
               ) : (
@@ -492,6 +554,7 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent }) =>
                 </>
               )}
             </PrimaryBtn>
+            )}
           </Footer>
         )}
       </Dialog>

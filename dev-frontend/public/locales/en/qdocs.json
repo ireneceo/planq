@@ -344,7 +344,10 @@
     "viewSignedDoc": "View signed document",
     "hideSignedDoc": "Hide document",
     "close": "Close",
-    "closeManually": "This browser can't close the window automatically. Please close the tab yourself."
+    "closeManually": "This browser can't close the window automatically. Please close the tab yourself.",
+    "itemsRequired": "Please fill every signature spot.",
+    "imageTooLarge": "The image is too large. Please upload a smaller one.",
+    "signDescItems": "For each signature spot, draw or upload an image (signature, seal or company stamp). The date and name are filled in automatically when you sign."
   },
   "sign": {
     "button": "Get signatures",
@@ -385,12 +388,40 @@
     "confirmers": "Who should confirm",
     "kindSignHint": "The recipient verifies by email code (6 digits), then signs. Use for contracts and anything that needs weight.",
     "kindConfirmHint": "The recipient opens the link and taps the review button, or leaves a comment. No extra verification, so it stays light.",
-    "slotHint": "This document has signature blocks. Assign a signer to each block.",
+    "slotHint": "Choose who signs each signature spot.",
     "slotIncomplete": "Assign a signer to every signature block",
     "partyUs": "Sender",
     "partyThem": "Recipient",
     "pickMember": "Choose a member to sign",
-    "usNote": "The sender side signs inside the app — no email, no code (login proves identity)."
+    "usNote": "The sender side signs inside the app — no email, no code (login proves identity).",
+    "spots": {
+      "hint": "These are the spots for signatures, dates and names. Signatures go only into these spots.",
+      "labelAria": "Signer label",
+      "partyAria": "Sender / Recipient",
+      "signN": "{{n}} signature spot(s)",
+      "foundTitle": "Found {{n}} hand-written signature spots in the text",
+      "foundBody": "{{people}} signer(s) · signatures/stamps {{sign}} · dates {{date}}. Nothing gets filled into typed placeholders — convert them to signature items and they will be filled in place.",
+      "convert": "Convert these to signature items",
+      "emptyTitle": "This document has no signature spots, so it can’t be sent",
+      "emptyBody": "Add sender and recipient spots at the end, or place them anywhere in the editor with [Signature items].",
+      "addEnd": "+ Add signature spots at the end",
+      "openEditor": "Place them in the editor"
+    },
+    "steps": {
+      "aria": "Signature request steps",
+      "spots": "Signature spots",
+      "people": "Who signs",
+      "send": "Send",
+      "back": "Back",
+      "next": "Next"
+    },
+    "recipients": "Sending to",
+    "recipientMember": "Member",
+    "recipientInApp": "(signs in the app — no email)",
+    "recipientsHint": "Recipients get the signing link by email. Please double-check the addresses.",
+    "noFields": {
+      "insertFailed": "Couldn’t save the signature spots. Add them in the editor with [Signature items]."
+    }
   },
   "ai": {
     "btn": "AI",
@@ -586,11 +617,18 @@
     "alignRight": "Align right",
     "codeInsertAbove": "Add a paragraph above the code block",
     "codeInsertBelow": "Add a paragraph below the code block",
-    "insertSignature": "Insert signature block — you assign a signer to it when requesting signatures",
+    "insertSignature": "Signature items — spots for signature, date and name",
     "sigFieldUs": "Sender",
     "sigFieldThem": "Recipient",
     "sigFieldEmpty": "Signature",
-    "insertSignatureAria": "Insert signature block"
+    "insertSignatureAria": "Insert signature item",
+    "insertSignatureShort": "Signature items",
+    "sigItemSign": "Signature",
+    "sigItemDate": "Date signed",
+    "sigItemName": "Name",
+    "sigItemSignLong": "Signature (draw or image)",
+    "sigMenuHint": "Pick whose spot it is, then what to insert. It goes at the cursor.",
+    "sigNewSigner": "New signer"
   },
   "tab": {
     "title": "Docs",
@@ -782,12 +820,29 @@
     "idNote": "Your login stands in for identity verification. The time and connection details are recorded with the signature.",
     "drawRequired": "Please draw your signature.",
     "consentRequired": "You must check the consent box to sign.",
-    "failed": "Could not sign."
+    "failed": "Could not sign.",
+    "hintItems": "For each signature spot, draw or upload an image (signature, seal or company stamp).",
+    "itemsRequired": "Please fill every signature spot."
   },
   "duplicate": {
     "btn": "Duplicate",
     "hint": "Copy this document into a new one (signatures and share links are not copied)",
     "failed": "Could not duplicate. Please try again shortly.",
     "forbidden": "You do not have permission to duplicate this document."
+  },
+  "signItems": {
+    "badType": "Only PNG, JPG or WEBP images.",
+    "tooLarge": "Images must be 5MB or smaller.",
+    "readFailed": "Couldn’t read the image. Try another file.",
+    "nth": "Signature {{n}} of {{total}}",
+    "one": "Signature",
+    "modeAria": "How to sign",
+    "draw": "Draw",
+    "image": "Upload image",
+    "padAria": "Draw signature {{n}}",
+    "clear": "Clear",
+    "imageHint": "Signature, seal or company stamp image (PNG recommended — a transparent background sits naturally on the document)",
+    "replace": "Use another image",
+    "pick": "Choose image"
   }
 }

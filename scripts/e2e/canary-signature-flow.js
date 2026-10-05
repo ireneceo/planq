@@ -348,7 +348,9 @@ async function run() {
         method: 'POST', headers: H2,
         body: JSON.stringify({
           business_id: bizId, title: '[카나리] 채팅 카드',
-          content_json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '카드 검증' }] }] },
+          // 2026-10-05 — 서명 요청은 서명 칸이 있어야 보낸다(없으면 400 signature_fields_required) — 칸을 넣는다
+          content_json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: '카드 검증' }] },
+            { type: 'signatureField', attrs: { slot: 1, party: 'them', label: null } }] },
           kind: 'doc', status: 'published', category: 'contract',
         }),
       });

@@ -29,9 +29,15 @@ function fmt(dt) {
 }
 
 /** 한 칸의 표시 — 서명 전이면 빈 칸, 서명 후면 이미지·이름·일시. 라벨은 문서에 적힌 것 우선. */
-function fieldHtml(label, party, sr, L, slot) {
+function fieldHtml(label, party, sr, L, slot, index = 0) {
   const name = sr ? (sr.signer_name || sr.signer_email || '') : '';
   const cap = escapeHtml(label || (party === 'us' ? L.us : L.them));
+  // 서명 항목 요청(2026-10-05)인지 — required_items 가 있으면 이름·서명일은 **각자 자리**가 있다.
+  //   그래서 서명 칸에는 이름·시각을 다시 적지 않는다(Irene: «서명일 … 시간 필요없어. 이름도 날짜처럼 어디에 추가»).
+  //   옛 요청(required_items 없음)은 이름·일시를 칸 아래에 그대로 둔다 — 그 문서에는 다른 자리가 없다.
+  const itemized = !!(sr && sr.required_items);
+  // 한 서명자의 둘째 이후 서명 칸(회사 스탬프 등)은 이름표를 따로 달았을 때만 보인다 — 같은 «보내는 쪽» 을 두 번 쓰지 않는다
+  const capHtml = (index > 0 && !label) ? '' : `<div class="pq-sig-cap">${cap}</div>`;
   // ★ 칸 번호·구분을 결과에도 싣는다 — 서명 화면이 «내 칸» 을 이걸로 찾아 강조한다.
   //   빼면 서명자가 자기 서명이 어디에 들어가는지 모른 채 서명한다(설계 §1의 출발점).
   const idAttr = `${slot != null ? ` data-slot="${escapeHtml(String(slot))}"` : ''} data-party="${party === 'us' ? 'us' : 'them'}"`;
@@ -41,22 +47,47 @@ function fieldHtml(label, party, sr, L, slot) {
   //   사유는 싣지 않는다(공개 링크에도 나가는 자리라, 사실만 적고 사유는 진행 표·증명서 쪽에 둔다).
   if (sr && sr.status === 'rejected') {
     return `<div class="pq-sig pq-sig-rejected"${idAttr}>`
-      + `<div class="pq-sig-cap">${cap}</div>`
+      + capHtml
       + `<div class="pq-sig-no">${escapeHtml(L.rejected)}</div>`
       + `<div class="pq-sig-meta">${escapeHtml(name)}${sr.rejected_at ? ` · ${escapeHtml(fmt(sr.rejected_at))}` : ''}</div>`
       + `</div>`;
   }
   if (!sr || sr.status !== 'signed') {
-    return `<div class="pq-sig"${idAttr}>${`<div class="pq-sig-cap">${cap}</div>`}<div class="pq-sig-empty">${escapeHtml(L.empty)}</div></div>`;
+    return `<div class="pq-sig"${idAttr}>${capHtml}<div class="pq-sig-empty">${escapeHtml(L.empty)}</div></div>`;
   }
-  const img = sr.signature_image_b64 && /^data:image\//i.test(sr.signature_image_b64)
-    ? `<img class="pq-sig-img" src="${escapeHtml(sr.signature_image_b64)}" alt="" />` : '';
+  // 서명 칸이 여럿이면(사인 + 회사 스탬프) 칸 순서대로 item_images[index]. 첫 칸은 옛 signature_image_b64 로도(옛 요청 호환)
+  const items = Array.isArray(sr.item_images) ? sr.item_images : [];
+  const src = (items[index] && items[index].b64) || (index === 0 ? sr.signature_image_b64 : null);
+  const img = src && /^data:image\/(png|jpe?g|webp);base64,/i.test(src)
+    ? `<img class="pq-sig-img" src="${escapeHtml(src)}" alt="" />` : '';
   return `<div class="pq-sig pq-sig-done"${idAttr}>`
-    + `<div class="pq-sig-cap">${cap}</div>`
+    + capHtml
     + img
-    + `<div class="pq-sig-meta">${escapeHtml(name)}${sr.signed_at ? ` · ${escapeHtml(fmt(sr.signed_at))}` : ''}</div>`
+    + (itemized ? '' : `<div class="pq-sig-meta">${escapeHtml(name)}${sr.signed_at ? ` · ${escapeHtml(fmt(sr.signed_at))}` : ''}</div>`)
     + `<div class="pq-sig-badge">${escapeHtml(L.verified)}</div>`
     + `</div>`;
+}
+
+// 서명일 — 요청 때 고정한 날짜 표기(보낸 사람 설정 → 없으면 문서 언어) · 워크스페이스 시간대 · **날짜만**
+function signDate(dt, ri) {
+  if (!dt) return '';
+  const d = new Date(dt);
+  const tz = (ri && ri.tz) || 'Asia/Seoul';
+  const [y, m, day] = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d).split('-');
+  const f = ri && ri.date_format;
+  if (f === 'ymd') return `${y}-${m}-${day}`;
+  if (f === 'mdy') return `${m}/${day}/${y}`;
+  if (f === 'dmy') return `${day}/${m}/${y}`;
+  const loc = (ri && ri.locale === 'en') ? 'en-US' : 'ko-KR';
+  return new Intl.DateTimeFormat(loc, { timeZone: tz, year: 'numeric', month: loc === 'en-US' ? 'short' : 'long', day: 'numeric' }).format(d);
+}
+function dateItemHtml(sr, L, slot) {
+  const v = sr && sr.status === 'signed' ? signDate(sr.signed_at, sr.required_items) : '';
+  return `<span class="pq-sig-item pq-sig-date${v ? ' pq-sig-filled' : ''}" data-slot="${escapeHtml(String(slot))}" data-item="date">${v ? escapeHtml(v) : escapeHtml(L.dateEmpty)}</span>`;
+}
+function nameItemHtml(sr, L, slot) {
+  const v = sr ? (sr.signer_name || sr.signer_email || '') : '';
+  return `<span class="pq-sig-item pq-sig-name${v ? ' pq-sig-filled' : ''}" data-slot="${escapeHtml(String(slot))}" data-item="name">${v ? escapeHtml(v) : escapeHtml(L.nameEmpty)}</span>`;
 }
 
 const SIGNED_CSS = `
@@ -69,6 +100,8 @@ const SIGNED_CSS = `
 .pq-sig-badge { font-size: 10px; color: #0F766E; margin-top: 2px; }
 .pq-sig-rejected { border-color: #FCA5A5; background: #FEF2F2; }
 .pq-sig-no { color: #B91C1C; font-size: 12px; font-weight: 700; padding: 6px 0; }
+.pq-sig-item { display: inline-block; min-width: 120px; padding: 2px 6px; border-bottom: 1px dashed #CBD5E1; color: #94A3B8; font-size: 13px; }
+.pq-sig-item.pq-sig-filled { color: #0F172A; border-bottom-color: #14B8A6; }
 `;
 
 /**
@@ -78,17 +111,23 @@ const SIGNED_CSS = `
  * @param {object} labels  화면 문구 (서버 문자열이라 i18n 가드 밖 — 호출부가 언어를 고른다)
  */
 function injectSignatures(html, reqs, labels) {
-  const L = { us: '보내는 쪽', them: '받는 쪽', empty: '서명 전', verified: '전자서명 확인됨', ...(labels || {}) };
+  const L = { us: '보내는 쪽', them: '받는 쪽', empty: '서명 전', verified: '전자서명 확인됨', dateEmpty: '서명일', nameEmpty: '이름', ...(labels || {}) };
   const signs = (reqs || []).filter((r) => r.kind !== 'confirm');
   const bySlot = new Map();
   for (const r of signs) if (r.slot != null) bySlot.set(Number(r.slot), r);
   const used = new Set();
+  const signIndex = new Map();   // 서명자별 «몇 번째 서명 칸» — 사인·스탬프 칸이 여럿일 때 item_images 순서
   let out = String(html || '').replace(FIELD_RE, (tag) => {
     const slot = Number(attrOf(tag, 'slot') || 1);
     const party = attrOf(tag, 'party') === 'us' ? 'us' : 'them';
+    const item = attrOf(tag, 'item');
     const sr = bySlot.get(slot) || null;
     if (sr) used.add(sr.id);
-    return fieldHtml(attrOf(tag, 'label'), party, sr, L, slot);
+    if (item === 'date') return dateItemHtml(sr, L, slot);
+    if (item === 'name') return nameItemHtml(sr, L, slot);
+    const k = signIndex.get(slot) || 0;
+    signIndex.set(slot, k + 1);
+    return fieldHtml(attrOf(tag, 'label'), party, sr, L, slot, k);
   });
   // 서명란에 못 붙은 서명(옛 요청 · 칸보다 서명자가 많음)은 문서 끝 서명 영역으로 — 조용히 사라지지 않게
   const rest = signs.filter((r) => !used.has(r.id));
@@ -139,12 +178,12 @@ const CERT_CSS = `
 //   (memory feedback_backend_strings_outside_i18n_guard). 언어는 부르는 쪽이 고른다.
 const LABELS = {
   ko: {
-    us: '보내는 쪽', them: '받는 쪽', empty: '서명 전', verified: '전자서명 확인됨', rejected: '서명 거절',
+    us: '보내는 쪽', them: '받는 쪽', empty: '서명 전', verified: '전자서명 확인됨', rejected: '서명 거절', dateEmpty: '서명일', nameEmpty: '이름',
     title: '전자서명 증명서', docTitle: '문서', hash: '문서 지문(SHA-256)', signer: '서명자',
     email: '이메일', verifiedAt: '본인 확인', signedAt: '서명 시각', ip: 'IP', side: '구분', none: '—',
   },
   en: {
-    us: 'Sender', them: 'Recipient', empty: 'Not signed', verified: 'e-signature verified', rejected: 'Declined',
+    us: 'Sender', them: 'Recipient', empty: 'Not signed', verified: 'e-signature verified', rejected: 'Declined', dateEmpty: 'Date', nameEmpty: 'Name',
     title: 'E-signature certificate', docTitle: 'Document', hash: 'Document fingerprint (SHA-256)',
     signer: 'Signer', email: 'Email', verifiedAt: 'Identity verified', signedAt: 'Signed at',
     ip: 'IP', side: 'Party', none: '—',
@@ -181,4 +220,4 @@ async function loadSignedView(entity_type, entity_id) {
   return { requests, frozen, total: requests.length, signed, complete: requests.length > 0 && signed === requests.length };
 }
 
-module.exports = { injectSignatures, certificateHtml, loadSignedView, labelsFor, LABELS, SIGNED_CSS, CERT_CSS, fieldHtml };
+module.exports = { injectSignatures, certificateHtml, loadSignedView, labelsFor, LABELS, SIGNED_CSS, CERT_CSS, fieldHtml, signDate };

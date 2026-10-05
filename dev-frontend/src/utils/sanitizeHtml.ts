@@ -17,7 +17,7 @@ const ALLOWED_TAGS = [
 const ALLOWED_ATTR = ['href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'colspan', 'rowspan',
   // 서명란 — 어느 칸(slot)·어느 쪽(party)인지. 실행되지 않는 표시값이고, 지워지면 읽기 화면에서
   //   서명란이 통째로 사라진다(정화기를 태우면 taskList 의 data-type 이 날아가던 것과 같은 계열).
-  'data-signature-field', 'data-slot', 'data-party', 'data-label'];
+  'data-signature-field', 'data-slot', 'data-party', 'data-label', 'data-item'];
 
 // ★ #226 — DOMPurify 는 **URI 속성만이 아니라 모든 속성 값**을 이 정규식으로 검사한다.
 //   그래서 스킴 목록만 나열한 옛 정규식은 `align="center"`·`width="600"`·`colspan="2"` 처럼

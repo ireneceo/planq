@@ -12,7 +12,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import { TrailingNode } from '@tiptap/extensions';
 import Link from '@tiptap/extension-link';
-import { signatureFieldExtension } from './SignatureField';
+import { signatureFieldExtension, signatureFieldEditorCss } from './SignatureField';
 import EditorSignatureButton from './EditorSignatureButton';
 import { ResizableImage } from './ResizableImage';
 import { resizableImageCss } from './resizableImageStyles';
@@ -620,6 +620,8 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
   /* compact (메모 popup) — Wrap 이 overflow:hidden + flex:1 이라 Body 가 직접 스크롤 영역이어야 함.
      이게 없으면 본문이 길어질 때 Wrap 에 잘려 스크롤 불가 (메모장 스크롤 안 됨 회귀 fix). */
   ${p => p.$compact ? `flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;` : ''}
+
+  ${signatureFieldEditorCss}
 
   /* ─── 표 (Body 직속 자손 — 편집/보기 모드 무관 적용) ─── */
   /* border-collapse: separate 로 border-radius 작동. 셀은 right/bottom 만, 마지막 행/열 제거. */

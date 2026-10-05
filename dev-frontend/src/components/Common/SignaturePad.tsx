@@ -64,11 +64,16 @@ const SignaturePad = React.forwardRef<SignaturePadHandle, Props>(
     const hasInk = useRef(false);
     const [, setEmpty] = useState(true);
 
+    // ★ 콜백은 ref 로 읽는다 (2026-10-05) — 부모가 인라인 함수를 넘기면 렌더마다 markEmpty→setup 이 바뀌고,
+    //   setup 을 deps 로 가진 effect 가 다시 돌아 **캔버스를 다시 잡는다(=그림이 지워진다).** 첫 획이 부모를
+    //   다시 그리게 하므로 «그리자마자 지워짐» 이 됐다(서명 칸 여러 개 화면에서 실측).
+    const onEmptyRef = useRef(onEmptyChange);
+    onEmptyRef.current = onEmptyChange;
     const markEmpty = useCallback((v: boolean) => {
       hasInk.current = !v;
       setEmpty(v);
-      onEmptyChange?.(v);
-    }, [onEmptyChange]);
+      onEmptyRef.current?.(v);
+    }, []);
 
     const setup = useCallback(() => {
       const canvas = canvasRef.current;

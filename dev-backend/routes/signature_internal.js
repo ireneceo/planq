@@ -22,7 +22,7 @@ async function assertMember(userId, businessId, isPlatformAdmin) {
 }
 
 // POST /api/signatures/:id/sign-internal — **보내는 쪽(우리 멤버) 서명** (2026-09-22)
-// body: { signature_image_b64, consent: true }
+// body: { item_images: [{mode:'draw'|'image', b64}] (서명 칸 수만큼) | signature_image_b64(옛 화면, 칸 1개), consent: true }
 //
 //   받는 쪽과 다른 것은 **본인 확인 방법 하나**다: 이메일 인증번호 대신 **로그인**이 본인을 증명한다.
 //   나머지(동의 기록·시각·IP·UA·고정본 대조·알림·거래 단계 진행)는 받는 쪽과 **같은 것**을 남긴다 —
@@ -46,10 +46,10 @@ router.post('/signatures/:id/sign-internal', authenticateToken, async (req, res,
     if (isExpiredNow(sr)) { await t.rollback(); return errorResponse(res, 'expired', 410); }
     if (sr.status === 'rejected' || sr.status === 'canceled') { await t.rollback(); return errorResponse(res, 'invalid_state', 400); }
     if (!req.body?.consent) { await t.rollback(); return errorResponse(res, 'consent_required', 400); }
-    const sig = String(req.body?.signature_image_b64 || '');
-    if (!sig.startsWith('data:image/') || sig.length > 200_000) {
-      await t.rollback(); return errorResponse(res, 'invalid_signature_image', 400);
-    }
+    // 서명 칸 수만큼(사인·스탬프 — 그리기 또는 이미지). 받는 쪽 공개 서명과 **같은 규칙**(services/signatureItems)
+    const got = require('../services/signatureItems').readItemImages(req.body, sr);
+    if (!got.ok) { await t.rollback(); return errorResponse(res, got.code, 400); }
+    const sig = got.first;
     const ip = req.ip || req.headers['x-forwarded-for'] || null;
     const ua = String(req.headers['user-agent'] || '').slice(0, 500);
 
@@ -68,6 +68,7 @@ router.post('/signatures/:id/sign-internal', authenticateToken, async (req, res,
     await sr.update({
       status: 'signed',
       signature_image_b64: sig,
+      item_images: got.images,
       signed_at: new Date(),
       signed_ip: ip, signed_ua: ua, signed_consent: true,
       signer_user_id: req.user.id,
