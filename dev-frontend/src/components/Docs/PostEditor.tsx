@@ -27,6 +27,7 @@ import { createLowlight, common } from 'lowlight';
 import { apiFetch } from '../../contexts/AuthContext';
 import { LightboxWrapper } from '../Common/ImageLightbox';
 import { codeBlockNodeView } from '../Common/CodeBlockNodeView';
+import { checklistExtensions, checklistEditorCss } from './editorChecklist';   // 할 일 목록(동그라미 체크 + 가운데 줄)
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
 const lowlight = createLowlight(common);
@@ -175,8 +176,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        // TipTap v3 StarterKit 가 Link 를 자체 포함 → 별도 Link 와 mark 중복.
-        // SK 의 Link 비활성 (콘솔: "Duplicate extension names found: ['link']")
+        // TipTap v3 StarterKit 가 Link 를 자체 포함 → 별도 Link 와 mark 중복. SK 의 Link 비활성 (콘솔: "Duplicate extension names found: ['link']")
         link: false,
         // 사이클 N+16 — 노션 스타일 코드 블록을 CodeBlockLowlight 로 교체.
         codeBlock: false,
@@ -201,7 +201,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
       Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
       TableRow,
       TableHeader,
-      TableCell,
+      TableCell, ...checklistExtensions,
     ],
     content: value as any,
     editable,
@@ -378,6 +378,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
           <Group>
             <ToolBtn type="button" $active={isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} title={t('editor.bulletList', { defaultValue: '글머리 기호' })}>•</ToolBtn>
             <ToolBtn type="button" $active={isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title={t('editor.orderedList', { defaultValue: '번호 매기기' })}>1.</ToolBtn>
+            <ToolBtn type="button" data-testid="editor-tasklist" $active={isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()} title={t('editor.taskList', { defaultValue: '할 일 목록' })} aria-label={t('editor.taskList', { defaultValue: '할 일 목록' })}>○</ToolBtn>
             <ToolBtn type="button" $active={isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title={t('editor.blockquote', { defaultValue: '인용' })}>❝</ToolBtn>
             <ToolBtn type="button" $active={isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title={t('editor.codeBlock', { defaultValue: '코드 블록 (syntax 색상 + 복사 버튼)' })} style={{ fontFamily: 'monospace' }}>{ '</>' }</ToolBtn>
           </Group>
@@ -621,7 +622,7 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
      이게 없으면 본문이 길어질 때 Wrap 에 잘려 스크롤 불가 (메모장 스크롤 안 됨 회귀 fix). */
   ${p => p.$compact ? `flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;` : ''}
 
-  ${signatureFieldEditorCss}
+  ${signatureFieldEditorCss}${checklistEditorCss}
 
   /* ─── 표 (Body 직속 자손 — 편집/보기 모드 무관 적용) ─── */
   /* border-collapse: separate 로 border-radius 작동. 셀은 right/bottom 만, 마지막 행/열 제거. */

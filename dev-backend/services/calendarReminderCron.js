@@ -156,6 +156,14 @@ async function runCalendarReminderCron() {
       if (remindAt > now) { skipped++; continue; }
       // 이미 이 회차 몫을 보냈으면 건너뛴다. (직전 회차 발송 시각은 언제나 이 회차보다 앞선다)
       if (ev.reminder_sent_at && new Date(ev.reminder_sent_at) >= remindAt) { skipped++; continue; }
+      // ★ 2026-10-05 — **알림을 정한 순간 이미 지나 있던 발송 시각은 늦게 보내지 않는다.**
+      //   Irene: "내일 오후 3시 미팅인데 지금 새벽 3시에 1일전이라며 알림이 왔어."
+      //   새벽 3시에 그날 오후 3시 일정을 «1일 전» 으로 넣으면 발송 시각(어제 오후 3시)이 이미 과거라,
+      //   ① 의 «놓쳤으면 늦게라도» 규칙이 저장 직후 «1일 전» 알림을 쏘았다. 그 규칙은 **서버가 멈춰 놓친 것**을 위한 것이다 —
+      //   일정이 그 시각에 존재하지도 않았다면 놓친 게 아니다. 저장(생성·수정) 시각보다 앞선 발송 시각이면 이 회차 몫을 쓴 것으로 표시한다.
+      //   반복 일정은 다음 회차의 발송 시각이 저장 시각보다 뒤라 영향 없다.
+      const savedAt = new Date(ev.updated_at || ev.updatedAt || ev.created_at || ev.createdAt || 0);
+      if (remindAt < savedAt) { await ev.update({ reminder_sent_at: now }, { silent: true }); skipped++; continue; }
 
       // 수신자 — 생성자 ∪ 멤버 attendee(declined 제외) ∪ 지정 멤버.
       //
@@ -176,7 +184,7 @@ async function runCalendarReminderCron() {
 
       if (memberIds.length === 0) {
         // 받을 사람이 없으면 의미가 없다. 마킹해 다음 회차부터 다시 보게 둔다.
-        await ev.update({ reminder_sent_at: now });
+        await ev.update({ reminder_sent_at: now }, { silent: true });   // silent — updated_at 은 «사람이 고친 시각» 으로만 남긴다(아래 저장 시각 판정이 읽는다)
         skipped++;
         continue;
       }
@@ -202,7 +210,7 @@ async function runCalendarReminderCron() {
           // ★ 회차별로 다른 tag — 같으면 OS 알림이 서로 덮어써 마지막 하나만 남는다.
           tag: `event:${ev.id}:${Math.floor(occurrence.getTime() / 60000)}`,
         });
-        await ev.update({ reminder_sent_at: now });
+        await ev.update({ reminder_sent_at: now }, { silent: true });   // silent — updated_at 은 «사람이 고친 시각» 으로만 남긴다(아래 저장 시각 판정이 읽는다)
         sent++;
       } catch (e) {
         console.warn(`[calendarReminderCron] event ${ev.id} notify failed:`, e.message);

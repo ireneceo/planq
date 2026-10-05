@@ -92,6 +92,7 @@ const BASE_CSS = `
   .body-content pre code { background: none; padding: 0; }
   .body-content ul[data-type="taskList"] { list-style: none; padding-left: 4px; }
   .body-content ul[data-type="taskList"] li { display: flex; gap: 6px; align-items: flex-start; }
+  .body-content ul[data-type="taskList"] li[data-checked="true"] > div { color: #94A3B8; text-decoration: line-through; }
 `;
 
 // ─── 청구서 PDF ───
@@ -312,7 +313,7 @@ function nodeToHtml(n) {
     case 'listItem': return `<li>${inner}</li>`;
     // 체크리스트 — RichEditor(업무/메모)에서 넘어온 본문 대비. 없으면 항목이 통째로 사라진다.
     case 'taskList': return `<ul data-type="taskList">${inner}</ul>`;
-    case 'taskItem': return `<li>${a.checked ? '☑' : '☐'} ${inner}</li>`;
+    case 'taskItem': return `<li data-checked="${a.checked ? 'true' : 'false'}">${a.checked ? '☑' : '☐'} <div>${inner}</div></li>`;
     case 'blockquote': return `<blockquote>${inner}</blockquote>`;
     case 'codeBlock': return `<pre><code>${inner}</code></pre>`;
     case 'horizontalRule': return `<hr/>`;

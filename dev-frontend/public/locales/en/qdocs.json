@@ -644,7 +644,8 @@
     "sigItemName": "Name",
     "sigItemSignLong": "Signature (draw or image)",
     "sigMenuHint": "Pick whose spot it is, then what to insert. It goes at the cursor.",
-    "sigNewSigner": "New signer"
+    "sigNewSigner": "New signer",
+    "taskList": "Checklist"
   },
   "tab": {
     "title": "Docs",
