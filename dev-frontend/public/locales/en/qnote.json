@@ -114,7 +114,13 @@
       "other": "Other",
       "numbered": "Speaker {{n}}",
       "manual": "Manual",
-      "otherNumbered": "Other {{n}}"
+      "otherNumbered": "Other {{n}}",
+      "auto": "auto",
+      "autoTip": "Recognized by voice profile · similarity {{sim}}",
+      "wholeSpeaker": "This whole speaker",
+      "loadingPeople": "Loading…",
+      "peopleFailed": "Could not load people.",
+      "clearName": "Clear name"
     },
     "question": {
       "editedMark": "(edited)",
@@ -395,7 +401,8 @@
     "materialsExisting": "{{count}} existing",
     "docName": "Document #{{id}}",
     "chunkUnit": "{{count}} chunks",
-    "saveBtn": "Save"
+    "saveBtn": "Save",
+    "voiceHint": "Participants who registered their voice are named automatically in the transcript (register in My profile)"
   },
   "newNoteModal": {
     "title": "New note",

@@ -2301,7 +2301,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         {tabMode ? (
           children
         ) : (
-          <PageScroll ref={pageScrollRef}>
+          <PageScroll ref={pageScrollRef} data-pq-content="1" /* 검사(버튼 순찰)가 «화면 본문» 을 머리줄·탭바와 가르는 손잡이 */>
             {/* 페이지 청크 로딩은 **본문 안에서만** 일어난다.
                 여태 Suspense 가 라우트 전체를 감싸고 있어서, 페이지가 로드되는 동안 사이드바·헤더까지
                 통째로 사라지고 하얀 화면에 스피너만 남았다 (Irene: "느리더라도 고정 레이아웃은 그대로

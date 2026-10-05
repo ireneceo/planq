@@ -4,20 +4,10 @@ import { useTranslation, Trans } from 'react-i18next';
 import FontScaleSection from '../../components/Common/FontScaleSection';
 import { useAuth, apiFetch, apiUpload } from '../../contexts/AuthContext';
 import type { LanguageLevels, LanguageSkillLevel, User } from '../../contexts/AuthContext';
-import { WavRecorder } from '../../services/audio/recordToWav';
 import AccountDeletionSection from './AccountDeletionSection';
-import {
-  getVoiceFingerprints,
-  registerVoiceFingerprint,
-  deleteVoiceFingerprintLanguage,
-  deleteAllVoiceFingerprints,
-  verifyVoiceMatch,
-  type VoiceFingerprintList,
-  type VoiceTestResult,
-} from '../../services/qnote';
-import { LANGUAGES, getLanguageByCode, type LanguageOption } from '../../constants/languages';
+import VoiceProfileSection from '../../components/Profile/VoiceProfileSection';
+import { LANGUAGES, type LanguageOption } from '../../constants/languages';
 import PlanQSelect from '../../components/Common/PlanQSelect';
-import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { displayName } from '../../utils/displayName';
@@ -26,9 +16,8 @@ import ActionButton from '../../components/Common/ActionButton';
 // UserTimezoneSection 함수는 이 파일 내 정의 (export) — 새 페이지가 import.
 import TimezoneSelector from '../../components/Common/TimezoneSelector';
 import PageShell from '../../components/Layout/PageShell';
-import { MicIcon, CheckIcon, XIcon, TrashIcon } from '../../components/Common/Icons';
+import { CheckIcon, XIcon } from '../../components/Common/Icons';
 import { useTimezones } from '../../hooks/useTimezones';
-import { useTimeFormat } from '../../hooks/useTimeFormat';
 import EmailChangeModal from './EmailChangeModal';
 import { mapApiError } from '../../utils/apiError';
 import {
@@ -38,46 +27,12 @@ import {
   detectBrowserTz,
 } from '../../utils/timezones';
 
-const MIN_SEC = 10;           // 등록 최소 길이
-const REG_SOFT_TARGET = 15;   // 권장 길이 (자동 종료 아님, UI 안내용)
-const REG_MAX_SEC = 30;       // 서버 허용 상한 (백엔드 MAX_SECONDS + 여유)
-const VERIFY_MIN_SEC = 3;
-const VERIFY_SOFT_TARGET = 5;
-const VERIFY_MAX_SEC = 15;
-
-// 언어별 예시 문장
-const SAMPLE_SENTENCES: Record<string, string> = {
-  ko: '안녕하세요, 저는 PlanQ 를 사용하는 사용자입니다. 오늘 회의는 중요한 주제를 다루고 있습니다. 제 목소리를 등록해서 회의 중 본인 발화를 자동으로 인식하도록 하겠습니다.',
-  en: "Hello, I am a PlanQ user. Today's meeting covers important topics. I'm registering my voice so that the system can automatically recognize me during meetings.",
-  ja: 'こんにちは、私はPlanQのユーザーです。今日の会議は重要な内容を扱っています。自分の声を登録して、会議中に自動的に本人の発言を認識できるようにします。',
-  zh: '你好，我是PlanQ的用户。今天的会议讨论的是重要话题。我正在注册我的声音，以便在会议期间自动识别我的发言。',
-  es: 'Hola, soy usuario de PlanQ. La reunión de hoy trata temas importantes. Estoy registrando mi voz para que el sistema me reconozca automáticamente durante las reuniones.',
-  fr: "Bonjour, je suis un utilisateur de PlanQ. La réunion d'aujourd'hui aborde des sujets importants. J'enregistre ma voix pour que le système me reconnaisse automatiquement.",
-  de: 'Hallo, ich bin ein PlanQ-Nutzer. Das heutige Meeting behandelt wichtige Themen. Ich registriere meine Stimme, damit mich das System während Meetings automatisch erkennt.',
-};
-
-type RecState = 'idle' | 'recording' | 'processing' | 'error';
-type RecPurpose = 'register' | 'verify';
-
 export default function ProfilePage() {
   const { t, i18n } = useTranslation('profile');
   const { t: tErr } = useTranslation('errors');
   const { user, updateUser, refreshUser } = useAuth();
-  const { formatDateTime } = useTimeFormat();
-  const [fpList, setFpList] = useState<VoiceFingerprintList | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  // 녹음 상태
-  const [recState, setRecState] = useState<RecState>('idle');
-  const [recPurpose, setRecPurpose] = useState<RecPurpose>('register');
-  const [recLanguage, setRecLanguage] = useState<string>('ko');
-  const [elapsed, setElapsed] = useState(0);
-  const [level, setLevel] = useState(0);
-  const recorderRef = useRef<WavRecorder | null>(null);
-  const timerRef = useRef<number | null>(null);
-  const [verifyResult, setVerifyResult] = useState<VoiceTestResult | null>(null);
 
   // 언어 선택 (기본 언어)
   const [language, setLanguage] = useState<string>(user?.language || 'ko');
@@ -362,32 +317,34 @@ export default function ProfilePage() {
     setExpertiseLevel((val as 'layman' | 'practitioner' | 'expert' | null) || '');
   }, [businessId, t]);
 
-  // 언어 추가 — 드롭다운 선택 시 즉시 startRecording 호출 (별도 state 불필요)
+  // ★ 2026-10-05 순찰(버튼 눌러보기)이 잡았다 — 카드·셀렉트가 저장 함수를 **직접** 불러 실패가 아무 데도 안 떴다
+  //   (잡히지 않은 예외만 남고 화면은 바뀐 것처럼 보였다). 클릭은 화면만 바꾸고(stage) 저장은 AutoSaveField 가 한다(persist).
+  //   최신값은 ref 로 읽는다. 실패하면 되돌리고 던진다 → ! 뱃지.
+  const expertisePendingRef = useRef<string>('');
+  const expertisePrevRef = useRef<string>('');   // 누르기 직전 값 — 실패하면 여기로 되돌린다
+  const persistExpertise = useCallback(async () => {
+    const next = expertisePendingRef.current;
+    const prev = expertisePrevRef.current;
+    if (!next || next === prev) return;   // 같은 카드·카드 사이 빈칸을 눌러도 저장이 나가지 않게
+    try {
+      await saveExpertiseLevel(next);
+      expertisePrevRef.current = next;
+    } catch (e) {
+      setExpertiseLevel(prev as 'layman' | 'practitioner' | 'expert' | '');
+      expertisePendingRef.current = prev;
+      throw e;
+    }
+  }, [saveExpertiseLevel]);
+  const levelPendingRef = useRef<{ lang: string; skill: Skill; level: number } | null>(null);
+  const persistLanguageLevel = useCallback(async () => {
+    const p = levelPendingRef.current;
+    if (!p) return;
+    await saveLanguageLevel(p.lang, p.skill, p.level);
+  }, [saveLanguageLevel]);
+
   const errorBannerRef = useRef<HTMLDivElement>(null);
 
   // 확인 다이얼로그 상태
-  const [confirm, setConfirm] = useState<{
-    open: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void | Promise<void>;
-  }>({ open: false, title: '', message: '', onConfirm: () => {} });
-  const closeConfirm = () => setConfirm((c) => ({ ...c, open: false }));
-
-  // ─────────── 데이터 로드 ───────────
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const s = await getVoiceFingerprints();
-      setFpList(s);
-    } catch (e) {
-      setError(mapApiError(e, tErr));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
-
-  useEffect(() => { load(); }, [load]);
 
   // 에러 발생 시 상단 배너로 스크롤 (녹음 섹션에서 내려간 상태여도 확인 가능)
   useEffect(() => {
@@ -397,132 +354,8 @@ export default function ProfilePage() {
   }, [error]);
 
   useEffect(() => {
-    return () => {
-      if (timerRef.current) window.clearInterval(timerRef.current);
-      if (recorderRef.current) recorderRef.current.stop().catch(() => {});
-    };
-  }, []);
-
-  useEffect(() => {
     if (user?.language) setLanguage(user.language);
   }, [user?.language]);
-
-  // ─────────── 녹음 시작 ───────────
-  const startRecording = async (purpose: RecPurpose, lang?: string) => {
-    setError(null);
-    setSuccess(null);
-    setVerifyResult(null);
-    setElapsed(0);
-    setLevel(0);
-    setRecPurpose(purpose);
-    if (purpose === 'register' && lang) setRecLanguage(lang);
-
-    try {
-      const rec = new WavRecorder();
-      await rec.start((lvl) => setLevel(lvl));
-      recorderRef.current = rec;
-      setRecState('recording');
-      const hardMax = purpose === 'verify' ? VERIFY_MAX_SEC : REG_MAX_SEC;
-      const startAt = Date.now();
-      timerRef.current = window.setInterval(() => {
-        const e = (Date.now() - startAt) / 1000;
-        setElapsed(e);
-        // 하드 상한(30초) 넘으면 강제 종료. 그 외엔 사용자가 직접 버튼으로 종료.
-        if (e >= hardMax) stopRecording();
-      }, 100);
-    } catch (e) {
-      setError(mapApiError(e, tErr));
-      setRecState('error');
-    }
-  };
-
-  // ─────────── 녹음 종료 + 업로드 ───────────
-  const stopRecording = async () => {
-    if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
-    if (!recorderRef.current) return;
-    const purpose = recPurpose;
-    const lang = recLanguage;
-    const capturedElapsed = elapsed;
-    setRecState('processing');
-    setError(null);
-    try {
-      const wavBlob = await recorderRef.current.stop();
-      recorderRef.current = null;
-      const minSec = purpose === 'verify' ? VERIFY_MIN_SEC : MIN_SEC;
-      if (capturedElapsed < minSec) {
-        const msg = purpose === 'verify'
-          ? t('messages.errorTooShortVerify', { minSec, elapsed: capturedElapsed.toFixed(1) })
-          : t('messages.errorTooShortRegister', { minSec, elapsed: capturedElapsed.toFixed(1) });
-        setError(msg);
-        setRecState('idle');
-        return;
-      }
-      if (purpose === 'verify') {
-        const result = await verifyVoiceMatch(wavBlob);
-        setVerifyResult(result);
-      } else {
-        await registerVoiceFingerprint(lang, wavBlob);
-        await load();
-        const langLabel = getLanguageByCode(lang)?.label || lang;
-        setSuccess(t('messages.successRegister', { label: langLabel }));
-      }
-      setRecState('idle');
-    } catch (e) {
-      const base = mapApiError(e, tErr);
-      const prefix = purpose === 'verify' ? t('messages.errorPrefixVerify') : t('messages.errorPrefixRegister');
-      setError(`${prefix}: ${base}`);
-      setRecState('idle');
-    }
-  };
-
-  const cancelRecording = async () => {
-    if (timerRef.current) { window.clearInterval(timerRef.current); timerRef.current = null; }
-    if (recorderRef.current) {
-      try { await recorderRef.current.stop(); } catch { /* ignore */ }
-      recorderRef.current = null;
-    }
-    setRecState('idle');
-    setElapsed(0);
-    setLevel(0);
-  };
-
-  // ─────────── 언어별 삭제 (ConfirmDialog) ───────────
-  const handleDeleteLanguage = (lang: string) => {
-    const label = getLanguageByCode(lang)?.label || lang;
-    setConfirm({
-      open: true,
-      title: t('confirm.deleteLangTitle'),
-      message: t('confirm.deleteLangMessage', { label }),
-      onConfirm: async () => {
-        closeConfirm();
-        try {
-          await deleteVoiceFingerprintLanguage(lang);
-          await load();
-          setSuccess(t('messages.successDeleteLanguage', { label }));
-        } catch (e) {
-          setError(mapApiError(e, tErr));
-        }
-      },
-    });
-  };
-
-  const handleDeleteAll = () => {
-    setConfirm({
-      open: true,
-      title: t('confirm.deleteAllTitle'),
-      message: t('confirm.deleteAllMessage'),
-      onConfirm: async () => {
-        closeConfirm();
-        try {
-          await deleteAllVoiceFingerprints();
-          await load();
-          setSuccess(t('messages.successDeleteAll'));
-        } catch (e) {
-          setError(mapApiError(e, tErr));
-        }
-      },
-    });
-  };
 
   // ─────────── 기본 언어 변경 ───────────
   const handleLanguageChange = async (code: string) => {
@@ -551,21 +384,6 @@ export default function ProfilePage() {
     value: l.code,
     label: `${l.label} · ${l.native}`,
   }));
-
-  // 등록 가능한 언어 옵션 (이미 등록된 언어는 제외)
-  const registeredCodes = new Set((fpList?.languages || []).map((l) => l.language));
-  const addableOptions = LANGUAGES
-    .filter((l) => !registeredCodes.has(l.code))
-    .map((l) => ({ value: l.code, label: `${l.label} · ${l.native}` }));
-
-  const sampleSentence = SAMPLE_SENTENCES[recLanguage] || SAMPLE_SENTENCES.ko;
-
-  const softTarget = recPurpose === 'verify' ? VERIFY_SOFT_TARGET : REG_SOFT_TARGET;
-  const hardMax = recPurpose === 'verify' ? VERIFY_MAX_SEC : REG_MAX_SEC;
-  const minSec = recPurpose === 'verify' ? VERIFY_MIN_SEC : MIN_SEC;
-  const levelPct = Math.min(100, Math.round(level * 180));
-  const readyToStop = elapsed >= minSec;
-  const reachedSoftTarget = elapsed >= softTarget;
 
   return (
     <PageShell title={t('header.title')}>
@@ -895,17 +713,19 @@ export default function ProfilePage() {
                     const current = block[skill] ?? 0;
                     return (
                       <LevelCell key={skill}>
-                        <PlanQSelect
-                          size="sm"
-                          isClearable={false}
-                          isSearchable={false}
-                          value={LEVEL_OPTIONS.find((o) => o.value === current) || LEVEL_OPTIONS[0]}
-                          onChange={(opt) => {
-                            const v = (opt as { value: number } | null)?.value ?? 0;
-                            saveLanguageLevel(code, skill, v);
-                          }}
-                          options={LEVEL_OPTIONS}
-                        />
+                        <AutoSaveField key={`ll-${businessId}-${code}-${skill}`} type="select" onSave={persistLanguageLevel}>
+                          <PlanQSelect
+                            size="sm"
+                            isClearable={false}
+                            isSearchable={false}
+                            value={LEVEL_OPTIONS.find((o) => o.value === current) || LEVEL_OPTIONS[0]}
+                            onChange={(opt) => {
+                              const v = (opt as { value: number } | null)?.value ?? 0;
+                              levelPendingRef.current = { lang: code, skill, level: v };
+                            }}
+                            options={LEVEL_OPTIONS}
+                          />
+                        </AutoSaveField>
                       </LevelCell>
                     );
                   })}
@@ -920,6 +740,7 @@ export default function ProfilePage() {
           <FieldRow style={{ marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
             <Label>{t('languageLevel.expertise.label')}</Label>
             <FieldBody>
+              <AutoSaveField key={`expertise-${businessId}`} type="toggle" onSave={persistExpertise}>
               <ExpertiseGrid>
                 {([
                   { val: 'novice',       labelKey: 'languageLevel.expertise.novice',       sampleKey: 'languageLevel.expertise.novice_sample' },
@@ -937,7 +758,11 @@ export default function ProfilePage() {
                       key={opt.val}
                       type="button"
                       $active={isActive}
-                      onClick={() => saveExpertiseLevel(opt.val)}
+                      onClick={() => {
+                        expertisePrevRef.current = expertiseLevel;
+                        expertisePendingRef.current = opt.val;
+                        setExpertiseLevel(opt.val as 'layman' | 'practitioner' | 'expert' | '');
+                      }}
                     >
                       <ExpertiseTitle>{t(opt.labelKey)}</ExpertiseTitle>
                       <ExpertiseSample>{t(opt.sampleKey)}</ExpertiseSample>
@@ -945,6 +770,7 @@ export default function ProfilePage() {
                   );
                 })}
               </ExpertiseGrid>
+              </AutoSaveField>
               <Hint>
                 <Trans i18nKey="languageLevel.expertise.hint" ns="profile" components={{ 1: <strong /> }} />
               </Hint>
@@ -962,176 +788,8 @@ export default function ProfilePage() {
 
         {/* 음성 핑거프린트 (다국어) */}
         <Card $wide>
-          <SectionTitle>{t('voice.sectionTitle')}</SectionTitle>
-          <Description>
-            <Trans i18nKey="voice.description" ns="profile" components={{ 1: <strong />, 2: <strong /> }} />
-          </Description>
-
-          {loading ? (
-            <Hint>{t('voice.loading')}</Hint>
-          ) : (
-            <>
-              <RegList>
-                {(fpList?.languages || []).length === 0 && (
-                  <EmptyHint>{t('voice.empty')}</EmptyHint>
-                )}
-                {(fpList?.languages || []).map((lang) => {
-                  const meta = getLanguageByCode(lang.language);
-                  const label = meta?.label || lang.language.toUpperCase();
-                  const isLegacy = lang.language === 'unknown';
-                  return (
-                    <RegItem key={lang.language}>
-                      <RegLeft>
-                        <RegLabel>{isLegacy ? t('voice.legacyLabel') : label}</RegLabel>
-                        <RegMeta>
-                          {lang.sample_seconds ? t('voice.sampleSeconds', { sec: lang.sample_seconds.toFixed(1) }) : ''}
-                          {lang.updated_at ? ` · ${formatDateTime(lang.updated_at)}` : ''}
-                        </RegMeta>
-                      </RegLeft>
-                      <RegActions>
-                        <SecondaryBtn
-                          onClick={() => startRecording('register', lang.language === 'unknown' ? 'ko' : lang.language)}
-                          disabled={recState !== 'idle'}
-                        >
-                          {t('voice.reregister')}
-                        </SecondaryBtn>
-                        <DangerIconBtn onClick={() => handleDeleteLanguage(lang.language)}>
-                          <TrashIcon size={12} />
-                        </DangerIconBtn>
-                      </RegActions>
-                    </RegItem>
-                  );
-                })}
-              </RegList>
-
-              {/* 언어 추가 — 드롭다운에서 선택 즉시 녹음 시작 */}
-              {addableOptions.length > 0 && recState === 'idle' && (
-                <AddLangRow>
-                  <AddLangLabel>
-                    <MicIcon size={14} />
-                    <span>
-                      <Trans i18nKey="voice.addLangPrompt" ns="profile" components={{ 1: <strong /> }} />
-                    </span>
-                  </AddLangLabel>
-                  <PlanQSelect
-                    value={null}
-                    onChange={(opt) => {
-                      const v = (opt as { value: string } | null)?.value;
-                      if (v) startRecording('register', v);
-                    }}
-                    options={addableOptions}
-                    placeholder={t('voice.addLangPlaceholder')}
-                    size="sm"
-                  />
-                </AddLangRow>
-              )}
-
-              {/* 매칭 확인 + 전체 삭제 */}
-              {(fpList?.languages.length || 0) > 0 && recState === 'idle' && (
-                <ActionRow>
-                  <SecondaryBtn onClick={() => startRecording('verify')}>
-                    {t('voice.verifyBtn')}
-                  </SecondaryBtn>
-                  <Hint style={{ flex: 1 }}>{t('voice.verifyHint')}</Hint>
-                  <DangerBtn onClick={handleDeleteAll}>
-                    <TrashIcon size={12} />
-                    <span>{t('voice.deleteAllBtn')}</span>
-                  </DangerBtn>
-                </ActionRow>
-              )}
-            </>
-          )}
-
-          {/* 매칭 확인 결과 */}
-          {verifyResult && (
-            <VerifyResultBox $match={verifyResult.match}>
-              <VerifyResultLine>
-                <strong>{verifyResult.match ? t('verify.matched') : t('verify.notMatched')}</strong>
-                <span>{t('verify.similarityLine', { similarity: verifyResult.similarity.toFixed(3), threshold: verifyResult.threshold.toFixed(2) })}</span>
-              </VerifyResultLine>
-              <VerifyResultMsg>{verifyResult.message}</VerifyResultMsg>
-              {verifyResult.per_language.length > 1 && (
-                <VerifyPerLang>
-                  {verifyResult.per_language.map((p) => {
-                    const lbl = getLanguageByCode(p.language)?.label || p.language.toUpperCase();
-                    return (
-                      <VerifyPerLangItem key={p.language}>
-                        <span>{lbl}</span>
-                        <strong>{p.similarity.toFixed(3)}</strong>
-                      </VerifyPerLangItem>
-                    );
-                  })}
-                </VerifyPerLang>
-              )}
-            </VerifyResultBox>
-          )}
-
-          {/* 녹음 인터페이스 */}
-          {recState !== 'idle' && (
-            <RecorderBox>
-              {recPurpose === 'register' && (
-                <SampleSentenceBox>
-                  <SampleLabel>
-                    {t('recorder.sampleLabel', { label: getLanguageByCode(recLanguage)?.label || recLanguage.toUpperCase(), minSec: MIN_SEC })}
-                  </SampleLabel>
-                  <SampleSentence>{sampleSentence}</SampleSentence>
-                </SampleSentenceBox>
-              )}
-
-              {recState === 'recording' && (
-                <RecordingUI>
-                  <RecordingRow>
-                    <RecDot />
-                    <RecElapsed>
-                      {elapsed.toFixed(1)}s
-                      <RecHint>
-                        {' '}{t('recorder.elapsedHint', { minSec, softTarget, hardMax })}
-                      </RecHint>
-                    </RecElapsed>
-                    <RecRemaining>
-                      {!readyToStop
-                        ? t('recorder.remainNeedMore', { seconds: Math.ceil(minSec - elapsed) })
-                        : reachedSoftTarget
-                          ? t('recorder.remainEnough')
-                          : t('recorder.remainAllowed')}
-                    </RecRemaining>
-                  </RecordingRow>
-                  <LevelBar>
-                    <LevelFill style={{ width: `${levelPct}%` }} />
-                  </LevelBar>
-                  <RecBtnRow>
-                    <PrimaryBtn onClick={stopRecording} disabled={!readyToStop}>
-                      <CheckIcon size={14} />
-                      <span>
-                        {recPurpose === 'verify' ? t('recorder.finishVerify') : t('recorder.finishRegister')}
-                        {!readyToStop ? ` ${t('recorder.finishSuffix', { seconds: Math.ceil(minSec - elapsed) })}` : ''}
-                      </span>
-                    </PrimaryBtn>
-                    <SecondaryBtn onClick={cancelRecording}>
-                      <XIcon size={14} />
-                      <span>{t('recorder.cancel')}</span>
-                    </SecondaryBtn>
-                  </RecBtnRow>
-                  <RecHintLine>
-                    {t('recorder.hintLine', { hardMax })}
-                  </RecHintLine>
-                </RecordingUI>
-              )}
-
-              {recState === 'processing' && (
-                <ProcessingUI>{t('recorder.processing')}</ProcessingUI>
-              )}
-            </RecorderBox>
-          )}
-
-          {/* 녹음이 종료되고 에러가 남은 경우, 녹음 섹션 자리에도 인라인 표시 */}
-          {recState === 'idle' && error && (
-            <InlineError>
-              <XIcon size={14} />
-              <span>{error}</span>
-              <RetryBtn onClick={() => setError(null)}>{t('messages.closeBtn')}</RetryBtn>
-            </InlineError>
-          )}
+          {/* 2026-10-05 — 고객 홈과 같이 쓰는 컴포넌트로 뺐다 (components/Profile/VoiceProfileSection) */}
+          <VoiceProfileSection variant="member" />
         </Card>
 
         {/* N+32 — UserTimezoneSection + FocusSettingsCard 는 /me/work-settings 페이지로 이동.
@@ -1142,16 +800,6 @@ export default function ProfilePage() {
 
       </Container>
 
-      <ConfirmDialog
-        isOpen={confirm.open}
-        onClose={closeConfirm}
-        onConfirm={() => confirm.onConfirm()}
-        title={confirm.title}
-        message={confirm.message}
-        confirmText={t('confirm.deleteText')}
-        cancelText={t('confirm.cancelText')}
-        variant="danger"
-      />
     </PageShell>
   );
 }
@@ -1415,171 +1063,6 @@ const Banner = styled.div<{ $kind: 'error' | 'success' }>`
   border: 1px solid ${(p) => (p.$kind === 'error' ? '#fecaca' : '#bbf7d0')};
 `;
 
-const RegList = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
-`;
-
-const EmptyHint = styled.div`
-  padding: 14px 16px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  color: #64748b;
-  text-align: center;
-`;
-
-const RegItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 14px;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
-  border-radius: 8px;
-`;
-
-const RegLeft = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`;
-
-const RegLabel = styled.div`
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: #0f172a;
-`;
-
-const RegMeta = styled.div`
-  font-size: 0.625rem;
-  color: #0f766e;
-`;
-
-const RegActions = styled.div`
-  display: flex;
-  gap: 6px;
-`;
-
-const AddLangRow = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  border-radius: 8px;
-  margin-bottom: 10px;
-`;
-
-const AddLangLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  color: #475569;
-
-  svg { color: #0d9488; flex-shrink: 0; }
-  strong { color: #0d9488; font-weight: 700; }
-`;
-
-const ActionRow = styled.div`
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  padding-top: 8px;
-  margin-top: 4px;
-  border-top: 1px solid #f1f5f9;
-`;
-
-const VerifyResultBox = styled.div<{ $match: boolean }>`
-  margin-top: 14px;
-  padding: 14px 16px;
-  border-radius: 8px;
-  background: ${(p) => (p.$match ? '#f0fdf4' : '#fff7ed')};
-  border: 1px solid ${(p) => (p.$match ? '#bbf7d0' : '#fed7aa')};
-`;
-
-const VerifyResultLine = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  font-size: 0.8125rem;
-  color: #0f172a;
-  strong { font-weight: 700; }
-  span { font-size: 0.6875rem; color: #64748b; font-variant-numeric: tabular-nums; }
-`;
-
-const VerifyResultMsg = styled.div`
-  font-size: 0.6875rem;
-  color: #475569;
-`;
-
-const VerifyPerLang = styled.div`
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px dashed #e2e8f0;
-`;
-
-const VerifyPerLangItem = styled.div`
-  display: flex;
-  gap: 6px;
-  font-size: 0.6875rem;
-  color: #64748b;
-  strong { color: #0f172a; font-weight: 700; font-variant-numeric: tabular-nums; }
-`;
-
-const RecorderBox = styled.div`
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f1f5f9;
-`;
-
-const SampleSentenceBox = styled.div`
-  margin-bottom: 12px;
-`;
-
-const SampleLabel = styled.div`
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #64748b;
-  margin-bottom: 6px;
-  letter-spacing: 0.02em;
-`;
-
-const SampleSentence = styled.div`
-  padding: 12px 14px;
-  background: #f8fafc;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  color: #0f172a;
-  line-height: 1.7;
-`;
-
-const PrimaryBtn = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 16px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: #0d9488;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  &:hover:not(:disabled) { background: #0f766e; }
-  &:disabled { background: #94a3b8; cursor: not-allowed; }
-`;
-
 const SecondaryBtn = styled.button`
   display: inline-flex;
   align-items: center;
@@ -1594,139 +1077,6 @@ const SecondaryBtn = styled.button`
   cursor: pointer;
   &:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-
-const DangerBtn = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  background: #fff;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  cursor: pointer;
-  &:hover { background: #fef2f2; }
-`;
-
-const DangerIconBtn = styled.button`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 8px;
-  background: #fff;
-  color: #dc2626;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  cursor: pointer;
-  &:hover { background: #fef2f2; }
-`;
-
-const RecordingUI = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-`;
-
-const RecordingRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`;
-
-const RecDot = styled.span`
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #ef4444;
-  animation: pulse 1.2s ease-in-out infinite;
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.6; transform: scale(0.85); }
-  }
-`;
-
-const RecElapsed = styled.div`
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: #0f172a;
-  font-variant-numeric: tabular-nums;
-`;
-
-const RecHint = styled.span`
-  font-weight: 500;
-  color: #94a3b8;
-  font-size: 0.75rem;
-`;
-
-const RecRemaining = styled.div`
-  margin-left: auto;
-  font-size: 0.6875rem;
-  color: #64748b;
-`;
-
-const RecHintLine = styled.div`
-  font-size: 0.625rem;
-  color: #94a3b8;
-  text-align: center;
-  padding-top: 2px;
-`;
-
-const LevelBar = styled.div`
-  height: 8px;
-  background: #f1f5f9;
-  border-radius: 4px;
-  overflow: hidden;
-`;
-
-const LevelFill = styled.div`
-  height: 100%;
-  background: linear-gradient(90deg, #14b8a6, #f43f5e);
-  transition: width 50ms linear;
-`;
-
-const RecBtnRow = styled.div`
-  display: flex;
-  gap: 8px;
-`;
-
-const ProcessingUI = styled.div`
-  padding: 12px;
-  text-align: center;
-  color: #64748b;
-  font-size: 0.8125rem;
-`;
-
-const InlineError = styled.div`
-  margin-top: 12px;
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  color: #b91c1c;
-  font-size: 0.75rem;
-  line-height: 1.6;
-
-  svg { flex-shrink: 0; }
-  span { flex: 1; }
-`;
-
-const RetryBtn = styled.button`
-  flex-shrink: 0;
-  padding: 4px 10px;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  background: #fff;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  cursor: pointer;
-  &:hover { background: #fef2f2; border-color: #f87171; }
 `;
 
 const PrivacyList = styled.ul`

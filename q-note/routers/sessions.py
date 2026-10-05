@@ -19,9 +19,6 @@ from middleware.auth import get_current_user
 from services.database import DB_PATH, connect as db_connect
 from services.ingest import ingest_document, log_task_exception
 from services.speaker_clustering import cluster_and_merge_speakers
-from services.voice_fingerprint import (
-  embed_pcm16, blob_to_embedding, cosine_similarity, SELF_MATCH_THRESHOLD,
-)
 from services.answer_service import find_answer, translate_answer_text
 from services.llm_service import generate_vocabulary_list
 from services.billing_client import check_membership, _node_base
@@ -411,6 +408,9 @@ async def internal_purge_user(
     await db.execute("DELETE FROM sessions WHERE user_id = ?", (int(user_id),))
     # 음성 지문(user_id 직접)
     await db.execute("DELETE FROM voice_fingerprints WHERE user_id = ?", (int(user_id),))
+    # 남의 회의에 박힌 «이 사람» 링크 — 이름 스냅샷은 회의록의 기록이라 두고, 사람 연결만 끊는다 (VOICE_PROFILE_DESIGN §2-3)
+    await db.execute(
+      "UPDATE speakers SET matched_user_id = NULL, matched_kind = NULL WHERE matched_user_id = ?", (int(user_id),))
     await db.commit()
   # 물리 파일 삭제 — data/uploads/{business_id}/{session_id}/ 디렉토리 (개인 문서 내용, Fable 🟠).
   import shutil
@@ -539,6 +539,10 @@ class AddUrlRequest(BaseModel):
 class MatchSpeakerRequest(BaseModel):
   participant_name: Optional[str] = Field(None, max_length=100)
   is_self: Optional[bool] = None
+  # 2026-10-05 목소리 프로필 — «사람 고르기». speaker-candidates 목록에 있는 사람만 받는다(서버가 다시 확인)
+  matched_user_id: Optional[int] = None
+  # «이름 지우기» — 이름·사람 연결·출처를 비운다. 이후 자동 인식이 다시 채울 수 있다(Irene 결정 ④)
+  clear: Optional[bool] = None
 
 
 class ReassignUtteranceRequest(BaseModel):
@@ -1407,11 +1411,16 @@ async def get_session(
     documents = [dict(r) for r in await cursor.fetchall()]
 
     cursor = await db.execute(
-      'SELECT id, deepgram_speaker_id, participant_name, is_self '
+      'SELECT id, deepgram_speaker_id, participant_name, is_self, matched_user_id, matched_kind, name_source, match_similarity '
       'FROM speakers WHERE session_id = ? ORDER BY id ASC',
       (session_id,)
     )
     speakers = [dict(r) for r in await cursor.fetchall()]
+    # 자동 인식 흔적(누구로·어떻게·유사도)은 **생성자만** 본다 — 열람자에게는 이름만 (VOICE_PROFILE_DESIGN §4-1)
+    if row['user_id'] != user['user_id']:
+      for sp in speakers:
+        for k in ('matched_user_id', 'matched_kind', 'name_source', 'match_similarity'):
+          sp.pop(k, None)
 
     # 답변이 있는 질문들 — 프론트가 "답변 보기" 버튼 상태 초기화에 사용
     cursor = await db.execute(
@@ -1480,12 +1489,20 @@ async def update_session(
   # 세션이 completed 로 전환되는 시점에 배치 화자 병합 실행 (D-3)
   if body.status == 'completed':
     try:
-      task = asyncio.create_task(cluster_and_merge_speakers(session_id))
+      task = asyncio.create_task(_finalize_speakers(session_id))
       task.add_done_callback(log_task_exception)
     except Exception:
       pass  # 병합 실패는 세션 종료를 막지 않음
 
   return success(result)
+
+
+async def _finalize_speakers(session_id: int) -> None:
+  """회의 종료 — ① 같은 사람 화자 병합 → ② 아직 이름 없는 화자를 목소리 프로필로 한 번 더 (VOICE_PROFILE_DESIGN §3-2).
+  순서가 중요하다: 병합 전에 이름을 붙이면 같은 사람의 둘째 조각이 «이미 이름 있음» 이라 병합에서 빠진다."""
+  from services.voice_profile import name_speakers_after_meeting
+  await cluster_and_merge_speakers(session_id)
+  await name_speakers_after_meeting(session_id)
 
 
 @router.delete('/{session_id}')
@@ -1979,129 +1996,8 @@ async def add_url(
 # Speakers (화자 매칭)
 # ─────────────────────────────────────────────────────────
 
-@router.post('/{session_id}/self-voice-sample')
-async def upload_self_voice_sample(
-  session_id: int,
-  file: UploadFile = File(...),
-  dg_speaker_hint: Optional[int] = Form(None),
-  user: dict = Depends(get_current_user),
-):
-  """
-  웹 화상회의 모드의 본인 매칭용 **마이크 전용** 오디오 샘플.
-
-  매칭 알고리즘:
-  1. 업로드 오디오로 깨끗한 임베딩 계산
-  2. 저장된 모든 언어 핑거프린트와 비교 → max similarity
-  3. 최고 유사도가 임계값 ≥ 이면 본인 판정
-  4. 대상 dg_speaker_id 결정 순위:
-     (a) 클라이언트가 보낸 dg_speaker_hint (프론트가 최초 10초 창에서 관찰한 ID)
-     (b) fallback: 직전 N초 내 가장 많이 발화한 dg_speaker_id
-  """
-  async with db_connect() as db:
-    db.row_factory = aiosqlite.Row
-    await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'))
-
-    cursor = await db.execute(
-      'SELECT embedding FROM voice_fingerprints WHERE user_id = ?', (user['user_id'],)
-    )
-    fp_rows = await cursor.fetchall()
-  if not fp_rows:
-    raise HTTPException(status_code=400, detail='등록된 음성 핑거프린트가 없습니다 — 프로필에서 등록해주세요')
-  stored_embeddings = [blob_to_embedding(r['embedding']) for r in fp_rows]
-
-  content = await file.read()
-  if not content:
-    raise HTTPException(status_code=400, detail='빈 파일')
-  if len(content) > 10 * 1024 * 1024:
-    raise HTTPException(status_code=400, detail='파일이 너무 큽니다 (10MB 초과)')
-
-  try:
-    import librosa
-    import numpy as _np
-    y, sr = librosa.load(io.BytesIO(content), sr=16000, mono=True)
-  except Exception as e:
-    raise HTTPException(status_code=400, detail=f'오디오 디코딩 실패: {type(e).__name__}')
-  if y.size < 16000 * 3:
-    raise HTTPException(status_code=400, detail='오디오가 너무 짧습니다 (최소 3초)')
-  y_clip = _np.clip(y, -1.0, 1.0)
-  pcm = (y_clip * 32767).astype(_np.int16).tobytes()
-
-  try:
-    test_emb = await embed_pcm16(pcm)
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=f'임베딩 실패: {type(e).__name__}')
-
-  # 다국어 max similarity
-  best_sim = -1.0
-  per_lang_sims = []
-  for emb in stored_embeddings:
-    s = float(cosine_similarity(emb, test_emb))
-    per_lang_sims.append(round(s, 3))
-    if s > best_sim:
-      best_sim = s
-  import logging as _lg
-  _lg.getLogger('q-note.live').info(
-    f'self-voice-sample: session={session_id} best_sim={best_sim:.3f} '
-    f'per_lang={per_lang_sims} hint={dg_speaker_hint}'
-  )
-
-  async with db_connect() as db:
-    db.row_factory = aiosqlite.Row
-
-    target_row = None
-    # (a) hint 우선
-    if dg_speaker_hint is not None:
-      cursor = await db.execute(
-        'SELECT id, deepgram_speaker_id FROM speakers WHERE session_id = ? AND deepgram_speaker_id = ?',
-        (session_id, dg_speaker_hint)
-      )
-      target_row = await cursor.fetchone()
-
-    # (b) fallback: 직전 30초 내 가장 많이 발화한 화자
-    if target_row is None:
-      cursor = await db.execute(
-        '''SELECT s.id AS id, s.deepgram_speaker_id, COUNT(u.id) AS cnt
-           FROM speakers s
-           LEFT JOIN utterances u ON u.speaker_id = s.id
-             AND u.created_at >= datetime('now', '-30 seconds')
-           WHERE s.session_id = ?
-           GROUP BY s.id
-           ORDER BY cnt DESC
-           LIMIT 1''',
-        (session_id,)
-      )
-      target_row = await cursor.fetchone()
-
-    matched = False
-    target_speaker_id = None
-    target_dg = None
-    if best_sim >= SELF_MATCH_THRESHOLD and target_row:
-      target_speaker_id = target_row['id']
-      target_dg = target_row['deepgram_speaker_id']
-      await db.execute(
-        'UPDATE speakers SET is_self = 1 WHERE id = ?', (target_speaker_id,)
-      )
-      await db.execute(
-        '''DELETE FROM detected_questions
-           WHERE session_id = ?
-             AND utterance_id IN (SELECT id FROM utterances WHERE speaker_id = ?)''',
-        (session_id, target_speaker_id)
-      )
-      await db.execute(
-        'UPDATE utterances SET is_question = 0 WHERE speaker_id = ?', (target_speaker_id,)
-      )
-      await db.commit()
-      matched = True
-
-  return success({
-    'similarity': round(float(best_sim), 3),
-    'threshold': SELF_MATCH_THRESHOLD,
-    'matched': matched,
-    'speaker_id': target_speaker_id,
-    'dg_speaker_id': target_dg,
-    'used_hint': dg_speaker_hint is not None and matched,
-  })
-
+# 2026-10-05 — `POST /{session_id}/self-voice-sample` 삭제: 화면 호출 0건이었고, 목소리 프로필 자동 인식
+#   (routers/live._auto_match_speaker · services/voice_profile)과 겹치는 두 번째 매칭 경로였다.
 
 @router.post('/{session_id}/speakers/{from_speaker_id}/merge-into/{into_speaker_id}')
 async def merge_speakers(
@@ -2153,6 +2049,24 @@ async def merge_speakers(
   return success({'into': into_speaker_id, 'from': from_speaker_id})
 
 
+@router.get('/{session_id}/speaker-candidates')
+async def speaker_candidates(session_id: int, user: dict = Depends(get_current_user)):
+  """화자 팝오버 «사람 고르기» — 이 회의에서 이름을 붙여도 되는 사람(생성자만).
+  라이브 자동 인식과 **같은 Node 함수**(voiceCandidates)다. 목소리 등록 여부는 싣지 않는다(§4-2)."""
+  from services.voice_profile import fetch_candidates
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    row = await _load_session_or_403(db, session_id, user['user_id'], user.get('business_id'), access='write')
+  people = await fetch_candidates(row['business_id'], row['user_id'], row['project_id'], row['client_id'])
+  if people is None:
+    raise HTTPException(status_code=503, detail='candidates_unavailable')
+  return success([
+    {'user_id': p['user_id'], 'kind': p.get('kind'), 'display_name': p.get('display_name'),
+     'is_me': int(p['user_id']) == int(row['user_id'])}
+    for p in people
+  ])
+
+
 @router.post('/{session_id}/speakers/{speaker_id}/match')
 async def match_speaker(
   session_id: int,
@@ -2178,10 +2092,33 @@ async def match_speaker(
       raise HTTPException(status_code=404, detail='Speaker not found')
 
     fields, values = [], []
-    if body.participant_name is not None:
-      fields.append('participant_name = ?'); values.append(body.participant_name)
-    if body.is_self is not None:
-      fields.append('is_self = ?'); values.append(1 if body.is_self else 0)
+    if body.clear:
+      # «이름 지우기» — 사람이 «틀렸다» 고 한 것이다. 자동 인식이 다시 채울 수 있게 출처까지 비운다(결정 ④)
+      fields += ['participant_name = NULL', 'is_self = 0', 'matched_user_id = NULL', 'matched_kind = NULL',
+                 'name_source = NULL', 'match_similarity = NULL']
+    elif body.matched_user_id is not None:
+      # «사람 고르기» — 이 회의의 후보(워크스페이스 멤버 + 연결 고객)인지 Node 에 다시 묻는다. 화면이 보낸 id 를 믿지 않는다
+      from services.voice_profile import fetch_candidates
+      sess = await (await db.execute('SELECT business_id, project_id, client_id, user_id FROM sessions WHERE id = ?', (session_id,))).fetchone()
+      people = await fetch_candidates(sess['business_id'], sess['user_id'], sess['project_id'], sess['client_id']) or []
+      person = next((p for p in people if int(p.get('user_id') or 0) == int(body.matched_user_id)), None)
+      if not person:
+        raise HTTPException(status_code=400, detail='not_a_candidate')
+      is_me = int(body.matched_user_id) == int(sess['user_id'])
+      fields += ['participant_name = ?', 'is_self = ?', 'matched_user_id = ?', 'matched_kind = ?',
+                 "name_source = 'manual'", 'match_similarity = NULL']
+      values += [None if is_me else person.get('display_name'), 1 if is_me else 0, int(body.matched_user_id), person.get('kind')]
+      body.is_self = is_me   # 아래 «내 발화 질문 지우기» 를 같이 태운다
+    else:
+      if body.participant_name is not None:
+        fields.append('participant_name = ?'); values.append(body.participant_name)
+      if body.is_self is not None:
+        fields.append('is_self = ?'); values.append(1 if body.is_self else 0)
+      if fields:
+        # 손으로 쓴 이름 — 사람 연결은 끊고(자유 입력은 특정인이 아니다) 출처를 manual 로. 자동이 다시 덮지 않는다
+        named = bool((body.participant_name or '').strip()) or bool(body.is_self)
+        fields += ['matched_user_id = NULL', 'matched_kind = NULL', 'match_similarity = NULL',
+                   "name_source = 'manual'" if named else 'name_source = NULL']
 
     if fields:
       values.append(speaker_id)
@@ -3079,8 +3016,10 @@ async def get_public_session_by_token(token: str):
     )
     utterances = [dict(r) for r in await cursor.fetchall()]
 
+    # ★ 2026-10-05 화이트리스트 — 링크 소지자 누구나 여는 응답이다. 내부 키·자동 인식 흔적(누구로·유사도)은
+    #   싣지 않는다(VOICE_PROFILE_DESIGN §4-1). 화면은 id·이름·«작성자» 만 쓴다.
     cursor = await db.execute(
-      'SELECT id, deepgram_speaker_id, participant_name, is_self '
+      'SELECT id, participant_name, is_self '
       'FROM speakers WHERE session_id = ? ORDER BY id ASC',
       (session_id,)
     )

@@ -75,7 +75,7 @@ async def cluster_and_merge_speakers(session_id: int) -> dict:
 
     # 1) 세션의 모든 speaker_embeddings 로드
     cursor = await db.execute(
-      '''SELECT se.speaker_id, se.embedding, s.is_self
+      '''SELECT se.speaker_id, se.embedding, s.is_self, s.matched_user_id, s.participant_name
          FROM speaker_embeddings se
          JOIN speakers s ON s.id = se.speaker_id
          WHERE s.session_id = ?''',
@@ -88,6 +88,18 @@ async def cluster_and_merge_speakers(session_id: int) -> dict:
     speaker_ids = [r['speaker_id'] for r in rows]
     embeddings = np.stack([blob_to_embedding(r['embedding']) for r in rows])
     is_self_flags = {r['speaker_id']: bool(r['is_self']) for r in rows}
+    # 2026-10-05 — 이름이 붙은 화자의 «정체». 다른 정체끼리는 절대 합치지 않는다.
+    #   병합 기준(0.60)은 다른 사람끼리도 넘는다(실측 0.75~0.81 — VOICE_PROFILE_DESIGN §6-1).
+    #   이름이 없던 시절엔 «상대 1·2» 가 합쳐질 뿐이었지만, 이제는 «철수» 와 «영희» 가 한 사람이 된다.
+    def _identity(r):
+      if r['is_self']:
+        return 'self'
+      if r['matched_user_id']:
+        return f"u:{r['matched_user_id']}"
+      if r['participant_name']:
+        return f"n:{r['participant_name']}"
+      return None
+    identity = {r['speaker_id']: _identity(r) for r in rows}
 
     # 2) 계층 클러스터링 (cosine distance)
     try:
@@ -122,7 +134,13 @@ async def cluster_and_merge_speakers(session_id: int) -> dict:
         sids
       )
       counts = {r['speaker_id']: r['cnt'] for r in await cursor.fetchall()}
-      representative = max(sids, key=lambda s: counts.get(s, 0))
+      ids_here = {identity.get(x) for x in sids if identity.get(x)}
+      if len(ids_here) > 1:
+        logger.info(f'cluster: session={session_id} skip group {sids} — different identities {ids_here}')
+        continue
+      # 대표 = 이름이 붙은 화자(있으면) — 이름 없는 행에 합치면 이름이 사라진다. 없으면 발화 수가 가장 많은 것
+      named = [x for x in sids if identity.get(x)]
+      representative = max(named or sids, key=lambda s: counts.get(s, 0))
       to_merge = [s for s in sids if s != representative]
 
       # 대표에 is_self 상속

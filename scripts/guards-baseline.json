@@ -32,7 +32,6 @@
     "dev-frontend/src/pages/Knowledge/KbCsvIngestModal.tsx": 2,
     "dev-frontend/src/pages/Knowledge/KnowledgePage.tsx": 3,
     "dev-frontend/src/pages/MyFeedback/MyFeedbackPage.tsx": 1,
-    "dev-frontend/src/pages/Profile/ProfilePage.tsx": 1,
     "dev-frontend/src/pages/Public/PublicCalendarEventPage.tsx": 1,
     "dev-frontend/src/pages/QBill/InvoiceDetailDrawer.tsx": 13,
     "dev-frontend/src/pages/QBill/PublicInvoicePage.tsx": 3,
@@ -62,7 +61,8 @@
     "dev-frontend/src/services/qnote.ts": 1,
     "dev-frontend/src/services/qtable.ts": 1,
     "dev-frontend/src/utils/dateFormat.ts": 4,
-    "dev-frontend/src/utils/qnoteSummaryDoc.ts": 1
+    "dev-frontend/src/utils/qnoteSummaryDoc.ts": 1,
+    "dev-frontend/src/components/Profile/VoiceProfileSection.tsx": 1
   },
   "parity_keys": {},
   "tenant": {

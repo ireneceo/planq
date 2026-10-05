@@ -114,7 +114,13 @@
       "other": "상대",
       "numbered": "화자 {{n}}",
       "manual": "직접 입력",
-      "otherNumbered": "상대 {{n}}"
+      "otherNumbered": "상대 {{n}}",
+      "auto": "자동",
+      "autoTip": "목소리 프로필로 인식됨 · 유사도 {{sim}}",
+      "wholeSpeaker": "이 화자 전체",
+      "loadingPeople": "불러오는 중…",
+      "peopleFailed": "사람 목록을 불러오지 못했어요.",
+      "clearName": "이름 지우기"
     },
     "question": {
       "editedMark": "(수정됨)",
@@ -395,7 +401,8 @@
     "materialsExisting": "기존 {{count}}개",
     "docName": "문서 #{{id}}",
     "chunkUnit": "{{count}} chunks",
-    "saveBtn": "저장"
+    "saveBtn": "저장",
+    "voiceHint": "목소리를 등록한 참석자는 회의 기록에 이름이 자동으로 붙습니다 (내 프로필에서 등록)"
   },
   "newNoteModal": {
     "title": "새 노트",

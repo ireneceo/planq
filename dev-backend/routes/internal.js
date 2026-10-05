@@ -156,6 +156,76 @@ router.get('/business-membership/:userId/:businessId', async (req, res, next) =>
   } catch (err) { next(err); }
 });
 
+// Q Note 목소리 프로필 — 이 회의에서 이름을 붙여도 되는 사람 (docs/VOICE_PROFILE_DESIGN.md §3-1)
+// GET /api/internal/qnote/voice-candidates?business_id=&recorder_user_id=&project_id=&client_id=
+//   → [{user_id, kind:'user'|'client', display_name}] · 지문 유무는 싣지 않는다(q-note 가 자기 DB 로 거른다)
+router.get('/qnote/voice-candidates', async (req, res, next) => {
+  try {
+    const businessId = Number(req.query.business_id);
+    const recorderUserId = Number(req.query.recorder_user_id);
+    if (!businessId || !recorderUserId) return errorResponse(res, 'invalid_ids', 400);
+    const { voiceCandidates } = require('../services/voiceCandidates');
+    const list = await voiceCandidates({
+      businessId, recorderUserId,
+      projectId: Number(req.query.project_id) || null,
+      clientId: Number(req.query.client_id) || null,
+    });
+    return successResponse(res, list);
+  } catch (err) { next(err); }
+});
+
+// 목소리 프로필 삭제 30일 전 알림 (VOICE_PROFILE_DESIGN §2-4) — q-note 보관기간 작업이 부른다.
+//   계정 단위 알림(워크스페이스 없음). 앱 알림 + 메일. 링크는 내 프로필(고객이면 홈).
+router.post('/qnote/voice-expiry-notice', async (req, res, next) => { // audit-exempt: 알림만 보낸다(데이터 변경 없음). 실제 삭제는 보관기간 작업이 voice_profile.expire 로 남긴다
+  try {
+    const userId = Number(req.body && req.body.user_id);
+    const days = Number(req.body && req.body.days) || 30;
+    if (!userId) return errorResponse(res, 'invalid_user', 400);
+    const { User, Client } = require('../models');
+    const u = await User.findByPk(userId, { attributes: ['id', 'language', 'status'] });
+    if (!u || u.status !== 'active') return successResponse(res, { sent: false, reason: 'inactive' });
+    const isClientOnly = !(await BusinessMember.count({ where: { user_id: userId, removed_at: null } }))
+      && !!(await Client.count({ where: { user_id: userId } }));
+    const en = String(u.language || '').startsWith('en');
+    const { notify } = require('./notifications');
+    await notify({
+      userId, businessId: null, eventKind: 'system',
+      title: en ? 'Your saved voice will be deleted soon' : '저장된 내 목소리가 곧 삭제됩니다',
+      body: en
+        ? `Your voice signature has not been used for a long time and will be deleted in ${days} days. Re-register it in your profile to keep automatic recognition in meetings.`
+        : `내 목소리 특징값이 오래 쓰이지 않아 ${days}일 뒤 자동 삭제됩니다. 회의 자동 인식을 계속 쓰려면 프로필에서 다시 등록해 주세요.`,
+      link: isClientOnly ? '/home' : '/profile',
+      ctaLabel: en ? 'Open' : '열기',
+    });
+    return successResponse(res, { sent: true });
+  } catch (err) { next(err); }
+});
+
+// q-note 가 남기는 감사 기록 — q-note 에는 MySQL 이 없다 (VOICE_PROFILE_DESIGN §2-5)
+//   액션 화이트리스트 밖은 400. 값은 메타만(임베딩·음성 없음).
+const QNOTE_AUDIT_ACTIONS = new Set([
+  'voice_profile.register', 'voice_profile.delete', 'voice_profile.settings', 'voice_profile.expire',
+  'qnote.speaker.auto_named',
+]);
+router.post('/audit', async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    if (!QNOTE_AUDIT_ACTIONS.has(b.action)) return errorResponse(res, 'action_not_allowed', 400);
+    const userId = Number(b.user_id) || null;
+    if (!userId) return errorResponse(res, 'invalid_user', 400);
+    const { writeAudit } = require('../services/auditService');
+    await writeAudit({
+      userId,
+      businessId: Number(b.business_id) || null,
+      action: b.action,
+      targetType: String(b.target_type || 'voice_profile').slice(0, 50),
+      targetId: Number(b.target_id) || null,
+      newValue: b.new_value && typeof b.new_value === 'object' ? b.new_value : null,
+    });
+    return successResponse(res, { ok: true });
+  } catch (err) { next(err); }
+});
+
 // Q Note 월 한도 게이트 — Deepgram 연결 전 hard-block 판정.
 // GET /api/internal/qnote/can?business_id=N&seconds=S
 router.get('/qnote/can', async (req, res, next) => {

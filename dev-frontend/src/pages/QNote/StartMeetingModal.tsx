@@ -744,6 +744,8 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
           <Field>
             <Label>{t('startModal.participantsLabel')}</Label>
             <Hint>{t('startModal.participantsHint')}</Hint>
+            {/* 2026-10-05 목소리 프로필 — 기준은 화면이 짧게 알려준다 */}
+            <Hint data-testid="qnote-start-voice-hint">{t('startModal.voiceHint', '목소리를 등록한 참석자는 회의 기록에 이름이 자동으로 붙습니다 (내 프로필에서 등록)')}</Hint>
             {participants.length > 0 && (
               <ParticipantList>
                 {participants.map((p, idx) => (

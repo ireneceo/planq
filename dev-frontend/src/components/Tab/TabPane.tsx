@@ -34,7 +34,7 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
        <TabIdProvider value={tab.id}>
         <MemoryRouter initialEntries={[tab.path]}>
           <UrlMirror tabId={tab.id} active={active} />
-          <PaneScroll ref={scrollRef} onScroll={(e) => { if (active) savedScroll.current = e.currentTarget.scrollTop; }}>
+          <PaneScroll ref={scrollRef} data-pq-content="1" onScroll={(e) => { if (active) savedScroll.current = e.currentTarget.scrollTop; }}>
             <Suspense fallback={<Fallback />}>
               <Routes>
                 {APP_ROUTES.map((r) => (

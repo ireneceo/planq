@@ -18,6 +18,7 @@ import GuestBookingPanel from '../Guest/GuestBookingPanel';
 import GuestBookingList from '../Guest/GuestBookingList';
 import { TabBar, Tab, Count } from '../Guest/guestShell';
 import type { EntryInfo } from '../Guest/GuestWorkspacePage';
+import VoiceProfileSection from '../../components/Profile/VoiceProfileSection';
 
 type Home = {
   workspace: { name: string | null; logo_url: string | null } | null;
@@ -109,6 +110,11 @@ export default function ClientHomePage() {
           <Pane data-testid="home-body-info">
             <EntryInfoView entry={home?.entry || null} bookingOn={bookingOn}
               onAsk={openChat} onBook={() => { setReschedule(null); go('book'); }} />
+            {/* 2026-10-05 목소리 프로필 — 팀원 프로필과 **같은 컴포넌트**(VOICE_PROFILE_DESIGN §5-3).
+                고객은 로그인 계정이 있을 때만 등록할 수 있고, 연결된 상담 회의에서만 이름이 붙는다. */}
+            <VoiceCard data-testid="client-home-voice">
+              <VoiceProfileSection variant="client" />
+            </VoiceCard>
           </Pane>
         )}
 
@@ -146,3 +152,7 @@ const TodoBar = styled.button`
 `;
 const TodoGo = styled.span`flex-shrink:0;font-size:0.75rem;font-weight:700;`;
 const Warn = styled.div`padding:9px 12px;background:#FFF1F2;border:1px solid #FECDD3;border-radius:8px;font-size:0.75rem;color:#B91C3C;`;
+const VoiceCard = styled.section`
+  background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:16px 18px;
+  @media (max-width:640px){padding:14px;}
+`;

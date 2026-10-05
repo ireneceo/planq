@@ -14,7 +14,8 @@
         "Optional: profile photo, phone number, organization name",
         "Automatically collected: IP address, cookies, access logs, browser/device info",
         "Payment: card payments are handled directly by our payment processor (Stripe); the Company stores only the transaction ID and amount. For bank-transfer payments, the Company checks the depositor name and amount solely to confirm the deposit, and does not separately collect or store bank account details.",
-        "Guest (non-member) reply notifications: name and email address — used to send reply alerts and to let the assigned staff see who they are talking to. Collected only when the guest opts in, and shown to the staff on that conversation"
+        "Guest (non-member) reply notifications: name and email address — used to send reply alerts and to let the assigned staff see who they are talking to. Collected only when the guest opts in, and shown to the staff on that conversation",
+        "Sensitive data (biometric) — only with your separate consent: a numeric signature of your voice for Q Note (256 values). Purpose: showing your name next to your own speech in Q Note meetings of workspaces you belong to (for clients: meetings you are connected to). No raw audio is kept and it is not sent outside PlanQ. You can delete it or turn off recognition at any time in your profile (clients: Home)"
       ]
     },
     "s2": {
@@ -52,7 +53,8 @@
         "Audit logs: kept 90 days to 7 years depending on plan. We apply whichever is longer — the plan in effect when the entry was written, or your current plan — so downgrading never shortens the retention of entries you already have",
         "E-commerce records: up to 5 years per Korean e-commerce law",
         "Complete deletion within 60 days of user request after contract termination (excluding legally required retention)",
-        "Guest notification data (name, email): deleted within 24 hours if the email is never verified; otherwise within 30 days after the chat link expires or is revoked (the recipient address in delivery logs is masked at the same time). The guest can delete it immediately from the page"
+        "Guest notification data (name, email): deleted within 24 hours if the email is never verified; otherwise within 30 days after the chat link expires or is revoked (the recipient address in delivery logs is masked at the same time). The guest can delete it immediately from the page",
+        "Q Note voice signature: deleted automatically after 24 months without use (with notice 30 days before), or immediately when you delete it · per-speaker signatures created to tell speakers apart in a meeting are deleted once the meeting has had no activity for 7 days (ended or paused)"
       ]
     },
     "s5": {

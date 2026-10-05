@@ -39,6 +39,24 @@ export interface QNoteSpeaker {
   deepgram_speaker_id: number | null;
   participant_name: string | null;
   is_self: number;
+  // 2026-10-05 목소리 프로필 — **세션 생성자에게만** 온다(열람자·공개 응답에는 없다)
+  matched_user_id?: number | null;
+  matched_kind?: 'user' | 'client' | null;
+  name_source?: 'voice_auto' | 'manual' | 'channel' | null;
+  match_similarity?: number | null;
+}
+
+export interface SpeakerCandidate {
+  user_id: number;
+  kind: 'user' | 'client';
+  display_name: string | null;
+  is_me: boolean;
+}
+
+// 화자 팝오버 «사람 고르기» — 이 회의의 워크스페이스 멤버 + 연결된 고객(생성자만)
+export async function getSpeakerCandidates(sessionId: number) {
+  const res = await apiFetch(`${BASE}/sessions/${sessionId}/speaker-candidates`);
+  return handle<SpeakerCandidate[]>(res);
 }
 
 export interface QNoteUtterance {
@@ -432,7 +450,7 @@ export async function deleteUrl(sessionId: number, urlId: number) {
 export async function matchSpeaker(
   sessionId: number,
   speakerId: number,
-  body: { participant_name?: string; is_self?: boolean }
+  body: { participant_name?: string; is_self?: boolean; matched_user_id?: number; clear?: boolean }
 ) {
   const res = await apiFetch(`${BASE}/sessions/${sessionId}/speakers/${speakerId}/match`, {
     method: 'POST',
@@ -476,6 +494,12 @@ export interface VoiceFingerprintList {
   registered: boolean;
   count: number;
   languages: VoiceFingerprintLanguage[];
+  // 2026-10-05 목소리 프로필 — 동의 버전·자동 인식·보관기간 (docs/VOICE_PROFILE_DESIGN.md)
+  consent_version_required: string;
+  consent_current: boolean;
+  consent_at: string | null;
+  match_enabled: boolean;
+  retention_months: number;
 }
 
 export async function getVoiceFingerprints() {
@@ -483,15 +507,27 @@ export async function getVoiceFingerprints() {
   return handle<VoiceFingerprintList>(res);
 }
 
-export async function registerVoiceFingerprint(language: string, wavBlob: Blob) {
+// consentVersion — 화면에서 동의 체크를 했을 때만 넘긴다. 서버 버전과 다르면 400 consent_required.
+export async function registerVoiceFingerprint(language: string, wavBlob: Blob, consentVersion: string) {
   const form = new FormData();
   form.append('language', language);
   form.append('file', wavBlob, 'voice.wav');
+  form.append('consent_version', consentVersion);
   const res = await apiFetch(`${BASE}/voice-fingerprint`, {
     method: 'POST',
     body: form,
   });
   return handle<{ language: string; sample_seconds: number }>(res);
+}
+
+// 회의 자동 인식 켜기/끄기 — 등록은 그대로 두고 매칭만 멈춘다. 실패는 던진다(AutoSaveField 가 ! 를 띄운다)
+export async function setVoiceMatchEnabled(enabled: boolean) {
+  const res = await apiFetch(`${BASE}/voice-fingerprint/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ match_enabled: enabled }),
+  });
+  return handle<{ match_enabled: boolean }>(res);
 }
 
 export async function deleteVoiceFingerprintLanguage(language: string) {

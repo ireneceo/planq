@@ -59,18 +59,23 @@ class RollingAudioBuffer:
 
 
 class SpeakerAudioCollector:
-  """dg_speaker_id 별 PCM 누적. 라이브 트리거 + 배치용 최종 임베딩 재료."""
+  """dg_speaker_id 별 PCM 누적. 라이브 트리거 + 배치용 최종 임베딩 재료.
 
-  def __init__(self, live_trigger_sec: float = 5.0, max_sec: float = 30.0):
-    self.live_trigger_bytes = int(live_trigger_sec * SAMPLE_RATE) * BYTES_PER_SAMPLE
+  2026-10-05 — 트리거 지점을 여러 개 둔다(기본 3초·10초). 목소리 프로필 매칭(VOICE_PROFILE_DESIGN §3-2)은
+  3초에 1차, 더 긴 10초에 2차로 본다 — 짧은 조각에서 못 붙인 이름을 긴 조각으로 다시 본다.
+  """
+
+  def __init__(self, live_trigger_sec: float = 5.0, max_sec: float = 30.0, extra_trigger_secs: tuple = ()):
+    secs = sorted({float(live_trigger_sec), *[float(x) for x in extra_trigger_secs]})
+    self.trigger_bytes = [int(x * SAMPLE_RATE) * BYTES_PER_SAMPLE for x in secs]
     self.max_bytes = int(max_sec * SAMPLE_RATE) * BYTES_PER_SAMPLE
     self.per_speaker: dict[int, bytearray] = {}
-    self.live_triggered: set[int] = set()
+    self.fired: dict[int, int] = {}   # speaker → 이미 넘은 트리거 개수
 
   def add(self, dg_speaker_id: Optional[int], pcm_bytes: bytes) -> Optional[str]:
     """
     dg_speaker_id 에 pcm 누적.
-    - 'trigger_live' 반환 → 이 speaker 처음으로 live_trigger_sec 도달 (본인 매칭 트리거)
+    - 'trigger_live' 반환 → 이 speaker 가 다음 트리거 지점(3초·10초 …)을 처음 넘었다
     - None → 추가 작업 없음
     """
     if dg_speaker_id is None:
@@ -80,8 +85,12 @@ class SpeakerAudioCollector:
       return None  # 이미 충분 — 더 안 모음 (메모리 절약)
     remaining = self.max_bytes - len(buf)
     buf.extend(pcm_bytes[:remaining])
-    if dg_speaker_id not in self.live_triggered and len(buf) >= self.live_trigger_bytes:
-      self.live_triggered.add(dg_speaker_id)
+    n = self.fired.get(dg_speaker_id, 0)
+    if n < len(self.trigger_bytes) and len(buf) >= self.trigger_bytes[n]:
+      # 한 번에 여러 지점을 넘었으면 전부 넘은 것으로 친다(한 번만 판정)
+      while n < len(self.trigger_bytes) and len(buf) >= self.trigger_bytes[n]:
+        n += 1
+      self.fired[dg_speaker_id] = n
       return 'trigger_live'
     return None
 
@@ -93,4 +102,4 @@ class SpeakerAudioCollector:
 
   def clear(self) -> None:
     self.per_speaker.clear()
-    self.live_triggered.clear()
+    self.fired.clear()

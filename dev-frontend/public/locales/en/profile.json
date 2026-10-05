@@ -181,7 +181,25 @@
     "addLangPlaceholder": "＋ Select language to register",
     "verifyBtn": "Verify Match",
     "verifyHint": "Records 5 seconds of your current voice and checks whether it matches the stored fingerprint",
-    "deleteAllBtn": "Delete All"
+    "deleteAllBtn": "Delete All",
+    "usage": {
+      "title": "Where it is used",
+      "body": "Your name is attached to your own speech in Q Note meetings of workspaces you belong to. It is not used in other workspaces or outside PlanQ.",
+      "bodyClient": "Your name is shown next to your own speech in consultation meeting notes. It is only used in meetings you are connected to as a client, and nowhere else."
+    },
+    "retention": "Deleted automatically after {{months}} months without use (we will notify you 30 days before).",
+    "consent": {
+      "label": "I agree to store my voice signature and show my name in meetings",
+      "show": "Read full text",
+      "hide": "Hide",
+      "required": "Consent is required to register.",
+      "outdated": "The notice has changed. Agree again and re-register to keep automatic recognition.",
+      "full": "I agree that PlanQ stores a numeric signature of my voice (256 values).\nIt is used only to label my own speech with my name in Q Note meetings of workspaces I belong to (for clients: meetings I am connected to).\nNo raw audio is kept, and this value is not sent outside PlanQ.\nIt is deleted automatically after 24 months without use (with notice 30 days before), and I can delete it at any time. After deletion, recognition stops within 10 minutes, even in ongoing meetings."
+    },
+    "match": {
+      "toggle": "Recognize me in meetings",
+      "offHint": "Registration stays; only naming in meetings stops."
+    }
   },
   "verify": {
     "matched": "Recognized as you",

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import logging
 import os
 import uuid
@@ -213,14 +214,25 @@ async def _process(session_id: int, business_id: int, user_id: int,
     billed = int(round(result['duration'] or 0))
 
     async with db_connect() as db:
+      # 2026-10-05 — 화자 행을 만든다(목소리 프로필 자동 이름·손으로 이름 붙이기의 자리). 전엔 행이 없어
+      #   업로드 노트는 모든 줄이 «상대» 였고 이름을 붙일 곳도 없었다. 키 = Deepgram 화자 번호(0부터).
+      speaker_rows: dict[int, int] = {}
       for u in utts:
+        m = re.match(r'^Speaker (\d+)$', str(u.get('speaker') or ''))
+        key = int(m.group(1)) - 1 if m else 0
+        if key not in speaker_rows:
+          cur = await db.execute(
+            'INSERT OR IGNORE INTO speakers (session_id, deepgram_speaker_id) VALUES (?, ?)', (session_id, key))
+          row = await (await db.execute(
+            'SELECT id FROM speakers WHERE session_id = ? AND deepgram_speaker_id = ?', (session_id, key))).fetchone()
+          speaker_rows[key] = row[0]
         await db.execute(
           '''INSERT INTO utterances
                (session_id, speaker, original_text, original_language, is_final,
-                start_time, end_time, confidence, created_at)
-             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)''',
+                start_time, end_time, confidence, created_at, speaker_id)
+             VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?)''',
           (session_id, u['speaker'], u['text'], result.get('detected_language'),
-           u['start'], u['end'], u['confidence'], _now()),
+           u['start'], u['end'], u['confidence'], _now(), speaker_rows[key]),
         )
       # ★ 'completed' — 기존 음성 세션의 종료 상태값과 **같아야 한다**.
       #   'ended' 를 쓰면 목록 라벨 분기에도 없어 "대기" 로 보이고, 상세의 phase 판정에서도
@@ -248,6 +260,14 @@ async def _process(session_id: int, business_id: int, user_id: int,
                                 f'업로드 STT 과금 기록 실패 (session {session_id}, {billed}s)')
 
     logger.info('[upload-audio] 완료 session=%s 발화 %d건 %.1fs', session_id, len(utts), billed)
+
+    # 목소리 프로필 — 원본을 지우기 전에 화자별 임베딩·자동 이름 (VOICE_PROFILE_DESIGN §3-4). 실패해도 노트는 그대로다
+    try:
+      from services.voice_profile import embed_upload_speakers
+      vr = await embed_upload_speakers(session_id, path)
+      logger.info('[upload-audio] 목소리 인식 session=%s %s', session_id, vr)
+    except Exception as e:
+      logger.warning('[upload-audio] 목소리 인식 실패 session=%s: %s', session_id, e)
   finally:
     _active_uploads.discard(user_id)
     try: os.unlink(path)          # 원본은 터미널 상태 도달 시 삭제 (#383 요구는 "텍스트화")

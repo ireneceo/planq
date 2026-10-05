@@ -16,9 +16,9 @@ from services.llm_service import translate_and_detect_question, detect_question_
 from services.answer_service import find_answer as _find_answer, translate_answer_text
 from services.audio_buffer import RollingAudioBuffer, SpeakerAudioCollector
 from services.voice_fingerprint import (
-  embed_pcm16, blob_to_embedding, cosine_similarity, SELF_MATCH_THRESHOLD,
-  embedding_to_blob,
+  embed_pcm16, embedding_to_blob,
 )
+from services.voice_profile import SessionCandidates, decide_speaker, apply_person, audit as voice_audit
 
 router = APIRouter()
 logger = logging.getLogger('q-note.live')
@@ -106,66 +106,40 @@ async def _is_self_speaker(db, speaker_row_id: int | None) -> bool:
   return bool(row and row[0])
 
 
-async def _load_user_fingerprints(user_id: int) -> list[np.ndarray]:
-  """사용자의 저장된 모든 언어별 임베딩 로드. max similarity 용."""
-  async with db_connect() as db:
-    db.row_factory = aiosqlite.Row
-    cursor = await db.execute(
-      'SELECT embedding FROM voice_fingerprints WHERE user_id = ?', (user_id,)
-    )
-    rows = await cursor.fetchall()
-  out = []
-  for r in rows:
-    try:
-      out.append(blob_to_embedding(r['embedding']))
-    except Exception:
-      continue
-  return out
-
-
-def _max_similarity(embeddings: list[np.ndarray], test_emb: np.ndarray) -> float:
-  if not embeddings:
-    return -1.0
-  return max(cosine_similarity(e, test_emb) for e in embeddings)
-
-
-async def _auto_match_self(
+async def _auto_match_speaker(
   session_id: int,
-  user_id: int,
-  dg_speaker_id: int,
+  business_id: int | None,
+  speaker_key: int,
   pcm_bytes: bytes,
-  user_fingerprints: list[np.ndarray],
-  websocket: WebSocket,
+  cands,
+  websocket: WebSocket | None,
+  aliases: dict | None = None,
 ):
   """
-  라이브 핑거프린트 매칭 — 여러 언어 등록 시 max similarity 사용.
+  목소리 프로필 → 화자 이름 (docs/VOICE_PROFILE_DESIGN.md §3) — 마이크·화상(상대 채널)·업로드가 같이 쓴다.
 
-  이중 방어: 세션당 "나"는 1명. 이미 is_self=1 인 speaker 가 있으면 스킵.
-  (과거 버그: mixed stream 잘림 + 관대한 threshold 로 모든 speaker 에 is_self=1 이 찍혀
-  SpeakerPopover 에 "나" 만 보이는 문제를 유발했다.)
+  · 판정은 services.voice_profile.decide_speaker 한 곳(기준 0.85 + 1·2위 여유폭)
+  · **자동은 이름이 비어 있는 행만 채운다** (name_source IS NULL). 사람이 고친 것(manual)·채널(«나»)은 덮지 않는다
+  · 한 사람 = 한 화자 — 같은 사람으로 이미 이름이 붙은 다른 화자 행이 있으면 발화를 그쪽으로 옮기고 이 행을 지운다
+  · 판정과 별개로 세션 화자 임베딩(speaker_embeddings)은 종료 병합용으로 캐시한다(기존 동작)
+  (2026-10-05 — 호출부가 없던 _auto_match_self 를 대신한다. 두 벌 두지 않는다)
   """
   try:
     emb = await embed_pcm16(pcm_bytes)
   except Exception as e:
-    logger.warning(f'live fingerprint embed failed for dg_speaker {dg_speaker_id}: {e}')
+    logger.warning(f'voice match embed failed session={session_id} key={speaker_key}: {e}')
     return
-
-  sim = _max_similarity(user_fingerprints, emb)
-  logger.info(f'self-match: session={session_id} dg_speaker={dg_speaker_id} max_sim={sim:.3f}')
 
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
-
     cursor = await db.execute(
-      'SELECT id FROM speakers WHERE session_id = ? AND deepgram_speaker_id = ?',
-      (session_id, dg_speaker_id)
+      'SELECT id, name_source, is_self FROM speakers WHERE session_id = ? AND deepgram_speaker_id = ?',
+      (session_id, speaker_key)
     )
     row = await cursor.fetchone()
     if not row:
       return
     speaker_row_id = row['id']
-
-    # speaker_embeddings 에 라이브 임베딩 캐싱 (upsert)
     await db.execute(
       '''INSERT INTO speaker_embeddings (speaker_id, embedding, sample_seconds)
          VALUES (?, ?, ?)
@@ -174,62 +148,42 @@ async def _auto_match_self(
            sample_seconds = excluded.sample_seconds''',
       (speaker_row_id, embedding_to_blob(emb), len(pcm_bytes) / (2 * 16000))
     )
-
-    if sim >= SELF_MATCH_THRESHOLD:
-      # 이미 is_self인 다른 speaker가 있으면 → 같은 사람 (Deepgram이 다른 ID 부여)
-      # 기존 is_self speaker에 현재 speaker의 utterances를 병합
-      cursor = await db.execute(
-        'SELECT id FROM speakers WHERE session_id = ? AND is_self = 1 AND id != ?',
-        (session_id, speaker_row_id)
-      )
-      existing_self = await cursor.fetchone()
-      if existing_self:
-        # 현재 speaker의 utterances를 기존 is_self speaker로 이동
-        await db.execute(
-          'UPDATE utterances SET speaker_id = ? WHERE speaker_id = ?',
-          (existing_self['id'], speaker_row_id)
-        )
-        # 현재 speaker 삭제
-        await db.execute('DELETE FROM speaker_embeddings WHERE speaker_id = ?', (speaker_row_id,))
-        await db.execute('DELETE FROM speakers WHERE id = ?', (speaker_row_id,))
-        await db.commit()
-        logger.info(f'self-match: session={session_id} merged speaker {speaker_row_id} into {existing_self["id"]} (same person, different dg_id)')
-        try:
-          await websocket.send_json({
-            'type': 'self_matched',
-            'speaker_id': existing_self['id'],
-            'deepgram_speaker_id': dg_speaker_id,
-            'similarity': round(sim, 3),
-          })
-        except Exception:
-          pass
-      else:
-        # 첫 is_self 마킹
-        await db.execute(
-          'UPDATE speakers SET is_self = 1 WHERE id = ?', (speaker_row_id,)
-        )
-        await db.execute(
-          '''DELETE FROM detected_questions
-             WHERE session_id = ?
-               AND utterance_id IN (SELECT id FROM utterances WHERE speaker_id = ?)''',
-          (session_id, speaker_row_id)
-        )
-        await db.execute(
-          'UPDATE utterances SET is_question = 0 WHERE speaker_id = ?', (speaker_row_id,)
-        )
-        await db.commit()
-        logger.info(f'self-match: session={session_id} marked speaker {speaker_row_id} as self')
-        try:
-          await websocket.send_json({
-            'type': 'self_matched',
-            'speaker_id': speaker_row_id,
-            'deepgram_speaker_id': dg_speaker_id,
-            'similarity': round(sim, 3),
-          })
-        except Exception:
-          pass
-    else:
+    if row['name_source'] is not None or row['is_self']:
       await db.commit()
+      return
+
+    await cands.refresh(db)
+    person = decide_speaker(emb, cands)
+    if not person:
+      await db.commit()
+      return
+
+    target_id = await apply_person(db, session_id, speaker_row_id, person)
+    await db.commit()
+  if aliases is not None and target_id != speaker_row_id:
+    aliases[speaker_key] = target_id
+
+  logger.info(f'voice match: session={session_id} key={speaker_key} → speaker {target_id} '
+              f'self={person["is_self"]} sim={person["similarity"]} merged={target_id != speaker_row_id}')
+  if websocket is not None:
+    try:
+      await websocket.send_json({
+        'type': 'speaker_named',
+        'speaker_id': target_id,
+        'merged_from': speaker_row_id if target_id != speaker_row_id else None,
+        'deepgram_speaker_id': speaker_key,
+        'is_self': person['is_self'],
+        'participant_name': None if person['is_self'] else person.get('display_name'),
+        'name_source': 'voice_auto',
+      })
+    except Exception:
+      pass
+  # 감사의 user_id 는 **회의를 연 사람**(행위의 주인)이다. 이름이 붙은 사람은 값에 적는다 (Fable F-5)
+  asyncio.create_task(voice_audit(
+    'qnote.speaker.auto_named', int(cands.recorder_user_id), business_id=business_id,
+    target_type='qnote_session', target_id=session_id,
+    new_value={'speaker_id': target_id, 'named_user_id': person['user_id'], 'similarity': person['similarity'], 'self': person['is_self']},
+  ))
 
 
 async def _load_recent_utterances(session_id: int, before_id: int, limit: int = 3) -> list[str]:
@@ -484,7 +438,15 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
 
   # 라이브 오디오 버퍼 + 화자별 수집기 (배치 클러스터링용)
   audio_buf = RollingAudioBuffer(max_seconds=60)
-  speaker_collector = SpeakerAudioCollector(live_trigger_sec=3.0, max_sec=30.0)
+  # 목소리 프로필 매칭은 3초에 1차, 10초에 2차 (VOICE_PROFILE_DESIGN §3-2)
+  speaker_collector = SpeakerAudioCollector(live_trigger_sec=3.0, max_sec=30.0, extra_trigger_secs=(10.0,))
+  # 화상회의(web_conference) 상대 채널 전용 — 스테레오를 채널별로 나눠 담는다(§3-4).
+  #   여태 스테레오 프레임을 모노 버퍼에 그대로 넣어 extract 가 엉뚱한 소리를 꺼냈다(그래서 상대 쪽 수집을 꺼 두었다).
+  remote_buf = RollingAudioBuffer(max_seconds=60)
+  remote_collector = SpeakerAudioCollector(live_trigger_sec=3.0, max_sec=30.0, extra_trigger_secs=(10.0,))
+  voice_cands = None   # SessionCandidates — 세션을 읽은 뒤 만든다
+  # 병합된 화자 키 → 남은(이름 붙은) 화자 행. 병합하며 지운 행을 다음 발화가 무명으로 되살리지 않게 (Fable F-1)
+  speaker_aliases: dict[int, int] = {}
 
   # utterance_id 별 enrichment 태스크 singleton — 동일 utterance 에 대해 중복 enrichment 가
   # 발생하면 직전 태스크를 cancel 하고 최신 태스크만 유지.
@@ -519,7 +481,7 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
       db.row_factory = aiosqlite.Row
       cursor = await db.execute(
         'SELECT id, business_id, user_id, meeting_languages, brief, participants, pasted_context, capture_mode, keywords, '
-        'translate_enabled, translation_language '
+        'translate_enabled, translation_language, project_id, client_id '
         'FROM sessions WHERE id = ?',
         (session_id,)
       )
@@ -588,6 +550,15 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
   if is_multichannel:
     pending_buffers[1] = _make_pending()
     pending_buffers[1]['channel_index'] = 1
+
+  # 목소리 프로필 후보 — 이 회의의 워크스페이스 멤버 + 연결된 고객만(Node 가 정한다, 실패 = 녹음자만).
+  #   화상회의 상대 채널에서는 녹음자를 뺀다 — «나» 는 채널 0 이 이미 정한다.
+  if session_business_id is not None:
+    voice_cands = SessionCandidates(
+      session_business_id, int(user['user_id']),
+      project_id=session['project_id'], client_id=session['client_id'],
+      exclude_recorder=is_multichannel,
+    )
 
   # 비용폭탄 C1 — Q Note 월 한도 hard-block + 멤버십 재검증 (Deepgram 연결 前 = STT 비용 0 차단).
   #   membership False = 옛 무검증 세션이 남 business_id 로 녹음(Fable BLOCK2) → 4031.
@@ -705,15 +676,16 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
           # ★ 2026-10-04 — 상대 채널도 사람별로 나눈다: 키 = MC_REMOTE_BASE + 채널 안 화자 번호.
           #   옛 세션은 상대 전체가 키 1 이었다(화자 분리 꺼짐) — 그 행은 그대로 «상대» 로 읽힌다.
           #   화자 번호를 못 받은 조각은 옛 키 1 로 떨어진다(빈 화자를 새로 만들지 않는다).
-          speaker_row_id = await _upsert_speaker(db, session_id, mc_speaker_key)
+          speaker_row_id = speaker_aliases.get(mc_speaker_key) or await _upsert_speaker(db, session_id, mc_speaker_key)
           if speaker_row_id and channel_index == 0:
             # channel 0 = mic = 나 → is_self 자동 마킹
             await db.execute(
-              'UPDATE speakers SET is_self = 1 WHERE id = ? AND is_self = 0',
+              "UPDATE speakers SET is_self = 1, name_source = COALESCE(name_source, 'channel') WHERE id = ? AND is_self = 0",
               (speaker_row_id,)
             )
         else:
-          speaker_row_id = await _upsert_speaker(db, session_id, dg_speaker_id)
+          speaker_row_id = (speaker_aliases.get(dg_speaker_id) if dg_speaker_id is not None else None) \
+            or await _upsert_speaker(db, session_id, dg_speaker_id)
 
         cursor = await db.execute(
           '''INSERT INTO utterances
@@ -746,8 +718,18 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     #   두 채널의 번호를 한 수집기에 넣으면 나와 상대가 섞인다.
     if not is_multichannel and dg_speaker_id is not None and start_time is not None and end_time is not None:
       pcm_slice = audio_buf.extract(float(start_time), float(end_time))
-      if pcm_slice:
-        speaker_collector.add(dg_speaker_id, pcm_slice)
+      if pcm_slice and speaker_collector.add(dg_speaker_id, pcm_slice) == 'trigger_live' and voice_cands is not None:
+        asyncio.create_task(_auto_match_speaker(
+          session_id, session_business_id, dg_speaker_id, speaker_collector.get(dg_speaker_id), voice_cands, websocket,
+          speaker_aliases))
+    elif (is_multichannel and channel_index == 1 and mc_speaker_key is not None
+          and mc_speaker_key >= MC_REMOTE_BASE and start_time is not None and end_time is not None):
+      # 화상회의 상대 — 채널 1 안의 화자(키 100+n)마다 따로 모은다. 채널 0(나)은 지문을 보지 않는다
+      pcm_slice = remote_buf.extract(float(start_time), float(end_time))
+      if pcm_slice and remote_collector.add(mc_speaker_key, pcm_slice) == 'trigger_live' and voice_cands is not None:
+        asyncio.create_task(_auto_match_speaker(
+          session_id, session_business_id, mc_speaker_key, remote_collector.get(mc_speaker_key), voice_cands, websocket,
+          speaker_aliases))
 
     # 프론트에 finalized 이벤트 + enrichment 스케줄
     # is_self 플래그 조회 (프론트가 즉시 "나"/"상대" 라벨에 반영)
@@ -1099,7 +1081,13 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
             _secs = int(round(billed_seconds(_delta, is_multichannel)))
             asyncio.create_task(_do_flush(segment_seq, _delta, _secs))
           last_flush_time = now
-        audio_buf.append(chunk)
+        if is_multichannel and len(chunk) >= 4:
+          # 인터리브 스테레오(L=마이크=나, R=탭=상대) → 채널별 모노
+          _st = np.frombuffer(chunk[: len(chunk) - (len(chunk) % 4)], dtype='<i2')
+          audio_buf.append(_st[0::2].tobytes())
+          remote_buf.append(_st[1::2].tobytes())
+        else:
+          audio_buf.append(chunk)
         await dg.send_audio(chunk)
       elif 'text' in message and message['text'] is not None:
         try:
@@ -1192,6 +1180,8 @@ async def websocket_live(websocket: WebSocket, session_id: int = Query(...)):
     # 개인정보 가드: 회의 종료 시 모든 PCM 버퍼 즉시 drop (D-5)
     audio_buf.clear()
     speaker_collector.clear()
+    remote_buf.clear()
+    remote_collector.clear()
 
     try:
       await websocket.close()

@@ -239,6 +239,32 @@ async def _run_migrations(db):
     """)
     await db.execute("DROP TABLE voice_fingerprints_v1")
 
+  # 2026-10-05 목소리 프로필 → 화자 자동 이름 (docs/VOICE_PROFILE_DESIGN.md §1-2)
+  #   voice_fingerprints: 동의 버전·시각 · 자동 인식 끄기 · 보관기간 판정용 마지막 사용 시각
+  #   speakers: 누구로 판정했나 · 어떻게(voice_auto/manual/channel) · 판정 당시 유사도(공개 응답에 싣지 않는다)
+  #   ★ subject_kind(user/client) 는 두지 않는다 — 로그인 토큰에 역할이 없어 서버가 정할 수 없다.
+  #     어느 관계로 후보인지는 매칭 때 Node(voiceCandidates)가 알려준다.
+  fp_cols = [
+    ('consent_version', 'TEXT'),
+    ('consent_at', 'TEXT'),
+    ('match_enabled', 'INTEGER NOT NULL DEFAULT 1'),
+    ('last_matched_at', 'TEXT'),
+    ('expiry_notified_at', 'TEXT'),   # 24개월 미사용 삭제 30일 전 알림을 보낸 시각
+  ]
+  for col, typ in fp_cols:
+    if not await _column_exists(db, 'voice_fingerprints', col):
+      await db.execute(f"ALTER TABLE voice_fingerprints ADD COLUMN {col} {typ}")
+  speaker_cols = [
+    ('matched_user_id', 'INTEGER'),
+    ('matched_kind', 'TEXT'),        # 'user' | 'client'
+    ('name_source', 'TEXT'),         # 'voice_auto' | 'manual' | 'channel' · NULL = 이름 없음
+    ('match_similarity', 'REAL'),
+  ]
+  for col, typ in speaker_cols:
+    if not await _column_exists(db, 'speakers', col):
+      await db.execute(f"ALTER TABLE speakers ADD COLUMN {col} {typ}")
+
+
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS sessions (

@@ -75,7 +75,10 @@ export type LiveEvent =
   // 소리가 한 조각도 안 들어옴 — "녹음 중" 인데 아무것도 안 담기는 상태를 사용자에게 알리기 위한 신호.
   | { type: 'no_audio' }
   // 서버가 본 «소리가 들어오는데 무음» — 조각은 오지만 처음 몇 초간 소리 크기가 바닥(2026-10-04 운영 세션 56: 40초 · 인식 0문장)
-  | { type: 'warning'; code: string };
+  | { type: 'warning'; code: string }
+  // 목소리 프로필로 화자에 이름이 붙었다(VOICE_PROFILE_DESIGN §3). merged_from 이 있으면 그 화자 행은 speaker_id 로 합쳐졌다
+  | { type: 'speaker_named'; speaker_id: number; merged_from: number | null; deepgram_speaker_id: number;
+      is_self: boolean; participant_name: string | null; name_source: 'voice_auto' };
 
 export interface LiveSessionOptions {
   sessionId: number;

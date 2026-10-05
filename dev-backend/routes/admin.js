@@ -913,9 +913,20 @@ router.get('/users/:id/data-export', async (req, res, next) => {
       new_value: { target_email: target.email, exported_at: new Date().toISOString() },
     });
 
+    // Q Note 목소리 프로필 — 메타만(임베딩 값은 q-note 가 내보내지 않는다). 실패하면 그 사실을 적는다.
+    let voiceProfile = null;
+    try {
+      const qbase = process.env.QNOTE_INTERNAL_URL || 'http://localhost:8000';
+      const r = await fetch(`${qbase}/api/voice-fingerprint/internal/meta?user_id=${target.id}`, {
+        headers: { 'x-internal-api-key': process.env.INTERNAL_API_KEY || '' }, signal: AbortSignal.timeout(5000),
+      });
+      voiceProfile = r.ok ? ((await r.json()).data || null) : { error: `qnote_${r.status}` };
+    } catch (e) { voiceProfile = { error: 'qnote_unreachable' }; }
+
     return successResponse(res, {
       exported_at: new Date().toISOString(),
       requested_by: { id: req.user.id, email: req.user.email },
+      voice_profile: voiceProfile,
       user: target.toJSON(),
       memberships: memberships.map(m => m.toJSON()),
       owned_businesses: owned.map(b => b.toJSON()),

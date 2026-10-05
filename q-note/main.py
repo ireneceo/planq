@@ -21,7 +21,12 @@ from routers import live, sessions, llm, voice, audio_upload
 async def lifespan(app: FastAPI):
   await init_db()
   logger.info('Q Note started — DB initialized')
+  # 목소리 데이터 보관기간 — 24개월 미사용 프로필 삭제(30일 전 알림) · 끝난 회의 화자 임베딩 7일 뒤 삭제
+  import asyncio as _asyncio
+  from services.voice_retention import loop as _voice_retention_loop
+  _retention_task = _asyncio.create_task(_voice_retention_loop())
   yield
+  _retention_task.cancel()
   logger.info('Q Note shutting down')
 
 

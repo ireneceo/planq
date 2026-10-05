@@ -11,7 +11,7 @@ import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 interface Speaker {
   id: number;
-  deepgram_speaker_id: number;
+  // 2026-10-05 공개 응답은 id·이름·작성자만 준다(내부 화자 키는 싣지 않는다)
   participant_name: string | null;
   is_self: number;
 }

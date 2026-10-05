@@ -39,6 +39,8 @@ import {
   linkWorkspaceFileToSession,
   addUrl,
   reassignUtteranceSpeaker,
+  matchSpeaker,
+  getSpeakerCandidates,
   getCachedAnswer,
   findAnswer,
   translateAnswer,
@@ -51,7 +53,7 @@ import {
   changeSessionVisibility,
   generateSessionSummary,
 } from '../../services/qnote';
-import type { QNoteSession, QNoteUtterance, QNoteSpeaker } from '../../services/qnote';
+import type { QNoteSession, QNoteUtterance, QNoteSpeaker, SpeakerCandidate } from '../../services/qnote';
 import { LiveSession } from '../../services/qnoteLive';
 import type { LiveEvent } from '../../services/qnoteLive';
 import { mapApiError } from '../../utils/apiError';
@@ -1267,6 +1269,25 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
     // ★ 소리가 한 조각도 안 들어옴. 녹음 중 표시만 뜨고 아무것도 안 담기던 사고(2026-08-29)를
     //   사용자가 바로 알 수 있게 한다. 녹음을 끊지는 않는다 — 마이크가 곧 붙는 경우도 있다.
+    // 목소리 프로필로 이름이 붙음 — 새로고침 없이 이미 그려진 블록까지 이름을 바꾼다(녹음 중 세션 다시 읽기는 하지 않는다)
+    if (ev.type === 'speaker_named') {
+      const target = ev.speaker_id;
+      const from = ev.merged_from;
+      let list = speakersRef.current.filter((sp) => sp.id !== from);
+      if (!list.some((sp) => sp.id === target)) {
+        list = [...list, { id: target, deepgram_speaker_id: ev.deepgram_speaker_id, participant_name: null, is_self: 0 }];
+      }
+      list = list.map((sp) => (sp.id === target
+        ? { ...sp, is_self: ev.is_self ? 1 : sp.is_self, participant_name: ev.is_self ? sp.participant_name : (ev.participant_name ?? sp.participant_name), name_source: sp.name_source || ev.name_source }
+        : sp));
+      speakersRef.current = list;
+      setActiveSession((prev) => (prev ? { ...prev, speakers: list } : prev));
+      setBlocks((prev) => prev.map((b) => {
+        if (b.speakerRowId !== target && b.speakerRowId !== from) return b;
+        return { ...b, speakerRowId: target, speakerLabel: speakerLabelFor(target, b.lastDgSpeakerId, { speakers: list, participants: activeSessionRef.current?.participants, labels: speakerLabels }) };
+      }));
+      return;
+    }
     if (ev.type === 'warning' && ev.code === 'silent_input') {
       // 소리 조각은 오는데 계속 무음 — 마이크 음소거·다른 입력 장치·앱 마이크 권한. 같은 안내를 쓴다(원인이 같은 쪽이다).
       setLiveError(t('page.errors.noAudio', { defaultValue: '마이크에서 소리가 들어오지 않습니다. 다른 앱이 마이크를 쓰고 있는지, 입력 장치가 맞는지 확인해 주세요.' }) as string);
@@ -2141,6 +2162,16 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
     const isSelfSpeaker = block.speakerRowId != null &&
       speakerCtx.speakers.some((s) => s.id === block.speakerRowId && s.is_self);
+    // 목소리 프로필로 자동으로 붙은 이름 — name_source 는 생성자에게만 오므로 열람자에게는 표시가 안 생긴다(§4-1)
+    const autoSpeaker = block.speakerRowId != null && !block.isManual
+      ? speakerCtx.speakers.find((s) => s.id === block.speakerRowId && s.name_source === 'voice_auto') || null
+      : null;
+    const autoMark = autoSpeaker && liveLabel ? (
+      <AutoMark
+        data-testid="qnote-speaker-auto"
+        title={t('page.speaker.autoTip', { sim: (autoSpeaker.match_similarity ?? 0).toFixed(2), defaultValue: '목소리 프로필로 인식됨 · 유사도 {{sim}}' }) as string}
+      >{t('page.speaker.auto', '자동')}</AutoMark>
+    ) : null;
 
     // 문장 단위 화자 변경 (utterance 기반)
     const uttId = block.segments[0]?.utteranceId;
@@ -2191,6 +2222,26 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 }
               }}
               disabled={assignSaving}
+              // 이 화자 전체에 사람 붙이기 · 이름 지우기 — 생성자만(서버도 write=생성자만 받는다)
+              {...(activeSession && String(activeSession.user_id) === String(user?.id) && block.speakerRowId != null ? {
+                loadCandidates: () => getSpeakerCandidates(activeSession.id),
+                onPickPerson: async (userId: number) => {
+                  setAssignSaving(true);
+                  try {
+                    await matchSpeaker(activeSession.id, block.speakerRowId as number, { matched_user_id: userId });
+                    await refreshActiveSession();
+                    setSpeakerPopoverFor(null);
+                  } finally { setAssignSaving(false); }
+                },
+                onClearName: async () => {
+                  setAssignSaving(true);
+                  try {
+                    await matchSpeaker(activeSession.id, block.speakerRowId as number, { clear: true });
+                    await refreshActiveSession();
+                    setSpeakerPopoverFor(null);
+                  } finally { setAssignSaving(false); }
+                },
+              } : {})}
             />
           )}
         </SpeakerAssignWrap>
@@ -2391,7 +2442,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
       return (
         <QuestionCard key={block.id}>
           <QuestionLeadCol>
-            {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}
+            {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}{autoMark}
             {renderAssignBtn()}
           </QuestionLeadCol>
           <QuestionBodyCol>
@@ -2480,7 +2531,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
     return (
       <SpeechBlockWrap key={block.id} $dimmed={allOutOfScope}>
-        {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}
+        {liveLabel && <SpeakerInline $self={isSelfSpeaker}>{liveLabel}</SpeakerInline>}{autoMark}
         {renderAssignBtn()}
         <SpeechTextCol>
           <SpeechRow>
@@ -3648,12 +3699,29 @@ interface SpeakerPopoverProps {
   onAssignName: (name: string) => Promise<void>;
   onAssignSelf: () => Promise<void>;
   disabled: boolean;
+  /** 2026-10-05 목소리 프로필 — 이 **화자 전체**에 사람을 붙인다(세션 생성자만 넘긴다). 없으면 섹션을 그리지 않는다 */
+  loadCandidates?: () => Promise<SpeakerCandidate[]>;
+  onPickPerson?: (userId: number) => Promise<void>;
+  onClearName?: () => Promise<void>;
 }
 
-const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClose, onAssignName, onAssignSelf, disabled }: SpeakerPopoverProps) => {
+const PeopleList = styled.div`
+  display: flex; flex-direction: column; max-height: 180px; overflow-y: auto;
+`;
+
+const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClose, onAssignName, onAssignSelf, disabled, loadCandidates, onPickPerson, onClearName }: SpeakerPopoverProps) => {
   const { t } = useTranslation('qnote');
   const [customName, setCustomName] = useState('');
   const ref = useRef<HTMLDivElement>(null);
+  const [people, setPeople] = useState<SpeakerCandidate[] | null>(null);
+  const [peopleErr, setPeopleErr] = useState(false);
+  useEffect(() => {
+    if (!loadCandidates) return;
+    let alive = true;
+    loadCandidates().then((r) => { if (alive) setPeople(r); }).catch(() => { if (alive) setPeopleErr(true); });
+    return () => { alive = false; };
+    // 팝오버가 열릴 때 한 번만 — 부모가 매 렌더 새 함수를 넘기므로 deps 에 넣으면 녹음 중 계속 다시 부른다
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -3676,6 +3744,28 @@ const SpeakerPopover = ({ currentSpeakerName, currentIsSelf, participants, onClo
 
   return (
     <PopoverWrap ref={ref} onClick={(e) => e.stopPropagation()}>
+      {onPickPerson && (
+        <>
+          <PopoverLabel>{t('page.speaker.wholeSpeaker', '이 화자 전체')}</PopoverLabel>
+          {people === null && !peopleErr && <PopoverHint>{t('page.speaker.loadingPeople', '불러오는 중…')}</PopoverHint>}
+          {peopleErr && <PopoverHint>{t('page.speaker.peopleFailed', '사람 목록을 불러오지 못했어요.')}</PopoverHint>}
+          {people && people.length > 0 && (
+            <PeopleList data-testid="qnote-speaker-people">
+              {people.map((p) => (
+                <PopoverBtn key={p.user_id} onClick={() => onPickPerson(p.user_id)} disabled={disabled}>
+                  {p.is_me ? t('page.popover.self') : (p.display_name || '—')}
+                </PopoverBtn>
+              ))}
+            </PeopleList>
+          )}
+          {onClearName && (currentSpeakerName || currentIsSelf) && (
+            <PopoverBtn data-testid="qnote-speaker-clear" onClick={onClearName} disabled={disabled}>
+              {t('page.speaker.clearName', '이름 지우기')}
+            </PopoverBtn>
+          )}
+          <PopoverDivider />
+        </>
+      )}
       <PopoverTitle>{t('page.popover.title')}</PopoverTitle>
       {showSelfBtn && (
         <PopoverBtn onClick={onAssignSelf} disabled={disabled} $primary>
@@ -4796,6 +4886,11 @@ const BlockHeader = styled.div`
   margin-bottom: 2px;
 `;
 
+const AutoMark = styled.span`
+  display: inline-flex; align-items: center; padding: 1px 5px; line-height: 14px; margin-left: 4px;
+  border-radius: 4px; background: #F0FDFA; color: #0F766E; font-size: 0.625rem; font-weight: 700;
+  vertical-align: middle; cursor: help;
+`;
 const BlockSpeaker = styled.span<{ $clickable?: boolean }>`
   font-size: 0.75rem;
   font-weight: 700;

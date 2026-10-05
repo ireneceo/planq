@@ -11,6 +11,11 @@ Endpoints:
   DELETE /api/voice-fingerprint/:language  — 특정 언어 삭제
   DELETE /api/voice-fingerprint            — 전체 삭제
   POST   /api/voice-fingerprint/test       — form: file → 최고 유사도 + 매칭 여부
+  PATCH  /api/voice-fingerprint/settings   — {match_enabled} 회의 자동 인식 켜기/끄기
+
+2026-10-05 목소리 프로필(docs/VOICE_PROFILE_DESIGN.md §2) — 생체정보라 **본인이 동의해야만** 저장한다.
+  등록 폼에 consent_version 이 현재 버전과 같아야 한다(아니면 400 consent_required — 행 0).
+  원본 음성은 메모리에서 임베딩만 만들고 버린다(_decode_audio_to_pcm16 → embed_pcm16).
 """
 import io
 import logging
@@ -18,13 +23,15 @@ from typing import Optional
 
 import aiosqlite
 import numpy as np
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Header, Request
 
 from middleware.auth import get_current_user
 from services.database import connect as db_connect
+from services.rate_limit import rate_limit
+from services.voice_profile import VOICE_CONSENT_VERSION, RETENTION_MONTHS, PROFILE_MATCH_THRESHOLD, audit as voice_audit
 from services.voice_fingerprint import (
   embed_pcm16, embedding_to_blob, blob_to_embedding,
-  cosine_similarity, SELF_MATCH_THRESHOLD,
+  cosine_similarity,
 )
 
 router = APIRouter(prefix='/api/voice-fingerprint', tags=['voice-fingerprint'])
@@ -82,8 +89,12 @@ def _validate_language_code(code: str) -> str:
 async def register_fingerprint(
   language: str = Form(...),
   file: UploadFile = File(...),
-  user: dict = Depends(get_current_user),
+  consent_version: Optional[str] = Form(None),
+  user: dict = Depends(rate_limit('voice-register', per_min=3, per_day=10)),
 ):
+  # ★ 동의가 먼저다 — 파일을 읽기도 전에 거른다(동의 없는 생체정보는 메모리에도 올리지 않는다)
+  if (consent_version or '').strip() != VOICE_CONSENT_VERSION:
+    raise HTTPException(status_code=400, detail='consent_required')
   lang = _validate_language_code(language)
   content = await file.read()
   if len(content) == 0:
@@ -106,15 +117,26 @@ async def register_fingerprint(
 
   async with db_connect() as db:
     await db.execute(
-      '''INSERT INTO voice_fingerprints (user_id, language, embedding, sample_seconds)
-         VALUES (?, ?, ?, ?)
+      '''INSERT INTO voice_fingerprints (user_id, language, embedding, sample_seconds, consent_version, consent_at, last_matched_at)
+         VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
          ON CONFLICT(user_id, language) DO UPDATE SET
            embedding = excluded.embedding,
            sample_seconds = excluded.sample_seconds,
+           consent_version = excluded.consent_version,
+           consent_at = excluded.consent_at,
+           last_matched_at = excluded.last_matched_at,
+           expiry_notified_at = NULL,
            updated_at = datetime('now')''',
-      (user['user_id'], lang, blob, sample_seconds)
+      (user['user_id'], lang, blob, sample_seconds, VOICE_CONSENT_VERSION)
+    )
+    # 동의는 사람 단위다 — 같은 사람의 다른 언어 행도 같은 동의 버전으로 맞춘다(재동의 한 번이면 전부 살아난다)
+    await db.execute(
+      "UPDATE voice_fingerprints SET consent_version = ?, consent_at = datetime('now') WHERE user_id = ?",
+      (VOICE_CONSENT_VERSION, user['user_id'])
     )
     await db.commit()
+  await voice_audit('voice_profile.register', user['user_id'],
+                    new_value={'language': lang, 'consent_version': VOICE_CONSENT_VERSION})
 
   return success({
     'language': lang,
@@ -128,7 +150,7 @@ async def list_fingerprints(user: dict = Depends(get_current_user)):
   async with db_connect() as db:
     db.row_factory = aiosqlite.Row
     cursor = await db.execute(
-      '''SELECT language, sample_seconds, created_at, updated_at
+      '''SELECT language, sample_seconds, created_at, updated_at, consent_version, consent_at, match_enabled
          FROM voice_fingerprints
          WHERE user_id = ?
          ORDER BY updated_at DESC''',
@@ -136,9 +158,16 @@ async def list_fingerprints(user: dict = Depends(get_current_user)):
     )
     rows = await cursor.fetchall()
 
+  match_enabled = all(int(r['match_enabled'] if r['match_enabled'] is not None else 1) == 1 for r in rows) if rows else True
+  consent_current = bool(rows) and all(r['consent_version'] == VOICE_CONSENT_VERSION for r in rows)
   return success({
     'registered': len(rows) > 0,
     'count': len(rows),
+    'consent_version_required': VOICE_CONSENT_VERSION,
+    'consent_current': consent_current,
+    'consent_at': max((r['consent_at'] or '' for r in rows), default='') or None,
+    'match_enabled': match_enabled,
+    'retention_months': RETENTION_MONTHS,
     'languages': [
       {
         'language': r['language'],
@@ -165,6 +194,7 @@ async def delete_fingerprint_language(
     await db.commit()
     if cursor.rowcount == 0:
       raise HTTPException(status_code=404, detail='해당 언어의 등록이 없습니다')
+  await voice_audit('voice_profile.delete', user['user_id'], new_value={'language': lang})
   return success({'language': lang, 'deleted': True})
 
 
@@ -173,7 +203,26 @@ async def delete_all_fingerprints(user: dict = Depends(get_current_user)):
   async with db_connect() as db:
     await db.execute('DELETE FROM voice_fingerprints WHERE user_id = ?', (user['user_id'],))
     await db.commit()
+  await voice_audit('voice_profile.delete', user['user_id'], new_value={'language': 'all'})
   return success({'registered': False})
+
+
+@router.patch('/settings')
+async def update_settings(
+  body: dict,
+  user: dict = Depends(get_current_user),
+):
+  """회의 자동 인식 켜기/끄기 — 등록은 그대로 두고 매칭만 멈춘다."""
+  if not isinstance(body, dict) or not isinstance(body.get('match_enabled'), bool):
+    raise HTTPException(status_code=400, detail='match_enabled(bool) 이 필요합니다')
+  enabled = 1 if body['match_enabled'] else 0
+  async with db_connect() as db:
+    cur = await db.execute('UPDATE voice_fingerprints SET match_enabled = ? WHERE user_id = ?', (enabled, user['user_id']))
+    await db.commit()
+    if cur.rowcount == 0:
+      raise HTTPException(status_code=404, detail='등록된 목소리가 없습니다')
+  await voice_audit('voice_profile.settings', user['user_id'], new_value={'match_enabled': bool(enabled)})
+  return success({'match_enabled': bool(enabled)})
 
 
 # ─────────────────────────────────────────────────────────
@@ -183,7 +232,7 @@ async def delete_all_fingerprints(user: dict = Depends(get_current_user)):
 @router.post('/test')
 async def test_fingerprint(
   file: UploadFile = File(...),
-  user: dict = Depends(get_current_user),
+  user: dict = Depends(rate_limit('voice-test', per_min=5, per_day=20)),
 ):
   """
   저장된 모든 언어의 핑거프린트와 유사도를 비교해 **최고값** 을 반환.
@@ -223,10 +272,11 @@ async def test_fingerprint(
       best_sim = sim
       best_lang = r['language']
 
-  match = best_sim >= SELF_MATCH_THRESHOLD
+  # 회의에서 쓰는 기준과 같은 값 — 여기서만 관대하면 «인식됩니다» 가 회의에서 거짓이 된다
+  match = best_sim >= PROFILE_MATCH_THRESHOLD
   return success({
     'similarity': round(best_sim, 3),
-    'threshold': SELF_MATCH_THRESHOLD,
+    'threshold': PROFILE_MATCH_THRESHOLD,
     'match': bool(match),
     'best_language': best_lang,
     'per_language': per_language,
@@ -235,4 +285,32 @@ async def test_fingerprint(
       if match else
       '유사도가 낮습니다 — 회의에서 사용할 언어를 추가로 등록해보세요'
     ),
+  })
+
+
+# ─── 내부: 개인정보 내보내기용 메타 (VOICE_PROFILE_DESIGN §2-3) ───
+#   임베딩 바이트는 내보내지 않는다 — 사용자에게 의미가 없고(복원 불가 숫자) 유출 표면만 넓힌다.
+@router.get('/internal/meta')
+async def internal_voice_meta(
+  request: Request,
+  user_id: int,
+  x_internal_api_key: Optional[str] = Header(None),
+):
+  import os
+  # 같은 서버(Node)만 부른다 — nginx /qnote/ 로 바깥에서 닿아도 키 한 겹에만 기대지 않는다 (Fable F-4)
+  if not request.client or request.client.host not in ('127.0.0.1', '::1'):
+    raise HTTPException(status_code=404, detail='not found')
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cur = await db.execute(
+      '''SELECT language, sample_seconds, consent_version, consent_at, match_enabled, last_matched_at, created_at, updated_at
+         FROM voice_fingerprints WHERE user_id = ? ORDER BY language''', (int(user_id),))
+    rows = await cur.fetchall()
+  return success({
+    'registered': bool(rows),
+    'languages': [dict(r) for r in rows],
+    'note': 'embedding values are not exported',
   })
