@@ -5444,3 +5444,9 @@ Fable: 개인 메일 격리(인자 14종·직접 id·검색어 → 남의 개인
 **미커밋 파일**: `PostSignatureModal.tsx`(서명란 없으면 서명 요청 막기·끝에 넣기) · `utils/signatureFields.ts`(손 자리 찾기·바꾸기) ·
 `EditorSignatureButton.tsx`(아이콘 옆 «서명란» 글자) · `locales/{ko,en}/qdocs.json`(insertSignatureShort).
 **검증 계획**: 완성되면 서명 흐름(외부 발송 앞단)이라 묶음 검증 때 Fable 에 함께 올린다 — 운영 문서 77(서명 자리 3) 과 같은 모양 픽스처로 서명본 위치까지.
+
+## 2026-10-05 서명 항목 (51145043) — Fable 결과 전 배포 (Irene 지시 «배포 저장 개발완료»)
+- 판정 R=1(무인증 서명 표면·서명 증거·운영 스키마) → Fable 게이트 띄움(진행 중), 결과 수신 전 Irene 명시 지시로 배포.
+- 자체 검증: API 18/18 · --suite signature/signflow/signitems 0 실패(3폭) · 가드 61/62 · health 49/49 · build EXIT 0.
+- Fable 이 볼 것: /sign/:token/sign 입력 검증·증거 · 서명본 dataURL·data-item XSS · 옛 요청 호환 · 1단계 문서 PUT 과 서명 잠금 · 마이그레이션 순서.
+- **결과가 오면 여기에 적고, 지적은 핫픽스로 반영한다.**
