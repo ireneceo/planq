@@ -728,3 +728,8 @@
 - 설계 docs/SIGNATURE_ITEMS_DESIGN.md §9 · 신규 --suite signitems
 - 다음 섹션 남은 것: F-3 사용자 내보내기 목소리 메타 · m4a ffmpeg · 스트리밍 WAV · Drive 업로드 속도 · #457/#415 · #434 네이티브 공유 · AI 에이전트 M3 · 워크스페이스 단위 날짜 표기(원하면)
 - 대기: iOS 1.0.1 · Play 이름 변경 심사
+
+## 2026-10-05 오후 [Opus] 문서 연결·서명 첨부 — 운영 배포 895603ef (backup /opt/planq/backups/20261005_131641)
+- ee1049d8: 문서 연결 저장 누락(편집 완료·새 문서) · 양방향 연결(services/postLinks) — Fable PASS 26/26
+- ee1049d8·895603ef: 서명 첨부 — Drive 저장 별첨 404 · 연결 문서 동결·서명자 열람 · 보안등급 내부·기밀 제외 · 요청 창 안내 — **Fable 미검증(자체 검증, 429)**, docs/FABLE_GATE_QUEUE.md
+- 다음: ①운영에서 Drive 저장 별첨 서명 링크 실다운로드 확인 ②Fable 한도 풀리면 서명 첨부 검증 ③AI 에이전트 get_document 역방향 연결 ④WAV 길이 오인 · Drive 업로드 속도
