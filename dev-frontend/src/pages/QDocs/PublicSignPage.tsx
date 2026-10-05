@@ -27,7 +27,7 @@ import {
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
   SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea, TopMeta, Topbar,
-  AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions,
+  AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions, NudgeNote,
 } from './PublicSignPage.styles';
 import SignLinkedDocs from './SignLinkedDocs';
 
@@ -110,6 +110,20 @@ const PublicSignPage: React.FC = () => {
   // 서명을 마친 뒤 갈 곳 — 방금 서명한 문서(서명이 들어간 모습)를 이 화면에서 바로 연다(Irene 2026-10-04)
   const [showSignedDoc, setShowSignedDoc] = useState(false);
   const [closeFailed, setCloseFailed] = useState(false);
+  // 내 서명 칸을 누르면 «실제로 서명하는 곳»(본인 확인·서명·확인 칸)으로 내려 보낸다 (2026-10-05).
+  //   Irene: "위에 서명부분 빨간표시에서 뭘 하는 것 같단말야. 클릭하면 아래로 보내고 … 본인확인하라고 안내도 해야지."
+  const actionRef = useRef<HTMLElement | null>(null);
+  const [nudge, setNudge] = useState(false);
+  const goToAction = useCallback(() => {
+    if (!actionRef.current) return;
+    // 안내 줄을 **먼저** 그리고 그 다음 프레임에 스크롤한다 — 같은 순간에 하면 안내 줄이 끼어드는 재렌더가
+    //   스크롤을 끊어 제자리에 멈췄다(실측: 클릭 뒤 위치 변화 0).
+    setNudge(true);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      actionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+    window.setTimeout(() => setNudge(false), 6000);
+  }, []);
   const tryClose = () => {
     window.close();
     // 메일에서 연 탭은 스크립트로 닫을 수 없는 경우가 많다 — 닫히지 않았으면 직접 닫으라고 말한다
@@ -374,6 +388,10 @@ const PublicSignPage: React.FC = () => {
                   {showSignedDoc ? t('publicSign.hideSignedDoc', '문서 접기') : t('publicSign.viewSignedDoc', '서명한 문서 보기')}
                 </PrimaryBtn>
               )}
+              {/* 서명한 문서를 바로 PDF 로 (2026-10-05 — 서명 직후에는 받을 문이 없었다). 서버가 서명·확인 끝난 요청만 준다. */}
+              <SecondaryBtn as="a" href={`/api/sign/${token}/pdf`} data-testid="sign-pdf">
+                {t('publicSign.downloadPdf', 'PDF 다운로드')}
+              </SecondaryBtn>
               <SecondaryBtn type="button" data-testid="sign-close" onClick={tryClose}>{t('publicSign.close', '닫기')}</SecondaryBtn>
             </DoneActions>
             {closeFailed && <ResultHint>{t('publicSign.closeManually', '이 브라우저에서는 창을 자동으로 닫을 수 없어요. 탭을 직접 닫아 주세요.')}</ResultHint>}
@@ -422,7 +440,13 @@ const PublicSignPage: React.FC = () => {
                   {t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸이 회원님의 서명 자리입니다. 테두리로 표시해 두었습니다.', n: doc.slot }) as string}
                 </NoteBox>
               )}
-              <DocBody $mySlot={doc.slot ?? null}>
+              <DocBody $mySlot={doc.slot ?? null} $mySlotHint={t('publicSign.mySlotHint', { defaultValue: '여기를 누르면 서명하는 곳으로 이동' }) as string}
+                data-testid="sign-doc-body"
+                onClick={(e) => {
+                  if (doc.slot == null) return;
+                  const hit = (e.target as HTMLElement).closest(`.pq-sig[data-slot="${doc.slot}"]`);
+                  if (hit) goToAction();
+                }}>
                 {doc.entity.signed_html ? (
                   <SignedHtml dangerouslySetInnerHTML={{ __html: sanitizeRichText(signedHtml) }} />
                 ) : (
@@ -455,7 +479,7 @@ const PublicSignPage: React.FC = () => {
 
             {/* #239 확인 요청 — OTP·서명 캔버스를 타지 않는다. 확인 버튼 + 의견 두 가지뿐. */}
             {phase === 'confirm' && (
-              <Section>
+              <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action">
                 <SectionTitle>{t('publicSign.confirm.title', { defaultValue: '문서를 확인해 주세요' }) as string}</SectionTitle>
                 <SectionDesc>
                   {t('publicSign.confirm.desc', { defaultValue: '내용을 보신 뒤 아래 버튼을 눌러 주세요. 의견이 있으면 함께 남기실 수 있습니다.' }) as string}
@@ -491,8 +515,13 @@ const PublicSignPage: React.FC = () => {
 
             {/* Step 2: OTP */}
             {(phase === 'review' || phase === 'otp') && (
-              <Section>
+              <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action" $nudge={nudge}>
                 <SectionTitle>{t('publicSign.otpTitle', '본인 확인')}</SectionTitle>
+                {nudge && (
+                  <NudgeNote role="status" data-testid="sign-nudge">
+                    {t('publicSign.nudgeOtp', { defaultValue: '서명하려면 먼저 본인 확인이 필요합니다. 아래 «인증 코드 받기» 를 눌러 메일로 받은 6자리를 입력하면 서명 칸이 열립니다.' }) as string}
+                  </NudgeNote>
+                )}
                 <SectionDesc>
                   {t('publicSign.otpDesc', '{{email}} 으로 인증 코드를 발송해 본인을 확인합니다.', { email: doc.signer_email })}
                 </SectionDesc>
@@ -533,7 +562,7 @@ const PublicSignPage: React.FC = () => {
 
             {/* Step 3: 서명 */}
             {phase === 'sign' && (
-              <Section>
+              <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action" $nudge={nudge}>
                 <SectionTitle>{t('publicSign.signTitle', '서명')}</SectionTitle>
                 <SectionDesc>{t('publicSign.signDescItems', { defaultValue: '서명 칸마다 직접 그리거나 이미지(사인·도장·회사 스탬프)를 올려 주세요. 서명일·이름은 서명하면 자동으로 들어갑니다.' })}</SectionDesc>
                 <SignatureItemsInput ref={itemsRef} count={doc.required_items?.sign || 1} disabled={signing} onReadyChange={setItemsReady} />

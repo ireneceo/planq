@@ -45,10 +45,18 @@ export const Content = styled.main`
   @media (max-width: 640px) { padding: 16px 12px 32px; gap: 16px; }
 `;
 
-export const Section = styled.section`
-  background: #fff; border: 1px solid #E2E8F0; border-radius: 14px;
+export const Section = styled.section<{ $nudge?: boolean }>`
+  background: #fff; border: 1px solid ${p => (p.$nudge ? '#F43F5E' : '#E2E8F0')}; border-radius: 14px;
   padding: 24px;
+  box-shadow: ${p => (p.$nudge ? '0 0 0 4px rgba(244,63,94,0.12)' : 'none')};
+  transition: border-color 0.2s, box-shadow 0.2s;
+  scroll-margin-top: 16px;
   @media (max-width: 640px) { padding: 16px; border-radius: 12px; }
+`;
+// 내 서명 칸을 눌렀을 때 «여기서 서명한다» 를 말하는 줄(2026-10-05)
+export const NudgeNote = styled.div`
+  margin: 0 0 12px; padding: 10px 12px; border-radius: 8px;
+  background: #FFF1F2; color: #9F1239; font-size: 0.8125rem; line-height: 1.55;
 `;
 export const SectionTitle = styled.h2`
   font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0 0 8px 0; line-height: 1.4;
@@ -72,7 +80,7 @@ export const ProjectChip = styled.div`
 // $mySlot — 이 서명자의 칸. 문서 안에서 **그 칸만** 테두리로 집어 준다.
 //   서명란 규격(.pq-sig*)은 서버 services/signedDocument.js `SIGNED_CSS` 가 정본이고,
 //   여기서는 화면 톤과 «내 칸» 강조만 얹는다.
-export const DocBody = styled.div<{ $mySlot?: number | null }>`
+export const DocBody = styled.div<{ $mySlot?: number | null; $mySlotHint?: string }>`
   margin-top: 12px; padding-top: 16px;
   border-top: 1px solid #E2E8F0;
 
@@ -95,9 +103,10 @@ export const DocBody = styled.div<{ $mySlot?: number | null }>`
     border: 2px solid #F43F5E; background: #FFF1F2;
     box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.12);
   }
+  .pq-sig[data-slot="${p.$mySlot}"] { cursor: pointer; }
   .pq-sig[data-slot="${p.$mySlot}"] .pq-sig-cap::after {
-    content: ' ←';
-    color: #F43F5E;
+    content: ' ← ' ${JSON.stringify(String(p.$mySlotHint || ''))};
+    color: #F43F5E; font-weight: 600;
   }
   ` : '')}
 `;
@@ -217,6 +226,8 @@ export const PrimaryBtn = styled.button`
   &:disabled { background: #CBD5E1; cursor: not-allowed; }
 `;
 export const SecondaryBtn = styled.button`
+  display: inline-flex; align-items: center; justify-content: center;  /* <a> 로 써도(PDF 다운로드) 같은 높이·가운데 */
+  text-decoration: none;
   height: 44px; padding: 0 16px;
   font-size: 0.875rem; font-weight: 600; color: #334155;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; cursor: pointer;

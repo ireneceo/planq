@@ -160,6 +160,37 @@ router.get('/sign/:token/linked/:postId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/sign/:token/pdf — 서명자가 **자기가 서명한 문서**를 PDF 로 받는다 (무인증, 토큰 범위 · 2026-10-05)
+//   여태 «받은 서명» 의 [PDF] 가 서명 요청 토큰을 문서 공유 토큰 자리(/api/posts/public/:token/pdf)에 넣어
+//   **늘 404** 였다(두 토큰은 다른 열쇠다). 서명 직후 화면에는 받을 문이 아예 없었다.
+//   - 서명·확인을 마친 요청만 — 진행 중 문서는 서명 화면에서 본다.
+//   - 조립은 문서 PDF 와 **같은 함수**(routes/posts buildPostPdf → 고정본 + 서명). 증명서 장(이메일·IP)은
+//     넣지 않는다 — 링크 소지자가 여는 공개 문(CLAUDE.md 서명본 규칙).
+//   - PDF 렌더는 비싸다 — 토큰+IP 로 10분 10회.
+const pdfLimiter = require('express-rate-limit')({
+  windowMs: 10 * 60 * 1000, max: 10,
+  keyGenerator: (req) => `signpdf:${String(req.params.token || '').slice(0, 16)}:${require('express-rate-limit').ipKeyGenerator(req.ip)}`,
+  message: { success: false, message: 'rate_limit_pdf' },
+});
+router.get('/sign/:token/pdf', pdfLimiter, async (req, res, next) => {
+  try {
+    const sr = await loadByToken(req.params.token);
+    if (!sr) return errorResponse(res, 'not_found', 404);
+    if (sr.status === 'canceled') return errorResponse(res, 'canceled', 410);
+    if (!['signed', 'confirmed', 'commented'].includes(sr.status)) return errorResponse(res, 'not_signed_yet', 409);
+    if (sr.entity_type !== 'post') return errorResponse(res, 'not_found', 404);
+    const { Post, User } = require('../models');
+    const post = await Post.findByPk(sr.entity_id, { include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }] });
+    if (!post || Number(post.business_id) !== Number(sr.business_id)) return errorResponse(res, 'entity_missing', 404);
+    const pdf = await require('./posts').buildPostPdf(post, req, false);
+    const title = sr.title_snapshot || post.title || 'document';
+    const asciiName = String(title).replace(/[^\w-]/g, '_').slice(0, 80) || 'document';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${asciiName}.pdf"; filename*=UTF-8''${encodeURIComponent(`${title}.pdf`)}`);
+    return res.send(pdf);
+  } catch (err) { next(err); }
+});
+
 // POST /api/sign/request-link — 채팅 카드의 [서명하기] (2026-09-22, 설계 §4)
 //
 // ★ 여러 사람이 보는 방에 **서명자별 링크(=그 사람의 열쇠)를 올리지 않는다.**

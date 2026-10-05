@@ -340,7 +340,7 @@
     "attachments": "Attachments ({{n}}) — part of this document",
     "scopeNotice": "You are signing the document below and its {{n}} attachment(s). The content is frozen as of the request, so what you see here is what you sign.",
     "scopeNoticeNoAttach": "You are signing the document below. The content is frozen as of the request, so what you see here is what you sign.",
-    "mySlot": "Block {{n}} in the document below is your signature space. It is outlined for you.",
+    "mySlot": "Block {{n}} in the document below (red outline) is your signature space. You sign below the document, in «Verify identity», after receiving a code.",
     "viewSignedDoc": "View signed document",
     "hideSignedDoc": "Hide document",
     "close": "Close",
@@ -350,7 +350,10 @@
     "signDescItems": "For each signature spot, draw or upload an image (signature, seal or company stamp). The date and name are filled in automatically when you sign.",
     "linkedDocs": "{{n}} linked document(s) — sent together with this document",
     "linkedLoading": "Loading…",
-    "linkedError": "Could not open the document. Please tap again in a moment."
+    "linkedError": "Could not open the document. Please tap again in a moment.",
+    "mySlotHint": "tap to go sign",
+    "nudgeOtp": "Please verify it is you first. Tap «Send verification code» below and enter the 6-digit code from your email — then the signature boxes open.",
+    "downloadPdf": "Download PDF"
   },
   "sign": {
     "button": "Get signatures",
@@ -432,7 +435,8 @@
       "counts": "{{files}} attached file(s) · {{docs}} linked document(s)",
       "held": "Not sent because of security level (internal/confidential): {{names}}",
       "hint": "Frozen as of now and opened from the signing link. Later edits to the originals do not change what the recipient sees."
-    }
+    },
+    "slotPickPh": "Search members or clients — or type below"
   },
   "ai": {
     "btn": "AI",

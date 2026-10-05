@@ -1974,3 +1974,5 @@ module.exports.canEditPost = canEditPost;
 // 읽기 술어 — 업무 첨부·일정 미팅자료·Q info 가 «이 문서를 붙여도/보여 줘도 되나» 를 같은 함수로 판정한다.
 module.exports.canReadPost = canReadPost;
 module.exports.broadcastPost = broadcastPost;
+// 서명자 PDF(routes/signature_public `GET /sign/:token/pdf`)가 같은 조립을 쓴다 — PDF 를 두 벌로 만들면 갈라진다.
+module.exports.buildPostPdf = buildPostPdf;

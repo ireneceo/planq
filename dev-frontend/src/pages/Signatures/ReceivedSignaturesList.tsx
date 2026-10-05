@@ -11,6 +11,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import HighlightText from '../../components/Common/HighlightText';
@@ -22,6 +23,7 @@ interface ReceivedSignature {
   entity_type: 'post' | 'document';
   entity_id: number;
   entity_title: string;
+  party?: 'us' | 'them';
   signer_email: string;
   signer_name: string | null;
   expires_at: string | null;
@@ -47,10 +49,10 @@ type StatusFilter = 'all' | 'pending' | 'signed' | 'rejected' | 'expired';
 
 const FILTERS: StatusFilter[] = ['all', 'pending', 'signed', 'rejected', 'expired'];
 
-// status 그룹 매핑 — 'pending' 필터는 sent + viewed 양쪽 포함, 백엔드는 단일 status 만 받음
+// status 그룹 매핑 — «대기» 는 아직 서명 안 한 것 전부(pending·sent·viewed). 서버가 'open' 을 셋으로 푼다.
 function statusGroupQuery(filter: StatusFilter): string | null {
   if (filter === 'all') return null;
-  if (filter === 'pending') return 'sent';  // 가장 빈도 높음. viewed 는 별도 호출이 정석이지만 일단 sent 만
+  if (filter === 'pending') return 'open';
   return filter;
 }
 
@@ -101,16 +103,20 @@ export default function ReceivedSignaturesTab() {
   // 상태별 카운트 (메인 데이터 + 별도 fetch 없이 클라이언트 추정 — 일단 단순)
   const isExpiredItem = (it: ReceivedSignature) => {
     return it.status === 'expired' ||
-      (['sent', 'viewed'].includes(it.status) && it.expires_at && new Date(it.expires_at) < new Date());
+      (['pending', 'sent', 'viewed'].includes(it.status) && it.expires_at && new Date(it.expires_at) < new Date());
   };
 
+  const navigate = useNavigate();
   const handleSign = (it: ReceivedSignature) => {
+    // 보내는 쪽(우리) 서명자는 메일·인증번호 없이 **앱 안 문서**에서 서명한다(POST /signatures/:id/sign-internal).
+    //   공개 서명 링크로 보내면 본인에게 인증번호 메일을 받게 하는 엉뚱한 길이 된다.
+    if (it.party === 'us' && it.entity_type === 'post') { navigate(`/docs?post=${it.entity_id}`); return; }
     window.open(`/sign/${it.token}`, '_blank', 'noopener');
   };
 
   const handlePdf = (it: ReceivedSignature) => {
     if (it.entity_type === 'post') {
-      window.open(`/api/posts/public/${it.token}/pdf`, '_blank');
+      window.open(`/api/sign/${it.token}/pdf`, '_blank');
     }
   };
 
@@ -215,12 +221,12 @@ export default function ReceivedSignaturesTab() {
       )}
 
       {/* 상세 드로어 (간단 모달) */}
-      {selected && <Detail signature={selected} onClose={() => setSelected(null)} />}
+      {selected && <Detail signature={selected} onClose={() => setSelected(null)} onSign={(it) => { setSelected(null); handleSign(it); }} />}
     </Container>
   );
 }
 
-function Detail({ signature: s, onClose }: { signature: ReceivedSignature; onClose: () => void }) {
+function Detail({ signature: s, onClose, onSign }: { signature: ReceivedSignature; onClose: () => void; onSign: (it: ReceivedSignature) => void }) {
   const { t } = useTranslation('qdocs');
   const { formatDateTime } = useTimeFormat();
   return (
@@ -257,12 +263,12 @@ function Detail({ signature: s, onClose }: { signature: ReceivedSignature; onClo
         </DialogBody>
         <DialogFooter>
           {(s.status === 'sent' || s.status === 'viewed' || s.status === 'pending') && (
-            <PrimaryBtn type="button" onClick={() => window.open(`/sign/${s.token}`, '_blank', 'noopener')}>
+            <PrimaryBtn type="button" onClick={() => onSign(s)}>
               {t('received.action.signOpen', 'Open signing page')}
             </PrimaryBtn>
           )}
           {s.status === 'signed' && (
-            <SecondaryBtn type="button" onClick={() => window.open(`/api/posts/public/${s.token}/pdf`, '_blank')}>
+            <SecondaryBtn type="button" onClick={() => window.open(`/api/sign/${s.token}/pdf`, '_blank')}>
               {t('received.action.pdf', 'PDF')}
             </SecondaryBtn>
           )}

@@ -98,6 +98,7 @@ export const ValueLink = styled.a`
 
 /* 값 셀 — 클릭하면 복사 (#143). "DB 저장소처럼 꺼내 쓰는" 화면. */
 export const CopyValue = styled.button`
+  position: relative;
   display: flex; align-items: center; gap: 6px; width: 100%; max-width: 100%; min-width: 0;
   padding: 2px 8px; border: 1px dashed transparent; border-radius: 4px;
   background: none; font-family: inherit; font-size: 0.8125rem; font-weight: 500;
@@ -107,8 +108,12 @@ export const CopyValue = styled.button`
   &:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20,184,166,0.3); }
 `;
 
+/* «복사» 표시는 **자리를 차지하지 않는다**(2026-10-05). 여태 투명한 채로 폭을 먹어 값이 그만큼 잘렸다
+   (Irene: "6600 이렇게 4자리만 나오고 … 복사가 나오든 말든 해야지"). 값 오른쪽 끝 위에 겹쳐 뜬다. */
 export const CopyMark = styled.span<{ $on: boolean }>`
-  flex-shrink: 0; margin-left: auto; font-size: 0.6875rem; font-weight: 600;
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  padding: 0 4px; border-radius: 3px; background: #F0FDFA;
+  font-size: 0.6875rem; font-weight: 600; pointer-events: none;
   color: ${p => (p.$on ? '#0F766E' : '#94A3B8')};
   opacity: ${p => (p.$on ? 1 : 0)};
   transition: opacity 0.12s;
@@ -116,7 +121,7 @@ export const CopyMark = styled.span<{ $on: boolean }>`
 `;
 
 export const CustomValue = styled.span`color: #334155; font-weight: 500;
-  max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
 `;
 
 export const CopyCell: React.FC<{ value: string | undefined; colType: string }> = ({ value, colType }) => {
@@ -172,14 +177,21 @@ export const CopyCell: React.FC<{ value: string | undefined; colType: string }> 
   );
 };
 
+/* 항목 하나 = [라벨][값]. ★ 2026-10-05 (Irene: "최대한 끝까지 나오고 … 어떤 건 6600 이렇게 4자리만 나오고
+   뭐가 이렇게 들쭉날쭉이야") — 실측으로 **모든 값이 잘려 있었다**(6600 도 33px 중 27px). 원인 셋:
+   ①항목 상한 260px ②값 칸이 width:100% 라 «내용만큼» 인 항목 안에서 순환 계산돼 쪼그라들었다
+   ③투명한 «복사» 가 폭을 먹었다(CopyMark 에서 해결).
+   → 값은 **제 길이만큼**, 상한은 이 칸 전체 폭. 자리가 모자라면 다음 줄로 내려가고, 칸 전체보다 길 때만 말줄임.
+   (옆 컬럼 침범은 ColCustomArea 의 overflow:hidden 과 max-width:100% 가 막는다 — #187·2026-08-24 유지) */
 export const CustomItem = styled.span`
   display: inline-flex; align-items: center; gap: 4px;
   white-space: nowrap; font-size: 0.75rem;
-  min-width: 0; max-width: 260px;  /* #187 — 개별 항목 폭 제한 (라벨+값이 옆 컬럼 침범 방지) */
-  overflow: hidden;                /* 링크 값이 제 폭을 넘어 흘러나오던 것 차단 (Irene 2026-08-24) */
+  flex: 0 1 auto; min-width: 0; max-width: 100%;
+  overflow: hidden;
+  & > :not(:first-child) { flex: 0 1 auto; width: auto; min-width: 0; }
 `;
 
-export const CustomLabel = styled.span`color: #94A3B8; font-weight: 500;`;
+export const CustomLabel = styled.span`color: #94A3B8; font-weight: 500; flex-shrink: 0;`;
 
 export const RowCheckbox = styled.input`
   width: 16px; height: 16px;

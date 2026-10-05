@@ -410,7 +410,11 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
     const where = { signer_email: req.user.email };
     if (wsId) where.business_id = wsId;
     if (req.query.status && req.query.status !== 'all') {
-      where.status = req.query.status;
+      // 'open' = 아직 서명 안 한 것 전부(pending — 보내는 쪽 앱 안 서명 · sent · viewed). 화면의 «대기» 필터.
+      //   여태 화면이 'sent' 하나만 보내 열어 본(viewed)·보내는 쪽(pending) 요청이 «대기» 에서 빠졌다(2026-10-05).
+      where.status = req.query.status === 'open'
+        ? { [Op.in]: ['pending', 'sent', 'viewed'] }
+        : String(req.query.status);
     }
     const total = await SignatureRequest.count({ where });
     const rows = await SignatureRequest.findAll({

@@ -19,6 +19,8 @@ import { isEnterAction } from '../../utils/imeKey';
 import { readSignatureFields, type DocSignatureField } from '../../utils/signatureFields';
 import SignatureSpotsStep from './SignatureSpotsStep';
 import SignOutboundScope from './SignOutboundScope';
+import SignSlotThemInput from './SignSlotThemInput';
+import { SignerFields, SignerEmailInput, SignerNameInput } from './signerInputs';
 import { SignStepsBar, SignRecipients, useSignatureLock } from './SignRequestSteps';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -205,11 +207,15 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
       });
       const opts = sorted.map(c => ({ value: c.id, label: c.display_name || c.title || `#${c.id}` }));
       setConvOptions(opts);
-      // 현재 connected conv 가 없으면 첫 customer 또는 첫 대화방 자동
-      if (!convId && opts.length > 0) {
-        const firstCustomer = sorted.find(c => c.channel_type === 'customer');
-        setConvId(firstCustomer?.id || sorted[0].id);
-      }
+      // 기본 대화방은 **이 문서와 이어진 곳만** (2026-10-05, Irene: "아무 상관도 없는 게 선택되어 있었어.
+      //   디폴트는 넣고 싶으면 연결된 프로젝트 채팅방이어야지. 그것도 고객채팅방").
+      //   ① 문서가 이어진 대화방 ② 연결된 프로젝트의 고객 채팅방 ③ 없으면 고르지 않고 카드 보내기도 끈다.
+      //   여태는 프로젝트가 없으면 워크스페이스 전체에서 **최근 대화방**을 골라 켜 두었다.
+      const linked = post.conversation_id && sorted.some(c => c.id === post.conversation_id) ? post.conversation_id : null;
+      const projectCustomer = post.project_id ? (sorted.find(c => c.channel_type === 'customer')?.id ?? null) : null;
+      const def = linked ?? projectCustomer;
+      setConvId(def);
+      setSendChat(!!def);
     }).catch(() => setConvOptions([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, post.project_id, post.business_id]);
@@ -399,23 +405,8 @@ const PostSignatureModal: React.FC<Props> = ({ open, onClose, post, onSent, onPo
                           </SlotBody>
                         ) : (
                           <SlotBody>
-                            <SignerFields>
-                              <SignerEmailInput
-                                type="email"
-                                value={v.email}
-                                onChange={e => setSlotMap(prev => ({ ...prev, [f.slot]: { ...v, email: e.target.value } }))}
-                                placeholder="email@example.com"
-                                autoComplete="off"
-                                spellCheck={false}
-                              />
-                              <SignerNameInput
-                                type="text"
-                                value={v.name}
-                                onChange={e => setSlotMap(prev => ({ ...prev, [f.slot]: { ...v, name: e.target.value } }))}
-                                placeholder={t('sign.namePh', '이름 (선택)') as string}
-                                autoComplete="off"
-                              />
-                            </SignerFields>
+                            <SignSlotThemInput slot={f.slot} value={v} contacts={contactOptions}
+                              onChange={(nv) => setSlotMap(prev => ({ ...prev, [f.slot]: { ...v, ...nv } }))} />
                           </SlotBody>
                         )}
                       </SlotRow>
@@ -638,17 +629,6 @@ const Avatar = styled.div`
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, #14B8A6 0%, #0D9488 100%);
   color: #fff; font-size: 0.75rem; font-weight: 700;
-`;
-const SignerFields = styled.div`flex: 1; min-width: 0; display: grid; grid-template-columns: 1fr 110px; gap: 6px;`;
-const SignerEmailInput = styled.input`
-  border: none; background: transparent; padding: 4px 0;
-  font-size: 0.8125rem; color: #0F172A; min-width: 0;
-  &::placeholder { color: #CBD5E1; }
-  &:focus { outline: none; }
-`;
-const SignerNameInput = styled(SignerEmailInput)`
-  text-align: right; color: #64748B;
-  &::placeholder { color: #CBD5E1; }
 `;
 const RemoveSigner = styled.button`
   width: 24px; height: 24px; padding: 0; flex-shrink: 0;

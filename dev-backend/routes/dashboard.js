@@ -610,11 +610,16 @@ async function collectSignatures(businessId, userEmail, userRole) {
       where: {
         business_id: businessId,
         signer_email: userEmail,
-        status: { [Op.in]: ['sent', 'viewed'] },
+        // ★ 2026-10-05 — 보내는 쪽(party 'us') 서명자는 메일이 안 나가 상태가 'pending' 이다(앱 안에서 로그인으로 서명).
+        //   'sent'·'viewed' 만 보던 탓에 **나에게 온 서명 요청이 확인 필요에 한 번도 안 떴다**(Irene 신고).
+        [Op.or]: [
+          { status: { [Op.in]: ['sent', 'viewed'] } },
+          { status: 'pending', party: 'us' },
+        ],
       },
       // #239 — kind 를 실어야 화면이 "서명 요청" 과 "확인 요청" 을 구분해 라벨링한다.
       //   여기는 **필터가 아니다** — 받은 확인 요청도 이 목록에 나와야 한다.
-      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'expires_at', 'entity_type', 'entity_id', 'business_id', 'kind', 'createdAt'],
+      attributes: ['id', 'token', 'signer_email', 'signer_name', 'status', 'expires_at', 'entity_type', 'entity_id', 'business_id', 'kind', 'party', 'createdAt'],
       order: [['expires_at', 'ASC']],
       limit: COLLECT_LIMIT,
     });
@@ -646,7 +651,8 @@ async function collectSignatures(businessId, userEmail, userRole) {
         dueAt: safeToIso(expiresAt),
         createdAt: safeToIso(sr.createdAt),
         actor: { name: sr.signer_name || sr.signer_email },
-        link: `/sign/${sr.token}`,
+        // 보내는 쪽은 앱 안 문서에서 서명한다(인증번호 없이 로그인) — 공개 서명 링크로 보내지 않는다.
+        link: (sr.party === 'us' && sr.entity_type === 'post') ? `/docs?post=${sr.entity_id}` : `/sign/${sr.token}`,
       });
     }
   }
