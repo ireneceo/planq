@@ -2873,7 +2873,10 @@ const DateRangeCell: React.FC<{
   const s = start?.slice(0, 10) || '';
   const d = due?.slice(0, 10) || '';
   const fmt = (v: string) => v ? v.slice(5).replace('-', '/') : '';
-  const label = s && d ? (s === d ? fmt(d) : `${fmt(s)} ~ ${fmt(d)}`) : d ? fmt(d) : s ? fmt(s) : '-';
+  const { t } = useTranslation('qtask');
+  // 비어 있으면 «-» 대신 옆 칸들처럼 안내 문구(placeholder)를 보인다. 읽기 전용이면 «-».
+  const label = s && d ? (s === d ? fmt(d) : `${fmt(s)} ~ ${fmt(d)}`) : d ? fmt(d) : s ? fmt(s)
+    : (readOnly ? '-' : t('detail.meta.periodPh', '기간 선택') as string);
   const hasValue = !!(s || d);
   return (<>
     <DateTrigger ref={anchor} $empty={!hasValue} disabled={!!readOnly} title={readOnly ? readOnlyHint : undefined}
@@ -3205,11 +3208,21 @@ const MetaRangeInput = styled.input`
   &:disabled::-webkit-slider-thumb{border-color:#94A3B8;cursor:not-allowed;}
   &:disabled::-moz-range-thumb{border-color:#94A3B8;cursor:not-allowed;}
 `;
+// 기간 — 옆 칸(프로젝트·태그·중요도·담당자 = PlanQSelect sm)과 **같은 상자**로 그린다(2026-10-06 Irene:
+//   "기간만 왜 입력란 디자인 표시가 제대로 안돼?"). 여태 테두리·배경 없는 25px 글자 버튼이라 비어 있으면
+//   옅은 «-» 하나만 떠서 입력란으로 안 보였다. 값은 PlanQSelect sm 과 같다: 높이 36 · 테두리 #E2E8F0 · 둥글기 8 ·
+//   글자 13px(0.8125rem) · 좌우 12 · 빈 값은 neutral400 안내 문구 · hover #CBD5E1 · 포커스 민트.
 const DateTrigger = styled.button<{ $empty?: boolean }>`
-  width:100%;padding:4px 6px;font-size:0.75rem;font-weight:600;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;
-  white-space:nowrap;font-family:inherit;text-align:left;
-  color:${p => p.$empty ? '#CBD5E1' : '#64748B'};
-  &:hover{border-color:#14B8A6;color:#0F766E;}
+  width:100%;min-height:36px;padding:0 12px;
+  font-size:0.8125rem;font-weight:400;font-family:inherit;text-align:left;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+  background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;cursor:pointer;
+  color:${p => p.$empty ? '#94A3B8' : '#0F172A'};
+  transition:border-color 0.15s;
+  &:hover:not(:disabled){border-color:#CBD5E1;}
+  &:focus-visible{outline:none;border-color:#14B8A6;box-shadow:0 0 0 3px #CCFBF1;}
+  &:disabled{background:#F8FAFC;cursor:default;}
+  @media (max-width: 640px){ font-size:max(1rem, 0.8125rem); }
 `;
 // 이중 박스 제거 — RichEditor(EditorShell)가 자체 border/radius 를 가지므로 wrap 은 박스를 두지 않는다.
 // 결과물(body) 에디터와 동일하게 단일 박스로 보이게. (Irene — 업무설명 라운드박스 2개 회귀 fix)

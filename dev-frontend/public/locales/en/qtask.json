@@ -506,6 +506,7 @@
     },
     "meta": {
       "period": "Period",
+      "periodPh": "Set dates",
       "milestone": "Key task",
       "milestoneHint": "Highlighted as a milestone (◆) on the schedule timeline",
       "est": "Est",

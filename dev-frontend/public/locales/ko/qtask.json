@@ -506,6 +506,7 @@
     },
     "meta": {
       "period": "기간",
+      "periodPh": "기간 선택",
       "milestone": "주요 업무",
       "milestoneHint": "일정 타임라인에 마일스톤(◆)으로 강조됩니다",
       "est": "예측",
