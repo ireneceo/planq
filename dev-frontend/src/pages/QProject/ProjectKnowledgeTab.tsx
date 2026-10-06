@@ -13,6 +13,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import ListSortSelect, { sortRows, LIST_SORT_DEFAULT, type ListSortKey } from '../../components/Common/ListSortSelect';
 import SearchBox from '../../components/Common/SearchBox';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
@@ -52,7 +53,7 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   // 정렬 — Q info 와 같은 3종(최근/이름/오래된). 툴바에서 빠져 있으면 같은 자료인데 순서가 달라 보인다.
-  const [sortKey, setSortKey] = useState<'recent' | 'title' | 'oldest'>('recent');
+  const [sortKey, setSortKey] = useState<ListSortKey>(LIST_SORT_DEFAULT);
   const [aiOpen, setAiOpen] = useState(false);
   // 좌측 트리에 쓸 카테고리 — 워크스페이스 등록분(Q info 와 같은 엔드포인트) ∪ 이 프로젝트 문서가 쓰는 값
   const [wsCats, setWsCats] = useState<string[]>([]);
@@ -178,11 +179,7 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
       if (q && !(d.title.toLowerCase().includes(q) || cs.join(' ').toLowerCase().includes(q))) return false;
       return true;
     });
-    const at = (d: KbDocumentRow) => new Date(d.updated_at || d.created_at).getTime() || 0;
-    return [...arr].sort((a, b) =>
-      sortKey === 'title' ? a.title.localeCompare(b.title)
-      : sortKey === 'oldest' ? at(a) - at(b)
-      : at(b) - at(a));
+    return sortRows(arr, sortKey);
   }, [docs, search, categoryFilter, catsOf, sortKey]);
 
   // 행 우측 메타 — 첨부 수 + 수정일. 스코프·프로젝트명은 적지 않는다(여기가 그 프로젝트다).
@@ -225,21 +222,7 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
         <ToolbarLeft>
           <SearchBox value={search} onChange={setSearch} placeholder={t('search.placeholder', '제목·카테고리 검색') as string} />
           <SortWrap>
-            <PlanQSelect
-              size="sm" isSearchable={false}
-              value={{
-                value: sortKey,
-                label: sortKey === 'title' ? (t('sort.title', '이름 순') as string)
-                  : sortKey === 'oldest' ? (t('sort.oldest', '오래된 순') as string)
-                  : (t('sort.recent', '최근 순') as string),
-              }}
-              onChange={(opt) => setSortKey((((opt as PlanQSelectOption | null)?.value) as 'recent' | 'title' | 'oldest') || 'recent')}
-              options={[
-                { value: 'recent', label: t('sort.recent', '최근 순') as string },
-                { value: 'title', label: t('sort.title', '이름 순') as string },
-                { value: 'oldest', label: t('sort.oldest', '오래된 순') as string },
-              ]}
-            />
+            <ListSortSelect value={sortKey} onChange={setSortKey} />
           </SortWrap>
         </ToolbarLeft>
         <ToolbarRight>

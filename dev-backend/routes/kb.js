@@ -259,7 +259,7 @@ router.get('/businesses/:businessId/kb/documents', authenticateToken, checkBusin
     let docs = await KbDocument.findAll({
       where,
       attributes: ['id', 'title', 'source_type', 'category', 'categories', 'scope', 'project_id', 'client_id', 'file_name', 'file_size', 'version', 'status', 'chunk_count', 'uploaded_by', 'tags', 'attached_file_ids', 'attached_post_ids', 'custom_columns', 'custom_values', 'read_policy', 'client_ids', 'vlevel', 'target_member_ids', 'security_level', 'created_at', 'updated_at'],
-      order: [['updated_at', 'DESC']],
+      order: [['created_at', 'DESC']],   // 작성일 순(2026-10-06) — 캡(limit)에 걸려도 «최근에 고친 옛 글» 이 새 글을 밀어내지 않게
       limit: safeLimit,
     });
     // 멀티 카테고리 필터 (?categories=policy,manual) — categories JSON 또는 legacy category 매칭

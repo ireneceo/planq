@@ -60,6 +60,7 @@ import { ProjBrowse, Split as AtSplit, FolderTreePanel as AtPanel, FilesArea as 
 import PostSignatureModal from './PostSignatureModal';
 import SignatureProgressSection from './SignatureProgressSection';
 import PlanQSelect, { type PlanQSelectOption } from '../Common/PlanQSelect';
+import ListSortSelect, { sortRows, LIST_SORT_DEFAULT, type ListSortKey } from '../Common/ListSortSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
@@ -104,18 +105,19 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
   const { formatDate } = useTimeFormat();
-  // 목록의 날짜는 **수정일** 기준으로 정렬(서버 order: updated_at DESC)되는데, 화면에는 이름 없이
-  //   날짜만 찍혀 있었다. 그래서 오래전에 쓴 글을 한 번 고치면 "오늘 쓴 글" 로 읽힌다
-  //   (Irene 2026-09-05: "이 글은 아주 예전에 썼어. 그런데 왜 오늘 쓴 글로 나오지?").
-  //   정렬은 그대로 두고, **무슨 날짜인지 말하게** 한다 — 고친 적 없으면 작성일 그대로.
+  // 목록 정렬 — 기본은 **작성일 최신순**(2026-10-06 Irene: "수정될 때 리스트 순서가 바뀌니까 이상해").
+  //   그래서 날짜도 작성일을 보인다. «최근 수정순» 을 골랐을 때만 수정일을 «수정 …» 으로 말한다
+  //   (2026-09-05: 날짜만 찍혀 있어 오래전 글이 "오늘 쓴 글" 로 읽혔다 — 그 이름 붙이기는 유지).
+  const [listSort, setListSort] = useState<ListSortKey>(LIST_SORT_DEFAULT);
   const listDate = useCallback((row: { created_at?: string | null; updated_at?: string | null }) => {
+    if (listSort !== 'updated') return row.created_at ? formatDate(row.created_at) : '';
     const created = row.created_at ? new Date(row.created_at).getTime() : 0;
     const updated = row.updated_at ? new Date(row.updated_at).getTime() : 0;
     // 생성 직후 몇 초 차이는 수정이 아니다(생성 트랜잭션·첨부 붙이기 등).
     const edited = created > 0 && updated > created + 60 * 1000;
     const shown = formatDate((edited ? row.updated_at : row.created_at) as string);
     return edited ? (t('list.editedAt', { date: shown, defaultValue: '수정 {{date}}' }) as string) : shown;
-  }, [formatDate, t]);
+  }, [formatDate, t, listSort]);
 
   // 재진입 즉시 표시 — 같은 목록(범위+검색어+필터)이면 지난 결과로 먼저 그린다.
   //   검색어·필터를 키에 넣는 이유: 안 넣으면 "검색 결과가 잠깐 남아 있다가 바뀌는" 더 나쁜 화면이 된다.
@@ -1472,7 +1474,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     setDetail(reloaded);
   };
 
-  const filtered = useMemo(() => rows, [rows]);
+  // 고정한 문서는 어떤 정렬에서도 위 — 서버 order 의 is_pinned 우선과 같은 규칙.
+  const filtered = useMemo(() => {
+    const sorted = sortRows(rows, listSort);
+    return [...sorted.filter(r => r.is_pinned), ...sorted.filter(r => !r.is_pinned)];
+  }, [rows, listSort]);
 
   const isEditing = mode === 'new' || (mode === 'edit' && !!detail);
 
@@ -1496,7 +1502,6 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   //   doc-탭으로 등장(QProjectDetailPage 가 localStorage 를 읽어 렌더). 옛 ProjectPostsTab 기능 복원.
   const isProject = scope.type === 'project';
   const projId = scope.type === 'project' ? scope.projectId : null;
-  const [projSort, setProjSort] = useState<'recent' | 'name'>('recent');
   // ★ 2026-09-07 — 핀은 **서버(사람 단위)** 가 정본이다. 옛 localStorage 는
   //   기기를 바꾸면 사라져서, 데스크탑에서 올린 탭이 폰에서 안 보였다
   //   (Irene: "모바일에서는 안나와. 나와야지"). 저장소는 usePinnedDocTabs 와 같은 곳이다 —
@@ -1538,12 +1543,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
           <AtToolbar>
             <SearchBox width={260} value={query} onChange={setQuery} placeholder={t('search.placeholder', '문서 검색') as string} />
             <AtSortWrap>
-              <PlanQSelect
-                size="sm"
-                value={{ value: projSort, label: (projSort === 'name' ? t('sort.name', '이름 순') : t('sort.recent', '최근 순')) as string }}
-                onChange={(v) => { const nv = (v as { value?: string } | null)?.value; if (nv === 'name' || nv === 'recent') setProjSort(nv); }}
-                options={[{ value: 'recent', label: t('sort.recent', '최근 순') as string }, { value: 'name', label: t('sort.name', '이름 순') as string }]}
-              />
+              <ListSortSelect value={listSort} onChange={setListSort} />
             </AtSortWrap>
             <AtToolbarRight>
             <AiActionButton size="filter" onClick={() => { setAiIntent('ai'); setAiOpen(true); }} label={t('ai.btn', 'AI')} title={t('ai.openHint', 'AI 가 문서 본문을 자동 작성') as string} />
@@ -1656,7 +1656,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
                 />
               ) : (
                 <AtGrid>
-                  {[...filtered].sort((a, b) => projSort === 'name' ? a.title.localeCompare(b.title) : 0).map(r => (
+                  {filtered.map(r => (
                     <AtCard key={r.id} data-testid="docs-card" data-row-id={r.id} $selected={activeId === r.id} onClick={() => { void selectPost(r.id); }}>
                       <RowPinBtn type="button" $on={pinnedIds.includes(r.id)} onClick={(e) => { e.stopPropagation(); togglePin(r.id); }}
                         aria-label={(pinnedIds.includes(r.id) ? t('project.docs.removeFromMenu', '상단 메뉴에서 제거') : t('project.docs.addToMenu', '상단 메뉴에 추가')) as string}
@@ -1754,6 +1754,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             예전엔 필터 아래 얇은 줄의 «아이콘+글자» 링크였고 파일 휴지통은 글자 버튼이라 모양이 갈라져 있었다. */}
         <SearchWrap>
           <SearchBox width="100%" value={query} onChange={setQuery} placeholder={t('search.placeholder', '제목·내용·프로젝트 검색') as string} />
+          <ListSortWrap data-testid="docs-sort"><ListSortSelect value={listSort} onChange={setListSort} /></ListSortWrap>
           <TrashButton active={trashOpen} data-testid="docs-trash-open" onClick={() => setTrashOpen(true)} />
         </SearchWrap>
 
@@ -2912,6 +2913,9 @@ const SearchWrap = styled.div`
   padding: 12px 16px 8px; border-bottom: 1px solid #F1F5F9;
   display: flex; align-items: center; gap: 8px;
   & > :first-child { flex: 1; min-width: 0; }
+`;
+const ListSortWrap = styled.div`
+  flex: 0 0 auto; width: 128px;
 `;
 const FilterSection = styled.div`
   padding: 10px 16px; border-bottom: 1px solid #F1F5F9;

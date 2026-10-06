@@ -291,7 +291,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const { rows, count } = await Post.findAndCountAll({
       where,
       include,
-      order: [['is_pinned', 'DESC'], ['updated_at', 'DESC']],
+      // 작성일 순 — 수정해도 자리가 안 바뀐다(2026-10-06). 화면의 다른 정렬은 ListSortSelect 가 한다.
+      order: [['is_pinned', 'DESC'], ['created_at', 'DESC'], ['id', 'DESC']],
       limit, offset,
       distinct: true,
     });

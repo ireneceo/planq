@@ -1335,5 +1335,11 @@
       "email": "이메일",
       "push": "디바이스"
     }
+  },
+  "listSort": {
+    "newest": "최신 작성순",
+    "oldest": "오래된 순",
+    "updated": "최근 수정순",
+    "name": "이름순"
   }
 }

@@ -1335,5 +1335,11 @@
       "email": "Email",
       "push": "Device"
     }
+  },
+  "listSort": {
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "updated": "Recently edited",
+    "name": "Name"
   }
 }

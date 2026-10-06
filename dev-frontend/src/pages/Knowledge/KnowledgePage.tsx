@@ -23,6 +23,7 @@ import PageShell from '../../components/Layout/PageShell';
 import HelpDot from '../../components/Common/HelpDot';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
+import ListSortSelect, { sortRows, LIST_SORT_DEFAULT, type ListSortKey } from '../../components/Common/ListSortSelect';
 import SecurityLevelBadge, { useSecurityLevelLabel } from '../../components/Common/SecurityLevelBadge';
 import SearchBox from '../../components/Common/SearchBox';
 // ★ 목록 행·값 셀은 **프로젝트>정보 탭과 같은 한 벌**을 쓴다 (components/Knowledge/kbListShell).
@@ -167,7 +168,8 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
   const [activeCat, setActiveCat] = useState<KbCategory | 'all'>('all');
   const [activeScope, setActiveScope] = useState<KbScope | 'all'>('all');
   const [activePolicy, setActivePolicy] = useState<'all' | 'all_members' | 'owner_only'>('all');
-  const [sortKey, setSortKey] = useState<'recent' | 'title' | 'oldest'>('recent');
+  // 기본 작성일 최신순 — 고친 글이 맨 위로 튀지 않게(2026-10-06). 규칙은 ListSortSelect 한 벌.
+  const [sortKey, setSortKey] = useState<ListSortKey>(LIST_SORT_DEFAULT);
   // 선택 모드 — 대량 삭제 (Q file 패턴 통일)
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -474,11 +476,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
     let arr = activeCat === 'all' ? docs : docs.filter(d => docCats(d).includes(activeCat));
     if (activePolicy === 'all_members') arr = arr.filter(d => d.read_policy !== 'owner');
     else if (activePolicy === 'owner_only') arr = arr.filter(d => d.read_policy === 'owner');
-    arr = [...arr];
-    if (sortKey === 'title') arr.sort((a, b) => a.title.localeCompare(b.title));
-    else if (sortKey === 'oldest') arr.sort((a, b) => +new Date(a.created_at) - +new Date(b.created_at));
-    else arr.sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at));
-    return arr;
+    return sortRows(arr, sortKey);
   }, [docs, activeCat, activePolicy, sortKey]);
 
   // ─── 모달 진입 시 기존 파일/문서 자동 로드 (PlanQSelect 옵션 채움) ───
@@ -831,21 +829,7 @@ const KnowledgePage: React.FC<KnowledgePageProps> = ({ embedded = false, mode = 
           />
         </ToolbarFilter>
         <ToolbarSort>
-          <PlanQSelect
-            size="sm" isSearchable={false}
-            value={{
-              value: sortKey,
-              label: sortKey === 'recent' ? (t('sort.recent', '최근 순') as string)
-                : sortKey === 'title' ? (t('sort.title', '이름 순') as string)
-                : (t('sort.oldest', '오래된 순') as string),
-            }}
-            onChange={(opt) => setSortKey(((opt as PlanQSelectOption | null)?.value as 'recent' | 'title' | 'oldest') || 'recent')}
-            options={[
-              { value: 'recent', label: t('sort.recent', '최근 순') as string },
-              { value: 'title', label: t('sort.title', '이름 순') as string },
-              { value: 'oldest', label: t('sort.oldest', '오래된 순') as string },
-            ]}
-          />
+          <ListSortSelect value={sortKey} onChange={setSortKey} />
         </ToolbarSort>
         {/* 선택 모드 토글 (Q file 패턴 통일) */}
         <SelectToggle

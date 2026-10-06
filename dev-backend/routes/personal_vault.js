@@ -159,7 +159,7 @@ router.get('/:businessId/posts', authenticateToken, attachWorkspaceScope(), asyn
     const { count, rows } = await Post.findAndCountAll({
       where,
       attributes: ['id', 'title', 'category', 'kind', 'status', 'is_pinned', 'created_at', 'updated_at', 'vlevel'],
-      order: [['updated_at', 'DESC']],
+      order: [['created_at', 'DESC']],   // 작성일 순(2026-10-06) — 고쳐도 자리가 안 바뀐다
       limit, offset,
     });
     res.json({ success: true, data: rows, pagination: { total: count, limit, offset } });
@@ -180,7 +180,7 @@ router.get('/:businessId/kb-documents', authenticateToken, attachWorkspaceScope(
     const { count, rows } = await KbDocument.findAndCountAll({
       where: vaultKbDocsWhere(scope),
       attributes: ['id', 'title', 'source_type', 'body', 'created_at', 'updated_at'],
-      order: [['updated_at', 'DESC']],
+      order: [['created_at', 'DESC']],
       limit, offset,
     });
     res.json({ success: true, data: rows, pagination: { total: count, limit, offset } });
