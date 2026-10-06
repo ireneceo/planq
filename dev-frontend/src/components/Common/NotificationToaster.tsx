@@ -458,6 +458,9 @@ export default function NotificationToaster() {
       reviewer_user_ids?: number[]; actor_user_id?: number;
     }) => {
       const me = Number(user.id);
+      // 직전 상태는 **본인 액션까지 포함해** 기록한다 — 아래 전이 판정(entered)의 기준선이다.
+      const prevStatus = prevTaskStatusRef.current.get(task.id);
+      if (task.status) prevTaskStatusRef.current.set(task.id, task.status);
       // 본인 액션 알림 차단 — Irene 의 가장 큰 불편
       if (task.actor_user_id === me) return;
 
@@ -467,8 +470,14 @@ export default function NotificationToaster() {
 
       const link = `/tasks?task=${task.id}`;
       const ctx = `task:${task.id}`;
+      // ★ task:updated 는 **아무 필드나 바뀌어도** 온다(진행률·시간·순서 재정렬). 여태 아래 세 토스트는
+      //   "지금 상태" 만 봐서, 컨펌 대기 중인 업무를 담당자가 진행률만 고쳐도 컨펌자에게
+      //   "검토 요청 — 컨펌해 주세요" 가 **다시** 떴다(운영 2026-10-06 #339 — 서버 알림은 0건이었다).
+      //   → 이 화면이 **전이를 직접 본 때만** 띄운다. 처음 보는 업무(직전 상태 모름)는 서버 알림
+      //     (notification:new — 컨펌 요청·수정 요청·완료 모두 notify 가 있다)이 맡는다.
+      const entered = (s: string) => task.status === s && prevStatus !== undefined && prevStatus !== s;
 
-      if (task.status === 'completed') {
+      if (entered('completed')) {
         // 받는 사람 역할에 따라 메시지 분기
         if (isRequester && !isAssignee) {
           add({
@@ -485,7 +494,7 @@ export default function NotificationToaster() {
         }
         // 담당자 본인이거나 무관자는 skip
       }
-      if (task.status === 'reviewing') {
+      if (entered('reviewing')) {
         if (isReviewer) {
           add({
             type: 'task',
@@ -494,7 +503,7 @@ export default function NotificationToaster() {
           });
         }
       }
-      if (task.status === 'revision_requested') {
+      if (entered('revision_requested')) {
         // 담당자에게 — 검토자가 수정 요청한 케이스
         if (isAssignee) {
           add({
@@ -507,16 +516,14 @@ export default function NotificationToaster() {
       // #206 보류 / 외부컨펌 / 해제 — 담당자·의뢰자에게. 백엔드 알림(DB·push)과 별개로
       //   화면을 보고 있는 사람에게 즉시 알린다(§16 실시간 반영).
       const cares = isAssignee || isRequester;
-      const prevStatus = prevTaskStatusRef.current.get(task.id);
-      if (task.status) prevTaskStatusRef.current.set(task.id, task.status);
       if (cares) {
-        if (task.status === 'on_hold' && prevStatus !== 'on_hold') {
+        if (entered('on_hold')) {
           add({
             type: 'task',
             title: t('toaster.taskOnHold', '업무가 보류되었습니다') as string,
             body: task.title, link, contextKey: ctx,
           });
-        } else if (task.status === 'external_review' && prevStatus !== 'external_review') {
+        } else if (entered('external_review')) {
           add({
             type: 'task',
             title: t('toaster.taskExternalReview', '외부 컨펌 대기로 전환되었습니다') as string,

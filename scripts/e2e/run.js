@@ -205,6 +205,7 @@ const SUITES = {
   // 결과물을 **댓글이 아니라 회차로** 남길 수 있는가. 여태 버전이 생기는 문이
   //   "확인 요청" 하나뿐이라 중간 결과가 댓글로 갔다. 버튼 가시성 + 실제 박제 + 입력란 비움까지 잰다.
   delivver: () => require('./canary-deliverable-version'),
+  reviewtoast: () => require('./canary-review-toast-repeat'),   // 2026-10-06 컨펌 대기 업무 수정만으로 «검토 요청» 토스트 재발 — 양성 대조군 확인
   chatattach: () => require('./canary-chat-attach-download'),
   chatpreview: () => require('./canary-chat-preview'),   // 채팅 첨부 미리보기 — 받는 쪽(소켓)까지 잰다
   salecriteria: () => require('./canary-sale-criteria'), // Q sale 상담 유입 기준 + 사람이 올리는 문
