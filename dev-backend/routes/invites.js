@@ -205,6 +205,9 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
         return successResponse(res, { type: 'workspace_client', business_id: dup.business_id, redirect: '/talk' });
       }
       await cl.update({ user_id: req.user.id, accepted_at: new Date(), status: 'active' }, { transaction: t });
+      // 이미 연결돼 있던 프로젝트에 이 계정을 들인다(project_clients.contact_user_id · 고객 채널 참여).
+      //   안 하면 고객 화면에서 프로젝트·채팅방이 통째로 안 보인다(2026-10-06 운영 신고).
+      await require('../services/clientOnboarding').linkClientToProjects(cl, { transaction: t });
       await t.commit();
       broadcastAccept(req, cl.business_id, 'client:updated', { id: cl.id });
       notifyInviterOnAccept(cl.invited_by, null, 'workspace_client', req.user.id, cl.business_id).catch((e) => console.warn('[notify invite workspace_client]', e.message));

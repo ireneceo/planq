@@ -526,6 +526,11 @@ sync_database() {
   # 백필 — 마이그레이션 후. 과거 paid invoice/회차에 payment 원장 생성(멱등). 매출 0 복구.
   log "Backfilling invoice payments..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-invoice-payments.js 2>&1 | tail -6"
+
+  # 2026-10-06 — 계정이 붙은 고객의 project_clients.contact_user_id 백필 + 고객 채널 참여(role client). 멱등.
+  #   워크스페이스 고객 초대 수락이 이 값을 안 채워 고객 화면에서 프로젝트·채팅방이 사라졌다(최정우 신고).
+  log "Backfilling project client accounts..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-client-user.js 2>&1 | tail -6"
   success "백필 완료 (invoice payments)"
 }
 

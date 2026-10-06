@@ -106,4 +106,52 @@ async function ensureWelcomeConversation(client, { io, transaction } = {}) {
   return conversation;
 }
 
-module.exports = { ensureWelcomeConversation, welcomeText };
+/**
+ * 계정이 붙은 고객을 **이미 연결돼 있던 프로젝트**에 실제로 들인다 — 멱등.
+ *   ①project_clients(client_id = 이 고객) 중 contact_user_id 가 빈 행에 이 계정을 넣는다
+ *   ②그 프로젝트들의 고객 채널(channel_type customer)에 role 'client' 로 참여시킨다
+ *     (이미 있는데 role 이 client 가 아니면 client 로 바로잡는다 — 워크스페이스 멤버면 건드리지 않는다)
+ *
+ * 왜(2026-10-06 운영 신고 «최정우 고객 화면에 채팅 리스트가 안 떠»):
+ *   고객이 볼 프로젝트는 `contact_user_id = 나` 하나로 판정한다(프로젝트 목록·access_scope·참여자 추가 등 10곳).
+ *   그런데 **워크스페이스 고객 초대 수락**은 clients.user_id 만 채우고 project_clients 는 두었다 — 프로젝트 초대
+ *   수락(routes/invites.js project_client)만 채웠다. 그래서 연결된 프로젝트·그 채팅방이 고객 화면에서 통째로 사라졌다.
+ *   프로젝트 상세는 표시용으로만 contact_user_id 를 메워 «참여 중» 으로 보여 줘서(routes/projects.js) 우리 쪽에선 안 보였다.
+ */
+async function linkClientToProjects(client, { transaction } = {}) {
+  if (!client || !client.id || !client.user_id) return { linked: 0, joined: 0, fixedRole: 0 };
+  const { ProjectClient, BusinessMember } = require('../models');
+  const { Op } = require('sequelize');
+  const userId = client.user_id;
+  const [linked] = await ProjectClient.update(
+    { contact_user_id: userId },
+    { where: { client_id: client.id, contact_user_id: null }, transaction },
+  );
+  const rows = await ProjectClient.findAll({
+    where: { client_id: client.id, contact_user_id: userId }, attributes: ['project_id'], transaction,
+  });
+  const projectIds = [...new Set(rows.map((r) => r.project_id))];
+  let joined = 0, fixedRole = 0;
+  if (projectIds.length) {
+    const isMember = await BusinessMember.findOne({
+      where: { business_id: client.business_id, user_id: userId, removed_at: null }, attributes: ['id'], transaction,
+    });
+    const convs = await Conversation.findAll({
+      where: { business_id: client.business_id, project_id: { [Op.in]: projectIds }, channel_type: 'customer' },
+      attributes: ['id'], transaction,
+    });
+    for (const cv of convs) {
+      const ex = await ConversationParticipant.findOne({ where: { conversation_id: cv.id, user_id: userId }, transaction });
+      if (!ex) {
+        await ConversationParticipant.create({ conversation_id: cv.id, user_id: userId, role: 'client' }, { transaction });
+        joined += 1;
+      } else if (!isMember && ex.role !== 'client') {
+        await ex.update({ role: 'client' }, { transaction });
+        fixedRole += 1;
+      }
+    }
+  }
+  return { linked, joined, fixedRole };
+}
+
+module.exports = { ensureWelcomeConversation, welcomeText, linkClientToProjects };

@@ -44,7 +44,7 @@ const path = require('path');
 const CATEGORIES = [
   'infra', 'auth', 'security', 'qnote', 'voice', 'external',
   'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly', 'retention', 'secrets',
-  'imagegate',
+  'imagegate', 'clientlink',
 ];
 
 const args = process.argv.slice(2);
@@ -803,6 +803,39 @@ function defineBillingLedgerTests() {
   });
 }
 
+// 고객 계정 ↔ 프로젝트 연결 정합 (2026-10-06 — «최정우 고객 화면에 채팅 리스트가 안 떠»).
+//   고객이 볼 프로젝트는 project_clients.contact_user_id = 나 로 판정한다. 계정이 붙은 활성 고객인데 그 값이
+//   빈 연결 행이 있으면 그 프로젝트와 채팅방이 고객 화면에서 통째로 사라진다. 고객이 member 로 들어간
+//   참여자 행은 내부 메시지 알림 제외(role==='client')를 빠져나간다. 둘 다 0 이어야 한다.
+function defineClientLinkTests() {
+  const isLocal = BACKEND.startsWith('http://localhost');
+  if (!isLocal) return;
+  test('clientlink', '계정 고객의 프로젝트 연결·채팅 참여 역할이 맞다', async () => {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();const{Sequelize}=require('sequelize');`
+      + `const s=new Sequelize(process.env.DB_NAME,process.env.DB_USER,process.env.DB_PASSWORD,`
+      + `{host:process.env.DB_HOST,dialect:'mysql',logging:false});(async()=>{`
+      + `const [a]=await s.query(\\\"SELECT pc.id FROM project_clients pc JOIN clients c ON c.id=pc.client_id `
+      + `WHERE pc.contact_user_id IS NULL AND c.user_id IS NOT NULL AND c.status='active'\\\");`
+      + `const [b]=await s.query(\\\"SELECT cp.id FROM conversation_participants cp JOIN conversations cv ON cv.id=cp.conversation_id `
+      + `JOIN clients c ON c.user_id=cp.user_id AND c.business_id=cv.business_id `
+      + `LEFT JOIN business_members bm ON bm.user_id=cp.user_id AND bm.business_id=cv.business_id AND bm.removed_at IS NULL `
+      + `WHERE cp.role<>'client' AND bm.id IS NULL\\\");`
+      + `console.log('@@'+JSON.stringify({unlinked:a.map(x=>x.id),clientAsMember:b.map(x=>x.id)}));`
+      + `await s.close();})();"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
+    const line = out.split('\n').find((l) => l.startsWith('@@'));
+    if (!line) throw new Error('고객 연결 정합 조회 실패 — 거짓 통과 방지 위해 중단');
+    const r = JSON.parse(line.slice(2));
+    const problems = [];
+    if (r.unlinked.length) problems.push(`계정 고객인데 contact_user_id 빈 project_clients: ${r.unlinked.join(',')} (scripts/migrate-project-client-user.js)`);
+    if (r.clientAsMember.length) problems.push(`고객이 member 로 들어간 참여자: ${r.clientAsMember.join(',')}`);
+    if (problems.length) throw new Error(problems.join(' / '));
+    return true;
+  });
+}
+
 // 계정 삭제 익명화 정합 — anonymized_at 있으면 PII 잔존 0. ACCOUNT_DELETION_DESIGN.
 //   "삭제했는데 이름이 보인다" 분쟁 차단. 익명화 로직이 필드를 빠뜨리면 검출.
 function defineAccountDeletionTests() {
@@ -1367,6 +1400,7 @@ async function runTests(allTests, category) {
   defineFrontendTests();
   defineWikiTests();
   defineBillingLedgerTests();
+  defineClientLinkTests();
   defineAccountDeletionTests();
   defineCalendarLinkTests();
   defineRealtimeTests();

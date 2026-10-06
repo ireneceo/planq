@@ -500,7 +500,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
 // 참여자 개별 추가/제거
 router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
-    const { user_id, role } = req.body;
+    const { user_id } = req.body;
     if (!user_id) return errorResponse(res, 'user_id required', 400);
     const businessId = Number(req.params.businessId);
     const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
@@ -516,8 +516,11 @@ router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAcc
     if (!allowed) return errorResponse(res, 'user_not_in_workspace', 403);
     const exists = await ConversationParticipant.findOne({ where: { conversation_id: conv.id, user_id } });
     if (exists) return successResponse(res, exists);
+    // ★ 역할은 **서버가 정한다** — 워크스페이스 멤버면 member, 아니면(프로젝트 고객) client.
+    //   여태 요청 본문의 role 을 그대로 썼고 없으면 'member' 였다 → 고객이 member 로 들어가
+    //   내부 메시지 알림 제외(role==='client' 판정)에서 빠질 수 있었다(운영 실측 1건, 2026-10-06).
     const created = await ConversationParticipant.create({
-      conversation_id: conv.id, user_id, role: role || 'member',
+      conversation_id: conv.id, user_id, role: isWorkspaceMember ? 'member' : 'client',
     });
     // 감사 — 대화 접근권을 준다(AUDIT_GAPS 1순위). 이미 있던 참여자는 위에서 반환돼 여기 안 온다.
     require('../services/auditService').logAudit(req, {
