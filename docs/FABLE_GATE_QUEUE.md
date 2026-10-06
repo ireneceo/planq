@@ -25,6 +25,7 @@
 | 8 | (이 배포) | god-file·UI 규격 래칫 정리(PostEditor 799줄 · 체크 동그라미 aspect-ratio) | 동작 무변경 | — |
 | 9 | (다음 배포) | 서명본 보기 좌우 여백 · 확인 필요/받은 서명 → 서명 창 바로(?sign=) | 화면(F=1) — 묶음 참고 | ?sign= 이 남의 요청 id 로 서명 창을 열지 않나(canSignNow) |
 | 10 | (다음 배포) | **폰 상세 패널 = 앱 헤더를 덮는 전면**(`--pq-panel-top`) — DetailDrawer·업무 상세·문서 기록·작업대·Q talk 우측·도움말 | 화면 계약 변경(F=1) — 범위가 넓어 묶음 참고 | 폰에서 머리(닫기·돌아가기)가 가려지는 패널이 없나 · 키보드(--vv-top) · 앱 상태바 · 뒤로 가기 |
+| 11 | `5f1bb285` | **Cue 대화 이어듣기** — useCueChat 이 직전 턴(≤4)을 history 로 · /api/cue/help 가 user/assistant 로 삽입(normalizeHistory: q500·a1500) · 짧은 후속은 직전 질문 붙여 검색 · 위키 RAG 를 workspace 모드에도(3→4건) · 프롬프트 FOLLOWUP_RULE·사용법 질문 직접 안내 | R=0·S=0·F=1 — 훅 게이트로 올렸으나 429. 자체: 실API 신고 원문 history+"2번" 이어 답 / 대조군(history 없음) 옛 동작 / 잘못된 history 200 · 실브라우저 2번째 요청에 history 실림 · 빌드 0·guard 전체 통과 | 위키 주입이 데이터 질문을 오염시키지 않나 · 클라 history 가 새 조회·권한 통로가 아닌가 · 임베딩 1회 추가 비용 · 답 길이(4문단 초과) |
 
 ---
 
