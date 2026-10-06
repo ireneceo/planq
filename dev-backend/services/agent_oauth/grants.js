@@ -48,10 +48,14 @@ async function connectableWorkspaces(userId) {
  * @param {'read'|'write'} access
  * @param {{ mail?: boolean, mail_drafts?: boolean }} [optIn]
  */
-function grantedScopes(requested, access, optIn = {}) {
+function grantedScopes(_requested, access, optIn = {}) {
+  // ★ 2026-10-06 — 요청 scope 로 **좁히지 않는다.** 동의 화면은 scope 목록을 보여 주지 않고 «읽기만 / 읽기+쓰기»
+  //   묶음만 고르게 한다 — 사람이 고른 것은 묶음이다. 그런데 ChatGPT 는 처음 등록할 때 받아 둔 scope 목록을
+  //   계속 요청해서, 그 뒤에 생긴 docs:write·files:write 가 **다시 연결해도 영영 안 붙었다**(운영 grant 4 실측).
+  //   도구는 "다시 연결하세요" 라고 하고, 다시 연결해도 같은 목록이라 끝없이 재연결을 시켰다.
+  //   별도 동의(mail:*) 는 지금처럼 체크박스로만 붙는다.
   const bundle = access === 'write' ? cfg.BUNDLE_SCOPES : cfg.READ_SCOPES;
-  const req = Array.isArray(requested) && requested.length ? requested : bundle;
-  const out = [...new Set(req.filter((s) => bundle.includes(s)))];
+  const out = [...new Set(bundle)];
   if (optIn.mail === true) {
     out.push('mail:read');
     if (optIn.mail_drafts === true) out.push('mail_drafts:write');

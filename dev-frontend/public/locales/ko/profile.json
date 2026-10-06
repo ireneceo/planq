@@ -344,7 +344,8 @@
     "step4": "PlanQ 연결 화면이 열리면 워크스페이스와 권한을 고르고 [허용] 합니다. ChatGPT 는 새 채팅의 [+] › Developer mode › PlanQ, Claude 는 도구 메뉴에서 PlanQ 를 켜고 씁니다.",
     "openChatgpt": "ChatGPT 에서 열기",
     "openClaude": "Claude 에서 열기",
-    "helpLink": "자세한 사용법"
+    "helpLink": "자세한 사용법",
+    "outdated": "새로 생긴 기능(문서·파일 등)이 빠진 연결이에요. 그 앱에서 PlanQ 를 다시 연결하면 붙어요."
   },
   "agentConsent": {
     "title": "{{app}} 이(가) PlanQ 연결을 요청합니다",

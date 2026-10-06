@@ -130,6 +130,12 @@ router.get('/grants', authenticateToken, async (req, res, next) => {
       // 「메일 포함」 칩 — 어느 연결이 메일을 보는지 사람이 알아야 끊을 수 있다(설계 §3.1)
       mail: (g.scopes || []).includes('mail:read'),
       connected: !!g.activated_at, created_at: g.created_at, last_used_at: g.last_used_at,
+      // 그 묶음에 나중에 생긴 기능이 빠진 연결 — 다시 연결하면 붙는다(2026-10-06 재연결 반복 신고)
+      outdated: (() => {
+        const sc = g.scopes || [];
+        const bundle = sc.some((x) => cfg.WRITE_SCOPES.includes(x)) ? cfg.BUNDLE_SCOPES : cfg.READ_SCOPES;
+        return bundle.some((x) => !sc.includes(x));
+      })(),
     })), count, { limit, page, offset });
   } catch (err) { next(err); }
 });

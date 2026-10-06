@@ -19,6 +19,7 @@ interface Grant {
   connected: boolean;
   created_at: string;
   last_used_at: string | null;
+  outdated?: boolean;
 }
 
 const PROVIDER_LABEL: Record<string, string> = { openai: 'ChatGPT', anthropic: 'Claude', local: 'Local app' };
@@ -116,11 +117,13 @@ const ConnectedAiAppsSection: React.FC<{ businessId: number }> = ({ businessId }
                   {g.access === 'write' ? t('aiApps.accessWrite') : t('aiApps.accessRead')}
                   {g.mail && <MailChip data-testid={`ai-app-mail-${g.id}`}>{t('aiApps.mailIncluded')}</MailChip>}
                 </ConnSub>
+                {/* 같은 이름(ChatGPT)이 둘일 때 구별할 수 있게 연결일과 마지막 사용을 같이 적는다 —
+                    ChatGPT 웹과 Codex 처럼 다른 곳에서 각각 연결하면 연결이 둘이 된다(정상). */}
                 <ConnMeta>
-                  {g.last_used_at
-                    ? t('aiApps.lastUsed', { date: formatDateTime(g.last_used_at) })
-                    : t('aiApps.connectedAt', { date: formatDateTime(g.created_at) })}
+                  {t('aiApps.connectedAt', { date: formatDateTime(g.created_at) })}
+                  {g.last_used_at && <> · {t('aiApps.lastUsed', { date: formatDateTime(g.last_used_at) })}</>}
                 </ConnMeta>
+                {g.outdated && <ConnMeta data-testid={`ai-app-outdated-${g.id}`}>{t('aiApps.outdated')}</ConnMeta>}
               </ConnInfo>
               <DangerBtn type="button" onClick={() => setTarget(g)}>{t('aiApps.disconnect')}</DangerBtn>
             </ConnRow>

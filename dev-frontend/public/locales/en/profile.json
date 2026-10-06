@@ -344,7 +344,8 @@
     "step4": "When the PlanQ connection screen opens, pick the workspace and access and choose [Allow]. In ChatGPT, use [+] › Developer mode › PlanQ in a new chat; in Claude, turn PlanQ on in the tools menu.",
     "openChatgpt": "Open in ChatGPT",
     "openClaude": "Open in Claude",
-    "helpLink": "Full guide"
+    "helpLink": "Full guide",
+    "outdated": "This connection is missing newer abilities (documents, files…). Reconnect PlanQ from that app to add them."
   },
   "agentConsent": {
     "title": "{{app}} wants to connect to PlanQ",
