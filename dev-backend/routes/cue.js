@@ -20,7 +20,7 @@ const CUE_TOOLS_ENABLED = process.env.CUE_TOOLS_ENABLED !== '0';
 // 사이클 P7 — Q helper / Cue 모드 분리 (데이터 격리).
 //   mode='qhelper' : PlanQ 매뉴얼 전담. 워크스페이스 컨텍스트 X.
 //   mode='workspace' : 현재 활성 워크스페이스 컨텍스트 주입 (Cue 페르소나).
-const { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST } = require('../services/cuePrompts');
+const { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST, normalizeHistory } = require('../services/cuePrompts');
 
 // ─── 메모리 가드 (단일 프로세스) ───
 //   Stage 0 트래픽 기준 — 분당 10/IP, 일 50/IP. 충분 + Redis 도입 시점은 트래픽 트리거.
@@ -200,6 +200,9 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       return errorResponse(res, 'question_required', 400);
     }
     const q = question.trim().slice(0, 1000);
+    // 앞선 대화(본인이 본 것, 크기만 묶음) — 없으면 자기가 단 "2번" 도 못 알아듣는다(2026-10-06). 짧은 후속은 직전 질문을 붙여 찾는다.
+    const history = normalizeHistory(req.body?.history);
+    const retrievalQuery = history.length ? `${history[history.length - 1].q}\n${q}` : q;
     let workspaceBizId = null;   // #81 — 툴 제안(로스터 주입·proposed_action)에 재사용
 
     if (!isEnabled()) {
@@ -302,7 +305,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             projectId: projMatch ? Number(projMatch[1]) : null,
             clientId: clientMatch ? Number(clientMatch[1]) : null,
             userId: req.user.id,
-            query: q,
+            query: retrievalQuery,
             businessTimezone: biz?.timezone || null,
             business: biz || null,
             // 내부 화면(Q helper 드로어)에서 본인이 보는 답변 — 스태프 전용 정보 주입 허용.
@@ -336,22 +339,21 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       }
     }
 
-    // qhelper 모드 — Q위키 article retrieval (FULLTEXT + 임베딩) → 근거 기반 RAG.
-    // 응답에 sources[] 반환. (Q_WIKI_DESIGN §3, B5)
+    // Q위키 RAG → sources[]. ★ Cue 모드에도(여태 qhelper 만 → 제품 질문에 일반론, 2026-10-06) · 4건(3건이면 정답 글 4위가 빠졌다).
     let wikiSources = [];
     let wikiTopArticleId = null;
-    if (finalMode === 'qhelper') {
+    {
       try {
         const { searchArticleIds, blocksToText } = require('../services/wikiSearch');
         const HelpArticle = require('../models/HelpArticle');
-        const ids = await searchArticleIds(q, { onlyPublic: false, limit: 4 });
+        const ids = await searchArticleIds(retrievalQuery, { onlyPublic: false, limit: 4 });
         if (ids.length) {
           const arts = await HelpArticle.findAll({ where: { id: ids, is_published: true } });
           const orderMap = new Map(ids.map((id, i) => [id, i]));
           arts.sort((a, b) => (orderMap.get(a.id) ?? 9) - (orderMap.get(b.id) ?? 9));
           wikiTopArticleId = arts[0]?.id || null;
           const docBlocks = [];
-          for (const a of arts.slice(0, 3)) {
+          for (const a of arts.slice(0, 4)) {
             const title = a.title_ko || a.title_en || '';
             const summary = a.summary_ko || a.summary_en || '';
             const body = blocksToText(a.body_ko, 'ko') || blocksToText(a.body_en, 'en') || '';
@@ -359,16 +361,19 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
             wikiSources.push({ slug: a.slug, title });
           }
           if (docBlocks.length) {
-            ctxBlock += `\n\n# 도움말 문서 (이 내용만 근거로 답변)\n${docBlocks.join('\n\n')}`;
+            ctxBlock += finalMode === 'qhelper'
+              ? `\n\n# 도움말 문서 (이 내용만 근거로 답변)\n${docBlocks.join('\n\n')}`
+              : `\n\n# PlanQ 도움말 문서 (PlanQ 사용법·연동·설정 질문일 때의 근거 — 관련 없으면 무시)\n${docBlocks.join('\n\n')}`;
           }
         }
       } catch (e) {
-        console.warn('[cue/help qhelper] wiki retrieval failed:', e.message);
+        console.warn('[cue/help] wiki retrieval failed:', e.message);
       }
     }
 
     const messages = [
       { role: 'system', content: systemPrompt + (ctxBlock ? `\n\n[컨텍스트]\n${ctxBlock}` : '') },
+      ...history.flatMap((h) => [{ role: 'user', content: h.q }, { role: 'assistant', content: h.a }]),
       { role: 'user', content: q },
     ];
 

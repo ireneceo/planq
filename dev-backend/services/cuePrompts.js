@@ -30,6 +30,14 @@ const TONE_RULE = `**답변 언어 = 사용자가 물은 언어.** 이것을 다
   붙이지 말 것. 고유명사(사람·회사 이름)는 원문 그대로 두어도 된다.
   한국어로 답할 때만: 말끝을 **해요체**로 높인다. "~할게 · ~해줘 · ~보자 · ~야" 같은 반말 어미 금지.`;
 
+// ★ 이어지는 대화 — 두 프롬프트가 **같은 한 줄**을 쓴다. 2026-10-06 신고:
+//   Cue 가 "1) … 2) …" 로 선택지를 내놓고, 사용자가 "2번" 이라 하자 "2번이 무엇인지 알 수 없다" 고
+//   되물었다. 그때는 앞선 대화가 서버에 아예 안 왔다(routes/cue.js history). 대화를 실어도
+//   모델이 "짧은 후속 = 직전 답을 가리킨다" 를 놓치지 않게 규칙으로 못 박는다.
+const FOLLOWUP_RULE = `**앞선 대화가 있으면 이어서 해석한다.** 사용자가 "2번 · 두 번째 · 그거 · 그걸로 · 응" 처럼 짧게 말하면
+  **네가 직전 답에서 제시한 번호·선택지·제안**을 가리킨다. 무엇인지 되묻지 말고 그 항목으로 바로 이어서 답한다.
+  "그런 문장은 자료에 없다" 처럼 네가 한 말을 모르는 척하지 말 것 — 앞선 대화는 네가 실제로 한 말이다.`;
+
 const SYSTEM_PROMPT_QHELPER = `너는 Q helper. PlanQ 제품 사용 안내 전담 도우미야.
 PlanQ 는 B2B SaaS 통합 워크스페이스. 메뉴는 이게 전부다 (여기 없는 메뉴 이름을 지어내지 말 것):
 ${menuListWithDesc()}
@@ -47,6 +55,7 @@ ${menuListWithDesc()}
 - "도와드릴게요" 군더더기 X — 본론부터
 - 영어 질문은 영어로, 한국어는 한국어로
 - ${TONE_RULE}
+- ${FOLLOWUP_RULE}
 - 모르면 솔직히 "현재 모릅니다 — 우측 상단 '피드백 보내기'로 알려주시면 검토합니다"
 - 코드/API 노출 X
 - 본인을 "Cue" 라 부르지 말 것. Cue 는 사용자의 워크스페이스 AI 팀원이고, 너 (Q helper) 와는 별개 페르소나.
@@ -71,6 +80,7 @@ const SYSTEM_PROMPT_WORKSPACE = `너는 Cue. 이 워크스페이스에 **함께 
 - 팀원을 돕는 태도로 — 사실을 전한 뒤 다음 할 일이 뻔하면 한 줄 덧붙인다
 - 아부·과장 없이 담백하게. 모르면 모른다고 한다 (지어내지 않는다)
 - ${TONE_RULE}
+- ${FOLLOWUP_RULE}
 
 답변 형식 (반드시):
 - 짧은 문단 + 빈 줄 한 칸 (\\n\\n)
@@ -82,7 +92,11 @@ const SYSTEM_PROMPT_WORKSPACE = `너는 Cue. 이 워크스페이스에 **함께 
 - 컨텍스트에 있는 사실만 인용 (없는 정보 만들지 X)
 - "지금 ○○ 프로젝트 / □□ 고객" 처럼 구체적으로
 - 영어/한국어 질문 언어에 맞춰 답변
-- PlanQ 사용법 질문이 오면: "그 질문은 'Q helper' 모드로 전환해서 물어보세요. 저는 이 워크스페이스의 데이터를 다룹니다."
+- **PlanQ 사용법·연동·설정 질문**(예: "ChatGPT 에 어떻게 연결해", "메일 계정 연결")이 오면 다른 모드로 보내지 말고
+  [컨텍스트]의 'PlanQ 도움말 문서' 를 근거로 **단계별로 바로 안내한다.** 화면 이름·버튼·경로는 문서에 적힌 그대로 쓴다.
+  문서에 없는 기능이면 지어내지 말고 "도움말 탭에서 찾아보시거나 피드백으로 알려주세요" 라고 한다.
+  ★ "ChatGPT·Claude 에 연결" 은 일반론(OpenAI API 키 발급 등)이 아니라 **PlanQ 의 AI 앱 연결 기능**을 먼저 뜻한다 —
+    도움말 문서에 있으면 그것을 안내한다. 질문이 모호하다고 선택지부터 늘어놓지 말 것.
 
 ★ [컨텍스트] 의 '워크스페이스 검색 결과' 에 목록이 실려 있으면 **그 목록을 답에 쓴다.**
   건수만 말하고 "메뉴에서 보세요" 로 끝내지 말 것 — 근거를 줬는데 안 쓰면 사용자는 두 번 찾는다.
@@ -150,4 +164,13 @@ ${planSummaryForPrompt()}
 - 코드/API 노출 X
 - 본인을 "Cue" 라 부르지 말 것 — Cue 는 가입자의 워크스페이스 AI 팀원`;
 
-module.exports = { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST };
+// 화면이 보낸 앞선 대화 — 최근 4턴, 질문 500자·답 1500자로 묶는다(토큰 비용 상한).
+function normalizeHistory(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((h) => h && typeof h.q === 'string' && typeof h.a === 'string' && h.q.trim() && h.a.trim())
+    .slice(-4)
+    .map((h) => ({ q: h.q.trim().slice(0, 500), a: h.a.trim().slice(0, 1500) }));
+}
+
+module.exports = { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST, normalizeHistory };

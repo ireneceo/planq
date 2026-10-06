@@ -8,7 +8,7 @@
 //
 // 여기 있는 것: turns/input/submitting 상태 · submit · 답변 피드백 · 확인 카드 상태 · 딥링크
 // 여기 없는 것(표면의 몫): 헤더·탭·FAB·단축키·백드롭·렌더
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { apiFetch } from '../contexts/AuthContext';
 import { mapApiError } from '../utils/apiError';
 import type { CueProposal, CueActionResult } from '../components/Common/CueActionCard';
@@ -61,11 +61,14 @@ export function useCueChat(opts: Options) {
   const [input, setInput] = useState('');
   const [turns, setTurnsRaw] = useState<CueTurn[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  // 앞선 대화를 서버에 싣기 위한 최신 사본 — submit 클로저가 옛 turns 를 읽지 않게 ref 로 든다.
+  const turnsRef = useRef<CueTurn[]>([]);
 
   // 표면이 캐시할 수 있게 모든 갱신을 한 곳으로 모은다.
   const setTurns = useCallback((updater: CueTurn[] | ((prev: CueTurn[]) => CueTurn[])) => {
     setTurnsRaw((prev) => {
       const next = typeof updater === 'function' ? (updater as (p: CueTurn[]) => CueTurn[])(prev) : updater;
+      turnsRef.current = next;
       onTurnsChange?.(next);
       return next;
     });
@@ -90,6 +93,12 @@ export function useCueChat(opts: Options) {
     const q = (qOverride ?? input).trim();
     if (!q || submitting) return;
     setSubmitting(true);
+    // ★ 앞선 대화(답이 온 턴만)를 같이 보낸다. 여태 질문 한 줄만 보내 Cue 가 매번 처음 듣는 사람처럼
+    //   굴었다 — 자기가 단 "2) …" 를 사용자가 "2번" 이라 해도 못 알아들었다(2026-10-06 신고).
+    const history = turnsRef.current
+      .filter((tn) => !tn.loading && !tn.error && tn.a)
+      .slice(-4)
+      .map((tn) => ({ q: tn.q, a: tn.a }));
     setTurns((prev) => [...prev.slice(-4), { q, a: '', loading: true }]);   // 최근 5턴 유지
     setInput('');
     onAfterSend?.();
@@ -100,6 +109,7 @@ export function useCueChat(opts: Options) {
         : {
             question: q,
             mode,
+            history,
             // ★ search 를 반드시 같이 보낸다. 서버는 path+search 를 이어 붙여
             //   `?conv=` `?thread=` `?project=` 를 읽는다 — 빼면 컨텍스트가 통째로 죽는다.
             page_context: { path: location.pathname, search: location.search || undefined },
