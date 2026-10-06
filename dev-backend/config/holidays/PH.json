@@ -1,0 +1,163 @@
+{
+  "2026": [
+    {
+      "date": "2026-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-03-20",
+      "name": "End of Ramadan (Eid al-Fitr)",
+      "name_en": "End of Ramadan (Eid al-Fitr)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-02",
+      "name": "Maundy Thursday",
+      "name_en": "Maundy Thursday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-03",
+      "name": "Good Friday",
+      "name_en": "Good Friday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-05",
+      "name": "Easter Sunday",
+      "name_en": "Easter Sunday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-09",
+      "name": "Day of Valor",
+      "name_en": "Day of Valor",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-01",
+      "name": "Labour Day",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-27",
+      "name": "Feast of the Sacrifice (Eid al-Adha)",
+      "name_en": "Feast of the Sacrifice (Eid al-Adha)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-06-12",
+      "name": "Independence Day",
+      "name_en": "Independence Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-08-31",
+      "name": "National Heroes' Day",
+      "name_en": "National Heroes' Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-30",
+      "name": "Bonifacio Day",
+      "name_en": "Bonifacio Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-30",
+      "name": "Rizal Day",
+      "name_en": "Rizal Day",
+      "kind": "generated"
+    }
+  ],
+  "2027": [
+    {
+      "date": "2027-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-09",
+      "name": "End of Ramadan (Eid al-Fitr)",
+      "name_en": "End of Ramadan (Eid al-Fitr)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-25",
+      "name": "Maundy Thursday",
+      "name_en": "Maundy Thursday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-26",
+      "name": "Good Friday",
+      "name_en": "Good Friday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-28",
+      "name": "Easter Sunday",
+      "name_en": "Easter Sunday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-04-09",
+      "name": "Day of Valor",
+      "name_en": "Day of Valor",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-01",
+      "name": "Labour Day",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-16",
+      "name": "Feast of the Sacrifice (Eid al-Adha)",
+      "name_en": "Feast of the Sacrifice (Eid al-Adha)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-06-12",
+      "name": "Independence Day",
+      "name_en": "Independence Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-08-30",
+      "name": "National Heroes' Day",
+      "name_en": "National Heroes' Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-11-30",
+      "name": "Bonifacio Day",
+      "name_en": "Bonifacio Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-30",
+      "name": "Rizal Day",
+      "name_en": "Rizal Day",
+      "kind": "generated"
+    }
+  ],
+  "_source": "date-holidays@3.37.0 로 생성(scripts/gen-holiday-datasets.js, 2026-10-06). 법정 공휴일만 — 지역 공휴일·대체 근무일 없음. 정부 발표로 바뀐 날은 워크스페이스가 직접 고친다. 음력·이슬람력 휴일은 먼 해일수록 빠지므로 2년치만 두고 해마다 다시 만든다(KR.json 과 같은 주기)."
+}

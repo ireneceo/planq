@@ -1,0 +1,157 @@
+{
+  "2026": [
+    {
+      "date": "2026-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-02-17",
+      "name": "Chinese New Year",
+      "name_en": "Chinese New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-02-18",
+      "name": "Chinese New Year",
+      "name_en": "Chinese New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-03-21",
+      "name": "Hari Raya Puasa",
+      "name_en": "Hari Raya Puasa",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-03",
+      "name": "Good Friday",
+      "name_en": "Good Friday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-01",
+      "name": "Labour Day",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-27",
+      "name": "Hari Raya Haji",
+      "name_en": "Hari Raya Haji",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-31",
+      "name": "Vesak Day",
+      "name_en": "Vesak Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-06-01",
+      "name": "Vesak Day",
+      "name_en": "Vesak Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-08-09",
+      "name": "National Day",
+      "name_en": "National Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-08-10",
+      "name": "National Day (대체공휴일)",
+      "name_en": "National Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-08",
+      "name": "Deepavali",
+      "name_en": "Deepavali",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-09",
+      "name": "Deepavali",
+      "name_en": "Deepavali",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    }
+  ],
+  "2027": [
+    {
+      "date": "2027-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-06",
+      "name": "Chinese New Year",
+      "name_en": "Chinese New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-07",
+      "name": "Chinese New Year",
+      "name_en": "Chinese New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-08",
+      "name": "Chinese New Year (대체공휴일)",
+      "name_en": "Chinese New Year (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-09",
+      "name": "Hari Raya Puasa",
+      "name_en": "Hari Raya Puasa",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-26",
+      "name": "Good Friday",
+      "name_en": "Good Friday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-01",
+      "name": "Labour Day",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-16",
+      "name": "Hari Raya Haji",
+      "name_en": "Hari Raya Haji",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-08-09",
+      "name": "National Day",
+      "name_en": "National Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-10-28",
+      "name": "Deepavali",
+      "name_en": "Deepavali",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    }
+  ],
+  "_source": "date-holidays@3.37.0 로 생성(scripts/gen-holiday-datasets.js, 2026-10-06). 법정 공휴일만 — 지역 공휴일·대체 근무일 없음. 정부 발표로 바뀐 날은 워크스페이스가 직접 고친다. 음력·이슬람력 휴일은 먼 해일수록 빠지므로 2년치만 두고 해마다 다시 만든다(KR.json 과 같은 주기)."
+}

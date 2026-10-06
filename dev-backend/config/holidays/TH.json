@@ -1,0 +1,199 @@
+{
+  "2026": [
+    {
+      "date": "2026-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-03-03",
+      "name": "Makha Bucha",
+      "name_en": "Makha Bucha",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-06",
+      "name": "Chakri Memorial Day",
+      "name_en": "Chakri Memorial Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-13",
+      "name": "Songkran Festival",
+      "name_en": "Songkran Festival",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-14",
+      "name": "Songkran Festival",
+      "name_en": "Songkran Festival",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-15",
+      "name": "Songkran Festival",
+      "name_en": "Songkran Festival",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-04",
+      "name": "Coronation Day",
+      "name_en": "Coronation Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-31",
+      "name": "Vesak Day",
+      "name_en": "Vesak Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-06-03",
+      "name": "Queen Suthida's Birthday",
+      "name_en": "Queen Suthida's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-07-28",
+      "name": "King's Birthday",
+      "name_en": "King's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-07-29",
+      "name": "Asalha Puja",
+      "name_en": "Asalha Puja",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-07-30",
+      "name": "Buddhist Lent",
+      "name_en": "Buddhist Lent",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-08-12",
+      "name": "The Queen Mother's Birthday",
+      "name_en": "The Queen Mother's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-10-13",
+      "name": "King Bhumibol Adulyadej Memorial Day",
+      "name_en": "King Bhumibol Adulyadej Memorial Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-10-23",
+      "name": "King Chulalongkorn Day",
+      "name_en": "King Chulalongkorn Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-05",
+      "name": "King Bhumibol Adulyadej's Birthday",
+      "name_en": "King Bhumibol Adulyadej's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-10",
+      "name": "Constitution Day",
+      "name_en": "Constitution Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-31",
+      "name": "New Year's Eve",
+      "name_en": "New Year's Eve",
+      "kind": "generated"
+    }
+  ],
+  "2027": [
+    {
+      "date": "2027-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-04-06",
+      "name": "Chakri Memorial Day",
+      "name_en": "Chakri Memorial Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-04-13",
+      "name": "Songkran Festival",
+      "name_en": "Songkran Festival",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-04-14",
+      "name": "Songkran Festival",
+      "name_en": "Songkran Festival",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-04-15",
+      "name": "Songkran Festival",
+      "name_en": "Songkran Festival",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-04",
+      "name": "Coronation Day",
+      "name_en": "Coronation Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-06-03",
+      "name": "Queen Suthida's Birthday",
+      "name_en": "Queen Suthida's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-07-28",
+      "name": "King's Birthday",
+      "name_en": "King's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-08-12",
+      "name": "The Queen Mother's Birthday",
+      "name_en": "The Queen Mother's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-10-13",
+      "name": "King Bhumibol Adulyadej Memorial Day",
+      "name_en": "King Bhumibol Adulyadej Memorial Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-10-23",
+      "name": "King Chulalongkorn Day",
+      "name_en": "King Chulalongkorn Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-05",
+      "name": "King Bhumibol Adulyadej's Birthday",
+      "name_en": "King Bhumibol Adulyadej's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-10",
+      "name": "Constitution Day",
+      "name_en": "Constitution Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-31",
+      "name": "New Year's Eve",
+      "name_en": "New Year's Eve",
+      "kind": "generated"
+    }
+  ],
+  "_source": "date-holidays@3.37.0 로 생성(scripts/gen-holiday-datasets.js, 2026-10-06). 법정 공휴일만 — 지역 공휴일·대체 근무일 없음. 정부 발표로 바뀐 날은 워크스페이스가 직접 고친다. 음력·이슬람력 휴일은 먼 해일수록 빠지므로 2년치만 두고 해마다 다시 만든다(KR.json 과 같은 주기)."
+}

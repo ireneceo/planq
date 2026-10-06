@@ -1,0 +1,115 @@
+{
+  "2026": [
+    {
+      "date": "2026-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-03",
+      "name": "Karfreitag",
+      "name_en": "Good Friday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-06",
+      "name": "Ostermontag",
+      "name_en": "Easter Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-01",
+      "name": "Maifeiertag",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-14",
+      "name": "Christi Himmelfahrt",
+      "name_en": "Ascension Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-25",
+      "name": "Pfingstmontag",
+      "name_en": "Whit Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-10-03",
+      "name": "Tag der Deutschen Einheit",
+      "name_en": "National Holiday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-26",
+      "name": "2. Weihnachtstag",
+      "name_en": "Boxing Day",
+      "kind": "generated"
+    }
+  ],
+  "2027": [
+    {
+      "date": "2027-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-26",
+      "name": "Karfreitag",
+      "name_en": "Good Friday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-29",
+      "name": "Ostermontag",
+      "name_en": "Easter Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-01",
+      "name": "Maifeiertag",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-06",
+      "name": "Christi Himmelfahrt",
+      "name_en": "Ascension Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-17",
+      "name": "Pfingstmontag",
+      "name_en": "Whit Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-10-03",
+      "name": "Tag der Deutschen Einheit",
+      "name_en": "National Holiday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-26",
+      "name": "2. Weihnachtstag",
+      "name_en": "Boxing Day",
+      "kind": "generated"
+    }
+  ],
+  "_source": "date-holidays@3.37.0 로 생성(scripts/gen-holiday-datasets.js, 2026-10-06). 법정 공휴일만 — 지역 공휴일·대체 근무일 없음. 정부 발표로 바뀐 날은 워크스페이스가 직접 고친다. 음력·이슬람력 휴일은 먼 해일수록 빠지므로 2년치만 두고 해마다 다시 만든다(KR.json 과 같은 주기)."
+}

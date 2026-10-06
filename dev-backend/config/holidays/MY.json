@@ -1,0 +1,205 @@
+{
+  "2026": [
+    {
+      "date": "2026-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-02-17",
+      "name": "Tahun Baru Cina",
+      "name_en": "Chinese New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-02-18",
+      "name": "Tahun Baru Cina",
+      "name_en": "Chinese New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-03-07",
+      "name": "Hari Nuzul Al-Quran",
+      "name_en": "Day of Nuzul Al-Quran",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-03-21",
+      "name": "Hari Raya Aidil Fitri",
+      "name_en": "End of Ramadan (Eid al-Fitr)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-03-22",
+      "name": "Hari Raya Aidil Fitri",
+      "name_en": "End of Ramadan (Eid al-Fitr)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-01",
+      "name": "Hari Pekerja",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-27",
+      "name": "Hari Raya Haji",
+      "name_en": "Feast of the Sacrifice (Eid al-Adha)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-31",
+      "name": "Vesak Day",
+      "name_en": "Vesak Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-06-01",
+      "name": "Hari Keputeraan Yang di-Pertuan Agong",
+      "name_en": "Yang di-Pertuan Agong's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-06-17",
+      "name": "Awal Muharram",
+      "name_en": "Islamic New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-08-25",
+      "name": "Hari Keputeraan Nabi Muhammad S.A.W.",
+      "name_en": "Birthday of Muhammad (Mawlid)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-08-31",
+      "name": "Hari Kebangsaan",
+      "name_en": "Independence Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-09-16",
+      "name": "Hari Malaysia",
+      "name_en": "Malaysia Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-08",
+      "name": "Deepavali",
+      "name_en": "Deepavali",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-09",
+      "name": "Deepavali",
+      "name_en": "Deepavali",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    }
+  ],
+  "2027": [
+    {
+      "date": "2027-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-06",
+      "name": "Tahun Baru Cina",
+      "name_en": "Chinese New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-07",
+      "name": "Tahun Baru Cina",
+      "name_en": "Chinese New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-08",
+      "name": "Tahun Baru Cina (대체공휴일)",
+      "name_en": "Chinese New Year (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-24",
+      "name": "Hari Nuzul Al-Quran",
+      "name_en": "Day of Nuzul Al-Quran",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-09",
+      "name": "Hari Raya Aidil Fitri",
+      "name_en": "End of Ramadan (Eid al-Fitr)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-10",
+      "name": "Hari Raya Aidil Fitri",
+      "name_en": "End of Ramadan (Eid al-Fitr)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-01",
+      "name": "Hari Pekerja",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-16",
+      "name": "Hari Raya Haji",
+      "name_en": "Feast of the Sacrifice (Eid al-Adha)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-06-06",
+      "name": "Awal Muharram",
+      "name_en": "Islamic New Year",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-06-07",
+      "name": "Hari Keputeraan Yang di-Pertuan Agong",
+      "name_en": "Yang di-Pertuan Agong's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-08-14",
+      "name": "Hari Keputeraan Nabi Muhammad S.A.W.",
+      "name_en": "Birthday of Muhammad (Mawlid)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-08-31",
+      "name": "Hari Kebangsaan",
+      "name_en": "Independence Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-09-16",
+      "name": "Hari Malaysia",
+      "name_en": "Malaysia Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-10-28",
+      "name": "Deepavali",
+      "name_en": "Deepavali",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    }
+  ],
+  "_source": "date-holidays@3.37.0 로 생성(scripts/gen-holiday-datasets.js, 2026-10-06). 법정 공휴일만 — 지역 공휴일·대체 근무일 없음. 정부 발표로 바뀐 날은 워크스페이스가 직접 고친다. 음력·이슬람력 휴일은 먼 해일수록 빠지므로 2년치만 두고 해마다 다시 만든다(KR.json 과 같은 주기)."
+}

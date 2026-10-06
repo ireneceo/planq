@@ -11,9 +11,12 @@ const { Op } = require('sequelize');
 const { WorkspaceHoliday, Business } = require('../models');
 const { ymd, addDaysStr, todayInTz } = require('../utils/datetime');
 
-const DATASETS = {
-  KR: require('../config/holidays/KR.json'),
-};
+// config/holidays/<CC>.json 전부 — KR 은 손으로 대조한 정본, 나머지는 scripts/gen-holiday-datasets.js 생성물.
+//   파일을 넣으면 선택지에 자동으로 뜬다(화면 이름은 settings.json holidays.country<CC>).
+const HOLIDAY_DIR = require('path').join(__dirname, '..', 'config', 'holidays');
+const DATASETS = Object.fromEntries(require('fs').readdirSync(HOLIDAY_DIR)
+  .filter((f) => /^[A-Z]{2}\.json$/.test(f))
+  .map((f) => [f.slice(0, 2), require(require('path').join(HOLIDAY_DIR, f))]));
 /** `holiday_country` 허용값 = 데이터셋 키. 코드와 데이터가 한 곳이다. */
 const SUPPORTED_COUNTRIES = Object.keys(DATASETS);
 

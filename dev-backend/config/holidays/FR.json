@@ -1,0 +1,139 @@
+{
+  "2026": [
+    {
+      "date": "2026-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-06",
+      "name": "Lundi de Pâques",
+      "name_en": "Easter Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-01",
+      "name": "Fête du travail",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-08",
+      "name": "Fête de la Victoire 1945",
+      "name_en": "Victory Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-14",
+      "name": "Ascension",
+      "name_en": "Ascension Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-25",
+      "name": "Lundi de Pentecôte",
+      "name_en": "Whit Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-07-14",
+      "name": "Fête Nationale de la France",
+      "name_en": "Bastille Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-08-15",
+      "name": "Assomption",
+      "name_en": "Assumption",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-01",
+      "name": "Toussaint",
+      "name_en": "All Saints' Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-11",
+      "name": "Armistice 1918",
+      "name_en": "Armistice Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    }
+  ],
+  "2027": [
+    {
+      "date": "2027-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-29",
+      "name": "Lundi de Pâques",
+      "name_en": "Easter Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-01",
+      "name": "Fête du travail",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-06",
+      "name": "Ascension",
+      "name_en": "Ascension Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-08",
+      "name": "Fête de la Victoire 1945",
+      "name_en": "Victory Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-17",
+      "name": "Lundi de Pentecôte",
+      "name_en": "Whit Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-07-14",
+      "name": "Fête Nationale de la France",
+      "name_en": "Bastille Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-08-15",
+      "name": "Assomption",
+      "name_en": "Assumption",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-11-01",
+      "name": "Toussaint",
+      "name_en": "All Saints' Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-11-11",
+      "name": "Armistice 1918",
+      "name_en": "Armistice Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    }
+  ],
+  "_source": "date-holidays@3.37.0 로 생성(scripts/gen-holiday-datasets.js, 2026-10-06). 법정 공휴일만 — 지역 공휴일·대체 근무일 없음. 정부 발표로 바뀐 날은 워크스페이스가 직접 고친다. 음력·이슬람력 휴일은 먼 해일수록 빠지므로 2년치만 두고 해마다 다시 만든다(KR.json 과 같은 주기)."
+}

@@ -1,0 +1,181 @@
+{
+  "2026": [
+    {
+      "date": "2026-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-01-02",
+      "name": "Day after New Year's Day",
+      "name_en": "Day after New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-02-06",
+      "name": "Waitangi Day",
+      "name_en": "Waitangi Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-03",
+      "name": "Good Friday",
+      "name_en": "Good Friday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-06",
+      "name": "Easter Monday",
+      "name_en": "Easter Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-25",
+      "name": "ANZAC Day",
+      "name_en": "ANZAC Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-04-27",
+      "name": "ANZAC Day (대체공휴일)",
+      "name_en": "ANZAC Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-06-01",
+      "name": "King's Birthday",
+      "name_en": "King's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-07-10",
+      "name": "Matariki",
+      "name_en": "Matariki",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-10-26",
+      "name": "Labour Day",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-26",
+      "name": "Boxing Day",
+      "name_en": "Boxing Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-28",
+      "name": "Boxing Day (대체공휴일)",
+      "name_en": "Boxing Day (substitute day)",
+      "kind": "generated"
+    }
+  ],
+  "2027": [
+    {
+      "date": "2027-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-01-02",
+      "name": "Day after New Year's Day",
+      "name_en": "Day after New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-01-04",
+      "name": "Day after New Year's Day (대체공휴일)",
+      "name_en": "Day after New Year's Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-06",
+      "name": "Waitangi Day",
+      "name_en": "Waitangi Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-08",
+      "name": "Waitangi Day (대체공휴일)",
+      "name_en": "Waitangi Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-26",
+      "name": "Good Friday",
+      "name_en": "Good Friday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-03-29",
+      "name": "Easter Monday",
+      "name_en": "Easter Monday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-04-25",
+      "name": "ANZAC Day",
+      "name_en": "ANZAC Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-04-26",
+      "name": "ANZAC Day (대체공휴일)",
+      "name_en": "ANZAC Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-06-07",
+      "name": "King's Birthday",
+      "name_en": "King's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-06-25",
+      "name": "Matariki",
+      "name_en": "Matariki",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-10-25",
+      "name": "Labour Day",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-26",
+      "name": "Boxing Day",
+      "name_en": "Boxing Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-27",
+      "name": "기독탄신일 (대체공휴일)",
+      "name_en": "Christmas Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-28",
+      "name": "Boxing Day (대체공휴일)",
+      "name_en": "Boxing Day (substitute day)",
+      "kind": "generated"
+    }
+  ],
+  "_source": "date-holidays@3.37.0 로 생성(scripts/gen-holiday-datasets.js, 2026-10-06). 법정 공휴일만 — 지역 공휴일·대체 근무일 없음. 정부 발표로 바뀐 날은 워크스페이스가 직접 고친다. 음력·이슬람력 휴일은 먼 해일수록 빠지므로 2년치만 두고 해마다 다시 만든다(KR.json 과 같은 주기)."
+}

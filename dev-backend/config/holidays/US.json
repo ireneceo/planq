@@ -1,0 +1,169 @@
+{
+  "2026": [
+    {
+      "date": "2026-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-01-19",
+      "name": "Martin Luther King Jr. Day",
+      "name_en": "Martin Luther King Jr. Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-02-16",
+      "name": "Washington's Birthday",
+      "name_en": "Washington's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-05-25",
+      "name": "Memorial Day",
+      "name_en": "Memorial Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-06-19",
+      "name": "Juneteenth",
+      "name_en": "Juneteenth",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-07-03",
+      "name": "Independence Day (대체공휴일)",
+      "name_en": "Independence Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-07-04",
+      "name": "Independence Day",
+      "name_en": "Independence Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-09-07",
+      "name": "Labor Day",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-10-12",
+      "name": "Columbus Day",
+      "name_en": "Columbus Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-11",
+      "name": "Veterans Day",
+      "name_en": "Veterans Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-11-26",
+      "name": "Thanksgiving Day",
+      "name_en": "Thanksgiving Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2026-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    }
+  ],
+  "2027": [
+    {
+      "date": "2027-01-01",
+      "name": "신정",
+      "name_en": "New Year's Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-01-18",
+      "name": "Martin Luther King Jr. Day",
+      "name_en": "Martin Luther King Jr. Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-02-15",
+      "name": "Washington's Birthday",
+      "name_en": "Washington's Birthday",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-05-31",
+      "name": "Memorial Day",
+      "name_en": "Memorial Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-06-18",
+      "name": "Juneteenth (대체공휴일)",
+      "name_en": "Juneteenth (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-06-19",
+      "name": "Juneteenth",
+      "name_en": "Juneteenth",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-07-04",
+      "name": "Independence Day",
+      "name_en": "Independence Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-07-05",
+      "name": "Independence Day (대체공휴일)",
+      "name_en": "Independence Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-09-06",
+      "name": "Labor Day",
+      "name_en": "Labour Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-10-11",
+      "name": "Columbus Day",
+      "name_en": "Columbus Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-11-11",
+      "name": "Veterans Day",
+      "name_en": "Veterans Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-11-25",
+      "name": "Thanksgiving Day",
+      "name_en": "Thanksgiving Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-24",
+      "name": "기독탄신일 (대체공휴일)",
+      "name_en": "Christmas Day (substitute day)",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-25",
+      "name": "기독탄신일",
+      "name_en": "Christmas Day",
+      "kind": "generated"
+    },
+    {
+      "date": "2027-12-31",
+      "name": "신정 (대체공휴일)",
+      "name_en": "New Year's Day (substitute day)",
+      "kind": "generated"
+    }
+  ],
+  "_source": "date-holidays@3.37.0 로 생성(scripts/gen-holiday-datasets.js, 2026-10-06). 법정 공휴일만 — 지역 공휴일·대체 근무일 없음. 정부 발표로 바뀐 날은 워크스페이스가 직접 고친다. 음력·이슬람력 휴일은 먼 해일수록 빠지므로 2년치만 두고 해마다 다시 만든다(KR.json 과 같은 주기)."
+}

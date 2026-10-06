@@ -126,7 +126,10 @@ export default function HolidaySettingsSection({ businessId }: { businessId: num
   const visible = year === thisYear && !showPast ? upcoming : data.holidays;
   const countryOpts = [
     { value: '', label: t('holidays.countryNone', '사용 안 함') as string },
-    ...data.supported_countries.map((c) => ({ value: c, label: t(`holidays.country${c}`, c) as string })),
+    // 대한민국을 맨 위에, 나머지는 화면 언어의 이름순.
+    ...data.supported_countries
+      .map((c) => ({ value: c, label: t(`holidays.country${c}`, c) as string }))
+      .sort((a, b) => (a.value === 'KR' ? -1 : b.value === 'KR' ? 1 : a.label.localeCompare(b.label, i18n.language))),
   ];
 
   return (

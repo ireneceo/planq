@@ -44,6 +44,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "date-holidays": "^3.37.0",
     "nodemon": "^3.1.10",
     "pino-pretty": "^13.1.3"
   }
