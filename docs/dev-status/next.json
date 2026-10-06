@@ -2,18 +2,21 @@
   "working_on": ["일정 알림 여러 개(1일 전 + 1시간 전) — 저장 칸 변경이라 Irene 결정 대기"],
   "in_progress": [],
   "completed": [
-    { "title": "모바일 상세(업무·일정·문서 기록·작업대·Q talk 우측·도움말)는 앱 헤더를 덮는 전면 — 뒤로 가기는 목록으로", "verified": "opus_only" },
-    { "title": "서명본 보기 좌우 여백(서명 요청이 생기면 글이 선에 붙던 것)", "verified": "opus_only" },
-    { "title": "확인 필요·받은 서명의 내 서명 → 문서가 서명 창을 바로 연다", "verified": "opus_only" }
+    { "title": "Cue 대화가 앞선 대화를 이어 듣는다(자기가 단 번호 «2번» 을 알아듣는다) · Cue 모드도 PlanQ 도움말을 근거로 사용법 안내", "verified": "opus_only" },
+    { "title": "컨펌 대기 업무를 고치기만 해도 «검토 요청» 화면 알림이 다시 뜨던 것 — 상태가 실제로 바뀔 때만", "verified": "opus_only" },
+    { "title": "근태관리 국가 공휴일 — 대한민국 외 18개국(2026~2027)", "verified": "opus_only" },
+    { "title": "문서·Q info 목록 기본 정렬 = 작성일 최신순(고쳐도 순서 유지) · 정렬 4종(최신 작성·오래된·최근 수정·이름) 공용", "verified": "opus_only" }
   ],
   "behavior_changes": [
-    "폰에서 상세 패널을 열면 상단 앱 헤더(로고·메뉴)가 가려진다 — 닫기·돌아가기는 패널 머리에 있다. 태블릿·데스크탑은 그대로"
+    "Q docs·Q info·개인 보관함 목록이 수정일이 아니라 작성일 순으로 보인다 — 수정일 순은 정렬에서 «최근 수정순» 을 고른다",
+    "Q docs 목록의 날짜는 기본으로 작성일이다(«최근 수정순» 일 때만 «수정 …»)",
+    "컨펌 대기 중 업무의 진행률·시간을 고쳐도 컨펌자에게 «검토 요청» 토스트가 다시 뜨지 않는다"
   ],
-  "issues": ["Fable 미검증(자체 검증) — docs/FABLE_GATE_QUEUE.md 맨 위 표 9·10행"],
-  "blocked_on_human": ["일정 알림 여러 개 진행 여부", "iOS 1.0.1 · Google Play 이름 변경 심사 결과"],
+  "issues": ["Fable 미검증(자체 검증) — docs/FABLE_GATE_QUEUE.md 맨 위 표 11~14행(목요일 일괄 검토)"],
+  "blocked_on_human": ["일정 알림 여러 개 진행 여부", "업무 339(메뉴판) 컨펌 대기인데 진행률 0% — 담당자 의도 확인"],
   "migrations": [],
-  "check_areas": ["폰 앱: 확인 필요 → 업무 상세 → 뒤로", "K-DINE 계약서 화면 여백", "확인 필요 «서명» 눌러 서명 창이 바로 뜨는지"],
-  "backlog": ["스트리밍 헤더 WAV 길이 오인", "드라이브 연결 워크스페이스 업로드 속도", "네이티브 공유 받기(#434)"],
-  "tooling_health": ["--suite mobilechrome 폰 상세 계약 갱신"],
+  "check_areas": ["Cue 에게 «ChatGPT 어떻게 연결해» → 선택지 번호로 이어 묻기", "근태 관리 > 국가 공휴일 선택지", "Q docs 정렬 셀렉트(폰·PC)", "컨펌 대기 업무를 담당자가 고쳤을 때 컨펌자 화면 알림 없음"],
+  "backlog": ["Q note 목록이 내 노트 최근 20개만 보인다(프로젝트 > 노트 탭 포함)", "스트리밍 헤더 WAV 길이 오인", "드라이브 연결 워크스페이스 업로드 속도", "네이티브 공유 받기(#434)"],
+  "tooling_health": ["--suite reviewtoast 신설(대조군 FAIL 확인)", "scripts/gen-holiday-datasets.js — 해마다 공휴일 데이터 재생성"],
   "undeployed": []
 }
