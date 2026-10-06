@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-05 밤 ([Opus] Opus 5.5) — **운영 배포 3회(895603ef · ebeb1cd7 · 3193e6a5)** · 문서 연결 저장·양방향 · 서명 요청 첨부 범위·서명자 PDF·서명 창 바로 · AI 에이전트 문서·파일 쓰기 · 할 일 목록 · 일정 알림 늦은 발송 조건 · 폰 상세 전면 · Q info 항목 잘림. **Fable 미검증(한도) — FABLE_GATE_QUEUE.md 맨 위 표 10행.**
+> **최종 업데이트:** 2026-10-06 ([Opus] Opus 5.5) — **운영 배포 1회(29c226a1)** · Cue 대화 이어듣기 · 검토 요청 토스트 재발 · 국가 공휴일 18개국 · 목록 작성일 정렬. **dev 미배포 3건**: AI 연결 재연결 반복 · 고객 화면 프로젝트·채팅 안 보임(최정우) · 업무 상세 기간 칸. **Fable 미검증(한도) — FABLE_GATE_QUEUE.md 11~18행, 목요일 일괄.**
+> ── 이전(2026-10-05 밤) ──
+> 2026-10-05 밤 ([Opus] Opus 5.5) — **운영 배포 3회(895603ef · ebeb1cd7 · 3193e6a5)** · 문서 연결 저장·양방향 · 서명 요청 첨부 범위·서명자 PDF·서명 창 바로 · AI 에이전트 문서·파일 쓰기 · 할 일 목록 · 일정 알림 늦은 발송 조건 · 폰 상세 전면 · Q info 항목 잘림. **Fable 미검증(한도) — FABLE_GATE_QUEUE.md 맨 위 표 10행.**
 > ── 이전(2026-10-05 오전) ──
 > 2026-10-05 ([Opus] Opus 5.5) — **운영 배포 7a47bb70** · 화면 오류 관리자 메일 · 댓글 알림 미리보기 · 채팅 [더보기] 크래시 · 목소리 프로필 → Q Note 화자 자동 이름(M1~M4) · 버튼 순찰(매일 밤) · 프로필 저장 실패 표시. iOS 1.0.1·Play 이름 변경 심사 제출.
 > ── 이전(2026-10-04 밤) ──
@@ -22,6 +24,28 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-06 [Opus] — Cue 대화 · 토스트 재발 · 공휴일 · 목록 정렬 · AI 연결 · 고객 연결 · 기간 칸
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| Cue 대화 이어듣기 | 화면이 직전 4턴을 history 로 보내고 서버가 대화로 넣음 · 짧은 후속은 직전 질문 붙여 검색 · Cue 모드도 도움말 근거(4건) | ✅ 운영 |
+| 검토 요청 토스트 재발 | 컨펌 대기 업무를 고치기만 해도 컨펌자에게 «검토 요청» (운영 업무 339, 서버 알림 0건) → 전이를 본 때만 · `--suite reviewtoast` | ✅ 운영 |
+| 국가 공휴일 | 대한민국 외 18개국 2026~2027 · 생성기 `scripts/gen-holiday-datasets.js` | ✅ 운영 |
+| 목록 정렬 | 문서·Q info·개인 보관함 기본 작성일 순 · 공용 `ListSortSelect` 4종 | ✅ 운영 |
+| AI 연결 재연결 반복 | ChatGPT 가 옛 scope 요청 → docs/files 영영 안 붙음 → scope = 동의 묶음 전체 · 연결 목록 연결일·outdated | ✅ dev |
+| 고객 화면 프로젝트·채팅 | 워크스페이스 고객 초대 수락이 contact_user_id 미기록(최정우) → `linkClientToProjects` · 참여자 역할 서버 결정 · 백필 스크립트 · health-check `clientlink` · `--suite clientlink` | ✅ dev |
+| 업무 상세 기간 칸 | 옆 입력란과 같은 상자(36·테두리·8) · 빈 값 «기간 선택» | ✅ dev |
+| 설계 대기 | 다른 기기 활성 시 채팅 푸시 생략(15) · AI 프로젝트 만들기(17) · «기간 미정» 묶음(Irene 승인 대기) | 📝 |
+
+### 수정된 파일
+- `dev-backend/routes/{cue,posts,kb,personal_vault,agent_oauth,invites,conversations}.js` · `services/{cuePrompts,workspaceHolidays,clientOnboarding}.js` · `services/agent_oauth/grants.js` · `config/holidays/*.json`
+- `dev-backend/scripts/{gen-holiday-datasets,migrate-project-client-user}.js` · `scripts/{health-check,deploy-planq}.sh|js` · `scripts/e2e/canary-{review-toast-repeat,client-project-link}.js`
+- `dev-frontend/src/hooks/useCueChat.ts` · `components/Common/{NotificationToaster,ListSortSelect}.tsx` · `components/Docs/PostsPage.tsx` · `components/QTask/TaskDetailDrawer.tsx` · `pages/{Knowledge/KnowledgePage,QProject/ProjectKnowledgeTab,Settings/HolidaySettingsSection,Profile/ConnectedAiAppsSection}.tsx`
 
 ---
 

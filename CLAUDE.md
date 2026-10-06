@@ -410,6 +410,11 @@ router.get('/', authenticateToken, async (req, res, next) => {
 5. **참조(첨부·연결·미팅자료·복사·brief·KB 가져오기)는 붙일 때 원본 읽기 권한, 보여줄 때 보는 사람 기준.** 제목을 복사해 두지 않는다.
 
 - **Q info 읽기 판정은 한 벌**(`access_scope.canAccessKbDocumentByLevel`·`kbDocumentsListWhereByLevel`) — 목록·상세·검색·Cue·추천이 같은 함수.
+- **고객이 볼 프로젝트는 `project_clients.contact_user_id = 나` 하나로 판정한다**(프로젝트 목록·access_scope·참여자 추가 등 10곳).
+  고객에 계정이 붙는 문(초대 수락)은 반드시 `services/clientOnboarding.linkClientToProjects` 를 부른다 — 2026-10-06 워크스페이스 고객
+  수락이 이 값을 안 채워 **고객 화면에서 프로젝트·채팅방이 통째로 사라졌다**(프로젝트 상세는 표시용으로만 메워 «참여 중» 이라 우리 쪽에선
+  안 보였다). 대화 참여자 역할은 서버가 정한다(멤버 → member, 아니면 client) — 내부 메시지 알림 제외가 `role==='client'` 로 판정한다.
+  회귀: health-check `--category=clientlink` · `--suite clientlink`.
 - **실시간 방송은 신호만**(`{id, business_id, project_id}`) — 행 전체를 방에 뿌리면 L1 본문·공유 토큰이 멤버 전원·프로젝트 고객에게 간다. 받는 화면은 id 로 다시 읽는다.
 - **목록 범위 조건은 `Op.and` 안에** — 호출부가 `where.project_id = ?` 로 필터를 덧붙이면 최상위 키는 덮어써진다(고객 문서 목록이 그랬다).
 
@@ -1259,6 +1264,11 @@ Q file(`ProjectGroups`)과 프로젝트>파일(`FolderTree`)은 **같은 행**�
 | Cue 바(별표·빨간 테두리·드롭·점 세 개) | `components/Common/cueBarShell.tsx` | Q task · Q sale |
 | 연회색 알약 탭 | `components/Common/segmentedToggle.tsx` | Q task(내 업무/전체) · Q sale(상담/고객) |
 | 검색 + 라벨 붙은 필터 한 줄 | `components/Common/filterBar.tsx` | Q sale(두 탭) · 신규 목록 화면 |
+| 목록 정렬(최신 작성·오래된·최근 수정·이름) + `sortRows` | `components/Common/ListSortSelect.tsx` | Q docs(워크스페이스·프로젝트) · Q info · 프로젝트>정보 |
+
+- **목록 기본 정렬은 작성일 최신순이다**(2026-10-06 Irene: *"수정될 때 리스트 순서가 바뀌니까 이상해"*). 서버 order 도
+  `created_at DESC` — 수정일 순은 사람이 «최근 수정순» 을 고를 때만. 새 목록 화면은 이 셀렉트를 쓴다(«최근 순» 이
+  곳마다 수정일/작성일 다른 뜻이던 세 벌을 모았다).
 
 - **옮길 때 값을 바꾸지 않는다.** 색·높이·그림자를 그대로 가져와야 "같게 해 달라" 가 지켜진다.
 - **필터 축 이름은 셀렉트 밖에 붙인다** — 안에 넣으면 값을 고르는 순간 축 이름이 사라지고,

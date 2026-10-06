@@ -1,4 +1,46 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-10-06 08:20 UTC (개발완료) · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료 — 운영 배포 1회(29c226a1, backup /opt/planq/backups/20261006_042719) · 그 뒤 dev 커밋 4건 **미배포** · 미커밋 0 · **Fable 미검증(자체 검증)** — 한도 429 3회
+
+### 진행 중인 작업
+- 없음 (제안 대기: «기간 미정» 묶음 — 아래 다음 할 일 1)
+
+### 완료된 작업 (이번 세션)
+**운영 배포됨(29c226a1)**
+- Cue 대화 이어듣기(history 전송·FOLLOWUP_RULE) · Cue 모드 PlanQ 도움말 근거(위키 4건) — `hooks/useCueChat.ts` · `routes/cue.js` · `services/cuePrompts.js`
+- 컨펌 대기 업무 수정만으로 «검토 요청» 토스트 재발(업무 339, 서버 알림 0건) → 전이를 본 때만 — `NotificationToaster.tsx` · 카나리 `--suite reviewtoast`(대조군 FAIL 확인)
+- 근태 국가 공휴일 18개국(2026~2027) — `config/holidays/*.json` · `scripts/gen-holiday-datasets.js`(date-holidays devDep) · `workspaceHolidays.js`
+- 목록 기본 정렬 = 작성일 · 공용 `components/Common/ListSortSelect`(4종) — posts·kb·개인 보관함 order created_at
+- 운영 도움말 시드(ChatGPT·Claude 연결하기)
+
+**dev 커밋·미배포**
+- `0a528c2b` AI 연결: scope 를 동의 묶음 전체로(ChatGPT 가 옛 scope 목록을 요청해 docs/files 가 영영 안 붙어 재연결 반복) · 연결 목록 연결일+최근사용·outdated 안내
+- `ccfee1ae` 고객 연결: 워크스페이스 고객 초대 수락이 project_clients.contact_user_id 를 안 채워 고객 화면에서 프로젝트·채팅방 사라짐(최정우, 운영 pc 9) → `clientOnboarding.linkClientToProjects` · 참여자 역할 서버 결정 · `scripts/migrate-project-client-user.js`(배포 슬롯 등록) · health-check `clientlink` · 카나리 `--suite clientlink`(대조군 FAIL 확인)
+- `8e169b8b` 업무 상세 «기간» 칸 = PlanQSelect sm 상자 · 빈 값 «기간 선택»
+- Fable 대기 목록 11~18행(`docs/FABLE_GATE_QUEUE.md`)
+
+### 다음 할 일
+1. **Irene 승인 대기 — «기간 미정» 묶음**: 이번 주 목록 하단에 날짜 없는 내 미착수 업무 묶음(많으면 접힘) + 빠른 날짜 칩(오늘·이번 주 금·다음 주·선택) · 요청한 업무/AI 생성 확인 카드에 «기간 미정» 칩. 오늘 날짜 자동 기본값은 비추천(거짓 마감). 운영 실측: 요청 업무 30일 6건 중 4건 날짜 없음, 숨은 업무 민 31·Irene 9
+2. **배포 대기 4커밋**(0a528c2b·ccfee1ae·8e169b8b + docs) — 배포 후 ChatGPT·Codex 각각 1회 재연결 안내, 최정우 데이터는 배포 슬롯 백필이 고침
+3. **목요일 Fable 라운드** — 대기 목록 1~18행 한 번에(15·17은 설계 검토 후 구현: 다른 기기 활성 시 채팅 푸시 생략 · AI 프로젝트 만들기 도구)
+4. 업무 339(메뉴판) 컨펌 대기인데 진행률 0% — 루아 의도 확인(Irene)
+5. 백로그: Q note 목록이 내 노트 최근 20개만(프로젝트>노트 포함) · 프로젝트 복사가 고객 연결을 client_id 만으로 만든다(Fable 18) · 스트리밍 WAV 길이 오인 · Drive 업로드 속도 · #434
+6. 이월: 일정 알림 여러 개(Irene 결정) · 반송 메일 조회
+
+### 주요 변경사항
+- 새 공용 컴포넌트 `ListSortSelect` · 새 함수 `clientOnboarding.linkClientToProjects` · 새 health-check 카테고리 `clientlink` · 새 카나리 `reviewtoast`·`clientlink`
+- 동작 변경: 목록 작성일 순 · 토스터 전이 판정 · AI 연결 scope 묶음 전체 · 참여자 역할 서버 결정
+- 문서: CLAUDE.md(ListSortSelect 껍데기 · 고객 프로젝트 판정 contact_user_id 계약) · 도움말 «ChatGPT·Claude 연결하기» 재연결·연결 둘 안내(dev 시드 완료 — **다음 배포 뒤 운영 시드** `ssh 87.106.78.146 "cd /opt/planq/backend && node seed-wiki-content.js"`) · memory 3건
+- devDependency `date-holidays` (서버는 JSON 만 읽음)
+
+### Git
+- HEAD eee6b4ae (main) · 미커밋 0 · 운영 = 29c226a1
+
+---
+
+> ⚠️ 아래는 이전 기록.
+
+## 현재 작업 상태
 **마지막 업데이트:** 2026-10-05 19:15 UTC · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료 — **운영 배포 3193e6a5** (backup /opt/planq/backups/20261005_190443) · 미커밋 0 · **Fable 미검증(자체 검증)** — 한도 429
 
