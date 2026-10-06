@@ -87,6 +87,14 @@ export type PostsScope =
 
 interface Props {
   scope: PostsScope;
+  /**
+   * 문서 하나 고정 — 프로젝트 상세의 «메뉴에 추가한 문서» 탭(doc-:id).
+   * 그 탭은 문서 탭 상세와 **같은 화면**(밴드·버튼·편집)이어야 한다 (2026-10-06 Irene:
+   * "탭메뉴를 누르면 나오는 건 상세페이지야. 버튼도 그대로 나와야지"). 여태 그 탭은 본문만 베껴 그린
+   * 축소판이라 표 설명·서명본·목차·첨부가 빠졌고, [편집] 은 문서 목록으로 튕겨 냈다.
+   * 고정 모드에서는 목록으로 돌아가지 않고, 주소(?post)도 건드리지 않는다(주소는 탭 키 doc-:id 가 쥔다).
+   */
+  pinnedPostId?: number;
 }
 
 // 제목·카테고리에서 종류 추정 — 후속 액션 결정용
@@ -100,7 +108,7 @@ function inferKindFromTitle(title: string, category: string | null): 'contract' 
   return 'other';
 }
 
-const PostsPage: React.FC<Props> = ({ scope }) => {
+const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   const { t } = useTranslation('qdocs');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { t: tErr } = useTranslation('errors');
@@ -143,7 +151,9 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
     return { kind: 'all' };
   });
   // 검색·딥링크로 연 문서는 **목록에서도 보여야** 한다 (hooks/useRevealSelectedRow 주석)
+  const pinned = !!pinnedPostId;
   const [activeId, setActiveId] = useState<number | null>(() => {
+    if (pinnedPostId) return pinnedPostId;
     const v = Number(searchParams.get('post'));
     return Number.isFinite(v) && v > 0 ? v : null;
   });
@@ -168,6 +178,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   }, [searchParams, setSearchParams]);
   // URL 싱크는 별도 effect 로 분리 — setActiveId 호출 흐름에 부수효과 안 만들도록.
   useEffect(() => {
+    if (pinned) return;   // 고정 탭은 주소를 쥐지 않는다
     setSearchParams(prev => {
       const sp = new URLSearchParams(prev);
       const cur = sp.get('post');
@@ -181,6 +192,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
   // URL(?post) → activeId 역방향 동기화. 탭 전환 등으로 외부에서 ?post 가 제거/변경되면 활성 문서도 따라감.
   //   (옛: 최초 1회만 읽어서, 문서 탭 클릭으로 ?post 지워도 상세에 남던 버그)
   useEffect(() => {
+    if (pinned) return;
     const v = Number(searchParams.get('post'));
     const urlId = Number.isFinite(v) && v > 0 ? v : null;
     setActiveId(prev => (prev === urlId ? prev : urlId));
@@ -1538,7 +1550,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       {/* 하니스 판정 신호(CLAUDE.md §17) — 양성 신호로, 뷰포트·모드와 무관하게 항상 그려지는 루트에.
           목록 영역 안에 두면 폰에서 그 자리가 안 그려져 판정 자체가 불가능해진다(2026-08-29 실측). */}
       {!loading && <span data-testid="posts-ready" hidden />}
-      {isProject && !detail && !isEditing && (
+      {isProject && !pinned && !detail && !isEditing && (
         <ProjBrowse>
           <AtToolbar>
             <SearchBox width={260} value={query} onChange={setQuery} placeholder={t('search.placeholder', '문서 검색') as string} />
@@ -1952,7 +1964,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
       </Sidebar>
       )}
 
-      {(!isProject || detail || isEditing) && (
+      {(!isProject || pinned || detail || isEditing) && (
       <Content $hasDetail={!!detail || isEditing} $projectFull={isProject}>
         {isEditing ? (
           <>
@@ -2172,9 +2184,11 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             <StickyBands data-testid="docs-detail-bands">
             <StickyPanelHeader>
               <TitleRow>
+                {!pinned && (
                 <MobileBackBtn $always={isProject} type="button" onClick={() => setDetail(null)} aria-label={t('back', '뒤로') as string}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 </MobileBackBtn>
+                )}
                 <PanelSubTitle>
                   {detail.is_pinned && <PinDot title={t('list.pinned', '고정됨') as string} />}
                   {detail.title}
@@ -2438,7 +2452,7 @@ const PostsPage: React.FC<Props> = ({ scope }) => {
             status={detailStatus}
             businessId={otherWsBizId}
             onRetry={activeId ? () => setActiveId((v) => v) : undefined}
-            onBack={() => setActiveId(null)}
+            onBack={pinned ? undefined : () => setActiveId(null)}
           />
         ) : (
           <EmptyState

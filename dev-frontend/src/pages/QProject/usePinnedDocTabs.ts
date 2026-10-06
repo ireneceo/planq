@@ -12,6 +12,7 @@
 // 옮긴 뒤 그 키는 지운다(두 벌이 남으면 어느 쪽이 진실인지 갈린다).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../contexts/AuthContext';
+import { onSocket } from '../../services/socket';
 
 export interface PinnedDocTab { post_id: number; title: string | null }
 
@@ -66,6 +67,30 @@ export function usePinnedDocTabs(projectId: number) {
     window.addEventListener('qproject-pinned-changed', handler);
     return () => window.removeEventListener('qproject-pinned-changed', handler);
   }, [projectId, load]);
+
+  // ★ 문서 제목을 바꾸면 탭 이름도 바뀐다 (2026-10-06 Irene: "핀으로 탭메뉴 고정한 다음 파일이름 바꿔도
+  //   탭이름 안바뀌고 있어"). 여태 프로젝트를 열 때 한 번만 읽었다. 탭에 올린 문서가 바뀌거나 지워지면
+  //   다시 읽는다 — 같은 창 저장(services/posts.updatePost 의 신호) + 다른 사람·기기(소켓 post:updated/deleted).
+  const pinnedRef = useRef<number[]>([]);
+  pinnedRef.current = tabs.map((t) => t.post_id);
+  useEffect(() => {
+    let timer: number | null = null;
+    const maybeReload = (payload: unknown) => {
+      const id = typeof payload === 'number' ? payload : Number((payload as { id?: unknown } | null)?.id);
+      if (!pinnedRef.current.includes(id)) return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => { timer = null; void load(); }, 250);
+    };
+    const onSaved = (e: Event) => maybeReload((e as CustomEvent<{ id?: number }>).detail);
+    window.addEventListener('qdocs-post-saved', onSaved);
+    const offUpd = onSocket('post:updated', maybeReload);
+    const offDel = onSocket('post:deleted', maybeReload);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener('qdocs-post-saved', onSaved);
+      offUpd(); offDel();
+    };
+  }, [load]);
 
   const pinnedDocIds = tabs.map((t) => t.post_id);
   const pinnedDocLabels: Record<number, string> = {};

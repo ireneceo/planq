@@ -1,4 +1,43 @@
 ## 현재 작업 상태
+**마지막 업데이트:** 2026-10-06 저녁 (개발완료) · **주체:** [Opus] Opus 5.5
+**작업 상태:** 완료 — dev 반영·커밋, **미배포**(운영 = 29c226a1, 앞선 4커밋 포함 배포 대기) · **Fable 미검증(자체 검증)** — 판정 R=0·F=1, 대기 목록 19행에 기록
+
+### 진행 중인 작업
+- 없음
+
+### 완료된 작업 (이번 세션)
+- 프로젝트 핀 문서 탭(doc-:id) = 문서 탭 상세 그대로 — `PostsPage` `pinnedPostId` 고정 모드, 축소판 `PinnedDocBody` 삭제. [편집] 이 그 탭 안에서 편집 모드
+- 표 첨부 칸 크래시(`s.map is not a function`) — 열을 첨부로 바꾼 뒤 옛 글자 값이 남은 칸만 → `toAttachItems` 공용
+- 오류 화면 [이 문제 신고] 무반응 — 경계 안 입력칸 + `/api/feedback` 직접 · i18n `common.crashReport`
+- 핀 탭 이름 실시간 — `updatePost` → `qdocs-post-saved` + 소켓 post:updated/deleted
+- 프로젝트 얹는탭(문서·노트·파일) 하단 회색 띠 — `ProjectTabFull` max-height 공식
+- 자체 검증 3폭 × 4항목 통과 · health-check 50/50 · 가드 · tenant 0 실패
+
+### 다음 할 일
+1. **(승인됨 — Irene «응», 다음 세션) 문서 검색·선택 결과에 «작성자 · 작성일 · 프로젝트» 둘째 줄**
+   - 첨부/관련 문서 고르는 창: `components/Common/AttachmentField.tsx`(:208 옵션 라벨, 약 15곳이 씀) · `components/Docs/PostTableGrid.tsx` AttachPickerModal `postOptions` — `/api/posts` 가 이미 author·project·created_at 를 준다(화면만)
+   - 통합 검색: `components/Common/GlobalSearchModal.tsx`(:182 행 구성) + 서버 `services/searchScope.js searchPosts`(:159) 에 author·Project include 추가(지금 id·title·category·project_id·kind 만)
+   - 문서에는 tags 칸이 없다(category 만) — 태그 표시는 범위 밖
+   - 검증: 같은 제목 문서 2개 픽스처로 구분되는지 3폭
+2. **배포 대기** — 앞선 0a528c2b·ccfee1ae·8e169b8b + 이번 커밋. 배포 후 ChatGPT·Codex 재연결 안내 · 운영 위키 시드
+3. 운영 «최종목차» 문서(프로젝트 «내가 우리는, 왜 이렇게까지 이야기하는가») 실제 확인 — 운영 DB 읽기가 자동 권한에서 막혀 dev 재현으로만 원인 확정
+4. e2e `projecttabs` 노트 탭 항목 낡음(09-18 부터 embedded 목록 숨김) — 검사기 갱신
+5. 목요일 Fable 라운드 — 대기 목록 1~19행
+6. 이월: «기간 미정» 묶음 제안(승인 대기) · 업무 339 진행률 0% 확인 · 일정 알림 여러 개 · 반송 메일
+
+### 주요 변경사항
+- `PostsPage` 새 prop `pinnedPostId` · 새 창 이벤트 `qdocs-post-saved`(services/posts.updatePost 성공 시)
+- ErrorBoundary 신고가 자급(전역 이벤트 의존 제거)
+- 문서: CLAUDE.md(핀 문서 탭 = PostsPage 고정 모드) · FABLE_GATE_QUEUE 19행 · memory 1건(오류 화면 버튼 자급)
+
+### Git
+- main · 이번 커밋 푸시 · 운영 = 29c226a1
+
+---
+
+> ⚠️ 아래는 이전 기록.
+
+## 현재 작업 상태
 **마지막 업데이트:** 2026-10-06 08:20 UTC (개발완료) · **주체:** [Opus] Opus 5.5
 **작업 상태:** 완료 — 운영 배포 1회(29c226a1, backup /opt/planq/backups/20261006_042719) · 그 뒤 dev 커밋 4건 **미배포** · 미커밋 0 · **Fable 미검증(자체 검증)** — 한도 429 3회
 

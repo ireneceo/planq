@@ -683,10 +683,6 @@
       "overwrite": "Overwrite"
     }
   },
-  "pinnedDoc": {
-    "tableHint": "Table documents can't be previewed here.",
-    "openInDocs": "Open in Documents tab"
-  },
   "canvas": {
     "tabLabel": "Overview",
     "intro": "Strategy → Execution → Deliverables, at a glance",

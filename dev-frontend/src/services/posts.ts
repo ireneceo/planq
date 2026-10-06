@@ -280,6 +280,11 @@ export async function updatePost(id: number, patch: Partial<{
   }
   const j = await r.json();
   if (!j.success) throw new Error(j.message || 'update failed');
+  // 같은 창 안의 다른 화면(프로젝트 핀 탭 이름 등)이 바로 알 수 있게 — 저장 함수 **한 곳**에서 쏜다.
+  //   임시저장(draft)은 서버가 소켓 broadcast 를 안 하므로 이 신호가 유일한 길이다(CLAUDE.md §16 (e)).
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('qdocs-post-saved', { detail: { id } }));
+  }
   return j.data as PostDetail;
 }
 

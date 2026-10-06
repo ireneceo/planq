@@ -1341,5 +1341,12 @@
     "oldest": "Oldest first",
     "updated": "Recently edited",
     "name": "Name"
+  },
+  "crashReport": {
+    "placeholder": "What were you doing? (optional)",
+    "send": "Send",
+    "sending": "Sending…",
+    "sent": "Reported #{{id}} — thank you. We will look into it.",
+    "failed": "Could not send. Please try again."
   }
 }

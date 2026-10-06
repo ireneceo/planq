@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-06 ([Opus] Opus 5.5) — **운영 배포 1회(29c226a1)** · Cue 대화 이어듣기 · 검토 요청 토스트 재발 · 국가 공휴일 18개국 · 목록 작성일 정렬. **dev 미배포 3건**: AI 연결 재연결 반복 · 고객 화면 프로젝트·채팅 안 보임(최정우) · 업무 상세 기간 칸. **Fable 미검증(한도) — FABLE_GATE_QUEUE.md 11~18행, 목요일 일괄.**
+> **최종 업데이트:** 2026-10-06 저녁 ([Opus] Opus 5.5) — 프로젝트 핀 문서 탭 = 문서 탭 상세 그대로(편집 그 자리) · 표 첨부 칸 크래시 · 오류 화면 신고 버튼 · 핀 탭 이름 실시간 · 프로젝트 탭 하단 회색 띠. **dev 미배포**(앞선 4커밋 포함). Fable 미검증(자체 검증 · R=0·F=1) — 대기 목록 19행.
+> ── 이전(2026-10-06 오후) ──
+> 2026-10-06 ([Opus] Opus 5.5) — **운영 배포 1회(29c226a1)** · Cue 대화 이어듣기 · 검토 요청 토스트 재발 · 국가 공휴일 18개국 · 목록 작성일 정렬. **dev 미배포 3건**: AI 연결 재연결 반복 · 고객 화면 프로젝트·채팅 안 보임(최정우) · 업무 상세 기간 칸. **Fable 미검증(한도) — FABLE_GATE_QUEUE.md 11~18행, 목요일 일괄.**
 > ── 이전(2026-10-05 밤) ──
 > 2026-10-05 밤 ([Opus] Opus 5.5) — **운영 배포 3회(895603ef · ebeb1cd7 · 3193e6a5)** · 문서 연결 저장·양방향 · 서명 요청 첨부 범위·서명자 PDF·서명 창 바로 · AI 에이전트 문서·파일 쓰기 · 할 일 목록 · 일정 알림 늦은 발송 조건 · 폰 상세 전면 · Q info 항목 잘림. **Fable 미검증(한도) — FABLE_GATE_QUEUE.md 맨 위 표 10행.**
 > ── 이전(2026-10-05 오전) ──
@@ -24,6 +26,27 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-06 저녁 [Opus] — 핀 문서 탭 · 표 첨부 · 오류 화면 신고 · 탭 하단 띠
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 핀 문서 탭 = 문서 탭 상세 | `PostsPage` `pinnedPostId` 고정 모드(목록 복귀 없음·?post 안 건드림·뒤로 버튼 숨김) — 본문만 베낀 축소판 `PinnedDocBody` 삭제. 밴드·버튼·편집이 그 탭 안에서 | ✅ 완료 |
+| 표 첨부 칸 크래시 | 열 종류를 첨부로 바꾼 뒤 옛 글자 값이 남은 칸만 `s.map is not a function` → `toAttachItems` 한 함수(칸 표시·첨부 창 공용) | ✅ 완료 |
+| 오류 화면 신고 | 최상위 경계가 잡으면 Q helper(신고 창)도 사라져 버튼이 무반응 → 경계 안에 입력칸 + `/api/feedback` 직접 전송 · 문구 i18n `common.crashReport` | ✅ 완료 |
+| 핀 탭 이름 실시간 | `services/posts.updatePost` 가 `qdocs-post-saved` 를 쏘고 `usePinnedDocTabs` 가 그 신호 + 소켓 post:updated/deleted 로 다시 읽음 | ✅ 완료 |
+| 프로젝트 얹는탭 하단 회색 띠 | `ProjectTabFull` max-height 가 탭 막대 위쪽 여백(20/폰 14)을 안 돌려받음 → 3폭 모두 화면 끝까지 | ✅ 완료 |
+
+검증(자체 · 3폭): 표 옛 값 칸 첨부 열림 · 오류 화면 신고 POST 201 + 접수 번호 · 핀 탭 밴드·본문·편집 후 같은 탭 편집 모드 · 이름 변경 즉시 반영 · 하단 900/1180/844 일치 · 가드·health-check 50/50·tenant 통과. `projecttabs` 노트 탭 1건 실패는 기존 검사기 낡음(09-18 부터 embedded 목록 숨김).
+
+### 수정된 파일
+- `dev-frontend/src/components/Docs/PostsPage.tsx` · `PostTableGrid.tsx`
+- `dev-frontend/src/components/Common/ErrorBoundary.tsx`
+- `dev-frontend/src/pages/QProject/QProjectDetailPage.tsx` · `QProjectDetailPage.styles.ts` · `usePinnedDocTabs.ts`
+- `dev-frontend/src/services/posts.ts`
+- `dev-frontend/public/locales/{ko,en}/common.json` · `qproject.json`
 
 ---
 

@@ -3,46 +3,7 @@
 
 import styled, { css } from 'styled-components';
 
-export const PinnedDocCard = styled.div`
-  background: #FFFFFF;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
-  padding: 24px 28px;
-`;
-export const PinnedDocHeader = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; margin-bottom: 16px;
-  padding-bottom: 12px; border-bottom: 1px solid #E2E8F0;
-`;
-export const PinnedDocTitle = styled.h2`
-  margin: 0; font-size: 1.125rem; font-weight: 700; color: #0F172A;
-  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-`;
-export const PinnedDocActions = styled.div`
-  display: inline-flex; gap: 6px; flex-shrink: 0;
-`;
-export const PinnedDocBtn = styled.button`
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 32px; padding: 0 12px;
-  background: #14B8A6; color: #fff;
-  border: none; border-radius: 8px;
-  font-size: 0.75rem; font-weight: 600; cursor: pointer;
-  transition: background 0.15s;
-  &:hover { background: #0D9488; }
-`;
-export const PinnedDocLoading = styled.div`
-  text-align: center; padding: 40px; color: #94A3B8; font-size: 0.8125rem;
-`;
-export const PinnedDocEmpty = styled.div`
-  text-align: center; padding: 40px; color: #DC2626; font-size: 0.8125rem;
-  background: #FEF2F2; border: 1px solid #FECACA; border-radius: 12px;
-`;
 // 중립 안내(표 문서 등) — 에러 아님. 세로 정렬 + 버튼.
-export const PinnedDocInfo = styled.div`
-  display: flex; flex-direction: column; align-items: center; gap: 12px;
-  text-align: center; padding: 40px; color: #64748B; font-size: 0.8125rem;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px;
-`;
 
 // ───────── Dashboard Timeline (공용 GanttTrack) ─────────
 // ───────── styled ─────────
@@ -155,7 +116,12 @@ export const ProjectTabFull = styled.div`
      ※ styled 템플릿 안 주석에 백틱을 쓰면 템플릿이 끊긴다 — 오늘 두 번 겪었다. */
   /* 하단 88px 을 상쇄했으므로 그만큼 더 내려간다 — 안 더하면 상쇄만 하고 높이는 그대로라
      아래가 잘린 것처럼 보인다(신고의 "하단 잘린 것처럼"). */
-  max-height: calc(100% - ${TABBAR_H} + 88px);
+  /* ★ 2026-10-06 (Irene: "프로젝트 > 문서 > 상세에 하단에 왜 회색배경이 있어? 하얀 걸로 나와야 하는 거 아니야?")
+     위 공식은 하단 88 만 돌려받고, 탭 막대가 음수 margin 으로 먹은 **위쪽 여백(20)** 은 돌려받지 않았다.
+     그래서 상자가 화면 끝보다 20px 짧게 끝나 그 띠에 페이지 배경(회색)이 드러났다
+     (실측 1440: 상자 끝 880 / 화면 900 · 폰: 탭 막대가 42 인데 46 을 빼서 18px 모자람). */
+  max-height: calc(100% - ${TABBAR_H} + 88px + 20px);
+  @media (max-width: 640px) { max-height: calc(100% - 42px + 88px + 14px + var(--pq-safe-bottom, 0px)); }
   min-height: 460px;
   /* ★ 2026-09-13 (Irene: *"프로젝트 상세 가로 레이아웃이 탭마다 달라. 맞춰줘야지. …
      헤더랑 다르면 안되는데 탭마다 다르고 헤더랑도 다르고."*)

@@ -63,6 +63,19 @@ const newColId = () => 'c' + Math.random().toString(36).slice(2, 10);
 
 interface AttachItem { kind: 'file' | 'post'; id: number; label?: string }
 
+// 첨부 칸 값 → 첨부 목록. **칸 표시와 첨부 창이 같은 함수**를 쓴다.
+//   열 종류를 바꿔도(텍스트 → 첨부 등) 기존 칸 값은 그대로 남는다. 칸 표시는 배열이 아니면
+//   빈 칸으로 그렸지만 첨부 창은 그 값(글자)을 그대로 받아 `items.map` 에서 화면이 통째로 죽었다
+//   (2026-10-06 Irene: "표 안에 첨부기능이 에러나는 게 하나 뿐이고 다른 건 또 작동해").
+//   모양이 맞지 않는 항목은 버린다 — 옛 글자 값은 첨부가 아니다.
+const toAttachItems = (v: unknown): AttachItem[] =>
+  Array.isArray(v)
+    ? v.filter((it): it is AttachItem =>
+        !!it && typeof it === 'object'
+        && ((it as AttachItem).kind === 'file' || (it as AttachItem).kind === 'post')
+        && Number.isFinite(Number((it as AttachItem).id)))
+    : [];
+
 // 컬럼 타입별 가용 집계 옵션 — number 와 row_* (자동 계산) 컬럼은 sum/avg/min/max 모두 가능
 const NUMERIC_TYPES: QRecordColumnType[] = ['number', 'row_sum', 'row_avg', 'row_min', 'row_max'];
 const aggregateOptions = (type: QRecordColumnType): QRecordAggregate[] => {
@@ -362,7 +375,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
       {attachContext && (
         <AttachPickerModal
           businessId={businessId}
-          existing={(rec.rows.find(r => r.id === attachContext.rowId)?.values?.[attachContext.colId] as AttachItem[]) || []}
+          existing={toAttachItems(rec.rows.find(r => r.id === attachContext.rowId)?.values?.[attachContext.colId])}
           onClose={() => setAttachContext(null)}
           onConfirm={async (items) => {
             await handleCellChange(attachContext.rowId, attachContext.colId, items);
@@ -455,7 +468,7 @@ const CellEditor: React.FC<{
   }
 
   if (column.type === 'attach') {
-    const items: AttachItem[] = Array.isArray(value) ? (value as AttachItem[]) : [];
+    const items = toAttachItems(value);
     const itemHref = (it: AttachItem) =>
       it.kind === 'file' ? `/files?file=${it.id}` : `/docs?post=${it.id}`;
     const itemTitle = (it: AttachItem) =>

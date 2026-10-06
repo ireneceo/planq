@@ -29,9 +29,6 @@ const TransactionsTab = React.lazy(() => import('./TransactionsTab'));
 const ProjectReportTab = React.lazy(() => import('./ProjectReportTab'));
 const HistoryTab = React.lazy(() => import('./HistoryTab'));
 const ProjectKnowledgeTab = React.lazy(() => import('./ProjectKnowledgeTab'));
-const PostEditor = React.lazy(() => import('../../components/Docs/PostEditor'));
-const PostTableGrid = React.lazy(() => import('../../components/Docs/PostTableGrid')); // 표 문서 뷰(추가탭에서도 문서탭과 동일 렌더)
-import { fetchPost, type PostDetail } from '../../services/posts';
 import PlanQSelect from '../../components/Common/PlanQSelect';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import { PROJECT_COLOR_PALETTE } from '../../utils/projectColors';
@@ -39,14 +36,6 @@ import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { usePinnedDocTabs } from './usePinnedDocTabs';
 import { isEnterAction } from '../../utils/imeKey';
 import {
-  PinnedDocCard,
-  PinnedDocHeader,
-  PinnedDocTitle,
-  PinnedDocActions,
-  PinnedDocBtn,
-  PinnedDocLoading,
-  PinnedDocEmpty,
-  PinnedDocInfo,
   TabBar,
   TabFallback,
   Tab,
@@ -1309,20 +1298,17 @@ const QProjectDetailPage: React.FC = () => {
       {tab === 'report' && <ProjectTabPane data-testid="project-tab-body-report"><ProjectReportTab businessId={project.business_id} projectId={projectId} /></ProjectTabPane>}
       {tab === 'history' && <ProjectTabPane data-testid="project-tab-body-history"><HistoryTab projectId={projectId} /></ProjectTabPane>}
 
-      {/* 메뉴에 추가된 문서 탭 (doc-:id) — PostEditor read-only + 편집 진입 */}
+      {/* 메뉴에 추가된 문서 탭 (doc-:id) — **문서 탭 상세와 같은 화면**(PostsPage 고정 모드).
+          본문만 베낀 축소판이었을 때 표 설명·서명본·목차·첨부가 빠지고 [편집] 이 문서 목록으로 튕겼다(2026-10-06).
+          key 로 문서마다 인스턴스를 가른다 — 편집 중 다른 핀 탭으로 가면 그 편집이 새 문서에 섞이면 안 된다. */}
       {isDocTabKey(tab) && (
-        <PinnedDocBody
-          postId={Number(tab.replace('doc-', ''))}
-          businessId={project.business_id}
-          onEdit={(pid) => {
-            // #96 — 문서 탭(PostsPage)으로 이동 + ?post=N 쿼리 → 해당 문서 열림
-            const sp = new URLSearchParams(searchParams);
-            sp.set('tab', 'docs');
-            sp.set('post', String(pid));
-            setTabState('docs');
-            setSearchParams(sp, { replace: true });
-          }}
-        />
+        <ProjectTabFull data-testid="project-tab-body-pinned-doc">
+          <PostsPage
+            key={tab}
+            scope={{ type: 'project', businessId: project.business_id, projectId }}
+            pinnedPostId={Number(tab.replace('doc-', ''))}
+          />
+        </ProjectTabFull>
       )}
       </Suspense>
 
@@ -1438,56 +1424,3 @@ const QProjectDetailPage: React.FC = () => {
 };
 
 export default QProjectDetailPage;
-
-// ───────── 메뉴에 추가된 문서 탭 본문 (PostEditor read-only + 편집 액션) ─────────
-const PinnedDocBody: React.FC<{ postId: number; businessId: number; onEdit: (id: number) => void }> = ({ postId, businessId, onEdit }) => {
-  const { t } = useTranslation('qproject');
-  const [detail, setDetail] = useState<PostDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetchPost(postId)
-      .then(d => { if (!cancelled) { if (d) setDetail(d); else setError('not_found'); } })
-      .catch(() => { if (!cancelled) setError('error'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [postId]);
-
-  if (loading) return <PinnedDocLoading>{t('pinnedDoc.loading', '불러오는 중...')}</PinnedDocLoading>;
-  if (error || !detail) return <PinnedDocEmpty>{t('pinnedDoc.notFound', '문서를 찾을 수 없습니다. 메뉴에서 제거하세요.')}</PinnedDocEmpty>;
-
-  return (
-    <PinnedDocCard>
-      <PinnedDocHeader>
-        <PinnedDocTitle>{detail.title}</PinnedDocTitle>
-        <PinnedDocActions>
-          <PinnedDocBtn type="button" onClick={() => onEdit(postId)} title={t('pinnedDoc.editHint', '문서 탭에서 이 문서 편집') as string}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-            {t('pinnedDoc.edit', '편집')}
-          </PinnedDocBtn>
-        </PinnedDocActions>
-      </PinnedDocHeader>
-      {detail.kind === 'table' ? (
-        detail.q_record_id ? (
-          <PostTableGrid recordId={detail.q_record_id} businessId={businessId} readOnly />
-        ) : (
-          <PinnedDocInfo>
-            <div>{t('pinnedDoc.tableHint', '표 문서는 여기서 미리보기를 지원하지 않아요.')}</div>
-            <PinnedDocBtn type="button" onClick={() => onEdit(postId)}>
-              {t('pinnedDoc.openInDocs', '문서 탭에서 열기')}
-            </PinnedDocBtn>
-          </PinnedDocInfo>
-        )
-      ) : (
-        <PostEditor value={detail.content_json} onChange={() => {}} editable={false} />
-      )}
-    </PinnedDocCard>
-  );
-};
-

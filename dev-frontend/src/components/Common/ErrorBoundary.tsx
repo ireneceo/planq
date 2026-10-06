@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { openFeedback } from '../../utils/feedbackOpen';
+import i18n from '../../i18n';
 import { getCrashTrail } from '../../utils/crashTrail';
 
 interface Props {
@@ -12,6 +12,10 @@ interface State {
   error: Error | null;
   resetKey: number;
   silentReload: boolean;
+  /** 오류 화면 안의 신고 칸 — idle(닫힘) · open · sending · sent · failed */
+  report: 'idle' | 'open' | 'sending' | 'sent' | 'failed';
+  reportText: string;
+  reportId: number | null;
 }
 
 const isChunkLoadError = (error: Error | null | undefined): boolean => {
@@ -22,7 +26,7 @@ const isChunkLoadError = (error: Error | null | undefined): boolean => {
 };
 
 class ErrorBoundary extends React.Component<Props, State> {
-  state: State = { error: null, resetKey: 0, silentReload: false };
+  state: State = { error: null, resetKey: 0, silentReload: false, report: 'idle', reportText: '', reportId: null };
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     // 새 배포 직후 옛 청크 파일이 사라져 lazy import 가 실패하는 케이스 — 사용자에게 에러 화면을
@@ -120,7 +124,39 @@ class ErrorBoundary extends React.Component<Props, State> {
       })();
       return;
     }
-    this.setState(s => ({ error: null, resetKey: s.resetKey + 1, silentReload: false }));
+    this.setState(s => ({ error: null, resetKey: s.resetKey + 1, silentReload: false, report: 'idle', reportText: '', reportId: null }));
+  };
+
+  // ★ 신고는 **이 화면 안에서** 보낸다 (2026-10-06 Irene: "이 문제 신고 버튼이 작동도 안해").
+  //   여태 openFeedback() 이벤트로 Q helper 신고 창을 열었는데, 그 창(CueHelpDrawer)도 이 경계
+  //   **안쪽**에 있다 — 최상위 경계가 잡으면 앱 트리 전체가 이 화면으로 바뀌어 신고 창이 같이
+  //   사라지고, 이벤트를 받을 쪽이 없어 버튼이 아무 일도 안 했다. 화면이 죽었을 때 살아 있는 것은
+  //   이 컴포넌트뿐이므로 여기서 직접 /api/feedback 에 보낸다(Q helper 와 같은 서버 계약).
+  submitReport = async () => {
+    const { error, reportText, report } = this.state;
+    if (!error || report === 'sending') return;
+    this.setState({ report: 'sending' });
+    const note = reportText.trim();
+    const path = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '';
+    try {
+      const { apiFetch } = await import('../../contexts/AuthContext');
+      const res = await apiFetch('/api/feedback', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: 'bug',
+          priority: 'normal',
+          title: `[render_crash] ${String(error.message || '').slice(0, 50)}`,
+          body: `${note ? note + '\n\n' : ''}app · render_crash\n${String(error.message || '').slice(0, 300)}\n${path}`,
+          page_url: typeof window !== 'undefined' ? window.location.href : null,
+          error_context: { area: 'app', action: 'render_crash', message: String(error.message || '').slice(0, 300), detail: path.slice(0, 200) },
+        }),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok || !j?.success) throw new Error('feedback');
+      this.setState({ report: 'sent', reportId: j.data?.id ?? null });
+    } catch {
+      this.setState({ report: 'failed' });
+    }
   };
 
   render() {
@@ -160,6 +196,9 @@ class ErrorBoundary extends React.Component<Props, State> {
       home: '대시보드로',
       report: '이 문제 신고',
     };
+    const { report, reportText, reportId } = this.state;
+    // 신고 칸 문구 — 여기까지 왔다면 화면은 그려지고 있다. 번역이 안 되면 키 대신 기본값이 나온다.
+    const R = (k: string, d: string, o?: Record<string, unknown>) => i18n.t(`common:crashReport.${k}`, { defaultValue: d, ...(o || {}) }) as string;
 
     return (
       <Wrap role="alert">
@@ -172,15 +211,35 @@ class ErrorBoundary extends React.Component<Props, State> {
           {/* ★ 화면이 통째로 죽었을 때야말로 신고 경로가 필요하다. 여기서 신고를 못 하면
               사용자는 대시보드로 돌아가고, 우리는 이 오류를 영영 모른다.
               i18n 이 깨져도 동작해야 하므로 t() 대신 위 하드코딩 ko/en 을 쓴다(이 경계의 규칙). */}
-          <SecondaryBtn onClick={() => openFeedback({
-            category: 'bug',
-            context: {
-              area: 'app', action: 'render_crash',
-              message: error.message,
-              detail: typeof window !== 'undefined' ? window.location.pathname : undefined,
-            },
-          })}>{L.report}</SecondaryBtn>
+          {report === 'idle' && (
+            <SecondaryBtn data-testid="crash-report-open" onClick={() => this.setState({ report: 'open' })}>{L.report}</SecondaryBtn>
+          )}
         </Row>
+        {report !== 'idle' && (
+          <ReportBox data-testid="crash-report-box">
+            {report === 'sent' ? (
+              <ReportMsg role="status">{R('sent', 'Reported #{{id}} — thank you.', { id: reportId ?? '' })}</ReportMsg>
+            ) : (
+              <>
+                {/* draft-exempt: 화면이 죽은 자리의 신고 칸 — 클래스 경계라 훅을 못 쓰고, 다시 시도하면 트리째 새로 그린다 */}
+                <ReportArea
+                  value={reportText}
+                  placeholder={R('placeholder', 'What were you doing? (optional)')}
+                  maxLength={2000}
+                  onChange={(e) => this.setState({ reportText: e.target.value })}
+                  disabled={report === 'sending'}
+                />
+                {report === 'failed' && <ReportErr role="alert">{R('failed', 'Could not send. Please try again.')}</ReportErr>}
+                <ReportActions>
+                  <PrimaryBtn data-testid="crash-report-send" onClick={this.submitReport} disabled={report === 'sending'}>
+                    {report === 'sending' ? R('sending', 'Sending…') : R('send', 'Send')}
+                  </PrimaryBtn>
+                </ReportActions>
+              </>
+            )}
+          </ReportBox>
+        )}
+
       </Wrap>
     );
   }
@@ -207,6 +266,18 @@ const PrimaryBtn = styled.button`
   background: #14B8A6; color: #fff; font-weight: 600; cursor: pointer;
   &:hover { background: #0D9488; }
 `;
+const ReportBox = styled.div`
+  width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 8px; margin-top: 4px;
+`;
+const ReportArea = styled.textarea`
+  width: 100%; min-height: 88px; box-sizing: border-box; resize: vertical;
+  padding: 10px 12px; border: 1px solid #CBD5E1; border-radius: 8px;
+  font: inherit; font-size: 0.875rem; color: #0F172A; background: #fff;
+  &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.15); }
+`;
+const ReportActions = styled.div` display: flex; justify-content: flex-end; `;
+const ReportMsg = styled.div` font-size: 0.875rem; color: #0F766E; font-weight: 600; `;
+const ReportErr = styled.div` font-size: 0.8125rem; color: #B91C1C; text-align: left; `;
 const SecondaryBtn = styled.button`
   height: 36px; padding: 0 16px; border-radius: 8px;
   background: #fff; color: #0F172A; border: 1px solid #CBD5E1; font-weight: 500; cursor: pointer;
