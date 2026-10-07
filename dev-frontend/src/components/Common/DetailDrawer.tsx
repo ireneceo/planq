@@ -43,6 +43,7 @@
  *   </DetailDrawer>
  */
 import React, { useEffect, useRef } from 'react';
+import { useCloseOnTabStripClick } from '../../hooks/useCloseOnTabStripClick';
 import styled, { keyframes } from 'styled-components';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -74,6 +75,8 @@ const DetailDrawerRoot: React.FC<DetailDrawerProps> = ({
   useFocusTrap(panelRef, open);
   // 백드롭이 먹은 스크롤을 **밑으로 넘긴다** (위 머리말 ②)
   usePassThroughScroll(backdropRef, open);
+  // 탭 막대 클릭도 «바깥» 이다 — 덮개가 탭 아래부터라 못 받는 것을 따로 받는다
+  useCloseOnTabStripClick(open && closeOnBackdrop, onClose);
 
   if (!open) return null;
 

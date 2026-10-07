@@ -2,6 +2,7 @@
 // QTaskPage / QProjectDetailPage 양쪽에서 공용. 단일 taskId 를 받아 상세 + 워크플로우
 // (리뷰어/히스토리/댓글/첨부/리치 본문) 를 자체 로드·편집.
 import { sameHours } from '../../utils/hours';
+import { useCloseOnTabStripClick } from '../../hooks/useCloseOnTabStripClick';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import DetailFallback from '../Common/DetailFallback';
@@ -235,6 +236,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   useEscapeStack(!!taskId, onClose);
   // 뒤로 가기 = 업무 상세 닫기 (#437). 주소로 연 경우(?task=)는 훅이 알아서 비킨다.
   useBackToClose(!!taskId, onClose);
+  useCloseOnTabStripClick(!!taskId, onClose);   // 탭 막대 클릭도 «바깥»(덮개가 탭 아래부터라 못 받는다)
   // 이 인스턴스가 "보류 직후 재마운트된 것" 인지 마운트 시 한 번만 판정하고 즉시 소비한다.
   const resumeFocusRef = useRef<boolean | null>(null);
   if (resumeFocusRef.current === null) {
