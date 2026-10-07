@@ -50,6 +50,7 @@
 | 33 | `feac9580` `5d530d27` `122f042d` | **파일 미리보기 크게 보기 · 목록 빠른 보기 · 이미지 로딩 자리** — PreviewArea mode='full'·돋보기 · StandardModal size full · QuickView(카드·행, 데스크탑 hover/터치 늘 보임) · 이미지 받는 동안 200px+문구 · DocsTab 목록 스타일 분리(god-file 래칫 복구) | 화면(F=1) — **자체 검증** 3폭 · 6초 지연 대조 | 운영 front_v4.jpg 원인을 «Drive 첫 요청 지연 + 연결 대기» 로 추정 — 운영 배포 후 실제로 뜨는지 확인 필요(서버는 정상 응답 실측) |
 | 34 | (일정 알림 제목) | **일정 알림 제목이 남은 시간을 말한다** — leadAction · notifyTitle {{n}} · 본문 «… 시작» | 외부 발송(푸시·메일) 문구 — **자체 검증** 판정 7 · dev 실제 크론 3건 | 반복 일정·서버가 늦게 보낸 경우의 제목(오늘/내일 경계) |
 | 35 | `a74e87a0` | **우측 패널이 탭 막대 클릭으로도 닫힘** — hooks/useCloseOnTabStripClick(DetailDrawer · TaskDetailDrawer) | 화면(F=1) — **자체 검증** 태블릿·데스크탑 파일·업무 상세 | 다른 자체 패널(Q talk 우측·메일 작업대·도움말)에도 같은 동작이 필요한가 |
+| 36 | (서명 화면 단계) | **확인필요·받은 서명 → /sign/:token · 문서 먼저 → 위치 → 본인 확인 → 서명** — 우리 쪽 서명자는 로그인으로 본인 확인(sign-internal 재사용) · 공개 GET 에 party us 만 request_id·signer_user_id | R=1 쪽(증빙·공개 표면) · **자체 검증** 실요청 서명 완료·외부 인증번호 유지·signature 스위트 0 | 공개 GET 에 request_id·signer_user_id 노출이 무해한가 · 네이티브 앱에서 window.open 이 사파리로 가면 로그인이 없어 인증번호로 떨어지는 것(우리 쪽 서명자 이메일로 감) · 증빙(IP·UA)이 앱 안 서명과 같은가 |
 
 ---
 
