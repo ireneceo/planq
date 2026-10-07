@@ -720,6 +720,7 @@ const QProjectDetailPage: React.FC = () => {
               projectId={Number(projectId)}
               projectName={project?.name || ''}
               businessId={Number(project.business_id)}
+              clients={(project.projectClients || []).filter((c) => c.client_id).map((c) => ({ id: Number(c.client_id), name: c.contact_name }))}
             />
           )}
         </HeaderActions>

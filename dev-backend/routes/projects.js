@@ -984,6 +984,23 @@ router.put('/:id/members', authenticateToken, async (req, res, next) => {
 // ★ 고객(client)은 부를 수 없다 — 고객이 스스로 외부 링크의 문을 열면 안 된다.
 
 // GET — 이 프로젝트로 발급된 살아 있는 링크 목록
+// 외부 열람 링크의 **고객** — 고객 채널의 축이 프로젝트 × 고객이므로 링크도 고객마다 다르다(2026-10-07 Fable 검증).
+//   고객사가 둘 이상인 프로젝트에서 고객을 정하지 않고 첫 방에 걸면, 그 링크를 받은 다른 고객이 남의 방을 본다.
+//   반환: { clientId } | { error: { code, status } }. 고객이 하나면 그 고객, 없으면 null(옛 동작 — 주인 없는 방).
+async function guestLinkClientOf(project, raw) {
+  const rows = await ProjectClient.findAll({
+    where: { project_id: project.id, client_id: { [Op.ne]: null } }, attributes: ['client_id'],
+  });
+  const linked = [...new Set(rows.map((r) => Number(r.client_id)))];
+  const want = raw !== undefined && raw !== null && raw !== '' ? Number(raw) : null;
+  if (want) {
+    if (!linked.includes(want)) return { error: { code: 'client_not_in_project', status: 400 } };
+    return { clientId: want };
+  }
+  if (linked.length >= 2) return { error: { code: 'client_required', status: 400 } };
+  return { clientId: linked[0] || null };
+}
+
 router.get('/:id/guest-links', authenticateToken, async (req, res, next) => {
   try {
     const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
@@ -994,8 +1011,18 @@ router.get('/:id/guest-links', authenticateToken, async (req, res, next) => {
     //   여기 kind 필터가 없어서 **사람이 링크로 둔갑해** 목록에 섞였다 — 힌트가 '------' 인 행이
     //   그것이다(Irene 2026-09-10: "그 아래 코드 같은 건 뭐지?").
     //   대화방 경로(routes/guest_admin.js)는 같은 이유로 이미 kind:'shared' 를 걸고 있었다.
+    // ?client_id= 가 있으면 그 고객의 방에 걸린 링크만(고객마다 링크가 따로다).
+    const linkWhere = { project_id: project.id, business_id: project.business_id, scope: 'project', kind: 'shared', revoked_at: null };
+    if (req.query.client_id) {
+      const pick = await guestLinkClientOf(project, req.query.client_id);
+      if (pick.error) return errorResponse(res, pick.error.code, pick.error.status);
+      const { findClientChannel } = require('../services/project_channel');
+      const cv = await findClientChannel(project.id, pick.clientId);
+      if (!cv) return successResponse(res, []);
+      linkWhere.conversation_id = cv.id;
+    }
     const rows = await GuestLink.findAll({
-      where: { project_id: project.id, business_id: project.business_id, scope: 'project', kind: 'shared', revoked_at: null },
+      where: linkWhere,
       order: [['id', 'DESC']],
       limit: 50,
     });
@@ -1035,8 +1062,14 @@ router.post('/:id/guest-links', authenticateToken, async (req, res, next) => {
     if (project.status === 'closed') return errorResponse(res, 'project_closed', 409);
 
     // 링크가 걸릴 방 — 있으면 그 방(보관된 것도 포함), 하나도 없으면 만든다. 판단은 서버에.
-    const { ensureProjectCustomerChannel } = require('../services/project_channel');
-    const { conversation: conv } = await ensureProjectCustomerChannel(project, req.user.id);
+    // 고객마다 방이 따로다 — 고객을 정하고 그 고객의 방에 건다. 고객이 없으면 옛 동작(주인 없는 고객 채널).
+    const pick = await guestLinkClientOf(project, req.body?.client_id ?? req.query.client_id);
+    if (pick.error) return errorResponse(res, pick.error.code, pick.error.status);
+    const { ensureProjectCustomerChannel, ensureClientChannel } = require('../services/project_channel');
+    const { conversation: conv } = pick.clientId
+      ? await ensureClientChannel(project, pick.clientId, req.user.id)
+      : await ensureProjectCustomerChannel(project, req.user.id);
+    if (!conv) return errorResponse(res, 'client_not_found', 404);
 
     // 발급 가능 판정은 대화방 발급과 **같은 함수**다(services/guest_link.js). 복사본을 두지 않는다.
     const blocked = await assertGuestLinkIssuable(conv, project.business_id);

@@ -913,7 +913,9 @@
     "errGeneric": "Could not prepare the client channel. Please try again shortly.",
     "projectLink": "External view link",
     "projectLinkLead": "A link to view {{name}} progress and tasks — and ask questions — without signing in. Share it by chat or email.",
-    "projectLinkLive": "External view link — currently open"
+    "projectLinkLive": "External view link — currently open",
+    "pickClientTitle": "Which client is this link for?",
+    "pickClientLead": "This project has more than one client. Each client has their own chat, so each gets their own link."
   },
   "duplicate": {
     "failed": "Could not duplicate. Please try again shortly."

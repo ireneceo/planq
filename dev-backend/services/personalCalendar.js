@@ -263,6 +263,8 @@ function nextDay(dateStr) {
   return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
 }
 
+// ★ 구글 원본 개인 일정은 **지금 고른 캘린더**(calendarIdOf)에서 고친다 — 화면 오버레이가 그 캘린더에서 읽기 때문이다.
+//   캘린더를 바꾸기 전에 받아 둔 화면에서 옛 캘린더의 일정을 고치면 404 가 난다(Fable 2026-10-07 관찰 — 1차에서 감수).
 async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null } = {}) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });

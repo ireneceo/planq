@@ -340,7 +340,11 @@ async function findLiveSharedLink({ businessId, scope, projectId = null, convers
     scope: sc,
     expires_at: { [Op.gt]: new Date() },
   };
-  if (sc === 'project') where.project_id = projectId;
+  if (sc === 'project') {
+    where.project_id = projectId;
+    // 프로젝트 링크도 **고객의 방마다** 하나다(고객 채널 = 프로젝트 × 고객). 옛 링크는 그 방 그대로라 계속 재사용된다.
+    if (conversationId) where.conversation_id = conversationId;
+  }
   else if (sc === 'conversation') where.conversation_id = conversationId;
   // workspace 는 좁히는 조건이 없다 — business_id + scope 가 곧 자리다.
   return GuestLink.findOne({ where, order: [['id', 'DESC']], transaction });
