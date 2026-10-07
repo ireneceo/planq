@@ -49,6 +49,21 @@
                 <data android:pathPrefix="/task" />
                 <data android:pathPrefix="/notifications" />
             </intent-filter>
+            <!-- 다른 앱의 «공유» → PlanQ (#434). mimeType 은 웹 공유(public/manifest.json share_target.accept)와
+                 **같은 목록**이다 — 한쪽만 늘리면 웹과 앱이 받는 파일이 갈라진다. 받은 뒤는 ShareReceivePlugin → /share-receive. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/msword" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="application/vnd.ms-excel" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/zip" />
+            </intent-filter>
             <!--
               custom scheme fallback — App Links(autoVerify) 는 assetlinks.json 서빙 후에만 발화한다.
               그 전에도, 그리고 서버 302 redirect 체인에서 App Links 가 안 먹는 경우에도

@@ -9,6 +9,7 @@
 import { useCallback, useEffect } from 'react';
 import { useChromeNav } from '../hooks/useChromeNav';
 import { isNativeApp, nativePlatform } from '../services/native';
+import { bindNativeShare } from '../services/nativeShare';
 import { clearPair } from '../services/oauth';
 import { markDeepLinkInflight, markDeepLinkArrived } from '../services/nativePush';
 import { installNativeLinkRouting } from '../services/nativeLinks';
@@ -212,7 +213,9 @@ export default function NativeBridge() {
           const browserHandle = await Browser.addListener('browserFinished', () => {
             window.dispatchEvent(new CustomEvent('planq:oauth-dismissed'));
           });
-          cleanupNative = () => { urlHandle.remove(); backHandle.remove(); browserHandle.remove(); };
+          // #434 — 다른 앱의 «공유» 로 들어온 파일 → 웹 공유와 같은 /share-receive 화면(services/nativeShare)
+          const unbindShare = await bindNativeShare((path) => deepLinkNav(path));
+          cleanupNative = () => { urlHandle.remove(); backHandle.remove(); browserHandle.remove(); unbindShare(); };
         } catch { /* 플러그인 미가용 — 무시 */ }
       })();
     }

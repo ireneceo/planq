@@ -8,7 +8,7 @@
 | 부분 | 상태 |
 |---|---|
 | ① 공유 받은 뒤 화면 (`/share-receive`, 웹·앱 공용) | ✅ 2026-09-29 — 대화방 고르기 · 저장 위치(회사 파일/프로젝트 → 폴더 · 새 폴더) · 문서가 글·첨부를 받음. 카나리 `--suite sharereceive` |
-| ② 안드로이드 공유 수신 | ⏳ 설계만 — 이 서버에 Android SDK 가 없어 빌드·실기기 검증 불가 |
+| ② 안드로이드 공유 수신 | ✅ 코드 2026-10-07 — **새 앱 빌드(Play)가 나가야 사용자에게 닿는다** (아래 «안드로이드 — 구현») |
 | ② iOS Share Extension | ⏳ 설계만 — **Apple 개발자 계정 작업이 먼저** (아래 전제) |
 
 ## 핵심 결정 — 입구는 하나다
@@ -20,7 +20,20 @@
 
 앱은 원격 껍데기(`server.url`)라 JS 는 서버에서 오지만, **플러그인은 앱 바이너리 안에 있어야** 한다 → 새 앱 빌드가 필요하다.
 
-## 안드로이드
+## 안드로이드 — 구현 (2026-10-07, [Opus])
+
+- 외부 플러그인 없이 **우리 플러그인 한 파일**: `android/app/src/main/java/app/planq/ShareReceivePlugin.java`
+  (MainActivity 가 `registerPlugin`). 받은 파일을 앱 캐시 `share-in/` 로 복사만 한다 — 파일당 50MB · 합 100MB · 10개, 넘으면 건너뛴다.
+  후보였던 `@capgo/capacitor-share-target` 은 관리가 8.x(Capacitor 8)로 넘어가 7.x 는 멈춰 있다 — 바이너리에 남의 코드를 넣지 않았다.
+- JS `services/nativeShare.ts` 가 웹 공유(sw.js)와 **같은 캐시 형식**으로 옮기고 `/share-receive?shared=1&n=…` 로 보낸다. `NativeBridge` 가 묶는다.
+- intent-filter `SEND`·`SEND_MULTIPLE`, mimeType 은 manifest.json share_target.accept 와 같은 목록.
+- 검증(에뮬레이터 API 34, dev 를 가리키는 디버그 APK): 파일 앱 → 공유 시트에 **PlanQ 가 뜬다** → 누르면 «PlanQ 로 공유» 화면에
+  `share-test.png 8.5 KB`(원본 8,659바이트) — **켜져 있을 때 ✅ · 꺼져 있을 때(콜드 스타트) ✅**. 회귀 `--suite sharereceive` 0 실패.
+  ★ `adb shell am start … --grant-read-uri-permission` 으로는 **사진 읽기 권한이 넘어가지 않아** 파일 0개로 보인다(셸이 MediaStore 권한을 못 넘김).
+  실제 공유 시트(파일 앱)로 재야 한다 — 이것 때문에 «파일이 안 붙는다» 로 오판할 뻔했다.
+- 빌드 환경: 이 서버 JDK 는 17 뿐이라 Capacitor 7(21 필요) 빌드가 안 된다. 검증 때는 작업 임시 폴더에 JDK 21 을 받아 썼다(시스템 무변경). CI(Codemagic)는 java 21.
+
+## 안드로이드 (원래 설계)
 
 1. `AndroidManifest.xml` 의 MainActivity 에 intent-filter 추가: `ACTION_SEND` · `ACTION_SEND_MULTIPLE`, mimeType `image/*` · `application/pdf` ·
    오피스 문서 · `text/plain` · `application/zip`(manifest.json share_target 의 accept 와 **같은 목록**).
