@@ -514,7 +514,9 @@
       "shortcutOpen": "Open in Google Docs",
       "shortcutUnresolved": "Could not read the link. The file may be damaged or you may not have access.",
       "clickToOpen": "Click to open — formats we cannot show are downloaded",
-      "expand": "View larger"
+      "expand": "View larger",
+      "loadingImage": "Loading image…",
+      "quickView": "Quick view"
     },
     "wsUpload": {
       "title": "Which project should these go to?",

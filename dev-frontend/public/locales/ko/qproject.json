@@ -514,7 +514,9 @@
       "shortcutOpen": "구글 문서 열기",
       "shortcutUnresolved": "링크를 읽지 못했습니다. 원본 파일이 손상되었거나 접근 권한이 없습니다.",
       "clickToOpen": "눌러서 열기 — 앱에서 못 여는 형식은 내려받습니다",
-      "expand": "크게 보기"
+      "expand": "크게 보기",
+      "loadingImage": "이미지 불러오는 중…",
+      "quickView": "크게 보기"
     },
     "wsUpload": {
       "title": "어느 프로젝트에 업로드할까요?",

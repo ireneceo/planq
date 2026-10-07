@@ -20,7 +20,9 @@ export const PreviewArea: React.FC<{
   file: ProjectFile; businessId: number; shortcutUrl?: string | null;
   /** 이 파일을 «연다» — 헤더의 [새 탭에서 열기] 와 **같은 문**이다(두 곳이 따로 열면 갈라진다). */
   onOpen?: () => void;
-}> = ({ file, businessId, shortcutUrl, onOpen }) => {
+  /** 'full' — 크게 보기 창 안에서 그린다(돋보기 없이 큰 것을 바로). 목록의 빠른 보기도 이것을 쓴다. */
+  mode?: 'inline' | 'full';
+}> = ({ file, businessId, shortcutUrl, onOpen, mode = 'inline' }) => {
   const { t } = useTranslation('qproject');
   const { open: openLightbox, lightbox } = useImageLightbox();
   // ★ 훅은 어떤 early return 보다 먼저 — 조건부 훅은 실브라우저에서만 터진다(React #310).
@@ -83,6 +85,10 @@ export const PreviewArea: React.FC<{
   const [imgFailed, setImgFailed] = useState(false);
   // 크게 보기 — 모든 미리보기에 돋보기(2026-10-07 Irene: «모든 미리보기는 확대해서 전체보기 가능하게»)
   const [expanded, setExpanded] = useState(false);
+  // 이미지가 실제로 그려졌는가 — 받는 동안 상자가 0 으로 접혀 «아무것도 안 나오고 아래 내용이 올라온» 것을 막는다
+  //   (운영 front_v4.jpg — Drive 저장 이미지는 처음 받을 때 Drive 를 다녀오고, 목록 썸네일들과 연결을 나눠 쓴다).
+  const [imgLoaded, setImgLoaded] = useState(false);
+  useEffect(() => { setImgLoaded(false); }, [file.id, file.preview_url]);
   useEffect(() => {
     if (!isPdf || !file.download_url || file.download_url === '#') { setPdfUrl(null); return; }
     let alive = true;
@@ -106,10 +112,21 @@ export const PreviewArea: React.FC<{
 
   const hasValidUrl = (u?: string) => !!u && u !== '#' && u.trim().length > 0;
 
-  // 미리보기 + 우상단 돋보기 + 크게 보기 창. small 은 상세 칸에 맞춘 것, big 은 창 높이를 채우는 같은 내용이다.
+  const ImgLoading = styled.span`
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:0.8125rem;color:#64748B;pointer-events:none;
+`;
+const FullImageBtn = styled.button`
+  flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;
+  padding:0;border:none;background:#F8FAFC;border-radius:10px;cursor:zoom-in;
+`;
+const FullImage = styled.img`max-width:100%;max-height:100%;width:auto;height:auto;display:block;object-fit:contain;`;
+// 미리보기 + 우상단 돋보기 + 크게 보기 창. small 은 상세 칸에 맞춘 것, big 은 창 높이를 채우는 같은 내용이다.
   //   onZoom 을 주면(이미지) 창 대신 그것을 연다 — 이미지에는 이미 확대·원본 보기 라이트박스가 있다.
   const zoomLabel = t('docs.preview.expand', { defaultValue: '크게 보기' }) as string;
-  const expandable = (small: React.ReactNode, big?: () => React.ReactNode, onZoom?: () => void) => (
+  const expandable = (small: React.ReactNode, big?: () => React.ReactNode, onZoom?: () => void) => mode === 'full' ? (
+    <>{big ? big() : small}</>
+  ) : (
     <ExpandWrap>
       {small}
       <ExpandBtn type="button" data-testid="file-preview-expand" title={zoomLabel} aria-label={zoomLabel}
@@ -151,16 +168,27 @@ export const PreviewArea: React.FC<{
     const zoomImage = () => openLightbox([{ src: withW(full, 1600) || full, fullSrc: full, alt: file.file_name }], 0);
     return expandable(
       <>
-        <PreviewImageBtn type="button"
+        <PreviewImageBtn type="button" $loading={!imgLoaded}
           onClick={zoomImage}
           title={t('docs.preview.zoom', '클릭하여 확대') as string}>
+          {!imgLoaded && <ImgLoading>{t('docs.preview.loadingImage', { defaultValue: '이미지 불러오는 중…' }) as string}</ImgLoading>}
           {/* ★ 안 보이면 **왜 안 보이는지** 말한다. svg 처럼 서버가 안전을 위해 inline 을 막는
               형식은 여기서 조용히 깨진 채 빈 칸으로 남아 있었다(운영 3건). */}
-          <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} onError={() => setImgFailed(true)} />
+          <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} fetchPriority="high"
+            onLoad={() => setImgLoaded(true)} onError={() => setImgFailed(true)} />
         </PreviewImageBtn>
         {lightbox}
       </>,
-      undefined, zoomImage,
+      // 크게 보기 창(목록 빠른 보기) — 창 크기에 맞춰 크게. 누르면 원본 보기 라이트박스.
+      () => (
+        <>
+          <FullImageBtn type="button" onClick={zoomImage} title={t('docs.preview.zoom', '클릭하여 확대') as string}>
+            <FullImage src={withW(full, 1600)} alt={file.file_name} onError={() => setImgFailed(true)} />
+          </FullImageBtn>
+          {lightbox}
+        </>
+      ),
+      zoomImage,
     );
   }
   if (kind && !textErr) {
@@ -274,8 +302,11 @@ const PvShortcutLink = styled.a`
   &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
 `;
 
-const PreviewImageBtn = styled.button`
+const PreviewImageBtn = styled.button<{ $loading?: boolean }>`
+  position:relative;
   display:flex;align-items:center;justify-content:center;
+  /* 받는 동안 자리를 잡아 둔다 — 0 높이로 접히면 아래 내용이 올라와 «아무것도 안 나온다» 로 보인다 */
+  ${(p) => (p.$loading ? 'min-height:200px;' : '')}
   width:100%;padding:0;border:none;background:#F8FAFC;border-radius:10px;cursor:zoom-in;
   /* 상자 높이는 화면에 따라 — 작은 화면에서 420px 고정은 너무 크고, 큰 화면에선 너무 작았다. */
   max-height:min(60vh, 560px);
@@ -430,3 +461,13 @@ const PreviewTableWrap = styled.div<{ $full?: boolean }>`
 `;
 
 export default PreviewArea;
+
+/** 목록 «빠른 보기» 를 둘 수 있는 파일인가 — 미리보기가 무엇을 그리는지와 같은 판정(이미지·PDF·영상·문서·압축). */
+export function canQuickView(file: Pick<ProjectFile, 'mime_type' | 'file_name' | 'preview_url' | 'download_url'>): boolean {
+  const ext = extOf(file.file_name);
+  const has = (u?: string | null) => !!u && u !== '#';
+  if (isImage(file.mime_type, file.file_name)) return has(file.preview_url);
+  if (!has(file.download_url)) return false;
+  return file.mime_type === 'application/pdf' || ext === 'pdf' || isVideo(file.mime_type, file.file_name)
+    || !!viewerKindOf(file.mime_type, ext) || file.mime_type === 'application/zip' || ext === 'zip';
+}
