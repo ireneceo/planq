@@ -955,7 +955,7 @@ import PanelHeader, { PanelSubTitle, DetailMetaBar, DetailMetaLeft, DetailMetaRi
 
 | 껍데기 | 쓰는 탭 | 계약 |
 |---|---|---|
-| `ProjectTabPane` | 개요·업무·정보·보고서·이력·거래·고객·상세정보·설정 | PageShell Body 여백(20px) 안에서 그린다. **자체 padding 금지** |
+| `ProjectTabPane` | 개요·업무·일정·정보·보고서·이력·거래·고객·상세정보·설정 | PageShell Body 여백(20px) 안에서 그린다. **자체 padding 금지** |
 | `ProjectTabFull` | 문서·노트·**파일** | 본체를 통째로 얹는 탭. 세로 여백만 상쇄해 탭 막대에 붙이고(시작차 0), **좌우는 다른 탭과 같은 자리**. 자기 상자 안에서 스크롤한다 |
 
 **새 탭을 만들면 둘 중 하나를 쓴다. 직접 styled 를 선언하면 반드시 갈라진다** — 2026-09-14 실측

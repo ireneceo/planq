@@ -32,6 +32,8 @@ interface Props {
   initialDescription?: string;
   initialAllDay?: boolean;
   projects: Array<{ id: number; name: string; color?: string | null }>;
+  /** 프로젝트 필터·프로젝트 «일정» 탭에서 열면 그 프로젝트로 시작한다(#461). */
+  initialProjectId?: number | null;
   businessId?: number | null;
   onClose: () => void;
   /** 만든 일정을 돌려주면 미팅자료 알림(고른 경우)을 이어서 보낸다(#411). */
@@ -51,7 +53,7 @@ const TIME_OPTIONS = (() => {
   return arr;
 })();
 
-const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, businessId, onClose, onCreate }) => {
+const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, initialProjectId, businessId, onClose, onCreate }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
   const { user } = useAuth();
@@ -151,7 +153,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       }
     }).catch(() => {});
   }, [businessId]);
-  const [projectId, setProjectId] = useState<number | ''>('');
+  const [projectId, setProjectId] = useState<number | ''>(initialProjectId || '');
   // 프로젝트를 고르면 **그 프로젝트의 멤버·고객만** 후보가 된다. 못 읽으면 전체로 떨어진다
   //   (좁히지 못했다고 고를 수 없게 만들면 «아무도 못 넣는» 상태가 된다).
   const [projScope, setProjScope] = useState<{ users: Set<number>; clients: Set<number> } | null>(null);

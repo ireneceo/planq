@@ -5,7 +5,6 @@ import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import styled from 'styled-components';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import PageShell from '../../components/Layout/PageShell';
 import CalendarSyncNotice from '../../components/Calendar/CalendarSyncNotice';
 import { useCalendarSyncStatus } from '../../hooks/useCalendarSyncStatus';
 import MonthView from './MonthView';
@@ -40,10 +39,13 @@ import { mapApiError } from '../../utils/apiError';
 // ─── URL 싱크 ─── (calendarUrl.ts)
 import { readUrl } from './calendarUrl';
 import CalendarProjectFilter, { byProject } from './ProjectFilter';
+import CalendarFrame, { useCalendarOptions } from './CalendarFrame';
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
-const QCalendarPage: React.FC = () => {
+// scope — 프로젝트 상세 «일정» 탭에 얹을 때(#461). 그 프로젝트로 고정·주소 안 건드림·머리줄 없음.
+const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; projectId: number } }> = ({ scope: pageScope }) => {
+  const embedded = !!pageScope;
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tErr } = useTranslation('errors');
   const location = useLocation();
@@ -54,12 +56,12 @@ const QCalendarPage: React.FC = () => {
   const bizId = user?.business_id || null;
   const myUserId = user?.id ? Number(user.id) : null;
 
-  const initial = useMemo(() => readUrl(location.search), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const initial = useMemo(() => readUrl(embedded ? '' : location.search), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [anchor, setAnchor] = useState<Date>(initial.date);
   const holidays = useWorkspaceHolidays(bizId, anchor);   // #424 — 휴일 표시(정본: 설정 › 근태 관리)
   const [view, setView] = useState<CalendarViewMode>(initial.view);
   const [scope, setScope] = useState<CalendarScope>(initial.scope);
-  const [projectId, setProjectId] = useState<number | null>(initial.projectId);
+  const [projectId, setProjectId] = useState<number | null>(pageScope ? pageScope.projectId : initial.projectId);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(initial.eventId);
   // N+63 P2a 후속 — 사용자가 클릭한 instance 의 date (YYYY-MM-DD). EventDrawer modal single 선택 시 사용
   const [selectedInstanceDate, setSelectedInstanceDate] = useState<string | null>(null);
@@ -76,7 +78,7 @@ const QCalendarPage: React.FC = () => {
   //   에서 끝난다. ref 를 두면 한 번 쓰인 뒤 영구 잠겨 **같은 페이지에서 두 번째로 말한 내용이 통째로 버려진다**
   //   (시트는 RightDock 소속이라 /calendar→/calendar 이동은 remount 를 일으키지 않는다).
   useEffect(() => {
-    if (calSp.get('create') !== '1') return;
+    if (embedded || calSp.get('create') !== '1') return;   // 얹혔을 때 주소는 주인(프로젝트) 것이다
     const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? takeVoiceHandoff('event');
     if (voice) {
       const when = parseVoiceWhen(voice.when_start);
@@ -133,7 +135,7 @@ const QCalendarPage: React.FC = () => {
 
   // 업무 상세 드로어 (Q Task 페이지로 이동하지 않고 캘린더 위에 오버레이)
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(() => {
-    const q = new URLSearchParams(location.search).get('task');
+    const q = embedded ? null : new URLSearchParams(location.search).get('task');
     return q ? Number(q) : null;
   });
   const [members, setMembers] = useState<Array<{ user_id: number; name: string }>>([]);
@@ -265,6 +267,7 @@ const QCalendarPage: React.FC = () => {
 
   // URL 싱크 반영
   useEffect(() => {
+    if (embedded) return;   // 프로젝트 탭에 얹혔을 때는 주인의 주소를 건드리지 않는다
     const p = new URLSearchParams();
     // Fable A-4 — view 를 항상 기록. 폰 기본값(agenda)이라 month 선택 시 옛 코드는 안 써서 새로고침하면
     //   agenda 로 되돌아가던 문제. 디바이스 기본값은 무파라미터 최초 방문에만 적용(readUrl defaultView).
@@ -276,7 +279,7 @@ const QCalendarPage: React.FC = () => {
     if (selectedTaskId != null) p.set('task', String(selectedTaskId));
     const qs = p.toString();
     navigate({ pathname: '/calendar', search: qs ? `?${qs}` : '' }, { replace: true });
-  }, [view, anchor, scope, projectId, selectedEventId, selectedTaskId, navigate]);
+  }, [embedded, view, anchor, scope, projectId, selectedEventId, selectedTaskId, navigate]);
 
   // 4필터 적용 — events + task-as-events + 개인 Google 일정 통합
   const filteredEvents = useMemo<CalendarItem[]>(() => {
@@ -490,19 +493,7 @@ const QCalendarPage: React.FC = () => {
 
   const days = view === 'week' ? getWeekDays(anchor, weekStart) : view === 'day' ? [anchor] : [];
 
-  const viewOptions = useMemo(() => [
-    { value: 'agenda', label: t('view.agenda', '아젠다') },
-    { value: 'month', label: t('view.month') },
-    { value: 'week', label: t('view.week') },
-    { value: 'day', label: t('view.day') },
-  ], [t]);
-
-  const scopeOptions = useMemo(() => [
-    { value: 'all', label: t('filter.all') },
-    { value: 'mine', label: t('filter.mine') },
-    { value: 'tasks', label: t('filter.tasks') },
-    { value: 'events', label: t('filter.events') },
-  ], [t]);
+  const { viewOptions, scopeOptions } = useCalendarOptions();
 
   const headerActions = (
     <ActionsRow>
@@ -516,7 +507,7 @@ const QCalendarPage: React.FC = () => {
         isSearchable={false}
         menuPlacement="bottom"
       />
-      <CalendarProjectFilter projects={projects} value={projectId} onChange={setProjectId} />
+      {!embedded && <CalendarProjectFilter projects={projects} value={projectId} onChange={setProjectId} />}
       <PlanQSelect size="sm"
         value={viewOptions.find(o => o.value === view)}
         onChange={(opt: unknown) => {
@@ -537,7 +528,7 @@ const QCalendarPage: React.FC = () => {
   );
 
   return (
-    <PageShell title={t('title')} actions={headerActions}>
+    <CalendarFrame embedded={embedded} title={t('title')} actions={headerActions}>
       {/* ★ 이 안내는 **워크스페이스 축**이다. Meet 축으로 넓어진 gcal* 를 먹이면 개인 연동만 한
         * 사용자에게 "워크스페이스 연동됨" 이 거짓으로 뜨고 workspaceBroken 오판까지 난다. */}
       <CalendarSyncNotice
@@ -673,6 +664,7 @@ const QCalendarPage: React.FC = () => {
           initialDescription={voiceSeed?.description}
           initialAllDay={voiceSeed?.allDay}
           projects={projects}
+          initialProjectId={projectId}
           businessId={bizId}
           onClose={() => { setShowNewModal(false); setVoiceSeed(null); }}
           onCreate={handleCreate}
@@ -687,7 +679,7 @@ const QCalendarPage: React.FC = () => {
         <MeetWarnToast role="status" onClick={() => setMeetWarnMsg(null)}>{meetWarnMsg}</MeetWarnToast>
       )}
       {loading && <LoadingBar />}
-    </PageShell>
+    </CalendarFrame>
   );
 };
 

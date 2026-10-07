@@ -19,6 +19,8 @@ import ProjectShareLinkButton from './ProjectShareLinkButton';
 // 노트 탭 = **Q Note 본체**(문서 탭이 PostsPage 를 그대로 쓰는 것과 같은 방식, 2026-09-13).
 //   목록만 베껴 그리면 프로젝트 안에서 회의록을 만들지도 고치지도 못한다.
 const QNotePage = React.lazy(() => import('../QNote/QNotePage'));
+// 일정 탭 = Q calendar 본체를 프로젝트 scope 로(#461).
+const QCalendarPage = React.lazy(() => import('../QCalendar/QCalendarPage'));
 // 나머지 탭은 지연 로드(lazy) — 프로젝트 열 때 모든 탭 코드(+무거운 에디터 tiptap)를 한꺼번에
 // 받던 것을 탭 클릭 시점 로드로 분리. 초기 페이지 로드 대폭 경량화.
 const TasksTab = React.lazy(() => import('./TasksTab'));
@@ -141,9 +143,9 @@ const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 // 사이클 N+14 — 'info' 의미 분리:
 //   'details' = 프로젝트 메타데이터 편집 (옛 'info' 폼). 라벨 "상세정보".
 //   'info'    = Q info (KbDocument scope='project'). 라벨 "정보". 문서 다음 위치.
-type TabKey = 'dashboard' | 'tasks' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'notes' | 'transactions' | 'report' | 'history' | `doc-${number}`;
+type TabKey = 'dashboard' | 'tasks' | 'calendar' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'notes' | 'transactions' | 'report' | 'history' | `doc-${number}`;
 // 고객(client)에게 숨기는 탭 — 내부 캔버스(전략·403)·고객목록·거래(청구)·보고서·상세메타. 고객은 협업 탭(업무·파일·문서·정보)만.
-const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'clients', 'transactions', 'report', 'details', 'settings', 'history'];
+const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'calendar', 'clients', 'transactions', 'report', 'details', 'settings', 'history'];
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean; display_name?: string | null } }
 
@@ -236,7 +238,7 @@ const QProjectDetailPage: React.FC = () => {
      티가 안 났지만, 탭이 URL 을 따라가게 되자(뒤로가기 수정) 그 두 탭은 누르는 즉시
      `?tab=details` → 목록에 없음 → dashboard 로 되돌려져 **열 수 없는 탭**이 됐다.
      (`--suite projecttabs` 가 3폭 모두에서 잡았다 — 목록에 값을 더할 땐 이 배열을 같이 본다.) */
-  const validTabs: TabKey[] = ['dashboard', 'tasks', 'info', 'clients', 'files', 'docs', 'notes', 'transactions', 'report', 'history', 'details', 'settings'];
+  const validTabs: TabKey[] = ['dashboard', 'tasks', 'calendar', 'info', 'clients', 'files', 'docs', 'notes', 'transactions', 'report', 'history', 'details', 'settings'];
   const rawTab = searchParams.get('tab');
   // 이전 ?tab=process 진입 호환 — docs 로 fallback
   // doc-:id 도 허용 (사용자가 메뉴에 추가한 특정 문서)
@@ -731,9 +733,10 @@ const QProjectDetailPage: React.FC = () => {
       <TabBar>
         {/* ★ 탭 순서 — Irene 2026-09-13 지시 그대로:
             개요 · 업무 · 문서 · 노트 · 파일 · 정보 · 보고서 · 히스토리 · 거래 · 고객 · 상세정보 · 설정
+            + 2026-10-07 #461 «일정» 을 업무 다음에(Irene: "프로젝트 탭에 일정도 나와야")
             (만드는 것 → 쌓이는 것 → 보는 것 → 관리 순이다) */}
         {/* 고객(client)은 협업 탭만 — 캔버스(내부 전략·403)·고객목록·거래·보고서·상세는 숨김 (권한 매트릭스 detail-only) */}
-        {(['dashboard', 'tasks', 'docs', 'notes', 'files', 'info', 'report', 'history', 'transactions', 'clients', 'details', 'settings'] as TabKey[])
+        {(['dashboard', 'tasks', 'calendar', 'docs', 'notes', 'files', 'info', 'report', 'history', 'transactions', 'clients', 'details', 'settings'] as TabKey[])
           .filter((k) => !(isClient && CLIENT_HIDDEN_TABS.includes(k)))
           .map((k) => (
           <Tab key={k} $active={tab === k} data-testid={`project-tab-${k}`} onClick={() => setTab(k)}>
@@ -1168,6 +1171,12 @@ const QProjectDetailPage: React.FC = () => {
           <DocsTab projectId={projectId} businessId={project.business_id}
             projectName={project.name} projectColor={project.color} />
         </ProjectTabFull>
+      )}
+      {/* 일정 — Q calendar 본체를 이 프로젝트로 고정해 얹는다(#461). 목록을 다시 그리지 않는다. */}
+      {tab === 'calendar' && (
+        <ProjectTabPane data-testid="project-tab-body-calendar">
+          <QCalendarPage scope={{ type: 'project', businessId: project.business_id, projectId }} />
+        </ProjectTabPane>
       )}
       {tab === 'docs' && (
         <ProjectTabFull data-testid="project-tab-body-docs">

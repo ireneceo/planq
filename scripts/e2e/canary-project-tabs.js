@@ -17,7 +17,8 @@ const { launch, login, goto, gotoSPA, sleep, dismissBlockers, BASE, CREDS } = re
 const results = [];
 const push = (name, pass, detail) => results.push({ name, fail: !pass, details: detail ? [detail] : [] });
 
-const EXPECTED_TABS = ['dashboard', 'tasks', 'docs', 'notes', 'files', 'info',
+// 2026-10-07 #461 — «일정»(calendar) 탭을 업무 다음에 추가(Irene 요청 — 프로젝트 관련 일정 표시).
+const EXPECTED_TABS = ['dashboard', 'tasks', 'calendar', 'docs', 'notes', 'files', 'info',
   'report', 'history', 'transactions', 'clients', 'details', 'settings'];
 
 // Node 쪽 로그인 — 화면이 아니라 API 로 대상 하나를 고른다.
@@ -225,7 +226,7 @@ async function run() {
       //   본문은 div, 탭은 button 이라 태그로 가른다.
       [...document.querySelectorAll('button[data-testid^="project-tab-"]')]
         .map((b) => b.getAttribute('data-testid').replace('project-tab-', '')));
-    push('① 탭 순서 = 개요 업무 문서 노트 파일 정보 보고서 히스토리 거래 고객 상세정보 설정',
+    push('① 탭 순서 = 개요 업무 일정 문서 노트 파일 정보 보고서 히스토리 거래 고객 상세정보 설정',
       order.join(',') === EXPECTED_TABS.join(','),
       `실제: ${order.join(' ') || '(탭 0개)'}`);
 
