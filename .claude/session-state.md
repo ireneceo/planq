@@ -10,7 +10,20 @@
 - **왜 멈췄나:** 답글은 운영 데이터 쓰기 + 보고자 알림(Irene 지시 없이 안 함). 설문 외부 응답은 무인증 공개 표면(R=1)이라 Irene 결정 뒤 Fable 설계
 - **답이 오면 할 일:** ① 배포 후 운영에서 `node scripts/feedback-reply.js <json> --apply`(배포 전이면 /tmp 로 복사) ② (가)면 표 문서 «설문으로 받기»+통계 구현 / (나)면 Fable 설계 게이트부터 ③ 숨기기면 RightDock 말하기 항목을 마이크 없는 기기에서 숨김
 
-### 답 기다림: Irene 결정 8건 (2026-10-07 · Fable B 판정)
+### 답 기다림: 결정 8건 구현분 배포 지시 + Irene 손이 필요한 4가지 (2026-10-07 · [Opus] 결정 8건 방)
+- **무엇을:** Irene «fable 판정대로 해» → 8건 전부 Fable 판정대로 구현·Fable 검증 PASS(4라운드). dev 미배포 커밋:
+  e55e24e5 고객 채널=프로젝트×고객·복사본 · 293104c6 AI 쓰기 도구 · a5e91e45 #462 일정 알림 선택 · 48e0164d 구글 캘린더 고르기 ·
+  b507d670+82b4bc0e 메일 보낸편지함·스팸함 · 774d6aab Cue 질문 분석 · 0eeb0b4b 방침 문구 · 4b27bd7e+f5964b67 외부 열람 링크 고객별
+- **왜 멈췄나:** 운영 배포·운영 데이터 쓰기·외부 계정 작업은 Irene 지시 없이 하지 않는다
+- **답이 오면 할 일:** ① /배포 — 마이그레이션 슬롯 3개(migrate-mail-folders · migrate-cue-question-analysis · migrate-customer-channel-per-client → migrate-project-client-user 순) 자동.
+  배포 직후 운영 K-DINE(방 18) Aidan 이 자기 방으로 옮겨진다 · help_question_logs 90일 소급(지금 운영 최고 8/31 → 지울 행 0)
+  ② 배포 때 Irene: 운영 `privacy_version` 올리기(재동의 창) + `PrivacyPolicy.tsx effectiveDate` 를 배포일로
+  ③ Irene: Google Cloud 콘솔 OAuth «데이터 액세스» 에 `calendar.calendarlist.readonly` 추가 후 심사 제출(이 권한 넣어서)
+  ④ Irene: ChatGPT·Claude 앱 다시 연결(새 권한 projects:write) · #462 답글(기능 반영)
+- **확인 못 함:** 네이버 Message-ID 보존(운영 네이버 개인 계정 1개·PlanQ 발송 0건) · 실제 구글 캘린더 목록/선택 저장(재연결 필요) · clientlink 카나리 ④ 태블릿·데스크탑(메모리 부족으로 끊김, 서버 검사·폰은 통과)
+
+### 답 기다림 (이전): Irene 결정 8건 (2026-10-07 · Fable B 판정) — Irene «fable 판정대로 해» → 구현 완료
+
 - **무엇을:** ①Kate·Aidan 같은 회사?·고객별 채널 ②프로젝트 복사본 고객 연결 ③AI 쓰기 보강(고객 연결·projects:write·태그 생성·메모 L1) ④메일 보낸편지함 먼저·스팸 30일·14일 ⑤Cue 질문 분석 켜짐/꺼짐·help_question_logs 90일 소급 ⑥구글 캘린더 목록 권한을 OAuth 심사에 넣기 ⑦Claude 개인/조직 겹침·운영 ChatGPT 중복 연결 정리 ⑧#462 일정 알림 선택
 - **왜 멈췄나:** 전부 정책·가시성·외부 발송·운영 데이터 결정이라 Irene 몫(Fable 도 결정을 넘김). 질문지·권고·답이 오면 할 일은 `docs/IRENE_DECISIONS_2026-10-07.md` 표 한 장, Fable 원문은 같은 문서 부록(전에는 세션 기록에만 있었다)
 - **답이 오면 할 일:** 표의 «답이 오면 할 일» 칸대로. R=1 인 1·3·4·5·8 은 구현 뒤 Fable 게이트
@@ -40,7 +53,7 @@
 
 ### 다음 할 일
 1. **배포 대기 6커밋** (⏸ Irene /배포 지시 대기 — 위 «답 기다림») (+fd9d972c 코드 블록 [+] 띠 편집 모드에서만) — 배포 후 운영 위키 시드(`ssh …prod "cd /opt/planq/backend && node seed-wiki-content.js"`) · #459 답글(체크박스 2차, 배포 후 done)
-2. **Irene 결정 대기 8건** — 질문지 정리 완료(⏸ 위 «답 기다림: 결정 8건») · `docs/IRENE_DECISIONS_2026-10-07.md`
+2. ~~Irene 결정 대기 8건~~ → **완료**(Fable 판정대로 구현·Fable PASS) · 남은 것은 위 «배포 지시 + Irene 손» 절
 3. ~~남은 피드백 5건~~ ✅ 2026-10-07 — #458 말하기(59b04893) · #434/#456 안드로이드 공유 받기(76da612a, 새 Play 빌드 필요 · iOS 는 App Group 대기) · #460 설문 의견 문서 · #457 회신 알림 언어 수정(c11cf194, 보고자 답 대기) · #415 닫기 제안 → 답글 승인 대기(위 «답 기다림»). Fable C PASS + 지적 2건 수정(a16fa23b). **dev 미배포 4커밋**
 4. 종일 일정 시간대(기기 자정 저장 → 다른 시간대에서 하루 밀림) — 구글 동기화·알림까지 걸려 Fable 설계부터
 5. Irene: ChatGPT 재연결(docs:write) · front_v4.jpg 운영 확인
