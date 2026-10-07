@@ -9,6 +9,7 @@ import { HolidayName, holidayLabel } from './holidayLook';
 import { getEventColors } from './categoryColors';
 import { bookingAttr, bookingCss, BookingTag } from './bookingLook';
 import { isTaskEvent } from './taskToEvent';
+import { layoutLanes } from './overlapLayout';
 
 interface Props {
   /** #424 — 워크스페이스 휴일(쉬는 날만, dateKey → 이름) */
@@ -160,20 +161,33 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                       <NowDot />
                     </NowLine>
                   )}
-                  {/* events */}
-                  {timed.map((e) => {
-                    const { start, end } = clipEventToDay(e.start_at, e.end_at, day);
+                  {/* events — 겹치면 나란히(overlapLayout). 판정은 그려지는 높이(최소 20분) 기준 */}
+                  {(() => {
                     const dayStart = startOfDay(day).getTime();
-                    const topMin = (start.getTime() - dayStart) / 60000;
-                    const durMin = Math.max(20, (end.getTime() - start.getTime()) / 60000);
+                    const placed = timed.map((e) => {
+                      const { start, end } = clipEventToDay(e.start_at, e.end_at, day);
+                      const topMin = (start.getTime() - dayStart) / 60000;
+                      const durMin = Math.max(20, (end.getTime() - start.getTime()) / 60000);
+                      const key = `${isTaskEvent(e) ? 't' : 'e'}-${e.id}-${e.start_at}`;
+                      return { e, start, end, topMin, durMin, key };
+                    });
+                    const lanes = layoutLanes(placed.map((p) => ({ key: p.key, startMin: p.topMin, endMin: p.topMin + p.durMin })));
+                    return placed.map((p) => ({ ...p, pos: lanes.get(p.key) || { lane: 0, lanes: 1 } }));
+                  })().map(({ e, start, end, topMin, durMin, key, pos }) => {
                     const c = getEventColors(e as CalendarEvent);
                     const isTask = isTaskEvent(e);
                     return (
                       <TimeEvent
-                        key={`${isTask ? 't' : 'e'}-${e.id}`}
+                        key={key}
+                        data-lane={pos.lane}
+                        data-lanes={pos.lanes}
                         style={{
                           top: (topMin / 60) * HOUR_HEIGHT,
                           height: (durMin / 60) * HOUR_HEIGHT,
+                          // 칸 폭을 나눠 쓴다 — 2px 바깥 여백 · 칸 사이 2px
+                          left: `calc(${(pos.lane / pos.lanes) * 100}% + 2px)`,
+                          width: `calc(${100 / pos.lanes}% - 4px)`,
+                          right: 'auto',
                         }}
                         $bg={c.bg}
                         $fg={c.fg}
