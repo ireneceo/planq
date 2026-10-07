@@ -1,4 +1,6 @@
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import { wallStringsToIso } from './calTz';
+import TzLines from './TzLines';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
@@ -55,13 +57,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const bizId = user?.business_id || null;
   // 운영 #41 — 입력 시간의 기준 타임존(워크스페이스) 안내
   const wsTz = user?.workspace_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const wsTzLabel = (() => {
-    try {
-      const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-      const parts = new Intl.DateTimeFormat(locale, { timeZone: wsTz, timeZoneName: 'short' }).formatToParts(new Date());
-      return parts.find((p) => p.type === 'timeZoneName')?.value || wsTz.split('/').pop() || wsTz;
-    } catch { return wsTz.split('/').pop() || wsTz; }
-  })();
+  const myTz = user?.timezone || null;   // 내 업무 시간대 — 다를 때만 TzLines 가 «내 시간» 줄을 그린다
   const [title, setTitle] = useState(initialTitle || '');
   const [description, setDescription] = useState(initialDescription || '');
   const [location, setLocation] = useState('');
@@ -106,6 +102,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const [matUploads, setMatUploads] = useState<File[]>([]);
   const [notifyMaterials, setNotifyMaterials] = useState(false);
   const hasMaterials = matFileIds.length + matPostIds.length + matUploads.length > 0;
+  const [matOpen, setMatOpen] = useState(false);
 
   // 종일이면 분 단위가 의미 없다 — 옵션 세트를 바꾼다(크론이 종일은 시작일 09:00 을 기준으로 잡는다).
   //   목록과 라벨은 상세 드로어와 **같은 모듈**에서 온다(reminderOptions.ts) — 각자 들고 있던
@@ -124,11 +121,11 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const reminderPassed = useMemo(() => {
     if (reminderMinutes === REMINDER_NONE || !startDate) return false;
     try {
-      const base = new Date(`${startDate}T${allDay ? '09:00' : (startTime || '09:00')}`);
+      const base = new Date(wallStringsToIso(startDate, allDay ? '09:00' : (startTime || '09:00'), wsTz));
       if (Number.isNaN(base.getTime())) return false;
       return base.getTime() - reminderMinutes * 60000 < Date.now();
     } catch { return false; }
-  }, [reminderMinutes, startDate, startTime, allDay]);
+  }, [reminderMinutes, startDate, startTime, allDay, wsTz]);
   const [visibility, setVisibility] = useState<EventVisibility>('business');
   // N+66 — 통합 visibility 5단계
   const [vis, setVis] = useState<VisibilityValue>({
@@ -289,8 +286,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       if (allDay) {
         return new Date(y, mo - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, 0).toISOString();
       }
-      const [hh, mm] = timeStr.split(':').map(Number);
-      return new Date(y, mo - 1, d, hh, mm, 0).toISOString();
+      // 입력한 시각은 **워크스페이스 시간대**의 시각이다(아래 안내 줄과 같은 말). 기기 시계로 읽지 않는다.
+      return wallStringsToIso(dateStr, timeStr, wsTz);
     };
     const sISO = mkISO(startDate, startTime);
     const eISO = mkISO(endDate, endTime, true);
@@ -427,7 +424,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
                 </TimePair>
               )}
             </DateRow>
-            {!allDay && <TzHint>{t('tz.inputBasis', { tz: wsTzLabel, defaultValue: '{{tz}} (워크스페이스 시간대) 기준' }) as string}</TzHint>}
+            {!allDay && startDate && endDate && (
+              <TzLines wsTz={wsTz} myTz={myTz} testIdPrefix="new-event"
+                startIso={wallStringsToIso(startDate, startTime, wsTz)} endIso={wallStringsToIso(endDate, endTime, wsTz)} />
+            )}
             <CalendarPicker
               isOpen={datePickerOpen}
               startDate={startDate}
@@ -458,39 +458,34 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
               ))}
             </CategoryRow>
           </Field>
+          <Grid2>
+            <Field>
+              <Label>{t('form.project')}</Label>
+              <PlanQSelect
+                size="sm"
+                isClearable
+                placeholder={tc(CONNECT_PROMPT.projectPick)}
+                options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                value={projectId === '' ? null : { value: projectId, label: projects.find((p) => p.id === projectId)?.name || '' }}
+                onChange={(opt) => setProjectId(opt ? Number((opt as { value: number | string }).value) : '')}
+              />
+            </Field>
+          </Grid2>
 
           <Field>
-            <Label>{t('form.attendees', { defaultValue: '참석자' }) as string}</Label>
-            <PlanQSelect
-              isMulti isSearchable
-              menuPlacement="auto"
-              placeholder={t('form.attendeesPh', { defaultValue: '함께할 사람을 고르세요' }) as string}
-              value={attendeeKeys.map((k) => {
-                const o = attendeeOptions.find((x) => x.value === k);
-                if (o) return { value: k, label: o.label };
-                // 프로젝트로 좁힌 뒤 범위 밖이 된 기선택 — 원시 키(`u:5`)를 보여주지 않는다.
-                const id = Number(k.slice(2));
-                const m = members.find((x) => x.user_id === id);
-                const c = clientsList.find((x) => Number(x.id) === id);
-                const name = k.startsWith('c:')
-                  ? (c?.display_name || c?.company_name || c?.biz_name)
-                  : m?.name;
-                return { value: k, label: name || `#${id}` };
-              })}
-              options={attendeeOptions}
-              onChange={(opts) => {
-                const keys: string[] = [];
-                if (Array.isArray(opts)) for (const o of opts) {
-                  const v = (o as { value: string }).value;
-                  if (v) keys.push(v);
-                }
-                setAttendeeKeys(keys);
-              }}
+            <Label>{t('form.description')}</Label>
+            <Textarea
+              rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
+              placeholder={t('form.descriptionPlaceholder')}
             />
-            <TzHint>{t('form.attendeesHint', { defaultValue: '고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다.' }) as string}</TzHint>
           </Field>
 
-          {!!businessId && <Field data-testid="new-event-materials">
+          {/* 미팅자료(첨부) — 접어 둔다(2026-10-07 Irene: "설명, 파일첨부(접어두기), 장소…"). 이미 붙인 것이 있으면 펼친 채로. */}
+          {!!businessId && !matOpen && !hasMaterials ? (
+            <AttachToggle type="button" data-testid="new-event-materials-open" onClick={() => setMatOpen(true)}>
+              + {t('materials.addToggle', { defaultValue: '미팅자료 첨부' }) as string}
+            </AttachToggle>
+          ) : (!!businessId && (<Field data-testid="new-event-materials">
             <Label>{t('materials.title')}</Label>
             <AttachmentField
               businessId={businessId}
@@ -511,97 +506,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
                 <span>{t('materials.notifyOnCreate', { count: attendeeKeys.length })}</span>
               </CheckboxLabel>
             )}
-          </Field>}
-
-          <Field>
-            <Label>{t('form.reminder', { defaultValue: '알림' }) as string}</Label>
-            <PlanQSelect
-              value={reminderOpts.find(o => o.value === reminderMinutes) || reminderOpts[0]}
-              options={reminderOpts}
-              onChange={(o) => setReminderMinutes(Number((o as { value: number } | null)?.value ?? REMINDER_NONE))}
-              isSearchable={false}
-            />
-            {/* 규칙을 설명하지 않고 **지금 상태**만 말한다 — 이미 지난 시각이면 안 간다(구글도 같다). */}
-            {reminderPassed && (
-              <TzHint>{t('form.reminderPassed', { defaultValue: '알림 시각이 이미 지나 이 일정은 알림이 가지 않습니다.' }) as string}</TzHint>
-            )}
-          </Field>
-
-          <Field>
-            <Label>{t('recurrence.label')}</Label>
-            <RecurrencePicker
-              value={rrule}
-              onChange={setRrule}
-              anchorDate={startDate}
-            />
-          </Field>
-
-          <Grid2>
-            <Field>
-              <Label>{t('form.project')}</Label>
-              <PlanQSelect
-                size="sm"
-                isClearable
-                placeholder={tc(CONNECT_PROMPT.projectPick)}
-                options={projects.map((p) => ({ value: p.id, label: p.name }))}
-                value={projectId === '' ? null : { value: projectId, label: projects.find((p) => p.id === projectId)?.name || '' }}
-                onChange={(opt) => setProjectId(opt ? Number((opt as { value: number | string }).value) : '')}
-              />
-            </Field>
-          </Grid2>
-          {/* N+66 — 공유 범위 통합 (KnowledgePage 와 동일 VisibilityField). 옛 personal/business 2 select 폐지. */}
-          <Field>
-            <Label>{t('form.visibility')}</Label>
-            <VisibilityField
-              value={vis}
-              onChange={(v) => {
-                setVis(v);
-                // legacy visibility state 도 동기 (backward compat)
-                setVisibility(v.vlevel === 'L1' ? 'personal' : 'business');
-                // L2-project 선택 시 projectId 도 sync
-                if (v.variant === 'L2_project' && v.project_id) setProjectId(v.project_id);
-              }}
-              projects={projects.map(p => ({ id: p.id, name: p.name }))}
-              clients={clientsList.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
-              members={members}
-            />
-          </Field>
-
-          {/* 구글 캘린더 연동 — 팀/개인은 **연결된 구글 계정이 다르다**. 각각 켜고 끈다.
-              공개 범위 바로 아래에 둔다 — 어디로 나가는지가 공개 범위에 달렸기 때문.
-              (화상 미팅 링크 항목 아래에 두면 회의 기능에 종속돼 보인다 — Irene 지적) */}
-          {(workspaceCanWrite || personalCalWritable) && (
-            <Field>
-              <Label>{t('form.gcalSection')}</Label>
-              {workspaceCanWrite && (
-                <GcalRow $disabled={isPrivateVis}>
-                  <input
-                    type="checkbox"
-                    checked={gcalSyncWorkspace && !isPrivateVis}
-                    disabled={isPrivateVis}
-                    onChange={(e) => setGcalSyncWorkspace(e.target.checked)}
-                  />
-                  <span>
-                    {t('form.gcalTeam')}
-                    <GcalHint>{isPrivateVis ? t('form.gcalTeamBlocked') : t('form.gcalTeamHint')}</GcalHint>
-                  </span>
-                </GcalRow>
-              )}
-              {personalCalWritable && (
-                <GcalRow>
-                  <input
-                    type="checkbox"
-                    checked={gcalSyncPersonal}
-                    onChange={(e) => setGcalSyncPersonal(e.target.checked)}
-                  />
-                  <span>
-                    {t('form.gcalPersonal')}
-                    <GcalHint>{t('form.gcalPersonalHint')}</GcalHint>
-                  </span>
-                </GcalRow>
-              )}
-            </Field>
-          )}
+          </Field>))}
 
           <Field>
             <Label>{t('form.location')}</Label>
@@ -677,12 +582,112 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
           </Field>
 
           <Field>
-            <Label>{t('form.description')}</Label>
-            <Textarea
-              rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
-              placeholder={t('form.descriptionPlaceholder')}
+            <Label>{t('form.attendees', { defaultValue: '참석자' }) as string}</Label>
+            <PlanQSelect
+              isMulti isSearchable
+              menuPlacement="auto"
+              placeholder={t('form.attendeesPh', { defaultValue: '함께할 사람을 고르세요' }) as string}
+              value={attendeeKeys.map((k) => {
+                const o = attendeeOptions.find((x) => x.value === k);
+                if (o) return { value: k, label: o.label };
+                // 프로젝트로 좁힌 뒤 범위 밖이 된 기선택 — 원시 키(`u:5`)를 보여주지 않는다.
+                const id = Number(k.slice(2));
+                const m = members.find((x) => x.user_id === id);
+                const c = clientsList.find((x) => Number(x.id) === id);
+                const name = k.startsWith('c:')
+                  ? (c?.display_name || c?.company_name || c?.biz_name)
+                  : m?.name;
+                return { value: k, label: name || `#${id}` };
+              })}
+              options={attendeeOptions}
+              onChange={(opts) => {
+                const keys: string[] = [];
+                if (Array.isArray(opts)) for (const o of opts) {
+                  const v = (o as { value: string }).value;
+                  if (v) keys.push(v);
+                }
+                setAttendeeKeys(keys);
+              }}
+            />
+            <TzHint>{t('form.attendeesHint', { defaultValue: '고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다.' }) as string}</TzHint>
+          </Field>
+
+          <Field>
+            <Label>{t('recurrence.label')}</Label>
+            <RecurrencePicker
+              value={rrule}
+              onChange={setRrule}
+              anchorDate={startDate}
             />
           </Field>
+
+          {/* N+66 — 공유 범위 통합 (KnowledgePage 와 동일 VisibilityField). 옛 personal/business 2 select 폐지. */}
+          <Field>
+            <Label>{t('form.visibility')}</Label>
+            <VisibilityField
+              value={vis}
+              onChange={(v) => {
+                setVis(v);
+                // legacy visibility state 도 동기 (backward compat)
+                setVisibility(v.vlevel === 'L1' ? 'personal' : 'business');
+                // L2-project 선택 시 projectId 도 sync
+                if (v.variant === 'L2_project' && v.project_id) setProjectId(v.project_id);
+              }}
+              projects={projects.map(p => ({ id: p.id, name: p.name }))}
+              clients={clientsList.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
+              members={members}
+            />
+          </Field>
+
+          <Field>
+            <Label>{t('form.reminder', { defaultValue: '알림' }) as string}</Label>
+            <PlanQSelect
+              value={reminderOpts.find(o => o.value === reminderMinutes) || reminderOpts[0]}
+              options={reminderOpts}
+              onChange={(o) => setReminderMinutes(Number((o as { value: number } | null)?.value ?? REMINDER_NONE))}
+              isSearchable={false}
+            />
+            {/* 규칙을 설명하지 않고 **지금 상태**만 말한다 — 이미 지난 시각이면 안 간다(구글도 같다). */}
+            {reminderPassed && (
+              <TzHint>{t('form.reminderPassed', { defaultValue: '알림 시각이 이미 지나 이 일정은 알림이 가지 않습니다.' }) as string}</TzHint>
+            )}
+          </Field>
+
+          {/* 구글 캘린더 연동 — 팀/개인은 **연결된 구글 계정이 다르다**. 각각 켜고 끈다.
+              공개 범위 바로 아래에 둔다 — 어디로 나가는지가 공개 범위에 달렸기 때문.
+              (화상 미팅 링크 항목 아래에 두면 회의 기능에 종속돼 보인다 — Irene 지적) */}
+          {(workspaceCanWrite || personalCalWritable) && (
+            <Field>
+              <Label>{t('form.gcalSection')}</Label>
+              {workspaceCanWrite && (
+                <GcalRow $disabled={isPrivateVis}>
+                  <input
+                    type="checkbox"
+                    checked={gcalSyncWorkspace && !isPrivateVis}
+                    disabled={isPrivateVis}
+                    onChange={(e) => setGcalSyncWorkspace(e.target.checked)}
+                  />
+                  <span>
+                    {t('form.gcalTeam')}
+                    <GcalHint>{isPrivateVis ? t('form.gcalTeamBlocked') : t('form.gcalTeamHint')}</GcalHint>
+                  </span>
+                </GcalRow>
+              )}
+              {personalCalWritable && (
+                <GcalRow>
+                  <input
+                    type="checkbox"
+                    checked={gcalSyncPersonal}
+                    onChange={(e) => setGcalSyncPersonal(e.target.checked)}
+                  />
+                  <span>
+                    {t('form.gcalPersonal')}
+                    <GcalHint>{t('form.gcalPersonalHint')}</GcalHint>
+                  </span>
+                </GcalRow>
+              )}
+            </Field>
+          )}
     </CreateDrawer>
   );
 };
@@ -712,6 +717,13 @@ const TitleInput = styled.input`
 
 const DateRow = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+`;
+// 접어 둔 첨부를 여는 줄 — 링크처럼 가볍게(입력란 하나를 통째로 차지하지 않게)
+const AttachToggle = styled.button`
+  align-self: flex-start; background: none; border: none; padding: 4px 0; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; color: #0F766E;
+  &:hover { color: #0D9488; text-decoration: underline; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; border-radius: 4px; }
 `;
 const TzHint = styled.div`
   font-size: 0.6875rem; font-weight: 500; color: #94A3B8; margin-top: 4px;

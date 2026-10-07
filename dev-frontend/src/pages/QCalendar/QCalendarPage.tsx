@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { toWall, wallDateToIso, useWallEvents, viewRange } from './calTz';
 import { useWorkspaceHolidays } from '../../hooks/useWorkspaceHolidays';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import styled from 'styled-components';
@@ -77,19 +78,20 @@ const QCalendarPage: React.FC = () => {
     const voice = (location.state as { voice?: VoiceHandoff } | null)?.voice ?? takeVoiceHandoff('event');
     if (voice) {
       const when = parseVoiceWhen(voice.when_start);
-      setNewModalInitial(when || new Date());
+      // 음성 시각은 시간대 없는 «말한 그대로»라 이미 벽시계 · 없으면 지금을 벽시계로(calTz)
+      setNewModalInitial(when || toWall(new Date(), wsTz));
       setVoiceSeed({
         title: voice.title || voice.text || '',
         description: voice.detail || '',
         allDay: voice.when_all_day === true,
       });
     } else {
-      setNewModalInitial(new Date());
+      setNewModalInitial(toWall(new Date(), wsTz));
       setVoiceSeed(null);
     }
     setShowNewModal(true);
     const next = new URLSearchParams(calSp); next.delete('create'); setCalSp(next, { replace: true });
-  }, [calSp, setCalSp, location.state]);
+  }, [calSp, setCalSp, location.state]); // eslint-disable-line react-hooks/exhaustive-deps -- wsTz 는 계정 값(세션 중 고정)
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [taskEvents, setTaskEvents] = useState<CalendarItem[]>([]);
@@ -123,7 +125,9 @@ const QCalendarPage: React.FC = () => {
   //   두 판정이 어긋나 "배너는 연결됐다는데 화면은 아니라는" 상태가 만들어질 수 있었다.
   const personalConnected = !!syncStatus?.personal_connected;
   const personalCanWrite = !!syncStatus?.personal_can_write;
-  const today = useMemo(() => new Date(), []);
+  // ★ 캘린더 시간 기준 = 워크스페이스 시간대 설정(calTz.ts 머리말) — 화면엔 벽시계로 넘긴다
+  const wsTz = user?.workspace_timezone || detectBrowserTz();
+  const today = useMemo(() => toWall(new Date(), wsTz), [wsTz]);
 
   // 업무 상세 드로어 (Q Task 페이지로 이동하지 않고 캘린더 위에 오버레이)
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(() => {
@@ -155,7 +159,6 @@ const QCalendarPage: React.FC = () => {
       }
     }).catch(() => {});
   }, [bizId]);
-  const wsTz = user?.workspace_timezone || detectBrowserTz();
   const todayStr = todayInTz(wsTz);
 
   // ─── 범위 조회: view + anchor 기반 ───
@@ -163,28 +166,15 @@ const QCalendarPage: React.FC = () => {
     if (!bizId) return;
     setLoading(true); setErrorMsg(null);
     try {
-      let rangeStart: Date; let rangeEnd: Date;
-      if (view === 'agenda') {
-        // #133 아젠다: anchor 월 1일~말일
-        rangeStart = startOfMonth(anchor);
-        rangeEnd = startOfMonth(addMonths(anchor, 1));
-      } else if (view === 'month') {
-        // 월 뷰: 앞뒤 여유 포함 (6주 그리드)
-        const firstOfMonth = startOfMonth(anchor);
-        rangeStart = startOfWeek(firstOfMonth, weekStart);
-        rangeEnd = addDays(rangeStart, 42);
-      } else if (view === 'week') {
-        rangeStart = startOfWeek(anchor, weekStart);
-        rangeEnd = addDays(rangeStart, 7);
-      } else {
-        rangeStart = startOfDay(anchor);
-        rangeEnd = addDays(rangeStart, 1);
-      }
+      const { start: rangeStart, end: rangeEnd } = viewRange(view, anchor, weekStart);   // 벽시계 날짜 경계
       // 서버 scope 는 all/mine 만 의미있음 — tasks/events 필터는 클라 전용
       const serverScope: 'all' | 'mine' = scope === 'mine' ? 'mine' : 'all';
+      // 범위 = 벽시계 날짜 경계 → 실제 시각으로(기기 시계로 보내면 먼 시간대에서 그날이 빠진다 — 실측)
+      const startIso = wallDateToIso(rangeStart, wsTz);
+      const endIso = wallDateToIso(rangeEnd, wsTz);
       const list = await listEvents(bizId, {
-        start: rangeStart.toISOString(),
-        end: rangeEnd.toISOString(),
+        start: startIso,
+        end: endIso,
         scope: serverScope,
       });
       setEvents(list);
@@ -193,7 +183,7 @@ const QCalendarPage: React.FC = () => {
       if (personalConnected && showPersonal) {
         try {
           const r = await apiFetch(
-            `/api/me/calendar/events?business_id=${bizId}&start=${rangeStart.toISOString()}&end=${rangeEnd.toISOString()}`
+            `/api/me/calendar/events?business_id=${bizId}&start=${startIso}&end=${endIso}`
           );
           const j = await r.json();
           if (j.success) setPersonalEvents((j.data?.events || []).map((raw: Parameters<typeof personalToEvent>[0]) => personalToEvent(raw, t('event.untitled', { defaultValue: '(제목 없음)' }))));
@@ -207,7 +197,7 @@ const QCalendarPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [bizId, view, anchor, scope, personalConnected, showPersonal, weekStart]);
+  }, [bizId, view, anchor, scope, personalConnected, showPersonal, weekStart, wsTz]);
 
   // 구글에서 당겨온 변경이 있으면 화면을 다시 그린다.
   const pullFromGoogle = useCallback(async () => {
@@ -350,7 +340,7 @@ const QCalendarPage: React.FC = () => {
     else setAnchor((d) => addDays(d, 1));
   }, [view]);
 
-  const goToday = useCallback(() => setAnchor(new Date()), []);
+  const goToday = useCallback(() => setAnchor(toWall(new Date(), wsTz)), [wsTz]);
   // #193 — 날짜를 클릭하면 day 뷰로 들어가는데, URL 싱크가 replace 라 브라우저 뒤로가기로도
   //   못 나오고 월 복귀 수단은 헤더의 작은 뷰 드롭다운뿐이라 "뒤로 못 나온다"고 느낀다.
   //   day 뷰에서 눈에 보이는 "월간 보기로" 복귀 버튼 제공(anchor 유지 → 그 날짜의 월을 보여줌).
@@ -376,6 +366,8 @@ const QCalendarPage: React.FC = () => {
     setSelectedEventId((cur) => (cur === id ? null : id));
     setSelectedInstanceDate(instanceDate || null);
   }, [taskEvents, personalEvents]);
+
+  const { viewEvents, selectFromView } = useWallEvents(filteredEvents, wsTz, handleSelectEvent);
 
   const refreshTasks = useCallback(async () => {
     if (!bizId) return;
@@ -407,16 +399,16 @@ const QCalendarPage: React.FC = () => {
   }, []);
 
   const handleOpenNew = useCallback(() => {
-    const base = view === 'day' ? anchor : new Date();
+    const base = view === 'day' ? anchor : toWall(new Date(), wsTz);
     const d = new Date(base);
-    const now = new Date();
+    const now = toWall(new Date(), wsTz);
     // 기본 시작: 지금(시간 부분) 또는 09:00
     if (view === 'day') d.setHours(9, 0, 0, 0);
     else d.setHours(now.getHours() + 1, 0, 0, 0);
     setVoiceSeed(null);
     setNewModalInitial(d);
     setShowNewModal(true);
-  }, [view, anchor]);
+  }, [view, anchor, wsTz]);
 
   const handleCreate = useCallback(async (payload: Partial<CalendarEvent>) => {
     if (!bizId) return;
@@ -531,7 +523,7 @@ const QCalendarPage: React.FC = () => {
         isSearchable={false}
         menuPlacement="bottom"
       />
-      <NewEventBtn onClick={handleOpenNew} type="button" title={t('new')}>
+      <NewEventBtn onClick={handleOpenNew} type="button" title={t('new')} data-testid="calendar-new-event">
         <NewEventIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </NewEventIcon>
@@ -592,8 +584,8 @@ const QCalendarPage: React.FC = () => {
           <AgendaView
             anchor={anchor}
             today={today}
-            events={filteredEvents}
-            onSelectEvent={handleSelectEvent}
+            events={viewEvents}
+            onSelectEvent={selectFromView}
             onSelectDate={handleSelectDate}
             onCreateAt={handleCreateAt}
             loading={loading}
@@ -604,9 +596,9 @@ const QCalendarPage: React.FC = () => {
             anchor={anchor}
             weekStart={weekStart}
             today={today}
-            events={filteredEvents}
+            events={viewEvents}
             holidays={holidays}
-            onSelectEvent={handleSelectEvent}
+            onSelectEvent={selectFromView}
             onSelectDate={handleSelectDate}
             onCreateAt={handleCreateAt}
           />
@@ -616,9 +608,9 @@ const QCalendarPage: React.FC = () => {
             anchor={anchor}
             today={today}
             days={days}
-            events={filteredEvents}
+            events={viewEvents}
             holidays={holidays}
-            onSelectEvent={handleSelectEvent}
+            onSelectEvent={selectFromView}
             onSelectDate={handleSelectDate}
             onCreateAt={handleCreateAt}
           />

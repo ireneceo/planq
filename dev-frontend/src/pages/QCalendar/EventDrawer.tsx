@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { toWall, wallStringsToIso } from './calTz';
+import TzLines from './TzLines';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 // 「미팅 정리」 메뉴는 Q note·Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다
@@ -76,15 +78,20 @@ interface Props {
   onLocalPatch?: (patch: Partial<CalendarEvent>) => void;
 }
 
-// 시간 + 날짜 → ISO 변환 (로컬 타임존 기준, NewEventModal 의 mkISO 동일 패턴)
-const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean): string => {
+// 시간 + 날짜 → ISO 변환 — 시각은 **워크스페이스 시간대**의 시각이다(NewEventModal 의 mkISO 와 같은 규칙, calTz.ts).
+//   종일은 날짜라 종전대로(기기 자정) 둔다 — 화면도 종일은 옮기지 않는다.
+const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean, tz: string): string => {
   const [y, mo, d] = dateStr.split('-').map(Number);
   if (allDay) {
     return new Date(y, mo - 1, d, isEnd ? 23 : 0, isEnd ? 59 : 0, 0).toISOString();
   }
-  const [hh, mm] = timeStr.split(':').map(Number);
-  return new Date(y, mo - 1, d, hh, mm, 0).toISOString();
+  return wallStringsToIso(dateStr, timeStr, tz);
 };
+
+// 편집칸이 읽는 시각 — 시간 일정은 워크스페이스 벽시계, 종일은 날짜 그대로
+function wallOf(ev: { all_day?: boolean; start_at: string; end_at: string }, key: 'start_at' | 'end_at', tz: string): Date {
+  return ev.all_day ? new Date(ev[key]) : toWall(ev[key], tz);
+}
 
 const EventDrawer: React.FC<Props> = ({
   event, instanceDate, projects = [], members = [], clients = [], myUserId, myBusinessRole,
@@ -98,7 +105,6 @@ const EventDrawer: React.FC<Props> = ({
   // 운영 #41 — 워크스페이스 tz 기본 + 개인 tz 보조표시
   const wsTz = user?.workspace_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const personalTz = user?.timezone || null;
-  const showPersonalTz = !!personalTz && personalTz !== wsTz;
   // formatRRuleLabel 은 qtask 네임스페이스의 recur.* 키를 사용
   const { t: tQtask } = useTranslation('qtask');
   const [copied, setCopied] = useState(false);
@@ -128,20 +134,20 @@ const EventDrawer: React.FC<Props> = ({
   const [title, setTitle] = useState(event?.title || '');
   const [description, setDescription] = useState(event?.description || '');
   const [location, setLocation] = useState(event?.location || '');
-  const [startDate, setStartDate] = useState<string>(() => event ? toDateKey(new Date(event.start_at)) : '');
-  const [endDate, setEndDate] = useState<string>(() => event ? toDateKey(new Date(event.end_at)) : '');
-  const [startTime, setStartTime] = useState<string>(() => event ? formatTime(new Date(event.start_at)) : '00:00');
-  const [endTime, setEndTime] = useState<string>(() => event ? formatTime(new Date(event.end_at)) : '23:30');
+  const [startDate, setStartDate] = useState<string>(() => event ? toDateKey(wallOf(event, 'start_at', wsTz)) : '');
+  const [endDate, setEndDate] = useState<string>(() => event ? toDateKey(wallOf(event, 'end_at', wsTz)) : '');
+  const [startTime, setStartTime] = useState<string>(() => event ? formatTime(wallOf(event, 'start_at', wsTz)) : '00:00');
+  const [endTime, setEndTime] = useState<string>(() => event ? formatTime(wallOf(event, 'end_at', wsTz)) : '23:30');
 
   useEffect(() => {
     if (!event) return;
     setTitle(event.title);
     setDescription(event.description || '');
     setLocation(event.location || '');
-    setStartDate(toDateKey(new Date(event.start_at)));
-    setEndDate(toDateKey(new Date(event.end_at)));
-    setStartTime(formatTime(new Date(event.start_at)));
-    setEndTime(formatTime(new Date(event.end_at)));
+    setStartDate(toDateKey(wallOf(event, 'start_at', wsTz)));
+    setEndDate(toDateKey(wallOf(event, 'end_at', wsTz)));
+    setStartTime(formatTime(wallOf(event, 'start_at', wsTz)));
+    setEndTime(formatTime(wallOf(event, 'end_at', wsTz)));
   }, [event?.id, event?.start_at, event?.end_at, event?.title, event?.description, event?.location]);
 
   const handleCreateRoom = async () => {
@@ -239,8 +245,8 @@ const EventDrawer: React.FC<Props> = ({
   };
 
   const saveSchedule = async (sd: string, ed: string, st: string, et: string, allDay: boolean) => {
-    const sISO = mkISO(sd, st, allDay, false);
-    const eISO = mkISO(ed, et, allDay, true);
+    const sISO = mkISO(sd, st, allDay, false, wsTz);
+    const eISO = mkISO(ed, et, allDay, true, wsTz);
     if (new Date(eISO) < new Date(sISO)) return;
     await updateMaybeScoped({ start_at: sISO, end_at: eISO, all_day: allDay });
   };
@@ -478,21 +484,68 @@ const EventDrawer: React.FC<Props> = ({
                     </CheckboxLabel>
                   </AutoSaveField>
                 </AllDayRow>
+                {/* 시간대 안내 — 편집 중에도 같은 두 줄. 내 시간은 고르는 중인 값으로 바로 다시 센다. */}
+                {!event.all_day && startDate && endDate && (
+                  <TzLines wsTz={wsTz} myTz={personalTz} testIdPrefix="event"
+                    startIso={wallStringsToIso(startDate, startTime, wsTz)} endIso={wallStringsToIso(endDate, endTime, wsTz)} />
+                )}
               </ScheduleEditor>
             ) : (
               <>
                 <DateLine>{formatDateTimeInTz(start, i18n.language, wsTz)}</DateLine>
                 <DateLine>→ {formatDateTimeInTz(end, i18n.language, wsTz)}</DateLine>
                 {/* 운영 #41 — 기준 타임존(워크스페이스) 명시 */}
-                <TzNote>{t('tz.workspaceBasis', { tz: tzAbbr(start, wsTz, i18n.language), defaultValue: '{{tz}} · 워크스페이스 기준' }) as string}</TzNote>
-                {/* 개인 타임존이 다르면 보조 시간 표시 (같거나 미설정이면 숨김) */}
-                {showPersonalTz && personalTz && (
-                  <TzNote $alt>
-                    {t('tz.yourTime', { defaultValue: '내 시간대' }) as string} ({tzAbbr(start, personalTz, i18n.language)}): {formatDateTimeInTz(start, i18n.language, personalTz)} → {formatDateTimeInTz(end, i18n.language, personalTz)}
-                  </TzNote>
-                )}
+                {!event.all_day && <TzLines wsTz={wsTz} myTz={personalTz} testIdPrefix="event" startIso={event.start_at} endIso={event.end_at} />}
                 {event.all_day && <MutedSmall>{t('allDay', '종일')}</MutedSmall>}
               </>
+            )}
+          </SectionBody>
+        </Section>
+
+        {/* 카테고리 / visibility / project — 인라인 select */}
+        <Section>
+          <SectionIcon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+          </SectionIcon>
+          <SectionBody>
+            <MutedSmall>{t('form.category')}</MutedSmall>
+            <CategoryRow>
+              {CATEGORY_OPTIONS.map((cat: EventCategory) => (
+                <CategoryBtn
+                  key={cat}
+                  type="button"
+                  $active={event.category === cat}
+                  disabled={!canEdit}
+                  onClick={() => { if (canEdit && event.category !== cat) updateMaybeScoped({ category: cat }); }}
+                >
+                  {t(`category.${cat}`)}
+                </CategoryBtn>
+              ))}
+            </CategoryRow>
+            {canEdit && (
+              <Grid2 $single>
+                <Field>
+                  <FieldLabel>{t('form.project')}</FieldLabel>
+                  <AutoSaveField key={`ev${event.id}-7`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
+                    <PlanQSelect
+                      size="sm"
+                      isClearable
+                      placeholder={tc(CONNECT_PROMPT.projectNone) as string}
+                      options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                      value={event.project_id == null
+                        ? null
+                        : { value: event.project_id, label: projects.find((p) => p.id === event.project_id)?.name || `#${event.project_id}` }
+                      }
+                      onChange={(opt) => {
+                        const v = opt ? Number((opt as { value: number }).value) : null;
+                        if (v !== event.project_id) updateMaybeScoped({ project_id: v });
+                      }}
+                    />
+                  </AutoSaveField>
+                </Field>
+              </Grid2>
             )}
           </SectionBody>
         </Section>
@@ -524,6 +577,22 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
+        {/* 미팅자료(#411) — 붙이기·떼기·참석자에게 알리기. 고객은 서버가 열 수 있는 것만 보낸다. */}
+        {(canEdit || (event.attachments || []).length > 0) && (
+          <Section>
+            <SectionIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+            </SectionIcon>
+            <SectionBody>
+              <MutedSmall>{t('materials.title')}</MutedSmall>
+              <EventMaterials event={event} businessId={event.business_id} canEdit={canEdit}
+                onChange={(attachments) => onLocalPatch?.({ attachments })} />
+            </SectionBody>
+          </Section>
+        )}
+
         {/* 위치 */}
         <Section>
           <SectionIcon>
@@ -549,6 +618,58 @@ const EventDrawer: React.FC<Props> = ({
             )}
           </SectionBody>
         </Section>
+
+        {/* 회의 — 재발급 버튼 포함 (P1) */}
+        {(event.meeting_url || (gcalCanWrite && onCreateMeetingRoom)) && (
+          <Section>
+            <SectionIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
+              </svg>
+            </SectionIcon>
+            <SectionBody>
+              <MutedSmall>{t('drawer.meeting')}</MutedSmall>
+              {event.meeting_url ? (
+                <>
+                  {/* N+63 사용자 호소 — 재발급 후 변화 확인 위해 URL 자체 노출.
+                      location 자동 덮어쓰기는 사용자 입력 침범 → 별도 영역 (Google Calendar / Outlook 표준 패턴). */}
+                  <MeetingUrl
+                    href={event.meeting_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={event.meeting_url}
+                  >
+                    {event.meeting_url}
+                  </MeetingUrl>
+                  <MeetingActions>
+                    {/* Google Meet 는 X-Frame-Options 로 iframe embed 불가 — 외부 링크만 */}
+                    <CopyBtn as="a" href={event.meeting_url} target="_blank" rel="noreferrer">
+                      {t('drawer.joinMeeting')} ↗
+                    </CopyBtn>
+                    <CopyBtn type="button" onClick={copyMeetingLink}>
+                      {copied ? t('drawer.linkCopied') : t('drawer.copyLink')}
+                    </CopyBtn>
+                    {/* P1 — 재발급 (만료된 옛 링크 / 정기 회의 다음 회차 회복) */}
+                    {canEdit && gcalCanWrite && (
+                      <ReissueBtn type="button" onClick={handleReissueMeeting} disabled={reissuingMeeting}>
+                        {reissuingMeeting ? t('drawer.reissuing', '재발급 중...') : t('drawer.reissueMeeting', '링크 재발급')}
+                      </ReissueBtn>
+                    )}
+                  </MeetingActions>
+                  {canEdit && (
+                    <MeetingHint>{t('drawer.reissueHint', '만료된 링크는 재발급으로 복구하세요. 정기 회의는 모든 회차에 동일 링크가 유효해야 합니다.')}</MeetingHint>
+                  )}
+                </>
+              ) : (
+                canEdit && gcalCanWrite && onCreateMeetingRoom && (
+                  <CreateRoomBtn onClick={handleCreateRoom} disabled={creatingRoom}>
+                    {creatingRoom ? t('drawer.creating') : t('drawer.createRoom')}
+                  </CreateRoomBtn>
+                )
+              )}
+            </SectionBody>
+          </Section>
+        )}
 
         {/* 참석자 — 인라인 편집 (멤버 picker + 각 row 제거 버튼) */}
         <Section>
@@ -675,74 +796,6 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
-        {/* 미팅자료(#411) — 붙이기·떼기·참석자에게 알리기. 고객은 서버가 열 수 있는 것만 보낸다. */}
-        {(canEdit || (event.attachments || []).length > 0) && (
-          <Section>
-            <SectionIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-              </svg>
-            </SectionIcon>
-            <SectionBody>
-              <MutedSmall>{t('materials.title')}</MutedSmall>
-              <EventMaterials event={event} businessId={event.business_id} canEdit={canEdit}
-                onChange={(attachments) => onLocalPatch?.({ attachments })} />
-            </SectionBody>
-          </Section>
-        )}
-
-        {/* 회의 — 재발급 버튼 포함 (P1) */}
-        {(event.meeting_url || (gcalCanWrite && onCreateMeetingRoom)) && (
-          <Section>
-            <SectionIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
-              </svg>
-            </SectionIcon>
-            <SectionBody>
-              <MutedSmall>{t('drawer.meeting')}</MutedSmall>
-              {event.meeting_url ? (
-                <>
-                  {/* N+63 사용자 호소 — 재발급 후 변화 확인 위해 URL 자체 노출.
-                      location 자동 덮어쓰기는 사용자 입력 침범 → 별도 영역 (Google Calendar / Outlook 표준 패턴). */}
-                  <MeetingUrl
-                    href={event.meeting_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={event.meeting_url}
-                  >
-                    {event.meeting_url}
-                  </MeetingUrl>
-                  <MeetingActions>
-                    {/* Google Meet 는 X-Frame-Options 로 iframe embed 불가 — 외부 링크만 */}
-                    <CopyBtn as="a" href={event.meeting_url} target="_blank" rel="noreferrer">
-                      {t('drawer.joinMeeting')} ↗
-                    </CopyBtn>
-                    <CopyBtn type="button" onClick={copyMeetingLink}>
-                      {copied ? t('drawer.linkCopied') : t('drawer.copyLink')}
-                    </CopyBtn>
-                    {/* P1 — 재발급 (만료된 옛 링크 / 정기 회의 다음 회차 회복) */}
-                    {canEdit && gcalCanWrite && (
-                      <ReissueBtn type="button" onClick={handleReissueMeeting} disabled={reissuingMeeting}>
-                        {reissuingMeeting ? t('drawer.reissuing', '재발급 중...') : t('drawer.reissueMeeting', '링크 재발급')}
-                      </ReissueBtn>
-                    )}
-                  </MeetingActions>
-                  {canEdit && (
-                    <MeetingHint>{t('drawer.reissueHint', '만료된 링크는 재발급으로 복구하세요. 정기 회의는 모든 회차에 동일 링크가 유효해야 합니다.')}</MeetingHint>
-                  )}
-                </>
-              ) : (
-                canEdit && gcalCanWrite && onCreateMeetingRoom && (
-                  <CreateRoomBtn onClick={handleCreateRoom} disabled={creatingRoom}>
-                    {creatingRoom ? t('drawer.creating') : t('drawer.createRoom')}
-                  </CreateRoomBtn>
-                )
-              )}
-            </SectionBody>
-          </Section>
-        )}
-
         {/* 정기 일정 — RecurrencePicker */}
         <Section>
           <SectionIcon>
@@ -771,53 +824,51 @@ const EventDrawer: React.FC<Props> = ({
           </SectionBody>
         </Section>
 
-        {/* 카테고리 / visibility / project — 인라인 select */}
-        <Section>
-          <SectionIcon>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-            </svg>
-          </SectionIcon>
-          <SectionBody>
-            <MutedSmall>{t('form.category')}</MutedSmall>
-            <CategoryRow>
-              {CATEGORY_OPTIONS.map((cat: EventCategory) => (
-                <CategoryBtn
-                  key={cat}
-                  type="button"
-                  $active={event.category === cat}
-                  disabled={!canEdit}
-                  onClick={() => { if (canEdit && event.category !== cat) updateMaybeScoped({ category: cat }); }}
-                >
-                  {t(`category.${cat}`)}
-                </CategoryBtn>
-              ))}
-            </CategoryRow>
-            {canEdit && (
-              <Grid2 $single>
-                <Field>
-                  <FieldLabel>{t('form.project')}</FieldLabel>
-                  <AutoSaveField key={`ev${event.id}-7`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
-                    <PlanQSelect
-                      size="sm"
-                      isClearable
-                      placeholder={tc(CONNECT_PROMPT.projectNone) as string}
-                      options={projects.map((p) => ({ value: p.id, label: p.name }))}
-                      value={event.project_id == null
-                        ? null
-                        : { value: event.project_id, label: projects.find((p) => p.id === event.project_id)?.name || `#${event.project_id}` }
-                      }
-                      onChange={(opt) => {
-                        const v = opt ? Number((opt as { value: number }).value) : null;
-                        if (v !== event.project_id) updateMaybeScoped({ project_id: v });
-                      }}
-                    />
-                  </AutoSaveField>
-                </Field>
-              </Grid2>
-            )}
-          </SectionBody>
-        </Section>
+        {/* 공개 범위 — **알림 위** (Irene 2026-09-14: *"공개범위는 가장 아래가 맞지 않아?"*)
+            2026-10-07 Irene 이 등록·상세 순서를 하나로 정했다: «설명, 파일첨부, 장소, 화상미팅, 주요 체크, 보안, 알림». 그래서 공개 범위는 알림 바로 위다.
+            자주 건드리는 것이 위, 한 번 정하고 마는 것이 아래다. 일정에서 매번 바꾸는 것은
+            시간·설명·참석자이고 공개 범위는 처음에 한 번 정한다. */}
+        {canEditSchedule && (
+          <Section>
+            <SectionIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </SectionIcon>
+            <SectionBody>
+              <MutedSmall>{t('form.visibility', { defaultValue: '공개' }) as string}</MutedSmall>
+                <FieldLabel>{t('form.visibility', { defaultValue: '공개' }) as string}</FieldLabel>
+                {/* N+66 — 통합 VisibilityField (NewEventModal · KnowledgePage 정합). 옛 personal/business 2 select 폐지. */}
+                <VisibilityField
+                  value={parseVisibility({
+                    vlevel: event.vlevel ?? null,
+                    scope: null,
+                    read_policy: null,
+                    project_id: event.project_id ?? null,
+                    client_id: null,
+                    client_ids: event.target_client_ids ?? null,
+                    target_member_ids: event.target_member_ids ?? null,
+                  })}
+                  onChange={(v: VisibilityValue) => {
+                    const ser = serializeVisibility(v);
+                    const patch: Partial<CalendarEvent> = {
+                      vlevel: v.vlevel,
+                      target_member_ids: ser.target_member_ids,
+                      target_client_ids: v.variant === 'L4' ? ser.client_ids : [],
+                      // legacy backward-compat (hook 가 자동 동기지만 explicit)
+                      visibility: v.vlevel === 'L1' ? 'personal' : 'business',
+                    };
+                    if (v.variant === 'L2_project') patch.project_id = ser.project_id;
+                    updateMaybeScoped(patch);
+                  }}
+                  projects={(projects || []).map(p => ({ id: p.id, name: p.name }))}
+                  clients={(clients || []).map(c => ({ id: c.id, display_name: c.display_name || c.company_name }))}
+                  members={(members || []).map(m => ({ user_id: m.user_id, name: m.name, role: m.role || 'member' }))}
+                />
+            </SectionBody>
+          </Section>
+        )}
 
         {/* N+63 — 임박 알림 (reminder_minutes). 값과 말은 reminderOptions.ts 한곳에서 정한다. */}
         <Section>
@@ -947,7 +998,6 @@ const EventDrawer: React.FC<Props> = ({
           </Section>
         )}
 
-
         {/* 작성자 — read-only */}
         <Section>
           <SectionIcon>
@@ -960,52 +1010,6 @@ const EventDrawer: React.FC<Props> = ({
             <Plain>{event.creator?.name || '—'}</Plain>
           </SectionBody>
         </Section>
-
-        {/* 공개 범위 — **가장 아래** (Irene 2026-09-14: *"공개범위는 가장 아래가 맞지 않아?"*)
-            자주 건드리는 것이 위, 한 번 정하고 마는 것이 아래다. 일정에서 매번 바꾸는 것은
-            시간·설명·참석자이고 공개 범위는 처음에 한 번 정한다. */}
-        {canEditSchedule && (
-          <Section>
-            <SectionIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-            </SectionIcon>
-            <SectionBody>
-              <MutedSmall>{t('form.visibility', { defaultValue: '공개' }) as string}</MutedSmall>
-                <FieldLabel>{t('form.visibility', { defaultValue: '공개' }) as string}</FieldLabel>
-                {/* N+66 — 통합 VisibilityField (NewEventModal · KnowledgePage 정합). 옛 personal/business 2 select 폐지. */}
-                <VisibilityField
-                  value={parseVisibility({
-                    vlevel: event.vlevel ?? null,
-                    scope: null,
-                    read_policy: null,
-                    project_id: event.project_id ?? null,
-                    client_id: null,
-                    client_ids: event.target_client_ids ?? null,
-                    target_member_ids: event.target_member_ids ?? null,
-                  })}
-                  onChange={(v: VisibilityValue) => {
-                    const ser = serializeVisibility(v);
-                    const patch: Partial<CalendarEvent> = {
-                      vlevel: v.vlevel,
-                      target_member_ids: ser.target_member_ids,
-                      target_client_ids: v.variant === 'L4' ? ser.client_ids : [],
-                      // legacy backward-compat (hook 가 자동 동기지만 explicit)
-                      visibility: v.vlevel === 'L1' ? 'personal' : 'business',
-                    };
-                    if (v.variant === 'L2_project') patch.project_id = ser.project_id;
-                    updateMaybeScoped(patch);
-                  }}
-                  projects={(projects || []).map(p => ({ id: p.id, name: p.name }))}
-                  clients={(clients || []).map(c => ({ id: c.id, display_name: c.display_name || c.company_name }))}
-                  members={(members || []).map(m => ({ user_id: m.user_id, name: m.name, role: m.role || 'member' }))}
-                />
-            </SectionBody>
-          </Section>
-        )}
-
       </DetailDrawer.Body>
 
       <DetailDrawer.Footer>
@@ -1100,15 +1104,6 @@ function formatDateTimeInTz(d: Date, lang: string, tz: string): string {
   }
 }
 // 타임존 짧은 라벨 (예: KST, GMT+9). 실패 시 IANA 이름 끝부분.
-function tzAbbr(d: Date, tz: string, lang: string): string {
-  const locale = lang === 'en' ? 'en-US' : 'ko-KR';
-  try {
-    const parts = new Intl.DateTimeFormat(locale, { timeZone: tz, timeZoneName: 'short' }).formatToParts(d);
-    return parts.find((p) => p.type === 'timeZoneName')?.value || tz.split('/').pop() || tz;
-  } catch {
-    return tz.split('/').pop() || tz;
-  }
-}
 
 export default EventDrawer;
 
@@ -1175,10 +1170,6 @@ const MutedSmall = styled.div`
   font-size: 0.6875rem; font-weight: 500; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.4px;
 `;
 // 운영 #41 — 타임존 안내 (기준 tz / 개인 tz 보조)
-const TzNote = styled.div<{ $alt?: boolean }>`
-  font-size: 0.6875rem; font-weight: 500; margin-top: 2px;
-  color: ${p => p.$alt ? '#0F766E' : '#94A3B8'};
-`;
 const Plain = styled.div` font-size: 0.8125rem; color: #334155; `;
 const GcalSyncRow = styled.label<{ $disabled?: boolean }>`display:flex;align-items:center;gap:8px;padding:3px 0;font-size:0.8125rem;color:#334155;cursor:${p=>p.$disabled?'not-allowed':'pointer'};opacity:${p=>p.$disabled?0.55:1};`;
 const Muted = styled.span` font-size: 0.75rem; color: #94A3B8; font-style: italic; `;

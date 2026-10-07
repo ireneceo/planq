@@ -219,7 +219,10 @@
   "tz": {
     "workspaceBasis": "{{tz}} · 워크스페이스 기준",
     "yourTime": "내 시간대",
-    "inputBasis": "{{tz}} (워크스페이스 시간대) 기준"
+    "inputBasis": "{{tz}} (워크스페이스 시간대) 기준",
+    "inputBasisFriendly": "{{tz}} 기준 · 워크스페이스 시간대",
+    "workspaceBasisFriendly": "{{tz}} 기준 · 워크스페이스 시간대",
+    "myTimeLine": "내 시간 ({{tz}}): {{range}}"
   },
   "agenda": {
     "empty": "이 달에는 일정이 없습니다",
@@ -334,6 +337,7 @@
     "notified": "{{count}}명에게 알렸습니다",
     "notifyFailed": "알리지 못했습니다",
     "remove": "자료 떼기",
-    "notifyOnCreate": "참석자 {{count}}명에게 미팅자료도 알리기"
+    "notifyOnCreate": "참석자 {{count}}명에게 미팅자료도 알리기",
+    "addToggle": "미팅자료 첨부"
   }
 }

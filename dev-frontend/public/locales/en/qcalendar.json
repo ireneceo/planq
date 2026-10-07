@@ -219,7 +219,10 @@
   "tz": {
     "workspaceBasis": "{{tz}} · workspace time",
     "yourTime": "Your time",
-    "inputBasis": "In {{tz}} (workspace time zone)"
+    "inputBasis": "In {{tz}} (workspace time zone)",
+    "inputBasisFriendly": "{{tz}} · workspace time zone",
+    "workspaceBasisFriendly": "{{tz}} · workspace time zone",
+    "myTimeLine": "Your time ({{tz}}): {{range}}"
   },
   "agenda": {
     "empty": "No events this month",
@@ -334,6 +337,7 @@
     "notified": "Notified {{count}} attendee(s)",
     "notifyFailed": "Couldn't notify attendees",
     "remove": "Remove material",
-    "notifyOnCreate": "Also notify {{count}} attendee(s) about the materials"
+    "notifyOnCreate": "Also notify {{count}} attendee(s) about the materials",
+    "addToggle": "Attach meeting materials"
   }
 }
