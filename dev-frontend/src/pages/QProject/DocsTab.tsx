@@ -34,8 +34,9 @@ import { pickMatch } from '../../utils/searchMatch';
 import { useUploadQueue, UploadQueuePanel } from './docs/UploadQueue';
 import { collectDropped, fromDirectoryInput, wasTruncated, DROP_MAX_FILES, type DroppedFile } from './docs/dropEntries';
 import FileMetaEditor from './docs/FileMetaEditor';
-import PreviewArea, { canQuickView } from './docs/PreviewArea';
-import StandardModal from '../../components/Common/StandardModal';
+import PreviewArea from './docs/PreviewArea';
+import { QuickViewButton, QuickViewModal } from './docs/QuickView';
+import { LIST_COLS, ListRow, RowChk, RowName, RowNameText, RowNameStack, CardReason, UnmirrorTag, RowSrc, RowCtx, RowSize, RowUp, RowDate, RowAct, DlPct } from './docs/DocsTab.listStyles';
 import CloudConnectNotice from '../../components/Common/CloudConnectNotice';
 import { Toolbar, ToolbarRight, SortWrap } from '../../components/Docs/assetTabLayout';
 import { Link } from 'react-router-dom';
@@ -171,7 +172,6 @@ const DocsTab: React.FC<Props> = (props) => {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [preview, setPreview] = useState<ProjectFile | null>(null);
-  // 목록 «빠른 보기» — 우측 패널을 열지 않고 크게 본다(2026-10-07 Irene: «무조건 우측패널 열리는 거 불편해»)
   const [quickFile, setQuickFile] = useState<ProjectFile | null>(null);
 
   // ── 딥링크 소생 (2026-08-30) ────────────────────────────────────────────
@@ -1540,13 +1540,7 @@ const DocsTab: React.FC<Props> = (props) => {
                             ))}
                             {f.folder_id && <FolderChip data-folder-chip $onThumb title={currentFolderName(f)}>{currentFolderName(f)}</FolderChip>}
                           </TagRow>
-                          {!selectMode && canQuickView(f) && (
-                            <QuickViewBtn type="button" data-testid="file-quickview" $onCard
-                              title={tr('docs.preview.quickView', '크게 보기') as string} aria-label={tr('docs.preview.quickView', '크게 보기') as string}
-                              onClick={(e) => { e.stopPropagation(); setQuickFile(f); }}>
-                              <QuickViewIcon />
-                            </QuickViewBtn>
-                          )}
+                          {!selectMode && <QuickViewButton file={f} onCard onOpen={setQuickFile} />}
                         </Thumb>
                       );
                     })()}
@@ -1630,13 +1624,7 @@ const DocsTab: React.FC<Props> = (props) => {
                           {tr('docs.unmirrored') as string}
                         </UnmirrorTag>
                       )}
-                      {!selectMode && canQuickView(f) && (
-                        <QuickViewBtn type="button" data-testid="file-quickview"
-                          title={tr('docs.preview.quickView', '크게 보기') as string} aria-label={tr('docs.preview.quickView', '크게 보기') as string}
-                          onClick={(e) => { e.stopPropagation(); setQuickFile(f); }}>
-                          <QuickViewIcon />
-                        </QuickViewBtn>
-                      )}
+                      {!selectMode && <QuickViewButton file={f} onOpen={setQuickFile} />}
                     </RowName>
                     <RowSrc>
                       {srcsOf(f).map(sc => (
@@ -1709,12 +1697,7 @@ const DocsTab: React.FC<Props> = (props) => {
       <DetailFallbackDrawer state={preview ? null : missingFile} onClose={closeMissingFile} />
 
       {/* 미리보기 드로어 */}
-      {/* 빠른 보기 — 상세 패널과 같은 미리보기(PreviewArea)를 크게. 다른 동작(이동·공유·삭제)은 상세에서 */}
-      <StandardModal open={!!quickFile} onClose={() => setQuickFile(null)} title={quickFile?.file_name || ''} size="full">
-        <StandardModal.Body data-testid="file-quickview-full">
-          {quickFile && <PreviewArea key={quickFile.id} file={quickFile} businessId={businessId} mode="full" />}
-        </StandardModal.Body>
-      </StandardModal>
+      <QuickViewModal file={quickFile} businessId={businessId} onClose={() => setQuickFile(null)} />
       <DetailDrawer open={!!preview} onClose={() => setPreview(null)} ariaLabel={tr('docs.preview.aria', '파일 미리보기')}>
         {preview && (
           <>
@@ -2777,24 +2760,6 @@ const Card = styled.div<{ $selected?: boolean }>`
   &[data-dragging="1"]{ opacity:.45; }
   &:hover{border-color:${p => p.$selected ? '#14B8A6' : '#14B8A6'};box-shadow:0 2px 8px rgba(20,184,166,.08);}
 `;
-// 빠른 보기 — 데스크탑은 카드·행에 올렸을 때(또는 키보드 초점) 나타나고, 터치(≤1024)는 늘 보인다(hover 가 없다).
-//   ★ 분기를 (hover:none) 으로 두지 않는다 — 헤드리스가 hover:none 이라 그 분기는 측정이 안 된다(CLAUDE.md 트리 계약).
-const QuickViewBtn = styled.button<{ $onCard?: boolean }>`
-  ${(p) => (p.$onCard ? 'position:absolute;right:8px;bottom:8px;z-index:2;' : 'margin-left:auto;flex-shrink:0;')}
-  width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;
-  border:1px solid #E2E8F0;border-radius:8px;background:rgba(255,255,255,0.95);color:#334155;cursor:zoom-in;
-  box-shadow:0 1px 3px rgba(15,23,42,0.12);
-  opacity:0;transition:opacity .12s;
-  &:hover{color:#0F766E;border-color:#14B8A6;background:#fff;}
-  &:focus-visible{opacity:1;outline:2px solid #14B8A6;outline-offset:2px;}
-  [data-testid="file-card"]:hover &, [data-file-id]:hover &{opacity:1;}
-  @media (max-width:1024px){opacity:1;width:36px;height:36px;}
-`;
-const QuickViewIcon: React.FC = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
-  </svg>
-);
 const CardCheck = styled.div`
   position:absolute;top:6px;right:6px;z-index:2;
   width:24px;height:24px;display:flex;align-items:center;justify-content:center;
@@ -2833,7 +2798,6 @@ const MetaFlex = styled.span`flex:1;min-width:0;overflow:hidden;text-overflow:el
 const MetaSep = styled.span`flex-shrink:0;color:#CBD5E1;`;
 
 const ListTable = styled.div`background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;`;
-const LIST_COLS = 'minmax(200px,3fr) minmax(140px,1.3fr) 80px 90px 100px 36px';
 const ListHead = styled.div<{ $selectMode?: boolean }>`
   display:grid;
   grid-template-columns:${p => p.$selectMode ? `36px ${LIST_COLS}` : LIST_COLS};
@@ -2847,40 +2811,12 @@ const HCSize = styled.div``;
 const HCUp = styled.div``;
 const HCDate = styled.div``;
 const HCAct = styled.div``;
-const ListRow = styled.div<{ $selected?: boolean; $selectMode?: boolean }>`
-  display:grid;
-  grid-template-columns:${p => p.$selectMode ? `36px ${LIST_COLS}` : LIST_COLS};
-  gap:8px;padding:10px 14px;align-items:center;cursor:pointer;
-  border-bottom:1px solid #F1F5F9;background:${p => p.$selected ? '#F0FDFA' : 'transparent'};
-  transition:opacity .15s;
-  &[draggable="true"]{ cursor:grab; }
-  &[draggable="true"]:active{ cursor:grabbing; }
-  &[data-dragging="1"]{ opacity:.45; }
-  &:last-child{border-bottom:none;}
-  &:hover{background:${p => p.$selected ? '#F0FDFA' : '#F8FAFC'};}
-`;
-const RowChk = styled.div`display:flex;justify-content:center;`;
-const RowName = styled.div`display:flex;align-items:center;gap:10px;min-width:0;`;
-const RowNameText = styled.div`font-size:0.8125rem;font-weight:600;color:#0F172A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
 // 검색 매칭 이유 줄(파일명 아래)을 위한 세로 묶음 — 이유가 없으면 RowNameText 하나라 모양이 같다
-const RowNameStack = styled.div`display:flex;flex-direction:column;min-width:0;flex:0 1 auto;`;
-const CardReason = styled.div`padding:0 10px;min-width:0;`;
 // #379 — Drive 사본이 끊긴 상태 표시. 경고가 아니라 **사실 고지**라 회색 톤(원본은 멀쩡하다).
-const UnmirrorTag = styled.span`
-  flex-shrink:0; padding:1px 6px; border-radius:4px;
-  background:#F1F5F9; color:#64748B; font-size:0.75rem; font-weight:600; white-space:nowrap;
-`;
 /* 한 파일이 출처를 여럿 가진다(직접 업로드 + 채팅). 알약에 flex-shrink:0·nowrap 이 없어
    칸이 좁아지면 **눌려 겹쳤다**(2026-09-20). 넘치면 가로로 자른다 — wrap 은 행 높이를 흔든다. */
-const RowSrc = styled.div`display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;`;
 const SourcePill = styled.span<{ $src: FileSource }>`flex-shrink:0;white-space:nowrap;padding:2px 8px;border-radius:999px;font-size:0.625rem;font-weight:700;letter-spacing:.2px;${p => srcStyle(p.$src)}`;
-const RowCtx = styled.span`font-size:0.6875rem;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;`;
-const RowSize = styled.div`font-size:0.75rem;color:#475569;`;
-const RowUp = styled.div`font-size:0.75rem;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`;
-const RowDate = styled.div`font-size:0.75rem;color:#64748B;`;
-const RowAct = styled.div`display:flex;justify-content:flex-end;align-items:center;gap:2px;`;
 /* 진행률은 아이콘 자리에 그대로 들어간다 — 행 폭이 바뀌면 목록 전체가 흔들린다. */
-const DlPct = styled.span`font-size:0.625rem;font-weight:700;color:#0D9488;min-width:26px;text-align:center;`;
 const IconBtn = styled.button`
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
   background:transparent;border:none;color:#94A3B8;border-radius:6px;cursor:pointer;
