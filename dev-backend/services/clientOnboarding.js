@@ -130,31 +130,46 @@ async function linkClientToProjects(client, { transaction } = {}) {
     where: { client_id: client.id, contact_user_id: userId }, attributes: ['project_id'], transaction,
   });
   const projectIds = [...new Set(rows.map((r) => r.project_id))];
-  const r = await joinProjectCustomerChannels({ businessId: client.business_id, projectIds, userId, transaction });
+  const r = await joinProjectCustomerChannels({ businessId: client.business_id, projectIds, userId, clientId: client.id, transaction });
   return { linked, ...r };
 }
 
 /**
- * 고객 계정을 그 프로젝트들의 고객 채널(channel_type customer)에 role 'client' 로 들인다 — 멱등.
+ * 고객 계정을 그 프로젝트들의 **그 고객의** 채널에 role 'client' 로 들인다 — 멱등.
  *   이미 있는데 role 이 client 가 아니면 client 로 바로잡는다(워크스페이스 멤버면 건드리지 않는다).
  *
  * ★ 2026-10-07 — 고객을 프로젝트에 붙이는 문이 셋인데(초대 수락 · 워크스페이스 초대 수락 · **이미 계정 있는 고객을
- *   프로젝트에 추가**) 마지막 문만 참여를 빠뜨렸다. 그 고객은 프로젝트 탭으로는 방을 열 수 있는데 Q talk 목록에는
- *   안 떴다(운영 민충기 — 프로젝트 K-DINE). 들이는 일은 이 함수 하나로 한다.
+ *   프로젝트에 추가**) 마지막 문만 참여를 빠뜨렸다. 들이는 일은 이 함수 하나로 한다.
+ * ★ 2026-10-07 (Fable B 판정 7) — 채널의 축은 **프로젝트 × 고객**이다. 프로젝트의 고객 채널 «전부» 에 들이면
+ *   고객사가 둘인 프로젝트에서 서로의 방(청구서·첨부)을 본다. `services/project_channel.ensureClientChannel` 이
+ *   그 고객의 방을 찾거나(주인 없는 방은 가져오고) 만든다.
  */
-async function joinProjectCustomerChannels({ businessId, projectIds, userId, transaction } = {}) {
+async function joinProjectCustomerChannels({ businessId, projectIds, userId, clientId, actorUserId, transaction } = {}) {
   if (!businessId || !userId || !projectIds || !projectIds.length) return { joined: 0, fixedRole: 0 };
-  const { BusinessMember } = require('../models');
-  const { Op } = require('sequelize');
+  const { BusinessMember, Project, Client } = require('../models');
+  const { ensureClientChannel } = require('./project_channel');
   let joined = 0, fixedRole = 0;
   const isMember = await BusinessMember.findOne({
     where: { business_id: businessId, user_id: userId, removed_at: null }, attributes: ['id'], transaction,
   });
-  const convs = await Conversation.findAll({
-    where: { business_id: businessId, project_id: { [Op.in]: projectIds }, channel_type: 'customer' },
-    attributes: ['id'], transaction,
-  });
-  for (const cv of convs) {
+  // 어느 고객으로 들이는가 — 부르는 쪽이 모르면 이 워크스페이스에서 그 계정이 붙은 고객 행
+  let cid = clientId || null;
+  if (!cid) {
+    const cl = await Client.findOne({ where: { business_id: businessId, user_id: userId }, attributes: ['id'], order: [['id', 'ASC']], transaction });
+    cid = cl ? cl.id : null;
+  }
+  if (!cid) return { joined: 0, fixedRole: 0 };
+  for (const pid of projectIds) {
+    const project = await Project.findOne({ where: { id: pid, business_id: businessId }, transaction });
+    if (!project) continue;
+    // 고객 채팅을 쓰지 않는 프로젝트(고객 채널이 하나도 없다)에는 방을 새로 만들지 않는다 — 대화방은 사람이 연다.
+    //   이미 쓰는 프로젝트면 이 고객의 방이 없을 때 새로 만든다(다른 고객의 방에 섞지 않는다).
+    const usesCustomerChat = !!(await Conversation.findOne({
+      where: { project_id: project.id, channel_type: 'customer' }, attributes: ['id'], transaction,
+    }));
+    if (!usesCustomerChat) continue;
+    const { conversation: cv } = await ensureClientChannel(project, cid, actorUserId || null, { transaction });
+    if (!cv) continue;
     const ex = await ConversationParticipant.findOne({ where: { conversation_id: cv.id, user_id: userId }, transaction });
     if (!ex) {
       await ConversationParticipant.create({ conversation_id: cv.id, user_id: userId, role: isMember ? 'member' : 'client' }, { transaction });

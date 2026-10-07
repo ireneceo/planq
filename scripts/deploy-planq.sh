@@ -530,6 +530,11 @@ sync_database() {
   log "Backfilling invoice payments..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/backfill-invoice-payments.js 2>&1 | tail -6"
 
+  # 2026-10-07 — 프로젝트 고객 채널을 «프로젝트 × 고객» 으로(Fable B 판정 7). 다른 고객사의 방에 들어간 고객을 자기 방으로
+  #   옮기고 주인 없는 방에 주인을 정한다. 멱등. 아래 contact_user_id 백필보다 **먼저**(그쪽이 고객의 방을 찾는다).
+  log "Splitting project customer channels per client..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-customer-channel-per-client.js --apply 2>&1 | tail -12"
+
   # 2026-10-06 — 계정이 붙은 고객의 project_clients.contact_user_id 백필 + 고객 채널 참여(role client). 멱등.
   #   워크스페이스 고객 초대 수락이 이 값을 안 채워 고객 화면에서 프로젝트·채팅방이 사라졌다(최정우 신고).
   log "Backfilling project client accounts..."

@@ -99,7 +99,7 @@ function resetMetricCurrents(metrics) {
 //
 //   따라간다 — 이름 · 설명 · 고객사명 · 색 · 종류(project_type·kind) · 담당/소유자 ·
 //             계약 구조(contract_amount·billing_type·monthly_fee) · 전략 캔버스 · 성과지표(목표만) ·
-//             프로세스 탭 라벨 · 멤버 · 고객(연결만) · 상태 옵션 · 프로세스 컬럼 · 추진과제 골격 · 거래 단계 골격
+//             프로세스 탭 라벨 · 멤버 · 고객(연결 + 계정 있는 고객은 바로 보임) · 상태 옵션 · 프로세스 컬럼 · 추진과제 골격 · 거래 단계 골격
 //   두고 온다 — 기간(start/end) · 진행 상태 · 업무·문서·대화·파일·청구서 ·
 //             **자동청구 설정(항상 꺼서 만든다)** · 구글 드라이브 폴더 · 고객 초대 토큰 ·
 //             단계의 연결·완료 시각 · 정기청구 실행 이력 · 이력/히스토리
@@ -175,14 +175,25 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
       counts.members += 1;
     }
 
-    // 고객 — **연결만** 가져온다. 초대 토큰·수락 기록은 그 사람에게 이미 나간 열쇠라 복사하지 않는다
+    // 고객 — 연결을 가져오고, **계정이 있는 고객은 바로 보이게** 한다(contact_user_id).
+    //   초대 토큰·수락 기록은 그 사람에게 이미 나간 열쇠라 복사하지 않는다(새 열쇠).
+    //   ★ 2026-10-07 Fable 판정 — «client_id 가 붙었고 그 고객에 계정이 있으면 contact_user_id 가 채워져 있다» 가
+    //   이 저장소의 불변식이다(초대 수락·고객 추가·백필이 모두 그렇게 한다). 비워 두면 «우리 쪽엔 참여 중인데
+    //   고객 화면엔 없다»(2026-10-06 신고와 같은 모양)가 되고 백필이 나중에 채운다. 규칙은 고객 추가 라우트와 같다.
     const clients = await ProjectClient.findAll({ where: { project_id: src.id }, transaction: t });
+    const joinAfter = [];
     for (const c of clients) {
+      const cl = c.client_id
+        ? await Client.findOne({ where: { id: c.client_id, business_id: src.business_id }, attributes: ['id', 'user_id'], transaction: t })
+        : null;
+      const contactUserId = cl?.user_id || null;
       await ProjectClient.create({
         project_id: copy.id, client_id: c.client_id,
+        contact_user_id: contactUserId,
         contact_name: c.contact_name, contact_email: c.contact_email,
         invite_token: crypto.randomBytes(24).toString('hex'),   // 새 열쇠
       }, { transaction: t });
+      if (contactUserId) joinAfter.push({ userId: contactUserId, clientId: cl.id });
       counts.clients += 1;
     }
 
@@ -233,6 +244,15 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
     }
 
     await t.commit();
+
+    // 고객 채널 참여 — 들이는 문은 한 함수다(멱등). 복사본은 대화를 가져오지 않으므로 지금은 0건이고, 방이 생길 때 같은 함수가 들인다.
+    for (const j of joinAfter) {
+      try {
+        await require('../services/clientOnboarding').joinProjectCustomerChannels({
+          businessId: copy.business_id, projectIds: [copy.id], userId: j.userId, clientId: j.clientId, actorUserId: req.user.id,
+        });
+      } catch (e) { console.warn('[project duplicate] join customer channel', e.message); }
+    }
 
     require('../services/auditService').logAudit(req, {
       action: 'project.duplicate',
@@ -3395,6 +3415,7 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       try {
         await require('../services/clientOnboarding').joinProjectCustomerChannels({
           businessId: project.business_id, projectIds: [project.id], userId: contact_user_id,
+          clientId: clientRow ? clientRow.id : null, actorUserId: req.user.id,
         });
       } catch (e) { console.warn('[project client add] join customer channel', e.message); }
     }

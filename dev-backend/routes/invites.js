@@ -153,22 +153,17 @@ router.post('/:token/accept', authenticateToken, async (req, res, next) => {
             }
             await pc.update({ client_id: clientId }, { transaction: t });
           }
-          // 프로젝트 고객 채널: client_id(비어있을 때만) + 참여자(role 'client') 등록. 중복 방지.
+          // 프로젝트 고객 채널 — **이 고객의 방**에만 들인다(프로젝트 × 고객, 2026-10-07 Fable B 판정 7).
+          //   전에는 프로젝트의 고객 채널 전부에 들이고, 주인 없는 방은 이 고객 것으로 박았다 — 두 번째 고객사가
+          //   수락하면 첫 고객의 방(청구서·첨부)에 같이 들어갔다. 방이 없을 때만 «환영 대화방» 으로 떨어지던 것은 그대로다.
           const custConvs = await Conversation.findAll({
             where: { project_id: pc.project_id, business_id: prj.business_id, channel_type: 'customer' },
-            attributes: ['id', 'client_id'], transaction: t,
+            attributes: ['id'], transaction: t,
           });
-          for (const cv of custConvs) {
-            if (!cv.client_id) {
-              await Conversation.update({ client_id: clientId }, { where: { id: cv.id }, transaction: t });
-            }
-            const exists = await ConversationParticipant.findOne({
-              where: { conversation_id: cv.id, user_id: req.user.id }, transaction: t,
+          if (custConvs.length) {
+            await require('../services/clientOnboarding').joinProjectCustomerChannels({
+              businessId: prj.business_id, projectIds: [pc.project_id], userId: req.user.id, clientId, transaction: t,
             });
-            if (!exists) {
-              await ConversationParticipant.create(
-                { conversation_id: cv.id, user_id: req.user.id, role: 'client' }, { transaction: t });
-            }
           }
           // 프로젝트에 customer 대화방이 하나도 없으면 → 워크스페이스 환영 대화방 보장(커밋 후).
           if (custConvs.length === 0) needWelcomeClientId = clientId;

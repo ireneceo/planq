@@ -53,18 +53,27 @@ async function resolveRecipient(invoice) {
 }
 
 // ── 채팅 카드 ────────────────────────────────────────────────────────
+/**
+ * 청구서 카드를 둘 대화방 — 화면의 «어디로 가나» 표시(GET find-conversation)와 실제 배달이 **이 함수 하나**를 쓴다.
+ *   프로젝트 청구 → 그 프로젝트에서 **이 청구 고객의** 채널(프로젝트 × 고객, 2026-10-07 Fable B 판정 7).
+ *   ★ 다른 고객의 방으로 «대신» 보내지 않는다 — 전에는 프로젝트의 첫 고객 채널로 보내서 고객사가 둘인 프로젝트
+ *   (운영 K-DINE)에서 Kate 의 청구서가 Aidan 에게도 보였다. 없으면 그 고객의 단독 방, 그래도 없으면 null.
+ */
+async function chatTargetFor({ business_id: businessId, project_id: projectId, client_id: clientId }) {
+  let conv = null;
+  if (projectId) {
+    const { customerChannelForClient } = require('./project_channel');
+    conv = await customerChannelForClient({ businessId, projectId, clientId });
+  }
+  if (!conv && clientId) {
+    conv = await Conversation.findOne({ where: { business_id: businessId, client_id: clientId, channel_type: 'customer', project_id: null }, order: [['last_message_at', 'DESC']] });
+  }
+  return conv;
+}
+
 async function deliverChat({ invoice, actorUserId, message, shareUrl, io }) {
   if (!(invoice.project_id || invoice.client_id)) return { status: 'skipped', reason: 'no_target' };
-  let conv = null;
-  // 프로젝트 청구 → 그 프로젝트의 '고객' 대화방. 프로젝트 대화방은 client_id=null 이라
-  // client_id 로 찾으면 못 찾는다.
-  if (invoice.project_id) {
-    conv = await Conversation.findOne({ where: { business_id: invoice.business_id, project_id: invoice.project_id, channel_type: 'customer' }, order: [['last_message_at', 'DESC']] });
-    if (!conv) conv = await Conversation.findOne({ where: { business_id: invoice.business_id, project_id: invoice.project_id }, order: [['last_message_at', 'DESC']] });
-  }
-  if (!conv && invoice.client_id) {
-    conv = await Conversation.findOne({ where: { business_id: invoice.business_id, client_id: invoice.client_id }, order: [['last_message_at', 'DESC']] });
-  }
+  const conv = await chatTargetFor(invoice);
   if (!conv) return { status: 'failed', reason: 'no_conversation' };
 
   const userMessage = String(message || '').slice(0, 1000);
@@ -259,4 +268,4 @@ async function sweepStaleDeliveries() {
   return fixed;
 }
 
-module.exports = { queueDelivery, sweepStaleDeliveries, DELIVERY_STATUSES, STALE_MS, resolveRecipient, deliverEmail, deliverChat };
+module.exports = { queueDelivery, sweepStaleDeliveries, DELIVERY_STATUSES, STALE_MS, resolveRecipient, deliverEmail, deliverChat, chatTargetFor };

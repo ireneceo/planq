@@ -1040,31 +1040,10 @@ router.get('/:businessId/find-conversation', authenticateToken, checkBusinessAcc
     const clientId = req.query.client_id ? Number(req.query.client_id) : null;
     const projectId = req.query.project_id ? Number(req.query.project_id) : null;
     if (!clientId) return errorResponse(res, 'client_id required', 400);
-    const where = { business_id: req.params.businessId, client_id: clientId };
-    let conv = null;
-    if (projectId) {
-      conv = await Conversation.findOne({
-        where: { ...where, project_id: projectId },
-        attributes: ['id', 'title', 'project_id', 'last_message_at'],
-        order: [['last_message_at', 'DESC']],
-      });
-    }
-    if (!conv) {
-      conv = await Conversation.findOne({
-        where,
-        attributes: ['id', 'title', 'project_id', 'last_message_at'],
-        order: [['last_message_at', 'DESC']],
-      });
-    }
-    // 프로젝트 고객채팅 fallback — client_id 가 안 맞아도(고객 레코드 분리 등) 그 프로젝트의 고객 채널을 찾는다.
-    // 프로젝트에서 발행 시 "채팅방 없음" 오표시 차단.
-    if (!conv && projectId) {
-      conv = await Conversation.findOne({
-        where: { business_id: req.params.businessId, project_id: projectId, channel_type: 'customer' },
-        attributes: ['id', 'title', 'project_id', 'last_message_at'],
-        order: [['last_message_at', 'DESC']],
-      });
-    }
+    // ★ 실제 배달(services/invoiceDelivery.deliverChat)과 **같은 함수** — 표시와 발송이 갈리면 확인이 거짓이 된다.
+    const { chatTargetFor } = require('../services/invoiceDelivery');
+    const found = await chatTargetFor({ business_id: Number(req.params.businessId), project_id: projectId, client_id: clientId });
+    const conv = found ? { id: found.id, title: found.title, project_id: found.project_id, last_message_at: found.last_message_at } : null;
     successResponse(res, { conversation: conv, suggest_create: !conv });
   } catch (error) { next(error); }
 });

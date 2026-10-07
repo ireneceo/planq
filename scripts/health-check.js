@@ -830,30 +830,18 @@ function defineClientLinkTests() {
   if (!isLocal) return;
   test('clientlink', '계정 고객의 프로젝트 연결·채팅 참여 역할이 맞다', async () => {
     const { execSync } = require('child_process');
-    const out = execSync(
-      `node -e "require('dotenv').config();const{Sequelize}=require('sequelize');`
-      + `const s=new Sequelize(process.env.DB_NAME,process.env.DB_USER,process.env.DB_PASSWORD,`
-      + `{host:process.env.DB_HOST,dialect:'mysql',logging:false});(async()=>{`
-      + `const [a]=await s.query(\\\"SELECT pc.id FROM project_clients pc JOIN clients c ON c.id=pc.client_id `
-      + `WHERE pc.contact_user_id IS NULL AND c.user_id IS NOT NULL AND c.status='active'\\\");`
-      + `const [b]=await s.query(\\\"SELECT cp.id FROM conversation_participants cp JOIN conversations cv ON cv.id=cp.conversation_id `
-      + `JOIN clients c ON c.user_id=cp.user_id AND c.business_id=cv.business_id `
-      + `LEFT JOIN business_members bm ON bm.user_id=cp.user_id AND bm.business_id=cv.business_id AND bm.removed_at IS NULL `
-      + `WHERE cp.role<>'client' AND bm.id IS NULL\\\");`
-      + `const [c]=await s.query(\\\"SELECT pc.id FROM project_clients pc JOIN conversations cv ON cv.project_id=pc.project_id AND cv.channel_type='customer' `
-      + `LEFT JOIN conversation_participants cp ON cp.conversation_id=cv.id AND cp.user_id=pc.contact_user_id `
-      + `WHERE pc.contact_user_id IS NOT NULL AND cp.id IS NULL\\\");`
-      + `console.log('@@'+JSON.stringify({unlinked:a.map(x=>x.id),clientAsMember:b.map(x=>x.id),notJoined:c.map(x=>x.id)}));`
-      + `await s.close();})();"`,
-      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
+    // 쿼리 정본은 dev-backend/scripts/lib/clientLinkChecks.js 하나다(백필 스크립트와 같은 것).
+    const out = execSync('node scripts/lib/clientLinkChecks.js', { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
     const line = out.split('\n').find((l) => l.startsWith('@@'));
     if (!line) throw new Error('고객 연결 정합 조회 실패 — 거짓 통과 방지 위해 중단');
     const r = JSON.parse(line.slice(2));
     const problems = [];
     if (r.unlinked.length) problems.push(`계정 고객인데 contact_user_id 빈 project_clients: ${r.unlinked.join(',')} (scripts/migrate-project-client-user.js)`);
     if (r.clientAsMember.length) problems.push(`고객이 member 로 들어간 참여자: ${r.clientAsMember.join(',')}`);
-    // 연결은 됐는데 그 프로젝트 고객 채널에 참여자가 아님 → 프로젝트 탭으론 보이는데 Q talk 목록엔 없다(2026-10-07)
-    if (r.notJoined.length) problems.push(`프로젝트 연결 고객이 고객 채널 미참여 project_clients: ${r.notJoined.join(',')} (scripts/migrate-project-client-user.js)`);
+    // 연결은 됐는데 그 고객사의 고객 채널에 참여자가 아님 → 프로젝트 탭으론 보이는데 Q talk 목록엔 없다(2026-10-07)
+    if (r.notJoined.length) problems.push(`프로젝트 연결 고객이 자기 고객 채널 미참여 project_clients: ${r.notJoined.join(',')} (scripts/migrate-project-client-user.js)`);
+    // 다른 고객사의 방에 들어가 있음 → 서로의 청구서·첨부를 본다(2026-10-07 Fable B 판정 7)
+    if (r.crossClient.length) problems.push(`다른 고객사 고객 채널에 들어간 참여자: ${r.crossClient.join(',')} (scripts/migrate-customer-channel-per-client.js)`);
     if (problems.length) throw new Error(problems.join(' / '));
     return true;
   });
