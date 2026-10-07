@@ -141,7 +141,7 @@
     "reminderMinutes_one": "{{count}} minute before",
     "reminderMinutes_other": "{{count}} minutes before",
     "attendeesPh": "Choose who is joining",
-    "attendeesHint": "Members you pick get a notification; the organizer always does. Clients are recorded as attendees but are not notified yet.",
+    "attendeesHint": "You can choose below whether to notify the attendees you pick. Clients with an account get an in-app notification; no email is sent.",
     "attendeeClientTag": "Client"
   },
   "button": {

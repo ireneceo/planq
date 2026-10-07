@@ -141,7 +141,7 @@
     "reminderMinutes_one": "{{count}}분 전",
     "reminderMinutes_other": "{{count}}분 전",
     "attendeesPh": "함께할 사람을 고르세요",
-    "attendeesHint": "고른 멤버에게 알림이 갑니다. 만든 사람은 항상 받습니다. 고객은 참석자로 기록만 되고 알림은 아직 가지 않습니다.",
+    "attendeesHint": "고른 참석자에게 알림을 보낼지 아래에서 고를 수 있어요. 계정이 있는 고객은 앱 알림으로 받고, 메일은 가지 않습니다.",
     "attendeeClientTag": "고객"
   },
   "button": {
