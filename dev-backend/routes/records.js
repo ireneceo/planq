@@ -26,6 +26,16 @@ const { logAudit, auditDiff } = require('../services/auditService');
 //   두 컬럼을 동기화하는 훅을 만드는 길은 택하지 않았다 — 그러면 세 번째 공식이 된다.
 //   q_records 의 vlevel/read_policy 는 **파생값으로 죽이고**, 판정은 문서 하나로 모은다.
 const { canAccessPostByLevel, getUserScope } = require('../middleware/access_scope');
+const survey = require('../services/survey');
+const { blocksExternalShare } = require('../services/securityLevel');
+
+// #460 — 설문 열쇠는 **설정 라우트에서만** 내린다(GET /:id/survey). 상세·목록·생성·수정 응답에서는 뺀다.
+//   r.toJSON() 을 통째로 내보내면 표를 읽기만 하는 사람(고객 포함)이 응답 링크를 뽑는다(CLAUDE.md «응답에 자격증명을 싣지 않는다»).
+function stripRecordSecrets(json) {
+  if (!json || typeof json !== 'object') return json;
+  const { survey_token: tok, survey_settings: _st, ...rest } = json;   // eslint-disable-line no-unused-vars
+  return { ...rest, survey_on: !!tok };
+}
 
 /**
  * 이 표를 볼 수 있는가 — 연결된 문서의 공개 범위로 판정한다.
@@ -116,7 +126,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
     const cmap = Object.fromEntries(counts.map(c => [c.q_record_id, Number(c.get('cnt'))]));
 
     const data = records.map(r => ({
-      ...r.toJSON(),
+      ...stripRecordSecrets(r.toJSON()),
       row_count: cmap[r.id] || 0,
     }));
     await applyMemberDisplayName(data, businessId, ['creator']);
@@ -199,7 +209,7 @@ router.post('/', authenticateToken, async (req, res, next) => {
     }
     // 감사 — q_record_audits 는 표를 지우면 같이 지워지므로 영구 원장(AuditLog)에도 남긴다.
     logAudit(req, { action: 'record.create', targetType: 'q_record', targetId: r.id, businessId: Number(r.business_id), newValue: { name: r.name, project_id: r.project_id, post_id: linkedPostId, columns_count: cols.length } });
-    successResponse(res, { ...r.toJSON(), post_id: linkedPostId }, 'record created', 201);
+    successResponse(res, { ...stripRecordSecrets(r.toJSON()), post_id: linkedPostId }, 'record created', 201);
   } catch (err) { next(err); }
 });
 
@@ -226,7 +236,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
       order: [['position', 'ASC'], ['id', 'ASC']],
     });
     const masked = maskRowsForSecrets(rows, r.columns);
-    const json = { ...r.toJSON(), rows: masked };
+    const json = { ...stripRecordSecrets(r.toJSON()), rows: masked };
     await applyMemberDisplayNameOne(json, rBusinessId, ['creator']);
     successResponse(res, json);
   } catch (err) { next(err); }
@@ -263,7 +273,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     await QRecordAudit.create({ q_record_id: r.id, user_id: req.user.id, action: 'record.update', meta: { fields: Object.keys(patch) } });
     const recDiff = auditDiff(recBefore, r.get({ plain: true }), Object.keys(patch), { nameOnly: ['description', 'columns'] });
     if (recDiff) logAudit(req, { action: 'record.update', targetType: 'q_record', targetId: r.id, businessId: r.business_id, ...recDiff });
-    successResponse(res, r.toJSON());
+    successResponse(res, stripRecordSecrets(r.toJSON()));
   } catch (err) { next(err); }
 });
 
@@ -396,6 +406,88 @@ router.get('/:id/rows/:rowId/secret/:colId', authenticateToken, async (req, res,
       user_id: req.user.id, action: 'secret.reveal', field: col.id,
     });
     successResponse(res, { value });
+  } catch (err) { next(err); }
+});
+
+// ─── #460 설문 — 설정·통계 ───
+// 켜기·끄기·설정 = 워크스페이스 멤버 이상(고객·AI·해제 멤버 제외) ∧ 그 문서를 고칠 수 있는 사람(posts.canEditPost).
+//   L1 개인 문서는 작성자만. ★ 위 assertMember 를 베끼지 않는다 — removed_at 을 안 보고 ai 역할을 통과시킨다(Fable 수정 4).
+async function canManageSurvey(req, record) {
+  const scope = await getUserScope(req.user.id, record.business_id, req.user.platform_role);
+  const memberUp = scope.isPlatformAdmin || scope.isOwner || scope.isAdmin || scope.isMember;
+  if (!memberUp || scope.isClient || scope.isAi) return { ok: false, post: null };
+  const v = await canViewRecord(req.user.id, record, req.user.platform_role === 'platform_admin');
+  if (!v.ok || !v.post) return { ok: false, post: null };
+  const { Post } = require('../models');
+  const post = await Post.findByPk(v.post.id);
+  const { canEditPost } = require('./posts');
+  if (!post || !(await canEditPost(req.user.id, post, req.user.platform_role))) return { ok: false, post: null };
+  return { ok: true, post };
+}
+
+function surveyView(record, post, count) {
+  return {
+    enabled: !!record.survey_token,
+    token: record.survey_token || null,
+    path: record.survey_token ? `/public/survey/${record.survey_token}` : null,
+    settings: survey.settingsOf(record),
+    response_count: count,
+    hard_cap: survey.HARD_CAP,
+    // 문서 보안등급이 일반이 아니면 밖으로 열 수 없다(공유 링크와 같은 술어 — services/securityLevel)
+    blocked: blocksExternalShare(post) ? 'security_level' : null,
+  };
+}
+
+// GET /api/records/:id/survey — 설정(열쇠 포함). 켤 수 있는 사람만.
+router.get('/:id/survey', authenticateToken, async (req, res, next) => {
+  try {
+    const r = await QRecord.findByPk(req.params.id);
+    if (!r) return errorResponse(res, 'not_found', 404);
+    const m = await canManageSurvey(req, r);
+    if (!m.ok) return errorResponse(res, 'forbidden', 403);
+    const count = await QRecordRow.count({ where: { q_record_id: r.id } });
+    successResponse(res, surveyView(r, m.post, count));
+  } catch (err) { next(err); }
+});
+
+// PUT /api/records/:id/survey — { enabled?, settings? }. 끄면 열쇠 NULL(옛 링크 즉시 죽음), 다시 켜면 새 열쇠.
+router.put('/:id/survey', authenticateToken, async (req, res, next) => { // audit-exempt: 아래에서 q_record_audits(survey.update) + logAudit 로 남긴다
+  try {
+    const r = await QRecord.findByPk(req.params.id);
+    if (!r) return errorResponse(res, 'not_found', 404);
+    const m = await canManageSurvey(req, r);
+    if (!m.ok) return errorResponse(res, 'forbidden', 403);
+    const prev = survey.settingsOf(r);
+    const patch = {};
+    const settings = survey.sanitizeSettings(r, req.body.settings || {}, prev);
+    if (req.body.enabled === true && !r.survey_token) {
+      if (blocksExternalShare(m.post)) return errorResponse(res, 'security_level_blocks', 409);
+      patch.survey_token = survey.newToken();
+      settings.owner_id = req.user.id;
+      if (!settings.title) settings.title = String(m.post.title || r.name || '').slice(0, 200);
+    } else if (req.body.enabled === false && r.survey_token) {
+      patch.survey_token = null;
+    }
+    patch.survey_settings = settings;
+    await r.update(patch);
+    const action = patch.survey_token ? 'enable' : (patch.survey_token === null ? 'disable' : 'settings');
+    await QRecordAudit.create({ q_record_id: r.id, user_id: req.user.id, action: 'survey.update', meta: { action } });
+    logAudit(req, { action: `record.survey_${action}`, targetType: 'q_record', targetId: r.id, businessId: r.business_id });
+    const count = await QRecordRow.count({ where: { q_record_id: r.id } });
+    successResponse(res, surveyView(r, m.post, count));
+  } catch (err) { next(err); }
+});
+
+// GET /api/records/:id/survey-stats — 칸별 통계. 표를 볼 수 있는 사람(문서 읽기 술어 그대로).
+router.get('/:id/survey-stats', authenticateToken, async (req, res, next) => {
+  try {
+    const r = await QRecord.findByPk(req.params.id);
+    if (!r) return errorResponse(res, 'not_found', 404);
+    const isAdmin = req.user.platform_role === 'platform_admin';
+    if (!(await assertMember(req.user.id, r.business_id, isAdmin))) return errorResponse(res, 'forbidden', 403);
+    if (!(await canViewRecord(req.user.id, r, isAdmin)).ok) return errorResponse(res, 'forbidden', 403);
+    const rows = await QRecordRow.findAll({ where: { q_record_id: r.id }, attributes: ['id', 'values', 'created_by', 'created_at'], order: [['id', 'ASC']], limit: survey.HARD_CAP * 2 });
+    successResponse(res, { total: rows.length, survey_count: rows.filter((x) => x.created_by == null).length, columns: survey.statsOf(r, rows) });
   } catch (err) { next(err); }
 });
 

@@ -157,3 +157,41 @@ export async function revealSecret(recordId: number, rowId: number, columnId: st
   if (!j.success) throw new Error(j.message || 'reveal failed');
   return (j.data?.value as string) || '';
 }
+
+// ─── #460 설문 — 표 문서의 «응답 받기» 문 (docs/SURVEY_DESIGN.md) ───
+export interface SurveySettings {
+  title?: string; intro?: string; required?: string[]; hidden?: string[];
+  help?: Record<string, string>; closes_at?: string | null; max_responses?: number | null;
+}
+export interface SurveyView {
+  enabled: boolean; token: string | null; path: string | null; settings: SurveySettings;
+  response_count: number; hard_cap: number; blocked: 'security_level' | null;
+}
+export interface SurveyColumnStat {
+  id: string; name: string; type: QRecordColumnType; answered: number;
+  counts?: Record<string, number>; avg?: number | null; min?: number | null; max?: number | null;
+  by_day?: Record<string, number>; recent?: string[];
+}
+/** 설정 조회 — 켤 권한이 없으면 null(버튼을 숨긴다) */
+export async function fetchSurvey(recordId: number): Promise<SurveyView | null> {
+  const r = await apiFetch(`/api/records/${recordId}/survey`);
+  if (r.status === 403 || r.status === 404) return null;
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'survey_load_failed');
+  return j.data as SurveyView;
+}
+/** 켜기·끄기·설정 저장 — 실패는 던진다(AutoSaveField 가 ! 뱃지로 보여 준다) */
+export async function saveSurvey(recordId: number, body: { enabled?: boolean; settings?: SurveySettings }): Promise<SurveyView> {
+  const r = await apiFetch(`/api/records/${recordId}/survey`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'survey_save_failed');
+  return j.data as SurveyView;
+}
+export async function fetchSurveyStats(recordId: number): Promise<{ total: number; survey_count: number; columns: SurveyColumnStat[] }> {
+  const r = await apiFetch(`/api/records/${recordId}/survey-stats`);
+  const j = await r.json();
+  if (!j.success) throw new Error(j.message || 'survey_stats_failed');
+  return j.data;
+}

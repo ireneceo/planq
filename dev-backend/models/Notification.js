@@ -27,6 +27,7 @@ Notification.init({
       'leave',            // #208 — 휴가 신청·승인·반려 (ENUM 은 끝에 append)
       'sale',             // Q sale (끝에 append). ★ 이 테이블은 NotificationPref 와 값 **순서가 다르다**(share_expiry) — 순서를 맞추려 들지 말 것
       'client_crash',     // 2026-10-05 — 화면 크래시 관리자 알림 (플랫폼, business_id NULL · 끝에 append)
+      'survey',           // #460 설문 새 응답 (끝에 append — migrate-survey)
     ),
     allowNull: false,
   },

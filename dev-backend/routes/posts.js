@@ -1488,12 +1488,20 @@ router.put('/:id/security-level', authenticateToken, async (req, res, next) => {
       revokedShare = true;
     }
     await post.update(patch);
+    // #460 — 표 문서의 설문 링크도 밖으로 나가는 문이다. 일반이 아니게 되면 같이 닫는다(공유 링크와 같은 술어).
+    //   공개 라우트도 매 요청 등급을 보지만(services/survey.resolveSurveyToken), 열쇠를 남겨 두면 등급을 되돌리는 순간 옛 링크가 살아난다.
+    let revokedSurvey = false;
+    if (level !== 'general' && post.kind === 'table' && post.q_record_id) {
+      const { QRecord } = require('../models');
+      const [n] = await QRecord.update({ survey_token: null }, { where: { id: post.q_record_id, survey_token: { [require('sequelize').Op.ne]: null } } });
+      revokedSurvey = n > 0;
+    }
     broadcastPost(req, post, 'post:updated');
     require('../services/auditService').logAudit(req, {
       action: 'post.security_level_change', targetType: 'post', targetId: post.id, businessId: post.business_id,
-      oldValue: { security_level: prev }, newValue: { security_level: level, revoked_share: revokedShare },
+      oldValue: { security_level: prev }, newValue: { security_level: level, revoked_share: revokedShare, revoked_survey: revokedSurvey },
     });
-    return successResponse(res, { id: post.id, security_level: level, revoked_share: revokedShare });
+    return successResponse(res, { id: post.id, security_level: level, revoked_share: revokedShare, revoked_survey: revokedSurvey });
   } catch (err) { next(err); }
 });
 

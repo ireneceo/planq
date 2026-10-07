@@ -1188,6 +1188,30 @@ function defineSecretTests() {
     return `목록 ${rows.length}행 · 상세 1건 — 토큰 0 · 쓸 필드 유지`;
   });
 
+  // ★ 2026-10-07 #460 설문 — 표의 설문 열쇠(q_records.survey_token)는 «응답을 쓰는» 자격증명이다. 설정 라우트에서만
+  //   내리고 표 상세·목록 응답에서는 뺀다(routes/records.js stripRecordSecrets). r.toJSON() 통째 내보내기로 조용히 돌아온다.
+  test('secrets', '표 상세·목록 응답에 설문 열쇠가 실리지 않는다', async () => {
+    await setup();
+    const H = { Authorization: `Bearer ${ctx.token}` };
+    const cr = await http('POST', `${BACKEND}/api/records`, { headers: H, body: { business_id: ctx.businessId, name: '[health] survey secret', columns: [{ name: 'q', type: 'text' }] }, expectStatus: 201 });
+    const rid = cr.data && cr.data.id;
+    if (!rid) throw new Error('표를 만들지 못했다 — 검사 준비 실패');
+    try {
+      const en = await http('PUT', `${BACKEND}/api/records/${rid}/survey`, { headers: H, body: { enabled: true } });
+      const tok = en.data && en.data.token;
+      if (!tok) throw new Error('설문을 켜지 못했다 — 열쇠가 없으면 "안 샌다" 를 증명할 수 없다');
+      const det = await http('GET', `${BACKEND}/api/records/${rid}`, { headers: H });
+      const list = await http('GET', `${BACKEND}/api/records?business_id=${ctx.businessId}&limit=500`, { headers: H });
+      const raw = JSON.stringify(det) + JSON.stringify(list);
+      if (raw.includes(tok)) throw new Error('표 상세·목록 응답에 설문 열쇠 원문이 있다 — 표를 읽기만 하는 사람이 응답 링크를 얻는다');
+      // 양성 대조군 — 켜짐 표시는 와야 한다(응답이 통째로 비어 거짓 통과하는 것을 막는다)
+      if (!(det.data && det.data.survey_on === true)) throw new Error('survey_on 이 없다 — 응답이 비었을 가능성(거짓 통과)');
+      return '상세·목록 — 열쇠 0 · survey_on 유지';
+    } finally {
+      require('child_process').execSync(`node -e "require('dotenv').config();const {sequelize}=require('./config/database');(async()=>{await sequelize.query('DELETE FROM q_record_audits WHERE q_record_id=${Number(rid)}');await sequelize.query('DELETE FROM posts WHERE q_record_id=${Number(rid)}');await sequelize.query('DELETE FROM q_records WHERE id=${Number(rid)}');process.exit(0)})();"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    }
+  });
+
   // ★ 2026-10-04 AI 에이전트 M3-a(설계 docs/AI_AGENT_M3_DESIGN.md §7.1) — 메일 도구 응답이 계정 자격증명·동기화 오류 원문
   //   (호스트·아이디가 들어 있다)·본문 HTML·공유 토큰을 싣지 않는다. 메일 계정 모델은 비밀 칸이 많아(IMAP/SMTP 암호·OAuth 토큰)
   //   통째로 내보내는 순간 전부 나간다. 판정은 응답 원문 문자열 + «쓸 필드는 그대로 온다» 대조군.

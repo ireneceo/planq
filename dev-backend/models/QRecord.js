@@ -23,6 +23,11 @@ QRecord.init({
   // [{ id: "c1", name: "회사명", type: "text", order: 0 }, ...]
   // 지원 타입: text, longtext, number, date, datetime, checkbox, url, email, phone, select, multi_select, secret
   columns: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+  // #460 설문 — 응답 링크 열쇠(쓰기만 되는 열쇠, 문서 공유 링크와 따로). NULL = 꺼짐. 다시 켜면 새 값.
+  //   ★ 이 값은 설정 라우트(GET /api/records/:id/survey)에서만 내린다 — 상세·목록 응답에서는 뺀다(stripRecordSecrets).
+  survey_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+  // { title, intro, required:[colId], hidden:[colId], help:{colId:text}, closes_at, max_responses, owner_id }
+  survey_settings: { type: DataTypes.JSON, allowNull: true },
   // 워크스페이스 단위 read 정책 — all (모든 멤버) | owner (owner+admin 만)
   read_policy: { type: DataTypes.ENUM('all', 'owner'), allowNull: false, defaultValue: 'all' },
   // N+68 — 4단계 visibility 통합 (VISIBILITY_VOCABULARY.md). hook 가 read_policy + project_id 와 양방향 동기.

@@ -563,6 +563,11 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 방문 집계 `landing_visits`(숫자만)·`landing_visitors`(하루 비밀 해시) — 쿠키·IP·UA 저장 없음, 무인증 `POST /api/landing-visits` 는
 랜딩 주소만·봇 제외·IP 분당 60. 조회는 플랫폼 관리자 > 랜딩 방문.
 
+**설문 (#460, 2026-10-07):** 새 표 없음 — **표 문서(`kind='table'`)의 «응답 받기» 문**이다. 문항 = 표 칸, 응답 1건 = 표 1줄(`created_by` NULL = 외부 응답), 통계 = 칸별 집계. 설계 docs/SURVEY_DESIGN.md
+- 열쇠 `q_records.survey_token` 은 **쓰기만** 된다(문서 공유 열쇠와 따로). 응답을 읽는 공개 경로는 없다. 열쇠는 `GET /api/records/:id/survey`(켤 수 있는 사람)에서만 내리고 상세·목록은 `stripRecordSecrets` 로 뺀다 — 회귀 `health-check --category=secrets`.
+- 무인증 표면 `routes/survey_public.js`(`/api/survey/:token`) — 판정은 매 요청 `services/survey.resolveSurveyToken` **한 함수**(문서 생존·워크스페이스 생존·`blocksExternalShare`·게시·마감·정원·하드캡 5,000). 레이트리밋 주 키 = 토큰. 화면 `/public/survey/:token`.
+- 켜기 = 멤버 이상 ∧ `canEditPost`(L1 은 작성자만) · 보안등급 일반 아니면 켤 수 없고, 올리면 열쇠 회수. 운영 `migrate-survey.js`(배포 슬롯).
+
 **Q sale (2):** **client_stage_history**, **client_interactions** (2026-09-11 신규 — 영업은 **새 고객 테이블이 아니라 `clients` 의 축**이다. 설계 docs/Q_SALE_DESIGN.md)
 - `clients` 확장: `status` ENUM 끝에 **`prospect`**(문의 고객 = 계정 없음 + 초대 안 함) append · `sales_stage`(none→inquiry→consulting→proposal→negotiation→won/lost) · `sales_source` · `lost_reason/lost_note` · `phone` · `expected_amount/currency` · `last_touch_at`(파생) · 인덱스 2.
 - **단계를 바꾸는 문은 하나다** — `services/salesStage.js setStage`(컬럼 + 이력 + 감사 + broadcast). `client.update({sales_stage})` 를 다른 곳에서 부르면 이력·실시간이 조용히 빠진다.

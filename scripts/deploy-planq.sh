@@ -335,6 +335,10 @@ sync_database() {
   # 2026-10-07 일정 ↔ 업무 연결 — calendar_events.task_id INT NULL + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-task-link.js 2>&1 | tail -6"
+  # 2026-10-07 설문(#460) — q_records.survey_token/survey_settings · q_record_rows.created_by NULL ·
+  #   q_record_audits.user_id NULL + action ENUM · notifications/notification_prefs event_kind 'survey'. 멱등.
+  #   ★ 순서: PM2 reload 보다 먼저 — 모델이 survey_token 을 SELECT 하므로 없으면 표 문서 전체가 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-survey.js 2>&1 | tail -10"
   # Q Mail 발송 상태 — email_messages.delivery_status ENUM 에 'suppressed' append.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"

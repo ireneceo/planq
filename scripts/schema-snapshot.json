@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-04",
+  "_generated": "2026-10-07",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -371,7 +371,8 @@
       "created_via",
       "gcal_sync_workspace",
       "gcal_sync_personal",
-      "booking_status"
+      "booking_status",
+      "task_id"
     ],
     "client_interactions": [
       "id",
@@ -558,6 +559,28 @@
       "created_at",
       "updated_at"
     ],
+    "cue_question_raw": [
+      "id",
+      "topic_row_id",
+      "question",
+      "lang",
+      "created_at",
+      "updated_at"
+    ],
+    "cue_question_topics": [
+      "id",
+      "stat_date",
+      "topic",
+      "intent",
+      "classified",
+      "answered",
+      "mode",
+      "plan_tier",
+      "lang",
+      "ws_day_hash",
+      "created_at",
+      "updated_at"
+    ],
     "cue_usage": [
       "id",
       "business_id",
@@ -709,6 +732,20 @@
       "signature_html",
       "signature_html_en",
       "is_default",
+      "created_at",
+      "updated_at"
+    ],
+    "email_account_folders": [
+      "id",
+      "account_id",
+      "role",
+      "folder",
+      "uid_validity",
+      "last_uid",
+      "last_synced_at",
+      "last_error",
+      "enabled",
+      "discovered_at",
       "created_at",
       "updated_at"
     ],
@@ -2007,7 +2044,9 @@
       "created_at",
       "updated_at",
       "vlevel",
-      "target_member_ids"
+      "target_member_ids",
+      "survey_token",
+      "survey_settings"
     ],
     "qnote_usage": [
       "id",
@@ -2214,7 +2253,9 @@
       "title_snapshot",
       "slot",
       "party",
-      "signer_user_id"
+      "signer_user_id",
+      "required_items",
+      "item_images"
     ],
     "subscriptions": [
       "id",
@@ -2604,20 +2645,6 @@
       "is_active",
       "verified_at",
       "created_by",
-      "created_at",
-      "updated_at"
-    ],
-    "email_account_folders": [
-      "id",
-      "account_id",
-      "role",
-      "folder",
-      "uid_validity",
-      "last_uid",
-      "last_synced_at",
-      "last_error",
-      "enabled",
-      "discovered_at",
       "created_at",
       "updated_at"
     ]

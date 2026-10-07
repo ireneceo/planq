@@ -10,12 +10,15 @@ QRecordAudit.init({
   id: { type: DataTypes.BIGINT, primaryKey: true, autoIncrement: true },
   q_record_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'q_records', key: 'id' } },
   q_record_row_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'q_record_rows', key: 'id' } },
-  user_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
+  // NULL = 설문 응답(row.survey) — 외부 응답자는 계정이 없다
+  user_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
   action: { type: DataTypes.ENUM(
     'record.create', 'record.update', 'record.delete',
     'column.add', 'column.update', 'column.remove',
     'row.create', 'row.update', 'row.delete',
     'secret.reveal',
+    'row.survey',       // #460 설문 응답 (끝에 append — migrate-survey)
+    'survey.update',    // #460 설문 켜기·끄기·설정
   ), allowNull: false },
   field: { type: DataTypes.STRING(80), allowNull: true },          // column id (컬럼/시크릿 작업 시)
   meta: { type: DataTypes.JSON, allowNull: true },                 // before/after 등

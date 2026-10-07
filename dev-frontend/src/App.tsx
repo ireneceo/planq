@@ -92,6 +92,7 @@ const PublicFilePage = lazy(() => import('./pages/Public/PublicFilePage'));
 const PublicKbDocumentPage = lazy(() => import('./pages/Public/PublicKbDocumentPage'));
 const PublicKbBundlePage = lazy(() => import('./pages/Public/PublicKbBundlePage'));
 const PublicCalendarEventPage = lazy(() => import('./pages/Public/PublicCalendarEventPage'));
+const PublicSurveyPage = lazy(() => import('./pages/Public/PublicSurveyPage'));   // #460 설문 응답 (무로그인)
 const PublicSignPage = lazy(() => import('./pages/QDocs/PublicSignPage'));
 const PublicInvoicePage = lazy(() => import('./pages/QBill/PublicInvoicePage'));
 const PublicQNoteSessionPage = lazy(() => import('./pages/QNote/PublicQNoteSessionPage'));
@@ -676,6 +677,7 @@ function ShellApp() {
         <Route path="/public/kb/:token" element={<PublicKbDocumentPage />} />
         <Route path="/public/kb-bundle/:token" element={<PublicKbBundlePage />} />
         <Route path="/public/calendar/:token" element={<PublicCalendarEventPage />} />
+        <Route path="/public/survey/:token" element={<PublicSurveyPage />} />
         <Route path="/public/invoices/:token" element={<PublicInvoicePage />} />
         <Route path="/public/qnote-sessions/:token" element={<PublicQNoteSessionPage />} />
         <Route path="/public/report/:token" element={<PublicReportPage />} />

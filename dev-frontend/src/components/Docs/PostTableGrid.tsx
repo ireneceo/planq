@@ -22,6 +22,12 @@ import { apiFetch } from '../../contexts/AuthContext';
 import PostAiModal from './PostAiModal';
 import AiActionButton from '../Common/AiActionButton';
 import { isEnterAction } from '../../utils/imeKey';
+// #460 설문 — 표 문서의 «응답 받기» 문 + 칸별 통계 (docs/SURVEY_DESIGN.md)
+import SurveyDrawer from './SurveyDrawer';
+import SurveyStats from './SurveyStats';
+import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
+import { fetchSurvey, type SurveyView } from '../../services/qtable';
+import { onSocket } from '../../services/socket';
 
 const TYPES: { value: QRecordColumnType; tk: string; ko: string }[] = [
   { value: 'text',         tk: 'colType.text',        ko: '텍스트' },
@@ -176,6 +182,23 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
   }, [recordId]);
   useEffect(() => { load(); }, [load]);
 
+  // #460 — 표 / 통계 보기 · 설문 설정. 설정은 켤 수 있는 사람에게만 보인다(서버가 403 이면 null)
+  const [view, setView] = useState<'grid' | 'stats'>('grid');
+  const [surveyOpen, setSurveyOpen] = useState(false);
+  const [survey, setSurvey] = useState<SurveyView | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchSurvey(recordId).then((v) => { if (alive) setSurvey(v); }).catch(() => { if (alive) setSurvey(null); });
+    return () => { alive = false; };
+  }, [recordId]);
+  // 설문 응답이 들어오면 줄을 다시 읽는다(신호만 온다). 화면을 스피너로 되돌리지 않는다.
+  useEffect(() => onSocket<{ id: number }>('record:row', (p) => {
+    if (p?.id !== recordId) return;
+    fetchRecord(recordId).then((r) => { if (r) setRec(r); }).catch(() => { /* 다음 신호·재방문에 다시 읽는다 */ });
+    // 버튼의 «받는 중 · N건» 도 같이 — 안 그러면 줄은 늘었는데 숫자는 0 으로 남는다
+    fetchSurvey(recordId).then((v) => { if (v) setSurvey(v); }).catch(() => { /* 다음 신호에 */ });
+  }), [recordId]);
+
   if (loading) return <Loading>{t('detail.loading', '불러오는 중...')}</Loading>;
   if (!rec) return <Loading>{t('detail.notFound', '테이블을 찾을 수 없습니다')}</Loading>;
 
@@ -265,6 +288,21 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
 
   return (
     <GridWrap>
+      <SurveyBar>
+        <SegmentedToggle role="tablist" aria-label={t('stats.viewLabel', '보기') as string}>
+          <SegmentedBtn type="button" role="tab" aria-selected={view === 'grid'} $active={view === 'grid'} onClick={() => setView('grid')}>{t('stats.tabGrid', '표')}</SegmentedBtn>
+          <SegmentedBtn type="button" role="tab" aria-selected={view === 'stats'} $active={view === 'stats'} onClick={() => setView('stats')} data-testid="table-stats-tab">{t('stats.tabStats', '통계')}</SegmentedBtn>
+        </SegmentedToggle>
+        {survey && (
+          <SurveyBtn type="button" $on={survey.enabled} onClick={() => setSurveyOpen(true)} data-testid="table-survey-open">
+            {survey.enabled ? t('survey.btnOn', { defaultValue: '설문 받는 중 · {{n}}건', n: survey.response_count }) as string : t('survey.title', '설문으로 받기')}
+          </SurveyBtn>
+        )}
+      </SurveyBar>
+      {survey && (
+        <SurveyDrawer open={surveyOpen} onClose={() => setSurveyOpen(false)} recordId={rec.id} columns={rec.columns} onChanged={setSurvey} />
+      )}
+      {view === 'stats' ? <StatsPad><SurveyStats recordId={rec.id} /></StatsPad> : (<>
       <GridScroll>
         <GridTable>
           <thead>
@@ -364,6 +402,7 @@ const PostTableGrid: React.FC<Props> = ({ recordId, businessId, readOnly = false
           )}
         </GridTable>
       </GridScroll>
+      </>)}
 
       {settingsCol && (
         <ColumnSettingsPopover
@@ -898,6 +937,24 @@ export default PostTableGrid;
 // ─── styled ───
 const Loading = styled.div`padding: 40px; text-align: center; color: #94A3B8; font-size: 0.8125rem;`;
 const GridWrap = styled.div`width: 100%;`;
+// #460 — 표 위 한 줄: [표 | 통계] + 설문 버튼. 한 줄 안 컨트롤은 같은 높이(32 — 알약 높이)
+// 표 본문은 좌우 끝까지(full-bleed)지만 이 줄은 문서 메타 줄과 같은 안쪽 여백(20 / 폰 16)에 맞춘다
+const SurveyBar = styled.div`
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 20px 10px;
+  @media (max-width: 640px) { padding: 0 16px 10px; }
+`;
+const SurveyBtn = styled.button<{ $on: boolean }>`
+  margin-left: auto; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; white-space: nowrap;
+  border: 1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};
+  background: ${(p) => (p.$on ? '#F0FDFA' : '#FFF')}; color: ${(p) => (p.$on ? '#0F766E' : '#334155')};
+  &:hover { border-color: #14B8A6; color: #0F766E; }
+  @media (max-width: 640px) { height: 40px; }
+`;
+const StatsPad = styled.div`
+  padding: 4px 20px 12px;
+  @media (max-width: 640px) { padding: 4px 16px 12px; }
+`;
 // 라운드 제거 — 문서 flat 풀레이아웃과 통일(상하 flat 라인만, 좌우는 full-bleed 로 패널 끝까지). (Irene)
 const GridScroll = styled.div`overflow-x: auto; border-top: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; background: #fff;`;
 const GridTable = styled.table`

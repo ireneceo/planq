@@ -12,7 +12,8 @@ QRecordRow.init({
   q_record_id: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'q_records', key: 'id' } },
   values: { type: DataTypes.JSON, allowNull: false, defaultValue: {} },
   position: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  created_by: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
+  // NULL = 설문(#460)으로 들어온 외부 응답 — 사람 계정이 없다. 화면은 «설문 응답» 으로 보인다(docs/SURVEY_DESIGN.md)
+  created_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
   updated_by: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
 }, {
   sequelize, tableName: 'q_record_rows', timestamps: true, underscored: true,

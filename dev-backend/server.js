@@ -541,6 +541,7 @@ app.use('/api/tasks', require('./routes/task_attachments_public'));   // 공개 
 // #259 무로그인 게스트 링크 — **인증 없는 공개 라우트**. 공개 라우트끼리 모아 둔다
 //   (인증 라우트 사이에 흩어지면 다음 사람이 이게 공개인 줄 모른다).
 app.use('/api/guest', require('./routes/guest'));
+app.use('/api/survey', require('./routes/survey_public'));   // #460 설문 무인증 표면 — 질문지 읽기·응답 쓰기만(응답 읽기 경로 없음)
 // 게스트 링크 **관리** (멤버용, 인증 필수) — 공개 표면과 파일을 나눠 둔다.
 app.use('/api/conversations', require('./routes/guest_admin'));
 // ★ 동기화 조치 라우트를 **먼저** 마운트한다 — calendar.js 에 `/:id/share` 같은 와일드카드 형태가
