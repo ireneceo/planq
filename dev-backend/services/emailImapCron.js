@@ -616,6 +616,22 @@ async function syncFolder(conn, ctx, row) {
  * 계정의 보낸편지함·스팸함 동기화 — syncOne 이 받은편지함 저장을 끝낸 뒤 같은 연결로 부른다.
  * 무엇이 실패해도 받은편지함에는 영향이 없다(폴더 행 last_error 에만 남는다).
  */
+/** 이 계정이 플랫폼 메일 발송 주소(SMTP_FROM·SMTP_USER)인가 — 계정 주소 또는 별칭이 같으면 참. */
+function addrOf(v) {
+  const m = /<([^>]+)>/.exec(String(v || ''));
+  return String(m ? m[1] : v || '').trim().toLowerCase();
+}
+async function isPlatformSenderAccount(account) {
+  const platform = new Set([addrOf(process.env.SMTP_FROM), addrOf(process.env.SMTP_USER)].filter(Boolean));
+  if (!platform.size || !account) return false;
+  if (platform.has(addrOf(account.email))) return true;
+  try {
+    const { EmailAccountAlias } = require('../models');
+    const aliases = await EmailAccountAlias.findAll({ where: { account_id: account.id }, attributes: ['email'] });
+    return aliases.some((a) => platform.has(addrOf(a.email)));
+  } catch { return false; }
+}
+
 async function syncExtraFolders(conn, ctx, opts = {}) {
   if (!extraFoldersEnabled()) return { skipped: 'kill_switch' };
   const { account } = ctx;
@@ -650,9 +666,18 @@ async function syncExtraFolders(conn, ctx, opts = {}) {
   }
 
   const result = {};
+  const platformSender = await isPlatformSenderAccount(account);
   for (const role of EXTRA_ROLES) {
     const row = byRole.get(role);
     if (!row || !row.folder) { result[role] = { skipped: 'folder_not_found' }; continue; }
+    // ★ 플랫폼 발송 계정(SMTP_FROM/SMTP_USER 와 같은 주소)의 보낸편지함은 가져오지 않는다 — 다른 워크스페이스에 보낸
+    //   청구서·비밀번호 재설정·초대 링크가 그 계정 워크스페이스 멤버의 «보낸메일» 에 보이게 된다(Fable 2026-10-07 —
+    //   dev help@ 132통 중 Purple Here 109통은 Auto-Submitted 헤더가 없어 헤더로는 못 거른다. 그래서 «계정» 기준).
+    if (role === 'sent' && platformSender) {
+      result[role] = { skipped: 'platform_sender' };
+      if (row.last_error !== 'platform_sender') { try { await row.update({ last_error: 'platform_sender' }); } catch { /* */ } }
+      continue;
+    }
     if (!row.enabled) { result[role] = { skipped: 'disabled' }; continue; }
     try {
       result[role] = await syncFolder(conn, ctx, row);

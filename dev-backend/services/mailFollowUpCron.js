@@ -52,7 +52,7 @@ async function runMailFollowUpCron(now = new Date(), ioApp = null) {
     const m = await EmailMessage.findOne({
       where: { thread_id: t.id, direction: 'outbound' },
       order: [['sent_at', 'DESC'], ['id', 'DESC']],
-      attributes: ['id', 'delivery_status', 'sent_by_user_id'],
+      attributes: ['id', 'delivery_status', 'sent_by_user_id', 'internal_only'],
     });
     if (m) lastOut.set(t.id, m);
   }

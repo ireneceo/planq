@@ -20,8 +20,10 @@ function serializeExtraFolders(rows) {
       found: !!r.folder,
       discovered: !!r.discovered_at,
       last_synced_at: r.last_synced_at || null,
-      has_error: !!(r.last_error && r.folder),
-    } : { enabled: true, folder: null, found: false, discovered: false, last_synced_at: null, has_error: false };
+      has_error: !!(r.last_error && r.folder && r.last_error !== 'platform_sender'),
+      // 플랫폼 발송 계정의 보낸편지함은 가져오지 않는다 — 화면이 그 사실을 말한다(emailImapCron.isPlatformSenderAccount)
+      platform_sender: r.last_error === 'platform_sender',
+    } : { enabled: true, folder: null, found: false, discovered: false, last_synced_at: null, has_error: false, platform_sender: false };
   }
   return out;
 }

@@ -242,7 +242,7 @@ router.get('/:businessId/email-threads',
         //   #262 — 보낸메일함 행 표시도 이 배치 결과를 쓴다 (수신자·내 발송시각·내 발송 미리보기).
         //   새 쿼리를 만들지 않고 컬럼만 넓힌다 (N+1 금지).
         const lastOut = await sequelize.query(
-          `SELECT em.thread_id, em.delivery_status, em.to_emails, em.sent_at,
+          `SELECT em.thread_id, em.delivery_status, em.to_emails, em.sent_at, em.internal_only,
                   LEFT(COALESCE(em.body_text, ''), 200) AS preview
              FROM email_messages em
              JOIN (SELECT thread_id, MAX(id) AS mid
@@ -254,6 +254,7 @@ router.get('/:businessId/email-threads',
         for (const m of lastOut) {
           lastOutByThread.set(m.thread_id, {
             delivery_status: m.delivery_status,
+            internal_only: !!m.internal_only,
             to_emails: m.to_emails,
             sent_at: m.sent_at,
             preview: m.preview,

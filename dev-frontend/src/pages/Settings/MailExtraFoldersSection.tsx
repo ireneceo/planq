@@ -21,7 +21,7 @@ interface Props {
 }
 
 const DEFAULT_STATE: MailExtraFolderState = {
-  enabled: true, folder: null, found: false, discovered: false, last_synced_at: null, has_error: false,
+  enabled: true, folder: null, found: false, discovered: false, last_synced_at: null, has_error: false, platform_sender: false,
 };
 
 const ROLES: MailExtraFolderRole[] = ['sent', 'spam'];
@@ -49,6 +49,7 @@ export default function MailExtraFoldersSection({ businessId, accountId, initial
   };
 
   const folderLine = (st: MailExtraFolderState) => {
+    if (st.platform_sender) return t('extraFolders.platformSender') as string;
     if (!st.discovered) return t('extraFolders.pending', { defaultValue: '다음 동기화 때 폴더를 찾습니다' }) as string;
     if (!st.found) return t('extraFolders.notFound', { defaultValue: '이 메일함에서 폴더를 찾지 못했어요' }) as string;
     return t('extraFolders.folderName', { folder: st.folder, defaultValue: '업체 폴더: {{folder}}' }) as string;

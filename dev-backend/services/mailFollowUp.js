@@ -44,6 +44,9 @@ function followUpState(thread, lastOutbound, now) {
   if (INACTIVE_STATUS.has(String(thread.status))) return null;
   if (thread.last_message_direction !== 'outbound') return null;
 
+  // 마지막 보낸메일이 **우리끼리만**(받는 사람이 전부 우리 주소 — 업체 보낸편지함에서 가져온 전달) 이면 답을 기다리는 게 아니다.
+  //   «전달은 답이 아니다»(Fable 2026-10-07 판정 ②)의 네 번째 소비처.
+  if (lastOutbound && lastOutbound.internal_only) return null;
   const ds = lastOutbound && lastOutbound.delivery_status;
   if (ds && !DELIVERED_ENOUGH.has(String(ds))) {
     // 못 보낸 것을 "응답 없음" 으로 표시하면 사용자가 상대를 탓하게 된다. 원인을 정확히 말한다.

@@ -73,6 +73,7 @@ export interface MailExtraFolderState {
   discovered: boolean;
   last_synced_at: string | null;
   has_error: boolean;
+  platform_sender?: boolean;   // 플랫폼 발송 계정의 보낸편지함은 가져오지 않는다
 }
 export interface MailExtraFolders {
   global_off: boolean;

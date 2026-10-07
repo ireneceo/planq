@@ -5,7 +5,7 @@
 //   ${origin}/api/me/oauth/google/callback
 //
 // 권한 등급 (Google 검증 부담 고려):
-//   google_calendar → calendar.readonly  (sensitive — 일반 검증, CASA X)
+//   google_calendar → calendar.events + calendar.calendarlist.readonly  (sensitive — 일반 검증, CASA X)
 //   google_drive    → drive.file          (비제한 — 회사 Drive 와 동일, PlanQ 가 만든/연 파일만. CASA X)
 //   gmail           → mail.google.com     (restricted — CASA 필요. OAuth 원클릭 전용, 검증 대기 항목)
 //

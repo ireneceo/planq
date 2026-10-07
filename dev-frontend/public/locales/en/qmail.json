@@ -715,7 +715,8 @@
     "spamDesc": "Mail your provider classified as spam appears in the «Spam» tab. The first import covers the last 14 days; items are deleted automatically 30 days after they arrive.",
     "pending": "The folder will be detected on the next sync",
     "notFound": "We couldn't find this folder in the mailbox",
-    "folderName": "Provider folder: {{folder}}"
+    "folderName": "Provider folder: {{folder}}",
+    "platformSender": "This account sends PlanQ notifications, so its Sent folder isn't imported (to keep notices sent to other workspaces out)."
   },
   "spamFolder": {
     "note": "Mail imported from your Gmail/Naver spam folder is deleted after 30 days. Marking it as not spam here doesn't change your provider — please also mark it as not spam in Gmail/Naver.",
