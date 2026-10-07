@@ -49,6 +49,7 @@
 | 32 | `0d72392e` | **일정 ↔ 업무 연결** — calendar_events.task_id + 인덱스(migrate-calendar-task-link.js, 배포 슬롯 reload 전) · services/eventTaskLink(붙일 때 같은 business + canAccessTask · 보여줄 때 보는 사람 기준 hidden) · 생성(행동 계층)·수정(회차 분기 승계)·목록·상세 · TaskLinkPicker · linkLine(업무 · 프로젝트) | **R=1 운영 스키마** · **자체 검증** 실HTTP(연결·변경·해제·남의 업무 400·없는 업무 400·유지·숨김) · 실브라우저 3폭 · 마이그레이션 멱등 · tenant 0 · broadcast 신호만·공개 링크 attributes 화이트리스트·에이전트 도구 taskId 미전달 확인. 2026-10-07 Fable 429 ×1 | 회차 scope=single/future 실호출로 task_id 승계 · 업무가 휴지통/삭제되면 연결 표시 · 고객 참석자 화면 실호출(dev 고객 픽스처가 워크스페이스 접근 없어 함수 직접 검증만) |
 | 33 | `feac9580` `5d530d27` `122f042d` | **파일 미리보기 크게 보기 · 목록 빠른 보기 · 이미지 로딩 자리** — PreviewArea mode='full'·돋보기 · StandardModal size full · QuickView(카드·행, 데스크탑 hover/터치 늘 보임) · 이미지 받는 동안 200px+문구 · DocsTab 목록 스타일 분리(god-file 래칫 복구) | 화면(F=1) — **자체 검증** 3폭 · 6초 지연 대조 | 운영 front_v4.jpg 원인을 «Drive 첫 요청 지연 + 연결 대기» 로 추정 — 운영 배포 후 실제로 뜨는지 확인 필요(서버는 정상 응답 실측) |
 | 34 | (일정 알림 제목) | **일정 알림 제목이 남은 시간을 말한다** — leadAction · notifyTitle {{n}} · 본문 «… 시작» | 외부 발송(푸시·메일) 문구 — **자체 검증** 판정 7 · dev 실제 크론 3건 | 반복 일정·서버가 늦게 보낸 경우의 제목(오늘/내일 경계) |
+| 35 | `a74e87a0` | **우측 패널이 탭 막대 클릭으로도 닫힘** — hooks/useCloseOnTabStripClick(DetailDrawer · TaskDetailDrawer) | 화면(F=1) — **자체 검증** 태블릿·데스크탑 파일·업무 상세 | 다른 자체 패널(Q talk 우측·메일 작업대·도움말)에도 같은 동작이 필요한가 |
 
 ---
 
