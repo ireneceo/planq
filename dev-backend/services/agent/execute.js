@@ -125,7 +125,9 @@ async function runTool(p, name, rawArgs) {
         : data?.interaction ? { target_type: 'client_interaction', target_id: data.interaction.interaction_id }
           : data?.project_note ? { target_type: 'project_note', target_id: data.project_note.note_id }
             : data?.file ? { target_type: 'file', target_id: data.file.file_id }
-              : data?.document ? { target_type: 'post', target_id: data.document.post_id } : {};
+              : data?.document ? { target_type: 'post', target_id: data.document.post_id }
+                // 일정 — 없어서 agent.create_event 감사가 전부 «business» 로 남았다(Fable 59fba176 검증, 2026-10-07)
+                : data?.event?.event_id ? { target_type: 'calendar_event', target_id: data.event.event_id } : {};
 
     if (tool.write) {
       await store.update('agent_idem', idemKey, { status: 'done', result: data, ...target }).catch(() => {});

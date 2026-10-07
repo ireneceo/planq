@@ -29,6 +29,8 @@
 | 37 (신규) 결제 대기 유예 잠김 | 🔧 `d3e1beff` planActive | B 판정 6 — 유예 중 past_due 를 사용 가능으로. health-check 상태표 6건(옛 식 2건 FAIL 확인) · dev biz 174 upload ok. R=1 **재검증 대기** |
 | 38 (신규) 피드백 회신 함수 | 🔧 `012ec856` | services/feedbackRespond 한 곳(관리자 라우트 + scripts/feedback-reply.js). 외부 발송(알림·메일) 트리거 — **재검증 대기** |
 
+| 39 (신규) AI create_event 칸 확장 `59fba176` | ✅ 41/43 PASS + ❌→🔧 | 범위·업무 연결·알림·종류 모두 PASS. 감사 대상이 business 로 남던 기존 결함(event 분기 없음) — `execute.js` 한 줄 수정, 자체 검증(target calendar_event·실제 id). 한 줄 수정분은 Fable 미검증 |
+
 B 설계 판정(8안건)의 Irene 결정 대기: 행 17 프로젝트 만들기(client_ids·scope) · AI 보강(태그 생성 여부·메모 L1) · 행 23 보낸편지함 먼저/스팸 30일 · Cue 질문 분석(opt-in 범위) · 고객별 채널(Kate·Aidan 같은 회사인가) · 구글 캘린더 선택(심사 제출과 묶기).
 
 ---
