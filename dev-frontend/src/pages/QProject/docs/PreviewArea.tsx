@@ -10,6 +10,7 @@ import { apiFetch } from '../../../contexts/AuthContext';
 import { marked } from 'marked';
 import { listZip, type ZipEntry } from '../../../utils/zipList';
 import DOMPurify from 'dompurify';
+import StandardModal from '../../../components/Common/StandardModal';
 
 // 이미지 리사이즈 파라미터 — DocsTab 과 같은 규칙(원본 URL 에 ?w= 를 덧붙인다).
 const withW = (u: string | undefined | null, w: number): string | undefined =>
@@ -80,6 +81,8 @@ export const PreviewArea: React.FC<{
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfFailed, setPdfFailed] = useState(false);
   const [imgFailed, setImgFailed] = useState(false);
+  // 크게 보기 — 모든 미리보기에 돋보기(2026-10-07 Irene: «모든 미리보기는 확대해서 전체보기 가능하게»)
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     if (!isPdf || !file.download_url || file.download_url === '#') { setPdfUrl(null); return; }
     let alive = true;
@@ -103,12 +106,33 @@ export const PreviewArea: React.FC<{
 
   const hasValidUrl = (u?: string) => !!u && u !== '#' && u.trim().length > 0;
 
+  // 미리보기 + 우상단 돋보기 + 크게 보기 창. small 은 상세 칸에 맞춘 것, big 은 창 높이를 채우는 같은 내용이다.
+  //   onZoom 을 주면(이미지) 창 대신 그것을 연다 — 이미지에는 이미 확대·원본 보기 라이트박스가 있다.
+  const zoomLabel = t('docs.preview.expand', { defaultValue: '크게 보기' }) as string;
+  const expandable = (small: React.ReactNode, big?: () => React.ReactNode, onZoom?: () => void) => (
+    <ExpandWrap>
+      {small}
+      <ExpandBtn type="button" data-testid="file-preview-expand" title={zoomLabel} aria-label={zoomLabel}
+        onClick={() => (onZoom ? onZoom() : setExpanded(true))}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+        </svg>
+      </ExpandBtn>
+      {big && (
+        <StandardModal open={expanded} onClose={() => setExpanded(false)} title={file.file_name} size="full" ariaLabel={zoomLabel}>
+          <StandardModal.Body data-testid="file-preview-full">{expanded ? big() : null}</StandardModal.Body>
+        </StandardModal>
+      )}
+    </ExpandWrap>
+  );
+
   if ((video || audio) && !mediaFailed) {
     if (!mediaUrl) return <PreviewLoading>{t('docs.preview.loadingMedia', '재생 준비 중…')}</PreviewLoading>;
     return video
-      ? (
+      ? expandable(
         <PreviewVideo controls playsInline preload="metadata" src={mediaUrl}
-          onError={() => setMediaFailed(true)} />
+          onError={() => setMediaFailed(true)} />,
+        () => <PreviewVideo $full controls playsInline preload="metadata" src={mediaUrl} />,
       ) : (
         <PreviewAudioWrap>
           <PvExtCircle>{extOf(file.file_name).toUpperCase() || '—'}</PvExtCircle>
@@ -124,17 +148,19 @@ export const PreviewArea: React.FC<{
     //   ★ 1600 은 서버의 ALLOWED_WIDTHS 최대값이다 — 더 큰 값을 적으면 조용히 1600 으로 스냅돼
     //     "코드는 2048 이라는데 실제로는 1600" 인 거짓 주석이 된다.
     const full = file.preview_url!;
-    return (
+    const zoomImage = () => openLightbox([{ src: withW(full, 1600) || full, fullSrc: full, alt: file.file_name }], 0);
+    return expandable(
       <>
         <PreviewImageBtn type="button"
-          onClick={() => openLightbox([{ src: withW(full, 1600) || full, fullSrc: full, alt: file.file_name }], 0)}
+          onClick={zoomImage}
           title={t('docs.preview.zoom', '클릭하여 확대') as string}>
           {/* ★ 안 보이면 **왜 안 보이는지** 말한다. svg 처럼 서버가 안전을 위해 inline 을 막는
               형식은 여기서 조용히 깨진 채 빈 칸으로 남아 있었다(운영 3건). */}
           <PreviewImage src={withW(file.preview_url, 1024)!} alt={file.file_name} onError={() => setImgFailed(true)} />
         </PreviewImageBtn>
         {lightbox}
-      </>
+      </>,
+      undefined, zoomImage,
     );
   }
   if (kind && !textErr) {
@@ -142,14 +168,17 @@ export const PreviewArea: React.FC<{
     if (kind === 'html') {
       // ★ 남이 올린 HTML 이다 — 스크립트·폼·동일출처를 전부 막은 iframe 에서만 그린다.
       //   sandbox 속성을 빈 값으로 두면 모든 권한이 꺼진다(스크립트 실행·상위 접근 불가).
-      return <PreviewIframe sandbox="" srcDoc={text} title={file.file_name} />;
+      return expandable(<PreviewIframe sandbox="" srcDoc={text} title={file.file_name} />,
+        () => <PreviewIframe $full sandbox="" srcDoc={text} title={file.file_name} />);
     }
     if (kind === 'markdown') {
       const html = DOMPurify.sanitize(marked.parse(text, { async: false }) as string);
-      return <PreviewDoc dangerouslySetInnerHTML={{ __html: html }} />;
+      return expandable(<PreviewDoc dangerouslySetInnerHTML={{ __html: html }} />,
+        () => <PreviewDoc $full dangerouslySetInnerHTML={{ __html: html }} />);
     }
-    if (kind === 'csv') return <PreviewTableWrap><CsvTable text={text} /></PreviewTableWrap>;
-    return <PreviewCode>{text}</PreviewCode>;
+    if (kind === 'csv') return expandable(<PreviewTableWrap><CsvTable text={text} /></PreviewTableWrap>,
+      () => <PreviewTableWrap $full><CsvTable text={text} /></PreviewTableWrap>);
+    return expandable(<PreviewCode>{text}</PreviewCode>, () => <PreviewCode $full>{text}</PreviewCode>);
   }
   if (isZip) {
     if (zipErr) {
@@ -163,10 +192,10 @@ export const PreviewArea: React.FC<{
       );
     }
     if (zip === null) return <PreviewLoading>{t('docs.preview.loadingText', { defaultValue: '여는 중…' }) as string}</PreviewLoading>;
-    return (
-      <PreviewTableWrap>
+    const zipView = (full: boolean) => (
+      <PreviewTableWrap $full={full}>
         <ZipHead>{t('docs.preview.zipCount', { n: zip.length, defaultValue: '압축 파일 안 {{n}}개' }) as string}</ZipHead>
-        <ZipList>
+        <ZipList $full={full}>
           {zip.map((e, i) => (
             <ZipRow key={`${e.name}-${i}`}>
               <ZipName $dir={e.dir}>{e.name}</ZipName>
@@ -176,10 +205,13 @@ export const PreviewArea: React.FC<{
         </ZipList>
       </PreviewTableWrap>
     );
+    return expandable(zipView(false), () => zipView(true));
   }
   if (isPdf && hasValidUrl(file.download_url) && !pdfFailed) {
     if (!pdfUrl) return <PreviewLoading>{t('docs.preview.loadingMedia', '재생 준비 중…')}</PreviewLoading>;
-    return <PreviewIframe src={pdfUrl} title={file.file_name} />;
+    // 크게 보기 창에서는 브라우저 PDF 보기(확대·페이지 넘김)가 창 높이를 다 쓴다.
+    return expandable(<PreviewIframe src={pdfUrl} title={file.file_name} />,
+      () => <PreviewIframe $full src={pdfUrl} title={file.file_name} />);
   }
   /* ★ 2026-09-20 (Irene: *"이 구글문서가 플랜큐에 올라갔는데 오픈을 하면 No preview available
      이렇게 떠"* · *"왜 구글 드라이브에서 열려? 문서로 열려야지?"*) —
@@ -253,12 +285,26 @@ const PreviewImage = styled.img`
   max-width:100%;max-height:min(60vh, 560px);
   width:auto;height:auto;display:block;border-radius:10px;
 `;
-const PreviewIframe = styled.iframe`
+// 미리보기 + 우상단 돋보기 — 버튼은 내용 위에 떠 있다(칸을 따로 차지하지 않는다)
+const ExpandWrap = styled.div`position:relative;`;
+const ExpandBtn = styled.button`
+  /* 아래 오른쪽 — 위쪽은 PDF 보기의 도구줄(내려받기·인쇄)을 덮는다(실측). 스크롤바를 피해 오른쪽 20px. */
+  position:absolute;bottom:12px;right:20px;z-index:2;
+  width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid #E2E8F0;border-radius:8px;background:rgba(255,255,255,0.94);color:#334155;cursor:pointer;
+  box-shadow:0 1px 3px rgba(15,23,42,0.12);
+  &:hover{background:#fff;color:#0F766E;border-color:#14B8A6;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  @media (max-width:640px){width:40px;height:40px;}
+`;
+const PreviewIframe = styled.iframe<{ $full?: boolean }>`
   width:100%;height:min(70vh, 720px);
+  ${(p) => (p.$full ? 'flex:1 1 auto;height:auto;min-height:0;' : '')}
   border:1px solid #E2E8F0;border-radius:10px;background:#F8FAFC;
 `;
-const PreviewVideo = styled.video`
+const PreviewVideo = styled.video<{ $full?: boolean }>`
   width:100%;max-height:56vh;background:#000;border-radius:10px;display:block;
+  ${(p) => (p.$full ? 'flex:1 1 auto;max-height:none;min-height:0;' : '')}
 `;
 const PreviewAudioWrap = styled.div`
   display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px 12px;
@@ -304,7 +350,7 @@ const formatZipSize = (n: number): string => {
   return `${(n / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
 };
 const ZipHead = styled.div`font-size:0.75rem;font-weight:700;color:#334155;padding:8px 10px;border-bottom:1px solid #E2E8F0;`;
-const ZipList = styled.div`max-height:360px;overflow:auto;`;
+const ZipList = styled.div<{ $full?: boolean }>`max-height:${(p) => (p.$full ? 'none' : '360px')};overflow:auto;`;
 const ZipRow = styled.div`display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid #F1F5F9;&:last-child{border-bottom:none;}`;
 const ZipName = styled.div<{ $dir: boolean }>`
   flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -358,14 +404,14 @@ function parseDelimited(text: string): string[][] {
   return rows.filter(r => r.some(c => c.trim() !== ''));
 }
 
-const PreviewCode = styled.pre`
-  margin:0;padding:14px;max-height:420px;overflow:auto;
+const PreviewCode = styled.pre<{ $full?: boolean }>`
+  margin:0;padding:14px;max-height:${(p) => (p.$full ? 'none' : '420px')};overflow:auto;
   background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.75rem;line-height:1.6;color:#0F172A;
   white-space:pre-wrap;word-break:break-word;
 `;
-const PreviewDoc = styled.div`
-  padding:16px;max-height:420px;overflow:auto;
+const PreviewDoc = styled.div<{ $full?: boolean }>`
+  padding:16px;max-height:${(p) => (p.$full ? 'none' : '420px')};overflow:auto;
   background:#fff;border:1px solid #E2E8F0;border-radius:10px;
   font-size:0.875rem;line-height:1.7;color:#0F172A;
   h1,h2,h3{margin:1em 0 .5em;font-weight:700;}
@@ -376,8 +422,8 @@ const PreviewDoc = styled.div`
   /* 표 규격은 공용 조각 한 벌 (2026-09-13) */
   ${postContentTableCss}
 `;
-const PreviewTableWrap = styled.div`
-  max-height:420px;overflow:auto;background:#fff;border:1px solid #E2E8F0;border-radius:10px;
+const PreviewTableWrap = styled.div<{ $full?: boolean }>`
+  max-height:${(p) => (p.$full ? 'none' : '420px')};overflow:auto;background:#fff;border:1px solid #E2E8F0;border-radius:10px;
   table{border-collapse:collapse;width:100%;font-size:0.75rem;}
   th,td{border:1px solid #E2E8F0;padding:6px 8px;text-align:left;white-space:nowrap;}
   th{background:#F8FAFC;font-weight:700;position:sticky;top:0;}

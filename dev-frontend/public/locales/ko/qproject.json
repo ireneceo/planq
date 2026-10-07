@@ -513,7 +513,8 @@
       "shortcutHint": "이 파일은 문서 본문이 아니라 구글 문서로 가는 링크입니다. 본문을 PlanQ에 두려면 구글 문서에서 PDF나 Word로 내보내 올려 주세요.",
       "shortcutOpen": "구글 문서 열기",
       "shortcutUnresolved": "링크를 읽지 못했습니다. 원본 파일이 손상되었거나 접근 권한이 없습니다.",
-      "clickToOpen": "눌러서 열기 — 앱에서 못 여는 형식은 내려받습니다"
+      "clickToOpen": "눌러서 열기 — 앱에서 못 여는 형식은 내려받습니다",
+      "expand": "크게 보기"
     },
     "wsUpload": {
       "title": "어느 프로젝트에 업로드할까요?",

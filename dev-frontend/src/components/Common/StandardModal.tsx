@@ -22,7 +22,7 @@ import { modalFooterRadius } from './modalShell';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 
-export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
 interface Props {
   open: boolean;
@@ -43,6 +43,8 @@ const SIZE_MAP: Record<ModalSize, string> = {
   md: '560px',
   lg: '720px',
   xl: '880px',
+  // 크게 보기(파일 미리보기 확대 등) — 화면 거의 전체. 높이도 채운다(Dialog $full).
+  full: '96vw',
 };
 
 const Body = styled.div`
@@ -96,6 +98,7 @@ const StandardModal: React.FC<Props> & {
     <Backdrop $compact={size === 'sm'} onClick={() => closeOnBackdrop && onClose()}>
       <Dialog
         $compact={size === 'sm'}
+        $full={size === 'full'}
         $maxWidth={SIZE_MAP[size]}
         onClick={e => e.stopPropagation()}
         role="dialog" aria-modal="true" aria-label={ariaLabel || title}
@@ -142,10 +145,11 @@ const Backdrop = styled.div<{ $compact?: boolean }>`
       : 'align-items: stretch; padding: var(--pq-safe-top, 0px) 0 0;'}
   }
 `;
-const Dialog = styled.div<{ $maxWidth: string; $compact?: boolean }>`
+const Dialog = styled.div<{ $maxWidth: string; $compact?: boolean; $full?: boolean }>`
   background: #fff; border-radius: 14px;
   width: 100%; max-width: ${p => p.$maxWidth};
   max-height: 90vh; display: flex; flex-direction: column;
+  ${p => (p.$full ? 'height: 92vh; max-height: 92vh;' : '')}
   box-shadow: 0 24px 48px rgba(15,23,42,0.18);
   @media (max-width: 640px) {
     ${p => p.$compact
