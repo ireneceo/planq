@@ -123,6 +123,8 @@ const HelpArticle = require('./HelpArticle');
 const LandingVisit = require('./LandingVisit');
 const LandingVisitor = require('./LandingVisitor');
 const HelpQuestionLog = require('./HelpQuestionLog');
+const CueQuestionTopic = require('./CueQuestionTopic');
+const CueQuestionRaw = require('./CueQuestionRaw');
 const CueKnowledge = require('./CueKnowledge');
 // ─── Q Mail (Phase 9 — M1) ───
 const EmailAccount = require('./EmailAccount');
@@ -653,6 +655,8 @@ module.exports = {
   HelpCategory,
   HelpArticle,
   HelpQuestionLog,
+  CueQuestionTopic,
+  CueQuestionRaw,
   CueKnowledge,
   // Q Mail (Phase 9 M1)
   EmailAccount,

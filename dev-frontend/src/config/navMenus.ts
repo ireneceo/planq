@@ -108,6 +108,7 @@ export const ADMIN_MENUS: NavMenuEntry[] = [
   { key: 'admin-feedback', to: '/admin/feedback', labelKey: 'nav.feedback', section: 'admin', roles: 'any' },
   { key: 'admin-dev-status', to: '/admin/dev-status', labelKey: 'nav.devStatus', section: 'admin', roles: 'any' },
   { key: 'admin-landing-visits', to: '/admin/landing-visits', labelKey: 'nav.landingVisits', section: 'admin', roles: 'any' },
+  { key: 'admin-cue-questions', to: '/admin/cue-questions', labelKey: 'nav.cueQuestions', section: 'admin', roles: 'any' },
   { key: 'admin-wiki', to: '/admin/guide', labelKey: 'nav.wiki', section: 'admin', roles: 'any' },
   { key: 'admin-email-logs', to: '/admin/email-logs', labelKey: 'nav.emailLogs', section: 'admin', roles: 'any' },
   { key: 'admin-push-logs', to: '/admin/push-logs', labelKey: 'nav.pushLogs', section: 'admin', roles: 'any' },

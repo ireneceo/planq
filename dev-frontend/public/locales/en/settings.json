@@ -785,5 +785,12 @@
     "title": "AI apps (ChatGPT, Claude)",
     "allowMail": "Let members read email through AI apps",
     "allowMailHelp": "Turning this off also stops already-connected apps from reading email. Tasks, clients, projects and events are unaffected."
+  },
+  "cueAnalysis": {
+    "title": "Question analysis",
+    "topics": "Analyze question topics to improve the product",
+    "topicsHelp": "Keeps only statistics on the topic of questions asked to Cue and Q helper (e.g. tasks, billing) and whether they were answered. Who asked, and from which workspace, is not stored.",
+    "raw": "Keep unclassified questions for 30 days (pseudonymized)",
+    "rawHelp": "Only product how-to questions whose topic couldn't be identified are kept for 30 days, with names, emails, phone numbers, amounts and links masked, then deleted. Questions about your workspace data are never kept."
   }
 }

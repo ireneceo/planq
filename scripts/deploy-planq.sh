@@ -480,6 +480,12 @@ sync_database() {
   log "Adding signature item columns..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-signature-items.js 2>&1 | tail -4"
 
+  # 2026-10-07 — Cue 질문 분석(Fable 판정 B5): cue_question_topics(주제 통계 — user/business id 없음) · cue_question_raw(가명 원문 30일).
+  #   ★ **코드보다 먼저 돈다** — Cue 답변 직후 기록이 이 표에 쓴다(없으면 기록만 실패·로그 — 응답은 막지 않지만 통계가 빈다). 멱등.
+  #   ★ 이 배포 뒤 첫 0시 보존 cron 이 help_question_logs 90일 초과분을 **소급 삭제**한다(의도 — 방침 밖 무기한 저장 정리).
+  log "Creating cue question analysis tables..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-cue-question-analysis.js 2>&1 | tail -4"
+
   # 2026-09-14 — Q sale 상담 메모(댓글)의 **기준**을 남기는 칸: project_notes.client_id.
   #   Irene: "메모라고 메모남기기가 댓글처럼 … 어떤 문의를 기준으로 저장된건지 남기게 하고."
   #   ★ **코드보다 먼저 돈다** — 모델이 client_id 를 선언하므로 컬럼이 없으면 메모 조회가 500 이다.

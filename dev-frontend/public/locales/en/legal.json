@@ -15,7 +15,8 @@
         "Automatically collected: IP address, cookies, access logs, browser/device info",
         "Payment: card payments are handled directly by our payment processor (Stripe); the Company stores only the transaction ID and amount. For bank-transfer payments, the Company checks the depositor name and amount solely to confirm the deposit, and does not separately collect or store bank account details.",
         "Guest (non-member) reply notifications: name and email address — used to send reply alerts and to let the assigned staff see who they are talking to. Collected only when the guest opts in, and shown to the staff on that conversation",
-        "Sensitive data (biometric) — only with your separate consent: a numeric signature of your voice for Q Note (256 values). Purpose: showing your name next to your own speech in Q Note meetings of workspaces you belong to (for clients: meetings you are connected to). No raw audio is kept and it is not sent outside PlanQ. You can delete it or turn off recognition at any time in your profile (clients: Home)"
+        "Sensitive data (biometric) — only with your separate consent: a numeric signature of your voice for Q Note (256 values). Purpose: showing your name next to your own speech in Q Note meetings of workspaces you belong to (for clients: meetings you are connected to). No raw audio is kept and it is not sent outside PlanQ. You can delete it or turn off recognition at any time in your profile (clients: Home)",
+        "When you ask Cue or Q helper: (1) question log (question text and whether a help article was found) — to improve help content, kept 90 days; (2) question topic statistics (topic, intent, whether it was answered, language, plan) — who asked and from which workspace are not stored, so no individual can be identified; a workspace can turn this off in its settings; (3) only if a workspace turns on \"keep unclassified questions\": the text of product how-to questions whose topic couldn't be identified, kept for 30 days after names, emails, phone numbers, amounts and links are masked (pseudonymized). Questions about workspace data are never kept as text"
       ]
     },
     "s2": {
@@ -26,7 +27,8 @@
         "Paid service billing, refunds, and tax invoice issuance",
         "Statistical analysis for service improvement (anonymized)",
         "Fraud prevention and security",
-        "Sending reply notifications a guest has asked for, and letting staff see who they are talking to"
+        "Sending reply notifications a guest has asked for, and letting staff see who they are talking to",
+        "Improving help content and features by analyzing the topics of questions asked to Cue and Q helper (non-identifiable statistics and pseudonymized questions)"
       ]
     },
     "s3": {
@@ -54,7 +56,8 @@
         "E-commerce records: up to 5 years per Korean e-commerce law",
         "Complete deletion within 60 days of user request after contract termination (excluding legally required retention)",
         "Guest notification data (name, email): deleted within 24 hours if the email is never verified; otherwise within 30 days after the chat link expires or is revoked (the recipient address in delivery logs is masked at the same time). The guest can delete it immediately from the page",
-        "Q Note voice signature: deleted automatically after 24 months without use (with notice 30 days before), or immediately when you delete it · per-speaker signatures created to tell speakers apart in a meeting are deleted once the meeting has had no activity for 7 days (ended or paused)"
+        "Q Note voice signature: deleted automatically after 24 months without use (with notice 30 days before), or immediately when you delete it · per-speaker signatures created to tell speakers apart in a meeting are deleted once the meeting has had no activity for 7 days (ended or paused)",
+        "Cue and Q helper question logs: deleted automatically after 90 days. Pseudonymized question text: deleted automatically after 30 days (immediately once an administrator classifies its topic). Question topic statistics are kept for 400 days in a form that cannot identify any individual"
       ]
     },
     "s5": {

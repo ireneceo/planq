@@ -357,6 +357,8 @@ const NON_TENANT_MODELS = new Set([
   'Plan', 'DocumentTemplate', 'Payment',
   // 배포별 개발 현황 — business_id 가 없는 플랫폼 공통. platform_admin 라우터 전역 가드로 막는다.
   'DevStatusReport',
+  // Cue 질문 분석(2026-10-07) — 원장에 business_id 가 **일부러 없다**(개인·워크스페이스 비식별). platform_admin 라우터 전역 가드.
+  'CueQuestionTopic', 'CueQuestionRaw',
 ]);
 // 호출 스니펫 안에서 "테넌트 스코프 처리됨" 으로 인정하는 마커
 const TENANT_MARKERS = /business_id|businessId|listWhere|Where\(scope|scope\)|attachWorkspaceScope|canAccess|req\.workspace|findByPk/;

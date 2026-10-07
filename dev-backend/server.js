@@ -495,6 +495,8 @@ app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/cue', require('./routes/cue'));
 app.use('/api/wiki', require('./routes/wiki'));
 app.use('/api/admin/wiki', require('./routes/admin_wiki'));
+// Cue 질문 분석(Fable 판정 B5) — 플랫폼 관리자 전용 · user/business id 없는 원장
+app.use('/api/admin/cue-questions', require('./routes/cue_question_admin'));
 // KNOWLEDGE_LOOP 축3 — 랜딩 블로그 (Q위키 발행분 public 조회)
 app.use('/api/blog', require('./routes/blog'));
 // 랜딩 방문 집계(쿠키 없음 · 숫자만) — POST 는 공개(요청 수 제한), /admin 은 플랫폼 관리자
@@ -650,6 +652,9 @@ function scheduleNextMidnight() {
     catch (e) { console.warn('[seo-artifacts] failed', e.message); }
     try { const r = await require('./routes/landing_visits').pruneLandingVisits(); if (r.visits || r.visitors) console.log('[landing-visits prune]', r); }
     catch (e) { console.warn('[landing-visits prune] failed', e.message); }
+    // Cue 질문 보존 — 질문 로그 90일(소급) · 가명 원문 30일 · 주제 통계 400일. 멱등(날짜 기준 삭제).
+    try { console.log('[cue-question prune]', JSON.stringify(await require('./services/cueQuestionAnalysis').pruneCueQuestionData())); }
+    catch (e) { console.warn('[cue-question prune] failed', e.message); }
     try {
       const r = await billing.runDailyBillingCron();
       console.log('[billing-cron]', r);

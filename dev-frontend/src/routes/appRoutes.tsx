@@ -47,6 +47,7 @@ const AdminBusinessesPage = lazy(() => import('../pages/Admin/AdminBusinessesPag
 const AdminFeedbackPage = lazy(() => import('../pages/Admin/AdminFeedbackPage'));
 const DevStatusPage = lazy(() => import('../pages/Admin/DevStatusPage'));
 const AdminLandingVisitsPage = lazy(() => import('../pages/Admin/AdminLandingVisitsPage'));
+const AdminCueQuestionsPage = lazy(() => import('../pages/Admin/AdminCueQuestionsPage'));
 const AdminWikiPage = lazy(() => import('../pages/Admin/AdminWikiPage'));
 const AdminEmailLogsPage = lazy(() => import('../pages/Admin/AdminEmailLogsPage'));
 const AdminPushLogsPage = lazy(() => import('../pages/Admin/AdminPushLogsPage'));
@@ -120,6 +121,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/admin/feedback', roles: ['platform_admin'], element: <AdminFeedbackPage /> },
   { path: '/admin/dev-status', roles: ['platform_admin'], element: <DevStatusPage /> },
   { path: '/admin/landing-visits', roles: ['platform_admin'], element: <AdminLandingVisitsPage /> },
+  { path: '/admin/cue-questions', roles: ['platform_admin'], element: <AdminCueQuestionsPage /> },
   { path: '/admin/guide', roles: ['platform_admin'], element: <AdminWikiPage /> },
   // ★ 라우트 표는 두 벌이다(App.tsx = shell / 여기 = 탭 모드). 한쪽만 넣으면 탭에서 빈 화면이 된다
   //   (memory feedback_unwired_guard_is_no_guard).

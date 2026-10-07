@@ -8,6 +8,7 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import StorageSettings from './StorageSettings';
 import ApiTokenSection from './ApiTokenSection';
 import AiAgentPolicySection from './AiAgentPolicySection';
+import CueAnalysisPolicySection from './CueAnalysisPolicySection';
 import PlanSettings from './PlanSettings';
 import PermissionsSettings from './PermissionsSettings';
 import ActivityLogSection from './ActivityLogSection';
@@ -1874,6 +1875,12 @@ export default function WorkspaceSettingsPage() {
           {businessId && (
             <Card>
               <CueKnowledgeSection businessId={businessId} isAdmin={isAdmin} />
+            </Card>
+          )}
+          {/* Cue 질문 분석 스위치 — 워크스페이스의 개인정보 결정이라 owner/admin(Fable 판정 B5) */}
+          {businessId && (isAdmin || user?.business_role === 'admin') && (
+            <Card>
+              <CueAnalysisPolicySection businessId={businessId} />
             </Card>
           )}
         </>

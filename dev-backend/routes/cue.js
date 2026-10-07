@@ -21,6 +21,9 @@ const CUE_TOOLS_ENABLED = process.env.CUE_TOOLS_ENABLED !== '0';
 //   mode='qhelper' : PlanQ 매뉴얼 전담. 워크스페이스 컨텍스트 X.
 //   mode='workspace' : 현재 활성 워크스페이스 컨텍스트 주입 (Cue 페르소나).
 const { SYSTEM_PROMPT_QHELPER, SYSTEM_PROMPT_WORKSPACE, SYSTEM_PROMPT_GUEST, normalizeHistory } = require('../services/cuePrompts');
+// 질문 기록·주제 분석(Fable 판정 B5) — 답변 끝줄 분류 태그(추가 LLM 호출 0)·스위치·가명처리는 services/cueQuestionAnalysis.js 한 곳.
+const cueQA = require('../services/cueQuestionAnalysis');
+const { logHelpQuestion } = cueQA;
 
 // ─── 메모리 가드 (단일 프로세스) ───
 //   Stage 0 트래픽 기준 — 분당 10/IP, 일 50/IP. 충분 + Redis 도입 시점은 트래픽 트리거.
@@ -118,18 +121,6 @@ async function resolveBusinessId(req) {
   return { businessId: null };
 }
 
-// KNOWLEDGE_LOOP 축2 — Q helper 질문 로그. 실패해도 응답 흐름은 막지 않는다.
-async function logHelpQuestion(fields) {
-  try {
-    const { HelpQuestionLog } = require('../models');
-    const row = await HelpQuestionLog.create(fields);
-    return row.id;
-  } catch (e) {
-    console.warn('[cue] question log failed:', e.message);
-    return null;
-  }
-}
-
 router.post('/help-public', async (req, res, next) => {
   try {
     const { question } = req.body || {};
@@ -153,6 +144,7 @@ router.post('/help-public', async (req, res, next) => {
     const cached = guestCache.get(hash);
     if (cached && cached.expiresAt > Date.now()) {
       const logId = await logHelpQuestion({ mode: 'public', question: q, answered: true, lang: 'ko' });
+      if (cached.cls) cueQA.recordQuestion({ mode: 'public', businessId: null, question: q, cls: cached.cls, lang: 'ko', answered: true });
       return successResponse(res, { answer: cached.answer, cached: true, log_id: logId });
     }
 
@@ -174,7 +166,7 @@ router.post('/help-public', async (req, res, next) => {
     const { content, fallback } = await callLLM({
       purpose: 'kb_answer',
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT_GUEST },
+        { role: 'system', content: SYSTEM_PROMPT_GUEST + cueQA.CLASSIFY_INSTRUCTION },
         { role: 'user', content: q },
       ],
       // ★ maxTokens 를 여기서 덮지 않는다 — 상한은 purpose 레지스트리
@@ -184,11 +176,12 @@ router.post('/help-public', async (req, res, next) => {
       fallback: '',
     });
     if (fallback) return errorResponse(res, 'llm_error', 502);
-    const answer = (content || '').trim();
+    const cls = cueQA.parseClassification(content); const answer = cls.answer;
     if (answer) {
-      guestCache.set(hash, { answer, expiresAt: Date.now() + GUEST_CACHE_TTL_MS });
+      guestCache.set(hash, { answer, cls, expiresAt: Date.now() + GUEST_CACHE_TTL_MS });
     }
     const logId = await logHelpQuestion({ mode: 'public', question: q, answered: !!answer, lang: 'ko' });
+    cueQA.recordQuestion({ mode: 'public', businessId: null, question: q, cls, lang: 'ko', answered: !!answer });
     return successResponse(res, { answer, cached: false, log_id: logId });
   } catch (e) { next(e); }
 });
@@ -372,7 +365,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     }
 
     const messages = [
-      { role: 'system', content: systemPrompt + (ctxBlock ? `\n\n[컨텍스트]\n${ctxBlock}` : '') },
+      { role: 'system', content: systemPrompt + (ctxBlock ? `\n\n[컨텍스트]\n${ctxBlock}` : '') + cueQA.CLASSIFY_INSTRUCTION },
       ...history.flatMap((h) => [{ role: 'user', content: h.q }, { role: 'assistant', content: h.a }]),
       { role: 'user', content: q },
     ];
@@ -388,7 +381,7 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
       ...(useTools ? { tools: cueTools.TOOL_SCHEMAS } : {}),
     });
     if (fallback) return errorResponse(res, 'llm_error', 502);
-    const answer = (content || '').trim();
+    const cls = cueQA.parseClassification(content); const answer = cls.answer;
 
     // ── 사용량 원장 (2026-09-03, Fable 판정) ────────────────────────────────
     //   여태 이 라우트는 `plan.can('use_cue')` **게이트는 부르면서 recordUsage 는 하지 않았다.**
@@ -428,6 +421,9 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
         top_article_id: wikiTopArticleId,
       });
     }
+    // 주제 분석 — 스위치(기본 켬)를 따르고 user/business id 는 저장 안 함. 원문은 qhelper + opt-in 만(함수 안에서 판정).
+    cueQA.recordQuestion({ mode: finalMode, businessId: finalMode === 'workspace' ? workspaceBizId : (requestScope(req, undefined).businessId || null),
+      question: q, cls, lang: String(req.body.lang || 'ko').slice(0, 5), answered: !!answer || !!proposedAction });
     return successResponse(res, {
       answer, mode: finalMode, sources: wikiSources, log_id: logId,
       ...(proposedAction ? { proposed_action: proposedAction } : {}),

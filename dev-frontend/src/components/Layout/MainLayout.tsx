@@ -1380,6 +1380,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.landingVisits', '랜딩 방문')}</NavLabel>
                 </NavItem>
+                {/* Cue 질문 분석 — 주제 통계 + 가명 원문(30일). user/business id 없는 원장. 2026-10-07 */}
+                <NavItem to="/admin/cue-questions" $isCollapsed={isCollapsed} $active={isActive('/admin/cue-questions')}
+                  title={isCollapsed ? t('nav.cueQuestions', 'Cue 질문 분석') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.cueQuestions', 'Cue 질문 분석')}</NavLabel>
+                </NavItem>
                 {/* 도움말(Q위키) — 개발 사이클이 seed-wiki-content.js 로 채우는 쪽. 여기서는 확인·수정. */}
                 <NavItem to="/admin/guide" $isCollapsed={isCollapsed} $active={isActive('/admin/guide')}
                   title={isCollapsed ? t('nav.wiki', '도움말 관리') : undefined}>
