@@ -299,13 +299,18 @@ async function searchFiles(ctx, M, { limit, filters } = {}) {
     extra.push(...dateRange('created_at', filters));
   }
   const files = await File.findAll({
-    where: { ...ctx.fileWhere, [Op.and]: [{ [Op.or]: M.likeAny('file_name') }, { deleted_at: null }, ...extra] },
-    attributes: ['id', 'file_name', 'file_size', 'mime_type'],
+    // 이름·설명·태그 — Q file 화면 검색과 같은 범위(2026-10-07: 통합 검색만 이름으로 찾아 «파일 화면에선 찾히는데» 가 됐다)
+    where: { ...ctx.fileWhere, [Op.and]: [{ [Op.or]: [...M.likeAny('file_name'), { description: M.like }, sequelize.where(sequelize.cast(sequelize.col('tags'), 'CHAR'), M.like)] }, { deleted_at: null }, ...extra] },
+    attributes: ['id', 'file_name', 'file_size', 'mime_type', 'description', 'tags'],
     limit, order: [M.relevance('file_name'), ['created_at', 'DESC']],
   }).catch(() => []);
   return files.map((m) => {
-    const o = toPlain(m);
-    o.match = pickMatch([{ field: 'file_name', text: o.file_name, shown: true }], M.q);
+    const { description, tags, ...o } = toPlain(m);
+    o.match = pickMatch([
+      { field: 'file_name', text: o.file_name, shown: true },
+      { field: 'description', text: description },
+      { field: 'tag', text: Array.isArray(tags) ? tags.join(' ') : (tags || '') },
+    ], M.q);
     return o;
   });
 }
@@ -643,7 +648,57 @@ async function searchMeetingNotes(ctx, M, { limit, filters } = {}) {
   };
 }
 
+
+/**
+ * 통합 검색 둘째 줄 — 업무(담당·작성·마감·프로젝트) · 파일(올린 사람·날짜·프로젝트). 2026-10-07 Irene:
+ *   "통합검색에서 업무 검색되면 담당자, 작성자 표시하고 … 파일검색도, 기본 인지가능하게".
+ *   매치·정렬·권한을 건드리지 않고 **이미 걸러진 id** 만 다시 읽는다(문서 searchPosts 4) 와 같은 방식).
+ */
+async function attachResultMeta({ tasks = [], files = [] }, businessId) {
+  const { User, Task: T, File: F } = require('../models');
+  const dn = require('./displayName');
+  if (tasks.length) {
+    const rows = (await T.findAll({
+      where: { business_id: businessId, id: { [Op.in]: tasks.map((x) => x.id) } },
+      attributes: ['id', 'due_date', 'assignee_id', 'created_by'],
+      include: [
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: User, as: 'creator', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: Project, attributes: ['id', 'name'], required: false },
+      ],
+    }).catch(() => [])).map((r) => r.toJSON());
+    await dn.applyMemberDisplayName(rows, businessId, ['assignee', 'creator']).catch(() => {});
+    const by = new Map(rows.map((r) => [r.id, r]));
+    for (const t of tasks) {
+      const r = by.get(t.id); if (!r) continue;
+      t.due_date = r.due_date || null;
+      t.assignee = r.assignee ? { id: r.assignee.id, name: r.assignee.name } : null;
+      t.creator = r.creator ? { id: r.creator.id, name: r.creator.name } : null;
+      t.project = r.Project ? { id: r.Project.id, name: r.Project.name } : null;
+    }
+  }
+  if (files.length) {
+    const rows = (await F.findAll({
+      where: { business_id: businessId, id: { [Op.in]: files.map((x) => x.id) } },
+      attributes: ['id', 'created_at', 'uploader_id'],
+      include: [
+        { model: User, as: 'uploader', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: Project, attributes: ['id', 'name'], required: false },
+      ],
+    }).catch(() => [])).map((r) => r.toJSON());
+    await dn.applyMemberDisplayName(rows, businessId, ['uploader']).catch(() => {});
+    const by = new Map(rows.map((r) => [r.id, r]));
+    for (const f of files) {
+      const r = by.get(f.id); if (!r) continue;
+      f.created_at = r.created_at;
+      f.uploader = r.uploader ? { id: r.uploader.id, name: r.uploader.name } : null;
+      f.project = r.Project ? { id: r.Project.id, name: r.Project.name } : null;
+    }
+  }
+}
+
 module.exports = {
+  attachResultMeta,
   TASK_ORDER, CELL_CANDIDATE_ROWS, deny, buildScopedWheres, escLike, makeMatcher, kbWhereOf,
   searchTasks, shapeTasks, searchPosts, searchFiles, searchConversations, searchKnowledge,
   searchClients, shapeClients, searchProjects,

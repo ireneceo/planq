@@ -114,8 +114,12 @@ router.get('/', authenticateToken, async (req, res, next) => {
     // 메뉴 권한 — Q task·Q sale 이 «숨김» 인 멤버에게는 검색에서도 그 결과를 내지 않는다(services/searchGates).
     await searchGates.applyMenuGates({ tasks, clients }, businessId, req.user, isClient);
 
+    // 둘째 줄 메타(업무 담당·작성 / 파일 올린 사람·날짜) — 걸러진 id 만 다시 읽는다. 실패해도 결과는 그린다.
+    const shapedTasks = S.shapeTasks(tasks, q);
+    await S.attachResultMeta({ tasks: shapedTasks, files }, businessId).catch(() => {});
+
     successResponse(res, {
-      tasks: S.shapeTasks(tasks, q),
+      tasks: shapedTasks,
       posts,
       records,
       files,

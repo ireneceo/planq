@@ -22,6 +22,7 @@ import MatchReason from './MatchReason';
 import type { SearchMatchInfo } from '../../utils/searchMatch';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { postSubline } from '../../utils/postSubline';
+import { displayName } from '../../utils/displayName';
 
 interface Props {
   /**
@@ -56,10 +57,11 @@ interface Hit {
 }
 
 type WithMatch = { match?: SearchMatchInfo | null };
+type PersonLite = { id: number; name: string; name_localized?: Record<string, string> | null };
 interface SearchResult {
-  tasks?: Array<{ id: number; title: string; status?: string; project_id?: number | null } & WithMatch>;
+  tasks?: Array<{ id: number; title: string; status?: string; project_id?: number | null; due_date?: string | null; assignee?: PersonLite | null; creator?: PersonLite | null; project?: { id: number; name: string } | null } & WithMatch>;
   posts?: Array<{ id: number; title: string; category?: string | null; project_id?: number | null; created_at?: string | null; author?: { id: number; name: string; name_localized?: Record<string, string> | null } | null; project?: { id: number; name: string } | null } & WithMatch>;
-  files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null } & WithMatch>;
+  files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null; created_at?: string | null; uploader?: PersonLite | null; project?: { id: number; name: string } | null } & WithMatch>;
   conversations?: Array<{ id: number; title?: string; display_name?: string; project_id?: number | null } & WithMatch>;
   knowledge?: Array<{ id: number; title: string; category?: string | null; scope?: string } & WithMatch>;
   // ★ clients 에는 `email` 컬럼이 없다 — 서버는 invite_email / billing_contact_email 을 준다.
@@ -181,9 +183,19 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   const toHits = React.useCallback((r: SearchResult): Hit[] => {
     const h: Hit[] = [];
     // #206 — status 를 raw 로 내보내면 `on_hold` 같은 snake_case 가 사용자에게 그대로 노출된다.
-    (r.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : undefined, to: `/tasks?task=${x.id}`, type: 'tasks', match: x.match }));
-    (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: postSubline(x, formatDate, i18n.language) || x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts', match: x.match }));
-    (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files', match: x.match }));
+    // 둘째 줄 — 업무 «상태 · 담당 · 작성 · 마감 · 프로젝트», 문서 «#분류 · 작성자 · 날짜 · 프로젝트»,
+    //   파일 «올린 사람 · 날짜 · 프로젝트» (2026-10-07 Irene: "담당자, 작성자 표시 … 기본 인지가능하게")
+    const nm = (p?: PersonLite | null) => (p ? displayName(p, i18n.language) : '');
+    const join = (parts: Array<string | null | undefined | false>) => parts.filter(Boolean).join(' · ') || undefined;
+    (r.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: join([
+      x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : '',
+      x.assignee ? t('search.sub.assignee', { name: nm(x.assignee), defaultValue: '담당 {{name}}' }) as string : '',
+      x.creator && x.creator.id !== x.assignee?.id ? t('search.sub.creator', { name: nm(x.creator), defaultValue: '작성 {{name}}' }) as string : '',
+      x.due_date ? t('search.sub.due', { date: formatDate(x.due_date), defaultValue: '마감 {{date}}' }) as string : '',
+      x.project?.name,
+    ]), to: `/tasks?task=${x.id}`, type: 'tasks', match: x.match }));
+    (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: join([x.category ? `#${x.category}` : '', postSubline(x, formatDate, i18n.language)]), to: `/docs?post=${x.id}`, type: 'posts', match: x.match }));
+    (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: join([nm(x.uploader), x.created_at ? formatDate(x.created_at) : '', x.project?.name]) || x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files', match: x.match }));
     (r.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations', match: x.match }));
     (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/knowledge?doc=${x.id}`, type: 'knowledge', match: x.match }));
     (r.clients || []).forEach(x => {
@@ -334,11 +346,11 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
                     </HitMain>
                   </Hit>
                 ))}
-                <FootHint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</FootHint>
+                <FootHint>{t('search.hint')}</FootHint>
               </>
             ) : menuHits.length > 0
-              ? <FootHint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</FootHint>
-              : <Hint>{t('search.hint', '검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.')}</Hint>
+              ? <FootHint>{t('search.hint')}</FootHint>
+              : <Hint>{t('search.hint')}</Hint>
           ) : allHits.length === 0 ? (
             (loading || menuHits.length === 0) && (
               <Hint>{loading ? t('search.searching', '검색 중...') : t('search.noResults', '결과 없음')}</Hint>

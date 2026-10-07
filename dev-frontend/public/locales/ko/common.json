@@ -465,7 +465,7 @@
   "search": {
     "title": "통합 검색",
     "placeholder": "메뉴·업무·문서·파일·고객 모두 검색",
-    "hint": "검색어를 입력하세요. ⌘K 또는 Ctrl+\\ 로도 열 수 있습니다.",
+    "hint": "업무·문서·파일·고객·메일·일정을 한 번에 찾아요. 제목뿐 아니라 설명·본문·분류·태그도 봅니다. ⌘K 또는 Ctrl+\\ 로 열 수 있어요.",
     "searching": "검색 중...",
     "noResults": "결과 없음",
     "menus": "메뉴",
@@ -519,6 +519,11 @@
       "number": "번호",
       "url": "주소",
       "location": "장소"
+    },
+    "sub": {
+      "assignee": "담당 {{name}}",
+      "creator": "작성 {{name}}",
+      "due": "마감 {{date}}"
     }
   },
   "attach": {
