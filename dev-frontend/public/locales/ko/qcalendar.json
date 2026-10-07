@@ -52,7 +52,9 @@
     "all": "전체",
     "mine": "나",
     "tasks": "업무",
-    "events": "일정"
+    "events": "일정",
+    "allProjects": "모든 프로젝트",
+    "project": "프로젝트"
   },
   "taskBadge": "업무",
   "weekday": {

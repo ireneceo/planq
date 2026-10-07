@@ -13,5 +13,6 @@ export const readUrl = (search: string) => {
   const eventId = p.get('event') ? Number(p.get('event')) : null;
   const scope = (p.get('scope') || 'all') as CalendarScope;
   const date = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date();
-  return { view, date, eventId, scope };
+  const projectId = Number(p.get('project')) || null;
+  return { view, date, eventId, scope, projectId };
 };

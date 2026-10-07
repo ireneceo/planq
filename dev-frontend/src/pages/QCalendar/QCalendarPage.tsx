@@ -39,6 +39,7 @@ import { mapApiError } from '../../utils/apiError';
 
 // ─── URL 싱크 ─── (calendarUrl.ts)
 import { readUrl } from './calendarUrl';
+import CalendarProjectFilter, { byProject } from './ProjectFilter';
 
 interface ProjectOption { id: number; name: string; color?: string | null }
 
@@ -58,6 +59,7 @@ const QCalendarPage: React.FC = () => {
   const holidays = useWorkspaceHolidays(bizId, anchor);   // #424 — 휴일 표시(정본: 설정 › 근태 관리)
   const [view, setView] = useState<CalendarViewMode>(initial.view);
   const [scope, setScope] = useState<CalendarScope>(initial.scope);
+  const [projectId, setProjectId] = useState<number | null>(initial.projectId);
   const [selectedEventId, setSelectedEventId] = useState<number | null>(initial.eventId);
   // N+63 P2a 후속 — 사용자가 클릭한 instance 의 date (YYYY-MM-DD). EventDrawer modal single 선택 시 사용
   const [selectedInstanceDate, setSelectedInstanceDate] = useState<string | null>(null);
@@ -269,16 +271,17 @@ const QCalendarPage: React.FC = () => {
     p.set('view', view);
     p.set('date', toDateKey(anchor));
     if (scope !== 'all') p.set('scope', scope);
+    if (projectId) p.set('project', String(projectId));
     if (selectedEventId != null) p.set('event', String(selectedEventId));
     if (selectedTaskId != null) p.set('task', String(selectedTaskId));
     const qs = p.toString();
     navigate({ pathname: '/calendar', search: qs ? `?${qs}` : '' }, { replace: true });
-  }, [view, anchor, scope, selectedEventId, selectedTaskId, navigate]);
+  }, [view, anchor, scope, projectId, selectedEventId, selectedTaskId, navigate]);
 
   // 4필터 적용 — events + task-as-events + 개인 Google 일정 통합
   const filteredEvents = useMemo<CalendarItem[]>(() => {
     const personal: CalendarItem[] = (personalConnected && showPersonal) ? personalEvents : [];
-    const merged: CalendarItem[] = [...events, ...taskEvents, ...personal];
+    const merged: CalendarItem[] = byProject([...events, ...taskEvents, ...personal], projectId);
     // 업무 탭은 업무만 (개인 일정 제외), 일정 탭은 일정(개인 포함)
     if (scope === 'events') return merged.filter((e) => !isTaskEvent(e));
     if (scope === 'tasks') return merged.filter(isTaskEvent);
@@ -294,7 +297,7 @@ const QCalendarPage: React.FC = () => {
       });
     }
     return merged;
-  }, [events, taskEvents, personalEvents, personalConnected, showPersonal, scope, myUserId]);
+  }, [events, taskEvents, personalEvents, personalConnected, showPersonal, scope, myUserId, projectId]);
 
   const listedEvent = useMemo(
     () => (selectedEventId != null ? events.find((e) => e.id === selectedEventId) || null : null),
@@ -513,6 +516,7 @@ const QCalendarPage: React.FC = () => {
         isSearchable={false}
         menuPlacement="bottom"
       />
+      <CalendarProjectFilter projects={projects} value={projectId} onChange={setProjectId} />
       <PlanQSelect size="sm"
         value={viewOptions.find(o => o.value === view)}
         onChange={(opt: unknown) => {

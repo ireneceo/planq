@@ -52,7 +52,9 @@
     "all": "All",
     "mine": "Me",
     "tasks": "Tasks",
-    "events": "Events"
+    "events": "Events",
+    "allProjects": "All projects",
+    "project": "Project"
   },
   "taskBadge": "Task",
   "weekday": {
