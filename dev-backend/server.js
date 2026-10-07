@@ -258,6 +258,12 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 지금 보고 있는 대화방(같은 사람 다른 기기의 채팅 푸시 생략 판정 — services/presence)
+  socket.on('presence:viewing', (raw) => {
+    if (!socket.userId) return;
+    require('./services/presence').recordViewing(socket, raw);
+  });
+
   socket.on('leave:conversation', (raw) => {
     const conversationId = roomId(raw);
     if (conversationId) {

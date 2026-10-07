@@ -39,6 +39,7 @@ import GuestLinkPrompt from '../../components/QTalk/GuestLinkPrompt';
 import { isNativeApp } from '../../services/native';
 import { formatDayTime } from '../../utils/dateFormat';
 import { useTeamPresence, PRESENCE_DOT } from '../../hooks/useTeamPresence';
+import { registerViewing } from '../../services/socket';
 
 // 운영 #367 — 작성 중 메시지 초안의 저장 키. **사용자별로 갈라야 한다** — 한 브라우저를 둘이
 //   나눠 쓰면(공용 PC·로그아웃 후 재로그인) 앞사람이 쓰다 만 글이 뒷사람 입력칸에 그대로 떴다.
@@ -852,6 +853,19 @@ const ChatPanel: React.FC<Props> = ({
   // 메시지 리스트 끝의 sentinel. ★ 2026-09-11 부터 **스크롤에는 쓰지 않는다** — scrollIntoView 가
   //   조상 스크롤러까지 굴려 모바일에서 튀었다(scrollToBottom 주석). 목록 끝 표식으로만 남긴다.
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
+  // 이 방을 «보고 있다» 고 서버에 알린다 — 같은 사람의 다른 기기(폰)로 가는 채팅 푸시를 생략하는 근거(services/presence).
+  //   보임 판정은 목록 상자 기준: keep-alive 로 숨은 탭·모바일에서 목록으로 물러난 상태는 보고 있지 않은 것이다.
+  React.useEffect(() => {
+    const convId = activeConv?.id;
+    if (!convId || mobileHidden) return;
+    return registerViewing(convId, () => {
+      const el = messageListRef.current;
+      if (!el || !el.isConnected) return false;
+      const cv = (el as HTMLElement & { checkVisibility?: (o?: object) => boolean }).checkVisibility;
+      return cv ? cv.call(el, { visibilityProperty: true }) : el.getClientRects().length > 0;
+    });
+  }, [activeConv?.id, mobileHidden]);
+
   const scrollKey = (convId: number | null | undefined) => convId ? `qtalk_scroll_${convId}` : null;
 
   // ★ 2026-09-10 — **바닥 고정은 하나의 술어다.**

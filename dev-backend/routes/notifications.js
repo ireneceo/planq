@@ -300,6 +300,18 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
 
   // push 채널 — tag 로 OS 알림 그룹핑 (같은 대화방 연속 메시지는 마지막 것으로 대체)
   if (!skip.has('push') && await isAllowed(userId, businessId, eventKind, 'push')) {
+    // 같은 사람이 다른 기기에서 **이 대화방을 보고 있으면** 채팅 푸시는 생략한다(Fable 행 15).
+    //   인앱 행·소켓 알림은 위에서 이미 갔다 — 보고 있는 기기는 그것으로 안다. 생략도 PushLog 에 남긴다.
+    const ioSrv = (ioApp && typeof ioApp.get === 'function' && ioApp.get('io')) || global.__planqIo || null;
+    if (entityType === 'conversation' && (eventKind === 'message' || eventKind === 'mention')
+        && require('../services/presence').isViewingConversation(ioSrv, userId, entityId)) {
+      try {
+        const { PushLog } = require('../models');
+        await PushLog.create({ user_id: userId, status: 'skipped', error_message: 'viewer_active', category: eventKind, payload_title: title || null });
+      } catch { /* 기록 실패해도 생략은 유지 */ }
+      results.push = { sent: 0, skipped: 'viewer_active' };
+      return results;
+    }
     try {
       const { sendPushToUser } = require('../services/push_service');
       // badge — 인박스(확인 필요) + 채팅 unread 합산. frontend useGlobalBadge 와 동일 정의.

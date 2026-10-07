@@ -79,6 +79,8 @@ function ensureSocket(): Socket | null {
       if (count > 0) emitRoom('join', room);
     });
     // 끊겨 있던 동안의 broadcast 는 다시 오지 않는다 — 화면이 서버 상태를 다시 읽게 알린다.
+    lastViewing = '';
+    sendViewing(true);
     if (everConnected) window.dispatchEvent(new CustomEvent('socket:reconnected'));
     everConnected = true;
   });
@@ -124,6 +126,62 @@ export function onSocket<T = unknown>(event: string, handler: (data: T) => void)
     if (socket) socket.off(event, rec.handler);
   };
 }
+
+// ── 지금 보고 있는 대화방 (presence) ───────────────────────────────────────
+// 같은 사람의 다른 기기에서 이 방을 **보고 있으면** 서버가 채팅 푸시를 생략한다(services/presence.js).
+//   화면은 registerViewing 으로 «이 방을 그리고 있다» 를 등록하고, 실제로 보이는지는 등록한 쪽이 판정한다
+//   (keep-alive 로 숨은 탭·문서 hidden 은 보이지 않는 것이다). 30초마다 + 바뀔 때 보낸다 — 서버는 90초가 지나면 잊는다.
+const viewers = new Map<symbol, { convId: number; visible: () => boolean }>();
+let viewingTimer: number | null = null;
+let lastViewing = '';
+// 마지막 사람 손길 — 열어만 두고 자리를 비운 데스크탑이 폰 푸시를 삼키면 안 된다(Fable 행 15: «보이고 + 최근 입력»).
+let lastActivity = Date.now();
+const IDLE_MS = 90_000;
+
+function currentViewing(): number[] {
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return [];
+  if (Date.now() - lastActivity > IDLE_MS) return [];
+  const ids = new Set<number>();
+  viewers.forEach((v) => { try { if (v.visible()) ids.add(v.convId); } catch { /* 판정 실패 = 안 보임 */ } });
+  return [...ids].sort((a, b) => a - b);
+}
+
+function sendViewing(force = false): void {
+  const s = socket;
+  if (!s?.connected) return;
+  const ids = currentViewing();
+  const key = ids.join(',');
+  if (!force && key === lastViewing) return;
+  lastViewing = key;
+  s.emit('presence:viewing', { ids });
+}
+
+function ensureViewingLoop(): void {
+  if (viewingTimer != null || typeof window === 'undefined') return;
+  viewingTimer = window.setInterval(() => sendViewing(true), 30_000);   // 서버 기준 90초 — 30초 간격이면 두 번 놓쳐도 이어진다
+  // 바뀐 때만 보낸다(sendViewing 비강제) — 탭 전환으로 보이는 방이 바뀐 것도 다음 손길에 실린다.
+  const touch = () => { lastActivity = Date.now(); sendViewing(); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') lastActivity = Date.now(); sendViewing(true); });
+  window.addEventListener('focus', () => { lastActivity = Date.now(); sendViewing(true); });
+  for (const ev of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) {
+    window.addEventListener(ev, touch, { passive: true, capture: true });
+  }
+}
+
+/** 대화방을 화면에 그리는 동안 등록. visible() 이 거짓이면(숨은 탭 등) 보고 있지 않은 것으로 친다. 반환 함수로 해제. */
+export function registerViewing(convId: number, visible: () => boolean): () => void {
+  const key = Symbol('viewing');
+  viewers.set(key, { convId, visible });
+  ensureViewingLoop();
+  ensureSocket();
+  sendViewing(true);
+  // 막 그려진 직후엔 상자가 아직 배치 전이라 «안 보임» 으로 나간다 — 배치가 끝난 뒤 한 번 더(바뀐 때만 나간다).
+  window.setTimeout(() => sendViewing(), 800);
+  return () => { viewers.delete(key); sendViewing(true); };
+}
+
+/** 등록한 화면의 보임 여부가 바뀌었을 때(탭 전환 등) 즉시 다시 보낸다. */
+export function refreshViewing(): void { sendViewing(); }
 
 /** 로그아웃 시 호출 — 세션 소켓 완전 정리. 리스너 버퍼는 각 구독자 cleanup 이 비운다. */
 export function teardownSocket(): void {
