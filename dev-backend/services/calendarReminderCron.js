@@ -225,7 +225,7 @@ async function runCalendarReminderCron() {
       }
       try {
         const wsName = biz?.brand_name || biz?.name || null;
-        const startLocalIn = (lang) => new Date(occurrence).toLocaleString(lang === 'en' ? 'en-US' : 'ko-KR', {
+        const startLocalIn = (lang) => new Date(ev.all_day ? `${allDayDate.allDayDateOf(occurrence)}T00:00:00Z` : occurrence).toLocaleString(lang === 'en' ? 'en-US' : 'ko-KR', {
           timeZone: ev.all_day ? 'UTC' : tz,   // 종일 = UTC 자정 부호화 날짜(utils/allDayDate)
           // «10월 8일 (목) 오후 3:00» — «26. 10. 8.» 같은 짧은 형식은 알림에서 읽기 어렵다
           month: 'short', day: 'numeric', weekday: 'short',

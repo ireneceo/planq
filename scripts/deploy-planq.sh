@@ -744,6 +744,12 @@ post_restart_backfills() {
   log "Re-encoding all-day events as UTC dates..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-allday-utc-date.js 2>&1 | tail -8" \
     || warn "종일 재부호화 실패 — 새 코드는 옛 행도 맞게 읽는다. 원인 확인 후 수동 재실행"
+  # 남은 옛 부호화 0건 단언 — 운영엔 health-check 가 없어 노란 줄 하나로 묻히지 않게 빨간 줄로(Fable 권고 ③).
+  [ "$DRY_RUN" = true ] && return 0
+  local LEFT
+  LEFT=$(prod_run "cd $PROD_BE && NODE_ENV=production node -e \"require('dotenv').config({quiet:true});const{sequelize}=require('./config/database');const A=require('./utils/allDayDate');sequelize.query('SELECT start_at,end_at FROM calendar_events WHERE all_day=1').then(([r])=>{console.log('@@'+r.filter(x=>!A.isUtcEncoded(x.start_at,x.end_at)).length);process.exit(0)}).catch(()=>{console.log('@@ERR');process.exit(0)})\" 2>/dev/null | grep '^@@' | tail -1")
+  if [ "$LEFT" = "@@0" ]; then success "종일 옛 부호화 0건"
+  else error "종일 옛 부호화 남음(${LEFT#@@}) — node scripts/migrate-allday-utc-date.js 재실행 필요"; fi
 }
 
 # ──────────────────────────────────────────

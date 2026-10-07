@@ -13,7 +13,7 @@ const MAX_DAYS = 62;
 // 메뉴 Layer 판정은 services/agent/menu 한 벌.
 const { assertMenu } = require('../menu');
 const DESC_MAX = 1000;
-const { allDayDates, allDayRange } = require('../../../utils/allDayDate');
+const { allDayDates, allDayRange, allDayLastDateOf } = require('../../../utils/allDayDate');
 
 function parseIso(s, field) {
   const d = new Date(String(s || ''));
@@ -86,8 +86,12 @@ async function createEvent(p, a, actor) {
     const ed = /^\d{4}-\d{2}-\d{2}/.exec(String(a.end_at || ''));
     if (!sd) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { start_at: a.start_at } });
     if (!ed) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { end_at: a.end_at } });
-    if (ed[0] < sd[0]) throw err('VALIDATION_ERROR', 'end_before_start');
-    ({ start_at: start, end_at: end } = allDayRange(sd[0], ed[0]));
+    // end 가 날짜(10자)면 마지막 날(포함). 시각이 붙어 있으면 반올림으로 읽는다 — ChatGPT 의 배타적 end
+    //   (`다음날T00:00:00+09:00`)를 하루로 흡수한다(Fable 2026-10-07 권고 ①). 아무도 «포함» 을 T00:00 으로 쓰지 않는다.
+    const endStr = String(a.end_at);
+    const last = endStr.length === 10 ? ed[0] : (allDayLastDateOf(new Date(endStr), sd[0]) || ed[0]);
+    if (last < sd[0]) throw err('VALIDATION_ERROR', 'end_before_start');
+    ({ start_at: start, end_at: end } = allDayRange(sd[0], last));
   } else {
     start = parseIso(a.start_at, 'start_at');
     end = parseIso(a.end_at, 'end_at');

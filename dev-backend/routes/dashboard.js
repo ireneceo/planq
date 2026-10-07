@@ -1,3 +1,4 @@
+const { allDayDateOf } = require('../utils/allDayDate');
 const express = require('express');
 const { Op, literal } = require('sequelize');
 const router = express.Router();
@@ -285,12 +286,16 @@ async function collectEvents(businessId, userId) {
   const events = await CalendarEvent.findAll({
     where: {
       business_id: businessId,
-      start_at: { [Op.gt]: now },
+      // 종일 = UTC 자정 부호화 날짜(utils/allDayDate) — 그날 하루 동안은 남아 있어야 한다(아래에서 날짜로 자른다)
+      [Op.and]: [{ [Op.or]: [
+        { start_at: { [Op.gt]: now } },
+        { all_day: true, start_at: { [Op.gt]: new Date(now.getTime() - 2 * 86400000) } },
+      ] }],
       // 상담 예약은 **확정된 것만** 보통 일정처럼 센다. 신청 대기는 «상담 신청» 버킷이 세고
       //   (한 건 = 한 버킷), 거절·취소된 것은 참석할 일이 없다. NULL = 예약이 아닌 보통 일정.
       [Op.or]: [{ booking_status: null }, { booking_status: 'confirmed' }],
     },
-    attributes: ['id', 'title', 'start_at', 'location', 'createdAt'],
+    attributes: ['id', 'title', 'start_at', 'all_day', 'location', 'createdAt'],
     include: [
       {
         model: CalendarEventAttendee, as: 'attendees', required: true,
@@ -303,11 +308,16 @@ async function collectEvents(businessId, userId) {
     limit: COLLECT_LIMIT,
   });
 
+  // 종일의 «오늘» 은 워크스페이스 시간대의 오늘 날짜와 날짜로 비교한다
+  const tzRow = events.some((e) => e.all_day) ? await Business.findByPk(businessId, { attributes: ['timezone'] }) : null;
+  const wsToday = new Intl.DateTimeFormat('en-CA', { timeZone: tzRow?.timezone || 'Asia/Seoul' }).format(now);
   const items = [];
   for (const ev of events) {
     const start = new Date(ev.start_at);
     const response = ev.attendees?.[0]?.response || 'pending';
-    const isToday = start <= todayEnd;
+    const evDate = ev.all_day ? allDayDateOf(ev.start_at) : null;
+    if (evDate && evDate < wsToday) continue;   // 지난 종일
+    const isToday = evDate ? evDate === wsToday : start <= todayEnd;
 
     // (a) 응답 pending — 수락/거절 안 한 미팅은 항상 떠야
     if (response === 'pending') {
