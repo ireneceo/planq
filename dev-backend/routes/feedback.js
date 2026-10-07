@@ -223,36 +223,10 @@ router.patch('/:id/respond', authenticateToken, requireRole('platform_admin'), a
     const { status, admin_response } = req.body || {};
     const item = await FeedbackItem.findByPk(req.params.id);
     if (!item) return errorResponse(res, 'not_found', 404);
-
-    const updates = {};
-    if (status && ALLOWED_STATUS.includes(status)) updates.status = status;
-    if (typeof admin_response === 'string') updates.admin_response = admin_response.slice(0, 5000);
-    if (Object.keys(updates).length > 0) {
-      updates.responded_by = req.user.id;
-      updates.responded_at = new Date();
-    }
-    await item.update(updates);
-
-    // 보고자에게 회신 알림 — 상태 변경 또는 답변 시. myhistory(#21)에서 답변 확인 + 인박스 즉시 인지.
-    if (item.user_id && (updates.status || typeof updates.admin_response === 'string')) {
-      setImmediate(() => {
-        const { notify } = require('./notifications');
-        const statusLabel = item.status === 'done' ? '완료'
-          : item.status === 'wontfix' ? '보류'
-          : item.status === 'reviewing' ? '검토 중' : '접수';
-        notify({
-          userId: item.user_id,
-          businessId: item.business_id || null,
-          eventKind: 'feedback',
-          title: `피드백 ${statusLabel} — ${item.title}`,
-          body: item.admin_response ? String(item.admin_response).slice(0, 300) : '운영팀이 회신했습니다.',
-          link: '/me/feedback',
-          ctaLabel: '내역 보기',
-          actorUserId: req.user.id,
-          ioApp: req.app,
-        }).catch(() => null);
-      });
-    }
+    // 저장 + 보고자 알림 — services/feedbackRespond 한 곳(개발완료 회신 스크립트와 같은 함수).
+    //   알림은 응답을 막지 않는다(옛 setImmediate 와 같은 동작).
+    const { respondToFeedback } = require('../services/feedbackRespond');
+    await respondToFeedback(item, { status, admin_response, actorUserId: req.user.id, ioApp: req.app });
 
     return successResponse(res, item, 'Updated');
   } catch (err) { next(err); }
