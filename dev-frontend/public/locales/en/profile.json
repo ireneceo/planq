@@ -275,7 +275,12 @@
     "permBadgeError": "Connection error",
     "permReadOnly": "Right now events are only pulled in. To push PlanQ events out, reconnect and tick the “Calendar” item.",
     "permInsufficient": "Connected, but the required permission wasn’t granted. Reconnect and tick the “{{item}}” item on Google’s consent screen.",
-    "permError": "The connection expired or was revoked. Please reconnect."
+    "permError": "The connection expired or was revoked. Please reconnect.",
+    "calendarPickLabel": "Calendar for PlanQ events",
+    "calendarPickHint": "New events go to this calendar. Events already added stay where they are.",
+    "calendarPrimary": "default",
+    "calendarPickReconnect": "Reconnect to choose which calendar PlanQ events go to.",
+    "calendarPickFailed": "Couldn't load your Google calendars. Please try again shortly."
   },
   "accountDeletion": {
     "title": "Delete account",

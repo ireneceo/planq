@@ -20,7 +20,9 @@ const PROVIDER_SCOPES = {
   //   옛 calendar.readonly 는 읽기만 돼서 "연동했는데 내 구글 캘린더에 PlanQ 일정이 안 뜬다"는
   //   Irene 보고(2026-07-27)의 원인이었다. 기존 연결은 granted scope 가 옛 값이라 쓰기가 막히므로
   //   재동의 전까지 읽기 overlay 만 유지하고, 화면이 "다시 연결" 을 안내한다(hasCalendarWrite).
-  google_calendar: ['https://www.googleapis.com/auth/calendar.events', 'openid', 'email', 'profile'],
+  // calendar.calendarlist.readonly — 일정을 올릴 캘린더를 고르려고 «구독 캘린더 목록» 만 읽는다(2026-10-07, Fable B 판정 8).
+  //   본문을 읽는 calendar.readonly 를 쓰지 않는다 — 목록만 필요하다. 옛 연결은 재연결 후 고를 수 있다(hasCalendarList).
+  google_calendar: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly', 'openid', 'email', 'profile'],
   google_drive: ['https://www.googleapis.com/auth/drive.file', 'openid', 'email', 'profile'],
   gmail: ['https://mail.google.com/', 'openid', 'email', 'profile'],
 };

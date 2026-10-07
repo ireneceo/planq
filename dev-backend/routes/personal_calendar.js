@@ -209,4 +209,61 @@ router.delete('/me/calendar/events/:connId/:gcalEventId',
     } catch (err) { next(err); }
   });
 
+// ─── 어느 캘린더에 올릴까 (2026-10-07, Fable B 판정 8) ──────────────────────────
+//   골라 둔 캘린더 id 는 external_connections.metadata.calendar_id(기본 primary). 본인 연결만.
+//   목록은 «일정을 쓸 수 있는» 캘린더뿐(writer·owner) — 읽기만 되는 구독 캘린더에 올리면 구글이 거절한다.
+async function ownCalendarConn(req, connId) {
+  const conn = await ExternalConnection.findOne({
+    where: { id: connId, user_id: req.user.id, owner_scope: 'user', provider: 'google_calendar' },
+  });
+  return conn;
+}
+
+// GET /api/me/calendar/calendars?connection_id=
+router.get('/me/calendar/calendars', authenticateToken, async (req, res, next) => {
+  try {
+    const conn = await ownCalendarConn(req, parseInt(req.query.connection_id, 10));
+    if (!conn) return errorResponse(res, 'not_found', 404);
+    const selected = personalCalendar.calendarIdOf(conn);
+    // 옛 연결(목록 권한 없음) — 고르려면 다시 연결해야 한다. 화면이 그 사실을 말한다.
+    if (!personalCalendar.hasCalendarList(conn)) return successResponse(res, { can_list: false, selected, calendars: [] });
+    let calendars = [];
+    try { calendars = await personalCalendar.listCalendars(conn); }
+    catch (e) {
+      console.warn('[personal calendars list]', e.message);
+      return errorResponse(res, 'gcal_list_failed', 502);
+    }
+    return successResponse(res, { can_list: true, selected, calendars });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/me/calendar/calendar-id  body: { connection_id, calendar_id }
+//   새로 올리는 일정부터 그 캘린더로 간다. 이미 올린 일정은 원래 캘린더에서 계속 고치고 지운다(링크의 gcal_calendar_id).
+//   역방향 동기화 커서는 비운다 — 새 캘린더를 처음부터 읽는다.
+router.put('/me/calendar/calendar-id', authenticateToken, async (req, res, next) => {
+  try {
+    const conn = await ownCalendarConn(req, parseInt(req.body?.connection_id, 10));
+    if (!conn) return errorResponse(res, 'not_found', 404);
+    const want = String(req.body?.calendar_id || '').trim();
+    if (!want || want.length > 255) return errorResponse(res, 'invalid_calendar_id', 400);
+    if (!personalCalendar.hasCalendarList(conn)) return errorResponse(res, 'reconnect_required', 409);
+    // 목록에 있는(쓸 수 있는) 캘린더만 — 손으로 넣은 id 를 그대로 믿지 않는다.
+    let calendars;
+    try { calendars = await personalCalendar.listCalendars(conn); }
+    catch (e) { console.warn('[personal calendars set]', e.message); return errorResponse(res, 'gcal_list_failed', 502); }
+    const hit = calendars.find((c) => c.id === want);
+    if (!hit) return errorResponse(res, 'calendar_not_writable', 400);
+    const prev = personalCalendar.calendarIdOf(conn);
+    const meta = { ...(typeof conn.metadata === 'object' && conn.metadata ? conn.metadata : {}) };
+    meta.calendar_id = hit.primary ? 'primary' : hit.id;
+    const next = meta.calendar_id;
+    if (prev !== next) {
+      await conn.update({ metadata: meta, gcal_sync_token: null });
+      await writeAudit({ user_id: req.user.id, business_id: conn.business_id ?? null, action: 'external_connection.calendar_select',
+        target_type: 'external_connection', target_id: conn.id, old_value: { calendar_id: prev }, new_value: { calendar_id: next } }).catch(() => null);
+    }
+    return successResponse(res, { selected: next });
+  } catch (err) { next(err); }
+});
+
 module.exports = router;

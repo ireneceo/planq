@@ -1,6 +1,6 @@
 // services/personalCalendar.js — 개인 Google Calendar 일정 조회 (읽기 전용 overlay)
 //
-// external_connections (owner_scope='user', provider='google_calendar') 의 primary calendar
+// external_connections (owner_scope='user', provider='google_calendar') 의 골라 둔 캘린더(기본 primary)
 // 일정을 가져와 Q Calendar 에 violet overlay 로 표시. 쓰기 없음 (calendar.readonly scope).
 const { google } = require('googleapis');
 const personalOauth = require('./personalOauth');
@@ -62,7 +62,7 @@ async function listEvents(conn, { timeMin, timeMax, maxResults = 250, excludeIds
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
   const resp = await cal.events.list({
-    calendarId: 'primary',
+    calendarId: calendarIdOf(conn),
     timeMin, timeMax,
     singleEvents: true,      // 정기일정 인스턴스 펼침
     orderBy: 'startTime',
@@ -99,6 +99,41 @@ function hasCalendarWrite(conn) {
   return googleScopes.hasRequired('google_calendar', conn && conn.scope);
 }
 
+// ── 어느 구글 캘린더인가 (2026-10-07, Fable B 판정 8 — 여러 캘린더 중 고르기) ─────────────────────
+//   골라 둔 캘린더 id 는 `external_connections.metadata.calendar_id`. 없으면 'primary'(기존 동작 그대로).
+//   ★ 이미 밀어 넣은 일정은 **그 일정을 넣은 캘린더**(`calendar_event_gcal_links.gcal_calendar_id`)에서 고치고 지운다 —
+//     캘린더를 바꾼 뒤 옛 일정을 새 캘린더 id 로 부르면 404 가 나고 구글에 고아가 남는다.
+const CALENDAR_LIST_SCOPE = 'https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+function metaOf(conn) {
+  const m = conn && conn.metadata;
+  if (!m) return {};
+  if (typeof m === 'string') { try { return JSON.parse(m) || {}; } catch { return {}; } }
+  return m;
+}
+function calendarIdOf(conn) {
+  const id = metaOf(conn).calendar_id;
+  return (typeof id === 'string' && id.trim()) ? id.trim() : 'primary';
+}
+/** 캘린더 목록을 읽을 권한이 있는가 — 옛 연결은 «다시 연결하면 고를 수 있다» 로 안내한다. */
+function hasCalendarList(conn) {
+  return String((conn && conn.scope) || '').split(/[\s,]+/).includes(CALENDAR_LIST_SCOPE);
+}
+/** 일정을 쓸 수 있는(writer·owner) 캘린더 목록 — 고르는 화면이 쓴다. */
+async function listCalendars(conn) {
+  const auth = await personalOauth.getAuthedClient(conn);
+  const cal = google.calendar({ version: 'v3', auth });
+  const out = [];
+  let pageToken;
+  do {
+    const resp = await cal.calendarList.list({ minAccessRole: 'writer', maxResults: 250, pageToken }, { timeout: 10000 });
+    for (const c of (resp.data.items || [])) {
+      out.push({ id: c.id, summary: c.summaryOverride || c.summary || c.id, primary: !!c.primary, access_role: c.accessRole, color: c.backgroundColor || null });
+    }
+    pageToken = resp.data.nextPageToken;
+  } while (pageToken && out.length < 500);
+  return out;
+}
+
 // PlanQ 원본 표식 — 되돌아온 자기 일정을 overlay 에 중복으로 그리지 않기 위해 반드시 붙인다.
 function planqBody({ title, description, location, startAt, endAt, allDay, timezone, rrule }) {
   const tz = timezone || 'Asia/Seoul';
@@ -126,12 +161,14 @@ function planqBody({ title, description, location, startAt, endAt, allDay, timez
 async function insertEvent(conn, input) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
+  const calendarId = calendarIdOf(conn);
   const resp = await cal.events.insert(
-    { calendarId: 'primary', requestBody: planqBody(input) },
+    { calendarId, requestBody: planqBody(input) },
     { timeout: 10000 },
   );
   // etag — google_calendar.insertEvent 와 같은 shape. 역방향 에코 필터의 1차 근거.
-  return { id: resp.data.id, htmlLink: resp.data.htmlLink, etag: resp.data.etag || null };
+  //   calendarId — 링크에 남겨 둔다(그 캘린더에서 고치고 지운다).
+  return { id: resp.data.id, htmlLink: resp.data.htmlLink, etag: resp.data.etag || null, calendarId };
 }
 
 /**
@@ -153,8 +190,9 @@ async function createMeetingEvent(conn, { summary, title, description, location,
     description, location, startAt, endAt, allDay: false, timezone, rrule,
   });
   const requestId = `planq-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const calendarId = calendarIdOf(conn);
   const resp = await cal.events.insert({
-    calendarId: 'primary',
+    calendarId,
     conferenceDataVersion: 1,   // ← 필수. 안 보내면 conferenceData 가 통째로 무시된다.
     sendUpdates: 'none',        // 초대장 메일은 PlanQ 가 자체 발송
     requestBody: {
@@ -170,6 +208,7 @@ async function createMeetingEvent(conn, { summary, title, description, location,
     hangoutLink: ev.hangoutLink || null,
     meetUrl: meetEntry?.uri || ev.hangoutLink || null,
     conferenceId: ev.conferenceData?.conferenceId || null,
+    calendarId,
   };
 }
 
@@ -183,11 +222,11 @@ async function recordConnError(conn, err) {
   catch (e) { console.error('[personalCalendar] last_sync_error 기록 실패:', e.message); }
 }
 
-async function updateEvent(conn, gcalEventId, input) {
+async function updateEvent(conn, gcalEventId, input, { calendarId = null } = {}) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
   const resp = await cal.events.patch(
-    { calendarId: 'primary', eventId: gcalEventId, requestBody: planqBody(input) },
+    { calendarId: calendarId || calendarIdOf(conn), eventId: gcalEventId, requestBody: planqBody(input) },
     { timeout: 10000 },
   );
   return { id: resp.data.id, etag: resp.data.etag || null };
@@ -253,7 +292,7 @@ async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null 
     }
   }
 
-  const params = { calendarId: 'primary', eventId: gcalEventId, requestBody: body };
+  const params = { calendarId: calendarIdOf(conn), eventId: gcalEventId, requestBody: body };
   // 참석자가 있는 회의의 시간이 바뀌었는데 참석자가 모르면 그게 사고다 (구글 UI 기본 동작과 동일).
   params.sendUpdates = 'all';
   const opts = { timeout: 10000 };
@@ -268,16 +307,16 @@ async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null 
 async function getEvent(conn, gcalEventId) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
-  const resp = await cal.events.get({ calendarId: 'primary', eventId: gcalEventId }, { timeout: 10000 });
+  const resp = await cal.events.get({ calendarId: calendarIdOf(conn), eventId: gcalEventId }, { timeout: 10000 });
   return resp.data;
 }
 
 // 이미 사라진 이벤트(404/410)는 성공으로 친다 — 목적("구글에 없게 한다")이 이미 달성된 상태다.
-async function deleteEvent(conn, gcalEventId) {
+async function deleteEvent(conn, gcalEventId, { calendarId = null } = {}) {
   const auth = await personalOauth.getAuthedClient(conn);
   const cal = google.calendar({ version: 'v3', auth });
   try {
-    await cal.events.delete({ calendarId: 'primary', eventId: gcalEventId }, { timeout: 10000 });
+    await cal.events.delete({ calendarId: calendarId || calendarIdOf(conn), eventId: gcalEventId }, { timeout: 10000 });
   } catch (e) {
     const code = e && (e.code || e.status);
     if (code !== 404 && code !== 410) throw e;
@@ -290,4 +329,5 @@ module.exports = {
   hasCalendarWrite, insertEvent, updateEvent, deleteEvent, CALENDAR_WRITE_SCOPES,
   patchPersonalOriginEvent, getEvent, normalize,
   createMeetingEvent, recordConnError,
+  calendarIdOf, hasCalendarList, listCalendars, CALENDAR_LIST_SCOPE,
 };

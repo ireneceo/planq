@@ -12,6 +12,7 @@ import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTranslation } from 'react-i18next';
+import CalendarPicker from './CalendarPicker';
 import PageShell from '../../components/Layout/PageShell';
 import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnIcon, ConnInfo, ConnTitle, ConnSub, ConnMeta, DangerBtn } from './integrationStyles';
 import ConnectedAiAppsSection from './ConnectedAiAppsSection';
@@ -426,6 +427,11 @@ const ProfileIntegrationsPage: React.FC = () => {
                       </AutoSaveField>
                       <span>{t('integrations.calendarSyncOn') as string}</span>
                     </SyncToggle>
+                  )}
+                  {/* 어느 구글 캘린더에 올릴지(2026-10-07 Fable B 판정 8) — 쓰기 권한이 있는 연결만 */}
+                  {c.provider === 'google_calendar' && (!c.permission_status || c.permission_status === 'ok') && (
+                    <CalendarPicker connectionId={c.id} onReconnect={() => connectPersonal('google_calendar')}
+                      busy={connProvider === 'google_calendar'} />
                   )}
                 </ConnInfo>
                 {c.permission_status && <PermissionBadge status={c.permission_status} />}

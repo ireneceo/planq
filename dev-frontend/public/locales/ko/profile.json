@@ -275,7 +275,12 @@
     "permBadgeError": "연결 오류",
     "permReadOnly": "지금은 일정을 가져오기만 해요. PlanQ 일정을 올리려면 다시 연결할 때 “캘린더” 항목을 체크해 주세요.",
     "permInsufficient": "연결은 됐지만 필요한 권한을 받지 못했어요. 다시 연결하면서 Google 동의 화면의 “{{item}}” 항목을 체크해 주세요.",
-    "permError": "연결이 만료되었거나 취소됐어요. 다시 연결해 주세요."
+    "permError": "연결이 만료되었거나 취소됐어요. 다시 연결해 주세요.",
+    "calendarPickLabel": "PlanQ 일정을 올릴 캘린더",
+    "calendarPickHint": "새로 올리는 일정부터 이 캘린더로 갑니다. 이미 올린 일정은 원래 캘린더에 그대로 있습니다.",
+    "calendarPrimary": "기본",
+    "calendarPickReconnect": "다시 연결하면 PlanQ 일정을 올릴 캘린더를 고를 수 있어요.",
+    "calendarPickFailed": "구글 캘린더 목록을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요."
   },
   "accountDeletion": {
     "title": "계정 삭제",

@@ -223,7 +223,11 @@ async function linkedGcalIds(source) {
  */
 async function collectChanges(cal, source, linkedIds) {
   const syncToken = cursorOf(source);
-  const base = { calendarId: 'primary', singleEvents: false, maxResults: PAGE_SIZE, showDeleted: true };
+  // 개인 연결은 사람이 골라 둔 캘린더를 본다(personalCalendar.calendarIdOf — 기본 primary). 캘린더를 바꾸면
+  //   라우트가 커서(gcal_sync_token)를 비워 새 캘린더를 처음부터(부트스트랩) 읽는다. 옛 캘린더에 남은 링크는
+  //   더 이상 되돌려 받지 않는다(PlanQ → 구글 갱신은 링크의 gcal_calendar_id 로 계속된다).
+  const calendarId = source.kind === 'personal' ? personalCalendar.calendarIdOf(source.conn) : 'primary';
+  const base = { calendarId, singleEvents: false, maxResults: PAGE_SIZE, showDeleted: true };
   const items = [];
   let unlinked = 0;
   let pageToken = null;

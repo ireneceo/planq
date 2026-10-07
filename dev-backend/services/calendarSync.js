@@ -156,17 +156,18 @@ async function pushTo(t, event, tz) {
     return r && { id: r.id, etag: r.etag || null };
   }
   const r = await personalCalendar.insertEvent(t.token, input);
-  return r && { id: r.id, etag: r.etag || null };
+  return r && { id: r.id, etag: r.etag || null, calendarId: r.calendarId || 'primary' };
 }
 
-async function updateAt(t, event, gcalEventId, tz) {
+async function updateAt(t, event, gcalEventId, tz, calendarId = null) {
   const input = toInput(event, tz);
   if (t.target === 'workspace') {
     const cal = await gcal.getCalendarClient(t.token);
     const r = await gcal.updateEvent(cal, gcalEventId, { ...input, summary: event.title });
     return { etag: (r && r.etag) || null };
   }
-  const r = await personalCalendar.updateEvent(t.token, gcalEventId, input);
+  // 개인 — 그 일정을 넣은 캘린더(링크의 gcal_calendar_id)에서 고친다. 사람이 캘린더를 바꿨어도 옛 일정은 옛 곳에 있다.
+  const r = await personalCalendar.updateEvent(t.token, gcalEventId, input, { calendarId });
   return { etag: (r && r.etag) || null };
 }
 
@@ -191,7 +192,7 @@ async function updateAtLink(link, event, businessId, tz) {
   } else {
     const conn = await ExternalConnection.findByPk(link.connection_id);
     if (!conn || !personalCalendar.hasCalendarWrite(conn)) return false;
-    const r = await personalCalendar.updateEvent(conn, link.gcal_event_id, input);
+    const r = await personalCalendar.updateEvent(conn, link.gcal_event_id, input, { calendarId: link.gcal_calendar_id || 'primary' });
     etag = (r && r.etag) || null;
   }
   // 보호 링크도 우리가 민 것이므로 etag 를 갱신해야 역방향이 자기 변경을 되받지 않는다.
@@ -213,7 +214,7 @@ async function removeAt(link, businessId) {
   }
   const conn = await ExternalConnection.findByPk(link.connection_id);
   if (!conn || !personalCalendar.hasCalendarWrite(conn)) return;
-  await personalCalendar.deleteEvent(conn, link.gcal_event_id);
+  await personalCalendar.deleteEvent(conn, link.gcal_event_id, { calendarId: link.gcal_calendar_id || 'primary' });
 }
 
 /**
@@ -275,6 +276,7 @@ async function reconcile(event, { businessId, userId }) {
       await CalendarEventGcalLink.create({
         event_id: event.id, target: t.target, connection_id: t.connection_id,
         user_id: t.user_id, gcal_event_id: r.id,
+        gcal_calendar_id: r.calendarId || 'primary',
         // insert 시점부터 etag 를 박는다 — 안 박으면 첫 폴링이 자기 insert 를 남의 변경으로 읽는다.
         last_pushed_etag: r.etag || null,
       });
@@ -295,7 +297,7 @@ async function reconcile(event, { businessId, userId }) {
     const link = have.get(k);
     if (!link) continue;
     try {
-      const r = await updateAt(t, event, link.gcal_event_id, tz);
+      const r = await updateAt(t, event, link.gcal_event_id, tz, link.gcal_calendar_id || 'primary');
       if (r && r.etag && r.etag !== link.last_pushed_etag) {
         await link.update({ last_pushed_etag: r.etag }).catch(() => {});
       }
@@ -385,6 +387,8 @@ async function linkMeeting(eventId, source, gcalEventId, businessId) {
   const target = source.kind === 'personal' ? 'personal' : 'workspace';
   const connectionId = source.kind === 'personal' ? source.conn.id : null;
   const userId = source.kind === 'personal' ? source.conn.user_id : null;
+  // 회의 이벤트는 방금 그 연결의 골라 둔 캘린더에 만들어졌다(personalCalendar.createMeetingEvent).
+  const calendarId = source.kind === 'personal' ? personalCalendar.calendarIdOf(source.conn) : 'primary';
   const existing = await CalendarEventGcalLink.findOne({
     where: { event_id: eventId, target, connection_id: connectionId },
   });
@@ -398,12 +402,12 @@ async function linkMeeting(eventId, source, gcalEventId, businessId) {
       try { await removeAt(existing, businessId); }
       catch (e) { console.warn('[linkMeeting 옛 사본 정리]', e.message); }
     }
-    await existing.update({ gcal_event_id: gcalEventId, user_id: userId, holds_meeting: true });
+    await existing.update({ gcal_event_id: gcalEventId, user_id: userId, holds_meeting: true, gcal_calendar_id: calendarId });
     return existing;
   }
   return await CalendarEventGcalLink.create({
     event_id: eventId, target, connection_id: connectionId, user_id: userId,
-    gcal_event_id: gcalEventId, holds_meeting: true,
+    gcal_event_id: gcalEventId, holds_meeting: true, gcal_calendar_id: calendarId,
   });
 }
 
