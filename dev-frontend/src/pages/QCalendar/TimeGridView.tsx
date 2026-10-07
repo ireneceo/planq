@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
+import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon } from '../../components/Common/Icons';
@@ -109,6 +110,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                     $border={c.border}
                     data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                     data-booking={bookingAttr(e as CalendarEvent)}
+                    title={[e.title, linkLine(e, t)].filter(Boolean).join(' — ')}
                     onClick={() => onSelectEvent(e.id, e.start_at?.slice(0, 10))}
                   >
                     <BookingTag e={e as CalendarEvent} />
@@ -194,6 +196,7 @@ const TimeGridView: React.FC<Props> = ({ today, days, events, onSelectEvent, onS
                         $border={c.border}
                         data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                         data-booking={bookingAttr(e as CalendarEvent)}
+                        title={[e.title, linkLine(e, t)].filter(Boolean).join(' — ')}
                         onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
                       >
                         <EventHeader>

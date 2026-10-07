@@ -339,5 +339,14 @@
     "remove": "첨부 빼기",
     "notifyOnCreate": "참석자 {{count}}명에게 첨부파일도 알리기",
     "addToggle": "파일 첨부"
+  },
+  "taskLink": {
+    "label": "업무 연결",
+    "placeholder": "업무 검색해서 연결",
+    "empty": "찾는 업무가 없습니다",
+    "hidden": "볼 수 없는 업무",
+    "open": "업무 열기",
+    "fromTask": "업무",
+    "taskOf": "업무: {{title}}"
   }
 }

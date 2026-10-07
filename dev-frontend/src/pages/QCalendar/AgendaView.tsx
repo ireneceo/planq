@@ -2,6 +2,7 @@
 //   anchor 월의 이벤트 있는 날만 날짜별 그룹으로 세로 나열. 오늘 자동 스크롤. 빈 월 빈 상태.
 //   데이터는 QCalendarPage 의 filteredEvents(events+tasks+personal 병합, RRULE 전개) 그대로 재사용.
 import React, { useMemo, useRef, useLayoutEffect } from 'react';
+import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { CalendarEvent, CalendarItem, PersonalCalendarEvent } from './types';
@@ -171,6 +172,7 @@ const AgendaView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onS
                   {!personal && (e as CalendarEvent).location && (
                     <CardSub>{(e as CalendarEvent).location}</CardSub>
                   )}
+                  {!personal && linkLine(e, t) && <CardSub data-testid="calendar-item-link">{linkLine(e, t)}</CardSub>}
                 </CardMain>
                 <ColorBar $color={c.border} />
               </Card>

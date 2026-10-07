@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { toWall, wallStringsToIso } from './calTz';
 import TzLines from './TzLines';
+import TaskLinkPicker from './TaskLinkPicker';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 // 「미팅 정리」 메뉴는 Q note·Q sale 과 **같은 한 벌**이다 — 여기서 다시 그리지 않는다
@@ -76,6 +77,8 @@ interface Props {
   personalCalWritable?: boolean;
   /** 서버가 이미 바꾼 값을 화면에만 반영한다(PUT 없음) — 상담 예약 처리처럼 전용 라우트가 저장한 경우. */
   onLocalPatch?: (patch: Partial<CalendarEvent>) => void;
+  /** 연결된 업무 열기 — 캘린더 위에 업무 상세를 띄운다(캘린더 업무 항목과 같은 길) */
+  onOpenTask?: (taskId: number) => void;
 }
 
 // 시간 + 날짜 → ISO 변환 — 시각은 **워크스페이스 시간대**의 시각이다(NewEventModal 의 mkISO 와 같은 규칙, calTz.ts).
@@ -95,7 +98,7 @@ function wallOf(ev: { all_day?: boolean; start_at: string; end_at: string }, key
 
 const EventDrawer: React.FC<Props> = ({
   event, instanceDate, projects = [], members = [], clients = [], myUserId, myBusinessRole,
-  onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalCanWrite, workspaceCanWrite, personalCalWritable, onLocalPatch,
+  onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalCanWrite, workspaceCanWrite, personalCalWritable, onLocalPatch, onOpenTask,
 }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
@@ -402,6 +405,29 @@ const EventDrawer: React.FC<Props> = ({
                   </AutoSaveField>
                 </Field>
               </Grid2>
+            )}
+            {/* 업무 연결 — 프로젝트 바로 아래. 제목은 보는 사람 기준(볼 수 없으면 «볼 수 없는 업무»). */}
+            {(canEdit || event.task) && (
+              <Field>
+                <FieldLabel>{t('taskLink.label', { defaultValue: '업무 연결' }) as string}</FieldLabel>
+                {canEdit && (
+                  <AutoSaveField key={`ev${event.id}-task`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
+                    <TaskLinkPicker
+                      businessId={event.business_id}
+                      value={event.task ? { id: event.task.id, title: event.task.title, hidden: event.task.hidden } : null}
+                      onChange={(tk) => { const v = tk ? tk.id : null; if (v !== (event.task_id ?? null)) updateMaybeScoped({ task_id: v }); }}
+                    />
+                  </AutoSaveField>
+                )}
+                {event.task && !event.task.hidden && onOpenTask && (
+                  <TaskOpenBtn type="button" data-testid="event-task-open" onClick={() => onOpenTask(event.task!.id)}>
+                    {canEdit
+                      ? (t('taskLink.open', { defaultValue: '업무 열기' }) as string)
+                      : (t('taskLink.taskOf', { title: event.task.title, defaultValue: '업무: {{title}}' }) as string)} ›
+                  </TaskOpenBtn>
+                )}
+                {!canEdit && event.task?.hidden && <MutedSmall>{t('taskLink.hidden', { defaultValue: '볼 수 없는 업무' }) as string}</MutedSmall>}
+              </Field>
             )}
             <MutedSmall>{t('form.category')}</MutedSmall>
             <CategoryRow>
@@ -1100,6 +1126,12 @@ function formatDateTimeInTz(d: Date, lang: string, tz: string): string {
 export default EventDrawer;
 
 // ── styled ──
+const TaskOpenBtn = styled.button`
+  align-self: flex-start; margin-top: 4px; background: none; border: none; padding: 2px 0; cursor: pointer;
+  font-size: 0.8125rem; font-weight: 600; color: #0F766E; text-align: left;
+  &:hover { color: #0D9488; text-decoration: underline; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; border-radius: 4px; }
+`;
 const CreatorMeta = styled.span`
   display: inline-flex; align-items: center; font-size: 0.6875rem; color: #64748B; white-space: nowrap;
 `;

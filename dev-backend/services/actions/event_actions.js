@@ -89,6 +89,9 @@ async function createEvent(actor, params = {}) {
     if (!prj) return fail('invalid_project');
     projectId = prj.id;
   }
+  // task_id — 같은 business + 만드는 사람이 열 수 있는 업무만(services/eventTaskLink — 수정 라우트와 같은 함수)
+  const taskLink = await require('../eventTaskLink').resolveTaskLink(subjectId, businessId, params.taskId);
+  if (!taskLink.ok) return fail(taskLink.code);
 
   // #126 보안 — 개인(L1)·팀비공개(L2)·personal 일정은 워크스페이스 gcal(owner primary) push 대상 제외(유출 차단).
   //   Meet 자동발급도 워크스페이스 gcal 에 이벤트를 만들므로, 개인 일정엔 발급 금지(조용한 유출 대신 명시적 거부).
@@ -161,6 +164,7 @@ async function createEvent(actor, params = {}) {
     event = await CalendarEvent.create({
       business_id: businessId,
       project_id: projectId,
+      task_id: taskLink.skip ? null : taskLink.taskId,
       title,
       description: params.description?.trim() || null,
       location: params.location?.trim() || null,

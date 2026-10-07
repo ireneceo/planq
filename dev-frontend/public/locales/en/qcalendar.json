@@ -339,5 +339,14 @@
     "remove": "Remove attachment",
     "notifyOnCreate": "Also notify {{count}} attendee(s) about the attachments",
     "addToggle": "Attach files"
+  },
+  "taskLink": {
+    "label": "Linked task",
+    "placeholder": "Search a task to link",
+    "empty": "No matching tasks",
+    "hidden": "Task you can’t view",
+    "open": "Open task",
+    "fromTask": "Task",
+    "taskOf": "Task: {{title}}"
   }
 }

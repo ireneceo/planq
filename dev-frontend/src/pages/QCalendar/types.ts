@@ -30,6 +30,9 @@ export interface CalendarEvent {
   id: number;
   business_id: number;
   project_id: number | null;
+  /** 업무 연결 — task 는 보는 사람 기준(볼 수 없으면 hidden) */
+  task_id?: number | null;
+  task?: { id: number; title?: string; status?: string; project_id?: number | null; hidden?: boolean } | null;
   title: string;
   description: string | null;
   location: string | null;

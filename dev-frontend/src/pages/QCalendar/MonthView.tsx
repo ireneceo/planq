@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { linkLine } from './linkLine';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import type { CalendarEvent, CalendarItem } from './types';
@@ -121,7 +122,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                       data-testid={isTask ? 'calendar-task' : 'calendar-event'}
                       data-booking={bookingAttr(e as CalendarEvent)}
                       onClick={(ev) => { ev.stopPropagation(); onSelectEvent(e.id, e.start_at?.slice(0, 10)); }}
-                      title={e.title}
+                      title={[e.title, linkLine(e, t)].filter(Boolean).join(' — ')}
                     >
                       <BookingTag e={e as CalendarEvent} />
                       {isTask && (
@@ -197,6 +198,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
                         </TaskIcon>
                       )}
                       {e.title}
+                      {linkLine(e, t) && <PopoverLink>{linkLine(e, t)}</PopoverLink>}
                     </PopoverItemTitle>
                   </PopoverItem>
                 );
@@ -364,3 +366,5 @@ const PopoverItemTitle = styled.div`
   font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   flex: 1;
 `;
+
+const PopoverLink = styled.span`margin-left: 6px; font-size: 0.6875rem; font-weight: 400; color: #64748B;`;

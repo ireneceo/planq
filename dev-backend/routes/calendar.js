@@ -258,6 +258,7 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
     events.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
     await applyEventDisplayNames(events, businessId);
     await stripClientMaterials(events, req.user.id, req.scope);
+    await require('../services/eventTaskLink').attachTaskLinks(events, req.user.id, businessId, req.scope);
     return successResponse(res, events);
   } catch (err) { next(err); }
 });
@@ -269,6 +270,12 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
 //         attendees?: [{ user_id? | client_id? }],
 //         attachments?: [{ file_id? | post_id? }] }   ← #411 미팅자료(둘 중 정확히 하나)
 // ============================================
+// 응답 한 건에 업무 연결을 싣는다(보는 사람 기준) — services/eventTaskLink 한 곳
+async function withTask(json, req) {
+  await require('../services/eventTaskLink').attachTaskLinks([json], req.user.id, Number(req.params.businessId), req.scope);
+  return json;
+}
+
 router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   // 얇은 라우트 — 파싱 + actor 구성 + 행동 계층 호출 + 응답. 생성 규칙은 services/actions/event_actions.js.
   try {
@@ -283,7 +290,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         category: b.category, color: b.color, rrule: b.rrule,
         meetingUrl: b.meeting_url, meetingProvider: b.meeting_provider,
         autoCreateMeeting: b.auto_create_meeting,
-        visibility: b.visibility, projectId: b.project_id,
+        visibility: b.visibility, projectId: b.project_id, taskId: b.task_id,
         attendees: b.attendees || [],
         attachments: b.attachments || [],   // #411 미팅자료(file_id | post_id)
         reminderMinutes: b.reminder_minutes,
@@ -293,7 +300,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
     if (!r.ok) return errorResponse(res, r.code, r.http || 400);
     // #242 — Meet 링크만 실패한 경우에도 일정 생성은 성공(201)이다. 실패 사실은 삼키지 않고
     //   meet_warning 코드로 실어 보내 프론트가 "일정은 저장됐지만 링크 실패" 를 알린다.
-    const created = r.data.full.toJSON();
+    const created = await withTask(r.data.full.toJSON(), req);
     if (r.data.meetWarning) created.meet_warning = r.data.meetWarning;
     return successResponse(res, created, 'created', 201);
   } catch (err) { next(err); }
@@ -346,6 +353,7 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
     }
 
     const [evJson] = await stripClientMaterials([event.toJSON()], req.user.id, req.scope);
+    await require('../services/eventTaskLink').attachTaskLinks([evJson], req.user.id, businessId, req.scope);
     return successResponse(res, evJson);
   } catch (err) { next(err); }
 });
@@ -397,6 +405,7 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
       const child = await CalendarEvent.create({
         business_id: event.business_id,
         project_id: body.project_id !== undefined ? body.project_id : event.project_id,
+        task_id: req._taskLink && !req._taskLink.skip ? req._taskLink.taskId : (event.task_id || null),
         title: (body.title?.trim()) || event.title,
         description: body.description !== undefined ? (body.description?.trim() || null) : event.description,
         location: body.location !== undefined ? (body.location?.trim() || null) : event.location,
@@ -439,7 +448,7 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
       });
       const full = await CalendarEvent.findByPk(child.id, { include: INCLUDE_DETAIL });
       broadcastEvent(req, full, 'event:updated');
-      return successResponse(res, full.toJSON());
+      return successResponse(res, await withTask(full.toJSON(), req));
     }
 
     // scope === 'future'
@@ -458,6 +467,7 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
     const newMaster = await CalendarEvent.create({
       business_id: event.business_id,
       project_id: body.project_id !== undefined ? body.project_id : event.project_id,
+        task_id: req._taskLink && !req._taskLink.skip ? req._taskLink.taskId : (event.task_id || null),
       title: (body.title?.trim()) || event.title,
       description: body.description !== undefined ? (body.description?.trim() || null) : event.description,
       location: body.location !== undefined ? (body.location?.trim() || null) : event.location,
@@ -496,7 +506,7 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
     });
     const full = await CalendarEvent.findByPk(newMaster.id, { include: INCLUDE_DETAIL });
     broadcastEvent(req, full, 'event:updated');
-    return successResponse(res, full.toJSON());
+    return successResponse(res, await withTask(full.toJSON(), req));
   } catch (err) {
     if (!t.finished) await t.rollback();
     console.error('[recurrence scope]', err);
@@ -537,6 +547,11 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       await t.rollback();
       return errorResponse(res, calendarPermission.editDenyReason(event, bm, req.user.id), 403);
     }
+
+    // 업무 연결 — 같은 워크스페이스 + 내가 열 수 있는 업무만(services/eventTaskLink). 회차 분기에서도 같은 값을 쓴다.
+    const taskLink = await require('../services/eventTaskLink').resolveTaskLink(req.user.id, businessId, (req.body || {}).task_id);
+    if (!taskLink.ok) { await t.rollback(); return errorResponse(res, taskLink.code, 400); }
+    req._taskLink = taskLink;
 
     // N+63 P2a — 정기일정 scope 분기 (single|future|all). default=all (기존 동작).
     //   single: master 의 exception_dates 에 recurrence_id 추가 + 새 child event 생성 (변경된 attr)
@@ -644,6 +659,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
         updates.project_id = prj.id;
       }
     }
+    if (!req._taskLink.skip) updates.task_id = req._taskLink.taskId;   // 업무 연결(위에서 검증)
     // N+63 — 알림 minutes 변경. 값 바뀌면 reminder_sent_at 리셋 (재발송 가능).
     // start_at 변경되면 cron 이 새 start_at 기준으로 재계산 + sent_at 리셋 필요.
     if (reminder_minutes !== undefined) {
@@ -759,7 +775,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     } catch (e) { console.warn('[notify event invite-edit outer]', e.message); }
 
     broadcastEvent(req, full, 'event:updated');
-    return successResponse(res, full.toJSON());
+    return successResponse(res, await withTask(full.toJSON(), req));
   } catch (err) {
     if (!t.finished) await t.rollback();
     next(err);

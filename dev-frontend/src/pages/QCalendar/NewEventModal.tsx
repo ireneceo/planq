@@ -1,6 +1,7 @@
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { wallStringsToIso } from './calTz';
 import TzLines from './TzLines';
+import TaskLinkPicker from './TaskLinkPicker';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
@@ -102,6 +103,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const [matUploads, setMatUploads] = useState<File[]>([]);
   const [notifyMaterials, setNotifyMaterials] = useState(false);
   const hasMaterials = matFileIds.length + matPostIds.length + matUploads.length > 0;
+  const [linkedTask, setLinkedTask] = useState<{ id: number; title: string } | null>(null);   // 업무 연결
   const [matOpen, setMatOpen] = useState(false);
 
   // 종일이면 분 단위가 의미 없다 — 옵션 세트를 바꾼다(크론이 종일은 시작일 09:00 을 기준으로 잡는다).
@@ -321,6 +323,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       reminder_minutes: reminderMinutes === REMINDER_NONE ? null : reminderMinutes,
       visibility,  // backend hook 가 vlevel 우선 처리하므로 backward-compat
       project_id: finalProjectId,
+      task_id: linkedTask ? linkedTask.id : null,
       meeting_url: meetingUrl.trim() || null,
       // 비공개 전환은 체크 후에도 일어날 수 있다 — 체크박스를 숨기는 것만으로는 부족하고,
       // 전송 시점에도 걸러야 백엔드 400(일정 생성 전체 실패)을 막는다.
@@ -385,6 +388,13 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
               />
             </Field>
           </Grid2>
+          {/* 업무 연결 — 프로젝트 바로 아래(2026-10-07 Irene: «프로젝트, 업무연결은 최상단») */}
+          {!!businessId && (
+            <Field>
+              <Label>{t('taskLink.label', { defaultValue: '업무 연결' }) as string}</Label>
+              <TaskLinkPicker businessId={businessId} value={linkedTask} onChange={setLinkedTask} />
+            </Field>
+          )}
 
           <Field>
             <Label>{t('form.category')}</Label>

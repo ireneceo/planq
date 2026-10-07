@@ -96,6 +96,8 @@ CalendarEvent.init({
   //     다른 곳에서 update 하면 메일·알림·감사·영업 단계가 조용히 빠진다(salesStage.setStage 와 같은 규약).
   //   ★ 끝남(done)은 값이 아니다 — confirmed && end_at < now 로 파생한다(설계 §4.6).
   //   운영 스키마: scripts/migrate-calendar-booking-status.js (코드 배포 전).
+  // 업무 연결(2026-10-07) — 이 일정이 어느 업무를 위한 것인가. 제목은 복사하지 않는다(보여줄 때 보는 사람 기준으로 읽는다).
+  task_id: { type: DataTypes.INTEGER, allowNull: true },
   booking_status: {
     type: DataTypes.ENUM('requested', 'proposed', 'confirmed', 'declined', 'canceled'),
     allowNull: true,
@@ -120,6 +122,7 @@ CalendarEvent.init({
     { unique: true, fields: ['share_token'], name: 'calendar_events_share_token_unique' },
     { fields: ['business_id', 'vlevel'], name: 'calendar_events_biz_vlevel' },
     { fields: ['business_id', 'booking_status'], name: 'calendar_events_biz_booking' },
+    { fields: ['business_id', 'task_id'], name: 'calendar_events_biz_task' },
   ],
 });
 
