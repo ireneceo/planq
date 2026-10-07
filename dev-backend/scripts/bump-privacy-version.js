@@ -27,11 +27,11 @@ const cmp = (a, b) => {
       console.log(`[bump-privacy-version] 현재 ${cur} ≥ ${TARGET} — 변경 없음`);
     } else {
       await sequelize.query('UPDATE platform_settings SET privacy_version = ?, updated_at = NOW() WHERE id = ?', { replacements: [TARGET, rows[0].id] });
-      await sequelize.query(
-        `INSERT INTO audit_logs (user_id, business_id, action, target_type, target_id, old_value, new_value, created_at)
-         VALUES (NULL, NULL, 'platform.privacy_version_bump', 'platform_settings', ?, ?, ?, NOW())`,
-        { replacements: [rows[0].id, JSON.stringify({ privacy_version: cur }), JSON.stringify({ privacy_version: TARGET, by: 'deploy' })] },
-      ).catch((e) => console.warn('[bump-privacy-version] 감사 기록 실패:', e.message));
+      // 감사는 공용 writeAudit 한 곳으로 — 보관 스탬프(retain_until)를 그 함수가 붙인다(손으로 INSERT 하면 빠진다).
+      await require('../services/auditService').writeAudit({
+        action: 'platform.privacy_version_bump', targetType: 'platform_settings', targetId: rows[0].id,
+        oldValue: { privacy_version: cur }, newValue: { privacy_version: TARGET, by: 'deploy' },
+      }).catch((e) => console.warn('[bump-privacy-version] 감사 기록 실패:', e.message));
       console.log(`[bump-privacy-version] ${cur} → ${TARGET}`);
     }
     const [after] = await sequelize.query('SELECT privacy_version FROM platform_settings ORDER BY id LIMIT 1');
