@@ -17,6 +17,7 @@ import CreateDrawer from '../../components/Common/CreateDrawer';
 import CalendarPicker from '../../components/Common/CalendarPicker';
 import RecurrencePicker from '../../components/Common/RecurrencePicker';
 import { getVideoStatus, notifyEventMaterials } from '../../services/calendar';
+import AttendeeNotifyField, { notifyCountOf } from './AttendeeNotifyField';
 import AttachmentField from '../../components/Common/AttachmentField';
 import { uploadMaterialFiles } from './EventMaterials';
 import VisibilityField, { serializeVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
@@ -104,6 +105,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   const [matPostIds, setMatPostIds] = useState<number[]>([]);
   const [matUploads, setMatUploads] = useState<File[]>([]);
   const [notifyMaterials, setNotifyMaterials] = useState(false);
+  const [notify, setNotify] = useState({ send: true, message: '' });   // #462 — 기본 보냄(AttendeeNotifyField)
   const hasMaterials = matFileIds.length + matPostIds.length + matUploads.length > 0;
   const [linkedTask, setLinkedTask] = useState<{ id: number; title: string } | null>(null);   // 업무 연결
   const [matOpen, setMatOpen] = useState(false);
@@ -198,6 +200,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       }));
     return [...mem, ...cli];
   }, [members, clientsList, projScope, t, user?.id]);
+  const notifyCount = useMemo(() => notifyCountOf(attendeeKeys, clientsList, Number(user?.id)), [attendeeKeys, clientsList, user?.id]);
   const [meetingUrl, setMeetingUrl] = useState('');
   const [autoCreateMeeting, setAutoCreateMeeting] = useState(false);
   // 구글 캘린더에 올릴지 — **팀/개인 각각** (계정이 다르므로 하나로 합치면 안 된다). 기본 둘 다 ON.
@@ -344,6 +347,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
         : { user_id: Number(k.slice(2)) })),
       target_client_ids: vis.variant === 'L4' ? ser.client_ids : [],
       attachments: materials,
+      notify: { send: notify.send, message: notify.send ? (notify.message.trim() || null) : null },
     } as unknown as Partial<CalendarEvent>);
     // 고른 경우에만 알린다. 실제로 붙은 자료가 없으면(볼 수 없는 자료는 서버가 거른다) 서버가 no_materials 로 보내지 않는다.
     //   ★ 생성 응답에는 첨부 목록이 실리지 않는다 — 그 길이로 판정하면 영영 안 보낸다(실측).
@@ -622,7 +626,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
                 setAttendeeKeys(keys);
               }}
             />
-            <TzHint>{t('form.attendeesHint', { defaultValue: '고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다.' }) as string}</TzHint>
+            {notifyCount > 0 ? <AttendeeNotifyField count={notifyCount} value={notify} onChange={setNotify} />
+              : <TzHint>{t('form.attendeesHint', { defaultValue: '고른 사람에게 알림이 갑니다. 만든 사람은 항상 받습니다.' }) as string}</TzHint>}
           </Field>
 
           <Field>

@@ -75,6 +75,7 @@ const ACTIONS = {
   chat_mention: { ko: '멘션', en: 'Mentioned you' },
   // Q Calendar
   calendar_invite: { ko: '일정 초대', en: 'Event invitation' },
+  calendar_changed: { ko: '일정 변경', en: 'Event updated' },   // #462 — 사람이 «변경 알림 보내기» 를 고른 때만
   // 일정 알림 제목은 **얼마나 남았는지**를 말한다(2026-10-07 Irene: "1일 전으로 해놨는데 알림이 곧 시작으로 나와 …
   //   곧 시작은 10분 전 알림에 써야지"). 고르는 규칙은 calendarReminderCron.leadAction 한 곳.
   calendar_soon: { ko: '곧 시작', en: 'Starting soon' },

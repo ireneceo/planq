@@ -441,7 +441,10 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     const scope = options?.scope || 'all';
     // 낙관적 업데이트 — scope=all 만 (single/future 는 서버가 새 event 생성하므로 재조회)
     if (scope === 'all') {
-      setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? { ...e, ...patch } as CalendarEvent : e)));
+      // 알림 선택(#462 notify)은 일정의 값이 아니라 이번 저장의 지시다 — 화면 상태에 섞지 않는다.
+      const { notify: _n, ...shown } = patch as Partial<CalendarEvent> & { notify?: unknown };
+      void _n;
+      setEvents((prev) => prev.map((e) => (e.id === selectedEventId ? { ...e, ...shown } as CalendarEvent : e)));
     }
     try {
       const fullPatch = options?.recurrence_id

@@ -351,5 +351,15 @@
     "fromTask": "업무",
     "taskOf": "업무: {{title}}",
     "deleted": "삭제된 업무"
+  },
+  "notify": {
+    "onCreate": "참석자 {{count}}명에게 알림 보내기",
+    "messagePh": "함께 보낼 한 줄 메시지(선택)",
+    "andMore": "외 {{n}}명",
+    "cancel": "취소",
+    "saveOnly": "알리지 않고 저장",
+    "saveAndSend": "알리고 저장",
+    "changeTitle": "변경 알림을 보낼까요?",
+    "changeLead": "바뀐 시간·장소를 참석자 {{count}}명에게 알립니다.\n{{names}}"
   }
 }

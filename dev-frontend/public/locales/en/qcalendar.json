@@ -351,5 +351,15 @@
     "fromTask": "Task",
     "taskOf": "Task: {{title}}",
     "deleted": "Deleted task"
+  },
+  "notify": {
+    "onCreate": "Notify {{count}} attendee(s)",
+    "messagePh": "Add a short message (optional)",
+    "andMore": "and {{n}} more",
+    "cancel": "Cancel",
+    "saveOnly": "Save without notifying",
+    "saveAndSend": "Save and notify",
+    "changeTitle": "Notify attendees about the change?",
+    "changeLead": "We'll tell {{count}} attendee(s) about the new time or place.\n{{names}}"
   }
 }

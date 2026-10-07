@@ -286,25 +286,15 @@ async function createEvent(actor, params = {}) {
 
   const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
 
-  // 알림 — 멤버 attendee 에게 (본인 제외). client attendee 는 별도 채널 (추후).
+  // 알림 — 참석자(멤버 + 계정 있는 고객, 본인 제외)에게 초대 알림. 받는 사람·보내는 일은 services/eventNotify 한 곳(#462).
+  //   사람이 «참석자에게 알림 보내기» 를 끄면(params.notify.send === false) 보내지 않는다. 고르지 않으면(옛 화면·AI) 보낸다.
   try {
-    const memberAttendeeIds = (full.attendees || [])
-      .filter((a) => a.user_id && a.user_id !== subjectId)
-      .map((a) => a.user_id);
-    if (memberAttendeeIds.length > 0) {
-      const { notifyMany } = require('../../routes/notifications');
-      const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
-      const wsName = biz?.brand_name || biz?.name || null;
-      const startStr = event.start_at ? new Date(event.start_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-      notifyMany({
-        userIds: memberAttendeeIds, businessId, eventKind: 'event',
-        titleSpec: { feature: 'calendar', action: 'calendar_invite', subject: event.title }, body: `"${event.title}"${startStr ? ` · ${startStr}` : ''}`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
-        ctaLabel: '일정 보기', workspaceName: wsName,
-        actorUserId: actor.userId,
-      }).catch((e) => console.warn('[notify event invite]', e.message));
+    if (!params.notify || params.notify.send !== false) {
+      await require('../eventNotify').sendInvite({
+        event: full, businessId, actorUserId: actor.userId || subjectId, message: params.notify?.message || null,
+      });
     }
-  } catch (e) { console.warn('[notify event invite outer]', e.message); }
+  } catch (e) { console.warn('[notify event invite]', e.message); }
 
   // socket — business room (Q Calendar 페이지가 듣는다). CLAUDE.md §16.
   const io = getIO();

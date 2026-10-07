@@ -97,32 +97,9 @@ router.delete('/by-business/:businessId/:id/attachments/:attId', authenticateTok
   } catch (err) { next(err); }
 });
 
-// 알릴 대상 — 멤버 참석자 + 계정이 있는 고객 참석자. 나 자신은 뺀다.
-//   고객에게는 앱 알림만(메일 X): 외부로 메일이 나가는 버튼은 받는 주소를 문구에 적어야 하는데(CLAUDE.md
-//   «외부 발송은 확인을 받는다»), 이 창은 사람 이름만 보여 준다. 메일 초대는 일정 초대 흐름이 따로 맡는다.
-async function recipientsOf(event, meId) {
-  const rows = await CalendarEventAttendee.findAll({
-    where: { event_id: event.id },
-    include: [
-      { model: User, as: 'user', attributes: ['id', 'name'], required: false },
-      { model: Client, as: 'client', attributes: ['id', 'display_name', 'user_id'], required: false },
-    ],
-  });
-  const members = [];
-  const clients = [];
-  const seen = new Set();
-  for (const r of rows) {
-    if (r.response === 'declined') continue;
-    if (r.user_id && r.user_id !== meId && !seen.has(r.user_id)) {
-      seen.add(r.user_id);
-      members.push({ user_id: r.user_id, name: r.user?.name || null });
-    } else if (r.client && r.client.user_id && r.client.user_id !== meId && !seen.has(r.client.user_id)) {
-      seen.add(r.client.user_id);
-      clients.push({ user_id: r.client.user_id, name: r.client.display_name || null });
-    }
-  }
-  return { members, clients };
-}
+// 알릴 대상 — 멤버 참석자 + 계정이 있는 고객 참석자. 나 자신은 뺀다. 정본은 services/eventNotify.recipientsOf
+//   (일정 초대·변경 알림과 같은 함수 — #462). 고객에게는 앱 알림만(메일 X).
+const { recipientsOf } = require('../services/eventNotify');
 
 // POST /api/calendar/by-business/:businessId/:id/notify-materials  body: { dry?: true }
 // 보내기만 센다 — 묻는 줄을 그리려고 대상을 읽는 dry 까지 세면, 자료를 몇 번 붙였다 떼는 것만으로
@@ -164,5 +141,17 @@ router.post('/by-business/:businessId/:id/notify-materials', authenticateToken, 
       return successResponse(res, { notified: members.length + clients.length });
     } catch (err) { next(err); }
   });
+
+// POST /api/calendar/by-business/:businessId/:id/notify-recipients — #462 «변경 알림을 보낼까요?» 창의 받는 사람.
+//   읽기만 한다. 실제 변경 알림은 PUT 이 같은 함수(recipientsOf)로 보낸다 — 묻는 이름과 받는 사람이 갈리지 않게.
+router.post('/by-business/:businessId/:id/notify-recipients', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  // audit-exempt: 읽기 전용(받을 사람 이름만 돌려준다 — 아무것도 바꾸지 않는다)
+  try {
+    const ctx = await loadEditable(req, res);
+    if (!ctx) return;
+    const { members, clients } = await recipientsOf(ctx.event, req.user.id);
+    return successResponse(res, { count: members.length + clients.length, names: [...members, ...clients].map((r) => r.name).filter(Boolean) });
+  } catch (err) { next(err); }
+});
 
 module.exports = router;

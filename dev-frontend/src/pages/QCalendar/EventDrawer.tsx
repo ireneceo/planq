@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { toWall, wallStringsToIso } from './calTz';
+import ChangeNotifyDialog, { type NotifyChoice } from './ChangeNotifyDialog';
 import TzLines from './TzLines';
 import TaskLinkPicker from './TaskLinkPicker';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
@@ -252,11 +253,40 @@ const EventDrawer: React.FC<Props> = ({
     } finally { setRespondingId(null); }
   };
 
+  // #462 — 시간·종일·장소가 바뀌면 «변경 알림을 보낼까요?» 를 묻는다. 받을 사람이 없으면 묻지 않는다.
+  //   이름은 서버(notify-recipients)가 준다 — 실제로 보내는 PUT 과 같은 함수다. 실제 변경 여부도 서버가 다시 판정한다.
+  const [notifyAsk, setNotifyAsk] = useState<{ names: string[]; count: number; resolve: (v: NotifyChoice | 'cancel') => void } | null>(null);
+  const askChangeNotify = async (): Promise<NotifyChoice | 'cancel' | null> => {
+    if (!event) return null;
+    try {
+      const r = await apiFetch(`/api/calendar/by-business/${event.business_id}/${event.id}/notify-recipients`, { method: 'POST' });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.success || !j.data?.count) return null;
+      return await new Promise((resolve) => setNotifyAsk({ names: j.data.names || [], count: j.data.count, resolve }));
+    } catch { return null; }
+  };
+  const resetFromEvent = () => {
+    if (!event) return;
+    setLocation(event.location || '');
+    setStartDate(toDateKey(wallOf(event, 'start_at', wsTz)));
+    setEndDate(toDateKey(wallOf(event, 'end_at', wsTz)));
+    setStartTime(formatTime(wallOf(event, 'start_at', wsTz)));
+    setEndTime(formatTime(wallOf(event, 'end_at', wsTz)));
+  };
+  // 묻고 저장 — 취소면 화면 값을 일정 값으로 되돌리고 저장하지 않는다.
+  const saveWithNotify = async (patch: Partial<CalendarEvent>) => {
+    const choice = await askChangeNotify();
+    if (choice === 'cancel') { resetFromEvent(); return; }
+    await updateMaybeScoped((choice ? { ...patch, notify: choice } : patch) as Partial<CalendarEvent>);
+  };
+
   const saveSchedule = async (sd: string, ed: string, st: string, et: string, allDay: boolean) => {
     const sISO = mkISO(sd, st, allDay, false, wsTz);
     const eISO = mkISO(ed, et, allDay, true, wsTz);
     if (new Date(eISO) < new Date(sISO)) return;
-    await updateMaybeScoped({ start_at: sISO, end_at: eISO, all_day: allDay });
+    if (event && new Date(sISO).getTime() === new Date(event.start_at).getTime()
+      && new Date(eISO).getTime() === new Date(event.end_at).getTime() && allDay === !!event.all_day) return;
+    await saveWithNotify({ start_at: sISO, end_at: eISO, all_day: allDay });
   };
   // modal 에서 사용자가 scope 선택 후 적용
   const applyScopeUpdate = async (scope: 'single' | 'future' | 'all') => {
@@ -640,9 +670,10 @@ const EventDrawer: React.FC<Props> = ({
             {canEdit ? (
               <AutoSaveField key={`ev${event.id}-6`} type="input" onSave={async () => {
                 const v = location.trim();
-                if ((v || null) !== (event.location || null)) await updateMaybeScoped({ location: v || null });
+                if ((v || null) !== (event.location || null)) await saveWithNotify({ location: v || null });
               }}>
                 <Input
+                  data-testid="event-location-input"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                   placeholder={t('form.locationPlaceholder', '회의실, 주소 등') as string}
@@ -1083,6 +1114,10 @@ const EventDrawer: React.FC<Props> = ({
           entityTitle={event.title}
           onClose={() => setShareOpen(false)}
         />
+      )}
+      {notifyAsk && (
+        <ChangeNotifyDialog names={notifyAsk.names} count={notifyAsk.count}
+          onDecide={(c) => { const r = notifyAsk.resolve; setNotifyAsk(null); r(c); }} />
       )}
       {/* N+63 P2a — 정기일정 scope modal. master 시간 변경 시 띄움. zIndex 2100 (drawer 위) */}
       {scopeModalOpen && (

@@ -167,6 +167,7 @@ const SUITES = {
   onboarding: () => require('./canary-onboarding'),
   agentconsent: () => require('./canary-agent-consent'),   // #439 AI 앱 연결 — 동의 화면 3폭·연결 이동·연결된 AI 앱
   saleextract: () => require('./canary-sale-extract'),   // #382 상담 기록 → 업무 추출 — 3폭 보임 · AI 창에 기록 전문
+  eventnotify: () => require('./canary-event-notify'),   // #462 일정 알림 선택 — 등록 체크·변경 확인창·알리지 않음 0·알리기 1(양성 대조군)
   eventmaterials: () => require('./canary-event-materials'),   // #411 일정 미팅자료 — 3폭·추가·떼기·«알릴까요» · 안 누르면 0건
   holidaycap: () => require('./canary-holiday-capacity'),   // #424 근무일·휴일 — Q task 가용시간 3폭·서버 일치·실시간
   saleintake: () => require('./canary-sale-intake'),   // #449·#450 상담 유입 모드 — 설정·이유 칩·문의 후보·폰 문 3폭

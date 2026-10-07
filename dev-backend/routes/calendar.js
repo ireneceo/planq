@@ -294,6 +294,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         attendees: b.attendees || [],
         attachments: b.attachments || [],   // #411 미팅자료(file_id | post_id)
         reminderMinutes: b.reminder_minutes,
+        notify: require('../services/eventNotify').readNotifyChoice(b.notify),   // #462 — 없으면 종전대로 보낸다
         vlevel: b.vlevel, gcalSyncWorkspace: b.gcal_sync_workspace, gcalSyncPersonal: b.gcal_sync_personal, targetMemberIds: b.target_member_ids, targetClientIds: b.target_client_ids,
       }
     );
@@ -362,6 +363,24 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
 // 호출 시점: PUT 라우트 안에서 master event + scope ∈ {single, future} 일 때.
 // single: master.exception_dates += [recurrence_id] + 새 child event 생성
 // future: master.rrule += UNTIL=recurrence_id-1 + 새 master event 생성 (새 rrule + 새 start_at)
+// 반복 일정의 «이 회차만 / 이후 모두» 수정 알림 (#462) — 받는 사람은 원래 일정(master)의 참석자.
+//   «바뀌기 전» 은 그 회차의 원래 시각(회차 날짜 + master 시각·길이)과 master 장소다.
+async function notifyRecurrenceChange(req, master, full, targetDateStr, businessId) {
+  try {
+    const eventNotify = require('../services/eventNotify');
+    const choice = eventNotify.readNotifyChoice(req.body?.notify);
+    if (!choice?.send) return;
+    const ms = new Date(master.start_at);
+    const dur = new Date(master.end_at).getTime() - ms.getTime();
+    const origStart = new Date(`${targetDateStr}T00:00:00Z`);
+    origStart.setUTCHours(ms.getUTCHours(), ms.getUTCMinutes(), 0, 0);
+    const before = { start_at: origStart, end_at: new Date(origStart.getTime() + dur), all_day: master.all_day, location: master.location };
+    if (!eventNotify.scheduleChanged(before, full)) return;
+    const priorIds = await eventNotify.recipientIdSet(master, req.user.id);
+    await eventNotify.sendChange({ event: full, before, businessId, actorUserId: req.user.id, message: choice.message, priorIds, ioApp: req.app });
+  } catch (e) { console.warn('[notify recurrence change]', e.message); }
+}
+
 async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId }) {
   const t = await sequelize.transaction();
   try {
@@ -448,6 +467,7 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
       });
       const full = await CalendarEvent.findByPk(child.id, { include: INCLUDE_DETAIL });
       broadcastEvent(req, full, 'event:updated');
+      await notifyRecurrenceChange(req, event, full, targetDateStr, businessId);
       return successResponse(res, await withTask(full.toJSON(), req));
     }
 
@@ -506,6 +526,7 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
     });
     const full = await CalendarEvent.findByPk(newMaster.id, { include: INCLUDE_DETAIL });
     broadcastEvent(req, full, 'event:updated');
+    await notifyRecurrenceChange(req, event, full, targetDateStr, businessId);
     return successResponse(res, await withTask(full.toJSON(), req));
   } catch (err) {
     if (!t.finished) await t.rollback();
@@ -583,6 +604,12 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       await t.rollback();
       return errorResponse(res, 'booking_use_actions', 409);
     }
+
+    // #462 — 알림 선택: 바뀌기 전 시간·장소와 «알림 받을 사람» 을 먼저 기억한다(서버가 실제 변경을 판정한다).
+    const eventNotify = require('../services/eventNotify');
+    const notifyChoice = eventNotify.readNotifyChoice(req.body?.notify);
+    const beforeSnap = { start_at: event.start_at, end_at: event.end_at, all_day: event.all_day, location: event.location };
+    const priorRecipientIds = await eventNotify.recipientIdSet(event, req.user.id);
 
     const updates = {};
     if (title !== undefined) {
@@ -750,29 +777,23 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
 
     const full = await CalendarEvent.findByPk(event.id, { include: INCLUDE_DETAIL });
 
-    // 일정 수정 — 새로 추가된 멤버 참석자에게 초대 알림 (생성 시 초대 알림과 동일 정책).
-    //  기존 참석자(priorAttendeeIds)·본인은 제외 → 리스케줄 noise 없이 신규 초대만.
+    // 일정 수정 알림 (#462 — services/eventNotify 한 곳)
+    //   ①새로 들어온 참석자 → 초대 알림(지금처럼 항상) ②시간·종일·장소가 **실제로** 바뀌었고 사람이 «보내기» 를 골랐을 때만
+    //   기존 참석자에게 변경 알림. 고르지 않은 옛 화면(notify 없음)은 종전대로 변경 알림 없음.
     try {
+      const nowIds = await eventNotify.recipientIdSet(full, req.user.id);
       if (Array.isArray(attendees)) {
-        const newMemberIds = (full.attendees || [])
-          .filter((a) => a.user_id && a.user_id !== req.user.id && !priorAttendeeIds.has(a.user_id))
-          .map((a) => a.user_id);
-        if (newMemberIds.length > 0) {
-          const { notifyMany } = require('./notifications');
-          const Business = require('../models').Business;
-          const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
-          const wsName = biz?.brand_name || biz?.name || null;
-          const startStr = event.start_at ? new Date(event.start_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' }) : '';
-          notifyMany({
-            userIds: newMemberIds, businessId, eventKind: 'event',
-            titleSpec: { feature: 'calendar', action: 'calendar_invite', subject: event.title }, body: `"${event.title}"${startStr ? ` · ${startStr}` : ''}`,
-            link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
-            ctaLabel: '일정 보기', workspaceName: wsName,
-            actorUserId: req.user.id, entityType: 'calendar_event', entityId: event.id, ioApp: req.app,
-          }).catch((e) => console.warn('[notify event invite-edit]', e.message));
+        const added = new Set([...nowIds].filter((id) => !priorRecipientIds.has(id)));
+        if (added.size) {
+          await eventNotify.sendInvite({ event: full, businessId, actorUserId: req.user.id, message: notifyChoice?.message || null, onlyUserIds: added, ioApp: req.app });
         }
       }
-    } catch (e) { console.warn('[notify event invite-edit outer]', e.message); }
+      if (notifyChoice?.send && eventNotify.scheduleChanged(beforeSnap, full)) {
+        const keep = new Set([...nowIds].filter((id) => priorRecipientIds.has(id)));
+        const n = await eventNotify.sendChange({ event: full, before: beforeSnap, businessId, actorUserId: req.user.id, message: notifyChoice.message, priorIds: keep, ioApp: req.app });
+        if (n) createAuditLog({ user_id: req.user.id, business_id: businessId, action: 'event.change_notified', target_type: 'calendar_event', target_id: event.id, new_value: { recipients: n }, ip_address: req.ip });
+      }
+    } catch (e) { console.warn('[notify event edit]', e.message); }
 
     broadcastEvent(req, full, 'event:updated');
     return successResponse(res, await withTask(full.toJSON(), req));
