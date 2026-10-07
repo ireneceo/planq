@@ -168,6 +168,8 @@ async function notify({ userId, businessId, eventKind, title, titleSpec, body, l
     }
     return _lang;
   };
+  // 제목도 같은 규칙 — 피드백 회신처럼 titleSpec 표에 없는 알림이 영어 사용자에게 한국어 제목으로 갔다(#457 운영 실측).
+  if (typeof title === 'function') title = title(await langOf());
   if (typeof body === 'function') body = body(await langOf());
   if (typeof ctaLabel === 'function') ctaLabel = ctaLabel(await langOf());
 

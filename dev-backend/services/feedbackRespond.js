@@ -15,17 +15,23 @@ async function respondToFeedback(item, { status, admin_response, actorUserId, io
 
   if (item.user_id) {
     const { notify } = require('../routes/notifications');
-    const statusLabel = item.status === 'done' ? '완료'
-      : item.status === 'wontfix' ? '보류'
-      : item.status === 'reviewing' ? '검토 중' : '접수';
+    // 받는 사람의 언어로 — notify 가 제목·본문·버튼 함수에 수신자 언어를 넘긴다(#457: 영어 사용자에게 한국어 제목이 갔다)
+    const LABEL = {
+      ko: { done: '완료', wontfix: '보류', reviewing: '검토 중', pending: '접수' },
+      en: { done: 'resolved', wontfix: 'on hold', reviewing: 'in review', pending: 'received' },
+    };
+    const L = (lang) => (lang === 'en' ? 'en' : 'ko');
     const sending = notify({
       userId: item.user_id,
       businessId: item.business_id || null,
       eventKind: 'feedback',
-      title: `피드백 ${statusLabel} — ${item.title}`,
-      body: item.admin_response ? String(item.admin_response).slice(0, 300) : '운영팀이 회신했습니다.',
+      title: (lang) => (L(lang) === 'en'
+        ? `Feedback ${LABEL.en[item.status] || LABEL.en.pending} — ${item.title}`
+        : `피드백 ${LABEL.ko[item.status] || LABEL.ko.pending} — ${item.title}`),
+      body: (lang) => (item.admin_response ? String(item.admin_response).slice(0, 300)
+        : (L(lang) === 'en' ? 'The PlanQ team has replied.' : '운영팀이 회신했습니다.')),
       link: '/me/feedback',
-      ctaLabel: '내역 보기',
+      ctaLabel: (lang) => (L(lang) === 'en' ? 'View my feedback' : '내역 보기'),
       actorUserId: actorUserId || null,
       ioApp,
     }).catch(() => null);
