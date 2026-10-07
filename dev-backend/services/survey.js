@@ -53,7 +53,8 @@ async function resolveSurveyToken(token) {
   const t = String(token || '');
   if (t.length < 16 || t.length > 64 || !/^[A-Za-z0-9_-]+$/.test(t)) throw new SurveyError('not_found', 404);
   const record = await QRecord.findOne({ where: { survey_token: t } });
-  if (!record) throw new SurveyError('not_found', 404);
+  // 컬럼 collation 이 대소문자를 안 가려 변형 열쇠도 찾힌다 — 정확히 같을 때만(레이트리밋 버킷이 갈라지지 않게, Fable 비차단 a)
+  if (!record || record.survey_token !== t) throw new SurveyError('not_found', 404);
   // 문서(paranoid — 휴지통에 들어간 문서는 안 나온다)
   const post = await Post.findOne({ where: { q_record_id: record.id, kind: 'table' } });
   if (!post) throw new SurveyError('not_found', 404);
