@@ -237,7 +237,11 @@ async function run() {
       const okNotes = await clickTab(page, 'notes', 2800);
       if (!okNotes) push('② 노트 탭 버튼을 찾았다', false, 'project-tab-notes 를 못 찾았다');
       const note = await page.evaluate(() => {
-        const list = document.querySelector('[data-testid="qnote-list"]');
+        // ★ 2026-09-18(Fable PASS) 부터 탭 안 Q Note 는 목록과 상세가 **한 칸**을 번갈아 쓴다 —
+        //   목록은 옆 패널(qnote-list)이 아니라 본체 안 둘러보기(qnote-proj-browse)다. 본체 루트가 있고
+        //   그 안의 목록이 보이면 «본체를 얹었다» 이다(목록만 베낀 화면에는 둘 다 없다).
+        const root = document.querySelector('[data-testid="qnote-embedded-root"]');
+        const list = root && root.querySelector('[data-testid="qnote-proj-browse"]');
         const r = list ? list.getBoundingClientRect() : null;
         return {
           hasList: !!list,
@@ -248,7 +252,7 @@ async function run() {
         };
       });
       push('② 노트 탭에 Q Note 목록 패널이 **보인다** (목록만 베낀 화면이 아니다)',
-        note.hasList && note.listVisible, `qnote-list ${note.hasList ? `폭 ${note.listW}` : '없음'}`);
+        note.hasList && note.listVisible, `qnote-embedded-root > qnote-proj-browse ${note.hasList ? `폭 ${note.listW}` : '없음'}`);
       // 문서 탭과 같은 껍데기인가 — 본문 박스의 좌/우 x 가 같아야 한다(2026-09-13 레이아웃 계약)
       const notesBox = await page.evaluate(() => {
         const el = document.querySelector('[data-testid="project-tab-body-notes"]');
