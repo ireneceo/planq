@@ -185,7 +185,8 @@ const TOOLS = [
     description: 'Create one calendar event without attendees. Only adds — never edits or deletes. Private to the user unless visibility is "team". You can set its type, reminder, a linked task and an existing meeting link.',
     input: {
       title: z.string().trim().min(1).max(300),
-      start_at: z.string().max(40), end_at: z.string().max(40),
+      start_at: z.string().max(40).describe('ISO datetime. For all_day events pass the date YYYY-MM-DD (time and offset are ignored).'),
+      end_at: z.string().max(40).describe('ISO datetime. For all_day events pass the LAST day YYYY-MM-DD (inclusive).'),
       all_day: z.boolean().optional(),
       description: z.string().max(5000).optional(),
       location: z.string().max(300).optional(),

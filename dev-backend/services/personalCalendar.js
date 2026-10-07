@@ -27,11 +27,11 @@ function normalize(ev, conn) {
     title: ev.summary || '(제목 없음)',
     description: ev.description || null,
     location: ev.location || null,
-    start_at: start.dateTime || (start.date ? `${start.date}T00:00:00` : null),
+    start_at: start.dateTime || (start.date ? `${start.date}T00:00:00.000Z` : null),   // 종일 = UTC 자정 부호화(utils/allDayDate)
     // ★ 구글의 종일 end.date 는 **배타적**(마지막 날 다음 날)이다. 그대로 쓰면 PlanQ 화면에서
     //   하루 길게 보인다 — 하루짜리 일정이 이틀로 걸쳐 그려졌다.
     //   PlanQ 규약(마지막 날 23:59 포함)으로 되돌린다. 쓰기 경로의 +1 과 정확히 대칭.
-    end_at: end.dateTime || (end.date ? `${exclusiveEndToInclusive(end.date)}T23:59:59` : null),
+    end_at: end.dateTime || (end.date ? `${exclusiveEndToInclusive(end.date)}T23:59:59.000Z` : null),
     all_day: allDay,
     html_link: ev.htmlLink || null,
     organizer_email: (ev.organizer && ev.organizer.email) || null,
@@ -145,8 +145,8 @@ function planqBody({ title, description, location, startAt, endAt, allDay, timez
   };
   if (allDay) {
     // 종일 날짜 변환은 팀 경로와 **같은 함수**를 쓴다 — 규칙이 두 벌이면 한쪽만 고쳐지고 어긋난다.
-    body.start = { date: gcalDates.localDateStr(startAt, tz) };
-    body.end = { date: gcalDates.allDayEndDateStr(endAt || startAt, tz) };
+    body.start = { date: gcalDates.allDayStartDateStr(startAt) };
+    body.end = { date: gcalDates.allDayEndDateStr(endAt || startAt) };
   } else {
     body.start = { dateTime: new Date(startAt).toISOString(), timeZone: tz };
     body.end = { dateTime: new Date(endAt || startAt).toISOString(), timeZone: tz };
@@ -285,9 +285,9 @@ async function patchPersonalOriginEvent(conn, gcalEventId, patch, { etag = null 
       //   Date 로 파싱하면 서버 시간대(UTC)로 읽혀 KST 기준 하루가 밀린다 — 실측: end 가
       //   08-18 이어야 하는데 08-19 로 나갔다. 화면이 아는 것은 애초에 '날짜'다.
       //   (오프셋이 붙은 값이나 Date 객체가 들어오면 기존 단일 원천 함수로 되돌린다.)
-      body.start = { date: plainDate(startAt) || gcalDates.localDateStr(startAt, tz), dateTime: null };
+      body.start = { date: plainDate(startAt) || gcalDates.allDayStartDateStr(startAt), dateTime: null };
       const endDate = plainDate(endAt);
-      body.end = { date: endDate ? nextDay(endDate) : gcalDates.allDayEndDateStr(endAt, tz), dateTime: null };
+      body.end = { date: endDate ? nextDay(endDate) : gcalDates.allDayEndDateStr(endAt), dateTime: null };
     } else {
       body.start = { dateTime: new Date(startAt).toISOString(), timeZone: tz, date: null };
       body.end = { dateTime: new Date(endAt).toISOString(), timeZone: tz, date: null };

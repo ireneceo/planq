@@ -1025,6 +1025,23 @@ function defineCalendarLinkTests() {
     return true;
   });
 
+  // 2026-10-07 — 종일은 UTC 자정 부호화 날짜(dev-backend/utils/allDayDate · docs/ALLDAY_EVENT_DATE_DESIGN.md).
+  //   쓰기 경로가 하나라도 옛 방식(기기 자정)으로 저장하면 여기 걸린다 — 판정은 같은 isUtcEncoded 함수.
+  test('calendar', '종일 일정 = UTC 자정 부호화 (옛 부호화 0건)', async () => {
+    const { execSync } = require('child_process');
+    const out = execSync(
+      `node -e "require('dotenv').config();const{sequelize}=require('./config/database');const A=require('./utils/allDayDate');(async()=>{`
+      + `const [r]=await sequelize.query(\\\"SELECT id,start_at,end_at FROM calendar_events WHERE all_day=1\\\");`
+      + `console.log('@@'+JSON.stringify({n:r.length,bad:r.filter(x=>!A.isUtcEncoded(x.start_at,x.end_at)).map(x=>x.id)}));`
+      + `await sequelize.close();})();"`,
+      { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 20000 });
+    const line = out.split('\n').find((l) => l.startsWith('@@'));
+    if (!line) throw new Error('종일 조회 실패 — 거짓 통과 방지 위해 중단');
+    const r = JSON.parse(line.slice(2));
+    if (r.bad.length) throw new Error(`옛 부호화 종일 ${r.bad.length}/${r.n}건: #${r.bad.slice(0, 10).join(', #')} — node scripts/migrate-allday-utc-date.js`);
+    return true;
+  });
+
   test('calendar', '역방향 폴링 — 사유 없이 빠진 소스 0건 (관찰성)', async () => {
     const { execSync } = require('child_process');
     const out = execSync(

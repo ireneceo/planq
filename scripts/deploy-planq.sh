@@ -734,6 +734,19 @@ restart_server() {
 }
 
 # ──────────────────────────────────────────
+# 재시작 **뒤에** 도는 데이터 보정 (멱등)
+# ──────────────────────────────────────────
+#   코드보다 먼저 돌면 옛 코드가 새 데이터를 틀리게 읽는 창이 생기는 것만 여기 둔다.
+post_restart_backfills() {
+  # 2026-10-07 — 종일 일정 재부호화(기기 자정 → UTC 자정 날짜, docs/ALLDAY_EVENT_DATE_DESIGN.md · Fable 판정 U).
+  #   ★ **재시작 뒤에** — 새 코드는 옛 행을 반올림으로 바로 맞게 읽는다. 먼저 돌리면 옛 코드가 새 행을
+  #     «구글 end D+2 · 서쪽 기기 전날» 로 읽는다. updated_at 보존 · 회차 키 이동 · 롤백 --revert.
+  log "Re-encoding all-day events as UTC dates..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-allday-utc-date.js 2>&1 | tail -8" \
+    || warn "종일 재부호화 실패 — 새 코드는 옛 행도 맞게 읽는다. 원인 확인 후 수동 재실행"
+}
+
+# ──────────────────────────────────────────
 # nginx 보안헤더 스크립트 전달 (2026-09-10, Fable 게이트 지적)
 # ──────────────────────────────────────────
 #   rsync 는 `dev-backend/` 만 보낸다 → **운영에 scripts/ 가 없다**(실측: No such file).
@@ -1187,6 +1200,7 @@ main() {
   deploy_frontend
   sync_qnote
   restart_server
+  post_restart_backfills
   sync_nginx_headers
   reload_nginx
   verify_deployment

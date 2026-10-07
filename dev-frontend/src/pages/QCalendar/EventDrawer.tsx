@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { toWall, wallStringsToIso } from './calTz';
+import { allDayDates, allDayIsoRange, localDateOf } from '../../utils/allDayDate';
 import ChangeNotifyDialog, { type NotifyChoice } from './ChangeNotifyDialog';
 import TzLines from './TzLines';
 import TaskLinkPicker from './TaskLinkPicker';
@@ -83,18 +84,23 @@ interface Props {
 }
 
 // 시간 + 날짜 → ISO 변환 — 시각은 **워크스페이스 시간대**의 시각이다(NewEventModal 의 mkISO 와 같은 규칙, calTz.ts).
-//   종일은 날짜라 종전대로(기기 자정) 둔다 — 화면도 종일은 옮기지 않는다.
+//   종일은 **날짜**다 — UTC 자정 부호화(utils/allDayDate). 기기 자정으로 저장하면 다른 시간대에서 하루 밀렸다.
 const mkISO = (dateStr: string, timeStr: string, allDay: boolean, isEnd: boolean, tz: string): string => {
-  const [y, mo, d] = dateStr.split('-').map(Number);
   if (allDay) {
-    return new Date(y, mo - 1, d, isEnd ? 23 : 0, isEnd ? 59 : 0, 0).toISOString();
+    const r = allDayIsoRange(dateStr, dateStr);
+    return isEnd ? r.end_at : r.start_at;
   }
   return wallStringsToIso(dateStr, timeStr, tz);
 };
 
-// 편집칸이 읽는 시각 — 시간 일정은 워크스페이스 벽시계, 종일은 날짜 그대로
+// 편집칸이 읽는 시각 — 시간 일정은 워크스페이스 벽시계, 종일은 그 날짜의 로컬 자정(끝은 23:59:59)
 function wallOf(ev: { all_day?: boolean; start_at: string; end_at: string }, key: 'start_at' | 'end_at', tz: string): Date {
-  return ev.all_day ? new Date(ev[key]) : toWall(ev[key], tz);
+  if (ev.all_day) {
+    const { date, last } = allDayDates(ev);
+    const ds = key === 'start_at' ? date : last;
+    if (ds) return localDateOf(ds, key === 'end_at');
+  }
+  return toWall(ev[key], tz);
 }
 
 // 회차 식별자 = **UTC 날짜**(서버 rrule 전개가 inst.toISOString().slice(0,10) 로 만든다). 화면에서 고른 회차는
@@ -204,7 +210,7 @@ const EventDrawer: React.FC<Props> = ({
   const copyMeetingLink = async () => {
     if (!event.meeting_url) return;
     const locale = i18n.language === 'en' ? 'en-US' : 'ko-KR';
-    const day = formatDay(start, { locale, weekday: true, year: 'always' });
+    const day = formatDay(event.all_day ? wallOf(event, 'start_at', wsTz) : start, { locale, weekday: true, year: 'always' });
     const when = event.all_day
       ? day
       : `${day} ${formatClock(start, { locale })}–${formatClock(end, { locale })}`;

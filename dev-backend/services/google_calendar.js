@@ -89,10 +89,17 @@ function localDateStr(value, tz) {
   }).format(new Date(value));
 }
 
-// 마지막 날(포함) → 구글이 원하는 배타적 end (하루 뒤). 월·연 경계도 Date 가 처리한다.
-function allDayEndDateStr(value, tz) {
-  const [y, m, d] = localDateStr(value, tz).split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+// ★ 2026-10-07 — 종일의 날짜는 **시간대로 뽑지 않는다.** 종일은 UTC 자정으로 부호화한 날짜다
+//   (utils/allDayDate · docs/ALLDAY_EVENT_DATE_DESIGN.md). 위 localDateStr(…, tz) 로 뽑으면 UTC 자정이
+//   서쪽 워크스페이스에서 전날이 되고, 끝은 23:59:59Z 가 동쪽에서 다음 날이 되어 구글 end 가 **D+2** 였다(Fable 실측).
+//   tz 인자는 옛 호출 호환으로만 받는다.
+const allDayDate = require('../utils/allDayDate');
+function allDayStartDateStr(value /* , tz */) {
+  return allDayDate.allDayDateOf(value);
+}
+// 마지막 날(포함) → 구글이 원하는 배타적 end (하루 뒤).
+function allDayEndDateStr(value /* , tz */) {
+  return allDayDate.addDays(allDayDate.allDayLastDateOf(value), 1);
 }
 
 function isConfigured() {
@@ -285,10 +292,10 @@ async function insertEvent(cal, { summary, description, location, startAt, endAt
     recurrence = [rrule.trim().startsWith('RRULE:') ? rrule.trim() : `RRULE:${rrule.trim()}`];
   }
   const start = allDay
-    ? { date: localDateStr(startAt, tz) }
+    ? { date: allDayStartDateStr(startAt) }
     : { dateTime: new Date(startAt).toISOString(), timeZone: tz };
   const end = allDay
-    ? { date: allDayEndDateStr(endAt, tz) }   // 구글 종일 end 는 배타적 — 마지막 날 +1
+    ? { date: allDayEndDateStr(endAt) }   // 구글 종일 end 는 배타적 — 마지막 날 +1
     : { dateTime: new Date(endAt).toISOString(), timeZone: tz };
   const res = await cal.events.insert({
     calendarId: 'primary',
@@ -325,12 +332,12 @@ async function updateEvent(cal, gcalEventId, { summary, description, location, s
   //   insert 만 고치고 update 를 두면 같은 결함이 수정 경로로 되살아난다(Fable 게이트 지적).
   if (startAt) {
     patch.start = allDay
-      ? { date: localDateStr(startAt, tz) }
+      ? { date: allDayStartDateStr(startAt) }
       : { dateTime: new Date(startAt).toISOString(), timeZone: tz };
   }
   if (endAt) {
     patch.end = allDay
-      ? { date: allDayEndDateStr(endAt, tz) }   // 구글 종일 end 는 배타적 — 마지막 날 +1
+      ? { date: allDayEndDateStr(endAt) }   // 구글 종일 end 는 배타적 — 마지막 날 +1
       : { dateTime: new Date(endAt).toISOString(), timeZone: tz };
   }
   const res = await cal.events.patch({
@@ -384,6 +391,7 @@ module.exports = {
   planqMarker, planqEnvTag,
   localDateStr,
   allDayEndDateStr,
+  allDayStartDateStr,
   recordPushError,
   clearPushError,
   CALENDAR_WRITE_SCOPE,

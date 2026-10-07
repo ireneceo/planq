@@ -63,23 +63,26 @@ function scheduleChanged(before, after) {
     || String(before.location || '') !== String(after.location || '');
 }
 
-function whenText(ev, lang) {
+function whenText(ev, lang, tz) {
   if (!ev || !ev.start_at) return '';
   const d = new Date(ev.start_at);
+  const locale = lang === 'en' ? 'en-US' : 'ko-KR';
+  // 종일 = UTC 자정 부호화 날짜(utils/allDayDate) → UTC 로 읽는다. 시간 일정 = 워크스페이스 시간대.
+  //   예전엔 둘 다 서버(UTC) 시계였다 — 서울 저장 종일 8일이 «7일», 서울 오후 3시가 «오전 6시» 로 나갔다.
   return ev.all_day
-    ? d.toLocaleDateString(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'medium' })
-    : d.toLocaleString(lang === 'en' ? 'en-US' : 'ko-KR', { dateStyle: 'short', timeStyle: 'short' });
+    ? new Date(`${require('../utils/allDayDate').allDayDateOf(ev.start_at)}T00:00:00Z`).toLocaleDateString(locale, { dateStyle: 'medium', timeZone: 'UTC' })
+    : d.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short', timeZone: tz || 'Asia/Seoul' });
 }
 
 async function send({ kind, event, before, businessId, actorUserId, members, clients, message, ioApp }) {
   if (!members.length && !clients.length) return 0;
   const { notifyMany } = require('../routes/notifications');
-  const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
+  const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name', 'timezone'] });
   const action = kind === 'change' ? 'calendar_changed' : 'calendar_invite';
   const body = (lang) => {
     const head = kind === 'change'
-      ? `"${event.title}" · ${whenText(before, lang)} → ${whenText(event, lang)}`
-      : `"${event.title}"${event.start_at ? ` · ${whenText(event, lang)}` : ''}`;
+      ? `"${event.title}" · ${whenText(before, lang, biz?.timezone)} → ${whenText(event, lang, biz?.timezone)}`
+      : `"${event.title}"${event.start_at ? ` · ${whenText(event, lang, biz?.timezone)}` : ''}`;
     return message ? `${head}\n${message}` : head;
   };
   const base = {

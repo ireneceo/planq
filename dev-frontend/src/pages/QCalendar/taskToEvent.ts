@@ -1,4 +1,5 @@
 import type { TaskAsEvent, CalendarItem, PersonalCalendarEvent } from './types';
+import { allDayIsoRange } from '../../utils/allDayDate';
 
 // #104 — task 파생 이벤트의 id 오프셋. 숫자 캘린더 이벤트 id 와 겹치지 않게 큰 오프셋을 더해
 //   '나만보기' 일정 클릭 시 같은 숫자 id 의 task 가 잘못 열리던 버그 차단. 실제 이동/조회는 _task_id 사용.
@@ -69,9 +70,9 @@ export const taskToEvent = (task: TaskRow): TaskAsEvent | null => {
   if (!task.due_date) return null;
   // 업무는 마감일(due_date) 하루 종일 이벤트로 표시 (기간 스팬 금지 — 중복 방지)
   const dueKey = String(task.due_date).slice(0, 10);
-  const startLocal = new Date(`${dueKey}T00:00:00`);
-  const endLocal = new Date(`${dueKey}T23:59:59`);
-  if (Number.isNaN(startLocal.getTime()) || Number.isNaN(endLocal.getTime())) return null;
+  // 종일 = UTC 자정 부호화(utils/allDayDate) — 캘린더가 종일을 그 규칙으로 읽는다. 기기 자정으로 두면 마감 칸이 하루 앞당겨진다.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueKey)) return null;
+  const range = allDayIsoRange(dueKey);
   return {
     id: task.id + TASK_EVENT_ID_OFFSET, // #104 — 캘린더 이벤트 id 와 충돌 방지 (실제 이동은 _task_id)
     business_id: task.business_id,
@@ -79,8 +80,8 @@ export const taskToEvent = (task: TaskRow): TaskAsEvent | null => {
     title: task.title,
     description: task.description,
     location: null,
-    start_at: startLocal.toISOString(),
-    end_at: endLocal.toISOString(),
+    start_at: range.start_at,
+    end_at: range.end_at,
     all_day: true,
     category: 'deadline',
     color: null,

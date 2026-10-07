@@ -10,6 +10,7 @@ import ExpiredShareLink from '../../components/Common/ExpiredShareLink';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
 import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 import { publicLocale } from '../../utils/dateFormat';
+import { allDayDates } from '../../utils/allDayDate';
 
 interface CalendarPreview {
   id: number;
@@ -23,7 +24,7 @@ interface CalendarPreview {
   meeting_url: string | null;
   creator?: { id: number; name: string } | null;
   project?: { id: number; name: string } | null;
-  workspace?: { id: number; name: string } | null;
+  workspace?: { id: number; name: string; timezone?: string | null } | null;
   shared_at: string | null;
 }
 
@@ -38,19 +39,27 @@ const CATEGORY_LABEL_DEFAULTS: Record<string, string> = {
   personal: '개인', work: '업무', meeting: '회의', deadline: '마감', other: '기타',
 };
 
-const formatRange = (startISO: string, endISO: string, allDay: boolean): string => {
+const formatRange = (startISO: string, endISO: string, allDay: boolean, wsTz?: string | null): string => {
   try {
-    const s = new Date(startISO);
-    const e = new Date(endISO);
-    const sameDay = s.toDateString() === e.toDateString();
-    const dateOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', timeZone: 'Asia/Seoul' };
-    const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Seoul' };
     // 요일·월 이름은 화면 글자와 같은 언어로 — 기기 언어(undefined)를 따르면 한국어 화면에 «Mon» 이 섞였다.
     const loc = publicLocale();
     if (allDay) {
-      if (sameDay) return s.toLocaleDateString(loc, dateOpts);
-      return `${s.toLocaleDateString(loc, dateOpts)} — ${e.toLocaleDateString(loc, dateOpts)}`;
+      // 종일 = 날짜(UTC 자정 부호화, utils/allDayDate) → UTC 로 읽는다. 시간대로 읽으면 서쪽에서 전날이 된다.
+      const { date, last } = allDayDates({ start_at: startISO, end_at: endISO });
+      const dOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', timeZone: 'UTC' };
+      const f = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString(loc, dOpts);
+      if (!date) return startISO;
+      if (!last || last === date) return f(date);
+      return `${f(date)} — ${f(last)}`;
     }
+    // 시간 일정 = 워크스페이스 시간대(예전엔 서울 고정)
+    const tz = wsTz || 'Asia/Seoul';
+    const s = new Date(startISO);
+    const e = new Date(endISO);
+    const dayIn = (x: Date) => x.toLocaleDateString('en-CA', { timeZone: tz });
+    const sameDay = dayIn(s) === dayIn(e);
+    const dateOpts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short', timeZone: tz };
+    const timeOpts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz };
     if (sameDay) {
       return `${s.toLocaleDateString(loc, dateOpts)} ${s.toLocaleTimeString(loc, timeOpts)} — ${e.toLocaleTimeString(loc, timeOpts)}`;
     }
@@ -124,7 +133,7 @@ const PublicCalendarEventPage = () => {
           {ev.project && <MetaItem>📁 {ev.project.name}</MetaItem>}
         </MetaRow>
 
-        <TimeBox>{formatRange(ev.start_at, ev.end_at, ev.all_day)}</TimeBox>
+        <TimeBox>{formatRange(ev.start_at, ev.end_at, ev.all_day, ev.workspace?.timezone)}</TimeBox>
 
         <Grid>
           {ev.location && (

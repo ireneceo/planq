@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { formatDay, formatClock } from '../../utils/dateFormat';
 import { addDays, addMonths, startOfDay, startOfMonth, startOfWeek } from './dateUtils';
+import { allDayDates, localDateOf } from '../../utils/allDayDate';
 // Q calendar 의 시간 기준 = **워크스페이스 시간대 설정** (2026-10-07).
 //   Irene: "캘린더 화면 표시도 설정대로 당연히. 서울기준이 아니라. 워크스페이스 설정기준."
 //   여태 격자·등록 창·상세의 편집칸은 **기기 시계**로 읽고 썼고, 상세의 표시 줄만 워크스페이스 시간대였다.
@@ -90,7 +91,7 @@ export function formatRangeIn(startIso: string, endIso: string, tz: string, lang
 }
 
 /**
- * 화면(격자·월·목록)에 넘길 일정 — 시간 일정만 워크스페이스 벽시계로. 종일은 날짜라 옮기지 않는다(8일 종일이 7일로 가면 안 된다).
+ * 화면(격자·월·목록)에 넘길 일정 — 시간 일정은 워크스페이스 벽시계로, 종일은 그 날짜의 로컬 자정으로(utils/allDayDate).
  * 화면이 돌려주는 회차 날짜(start_at.slice)는 **원래 값**으로 되돌린다 — 회차 식별자가 바뀌면 다른 회차를 고친다.
  */
 export function useWallEvents<T extends { id: number | string; all_day?: boolean; start_at: string; end_at: string }>(
@@ -99,7 +100,16 @@ export function useWallEvents<T extends { id: number | string; all_day?: boolean
   const { viewEvents, back } = useMemo(() => {
     const m = new Map<string, string>();
     const out = items.map((e) => {
-      if (e.all_day || !e.start_at || !e.end_at) return e;
+      if (!e.start_at || !e.end_at) return e;
+      if (e.all_day) {
+        // 종일 = 날짜(UTC 자정 부호화, utils/allDayDate) → 그 날짜의 **기기 로컬** 자정~마지막 날 23:59:59.
+        //   격자는 로컬 필드를 읽으므로 어느 기기·워크스페이스 시간대에서도 같은 칸이다. 회차 키도 back 맵에 넣는다.
+        const { date, last } = allDayDates(e);
+        if (!date) return e;
+        const s = localDateOf(date).toISOString();
+        m.set(`${e.id}|${s.slice(0, 10)}`, e.start_at.slice(0, 10));
+        return { ...e, start_at: s, end_at: localDateOf(last || date, true).toISOString() };
+      }
       const s = toWall(e.start_at, tz).toISOString();
       m.set(`${e.id}|${s.slice(0, 10)}`, e.start_at.slice(0, 10));
       return { ...e, start_at: s, end_at: toWall(e.end_at, tz).toISOString() };

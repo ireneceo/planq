@@ -18,6 +18,17 @@ import PlanQSelect from '../../components/Common/PlanQSelect';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { toDateKey, formatTime } from './dateUtils';
+import { allDayDates } from '../../utils/allDayDate';
+
+// 날짜 칸 — 종일은 날짜 그대로(UTC 자정 부호화, utils/allDayDate). new Date 로 읽으면 서쪽 기기에서 전날이다.
+const dateKeyOf = (ev: { all_day?: boolean; start_at: string; end_at: string }, key: 'start_at' | 'end_at'): string => {
+  if (ev.all_day) {
+    const { date, last } = allDayDates(ev);
+    const d = key === 'start_at' ? date : last;
+    if (d) return d;
+  }
+  return toDateKey(new Date(ev[key]));
+};
 import { personalToEvent } from './taskToEvent';
 import type { PersonalCalendarEvent } from './types';
 
@@ -47,8 +58,8 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
   const [title, setTitle] = useState(event.title);
   const [location, setLocation] = useState(event.location || '');
   const [description, setDescription] = useState(event.description || '');
-  const [startDate, setStartDate] = useState(() => toDateKey(new Date(event.start_at)));
-  const [endDate, setEndDate] = useState(() => toDateKey(new Date(event.end_at)));
+  const [startDate, setStartDate] = useState(() => dateKeyOf(event, 'start_at'));
+  const [endDate, setEndDate] = useState(() => dateKeyOf(event, 'end_at'));
   const [startTime, setStartTime] = useState(() => formatTime(new Date(event.start_at)));
   const [endTime, setEndTime] = useState(() => formatTime(new Date(event.end_at)));
   // etag 는 저장할 때마다 갱신해야 한다 — 안 그러면 두 번째 필드 저장부터 매번 충돌로 막힌다.
@@ -66,8 +77,8 @@ export default function PersonalEventDrawer({ event, businessId, onClose, onChan
     setTitle(next.title);
     setLocation(next.location || '');
     setDescription(next.description || '');
-    setStartDate(toDateKey(new Date(next.start_at)));
-    setEndDate(toDateKey(new Date(next.end_at)));
+    setStartDate(dateKeyOf(next, 'start_at'));
+    setEndDate(dateKeyOf(next, 'end_at'));
     setStartTime(formatTime(new Date(next.start_at)));
     setEndTime(formatTime(new Date(next.end_at)));
     setEtag(next.etag);

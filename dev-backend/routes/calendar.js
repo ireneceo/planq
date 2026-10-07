@@ -40,6 +40,7 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { attachWorkspaceScope, isMemberOrAbove, getUserScope, calendarListWhere, attendedEventIds, filterWorkspaceMemberIds } = require('../middleware/access_scope');
 const { createAuditLog } = require('../middleware/audit');
 const { RRule, rrulestr } = require('rrule');
+const allDay = require('../utils/allDayDate');
 // 사이클 N+13: Daily.co 완전 교체 → Google Calendar API (Meet 자동 생성)
 const gcal = require('../services/google_calendar');
 const calendarSync = require('../services/calendarSync');
@@ -212,9 +213,10 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
           ? json.rrule
           : `RRULE:${json.rrule}`;
         const rule = rrulestr(ruleSrc, { dtstart: new Date(json.start_at) });
-        const instances = rule instanceof RRule
-          ? rule.between(start, end, true)
-          : rule.between(start, end, true);
+        // 종일은 UTC 자정 부호화 날짜라(utils/allDayDate) 회차 «시작» 이 워크스페이스 벽시계 범위보다 최대 반나절 앞뒤로 어긋난다 —
+        //   서쪽 시간대에서 범위 첫날 회차가 빠졌다(Fable 실측, 호놀룰루). 하루씩 넓혀 펼치고 화면이 날짜로 자른다.
+        const wide = json.all_day ? allDay.DAY_MS : 0;
+        const instances = rule.between(new Date(start.getTime() - wide), new Date(end.getTime() + wide), true);
         // exception_dates set (YYYY-MM-DD) — EXDATE 처리
         const exDates = new Set((Array.isArray(json.exception_dates) ? json.exception_dates : []).map(d => String(d).slice(0, 10)));
         for (const inst of instances) {
@@ -411,6 +413,11 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
       if (!newEnd) { await t.rollback(); return errorResponse(res, 'invalid end_at', 400); }
     } else {
       newEnd = new Date(newStart.getTime() + masterDur);
+    }
+    // 종일 회차·새 원본도 날짜로 정규화 — 화면이 보낸 값이 기기 자정이어도 같은 날짜(utils/allDayDate)
+    if (body.all_day !== undefined ? !!body.all_day : !!event.all_day) {
+      const norm = allDay.normalizeAllDay(body.start_at || newStart, body.end_at || newEnd);
+      if (norm) { newStart = norm.start_at; newEnd = norm.end_at; }
     }
 
     if (scope === 'single') {
@@ -628,6 +635,16 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
     if (end_at !== undefined) updates.end_at = ed;
 
     if (all_day !== undefined) updates.all_day = !!all_day;
+    // 종일은 날짜다 — 어떤 값이 와도 UTC 자정 부호화로 (utils/allDayDate, 설계 docs/ALLDAY_EVENT_DATE_DESIGN.md).
+    //   옛 화면 번들(기기 자정)·AI(오프셋 붙은 값)가 보내도 서버가 한 번 정한다.
+    const effAllDay = updates.all_day !== undefined ? updates.all_day : !!event.all_day;
+    if (effAllDay && (start_at !== undefined || end_at !== undefined || all_day !== undefined)) {
+      const norm = allDay.normalizeAllDay(start_at !== undefined ? start_at : event.start_at,
+        end_at !== undefined ? end_at : event.end_at);
+      if (!norm) { await t.rollback(); return errorResponse(res, 'invalid start_at', 400); }
+      updates.start_at = norm.start_at;
+      updates.end_at = norm.end_at;
+    }
     if (category !== undefined) {
       if (!CATEGORY_SET.has(category)) { await t.rollback(); return errorResponse(res, 'invalid category', 400); }
       updates.category = category;
@@ -1282,7 +1299,7 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       include: [
         { model: User, as: 'creator', attributes: ['id', 'name'], required: false },
         { model: Project, attributes: ['id', 'name'], required: false },
-        { model: Business, attributes: ['id', 'name', 'brand_name'], required: false },
+        { model: Business, attributes: ['id', 'name', 'brand_name', 'timezone'], required: false },
       ],
       // ★ share_token·deleted_at 을 빼면 `shareOpenReason` 이 **없는 값을 보고 닫는다**
       //   (attributes 로 좁힌 컬럼은 undefined 로 온다 — 오류 없이 전부 404).
@@ -1316,7 +1333,7 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       meeting_url: ev.meeting_url,
       creator: ev.creator ? { id: ev.creator.id, name: ev.creator.name } : null,
       project: ev.Project ? { id: ev.Project.id, name: ev.Project.name } : null,
-      workspace: ev.Business ? { id: ev.Business.id, name: ev.Business.brand_name || ev.Business.name } : null,
+      workspace: ev.Business ? { id: ev.Business.id, name: ev.Business.brand_name || ev.Business.name, timezone: ev.Business.timezone || null } : null,
       shared_at: ev.shared_at,
     });
   } catch (err) { next(err); }

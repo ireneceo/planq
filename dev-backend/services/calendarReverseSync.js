@@ -49,7 +49,8 @@ function toPlanqTimes(item) {
   const allDay = !!start.date && !start.dateTime;
   if (allDay) {
     const endDate = end.date ? personalCalendar.exclusiveEndToInclusive(end.date) : start.date;
-    return { all_day: true, start_at: new Date(`${start.date}T00:00:00`), end_at: new Date(`${endDate}T23:59:59`) };
+    // 종일 = UTC 자정 부호화(utils/allDayDate). Z 를 명시한다 — 없으면 Node 로컬 파싱이라 서버 TZ 가 UTC 일 때만 우연히 맞는다.
+    return { all_day: true, start_at: new Date(`${start.date}T00:00:00Z`), end_at: new Date(`${endDate}T23:59:59Z`) };
   }
   return {
     all_day: false,

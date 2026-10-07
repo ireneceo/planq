@@ -61,7 +61,9 @@ function leadAction(minutes, allDay, occurrence, now, tz) {
   if (allDay && m < 1440) return { action: 'calendar_today' };
   if (m >= 1440) {
     const day = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'UTC' }).format(d);
-    const diff = Math.round((Date.parse(day(occurrence)) - Date.parse(day(now))) / DAY_MS);
+    // 종일의 날짜는 부호화된 날짜 그대로(utils/allDayDate) — 시간대로 뽑으면 서쪽에서 전날이 된다
+    const occDay = allDay ? allDayDate.allDayDateOf(occurrence) : day(occurrence);
+    const diff = Math.round((Date.parse(occDay) - Date.parse(day(now))) / DAY_MS);
     if (diff <= 0) return { action: 'calendar_today' };
     if (diff === 1) return { action: 'calendar_tomorrow' };
     return { action: 'calendar_in_days', params: { n: diff } };
@@ -78,8 +80,26 @@ function leadAction(minutes, allDay, occurrence, now, tz) {
  * @returns {Date|null} 앞으로 올 회차. 없으면 null(끝난 반복·과거 단일)
  */
 const DAY_MS = 24 * 60 * 60 * 1000;
+const allDayDate = require('../utils/allDayDate');
 
-function nextOccurrence(ev, now) {
+/** 'YYYY-MM-DD' 의 hour 시(워크스페이스 시간대 벽시계) → 실제 시각. 서머타임 경계는 두 번 맞춰 수렴. */
+function wallToUtc(ymd, hour, timezone) {
+  const [y, m, d] = String(ymd).split('-').map(Number);
+  const target = Date.UTC(y, m - 1, d, hour, 0, 0);
+  let guess = target;
+  for (let i = 0; i < 3; i++) {
+    const p = {};
+    for (const x of new Intl.DateTimeFormat('en-US', { timeZone: timezone || 'Asia/Seoul', hourCycle: 'h23',
+      year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      .formatToParts(new Date(guess))) if (x.type !== 'literal') p[x.type] = Number(x.value);
+    const seen = Date.UTC(p.year, p.month - 1, p.day, p.hour === 24 ? 0 : p.hour, p.minute, p.second);
+    if (seen === target) break;
+    guess += target - seen;
+  }
+  return new Date(guess);
+}
+
+function nextOccurrence(ev, now, tz = 'Asia/Seoul') {
   const start = new Date(ev.start_at);
   // ★ **종일 일정은 하루가 끝날 때까지 아직 오지 않은 일정이다.**
   //   종일의 start_at 은 그날 자정이라, "당일 아침 9시" 알림(08:59)을 보낼 시점에는
@@ -87,8 +107,11 @@ function nextOccurrence(ev, now) {
   //   즉 종일의 `reminder_minutes < 540` 은 **전부 죽은 경로**였다.
   //   모달의 "당일 아침 (오전 9시)" 옵션(value 1)이 여기에 해당한다.
   //   (Fable 게이트 2026-09-05 F3 실측: 단일·반복 모두 4/4·3/3 미발송.)
-  const graceMs = ev.all_day ? DAY_MS : 0;
-  const stillAhead = (d) => d.getTime() + graceMs > now.getTime();
+  // ★ 2026-10-07 — 종일은 UTC 자정 부호화 «날짜» 다(utils/allDayDate). «그날이 끝났는가» 는 UTC 하루가 아니라
+  //   **워크스페이스 시간대의 그 날짜 끝**으로 본다 — 서쪽 워크스페이스는 UTC 하루가 먼저 끝난다.
+  const stillAhead = (d) => (ev.all_day
+    ? wallToUtc(allDayDate.addDays(allDayDate.allDayDateOf(d), 1), 0, tz).getTime() > now.getTime()
+    : d.getTime() > now.getTime());
 
   if (!ev.rrule) return stillAhead(start) ? start : null;
   try {
@@ -96,12 +119,13 @@ function nextOccurrence(ev, now) {
     const rule = rrulestr(ev.rrule, { dtstart: start });
     const except = new Set((Array.isArray(ev.exception_dates) ? ev.exception_dates : [])
       .map((d) => new Date(d).toISOString().slice(0, 10)));
-    // 종일은 오늘 회차(오늘 자정)가 지금보다 앞서 있으므로 커서를 하루 뒤로 물린다.
-    let cursor = new Date(now.getTime() - graceMs);
+    // 종일은 오늘 회차(오늘 자정)가 지금보다 앞서 있으므로 커서를 이틀 뒤로 물리고 stillAhead 로 거른다.
+    let cursor = new Date(now.getTime() - (ev.all_day ? 2 * DAY_MS : 0));
     for (let i = 0; i < 20; i++) {          // 예외가 연달아도 스무 번이면 충분하다
       const next = rule.after(cursor, false);
       if (!next) return null;
-      if (!except.has(next.toISOString().slice(0, 10))) return stillAhead(next) ? next : null;
+      // 지나간 회차면 포기하지 않고 다음 회차로 간다(Fable 2026-10-07 — 예전엔 null 로 끝냈다)
+      if (!except.has(next.toISOString().slice(0, 10)) && stillAhead(next)) return next;
       cursor = next;
     }
     return null;
@@ -117,17 +141,8 @@ function nextOccurrence(ev, now) {
  */
 function reminderTimeFor(ev, occurrence, timezone) {
   let base = occurrence;
-  if (ev.all_day) {
-    // 그 날짜의 09:00 을 워크스페이스 시간대로 만든다.
-    const ymd = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
-    }).format(occurrence);
-    // 시간대 오프셋을 구해 09:00 로컬을 UTC 로 환산한다.
-    const probe = new Date(`${ymd}T09:00:00Z`);
-    const asLocal = new Date(probe.toLocaleString('en-US', { timeZone: timezone }));
-    const asUtc = new Date(probe.toLocaleString('en-US', { timeZone: 'UTC' }));
-    base = new Date(probe.getTime() + (asUtc.getTime() - asLocal.getTime()));
-  }
+  // 그 날짜(종일 = UTC 자정 부호화의 날짜 — 시간대로 뽑으면 서쪽에서 전날이 된다)의 09:00 을 워크스페이스 시간대로.
+  if (ev.all_day) base = wallToUtc(allDayDate.allDayDateOf(occurrence), 9, timezone);
   return new Date(base.getTime() - ev.reminder_minutes * 60 * 1000);
 }
 
@@ -146,7 +161,7 @@ async function runCalendarReminderCron() {
           { rrule: { [Op.ne]: null } },       // 반복 마스터 — 다음 회차를 따로 계산한다
           // 종일은 시작이 그날 자정이라 아침 알림 시점엔 이미 과거다 — 하루치를 더 본다.
           //   nextOccurrence 가 같은 유예(DAY_MS)로 최종 판정하므로 여기선 후보만 넓힌다.
-          { all_day: true, start_at: { [Op.gt]: new Date(now.getTime() - DAY_MS) } },
+          { all_day: true, start_at: { [Op.gt]: new Date(now.getTime() - 2 * DAY_MS) } },   // UTC 자정 부호화 + 서쪽 시간대 → 이틀
         ],
       },
       include: [{
@@ -168,7 +183,7 @@ async function runCalendarReminderCron() {
       const biz = await Business.findByPk(ev.business_id, { attributes: ['name', 'brand_name', 'timezone'] });
       const tz = biz?.timezone || 'Asia/Seoul';
 
-      const occurrence = nextOccurrence(ev, now);
+      const occurrence = nextOccurrence(ev, now, tz);
       if (!occurrence) { skipped++; continue; }          // 끝난 반복·이미 시작한 단일
       const remindAt = reminderTimeFor(ev, occurrence, tz);
 
@@ -211,7 +226,7 @@ async function runCalendarReminderCron() {
       try {
         const wsName = biz?.brand_name || biz?.name || null;
         const startLocalIn = (lang) => new Date(occurrence).toLocaleString(lang === 'en' ? 'en-US' : 'ko-KR', {
-          timeZone: tz,
+          timeZone: ev.all_day ? 'UTC' : tz,   // 종일 = UTC 자정 부호화 날짜(utils/allDayDate)
           // «10월 8일 (목) 오후 3:00» — «26. 10. 8.» 같은 짧은 형식은 알림에서 읽기 어렵다
           month: 'short', day: 'numeric', weekday: 'short',
           ...(ev.all_day ? {} : { hour: 'numeric', minute: '2-digit' }),
@@ -251,4 +266,4 @@ function initCalendarReminderCron() {
   console.log('[calendarReminderCron] initialized — runs every 5 minutes');
 }
 
-module.exports = { initCalendarReminderCron, runCalendarReminderCron, humanizeLead, nextOccurrence, reminderTimeFor, leadAction };
+module.exports = { initCalendarReminderCron, runCalendarReminderCron, humanizeLead, nextOccurrence, reminderTimeFor, leadAction, wallToUtc };

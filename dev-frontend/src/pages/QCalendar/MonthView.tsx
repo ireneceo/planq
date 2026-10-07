@@ -82,6 +82,7 @@ const MonthView: React.FC<Props> = ({ anchor, today, events, onSelectEvent, onSe
           return (
             <Cell
               key={idx}
+              data-date={key}
               $outMonth={!inMonth}
               $today={isToday}
               onClick={() => onSelectDate(day)}

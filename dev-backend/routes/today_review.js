@@ -19,6 +19,7 @@
 //
 // ★ 집합 술어는 새로 만들지 않는다. 이번 주/오늘 판정은 `services/weekTaskSet` 단일 원천을 쓴다
 //   (사본을 만들면 Q Task 화면과 리뷰의 숫자가 갈라진다 — 이 저장소가 여러 번 겪은 실패다).
+const { allDayDateOf } = require('../utils/allDayDate');
 const express = require('express');
 const router = express.Router();
 const { Op, literal, fn, col } = require('sequelize');
@@ -393,7 +394,9 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
           [Op.and]: [calListWhere, {
             [Op.or]: [
               { start_at: { [Op.gte]: todayStart, [Op.lt]: tomorrowStart } },
-              { rrule: { [Op.ne]: null }, start_at: { [Op.lt]: tomorrowStart } },
+              // 종일 = UTC 자정 부호화 날짜(utils/allDayDate) — 벽시계 «오늘» 과 반나절 어긋나므로 넓혀 가져와 날짜로 자른다
+              { all_day: true, rrule: null, start_at: { [Op.gte]: new Date(todayStart.getTime() - 86400000), [Op.lt]: new Date(tomorrowStart.getTime() + 86400000) } },
+              { rrule: { [Op.ne]: null }, start_at: { [Op.lt]: new Date(tomorrowStart.getTime() + 86400000) } },
             ],
           }],
         },
@@ -406,15 +409,17 @@ router.get('/today-review', authenticateToken, async (req, res, next) => {
           // 오늘 회차가 있는지 — 없으면 목록에 넣지 않는다.
           try {
             const { rrulestr } = require('rrule');
+            const wide = e.all_day ? 86400000 : 0;
             const occ = rrulestr(e.rrule, { dtstart: new Date(e.start_at) })
-              .between(todayStart, tomorrowStart, true);
+              .between(new Date(todayStart.getTime() - wide), new Date(tomorrowStart.getTime() + wide), true);
             const except = new Set((Array.isArray(e.exception_dates) ? e.exception_dates : [])
               .map((d) => new Date(d).toISOString().slice(0, 10)));
-            const hit = occ.find((o) => !except.has(o.toISOString().slice(0, 10)));
+            const hit = occ.find((o) => !except.has(o.toISOString().slice(0, 10))
+              && (!e.all_day || allDayDateOf(o) === today));
             if (!hit) continue;
             at = hit;
           } catch { continue; }
-        } else if (at < todayStart || at >= tomorrowStart) continue;
+        } else if (e.all_day ? allDayDateOf(at) !== today : (at < todayStart || at >= tomorrowStart)) continue;
         todayEvents.push({
           id: e.id, title: e.title, start_at: at, all_day: !!e.all_day,
           location: e.location || null, link: `/calendar?event=${e.id}`,

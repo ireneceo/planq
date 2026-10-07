@@ -13,6 +13,7 @@ const MAX_DAYS = 62;
 // 메뉴 Layer 판정은 services/agent/menu 한 벌.
 const { assertMenu } = require('../menu');
 const DESC_MAX = 1000;
+const { allDayDates, allDayRange } = require('../../../utils/allDayDate');
 
 function parseIso(s, field) {
   const d = new Date(String(s || ''));
@@ -26,6 +27,8 @@ const eventItem = (e, withDesc = false) => ({
   start_at: iso(e.start_at),
   end_at: iso(e.end_at),
   all_day: !!e.all_day,
+  // 종일은 날짜로도 준다 — start_at(UTC 자정)을 모델이 사용자 시간대로 바꾸면 «전날» 이라고 말한다(utils/allDayDate)
+  ...(e.all_day ? (() => { const d = allDayDates(e); return { date: d.date, end_date: d.last_date }; })() : {}),
   location: e.location || null,
   project: e.Project ? { project_id: e.Project.id, name: e.Project.name } : null,
   meeting_url: e.meeting_url || null,
@@ -75,8 +78,20 @@ async function listEvents(p, a) {
 
 // ── create_event ───────────────────────────────────────────
 async function createEvent(p, a, actor) {
-  const start = parseIso(a.start_at, 'start_at');
-  const end = parseIso(a.end_at, 'end_at');
+  let start, end;
+  if (a.all_day) {
+    // 종일 입력 = 문자열 앞 10자(날짜)만. 시각·오프셋은 무시 — «쓴 날짜 그대로» 가 뜻이다
+    //   (ChatGPT 는 `2026-10-08T00:00:00+09:00` 처럼 사용자 오프셋을 붙인다 → Date 로 읽으면 전날 15:00Z).
+    const sd = /^\d{4}-\d{2}-\d{2}/.exec(String(a.start_at || ''));
+    const ed = /^\d{4}-\d{2}-\d{2}/.exec(String(a.end_at || ''));
+    if (!sd) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { start_at: a.start_at } });
+    if (!ed) throw err('VALIDATION_ERROR', 'invalid_date', { fields: { end_at: a.end_at } });
+    if (ed[0] < sd[0]) throw err('VALIDATION_ERROR', 'end_before_start');
+    ({ start_at: start, end_at: end } = allDayRange(sd[0], ed[0]));
+  } else {
+    start = parseIso(a.start_at, 'start_at');
+    end = parseIso(a.end_at, 'end_at');
+  }
   if (end < start) throw err('VALIDATION_ERROR', 'end_before_start');
   // M3-c 출처(설계 §6) — 일정 표에는 출처 칸이 없다 → 읽을 수 있는 메일·업무임을 확인한 뒤 설명 끝에 원본 링크 한 줄.
   //   프로젝트는 모델이 안 줬을 때만 그 스레드·업무의 프로젝트를 승계한다(PlanQ 가 건 연결).

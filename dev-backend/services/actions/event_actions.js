@@ -77,10 +77,17 @@ async function createEvent(actor, params = {}) {
 
   const title = String(params.title || '').trim();
   if (!title) return fail('title is required');
-  const sd = parseDate(params.startAt);
-  const ed = parseDate(params.endAt);
+  let sd = parseDate(params.startAt);
+  let ed = parseDate(params.endAt);
   if (!sd || !ed) return fail('start_at and end_at are required');
   if (ed < sd) return fail('end_at must be after start_at');
+  // 종일은 날짜다 — UTC 자정 부호화로 한 번 정한다(utils/allDayDate · docs/ALLDAY_EVENT_DATE_DESIGN.md).
+  //   화면(기기 자정)·AI(오프셋)·음성·옛 번들이 무엇을 보내도 같은 날짜가 된다. 원문 문자열을 넘겨 «쓴 날짜» 를 살린다.
+  if (params.allDay) {
+    const norm = require('../../utils/allDayDate').normalizeAllDay(params.startAt, params.endAt);
+    if (!norm) return fail('start_at and end_at are required');
+    sd = norm.start_at; ed = norm.end_at;
+  }
 
   // project_id — 같은 business 여야 함
   let projectId = null;

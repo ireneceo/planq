@@ -1,5 +1,6 @@
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { wallStringsToIso } from './calTz';
+import { allDayIsoRange } from '../../utils/allDayDate';
 import TzLines from './TzLines';
 import TaskLinkPicker from './TaskLinkPicker';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -289,10 +290,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
     if (!canSubmit) return;
     // ISO 변환 — 로컬 타임존 기준
     const mkISO = (dateStr: string, timeStr: string, endOfDay = false): string => {
-      const [y, mo, d] = dateStr.split('-').map(Number);
-      if (allDay) {
-        return new Date(y, mo - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, 0).toISOString();
-      }
+      // 종일은 날짜 — UTC 자정 부호화(utils/allDayDate). 기기 자정으로 저장하면 다른 시간대에서 하루 밀렸다.
+      if (allDay) return allDayIsoRange(dateStr, dateStr)[endOfDay ? 'end_at' : 'start_at'];
       // 입력한 시각은 **워크스페이스 시간대**의 시각이다(아래 안내 줄과 같은 말). 기기 시계로 읽지 않는다.
       return wallStringsToIso(dateStr, timeStr, wsTz);
     };

@@ -177,6 +177,9 @@ const SUITES = {
   taskquicksearch: () => require('./canary-task-quick-search'),
   // 고객 창구 상담 예약 (2026-09-25, CLIENT_ENTRY P2) — 방문자 신청(3폭) → 팀 승인(확인창이 받는 주소를 말하는가)
   //   → 방문자 «확정» · 설정 카드 3폭 · 끄면 탭이 없다(음성 대조). 서버 판정은 실 HTTP 검사가 따로 잰다.
+  // 종일 일정 날짜 (2026-10-07, docs/ALLDAY_EVENT_DATE_DESIGN.md) — 기기 시간대 3개(서울·KL·LA) × 폭: 하루·이틀·매주 반복·옛 부호화·업무 마감이
+  //   기대 칸에만 · 상세 날짜 글자 동일 · LA 기기 등록 창 «오늘» = DB 날짜. 양성 대조군: E2E_CONTROL_DIR=<옛 빌드>.
+  allday: () => require('./canary-allday-date'),
   booking: () => require('./canary-booking'),
   // 같은 기능의 **서버 판정** 실 HTTP 검사(화면 없음) — 슬롯 모양·한도·전이·한 건=한 버킷·메일 시도·수정/삭제 409.
   bookingapi: () => require('./canary-booking-api'),
