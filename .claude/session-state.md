@@ -18,7 +18,7 @@
 - 운영 피드백 답변: #461 done · #462 reviewing
 
 ### 다음 할 일
-1. **배포 대기 5커밋** — 배포 후 운영 위키 시드(`ssh …prod "cd /opt/planq/backend && node seed-wiki-content.js"`) · #459 답글(체크박스 2차, 배포 후 done)
+1. **배포 대기 6커밋** (+fd9d972c 코드 블록 [+] 띠 편집 모드에서만) — 배포 후 운영 위키 시드(`ssh …prod "cd /opt/planq/backend && node seed-wiki-content.js"`) · #459 답글(체크박스 2차, 배포 후 done)
 2. **Irene 결정 대기 8건** (Fable B 판정 — docs/FABLE_GATE_QUEUE.md 맨 위 «2026-10-07 Fable 라운드 결과»):
    ① Kate·Aidan 같은 회사? → 고객별 채널 원칙(청구서가 다른 고객에게 보이는 상태) ② 프로젝트 복사본 고객 연결
    ③ AI 프로젝트 만들기·태그 생성·메모 기본 L1 ④ 보낸편지함 먼저/스팸 30일 ⑤ Cue 질문 분석 opt-in · help_question_logs 90일
