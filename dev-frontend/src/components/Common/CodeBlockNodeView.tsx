@@ -24,6 +24,17 @@ const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes, e
   const [langOpen, setLangOpen] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const langRootRef = useRef<HTMLDivElement | null>(null);
+  /* 읽기(상세 보기)에서는 위/아래 [+] 띠와 언어 바꾸기를 그리지 않는다 — 편집 도구다.
+     ★ editable 은 setEditable 로 나중에 바뀐다(보기↔편집 전환). NodeView 는 노드가 바뀔 때만
+       다시 그려지므로 update 이벤트(setEditable 이 쏜다)를 들어 따라간다. */
+  const [editable, setEditable] = useState(editor.isEditable);
+  React.useEffect(() => {
+    const sync = () => setEditable(editor.isEditable);
+    sync();
+    editor.on('update', sync);
+    return () => { editor.off('update', sync); };
+  }, [editor]);
+  React.useEffect(() => { if (!editable) setLangOpen(false); }, [editable]);
 
   // 언어 popover 외부 클릭/Esc 닫기 (button + popover 패턴 — PlanQ 디자인 규약)
   React.useEffect(() => {
@@ -90,16 +101,18 @@ const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes, e
 
   return (
     <NodeShell as={NodeViewWrapper as unknown as React.ElementType} className="pq-code-block">
-      {zone('before')}
+      {editable && zone('before')}
       <CodeWrap>
       <CodeHeader contentEditable={false}>
         <LangRoot ref={langRootRef}>
+          {!editable ? <LangLabel>{language}</LangLabel> : (
           <LangBtn type="button" onClick={() => setLangOpen(v => !v)} aria-label="language" aria-haspopup="listbox" aria-expanded={langOpen}>
             {language}
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 4 }}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </LangBtn>
+          )}
           {langOpen && (
             <LangPopover role="listbox">
               {COMMON_LANGS.map(l => (
@@ -142,7 +155,7 @@ const CodeBlockComponent: React.FC<NodeViewProps> = ({ node, updateAttributes, e
       {/* NodeViewContent 의 as prop 타입이 좁아서 'code' 캐스팅. HTML 출력은 <pre><code> 으로 정상 렌더. */}
       <pre ref={preRef}><NodeViewContent as={'code' as 'div'} /></pre>
       </CodeWrap>
-      {zone('after')}
+      {editable && zone('after')}
     </NodeShell>
   );
 };
@@ -236,6 +249,14 @@ const LangBtn = styled.button`
   text-transform: lowercase;
   &:hover { color: #E2E8F0; background: rgba(255,255,255,0.05); }
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 1px; color: #E2E8F0; }
+`;
+const LangLabel = styled.span`
+  color: #94A3B8;
+  font-size: 0.6875rem;
+  font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-weight: 600;
+  padding: 4px 8px;
+  text-transform: lowercase;
 `;
 const LangPopover = styled.div`
   position: absolute;
