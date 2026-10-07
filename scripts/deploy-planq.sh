@@ -1144,6 +1144,18 @@ show_summary() {
 # ──────────────────────────────────────────
 # Main
 # ──────────────────────────────────────────
+# ──────────────────────────────────────────
+# 약관·방침 버전 올리기 — 새 화면이 올라가고 검증까지 끝난 **뒤에** 돈다(2026-10-07)
+#   재동의 창은 platform_settings 버전이 바뀌면 뜬다. 프론트 배포 전에 올리면 그 몇 분 동안 옛 방침 문구로 재동의를 받는다.
+#   Irene: "배포할 때 전달되게 해야지." — 손으로 올리는 단계를 없앴다. 목표 버전은 스크립트 안 TARGET(멱등 · 낮추지 않음).
+# ──────────────────────────────────────────
+bump_policy_versions() {
+  if [ "$DRY_RUN" = true ]; then dim "  [dry] node scripts/bump-privacy-version.js"; return 0; fi
+  log "Bumping privacy policy version..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/bump-privacy-version.js 2>&1 | tail -3" \
+    || warn "방침 버전 올리기 실패 — 관리자 > 플랫폼 설정에서 privacy_version 을 직접 올려 주세요"
+}
+
 main() {
   echo ""
   echo -e "${GREEN}=========================================${NC}"
@@ -1178,6 +1190,7 @@ main() {
   sync_nginx_headers
   reload_nginx
   verify_deployment
+  bump_policy_versions
   publish_release_note
   close_feedback
   publish_dev_status
