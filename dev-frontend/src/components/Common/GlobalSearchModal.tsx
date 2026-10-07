@@ -20,6 +20,8 @@ import { tabStore } from '../../stores/tabStore';
 import HighlightText from './HighlightText';
 import MatchReason from './MatchReason';
 import type { SearchMatchInfo } from '../../utils/searchMatch';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { postSubline } from '../../utils/postSubline';
 
 interface Props {
   /**
@@ -56,7 +58,7 @@ interface Hit {
 type WithMatch = { match?: SearchMatchInfo | null };
 interface SearchResult {
   tasks?: Array<{ id: number; title: string; status?: string; project_id?: number | null } & WithMatch>;
-  posts?: Array<{ id: number; title: string; category?: string | null; project_id?: number | null } & WithMatch>;
+  posts?: Array<{ id: number; title: string; category?: string | null; project_id?: number | null; created_at?: string | null; author?: { id: number; name: string; name_localized?: Record<string, string> | null } | null; project?: { id: number; name: string } | null } & WithMatch>;
   files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null } & WithMatch>;
   conversations?: Array<{ id: number; title?: string; display_name?: string; project_id?: number | null } & WithMatch>;
   knowledge?: Array<{ id: number; title: string; category?: string | null; scope?: string } & WithMatch>;
@@ -96,7 +98,8 @@ const CAT_BADGE_COLOR: Record<Category, string> = {
 const normalize = (s: string) => s.toLowerCase().replace(/[\s·.]/g, '');
 
 const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavigate, scope }) => {
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
+  const { formatDate } = useTimeFormat();
   const { t: tNav } = useTranslation('layout');   // #210 — 메뉴 라벨은 사이드바와 같은 layout ns 키
   const { user } = useAuth();
   const navigate = useChromeNav();
@@ -179,7 +182,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
     const h: Hit[] = [];
     // #206 — status 를 raw 로 내보내면 `on_hold` 같은 snake_case 가 사용자에게 그대로 노출된다.
     (r.tasks || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.status ? t(`qtask:status.${x.status}.observer`, { defaultValue: x.status }) as string : undefined, to: `/tasks?task=${x.id}`, type: 'tasks', match: x.match }));
-    (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts', match: x.match }));
+    (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: postSubline(x, formatDate, i18n.language) || x.category || undefined, to: `/docs?post=${x.id}`, type: 'posts', match: x.match }));
     (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files', match: x.match }));
     (r.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations', match: x.match }));
     (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/knowledge?doc=${x.id}`, type: 'knowledge', match: x.match }));
@@ -202,7 +205,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
     (r.project_notes || []).forEach(x => h.push({ id: x.id, title: x.project_name || `#${x.project_id}`, to: `/projects/p/${x.project_id}?tab=notes`, type: 'project_notes', match: x.match }));
     (r.meeting_notes || []).forEach(x => h.push({ id: x.id, title: x.title || `#${x.id}`, to: `/notes/${x.id}`, type: 'meeting_notes', match: x.match }));
     return h;
-  }, [t]);   // #206 — 상태 라벨 i18n → 언어 전환 시 재계산
+  }, [t, formatDate, i18n.language]);   // #206 — 상태 라벨 i18n → 언어 전환 시 재계산 · 문서 둘째 줄(날짜 형식·언어)
 
   const allHits: Hit[] = useMemo(() => toHits(result), [result, toHits]);
   const recentHits: Hit[] = useMemo(() => toHits(recent), [recent, toHits]);   // #206 — 상태 라벨 i18n 사용 → 언어 전환 시 재계산

@@ -53,6 +53,7 @@ export interface PlanQSelectOption {
   value: string | number;
   label: string;
   description?: string; // 부가 설명 (예: 언어명 옆에 영문)
+  subline?: string;     // 둘째 줄 — 제목 아래 작은 글씨(예: 문서의 작성자 · 작성일 · 프로젝트)
   icon?: React.ReactNode; // 아이콘/국기 등
   isDisabled?: boolean;
 }
@@ -300,7 +301,14 @@ const Option = (props: any) => {
   return (
     <components.Option {...props}>
       {data.icon && <span style={{ display: 'inline-flex', alignItems: 'center' }}>{data.icon}</span>}
-      <span style={{ flex: 1 }}>{data.label}</span>
+      {data.subline ? (
+        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span>{data.label}</span>
+          <span style={{ color: C.neutral400, fontSize: '0.75rem', lineHeight: 1.3 }}>{data.subline}</span>
+        </span>
+      ) : (
+        <span style={{ flex: 1 }}>{data.label}</span>
+      )}
       {data.description && (
         <span style={{ color: C.neutral400, fontSize: '0.75rem' }}>{data.description}</span>
       )}

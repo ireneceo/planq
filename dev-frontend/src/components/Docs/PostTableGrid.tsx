@@ -16,6 +16,8 @@ import {
 } from '../../services/qtable';
 import { uploadMyFile, fetchWorkspaceFiles, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { postSubline } from '../../utils/postSubline';
 import { apiFetch } from '../../contexts/AuthContext';
 import PostAiModal from './PostAiModal';
 import AiActionButton from '../Common/AiActionButton';
@@ -675,7 +677,8 @@ const AttachPickerModal: React.FC<{
   onClose: () => void;
   onConfirm: (items: AttachItem[]) => void;
 }> = ({ businessId, existing, onClose, onConfirm }) => {
-  const { t } = useTranslation('qtable');
+  const { t, i18n } = useTranslation('qtable');
+  const { formatDate } = useTimeFormat();
   const [items, setItems] = useState<AttachItem[]>(existing);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
@@ -729,7 +732,7 @@ const AttachPickerModal: React.FC<{
     const numId = Number(String(f.id).replace('direct-', ''));
     return { value: numId, label: f.file_name };
   });
-  const postOptions: PlanQSelectOption[] = posts.map(p => ({ value: p.id, label: p.title }));
+  const postOptions: PlanQSelectOption[] = posts.map(p => ({ value: p.id, label: p.title, subline: postSubline(p, formatDate, i18n.language) || undefined }));
 
   // AI 새 작성 → 결과로 새 post 생성 후 첨부
   const handleAiGenerate = async (result: { title: string; bodyHtml: string }) => {

@@ -264,6 +264,30 @@ async function searchPosts(ctx, M, { limit, filters } = {}) {
       p.match = { field: 'table', snippet: snipByPost.get(p.id) || null };
     }
   }
+  // 4) 둘째 줄(작성자 · 작성일 · 프로젝트) — 제목이 같은 문서를 가를 수 있게(2026-10-07, Irene 승인).
+  //    위 매치·정렬은 건드리지 않고 **이미 걸러진 id** 만 한 번 더 읽는다(권한 판정은 위 postWhere 그대로).
+  //    표시명은 문서 목록과 같은 함수(applyMemberDisplayName) — 같은 사람이 화면마다 다른 이름이면 안 된다.
+  if (out.length) {
+    const { User } = require('../models');
+    const meta = await Post.findAll({
+      where: { business_id: businessId, id: { [Op.in]: out.map((p) => p.id) } },
+      attributes: ['id', 'created_at'],
+      include: [
+        { model: User, as: 'author', attributes: ['id', 'name', 'name_localized'], required: false },
+        { model: Project, attributes: ['id', 'name'], required: false },
+      ],
+    }).catch(() => []);
+    const rows = meta.map((m) => m.toJSON());
+    await require('./displayName').applyMemberDisplayName(rows, businessId, ['author']).catch(() => {});
+    const byId = new Map(rows.map((m) => [m.id, m]));
+    for (const p of out) {
+      const m = byId.get(p.id);
+      if (!m) continue;
+      p.created_at = m.created_at;
+      p.author = m.author ? { id: m.author.id, name: m.author.name, name_localized: m.author.name_localized || null } : null;
+      p.project = m.Project ? { id: m.Project.id, name: m.Project.name } : null;
+    }
+  }
   return out;
 }
 

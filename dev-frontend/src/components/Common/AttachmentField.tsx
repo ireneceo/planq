@@ -17,6 +17,8 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import type { ChangeEvent, DragEvent } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { postSubline } from '../../utils/postSubline';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
 import { fetchWorkspaceFiles, formatBytes, type ProjectFile } from '../../services/files';
 import { fetchPosts, type PostRow } from '../../services/posts';
@@ -64,7 +66,8 @@ const AttachmentField: React.FC<Props> = ({
   driveScope = 'workspace',
 }) => {
   // searchPostsPlaceholder is deprecated — 통합 검색에서는 searchPlaceholder 만 사용
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
+  const { formatDate } = useTimeFormat();
   const [internalFiles, setInternalFiles] = useState<ProjectFile[]>([]);
   const [posts, setPosts] = useState<PostRow[]>([]);
   const [dragOver, setDragOver] = useState(false);
@@ -208,6 +211,7 @@ const AttachmentField: React.FC<Props> = ({
           ...(includePosts ? posts.map(p => ({
             value: `p:${p.id}`,
             label: `[${t('attach.typePost', '문서')}] ${p.title}`,
+            subline: postSubline(p, formatDate, i18n.language) || undefined,
           })) : []),
         ]}
         isDisabled={disabled}
