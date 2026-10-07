@@ -17,8 +17,14 @@
 - 체크박스·라디오 우리 모양(전역 `:where()`) · AI create_event 종류·알림·업무·화상 링크
 - 운영 피드백 답변: #461 done · #462 reviewing
 
+### 답 기다림: 운영 배포 지시 (2026-10-07)
+- **무엇을:** dev 미배포 6커밋(59fba176 · 6169cbfe · bf4353d7 · a6e3b66e · fd9d972c + 기록) 운영 배포
+- **왜 멈췄나:** 배포는 Irene 의 명시 «/배포» 로만 한다(CLAUDE.md 배포 규칙 · 상황판 지시 «운영 배포 Irene 지시 없이 안 함»). 상황판 항목 배정만으로는 배포 지시로 보지 않았다
+- **배포 준비 상태(2026-10-07 확인):** health-check 51/51 · 불변식 가드 통과 · dev 빌드 12:22(fd9d972c 12:09 이후) 반영 · dev.planq.kr 200. Fable: 59fba176 41/43 PASS + 감사 대상 한 줄 수정(a6e3b66e)은 Fable 미검증(자체 검증)
+- **답이 오면 할 일:** /배포(--auto) → 운영 verify 3종 → `ssh …prod "cd /opt/planq/backend && node seed-wiki-content.js"` → #459 답글(체크박스 2차, done)
+
 ### 다음 할 일
-1. **배포 대기 6커밋** (+fd9d972c 코드 블록 [+] 띠 편집 모드에서만) — 배포 후 운영 위키 시드(`ssh …prod "cd /opt/planq/backend && node seed-wiki-content.js"`) · #459 답글(체크박스 2차, 배포 후 done)
+1. **배포 대기 6커밋** (⏸ Irene /배포 지시 대기 — 위 «답 기다림») (+fd9d972c 코드 블록 [+] 띠 편집 모드에서만) — 배포 후 운영 위키 시드(`ssh …prod "cd /opt/planq/backend && node seed-wiki-content.js"`) · #459 답글(체크박스 2차, 배포 후 done)
 2. **Irene 결정 대기 8건** (Fable B 판정 — docs/FABLE_GATE_QUEUE.md 맨 위 «2026-10-07 Fable 라운드 결과»):
    ① Kate·Aidan 같은 회사? → 고객별 채널 원칙(청구서가 다른 고객에게 보이는 상태) ② 프로젝트 복사본 고객 연결
    ③ AI 프로젝트 만들기·태그 생성·메모 기본 L1 ④ 보낸편지함 먼저/스팸 30일 ⑤ Cue 질문 분석 opt-in · help_question_logs 90일
