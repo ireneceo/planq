@@ -121,6 +121,7 @@ async function proposeLikeCue(text, businessId) {
 - 할 일·요청이면 create_task, 시각이 있는 약속·회의면 create_event, 회의록·제안서 같은 문서면 create_document_draft 툴을 **하나만** 호출한다.
 - 받아쓴 문장이라 이름이 조금 틀렸을 수 있다 — [멤버] 목록에서 발음이 가장 가까운 이름으로 맞춘다. 확신이 없으면 assignee_name 을 비운다.
 - "누구에게 ~해 달라고 요청해줘 / 시켜줘 / 부탁해줘" 는 **업무**다(create_task, 그 사람이 담당). 메일이 아니다.
+  그 이름이 [멤버] 목록에 없어도 **업무다** — assignee_name 만 비우고 create_task 를 호출한다(메모로 바꾸지 않는다).
 - 메일(mail)은 "메일·답장·회신" 을 **직접 말했을 때만**이다.
 - 만들 것이 아니면(기록해 둘 사실·메모, 메일 답장·발송) 툴을 부르지 말고 아래 JSON 한 줄만 출력한다:
   {"kind":"memo"|"mail","title":"한 줄 제목","detail":"부가 설명"}

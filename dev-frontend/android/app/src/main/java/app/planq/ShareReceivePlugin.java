@@ -93,6 +93,9 @@ public class ShareReceivePlugin extends Plugin {
     long total = 0;
     for (int i = 0; i < uris.size(); i++) {
       Uri uri = uris.get(i);
+      // content:// 만 받는다 — file:// 를 받으면 다른 앱이 «우리 앱의 사적 파일»(쿠키 DB 등)을 가리켜
+      //   우리가 그것을 복사해 공유 화면에 올리게 만들 수 있다(share-to-self). 정상 공유 시트는 content:// 를 준다.
+      if (uri == null || !"content".equals(uri.getScheme())) { skipped++; continue; }
       if (files.length() >= MAX_FILES) { skipped++; continue; }
       String name = displayName(uri);
       if (name == null || name.isEmpty()) name = "shared-" + (i + 1);
