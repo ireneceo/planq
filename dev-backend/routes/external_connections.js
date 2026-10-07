@@ -243,7 +243,9 @@ router.post('/me/oauth/google/initiate', authenticateToken, async (req, res, nex
     // #125a — 네이티브 앱에서 시작하면 콜백이 "자동으로 닫힙니다" HTML 대신 앱 딥링크로 복귀해야 한다.
     //   (Capacitor 시스템 브라우저에서는 window.close() 가 no-op 이라 창이 그대로 멈춘다)
     const native = (req.body || {}).client === 'native';
-    const auth_url = personalOauth.buildAuthUrl({ userId: req.user.id, businessId: bizId, provider, native });
+    // 추가 권한은 정해진 이름만(지금은 캘린더 고르기 하나) — 화면이 임의 scope 를 넣지 못한다
+    const extra = (req.body || {}).extra === 'calendar_list' && provider === 'google_calendar' ? 'calendar_list' : null;
+    const auth_url = personalOauth.buildAuthUrl({ userId: req.user.id, businessId: bizId, provider, native, extra });
     successResponse(res, { auth_url });
   } catch (err) { next(err); }
 });

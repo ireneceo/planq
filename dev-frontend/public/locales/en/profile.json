@@ -279,8 +279,9 @@
     "calendarPickLabel": "Calendar for PlanQ events",
     "calendarPickHint": "New events go to this calendar. Events already added stay where they are.",
     "calendarPrimary": "default",
-    "calendarPickReconnect": "Reconnect to choose which calendar PlanQ events go to.",
-    "calendarPickFailed": "Couldn't load your Google calendars. Please try again shortly."
+    "calendarPickReconnect": "Events go to your primary calendar for now. To choose another calendar, allow Google's «see your calendar list» permission once more.",
+    "calendarPickFailed": "Couldn't load your Google calendars. Please try again shortly.",
+    "calendarPickAllow": "Choose a calendar"
   },
   "accountDeletion": {
     "title": "Delete account",

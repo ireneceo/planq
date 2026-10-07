@@ -2,7 +2,7 @@
 //
 //   목록은 서버(GET /api/me/calendar/calendars)가 «일정을 쓸 수 있는» 캘린더만 준다. 고르면 바로 저장(자동저장).
 //   새로 올리는 일정부터 그 캘린더로 가고, 이미 올린 일정은 원래 캘린더에서 계속 고쳐진다 — 화면이 그 사실을 짧게 말한다.
-//   옛 연결은 목록 권한이 없다 → «다시 연결하면 고를 수 있어요» + [다시 연결].
+//   목록 권한은 이 버튼을 누른 사람에게만 묻는다(점진적 동의 — 평소 [캘린더 연결]은 그 권한을 안 묻는다).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -46,7 +46,7 @@ export default function CalendarPicker({ connectionId, onReconnect, busy }: {
     return (
       <Row data-testid="calendar-picker-reconnect">
         <Hint>{t('integrations.calendarPickReconnect') as string}</Hint>
-        <LinkBtn type="button" onClick={onReconnect} disabled={busy}>{t('integrations.reconnect', { defaultValue: '다시 연결' }) as string}</LinkBtn>
+        <LinkBtn type="button" onClick={onReconnect} disabled={busy}>{t('integrations.calendarPickAllow') as string}</LinkBtn>
       </Row>
     );
   }

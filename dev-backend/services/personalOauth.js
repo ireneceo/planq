@@ -5,7 +5,7 @@
 //   ${origin}/api/me/oauth/google/callback
 //
 // 권한 등급 (Google 검증 부담 고려):
-//   google_calendar → calendar.events + calendar.calendarlist.readonly  (sensitive — 일반 검증, CASA X)
+//   google_calendar → calendar.events  (sensitive — 일반 검증, CASA X) · 캘린더 고르기를 누른 사람에게만 + calendar.calendarlist.readonly
 //   google_drive    → drive.file          (비제한 — 회사 Drive 와 동일, PlanQ 가 만든/연 파일만. CASA X)
 //   gmail           → mail.google.com     (restricted — CASA 필요. OAuth 원클릭 전용, 검증 대기 항목)
 //
@@ -20,9 +20,7 @@ const PROVIDER_SCOPES = {
   //   옛 calendar.readonly 는 읽기만 돼서 "연동했는데 내 구글 캘린더에 PlanQ 일정이 안 뜬다"는
   //   Irene 보고(2026-07-27)의 원인이었다. 기존 연결은 granted scope 가 옛 값이라 쓰기가 막히므로
   //   재동의 전까지 읽기 overlay 만 유지하고, 화면이 "다시 연결" 을 안내한다(hasCalendarWrite).
-  // calendar.calendarlist.readonly — 일정을 올릴 캘린더를 고르려고 «구독 캘린더 목록» 만 읽는다(2026-10-07, Fable B 판정 8).
-  //   본문을 읽는 calendar.readonly 를 쓰지 않는다 — 목록만 필요하다. 옛 연결은 재연결 후 고를 수 있다(hasCalendarList).
-  google_calendar: ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/calendar.calendarlist.readonly', 'openid', 'email', 'profile'],
+  google_calendar: ['https://www.googleapis.com/auth/calendar.events', 'openid', 'email', 'profile'],
   google_drive: ['https://www.googleapis.com/auth/drive.file', 'openid', 'email', 'profile'],
   gmail: ['https://mail.google.com/', 'openid', 'email', 'profile'],
 };
@@ -76,14 +74,23 @@ function parseState(state) {
   } catch { return null; }
 }
 
-function buildAuthUrl({ userId, businessId, provider, native }) {
+// 추가 권한 — **사람이 그 기능을 고를 때만** 요청한다(점진적 동의). 2026-10-07:
+//   calendar.calendarlist.readonly 는 «일정을 올릴 캘린더 고르기» 에만 쓴다(Fable B 판정 8). 구글 정책상 승인 전의
+//   민감 권한을 요청하면 그 동의 화면에 «확인되지 않은 앱» 경고가 붙고 신규 사용자 100명 한도에 걸린다 — 그래서
+//   평소 [캘린더 연결] 은 지금 그대로 두고, [캘린더 고르기] 를 누른 사람에게만 이 권한을 더 묻는다.
+const EXTRA_SCOPES = {
+  google_calendar: { calendar_list: ['https://www.googleapis.com/auth/calendar.calendarlist.readonly'] },
+};
+
+function buildAuthUrl({ userId, businessId, provider, native, extra = null }) {
   if (!PROVIDER_SCOPES[provider]) throw new Error('unsupported_provider');
   const client = newClient();
+  const more = (extra && EXTRA_SCOPES[provider] && EXTRA_SCOPES[provider][extra]) || [];
   return client.generateAuthUrl({
     access_type: 'offline',          // refresh_token 발급 (장기 갱신)
     prompt: 'consent',               // 항상 refresh_token 받게
     include_granted_scopes: true,
-    scope: PROVIDER_SCOPES[provider],
+    scope: [...PROVIDER_SCOPES[provider], ...more],
     state: buildState({ userId, businessId, provider, native }),
   });
 }
