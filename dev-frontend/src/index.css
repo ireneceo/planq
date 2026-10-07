@@ -20,6 +20,15 @@ html {
 .picker-dialog-bg { z-index: 2147482000 !important; }
 .picker-dialog { z-index: 2147482001 !important; }
 
+/* ── 브라우저 기본 컨트롤 색 = 브랜드 민트 (2026-10-07, 운영 #459) ──────────────────────
+   Irene: "체크박스가 기본 기능 스타일이던데 … 색상도 파랑인데 민트여야지. … 기본기능 사용한 곳 있으면 찾아서 맞춰줘."
+   체크박스 72곳 중 41곳은 각자 accent-color:#14B8A6 을 적었고 31곳은 안 적어 브라우저 파랑이었다
+   (오늘 더 이상 보지 않기 · 서명 동의 · 채팅 설정 · 고객 목록 …). 화면마다 적게 두면 새 화면이 또 빠진다 —
+   여기 한 곳에서 준다. 각자 적은 값(#14B8A6·#0D9488)은 그대로 이긴다(우선순위가 더 높다). */
+input[type="checkbox"], input[type="radio"], input[type="range"], progress {
+  accent-color: #14B8A6;
+}
+
 html, body {
   margin: 0;
   padding: 0;
