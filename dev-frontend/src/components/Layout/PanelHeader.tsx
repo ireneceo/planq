@@ -264,63 +264,40 @@ export const DetailMetaBar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  /* ★ 2026-10-07 — **모든 폭에서 감긴다**(예전엔 폰만). Irene: *"상단에 버튼많고 길어지면 2줄로 정돈되는
+       반응형이 안되어 있고"*. 태블릿·데스크탑은 좌측 칩을 가로 스크롤로 흘리고 끝을 흐리게 했는데,
+       그 흐림이 마지막 칩(공유 중)을 덮어 «흐릿하다» 로 보였고, 넘친 칩은 아예 안 보였다.
+       들어가면 한 줄, 안 들어가면 액션 묶음이 다음 줄 오른쪽으로 — 폰에서 이미 쓰던 규칙이다.
+       'flex-wrap' 은 폭이 모자라면 줄을 넘길 뿐 짜부라뜨리지 않는다. 두 칸에 'flex-shrink: 0'.
+       (2026-09-06 «공/유/중» 음절 분해는 space-between + shrink 경쟁이 원인 — 그것은 계속 막는다.) */
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  > * { flex-shrink: 0; }
   box-sizing: border-box;
   /* 12(위) + 36(좌측 검색 박스) + 8(아래) + 1(밑줄) = 57. 실측으로 맞춘 값 —
      border-box 라 밑줄 1px 이 높이에 포함된다. 56 으로 두면 좌측 줄보다 1px 위에 선다.
-     숫자를 바꾸려면 좌측 리스트의 검색줄과 **함께** 바꿔야 한다. */
+     숫자를 바꾸려면 좌측 리스트의 검색줄과 **함께** 바꿔야 한다. 두 줄이 되면 그만큼 자란다. */
   min-height: 57px;
   padding: 12px 20px 8px;
   background: #ffffff;
   border-bottom: 1px solid #f1f5f9;
   flex-shrink: 0;
   @media (max-width: 640px) {
-    /* ★ 폰에서는 **줄을 강제로 가르지 않고 감긴다**(2026-09-07).
-       옛 규칙은 'flex-direction: column' 이라 내용이 짧아도 **항상 두 줄**이었다.
-       Irene 2026-09-07: "별표를 빼면 이런 기능들 1줄이 되니 큰 문제 없을 듯 해."
-       실제로 별표를 걷고 컨트롤을 36px 로 줄이자 한 줄에 들어가는데, column 이 그걸 막고 있었다.
-
-       ★ 2026-09-06 에 column 으로 바꾼 이유(칩이 "공/유/중" 으로 음절 분해)는 그대로 막는다 —
-         그건 'space-between' + shrink 경쟁이 원인이었다. 'flex-wrap: wrap' 은 폭이 모자라면
-         **줄을 넘길 뿐 짜부라뜨리지 않는다.** 두 칸에 'flex-shrink: 0' 을 주어 압축 자체를 없앤다.
-         들어가면 한 줄, 안 들어가면 두 줄 — 데이터에 따라 정직하게 움직인다.
-       (검증: canary-mail-band 가 폰 3폭에서 칩 높이·줄 수·잘림을 좌표로 잰다.) */
-    flex-wrap: wrap;
-    align-items: center;
     min-height: 0;
     padding: 10px 14px 8px;
     gap: 8px;
-    > * { flex-shrink: 0; }
   }
 `;
 
-/** 밴드2 좌측 — 메타·상태 칩. 넘치면 **줄이 늘지 않고** 가로로 스크롤한다(밴드 높이 고정). */
+/** 밴드2 좌측 — 메타·상태 칩. 남는 폭만 차지하고, 넘치면 칩끼리 줄을 넘긴다(잘라 숨기지 않는다). */
 export const DetailMetaLeft = styled.div`
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
-  flex: 1 1 0;
-  /* ★ flex-wrap 을 주지 않는다 — 라벨이 늘 때마다 밴드가 두 줄, 세 줄이 되면
-     "2줄에서 끝낸다" 는 계약이 데이터에 따라 조용히 깨진다. 대신 가로 스크롤로 흘린다. */
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-  > * { flex-shrink: 0; }
-  /* ★ 넘쳤다는 신호 — 스크롤바를 숨겼으므로 오른쪽 끝을 흐린다.
-     이 칸은 flex: 1 1 0 이라 내용이 들어맞을 때는 페이드가 **빈 자리**에 얹혀 보이지 않고,
-     넘칠 때만 마지막 칩 위에 걸린다. (Fable 지적: 라벨 3개부터 넘친 것을 알릴 신호가 0이었다) */
-  mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent 100%);
-  /* 폰: 감긴다 — 잘림 금지. 'flex: 0 1 auto' 로 두어 남는 폭만 차지하고,
-     안 들어가면 오른쪽 액션 묶음이 다음 줄로 내려간다(칩을 압축하지 않는다). */
-  @media (max-width: 640px) {
-    flex: 0 1 auto;
-    flex-wrap: wrap;
-    overflow-x: visible;
-    mask-image: none;
-    -webkit-mask-image: none;
-  }
+  flex: 0 1 auto;
+  > * { flex-shrink: 0; white-space: nowrap; }
 `;
 
 /** 밴드2 우측 — 자주 쓰는 액션 3개 이내 + ⋯. 줄어들지 않는다. */
@@ -329,11 +306,11 @@ export const DetailMetaRight = styled.div`
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  /* 폰: 액션이 한 줄에 안 들어가면 **통째로 다음 줄로 내려간다**(밴드가 wrap 이므로).
-     안에서 또 감기는 것도 허용한다 — 액션이 4개 이상이면 그쪽이 낫다. */
+  /* 한 줄에 안 들어가면 **통째로 다음 줄 오른쪽으로** 내려간다(밴드가 wrap 이므로 — 모든 폭). */
+  margin-left: auto;
+  /* 폰: 안에서 또 감기는 것도 허용한다 — 액션이 4개 이상이면 그쪽이 낫다. */
   @media (max-width: 640px) {
     flex-wrap: wrap;
     justify-content: flex-end;
-    margin-left: auto;
   }
 `;

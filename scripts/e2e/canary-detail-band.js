@@ -80,8 +80,10 @@ async function run() {
           ? `🔴 세로분해 ${JSON.stringify(p.broken)} · 잘림 ${JSON.stringify(p.clipped)}`
           : `버튼 ${p.buttons}개 모두 한 줄 높이 · 밴드 밖 0개`);
       push(`${vp.name}/마지막 버튼이 눌린다`, p.reachable === true, `좌표에서 잡힘=${p.reachable}`);
-      // ① 줄 수 — 320px 처럼 정말 좁으면 2줄도 정상. 390 이상에서 1줄을 기대한다.
-      const wantRows = vp.w >= 390 ? 1 : 2;
+      // ① 줄 수 — 밴드2 는 «들어가면 한 줄, 안 들어가면 액션 묶음이 다음 줄 오른쪽» 이다(2026-10-07 Irene
+      //   «2줄로 정돈», 모든 폭). 09-18 메일 툴바에 «상담으로 보내기» 가 붙은 뒤로 390·430 에서도 5개가
+      //   한 줄에 안 들어가 2줄이 정상이 됐다(옛 CSS 로 재도 2줄 — 실측). 계약은 «2줄을 넘지 않는다».
+      const wantRows = 2;
       push(`${vp.name}/줄 수`, p.rows <= wantRows,
         `${p.rows}줄 (기대 ≤${wantRows}) · 밴드 ${p.bandH}px · [${p.labels}]`);
     }

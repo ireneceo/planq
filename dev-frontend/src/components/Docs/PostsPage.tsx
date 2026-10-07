@@ -3201,8 +3201,11 @@ const ProjectTag = styled.span<{ $color: string }>`
   background: #F1F5F9; color: #475569; border-radius: 999px; font-size: 0.625rem; font-weight: 600;
   &::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: ${p => p.$color}; }
 `;
+// ★ 'all: unset' 이 밴드2 의 'flex-shrink: 0 · nowrap' 까지 지워(같은 우선순위, 뒤에 선언됨) 좁아지면
+//   «#아이린» 이 한 글자씩 세로로 꺾였다(2026-10-07). 지운 것을 여기서 다시 박는다.
 const CategoryTag = styled.button`
   all: unset; cursor: pointer;
+  flex-shrink: 0; white-space: nowrap; word-break: keep-all;
   display: inline-flex; align-items: center; padding: 2px 8px;
   background: #F0FDFA; color: #0F766E;
   border-radius: 999px; font-size: 0.6875rem; font-weight: 600;
