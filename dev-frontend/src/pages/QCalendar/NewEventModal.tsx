@@ -372,6 +372,31 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
             />
           </Field>
 
+          <Grid2>
+            <Field>
+              <Label>{t('form.project')}</Label>
+              <PlanQSelect
+                size="sm"
+                isClearable
+                placeholder={tc(CONNECT_PROMPT.projectPick)}
+                options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                value={projectId === '' ? null : { value: projectId, label: projects.find((p) => p.id === projectId)?.name || '' }}
+                onChange={(opt) => setProjectId(opt ? Number((opt as { value: number | string }).value) : '')}
+              />
+            </Field>
+          </Grid2>
+
+          <Field>
+            <Label>{t('form.category')}</Label>
+            <CategoryRow>
+              {CATEGORY_OPTIONS.map((c) => (
+                <CategoryBtn key={c} type="button" $active={category === c} onClick={() => setCategory(c)}>
+                  {t(`category.${c}`)}
+                </CategoryBtn>
+              ))}
+            </CategoryRow>
+          </Field>
+
           <Field>
             <Label>{t('form.startAt')} – {t('form.endAt')}</Label>
             <DateRow>
@@ -449,30 +474,6 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
           </Row>
 
           <Field>
-            <Label>{t('form.category')}</Label>
-            <CategoryRow>
-              {CATEGORY_OPTIONS.map((c) => (
-                <CategoryBtn key={c} type="button" $active={category === c} onClick={() => setCategory(c)}>
-                  {t(`category.${c}`)}
-                </CategoryBtn>
-              ))}
-            </CategoryRow>
-          </Field>
-          <Grid2>
-            <Field>
-              <Label>{t('form.project')}</Label>
-              <PlanQSelect
-                size="sm"
-                isClearable
-                placeholder={tc(CONNECT_PROMPT.projectPick)}
-                options={projects.map((p) => ({ value: p.id, label: p.name }))}
-                value={projectId === '' ? null : { value: projectId, label: projects.find((p) => p.id === projectId)?.name || '' }}
-                onChange={(opt) => setProjectId(opt ? Number((opt as { value: number | string }).value) : '')}
-              />
-            </Field>
-          </Grid2>
-
-          <Field>
             <Label>{t('form.description')}</Label>
             <Textarea
               rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
@@ -480,10 +481,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
             />
           </Field>
 
-          {/* 미팅자료(첨부) — 접어 둔다(2026-10-07 Irene: "설명, 파일첨부(접어두기), 장소…"). 이미 붙인 것이 있으면 펼친 채로. */}
+          {/* 첨부파일 — 접어 둔다(2026-10-07 Irene: "설명, 파일첨부(접어두기), 장소…"). 이미 붙인 것이 있으면 펼친 채로. */}
           {!!businessId && !matOpen && !hasMaterials ? (
             <AttachToggle type="button" data-testid="new-event-materials-open" onClick={() => setMatOpen(true)}>
-              + {t('materials.addToggle', { defaultValue: '미팅자료 첨부' }) as string}
+              + {t('materials.addToggle', { defaultValue: '파일 첨부' }) as string}
             </AttachToggle>
           ) : (!!businessId && (<Field data-testid="new-event-materials">
             <Label>{t('materials.title')}</Label>

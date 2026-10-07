@@ -295,6 +295,10 @@ const EventDrawer: React.FC<Props> = ({
                 </ProjectChip>
               )}
               <VisibilityTag>{t(`visibility.${event.visibility}`)}</VisibilityTag>
+              {/* 작성자는 헤더 메타 — 본문 맨 아래 칸을 따로 둘 정보가 아니다(2026-10-07 Irene) */}
+              {event.creator?.name && (
+                <CreatorMeta data-testid="event-creator">{t('drawer.createdBy')} · {event.creator.name}</CreatorMeta>
+              )}
               {event.rrule && (
                 <RecurrenceBadge>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -368,6 +372,54 @@ const EventDrawer: React.FC<Props> = ({
           <BookingActions event={event} businessId={user.business_id}
             onChanged={(patch) => onLocalPatch?.(patch)} />
         )}
+        {/* 프로젝트 · 분류 — 맨 위(2026-10-07 Irene: «프로젝트 … 최상단», «태그는 기간보다 맨 위로»). 등록 창과 같은 순서. */}
+        <Section>
+          <SectionIcon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+          </SectionIcon>
+          <SectionBody>
+            {canEdit && (
+              <Grid2 $single>
+                <Field>
+                  <FieldLabel>{t('form.project')}</FieldLabel>
+                  <AutoSaveField key={`ev${event.id}-7`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
+                    <PlanQSelect
+                      size="sm"
+                      isClearable
+                      placeholder={tc(CONNECT_PROMPT.projectNone) as string}
+                      options={projects.map((p) => ({ value: p.id, label: p.name }))}
+                      value={event.project_id == null
+                        ? null
+                        : { value: event.project_id, label: projects.find((p) => p.id === event.project_id)?.name || `#${event.project_id}` }
+                      }
+                      onChange={(opt) => {
+                        const v = opt ? Number((opt as { value: number }).value) : null;
+                        if (v !== event.project_id) updateMaybeScoped({ project_id: v });
+                      }}
+                    />
+                  </AutoSaveField>
+                </Field>
+              </Grid2>
+            )}
+            <MutedSmall>{t('form.category')}</MutedSmall>
+            <CategoryRow>
+              {CATEGORY_OPTIONS.map((cat: EventCategory) => (
+                <CategoryBtn
+                  key={cat}
+                  type="button"
+                  $active={event.category === cat}
+                  disabled={!canEdit}
+                  onClick={() => { if (canEdit && event.category !== cat) updateMaybeScoped({ category: cat }); }}
+                >
+                  {t(`category.${cat}`)}
+                </CategoryBtn>
+              ))}
+            </CategoryRow>
+          </SectionBody>
+        </Section>
+
         {/* 시간 — 인라인 편집 */}
         <Section>
           <SectionIcon>
@@ -498,54 +550,6 @@ const EventDrawer: React.FC<Props> = ({
                 {!event.all_day && <TzLines wsTz={wsTz} myTz={personalTz} testIdPrefix="event" startIso={event.start_at} endIso={event.end_at} />}
                 {event.all_day && <MutedSmall>{t('allDay', '종일')}</MutedSmall>}
               </>
-            )}
-          </SectionBody>
-        </Section>
-
-        {/* 카테고리 / visibility / project — 인라인 select */}
-        <Section>
-          <SectionIcon>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-            </svg>
-          </SectionIcon>
-          <SectionBody>
-            <MutedSmall>{t('form.category')}</MutedSmall>
-            <CategoryRow>
-              {CATEGORY_OPTIONS.map((cat: EventCategory) => (
-                <CategoryBtn
-                  key={cat}
-                  type="button"
-                  $active={event.category === cat}
-                  disabled={!canEdit}
-                  onClick={() => { if (canEdit && event.category !== cat) updateMaybeScoped({ category: cat }); }}
-                >
-                  {t(`category.${cat}`)}
-                </CategoryBtn>
-              ))}
-            </CategoryRow>
-            {canEdit && (
-              <Grid2 $single>
-                <Field>
-                  <FieldLabel>{t('form.project')}</FieldLabel>
-                  <AutoSaveField key={`ev${event.id}-7`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
-                    <PlanQSelect
-                      size="sm"
-                      isClearable
-                      placeholder={tc(CONNECT_PROMPT.projectNone) as string}
-                      options={projects.map((p) => ({ value: p.id, label: p.name }))}
-                      value={event.project_id == null
-                        ? null
-                        : { value: event.project_id, label: projects.find((p) => p.id === event.project_id)?.name || `#${event.project_id}` }
-                      }
-                      onChange={(opt) => {
-                        const v = opt ? Number((opt as { value: number }).value) : null;
-                        if (v !== event.project_id) updateMaybeScoped({ project_id: v });
-                      }}
-                    />
-                  </AutoSaveField>
-                </Field>
-              </Grid2>
             )}
           </SectionBody>
         </Section>
@@ -998,18 +1002,6 @@ const EventDrawer: React.FC<Props> = ({
           </Section>
         )}
 
-        {/* 작성자 — read-only */}
-        <Section>
-          <SectionIcon>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-          </SectionIcon>
-          <SectionBody>
-            <MutedSmall>{t('drawer.createdBy')}</MutedSmall>
-            <Plain>{event.creator?.name || '—'}</Plain>
-          </SectionBody>
-        </Section>
       </DetailDrawer.Body>
 
       <DetailDrawer.Footer>
@@ -1108,6 +1100,9 @@ function formatDateTimeInTz(d: Date, lang: string, tz: string): string {
 export default EventDrawer;
 
 // ── styled ──
+const CreatorMeta = styled.span`
+  display: inline-flex; align-items: center; font-size: 0.6875rem; color: #64748B; white-space: nowrap;
+`;
 const HeaderInner = styled.div`
   display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0;
 `;

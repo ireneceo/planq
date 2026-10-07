@@ -321,23 +321,23 @@
     }
   },
   "materials": {
-    "title": "Meeting materials",
-    "empty": "No materials attached",
-    "add": "+ Add material",
+    "title": "Attachments",
+    "empty": "No attachments",
+    "add": "+ Add file",
     "close": "Close",
     "docKind": "Q docs document",
     "uploading": "Uploading…",
-    "failed": "Couldn't attach the material",
+    "failed": "Couldn't attach the file",
     "skipped": "{{count}} item(s) you can't view were not attached",
     "visibilityHint": "Files uploaded here are visible to project members if a project is linked, otherwise to workspace members",
-    "askNotify": "Meeting materials changed. Notify {{count}} attendee(s) ({{names}})?",
+    "askNotify": "Attachments changed. Notify {{count}} attendee(s) ({{names}})?",
     "notify": "Notify",
     "notNow": "Don't notify",
     "notifying": "Notifying…",
     "notified": "Notified {{count}} attendee(s)",
     "notifyFailed": "Couldn't notify attendees",
-    "remove": "Remove material",
-    "notifyOnCreate": "Also notify {{count}} attendee(s) about the materials",
-    "addToggle": "Attach meeting materials"
+    "remove": "Remove attachment",
+    "notifyOnCreate": "Also notify {{count}} attendee(s) about the attachments",
+    "addToggle": "Attach files"
   }
 }
