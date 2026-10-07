@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-06 저녁 ([Opus] Opus 5.5) — 프로젝트 핀 문서 탭 = 문서 탭 상세 그대로(편집 그 자리) · 표 첨부 칸 크래시 · 오류 화면 신고 버튼 · 핀 탭 이름 실시간 · 프로젝트 탭 하단 회색 띠. **dev 미배포**(앞선 4커밋 포함). Fable 미검증(자체 검증 · R=0·F=1) — 대기 목록 19행.
+> **최종 업데이트:** 2026-10-07 ([Opus] Opus 5.5) — **운영 배포 4회(5f60f869 · ea395da3 · 8404f0ff · dab6c857)** · 서명 흐름(문서 먼저→위치→본인 확인) · 결제 대기 유예 잠김 해제 · 다른 기기 보는 중 채팅 푸시 생략 · 통합 검색 둘째 줄 · Q calendar 시간대·겹침·업무 연결·프로젝트 필터·프로젝트 «일정» 탭 · 랜딩 «의뢰형» 포지셔닝 원복 · 메일 판정 3건 · 파일 크게 보기. **dev 미배포 5커밋**(체크박스 디자인 · AI create_event 칸 · 반복 회차 날짜 · 감사 대상). Fable PASS 3라운드(A1·A2·재검증) + 59fba176 41/43.
+> ── 이전(2026-10-06 저녁) ──
+> 2026-10-06 저녁 ([Opus] Opus 5.5) — 프로젝트 핀 문서 탭 = 문서 탭 상세 그대로(편집 그 자리) · 표 첨부 칸 크래시 · 오류 화면 신고 버튼 · 핀 탭 이름 실시간 · 프로젝트 탭 하단 회색 띠.
 > ── 이전(2026-10-06 오후) ──
 > 2026-10-06 ([Opus] Opus 5.5) — **운영 배포 1회(29c226a1)** · Cue 대화 이어듣기 · 검토 요청 토스트 재발 · 국가 공휴일 18개국 · 목록 작성일 정렬. **dev 미배포 3건**: AI 연결 재연결 반복 · 고객 화면 프로젝트·채팅 안 보임(최정우) · 업무 상세 기간 칸. **Fable 미검증(한도) — FABLE_GATE_QUEUE.md 11~18행, 목요일 일괄.**
 > ── 이전(2026-10-05 밤) ──
@@ -26,6 +28,36 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-07 [Opus] — 서명 흐름 · 유예 잠김 · 푸시 생략 · 검색 · 캘린더 · 랜딩 원복 · Fable 3라운드
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| AI 연결 재연결 | 같은 앱으로 다시 연결하면 옛 grant 해제(`supersedeSiblings`) — 목록 2개·끊으면 재연결 요구 | ✅ 운영 |
+| 상세 밴드2 정돈 | 버튼 많으면 2줄 · 분류 칩 세로 분해 · 공유 칩 흐림 | ✅ 운영 |
+| 고객 채널 참여 | 계정 고객을 프로젝트에 추가하면 고객 채팅방 참여(`joinProjectCustomerChannels`) + 운영 보정 | ✅ 운영 |
+| Q mail 판정 | 아는 상대 ④(회신 헤더) — 자기 증명·역할어 제외 · 다른 앱에서 보낸 내 답장 사본 = outbound | ✅ 운영 |
+| Q calendar | 워크스페이스 시간대 기준 · 겹침 나란히 · 순서 정리 · 업무 연결(task_id) · 알림 제목 남은 시간 · 프로젝트 필터 · 프로젝트 «일정» 탭 | ✅ 운영 |
+| 파일 미리보기 | 크게 보기(돋보기) · 목록 빠른 보기 · 이미지 로딩 자리 | ✅ 운영 |
+| 우측 패널 | 탭 막대 눌러도 닫힘 | ✅ 운영 |
+| 서명 흐름 | 확인필요·받은 서명 → /sign/:token · 문서 먼저→위치→본인 확인→서명 · 우리 쪽 로그아웃이면 로그인 안내 | ✅ 운영 |
+| 구독 유예 | `services/planActive` 상태표 — past_due+유예 중 사용 가능(운영 biz 10 해제) | ✅ 운영 |
+| 채팅 푸시 생략 | `services/presence` — 같은 사람이 다른 기기에서 그 방을 보고 있으면 PushLog viewer_active | ✅ 운영 |
+| 통합 검색 | 업무 담당·작성·마감 / 문서 #분류 / 파일 올린 사람·날짜 · 파일 설명·태그 검색 | ✅ 운영 |
+| 문서 L1 편집 | owner/admin 이 남의 L1 을 PUT 하던 구멍 → 작성자만 | ✅ 운영 |
+| 랜딩 원복 | «의뢰형 고객 업무 플랫폼»(10-01·10-04) → 원래 문구 6곳 | ✅ 운영 |
+| 피드백 회신 | `services/feedbackRespond` + `scripts/feedback-reply.js` · 개발시작/개발완료 스킬에 운영 피드백 확인·답변 | ✅ 운영 |
+| 체크박스 디자인 | 전역 `:where()` 로 우리 모양(#459 2차) | ✅ dev |
+| AI create_event | 종류·알림·연결 업무·기존 화상 링크 · 감사 대상 일정 | ✅ dev |
+| 반복 회차 날짜 | `?event=` 로 연 반복 일정 «이 회차만» = UTC 날짜 | ✅ dev |
+
+### 수정된 파일 (주요)
+- `dev-backend/services/{planActive,presence,feedbackRespond,eventTaskLink,searchScope,emailImapCron,clientOnboarding}.js` · `services/agent/{execute,registry,tools/calendar,tools/docs_write}.js` · `services/agent_oauth/grants.js`
+- `dev-backend/routes/{notifications,feedback,posts,search,signature_public,dashboard,calendar,post_revisions}.js` · `server.js`
+- `dev-frontend/src/pages/QCalendar/*` · `pages/QDocs/PublicSignPage.tsx` · `pages/QProject/QProjectDetailPage.tsx` · `pages/QTalk/ChatPanel.tsx` · `services/socket.ts` · `components/Common/GlobalSearchModal.tsx` · `index.css` · `public/locales/*` · `public/seo-pages.json` · `public/llms.txt`
+- `scripts/health-check.js`(billing 상태표) · `scripts/e2e/canary-project-tabs.js` · `.claude/commands/개발{시작,완료}.md`
 
 ---
 

@@ -346,6 +346,14 @@ const ActionBtn = styled.button<{$active?: boolean}>`
 - 검색 가능, 멀티 셀렉트, 아이콘/설명 옵션 지원
 - **옵션이 많은 리스트 (시간, 50+ 항목)**: `density="compact"` prop 추가해 옵션 패딩 절반 (10px 12px → 5px 10px)
 
+### 1.6-A 체크박스·라디오 — 전역 한 벌 (2026-10-07, 운영 #459)
+
+- 네이티브 `<input type="checkbox|radio">` 는 `src/index.css` 의 `:where(...)` 규칙이 **우리 모양**으로 그린다
+  (16px 둥근 사각 · 회색 `#CBD5E1` 테두리 → 체크 시 민트 `#14B8A6` 채움 + 흰 체크 · focus 링 · disabled 0.5).
+- 화면마다 `accent-color` 나 크기를 다시 적지 않는다. 특별한 모양이 필요하면 그 화면에서 직접 그린다 —
+  `:where()` 는 우선순위 0 이라 화면 스타일이 항상 이긴다(문서 할 일 목록 `editorChecklist` 선례).
+- 켜고 끄는 **설정**은 체크박스가 아니라 스위치(`switchShell`)다.
+
 ### 1.6-B 한 줄 안의 컨트롤 높이 — **머리줄 32 / 필터줄 36** (2026-09-14 실측 박제)
 
 > Irene: *"머리줄 버튼 통일."*
