@@ -1,60 +1,89 @@
 {
-  "working_on": [
-    "Fable 판정 8안건 중 Irene 결정 대기 항목(고객별 채널·AI 도구 확대·보낸편지함 동기화·Cue 질문 분석·캘린더 선택)"
+  "working_on": [],
+  "in_progress": [
+    "#460 설문(표 문서) — 다른 작업방에서 진행 중, 이번 배포에 포함하지 않음(미커밋)"
   ],
-  "in_progress": [],
   "completed": [
     {
-      "title": "AI 연결 create_event — 일정 종류·알림·연결 업무·기존 화상 링크(59fba176)",
+      "title": "고객 채널 = 프로젝트 × 고객 — 고객사가 둘인 프로젝트에서 서로의 방·청구서 카드가 보이던 것(e55e24e5·f5964b67)",
       "verified": "fable_pass"
     },
     {
-      "title": "AI 연결 create_event 감사 행 대상을 일정으로(a6e3b66e)",
+      "title": "프로젝트 복사본도 계정 있는 고객에게 바로 보임(e55e24e5)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "외부 열람 링크를 고객마다 — 고객 둘 이상이면 «어느 고객에게 줄 링크인가요?»(4b27bd7e)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "AI 앱 쓰기 보강 — 프로젝트 만들기·컨펌자 지정(확인 2단계)·Q note 메모·Q info 항목·업무 태그/예상시간(293104c6)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "일정 참석자 알림 선택 — 등록 «참석자에게 알림 보내기»+한 줄 메시지 · 시간·장소 변경 «변경 알림을 보낼까요?»(a5e91e45, #462)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "개인 구글 캘린더에서 PlanQ 일정을 올릴 캘린더 고르기 · 방침 문구(48e0164d·0eeb0b4b)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "Q mail 업체 보낸편지함·스팸함 읽기 전용 가져오기 · 플랫폼 발송 계정 보낸편지함 제외 · 내부 전달은 «답이 없다» 아님(b507d670·82b4bc0e)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "Cue 질문 주제 분석(누가·어디서 없이) · 가명 원문 30일 opt-in · 질문 기록 90일 보관(774d6aab)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "말하기 = Cue 와 같은 결과 · Cue 카드 일정 날짜·시간 편집(59b04893·a16fa23b·3cfbbb8b, #458)",
       "verified": "opus_only"
     },
     {
-      "title": "Q calendar 링크(?event=)로 연 반복 일정 «이 회차만» 날짜를 서버와 같은 UTC 날짜로(6169cbfe)",
-      "verified": "opus_only"
+      "title": "피드백 회신 알림을 받는 사람 언어로(c11cf194, #457)",
+      "verified": "fable_pass"
     },
     {
-      "title": "체크박스·라디오를 PlanQ 모양으로 — 전역 한 곳(#459 2차, bf4353d7)",
-      "verified": "opus_only"
-    },
-    {
-      "title": "Q docs 코드 블록 [+] 띠·언어 바꾸기를 편집 모드에서만(fd9d972c)",
-      "verified": "opus_only"
+      "title": "안드로이드 다른 앱 «공유» → PlanQ(76da612a, #434·#456 — 앱 빌드 필요)",
+      "verified": "fable_pass"
     }
   ],
   "behavior_changes": [
-    "체크박스·라디오 모양이 PlanQ 디자인으로 바뀜",
-    "문서 상세 보기에서 코드 블록 위/아래 [+] 여백이 사라짐",
-    "AI 로 일정을 만들 때 종류·알림·연결 업무·화상 링크를 지정 가능"
+    "고객사가 둘 이상인 프로젝트는 고객마다 대화방이 따로 생긴다(배포 때 K-DINE Aidan 은 자기 방으로 옮겨짐)",
+    "청구서 카드는 그 청구 고객의 방으로만 간다(없으면 보내지 않음)",
+    "일정 등록·변경 때 참석자 알림을 고를 수 있다 · 계정 있는 고객 참석자도 앱 알림을 받는다(메일 아님)",
+    "메일 «보낸메일» 에 Gmail·네이버에서 직접 보낸 메일도 보이고, 업체 스팸함 메일이 «스팸» 탭에 보인다(30일 뒤 자동 삭제)",
+    "워크스페이스 설정 > Cue 에 «질문 주제 분석»(기본 켬)·«원문 30일 보관»(기본 끔) 스위치",
+    "구글 캘린더 연결 아래 «PlanQ 일정을 올릴 캘린더» 선택(다시 연결 후)"
   ],
   "issues": [],
   "blocked_on_human": [
-    "Kate·Aidan 같은 회사인가(고객별 채널)",
-    "프로젝트 복사본 고객 연결",
-    "AI 프로젝트 만들기·태그 생성·메모 기본 범위",
-    "보낸편지함/스팸 동기화 순서·보관",
-    "Cue 질문 분석 opt-in 범위 · 질문 로그 90일",
-    "구글 캘린더 목록 권한 심사 묶음",
-    "Claude 개인/조직 연결 · 운영 ChatGPT 중복 grant 정리",
-    "ChatGPT 재연결(docs:write)"
+    "운영 privacy_version 올리기(재동의) + 방침 시행일",
+    "Google Cloud 콘솔 OAuth 데이터 액세스에 calendar.calendarlist.readonly 추가 후 심사 제출",
+    "ChatGPT·Claude 앱 다시 연결(projects:write)"
   ],
-  "migrations": [],
+  "migrations": [
+    "migrate-mail-folders.js",
+    "migrate-cue-question-analysis.js",
+    "migrate-customer-channel-per-client.js --apply(→ migrate-project-client-user.js)"
+  ],
   "check_areas": [
-    "체크박스·라디오가 쓰인 설정·필터 화면",
-    "코드 블록이 있는 문서 보기/편집",
-    "반복 일정 링크로 연 «이 회차만» 수정",
-    "AI(ChatGPT/Claude) 일정 만들기"
+    "고객 둘 이상 프로젝트의 고객 채팅방·청구서 발행·외부 열람 링크",
+    "일정 등록(참석자 알림 체크)·상세에서 시간/장소 변경",
+    "Q mail 보낸메일·스팸 탭 · 메일 계정 설정의 «업체 메일함 가져오기»",
+    "워크스페이스 설정 > Cue · 플랫폼 관리자 > Cue 질문",
+    "AI 앱 프로젝트 만들기(재연결 후)"
   ],
   "backlog": [
-    "Fable 대기 목록 1~34행 라운드",
-    "대시보드·확인필요의 일정 시각도 워크스페이스 시간대로",
-    "메일 업체 스팸함·보낸편지함 동기화(Fable 23)"
+    "네이버 Message-ID 보존 실측",
+    "하루 해시 비밀을 전용 키로 분리",
+    "대시보드·확인필요의 일정 시각도 워크스페이스 시간대로"
   ],
   "tooling_health": [
-    "Fable: 59fba176 41/43 PASS · 나머지 4커밋은 자체 검증"
+    "Fable 4라운드(1차 FAIL→외부 링크 고객축 · 2차 FAIL→메일 a·b · 3차 FAIL→게스트 넘겨받기 · 4차 PASS)"
   ],
-  "undeployed": []
+  "undeployed": [
+    "#460 설문(미커밋, 다른 작업방)"
+  ]
 }
