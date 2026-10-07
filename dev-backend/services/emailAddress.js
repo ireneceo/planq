@@ -116,7 +116,26 @@ async function selfEmailsForAccount(account) {
   return [...new Set(out)];
 }
 
+/**
+ * 우리가 **다른 앱에서 보낸 메일의 사본**인가 — 받은편지함으로 돌아온 것(참조에 우리 다른 주소를 넣은 경우).
+ *   보낸 사람이 이 계정(+별칭)이고, 받는 사람(To·Cc)에 이 계정 주소와 우리 워크스페이스 밖 주소가 함께 있다.
+ *   내 주소 → 내 주소(사이트 알림·자기 테스트)는 사본이 아니다. 동료 계정이 보낸 메일도 아니다(나에겐 새 메일).
+ */
+function isOwnSentCopy({ fromEmail, toEmails, ccEmails, selfEmails, ownEmails }) {
+  const norm = (e) => String(e || '').toLowerCase().trim();
+  const self = new Set((selfEmails || []).map(norm));
+  const own = ownEmails instanceof Set ? ownEmails : new Set((ownEmails || []).map(norm));
+  if (!self.has(norm(fromEmail))) return false;
+  const rcpt = [...(toEmails || []), ...(ccEmails || [])].map((r) => norm(r && (r.email || r))).filter(Boolean);
+  // 돌아온 경로가 보여야 한다 — 받는 사람 칸에 **이 계정(별칭) 주소**가 있다(참조로 넣어 사본이 돌아왔다).
+  //   숨은참조(BCC)로 들어온 시스템 발송(우리 주소로 주문·청구 알림을 남에게 보내는 앱)은 칸에 우리가 없어
+  //   여기 걸리지 않는다 — 그건 Irene 이 쓴 답장이 아니다(운영 시뮬 2026-10-07: 20건 중 18건이 그 계열).
+  if (!rcpt.some((e) => self.has(e))) return false;
+  return rcpt.some((e) => !own.has(e) && !self.has(e));
+}
+
 module.exports = {
+  isOwnSentCopy,
   normalizeAddrList,
   emailsOf,
   mergeParticipants,

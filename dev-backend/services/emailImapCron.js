@@ -516,6 +516,14 @@ async function syncOne(account, opts = {}) {
         // message insert
         const toEmails = (parsed.to && parsed.to.value) ? parsed.to.value.map(v => ({ email: v.address, name: v.name })) : [];
         const ccEmails = (parsed.cc && parsed.cc.value) ? parsed.cc.value.map(v => ({ email: v.address, name: v.name })) : null;
+        // ★ 2026-10-07 — **우리가 다른 앱에서 보낸 메일의 사본**. 아이폰·메일 앱에서 답장하며 참조(Cc)에 우리 다른
+        //   주소를 넣으면 그 사본이 받은편지함으로 돌아온다. 여태 «받은 메일·안읽음» 으로 저장돼 내가 보낸 답장에
+        //   민트 점이 떴다(운영 스레드 3690, Irene: "내가 보낸 걸 안읽었다고 표시를 왜해?").
+        //   판정: 보낸 사람이 우리 주소 **이고** 받는 사람 중 우리가 아닌 주소가 있다.
+        //   ★ 내 주소 → 내 주소(워드프레스 사이트 알림·자기 테스트)는 사본이 아니라 읽어야 할 메일이다 — 그대로 둔다.
+        //   PlanQ 에서 보낸 답장의 사본은 위 message_id 중복 검사가 이미 막는다.
+        //   ★ 보낸 사람은 **이 계정(+별칭)** 으로만 본다 — 동료 계정이 고객에게 보내며 나를 참조한 메일은 나에겐 새 메일이다.
+        const ownCopy = require('./emailAddress').isOwnSentCopy({ fromEmail, toEmails, ccEmails, selfEmails, ownEmails });
 
         // 고객·프로젝트 연결 — 술어는 services/mailLink.js **하나**다.
         //   ★ 2026-09-10 이전에는 여기서 `matchClient(from)` 만 불렀다. 그래서
@@ -553,7 +561,7 @@ async function syncOne(account, opts = {}) {
         const message = await EmailMessage.create({
           thread_id: thread.id,
           business_id: account.business_id,
-          direction: 'inbound',
+          direction: ownCopy ? 'outbound' : 'inbound',
           message_id: messageId,
           in_reply_to: parsed.inReplyTo || null,
           references_chain: Array.isArray(parsed.references) ? parsed.references.join(' ') : (parsed.references || null),
@@ -567,7 +575,7 @@ async function syncOne(account, opts = {}) {
           subject: parsed.subject || null,
           body_html: parsed.html || null,
           body_text: parsed.text || null,
-          is_read: false,
+          is_read: ownCopy,
           delivery_status: 'delivered',
           sent_at: parsed.date || new Date(),
         });
@@ -622,7 +630,9 @@ async function syncOne(account, opts = {}) {
         //   신규 스레드: 전체 분류 박제 + human 이면 reply_needed 자동 ON ("답변 필요" 폴더 작동).
         //   기존 스레드 후속 inbound: 사람 메일이면 reply_needed 복원 (status/triage 는 유지, spam/archived 제외).
         let triageFields = {};
-        try {
+        // 우리가 보낸 사본은 받은 메일 판정을 하지 않는다 — PlanQ 에서 답장했을 때와 같게 둔다(routes/email_threads 답장 경로).
+        if (ownCopy) triageFields = { reply_needed: false, reply_needed_reason: 'replied', ...(thread.status === 'uncertain' ? { status: 'open' } : {}) };
+        else try {
           const { triageInbound } = require('./emailTriage');
           const { applyRules } = require('./mailSenderRules');
           const known = await isKnownContact(account.business_id, fromEmail);
@@ -655,9 +665,9 @@ async function syncOne(account, opts = {}) {
         } catch (e) { console.warn('[emailTriage]', e.message); }
         await thread.update({
           message_count: thread.message_count + 1,
-          unread_count: thread.unread_count + 1,
+          unread_count: ownCopy ? thread.unread_count : thread.unread_count + 1,
           last_message_at: parsed.date || new Date(),
-          last_message_direction: 'inbound',
+          last_message_direction: ownCopy ? 'outbound' : 'inbound',
           last_message_preview: preview,
           participants,
           client_id: clientId,
@@ -685,7 +695,7 @@ async function syncOne(account, opts = {}) {
         //   여태 socket broadcast 만 하고 notify 호출이 없어 알림이 0건이었다 (CLAUDE.md §13).
         //   범위는 계정별 notify_scope, 수신자 분기(개인=본인만 / 회사=멤버 전원)는 mailNotify 안에서.
         //   과거분 백필(isBackfill)은 알리지 않는다 — 옛 메일 수백 통이 한꺼번에 울린다.
-        if (!isBackfill) {
+        if (!isBackfill && !ownCopy) {
           try {
             const { notifyInboundMail } = require('./mailNotify');
             await notifyInboundMail({

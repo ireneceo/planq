@@ -531,6 +531,10 @@ sync_database() {
   #   워크스페이스 고객 초대 수락이 이 값을 안 채워 고객 화면에서 프로젝트·채팅방이 사라졌다(최정우 신고).
   log "Backfilling project client accounts..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-client-user.js 2>&1 | tail -6"
+
+  # 2026-10-07 — 다른 앱에서 보낸 우리 답장의 사본을 «보낸 메일·읽음» 으로(받은편지함으로 돌아와 안읽음 점이 떴다). 멱등.
+  log "Fixing own sent copies in mail..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/fix-own-sent-copies.js 2>&1 | tail -6"
   success "백필 완료 (invoice payments)"
 }
 
