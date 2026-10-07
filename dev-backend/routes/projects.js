@@ -273,178 +273,34 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
 });
 
 router.post('/', authenticateToken, async (req, res, next) => {
-  const t = await sequelize.transaction();
+  // audit-exempt: 감사는 행동 계층이 쓴다(project.create)
+  // 규칙은 행동 계층 한 곳(services/actions/project_actions.createProject) — AI 에이전트 create_project 와 같은 함수.
+  //   라우트는 파싱·응답만 한다.
   try {
     const {
-      business_id,
-      name,
-      description,
-      client_company,
-      start_date,
-      end_date,
-      color,
-      project_type,
+      business_id, name, description, client_company, start_date, end_date, color, project_type,
       kind,              // 내부/고객 구분 (client|internal)
       stage_template,    // Phase D+1: 거래 시퀀스 템플릿 (fixed/subscription/consulting/custom)
-      members = [],
-      clients = [],
-      channels,
+      members = [], clients = [], channels,
     } = req.body || {};
-
-    if (!business_id || !name?.trim()) {
-      await t.rollback();
-      return errorResponse(res, 'business_id and name are required', 400);
+    if (!business_id || !name?.trim()) return errorResponse(res, 'business_id and name are required', 400);
+    const { createProject } = require('../services/actions/project_actions');
+    const r = await createProject({ kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req }, {
+      businessId: business_id, name, description, clientCompany: client_company, startDate: start_date, endDate: end_date,
+      color, projectType: project_type, kind, stageTemplate: stage_template,
+      members: Array.isArray(members) ? members : [], contacts: Array.isArray(clients) ? clients : [], channels,
+    });
+    if (!r.ok) {
+      if (r.code === 'quota_exceeded') return res.status(422).json(require('../services/plan').buildQuotaError(r.planCan, business_id));
+      return errorResponse(res, r.code, r.http || 400);
     }
-
-    // 권한: 본인이 해당 워크스페이스 owner 또는 member 여야 함
-    const bm = await requireBusinessMember(req.user.id, business_id);
-    if (!bm || bm.role === 'ai') {
-      await t.rollback();
-      return errorResponse(res, 'You do not belong to this workspace', 403);
-    }
-
-    // 플랜 쿼터 체크 — 진행중(active/draft) 프로젝트만 카운트
-    const planEngine = require('../services/plan');
-    const planCan = await planEngine.can(business_id, 'create_project');
-    if (!planCan.ok) {
-      await t.rollback();
-      return res.status(422).json(planEngine.buildQuotaError(planCan, business_id));
-    }
-
-    const defaultAssignee = members.find((m) => m.is_default)?.user_id || req.user.id;
-
-    // 1) Project 생성
-    const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
-    const project = await Project.create({
-      business_id,
-      name: name.trim(),
-      description: description?.trim() || null,
-      client_company: client_company?.trim() || null,
-      start_date: start_date || null,
-      end_date: end_date || null,
-      color: (color && HEX_RE.test(color)) ? color : null,
-      project_type: project_type === 'ongoing' ? 'ongoing' : 'fixed',
-      kind: kind === 'internal' ? 'internal' : 'client',
-      default_assignee_user_id: defaultAssignee,
-      owner_user_id: req.user.id,
-    }, { transaction: t });
-
-    // 2) 생성자 자동으로 project_members 에 추가 (이미 members 에 있으면 skip)
-    const memberUserIds = new Set(members.map((m) => m.user_id));
-    if (!memberUserIds.has(req.user.id)) {
-      members.push({ user_id: req.user.id, role: '기타', is_default: false });
-    }
-
-    // 3) project_members — members 의 각 user_id 가 business_members 에 속해야 함 (검증)
-    const validUserIds = new Set(
-      (await BusinessMember.findAll({
-        where: { business_id, user_id: members.map((m) => m.user_id) },
-      })).map((x) => x.user_id)
-    );
-
-    const pmRows = [];
-    for (const m of members) {
-      if (!validUserIds.has(m.user_id)) continue;
-      pmRows.push({
-        project_id: project.id,
-        user_id: m.user_id,
-        role: m.role?.trim() || '기타',
-        role_order: 0,
-        // 생성자 = 프로젝트 owner = 자동 PM (PERMISSION_MATRIX §3)
-        is_pm: m.user_id === req.user.id,
-      });
-    }
-    await ProjectMember.bulkCreate(pmRows, { transaction: t });
-
-    // 4) project_clients — 초대 링크 토큰 생성
-    const pcRows = [];
-    for (const c of clients) {
-      if (!c.name?.trim()) continue;
-      const token = crypto.randomBytes(24).toString('hex');
-      pcRows.push({
-        project_id: project.id,
-        contact_name: c.name.trim(),
-        contact_email: c.email?.trim() || null,
-        invite_token: token,
-        invited_by: req.user.id,
-      });
-    }
-    await ProjectClient.bulkCreate(pcRows, { transaction: t });
-
-    // 5) 기본 상태 옵션 seed (프로세스 파트용)
-    const defaultStatusOptions = [
-      { status_key: 'not_started', label: '미시작', color: '#94A3B8', order_index: 0 },
-      { status_key: 'in_progress', label: '진행중', color: '#14B8A6', order_index: 1 },
-      { status_key: 'done', label: '완료', color: '#22C55E', order_index: 2 },
-      { status_key: 'hold', label: '보류', color: '#F59E0B', order_index: 3 },
-    ];
-    await ProjectStatusOption.bulkCreate(
-      defaultStatusOptions.map(o => ({ ...o, project_id: project.id })),
-      { transaction: t }
-    );
-
-    // 6) 채팅방 자동 생성 없음 — 프로젝트는 데이터 컨테이너.
-    //    대화가 필요하면 사용자가 Q Talk 에서 NewChatModal 로 별도 생성하고 project_id 로 연결.
-    //    호환을 위해 channels 파라미터가 명시적으로 전달된 경우에만 생성.
-    if (Array.isArray(channels) && channels.length > 0) {
-      const biz = await Business.findByPk(business_id, { transaction: t });
-      const validMemberIds = new Set(pmRows.map(r => r.user_id));
-      for (const cv of channels) {
-        const type = cv.channel_type === 'customer' ? 'customer' : 'internal';
-        const title = String(cv.name || '').trim() || `${name.trim()} ${type === 'customer' ? '고객' : '내부'}`;
-        const conv = await Conversation.create({
-          business_id,
-          project_id: project.id,
-          title,
-          channel_type: type,
-          cue_enabled: type === 'customer',
-          auto_extract_enabled: type === 'customer',
-        }, { transaction: t });
-        let participantIds = Array.isArray(cv.participant_user_ids)
-          ? cv.participant_user_ids.filter(uid => validMemberIds.has(uid))
-          : pmRows.map(r => r.user_id);
-        if (!participantIds.includes(req.user.id)) participantIds = [req.user.id, ...participantIds];
-        for (const uid of participantIds) {
-          await ConversationParticipant.create({
-            conversation_id: conv.id, user_id: uid, role: uid === req.user.id ? 'owner' : 'member',
-          }, { transaction: t });
-        }
-        if (type === 'customer' && biz?.cue_user_id) {
-          await ConversationParticipant.create({
-            conversation_id: conv.id, user_id: biz.cue_user_id, role: 'member',
-          }, { transaction: t });
-        }
-      }
-    }
-
-    // Phase D+1: 거래 시퀀스 stage 시드 (트랜잭션 내부에서 — 멱등 보장)
-    const { seedStages, STAGE_TEMPLATE_KEYS, progressProject } = require('../services/projectStageEngine');
-    const tplKey = STAGE_TEMPLATE_KEYS.includes(stage_template)
-      ? stage_template
-      : (project_type === 'ongoing' ? 'subscription' : 'fixed'); // 기본값 매핑
-    await seedStages(project.id, tplKey, t);
-
-    await t.commit();
-
-    // 시드 후 자동 진행 1회 (이미 첨부된 entity 가 있을 수 있어)
-    progressProject(project.id).catch(() => null);
-
-    // 재조회 (연관 포함)
-    const detail = await loadProjectDetail(project.id);
-    require('../services/auditService').logAudit(req, { action: 'project.create', targetType: 'project', targetId: project.id, businessId: Number(project.business_id),
-      newValue: { name: project.name, kind: project.kind, project_type: project.project_type, member_count: members.length, client_count: Array.isArray(clients) ? clients.length : 0 } });
+    const detail = await loadProjectDetail(r.data.project.id);
     return successResponse(res, detail);
   } catch (err) {
-    await t.rollback();
     next(err);
   }
 });
 
-// ============================================
-// GET /api/projects?business_id=X&status=active — 목록
-// N+1 최적화: loadProjectDetail(projectId) 를 프로젝트마다 호출하던 구조 제거.
-// 단일 findAll 에 include 로 연관 한 번에 로드 (기존 응답 시그니처 유지).
-// ============================================
 router.get('/', authenticateToken, async (req, res, next) => {
   try {
     const businessId = Number(req.query.business_id);

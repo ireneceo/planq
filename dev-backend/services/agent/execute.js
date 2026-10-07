@@ -94,7 +94,9 @@ async function runTool(p, name, rawArgs) {
 
       // 멱등 — 키 > 확인 토큰 > 파라미터 지문. 10분 안에 같은 요청은 한 번만 실행한다(설계 §8).
       //   MEDIUM 은 확인 토큰이 곧 키다 — 같은 토큰으로 재시도하면 이미 한 결과를 돌려준다(토큰을 다시 소비하지 않는다).
-      idemKey = crypto.createHash('sha256').update(`${p.grantId}|${name}|${k || ct || stableStringify(rest)}`).digest('hex');
+      //   ★ 확인 토큰을 키로 쓸 때는 인자 지문도 묶는다 — 토큰만 키로 두면, 쓴 토큰을 **다른 인자**로 다시 보냈을 때
+      //     앞 결과를 «replayed» 로 돌려줘 모델이 다른 대상도 처리된 줄 안다(2026-10-07 create_project 검증 실측).
+      idemKey = crypto.createHash('sha256').update(`${p.grantId}|${name}|${k || (ct ? `${ct}|${fp}` : stableStringify(rest))}`).digest('hex');
       const fresh = await store.setIfAbsent('agent_idem', idemKey, { status: 'pending' }, IDEM_TTL_MS);
       if (!fresh) {
         const row = await store.get('agent_idem', idemKey);
@@ -127,7 +129,10 @@ async function runTool(p, name, rawArgs) {
             : data?.file ? { target_type: 'file', target_id: data.file.file_id }
               : data?.document ? { target_type: 'post', target_id: data.document.post_id }
                 // 일정 — 없어서 agent.create_event 감사가 전부 «business» 로 남았다(Fable 59fba176 검증, 2026-10-07)
-                : data?.event?.event_id ? { target_type: 'calendar_event', target_id: data.event.event_id } : {};
+                : data?.event?.event_id ? { target_type: 'calendar_event', target_id: data.event.event_id }
+                  : data?.project?.project_id && data?.created ? { target_type: 'project', target_id: data.project.project_id }
+                    : data?.memo?.memo_id ? { target_type: 'qnote_session', target_id: data.memo.memo_id }
+                      : data?.knowledge_item?.kb_id ? { target_type: 'KbDocument', target_id: data.knowledge_item.kb_id } : {};
 
     if (tool.write) {
       await store.update('agent_idem', idemKey, { status: 'done', result: data, ...target }).catch(() => {});

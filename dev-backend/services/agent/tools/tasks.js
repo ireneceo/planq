@@ -217,10 +217,19 @@ async function createTask(p, a, actor) {
     const ok = await assertAssignable(a.assignee_user_id, p.businessId, projectId);
     if (!ok.ok) throw err('PERMISSION_DENIED', `cannot_assign:${ok.reason}`);
   }
+  // 예상 시간 — 담당자 본인만 정한다(PERMISSION_MATRIX §5.7). 남을 담당자로 지정하면서 넣으면 거절한다.
+  //   담당자를 비우면 프로젝트 기본 담당자 체인이 남을 고를 수 있다 — 그때 행동 계층이 값을 버리고, 응답이 그 사실을 말한다.
+  if (a.estimated_hours !== undefined && a.assignee_user_id && a.assignee_user_id !== p.userId) {
+    throw err('VALIDATION_ERROR', 'estimated_hours_only_for_own_task', { hint: 'Only the assignee sets the estimate. Omit estimated_hours when assigning the task to someone else.' });
+  }
+  // 태그 — 워크스페이스에 **이미 있는** 태그 이름만. 없는 이름은 만들지 않고 있는 목록을 알려 준다(Fable B 판정 3 ③).
+  const tagIds = await resolveTagNames(p, a.tag_names);
   const taskActions = require('../../actions/task_actions');
   const r = await taskActions.createTask(actor, {
     businessId: p.businessId,
     title: a.title,
+    estimatedHours: a.estimated_hours !== undefined ? a.estimated_hours : null,
+    tagIds,
     description: a.description || null,
     dueDate: a.due_date || null,
     startDate: a.start_date || null,
@@ -237,7 +246,36 @@ async function createTask(p, a, actor) {
   const t = await loadTask(p, r.data.task.id, scope);
   const [item] = await shapeTasks([t], p.businessId);
   const extras = await taskExtras(p, t, scope);
-  return { task: { ...item, source: extras.source }, created: true };
+  const out = { task: { ...item, source: extras.source, tags: a.tag_names && a.tag_names.length ? await tagNamesOf(p, t.id) : undefined }, created: true };
+  if (a.estimated_hours !== undefined) {
+    out.task.estimated_hours = t.estimated_hours != null ? Number(t.estimated_hours) : null;
+    if (t.estimated_hours == null) out.note = 'estimated_hours was not saved: the task is assigned to someone else, and only the assignee sets the estimate.';
+  }
+  return out;
+}
+
+// ── 태그 — 이름 → id (있는 것만) ───────────────────────────
+async function resolveTagNames(p, names) {
+  const want = [...new Set((names || []).map((n) => String(n).normalize('NFC').trim()).filter(Boolean))];
+  if (!want.length) return [];
+  const { TaskTag } = require('../../../models');
+  const all = await TaskTag.findAll({ where: { business_id: p.businessId }, attributes: ['id', 'name'], order: [['sort_order', 'ASC'], ['name', 'ASC']] });
+  // 사전 UNIQUE 가 대소문자 무시(ai_ci)라 비교도 대소문자 무시
+  const byName = new Map(all.map((x) => [x.name.normalize('NFC').toLowerCase(), x.id]));
+  const unknown = want.filter((n) => !byName.has(n.toLowerCase()));
+  if (unknown.length) {
+    throw err('VALIDATION_ERROR', 'unknown_tags', {
+      unknown_tags: unknown, available_tags: all.map((x) => x.name).slice(0, 100),
+      hint: 'PlanQ only attaches tags that already exist in this workspace. Use one of available_tags, or leave tags out.',
+    });
+  }
+  return want.map((n) => byName.get(n.toLowerCase()));
+}
+
+async function tagNamesOf(p, taskId) {
+  const { attachTagsTo } = require('../../../routes/task_tags');
+  const [row] = await attachTagsTo([{ id: taskId }], p.businessId);
+  return (row.tags || []).map((x) => x.name);
 }
 
 // ── get_task_notes / add_task_note ──────────────────────────
@@ -381,6 +419,56 @@ async function updateTask(p, a, actor) {
   return { task: { ...item, description: fresh.description || null } };
 }
 
+// ── add_task_reviewers (MEDIUM) — 컨펌자 지정. 지정된 사람에게 알림이 가고 확인필요에 뜬다(Fable B 판정 3) ──
+//   실행은 행동 계층 task_actions.addReviewer(화면 «컨펌자 추가» 와 같은 함수 — 권한·배정 게이트·이력·알림·감사).
+//   미리보기가 같은 판정을 먼저 본다(거절될 요청에 확인 토큰을 내주지 않는다).
+async function checkReviewers(p, t, ids) {
+  const taskActions = require('../../actions/task_actions');
+  if (!(await taskActions.canManageReviewers(t, p.userId))) throw err('PERMISSION_DENIED', 'forbidden_reviewers', { hint: 'Only the assignee, the requester or a workspace owner can set reviewers.' });
+  if (['completed', 'canceled'].includes(t.status)) throw err('CONFLICT', 'task_closed');
+  const { TaskReviewer } = require('../../../models');
+  const { assertAssignable } = require('../../../middleware/access_scope');
+  const existing = new Set((await TaskReviewer.findAll({ where: { task_id: t.id }, attributes: ['user_id'] })).map((r) => r.user_id));
+  const want = [...new Set(ids.map(Number))];
+  const out = [];
+  for (const uid of want) {
+    if (uid === t.assignee_id) throw err('VALIDATION_ERROR', 'assignee_cannot_be_reviewer', { user_id: uid });
+    if (existing.has(uid)) throw err('CONFLICT', 'already_reviewer', { user_id: uid });
+    const chk = await assertAssignable(uid, p.businessId, t.project_id);
+    if (!chk.ok) throw err('PERMISSION_DENIED', `cannot_assign:${chk.reason}`, { user_id: uid });
+    out.push({ user_id: uid, name: await memberName(p, uid), is_client: chk.kind === 'client' });
+  }
+  return out;
+}
+
+async function previewAddReviewers(p, a) {
+  await assertMenu(p, 'qtask', 'read');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const reviewers = await checkReviewers(p, t, a.reviewer_user_ids);
+  return {
+    task: { task_id: t.id, title: t.title },
+    add_reviewers: reviewers,
+    note: 'Each reviewer is notified and the task waits for their sign-off before it can be completed.',
+  };
+}
+
+async function addReviewers(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  await checkReviewers(p, t, a.reviewer_user_ids);
+  const taskActions = require('../../actions/task_actions');
+  const added = [];
+  for (const uid of [...new Set(a.reviewer_user_ids.map(Number))]) {
+    const fresh = await loadTask(p, t.id, await scopeOf(p));   // 라운드 리셋으로 status 가 바뀔 수 있다 — 매번 새로 읽는다
+    const r = await taskActions.addReviewer(fresh, actor, { userId: uid });
+    if (!r.ok) throw fromActionFailure(r);
+    added.push({ user_id: uid, name: await memberName(p, uid) });
+  }
+  const after = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([after], p.businessId);
+  return { task: item, reviewers_added: added };
+}
+
 /** 출처로 쓸 업무(create_event source) — get_task 와 같은 문(워크스페이스 묶음 + canAccessTask). */
 async function loadTaskForSource(p, taskId) {
   return loadTask(p, taskId, await scopeOf(p));
@@ -390,5 +478,6 @@ module.exports = {
   loadTaskForSource,
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
   previewReschedule, rescheduleTask, previewComplete, completeTask,
-  previewAssign, assignTask, updateTask,
+  previewAssign, assignTask, updateTask, memberName,
+  previewAddReviewers, addReviewers,
 };

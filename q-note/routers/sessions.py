@@ -367,6 +367,58 @@ async def internal_read_session(
   })
 
 
+# ─── AI 앱이 텍스트 메모를 만든다 (2026-10-07, Fable B 판정 3 — create_memo) ───
+#   Node `services/qnoteContext.createMemo` 한 통로만 부른다(x-internal-api-key). 신원(user_id·business_id)은 Node 가
+#   AI 연결(grant) 토큰에서 꺼내 넘긴다 — 화면 생성(POST /api/sessions)과 같은 칸만 쓴다(text 메모).
+#   ★ 공개 범위는 손대지 않는다 — 컬럼 기본값 L1(본인만). 넓히는 것은 사람이 화면에서 한다.
+#   ★ 프로젝트·고객 연결은 화면 생성과 **같은 술어**(_belongs_to_business) — 남의 워크스페이스 번호를 못 붙인다.
+class InternalCreateMemoRequest(BaseModel):
+  user_id: int
+  business_id: int
+  title: str = Field(..., min_length=1, max_length=200)
+  body: Optional[str] = None
+  project_id: Optional[int] = None
+  client_id: Optional[int] = None
+
+
+@router.post('/internal/create-memo')
+async def internal_create_memo(
+    body: InternalCreateMemoRequest,
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  _validate_body(body.body)
+  # 멤버 확인 — 확인 못 하면(None) 거절한다(내부 문은 fail-closed. 화면 생성은 fail-open 이지만 여기는 사람이 없다)
+  member = await check_membership(body.user_id, body.business_id)
+  if member is not True:
+    raise HTTPException(status_code=403, detail='not a member of this workspace')
+  if body.project_id is not None and not await _belongs_to_business('project', body.project_id, body.business_id):
+    raise HTTPException(status_code=403, detail='project_not_in_workspace')
+  if body.client_id is not None and not await _belongs_to_business('client', body.client_id, body.business_id):
+    raise HTTPException(status_code=403, detail='client_not_in_workspace')
+  async with db_connect() as db:
+    db.row_factory = aiosqlite.Row
+    cursor = await db.execute(
+      '''INSERT INTO sessions
+           (business_id, user_id, title, language, status, capture_mode, input_type, translate_enabled, body,
+            project_id, client_id)
+         VALUES (?, ?, ?, 'multi', 'active', 'text', 'text', 0, ?, ?, ?)''',
+      (body.business_id, body.user_id, body.title, body.body, body.project_id, body.client_id),
+    )
+    await db.commit()
+    session_id = cursor.lastrowid
+    cur = await db.execute(
+      'SELECT id, title, created_at, project_id, client_id, visibility FROM sessions WHERE id = ?', (session_id,),
+    )
+    row = await cur.fetchone()
+  return success({
+    'id': row['id'], 'title': row['title'], 'created_at': row['created_at'],
+    'project_id': row['project_id'], 'client_id': row['client_id'], 'visibility': row['visibility'],
+  })
+
+
 # ─── 계정 삭제(회원 탈퇴) 시 Q Note 개인 데이터 전량 삭제 (ACCOUNT_DELETION_DESIGN D6) ───
 #   Node accountAnonymize.js 가 익명화 후 호출. 음성 지문(생체정보)·세션·전사·요약·문서 삭제.
 #   SQLite CASCADE 를 신뢰하지 않고 FK 순서대로 명시 삭제.

@@ -84,4 +84,42 @@ async function addProjectNote(p, a, actor) {
   };
 }
 
-module.exports = { addClientInteraction, addProjectNote };
+// ── create_memo — Q note 텍스트 메모 (2026-10-07, Fable B 판정 3) ───────────────
+//   q-note 는 별도 서비스라 내부 키 통로(services/qnoteContext.createMemo)로 만든다 — 소유 확인(qnoteOwnership)과 같은 통로.
+//   공개 범위는 L1(본인만) 그대로 — 넓히는 것은 사람이 화면에서 한다(Fable B 판정 3 ④).
+//   프로젝트·고객 연결은 q-note 가 화면 생성과 같은 술어(_belongs_to_business)로 다시 본다.
+async function createMemo(p, a) {
+  await menuLevel(p, 'qnote', 'write');
+  const { Project } = require('../../../models');
+  if (a.project_id && !(await Project.findOne({ where: { id: a.project_id, business_id: p.businessId }, attributes: ['id'] }))) throw err('NOT_FOUND', 'project_not_found');
+  if (a.client_id) {
+    const { findClient } = require('../../saleCommon');
+    if (!(await findClient(p.businessId, a.client_id))) throw err('NOT_FOUND', 'client_not_found');
+  }
+  const { markdownToDoc } = require('../markdown');
+  const { createMemo: create } = require('../../qnoteContext');
+  const r = await create({
+    businessId: p.businessId, userId: p.userId, title: a.title,
+    bodyJson: JSON.stringify(markdownToDoc(a.body || '')),
+    projectId: a.project_id || null, clientId: a.client_id || null,
+  });
+  if (r.status === 'forbidden') {
+    if (/project/.test(r.reason)) throw err('NOT_FOUND', 'project_not_found');
+    if (/client/.test(r.reason)) throw err('NOT_FOUND', 'client_not_found');
+    throw err('PERMISSION_DENIED', 'members_only');
+  }
+  if (r.status === 'invalid') throw err('VALIDATION_ERROR', r.reason);
+  if (r.status !== 'ok') throw err('INTERNAL', 'qnote_unavailable');
+  const m = r.memo;
+  return {
+    memo: {
+      memo_id: m.id, title: m.title, visibility: m.visibility || 'L1',
+      project_id: m.project_id || null, client_id: m.client_id || null,
+      created_at: m.created_at || null, url: `${cfg.APP_URL}/notes/${m.id}`,
+    },
+    note: 'Saved as a private memo (only you can see it). You can share it from Q note.',
+    created: true,
+  };
+}
+
+module.exports = { addClientInteraction, addProjectNote, createMemo };

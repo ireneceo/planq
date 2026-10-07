@@ -615,6 +615,17 @@ async function createTask(actor, params = {}, opts = {}) {
       });
     }
 
+    // 태그 — 이 워크스페이스 사전에 **이미 있는** 태그만 붙인다(새로 만들지 않는다 — Fable B 판정 3 ③).
+    //   남의 워크스페이스 id 가 섞이면 통째로 거절한다(routes/task_tags PUT /:id/tags 와 같은 규칙·상한).
+    if (Array.isArray(params.tagIds) && params.tagIds.length) {
+      const { TaskTag, TaskTagLink } = require('../../models');
+      const wanted = [...new Set(params.tagIds.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+      if (wanted.length > 10) throw Object.assign(new Error('too_many_tags'), { actionCode: 'too_many_tags' });
+      const valid = await TaskTag.findAll({ where: { id: wanted, business_id: businessId }, attributes: ['id'], transaction: t });
+      if (valid.length !== wanted.length) throw Object.assign(new Error('invalid_tag'), { actionCode: 'invalid_tag' });
+      await TaskTagLink.bulkCreate(wanted.map((tag_id) => ({ task_id: task.id, tag_id })), { transaction: t });
+    }
+
     // AI 추천 예측값 박제 (confirm 경로 — 이미 값을 갖고 왔다).
     //   예측시간이 §5.7 로 sanitize 됐으면(요청 업무) 예측 row 도 남기지 않는다 — 옛 동작 그대로.
     if (opts.estimation && opts.estimation.value && effectiveEstimatedHours) {
@@ -630,6 +641,7 @@ async function createTask(actor, params = {}, opts = {}) {
     if (!external) await t.commit();
   } catch (e) {
     if (!external) await t.rollback();
+    if (e && e.actionCode && !external) return fail(e.actionCode, 400);
     throw e;
   }
 

@@ -83,4 +83,36 @@ async function readNote({ businessId, userId, sessionId, offset = 0, maxChars = 
   finally { clearTimeout(timer); }
 }
 
-module.exports = { searchMyNotes, searchNotes, readNote };
+/**
+ * 텍스트 메모 만들기(AI 앱 create_memo, 2026-10-07 Fable B 판정 3) — q-note `internal/create-memo`.
+ *   신원은 부르는 쪽이 토큰에서 꺼낸 값만 넘긴다. 공개 범위는 q-note 기본값(L1 — 본인만).
+ *   ★ 실패를 성공으로 위장하지 않는다 — 'unavailable' 이면 부르는 쪽이 오류로 알린다(쓰기는 fail-closed).
+ * @param {{businessId:number, userId:number, title:string, bodyJson:string, projectId?:number|null, clientId?:number|null}} a
+ * @returns {Promise<{status:'ok', memo:object}|{status:'forbidden', reason:string}|{status:'invalid', reason:string}|{status:'unavailable'}>}
+ */
+async function createMemo({ businessId, userId, title, bodyJson, projectId = null, clientId = null }) {
+  const key = process.env.INTERNAL_API_KEY;
+  if (!key || !businessId || !userId) return { status: 'unavailable' };
+  const base = process.env.QNOTE_INTERNAL_URL || 'http://localhost:8000';
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS * 3);
+  try {
+    const r = await fetch(`${base}/api/sessions/internal/create-memo`, {
+      method: 'POST',
+      headers: { 'x-internal-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId, business_id: businessId, title, body: bodyJson, project_id: projectId, client_id: clientId }),
+      signal: ctrl.signal,
+    });
+    if (r.status === 403) {
+      const j = await r.json().catch(() => ({}));
+      return { status: 'forbidden', reason: String(j?.detail || 'forbidden') };
+    }
+    if (r.status === 400 || r.status === 422) return { status: 'invalid', reason: 'invalid_input' };
+    if (!r.ok) return { status: 'unavailable' };
+    const j = await r.json();
+    return j?.data ? { status: 'ok', memo: j.data } : { status: 'unavailable' };
+  } catch { return { status: 'unavailable' }; }
+  finally { clearTimeout(timer); }
+}
+
+module.exports = { searchMyNotes, searchNotes, readNote, createMemo };

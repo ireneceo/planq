@@ -1038,7 +1038,7 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
 - **도구는 `services/agent/registry.js` 한 벌, 실행은 `execute.runTool` 하나** — scope → 계량(`use_cue` 1회) → 멱등(키 또는 파라미터 지문 10분) → 행동 계층 → 감사(`agent.<tool>` + 행동 계층 행에 `via: agent:<provider>`).
 - **MEDIUM(마감 변경·완료 — 2026-10-02 M2-a)은 확인 2단계** — 첫 호출은 실행하지 않고 `CONFIRMATION_REQUIRED{preview, confirmation_token}`
   (5분·1회·연결×도구×인자 지문에 묶임), 사용자가 동의하면 같은 인자+토큰으로 다시 부른다. 같은 토큰 재시도는 `replayed`.
-  도구 17개: 업무 6 + 고객·프로젝트·멤버 조회 5 + 일정 조회/생성 2 + MEDIUM 3(마감·완료·담당자) + 필드 수정 1. 고객·프로젝트 응답에 **금액 없음**(HIGH).
+  도구 44개(2026-10-07 기준 — 정본은 `services/agent/registry.js`, 설계서 §6.3 표). 고객·프로젝트 응답에 **금액 없음**(HIGH).
 - **업무 필드 권한 표(`FIELD_RULES`)·담당자 이력·담당자 후속(Cue 자동 실행·알림)은 행동 계층에 있다**(2026-10-02 M2-b 에서
   `PUT /tasks/:id` 인라인을 옮겼다). 사람(PUT)과 AI(`reassign`·`updateFields`)가 같은 함수를 쓴다 — 규칙을 바꾸면 한 곳만 고친다.
   미리보기(MEDIUM 1단계)도 실행과 같은 판정을 먼저 본다(거절될 요청에 확인 토큰을 내주지 않는다).
@@ -1047,6 +1047,12 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
   메일 답장 초안에 `file_ids`(보내지 않는다). 문서 쓰기는 **`services/actions/post_actions` 한 곳**(화면 `POST /api/posts`·첨부 라우트도 같은 함수),
   파일 저장은 `driveImport.ingestDownloadedFile`(Drive 가져오기와 같은 함수), 업무 첨부는 `services/taskAttachmentLink`.
   scope `docs:write`·`files:write` 는 **새로 생겼다 — 이미 연결된 앱은 다시 연결해야** 생긴다(옛 동의를 조용히 넓히지 않는다).
+- **쓰기 보강(2026-10-07, Fable B 판정 2·3)** — `create_project`(MEDIUM · scope **`projects:write` 신설 → 재연결 필요** · 이미 있는 고객·멤버만,
+  미리보기에 이름 · 초대 메일 없음 · 계정 고객은 그 고객 채널에 들인다) · `add_task_reviewers`(MEDIUM, 컨펌자에게 알림) · `create_memo`(Q note 텍스트 메모, L1 고정,
+  q-note `internal/create-memo`) · `create_knowledge_item`(Q info, 비밀 칸 거절, 기본 나만 보기) · `create_task` 에 `tag_names`(**있는 태그만** — AI 가 태그를 만들지 않는다)·
+  `estimated_hours`(담당자=본인일 때만). 프로젝트 생성은 **`services/actions/project_actions` 한 곳**(화면 `POST /api/projects` 도), Q info 생성은
+  **`services/actions/kb_actions` 한 곳**(화면 라우트도 — 입력 정규화 헬퍼는 `services/kbFields`). MEDIUM 의 멱등 키는 확인 토큰 **+ 인자 지문**이다
+  (쓴 토큰을 다른 인자로 보내면 앞 결과를 «replayed» 로 돌려주던 구멍을 막았다).
 - **HIGH(삭제·청구·발송·권한·대량)는 도구로 두지 않는다** — 가드 `--category=agentsurface` 가 막는다(도메인 모델 직접 쓰기 0 · 재무 참조 0 · 고위험 이름 0 · 쓰기 도구 scope·멱등 선언 · 워크스페이스 묶음).
 - **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. **쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다**(기본 꺼짐 — `config.writeEnabled`). 2026-10-04 운영에 셋 다 넣었다.
 - **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).

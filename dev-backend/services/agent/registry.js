@@ -12,6 +12,8 @@ const mail = require('./tools/mail');
 const content = require('./tools/content');
 const search = require('./tools/search');
 const docsw = require('./tools/docs_write');
+const proj = require('./tools/projects');
+const kbw = require('./tools/knowledge_write');
 const { pageInput, LIST_SUFFIX } = require('./page');
 
 const dateOnly = t.dateOnly;
@@ -64,6 +66,10 @@ const TOOLS = [
       project_id: z.number().int().positive().optional(),
       client_id: z.number().int().positive().optional(),
       priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+      tag_names: z.array(z.string().trim().min(1).max(30)).max(10).optional()
+        .describe('Names of tags that already exist in this workspace. Unknown names are rejected with the list of available tags — PlanQ does not create new tags from here.'),
+      estimated_hours: z.number().min(0).max(1000).optional()
+        .describe('Estimated hours. Only when the task is assigned to the user themselves (the assignee sets the estimate).'),
       source: z.union([mailSource, chatSource]).optional().describe(SOURCE_DESC),
       idempotency_key: idem,
     },
@@ -89,6 +95,18 @@ const TOOLS = [
       idempotency_key: idem,
     },
     handler: (p, a, actor) => t.addTaskNote(p, a, actor),
+  },
+  // ── 2026-10-07 Fable B 판정 3 — 컨펌자 지정(MEDIUM: 지정된 사람에게 알림이 간다) ──
+  {
+    name: 'add_task_reviewers', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    description: 'Add reviewers (people who must sign off) to a task. Find user_id with search_members. Each reviewer is notified and the task cannot be completed until they approve. Only the assignee, the requester or a workspace owner can do this. Requires confirmation: the first call only returns a preview with the reviewers\' names.',
+    input: {
+      task_id: z.number().int().positive(),
+      reviewer_user_ids: z.array(z.number().int().positive()).min(1).max(10),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => t.previewAddReviewers(p, a),
+    handler: (p, a, actor) => t.addReviewers(p, a, actor),
   },
   // ── #453 «2번» — 대화 결과를 PlanQ 에 기록(상담·프로젝트 메모). 추가만 한다 ─────────
   {
@@ -430,6 +448,51 @@ const TOOLS = [
     },
     _meta: { 'openai/fileParams': ['file'] },
     handler: (p, a, actor) => docsw.uploadFile(p, a, actor),
+  },
+  // ── 2026-10-07 Fable B 판정 2·3 — 프로젝트 만들기(MEDIUM) · Q note 메모 · Q info 항목 ──
+  {
+    name: 'create_project', risk: 'MEDIUM', write: true, scopes: ['projects:write'],
+    description: 'Create a new project in PlanQ. You can add existing workspace members (member_user_ids from search_members) and link existing clients of this workspace (client_ids from search_clients). PlanQ does not create or invite new clients or members here and sends no email. Clients that have a PlanQ account will see the project and their client chat right away. An internal chat (and a client chat for client projects) is created. Requires confirmation: the first call only returns a preview with the names of the members and clients that will be connected.',
+    input: {
+      name: z.string().trim().min(1).max(200),
+      description: z.string().max(5000).optional(),
+      kind: z.enum(['client', 'internal']).describe('"client" for work for a client, "internal" for internal work'),
+      project_type: z.enum(['fixed', 'ongoing']).optional().describe('"fixed" (has an end, default) or "ongoing"'),
+      start_date: dateOnly.optional(), end_date: dateOnly.optional(),
+      stage_template: z.enum(['fixed', 'subscription', 'consulting', 'custom']).optional().describe('Deal stage template (quote → contract → invoice …). Default follows project_type.'),
+      client_ids: z.array(z.number().int().positive()).max(10).optional(),
+      member_user_ids: z.array(z.number().int().positive()).max(30).optional(),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => proj.previewCreateProject(p, a),
+    handler: (p, a, actor) => proj.createProject(p, a, actor),
+  },
+  {
+    name: 'create_memo', risk: 'LOW', write: true, scopes: ['notes:write'],
+    description: 'Save a private text memo in PlanQ Q note (title + body in Markdown), optionally linked to a project or client. Only the user can see it until they share it in PlanQ. Only adds.',
+    input: {
+      title: z.string().trim().min(1).max(200),
+      body: z.string().max(100000).describe('Memo body in Markdown'),
+      project_id: z.number().int().positive().optional(),
+      client_id: z.number().int().positive().optional(),
+      idempotency_key: idem,
+    },
+    handler: (p, a) => notes.createMemo(p, a),
+  },
+  {
+    name: 'create_knowledge_item', risk: 'LOW', write: true, scopes: ['docs:write'],
+    description: 'Add an item to PlanQ Q info (the team\'s reference information: guides, policies, account lists…). Give a title, a body and a category, and optionally named fields (e.g. {"Service": "…", "URL": "…"}). Passwords, tokens or keys are not accepted. Who can see it: "private" (only the user, default), "project" (that project\'s members), "workspace" (all members) or "client" (that client can see it too).',
+    input: {
+      title: z.string().trim().min(1).max(300),
+      body: z.string().max(100000).optional(),
+      category: z.string().trim().min(1).max(40),
+      scope: z.enum(['private', 'project', 'workspace', 'client']).optional(),
+      project_id: z.number().int().positive().optional(),
+      client_id: z.number().int().positive().optional(),
+      fields: z.record(z.string().max(60), z.string().max(5000)).optional().describe('Named fields, name → value (max 30)'),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => kbw.createKnowledgeItem(p, a, actor),
   },
   // ── M2-a — MEDIUM(확인 2단계): 첫 호출은 미리보기만, 동의 후 confirmation_token 으로 실행 ──
   {

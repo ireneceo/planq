@@ -287,7 +287,12 @@ adapter 는 **인증 모양과 메타만** 바꾼다. 툴 목록·스키마·정
 | 고객 상담 기록 | `add_client_interaction` | LOW | `POST /api/sale/:biz/clients/:id/interactions` 로직 | «오늘 논의 상담으로 저장» |
 | 일정 조회 | `list_events` | LOW | `calendarListWhere` + 반복 전개(목록 라우트 함수 추출, 400일 캡) | |
 | 일정 생성 | `create_event` | LOW(단건) | `event_actions.createEvent` | 참석자 지정은 MEDIUM(알림 발송) → v1 은 참석자 없이 |
-| 다건 생성 | (없음) | MEDIUM | — | 모델이 `create_task` 를 N번 부른다. **한 대화에서 10분 내 5건 초과**면 6번째부터 CONFIRMATION_REQUIRED(정책 §7) |
+| 프로젝트 만들기 (2026-10-07) | `create_project` | **MEDIUM** | **신설 `project_actions.createProject`**(POST /api/projects 본문 이전 — 화면도 같은 함수) | scope `projects:write`(신설·재연결). 이미 있는 고객(`client_ids`)·멤버(`member_user_ids`)만 · 미리보기에 이름·계정 고객 가시성 · 요금제 한도를 미리보기에서 먼저 · 채널 = 내부(+고객 프로젝트면 고객) · 초대 메일 없음 · 계정 고객은 `joinProjectCustomerChannels` |
+| 업무 태그·예상시간 (2026-10-07) | `create_task` `tag_names?`·`estimated_hours?` | LOW | `task_actions.createTask` `tagIds`·`estimatedHours` | 태그는 **있는 것만**(없으면 VALIDATION + 목록, 만들지 않음) · 예상시간은 담당자=본인일 때만(§5.7) |
+| 컨펌자 지정 (2026-10-07) | `add_task_reviewers` | **MEDIUM** | `task_actions.addReviewer`(알림·이력·감사) | 미리보기에 이름 · 실행과 같은 판정(권한·배정 게이트·중복) |
+| Q note 메모 (2026-10-07) | `create_memo` | LOW | q-note `POST /api/sessions/internal/create-memo`(내부 키, `qnoteContext.createMemo`) | L1(본인만) 고정 · 프로젝트/고객 소속은 q-note `_belongs_to_business` |
+| Q info 항목 (2026-10-07) | `create_knowledge_item` | LOW | **신설 `kb_actions.createDocument`**(kb 생성 라우트 본문 이전 — 화면도 같은 함수) | scope `docs:write` · 메뉴 qinfo 쓰기 · 비밀 칸 거절 · 기본 private(L1) |
+| 다건 생성 | (없음) | MEDIUM | — | 모델이 `create_task` 를 N번 부른다. **한 대화에서 10분 내 5건 초과**면 6번째부터 CONFIRMATION_REQUIRED(정책 §7) — ★ 2026-10-07 확인: **아직 구현되지 않았다**(execute.js 에 창 없음) |
 
 제외(HIGH 또는 범위 밖): 삭제 전부 · 상태 임의 변경(`status` 직접) · 청구/계약/금액 · 메일·채팅 **발송** · 멤버/권한 변경 · 공유 링크 발급 · 파일 업로드.
 
