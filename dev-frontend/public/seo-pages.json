@@ -3,9 +3,9 @@
   "origin": "https://planq.kr",
   "siteName": "PlanQ",
   "definition": {
-    "_comment": "PlanQ 정의 한 문장 — 정본. 스키마(Organization·SoftwareApplication description)·llms.txt 첫 문단이 같은 문장을 쓴다(2026-10-04 GEO §7-③). 홈 meta description 은 Google OAuth 심사 문장이라 따로 둔다(지우지 말 것).",
-    "ko": "PlanQ(플랜큐)는 의뢰받아 일하는 팀을 위한 고객 업무 플랫폼입니다. 고객 대화·업무·회의 기록·문서·전자서명·청구를 한 화면에서 처리하고, ChatGPT·Claude 에서도 바로 씁니다.",
-    "en": "PlanQ is a client work platform for teams that work on commission — client chat, tasks, meeting notes, documents, e-signatures and billing in one place, also usable from ChatGPT and Claude."
+    "_comment": "PlanQ 정의 한 문장 — 정본. 스키마(Organization·SoftwareApplication description)·llms.txt 첫 문단이 같은 문장을 쓴다(2026-10-04 GEO §7-③). 홈 meta description 은 Google OAuth 심사 문장이라 따로 둔다(지우지 말 것). ★ 2026-10-07 Irene — 주 업무는 업무관리·내부소통이다. «의뢰형 고객 업무 플랫폼» 정의(10-04)를 원래 문장으로 되돌렸다.",
+    "ko": "PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다. 고객 대화(Q talk), 업무(Q task), 회의 기록·요약(Q note), 자료(Q file), 청구(Q bill)가 하나의 흐름으로 연결됩니다.",
+    "en": "PlanQ is a business management and collaboration platform: client chat, tasks, meeting notes, files and billing in one connected workflow."
   },
   "ogImage": "https://planq.kr/og-default.png",
   "pages": [
@@ -22,17 +22,17 @@
         "en": "PlanQ is a business management and collaboration platform that helps teams manage work, projects, schedules, and business operations in one place, with Google Calendar sync."
       },
       "h1": {
-        "ko": "PlanQ — 의뢰받은 일, 고객 요청부터 청구까지 한 화면에서",
-        "en": "PlanQ — Client work, from first request to final invoice, in one place"
+        "ko": "PlanQ — 일이 일이 되지 않게",
+        "en": "PlanQ — Work that works"
       },
       "intro": {
         "ko": [
-          "의뢰형 비즈니스를 위한 고객 업무 플랫폼입니다.",
-          "고객은 링크로 바로 들어오고, 대화가 업무·문서·서명·청구로 이어집니다."
+          "업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결합니다.",
+          "대화, 할일, 자료, 회의, 청구까지 — 업무의 모든 흐름이 한 곳에서 실행됩니다."
         ],
         "en": [
-          "The client work platform for service businesses.",
-          "Clients join with a single link, and every conversation flows into tasks, documents, signatures and invoices."
+          "Connect work, projects, people, time, clients and billing.",
+          "Chat, tasks, files, meetings and billing — every workflow runs in one place."
         ]
       },
       "label": "홈",

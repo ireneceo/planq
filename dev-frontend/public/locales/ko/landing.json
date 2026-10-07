@@ -15,23 +15,21 @@
   },
   "hero": {
     "slogan": "일이 일이 되지 않게",
-    "preHeadline": "의뢰형 비즈니스를 위한 고객 업무 플랫폼",
-    "headline1": "의뢰받은 일,",
-    "headlineHighlight": "고객 요청부터 청구까지",
-    "headline2": "한 화면에서",
-    "sub1": "고객은 링크로 바로 들어오고,",
-    "sub2": "대화가 업무·문서·서명·청구로 이어집니다.",
-    "cta": "14일 무료로 시작",
+    "preHeadline": "업무, 프로젝트, 사람, 시간, 고객, 청구를",
+    "headline1": "하나로 연결해",
+    "headlineHighlight": "시간을 돈으로 바꾸는",
+    "headline2": "수익성 엔진",
+    "sub1": "대화, 할일, 자료, 회의, 청구까지 —",
+    "sub2": "업무의 모든 흐름이 한 곳에서 실행됩니다.",
+    "cta": "무료로 시작하기",
     "purpose1": "PlanQ는 업무, 프로젝트, 일정 등 기업의 업무 운영을 하나의 공간에서 관리할 수 있는 비즈니스 업무관리 및 협업 플랫폼입니다.",
-    "purpose2": "Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다.",
-    "ctaAudit": "무료 업무 진단 신청",
-    "note": "카드 없이 14일 · 언제든 해지"
+    "purpose2": "Google Calendar를 연결하면 PlanQ의 일정과 Google Calendar 일정을 연동하여 관리할 수 있습니다."
   },
   "problem": {
     "tag": "Problem",
-    "title1": "고객 일은 카톡에서 시작해",
-    "title2": "엑셀 청구서로 끝납니다.",
-    "desc1": "그 사이 어디에 무엇이 있는지 아는 사람은 한 명뿐입니다.",
+    "title1": "지금, 당신의 업무는",
+    "title2": "몇 개의 도구에 흩어져 있나요?",
+    "desc1": "도구가 많아질수록 정작 일은 느려집니다.",
     "desc2": "어디서 뭘 확인해야 하는지 찾는 것 자체가 업무가 됩니다.",
     "items": [
       {
@@ -168,9 +166,9 @@
         "planq": "프로젝트별 자료함"
       },
       "agreement": {
-        "label": "합의·서명",
+        "label": "합의 기록",
         "old": "카톡 캡처, 메일 보관",
-        "planq": "자동 기록 + 링크로 전자서명"
+        "planq": "자동 기록 + 감사 로그"
       },
       "meeting": {
         "label": "회의 정리",
@@ -199,24 +197,20 @@
   },
   "target": {
     "tag": "For Teams",
-    "title1": "의뢰받아 일하는 팀이라면",
-    "title2": "PlanQ가 맞습니다.",
-    "outsource": {
-      "title": "외주·에이전시",
-      "items": "광고·마케팅 · 개발 외주 · 디자인 스튜디오 · 인테리어",
-      "pain": "요청이 많고 수정이 잦은 일"
-    },
-    "pro": {
-      "title": "전문직 사무소",
-      "items": "법률·특허 · 회계·세무 · 컨설팅",
-      "pain": "고객 이력과 합의가 곧 증거인 일"
-    }
+    "title1": "이런 팀에게",
+    "title2": "PlanQ가 필요합니다.",
+    "agency": "광고대행사",
+    "dev": "개발회사 · IT 외주",
+    "studio": "브랜딩 스튜디오",
+    "construction": "건설 · 인테리어",
+    "consulting": "컨설팅 · 회계",
+    "legal": "법무 · 특허"
   },
   "finalCta": {
     "head": "일이 일이 되지 않게, PlanQ",
     "sub": "설치 없이 웹에서 바로 시작하세요.",
-    "primary": "14일 무료로 시작",
-    "secondary": "무료 업무 진단 신청"
+    "primary": "무료로 시작하기",
+    "secondary": "기능 둘러보기"
   },
   "footer": {
     "tagline": "일이 일이 되지 않게, 플랜큐",

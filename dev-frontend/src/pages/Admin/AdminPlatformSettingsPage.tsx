@@ -350,7 +350,7 @@ const AdminPlatformSettingsPage = () => {
             <Input
               value={data.seo_description || ''}
               onChange={(e) => set('seo_description', e.target.value)}
-              placeholder={t('platform.seoDescPh', '의뢰받은 일, 고객 요청부터 청구까지 한 화면에서.') as string}
+              placeholder={t('platform.seoDescPh', '업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진.') as string}
               maxLength={500}
             />
           </AutoSaveField>
