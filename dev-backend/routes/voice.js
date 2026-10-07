@@ -20,7 +20,16 @@ const { matchMemberByName } = require('../services/aiTaskPlanner');
 const { todayInTz, addDaysStr } = require('../utils/datetime');
 const { correctWhenStart, calendarHint } = require('../services/relativeDate');
 const plan = require('../services/plan');
-const { CueUsage, Business, BusinessMember, User } = require('../models');
+const { CueUsage, Business, BusinessMember, User, Project, Client } = require('../models');
+// #458 — 결과를 Cue 와 같게: 같은 툴 카탈로그·멤버 로스터·제안 해석·확인 카드(CueActionCard)·실행 문(/api/cue/execute-action).
+//   음성 전용 분류기를 따로 키우면 Cue 와 결과가 갈라진다(Irene: "Cue랑 결과를 같게 가져올 수 없어?").
+const cueTools = require('../services/cue_tools');
+// Cue 와 같은 킬스위치 — 꺼져 있으면 실행 문(execute-action)도 403 이므로 옛 분류(의도 → 폼 착지)로 떨어진다.
+const CUE_TOOLS_ENABLED = process.env.CUE_TOOLS_ENABLED !== '0';
+// 말로는 '만들기' 만 제안한다 — 기존 업무 전이(검토 요청·완료·댓글)는 대상 업무가 화면 맥락에서 와야 해서 뺀다.
+const VOICE_TOOLS = new Set(['create_task', 'create_event', 'create_document_draft']);
+// Q note 와 같은 인식 엔진 — nova-3 + keyterm(이름 힌트). 여태 nova-2 · 힌트 없음이라 이름을 자주 틀렸다.
+const VOICE_STT_MODEL = process.env.DEEPGRAM_VOICE_MODEL || 'nova-3';
 
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
 const MAX_AUDIO_BYTES = 3 * 1024 * 1024;   // 30초 opus ≈ 300KB. 3MB 면 넉넉하고 폭주는 막는다
@@ -51,14 +60,21 @@ async function recordVoiceUsage(businessId, inTok, outTok) {
 }
 
 // ── STT (Deepgram prerecorded) — 짧은 발화는 실시간 WS 보다 싸고 단순하다
-async function transcribe(buffer, mimeType) {
+async function transcribe(buffer, mimeType, keyterms = []) {
   if (!DEEPGRAM_API_KEY) return { text: '', unavailable: true };
   const params = new URLSearchParams({
-    model: 'nova-2',
-    language: 'ko',            // 한국어 우선 (영어 섞여도 nova-2 가 처리)
+    model: VOICE_STT_MODEL,
+    language: 'ko',            // 한국어 우선 (영어 섞여도 처리)
     smart_format: 'true',
     punctuate: 'true',
   });
+  // 이름 힌트 — Q note(q-note/services/deepgram_service.py)와 같은 정책: nova-3 는 keyterm, 그 이하는 keywords
+  const useKeyterm = VOICE_STT_MODEL.startsWith('nova-3');
+  for (const kw of keyterms.slice(0, 50)) {
+    if (!kw || kw.length > 60) continue;
+    if (useKeyterm) params.append('keyterm', kw);
+    else params.append('keywords', `${kw}:2`);
+  }
   const r = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
     method: 'POST',
     headers: {
@@ -76,6 +92,71 @@ async function transcribe(buffer, mimeType) {
   const j = await r.json();
   const text = j?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
   return { text: String(text).trim() };
+}
+
+// ── 인식 힌트 — 이 워크스페이스에서 말로 부를 고유명사(멤버·프로젝트·고객). business_id 스코프라 남의 이름은 안 섞인다.
+async function voiceKeyterms(businessId) {
+  const out = new Set();
+  const add = (v) => { const s = String(v || '').trim(); if (s && s.length <= 60) out.add(s); };
+  try {
+    const bms = await BusinessMember.findAll({
+      where: { business_id: businessId, removed_at: null },
+      attributes: ['user_id', 'name', 'role'],
+      include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+    });
+    for (const m of bms) { if (m.role === 'ai') continue; add(m.name); add(m.user?.name); }
+    const projects = await Project.findAll({ where: { business_id: businessId }, attributes: ['name'], order: [['updated_at', 'DESC']], limit: 15 });
+    projects.forEach((p) => add(p.name));
+    const clients = await Client.findAll({ where: { business_id: businessId }, attributes: ['display_name', 'company_name'], order: [['updated_at', 'DESC']], limit: 15 });
+    clients.forEach((c) => { add(c.display_name); add(c.company_name); });
+  } catch (e) { console.warn('[voice] keyterms', e.message); }
+  return [...out].slice(0, 50);
+}
+
+// ── Cue 와 같은 제안 — 만들 것이면 Cue 툴 하나를 고르게 하고, 아니면(메모·메일 답장) JSON 으로 종류만.
+//   한 번의 LLM 호출로 끝낸다(memory feedback_ai_minimal_usage). 모델도 Cue 와 같은 kb_answer.
+async function proposeLikeCue(text, businessId) {
+  const ctx = await cueTools.buildToolSystemContext(businessId);
+  const system = `너는 PlanQ 의 Cue 다. 사용자가 말로 한 요청을 받아쓴 문장을 읽고 무엇을 만들지 제안한다. 실행은 사람이 확인한 뒤에 한다.
+- 할 일·요청이면 create_task, 시각이 있는 약속·회의면 create_event, 회의록·제안서 같은 문서면 create_document_draft 툴을 **하나만** 호출한다.
+- 받아쓴 문장이라 이름이 조금 틀렸을 수 있다 — [멤버] 목록에서 발음이 가장 가까운 이름으로 맞춘다. 확신이 없으면 assignee_name 을 비운다.
+- "누구에게 ~해 달라고 요청해줘 / 시켜줘 / 부탁해줘" 는 **업무**다(create_task, 그 사람이 담당). 메일이 아니다.
+- 메일(mail)은 "메일·답장·회신" 을 **직접 말했을 때만**이다.
+- 만들 것이 아니면(기록해 둘 사실·메모, 메일 답장·발송) 툴을 부르지 말고 아래 JSON 한 줄만 출력한다:
+  {"kind":"memo"|"mail","title":"한 줄 제목","detail":"부가 설명"}
+- 제목·설명에는 **사용자가 말한 내용만** 쓴다. 조언·추측·말하지 않은 항목을 덧붙이지 않는다(덧붙일 게 없으면 설명은 빈 문자열).
+
+${ctx}`;
+  const r = await callLLM({
+    purpose: 'kb_answer',
+    temperature: 0.2,
+    fallback: '',
+    tools: cueTools.TOOL_SCHEMAS.filter((s) => VOICE_TOOLS.has(s.function.name)),
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: text.slice(0, 1000) },
+    ],
+  });
+  const tokens = { input_tokens: r.input_tokens || 0, output_tokens: r.output_tokens || 0 };
+  if (r.fallback) return { failed: true, ...tokens };
+  const calls = (Array.isArray(r.tool_calls) ? r.tool_calls : []).filter((tc) => VOICE_TOOLS.has(tc?.function?.name));
+  if (calls.length) {
+    const proposed = await cueTools.buildProposedAction(businessId, calls);
+    if (proposed) return { proposed_action: proposed, ...tokens };
+  }
+  // 툴 없음 → 메모/메일. JSON 이 깨졌으면 메모(가장 안전)로.
+  let kind = 'memo'; let title = text.slice(0, 200); let detail = '';
+  try {
+    const m = String(r.content || '').match(/\{[\s\S]*\}/);
+    const j = m ? JSON.parse(m[0]) : null;
+    if (j && ['memo', 'mail'].includes(j.kind)) kind = j.kind;
+    if (j?.title) title = String(j.title).slice(0, 200);
+    if (j?.detail) detail = String(j.detail).slice(0, 1000);
+  } catch { /* 메모로 */ }
+  return {
+    intent: { kind, title, detail, assignee_name: null, assignee_user_id: null, assignee_display_name: null, when: null, when_start: null, when_all_day: false, confidence: 0.6 },
+    ...tokens,
+  };
 }
 
 // ── 의도 분류 — 무엇을 만들지 사람이 먼저 고르지 않는다. 말하면 AI 가 판단하고 사람이 확인한다.
@@ -218,11 +299,24 @@ router.post('/capture',
       const can = await plan.can(businessId, 'use_cue');
       if (!can.ok) return res.status(422).json(plan.buildQuotaError(can, businessId));
 
-      const stt = await transcribe(req.file.buffer, req.file.mimetype);
+      const keyterms = await voiceKeyterms(businessId);
+      const stt = await transcribe(req.file.buffer, req.file.mimetype, keyterms);
       if (stt.unavailable) return errorResponse(res, 'stt_unavailable', 503);
       if (!stt.text) {
         // 무음·잡음 — 빈 업무를 만들지 않는다. 사용자에게 다시 말하라고만 한다.
         return successResponse(res, { text: '', intent: null, empty: true });
+      }
+
+      // #458 — Cue 와 같은 제안. 제안이 실패하면(LLM 오류) 아래 옛 분류로 떨어진다 — 받아쓴 말을 버리지 않는다.
+      if (CUE_TOOLS_ENABLED) {
+        const p = await proposeLikeCue(stt.text, businessId);
+        if (!p.failed) {
+          try { await recordVoiceUsage(businessId, p.input_tokens, p.output_tokens); } catch (e) { console.warn('[voice] usage', e.message); }
+          return successResponse(res, {
+            text: stt.text,
+            ...(p.proposed_action ? { proposed_action: p.proposed_action } : { intent: p.intent }),
+          });
+        }
       }
 
       // 상대 날짜의 기준은 워크스페이스 타임존이다 (/api/tasks/ai-create 와 동일 규칙)
@@ -254,3 +348,5 @@ module.exports.classifyIntent = classifyIntent;
 module.exports.transcribe = transcribe;
 module.exports.sanitizeWhenStart = sanitizeWhenStart;
 module.exports.resolveAssignee = resolveAssignee;
+module.exports.proposeLikeCue = proposeLikeCue;
+module.exports.voiceKeyterms = voiceKeyterms;

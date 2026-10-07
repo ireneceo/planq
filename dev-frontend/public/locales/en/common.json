@@ -1100,7 +1100,10 @@
       "event": "Event",
       "memo": "Note",
       "mail": "Mail reply"
-    }
+    },
+    "noMic": "No microphone was found on this device. Connect one, or type your request to Cue instead.",
+    "micBusy": "Another app is using the microphone. Close it and try again.",
+    "again": "Say another"
   },
   "apitoken": {
     "title": "API tokens (integrations)",

@@ -13,6 +13,9 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import ActionButton from './ActionButton';
 import { parseVoiceWhen, stashVoiceHandoff, type VoiceHandoff, type VoiceKind } from '../../utils/voiceHandoff';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
+// #458 — 만들 것(업무·일정·문서)은 Cue 와 **같은 확인 카드**로 고치고 바로 추가한다(담당자·날짜·제목 수정).
+import CueActionCard, { type CueProposal, type CueActionResult } from './CueActionCard';
+import { cueActionDeepLink } from '../../hooks/useCueChat';
 
 const MAX_SECONDS = 30;
 
@@ -40,7 +43,7 @@ function extForMime(type: string): string {
 type Kind = VoiceKind;
 // 서버 응답의 intent. text 를 더하면 그대로 VoiceHandoff 가 된다.
 type Intent = Omit<VoiceHandoff, 'text'>;
-type Stage = 'idle' | 'recording' | 'thinking' | 'preview' | 'error';
+type Stage = 'idle' | 'recording' | 'thinking' | 'preview' | 'done' | 'error';
 
 interface Props { onClose: () => void; }
 
@@ -55,6 +58,8 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
   const [seconds, setSeconds] = useState(0);
   const [text, setText] = useState('');
   const [intent, setIntent] = useState<Intent | null>(null);
+  const [proposal, setProposal] = useState<CueProposal | null>(null);
+  const [result, setResult] = useState<CueActionResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -93,7 +98,9 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
         return;
       }
       setText(j.data.text);
-      setIntent(j.data.intent);
+      setProposal(j.data.proposed_action || null);
+      setIntent(j.data.proposed_action ? null : j.data.intent);
+      setResult(null);
       setStage('preview');
     } catch {
       setErr(t('voice.failed', { defaultValue: '인식하지 못했어요. 다시 말해 주세요.' }) as string);
@@ -130,8 +137,14 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
           return s + 1;
         });
       }, 1000);
-    } catch {
-      setErr(t('voice.noPermission', { defaultValue: '마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요.' }) as string);
+    } catch (e) {
+      // #458 — 마이크가 **없는** 것(데스크탑)과 **막힌** 것을 같은 문구로 말하면 고칠 수가 없다.
+      const name = (e as { name?: string } | null)?.name || '';
+      setErr(name === 'NotFoundError' || name === 'OverconstrainedError'
+        ? t('voice.noMic', { defaultValue: '이 기기에서 마이크를 찾지 못했어요. 마이크를 연결하거나, Cue 에 글로 적어 요청해 주세요.' }) as string
+        : name === 'NotReadableError'
+          ? t('voice.micBusy', { defaultValue: '다른 앱이 마이크를 쓰고 있어요. 그 앱을 닫고 다시 시도해 주세요.' }) as string
+          : t('voice.noPermission', { defaultValue: '마이크 권한이 필요해요. 브라우저 설정에서 허용해 주세요.' }) as string);
       setStage('error');
     }
   }, [send, t]);
@@ -253,7 +266,39 @@ export default function VoiceCaptureSheet({ onClose }: Props) {
           </Body>
         )}
 
-        {stage === 'preview' && intent && (
+        {stage === 'preview' && proposal && (
+          <Body $left>
+            <Said>“{text}”</Said>
+            <CueActionCard
+              proposal={proposal}
+              businessId={businessId}
+              onExecuted={(r) => { setResult(r); setStage('done'); }}
+              onDismiss={onClose}
+            />
+            <Row>
+              <ActionButton tone="secondary" size="md" onClick={start}>
+                {t('voice.retry', { defaultValue: '다시 말하기' }) as string}
+              </ActionButton>
+            </Row>
+          </Body>
+        )}
+        {stage === 'done' && result && (
+          <Body>
+            <RecText>✓ {t('qhelper.action.done', { defaultValue: '추가됐어요' }) as string}</RecText>
+            {result.completed_skipped && (
+              <FootHint>{t('qhelper.action.completedSkipGeneric', { defaultValue: '완료 처리는 하지 못했어요 — 업무만 추가했습니다' }) as string}</FootHint>
+            )}
+            <Row>
+              <ActionButton tone="primary" size="md" onClick={() => { navigate(cueActionDeepLink(result)); onClose(); }}>
+                {t('qhelper.action.open', { defaultValue: '열기' }) as string}
+              </ActionButton>
+              <ActionButton tone="secondary" size="md" onClick={start}>
+                {t('voice.again', { defaultValue: '하나 더 말하기' }) as string}
+              </ActionButton>
+            </Row>
+          </Body>
+        )}
+        {stage === 'preview' && !proposal && intent && (
           <Body $left>
             <Said>“{text}”</Said>
             <Card>
