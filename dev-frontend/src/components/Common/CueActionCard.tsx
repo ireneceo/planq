@@ -10,6 +10,8 @@ import ActionButton from './ActionButton';
 import SingleDateField from './SingleDateField';
 import PlanQSelect, { type PlanQSelectOption } from './PlanQSelect';
 import { formatDayTime, formatClock } from '../../utils/dateFormat';
+import { useTimezones } from '../../hooks/useTimezones';
+import { wallStringsToIso, toWall } from '../../pages/QCalendar/calTz';
 
 const DOC_KIND_KEYS = ['quote', 'contract', 'nda', 'proposal', 'sow', 'meeting_note', 'sop', 'custom'] as const;
 
@@ -47,6 +49,9 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [descOpen, setDescOpen] = useState(false);
+  // 일정 시각은 캘린더와 같은 기준(워크스페이스 시간대)으로 보인다 — 브라우저 시간대로 그리면
+  //   카드는 07:00, 만들어진 일정은 16:00 처럼 갈라진다(2026-10-07 실측, 기기 시간대 ≠ 워크스페이스).
+  const { workspaceTz } = useTimezones();
 
   const set = (k: string, v: unknown) => setParams((p) => ({ ...p, [k]: v }));
 
@@ -172,6 +177,11 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
                 },
                 ...members.map((m) => ({ value: m.user_id as number, label: memberLabel(m) })),
               ];
+              // 멤버 목록이 오기 전에도 서버가 해석한 담당자를 보여 준다 — 없으면 잠깐 «본인» 으로 보여
+              //   실제로는 다른 사람에게 배정되는 것을 사용자가 오해한다(2026-10-07 실측).
+              if (params.assignee_id && !opts.some((o) => String(o.value) === String(params.assignee_id))) {
+                opts.push({ value: Number(params.assignee_id), label: String(params.assignee_resolved_name || params.assignee_name || `#${params.assignee_id}`) });
+              }
               const cur = opts.find((o) => String(o.value) === String(params.assignee_id ?? '')) || opts[0];
               return (
                 <PlanQSelect
@@ -218,10 +228,45 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
 
       {proposal.tool === 'create_event' && (
         <>
-          <Field>
-            <Lbl>{t('qhelper.action.when', '일시')}</Lbl>
-            <ReadVal>{fmtRange(String(params.start_at || ''), String(params.end_at || ''))}</ReadVal>
-          </Field>
+          {/* #458 — 일정은 날짜·시간을 여기서 고친다(말로 넣은 시각이 틀리면 고칠 데가 없었다). 기준 = 워크스페이스 시간대(캘린더와 같다) */}
+          {(() => {
+            const sw = isoToWall(String(params.start_at || ''), workspaceTz);
+            const ew = isoToWall(String(params.end_at || ''), workspaceTz);
+            if (!sw) return (
+              <Field>
+                <Lbl>{t('qhelper.action.when', '일시')}</Lbl>
+                <ReadVal>{fmtRange(String(params.start_at || ''), String(params.end_at || ''), workspaceTz)}</ReadVal>
+              </Field>
+            );
+            const endTime = ew && ew.date === sw.date ? ew.time : sw.time;
+            const apply = (date: string, st: string, et: string) => {
+              const toMin = (x: string) => { const [h, m] = x.split(':').map(Number); return h * 60 + m; };
+              const e = toMin(et) > toMin(st) ? et : (() => { const n = Math.min(toMin(st) + 60, 23 * 60 + 59); return `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`; })();
+              setParams((p) => ({ ...p, start_at: wallStringsToIso(date, st, workspaceTz), end_at: wallStringsToIso(date, e, workspaceTz) }));
+            };
+            const opts = timeOptions([sw.time, endTime]);
+            return (
+              <Field as="div">
+                <Lbl>{t('qhelper.action.when', '일시')}</Lbl>
+                <SingleDateField value={sw.date} onChange={(d) => { if (d) apply(d, sw.time, endTime); }} size="sm" />
+                <TimeRow>
+                  <PlanQSelect size="sm" options={opts} value={{ value: sw.time, label: sw.time }}
+                    onChange={(o) => {
+                      if (!o) return;
+                      const v = String((o as PlanQSelectOption).value);
+                      // 시작을 옮기면 끝도 같은 길이만큼 따라간다(새 일정 창과 같은 규칙)
+                      const toMin = (x: string) => { const [h, m] = x.split(':').map(Number); return h * 60 + m; };
+                      const dur = Math.max(toMin(endTime) - toMin(sw.time), 30);
+                      const n = Math.min(toMin(v) + dur, 23 * 60 + 59);
+                      apply(sw.date, v, `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`);
+                    }} />
+                  <span aria-hidden="true">–</span>
+                  <PlanQSelect size="sm" options={opts} value={{ value: endTime, label: endTime }}
+                    onChange={(o) => { if (o) apply(sw.date, sw.time, String((o as PlanQSelectOption).value)); }} />
+                </TimeRow>
+              </Field>
+            );
+          })()}
           <Field>
             <Lbl>{t('qhelper.action.location', '장소')}</Lbl>
             <Input value={String(params.location || '')} onChange={(e) => set('location', e.target.value)} maxLength={300} />
@@ -261,15 +306,37 @@ const CueActionCard: React.FC<Props> = ({ proposal, businessId, onExecuted, onDi
   );
 };
 
-function fmtRange(startIso: string, endIso: string): string {
+// 시각 문자열(ISO) → 그 시간대의 벽시계 날짜·시각 ('YYYY-MM-DD', 'HH:mm')
+function isoToWall(iso: string, tz: string): { date: string; time: string } | null {
+  if (!iso || isNaN(new Date(iso).getTime())) return null;
+  const w = toWall(iso, tz);   // 캘린더와 같은 변환(calTz) — 로컬 필드 = 그 시간대의 벽시계
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return { date: `${w.getFullYear()}-${p2(w.getMonth() + 1)}-${p2(w.getDate())}`, time: `${p2(w.getHours())}:${p2(w.getMinutes())}` };
+}
+
+// 30분 단위 + 지금 값(말로 넣은 16:15 같은 값도 그대로 고를 수 있게)
+function timeOptions(extra: string[]): PlanQSelectOption[] {
+  const set = new Set<string>();
+  for (let h = 0; h < 24; h += 1) for (const m of ['00', '30']) set.add(`${String(h).padStart(2, '0')}:${m}`);
+  extra.forEach((x) => x && set.add(x));
+  return [...set].sort().map((v) => ({ value: v, label: v }));
+}
+
+function fmtRange(startIso: string, endIso: string, tz?: string): string {
   try {
     const s = new Date(startIso), e = new Date(endIso);
     if (isNaN(s.getTime())) return startIso;
-    const d = formatDayTime(s, { year: 'always' });
-    const et = isNaN(e.getTime()) ? '' : formatClock(e);
+    const d = formatDayTime(s, { year: 'always', tz });
+    const et = isNaN(e.getTime()) ? '' : formatClock(e, { tz });
     return et ? `${d} – ${et}` : d;
   } catch { return startIso; }
 }
+
+const TimeRow = styled.div`
+  display: flex; align-items: center; gap: 6px; margin-top: 6px;
+  & > div { flex: 1; min-width: 0; }
+  & > span { color: #94a3b8; }
+`;
 
 const Card = styled.div`
   margin-top: 8px; border: 1px solid #e2e8f0; border-radius: 12px;
