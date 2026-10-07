@@ -111,7 +111,11 @@ const provider = {
     if (!grant || grant.revoked_at || grant.client_id !== client.client_id) throw new InvalidGrantError('grant not found');
     const can = await grants.canConnect(grant.user_id, grant.business_id);
     if (!can.ok) throw new InvalidGrantError('not allowed');
-    return grants.issueTokens(grant);
+    const tokens = await grants.issueTokens(grant);
+    // 같은 앱으로 다시 연결하면 옛 연결을 닫는다 — 앱은 새 토큰만 쓰는데 옛 연결이 목록에 남아 «ChatGPT» 가 둘 보였고,
+    //   어느 쪽이 쓰이는지 몰라 쓰이는 쪽을 끊으면 재연결을 시켰다(2026-10-07 운영 grant 3·4). 토큰을 내준 **뒤에** 닫는다.
+    await grants.supersedeSiblings(grant, p.redirect_uri);
+    return tokens;
   },
 
   async exchangeRefreshToken(client, refreshToken, _scopes, resource) {

@@ -116,14 +116,39 @@ async function issueTokens(grant) {
   };
 }
 
-async function revokeGrant(grant, reason) {
+async function revokeGrant(grant, reason, extra = {}) {
   if (!grant || grant.revoked_at) return;
   await grant.update({ revoked_at: new Date(), revoked_reason: reason, refresh_token_hash: null });
   require('../auditService').logAudit(null, {
     userId: grant.user_id, businessId: grant.business_id,
     action: 'agent_grant.revoke', targetType: 'agent_grant', targetId: grant.id,
-    newValue: { reason, provider: grant.provider, client_id: grant.client_id },
+    newValue: { reason, provider: grant.provider, client_id: grant.client_id, ...extra },
   });
+}
+
+/**
+ * 같은 사람 × 같은 워크스페이스 × **같은 앱**(돌아갈 주소가 같은 클라이언트)의 다른 살아 있는 연결을 닫는다.
+ *   ChatGPT 는 커넥터를 다시 추가할 때 클라이언트를 새로 등록하기도 해서(client_id 가 바뀐다) client_id 로는 못 묶는다.
+ *   돌아갈 주소(커넥터 주소)는 그대로라 그것으로 묶는다. 다른 앱(Claude 등)·다른 워크스페이스 연결은 건드리지 않는다.
+ *   이유 값은 'client'(앱이 다시 연결해 바꿨다) — ENUM 을 늘리지 않으려고. 감사에 replaced_by 를 남긴다.
+ */
+async function supersedeSiblings(grant, redirectUri) {
+  if (!grant || !redirectUri) return 0;
+  const { Op } = require('sequelize');
+  const { AgentGrant, AgentClient } = require('../../models');
+  const others = await AgentGrant.findAll({
+    where: { user_id: grant.user_id, business_id: grant.business_id, revoked_at: null, id: { [Op.ne]: grant.id } },
+  });
+  if (!others.length) return 0;
+  const clients = await AgentClient.findAll({ where: { client_id: [...new Set(others.map((g) => g.client_id))] }, attributes: ['client_id', 'redirect_uris'] });
+  const sameApp = new Set(clients.filter((c) => (Array.isArray(c.redirect_uris) ? c.redirect_uris : []).includes(redirectUri)).map((c) => c.client_id));
+  let n = 0;
+  for (const g of others) {
+    if (!sameApp.has(g.client_id)) continue;
+    await revokeGrant(g, 'client', { replaced_by: grant.id });
+    n += 1;
+  }
+  return n;
 }
 
 /**
@@ -162,5 +187,5 @@ async function principalFromAccess(token) {
 
 module.exports = {
   sha256, randomToken, canConnect, connectableWorkspaces, grantedScopes, workspaceMailAllowed, mailAccountsFor,
-  issueTokens, revokeGrant, principalFromAccess, signAccess,
+  issueTokens, revokeGrant, supersedeSiblings, principalFromAccess, signAccess,
 };
