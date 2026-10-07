@@ -12,6 +12,11 @@
 - **왜 멈췄나:** 답글은 운영 데이터 쓰기 + 보고자 알림(Irene 지시 없이 안 함). 설문 외부 응답은 무인증 공개 표면(R=1)이라 Irene 결정 뒤 Fable 설계
 - **답이 오면 할 일:** ① 배포 후 운영에서 `node scripts/feedback-reply.js <json> --apply`(배포 전이면 /tmp 로 복사) ② (가)면 표 문서 «설문으로 받기»+통계 구현 / (나)면 Fable 설계 게이트부터 ③ 숨기기면 RightDock 말하기 항목을 마이크 없는 기기에서 숨김
 
+### 답 기다림: Irene 직접 할 일 3가지 — 구글 심사 · AI 앱 재연결 · 중복 연결 정리 (2026-10-07 · [Opus] 결정 8건 방, 상황판 요청 askmuyci17b)
+- **무엇을:** ① 구글 콘솔 «데이터 액세스» 에 `calendar.calendarlist.readonly` 추가 → 사유·영상 → 심사 제출(`docs/GOOGLE_OAUTH_CALENDARLIST_GUIDE.md`) ② ChatGPT·Claude 에서 PlanQ 다시 연결(projects:write) ③ 프로필 › 외부 연동 › 연결된 AI 앱 — 운영 ChatGPT 연결 2개(grant 3: 10/5, grant 4: 10/6) → ② 뒤 앱마다 최신 1개만 남기고 끊기
+- **왜 멈췄나:** 구글 계정 주인·ChatGPT/Claude 계정 로그인이 필요한 일이라 제가 할 수 없음
+- **답이 오면 할 일:** 운영 `agent_grants` 에서 revoked_at IS NULL 인 행이 앱마다 1개인지·scopes 에 projects:write 가 있는지 확인(읽기만). 구글은 심사 메일이 오면 답장 문안 작성
+
 ### 완료: 결정 8건 운영 배포 → 운영 실테스트 → Fable 운영 게이트 PASS (2026-10-07 · [Opus] 결정 8건 방)
 - 운영 배포 2회: 174fee38(마이그레이션 3종·K-DINE Aidan → 방 28·방침 1.2→1.3 배포가 자동으로 올림) · dc3f7b30(참석자 안내 문구 — #462 이후 거짓이 된 문구)
 - 운영 실테스트(biz 10): 실HTTP 19/19 · 화면 planq.kr 3폭(일정 알림 체크·외부 링크 «어느 고객에게») 전부 PASS · 운영 시험 데이터 전부 정리(0건 확인)
