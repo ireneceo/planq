@@ -117,7 +117,8 @@ async function classifyMailThreads(businessId, { userId = null, like = null, jud
   for (let i = 0; i < ids.length; i += 1000) {
     const chunk = ids.slice(i, i + 1000);
     const cnt = await EmailMessage.findAll({
-      where: { business_id: businessId, thread_id: { [Op.in]: chunk }, direction: 'outbound' },
+      // internal_only — 받는 사람이 전부 우리 주소인 보낸메일(전달·메모)은 관계 증거가 아니다(Fable 판정 ②)
+      where: { business_id: businessId, thread_id: { [Op.in]: chunk }, direction: 'outbound', internal_only: false },
       attributes: ['thread_id'], raw: true,
     });
     for (const c of cnt) outByThread.set(c.thread_id, (outByThread.get(c.thread_id) || 0) + 1);

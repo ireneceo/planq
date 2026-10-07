@@ -115,6 +115,8 @@ function serializeAccount(acc) {
   };
 }
 
+const { serializeExtraFolders, extraFoldersByAccount } = require('../services/mailExtraFolders');
+
 // GET — 계정 목록 (회사 공용 + 본인 개인. 멤버도 접근 가능 — 개인 메일 관리 위해)
 router.get('/:businessId/email-accounts', authenticateToken, checkBusinessAccess, async (req, res, next) => {
   try {
@@ -122,7 +124,9 @@ router.get('/:businessId/email-accounts', authenticateToken, checkBusinessAccess
       where: { business_id: req.params.businessId, ...accessibleWhere(req) },
       order: [['owner_user_id', 'ASC'], ['is_default', 'DESC'], ['created_at', 'ASC']],
     });
-    successResponse(res, rows.map(serializeAccount));
+    // 업체 보낸편지함·스팸함 — 찾은 폴더 이름과 켜짐 상태를 화면이 그린다(docs/MAIL_SENT_SPAM_SYNC_DESIGN.md)
+    const folderMap = await extraFoldersByAccount(req.params.businessId, rows.map((r) => r.id));
+    successResponse(res, rows.map((r) => ({ ...serializeAccount(r), extra_folders: folderMap.get(r.id) || serializeExtraFolders([]) })));
   } catch (err) { next(err); }
 });
 
@@ -318,7 +322,9 @@ router.put('/:businessId/email-accounts/:id', authenticateToken, checkBusinessAc
       oldValue: remediation ? { owner_user_id: prevOwner } : undefined,
       newValue: { fields: Object.keys(patch), ...(remediation ? { owner_user_id: acc.owner_user_id } : {}) },
     });
-    successResponse(res, serializeAccount(acc));
+    // 목록(GET)과 같은 모양으로 돌려준다 — 화면이 응답을 통째로 대입해도 폴더 상태가 사라지지 않게(가드 savemerge 계열)
+    const fm = await extraFoldersByAccount(req.params.businessId, [acc.id]);
+    successResponse(res, { ...serializeAccount(acc), extra_folders: fm.get(acc.id) || serializeExtraFolders([]) });
   } catch (err) { next(err); }
 });
 
@@ -458,5 +464,7 @@ router.post('/:businessId/email-accounts/:id/backfill', authenticateToken, check
 // Gmail OAuth 동의/콜백은 별도 라우터로 절출 (routes/email_oauth_gmail.js).
 //   같은 마운트 경로(/api/businesses)를 공유하므로 여기서 이어 붙인다 — server.js 변경 불필요.
 router.use(require('./email_oauth_gmail'));
+// 업체 보낸편지함·스팸함 켜기/끄기 — 같은 마운트 경로, 파일만 나눈다(이 파일 500줄 상한).
+router.use(require('./email_account_folders')({ accessibleWhere, canManageAccount }));
 
 module.exports = router;

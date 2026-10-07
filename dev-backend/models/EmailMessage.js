@@ -51,6 +51,12 @@ EmailMessage.init({
   // M4 FAQ 클러스터링 — inbound 질문 임베딩 캐시 (text-embedding-3-small 1536d BLOB).
   // 메시지당 1회만 임베딩 → cron 재실행 시 재사용 (AI 최소 사용).
   faq_embedding: { type: DataTypes.BLOB('medium'), allowNull: true },
+  // 업체 메일함 중 어디서 가져왔는가 (docs/MAIL_SENT_SPAM_SYNC_DESIGN.md). PlanQ 발송분·옛 행은 'inbox'.
+  //   «증거원에서 스팸을 뺀다» 의 손잡이다 — isKnownContact ④ 가 `source_folder <> 'spam'` 으로 본다.
+  source_folder: { type: DataTypes.ENUM('inbox', 'sent', 'spam'), allowNull: false, defaultValue: 'inbox' },
+  // 보낸편지함 메일의 받는 사람(to/cc)이 **전부 우리 주소**다(전달·메모·자기 앞 발송).
+  //   «우리가 답했다» 가 아니다 — reply_needed 끄기·상담 outboundCount·FAQ 표준답변은 0 인 것만 센다(Fable 판정 ②).
+  internal_only: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 }, {
   sequelize, tableName: 'email_messages', timestamps: true, underscored: true,
   indexes: [

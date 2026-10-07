@@ -60,11 +60,15 @@ function normalizeSubject(s) {
 }
 
 // thread 매칭 — In-Reply-To / References / Subject+참여자
-async function findOrCreateThread({ businessId, accountId, parsed, fromEmail }) {
+//   matchEmails — 3단계(제목+참여자)에서 참여자와 비교할 주소. 기본은 보낸 사람(받은 메일).
+//     업체 보낸편지함 메일은 보낸 사람이 «나» 라 참여자(= 나를 뺀 상대)와 절대 안 맞는다 → 받는 사람(to/cc)을 넘긴다.
+//   ★ 업체 스팸함에서 온 메일·스레드에는 붙지 않는다 — 스팸 메일의 Message-ID 를 가리키는 회신이
+//     스팸 스레드에 숨으면 안 된다(그 스레드는 30일 뒤 지워진다). 옛 행은 전부 inbox·NULL 이라 받은편지함 동작은 그대로다.
+async function findOrCreateThread({ businessId, accountId, parsed, fromEmail, matchEmails = null }) {
   // 1. In-Reply-To → 기존 message_id
   if (parsed.inReplyTo) {
     const existingMsg = await EmailMessage.findOne({
-      where: { business_id: businessId, message_id: parsed.inReplyTo },
+      where: { business_id: businessId, message_id: parsed.inReplyTo, source_folder: { [Op.ne]: 'spam' } },
       attributes: ['thread_id'],
     });
     if (existingMsg) {
@@ -77,7 +81,7 @@ async function findOrCreateThread({ businessId, accountId, parsed, fromEmail }) 
   if (Array.isArray(refs) && refs.length > 0) {
     const last = refs[refs.length - 1];
     const existingMsg = await EmailMessage.findOne({
-      where: { business_id: businessId, message_id: last },
+      where: { business_id: businessId, message_id: last, source_folder: { [Op.ne]: 'spam' } },
       attributes: ['thread_id'],
     });
     if (existingMsg) {
@@ -95,6 +99,7 @@ async function findOrCreateThread({ businessId, accountId, parsed, fromEmail }) 
         account_id: accountId,
         subject: normSubj,
         last_message_at: { [Op.gte]: since },
+        spam_origin: null,
       },
       // #200(b') — 후보를 무순서로 뽑으면 동일 제목 스레드가 여러 개일 때(운영 89 그룹)
       //   어디에 붙을지 PK 임의 순서로 정해진다. 참여자 백필이 이 경로를 실제로 켜므로
@@ -102,9 +107,11 @@ async function findOrCreateThread({ businessId, accountId, parsed, fromEmail }) 
       order: [['last_message_at', 'DESC']],
       limit: 5,
     });
+    const want = new Set((Array.isArray(matchEmails) ? matchEmails : [fromEmail])
+      .map((e) => String(e || '').toLowerCase()).filter(Boolean));
     for (const cand of candidates) {
       const parts = Array.isArray(cand.participants) ? cand.participants : [];
-      if (parts.some(p => p.email && p.email.toLowerCase() === fromEmail.toLowerCase())) {
+      if (parts.some(p => p.email && want.has(p.email.toLowerCase()))) {
         return { thread: cand, isNew: false };
       }
     }
@@ -194,10 +201,12 @@ async function isKnownContact(businessId, fromEmail, { excludeMessageId = null }
     const own = await T.buildOwnEmailSet(businessId);
     const doms = [...new Set([...own].map((e) => e.split('@')[1]).filter((d) => d && !FREE_MAIL_DOMAIN_RE.test(d)))];
     if (!doms.length) return false;
+    //   ③ 업체 스팸함에서 가져온 메일은 증거가 못 된다(Fable 2026-10-07) — In-Reply-To 는 꾸밀 수 있고, 업체가 이미 «스팸» 이라 했다.
     const cond = doms.map(() => '(in_reply_to LIKE ? OR references_chain LIKE ?)').join(' OR ');
     const [replied] = await sequelize.query(
       `SELECT id FROM email_messages
         WHERE business_id = ? AND direction = 'inbound' AND LOWER(from_email) = ? AND (${cond})
+          AND source_folder <> 'spam'
           AND id <> ?
         LIMIT 1`,
       { replacements: [businessId, addr, ...doms.flatMap((d) => [`%@${d}>%`, `%@${d}>%`]), Number(excludeMessageId) || 0] }
@@ -415,6 +424,579 @@ async function buildImapConfig(account, { onIdle = false } = {}) {
   return imapConfig;
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// 업체 보낸편지함·스팸함 — 읽기 전용 미러 (docs/MAIL_SENT_SPAM_SYNC_DESIGN.md, Fable 판정 2026-10-07 절 우선)
+//   · 업체 쪽 이동·삭제·플래그 변경 0. 폴더는 EXAMINE(읽기 전용)으로 열고 markSeen:false.
+//   · 폴더 이름을 하드코딩하지 않는다 — SPECIAL-USE 속성 → 없을 때만 이름 후보. 못 찾으면 그 역할은 꺼진 채 기록.
+//   · 커서는 폴더마다(email_account_folders). 받은편지함 커서(email_accounts.imap_last_uid)는 그대로다.
+//   · 연결을 늘리지 않는다 — syncOne 이 받은편지함을 끝낸 **같은 연결**에서 연다.
+//   · 전역 비상 스위치 QMAIL_EXTRA_FOLDERS=0 (기본 켜짐 — 기본 꺼짐 플래그는 운영에서 조용히 죽는다).
+// ────────────────────────────────────────────────────────────────────────────
+const EXTRA_ROLES = ['sent', 'spam'];
+const EXTRA_FIRST_DAYS = { sent: 30, spam: 14 };      // 역할별 첫 가져오기 기간 (Fable B 판정 4)
+const EXTRA_MIN_INTERVAL_MS = 60 * 1000;              // IDLE 의 'update' 이벤트로 syncOne 이 잦아도 폴더는 1분에 한 번
+// IDLE 계정은 tick 이 건너뛴다 → 폴더만은 주기적으로 guardedSync 로 돌린다(Fable 판정 1 — «10분마다»).
+//   tick 이 3분 간격이라 문턱을 7분으로 두면 실제 간격은 7~10분이다(10분을 넘지 않는다).
+const EXTRA_IDLE_INTERVAL_MS = 7 * 60 * 1000;
+const EXTRA_REDISCOVER_MS = 24 * 3600 * 1000;         // 못 찾은 역할·열기 실패한 폴더는 하루에 한 번 다시 찾는다
+const SPAM_RETENTION_DAYS = 30;
+const lastExtraRun = new Map();                        // accountId → epoch ms (폴더 동기화 시작 시각)
+
+function extraFoldersEnabled() {
+  return String(process.env.QMAIL_EXTRA_FOLDERS ?? '1').trim() !== '0';
+}
+
+// SPECIAL-USE(RFC 6154) 속성 — node-imap 은 '\\Sent' 처럼 그대로 준다. 대소문자는 업체마다 다르다.
+const SPECIAL_USE = { sent: ['\\sent'], spam: ['\\junk', '\\spam'] };
+// 속성을 안 주는 서버(네이버 등)용 이름 후보. 앞쪽이 우선이다.
+const NAME_CANDIDATES = {
+  sent: ['[Gmail]/Sent Mail', '[Gmail]/보낸편지함', '[Google Mail]/Sent Mail', 'Sent', 'Sent Messages', 'Sent Items', 'Sent Mail', '보낸메일함', '보낸편지함', 'INBOX.Sent', 'INBOX/Sent'],
+  spam: ['[Gmail]/Spam', '[Gmail]/스팸함', '[Google Mail]/Spam', 'Junk', 'Junk E-mail', 'Junk Email', 'Spam', '스팸메일함', '스팸편지함', '스팸함', 'INBOX.Junk', 'INBOX.Spam', 'INBOX/Spam'],
+};
+
+/** getBoxes() 트리 → [{ path, attribs(소문자) }] */
+function flattenBoxes(tree, prefix = '', parentDelim = '/', out = []) {
+  for (const [name, b] of Object.entries(tree || {})) {
+    const delim = (b && b.delimiter) || parentDelim || '/';
+    const path = prefix ? `${prefix}${parentDelim}${name}` : name;
+    out.push({ path, attribs: ((b && b.attribs) || []).map((a) => String(a).toLowerCase()) });
+    if (b && b.children) flattenBoxes(b.children, path, delim, out);
+  }
+  return out;
+}
+
+/** 폴더 목록 → { sent: path|null, spam: path|null }. 속성 우선, 없으면 이름 후보. */
+function resolveFolders(list) {
+  const out = {};
+  const selectable = (list || []).filter((b) => !b.attribs.includes('\\noselect') && b.path.toUpperCase() !== 'INBOX');
+  for (const role of EXTRA_ROLES) {
+    const bySpecial = selectable.find((b) => b.attribs.some((a) => SPECIAL_USE[role].includes(a)));
+    if (bySpecial) { out[role] = bySpecial.path; continue; }
+    let hit = null;
+    for (const cand of NAME_CANDIDATES[role]) {
+      hit = selectable.find((b) => b.path.toLowerCase() === cand.toLowerCase());
+      if (hit) break;
+    }
+    out[role] = hit ? hit.path : null;
+  }
+  return out;
+}
+
+// 읽기 전용(EXAMINE)으로 연다 — imap-simple 의 openBox 는 읽기·쓰기(SELECT)라 쓰지 않는다.
+function openBoxReadOnly(conn, name) {
+  return new Promise((resolve, reject) => {
+    conn.imap.openBox(name, true, (err, box) => (err ? reject(err) : resolve(box)));
+  });
+}
+function imapUidSearch(conn, criteria) {
+  return new Promise((resolve, reject) => {
+    conn.imap.search(criteria, (err, uids) => (err ? reject(err) : resolve(uids || [])));
+  });
+}
+
+/** 받는 사람(to/cc)이 전부 우리 주소인가 — 비어 있어도 참(바깥 사람에게 간 증거가 없다). Fable 판정 ② */
+function isInternalOnly({ toEmails, ccEmails, selfEmails, ownEmails, ownMatcher }) {
+  const norm = (e) => String(e || '').toLowerCase().trim();
+  const own = new Set([
+    ...(ownEmails instanceof Set ? [...ownEmails] : (ownEmails || [])),
+    ...(selfEmails || []),
+    ...((ownMatcher && ownMatcher.emails) || []),
+  ].map(norm));
+  const doms = new Set(((ownMatcher && ownMatcher.domains) || []).map(norm));
+  const rcpt = [...(toEmails || []), ...(ccEmails || [])].map((r) => norm(r && (r.email || r))).filter(Boolean);
+  return rcpt.every((e) => own.has(e) || doms.has(e.split('@')[1]));
+}
+
+/** 업체가 Message-ID 를 바꾼 PlanQ 발송분의 사본인가 (Fable 판정 7 폴백) — 같은 계정·PlanQ 발송·같은 제목·같은 첫 받는 사람·±2분 */
+async function isPlanqSentTwin({ account, parsed, toEmails }) {
+  const at = parsed && parsed.date ? new Date(parsed.date) : null;
+  const first = String((toEmails && toEmails[0] && toEmails[0].email) || '').toLowerCase().trim();
+  if (!at || isNaN(at.getTime()) || !first) return false;
+  const { sequelize } = require('../config/database');
+  const [rows] = await sequelize.query(
+    `SELECT m.id, m.subject, m.to_emails FROM email_messages m
+       JOIN email_threads t ON t.id = m.thread_id
+      WHERE m.business_id = ? AND t.account_id = ? AND m.direction = 'outbound'
+        AND m.sent_by_user_id IS NOT NULL AND m.source_folder = 'inbox'
+        AND m.sent_at BETWEEN ? AND ?
+      LIMIT 20`,
+    { replacements: [account.business_id, account.id, new Date(at.getTime() - 120000), new Date(at.getTime() + 120000)] }
+  );
+  const subj = String(parsed.subject || '').trim();
+  return rows.some((m) => {
+    if (String(m.subject || '').trim() !== subj) return false;
+    let to = m.to_emails;
+    if (typeof to === 'string') { try { to = JSON.parse(to); } catch { to = []; } }
+    const f = Array.isArray(to) && to[0] ? String(to[0].email || to[0] || '').toLowerCase().trim() : '';
+    return f === first;
+  });
+}
+
+/** 스팸함 메일은 항상 새 스레드 — 진행 중 대화에 끼어들지 못하게(Fable 판정 ①). */
+async function createProviderSpamThread({ account, parsed }) {
+  const normSubj = normalizeSubject(parsed.subject);
+  const thread = await EmailThread.create({
+    business_id: account.business_id,
+    account_id: account.id,
+    subject: normSubj || parsed.subject || '(no subject)',
+    status: 'spam',
+    triage: 'spam',
+    reply_needed: false,
+    vlevel: 'L3',
+    participants: [],
+    message_count: 0,
+    unread_count: 0,
+    spam_origin: 'provider',
+    spam_since: new Date(),
+  });
+  return { thread, isNew: true };
+}
+
+/** 폴더 하나 동기화 — 커서는 폴더 행에, 실패 재시도 키는 «계정:역할:uid» (uid 공간이 폴더마다 다르다). */
+async function syncFolder(conn, ctx, row) {
+  const { account } = ctx;
+  const role = row.role;
+  const box = await openBoxReadOnly(conn, row.folder);
+  const uv = Number(box && box.uidvalidity) || 0;
+  if (row.uid_validity != null && Number(row.uid_validity) !== uv) {
+    // 메일함 세대가 바뀌었다 = 옛 uid 는 의미가 없다 → 그 역할의 첫 가져오기로 되돌린다(중복은 message_id 가 막는다).
+    console.warn(`[emailImapCron] account #${account.id} ${role} UIDVALIDITY ${row.uid_validity} → ${uv} — 커서 리셋`);
+    await row.update({ last_uid: 0, uid_validity: uv });
+  } else if (row.uid_validity == null) {
+    await row.update({ uid_validity: uv });
+  }
+  const cursor = Number(row.last_uid) || 0;
+  const isBackfill = cursor === 0;
+  const criteria = isBackfill
+    ? [['SINCE', new Date(Date.now() - EXTRA_FIRST_DAYS[role] * 86400000)]]
+    : [['UID', `${cursor + 1}:*`]];
+  const uids = (await imapUidSearch(conn, criteria)).map(Number).filter((u) => u > cursor).sort((a, b) => a - b);
+  // 받은편지함과 같은 규칙 — 첫 가져오기는 최신 N건, 증분은 오래된 것부터(운영 #261: 커서가 처리 안 한 메일을 뛰어넘지 않게)
+  const picked = isBackfill ? uids.slice(-BACKFILL_LIMIT) : uids.slice(0, FETCH_LIMIT_PER_ACCOUNT);
+  let maxUid = cursor;
+  let added = 0; let dup = 0; let broke = false;
+  if (picked.length) {
+    // ★ UID 목록을 쉼표로 이어 넘기면 node-imap 이 한 통만 돌려준다(2026-10-07 실측: 5개 요청 → 1통).
+    //   범위(첫:끝)로 받고 고른 uid 만 남긴다 — 범위 안의 고르지 않은 uid(첫 가져오기 기간 밖)는 버린다.
+    const pickedSet = new Set(picked);
+    const results = (await conn.search([['UID', `${picked[0]}:${picked[picked.length - 1]}`]], { bodies: [''], markSeen: false, struct: true }))
+      .filter((r) => pickedSet.has(Number(r.attributes.uid)));
+    results.sort((a, b) => (a.attributes.uid || 0) - (b.attributes.uid || 0));
+    for (const r of results) {
+      const uid = r.attributes.uid;
+      if (uid <= cursor) continue;
+      const key = `${account.id}:${role}:${uid}`;
+      try {
+        const res = await ingestMessage(ctx, { r, uid, box, role, isBackfill });
+        if (res === 'dup') dup++; else added++;
+        uidFailures.delete(key);
+        maxUid = Math.max(maxUid, uid);
+      } catch (e) {
+        // 받은편지함과 같은 원칙(운영 #438) — 실패한 메일 위로 커서를 넘기지 않는다. 연속 N회면 그때만 넘어간다.
+        const n = (uidFailures.get(key) || 0) + 1;
+        uidFailures.set(key, n);
+        if (n < MAX_UID_RETRIES) {
+          console.error(`[emailImapCron] ${role} message failed account #${account.id} uid=${uid} (${n}/${MAX_UID_RETRIES}) — 커서 유지:`, e.message);
+          broke = true;
+          break;
+        }
+        uidFailures.delete(key);
+        console.error(`[emailImapCron] GAVE UP ${role} account #${account.id} uid=${uid} after ${n} tries — 건너뜀:`, e.message);
+        maxUid = Math.max(maxUid, uid);
+      }
+    }
+  }
+  // 첫 가져오기가 끝까지 갔으면 커서를 메일함 끝으로 — 빈 폴더(스팸 0통)가 매번 «첫 가져오기» 를 다시 돌지 않게.
+  if (isBackfill && !broke) maxUid = Math.max(maxUid, (Number(box && box.uidnext) || 1) - 1);
+  await row.update({ last_uid: maxUid, last_synced_at: new Date(), last_error: broke ? 'message_failed_retrying' : null });
+  return { role, folder: row.folder, backfill: isBackfill, candidates: uids.length, added, dup, cursor: maxUid };
+}
+
+/**
+ * 계정의 보낸편지함·스팸함 동기화 — syncOne 이 받은편지함 저장을 끝낸 뒤 같은 연결로 부른다.
+ * 무엇이 실패해도 받은편지함에는 영향이 없다(폴더 행 last_error 에만 남는다).
+ */
+async function syncExtraFolders(conn, ctx, opts = {}) {
+  if (!extraFoldersEnabled()) return { skipped: 'kill_switch' };
+  const { account } = ctx;
+  const now = Date.now();
+  if (!opts.forceExtra && now - (lastExtraRun.get(account.id) || 0) < EXTRA_MIN_INTERVAL_MS) return { skipped: 'throttle' };
+  lastExtraRun.set(account.id, now);
+
+  const { EmailAccountFolder } = require('../models');
+  const rows = await EmailAccountFolder.findAll({ where: { account_id: account.id } });
+  const byRole = new Map(rows.map((r) => [r.role, r]));
+  const stale = (r) => !r.discovered_at || now - new Date(r.discovered_at).getTime() >= EXTRA_REDISCOVER_MS;
+  const needDiscover = EXTRA_ROLES.some((role) => {
+    const r = byRole.get(role);
+    if (!r || !r.discovered_at) return true;
+    return (!r.folder || r.last_error) && stale(r);
+  });
+  if (needDiscover) {
+    const found = resolveFolders(flattenBoxes(await conn.getBoxes()));
+    for (const role of EXTRA_ROLES) {
+      const r = byRole.get(role);
+      const folder = found[role] || null;
+      const patch = { folder, discovered_at: new Date(), last_error: folder ? null : 'folder_not_found' };
+      if (!r) {
+        byRole.set(role, await EmailAccountFolder.create({ account_id: account.id, role, ...patch }));
+      } else {
+        // 폴더가 바뀌었으면 옛 커서는 다른 메일함의 uid 다 — 첫 가져오기로.
+        if ((r.folder || null) !== folder) Object.assign(patch, { last_uid: 0, uid_validity: null });
+        // 못 찾던 폴더를 다시 못 찾은 경우에도 discovered_at 을 남겨 하루 한 번만 찾게 한다
+        await r.update(patch);
+      }
+    }
+  }
+
+  const result = {};
+  for (const role of EXTRA_ROLES) {
+    const row = byRole.get(role);
+    if (!row || !row.folder) { result[role] = { skipped: 'folder_not_found' }; continue; }
+    if (!row.enabled) { result[role] = { skipped: 'disabled' }; continue; }
+    try {
+      result[role] = await syncFolder(conn, ctx, row);
+      if (result[role].added > 0) console.log(`[emailImapCron] account #${account.id} ${role} — ${result[role].added} new${result[role].backfill ? ' (첫 가져오기)' : ''}`);
+    } catch (e) {
+      result[role] = { error: e.message };
+      console.warn(`[emailImapCron] account #${account.id} ${role}(${row.folder}) 실패:`, e.message);
+      try { await row.update({ last_error: String(e.message).slice(0, 1000) }); } catch { /* */ }
+    }
+  }
+  return result;
+}
+
+/**
+ * 업체 스팸함에서 가져온 스레드의 30일 보존 — 지난 것은 **영구 삭제**(메시지·첨부 메타·참여자는 FK CASCADE).
+ *   ★ 대상은 spam_origin='provider' AND status='spam' 뿐이다(Fable 판정 ④). 사용자가 받은편지함에서 스팸 표시한 것,
+ *     [스팸 아님] 으로 되돌린 것(spam_origin=NULL)은 지우지 않는다. 삭제 시점에 술어를 **다시** 건다(조회와 삭제 사이 변경 대비).
+ *   ★ 감사: 실행 1회 = 워크스페이스당 AuditLog 1행(mail.spam_purge — 건수 + 스레드 id 목록).
+ *   스팸 스레드에는 File 행이 없다(첨부를 저장하지 않는다) — 파일·용량은 건드릴 것이 없다.
+ */
+async function purgeProviderSpam({ now = new Date(), days = SPAM_RETENTION_DAYS } = {}) {
+  const cutoff = new Date(now.getTime() - days * 86400000);
+  const pred = { spam_origin: 'provider', status: 'spam', spam_since: { [Op.lt]: cutoff } };
+  const rows = await EmailThread.findAll({ where: pred, attributes: ['id', 'business_id'], raw: true, limit: 20000 });
+  const byBiz = new Map();
+  for (const r of rows) { if (!byBiz.has(r.business_id)) byBiz.set(r.business_id, []); byBiz.get(r.business_id).push(r.id); }
+  const summary = { cutoff: cutoff.toISOString(), businesses: 0, deleted: 0 };
+  const { writeAudit } = require('./auditService');
+  for (const [businessId, ids] of byBiz) {
+    let deleted = 0;
+    const done = [];
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      const n = await EmailThread.destroy({ where: { ...pred, business_id: businessId, id: { [Op.in]: chunk } } });
+      deleted += n;
+      done.push(...chunk);
+    }
+    if (deleted > 0) {
+      try {
+        await writeAudit({
+          action: 'mail.spam_purge',
+          targetType: 'email_thread',
+          targetId: null,
+          businessId,
+          newValue: { count: deleted, retention_days: days, cutoff: cutoff.toISOString(), thread_ids: done.slice(0, 2000), truncated: done.length > 2000 },
+        });
+      } catch (e) { console.error('[emailImapCron] spam purge audit failed', businessId, e.message); }
+      summary.businesses += 1;
+      summary.deleted += deleted;
+    }
+  }
+  if (summary.deleted > 0) console.log(`[emailImapCron] 업체 스팸 ${days}일 보존 — ${summary.businesses}개 워크스페이스 ${summary.deleted}건 삭제`);
+  return summary;
+}
+
+// ── 메일 한 통 저장 ──
+//   받은편지함(role 'inbox')·업체 보낸편지함('sent')·업체 스팸함('spam') 이 **같은 길**을 지난다.
+//   갈라지는 곳은 role 분기뿐이다 — 저장·첨부·참여자·실시간 방송을 두 벌로 만들지 않는다.
+//   반환: 'dup'(이미 있음 — 커서만 전진) | 'new'
+async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
+  const { account, ownEmails, ownMatcher, selfEmails, ownerId, io } = ctx;
+  const { mergeParticipants } = require('./emailAddress');
+  const fullBody = r.parts.find(p => p.which === '').body;
+  const parsed = await simpleParser(fullBody);
+  // ★ 2026-09-29 운영 #438 — Message-ID 가 없는 메일을 **버리지 않는다.**
+  //   여태 `continue` 로 조용히 건너뛰어 그 메일은 어디에도 남지 않았다(일부 시스템·폼 메일이 헤더를 안 붙인다).
+  //   계정·메일함 세대(UIDVALIDITY)·uid 로 만든 id 는 같은 메일에 대해 늘 같으므로 재수집해도 중복이 안 생긴다.
+  //   답장 연결(In-Reply-To)은 원래 없는 메일이라 잃을 것이 없다.
+  const uidValidity = (box && box.uidvalidity) || 0;
+  //   ★ 폴더마다 uid 공간이 다르므로 받은편지함 밖 폴더는 역할을 id 에 넣는다(받은편지함 형식은 그대로).
+  const messageId = parsed.messageId || (role === 'inbox'
+    ? `<planq-imap-${account.id}-${uidValidity}-${uid}@no-message-id.local>`
+    : `<planq-imap-${account.id}-${role}-${uidValidity}-${uid}@no-message-id.local>`);
+
+  // 중복 검사 (이미 동기화된 message_id)
+  const existing = await EmailMessage.findOne({
+    where: { business_id: account.business_id, message_id: messageId },
+    attributes: ['id'],
+  });
+  if (existing) return 'dup';
+
+  const fromAddr = parsed.from && parsed.from.value && parsed.from.value[0];
+  const fromEmail = (fromAddr && fromAddr.address) ? fromAddr.address.toLowerCase() : '';
+  const fromName = (fromAddr && fromAddr.name) ? fromAddr.name : '';
+  const toEmails = (parsed.to && parsed.to.value) ? parsed.to.value.map(v => ({ email: v.address, name: v.name })) : [];
+  const ccEmails = (parsed.cc && parsed.cc.value) ? parsed.cc.value.map(v => ({ email: v.address, name: v.name })) : null;
+
+  // ── 보낸편지함 중복의 두 번째 문 (Fable 판정 7) ──
+  //   PlanQ 가 SMTP 로 보낸 메일은 업체가 보낸편지함에 사본을 둔다. Gmail 은 Message-ID 를 그대로 두므로
+  //   위 message_id 검사가 막는다. 업체가 Message-ID 를 바꾸면(네이버 실측 대상) 그 검사를 빠져나간다 →
+  //   «같은 계정 · PlanQ 발송분 · 같은 제목 · 같은 첫 받는 사람 · ±2분» 이면 같은 메일로 본다.
+  //   PlanQ 발송분(sent_by_user_id 있음)만 비교한다 — 업체에서 보낸 메일끼리는 Message-ID 가 늘 다르다.
+  if (role === 'sent' && await isPlanqSentTwin({ account, parsed, toEmails })) return 'dup';
+
+  // ── #371 자기발신 알림메일 수집 차단 ──
+  //   PlanQ 가 보낸 알림메일(SMTP_FROM)이 그대로 Q Mail 로 다시 수집되고 있었다.
+  //   운영 실측 2026-08-22: inbound 2,274건 중 **826건(36%)**. 건당 body_html ~58KB(대부분 로고
+  //   base64)라 매일 용량이 불고, 로고 File 524건 누적(#370)의 상위 원인이기도 하다.
+  //   사용자는 같은 내용을 이미 앱 알림으로 받는다 — 메일함에 또 쌓을 이유가 없다.
+  //
+  //   ★ 판정은 **두 조건을 모두** 만족할 때만이다. 주소만 보면 사람이 그 주소로 보낸 진짜 메일까지
+  //     삼킨다(help@ 는 실제 고객 응대 주소다). 자동발송 헤더는 우리가 붙인 것이라 위조 위험이 없다.
+  //   ★ 되돌리려면 QMAIL_KEEP_SELF_NOTICE=1 만 켜면 된다 — 배포 없이 수집을 되살릴 수 있게.
+  //     ("알림도 메일함에서 보고 싶다" 는 요구가 나오면 그때 이 스위치로 즉시 복구)
+  // ★ 2026-08-24 (Irene 신고: "내 아이디로 이 이메일이 발송되었는데 플랜큐 메일엔 안 나오고
+  //   다른 메일 솔루션들에 나와") — 여기서 **자기발신 알림을 통째로 버리던 분기를 제거했다.**
+  //   #371 의 목적은 "답변 필요" 가 우리 알림으로 오염되는 것을 막는 것이었는데, 그 목적은
+  //   triage 가 이미 달성한다 — `auto-submitted` 헤더가 있으면 emailTriage 가 automated 로
+  //   분류하고 automated 는 reply_needed 를 켜지 않는다. 저장까지 막을 이유가 없었다.
+  //   버리면 사용자는 **다른 메일 클라이언트에는 있는 메일이 PlanQ 에만 없는** 상태를 본다.
+  //   (로고 첨부가 File 로 쌓이는 문제는 별개 가드 `isPlatformLogo` 가 이미 막는다 — 248행)
+  // thread 매칭
+  //   ★ 스팸함 메일은 **항상 새 스레드**다(Fable 판정 ①) — In-Reply-To 를 꾸며 진행 중 대화에 끼어드는 것을 막는다.
+  //   ★ 보낸편지함 메일은 보낸 사람이 «나» 라 제목+참여자 매칭을 받는 사람(to/cc)으로 한다(Fable 판정 6).
+  const { thread, isNew } = role === 'spam'
+    ? await createProviderSpamThread({ account, parsed })
+    : await findOrCreateThread({
+      businessId: account.business_id,
+      accountId: account.id,
+      parsed,
+      fromEmail,
+      ...(role === 'sent'
+        ? { matchEmails: [...toEmails, ...(ccEmails || [])].map((x) => x && x.email).filter(Boolean) }
+        : {}),
+    });
+
+  // message insert
+  // ★ 2026-10-07 — **우리가 다른 앱에서 보낸 메일의 사본**. 아이폰·메일 앱에서 답장하며 참조(Cc)에 우리 다른
+  //   주소를 넣으면 그 사본이 받은편지함으로 돌아온다. 여태 «받은 메일·안읽음» 으로 저장돼 내가 보낸 답장에
+  //   민트 점이 떴다(운영 스레드 3690, Irene: "내가 보낸 걸 안읽었다고 표시를 왜해?").
+  //   판정: 보낸 사람이 우리 주소 **이고** 받는 사람 중 우리가 아닌 주소가 있다.
+  //   ★ 내 주소 → 내 주소(워드프레스 사이트 알림·자기 테스트)는 사본이 아니라 읽어야 할 메일이다 — 그대로 둔다.
+  //   PlanQ 에서 보낸 답장의 사본은 위 message_id 중복 검사가 이미 막는다.
+  //   ★ 보낸 사람은 **이 계정(+별칭)** 으로만 본다 — 동료 계정이 고객에게 보내며 나를 참조한 메일은 나에겐 새 메일이다.
+  //   ★ 보낸편지함 메일은 받는 칸에 내 주소가 없어 isOwnSentCopy 가 못 잡는다 — 역할로 정한다(Fable 판정 2).
+  //   ★ 스팸함 메일은 우리 사본이 아니다 — 보낸 사람이 우리 주소로 꾸며져 있어도 받은 메일로 둔다.
+  const ownCopy = role === 'sent'
+    || (role !== 'spam' && require('./emailAddress').isOwnSentCopy({ fromEmail, toEmails, ccEmails, selfEmails, ownEmails }));
+  // 보낸편지함 메일의 받는 사람이 전부 우리 주소면 «답했다» 가 아니다(전달·메모 — Fable 판정 ②)
+  const internalOnly = role === 'sent' && isInternalOnly({ toEmails, ccEmails, selfEmails, ownEmails, ownMatcher });
+
+  // 고객·프로젝트 연결 — 술어는 services/mailLink.js **하나**다.
+  //   ★ 2026-09-10 이전에는 여기서 `matchClient(from)` 만 불렀다. 그래서
+  //     ①신규 스레드만 ②받은 메일만 ③발신자 주소만 봤고, 프로젝트는 **아예 안 걸었다**.
+  //     이제 to/cc 까지 보고, 값이 비어 있으면 기존 스레드도 뒤늦게 채운다
+  //     (고객을 나중에 등록한 경우가 실제로 많다). 이미 있는 값은 덮지 않는다.
+  const linkAddrs = [
+    fromEmail,
+    ...toEmails.map((x) => x && x.email),
+    ...((ccEmails || []).map((x) => x && x.email)),
+  ];
+  let clientId = thread.client_id || null;
+  // ★ 스팸 스레드는 고객에 걸지 않는다(Fable 판정 5) — clientTimeline 은 client_id 만 보므로 걸면 고객 이력에 스팸이 뜬다.
+  if (role !== 'spam') try {
+    const linked = await require('./mailLink').linkThread(thread, { addresses: linkAddrs });
+    clientId = linked.client_id ?? clientId;
+  } catch (e) {
+    // 연결은 부가 정보다 — 어떤 실패도 메일 저장을 막으면 안 된다(옛 matchClient 와 같은 원칙).
+    console.warn('[emailImapCron] linkThread', e.message);
+  }
+
+  // 이 메일이 **우리 쪽 어느 주소**로 왔는지 스레드에 박아둔다(별칭별 보기의 기반).
+  //   이미 값이 있으면 덮지 않는다 — 대화의 최초 착지 주소가 그 대화의 성격이다.
+  if (!thread.received_at_email) {
+    try {
+      const { EmailAccountAlias } = require('../models');
+      const aliasRows = await EmailAccountAlias.findAll({ where: { account_id: account.id }, attributes: ['email'] });
+      const ours = new Set([String(account.email || '').toLowerCase(), ...aliasRows.map(a => String(a.email).toLowerCase())]);
+      const cand = [...(toEmails || []), ...(ccEmails || [])]
+        .map(x => String(x && x.email || '').toLowerCase()).filter(Boolean)
+        .find(e => ours.has(e));
+      if (cand) await thread.update({ received_at_email: cand });
+    } catch (e) { console.warn('[emailImapCron] received_at_email', e.message); }
+  }
+
+  const message = await EmailMessage.create({
+    thread_id: thread.id,
+    business_id: account.business_id,
+    direction: ownCopy ? 'outbound' : 'inbound',
+    message_id: messageId,
+    in_reply_to: parsed.inReplyTo || null,
+    references_chain: Array.isArray(parsed.references) ? parsed.references.join(' ') : (parsed.references || null),
+    // 판정용 헤더를 여기서 남긴다 — 이걸 안 남기면 재판정 때 광고·자동발송 판정이 눈을 감는다.
+    triage_headers: require('./emailTriage').pickTriageHeaders(parsed.headers),
+    imap_uid: uid,
+    from_email: fromEmail,
+    from_name: fromName,
+    to_emails: toEmails,
+    cc_emails: ccEmails,
+    subject: parsed.subject || null,
+    body_html: parsed.html || null,
+    body_text: parsed.text || null,
+    is_read: ownCopy,
+    // 업체 보낸편지함 메일은 «업체가 받아 보냈다» 까지만 안다 — 'sent'(도착 보증 아님). 받은편지함 사본은 종전대로.
+    delivery_status: role === 'sent' ? 'sent' : 'delivered',
+    sent_at: parsed.date || new Date(),
+    source_folder: role,
+    internal_only: internalOnly,
+  });
+
+  // attachments
+  if (Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
+    for (const att of parsed.attachments) {
+      // ★ 스팸함 첨부는 파일로 저장하지 않는다(쿼터·검색 오염) — 이름·크기만 메타로 남긴다.
+      const fileId = role === 'spam' ? null : await saveAttachmentAsFile({
+        businessId: account.business_id,
+        att,
+        account,
+        fallbackOwnerId: ownerId,
+      });
+      await EmailAttachment.create({
+        message_id: message.id,
+        file_id: fileId,
+        filename: toNFC(att.filename || 'attachment'),   // #364 — 위 file_name 과 같은 축
+        mime_type: att.contentType || null,
+        size_bytes: att.size || (att.content ? att.content.length : null),
+        content_id: att.contentId || att.cid || null,
+        // #215-B — Content-ID 존재가 아니라 **본문이 실제 그 cid 를 참조하는가** 로 판정한다.
+        //   `att.related` 는 쓰지 않는다: mailparser 상 "조상에 multipart/related 가 있다" 일 뿐 본문 참조를
+        //   보장하지 않고, 무엇보다 **백필이 재계산할 수 없어**(원본 MIME 미보관) 쓰기측과 술어가 갈라진다.
+        is_inline: isEmbedded(att.contentId || att.cid, parsed.html),
+      });
+    }
+  }
+
+  // thread 갱신
+  // #164 — 미리보기는 정리된 본문에서. 날 parsed.text 앞부분은 전달/인용 헤더블록
+  //   (From:/Sent:/원본주소) 이나 뉴스레터 프리헤더라 "영어조각·원본주소"로 시작했다.
+  const { buildPreview } = require('./emailBodyClean');
+  const preview = buildPreview(parsed.text, parsed.html, 500);
+  // #200 — ★ 반드시 복제본에 push 한다. thread.participants 를 in-place 로 밀면 Sequelize 가
+  //   변경을 감지하지 못해 UPDATE 에서 이 컬럼이 통째로 빠진다 → 운영 953 스레드 전원
+  //   participants=[] 였고, findOrCreateThread 의 "제목+참여자" 매칭이 항상 실패해
+  //   같은 제목 메일이 매번 새 스레드로 쪼개졌다(#200 "여러 건 겹친 경우 정리").
+  //   #200(b') — 참여자 판정 술어를 services/emailAddress.js 로 단일화했다.
+  //   "이 계정 주소(+별칭)가 아닌 모든 from/to/cc". 방향 무관 대칭 규칙 — inbound 의 to 를
+  //   버리면 자기 주소로 발신된 메일이 자기 함에 도착한 스레드(운영 236건)가 상대를
+  //   영영 못 갖는다. bcc 는 의도적 은닉 수신자라 제외한다.
+  const participants = mergeParticipants(
+    thread.participants,
+    [
+      { email: fromEmail, name: fromName },
+      ...(Array.isArray(toEmails) ? toEmails : []),
+      ...(Array.isArray(ccEmails) ? ccEmails : []),
+    ],
+    { excludeEmails: selfEmails },
+  );
+  // N+83 — Inbound 트리아지 (human/automated/marketing/spam). spam 판정은 classify 재사용.
+  //   신규 스레드: 전체 분류 박제 + human 이면 reply_needed 자동 ON ("답변 필요" 폴더 작동).
+  //   기존 스레드 후속 inbound: 사람 메일이면 reply_needed 복원 (status/triage 는 유지, spam/archived 제외).
+  let triageFields = {};
+  // ── 순서 역전 가드 (Fable 판정 3) — 보낸편지함 첫 가져오기(30일)는 **옛 발신**을 들고 온다.
+  //   이미 고객 답장이 더 최근에 온 스레드에 옛 발신을 붙이며 last_message_*·reply_needed 를 덮으면
+  //   답변 필요 메일이 사라지고 «답이 없다» 알림이 옛 발신을 기준으로 뜬다.
+  //   → 이 메일이 스레드의 마지막 메시지보다 **새것일 때만** last_message_*·reply_needed 를 바꾼다.
+  //     message_count·participants 는 항상 반영한다(사실의 기록).
+  const msgAt = parsed.date || new Date();
+  const isLatest = role !== 'sent' || isNew || !thread.last_message_at
+    || new Date(msgAt).getTime() > new Date(thread.last_message_at).getTime();
+  // 우리가 보낸 사본은 받은 메일 판정을 하지 않는다 — PlanQ 에서 답장했을 때와 같게 둔다(routes/email_threads 답장 경로).
+  if (role === 'spam') triageFields = { status: 'spam', triage: 'spam', reply_needed: false, spam_origin: 'provider', spam_since: new Date() };
+  else if (role === 'sent' && (!isLatest || internalOnly)) triageFields = {};
+  else if (ownCopy) triageFields = { reply_needed: false, reply_needed_reason: 'replied', ...(thread.status === 'uncertain' ? { status: 'open' } : {}) };
+  else try {
+    const { triageInbound } = require('./emailTriage');
+    const { applyRules } = require('./mailSenderRules');
+    const known = await isKnownContact(account.business_id, fromEmail, { excludeMessageId: message.id });
+    // ★ #221 — 여태 mailparser 의 **Map** 을 그대로 넘겼다. 대부분 술어는 Map 을 읽지만
+    //   `isAddressedToUs`·`isThreadReply` 는 직접 프로퍼티 접근이라 Map 에서 **항상 false** 였고,
+    //   그 결과 수집 시점에 "우리 주소로 직접 왔는가"·"우리 대화에 대한 회신인가" 판정이
+    //   영구 미발동했다(실측 22 스레드, 그중 11건이 사용자에게 안 보임). 재판정 경로와 같은
+    //   평문 객체로 정규화해 넘긴다 — 이제 두 경로의 입력이 구조상 같다.
+    const trHeaders = require('./emailTriage').normalizeHeaders({
+      headers: parsed.headers,
+      toEmails,
+      inReplyTo: parsed.inReplyTo,
+      references: parsed.references,
+    });
+    const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: trHeaders, ownEmails, ownMatcher, isKnownContact: known });
+    // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
+    //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
+    // #344 — 문구 규칙(제목·본문·키워드)을 보려면 규칙 엔진에 그 내용을 같이 줘야 한다.
+    const tr = await applyRules(account.business_id, fromEmail, base, { subject: parsed.subject, bodyText: parsed.text });
+    const ruleReason = tr.rule_applied ? 'rule' : 'inbound';
+    // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다. 수백 건이 한꺼번에
+    //   "답변 필요" 로 들어오면 그 폴더가 무용지물이 된다 (Irene 결정).
+    const replyNeeded = isBackfill ? false : tr.reply_needed;
+    const { threadFieldsForInbound } = require('./emailTriage');
+    triageFields = threadFieldsForInbound({
+      isNew, thread, tr, replyNeeded, ruleReason, messageDate: parsed.date,
+    });
+    // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다.
+    if (isNew && isBackfill) triageFields.reply_needed_reason = 'backfill';
+  } catch (e) { console.warn('[emailTriage]', e.message); }
+  await thread.update({
+    message_count: thread.message_count + 1,
+    unread_count: ownCopy ? thread.unread_count : thread.unread_count + 1,
+    ...(isLatest ? {
+      last_message_at: parsed.date || new Date(),
+      last_message_direction: ownCopy ? 'outbound' : 'inbound',
+      last_message_preview: preview,
+    } : {}),
+    participants,
+    client_id: clientId,
+    ...triageFields,
+  });
+
+  // #235 — 분류가 끝난 **직후**가 자동추출 판정 시점이다(그 전엔 reply_needed 가 없다).
+  //   백필 제외·scope 판정·디바운스는 전부 services/mailAutoExtract 안에 있다.
+  if (role !== 'spam') try {
+    require('./mailAutoExtract').scheduleFromInbound({ thread, account, isBackfill, io });
+  } catch (e) { console.warn('[mailAutoExtract] schedule', e.message); }
+
+  // socket emit
+  if (io) {
+    io.to(`business:${account.business_id}`).emit('mail:new', {
+      thread_id: thread.id,
+      message_id: message.id,
+      from_email: fromEmail,
+      subject: parsed.subject,
+      is_new_thread: isNew,
+    });
+  }
+
+  // #203 — 새 메일 알림 (인앱 종 · 모바일 push · 답변필요는 이메일까지).
+  //   여태 socket broadcast 만 하고 notify 호출이 없어 알림이 0건이었다 (CLAUDE.md §13).
+  //   범위는 계정별 notify_scope, 수신자 분기(개인=본인만 / 회사=멤버 전원)는 mailNotify 안에서.
+  //   과거분 백필(isBackfill)은 알리지 않는다 — 옛 메일 수백 통이 한꺼번에 울린다.
+  if (!isBackfill && !ownCopy && role !== 'spam') {
+    try {
+      const { notifyInboundMail } = require('./mailNotify');
+      await notifyInboundMail({
+        account, thread,
+        fromName, fromEmail,
+        subject: parsed.subject,
+        messageId: parsed.messageId || null,   // 계정 간 같은 메일 알림 중복 제거 기준
+        fields: triageFields,
+        ioApp: io || global.__planqIo,
+      });
+    } catch (e) { console.error('[mailNotify] inbound', e.message); }
+  }
+  return 'new';
+}
+
 async function syncOne(account, opts = {}) {
   const imapConfig = await buildImapConfig(account);
 
@@ -431,7 +1013,7 @@ async function syncOne(account, opts = {}) {
   // 참여자 제외 집합 — 이 계정 주소 + 별칭. 동기화 1회당 한 번만 조회한다.
   //   ownEmails(비즈니스 전체)와 다르다: 같은 워크스페이스의 다른 계정끼리 주고받은 메일에서
   //   상대 계정은 정당한 참여자다 (#200 b').
-  const { mergeParticipants, selfEmailsForAccount } = require('./emailAddress');
+  const { selfEmailsForAccount } = require('./emailAddress');
   const selfEmails = await selfEmailsForAccount(account);
 
   let newCount = 0;
@@ -472,6 +1054,8 @@ async function syncOne(account, opts = {}) {
 
     // socket io 가져옴 (broadcast 용)
     const io = global.__planqIo;
+    // 메일 한 통 저장에 필요한 것 — 받은편지함·보낸편지함·스팸함이 같은 묶음을 쓴다.
+    const ctx = { account, ownEmails, ownMatcher, selfEmails, ownerId, io };
 
     for (const r of limited) {
       const uid = r.attributes.uid;
@@ -479,247 +1063,8 @@ async function syncOne(account, opts = {}) {
       //   (첫 sync 가 커서를 UIDNEXT-1 로 세팅해 둔 상태라 과거 메일 uid 는 항상 커서보다 작다)
       if (!isBackfill && uid <= account.imap_last_uid) continue;
       try {
-        const fullBody = r.parts.find(p => p.which === '').body;
-        const parsed = await simpleParser(fullBody);
-        // ★ 2026-09-29 운영 #438 — Message-ID 가 없는 메일을 **버리지 않는다.**
-        //   여태 `continue` 로 조용히 건너뛰어 그 메일은 어디에도 남지 않았다(일부 시스템·폼 메일이 헤더를 안 붙인다).
-        //   계정·메일함 세대(UIDVALIDITY)·uid 로 만든 id 는 같은 메일에 대해 늘 같으므로 재수집해도 중복이 안 생긴다.
-        //   답장 연결(In-Reply-To)은 원래 없는 메일이라 잃을 것이 없다.
-        const uidValidity = (box && box.uidvalidity) || 0;
-        const messageId = parsed.messageId || `<planq-imap-${account.id}-${uidValidity}-${uid}@no-message-id.local>`;
-
-        // 중복 검사 (이미 동기화된 message_id)
-        const existing = await EmailMessage.findOne({
-          where: { business_id: account.business_id, message_id: messageId },
-          attributes: ['id'],
-        });
-        if (existing) { uidFailures.delete(`${account.id}:${uid}`); maxUid = Math.max(maxUid, uid); continue; }
-
-        const fromAddr = parsed.from && parsed.from.value && parsed.from.value[0];
-        const fromEmail = (fromAddr && fromAddr.address) ? fromAddr.address.toLowerCase() : '';
-        const fromName = (fromAddr && fromAddr.name) ? fromAddr.name : '';
-
-        // ── #371 자기발신 알림메일 수집 차단 ──
-        //   PlanQ 가 보낸 알림메일(SMTP_FROM)이 그대로 Q Mail 로 다시 수집되고 있었다.
-        //   운영 실측 2026-08-22: inbound 2,274건 중 **826건(36%)**. 건당 body_html ~58KB(대부분 로고
-        //   base64)라 매일 용량이 불고, 로고 File 524건 누적(#370)의 상위 원인이기도 하다.
-        //   사용자는 같은 내용을 이미 앱 알림으로 받는다 — 메일함에 또 쌓을 이유가 없다.
-        //
-        //   ★ 판정은 **두 조건을 모두** 만족할 때만이다. 주소만 보면 사람이 그 주소로 보낸 진짜 메일까지
-        //     삼킨다(help@ 는 실제 고객 응대 주소다). 자동발송 헤더는 우리가 붙인 것이라 위조 위험이 없다.
-        //   ★ 되돌리려면 QMAIL_KEEP_SELF_NOTICE=1 만 켜면 된다 — 배포 없이 수집을 되살릴 수 있게.
-        //     ("알림도 메일함에서 보고 싶다" 는 요구가 나오면 그때 이 스위치로 즉시 복구)
-        // ★ 2026-08-24 (Irene 신고: "내 아이디로 이 이메일이 발송되었는데 플랜큐 메일엔 안 나오고
-        //   다른 메일 솔루션들에 나와") — 여기서 **자기발신 알림을 통째로 버리던 분기를 제거했다.**
-        //   #371 의 목적은 "답변 필요" 가 우리 알림으로 오염되는 것을 막는 것이었는데, 그 목적은
-        //   triage 가 이미 달성한다 — `auto-submitted` 헤더가 있으면 emailTriage 가 automated 로
-        //   분류하고 automated 는 reply_needed 를 켜지 않는다. 저장까지 막을 이유가 없었다.
-        //   버리면 사용자는 **다른 메일 클라이언트에는 있는 메일이 PlanQ 에만 없는** 상태를 본다.
-        //   (로고 첨부가 File 로 쌓이는 문제는 별개 가드 `isPlatformLogo` 가 이미 막는다 — 248행)
-        // thread 매칭
-        const { thread, isNew } = await findOrCreateThread({
-          businessId: account.business_id,
-          accountId: account.id,
-          parsed,
-          fromEmail,
-        });
-
-        // message insert
-        const toEmails = (parsed.to && parsed.to.value) ? parsed.to.value.map(v => ({ email: v.address, name: v.name })) : [];
-        const ccEmails = (parsed.cc && parsed.cc.value) ? parsed.cc.value.map(v => ({ email: v.address, name: v.name })) : null;
-        // ★ 2026-10-07 — **우리가 다른 앱에서 보낸 메일의 사본**. 아이폰·메일 앱에서 답장하며 참조(Cc)에 우리 다른
-        //   주소를 넣으면 그 사본이 받은편지함으로 돌아온다. 여태 «받은 메일·안읽음» 으로 저장돼 내가 보낸 답장에
-        //   민트 점이 떴다(운영 스레드 3690, Irene: "내가 보낸 걸 안읽었다고 표시를 왜해?").
-        //   판정: 보낸 사람이 우리 주소 **이고** 받는 사람 중 우리가 아닌 주소가 있다.
-        //   ★ 내 주소 → 내 주소(워드프레스 사이트 알림·자기 테스트)는 사본이 아니라 읽어야 할 메일이다 — 그대로 둔다.
-        //   PlanQ 에서 보낸 답장의 사본은 위 message_id 중복 검사가 이미 막는다.
-        //   ★ 보낸 사람은 **이 계정(+별칭)** 으로만 본다 — 동료 계정이 고객에게 보내며 나를 참조한 메일은 나에겐 새 메일이다.
-        const ownCopy = require('./emailAddress').isOwnSentCopy({ fromEmail, toEmails, ccEmails, selfEmails, ownEmails });
-
-        // 고객·프로젝트 연결 — 술어는 services/mailLink.js **하나**다.
-        //   ★ 2026-09-10 이전에는 여기서 `matchClient(from)` 만 불렀다. 그래서
-        //     ①신규 스레드만 ②받은 메일만 ③발신자 주소만 봤고, 프로젝트는 **아예 안 걸었다**.
-        //     이제 to/cc 까지 보고, 값이 비어 있으면 기존 스레드도 뒤늦게 채운다
-        //     (고객을 나중에 등록한 경우가 실제로 많다). 이미 있는 값은 덮지 않는다.
-        const linkAddrs = [
-          fromEmail,
-          ...toEmails.map((x) => x && x.email),
-          ...((ccEmails || []).map((x) => x && x.email)),
-        ];
-        let clientId = thread.client_id || null;
-        try {
-          const linked = await require('./mailLink').linkThread(thread, { addresses: linkAddrs });
-          clientId = linked.client_id ?? clientId;
-        } catch (e) {
-          // 연결은 부가 정보다 — 어떤 실패도 메일 저장을 막으면 안 된다(옛 matchClient 와 같은 원칙).
-          console.warn('[emailImapCron] linkThread', e.message);
-        }
-
-        // 이 메일이 **우리 쪽 어느 주소**로 왔는지 스레드에 박아둔다(별칭별 보기의 기반).
-        //   이미 값이 있으면 덮지 않는다 — 대화의 최초 착지 주소가 그 대화의 성격이다.
-        if (!thread.received_at_email) {
-          try {
-            const { EmailAccountAlias } = require('../models');
-            const aliasRows = await EmailAccountAlias.findAll({ where: { account_id: account.id }, attributes: ['email'] });
-            const ours = new Set([String(account.email || '').toLowerCase(), ...aliasRows.map(a => String(a.email).toLowerCase())]);
-            const cand = [...(toEmails || []), ...(ccEmails || [])]
-              .map(x => String(x && x.email || '').toLowerCase()).filter(Boolean)
-              .find(e => ours.has(e));
-            if (cand) await thread.update({ received_at_email: cand });
-          } catch (e) { console.warn('[emailImapCron] received_at_email', e.message); }
-        }
-
-        const message = await EmailMessage.create({
-          thread_id: thread.id,
-          business_id: account.business_id,
-          direction: ownCopy ? 'outbound' : 'inbound',
-          message_id: messageId,
-          in_reply_to: parsed.inReplyTo || null,
-          references_chain: Array.isArray(parsed.references) ? parsed.references.join(' ') : (parsed.references || null),
-          // 판정용 헤더를 여기서 남긴다 — 이걸 안 남기면 재판정 때 광고·자동발송 판정이 눈을 감는다.
-          triage_headers: require('./emailTriage').pickTriageHeaders(parsed.headers),
-          imap_uid: uid,
-          from_email: fromEmail,
-          from_name: fromName,
-          to_emails: toEmails,
-          cc_emails: ccEmails,
-          subject: parsed.subject || null,
-          body_html: parsed.html || null,
-          body_text: parsed.text || null,
-          is_read: ownCopy,
-          delivery_status: 'delivered',
-          sent_at: parsed.date || new Date(),
-        });
-
-        // attachments
-        if (Array.isArray(parsed.attachments) && parsed.attachments.length > 0) {
-          for (const att of parsed.attachments) {
-            const fileId = await saveAttachmentAsFile({
-              businessId: account.business_id,
-              att,
-              account,
-              fallbackOwnerId: ownerId,
-            });
-            await EmailAttachment.create({
-              message_id: message.id,
-              file_id: fileId,
-              filename: toNFC(att.filename || 'attachment'),   // #364 — 위 file_name 과 같은 축
-              mime_type: att.contentType || null,
-              size_bytes: att.size || (att.content ? att.content.length : null),
-              content_id: att.contentId || att.cid || null,
-              // #215-B — Content-ID 존재가 아니라 **본문이 실제 그 cid 를 참조하는가** 로 판정한다.
-              //   `att.related` 는 쓰지 않는다: mailparser 상 "조상에 multipart/related 가 있다" 일 뿐 본문 참조를
-              //   보장하지 않고, 무엇보다 **백필이 재계산할 수 없어**(원본 MIME 미보관) 쓰기측과 술어가 갈라진다.
-              is_inline: isEmbedded(att.contentId || att.cid, parsed.html),
-            });
-          }
-        }
-
-        // thread 갱신
-        // #164 — 미리보기는 정리된 본문에서. 날 parsed.text 앞부분은 전달/인용 헤더블록
-        //   (From:/Sent:/원본주소) 이나 뉴스레터 프리헤더라 "영어조각·원본주소"로 시작했다.
-        const { buildPreview } = require('./emailBodyClean');
-        const preview = buildPreview(parsed.text, parsed.html, 500);
-        // #200 — ★ 반드시 복제본에 push 한다. thread.participants 를 in-place 로 밀면 Sequelize 가
-        //   변경을 감지하지 못해 UPDATE 에서 이 컬럼이 통째로 빠진다 → 운영 953 스레드 전원
-        //   participants=[] 였고, findOrCreateThread 의 "제목+참여자" 매칭이 항상 실패해
-        //   같은 제목 메일이 매번 새 스레드로 쪼개졌다(#200 "여러 건 겹친 경우 정리").
-        //   #200(b') — 참여자 판정 술어를 services/emailAddress.js 로 단일화했다.
-        //   "이 계정 주소(+별칭)가 아닌 모든 from/to/cc". 방향 무관 대칭 규칙 — inbound 의 to 를
-        //   버리면 자기 주소로 발신된 메일이 자기 함에 도착한 스레드(운영 236건)가 상대를
-        //   영영 못 갖는다. bcc 는 의도적 은닉 수신자라 제외한다.
-        const participants = mergeParticipants(
-          thread.participants,
-          [
-            { email: fromEmail, name: fromName },
-            ...(Array.isArray(toEmails) ? toEmails : []),
-            ...(Array.isArray(ccEmails) ? ccEmails : []),
-          ],
-          { excludeEmails: selfEmails },
-        );
-        // N+83 — Inbound 트리아지 (human/automated/marketing/spam). spam 판정은 classify 재사용.
-        //   신규 스레드: 전체 분류 박제 + human 이면 reply_needed 자동 ON ("답변 필요" 폴더 작동).
-        //   기존 스레드 후속 inbound: 사람 메일이면 reply_needed 복원 (status/triage 는 유지, spam/archived 제외).
-        let triageFields = {};
-        // 우리가 보낸 사본은 받은 메일 판정을 하지 않는다 — PlanQ 에서 답장했을 때와 같게 둔다(routes/email_threads 답장 경로).
-        if (ownCopy) triageFields = { reply_needed: false, reply_needed_reason: 'replied', ...(thread.status === 'uncertain' ? { status: 'open' } : {}) };
-        else try {
-          const { triageInbound } = require('./emailTriage');
-          const { applyRules } = require('./mailSenderRules');
-          const known = await isKnownContact(account.business_id, fromEmail, { excludeMessageId: message.id });
-          // ★ #221 — 여태 mailparser 의 **Map** 을 그대로 넘겼다. 대부분 술어는 Map 을 읽지만
-          //   `isAddressedToUs`·`isThreadReply` 는 직접 프로퍼티 접근이라 Map 에서 **항상 false** 였고,
-          //   그 결과 수집 시점에 "우리 주소로 직접 왔는가"·"우리 대화에 대한 회신인가" 판정이
-          //   영구 미발동했다(실측 22 스레드, 그중 11건이 사용자에게 안 보임). 재판정 경로와 같은
-          //   평문 객체로 정규화해 넘긴다 — 이제 두 경로의 입력이 구조상 같다.
-          const trHeaders = require('./emailTriage').normalizeHeaders({
-            headers: parsed.headers,
-            toEmails,
-            inReplyTo: parsed.inReplyTo,
-            references: parsed.references,
-          });
-          const base = triageInbound({ subject: parsed.subject, bodyText: parsed.text, fromEmail, headers: trHeaders, ownEmails, ownMatcher, isKnownContact: known });
-          // 학습된 발신자 규칙이 휴리스틱보다 우선한다 (사용자가 직접 알려준 정답).
-          //   규칙은 분류만 바꾼다 — 원본 메일은 그대로라 규칙 삭제 시 즉시 원상복구.
-          // #344 — 문구 규칙(제목·본문·키워드)을 보려면 규칙 엔진에 그 내용을 같이 줘야 한다.
-          const tr = await applyRules(account.business_id, fromEmail, base, { subject: parsed.subject, bodyText: parsed.text });
-          const ruleReason = tr.rule_applied ? 'rule' : 'inbound';
-          // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다. 수백 건이 한꺼번에
-          //   "답변 필요" 로 들어오면 그 폴더가 무용지물이 된다 (Irene 결정).
-          const replyNeeded = isBackfill ? false : tr.reply_needed;
-          const { threadFieldsForInbound } = require('./emailTriage');
-          triageFields = threadFieldsForInbound({
-            isNew, thread, tr, replyNeeded, ruleReason, messageDate: parsed.date,
-          });
-          // 백필(과거 메일)은 읽기만 — 이미 다른 데서 처리했을 가능성이 높다.
-          if (isNew && isBackfill) triageFields.reply_needed_reason = 'backfill';
-        } catch (e) { console.warn('[emailTriage]', e.message); }
-        await thread.update({
-          message_count: thread.message_count + 1,
-          unread_count: ownCopy ? thread.unread_count : thread.unread_count + 1,
-          last_message_at: parsed.date || new Date(),
-          last_message_direction: ownCopy ? 'outbound' : 'inbound',
-          last_message_preview: preview,
-          participants,
-          client_id: clientId,
-          ...triageFields,
-        });
-
-        // #235 — 분류가 끝난 **직후**가 자동추출 판정 시점이다(그 전엔 reply_needed 가 없다).
-        //   백필 제외·scope 판정·디바운스는 전부 services/mailAutoExtract 안에 있다.
-        try {
-          require('./mailAutoExtract').scheduleFromInbound({ thread, account, isBackfill, io });
-        } catch (e) { console.warn('[mailAutoExtract] schedule', e.message); }
-
-        // socket emit
-        if (io) {
-          io.to(`business:${account.business_id}`).emit('mail:new', {
-            thread_id: thread.id,
-            message_id: message.id,
-            from_email: fromEmail,
-            subject: parsed.subject,
-            is_new_thread: isNew,
-          });
-        }
-
-        // #203 — 새 메일 알림 (인앱 종 · 모바일 push · 답변필요는 이메일까지).
-        //   여태 socket broadcast 만 하고 notify 호출이 없어 알림이 0건이었다 (CLAUDE.md §13).
-        //   범위는 계정별 notify_scope, 수신자 분기(개인=본인만 / 회사=멤버 전원)는 mailNotify 안에서.
-        //   과거분 백필(isBackfill)은 알리지 않는다 — 옛 메일 수백 통이 한꺼번에 울린다.
-        if (!isBackfill && !ownCopy) {
-          try {
-            const { notifyInboundMail } = require('./mailNotify');
-            await notifyInboundMail({
-              account, thread,
-              fromName, fromEmail,
-              subject: parsed.subject,
-              messageId: parsed.messageId || null,   // 계정 간 같은 메일 알림 중복 제거 기준
-              fields: triageFields,
-              ioApp: io || global.__planqIo,
-            });
-          } catch (e) { console.error('[mailNotify] inbound', e.message); }
-        }
-
+        const res = await ingestMessage(ctx, { r, uid, box, role: 'inbox', isBackfill });
+        if (res === 'dup') { uidFailures.delete(`${account.id}:${uid}`); maxUid = Math.max(maxUid, uid); continue; }
         newCount++;
         uidFailures.delete(`${account.id}:${uid}`); // 성공하면 실패 횟수를 지운다(«연속» 실패만 센다)
         maxUid = Math.max(maxUid, uid);
@@ -751,6 +1096,12 @@ async function syncOne(account, opts = {}) {
       last_sync_error: null,
       fail_count: 0,
     });
+
+    // ── 업체 보낸편지함·스팸함 (docs/MAIL_SENT_SPAM_SYNC_DESIGN.md) ──
+    //   받은편지함 커서를 **먼저** 저장한 뒤 같은 연결로 연다 — 여기서 무엇이 실패해도 받은편지함 저장은 되돌아가지 않는다.
+    //   실패는 폴더 행의 last_error 에만 남는다(계정 fail_count·last_sync_error 를 건드리지 않는다).
+    try { await syncExtraFolders(conn, ctx, opts); }
+    catch (e) { console.warn(`[emailImapCron] extra folders account #${account.id}:`, e.message); }
   } finally {
     // #357 — 폴링 연결도 같은 함정. end() 가 비동기 EPIPE 를 던지면 리스너가 없어 프로세스가 죽는다.
     silenceLateErrors(conn && conn.imap);
@@ -781,7 +1132,15 @@ async function tick() {
       // 실시간 IDLE 연결이 살아있는 계정은 이미 즉시 수신 중 — 폴링이 2번째 연결을 열어
       // Gmail 동시연결 제한(15)을 압박하는 것을 막는다. IDLE 이 끊긴(conn=null) 계정만 backstop 폴링.
       const idle = idleConns.get(acc.id);
-      if (idle && idle.conn) continue;
+      if (idle && idle.conn) {
+        // ★ IDLE 은 받은편지함만 지켜본다 — 보낸편지함·스팸함은 IDLE 이 안 깨운다(Fable 판정 1).
+        //   운영 계정은 사실상 전부 IDLE 이라 여기서 건너뛰기만 하면 폴더가 영영 안 돈다 → 주기적으로 guardedSync.
+        //   (syncBusy 직렬화 그대로 — IDLE 푸시와 겹쳐도 연결이 동시에 둘 열리지 않는다)
+        if (extraFoldersEnabled() && Date.now() - (lastExtraRun.get(acc.id) || 0) >= EXTRA_IDLE_INTERVAL_MS) {
+          await guardedSync(acc.id);
+        }
+        continue;
+      }
       try {
         const n = await syncOne(acc);
         if (n > 0) console.log(`[emailImapCron] account #${acc.id} (${acc.email}) — ${n} new`);
@@ -1054,10 +1413,17 @@ function init() {
   // (2) 폴링 backstop — IDLE 이 조용히 끊긴 계정(모바일 네트워크·서버 idle timeout) 대비 안전망.
   //     IDLE 이 대부분 즉시 처리하므로 3분 backstop 으로 충분(부하 감소). fetch 후 socket 'mail:new'.
   cron.schedule('*/3 * * * *', () => { tick().catch(() => {}); });
+  // (3) 업체 스팸함에서 가져온 메일의 30일 보존 — 매일 04:40. 스위치(QMAIL_EXTRA_FOLDERS=0)와 무관하게 돈다
+  //     (롤백으로 수집을 꺼도 이미 들어온 스팸은 30일 뒤 사라진다 — 설계 «켜고 끄기·롤백»).
+  cron.schedule('40 4 * * *', () => { purgeProviderSpam().catch((e) => console.error('[emailImapCron] spam purge', e.message)); });
   console.log('[emailImapCron] initialized — IMAP IDLE (실시간) + 3분 backstop 폴링');
 }
 
 //   findOrCreateThread 는 검증용으로도 노출한다 — 스레드 매칭(step1~3)은 IMAP 없이 검증할 수 있어야 한다.
 module.exports = { init, tick, syncOne, isKnownContact, reconcileIdle, startIdleForAccount, stopIdleForAccount, findOrCreateThread,
+  syncExtraFolders, purgeProviderSpam, extraFoldersEnabled, resolveFolders, flattenBoxes, isInternalOnly, isPlanqSentTwin,
+  SPAM_RETENTION_DAYS, EXTRA_IDLE_INTERVAL_MS,
+  // 검증 전용 — 실계정 측정 스크립트가 같은 연결 설정을 쓰게
+  __buildImapConfig: buildImapConfig, __lastExtraRun: lastExtraRun, __ingestMessage: ingestMessage, __syncFolder: syncFolder,
   // 검증 전용 — 첨부 저장 게이트(#370)를 실제로 태워보기 위해 노출한다.
   __testSaveAttachment: saveAttachmentAsFile };

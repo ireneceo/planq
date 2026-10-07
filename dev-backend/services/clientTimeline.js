@@ -77,7 +77,8 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
     const acctIds = await accessibleAccountIds(businessId, userId);
     if (acctIds.length) {
       const threads = await EmailThread.findAll({
-        where: { business_id: businessId, client_id: clientId, account_id: { [Op.in]: acctIds } },
+        // 스팸 스레드는 고객 이력이 아니다(사용자가 스팸 표시한 것 포함 — Fable 2026-10-07)
+        where: { business_id: businessId, client_id: clientId, account_id: { [Op.in]: acctIds }, status: { [Op.ne]: 'spam' } },
         attributes: ['id', 'subject'],
       });
       const thMap = new Map(threads.map((t) => [t.id, t.subject]));

@@ -1188,3 +1188,15 @@ export const DraftStatusLine = styled.span<{ $err?: boolean }>`
   color: ${p => (p.$err ? '#B45309' : '#94A3B8')};
   font-weight: ${p => (p.$err ? 600 : 500)};
 `;
+
+// 업체 스팸함 안내 — 스팸 탭 목록 위($inList) · 스팸 상세 본문 위. (docs/MAIL_SENT_SPAM_SYNC_DESIGN.md)
+//   폰에서 입력 중(검색창)에는 접는다 — 부가 안내가 목록 높이를 먹지 않게(CLAUDE.md «모바일 입력» 절).
+export const SpamProviderNote = styled.p<{ $inList?: boolean }>`
+  margin: ${(p) => (p.$inList ? '0 16px 10px' : '12px 16px 0')};
+  padding: 8px 12px; border-radius: 8px;
+  background: #FFFBEB; border: 1px solid #FDE68A;
+  font-size: 0.75rem; line-height: 1.6; color: #92400E;
+  @media (max-width: 768px) {
+    body[data-keyboard-up='1'] & { display: none; }
+  }
+`;

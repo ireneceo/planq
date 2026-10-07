@@ -654,7 +654,8 @@ const NOTE_SNIPPET_CHARS = 700;
         const { accessibleAccountIds } = require('./mailIdentity');
         const acctIds = await accessibleAccountIds(businessId, scope.userId);
         if (acctIds && acctIds.length) {
-          const base = { business_id: businessId, account_id: { [Op.in]: acctIds } };
+          // 스팸은 Cue 문맥에 넣지 않는다 — 업체 스팸함에서 가져온 본문이 답변 근거가 되면 안 된다(2026-10-07)
+          const base = { business_id: businessId, account_id: { [Op.in]: acctIds }, status: { [Op.ne]: 'spam' } };
           const hit = await EmailThread.findAll({
             where: { [Op.and]: [base, likeAny(['subject'], terms)] },
             attributes: ['id', 'subject', 'status', 'reply_needed', 'last_message_at'],

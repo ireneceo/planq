@@ -134,6 +134,7 @@ const EmailAttachment = require('./EmailAttachment');
 const EmailThreadParticipant = require('./EmailThreadParticipant');
 const EmailDraft = require('./EmailDraft');
 const EmailFaqSuggestion = require('./EmailFaqSuggestion'); // Q Mail M4
+const EmailAccountFolder = require('./EmailAccountFolder'); // 업체 보낸편지함·스팸함 커서 (2026-10-07)
 // ─── Q조직 D1 — 부서/팀 ───
 const Department = require('./Department');
 const Team = require('./Team');
@@ -547,6 +548,8 @@ ExportJob.belongsTo(Business, { as: 'targetBusiness', foreignKey: 'target_busine
 
 EmailAccount.hasMany(EmailAccountAlias, { foreignKey: 'account_id', as: 'aliases', onDelete: 'CASCADE' });
 EmailAccountAlias.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
+EmailAccount.hasMany(EmailAccountFolder, { foreignKey: 'account_id', as: 'extraFolders', onDelete: 'CASCADE' });
+EmailAccountFolder.belongsTo(EmailAccount, { foreignKey: 'account_id', as: 'account' });
 
 module.exports = {
   LandingVisit, LandingVisitor,
@@ -659,6 +662,7 @@ module.exports = {
   EmailThreadParticipant,
   EmailDraft,
   EmailFaqSuggestion,
+  EmailAccountFolder,
   // Q docs
   DocumentTemplate,
   Document,

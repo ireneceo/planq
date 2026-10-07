@@ -841,7 +841,9 @@
       "sent_at",
       "created_at",
       "updated_at",
-      "faq_embedding"
+      "faq_embedding",
+      "source_folder",
+      "internal_only"
     ],
     "email_thread_participants": [
       "id",
@@ -893,7 +895,9 @@
       "rule_id",
       "received_at_email",
       "follow_up_days",
-      "last_extracted_email_message_id"
+      "last_extracted_email_message_id",
+      "spam_origin",
+      "spam_since"
     ],
     "ephemeral_tokens": [
       "id",
@@ -2600,6 +2604,20 @@
       "is_active",
       "verified_at",
       "created_by",
+      "created_at",
+      "updated_at"
+    ],
+    "email_account_folders": [
+      "id",
+      "account_id",
+      "role",
+      "folder",
+      "uid_validity",
+      "last_uid",
+      "last_synced_at",
+      "last_error",
+      "enabled",
+      "discovered_at",
       "created_at",
       "updated_at"
     ]

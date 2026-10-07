@@ -28,7 +28,8 @@ async function clusterForBusiness(businessId) {
   const sharedAccts = await EmailAccount.findAll({ where: { business_id: businessId, owner_user_id: null }, attributes: ['id'] });
   if (!sharedAccts.length) return { businessId, candidates: 0, reason: 'no_shared_account' };
   const sharedThreads = await EmailThread.findAll({
-    where: { business_id: businessId, account_id: { [Op.in]: sharedAccts.map((a) => a.id) } },
+    // 스팸 스레드는 FAQ 근거가 아니다(업체 스팸함 가져오기 — Fable 2026-10-07)
+    where: { business_id: businessId, account_id: { [Op.in]: sharedAccts.map((a) => a.id) }, status: { [Op.ne]: 'spam' } },
     attributes: ['id'],
   });
   if (!sharedThreads.length) return { businessId, candidates: 0, reason: 'too_few_inbound' };
@@ -42,7 +43,8 @@ async function clusterForBusiness(businessId) {
   // 2) 해당 스레드들의 outbound 답장 (가장 이른 답장 = 표준 답변)
   const threadIds = [...new Set(inbound.map((m) => m.thread_id))];
   const outbound = await EmailMessage.findAll({
-    where: { business_id: businessId, direction: 'outbound', thread_id: { [Op.in]: threadIds } },
+    // internal_only — 받는 사람이 전부 우리 주소인 보낸메일(전달·메모)은 «답변» 이 아니다(Fable 판정 ②)
+    where: { business_id: businessId, direction: 'outbound', internal_only: false, thread_id: { [Op.in]: threadIds } },
     attributes: ['thread_id', 'body_text', 'sent_at'],
     order: [['sent_at', 'ASC']],
   });

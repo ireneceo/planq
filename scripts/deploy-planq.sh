@@ -464,6 +464,13 @@ sync_database() {
   log "Creating diagnosis_responses (#426)..."
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-diagnosis.js 2>&1 | tail -5"
 
+  # 2026-10-07 — Q mail 업체 보낸편지함·스팸함 가져오기(docs/MAIL_SENT_SPAM_SYNC_DESIGN.md · Fable 판정 수정 후 PASS):
+  #   email_account_folders(계정×역할 폴더 커서) + email_messages.source_folder·internal_only + email_threads.spam_origin·spam_since.
+  #   ★ **코드보다 먼저 돈다** — 모델이 새 컬럼을 선언하므로 없으면 메일 조회가 500 이다. 멱등.
+  #   ★ 배포 뒤 첫 tick 에 폴더 탐색·첫 가져오기(보낸편지함 30일·스팸함 14일, 각 300건)가 돈다. 끄려면 .env QMAIL_EXTRA_FOLDERS=0.
+  log "Adding mail extra folders (sent/spam) schema..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-folders.js 2>&1 | tail -10"
+
   # 2026-10-05 — 화면 크래시 관리자 알림: notifications·notification_prefs.event_kind 끝에 'client_crash' append.
   #   ★ **코드보다 먼저 돈다** — 관리자 설정에서 끄면 prefs 행을 쓰는데 ENUM 에 없으면 500 이다. 멱등.
   log "Appending client_crash notification kind..."

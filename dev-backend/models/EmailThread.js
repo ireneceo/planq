@@ -61,6 +61,11 @@ EmailThread.init({
   share_token: { type: DataTypes.STRING(64), allowNull: true },
   shared_at: { type: DataTypes.DATE, allowNull: true },
   share_expires_at: { type: DataTypes.DATE, allowNull: true },
+  // 업체 스팸함에서 가져온 스레드면 'provider'. 사용자가 받은편지함에서 스팸 표시한 것은 NULL.
+  //   ★ 30일 영구 삭제는 **provider 출신만** 대상이다(Fable 판정 ④) — 사용자가 고른 스팸은 지우지 않는다.
+  //   [스팸 아님] 은 이 값을 NULL 로 돌린다(= 삭제 대상에서 빠진다).
+  spam_origin: { type: DataTypes.ENUM('provider'), allowNull: true, defaultValue: null },
+  spam_since: { type: DataTypes.DATE, allowNull: true },
 }, {
   sequelize, tableName: 'email_threads', timestamps: true, underscored: true,
   indexes: [

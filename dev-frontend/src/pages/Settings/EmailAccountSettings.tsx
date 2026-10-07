@@ -19,6 +19,7 @@ import MailRulesSection from './MailRulesSection';
 import MailSignatureSection from './MailSignatureSection';
 import MailNotifyScopeSection from './MailNotifyScopeSection';
 import MailAliasSection from './MailAliasSection';
+import MailExtraFoldersSection from './MailExtraFoldersSection';
 import MailDomainRuleSection from './MailDomainRuleSection';
 import MailAuthDiagSection from './MailAuthDiagSection';
 import { useSettingsHeaderAction } from './settingsHeaderAction';
@@ -278,6 +279,15 @@ const EmailAccountSettings: React.FC = () => {
             { value: 'reply_needed', labelKey: 'autoExtract.replyNeeded', descKey: 'autoExtract.replyNeededDesc' },
             { value: 'recommended', labelKey: 'autoExtract.recommended', descKey: 'autoExtract.recommendedDesc' },
           ]}
+        />
+
+        {/* 업체 보낸편지함·스팸함 가져오기 — 계정 속성. 찾은 폴더 이름을 그대로 보여준다.
+            key 로 계정마다 인스턴스를 가른다(초기값을 한 번만 읽는 컴포넌트다). */}
+        <MailExtraFoldersSection
+          key={`extra-folders-${acc.id}`}
+          businessId={businessId}
+          accountId={acc.id}
+          initial={acc.extra_folders}
         />
 
         {/* 서명 — 계정마다 등록 (발송 시 백엔드가 본문 끝에 붙인다) */}

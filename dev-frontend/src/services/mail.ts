@@ -42,6 +42,8 @@ export interface EmailAccountRow {
   has_smtp_password: boolean;
   created_at: string;
   updated_at: string;
+  /** 업체 보낸편지함·스팸함 가져오기 상태 (docs/MAIL_SENT_SPAM_SYNC_DESIGN.md) — 목록·수정 응답에 실린다 */
+  extra_folders?: MailExtraFolders;
 }
 
 export interface EmailAccountInput {
@@ -61,6 +63,30 @@ export interface EmailAccountInput {
   is_active?: boolean;
   scope?: 'team' | 'personal';   // POST 시 계정 범위 (회사 공용/개인). 편집 시 무시.
   notify_scope?: 'all' | 'recommended' | 'reply_only';
+}
+
+export type MailExtraFolderRole = 'sent' | 'spam';
+export interface MailExtraFolderState {
+  enabled: boolean;
+  folder: string | null;
+  found: boolean;
+  discovered: boolean;
+  last_synced_at: string | null;
+  has_error: boolean;
+}
+export interface MailExtraFolders {
+  global_off: boolean;
+  sent: MailExtraFolderState;
+  spam: MailExtraFolderState;
+}
+
+export async function setMailExtraFolder(businessId: number, accountId: number, role: MailExtraFolderRole, enabled: boolean): Promise<MailExtraFolders> {
+  const r = await apiFetch(`/api/businesses/${businessId}/email-accounts/${accountId}/folders/${role}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+  return handle<MailExtraFolders>(r);
 }
 
 async function handle<T>(r: Response): Promise<T> {

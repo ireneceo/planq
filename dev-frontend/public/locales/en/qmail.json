@@ -704,5 +704,21 @@
   "filter": {
     "inquiryOnly": "Possible leads only",
     "clear": "Clear"
+  },
+  "extraFolders": {
+    "title": "Import from your mail provider",
+    "desc": "Read-only copies of your provider's Sent and Spam folders (Gmail, Naver, etc.). Nothing is moved or deleted on the provider side.",
+    "globalOff": "Importing provider folders is paused for maintenance right now.",
+    "sent": "Import Sent folder",
+    "spam": "Import Spam folder",
+    "sentDesc": "Mail you sent directly from your provider shows up in «Sent» and counts as a reply. The first import covers the last 30 days.",
+    "spamDesc": "Mail your provider classified as spam appears in the «Spam» tab. The first import covers the last 14 days; items are deleted automatically 30 days after they arrive.",
+    "pending": "The folder will be detected on the next sync",
+    "notFound": "We couldn't find this folder in the mailbox",
+    "folderName": "Provider folder: {{folder}}"
+  },
+  "spamFolder": {
+    "note": "Mail imported from your Gmail/Naver spam folder is deleted after 30 days. Marking it as not spam here doesn't change your provider — please also mark it as not spam in Gmail/Naver.",
+    "detailNote": "This mail came from your provider's (Gmail/Naver) spam folder. If it isn't spam, choose «Not spam» in the ⋯ menu and also mark it as not spam in Gmail/Naver. It is deleted automatically 30 days after it arrived."
   }
 }

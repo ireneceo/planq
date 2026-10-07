@@ -123,6 +123,7 @@ import {
   FaqSuggestHead,
   FaqUsedBadge,
   AddressBanner,
+  SpamProviderNote,
   AddressBannerText,
   AddressBannerHint,
   AddressBannerClose,
@@ -213,6 +214,8 @@ interface Thread {
   follow_up?: { kind: 'awaiting_reply'; days: number } | { kind: 'delivery_problem'; delivery_status: string } | null;
   // #384 — 이 대화의 후속 알림 기간. null=기본(3일) · 0=끔 · N=N일
   follow_up_days?: number | null;
+  /** 'provider' = 업체(Gmail·네이버) 스팸함에서 가져온 스레드 — 30일 뒤 자동 삭제, 스팸 해제는 업체 쪽에도 따로 해야 한다 */
+  spam_origin?: 'provider' | null;
   status: string;
   reply_needed: boolean;
   reply_needed_at?: string | null;
@@ -2268,6 +2271,12 @@ const MailPage: React.FC = () => {
             )}
           </FilterToggleRow>
         </ListControls>
+        {/* 스팸 탭 — 업체 스팸함에서 가져온 메일의 규칙을 짧게 알린다(기준·조건은 화면이 말한다). */}
+        {folder === 'spam' && (
+          <SpamProviderNote role="note" $inList data-testid="mail-spam-folder-note">
+            {t('spamFolder.note', { defaultValue: 'Gmail·네이버 스팸함에서 가져온 메일은 30일 뒤 지워집니다. 여기서 스팸 해제해도 업체 쪽은 그대로이니, Gmail·네이버에서도 스팸 해제해 주세요.' }) as string}
+          </SpamProviderNote>
+        )}
         {/* 계정(이메일주소) 선택 — 같은 줄. */}
         {filtersOpen && accounts.length >= 1 && (
           <AcctFilterRow>
@@ -3047,6 +3056,12 @@ const MailPage: React.FC = () => {
                 </DetailMetaRight>
               </DetailMetaBar>
               <MessagesScroll ref={scrollRef}>
+                {/* 업체 스팸함에서 온 스레드 — 여기서 해제해도 업체 쪽 스팸 표시는 그대로다. 버튼을 누르는 화면에서 말한다(폰은 목록이 안 보인다). */}
+                {detail.status === 'spam' && detail.spam_origin === 'provider' && (
+                  <SpamProviderNote role="note" data-testid="mail-spam-provider-note">
+                    {t('spamFolder.detailNote', { defaultValue: '업체(Gmail·네이버) 스팸함에서 가져온 메일이에요. 스팸이 아니면 ⋯ 메뉴에서 «스팸 해제» 하고, Gmail·네이버에서도 스팸 해제해 주세요. 들어온 지 30일이 지나면 자동으로 지워집니다.' }) as string}
+                  </SpamProviderNote>
+                )}
                 <ThreadMessages
                   messages={displayMessages}
                   threadId={detail.id}
