@@ -9,7 +9,7 @@
 // ★ "있으면 그 방" 의 정렬은 목록 라우트와 **같아야** 한다(`id ASC`). 다르면 화면에 보이는
 //   첫 고객 채널과 링크가 걸리는 방이 갈린다.
 const { Op } = require('sequelize');
-const { Conversation, ProjectMember, ConversationParticipant, Client, ProjectClient, Business } = require('../models');
+const { Conversation, ProjectMember, ConversationParticipant, Client, ProjectClient, Business, User } = require('../models');
 const { createAuditLog } = require('./auditService');
 
 /**
@@ -94,11 +94,17 @@ async function findClientChannel(projectId, clientId, { transaction } = {}) {
   });
 }
 
-/** 이 방에 고객(워크스페이스 멤버가 아닌 client 역할)으로 들어와 있는 사람이 있는가 */
+/** 이 방에 **다른 고객**(워크스페이스 멤버가 아닌 client 역할)이 들어와 있는가.
+ *  ★ 게스트 링크 방문자(그림자 계정 users.is_guest=1)는 세지 않는다 — 그 방에 걸린 외부 열람 링크로 들어온 사람이지
+ *    다른 고객사가 아니다. 세면 링크가 걸린 주인 없는 방을 넘겨받지 못하고 새 방을 만들어, 옛 링크가 재사용·교체(회수)
+ *    되지 않는다(Fable 2026-10-07 3차 — 운영 프로젝트 3 · 링크 5 · 방 6 이 정확히 이 모양). */
 async function hasClientParticipant(convId, { exceptUserIds = [], transaction } = {}) {
   const where = { conversation_id: convId, role: 'client' };
   if (exceptUserIds.length) where.user_id = { [Op.notIn]: exceptUserIds };
-  return !!(await ConversationParticipant.findOne({ where, attributes: ['id'], transaction }));
+  return !!(await ConversationParticipant.findOne({
+    where, attributes: ['id'], transaction,
+    include: [{ model: User, attributes: [], required: true, where: { is_guest: { [Op.not]: true } } }],
+  }));
 }
 
 /**
