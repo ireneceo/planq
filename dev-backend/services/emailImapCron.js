@@ -134,6 +134,8 @@ async function matchClient(businessId, fromEmail) {
 // "아는 상대" 판정 — 답변 필요의 가장 강한 신호 (Irene: "고객이 보낸 거, 기존 일과 연결되는 내용").
 //   ① 고객(Client) 이메일  ② 워크스페이스 멤버  ③ 우리가 전에 답장을 보낸 적 있는 주소
 //   LLM 0 — 관계 데이터만 본다.
+// 무료메일 도메인 — emailTriage 의 FREE_MAIL_DOMAIN 과 같은 목록(그쪽이 정본, 내보내 쓴다)
+const FREE_MAIL_DOMAIN_RE = require('./emailTriage').FREE_MAIL_DOMAIN;
 async function isKnownContact(businessId, fromEmail) {
   const addr = String(fromEmail || '').toLowerCase().trim();
   if (!businessId || !addr) return false;
@@ -165,7 +167,31 @@ async function isKnownContact(businessId, fromEmail) {
         LIMIT 1`,
       { replacements: [businessId, addr] }
     );
-    return rows.length > 0;
+    if (rows.length > 0) return true;
+
+    // ④ 이 주소가 전에 보낸 메일이 **우리 메시지에 대한 회신**이었다 — 우리 도메인 Message-ID 를 가리켰다.
+    //   ③ 은 PlanQ 에서 보낸 것만 안다. 메일 앱·웹메일에서 직접 보낸 답장은 보낸편지함이 동기화되지 않아
+    //   기록이 없다 — 그래서 몇 달째 주고받던 상대(대학 비자 담당)의 새 메일이 «모르는 상대» 로 확인 권장에
+    //   갔다(2026-10-07 운영 스레드 4121, Irene: "이렇게까지 답변을 해야하는 당연한 내용이 있는데").
+    //   그 상대의 옛 회신 헤더가 곧 «우리가 먼저 썼다» 는 증거다. 같은 관계 규칙(③)의 증거원을 넓힌 것이다.
+    //   · 무료메일 도메인은 증거가 못 된다 — Message-ID 도메인은 발신자가 아니라 제공자가 붙인다
+    //     (memory feedback_freemail_message_id_not_sender_domain).
+    //   · 기계 발신(반송·자동 주소)은 관계가 아니다 — 반송도 우리 메시지를 가리킨다.
+    //   운영 읽기 시뮬(2026-10-07): 새로 «아는 상대» 가 되는 주소 7 중 사람 5 · 기계 2(여기서 뺀다) ·
+    //   지금 열린 스레드 중 답변 필요로 뒤집히는 것 0.
+    const T = require('./emailTriage');
+    if (T.isBounce(addr, '') || T.isAutomatedSenderAddress(addr)) return false;
+    const own = await T.buildOwnEmailSet(businessId);
+    const doms = [...new Set([...own].map((e) => e.split('@')[1]).filter((d) => d && !FREE_MAIL_DOMAIN_RE.test(d)))];
+    if (!doms.length) return false;
+    const cond = doms.map(() => '(in_reply_to LIKE ? OR references_chain LIKE ?)').join(' OR ');
+    const [replied] = await sequelize.query(
+      `SELECT id FROM email_messages
+        WHERE business_id = ? AND direction = 'inbound' AND LOWER(from_email) = ? AND (${cond})
+        LIMIT 1`,
+      { replacements: [businessId, addr, ...doms.flatMap((d) => [`%@${d}>%`, `%@${d}>%`])] }
+    );
+    return replied.length > 0;
   } catch (e) {
     console.warn('[isKnownContact]', e.message);
     return false;   // 판정 실패 시 보수적으로 '모르는 상대' — 확인 권장으로 가지 답변 필요로 오분류하지 않는다
