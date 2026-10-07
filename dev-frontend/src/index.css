@@ -29,6 +29,34 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress {
   accent-color: #14B8A6;
 }
 
+/* 체크박스·라디오를 **우리 모양**으로 그린다 (#459 2차 — "디자인 체크박스 우리 거 맞는지").
+   색만 바꾼 브라우저 기본 상자는 OS·브라우저마다 모양이 다르다. 공용 컴포넌트가 없어 45개 파일 72곳이
+   네이티브를 쓰므로 한 곳에서 그린다. ★ :where() = 우선순위 0 — 화면이 직접 그린 체크박스(문서 할 일 목록 등)가
+   항상 이긴다. margin 은 건드리지 않는다(각 화면 간격이 기본 여백에 기대고 있다). */
+:where(input[type="checkbox"], input[type="radio"]) {
+  -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; flex-shrink: 0;
+  display: inline-grid; place-content: center; vertical-align: middle;
+  border: 1.5px solid #CBD5E1; background: #fff; cursor: pointer;
+  transition: background-color 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+:where(input[type="checkbox"]) { border-radius: 4px; }
+:where(input[type="radio"]) { border-radius: 50%; }
+:where(input[type="checkbox"])::before {
+  content: ''; width: 10px; height: 10px; background: #fff; transform: scale(0); transition: transform 0.12s;
+  clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
+}
+:where(input[type="radio"])::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: #fff; transform: scale(0); transition: transform 0.12s;
+}
+:where(input[type="checkbox"], input[type="radio"]):hover:not(:disabled) { border-color: #14B8A6; }
+:where(input[type="checkbox"], input[type="radio"]):checked { background: #14B8A6; border-color: #14B8A6; }
+:where(input[type="checkbox"], input[type="radio"]):checked::before { transform: scale(1); }
+:where(input[type="checkbox"]):indeterminate { background: #14B8A6; border-color: #14B8A6; }
+:where(input[type="checkbox"]):indeterminate::before { transform: scale(1); clip-path: none; height: 2px; border-radius: 1px; }
+:where(input[type="checkbox"], input[type="radio"]):focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.3); }
+:where(input[type="checkbox"], input[type="radio"]):disabled { opacity: 0.5; cursor: not-allowed; }
+
 html, body {
   margin: 0;
   padding: 0;
