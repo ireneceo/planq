@@ -5,25 +5,30 @@
   "in_progress": [],
   "completed": [
     {
-      "title": "랜딩·로그인·SEO 정의 문구 원복 — «의뢰형 고객 업무 플랫폼» 포지셔닝(10-01·10-04)을 원래 «업무관리·협업 / 수익성 엔진» 문구로",
+      "title": "AI 연결 create_event — 일정 종류·알림·연결 업무·기존 화상 링크(59fba176)",
+      "verified": "fable_pass"
+    },
+    {
+      "title": "AI 연결 create_event 감사 행 대상을 일정으로(a6e3b66e)",
       "verified": "opus_only"
     },
     {
-      "title": "Q calendar 프로젝트 필터 — 일정·업무를 프로젝트로 거름(#461)",
+      "title": "Q calendar 링크(?event=)로 연 반복 일정 «이 회차만» 날짜를 서버와 같은 UTC 날짜로(6169cbfe)",
       "verified": "opus_only"
     },
     {
-      "title": "프로젝트 상세 «일정» 탭 — Q calendar 본체를 그 프로젝트로 고정해 얹음 · 새 일정은 그 프로젝트로 시작(#461)",
+      "title": "체크박스·라디오를 PlanQ 모양으로 — 전역 한 곳(#459 2차, bf4353d7)",
       "verified": "opus_only"
     },
     {
-      "title": "문서 리비전 복원 감사 행 워크스페이스 id",
+      "title": "Q docs 코드 블록 [+] 띠·언어 바꾸기를 편집 모드에서만(fd9d972c)",
       "verified": "opus_only"
     }
   ],
   "behavior_changes": [
-    "홈 첫 화면·로그인 부제가 원래 문구로 돌아감",
-    "프로젝트 상세에 «일정» 탭(고객 역할에는 숨김)"
+    "체크박스·라디오 모양이 PlanQ 디자인으로 바뀜",
+    "문서 상세 보기에서 코드 블록 위/아래 [+] 여백이 사라짐",
+    "AI 로 일정을 만들 때 종류·알림·연결 업무·화상 링크를 지정 가능"
   ],
   "issues": [],
   "blocked_on_human": [
@@ -38,11 +43,10 @@
   ],
   "migrations": [],
   "check_areas": [
-    "캘린더(시간대·순서·업무 연결·겹침)",
-    "고객 화면 채팅 목록(민충기)",
-    "파일 미리보기 front_v4.jpg",
-    "메일 답변 필요·안읽음",
-    "일정 알림 제목"
+    "체크박스·라디오가 쓰인 설정·필터 화면",
+    "코드 블록이 있는 문서 보기/편집",
+    "반복 일정 링크로 연 «이 회차만» 수정",
+    "AI(ChatGPT/Claude) 일정 만들기"
   ],
   "backlog": [
     "Fable 대기 목록 1~34행 라운드",
@@ -50,7 +54,7 @@
     "메일 업체 스팸함·보낸편지함 동기화(Fable 23)"
   ],
   "tooling_health": [
-    "Fable 한도 429 — 이번 배포분 전부 자체 검증"
+    "Fable: 59fba176 41/43 PASS · 나머지 4커밋은 자체 검증"
   ],
   "undeployed": []
 }
