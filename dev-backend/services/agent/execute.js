@@ -119,7 +119,9 @@ async function runTool(p, name, rawArgs) {
     const data = await tool.handler(p, args, actor);
     const target = data?.draft ? { target_type: 'email_draft', target_id: data.draft.draft_id }
       : data?.task ? { target_type: 'task', target_id: data.task.task_id }
-      : data?.note ? { target_type: 'task_comment', target_id: data.note.note_id }
+      // ★ note 는 메모 도구만 객체로 준다 — 문서 도구는 안내 **문자열** note 를 같이 돌려줘서, 이 줄이 문자열에
+      //   걸리면 대상이 «task_comment / 워크스페이스 id» 로 남았다(Fable 행 5 D1, 2026-10-07 실측).
+      : (data?.note && typeof data.note === 'object') ? { target_type: 'task_comment', target_id: data.note.note_id }
         : data?.interaction ? { target_type: 'client_interaction', target_id: data.interaction.interaction_id }
           : data?.project_note ? { target_type: 'project_note', target_id: data.project_note.note_id }
             : data?.file ? { target_type: 'file', target_id: data.file.file_id }

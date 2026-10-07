@@ -15,7 +15,7 @@ async function resolveTaskLink(userId, businessId, raw) {
   return { ok: true, taskId: task.id };
 }
 
-/** 응답의 일정들에 task 를 싣는다 — 볼 수 있으면 {id,title,status,project_id}, 아니면 {id, hidden:true}. */
+/** 응답의 일정들에 task 를 싣는다 — 볼 수 있으면 {id,title,status,project_id}, 아니면 {id, hidden:true} · 지워졌으면 deleted:true 를 더한다. */
 async function attachTaskLinks(events, userId, businessId, scope) {
   const list = (events || []).filter((e) => e && e.task_id);
   if (!list.length) return events;
@@ -26,7 +26,10 @@ async function attachTaskLinks(events, userId, businessId, scope) {
   for (const t of tasks) if (await canAccessTask(userId, t, sc)) visible.set(t.id, t);
   for (const e of list) {
     const t = visible.get(Number(e.task_id));
-    e.task = t ? { id: t.id, title: t.title, status: t.status, project_id: t.project_id } : { id: Number(e.task_id), hidden: true };
+    // 행이 아예 없으면 «삭제됨» — 업무는 하드 삭제라 «볼 수 없음» 으로 그리면 권한 문제처럼 읽힌다(Fable 행 32).
+    const exists = tasks.some((x) => x.id === Number(e.task_id));
+    e.task = t ? { id: t.id, title: t.title, status: t.status, project_id: t.project_id }
+      : exists ? { id: Number(e.task_id), hidden: true } : { id: Number(e.task_id), hidden: true, deleted: true };
   }
   return events;
 }

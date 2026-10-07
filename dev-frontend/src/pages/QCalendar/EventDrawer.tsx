@@ -414,7 +414,7 @@ const EventDrawer: React.FC<Props> = ({
                   <AutoSaveField key={`ev${event.id}-task`} type="select" onSave={async () => { /* onChange 직접 호출 */ }}>
                     <TaskLinkPicker
                       businessId={event.business_id}
-                      value={event.task ? { id: event.task.id, title: event.task.title, hidden: event.task.hidden } : null}
+                      value={event.task ? { id: event.task.id, title: event.task.title, hidden: event.task.hidden, deleted: event.task.deleted } : null}
                       onChange={(tk) => { const v = tk ? tk.id : null; if (v !== (event.task_id ?? null)) updateMaybeScoped({ task_id: v }); }}
                     />
                   </AutoSaveField>
@@ -426,7 +426,7 @@ const EventDrawer: React.FC<Props> = ({
                       : (t('taskLink.taskOf', { title: event.task.title, defaultValue: '업무: {{title}}' }) as string)} ›
                   </TaskOpenBtn>
                 )}
-                {!canEdit && event.task?.hidden && <MutedSmall>{t('taskLink.hidden', { defaultValue: '볼 수 없는 업무' }) as string}</MutedSmall>}
+                {!canEdit && event.task?.hidden && <MutedSmall>{(event.task.deleted ? t('taskLink.deleted', { defaultValue: '삭제된 업무' }) : t('taskLink.hidden', { defaultValue: '볼 수 없는 업무' })) as string}</MutedSmall>}
               </Field>
             )}
             <MutedSmall>{t('form.category')}</MutedSmall>

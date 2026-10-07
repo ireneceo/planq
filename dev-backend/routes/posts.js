@@ -91,10 +91,9 @@ async function canEditPost(userId, post, platformRole) {
   if (platformRole === 'platform_admin') return true;
   if (post.author_id === userId) return true;
   // L1 = 개인 문서. 작성자 외에는 owner/admin 도 편집하지 않는다(읽기도 안 되는 등급이다).
-  if (post.vlevel === 'L1') {
-    const scope0 = await getUserScope(userId, post.business_id, platformRole);
-    return !!(scope0.isOwner || scope0.isAdmin);
-  }
+  //   ★ 2026-10-07 — 이 분기가 주석과 반대로 owner/admin 에게 true 를 줘서, **읽으면 403 인 남의 L1 문서를
+  //   PUT 으로는 고칠 수 있었다**(Fable 행 5 D3 실측). 이 함수의 규칙은 «볼 수 있으면 고칠 수 있다»(1cf7eb0d).
+  if (post.vlevel === 'L1') return false;
   const scope = await getUserScope(userId, post.business_id, platformRole);
   return canAccessPostByLevel(userId, post, scope);
 }
@@ -849,7 +848,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
-    // 볼 수 있으면 고칠 수 있다 — 공개 범위와 같은 축. (L1 개인 문서는 예외: 작성자·owner 만)
+    // 볼 수 있으면 고칠 수 있다 — 공개 범위와 같은 축. (L1 개인 문서는 작성자만)
     if (!(await canEditPost(req.user.id, post, req.user.platform_role))) {
       return errorResponse(res, 'post_edit_forbidden', 403);
     }

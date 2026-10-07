@@ -136,7 +136,7 @@ async function matchClient(businessId, fromEmail) {
 //   LLM 0 — 관계 데이터만 본다.
 // 무료메일 도메인 — emailTriage 의 FREE_MAIL_DOMAIN 과 같은 목록(그쪽이 정본, 내보내 쓴다)
 const FREE_MAIL_DOMAIN_RE = require('./emailTriage').FREE_MAIL_DOMAIN;
-async function isKnownContact(businessId, fromEmail) {
+async function isKnownContact(businessId, fromEmail, { excludeMessageId = null } = {}) {
   const addr = String(fromEmail || '').toLowerCase().trim();
   if (!businessId || !addr) return false;
   try {
@@ -181,6 +181,16 @@ async function isKnownContact(businessId, fromEmail) {
     //   지금 열린 스레드 중 답변 필요로 뒤집히는 것 0.
     const T = require('./emailTriage');
     if (T.isBounce(addr, '') || T.isAutomatedSenderAddress(addr)) return false;
+    // ★ 2026-10-07 Fable 행 27 — 이 증거는 «우리 도메인 모양의 Message-ID 를 가리켰다» 뿐이라 **꾸밀 수 있다.**
+    //   ① 지금 판정 중인 메일 자신은 증거가 못 된다 — 수집은 저장(create) 뒤에 판정하므로, 빼지 않으면
+    //      없는 Message-ID 를 꾸며 넣은 콜드메일 한 통이 자기를 증명했다(dev 재현).
+    //   ② 역할어로만 된 주소(info@·help@·sales@)는 사람 관계가 아니다. ★ isPersonalSender 전체를 쓰지 않는다 —
+    //      그 함수는 «한 토막 회사 주소»(heather@대학.edu) 도 떨어뜨리는데, 그게 바로 ④ 를 만든 운영 사례였다.
+    {
+      const { ROLE_WORD } = require('./contactRelation');
+      const toks = addr.split('@')[0].split(/[._+-]+/).filter(Boolean);
+      if (toks.length && toks.every((tk) => ROLE_WORD.has(tk))) return false;
+    }
     const own = await T.buildOwnEmailSet(businessId);
     const doms = [...new Set([...own].map((e) => e.split('@')[1]).filter((d) => d && !FREE_MAIL_DOMAIN_RE.test(d)))];
     if (!doms.length) return false;
@@ -188,8 +198,9 @@ async function isKnownContact(businessId, fromEmail) {
     const [replied] = await sequelize.query(
       `SELECT id FROM email_messages
         WHERE business_id = ? AND direction = 'inbound' AND LOWER(from_email) = ? AND (${cond})
+          AND id <> ?
         LIMIT 1`,
-      { replacements: [businessId, addr, ...doms.flatMap((d) => [`%@${d}>%`, `%@${d}>%`])] }
+      { replacements: [businessId, addr, ...doms.flatMap((d) => [`%@${d}>%`, `%@${d}>%`]), Number(excludeMessageId) || 0] }
     );
     return replied.length > 0;
   } catch (e) {
@@ -635,7 +646,7 @@ async function syncOne(account, opts = {}) {
         else try {
           const { triageInbound } = require('./emailTriage');
           const { applyRules } = require('./mailSenderRules');
-          const known = await isKnownContact(account.business_id, fromEmail);
+          const known = await isKnownContact(account.business_id, fromEmail, { excludeMessageId: message.id });
           // ★ #221 — 여태 mailparser 의 **Map** 을 그대로 넘겼다. 대부분 술어는 Map 을 읽지만
           //   `isAddressedToUs`·`isThreadReply` 는 직접 프로퍼티 접근이라 Map 에서 **항상 false** 였고,
           //   그 결과 수집 시점에 "우리 주소로 직접 왔는가"·"우리 대화에 대한 회신인가" 판정이

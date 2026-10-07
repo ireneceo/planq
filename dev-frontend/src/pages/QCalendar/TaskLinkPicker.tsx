@@ -10,7 +10,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 interface Hit { id: number; title: string; Project?: { id: number; name: string } | null }
 interface Props {
   businessId: number;
-  value: { id: number; title?: string | null; hidden?: boolean } | null;
+  value: { id: number; title?: string | null; hidden?: boolean; deleted?: boolean } | null;
   onChange: (task: { id: number; title: string } | null) => void;
   disabled?: boolean;
 }
@@ -38,7 +38,7 @@ const TaskLinkPicker: React.FC<Props> = ({ businessId, value, onChange, disabled
   };
   useEffect(() => { search(''); return () => { if (timer.current) window.clearTimeout(timer.current); }; }, [businessId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const label = value ? (value.hidden ? (t('taskLink.hidden', { defaultValue: '볼 수 없는 업무' }) as string) : (value.title || `#${value.id}`)) : '';
+  const label = value ? (value.deleted ? (t('taskLink.deleted', { defaultValue: '삭제된 업무' }) as string) : value.hidden ? (t('taskLink.hidden', { defaultValue: '볼 수 없는 업무' }) as string) : (value.title || `#${value.id}`)) : '';
   return (
     <div data-testid="event-task-link">
     <PlanQSelect

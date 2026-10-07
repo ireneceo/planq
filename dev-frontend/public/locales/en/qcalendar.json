@@ -347,6 +347,7 @@
     "hidden": "Task you can’t view",
     "open": "Open task",
     "fromTask": "Task",
-    "taskOf": "Task: {{title}}"
+    "taskOf": "Task: {{title}}",
+    "deleted": "Deleted task"
   }
 }

@@ -148,6 +148,9 @@ const PublicSignPage: React.FC = () => {
     }));
   }, [doc?.slot]);
   // «서명하겠습니다» — 내 칸 위치를 보여 주고 다음 단계(본인 확인 또는 서명)를 연다
+  // 우리 쪽 서명자는 **로그인으로** 본인 확인한다 — 인증번호 길이 없다(서버가 거절한다). 로그인 안 했거나
+  //   다른 계정이면 인증번호 단계로 보내지 말고 로그인으로 안내한다(Fable 행 36 D2: 앱이 사파리로 열면 막다른 «invalid_state»).
+  const needLogin = !!doc && doc.party === 'us' && !internalSelf;
   const startSigning = () => {
     setPhase(internalSelf || otpOk ? 'sign' : 'otp');
     if (doc?.slot != null) showMySlot(); else window.requestAnimationFrame(() => goToAction());
@@ -559,10 +562,24 @@ const PublicSignPage: React.FC = () => {
                 <SectionDesc>{t('publicSign.reviewDesc', { defaultValue: '위 문서와 별첨을 모두 확인한 뒤 서명을 시작해 주세요. 다음 단계에서 서명이 들어갈 자리를 보여 드립니다.' }) as string}</SectionDesc>
                 <ActionRow>
                   <RejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>{t('publicSign.reject', '거절')}</RejectBtn>
-                  <PrimaryBtn type="button" data-testid="sign-start" onClick={startSigning}>
-                    {t('publicSign.startSign', { defaultValue: '확인했습니다 · 서명하기' }) as string}
-                  </PrimaryBtn>
+                  {needLogin && user ? null : needLogin ? (
+                    <PrimaryBtn type="button" data-testid="sign-login"
+                      onClick={() => { window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname)}`); }}>
+                      {t('publicSign.loginToSign', { defaultValue: '로그인하고 서명하기' }) as string}
+                    </PrimaryBtn>
+                  ) : (
+                    <PrimaryBtn type="button" data-testid="sign-start" onClick={startSigning}>
+                      {t('publicSign.startSign', { defaultValue: '확인했습니다 · 서명하기' }) as string}
+                    </PrimaryBtn>
+                  )}
                 </ActionRow>
+                {needLogin && (
+                  <SectionDesc data-testid="sign-login-needed">
+                    {(user
+                      ? t('publicSign.otherAccount', { defaultValue: '지금 로그인한 계정은 이 서명의 서명자가 아니에요. 서명자 본인 계정으로 로그인해 주세요.' })
+                      : t('publicSign.loginNeeded', { defaultValue: '우리 쪽 서명은 PlanQ 계정으로 본인 확인을 해요. 로그인하면 이 화면으로 돌아옵니다.' })) as string}
+                  </SectionDesc>
+                )}
               </Section>
             )}
             {phase === 'otp' && (

@@ -181,6 +181,7 @@ async function uploadFile(p, a, actor) {
   const target = a.attach_to || { kind: 'workspace' };
   let projectId = null; let visibility = 'L3'; let post = null; let task = null;
   if (target.kind === 'document') {
+    await loadReadable(p, target.id);   // 다른 문서 도구와 같은 순서 — 읽을 수 없는 문서는 받기 전에 NOT_FOUND
     const chk = await actions().checkEditable(actor, { businessId: p.businessId, postId: target.id });
     if (!chk.ok) throw failOf(chk);
     post = chk.data.post;

@@ -357,7 +357,7 @@
     "readTitle": "Read only",
     "readBody": "View tasks, notes, clients, projects, schedule, documents and files. Nothing is changed.",
     "writeTitle": "Read + add and edit",
-    "writeBody": "Also create and edit tasks and documents, add notes and upload files. No deleting, billing or sending email.",
+    "writeBody": "Also create and edit tasks, documents and calendar events, add notes and upload files. No deleting, billing or sending email.",
     "note": "It works only within your own permissions — anything you can't see in PlanQ, the AI can't see either. Actions are recorded as \"via AI\", and you can disconnect anytime in My integrations.",
     "connect": "Connect",
     "cancel": "Cancel",

@@ -347,6 +347,7 @@
     "hidden": "볼 수 없는 업무",
     "open": "업무 열기",
     "fromTask": "업무",
-    "taskOf": "업무: {{title}}"
+    "taskOf": "업무: {{title}}",
+    "deleted": "삭제된 업무"
   }
 }

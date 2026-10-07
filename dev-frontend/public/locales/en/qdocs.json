@@ -360,7 +360,10 @@
     "startSign": "I have reviewed it · Sign",
     "slotLine": "Your signature goes in box {{n}} (red border) of the document.",
     "showSlot": "Show location again",
-    "loginIdentity": "Your signed-in account verifies your identity. The signing time and connection details are recorded."
+    "loginIdentity": "Your signed-in account verifies your identity. The signing time and connection details are recorded.",
+    "loginToSign": "Log in to sign",
+    "otherAccount": "The account you are logged in with is not the signer. Please log in with the signer's own account.",
+    "loginNeeded": "Signers on our side verify with their PlanQ account. After logging in you will come back here."
   },
   "sign": {
     "button": "Get signatures",
