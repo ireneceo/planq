@@ -96,6 +96,11 @@ function wallOf(ev: { all_day?: boolean; start_at: string; end_at: string }, key
   return ev.all_day ? new Date(ev[key]) : toWall(ev[key], tz);
 }
 
+// 회차 식별자 = **UTC 날짜**(서버 rrule 전개가 inst.toISOString().slice(0,10) 로 만든다). 화면에서 고른 회차는
+//   instanceDate 로 오고, 그게 없을 때(?event= 링크로 열었을 때)만 이 값을 쓴다 — 기기 로컬 날짜로 만들면
+//   한국 아침 일정(UTC 전날)의 «이 회차만» 이 다른 날을 가리켰다(Fable 행 29 관찰).
+const occurrenceKeyOf = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+
 const EventDrawer: React.FC<Props> = ({
   event, instanceDate, projects = [], members = [], clients = [], myUserId, myBusinessRole,
   onClose, onUpdate, onDelete, onCreateMeetingRoom, gcalCanWrite, workspaceCanWrite, personalCalWritable, onLocalPatch, onOpenTask,
@@ -260,7 +265,7 @@ const EventDrawer: React.FC<Props> = ({
       await onUpdate(pendingPatch);
     } else {
       // N+63 P2a 후속 — instance picker 적용. instanceDate prop 우선, fallback master start_at.
-      const recurrenceId = instanceDate || toDateKey(new Date(event.start_at));
+      const recurrenceId = instanceDate || occurrenceKeyOf(event.start_at);
       await onUpdate(pendingPatch, { scope, recurrence_id: recurrenceId });
     }
     setPendingPatch(null);
@@ -1036,10 +1041,10 @@ const EventDrawer: React.FC<Props> = ({
           (isMaster || !!event.recurrence_parent_id) ? (
             <ScopeDeleteGroup>
               <ConfirmText>{t('drawer.deleteScopeTitle', '어느 회차를 삭제할까요?')}</ConfirmText>
-              <ScopeDeleteBtn type="button" onClick={() => { onDelete({ scope: 'single', recurrence_id: instanceDate || toDateKey(new Date(event.start_at)) }); setConfirmDelete(false); }}>
+              <ScopeDeleteBtn type="button" onClick={() => { onDelete({ scope: 'single', recurrence_id: instanceDate || occurrenceKeyOf(event.start_at) }); setConfirmDelete(false); }}>
                 {t('drawer.scopeSingle', '이 일정만')}
               </ScopeDeleteBtn>
-              <ScopeDeleteBtn type="button" onClick={() => { onDelete({ scope: 'future', recurrence_id: instanceDate || toDateKey(new Date(event.start_at)) }); setConfirmDelete(false); }}>
+              <ScopeDeleteBtn type="button" onClick={() => { onDelete({ scope: 'future', recurrence_id: instanceDate || occurrenceKeyOf(event.start_at) }); setConfirmDelete(false); }}>
                 {t('drawer.scopeFuture', '이 일정 이후 모두')}
               </ScopeDeleteBtn>
               <ScopeDeleteBtn type="button" $danger onClick={() => { onDelete({ scope: 'all' }); setConfirmDelete(false); }}>
