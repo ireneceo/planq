@@ -120,8 +120,7 @@ async function ensureWelcomeConversation(client, { io, transaction } = {}) {
  */
 async function linkClientToProjects(client, { transaction } = {}) {
   if (!client || !client.id || !client.user_id) return { linked: 0, joined: 0, fixedRole: 0 };
-  const { ProjectClient, BusinessMember } = require('../models');
-  const { Op } = require('sequelize');
+  const { ProjectClient } = require('../models');
   const userId = client.user_id;
   const [linked] = await ProjectClient.update(
     { contact_user_id: userId },
@@ -131,27 +130,41 @@ async function linkClientToProjects(client, { transaction } = {}) {
     where: { client_id: client.id, contact_user_id: userId }, attributes: ['project_id'], transaction,
   });
   const projectIds = [...new Set(rows.map((r) => r.project_id))];
-  let joined = 0, fixedRole = 0;
-  if (projectIds.length) {
-    const isMember = await BusinessMember.findOne({
-      where: { business_id: client.business_id, user_id: userId, removed_at: null }, attributes: ['id'], transaction,
-    });
-    const convs = await Conversation.findAll({
-      where: { business_id: client.business_id, project_id: { [Op.in]: projectIds }, channel_type: 'customer' },
-      attributes: ['id'], transaction,
-    });
-    for (const cv of convs) {
-      const ex = await ConversationParticipant.findOne({ where: { conversation_id: cv.id, user_id: userId }, transaction });
-      if (!ex) {
-        await ConversationParticipant.create({ conversation_id: cv.id, user_id: userId, role: 'client' }, { transaction });
-        joined += 1;
-      } else if (!isMember && ex.role !== 'client') {
-        await ex.update({ role: 'client' }, { transaction });
-        fixedRole += 1;
-      }
-    }
-  }
-  return { linked, joined, fixedRole };
+  const r = await joinProjectCustomerChannels({ businessId: client.business_id, projectIds, userId, transaction });
+  return { linked, ...r };
 }
 
-module.exports = { ensureWelcomeConversation, welcomeText, linkClientToProjects };
+/**
+ * 고객 계정을 그 프로젝트들의 고객 채널(channel_type customer)에 role 'client' 로 들인다 — 멱등.
+ *   이미 있는데 role 이 client 가 아니면 client 로 바로잡는다(워크스페이스 멤버면 건드리지 않는다).
+ *
+ * ★ 2026-10-07 — 고객을 프로젝트에 붙이는 문이 셋인데(초대 수락 · 워크스페이스 초대 수락 · **이미 계정 있는 고객을
+ *   프로젝트에 추가**) 마지막 문만 참여를 빠뜨렸다. 그 고객은 프로젝트 탭으로는 방을 열 수 있는데 Q talk 목록에는
+ *   안 떴다(운영 민충기 — 프로젝트 K-DINE). 들이는 일은 이 함수 하나로 한다.
+ */
+async function joinProjectCustomerChannels({ businessId, projectIds, userId, transaction } = {}) {
+  if (!businessId || !userId || !projectIds || !projectIds.length) return { joined: 0, fixedRole: 0 };
+  const { BusinessMember } = require('../models');
+  const { Op } = require('sequelize');
+  let joined = 0, fixedRole = 0;
+  const isMember = await BusinessMember.findOne({
+    where: { business_id: businessId, user_id: userId, removed_at: null }, attributes: ['id'], transaction,
+  });
+  const convs = await Conversation.findAll({
+    where: { business_id: businessId, project_id: { [Op.in]: projectIds }, channel_type: 'customer' },
+    attributes: ['id'], transaction,
+  });
+  for (const cv of convs) {
+    const ex = await ConversationParticipant.findOne({ where: { conversation_id: cv.id, user_id: userId }, transaction });
+    if (!ex) {
+      await ConversationParticipant.create({ conversation_id: cv.id, user_id: userId, role: isMember ? 'member' : 'client' }, { transaction });
+      joined += 1;
+    } else if (!isMember && ex.role !== 'client') {
+      await ex.update({ role: 'client' }, { transaction });
+      fixedRole += 1;
+    }
+  }
+  return { joined, fixedRole };
+}
+
+module.exports = { ensureWelcomeConversation, welcomeText, linkClientToProjects, joinProjectCustomerChannels };

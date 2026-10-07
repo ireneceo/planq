@@ -3389,6 +3389,15 @@ router.post('/:id/clients', authenticateToken, async (req, res, next) => {
       invite_token: token,
       invited_by: req.user.id,
     });
+    // 계정이 이미 있는 고객은 추가와 동시에 프로젝트가 보인다(contact_user_id) — 그 프로젝트의 고객 채널에도 들인다.
+    //   빠뜨리면 프로젝트 탭으로는 방을 열 수 있는데 Q talk 목록에는 안 뜬다(2026-10-07 운영 민충기).
+    if (contact_user_id) {
+      try {
+        await require('../services/clientOnboarding').joinProjectCustomerChannels({
+          businessId: project.business_id, projectIds: [project.id], userId: contact_user_id,
+        });
+      } catch (e) { console.warn('[project client add] join customer channel', e.message); }
+    }
     await createAuditLog({
       userId: req.user.id, businessId: project.business_id,
       action: 'project.client_added', targetType: 'project_client', targetId: row.id,

@@ -9,6 +9,10 @@ const { sequelize } = require('../config/database');
 const COUNT_SQL = `SELECT pc.id, pc.project_id, pc.client_id, c.user_id
   FROM project_clients pc JOIN clients c ON c.id = pc.client_id
   WHERE pc.contact_user_id IS NULL AND c.user_id IS NOT NULL AND c.status = 'active'`;
+const NOT_JOINED_SQL = `SELECT pc.id AS pc_id, pc.project_id, pc.contact_user_id AS user_id, cv.id AS conv_id, cv.business_id
+  FROM project_clients pc JOIN conversations cv ON cv.project_id = pc.project_id AND cv.channel_type = 'customer'
+  LEFT JOIN conversation_participants cp ON cp.conversation_id = cv.id AND cp.user_id = pc.contact_user_id
+  WHERE pc.contact_user_id IS NOT NULL AND cp.id IS NULL`;
 (async () => {
   try {
     const { Client } = require('../models');
@@ -21,6 +25,18 @@ const COUNT_SQL = `SELECT pc.id, pc.project_id, pc.client_id, c.user_id
       const r = await sequelize.transaction((t) => linkClientToProjects(cl, { transaction: t }));
       console.log(`[migrate-project-client-user] client ${id}:`, JSON.stringify(r));
     }
+    // ★ 2026-10-07 — 연결(contact_user_id)은 있는데 그 프로젝트 고객 채널에 참여자가 아닌 것.
+    //   «이미 계정 있는 고객을 프로젝트에 추가» 문이 참여를 빠뜨려 생겼다(운영 민충기 — 프로젝트 6 · 방 18).
+    //   위 대상(contact_user_id 빈 행)에는 안 걸려 첫 백필이 건너뛰었다.
+    const { joinProjectCustomerChannels } = require('../services/clientOnboarding');
+    const [notJoined] = await sequelize.query(NOT_JOINED_SQL);
+    console.log(`[migrate-project-client-user] 연결됐는데 고객 채널 미참여 ${notJoined.length}건`, notJoined.map((r) => `pc${r.pc_id}(user ${r.user_id}→conv ${r.conv_id})`).join(' '));
+    for (const r of notJoined) {
+      const out = await sequelize.transaction((t) => joinProjectCustomerChannels({ businessId: r.business_id, projectIds: [r.project_id], userId: r.user_id, transaction: t }));
+      console.log(`[migrate-project-client-user] pc${r.pc_id}:`, JSON.stringify(out));
+    }
+    const [notJoinedAfter] = await sequelize.query(NOT_JOINED_SQL);
+    if (notJoinedAfter.length) { console.error('[migrate-project-client-user] 미참여 남은 행', notJoinedAfter); process.exit(1); }
     // 고객이 member 로 들어간 참여자 → client (워크스페이스 멤버가 아닌 사람만). 내부 메시지 알림 제외가 role==='client' 로 판정한다.
     const ROLE_SQL = `FROM conversation_participants cp JOIN conversations cv ON cv.id = cp.conversation_id
       JOIN clients c ON c.user_id = cp.user_id AND c.business_id = cv.business_id

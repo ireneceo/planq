@@ -10,6 +10,8 @@
 //     ② 고객 채널 참여자 role = client
 //     ③ GET /api/projects 에 그 프로젝트가 있다 · GET /api/conversations/:biz 에 그 방이 있다
 //     ④ 고객 화면 메뉴(3폭) — Q talk 목록에 방 제목이 **보인다**, 다른 메뉴는 오류·빈 화면 없이 열린다
+//     ⑤ (2026-10-07) **이미 계정 있는 고객을 다른 프로젝트에 추가**(POST /api/projects/:id/clients {client_id})해도
+//        그 프로젝트 고객 채널에 들어가 Q talk 목록에 보인다 — 이 문만 참여를 빠뜨려 운영 민충기가 방을 못 봤다.
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env' });
 const crypto = require('crypto');
 const { sequelize } = require('/opt/planq/dev-backend/config/database');
@@ -21,13 +23,14 @@ const OWNER = 5;
 const API = 'http://127.0.0.1:3003';
 const STAMP = Date.now();
 const CONV_TITLE = `고객연결 카나리 대화 ${STAMP}`;
+const CONV2_TITLE = `고객추가 카나리 대화 ${STAMP}`;
 const MENUS = ['/home', '/talk', '/tasks', '/projects', '/calendar', '/bills'];
 const VPS = [{ n: 'phone', w: 390, h: 844 }, { n: 'tablet', w: 820, h: 1180 }, { n: 'desktop', w: 1440, h: 900 }];
 
 async function run() {
   const results = [];
   const push = (name, ok, msg) => results.push({ name, fail: ok ? 0 : 1, details: [msg] });
-  const ids = { user: null, client: null, project: null, pc: null, conv: null };
+  const ids = { user: null, client: null, project: null, pc: null, conv: null, project2: null, conv2: null };
   let browser = null;
   try {
     const cred = { email: `cpl-canary-${STAMP}@test.planq.kr`, password: 'ClientLinkCanary2026!' };
@@ -83,6 +86,27 @@ async function run() {
     const hasC = (cv.data || []).some((c) => c.id === cvid);
     push('③ 고객 API 에 프로젝트·채팅방이 있다', hasP && hasC, `projects ${hasP} · conversations ${hasC}`);
 
+    // ⑤ 이미 계정 있는(수락한) 고객을 **다른 프로젝트에 추가** — 오너가 붙인다
+    const [pid2] = await sequelize.query(
+      `INSERT INTO projects (business_id, name, status, owner_user_id, created_at, updated_at)
+       VALUES (?, ?, 'active', ?, NOW(), NOW())`, { replacements: [BIZ, `고객추가 카나리 ${STAMP}`, OWNER] });
+    ids.project2 = pid2;
+    await sequelize.query('INSERT INTO project_members (project_id, user_id, is_pm, created_at, updated_at) VALUES (?, ?, 1, NOW(), NOW())', { replacements: [pid2, OWNER] }).catch(() => {});
+    const [cvid2] = await sequelize.query(
+      `INSERT INTO conversations (business_id, project_id, title, channel_type, status, last_message_at, created_at, updated_at)
+       VALUES (?, ?, ?, 'customer', 'active', NOW(), NOW(), NOW())`, { replacements: [BIZ, pid2, CONV2_TITLE] });
+    ids.conv2 = cvid2;
+    const olr = await (await fetch(`${API}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: b.CREDS.email, password: b.CREDS.password }) })).json();
+    const add = await fetch(`${API}/api/projects/${pid2}/clients`, { method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${olr.data.token}`, 'X-Workspace-Id': String(BIZ) },
+      body: JSON.stringify({ client_id: cid }) });
+    const [part2] = await sequelize.query('SELECT role FROM conversation_participants WHERE conversation_id = ? AND user_id = ?',
+      { replacements: [cvid2, uid], type: sequelize.QueryTypes.SELECT });
+    const cv2 = await (await fetch(`${API}/api/conversations/${BIZ}`, { headers: H2 })).json();
+    const hasC2 = (cv2.data || []).some((c) => c.id === cvid2);
+    push('⑤ 계정 고객을 프로젝트에 추가하면 그 고객 채널에 들어가 목록 API 에 뜬다', add.status === 200 && part2 && part2.role === 'client' && hasC2,
+      `add ${add.status} · 참여자 ${part2 ? part2.role : '없음'} · conversations ${hasC2}`);
+
     // ④ 고객 화면 메뉴
     const launched = await b.launch();
     browser = launched.browser;
@@ -111,6 +135,17 @@ async function run() {
           }
           return { len: txt.trim().length, fallback, titleSeen, path: location.pathname };
         }, CONV_TITLE);
+        if (st.path.startsWith('/talk')) {
+          const seen2 = await page.evaluate((title) => {
+            const el = [...document.querySelectorAll('body *')].find((x) => x.childElementCount === 0 && (x.textContent || '').includes(title));
+            if (!el) return false;
+            el.scrollIntoView({ block: 'nearest' });
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.left + Math.min(r.width / 2, 20), r.top + r.height / 2);
+            return r.width > 0 && r.height > 0 && !!hit && (el === hit || el.contains(hit) || hit.contains(el));
+          }, CONV2_TITLE);
+          if (!seen2) bad.push(`${m}: 추가된 프로젝트 대화방 «${CONV2_TITLE}» 이 목록에 안 보인다`);
+        }
         if (errs.length > before) bad.push(`${m}: 화면 오류 ${errs.slice(before).join(' | ')}`);
         if (st.fallback) bad.push(`${m}: 오류·없음 문구`);
         if (st.len < 10) bad.push(`${m}: 빈 화면`);
@@ -129,6 +164,8 @@ async function run() {
       const rows = await sequelize.query('SELECT id FROM conversations WHERE client_id = ?', { replacements: [ids.client], type: sequelize.QueryTypes.SELECT }).catch(() => []);
       for (const r of rows) { await q('DELETE FROM conversation_participants WHERE conversation_id = ?', [r.id]); await q('DELETE FROM messages WHERE conversation_id = ?', [r.id]); await q('DELETE FROM conversations WHERE id = ?', [r.id]); }
     }
+    if (ids.conv2) { await q('DELETE FROM conversation_participants WHERE conversation_id = ?', [ids.conv2]); await q('DELETE FROM messages WHERE conversation_id = ?', [ids.conv2]); await q('DELETE FROM conversations WHERE id = ?', [ids.conv2]); }
+    if (ids.project2) { await q('DELETE FROM project_clients WHERE project_id = ?', [ids.project2]); await q('DELETE FROM project_members WHERE project_id = ?', [ids.project2]); await q('DELETE FROM projects WHERE id = ?', [ids.project2]); }
     if (ids.pc) await q('DELETE FROM project_clients WHERE id = ?', [ids.pc]);
     if (ids.project) { await q('DELETE FROM project_members WHERE project_id = ?', [ids.project]); await q('DELETE FROM projects WHERE id = ?', [ids.project]); }
     if (ids.client) await q('DELETE FROM clients WHERE id = ?', [ids.client]);
