@@ -164,7 +164,7 @@ const TOOLS = [
   },
   {
     name: 'create_event', risk: 'LOW', write: true, scopes: ['schedule:write'],
-    description: 'Create one calendar event without attendees. Only adds — never edits or deletes. Private to the user unless visibility is "team".',
+    description: 'Create one calendar event without attendees. Only adds — never edits or deletes. Private to the user unless visibility is "team". You can set its type, reminder, a linked task and an existing meeting link.',
     input: {
       title: z.string().trim().min(1).max(300),
       start_at: z.string().max(40), end_at: z.string().max(40),
@@ -173,6 +173,11 @@ const TOOLS = [
       location: z.string().max(300).optional(),
       project_id: z.number().int().positive().optional(),
       visibility: z.enum(['private', 'team']).optional(),
+      // 2026-10-07 (Fable B 판정 3 — LOW, 알림 없는 칸만): 화면 «새 일정» 과 같은 칸을 연다
+      category: z.enum(['meeting', 'work', 'deadline', 'personal', 'other']).optional().describe('Event type (default work)'),
+      reminder_minutes: z.number().int().min(0).max(10080).optional().describe('Remind this many minutes before start (0 = no reminder). Default: 1 day before, same as the app.'),
+      task_id: z.number().int().positive().optional().describe('Link an existing task the user can open (find it with search_tasks)'),
+      meeting_url: z.string().url().max(500).refine((u) => u.startsWith('https://'), 'https only').optional().describe('An existing video meeting link (https) to attach. This tool does not create meetings.'),
       source: z.union([mailSource, taskSource]).optional().describe(`${SOURCE_DESC} A link to the source is added at the end of the description; the project is inherited when you give none.`),
       idempotency_key: idem,
     },

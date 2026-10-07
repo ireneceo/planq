@@ -102,7 +102,11 @@ async function createEvent(p, a, actor) {
     // 기본은 나만 보기 — AI 가 만든 일정을 팀 전체에 바로 뿌리지 않는다. 팀 공개는 사용자가 말했을 때만.
     visibility: a.visibility === 'team' ? 'business' : 'personal',
     vlevel: a.visibility === 'team' ? 'L3' : 'L1',
-    category: 'work',
+    category: a.category || 'work',
+    // 0 = 알림 없음(null), 생략 = 화면과 같은 기본(하루 전) — event_actions 가 undefined/null 을 구분한다
+    ...(a.reminder_minutes !== undefined ? { reminderMinutes: a.reminder_minutes > 0 ? a.reminder_minutes : null } : {}),
+    ...(a.task_id ? { taskId: a.task_id } : {}),
+    ...(a.meeting_url ? { meetingUrl: a.meeting_url, meetingProvider: 'manual' } : {}),
     createdVia: 'agent',
   });
   if (!r.ok) throw fromActionFailure(r);
