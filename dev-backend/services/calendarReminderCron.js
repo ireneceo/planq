@@ -52,6 +52,26 @@ function humanizeLead(minutes, lang = 'ko', allDay = false) {
 }
 
 /**
+ * 알림 제목의 행위 — **얼마나 남았는지**(2026-10-07). 설정값(분)과 그 시간대의 날짜 차이로 고른다.
+ *   10분 이하 → 곧 시작 · 1시간 미만 → N분 뒤 · 하루 미만 → N시간 뒤 · 하루 이상 → 내일 / N일 뒤 ·
+ *   종일 일정의 당일 아침 → 오늘. «1일 전» 이 내일 일정인데 «곧 시작» 이라고 나가던 것을 막는다.
+ */
+function leadAction(minutes, allDay, occurrence, now, tz) {
+  const m = Number(minutes) || 0;
+  if (allDay && m < 1440) return { action: 'calendar_today' };
+  if (m >= 1440) {
+    const day = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: tz || 'UTC' }).format(d);
+    const diff = Math.round((Date.parse(day(occurrence)) - Date.parse(day(now))) / DAY_MS);
+    if (diff <= 0) return { action: 'calendar_today' };
+    if (diff === 1) return { action: 'calendar_tomorrow' };
+    return { action: 'calendar_in_days', params: { n: diff } };
+  }
+  if (m >= 60) return { action: 'calendar_in_hours', params: { n: Math.round(m / 60) } };
+  if (m > 15) return { action: 'calendar_in_minutes', params: { n: m } };
+  return { action: 'calendar_soon' };
+}
+
+/**
  * 이 일정의 **다음 발생 시각**. 반복이면 rrule 로 구한다(예외 날짜 제외).
  *   조회 라우트(routes/calendar.js)가 rrule 을 펼치는 것과 같은 뜻이어야 한다 —
  *   여기서만 다르게 계산하면 화면에 보이는 회차와 알림이 갈린다.
@@ -192,18 +212,20 @@ async function runCalendarReminderCron() {
         const wsName = biz?.brand_name || biz?.name || null;
         const startLocalIn = (lang) => new Date(occurrence).toLocaleString(lang === 'en' ? 'en-US' : 'ko-KR', {
           timeZone: tz,
-          dateStyle: 'short',
-          ...(ev.all_day ? {} : { timeStyle: 'short' }),
+          // «10월 8일 (목) 오후 3:00» — «26. 10. 8.» 같은 짧은 형식은 알림에서 읽기 어렵다
+          month: 'short', day: 'numeric', weekday: 'short',
+          ...(ev.all_day ? {} : { hour: 'numeric', minute: '2-digit' }),
         });
         await notifyMany({
           userIds: memberIds,
           businessId: ev.business_id,
           eventKind: 'event',
-          titleSpec: { feature: 'calendar', action: 'calendar_soon', subject: ev.title },
+          titleSpec: { feature: 'calendar', ...leadAction(ev.reminder_minutes, !!ev.all_day, occurrence, now, tz), subject: ev.title },
           // ★ 사람 말로, **수신자 언어로**. "1440분 전 알림" 이 나가던 자리다.
           //   함수로 주면 notify 가 수신자 언어를 넣어 부른다 — 제목만 현지화되어
           //   한 알림 안에서 언어가 섞이던 것을 막는다(Fable 게이트 2026-09-05).
-          body: (lang) => `${startLocalIn(lang)} · ${humanizeLead(ev.reminder_minutes, lang, !!ev.all_day)}${ev.location ? ` · ${ev.location}` : ''}`,
+          // 본문은 **언제 시작하는지** — 제목이 «내일 일정» 인데 본문이 «1일 전» 이면 같은 말을 뒤집어 한 번 더 한다.
+          body: (lang) => `${startLocalIn(lang)} ${lang === 'en' ? 'start' : '시작'}${ev.location ? ` · ${ev.location}` : ''}`,
           link: `${appUrl}/calendar?event=${ev.id}`,
           ctaLabel: (lang) => (lang === 'en' ? 'View event' : '일정 보기'),
           workspaceName: wsName,
@@ -229,4 +251,4 @@ function initCalendarReminderCron() {
   console.log('[calendarReminderCron] initialized — runs every 5 minutes');
 }
 
-module.exports = { initCalendarReminderCron, runCalendarReminderCron, humanizeLead, nextOccurrence, reminderTimeFor };
+module.exports = { initCalendarReminderCron, runCalendarReminderCron, humanizeLead, nextOccurrence, reminderTimeFor, leadAction };

@@ -75,7 +75,14 @@ const ACTIONS = {
   chat_mention: { ko: '멘션', en: 'Mentioned you' },
   // Q Calendar
   calendar_invite: { ko: '일정 초대', en: 'Event invitation' },
+  // 일정 알림 제목은 **얼마나 남았는지**를 말한다(2026-10-07 Irene: "1일 전으로 해놨는데 알림이 곧 시작으로 나와 …
+  //   곧 시작은 10분 전 알림에 써야지"). 고르는 규칙은 calendarReminderCron.leadAction 한 곳.
   calendar_soon: { ko: '곧 시작', en: 'Starting soon' },
+  calendar_in_minutes: { ko: '{{n}}분 뒤 시작', en: 'Starts in {{n}} min' },
+  calendar_in_hours: { ko: '{{n}}시간 뒤 시작', en: 'Starts in {{n}}h' },
+  calendar_today: { ko: '오늘 일정', en: 'Today' },
+  calendar_tomorrow: { ko: '내일 일정', en: 'Tomorrow' },
+  calendar_in_days: { ko: '{{n}}일 뒤 일정', en: 'In {{n}} days' },
   calendar_response: { ko: '참석 응답', en: 'RSVP' },
   calendar_materials: { ko: '첨부파일', en: 'Attachments' },
   // 고객 창구 상담 예약 (CLIENT_ENTRY P2) — 팀 쪽 알림
@@ -113,11 +120,14 @@ function pickLang(lang) {
  * @param {string} [subject] 대상 이름(업무명·발신자·방이름 등). 없으면 생략.
  * @param {string} [lang]  수신자 언어 (User.language). 기본 ko.
  * @param {string} [rawAction] ACTIONS 에 아직 없는 행위를 임시로 넘길 때.
+ * @param {object} [params] 행위 문구의 {{키}} 자리값(예: { n: 3 }).
  */
-function buildTitle({ feature, action, subject, lang, rawAction }) {
+function buildTitle({ feature, action, subject, lang, rawAction, params }) {
   const L = pickLang(lang);
   const f = FEATURES[feature]?.[L] || FEATURES[feature]?.ko || '';
-  const a = ACTIONS[action]?.[L] || ACTIONS[action]?.ko || rawAction || '';
+  // {{n}} — 숫자가 들어가는 행위(«3시간 뒤 시작»). params 가 없으면 그대로 둔다.
+  const a = String(ACTIONS[action]?.[L] || ACTIONS[action]?.ko || rawAction || '')
+    .replace(/\{\{(\w+)\}\}/g, (m, k) => (params && params[k] != null ? String(params[k]) : m));
   const parts = [f, a].filter(Boolean);
   const s = String(subject || '').trim();
   if (s) parts.push(s.length > 60 ? `${s.slice(0, 60)}…` : s);
