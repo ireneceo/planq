@@ -108,7 +108,7 @@ router.post('/:id/revisions/:revId/restore', authenticateToken, async (req, res,
       post, editorUserId: req.user.id, source: 'restore',
     });
     require('../services/auditService').logAudit(req, {
-      action: 'post.restore', targetType: 'post', targetId: post.id,
+      action: 'post.restore', targetType: 'post', targetId: post.id, businessId: post.business_id,
       newValue: { revision_number: rev.revision_number },
     });
     broadcastPost(req, post, 'post:updated');
