@@ -1667,6 +1667,8 @@ router.post('/:businessId/email-threads/:id/ai-suggest', // audit-exempt: 답장
         userInstruction: instruction,
         currentDraft: instruction ? currentDraft : null,
         threadContext,
+        // 인사말 이름 — 마지막 받은 메일의 보낸 사람 표시명(헤더). 서명의 이름이 있으면 모델이 그쪽을 우선한다.
+        recipientName: (lastInbound.from_name || '').replace(/["']/g, '').trim() || null,
       });
       if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);

@@ -438,7 +438,7 @@ function looksLikeEcho(draft, inbound) {
   return dg.filter((g) => bset.has(g)).length / dg.length >= 0.4;
 }
 
-async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko', faqContext = null, userInstruction = null, currentDraft = null, threadContext = null }) {
+async function generateEmailReplyDraft(businessId, { businessName, subject, latestInboundText, language = 'ko', faqContext = null, userInstruction = null, currentDraft = null, threadContext = null, recipientName = null }) {
   const usage = await checkUsageLimit(businessId);
   if (usage.over) return { error: 'usage_limit_exceeded', usage };
   const lang = language === 'en' ? 'English' : 'Korean';
@@ -453,7 +453,15 @@ async function generateEmailReplyDraft(businessId, { businessName, subject, late
     + `Ground it in the incoming email and the conversation so far`
     + (faqContext ? ` and in the registered FAQ answers below` : '') + `; `
     + `do NOT invent facts, prices, dates, or commitments. If something must be confirmed, say it will be checked and followed up. `
-    + `Output ONLY the reply body text — no subject line, no greeting placeholder like [Name], no signature.`;
+    // ★ 2026-10-07 — 인사말을 붙인다. Irene: "받는 사람 누군지 알면서 … 서명이 있는데, 이름을 알려주고 있는데도
+    //   왜 자동완성할 때 dear 000 . 000님, 이런거 안붙여?" 여태 이름을 주지도 않았고 «[Name] 금지» 만 있어
+    //   모델이 인사말을 통째로 뺐다. 이름은 **상대가 스스로 서명한 모양**을 우선한다(HANIFF BIN RAMLI 보다 Haniff).
+    + `Start with a natural salutation addressed to the person by name: in English "Dear <name>," (use the name they sign with, `
+    + `e.g. the first name from their sign-off such as "Regards, Haniff Ramli" → "Dear Haniff,"); in Korean "<이름>님," `
+    + `(직함을 서명에 썼으면 "<이름> <직함>님,"). Take the name from their sign-off in the incoming email first, then from the sender name given below. `
+    + `If no name is known at all, use a neutral greeting ("Hello," / "안녕하세요,") — never a placeholder like [Name] and never a guessed name. `
+    + `Output ONLY the reply body text — no subject line, no signature.`;
+  if (recipientName) systemPrompt += `\n\nSender of the incoming email (display name from the mail header): ${String(recipientName).slice(0, 120)}`;
   // 대화 흐름(누가 무엇을 말했는지)을 준다 — 마지막 받은 메일 한 통만으로는 우리가 무엇을 물었는지 모른다.
   if (threadContext) {
     systemPrompt += `\n\nConversation so far (oldest first; "US" = ${businessName || 'our team'}, the sender of the email you are drafting):\n${threadContext}`;
