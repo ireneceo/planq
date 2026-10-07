@@ -31,7 +31,7 @@
 
 | 39 (신규) AI create_event 칸 확장 `59fba176` | ✅ 41/43 PASS + ❌→🔧 | 범위·업무 연결·알림·종류 모두 PASS. 감사 대상이 business 로 남던 기존 결함(event 분기 없음) — `execute.js` 한 줄 수정, 자체 검증(target calendar_event·실제 id). 한 줄 수정분은 Fable 미검증 |
 
-B 설계 판정(8안건)의 Irene 결정 대기: 행 17 프로젝트 만들기(client_ids·scope) · AI 보강(태그 생성 여부·메모 L1) · 행 23 보낸편지함 먼저/스팸 30일 · Cue 질문 분석(opt-in 범위) · 고객별 채널(Kate·Aidan 같은 회사인가) · 구글 캘린더 선택(심사 제출과 묶기).
+B 설계 판정(8안건) 원문·결정 질문지: **`docs/IRENE_DECISIONS_2026-10-07.md`**. Irene 결정 대기: 행 17 프로젝트 만들기(client_ids·scope) · AI 보강(태그 생성 여부·메모 L1) · 행 23 보낸편지함 먼저/스팸 30일 · Cue 질문 분석(opt-in 범위) · 고객별 채널(Kate·Aidan 같은 회사인가) · 구글 캘린더 선택(심사 제출과 묶기).
 
 ---
 
