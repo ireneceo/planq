@@ -652,7 +652,9 @@ async function collectSignatures(businessId, userEmail, userRole) {
         createdAt: safeToIso(sr.createdAt),
         actor: { name: sr.signer_name || sr.signer_email },
         // 보내는 쪽은 앱 안 문서에서 서명한다(인증번호 없이 로그인) — 공개 서명 링크로 보내지 않는다.
-        link: (sr.party === 'us' && sr.entity_type === 'post') ? `/docs?post=${sr.entity_id}&sign=${sr.id}` : `/sign/${sr.token}`,
+        // 우리 쪽·상대 쪽 모두 **그 문서만 보이는 서명 화면**(2026-10-07 Irene: «Q문서 메뉴가 아니라 해당 문서만 보이는 웹링크로»).
+        //   우리 쪽 서명자는 그 화면에서 로그인으로 본인 확인한다(인증번호 없음).
+        link: `/sign/${sr.token}`,
       });
     }
   }

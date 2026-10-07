@@ -353,7 +353,14 @@
     "linkedError": "Could not open the document. Please tap again in a moment.",
     "mySlotHint": "tap to go sign",
     "nudgeOtp": "Please verify it is you first. Tap «Send verification code» below and enter the 6-digit code from your email — then the signature boxes open.",
-    "downloadPdf": "Download PDF"
+    "downloadPdf": "Download PDF",
+    "mySlotHintReview": "Your signature goes here",
+    "reviewTitle": "Have you reviewed the document?",
+    "reviewDesc": "Please review the document and any attachments above before signing. Next, we will show where your signature goes.",
+    "startSign": "I have reviewed it · Sign",
+    "slotLine": "Your signature goes in box {{n}} (red border) of the document.",
+    "showSlot": "Show location again",
+    "loginIdentity": "Your signed-in account verifies your identity. The signing time and connection details are recorded."
   },
   "sign": {
     "button": "Get signatures",

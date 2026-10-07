@@ -61,6 +61,9 @@ router.get('/sign/:token', async (req, res, next) => {
       //   서명하게 두지 않는다(설계 §1). slot NULL 이면 서명란 없는 옛 요청이다.
       slot: sr.slot == null ? null : sr.slot,
       party: sr.party || 'them',
+      // 보내는 쪽(우리) 서명자 — 로그인한 본인이면 이 화면에서 인증번호 대신 로그인으로 서명한다
+      //   (POST /api/signatures/:id/sign-internal, 그 라우트가 본인·멤버를 다시 본다). 받는 쪽에는 싣지 않는다.
+      ...(sr.party === 'us' ? { request_id: sr.id, signer_user_id: sr.signer_user_id ?? null } : {}),
       // 서명 항목(2026-10-05) — 이 서명자가 채울 서명 칸 수(그리기·이미지). 없으면 옛 요청 = 1칸
       required_items: sr.required_items ? { sign: sr.required_items.sign, date: !!sr.required_items.date, name: !!sr.required_items.name } : null,
       entity: {

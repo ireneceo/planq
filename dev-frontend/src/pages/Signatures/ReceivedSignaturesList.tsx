@@ -11,7 +11,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import HighlightText from '../../components/Common/HighlightText';
@@ -106,11 +105,9 @@ export default function ReceivedSignaturesTab() {
       (['pending', 'sent', 'viewed'].includes(it.status) && it.expires_at && new Date(it.expires_at) < new Date());
   };
 
-  const navigate = useNavigate();
   const handleSign = (it: ReceivedSignature) => {
-    // 보내는 쪽(우리) 서명자는 메일·인증번호 없이 **앱 안 문서**에서 서명한다(POST /signatures/:id/sign-internal).
-    //   공개 서명 링크로 보내면 본인에게 인증번호 메일을 받게 하는 엉뚱한 길이 된다.
-    if (it.party === 'us' && it.entity_type === 'post') { navigate(`/docs?post=${it.entity_id}&sign=${it.id}`); return; }
+    // 우리 쪽·상대 쪽 모두 그 문서만 보이는 서명 화면(2026-10-07). 우리 쪽 서명자는 거기서 로그인으로 본인 확인
+    //   (인증번호 메일 없음 — 화면이 로그인한 본인을 알아본다).
     window.open(`/sign/${it.token}`, '_blank', 'noopener');
   };
 

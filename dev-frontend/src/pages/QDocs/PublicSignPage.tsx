@@ -13,6 +13,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { signInternal } from '../../services/posts';
 import PostEditor from '../../components/Docs/PostEditor';
 import SignatureItemsInput, { type SignatureItemsHandle } from '../../components/Common/SignatureItemsInput';
 // 링크를 열어 둔 채 원본이 바뀌면 보이는 것도 바뀐다(공개 페이지 공통 계약)
@@ -27,7 +29,7 @@ import {
   OtpRow, Page, PrimaryBtn, ProgressBar, ProjectChip, RejectActions, RejectBackdrop, RejectBtn, RejectDialog,
   ResendBtn, ResultCard, ResultHint, ResultIcon, ResultMeta, ResultTitle, SecondaryBtn, Section, SectionDesc,
   SectionTitle, SignatureSnap, SignedHtml, Spinner, Step, Textarea, TopMeta, Topbar,
-  AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions, NudgeNote,
+  AttachBox, AttachTitle, AttachRow, AttachIcon, AttachName, AttachSize, DoneActions, NudgeNote, SlotLine, SlotLink,
 } from './PublicSignPage.styles';
 import SignLinkedDocs from './SignLinkedDocs';
 
@@ -47,6 +49,9 @@ interface PublicSignData {
   // 서명란(2026-09-22) — 내 칸이 문서 어디인지. null 이면 서명란 없는 옛 요청.
   slot?: number | null;
   party?: 'us' | 'them';
+  /** 보내는 쪽(우리) 서명자만 — 로그인한 본인이면 인증번호 대신 로그인으로 서명 */
+  request_id?: number;
+  signer_user_id?: number | null;
   // 서명 항목(2026-10-05) — 채울 서명 칸 수. null = 옛 요청(1칸)
   required_items?: { sign: number; date: boolean; name: boolean } | null;
   // 본문 이미지 문맥 — 서명자(익명)에게 고정본 이미지를 여는 증명(utils/imageCtx)
@@ -78,6 +83,11 @@ const PublicSignPage: React.FC = () => {
   const [loadErr, setLoadErr] = useState<{ code: string; message: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [phase, setPhase] = useState<Phase>('review');
+  // 2026-10-07 — **문서를 먼저 읽고** «서명하겠습니다» 를 누른 뒤에 서명 위치·본인 확인·서명으로 간다
+  //   (Irene: "문서를 확인하고 서명을 해야지 서명창부터 디밀면 어떻게 해?"). 이미 인증번호를 확인했어도 문서부터 보인다.
+  const [otpOk, setOtpOk] = useState(false);
+  const [locate, setLocate] = useState(false);
+  const { user } = useAuth();
 
   // OTP
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -124,6 +134,24 @@ const PublicSignPage: React.FC = () => {
     }));
     window.setTimeout(() => setNudge(false), 6000);
   }, []);
+  // 로그인한 본인이 우리 쪽 서명자인가 — 그러면 인증번호 대신 로그인이 본인 확인이다(서버 sign-internal 이 다시 본다)
+  const internalSelf = !!doc && doc.party === 'us' && !!doc.request_id && !!user && Number(user.id) === Number(doc.signer_user_id);
+  const docBodyRef = useRef<HTMLDivElement | null>(null);
+  const showMySlot = useCallback(() => {
+    setLocate(false);
+    // ★ 단계 전환(아래 칸이 새로 그려지는 재렌더)이 **끝난 뒤** 굴린다 — 같은 순간 시작한 smooth 스크롤은 재렌더에 끊겨
+    //   제자리에 멈췄다(실측: scrollY 0 그대로). goToAction 과 같은 두 프레임 규칙.
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      setLocate(true);
+      const el = docBodyRef.current?.querySelector(`.pq-sig[data-slot="${doc?.slot}"]`) as HTMLElement | null;
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+  }, [doc?.slot]);
+  // «서명하겠습니다» — 내 칸 위치를 보여 주고 다음 단계(본인 확인 또는 서명)를 연다
+  const startSigning = () => {
+    setPhase(internalSelf || otpOk ? 'sign' : 'otp');
+    if (doc?.slot != null) showMySlot(); else window.requestAnimationFrame(() => goToAction());
+  };
   const tryClose = () => {
     window.close();
     // 메일에서 연 탭은 스크립트로 닫을 수 없는 경우가 많다 — 닫히지 않았으면 직접 닫으라고 말한다
@@ -148,9 +176,8 @@ const PublicSignPage: React.FC = () => {
           setPhase(j.data.confirmed_at ? 'confirmed_done' : 'confirm');
         } else if (j.data.status === 'signed') setPhase('done');
         else if (j.data.status === 'rejected') setPhase('rejected_done');
-        else if (j.data.otp_verified) setPhase('sign');
         else setPhase('review');
-        // OTP 이미 verified 면 sign 으로 (단계 스킵)
+        setOtpOk(!!j.data.otp_verified);   // 이미 확인했으면 «서명하겠습니다» 뒤에 인증번호를 건너뛴다
       }
     } catch (e) {
       if (!silent) setLoadErr({ code: 'network', message: (e as Error).message });
@@ -296,6 +323,13 @@ const PublicSignPage: React.FC = () => {
     const items = itemsRef.current?.getItems();
     if (!items) { setSignError(t('publicSign.itemsRequired', { defaultValue: '서명 칸을 모두 채워 주세요.' }) as string); return; }
     setSigning(true);
+    if (internalSelf && doc?.request_id) {
+      // 우리 쪽 서명자 — 로그인으로 본인 확인(인증번호 없음). 증거(동의·시각·IP·고정본)는 서버가 공개 서명과 같게 남긴다.
+      try { await signInternal(doc.request_id, items); await reload(); }
+      catch (e) { setSignError((e as Error).message || (t('publicSign.signFailed', '서명 실패') as string)); }
+      finally { setSigning(false); }
+      return;
+    }
     try {
       const r = await fetch(`/api/sign/${token}/sign`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -440,10 +474,13 @@ const PublicSignPage: React.FC = () => {
                   {t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸이 회원님의 서명 자리입니다. 테두리로 표시해 두었습니다.', n: doc.slot }) as string}
                 </NoteBox>
               )}
-              <DocBody $mySlot={doc.slot ?? null} $mySlotHint={t('publicSign.mySlotHint', { defaultValue: '여기를 누르면 서명하는 곳으로 이동' }) as string}
+              <DocBody ref={docBodyRef} $mySlot={doc.slot ?? null} $locate={locate}
+                $mySlotHint={(phase === 'review'
+                  ? t('publicSign.mySlotHintReview', { defaultValue: '여기에 내 서명이 들어갑니다' })
+                  : t('publicSign.mySlotHint', { defaultValue: '여기를 누르면 서명하는 곳으로 이동' })) as string}
                 data-testid="sign-doc-body"
                 onClick={(e) => {
-                  if (doc.slot == null) return;
+                  if (doc.slot == null || phase === 'review') return;   // 읽는 단계에서는 칸을 눌러도 서명으로 가지 않는다
                   const hit = (e.target as HTMLElement).closest(`.pq-sig[data-slot="${doc.slot}"]`);
                   if (hit) goToAction();
                 }}>
@@ -514,9 +551,29 @@ const PublicSignPage: React.FC = () => {
             )}
 
             {/* Step 2: OTP */}
-            {(phase === 'review' || phase === 'otp') && (
+            {/* ① 문서 확인 — 서명창을 먼저 내밀지 않는다(2026-10-07 Irene). 다 읽고 «서명하겠습니다» 를 누르면
+                ② 내 칸 위치를 보여 주고 ③ 본인 확인(로그인한 우리 쪽 서명자는 생략) ④ 서명으로 간다. */}
+            {phase === 'review' && (
+              <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action">
+                <SectionTitle>{t('publicSign.reviewTitle', { defaultValue: '문서를 확인하셨나요?' }) as string}</SectionTitle>
+                <SectionDesc>{t('publicSign.reviewDesc', { defaultValue: '위 문서와 별첨을 모두 확인한 뒤 서명을 시작해 주세요. 다음 단계에서 서명이 들어갈 자리를 보여 드립니다.' }) as string}</SectionDesc>
+                <ActionRow>
+                  <RejectBtn type="button" onClick={() => setShowReject(true)} disabled={signing}>{t('publicSign.reject', '거절')}</RejectBtn>
+                  <PrimaryBtn type="button" data-testid="sign-start" onClick={startSigning}>
+                    {t('publicSign.startSign', { defaultValue: '확인했습니다 · 서명하기' }) as string}
+                  </PrimaryBtn>
+                </ActionRow>
+              </Section>
+            )}
+            {phase === 'otp' && (
               <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action" $nudge={nudge}>
                 <SectionTitle>{t('publicSign.otpTitle', '본인 확인')}</SectionTitle>
+                {doc.slot != null && (
+                  <SlotLine data-testid="sign-slot-line">
+                    {t('publicSign.slotLine', { defaultValue: '문서의 {{n}}번 칸(빨간 테두리)에 서명이 들어갑니다.', n: doc.slot }) as string}
+                    <SlotLink type="button" onClick={showMySlot}>{t('publicSign.showSlot', { defaultValue: '위치 다시 보기' }) as string}</SlotLink>
+                  </SlotLine>
+                )}
                 {nudge && (
                   <NudgeNote role="status" data-testid="sign-nudge">
                     {t('publicSign.nudgeOtp', { defaultValue: '서명하려면 먼저 본인 확인이 필요합니다. 아래 «인증 코드 받기» 를 눌러 메일로 받은 6자리를 입력하면 서명 칸이 열립니다.' }) as string}
@@ -564,6 +621,13 @@ const PublicSignPage: React.FC = () => {
             {phase === 'sign' && (
               <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action" $nudge={nudge}>
                 <SectionTitle>{t('publicSign.signTitle', '서명')}</SectionTitle>
+                {doc.slot != null && (
+                  <SlotLine data-testid="sign-slot-line">
+                    {t('publicSign.slotLine', { defaultValue: '문서의 {{n}}번 칸(빨간 테두리)에 서명이 들어갑니다.', n: doc.slot }) as string}
+                    <SlotLink type="button" onClick={showMySlot}>{t('publicSign.showSlot', { defaultValue: '위치 다시 보기' }) as string}</SlotLink>
+                  </SlotLine>
+                )}
+                {internalSelf && <SectionDesc data-testid="sign-login-id">{t('publicSign.loginIdentity', { defaultValue: '로그인한 계정으로 본인 확인을 대신합니다. 서명 시각과 접속 정보가 함께 기록됩니다.' }) as string}</SectionDesc>}
                 <SectionDesc>{t('publicSign.signDescItems', { defaultValue: '서명 칸마다 직접 그리거나 이미지(사인·도장·회사 스탬프)를 올려 주세요. 서명일·이름은 서명하면 자동으로 들어갑니다.' })}</SectionDesc>
                 <SignatureItemsInput ref={itemsRef} count={doc.required_items?.sign || 1} disabled={signing} onReadyChange={setItemsReady} />
 

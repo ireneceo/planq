@@ -80,7 +80,7 @@ export const ProjectChip = styled.div`
 // $mySlot — 이 서명자의 칸. 문서 안에서 **그 칸만** 테두리로 집어 준다.
 //   서명란 규격(.pq-sig*)은 서버 services/signedDocument.js `SIGNED_CSS` 가 정본이고,
 //   여기서는 화면 톤과 «내 칸» 강조만 얹는다.
-export const DocBody = styled.div<{ $mySlot?: number | null; $mySlotHint?: string }>`
+export const DocBody = styled.div<{ $mySlot?: number | null; $mySlotHint?: string; $locate?: boolean }>`
   margin-top: 12px; padding-top: 16px;
   border-top: 1px solid #E2E8F0;
 
@@ -108,6 +108,11 @@ export const DocBody = styled.div<{ $mySlot?: number | null; $mySlotHint?: strin
     content: ' ← ' ${JSON.stringify(String(p.$mySlotHint || ''))};
     color: #F43F5E; font-weight: 600;
   }
+  ${p.$locate ? `
+  /* «서명하겠습니다» 를 누른 뒤 — 내 칸이 어디인지 눈에 띄게(맥박) */
+  @keyframes pqSigLocate { 0%,100% { box-shadow: 0 0 0 4px rgba(244,63,94,0.12); } 50% { box-shadow: 0 0 0 10px rgba(244,63,94,0.28); } }
+  .pq-sig[data-slot="${p.$mySlot}"] { animation: pqSigLocate 1.2s ease-in-out 3; }
+  ` : ''}
   ` : '')}
 `;
 export const SignedHtml = styled.div`
@@ -344,4 +349,14 @@ export const ConfirmedComment = styled.div`
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;
   font-size: 0.8125rem; line-height: 1.6; color: #334155; white-space: pre-wrap;
 `;
-
+// 서명 위치 안내 줄 — 본인 확인·서명 단계 맨 위. «위치 다시 보기» 는 문서의 내 칸으로 되돌아간다.
+export const SlotLine = styled.div`
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 4px 0 10px;
+  padding: 8px 12px; border-radius: 8px; background: #FFF1F2; border: 1px solid #FECDD3;
+  font-size: 0.8125rem; color: #9F1239;
+`;
+export const SlotLink = styled.button`
+  background: none; border: none; padding: 0; cursor: pointer; font-size: 0.8125rem; font-weight: 700; color: #BE123C;
+  text-decoration: underline;
+  &:focus-visible { outline: 2px solid #F43F5E; outline-offset: 2px; border-radius: 4px; }
+`;
