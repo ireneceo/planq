@@ -78,21 +78,22 @@ async function getBusinessPlan(businessId) {
     return exemptResult;
   }
 
-  const expired = biz.plan_expires_at && new Date(biz.plan_expires_at) < now;
-  const inGrace = biz.grace_ends_at && new Date(biz.grace_ends_at) > now;
   const inTrial = biz.trial_ends_at && new Date(biz.trial_ends_at) > now;
-  // 만료 + grace 기간 밖 → free 다운그레이드
-  const code = (expired && !inGrace) ? 'free' : (biz.plan || 'free');
-  const status = biz.subscription_status || 'active';
+  // 사용 가능 판정·free 강등·유예 여부 — services/planActive 한 곳(health-check 가 같은 함수를 잰다)
+  const st = require('./planActive').subscriptionState({
+    plan: biz.plan, status: biz.subscription_status,
+    planExpiresAt: biz.plan_expires_at, graceEndsAt: biz.grace_ends_at, now,
+  });
+  const code = st.code;
   const result = {
     plan: getPlan(code),
     biz,
     // 유예(grace) 기간엔 유료 플랜 유지하며 정상 사용 — 결제 대기 버퍼이므로 업로드 등 차단 금지.
     // 만료+유예 후 free 다운그레이드 시에도 free 한도로 사용 가능(code==='free').
     // (옛: !expired 만 봐서 유예 기간에도 '구독 비활성'으로 업로드까지 막히던 운영 버그)
-    active: code === 'free' ? true : ((!expired || inGrace) && ['active', 'trialing'].includes(status)),
+    active: st.active,
     inTrial,
-    inGrace: expired && inGrace,
+    inGrace: st.inGrace,
     trialEndsAt: biz.trial_ends_at,
     graceEndsAt: biz.grace_ends_at,
     // 비면제 경로 — 소비처가 exempt 를 항상 같은 모양으로 받게 명시 false.

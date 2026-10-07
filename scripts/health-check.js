@@ -762,6 +762,24 @@ function defineBillingLedgerTests() {
   const isLocal = BACKEND.startsWith('http://localhost');
   if (!isLocal) return;
 
+  test('billing', '결제 대기 유예 중에는 쓸 수 있고, 유예가 끝나면 잠긴다 (planActive 상태표)', async () => {
+    // 2026-10-07 — 유예 7일 내내 전부 잠기던 결함. 양·음성 대조군을 같이 잰다(한쪽만 보면 «다 열기» 도 통과한다).
+    const { subscriptionState: f } = require('/opt/planq/dev-backend/services/planActive');
+    const now = new Date('2026-10-07T00:00:00Z');
+    const fut = '2026-10-13T00:00:00Z', past = '2026-10-01T00:00:00Z';
+    const cases = [
+      ['체험 유예(past_due·유예 남음)', { plan: 'basic', status: 'past_due', graceEndsAt: fut }, true],
+      ['유료 만료 유예(past_due)', { plan: 'pro', status: 'past_due', planExpiresAt: past, graceEndsAt: fut }, true],
+      ['유예 지남(past_due)', { plan: 'basic', status: 'past_due', graceEndsAt: past }, false],
+      ['해지(canceled)', { plan: 'basic', status: 'canceled', graceEndsAt: fut }, false],
+      ['체험 중(trialing)', { plan: 'basic', status: 'trialing' }, true],
+      ['유예 없는 past_due', { plan: 'basic', status: 'past_due' }, false],
+    ];
+    const bad = cases.filter(([, a, want]) => f({ ...a, now }).active !== want).map(([n]) => n);
+    if (bad.length) throw new Error('상태표 불일치: ' + bad.join(', '));
+    return true;
+  });
+
   test('billing', 'invoice_payments 원장이 paid 상태와 일치 (매출 0 회귀 가드)', async () => {
     const { execSync } = require('child_process');
     const out = execSync(
