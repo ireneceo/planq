@@ -44,6 +44,7 @@ const ACTIONS = {
   mail_account_reauth: { ko: '재연결 필요', en: 'Reconnect required' },
   // Q Task
   task_assigned: { ko: '새 업무 배정', en: 'Assigned to you' },
+  task_project_moved: { ko: '프로젝트 이동', en: 'Moved to another project' },
   task_ack: { ko: '요청 확인함', en: 'Request acknowledged' },
   task_review_request: { ko: '컨펌 요청', en: 'Approval requested' },
   // 요청자에게 — "내가 보낸 업무가 컨펌 단계에 들어왔다". 컨펌자에게 가는 task_review_request 와

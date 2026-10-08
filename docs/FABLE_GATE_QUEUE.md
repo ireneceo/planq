@@ -14,6 +14,11 @@
 ---
 
 
+## 2026-10-08 · #463 AI 업무 프로젝트 옮기기 `move_task_to_project` (방 dfbe4a9b) — **설계 READY → VERDICT: PASS** (Fable 2회)
+- 설계: 행동 계층 `task_actions.prepareMove/previewMove/moveToProject/afterMove` 한 벌 — 화면 PUT 의 project_id 분기도 같은 판정 · tasks:write 재사용(재연결 불필요) · MEDIUM 확인 2단계 · 미리보기에 «새로 보는/못 보게 되는 고객» · 외부 파트너 담당자·컨펌자 비참여면 거절(PUT 도) · 영역 비움 · 반복 원본이면 미완 회차 동반 · 닫힌 프로젝트로 넣기 거절/빼기 허용 · 떠난 방 신호.
+- 검증: Fable 독립 재현 27/27 · guard 65/66 · health-check 83/83 · tenant 실패 0. Opus 자체 16/16 + 떠난 방 신호 대조군 뒤집힘 + 실브라우저 2폭(실패 시 원복·이유 문구).
+- 비차단: ① PUT 경로의 afterMove(이력+회차 동반)가 «이력 실패는 PUT 을 깨지 않는다» try/catch 안 — 회차 이동 실패해도 200(AI 경로는 트랜잭션). ② 자체 검증 감사 행이 dev audit_logs 에 남음(append-only).
+
 ## 2026-10-08 · 공휴일 18개국(f8e9c025) · Insights 가동률 분모(f28f5597) (상황판 fwmuz1uqyy) — **VERDICT: FAIL → FAIL → 지적대로 수정(자체 검증)** (Fable 2회, 상한)
 - ※ 두 커밋은 이미 운영에 있다(v1.70.1). 운영 영향: biz1 KR(손대조)뿐 · CN/TW/VN 테넌트 0 · **biz1 Insights 가동률 분모의 48% 가 Cue** → 절반으로 표시 중.
 - 1차 FAIL 차단 4: ①CN 부분휴일(3/8·5/4·6/1·8/1)을 전원 휴일로, 初三·5/2 누락, 조휴 표현 불가 ②TW 2025 개정·VN Tết 누락 ③국가 전환 때 새 나라 과거 행 삽입 → 과거가 합집합(KR→JP 9월 5건) ④개요·팀 분모에 AI(Cue) 포함

@@ -799,7 +799,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scope ? { ...patch, series_scope: scope } : patch),
       });
-      if (!r.ok) throw new Error('save_failed');   // apiFetch 는 throw 안 함 — res.ok 필수
+      if (!r.ok) {   // apiFetch 는 throw 안 함 — res.ok 필수
+        const j = await r.json().catch(() => null);
+        throw new Error((j && j.message) || 'save_failed');
+      }
       // ★ 회차에서 바꾼 반복 규칙은 **이 행이 아니라 시리즈 부모**에 저장된다.
       //   그대로 이 행에 써 넣으면 화면은 저장된 것처럼 보이는데 다시 열면 되돌아간다
       //   (그 값을 서버가 이 행에 준 적이 없다). 회차에서는 시리즈 필드에 반영한다.
@@ -824,7 +827,11 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         setFieldDrafts((prev) => (prev[f] ? { ...prev, [f]: undefined } : prev));
       }
       setSaveStatusTemp('saved');
-    } catch { setSaveStatusTemp('error'); }
+      return { ok: true as const };
+    } catch (e) {
+      setSaveStatusTemp('error');
+      return { ok: false as const, code: e instanceof Error ? e.message : 'save_failed' };
+    }
   };
   const saveField = async (field: string, value: unknown) => saveFields({ [field]: value });
   // #250 태그 저장 — 전용 엔드포인트다(PUT by-business 는 tag_ids 를 받지 않는다).
@@ -1769,7 +1776,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     )}
                   </HoldBannerHead>
                   {isOnHold && (canChangeStatus ? (
-                    <AutoSaveField type="input" onSave={() => saveField('hold_reason', holdReasonDraft.trim() || null)}>
+                    <AutoSaveField type="input" onSave={async () => { await saveField('hold_reason', holdReasonDraft.trim() || null); }}>
                       <HoldReasonInput
                         data-testid="task-hold-reason"
                         placeholder={t('hold.reasonPlaceholder', 'Reason (optional)') as string}
@@ -1808,9 +1815,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         || detailTask.Project?.name
                         || '-',
                     }}
-                    onChange={(v) => {
+                    onChange={async (v) => {
                       if (!canEditProject) return;
                       const pid = (v as { value?: string })?.value ? Number((v as { value: string }).value) : null;
+                      const before = { project_id: detailTask.project_id, Project: detailTask.Project };
                       setDetailTask(prev => {
                         if (!prev) return prev;
                         const p = projects.find(pp => pp.id === pid);
@@ -1820,7 +1828,14 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           Project: pid != null ? { id: pid, name: p?.name || prev.Project?.name || '-' } : null,
                         } as TaskDetail;
                       });
-                      saveField('project_id', pid);
+                      // 서버가 거절하면 화면을 되돌리고 이유를 말한다(#463 — 외부 파트너 담당자·컨펌자는 새 프로젝트 참여자여야 한다)
+                      const res = await saveField('project_id', pid);
+                      if (res && !res.ok) {
+                        setDetailTask(prev => (prev ? { ...prev, ...before } as TaskDetail : prev));
+                        const reason = res.code === 'external_assignee_not_in_project' || res.code === 'external_reviewer_not_in_project' || res.code === 'project_closed'
+                          ? res.code : 'other';
+                        setActionError(t(`detail.moveProjectFailed.${reason}`) as string);
+                      }
                     }}
                     options={projects.map(p => ({ value: String(p.id), label: p.name }))} />
                 </MetaCell>

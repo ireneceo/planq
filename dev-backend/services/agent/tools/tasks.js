@@ -419,6 +419,48 @@ async function updateTask(p, a, actor) {
   return { task: { ...item, description: fresh.description || null } };
 }
 
+// ── move_task_to_project (MEDIUM — #463, Fable 설계 2026-10-08) ──
+//   판정·실행은 행동 계층 task_actions.prepareMove/moveToProject(화면 PUT /tasks/:id 의 프로젝트 변경과 같은 함수).
+//   ★ 옮기면 그 프로젝트의 고객이 업무를 보게 된다 — 미리보기가 누가 새로 보고 누가 못 보게 되는지 이름으로 말한다.
+async function moveProjectName(p, id) {
+  if (!id) return null;
+  const { Project } = require('../../../models');
+  const pr = await Project.findOne({ where: { id, business_id: p.businessId }, attributes: ['id', 'name'] });
+  return pr ? { project_id: pr.id, name: pr.name } : null;
+}
+async function previewMoveTask(p, a) {
+  await assertMenu(p, 'qtask', 'read');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.previewMove(t, { kind: 'user', userId: p.userId, platformRole: p.platformRole }, { projectId: a.project_id ?? null });
+  if (!r.ok) throw fromActionFailure(r);
+  const d = r.data;
+  if (!Object.keys(d.patch).length) throw err('VALIDATION_ERROR', 'already_in_project');
+  return {
+    task: { task_id: t.id, title: t.title, url: `${cfg.APP_URL}/tasks?task=${t.id}` },
+    before: { project: await moveProjectName(p, t.project_id) },
+    after: { project: d.target ? { project_id: d.target.id, name: d.target.name } : null },
+    clients_who_will_see_it: d.delta.gain,
+    clients_who_will_lose_access: d.delta.lose,
+    workspace_members: 'No change — every workspace member can still see this task.',
+    workstream_cleared: d.workstreamCleared,
+    upcoming_occurrences_moved_too: d.occurrences,
+    note: d.delta.gain.length
+      ? 'Clients of the destination project will be able to see this task. Show this list to the user before confirming.'
+      : 'No client gains access to this task.',
+  };
+}
+async function moveTask(p, a, actor) {
+  await assertMenu(p, 'qtask', 'write');
+  const t = await loadTask(p, a.task_id, await scopeOf(p));
+  const taskActions = require('../../actions/task_actions');
+  const r = await taskActions.moveToProject(t, actor, { projectId: a.project_id ?? null });
+  if (!r.ok) throw fromActionFailure(r);
+  const fresh = await loadTask(p, t.id, await scopeOf(p));
+  const [item] = await shapeTasks([fresh], p.businessId);
+  return { task: item, moved: r.data.changed, upcoming_occurrences_moved: r.data.moved_occurrences };
+}
+
 // ── add_task_reviewers (MEDIUM) — 컨펌자 지정. 지정된 사람에게 알림이 가고 확인필요에 뜬다(Fable B 판정 3) ──
 //   실행은 행동 계층 task_actions.addReviewer(화면 «컨펌자 추가» 와 같은 함수 — 권한·배정 게이트·이력·알림·감사).
 //   미리보기가 같은 판정을 먼저 본다(거절될 요청에 확인 토큰을 내주지 않는다).
@@ -478,6 +520,6 @@ module.exports = {
   loadTaskForSource,
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
   previewReschedule, rescheduleTask, previewComplete, completeTask,
-  previewAssign, assignTask, updateTask, memberName,
+  previewAssign, assignTask, updateTask, memberName, previewMoveTask, moveTask,
   previewAddReviewers, addReviewers,
 };

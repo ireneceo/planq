@@ -22,7 +22,9 @@ function fromActionFailure(r) {
   if (/^forbidden|menu_forbidden|cannot_assign|only_|forbidden_fields|not_allowed|members_only/.test(c) || r?.http === 403) {
     return err('PERMISSION_DENIED', c);
   }
-  if (/closed|on_hold|not_ready|no_reviewers|conflict/.test(c)) return err('CONFLICT', c);
+  if (/closed|on_hold|not_ready|no_reviewers|conflict|not_in_project/.test(c) || r?.http === 409) {
+    return err('CONFLICT', c, r?.user_id ? { user_id: r.user_id } : undefined);
+  }
   if (/quota|usage_limit/.test(c)) return err('QUOTA_EXCEEDED', c);
   if (/required|invalid|too_long|date/.test(c) || r?.http === 400) return err('VALIDATION_ERROR', c);
   return err('INTERNAL', c);

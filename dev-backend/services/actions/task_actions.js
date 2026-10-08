@@ -87,7 +87,7 @@ async function workspaceName(businessId) {
 // CLAUDE.md §13 — status 전이는 notify 강제. 라우트가 아니라 행동 계층이 부른다 → Cue 경로에서도 발송된다.
 // #281 — `action` 을 주면 제목 규약(`Q Task · {행위} · {업무명}`)으로 **수신자 언어에 맞춰** 만든다.
 //   title 을 직접 주는 옛 호출부도 그대로 동작한다(점진 전환).
-function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, excludeUserId, previewPolicy }) {
+function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, excludeUserId, previewPolicy, skipChannels }) {
   if (!userId || (excludeUserId && userId === excludeUserId)) return;
   const { notify } = require('../../routes/notifications');
   (async () => {
@@ -105,6 +105,7 @@ function notifyTask({ userId, task, title, action, body, ctaLabel, wsName, exclu
       link: taskLink(task.id), ctaLabel: ctaLabel || '업무 보기',
       workspaceName: wsName, tag: `task:${task.id}`,
       previewPolicy,   // #407 — 사람이 쓴 사유·댓글이면 울타리 밖으로 안 내보낸다
+      skipChannels,
     });
   })().catch((e) => console.warn('[task_actions notify]', e.message));
 }
@@ -289,6 +290,155 @@ async function updateFields(task, actor, fields = {}) {
     oldValue: before, newValue: { fields: keys },
   });
   return done({ task, changed: true });
+}
+
+// ─────────────────────────────────────────────
+// 프로젝트 옮기기 (#463, 2026-10-08 Fable 설계 READY) — 사람(PUT /tasks/:id)과 외부 AI(move_task_to_project)가 **같은 판정**을 쓴다.
+//   prepareMove = 판정 + 패치(쓰지 않는다) — 미리보기도 이것을 먼저 본다(거절될 요청에 확인 토큰을 내주지 않는다).
+//   afterMove   = 저장 뒤 이력·회차 동반·떠난 방 알림 — PUT 과 moveToProject 가 같이 부른다.
+//   ★ 프로젝트를 바꾸면 **그 프로젝트의 고객이 업무를 보게 된다**(canAccessTask 의 projectClientProjectIds 축).
+// ─────────────────────────────────────────────
+// 반복 시리즈의 원본(parent) — 실데이터는 recurrence_parent_id NULL 이지만 모델 주석은 «자기 id» 라고 적어 둔다. 둘 다 원본으로 본다.
+const isSeriesParent = (task) => !!task.recurrence_rule && (!task.recurrence_parent_id || task.recurrence_parent_id === task.id);
+const openOccurrencesWhere = (task) => ({
+  recurrence_parent_id: task.id, id: { [Op.ne]: task.id }, business_id: task.business_id,
+  status: { [Op.notIn]: ['completed', 'canceled'] },
+});
+
+async function clientVisibilityDelta(task, nextProjectId) {
+  const { ProjectClient } = require('../../models');
+  const pids = [task.project_id, nextProjectId].filter(Boolean);
+  if (!pids.length || task.project_id === nextProjectId) return { gain: [], lose: [] };
+  const rows = await ProjectClient.findAll({
+    where: { project_id: { [Op.in]: pids }, contact_user_id: { [Op.ne]: null } },
+    attributes: ['project_id', 'contact_user_id', 'contact_name', 'client_id'],
+  });
+  const plain = task.get ? task.get({ plain: true }) : { ...task };
+  const after = { ...plain, project_id: nextProjectId };
+  const seen = new Set();
+  const gain = []; const lose = [];
+  for (const r of rows) {
+    if (seen.has(r.contact_user_id)) continue;
+    seen.add(r.contact_user_id);
+    const scope = await getUserScope(r.contact_user_id, task.business_id);
+    // 같은 술어로 전·후를 잰다 — 담당·작성·요청·컨펌·대화 참여 같은 다른 연결이 있으면 바뀌지 않는다
+    const b = await canAccessTask(r.contact_user_id, plain, scope);
+    const a = await canAccessTask(r.contact_user_id, after, scope);
+    if (b === a) continue;
+    let name = r.contact_name || null;
+    let company = null;
+    if (r.client_id) {
+      const c = await Client.findOne({ where: { id: r.client_id, business_id: task.business_id }, attributes: ['display_name', 'company_name'] }).catch(() => null);
+      if (c) { name = name || c.display_name || null; company = c.company_name || null; }
+    }
+    (a ? gain : lose).push({ user_id: r.contact_user_id, name, company });
+  }
+  return { gain, lose };
+}
+
+async function prepareMove(task, actor, { projectId, assigneeId } = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const ctx = await fieldContext(task, subj.subjectId, subj.platformRole);
+  if (deniedFields(['project_id'], ctx).length) return fail('forbidden_fields:project_id', 403);
+  const next = projectId === null || projectId === undefined || projectId === '' ? null : Number(projectId);
+  if (next !== null && !Number.isInteger(next)) return fail('invalid_project', 400);
+  let target = null;
+  if (next !== null) {
+    // 남의 워크스페이스 id 는 없는 id 와 같은 응답 — 존재 여부를 흘리지 않는다
+    target = await Project.findOne({ where: { id: next, business_id: task.business_id }, attributes: ['id', 'name', 'status'] });
+    if (!target) return fail('invalid_project', 404);
+    // 닫힌 프로젝트에 산 업무를 넣으면 목록에서 사라진다. 닫힌 곳에서 **빼내는** 것은 허용(구출 경로)
+    if (target.status === 'closed' && task.project_id !== next) return fail('project_closed', 409);
+  }
+  // 배정 때 막는 게이트를 이관으로 우회하지 않는다 — 외부 파트너 담당자·컨펌자는 새 프로젝트 참여자여야 한다
+  if (task.project_id !== next) {
+    // 같은 요청이 담당자도 바꾸면(PUT) 바뀔 담당자로 본다 — 그 사람의 배정 검사는 PUT 이 새 프로젝트 기준으로 따로 한다
+    const changingAssignee = assigneeId !== undefined && assigneeId !== task.assignee_id;
+    if (task.assignee_id && !changingAssignee) {
+      const chk = await assertAssignable(task.assignee_id, task.business_id, next);
+      if (!chk.ok) return { ...fail('external_assignee_not_in_project', 409), user_id: task.assignee_id };
+    }
+    const reviewers = await TaskReviewer.findAll({ where: { task_id: task.id }, attributes: ['user_id'] });
+    for (const r of reviewers) {
+      const chk = await assertAssignable(r.user_id, task.business_id, next);
+      if (!chk.ok) return { ...fail('external_reviewer_not_in_project', 409), user_id: r.user_id };
+    }
+  }
+  const patch = task.project_id === next ? {} : { project_id: next, workstream_id: null };
+  return done({ patch, oldProjectId: task.project_id || null, target, subjectId: subj.subjectId });
+}
+
+/** 저장 뒤 — 이력 한 줄(이름) · 반복 부모면 미완 회차 동반 · 떠난 프로젝트 방 알림. PUT 과 moveToProject 가 같이 부른다. */
+async function afterMove(task, oldProjectId, { actorUserId, transaction, skipHistory } = {}) {
+  const next = task.project_id || null;
+  if (oldProjectId === next) return { moved_occurrences: 0 };
+  if (!skipHistory) {
+    const [fromP, toP] = await Promise.all([
+      oldProjectId ? Project.findByPk(oldProjectId, { attributes: ['id', 'name'], transaction }) : null,
+      next ? Project.findByPk(next, { attributes: ['id', 'name'], transaction }) : null,
+    ]);
+    await TaskStatusHistory.create({
+      task_id: task.id, actor_user_id: actorUserId || null, event_type: 'project_change',
+      note: `${fromP ? fromP.name : '—'} → ${toP ? toP.name : '—'}`,
+    }, { transaction });
+  }
+  let movedOccurrences = 0;
+  if (isSeriesParent(task)) {
+    const [n] = await Task.update({ project_id: next, workstream_id: null }, { where: openOccurrencesWhere(task), transaction });
+    movedOccurrences = n;
+  }
+  return { moved_occurrences: movedOccurrences };
+}
+
+function signalLeftProject(task, oldProjectId) {
+  if (!oldProjectId || oldProjectId === (task.project_id || null)) return;
+  const io = getIO();
+  if (!io) return;
+  // 신호만 — 받는 화면은 id 로 다시 읽는다. 떠난 프로젝트 목록에서 빠져야 한다
+  const payload = { id: task.id, business_id: task.business_id, project_id: task.project_id || null };
+  io.to(`project:${oldProjectId}`).emit('task:updated', payload);
+  io.to(`project:${oldProjectId}`).emit('inbox:refresh', { reason: 'task_moved', task_id: task.id });
+}
+
+/** 미리보기 — 실행과 같은 판정 + 고객 가시성 변화. */
+async function previewMove(task, actor, { projectId } = {}) {
+  const r = await prepareMove(task, actor, { projectId });
+  if (!r.ok) return r;
+  const next = r.data.patch.project_id !== undefined ? r.data.patch.project_id : (task.project_id || null);
+  const delta = await clientVisibilityDelta(task, next);
+  let occurrences = 0;
+  if (isSeriesParent(task) && task.project_id !== next) occurrences = await Task.count({ where: openOccurrencesWhere(task) });
+  return done({ ...r.data, nextProjectId: next, delta, occurrences, workstreamCleared: !!(task.workstream_id && task.project_id !== next) });
+}
+
+/** 실행 — 외부 AI(move_task_to_project)가 지나는 문. 같은 프로젝트면 아무것도 안 한다(changed:false). */
+async function moveToProject(task, actor, { projectId } = {}) {
+  const r = await prepareMove(task, actor, { projectId });
+  if (!r.ok) return r;
+  const { patch, oldProjectId, subjectId } = r.data;
+  if (!Object.keys(patch).length) return done({ task, changed: false, moved_occurrences: 0 });
+  let after;
+  const t = await sequelize.transaction();
+  try {
+    await task.update(patch, { transaction: t });
+    after = await afterMove(task, oldProjectId, { actorUserId: subjectId, transaction: t });
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+  await task.reload();
+  broadcastTask(task, 'task:updated', actor.userId);
+  signalLeftProject(task, oldProjectId);
+  if (task.assignee_id && task.assignee_id !== subjectId) {
+    notifyTask({
+      userId: task.assignee_id, task, wsName: await workspaceName(task.business_id),
+      action: 'task_project_moved', body: `"${task.title}"`, ctaLabel: '업무 보기', skipChannels: ['email'],
+    });
+  }
+  audit(actor, {
+    action: 'task.move_project', targetType: 'task', targetId: task.id, businessId: task.business_id,
+    oldValue: { project_id: oldProjectId }, newValue: { project_id: task.project_id || null, moved_occurrences: after.moved_occurrences },
+  });
+  return done({ task, changed: true, moved_occurrences: after.moved_occurrences });
 }
 
 function audit(actor, entry) {
@@ -1778,6 +1928,8 @@ module.exports = {
   updateSchedule, logScheduleChange, notifyScheduleChange,
   // 행동 — 담당자·필드 수정(#439 M2-b). 필드 권한 표·담당자 이력·후속 처리는 PUT /tasks/:id 도 같은 함수를 쓴다.
   reassign, updateFields, FIELD_RULES, fieldContext, deniedFields, assigneeChangeEvent, afterAssigneeChange,
+  // 행동 — 프로젝트 옮기기(#463). PUT /tasks/:id 의 project_id 분기도 prepareMove·afterMove 를 쓴다.
+  prepareMove, previewMove, moveToProject, afterMove, signalLeftProject,
   // 미리보기(에이전트 MEDIUM 확인 1단계)가 실행과 같은 판정을 먼저 보도록
   canChangeStatus,
   // 행동 — 전이

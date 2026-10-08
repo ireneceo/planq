@@ -292,6 +292,7 @@ adapter 는 **인증 모양과 메타만** 바꾼다. 툴 목록·스키마·정
 | 컨펌자 지정 (2026-10-07) | `add_task_reviewers` | **MEDIUM** | `task_actions.addReviewer`(알림·이력·감사) | 미리보기에 이름 · 실행과 같은 판정(권한·배정 게이트·중복) |
 | Q note 메모 (2026-10-07) | `create_memo` | LOW | q-note `POST /api/sessions/internal/create-memo`(내부 키, `qnoteContext.createMemo`) | L1(본인만) 고정 · 프로젝트/고객 소속은 q-note `_belongs_to_business` |
 | Q info 항목 (2026-10-07) | `create_knowledge_item` | LOW | **신설 `kb_actions.createDocument`**(kb 생성 라우트 본문 이전 — 화면도 같은 함수) | scope `docs:write` · 메뉴 qinfo 쓰기 · 비밀 칸 거절 · 기본 private(L1) |
+| 업무 프로젝트 옮기기 (2026-10-08, #463) | `move_task_to_project` | **MEDIUM** | **신설 `task_actions.prepareMove`·`moveToProject`·`afterMove`** — 화면 PUT /tasks/:id 의 project_id 분기도 같은 판정·이력·회차 동반 | scope `tasks:write`(재사용, 재연결 불필요) · 같은 워크스페이스만(남의 id = 없는 id 404) · 닫힌 프로젝트로 넣기 거절·빼내기 허용 · 외부 파트너 담당자/컨펌자가 새 프로젝트 비참여면 거절(PUT 도) · 영역 비움 · 반복 원본이면 미완 회차 동반 · 대화 연결 유지 · 미리보기에 «새로 보는 고객/못 보게 되는 고객»(canAccessTask 와 같은 술어) · 담당자에게 앱 알림(메일 없음) · 떠난 프로젝트 방에도 신호. Fable 설계 2026-10-08 |
 | 다건 생성 | (없음) | MEDIUM | — | 모델이 `create_task` 를 N번 부른다. **한 대화에서 10분 내 5건 초과**면 6번째부터 CONFIRMATION_REQUIRED(정책 §7) — ★ 2026-10-07 확인: **아직 구현되지 않았다**(execute.js 에 창 없음) |
 
 제외(HIGH 또는 범위 밖): 삭제 전부 · 상태 임의 변경(`status` 직접) · 청구/계약/금액 · 메일·채팅 **발송** · 멤버/권한 변경 · 공유 링크 발급 · 파일 업로드.

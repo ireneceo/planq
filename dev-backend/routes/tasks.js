@@ -1088,16 +1088,17 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
         updates.next_occurrence_at = computeNextOccurrence(checked.rule, finalDue, 1);
       }
     }
-    // 프로젝트 이관 허용 — 같은 business 내 프로젝트여야 함
+    // 프로젝트 이관 — 판정은 행동 계층 한 곳(task_actions.prepareMove, #463). 외부 AI(move_task_to_project)와 같은 문:
+    //   같은 워크스페이스 · 닫힌 프로젝트로는 못 넣음 · 외부 파트너 담당자·컨펌자는 새 프로젝트 참여자여야 함 ·
+    //   옮기면 영역(workstream)은 비운다(옛 프로젝트 것이 남으면 안 된다) — 새 영역은 아래 workstream_id 가 덮어쓴다.
+    let moveFromProjectId;
     if (project_id !== undefined) {
-      if (project_id === null) {
-        updates.project_id = null;
-      } else {
-        const { Project } = require('../models');
-        const target = await Project.findOne({ where: { id: project_id, business_id: task.business_id } });
-        if (!target) return errorResponse(res, 'invalid_project', 400);
-        updates.project_id = project_id;
-      }
+      const mv = await taskActions.prepareMove(task, actorFrom(req), {
+        projectId: project_id, assigneeId: updates.assignee_id,
+      });
+      if (!mv.ok) return errorResponse(res, mv.code, mv.http || 400);
+      Object.assign(updates, mv.data.patch);
+      if (mv.data.patch.project_id !== undefined) moveFromProjectId = mv.data.oldProjectId;
     }
 
     // D3 #65 — 워크스트림 귀속. 이 업무가 속한(또는 이번에 이관될) 프로젝트의 workstream 만 허용.
@@ -1210,7 +1211,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
     //   - body (결과물)     → **담당자만.** 예외 없음
     //   - status            → 담당자 OR 작성자 OR owner OR admin
     //   - assignee/due/start/recurrence → 작성자 OR owner OR admin
-    //   - project_id        → owner OR admin (큰 결정)
+    //   - project_id        → 담당자 OR 작성자 OR owner OR admin (운영 #42 — 정본은 task_actions.FIELD_RULES)
     //   - estimated/actual/progress → 담당자 OR owner OR admin
     const myId = req.user.id;
     const isCreator = task.created_by === myId;
@@ -1394,16 +1395,9 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       if (updates.title !== undefined && updates.title !== prev.title) {
         events.push({ event_type: 'title_change', note: `${prev.title} → ${updates.title}` });
       }
-      if (updates.project_id !== undefined && updates.project_id !== prev.project_id) {
-        // 같은 이유 — 프로젝트 id 대신 이름
-        const [fromP, toP] = await Promise.all([
-          prev.project_id ? Project.findByPk(prev.project_id, { attributes: ['id', 'name'] }) : null,
-          updates.project_id ? Project.findByPk(updates.project_id, { attributes: ['id', 'name'] }) : null,
-        ]);
-        events.push({
-          event_type: 'project_change',
-          note: `${fromP ? fromP.name : '—'} → ${toP ? toP.name : '—'}`,
-        });
+      // 프로젝트 이관 이력(이름)·반복 회차 동반은 행동 계층 한 곳(afterMove — move_task_to_project 도 같은 함수)
+      if (moveFromProjectId !== undefined) {
+        await taskActions.afterMove(task, moveFromProjectId, { actorUserId: actorId });
       }
       if (events.length > 0) {
         await Promise.all(events.map((e) => TaskStatusHistory.create({
@@ -1437,6 +1431,8 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       io.to(`business:${task.business_id}`).emit('task:updated', payload);
       broadcastInboxRefresh(io, task.business_id, task.project_id, 'task_updated', task.id);
     }
+    // 떠난 프로젝트 방에도 신호 — 그 목록에서 빠져야 한다(#463)
+    if (moveFromProjectId !== undefined) taskActions.signalLeftProject(task, moveFromProjectId);
 
     // 알림: status 변경 / 담당자 변경에 따라 요청자/담당자/리뷰어에게 알림
     try {

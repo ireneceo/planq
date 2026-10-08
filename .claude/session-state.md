@@ -49,12 +49,14 @@
 - 칸·맨 아래 버튼 → 같은 창(문서 확인했나요? → 본인 확인 → 서명). 페이지가 위아래로 안 오간다. dev 빌드 반영, 운영 미배포.
 - 검증: signflow·signitems 전부 통과(내 칸 화면 위치 259→259→256→256 · 375/820/1440 서명 제출) · i18n·parity 가드 통과. **Fable PASS**(긴 문서·폰 390·키보드·우리쪽 서명자·slot 없음·확인요청 실측). 비차단: ①본인 확인 전 [거절] 은 서버 400 otp_required 인데 오류가 안 보인다(기존 결함) ②창 안에 [거절] 없음 ③짧은 문서+영어에서 칸 21px 이동 ④signflow 픽스처가 짧아 이동 변별력 약함 ⑤Esc 로 그린 서명 사라짐.
 
-### 답 기다림: AI 로 업무의 프로젝트 옮기기 넣을까 (#463) · ChatGPT 재연결·front_v4 확인 (2026-10-08 · [Opus] 방 dfbe4a9b)
-- **무엇을:** ① #463 — 업무 프로젝트 옮기기 AI 도구(확인 2단계)를 넣을지 ② Irene 손: ChatGPT·Claude 재연결 + 중복 연결 끊기 · 운영 Q file 에서 front_v4.jpg 열어 보기
-- **왜 멈췄나:** ① 옮기면 볼 수 있는 사람이 바뀐다(가시성) — 설계 밖 새 도구 ② 계정 로그인 필요
-- **답이 오면 할 일:** ① 넣으면 Fable 설계 → 구현(move_document_to_project 선례) → 게이트, 안 넣으면 #463 답글 그대로 ② agent_grants 읽기 확인
-**마지막 업데이트:** 2026-10-07 (개발완료) · **주체:** [Opus] Opus 5.5 (+ Fable 검증 서브에이전트 5회)
-**작업 상태:** 완료 — 운영 배포 5회(마지막 f19fbfca 12:39, backup 20261007_123113). 이전: **dev 미배포 5커밋**: bf4353d7 체크박스 디자인 · 59fba176+a6e3b66e AI create_event 칸·감사 대상 · 6169cbfe 반복 회차 날짜 · (위키 시드·UI 가이드 문서)
+### 완료: #463 AI 로 업무 프로젝트 옮기기 (2026-10-08 · [Opus]+[Fable] 방 dfbe4a9b) — Irene «해»
+- `move_task_to_project`(MEDIUM, tasks:write — 재연결 불필요) + 화면 PUT 도 같은 판정(`task_actions.prepareMove/afterMove`). Fable 설계 READY → 검증 PASS(27/27). 기록 docs/FABLE_GATE_QUEUE.md 맨 위
+- 화면: 업무 상세 프로젝트 변경이 거절되면(외부 파트너 담당자·닫힌 프로젝트) 원래 값으로 되돌리고 이유를 띄움
+- dev 반영(빌드·backend·mcp 재시작) · **운영 미배포** — 배포 때 MCP reload 는 deploy-planq.sh 가 한다. 마이그레이션 없음
+- 운영 답글 초안 docs/feedback-replies-2026-10-08.json(#463·#464 done) — 배포 뒤 `node dev-backend/scripts/feedback-reply.js <json> --apply`
+- Fable 비차단: PUT 의 회차 동반이 이력 try/catch 안(실패해도 200)
+
+### 답 기다림 (이전): Irene 손 — ChatGPT·Claude 재연결 + 중복 연결 끊기 · 운영 front_v4.jpg 열어 보기
 
 ### 완료: UI/UX 전수 검증 체계 (2026-10-07~08 · [Opus] 방 f6990861 · 커밋 be5a1f45 · Fable 게이트 PASS)
 - 정본 문서 `docs/qa/UI_VERIFICATION_SYSTEM.md`(왜 샜나 · 기준 · 언제 · 첫 실측). 답: UI 는 Fable 이 아니라 기계 검사 전부를 매일 돌리고 결과를 아침 방이 읽는 것.

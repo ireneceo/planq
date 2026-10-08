@@ -716,7 +716,13 @@
     "commentEdit": "Edit",
     "commentMenu": "Edit/Delete",
     "sending": "Sending...",
-    "share": "Share"
+    "share": "Share",
+    "moveProjectFailed": {
+      "external_assignee_not_in_project": "The assignee is an external partner who isn't in that project, so the task can't move there. Add them to the project first or change the assignee.",
+      "external_reviewer_not_in_project": "An external partner among the reviewers isn't in that project, so the task can't move there. Add them to the project first or change the reviewers.",
+      "project_closed": "Tasks can't be moved into a closed project.",
+      "other": "Couldn't change the project. Please try again in a moment."
+    }
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",

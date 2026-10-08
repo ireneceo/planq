@@ -1020,7 +1020,8 @@ Capacitor 가 `errorPath`(번들 안 로컬 파일)로 갈아끼우기 때문이
 - **도구는 `services/agent/registry.js` 한 벌, 실행은 `execute.runTool` 하나** — scope → 계량(`use_cue` 1회) → 멱등(키 또는 파라미터 지문 10분) → 행동 계층 → 감사(`agent.<tool>` + 행동 계층 행에 `via: agent:<provider>`).
 - **MEDIUM(마감 변경·완료 — 2026-10-02 M2-a)은 확인 2단계** — 첫 호출은 실행하지 않고 `CONFIRMATION_REQUIRED{preview, confirmation_token}`
   (5분·1회·연결×도구×인자 지문에 묶임), 사용자가 동의하면 같은 인자+토큰으로 다시 부른다. 같은 토큰 재시도는 `replayed`.
-  도구 44개(2026-10-07 기준 — 정본은 `services/agent/registry.js`, 설계서 §6.3 표). 고객·프로젝트 응답에 **금액 없음**(HIGH).
+  도구 45개(2026-10-08 기준 — 정본은 `services/agent/registry.js`, 설계서 §6.3 표). 업무 프로젝트 옮기기(`move_task_to_project`, #463)는
+  화면 PUT 과 **같은 행동 계층 함수**(`task_actions.prepareMove`·`afterMove`)를 쓴다 — 옮기면 그 프로젝트 고객이 업무를 보게 되므로 미리보기가 명단을 말한다. 고객·프로젝트 응답에 **금액 없음**(HIGH).
 - **업무 필드 권한 표(`FIELD_RULES`)·담당자 이력·담당자 후속(Cue 자동 실행·알림)은 행동 계층에 있다**(2026-10-02 M2-b 에서
   `PUT /tasks/:id` 인라인을 옮겼다). 사람(PUT)과 AI(`reassign`·`updateFields`)가 같은 함수를 쓴다 — 규칙을 바꾸면 한 곳만 고친다.
   미리보기(MEDIUM 1단계)도 실행과 같은 판정을 먼저 본다(거절될 요청에 확인 토큰을 내주지 않는다).

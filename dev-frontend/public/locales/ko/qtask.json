@@ -716,7 +716,13 @@
     "commentEdit": "편집",
     "commentMenu": "편집/삭제",
     "sending": "전송 중...",
-    "share": "공유"
+    "share": "공유",
+    "moveProjectFailed": {
+      "external_assignee_not_in_project": "담당자가 외부 파트너라 그 프로젝트로 옮길 수 없습니다. 먼저 그 프로젝트에 참여시키거나 담당자를 바꿔 주세요.",
+      "external_reviewer_not_in_project": "컨펌자 중 외부 파트너가 그 프로젝트에 참여하지 않아 옮길 수 없습니다. 먼저 그 프로젝트에 참여시키거나 컨펌자를 바꿔 주세요.",
+      "project_closed": "종료된 프로젝트로는 옮길 수 없습니다.",
+      "other": "프로젝트를 바꾸지 못했습니다. 잠시 후 다시 시도해 주세요."
+    }
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",

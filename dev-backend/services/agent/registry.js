@@ -522,6 +522,14 @@ const TOOLS = [
     preview: (p, a) => t.previewAssign(p, a),
     handler: (p, a, actor) => t.assignTask(p, a, actor),
   },
+  // #463 — 프로젝트 옮기기(MEDIUM). 그 프로젝트의 고객이 업무를 보게 되므로 확인 2단계. 삭제는 도구로 두지 않는다(HIGH)
+  {
+    name: 'move_task_to_project', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    description: 'Move an existing task into another project of this workspace (find project_id with search_projects), or take it out of its project with project_id omitted. Clients of a project can see its tasks, so who can see the task changes: this requires confirmation and the first call only returns a preview listing which clients gain or lose access. Upcoming occurrences of a recurring task move with it. Never deletes.',
+    input: { task_id: z.number().int().positive(), project_id: z.number().int().positive().optional(), confirmation_token: confirm, idempotency_key: idem },
+    preview: (p, a) => t.previewMoveTask(p, a),
+    handler: (p, a, actor) => t.moveTask(p, a, actor),
+  },
   {
     name: 'update_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
     description: 'Edit a task\'s title, description or priority. Only the fields you pass change. Never deletes. The description (the request) can only be edited by the person who created the task.',
