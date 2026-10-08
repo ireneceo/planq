@@ -176,6 +176,33 @@ async function run() {
     P('③ 고객이 링크를 열면 **우리가 먼저 한 서명**이 보인다', seesOther.seesOurSignature,
       seesOther.seesOurSignature ? `"${seesOther.text}"` : '🔴 먼저 한 서명이 안 보인다 — 누가 서명했는지 모른 채 서명하게 된다');
 
+    // 2026-10-08 Irene: 빨간 칸에서 «어쩌라는 건지 모르겠다» — 검토 단계의 칸이 다음 행동(맨 아래 버튼)을 말하고,
+    //   누르면 서명을 시작하지 않고 그 버튼 자리로 데려간다.
+    const slotGuide = await guest.page.evaluate(`(async () => {
+      const cap = document.querySelector('[data-testid="sign-doc-body"] .pq-sig .pq-sig-cap');
+      const mine = [...document.querySelectorAll('[data-testid="sign-doc-body"] .pq-sig')]
+        .find((el) => getComputedStyle(el).borderTopColor === 'rgb(244, 63, 94)');
+      if (!mine) return { found: false };
+      const after = getComputedStyle(mine.querySelector('.pq-sig-cap'), '::after').content || '';
+      window.scrollTo(0, 0);
+      mine.scrollIntoView({ block: 'center' });
+      await new Promise((r) => setTimeout(r, 200));
+      mine.click();
+      await new Promise((r) => setTimeout(r, 1500));
+      const act = document.querySelector('[data-testid="sign-action"]');
+      const r = act ? act.getBoundingClientRect() : null;
+      return { found: true, after, stillReview: !!document.querySelector('[data-testid="sign-start"]'),
+               actionInView: !!r && r.top < innerHeight && r.bottom > 0, capFound: !!cap };
+    })()`);
+    if (!slotGuide.found) {
+      P('③-b 검토 단계 내 칸 안내', null, '⬜ 미측정 — 빨간 테두리 칸을 못 찾았다');
+    } else {
+      const says = /확인했습니다 · 서명하기|I have reviewed it · Sign/.test(slotGuide.after);
+      P('③-b 검토 단계 빨간 칸이 «맨 아래 버튼» 을 말한다', says, says ? 'OK' : `🔴 칸 문구: ${slotGuide.after.slice(0, 80)}`);
+      P('③-c 칸을 누르면 서명은 시작하지 않고 맨 아래 버튼으로 간다', slotGuide.stillReview && slotGuide.actionInView,
+        `검토 단계 유지 ${slotGuide.stillReview} · 버튼 영역 보임 ${slotGuide.actionInView}`);
+    }
+
     // 2026-10-07 서명 흐름 개편 — 문서 검토 → [확인했습니다 · 서명하기] → 본인 확인. 검토 단계를 건너뛰면 인증 버튼이 없다.
     await guest.page.click('[data-testid="sign-start"]').catch(() => {});
     await b.sleep(1200);

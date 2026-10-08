@@ -474,16 +474,18 @@ const PublicSignPage: React.FC = () => {
               {/* 내 칸이 문서 어디인지 먼저 말한다 — 모른 채 서명하게 두지 않는다(설계 §1) */}
               {doc.slot != null && (
                 <NoteBox data-testid="sign-my-slot">
-                  {t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸이 회원님의 서명 자리입니다. 테두리로 표시해 두었습니다.', n: doc.slot }) as string}
+                  {t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다. 지금은 문서를 확인하는 단계예요. 끝까지 읽은 뒤 맨 아래 «확인했습니다 · 서명하기» 를 누르면 서명을 시작합니다.', n: doc.slot }) as string}
                 </NoteBox>
               )}
               <DocBody ref={docBodyRef} $mySlot={doc.slot ?? null} $locate={locate}
                 $mySlotHint={(phase === 'review'
-                  ? t('publicSign.mySlotHintReview', { defaultValue: '여기에 내 서명이 들어갑니다' })
+                  ? t('publicSign.mySlotHintReview', { defaultValue: '여기에 내 서명이 들어갑니다. 문서를 끝까지 확인한 뒤 맨 아래 «확인했습니다 · 서명하기» 를 눌러 주세요 (여기를 누르면 그 버튼으로 이동)' })
                   : t('publicSign.mySlotHint', { defaultValue: '여기를 누르면 서명하는 곳으로 이동' })) as string}
                 data-testid="sign-doc-body"
                 onClick={(e) => {
-                  if (doc.slot == null || phase === 'review') return;   // 읽는 단계에서는 칸을 눌러도 서명으로 가지 않는다
+                  if (doc.slot == null) return;
+                  // 읽는 단계에서 칸을 누르면 서명을 시작하지 않고 맨 아래 «확인했습니다 · 서명하기» 로만 데려간다
+                  //   (2026-10-08 Irene: 빨간 칸에서 «어쩌라는 건지 모르겠다» — 칸이 다음 행동을 말하고, 누르면 그 자리로 간다)
                   const hit = (e.target as HTMLElement).closest(`.pq-sig[data-slot="${doc.slot}"]`);
                   if (hit) goToAction();
                 }}>
@@ -557,7 +559,7 @@ const PublicSignPage: React.FC = () => {
             {/* ① 문서 확인 — 서명창을 먼저 내밀지 않는다(2026-10-07 Irene). 다 읽고 «서명하겠습니다» 를 누르면
                 ② 내 칸 위치를 보여 주고 ③ 본인 확인(로그인한 우리 쪽 서명자는 생략) ④ 서명으로 간다. */}
             {phase === 'review' && (
-              <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action">
+              <Section ref={actionRef as React.Ref<HTMLElement>} data-testid="sign-action" $nudge={nudge}>
                 <SectionTitle>{t('publicSign.reviewTitle', { defaultValue: '문서를 확인하셨나요?' }) as string}</SectionTitle>
                 <SectionDesc>{t('publicSign.reviewDesc', { defaultValue: '위 문서와 별첨을 모두 확인한 뒤 서명을 시작해 주세요. 다음 단계에서 서명이 들어갈 자리를 보여 드립니다.' }) as string}</SectionDesc>
                 <ActionRow>
