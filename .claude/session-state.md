@@ -1,4 +1,9 @@
 ## 현재 작업 상태
+
+### 답 기다림: AI 로 업무의 프로젝트 옮기기 넣을까 (#463) · ChatGPT 재연결·front_v4 확인 (2026-10-08 · [Opus] 방 dfbe4a9b)
+- **무엇을:** ① #463 — 업무 프로젝트 옮기기 AI 도구(확인 2단계)를 넣을지 ② Irene 손: ChatGPT·Claude 재연결 + 중복 연결 끊기 · 운영 Q file 에서 front_v4.jpg 열어 보기
+- **왜 멈췄나:** ① 옮기면 볼 수 있는 사람이 바뀐다(가시성) — 설계 밖 새 도구 ② 계정 로그인 필요
+- **답이 오면 할 일:** ① 넣으면 Fable 설계 → 구현(move_document_to_project 선례) → 게이트, 안 넣으면 #463 답글 그대로 ② agent_grants 읽기 확인
 **마지막 업데이트:** 2026-10-07 (개발완료) · **주체:** [Opus] Opus 5.5 (+ Fable 검증 서브에이전트 5회)
 **작업 상태:** 완료 — 운영 배포 5회(마지막 f19fbfca 12:39, backup 20261007_123113). 이전: **dev 미배포 5커밋**: bf4353d7 체크박스 디자인 · 59fba176+a6e3b66e AI create_event 칸·감사 대상 · 6169cbfe 반복 회차 날짜 · (위키 시드·UI 가이드 문서)
 
@@ -42,7 +47,7 @@
 - **왜 멈췄나:** 답글은 운영 데이터 쓰기 + 보고자 알림(Irene 지시 없이 안 함). 설문 외부 응답은 무인증 공개 표면(R=1)이라 Irene 결정 뒤 Fable 설계
 - **답이 오면 할 일:** ① 배포 후 운영에서 `node scripts/feedback-reply.js <json> --apply`(배포 전이면 /tmp 로 복사) ② (가)면 표 문서 «설문으로 받기»+통계 구현 / (나)면 Fable 설계 게이트부터 ③ 숨기기면 RightDock 말하기 항목을 마이크 없는 기기에서 숨김
 
-### 답 기다림: Irene 직접 할 일 3가지 — 구글 심사 · AI 앱 재연결 · 중복 연결 정리 (2026-10-07 · [Opus] 결정 8건 방, 상황판 요청 askmuyci17b)
+### 답 기다림 (이전): Irene 직접 할 일 3가지 — 구글 심사 · AI 앱 재연결 · 중복 연결 정리 (2026-10-07 · [Opus] 결정 8건 방, 상황판 요청 askmuyci17b)
 - **무엇을:** ① 구글 콘솔 «데이터 액세스» 에 `calendar.calendarlist.readonly` 추가 → 사유·영상 → 심사 제출(`docs/GOOGLE_OAUTH_CALENDARLIST_GUIDE.md`) ② ChatGPT·Claude 에서 PlanQ 다시 연결(projects:write) ③ 프로필 › 외부 연동 › 연결된 AI 앱 — 운영 ChatGPT 연결 2개(grant 3: 10/5, grant 4: 10/6) → ② 뒤 앱마다 최신 1개만 남기고 끊기
 - **왜 멈췄나:** 구글 계정 주인·ChatGPT/Claude 계정 로그인이 필요한 일이라 제가 할 수 없음
 - **답이 오면 할 일:** 운영 `agent_grants` 에서 revoked_at IS NULL 인 행이 앱마다 1개인지·scopes 에 projects:write 가 있는지 확인(읽기만). 구글은 심사 메일이 오면 답장 문안 작성
@@ -110,6 +115,10 @@
    - front_v4.jpg: 고친 코드(feac9580·5d530d27·122f042d)는 운영 f19fbfca 에 들어 있음 — planq.kr locale 에 «이미지 불러오는 중…»·«크게 보기» 실측. 실제 그 파일이 뜨는지는 Irene 로그인 화면에서만 확인 가능(운영 DB 읽기는 권한 거부)
    - ChatGPT 재연결: 위 «답 기다림: Irene 직접 할 일 3가지» ②③ 과 같은 일 — 한 번 다시 연결하면 docs:write·files:write·projects:write 가 함께 붙는다. 연결 뒤 앱마다 최신 1개만 남기고 끊기
    - 답이 오면 할 일: 운영 agent_grants 읽기(권한 허용 시) — 앱별 살아 있는 연결 1개 · scopes 에 docs:write·projects:write
+   - 2026-10-08 운영 피드백 재확인(Irene «관련 내용 더 있을 텐데 봐봐»): 새 pending 2건
+     · #464 [영수증] 빈 화면(no_token) — ✅ 고침(링크 → downloadFromApi, 실패 문구). dev 실측: 헤더 없음 401·토큰 200 PDF·남의 결제 404 · 데스크탑/폰 눌러서 receipt-N.pdf(%PDF-) 받음·새 창 0 · 500 대조군에서 오류 문구 뜸. 운영 미배포. 답글 초안 docs/feedback-replies-2026-10-08.json(배포 뒤 발송)
+     · #463 (user 3, Claude 연결) AI 로 업무의 프로젝트 변경·업무 삭제 불가 — 삭제는 설계상 HIGH(도구 없음). 프로젝트 옮기기는 가시성 변경이라 새 MEDIUM 도구(move_task_to_project, move_document_to_project 와 같은 2단계 확인) 여부를 Irene 결정 → 하면 Fable 설계 1회부터
+     · #456 끝 질문 «챗지피티에서 플랜큐 어떻게 써? 어디 설정?» 에 답글이 빠져 있었음 — 보고에서 답함(ChatGPT 설정 › 앱·커넥터 › 개발자 모드 › 새 앱: https://planq.kr/agent/mcp · 위키 «ChatGPT·Claude 연결하기»)
 
 ### 주요 변경사항
 - 신규: `services/{planActive,presence,feedbackRespond}.js` · `scripts/feedback-reply.js` · `pages/QCalendar/{ProjectFilter,CalendarFrame}.tsx`

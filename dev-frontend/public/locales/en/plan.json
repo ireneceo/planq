@@ -218,7 +218,8 @@
       "title": "Payment History",
       "empty": "No payment records",
       "receipt": "Receipt",
-      "lines": "Plan {{plan}} + {{count}} add-on(s)"
+      "lines": "Plan {{plan}} + {{count}} add-on(s)",
+      "receiptFailed": "Couldn't get the receipt. Please try again."
     },
     "cycle": {
       "monthly": "Monthly",

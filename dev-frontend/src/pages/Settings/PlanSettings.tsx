@@ -15,6 +15,7 @@ import CheckoutModal from './CheckoutModal';
 import AddonSection from './AddonSection';
 import { CheckIcon } from '../../components/Common/Icons';
 import { canPurchaseInApp } from '../../utils/purchase';
+import { downloadFromApi } from '../../utils/download';
 
 interface Props { businessId: number; }
 
@@ -31,6 +32,17 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const [actionPlan, setActionPlan] = useState<PlanCode | null>(null);  // 업그레이드/다운그레이드 모달 대상
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [cancelScheduleOpen, setCancelScheduleOpen] = useState(false);
+  // 영수증 — 링크(<a href>)로 열면 Authorization 헤더가 안 실려 401 빈 화면이었다(운영 #464).
+  //   인증 API 다운로드 한 곳(downloadFromApi)으로 받는다. 받는 중엔 버튼을 막고, 실패는 행 옆에 말한다.
+  const [receiptBusy, setReceiptBusy] = useState<number | null>(null);
+  const [receiptErr, setReceiptErr] = useState<number | null>(null);
+  const openReceipt = async (paymentId: number) => {
+    if (receiptBusy) return;
+    setReceiptBusy(paymentId); setReceiptErr(null);
+    try { await downloadFromApi(receiptPdfUrl(businessId, paymentId), `receipt-${paymentId}.pdf`); }
+    catch { setReceiptErr(paymentId); }
+    finally { setReceiptBusy(null); }
+  };
   // P-2: bank info — PlanQ SaaS 결제 계좌 (워크스페이스 계좌 아님!)
   // 워크스페이스 owner 가 PlanQ 구독료를 송금할 PlanQ 자체 계좌 정보
   const [bankInfo, setBankInfo] = useState<{ name?: string; account?: string; holder?: string; name_en?: string | null; holder_en?: string | null; swift?: string | null } | null>(null);
@@ -562,9 +574,12 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                 </PaymentMeta>
                 <PaymentStatus $status={p.status}>{t(`billing.payment.status.${p.status}`, p.status)}</PaymentStatus>
                 {p.status === 'paid' && (
-                  <ReceiptLink href={receiptPdfUrl(businessId, p.id)} target="_blank" rel="noopener">
-                    {t('billing.history.receipt', '영수증')}
-                  </ReceiptLink>
+                  <>
+                    <ReceiptLink type="button" onClick={() => openReceipt(p.id)} disabled={receiptBusy === p.id} data-testid="plan-receipt">
+                      {t('billing.history.receipt', '영수증')}
+                    </ReceiptLink>
+                    {receiptErr === p.id && <ReceiptError role="alert">{t('billing.history.receiptFailed', '영수증을 받지 못했습니다. 다시 시도해 주세요.')}</ReceiptError>}
+                  </>
                 )}
               </PaymentRow>
             ))}
@@ -1107,11 +1122,15 @@ const PaymentStatus = styled.span<{ $status: string }>`
     p.$status === 'failed' ? '#B91C1C' :
     '#64748B'};
 `;
-const ReceiptLink = styled.a`
-  font-size: 0.6875rem; color: #0D9488; font-weight: 600;
-  text-decoration: none; padding: 4px 10px;
+const ReceiptLink = styled.button`
+  font-size: 0.6875rem; color: #0D9488; font-weight: 600; font-family: inherit;
+  text-decoration: none; padding: 4px 10px; background: transparent; cursor: pointer;
   border: 1px solid #5EEAD4; border-radius: 6px;
   &:hover { background: #F0FDFA; }
+  &:disabled { opacity: 0.6; cursor: wait; }
+`;
+const ReceiptError = styled.span`
+  font-size: 0.6875rem; color: #DC2626;
 `;
 
 // 사이클 N+20 — Cue 사용량 기능별 breakdown
