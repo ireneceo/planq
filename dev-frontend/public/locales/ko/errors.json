@@ -57,5 +57,6 @@
   "client_not_in_workspace": "선택한 고객이 이 워크스페이스에 없습니다",
   "project_not_in_workspace": "선택한 프로젝트가 이 워크스페이스에 없습니다",
   "subscription_superseded": "이 결제의 구독은 이미 다른 구독으로 바뀌었습니다. 현재 구독의 결제를 확인하세요.",
-  "plan_mismatch": "결제 플랜과 현재 플랜이 다릅니다. 새 결제를 만들어 주세요."
+  "plan_mismatch": "결제 플랜과 현재 플랜이 다릅니다. 새 결제를 만들어 주세요.",
+  "self_or_admin_only": "본인이 나가거나 워크스페이스 관리자만 내보낼 수 있습니다."
 }

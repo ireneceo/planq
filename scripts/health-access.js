@@ -32,9 +32,11 @@ const madeBiz = [];
 const madeUsers = [];
 const cleanups = [];   // 워크스페이스에 안 묶이는 행(위키 글 등) — 끝에 역순으로 지운다
 
+let userSeq = 0;
 async function makeUser(tag, attrs = {}) {
+  userSeq += 1;
   const u = await M.User.create({
-    email: `ha-${stamp}-${tag}@hm.invalid`, password_hash: 'x', name: `[ha] ${tag}`, status: 'active', ...attrs,
+    email: `ha-${stamp}-${tag}${userSeq}@hm.invalid`, password_hash: 'x', name: `[ha] ${tag}`, status: 'active', ...attrs,
   }, { hooks: false });
   madeUsers.push(u.id);
   u.token = generateAccessToken(u);
@@ -424,6 +426,53 @@ const cases = {
     assert(!/destroy\(\{\s*force:\s*true/.test(src), 'routes/content_trash.js 가 영구삭제를 직접 한다 — cron 과 갈라진다');
     assert(src.includes('purgeContentRow'), 'routes/content_trash.js 가 purgeContentRow 를 안 쓴다');
     return `리포트 모드 would_remove ${rep.would_remove}·삭제 0 → 적용: 만료 2건 삭제 + 감사 2행 · 1일 전 삭제분 유지 · 라우트=같은 함수`;
+  },
+
+  // ─── 0-E me: /me 에 menu_levels · 권한 변경 신호 ───
+  async me_menu() {
+    const { biz, O, B } = await makeWorld();
+    const m0 = await call(B, 'GET', '/api/auth/me');
+    expect(m0, 200, 'B /me');
+    const lv0 = m0.data.data && m0.data.data.menu_levels;
+    assert(lv0 && lv0.qmail === 'write', `기본 menu_levels.qmail=${lv0 && lv0.qmail} (기대 write)`);
+    // 소켓 — B 의 user 방에 permissions:updated 가 오는가
+    const { io } = require(require.resolve('socket.io-client', { paths: ['/opt/planq/dev-frontend/node_modules'] }));
+    const sock = io(BACKEND, { auth: { token: B.token }, transports: ['websocket'], reconnection: false });
+    const got = [];
+    await new Promise((res, rej) => { sock.on('connect', res); sock.on('connect_error', rej); setTimeout(() => rej(new Error('socket 시간 초과')), 8000); });
+    sock.on('permissions:updated', (p) => got.push(p));
+    await new Promise((r) => setTimeout(r, 400));
+    try {
+      const put = await call(O, 'PUT', `/api/businesses/${biz.id}/members/${B.id}/permissions`, { menu_key: 'qmail', level: 'none' });
+      expect(put, 200, '오너가 B qmail=none');
+      for (let i = 0; i < 20 && !got.length; i++) await new Promise((x) => setTimeout(x, 150));
+      assert(got.length && Number(got[0].business_id) === biz.id && Object.keys(got[0]).join(',') === 'business_id', `permissions:updated 신호 ${JSON.stringify(got)}`);
+    } finally { sock.close(); }
+    const m1 = await call(B, 'GET', '/api/auth/me');
+    assert(m1.data.data.menu_levels.qmail === 'none', `none 반영 안 됨: ${m1.data.data.menu_levels.qmail}`);
+    const mo = await call(O, 'GET', '/api/auth/me');
+    assert(mo.data.data.menu_levels && mo.data.data.menu_levels.qmail === 'write', '오너는 전부 write 여야 한다(대조군)');
+    return `B 기본 write → none 반영 · 신호 {business_id} 수신 · 오너 write`;
+  },
+
+  // ─── 0-E admin: 채팅 관리 판정 owner·admin 한 함수 ───
+  async admin_chat() {
+    const { biz, A, B } = await makeWorld();
+    await M.BusinessMember.update({ role: 'admin' }, { where: { business_id: biz.id, user_id: A.id } });
+    const mk = async () => {
+      const c = await M.Conversation.create({ business_id: biz.id, title: `[ha] conv ${stamp}`, status: 'active' }, { hooks: false });
+      for (const u of [A, B]) await M.ConversationParticipant.create({ conversation_id: c.id, user_id: u.id, role: 'member' }, { hooks: false });
+      return c;
+    };
+    const c1 = await mk();
+    expect(await call(B, 'POST', `/api/conversations/${biz.id}/${c1.id}/archive`), 403, '멤버 B 보관(대조군)');
+    expect(await call(A, 'POST', `/api/conversations/${biz.id}/${c1.id}/archive`), 200, '관리자 A 보관');
+    const c2 = await mk();
+    const rB = await call(B, 'DELETE', `/api/conversations/${biz.id}/${c2.id}/participants/${A.id}`);
+    expect(rB, 403, '멤버 B 가 A 내보내기');
+    assert(rB.data.message === 'self_or_admin_only', `거절 코드 ${rB.data.message}`);
+    expect(await call(A, 'DELETE', `/api/conversations/${biz.id}/${c2.id}/participants/${B.id}`), 200, '관리자 A 가 B 내보내기');
+    return '관리자 보관 200 · 멤버 403 · 관리자 내보내기 200 · 멤버 403 self_or_admin_only';
   },
 };
 

@@ -1,5 +1,7 @@
-import React, { Suspense, useState, useEffect, useRef, useCallback } from 'react';
+import React, { Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { BetaChip } from '../Common/BetaChip';   // #449 베타 메뉴 표시(navMenus maturity 한 곳)
+import { visibleNavMenus, permKeyForPath } from '../../config/navMenus';   // 0-E — «보이는가» 의 정본
+import MenuHiddenPage from '../Common/MenuHiddenPage';
 import styled, { css } from 'styled-components';
 // ⑥ 멀티탭 chrome RR 탈피 — MainLayout 은 router-less zone 후보라 react-router 훅/Link 미사용.
 //   TabStore 소비로 전환(미러 모드에서 단일탭 동작 동일). Link → ChromeLink, useLocation/Navigate → chromeNav.
@@ -1090,6 +1092,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     return r === 'admin' && roles.includes('member');
   };
 
+  // ★ 0-E E-2 — 사이드바 «보이는가» 의 정본은 config/navMenus.visibleNavMenus 하나다(통합검색·탭 + 와 같은 함수).
+  //   역할 + 멤버 메뉴 권한(menu_levels 'none' = 숨김). 표에 없는 경로는 show() 가 거짓이라 **구조적으로** 안 보인다
+  //   (가드 --category=navregistry 가 이 파일의 to="…" 가 표에 있는지 잰다). 키는 `to` 전체(쿼리 포함) —
+  //   쿼리를 떼면 ws-backup(오너)과 me-data(멤버)가 같은 키가 되어 멤버에게 오너 메뉴가 보인다.
+  const visiblePaths = useMemo(() => new Set(visibleNavMenus({
+    businessRole: user?.business_role, isPlatformAdmin: user?.platform_role === 'platform_admin',
+    scope: 'workspace', menuLevels: user?.menu_levels,
+  }).map((m) => m.to)), [user?.business_role, user?.platform_role, user?.menu_levels]);
+  const show = (to: string) => visiblePaths.has(to);
+  // 주소로 바로 들어온 숨긴 메뉴 — 본문 대신 안내(서버는 403 이라 빈 화면이 된다)
+  const hiddenKey = isAdminMode ? null : permKeyForPath(location.pathname);
+  const menuHidden = !!(hiddenKey && user?.menu_levels && user.menu_levels[hiddenKey] === 'none');
+
   const getRoleLabel = (u: typeof user) => {
     if (!u) return '';
     // /admin/* 페이지에서만 platform_admin 우선 표시. 일반 페이지는 워크스페이스 역할 우선.
@@ -1190,7 +1205,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         {/* 우측 — Q talk 바로가기. 모바일은 메뉴를 열어야 대화로 갈 수 있어서 왕복이 길었다(Irene).
             사이드바 Q talk 항목과 **같은 가시성 규칙·같은 내비게이션 계약**(ChromeLink, 주 내비라 새 탭 X)
             을 쓴다. 권한이 없으면 자리만 남겨 로고 가운데 정렬을 유지한다. */}
-        {hasBiz('owner', 'member', 'client') ? (
+        {show('/talk') ? (
           <MobileHeaderAction
             to="/talk"
             data-testid="mobile-header-talk"
@@ -1320,6 +1335,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         <SidebarNav>
           {isAdminMode ? (
             <>
+              {/* nav-registry:admin:start — 이 구간의 링크 경로는 해시를 떼고 ADMIN_MENUS 에 있어야 한다 */}
               <NavSection>
                 <NavItem to="/admin/dashboard" $isCollapsed={isCollapsed}
                   $active={isActive('/admin/dashboard') || location.pathname === '/admin'}
@@ -1469,12 +1485,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.adminAuditLogs', '감사 로그')}</NavLabel>
                 </NavItem>
               </NavSection>
+              {/* nav-registry:admin:end */}
             </>
           ) : (
             <>
+              {/* nav-registry:workspace:start — 이 구간의 링크 경로는 전부 config/navMenus WORKSPACE_MENUS 에 있어야 한다(가드 navregistry) */}
               <NavSection>
                 {/* P3 — 고객의 첫 화면(창구의 app 모드). 메뉴 표(navMenus 'home')와 같은 값·같은 역할 */}
-                {hasBiz('client') && (
+                {show('/home') && (
                   <NavItem to="/home" $isCollapsed={isCollapsed} $active={isActive('/home')}
                     data-testid="nav-home" title={isCollapsed ? t('nav.home', '홈') : undefined}>
                     <NavIcon $isCollapsed={isCollapsed}>
@@ -1483,39 +1501,45 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <NavLabel $isCollapsed={isCollapsed}>{t('nav.home', '홈')}</NavLabel>
                   </NavItem>
                 )}
-                <NavItem to="/dashboard" $isCollapsed={isCollapsed} $active={isActive('/dashboard')}
-                  title={isCollapsed ? t('nav.dashboard') : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}><IconDashboard /></NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.dashboard')}</NavLabel>
-                </NavItem>
-                <NavItem to="/inbox" $isCollapsed={isCollapsed} $active={isActive('/inbox') || isActive('/todo')}
-                  title={isCollapsed ? `${t('nav.inbox', '확인 필요')}${inboxCount > 0 ? ` (${inboxCount})` : ''}` : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}><IconTodo /></NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.inbox', '확인 필요')}</NavLabel>
-                  {inboxCount > 0 && (
-                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-inbox"
-                      aria-label={t('nav.inboxCount', { count: inboxCount, defaultValue: '미처리 {{count}}건' }) as string}>
-                      {inboxCount > 99 ? '99+' : inboxCount}
-                    </InboxBadge>
-                  )}
-                </NavItem>
+                {show('/dashboard') && (
+                  <NavItem to="/dashboard" $isCollapsed={isCollapsed} $active={isActive('/dashboard')}
+                    title={isCollapsed ? t('nav.dashboard') : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}><IconDashboard /></NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.dashboard')}</NavLabel>
+                  </NavItem>
+                )}
+                {show('/inbox') && (
+                  <NavItem to="/inbox" $isCollapsed={isCollapsed} $active={isActive('/inbox') || isActive('/todo')}
+                    title={isCollapsed ? `${t('nav.inbox', '확인 필요')}${inboxCount > 0 ? ` (${inboxCount})` : ''}` : undefined}>
+                    <NavIcon $isCollapsed={isCollapsed}><IconTodo /></NavIcon>
+                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.inbox', '확인 필요')}</NavLabel>
+                    {inboxCount > 0 && (
+                      <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-inbox"
+                        aria-label={t('nav.inboxCount', { count: inboxCount, defaultValue: '미처리 {{count}}건' }) as string}>
+                        {inboxCount > 99 ? '99+' : inboxCount}
+                      </InboxBadge>
+                    )}
+                  </NavItem>
+                )}
               </NavSection>
 
               {hasBiz('owner', 'member', 'client') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionFeatures')}</NavTitle>
-                  <NavItem to="/talk" $isCollapsed={isCollapsed} $active={isActive('/talk')}
-                    title={isCollapsed ? `${t('nav.talk')}${talkUnreadCount > 0 ? ` (${talkUnreadCount})` : ''}` : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}><IconTalk /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.talk')}</NavLabel>
-                    {talkUnreadCount > 0 && (
-                      <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-talk"
-                        aria-label={`${t('nav.talk')} ${talkUnreadCount}`}>
-                        {talkUnreadCount > 99 ? '99+' : talkUnreadCount}
-                      </InboxBadge>
-                    )}
-                  </NavItem>
-                  {hasBiz('owner', 'member') && (
+                  {show('/talk') && (
+                    <NavItem to="/talk" $isCollapsed={isCollapsed} $active={isActive('/talk')}
+                      title={isCollapsed ? `${t('nav.talk')}${talkUnreadCount > 0 ? ` (${talkUnreadCount})` : ''}` : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}><IconTalk /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.talk')}</NavLabel>
+                      {talkUnreadCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-talk"
+                          aria-label={`${t('nav.talk')} ${talkUnreadCount}`}>
+                          {talkUnreadCount > 99 ? '99+' : talkUnreadCount}
+                        </InboxBadge>
+                      )}
+                    </NavItem>
+                  )}
+                  {show('/mail') && (
                     <NavItem to="/mail" $isCollapsed={isCollapsed}
                       $active={isActive('/mail')}
                       title={isCollapsed ? `${t('nav.qmail', 'Q mail')}${mailMenuCount > 0 ? ` (${mailMenuCount})` : ''}` : undefined}>
@@ -1528,7 +1552,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       )}
                     </NavItem>
                   )}
-                  {hasBiz('owner', 'member') && (
+                  {show('/sale') && (
                     <NavItem to="/sale" $isCollapsed={isCollapsed}
                       $active={isActive('/sale')}
                       title={isCollapsed ? `${t('nav.qsale', 'Q sales')}${saleMenuCount > 0 ? ` (${saleMenuCount})` : ''}` : undefined}>
@@ -1543,42 +1567,48 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       )}
                     </NavItem>
                   )}
-                  <NavItem to="/tasks" $isCollapsed={isCollapsed} $active={isActive('/tasks')}
-                    title={isCollapsed ? `${t('nav.task')}${taskMenuCount > 0 ? ` (${taskMenuCount})` : ''}` : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}><IconTask /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.task')}</NavLabel>
-                    {taskMenuCount > 0 && (
-                      <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-task"
-                        aria-label={`${t('nav.task')} ${taskMenuCount}`}>
-                        {taskMenuCount > 99 ? '99+' : taskMenuCount}
-                      </InboxBadge>
-                    )}
-                  </NavItem>
-                  <NavItem to="/projects" $isCollapsed={isCollapsed} $active={isActive('/projects')}
-                    title={isCollapsed ? t('nav.project') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}><IconProject /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.project')}</NavLabel>
-                  </NavItem>
-                  <NavItem to="/calendar" $isCollapsed={isCollapsed} $active={isActive('/calendar')}
-                    title={isCollapsed ? t('nav.calendar') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}><IconCalendar /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
-                  </NavItem>
-                  {hasBiz('owner', 'member') && (
+                  {show('/tasks') && (
+                    <NavItem to="/tasks" $isCollapsed={isCollapsed} $active={isActive('/tasks')}
+                      title={isCollapsed ? `${t('nav.task')}${taskMenuCount > 0 ? ` (${taskMenuCount})` : ''}` : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}><IconTask /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.task')}</NavLabel>
+                      {taskMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-task"
+                          aria-label={`${t('nav.task')} ${taskMenuCount}`}>
+                          {taskMenuCount > 99 ? '99+' : taskMenuCount}
+                        </InboxBadge>
+                      )}
+                    </NavItem>
+                  )}
+                  {show('/projects') && (
+                    <NavItem to="/projects" $isCollapsed={isCollapsed} $active={isActive('/projects')}
+                      title={isCollapsed ? t('nav.project') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}><IconProject /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.project')}</NavLabel>
+                    </NavItem>
+                  )}
+                  {show('/calendar') && (
+                    <NavItem to="/calendar" $isCollapsed={isCollapsed} $active={isActive('/calendar')}
+                      title={isCollapsed ? t('nav.calendar') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}><IconCalendar /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.calendar')}</NavLabel>
+                    </NavItem>
+                  )}
+                  {show('/notes') && (
                     <NavItem to="/notes" $isCollapsed={isCollapsed} $active={isActive('/notes')}
                       title={isCollapsed ? t('nav.note') : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconNote /></NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.note')}</NavLabel>
                     </NavItem>
                   )}
-                  {hasBiz('owner', 'member') && (
+                  {show('/docs') && (
                     <NavItem to="/docs" $isCollapsed={isCollapsed} $active={isActive('/docs')}
                       title={isCollapsed ? t('nav.docs') : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconDocs /></NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.docs')}</NavLabel>
                     </NavItem>
                   )}
-                  {hasBiz('owner', 'member') && (
+                  {show('/info') && (
                     <NavItem to="/info" $isCollapsed={isCollapsed} $active={isActive('/info') || isActive('/knowledge')}
                       title={isCollapsed ? t('nav.qinfo', 'Q info') : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}>
@@ -1587,24 +1617,26 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.qinfo', 'Q info')}</NavLabel>
                     </NavItem>
                   )}
-                  {hasBiz('owner', 'member') && (
+                  {show('/files') && (
                     <NavItem to="/files" $isCollapsed={isCollapsed} $active={isActive('/files')}
                       title={isCollapsed ? t('nav.file') : undefined}>
                       <NavIcon $isCollapsed={isCollapsed}><IconFile /></NavIcon>
                       <NavLabel $isCollapsed={isCollapsed}>{t('nav.file')}</NavLabel>
                     </NavItem>
                   )}
-                  <NavItem to="/bills" $isCollapsed={isCollapsed}
-                    $active={isActive('/bills') || isActive('/billing')}
-                    title={isCollapsed ? `${t('nav.qbill', 'Q Bill')}${billMenuCount > 0 ? ` (${billMenuCount})` : ''}` : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}><IconBill /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.qbill', 'Q Bill')}</NavLabel>
-                    {billMenuCount > 0 && (
-                      <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.qbill', 'Q Bill')} ${billMenuCount}`}>
-                        {billMenuCount > 99 ? '99+' : billMenuCount}
-                      </InboxBadge>
-                    )}
-                  </NavItem>
+                  {show('/bills') && (
+                    <NavItem to="/bills" $isCollapsed={isCollapsed}
+                      $active={isActive('/bills') || isActive('/billing')}
+                      title={isCollapsed ? `${t('nav.qbill', 'Q Bill')}${billMenuCount > 0 ? ` (${billMenuCount})` : ''}` : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}><IconBill /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.qbill', 'Q Bill')}</NavLabel>
+                      {billMenuCount > 0 && (
+                        <InboxBadge $collapsed={isCollapsed} aria-label={`${t('nav.qbill', 'Q Bill')} ${billMenuCount}`}>
+                          {billMenuCount > 99 ? '99+' : billMenuCount}
+                        </InboxBadge>
+                      )}
+                    </NavItem>
+                  )}
                 </NavSection>
               )}
 
@@ -1612,46 +1644,54 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               {hasBiz('owner', 'member') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionPersonal', '개인')}</NavTitle>
-                  <NavItem to="/personal-vault" $isCollapsed={isCollapsed} $active={isActive('/personal-vault')}
-                    title={isCollapsed ? t('nav.personalVault', '개인 보관함') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}>
-                      {/* archive icon — 자물쇠 아님 (자물쇠는 Q note·visibility 배지 전용) */}
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                    </NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.personalVault', '개인 보관함')}</NavLabel>
-                  </NavItem>
+                  {show('/personal-vault') && (
+                    <NavItem to="/personal-vault" $isCollapsed={isCollapsed} $active={isActive('/personal-vault')}
+                      title={isCollapsed ? t('nav.personalVault', '개인 보관함') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        {/* archive icon — 자물쇠 아님 (자물쇠는 Q note·visibility 배지 전용) */}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.personalVault', '개인 보관함')}</NavLabel>
+                    </NavItem>
+                  )}
                   {/* ★ 2026-09-21 (#423) — 새 소식·알림을 개인 메뉴에서 **뺐다.** Irene: *"개인 메뉴에서
                       새소식 알림 그냥 빼. 이상해."* 둘은 헤더의 스피커·종 아이콘이 여는 화면이다.
                       탭 이름은 config/navMenus.ts EXTRA_PAGE_LABELS 가 계속 준다. */}
-                  <NavItem to="/signatures/received" $isCollapsed={isCollapsed} $active={isActive('/signatures/received')}
-                    title={isCollapsed ? t('nav.receivedSignatures', '받은 서명') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}>
-                      {/* pen/signature icon */}
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
-                    </NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.receivedSignatures', '받은 서명')}</NavLabel>
-                  </NavItem>
+                  {show('/signatures/received') && (
+                    <NavItem to="/signatures/received" $isCollapsed={isCollapsed} $active={isActive('/signatures/received')}
+                      title={isCollapsed ? t('nav.receivedSignatures', '받은 서명') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        {/* pen/signature icon */}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.receivedSignatures', '받은 서명')}</NavLabel>
+                    </NavItem>
+                  )}
                   {/* #208 — 내 출퇴근·내 휴가는 **개인** 것이다. 승인·팀 현황·통계는
                       설정 > 근태 관리(관리자)로 따로 나갔다 — 성격이 다른 둘을 한 화면에 묶지 않는다. */}
-                  <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
-                    title={isCollapsed ? t('nav.attendance', '근태·휴가') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
-                    </NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태·휴가')}</NavLabel>
-                  </NavItem>
+                  {show('/attendance') && (
+                    <NavItem to="/attendance" $isCollapsed={isCollapsed} $active={isActive('/attendance')}
+                      title={isCollapsed ? t('nav.attendance', '근태·휴가') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.attendance', '근태·휴가')}</NavLabel>
+                    </NavItem>
+                  )}
                   {/* 2026-09-21 — 문의·피드백은 개인 섹션 맨 아래(근태·휴가 다음). 솔루션에 대한 것이라 나의 일 메뉴들 뒤에 둔다 */}
-                  <NavItem to="/me/feedback" $isCollapsed={isCollapsed} $active={isActive('/me/feedback')}
-                    title={isCollapsed ? t('nav.myFeedback', '문의·피드백') : undefined}>
-                    <NavIcon $isCollapsed={isCollapsed}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    </NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>
-                      {t('nav.myFeedback', '문의·피드백')}
-                      {/* 메뉴명에는 넣지 않고 보조로 — 워크스페이스 안이지만 **솔루션(PlanQ)** 에 대한 문의다 (Irene 2026-09-21) */}
-                      <NavSubTag>{t('nav.myFeedbackSub', 'PlanQ')}</NavSubTag>
-                    </NavLabel>
-                  </NavItem>
+                  {show('/me/feedback') && (
+                    <NavItem to="/me/feedback" $isCollapsed={isCollapsed} $active={isActive('/me/feedback')}
+                      title={isCollapsed ? t('nav.myFeedback', '문의·피드백') : undefined}>
+                      <NavIcon $isCollapsed={isCollapsed}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                      </NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>
+                        {t('nav.myFeedback', '문의·피드백')}
+                        {/* 메뉴명에는 넣지 않고 보조로 — 워크스페이스 안이지만 **솔루션(PlanQ)** 에 대한 문의다 (Irene 2026-09-21) */}
+                        <NavSubTag>{t('nav.myFeedbackSub', 'PlanQ')}</NavSubTag>
+                      </NavLabel>
+                    </NavItem>
+                  )}
                 </NavSection>
               )}
 
@@ -1660,57 +1700,77 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               {hasBiz('owner', 'member') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionManage', '관리')}</NavTitle>
-                  <NavItem
-                    to="/stats/overview"
-                    onClick={handleSecondaryNavClick('reports')}
-                    $isCollapsed={isCollapsed}
-                    $active={isActive('/stats')}
-                    title={isCollapsed ? t('nav.sectionReports', '통계·분석') : undefined}
-                  >
-                    <NavIcon $isCollapsed={isCollapsed}><IconInsights /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.sectionReports', '통계·분석')}</NavLabel>
-                  </NavItem>
+                  {show('/stats/overview') && (
+                    <NavItem
+                      to="/stats/overview"
+                      onClick={handleSecondaryNavClick('reports')}
+                      $isCollapsed={isCollapsed}
+                      $active={isActive('/stats')}
+                      title={isCollapsed ? t('nav.sectionReports', '통계·분석') : undefined}
+                    >
+                      <NavIcon $isCollapsed={isCollapsed}><IconInsights /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.sectionReports', '통계·분석')}</NavLabel>
+                    </NavItem>
+                  )}
                   {(isActive('/stats') || mobileExpandedSection === 'reports') && (
                     <AccordionWrap>
-                      <AccordionItem to="/stats/overview" $active={isActive('/stats/overview')}>
-                        <IconStatsOverview /> {t('nav.statsOverview', '개요')}
-                      </AccordionItem>
-                      <AccordionItem to="/stats/tasks" $active={isActive('/stats/tasks')}>
-                        <IconStatsTime /> {t('nav.statsTaskTime', '업무·시간')}
-                      </AccordionItem>
-                      <AccordionItem to="/stats/weekly" $active={isActive('/stats/weekly')}>
-                        <IconStatsTime /> {t('nav.statsWeekly', { defaultValue: '주간 추세' }) as string}
-                      </AccordionItem>
-                      <AccordionItem to="/stats/profit" $active={isActive('/stats/profit')}>
-                        <IconStatsProfit /> {t('nav.statsProfit', '프로젝트 수익성')}
-                      </AccordionItem>
-                      <AccordionItem to="/stats/team" $active={isActive('/stats/team')}>
-                        <IconStatsTeam /> {t('nav.statsTeam', '팀 생산성')}
-                      </AccordionItem>
-                      <AccordionItem to="/stats/finance" $active={isActive('/stats/finance')}>
-                        <IconStatsFinance /> {t('nav.statsFinance', '비용·재무')}
-                      </AccordionItem>
-                      <AccordionItem to="/stats/entry" $active={isActive('/stats/entry')}>
-                        <IconStatsTeam /> {t('nav.statsEntry', '고객 유입')}
-                      </AccordionItem>
-                      <AccordionItem to="/stats/reports" $active={isActive('/stats/reports')}>
-                        <IconStatsReports /> {t('nav.statsReports', '보고서')}
-                      </AccordionItem>
+                      {show('/stats/overview') && (
+                        <AccordionItem to="/stats/overview" $active={isActive('/stats/overview')}>
+                          <IconStatsOverview /> {t('nav.statsOverview', '개요')}
+                        </AccordionItem>
+                      )}
+                      {show('/stats/tasks') && (
+                        <AccordionItem to="/stats/tasks" $active={isActive('/stats/tasks')}>
+                          <IconStatsTime /> {t('nav.statsTaskTime', '업무·시간')}
+                        </AccordionItem>
+                      )}
+                      {show('/stats/weekly') && (
+                        <AccordionItem to="/stats/weekly" $active={isActive('/stats/weekly')}>
+                          <IconStatsTime /> {t('nav.statsWeekly', { defaultValue: '주간 추세' }) as string}
+                        </AccordionItem>
+                      )}
+                      {show('/stats/profit') && (
+                        <AccordionItem to="/stats/profit" $active={isActive('/stats/profit')}>
+                          <IconStatsProfit /> {t('nav.statsProfit', '프로젝트 수익성')}
+                        </AccordionItem>
+                      )}
+                      {show('/stats/team') && (
+                        <AccordionItem to="/stats/team" $active={isActive('/stats/team')}>
+                          <IconStatsTeam /> {t('nav.statsTeam', '팀 생산성')}
+                        </AccordionItem>
+                      )}
+                      {show('/stats/finance') && (
+                        <AccordionItem to="/stats/finance" $active={isActive('/stats/finance')}>
+                          <IconStatsFinance /> {t('nav.statsFinance', '비용·재무')}
+                        </AccordionItem>
+                      )}
+                      {show('/stats/entry') && (
+                        <AccordionItem to="/stats/entry" $active={isActive('/stats/entry')}>
+                          <IconStatsTeam /> {t('nav.statsEntry', '고객 유입')}
+                        </AccordionItem>
+                      )}
+                      {show('/stats/reports') && (
+                        <AccordionItem to="/stats/reports" $active={isActive('/stats/reports')}>
+                          <IconStatsReports /> {t('nav.statsReports', '보고서')}
+                        </AccordionItem>
+                      )}
                     </AccordionWrap>
                   )}
-                  <NavItem
-                    to="/business/settings"
-                    onClick={handleSecondaryNavClick('settings')}
-                    $isCollapsed={isCollapsed}
-                    $active={currentSecondary === 'settings'}
-                    title={isCollapsed ? t('nav.settings') : undefined}
-                  >
-                    <NavIcon $isCollapsed={isCollapsed}><IconGear /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.settings')}</NavLabel>
-                  </NavItem>
+                  {show('/business/settings') && (
+                    <NavItem
+                      to="/business/settings"
+                      onClick={handleSecondaryNavClick('settings')}
+                      $isCollapsed={isCollapsed}
+                      $active={currentSecondary === 'settings'}
+                      title={isCollapsed ? t('nav.settings') : undefined}
+                    >
+                      <NavIcon $isCollapsed={isCollapsed}><IconGear /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.settings')}</NavLabel>
+                    </NavItem>
+                  )}
                   {(currentSecondary === 'settings' || mobileExpandedSection === 'settings') && (
                     <AccordionWrap>
-                      {hasBiz('owner', 'member') && (
+                      {show('/business/settings') && (
                         <AccordionItem
                           to="/business/settings"
                           $active={
@@ -1723,7 +1783,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconBuilding /> {t('nav.workspaceSettings', '워크스페이스')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner') && (
+                      {show('/business/settings/plan') && (
                         <AccordionItem
                           to="/business/settings/plan"
                           $active={location.pathname.includes('/plan')}
@@ -1731,7 +1791,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconCreditCard /> {t('nav.plan', '구독 플랜')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner', 'admin') && (
+                      {show('/business/settings/attendance') && (
                         <AccordionItem
                           to="/business/settings/attendance"
                           $active={location.pathname.includes('/business/settings/attendance')}
@@ -1742,7 +1802,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       )}
                       {/* 활동 기록 — 누가 언제 무엇을 했는지(삭제 포함). owner/admin 만.
                           (Irene 2026-08-31: "잘못해서 삭제하고 문제되면 책임여부 문제") */}
-                      {hasBiz('owner', 'admin') && (
+                      {show('/business/settings/activity') && (
                         <AccordionItem
                           to="/business/settings/activity"
                           data-testid="nav-activity-log"
@@ -1752,7 +1812,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           {t('nav.activityLog', { defaultValue: '활동 기록' })}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner', 'member') && (
+                      {show('/business/settings/work-env') && (
                         <AccordionItem
                           to="/business/settings/work-env"
                           $active={location.pathname.includes('/work-env') || location.pathname.includes('/language') || location.pathname.includes('/timezone') || location.pathname.includes('/work-flow')}
@@ -1761,7 +1821,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                         </AccordionItem>
                       )}
 
-                      {hasBiz('owner', 'member') && (
+                      {show('/business/settings/permissions') && (
                         <AccordionItem
                           to="/business/settings/permissions"
                           $active={location.pathname.includes('/permissions')}
@@ -1769,7 +1829,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconShield /> {t('nav.permissions', '권한')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner') && (
+                      {show('/business/settings/billing') && (
                         <AccordionItem
                           to="/business/settings/billing"
                           $active={location.pathname.includes('/billing')}
@@ -1782,7 +1842,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       {hasBiz('owner', 'member') && (
                         <AccordionGroupLabel>{t('nav.subMembers', '구성원')}</AccordionGroupLabel>
                       )}
-                      {hasBiz('owner') && (
+                      {show('/business/org') && (
                         <AccordionItem
                           to="/business/org"
                           $active={isActive('/business/org')}
@@ -1790,7 +1850,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconMembers /> {t('nav.org', '조직')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner') && (
+                      {show('/business/members') && (
                         <AccordionItem
                           to="/business/members"
                           $active={isActive('/business/members')}
@@ -1798,7 +1858,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconMembers /> {t('nav.members')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner', 'member') && (
+                      {show('/business/clients') && (
                         <AccordionItem
                           to="/business/clients"
                           $active={isActive('/business/clients')}
@@ -1806,7 +1866,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconClients /> {t('nav.clients')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner') && (
+                      {show('/business/settings/cue') && (
                         <AccordionItem
                           to="/business/settings/cue"
                           $active={location.pathname.includes('/cue')}
@@ -1819,7 +1879,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                       {hasBiz('owner', 'member') && (
                         <AccordionGroupLabel>{t('nav.subIntegration', '연동')}</AccordionGroupLabel>
                       )}
-                      {hasBiz('owner', 'member') && (
+                      {show('/business/settings/mail-accounts') && (
                         <AccordionItem
                           to="/business/settings/mail-accounts"
                           $active={location.pathname.includes('/mail-accounts') && !accountScope}
@@ -1827,7 +1887,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconInbox /> {t('nav.companyMail', '회사 메일함')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner') && (
+                      {show('/business/settings/email') && (
                         <AccordionItem
                           to="/business/settings/email"
                           $active={location.pathname.includes('/email')}
@@ -1835,7 +1895,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconMail /> {t('nav.email', '자동 발송 메일')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner') && (
+                      {show('/business/settings/storage') && (
                         <AccordionItem
                           to="/business/settings/storage"
                           $active={location.pathname.includes('/storage')}
@@ -1844,7 +1904,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                         </AccordionItem>
                       )}
 
-                      {hasBiz('owner') && (
+                      {show('/business/settings/data-export') && (
                         <AccordionItem
                           to="/business/settings/data-export"
                           $active={location.pathname.includes('/data-export')}
@@ -1856,27 +1916,31 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   )}
 
                   {/* 내 계정 — 개인 2뎁스 */}
-                  <NavItem
-                    to="/profile"
-                    onClick={handleSecondaryNavClick('account')}
-                    $isCollapsed={isCollapsed}
-                    $active={currentSecondary === 'account'}
-                    title={isCollapsed ? t('nav.myAccount', '내 계정') : undefined}
-                  >
-                    <NavIcon $isCollapsed={isCollapsed}><IconUsers /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.myAccount', '내 계정')}</NavLabel>
-                  </NavItem>
+                  {show('/profile') && (
+                    <NavItem
+                      to="/profile"
+                      onClick={handleSecondaryNavClick('account')}
+                      $isCollapsed={isCollapsed}
+                      $active={currentSecondary === 'account'}
+                      title={isCollapsed ? t('nav.myAccount', '내 계정') : undefined}
+                    >
+                      <NavIcon $isCollapsed={isCollapsed}><IconUsers /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.myAccount', '내 계정')}</NavLabel>
+                    </NavItem>
+                  )}
                   {(currentSecondary === 'account' || mobileExpandedSection === 'account') && (
                     <AccordionWrap>
-                      <AccordionItem to="/profile" $active={location.pathname === '/profile'}>
-                        <IconUsers /> {t('user.profile')}
-                      </AccordionItem>
-                      {hasBiz('owner', 'member') && (
+                      {show('/profile') && (
+                        <AccordionItem to="/profile" $active={location.pathname === '/profile'}>
+                          <IconUsers /> {t('user.profile')}
+                        </AccordionItem>
+                      )}
+                      {show('/profile/integrations') && (
                         <AccordionItem to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
                           <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner', 'member') && (
+                      {show('/business/settings/mail-accounts?scope=personal') && (
                         <AccordionItem
                           to="/business/settings/mail-accounts?scope=personal"
                           $active={location.pathname.includes('/mail-accounts') && accountScope}
@@ -1884,18 +1948,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                           <IconMail /> {t('nav.myMailAccounts', '내 메일 계정')}
                         </AccordionItem>
                       )}
-                      {hasBiz('owner', 'member') && (
+                      {show('/me/work-settings') && (
                         <AccordionItem to="/me/work-settings" $active={location.pathname.startsWith('/me/work-settings')}>
                           <IconSliders /> {t('nav.myWorkEnv', '내 업무 환경')}
                         </AccordionItem>
                       )}
-                      <AccordionItem
-                        to="/business/settings/notifications"
-                        $active={location.pathname.includes('/notifications')}
-                      >
-                        <IconBell /> {t('nav.myNotifications', '내 알림')}
-                      </AccordionItem>
-                      {hasBiz('owner', 'member') && (
+                      {show('/business/settings/notifications') && (
+                        <AccordionItem
+                          to="/business/settings/notifications"
+                          $active={location.pathname.includes('/notifications')}
+                        >
+                          <IconBell /> {t('nav.myNotifications', '내 알림')}
+                        </AccordionItem>
+                      )}
+                      {show('/business/settings/data-export?scope=personal') && (
                         <AccordionItem
                           to="/business/settings/data-export?scope=personal"
                           $active={location.pathname.includes('/data-export') && accountScope}
@@ -1910,34 +1976,41 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               {hasBiz('client') && (
                 <NavSection>
                   <NavTitle $isCollapsed={isCollapsed} />
-                  <NavItem
-                    to="/profile"
-                    $isCollapsed={isCollapsed}
-                    $active={
-                      location.pathname.startsWith('/profile') ||
-                      location.pathname.startsWith('/business/settings/notifications')
-                    }
-                    title={isCollapsed ? t('nav.settings') : undefined}
-                  >
-                    <NavIcon $isCollapsed={isCollapsed}><IconGear /></NavIcon>
-                    <NavLabel $isCollapsed={isCollapsed}>{t('nav.settings')}</NavLabel>
-                  </NavItem>
+                  {show('/profile') && (
+                    <NavItem
+                      to="/profile"
+                      $isCollapsed={isCollapsed}
+                      $active={
+                        location.pathname.startsWith('/profile') ||
+                        location.pathname.startsWith('/business/settings/notifications')
+                      }
+                      title={isCollapsed ? t('nav.settings') : undefined}
+                    >
+                      <NavIcon $isCollapsed={isCollapsed}><IconGear /></NavIcon>
+                      <NavLabel $isCollapsed={isCollapsed}>{t('nav.settings')}</NavLabel>
+                    </NavItem>
+                  )}
                   {(location.pathname.startsWith('/profile')
                     || location.pathname.startsWith('/business/settings/notifications')) && (
                     <AccordionWrap>
-                      <AccordionItem to="/profile" $active={isActive('/profile')}>
-                        <IconUsers /> {t('user.profile')}
-                      </AccordionItem>
-                      <AccordionItem
-                        to="/business/settings/notifications"
-                        $active={location.pathname.includes('/notifications')}
-                      >
-                        <IconBell /> {t('nav.notifications', '알림')}
-                      </AccordionItem>
+                      {show('/profile') && (
+                        <AccordionItem to="/profile" $active={isActive('/profile')}>
+                          <IconUsers /> {t('user.profile')}
+                        </AccordionItem>
+                      )}
+                      {show('/business/settings/notifications') && (
+                        <AccordionItem
+                          to="/business/settings/notifications"
+                          $active={location.pathname.includes('/notifications')}
+                        >
+                          <IconBell /> {t('nav.notifications', '알림')}
+                        </AccordionItem>
+                      )}
                     </AccordionWrap>
                   )}
                 </NavSection>
               )}
+              {/* nav-registry:workspace:end */}
             </>
           )}
           {/* 폰에서만 — 시계·근태를 메뉴 끝에 붙여 스크롤에 태운다.
@@ -2031,6 +2104,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         </SidebarFooter>
       </Sidebar>
 
+      {/* nav-registry:secondary:start */}
       {/* Secondary 2뎁스 패널 — /stats/* 또는 /business/settings·/settings·/profile 경로에서만 */}
       {currentSecondary === 'reports' && (
         <SecondaryPanel $sidebarW={sidebarW} $collapsed={secondaryCollapsed} $tabMode={tabMode} aria-label={t('nav.sectionReports', '통계·분석')}>
@@ -2046,30 +2120,46 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             </SecondaryCloseButton>
           </PanelHeader>
           <SecondaryBody>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/overview" $active={isActive('/stats/overview')}>
-              <IconStatsOverview /> {t('nav.statsOverview', '개요')}
-            </SecondaryNavItem>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/tasks" $active={isActive('/stats/tasks')}>
-              <IconStatsTime /> {t('nav.statsTaskTime', '업무·시간')}
-            </SecondaryNavItem>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/weekly" $active={isActive('/stats/weekly')}>
-              <IconStatsTime /> {t('nav.statsWeekly', { defaultValue: '주간 추세' }) as string}
-            </SecondaryNavItem>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/profit" $active={isActive('/stats/profit')}>
-              <IconStatsProfit /> {t('nav.statsProfit', '프로젝트 수익성')}
-            </SecondaryNavItem>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/team" $active={isActive('/stats/team')}>
-              <IconStatsTeam /> {t('nav.statsTeam', '팀 생산성')}
-            </SecondaryNavItem>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/finance" $active={isActive('/stats/finance')}>
-              <IconStatsFinance /> {t('nav.statsFinance', '비용·재무')}
-            </SecondaryNavItem>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/entry" $active={isActive('/stats/entry')}>
-              <IconStatsTeam /> {t('nav.statsEntry', '고객 유입')}
-            </SecondaryNavItem>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/reports" $active={isActive('/stats/reports')}>
-              <IconStatsReports /> {t('nav.statsReports', '보고서')}
-            </SecondaryNavItem>
+            {show('/stats/overview') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/overview" $active={isActive('/stats/overview')}>
+                <IconStatsOverview /> {t('nav.statsOverview', '개요')}
+              </SecondaryNavItem>
+            )}
+            {show('/stats/tasks') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/tasks" $active={isActive('/stats/tasks')}>
+                <IconStatsTime /> {t('nav.statsTaskTime', '업무·시간')}
+              </SecondaryNavItem>
+            )}
+            {show('/stats/weekly') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/weekly" $active={isActive('/stats/weekly')}>
+                <IconStatsTime /> {t('nav.statsWeekly', { defaultValue: '주간 추세' }) as string}
+              </SecondaryNavItem>
+            )}
+            {show('/stats/profit') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/profit" $active={isActive('/stats/profit')}>
+                <IconStatsProfit /> {t('nav.statsProfit', '프로젝트 수익성')}
+              </SecondaryNavItem>
+            )}
+            {show('/stats/team') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/team" $active={isActive('/stats/team')}>
+                <IconStatsTeam /> {t('nav.statsTeam', '팀 생산성')}
+              </SecondaryNavItem>
+            )}
+            {show('/stats/finance') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/finance" $active={isActive('/stats/finance')}>
+                <IconStatsFinance /> {t('nav.statsFinance', '비용·재무')}
+              </SecondaryNavItem>
+            )}
+            {show('/stats/entry') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/entry" $active={isActive('/stats/entry')}>
+                <IconStatsTeam /> {t('nav.statsEntry', '고객 유입')}
+              </SecondaryNavItem>
+            )}
+            {show('/stats/reports') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/stats/reports" $active={isActive('/stats/reports')}>
+                <IconStatsReports /> {t('nav.statsReports', '보고서')}
+              </SecondaryNavItem>
+            )}
           </SecondaryBody>
         </SecondaryPanel>
       )}
@@ -2088,7 +2178,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             </SecondaryCloseButton>
           </PanelHeader>
           <SecondaryBody>
-            {hasBiz('owner', 'member') && (
+            {show('/business/settings') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings"
                 $active={
@@ -2102,7 +2192,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 <IconBuilding /> {t('nav.workspaceSettings', '워크스페이스')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner') && (
+            {show('/business/settings/plan') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/plan"
                 $active={location.pathname.includes('/plan')}
@@ -2112,7 +2202,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             )}
             {/* #424 — 근태 관리·활동 기록은 폰 아코디언에만 있었다(데스크탑 보조 패널에서는 owner 도 못 갔다).
                 두 목록이 같은 항목을 같은 조건으로 갖는다 — owner/admin(서버 isManager·activity 와 같은 술어). */}
-            {hasBiz('owner', 'admin') && (
+            {show('/business/settings/attendance') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/attendance"
                 $active={location.pathname.includes('/business/settings/attendance')}
@@ -2121,7 +2211,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 {t('nav.attendanceAdmin', '근태 관리')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner', 'admin') && (
+            {show('/business/settings/activity') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/activity"
                 $active={location.pathname.includes('/business/settings/activity')}
@@ -2130,7 +2220,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 {t('nav.activityLog', { defaultValue: '활동 기록' })}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner', 'member') && (
+            {show('/business/settings/work-env') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/work-env"
                 $active={location.pathname.includes('/work-env') || location.pathname.includes('/language') || location.pathname.includes('/timezone') || location.pathname.includes('/work-flow')}
@@ -2140,7 +2230,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             )}
 
             {/* 권한 — 투명성 원칙상 member 도 조회 가능. 편집은 owner 만 (탭 내부에서 disabled 처리) */}
-            {hasBiz('owner', 'member') && (
+            {show('/business/settings/permissions') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/permissions"
                 $active={location.pathname.includes('/permissions')}
@@ -2148,7 +2238,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 <IconShield /> {t('nav.permissions', '권한')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner') && (
+            {show('/business/settings/billing') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/billing"
                 $active={location.pathname.includes('/billing')}
@@ -2161,7 +2251,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             {!secondaryCollapsed && hasBiz('owner', 'member') && (
               <SecondaryGroupLabel>{t('nav.subMembers', '구성원')}</SecondaryGroupLabel>
             )}
-            {hasBiz('owner') && (
+            {show('/business/org') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/org"
                 $active={isActive('/business/org')}
@@ -2169,7 +2259,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 <IconMembers /> {t('nav.org', '조직')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner') && (
+            {show('/business/members') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/members"
                 $active={isActive('/business/members')}
@@ -2177,7 +2267,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 <IconMembers /> {t('nav.members')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner', 'member') && (
+            {show('/business/clients') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/clients"
                 $active={isActive('/business/clients')}
@@ -2185,7 +2275,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 <IconClients /> {t('nav.clients')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner') && (
+            {show('/business/settings/cue') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/cue"
                 $active={location.pathname.includes('/cue')}
@@ -2198,7 +2288,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             {!secondaryCollapsed && hasBiz('owner', 'member') && (
               <SecondaryGroupLabel>{t('nav.subIntegration', '연동')}</SecondaryGroupLabel>
             )}
-            {hasBiz('owner', 'member') && (
+            {show('/business/settings/mail-accounts') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/mail-accounts"
                 $active={location.pathname.includes('/mail-accounts') && !accountScope}
@@ -2206,7 +2296,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 <IconInbox /> {t('nav.companyMail', '회사 메일함')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner') && (
+            {show('/business/settings/email') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/email"
                 $active={location.pathname.includes('/email')}
@@ -2214,7 +2304,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 <IconMail /> {t('nav.email', '자동 발송 메일')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner') && (
+            {show('/business/settings/storage') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/storage"
                 $active={location.pathname.includes('/storage')}
@@ -2223,7 +2313,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               </SecondaryNavItem>
             )}
 
-            {hasBiz('owner') && (
+            {show('/business/settings/data-export') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/data-export"
                 $active={location.pathname.includes('/data-export')}
@@ -2250,16 +2340,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             </SecondaryCloseButton>
           </PanelHeader>
           <SecondaryBody>
-            <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile" $active={location.pathname === '/profile'}>
-              <IconUsers /> {t('user.profile')}
-            </SecondaryNavItem>
+            {show('/profile') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile" $active={location.pathname === '/profile'}>
+                <IconUsers /> {t('user.profile')}
+              </SecondaryNavItem>
+            )}
             {/* 개인 외부 연동 — 내 Google Drive/Calendar (워크스페이스 파일·외부연동과 별개) */}
-            {hasBiz('owner', 'member') && (
+            {show('/profile/integrations') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed} to="/profile/integrations" $active={location.pathname.startsWith('/profile/integrations')}>
                 <IconPlug /> {t('nav.myIntegrations', '내 외부 연동')}
               </SecondaryNavItem>
             )}
-            {hasBiz('owner', 'member') && (
+            {show('/business/settings/mail-accounts?scope=personal') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/mail-accounts?scope=personal"
                 $active={location.pathname.includes('/mail-accounts') && accountScope}
@@ -2268,18 +2360,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
               </SecondaryNavItem>
             )}
             {/* N+32 — 내 업무 환경 (타임존 + 업무 흐름). ProfilePage 와 분리. */}
-            {hasBiz('owner', 'member') && (
+            {show('/me/work-settings') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed} to="/me/work-settings" $active={isActive('/me/work-settings')}>
                 <IconSliders /> {t('nav.myWorkEnv', '내 업무 환경')}
               </SecondaryNavItem>
             )}
-            <SecondaryNavItem $collapsed={secondaryCollapsed}
-              to="/business/settings/notifications"
-              $active={location.pathname.includes('/notifications')}
-            >
-              <IconBell /> {t('nav.myNotifications', '내 알림')}
-            </SecondaryNavItem>
-            {hasBiz('owner', 'member') && (
+            {show('/business/settings/notifications') && (
+              <SecondaryNavItem $collapsed={secondaryCollapsed}
+                to="/business/settings/notifications"
+                $active={location.pathname.includes('/notifications')}
+              >
+                <IconBell /> {t('nav.myNotifications', '내 알림')}
+              </SecondaryNavItem>
+            )}
+            {show('/business/settings/data-export?scope=personal') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/data-export?scope=personal"
                 $active={location.pathname.includes('/data-export') && accountScope}
@@ -2291,6 +2385,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         </SecondaryPanel>
       )}
 
+      {/* nav-registry:secondary:end */}
       <MainContent $marginLeft={mainMarginLeft} $tabMode={tabMode}>
         <WorkspaceBillingBanner />
         {/* N+72-6 — 알림 안내 모든 페이지 mount (옛: TodoPage 만). granted-off 자동 silent re-subscribe + iOS 비-PWA 안내 */}
@@ -2306,9 +2401,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         )}
         {/* ⑥ 멀티탭 tabMode — children = TabPanes(각자 PaneScroll 소유). PageScroll 로 감싸면 이중 스크롤 +
             탭 간 스크롤 오염(Fable §D). 그래서 tabMode 는 직결. 단일탭(shell)은 기존 PageScroll 유지. */}
+        {menuHidden && <MenuHiddenPage />}
         {tabMode ? (
-          children
-        ) : (
+          // 탭 본문은 keep-alive — 숨긴 메뉴 탭이 활성이어도 다른 탭을 언마운트하지 않게 감추기만 한다
+          <TabPanesGate $hidden={menuHidden}>{children}</TabPanesGate>
+        ) : menuHidden ? null : (
           <PageScroll ref={pageScrollRef} data-pq-content="1" /* 검사(버튼 순찰)가 «화면 본문» 을 머리줄·탭바와 가르는 손잡이 */>
             {/* 페이지 청크 로딩은 **본문 안에서만** 일어난다.
                 여태 Suspense 가 라우트 전체를 감싸고 있어서, 페이지가 로드되는 동안 사이드바·헤더까지
@@ -2387,4 +2484,9 @@ const WorkBlock = styled.div`
     margin-bottom: 6px; padding: 4px 16px 6px;
     font-size: 0.6875rem;
   }
+`;
+
+// 0-E — 숨긴 메뉴 탭이 활성일 때 본문만 감춘다(contents = 레이아웃에 상자를 더하지 않는다)
+const TabPanesGate = styled.div<{ $hidden: boolean }>`
+  display: ${(p) => (p.$hidden ? 'none' : 'contents')};
 `;

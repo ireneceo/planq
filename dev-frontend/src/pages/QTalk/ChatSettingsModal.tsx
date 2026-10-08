@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   updateConversation,
   addConversationParticipant, removeConversationParticipant,
@@ -40,6 +41,10 @@ const LANG_OPTIONS: { value: SupportedLang; label: string }[] = [
 const ChatSettingsModal: React.FC<Props> = ({
   open, onClose, businessId, conversation, projectName, onUpdated,
 }) => {
+  // [내보내기] — 서버와 같은 술어(본인 나가기 또는 워크스페이스 관리자: owner·admin·platform_admin, 0-E E-1)
+  const { user: me } = useAuth();
+  const canRemove = (uid: number) => Number(uid) === Number(me?.id)
+    || ['owner', 'admin'].includes(String(me?.business_role || '')) || me?.platform_role === 'platform_admin';
   const { t } = useTranslation('qtalk');
   useBodyScrollLock(open);
   useEscapeStack(open, onClose);
@@ -230,7 +235,7 @@ const ChatSettingsModal: React.FC<Props> = ({
                     </MemberName>
                     <MemberEmail>{p.email}</MemberEmail>
                   </MemberInfo>
-                  {!p.is_ai && (
+                  {!p.is_ai && canRemove(p.user_id) && (
                     <DangerBtn type="button" onClick={() => removeMember(p.user_id)} disabled={busy}>
                       {t('settings.participants.remove', '내보내기')}
                     </DangerBtn>

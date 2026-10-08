@@ -69,3 +69,6 @@ const Ghost = styled.button`
   font-size: 0.8125rem; font-weight: 600;
   &:hover { background: #F8FAFC; }
 `;
+
+// 같은 모양의 안내(숨겨진 메뉴 등)가 베끼지 않고 쓰도록 껍데기를 내보낸다 (0-E E-2 MenuHiddenPage)
+export { Wrap as FallbackWrap, Title as FallbackTitle, Desc as FallbackDesc, Row as FallbackRow, Primary as FallbackPrimary };

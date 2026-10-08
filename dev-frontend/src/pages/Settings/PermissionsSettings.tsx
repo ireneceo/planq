@@ -23,7 +23,11 @@ interface MemberStat { total: number; pmTotal: number; }
 
 interface Props {
   businessId: number;
-  isOwner: boolean;
+  /** 멤버 메뉴 권한·역할을 바꿀 수 있는가 — owner·admin (서버 assertWorkspaceAdmin 과 같은 술어, 0-E E-1) */
+  canEdit: boolean;
+  /** 위쪽 정책 토글(재무·일정·고객 정보·고객 화면 담당자) — 서버 PUT /businesses/:id/permissions 가 **오너 전용**이라
+   *  같은 술어로 막는다(0-E 판정: businesses.js 의 owner 전용 문은 넓히지 않는다). 눌러도 403 인 컨트롤을 두지 않는다. */
+  canEditPolicy: boolean;
 }
 
 const DEFAULT_PERMS: Permissions = { financial: 'all', schedule: 'all', client_info: 'all' };
@@ -65,7 +69,8 @@ const IconCheck = () => (
 // ───────────────────────────────────────────────────────────
 // Component
 // ───────────────────────────────────────────────────────────
-const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
+const PermissionsSettings: React.FC<Props> = ({ businessId, canEdit, canEditPolicy }) => {
+  const isOwner = canEditPolicy;   // 아래 정책 토글 본문은 옛 이름을 그대로 쓴다
   const { t } = useTranslation('settings');
 
   const [perms, setPerms] = useState<Permissions>(DEFAULT_PERMS);
@@ -273,7 +278,7 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, isOwner }) => {
       <SalesIntakeSection businessId={businessId} isOwner={isOwner} />
 
       {/* 사이클 N+21 — 멤버별 메뉴 권한 매트릭스 + 기본 청구 담당 */}
-      <MemberPermissionMatrix businessId={businessId} isOwner={isOwner} />
+      <MemberPermissionMatrix businessId={businessId} isOwner={canEdit} />
       <DefaultBillingOwnerSection businessId={businessId} isOwner={isOwner} />
     </Wrap>
   );

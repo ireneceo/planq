@@ -8,7 +8,11 @@
 //   문구는 전부 i18n(layout ns) — 이 파일에는 사용자 노출 문자열을 두지 않는다.
 //   검색 동의어도 언어별 콘텐츠라 locales 의 `nav.searchAliases.<key>`(쉼표 구분)에 둔다.
 
-export type NavRole = 'owner' | 'member' | 'client';
+import type { MenuKey } from '../services/permissions';
+
+// admin = 워크스페이스 관리자. roles 에 'admin' **또는** 'member' 가 있으면 보인다(멤버이면서 관리 권한, 0-E E-2).
+export type NavRole = 'owner' | 'admin' | 'member' | 'client';
+export type MenuLevels = Partial<Record<string, 'none' | 'read' | 'write'>> | null | undefined;
 
 export type NavSection = 'main' | 'features' | 'personal' | 'manage' | 'settings' | 'account' | 'admin';
 
@@ -22,6 +26,9 @@ export interface NavMenuEntry {
   /** #449 — 다듬는 중인 메뉴. **여기 한 곳**에 적으면 사이드바·통합검색·그 페이지 머리 안내가 같이 붙는다
    *  (Irene 결정 2026-10-02: 아이콘이 아니라 글자 칩). 워크스페이스별이 아니라 제품 단위다. */
   maturity?: 'beta';
+  /** 멤버 메뉴 권한 키(services/permissions MenuKey) — 그 사람의 수준이 'none' 이면 사이드바·검색·탭 + 에서 숨고,
+   *  주소로 들어오면 «숨겨진 메뉴» 안내가 뜬다(0-E E-2). weekly_team 은 묶지 않는다(기본 none 이라 묶으면 전원에게서 사라진다). */
+  permKey?: MenuKey;
 }
 
 /** 섹션 헤더 i18n 키 (layout ns) */
@@ -42,17 +49,17 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'dashboard', to: '/dashboard', labelKey: 'nav.dashboard', section: 'main', roles: 'any' },
   { key: 'inbox', to: '/inbox', labelKey: 'nav.inbox', section: 'main', roles: 'any' },
 
-  { key: 'talk', to: '/talk', labelKey: 'nav.talk', section: 'features', roles: ['owner', 'member', 'client'] },
-  { key: 'mail', to: '/mail', labelKey: 'nav.qmail', section: 'features', roles: ['owner', 'member'] },
-  { key: 'sale', to: '/sale', labelKey: 'nav.qsale', section: 'features', roles: ['owner', 'member'], maturity: 'beta' },
-  { key: 'task', to: '/tasks', labelKey: 'nav.task', section: 'features', roles: ['owner', 'member', 'client'] },
+  { key: 'talk', to: '/talk', labelKey: 'nav.talk', section: 'features', roles: ['owner', 'member', 'client'], permKey: 'qtalk' },
+  { key: 'mail', to: '/mail', labelKey: 'nav.qmail', section: 'features', roles: ['owner', 'member'], permKey: 'qmail' },
+  { key: 'sale', to: '/sale', labelKey: 'nav.qsale', section: 'features', roles: ['owner', 'member'], maturity: 'beta', permKey: 'qsale' },
+  { key: 'task', to: '/tasks', labelKey: 'nav.task', section: 'features', roles: ['owner', 'member', 'client'], permKey: 'qtask' },
   { key: 'project', to: '/projects', labelKey: 'nav.project', section: 'features', roles: ['owner', 'member', 'client'] },
-  { key: 'calendar', to: '/calendar', labelKey: 'nav.calendar', section: 'features', roles: ['owner', 'member', 'client'] },
-  { key: 'note', to: '/notes', labelKey: 'nav.note', section: 'features', roles: ['owner', 'member'] },
-  { key: 'docs', to: '/docs', labelKey: 'nav.docs', section: 'features', roles: ['owner', 'member'] },
-  { key: 'info', to: '/info', labelKey: 'nav.qinfo', section: 'features', roles: ['owner', 'member'] },
-  { key: 'files', to: '/files', labelKey: 'nav.file', section: 'features', roles: ['owner', 'member'] },
-  { key: 'bill', to: '/bills', labelKey: 'nav.qbill', section: 'features', roles: ['owner', 'member', 'client'] },
+  { key: 'calendar', to: '/calendar', labelKey: 'nav.calendar', section: 'features', roles: ['owner', 'member', 'client'], permKey: 'qcalendar' },
+  { key: 'note', to: '/notes', labelKey: 'nav.note', section: 'features', roles: ['owner', 'member'], permKey: 'qnote' },
+  { key: 'docs', to: '/docs', labelKey: 'nav.docs', section: 'features', roles: ['owner', 'member'], permKey: 'qdocs' },
+  { key: 'info', to: '/info', labelKey: 'nav.qinfo', section: 'features', roles: ['owner', 'member'], permKey: 'qinfo' },
+  { key: 'files', to: '/files', labelKey: 'nav.file', section: 'features', roles: ['owner', 'member'], permKey: 'qfile' },
+  { key: 'bill', to: '/bills', labelKey: 'nav.qbill', section: 'features', roles: ['owner', 'member', 'client'], permKey: 'qbill' },
 
   { key: 'personal-vault', to: '/personal-vault', labelKey: 'nav.personalVault', section: 'personal', roles: ['owner', 'member'] },
   // ★ 2026-09-17 (#414) — **새 소식·알림을 메뉴 표에 올린다.** Irene:
@@ -67,24 +74,28 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   //   헤더 아이콘으로만 연다. 탭 이름은 EXTRA_PAGE_LABELS 로 옮겼다(안 옮기면 탭이 «설정» 으로 떨어진다 — #414).
   { key: 'received-signatures', to: '/signatures/received', labelKey: 'nav.receivedSignatures', section: 'personal', roles: ['owner', 'member'] },
   { key: 'my-feedback', to: '/me/feedback', labelKey: 'nav.myFeedback', section: 'personal', roles: ['owner', 'member'] },
+  // 0-E — 사이드바에 있는데 표에 없던 것(가드 navregistry 가 막는다)
+  { key: 'attendance', to: '/attendance', labelKey: 'nav.attendance', section: 'personal', roles: ['owner', 'member'] },
 
-  { key: 'stats-overview', to: '/stats/overview', labelKey: 'nav.statsOverview', section: 'manage', roles: ['owner', 'member'] },
-  { key: 'stats-tasks', to: '/stats/tasks', labelKey: 'nav.statsTaskTime', section: 'manage', roles: ['owner', 'member'] },
-  { key: 'stats-weekly', to: '/stats/weekly', labelKey: 'nav.statsWeekly', section: 'manage', roles: ['owner', 'member'] },
-  { key: 'stats-profit', to: '/stats/profit', labelKey: 'nav.statsProfit', section: 'manage', roles: ['owner', 'member'] },
-  { key: 'stats-team', to: '/stats/team', labelKey: 'nav.statsTeam', section: 'manage', roles: ['owner', 'member'] },
-  { key: 'stats-finance', to: '/stats/finance', labelKey: 'nav.statsFinance', section: 'manage', roles: ['owner', 'member'] },
-  { key: 'stats-entry', to: '/stats/entry', labelKey: 'nav.statsEntry', section: 'manage', roles: ['owner', 'member'] },
-  { key: 'stats-reports', to: '/stats/reports', labelKey: 'nav.statsReports', section: 'manage', roles: ['owner', 'member'] },
+  { key: 'stats-overview', to: '/stats/overview', labelKey: 'nav.statsOverview', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
+  { key: 'stats-tasks', to: '/stats/tasks', labelKey: 'nav.statsTaskTime', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
+  { key: 'stats-weekly', to: '/stats/weekly', labelKey: 'nav.statsWeekly', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
+  { key: 'stats-profit', to: '/stats/profit', labelKey: 'nav.statsProfit', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
+  { key: 'stats-team', to: '/stats/team', labelKey: 'nav.statsTeam', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
+  { key: 'stats-finance', to: '/stats/finance', labelKey: 'nav.statsFinance', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
+  { key: 'stats-entry', to: '/stats/entry', labelKey: 'nav.statsEntry', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
+  { key: 'stats-reports', to: '/stats/reports', labelKey: 'nav.statsReports', section: 'manage', roles: ['owner', 'member'], permKey: 'insights' },
 
   { key: 'ws-settings', to: '/business/settings', labelKey: 'nav.workspaceSettings', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-plan', to: '/business/settings/plan', labelKey: 'nav.plan', section: 'settings', roles: ['owner'] },
+  { key: 'ws-attendance-admin', to: '/business/settings/attendance', labelKey: 'nav.attendanceAdmin', section: 'settings', roles: ['owner', 'admin'] },
+  { key: 'ws-activity', to: '/business/settings/activity', labelKey: 'nav.activityLog', section: 'settings', roles: ['owner', 'admin'] },
   { key: 'ws-work-env', to: '/business/settings/work-env', labelKey: 'nav.workEnv', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-permissions', to: '/business/settings/permissions', labelKey: 'nav.permissions', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-billing', to: '/business/settings/billing', labelKey: 'nav.billing', section: 'settings', roles: ['owner'] },
   { key: 'ws-org', to: '/business/org', labelKey: 'nav.org', section: 'settings', roles: ['owner'] },
   { key: 'ws-members', to: '/business/members', labelKey: 'nav.members', section: 'settings', roles: ['owner'] },
-  { key: 'ws-clients', to: '/business/clients', labelKey: 'nav.clients', section: 'settings', roles: ['owner', 'member'] },
+  { key: 'ws-clients', to: '/business/clients', labelKey: 'nav.clients', section: 'settings', roles: ['owner', 'member'], permKey: 'clients' },
   { key: 'ws-cue', to: '/business/settings/cue', labelKey: 'nav.cue', section: 'settings', roles: ['owner'] },
   { key: 'ws-company-mail', to: '/business/settings/mail-accounts', labelKey: 'nav.companyMail', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-email', to: '/business/settings/email', labelKey: 'nav.email', section: 'settings', roles: ['owner'] },
@@ -139,12 +150,17 @@ export function visibleNavMenus(opts: {
   isPlatformAdmin?: boolean;
   /** 'admin' = 플랫폼 관리자 범위(관리자 메뉴만) · 'workspace' = 워크스페이스 범위(워크스페이스 메뉴만) */
   scope?: 'admin' | 'workspace';
+  /** 멤버 메뉴 권한(GET /api/auth/me 의 menu_levels). 'none' 인 permKey 메뉴는 뺀다 (0-E E-2) */
+  menuLevels?: MenuLevels;
 }): NavMenuEntry[] {
-  // #424 — 워크스페이스 admin 은 멤버 메뉴를 그대로 본다(사이드바 hasBiz·라우트 hasRole 과 같은 규칙).
-  const role = (opts.businessRole === 'admin' ? 'member' : (opts.businessRole || null)) as NavRole | null;
+  // #424 — 워크스페이스 admin 은 멤버 메뉴를 그대로 본다 + roles 에 'admin' 이 명시된 관리 메뉴도 본다.
+  const role = (opts.businessRole || null) as NavRole | null;
   const ws = WORKSPACE_MENUS.filter((m) => {
+    if (m.permKey && opts.menuLevels && opts.menuLevels[m.permKey] === 'none') return false;
     if (m.roles === 'any') return true;
-    return !!role && (m.roles as NavRole[]).includes(role);
+    if (!role) return false;
+    const roles = m.roles as NavRole[];
+    return roles.includes(role) || (role === 'admin' && roles.includes('member'));
   });
   if (opts.scope === 'admin') return opts.isPlatformAdmin ? ADMIN_MENUS : [];
   if (opts.scope === 'workspace') return ws;
@@ -169,7 +185,6 @@ const EXTRA_PAGE_LABELS: Array<[string, string]> = [
   ['/settings', 'nav.settings'],
   ['/profile', 'user.profile'],
   ['/knowledge', 'nav.qinfo'],
-  ['/attendance', 'nav.attendance'],
   ['/guide', 'nav.helpCenter'],
   ['/billing', 'nav.billing'],
   ['/records', 'nav.records'],
@@ -224,4 +239,20 @@ export function adminLabelKeyForPath(path: string): string | null {
 export function isBetaPath(path: string): boolean {
   const p = String(path || '').split('?')[0];
   return WORKSPACE_MENUS.some((m) => m.maturity === 'beta' && (p === m.to || p.startsWith(`${m.to}/`)));
+}
+
+/**
+ * 경로 → 그 메뉴의 권한 키(MenuKey). navLabelKeyForPath 와 같은 «가장 긴 접두어» 규칙 (0-E E-2).
+ *   주소로 바로 들어온 경우 본문 게이트가 쓴다 — 사이드바에서만 숨기면 주소창으로는 그대로 열린다.
+ */
+export function permKeyForPath(path: string): MenuKey | null {
+  const p = (path || '').split('?')[0].replace(/\/+$/, '') || '/';
+  let best: NavMenuEntry | null = null;
+  for (const m of WORKSPACE_MENUS) {
+    const base = m.to.split('?')[0];
+    if (p === base || p.startsWith(`${base}/`)) {
+      if (!best || base.length > best.to.split('?')[0].length) best = m;
+    }
+  }
+  return best && best.permKey ? best.permKey : null;
 }

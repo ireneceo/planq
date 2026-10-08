@@ -134,6 +134,14 @@ function isMemberOrAbove(scope) {
   return !!(scope?.isPlatformAdmin || scope?.isOwner || scope?.isMember || scope?.isAdmin);
 }
 
+/** 워크스페이스 관리 권한 — owner · admin · platform_admin. PERMISSION_MATRIX «admin = owner_only 외 전권» (0-E E-1).
+ *  관리 판정을 `role === 'owner'` 로 손으로 쓰지 않는다 — admin 이 빠진다(가드 --category=adminpredicate). */
+function isWorkspaceAdmin(scope) { return !!(scope?.isPlatformAdmin || scope?.isOwner || scope?.isAdmin); }
+/** req 모양(checkBusinessAccess/attachWorkspaceScope 를 지난 라우트). */
+function isWorkspaceAdminReq(req) {
+  return req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner' || req.businessRole === 'admin';
+}
+
 // member 이상 boolean 가드 — 라우트의 인라인 BusinessMember.findOne 패턴 통일용.
 // posts.js / docs.js 의 자체 assertMember/assertBusinessAccess 와 동일 로직 + Business.owner_id fallback.
 // 사용: if (!(await assertMemberOrAbove(req.user.id, businessId, req.user.platform_role))) return 403;
@@ -809,6 +817,8 @@ async function canDownloadFile(scope, userId, file) {
 }
 
 module.exports = {
+  isWorkspaceAdmin,
+  isWorkspaceAdminReq,
   getUserScope,
   assertWorkspaceAccess,
   assertMemberOrAbove,

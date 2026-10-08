@@ -225,8 +225,8 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   // #210 — 메뉴(페이지) 이동 결과. 검색어가 없으면 전체 메뉴 목록(= '+' 로 새 탭 열 때 메뉴 고르기),
   //         있으면 메뉴 이름·별칭·경로 매칭. 사이드바와 같은 역할 조건(config/navMenus)을 쓴다.
   const menus = useMemo(
-    () => visibleNavMenus({ businessRole: user?.business_role, isPlatformAdmin: user?.platform_role === 'platform_admin', scope }),
-    [user?.business_role, user?.platform_role, scope],
+    () => visibleNavMenus({ businessRole: user?.business_role, isPlatformAdmin: user?.platform_role === 'platform_admin', scope, menuLevels: user?.menu_levels }),
+    [user?.business_role, user?.platform_role, scope, user?.menu_levels],
   );
   const menuLabel = React.useCallback((m: NavMenuEntry) => tNav(m.labelKey) as string, [tNav]);
   // 검색 동의어는 언어별 콘텐츠 — locales layout `nav.searchAliases.<key>` (쉼표 구분, 없으면 빈 값)

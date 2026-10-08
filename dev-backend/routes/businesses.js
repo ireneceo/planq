@@ -1111,6 +1111,8 @@ router.put('/:businessId/members/:userId/permissions', authenticateToken, checkB
       oldValue: { menu_key, level: old_level },
       newValue: { menu_key, level: effectiveLevel },
     });
+    // 그 사람의 화면이 새로고침 없이 메뉴를 따라가게 — 신호만(0-E E-2). 받는 곳은 App 루트 WorkspaceSyncGuard 한 곳.
+    req.app.get('io')?.to(`user:${targetUserId}`).emit('permissions:updated', { business_id: businessId });
     return successResponse(res, { id: row.id, business_id: businessId, user_id: targetUserId, menu_key, level: effectiveLevel });
   } catch (e) { next(e); }
 });
@@ -1149,6 +1151,7 @@ router.put('/:businessId/members/:userId/role', authenticateToken, checkBusiness
       oldValue: { role: oldRole, user_id: targetMember.user_id },
       newValue: { role },
     });
+    req.app.get('io')?.to(`user:${targetUserId}`).emit('permissions:updated', { business_id: businessId });   // 0-E E-2
     return successResponse(res, { user_id: targetUserId, role });
   } catch (e) { next(e); }
 });

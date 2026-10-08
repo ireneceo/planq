@@ -1411,6 +1411,8 @@ function defineAccessTests() {
     ['clientsmenu', 'clientsmenu', '고객 메뉴 권한 none/read/write 를 서버가 지킨다 (0-C C-8)'],
     ['wiki', 'wikiimg', '위키 이미지 서빙은 정확한 file_id 만 (0-C C-5)'],
     ['retention', 'trash_floor', '휴지통 보관 하한 30일 — 전 플랜 값 + resolveRetention 래칫 (0-D)'],
+    ['auth', 'me_menu', '/me 에 메뉴 권한 · 권한 변경 신호(permissions:updated) (0-E E-2)'],
+    ['auth', 'admin_chat', '채팅 보관·내보내기 = 워크스페이스 관리자(owner·admin) 한 함수 (0-E E-1)'],
     ['retention', 'content_purge', '문서·정보 휴지통 회차가 만료 행만 지운다 · 리포트 모드 기본 · 라우트와 같은 함수 (0-D)'],
   ];
   let swept = false;

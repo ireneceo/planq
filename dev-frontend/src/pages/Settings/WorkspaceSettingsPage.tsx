@@ -511,7 +511,10 @@ export default function WorkspaceSettingsPage() {
   const { t: tErr } = useTranslation('errors');
   const { user, refreshUser } = useAuth();
   const businessId = user?.business_id || 0;
+  // isAdmin = **오너 전용** 판정(서버 businesses.js isAdmin — 브랜드·법인정보 PUT 등 owner_only, 0-E 판정으로 넓히지 않는다).
   const isAdmin = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  // isWsAdmin = 워크스페이스 관리자(owner·admin) — 서버 assertWorkspaceAdmin 과 같은 술어(권한 정책·근태·활동, 0-E E-1)
+  const isWsAdmin = isAdmin || user?.business_role === 'admin';
 
   const location = useLocation();
   const params = useParams<{ tab?: string }>();
@@ -949,7 +952,7 @@ export default function WorkspaceSettingsPage() {
       {error && <ErrorBanner>{error}</ErrorBanner>}
       {/* mail-accounts 탭은 멤버도 개인 메일을 관리할 수 있어 admin 안내 배너 숨김 */}
       {/* 근태 관리·활동 기록은 owner/admin 이 관리한다(서버 isManager) — admin 에게 «관리자만» 배너를 띄우면 거짓이다(#424). */}
-      {!isAdmin && tab !== 'mail-accounts' && !(user?.business_role === 'admin' && (tab === 'attendance' || tab === 'activity'))
+      {!isAdmin && tab !== 'mail-accounts' && !(isWsAdmin && (tab === 'attendance' || tab === 'activity' || tab === 'permissions'))
         && <InfoBanner>{t('messages.adminRequired')}</InfoBanner>}
 
       {/* 탭 UI 완전 제거 — 사이드바 설정 Secondary 에서 직접 섹션 접근.
@@ -1336,7 +1339,7 @@ export default function WorkspaceSettingsPage() {
         <AttendanceAdminSettings businessId={businessId} />
       )}
       {tab === 'permissions' && businessId && (
-        <PermissionsSettings businessId={businessId} isOwner={isAdmin} />
+        <PermissionsSettings businessId={businessId} canEdit={isWsAdmin} canEditPolicy={isAdmin} />
       )}
 
       {/* ─── BILLING (Q Bill 설정 — 발신자/입금계좌/청구서 기본값) ─── */}

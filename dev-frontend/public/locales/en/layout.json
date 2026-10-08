@@ -240,5 +240,10 @@
     "statusCollapse": "Collapse clock & work",
     "statusExpand": "Expand clock & work",
     "statusCollapseShort": "Show less"
+  },
+  "menuHidden": {
+    "title": "This menu is hidden for you",
+    "desc": "A workspace admin has hidden this menu. Ask an admin if you need access.",
+    "goInbox": "Go to Inbox"
   }
 }

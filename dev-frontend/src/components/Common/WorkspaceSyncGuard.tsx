@@ -74,6 +74,18 @@ const WorkspaceSyncGuard: React.FC = () => {
     };
   }, [user?.id, apply]);
 
+  // ⑤ 내 메뉴 권한이 바뀌었다(관리자가 숨김/읽기 전환 · 역할 변경) — /me 를 다시 읽어 사이드바·검색·본문 게이트가
+  //   새로고침 없이 따라간다(0-E E-2). 서버는 신호만 보낸다({business_id}). 받는 곳은 App 루트 여기 한 곳.
+  const refreshUserRef = useRef(refreshUser);
+  refreshUserRef.current = refreshUser;
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const off = onSocket<{ business_id?: number }>('permissions:updated', (d) => {
+      if (Number(d?.business_id) === Number(bizRef.current)) void refreshUserRef.current();
+    });
+    return () => { off(); };
+  }, [user?.id]);
+
   // ④ 서버가 "이 창은 옛 워크스페이스" 라고 답했다(409 workspace_stale — 전파 이벤트를 놓친 창).
   //   apiFetch/apiUpload 가 응답을 보고 쏜다. 판정은 ①② 와 같은 apply(보류·루프 안전망 포함).
   useEffect(() => {

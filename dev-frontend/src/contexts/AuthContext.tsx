@@ -56,6 +56,8 @@ export interface User {
   business_id?: number | null;
   business_name?: string | null;
   business_role?: string | null;
+  // 메뉴 권한(0-E E-2) — 현재 워크스페이스에서 내 메뉴별 수준. owner/admin 은 전부 'write', 고객·없음은 null.
+  menu_levels?: Record<string, 'none' | 'read' | 'write'> | null;
   workspaces?: WorkspaceMembership[];
   language?: string | null;
   // Q note 답변 생성용 프로필
@@ -666,6 +668,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     business_id: (apiUser.business_id as number) || null,
     business_name: (apiUser.business_name as string) || null,
     business_role: (apiUser.business_role as string) || null,
+    menu_levels: (apiUser.menu_levels as Record<string, 'none' | 'read' | 'write'>) || null,
     workspaces: (apiUser.workspaces as WorkspaceMembership[]) || [],
     language: (apiUser.language as string) || null,
     bio: (apiUser.bio as string) || null,

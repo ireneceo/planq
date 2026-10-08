@@ -406,5 +406,23 @@
     "dev-backend/routes/projects.js": 5,
     "dev-backend/services/actions/project_note_actions.js": 1,
     "dev-backend/services/invoiceDelivery.js": 1
+  },
+  "adminpredicate": {
+    "dev-backend/routes/activity.js": 1,
+    "dev-backend/routes/businesses.js": 6,
+    "dev-backend/routes/calendar.js": 1,
+    "dev-backend/routes/client_subscriptions.js": 1,
+    "dev-backend/routes/cloud_root_folder.js": 1,
+    "dev-backend/routes/conversations.js": 1,
+    "dev-backend/routes/cue_knowledge.js": 1,
+    "dev-backend/routes/email_accounts.js": 1,
+    "dev-backend/routes/email_oauth_gmail.js": 1,
+    "dev-backend/routes/external_connections.js": 1,
+    "dev-backend/routes/files.js": 1,
+    "dev-backend/routes/internal.js": 1,
+    "dev-backend/routes/invoices.js": 1,
+    "dev-backend/routes/posts.js": 1,
+    "dev-backend/services/actions/task_actions.js": 1,
+    "dev-backend/services/gdrive.js": 1
   }
 }

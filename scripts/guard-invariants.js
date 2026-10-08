@@ -3298,6 +3298,72 @@ function checkDateFmt() {
     rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
 }
 
+// ═══════════════════════════════════════════════
+// adminpredicate — 워크스페이스 관리 판정은 한 함수 (0-E E-1, 2026-10-08) [RATCHET]
+//   `businessRole === 'owner'` 처럼 owner 만 손으로 쓰면 admin 이 빠진다 — 화면은 admin 에게 ⋮·보관함을 보여 주는데
+//   서버가 403 이었다(채팅 5곳). 정본은 middleware/access_scope.isWorkspaceAdmin(Req). 같은 줄에 'admin' 이 있으면
+//   이미 둘 다 본 것으로 친다. 기존 부채(소유권 이전·결제처럼 정말 owner 만인 문 포함)는 동결, 늘어나는 것만 막는다.
+function checkAdminPredicate() {
+  const files = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+  ];
+  const re = /(businessRole|\brole|wsMember\?\.role|bm\??\.role|member\??\.role)\s*===\s*'owner'/;
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    let n = 0;
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      if (!re.test(l) || l.includes("'admin'") || /isWorkspaceAdmin|assertWorkspaceAdmin/.test(l)) return;
+      n += 1;
+      if (samples.length < 12) samples.push(`${rel(f)}:${i + 1}: ${t.slice(0, 90)}`);
+    });
+    if (n) current[rel(f)] = n;
+  }
+  const rt = ratchet('adminpredicate', current, samples);
+  report('adminpredicate', `owner 단독 관리 판정 래칫 → isWorkspaceAdminReq (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
+// ═══════════════════════════════════════════════
+// navregistry — 사이드바의 메뉴 경로는 전부 메뉴 표(config/navMenus)에 있다 (0-E E-2, 2026-10-08) [HARD]
+//   표가 «보이는가» 의 정본(visibleNavMenus — 역할 + 멤버 메뉴 권한)이다. 사이드바에만 있는 경로는 권한 숨김을 못 받고
+//   통합검색·탭 + 에도 안 나온다(실측 4곳 이탈: /attendance · 설정 근태 · 활동 기록 · 공지 앵커).
+//   MainLayout 의 표식 구간(nav-registry:workspace|secondary|admin)에서 to="…" 리터럴을 모아 해시·쿼리를 떼고 비교한다.
+function checkNavRegistry() {
+  const layoutPath = `${ROOT}/dev-frontend/src/components/Layout/MainLayout.tsx`;
+  const navPath = `${ROOT}/dev-frontend/src/config/navMenus.ts`;
+  const layout = read(layoutPath);
+  const nav = read(navPath);
+  const strip = (x) => String(x).split('#')[0].split('?')[0];
+  const tosOf = (block) => new Set([...block.matchAll(/to:\s*'([^']+)'/g)].map((m) => strip(m[1])));
+  const wsStart = nav.indexOf('export const WORKSPACE_MENUS');
+  const adStart = nav.indexOf('export const ADMIN_MENUS');
+  if (wsStart < 0 || adStart < 0) { report('navregistry', '메뉴 표를 찾지 못함', false, [navPath]); return; }
+  const wsTos = tosOf(nav.slice(wsStart, adStart));
+  const adTos = tosOf(nav.slice(adStart, nav.indexOf('];', adStart)));
+  const region = (name) => {
+    const a = layout.indexOf(`nav-registry:${name}:start`);
+    const b = layout.indexOf(`nav-registry:${name}:end`);
+    return (a >= 0 && b > a) ? layout.slice(a, b) : null;
+  };
+  const fails = [];
+  let n = 0;
+  for (const [name, allowed] of [['workspace', wsTos], ['secondary', wsTos], ['admin', adTos]]) {
+    const body = region(name);
+    if (body == null) { fails.push(`MainLayout 표식 nav-registry:${name}:start/end 없음 — 검사 구간을 못 잡으면 거짓 통과다`); continue; }
+    const lits = [...body.matchAll(/\bto=(?:"([^"]+)"|\{`([^`$]+)`\})/g)].map((m) => m[1] || m[2]);
+    if (!lits.length) fails.push(`${name} 구간에서 to="…" 0건 — 판정 불가(거짓 통과 방지)`);
+    for (const l of lits) {
+      n += 1;
+      if (!allowed.has(strip(l))) fails.push(`${name}: ${l} — config/navMenus 표에 없다(권한 숨김·검색·탭 + 에서 빠진다)`);
+    }
+  }
+  report('navregistry', `사이드바 메뉴 경로 ⊂ 메뉴 표 (${n}개 경로)`, fails.length === 0, fails);
+}
+
 const CATEGORIES = {
   datefmt: checkDateFmt,
   draft: checkDraft,
@@ -3353,6 +3419,8 @@ const CATEGORIES = {
   statstext: checkStatsText,
   auditentry: checkAuditEntry,
   auditcover: checkAuditCover,
+  adminpredicate: checkAdminPredicate,
+  navregistry: checkNavRegistry,
 };
 
 try {

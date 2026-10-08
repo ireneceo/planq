@@ -67,6 +67,8 @@ const SUITES = {
   // 서명란·서명본·우리 측 서명 (2026-09-22). API 가 맞는데 **화면에 안 보이는** 계열이라
   //   rect + elementFromPoint + 실제 테두리 색으로 잰다. 대조군: 동의 전 제출 막힘 · 남의 칸은 강조 아님.
   signature: () => require('./canary-signature-field'),
+  // 멤버 메뉴 권한 «숨김» 을 화면이 따른다(0-E E-2) — 사이드바·검색·주소 직접 진입·새로고침 없는 복귀 · 3폭
+  menuhide: () => require('./canary-menu-hide'),
   // 서명 **전체 여정** — 멤버 서명 → 고객이 링크·인증번호로 서명 → 완료 → 고정본·PDF.
   //   조각별 검사(signature)와 다른 축이다: 끝까지 걸어야 «중간에 막히는» 것이 드러난다.
   signflow: () => require('./canary-signature-flow'),

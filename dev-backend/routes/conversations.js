@@ -14,8 +14,9 @@ const cueOrchestrator = require('../services/cue_orchestrator');
 const kbService = require('../services/kb_service');
 const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, applyGuestDisplayName } = require('../services/displayName');
 
-const isAdmin = (req) =>
-  req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner';
+// 워크스페이스 관리 판정 — owner·admin·platform_admin 한 함수(0-E E-1, middleware/access_scope)
+const { isWorkspaceAdminReq } = require('../middleware/access_scope');
+const isAdmin = isWorkspaceAdminReq;
 
 // ─────────────────────────────────────────────────────────
 // 사이드바 전역 unread — 사용자의 모든 가입 워크스페이스 합산.
@@ -538,9 +539,9 @@ router.delete('/:businessId/:id/participants/:userId', authenticateToken, checkB
     if (!conv) return errorResponse(res, 'Conversation not found', 404);
     const targetUserId = Number(req.params.userId);
     const isSelfLeave = targetUserId === req.user.id;
-    const isOwner = req.businessRole === 'owner' || req.user.platform_role === 'platform_admin';
+    const isOwner = isWorkspaceAdminReq(req);   // owner·admin·platform_admin (0-E)
     if (!isSelfLeave && !isOwner) {
-      return errorResponse(res, '본인 나가기 또는 오너만 대화방에서 멤버를 제거할 수 있습니다', 403);
+      return errorResponse(res, 'self_or_admin_only', 403);
     }
     const removed = await ConversationParticipant.destroy({ where: { conversation_id: conv.id, user_id: targetUserId } });
     if (removed) require('../services/auditService').logAudit(req, {
@@ -955,7 +956,7 @@ router.delete('/:businessId/:id/messages/:msgId', authenticateToken, attachWorks
 
     // 권한: 본인 OR workspace owner OR platform admin
     const isSender = Number(msg.sender_id) === Number(req.user.id);
-    const isOwner = req.businessRole === 'owner' || req.user.platform_role === 'platform_admin';
+    const isOwner = isWorkspaceAdminReq(req);   // owner·admin·platform_admin (0-E)
     if (!isSender && !isOwner) return errorResponse(res, 'forbidden_delete', 403);
 
     // 마스킹 (CLAUDE.md 운영 정책): is_deleted=true, content/첨부 DB 유지. UI 가 '삭제된 메시지' 처리.
@@ -976,7 +977,7 @@ router.post('/:businessId/:id/messages/:msgId/pin', authenticateToken, attachWor
     if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'forbidden', 403);
 
     // 권한: owner / admin / project owner (project_id 있으면)
-    const isOwner = req.businessRole === 'owner' || req.user.platform_role === 'platform_admin';
+    const isOwner = isWorkspaceAdminReq(req);   // owner·admin·platform_admin (0-E)
     let isProjectOwner = false;
     if (!isOwner && conv.project_id) {
       const { ProjectMember } = require('../models');
@@ -1011,7 +1012,7 @@ router.delete('/:businessId/:id/messages/:msgId/pin', authenticateToken, attachW
     if (!conv) return errorResponse(res, 'conversation_not_found', 404);
     if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'forbidden', 403);
 
-    const isOwner = req.businessRole === 'owner' || req.user.platform_role === 'platform_admin';
+    const isOwner = isWorkspaceAdminReq(req);   // owner·admin·platform_admin (0-E)
     let isProjectOwner = false;
     if (!isOwner && conv.project_id) {
       const { ProjectMember } = require('../models');
@@ -1326,7 +1327,7 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
       where: { user_id: req.user.id, business_id: businessId, removed_at: null },
       attributes: ['role'],
     });
-    const isWorkspaceOwner = wsMember?.role === 'owner';
+    const isWorkspaceOwner = ['owner', 'admin'].includes(wsMember?.role);   // 관리자 포함 (0-E)
     const isPlatformAdmin = req.user.platform_role === 'platform_admin';
 
     let isProjectOwner = false;
@@ -1367,7 +1368,7 @@ async function assertWorkspaceAdmin(req, businessId) {
     where: { user_id: req.user.id, business_id: businessId, removed_at: null },
     attributes: ['role'],
   });
-  const isWorkspaceOwner = wsMember?.role === 'owner';
+  const isWorkspaceOwner = ['owner', 'admin'].includes(wsMember?.role);   // 관리자 포함 (0-E)
   const isPlatformAdmin = req.user.platform_role === 'platform_admin';
   return isPlatformAdmin || isWorkspaceOwner;
 }

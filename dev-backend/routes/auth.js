@@ -170,6 +170,10 @@ const getUserWithBusiness = async (userId) => {
     userData.business_id = activeWs.business_id;
     userData.business_name = activeWs.brand_name;
     userData.business_role = activeWs.role;
+    // 메뉴 권한(none/read/write) — 화면이 «숨김» 을 따른다(0-E E-2). owner/admin 은 전부 'write'. 고객·없음은 null.
+    try {
+      userData.menu_levels = (await require('../middleware/menu_permission').getMemberMenuLevels(activeWs.business_id, user.id))?.menus || null;
+    } catch (e) { userData.menu_levels = null; console.warn('[auth] menu_levels failed:', e.message); }
     userData.workspace_timezone = activeWs.timezone;
     userData.workspace_reference_timezones = activeWs.reference_timezones || [];
     // 워크스페이스 컨텍스트의 표시명 — 사이드바 등 UI 가 active workspace 의 이름을 보여주도록.
@@ -180,6 +184,7 @@ const getUserWithBusiness = async (userId) => {
     userData.business_id = null;
     userData.business_name = null;
     userData.business_role = null;
+    userData.menu_levels = null;
     userData.display_name = user.name;
     userData.display_name_localized = user.name_localized || null;
     userData.workspace_timezone = null;
