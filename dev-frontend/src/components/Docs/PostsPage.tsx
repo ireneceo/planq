@@ -37,7 +37,7 @@ import PostTableGrid from './PostTableGrid';
 import { mapApiError } from '../../utils/apiError';
 import { useFileDownload } from '../../hooks/useFileDownload';
 import {
-  fetchPosts, fetchPost, fetchPostResult, createPost, updatePost, deletePost, StaleEditError,
+  fetchPosts, fetchPost, fetchPostResult, restorePostRevision, createPost, updatePost, deletePost, StaleEditError,
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory, renameCategory, deleteCategory,
   updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
@@ -68,6 +68,7 @@ import FloatingPanelToggle from '../Common/FloatingPanelToggle';
 import PanelResizeHandle, { usePanelWidth } from '../Layout/PanelResizeHandle';
 import { usePostPresence } from '../../hooks/usePostPresence';
 import PostHistoryPanel from './PostHistoryPanel';
+import PostAiEditDrawer from './PostAiEditDrawer';
 import { isEnterAction } from '../../utils/imeKey';
 import { uploadErrorText } from '../../utils/uploadError';
 
@@ -277,6 +278,9 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
   const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'error' | 'stale'>('idle');
   const [autoErr, setAutoErr] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 문서 AI 수정(docs/DOC_AI_EDIT_DESIGN.md) — 반영 뒤 «N곳 반영 · 되돌리기» 줄. 되돌리기 = 반영 직전 버전 복원.
+  const [aiEditOpen, setAiEditOpen] = useState(false);
+  const [aiEditDone, setAiEditDone] = useState<{ postId: number; applied: number; revId: number | null; undoing?: boolean; undone?: boolean } | null>(null);
   // leaveEditSession 이 최신 값을 보게 하는 ref (useCallback 클로저에 갇히지 않게).
   const detailRef = useRef<PostDetail | null>(null);
   //   ★ 이 ref 는 선언만 돼 있고 **한 번도 대입되지 않았다** — 아래 leaveEditSession 의
@@ -2208,6 +2212,12 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                 data-testid="post-more"
                 items={[
                   {
+                    key: 'ai-edit', testId: 'post-ai-edit',
+                    label: t('aiEdit.menu', 'AI로 수정') as string,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>,
+                    onClick: () => setAiEditOpen(true),
+                  },
+                  {
                     key: 'history', testId: 'post-history',
                     label: t('history.title', '변경 기록') as string,
                     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>,
@@ -2372,6 +2382,31 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
                   화면에는 아무 말도 안 나왔다(조용한 실패). 편집 모드와 같은 자리를 준다. */}
               {error && <ErrorBar>{error}</ErrorBar>}
               {dl.error && <ErrorBar>{dl.error}</ErrorBar>}
+              {aiEditDone && aiEditDone.postId === detail.id && (
+                <AiEditDoneBar role="status" data-testid="post-ai-edit-done">
+                  <span>{aiEditDone.undone
+                    ? t('aiEdit.undone', 'AI 수정을 되돌렸어요.')
+                    : t('aiEdit.done', 'AI 수정 {{n}}곳을 반영했어요.', { n: aiEditDone.applied })}</span>
+                  {!aiEditDone.undone && aiEditDone.revId && (
+                    <AiEditUndoBtn type="button" data-testid="post-ai-edit-undo" disabled={!!aiEditDone.undoing}
+                      onClick={() => {
+                        const cur = aiEditDone;
+                        if (!cur.revId || cur.undoing) return;
+                        setAiEditDone({ ...cur, undoing: true });
+                        void (async () => {
+                          const ok = await restorePostRevision(cur.postId, cur.revId!);
+                          if (!ok) { setAiEditDone({ ...cur, undoing: false }); setError(t('history.restoreFailed', '되돌리지 못했습니다') as string); return; }
+                          const fresh = await fetchPost(cur.postId); if (fresh) setDetail(fresh);
+                          setAiEditDone({ ...cur, undoing: false, undone: true });
+                          await load();
+                        })();
+                      }}>
+                      {aiEditDone.undoing ? t('history.restoring', '되돌리는 중…') : t('aiEdit.undo', '되돌리기')}
+                    </AiEditUndoBtn>
+                  )}
+                  <AiEditCloseBtn type="button" aria-label={t('close', '닫기') as string} onClick={() => setAiEditDone(null)}>✕</AiEditCloseBtn>
+                </AiEditDoneBar>
+              )}
               {/* 보안등급 상시노출 SecurityRow 제거 — 뷰는 MetaBar chip(일반 자동숨김), 변경은 편집 모드 메타에서(Irene) */}
               {/* 운영 #338 — 긴 문서의 목차. 본문에서 파생하므로 옛 문서에서도 바로 뜬다.
                   제목이 2개 미만이면 스스로 아무것도 그리지 않는다. 인쇄에는 넣지 않는다
@@ -2621,6 +2656,19 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId }) => {
         />
       )}
 
+      {detail && (
+        <PostAiEditDrawer
+          key={detail.id}
+          open={aiEditOpen}
+          postId={detail.id}
+          onClose={() => setAiEditOpen(false)}
+          onApplied={({ applied, beforeRevisionId }) => {
+            const pid = detail.id;
+            setAiEditDone({ postId: pid, applied, revId: beforeRevisionId });
+            void (async () => { const fresh = await fetchPost(pid); if (fresh) setDetail(fresh); await load(); })();
+          }}
+        />
+      )}
       {detail && (
         <PostHistoryPanel
           postId={detail.id}
@@ -3181,6 +3229,24 @@ const ViewMeta = styled(DetailMetaBar)`
 `;
 const MetaLeft = styled(DetailMetaLeft)``;
 const MetaRight = styled(DetailMetaRight)``;
+const AiEditDoneBar = styled.div`
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+  padding: 8px 8px 8px 14px; border-radius: 8px; background: #F0FDFA; border: 1px solid #99F6E4;
+  font-size: 0.8125rem; color: #0F766E; font-weight: 600;
+  & > span { flex: 1; min-width: 0; }
+`;
+const AiEditUndoBtn = styled.button`
+  flex-shrink: 0; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid #14B8A6;
+  background: #FFFFFF; color: #0F766E; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
+  &:hover:not(:disabled) { background: #CCFBF1; }
+  &:disabled { opacity: 0.6; cursor: default; }
+  @media (max-width: 640px) { height: 40px; }
+`;
+const AiEditCloseBtn = styled.button`
+  flex-shrink: 0; width: 32px; height: 32px; border: none; background: none; color: #0F766E; cursor: pointer; border-radius: 8px;
+  &:hover { background: #CCFBF1; }
+  @media (max-width: 640px) { width: 40px; height: 40px; }
+`;
 // ★ 액션 버튼 묶음 — 36px (좌측 리스트의 검색 박스와 같은 리듬). 버튼 자체는 32px 이라 여기서 올린다.
 //   옛 액션 줄(ActionsMain)이 하던 일인데, 그 컴포넌트를 없애면서 규칙까지 사라져 32px 로 내려앉았다.
 //   ★ 규칙을 MetaRight 에 직접 걸면 안 된다 — **VisibilityChip 도 styled.button 이라**(아래 3013 부근)

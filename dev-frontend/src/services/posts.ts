@@ -656,3 +656,56 @@ export async function purgeContent(businessId: number, kind: 'post' | 'kb', id: 
   }
   return true;
 }
+
+// ─── 문서 AI 수정 (docs/DOC_AI_EDIT_DESIGN.md) ───────────────────────────────
+//   제안은 무상태 — 반영 때 고른 칸의 {id, before, after} 를 그대로 다시 보낸다(서버가 칸 글을 대조한다).
+//   실패는 서버 code 를 message 로 던진다(화면이 문구를 고른다). ★ apiFetch 는 throw 하지 않는다 — status 를 본다.
+export interface AiEditLoc {
+  kind: 'table' | 'heading' | 'list' | 'paragraph';
+  section?: string;
+  level?: number;
+  table?: number; row?: number; col?: number;
+  row_head?: string; col_head?: string;
+}
+export interface AiEditChange {
+  id: number;
+  loc: AiEditLoc;
+  before: string;
+  after: string;
+  segments: { t: 'eq' | 'del' | 'ins'; s: string }[];
+  reason: string;
+}
+export interface AiEditProposal {
+  base_updated_at: string;
+  changes: AiEditChange[];
+  summary: string;
+  not_done: string[];
+  dropped: number;
+  emptied: number;
+}
+
+async function aiEditCall<T>(url: string, body: unknown): Promise<T> {
+  const r = await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => null);
+  if (r.status === 429) throw new Error('too_many_requests');
+  if (r.status === 422) throw new Error('cue_limit');
+  if (!r.ok || !j || j.success === false) throw new Error((j && (j.code || j.message)) || `HTTP ${r.status}`);
+  return j.data as T;
+}
+
+export function proposePostAiEdit(postId: number, instruction: string): Promise<AiEditProposal> {
+  return aiEditCall<AiEditProposal>(`/api/posts/${postId}/ai-edit/propose`, { instruction });
+}
+
+export function applyPostAiEdit(
+  postId: number,
+  body: { base_updated_at: string; changes: { id: number; before: string; after: string }[]; instruction: string },
+): Promise<{ applied: number; before_revision_id: number | null }> {
+  return aiEditCall(`/api/posts/${postId}/ai-edit/apply`, body);
+}
+
+/** AI 수정 되돌리기 — 기존 변경 기록 복원 라우트(반영 직전 버전으로). 복원도 새 버전으로 쌓인다. */
+export async function restorePostRevision(postId: number, revisionId: number): Promise<boolean> {
+  const r = await apiFetch(`/api/posts/${postId}/revisions/${revisionId}/restore`, { method: 'POST' });
+  return r.ok;
+}

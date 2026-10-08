@@ -54,6 +54,8 @@ export const DRAFT_KINDS = {
   'sale-inquiry-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QSale/SalePage.tsx', 'components/QSale/SaleCueBar.tsx'] },
   // 다음 연락 약속 메모 — 일정으로 저장되기 전까지 남는다(2026-09-12)
   'sale-next-contact': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/NextContactModal.tsx'] },
+  // 문서 AI 수정 지시 — 길게 적다가 창을 닫거나 다른 문서로 가면 사라지던 값(2026-10-08). 반영 성공 때 비운다.
+  'post-ai-edit': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/Docs/PostAiEditDrawer.tsx'] },
 } as const satisfies Record<string, DraftKindSpec>;
 
 export type DraftKind = keyof typeof DRAFT_KINDS;

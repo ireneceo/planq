@@ -229,4 +229,42 @@ async function attachFiles(actor, params = {}) {
   return done({ post, created });
 }
 
-module.exports = { createPost, updatePostContent, setPostLinks, movePostToProject, checkEditable, attachFiles };
+/**
+ * AI 수정 반영 — 사용자가 고른 칸만 바꾼다(설계 docs/DOC_AI_EDIT_DESIGN.md).
+ *   ① 제안 뒤 누가 고쳤으면(updated_at) 409 — 낡은 제안으로 남의 글을 덮지 않는다
+ *   ② «반영 전» 을 버전으로 확정하고 ③ 반영본은 합치지 않는 새 버전 → 기록에서 한 번에 되돌린다.
+ * @param params { businessId, postId, baseUpdatedAt, changes:[{id,before,after}], instruction }
+ */
+async function applyAiEdit(actor, params = {}) {
+  const subj = await resolveSubject(actor);
+  if (!subj.ok) return subj;
+  const { post, fail: f } = await loadEditable(actor, subj, Number(params.postId), Number(params.businessId));
+  if (f) return f;
+  const base = new Date(params.baseUpdatedAt || 0).getTime();
+  const cur = new Date(post.updated_at || post.updatedAt).getTime();
+  if (!Number.isFinite(base) || base !== cur) return fail('stale_edit', 409);
+  const ai = require('../docAiEdit');
+  const doc = ai.parseDoc(post.content_json);
+  if (!doc) return fail('doc_not_structured', 409);
+  let result;
+  try { result = ai.applyChanges(doc, params.changes || []); }
+  catch (e) { return fail(e.message === 'stale_block' ? 'stale_edit' : 'invalid_change', 409); }
+  if (!result.applied) return fail('no_changes', 400);
+  const revs = require('../postRevisions');
+  const { PostRevision } = require('../../models');
+  // ② 반영 전 상태 — 마지막 버전이 이미 같은 내용이면 새로 안 만든다(skipped). 그 버전이 «전» 이다.
+  await revs.recordRevision({ post, editorUserId: subj.subjectId, source: 'manual' });
+  const beforeRev = await PostRevision.findOne({
+    where: { post_id: post.id, business_id: post.business_id },
+    order: [['revision_number', 'DESC']], attributes: ['id', 'revision_number'],
+  });
+  const { extractText } = postsRoute();
+  await post.update({ content_json: JSON.stringify(result.doc), content_text: extractText(result.doc), editor_id: subj.subjectId });
+  try { await revs.recordRevision({ post, editorUserId: subj.subjectId, source: 'manual', noCoalesce: true }); }
+  catch (e) { console.warn('[postRevisions]', e.message); }
+  audit(actor, 'post.ai_edit', post, { instruction: String(params.instruction || '').slice(0, 300), changed_blocks: result.applied });
+  if (post.status !== 'draft') signalPost(post, 'post:updated');
+  return done({ post, applied: result.applied, beforeRevisionId: beforeRev ? beforeRev.id : null });
+}
+
+module.exports = { applyAiEdit, createPost, updatePostContent, setPostLinks, movePostToProject, checkEditable, attachFiles };

@@ -14,7 +14,7 @@ const MAX_PER_POST = 50;
  * 현재 내용을 버전으로 남긴다.
  * @returns {Promise<{action:'created'|'coalesced'|'skipped', revisionNumber:number|null}>}
  */
-async function recordRevision({ post, editorUserId, source = 'autosave' }) {
+async function recordRevision({ post, editorUserId, source = 'autosave', noCoalesce = false }) {
   if (!post || !post.id) return { action: 'skipped', revisionNumber: null };
   const contentStr = post.content_json == null ? null : String(post.content_json);
   // 첨부 목록 스냅샷 — 본문 안 이미지는 content_json 에 이미 있지만 하단 첨부는 별도 테이블이다.
@@ -42,7 +42,9 @@ async function recordRevision({ post, editorUserId, source = 'autosave' }) {
 
   // 합치기 — 같은 사람이 짧은 시간 안에 이어 쓰는 것은 한 번의 편집이다.
   //   ★ 복원(restore)은 절대 합치지 않는다. "되돌린 시점" 은 그 자체로 남아야 한다.
-  if (last && sameEditor && withinWindow && source !== 'restore' && last.source !== 'restore') {
+  //   ★ noCoalesce — AI 수정 반영본(services/actions/post_actions.applyAiEdit). 합치면 «AI 전» 버전이
+  //     반영본으로 덮여 되돌릴 곳이 사라진다.
+  if (last && sameEditor && withinWindow && !noCoalesce && source !== 'restore' && last.source !== 'restore') {
     await last.update({
       title: post.title, content_json: contentStr, category: post.category ?? null,
       attachment_file_ids: attachIds,

@@ -68,6 +68,11 @@ const PURPOSES = {
   //   어디서 잘렸는지 화면에 안 나온다. 여유를 준다(호출당 비용 증가는 $0.001 미만).
   //   ★ Cue 검색창·Q helper·게스트 안내가 전부 이 purpose 로 온다 — 사용자가 Cue 라고 부르는 것의 본체.
   kb_answer:      { model: 'gpt-5.1', temperature: 0.2, maxTokens: 2000, timeoutMs: 45_000, maxInputChars: 40_000 },
+  // 문서 AI 수정(docs/DOC_AI_EDIT_DESIGN.md) — 칸 목록을 읽고 «어느 칸을 어떻게» 만 JSON 으로 낸다.
+  //   «소고기 가격» 처럼 표의 행·열머리를 맞춰 칸을 골라야 해 판단이 필요하다 → 답변 계열과 같은 모델.
+  //   출력은 바뀐 칸만이라 짧지만, 문서 전체 칸을 바꾸는 지시(번역·높임말)를 대비해 상한을 넉넉히.
+  //   ★ 입력 상한에서 꼬리가 잘리면 뒤쪽 칸이 «바꿀 곳 없음» 으로 조용히 빠진다 — 라우트가 이 상한 전에 400 으로 막는다(DOC_TEXT_CAP).
+  doc_edit:       { model: 'gpt-5.1', temperature: 0.2, maxTokens: 12_000, timeoutMs: 120_000, maxInputChars: 90_000 },
   docs_generate:  { model: 'gpt-4o-mini', temperature: 0.4, maxTokens: 3000, timeoutMs: 90_000, maxInputChars: 24_000 },
   // brief — 옛 호출부가 자료를 100,000자까지 보냈다(자료 여러 건을 합쳐 요약하는 기능). 상한을 그 아래로
   //   내리면 요약이 조용히 일부 자료를 빠뜨린다. 옛 값을 존중하되 천장은 둔다.

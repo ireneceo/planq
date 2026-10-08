@@ -923,5 +923,48 @@
     "loading": "Loading…",
     "preview": "Preview"
   },
-  "tableDescOpenShort": "Open"
+  "tableDescOpenShort": "Open",
+  "aiEdit": {
+    "menu": "Edit with AI",
+    "title": "Edit with AI",
+    "label": "What should change?",
+    "placeholder": "e.g. Change every beef price to 5 ringgit",
+    "hint": "You'll see every change first. Only the ones you pick are applied, and you can undo any time from the change history. Text edits only (add or remove rows/paragraphs in the editor).",
+    "propose": "Find changes",
+    "repropose": "Suggest again",
+    "proposing": "Searching…",
+    "none": "Nothing to change was found. Try a more specific instruction.",
+    "count": "{{n}} changes",
+    "selectAll": "Select all",
+    "unselectAll": "Clear all",
+    "pick": "Apply this change",
+    "before": "Old",
+    "after": "New",
+    "notDone": "Couldn't do",
+    "emptied": "Deleting a whole cell isn't supported yet ({{n}}) — delete it in the editor.",
+    "apply": "Apply {{n}} selected",
+    "done": "Applied {{n}} AI changes.",
+    "undone": "AI changes were undone.",
+    "undo": "Undo",
+    "loc": {
+      "table": "Table {{table}} · row {{row}}, col {{col}}",
+      "heading": "Heading",
+      "list": "List",
+      "paragraph": "Paragraph"
+    },
+    "err": {
+      "tooLong": "This document is too long to edit at once. Try splitting it.",
+      "notStructured": "This document uses an old format. Save it once in the editor, then try again.",
+      "empty": "There's no text to edit in this document.",
+      "signed": "This document has a signature request in progress or completed, so it can't be changed.",
+      "forbidden": "You don't have permission to edit this document.",
+      "stale": "The document changed in the meantime. Please get new suggestions.",
+      "llm": "AI isn't responding right now. Please try again shortly.",
+      "truncated": "Too many changes to receive at once. Split the instruction into smaller requests.",
+      "invalid": "Couldn't read the AI response. Please try again.",
+      "quota": "You've used this month's Cue allowance. You can raise it in your plan.",
+      "rate": "Too many requests. Try again in a minute.",
+      "generic": "Something went wrong. Please try again shortly."
+    }
+  }
 }
