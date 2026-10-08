@@ -13,6 +13,11 @@
 
 ---
 
+
+## 2026-10-08 · 관리자 확인 필요·플랫폼 알림 인박스/푸시 (cd372c3a) — PASS
+- 26/26 실호출 · 에스컬레이션 재발송 0 · 비관리자 누수 0 · 운영 관리자 알림 75건/30일
+- 비차단: 피드백·문의 푸시 본문 previewPolicy 'excerpt' 권고 · 배지 소켓 kinds 에 trial·system 없음
+
 ## 2026-10-08 0-G·0-H·0-I·0-J 숫자·알림·문구·작은 결함 — **VERDICT: PASS** (Fable — d9f538f3 e2a9f10e 38d1d64e 43e48a10 + 후속 6d554be7 카드 열쇠 business 방 제거·가드 변수형). 매출 원장 = 인사이트(biz5 13,860,000 일치) · 채팅 메일 5분 묶음·@멘션 즉시 · EVENT_KINDS==ENUM · 죽은 라우트 12 호출처 0. 비차단: 활성 대화 conv 방 join 전 찰나 카드 → 다른 대화 갔다 오면 복구(로드 효과 deps 에 historyLoaded 추가로 닫을 수 있음) · push_fallback 끈 사람은 채팅 메일 없음(기존 계약) · project_process 마운트 순서 기존 결함 · 미측정: 환불/부분결제 데이터·Cue 실행 백업 LLM 경로
 - 커밋 d9f538f3(0-G) · e2a9f10e(0-H) · 38d1d64e(0-I) · 43e48a10(0-J). dev 반영(빌드 6회 전부 EXIT 0·error TS 0, 백엔드 재시작), 운영 미배포. Irene 결정 ⑤(채팅 메일 5분 묶음) 반영.
 - **자체 검증 수치**: 전체 health-check 83/83(재시도 shim 전 81/83 — 실패 2 = UND_ERR_SOCKET keep-alive) · 전체 guard EXIT 0(65/66, 1=문서 신선도 경고) ·
