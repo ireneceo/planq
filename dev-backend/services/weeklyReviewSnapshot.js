@@ -577,8 +577,9 @@ async function fetchNextWeekFocus(businessId, nextMonday, userIdFilter) {
 
 // 멤버 utilization — capacity vs Σ TaskDailyProgress.actual_hours
 async function fetchMemberUtilization(businessId, monday, sunday) {
+  // ★ AI 멤버(Cue)는 가동률 대상이 아니다 — Insights·보고서와 같은 술어(Fable 2026-10-08).
   const members = await BusinessMember.findAll({
-    where: { business_id: businessId, removed_at: null },
+    where: { business_id: businessId, removed_at: null, role: { [Op.ne]: 'ai' } },
     include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
     attributes: ['user_id', 'name', 'daily_work_hours', 'weekly_work_days', 'participation_rate', 'weekly_holidays'],
   });

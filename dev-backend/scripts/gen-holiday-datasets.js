@@ -12,7 +12,8 @@ const fs = require('fs');
 const path = require('path');
 const Holidays = require('date-holidays');
 
-const COUNTRIES = ['US', 'JP', 'CN', 'TW', 'HK', 'SG', 'MY', 'VN', 'TH', 'ID', 'PH', 'IN', 'AU', 'NZ', 'GB', 'DE', 'FR', 'CA'];
+// ★ CN·TW·VN 은 만들지 않는다(Fable 2026-10-08) — 부분휴일·개정·연휴·조휴를 라이브러리가 틀린다. 손대조 정본이 생기면 KR 처럼 직접 둔다.
+const COUNTRIES = ['US', 'JP', 'HK', 'SG', 'MY', 'TH', 'ID', 'PH', 'IN', 'AU', 'NZ', 'GB', 'DE', 'FR', 'CA'];
 const from = Number(process.argv[2]) || new Date().getFullYear();
 const to = Number(process.argv[3]) || from + 1;
 const OUT = path.join(__dirname, '..', 'config', 'holidays');

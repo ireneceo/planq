@@ -14,6 +14,15 @@
 ---
 
 
+## 2026-10-08 · 공휴일 18개국(f8e9c025) · Insights 가동률 분모(f28f5597) (상황판 fwmuz1uqyy) — **VERDICT: FAIL → FAIL → 지적대로 수정(자체 검증)** (Fable 2회, 상한)
+- ※ 두 커밋은 이미 운영에 있다(v1.70.1). 운영 영향: biz1 KR(손대조)뿐 · CN/TW/VN 테넌트 0 · **biz1 Insights 가동률 분모의 48% 가 Cue** → 절반으로 표시 중.
+- 1차 FAIL 차단 4: ①CN 부분휴일(3/8·5/4·6/1·8/1)을 전원 휴일로, 初三·5/2 누락, 조휴 표현 불가 ②TW 2025 개정·VN Tết 누락 ③국가 전환 때 새 나라 과거 행 삽입 → 과거가 합집합(KR→JP 9월 5건) ④개요·팀 분모에 AI(Cue) 포함
+- 수정: ①② CN·TW·VN 데이터셋 삭제 + 생성기 제외(손대조 정본 전까지 선택지에서 뺌) ③ `ensureNationalRows` 에 `fromDate`(워크스페이스 오늘) **필수**, 없으면 throw — 국가 저장·설정 GET·cron 세 문 모두 ④ stats 개요·팀 + `weeklyReviewSnapshot.fetchMemberUtilization` `role≠'ai'`. 비차단 반영: cron 데이터셋 해 공백 `console.warn`+`missing` · cron 이 `now` 인자 사용 · PUT /holiday-country 트랜잭션.
+- 2차 FAIL 차단 1: ③이 `applyCountryChange` 한 문만 고쳐 설정 GET(저장 직후 화면이 부른다)·다음 날 cron 이 과거를 채웠다 → 위 «필수 fromDate» 로 수정.
+- 최종 자체 검증(Fable 미검증 — 이 사안 Fable 2회 상한): HTTP PUT KR → GET 2026·2027 → 과거 0·총 25 · cron(오늘) 0 · PUT JP → cron(다음 날) 과거 0·9월 0 · fromDate 빠뜨리면 throw · CN/TW/VN 400 · 개요 가동률 temp 17.14h → 10.0%(옛 식 5.0) · 팀 표 Cue 없음 · 트랜잭션 중간 throw 시 원상(Fable 실측) · health-check 83/83 · guard 65/66.
+- 비차단(미반영): SG/MY 2027 Vesak 누락·ID 라벨·IN/CA 적음 → 2027 치 관보 대조 · `weekly_holidays=1` 잔존 멤버 이중 차감 · 개요 분자(완료 업무 actual_hours)가 Cue 담당분을 안 가린다(dev·운영 현재 0건).
+
+
 ## 2026-10-08 · 10/04~10/07 자체 검증분 묶음 (상황판 fwmuz1uqy3) — **VERDICT: PASS** (Fable)
 - 공통: health-check 83/83 · guard-invariants 65/66 EXIT 0 · 테스트 스크립트 rm · dev 픽스처 원복
 - 행2 `b8e8b567` safeHref PASS — 정상 11/11 유지 · 우회 15/15 차단(대소문자·공백·탭·개행·제어문자·BOM·data/vbscript/blob/file) · 엔티티 3종 이스케이프
@@ -175,7 +184,7 @@ B 설계 판정(8안건) 원문·결정 질문지: **`docs/IRENE_DECISIONS_2026-
 | 10 | (다음 배포) | **폰 상세 패널 = 앱 헤더를 덮는 전면**(`--pq-panel-top`) — DetailDrawer·업무 상세·문서 기록·작업대·Q talk 우측·도움말 | 화면 계약 변경(F=1) — 범위가 넓어 묶음 참고 | 폰에서 머리(닫기·돌아가기)가 가려지는 패널이 없나 · 키보드(--vv-top) · 앱 상태바 · 뒤로 가기 |
 | 11 | `5f1bb285` | **Cue 대화 이어듣기** — useCueChat 이 직전 턴(≤4)을 history 로 · /api/cue/help 가 user/assistant 로 삽입(normalizeHistory: q500·a1500) · 짧은 후속은 직전 질문 붙여 검색 · 위키 RAG 를 workspace 모드에도(3→4건) · 프롬프트 FOLLOWUP_RULE·사용법 질문 직접 안내 | R=0·S=0·F=1 — 훅 게이트로 올렸으나 429. 자체: 실API 신고 원문 history+"2번" 이어 답 / 대조군(history 없음) 옛 동작 / 잘못된 history 200 · 실브라우저 2번째 요청에 history 실림 · 빌드 0·guard 전체 통과 | 위키 주입이 데이터 질문을 오염시키지 않나 · 클라 history 가 새 조회·권한 통로가 아닌가 · 임베딩 1회 추가 비용 · 답 길이(4문단 초과) |
 | 12 | `6f4750d6` | **화면 알림(토스터) 전이 판정** — 완료·검토 요청·수정 요청·보류·외부컨펌 토스트를 «이 화면이 전이를 본 때만». 처음 보는 업무는 서버 notification:new 에 맡김 | 운영 신고(업무 339 «검토 요청» 재발, 서버 알림 0건) · 알림 누락 쪽 위험 | 처음 보는 업무의 진짜 전이를 서버 알림이 **모두** 덮는가(5종 notify 경로 전수 — 특히 외부컨펌·보류 해제·Cue 경유 전이) · 소켓 재연결 직후 첫 이벤트 · 카나리 reviewtoast(대조군 FAIL 확인됨) |
-| 13 | `f8e9c025` | **국가 공휴일 18개국** — config/holidays/*.json 자동 로드 · date-holidays 생성기(devDep) · 2026~2027 | 근무일 계수·휴가 차감·예약 슬롯·가용시간이 이 행을 읽는다(숫자가 바뀐다) | 생성 데이터 정확성(음력·이슬람력·대체휴일 — MY·SG·ID·CN·VN 표본 대조) · 같은 날 두 휴일 dedupe · 국가 전환 시 지난 행 보존·툼스톤 · 운영 배포에 devDependency 가 필요 없는가 · 2028 데이터 공백 시 cron 동작 |
+| 13 ❌→수정(10-08, 맨 위 절) | `f8e9c025` | **국가 공휴일 18개국** — config/holidays/*.json 자동 로드 · date-holidays 생성기(devDep) · 2026~2027 | 근무일 계수·휴가 차감·예약 슬롯·가용시간이 이 행을 읽는다(숫자가 바뀐다) | 생성 데이터 정확성(음력·이슬람력·대체휴일 — MY·SG·ID·CN·VN 표본 대조) · 같은 날 두 휴일 dedupe · 국가 전환 시 지난 행 보존·툼스톤 · 운영 배포에 devDependency 가 필요 없는가 · 2028 데이터 공백 시 cron 동작 |
 | ✅ 14 | `23987355` | **목록 기본 정렬 = 작성일** — posts·kb·개인 보관함 order created_at · 공용 ListSortSelect(4종) · Q docs 날짜 표시 | 화면(F=1) 위주 — 다만 limit 캡이 있는 목록(kb 1000·posts 200/페이지)은 «잘리는 글» 이 바뀐다 | kb 캡(1000) 초과 워크스페이스에서 잘리는 대상 변화 · posts 페이지 경계(created_at 동률 → id 보조키) · 고정(is_pinned) 우선 유지 · 실시간 갱신 후 순서 |
 | 15 | (설계 — 미구현) | **같은 계정이 다른 기기에서 보고 있으면 채팅 푸시 생략** — 신고: "같은 아이디가 다른 디바이스에서 대화중인데 다른 디바이스에서 계속 알림". 현재 `notify()` push 분기가 접속 여부 없이 전 구독 기기로 보낸다(routes/notifications.js ~L300). 제안: 클라 30초 heartbeat `presence:active`(visible+focus+60초 내 조작) → 서버 메모리 → 활성이면 push 생략, 인앱 토스트 유지(Slack 방식) | R=1 외부 발송 조건 변경 · 2026-10-06 Fable 설계 검토 429 | ①범위(채팅만/전 event_kind, mention 예외?) ②«어디서든 활성» vs «같은 방» ③운영 PM2 프로세스 수·재시작 시 메모리 상태 ④네이티브 앱 백그라운드 소켓 오판 ⑤배지 갱신 경로 ⑥설정 토글 필요 여부 ⑦검증 시나리오 — **판정 후 구현** |
 | 16 | `0a528c2b` | **AI 연결 scope = 동의 묶음 전체**(요청 scope 로 좁히지 않음) · 연결 목록 outdated 표시 — ChatGPT 가 옛 scope 목록을 계속 요청해 재연결 반복 | R=1 인증·권한(부여 범위 확대) | 동의 화면 문구가 묶음 전체를 정확히 말하는가 · 요청보다 넓은 scope 를 토큰 응답 `scope` 로 돌려줄 때 클라이언트 호환 · opt-in(mail) 우회 없음 · 기존 grant 를 넓히지 않는 결정 · 같은 커넥터의 클라이언트 2건(웹/Codex) 정상 여부 |

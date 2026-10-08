@@ -514,8 +514,9 @@ async function buildOverviewTab(businessId, period) {
   // 가동률 / 실현율 — Tasks 데이터 재사용 (단순화: 모든 task 의 actual_hours 합계 / 가용시간 합계)
   // 정확한 가용시간은 BusinessMember.daily_work_hours 등 필요 — 간이 추정으로 8 × 5 × N members × 주차
   const { BusinessMember, Task } = require('../models');
+  // ★ AI 멤버(Cue, role 'ai')는 분모에 넣지 않는다 — 사람 가용시간이 아니다(reportUnitSnapshot 과 같은 술어, Fable 2026-10-08).
   const members = await BusinessMember.findAll({
-    where: { business_id: businessId, removed_at: null },
+    where: { business_id: businessId, removed_at: null, role: { [Op.ne]: 'ai' } },
     attributes: ['user_id', 'daily_work_hours', 'weekly_work_days', 'participation_rate'],
   });
   // #424 — 가용시간은 services/memberCapacity **한 벌**(수동 휴일·워크스페이스 휴일·승인 휴가를 뺀 기간 가용시간).
@@ -945,8 +946,9 @@ async function buildTeamTab(businessId, period, segment = 'client') {
   const projKind = new Map(projRows.map((p) => [p.id, p.kind]));
   const isClientTask = (t) => t.project_id != null && projKind.get(t.project_id) === 'client';
 
+  // ★ AI 멤버(Cue)는 팀 가동률 행에서 뺀다 — 개요 분모·보고서 멤버 섹션과 같은 술어.
   const members = await BusinessMember.findAll({
-    where: { business_id: businessId, removed_at: null },
+    where: { business_id: businessId, removed_at: null, role: { [Op.ne]: 'ai' } },
     include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
     attributes: ['user_id', 'role', 'daily_work_hours', 'weekly_work_days', 'participation_rate'],
   });

@@ -46,11 +46,12 @@ router.get('/:businessId/holidays', authenticateToken, checkBusinessAccess, asyn
     const businessId = Number(req.params.businessId);
     const biz = await Business.findByPk(businessId, { attributes: ['id', 'work_hours', 'timezone', 'holiday_country'] });
     if (!biz) return errorResponse(res, 'Workspace not found', 404);
-    const thisYear = Number(todayInTz(biz.timezone || 'Asia/Seoul').slice(0, 4));
+    const today = todayInTz(biz.timezone || 'Asia/Seoul');
+    const thisYear = Number(today.slice(0, 4));
     const y = Number(req.query.year) || thisYear;
     if (y < 2000 || y > 2100) return errorResponse(res, 'invalid_year', 400);
     // 관리자가 그 해를 열면 국가 행을 채운다(읽는 계산 경로는 쓰지 않는다 — 여기·국가 저장·cron 만).
-    if (canWrite(req) && biz.holiday_country) await wh.ensureNationalRows(businessId, biz.holiday_country, y);
+    if (canWrite(req) && biz.holiday_country) await wh.ensureNationalRows(businessId, biz.holiday_country, y, { fromDate: today });
     const rows = await WorkspaceHoliday.findAll({
       where: { business_id: businessId, date: { [require('sequelize').Op.between]: [`${y}-01-01`, `${y}-12-31`] } },
       order: [['date', 'ASC']],
@@ -81,8 +82,12 @@ router.put('/:businessId/holiday-country', authenticateToken, checkBusinessAcces
     const prev = biz.holiday_country || null;
     let result = { removed: 0, added: 0 };
     if (prev !== next_) {
-      await biz.update({ holiday_country: next_ });
-      result = await wh.applyCountryChange(businessId, next_, { tz: biz.timezone, prevCc: prev });
+      // 국가 값과 휴일 행 교체를 한 트랜잭션으로 — 중간에 실패하면 «국가는 바뀌었는데 행은 옛 나라» 가 남는다.
+      const { sequelize } = require('../config/database');
+      result = await sequelize.transaction(async (transaction) => {
+        await biz.update({ holiday_country: next_ }, { transaction });
+        return wh.applyCountryChange(businessId, next_, { transaction, tz: biz.timezone, prevCc: prev });
+      });
       logAudit(req, {
         action: 'business.holiday_country_update', targetType: 'business', targetId: businessId, businessId,
         oldValue: { holiday_country: prev }, newValue: { holiday_country: next_, ...result },

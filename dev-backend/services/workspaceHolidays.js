@@ -9,9 +9,11 @@
 // ★ 계산 경로는 읽기만 한다. 국가 행을 채우는 것(ensureNationalRows)은 설정 저장·설정 조회·cron 만 한다.
 const { Op } = require('sequelize');
 const { WorkspaceHoliday, Business } = require('../models');
-const { ymd, addDaysStr, todayInTz } = require('../utils/datetime');
+const { ymd, addDaysStr, todayInTz, dateStrInTz } = require('../utils/datetime');
 
 // config/holidays/<CC>.json 전부 — KR 은 손으로 대조한 정본, 나머지는 scripts/gen-holiday-datasets.js 생성물.
+//   ★ CN·TW·VN 은 두지 않는다(Fable 2026-10-08 FAIL) — 라이브러리가 부분휴일(여성·청년·아동·군인)을 전원 휴일로 싣고,
+//     2025 개정·Tết 연휴·대체휴일·조휴(주말 근무일)를 못 담는다. 손으로 대조한 정본이 생기기 전까지 선택지에서 뺀다.
 //   파일을 넣으면 선택지에 자동으로 뜬다(화면 이름은 settings.json holidays.country<CC>).
 const HOLIDAY_DIR = require('path').join(__dirname, '..', 'config', 'holidays');
 const DATASETS = Object.fromEntries(require('fs').readdirSync(HOLIDAY_DIR)
@@ -85,12 +87,16 @@ function isWorkday(d, cal) {
 }
 
 /**
- * 국가 공휴일 행을 그 해만큼 채운다 — **없는 날짜만** INSERT. 있는 행(꺼진 행·직접 추가 행 포함)은 건드리지 않는다.
+ * 국가 공휴일 행을 그 해의 fromDate 이후만큼 채운다 — **없는 날짜만** INSERT. 있는 행(꺼진 행·직접 추가 행 포함)은 건드리지 않는다.
  * 멱등. 반환: 새로 넣은 건수.
  */
-async function ensureNationalRows(businessId, cc, year, { transaction } = {}) {
+async function ensureNationalRows(businessId, cc, year, { transaction, fromDate } = {}) {
+  // ★ fromDate(그 워크스페이스의 오늘)는 **필수** — 모든 문(국가 저장·설정 조회·cron)이 오늘 이후만 넣는다(과거 불변).
+  //   한 문만 막으면 설정 화면이 저장 직후 다시 읽는 GET 이나 다음 날 cron 이 지난 날짜를 채워 같은 결과가 하루 늦게 난다
+  //   (Fable 2026-10-08 재검증 실측). 빠뜨리면 조용히 과거를 쓰지 않도록 던진다.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fromDate || ''))) throw new Error('ensureNationalRows: fromDate (YYYY-MM-DD) required');
   if (!isSupportedCountry(cc)) return 0;
-  const list = datasetYear(cc, year);
+  const list = datasetYear(cc, year).filter((h) => h.date >= fromDate);
   if (!list.length) return 0;
   const existing = await WorkspaceHoliday.findAll({
     where: { business_id: businessId, date: { [Op.in]: list.map((h) => h.date) } },
@@ -122,9 +128,10 @@ async function applyCountryChange(businessId, nextCc, { transaction, tz, prevCc 
   let added = 0;
   if (isSupportedCountry(nextCc)) {
     const y = Number(today.slice(0, 4));
-    added += await ensureNationalRows(businessId, nextCc, y, { transaction });
-    added += await ensureNationalRows(businessId, nextCc, y + 1, { transaction });
-    // 오늘 이전 날짜는 지우지 않았으므로 ensure 가 "이미 있음" 으로 건너뛴다 — 과거 불변.
+    // ★ 오늘부터만 넣는다 — 과거 불변. 지난 날짜를 넣으면 ①처음 켜는 순간 지난 달 Insights·보고서 숫자가 바뀌고
+    //   ②국가를 바꾸면 과거가 두 나라 휴일의 합집합이 된다(Fable 2026-10-08 실측: KR→JP 9월 휴일 5건).
+    added += await ensureNationalRows(businessId, nextCc, y, { transaction, fromDate: today });
+    added += await ensureNationalRows(businessId, nextCc, y + 1, { transaction, fromDate: today });
   }
   return { removed, added };
 }
@@ -136,13 +143,20 @@ async function runHolidayYearCron(now = new Date()) {
     attributes: ['id', 'holiday_country', 'timezone'],
   });
   let added = 0;
+  const missing = new Set();
   for (const b of bizs) {
-    const today = todayInTz(b.timezone || 'Asia/Seoul');
+    const today = dateStrInTz(now, b.timezone || 'Asia/Seoul');   // 인자 now 를 실제로 쓴다(검산에서 날짜를 넣을 수 있게)
     const y = Number(today.slice(0, 4));
-    added += await ensureNationalRows(b.id, b.holiday_country, y);
-    if (Number(today.slice(5, 7)) >= 11) added += await ensureNationalRows(b.id, b.holiday_country, y + 1);
+    // 데이터셋에 그 해가 없으면 조용히 0 이 된다 — 경고로 남긴다(11월부터는 내년 공백도).
+    if (!datasetYear(b.holiday_country, y).length) missing.add(`${b.holiday_country}:${y}`);
+    added += await ensureNationalRows(b.id, b.holiday_country, y, { fromDate: today });
+    if (Number(today.slice(5, 7)) >= 11) {
+      if (!datasetYear(b.holiday_country, y + 1).length) missing.add(`${b.holiday_country}:${y + 1}`);
+      added += await ensureNationalRows(b.id, b.holiday_country, y + 1, { fromDate: today });
+    }
   }
-  return { businesses: bizs.length, added };
+  if (missing.size) console.warn('[holidays] dataset year missing — run scripts/gen-holiday-datasets.js / update KR.json:', [...missing].join(', '));
+  return { businesses: bizs.length, added, missing: [...missing] };
 }
 
 module.exports = {
