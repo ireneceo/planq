@@ -44,8 +44,8 @@ const EVENT_KIND_FALLBACK = {
   inquiry: () => `/admin/inquiries`,
   signup: () => `/admin/users`,
   payment: () => `/admin/payments`,
-  subscription: () => `/admin/plans`,
-  trial: () => `/admin/plans`,
+  subscription: () => `/admin/subscriptions`,
+  trial: () => `/admin/subscriptions`,
   feedback: () => `/admin/feedback`,
 };
 

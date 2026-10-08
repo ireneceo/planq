@@ -54,6 +54,7 @@ const AdminPushLogsPage = lazy(() => import('../pages/Admin/AdminPushLogsPage'))
 const AdminPlatformSettingsPage = lazy(() => import('../pages/Admin/AdminPlatformSettingsPage'));
 const AdminSubscriptionsPage = lazy(() => import('../pages/Admin/AdminSubscriptionsPage'));
 const AdminPaymentsPage = lazy(() => import('../pages/Admin/AdminPaymentsPage'));
+const AdminInboxPage = lazy(() => import('../pages/Admin/AdminInboxPage'));
 const AdminBillingSettingsPage = lazy(() => import('../pages/Admin/AdminBillingSettingsPage'));
 const AdminInquiriesPage = lazy(() => import('../pages/Admin/AdminInquiriesPage'));
 const AdminNotificationsPage = lazy(() => import('../pages/Admin/AdminNotificationsPage'));
@@ -130,6 +131,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/admin/push-logs', roles: ['platform_admin'], element: <AdminPushLogsPage /> },
   { path: '/admin/platform-settings', roles: ['platform_admin'], element: <AdminPlatformSettingsPage /> },
   { path: '/admin/subscriptions', roles: ['platform_admin'], element: <AdminSubscriptionsPage /> },
+  { path: '/admin/inbox', roles: ['platform_admin'], element: <AdminInboxPage /> },
   { path: '/admin/payments', roles: ['platform_admin'], element: <AdminPaymentsPage /> },
   { path: '/admin/billing-settings', roles: ['platform_admin'], element: <AdminBillingSettingsPage /> },
   { path: '/admin/inquiries', roles: ['platform_admin'], element: <AdminInquiriesPage /> },

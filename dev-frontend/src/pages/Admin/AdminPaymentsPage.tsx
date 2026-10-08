@@ -13,8 +13,11 @@ import MatchReason from '../../components/Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 import { formatDay } from '../../utils/dateFormat';
+import { useSearchParams } from 'react-router-dom';
+import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 
-type PayStatus = 'all' | 'paid' | 'pending' | 'failed' | 'refunded' | 'canceled';
+// tax = 세금계산서 발행 필요(결제 완료 + 요청됨/실패) — 상태가 아니라 할 일 필터라 서버엔 ?tax=pending 으로 간다
+type PayStatus = 'all' | 'paid' | 'pending' | 'failed' | 'refunded' | 'canceled' | 'tax';
 
 interface PaymentRow {
   id: number;
@@ -29,6 +32,9 @@ interface PaymentRow {
   period_end: string | null;
   payer_name: string | null;
   payer_memo: string | null;
+  // 고객 입금 통보 — 관리자가 확인할 차례
+  notify_paid_at: string | null;
+  notify_payer_name: string | null;
   paid_at: string | null;
   refunded_at: string | null;
   refund_reason: string | null;
@@ -52,9 +58,10 @@ interface Summary {
   // 운영 #275 — 내부·테스터 결제는 매출에서 빠진다. 숨기지 않고 분리 노출.
   month_nonrevenue?: number;
   nonrevenue_paid?: number;
+  tax_pending?: number;
 }
 
-const STATUS_TABS: PayStatus[] = ['all', 'paid', 'pending', 'failed', 'refunded'];
+const STATUS_TABS: PayStatus[] = ['all', 'paid', 'pending', 'tax', 'failed', 'refunded'];
 
 const AdminPaymentsPage = () => {
   const { t, i18n } = useTranslation('admin');
@@ -71,7 +78,8 @@ const AdminPaymentsPage = () => {
     setLoading(true);
     try {
       const sp = new URLSearchParams();
-      if (activeStatus !== 'all') sp.set('status', activeStatus);
+      if (activeStatus === 'tax') sp.set('tax', 'pending');
+      else if (activeStatus !== 'all') sp.set('status', activeStatus);
       if (search.trim()) sp.set('q', search.trim());
       const r = await apiFetch(`/api/admin/payments?${sp.toString()}`);
       const j = await r.json();
@@ -85,6 +93,20 @@ const AdminPaymentsPage = () => {
   }, [activeStatus, search, t]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 확인 필요에서 넘어온 주소 — ?status=pending · ?tax=pending · ?payment=:id(그 행을 표시)
+  const [params] = useSearchParams();
+  const focusId = Number(params.get('payment')) || null;
+  useEffect(() => {
+    if (params.get('tax') === 'pending') { setActiveStatus('tax'); return; }
+    const st = params.get('status') as PayStatus | null;
+    if (st && (STATUS_TABS as string[]).includes(st)) setActiveStatus(st);
+  }, [params]);
+  useEffect(() => {
+    if (!focusId || loading) return;
+    const el = document.querySelector(`[data-payment-id="${focusId}"]`);
+    if (el) el.scrollIntoView({ block: 'center' });
+  }, [focusId, loading, items]);
 
   const fmtKRW = (n: number) => new Intl.NumberFormat('ko-KR').format(Math.round(n));
   const fmtDate = (s: string | null) =>
@@ -124,6 +146,7 @@ const AdminPaymentsPage = () => {
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
       await load();
+      refreshAdminTodo();
       setConfirm(null);
     } catch (e: unknown) {
       setError((e as Error).message || (t('payments.refundFailed', '환불 처리 실패') as string));
@@ -140,6 +163,7 @@ const AdminPaymentsPage = () => {
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
       await load();
+      refreshAdminTodo();
     } catch (e: unknown) {
       setError((e as Error).message || (t('payments.markPaidFailed', '입금 처리 실패') as string));
     } finally { setBusyId(null); }
@@ -155,6 +179,7 @@ const AdminPaymentsPage = () => {
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
       await load();
+      refreshAdminTodo();
     } catch (e: unknown) {
       setError((e as Error).message || (t('payments.taxIssueFailed', '세금계산서 발행 처리 실패') as string));
     } finally { setBusyId(null); }
@@ -194,9 +219,11 @@ const AdminPaymentsPage = () => {
         <TabBar role="tablist">
           {STATUS_TABS.map((s) => {
             const tabFb: Record<PayStatus, string> = {
-              all: '전체', paid: '완료', pending: '대기', failed: '실패', refunded: '환불', canceled: '취소',
+              all: '전체', paid: '완료', pending: '대기', failed: '실패', refunded: '환불', canceled: '취소', tax: '세금계산서 발행 필요',
             };
-            const cnt = s === 'all' ? (summary?.total || 0) : (summary as unknown as Record<string, number>)?.[s] || 0;
+            const cnt = s === 'all' ? (summary?.total || 0)
+              : s === 'tax' ? (summary?.tax_pending || 0)
+              : (summary as unknown as Record<string, number>)?.[s] || 0;
             return (
               <TabBtn key={s} role="tab" type="button" $active={activeStatus === s}
                 aria-selected={activeStatus === s} onClick={() => setActiveStatus(s)}>
@@ -227,12 +254,18 @@ const AdminPaymentsPage = () => {
                 { field: 'url', text: p.business?.slug },
               ], search);
               return (
-                <Row key={p.id}>
+                <Row key={p.id} data-payment-id={p.id} $focus={focusId === p.id} $notified={p.status === 'pending' && !!p.notify_paid_at}>
                   <RowLeft>
                     <RowTop>
                       <BizName>{p.business?.name ? <HighlightText text={p.business.name} query={search} /> : `(workspace ${p.business?.id})`}</BizName>
                       <StatusBadge $bg={c.bg} $fg={c.fg}>{statusLabel(p.status)}</StatusBadge>
                       {/* 비매출(내부·테스터) 행 표시 — 합계와 목록이 대조되게 (운영 #275) */}
+                      {p.status === 'pending' && p.notify_paid_at && (
+                        <StatusBadge $bg="#0D9488" $fg="#FFFFFF">{t('subs.notified', '입금 통보')}</StatusBadge>
+                      )}
+                      {p.status === 'paid' && p.tax_invoice_status === 'failed' && (
+                        <StatusBadge $bg="#FEE2E2" $fg="#B91C1C">{t('payments.taxFailed', '세금계산서 발행 실패')}</StatusBadge>
+                      )}
                       {p.is_revenue === false && (
                         <StatusBadge $bg="#F0FDFA" $fg="#0F766E">{t('payments.nonRevenueBadge', '비매출')}</StatusBadge>
                       )}
@@ -247,6 +280,9 @@ const AdminPaymentsPage = () => {
                       <span>{t('payments.created', '발행')}: {fmtDate(p.created_at)}</span>
                       {p.paid_at && <span>{t('payments.paid', '결제 완료')}: {fmtDate(p.paid_at)}</span>}
                       {p.refunded_at && <span>{t('payments.refunded', '환불')}: {fmtDate(p.refunded_at)}</span>}
+                      {p.status === 'pending' && p.notify_paid_at && (
+                        <span>{t('subs.notifiedAt', '입금 통보')}: {fmtDate(p.notify_paid_at)}{p.notify_payer_name ? ` · ${t('subs.payer', '입금자')} ${p.notify_payer_name}` : ''}</span>
+                      )}
                       {p.payer_name && <span>{t('payments.payer', '입금자')}: {p.payer_name}</span>}
                     </RowDates>
                     {p.refund_reason && <Reason>{p.refund_reason}</Reason>}
@@ -259,7 +295,7 @@ const AdminPaymentsPage = () => {
                         {busyId === p.id ? '...' : t('payments.markPaid', '입금 완료 처리')}
                       </PrimaryBtn>
                     )}
-                    {p.status === 'paid' && p.tax_invoice_status === 'requested' && (
+                    {p.status === 'paid' && (p.tax_invoice_status === 'requested' || p.tax_invoice_status === 'failed') && (
                       <PrimaryBtn type="button" disabled={busyId === p.id}
                         onClick={() => handleIssueTaxInvoice(p)}
                         title={p.tax_invoice_data?.biz_name || ''}>
@@ -345,10 +381,11 @@ const ErrorBox = styled.div`
   font-size: 0.8125rem; border: 1px solid #FECACA;
 `;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const Row = styled.article`
+const Row = styled.article<{ $focus?: boolean; $notified?: boolean }>`
   display: flex; gap: 16px; align-items: center;
-  padding: 14px 16px; background: #FFFFFF;
-  border: 1px solid #E2E8F0; border-radius: 10px;
+  padding: 14px 16px; background: ${p => p.$notified ? '#F0FDFA' : '#FFFFFF'};
+  border: 1px solid ${p => p.$focus ? '#14B8A6' : p.$notified ? '#5EEAD4' : '#E2E8F0'}; border-radius: 10px;
+  ${p => p.$focus ? 'box-shadow: 0 0 0 3px rgba(20,184,166,0.15);' : ''}
   @media (max-width: 768px) { flex-direction: column; align-items: stretch; }
 `;
 const RowLeft = styled.div`flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;`;

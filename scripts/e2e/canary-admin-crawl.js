@@ -24,7 +24,7 @@ const ROUTES = [
   '/admin/dashboard', '/admin/businesses', '/admin/feedback', '/admin/dev-status', '/admin/guide',
   '/admin/updates', '/admin/email-logs', '/admin/push-logs', '/admin/platform-settings',
   '/admin/subscriptions', '/admin/payments', '/admin/billing-settings', '/admin/inquiries',
-  '/admin/notifications', '/admin/audit-logs', '/admin/users',
+  '/admin/notifications', '/admin/audit-logs', '/admin/users', '/admin/inbox',
 ];
 const MIN_TEXT = 60;   // 이보다 짧으면 사실상 빈 화면
 

@@ -18,6 +18,11 @@ const { isExemptNow, exemptBusinessIds } = require('../services/billingExemptVie
 // 구독·결제 라우트는 절출됨(god-file 래칫). 이 라우터에 마운트해 인증 게이트를 공유한다.
 router.use('/', require('./admin_billing'));
 
+// 확인 필요 — 관리자가 처리할 일(입금 통보·세금계산서·문의·피드백). 사이드바 배지의 유일한 원천.
+router.get('/todo', async (req, res, next) => {
+  try { return successResponse(res, await require('../services/adminTodo').collectAdminTodo()); } catch (err) { next(err); }
+});
+
 
 
 // ─── 관리자 조작 → 워크스페이스에 안내 (Irene 2026-08-17: "필요한 안내는 해야지") ───

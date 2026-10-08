@@ -13,6 +13,8 @@ import EmptyState from '../../components/Common/EmptyState';
 import HighlightText from '../../components/Common/HighlightText';
 import MatchReason from '../../components/Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
+import { useSearchParams } from 'react-router-dom';
+import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 import { apiFetch } from '../../contexts/AuthContext';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
@@ -88,6 +90,15 @@ const AdminFeedbackPage = () => {
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void loadCounts(); }, [loadCounts]);
 
+  // 확인 필요에서 넘어온 주소 — ?status=pending|reviewing&id=:id (그 탭을 열고 그 건을 연다)
+  const [params] = useSearchParams();
+  useEffect(() => {
+    const st = params.get('status') as Status | null;
+    if (st && STATUSES.includes(st)) setActiveStatus(st);
+    const id = params.get('id');
+    if (id && /^\d+$/.test(id)) setDetailId(Number(id));
+  }, [params]);
+
   // detail 선택 시 폼 prefill
   useEffect(() => {
     const it = items.find(x => x.id === detailId);
@@ -110,6 +121,7 @@ const AdminFeedbackPage = () => {
       });
       setDetailId(null);
       await Promise.all([load(), loadCounts()]);
+      refreshAdminTodo();
     } finally { setSubmitting(false); }
   };
 

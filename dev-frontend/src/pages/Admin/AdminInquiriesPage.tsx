@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import DiagnosisStatsCard from '../../components/Admin/DiagnosisStatsCard';
 import { useSearchParams } from 'react-router-dom';
+import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 import PageShell from '../../components/Layout/PageShell';
 import { Tabs, Tab } from '../../components/Common/TabComponents';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -73,6 +74,9 @@ const AdminInquiriesPage = () => {
 
   // URL ?inquiry=:id 으로 직접 진입 시 (관리자 알림 메일의 CTA)
   useEffect(() => {
+    // ?status= — 확인 필요에서 «진행 중» 문의를 누르면 그 탭이어야 목록에서 찾는다
+    const st = params.get('status') as Status | null;
+    if (st && STATUSES.includes(st)) setActiveStatus(st);
     const idParam = params.get('inquiry');
     if (idParam && /^\d+$/.test(idParam)) setDetailId(Number(idParam));
   }, [params]);
@@ -101,6 +105,7 @@ const AdminInquiriesPage = () => {
       const j = await r.json();
       if (j.success) {
         await load();
+        refreshAdminTodo();
         closeDetail();
       }
     } finally { setSubmitting(false); }

@@ -171,7 +171,13 @@
     "beta": "Beta",
     "betaHint": "This menu is still being refined",
     "betaNotice": "Beta — automatic sorting may be wrong.",
-    "betaFeedback": "Send feedback"
+    "betaFeedback": "Send feedback",
+    "adminSecSupport": "Support",
+    "adminSecBilling": "Billing",
+    "adminSecPeople": "Users & workspaces",
+    "adminSecContent": "Content",
+    "adminSecMonitor": "Insights & monitoring",
+    "adminSecSettings": "Settings"
   },
   "user": {
     "profile": "My Profile",

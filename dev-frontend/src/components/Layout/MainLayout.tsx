@@ -1345,19 +1345,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   <NavIcon $isCollapsed={isCollapsed}><IconDashboard /></NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.dashboard')}</NavLabel>
                 </NavItem>
+                {/* 확인 필요 — 관리자가 처리할 일(입금 통보·세금계산서·문의·피드백). 숫자는 /api/admin/todo 한 곳에서 온다. */}
+                <NavItem to="/admin/inbox" $isCollapsed={isCollapsed} $active={isActive('/admin/inbox')} data-testid="nav-admin-inbox"
+                  title={isCollapsed ? `${t('nav.inbox', '확인 필요')}${adminCounts.total > 0 ? ` (${adminCounts.total})` : ''}` : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}><IconTodo /></NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.inbox', '확인 필요')}</NavLabel>
+                  {adminCounts.total > 0 && (
+                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-admin-inbox"
+                      aria-label={t('nav.inboxCount', { count: adminCounts.total, defaultValue: '미처리 {{count}}건' }) as string}>
+                      {adminCounts.total > 99 ? '99+' : adminCounts.total}
+                    </InboxBadge>
+                  )}
+                </NavItem>
               </NavSection>
               <NavSection>
-                <NavTitle $isCollapsed={isCollapsed}>{t('nav.sectionAdmin')}</NavTitle>
-                <NavItem to="/admin/users" $isCollapsed={isCollapsed} $active={isActive('/admin/users')}
-                  title={isCollapsed ? t('nav.users') : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}><IconUsers /></NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.users')}</NavLabel>
-                </NavItem>
-                <NavItem to="/admin/businesses" $isCollapsed={isCollapsed} $active={isActive('/admin/businesses')}
-                  title={isCollapsed ? t('nav.businesses') : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}><IconBusinesses /></NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.businesses')}</NavLabel>
-                </NavItem>
+                <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecSupport','고객 응대')}</NavTitle>
                 <NavItem to="/admin/inquiries" $isCollapsed={isCollapsed} $active={isActive('/admin/inquiries')}
                   title={isCollapsed ? `${t('nav.inquiries', '문의 인박스')}${adminCounts.inquiriesPending > 0 ? ` (${adminCounts.inquiriesPending})` : ''}` : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
@@ -1382,30 +1384,49 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     </InboxBadge>
                   )}
                 </NavItem>
-                {/* 개발 현황 — 배포마다 무엇을 했고 무엇이 열려 있는지. 사용자용 릴리즈노트와 다른 화면이다. */}
-                <NavItem to="/admin/dev-status" $isCollapsed={isCollapsed} $active={isActive('/admin/dev-status')}
-                  title={isCollapsed ? t('nav.devStatus', '개발 현황') : undefined}>
+              </NavSection>
+              <NavSection>
+                <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecBilling','결제·구독')}</NavTitle>
+                <NavItem to="/admin/subscriptions" $isCollapsed={isCollapsed} $active={isActive('/admin/subscriptions')}
+                  title={isCollapsed ? `${t('nav.subscriptions', '구독 관리')}${adminCounts.subscriptions > 0 ? ` (${adminCounts.subscriptions})` : ''}` : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
                   </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.devStatus', '개발 현황')}</NavLabel>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.subscriptions', '구독 관리')}</NavLabel>
+                  {adminCounts.subscriptions > 0 && (
+                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-admin-subscriptions" aria-label={`${t('nav.subscriptions', '구독 관리')} ${adminCounts.subscriptions}`}>
+                      {adminCounts.subscriptions > 99 ? '99+' : adminCounts.subscriptions}
+                    </InboxBadge>
+                  )}
                 </NavItem>
-                {/* 랜딩 방문 — 쿠키 없는 우리 집계(공개 소개·인사이트·Q위키만). 2026-09-21 */}
-                <NavItem to="/admin/landing-visits" $isCollapsed={isCollapsed} $active={isActive('/admin/landing-visits')}
-                  title={isCollapsed ? t('nav.landingVisits', '랜딩 방문') : undefined}>
+                <NavItem to="/admin/payments" $isCollapsed={isCollapsed} $active={isActive('/admin/payments')}
+                  title={isCollapsed ? `${t('nav.payments', '결제 이력')}${adminCounts.payments > 0 ? ` (${adminCounts.payments})` : ''}` : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                   </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.landingVisits', '랜딩 방문')}</NavLabel>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.payments', '결제 이력')}</NavLabel>
+                  {adminCounts.payments > 0 && (
+                    <InboxBadge $collapsed={isCollapsed} data-testid="nav-badge-admin-payments" aria-label={`${t('nav.payments', '결제 이력')} ${adminCounts.payments}`}>
+                      {adminCounts.payments > 99 ? '99+' : adminCounts.payments}
+                    </InboxBadge>
+                  )}
                 </NavItem>
-                {/* Cue 질문 분석 — 주제 통계 + 가명 원문(30일). user/business id 없는 원장. 2026-10-07 */}
-                <NavItem to="/admin/cue-questions" $isCollapsed={isCollapsed} $active={isActive('/admin/cue-questions')}
-                  title={isCollapsed ? t('nav.cueQuestions', 'Cue 질문 분석') : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                  </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.cueQuestions', 'Cue 질문 분석')}</NavLabel>
+              </NavSection>
+              <NavSection>
+                <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecPeople','사용자·워크스페이스')}</NavTitle>
+                <NavItem to="/admin/users" $isCollapsed={isCollapsed} $active={isActive('/admin/users')}
+                  title={isCollapsed ? t('nav.users') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}><IconUsers /></NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.users')}</NavLabel>
                 </NavItem>
+                <NavItem to="/admin/businesses" $isCollapsed={isCollapsed} $active={isActive('/admin/businesses')}
+                  title={isCollapsed ? t('nav.businesses') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}><IconBusinesses /></NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.businesses')}</NavLabel>
+                </NavItem>
+              </NavSection>
+              <NavSection>
+                <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecContent','콘텐츠')}</NavTitle>
                 {/* 도움말(Q위키) — 개발 사이클이 seed-wiki-content.js 로 채우는 쪽. 여기서는 확인·수정. */}
                 <NavItem to="/admin/guide" $isCollapsed={isCollapsed} $active={isActive('/admin/guide')}
                   title={isCollapsed ? t('nav.wiki', '도움말 관리') : undefined}>
@@ -1430,6 +1451,33 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.announcement', '공지 배너')}</NavLabel>
                 </NavItem>
+              </NavSection>
+              <NavSection>
+                <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecMonitor','분석·모니터링')}</NavTitle>
+                {/* 개발 현황 — 배포마다 무엇을 했고 무엇이 열려 있는지. 사용자용 릴리즈노트와 다른 화면이다. */}
+                <NavItem to="/admin/dev-status" $isCollapsed={isCollapsed} $active={isActive('/admin/dev-status')}
+                  title={isCollapsed ? t('nav.devStatus', '개발 현황') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.devStatus', '개발 현황')}</NavLabel>
+                </NavItem>
+                {/* 랜딩 방문 — 쿠키 없는 우리 집계(공개 소개·인사이트·Q위키만). 2026-09-21 */}
+                <NavItem to="/admin/landing-visits" $isCollapsed={isCollapsed} $active={isActive('/admin/landing-visits')}
+                  title={isCollapsed ? t('nav.landingVisits', '랜딩 방문') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.landingVisits', '랜딩 방문')}</NavLabel>
+                </NavItem>
+                {/* Cue 질문 분석 — 주제 통계 + 가명 원문(30일). user/business id 없는 원장. 2026-10-07 */}
+                <NavItem to="/admin/cue-questions" $isCollapsed={isCollapsed} $active={isActive('/admin/cue-questions')}
+                  title={isCollapsed ? t('nav.cueQuestions', 'Cue 질문 분석') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.cueQuestions', 'Cue 질문 분석')}</NavLabel>
+                </NavItem>
                 <NavItem to="/admin/email-logs" $isCollapsed={isCollapsed} $active={isActive('/admin/email-logs')}
                   title={isCollapsed ? t('nav.emailLogs', '메일 발송 모니터링') : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
@@ -1444,26 +1492,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.pushLogs', { defaultValue: 'Push 발송 모니터링' }) as string}</NavLabel>
                 </NavItem>
+                <NavItem to="/admin/audit-logs" $isCollapsed={isCollapsed} $active={isActive('/admin/audit-logs')}
+                  title={isCollapsed ? t('nav.adminAuditLogs', '감사 로그') : undefined}>
+                  <NavIcon $isCollapsed={isCollapsed}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+                  </NavIcon>
+                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.adminAuditLogs', '감사 로그')}</NavLabel>
+                </NavItem>
+              </NavSection>
+              <NavSection>
+                <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecSettings','설정')}</NavTitle>
                 <NavItem to="/admin/platform-settings" $isCollapsed={isCollapsed} $active={isActive('/admin/platform-settings')}
                   title={isCollapsed ? t('nav.platformSettings', '플랫폼 설정') : undefined}>
                   <NavIcon $isCollapsed={isCollapsed}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.platformSettings', '플랫폼 설정')}</NavLabel>
-                </NavItem>
-                <NavItem to="/admin/subscriptions" $isCollapsed={isCollapsed} $active={isActive('/admin/subscriptions')}
-                  title={isCollapsed ? t('nav.subscriptions', '구독 관리') : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-                  </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.subscriptions', '구독 관리')}</NavLabel>
-                </NavItem>
-                <NavItem to="/admin/payments" $isCollapsed={isCollapsed} $active={isActive('/admin/payments')}
-                  title={isCollapsed ? t('nav.payments', '결제 이력') : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                  </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.payments', '결제 이력')}</NavLabel>
                 </NavItem>
                 <NavItem to="/admin/billing-settings" $isCollapsed={isCollapsed} $active={isActive('/admin/billing-settings')}
                   title={isCollapsed ? t('nav.billingSettings', '결제 설정') : undefined}>
@@ -1478,13 +1522,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                   </NavIcon>
                   <NavLabel $isCollapsed={isCollapsed}>{t('nav.adminNotifications', '내 알림 설정')}</NavLabel>
-                </NavItem>
-                <NavItem to="/admin/audit-logs" $isCollapsed={isCollapsed} $active={isActive('/admin/audit-logs')}
-                  title={isCollapsed ? t('nav.adminAuditLogs', '감사 로그') : undefined}>
-                  <NavIcon $isCollapsed={isCollapsed}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
-                  </NavIcon>
-                  <NavLabel $isCollapsed={isCollapsed}>{t('nav.adminAuditLogs', '감사 로그')}</NavLabel>
                 </NavItem>
               </NavSection>
               {/* nav-registry:admin:end */}

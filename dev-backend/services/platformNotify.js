@@ -4,14 +4,19 @@
 // 각 이벤트마다 routes/inquiries.js, auth.js, services/billing.js 등에서 호출.
 //
 // 채널 정책:
-//   - inbox: 미구현 (사이드바 알림 인박스가 platform-wide 아직 없음 — 별도 사이클)
-//   - push: 미구현 (web push subscription 이 워크스페이스 단위라 platform-wide 별도)
 //   - email: 즉시 발송 (notification_prefs business_id NULL + email 채널 isAllowed 체크)
+//   - inbox·push: `notify()` 한 곳으로 보낸다 (business_id NULL = 플랫폼 알림 — 어느 워크스페이스 창에서든 종에 뜬다).
+//     ★ 2026-10-08 — 여태 «미구현» 이었다. 그런데 관리자 알림 설정 화면(/admin/notifications)은 인박스·디바이스
+//       토글을 보여 줘서 **받는 것처럼 보였고**, 입금 통보는 메일함에만 쌓였다(Irene: "입금확인해야 하는거 알림이 안떠").
+//       메일은 위에서 따로 보내므로 notify 에는 skipChannels:['email'] — 안 그러면 두 통이 된다.
+//   - client_crash 는 메일만 (설정 화면 설명과 같다 — 같은 오류가 몰려 종을 덮지 않게).
 //
 // notification_prefs row 가 없으면 default ON (열린 문화). 명시적 OFF 만 차단.
 
 const { User } = require('../models');
 const APP_URL = process.env.APP_URL || 'https://planq.kr';
+
+const EMAIL_ONLY_KINDS = new Set(['client_crash']);
 
 async function notifyPlatformAdmins({ eventKind, title, body, link, ctaLabel, relatedEntityId }) {
   try {
@@ -37,6 +42,19 @@ async function notifyPlatformAdmins({ eventKind, title, body, link, ctaLabel, re
         relatedEntityId: relatedEntityId || null,
       }).catch(() => null);
       sent += 1;
+    }
+    if (!EMAIL_ONLY_KINDS.has(eventKind)) {
+      const { notify } = notifications;
+      await Promise.all(admins.map((adm) => notify({
+        userId: adm.id,
+        businessId: null,
+        eventKind,
+        title,
+        body,
+        link,
+        ctaLabel,
+        skipChannels: ['email'],
+      }).catch((e) => console.warn('[platformNotify inapp]', eventKind, e.message))));
     }
     return { sent, skipped };
   } catch (e) {

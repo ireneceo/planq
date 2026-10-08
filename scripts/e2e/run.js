@@ -232,6 +232,8 @@ const SUITES = {
   mailplain: () => require('./canary-mail-plaintext'),
   seriesscope: () => require('./canary-series-scope'),
   admincrawl: () => require('./canary-admin-crawl'),
+  // 관리자 «확인 필요»·메뉴 배지 — 입금 통보가 보이는가 (2026-10-08 신고: "입금확인해야 하는거 알림이 안떠")
+  admininbox: () => require('./canary-admin-inbox'),
   // 개발 현황이 **내용을 보여주는가** (2026-09-18 신고: "다 비어서 나와").
   //   JSON 의 모양과 화면이 읽는 필드가 **합쳐진 뒤에만** 존재하는 결함이라 정적 검사로 안 잡힌다.
   //   '—' 가 아니라 심은 문장이 실제로 보이는지로 판정한다(발행 검증 양성/음성 대조군 포함).

@@ -224,6 +224,11 @@ router.get('/payments', async (req, res, next) => {
     const where = {};
     if (status !== 'all') where.status = status;
     if (method !== 'all') where.method = method;
+    // ?tax=pending — 세금계산서 발행 필요(결제 완료 + 요청됨/실패). 확인 필요(services/adminTodo)와 같은 술어.
+    if (req.query.tax === 'pending') {
+      where.status = 'paid';
+      where.tax_invoice_status = { [Op.in]: ['requested', 'failed'] };
+    }
 
     const include = [
       {
@@ -266,6 +271,9 @@ router.get('/payments', async (req, res, next) => {
       period_end: p.period_end,
       payer_name: p.payer_name,
       payer_memo: p.payer_memo,
+      // 고객 입금 통보 — 관리자가 확인할 차례인 행 (구독 관리와 같은 표시)
+      notify_paid_at: p.notify_paid_at,
+      notify_payer_name: p.notify_payer_name,
       paid_at: p.paid_at,
       refunded_at: p.refunded_at,
       refund_reason: p.refund_reason,
@@ -300,6 +308,8 @@ router.get('/payments/summary', async (req, res, next) => {
     }
     // 비매출(내부·테스터) 결제 건수 — 위 status 카운트에 섞여 있으므로 따로 노출한다.
     // 숨기지 않고 분리한다: admin 이 합계와 목록을 대조할 때 숫자가 안 맞아 보이면 안 된다.
+    // 세금계산서 발행 필요 — ?tax=pending 과 같은 술어
+    out.tax_pending = Number(await Payment.count({ where: { status: 'paid', tax_invoice_status: { [Op.in]: ['requested', 'failed'] } } }));
     out.nonrevenue_paid = Number(await Payment.count({ where: { status: 'paid', is_revenue: false } }));
 
     // 이번 달 수익 (paid 중 실매출만) + 비매출 분리 (운영 #275)

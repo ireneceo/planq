@@ -112,26 +112,28 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
 
 // ── 플랫폼 관리 메뉴 (사이드바 /admin 모드) ──
 export const ADMIN_MENUS: NavMenuEntry[] = [
+  // 순서 = 사이드바 순서 (2026-10-08 정리 — 확인 필요 · 고객 응대 · 결제·구독 · 사용자 · 콘텐츠 · 모니터링 · 설정)
   { key: 'admin-dashboard', to: '/admin/dashboard', labelKey: 'nav.dashboard', section: 'admin', roles: 'any' },
-  { key: 'admin-users', to: '/admin/users', labelKey: 'nav.users', section: 'admin', roles: 'any' },
-  { key: 'admin-businesses', to: '/admin/businesses', labelKey: 'nav.businesses', section: 'admin', roles: 'any' },
+  { key: 'admin-inbox', to: '/admin/inbox', labelKey: 'nav.inbox', section: 'admin', roles: 'any' },
   { key: 'admin-inquiries', to: '/admin/inquiries', labelKey: 'nav.inquiries', section: 'admin', roles: 'any' },
   { key: 'admin-feedback', to: '/admin/feedback', labelKey: 'nav.feedback', section: 'admin', roles: 'any' },
+  { key: 'admin-subscriptions', to: '/admin/subscriptions', labelKey: 'nav.subscriptions', section: 'admin', roles: 'any' },
+  { key: 'admin-payments', to: '/admin/payments', labelKey: 'nav.payments', section: 'admin', roles: 'any' },
+  { key: 'admin-users', to: '/admin/users', labelKey: 'nav.users', section: 'admin', roles: 'any' },
+  { key: 'admin-businesses', to: '/admin/businesses', labelKey: 'nav.businesses', section: 'admin', roles: 'any' },
+  { key: 'admin-wiki', to: '/admin/guide', labelKey: 'nav.wiki', section: 'admin', roles: 'any' },
+  // ★ 사이드바(MainLayout)에는 있는데 이 표에 없었다 — 표가 단일 원천이므로 빠지면
+  //   탭 이름도 `+` 검색 목록도 같이 빠진다(2026-09-17 전수 검사로 발견).
+  { key: 'admin-updates', to: '/admin/updates', labelKey: 'nav.updates', section: 'admin', roles: 'any' },
   { key: 'admin-dev-status', to: '/admin/dev-status', labelKey: 'nav.devStatus', section: 'admin', roles: 'any' },
   { key: 'admin-landing-visits', to: '/admin/landing-visits', labelKey: 'nav.landingVisits', section: 'admin', roles: 'any' },
   { key: 'admin-cue-questions', to: '/admin/cue-questions', labelKey: 'nav.cueQuestions', section: 'admin', roles: 'any' },
-  { key: 'admin-wiki', to: '/admin/guide', labelKey: 'nav.wiki', section: 'admin', roles: 'any' },
   { key: 'admin-email-logs', to: '/admin/email-logs', labelKey: 'nav.emailLogs', section: 'admin', roles: 'any' },
   { key: 'admin-push-logs', to: '/admin/push-logs', labelKey: 'nav.pushLogs', section: 'admin', roles: 'any' },
+  { key: 'admin-audit-logs', to: '/admin/audit-logs', labelKey: 'nav.adminAuditLogs', section: 'admin', roles: 'any' },
   { key: 'admin-platform-settings', to: '/admin/platform-settings', labelKey: 'nav.platformSettings', section: 'admin', roles: 'any' },
-  { key: 'admin-subscriptions', to: '/admin/subscriptions', labelKey: 'nav.subscriptions', section: 'admin', roles: 'any' },
-  { key: 'admin-payments', to: '/admin/payments', labelKey: 'nav.payments', section: 'admin', roles: 'any' },
   { key: 'admin-billing-settings', to: '/admin/billing-settings', labelKey: 'nav.billingSettings', section: 'admin', roles: 'any' },
   { key: 'admin-notifications', to: '/admin/notifications', labelKey: 'nav.adminNotifications', section: 'admin', roles: 'any' },
-  { key: 'admin-audit-logs', to: '/admin/audit-logs', labelKey: 'nav.adminAuditLogs', section: 'admin', roles: 'any' },
-  // ★ 사이드바(MainLayout:1356)에는 있는데 이 표에 없었다 — 표가 단일 원천이므로 빠지면
-  //   탭 이름도 `+` 검색 목록도 같이 빠진다(2026-09-17 전수 검사로 발견).
-  { key: 'admin-updates', to: '/admin/updates', labelKey: 'nav.updates', section: 'admin', roles: 'any' },
 ];
 
 /**

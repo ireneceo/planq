@@ -1436,7 +1436,7 @@
     "eventDesc": {
       "inquiry": "Someone left an inquiry via the landing form, guest chat or in the app",
       "signup": "A new user or workspace finished registering",
-      "payment": "Payment confirmed (mark-paid), failed payments, etc.",
+      "payment": "Customer deposit reports (needs checking), confirmed deposits, failed payments",
       "subscription": "Plan change / cancellation / downgrade",
       "trial": "14-day trial expired or ends in 7 days",
       "feedback": "Bugs, improvements or feature requests users submitted",

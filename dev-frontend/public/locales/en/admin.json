@@ -120,7 +120,8 @@
       "pending": "Pending",
       "failed": "Failed",
       "refunded": "Refunded",
-      "canceled": "Canceled"
+      "canceled": "Canceled",
+      "tax": "Tax invoice due"
     },
     "status": {
       "pending": "Pending",
@@ -143,7 +144,8 @@
     "markPaidFailed": "Failed to mark as paid",
     "refundReason": "Admin refund",
     "taxIssued": "Tax invoice issued",
-    "taxIssueFailed": "Failed to mark tax invoice as issued"
+    "taxIssueFailed": "Failed to mark tax invoice as issued",
+    "taxFailed": "Tax invoice failed"
   },
   "subs": {
     "title": "Subscriptions",
@@ -623,5 +625,47 @@
       "total": "Sent in 7 days"
     },
     "title": "Push delivery monitor"
+  },
+  "inbox": {
+    "title": "Needs attention",
+    "hint": "Things an admin needs to handle. Click one to open the screen where you handle it — it leaves this list once done.",
+    "tab": {
+      "all": "All",
+      "deposit": "Deposits",
+      "tax_invoice": "Tax invoices",
+      "inquiry": "Inquiries",
+      "feedback": "Feedback"
+    },
+    "type": {
+      "deposit_plan": "Deposit",
+      "deposit_addon": "Deposit (add-on)",
+      "tax_invoice": "Tax invoice",
+      "inquiry": "Inquiry",
+      "feedback": "Feedback"
+    },
+    "action": {
+      "deposit_plan": "Confirm deposit",
+      "deposit_addon": "Confirm deposit",
+      "tax_invoice": "Issue",
+      "inquiry": "Reply",
+      "feedback": "Reply"
+    },
+    "status": {
+      "new": "New",
+      "in_progress": "In progress",
+      "pending": "Received",
+      "reviewing": "Reviewing"
+    },
+    "krw": "KRW {{n}}",
+    "payer": "Payer {{name}}",
+    "notifiedAt": "Deposit reported {{date}}",
+    "taxFailed": "Issuing failed — issue again",
+    "taxRequested": "Paid {{date}} · invoice requested",
+    "feedbackInquiry": "User inquiry",
+    "unknownWorkspace": "Workspace",
+    "loadFailed": "Couldn't load the list",
+    "retry": "Try again",
+    "empty": "Nothing to handle",
+    "emptyDesc": "Deposit reports, tax invoice requests, inquiries and feedback will show up here."
   }
 }

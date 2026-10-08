@@ -14,6 +14,8 @@ import MatchReason from '../../components/Common/MatchReason';
 import { pickMatch } from '../../utils/searchMatch';
 import { apiFetch } from '../../contexts/AuthContext';
 import { formatDay } from '../../utils/dateFormat';
+import { useSearchParams } from 'react-router-dom';
+import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
 
 type SubStatus = 'all' | 'active' | 'pending' | 'past_due' | 'grace' | 'demoted' | 'canceled';
 
@@ -91,6 +93,13 @@ const AdminSubscriptionsPage = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // ?status=pending — 확인 필요·알림 메일의 «구독 확인» 이 여기로 온다. 초기값으로만 읽으면 keep-alive 탭에서 안 걸린다.
+  const [params] = useSearchParams();
+  useEffect(() => {
+    const st = params.get('status') as SubStatus | null;
+    if (st && (STATUS_TABS as string[]).includes(st)) setActiveStatus(st);
+  }, [params]);
+
   const fmtKRW = (n: number) => new Intl.NumberFormat('ko-KR').format(Math.round(n));
   const fmtDate = (s: string | null) =>
     s ? formatDay(s, { locale: i18n.language === 'ko' ? 'ko-KR' : 'en-US', tz: 'Asia/Seoul', year: 'always' }) : '—';
@@ -121,6 +130,7 @@ const AdminSubscriptionsPage = () => {
       const j = await r.json();
       if (!j.success) throw new Error(j.message || 'failed');
       await load();
+      refreshAdminTodo();
       setConfirm(null);
     } catch (e: unknown) {
       setError((e as Error).message || (t('subs.markPaidFailed', 'mark-paid 실패') as string));
