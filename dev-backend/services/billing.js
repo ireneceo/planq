@@ -52,6 +52,90 @@ function getPlanPrice(planCode, cycle, currency = 'KRW') {
   return priceMap?.[currency] ?? 0;
 }
 
+// ─── 결제 확정 가능성 (FIX_0AB A-②) ───────────────────────────────────────
+// 살아 있는 구독 상태. 이 밖의 구독(replaced/demoted/canceled)에 매달린 pending 결제는 원칙적으로 확정하지 않는다
+//   — 죽은 구독이 부활하며 현 플랜을 옛 플랜으로 뒤집는다(N+94).
+const LIVE_SUB = ['pending', 'active', 'past_due', 'grace'];
+
+// 결제를 확정해도 되는 구독인가 — 살아 있거나, **잠금으로만** 닫힌 뒤 후계가 없고 플랜이 같은 것.
+//   세 조건을 한 곳에 둔다: markPaymentPaid(확정) · findPayablePending(/status) 이 같은 함수를 부른다.
+//   잠금 메일은 «입금하면 복구» 를 약속했다 — 고객이 받은 입금 안내(결제 번호·금액)는 그 Payment 것이다.
+async function subscriptionConfirmability(sub, biz, { transaction } = {}) {
+  if (LIVE_SUB.includes(sub.status)) return { ok: true, revive: false };
+  if (sub.status !== 'canceled' || sub.cancel_reason !== 'trial_expired_no_payment') return { ok: false, reason: 'subscription_superseded' };
+  const live = await Subscription.count({ where: { business_id: sub.business_id, status: { [Op.in]: LIVE_SUB } }, transaction });
+  if (live > 0) return { ok: false, reason: 'subscription_superseded' };
+  if (biz && biz.plan !== sub.plan_code) return { ok: false, reason: 'plan_mismatch' };
+  return { ok: true, revive: true };
+}
+
+// ─── 기간 시작 — 한 함수 (FIX_0AB A-⑤) ────────────────────────────────────
+// markPaymentPaid(확정)와 /checkout·/status 미리보기가 같이 쓴다(화면이 따로 계산하면 갈라진다).
+//   체험 중 첫 결제면 남은 체험일을 잇는다(시작 = trial_ends_at). 끝은 computePeriodEnd 하나.
+function resolvePeriodStart({ sub, biz, now = new Date() }) {
+  if (sub.current_period_end && new Date(sub.current_period_end) > now) return new Date(sub.current_period_end);   // 연장
+  if (!sub.started_at && biz && biz.subscription_status === 'trialing' && biz.trial_ends_at && new Date(biz.trial_ends_at) > now) {
+    return new Date(biz.trial_ends_at);   // 체험 잔여 승계
+  }
+  return now;
+}
+
+function previewPeriod({ sub, biz, now = new Date() }) {
+  const start = resolvePeriodStart({ sub, biz, now });
+  const bonus = !sub.started_at ? (Number(sub.bonus_months) || 0) : 0;
+  return {
+    period_start: start,
+    period_end: computePeriodEnd(start, sub.cycle, bonus),
+    bonus_months: bonus,
+    trial_days_carried: (start > now && biz && biz.subscription_status === 'trialing' && !sub.started_at)
+      ? Math.ceil((start - now) / 86400e3) : 0,
+  };
+}
+
+// 화면이 «결제하세요» 로 띄워도 되는 pending 플랜 결제 — 확정될 수 있는 것만.
+//   addon 은 제외(kind 미필터 버그: 애드온 pending 이 플랜 결제창을 열고 있었다).
+//   반환: { payment, subscription, preview } | null
+async function findPayablePending(businessId) {
+  const rows = await Payment.findAll({
+    where: { business_id: businessId, kind: 'plan', status: 'pending' },
+    order: [['created_at', 'DESC']], limit: 5,
+  });
+  if (!rows.length) return null;
+  const biz = await Business.findByPk(businessId, { attributes: ['id', 'plan', 'subscription_status', 'trial_ends_at'] });
+  for (const p of rows) {
+    const sub = p.subscription_id ? await Subscription.findByPk(p.subscription_id) : null;
+    if (sub && (await subscriptionConfirmability(sub, biz)).ok) {
+      return { payment: p, subscription: sub, preview: previewPeriod({ sub, biz }) };
+    }
+  }
+  return null;
+}
+
+// 살아 있지 않은 구독(replaced/canceled/demoted)에 매달린 pending 플랜 결제를 닫는다.
+//   새 체크아웃이 열릴 때와 결제 확정(다른 active 를 replaced 로 민 뒤) 때 부른다.
+async function closeDeadPendingPayments(businessId, transaction) {
+  return Payment.update({ status: 'canceled', cancel_reason: 'subscription_not_live' }, {
+    where: {
+      business_id: businessId, kind: 'plan', status: 'pending',
+      subscription_id: { [Op.in]: sequelize.literal(`(SELECT id FROM subscriptions WHERE business_id = ${Number(businessId)} AND status IN ('replaced','canceled','demoted'))`) },
+    },
+    transaction,
+  });
+}
+
+// 갱신·첫 결제 금액 내역 — 플랜 줄 + 애드온 줄들(FIX_0AB A-④). payments.line_items 에 박제한다.
+function planLine(sub) {
+  const plan = PLANS.PLANS?.[sub.plan_code] || PLANS[sub.plan_code];
+  const amount = (sub.price != null && Number(sub.price) > 0)
+    ? Number(sub.price)
+    : Number(getPlanPrice(sub.plan_code, sub.cycle, sub.currency || 'KRW') || 0);
+  return { kind: 'plan', code: sub.plan_code, label: (plan && (plan.name_ko || plan.name)) || sub.plan_code, cycle: sub.cycle, amount };
+}
+function buildRenewalLines(sub, biz) {
+  const { renewalAddonLines } = require('./addonBilling');   // lazy — addonBilling 이 plan 엔진을 끌어온다
+  return [planLine(sub), ...renewalAddonLines(biz || {}, sub.cycle, sub.currency || 'KRW')];
+}
+
 // ─── 결제 면제 (운영 #275) ───
 // 판정은 plan 엔진 것을 그대로 재사용한다 — 여기서 컬럼을 다시 읽어 판정하면 술어가 갈라진다
 // (memory feedback_predicate_must_match_both_sides). plan.js 는 billing.js 를 require 하지 않으므로
@@ -193,6 +277,9 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
         transaction: t,
       }
     );
+    // 확정될 수 없는(살아 있지 않은 구독의) pending 결제를 닫는다 — 잠긴 오너가 다른 플랜으로 새로 체크아웃하면
+    //   옛 입금 안내는 자동으로 죽는다(FIX_0AB A-② 변경 3).
+    await closeDeadPendingPayments(businessId, t);
 
     // 보너스 개월 — 값은 정책표에서 읽고(요청 본문 신뢰 금지), 자격은 서버가 판정한다.
     //   자격: 이 워크스페이스에 **결제 완료된 플랜 결제가 한 건도 없을 때**(= 첫 유료 결제).
@@ -218,6 +305,8 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
       method: 'bank_transfer',
       status: 'pending',
       amount: price, currency, cycle,
+      // 금액 내역(모양 통일) — 첫 결제엔 플랜 줄 하나. 애드온은 일할 결제가 따로 있다(A-④).
+      line_items: [planLine(sub)],
       created_by: userId,
       // 세금계산서 (한국 사업자 옵션) — mark-paid 시 발행 시도
       tax_invoice_requested: !!(taxInvoice && taxInvoice.biz_no),
@@ -232,6 +321,13 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
     }, { transaction: t });
 
     await t.commit();
+
+    // 기간 미리보기 — 확정과 같은 함수(resolvePeriodStart·computePeriodEnd). 결제창이 «다음 결제일» 을 서버 값으로 적는다(A-⑤).
+    let preview = null;
+    try {
+      const pbiz = await Business.findByPk(businessId, { attributes: ['id', 'subscription_status', 'trial_ends_at'] });
+      preview = previewPeriod({ sub, biz: pbiz });
+    } catch (e) { console.warn('[billing] preview failed', e.message); }
 
     // 입금 안내 이메일 발송 (admin/owner 들에게)
     // 계좌는 PlanQ SaaS 결제 계좌 (platform_settings 우선 + .env fallback). 워크스페이스 자체 계좌가 아님.
@@ -266,7 +362,7 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
       console.error('[billing] email failed:', e.message);
     }
 
-    return { subscription: sub, payment: pay };
+    return { subscription: sub, payment: pay, preview };
   } catch (err) {
     if (!t.finished) await t.rollback();
     throw err;
@@ -291,20 +387,25 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
 
     const sub = await Subscription.findByPk(pay.subscription_id, { transaction: t, lock: t.LOCK.UPDATE });
     if (!sub) throw new Error('subscription_not_found');
-    // ★이미 replaced/demoted/canceled 된 죽은 구독에 매달린 고아 pending 결제를 mark-paid 하면
+    // biz 를 먼저 잠근다 — 확정 가능성(플랜 일치)·기간 시작(체험 잔여)이 둘 다 biz 를 본다.
+    const biz = await Business.findByPk(sub.business_id, { transaction: t, lock: t.LOCK.UPDATE });
+    // ★이미 replaced/demoted 된 죽은 구독에 매달린 고아 pending 결제를 mark-paid 하면
     //   죽은 구독이 부활하며 현 플랜을 옛 플랜으로 뒤집는다(N+94급). 살아있는 구독의 결제만 확정 허용.
-    if (!['pending', 'active', 'past_due', 'grace'].includes(sub.status)) {
+    //   예외 하나 — 잠금(trial_expired_no_payment)으로만 닫혔고 후계가 없고 플랜이 같으면 되살린다(A-②).
+    const conf = await subscriptionConfirmability(sub, biz, { transaction: t });
+    if (!conf.ok) {
       await t.rollback();
-      throw new Error('subscription_superseded');
+      const e = new Error(conf.reason); e.code = conf.reason; e.statusCode = 409;
+      throw e;
     }
 
     const now = new Date();
-    const periodStart = sub.current_period_end && sub.current_period_end > now
-      ? sub.current_period_end // 연장 (이미 active 상태에서 다음 cycle 결제)
-      : now;                   // 신규 활성화
-    // ★ 보너스는 **첫 결제(pending → active)에만**. 갱신 결제는 bonus_months 가 남아 있어도 0 으로 센다.
+    // 기간 시작 — 연장이면 기존 끝, 체험 중 첫 결제면 체험 끝, 아니면 지금(resolvePeriodStart 한 함수, A-⑤)
+    const periodStart = resolvePeriodStart({ sub, biz, now });
+    // ★ 보너스는 **첫 결제(한 번도 활성화된 적 없는 구독)에만**. 갱신 결제는 bonus_months 가 남아 있어도 0 으로 센다.
     //   wasFirst 를 기간 계산보다 먼저 읽는다 — sub.update() 뒤에 읽으면 항상 false 다.
-    const wasFirst = sub.status === 'pending';
+    //   started_at 으로 본다 — 되살린 구독(canceled)도 한 번도 활성화된 적이 없으므로 첫 결제다(A-②).
+    const wasFirst = !sub.started_at;
     const appliedBonusMonths = wasFirst ? (Number(sub.bonus_months) || 0) : 0;
     const periodEnd = computePeriodEnd(periodStart, sub.cycle, appliedBonusMonths);
 
@@ -345,6 +446,7 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
       current_period_end: periodEnd,
       next_billing_at: periodEnd,
       past_due_at: null, grace_started_at: null, grace_ends_at: null, demoted_at: null,
+      canceled_at: null, cancel_reason: null,   // 되살림(A-②) — 흔적은 감사 행 revived 로 남긴다
     }, { transaction: t });
 
     // ★새 구독이 활성화되면 그 워크스페이스의 '다른' 결제완료 구독(active/past_due/grace)을 supersede.
@@ -361,16 +463,19 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
         transaction: t,
       }
     );
+    // 방금 밀려난 구독에 매달린 pending 결제도 닫는다(A-② 변경 3)
+    await closeDeadPendingPayments(sub.business_id, t);
 
     // Business.plan 동기화 + 이력 기록
-    const biz = await Business.findByPk(sub.business_id, { transaction: t, lock: t.LOCK.UPDATE });
     const fromPlan = biz.plan;
     if (biz.plan !== sub.plan_code || biz.subscription_status !== 'active') {
       await biz.update({
         plan: sub.plan_code,
         subscription_status: 'active',
         plan_expires_at: periodEnd,
-        scheduled_plan: null,
+        // 예약 다운그레이드는 **플랜이 바뀐 결제만** 지운다. 같은 플랜 갱신은 예약을 다음 사이클로 넘긴다(A-③).
+        scheduled_plan: (sub.plan_code !== fromPlan) ? null : biz.scheduled_plan,
+        grace_ends_at: null,   // 잠금 뒤 남은 유예 시각이 planActive 를 흐리지 않게(A-②)
       }, { transaction: t });
     }
     if (wasFirst || fromPlan !== sub.plan_code) {
@@ -395,6 +500,7 @@ async function markPaymentPaid({ paymentId, markedByUserId, payerName, payerMemo
         method: pay.method, pg_provider: pay.stripe_payment_intent ? 'stripe' : null,
         pg_transaction_id: pay.stripe_payment_intent || null,
         amount: Number(pay.amount), source, was_first: wasFirst,
+        revived: conf.revive,
       },
     }, { transaction: t });
 
@@ -505,16 +611,17 @@ async function ensureRenewalPayment(sub) {
     return { payment: null, created: false, skipped: 'billing_exempt' };
   }
 
-  const existing = await Payment.findOne({
-    where: { subscription_id: sub.id, status: 'pending' },
-    order: [['created_at', 'DESC']],
-  });
-  if (existing) return { payment: existing, created: false };
+  // 이 구독에 이미 pending 이 있으면 그것(종전과 같은 순서 — 멱등)
+  const own = await Payment.findOne({ where: { subscription_id: sub.id, status: 'pending' }, order: [['created_at', 'DESC']] });
+  if (own) return { payment: own, created: false };
+
+  const { ADDONS } = PLANS;
+  const addonFields = Object.values(ADDONS || {}).map((a) => a.field);
+  const biz = await Business.findByPk(sub.business_id, { attributes: ['id', 'plan', 'scheduled_plan', ...addonFields] });
 
   // 가드 1 — 현재 워크스페이스 플랜과 다른 구독이면 갱신 청구를 만들지 않는다.
   // 옛/중복 구독(예: 업그레이드 후 남은 stale starter)에 청구를 만들면, 결제 시
   // markPaymentPaid 가 Business.plan 을 그 옛 플랜으로 덮어써 의도치 않은 강등이 된다. (N+94 운영 사고)
-  const biz = await Business.findByPk(sub.business_id, { attributes: ['id', 'plan'] });
   if (biz && biz.plan && biz.plan !== 'free' && biz.plan !== sub.plan_code) {
     return { payment: null, created: false, skipped: 'plan_mismatch' };
   }
@@ -530,26 +637,49 @@ async function ensureRenewalPayment(sub) {
   });
   if (superseding) return { payment: null, created: false, skipped: 'superseded' };
 
-  // 금액은 구독에 박제된 price 우선, 없으면 플랜표에서 산출
-  const amount = (sub.price != null && Number(sub.price) > 0)
-    ? sub.price
-    : getPlanPrice(sub.plan_code, sub.cycle, sub.currency || 'KRW');
-  if (amount == null || Number(amount) <= 0) return { payment: null, created: false };
+  // 예약 다운그레이드 적용(A-③) — 갱신 시점에 예약 플랜의 pending 구독을 만든다. 결제 확정(markPaymentPaid)이
+  //   «pending 구독 → active, 다른 active 를 밀어내고 Business.plan 을 그 플랜으로» 를 이미 한다. 새 분기 0.
+  const targetPlan = (biz && biz.scheduled_plan && biz.scheduled_plan !== sub.plan_code) ? biz.scheduled_plan : sub.plan_code;
+  // free 는 폐지 플랜 — 예약돼 있어도 청구를 만들지 않는다(기존 과금 종료 → 유예 → 강등 경로가 처리)
+  if (targetPlan === 'free') return { payment: null, created: false, skipped: 'scheduled_free' };
+  let targetSub = sub;
+  if (targetPlan !== sub.plan_code) {
+    const cur = sub.currency || 'KRW';
+    // 멱등: 이미 예약 플랜의 pending 구독이 있으면 재사용
+    targetSub = await Subscription.findOne({ where: { business_id: sub.business_id, status: 'pending', plan_code: targetPlan } })
+      || await Subscription.create({
+        business_id: sub.business_id, plan_code: targetPlan, cycle: sub.cycle, status: 'pending',
+        price: getPlanPrice(targetPlan, sub.cycle, cur), currency: cur, bonus_months: 0, created_by: null,
+      });
+  }
+
+  const existing = await Payment.findOne({
+    where: { subscription_id: targetSub.id, status: 'pending' },
+    order: [['created_at', 'DESC']],
+  });
+  if (existing) return { payment: existing, created: false };
+
+  // 금액 = 플랜(구독에 박제된 price 우선, 없으면 플랜표) + Σ애드온(연간 ×12) — 내역은 line_items 에 박제(A-④)
+  const lines = buildRenewalLines(targetSub, biz);
+  const { roundMoney } = require('./money');
+  const amount = roundMoney(lines.reduce((acc, l) => acc + Number(l.amount || 0), 0), targetSub.currency || 'KRW');
+  if (!(lines[0] && lines[0].amount > 0) || amount <= 0) return { payment: null, created: false };
 
   const pay = await Payment.create({
     business_id: sub.business_id,
-    subscription_id: sub.id,
+    subscription_id: targetSub.id,
     method: 'bank_transfer',
     status: 'pending',
     amount,
-    currency: sub.currency || 'KRW',
-    cycle: sub.cycle,
+    currency: targetSub.currency || 'KRW',
+    cycle: targetSub.cycle,
+    line_items: lines,
     created_by: null, // 시스템(cron) 생성
     tax_invoice_status: 'none',
   });
 
   // 입금 안내 이메일 — owner 들에게 (검증된 수신자만). 실패해도 cron 진행.
-  setImmediate(() => { notifyRenewalDue(sub, pay).catch(() => null); });
+  setImmediate(() => { notifyRenewalDue(targetSub, pay).catch(() => null); });
   return { payment: pay, created: true };
 }
 
@@ -769,6 +899,13 @@ async function buildReceiptPdf(paymentId) {
   const periodStart = pay.period_start ? new Date(pay.period_start).toISOString().slice(0, 10) : '—';
   const periodEnd = pay.period_end ? new Date(pay.period_end).toISOString().slice(0, 10) : '—';
   const paidAt = pay.paid_at ? new Date(pay.paid_at).toISOString().slice(0, 10) : '—';
+  // 금액 내역(A-④) — line_items 가 있으면 줄마다 한 행(플랜 / 애드온 라벨 × 수량), 없으면 종전 한 줄
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const money = (n) => (pay.currency === 'KRW' ? `${Number(n || 0).toLocaleString()}원` : `${pay.currency} ${Number(n || 0).toLocaleString()}`);
+  const lineItems = Array.isArray(pay.line_items) ? pay.line_items : null;
+  const lineRows = lineItems && lineItems.length ? lineItems.map((l) => (l.kind === 'addon'
+    ? `<tr><th>애드온</th><td>${esc(l.label)} × ${Number(l.quantity || 1)}${Number(l.months) > 1 ? ` × ${Number(l.months)}개월` : ''} — ${money(l.amount)}</td></tr>`
+    : `<tr><th>플랜</th><td>${esc(l.label || planLabel)} (${cycleLabel}) — ${money(l.amount)}</td></tr>`)).join('') : '';
 
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
     /* ★ 2026-08-27 글꼴 통일(고딕) — 옛 값은 'Malgun Gothic' 단독이었다. 그것은 윈도우 전용이라
@@ -787,7 +924,7 @@ async function buildReceiptPdf(paymentId) {
     <table>
       <tr><th>영수번호</th><td>R-${pay.id}-${new Date(pay.paid_at || pay.created_at).getFullYear()}</td></tr>
       <tr><th>결제일</th><td>${paidAt}</td></tr>
-      <tr><th>플랜</th><td>${planLabel} (${cycleLabel})</td></tr>
+      ${lineRows || `<tr><th>플랜</th><td>${planLabel} (${cycleLabel})</td></tr>`}
       <tr><th>이용 기간</th><td>${periodStart} ~ ${periodEnd}</td></tr>
       <tr><th>결제 금액</th><td class="amount">${amount}</td></tr>
       <tr><th>결제 방식</th><td>${pay.method === 'bank_transfer' ? '계좌이체' : pay.method}</td></tr>
@@ -834,6 +971,14 @@ module.exports = {
   buildReceiptPdf,
   getCurrentSubscription,
   getPlanPrice,
+  // FIX_0AB 0-A — 확정 가능성·미리보기·내역 (한 함수씩)
+  LIVE_SUB,
+  subscriptionConfirmability,
+  findPayablePending,
+  closeDeadPendingPayments,
+  resolvePeriodStart,
+  previewPeriod,
+  buildRenewalLines,
   // 결제 면제 (운영 #275) — 판정/복원 단일 착지점
   isBillingExempt,
   restoreExemptSubscription,

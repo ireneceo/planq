@@ -393,7 +393,7 @@ function requireFeature(featureKey) {
  * 플랜 변경 + 이력 기록 (트랜잭션 안전)
  * reason: 'upgrade' | 'downgrade' | 'trial_start' | 'trial_end' | 'expire' | 'admin_adjust' | 'payment_failed' | 'refund'
  */
-async function changePlan(businessId, { toPlan, reason, changedBy = null, note = null, expiresAt = null, trialEndsAt = null, graceEndsAt = null, scheduledPlan = null }) {
+async function changePlan(businessId, { toPlan, reason, changedBy = null, note = null, expiresAt = null, trialEndsAt = null, graceEndsAt = null, scheduledPlan = null, subscriptionStatus = null }) {
   const biz = await Business.findByPk(businessId);
   if (!biz) throw new Error('business_not_found');
   const fromPlan = biz.plan;
@@ -402,6 +402,7 @@ async function changePlan(businessId, { toPlan, reason, changedBy = null, note =
   if (trialEndsAt !== null) patch.trial_ends_at = trialEndsAt;
   if (graceEndsAt !== null) patch.grace_ends_at = graceEndsAt;
   if (scheduledPlan !== null) patch.scheduled_plan = scheduledPlan;
+  if (subscriptionStatus !== null) patch.subscription_status = subscriptionStatus;   // 관리자 보정이 잠금을 풀 수 있게(FIX_0AB A-② 변경 5)
   await biz.update(patch);
   await BusinessPlanHistory.create({
     business_id: businessId,

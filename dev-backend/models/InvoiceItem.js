@@ -28,11 +28,11 @@ InvoiceItem.init({
     defaultValue: 1
   },
   unit_price: {
-    type: DataTypes.DECIMAL(12, 0),
+    type: DataTypes.DECIMAL(14, 2),
     defaultValue: 0
   },
   amount: {
-    type: DataTypes.DECIMAL(12, 0),
+    type: DataTypes.DECIMAL(14, 2),
     defaultValue: 0
   },
   sort_order: {

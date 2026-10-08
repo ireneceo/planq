@@ -44,7 +44,7 @@ const path = require('path');
 const CATEGORIES = [
   'infra', 'auth', 'security', 'qnote', 'voice', 'external',
   'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly', 'retention', 'secrets',
-  'imagegate', 'clientlink',
+  'imagegate', 'clientlink', 'money',
 ];
 
 const args = process.argv.slice(2);
@@ -1181,6 +1181,13 @@ function defineRetentionTests() {
 // 카테고리: secrets — 자격증명이 응답에 실리지 않는가
 // ============================================
 function defineSecretTests() {
+  // ★ 2026-10-08 FIX_0AB B-④ — 공개 청구서 응답이 출처 문서의 공유 토큰을 싣고 있었다(청구서 링크 소지자가 문서까지 연다).
+  test('secrets', '공개 청구서 응답에 출처 문서 공유 토큰이 실리지 않는다', async () => {
+    await setup();
+    if (!BACKEND.startsWith('http://localhost')) return true;
+    return runMoneyCase('s4');
+  });
+
   // ★ 2026-09-13 실측 — `GET /api/clients/:biz` 가 `c.toJSON()` 을 그대로 내보내 **초대 토큰**이
   //   목록·상세 양쪽에 실려 나갔다. 그 토큰은 `POST /api/auth/register` 가 "그 고객으로" 계정을
   //   붙이는 자격증명이다. 필드를 내리는 수정은 한 줄이라 **조용히 되돌아온다** — 그래서 게이트에 붙인다.
@@ -1351,10 +1358,59 @@ function defineRealtimeTests() {
 }
 
 // ============================================
+// 카테고리: money — 돈·구독(0-A) · 청구 정합(0-B)  (docs/FIX_0AB_MONEY_DESIGN.md §5)
+// ============================================
+//   픽스처는 scripts/health-money.js 가 1회용 워크스페이스를 만들어 돌리고 끝에 그 행을 지운다.
+//   각 검사는 양성 대조군(결함을 되살렸을 때 판정이 뒤집히는가)을 같이 잰다 — 결과 문자열에 적힌다.
+function runMoneyCase(name) {
+  const out = execSync(
+    `node /opt/planq/scripts/health-money.js ${name} ${ctx.token} ${Number(ctx.userId)} ${BACKEND}`,
+    { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 180000, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  const line = out.split('\n').reverse().find((l) => l.startsWith('@@'));
+  if (!line) throw new Error(`픽스처 결과 없음 — 거짓 통과 방지 위해 실패 처리 (${name})`);
+  const r = JSON.parse(line.slice(2));
+  if (r.cleanup_error) throw new Error(`픽스처 정리 실패: ${r.cleanup_error}`);
+  if (!r.ok) throw new Error(r.error);
+  return r.detail;
+}
+
+function defineMoneyTests() {
+  const isLocal = BACKEND.startsWith('http://localhost');
+  if (!isLocal) return;
+  const T = [
+    ['m1', 'money-1 청구서 공개 링크 — cron 은 sent·overdue·partially_paid 를 지우지 않는다 (A-①)'],
+    ['m2', 'money-2 잠긴 워크스페이스 고아 결제 확정 → 되살림 · 대조군 409 3종 (A-②)'],
+    ['m3', 'money-3 애드온 pending 은 플랜 결제창을 열지 않는다 (A-②)'],
+    ['m4', 'money-4 예약 다운그레이드가 갱신에 적용된다 (A-③)'],
+    ['m5', 'money-5 애드온이 갱신 청구에 합산된다 (A-④)'],
+    ['m6', 'money-6 체험 잔여일이 첫 기간에 이어진다 · 미리보기 == 확정 (A-⑤)'],
+    ['m7', 'money-7 통화별 금액 저장·반올림 (B-①)'],
+    ['m8', 'money-8 청구서 번호 — 워크스페이스 축 · 동시 6건 · 생성 지점 1곳 (B-②)'],
+    ['m9', 'money-9 client_id·project_id 테넌트 검증 (B-③)'],
+    ['m10', 'money-10 공개 증빙 제출은 고객 마스터를 고치지 않는다 · 직전 제출본 prefill (B-⑤)'],
+  ];
+  let swept = false;
+  for (const [k, name] of T) {
+    test('money', name, async () => {
+      await setup();
+      if (!swept) { swept = true; runMoneyCase('sweep'); }   // 죽은 이전 실행의 잔여 1회용 워크스페이스
+      return runMoneyCase(k);
+    });
+  }
+}
+
+// ============================================
 // 러너
 // ============================================
 async function runTests(allTests, category) {
-  const filtered = category ? allTests.filter((t) => t.category === category) : allTests;
+  // `--category=money,billing,secrets` — 쉼표로 여럿 (FIX_0AB §5). 각 이름은 CATEGORIES 정본이어야 한다.
+  const wanted = category ? String(category).split(',').map((x) => x.trim()).filter(Boolean) : null;
+  if (wanted) {
+    const unknown = wanted.filter((w) => !CATEGORIES.includes(w));
+    if (unknown.length) { console.error(c.red(`알 수 없는 카테고리: ${unknown.join(', ')}`)); process.exit(1); }
+  }
+  const filtered = wanted ? allTests.filter((t) => wanted.includes(t.category)) : allTests;
   if (filtered.length === 0) {
     console.error(c.red(`카테고리 '${category}' 에 해당하는 테스트가 없습니다.`));
     process.exit(1);
@@ -1433,7 +1489,7 @@ async function runTests(allTests, category) {
 
   // setup 은 auth 카테고리 테스트에서 lazy 실행 (infra/frontend 만 돌릴 때 불필요)
   // 단, security/qnote/voice 는 토큰이 필요하므로 auth 포함 여부 체크
-  const needsAuth = !opts.category || ['auth', 'security', 'qnote', 'voice', 'realtime'].includes(opts.category);
+  const needsAuth = !opts.category || String(opts.category).split(',').some((x) => ['auth', 'security', 'qnote', 'voice', 'realtime', 'money'].includes(x.trim()));
   if (needsAuth) {
     try {
       await setup();
@@ -1460,6 +1516,7 @@ async function runTests(allTests, category) {
   defineRetentionTests();
   defineSecretTests();
   defineImageGateTests();
+  defineMoneyTests();
 
   const allPass = await runTests(tests, opts.category);
   process.exit(allPass ? 0 : 1);

@@ -8,23 +8,9 @@ const { recurringMetaForSub } = require('./invoiceRecurring');
 const { defaultReceiptTypeFor } = require('./receiptsDue');
 const { sequelize } = require('../config/database');
 
-// invoice_number — recurring_invoice 와 동일 포맷 (INV-YYYY-NNNN)
-// 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번을 스캔(깨진/비표준 번호 skip).
-//   기존 "last by id" 방식은 다건 순차 발행/비표준 번호에서 NaN·중복 발생(memory recurring_billing_latent_bugs).
-async function nextInvoiceNumber() {
-  const year = new Date().getFullYear();
-  const prefix = `INV-${year}-`;
-  const rows = await Invoice.findAll({
-    where: { invoice_number: { [Op.like]: `${prefix}%` } },
-    attributes: ['invoice_number'],
-  });
-  let max = 0;
-  for (const r of rows) {
-    const m = /-(\d+)$/.exec(r.invoice_number || '');
-    if (m) { const v = parseInt(m[1], 10); if (Number.isFinite(v) && v > max) max = v; }
-  }
-  return `${prefix}${String(max + 1).padStart(4, '0')}`;
-}
+// invoice_number 는 services/invoiceNumber.js 한 곳에서 뽑는다(워크스페이스×연도 카운터 — FIX_0AB B-②).
+const { withInvoiceNumber } = require('./invoiceNumber');
+const { roundMoney } = require('./money');
 
 // DATEONLY 값(Date | string) → 'YYYY-MM-DD' 문자열 정규화
 function toDateStr(v) {
@@ -136,10 +122,11 @@ async function billOneSubscription(sub, today = new Date()) {
   if (fee <= 0) return { subscription_id: sub.id, skipped: 'no_amount' };
   const vatRate = Number(sub.vat_rate || 0);
 
-  const subtotal = fee;
-  const taxAmount = Math.round(subtotal * (vatRate / 100));
-  const grandTotal = subtotal + taxAmount;
-  let invoiceNumber = await nextInvoiceNumber();
+  const curForRound = sub.currency || business.default_currency || 'KRW';
+  const subtotal = roundMoney(fee, curForRound);
+  const taxAmount = roundMoney(subtotal * (vatRate / 100), curForRound);
+  const grandTotal = roundMoney(subtotal + taxAmount, curForRound);
+  let invoiceNumber = null;
   const shareToken = crypto.randomBytes(24).toString('hex');
   const title = periodLabel(sub.plan_name, sub.next_billing_at, sub.interval);
 
@@ -165,11 +152,11 @@ async function billOneSubscription(sub, today = new Date()) {
     return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: already.id, healed };
   }
 
-  const invoicePayload = () => ({
+  const invoicePayload = (number) => ({
     business_id: sub.business_id,
     project_id: null,
     client_id: client.id,
-    invoice_number: invoiceNumber,
+    invoice_number: number,
     idempotency_key: idemKey,
     title,
     due_date: dueDate.toISOString().slice(0, 10),
@@ -198,28 +185,26 @@ async function billOneSubscription(sub, today = new Date()) {
   });
   // unique 충돌 분기 (재시도 대상은 '번호' 뿐 — 멱등키 충돌은 재시도하면 안 된다):
   //   - idempotency_key 충돌 → 다른 실행이 이 회차를 이미 발행 → 조용히 종료
-  //   - invoice_number 충돌 → 번호만 재생성해 재시도
+  //   - invoice_number 충돌 → withInvoiceNumber 가 새 번호로 3회까지 재시도(카운터 트랜잭션 안 채번)
   let invoice = null;
-  for (let attempt = 0; attempt < 5 && !invoice; attempt += 1) {
-    try {
-      invoice = await Invoice.create(invoicePayload());
-    } catch (e) {
-      if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
-      const dup = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
-      if (dup) {
-        const healed = await ensureAdvancedAfterBilling(sub.id, period, today);
-        return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: dup.id, healed };
-      }
-      if (attempt >= 4) throw e;
-      invoiceNumber = await nextInvoiceNumber();
+  try {
+    invoice = await withInvoiceNumber(sub.business_id, null, (number, tx) => Invoice.create(invoicePayload(number), { transaction: tx }));
+  } catch (e) {
+    if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
+    const dup = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
+    if (dup) {
+      const healed = await ensureAdvancedAfterBilling(sub.id, period, today);
+      return { subscription_id: sub.id, skipped: 'already_billed', invoice_id: dup.id, healed };
     }
+    throw e;
   }
+  invoiceNumber = invoice.invoice_number;
   await InvoiceItem.create({
     invoice_id: invoice.id,
     description: title,
     quantity: 1,
-    unit_price: fee,
-    amount: fee,
+    unit_price: subtotal,
+    amount: subtotal,
     sort_order: 0,
   });
 

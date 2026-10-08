@@ -339,6 +339,12 @@ sync_database() {
   #   q_record_audits.user_id NULL + action ENUM · notifications/notification_prefs event_kind 'survey'. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 survey_token 을 SELECT 하므로 없으면 표 문서 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-survey.js 2>&1 | tail -10"
+  # 2026-10-08 0-A/0-B 돈 묶음 (docs/FIX_0AB_MONEY_DESIGN.md) — 둘 다 멱등. ★ 코드보다 먼저 돈다:
+  #   money: 금액 DECIMAL(14,2) · invoice_number_counters 시드 · UNIQUE(business_id, invoice_number) — 없으면 채번 함수가 없는 표를 UPDATE 해 500.
+  #   billing-0a: businesses.scheduled_plan 보장 · payments.line_items — 모델이 선언하므로 없으면 결제 조회 500.
+  log "Money bundle migrations (0-A/0-B)..."
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-invoice-money.js 2>&1 | tail -12"
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-billing-0a.js 2>&1 | tail -8"
   # Q Mail 발송 상태 — email_messages.delivery_status ENUM 에 'suppressed' append.
   #   ★ 순서: 이 ALTER 가 PM2 reload 보다 먼저 끝나야 한다(신 코드가 먼저 뜨면 Data truncated).
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-email-delivery-status.js 2>&1 | tail -10"

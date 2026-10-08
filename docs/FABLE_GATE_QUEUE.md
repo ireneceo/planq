@@ -8,6 +8,21 @@
 
 ---
 
+## 2026-10-08 0-A 돈·구독 · 0-B 청구 정합 — 구현 완료(Opus) · **구현 검증 라운드 대기** (R=1)
+- 설계 정본: `docs/FIX_0AB_MONEY_DESIGN.md`(Fable 설계 판정 · Irene «권고대로»). 구현은 설계 §7 순서 ①~⑧. dev 반영(빌드·재시작), 운영 미배포.
+- **자체 검증(Fable 미검증)**: health-check `--category=money,billing,secrets` 16/16 · 전체 health-check · 가드 전체 EXIT 0 · `npm run build` EXIT 0 · e2e `--suite prepay`.
+  양성 대조군 11건을 코드를 실제로 되돌려 뒤집힘 확인(m1 cron sent · m2 되살림 · m3 /status 옛 쿼리 · m4 예약 · m5 애드온 · m6 체험 승계 · m7 반올림 · m8 카운터 제거 → 동시 6건 409×5 · m9 테넌트 · m10 마스터 갱신 · s4 문서 토큰).
+- **설계와 다르게 한 것**
+  1. `nextInvoiceNumber` 의 `INSERT IGNORE` → `INSERT … ON DUPLICATE KEY UPDATE last_no = last_no` + 마지막 SELECT `FOR UPDATE`.
+     설계 그대로 두면 동시 생성끼리 S→X 락 승격 교착이 났다(dev 실측: 동시 6건 중 4건 교착 → 라우트 catch 의 `t.rollback()` 이
+     이미 끝난 트랜잭션에서 던져 **응답 없이 매달림**). 수정 후 동시 20건 연속 번호.
+  2. 오류 문구 4종은 `common.json` 이 아니라 `errors.json`(ko/en) — `utils/apiError.mapApiError` 가 읽는 네임스페이스가 `errors` 다.
+  3. 결제창 «다음 결제일» 줄에 행 라벨 키 `checkout.summary.nextBillingLabel`(다음 결제 / Next payment) 1개 추가.
+  4. `loadPriorReceiptProfiles` 는 자기 자신을 뺀 같은 `(business_id, client_id)` 의 가장 최근 제출본(설계의 `id NOT IN ids` 는 목록에서 같은 목록의 다른 청구서를 못 쓰게 된다).
+  5. `scripts/plan-expiry-check.js` 삭제는 **권한 거부로 못 함** — Irene 이 지워야 한다(미배선이라 남아도 동작 영향 없음).
+- **Fable 이 봐야 할 것**: ① markPaymentPaid 되살림 3조건과 웹훅 409/500 경로 ② `closeDeadPendingPayments` 가 잠긴 오너 새 체크아웃 시 옛 안내를 닫는 것(운영 고아 4건과의 상호작용)
+  ③ 예약 플랜 pending 구독 경로에서 `wasFirst=!started_at` 로 이력·알림이 «신규 활성화» 로 찍힘 ④ 마이그레이션 ⑧(단일 UNIQUE DROP) 운영 순서 ⑤ 운영 §1-2 SELECT(작업자 미실행 — 운영 접속 금지 지시).
+
 ## 2026-10-07 Fable 라운드 D — 설문(#460) · Cue 카드 일정 편집 · 라운드 C 후속 — **VERDICT: PASS**
 - 대상: 725ec330(설문) · 3cfbbb8b(Cue 카드 날짜·시간·시간대) · a16fa23b(voice 프롬프트·content:// 만)
 - «Fable 설계 수정 7건» 전부 실호출로 대조 통과 · 레이트리밋 실측(토큰 61번째·IP 21번째 429) · DB ENUM 순서 == 모델 · migrate-survey 멱등 · 공개 화면 3폭 26/26 · health-check 52/52 · 가드 61/62

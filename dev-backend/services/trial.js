@@ -33,7 +33,7 @@ async function safeNotify(biz, kind) {
     const bodies = {
       pre_bill: '14일 체험이 7일 남았습니다. 결제 페이지에서 입금 정보를 확인하세요.',
       expired: '14일 체험이 종료됐습니다. 7일 안에 결제하지 않으면 워크스페이스가 잠금됩니다.',
-      locked: '결제가 확인되지 않아 워크스페이스가 잠금 상태로 전환됐습니다. 결제 후 자동 복구됩니다.',
+      locked: '결제가 확인되지 않아 워크스페이스가 잠금 상태로 전환됐습니다. 안내받은 계좌로 입금하고 결제 페이지에서 «입금했어요» 를 누르면 운영팀 확인 후 바로 복구됩니다.',
     };
     await emailService.sendNotificationEmail({
       to: owner.email,

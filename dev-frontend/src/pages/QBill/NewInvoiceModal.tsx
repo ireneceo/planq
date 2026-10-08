@@ -14,7 +14,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  formatMoney, missingClientBizFields,
+  formatMoney, roundMoney, currencyDecimals, missingClientBizFields,
   listClientsForBilling, listSourceCandidates, findConversationForClient,
   getBusinessInfo, createInvoice, updateInvoice, getInvoice, sendInvoice,
   type Currency, type ApiClientLite, type ApiSourcePost, type ApiBusinessInfo, type ApiConvFound,
@@ -154,9 +154,10 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   );
   const conversation = convFound?.conversation || null;
 
-  const subtotal = items.reduce((s, it) => s + (it.quantity * it.unit_price), 0);
-  const vat = Math.round(subtotal * vatRate);
-  const total = subtotal + vat;
+  // 서버와 같은 통화별 반올림(services/invoices.roundMoney ↔ dev-backend/services/money.js)
+  const subtotal = roundMoney(items.reduce((s, it) => s + roundMoney(it.quantity * roundMoney(it.unit_price, currency), currency), 0), currency);
+  const vat = roundMoney(subtotal * vatRate, currency);
+  const total = roundMoney(subtotal + vat, currency);
 
   const sumPercent = rounds.reduce((s, r) => s + r.rate, 0);
   const sumOk = sumPercent === 100;
@@ -876,10 +877,10 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                     <Input type="number" min={1} value={it.quantity} onChange={e => updateItem(it.id, { quantity: Number(e.target.value) || 0 })} />
                   </ItemCell>
                   <ItemCell style={{ width: 110 }}>
-                    <Input type="number" min={0} value={it.unit_price} onChange={e => updateItem(it.id, { unit_price: Number(e.target.value) || 0 })} />
+                    <Input type="number" min={0} step={currencyDecimals(currency) === 0 ? 1 : 0.01} value={it.unit_price} onChange={e => updateItem(it.id, { unit_price: Number(e.target.value) || 0 })} />
                   </ItemCell>
                   <ItemCell style={{ width: 110, textAlign: 'right', fontWeight: 700 }}>
-                    {formatMoney(it.quantity * it.unit_price, currency)}
+                    {formatMoney(roundMoney(it.quantity * roundMoney(it.unit_price, currency), currency), currency)}
                   </ItemCell>
                   <ItemCell style={{ width: 28 }}>
                     <RemoveBtn type="button" onClick={() => removeItem(it.id)} aria-label="remove" disabled={items.length === 1}>
@@ -964,7 +965,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                         </PercentInputWrap>
                       </RoundCell>
                       <RoundCell style={{ width: 110, textAlign: 'right', fontWeight: 700 }}>
-                        {formatMoney(Math.round(total * r.rate / 100), currency)}
+                        {formatMoney(roundMoney(total * r.rate / 100, currency), currency)}
                       </RoundCell>
                       <RoundCell style={{ width: 130 }}>
                         <SingleDateField value={r.due_date} onChange={(d) => updateRound(r.id, { due_date: d })} size="sm" width={140} />

@@ -148,7 +148,8 @@
       "plan": "Plan",
       "amount": "Total",
       "paymentId": "Payment ID",
-      "period": "Period"
+      "period": "Period",
+      "nextBillingLabel": "Next payment"
     },
     "cycle": {
       "monthly": "Monthly",
@@ -192,13 +193,16 @@
       "failed": "Couldn't start the card payment. Please try again in a moment.",
       "taxBlocked": "Tax invoices (세금계산서) are issued for bank transfers only — card payments are collected by our overseas entity, which cannot issue them. If you need a tax invoice, please pay by bank transfer above."
     },
-    "bonusPeriod": "{{total}} months (1 month paid + {{bonus}} free)"
+    "bonusPeriod": "{{total}} months (1 month paid + {{bonus}} free)",
+    "nextBilling": "Next payment on {{date}}",
+    "trialCarry": "Your remaining {{days}} trial days carry over"
   },
   "billing": {
     "history": {
       "title": "Payment History",
       "empty": "No payment records",
-      "receipt": "Receipt"
+      "receipt": "Receipt",
+      "lines": "Plan {{plan}} + {{count}} add-on(s)"
     },
     "cycle": {
       "monthly": "Monthly",

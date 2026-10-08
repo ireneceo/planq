@@ -17,6 +17,7 @@ import { checkout, notifyPaymentPaid, startStripeCheckout, type PlanCode, type B
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { openExternalUrl } from '../../services/native';
 
 interface Props {
@@ -30,6 +31,9 @@ interface Props {
   // 기존 pending payment 가 있으면 재사용 (또 만들지 않음)
   existingPaymentId?: number | null;
   existingAmount?: number | null;
+  // 기존 pending 의 확정 시 기간 끝·체험 승계 일수 — 서버(/status)가 확정과 같은 함수로 계산한 값(FIX_0AB A-⑤)
+  existingPeriodEnd?: string | null;
+  existingTrialDaysCarried?: number | null;
   // 체험 선택지 코드 (예: 'prepay_1m_bonus'). 보너스 개월은 **서버**가 정한다 — 여기로 숫자를 보내지 않는다.
   trialOption?: string | null;
   onClose: () => void;
@@ -39,9 +43,10 @@ interface Props {
 type Step = 'instructions' | 'notified';
 
 export default function CheckoutModal({
-  open, businessId, plan, cycle, bankInfo, stripeEnabled, existingPaymentId, existingAmount, trialOption, onClose, onPaid,
+  open, businessId, plan, cycle, bankInfo, stripeEnabled, existingPaymentId, existingAmount, existingPeriodEnd, existingTrialDaysCarried, trialOption, onClose, onPaid,
 }: Props) {
   const { t, i18n } = useTranslation('plan');
+  const { formatDate } = useTimeFormat();
   // 영어권 고객이면 영문 은행 표기(값 있을 때만, 없으면 국문 fallback). 계좌번호는 언어 무관.
   const isEn = (i18n.language || 'ko').slice(0, 2) === 'en';
   const bankName = (isEn && bankInfo?.name_en) ? bankInfo.name_en : bankInfo?.name;
@@ -60,6 +65,9 @@ export default function CheckoutModal({
   const [payerName, setPayerName] = useState('');
   // 서버가 붙인 보너스 개월 (0 이면 안내를 띄우지 않는다 — 자격 미달이면 거짓말이 된다)
   const [bonusMonths, setBonusMonths] = useState(0);
+  // 다음 결제일·남은 체험 승계 일수 — 서버 값만 쓴다(화면이 기간을 따로 계산하면 확정값과 갈라진다)
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
+  const [trialCarry, setTrialCarry] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 복사 피드백 — Q Bill PublicInvoicePage 패턴 재사용 (계좌·금액 클립보드 복사)
@@ -83,9 +91,13 @@ export default function CheckoutModal({
     setError(null);
     setPayerName('');
     setBonusMonths(0);
+    setPeriodEnd(null);
+    setTrialCarry(0);
     if (existingPaymentId) {
       setPaymentId(existingPaymentId);
       setAmount(Number(existingAmount || 0));
+      setPeriodEnd(existingPeriodEnd || null);
+      setTrialCarry(Number(existingTrialDaysCarried || 0));
       return;
     }
     if (plan.code === 'free' || plan.code === 'enterprise') return;
@@ -99,11 +111,13 @@ export default function CheckoutModal({
         setAmount(Number(res.amount || 0));
         // 서버가 실제로 보너스를 붙였는지는 응답이 말한다 — 화면이 추정하지 않는다.
         setBonusMonths(Number(res.bonus_months || 0));
+        setPeriodEnd(res.period_end_preview || null);
+        setTrialCarry(Number(res.trial_days_carried || 0));
       })
       .catch(() => { if (alive) setError(t('checkout.errors.checkoutFailed')); })
       .finally(() => { if (alive) setSubmitting(false); });
     return () => { alive = false; };
-  }, [open, businessId, plan.code, cycle, existingPaymentId, existingAmount, trialOption, t]);
+  }, [open, businessId, plan.code, cycle, existingPaymentId, existingAmount, existingPeriodEnd, existingTrialDaysCarried, trialOption, t]);
 
   if (!open) return null;
 
@@ -223,6 +237,23 @@ export default function CheckoutModal({
                     defaultValue: '{{total}}개월 (1개월 요금 + {{bonus}}개월 추가)',
                   })}
                 </BonusValue>
+              </SummaryRow>
+            )}
+            {/* 다음 결제일 — 보너스가 없어도 **항상** 적는다. 값은 서버 미리보기(확정과 같은 공식). */}
+            {periodEnd && (
+              <SummaryRow>
+                <SummaryLabel>{t('checkout.summary.nextBillingLabel', '다음 결제')}</SummaryLabel>
+                <SummaryValue data-testid="checkout-next-billing">
+                  {t('checkout.nextBilling', {
+                    date: formatDate(periodEnd),
+                    defaultValue: '다음 결제일 {{date}}',
+                  })}
+                  {trialCarry > 0 && (
+                    <TrialCarryNote>
+                      {t('checkout.trialCarry', { days: trialCarry, defaultValue: '남은 체험 {{days}}일은 그대로 이어집니다' })}
+                    </TrialCarryNote>
+                  )}
+                </SummaryValue>
               </SummaryRow>
             )}
           </Summary>
@@ -463,6 +494,13 @@ const BonusValue = styled.span`font-size: 0.875rem; color: #0F766E; font-weight:
 const BankBox = styled.div`
   background: #F0FDFA; border: 1px solid #5EEAD4; border-radius: 10px;
   padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+`;
+const TrialCarryNote = styled.span`
+  display: block;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748B;
 `;
 const BankLabel = styled.div`
   font-size: 0.6875rem; font-weight: 700; color: #0F766E;

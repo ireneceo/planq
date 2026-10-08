@@ -292,6 +292,9 @@ router.put('/businesses/:id/plan', async (req, res, next) => {
       note,
       expiresAt,
       scheduledPlan: scheduled_plan || null,
+      // 잠긴 워크스페이스(canceled)에 유료 플랜 + 만료일을 주면 잠금을 푼다 — 관리자 우회가 잠금을 못 풀던 결함(FIX_0AB A-② 변경 5)
+      ...((biz.subscription_status === 'canceled' && to_plan !== 'free' && expiresAt)
+        ? { subscriptionStatus: 'active', graceEndsAt: null } : {}),
     });
 
     // 안내 — 플랜이 바뀌면 쓸 수 있는 한도가 달라진다. 당사자가 알아야 한다.

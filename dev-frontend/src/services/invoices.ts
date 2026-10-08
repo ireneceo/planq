@@ -140,7 +140,7 @@ export interface ApiInvoice {
   // 서버가 폴백까지 끝낸 증빙 정보 — receipt_profile(고객 직접 입력) 이 없으면 고객 등록 정보로 채워 내려온다.
   //   화면은 이것을 쓴다. receipt_profile 만 보면 계좌이체 정기 구독 고객은 영영 빈칸이다 (2026-09-01).
   receipt_profile_effective?: ApiInvoice['receipt_profile'];
-  receipt_profile_source?: 'customer' | 'client' | 'recipient' | null;
+  receipt_profile_source?: 'customer' | 'history' | 'client' | 'recipient' | null;
   receipt_requested_at?: string | null;
   cash_receipt_status?: 'none' | 'pending' | 'issued' | 'failed' | 'canceled';
   cash_receipt_no?: string | null;
@@ -693,12 +693,25 @@ export function countByStatus(list: ApiInvoice[]): Record<InvoiceStatus | 'all',
   return acc as Record<InvoiceStatus | 'all', number>;
 }
 
+// 헬퍼: 통화별 반올림 — 서버 services/money.js 와 **같은 표**(KRW·JPY 등 0자리, 그 외 2자리, FIX_0AB B-①).
+//   화면 미리보기(소계·VAT·회차)가 서버 저장값과 갈라지지 않게 한다.
+const ZERO_DECIMAL_CURRENCIES = new Set(['KRW', 'JPY', 'VND', 'CLP', 'KMF', 'XOF', 'XAF', 'BIF', 'DJF', 'GNF', 'PYG', 'RWF', 'UGX', 'VUV', 'XPF']);
+export function currencyDecimals(currency: string | null | undefined): number {
+  return ZERO_DECIMAL_CURRENCIES.has(String(currency || 'KRW').toUpperCase()) ? 0 : 2;
+}
+export function roundMoney(n: number | string | null | undefined, currency: string | null | undefined): number {
+  const f = 10 ** currencyDecimals(currency);
+  return Math.round((Number(n) || 0) * f) / f;
+}
+
 // 헬퍼: 금액 포맷
 export function formatMoney(amount: number | string | null | undefined, currency: Currency = 'KRW'): string {
   const n = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
   if (currency === 'KRW') return `${n.toLocaleString('ko-KR')}원`;
-  if (currency === 'USD') return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
-  return `${currency} ${n.toLocaleString('en-US')}`;
+  if (currency === 'USD') return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (currency === 'EUR') return `€${n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const d = currencyDecimals(currency);
+  return `${currency} ${n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
 }
 
 // 헬퍼: invoice 누락 사업자 정보 검사

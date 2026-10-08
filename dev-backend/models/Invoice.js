@@ -28,15 +28,15 @@ Invoice.init({
     allowNull: false
   },
   total_amount: {
-    type: DataTypes.DECIMAL(12, 0),
+    type: DataTypes.DECIMAL(14, 2),
     defaultValue: 0
   },
   tax_amount: {
-    type: DataTypes.DECIMAL(12, 0),
+    type: DataTypes.DECIMAL(14, 2),
     defaultValue: 0
   },
   grand_total: {
-    type: DataTypes.DECIMAL(12, 0),
+    type: DataTypes.DECIMAL(14, 2),
     defaultValue: 0
   },
   status: {
@@ -177,7 +177,7 @@ Invoice.init({
   // 정기청구 멱등키 — "이 구독/프로젝트의 이 회차는 청구서 한 장" 을 DB 가 보장한다.
   //   sub:{subscription_id}:{period}  (고객 구독 정기청구)
   //   proj:{project_id}:{period}      (프로젝트 월정액 정기청구)
-  // 여태 유일한 방어가 invoice_number UNIQUE 였는데, 충돌 시 번호를 새로 뽑아 재시도하는 코드가
+  // 여태 유일한 방어가 invoice_number UNIQUE(지금은 (business_id, invoice_number) — B-②) 였는데, 충돌 시 번호를 새로 뽑아 재시도하는 코드가
   // 그 방어를 무력화해서 동시 실행 시 청구서가 2장 발행됐다(실증). 수동 발행 청구서는 NULL.
   //   ★ 컬럼 레벨 `unique: true` 를 쓰면 안 된다 — sync-database 가 실행할 때마다 UNIQUE 인덱스를
   //     새로 만들어 쌓는다(idempotency_key, _2, _3 …). 배포 스크립트가 운영에서도 sync 를 돌리므로
@@ -193,7 +193,10 @@ Invoice.init({
   timestamps: true,
   underscored: true,
   indexes: [
-    { unique: true, fields: ['invoice_number'], name: 'invoices_invoice_number_unique' },
+    // 번호는 워크스페이스 축이다(FIX_0AB B-②) — UNIQUE 는 (business_id, invoice_number). 단일 UNIQUE 는
+    //   migrate-invoice-money.js 가 지운다(sync 는 인덱스를 지우지 않는다). 여기서 다시 선언하면 다음 sync 가 되살린다.
+    { unique: true, fields: ['business_id', 'invoice_number'], name: 'invoices_biz_invoice_number_unique' },
+    { fields: ['invoice_number'], name: 'invoices_invoice_number_idx' },
     { unique: true, fields: ['share_token'], name: 'invoices_share_token_unique' },
     // 마이그레이션(add-invoice-idempotency.js)이 만드는 인덱스명과 동일해야 sync 가 중복 생성하지 않는다.
     { unique: true, fields: ['idempotency_key'], name: 'invoices_idempotency_key' },

@@ -10,7 +10,9 @@
 //   2. markAddonPaid — owner 가 입금 후 mark-paid 클릭. Payment paid 처리.
 //   3. cancelAddon — 사용자 해지 클릭 시 Business.addon_X -= quantity (다음 결제부터 빠짐, 환불 X)
 //
-// 정기 갱신은 다음 사이클 (plan 정기 결제 cron 에 active add-on 합산) — 본 사이클은 일회성 청구만.
+// 정기 갱신 — 신청 사이클은 위 일할 청구 한 번. 다음 사이클부터는 플랜 갱신 청구(billing.ensureRenewalPayment)에
+//   Business.addon_* 현재값이 합산된다(renewalAddonLines → payments.line_items, FIX_0AB A-④). 해지하면 즉시 0 이므로
+//   «다음 결제부터 빠짐» 이 성립한다. 연간은 월단가 ×12(할인 없음).
 
 const { Op } = require('sequelize');
 const { writeAudit } = require('./auditService');
@@ -21,6 +23,22 @@ const planEngine = require('./plan');
 const emailService = require('./emailService');
 
 const DAYS_PER_PERIOD = 30;  // 월 결제 기준
+const { roundMoney } = require('./money');
+
+// 갱신 청구에 실을 애드온 줄들 — Business.addon_* 현재값 기준(해지하면 즉시 0 이므로 «다음 결제부터 빠짐» 이 성립)
+//   수량 = ceil(필드값 / unit) — 관리자 수기로 unit 배수가 아닌 값이면 올림.
+function renewalAddonLines(biz, cycle, currency = 'KRW') {
+  const mult = cycle === 'yearly' ? 12 : 1;
+  return Object.values(ADDONS).filter((a) => Number((biz && biz[a.field]) || 0) > 0).map((a) => {
+    const qty = Math.ceil(Number(biz[a.field]) / a.unit);
+    const unit = (a.price_monthly && a.price_monthly[currency]) ?? 0;
+    return {
+      kind: 'addon', code: a.code, label: a.name_ko || a.name,
+      quantity: qty, unit_price: unit, months: mult,
+      amount: roundMoney(unit * qty * mult, currency),
+    };
+  }).filter((l) => l.amount > 0);
+}
 
 function nextBillingDate(biz) {
   // trial 중이면 trial_ends_at, plan active 면 plan_expires_at, 그 외엔 +30일
@@ -264,4 +282,5 @@ module.exports = {
   cancelAddon,
   prorateAmount,
   nextBillingDate,
+  renewalAddonLines,
 };

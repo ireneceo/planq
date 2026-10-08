@@ -47,6 +47,8 @@ Payment.init({
 
   amount: { type: DataTypes.DECIMAL(15, 2), allowNull: false },
   currency: { type: DataTypes.STRING(3), allowNull: false, defaultValue: 'KRW' },
+  // 금액 내역 — 플랜 줄 + 애드온 줄들(FIX_0AB A-④). 영수증·결제 이력이 «왜 이 금액인가» 를 말한다. 옛 행은 NULL(한 줄 취급).
+  line_items: { type: DataTypes.JSON, allowNull: true },
 
   // 주기 및 청구 기간 (스냅샷)
   cycle: { type: DataTypes.ENUM('monthly', 'yearly'), allowNull: false },

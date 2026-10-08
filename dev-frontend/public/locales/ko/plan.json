@@ -148,7 +148,8 @@
       "plan": "플랜",
       "amount": "결제 금액",
       "paymentId": "결제 ID",
-      "period": "이용 기간"
+      "period": "이용 기간",
+      "nextBillingLabel": "다음 결제"
     },
     "cycle": {
       "monthly": "월간",
@@ -192,13 +193,16 @@
       "failed": "카드 결제를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.",
       "taxBlocked": "세금계산서는 계좌이체로만 발행됩니다 — 카드 결제는 해외 법인이 수취하여 세금계산서 발행 주체가 아닙니다. 세금계산서가 필요하면 위 계좌로 입금해 주세요."
     },
-    "bonusPeriod": "{{total}}개월 (1개월 요금 + {{bonus}}개월 추가)"
+    "bonusPeriod": "{{total}}개월 (1개월 요금 + {{bonus}}개월 추가)",
+    "nextBilling": "다음 결제일 {{date}}",
+    "trialCarry": "남은 체험 {{days}}일은 그대로 이어집니다"
   },
   "billing": {
     "history": {
       "title": "결제 이력",
       "empty": "결제 내역이 없습니다",
-      "receipt": "영수증"
+      "receipt": "영수증",
+      "lines": "플랜 {{plan}} + 애드온 {{count}}건"
     },
     "cycle": {
       "monthly": "월간",

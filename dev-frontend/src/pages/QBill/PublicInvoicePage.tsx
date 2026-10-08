@@ -71,7 +71,7 @@ interface PublicInvoice {
     phone?: string | null;
     email?: string | null;
   } | null;
-  source_post: { id: number; category: string; title: string; share_token: string | null } | null;
+  source_post: { id: number; category: string; title: string } | null;   // 출처 문서 토큰은 싣지 않는다(FIX_0AB B-④)
   receipt?: {
     payment_method: 'bank_transfer' | 'card' | 'other';
     receipt_type: 'none' | 'tax_invoice' | 'cash_receipt';
@@ -79,6 +79,7 @@ interface PublicInvoice {
     cash_receipt_status: 'none' | 'pending' | 'issued' | 'failed' | 'canceled';
     requested_at: string | null;
     profile: ReceiptProfile | null;
+    profile_source?: 'customer' | 'history' | 'client' | 'recipient' | null;   // 표시는 안 한다(B-⑤ 타입만)
     is_registered_client: boolean;
     client_country: string | null;
     tax_invoice_file?: boolean;   // #77 — 발행 파일 첨부 여부

@@ -542,7 +542,20 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             {status.recent_payments.map(p => (
               <PaymentRow key={p.id}>
                 <PaymentDate>{p.paid_at ? formatDate(p.paid_at) : '—'}</PaymentDate>
-                <PaymentAmount>{p.currency === 'KRW' ? t('amountKrw', { amount: Number(p.amount).toLocaleString() }) : `${p.currency} ${Number(p.amount).toLocaleString()}`}</PaymentAmount>
+                <PaymentAmount>
+                  {p.currency === 'KRW' ? t('amountKrw', { amount: Number(p.amount).toLocaleString() }) : `${p.currency} ${Number(p.amount).toLocaleString()}`}
+                  {/* 금액이 플랜표와 다르면 사용자는 오류로 읽는다 — 내역(플랜 + 애드온)을 같이 적는다(FIX_0AB A-④) */}
+                  {p.line_items && p.line_items.length > 1 && (() => {
+                    const planL = p.line_items.find(l => l.kind === 'plan');
+                    const planAmt = planL ? Number(planL.amount) : 0;
+                    const planStr = p.currency === 'KRW' ? t('amountKrw', { amount: planAmt.toLocaleString() }) : `${p.currency} ${planAmt.toLocaleString()}`;
+                    return (
+                      <PaymentLines>
+                        {t('billing.history.lines', { plan: planStr, count: p.line_items.filter(l => l.kind === 'addon').length, defaultValue: '플랜 {{plan}} + 애드온 {{count}}건' })}
+                      </PaymentLines>
+                    );
+                  })()}
+                </PaymentAmount>
                 <PaymentMeta>
                   {t(`billing.cycle.${p.cycle}`, p.cycle)}
                   {p.period_start && p.period_end && ` · ${formatDate(p.period_start)} ~ ${formatDate(p.period_end)}`}
@@ -596,6 +609,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             stripeEnabled={stripeEnabled}
             existingPaymentId={status.pending_payment?.id || null}
             existingAmount={status.pending_payment ? Number(status.pending_payment.amount) : null}
+            existingPeriodEnd={status.pending_payment?.period_end_preview || null}
+            existingTrialDaysCarried={status.pending_payment?.trial_days_carried ?? null}
             trialOption={prepayOption}
             onClose={() => { setPaymentOpen(false); setActionPlan(null); setPrepayOption(null); }}
             onPaid={handleCheckoutPaid}
@@ -1077,6 +1092,7 @@ const PaymentRow = styled.div`
 `;
 const PaymentDate = styled.div`color: #64748B; font-variant-numeric: tabular-nums;`;
 const PaymentAmount = styled.div`font-weight: 700; color: #0F172A;`;
+const PaymentLines = styled.span`display: block; margin-top: 2px; font-size: 0.6875rem; font-weight: 500; color: #64748B;`;
 const PaymentMeta = styled.div`color: #64748B;`;
 const PaymentStatus = styled.span<{ $status: string }>`
   padding: 2px 8px; border-radius: 999px; font-size: 0.625rem; font-weight: 600;

@@ -12,6 +12,7 @@ const Task = require('./Task');
 const File = require('./File');
 const Invoice = require('./Invoice');
 const InvoiceItem = require('./InvoiceItem');
+const InvoiceNumberCounter = require('./InvoiceNumberCounter');
 const AuditLog = require('./AuditLog');
 const KbDocument = require('./KbDocument');
 const KbShareBundle = require('./KbShareBundle');
@@ -581,6 +582,7 @@ module.exports = {
   ClientStageHistory,
   ClientInteraction,
   InvoiceItem,
+  InvoiceNumberCounter,
   AuditLog,
   KbDocument,
   KbChunk,

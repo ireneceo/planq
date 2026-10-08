@@ -308,7 +308,8 @@ module.exports = {
 //   국내 은행 "받는 분 통장 표시" 는 통상 한글 5~8자에서 **뒷부분이 잘린다**.
 //   현행 `INV-2026-0042 상호명` 은 번호만 13자라 **이름이 나오기도 전에 잘렸다**.
 //   절단이 꼬리에서 일어나므로 식별번호를 **선두**에 둔다 — 한글 7자로 잘려도 `0042홍길` 까지 남아
-//   어느 청구서인지 특정된다. 순번 4자리는 연도 내 유일(generateInvoiceNumber, INV-YYYY-순번).
+//   어느 청구서인지 특정된다. 순번 4자리는 **워크스페이스별** 연도 내 유일(services/invoiceNumber, INV-YYYY-순번 —
+//   입금 코드는 그 워크스페이스 계좌로 들어오므로 축이 맞다, FIX_0AB B-②).
 //   정확 매칭의 정본은 어차피 '송금 완료 알림' 이며 문구가 그 채널을 함께 안내한다.
 // ─────────────────────────────────────────────
 function payerCodeOf(invoice, client, installmentNo = null) {
@@ -337,13 +338,18 @@ module.exports.payerCodeOf = payerCodeOf;
  *   **청구서 상세 화면만** 그 폴백이 없어 정보 상자 자체가 안 그려졌다 —
  *   "저장했으면 사업자 정보가 나와야지" 가 맞다. 공식이 갈라지지 않게 여기로 모은다.
  *
- * @returns {{ profile: object|null, source: 'customer'|'client'|'recipient'|null }}
+ * ★ 2026-10-08 (FIX_0AB B-⑤) — 순서 customer → **history** → client → recipient.
+ *   공개 receipt-request 는 더 이상 고객 마스터(clients)를 고치지 않는다(링크 소지자 누구나 쓸 수 있었다).
+ *   재입력 방지는 **같은 고객(같은 워크스페이스)의 직전 제출본**으로 채운다 — loadPriorReceiptProfiles.
+ *
+ * @returns {{ profile: object|null, source: 'customer'|'history'|'client'|'recipient'|null }}
  *   source — 어디서 온 값인지. 화면이 "고객 확인 정보"(customer) 와
  *   "고객 등록 정보"(client) 를 구분해 말할 수 있어야 사용자가 신뢰 여부를 판단한다.
  */
-function resolveReceiptProfile(inv, client) {
+function resolveReceiptProfile(inv, client, priorProfile = null) {
   if (!inv) return { profile: null, source: null };
   if (inv.receipt_profile) return { profile: inv.receipt_profile, source: 'customer' };
+  if (inv.client_id && priorProfile) return { profile: priorProfile, source: 'history' };
   if (client) {
     return {
       source: 'client',
@@ -378,3 +384,44 @@ function resolveReceiptProfile(inv, client) {
 }
 
 module.exports.resolveReceiptProfile = resolveReceiptProfile;
+
+/**
+ * 같은 고객의 직전 증빙 제출본 — 공개·상세·목록 세 표면이 **같은 함수에 같은 입력**을 넘긴다(B-⑤).
+ *   키는 `${business_id}:${client_id}` — 다른 워크스페이스 청구서의 제출본은 섞이지 않는다.
+ *   자기 자신의 제출본은 history 로 치지 않는다(그건 이미 customer 다).
+ * @param {Array} invoices — business_id·client_id·id 가 있는 청구서들
+ * @returns {Promise<(inv) => object|null>} 청구서 → 직전 제출본
+ */
+async function loadPriorReceiptProfiles(invoices) {
+  const list = (invoices || []).filter((i) => i && i.client_id && i.business_id);
+  const empty = () => null;
+  if (!list.length) return empty;
+  const { Op } = require('sequelize');
+  const { Invoice } = require('../models');
+  const bizIds = [...new Set(list.map((i) => Number(i.business_id)))];
+  const clientIds = [...new Set(list.map((i) => Number(i.client_id)))];
+  const rows = await Invoice.findAll({
+    where: {
+      business_id: { [Op.in]: bizIds },
+      client_id: { [Op.in]: clientIds },
+      receipt_profile: { [Op.ne]: null },
+    },
+    attributes: ['id', 'business_id', 'client_id', 'receipt_profile', 'receipt_requested_at'],
+    order: [['receipt_requested_at', 'DESC'], ['id', 'DESC']],
+    limit: 1000,
+  });
+  const byKey = new Map();
+  for (const r of rows) {
+    const k = `${r.business_id}:${r.client_id}`;
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(r);
+  }
+  return (inv) => {
+    if (!inv || !inv.client_id) return null;
+    const arr = byKey.get(`${inv.business_id}:${inv.client_id}`) || [];
+    const hit = arr.find((r) => r.id !== inv.id);
+    return hit ? hit.receipt_profile : null;
+  };
+}
+
+module.exports.loadPriorReceiptProfiles = loadPriorReceiptProfiles;

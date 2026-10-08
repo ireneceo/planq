@@ -14,6 +14,7 @@ const { ClientSubscription, Client, Business } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { requireMenu } = require('../middleware/menu_permission');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
+const { assertClientInBusiness } = require('../services/tenantRef');
 const { createAuditLog } = require('../middleware/audit');
 
 // 재무 mutation 은 워크스페이스 owner 또는 platform_admin 만 (invoices.js assertInvoiceMutationOwner 와 동일 경계).
@@ -91,9 +92,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
     if (!(amt > 0)) return errorResponse(res, 'amount_must_be_positive', 400);
     if (interval && !INTERVALS.includes(interval)) return errorResponse(res, 'invalid_interval', 400);
 
-    // 고객 소유권 검증 (멀티테넌트)
-    const client = await Client.findOne({ where: { id: Number(client_id), business_id: businessId } });
-    if (!client) return errorResponse(res, 'client_not_found', 404);
+    // 고객 소유권 검증 (멀티테넌트) — 청구서와 같은 술어 한 벌(services/tenantRef, FIX_0AB B-③). 없으면 400 client_not_in_workspace
+    await assertClientInBusiness(client_id, businessId);
 
     const biz = await Business.findByPk(businessId, { attributes: ['default_currency', 'default_due_days'] });
     const start = start_date && /^\d{4}-\d{2}-\d{2}$/.test(start_date) ? start_date : new Date().toISOString().slice(0, 10);

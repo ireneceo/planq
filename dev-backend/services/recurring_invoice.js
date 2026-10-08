@@ -17,25 +17,10 @@ const { Project, Business, Client, Invoice, InvoiceItem, User, BusinessMember } 
 const { sequelize } = require('../config/database');
 const { recurringMetaForProject } = require('./invoiceRecurring');
 const { defaultReceiptTypeFor } = require('./receiptsDue');
+const { withInvoiceNumber } = require('./invoiceNumber');
+const { roundMoney } = require('./money');
 
-// invoice_number 생성 — 동시성 고려 (같은 트랜잭션 / 락 미적용. cron 단일 실행이라 충분)
-// 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번 스캔 (깨진 번호 skip).
-//   기존 "last by id" 는 같은 날 다건 발행/비표준 번호에서 NaN·중복 → 2번째부터 발행 실패
-//   (memory recurring_billing_latent_bugs). clientSubscriptionBilling 과 동일 fix.
-async function nextInvoiceNumber() {
-  const year = new Date().getFullYear();
-  const prefix = `INV-${year}-`;
-  const rows = await Invoice.findAll({
-    where: { invoice_number: { [Op.like]: `${prefix}%` } },
-    attributes: ['invoice_number'],
-  });
-  let max = 0;
-  for (const r of rows) {
-    const m = /-(\d+)$/.exec(r.invoice_number || '');
-    if (m) { const v = parseInt(m[1], 10); if (Number.isFinite(v) && v > max) max = v; }
-  }
-  return `${prefix}${String(max + 1).padStart(4, '0')}`;
-}
+// invoice_number 는 services/invoiceNumber.js 한 곳에서 뽑는다(워크스페이스×연도 카운터 — FIX_0AB B-②).
 
 // 오늘이 billing_day 인지 (월 말일 보정 — 31 설정인데 그달은 30일 → 30일에 발행)
 function isBillingDayToday(billingDay, today = new Date()) {
@@ -91,11 +76,12 @@ async function billOneProject(project, today = new Date()) {
 
   const isAuto = project.auto_invoice_mode === 'auto';
 
-  let invoiceNumber = await nextInvoiceNumber();
-  const subtotal = fee;
+  let invoiceNumber = null;
+  const currencyForRound = business.default_currency || 'KRW';
+  const subtotal = roundMoney(fee, currencyForRound);
   const vatRate = Number(business.default_vat_rate || 0.1);
-  const taxAmount = Math.round(subtotal * vatRate);
-  const grandTotal = subtotal + taxAmount;
+  const taxAmount = roundMoney(subtotal * vatRate, currencyForRound);
+  const grandTotal = roundMoney(subtotal + taxAmount, currencyForRound);
 
   const shareToken = crypto.randomBytes(24).toString('hex');
 
@@ -116,11 +102,11 @@ async function billOneProject(project, today = new Date()) {
     return { project_id: project.id, skipped: 'already_billed', invoice_id: existing.id };
   }
 
-  const payload = () => ({
+  const payload = (number) => ({
     business_id: project.business_id,
     project_id: project.id,
     client_id: client.id,
-    invoice_number: invoiceNumber,
+    invoice_number: number,
     idempotency_key: idemKey,
     title: `${project.name} ${ym} 월 사용료`,
     due_date: dueDate.toISOString().slice(0, 10),
@@ -153,26 +139,24 @@ async function billOneProject(project, today = new Date()) {
 
   // 위 findOne 은 경합을 못 막는다(둘 다 "없음"을 볼 수 있음). 실제 방어는 DB UNIQUE.
   //   - idempotency_key 충돌 → 다른 실행이 이미 발행함 → 조용히 종료 (에러 아님)
-  //   - invoice_number 충돌 → 번호만 재생성해 재시도 (번호 경합은 정상 상황)
+  //   - invoice_number 충돌 → withInvoiceNumber 가 새 번호로 3회까지 재시도(카운터 트랜잭션 안 채번)
   let invoice = null;
-  for (let attempt = 0; attempt < 5 && !invoice; attempt += 1) {
-    try {
-      invoice = await Invoice.create(payload());
-    } catch (e) {
-      if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
-      const dup = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
-      if (dup) return { project_id: project.id, skipped: 'already_billed', invoice_id: dup.id };
-      if (attempt >= 4) throw e;
-      invoiceNumber = await nextInvoiceNumber();
-    }
+  try {
+    invoice = await withInvoiceNumber(project.business_id, null, (number, t) => Invoice.create(payload(number), { transaction: t }));
+  } catch (e) {
+    if (e?.name !== 'SequelizeUniqueConstraintError') throw e;
+    const dup = await Invoice.findOne({ where: { idempotency_key: idemKey }, attributes: ['id'] });
+    if (dup) return { project_id: project.id, skipped: 'already_billed', invoice_id: dup.id };
+    throw e;
   }
+  invoiceNumber = invoice.invoice_number;
 
   await InvoiceItem.create({
     invoice_id: invoice.id,
     description: `${project.name} ${ym} 월 사용료`,
     quantity: 1,
-    unit_price: fee,
-    amount: fee,
+    unit_price: subtotal,
+    amount: subtotal,
     sort_order: 0,
   });
 

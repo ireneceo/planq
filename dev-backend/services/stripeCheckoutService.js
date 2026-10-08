@@ -6,12 +6,9 @@ const { getStripeForMerchant } = require('./stripeService');
 const Payment = require('../models/Payment');
 
 // 무소수점(zero-decimal) 통화 — Stripe unit_amount 는 최소단위. KRW/JPY 등은 ×100 하면 안 됨(POS는 MYR ×100).
-const ZERO_DECIMAL = new Set(['KRW', 'JPY', 'VND', 'CLP', 'KMF', 'XOF', 'XAF', 'BIF', 'DJF', 'GNF', 'PYG', 'RWF', 'UGX', 'VUV', 'XPF']);
-function toStripeAmount(amount, currency) {
-  const cur = String(currency || 'KRW').toUpperCase();
-  const n = Number(amount);
-  return ZERO_DECIMAL.has(cur) ? Math.round(n) : Math.round(n * 100);
-}
+//   표·변환은 services/money.js 한 곳(청구서 반올림과 같은 원천 — FIX_0AB B-①).
+const { ZERO_DECIMAL, toMinorUnits } = require('./money');
+const toStripeAmount = toMinorUnits;
 
 // SaaS 구독 결제 — 기존 pending Payment(createPendingSubscription 생성)를 Stripe Checkout(mode=payment)로 결제.
 //   성공은 webhook 이 markPaymentPaid 로 반영(멱등 단일 착지점). 이중결제 가드: 열린 세션 재사용(POS P1-3).

@@ -53,5 +53,9 @@
   "share_blocked_security": "보안등급(내부·기밀) 자료는 외부로 공유할 수 없어요.",
   "share_blocked_private_event": "나만 보기·팀 비공개 일정은 공유 링크를 만들 수 없어요.",
   "attachment_not_allowed": "보낼 수 없는 첨부가 있어요. 볼 권한이 없거나 외부 공유가 막힌 등급의 파일이에요.",
-  "not_found_generic": "찾을 수 없거나 볼 권한이 없는 항목이에요."
+  "not_found_generic": "찾을 수 없거나 볼 권한이 없는 항목이에요.",
+  "client_not_in_workspace": "선택한 고객이 이 워크스페이스에 없습니다",
+  "project_not_in_workspace": "선택한 프로젝트가 이 워크스페이스에 없습니다",
+  "subscription_superseded": "이 결제의 구독은 이미 다른 구독으로 바뀌었습니다. 현재 구독의 결제를 확인하세요.",
+  "plan_mismatch": "결제 플랜과 현재 플랜이 다릅니다. 새 결제를 만들어 주세요."
 }

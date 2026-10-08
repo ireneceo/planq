@@ -54,7 +54,7 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
     const SubscriptionModel = require('../models').Subscription;
     const PaymentModel = require('../models').Payment;
 
-    const [{ plan, biz, active, inTrial, inGrace, trialEndsAt, graceEndsAt, exempt, exemptKind, exemptUntil }, usage, historyRows, subscription, pendingPayment, recentPayments] = await Promise.all([
+    const [{ plan, biz, active, inTrial, inGrace, trialEndsAt, graceEndsAt, exempt, exemptKind, exemptUntil }, usage, historyRows, subscription, payable, recentPayments] = await Promise.all([
       planEngine.getBusinessPlan(businessId),
       planEngine.getUsage(businessId),
       BusinessPlanHistory.findAll({
@@ -73,10 +73,9 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
           ['created_at', 'DESC'],
         ],
       }),
-      PaymentModel.findOne({
-        where: { business_id: businessId, status: 'pending' },
-        order: [['created_at', 'DESC']],
-      }),
+      // 화면에 «결제하세요» 로 띄울 pending — 확정될 수 있는 플랜 결제만(애드온 제외·죽은 구독 제외).
+      //   판정은 markPaymentPaid 와 같은 함수(billing.subscriptionConfirmability) — FIX_0AB A-②.
+      billing.findPayablePending(businessId),
       PaymentModel.findAll({
         where: { business_id: businessId, status: { [Op.in]: ['paid', 'refunded'] } },
         order: [['paid_at', 'DESC']],
@@ -84,6 +83,7 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
       }),
     ]);
 
+    const pendingPayment = payable ? payable.payment : null;
     successResponse(res, {
       plan: toPublicJson(plan.code),
       active,
@@ -122,6 +122,9 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         created_at: pendingPayment.created_at,
         // 고객이 입금 통보를 누른 시각 (있으면 "입금 확인 대기중")
         notify_paid_at: pendingPayment.notify_paid_at,
+        // 확정 시 기간 — 확정과 같은 함수(billing.previewPeriod)로 계산한 값(A-⑤)
+        period_end_preview: payable && payable.preview ? payable.preview.period_end : null,
+        trial_days_carried: payable && payable.preview ? payable.preview.trial_days_carried : 0,
       } : null,
       recent_payments: recentPayments.map(p => ({
         id: p.id, subscription_id: p.subscription_id,
@@ -129,6 +132,7 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         status: p.status, paid_at: p.paid_at,
         period_start: p.period_start, period_end: p.period_end,
         payer_name: p.payer_name, method: p.method,
+        line_items: p.line_items || null,   // 금액 내역(플랜 + 애드온, A-④) — 이력 행이 «왜 이 금액인가» 를 말한다
       })),
       usage,
       // 「지금 결제하면 1개월 추가」를 띄울 수 있는가 — 판정은 서버(billing.isFirstPlanPayment) 한 곳.
@@ -251,7 +255,11 @@ router.post('/:businessId/change', authenticateToken, checkBusinessAccess, async
 
     if (isDowngrade) {
       // 다운그레이드는 결제주기 말 적용 예약
-      const scheduledAt = biz.plan_expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      // 기준일 — 워크스페이스 만료일 → 활성 구독의 기간 끝 → +30일 (FIX_0AB A-③)
+      const curSub = biz.plan_expires_at ? null : await billing.getCurrentSubscription(businessId);
+      const scheduledAt = biz.plan_expires_at
+        || (curSub && curSub.current_period_end ? new Date(curSub.current_period_end) : null)
+        || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       biz.scheduled_plan = to_plan;
       biz.plan_expires_at = scheduledAt;
       await biz.save();
@@ -331,6 +339,18 @@ router.post('/:businessId/cancel-schedule', authenticateToken, checkBusinessAcce
     const scheduled = biz.scheduled_plan;
     biz.scheduled_plan = null;
     await biz.save();
+    // 갱신 cron 이 이미 예약 플랜의 pending 구독·결제를 만들어 뒀으면 같이 닫는다(A-③) —
+    //   다음 cron 이 원래 플랜의 갱신 청구를 만든다(멱등).
+    {
+      const { Subscription: SubM } = require('../models');
+      const { sequelize: sq } = require('../config/database');
+      await sq.transaction(async (tx) => {
+        await SubM.update({ status: 'replaced', canceled_at: new Date() }, {
+          where: { business_id: businessId, status: 'pending', plan_code: scheduled }, transaction: tx,
+        });
+        await billing.closeDeadPendingPayments(businessId, tx);
+      });
+    }
     await BusinessPlanHistory.create({
       business_id: businessId,
       from_plan: biz.plan,
@@ -409,6 +429,9 @@ router.post('/:businessId/checkout', authenticateToken, checkBusinessAccess, asy
       status: result.payment.status,
       // 화면이 «1개월 추가가 실제로 붙었는지» 를 스스로 판정하지 않게 서버가 알려준다.
       bonus_months: result.subscription.bonus_months,
+      // 다음 결제일·체험 승계 일수 — 확정과 같은 함수(billing.previewPeriod)의 값(A-⑤)
+      period_end_preview: result.preview ? result.preview.period_end : null,
+      trial_days_carried: result.preview ? result.preview.trial_days_carried : 0,
     });
   } catch (err) { next(err); }
 });

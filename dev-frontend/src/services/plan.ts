@@ -104,6 +104,21 @@ export interface PendingPayment {
   created_at: string;
   // 고객이 입금 통보를 누른 시각 (있으면 "입금 확인 대기중")
   notify_paid_at?: string | null;
+  // 확정 시 기간 끝·체험 승계 일수 — 서버가 확정과 같은 함수로 계산(FIX_0AB A-⑤)
+  period_end_preview?: string | null;
+  trial_days_carried?: number;
+}
+
+// 결제 금액 내역 한 줄(FIX_0AB A-④) — 플랜 1줄 + 애드온 n줄
+export interface PaymentLineItem {
+  kind: 'plan' | 'addon';
+  code: string;
+  label: string;
+  amount: number;
+  cycle?: BillingCycle;
+  quantity?: number;
+  unit_price?: number;
+  months?: number;
 }
 
 export interface PaymentRecord {
@@ -118,6 +133,7 @@ export interface PaymentRecord {
   period_end: string | null;
   payer_name: string | null;
   method: string;
+  line_items?: PaymentLineItem[] | null;
 }
 
 export interface PlanStatus {
@@ -196,7 +212,7 @@ export async function checkout(
   currency: Currency = 'KRW',
   // 체험 선택지 코드. 개월 수는 **서버가 정한다** — 여기로 숫자를 보내지 않는다.
   trialOption?: string | null
-): Promise<{ subscription_id: number; payment_id: number; amount: number; currency: Currency; bonus_months?: number } | null> {
+): Promise<{ subscription_id: number; payment_id: number; amount: number; currency: Currency; bonus_months?: number; period_end_preview?: string | null; trial_days_carried?: number } | null> {
   const r = await apiFetch(`/api/plan/${businessId}/checkout`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

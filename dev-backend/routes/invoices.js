@@ -5,7 +5,7 @@ const { resolveRecurringInfo } = require('../services/invoiceRecurring');
 // 청구서 PDF 빌더 — 라우트·정기청구 2엔진 공용 단일 착지점 (services/invoicePdf.js).
 const { buildInvoicePdf } = require('../services/invoicePdf');
 // 증빙 종류 판정 단일 원천 — 증빙 큐(대시보드 인박스·Q Bill 증빙 탭)와 상세 표시가 갈라지지 않게 공용.
-const { receiptKindOf, payerCodeOf, resolveReceiptProfile } = require('../services/receiptsDue');
+const { receiptKindOf, payerCodeOf, resolveReceiptProfile, loadPriorReceiptProfiles } = require('../services/receiptsDue');
 // 공급자(보내는 쪽) 정보 — 청구서 응답·PDF·메일이 **같은 함수**를 쓴다 (2026-09-03)
 const { senderBlockOf, SENDER_ATTRIBUTES } = require('../services/invoiceSender');
 const { logBillEvent, listBillEvents } = require('../services/billEvents');
@@ -19,6 +19,10 @@ const { markInstallmentPaid, markInvoicePaid, recordInvoiceStatusChange, updateI
 const { attachWorkspaceScope, invoiceListWhere, canAccessInvoice, isMemberOrAbove } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { sequelize } = require('../config/database');
+// 금액 반올림(통화별) · 청구서 번호 · 테넌트 참조 검증 — 각각 한 곳 (docs/FIX_0AB_MONEY_DESIGN.md B-①②③)
+const { roundMoney } = require('../services/money');
+const { nextInvoiceNumber } = require('../services/invoiceNumber');
+const { assertClientInBusiness, assertProjectInBusiness } = require('../services/tenantRef');
 const { Op } = require('sequelize');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
@@ -100,23 +104,15 @@ function isBotOrScanner(req) {
 // invoice 상태가 바뀔 때 채팅방의 카드도 함께 갱신해서 새로고침 / Socket.IO 동기.
 // (updateInvoiceChatCards 는 services/invoicePayments.js 로 이관 — 상단에서 import)
 
-// Generate invoice number
-// 운영 — robust: INV-YYYY- prefix 전체에서 실제 최대 순번 스캔 (깨진 번호 skip).
-//   기존 "last by id" 는 비표준/누락 번호에서 NaN, 동시 생성 시 중복 위험. max-scan 으로 안정화.
-const generateInvoiceNumber = async () => {
-  const year = new Date().getFullYear();
-  const prefix = `INV-${year}-`;
-  const rows = await Invoice.findAll({
-    where: { invoice_number: { [Op.like]: `${prefix}%` } },
-    attributes: ['invoice_number'],
-  });
-  let max = 0;
-  for (const r of rows) {
-    const m = /-(\d+)$/.exec(r.invoice_number || '');
-    if (m) { const v = parseInt(m[1], 10); if (Number.isFinite(v) && v > max) max = v; }
-  }
-  return `${prefix}${String(max + 1).padStart(4, '0')}`;
-};
+// 청구서 번호는 services/invoiceNumber.js nextInvoiceNumber 한 곳에서 뽑는다(워크스페이스×연도 카운터, B-②).
+
+// 품목 금액 입력 검증 — unit_price·quantity 가 (있으면) 유한수·≥0 이어야 한다(B-①). 없으면 기본값(1·0)을 쓰므로 통과.
+function itemsAmountsValid(items) {
+  if (items == null) return true;
+  if (!Array.isArray(items)) return false;
+  const ok = (v) => v === undefined || v === null || v === '' || (Number.isFinite(Number(v)) && Number(v) >= 0);
+  return items.every((it) => it && ok(it.unit_price) && ok(it.quantity));
+}
 
 // ─── 공개 결제 페이지 (인증 없음 — share_token 기반) ───
 // /:businessId 매칭보다 먼저 와야 함
@@ -181,13 +177,15 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
     const business = await Business.findByPk(invoice.business_id, {
       attributes: ['id', ...SENDER_ATTRIBUTES],
     });
-    // 출처 문서 (있다면 제목만)
+    // 증빙 정보 — 상세·목록과 같은 함수에 같은 입력(직전 제출본 포함, B-⑤)
+    const publicPrior = await loadPriorReceiptProfiles([invoice]);
+    const publicRp = resolveReceiptProfile(invoice, invoice.Client || null, publicPrior(invoice));
+    // 출처 문서 (있다면 제목만) — 그 문서의 공유 토큰은 싣지 않는다(B-④: 청구서 링크 소지자가 문서까지 열게 된다)
     let sourcePost = null;
     if (invoice.source_post_id) {
-      const p = await Post.findByPk(invoice.source_post_id, { attributes: ['id', 'category', 'title', 'share_token'] });
-      if (p) sourcePost = { id: p.id, category: p.category, title: p.title, share_token: p.share_token };
+      const p = await Post.findByPk(invoice.source_post_id, { attributes: ['id', 'category', 'title'] });
+      if (p) sourcePost = { id: p.id, category: p.category, title: p.title };
     }
-    // 응답 — share_token 자체는 URL 에 노출됨, 응답 메타에 포함 (편의)
     const safe = {
       id: invoice.id,
       invoice_number: invoice.invoice_number,
@@ -245,7 +243,8 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
         // 고객이 이미 제출한 값(있으면) — 없으면 등록 고객 Client 값으로 prefill 힌트.
         //   ★ 공식은 services/receiptsDue.resolveReceiptProfile 하나뿐이다 (2026-09-01).
         //     여기에 사본을 두면 상세 화면·증빙 큐와 조용히 갈라진다.
-        profile: resolveReceiptProfile(invoice, invoice.Client || null).profile,
+        profile: publicRp.profile,
+        profile_source: publicRp.source,
         is_registered_client: !!invoice.client_id,
         client_country: invoice.Client?.country || null,
         // #77 — 발행된 증빙 파일 존재 여부 (invoice 레벨, 다운로드 버튼 표시)
@@ -554,34 +553,9 @@ router.post('/public/:token/receipt-request', publicReceiptLimiter, async (req, 
       ...statusPatch,
     });
 
-    // 등록 고객이면 Client 레코드도 갱신 (다음 청구서 prefill) — 외부 고객은 invoice.receipt_profile 만.
-    //   구독(정기청구) 반복 시 매번 재입력하지 않도록 사업자·개인 둘 다 저장. (외부 고객은 Client 없음)
-    if (invoice.client_id) {
-      try {
-        const { Client } = require('../models');
-        const patch = bizType === 'business'
-          ? {
-              is_business: true,
-              biz_name: profile.biz_name,
-              biz_tax_id: profile.biz_tax_id,
-              biz_ceo: profile.biz_ceo,
-              biz_type: profile.biz_category,
-              biz_item: profile.biz_item,
-              biz_address: profile.biz_address,
-              tax_invoice_email: profile.tax_email,
-              ...(profile.requested_by_name ? { billing_contact_name: profile.requested_by_name } : {}),
-              ...(profile.contact_phone ? { billing_contact_phone: profile.contact_phone } : {}),
-            }
-          : {
-              // 개인(현금영수증) — 연락처만 저장. 식별번호(휴대폰)는 billing_contact_phone 로 다음 prefill.
-              is_business: false,
-              ...(profile.requested_by_name ? { billing_contact_name: profile.requested_by_name } : {}),
-              ...(profile.contact_phone ? { billing_contact_phone: profile.contact_phone }
-                  : (profile.cr_identifier ? { billing_contact_phone: profile.cr_identifier } : {})),
-            };
-        await Client.update(patch, { where: { id: invoice.client_id } });
-      } catch (e) { console.warn('[receipt-request] client update', e.message); }
-    }
+    // ★ 고객 마스터(clients)는 고치지 않는다(FIX_0AB B-⑤) — 링크가 전달되면 제3자가 고객 정보·세금계산서 수신 메일을
+    //   바꿀 수 있었다. 재입력 방지는 같은 고객의 **직전 제출본**으로 채운다(receiptsDue.loadPriorReceiptProfiles).
+    //   마스터 갱신은 멤버 화면(고객 상세)의 몫이다.
 
     // owner/멤버 알림 — 증빙 신청 도착
     try {
@@ -697,11 +671,12 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     });
     // 드로어는 목록 행을 initialInvoice 로 먼저 그린다 — 여기에 receipt_kind 가 없으면
     //   상세 응답이 도착하기 전까지 "발행 대상 아님" 이 깜빡인다. 상세와 같은 술어로 파생.
+    const priorOf = await loadPriorReceiptProfiles(invoices);   // B-⑤ 직전 제출본(배치 한 쿼리)
     successResponse(res, invoices.map((inv) => {
       const j = inv.toJSON();
       j.receipt_kind = receiptKindOf(inv, inv.Client || null);
       j.payer_code = payerCodeOf(inv, inv.Client || null);   // #274
-      const rp = resolveReceiptProfile(inv, inv.Client || null);
+      const rp = resolveReceiptProfile(inv, inv.Client || null, priorOf(inv));
       j.receipt_profile_effective = rp.profile;
       j.receipt_profile_source = rp.source;
       return j;
@@ -745,7 +720,7 @@ router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess
       account_holder: business.bank_account_name || business.name,
     } : src.bank_snapshot;
 
-    const invoice_number = await generateInvoiceNumber();
+    const invoice_number = await nextInvoiceNumber(Number(req.params.businessId), { transaction: t });
     const copy = await Invoice.create({
       business_id: src.business_id,
       client_id: src.client_id,
@@ -779,37 +754,46 @@ router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess
 
     // 품목 — 내용이므로 그대로. 금액은 생성 라우트와 **같은 공식**으로 다시 센다.
     const items = src.items || [];
+    const cur = src.currency || 'KRW';
     let subtotal = 0;
     for (const it of items) {
-      const amount = Number(it.quantity || 1) * Number(it.unit_price || 0);
-      subtotal += amount;
+      const unitPrice = roundMoney(it.unit_price || 0, cur);
+      const amount = roundMoney(Number(it.quantity || 1) * unitPrice, cur);
+      subtotal = roundMoney(subtotal + amount, cur);
       await InvoiceItem.create({
         invoice_id: copy.id,
         description: it.description, detail: it.detail,
-        quantity: it.quantity, unit_price: it.unit_price, amount,
+        quantity: it.quantity, unit_price: unitPrice, amount,
         sort_order: it.sort_order,
       }, { transaction: t });
     }
     const vatRateNum = Number(src.vat_rate ?? 0.1);
-    const taxAmount = Math.round(subtotal * vatRateNum);
-    const grandTotal = subtotal + taxAmount;
+    const taxAmount = roundMoney(subtotal * vatRateNum, cur);
+    const grandTotal = roundMoney(subtotal + taxAmount, cur);
     await copy.update({ subtotal, total_amount: subtotal, tax_amount: taxAmount, grand_total: grandTotal }, { transaction: t });
 
     // 회차 — **계획만** 가져오고 결제·증빙 마킹은 두고 온다
     let instCount = 0;
+    let instAllocated = 0;
     // 범위는 **부모가 이미 걸었다** — `src` 는 위에서 `business_id: req.params.businessId` 로 찾은 청구서다.
     //   그 id 로만 좁히므로 남의 워크스페이스 회차가 섞일 수 없다(business_id 를 여기 또 적지 않는다).
     const srcInst = await InvoiceInstallment.findAll({
       where: { invoice_id: src.id, /* business_id: 부모 청구서가 이미 확인함 */ },
       order: [['installment_no', 'ASC']], transaction: t,
     });
-    for (const inst of srcInst) {
+    for (let k = 0; k < srcInst.length; k += 1) {
+      const inst = srcInst[k];
+      // 마지막 회차가 잔여를 흡수한다(생성·수정 라우트와 같은 규칙) — 회차 합 == grand_total
+      const instAmount = k < srcInst.length - 1
+        ? roundMoney(grandTotal * Number(inst.percent || 0) / 100, cur)
+        : roundMoney(grandTotal - instAllocated, cur);
+      instAllocated = roundMoney(instAllocated + instAmount, cur);
       await InvoiceInstallment.create({
         invoice_id: copy.id,
         installment_no: inst.installment_no,
         label: inst.label,
         percent: inst.percent,
-        amount: Math.round(grandTotal * Number(inst.percent || 0) / 100),
+        amount: instAmount,
         due_date: null,                    // 날짜 리셋
         milestone_ref: inst.milestone_ref,
         status: 'pending',
@@ -852,6 +836,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       source_post_id, project_id, currency, receipt_type,
     } = req.body;
     if (!title) { await t.rollback(); return errorResponse(res, 'Title required', 400); }
+    // 금액 입력 검증 — 유한수·≥0 이 아니면 400 (Number(x)||0 으로 삼키지 않는다, B-①)
+    if (!itemsAmountsValid(items)) { await t.rollback(); return errorResponse(res, 'invalid_amount', 400); }
     // 증빙 발행 의향 (선택) — 발행 모달 '세금계산서 발행' 토글. 결제 후 증빙 큐(receiptsDue) 편입.
     const receiptType = ['tax_invoice', 'cash_receipt'].includes(receipt_type) ? receipt_type : 'none';
 
@@ -896,12 +882,17 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       ? { bank_name: business.bank_name || null, account_number: business.bank_account_number || null, account_holder: business.bank_account_name || business.name || null }
       : null;
 
-    const invoice_number = await generateInvoiceNumber();
+    // 참조 칸은 이 워크스페이스의 것만 — 남의 client_id 를 넣으면 그 고객 정보가 응답·메일로 나간다(B-③)
+    const clientIdChecked = await assertClientInBusiness(client_id, req.params.businessId, { transaction: t });
+    const projectIdChecked = await assertProjectInBusiness(project_id, req.params.businessId, { transaction: t });
+
+    const invoice_number = await nextInvoiceNumber(Number(req.params.businessId), { transaction: t });
     const vatRateNum = vat_rate !== undefined ? Number(vat_rate) : 0.1;
+    const cur = currency || 'KRW';
 
     const invoice = await Invoice.create({
       business_id: req.params.businessId,
-      client_id: client_id || null,
+      client_id: clientIdChecked,
       invoice_number,
       title,
       due_date: due_date || null,
@@ -915,8 +906,8 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       bank_snapshot,
       vat_rate: vatRateNum,
       source_post_id: sourcePostId,
-      project_id: project_id || null,
-      currency: currency || 'KRW',
+      project_id: projectIdChecked,
+      currency: cur,
       receipt_type: receiptType,
       // 발행 의향이 있으면 결제 후 큐에 'pending' 으로 잡히도록 상태 선설정 (고객 제출 시 갱신)
       ...(receiptType === 'tax_invoice' ? { tax_invoice_status: 'pending' } : {}),
@@ -929,21 +920,22 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       const itemRows = [];
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        const amount = Number(item.quantity || 1) * Number(item.unit_price || 0);
-        subtotal += amount;
+        const unitPrice = roundMoney(item.unit_price || 0, cur);
+        const amount = roundMoney(Number(item.quantity || 1) * unitPrice, cur);
+        subtotal = roundMoney(subtotal + amount, cur);
         itemRows.push({
           invoice_id: invoice.id,
           description: item.description,
           detail: (item.detail && String(item.detail).trim()) || null,
           quantity: item.quantity || 1,
-          unit_price: item.unit_price || 0,
+          unit_price: unitPrice,
           amount,
           sort_order: i,
         });
       }
       await InvoiceItem.bulkCreate(itemRows, { transaction: t });
-      const taxAmount = Math.round(subtotal * vatRateNum);
-      grandTotal = subtotal + taxAmount;
+      const taxAmount = roundMoney(subtotal * vatRateNum, cur);
+      grandTotal = roundMoney(subtotal + taxAmount, cur);
       await invoice.update({
         total_amount: subtotal,
         subtotal,
@@ -964,15 +956,15 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
         milestone_ref: inst.milestone_ref ? String(inst.milestone_ref).slice(0, 100) : null,
         status: 'pending',
       }));
-      // 분배: 마지막 row 가 (grand_total - sum(이전)) 으로 잔여 흡수
+      // 분배: 마지막 row 가 (grand_total - sum(이전)) 으로 잔여 흡수 — 통화별 반올림(B-①)
       let allocated = 0;
       for (let i = 0; i < insts.length; i++) {
         if (i < insts.length - 1) {
-          const a = Math.round(grandTotal * (insts[i].percent / 100));
+          const a = roundMoney(grandTotal * (insts[i].percent / 100), cur);
           insts[i].amount = a;
-          allocated += a;
+          allocated = roundMoney(allocated + a, cur);
         } else {
-          insts[i].amount = grandTotal - allocated;
+          insts[i].amount = roundMoney(grandTotal - allocated, cur);
         }
       }
       await InvoiceInstallment.bulkCreate(insts, { transaction: t });
@@ -1107,7 +1099,7 @@ router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceS
     const grand = Number(inv.grand_total || 0);
     const vatRate = Number(inv.vat_rate || 0.1);
     // subtotal(공급가액) 우선 컬럼, 없으면 합계에서 역산
-    const supply = inv.subtotal != null ? Number(inv.subtotal) : Math.round(grand / (1 + vatRate));
+    const supply = inv.subtotal != null ? Number(inv.subtotal) : roundMoney(grand / (1 + vatRate), inv.currency);
     const vat = inv.tax_amount != null ? Number(inv.tax_amount) : (grand - supply);
     return successResponse(res, {
       invoice_number: inv.invoice_number,
@@ -1201,7 +1193,8 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     //   계좌이체만 하는 정기 구독 고객은 영영 NULL 이다. 화면이 그것만 보면 사업자 정보가
     //   저장돼 있어도 아무것도 안 뜬다 (운영 2026-09-01, 고객 #6 청구서 4건 전부 NULL).
     //   서버가 폴백까지 끝낸 값을 내려준다 — 증빙 큐·PDF·메일과 같은 공식.
-    const rpDetail = resolveReceiptProfile(invoice, invoice.Client || null);
+    const priorDetail = await loadPriorReceiptProfiles([invoice]);   // B-⑤ 직전 제출본
+    const rpDetail = resolveReceiptProfile(invoice, invoice.Client || null, priorDetail(invoice));
     payload.receipt_profile_effective = rpDetail.profile;
     payload.receipt_profile_source = rpDetail.source;
     successResponse(res, payload);
@@ -1232,6 +1225,7 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       notes, items, vat_rate, installment_mode, installments, source_post_id, currency, receipt_type,
     } = req.body;
     if (!title) { await t.rollback(); return errorResponse(res, 'Title required', 400); }
+    if (!itemsAmountsValid(items)) { await t.rollback(); return errorResponse(res, 'invalid_amount', 400); }
     const receiptType = ['tax_invoice', 'cash_receipt'].includes(receipt_type) ? receipt_type : 'none';
 
     // 출처 post 검증 (생성과 동일)
@@ -1267,9 +1261,12 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
     }
 
     const vatRateNum = vat_rate !== undefined ? Number(vat_rate) : Number(invoice.vat_rate);
+    const cur = currency || invoice.currency || 'KRW';
+    // 참조 칸 테넌트 검증(B-③) — 생성 라우트와 같은 함수
+    const clientIdChecked = await assertClientInBusiness(client_id, req.params.businessId, { transaction: t });
 
     await invoice.update({
-      client_id: client_id || null,
+      client_id: clientIdChecked,
       title,
       due_date: due_date || null,
       recipient_email: recipient_email || null,
@@ -1294,22 +1291,23 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       const itemRows = [];
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        const amount = Number(item.quantity || 1) * Number(item.unit_price || 0);
-        subtotal += amount;
+        const unitPrice = roundMoney(item.unit_price || 0, cur);
+        const amount = roundMoney(Number(item.quantity || 1) * unitPrice, cur);
+        subtotal = roundMoney(subtotal + amount, cur);
         itemRows.push({
           invoice_id: invoice.id,
           description: item.description,
           detail: (item.detail && String(item.detail).trim()) || null,
           quantity: item.quantity || 1,
-          unit_price: item.unit_price || 0,
+          unit_price: unitPrice,
           amount,
           sort_order: i,
         });
       }
       await InvoiceItem.bulkCreate(itemRows, { transaction: t });
     }
-    const taxAmount = Math.round(subtotal * vatRateNum);
-    const grandTotal = subtotal + taxAmount;
+    const taxAmount = roundMoney(subtotal * vatRateNum, cur);
+    const grandTotal = roundMoney(subtotal + taxAmount, cur);
     await invoice.update({
       total_amount: subtotal, subtotal, tax_amount: taxAmount, grand_total: grandTotal,
     }, { transaction: t });
@@ -1330,10 +1328,10 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
       let allocated = 0;
       for (let i = 0; i < insts.length; i++) {
         if (i < insts.length - 1) {
-          const a = Math.round(grandTotal * (insts[i].percent / 100));
-          insts[i].amount = a; allocated += a;
+          const a = roundMoney(grandTotal * (insts[i].percent / 100), cur);
+          insts[i].amount = a; allocated = roundMoney(allocated + a, cur);
         } else {
-          insts[i].amount = grandTotal - allocated;
+          insts[i].amount = roundMoney(grandTotal - allocated, cur);
         }
       }
       await InvoiceInstallment.bulkCreate(insts, { transaction: t });
@@ -1388,6 +1386,7 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
     if (!invoice.share_token) updates.share_token = crypto.randomBytes(32).toString('hex');
     // N+43: share_token 만료 — 청구서는 due_date 와 무관하게 default 무제한 (사용자가 받은 결제 링크가
     // 만료되어 결제 못 하면 사고). 사용자가 명시적 expires_in_days 줬을 때만 적용.
+    // cron(shareTokenCleanup)은 sent/overdue/partially_paid 를 건드리지 않는다(FIX_0AB A-①).
     if (Number.isFinite(Number(expires_in_days)) && Number(expires_in_days) > 0) {
       updates.share_expires_at = new Date(Date.now() + Number(expires_in_days) * 86400 * 1000);
     }
