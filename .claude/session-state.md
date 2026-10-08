@@ -118,7 +118,7 @@
    - 2026-10-08 운영 피드백 재확인(Irene «관련 내용 더 있을 텐데 봐봐»): 새 pending 2건
      · #464 [영수증] 빈 화면(no_token) — ✅ 고침(링크 → downloadFromApi, 실패 문구). dev 실측: 헤더 없음 401·토큰 200 PDF·남의 결제 404 · 데스크탑/폰 눌러서 receipt-N.pdf(%PDF-) 받음·새 창 0 · 500 대조군에서 오류 문구 뜸. 운영 미배포. 답글 초안 docs/feedback-replies-2026-10-08.json(배포 뒤 발송)
      · #463 (user 3, Claude 연결) AI 로 업무의 프로젝트 변경·업무 삭제 불가 — 삭제는 설계상 HIGH(도구 없음). 프로젝트 옮기기는 가시성 변경이라 새 MEDIUM 도구(move_task_to_project, move_document_to_project 와 같은 2단계 확인) 여부를 Irene 결정 → 하면 Fable 설계 1회부터
-     · #456 끝 질문 «챗지피티에서 플랜큐 어떻게 써? 어디 설정?» 에 답글이 빠져 있었음 — 보고에서 답함(ChatGPT 설정 › 앱·커넥터 › 개발자 모드 › 새 앱: https://planq.kr/agent/mcp · 위키 «ChatGPT·Claude 연결하기»)
+     · #456 끝 질문 «챗지피티에서 플랜큐 어떻게 써? 어디 설정?» 에 답글이 빠져 있었음 — 보고에서 답함(PlanQ 개인 설정 › 외부 연동 › «연결된 AI 앱» 의 [ChatGPT 에서 열기] · 주소 https://planq.kr/agent/mcp · 위키 «ChatGPT·Claude 연결하기»)
 
 ### 주요 변경사항
 - 신규: `services/{planActive,presence,feedbackRespond}.js` · `scripts/feedback-reply.js` · `pages/QCalendar/{ProjectFilter,CalendarFrame}.tsx`
