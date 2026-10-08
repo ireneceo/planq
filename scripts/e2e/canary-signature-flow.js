@@ -176,37 +176,55 @@ async function run() {
     P('③ 고객이 링크를 열면 **우리가 먼저 한 서명**이 보인다', seesOther.seesOurSignature,
       seesOther.seesOurSignature ? `"${seesOther.text}"` : '🔴 먼저 한 서명이 안 보인다 — 누가 서명했는지 모른 채 서명하게 된다');
 
-    // 2026-10-08 Irene: 빨간 칸에서 «어쩌라는 건지 모르겠다» — 검토 단계의 칸이 다음 행동(맨 아래 버튼)을 말하고,
-    //   누르면 서명을 시작하지 않고 그 버튼 자리로 데려간다.
+    // 2026-10-08 Irene: «빨간부분 누르면 문서 확인했냐 팝업 나오게 해야지 … 위에갔다 아래갔다 이러잖아»
+    //   → 칸을 누르면 그 자리에서 서명 창이 뜨고(먼저 «문서를 확인하셨나요?»), 확인 → 본인 확인 → 서명이
+    //     **페이지를 움직이지 않고** 그 창 안에서 이어진다. 내 칸의 화면 위치(rect.top)를 단계마다 잰다 — scrollY 는 위 안내 줄이 짧아지면 브라우저가 보정해 바뀐다.
     const slotGuide = await guest.page.evaluate(`(async () => {
-      const cap = document.querySelector('[data-testid="sign-doc-body"] .pq-sig .pq-sig-cap');
       const mine = [...document.querySelectorAll('[data-testid="sign-doc-body"] .pq-sig')]
         .find((el) => getComputedStyle(el).borderTopColor === 'rgb(244, 63, 94)');
       if (!mine) return { found: false };
       const after = getComputedStyle(mine.querySelector('.pq-sig-cap'), '::after').content || '';
       window.scrollTo(0, 0);
       mine.scrollIntoView({ block: 'center' });
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 300));
+      const y0 = Math.round(mine.getBoundingClientRect().top);
       mine.click();
-      await new Promise((r) => setTimeout(r, 1500));
-      const act = document.querySelector('[data-testid="sign-action"]');
-      const r = act ? act.getBoundingClientRect() : null;
-      // 짧은 픽스처에선 버튼이 처음부터 화면 안이라 «보인다» 만으로는 무반응을 못 가른다 → 강조(빨간 테두리)가 켜졌는지도 잰다
-      return { found: true, after, stillReview: !!document.querySelector('[data-testid="sign-start"]'),
-               actionInView: !!r && r.top < innerHeight && r.bottom > 0, capFound: !!cap,
-               nudged: !!act && getComputedStyle(act).borderTopColor === 'rgb(244, 63, 94)' };
+      await new Promise((r) => setTimeout(r, 1200));
+      const dlg = document.querySelector('[aria-modal="true"]');
+      const ask = dlg && dlg.querySelector('[data-testid="sign-ask-confirm"]');
+      const ar = ask ? ask.getBoundingClientRect() : null;
+      const hit = ar ? document.elementFromPoint(ar.left + ar.width / 2, ar.top + ar.height / 2) : null;
+      // 칸 요소는 재렌더로 바뀔 수 있다 — 다시 찾는다
+      return { found: true, after, y0, y1: (() => { const m=[...document.querySelectorAll('[data-testid="sign-doc-body"] .pq-sig')].find((el) => getComputedStyle(el).borderTopColor === 'rgb(244, 63, 94)'); return m ? Math.round(m.getBoundingClientRect().top) : null; })(),
+               stillReview: !!document.querySelector('[data-testid="sign-start"]'),
+               dialog: !!dlg, askSeen: !!hit && (hit === ask || ask.contains(hit)),
+               title: dlg ? (dlg.innerText || '').replace(/\\s+/g, ' ').slice(0, 40) : '' };
     })()`);
+    // 허용 8px — 위 안내 줄 글자가 단계마다 바뀌어 몇 px 오갈 수 있다(눈에 띄는 «위아래 이동» 은 수백 px)
+    let y0 = null;
     if (!slotGuide.found) {
       P('③-b 검토 단계 내 칸 안내', null, '⬜ 미측정 — 빨간 테두리 칸을 못 찾았다');
     } else {
-      const says = /확인했습니다 · 서명하기|I have reviewed it · Sign/.test(slotGuide.after);
-      P('③-b 검토 단계 빨간 칸이 «맨 아래 버튼» 을 말한다', says, says ? 'OK' : `🔴 칸 문구: ${slotGuide.after.slice(0, 80)}`);
-      P('③-c 칸을 누르면 서명은 시작하지 않고 맨 아래 버튼으로 간다', slotGuide.stillReview && slotGuide.actionInView && slotGuide.nudged,
-        `검토 단계 유지 ${slotGuide.stillReview} · 버튼 영역 보임 ${slotGuide.actionInView} · 강조 ${slotGuide.nudged}`);
+      y0 = slotGuide.y0;
+      const says = /눌러 서명|tap here to sign/i.test(slotGuide.after);
+      P('③-b 검토 단계 빨간 칸이 «여기를 눌러 서명» 을 말한다', says, says ? 'OK' : `🔴 칸 문구: ${slotGuide.after.slice(0, 80)}`);
+      P('③-c 칸을 누르면 그 자리에서 «문서를 확인하셨나요?» 창이 뜬다 (내 칸이 화면에서 안 움직인다)',
+        slotGuide.dialog && slotGuide.askSeen && slotGuide.stillReview && Math.abs(slotGuide.y1 - slotGuide.y0) <= 8,
+        `창 ${slotGuide.dialog} «${slotGuide.title}» · 확인 버튼 보임 ${slotGuide.askSeen} · 검토 단계 유지 ${slotGuide.stillReview} · 내 칸 화면 위치 y ${slotGuide.y0}→${slotGuide.y1}`);
     }
 
-    // 2026-10-07 서명 흐름 개편 — 문서 검토 → [확인했습니다 · 서명하기] → 본인 확인. 검토 단계를 건너뛰면 인증 버튼이 없다.
-    await guest.page.click('[data-testid="sign-start"]').catch(() => {});
+    // 창 안 [확인했습니다 · 서명하기] → 같은 창이 본인 확인으로 바뀐다. 칸을 못 찾았으면 맨 아래 버튼으로 연다.
+    if (slotGuide.found) await guest.page.click('[data-testid="sign-ask-confirm"]').catch(() => {});
+    else await guest.page.click('[data-testid="sign-start"]').catch(() => {});
+    await b.sleep(1200);
+    const inPlace = await guest.page.evaluate(`(() => {
+      const dlg = document.querySelector('[aria-modal="true"]');
+      return { y: (() => { const m=[...document.querySelectorAll('[data-testid="sign-doc-body"] .pq-sig')].find((el) => getComputedStyle(el).borderTopColor === 'rgb(244, 63, 94)'); return m ? Math.round(m.getBoundingClientRect().top) : null; })(), otpInDialog: !!(dlg && dlg.querySelector('[data-testid="sign-otp-send"]')) };
+    })()`);
+    if (y0 != null) {
+      P('③-d 창 안에서 본인 확인으로 이어진다 (내 칸이 화면에서 안 움직인다)', inPlace.otpInDialog && Math.abs(inPlace.y - y0) <= 8,
+        `창 안 인증 버튼 ${inPlace.otpInDialog} · 내 칸 화면 위치 y ${y0}→${inPlace.y}`);
+    }
     await b.sleep(1200);
     await guest.page.click('[data-testid="sign-otp-send"]').catch(() => {});
     await b.sleep(2500);
@@ -255,6 +273,15 @@ async function run() {
       const submit = document.querySelector('[data-testid="sign-submit"]');
       return { canvas: c ? (${VISIBLE})(c) : { found: false }, submitDisabled: submit ? !!submit.disabled : null };
     })()`);
+    const signPlace = await guest.page.evaluate(`(() => {
+      const dlg = document.querySelector('[aria-modal="true"]');
+      return { y: (() => { const m=[...document.querySelectorAll('[data-testid="sign-doc-body"] .pq-sig')].find((el) => getComputedStyle(el).borderTopColor === 'rgb(244, 63, 94)'); return m ? Math.round(m.getBoundingClientRect().top) : null; })(), canvasInDialog: !!(dlg && dlg.querySelector('canvas')), submitInDialog: !!(dlg && dlg.querySelector('[data-testid="sign-submit"]')) };
+    })()`);
+    if (y0 != null) {
+      P('③-e 서명 칸·[서명하기] 도 같은 창 안 — 확인부터 서명까지 내 칸이 화면에서 한 번도 안 움직였다',
+        signPlace.canvasInDialog && signPlace.submitInDialog && Math.abs(signPlace.y - y0) <= 8,
+        `창 안 캔버스 ${signPlace.canvasInDialog} · 서명 버튼 ${signPlace.submitInDialog} · 내 칸 화면 위치 y ${y0}→${signPlace.y}`);
+    }
     P('⑥ 맞는 인증번호 6자리 → [확인] 없이 서명 칸이 열린다 (양성 대조군)',
       signPhase.canvas.found && signPhase.canvas.painted && signPhase.submitDisabled === true,
       signPhase.canvas.found ? `캔버스 ${signPhase.canvas.w}×${signPhase.canvas.h} · 그리기 전 제출 막힘=${signPhase.submitDisabled}`

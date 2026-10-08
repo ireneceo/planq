@@ -45,18 +45,11 @@ export const Content = styled.main`
   @media (max-width: 640px) { padding: 16px 12px 32px; gap: 16px; }
 `;
 
-export const Section = styled.section<{ $nudge?: boolean }>`
-  background: #fff; border: 1px solid ${p => (p.$nudge ? '#F43F5E' : '#E2E8F0')}; border-radius: 14px;
+export const Section = styled.section`
+  background: #fff; border: 1px solid #E2E8F0; border-radius: 14px;
   padding: 24px;
-  box-shadow: ${p => (p.$nudge ? '0 0 0 4px rgba(244,63,94,0.12)' : 'none')};
-  transition: border-color 0.2s, box-shadow 0.2s;
   scroll-margin-top: 16px;
   @media (max-width: 640px) { padding: 16px; border-radius: 12px; }
-`;
-// 내 서명 칸을 눌렀을 때 «여기서 서명한다» 를 말하는 줄(2026-10-05)
-export const NudgeNote = styled.div`
-  margin: 0 0 12px; padding: 10px 12px; border-radius: 8px;
-  background: #FFF1F2; color: #9F1239; font-size: 0.8125rem; line-height: 1.55;
 `;
 export const SectionTitle = styled.h2`
   font-size: 1.125rem; font-weight: 700; color: #0F172A; margin: 0 0 8px 0; line-height: 1.4;
