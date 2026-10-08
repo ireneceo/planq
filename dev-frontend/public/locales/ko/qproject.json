@@ -590,7 +590,8 @@
       "deleteChoiceMove": "「폴더만 삭제」를 고르면 파일은 바로 위 폴더로 옮겨지고 그대로 남습니다.",
       "deleteChoiceTrash": "「파일도 함께 삭제」를 고르면 파일도 휴지통으로 갑니다. 30일 안에 되돌릴 수 있습니다.",
       "deleteOnlyFolder": "폴더만 삭제",
-      "deleteWithFilesAction": "파일도 함께 삭제"
+      "deleteWithFilesAction": "파일도 함께 삭제",
+      "deleteBlocked": "삭제 권한이 없는 파일이 {{n}}개 있어 함께 삭제할 수 없습니다. 파일을 상위 폴더로 옮기고 폴더만 삭제할 수 있습니다."
     },
     "up": {
       "aria": "업로드 진행 상황",

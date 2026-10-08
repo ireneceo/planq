@@ -37,6 +37,7 @@ const { sendSignatureRequestEmail, sendSignatureOtpEmail } = require('../service
 const {
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
   isExpiredNow, notifyWorkspaceMembersOnSignature,
+  canReadPostFn, canEditPostFn, postOfRequest, canManageRequest,   // 멤버 라우트 = 그 문서의 읽기/편집 술어 (0-C C-1)
 } = require('../services/signatureCore');
 
 const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
@@ -116,6 +117,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       await t.rollback(); return errorResponse(res, 'forbidden', 403);
     }
+    if (!(await canEditPostFn()(req.user.id, post, req.user.platform_role))) { await t.rollback(); return errorResponse(res, 'forbidden', 403); }
 
     // 서명란(2026-09-22) — signers[].slot(칸 번호) · party('us' 보내는 쪽 | 'them' 받는 쪽) · user_id(보내는 쪽 멤버)
     //   보내는 쪽은 **이메일 링크를 보내지 않는다.** 멤버가 앱 안에서(로그인 상태) 서명한다 — POST /signatures/:id/sign-internal
@@ -282,7 +284,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
     }
 
     return successResponse(res, {
-      signatures: created.map(serialize),
+      signatures: created.map((c) => serialize(c)),
       chat_message_id: chatMessageId,
     }, 'Signature requests sent');
   } catch (err) {
@@ -296,14 +298,13 @@ router.get('/posts/:id/signatures', authenticateToken, async (req, res, next) =>
   try {
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
-    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))
+      || !(await canReadPostFn()(req.user, post))) return errorResponse(res, 'forbidden', 403);
     const list = await SignatureRequest.findAll({
       where: { entity_type: 'post', entity_id: post.id, business_id: post.business_id },
       order: [['created_at', 'ASC']],
     });
-    return successResponse(res, list.map(serialize));
+    return successResponse(res, list.map((r) => serialize(r)));
   } catch (err) { next(err); }
 });
 
@@ -315,9 +316,8 @@ router.get('/posts/:id/signature-scope', authenticateToken, async (req, res, nex
   try {
     const post = await Post.findByPk(req.params.id);
     if (!post) return errorResponse(res, 'not_found', 404);
-    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
-      return errorResponse(res, 'forbidden', 403);
-    }
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))
+      || !(await canEditPostFn()(req.user.id, post, req.user.platform_role))) return errorResponse(res, 'forbidden', 403);
     const scope = await require('../services/signatureCore').planOutboundScope(post, { user: req.user });
     return successResponse(res, {
       files: scope.files.map((f) => ({ file_id: f.file_id, name: f.name, security_level: f.security_level, included: f.included })),
@@ -337,6 +337,8 @@ router.get('/signatures/:id/image', authenticateToken, async (req, res, next) =>
     if (!(await assertMember(req.user.id, sr.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    const imgPost = await postOfRequest(sr);
+    if (!imgPost || !(await canReadPostFn()(req.user, imgPost))) return errorResponse(res, imgPost ? 'forbidden' : 'not_found', imgPost ? 403 : 404);
     const m = /^data:(image\/(png|jpeg|webp));base64,(.+)$/i.exec(String(sr.signature_image_b64));
     if (!m) return errorResponse(res, 'invalid_image', 422);
     res.set('Content-Type', m[1].toLowerCase());
@@ -354,6 +356,7 @@ router.delete('/signatures/:id', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, sr.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    if (!(await canManageRequest(req, sr))) return errorResponse(res, 'forbidden', 403);
     if (sr.status === 'signed' || sr.status === 'rejected') {
       return errorResponse(res, 'already_finalized', 400);
     }
@@ -374,6 +377,7 @@ router.post('/signatures/:id/reminder', authenticateToken, async (req, res, next
     if (!(await assertMember(req.user.id, sr.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    if (!(await canManageRequest(req, sr))) return errorResponse(res, 'forbidden', 403);
     if (sr.status !== 'sent' && sr.status !== 'viewed') {
       return errorResponse(res, 'cannot_remind', 400);
     }
@@ -439,7 +443,7 @@ router.get('/signatures/received', authenticateToken, async (req, res, next) => 
 
     // 검색 (q): entity title 매칭 (단순 client-side 필터)
     let items = rows.map(s => ({
-      ...serialize(s),
+      ...serialize(s, { withLink: true }),
       entity_title: s.entity_type === 'post' ? (titleMap.get(s.entity_id) || '문서') : '문서',
       workspace: bizMap.get(s.business_id) ? {
         business_id: s.business_id,
@@ -656,7 +660,7 @@ router.post('/sign/:token/reject', async (req, res, next) => {
     next(err);
   }
 });
-function serialize(sr) {
+function serialize(sr, { withLink = false } = {}) {   // ★ token·sign_url 은 받는 사람 본인(received)만 — 진행표·생성 응답은 멤버 전원이 받는다 (0-C C-1)
   return {
     id: sr.id,
     entity_type: sr.entity_type, entity_id: sr.entity_id,
@@ -666,8 +670,7 @@ function serialize(sr) {
     signer_email: sr.signer_email, signer_name: sr.signer_name,
     // 서명란 — 화면이 «몇 번 칸 · 보내는/받는 쪽» 을 그리고, 내 칸이면 [서명하기] 를 띄운다
     slot: sr.slot ?? null, party: sr.party || 'them', signer_user_id: sr.signer_user_id ?? null,
-    token: sr.token,
-    sign_url: `${APP_URL}/sign/${sr.token}`,
+    ...(withLink ? { token: sr.token, sign_url: `${APP_URL}/sign/${sr.token}` } : {}),
     status: sr.status,
     viewed_at: sr.viewed_at,
     confirmed_at: sr.confirmed_at,

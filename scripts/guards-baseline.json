@@ -400,5 +400,11 @@
     "dev-frontend/src/pages/QDocs/PublicDocPage.tsx": 1,
     "dev-frontend/src/pages/QNote/PublicQNoteSessionPage.tsx": 1,
     "dev-frontend/src/utils/todayTaskSet.ts": 1
+  },
+  "broadcastpayload": {
+    "dev-backend/routes/invoices.js": 4,
+    "dev-backend/routes/projects.js": 5,
+    "dev-backend/services/actions/project_note_actions.js": 1,
+    "dev-backend/services/invoiceDelivery.js": 1
   }
 }

@@ -32,6 +32,14 @@ function db() {
   return sequelize;
 }
 
+// 서명 링크(토큰)는 멤버 응답에 더 이상 오지 않는다(0-C C-1 — 받는 사람 본인에게만). 카나리는 받는 사람 역할을
+//   흉내 내야 하므로 DB 에서 읽는다.
+async function tokenOf(id) {
+  if (!id) return null;
+  const r = (await db().query(`SELECT token FROM signature_requests WHERE id=${Number(id)}`))[0][0];
+  return r ? r.token : null;
+}
+
 const VISIBLE = `(el) => {
   if (!el) return { found: false };
   el.scrollIntoView({ block: 'center', inline: 'nearest' });
@@ -103,6 +111,7 @@ async function run() {
       const list = sr.json?.data?.signatures || [];
       sigUs = list.find((s) => s.party === 'us') || null;
       sigThem = list.find((s) => s.party === 'them') || null;
+      if (sigThem) sigThem.token = await tokenOf(sigThem.id);
     }
   } catch { /* 아래 0건 처리 */ }
 
@@ -317,6 +326,7 @@ async function run() {
           kind: 'sign', expires_in_days: 3, send_chat: false }),
       });
       const rsr = rs.json?.data?.signatures?.[0];
+      if (rsr) rsr.token = await tokenOf(rsr.id);
       await db().query(
         `UPDATE signature_requests SET otp_code_hash='${crypto.createHash('sha256').update(OTP).digest('hex')}',
          otp_expires_at=DATE_ADD(NOW(), INTERVAL 5 MINUTE) WHERE id=${rsr.id}`);
@@ -425,6 +435,7 @@ async function run() {
           kind: 'sign', expires_in_days: 3, send_chat: false }),
       });
       const tsr = ts.json?.data?.signatures?.[0];
+      if (tsr) tsr.token = await tokenOf(tsr.id);
       await db().query(
         `UPDATE signature_requests SET otp_code_hash='${crypto.createHash('sha256').update(OTP).digest('hex')}',
          otp_expires_at=DATE_ADD(NOW(), INTERVAL 5 MINUTE), otp_verified_at=NOW() WHERE id=${tsr.id}`);

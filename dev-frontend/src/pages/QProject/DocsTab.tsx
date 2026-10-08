@@ -46,7 +46,7 @@ import {
   fetchWorkspaceFolders, createWorkspaceFolder,
   createShareLink, bulkDownloadZip, updateFileVisibility, updateFileSecurityLevel,
   formatBytes, extOf, isImage, getUploadLimits, type UploadLimits,
-  type ProjectFile, type FileSource, type FileFolder, parseFileId, canOpenInNewTab } from '../../services/files';
+  type ProjectFile, type FileSource, type FileFolder, type FolderDeleteOutcome, parseFileId, canOpenInNewTab } from '../../services/files';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
@@ -403,7 +403,8 @@ const DocsTab: React.FC<Props> = (props) => {
       for (const f of folders) if (f.parent_id === ids[i]) ids.push(f.id);
     }
     const r = await deleteFolder(id, mode);
-    if (!r.ok) return;
+    // 지울 권한이 없는 파일이 섞여 있으면 서버가 아무것도 안 지우고 거절한다(0-C C-4) — 확인창이 이유를 말한다.
+    if (!r.ok) return r.blockedCount ? { blockedCount: r.blockedCount } : undefined;
     setFolders(prev => prev.filter(f => !ids.includes(f.id)));
     setFiles(prev => (mode === 'delete'
       // 같이 지웠으면 목록에서도 **사라져야** 한다 — 남기면 눌렀을 때 404 가 난다.
@@ -2116,7 +2117,7 @@ interface ProjectGroupsProps {
   folderDrop?: FolderDropFn;
   /** 하위 폴더 ⋯ 메뉴 — FolderTree 와 **같은 처리기**를 받는다(#417: 여태 [+] 뿐이라 이름을 못 바꾸고 못 지웠다). */
   onRenameFolder?: (id: number, name: string) => Promise<void>;
-  onDeleteFolder?: (id: number, contents: 'move' | 'delete') => Promise<void>;
+  onDeleteFolder?: (id: number, contents: 'move' | 'delete') => Promise<FolderDeleteOutcome | void>;
   /** 하위 폴더까지 합한 파일 수 — 확인창이 묻는 숫자. 서버가 재귀로 지우므로 세는 것도 재귀다. */
   countDeep?: (id: number) => number;
   onDownloadFolder?: (id: number) => void | Promise<void>;
@@ -2282,7 +2283,7 @@ interface FolderTreeProps {
   onSelect: (sel: FolderSel) => void;
   onCreate: (parentId: number | null, name: string) => Promise<void>;
   onRename: (id: number, name: string) => Promise<void>;
-  onDelete: (id: number, contents: 'move' | 'delete') => Promise<void>;
+  onDelete: (id: number, contents: 'move' | 'delete') => Promise<FolderDeleteOutcome | void>;
   countDeep?: (id: number) => number;
   onReorder: (id: number, direction: 'up' | 'down') => Promise<void>;
   /** 폴더 통째 다운로드 (zip). 파일을 하나씩 고르지 않고 폴더째 받는다 — Irene #417. */

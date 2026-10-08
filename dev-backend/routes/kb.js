@@ -1414,6 +1414,8 @@ router.post('/businesses/:businessId/kb/documents/batch', authenticateToken, che
 });
 
 router.post('/businesses/:businessId/kb/search', authenticateToken, checkBusinessAccess, async (req, res, next) => { // audit-exempt: 읽기(검색) — 바꾸는 것이 없다
+  // 목록과 같은 문 — 고객은 Q info 를 보지 않는다(0-C C-3)
+  if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
   try {
     const { query, limit } = req.body;
     if (!query) return errorResponse(res, 'query required', 400);
@@ -1466,6 +1468,8 @@ router.delete('/kb-documents/:id/share', authenticateToken, async (req, res, nex
     if (!doc) return errorResponse(res, 'kb_document_not_found', 404);
     const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    // 볼 수 있는 사람만 — 공유 발급과 같은 술어(0-C C-3). 남의 L1 등급 변경·공유 해제 차단.
+    if (!(await canAccessKbDocumentByLevel(req.user.id, doc, scope))) return errorResponse(res, 'forbidden', 403);
     await doc.update({
       share_token: null,
       shared_at: null,
@@ -1488,6 +1492,8 @@ router.put('/kb-documents/:id/security-level', authenticateToken, async (req, re
     if (!doc) return errorResponse(res, 'kb_document_not_found', 404);
     const scope = await getUserScope(req.user.id, doc.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    // 볼 수 있는 사람만 — 공유 발급과 같은 술어(0-C C-3). 남의 L1 등급 변경·공유 해제 차단.
+    if (!(await canAccessKbDocumentByLevel(req.user.id, doc, scope))) return errorResponse(res, 'forbidden', 403);
     const prev = doc.security_level;
     const patch = { security_level: level };
     let revokedShare = false;

@@ -477,6 +477,37 @@ function checkBroadcast() {
   report('broadcast', `변경 라우트 socket broadcast 잠금 (${BROADCAST_LOCKED.length}개 파일)`, missing.length === 0, missing);
 }
 
+// 6-a. broadcast payload — «방송은 신호만» 래칫 (0-C C-2, 2026-10-08)
+//   행 전체(`x.toJSON()`)를 방에 뿌리면 자격증명(invite_token)·영업 메모·금액이 메뉴 권한 없는 멤버에게도 간다.
+//   기존 부채(메시지·청구서·이슈 등)는 동결하고 늘어나는 것만 막는다. 두 모양을 센다:
+//     ① emit(…, x.toJSON())  — 직접
+//     ② const data = x.toJSON ? x.toJSON() : x;  다음 3줄 안에 .emit(  — 변수로 한 번 거쳐 보내는 모양(옛 broadcastClient)
+function checkBroadcastPayload() {
+  const files = [
+    ...walk(`${ROOT}/dev-backend/routes`, ['.js']),
+    ...walk(`${ROOT}/dev-backend/services`, ['.js']),
+  ];
+  const current = {};
+  const samples = [];
+  for (const f of files) {
+    const lines = read(f).split('\n');
+    let n = 0;
+    lines.forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*')) return;
+      let hit = /\.emit\([^;]*\.toJSON\(/.test(l);
+      if (!hit && /=\s*\w+\.toJSON\s*\?\s*\w+\.toJSON\(\)/.test(l)) {
+        hit = lines.slice(i + 1, i + 4).some((x) => /\.emit\(/.test(x));
+      }
+      if (hit) { n += 1; if (samples.length < 12) samples.push(`${rel(f)}:${i + 1}: ${t.slice(0, 90)}`); }
+    });
+    if (n) current[rel(f)] = n;
+  }
+  const rt = ratchet('broadcastpayload', current, samples);
+  report('broadcast', `방송 payload 통째 직렬화 래칫 — 신호만 보낸다 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? rt.fails : rt.sampleLines);
+}
+
 // ═══════════════════════════════════════════════
 // 6-b. broadcastactor — task broadcast payload 에 actor_user_id 잠금 (운영 #278·#282)
 //
@@ -3287,7 +3318,7 @@ const CATEGORIES = {
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,
-  broadcast: checkBroadcast,
+  broadcast: () => { checkBroadcast(); checkBroadcastPayload(); },
   broadcastactor: checkBroadcastActor,
   finance: checkFinance,
   cuefinance: checkCueFinance,

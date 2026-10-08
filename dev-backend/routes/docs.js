@@ -880,78 +880,8 @@ router.get('/public/:token/pdf', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ============================================
-// Public sign — 고객이 동의·서명 (인증 없음, share_token 기반)
-// body: { signer_name, signer_email, accept: true|false, note?, signature_image_b64? }
-// 정책: 한 문서당 1회 서명 (재서명 차단). signed_at 이미 있으면 409.
-// ============================================
-router.post('/public/:token/sign', async (req, res, next) => {
-  try {
-    const { signer_name, signer_email, accept, note, signature_image_b64 } = req.body;
-    if (!signer_name || typeof accept !== 'boolean') {
-      return errorResponse(res, 'invalid_payload', 400);
-    }
-    const doc = await Document.findOne({
-      where: { share_token: req.params.token, archived_at: null },
-    });
-    if (!doc) return errorResponse(res, 'not_found', 404);
-    if (doc.share_expires_at && new Date(doc.share_expires_at) < new Date()) {
-      return res.status(410).json({ success: false, code: 'share_expired', message: 'This share link has expired.' });
-    }
-    if (doc.signed_at) return errorResponse(res, 'already_signed', 409);
-
-    const sig = {
-      signer_name: String(signer_name).trim().slice(0, 100),
-      signer_email: signer_email ? String(signer_email).trim().slice(0, 200) : null,
-      accept: !!accept,
-      note: note ? String(note).trim().slice(0, 500) : null,
-      signature_image: signature_image_b64 ? String(signature_image_b64).slice(0, 200000) : null,
-      signed_ip: req.ip || req.headers['x-forwarded-for'] || null,
-      signed_at: new Date().toISOString(),
-    };
-    const newStatus = accept ? 'signed' : 'rejected';
-    await doc.update({
-      signed_at: new Date(),
-      signature_data: sig,
-      status: newStatus,
-    });
-
-    // Revision 기록 (감사 로그)
-    try {
-      await DocumentRevision.create({
-        document_id: doc.id,
-        revision_number: 1,
-        author_user_id: null,
-        change_summary: `[public sign] ${sig.signer_name} → ${newStatus}`,
-        body_html_snapshot: null,
-        form_data_snapshot: null,
-        body_json_snapshot: null,
-      });
-    } catch { /* revision 실패해도 서명 성공 */ }
-
-    // 사이클 N+54 — audit. public 서명 = 법적 효력 — IP + signer 정보 박제 필수
-    require('../services/auditService').logAudit(
-      { ip: req.ip, headers: req.headers, body: { business_id: doc.business_id } },
-      {
-        action: 'document.public_sign',
-        targetType: 'document',
-        targetId: doc.id,
-        businessId: doc.business_id,
-        userId: null, // 익명 서명 (외부 고객)
-        newValue: {
-          document_title: doc.title,
-          signer_name: sig.signer_name,
-          signer_email: sig.signer_email,
-          accept: sig.accept,
-          status: newStatus,
-          signed_at: sig.signed_at,
-          signed_ip: sig.signed_ip,
-        },
-      }
-    );
-
-    return successResponse(res, { status: newStatus, signed_at: sig.signed_at });
-  } catch (e) { next(e); }
-});
+// ★ 공개 서명(POST /public/:token/sign)은 2026-10-08 에 없앴다(0-C C-6) — OTP·레이트리밋·이메일 검증이 없는
+//   무인증 쓰기 표면이었다. 서명은 Q docs 서명 요청(/api/sign/:token, OTP)으로만 받는다.
+//   공유 링크로 **보기**(GET /public/:token · /pdf)는 그대로다. 되살리지 말 것.
 
 module.exports = router;

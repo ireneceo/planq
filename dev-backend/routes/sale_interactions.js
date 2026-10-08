@@ -107,12 +107,17 @@ module.exports = router;
 const NOTE_KINDS = { email_thread: 'email_thread_id', conversation: 'conversation_id', client: 'client_id' };
 
 /** 상담 기준을 `project_notes` 의 어느 칸에 넣을지 + 그 대상이 이 워크스페이스 것인지. */
-async function resolveConsultTarget(businessId, kind, id) {
+//   ★ 메일 스레드는 **부른 사람이 볼 수 있는 계정**(공용 + 본인 개인)의 것만 — 같은 파일군 sale_save 와 같은 술어(0-C C-7).
+//     business_id 만 보면 남의 개인 메일 스레드에 메모를 달고 읽을 수 있었다.
+async function resolveConsultTarget(businessId, kind, id, userId) {
   const col = NOTE_KINDS[kind];
   if (!col || !id) return null;
   const { EmailThread, Conversation, Client } = require('../models');
   if (kind === 'email_thread') {
-    const t = await EmailThread.findOne({ where: { id, business_id: businessId }, attributes: ['id', 'project_id'] });
+    const { Op } = require('sequelize');
+    const { accessibleAccountIds } = require('../services/mailIdentity');
+    const acctIds = await accessibleAccountIds(businessId, userId);
+    const t = await EmailThread.findOne({ where: { id, business_id: businessId, account_id: { [Op.in]: acctIds.length ? acctIds : [0] } }, attributes: ['id', 'project_id'] });
     return t ? { col, id: t.id, projectId: t.project_id || null } : null;
   }
   if (kind === 'conversation') {
@@ -126,7 +131,7 @@ async function resolveConsultTarget(businessId, kind, id) {
 router.get('/:businessId/consults/:kind/:id/notes', ...readChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const tgt = await resolveConsultTarget(businessId, String(req.params.kind), Number(req.params.id));
+    const tgt = await resolveConsultTarget(businessId, String(req.params.kind), Number(req.params.id), req.user.id);
     if (!tgt) return errorResponse(res, 'consult_not_found', 404);
     const { ProjectNote } = require('../models');
     const { Op } = require('sequelize');
@@ -147,7 +152,7 @@ router.get('/:businessId/consults/:kind/:id/notes', ...readChain, async (req, re
 router.post('/:businessId/consults/:kind/:id/notes', ...writeChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const tgt = await resolveConsultTarget(businessId, String(req.params.kind), Number(req.params.id));
+    const tgt = await resolveConsultTarget(businessId, String(req.params.kind), Number(req.params.id), req.user.id);
     if (!tgt) return errorResponse(res, 'consult_not_found', 404);
     const body = String(req.body?.body || '').trim();
     if (!body) return errorResponse(res, 'body_required', 400);
@@ -175,7 +180,7 @@ router.post('/:businessId/consults/:kind/:id/notes', ...writeChain, async (req, 
 router.delete('/:businessId/consults/:kind/:id/notes/:noteId', ...writeChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
-    const tgt = await resolveConsultTarget(businessId, String(req.params.kind), Number(req.params.id));
+    const tgt = await resolveConsultTarget(businessId, String(req.params.kind), Number(req.params.id), req.user.id);
     if (!tgt) return errorResponse(res, 'consult_not_found', 404);
     const { ProjectNote } = require('../models');
     const note = await ProjectNote.findOne({ where: { id: Number(req.params.noteId), [tgt.col]: tgt.id } });

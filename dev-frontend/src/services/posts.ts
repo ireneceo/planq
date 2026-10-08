@@ -513,8 +513,9 @@ export interface SignatureRequest {
   // 서명 항목 (2026-10-05) — 이 서명자가 채울 서명 칸 수 · 서명일/이름 자리 유무. null = 옛 요청(서명 칸 1)
   required_items?: { sign: number; date: boolean; name: boolean } | null;
   kind?: 'sign' | 'confirm';
-  token: string;
-  sign_url: string;
+  // 서명 링크 — **받는 사람 본인**(GET /signatures/received)에게만 온다. 진행표·생성 응답에는 없다(0-C C-1).
+  token?: string;
+  sign_url?: string;
   status: SignatureStatus;
   viewed_at: string | null;
   otp_verified: boolean;

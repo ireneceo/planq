@@ -233,9 +233,18 @@ router.get('/image/:fileId', async (req, res, next) => {
   try {
     const fid = Number(req.params.fileId);
     if (!Number.isInteger(fid) || fid <= 0) return res.status(400).end();
-    const like = `%"file_id":${fid}%`;
+    // ★ 정확 매치(0-C C-5) — 예전 `LIKE '%"file_id":12%'` 는 `"file_id":123` 에도 참이라 무인증으로 file 12 를 내줬다.
+    //   body 는 블록 배열(JSON) — 후보 객체가 원소 하나에 **포함**되면 참(caption 등 다른 키가 더 있어도 매치).
+    //   fid 는 위에서 양의 정수로 검증했다(리터럴에 넣어도 안전).
+    const { sequelize } = require('../config/database');
     const referenced = await HelpArticle.findOne({
-      where: { is_published: true, [Op.or]: [{ body_ko: { [Op.like]: like } }, { body_en: { [Op.like]: like } }] },
+      where: {
+        is_published: true,
+        [Op.or]: [
+          sequelize.literal(`JSON_CONTAINS(body_ko, JSON_OBJECT('type','image','file_id', ${fid}))`),
+          sequelize.literal(`JSON_CONTAINS(body_en, JSON_OBJECT('type','image','file_id', ${fid}))`),
+        ],
+      },
       attributes: ['id'],
     });
     if (!referenced) return res.status(404).end();

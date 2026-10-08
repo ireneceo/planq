@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { FileFolder } from '../../../services/files';
+import type { FileFolder, FolderDeleteOutcome } from '../../../services/files';
 import { isEnterAction } from '../../../utils/imeKey';
 import { FolderName, RenameInput } from './treeStyles';
 import { Modal, Dialog, DTitle, DBody, DFooter, SecondaryBtn, DangerBtn } from './dialogStyles';
@@ -19,7 +19,7 @@ import { Modal, Dialog, DTitle, DBody, DFooter, SecondaryBtn, DangerBtn } from '
 export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr }: {
   onRename?: (id: number, name: string) => Promise<void>;
   /** `contents` — 안의 파일을 위 폴더로 옮길지(`move`) 함께 휴지통으로 보낼지(`delete`). */
-  onDelete?: (id: number, contents: 'move' | 'delete') => Promise<void>;
+  onDelete?: (id: number, contents: 'move' | 'delete') => Promise<FolderDeleteOutcome | void>;
   counts: { byFolder: Record<number, number> };
   /** 하위 폴더까지 합한 파일 수. 없으면 이 폴더만 센다(옛 동작). */
   countDeep?: (id: number) => number;
@@ -27,7 +27,10 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr }: 
 }) {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<FileFolder | null>(null);
+  const [deleteTarget, setDeleteTargetRaw] = useState<FileFolder | null>(null);
+  // 「파일도 함께 삭제」가 거절된 경우(지울 권한이 없는 파일 수) — 확인창 안에서 이유를 말하고 «옮기기» 만 남긴다(0-C C-4).
+  const [blockedCount, setBlockedCount] = useState(0);
+  const setDeleteTarget = (f: FileFolder | null) => { setBlockedCount(0); setDeleteTargetRaw(f); };
   const startRename = (f: FileFolder) => { setRenamingId(f.id); setRenameDraft(f.name); };
   const commitRename = async () => {
     if (renamingId == null) return;
@@ -61,6 +64,9 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr }: 
               <p>{fmt(tr('docs.folder.deleteCount', '이 폴더와 하위 폴더에 파일 {{n}}개가 있습니다.'), deleteCount)}</p>
               <p>{tr('docs.folder.deleteChoiceMove', '「폴더만 삭제」를 고르면 파일은 바로 위 폴더로 옮겨지고 그대로 남습니다.')}</p>
               <p>{tr('docs.folder.deleteChoiceTrash', '「파일도 함께 삭제」를 고르면 파일도 휴지통으로 갑니다. 30일 안에 되돌릴 수 있습니다.')}</p>
+              {blockedCount > 0 && (
+                <p role="alert" data-testid="folder-delete-blocked">{fmt(tr('docs.folder.deleteBlocked', '삭제 권한이 없는 파일이 {{n}}개 있어 함께 삭제할 수 없습니다. 파일을 상위 폴더로 옮기고 폴더만 삭제할 수 있습니다.'), blockedCount)}</p>
+              )}
             </>
           ) : (
             <p>{tr('docs.folder.deleteEmpty', '이 폴더는 비어있습니다')}</p>
@@ -74,10 +80,17 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr }: 
                 onClick={async () => { const t = deleteTarget; setDeleteTarget(null); await onDelete(t.id, 'move'); }}>
                 {tr('docs.folder.deleteOnlyFolder', '폴더만 삭제')}
               </SecondaryBtn>
-              <DangerBtn type="button" data-testid="folder-delete-with-files"
-                onClick={async () => { const t = deleteTarget; setDeleteTarget(null); await onDelete(t.id, 'delete'); }}>
-                {tr('docs.folder.deleteWithFilesAction', '파일도 함께 삭제')}
-              </DangerBtn>
+              {blockedCount === 0 && (
+                <DangerBtn type="button" data-testid="folder-delete-with-files"
+                  onClick={async () => {
+                    const t = deleteTarget;
+                    const out = await onDelete(t.id, 'delete');
+                    if (out && out.blockedCount > 0) { setBlockedCount(out.blockedCount); return; }
+                    setDeleteTarget(null);
+                  }}>
+                  {tr('docs.folder.deleteWithFilesAction', '파일도 함께 삭제')}
+                </DangerBtn>
+              )}
             </>
           ) : (
             /* 빈 폴더는 고를 것이 없다 — 선택지를 세우면 뜻 없는 축이 하나 늘어난다. */

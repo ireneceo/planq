@@ -590,7 +590,8 @@
       "deleteChoiceMove": "Delete folder only moves the files up one level, where they stay.",
       "deleteChoiceTrash": "Delete files too sends the files to the trash. You can restore them within 30 days.",
       "deleteOnlyFolder": "Delete folder only",
-      "deleteWithFilesAction": "Delete files too"
+      "deleteWithFilesAction": "Delete files too",
+      "deleteBlocked": "{{n}} file(s) in this folder can’t be deleted by you. You can move the files to the parent folder and delete only the folder."
     },
     "up": {
       "aria": "Upload progress",

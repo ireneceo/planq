@@ -227,7 +227,22 @@ async function maybeUpdateEntityStatus(/* entity_type, entity_id, business_id, t
   // no-op (의도)
 }
 
+// ─── 서명 멤버 라우트의 문서 술어 (0-C C-1) ───
+//   멤버 라우트는 워크스페이스 멤버만이 아니라 **그 문서를 읽을/고칠 수 있는가** 를 본다. 새 술어를 만들지 않는다 —
+//   본문 조회(services/postAccess.canReadPost)·편집(routes/posts.canEditPost)과 같은 함수. 라우트는 지연 require(순환 회피).
+function canReadPostFn() { return require('./postAccess').canReadPost; }
+function canEditPostFn() { return require('../routes/posts').canEditPost; }
+/** sr → 그 문서. entity_type 이 'post' 가 아니면 null(옛 Document 서명은 멤버 라우트에서 404). */
+async function postOfRequest(sr) { return sr.entity_type === 'post' ? Post.findByPk(sr.entity_id) : null; }
+/** 취소·재발송 — 요청한 본인이거나 그 문서를 고칠 수 있는 사람. */
+async function canManageRequest(req, sr) {
+  if (sr.requester_user_id === req.user.id) return true;
+  const post = await postOfRequest(sr);
+  return !!post && canEditPostFn()(req.user.id, post, req.user.platform_role);
+}
+
 module.exports = {
+  canReadPostFn, canEditPostFn, postOfRequest, canManageRequest,
   isPostSignatureLocked, blockIfSigned, parseMaybeJson, buildEntitySnapshot, planOutboundScope, loadEntity, maybeUpdateEntityStatus,
   loadByToken, confirmLimiter, docConfirmEnabled, assertKind,
   isExpiredNow, SIGNATURE_EVENT_COPY, notifyWorkspaceMembersOnSignature,

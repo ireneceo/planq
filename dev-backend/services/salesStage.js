@@ -73,7 +73,9 @@ async function setStage(client, to, opts = {}) {
     oldValue: { sales_stage: from }, newValue: { sales_stage: to, origin, reason },
   });
 
-  if (opts.io) opts.io.to(`business:${client.business_id}`).emit('client:updated', client.toJSON ? client.toJSON() : client);
+  // 방송은 신호만 — 행 전체를 뿌리면 invite_token·lost_note·expected_amount 가 메뉴 권한 없는 멤버에게까지 간다(0-C C-2).
+  //   받는 화면은 전부 id 로 다시 읽는다.
+  if (opts.io) opts.io.to(`business:${client.business_id}`).emit('client:updated', { id: client.id, business_id: client.business_id });
   return { changed: true, from, to };
 }
 

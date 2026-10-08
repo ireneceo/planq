@@ -255,8 +255,6 @@
     "viewedAgo": "Viewed {{ago}}",
     "reminderCount": "Resent {{n}}x",
     "action": "Actions",
-    "copyUrl": "Copy URL",
-    "urlCopied": "Copied",
     "resend": "Resend",
     "cancel": "Cancel request",
     "cancelConfirm": "Cancel this signature request?",
@@ -271,7 +269,13 @@
       "rejectedDesc": "The signer rejected. Review the reason and send a new request after discussion."
     },
     "partyUs": "Sender",
-    "signNow": "Sign now"
+    "signNow": "Sign now",
+    "resendLink": "Resend link",
+    "resendConfirm": {
+      "title": "Resend the signing link?",
+      "desc": "A new signing link will be emailed to {{email}}.",
+      "ok": "Send"
+    }
   },
   "publicSign": {
     "loading": "Loading document...",
@@ -835,7 +839,8 @@
     "accept": "Agree · Sign",
     "notFoundHint": "The document was deleted or sharing was stopped. Please ask the sender for a new link.",
     "openInApp": "Open in the PlanQ app",
-    "downloadPdf": "Download PDF"
+    "downloadPdf": "Download PDF",
+    "signMoved": "This document is view-only. If a signature is needed, ask the sender for a signing link."
   },
   "internalSign": {
     "title": "Sign",

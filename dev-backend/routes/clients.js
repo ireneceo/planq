@@ -5,13 +5,16 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const { perUserDaily } = require('../middleware/costGuard');
+// 메뉴 권한(0-C C-8) — 멤버별 «고객» 메뉴 none/read/write 를 서버가 지킨다. sale.js 체인과 같은 자리(checkBusinessAccess 다음).
+const { requireMenu } = require('../middleware/menu_permission');
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제).
 function broadcastClient(req, client, event = 'client:updated') {
   const io = req.app.get('io');
   if (!io) return;
-  const data = client.toJSON ? client.toJSON() : client;
-  const bizId = client.business_id || req.params.businessId;
+  // 신호만(0-C C-2) — 받는 화면은 id 로 다시 읽는다. 통째로 보내면 자격증명·영업 메모가 방 전원에게 간다.
+  const bizId = client.business_id || Number(req.params.businessId);
+  const data = { id: client.id, business_id: bizId };
   if (bizId) io.to(`business:${bizId}`).emit(event, data);
 }
 
@@ -32,7 +35,7 @@ function stripClientSecrets(json) {
   return json;
 }
 
-router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
   try {
     const clients = await Client.findAll({
       where: { business_id: req.params.businessId },
@@ -59,7 +62,7 @@ router.get('/:businessId', authenticateToken, checkBusinessAccess, async (req, r
 });
 
 // 고객 내보내기 영향도 조회 — 프로젝트 완료 시 "이 워크스페이스에서 아예 나감" 경고 여부
-router.get('/:businessId/:clientId/removal-impact', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:clientId/removal-impact', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
   try {
     const { ProjectClient, Project } = require('../models');
     const client = await Client.findOne({
@@ -83,7 +86,7 @@ router.get('/:businessId/:clientId/removal-impact', authenticateToken, checkBusi
 // 고객 통합 타임라인 (Customer 360, N+87 Phase A) — 채팅·메일·업무·청구 시간순 merge.
 //   ★ 내부 전용: client 역할은 403 (자기 360 타임라인 노출 X — docs §8.5).
 //   ?limit= ?before=<ISO> ?channels=chat,email,task,invoice
-router.get('/:businessId/:clientId/timeline', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:clientId/timeline', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = Number(req.params.businessId);
@@ -99,7 +102,7 @@ router.get('/:businessId/:clientId/timeline', authenticateToken, checkBusinessAc
 });
 
 // cross-channel 요약 (우측 패널 "이 고객" — 채널별 카운트 + 최근 1건). 내부 전용.
-router.get('/:businessId/:clientId/channel-summary', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:clientId/channel-summary', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = Number(req.params.businessId);
@@ -113,7 +116,7 @@ router.get('/:businessId/:clientId/channel-summary', authenticateToken, checkBus
 });
 
 // Create client (invite)
-router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
   try {
     const { user_id, display_name, company_name, notes, kind } = req.body;
     if (!user_id) return errorResponse(res, 'User ID required', 400);
@@ -154,7 +157,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
 });
 
 // Get single client — 드로어용. 연결 프로젝트 + 대화 + 기본 정보.
-router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
   try {
     const { Op } = require('sequelize');
     const { ProjectClient, Project, Conversation, ConversationParticipant } = require('../models');
@@ -205,7 +208,7 @@ router.get('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
 });
 
 // Update client — display_name / company_name / notes 변경 + AuditLog
-router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
   try {
     const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!client) return errorResponse(res, 'Client not found', 404);
@@ -249,7 +252,7 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, async (re
 });
 
 // History — AuditLog 조회 (target=client / 관련 프로젝트 이벤트 포함)
-router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, requireMenu('clients', 'read'), async (req, res, next) => {
   try {
     const { Op } = require('sequelize');
     const AuditLog = require('../models/AuditLog');
@@ -274,7 +277,7 @@ router.get('/:businessId/:id/history', authenticateToken, checkBusinessAccess, a
 
 // Invite (이메일 기반) — User 없어도 Client(invited) 생성 + 초대 토큰 발급 + 이메일 발송
 // accept 시 User 생성·연결
-router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
+router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), ...perUserDaily('invite-email', { perMin: 20, perDay: 200, message: '초대 발송이 너무 잦습니다. 잠시 후 다시 시도하세요.' }), async (req, res, next) => {
   try {
     const { name, email, company_name, notes, kind } = req.body || {};
     if (!name?.trim() || !email?.trim()) return errorResponse(res, 'name and email are required', 400);
@@ -381,7 +384,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, ...pe
 
 // 초대 재발송 — 아직 수락 안 한 (invited) 고객에게 초대 메일 다시 보내기.
 //   토큰은 유지하되 invited_at 갱신(만료 30일 연장). 이미 가입(active)한 고객은 불가.
-router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
   try {
     const client = await Client.findOne({ where: { id: req.params.id, business_id: req.params.businessId } });
     if (!client) return errorResponse(res, 'Client not found', 404);
@@ -418,7 +421,7 @@ router.post('/:businessId/:id/resend-invite', authenticateToken, checkBusinessAc
 
 // Archive / activate toggle — POST body { status: 'active' | 'archived' }. 미지정 시 토글.
 // 권한: owner/platform_admin 만 (고객 상태 변경은 조직 관리 영역 · PERMISSION_MATRIX.md §5.5)
-router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
   try {
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'owner_only', 403);
@@ -442,7 +445,7 @@ router.post('/:businessId/:id/archive', authenticateToken, checkBusinessAccess, 
 // Hard delete — 워크스페이스에서 고객 완전 삭제. 연결된 ProjectClient 도 같이 정리.
 // User 계정 자체는 유지 (다른 워크스페이스/플랫폼 계정일 수 있음).
 // 권한: owner/platform_admin 만 (PERMISSION_MATRIX.md §5.5 — 고객 삭제는 조직 인사 영역)
-router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMenu('clients', 'write'), async (req, res, next) => {
   try {
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'owner_only', 403);

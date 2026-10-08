@@ -36,6 +36,13 @@ const PNG = stampPng();
 async function api(p, o = {}) { const r = await fetch(API + p, o); let j = {}; try { j = JSON.parse(await r.text()); } catch { /* */ } return { status: r.status, json: j }; }
 let sequelize = null;
 const db = () => { if (!sequelize) ({ sequelize } = require('/opt/planq/dev-backend/config/database')); return sequelize; };
+// 서명 링크(토큰)는 멤버 응답에 더 이상 오지 않는다(0-C C-1 — 받는 사람 본인에게만). 카나리는 받는 사람 역할을
+//   흉내 내야 하므로 DB 에서 읽는다.
+async function tokenOf(id) {
+  if (!id) return null;
+  const r = (await db().query(`SELECT token FROM signature_requests WHERE id=${Number(id)}`))[0][0];
+  return r ? r.token : null;
+}
 
 const VISIBLE = `(el) => {
   if (!el) return { found: false };
@@ -157,6 +164,7 @@ async function run() {
       signers: [{ slot: 1, party: 'us', user_id: meId, email: '' }, { slot: 2, party: 'them', email: 'canary-items@example.com', name: '스탬프 고객' }],
       kind: 'sign', send_chat: false, expires_in_days: 3 }) });
     const them = (sr.json?.data?.signatures || []).find((s) => s.party === 'them');
+    if (them) them.token = await tokenOf(them.id);
     if (!them) { P('③ 픽스처 — 서명 칸 2개 요청 (판정 불가)', false, `요청 실패 ${sr.status} ${sr.json?.message}`); }
     else {
       await db().query(`UPDATE signature_requests SET otp_code_hash='${crypto.createHash('sha256').update(OTP).digest('hex')}', otp_expires_at=DATE_ADD(NOW(), INTERVAL 5 MINUTE), otp_attempts=0, otp_locked_until=NULL, otp_verified_at=NOW() WHERE id=${them.id}`);

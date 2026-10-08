@@ -334,14 +334,19 @@ export async function renameFolder(folderId: number, name: string): Promise<bool
  *   · `'delete'`     — 파일도 휴지통으로. 복구 가능.
  * 서버가 `files_affected` 로 **몇 개가 영향받았는지** 돌려준다 — 화면이 결과를 말할 수 있어야 한다.
  */
+/** 폴더 삭제 결과 중 확인창이 알아야 할 것 — 지울 수 없는 파일이 있어 거절된 경우. */
+export type FolderDeleteOutcome = { blockedCount: number };
+
 export async function deleteFolder(
   folderId: number,
   contents: 'move' | 'delete' = 'move',
-): Promise<{ ok: boolean; filesAffected: number; contents: 'move' | 'delete' }> {
+): Promise<{ ok: boolean; filesAffected: number; contents: 'move' | 'delete'; blockedCount: number }> {
   const r = await apiFetch(`/api/folders/${folderId}?contents=${contents}`, { method: 'DELETE' });
   const j = await r.json();
   return {
     ok: !!j.success,
+    // 403 folder_has_files_you_cannot_delete — 지울 권한이 없는 파일 수(서버는 아무것도 지우지 않았다)
+    blockedCount: j?.message === 'folder_has_files_you_cannot_delete' ? (Number(j?.blocked_count) || 0) : 0,
     filesAffected: Number(j?.data?.files_affected) || 0,
     contents: (j?.data?.contents === 'delete' ? 'delete' : 'move'),
   };

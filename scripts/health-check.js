@@ -45,6 +45,8 @@ const CATEGORIES = [
   'infra', 'auth', 'security', 'qnote', 'voice', 'external',
   'frontend', 'wiki', 'billing', 'account', 'calendar', 'realtime', 'dateonly', 'retention', 'secrets',
   'imagegate', 'clientlink', 'money',
+  // 0-C~0-F 접근·격리 (docs/FIX_0CDEF_ACCESS_DESIGN.md) — 픽스처는 scripts/health-access.js
+  'signauth', 'kbauth', 'folderauth', 'mailscope', 'clientsmenu', 'invite',
 ];
 
 const args = process.argv.slice(2);
@@ -1375,6 +1377,49 @@ function runMoneyCase(name) {
   return r.detail;
 }
 
+// ============================================
+// 접근·격리 — 0-C·0-D·0-E·0-F (docs/FIX_0CDEF_ACCESS_DESIGN.md)
+// ============================================
+//   픽스처는 scripts/health-access.js 가 1회용 워크스페이스·사용자(오너·멤버 A/B·고객·해제 멤버)를 만들어 돌리고 지운다.
+//   각 검사는 «막혀야 할 것» 과 «열려야 할 것(대조군)» 을 같이 잰다 — 결과 문자열에 적힌다.
+function runAccessCase(name) {
+  const out = execSync(
+    `node /opt/planq/scripts/health-access.js ${name} ${BACKEND}`,
+    { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 180000, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  const line = out.split('\n').reverse().find((l) => l.startsWith('@@'));
+  if (!line) throw new Error(`픽스처 결과 없음 — 거짓 통과 방지 위해 실패 처리 (${name})`);
+  const r = JSON.parse(line.slice(2));
+  if (r.cleanup_error) throw new Error(`픽스처 정리 실패: ${r.cleanup_error}`);
+  if (!r.ok) throw new Error(r.error);
+  return r.detail;
+}
+
+function defineAccessTests() {
+  const isLocal = BACKEND.startsWith('http://localhost');
+  if (!isLocal) return;
+  const T = [
+    ['secrets', 'sig_notoken', '서명 진행표·생성 응답에 서명 토큰이 없다 (0-C C-1)'],
+    ['secrets', 'sig_received', '받는 사람 본인에게는 자기 서명 링크가 온다 (0-C C-1 양성)'],
+    ['secrets', 'bcast', '영업 단계 방송은 신호만 — invite_token·메모 없음 (0-C C-2)'],
+    ['secrets', 'sig_search', '통합검색·AI get_document 응답에 서명 토큰 없음 (0-C C-9)'],
+    ['signauth', 'signauth', '서명 멤버 라우트 = 문서 읽기/편집 술어 — 남의 L1 403 · L3 200 (0-C C-1)'],
+    ['signauth', 'docsign', '옛 Document 공개 서명 라우트 없음 · 공개 보기는 그대로 (0-C C-6)'],
+    ['kbauth', 'kbauth', 'Q info 등급 변경·공유 해제는 볼 수 있는 사람만 · 고객 검색 차단 (0-C C-3)'],
+    ['folderauth', 'folderauth', '폴더째 삭제 = 파일별 단건 삭제 술어(원자적 거절) · 해제 멤버 차단 (0-C C-4)'],
+    ['mailscope', 'mailscope', '상담 메모 — 남의 개인 메일 스레드 404 · 공용 200 (0-C C-7)'],
+    ['clientsmenu', 'clientsmenu', '고객 메뉴 권한 none/read/write 를 서버가 지킨다 (0-C C-8)'],
+    ['wiki', 'wikiimg', '위키 이미지 서빙은 정확한 file_id 만 (0-C C-5)'],
+  ];
+  let swept = false;
+  for (const [cat, k, name] of T) {
+    test(cat, name, async () => {
+      if (!swept) { swept = true; runAccessCase('sweep'); }
+      return runAccessCase(k);
+    });
+  }
+}
+
 function defineMoneyTests() {
   const isLocal = BACKEND.startsWith('http://localhost');
   if (!isLocal) return;
@@ -1517,6 +1562,7 @@ async function runTests(allTests, category) {
   defineSecretTests();
   defineImageGateTests();
   defineMoneyTests();
+  defineAccessTests();
 
   const allPass = await runTests(tests, opts.category);
   process.exit(allPass ? 0 : 1);

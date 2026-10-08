@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { FileFolder, File, Project, BusinessMember } = require('../models');
+const { FileFolder, File, Project } = require('../models');
 const { sequelize } = require('../config/database');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { getUserScope, canAccessProject, isMemberOrAbove } = require('../middleware/access_scope');
@@ -13,11 +13,12 @@ async function requireProjectInBusiness(projectId, businessId) {
   return !!project;
 }
 
-// member 이상 (쓰기 액션용)
+// member 이상 (쓰기 액션용) — 정본 scope 로 판정한다(0-C C-4).
+//   예전엔 BusinessMember 행만 봐서 **해제된 멤버(removed_at)·AI 계정**도 통과했다.
+//   truthy = 통과, 그 scope 를 돌려준다(폴더째 삭제가 파일별 판정에 쓴다).
 async function assertMemberWrite(userId, businessId, platformRole) {
-  if (platformRole === 'platform_admin') return true;
-  const bm = await BusinessMember.findOne({ where: { user_id: userId, business_id: businessId } });
-  return !!bm;
+  const scope = await getUserScope(userId, businessId, platformRole);
+  return isMemberOrAbove(scope) ? scope : null;
 }
 
 // ★ 2026-09-24 — 폴더 CUD 감사. 여태 이 파일에 `logAudit` 호출이 **0건**이었다(운영 원장 0행).
@@ -259,7 +260,8 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
   try {
     const folder = await FileFolder.findByPk(req.params.id);
     if (!folder) return errorResponse(res, 'Folder not found', 404);
-    if (!(await assertMemberWrite(req.user.id, folder.business_id, req.user.platform_role))) {
+    const scope = await assertMemberWrite(req.user.id, folder.business_id, req.user.platform_role);
+    if (!scope) {
       return errorResponse(res, 'forbidden', 403);
     }
     const mode = String(req.query.contents || 'move').toLowerCase();
@@ -294,7 +296,17 @@ router.delete('/:id', authenticateToken, async (req, res, next) => {
       });
       const mirrorQueue = [];   // ★ 요청 스코프 — 전역이면 롤백 잔여가 다음 요청에서 터진다
       if (mode === 'delete') {
-        const { trashFile } = require('./files');
+        // 안의 파일마다 **단건 삭제와 같은 술어**(canMutateFile) — 지우기 전에 전수 판정한다(0-C C-4).
+        //   하나라도 못 지우면 아무것도 지우지 않고 거절한다. 절반만 지우고 나머지를 옮기는 «섞인 결과» 는
+        //   만들지 않는다 — 어디로 갔는지 또 추적해야 한다(2026-09-24 사례). 화면은 «옮기기» 를 대안으로 낸다.
+        const { canMutateFile, trashFile } = require('./files');
+        const shim = { user: req.user, businessRole: scope.businessRole };   // canMutateFile 은 req 모양을 읽는다
+        const blocked = [];
+        for (const f of inside) if (!(await canMutateFile(f, shim))) blocked.push(f.id);
+        if (blocked.length) {
+          await t.rollback();
+          return res.status(403).json({ success: false, message: 'folder_has_files_you_cannot_delete', blocked_count: blocked.length });
+        }
         for (const f of inside) await trashFile(f, req, t, mirrorQueue);
       } else {
         // 종전 동작 — parent_id 로 이동 (null = 루트)

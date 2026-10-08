@@ -15,6 +15,18 @@ const b = require('./lib/browser');
 
 const API = (process.env.E2E_BASE || 'https://dev.planq.kr') + '/api';
 const HILITE = 'rgb(244, 63, 94)';   // 내 칸 강조 — Coral #F43F5E
+let sequelize = null;
+function db() {
+  if (!sequelize) ({ sequelize } = require('/opt/planq/dev-backend/config/database'));
+  return sequelize;
+}
+// 서명 링크(토큰)는 멤버 응답에 더 이상 오지 않는다(0-C C-1 — 받는 사람 본인에게만). 카나리는 받는 사람 역할을
+//   흉내 내야 하므로 DB 에서 읽는다.
+async function tokenOf(id) {
+  if (!id) return null;
+  const r = (await db().query(`SELECT token FROM signature_requests WHERE id=${Number(id)}`))[0][0];
+  return r ? r.token : null;
+}
 const results = [];
 const P = (name, ok, msg) => results.push({ name, fail: ok ? 0 : 1, details: [msg], hasCanary: true });
 
@@ -95,7 +107,7 @@ async function run() {
       const list = sr.json?.data?.signatures || [];
       sigUs = list.find((s) => s.party === 'us') || null;
       sigThem = list.find((s) => s.party === 'them') || null;
-      themToken = sigThem?.token || null;
+      themToken = sigThem ? await tokenOf(sigThem.id) : null;
     }
   } catch { /* 아래 0건 처리 */ }
 
@@ -235,6 +247,46 @@ async function run() {
           ? `버튼 ${prog.btn.w}×${prog.btn.h} 그려짐 · «보내는 쪽» 표시 ${prog.hasParty}`
           : `🔴 버튼이 DOM 에만 있다 painted=${prog.btn.painted} hit=${prog.btn.mine}`)
         : '🔴 [서명하기] 버튼이 없다 — 우리 측 서명으로 가는 문이 없다');
+
+    // ── ③-b 받는 쪽 행 ⋯ — «URL 복사» 없음 · «링크 다시 보내기» 는 받는 주소를 보여 주고 확인을 받는다 (0-C C-1) ──
+    //   서명 링크는 진행표에 더 이상 오지 않는다. 다시 보내는 것은 외부 발송이라 확인창에 **받는 주소**가 있어야 한다.
+    //   확인 전 reminder_count 불변(음성) · 확인 후 +1(양성) 을 DB 로 잰다.
+    const rcOf = async () => Number((await db().query(`SELECT reminder_count n FROM signature_requests WHERE id=${Number(sigThem.id)}`))[0][0].n);
+    const rc0 = await rcOf();
+    await page.evaluate(`(() => { const t = document.querySelector('[data-testid="sign-row-actions"]'); if (t) t.click(); })()`);
+    await b.sleep(500);
+    const menu = await page.evaluate(`(() => {
+      const items = [...document.querySelectorAll('button')].map((x) => (x.textContent || '').trim());
+      return { opened: !!document.querySelector('[data-testid="sign-row-resend"]'),
+               copy: items.some((t) => t.includes('URL 복사') || t.includes('Copy URL')) };
+    })()`);
+    P('진행표 ⋯ 메뉴 — «URL 복사» 가 없고 «링크 다시 보내기» 가 있다',
+      menu.opened && !menu.copy,
+      menu.opened ? (menu.copy ? '🔴 «URL 복사» 가 남아 있다' : '«URL 복사» 0 · «링크 다시 보내기» 있음') : '🔴 받는 쪽 행 ⋯ 메뉴를 열지 못했다(판정 불가)');
+    let dlg = { open: false };
+    if (menu.opened) {
+      await page.click('[data-testid="sign-row-resend"]').catch(() => {});
+      await b.sleep(700);
+      dlg = await page.evaluate(`(() => {
+        const d = document.querySelector('[aria-modal="true"]');
+        return { open: !!d, hasAddr: !!d && (d.textContent || '').includes('canary-signer@example.com') };
+      })()`);
+    }
+    const rc1 = await rcOf();
+    P('«링크 다시 보내기» — 확인창에 받는 주소가 있고, 확인 전에는 보내지 않는다',
+      dlg.open && dlg.hasAddr && rc1 === rc0,
+      dlg.open ? `확인창 열림 · 받는 주소 ${dlg.hasAddr ? '있음' : '🔴 없음'} · reminder_count ${rc0}→${rc1}${rc1 === rc0 ? '' : ' 🔴 확인 전에 나갔다'}`
+        : '🔴 확인창이 뜨지 않았다 — 누르는 즉시 나가는 상태일 수 있다');
+    if (dlg.open) {
+      await page.evaluate(`(() => {
+        const d = document.querySelector('[aria-modal="true"]');
+        const btn = d && [...d.querySelectorAll('button')].find((x) => (x.textContent || '').trim() === '보내기' || (x.textContent || '').trim() === 'Send');
+        if (btn) btn.click();
+      })()`);
+      await b.sleep(2000);
+    }
+    const rc2 = await rcOf();
+    P('확인하면 실제로 다시 보낸다 (reminder_count +1)', rc2 === rc0 + 1, `reminder_count ${rc0}→${rc2}`);
 
     // ── ④ 서명 모달 — 동의 전에는 제출이 **막혀 있다** (음성 대조군) ──
     let modal = { open: false };

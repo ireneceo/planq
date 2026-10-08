@@ -255,8 +255,6 @@
     "viewedAgo": "{{ago}} 검토",
     "reminderCount": "재발송 {{n}}회",
     "action": "액션",
-    "copyUrl": "URL 복사",
-    "urlCopied": "복사됨",
     "resend": "재발송",
     "cancel": "요청 취소",
     "cancelConfirm": "이 서명 요청을 취소하시겠습니까?",
@@ -271,7 +269,13 @@
       "rejectedDesc": "서명자 측에서 거절했습니다. 사유를 확인하고 협의 후 새로 요청해주세요."
     },
     "partyUs": "보내는 쪽",
-    "signNow": "서명하기"
+    "signNow": "서명하기",
+    "resendLink": "링크 다시 보내기",
+    "resendConfirm": {
+      "title": "서명 링크를 다시 보낼까요?",
+      "desc": "{{email}} 로 서명 링크 메일을 다시 보냅니다.",
+      "ok": "보내기"
+    }
   },
   "publicSign": {
     "loading": "문서 로드 중...",
@@ -835,7 +839,8 @@
     "accept": "동의 · 서명",
     "notFoundHint": "문서가 삭제됐거나 공유가 중지된 링크입니다. 보낸 분께 새 링크를 요청해 주세요.",
     "openInApp": "PlanQ 앱에서 열기",
-    "downloadPdf": "PDF 다운로드"
+    "downloadPdf": "PDF 다운로드",
+    "signMoved": "이 문서는 보기 전용입니다. 서명이 필요하면 보낸 분께 서명 요청 링크를 요청해 주세요."
   },
   "internalSign": {
     "title": "서명하기",

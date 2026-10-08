@@ -76,7 +76,9 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const sigSrc = (sr: SignatureRequest) => (sr.signature_image_b64 && sr.signature_image_b64 !== '(present)'
     ? sr.signature_image_b64 : (sigImg[sr.id] || null));
   const [lightboxAlt, setLightboxAlt] = useState<string>('');
-  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  // 재발송 확인 — 외부로 메일이 나가므로 받는 주소를 보여 주고 확인을 받는다(CLAUDE.md «외부 발송은 확인을 받는다»).
+  //   서명 링크(토큰)는 진행표 응답에 더 이상 오지 않는다(0-C C-1) — «URL 복사» 는 없앴다.
+  const [remindTarget, setRemindTarget] = useState<SignatureRequest | null>(null);
   const [cancelTarget, setCancelTarget] = useState<SignatureRequest | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -117,20 +119,17 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
   const anyRejected = visible.some(s => s.status === 'rejected');
   const allFinal = visible.length > 0 && visible.every(s => s.status === 'signed' || s.status === 'rejected' || s.status === 'expired');
 
-  const onCopy = async (sr: SignatureRequest) => {
-    try {
-      await navigator.clipboard.writeText(sr.sign_url);
-      setCopiedToken(sr.token);
-      setTimeout(() => setCopiedToken(null), 1500);
-    } catch {/* noop */}
+  const onRemind = (sr: SignatureRequest) => {
+    setRemindTarget(sr);
     setActionMenuId(null);
   };
 
-  const onRemind = async (sr: SignatureRequest) => {
-    if (busyId) return;
-    setBusyId(sr.id); setActionMenuId(null);
+  const confirmRemind = async () => {
+    if (!remindTarget || busyId) return;
+    setBusyId(remindTarget.id);
     try {
-      await remindSignature(sr.id);
+      await remindSignature(remindTarget.id);
+      setRemindTarget(null);
       await reload();
     } finally { setBusyId(null); }
   };
@@ -302,13 +301,9 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
                     </ActionToggle>
                     {actionMenuId === sr.id && (
                       <ActionMenu ref={menuRef}>
-                        <MenuItem type="button" onClick={() => onCopy(sr)}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                          {copiedToken === sr.token ? t('signProgress.urlCopied', '복사됨') : t('signProgress.copyUrl', 'URL 복사')}
-                        </MenuItem>
-                        <MenuItem type="button" disabled={busyId === sr.id} onClick={() => onRemind(sr)}>
+                        <MenuItem type="button" data-testid="sign-row-resend" disabled={busyId === sr.id} onClick={() => onRemind(sr)}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-                          {t('signProgress.resend', '재발송')}
+                          {t('signProgress.resendLink', '링크 다시 보내기')}
                         </MenuItem>
                         <MenuItem type="button" $danger disabled={busyId === sr.id} onClick={() => onCancel(sr)}>
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -333,6 +328,17 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
         confirmText={t('signProgress.cancelConfirmBtn', '취소하기') as string}
         cancelText={t('common.close', '닫기') as string}
         variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={!!remindTarget}
+        onClose={() => setRemindTarget(null)}
+        onConfirm={confirmRemind}
+        title={t('signProgress.resendConfirm.title', '서명 링크를 다시 보낼까요?') as string}
+        message={t('signProgress.resendConfirm.desc', '{{email}} 로 서명 링크 메일을 다시 보냅니다.', { email: remindTarget?.signer_email || '' }) as string}
+        confirmText={t('signProgress.resendConfirm.ok', '보내기') as string}
+        cancelText={t('common.close', '닫기') as string}
+        variant="info"
       />
 
       <InternalSignModal

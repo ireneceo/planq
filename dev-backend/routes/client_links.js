@@ -19,7 +19,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 //   한쪽만 L1 필터가 빠진다. 범위 판정은 q-note 가 한다(`visibility <> 'L1'`): 개인 노트는 안 온다.
 //   (프로젝트 **노트 탭**은 Q Note 본체를 얹었으므로 q-note 를 직접 읽는다 — 여기를 쓰지 않는다.)
 //   경로를 `/notes` 로 두지 않는다 — 이 파일에 그런 경로가 생기면 또 가려진다(가드 duproute).
-router.get('/:businessId/:clientId/qnotes', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+router.get('/:businessId/:clientId/qnotes', authenticateToken, checkBusinessAccess, require('../middleware/menu_permission').requireMenu('clients', 'read'), async (req, res, next) => {
   try {
     if (req.businessRole === 'client') return errorResponse(res, 'forbidden', 403);
     const businessId = Number(req.params.businessId);
