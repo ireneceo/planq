@@ -312,6 +312,28 @@ function printSuite(name, results) {
   return fail + fatal;  // FATAL(하니스 환경 오염)도 게이트 실패로 취급 — 판정 자체를 신뢰 못 함
 }
 
+// ★ 검사 계정 상태 오염 감지 (2026-10-07 전체 검사 실측). 어떤 스위트가 검사 계정의 **현재 워크스페이스**를
+//   바꿔 놓고 되돌리지 않아, 뒤에 돈 docsheader·mailfwd·mobileboot 가 엉뚱한 워크스페이스(73)를 보고 «기능 고장» 으로 빨개졌다.
+//   스위트마다 전후를 비교해 **되돌리고, 남긴 스위트를 실패로 센다**(조용히 고치면 범인이 영영 안 보인다).
+async function accountState() {
+  try {
+    const { sequelize } = require('/opt/planq/dev-backend/config/database');
+    const email = process.env.E2E_EMAIL || 'health-check@planq.kr';
+    const [u] = await sequelize.query('SELECT id, active_business_id FROM users WHERE email = ?', { replacements: [email], type: 'SELECT' });
+    return u || null;
+  } catch { return null; }
+}
+async function restoreAccountState(key, before) {
+  if (!before) return 0;
+  const after = await accountState();
+  if (!after || after.active_business_id === before.active_business_id) return 0;
+  try {
+    const { sequelize } = require('/opt/planq/dev-backend/config/database');
+    await sequelize.query('UPDATE users SET active_business_id = ? WHERE id = ?', { replacements: [before.active_business_id, before.id] });
+  } catch { /* 되돌리기 실패도 아래 줄로 드러난다 */ }
+  return printSuite(`state:${key}`, [{ name: `검사 계정 현재 워크스페이스를 바꿔 놓고 안 되돌림 (${before.active_business_id} → ${after.active_business_id}) — 되돌림`, fail: 1 }]);
+}
+
 async function main() {
   const arg = (process.argv.find((s) => s.startsWith('--suite=')) || '').split('=')[1]
     || (process.argv.includes('--suite') ? process.argv[process.argv.indexOf('--suite') + 1] : '')
@@ -321,9 +343,11 @@ async function main() {
   for (const key of want) {
     const load = SUITES[key];
     if (!load) { console.log(`⚠️ 알 수 없는 스위트: ${key} (가능: ${Object.keys(SUITES).join(', ')})`); continue; }
+    const before = await accountState();
     const suite = load();
     const results = await suite.run();
     totalFail += printSuite(suite.name || key, results);
+    totalFail += await restoreAccountState(key, before);
   }
   // ★ 카나리 잔여 **일괄 청소** (2026-09-23). 각자 치우게 해 뒀는데 쌓였다 —
   //   실측: 복사 카나리가 5회 돌며 프로젝트 10개, 문서 48건이 dev 에 남아 있었다.

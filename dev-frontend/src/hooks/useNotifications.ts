@@ -33,6 +33,8 @@ export interface NotificationItem {
   read_at: string | null;
   created_at: string;
   actor?: { id: number; name: string; name_localized?: string | null } | null;
+  /** 서버 판정 — 알림이 가리키는 업무·일정·메일 등이 지워졌다. 눌러도 이동하지 않는다(찾을 수 없음 화면 대신). */
+  target_missing?: boolean;
 }
 
 // ★ Q7 (Irene 2026-09-11) — 종의 목록·숫자·모두 읽음은 **현재 워크스페이스 + 플랫폼 공지** 만.

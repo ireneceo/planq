@@ -110,7 +110,7 @@ const QProjectPage: React.FC = () => {
   useEffect(() => {
     if (sp.get('new') !== '1') return;
     const cid = Number(sp.get('client') || 0);
-    setNewProjectOpen(true);
+    if (user?.business_role !== 'client') setNewProjectOpen(true);
     const next = new URLSearchParams(sp); next.delete('new'); next.delete('client'); setSp(next, { replace: true });
     if (!cid || !user?.business_id) return;
     (async () => {
@@ -323,9 +323,13 @@ const QProjectPage: React.FC = () => {
               <span>{t('view.calendar')}</span>
             </ViewTab>
           </ViewTabs>
-          {/* 머리줄 주 액션 — 공용 `HeaderCta`(2026-09-14 추출). Q task·Q sale 과 같은 껍데기다. */}
-          <HeaderCta type="button" $collapseOnPhone aria-label={t('newProject', '새 프로젝트') as string}
-            onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></HeaderCta>
+          {/* 머리줄 주 액션 — 공용 `HeaderCta`(2026-09-14 추출). Q task·Q sale 과 같은 껍데기다.
+              ★ 고객에게는 그리지 않는다(2026-10-07 고객 순찰) — 서버(project_actions.createProject)는 멤버만 받으므로
+                고객이 누르면 창을 다 채운 뒤 403 이었다. 서버와 같은 술어(고객이 아닌 워크스페이스 사람). */}
+          {user?.business_role !== 'client' && (
+            <HeaderCta type="button" $collapseOnPhone aria-label={t('newProject', '새 프로젝트') as string}
+              onClick={() => setNewProjectOpen(true)}>+ <span>{t('newProject', '새 프로젝트')}</span></HeaderCta>
+          )}
         </>
       }
     >

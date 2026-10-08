@@ -168,6 +168,10 @@ async function run() {
               } else {
                 await page.click(`[data-testid="${other.id}"]`); await sleep(1200);
                 await page.click(`[data-testid="${me.id}"]`); await sleep(1500);
+                // ★ 2026-10-07 a74e87a0(Irene «탭 부분 클릭하면 안 닫혀») — 탭 막대를 누르면 우측 패널이 **닫힌다**(의도).
+                //   그래서 돌아오면 패널이 닫혀 있다. 이 검사가 재려는 것은 «탭 왕복 뒤 칸 번호가 살아 있어 X→뒤로 가 다시 안 연다» 이므로
+                //   돌아온 뒤 업무를 **다시 열고** 같은 판정을 한다.
+                if (!/task=/.test(await page.evaluate(() => location.search))) { await clickRow(0); await sleep(1500); }
                 const q2 = await page.evaluate(() => location.search);
                 await page.evaluate(() => {
                   const btn = Array.from(document.querySelectorAll('[data-pq-drawer-panel] button, [role="dialog"][aria-modal="true"] button'))
@@ -200,10 +204,13 @@ async function run() {
               } else {
                 await page.click(`[data-testid="${other2.id}"]`); await sleep(1200);
                 await page.click(`[data-testid="${me2.id}"]`); await sleep(1500);
+                // 탭 막대 클릭으로 패널이 닫혔으면(2026-10-07 의도) A 를 다시 연 뒤 B 로 갈아탄다
+                let pA = await page.evaluate(() => location.search);
+                if (!/task=/.test(pA)) { await clickRow(0); await sleep(1500); pA = await page.evaluate(() => location.search); }
                 const b3 = await clickRow(0); await sleep(1500);
                 const p2 = await page.evaluate(() => location.search);
-                if (!b3 || p2 === p1 || !/task=/.test(p2)) {
-                  push(`${v.key} · ①e 픽스처`, false, `갈아타기 실패 ${p1} → ${p2} — 미측정`);
+                if (!b3 || p2 === pA || !/task=/.test(p2)) {
+                  push(`${v.key} · ①e 픽스처`, false, `갈아타기 실패 ${pA} → ${p2} — 미측정`);
                 } else {
                   await page.evaluate(() => {
                     const btn = Array.from(document.querySelectorAll('[data-pq-drawer-panel] button, [role="dialog"][aria-modal="true"] button'))

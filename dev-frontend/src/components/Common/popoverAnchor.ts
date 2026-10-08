@@ -30,6 +30,27 @@ export function usePopoverAnchor() {
 
   const close = useCallback(() => setOpen(false), []);
 
+  // ★ 밑에서 스크롤하면 닫는다 (2026-10-07 순찰 실측). 패널은 position:fixed 로 **연 순간의 자리**에 그려진다.
+  //   폰에서 손가락으로 목록을 밀면 mousedown 이 없어 바깥클릭 닫기가 안 돌고, 패널이 **다른 행 위에 떠서**
+  //   그 행의 버튼(고객 보기·메모·일정)을 덮었다. 패널 자체를 스크롤하는 것은 닫지 않는다.
+  //   ★ 패널 안 입력칸에 포커스가 있으면 닫지 않는다 — 폰 키보드가 올라오며 main.tsx 가 조상을 스크롤하는데
+  //     그걸 «밑에서 스크롤» 로 읽으면 검색칸을 누르는 순간 팝오버가 닫힌다. 같은 이유로 resize 는 보지 않는다.
+  useEffect(() => {
+    if (!open) return;
+    // 여는 순간의 스크롤(첫 칸 focus 로 인한 스크롤·관성 스크롤 끝자락)은 닫는 이유가 아니다
+    const since = Date.now();
+    const onScroll = (e: Event) => {
+      if (Date.now() - since < 400) return;
+      const tgt = e.target as Node | null;
+      if (tgt && panelRef.current?.contains(tgt)) return;
+      const ae = document.activeElement;
+      if (ae && panelRef.current?.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+      setOpen(false);
+    };
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [open]);
+
   // ★ Esc 는 **프로젝트 표준 스택**으로 (CLAUDE.md 드로어 접근성 규칙).
   //   직접 document 에 keydown 을 달고 stopPropagation 으로 막던 옛 코드는 **동작하지 않았다** —
   //   stopPropagation 은 같은 요소(document)에 따로 등록된 다른 리스너를 막지 못한다

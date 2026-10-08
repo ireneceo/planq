@@ -529,10 +529,12 @@ const TypeBtn = styled.button<{$active?:boolean}>`
   small{font-size:0.6875rem;color:#64748B;}
   &:hover{border-color:#14B8A6;}
 `;
+// ★ min-width:0 — flex 자식의 기본 최소폭은 «내용 폭» 이라 입력칸(브라우저 기본 폭 ~170px)이 줄어들지 않아
+//   폰 390px 에서 오른쪽 칸(고객사 이메일)이 화면 밖으로 154px 잘렸다(2026-10-07 순찰 «연 창 모양»).
 const Row = styled.div`
   display: flex;
   gap: 10px;
-  & > ${Field} { flex: 1; }
+  & > ${Field} { flex: 1; min-width: 0; }
 `;
 
 const Label = styled.label`
@@ -548,6 +550,7 @@ const Required = styled.span`
 const DateTrigger = styled.button`width:100%;padding:8px 10px;border:1px solid #E2E8F0;border-radius:8px;font-size:0.8125rem;color:#0F172A;background:#FFF;font-family:inherit;text-align:left;cursor:pointer;&:hover{border-color:#14B8A6;}&:focus{outline:none;border-color:#14B8A6;box-shadow:0 0 0 2px rgba(20,184,166,0.15);}`;
 const DatePlaceholder = styled.span`color:#94A3B8;`;
 const Input = styled.input`
+  width: 100%; min-width: 0; box-sizing: border-box;
   padding: 9px 12px;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
@@ -719,7 +722,7 @@ const ChannelMembers = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const ChannelMembersList = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px;max-height:140px;overflow-y:auto;padding:4px;background:#F8FAFC;border-radius:6px;`;
 const ChannelMemberChk = styled.label`display:flex;align-items:center;gap:6px;font-size:0.6875rem;color:#0F172A;cursor:pointer;padding:2px 4px;border-radius:4px;&:hover{background:#F0FDFA;}input{accent-color:#14B8A6;cursor:pointer;}`;
 const AddClientBtn = styled.button`
-  padding: 8px 14px;
+  padding: 8px 14px; flex-shrink: 0; white-space: nowrap;
   background: #0D9488;
   color: #FFFFFF;
   border: none;

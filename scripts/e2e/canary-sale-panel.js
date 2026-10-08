@@ -246,6 +246,10 @@ async function run() {
       //   안 움직이면 내 측정 방식이 틀린 것이지 제품이 고쳐진 게 아니다.
       await page.keyboard.press('Escape');
       await sleep(700);
+      // ★ 맨 위로 되돌린 뒤 굴린다 (2026-10-07). 목록이 짧으면 위 검사에서 이미 바닥(240)에 닿아 있어
+      //   대조군이 «240 → 240» 으로 거짓 실패했다 — 제품이 아니라 측정 출발점 문제다.
+      await page.evaluate(() => { const n = document.querySelector('[data-pq-scroll-probe="1"]'); if (n) n.scrollTop = 0; });
+      await sleep(200);
       const closedBefore = await probeTop(page);
       await page.mouse.move(px, py);
       await page.mouse.wheel({ deltaY: 400 });

@@ -938,11 +938,18 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const flushDebounced = (field: string, value: unknown) => {
     if (!detailTask) return;
     const key = `${detailTask.id}:${field}`;
+    // ★ 입력이 없었으면 보내지 않는다 (2026-10-07 전체 검사 mobilesweep — 폰에서 설명 칸을 눌렀다 떼기만 해도 PUT 이 나갔다).
+    //   타이핑은 언제나 debouncedSave 를 거쳐 대기분을 남긴다 — 대기분이 없다 = 고친 것이 없다(또는 이미 저장됐다).
+    //   반복 업무면 까닭 없는 «어디까지 반영» 창이 뜨는 계열이다(memory feedback_blur_save_compare_default_value).
+    //   예외: 복원한 초안(restored)은 화면 값이 서버와 다르니 그대로 보낸다.
+    const hadPending = !!pendingFieldsRef.current[key] || !!debouncedRef.current[key];
+    const restored = (fieldDrafts as Record<string, { state?: string } | undefined>)[field]?.state === 'restored';
     delete pendingFieldsRef.current[key];
     if (debouncedRef.current[key]) {
       window.clearTimeout(debouncedRef.current[key]);
       delete debouncedRef.current[key];
     }
+    if (!hadPending && !restored) return;
     saveField(field, value);
   };
 

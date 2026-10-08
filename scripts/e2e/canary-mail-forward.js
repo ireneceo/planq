@@ -23,14 +23,12 @@ async function run() {
       const r = await fetch('/api/businesses/' + (window.__PLANQ_BIZ__ || 5) + '/email-threads', { credentials: 'include' });
       return null;   // 아래 URL 파라미터로 대신 연다
     }).catch(() => null);
+    // ★ 목록 행은 확정 손잡이(mail-thread-row)로 찾는다 (2026-10-07). 옛 «크기·글자 수» 휴리스틱은 사이드바에
+    //   «개인» 묶음이 생기자 그것을 첫 행으로 집어 스레드를 한 번도 못 열었다 — 검사가 0개인 채 빨갰다.
     const opened = await page.evaluate(() => {
-      const rows = [...document.querySelectorAll('*')].filter((e) => {
-        const r = e.getBoundingClientRect();
-        return r.width > 200 && r.width < 520 && r.height > 60 && r.height < 160 && r.x < 700
-          && (e.textContent || '').length > 25 && e.children.length > 1 && e.children.length < 10;
-      });
-      if (!rows.length) return false;
-      rows[0].click(); return true;
+      const row = document.querySelector('[data-testid="mail-thread-row"]');
+      if (!row) return false;
+      row.click(); return true;
     });
     await b.sleep(2500);
 

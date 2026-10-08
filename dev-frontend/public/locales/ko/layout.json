@@ -185,7 +185,8 @@
     "emptyHint": "댓글·일정·결제 등 알림이 여기로 모입니다.",
     "markAllRead": "모두 읽음",
     "viewAll": "전체 알림 보기",
-    "more": "더 보기 ({{count}}건 남음)"
+    "more": "더 보기 ({{count}}건 남음)",
+    "targetMissing": "삭제된 항목이라 열 수 없어요"
   },
   "role": {
     "platform_admin": "플랫폼 관리자",

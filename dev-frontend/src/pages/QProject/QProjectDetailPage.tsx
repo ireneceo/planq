@@ -145,7 +145,9 @@ const PROJECT_COLORS = PROJECT_COLOR_PALETTE.map(p => p.value);
 //   'info'    = Q info (KbDocument scope='project'). 라벨 "정보". 문서 다음 위치.
 type TabKey = 'dashboard' | 'tasks' | 'calendar' | 'details' | 'settings' | 'info' | 'clients' | 'files' | 'docs' | 'notes' | 'transactions' | 'report' | 'history' | `doc-${number}`;
 // 고객(client)에게 숨기는 탭 — 내부 캔버스(전략·403)·고객목록·거래(청구)·보고서·상세메타. 고객은 협업 탭(업무·파일·문서·정보)만.
-const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'calendar', 'clients', 'transactions', 'report', 'details', 'settings', 'history'];
+// 'info'(Q info) — 서버 kb 라우트가 워크스페이스 멤버만 받는다(middleware/permissions checkBusinessAccess). 고객에게 탭을 두면
+//   열자마자 403 + 처리 안 된 오류였다(2026-10-07 고객 순찰). 서버 술어와 같게 숨긴다.
+const CLIENT_HIDDEN_TABS: TabKey[] = ['dashboard', 'calendar', 'clients', 'transactions', 'report', 'details', 'settings', 'history', 'info'];
 
 interface BizMember { id: number; user_id: number; user?: { id: number; name: string; email?: string; is_ai?: boolean; display_name?: string | null } }
 

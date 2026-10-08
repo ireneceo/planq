@@ -51,6 +51,7 @@ import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityV
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
+import { useIncrementalList, IncrementalSentinel } from '../../hooks/useIncrementalList';
 import TrashDrawer from '../../components/Trash/TrashDrawer';
 import TrashButton from '../../components/Trash/TrashButton';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
@@ -465,6 +466,8 @@ const DocsTab: React.FC<Props> = (props) => {
     else r.sort((a, b) => (b.uploaded_at || '').localeCompare(a.uploaded_at || ''));
     return r;
   }, [filteredByFolder, query, sort]);
+  // 그리는 것만 나눈다(검색·전체 선택·건수는 visible 그대로) — 1천 개를 한 번에 그리면 폰이 2초 멈췄다
+  const { items: shownFiles, more: moreFiles, sentinelRef: fileSentinelRef } = useIncrementalList(visible, `${JSON.stringify(folderSel)}|${query}|${sort}|${view}`);
 
   const selectedFiles = useMemo(() => files.filter(f => selectedIds.has(f.id)), [files, selectedIds]);
   const selectedDeletable = selectedFiles.filter(f => f.deletable);
@@ -1480,7 +1483,7 @@ const DocsTab: React.FC<Props> = (props) => {
             )
           ) : view === 'grid' ? (
             <Grid>
-              {visible.map((f, idx) => {
+              {shownFiles.map((f, idx) => {
                 const checked = selectedIds.has(f.id);
                 // 파일명에 없으면 설명·태그 중 어디서 찾았는지 한 줄로 알려준다 (필터 술어와 같은 순서)
                 const hit = query.trim() ? pickMatch([
@@ -1580,6 +1583,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   </Card>
                 );
               })}
+              {moreFiles && <IncrementalSentinel ref={fileSentinelRef} />}
             </Grid>
           ) : (
             <ListTable>
@@ -1596,7 +1600,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 <HCDate>{t('docs.col.date', '업로드')}</HCDate>
                 <HCAct />
               </ListHead>
-              {visible.map(f => {
+              {shownFiles.map(f => {
                 const checked = selectedIds.has(f.id);
                 const hit = query.trim() ? pickMatch([
                   { field: 'file_name', text: f.file_name, shown: true },
@@ -1685,6 +1689,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   </ListRow>
                 );
               })}
+              {moreFiles && <IncrementalSentinel ref={fileSentinelRef} />}
             </ListTable>
           )}
           {marquee && (

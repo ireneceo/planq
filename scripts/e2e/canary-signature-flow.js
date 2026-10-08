@@ -167,6 +167,9 @@ async function run() {
     P('③ 고객이 링크를 열면 **우리가 먼저 한 서명**이 보인다', seesOther.seesOurSignature,
       seesOther.seesOurSignature ? `"${seesOther.text}"` : '🔴 먼저 한 서명이 안 보인다 — 누가 서명했는지 모른 채 서명하게 된다');
 
+    // 2026-10-07 서명 흐름 개편 — 문서 검토 → [확인했습니다 · 서명하기] → 본인 확인. 검토 단계를 건너뛰면 인증 버튼이 없다.
+    await guest.page.click('[data-testid="sign-start"]').catch(() => {});
+    await b.sleep(1200);
     await guest.page.click('[data-testid="sign-otp-send"]').catch(() => {});
     await b.sleep(2500);
     const otpUi = await guest.page.evaluate(`(() => {
@@ -432,7 +435,9 @@ async function run() {
         await phone.page.goto(`${(process.env.E2E_BASE || 'https://dev.planq.kr')}/sign/${tsr.token}`,
           { waitUntil: 'domcontentloaded', timeout: 30000 });
         await b.sleep(3500);
-        // 이미 본인 확인된 상태(otp_verified_at) → 서명 단계가 바로 열린다
+        // 이미 본인 확인된 상태(otp_verified_at) → [확인했습니다 · 서명하기] 다음이 바로 서명 단계다(2026-10-07 흐름)
+        await phone.page.evaluate(`(() => { const s = document.querySelector('[data-testid="sign-start"]'); if (s) s.click(); })()`);
+        await b.sleep(1500);
         const box = await phone.page.evaluate(`(() => {
           const c = document.querySelector('canvas');
           if (!c) return null;

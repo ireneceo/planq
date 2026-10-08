@@ -330,8 +330,13 @@ async function run() {
           const [seed] = await sqlQuery(
             'SELECT project_id, folder_id FROM files WHERE file_name=? AND business_id=? AND deleted_at IS NULL',
             [`zzwsf-${RUN}.png`, proj.biz]);
-          const discriminating = seed.length === 1 && seed[0].project_id == null && Number(seed[0].folder_id) === Number(fx2);
-          push('픽스처가 옛 결함을 가르는 상태다 (project_id 없음 + 프로젝트 폴더)', discriminating,
+          // ★ 2026-10-07 — 6d57439e(«프로젝트 폴더 업로드 즉시 트리 반영») 이후 워크스페이스 모드에서 프로젝트 폴더로
+          //   올리면 **project_id 가 그 프로젝트로 붙는다**(정상 — 그래야 프로젝트 쪽 트리에도 보인다). 옛 결함 상태
+          //   (project_id 없음 + 프로젝트 폴더)는 더 이상 만들어지지 않는다. 그래서 «그 폴더에 한 줄 앉았다» 만 전제로 보고,
+          //   project_id 는 둘 중 하나여야 한다(없음 = 옛 경로 · 그 프로젝트 = 새 경로). 같은 이름 묻기는 어느 쪽이든 잰다.
+          const discriminating = seed.length === 1 && Number(seed[0].folder_id) === Number(fx2)
+            && (seed[0].project_id == null || Number(seed[0].project_id) === Number(proj.id));
+          push('픽스처: 프로젝트 폴더에 한 줄 앉았다 (project_id 없음 또는 그 프로젝트)', discriminating,
             seed.length ? seed.map((r) => `project_id=${r.project_id} folder_id=${r.folder_id}`).join(' / ') : '행 없음 — 업로드가 안 나갔다');
           if (discriminating) {
             const [w2] = writeFiles([{ rel: `zzwsf-${RUN}.png`, tag: 'w2' }]);

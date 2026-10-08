@@ -82,6 +82,9 @@ const ProjectKnowledgeTab: React.FC<Props> = ({ businessId, projectId }) => {
     try {
       const rows = await listKnowledge(businessId, { scope: 'project', project_id: projectId });
       setDocs(rows);
+    } catch {
+      // 처리 안 된 거절은 화면 오류로 번진다 — 빈 목록으로 두고 넘어간다(권한 없음은 탭 노출에서 막는다)
+      setDocs([]);
     } finally { setLoading(false); }
   }, [businessId, projectId]);
 

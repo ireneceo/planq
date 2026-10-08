@@ -24,6 +24,8 @@ const NotificationsPage: React.FC = () => {
 
   const handleClick = (item: NotificationItem) => {
     if (!item.read_at) markRead(item.id);
+    // 대상이 지워진 알림은 이동하지 않는다(드롭다운과 같은 규칙) — 열면 «찾을 수 없음» 화면뿐이다.
+    if (item.target_missing) return;
     // ★ 드롭다운과 **같은 규칙**. 여태 이 페이지만 원본 link 를 그대로 써서, link 가 비어 있는
     //   알림(entity_type/event_kind 로만 목적지를 아는 것)은 눌러도 아무 일이 없었다.
     //   열기는 새 탭 — 목록을 훑으며 여러 건을 여는 자리라 목록이 사라지면 안 된다.
@@ -66,7 +68,7 @@ const NotificationsPage: React.FC = () => {
       ) : (
         <List>
           {visible.map(it => (
-            <Item key={it.id} type="button" onClick={() => handleClick(it)} $unread={!it.read_at}>
+            <Item key={it.id} type="button" onClick={() => handleClick(it)} $unread={!it.read_at} data-target-missing={it.target_missing ? "1" : undefined}>
               {/* 운영 #287 — 종류 아이콘 (드롭다운·토스터와 같은 단일 원천). */}
               <ItemIcon aria-hidden="true"><NotificationTypeIcon kind={it.event_kind} size={16} /></ItemIcon>
               <ItemBody>
@@ -75,6 +77,7 @@ const NotificationsPage: React.FC = () => {
                 <ItemMetaRow>
                   <ItemMeta>{formatTimeAgo(it.created_at)}</ItemMeta>
                   <ItemMetaDate>{formatDateTime(it.created_at)}</ItemMetaDate>
+                  {it.target_missing && <ItemMeta data-testid="notification-target-missing">{t('notifications.targetMissing', '삭제된 항목이라 열 수 없어요')}</ItemMeta>}
                 </ItemMetaRow>
               </ItemBody>
               {!it.read_at && <UnreadDot />}

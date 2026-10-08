@@ -87,7 +87,11 @@ async function measure(page) {
       v: vis(hc),
     } : null;
     // 한 줄 안 컨트롤 높이 집합
-    out.filterHeights = bar ? [...new Set([...bar.children].map((c) => Math.round(c.getBoundingClientRect().height)))] : [];
+    // ★ 접기 묶음(FilterCollapsible, display:contents)은 자기 상자가 없어 높이 0 으로 잡힌다(2026-10-02 접기 도입 뒤).
+    //   그런 껍데기는 풀어서 **안의 컨트롤**을 잰다. 화면에 안 그려지는 것(display:none)은 뺀다.
+    const leaves = (el) => [...el.children].flatMap((c) => (getComputedStyle(c).display === 'contents' ? leaves(c) : [c]))
+      .filter((c) => getComputedStyle(c).display !== 'none');
+    out.filterHeights = bar ? [...new Set(leaves(bar).map((c) => Math.round(c.getBoundingClientRect().height)))] : [];
 
     // ── 헤더 · 검색 ──────────────────────────────────────────
     // ★ 2026-09-14 3차로 계약이 **바뀌었다** (Irene: *"검색창 왜 위에 있어? 필터들 맨 앞에 둬.
@@ -251,6 +255,9 @@ async function measure(page) {
 
 async function run() {
   const { browser, page } = await launch();
+  // ★ 2026-10-02(#447 «필터가 두세 줄이라 길다») 부터 필터 셀렉트는 [필터] 를 눌러야 펼쳐진다(기본 접힘, 펼침은 기억).
+  //   이 검사는 **펼친 필터줄의 계약**을 잰다 — 펼친 상태로 시작한다. 접힌 기본값은 «필터 0px» 이 정답이라 따로 판정하지 않는다.
+  await page.evaluateOnNewDocument(() => { try { localStorage.setItem('planq.sale.filtersOpen', '1'); } catch { /* */ } });
   try {
     await login(page);
 

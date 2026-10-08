@@ -132,8 +132,12 @@ async function run() {
     const withNotes = cueCtx.composeMarkdown({ matches: m1 });
     const withoutNotes = cueCtx.composeMarkdown({ matches: m3 });
     push('⑦ 실었을 때만 "조회함" — 안 실은 턴엔 본인 노트뿐이라고 말한다',
-      withNotes.includes('내 회의록') && !withoutNotes.includes('내 회의록('),
-      `실음=${withNotes.includes('내 회의록')} · 안실음에 조회선언=${withoutNotes.includes('내 회의록(')}`);
+      // 2026-09-20 문구 변경(«내 회의록» → «회의록(…) — 내 노트만 N건») 을 따른다. 판정은 같다:
+      //   실은 턴에만 «N건 봤다» 를 말하고, 안 실은 턴에는 건수 선언이 없다.
+      //   (조회 범위 선언은 2026-09 에 composeMarkdown 밖 coverageBlock 으로 옮겨갔다 — 본문에 남은 것은
+      //    «회의록(Q Note) N건 — … 조회했다» 한 줄이다. 그 줄을 본다.)
+      /회의록\([^)]*\) \d+건/.test(withNotes) && !/회의록\([^)]*\) \d+건/.test(withoutNotes),
+      `실음=${/회의록\([^)]*\) \d+건/.test(withNotes)} · 안실음에 조회선언=${/회의록\([^)]*\) \d+건/.test(withoutNotes)}`);
   } catch (e) {
     push('카나리 실행', false, String((e && e.stack) || e).slice(0, 300));
   } finally {

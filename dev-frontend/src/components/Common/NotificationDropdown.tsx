@@ -46,6 +46,8 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => 
 
   const handleClick = (item: NotificationItem) => {
     if (!item.read_at) markRead(item.id);
+    // 대상이 지워진 알림은 이동하지 않는다 — 열면 «찾을 수 없음» 화면이라 알림이 고장 난 것처럼 보였다(2026-10-07 순찰).
+    if (item.target_missing) return;
     // N+73 — Toaster 와 같은 라우팅 helper 사용. link 누락 시 entity_type/event_kind fallback.
     // 보던 탭을 덮지 않는다 — 알림은 하던 일 위에 얹히는 진입점이다
     //   (Irene: "드롭다운에서 갑자기 탭 내용 바뀌면 하던 일 문제될 것 같아").
@@ -78,13 +80,16 @@ const NotificationDropdown: React.FC<Props> = ({ open, onClose, anchorRef }) => 
           </Empty>
         ) : (
           items.map(it => (
-            <ItemButton key={it.id} type="button" onClick={() => handleClick(it)} $unread={!it.read_at}>
+            <ItemButton key={it.id} type="button" onClick={() => handleClick(it)} $unread={!it.read_at} data-target-missing={it.target_missing ? "1" : undefined}>
               {/* 운영 #287 — 종류 아이콘. 여태 이 목록엔 아이콘이 아예 없어 메일·채팅·업무가 구분되지 않았다. */}
               <ItemIcon aria-hidden="true"><NotificationTypeIcon kind={it.event_kind} size={14} /></ItemIcon>
               <ItemBody>
                 <ItemTitle $unread={!it.read_at}>{it.title}</ItemTitle>
                 {it.body && <ItemDesc>{it.body.slice(0, 100)}</ItemDesc>}
-                <ItemMeta>{formatTimeAgo(it.created_at)}</ItemMeta>
+                <ItemMeta>
+                  {formatTimeAgo(it.created_at)}
+                  {it.target_missing && <> · {t('notifications.targetMissing', '삭제된 항목이라 열 수 없어요')}</>}
+                </ItemMeta>
               </ItemBody>
               {!it.read_at && <UnreadDot />}
             </ItemButton>

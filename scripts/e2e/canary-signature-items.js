@@ -168,6 +168,10 @@ async function run() {
         await gp.setViewport({ width: W.w, height: W.h, isMobile: W.m, hasTouch: W.m, deviceScaleFactor: W.m ? 2 : 1 });
         await gp.goto(`${b.BASE}/sign/${them.token}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await b.sleep(3000);
+        // 2026-10-07 서명 흐름 개편(b23bb7eb) — 문서 검토 단계에서 [확인했습니다 · 서명하기] 를 눌러야 서명 칸이 열린다.
+        //   이 단계를 안 누르면 칸 0개로 «기능 고장» 처럼 보였다(검사기가 옛 흐름을 따랐다).
+        await gp.click('[data-testid="sign-start"]').catch(() => {});
+        await b.sleep(1200);
         const s0 = await gp.evaluate(`(() => ({
           items: document.querySelectorAll('[data-testid^="sign-item-"][data-testid$="-draw"]').length,
           imageTab: (${VISIBLE})(document.querySelector('[data-testid="sign-item-1-image"]')),

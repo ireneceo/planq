@@ -1206,18 +1206,26 @@ const MailPage: React.FC = () => {
 
 
   // 스레드 detail fetch + auto mark-read
+  // ★ 마지막으로 연 스레드만 화면에 반영한다 (2026-10-07 순찰 실측). 알림에서 다른 메일을 열면 keep-alive 탭의
+  //   옛 스레드 요청과 새 요청이 **동시에** 날아갔고(7980·8057), 늦게 온 옛 응답이 새 상세를 덮거나
+  //   옛 요청의 실패가 새 화면을 «오류» 로 만들 수 있었다.
+  const detailReqRef = useRef(0);
   const loadDetail = useCallback(async (id: number) => {
     if (!businessId) return;
+    const reqNo = ++detailReqRef.current;
+    const stale = () => reqNo !== detailReqRef.current;
     setDetailLoading(true);
     setDetailStatus('loading');
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/email-threads/${id}`);
+      if (stale()) return;
       // ★ 실패를 삼키지 않는다 (2026-08-30). 여태는 `if (j.success)` 만 처리해서
       //   404·403·429·500 이 전부 아래 **"메일에서 시작해 보세요" 온보딩**으로 떨어졌다 —
       //   알림을 눌러 들어온 사용자에게 그 문구는 거짓말이다.
       if (r.status === 404) {
         // Q6 — URL 이 현재 워크스페이스라 다른 워크스페이스 스레드는 404 다. 내 다른 워크스페이스 것이면 "찾을 수 없음" 이 거짓말이다.
         const other = await findOtherWorkspaceOf('email_thread', id, businessId);
+        if (stale()) return;
         setDetail(null);
         setThreadOtherBiz(other);
         setDetailStatus(other ? 'other_workspace' : 'not_found');
@@ -1226,6 +1234,7 @@ const MailPage: React.FC = () => {
       if (r.status === 403) { setDetailStatus('forbidden'); setDetail(null); return; }
       if (!r.ok) { setDetailStatus('error'); setDetail(null); return; }
       const j = await r.json().catch(() => null);
+      if (stale()) return;
       if (!j || j.success === false) { setDetailStatus('error'); setDetail(null); return; }
       if (j.success) {
         setDetailStatus('ready');
@@ -1241,10 +1250,11 @@ const MailPage: React.FC = () => {
         }
       }
     } catch (e) {
+      if (stale()) return;
       setDetailStatus('error');
       setErrorMsg((e as Error).message);
     } finally {
-      setDetailLoading(false);
+      if (!stale()) setDetailLoading(false);
     }
   }, [businessId, loadList, loadCounts]);
 

@@ -40,3 +40,6 @@ q-note/test-*.py
 secrets/
 *.p8
 .toolchains/
+
+# 밤 전체 검사 결과(scripts/e2e/full-sweep.sh) — 로그일 뿐 저장소에 싣지 않는다
+logs/sweep/

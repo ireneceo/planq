@@ -185,7 +185,8 @@
     "emptyHint": "Comments, events, and payments will appear here.",
     "markAllRead": "Mark all read",
     "viewAll": "View all notifications",
-    "more": "Show more ({{count}} left)"
+    "more": "Show more ({{count}} left)",
+    "targetMissing": "This item was deleted and can't be opened"
   },
   "role": {
     "platform_admin": "Platform Admin",

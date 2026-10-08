@@ -426,7 +426,9 @@ router.get('/', authenticateToken, async (req, res, next) => {
       order: [['created_at', 'DESC']],
       limit,
     });
-    return successResponse(res, rows.map(r => r.toJSON()));
+    const out = rows.map(r => r.toJSON());
+    await require('../services/notificationTargets').markGoneTargets(out);
+    return successResponse(res, out);
   } catch (err) { next(err); }
 });
 
