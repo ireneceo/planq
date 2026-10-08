@@ -8,8 +8,8 @@ import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { mediaPhone } from '../../theme/breakpoints';
 import {
-  listInvoices, formatMoney, updateInvoiceStatus, markInstallmentPaid,
-  type ApiInvoice, type ApiInstallment,
+  listInvoices, getRevenueLedger, formatMoney, updateInvoiceStatus, markInstallmentPaid,
+  type ApiInvoice, type ApiInstallment, type RevenueLedger, type Currency,
 } from '../../services/invoices';
 
 type Period = 'thisMonth' | 'last30' | 'ytd';
@@ -32,6 +32,8 @@ export default function OverviewTab() {
   const isOwner = user?.business_role === 'owner';
   const [period, setPeriod] = useState<Period>('thisMonth');
   const [invoices, setInvoices] = useState<ApiInvoice[]>([]);
+  // 매출은 원장(수금 행)에서 — 인사이트와 같은 서버 함수. 청구서 목록으로 따로 세지 않는다(0-G).
+  const [ledger, setLedger] = useState<RevenueLedger | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloadKey, setReloadKey] = useState(0);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -40,10 +42,14 @@ export default function OverviewTab() {
     if (!businessId) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
-    listInvoices(businessId)
-      .then(list => { if (!cancelled) setInvoices(list); })
-      .catch(() => { if (!cancelled) setInvoices([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
+    Promise.all([
+      listInvoices(businessId)
+        .then(list => { if (!cancelled) setInvoices(list); })
+        .catch(() => { if (!cancelled) setInvoices([]); }),
+      getRevenueLedger(businessId)
+        .then(l => { if (!cancelled) setLedger(l); })
+        .catch(() => { if (!cancelled) setLedger(null); }),
+    ]).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [businessId, reloadKey]);
 
@@ -72,8 +78,10 @@ export default function OverviewTab() {
     };
   }, [businessId, reload]);
 
-  const stats = useMemo(() => computeStats(invoices, period), [invoices, period]);
-  const trend = useMemo(() => buildTrend(invoices, t), [invoices, t]);
+  const events = useMemo(() => ledgerEvents(ledger), [ledger]);
+  const revenueCurrency = (ledger?.home_currency || 'KRW') as Currency;
+  const stats = useMemo(() => computeStats(invoices, events, period), [invoices, events, period]);
+  const trend = useMemo(() => buildTrend(events, t), [events, t]);
   const topUnpaid = useMemo(() => buildTopUnpaid(invoices), [invoices]);
   const pendingDeposits = useMemo(() => buildPendingDeposits(invoices), [invoices]);
 
@@ -182,7 +190,7 @@ export default function OverviewTab() {
             <KpiLabel>{t('overview.kpi.revenue')}</KpiLabel>
             <KpiHelp>{t('overview.kpi.revenueHelp', { period: t(`overview.period.${period}`) })}</KpiHelp>
           </KpiHead>
-          <KpiValue>{formatMoney(stats.revenue, 'KRW')}</KpiValue>
+          <KpiValue>{formatMoney(stats.revenue, revenueCurrency)}</KpiValue>
           <KpiSpark $color="#14B8A6">
             <Sparkline data={stats.revenueSpark} color="#14B8A6" />
           </KpiSpark>
@@ -304,26 +312,11 @@ export default function OverviewTab() {
 
 interface PaymentEvent { at: Date; amount: number; }
 
-/** 결제 이벤트 목록 — KRW 만. 분할 청구는 회차별로 각각의 결제일을 갖는다. */
-function paymentEvents(list: ApiInvoice[]): PaymentEvent[] {
-  const out: PaymentEvent[] = [];
-  for (const inv of list) {
-    if (inv.currency !== 'KRW') continue;
-    if (inv.installments && inv.installments.length > 0) {
-      for (const inst of inv.installments) {
-        if (inst.status !== 'paid') continue;
-        const at = inst.paid_at || inv.paid_at;
-        if (!at) continue;
-        out.push({ at: new Date(at), amount: Number(inst.paid_amount || inst.amount || 0) });
-      }
-      continue;
-    }
-    if (inv.status !== 'paid' && inv.status !== 'partially_paid') continue;
-    const at = inv.paid_at || inv.issued_at || inv.created_at;
-    if (!at) continue;
-    out.push({ at: new Date(at), amount: Number(inv.paid_amount || 0) });
-  }
-  return out;
+/** 결제 이벤트 — 서버 원장(InvoicePayment 순액, 홈 통화). 분할 회차도 수금 행 하나하나가 이벤트다.
+ *  2026-10-08 0-G: 옛 화면 계산(invoice.paid_amount)은 인사이트 원장과 달랐다(paid · paid_amount 0 인 청구서). */
+function ledgerEvents(ledger: RevenueLedger | null): PaymentEvent[] {
+  if (!ledger) return [];
+  return ledger.events.map(e => ({ at: new Date(e.paid_at), amount: Number(e.amount || 0) }));
 }
 
 /** 기간의 시작 시각 — 화면의 토글(이번 달 / 최근 30일 / 올해)과 1:1 로 대응한다. */
@@ -334,13 +327,13 @@ function periodStart(period: Period): Date {
   return new Date(now.getFullYear(), now.getMonth(), 1);   // thisMonth
 }
 
-function computeStats(list: ApiInvoice[], period: Period) {
+function computeStats(list: ApiInvoice[], events: PaymentEvent[], period: Period) {
   const krw = list.filter(i => i.currency === 'KRW');
   const num = (v: string | number | null | undefined) => Number(v || 0);
 
   // 매출 = 선택한 기간에 **실제로 들어온 돈**
   const from = periodStart(period);
-  const revenue = paymentEvents(list)
+  const revenue = events
     .filter(e => e.at >= from)
     .reduce((s, e) => s + e.amount, 0);
 
@@ -368,7 +361,7 @@ function computeStats(list: ApiInvoice[], period: Period) {
 
   return {
     revenue,
-    revenueSpark: buildSparkFromInvoices(list),
+    revenueSpark: monthlyRevenue(events, 6),
     outstanding,
     outstandingCount: outstandingList.length,
     outstandingAvgDays,
@@ -380,10 +373,10 @@ function computeStats(list: ApiInvoice[], period: Period) {
 }
 
 /** 월별 매출 버킷 — KPI 와 **같은 원장**(결제일 기준)을 쓴다. 그래야 막대 합과 KPI 가 어긋나지 않는다. */
-function monthlyRevenue(list: ApiInvoice[], months: number): number[] {
+function monthlyRevenue(events: PaymentEvent[], months: number): number[] {
   const buckets: number[] = Array(months).fill(0);
   const now = new Date();
-  for (const e of paymentEvents(list)) {
+  for (const e of events) {
     const monthDiff = (now.getFullYear() - e.at.getFullYear()) * 12 + (now.getMonth() - e.at.getMonth());
     if (monthDiff < 0 || monthDiff >= months) continue;
     buckets[months - 1 - monthDiff] += e.amount;
@@ -391,14 +384,9 @@ function monthlyRevenue(list: ApiInvoice[], months: number): number[] {
   return buckets;
 }
 
-// 최근 6개월 매출 sparkline
-function buildSparkFromInvoices(list: ApiInvoice[]): number[] {
-  return monthlyRevenue(list, 6);
-}
-
-function buildTrend(list: ApiInvoice[], t: TFunction) {
+function buildTrend(events: PaymentEvent[], t: TFunction) {
   const months = 12;
-  const values = monthlyRevenue(list, months);
+  const values = monthlyRevenue(events, months);
   const now = new Date();
   return values.map((value, idx) => {
     const dt = new Date(now.getFullYear(), now.getMonth() - (months - 1 - idx), 1);

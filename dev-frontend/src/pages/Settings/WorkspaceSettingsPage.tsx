@@ -881,7 +881,8 @@ export default function WorkspaceSettingsPage() {
 
   const usageRatio = useMemo(() => {
     if (!cue) return 0;
-    return cue.usage.limit > 0 ? cue.usage.action_count / cue.usage.limit : 0;
+    const lim = cue.usage.limit;
+    return lim != null && lim > 0 ? cue.usage.action_count / lim : 0;
   }, [cue]);
 
   // URL 기반 페이지 타이틀 — Secondary 메뉴 항목과 1:1 매칭
@@ -1827,16 +1828,16 @@ export default function WorkspaceSettingsPage() {
           <Card>
             <SectionTitle>{t('cue.usageTitle')}</SectionTitle>
             <UsageBar>
-              <UsageFill $ratio={usageRatio} $over={cue.usage.action_count >= cue.usage.limit} />
+              <UsageFill $ratio={usageRatio} $over={cue.usage.limit != null && cue.usage.action_count >= cue.usage.limit} />
             </UsageBar>
             <UsageStats>
               <UsageStat>
                 <UsageStatLabel>{t('cue.usageLimit')}</UsageStatLabel>
-                <UsageStatValue>{cue.usage.limit.toLocaleString()}</UsageStatValue>
+                <UsageStatValue>{cue.usage.limit == null ? t('cue.usageUnlimited') : cue.usage.limit.toLocaleString()}</UsageStatValue>
               </UsageStat>
               <UsageStat>
                 <UsageStatLabel>{t('cue.usageRemaining')}</UsageStatLabel>
-                <UsageStatValue>{cue.usage.remaining.toLocaleString()}</UsageStatValue>
+                <UsageStatValue>{cue.usage.remaining == null ? t('cue.usageUnlimited') : cue.usage.remaining.toLocaleString()}</UsageStatValue>
               </UsageStat>
               <UsageStat>
                 <UsageStatLabel>{t('cue.usageCost')}</UsageStatLabel>
@@ -1844,7 +1845,7 @@ export default function WorkspaceSettingsPage() {
               </UsageStat>
             </UsageStats>
 
-            {cue.usage.action_count >= cue.usage.limit && (
+            {cue.usage.limit != null && cue.usage.action_count >= cue.usage.limit && (
               <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', color: '#9f1239', padding: '10px 14px', borderRadius: 8, fontSize: '0.8125rem', marginTop: 14 }}>
                 {t('cue.usageExceeded')}
               </div>

@@ -80,7 +80,10 @@ async function getBusinessPlan(businessId) {
     return exemptResult;
   }
 
-  const inTrial = biz.trial_ends_at && new Date(biz.trial_ends_at) > now;
+  // 활성 구독(결제 완료)이면 체험 중이 아니다 — 체험 중 결제 후에도 trial_ends_at 이 남아 있어
+  // 배지·배너가 «체험 N일 남음» 을 계속 보였다(2026-10-08 0-G). 잔여 체험일은 첫 기간에 이미 더해진다(0-A ④).
+  const inTrial = !!(biz.trial_ends_at && new Date(biz.trial_ends_at) > now)
+    && biz.subscription_status !== 'active';
   // 사용 가능 판정·free 강등·유예 여부 — services/planActive 한 곳(health-check 가 같은 함수를 잰다)
   const st = require('./planActive').subscriptionState({
     plan: biz.plan, status: biz.subscription_status,

@@ -37,13 +37,9 @@ const currentYearMonth = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
-// ─── 공통: Cue 월 한도 (plan 별) ───
-const PLAN_CUE_LIMITS = {
-  free: 500,
-  basic: 5000,
-  pro: 25000,
-  enterprise: 100000
-};
+// Cue 월 한도는 이 파일이 정하지 않는다 — 게이트(plan.can('use_cue'))와 같은 `plan.getLimit` 을 읽는다
+// (애드온 합산 포함). 2026-10-08 0-G: 여기 따로 있던 표(free 500/basic 5,000 …)가 실제 게이트
+// (free 30/starter 50/basic 1,500/pro 7,500)와 달라 설정 화면 숫자가 거짓이었다.
 
 const isAdmin = (req) =>
   req.user?.platform_role === 'platform_admin' || req.businessRole === 'owner';
@@ -1243,7 +1239,9 @@ router.get('/:businessId/cue', authenticateToken, checkBusinessAccess, async (re
     const byType = {};
     rows.forEach(r => { byType[r.action_type] = r.action_count; });
 
-    const limit = PLAN_CUE_LIMITS[business.plan] || PLAN_CUE_LIMITS.free;
+    // Infinity(맞춤 플랜) 는 JSON 에서 null = 무제한.
+    const planSvc = require('../services/plan');
+    const limit = planSvc.limitForJson(await planSvc.getLimit(business.id, 'cue_actions_monthly'));
 
     successResponse(res, {
       cue_user_id: business.cue_user_id,
@@ -1254,7 +1252,7 @@ router.get('/:businessId/cue', authenticateToken, checkBusinessAccess, async (re
         year_month: ym,
         action_count: totalCount,
         limit,
-        remaining: Math.max(0, limit - totalCount),
+        remaining: limit == null ? null : Math.max(0, limit - totalCount),
         cost_usd: Number(totalCost.toFixed(6)),
         by_type: byType
       }

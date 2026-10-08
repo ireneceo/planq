@@ -429,6 +429,39 @@ async function computeFirstResponse(businessId, period) {
   return { median_minutes: Number(percentile(deltas, 50).toFixed(1)), samples: deltas.length };
 }
 
+// ─── 매출 원장 — 단일 원천 (2026-10-08 0-G) ───
+// 매출 = InvoicePayment(수금 행) 의 순액(환불 차감), 홈 통화만. 인사이트 개요와 Q Bill 개요가
+// **이 함수 하나**를 읽는다. 옛 Q Bill 개요는 화면에서 invoice.paid_amount 로 따로 셌고
+// (status paid · paid_amount 0 · 원장 110,000 인 청구서가 두 화면에서 달랐다) KRW 외 통화를 버렸다.
+// invoiceWhere — 호출부의 가시성 술어(invoiceListWhere)를 그대로 얹는다(넓히지 않는다).
+async function ledgerPayments(businessId, { from, to, invoiceWhere } = {}) {
+  const { Invoice, InvoicePayment } = require('../models');
+  const where = {};
+  if (from && to) where.paid_at = { [Op.between]: [from, to] };
+  else if (from) where.paid_at = { [Op.gte]: from };
+  const invWhere = invoiceWhere
+    ? { [Op.and]: [invoiceWhere, { business_id: businessId }] }
+    : { business_id: businessId };
+  return InvoicePayment.findAll({
+    where,
+    include: [{ model: Invoice, where: invWhere, attributes: ['id', 'project_id', 'currency'] }],
+    attributes: ['amount', 'refunded_amount', 'paid_at'],
+  });
+}
+
+/** 홈 통화 수금 이벤트 [{ paid_at, amount(순액) }] + 통화별 합계 — Q Bill 개요의 KPI·추이가 읽는다. */
+async function ledgerRevenueEvents(businessId, opts = {}) {
+  const home = await getHomeCurrency(businessId);
+  const rows = await ledgerPayments(businessId, opts);
+  const events = [];
+  for (const p of rows) {
+    if ((p.Invoice?.currency || 'KRW') !== home) continue;
+    events.push({ paid_at: p.paid_at, amount: netPay(p) });
+  }
+  const byCur = groupByCurrency(rows, (p) => p.Invoice?.currency, netPay);
+  return { home_currency: home, events, foreign: foreignBreakdown(byCur, home) };
+}
+
 async function buildOverviewTab(businessId, period) {
   const { Invoice, InvoicePayment, Project, Client, OverheadItem } = require('../models');
 
@@ -436,12 +469,8 @@ async function buildOverviewTab(businessId, period) {
   const toDt = new Date(period.to + ' 23:59:59');
   const home = await getHomeCurrency(businessId);
 
-  // 매출 (수금) — InvoicePayment 합계 (홈 통화만, 외화는 분리)
-  const payments = await InvoicePayment.findAll({
-    where: { paid_at: { [Op.between]: [fromDt, toDt] } },
-    include: [{ model: Invoice, where: { business_id: businessId }, attributes: ['id', 'project_id', 'currency'] }],
-    attributes: ['amount', 'refunded_amount'],
-  });
+  // 매출 (수금) — 원장 단일 원천(ledgerPayments, 홈 통화만, 외화는 분리)
+  const payments = await ledgerPayments(businessId, { from: fromDt, to: toDt });
   const revByCur = groupByCurrency(payments, (p) => p.Invoice?.currency, netPay);
   const revenue = revByCur[home] || 0;
   const revenueForeign = foreignBreakdown(revByCur, home);
@@ -1273,5 +1302,7 @@ module.exports = {
   buildFinanceTab,
   buildReportsTab,
   aggregateTaskCounts,
+  ledgerPayments,
+  ledgerRevenueEvents,
   _internal: { mape, bias, accuracy, percentile },
 };

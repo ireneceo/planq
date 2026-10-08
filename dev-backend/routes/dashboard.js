@@ -117,8 +117,11 @@ async function collectTasks(businessId, userId) {
       assignee_id: userId,
       request_by_user_id: { [Op.ne]: userId, [Op.not]: null },
       request_ack_at: null,
-      // #206 — 보류된 요청으로 담당자를 채근하지 않는다 (보류는 "일이 멈춤"의 합의)
-      status: { [Op.notIn]: ['completed', 'canceled', 'on_hold'] },
+      // 아직 착수 전·진행 중인 업무만 «요청을 확인하세요» 다. 2026-10-08 0-G: 옛 조건(completed·canceled·on_hold
+      // 제외)은 이미 제출한 업무(컨펌 중·수정요청·승인완료·외부컨펌)까지 집어 동사가 거짓이 됐고, revision_requested·
+      // done_feedback 은 아래 revise/finish 버킷과 **같은 업무가 두 항목**(한 업무 = 한 버킷 위반)이었다.
+      // 보류(on_hold)는 #206 대로 빠진다.
+      status: { [Op.in]: ['not_started', 'waiting', 'in_progress'] },
     },
     attributes: ['id', 'title', 'due_date', 'createdAt', 'status'],
     include: [{ model: User, as: 'requester', attributes: ['id', 'name', 'name_localized'], required: false }],

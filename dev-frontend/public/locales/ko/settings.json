@@ -484,6 +484,7 @@
     "usageSummary": "자동 요약",
     "usageKbEmbed": "자료 임베딩",
     "usageLimit": "월 한도",
+    "usageUnlimited": "무제한",
     "usageRemaining": "남은 액션",
     "usageCost": "예상 원가",
     "usageExceeded": "이번 달 할당량을 모두 사용했어요. 다음 달에 Cue 가 다시 활동합니다.",

@@ -484,6 +484,7 @@
     "usageSummary": "Auto Summary",
     "usageKbEmbed": "KB Embedding",
     "usageLimit": "Monthly Limit",
+    "usageUnlimited": "Unlimited",
     "usageRemaining": "Remaining Actions",
     "usageCost": "Estimated Cost",
     "usageExceeded": "You've used your monthly allowance. Cue will be back next month.",

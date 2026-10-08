@@ -227,6 +227,17 @@ export async function listInvoices(businessId: number, opts: { status?: InvoiceS
   return expectOk<ApiInvoice[]>(r);
 }
 
+/** 매출 원장(수금 행 순액, 홈 통화) — 인사이트와 같은 서버 함수(services/stats.ledgerRevenueEvents). 2026-10-08 0-G */
+export interface RevenueLedger {
+  home_currency: string;
+  events: Array<{ paid_at: string; amount: number }>;
+  foreign: Record<string, number>;
+}
+export async function getRevenueLedger(businessId: number): Promise<RevenueLedger> {
+  const r = await apiFetch(`/api/invoices/${businessId}/revenue-ledger?months=13`);
+  return expectOk<RevenueLedger>(r);
+}
+
 export async function getInvoice(businessId: number, invoiceId: number): Promise<ApiInvoice> {
   const r = await apiFetch(`/api/invoices/${businessId}/${invoiceId}`);
   return expectOk<ApiInvoice>(r);

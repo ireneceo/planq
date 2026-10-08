@@ -78,8 +78,9 @@ export interface CueInfo {
   usage: {
     year_month: string;
     action_count: number;
-    limit: number;
-    remaining: number;
+    /** null = 무제한(맞춤 플랜) — 게이트와 같은 plan.getLimit 값 */
+    limit: number | null;
+    remaining: number | null;
     cost_usd: number;
     by_type: Record<string, number>;
   };

@@ -1053,6 +1053,22 @@ router.get('/:businessId/receipts-due', authenticateToken, attachWorkspaceScope(
   } catch (error) { next(error); }
 });
 
+// ─── 매출 원장 (2026-10-08 0-G) — Q Bill 개요 KPI·추이 ───
+//   인사이트와 같은 services/stats.ledgerRevenueEvents. 가시성은 목록과 같은 invoiceListWhere.
+//   /:businessId/:id 보다 먼저(literal 우선).
+router.get('/:businessId/revenue-ledger', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const baseWhere = await invoiceListWhere(req.user.id, businessId, req.scope);
+    if (!baseWhere) return errorResponse(res, 'forbidden', 403);
+    const months = Math.min(24, Math.max(1, Number(req.query.months) || 13));
+    const now = new Date();
+    const from = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const data = await require('../services/stats').ledgerRevenueEvents(businessId, { from, invoiceWhere: baseWhere });
+    successResponse(res, data);
+  } catch (error) { next(error); }
+});
+
 // #75 — 세금계산서 발행 내역 (공급자·공급받는자·품목·금액 분해). 발행자가 홈택스/팝빌에 그대로 옮겨적게.
 router.get('/:businessId/:id/tax-breakdown', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {

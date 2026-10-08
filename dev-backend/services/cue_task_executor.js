@@ -291,7 +291,8 @@ async function executeForTask(taskId, opts = {}) {
 
   // cue_usage 기록 — task_execute 카테고리
   try {
-    await cueOrch.recordUsage(biz.id, 'task_execute', 'gpt-4o-mini', result.input_tokens || 0, result.output_tokens || 0);
+    // 모델명은 실제로 부른 것(게이트웨이 cue_task 해석값) — 옛 'gpt-4o-mini' 고정은 원가를 8~16배 낮게 기록했다(0-G).
+    await cueOrch.recordUsage(biz.id, 'task_execute', require('./llm').modelFor('cue_task'), result.input_tokens || 0, result.output_tokens || 0);
   } catch (e) { console.warn('[cue_task_executor] recordUsage failed', e.message); }
 
   if (transition.autoReviewerAdded) {

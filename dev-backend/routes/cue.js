@@ -395,17 +395,19 @@ router.post('/help', authenticateToken, ...helpLimiter, async (req, res, next) =
     //     쿼터도 따라간다(별도 코드 없음 — 빼려면 오히려 코드를 더 짜야 한다).
     //   qhelper(제품 사용법)와 /help-public(게스트)은 게이트도 안 부르므로 무과금 유지 —
     //     "게이트를 부르는 모드 = 기록하는 모드" 로 대칭을 맞춘다.
-    if (finalMode === 'workspace' && workspaceBizId) {
-      const { recordUsage } = require('../services/cue_orchestrator');
-      recordUsage(workspaceBizId, 'help', usedModel, input_tokens || 0, output_tokens || 0)
-        .catch((e) => console.warn('[cue/help usage]', e.message));
-    }
-
     // 툴 제안 → 확인 카드용 proposed_action (첫 유효 쓰기 툴 1건). 절대 실행 안 함.
     let proposedAction = null;
     if (useTools && Array.isArray(tool_calls) && tool_calls.length) {
       try { proposedAction = await cueTools.buildProposedAction(workspaceBizId, tool_calls); }
       catch (e) { console.warn('[cue/help buildProposedAction]', e.message); }
+    }
+    // ★ 2026-10-08 0-G — «제안» 은 무과금. 답이 실행 카드(proposed_action)면 여기서 기록하지 않는다 —
+    //   사용자가 [추가] 를 누르면 execute-action 이 1회 기록한다(옛: 제안 1 + 실행 1 = 2회 차감).
+    //   제안만 받고 실행하지 않은 것은 사용자가 아직 아무것도 얻지 못한 단계다. 그냥 답(카드 없음)은 위 판정대로 기록.
+    if (finalMode === 'workspace' && workspaceBizId && !proposedAction) {
+      const { recordUsage } = require('../services/cue_orchestrator');
+      recordUsage(workspaceBizId, 'help', usedModel, input_tokens || 0, output_tokens || 0)
+        .catch((e) => console.warn('[cue/help usage]', e.message));
     }
     // KNOWLEDGE_LOOP 축2 — qhelper 질문 로그 (workspace 모드는 위키 개선 대상 아님)
     let logId = null;
