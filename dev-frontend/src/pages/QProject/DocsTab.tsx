@@ -38,6 +38,7 @@ import PreviewArea from './docs/PreviewArea';
 import { QuickViewButton, QuickViewModal } from './docs/QuickView';
 import { LIST_COLS, ListRow, RowChk, RowName, RowNameText, RowNameStack, CardReason, UnmirrorTag, RowSrc, RowCtx, RowSize, RowUp, RowDate, RowAct, DlPct } from './docs/DocsTab.listStyles';
 import CloudConnectNotice from '../../components/Common/CloudConnectNotice';
+import ShareRevokeDialog from './docs/ShareRevokeDialog';   // 공유 링크(B) 해제 — 0-J
 import { Toolbar, ToolbarRight, SortWrap } from '../../components/Docs/assetTabLayout';
 import { Link } from 'react-router-dom';
 import {
@@ -868,7 +869,8 @@ const DocsTab: React.FC<Props> = (props) => {
   const selectedDownloadable = selectedFiles.filter(f =>
     f.source === 'direct' || f.source === 'chat' || f.source === 'task'
   );
-  const [shareLinkInfo, setShareLinkInfo] = useState<{ url: string; expires: string } | null>(null);
+  const [shareLinkInfo, setShareLinkInfo] = useState<{ url: string; expires: string; fileId: string } | null>(null);
+  const [shareRevokeAsk, setShareRevokeAsk] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   // ★ 업로드 한도는 **플랜마다 다르다** (Free 5MB · Starter 20 · Basic 50 · Pro 100 · Enterprise 200).
   //   여태 드롭존 문구에 `최대 50MB` 가 **하드코딩**돼 있어 Free 사용자에게 10배 틀린 숫자를
@@ -902,7 +904,7 @@ const DocsTab: React.FC<Props> = (props) => {
       return;
     }
     try { await navigator.clipboard.writeText(r.share_url); } catch { /* ignore */ }
-    setShareLinkInfo({ url: r.share_url, expires: r.expires_at });
+    setShareLinkInfo({ url: r.share_url, expires: r.expires_at, fileId: f.id });
   }, [selectedFiles, businessId, t]);
 
   const onBulkDownload = useCallback(async () => {
@@ -1421,6 +1423,7 @@ const DocsTab: React.FC<Props> = (props) => {
                     : ''}>
                   {t('docs.bulk.shareLink', '공유 링크')}
                 </BulkBtn>
+                <BulkBtn type="button" data-testid="files-bulk-share-revoke" disabled={selectedFiles.length !== 1 || selectedFiles[0]?.source !== 'direct'} onClick={() => setShareRevokeAsk(selectedFiles[0]?.id || null)}>{t('docs.bulk.shareRevoke', '링크 해제')}</BulkBtn>
                 <BulkBtnSep />
                 <BulkBtn type="button" disabled={selectedDeletable.length === 0} onClick={() => setMoveTargetOpen(true)}>
                   {t('docs.bulk.move', '이동')}
@@ -1448,9 +1451,11 @@ const DocsTab: React.FC<Props> = (props) => {
               <strong>{t('docs.bulk.shareCreated', '공유 링크 생성 — 클립보드에 복사됨')}</strong>
               <ShareUrl>{shareLinkInfo.url}</ShareUrl>
               <small>{t('docs.bulk.shareExpires', '만료: {{date}}', { date: formatDay(shareLinkInfo.expires, { year: 'always' }) })}</small>
+              <BulkBtn type="button" onClick={() => setShareRevokeAsk(shareLinkInfo.fileId)}>{t('docs.bulk.shareRevoke', '링크 해제')}</BulkBtn>
               <BulkBtn type="button" onClick={() => setShareLinkInfo(null)}>{t('common.close', '닫기')}</BulkBtn>
             </ShareLinkBar>
           )}
+          <ShareRevokeDialog businessId={businessId} fileId={shareRevokeAsk} onClose={() => setShareRevokeAsk(null)} onDone={(fid) => setShareLinkInfo((cur) => (cur && cur.fileId === fid ? null : cur))} onError={setShareError} />
 
           {/* data-testid — 하니스가 "재진입에 또 로딩되는가" 를 판정하는 신호(CLAUDE.md §17) */}
           {loading ? (

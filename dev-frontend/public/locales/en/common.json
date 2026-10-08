@@ -1183,10 +1183,13 @@
     "created": "Created",
     "lastUsed": "Last used",
     "neverUsed": "Never used",
-    "revoke": "Revoke"
+    "revoke": "Revoke",
+    "revokeConfirmTitle": "Revoke this token?",
+    "revokeConfirmBody": "External tools using the \"{{name}}\" token are disconnected immediately. This can't be undone."
   },
   "provenance": {
-    "cue": "Added via Cue"
+    "cue": "Added via Cue",
+    "agent": "Created by an AI app"
   },
   "popoutPin": {
     "pin": "Keep on top",

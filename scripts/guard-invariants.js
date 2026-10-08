@@ -3364,6 +3364,69 @@ function checkNavRegistry() {
   report('navregistry', `사이드바 메뉴 경로 ⊂ 메뉴 표 (${n}개 경로)`, fails.length === 0, fails);
 }
 
+// ═══════════════════════════════════════════════
+// deadroute — 호출처 없는 서버 라우트 래칫 (2026-10-08 0-J)
+//
+//   왜 있는가 — 2026-10-07 감사에서 호출처 0 라우트가 20개 넘게 나왔다(대화 Cue 트리거·승인/거절 두 벌,
+//   업무 my-month/backlog, 공정 표 라우터 통째 …). 화면이 사라진 뒤에도 서버 문은 인증만 걸린 채 남아
+//   «두 벌 규칙»(살아 있는 쪽과 죽은 쪽이 갈라짐)과 유지보수 혼선을 만든다. 0-J 에서 확실한 것을 지웠고,
+//   **새로 생기는 죽은 문**만 막는다(기존은 동결 — 외부 콜백·웹훅·내부 API 는 원래 여기서 호출처가 안 보인다).
+//
+//   판정(휴리스틱): 라우트 경로의 **고정 조각 중 가장 긴 연속 구간**(예: '/:biz/:id/cue/trigger' → 'cue/trigger')이
+//   호출 쪽 코드(프론트 src·public · MCP · scripts · 백엔드 services/scripts · q-note) 어디에도 없으면 «호출처 없음».
+//   고정 조각이 없는 경로('/', '/:id')는 잴 수 없어 센하지 않는다. 의도된 외부 전용 문은 라우트 줄에
+//   `// deadroute-exempt: <이유>` 를 단다.
+// ═══════════════════════════════════════════════
+function checkDeadRoute() {
+  const routeDir = `${ROOT}/dev-backend/routes`;
+  const callerDirs = [
+    [`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']],
+    [`${ROOT}/dev-frontend/public`, ['.js']],
+    [`${ROOT}/dev-backend/mcp`, ['.js']],
+    [`${ROOT}/dev-backend/services`, ['.js']],
+    [`${ROOT}/dev-backend/scripts`, ['.js']],
+    [`${ROOT}/scripts`, ['.js', '.sh']],
+    [`${ROOT}/q-note`, ['.py']],
+  ];
+  let corpus = '';
+  for (const [d, exts] of callerDirs) {
+    if (!fs.existsSync(d)) continue;
+    for (const f of walk(d, exts)) {
+      if (f.includes('/node_modules/') || f.includes('/venv/') || f.includes('/.venv/')) continue;
+      if (f.endsWith('guard-invariants.js')) continue;
+      corpus += '\n' + read(f);
+    }
+  }
+  const current = {};
+  const samples = [];
+  for (const f of walk(routeDir, ['.js'])) {
+    const lines = read(f).split('\n');
+    let n = 0;
+    lines.forEach((l, i) => {
+      const m = l.match(/^\s*router\.(get|post|put|patch|delete)\(\s*'([^']+)'/);
+      if (!m) return;
+      if (/deadroute-exempt:/.test(l) || (i > 0 && /deadroute-exempt:/.test(lines[i - 1]))) return;
+      const parts = m[2].split('/').filter(Boolean);
+      // 고정 조각의 연속 구간 — 파라미터(:x)·와일드카드에서 끊는다
+      const runs = []; let cur = [];
+      for (const p of parts) {
+        if (p.startsWith(':') || p.includes('*') || p.includes('(')) { if (cur.length) runs.push(cur); cur = []; } else cur.push(p);
+      }
+      if (cur.length) runs.push(cur);
+      if (!runs.length) return;
+      const sig = runs.map((r) => r.join('/')).sort((a, b) => b.length - a.length)[0];
+      if (sig.length < 3) return;
+      if (corpus.includes(sig)) return;
+      n++;
+      if (samples.length < 12) samples.push(`${rel(f)}:${i + 1}: ${m[1].toUpperCase()} ${m[2]} (호출처에 '${sig}' 없음)`);
+    });
+    if (n) current[rel(f)] = n;
+  }
+  const rt = ratchet('deadroute', current, samples);
+  report('deadroute', `호출처 없는 라우트 래칫 (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? [...rt.fails, ...samples] : (opts.verbose ? samples : []));
+}
+
 const CATEGORIES = {
   datefmt: checkDateFmt,
   draft: checkDraft,
@@ -3421,6 +3484,7 @@ const CATEGORIES = {
   auditcover: checkAuditCover,
   adminpredicate: checkAdminPredicate,
   navregistry: checkNavRegistry,
+  deadroute: checkDeadRoute,
 };
 
 try {

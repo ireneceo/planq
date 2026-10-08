@@ -177,6 +177,29 @@ router.get('/:businessId/clients/:clientId', ...readChain, async (req, res, next
     ]);
     out.channels = { conversations, email_threads: threads, guest_links: guestLinks };
 
+    // 다음 연락 — [다음 연락 잡기](NextContactModal)가 만든 일정(target_client_ids 에 이 고객)을 **돌려준다**(2026-10-08 0-J).
+    //   옛: 일정은 만들어졌는데 Q sale 어디에도 안 보여 «잡아도 돌아오지 않았다». 가시성은 캘린더 목록과 같은 술어.
+    out.next_contact = null;
+    try {
+      const { calendarListWhere } = require('../middleware/access_scope');
+      const { CalendarEvent } = require('../models');
+      const { sequelize } = require('../config/database');
+      const calWhere = await calendarListWhere(req.user.id, businessId);
+      if (calWhere) {
+        const cid = Number(client.id);
+        const ev = await CalendarEvent.findOne({
+          where: { [Op.and]: [
+            calWhere,
+            { start_at: { [Op.gte]: new Date() } },
+            sequelize.literal(`JSON_CONTAINS(\`CalendarEvent\`.\`target_client_ids\`, '${cid}')`),
+          ] },
+          attributes: ['id', 'title', 'start_at'],
+          order: [['start_at', 'ASC']],
+        });
+        if (ev) out.next_contact = { id: ev.id, title: ev.title, start_at: ev.start_at };
+      }
+    } catch (e) { console.warn('[sale next_contact]', e.message); }
+
     // 연결 프로젝트 — project_clients.client_id 또는 (계정이 있으면) contact_user_id
     const pcOr = [{ client_id: client.id }];
     if (client.user_id) pcOr.push({ contact_user_id: client.user_id });

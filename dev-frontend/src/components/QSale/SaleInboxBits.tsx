@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import type { SaleInboxItem, SaleInboxCounts } from '../../services/sale';
+import type { SaleInboxItem, SaleInboxCounts, LostReason } from '../../services/sale';
+import LostReasonModal from './LostReasonModal';
 
 /** #450 — 이 행이 **왜** 상담에 있는가. 서버가 실은 판정(verdict)과 메일 폴더(mail_folder)만 읽는다
  *  (화면이 status·방향으로 다시 계산하지 않는다 — 같은 값의 공식 두 벌 금지). */
@@ -73,3 +74,17 @@ export const IntakeNoteLine: React.FC<{ businessId: number; counts: SaleInboxCou
     </IntakeNote>
   );
 };
+
+/** 목록에서 «불발» 을 고르면 사유를 받는다 — 상세·우측 패널과 **같은** LostReasonModal(2026-10-08 0-J).
+ *  서버는 사유 없는 불발을 400(lost_reason_required)으로 막으므로, 옛 목록 칩은 언제나 «저장 실패» 였다. */
+export function LostAskModal({ item, businessId, onClose, onConfirm }: {
+  item: SaleInboxItem | null; businessId: number; onClose: () => void;
+  onConfirm: (it: SaleInboxItem, extra: { lost_reason: LostReason; lost_note: string }) => Promise<void>;
+}) {
+  return (
+    <LostReasonModal open={!!item} businessId={businessId}
+      clientId={item?.client_id || (item?.ref.kind === 'client' ? item.ref.id : 0)}
+      onClose={onClose}
+      onConfirm={async (reason, note) => { const it = item; onClose(); if (it) await onConfirm(it, { lost_reason: reason, lost_note: note }); }} />
+  );
+}

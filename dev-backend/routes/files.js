@@ -145,6 +145,10 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
     if (!file || file.deleted_at) return errorResponse(res, 'file_not_found', 404);
     const scope = await getUserScope(req.user.id, file.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
+    // 끊는 사람도 **만들 수 있는 사람과 같은 술어**(0-J) — 옛: 멤버면 남의 L1 파일 링크까지 끊었다.
+    if (!(await require('../middleware/access_scope').canAccessFileByLevel(req.user.id, file, scope))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
     await file.update({
       share_token: null,
       shared_at: null,
@@ -1793,6 +1797,12 @@ router.delete('/:businessId/:id/share-link', authenticateToken, checkBusinessAcc
       where: { id: req.params.id, business_id: req.params.businessId, deleted_at: null }
     });
     if (!file) return errorResponse(res, 'File not found', 404);
+    // 끊는 사람도 만들 수 있는 사람과 같은 술어(POST share-link 의 canDownloadFile) — 0-J
+    {
+      const as = require('../middleware/access_scope');
+      const sc = await as.getUserScope(req.user.id, file.business_id, req.user.platform_role);
+      if (!(await as.canDownloadFile(sc, req.user.id, file))) return errorResponse(res, 'forbidden', 403);
+    }
     const hadToken = !!file.share_token;
     const prevExpiresAt = file.share_expires_at;
     await file.update({ share_token: null, share_expires_at: null, share_created_at: null });

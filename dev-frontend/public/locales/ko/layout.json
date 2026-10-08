@@ -189,7 +189,8 @@
     "targetMissing": "삭제된 항목이라 열 수 없어요",
     "filterAll": "전체",
     "filterUnread": "미읽음",
-    "emptyUnreadTitle": "모두 읽었어요"
+    "emptyUnreadTitle": "모두 읽었어요",
+    "moreOlder": "이전 알림 더 보기"
   },
   "role": {
     "platform_admin": "플랫폼 관리자",

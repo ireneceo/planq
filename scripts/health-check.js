@@ -34,6 +34,33 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+// ★ 2026-10-08 0-J (Fable 0-C~F 비차단 지적) — localhost fetch 가 간헐적으로 `fetch failed` 였다.
+//   ①Node 는 localhost 를 ::1(IPv6)로 먼저 풀 수 있고 백엔드는 IPv4 에서 듣는다 → 127.0.0.1 로 고정한다.
+//     (판정 분기 `BACKEND.startsWith('http://localhost')` 는 그대로 — 바꾸는 것은 실제 접속 주소뿐이다.)
+//   ②짧게 재시도한다 — 읽기(GET·HEAD)는 모든 네트워크 오류, 쓰기는 «연결 자체가 안 됨»(ECONNREFUSED 등)만.
+//     요청이 서버에 닿았을 수 있는 쓰기 오류(응답 중 끊김)는 재시도하지 않는다 — 쓰기 검사를 두 번 실행하지 않게.
+{
+  const _fetch = global.fetch;
+  const RETRYABLE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT']);
+  global.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input.replace(/^http:\/\/localhost(?=[:/])/, 'http://127.0.0.1') : input;
+    let last;
+    for (let i = 0; i < 4; i++) {
+      try { return await _fetch(url, init); } catch (e) {
+        last = e;
+        const code = e && (e.cause && (e.cause.code || (e.cause.errors && e.cause.errors[0] && e.cause.errors[0].code)));
+        // 읽기(GET·HEAD)는 어떤 네트워크 오류든 다시 해도 안전하다. 쓰기는 «아예 못 붙은» 경우만.
+        const method = String((init && init.method) || 'GET').toUpperCase();
+        const idempotent = method === 'GET' || method === 'HEAD';
+        if (!idempotent && !RETRYABLE.has(code)) throw e;
+        if (process.env.HC_NET_DEBUG) console.error(`[hc fetch retry] ${method} ${url} code=${code} try=${i + 1}`);
+        await new Promise((r) => setTimeout(r, 1000 * (i + 1)));
+      }
+    }
+    throw last;
+  };
+}
+
 // ============================================
 // CLI 옵션 파싱
 // ============================================

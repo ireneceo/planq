@@ -312,6 +312,11 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   const [editingSession, setEditingSession] = useState<boolean>(false);
   const [phase, setPhase] = useState<Phase>('empty');
   const [sessions, setSessions] = useState<QNoteSession[]>([]);
+  // 목록 페이지 — 옛: 첫 20건 고정이라 21번째부터는 찾을 길이 없었다(0-J). 서버 page·limit 그대로 쓴다.
+  const SESSION_PAGE = 50;
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionsHasMore, setSessionsHasMore] = useState(false);
+  const [sessionsLoadingMore, setSessionsLoadingMore] = useState(false);
   const [sessionDeleteConfirmId, setSessionDeleteConfirmId] = useState<number | null>(null);
   const [sessionDeleting, setSessionDeleting] = useState(false);
   // 사이클 N+17 — text 메모 신규 작성 (페이지 안에서 빈 메모 → 우측 panel 에서 PostEditor 풀모드 편집)
@@ -687,7 +692,9 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
     if (!businessId) return;
     const _t0 = performance.now();
     try {
-      const data = await listSessions(businessId, 1, 20, embedProjectId ? { projectId: embedProjectId } : undefined);
+      const data = await listSessions(businessId, 1, SESSION_PAGE, embedProjectId ? { projectId: embedProjectId } : undefined);
+      setSessionPage(1);
+      setSessionsHasMore(data.length >= SESSION_PAGE);
       // eslint-disable-next-line no-console
       console.log(`[QNOTE-TIMING] ${Math.round(performance.now() - _t0)}ms loadSessions done (${data.length} sessions)`);
       // 최신 우선 정렬 (created_at DESC)
@@ -705,6 +712,26 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+
+  // [더 보기] — 다음 페이지를 붙인다(이미 있는 id 는 건너뛴다 — 그 사이 새로 생긴 노트가 앞에 끼면 한 칸씩 밀린다).
+  const loadMoreSessions = useCallback(async () => {
+    if (!businessId || sessionsLoadingMore) return;
+    setSessionsLoadingMore(true);
+    try {
+      const next = sessionPage + 1;
+      const data = await listSessions(businessId, next, SESSION_PAGE, embedProjectId ? { projectId: embedProjectId } : undefined);
+      setSessions((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        return [...prev, ...data.filter((x) => !seen.has(x.id))];
+      });
+      setSessionPage(next);
+      setSessionsHasMore(data.length >= SESSION_PAGE);
+    } catch (err) {
+      console.error('Failed to load more sessions:', err);
+    } finally {
+      setSessionsLoadingMore(false);
+    }
+  }, [businessId, embedProjectId, sessionPage, sessionsLoadingMore]);
 
   // N+35 — 글로벌 sync. MemoPopup 자동저장/생성 시 list 즉시 갱신.
   // backend Q note 가 별도 FastAPI 라 socket.io 없음 → window CustomEvent 패턴.
@@ -2746,6 +2773,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
               </SessionItem>
             );
           })}
+          {sessionsHasMore && (
+            <SessMoreWrap>
+              <SessMoreBtn type="button" data-testid="qnote-sessions-more" disabled={sessionsLoadingMore} onClick={() => { void loadMoreSessions(); }}>
+                {sessionsLoadingMore ? t('page.loadingMore', { defaultValue: '불러오는 중…' }) : t('page.loadMore', { defaultValue: '더 보기' })}
+              </SessMoreBtn>
+            </SessMoreWrap>
+          )}
         </SessionList>
 
         {sessionDeleteConfirmId !== null && (
@@ -2811,6 +2845,13 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                 </AtCard>
               ))}
             </AtGrid>
+          )}
+          {sessionsHasMore && (
+            <SessMoreWrap>
+              <SessMoreBtn type="button" disabled={sessionsLoadingMore} onClick={() => { void loadMoreSessions(); }}>
+                {sessionsLoadingMore ? t('page.loadingMore', { defaultValue: '불러오는 중…' }) : t('page.loadMore', { defaultValue: '더 보기' })}
+              </SessMoreBtn>
+            </SessMoreWrap>
           )}
         </ProjBrowse>
       )}
@@ -3976,6 +4017,17 @@ const CatChip = styled.button<{ $active: boolean }>`
   background: ${p => p.$active ? '#F0FDFA' : '#FFFFFF'};
   color: ${p => p.$active ? '#0F766E' : '#64748B'};
   &:hover { border-color: #14B8A6; color: #0F766E; }
+`;
+
+// [더 보기] — 알림 페이지(NotificationsPage MoreBtn)와 같은 모양
+const SessMoreWrap = styled.div` display: flex; justify-content: center; padding: 12px 0 4px; `;
+const SessMoreBtn = styled.button`
+  padding: 9px 18px; border-radius: 8px; cursor: pointer;
+  background: #fff; border: 1px solid #E2E8F0; color: #475569;
+  font-size: 0.8125rem; font-weight: 600;
+  &:hover:not(:disabled) { background: #F8FAFC; border-color: #CBD5E1; }
+  &:disabled { opacity: 0.6; cursor: default; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 
 const SessionList = styled.div`

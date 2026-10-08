@@ -19,7 +19,7 @@ const NotificationsPage: React.FC = () => {
   // ★ 한 번에 다 쏟으면 훑을 수가 없다 (Irene 2026-08-31 "다 쏟아져 있으면 어떻게 해?").
   //   20건씩 보여주고 "더 보기" 로 늘린다. 필터를 바꾸면 처음부터 다시 센다.
   const [shown, setShown] = useState(PAGE);
-  const { items, loading, markRead, markAllRead } = useNotifications({ limit: 100, unreadOnly, autoRefresh: true });
+  const { items, loading, markRead, markAllRead, hasMore, loadingOlder, loadOlder } = useNotifications({ limit: 100, unreadOnly, autoRefresh: true });
   const { formatTimeAgo, formatDateTime } = useTimeFormat();
 
   const handleClick = (item: NotificationItem) => {
@@ -89,6 +89,15 @@ const NotificationsPage: React.FC = () => {
         <MoreWrap>
           <MoreBtn type="button" data-testid="notifications-more" onClick={() => setShown(n => n + PAGE)}>
             {t('notifications.more', { count: rest, defaultValue: '더 보기 ({{count}}건 남음)' }) as string}
+          </MoreBtn>
+        </MoreWrap>
+      )}
+      {/* 받아 둔 것을 다 보였는데 서버에 더 오래된 것이 있으면 — 그 다음 묶음을 불러온다(0-J, 옛: 100건이 끝) */}
+      {rest <= 0 && hasMore && (
+        <MoreWrap>
+          <MoreBtn type="button" data-testid="notifications-older" disabled={loadingOlder}
+            onClick={() => { void loadOlder().then(() => setShown(n => n + PAGE)); }}>
+            {(loadingOlder ? t('notifications.loading', '불러오는 중…') : t('notifications.moreOlder', '이전 알림 더 보기')) as string}
           </MoreBtn>
         </MoreWrap>
       )}

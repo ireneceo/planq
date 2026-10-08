@@ -66,6 +66,8 @@ export interface SaleClientDetail extends SaleClient {
   /** 등록자·등록 시각 — 단계 이력의 **첫 행**에서 파생한다(새 컬럼 없음). 이력이 없으면 by=null */
   registered_by?: { id: number; name: string } | null;
   registered_at?: string | null;
+  /** 다가오는 «다음 연락» 일정(target_client_ids 에 이 고객) — 없으면 null (0-J) */
+  next_contact?: { id: number; title: string; start_at: string } | null;
   /** 사업자 정보 — 없으면 null */
   biz?: {
     name: string | null;

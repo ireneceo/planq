@@ -17,6 +17,7 @@ import { promoteInboxItem, promoteErrorKey } from '../../services/sale';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import EmptyState from '../../components/Common/EmptyState';
+import DetailFallback from '../../components/Common/DetailFallback';
 import PostPreviewModal from '../../components/Docs/PostPreviewModal';
 import SignatureLinkModal from '../../components/QTalk/SignatureLinkModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
@@ -59,7 +60,8 @@ interface Props {
   activeConversationId: number | null;
   onSelectConversation: (conversationId: number) => void;
   onOpenExtract: () => void;
-  onSendMessage: (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]) => void;
+  /** 반환이 false 면 전송 실패 — 비웠던 입력·첨부를 되돌린다. void(옛 호출부)는 성공으로 본다. */
+  onSendMessage: (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]) => void | boolean | Promise<void | boolean>;
   onCueDraftSend: (messageId: number, editedBody?: string) => void;
   onCueDraftReject: (messageId: number) => void;
   onToggleAutoExtract: (conversationId: number, enabled: boolean) => void;
@@ -77,6 +79,9 @@ interface Props {
   onLoadOlder?: () => void;
   hasMoreOlder?: boolean;
   loadingOlder?: boolean;
+  /** 히스토리 로드가 끝내 실패 — 스켈레톤 대신 오류·다시 시도(0-J) */
+  loadFailed?: boolean;
+  onRetryLoad?: () => void;
   /** N+93 — 팝아웃/분리 창 embedded 모드.
    *  ★ 2026-09-09 부터 **헤더에는 영향이 없다** — 헤더가 두 밴드 표준으로 통일되어
    *    팝아웃도 같은 구조를 쓴다(모드마다 밴드 수가 다르면 창을 옮길 때 가로 실선이 튄다).
@@ -123,6 +128,7 @@ const ChatPanel: React.FC<Props> = ({
   candidatesCount,
   onOpenNewChat, onMobileBack, mobileHidden = false, pinSlot,
   onLoadOlder, hasMoreOlder = false, loadingOlder = false, jumpToLatestSignal = 0,
+  loadFailed = false, onRetryLoad,
 }) => {
   const { t } = useTranslation('qtalk');
   const navigate = useNavigate();
@@ -759,14 +765,33 @@ const ChatPanel: React.FC<Props> = ({
     const hasUploading = uploadingFiles.some(x => !x.error);
     if (hasUploading) return; // 업로드 진행 중엔 전송 X (UI 도 disabled)
     if (!input.trim() && !hasFiles && !hasPosts) return;
-    onSendMessage(
+    // ★ 2026-10-08 0-J — 응답 전에 입력을 비우는 것은 그대로 두되(즉시 반응), **실패하면 되돌린다.**
+    //   옛: 실패해도 비운 채라 쓴 글이 사라졌다. 되돌릴 때 그 사이 새로 쓴 글이 있으면 덮지 않는다.
+    const sent = {
+      convId: activeConversationId, text: input,
+      fileIds: stagedExistingIds, fileMeta: stagedExistingMeta, postIds: stagedPostIds, postMeta: stagedPostMeta,
+    };
+    Promise.resolve(onSendMessage(
       input,
       undefined, // raw File 배열은 더 이상 사용하지 않음 (업로드 즉시 → existingIds 경로 통일)
       stagedExistingIds.length > 0 ? stagedExistingIds : undefined,
       stagedPostIds.length > 0 ? stagedPostIds : undefined,
-    );
+    )).then((ok) => {
+      if (ok !== false) return;
+      if (activeConvRef.current !== sent.convId) {
+        // 다른 방으로 옮겼으면 그 방의 초안으로만 남긴다(지금 화면의 입력을 건드리지 않는다)
+        if (sent.convId && sent.text.trim()) { try { localStorage.setItem(draftKey(user?.id, sent.convId), sent.text); } catch { /* */ } }
+        return;
+      }
+      setInput((cur) => (cur.trim() ? cur : sent.text));
+      if (sent.convId && sent.text.trim()) { try { localStorage.setItem(draftKey(user?.id, sent.convId), sent.text); } catch { /* */ } }
+      setStagedExistingIds((cur) => (cur.length ? cur : sent.fileIds));
+      setStagedExistingMeta((cur) => (Object.keys(cur).length ? cur : sent.fileMeta));
+      setStagedPostIds((cur) => (cur.length ? cur : sent.postIds));
+      setStagedPostMeta((cur) => (Object.keys(cur).length ? cur : sent.postMeta));
+    }).catch(() => { /* onSendMessage 가 자기 실패를 알린다 */ });
     setInput('');
-    // 전송 완료 → 해당 대화 draft 제거
+    // 전송 → 해당 대화 draft 제거 (실패하면 위에서 입력을 되돌리고, 입력 변화가 draft 를 다시 쓴다)
     if (activeConversationId) { try { localStorage.removeItem(draftKey(user?.id, activeConversationId)); } catch { /* */ } }
     setStagedExistingIds([]);
     setStagedExistingMeta({});
@@ -882,6 +907,9 @@ const ChatPanel: React.FC<Props> = ({
   //   ★ 해제는 **사용자 제스처가 있었을 때만** 한다. 프로그램 스크롤·콘텐츠 증감이 만드는
   //     scroll 이벤트로 풀리면 진입 순간에 고정이 풀려 같은 버그가 돌아온다.
   const pinBottomRef = React.useRef(true);
+  // 전송 실패 되돌리기가 «지금 보고 있는 방» 인지 판정한다(0-J).
+  const activeConvRef = useRef(activeConversationId);
+  useEffect(() => { activeConvRef.current = activeConversationId; }, [activeConversationId]);
   const userGestureAtRef = React.useRef(0);
   const markUserScrollGesture = React.useCallback(() => { userGestureAtRef.current = Date.now(); }, []);
 
@@ -1515,7 +1543,10 @@ const ChatPanel: React.FC<Props> = ({
           </OlderLoadingRow>
         )}
         {/* 사이클 N+15-A — 메시지 lazy-load 중일 때 skeleton 3행. 빈 conv 와 분리. */}
-        {messagesLoading && convMessages.length === 0 && (
+        {messagesLoading && convMessages.length === 0 && loadFailed && (
+          <DetailFallback status="error" onRetry={onRetryLoad} />
+        )}
+        {messagesLoading && convMessages.length === 0 && !loadFailed && (
           <SkeletonMessages aria-busy="true" aria-label="loading messages">
             <SkelMsgRow $align="left">
               <SkelMsgAvatar />

@@ -68,5 +68,6 @@
     "refresh": "새로고침",
     "title": "팀원 활동 기록",
     "unknownActor": "알 수 없음"
-  }
+  },
+  "confirmDeleteTeam": "\"{{name}}\" 팀을 삭제할까요? 소속 멤버의 팀 배정은 비워집니다."
 }

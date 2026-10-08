@@ -369,5 +369,19 @@
     "dev-backend/routes/posts.js": 1,
     "dev-backend/services/actions/task_actions.js": 1,
     "dev-backend/services/gdrive.js": 1
+  },
+  "deadroute": {
+    "dev-backend/routes/admin_billing.js": 2,
+    "dev-backend/routes/admin_wiki.js": 2,
+    "dev-backend/routes/auth.js": 1,
+    "dev-backend/routes/cloud.js": 2,
+    "dev-backend/routes/cloud_oauth.js": 1,
+    "dev-backend/routes/conversations.js": 2,
+    "dev-backend/routes/cue_knowledge.js": 1,
+    "dev-backend/routes/email_threads.js": 3,
+    "dev-backend/routes/focus.js": 1,
+    "dev-backend/routes/kb.js": 1,
+    "dev-backend/routes/plan.js": 3,
+    "dev-backend/routes/schedule_edit.js": 4
   }
 }

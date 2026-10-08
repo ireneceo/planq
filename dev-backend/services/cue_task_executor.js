@@ -271,6 +271,30 @@ async function executeForTask(taskId, opts = {}) {
   //     (approve 라우트가 TaskReviewer row 를 요구 → 옛 코드의 실제 사망 지점).
   //     업무를 맡긴 사람 = 결과를 받을 사람이므로 그가 자연스러운 컨펌자다.
   const isInternal = !!(ctx.scope.isMember || ctx.scope.isOwner || ctx.scope.isAdmin || ctx.scope.isPlatformAdmin);
+  // ★ 2026-10-08 0-J — Cue 가 결과물을 덮기 **전의 본문을 한 벌 남긴다.** 옛: task.body 를 그대로 교체해
+  //   «이전으로» 돌아갈 길이 없었다. 새 표를 만들지 않고 결과물 회차(TaskDeliverableVersion)에 백업 회차로 둔다 —
+  //   «결과물 이력» 의 [이 버전 내용 불러오기](POST …/deliverable-versions/:vid/restore, 비파괴)가 그대로 되돌린다.
+  //   빈 본문은 남기지 않는다(saveDeliverableVersion 의 empty_body 와 같은 기준).
+  try {
+    const plainBefore = String(task.body || '').replace(/<[^>]*>/g, '').trim();
+    if (plainBefore) {
+      const { TaskDeliverableVersion } = require('../models');
+      const maxRound = await TaskDeliverableVersion.max('round', { where: { task_id: task.id } });
+      await TaskDeliverableVersion.create({
+        task_id: task.id,
+        round: (Number(maxRound) || 0) + 1,
+        body: task.body,
+        attachment_ids: [],
+        submitted_by: ctx.principalId || null,
+        note: 'Cue 실행 직전 상태',
+      });
+    }
+  } catch (e) {
+    // 백업을 못 남기면 덮지 않는다 — 되돌릴 길 없는 덮어쓰기가 이 수정의 이유다.
+    console.warn('[cue_task_executor] pre-run backup failed', e.message);
+    await audit({ task, cueUserId, actingForUserId: ctx.principalId, action: 'cue.task_skipped', value: { reason: 'backup_failed' } });
+    return { ok: false, reason: 'backup_failed' };
+  }
   const transition = await submitForReview({
     task,
     actorUserId: cueUserId,

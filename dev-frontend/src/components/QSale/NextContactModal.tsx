@@ -13,6 +13,8 @@ import SingleDateField from '../Common/SingleDateField';
 import PlanQSelect from '../Common/PlanQSelect';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
+import { useTimeFormat } from '../../hooks/useTimeFormat';
+import { tabStore } from '../../stores/tabStore';
 
 interface Props {
   open: boolean;
@@ -118,6 +120,41 @@ const NextContactModal: React.FC<Props> = ({ open, businessId, clientId, clientN
 };
 
 export default NextContactModal;
+
+/** 고객 패널의 «다음 일정» 한 줄 — 이 창으로 만든 일정이 **돌아오는 자리**(2026-10-08 0-J).
+ *  옛: 일정은 캘린더에 생기는데 Q sale 어디에도 안 보여 «잡아도 돌아오지 않았다».
+ *  값은 상세 응답의 `next_contact`(서버 routes/sale.js — 캘린더 목록과 같은 가시성). 줄 모양은 ClientPanel 의 FieldRow 와 같다. */
+export const NextContactLine: React.FC<{
+  next: { id: number; title: string; start_at: string } | null | undefined;
+  onPlan: () => void;
+}> = ({ next, onPlan }) => {
+  const { t } = useTranslation('qsale');
+  const { formatDateTime } = useTimeFormat();
+  return (
+    <NLRow data-testid="client-panel-next-contact">
+      <NLLabel>{t('next.label') as string}</NLLabel>
+      {next ? (
+        <NLLink type="button" onClick={() => tabStore.openInNewTab(`/calendar?event=${next.id}`)}>
+          {formatDateTime(next.start_at)} · {next.title}
+        </NLLink>
+      ) : (
+        <>
+          <NLValue>{t('next.none') as string}</NLValue>
+          <NLLink type="button" onClick={onPlan}>{t('next.title') as string}</NLLink>
+        </>
+      )}
+    </NLRow>
+  );
+};
+const NLRow = styled.div`display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: 0.8125rem; flex-wrap: wrap;`;
+const NLLabel = styled.span`min-width: 92px; color: #94A3B8; flex-shrink: 0;`;
+const NLValue = styled.span`color: #0F172A;`;
+const NLLink = styled.button`
+  padding: 0; background: none; border: none; color: #0F766E; text-align: left;
+  font-size: 0.8125rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  &:hover { text-decoration: underline; }
+  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
+`;
 
 const Field = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const FieldLabel = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;`;

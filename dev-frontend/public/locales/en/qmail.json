@@ -445,7 +445,10 @@
     "previewFailed": "Could not check the condition. Check the address/domain format or keyword length.",
     "appliedCount": "Moved {{n}} existing mails to “{{where}}”",
     "appliedNone": "Rule saved. It applies to mail from now on.",
-    "noSubject": "(no subject)"
+    "noSubject": "(no subject)",
+    "deleteConfirmTitle": "Delete this mail rule?",
+    "deleteConfirmBody": "The \"{{pattern}}\" rule will be removed and new mail will follow the default classification.",
+    "deleteFailed": "Couldn't delete. Please try again shortly."
   },
   "filters": {
     "allLabels": "All tags",
@@ -515,7 +518,9 @@
     "hasSignature": "own signature",
     "hasSignatureEnOnly": "Own signature (English only — Korean mail uses the default)",
     "noSignature": "uses default",
-    "signaturePhEn": "e.g. WorproLab · Gildong Hong · +82 10-0000-0000"
+    "signaturePhEn": "e.g. WorproLab · Gildong Hong · +82 10-0000-0000",
+    "removeConfirmTitle": "Delete this alias?",
+    "removeConfirmBody": "You can no longer send from \"{{email}}\", and replies to mail received at it will go out from the default address."
   },
   "detail": {
     "toAddr": "Received at",
@@ -613,7 +618,9 @@
     "cancel": "Cancel",
     "errSaveFailed": "Could not save.",
     "appliesTo": "This rule applies only to mailboxes in this workspace: {{list}}",
-    "appliesNone": "No company mailbox is connected in this workspace. Register the domain in the workspace that has the mailbox."
+    "appliesNone": "No company mailbox is connected in this workspace. Register the domain in the workspace that has the mailbox.",
+    "removeConfirmTitle": "Delete this domain rule?",
+    "removeConfirmBody": "The \"{{domain}}\" rule will be removed. To restore it, add it again."
   },
   "quoteFold": {
     "show": "Show previous conversation ▾",

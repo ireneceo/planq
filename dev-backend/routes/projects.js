@@ -1751,24 +1751,6 @@ router.get('/:id/stages', authenticateToken, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.post('/:id/stages/init', authenticateToken, async (req, res, next) => {
-  // template 재시드 (이미 stage 있으면 no-op)
-  try {
-    const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
-    if (error) return errorResponse(res, error.message, error.code);
-    if (role === 'client') return errorResponse(res, 'forbidden', 403);
-    const { seedStages, STAGE_TEMPLATE_KEYS, progressProject } = require('../services/projectStageEngine');
-    const tplKey = STAGE_TEMPLATE_KEYS.includes(req.body?.template) ? req.body.template : 'fixed';
-    const { ProjectStage } = require('../models');
-    const stagesBefore = await ProjectStage.count({ where: { project_id: project.id } });
-    await seedStages(project.id, tplKey);
-    progressProject(project.id).catch(() => null);
-    const stages = await ProjectStage.findAll({ where: { project_id: project.id }, order: [['order_index', 'ASC']] });
-    if (stages.length > stagesBefore) logAudit(req, { action: 'project.stages_init', targetType: 'project', targetId: project.id, businessId: project.business_id, newValue: { template: tplKey, count: stages.length - stagesBefore } });
-    return successResponse(res, stages);
-  } catch (err) { next(err); }
-});
-
 router.post('/:id/stages', authenticateToken, async (req, res, next) => {
   // 사용자 정의 stage 추가
   try {

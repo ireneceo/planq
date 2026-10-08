@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import ActionButton from '../../components/Common/ActionButton';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { formatDay } from '../../utils/dateFormat';
 
 interface TokenRow {
@@ -52,6 +53,8 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
     finally { setCreating(false); }
   };
 
+  // 회수는 되돌릴 수 없다 — 그 토큰을 쓰는 외부 도구가 즉시 끊긴다. 묻고 한다(0-J).
+  const [revokeAsk, setRevokeAsk] = useState<{ id: number; name: string } | null>(null);
   const revoke = async (id: number) => {
     try {
       const res = await apiFetch(`/api/api-tokens/${id}`, { method: 'DELETE' });
@@ -116,7 +119,7 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
                   {r.last_used_at ? ` · ${t('apitoken.lastUsed', '최근 사용')} ${formatDay(r.last_used_at, { year: 'always' })}` : ` · ${t('apitoken.neverUsed', '미사용')}`}
                 </ItemMeta>
               </div>
-              <ActionButton tone="danger" size="sm" onClick={() => revoke(r.id)}
+              <ActionButton tone="danger" size="sm" onClick={() => setRevokeAsk({ id: r.id, name: r.name || '' })}
                 title={t('apitoken.revokeHint') as string}
                 aria-label={`${r.name || ''} ${t('apitoken.revoke', '회수')}`}>
                 {t('apitoken.revoke', '회수')}
@@ -125,6 +128,16 @@ const ApiTokenSection: React.FC<{ businessId: number }> = ({ businessId }) => {
           ))}
         </List>
       )}
+      <ConfirmDialog
+        isOpen={!!revokeAsk}
+        title={t('apitoken.revokeConfirmTitle', '토큰을 회수할까요?') as string}
+        message={t('apitoken.revokeConfirmBody', { name: revokeAsk?.name || t('apitoken.unnamed', '(이름 없음)'), defaultValue: '«{{name}}» 토큰을 쓰는 외부 도구는 바로 연결이 끊깁니다. 되돌릴 수 없습니다.' }) as string}
+        confirmText={t('apitoken.revoke', '회수') as string}
+        cancelText={t('cancel', '취소') as string}
+        variant="danger"
+        onClose={() => setRevokeAsk(null)}
+        onConfirm={() => { const a = revokeAsk; setRevokeAsk(null); if (a) void revoke(a.id); }}
+      />
     </Wrap>
   );
 };

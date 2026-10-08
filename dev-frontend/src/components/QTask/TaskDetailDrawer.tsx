@@ -1589,6 +1589,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             {detailTask.created_via === 'cue' && (
               <ProvenanceRow><ProvenanceBadge label={t('provenance.cue', { ns: 'common' })} /></ProvenanceRow>
             )}
+            {/* 외부 AI 앱(ChatGPT·Claude 연동)으로 만든 업무 — 0-J */}
+            {detailTask.created_via === 'agent' && (
+              <ProvenanceRow><ProvenanceBadge label={t('provenance.agent', { ns: 'common' })} /></ProvenanceRow>
+            )}
             {/* #90 — 자동추출 업무의 원본(출처) 링크: 어느 대화·메일에서 왔는지 돌아가기 */}
             {detailTask.source_ref && (
               <SourceRefLink

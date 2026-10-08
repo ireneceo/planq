@@ -203,6 +203,8 @@ async function createEvent(actor, params = {}) {
       target_client_ids: Array.isArray(params.targetClientIds) ? params.targetClientIds.map(Number).filter(Boolean) : null,
       created_by: subjectId,
       created_via: params.createdVia || null,   // provenance 표시 전용(예: 'cue')
+      //   ★ 외부 AI 앱(MCP 에이전트)이 만든 것은 'agent' — 옛: null 이라 화면이 사람이 만든 것과 구분 못 했다(0-J).
+      ...(params.createdVia ? {} : (actor?.channel?.kind === 'agent' ? { created_via: 'agent' } : {})),
     }, { transaction: t });
 
     // attendees — user_id 는 business 멤버, client_id 는 business 고객이어야 함

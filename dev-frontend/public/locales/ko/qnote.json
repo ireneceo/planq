@@ -257,7 +257,9 @@
       "participants": "참여자",
       "title": "회의 설정",
       "translationLanguage": "번역 언어"
-    }
+    },
+    "loadMore": "더 보기",
+    "loadingMore": "불러오는 중…"
   },
   "memoPopup": {
     "title": "메모",

@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import ActionButton from '../../components/Common/ActionButton';
 import RichEditor from '../../components/Common/RichEditor';
 import SignatureLangTabs, { type SigLang } from '../../components/Common/SignatureLangTabs';
@@ -116,6 +117,8 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
     } finally { setBusy(false); }
   };
 
+  // 삭제는 묻고 한다 — 그 주소로 보내던 답장이 기본 주소로 바뀐다(0-J)
+  const [removeAsk, setRemoveAsk] = useState<MailAlias | null>(null);
   const remove = async (id: number) => {
     setBusy(true); setErr(null);
     try {
@@ -270,7 +273,7 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
             <LinkBtn type="button" onClick={() => startEdit(a)} disabled={busy}>
               {t('alias.edit', { defaultValue: '수정' }) as string}
             </LinkBtn>
-            <LinkBtn type="button" $danger onClick={() => remove(a.id)} disabled={busy}>
+            <LinkBtn type="button" $danger onClick={() => setRemoveAsk(a)} disabled={busy}>
               {t('alias.remove', { defaultValue: '삭제' }) as string}
             </LinkBtn>
           </Row>
@@ -301,6 +304,16 @@ export default function MailAliasSection({ businessId, accountId, accountEmail }
       <Note>
         {t('alias.providerNote', { defaultValue: 'Gmail 로 보내는 경우, 그 주소가 Gmail 설정의 "다른 주소로 메일 보내기"에 등록·인증돼 있어야 실제로 발송됩니다. 자체 메일 서버는 도메인 소유 주소면 대개 그대로 발송됩니다.' }) as string}
       </Note>
+      <ConfirmDialog
+        isOpen={!!removeAsk}
+        title={t('alias.removeConfirmTitle', { defaultValue: '별칭을 삭제할까요?' }) as string}
+        message={t('alias.removeConfirmBody', { email: removeAsk?.email || '', defaultValue: '«{{email}}» 로는 더 이상 보낼 수 없고, 이 주소로 받은 메일의 답장도 기본 주소로 나갑니다.' }) as string}
+        confirmText={t('alias.remove', { defaultValue: '삭제' }) as string}
+        cancelText={t('compose.cancel', { defaultValue: '취소' }) as string}
+        variant="danger"
+        onClose={() => setRemoveAsk(null)}
+        onConfirm={() => { const a = removeAsk; setRemoveAsk(null); if (a) void remove(a.id); }}
+      />
     </Wrap>
   );
 }

@@ -1183,10 +1183,13 @@
     "created": "발급",
     "lastUsed": "최근 사용",
     "neverUsed": "미사용",
-    "revoke": "회수"
+    "revoke": "회수",
+    "revokeConfirmTitle": "토큰을 회수할까요?",
+    "revokeConfirmBody": "«{{name}}» 토큰을 쓰는 외부 도구는 바로 연결이 끊깁니다. 되돌릴 수 없습니다."
   },
   "provenance": {
-    "cue": "Cue로 추가됨"
+    "cue": "Cue로 추가됨",
+    "agent": "AI 앱에서 만듦"
   },
   "popoutPin": {
     "pin": "항상 위로 고정",

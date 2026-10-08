@@ -257,7 +257,9 @@
       "participants": "Participants",
       "title": "Meeting settings",
       "translationLanguage": "Translation language"
-    }
+    },
+    "loadMore": "Load more",
+    "loadingMore": "Loading…"
   },
   "memoPopup": {
     "title": "Memo",

@@ -459,7 +459,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/app-download', require('./routes/app_download')); // 공개 — 모바일 앱 다운로드 링크
 app.use('/api/platform', require('./routes/platform_public')); // 공개 — 랜딩 푸터 사업자 정보 (전자상거래법 표시의무)
 app.use('/api/projects', require('./routes/projects'));
-app.use('/api/projects', require('./routes/project_process'));
+// (2026-10-08 0-J) routes/project_process.js(공정 표 — status-options·process-columns·process-parts) 삭제:
+//   화면(ProcessPartsTab)이 어디서도 import 되지 않아 호출처 0. 표는 Q 레코드로 이관됨(migrate-process-to-records).
 // 일정 일괄 수정 — `/:id/schedule/*`. projects.js 의 `/:id` 핸들러보다 **경로가 깊어** 가려지지 않는다
 //   (Express 는 세그먼트 단위로 맞춘다). 순서를 바꿀 일이 생기면 router.stack 덤프로 확인할 것.
 app.use('/api/projects', require('./routes/schedule_edit'));

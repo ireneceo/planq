@@ -30,6 +30,8 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
   const [error, setError] = useState<string | null>(null);
   const [promoteTarget, setPromoteTarget] = useState<MemberPermissionRow | null>(null);
 
+  const [demoteTarget, setDemoteTarget] = useState<MemberPermissionRow | null>(null);
+
   const flash = useCallback((k: string) => {
     setSavedKey(k);
     setTimeout(() => setSavedKey((cur) => cur === k ? null : cur), 1500);
@@ -72,8 +74,16 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
       setPromoteTarget(target);
       return;
     }
+    // 강등도 묻는다(0-J) — 누르는 즉시 그 사람의 관리 권한이 사라졌다.
+    setDemoteTarget(target);
+  };
+
+  const confirmDemote = async () => {
+    const target = demoteTarget;
+    setDemoteTarget(null);
+    if (!target) return;
     try {
-      await updateMemberRole(businessId, uid, newRole);
+      await updateMemberRole(businessId, target.user_id, 'member');
       await load();
       onChanged?.();
     } catch (e) { setError((e as Error).message); }
@@ -179,6 +189,16 @@ const MemberPermissionMatrix: React.FC<Props> = ({ businessId, isOwner, onChange
         title={t('confirm.promoteAdminTitle', '관리자 임명') as string}
         message={t('confirm.promoteAdmin', { name: promoteTarget?.name || '', defaultValue: `${promoteTarget?.name || ''} 을(를) 관리자로 임명할까요? 관리자는 인사·결제·세금계산서 외 거의 모든 권한을 가집니다.` }) as string}
         confirmText={t('role.promote', '관리자로') as string}
+        cancelText={t('common.cancel', '취소') as string}
+        variant="warning"
+      />
+      <ConfirmDialog
+        isOpen={!!demoteTarget}
+        onClose={() => setDemoteTarget(null)}
+        onConfirm={confirmDemote}
+        title={t('confirm.demoteAdminTitle', '멤버로 변경') as string}
+        message={t('confirm.demoteAdmin', { name: demoteTarget?.name || '', defaultValue: '{{name}} 의 관리자 권한을 거둘까요? 메뉴 권한은 이 표의 설정을 따르게 됩니다.' }) as string}
+        confirmText={t('role.demote', '멤버로') as string}
         cancelText={t('common.cancel', '취소') as string}
         variant="warning"
       />

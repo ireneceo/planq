@@ -809,14 +809,6 @@ router.get('/documents/:id/revisions', authenticateToken, async (req, res, next)
 });
 
 // ============================================
-// AI 생성 (D-3 본 구현 시 OpenAI/Claude 연결)
-// 지금은 stub — 향후 Cue 통합
-// ============================================
-router.post('/ai/generate', authenticateToken, async (req, res) => { // audit-exempt: 미구현 스텁(501) — 아무것도 바꾸지 않는다
-  return errorResponse(res, 'ai_generation_pending_d3', 501);
-});
-
-// ============================================
 // Public — share_token 기반 (인증 없음)
 // ============================================
 router.get('/public/:token', async (req, res, next) => {

@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import ActionButton from '../../components/Common/ActionButton';
 import EmptyState from '../../components/Common/EmptyState';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
@@ -103,10 +104,14 @@ export default function MailRulesSection({ businessId }: Props) {
     } finally { setBusy(false); }
   };
 
+  // 삭제는 묻고 한다(0-J)
+  const [deleteAsk, setDeleteAsk] = useState<{ id: number; pattern: string } | null>(null);
   const onDelete = async (id: number) => {
     setBusy(true);
+    setErr(null);
     try { await deleteMailRule(businessId, id); await load(); }
-    catch { /* 목록 재조회로 정합 */ }
+    // 옛: 실패를 삼켜 «눌렀는데 그대로» 였다 — 이유를 보인다(0-J)
+    catch { setErr(t('rules.deleteFailed', { defaultValue: '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.' }) as string); await load().catch(() => {}); }
     finally { setBusy(false); }
   };
 
@@ -294,7 +299,7 @@ export default function MailRulesSection({ businessId }: Props) {
                   </Meta>
                   <Evidence>{evidenceText(r)}</Evidence>
                 </Main>
-                <ActionButton tone="secondary" size="sm" onClick={() => onDelete(r.id)} disabled={busy}>
+                <ActionButton tone="secondary" size="sm" onClick={() => setDeleteAsk({ id: r.id, pattern: r.pattern })} disabled={busy}>
                   {t('rules.delete', { defaultValue: '삭제' })}
                 </ActionButton>
               </Row>
@@ -302,6 +307,16 @@ export default function MailRulesSection({ businessId }: Props) {
           })}
         </List>
       )}
+      <ConfirmDialog
+        isOpen={!!deleteAsk}
+        title={t('rules.deleteConfirmTitle', { defaultValue: '메일 규칙을 삭제할까요?' }) as string}
+        message={t('rules.deleteConfirmBody', { pattern: deleteAsk?.pattern || '', defaultValue: '«{{pattern}}» 규칙이 사라지고, 앞으로 오는 메일은 기본 분류를 따릅니다.' }) as string}
+        confirmText={t('rules.delete', { defaultValue: '삭제' }) as string}
+        cancelText={t('compose.cancel', { defaultValue: '취소' }) as string}
+        variant="danger"
+        onClose={() => setDeleteAsk(null)}
+        onConfirm={() => { const a = deleteAsk; setDeleteAsk(null); if (a) void onDelete(a.id); }}
+      />
     </Section>
   );
 }

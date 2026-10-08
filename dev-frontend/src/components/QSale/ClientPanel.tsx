@@ -56,7 +56,7 @@ import { SALE_STAGES, type SaleStage } from '../../services/sale';
 import ConfirmDialog from '../Common/ConfirmDialog';
 // 상담 관리의 다음 액션 — 상세 페이지와 **같은 창**을 쓴다(자리마다 다른 동작을 만들지 않는다)
 import RecordModal from './RecordModal';
-import NextContactModal from './NextContactModal';
+import NextContactModal, { NextContactLine } from './NextContactModal';
 import TaskCreateForm from '../QTask/TaskCreateForm';
 
 /** 상담에서 열었을 때 **상단 문의 박스**가 그리는 값 — 원본에서 가져올 수 있는 것은 다 넣는다.
@@ -534,6 +534,7 @@ const ClientPanel: React.FC<Props> = ({
                 <Row label={t('panel.registeredBy') as string} value={data.registered_by?.name || null} />
                 <Row label={t('panel.registeredAt') as string}
                   value={data.registered_at ? formatDateTime(data.registered_at) : null} />
+                <NextContactLine next={data.next_contact} onPlan={() => setNextOpen(true)} />
               </Section>
 
               <Section>

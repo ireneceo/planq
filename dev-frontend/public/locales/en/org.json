@@ -68,5 +68,6 @@
     "refresh": "Refresh",
     "title": "Team activity log",
     "unknownActor": "Unknown"
-  }
+  },
+  "confirmDeleteTeam": "Delete the \"{{name}}\" team? Its members will have no team assigned."
 }

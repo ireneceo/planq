@@ -998,10 +998,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
   };
   useEffect(() => { writeLS(LS_COLLAPSED, isCollapsed); }, [isCollapsed]);
 
-  // ⌘K / Ctrl+\ 글로벌 검색 단축키
+  // ⌘K / Ctrl+K 글로벌 검색 단축키
+  //   ★ 2026-10-08 0-J — `Ctrl+\` 를 뺐다. 그 키는 우측 패널 토글 표준(CLAUDE.md «⌘/ · Ctrl+\»)이라
+  //     Q Task·Q Talk·Q mail 에서 한 번 누르면 검색창과 패널 토글이 **같이** 일어났다.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === '\\')) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setSearchOpen(true);
       }

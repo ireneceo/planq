@@ -189,7 +189,8 @@
     "targetMissing": "This item was deleted and can't be opened",
     "filterAll": "All",
     "filterUnread": "Unread",
-    "emptyUnreadTitle": "You're all caught up"
+    "emptyUnreadTitle": "You're all caught up",
+    "moreOlder": "Load older notifications"
   },
   "role": {
     "platform_admin": "Platform Admin",

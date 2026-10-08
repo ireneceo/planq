@@ -308,6 +308,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 히스토리 로드 완료 여부 — '메시지 배열 존재'와 분리 추적. socket message:new 가 미로드 대화에
   // 1건짜리 배열을 만들어도(=배열은 존재하나 히스토리는 미로드) 전체 히스토리 로드를 막지 않도록 하는 안전핀.
   const [historyLoaded, setHistoryLoaded] = useState<Record<number, boolean>>({});
+  // 히스토리 로드가 두 번 다 실패한 대화 — 스켈레톤을 영구로 두지 않고 «다시 시도» 를 보인다(0-J).
+  const [historyFailed, setHistoryFailed] = useState<Record<number, boolean>>({});
+  const [historyRetry, setHistoryRetry] = useState(0);
   // 다른 워크스페이스 대화를 주소·알림·옛 탭으로 열었을 때 — 그 대화 id 와 워크스페이스 (WORKSPACE_SCOPE_DESIGN Q6)
   const [otherWsConv, setOtherWsConv] = useState<{ convId: number; bizId: number } | null>(null);
   const [tasks, setTasks] = useState<MockTask[]>([]);
@@ -859,6 +862,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     //   생긴 경우에도 전체 히스토리를 반드시 로드 (운영 회귀: 초기 로드 실패 + 라이브 메시지 1건 →
     //   히스토리 영영 미로드로 "과거 채팅 사라짐").
     if (historyLoaded[activeConversationId]) return;
+    const convIdForLoad = activeConversationId;
+    setHistoryFailed((prev) => (prev[convIdForLoad] ? { ...prev, [convIdForLoad]: false } : prev));
     let cancelled = false;
     let retryTimer: number | null = null;
     const load = async (attempt: number) => {
@@ -890,8 +895,9 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         if (attempt === 0) {
           retryTimer = window.setTimeout(() => { if (!cancelled) load(1); }, 1500);
         } else {
-          // 두 번째도 실패 — 에러 로깅만, messages[id] 는 undefined 유지 → 사용자가 재클릭 시 재시도.
+          // 두 번째도 실패 — 스켈레톤으로 영구히 두지 않는다. 화면이 «불러오지 못함 · 다시 시도» 를 보인다(0-J).
           console.error('[qtalk] 메시지 로드 2회 실패:', err);
+          setHistoryFailed((prev) => ({ ...prev, [convIdForLoad]: true }));
         }
       }
     };
@@ -901,7 +907,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       if (retryTimer) window.clearTimeout(retryTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeConversationId]);
+  }, [activeConversationId, historyRetry]);
 
   // 과거 메시지 무한 로드 — 위로 스크롤 시 ChatPanel 이 onLoadOlder 호출.
   //   대화별 hasMore/loading 추적. oldest 메시지 id 기준 이전 50개 prepend.
@@ -1379,13 +1385,14 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
   // 청크 2: 메시지 전송 (사이클 O4 — existingFileIds 추가).
   // 사이클 N+15-E — Optimistic local insertion. 사용자 클릭 즉시 메시지 표시 (네트워크 RT 0ms 인상).
   // tempId(음수) → API 성공 시 real id 로 replace. 실패 시 표시는 유지 + 추후 재시도 UI 가능.
-  const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]) => {
-    if (!activeConversationId) return;
+  // 반환값 — 저장 성공 여부. 입력창(ChatPanel)이 실패면 비웠던 글·첨부를 되돌린다(2026-10-08 0-J).
+  const handleSendMessage = async (body: string, files?: File[], existingFileIds?: number[], existingPostIds?: number[]): Promise<boolean> => {
+    if (!activeConversationId) return false;
     const convId = activeConversationId; // 클로저 안정화
     const hasAttachments = (files && files.length > 0) || (existingFileIds && existingFileIds.length > 0);
     const hasPosts = existingPostIds && existingPostIds.length > 0;
     const content = body.trim();
-    if (!content && !hasAttachments && !hasPosts) return;
+    if (!content && !hasAttachments && !hasPosts) return false;
     // 옵티미스틱: 사용자 본인 메시지를 즉시 화면에 (음수 tempId).
     const tempId = -Date.now();
     const optimisticMsg: MockMessage | null = (content || hasAttachments) ? {
@@ -1477,14 +1484,17 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           } catch { /* silent */ }
         }, 4000);
       }
+      return true;
     } catch (err: unknown) {
       // 사이클 N+15-E — 옵티미스틱 메시지 실패 시 화면에서 제거 (phantom 방지).
+      //   글은 사라지지 않는다 — false 를 받은 입력창이 보내려던 글·첨부를 되돌린다(0-J).
       setMessages((prev) => {
         const arr = prev[convId];
         if (!arr) return prev;
         return { ...prev, [convId]: arr.filter((m) => m.id !== tempId) };
       });
       showNotice(t('page.sendFailed', { msg: mapApiError(err, tErr) }));
+      return false;
     }
   };
 
@@ -1805,6 +1815,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         jumpToLatestSignal={jumpToLatestSignal}
         hasMoreOlder={hasMoreOlder}
         loadingOlder={loadingOlder}
+        loadFailed={!!(activeConversationId && historyFailed[activeConversationId])}
+        onRetryLoad={() => setHistoryRetry((n) => n + 1)}
         onFocusCandidates={() => {
           if (rightCollapsed) setRightCollapsed(false);
           // 다음 tick 에 우측 패널의 candidates 섹션으로 스크롤

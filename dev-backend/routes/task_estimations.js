@@ -141,30 +141,6 @@ router.post('/:taskId/estimate/ai', authenticateToken, ...aiEstimateLimiter, asy
   } catch (e) { next(e); }
 });
 
-// GET /api/tasks/:taskId/estimations
-router.get('/:taskId/estimations', authenticateToken, async (req, res, next) => {
-  try {
-    const taskId = parseInt(req.params.taskId, 10);
-    if (!taskId) return errorResponse(res, 'invalid_task', 400);
-    // ★ 소유권 검사가 아예 없었다 — 로그인만 하면 task id 를 1부터 훑어 **모든 워크스페이스의**
-    //   예측시간 원장(값·source·model·작성자 user id)을 읽을 수 있었다(2026-09-02 보안감사 실측:
-    //   business 5 계정으로 business 6·3 의 task 원장 200 응답).
-    //   바로 위 POST /estimate/ai 가 이미 같은 이유로 막고 있다 — 술어를 맞춘다.
-    const task = await Task.findByPk(taskId, { attributes: ['id', 'business_id'] });
-    if (!task) return errorResponse(res, 'not_found', 404);
-    if (!(await assertMembership(req.user.id, task.business_id))) return errorResponse(res, 'forbidden', 403);
-    const list = await TaskEstimation.findAll({
-      where: { task_id: taskId },
-      order: [['created_at', 'DESC']],
-      limit: 50,
-    });
-    return successResponse(res, list.map(r => ({
-      id: r.id, value: Number(r.value), source: r.source, model: r.model,
-      created_at: r.createdAt, created_by_user_id: r.created_by_user_id,
-    })));
-  } catch (e) { next(e); }
-});
-
 // 사용자 확정 이력 — tasks.estimated_hours PATCH 핸들러에서 호출 (외부 export).
 // 사이클 N+20 — business_id 함께 저장 (워크스페이스별 패턴 학습).
 async function recordUserEstimate(taskId, value, userId) {

@@ -12,7 +12,7 @@
 //   - socket 'notification:read' / 'notification:read-all' → multi-device 동기화
 //   - visibility/focus refresh 안전망
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { apiFetch, useAuth } from '../contexts/AuthContext';
 import { onSocket } from '../services/socket';
 import { isAdminContext } from '../stores/tabStore';
@@ -143,20 +143,60 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
   const bizId = useNotificationScope(user?.business_id ? Number(user.business_id) : null);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  // 더 오래된 알림이 서버에 남아 있는가 — 옛: limit(100) 이 곧 끝이라 그 이전은 영영 못 봤다(0-J).
+  //   서버 `before` 커서(GET /api/notifications?before=ISO)를 쓴다.
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const extendedRef = useRef(false);   // [이전 더 보기] 로 첫 페이지 밖을 불러온 적이 있는가
+
+  const fetchPage = useCallback(async (before?: string) => {
+    const qs = new URLSearchParams({ limit: String(limit) });
+    if (unreadOnly) qs.set('unread_only', 'true');
+    if (bizId) qs.set('business_id', String(bizId));
+    if (before) qs.set('before', before);
+    const r = await apiFetch(`/api/notifications?${qs}`);
+    const j = await r.json();
+    return j.success ? ((j.data || []) as NotificationItem[]) : null;
+  }, [limit, unreadOnly, bizId]);
 
   const refresh = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const qs = new URLSearchParams({ limit: String(limit) });
-      if (unreadOnly) qs.set('unread_only', 'true');
-      if (bizId) qs.set('business_id', String(bizId));
-      const r = await apiFetch(`/api/notifications?${qs}`);
-      const j = await r.json();
-      if (j.success) setItems(j.data || []);
+      const fresh = await fetchPage();
+      if (fresh) {
+        // 첫 페이지를 다시 읽어도 이미 불러 둔 «더 오래된» 것은 버리지 않는다(실시간 갱신마다 목록이 줄지 않게).
+        setItems((prev) => {
+          if (fresh.length < limit || !extendedRef.current) return fresh;
+          const ids = new Set(fresh.map((x) => x.id));
+          const lastAt = new Date(fresh[fresh.length - 1].created_at).getTime();
+          return [...fresh, ...prev.filter((p) => !ids.has(p.id) && new Date(p.created_at).getTime() < lastAt)];
+        });
+        setHasMore((h) => (fresh.length < limit ? false : (extendedRef.current ? h : true)));
+      }
     } catch { /* silent */ }
     finally { setLoading(false); }
-  }, [user, limit, unreadOnly, bizId]);
+  }, [user, limit, fetchPage]);
+
+  const loadOlder = useCallback(async () => {
+    if (!user || loadingOlder || !items.length) return;
+    setLoadingOlder(true);
+    try {
+      const older = await fetchPage(items[items.length - 1].created_at);
+      if (older) {
+        extendedRef.current = true;
+        setItems((prev) => {
+          const ids = new Set(prev.map((x) => x.id));
+          return [...prev, ...older.filter((x) => !ids.has(x.id))];
+        });
+        setHasMore(older.length >= limit);
+      }
+    } catch { /* silent */ }
+    finally { setLoadingOlder(false); }
+  }, [user, loadingOlder, items, fetchPage, limit]);
+
+  // 필터·범위가 바뀌면 «더 있음» 판정도 처음부터
+  useEffect(() => { setHasMore(false); extendedRef.current = false; }, [unreadOnly, bizId]);
 
   useEffect(() => {
     if (!user) { setItems([]); return; }
@@ -198,5 +238,5 @@ export function useNotifications(opts: UseNotificationsOptions = {}) {
     } catch { /* silent */ }
   }, [bizId]);
 
-  return { items, loading, refresh, markRead, markAllRead };
+  return { items, loading, refresh, markRead, markAllRead, hasMore, loadingOlder, loadOlder };
 }

@@ -13,8 +13,8 @@
   "backToList": "목록",
   "empty": {
     "title": "프로젝트가 아직 없어요",
-    "desc": "Q talk 에서 프로젝트를 만들면 여기에 표시됩니다",
-    "cta": "Q talk 로 이동해 프로젝트 만들기"
+    "desc": "프로젝트를 만들면 업무·일정·문서·채팅이 여기서 한곳에 모입니다",
+    "cta": "+ 새 프로젝트"
   },
   "status": {
     "dialogAria": "프로젝트 상태 변경",
@@ -563,7 +563,12 @@
       "shareFailed": "공유 링크 생성 실패",
       "shareCreated": "공유 링크 생성 — 클립보드에 복사됨",
       "shareExpires": "만료: {{date}}",
-      "shareHintOne": "파일 1개만 선택해주세요"
+      "shareHintOne": "파일 1개만 선택해주세요",
+      "shareRevoke": "링크 해제",
+      "shareRevokeTitle": "공유 링크를 해제할까요?",
+      "shareRevokeBody": "이미 보낸 다운로드 링크가 바로 끊깁니다. 다시 공유하려면 새 링크를 만들어야 합니다.",
+      "shareRevokeFailed": "공유 링크를 해제하지 못했습니다",
+      "cancel": "취소"
     },
     "bulkDelete": {
       "title": "{{n}}개 파일을 삭제할까요?",

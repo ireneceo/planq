@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import ActionButton from '../../components/Common/ActionButton';
 import { apiFetch } from '../../contexts/AuthContext';
 
@@ -103,6 +104,8 @@ export default function MailDomainRuleSection({ businessId, canEdit, accountEmai
     } finally { setBusy(false); }
   };
 
+  // 삭제는 묻고 한다(0-J)
+  const [removeAsk, setRemoveAsk] = useState<{ id: number; domain: string } | null>(null);
   const remove = async (id: number) => {
     setBusy(true); setErr(null);
     try {
@@ -167,7 +170,7 @@ export default function MailDomainRuleSection({ businessId, canEdit, accountEmai
                 </LinkBtn>
               )}
               {canEdit && (
-                <LinkBtn type="button" $danger onClick={() => remove(r.id)} disabled={busy}>
+                <LinkBtn type="button" $danger onClick={() => setRemoveAsk({ id: r.id, domain: r.domain })} disabled={busy}>
                   {t('domainRule.remove', { defaultValue: '삭제' }) as string}
                 </LinkBtn>
               )}
@@ -195,6 +198,16 @@ export default function MailDomainRuleSection({ businessId, canEdit, accountEmai
       <Note>
         {t('domainRule.note', { defaultValue: '우리가 소유한 도메인만 등록하세요. 남의 도메인을 넣으면 그 도메인 앞으로 뿌려진 광고 메일까지 "우리에게 온 메일"로 잡힙니다. 보내는 주소는 아래 "보내는 주소"에서 따로 관리합니다.' }) as string}
       </Note>
+      <ConfirmDialog
+        isOpen={!!removeAsk}
+        title={t('domainRule.removeConfirmTitle', { defaultValue: '도메인 규칙을 삭제할까요?' }) as string}
+        message={t('domainRule.removeConfirmBody', { domain: removeAsk?.domain || '', defaultValue: '«{{domain}}» 규칙이 사라집니다. 되돌리려면 다시 추가해야 합니다.' }) as string}
+        confirmText={t('domainRule.remove', { defaultValue: '삭제' }) as string}
+        cancelText={t('compose.cancel', { defaultValue: '취소' }) as string}
+        variant="danger"
+        onClose={() => setRemoveAsk(null)}
+        onConfirm={() => { const a = removeAsk; setRemoveAsk(null); if (a) void remove(a.id); }}
+      />
     </Wrap>
   );
 }

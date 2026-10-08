@@ -438,7 +438,10 @@ const QProjectPage: React.FC = () => {
           </EmptyIcon>
           <EmptyTitle>{t('empty.title')}</EmptyTitle>
           <EmptyDesc>{t('empty.desc')}</EmptyDesc>
-          <EmptyCta type="button" onClick={() => navigate('/talk')}>{t('empty.cta')}</EmptyCta>
+          {/* 같은 화면의 [새 프로젝트] 와 같은 문 — 옛: Q talk 로 보냈다(0-J). 고객에게는 머리줄 버튼과 같은 술어로 숨긴다. */}
+          {user?.business_role !== 'client' && (
+            <EmptyCta type="button" onClick={() => setNewProjectOpen(true)}>{t('empty.cta')}</EmptyCta>
+          )}
         </EmptyState>
       ) : visibleProjects.length === 0 ? (
         <EmptyState>

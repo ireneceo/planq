@@ -204,7 +204,7 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, canEdit, canEditPoli
                 $selected={perms[key] === 'all'}
                 $disabled={!isOwner}
                 onClick={() => handleChange(key, 'all')}
-                title={!isOwner ? (t('permissions.owner_only_hint') as string) : undefined}
+                title={!isOwner ? (t('permissions.owner_only_toggle') as string) : undefined}
               >
                 <Radio $selected={perms[key] === 'all'} />
                 <OptionBody>
@@ -219,7 +219,7 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, canEdit, canEditPoli
                 $selected={perms[key] === 'pm'}
                 $disabled={!isOwner}
                 onClick={() => handleChange(key, 'pm')}
-                title={!isOwner ? (t('permissions.owner_only_hint') as string) : undefined}
+                title={!isOwner ? (t('permissions.owner_only_toggle') as string) : undefined}
               >
                 <Radio $selected={perms[key] === 'pm'} />
                 <OptionBody>
@@ -257,7 +257,7 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, canEdit, canEditPoli
               data-testid="perm-client-show-assignee"
               $on={showAssignee}
               disabled={!isOwner || !loaded}
-              title={!isOwner ? (t('permissions.owner_only_hint') as string) : undefined}
+              title={!isOwner ? (t('permissions.owner_only_toggle') as string) : undefined}
               onClick={() => setShowAssignee((v) => !v)}
             >
               <SwitchKnob $on={showAssignee} />

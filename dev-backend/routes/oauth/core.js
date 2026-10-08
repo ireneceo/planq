@@ -146,10 +146,12 @@ async function setupNewWorkspace(user, wantsKo, transaction) {
   return business;
 }
 
-/** 돌아갈 앱 경로 — 열린 리다이렉트 차단. 같은 출처 상대경로만 (0-F F-2). */
+/** 돌아갈 앱 경로 — 열린 리다이렉트 차단. 같은 출처 상대경로만 (0-F F-2).
+ *  제어문자(\x00-\x1f · \x7f, NUL 포함)도 거절한다 — Fable 0-F 비차단 지적(2026-10-08 0-J). */
 function safeRedirectPath(v) {
   const s = String(v || '');
-  return (s.startsWith('/') && !s.startsWith('//') && !/[\\\s]|:/.test(s) && s.length <= 512 && s !== '/login' && s !== '/register') ? s : null;
+  return (s.startsWith('/') && !s.startsWith('//') && !/[\\\s]|:/.test(s) && !/[\x00-\x1f\x7f]/.test(s)
+    && s.length <= 512 && s !== '/login' && s !== '/register') ? s : null;
 }
 /** redirect 가 초대 링크면 그 토큰 */
 function inviteTokenOf(redirect) {

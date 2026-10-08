@@ -55,7 +55,9 @@
     "photoFailed": "The photo could not be uploaded.",
     "accountName": "Name",
     "accountNameHint": "The name you entered at sign-up. Used for official documents such as receipts and tax invoices.",
-    "emailVerify": "Verify"
+    "emailVerify": "Verify",
+    "photoRemoveConfirmTitle": "Remove your profile photo?",
+    "photoRemoveConfirmBody": "This can't be undone. Upload a new photo to use one again."
   },
   "workspaceProfile": {
     "sectionTitle": "Workspace Profile",
@@ -308,7 +310,11 @@
     "mailSyncError": "Sync error — you may need to reconnect",
     "popupBlocked": "The popup was blocked. Please allow popups in your browser.",
     "title": "My integrations",
-    "workspaceLink": "Company-wide integrations (Google Drive, company mail, etc.) are managed in company settings"
+    "workspaceLink": "Company-wide integrations (Google Drive, company mail, etc.) are managed in company settings",
+    "disconnectConfirmTitle": "Disconnect?",
+    "disconnectConfirmLogin": "You'll no longer be able to sign in with \"{{label}}\".",
+    "disconnectConfirmPersonal": "\"{{label}}\" will be disconnected. Connect it again to use it.",
+    "cancel": "Cancel"
   },
   "accountDeletion": {
     "title": "Delete account",

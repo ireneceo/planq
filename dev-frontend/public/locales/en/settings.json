@@ -192,7 +192,7 @@
   "permissions": {
     "title": "Permission Policy",
     "subtitle": "Open by default — only actions that affect the whole team are selectively restricted. The default is 'Allow all members' and can be changed anytime.",
-    "owner_only_hint": "Only owners can change these settings. All members can view this page.",
+    "owner_only_hint": "Only owners can change the policy cards below (finance, schedule, client info).",
     "financial": {
       "title": "Billing Actions",
       "desc": "Creating/sending quotes and invoices, editing contract amount and monthly fee"
@@ -219,7 +219,8 @@
       "label": "Show member names on external links and client pages",
       "preview_off": "Members appear as your workspace name on tasks and chat, and without a name on documents and files. Client names are always shown.",
       "preview_on": "Members appear with their display names. Client names are always shown."
-    }
+    },
+    "owner_only_toggle": "Only owners can change this."
   },
   "storage": {
     "title": "Storage & Integrations",
@@ -625,7 +626,9 @@
   },
   "confirm": {
     "promoteAdminTitle": "Promote to admin",
-    "promoteAdmin": "Promote {{name}} to admin? Admins have almost all permissions except HR, billing settings, and tax invoices."
+    "promoteAdmin": "Promote {{name}} to admin? Admins have almost all permissions except HR, billing settings, and tax invoices.",
+    "demoteAdminTitle": "Change to member",
+    "demoteAdmin": "Remove admin rights from {{name}}? Their menu access will follow the settings in this table."
   },
   "billing": {
     "title": "Default billing owner",
@@ -662,7 +665,11 @@
       "terminology": "Terminology",
       "decision": "Decision",
       "custom": "Other"
-    }
+    },
+    "removeConfirmTitle": "Delete this knowledge card?",
+    "removeConfirmBody": "Cue will no longer refer to \"{{title}}\".",
+    "removeFailed": "Couldn't delete. Please try again shortly.",
+    "cancel": "Cancel"
   },
   "pushDiag": {
     "env": "Environment",

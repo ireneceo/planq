@@ -12,6 +12,7 @@ import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { useTranslation } from 'react-i18next';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import CalendarPicker from './CalendarPicker';
 import PageShell from '../../components/Layout/PageShell';
 import { Section, SectionTitle, SectionSub, Empty, ConnList, ConnRow, ConnIcon, ConnInfo, ConnTitle, ConnSub, ConnMeta, DangerBtn } from './integrationStyles';
@@ -167,6 +168,8 @@ const ProfileIntegrationsPage: React.FC = () => {
 
   useEffect(() => { load(); }, [load]);
 
+  // 연결 해제는 묻고 한다(0-J) — 로그인 수단·파일 저장소가 끊긴다.
+  const [disconnectAsk, setDisconnectAsk] = useState<{ kind: 'oauth' | 'personal'; id: number; label: string } | null>(null);
   const onDisconnectOauth = async (id: number) => {
     setErrorMsg(null);
     try {
@@ -350,7 +353,7 @@ const ProfileIntegrationsPage: React.FC = () => {
                   <ConnSub>{c.email}{c.display_name && ` · ${c.display_name}`}</ConnSub>
                   <ConnMeta>{t('integrations.connectedAt', '연결: {{date}}', { date: formatDate(c.connected_at) }) as string}</ConnMeta>
                 </ConnInfo>
-                <DangerBtn type="button" onClick={() => onDisconnectOauth(c.id)}>
+                <DangerBtn type="button" onClick={() => setDisconnectAsk({ kind: 'oauth', id: c.id, label: c.email || c.provider })}>
                   {t('integrations.disconnect', '해제') as string}
                 </DangerBtn>
               </ConnRow>
@@ -436,7 +439,7 @@ const ProfileIntegrationsPage: React.FC = () => {
                   )}
                 </ConnInfo>
                 {c.permission_status && <PermissionBadge status={c.permission_status} />}
-                <DangerBtn type="button" onClick={() => onDisconnectPersonal(c.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
+                <DangerBtn type="button" onClick={() => { if (typeof c.id === 'number') setDisconnectAsk({ kind: 'personal', id: c.id, label: c.account_email || c.provider }); }}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
               </ConnRow>
             ))}
           </ConnList>
@@ -512,7 +515,7 @@ const ProfileIntegrationsPage: React.FC = () => {
                   )}
                 </ConnInfo>
                 {c.permission_status && <PermissionBadge status={c.permission_status} />}
-                <DangerBtn type="button" onClick={() => onDisconnectPersonal(c.id)}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
+                <DangerBtn type="button" onClick={() => { if (typeof c.id === 'number') setDisconnectAsk({ kind: 'personal', id: c.id, label: c.account_email || c.provider }); }}>{t('integrations.disconnect', '해제') as string}</DangerBtn>
               </ConnRow>
             ))}
           </ConnList>
@@ -527,6 +530,23 @@ const ProfileIntegrationsPage: React.FC = () => {
       </DividerBox>
 
       {loading && <Loading>{t('integrations.loading', '로드 중...') as string}</Loading>}
+      <ConfirmDialog
+        isOpen={!!disconnectAsk}
+        title={t('integrations.disconnectConfirmTitle', { defaultValue: '연결을 해제할까요?' }) as string}
+        message={(disconnectAsk?.kind === 'oauth'
+          ? t('integrations.disconnectConfirmLogin', { label: disconnectAsk?.label || '', defaultValue: '«{{label}}» 로 더 이상 로그인할 수 없습니다.' })
+          : t('integrations.disconnectConfirmPersonal', { label: disconnectAsk?.label || '', defaultValue: '«{{label}}» 연결이 끊깁니다. 다시 쓰려면 새로 연결해야 합니다.' })) as string}
+        confirmText={t('integrations.disconnect', '해제') as string}
+        cancelText={t('integrations.cancel', { defaultValue: '취소' }) as string}
+        variant="danger"
+        onClose={() => setDisconnectAsk(null)}
+        onConfirm={() => {
+          const a = disconnectAsk; setDisconnectAsk(null);
+          if (!a) return;
+          if (a.kind === 'oauth') void onDisconnectOauth(a.id).catch(() => { /* 화면이 이미 이유를 보인다 */ });
+          else void onDisconnectPersonal(a.id);
+        }}
+      />
     </PageShell>
   );
 };

@@ -13,7 +13,7 @@ import { mapApiError } from '../../utils/apiError';
 import AiCandidateCard, { type AiCandidate, type AiCardMember } from './AiCandidateCard';
 import { isEnterAction } from '../../utils/imeKey';
 import {
-  Wrap, BarRow, Sparkle, Field, SendBtn, Shortcut, AddedBadge, Check,
+  Wrap, BarRow, Sparkle, Field, SendBtn, AddedBadge, Check,
   SubHint, ErrorMsg, NoticeMsg, Drop, CueLine, CardList, Actions, Thinking, Dots,
 } from '../Common/cueBarShell';
 
@@ -23,7 +23,7 @@ interface Props {
   projectId?: number | null;
   /** 채팅·메일 작업대에서 쓸 때 — 등록된 업무가 그 대화/스레드에 연결된다 (안 붙으면 그 자리 리스트에 안 보인다) */
   context?: { conversation_id?: number | null; email_thread_id?: number | null } | null;
-  /** 좁은 패널(320~440px)용 — 글로벌 ⌘T 미등록, 여백 축소 */
+  /** 좁은 패널(320~440px)용 — 여백 축소 */
   compact?: boolean;
   /** 탭 문맥 기본값 — "오늘/이번 주 나의 업무" 에서 만들면 그 목록 안에 남아야 한다.
    *  안 넘기면 종전 동작 그대로(채팅·메일 작업대는 탭 개념이 없어 안 넘긴다). */
@@ -74,21 +74,8 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
   }, []);
   useEffect(() => { autoGrow(); }, [prompt, autoGrow]);
 
-  // ⌘T / Ctrl+T — 어디서든 바 포커스 (브라우저 새 탭 단축키 가로채지 않도록 입력 중이 아닐 때만).
-  //   패널판(compact)은 등록하지 않는다 — 같은 화면에 바가 둘이면 포커스가 어디로 갈지 알 수 없다.
-  useEffect(() => {
-    if (compact) return;
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 't' || e.key === 'T')) {
-        const tag = (document.activeElement?.tagName || '').toLowerCase();
-        if (tag === 'input' || tag === 'textarea') return;
-        e.preventDefault();
-        taRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [compact]);
+  // ★ 2026-10-08 0-J — ⌘T / Ctrl+T 단축키를 없앴다. 브라우저의 «새 탭» 키라 Chrome 은 페이지가 막지 못해 동작하지
+  //   않았고, 막을 수 있는 브라우저(Safari·Firefox)에서는 사용자가 새 탭을 못 열게 했다. 표시(⌘T 칩)도 같이 뺐다.
 
   const send = async (instruction?: string) => {
     if (!prompt.trim() || submitting) return;
@@ -205,9 +192,7 @@ export default function CueTaskBar({ businessId, members, projectId = null, cont
           </SendBtn>
         ) : justAdded ? (
           <AddedBadge role="status"><Check viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></Check>{t('ai.bar.added', '추가됐어요')}</AddedBadge>
-        ) : (
-          <Shortcut aria-hidden>⌘T</Shortcut>
-        )}
+        ) : null}
       </BarRow>
 
       {stage === 'idle' && prompt && (

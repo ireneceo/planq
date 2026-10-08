@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import { apiFetch } from '../../contexts/AuthContext';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import ActionButton from '../../components/Common/ActionButton';
@@ -49,12 +50,17 @@ const CueKnowledgeSection: React.FC<{ businessId: number; isAdmin: boolean }> = 
     } finally { setSubmitting(false); }
   }, [businessId, isAdmin, submitting, load]);
 
+  // 삭제는 묻고 한다 — Cue 가 더 이상 이 내용을 쓰지 않는다(0-J)
+  const [removeAsk, setRemoveAsk] = useState<{ id: number; title: string } | null>(null);
+  const [removeErr, setRemoveErr] = useState<string | null>(null);
   const remove = useCallback(async (id: number) => {
     if (!isAdmin || submitting) return;
     setSubmitting(true);
     try {
       const r = await apiFetch(`/api/businesses/${businessId}/cue-knowledge/${id}`, { method: 'DELETE' });
-      if (r.ok) await load();
+      // 옛: 실패면 아무 말 없이 그대로였다(0-J)
+      if (r.ok) { setRemoveErr(null); await load(); }
+      else setRemoveErr(t('cueKnowledge.removeFailed', '삭제하지 못했어요. 잠시 후 다시 시도해 주세요.') as string);
     } finally { setSubmitting(false); }
   }, [businessId, isAdmin, submitting, load]);
 
@@ -152,6 +158,7 @@ const CueKnowledgeSection: React.FC<{ businessId: number; isAdmin: boolean }> = 
             </>
           )}
 
+          {removeErr && <ErrMsg role="alert">{removeErr}</ErrMsg>}
           <GroupLabel>{t('cueKnowledge.activeGroup', '반영 중')} ({active.length})</GroupLabel>
           {active.length === 0 ? (
             <Empty>{t('cueKnowledge.empty', '아직 등록된 지식이 없습니다. 완료 업무가 쌓이면 자동 제안이 생성됩니다.')}</Empty>
@@ -167,7 +174,7 @@ const CueKnowledgeSection: React.FC<{ businessId: number; isAdmin: boolean }> = 
               </CardBody>
               {isAdmin && (
                 <CardActions>
-                  <ActionButton size="sm" tone="danger" disabled={submitting} onClick={() => remove(c.id)}>
+                  <ActionButton size="sm" tone="danger" disabled={submitting} onClick={() => setRemoveAsk({ id: c.id, title: c.title })}>
                     {t('cueKnowledge.remove', '삭제')}
                   </ActionButton>
                 </CardActions>
@@ -176,6 +183,16 @@ const CueKnowledgeSection: React.FC<{ businessId: number; isAdmin: boolean }> = 
           ))}
         </>
       )}
+      <ConfirmDialog
+        isOpen={!!removeAsk}
+        title={t('cueKnowledge.removeConfirmTitle', '지식 카드를 삭제할까요?') as string}
+        message={t('cueKnowledge.removeConfirmBody', { title: removeAsk?.title || '', defaultValue: '«{{title}}» 을 Cue 가 더 이상 참고하지 않습니다.' }) as string}
+        confirmText={t('cueKnowledge.remove', '삭제') as string}
+        cancelText={t('cueKnowledge.cancel', '취소') as string}
+        variant="danger"
+        onClose={() => setRemoveAsk(null)}
+        onConfirm={() => { const a = removeAsk; setRemoveAsk(null); if (a) void remove(a.id); }}
+      />
     </Wrap>
   );
 };

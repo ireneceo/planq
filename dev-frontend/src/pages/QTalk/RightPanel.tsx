@@ -174,10 +174,12 @@ const RightPanel: React.FC<Props> = ({
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (!mod) return;
+      // ★ 2026-10-08 0-J — 넓은 폭의 접기/펼치기는 QTalkPage 가 같은 키로 이미 한다. 여기서도 onToggleCollapsed 를
+      //   부르면 한 번 누름에 **두 번 토글**되어 아무 일도 없었다(Windows Ctrl+/ 이중). 여기는 좁은 폭(오버레이)만.
       if (e.key === '/' || e.key === '\\') {
+        if (!isNarrow) return;
         e.preventDefault();
-        if (isNarrow) setNarrowOpen((x) => !x);
-        else onToggleCollapsed();
+        setNarrowOpen((x) => !x);
       }
     };
     window.addEventListener('keydown', onKey);

@@ -13,8 +13,8 @@
   "backToList": "List",
   "empty": {
     "title": "No projects yet",
-    "desc": "Projects created in Q talk will show up here",
-    "cta": "Go to Q talk to create a project"
+    "desc": "Create a project to bring its tasks, schedule, documents and chat together here",
+    "cta": "+ New project"
   },
   "status": {
     "dialogAria": "Change project status",
@@ -563,7 +563,12 @@
       "shareFailed": "Failed to create share link",
       "shareCreated": "Share link created — copied to clipboard",
       "shareExpires": "Expires: {{date}}",
-      "shareHintOne": "Pick exactly one file"
+      "shareHintOne": "Pick exactly one file",
+      "shareRevoke": "Revoke link",
+      "shareRevokeTitle": "Revoke the share link?",
+      "shareRevokeBody": "Download links you already sent stop working immediately. Create a new link to share again.",
+      "shareRevokeFailed": "Couldn't revoke the share link",
+      "cancel": "Cancel"
     },
     "bulkDelete": {
       "title": "Delete {{n}} files?",

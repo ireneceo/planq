@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation, Trans } from 'react-i18next';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import FontScaleSection from '../../components/Common/FontScaleSection';
 import { useAuth, apiFetch, apiUpload } from '../../contexts/AuthContext';
 import type { LanguageLevels, LanguageSkillLevel, User } from '../../contexts/AuthContext';
@@ -78,6 +79,8 @@ export default function ProfilePage() {
       setAvatarMsg(t('basic.photoFailed', '사진을 올리지 못했어요.') as string);
     } finally { setAvatarBusy(false); }
   }, [user, t, updateUser]);
+  // 사진 지우기는 묻고 한다(0-J) — 되돌리려면 다시 올려야 한다.
+  const [avatarRemoveAsk, setAvatarRemoveAsk] = useState(false);
   const removeAvatar = React.useCallback(async () => {
     if (!user || avatarBusy) return;
     setAvatarBusy(true); setAvatarMsg(null);
@@ -416,7 +419,7 @@ export default function ProfilePage() {
                   </ActionButton>
                   {avatarUrl && (
                     <ActionButton tone="secondary" size="sm" data-testid="profile-avatar-remove"
-                      onClick={removeAvatar} disabled={avatarBusy}>
+                      onClick={() => setAvatarRemoveAsk(true)} disabled={avatarBusy}>
                       {t('basic.photoRemove', '사진 지우기')}
                     </ActionButton>
                   )}
@@ -800,6 +803,16 @@ export default function ProfilePage() {
 
       </Container>
 
+      <ConfirmDialog
+        isOpen={avatarRemoveAsk}
+        title={t('basic.photoRemoveConfirmTitle', '프로필 사진을 지울까요?') as string}
+        message={t('basic.photoRemoveConfirmBody', '지운 사진은 되돌릴 수 없습니다. 다시 쓰려면 새로 올려야 합니다.') as string}
+        confirmText={t('basic.photoRemove', '사진 지우기') as string}
+        cancelText={t('integrations.cancel', '취소') as string}
+        variant="danger"
+        onClose={() => setAvatarRemoveAsk(false)}
+        onConfirm={() => { setAvatarRemoveAsk(false); void removeAvatar(); }}
+      />
     </PageShell>
   );
 }

@@ -11,7 +11,7 @@
 //   그 대화에 링크가 붙고, 서버는 그 링크로 등록할 수 있다(2026-09-12 Irene: "채팅할 때 고객이 이메일 넣으면?").
 //   링크가 없는 순수 대화방(`ref.kind === 'conversation'`)에만 버튼을 숨긴다.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { InboxWhyTag, IntakeNoteLine } from './SaleInboxBits';   // #449·#450 이유 칩 · 수동 모드 안내
+import { InboxWhyTag, IntakeNoteLine, LostAskModal } from './SaleInboxBits';   // #449·#450 이유 칩 · 수동 모드 안내
 import styled from 'styled-components';
 import { useInboxItemActions } from './useInboxItemActions';
 import { useTranslation } from 'react-i18next';
@@ -238,7 +238,7 @@ const SaleInboxList: React.FC<Props> = ({
   //   ★ `promoteItem`(상담으로 보내기)은 여기서 안 쓴다 — 그 문은 **Q mail** 에 있다
   //     (메일 목록 우클릭 · 상세 ⋯). 후보 칸을 뺐으므로 이 화면에는 올릴 대상이 없다.
   //     훅에는 남겨 두되 **쓰는 곳이 없다** — Q mail·채팅은 `services/sale.ts promoteInboxItem` 을 직접 부른다.
-  const { restoreItem, ensureClient, applyStage } = useInboxItemActions({
+  const { restoreItem, ensureClient, applyStage, lostAsk, setLostAsk } = useInboxItemActions({
     businessId, busyId, setBusyId, setActionError,
     errorText: t('error.loadFailed') as string, saveErrorText: t('error.saveFailed') as string,
     codeText: (code) => (code === 'relay_sender_use_manual' ? t('inbox.relayUseManual') as string : null),
@@ -381,7 +381,7 @@ const SaleInboxList: React.FC<Props> = ({
                             close();
                             // 아직 고객이 아니면 먼저 등록해야 단계가 붙는다 — 한 번 묻는다
                             if (!it.client_id && it.ref.kind !== 'client') { setStageAsk({ it, to: sg }); return; }
-                            void applyStage(it, sg);
+                            if (sg === 'lost') setLostAsk(it); else void applyStage(it, sg);
                           }}>
                           <OptName>{t(`stage.${sg}`) as string}</OptName>
                           <OptHint>{t(`stage.${sg}_hint`) as string}</OptHint>
@@ -585,8 +585,9 @@ const SaleInboxList: React.FC<Props> = ({
         cancelText={t('inquiry.cancel') as string}
         variant="info"
         onClose={() => setStageAsk(null)}
-        onConfirm={() => { const a = stageAsk; setStageAsk(null); if (a) void applyStage(a.it, a.to); }}
+        onConfirm={() => { const a = stageAsk; setStageAsk(null); if (a) { if (a.to === 'lost') setLostAsk(a.it); else void applyStage(a.it, a.to); } }}
       />
+      <LostAskModal item={lostAsk} businessId={businessId} onClose={() => setLostAsk(null)} onConfirm={(it, extra) => applyStage(it, 'lost', extra)} />
       <ConfirmDialog
         isOpen={!!registerAsk}
         title={t('action.registerConfirmTitle') as string}

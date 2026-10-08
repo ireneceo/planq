@@ -3,8 +3,8 @@
 // 세 동작이 같은 모양이었다 — «누르는 동안 잠그고 · 부르고 · 조용히 다시 읽고 · 실패는 문구로».
 // 세 번 베껴 두면 한쪽만 고쳐진다(그리고 실제로 목록 새로고침 방식이 갈릴 뻔했다).
 // 렌더에서 떼어 두면 SaleInboxList 는 «무엇을 그리는가» 만 남는다(컴포넌트 800줄 계약).
-import { useCallback } from 'react';
-import type { SaleInboxItem, SaleStage } from '../../services/sale';
+import { useCallback, useState } from 'react';
+import type { SaleInboxItem, SaleStage, LostReason } from '../../services/sale';
 import {
   dismissInboxItem, restoreInboxItem, purgeInboxItem, promoteInboxItem, setSaleStage,
 } from '../../services/sale';
@@ -25,6 +25,8 @@ type Deps = {
 };
 
 export function useInboxItemActions({ businessId, busyId, setBusyId, setActionError, reload, errorText, saveErrorText, codeText }: Deps) {
+  // 목록에서 «불발» 을 고르면 사유를 먼저 받는다 — 이 상태를 가진 화면이 LostAskModal 을 그린다(0-J)
+  const [lostAsk, setLostAsk] = useState<SaleInboxItem | null>(null);
   /** 공통 껍데기 — 잠금·에러·다시 읽기. 동작마다 다른 것은 `fn` 하나뿐이다. */
   const run = useCallback(async (it: SaleInboxItem, fn: () => Promise<unknown>) => {
     if (busyId) return;
@@ -83,7 +85,8 @@ export function useInboxItemActions({ businessId, busyId, setBusyId, setActionEr
   /** 단계 바꾸기 — **고객 기준**이라 같은 고객의 다른 상담 행도 함께 바뀐다(서버가 고객을 바꾼다).
    *  어느 문의에서 바꿨는지를 `source_ref` 로 같이 보낸다(Irene: "히스토리에 어느 문의 내용에서
    *  단계를 바꿨는지 표시해주고"). */
-  const applyStage = useCallback(async (it: SaleInboxItem, to: SaleStage) => {
+  //   extra — «불발» 은 서버가 사유를 요구한다(없으면 400 lost_reason_required). 목록에서도 LostReasonModal 로 받아 넘긴다(0-J).
+  const applyStage = useCallback(async (it: SaleInboxItem, to: SaleStage, extra?: { lost_reason?: LostReason; lost_note?: string }) => {
     if (busyId) return;
     setBusyId(it.id); setActionError(null);
     try {
@@ -91,10 +94,11 @@ export function useInboxItemActions({ businessId, busyId, setBusyId, setActionEr
       if (!cid) return;
       await setSaleStage(businessId, cid, {
         to, source_ref: { kind: it.ref.kind, id: it.ref.id, title: it.title || it.preview || null },
+        ...(extra || {}),
       });
       await reload();
     } catch { setActionError(saveErrorText); } finally { setBusyId(null); }
   }, [busyId, businessId, ensureClient, reload, setBusyId, setActionError, saveErrorText]);
 
-  return { promoteItem, restoreItem, dismissItem, purgeItem, ensureClient, applyStage };
+  return { promoteItem, restoreItem, dismissItem, purgeItem, ensureClient, applyStage, lostAsk, setLostAsk };
 }

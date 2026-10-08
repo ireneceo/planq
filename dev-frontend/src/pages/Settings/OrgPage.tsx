@@ -113,6 +113,8 @@ const OrgPage = () => {
       }
     } catch (e) { setErr(mapApiError(e, tErr)); }
   };
+  // 팀 삭제도 부서 삭제처럼 묻는다(0-J) — 소속 멤버의 팀 배정이 비워진다.
+  const [confirmTeamDel, setConfirmTeamDel] = useState<{ id: number; name: string } | null>(null);
   const removeTeam = async (teamId: number) => {
     try { await deleteTeam(bizId, teamId); load(); }
     catch (e) { setErr(mapApiError(e, tErr)); }
@@ -215,7 +217,7 @@ const OrgPage = () => {
                             options={teamLeadOptions()}
                             onChange={(o) => setTeamLead(d, tm.id, (o as PlanQSelectOption)?.value ? Number((o as PlanQSelectOption).value) : null)} />
                         </TeamLeadSlot>
-                        <TeamX type="button" onClick={() => removeTeam(tm.id)} aria-label={t('deleteTeam') as string}>×</TeamX>
+                        <TeamX type="button" onClick={() => setConfirmTeamDel({ id: tm.id, name: tm.name })} aria-label={t('deleteTeam') as string}>×</TeamX>
                       </TeamRow>
                     ))}
                   </TeamList>
@@ -281,6 +283,16 @@ const OrgPage = () => {
         title={t('deleteDept') as string}
         message={t('confirmDeleteDept', { name: confirmDeptDel?.name || '' }) as string}
         confirmText={t('deleteDept') as string}
+        cancelText={t('cancel', { defaultValue: '취소' }) as string}
+        variant="danger"
+      />
+      <ConfirmDialog
+        isOpen={!!confirmTeamDel}
+        onClose={() => setConfirmTeamDel(null)}
+        onConfirm={() => { const tm = confirmTeamDel; setConfirmTeamDel(null); if (tm) void removeTeam(tm.id); }}
+        title={t('deleteTeam') as string}
+        message={t('confirmDeleteTeam', { name: confirmTeamDel?.name || '', defaultValue: '«{{name}}» 팀을 삭제할까요? 소속 멤버의 팀 배정은 비워집니다.' }) as string}
+        confirmText={t('deleteTeam') as string}
         cancelText={t('cancel', { defaultValue: '취소' }) as string}
         variant="danger"
       />
