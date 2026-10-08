@@ -369,6 +369,62 @@ const cases = {
     assert(good.status === 200, `참조된 id ${X} 가 ${good.status}(대조군)`);
     return `참조 ${X} → 200 · 앞자리 ${P}(디스크에 있음) → 404`;
   },
+
+  // ─── 0-D retention: 휴지통 하한 30일 — 값(plans.js)과 래칫(resolveRetention) 두 겹 ───
+  async trash_floor() {
+    const { PLANS } = require(`${BE}/config/plans`);
+    const { resolveRetention, TRASH_MIN_DAYS } = require(`${BE}/services/retentionPolicy`);
+    assert(TRASH_MIN_DAYS === 30, `TRASH_MIN_DAYS=${TRASH_MIN_DAYS}`);
+    const low = Object.entries(PLANS).filter(([, p]) => !(p.limits && p.limits.trash_retention_days >= 30)).map(([k, p]) => `${k}=${p.limits && p.limits.trash_retention_days}`);
+    assert(!low.length, `30일 미만 플랜: ${low.join(', ')}`);
+    const { biz } = await makeWorld();
+    await biz.update({ plan: 'free' });
+    const r = await resolveRetention(biz.id, 'trash');
+    assert(r.ok && r.days >= 30, `free 워크스페이스 resolveRetention ${JSON.stringify(r)}`);
+    // 래칫 — plans.js 값이 다시 7 로 내려가도 지우는 쪽은 30 아래로 안 간다(같은 프로세스 안에서 값만 바꿔 본다)
+    const orig = PLANS.free.limits.trash_retention_days;
+    PLANS.free.limits.trash_retention_days = 7;
+    let r7;
+    try { r7 = await resolveRetention(biz.id, 'trash'); } finally { PLANS.free.limits.trash_retention_days = orig; }
+    assert(r7.ok && r7.days >= 30, `plans.js 가 7 이면 resolveRetention 이 ${r7.days} — 래칫 없음`);
+    return `전 플랜 ≥30 · free 워크스페이스 ${r.days}일 · plans 7 로 내려도 ${r7.days}일(래칫)`;
+  },
+
+  // ─── 0-D retention: 문서·정보 휴지통 회차가 만료 행을 지운다 · 라우트와 같은 함수 ───
+  async content_purge() {
+    const { runContentTrashPurge } = require(`${BE}/services/contentTrash`);
+    const { biz, A } = await makeWorld();
+    await biz.update({ plan: 'free' });
+    const now = Date.now();
+    const oldP = await makePost(biz, A, 'L3');
+    const oldK = await makeKb(biz, A, 'L3');
+    const newP = await makePost(biz, A, 'L3');
+    const newK = await makeKb(biz, A, 'L3');
+    await sequelize.query('UPDATE posts SET deleted_at = ?, purge_after = ? WHERE id = ?', { replacements: [new Date(now - 400 * DAY), new Date(now - DAY), oldP.id] });
+    await sequelize.query('UPDATE kb_documents SET deleted_at = ?, purge_after = ? WHERE id = ?', { replacements: [new Date(now - 400 * DAY), new Date(now - DAY), oldK.id] });
+    await sequelize.query('UPDATE posts SET deleted_at = ?, purge_after = ? WHERE id = ?', { replacements: [new Date(now - DAY), new Date(now + 29 * DAY), newP.id] });
+    await sequelize.query('UPDATE kb_documents SET deleted_at = ?, purge_after = ? WHERE id = ?', { replacements: [new Date(now - DAY), new Date(now + 29 * DAY), newK.id] });
+    // 리포트 모드(기본 플래그 꺼짐)는 지우지 않는다
+    const rep = await runContentTrashPurge(new Date(), { onlyBusinessIds: [biz.id] });
+    if (process.env.CONTENT_TRASH_PURGE_APPLY !== '1') {
+      assert(rep.mode === 'report' && rep.would_remove === 2 && rep.removed === 0, `리포트 모드 ${JSON.stringify(rep)}`);
+    }
+    const stillAfterReport = await M.Post.findByPk(oldP.id, { paranoid: false });
+    if (process.env.CONTENT_TRASH_PURGE_APPLY !== '1') assert(stillAfterReport, '리포트 모드인데 행이 지워졌다');
+    const r = await runContentTrashPurge(new Date(), { apply: true, onlyBusinessIds: [biz.id] });
+    const [p1, k1, p2, k2] = await Promise.all([
+      M.Post.findByPk(oldP.id, { paranoid: false }), M.KbDocument.findByPk(oldK.id, { paranoid: false }),
+      M.Post.findByPk(newP.id, { paranoid: false }), M.KbDocument.findByPk(newK.id, { paranoid: false }),
+    ]);
+    assert(!p1 && !k1, `만료 행이 남았다 post=${!!p1} kb=${!!k1} (${JSON.stringify(r)})`);
+    assert(p2 && k2, '아직 안 만료된 행(1일 전 삭제)이 지워졌다(음성 대조군)');
+    const [[{ n }]] = await sequelize.query("SELECT COUNT(*) n FROM audit_logs WHERE business_id = ? AND action IN ('post.purge','kb.document_purge') AND target_id IN (?, ?)", { replacements: [biz.id, oldP.id, oldK.id] });
+    assert(Number(n) === 2, `감사 행 ${n} (기대 2)`);
+    const src = fs.readFileSync(`${BE}/routes/content_trash.js`, 'utf8');
+    assert(!/destroy\(\{\s*force:\s*true/.test(src), 'routes/content_trash.js 가 영구삭제를 직접 한다 — cron 과 갈라진다');
+    assert(src.includes('purgeContentRow'), 'routes/content_trash.js 가 purgeContentRow 를 안 쓴다');
+    return `리포트 모드 would_remove ${rep.would_remove}·삭제 0 → 적용: 만료 2건 삭제 + 감사 2행 · 1일 전 삭제분 유지 · 라우트=같은 함수`;
+  },
 };
 
 (async () => {

@@ -62,6 +62,7 @@ import { openDriveEditor } from '../../utils/driveEdit';
 import { useFolderEditing } from './docs/useFolderEditing';
 import { SecondaryBtn, PrimaryBtn, DangerBtn, Modal, Dialog, DTitle, DBody, DFooter } from './docs/dialogStyles';
 import { formatDay } from '../../utils/dateFormat';
+import { useTrashRetentionDays } from '../../hooks/useTrashRetentionDays';
 
 export type DocScope =
   | { type: 'project'; projectId: number; businessId: number }
@@ -128,6 +129,8 @@ const DocsTab: React.FC<Props> = (props) => {
     ? props.scope.type
     : (props.projectId && props.businessId ? 'project' : 'workspace');
   const sBiz = props.scope ? props.scope.businessId : props.businessId;
+  // 휴지통 보관 일수 — 요금제 값(0-D). 못 읽으면 null → 숫자 없는 일반 문장
+  const trashDays = useTrashRetentionDays(sBiz ?? null);
   const sProj = props.scope
     ? (props.scope.type === 'project' ? props.scope.projectId : undefined)
     : props.projectId;
@@ -1303,6 +1306,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
                 }}
                 onDeleteFolder={runDeleteFolder}
+                trashDays={trashDays}
                 countDeep={folderFileCount}
                 onDownloadFolder={onDownloadFolder}
               />
@@ -1325,6 +1329,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
                 }}
                 onDelete={runDeleteFolder}
+                trashDays={trashDays}
                 countDeep={folderFileCount}
                 onReorder={async (id, dir) => {
                   await reorderFolder(id, dir);
@@ -1354,6 +1359,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 setFolders(prev => prev.map(f => f.id === id ? { ...f, name } : f));
               }}
               onDelete={runDeleteFolder}
+              trashDays={trashDays}
               countDeep={folderFileCount}
               onReorder={async (id, direction) => {
                 setFolders(prev => {
@@ -1944,7 +1950,7 @@ const DocsTab: React.FC<Props> = (props) => {
               <p><strong>{deleteConfirm.file_name}</strong></p>
               {/* ★ 휴지통이 생기면서 이 문구가 거짓말이 됐다 — 동작을 바꾸면 그 동작을 설명하는
                   문자열도 같이 바꾼다(memory feedback_new_behavior_makes_copy_lie). */}
-              <p>{t('docs.confirmDelete.descTrash', '삭제한 파일은 휴지통으로 이동합니다. 30일 안에 되돌릴 수 있습니다.')}</p>
+              <p>{trashDays != null ? t('docs.confirmDelete.descTrashWithDays', { days: trashDays, defaultValue: '삭제한 파일은 휴지통으로 이동합니다. {{days}}일 안에 되돌릴 수 있습니다.' }) : t('docs.confirmDelete.descTrash')}</p>
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => setDeleteConfirm(null)}>{t('members.cancel', '취소')}</SecondaryBtn>
@@ -1968,7 +1974,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   <BulkFileMore>{t('docs.bulkDelete.more', '외 {{n}}개', { n: selectedDeletable.length - 5 })}</BulkFileMore>
                 )}
               </BulkFileList>
-              <p>{t('docs.confirmDelete.descTrash', '삭제한 파일은 휴지통으로 이동합니다. 30일 안에 되돌릴 수 있습니다.')}</p>
+              <p>{trashDays != null ? t('docs.confirmDelete.descTrashWithDays', { days: trashDays, defaultValue: '삭제한 파일은 휴지통으로 이동합니다. {{days}}일 안에 되돌릴 수 있습니다.' }) : t('docs.confirmDelete.descTrash')}</p>
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => setBulkDeleteOpen(false)}>{t('members.cancel', '취소')}</SecondaryBtn>
@@ -1994,7 +2000,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 )}
               </BulkFileList>
               <p>{t('docs.dup.desc', '어떻게 할지 고르면 이번에 올리는 파일 전부에 같이 적용됩니다.')}</p>
-              <p>{t('docs.dup.descOverwrite', '「덮어쓰기」는 새 파일을 올리고 이전 파일을 휴지통으로 보냅니다. 30일 안에 되돌릴 수 있습니다.')}</p>
+              <p>{trashDays != null ? t('docs.dup.descOverwriteWithDays', { days: trashDays, defaultValue: '「덮어쓰기」는 새 파일을 올리고 이전 파일을 휴지통으로 보냅니다. {{days}}일 안에 되돌릴 수 있습니다.' }) : t('docs.dup.descOverwrite')}</p>
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => dupResolve.current?.(null)}>
@@ -2118,6 +2124,8 @@ interface ProjectGroupsProps {
   /** 하위 폴더 ⋯ 메뉴 — FolderTree 와 **같은 처리기**를 받는다(#417: 여태 [+] 뿐이라 이름을 못 바꾸고 못 지웠다). */
   onRenameFolder?: (id: number, name: string) => Promise<void>;
   onDeleteFolder?: (id: number, contents: 'move' | 'delete') => Promise<FolderDeleteOutcome | void>;
+  /** 휴지통 보관 일수(요금제) — 폴더 삭제 확인창 문구 (0-D) */
+  trashDays?: number | null;
   /** 하위 폴더까지 합한 파일 수 — 확인창이 묻는 숫자. 서버가 재귀로 지우므로 세는 것도 재귀다. */
   countDeep?: (id: number) => number;
   onDownloadFolder?: (id: number) => void | Promise<void>;
@@ -2284,6 +2292,8 @@ interface FolderTreeProps {
   onCreate: (parentId: number | null, name: string) => Promise<void>;
   onRename: (id: number, name: string) => Promise<void>;
   onDelete: (id: number, contents: 'move' | 'delete') => Promise<FolderDeleteOutcome | void>;
+  /** 휴지통 보관 일수(요금제) — 폴더 삭제 확인창 문구 (0-D) */
+  trashDays?: number | null;
   countDeep?: (id: number) => number;
   onReorder: (id: number, direction: 'up' | 'down') => Promise<void>;
   /** 폴더 통째 다운로드 (zip). 파일을 하나씩 고르지 않고 폴더째 받는다 — Irene #417. */
@@ -2297,12 +2307,12 @@ interface FolderTreeProps {
   tr: (k: string, fb?: string) => string;
 }
 
-const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, folderDrop: folderDropProp, tr, foldersOnly, projectName, projectColor, countDeep }) => {
+const FolderTree: React.FC<FolderTreeProps> = ({ folders, counts, total, selected, onSelect, onCreate, onRename, onDelete, onReorder, onDropFiles, onDropExternal, onDownloadFolder, folderDrop: folderDropProp, tr, foldersOnly, projectName, projectColor, countDeep, trashDays }) => {
   const ownDrop = useFolderDrop(onDropFiles, onDropExternal);
   const folderDrop = folderDropProp || ownDrop;
   const [creatingParent, setCreatingParent] = useState<number | null | undefined>(undefined);
   const [newName, setNewName] = useState('');
-  const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename, onDelete, counts, countDeep, tr });
+  const { renamingId, startRename, renderName, setDeleteTarget, deleteModal } = useFolderEditing({ onRename, onDelete, counts, countDeep, tr, trashDays });
 
   const rootFolders = folders.filter(f => f.parent_id === null);
   // ★ 프로젝트 폴더는 여기서 그리지 않는다 — **프로젝트 행 아래**로 갔다(ProjectGroups).

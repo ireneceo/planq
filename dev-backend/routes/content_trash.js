@@ -10,7 +10,7 @@
 //   · 목록의 가시성 술어는 **일반 목록과 완전히 같은 것**을 쓴다. 여기서만 따로 짜면
 //     남의 개인 자원이 휴지통을 통해 보이는 계열의 사고가 난다(실제로 겪은 적 있다).
 //   · 삭제 권한과 복원·영구삭제 권한을 같게 둔다 — 지울 수 있었던 사람이 되돌릴 수 있다.
-//   · 보관 기간 30일. 지난 것은 목록에 남기되 "만료" 로 표시한다(조용히 사라지지 않게).
+//   · 보관 기간 = 요금제 값(하한 30일, services/retentionPolicy). 만료분은 services/contentTrash cron 이 지운다. 지난 것은 목록에 남기되 "만료" 로 표시한다(조용히 사라지지 않게).
 const express = require('express');
 const { Op } = require('sequelize');
 const { Post, KbDocument, User, BusinessMember } = require('../models');
@@ -138,14 +138,8 @@ router.delete('/:businessId/:kind/:id/purge', authenticateToken, checkBusinessAc
     const snapshot = { title: t.row.title };
     // 딸린 것들은 **여기서** 지운다. 휴지통행 시점에 지우면 복원해도 속이 빈 문서가 된다
     //   (Q info 는 검색 청크, Q docs 는 첨부). 영구삭제는 되돌릴 수 없으니 여기가 맞는 자리다.
-    if (t.kind === 'kb') {
-      const { KbChunk } = require('../models');
-      await KbChunk.destroy({ where: { kb_document_id: t.row.id } });
-    } else {
-      const { PostAttachment } = require('../models');
-      await PostAttachment.destroy({ where: { post_id: t.row.id } });
-    }
-    await t.row.destroy({ force: true });
+    //   본문은 services/contentTrash.purgeContentRow **한 벌** — 보관기간 cron 과 같은 함수(0-D).
+    await require('../services/contentTrash').purgeContentRow(t.kind, t.row);
     require('../services/auditService').logAudit(req, {
       action: t.kind === 'post' ? 'post.purge' : 'kb.document_purge',
       targetType: t.kind, targetId: t.row.id, businessId: Number(req.params.businessId),

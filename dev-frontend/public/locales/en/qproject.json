@@ -528,7 +528,8 @@
     "confirmDelete": {
       "title": "Delete this file?",
       "desc": "This cannot be undone",
-      "descTrash": "Deleted files move to the trash. You can restore them within the period set by your plan."
+      "descTrash": "Deleted files move to the trash. You can restore them within the period set by your plan.",
+      "descTrashWithDays": "Deleted files move to the trash. You can restore them within {{days}} days."
     },
     "bulk": {
       "enter": "Select",
@@ -588,10 +589,11 @@
       "nameLabel": "Folder name",
       "deleteCount": "This folder and its subfolders hold {{n}} file(s).",
       "deleteChoiceMove": "Delete folder only moves the files up one level, where they stay.",
-      "deleteChoiceTrash": "Delete files too sends the files to the trash. You can restore them within 30 days.",
+      "deleteChoiceTrash": "“Delete files too” sends the files to the trash. You can restore them within the period set by your plan.",
       "deleteOnlyFolder": "Delete folder only",
       "deleteWithFilesAction": "Delete files too",
-      "deleteBlocked": "{{n}} file(s) in this folder can’t be deleted by you. You can move the files to the parent folder and delete only the folder."
+      "deleteBlocked": "{{n}} file(s) in this folder can’t be deleted by you. You can move the files to the parent folder and delete only the folder.",
+      "deleteChoiceTrashWithDays": "“Delete files too” sends the files to the trash. You can restore them within {{days}} days."
     },
     "up": {
       "aria": "Upload progress",
@@ -682,10 +684,11 @@
     "dup": {
       "title": "{{n}} file(s) with the same name already exist",
       "desc": "Your choice applies to every file in this upload.",
-      "descOverwrite": "Overwrite uploads the new file and sends the previous one to the trash. You can restore it within 30 days.",
+      "descOverwrite": "Overwrite uploads the new file and sends the previous one to the trash. You can restore it within the period set by your plan.",
       "skip": "Skip",
       "rename": "Save with a new name",
-      "overwrite": "Overwrite"
+      "overwrite": "Overwrite",
+      "descOverwriteWithDays": "Overwrite uploads the new file and sends the previous one to the trash. You can restore it within {{days}} days."
     }
   },
   "canvas": {

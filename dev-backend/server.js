@@ -698,6 +698,11 @@ function scheduleNextMidnight() {
       console.log('[upload-cleanup]', r);
     } catch (e) { console.warn('[upload-cleanup] failed', e.message); }
     try {
+      // 0-D — 문서·정보 휴지통 보관기간 만료분. CONTENT_TRASH_PURGE_APPLY=1 일 때만 지운다(기본 리포트 모드).
+      const r = await require('./services/contentTrash').runContentTrashPurge();
+      console.log('[content-trash]', r);
+    } catch (e) { console.warn('[content-trash] failed', e.message); }
+    try {
       // 운영 #384 — 보낸 메일에 답이 없으면 알려준다. 판정은 services/mailFollowUp 하나만 쓴다
       //   (목록 뱃지와 알림이 서로 다른 말을 하지 않게).
       const r = await require('./services/mailFollowUpCron').runMailFollowUpCron(new Date(), app);

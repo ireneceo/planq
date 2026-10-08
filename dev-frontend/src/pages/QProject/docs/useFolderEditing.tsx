@@ -16,7 +16,7 @@ import { Modal, Dialog, DTitle, DBody, DFooter, SecondaryBtn, DangerBtn } from '
  *   즉 **바로 위 폴더**로 옮긴다(루트는 위 폴더가 없을 때뿐이다).
  *   ★ 세는 것도 **하위 폴더까지**여야 한다 — 서버가 재귀로 지우므로 묻는 숫자도 재귀다.
  */
-export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr }: {
+export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr, trashDays }: {
   onRename?: (id: number, name: string) => Promise<void>;
   /** `contents` — 안의 파일을 위 폴더로 옮길지(`move`) 함께 휴지통으로 보낼지(`delete`). */
   onDelete?: (id: number, contents: 'move' | 'delete') => Promise<FolderDeleteOutcome | void>;
@@ -24,6 +24,8 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr }: 
   /** 하위 폴더까지 합한 파일 수. 없으면 이 폴더만 센다(옛 동작). */
   countDeep?: (id: number) => number;
   tr: (k: string, d?: string) => string;
+  /** 휴지통 보관 일수(요금제) — 있으면 «N일 안에», 없으면 «요금제에 따라» (0-D) */
+  trashDays?: number | null;
 }) {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -63,7 +65,9 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr }: 
             <>
               <p>{fmt(tr('docs.folder.deleteCount', '이 폴더와 하위 폴더에 파일 {{n}}개가 있습니다.'), deleteCount)}</p>
               <p>{tr('docs.folder.deleteChoiceMove', '「폴더만 삭제」를 고르면 파일은 바로 위 폴더로 옮겨지고 그대로 남습니다.')}</p>
-              <p>{tr('docs.folder.deleteChoiceTrash', '「파일도 함께 삭제」를 고르면 파일도 휴지통으로 갑니다. 30일 안에 되돌릴 수 있습니다.')}</p>
+              <p>{trashDays != null
+                ? String(tr('docs.folder.deleteChoiceTrashWithDays', '「파일도 함께 삭제」를 고르면 파일도 휴지통으로 갑니다. {{days}}일 안에 되돌릴 수 있습니다.')).replace('{{days}}', String(trashDays))
+                : tr('docs.folder.deleteChoiceTrash')}</p>
               {blockedCount > 0 && (
                 <p role="alert" data-testid="folder-delete-blocked">{fmt(tr('docs.folder.deleteBlocked', '삭제 권한이 없는 파일이 {{n}}개 있어 함께 삭제할 수 없습니다. 파일을 상위 폴더로 옮기고 폴더만 삭제할 수 있습니다.'), blockedCount)}</p>
               )}

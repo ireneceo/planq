@@ -1410,6 +1410,8 @@ function defineAccessTests() {
     ['mailscope', 'mailscope', '상담 메모 — 남의 개인 메일 스레드 404 · 공용 200 (0-C C-7)'],
     ['clientsmenu', 'clientsmenu', '고객 메뉴 권한 none/read/write 를 서버가 지킨다 (0-C C-8)'],
     ['wiki', 'wikiimg', '위키 이미지 서빙은 정확한 file_id 만 (0-C C-5)'],
+    ['retention', 'trash_floor', '휴지통 보관 하한 30일 — 전 플랜 값 + resolveRetention 래칫 (0-D)'],
+    ['retention', 'content_purge', '문서·정보 휴지통 회차가 만료 행만 지운다 · 리포트 모드 기본 · 라우트와 같은 함수 (0-D)'],
   ];
   let swept = false;
   for (const [cat, k, name] of T) {

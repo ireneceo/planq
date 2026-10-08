@@ -28,6 +28,11 @@ const KIND_KEY = {
 // business_id 가 NULL 인 플랫폼 행(운영자 액션). 최상위 티어 값에 묶어 plans.js 와 갈라지지 않게 한다.
 const PLATFORM_AUDIT_RETENTION_DAYS = PLANS.enterprise.limits.audit_log_retention_days;
 
+// 휴지통 보관 **하한** (0-D, 2026-10-08 Irene 결정 ①(a)+30일 하한) — 값(plans.js)과 래칫(여기) 두 겹.
+//   누가 plans.js 를 다시 7 로 내려도 지우는 쪽(파일 cron·문서/정보 cron)·스탬프·화면 숫자가 30 아래로 가지 않는다.
+//   이 함수를 모두가 지나므로 여기 한 곳이다.
+const TRASH_MIN_DAYS = 30;
+
 // 이 기능 도입 **이전에** 삭제된 휴지통 행의 백필 전용 — 그때 화면이 사용자에게 보여준 숫자.
 const LEGACY_TRASH_PROMISE_DAYS = 30;
 
@@ -62,8 +67,9 @@ async function resolveRetention(businessId, kind) {
     const entry = code ? PLANS[code] : null;
     if (!entry) return { ok: false, reason: 'unknown_plan' };
 
-    const days = entry.limits?.[key];
+    let days = entry.limits?.[key];
     if (!Number.isInteger(days) || days <= 0) return { ok: false, reason: 'bad_value' };
+    if (kind === 'trash') days = Math.max(days, TRASH_MIN_DAYS);
     return { ok: true, days, planCode: code };
   } catch {
     return { ok: false, reason: 'lookup_failed' };
@@ -119,4 +125,5 @@ module.exports = {
   PLATFORM_AUDIT_RETENTION_DAYS,
   LEGACY_TRASH_PROMISE_DAYS,
   RETENTION_ROLLOUT_AT,
+  TRASH_MIN_DAYS,
 };

@@ -51,7 +51,7 @@
       "title": "4. Retention Period",
       "items": [
         "Upon account deletion: immediate removal (except where retention is legally required)",
-        "Files and documents in the trash: kept 14–365 days depending on plan, then permanently deleted. We never delete earlier than the date shown to you when you deleted it",
+        "Files and documents in the trash: kept 30–365 days depending on plan, then permanently deleted. We never delete earlier than the date shown to you when you deleted it",
         "Audit logs: kept 90 days to 7 years depending on plan. We apply whichever is longer — the plan in effect when the entry was written, or your current plan — so downgrading never shortens the retention of entries you already have",
         "E-commerce records: up to 5 years per Korean e-commerce law",
         "Complete deletion within 60 days of user request after contract termination (excluding legally required retention)",

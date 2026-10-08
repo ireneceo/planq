@@ -27,7 +27,7 @@ const PLANS = {
       file_size_max_bytes: 25 * MB,
       cue_actions_monthly: 30,
       qnote_minutes_monthly: 60,
-      trash_retention_days: 7,
+      trash_retention_days: 30,   // 0-D: 휴지통 하한 30일(services/retentionPolicy TRASH_MIN_DAYS 래칫과 두 겹)
       audit_log_retention_days: 30,
     },
     features: {
@@ -60,7 +60,7 @@ const PLANS = {
       file_size_max_bytes: 100 * MB,
       cue_actions_monthly: 50,
       qnote_minutes_monthly: 60,
-      trash_retention_days: 14,
+      trash_retention_days: 30,   // 0-D: 하한 30일
       audit_log_retention_days: 90,
     },
     features: {
