@@ -2,15 +2,29 @@
 **마지막 업데이트:** 2026-10-07 (개발완료) · **주체:** [Opus] Opus 5.5 (+ Fable 검증 서브에이전트 5회)
 **작업 상태:** 완료 — 운영 배포 5회(마지막 f19fbfca 12:39, backup 20261007_123113). 이전: **dev 미배포 5커밋**: bf4353d7 체크박스 디자인 · 59fba176+a6e3b66e AI create_event 칸·감사 대상 · 6169cbfe 반복 회차 날짜 · (위키 시드·UI 가이드 문서)
 
-### 진행 중(미커밋): UI/UX 전수 검증 체계 (2026-10-07 밤 · [Opus] 방 f6990861)
+### 완료: UI/UX 전수 검증 체계 (2026-10-07~08 · [Opus] 방 f6990861 · 커밋 be5a1f45 · Fable 게이트 PASS)
 - 정본 문서 `docs/qa/UI_VERIFICATION_SYSTEM.md`(왜 샜나 · 기준 · 언제 · 첫 실측). 답: UI 는 Fable 이 아니라 기계 검사 전부를 매일 돌리고 결과를 아침 방이 읽는 것.
 - 새 장치: `scripts/e2e/full-sweep.sh`(등록 스위트 전부, 순찰 직후 자동) · `sweep-summary.js` · `run.js` 계정 상태(현재 워크스페이스) 오염 감지·복원 ·
   순찰 확장(상세 23 + 고객 2환경 + 연 창 모양 판정 + 파일창·내려받기 감지 · `PATROL_TAG`/`PATROL_DETAIL_ONLY`) · cron 16:00 UTC · 개발시작 1-C · 검증 8-D 교체
 - 고친 실제 결함: 지워진 대상 알림 표시(`services/notificationTargets`) · 고객 정보탭 오류·새 프로젝트 버튼 · 새 프로젝트 창 잘림 · 칩 팝오버 스크롤 닫기 ·
   메일 상세 늦은 응답 덮어쓰기 · 업무 상세 blur 저장 · Q file 나눠 그리기. 낡은 검사기 8개 갱신.
-- dev 빌드 반영 · 백엔드 재시작 완료. **미커밋**(같은 폴더에 감사 방 629e3b90 이 돌고 있어 /개발완료 안 함). 운영 미배포.
+- dev 빌드 반영 · 백엔드 재시작 · 커밋 be5a1f45(내 파일만). 운영 미배포. 감사 방(billing 등)이 이어서 편집 중 — 그 미커밋은 그쪽 것.
+- **남은 것(다음 방이 이어서)** — 확장 순찰 첫 전체 실행(`logs/patrol/patrol-2026-10-08-full.log`, 7환경 누름 1,727 · 연 창 221 · 연 창 모양 실패 0 · 폰/태블릿 웹·고객 실패 0):
+  ① 앱(폰·아이패드 흉내)에서 «새 탭에서 열기»(`/files?file=`) · «새 창으로 크게 보기»(메일)가 **새 창**을 연다 — 앱에선 window.open 이 사파리로 간다(memory `feedback_ipad_app_is_desktop_mode`). services/nativeLinks 경로로.
+  ② 메일 상세에서 다른 스레드 링크(피드백 알림 메일 안 «PlanQ … 피드백» 행)를 누르면 가끔 **detail-fallback-error**(앱 환경 · 서버 GET 은 200). 오늘 넣은 «마지막 요청만 반영» 뒤에도 남음 — 실브라우저로 앱 UA 재현부터.
+  ③ ipad-app `/talk` 에 «다시 시도» 오류 상태가 떠 있었다(목록 로딩 실패) — 재현 확인.
+  ④ 하니스: 순찰 실행 시간이 2h45m(동시 부하 포함) — `nightly-patrol.sh` timeout 9000 을 넘을 수 있다 → 10800 으로 · full-sweep 총 시간 상한 없음(Fable 비차단).
+  ⑤ Fable 비차단: 일반 멤버(member) 역할 스위트 없음 · 실시간 2-브라우저 시나리오 부족 · dupname 옛 경로(project_id NULL) 변별력 축소.
 
-### 답 기다림: Fable 제품 종합 감사 — 결정 14건 + 0단계 결함 착수 지시 (2026-10-07 · [Opus]+[Fable] 감사 방)
+### 진행 중: 감사 0단계 결함 수리 (2026-10-08 · [Opus]+[Fable] 감사 방 629e3b90) — Irene «권고대로»
+- 운영 실측(읽기): RETENTION_PURGE_APPLY=1 · 청구서 7건 전부 KRW · sent 1건 토큰 살아 있음 · canceled 구독에 매달린 pending 결제 4건 · 애드온 결제 0
+- ✅ 0-A·0-B 돈·청구(설계 docs/FIX_0AB_MONEY_DESIGN.md): 93c558a2 + 2dfd8320 — Fable 1차 FAIL(예약 다운그레이드 못 보고 못 취소) → 수정 → **PASS**
+- 🕓 0-C 격리 ccd7b793 · 0-D 휴지통 7a5f30a3 · 0-E 관리자·메뉴 숨김 1c87444a · 0-F 초대 78a7c300 (설계 docs/FIX_0CDEF_ACCESS_DESIGN.md) — Fable 구현 검증 중
+- 남은 0단계: 0-G 숫자 한 벌 · 0-H 알림 계약 · 0-I 문구·i18n · 0-J 작은 결함(R=0, 자체 검증)
+- 운영 배포 전 필수: 0-A §1-2 운영 SELECT(고아 4건 plan_code=plan·live 0) · 마이그레이션 슬롯 2개(migrate-invoice-money · migrate-billing-0a) · CONTENT_TRASH_PURGE_APPLY 는 리포트 하루 뒤 켠다
+- Irene 할 일: `dev-backend/scripts/plan-expiry-check.js` 삭제(권한 거부, 미배선이라 동작 영향 없음)
+
+### 답 기다림 (이전): Fable 제품 종합 감사 — 결정 14건 + 0단계 결함 착수 지시 (2026-10-07 · [Opus]+[Fable] 감사 방) — Irene «권고대로»
 - **무엇을:** Fable 이 6개 영역을 감사했다(`docs/audit-2026-10-07/*.md`). 종합·재검증·로드맵은 `docs/FABLE_PRODUCT_AUDIT_2026-10-07.md` — 결함 30건 재검증(사실로 확인 27), 전체 UX 6.0/10.
   Irene 결정 14건(문서 끝) + 0단계 결함 10묶음(돈·구독 0-A, 청구 정합 0-B, 격리 0-C, 휴지통 0-D 는 R=1 → Fable 게이트) 착수 지시.
 - **왜 멈췄나:** ① 정책·가시성·돈 결정은 Irene 몫 ② 같은 폴더에서 «UI/UX 전수 검증» 방이 소스를 고치는 중(한 솔루션 한 편집 방) ③ 운영 읽기(SELECT 5건: 토큰 NULL 청구서·고아 pending 결제·외화·RETENTION_PURGE_APPLY·위키 file_id)가 권한 거부됨

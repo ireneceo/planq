@@ -8,7 +8,35 @@
 
 ---
 
-## 2026-10-08 0-A 돈·구독 · 0-B 청구 정합 — 구현 완료(Opus) · **구현 검증 라운드 대기** (R=1)
+## 2026-10-08 0-C·0-D·0-E·0-F 접근·격리·휴지통·권한·초대 — 구현 완료(Opus) · **Fable 구현 검증 대기(0-C·0-D R=1)**
+- 설계 정본 `docs/FIX_0CDEF_ACCESS_DESIGN.md`. 커밋 ccd7b793(0-C) · 7a5f30a3(0-D) · 1c87444a(0-E) · 78a7c300(0-F). dev 반영(빌드 4회 EXIT 0·error TS 0), 운영 미배포. `CONTENT_TRASH_PURGE_APPLY` 는 **꺼진 채**(dev 리포트: scanned 114 · would_remove 13).
+- **자체 검증(Fable 미검증)**: 전체 health-check 81/83(실패 2 = 02:07 백엔드 재시작 순간 fetch failed, 해당 카테고리 재실행 10/10) · secrets·money·billing·signauth·kbauth·folderauth·mailscope·clientsmenu·wiki 28/28 · retention 6/6 ·
+  invite 4/4 · auth 의 me_menu·admin_chat · 가드 전체 EXIT 0(64/65, 1 = 경고) · e2e signature 3검사 추가 전부 ✅ · signflow·signitems ✅ · menuhide 15/15(3폭) · invite 10/10(3폭) · 공개 문서 3폭 · 삭제 문구 3폭.
+  양성 대조군(코드를 HEAD 로 되돌려 뒤집힘 확인 후 cmp 원복): sig_notoken·signauth·docsign·bcast·kbauth·folderauth·mailscope·clientsmenu·wikiimg · trash_floor(값·래칫 각각)·content_purge ·
+  adminpredicate(+7)·navregistry(5건)·me_menu·admin_chat · invite_land·invite_oauth·invite_state·invite_mail 전부 FAIL 로 뒤집힘. e2e 의 화면 대조군은 재빌드가 필요해 안 함(오너=음성 대조군만).
+- **설계와 다르게 한 것**
+  1. 서명 술어 헬퍼(postOfRequest·canManageRequest)는 `services/signatureCore` 에 둠 — signatures.js god-file 래칫(606×1.15) 때문.
+  2. C-2 가드는 기존 broadcast 잠금이 못 잡아 **래칫 `broadcastpayload`**(기존 toJSON 방송 11건 동결) — 하드로 두면 메시지·청구서 기존 11건이 즉시 FAIL.
+  3. C-4 i18n 키는 실제 그룹 `docs.folder.deleteBlocked`(설계의 `docs.folderDelete.*` 그룹은 없다) · 0-D 도 `docs.folder.deleteChoiceTrash*`.
+  4. C-5 — dev 위키 본문은 `"file_id": 12`(콜론 뒤 공백, MySQL JSON 정규화)라 **옛 LIKE 는 앞자리 누출이 아니라 아예 한 장도 못 내주고 있었다**. JSON_CONTAINS 로 고침. 문자열 file_id 블록 dev 0.
+  5. 0-D `runContentTrashPurge(today, { apply, onlyBusinessIds })` — 검사가 dev 의 남의 휴지통 행을 지우지 않게 좁히는 인자 추가(cron 은 안 넘김).
+  6. 0-E 사이드바: `show(to)` 키는 **쿼리 포함 전체 to**(설계의 split('?') 는 ws-backup(오너)과 me-data(멤버)가 같은 키가 되어 멤버에게 오너 메뉴가 보인다). 보조 2뎁스 패널·모바일 헤더 Q talk 도 같은 show.
+     MenuHiddenPage 는 탭 모드에서 본문을 언마운트하지 않고 감춤(keep-alive). 가드는 MainLayout 표식 구간(workspace·secondary·admin) 비교.
+  7. 0-E 설정 화면: **멤버 권한 매트릭스만 owner·admin**, 위쪽 정책 토글은 owner 유지 — 그 저장 라우트 `PUT /businesses/:id/permissions` 가 `businesses.js isAdmin`(owner 전용, 설계가 넓히지 말라 한 문)이라 admin 에게 열면 눌러도 403. 그래서 `permissions.owner_only_hint` 문구도 바꾸지 않음.
+  8. 0-E conversations.js 보관함 로컬 `assertWorkspaceAdmin`(복원·영구삭제)도 admin 포함 — 설계 5곳 + 같은 보관함 계열 1곳.
+  9. 0-F acceptInvite 는 `opts.transaction` 미지원(회원가입·OAuth 둘 다 커밋 뒤 호출이라 필요 없음). 고객 초대 메일 실패는 **sendEmail 반환값**으로 판정(던지지 않아 try/catch 로는 영영 true) — dev 는 발송 정지라 늘 false·경고가 뜬다(사실이다).
+  10. 0-F 문구 키 `clients:inviteModal.emailFailed`(clients.json 의 `invite` 는 문자열이라 하위 키를 못 둔다).
+- **Fable 이 봐야 할 것(0-C·0-D R=1)**: ① 서명 멤버 라우트 7곳 술어(취소·재발송 = 요청자 ∨ canEditPost) ② `requireMenu('clients')` 가 고객(Client 역할)·AI 를 `not_a_member` 로 막는 것 — 고객 화면에서 /api/clients 를 부르는 곳 없음(grep) ③ 폴더째 삭제 원자 거절 + 해제 멤버 차단 ④ 공개 서명 라우트 삭제(운영 SELECT `signature_requests WHERE entity_type<>'post'` · documents 공유 토큰 수 미실행 — 운영 접속 금지) ⑤ 0-D 플래그 켜는 절차(리포트 1일 → 운영 숫자 대조 → 켬) ⑥ 0-E/0-F 는 R=0 자체 검증.
+- 확인 못 함: 폴더 삭제 거절 문구의 **화면** 표시(API 만 실측) · OAuth 실제 구글 왕복(finishOauthLogin 직접 호출로만) · 운영 배포 전 SELECT 3종.
+
+## 2026-10-08 0-A 돈·구독 · 0-B 청구 정합 — **VERDICT: PASS** (93c558a2 + 2dfd8320, R=1)
+- 1차 FAIL: 예약 다운그레이드가 `/status` 에 안 보이고 `cancel-schedule` 400(`getBusinessPlan` attributes 에 `scheduled_plan` 없음) — A-③ 로 예약이 실제 적용되며 «못 보고 못 취소하는 다운그레이드» 가 됨.
+  → 2dfd8320 한 줄 + money-4 HTTP 왕복(양성 대조군 확인) → 재검증 PASS. 설계 이탈 5건 전부 인정.
+- 배포 조건: 운영 §1-2 SELECT(고아 4건 `plan_code = plan`·live 0) 배포 직전 실행·기록 · 롤백은 코드만(옛 모델로 sync-database 재실행 금지).
+- 비차단: `plan-expiry-check.js` 삭제(Irene) · 예약 플랜 확정 알림 문구 «신규 활성화» · 프론트 재빌드 EXIT 실측(메모리 여유 때).
+- ★ 이 PASS 마커는 같은 시점 HEAD 를 덮지만 **be5a1f45(UI/UX 검증 방 커밋)는 이 검증 범위 밖**이다(그 방이 자기 Fable 재검토 통과를 보고함 — 01:36).
+
+### (이전 기록) 구현 완료(Opus) · 구현 검증 라운드 대기
 - 설계 정본: `docs/FIX_0AB_MONEY_DESIGN.md`(Fable 설계 판정 · Irene «권고대로»). 구현은 설계 §7 순서 ①~⑧. dev 반영(빌드·재시작), 운영 미배포.
 - **자체 검증(Fable 미검증)**: health-check `--category=money,billing,secrets` 16/16 · 전체 health-check · 가드 전체 EXIT 0 · `npm run build` EXIT 0 · e2e `--suite prepay`.
   양성 대조군 11건을 코드를 실제로 되돌려 뒤집힘 확인(m1 cron sent · m2 되살림 · m3 /status 옛 쿼리 · m4 예약 · m5 애드온 · m6 체험 승계 · m7 반올림 · m8 카운터 제거 → 동시 6건 409×5 · m9 테넌트 · m10 마스터 갱신 · s4 문서 토큰).
