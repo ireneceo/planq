@@ -1,12 +1,10 @@
 // Tiptap 기반 리치텍스트 에디터 — 문서 편집용
 // 툴바: Bold/Italic/Strike · H1~H3 · List · Link · Code · Quote · Image
 // 이미지: 툴바 버튼 / 드래그앤드롭 / 클립보드 붙여넣기 지원
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
-import type { Editor } from '@tiptap/core';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -28,6 +26,9 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { LightboxWrapper } from '../Common/ImageLightbox';
 import { codeBlockNodeView } from '../Common/CodeBlockNodeView';
 import { checklistExtensions, checklistEditorCss } from './editorChecklist';   // 할 일 목록(동그라미 체크 + 가운데 줄)
+import { FindReplace, findReplaceEditorCss } from './editorFindReplace';   // 찾기·바꾸기(2026-10-08)
+import FindReplaceBar from './FindReplaceBar';
+import { distributeTableColumnsEvenly } from './editorTableFit';   // 표 열 폭 맞춤(운영 #311)
 
 // 사이클 N+16 — 노션 스타일 코드 블록. lowlight + common 언어팩 (30개+: js/ts/python/go/rust/sql/bash 등).
 const lowlight = createLowlight(common);
@@ -79,95 +80,13 @@ async function uploadEditorImage(file: File, businessId?: number, projectId?: nu
 }
 
 
-// 운영 #311 — "빈 문서에 표를 만들 때 좌우 길이를 모든 표를 고정할 수도 있어야 하는데
-//   내용에 따라 가로 길이가 다 다르니까 정돈되지 않아 보일 때가 많아서
-//   지금처럼 자유롭게도 되고 고정으로 어떤 위치를 맞출 수도 있어야지."
-//
-//   TipTap 의 resizable 표는 셀마다 colwidth 를 들고 다닌다. 사용자가 손으로 끌면 그 값이 제각각
-//   남아 문서마다·표마다 열 폭이 어긋난다. "고정" = 그 표의 모든 열을 **같은 폭**으로 맞추는 것.
-//   자유 조절은 그대로 둔다(끌면 다시 달라진다) — 둘 다 되어야 한다는 것이 요청이다.
-//
-//   ★ colwidth 는 **행마다** 들어 있다. 첫 행만 고치면 다른 행이 옛 폭을 들고 있어 브라우저가
-//     colgroup 을 첫 행 기준으로 잡아도 저장 JSON 이 어긋난 채 남는다 → 전 행을 같이 고친다.
-//   ★ colspan 이 걸린 셀은 그 칸 수만큼 곱해 준다. 안 그러면 병합된 표가 찌그러진다.
-// 칸 하한 — 보기 화면(postContentView)·읽기 전용 규칙과 **같은 96px**.
-//   이보다 좁게 눌러 넣으면 글이 세로로 붕괴한다.
-const MIN_COL_WIDTH = 96;
-// 폭을 못 재는 경우(드로어가 아직 안 떠 clientWidth 가 0)만 쓰는 대비값.
-const FALLBACK_COL_WIDTH = 160;
-
-/**
- * 표의 열을 **쓸 수 있는 폭에 맞춰 고르게** 나눈다.
- *
- * ★ 2026-09-13 (Irene: *"문서에서 표를 좌우로 맞추면 열이 잘 나눠져야 하는데 우측이
- *   빈 여백이 되어 버리는데?"*)
- *   여태 열마다 **무조건 160px** 을 넣었다. 3열 표면 480px 이라 편집 폭이 800px 일 때
- *   320px 이 오른쪽에 빈 채로 남았다 — "맞춤" 을 눌렀는데 안 맞는다.
- *   폭은 표가 들어앉은 **스크롤 래퍼(.tableWrapper)의 안쪽 폭**에서 온다.
- *   ★ 열이 많아 하한(96px)으로도 다 못 들어가면 하한으로 두고 래퍼가 가로 스크롤한다 —
- *     억지로 더 좁히면 글이 무너진다.
- *   ★ 마지막 열에 나머지 픽셀을 더해 **합이 정확히 그 폭**이 되게 한다. 안 그러면 1~3px 틈이
- *     남아 오른쪽에 실선 자국처럼 보인다.
- */
-function distributeTableColumnsEvenly(editor: Editor): boolean {
-  const { state } = editor;
-  const { $from } = state.selection;
-  // 커서에서 위로 올라가며 table 노드를 찾는다
-  let tablePos = -1;
-  let tableNode: ProseMirrorNode | null = null;
-  for (let d = $from.depth; d > 0; d -= 1) {
-    const n = $from.node(d);
-    if (n.type.name === 'table') { tableNode = n; tablePos = $from.before(d); break; }
-  }
-  if (!tableNode || tablePos < 0) return false;
-
-  // 열 수 — 첫 행의 colspan 합
-  let colCount = 0;
-  const firstRow = tableNode.firstChild;
-  if (firstRow) firstRow.forEach((cell) => { colCount += Number(cell.attrs.colspan) || 1; });
-  if (colCount <= 0) return false;
-
-  // 쓸 수 있는 폭 — 표를 감싼 스크롤 래퍼 안쪽. 표 자신의 좌우 테두리 2px 을 뺀다
-  //   (빼지 않으면 합이 폭보다 2px 커져 맞추자마자 가로 스크롤이 생긴다).
-  const tableDom = editor.view.nodeDOM(tablePos) as HTMLElement | null;
-  const wrapper = (tableDom && typeof tableDom.closest === 'function'
-    ? (tableDom.closest('.tableWrapper') as HTMLElement | null) : null) || tableDom;
-  const avail = Math.max(0, (wrapper?.clientWidth || editor.view.dom.clientWidth || 0) - 2);
-
-  const widths: number[] = (() => {
-    if (avail <= 0) return Array.from({ length: colCount }, () => FALLBACK_COL_WIDTH);
-    const base = Math.floor(avail / colCount);
-    if (base < MIN_COL_WIDTH) return Array.from({ length: colCount }, () => MIN_COL_WIDTH);
-    const arr = Array.from({ length: colCount }, () => base);
-    arr[colCount - 1] += avail - base * colCount;   // 나머지 픽셀은 마지막 열로
-    return arr;
-  })();
-
-  const tr = state.tr;
-  let changed = false;
-  tableNode.forEach((row, rowOffset) => {
-    let colIndex = 0;   // 이 행에서 지금 칸이 차지하는 첫 열 (colspan 누적)
-    row.forEach((cell, cellOffset) => {
-      const span = Number(cell.attrs.colspan) || 1;
-      const next = Array.from({ length: span }, (_, i) =>
-        widths[Math.min(colIndex + i, widths.length - 1)]);
-      colIndex += span;
-      const cur = cell.attrs.colwidth as number[] | null;
-      if (cur && cur.length === span && cur.every((w, i) => w === next[i])) return;
-      // +1: table -> row 진입, +1: row -> cell 진입
-      const cellPos = tablePos + 1 + rowOffset + 1 + cellOffset;
-      tr.setNodeMarkup(cellPos, undefined, { ...cell.attrs, colwidth: next });
-      changed = true;
-    });
-  });
-  if (!changed) return false;
-  editor.view.dispatch(tr);
-  return true;
-}
 
 const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, editable = true, businessId, projectId, borderless = false, compact = false }) => {
   const { t } = useTranslation('qdocs');
   const fileRef = useRef<HTMLInputElement>(null);
+  // 찾기·바꾸기 막대 — 편집 중에만. focusSignal 은 열린 채 ⌘F 를 다시 눌렀을 때 검색칸으로 돌아가게 한다.
+  const [find, setFind] = useState<{ open: boolean; replace: boolean; initial: string; signal: number }>(
+    { open: false, replace: false, initial: '', signal: 0 });
 
   // useEditor 옵션은 생성 시점 값으로 굳는다 — 최신 콜백을 ref 로 붙든다.
   const onReadyRef = useRef(onReady);
@@ -201,6 +120,7 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
       Table.configure({ resizable: true, HTMLAttributes: { class: 'editor-table' } }),
       TableRow,
       TableHeader, TableCell, ...checklistExtensions,
+      FindReplace,
     ],
     content: value as any,
     editable,
@@ -335,12 +255,42 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
     if (editor) editor.setEditable(editable);
   }, [editable, editor]);
 
+  // 보기 모드로 바뀌면 막대를 닫는다(칠한 자리도 막대가 닫히며 지운다)
+  useEffect(() => {
+    if (!editable) setFind((f) => (f.open ? { ...f, open: false } : f));
+  }, [editable]);
+
+  const openFind = useCallback((replace: boolean) => {
+    if (!editor) return;
+    // 한 줄 안에서 고른 글이 있으면 그것으로 시작한다(워드·구글 문서와 같다)
+    const { from, to, empty } = editor.state.selection;
+    const picked = empty ? '' : editor.state.doc.textBetween(from, to, '\n');
+    const initial = picked && !picked.includes('\n') && picked.length <= 200 ? picked : '';
+    setFind((f) => ({ open: true, replace: replace || (f.open && f.replace), initial, signal: f.signal + 1 }));
+  }, [editor]);
+  const closeFind = useCallback(() => {
+    setFind((f) => ({ ...f, open: false }));
+    editor?.commands.focus();
+  }, [editor]);
+
   if (!editor) return null;
 
   const isActive = (name: string, attrs?: Record<string, unknown>) => editor.isActive(name, attrs);
 
   // N+49 hotfix — wrapper 빈 영역 클릭 시 editor 끝으로 focus. ProseMirror DOM 안 클릭은 자동.
   // 사용자 호소: "빈 노트/문서 에디터 어디 클릭해도 커서 진입 가능"
+  // ⌘/Ctrl+F 찾기 · ⌘⇧H(맥) / Ctrl+H 바꾸기 — 편집기 안(본문·툴바·막대)에 포커스가 있을 때만 가로챈다.
+  //   그 밖에서는 브라우저 찾기를 그대로 둔다.
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!editable || e.nativeEvent.isComposing) return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (!mod || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'f' && !e.shiftKey) { e.preventDefault(); openFind(false); return; }
+    const isMac = /Mac|iP(hone|ad|od)/.test(navigator.platform || navigator.userAgent);
+    if (k === 'h' && (isMac ? (e.metaKey && e.shiftKey) : (e.ctrlKey && !e.shiftKey))) { e.preventDefault(); openFind(true); }
+  };
+
   const handleWrapperClick = (e: React.MouseEvent) => {
     if (!editable || !editor) return;
     const targetEl = e.target as HTMLElement;
@@ -358,14 +308,21 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
   };
 
   return (
-    <Wrap $borderless={borderless} $compact={compact} onClick={handleWrapperClick}>
+    <Wrap $borderless={borderless} $compact={compact} onClick={handleWrapperClick} onKeyDown={handleKeyDown}>
       {editable && (
+        <Head>
         <Toolbar $compact={compact}>
           <Group>
             <ToolBtn type="button" $active={isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title={t('editor.bold', { defaultValue: '굵게' })}>B</ToolBtn>
             <ToolBtn type="button" $active={isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title={t('editor.italic', { defaultValue: '기울임' })} style={{ fontStyle: 'italic' }}>I</ToolBtn>
+            <ToolBtn type="button" data-testid="editor-underline" $active={isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()} title={t('editor.underline', { defaultValue: '밑줄 (⌘U)' })} aria-label={t('editor.underlineAria', { defaultValue: '밑줄' })} style={{ textDecoration: 'underline' }}>U</ToolBtn>
             <ToolBtn type="button" $active={isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} title={t('editor.strike', { defaultValue: '취소선' })} style={{ textDecoration: 'line-through' }}>S</ToolBtn>
             <ToolBtn type="button" $active={isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} title={t('editor.inlineCode', { defaultValue: '인라인 코드' })} style={{ fontFamily: 'monospace' }}>code</ToolBtn>
+            <ToolBtn type="button" data-testid="editor-clear-format" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} title={t('editor.clearFormat', { defaultValue: '서식 지우기 (굵게·제목·목록 등을 보통 글로)' })} aria-label={t('editor.clearFormatAria', { defaultValue: '서식 지우기' })}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" /><path d="M3 3l18 18" />
+              </svg>
+            </ToolBtn>
           </Group>
           <Sep />
           <Group>
@@ -379,6 +336,9 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
             <ToolBtn type="button" $active={isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} title={t('editor.orderedList', { defaultValue: '번호 매기기' })}>1.</ToolBtn>
             <ToolBtn type="button" data-testid="editor-tasklist" $active={isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()} title={t('editor.taskList', { defaultValue: '할 일 목록' })} aria-label={t('editor.taskList', { defaultValue: '할 일 목록' })}>○</ToolBtn>
             <ToolBtn type="button" $active={isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} title={t('editor.blockquote', { defaultValue: '인용' })}>❝</ToolBtn>
+            <ToolBtn type="button" data-testid="editor-hr" onClick={() => editor.chain().focus().setHorizontalRule().run()} title={t('editor.horizontalRule', { defaultValue: '구분선' })} aria-label={t('editor.horizontalRule', { defaultValue: '구분선' })}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M3 12h18" /></svg>
+            </ToolBtn>
             <ToolBtn type="button" $active={isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} title={t('editor.codeBlock', { defaultValue: '코드 블록 (syntax 색상 + 복사 버튼)' })} style={{ fontFamily: 'monospace' }}>{ '</>' }</ToolBtn>
           </Group>
           <Sep />
@@ -461,7 +421,29 @@ const PostEditor: React.FC<Props> = ({ value, onChange, onReady, placeholder, ed
             <ToolBtn type="button" onClick={() => editor.chain().focus().undo().run()} title={t('editor.undo', { defaultValue: '실행 취소' })}>↶</ToolBtn>
             <ToolBtn type="button" onClick={() => editor.chain().focus().redo().run()} title={t('editor.redo', { defaultValue: '다시 실행' })}>↷</ToolBtn>
           </Group>
+          <Sep />
+          <Group>
+            <ToolBtn type="button" data-testid="editor-find-open" $active={find.open}
+              onClick={() => (find.open ? closeFind() : openFind(false))}
+              title={t('editor.find.open', { defaultValue: '찾기·바꾸기 (⌘F)' })}
+              aria-label={t('editor.find.openAria', { defaultValue: '찾기·바꾸기' })}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+              </svg>
+            </ToolBtn>
+          </Group>
         </Toolbar>
+        {find.open && (
+          <FindReplaceBar
+            editor={editor}
+            showReplace={find.replace}
+            onToggleReplace={() => setFind((f) => ({ ...f, replace: !f.replace }))}
+            initialQuery={find.initial}
+            focusSignal={find.signal}
+            onClose={closeFind}
+          />
+        )}
+        </Head>
       )}
       {editable && (
         <BubbleMenu className="pq-editor-bubble" editor={editor} shouldShow={({ editor: ed }) => ed.isActive('image')}>
@@ -535,16 +517,20 @@ const Wrap = styled.div<{ $borderless?: boolean; $compact?: boolean }>`
     min-height: ${p.$borderless ? '0' : '280px'};
   `}
 `;
+// 툴바 + 찾기 막대를 한 묶음으로 붙인다 — 막대에 top 숫자를 따로 주면 툴바가 두 줄로 감길 때 겹친다.
+const Head = styled.div`
+  position: sticky; top: var(--pq-sticky-top, 0px); z-index: 5;
+  flex-shrink: 0;
+`;
 const Toolbar = styled.div<{ $compact?: boolean }>`
   display: flex; align-items: center; gap: 2px; padding: 6px 8px;
   background: #F8FAFC; border-bottom: 1px solid #E2E8F0;
-  /* 스크롤해도 툴바가 상단에 따라오게 sticky. borderless(풀모드)는 Wrap overflow:visible 라
+  /* (sticky 는 감싸는 Head 가 진다 — 아래 설명은 그 Head 의 것) 스크롤해도 툴바가 상단에 따라오게 sticky. borderless(풀모드)는 Wrap overflow:visible 라
      바깥 스크롤 컨테이너 상단에 고정 — 문서·메모 편집 중 서식 버튼 항상 접근.
      ★ top 은 스크롤 컨테이너가 정한다(--pq-sticky-top). sticky 는 스크롤 컨테이너의 **콘텐츠 박스**
        상단을 기준으로 멈추므로, 컨테이너에 padding-top 이 있으면 그 높이만큼 아래에 붙는다.
        그 틈이 비어 보이고 본문이 그 사이로 지나가 "안 붙는다"로 읽혔다(Irene). 여백을 가진
        컨테이너가 자기 여백만큼 음수 값을 넘겨 화면 맨 위에 딱 붙인다. */
-  position: sticky; top: var(--pq-sticky-top, 0px); z-index: 5;
   /* 사이클 N+17 — compact (메모 popup) 는 한 줄 강제 + 가로 스크롤. wrap 으로 3줄 차지 회피.
      자식 ToolBtn 강제 축소 + Sep 마진 축소 — 같은 컴포넌트 재사용하면서 compact 모드만 다른 size 적용. */
   ${p => p.$compact ? `
@@ -621,7 +607,7 @@ const Body = styled.div<{ $editable?: boolean; $borderless?: boolean; $compact?:
      이게 없으면 본문이 길어질 때 Wrap 에 잘려 스크롤 불가 (메모장 스크롤 안 됨 회귀 fix). */
   ${p => p.$compact ? `flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;` : ''}
 
-  ${signatureFieldEditorCss}${checklistEditorCss}
+  ${signatureFieldEditorCss}${checklistEditorCss}${findReplaceEditorCss}
 
   /* ─── 표 (Body 직속 자손 — 편집/보기 모드 무관 적용) ─── */
   /* border-collapse: separate 로 border-radius 작동. 셀은 right/bottom 만, 마지막 행/열 제거. */
