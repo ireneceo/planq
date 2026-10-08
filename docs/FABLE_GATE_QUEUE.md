@@ -14,6 +14,22 @@
 ---
 
 
+## 2026-10-08 · 10/04~10/07 자체 검증분 묶음 (상황판 fwmuz1uqy3) — **VERDICT: PASS** (Fable)
+- 공통: health-check 83/83 · guard-invariants 65/66 EXIT 0 · 테스트 스크립트 rm · dev 픽스처 원복
+- 행2 `b8e8b567` safeHref PASS — 정상 11/11 유지 · 우회 15/15 차단(대소문자·공백·탭·개행·제어문자·BOM·data/vbscript/blob/file) · 엔티티 3종 이스케이프
+- 행6 `d568a315` 일정 알림 억제 PASS — 새벽 사례 억제 · 놓친 알림 1회 · 반복 회차 발송 · 재실행 중복 0
+- 행9 `a184935a` ?sign= PASS — 남의 칸 sign-internal 403 · 남의 id 로 창 안 열림·주소에서 제거 · 내 id 는 열림
+- 행14 `23987355` 정렬 PASS — pinned→created_at→id 단조 · 5개씩 6페이지 중복0·누락0 · kb created_at desc
+- 행19 `033a38e6` 오류 화면 신고 PASS(코드 판정) — /api/feedback 은 [보내기] 클릭에서만, 자동은 client-errors 뿐
+- 행34 `6d17d93e` 알림 제목 PASS — 12경우(자정 경계·종일 서울/LA/NY·en) · 실제 크론 저장 제목 확인
+- 재검증 행5·27·36(`1ef4992e`) PASS — D1 감사 post/id · D3 owner 가 남의 L1 GET/PUT/revisions 403 · 아는 상대 10경우 · D2 로그아웃·다른 계정 안내
+- 행15 `f00fc62a` PASS — 실소켓 push_logs skipped viewer_active 1건 + 인앱 1건 · 빈 ids·다른 방·끊김 0 · 운영 PM2 fork 1
+- 행37 `d3e1beff` PASS — 상태표 12경우 · 운영 biz10 past_due 유예 → 사용 가능
+- 행38 `012ec856` PASS — 저장+알림 +1 · dry-run/잘못된 status 0 · 재실행 건너뜀 (HTTP PATCH 는 관리자 자격 없어 미실행)
+- 행39 `a6e3b66e` PASS — create_event 감사 calendar_event/980
+- **비차단(수정 권고)**: 행6 — 발송시각 뒤 다음 크론 틱(≤5분) 안에 일정을 고치면(제목·Meet 링크·구글 역동기화 patch 포함) 그 회차 알림이 사라진다. 비교 기준을 «알림 시간을 정한 시각» 으로 좁힐 것(커밋 주석 «반복 일정 영향 없음» 은 이 창에서 거짓)
+- 비차단(관찰): 행2 비-JSON HTML 본문 경로는 safeHref 밖(운영 0건) · 행14 kb·보관함 id 보조키 없음(운영 최대 137건, 캡과 멂) · 행9 서버 링크는 이미 /sign/:token 으로 대체(프론트 ?sign= 은 휴면) · 행15 PushLog.category null · 행37 체험 유예에서도 in_grace true(배너 표시)
+
 ## 2026-10-08 · 관리자 확인 필요·플랫폼 알림 인박스/푸시 (cd372c3a) — PASS
 - 26/26 실호출 · 에스컬레이션 재발송 0 · 비관리자 누수 0 · 운영 관리자 알림 75건/30일
 - 비차단: 피드백·문의 푸시 본문 previewPolicy 'excerpt' 권고 · 배지 소켓 kinds 에 trial·system 없음
@@ -119,22 +135,22 @@
 |---|---|---|
 | 1 서명 첨부 범위 | ✅ PASS | 관찰: 다른 멤버가 걸어 둔 general 연결문서도 동결본으로 나간다(개별 제외 컨트롤 없음) — 의도 확인 필요 |
 | 3 서명자 PDF | ✅ PASS | kind='confirm' PDF 는 현재 본문(사소) |
-| 5 AI 문서·파일 쓰기 | ❌→🔧 | D1 감사 대상 오기록 · D3 owner/admin 이 남의 L1 을 PUT 가능 — `1ef4992e` 수정, **재검증 대기**. 운영 ChatGPT download_url 호스트는 첫 호출 때 확인 |
-| 15 다른 기기 보는 중 푸시 생략 | 🔧 구현 `f00fc62a` | B 설계대로(같은 방 + 보임 + 90초 손길, fail-open, PushLog viewer_active). 자체 검증: 소켓 4경우 + 실브라우저 3폭 — **재검증 대기** |
+| 5 AI 문서·파일 쓰기 | ✅ PASS(10-08 재검증) ❌→🔧 | D1 감사 대상 오기록 · D3 owner/admin 이 남의 L1 을 PUT 가능 — `1ef4992e` 수정, **재검증 대기**. 운영 ChatGPT download_url 호스트는 첫 호출 때 확인 |
+| 15 다른 기기 보는 중 푸시 생략 | ✅ PASS(10-08) 🔧 구현 `f00fc62a` | B 설계대로(같은 방 + 보임 + 90초 손길, fail-open, PushLog viewer_active). 자체 검증: 소켓 4경우 + 실브라우저 3폭 — **재검증 대기** |
 | 16 scope 동의 묶음 | ✅ PASS | 동의 문구에 일정 생성 추가(`1ef4992e`) |
 | 18 고객↔프로젝트 연결 | ✅ PASS | ⚠ 결정: 프로젝트 **복사본**의 고객 행도 백필이 contact_user_id 를 채운다(커밋 설명과 다름) — 복사 라우트가 직접 채울지 / 백필이 제외할지 Irene |
 | 20 재연결 옛 grant 해제 | ✅ PASS | ⚠ 결정: Claude 는 redirect 가 하나라 개인+조직 계정이 서로 끊는다 · 운영 grant 3·4 기존 중복은 자동 정리 안 됨 |
 | 22 고객 채널 참여 | ✅ PASS | ⚠ 고객별 채널(client_id 있는 방)에도 다른 고객을 넣는다 — B 판정 7(고객별 채널 원칙)과 같이 결정 |
-| 27 아는 상대 ④ | ❌→🔧 | 자기 증명(판정 중 메일 자신이 증거) — `1ef4992e` 제외 + 역할어 전용 주소 제외. ★ Fable 권고 ②(isPersonalSender)는 **원 사례(한 토막 대학 주소)를 다시 떨어뜨려** 역할어 판정으로 좁혔다. 남은 한계: 위조 두 통이면 앞 통이 증거 — 근본은 보낸편지함 동기화(행 23). **재검증 대기** |
+| 27 아는 상대 ④ | ✅ PASS(10-08 재검증) ❌→🔧 | 자기 증명(판정 중 메일 자신이 증거) — `1ef4992e` 제외 + 역할어 전용 주소 제외. ★ Fable 권고 ②(isPersonalSender)는 **원 사례(한 토막 대학 주소)를 다시 떨어뜨려** 역할어 판정으로 좁혔다. 남은 한계: 위조 두 통이면 앞 통이 증거 — 근본은 보낸편지함 동기화(행 23). **재검증 대기** |
 | 28 내 답장 사본 | ✅ PASS | 주의: From 위조 메일이 사본으로 판정돼 조용히 사라질 수 있음(Authentication-Results 검사 고려) |
 | 29 캘린더 시간대 | ✅ PASS | `?event=` 딥링크로 반복 회차를 열 때 회차 날짜가 기기 로컬(이전부터) · 종일 일정 미해결(범위 밖) |
 | 32 일정↔업무 | ✅ PASS | «삭제된 업무» 구분(`1ef4992e`) |
 | 34 알림 제목 | ✅ PASS | |
-| 36 서명 흐름 | ✅ PASS + ❌→🔧 | D2 우리 쪽 링크를 로그아웃/다른 계정으로 열면 막다른 invalid_state — 로그인 안내(`1ef4992e`), **재검증 대기** |
-| 37 (신규) 결제 대기 유예 잠김 | 🔧 `d3e1beff` planActive | B 판정 6 — 유예 중 past_due 를 사용 가능으로. health-check 상태표 6건(옛 식 2건 FAIL 확인) · dev biz 174 upload ok. R=1 **재검증 대기** |
-| 38 (신규) 피드백 회신 함수 | 🔧 `012ec856` | services/feedbackRespond 한 곳(관리자 라우트 + scripts/feedback-reply.js). 외부 발송(알림·메일) 트리거 — **재검증 대기** |
+| 36 서명 흐름 | ✅ PASS + D2 ✅ PASS(10-08 재검증) | D2 우리 쪽 링크를 로그아웃/다른 계정으로 열면 막다른 invalid_state — 로그인 안내(`1ef4992e`), **재검증 대기** |
+| 37 (신규) 결제 대기 유예 잠김 | ✅ PASS(10-08) 🔧 `d3e1beff` planActive | B 판정 6 — 유예 중 past_due 를 사용 가능으로. health-check 상태표 6건(옛 식 2건 FAIL 확인) · dev biz 174 upload ok. R=1 **재검증 대기** |
+| 38 (신규) 피드백 회신 함수 | ✅ PASS(10-08) 🔧 `012ec856` | services/feedbackRespond 한 곳(관리자 라우트 + scripts/feedback-reply.js). 외부 발송(알림·메일) 트리거 — **재검증 대기** |
 
-| 39 (신규) AI create_event 칸 확장 `59fba176` | ✅ 41/43 PASS + ❌→🔧 | 범위·업무 연결·알림·종류 모두 PASS. 감사 대상이 business 로 남던 기존 결함(event 분기 없음) — `execute.js` 한 줄 수정, 자체 검증(target calendar_event·실제 id). 한 줄 수정분은 Fable 미검증 |
+| 39 (신규) AI create_event 칸 확장 `59fba176` | ✅ 41/43 PASS + 감사 한 줄 ✅ PASS(10-08) | 범위·업무 연결·알림·종류 모두 PASS. 감사 대상이 business 로 남던 기존 결함(event 분기 없음) — `execute.js` 한 줄 수정, 자체 검증(target calendar_event·실제 id). 한 줄 수정분은 Fable 미검증 |
 
 B 설계 판정(8안건) 원문·결정 질문지: **`docs/IRENE_DECISIONS_2026-10-07.md`**. Irene 결정 대기: 행 17 프로젝트 만들기(client_ids·scope) · AI 보강(태그 생성 여부·메모 L1) · 행 23 보낸편지함 먼저/스팸 30일 · Cue 질문 분석(opt-in 범위) · 고객별 채널(Kate·Aidan 같은 회사인가) · 구글 캘린더 선택(심사 제출과 묶기).
 
@@ -148,24 +164,24 @@ B 설계 판정(8안건) 원문·결정 질문지: **`docs/IRENE_DECISIONS_2026-
 | # | 커밋 | 무엇 | 왜 Fable 인가 | Fable 이 볼 것 |
 |---|---|---|---|---|
 | 1 | `ee1049d8` `895603ef` | 서명 요청 첨부 범위 — Drive 별첨 열람 · 연결 문서 동결·서명자 열람(`GET /api/sign/:token/linked/:postId`) · 보안등급 제외 · 요청 창 안내 | R=1 무인증 표면 확장 · 외부로 나가는 범위 | 동결 목록 밖·kind 혼동·다른 WS 차단 · 못 읽는 문서/기밀이 동결·응답·HTML 에 없나 · linked HTML XSS · imageCtx 확장 폭 · 운영 Drive 별첨 실다운로드 |
-| 2 | `b8e8b567` | 공용 렌더러 링크 `safeHref`(javascript:·data: → #) | 서명본·공유 링크·PDF 공용 출력 | 정상 링크(상대·#·mailto·tel) 회귀 없음 · 우회 표기(공백·대소문자·제어문자) |
+| ✅ 2 | `b8e8b567` | 공용 렌더러 링크 `safeHref`(javascript:·data: → #) | 서명본·공유 링크·PDF 공용 출력 | 정상 링크(상대·#·mailto·tel) 회귀 없음 · 우회 표기(공백·대소문자·제어문자) |
 | 3 | `921ff579` | 서명자 PDF `GET /api/sign/:token/pdf`(무인증, 서명·확인 후, 10분 10회) · 확인필요에 우리 쪽(pending) 서명 · 받은 서명 «대기»=pending·sent·viewed · 채팅 카드 기본값 · 서명 화면 안내 · Q info 항목 잘림 · 서명자 고르기 | R=1 무인증 표면 추가 | 토큰→그 요청의 문서만·business 일치 · 증명서 장 미포함 · 확인필요 수집기 술어 확장의 중복 계수 |
 | 4 | `14e50ce3` | 발송 완료 «N명에게 메일» 을 메일/앱 안 서명으로 나눔 | 화면 문구(F=1) — 묶음 참고 | 문구와 실제 발송 수 일치 |
 | 5 | `cb3abd0a` | **AI 에이전트 문서·파일 쓰기** — post_actions 행동 계층(화면 `POST /api/posts`·첨부 라우트 이전) · create/append/update[M]/link/move[M] 문서 · upload_file(ChatGPT fileParams) · 메일 초안 첨부 · scope docs:write·files:write | R=1 AI 쓰기 표면 확장 · 서버가 외부 URL 을 받는다 | 화면 라우트 이전의 부수효과 동일성(감사·실시간·거래 단계) · upload_file 허용 도메인이 실제 ChatGPT download_url 과 맞나(운영 첫 호출) · SSRF(리다이렉트·꼬리 도메인) · 공개 범위(문서=문서 등급, 업무=L2/L3) · 메일 발송 시 초안 첨부 재검증 |
-| 6 | `d568a315` | 일정 알림 «저장 시각보다 앞선 발송 시각» 은 늦게 보내지 않음 · 크론 표시 silent | R=1 외부 발송(알림·메일) 트리거 조건 변경 | 놓친 알림(서버 정지)은 여전히 1회 · 반복 일정 회차 · 사람이 일정만 고친 뒤 놓친 알림이 사라지는 경계 |
+| ✅ 6 | `d568a315` | 일정 알림 «저장 시각보다 앞선 발송 시각» 은 늦게 보내지 않음 · 크론 표시 silent | R=1 외부 발송(알림·메일) 트리거 조건 변경 | 놓친 알림(서버 정지)은 여전히 1회 · 반복 일정 회차 · 사람이 일정만 고친 뒤 놓친 알림이 사라지는 경계 |
 | 7 | `d568a315` | 문서·메모 할 일 목록(동그라미·가운데 줄) · PDF/공유 렌더 data-checked | 화면(F=1) — 묶음 참고 | 보기 전용에서 체크가 문서를 몰래 바꾸지 않나 |
 | 8 | (이 배포) | god-file·UI 규격 래칫 정리(PostEditor 799줄 · 체크 동그라미 aspect-ratio) | 동작 무변경 | — |
-| 9 | (다음 배포) | 서명본 보기 좌우 여백 · 확인 필요/받은 서명 → 서명 창 바로(?sign=) | 화면(F=1) — 묶음 참고 | ?sign= 이 남의 요청 id 로 서명 창을 열지 않나(canSignNow) |
+| ✅ 9 | (다음 배포) | 서명본 보기 좌우 여백 · 확인 필요/받은 서명 → 서명 창 바로(?sign=) | 화면(F=1) — 묶음 참고 | ?sign= 이 남의 요청 id 로 서명 창을 열지 않나(canSignNow) |
 | 10 | (다음 배포) | **폰 상세 패널 = 앱 헤더를 덮는 전면**(`--pq-panel-top`) — DetailDrawer·업무 상세·문서 기록·작업대·Q talk 우측·도움말 | 화면 계약 변경(F=1) — 범위가 넓어 묶음 참고 | 폰에서 머리(닫기·돌아가기)가 가려지는 패널이 없나 · 키보드(--vv-top) · 앱 상태바 · 뒤로 가기 |
 | 11 | `5f1bb285` | **Cue 대화 이어듣기** — useCueChat 이 직전 턴(≤4)을 history 로 · /api/cue/help 가 user/assistant 로 삽입(normalizeHistory: q500·a1500) · 짧은 후속은 직전 질문 붙여 검색 · 위키 RAG 를 workspace 모드에도(3→4건) · 프롬프트 FOLLOWUP_RULE·사용법 질문 직접 안내 | R=0·S=0·F=1 — 훅 게이트로 올렸으나 429. 자체: 실API 신고 원문 history+"2번" 이어 답 / 대조군(history 없음) 옛 동작 / 잘못된 history 200 · 실브라우저 2번째 요청에 history 실림 · 빌드 0·guard 전체 통과 | 위키 주입이 데이터 질문을 오염시키지 않나 · 클라 history 가 새 조회·권한 통로가 아닌가 · 임베딩 1회 추가 비용 · 답 길이(4문단 초과) |
 | 12 | `6f4750d6` | **화면 알림(토스터) 전이 판정** — 완료·검토 요청·수정 요청·보류·외부컨펌 토스트를 «이 화면이 전이를 본 때만». 처음 보는 업무는 서버 notification:new 에 맡김 | 운영 신고(업무 339 «검토 요청» 재발, 서버 알림 0건) · 알림 누락 쪽 위험 | 처음 보는 업무의 진짜 전이를 서버 알림이 **모두** 덮는가(5종 notify 경로 전수 — 특히 외부컨펌·보류 해제·Cue 경유 전이) · 소켓 재연결 직후 첫 이벤트 · 카나리 reviewtoast(대조군 FAIL 확인됨) |
 | 13 | `f8e9c025` | **국가 공휴일 18개국** — config/holidays/*.json 자동 로드 · date-holidays 생성기(devDep) · 2026~2027 | 근무일 계수·휴가 차감·예약 슬롯·가용시간이 이 행을 읽는다(숫자가 바뀐다) | 생성 데이터 정확성(음력·이슬람력·대체휴일 — MY·SG·ID·CN·VN 표본 대조) · 같은 날 두 휴일 dedupe · 국가 전환 시 지난 행 보존·툼스톤 · 운영 배포에 devDependency 가 필요 없는가 · 2028 데이터 공백 시 cron 동작 |
-| 14 | `23987355` | **목록 기본 정렬 = 작성일** — posts·kb·개인 보관함 order created_at · 공용 ListSortSelect(4종) · Q docs 날짜 표시 | 화면(F=1) 위주 — 다만 limit 캡이 있는 목록(kb 1000·posts 200/페이지)은 «잘리는 글» 이 바뀐다 | kb 캡(1000) 초과 워크스페이스에서 잘리는 대상 변화 · posts 페이지 경계(created_at 동률 → id 보조키) · 고정(is_pinned) 우선 유지 · 실시간 갱신 후 순서 |
+| ✅ 14 | `23987355` | **목록 기본 정렬 = 작성일** — posts·kb·개인 보관함 order created_at · 공용 ListSortSelect(4종) · Q docs 날짜 표시 | 화면(F=1) 위주 — 다만 limit 캡이 있는 목록(kb 1000·posts 200/페이지)은 «잘리는 글» 이 바뀐다 | kb 캡(1000) 초과 워크스페이스에서 잘리는 대상 변화 · posts 페이지 경계(created_at 동률 → id 보조키) · 고정(is_pinned) 우선 유지 · 실시간 갱신 후 순서 |
 | 15 | (설계 — 미구현) | **같은 계정이 다른 기기에서 보고 있으면 채팅 푸시 생략** — 신고: "같은 아이디가 다른 디바이스에서 대화중인데 다른 디바이스에서 계속 알림". 현재 `notify()` push 분기가 접속 여부 없이 전 구독 기기로 보낸다(routes/notifications.js ~L300). 제안: 클라 30초 heartbeat `presence:active`(visible+focus+60초 내 조작) → 서버 메모리 → 활성이면 push 생략, 인앱 토스트 유지(Slack 방식) | R=1 외부 발송 조건 변경 · 2026-10-06 Fable 설계 검토 429 | ①범위(채팅만/전 event_kind, mention 예외?) ②«어디서든 활성» vs «같은 방» ③운영 PM2 프로세스 수·재시작 시 메모리 상태 ④네이티브 앱 백그라운드 소켓 오판 ⑤배지 갱신 경로 ⑥설정 토글 필요 여부 ⑦검증 시나리오 — **판정 후 구현** |
 | 16 | `0a528c2b` | **AI 연결 scope = 동의 묶음 전체**(요청 scope 로 좁히지 않음) · 연결 목록 outdated 표시 — ChatGPT 가 옛 scope 목록을 계속 요청해 재연결 반복 | R=1 인증·권한(부여 범위 확대) | 동의 화면 문구가 묶음 전체를 정확히 말하는가 · 요청보다 넓은 scope 를 토큰 응답 `scope` 로 돌려줄 때 클라이언트 호환 · opt-in(mail) 우회 없음 · 기존 grant 를 넓히지 않는 결정 · 같은 커넥터의 클라이언트 2건(웹/Codex) 정상 여부 |
 | 17 | (설계 — 미구현) | **AI 도구 «프로젝트 만들기»** — 신고: ChatGPT "새 프로젝트를 만드는 기능은 제공되지 않아". 설계서 §105 에서 v1 범위 밖. 필요: 프로젝트 생성의 행동 계층 이전(지금 라우트 인라인) · MEDIUM 확인 2단계 · 요금제 프로젝트 한도 · 멤버/고객 연결 범위 | R=1 AI 쓰기 표면 확장 + S=1 | 범위(이름·기간·고객 연결만? 멤버 초대·템플릿 단계까지?) · 고객 연결은 HIGH 인가 · 한도·감사·실시간 · 판정 후 구현 |
 | 18 | `ccfee1ae` | **고객 계정 ↔ 프로젝트 연결** — 워크스페이스 고객 초대 수락 시 linkClientToProjects(contact_user_id 채움·고객 채널 client 참여) · 참여자 추가 역할 서버 결정 · 운영 백필 스크립트(배포 슬롯) · health-check clientlink · 카나리 clientlink(대조군 FAIL 확인) | R=1 멀티테넌트·고객 가시성 · 운영 데이터 백필 | 고객이 **더 많이** 보게 되는 범위가 «이미 client_id 로 연결된 프로젝트» 뿐인가 · 다른 워크스페이스 고객 행 섞임 없음 · 프로젝트 복사(projects.js:181)도 채울지(가시성 확대 판단) · 참여자 role 정정이 알림·메시지 가시성에 주는 영향 · 백필 멱등 |
-| 19 | (2026-10-06 저녁 커밋) | **프로젝트 핀 문서 탭 = 문서 탭 상세 그대로**(PostsPage `pinnedPostId` 고정 모드 — 목록 복귀·?post 주소 안 건드림) · 표 첨부 칸 값 정규화(`toAttachItems`, 옛 글자 값 칸 크래시) · 오류 화면 안에서 바로 신고(`/api/feedback` 직접) · 핀 탭 이름 실시간(`qdocs-post-saved` + 소켓) · 얹는탭 높이 공식(하단 회색 띠) | 화면(F=1) — **자체 검증**(3폭 × 4항목 통과, 판정식상 R=0). 묶음 참고용 | 오류 화면 신고가 크래시마다 플랫폼 관리자 알림을 1건씩 만든다(사람이 [보내기] 를 눌러야만) · 고정 모드에서 삭제·복사 후 화면 · 얹는탭 높이 폰 42px 하드코딩(TabBar 폰 규칙과 같이 볼 것) |
+| ✅ 19 | (2026-10-06 저녁 커밋) | **프로젝트 핀 문서 탭 = 문서 탭 상세 그대로**(PostsPage `pinnedPostId` 고정 모드 — 목록 복귀·?post 주소 안 건드림) · 표 첨부 칸 값 정규화(`toAttachItems`, 옛 글자 값 칸 크래시) · 오류 화면 안에서 바로 신고(`/api/feedback` 직접) · 핀 탭 이름 실시간(`qdocs-post-saved` + 소켓) · 얹는탭 높이 공식(하단 회색 띠) | 화면(F=1) — **자체 검증**(3폭 × 4항목 통과, 판정식상 R=0). 묶음 참고용 | 오류 화면 신고가 크래시마다 플랫폼 관리자 알림을 1건씩 만든다(사람이 [보내기] 를 눌러야만) · 고정 모드에서 삭제·복사 후 화면 · 얹는탭 높이 폰 42px 하드코딩(TabBar 폰 규칙과 같이 볼 것) |
 | 20 | `4e085b9a` | **AI 연결 재연결 시 같은 커넥터 옛 grant 해제** — ChatGPT 가 재연결 때 DCR 로 새 client_id 등록(redirect_uri 동일) → 동의마다 grant 가 쌓여 목록에 ChatGPT 둘·쓰이는 쪽을 끊으면 재연결(운영 grant 3·4). `provider.exchangeAuthorizationCode` 가 토큰 발급 **후** `grants.supersedeSiblings`(같은 user×business×redirect_uri 의 다른 살아 있는 grant → revokeGrant 'client' + replaced_by). 스키마 0 | R=1 쪽으로 봄 — OAuth 토큰 수명주기(인증 표면). 좁히기만 함 · **자체 검증** 실HTTP 왕복(register→authorize→consent→token→/agent/mcp) **21/21** — 옛 grant 해제·옛 access 401·옛 refresh 거절·새 토큰 200 · 코드 교환 실패 시 옛 grant 유지 · 다른 앱·같은 앱 다른 워크스페이스·다른 사용자 grant 불변 · 같은 client 재동의도 해제 · 목록 1개 · 감사 replaced_by. **대조군**(수정 끔) 8건 FAIL 로 뒤집힘 확인 · health-check 50/50 · 가드 통과. 2026-10-07 Fable 429 | 실제 /agent/register→authorize→동의→token 왕복 2회(같은 redirect) · 코드 교환 실패 시 옛 grant 유지 · 다른 사용자·워크스페이스 grant 불변 · 공격자가 같은 redirect 로 등록해도 **본인 동의 없이** 남의 grant 를 못 끊는가 · 같은 커넥터에 ChatGPT 계정 둘(개인·팀)을 같은 워크스페이스로 붙이는 정상 사례가 있는가(있으면 서로 끊는다) |
 | 21 | `7bee3a57` | **상세 밴드2 2줄 정돈(모든 폭) · 분류 칩 세로 분해 · 공유 중 칩 흐림** — 공용 DetailMetaBar 가 모든 폭에서 wrap(액션 묶음 다음 줄 오른쪽) · 좌측 가로스크롤·끝 흐림 마스크 제거 · CategoryTag all:unset 이 지운 flex-shrink/nowrap 복구 | 화면(F=1) — **자체 검증** 문서 상세 4폭 ALL PASS · 옛 CSS 대조군 834·1100 칩 66×26(세로) FAIL 재현 · mailband(줄 수 계약 ≤2 로 갱신 — 옛 CSS 로도 2줄 실측)·docsheader 통과 | 공용 밴드라 메일·노트·고객 상세·채팅 메타밴드도 바뀜 — 노트(NoteMetaLeft flex 1 1 0)·채팅 밴드 실화면 |
 | 22 | `f3ec0aa2` | **계정 있는 고객을 프로젝트에 추가하면 고객 채널 참여** — `POST /api/projects/:id/clients` 가 contact_user_id 만 채우고 참여를 빠뜨려 프로젝트는 보이는데 Q talk 목록에 방이 없었다(운영 민충기 · 프로젝트 6 · conv 18). `clientOnboarding.joinProjectCustomerChannels` 한 곳 · 백필에 «연결됐는데 미참여» 추가(운영 1건 예정) · health-check clientlink 검출 · 카나리 clientlink ⑤ | **R=1** 고객 가시성·운영 데이터 백필 · **자체 검증** 실HTTP 7/7(대조군 3 FAIL) · 카나리 3폭 통과(대조군 4 FAIL — 화면에서 방 안 보임) · dev 백필 6→0 · health 50/50 · tenant 0. 2026-10-07 Fable 429 | **한 프로젝트에 고객 둘이면 서로의 고객 채널을 본다**(K-DINE: Kate·Aidan) — 이미 `GET /api/projects/conversations/:id/messages` 가 200 으로 주던 것을 목록에 맞춘 것뿐인가, 참여자로서 새로 열린 표면(쓰기·알림·소켓 방·참여자 목록)이 있는가 · 다른 회사 고객이면 고객별 채널이 맞는가 |
@@ -180,7 +196,7 @@ B 설계 판정(8안건) 원문·결정 질문지: **`docs/IRENE_DECISIONS_2026-
 | 31 | `aea7839b` | **일정 순서 2차** — 프로젝트·분류를 기간 위로 · «미팅자료» → «첨부파일»(알림 제목 포함) · 작성자를 상세 헤더로 | 화면(F=1) — **자체 검증** 실브라우저 3폭 순서·헤더·문구 | — |
 | 32 | `0d72392e` | **일정 ↔ 업무 연결** — calendar_events.task_id + 인덱스(migrate-calendar-task-link.js, 배포 슬롯 reload 전) · services/eventTaskLink(붙일 때 같은 business + canAccessTask · 보여줄 때 보는 사람 기준 hidden) · 생성(행동 계층)·수정(회차 분기 승계)·목록·상세 · TaskLinkPicker · linkLine(업무 · 프로젝트) | **R=1 운영 스키마** · **자체 검증** 실HTTP(연결·변경·해제·남의 업무 400·없는 업무 400·유지·숨김) · 실브라우저 3폭 · 마이그레이션 멱등 · tenant 0 · broadcast 신호만·공개 링크 attributes 화이트리스트·에이전트 도구 taskId 미전달 확인. 2026-10-07 Fable 429 ×1 | 회차 scope=single/future 실호출로 task_id 승계 · 업무가 휴지통/삭제되면 연결 표시 · 고객 참석자 화면 실호출(dev 고객 픽스처가 워크스페이스 접근 없어 함수 직접 검증만) |
 | 33 | `feac9580` `5d530d27` `122f042d` | **파일 미리보기 크게 보기 · 목록 빠른 보기 · 이미지 로딩 자리** — PreviewArea mode='full'·돋보기 · StandardModal size full · QuickView(카드·행, 데스크탑 hover/터치 늘 보임) · 이미지 받는 동안 200px+문구 · DocsTab 목록 스타일 분리(god-file 래칫 복구) | 화면(F=1) — **자체 검증** 3폭 · 6초 지연 대조 | 운영 front_v4.jpg 원인을 «Drive 첫 요청 지연 + 연결 대기» 로 추정 — 운영 배포 후 실제로 뜨는지 확인 필요(서버는 정상 응답 실측) |
-| 34 | (일정 알림 제목) | **일정 알림 제목이 남은 시간을 말한다** — leadAction · notifyTitle {{n}} · 본문 «… 시작» | 외부 발송(푸시·메일) 문구 — **자체 검증** 판정 7 · dev 실제 크론 3건 | 반복 일정·서버가 늦게 보낸 경우의 제목(오늘/내일 경계) |
+| ✅ 34 | (일정 알림 제목) | **일정 알림 제목이 남은 시간을 말한다** — leadAction · notifyTitle {{n}} · 본문 «… 시작» | 외부 발송(푸시·메일) 문구 — **자체 검증** 판정 7 · dev 실제 크론 3건 | 반복 일정·서버가 늦게 보낸 경우의 제목(오늘/내일 경계) |
 | 35 | `a74e87a0` | **우측 패널이 탭 막대 클릭으로도 닫힘** — hooks/useCloseOnTabStripClick(DetailDrawer · TaskDetailDrawer) | 화면(F=1) — **자체 검증** 태블릿·데스크탑 파일·업무 상세 | 다른 자체 패널(Q talk 우측·메일 작업대·도움말)에도 같은 동작이 필요한가 |
 | 36 | (서명 화면 단계) | **확인필요·받은 서명 → /sign/:token · 문서 먼저 → 위치 → 본인 확인 → 서명** — 우리 쪽 서명자는 로그인으로 본인 확인(sign-internal 재사용) · 공개 GET 에 party us 만 request_id·signer_user_id | R=1 쪽(증빙·공개 표면) · **자체 검증** 실요청 서명 완료·외부 인증번호 유지·signature 스위트 0 | 공개 GET 에 request_id·signer_user_id 노출이 무해한가 · 네이티브 앱에서 window.open 이 사파리로 가면 로그인이 없어 인증번호로 떨어지는 것(우리 쪽 서명자 이메일로 감) · 증빙(IP·UA)이 앱 안 서명과 같은가 |
 
