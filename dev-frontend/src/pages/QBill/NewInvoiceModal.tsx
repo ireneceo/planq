@@ -618,9 +618,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
               <FromCard>
                 <FromName>{businessInfo?.legal_name || businessInfo?.name || '—'}</FromName>
                 <FromMeta>
-                  <FromMetaRow><FromKey>사업자번호</FromKey><FromVal>{businessInfo?.tax_id || <FieldHole>없음</FieldHole>}</FromVal></FromMetaRow>
-                  <FromMetaRow><FromKey>대표자</FromKey><FromVal>{businessInfo?.representative || <FieldHole>없음</FieldHole>}</FromVal></FromMetaRow>
-                  <FromMetaRow><FromKey>주소</FromKey><FromVal>{businessInfo?.address || <FieldHole>없음</FieldHole>}</FromVal></FromMetaRow>
+                  <FromMetaRow><FromKey>{t('newInvoice.to.fields.biz_tax_id')}</FromKey><FromVal>{businessInfo?.tax_id || <FieldHole>{t('newInvoice.misc.none')}</FieldHole>}</FromVal></FromMetaRow>
+                  <FromMetaRow><FromKey>{t('newInvoice.to.fields.biz_representative')}</FromKey><FromVal>{businessInfo?.representative || <FieldHole>{t('newInvoice.misc.none')}</FieldHole>}</FromVal></FromMetaRow>
+                  <FromMetaRow><FromKey>{t('newInvoice.to.fields.biz_address')}</FromKey><FromVal>{businessInfo?.address || <FieldHole>{t('newInvoice.misc.none')}</FieldHole>}</FromVal></FromMetaRow>
                 </FromMeta>
                 <FromHint>{t('newInvoice.from.auto')}</FromHint>
               </FromCard>
@@ -678,16 +678,16 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                       <ToName>{(overrideBiz.biz_name || client.biz_name) || '—'}</ToName>
                       <FromMeta>
                         <FromMetaRow>
-                          <FromKey>사업자번호</FromKey>
-                          <FromVal>{overrideBiz.biz_tax_id || client.biz_tax_id || <FieldHole>없음</FieldHole>}</FromVal>
+                          <FromKey>{t('newInvoice.to.fields.biz_tax_id')}</FromKey>
+                          <FromVal>{overrideBiz.biz_tax_id || client.biz_tax_id || <FieldHole>{t('newInvoice.misc.none')}</FieldHole>}</FromVal>
                         </FromMetaRow>
                         <FromMetaRow>
-                          <FromKey>대표자</FromKey>
-                          <FromVal>{overrideBiz.biz_representative || client.biz_ceo || <FieldHole>없음</FieldHole>}</FromVal>
+                          <FromKey>{t('newInvoice.to.fields.biz_representative')}</FromKey>
+                          <FromVal>{overrideBiz.biz_representative || client.biz_ceo || <FieldHole>{t('newInvoice.misc.none')}</FieldHole>}</FromVal>
                         </FromMetaRow>
                         <FromMetaRow>
-                          <FromKey>주소</FromKey>
-                          <FromVal>{overrideBiz.biz_address || client.biz_address || client.biz_address_en || <FieldHole>없음</FieldHole>}</FromVal>
+                          <FromKey>{t('newInvoice.to.fields.biz_address')}</FromKey>
+                          <FromVal>{overrideBiz.biz_address || client.biz_address || client.biz_address_en || <FieldHole>{t('newInvoice.misc.none')}</FieldHole>}</FromVal>
                         </FromMetaRow>
                       </FromMeta>
 
@@ -750,14 +750,14 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           {/* ─── 출처 문서 ─── */}
           {client && (
             <Section>
-              <SectionLabel>출처 문서 (선택)</SectionLabel>
+              <SectionLabel>{t('newInvoice.source.title')}</SectionLabel>
               {sourceCandidates.length === 0 ? (
                 <SourceEmpty>
-                  이 고객의 체결된 계약/견적이 없습니다. 출처 없이 발행합니다.
+                  {t('newInvoice.source.empty')}
                 </SourceEmpty>
               ) : (
                 <>
-                  <SourceHint>출처 선택 시 본문 항목·금액·분할 일정이 자동으로 채워집니다.</SourceHint>
+                  <SourceHint>{t('newInvoice.source.hint')}</SourceHint>
                   <PlanQSelect
                     options={sourceOptions}
                     value={sourceOptions.find(o => o.value === sourcePostId) || null}
@@ -773,7 +773,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                       </SourceKindBadge>
                       <SourceTitle>{sourcePost.title}</SourceTitle>
                       <SourceMeta>
-                        {sourcePost.shared_at && `공유 ${sourcePost.shared_at.split('T')[0]}`}
+                        {sourcePost.shared_at && t('newInvoice.source.sharedOn', { date: sourcePost.shared_at.split('T')[0] })}
                       </SourceMeta>
                     </SourceBadge>
                   )}
@@ -836,7 +836,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                 {draft.last_items.length > 0 && (
                   <DraftBtn type="button" onClick={applyLastItems}>
                     {t('newInvoice.draft.useLast', { defaultValue: '직전 청구 항목 불러오기' })}
-                    <DraftMeta>{draft.last_items.length}건</DraftMeta>
+                    <DraftMeta>{t('newInvoice.draft.itemCount', { count: draft.last_items.length })}</DraftMeta>
                   </DraftBtn>
                 )}
                 {draft.time.hours > 0 && (
@@ -1040,7 +1040,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           {/* ─── 발송 옵션 (어디로 가는지) ─── */}
           {client && (
             <Section>
-              <SectionLabel>발송</SectionLabel>
+              <SectionLabel>{t('newInvoice.deliverOpts.title')}</SectionLabel>
               <DeliverList>
                 {/* 채팅방 */}
                 <DeliverRow $disabled={!conversation}>
@@ -1054,12 +1054,12 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                   </DeliverIcon>
                   <DeliverBody>
-                    <DeliverTitle>채팅방으로 결제 요청 카드 보내기</DeliverTitle>
+                    <DeliverTitle>{t('newInvoice.deliverOpts.chat')}</DeliverTitle>
                     <DeliverTarget>
                       {conversation ? (
                         <>→ <strong>{conversation.title || (t('newInvoice.misc.chatRoom', { defaultValue: '채팅방' }) as string)}</strong></>
                       ) : (
-                        <NoChannelHint>이 고객의 채팅방이 없습니다 · <NoChannelLink>채팅방 만들기 →</NoChannelLink></NoChannelHint>
+                        <NoChannelHint>{t('newInvoice.deliverOpts.noChat')} · <NoChannelLink>{t('newInvoice.deliverOpts.createChat')}</NoChannelLink></NoChannelHint>
                       )}
                     </DeliverTarget>
                   </DeliverBody>
@@ -1072,12 +1072,12 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                   </DeliverIcon>
                   <DeliverBody>
-                    <DeliverTitle>이메일 발송</DeliverTitle>
+                    <DeliverTitle>{t('newInvoice.deliverOpts.email')}</DeliverTitle>
                     <DeliverTarget>→ <strong>{recipientEmail || (t('newInvoice.misc.noEmail', { defaultValue: '이메일 없음' }) as string)}</strong></DeliverTarget>
                     {sendEmail && (
                       <PdfToggle>
                         <input type="checkbox" checked={includePdf} onChange={e => setIncludePdf(e.target.checked)} />
-                        <span>PDF 첨부</span>
+                        <span>{t('newInvoice.deliverOpts.attachPdf')}</span>
                       </PdfToggle>
                     )}
                   </DeliverBody>
@@ -1090,8 +1090,8 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.72"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.72-1.72"/></svg>
                   </DeliverIcon>
                   <DeliverBody>
-                    <DeliverTitle>공개 링크 자동 발급</DeliverTitle>
-                    <DeliverTarget>→ /public/invoices/:token (발행 즉시 생성)</DeliverTarget>
+                    <DeliverTitle>{t('newInvoice.deliverOpts.publicLink')}</DeliverTitle>
+                    <DeliverTarget>→ {t('newInvoice.deliverOpts.publicLinkTarget')}</DeliverTarget>
                   </DeliverBody>
                 </DeliverRow>
               </DeliverList>
@@ -1114,7 +1114,7 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           <FooterRight>
             <FooterSummary>
               {client && (sendChat || sendEmail) ? (
-                <FooterSumText>발행 후: {deliverSummary.join(' · ')}</FooterSumText>
+                <FooterSumText>{t('newInvoice.deliverOpts.after', { list: deliverSummary.join(' · ') })}</FooterSumText>
               ) : null}
             </FooterSummary>
             <SecondaryBtn type="button" onClick={() => submit(true)} disabled={submitting}>

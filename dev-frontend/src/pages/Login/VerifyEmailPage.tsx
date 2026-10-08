@@ -33,7 +33,7 @@ const VerifyEmailPage: React.FC = () => {
         {state === 'pending' && <PendingBox>{t('verify.pending', '인증 처리 중...')}</PendingBox>}
         {state === 'success' && (
           <SuccessBox>
-            {t('verify.success', '이메일 인증이 완료됐습니다. 모든 기능을 사용할 수 있습니다.')}
+            {t('verify.success', '이메일 인증이 완료됐습니다.')}
             <SuccessSub><Link to="/login">{t('verify.toLogin', '로그인하기')}</Link></SuccessSub>
           </SuccessBox>
         )}
@@ -41,7 +41,7 @@ const VerifyEmailPage: React.FC = () => {
           <ErrorBox>
             {t('verify.error', '인증 링크가 만료됐거나 잘못됐습니다.')}<br/>
             <small>{err}</small>
-            <ErrorSub><Link to="/login">{t('verify.backToLogin', '로그인 후 인증 메일 재발송')}</Link></ErrorSub>
+            <ErrorSub><Link to="/login">{t('verify.backToLogin', '로그인으로 돌아가기')}</Link></ErrorSub>
           </ErrorBox>
         )}
       </Card>

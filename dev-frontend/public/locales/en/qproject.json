@@ -372,7 +372,16 @@
     "empty": "None",
     "channelCustomer": "Customer",
     "channelInternal": "Internal",
-    "channelGroup": "Group"
+    "channelGroup": "Group",
+    "archive": "Delete chat room",
+    "archiveConfirm": "Delete",
+    "archiveMessage": "This deletes the \"{{name}}\" chat room. It disappears for every member; messages and participants are kept for 30 days for audit.",
+    "archiveTitle": "Delete chat room",
+    "moreHint": "Unlink / delete",
+    "unlink": "Unlink from project",
+    "unlinkConfirm": "Unlink",
+    "unlinkMessage": "This detaches the \"{{name}}\" chat room from this project. The room and messages are kept and it becomes a regular workspace chat.",
+    "unlinkTitle": "Unlink from project"
   },
   "clients": {
     "empty": "No clients yet",
@@ -433,7 +442,10 @@
     "cancel": "Cancel",
     "owner": "Owner",
     "noCandidates": "No workspace members available to add",
-    "unknown": "Unknown member"
+    "unknown": "Unknown member",
+    "pmOff": "Make PM",
+    "pmOn": "Remove PM",
+    "pmOwner": "The project creator is PM automatically"
   },
   "docs": {
     "drop": {
@@ -517,7 +529,9 @@
       "clickToOpen": "Click to open — formats we cannot show are downloaded",
       "expand": "View larger",
       "loadingImage": "Loading image…",
-      "quickView": "Quick view"
+      "quickView": "Quick view",
+      "loadingText": "Opening…",
+      "tooLargeOrFailed": "This file is too large or can't be opened in the app. Please download it to view."
     },
     "wsUpload": {
       "title": "Which project should these go to?",
@@ -689,7 +703,8 @@
       "rename": "Save with a new name",
       "overwrite": "Overwrite",
       "descOverwriteWithDays": "Overwrite uploads the new file and sends the previous one to the trash. You can restore it within {{days}} days."
-    }
+    },
+    "visibility": "Visibility"
   },
   "canvas": {
     "tabLabel": "Overview",
@@ -825,7 +840,13 @@
       }
     },
     "loadError": "Failed to load the overview",
-    "retry": "Retry"
+    "retry": "Retry",
+    "editInDetails": "Edit in details",
+    "overviewEmpty": {
+      "cta": "Fill in from details",
+      "desc": "Fill in the background, goals, success metrics and key initiatives and this becomes an at-a-glance project dashboard.",
+      "title": "The project overview is empty"
+    }
   },
   "header": {
     "openChat": "Project chat",
@@ -923,5 +944,11 @@
   },
   "duplicate": {
     "failed": "Could not duplicate. Please try again shortly."
+  },
+  "relTime": {
+    "daysAgo": "{{count}}d ago",
+    "hoursAgo": "{{count}}h ago",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}}m ago"
   }
 }

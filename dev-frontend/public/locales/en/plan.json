@@ -195,7 +195,23 @@
     },
     "bonusPeriod": "{{total}} months (1 month paid + {{bonus}} free)",
     "nextBilling": "Next payment on {{date}}",
-    "trialCarry": "Your remaining {{days}} trial days carry over"
+    "trialCarry": "Your remaining {{days}} trial days carry over",
+    "tax": {
+      "address": "Business address",
+      "bizItem": "Business item",
+      "bizItemPh": "e.g. Software development",
+      "bizName": "Company name",
+      "bizNo": "Business registration number",
+      "bizType": "Business type",
+      "bizTypePh": "e.g. Services",
+      "ceoName": "Representative",
+      "contactName": "Contact name",
+      "contactPhone": "Contact phone",
+      "email": "Email for tax invoices",
+      "emailHint": "The tax invoice PDF will be sent to this address once issued.",
+      "requiredFields": "Business number, company name, representative and email are required.",
+      "toggle": "Business — request a tax invoice"
+    }
   },
   "billing": {
     "history": {
@@ -242,7 +258,8 @@
     "cancelScheduleTitle": "Cancel Scheduled Change",
     "cancelScheduleDesc": "Cancel scheduled switch to {{plan}}?",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "nextBillingDate": "Next billing date"
   },
   "enterprise": {
     "title": "Enterprise — custom contracts for larger teams",

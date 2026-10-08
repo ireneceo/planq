@@ -79,7 +79,8 @@
         "active": "진행 중",
         "paused": "일시 중지",
         "closed": "종료"
-      }
+      },
+      "pmTag": "PM"
     },
     "quickAdd": "한 줄 업무 등록",
     "cue": {
@@ -180,7 +181,10 @@
     "creating": "생성 중...",
     "create": "대화 만들기",
     "guestRoom": "고객이 링크로 들어올 방",
-    "guestRoomHint": "켜면 이 방에서 링크를 만들 수 있습니다. 고객은 로그인 없이 링크만으로 들어와 답할 수 있습니다."
+    "guestRoomHint": "켜면 이 방에서 링크를 만들 수 있습니다. 고객은 로그인 없이 링크만으로 들어와 답할 수 있습니다.",
+    "clientFallback": "고객 #{{id}}",
+    "newProject": "+ 새 프로젝트 만들기",
+    "newProjectPh": "새 프로젝트 이름"
   },
   "common": {
     "close": "닫기",
@@ -230,7 +234,9 @@
     "projectFallback": "프로젝트",
     "cancel": "취소",
     "creating": "생성 중...",
-    "create": "프로젝트 생성"
+    "create": "프로젝트 생성",
+    "disableChannel": "채널 끄기",
+    "enableChannel": "채널 켜기"
   },
   "chat": {
     "noProject": "대화를 시작해 보세요",
@@ -313,7 +319,13 @@
       "invoicePaid": "결제 완료",
       "invoicePartial": "부분 결제",
       "invoiceCanceled": "취소됨",
-      "invoiceNotified": "송금 완료 알림 받음"
+      "invoiceNotified": "송금 완료 알림 받음",
+      "calendarLabel": "일정",
+      "fileLabel": "파일",
+      "kbLabel": "대화 자료",
+      "locked": "🔒 비번 보호",
+      "previewLabel": "문서 미리보기",
+      "taskLabel": "업무"
     },
     "draft": {
       "title": "Cue 답변 대기",
@@ -346,7 +358,9 @@
       "placeholder": "메시지 입력",
       "hint": "Enter 전송 · Shift+Enter 줄바꿈",
       "extractHint": "AI 가 이 대화에서 할 일 후보를 뽑아냅니다",
-      "emoji": "이모지"
+      "emoji": "이모지",
+      "attachPost": "문서 카드",
+      "uploading": "업로드 중..."
     },
     "yesterday": "어제",
     "weekday": {
@@ -361,7 +375,8 @@
     "popout": "새 창으로 분리",
     "openClientTimeline": "{{name}} 의 통합 타임라인 열기",
     "guestBadge": "게스트",
-    "guestBadgeHint": "로그인 없이 초대 링크로 들어온 상대입니다"
+    "guestBadgeHint": "로그인 없이 초대 링크로 들어온 상대입니다",
+    "dropHere": "여기에 놓아 업로드"
   },
   "page": {
     "title": "Q talk",
@@ -496,7 +511,9 @@
     "noInfo": "추가 정보가 없습니다",
     "notFound": "정보를 불러올 수 없습니다",
     "openClientProfile": "고객 프로필 열기",
-    "openMemberProfile": "멤버 프로필 열기"
+    "openMemberProfile": "멤버 프로필 열기",
+    "externalUser": "(외부 사용자)",
+    "noName": "(이름 없음)"
   },
   "popout": {
     "title": "PlanQ 채팅"
@@ -563,5 +580,13 @@
     "sentMsg": "서명자 명단에 있는 주소라면 방금 링크를 보냈습니다. 메일함을 확인해 주세요.",
     "failed": "보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
     "tooMany": "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "newProject": {
+    "customerChannelName": "{{name}} 고객",
+    "internalChannelName": "{{name}} 내부"
+  },
+  "preview": {
+    "attachments": "[첨부 {{count}}개]",
+    "card": "[카드]"
   }
 }

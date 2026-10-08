@@ -57,5 +57,16 @@
     "footer": "PlanQ 로 작성된 보고서"
   },
   "teamLead": "팀장",
-  "noTeamLead": "팀장 없음"
+  "noTeamLead": "팀장 없음",
+  "activity": {
+    "empty": "아직 기록이 없어요",
+    "hint": "누가 언제 무엇을 했는지 남습니다. 삭제도 기록됩니다.",
+    "loadFailed": "활동 기록을 불러오지 못했어요",
+    "more": "더 보기",
+    "onlyDelete": "삭제만 보기",
+    "ownerOnly": "워크스페이스 관리자만 볼 수 있어요",
+    "refresh": "새로고침",
+    "title": "팀원 활동 기록",
+    "unknownActor": "알 수 없음"
+  }
 }

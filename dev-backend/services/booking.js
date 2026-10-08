@@ -622,7 +622,7 @@ async function requestForActor(actor, { start, purpose, memo }) {
   // 영업 단계 — 아직 영업 밖이면 «문의» 로(자동은 올리기만 한다 — salesStage 규칙)
   try {
     const { setStage } = require('./salesStage');
-    await setStage(client, 'inquiry', { origin: 'auto', reason: '상담 예약 신청', sourceRef: { calendar_event_id: ev.id } });
+    await setStage(client, 'inquiry', { origin: 'auto', reason: 'booking_request', sourceRef: { calendar_event_id: ev.id } });
   } catch (e) { console.warn('[booking] 단계 전이 실패:', e.message); }
   audit(ev, 'booking.request', { userId: actor.userId || null, extra: { client_id: client.id, created_client: createdClient, by: actor.kind } });
   broadcast(ev, 'event:created');
@@ -810,7 +810,7 @@ async function confirmInternal(ev, { actorUserId, via, createMeeting = false }) 
     if (client) {
       try {
         const { setStage } = require('./salesStage');
-        await setStage(client, 'consulting', { origin: 'auto', reason: '상담 확정', sourceRef: { calendar_event_id: ev.id } });
+        await setStage(client, 'consulting', { origin: 'auto', reason: 'booking_confirm', sourceRef: { calendar_event_id: ev.id } });
       } catch (e) { console.warn('[booking] 단계 전이 실패:', e.message); }
     }
   }

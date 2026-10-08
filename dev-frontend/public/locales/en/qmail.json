@@ -155,7 +155,14 @@
     "fixAuthOauthToPassword": "Authorization expired, so receiving and sending have stopped. Create an app password and switch the connection method to keep it working without expiry.",
     "reconnectNow": "Reconnect",
     "switchToAppPassword": "Switch to app password",
-    "testSmtpFail": "Receiving works, but the sending login was rejected."
+    "testSmtpFail": "Receiving works, but the sending login was rejected.",
+    "changeScopeHint": "Switch this account between personal and company-shared",
+    "connectGmail": "Connect with Gmail",
+    "emailPh": "contact@company.com",
+    "imapHostPh": "imap.company.com",
+    "smtpHostPh": "smtp.company.com",
+    "toPersonal": "Switch to personal",
+    "toTeam": "Make company-shared"
   },
   "folders": {
     "title": "Mailboxes",
@@ -223,7 +230,12 @@
     "meShort": "Me",
     "promoteToSale": "Send to consults",
     "promoteToSaleHint": "Send this email to the Q sales consult list",
-    "promotedToSale": "Sent to consults"
+    "promotedToSale": "Sent to consults",
+    "follow": "Follow",
+    "following": "Following",
+    "newLabel": "+ New label",
+    "removeLabel": "Remove label",
+    "unassigned": "Unassigned"
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",
@@ -237,7 +249,9 @@
     "to": "To",
     "date": "Date",
     "subject": "Subject",
-    "origAttach": "Includes {{n}} original attachment(s)"
+    "origAttach": "Includes {{n}} original attachment(s)",
+    "originalIncluded": "The original email is attached below as is — just write what you want to add above it (you can leave it empty)",
+    "previewTitle": "Original to forward"
   },
   "messageCount": "{{n}} messages",
   "reply": {
@@ -274,7 +288,10 @@
     "aiWorking": "AI is drafting your reply…",
     "aiSlow": "AI is still writing. This can take a little longer — you can also just write it yourself.",
     "aiEmpty": "AI could not produce a draft this time. Try again, or tell it below what you want.",
-    "aliasHelpUnregistered": "This customer wrote to {{addr}}. Register it as an alias and your reply will be sent from that address too."
+    "aliasHelpUnregistered": "This customer wrote to {{addr}}. Register it as an alias and your reply will be sent from that address too.",
+    "aiFailed": "Couldn't generate an AI suggestion",
+    "aiNoInbound": "There's no received email to reply to.",
+    "aiUnavailable": "The AI service is temporarily unavailable."
   },
   "errors": {
     "loadList": "Failed to load inbox"
@@ -378,7 +395,8 @@
     },
     "kind": {
       "address": "By sender",
-      "keyword": "By wording"
+      "keyword": "By wording",
+      "domain": "Whole domain"
     },
     "evidence": {
       "manual": "Added manually",
@@ -555,7 +573,19 @@
     "removeRecipient": "Remove {{addr}}",
     "draftSaving": "Saving draft…",
     "draftSaved": "Draft saved",
-    "draftFailed": "Draft not saved — copy your text before sending"
+    "draftFailed": "Draft not saved — copy your text before sending",
+    "bodyPh": "Write your message…",
+    "bodyRequired": "Please enter a message",
+    "cancel": "Cancel",
+    "keptDraft": "Your saved draft is still there. Open \"New mail\" above to keep writing.",
+    "new": "New mail",
+    "noAccount": "No mail account to send from",
+    "send": "Send",
+    "sendFailed": "Failed to send",
+    "subject": "Subject",
+    "subjectPh": "Enter a subject",
+    "to": "To",
+    "toRequired": "Please enter a recipient"
   },
   "attachment": {
     "preview": "Preview",
@@ -721,5 +751,8 @@
   "spamFolder": {
     "note": "Mail imported from your Gmail/Naver spam folder is deleted after 30 days. Marking it as not spam here doesn't change your provider — please also mark it as not spam in Gmail/Naver.",
     "detailNote": "This mail came from your provider's (Gmail/Naver) spam folder. If it isn't spam, choose «Not spam» in the ⋯ menu and also mark it as not spam in Gmail/Naver. It is deleted automatically 30 days after it arrived."
+  },
+  "account": {
+    "personal": "Personal"
   }
 }

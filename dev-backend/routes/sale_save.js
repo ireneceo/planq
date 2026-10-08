@@ -390,10 +390,12 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
       //   전혀 없게 할 수 있어?") — `reason` 은 **화면에 나가는 값**이다. 개발자용 표식을 넣으면
       //   사용자가 그대로 읽는다. 어디서 왔는지는 사람 말로 남긴다.
       //   (뜻은 잃지 않는다 — 출처 구분이 필요하면 origin/sourceRef 로 남기지 reason 에 코드를 쓰지 않는다.)
-      const FROM_LABEL = { email_thread: '메일 문의', guest_link: '게스트 문의', manual: '직접 등록' };
+      // ★ 2026-10-08 0-I — reason 은 **코드**로 남기고 화면이 번역한다(qsale `stageReason.<code>`).
+      //   옛: 한국어 문장을 박제해 영어 사용자 타임라인에 한국어가 그대로 나갔다. (과거 행의 한국어는 화면이 그대로 그린다.)
+      const FROM_REASON = { email_thread: 'mail_inquiry', guest_link: 'guest_inquiry', manual: 'manual_add' };
       await setStage(client, 'inquiry', {
         origin: 'manual', by: req.user.id,
-        reason: FROM_LABEL[from] || '고객으로 등록',
+        reason: FROM_REASON[from] || 'client_added',
       });
       // 한도 숫자는 30초 캐시라 방금 만든 문의가 화면에 안 늘어 보인다 — 만든 쪽이 비운다(files.js 와 같은 처방)
       planEngine.invalidateBusinessCache(businessId);

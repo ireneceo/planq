@@ -449,5 +449,13 @@
     "thread_is_spam": "Spam can't be sent to Sales. Unmark spam first",
     "not_customer_chat": "Team chats can't be sent to Sales",
     "generic": "Couldn't send to Sales. Try again"
+  },
+  "stageReason": {
+    "booking_request": "Consultation booking requested",
+    "booking_confirm": "Consultation confirmed",
+    "mail_inquiry": "Email inquiry",
+    "guest_inquiry": "Guest inquiry",
+    "manual_add": "Added manually",
+    "client_added": "Registered as client"
   }
 }

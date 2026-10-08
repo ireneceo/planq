@@ -57,5 +57,16 @@
     "footer": "Report created with PlanQ"
   },
   "teamLead": "Team lead",
-  "noTeamLead": "No team lead"
+  "noTeamLead": "No team lead",
+  "activity": {
+    "empty": "No activity yet",
+    "hint": "Who did what and when is recorded here. Deletions are recorded too.",
+    "loadFailed": "Couldn't load the activity log",
+    "more": "Load more",
+    "onlyDelete": "Deletions only",
+    "ownerOnly": "Only workspace admins can view this",
+    "refresh": "Refresh",
+    "title": "Team activity log",
+    "unknownActor": "Unknown"
+  }
 }

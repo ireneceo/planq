@@ -79,7 +79,8 @@
         "active": "Active",
         "paused": "Paused",
         "closed": "Closed"
-      }
+      },
+      "pmTag": "PM"
     },
     "quickAdd": "Add a task in one line",
     "cue": {
@@ -180,7 +181,10 @@
     "creating": "Creating...",
     "create": "Create chat",
     "guestRoom": "Room for customers joining by link",
-    "guestRoomHint": "Turn this on to create share links here. Customers can open the link and reply without signing in."
+    "guestRoomHint": "Turn this on to create share links here. Customers can open the link and reply without signing in.",
+    "clientFallback": "Client #{{id}}",
+    "newProject": "+ Create new project",
+    "newProjectPh": "New project name"
   },
   "common": {
     "cancel": "Cancel",
@@ -262,7 +266,9 @@
     "projectFallback": "Project",
     "cancel": "Cancel",
     "creating": "Creating...",
-    "create": "Create project"
+    "create": "Create project",
+    "disableChannel": "Turn off channel",
+    "enableChannel": "Turn on channel"
   },
   "chat": {
     "noProject": "Start a conversation",
@@ -345,7 +351,13 @@
       "invoicePaid": "Paid",
       "invoicePartial": "Partially paid",
       "invoiceCanceled": "Canceled",
-      "invoiceNotified": "Payment sent notice received"
+      "invoiceNotified": "Payment sent notice received",
+      "calendarLabel": "Event",
+      "fileLabel": "File",
+      "kbLabel": "Shared material",
+      "locked": "🔒 Password protected",
+      "previewLabel": "Document preview",
+      "taskLabel": "Task"
     },
     "draft": {
       "title": "Cue draft pending",
@@ -378,7 +390,9 @@
       "placeholder": "Type a message",
       "hint": "Enter to send · Shift+Enter for newline",
       "extractHint": "AI extracts task candidates from this conversation",
-      "emoji": "Emoji"
+      "emoji": "Emoji",
+      "attachPost": "Document card",
+      "uploading": "Uploading..."
     },
     "yesterday": "Yesterday",
     "weekday": {
@@ -393,7 +407,8 @@
     "popout": "Open in new window",
     "openClientTimeline": "Open {{name}}'s unified timeline",
     "guestBadge": "Guest",
-    "guestBadgeHint": "Joined through an invite link, without signing in"
+    "guestBadgeHint": "Joined through an invite link, without signing in",
+    "dropHere": "Drop here to upload"
   },
   "page": {
     "title": "Q talk",
@@ -496,7 +511,9 @@
     "noInfo": "No additional info",
     "notFound": "Could not load profile",
     "openClientProfile": "Open client profile",
-    "openMemberProfile": "Open member profile"
+    "openMemberProfile": "Open member profile",
+    "externalUser": "(External user)",
+    "noName": "(No name)"
   },
   "popout": {
     "title": "PlanQ Chat"
@@ -563,5 +580,13 @@
     "sentMsg": "If that address is on the signer list, the link is on its way. Please check your inbox.",
     "failed": "Could not send. Please try again shortly.",
     "tooMany": "Too many requests. Please try again shortly."
+  },
+  "newProject": {
+    "customerChannelName": "{{name}} client",
+    "internalChannelName": "{{name}} internal"
+  },
+  "preview": {
+    "attachments": "[{{count}} attachments]",
+    "card": "[Card]"
   }
 }

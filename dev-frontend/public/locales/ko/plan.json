@@ -195,7 +195,23 @@
     },
     "bonusPeriod": "{{total}}개월 (1개월 요금 + {{bonus}}개월 추가)",
     "nextBilling": "다음 결제일 {{date}}",
-    "trialCarry": "남은 체험 {{days}}일은 그대로 이어집니다"
+    "trialCarry": "남은 체험 {{days}}일은 그대로 이어집니다",
+    "tax": {
+      "address": "사업장 주소",
+      "bizItem": "종목",
+      "bizItemPh": "예: 소프트웨어 개발",
+      "bizName": "상호",
+      "bizNo": "사업자등록번호",
+      "bizType": "업태",
+      "bizTypePh": "예: 서비스업",
+      "ceoName": "대표자",
+      "contactName": "담당자명",
+      "contactPhone": "담당자 연락처",
+      "email": "세금계산서 받을 이메일",
+      "emailHint": "세금계산서 PDF 가 발행 후 이 주소로 발송됩니다.",
+      "requiredFields": "사업자번호·상호·대표자·이메일은 필수입니다.",
+      "toggle": "사업자 — 세금계산서 발행 받기"
+    }
   },
   "billing": {
     "history": {
@@ -242,7 +258,8 @@
     "cancelScheduleTitle": "전환 예약 취소",
     "cancelScheduleDesc": "{{plan}} 로 예정된 전환을 취소하시겠습니까?",
     "confirm": "확인",
-    "cancel": "취소"
+    "cancel": "취소",
+    "nextBillingDate": "다음 결제일"
   },
   "enterprise": {
     "title": "Enterprise — 대규모 팀·맞춤 계약",

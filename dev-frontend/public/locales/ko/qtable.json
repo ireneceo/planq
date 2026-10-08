@@ -90,7 +90,8 @@
     "body": "계정 정보·자산·연락처 등 표 형태 데이터를 워크스페이스 단위로 보관하세요.",
     "firstColumn": "컬럼을 추가해 표를 시작하세요",
     "firstColumnHint": "예: 회사명, 담당자, 상태, 마감일",
-    "firstColumnPh": "첫 컬럼 이름 (Enter)"
+    "firstColumnPh": "첫 컬럼 이름 (Enter)",
+    "readOnlyEmpty": "아직 표 데이터가 없습니다."
   },
   "attach": {
     "title": "첨부 추가",
@@ -104,7 +105,15 @@
     "newSection": "새 문서 작성 → 연결",
     "newBlank": "빈 문서",
     "newAi": "AI 작성",
-    "blankPostTitle": "새 문서"
+    "blankPostTitle": "새 문서",
+    "currentSection": "연결된 첨부",
+    "docNum": "문서",
+    "fileNum": "파일",
+    "newHint": "새 문서가 생성되어 이 셀에 자동 연결되고, 새 창에서 편집 페이지가 열립니다.",
+    "newTab": "새 창",
+    "openDoc": "문서 열기",
+    "openFile": "파일 열기",
+    "openInNewTab": "새 창에서 열기"
   },
   "survey": {
     "title": "설문으로 받기",

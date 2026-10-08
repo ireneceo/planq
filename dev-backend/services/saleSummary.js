@@ -94,10 +94,10 @@ async function buildInputLines(businessId, clientId, items) {
     }
     if (it.type === 'stage') {
       const m = it.meta || {};
-      text = `${m.from || '—'} → ${m.to}${m.origin === 'auto' ? ' (자동)' : ''}${m.reason ? ` · ${m.reason}` : ''}`;
+      text = `${m.from || '—'} → ${m.to}${m.origin === 'auto' ? ' (auto)' : ''}${m.reason ? ` · ${m.reason}` : ''}`;
     }
-    if (it.type === 'guest') text = (it.meta || {}).event === 'account_requested' ? '계정 요청' : '게스트 링크 발급';
-    if (!text) text = it.title || '(내용 없음)';
+    if (it.type === 'guest') text = (it.meta || {}).event === 'account_requested' ? 'account requested' : 'guest link issued';
+    if (!text) text = it.title || '(empty)';
     lines.push(`[#${n} ${it.type} ${it.id} ${at}] ${clip(text, 240)}${mark}`);
     index.push({ n, type: it.type, id: it.id });
   });
@@ -112,10 +112,16 @@ const SYSTEM = `너는 한 고객과의 접점 기록을 읽고 영업 담당자
 - 입력에 없는 사실을 지어내지 않는다. 추측하지 않는다.
 - 각 문장은 한 줄(60자 이내). 섹션마다 최대 4개.
 - 입력 줄에 "(미확인)" 이 붙어 있으면 그 문장 끝에도 "(미확인)" 을 붙인다.
-- 한국어로 쓴다.`;
+`;
+// 출력 언어 — 요청자 언어(User.language)로 쓴다(2026-10-08 0-I). 옛: «한국어로 쓴다» 고정.
+const systemPrompt = (lang) => `${SYSTEM}- ${lang === 'en' ? 'Write in English.' : '한국어로 쓴다.'}`;
 
-function toPlainText(json) {
-  const LABEL = { situation: '상황', needs: '요구·조건', decisions: '결정', open_issues: '미해결', next_steps: '다음' };
+const LABELS = {
+  ko: { situation: '상황', needs: '요구·조건', decisions: '결정', open_issues: '미해결', next_steps: '다음' },
+  en: { situation: 'Situation', needs: 'Needs', decisions: 'Decisions', open_issues: 'Open issues', next_steps: 'Next' },
+};
+function toPlainText(json, lang = 'ko') {
+  const LABEL = LABELS[lang] || LABELS.ko;
   const parts = [];
   for (const key of SECTIONS) {
     const rows = Array.isArray(json?.[key]) ? json[key] : [];
@@ -148,9 +154,10 @@ function normalize(raw, index) {
  * 요약 생성 — **stale 이 아니면 LLM 을 부르지 않는다.**
  * @returns {Promise<{ok:boolean, skipped?:string, status?:object}>}
  */
-async function generateSaleSummary(businessId, clientId, { userId, force = false, origin = 'manual' } = {}) {
+async function generateSaleSummary(businessId, clientId, { userId, force = false, origin = 'manual', lang: langIn } = {}) {
   const client = await Client.findOne({ where: { id: clientId, business_id: businessId } });
   if (!client) return { ok: false, skipped: 'not_found' };
+  const lang = langIn || (userId ? await require('./notifyTitle').recipientLang(userId) : 'ko');
 
   // 사람이 직접 고친 요약은 자동 시점이 덮지 않는다(§10.4). 사람이 [AI 로 다시] 를 누르면 force 로 온다.
   if (client.summary_manual && !force) return { ok: false, skipped: 'manual_summary' };
@@ -174,7 +181,7 @@ async function generateSaleSummary(businessId, clientId, { userId, force = false
   const r = await callLLM({
     purpose: 'sale_summary',
     json: true,
-    messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: userContent }],
+    messages: [{ role: 'system', content: systemPrompt(lang) }, { role: 'user', content: userContent }],
     fallback: '',
   });
   if (r.fallback || !r.content) return { ok: false, skipped: 'ai_unavailable', status: before };
@@ -184,7 +191,7 @@ async function generateSaleSummary(businessId, clientId, { userId, force = false
   if (!parsed) return { ok: false, skipped: 'ai_unparsable', status: before };
 
   const summaryJson = normalize(parsed, index);
-  const text = toPlainText(summaryJson);
+  const text = toPlainText(summaryJson, lang);
   if (!text) return { ok: false, skipped: 'ai_empty', status: before };
 
   const latestAt = windowed[0]?.at ? new Date(windowed[0].at) : new Date();

@@ -137,7 +137,13 @@
     },
     "nonRevenue": "Non-revenue (internal/tester) {{amount}}",
     "nonRevenueCount": "{{n}} non-revenue",
-    "nonRevenueBadge": "Non-revenue"
+    "nonRevenueBadge": "Non-revenue",
+    "issueTaxInvoice": "Issue tax invoice",
+    "markPaid": "Mark as paid",
+    "markPaidFailed": "Failed to mark as paid",
+    "refundReason": "Admin refund",
+    "taxIssued": "Tax invoice issued",
+    "taxIssueFailed": "Failed to mark tax invoice as issued"
   },
   "subs": {
     "title": "Subscriptions",
@@ -214,7 +220,45 @@
       "keySaveFailed": "Couldn't save the private key",
       "returnUrl": "Return URL to register with Apple",
       "returnHint": "Register this server's domain and this URL under Website URLs in the Services ID settings. The dev and production servers each need their own entry."
-    }
+    },
+    "announcement_text": "Announcement text",
+    "announcement_text_en": "Announcement text (English)",
+    "announcement_text_en_ph": "Leave empty to reuse the Korean text",
+    "announcement_textPh": "e.g. Maintenance on May 6, 22:00–23:00",
+    "announcementHint": "Shown at the top of every user's sidebar. Leave empty to hide.",
+    "announcementSection": "Announcement banner",
+    "app_android_url": "App download — Android (Play Store / APK URL)",
+    "app_ios_url": "App download — iOS (App Store / TestFlight URL)",
+    "app_url_hint": "The /app download page sends visitors to this link based on their device (iOS/Android). If empty, it shows \"Coming soon\".",
+    "dismissible": "Users can dismiss",
+    "legalEntityPh": "WorPro Lab",
+    "legalHint": "Raising a version shows a re-consent modal to every user.",
+    "legalSection": "Terms versions",
+    "maintenance_message": "Maintenance message (shown to users)",
+    "maintenance_messagePh": "e.g. System maintenance (until ~22:00)",
+    "maintenanceHint": "When on, every user except platform_admin gets a 503 response. Operators can keep working.",
+    "maintenanceOff": "Normal operation",
+    "maintenanceOn": "Under maintenance",
+    "maintenanceSection": "Maintenance mode",
+    "og_image_hint": "If empty, the default thumbnail (og-default.png — slogan + logo) is used. 1200×630 is the social standard.",
+    "og_image_url": "OG thumbnail image URL (1200×630 recommended)",
+    "privacy_version": "Privacy policy version",
+    "seo_description": "Default SEO description",
+    "seo_keywords": "SEO keywords (comma separated)",
+    "seo_title": "Default SEO title",
+    "seoDescPh": "A profitability engine that connects tasks, projects, people, time, clients and billing to turn time into money.",
+    "seoHint": "Title, description and thumbnail shown when a PlanQ link is shared on KakaoTalk, Facebook, X and others. Pages like public documents (/public/posts/...) use their own title and summary first and fall back to these defaults when empty.",
+    "seoKeywordsPh": "task management, project management, client management, B2B SaaS, workspace",
+    "seoSection": "SEO · Social sharing",
+    "seoTitlePh": "PlanQ — Work that works",
+    "sev": {
+      "critical": "Critical",
+      "info": "Info",
+      "warn": "Warning"
+    },
+    "severity": "Severity",
+    "taglinePh": "PlanQ keeps work from becoming a chore.",
+    "terms_version": "Terms of service version"
   },
   "page": {
     "title": "Workspace Admin",
@@ -300,7 +344,8 @@
       "noteLabel": "Reason",
       "notePlaceholder": "e.g. Promo free upgrade for 1 month",
       "confirm": "Apply",
-      "success": "Plan changed to {{plan}}"
+      "success": "Plan changed to {{plan}}",
+      "noChanges": "No changes"
     },
     "trial": {
       "title": "Trial settings",
@@ -555,5 +600,28 @@
       "other": "Other (unclassified)",
       "unclassified": "Classification failed"
     }
+  },
+  "pushLogs": {
+    "col": {
+      "category": "Category",
+      "host": "Host",
+      "status": "Status",
+      "time": "Time",
+      "title": "Title",
+      "user": "User"
+    },
+    "empty": {
+      "message": "Every Web Push delivery attempt is recorded here.",
+      "title": "No delivery records"
+    },
+    "hostTop": "Endpoint host top",
+    "loading": "Loading...",
+    "stat": {
+      "failed": "Failed · expired",
+      "rate": "Failure rate",
+      "sent": "Delivered",
+      "total": "Sent in 7 days"
+    },
+    "title": "Push delivery monitor"
   }
 }

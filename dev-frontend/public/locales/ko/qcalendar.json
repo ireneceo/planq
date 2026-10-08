@@ -361,5 +361,10 @@
     "saveAndSend": "알리고 저장",
     "changeTitle": "변경 알림을 보낼까요?",
     "changeLead": "바뀐 시간·장소를 참석자 {{count}}명에게 알립니다.\n{{names}}"
-  }
+  },
+  "chipTimeHour": "{{hour}}시",
+  "event": {
+    "untitled": "(제목 없음)"
+  },
+  "exceptionMark": "변경된 회차"
 }

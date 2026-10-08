@@ -73,6 +73,8 @@ const ACTIONS = {
   share_expiry_soon: { ko: '공유 링크 만료 임박', en: 'Share link expiring soon' },
   // Q Talk
   chat_message: { ko: '새 메시지', en: 'New message' },
+  chat_guest_message: { ko: '게스트 메시지', en: 'Guest message' },
+  chat_account_request: { ko: '고객 계정 요청', en: 'Client account request' },
   chat_mention: { ko: '멘션', en: 'Mentioned you' },
   // Q Calendar
   calendar_invite: { ko: '일정 초대', en: 'Event invitation' },

@@ -361,5 +361,10 @@
     "saveAndSend": "Save and notify",
     "changeTitle": "Notify attendees about the change?",
     "changeLead": "We'll tell {{count}} attendee(s) about the new time or place.\n{{names}}"
-  }
+  },
+  "chipTimeHour": "{{hour}}:00",
+  "event": {
+    "untitled": "(Untitled)"
+  },
+  "exceptionMark": "Changed occurrence"
 }

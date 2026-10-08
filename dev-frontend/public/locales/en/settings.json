@@ -22,7 +22,13 @@
     "cue": "Cue",
     "workFlow": "Work Management",
     "dataExport": "Data Export",
-    "attendance": "Attendance"
+    "attendance": "Attendance",
+    "myData": "My data",
+    "myMailAccount": "My mail account",
+    "myNotifications": "My notifications",
+    "notificationSettings": "Notification settings",
+    "workEnv": "Work environment",
+    "wsBackup": "Workspace backup"
   },
   "dataExport": {
     "intro": "Export your personal data or workspace data as a ZIP file. Files are kept as-is and documents are saved as HTML.",
@@ -465,7 +471,8 @@
     "roleAdmin": "Admin",
     "roleMember": "Member",
     "roleAi": "Cue",
-    "invite": "Invite Member"
+    "invite": "Invite Member",
+    "defaultRolePlaceholder": "e.g. Design"
   },
   "cue": {
     "sectionTitle": "Cue Settings",
@@ -629,7 +636,9 @@
     "hint": "Select from {{count}} candidate(s). Auto-filled on new invoice creation."
   },
   "common": {
-    "saved": "Saved"
+    "saved": "Saved",
+    "off": "OFF",
+    "on": "ON"
   },
   "cueKnowledge": {
     "title": "Workspace knowledge",
@@ -659,7 +668,27 @@
     "env": "Environment",
     "envWeb": "Web / PWA",
     "envInset": "App · inset (old build · screen {{sh}} / view {{vh}})",
-    "envFull": "App · fullscreen (screen {{sh}} / view {{vh}})"
+    "envFull": "App · fullscreen (screen {{sh}} / view {{vh}})",
+    "android": {
+      "1": "Android Settings → Apps → Chrome or PlanQ → Notifications ON",
+      "2": "Do Not Disturb OFF",
+      "3": "Exclude Chrome from battery optimization"
+    },
+    "aria": "Notification diagnostics",
+    "desc": "The server sent it, but the system seems to be blocking it. These steps should fix it.",
+    "ios": {
+      "1": "Check that PlanQ was added to the home screen (Safari Share → \"Add to Home Screen\")",
+      "2": "iOS Settings → Notifications → PlanQ → \"Allow Notifications\" + \"Sounds\" and \"Badges\" ON",
+      "3": "Do Not Disturb / Focus OFF"
+    },
+    "macOpenSettings": "Open macOS notification settings →",
+    "other": {
+      "1": "Check the browser's notification permission is \"Allow\"",
+      "2": "Turn on browser notifications in the OS settings",
+      "3": "Do Not Disturb OFF"
+    },
+    "retry": "Test again",
+    "title": "Notifications didn't arrive"
   },
   "apitoken": {
     "nameRequired": "Give the token a name — it's the only way to tell tokens apart when revoking.",
@@ -797,5 +826,36 @@
     "topicsHelp": "Keeps only statistics on the topic of questions asked to Cue and Q helper (e.g. tasks, billing) and whether they were answered. Who asked, and from which workspace, is not stored.",
     "raw": "Keep unclassified questions for 30 days (pseudonymized)",
     "rawHelp": "Only product how-to questions whose topic couldn't be identified are kept for 30 days, with names, emails, phone numbers, amounts and links masked, then deleted. Questions about your workspace data are never kept. If you turn this off, new questions aren't kept and anything already kept is deleted automatically within 30 days."
+  },
+  "addon": {
+    "currentlyAdded": "Currently added slots",
+    "desc": "Buy extra members, clients, Q Note time and more beyond your plan's limits, by the month.",
+    "fields": {
+      "clients": "Add client slots",
+      "cue": "Add Cue actions",
+      "members": "Add members",
+      "qnote": "Add Q Note time",
+      "storage": "Add storage"
+    },
+    "footNote": "After your request, an operator emails payment instructions. Once payment is confirmed, it's applied within the next business day. Automatic monthly renewal will come in a later update.",
+    "perMonth": "/ month",
+    "requestBuy": "Request",
+    "requestErr": "Request failed: {{msg}}",
+    "requesting": "Requesting...",
+    "requestOk": "Request received — a {{krw}} KRW invoice is issued and payment instructions are emailed. The limit was applied immediately.",
+    "title": "Add-ons"
+  },
+  "push": {
+    "desc": "Get push notifications in the browser or the home-screen PWA on mobile — even when you're not looking at PlanQ.",
+    "errMsg": "Couldn't turn on notifications: {{r}}",
+    "scopeHint": "This applies only to your account in this browser (or PWA). It doesn't affect other members or devices — turn it on for each device.",
+    "subscribedMsg": "Notifications are on for this device",
+    "testBtn": "Send a test notification",
+    "testNoVapidMsg": "VAPID keys not set — operator setup needed",
+    "testSentMsg": "Test notification sent ({{n}})",
+    "title": "Device notifications (Web Push)",
+    "unsubscribeBtn": "Turn off notifications on this device",
+    "unsubscribedMsg": "Notifications are off for this device",
+    "unsupportedMsg": "This browser doesn't support push notifications."
   }
 }

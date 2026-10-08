@@ -7,7 +7,7 @@
 // 를 얹은 얇은 컨벤션이다. 접근성(scroll lock·focus trap·Esc·backdrop·aria-modal)은 DetailDrawer 내장.
 //
 // 사용:
-//   <CreateDrawer open={creating} onClose={close} title={t('event.new')}
+//   <CreateDrawer open={creating} onClose={close} title={t('<ns>:<key>')}
 //       onSubmit={save} submitting={submitting} submitLabel={t('common:save')}>
 //     {/* 폼 필드 */}
 //   </CreateDrawer>

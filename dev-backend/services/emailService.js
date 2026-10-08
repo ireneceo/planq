@@ -1242,7 +1242,7 @@ function signupVerifyEmailHtml({ name, verifyUrl, ttlHours = 72 }) {
   const body = `
     <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">${escapeHtml(name || '안녕하세요')}님, PlanQ 가입을 환영합니다</div>
     <div style="margin-top:12px;font-size:14px;color:#475569;line-height:1.7;">
-      아래 버튼을 눌러 이메일 인증을 완료해주세요. 인증해야 모든 기능을 사용할 수 있습니다.
+      아래 버튼을 눌러 이메일 주소 인증을 완료해주세요.
     </div>
     <div style="margin-top:20px;text-align:center;">
       ${ctaButton(verifyUrl, '이메일 인증하기')}

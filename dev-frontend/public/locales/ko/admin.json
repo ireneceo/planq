@@ -137,7 +137,13 @@
     },
     "nonRevenue": "비매출(내부·테스터) {{amount}}",
     "nonRevenueCount": "중 비매출 {{n}}건",
-    "nonRevenueBadge": "비매출"
+    "nonRevenueBadge": "비매출",
+    "issueTaxInvoice": "세금계산서 발행",
+    "markPaid": "입금 완료 처리",
+    "markPaidFailed": "입금 처리 실패",
+    "refundReason": "관리자 환불",
+    "taxIssued": "세금계산서 발행됨",
+    "taxIssueFailed": "세금계산서 발행 처리 실패"
   },
   "subs": {
     "title": "구독 관리",
@@ -214,7 +220,45 @@
       "keySaveFailed": "개인키를 저장하지 못했습니다",
       "returnUrl": "Apple 에 등록할 Return URL",
       "returnHint": "Services ID 설정의 Website URLs 에 이 서버의 도메인과 이 주소를 등록합니다. 개발 서버와 운영 서버는 각각 따로 넣어야 합니다."
-    }
+    },
+    "announcement_text": "공지 내용",
+    "announcement_text_en": "공지 내용 (English)",
+    "announcement_text_en_ph": "Leave empty to reuse the Korean text",
+    "announcement_textPh": "예: 5월 6일 22~23시 점검 예정",
+    "announcementHint": "입력하면 모든 사용자 사이드바 상단에 노출됩니다. 비우면 숨김.",
+    "announcementSection": "공지 배너",
+    "app_android_url": "앱 다운로드 — Android (Play Store / APK URL)",
+    "app_ios_url": "앱 다운로드 — iOS (App Store / TestFlight URL)",
+    "app_url_hint": "/app 다운로드 페이지가 방문자 환경(iOS/Android)에 맞춰 이 링크로 안내합니다. 비우면 \"출시 준비 중\"으로 표시됩니다.",
+    "dismissible": "사용자가 닫기 가능",
+    "legalEntityPh": "워프로랩",
+    "legalHint": "버전을 올리면 모든 사용자에게 재동의 모달이 노출됩니다.",
+    "legalSection": "약관 버전",
+    "maintenance_message": "점검 메시지 (사용자에게 표시)",
+    "maintenance_messagePh": "예: 시스템 점검 중 (~22:00 종료 예정)",
+    "maintenanceHint": "켜면 platform_admin 외 모든 사용자에게 503 응답. 운영자는 계속 사용 가능합니다.",
+    "maintenanceOff": "정상 운영",
+    "maintenanceOn": "점검 중",
+    "maintenanceSection": "점검 모드",
+    "og_image_hint": "비우면 기본 썸네일(og-default.png — 슬로건 + 로고)을 사용합니다. SNS 표준 1200×630 권장.",
+    "og_image_url": "OG 썸네일 이미지 URL (1200×630 권장)",
+    "privacy_version": "개인정보 처리방침 버전",
+    "seo_description": "SEO 기본 설명",
+    "seo_keywords": "SEO 키워드 (쉼표 구분)",
+    "seo_title": "SEO 기본 제목",
+    "seoDescPh": "업무, 프로젝트, 사람, 시간, 고객, 청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진.",
+    "seoHint": "카카오톡·페이스북·트위터 등에서 PlanQ 링크 공유 시 노출되는 제목·설명·썸네일입니다. 공개 문서(/public/posts/...) 같은 페이지는 자기 제목·요약을 우선 사용하고, 비어있으면 여기 기본값으로 fallback 합니다.",
+    "seoKeywordsPh": "업무관리, 프로젝트관리, 고객관리, B2B SaaS, 워크스페이스",
+    "seoSection": "SEO · SNS 공유",
+    "seoTitlePh": "PlanQ — 일이 일이 되지 않게",
+    "sev": {
+      "critical": "긴급",
+      "info": "안내",
+      "warn": "주의"
+    },
+    "severity": "중요도",
+    "taglinePh": "일이 일이 되지 않게 플랜큐가 도와드립니다.",
+    "terms_version": "이용약관 버전"
   },
   "page": {
     "title": "워크스페이스 관리",
@@ -300,7 +344,8 @@
       "noteLabel": "변경 사유",
       "notePlaceholder": "예: 프로모션 무료 업그레이드 1개월",
       "confirm": "변경",
-      "success": "플랜이 {{plan}} 으로 변경되었습니다"
+      "success": "플랜이 {{plan}} 으로 변경되었습니다",
+      "noChanges": "변경 사항이 없습니다"
     },
     "trial": {
       "title": "체험 기간 설정",
@@ -555,5 +600,28 @@
       "other": "기타(분류 안 됨)",
       "unclassified": "분류 실패"
     }
+  },
+  "pushLogs": {
+    "col": {
+      "category": "카테고리",
+      "host": "Host",
+      "status": "상태",
+      "time": "시각",
+      "title": "제목",
+      "user": "사용자"
+    },
+    "empty": {
+      "message": "Web Push 발송 시도가 모두 여기에 기록됩니다.",
+      "title": "발송 기록이 없습니다"
+    },
+    "hostTop": "Endpoint host top",
+    "loading": "로드 중...",
+    "stat": {
+      "failed": "실패·만료",
+      "rate": "실패율",
+      "sent": "성공",
+      "total": "7일 발송"
+    },
+    "title": "Push 발송 모니터링"
   }
 }

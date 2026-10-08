@@ -500,7 +500,7 @@ const RightPanel: React.FC<Props> = ({
                   <MemberName>{m.name}</MemberName>
                   <RoleTag>{m.role}</RoleTag>
                   {/* PM 배지 — 정식 project_members.is_pm (백엔드 직렬화 + QTalkPage 매핑) */}
-                  {(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>{t('right.info.members.pm', 'PM')}</PmTag>}
+                  {(m as unknown as { is_pm?: boolean }).is_pm && <PmTag>{t('right.info.pmTag', 'PM')}</PmTag>}
                 </MemberRow>
               ))}
               <DetailLink type="button" onClick={() => navigate(`/projects/p/${project.id}`)}>

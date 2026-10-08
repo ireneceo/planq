@@ -433,7 +433,8 @@
       "addTaskGo": "Add"
     },
     "datesReadOnly": "Only the requester, assignee, or an admin can change the dates",
-    "checkLocked": "Completed via approval — revert from the detail panel"
+    "checkLocked": "Completed via approval — revert from the detail panel",
+    "hasUnread": "New activity (comments · changes) — clears when opened"
   },
   "empty": {
     "title": "Start your first task",
@@ -459,7 +460,10 @@
   },
   "save": {
     "fail": "Couldn’t save {{what}}. The value was not applied on the server.",
-    "failAuth": "Couldn’t save {{what}} — your session may have expired. Refresh and try again."
+    "failAuth": "Couldn’t save {{what}} — your session may have expired. Refresh and try again.",
+    "error": "Save failed",
+    "saved": "Saved",
+    "saving": "Saving"
   },
   "descAttach": {
     "add": "Attach file/document",
@@ -645,7 +649,8 @@
       "warnTitle": "Reset current review round?",
       "warnBody": "Adding a reviewer during an active round resets all reviewers to pending. Previous approvals will need to be re-confirmed.",
       "warnConfirm": "Add and reset",
-      "external": "External"
+      "external": "External",
+      "roundTip": "Review round"
     },
     "history": {
       "title": "History",
@@ -705,7 +710,13 @@
     "versionAdded": "Deliverable v{{n}} added",
     "versionSubmitted": "submitted for review",
     "duplicate": "Duplicate (assignee and dates reset)",
-    "duplicateShort": "Duplicate"
+    "duplicateShort": "Duplicate",
+    "attachFile": "Attach files · documents",
+    "commentDelete": "Delete",
+    "commentEdit": "Edit",
+    "commentMenu": "Edit/Delete",
+    "sending": "Sending...",
+    "share": "Share"
   },
   "weeklyReview": {
     "finalize": "Wrap Up Week",
@@ -724,7 +735,8 @@
       "openReport": "Open report",
       "editReport": "Update report",
       "writeReport": "Write report",
-      "saved": "Report saved. You can find it in My reports."
+      "saved": "Report saved. You can find it in My reports.",
+      "saveError": "Save failed. Please try again shortly."
     },
     "tab": {
       "empty": "No saved reviews yet",
@@ -918,7 +930,8 @@
       "shareFail": "Failed to create share link",
       "execSummary": "Executive summary",
       "execPh": "Summarize org-wide judgment, results, and risks for this period (auto-saved)",
-      "execEmpty": "No executive summary yet."
+      "execEmpty": "No executive summary yet.",
+      "membersN": "{{n}} members"
     },
     "unit": {
       "loadError": "Failed to load the report",
@@ -1234,7 +1247,10 @@
       "no_area_assignment": "{{n}} areas were proposed but no task was assigned to any of them — they will be created without an area"
     },
     "workstreamNone": "No group",
-    "workstreamCreate": "Create '{{name}}' as a new group"
+    "workstreamCreate": "Create '{{name}}' as a new group",
+    "baseHint": "Changing the start date recalculates every schedule automatically.",
+    "startDate": "Start date",
+    "startHint": "All task schedules are calculated from this date."
   },
   "bar": {
     "resumeTitle": "In progress",
@@ -1445,6 +1461,45 @@
       "mine": "Assigned to me",
       "requested": "Requested by me",
       "others": "Someone else"
+    }
+  },
+  "chip": {
+    "fromRequester": "Requester",
+    "toAssignee": "Assignee"
+  },
+  "templateSave": {
+    "defaultName": "{{name}} template"
+  },
+  "tplSave": {
+    "cancel": "Cancel",
+    "category": "Category (optional)",
+    "categoryHint": "Same categories are grouped automatically. Typing a new category creates a new group.",
+    "categoryPh": "e.g. Web development, Marketing, Education (free text)",
+    "desc": "Description (optional)",
+    "descPh": "Briefly describe when to use this template",
+    "hint": "Saves the current project's task schedule (only tasks with start and due dates) as a template. Start dates are converted relative to the earliest task.",
+    "name": "Template name",
+    "namePh": "e.g. Standard WordPress site flow",
+    "save": "Save",
+    "saving": "Saving...",
+    "title": "Save as template"
+  },
+  "weekdayShort": {
+    "0": "Sun",
+    "1": "Mon",
+    "2": "Tue",
+    "3": "Wed",
+    "4": "Thu",
+    "5": "Fri",
+    "6": "Sat"
+  },
+  "workspaceWeekly": {
+    "banner": {
+      "disabledDesc": "When an admin turns on auto finalize in \"Task management\" settings, the integrated report is created automatically every week.",
+      "disabledTitle": "Auto finalize is off",
+      "enabledTitle": "Auto finalized every {{dow}} at {{hour}}",
+      "nextLabel": "Next auto finalize",
+      "toSettings": "Change settings"
     }
   }
 }

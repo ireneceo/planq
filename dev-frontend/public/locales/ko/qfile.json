@@ -3,5 +3,17 @@
     "title": "Q file",
     "desc": "워크스페이스 전체 파일을 한 곳에서 관리합니다.",
     "noWorkspace": "워크스페이스를 먼저 선택하세요"
+  },
+  "drive": {
+    "connectCta": "내 외부 연동에서 연결하기",
+    "empty": "아직 PlanQ 가 내 드라이브에 저장한 파일이 없어요",
+    "loadFailed": "불러오기 실패",
+    "loading": "불러오는 중…",
+    "notConnected": "Google Drive 를 연결하면 PlanQ 가 내 드라이브에 저장한 파일을 여기서 볼 수 있어요.",
+    "searchPlaceholder": "PlanQ 저장 파일 검색 (Enter)"
+  },
+  "tabs": {
+    "personal": "내 파일 (Drive)",
+    "workspace": "회사 파일"
   }
 }

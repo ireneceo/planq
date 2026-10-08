@@ -1523,5 +1523,9 @@
         "body": "Nothing is counted twice, so you can trust the numbers."
       }
     }
+  },
+  "coming": {
+    "backToHome": "Home",
+    "eyebrow": "Coming soon"
   }
 }

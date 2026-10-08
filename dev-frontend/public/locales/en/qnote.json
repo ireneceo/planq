@@ -79,7 +79,11 @@
       "summary": "Generate Summary",
       "organize": "Organize",
       "organizeTitle": "Convert this session to task / knowledge / document / external share",
-      "questions": "View Questions"
+      "questions": "View Questions",
+      "emptyTranscript": "There's no transcript to summarize.",
+      "settings": "View settings",
+      "share": "Share",
+      "shareTitle": "Share meeting notes"
     },
     "summary": {
       "title": "Summary",
@@ -236,7 +240,24 @@
     "quickRecord": {
       "title": "Voice memo {{time}}"
     },
-    "translateFailed": "Translation failed"
+    "translateFailed": "Translation failed",
+    "questionsModal": {
+      "empty": "No questions detected.",
+      "title": "Questions"
+    },
+    "sessionDelete": "Delete session",
+    "settingsView": {
+      "answerLanguage": "Answer language",
+      "answerLength": "Answer length",
+      "answerStyle": "Answer style",
+      "brief": "Meeting brief",
+      "context": "Meeting context",
+      "edit": "Edit settings",
+      "meetingLanguages": "Meeting languages",
+      "participants": "Participants",
+      "title": "Meeting settings",
+      "translationLanguage": "Translation language"
+    }
   },
   "memoPopup": {
     "title": "Memo",
@@ -513,5 +534,36 @@
     "registerFailed": "Could not create the task.",
     "rejectFailed": "Could not dismiss the candidate.",
     "needText": "A transcript or summary is needed to extract tasks."
+  },
+  "common": {
+    "deleting": "Deleting..."
+  },
+  "share": {
+    "external": {
+      "cancel": "Cancel",
+      "confirmRevoke": "Revoke",
+      "copied": "Copied!",
+      "copy": "Copy",
+      "create": "Create share link",
+      "creating": "Creating link...",
+      "hint": "Anyone with the link can see the meeting content. You can revoke it any time.",
+      "revoke": "Revoke share link",
+      "revokeConfirm": "Revoke it? The existing link expires immediately.",
+      "title": "Share externally by link"
+    },
+    "hint": "Choose who can see these meeting notes.",
+    "L1": {
+      "desc": "Only you can see these meeting notes.",
+      "title": "Only me"
+    },
+    "L2": {
+      "desc": "Only members of the linked project can see them.",
+      "title": "Project members"
+    },
+    "L3": {
+      "desc": "Every member of the workspace can see them.",
+      "title": "Workspace"
+    },
+    "needProject": "(No project is linked to these meeting notes)"
   }
 }

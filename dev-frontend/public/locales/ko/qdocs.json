@@ -66,7 +66,10 @@
     "defaultTitlePrefix": "자료정리",
     "separatorHint": "여러 자료는 빈 줄 2개로 구분하세요. 파일은 워크스페이스에서 선택하거나 직접 업로드할 수 있습니다.",
     "attachFile": "파일 첨부",
-    "attachPickerTitle": "자료정리 파일 첨부"
+    "attachPickerTitle": "자료정리 파일 첨부",
+    "attachLabel": "파일·문서 첨부",
+    "optional": "(선택)",
+    "textLabel": "텍스트로 붙여넣기"
   },
   "received": {
     "searchPh": "문서 제목 검색",
@@ -214,7 +217,8 @@
     "more": "더보기",
     "menuSendToKnowledge": "Q info 로 보내기",
     "menuDownloadDocx": "워드로 내려받기",
-    "menuPrint": "인쇄"
+    "menuPrint": "인쇄",
+    "remove": "제거"
   },
   "project": {
     "docs": {
@@ -501,7 +505,11 @@
     "limitExceeded_native": "이번 달 AI 사용량 한도를 모두 사용했습니다. 다음 달에 초기화됩니다.",
     "unavailable": "AI 서비스가 일시적으로 사용 불가합니다. 잠시 후 다시 시도해 주세요.",
     "failed": "AI 생성에 실패했습니다.",
-    "untitledDoc": "문서"
+    "untitledDoc": "문서",
+    "kindPh": "문서 종류 선택",
+    "kindRequired": "문서 종류를 선택하세요",
+    "regenFailed": "재생성 실패. 잠시 후 다시 시도해 주세요.",
+    "tableDefaultPrefix": "표"
   },
   "vis": {
     "L1": "나만",
@@ -524,7 +532,8 @@
     "openLabel": "공개",
     "button": "공개",
     "change": "공개 범위 변경",
-    "changeHint": "공개 범위 변경 — 나만 / 팀(프로젝트 멤버) / 워크스페이스 / 외부"
+    "changeHint": "공개 범위 변경 — 나만 / 팀(프로젝트 멤버) / 워크스페이스 / 외부",
+    "label": "공개"
   },
   "share": {
     "button": "공유",
@@ -592,7 +601,8 @@
   "common": {
     "cancel": "취소",
     "close": "닫기",
-    "loading": "불러오는 중..."
+    "loading": "불러오는 중...",
+    "attach": "파일·문서 첨부"
   },
   "saveTpl": {
     "title": "템플릿으로 저장",
@@ -659,7 +669,14 @@
     "sigItemSignLong": "서명 (그리기·이미지)",
     "sigMenuHint": "누구의 칸인지 고르고, 넣을 것을 누르세요. 커서 자리에 들어갑니다.",
     "sigNewSigner": "새 서명자",
-    "taskList": "할 일 목록"
+    "taskList": "할 일 목록",
+    "addColumnBefore": "왼쪽에 열 추가",
+    "addRowBefore": "위에 행 추가",
+    "codeBlock": "코드 블록 (syntax 색상 + 복사 버튼)",
+    "heading3": "제목 3",
+    "inlineCode": "인라인 코드",
+    "insertImage": "이미지 삽입 (또는 붙여넣기/드래그)",
+    "insertImageAria": "이미지 삽입"
   },
   "tab": {
     "title": "문서",
@@ -720,7 +737,8 @@
     "createFirst": "첫 문서 작성",
     "noContent": "내용 없음",
     "loading": "로드 중...",
-    "editedAt": "수정 {{date}}"
+    "editedAt": "수정 {{date}}",
+    "pinned": "고정됨"
   },
   "filepicker": {
     "attachTitle": "첨부할 파일 선택"
@@ -776,7 +794,8 @@
     "pendingLocal": "이 기기에 임시 보관됨 · 저장해야 반영",
     "staleBar": "다른 사람이 이 문서를 저장했습니다. 어떻게 할까요?",
     "staleReload": "최신 내용 가져오기",
-    "staleOverwrite": "내 수정으로 덮어쓰기"
+    "staleOverwrite": "내 수정으로 덮어쓰기",
+    "signatureLocked": "서명 요청이 진행 중이거나 완료된 문서라 수정할 수 없습니다. 서명 요청을 취소하거나 새 버전 문서로 작성해 주세요."
   },
   "toc": {
     "title": "목차",
@@ -879,5 +898,23 @@
   },
   "links": {
     "saveFailed": "문서는 저장했지만 연결 문서를 저장하지 못했습니다. 다시 시도해 주세요."
-  }
+  },
+  "cat": {
+    "delete": "삭제",
+    "deleteMessage": "\"{{name}}\" 분류를 삭제할까요?",
+    "deleteMessageInUse": "\"{{name}}\" 분류를 삭제할까요? 이 분류의 문서 {{count}}건은 그대로 남고 분류만 비워집니다.",
+    "deleteTitle": "분류 삭제",
+    "rename": "이름 변경"
+  },
+  "slot": {
+    "cancel": "취소",
+    "close": "닫기",
+    "confirm": "문서로 시작",
+    "errMissing": "필수 슬롯을 채워주세요: {{keys}}",
+    "fillHint": "회사·프로젝트·고객 정보는 자동 채워졌습니다. 필요한 것만 수정하세요.",
+    "fillTitle": "슬롯 채우기",
+    "loading": "로드 중…",
+    "preview": "미리보기"
+  },
+  "tableDescOpenShort": "열기"
 }

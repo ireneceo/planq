@@ -192,7 +192,10 @@
     },
     "completed": "Ended",
     "errMaxOcc": "Enter end count (1+)",
-    "errEndDate": "Pick an end date"
+    "errEndDate": "Pick an end date",
+    "occCount": "{{n}}/{{m}} issued",
+    "occDone": "{{n}} issued",
+    "untilBadge": "Until {{d}}"
   },
   "timeline": {
     "title": "Customer Timeline",

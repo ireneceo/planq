@@ -160,7 +160,8 @@
       "all": "All types",
       "inquiry": "Question",
       "feedback": "Feedback"
-    }
+    },
+    "attachments": "Attached images"
   },
   "qhelper": {
     "action": {
@@ -386,8 +387,14 @@
       "user": "User",
       "action": "Action",
       "target": "Target",
-      "ip": "IP"
-    }
+      "ip": "IP",
+      "ua": "User Agent"
+    },
+    "fromPh": "From",
+    "newValue": "After",
+    "oldValue": "Before",
+    "system": "System",
+    "toPh": "To"
   },
   "attachments": {
     "title": "Attachments",
@@ -405,13 +412,15 @@
     "download": "Download",
     "driveEdit": "Edit in Drive",
     "driveEditFailed": "Couldn't open the editor",
-    "driveEditNoGoogle": "We can’t grant edit access to this email. Sign in with a Google account and try again."
+    "driveEditNoGoogle": "We can’t grant edit access to this email. Sign in with a Google account and try again.",
+    "empty": "No attachments"
   },
   "calendar": {
     "today": "Today",
     "thisWeek": "This week",
     "thisMonth": "This month",
-    "clear": "Clear"
+    "clear": "Clear",
+    "monthLabel": "{{month}}/{{year}}"
   },
   "combobox": {
     "createNew": "+ Create \"{{value}}\"",
@@ -447,7 +456,10 @@
     "rowShort": "Row",
     "tableShort": "Table",
     "undo": "Undo",
-    "redo": "Redo"
+    "redo": "Redo",
+    "slash": {
+      "empty": "No commands"
+    }
   },
   "filepicker": {
     "title": "Pick files",
@@ -827,19 +839,70 @@
     "taskRevisionRequested": "Revision requested",
     "taskOnHold": "Task put on hold",
     "taskExternalReview": "Task sent for external review",
-    "taskResumed": "Task resumed"
+    "taskResumed": "Task resumed",
+    "attachmentOnly": "(attachment)",
+    "clearAll": "Close all ({{n}})",
+    "close": "Close",
+    "installmentPaid": "Payment received",
+    "invoiceUpdated": "Invoice status changed",
+    "newMessage": "Message from {{sender}}",
+    "signatureRequested": "A signature request has arrived",
+    "signatureSigned": "Signed",
+    "someone": "Someone"
   },
   "share": {
     "chat": {
       "sent": "Sent to chat",
       "goToChat": "Open chat",
       "sendFail": "Failed to send",
-      "network": "Network error"
+      "network": "Network error",
+      "empty": "No active chat rooms in this workspace.",
+      "hint": "Shared as a card to the room's members. For password-protected links, share the password separately.",
+      "messagePlaceholder": "Short note for the chat room",
+      "sending": "Sending..."
     },
     "passwordHide": "Hide",
     "passwordShow": "Show",
     "blockedByAttachment": "This task has an attachment whose security level (internal or confidential) blocks external sharing. Set that file to general or remove it to create a link.",
-    "blocked": "Internal or confidential items cannot be shared externally. Lower the security level to general to share."
+    "blocked": "Internal or confidential items cannot be shared externally. Lower the security level to general to share.",
+    "copied": "Copied ✓",
+    "copy": "Copy",
+    "email": {
+      "hint": "For password-protected links, share the password with the recipient separately.",
+      "invalid": "Invalid email: {{address}}",
+      "messagePlaceholder": "Short note for the recipient",
+      "network": "Network error",
+      "sendFail": "Failed to send",
+      "sending": "Sending...",
+      "sent": "Sent",
+      "toPlaceholder": "a@example.com, b@example.com",
+      "toRequired": "Enter a recipient email"
+    },
+    "expiresOn": "This link expires on {{date}}",
+    "expiry": "Expiry",
+    "expiry30d": "30 days",
+    "expiry7d": "7 days",
+    "expiry90d": "90 days",
+    "expiryNever": "Never",
+    "failed": "Failed to create link",
+    "linkHint": "Anyone with the link can view the item on a preview page. PlanQ members open it inside the app automatically.",
+    "loading": "Creating link...",
+    "password": "Password",
+    "passwordChange": "New password (to change)",
+    "passwordHint": "Even if the link leaks, it can't be opened without the password.",
+    "passwordPlaceholder": "Optional — both the link and the password are needed",
+    "passwordRemove": "Remove password",
+    "passwordSave": "Save",
+    "passwordSaved": "Saved ✓",
+    "passwordSet": "Set",
+    "revoke": "Revoke link",
+    "revokeConfirm": "This revokes the share link. The existing link will stop working.",
+    "revokeYes": "Revoke",
+    "tab": {
+      "chat": "Chat room",
+      "email": "Email",
+      "link": "Link"
+    }
   },
   "candidate": {
     "noAssignee": "Unassigned",
@@ -1209,8 +1272,25 @@
     "kindCue": "System",
     "kindGuest": "Guest",
     "col": {
-      "verifiedTip": "Whether they clicked the verification link sent at signup"
-    }
+      "verifiedTip": "Whether they clicked the verification link sent at signup",
+      "actions": "Actions",
+      "created": "Joined",
+      "email": "Email",
+      "lastLogin": "Last login",
+      "name": "Name",
+      "role": "Role",
+      "verified": "Verified"
+    },
+    "empty": "No users",
+    "export": "Data",
+    "exportTip": "Download personal data (GDPR)",
+    "impersonate": "Impersonate",
+    "impersonateTip": "View as this user (30 min)",
+    "roleAdmin": "Admin",
+    "roleUser": "User",
+    "searchPh": "Search email or name",
+    "title": "User management",
+    "unverified": "Unverified"
   },
   "draft": {
     "restored": "Restored your unsent text",
@@ -1300,7 +1380,30 @@
       "counts": "{{count}} responses · {{email}} left an email",
       "weakestN": "weakest {{n}}",
       "failed": "Couldn't load stats"
-    }
+    },
+    "dCompany": "Company",
+    "dContact": "Contact",
+    "dCreated": "Received",
+    "detailAria": "Inquiry details",
+    "dGuest": "Guest",
+    "dLoggedIn": "Signed-in user",
+    "dMessage": "Message",
+    "dRepliedBy": "Last handled by",
+    "dReplyEmail": "Reply by email",
+    "dReplyNote": "Reply note (internal)",
+    "dReplyPh": "Internal note — record how it was handled. Not sent to the person who asked. Send replies separately from your email.",
+    "dSave": "Save",
+    "dSource": "Source",
+    "dStatus": "Change status",
+    "dTzAdmin": "Admin workspace time",
+    "dTzUser": "Inquirer workspace time",
+    "empty": "No inquiries in this status",
+    "kindAll": "All types",
+    "kindEnterprise": "Enterprise inquiry",
+    "kindGeneral": "General inquiry",
+    "kindLanding": "Landing page",
+    "mailSubject": "PlanQ inquiry",
+    "title": "Inquiry inbox"
   },
   "downloadTray": {
     "aria": "Download progress",
@@ -1356,5 +1459,24 @@
     "sending": "Sending…",
     "sent": "Reported #{{id}} — thank you. We will look into it.",
     "failed": "Could not send. Please try again."
+  },
+  "expired": {
+    "desc": "This share is no longer valid.",
+    "descWithLabel": "The share for {{label}} is no longer valid.",
+    "expiredOn": "Expired on: {{date}}",
+    "hint": "Ask the person who shared it for a new link."
+  },
+  "impersonate": {
+    "exit": "Back to my account",
+    "expiresIn": "Expires automatically in {{m}} min",
+    "viewingAs": "Viewing as \"{{email}}\""
+  },
+  "select": {
+    "noOptions": "No options",
+    "noResultFor": "No results for '{{query}}'",
+    "placeholder": "Select"
+  },
+  "singleDate": {
+    "placeholder": "Pick a date"
   }
 }

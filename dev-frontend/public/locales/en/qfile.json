@@ -3,5 +3,17 @@
     "title": "Q file",
     "desc": "Manage all workspace files in one place.",
     "noWorkspace": "Select a workspace first"
+  },
+  "drive": {
+    "connectCta": "Connect in My integrations",
+    "empty": "PlanQ hasn't saved any files to your Drive yet",
+    "loadFailed": "Connect Google Drive to see the files PlanQ saved to your Drive here.",
+    "loading": "Couldn't load",
+    "notConnected": "Loading…",
+    "searchPlaceholder": "Search files saved by PlanQ (Enter)"
+  },
+  "tabs": {
+    "personal": "My files (Drive)",
+    "workspace": "Company files"
   }
 }

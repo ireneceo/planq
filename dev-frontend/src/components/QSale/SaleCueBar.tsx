@@ -181,14 +181,14 @@ const SaleCueBar: React.FC<Props> = ({ businessId, onCreated }) => {
           </CueLine>
           {/* 고칠 수 있는 칸 — 확인 단계에서 바로잡는다. 우측 패널로 보내지 않는다. */}
           <Fields>
-            <F><FL>{t('inquiry.name') as string}</FL>
+            <F><FL>{t('inquiry.nameLabel') as string}</FL>
               <FI value={val('display_name')} data-testid="sale-cue-name"
                 onChange={(e) => set('display_name', e.target.value)} /></F>
-            <F><FL>{t('inquiry.company') as string}</FL>
+            <F><FL>{t('inquiry.companyLabel') as string}</FL>
               <FI value={val('company_name')} onChange={(e) => set('company_name', e.target.value)} /></F>
-            <F><FL>{t('inquiry.phone') as string}</FL>
+            <F><FL>{t('inquiry.phoneLabel') as string}</FL>
               <FI value={val('phone')} onChange={(e) => set('phone', e.target.value)} /></F>
-            <F><FL>{t('inquiry.email') as string}</FL>
+            <F><FL>{t('inquiry.emailLabel') as string}</FL>
               <FI value={val('email')} onChange={(e) => set('email', e.target.value)} /></F>
           </Fields>
           {err && <ErrorMsg role="alert">{err}</ErrorMsg>}

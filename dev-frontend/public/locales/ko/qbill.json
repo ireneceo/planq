@@ -297,7 +297,8 @@
       "hint": "고객에게 보내기 전 내 이메일로 미리보기 발송",
       "sent": "내 이메일({{to}})로 미리보기를 보냈어요",
       "noEmail": "내 계정 이메일이 없어 보낼 수 없어요",
-      "failed": "미리보기 발송에 실패했어요. 잠시 후 다시 시도해 주세요"
+      "failed": "미리보기 발송에 실패했어요. 잠시 후 다시 시도해 주세요",
+      "queued": "내 이메일({{to}})로 보내는 중입니다. 잠시 뒤 메일함을 확인해 주세요"
     },
     "reminder": {
       "action": "결제 독촉 보내기",
@@ -317,7 +318,8 @@
       "noRecipient": "고객 이메일이 없어 보낼 수 없어요",
       "failed": "재발송에 실패했어요. 잠시 후 다시 시도해 주세요",
       "lastSent": "최근 재발송 · {{days}}일 전",
-      "hint": "원본 청구서 메일(PDF 포함)을 고객에게 다시 보냅니다 — 독촉 아님"
+      "hint": "원본 청구서 메일(PDF 포함)을 고객에게 다시 보냅니다 — 독촉 아님",
+      "queued": "{{to}} 로 다시 보내는 중입니다"
     },
     "confirm": {
       "cancelInstallmentTitle": "회차 취소",
@@ -376,7 +378,12 @@
     "duplicate": {
       "failedTitle": "복사하지 못했습니다",
       "failed": "잠시 후 다시 시도해주세요."
-    }
+    },
+    "delete": {
+      "message": "되돌릴 수 없습니다. 발송된 청구서는 삭제 대신 \"취소\" 처리하세요.",
+      "title": "청구서를 삭제할까요?"
+    },
+    "financeError": "처리에 실패했습니다"
   },
   "newInvoice": {
     "title": "새 청구서",
@@ -384,7 +391,9 @@
       "title": "발송 완료",
       "chat": "\"{{name}}\" 채팅방에 카드 메시지를 보냈습니다",
       "email": "{{to}} 에게 이메일을 발송했습니다",
-      "goChat": "채팅방 가서 보기"
+      "goChat": "채팅방 가서 보기",
+      "emailNoAddr": "고객 이메일로 보내는 중입니다",
+      "note": "발송 결과는 청구서 상세에서 확인할 수 있습니다. 창을 닫아도 계속 진행됩니다."
     },
     "step": {
       "compose": "작성",
@@ -555,7 +564,8 @@
       "noEmail": "이메일 없음",
       "deliverChat": "채팅: {{name}}",
       "deliverEmail": "이메일: {{email}}",
-      "deliverPublicOnly": "공개 링크만 생성 (수동 전달)"
+      "deliverPublicOnly": "공개 링크만 생성 (수동 전달)",
+      "none": "없음"
     },
     "editTitle": "청구서 편집",
     "projectLinked": "이 청구서는 프로젝트에 연결됩니다",
@@ -563,7 +573,25 @@
       "useLast": "직전 청구 항목 불러오기",
       "useTime": "기록된 시간 추가",
       "timeItemDesc": "작업 시간",
-      "coverage": "업무 {{total}}건 중 {{with}}건에만 시간이 기록돼 있습니다 — 실제보다 적을 수 있습니다"
+      "coverage": "업무 {{total}}건 중 {{with}}건에만 시간이 기록돼 있습니다 — 실제보다 적을 수 있습니다",
+      "itemCount": "{{count}}건"
+    },
+    "source": {
+      "title": "출처 문서 (선택)",
+      "empty": "이 고객의 체결된 계약/견적이 없습니다. 출처 없이 발행합니다.",
+      "hint": "출처 선택 시 본문 항목·금액·분할 일정이 자동으로 채워집니다.",
+      "sharedOn": "공유 {{date}}"
+    },
+    "deliverOpts": {
+      "title": "발송",
+      "chat": "채팅방으로 결제 요청 카드 보내기",
+      "noChat": "이 고객의 채팅방이 없습니다",
+      "createChat": "채팅방 만들기 →",
+      "email": "이메일 발송",
+      "attachPdf": "PDF 첨부",
+      "publicLink": "공개 링크 자동 발급",
+      "publicLinkTarget": "공개 결제 페이지 (발행 즉시 생성)",
+      "after": "발행 후: {{list}}"
     }
   },
   "payments": {

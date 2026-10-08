@@ -175,7 +175,8 @@
       "addTaskGo": "추가"
     },
     "datesReadOnly": "기간은 요청자·담당자·관리자만 변경할 수 있어요",
-    "checkLocked": "컨펌으로 완료됨 — 되돌리기는 상세에서"
+    "checkLocked": "컨펌으로 완료됨 — 되돌리기는 상세에서",
+    "hasUnread": "새 활동(댓글·변경) — 열면 사라집니다"
   },
   "empty": {
     "title": "업무를 시작해 보세요",
@@ -459,7 +460,10 @@
   },
   "save": {
     "fail": "{{what}} 을(를) 저장하지 못했어요. 값이 서버에 반영되지 않았습니다.",
-    "failAuth": "{{what}} 을(를) 저장하지 못했어요 — 로그인이 만료되었을 수 있어요. 새로고침 후 다시 시도해 주세요."
+    "failAuth": "{{what}} 을(를) 저장하지 못했어요 — 로그인이 만료되었을 수 있어요. 새로고침 후 다시 시도해 주세요.",
+    "error": "저장 실패",
+    "saved": "저장됨",
+    "saving": "저장 중"
   },
   "descAttach": {
     "add": "파일·문서 첨부",
@@ -645,7 +649,8 @@
       "warnTitle": "진행 중인 라운드를 리셋할까요?",
       "warnBody": "컨펌자를 추가하면 모든 컨펌자가 대기 상태로 리셋됩니다. 이미 승인한 분들도 다시 검토가 필요합니다.",
       "warnConfirm": "추가하고 리셋",
-      "external": "외부"
+      "external": "외부",
+      "roundTip": "컨펌 회차"
     },
     "history": {
       "title": "히스토리",
@@ -705,7 +710,13 @@
     "versionAdded": "결과물 v{{n}} 추가됨",
     "versionSubmitted": "확인 요청",
     "duplicate": "복사 (담당자·날짜 리셋)",
-    "duplicateShort": "복사"
+    "duplicateShort": "복사",
+    "attachFile": "파일·문서 첨부",
+    "commentDelete": "삭제",
+    "commentEdit": "편집",
+    "commentMenu": "편집/삭제",
+    "sending": "전송 중...",
+    "share": "공유"
   },
   "weeklyReview": {
     "finalize": "이번 주 마무리",
@@ -724,7 +735,8 @@
       "openReport": "보고서 보기",
       "editReport": "보고서 수정",
       "writeReport": "보고서 작성",
-      "saved": "보고서가 저장됐어요. 나의 업무보고에서 볼 수 있어요."
+      "saved": "보고서가 저장됐어요. 나의 업무보고에서 볼 수 있어요.",
+      "saveError": "저장 실패. 잠시 후 다시 시도하세요."
     },
     "tab": {
       "empty": "아직 저장된 결산이 없습니다",
@@ -932,7 +944,8 @@
       "shareFail": "공유 링크 발급 실패",
       "execSummary": "전사 요약",
       "execPh": "이번 기간 전사 차원의 판단·성과·리스크를 요약해 주세요 (자동 저장)",
-      "execEmpty": "작성된 전사 요약이 없습니다."
+      "execEmpty": "작성된 전사 요약이 없습니다.",
+      "membersN": "멤버 {{n}}"
     },
     "unit": {
       "loadError": "보고서를 불러오지 못했습니다",
@@ -1234,7 +1247,10 @@
       "no_area_assignment": "영역 {{n}}개가 제안됐지만 업무가 어느 영역에도 배치되지 않았습니다 — 확정하면 영역 없이 만들어집니다"
     },
     "workstreamNone": "그룹 없음",
-    "workstreamCreate": "'{{name}}' 새 그룹으로 만들기"
+    "workstreamCreate": "'{{name}}' 새 그룹으로 만들기",
+    "baseHint": "시작일을 바꾸면 모든 일정이 자동 재계산돼요.",
+    "startDate": "시작일",
+    "startHint": "이 날짜 기준으로 모든 업무의 일정이 자동 계산됩니다."
   },
   "bar": {
     "resumeTitle": "이 업무 진행 중",
@@ -1445,6 +1461,45 @@
       "mine": "내 담당",
       "requested": "내가 요청",
       "others": "다른 사람"
+    }
+  },
+  "chip": {
+    "fromRequester": "요청자",
+    "toAssignee": "담당자"
+  },
+  "templateSave": {
+    "defaultName": "{{name}} 템플릿"
+  },
+  "tplSave": {
+    "cancel": "취소",
+    "category": "카테고리 (선택)",
+    "categoryHint": "같은 카테고리끼리 자동으로 그룹됩니다. 새 카테고리를 입력하면 새 그룹이 만들어져요.",
+    "categoryPh": "예: 웹 개발, 마케팅, 교육 사업 (자유 입력)",
+    "desc": "설명 (선택)",
+    "descPh": "어떤 상황에서 이 템플릿을 쓰는지 간단히 설명",
+    "hint": "현재 프로젝트의 업무 일정 (시작·마감 날짜 있는 것만) 을 템플릿으로 저장합니다. 시작일은 가장 빠른 업무 기준으로 자동 변환됩니다.",
+    "name": "템플릿 이름",
+    "namePh": "예: WordPress 사이트 표준 흐름",
+    "save": "저장",
+    "saving": "저장 중...",
+    "title": "템플릿으로 저장"
+  },
+  "weekdayShort": {
+    "0": "일",
+    "1": "월",
+    "2": "화",
+    "3": "수",
+    "4": "목",
+    "5": "금",
+    "6": "토"
+  },
+  "workspaceWeekly": {
+    "banner": {
+      "disabledDesc": "관리자가 \"업무 관리\" 설정에서 자동 확정을 켜면 매주 자동으로 통합 보고서가 만들어집니다.",
+      "disabledTitle": "자동 확정이 꺼져 있어요",
+      "enabledTitle": "매주 {{dow}} {{hour}} 에 자동 확정",
+      "nextLabel": "다음 자동 확정",
+      "toSettings": "설정 변경"
     }
   }
 }

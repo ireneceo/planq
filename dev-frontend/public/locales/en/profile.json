@@ -52,7 +52,10 @@
     "photoHint": "JPG, PNG or WebP · 2MB max. Visible to members of your workspaces.",
     "photoTooLarge": "Images must be 2MB or smaller.",
     "photoImageOnly": "Only JPG, PNG or WebP images can be uploaded.",
-    "photoFailed": "The photo could not be uploaded."
+    "photoFailed": "The photo could not be uploaded.",
+    "accountName": "Name",
+    "accountNameHint": "The name you entered at sign-up. Used for official documents such as receipts and tax invoices.",
+    "emailVerify": "Verify"
   },
   "workspaceProfile": {
     "sectionTitle": "Workspace Profile",
@@ -86,7 +89,8 @@
       "invalidCode": "Code does not match",
       "expired": "Code expired. Please request a new one.",
       "locked": "Locked after 5 failed attempts. Try again in 1 hour.",
-      "unknown": "Change failed"
+      "unknown": "Change failed",
+      "alreadyVerified": "This email is already verified."
     }
   },
   "qnoteProfile": {
@@ -281,7 +285,30 @@
     "calendarPrimary": "default",
     "calendarPickReconnect": "Events go to your primary calendar for now. To choose another calendar, allow Google's «see your calendar list» permission once more.",
     "calendarPickFailed": "Couldn't load your Google calendars. Please try again shortly.",
-    "calendarPickAllow": "Choose a calendar"
+    "calendarPickAllow": "Choose a calendar",
+    "connectDrive": "Connect Google Drive",
+    "connectedAt": "Connected: {{date}}",
+    "connectFailed": "Couldn't start the Google connection",
+    "connectFailed2": "Couldn't start connecting",
+    "connectGoogle": "Connect Google account",
+    "connecting": "Connecting…",
+    "connectingGoogle": "Connecting…",
+    "disconnect": "Disconnect",
+    "disconnectFailed": "Couldn't disconnect",
+    "disconnectLockoutWarn": "No password is set, so you can't remove your last sign-in method. Set a password in your profile first.",
+    "driveEmpty": "No personal file storage connected",
+    "driveSub": "Save PlanQ files to your own Google Drive and view them here (separate from the company Drive)",
+    "gotoWorkspace": "Go to company settings",
+    "lastSync": "Last sync: {{date}}",
+    "loading": "Loading...",
+    "login": "Sign-in",
+    "loginEmpty2": "No sign-in accounts connected.",
+    "loginSub": "External accounts you use to sign in to PlanQ",
+    "mailEmpty": "No personal mail connected",
+    "mailSyncError": "Sync error — you may need to reconnect",
+    "popupBlocked": "The popup was blocked. Please allow popups in your browser.",
+    "title": "My integrations",
+    "workspaceLink": "Company-wide integrations (Google Drive, company mail, etc.) are managed in company settings"
   },
   "accountDeletion": {
     "title": "Delete account",

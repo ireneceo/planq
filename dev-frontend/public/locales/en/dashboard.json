@@ -31,6 +31,9 @@
     "events": {
       "title": "This week",
       "empty": "No upcoming events"
+    },
+    "notifications": {
+      "title": "Recent notifications"
     }
   },
   "todo": {

@@ -372,7 +372,16 @@
     "empty": "없음",
     "channelCustomer": "고객",
     "channelInternal": "내부",
-    "channelGroup": "그룹"
+    "channelGroup": "그룹",
+    "archive": "채팅방 삭제",
+    "archiveConfirm": "삭제",
+    "archiveMessage": "\"{{name}}\" 채팅방을 삭제합니다. 모든 멤버에게 더 이상 보이지 않으며 메시지·참가자 데이터는 감사 목적으로 30일 보존됩니다.",
+    "archiveTitle": "채팅방 삭제",
+    "moreHint": "연결 끊기 / 삭제",
+    "unlink": "프로젝트 연결 끊기",
+    "unlinkConfirm": "연결 끊기",
+    "unlinkMessage": "\"{{name}}\" 채팅방을 이 프로젝트에서 분리합니다. 채팅방과 메시지는 보존되며 워크스페이스의 일반 채팅으로 전환됩니다.",
+    "unlinkTitle": "프로젝트 연결 끊기"
   },
   "clients": {
     "empty": "고객이 없습니다",
@@ -433,7 +442,10 @@
     "cancel": "취소",
     "owner": "오너",
     "noCandidates": "추가 가능한 워크스페이스 멤버가 없습니다",
-    "unknown": "알 수 없는 멤버"
+    "unknown": "알 수 없는 멤버",
+    "pmOff": "PM 지정",
+    "pmOn": "PM 해제",
+    "pmOwner": "프로젝트 생성자는 자동 PM"
   },
   "docs": {
     "drop": {
@@ -517,7 +529,9 @@
       "clickToOpen": "눌러서 열기 — 앱에서 못 여는 형식은 내려받습니다",
       "expand": "크게 보기",
       "loadingImage": "이미지 불러오는 중…",
-      "quickView": "크게 보기"
+      "quickView": "크게 보기",
+      "loadingText": "여는 중…",
+      "tooLargeOrFailed": "이 파일은 앱에서 열기에 너무 크거나 열 수 없습니다. 내려받아 확인해 주세요."
     },
     "wsUpload": {
       "title": "어느 프로젝트에 업로드할까요?",
@@ -689,7 +703,8 @@
       "rename": "이름 바꿔 저장",
       "overwrite": "덮어쓰기",
       "descOverwriteWithDays": "「덮어쓰기」는 새 파일을 올리고 이전 파일을 휴지통으로 보냅니다. {{days}}일 안에 되돌릴 수 있습니다."
-    }
+    },
+    "visibility": "공개"
   },
   "canvas": {
     "tabLabel": "개요",
@@ -825,7 +840,13 @@
       }
     },
     "loadError": "개요를 불러오지 못했습니다",
-    "retry": "다시 시도"
+    "retry": "다시 시도",
+    "editInDetails": "상세정보에서 수정",
+    "overviewEmpty": {
+      "cta": "상세정보에서 채우기",
+      "desc": "배경·목표·성공지표·추진과제를 채우면 이 화면이 한눈에 보는 프로젝트 대시보드가 됩니다.",
+      "title": "아직 프로젝트 개요가 비어 있어요"
+    }
   },
   "header": {
     "openChat": "프로젝트 채팅",
@@ -923,5 +944,11 @@
   },
   "duplicate": {
     "failed": "복사하지 못했습니다. 잠시 후 다시 시도해주세요."
+  },
+  "relTime": {
+    "daysAgo": "{{count}}일 전",
+    "hoursAgo": "{{count}}시간 전",
+    "justNow": "방금",
+    "minutesAgo": "{{count}}분 전"
   }
 }

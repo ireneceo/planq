@@ -155,7 +155,14 @@
     "fixAuthOauthToPassword": "인증이 만료되어 메일 수신·발송이 중단됐습니다. 앱 비밀번호를 발급해 연결 방식을 바꾸면 만료 없이 계속 쓸 수 있어요.",
     "reconnectNow": "다시 연결",
     "switchToAppPassword": "앱 비밀번호로 전환",
-    "testSmtpFail": "받기는 정상이지만 보내기 로그인이 거절됐습니다."
+    "testSmtpFail": "받기는 정상이지만 보내기 로그인이 거절됐습니다.",
+    "changeScopeHint": "이 계정을 개인/회사 공용으로 전환",
+    "connectGmail": "Gmail 로 연결",
+    "emailPh": "contact@회사.com",
+    "imapHostPh": "imap.회사.com",
+    "smtpHostPh": "smtp.회사.com",
+    "toPersonal": "개인으로 전환",
+    "toTeam": "회사 공용으로"
   },
   "folders": {
     "title": "메일함",
@@ -223,7 +230,12 @@
     "meShort": "나",
     "promoteToSale": "상담으로 보내기",
     "promoteToSaleHint": "이 메일을 Q sales 상담 목록으로 보냅니다",
-    "promotedToSale": "상담으로 보냄"
+    "promotedToSale": "상담으로 보냄",
+    "follow": "팔로우",
+    "following": "팔로우 중",
+    "newLabel": "+ 새 태그",
+    "removeLabel": "태그 제거",
+    "unassigned": "담당 없음"
   },
   "selectWorkspace": "워크스페이스를 선택해 주세요.",
   "selectThread": "스레드를 선택해 주세요",
@@ -237,7 +249,9 @@
     "to": "받는사람",
     "date": "날짜",
     "subject": "제목",
-    "origAttach": "원본 첨부 {{n}}개 포함"
+    "origAttach": "원본 첨부 {{n}}개 포함",
+    "originalIncluded": "원본 메일이 아래에 그대로 붙어 전달됩니다 — 위에 덧붙일 말만 쓰시면 돼요 (비워도 됩니다)",
+    "previewTitle": "전달할 원문"
   },
   "messageCount": "{{n}}개 메시지",
   "reply": {
@@ -274,7 +288,10 @@
     "aiWorking": "AI 가 답장 초안을 쓰는 중이에요…",
     "aiSlow": "AI 가 아직 쓰고 있어요. 조금 더 걸릴 수 있습니다 — 그냥 직접 쓰셔도 됩니다.",
     "aiEmpty": "AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 아래에 요청을 적어 주세요.",
-    "aliasHelpUnregistered": "이 고객은 {{addr}} 주소로 메일을 보냈습니다. 이 주소를 별칭으로 등록하면 답장도 그 주소에서 발송됩니다."
+    "aliasHelpUnregistered": "이 고객은 {{addr}} 주소로 메일을 보냈습니다. 이 주소를 별칭으로 등록하면 답장도 그 주소에서 발송됩니다.",
+    "aiFailed": "AI 제안 생성 실패",
+    "aiNoInbound": "답장할 받은 메일이 없어요.",
+    "aiUnavailable": "AI 서비스를 잠시 사용할 수 없어요."
   },
   "errors": {
     "loadList": "인박스 로딩 실패"
@@ -378,7 +395,8 @@
     },
     "kind": {
       "address": "보낸 사람으로",
-      "keyword": "문구로"
+      "keyword": "문구로",
+      "domain": "도메인 전체"
     },
     "evidence": {
       "manual": "직접 추가함",
@@ -555,7 +573,19 @@
     "removeRecipient": "{{addr}} 삭제",
     "draftSaving": "임시저장 중…",
     "draftSaved": "임시저장됨",
-    "draftFailed": "임시저장 실패 — 보내기 전에 내용을 복사해 두세요"
+    "draftFailed": "임시저장 실패 — 보내기 전에 내용을 복사해 두세요",
+    "bodyPh": "메일 내용을 입력하세요…",
+    "bodyRequired": "내용을 입력해 주세요",
+    "cancel": "취소",
+    "keptDraft": "쓰던 임시저장 메일은 그대로 있습니다. 위 “새 메일” 로 열면 이어 쓸 수 있어요.",
+    "new": "새 메일",
+    "noAccount": "보낼 메일 계정이 없어요",
+    "send": "보내기",
+    "sendFailed": "발송 실패",
+    "subject": "제목",
+    "subjectPh": "제목을 입력하세요",
+    "to": "받는 사람",
+    "toRequired": "받는 사람을 입력해 주세요"
   },
   "attachment": {
     "preview": "미리보기",
@@ -721,5 +751,8 @@
   "spamFolder": {
     "note": "Gmail·네이버 스팸함에서 가져온 메일은 30일 뒤 지워집니다. 여기서 스팸 해제해도 업체 쪽은 그대로이니, Gmail·네이버에서도 스팸 해제해 주세요.",
     "detailNote": "업체(Gmail·네이버) 스팸함에서 가져온 메일이에요. 스팸이 아니면 ⋯ 메뉴에서 «스팸 해제» 하고, Gmail·네이버에서도 스팸 해제해 주세요. 들어온 지 30일이 지나면 자동으로 지워집니다."
+  },
+  "account": {
+    "personal": "개인"
   }
 }

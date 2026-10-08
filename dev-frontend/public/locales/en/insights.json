@@ -68,7 +68,10 @@
       "aiEst": "AI (h)",
       "actual": "Actual (h)",
       "accuracy": "Accuracy",
-      "leadtime": "Lead time"
+      "leadtime": "Lead time",
+      "category": "Category",
+      "id": "ID",
+      "status": "Status"
     }
   },
   "watch": {
@@ -119,7 +122,8 @@
         "title": "12-month revenue & profit trend",
         "empty": "Will appear once monthly revenue data accumulates",
         "revenue": "Revenue",
-        "profit": "Profit"
+        "profit": "Profit",
+        "month": "Month"
       }
     }
   },
@@ -352,6 +356,25 @@
       "requested": "Requests",
       "confirmed": "Confirmed",
       "registered": "Became clients"
+    }
+  },
+  "weekly": {
+    "chart": {
+      "completion": "Weekly completion trend",
+      "needMore": "At least 2 weeks of data are needed to show a trend"
+    },
+    "empty": {
+      "hint": "Finalized by \"Wrap up this week\" in Q Task or the Sunday 23:59 job. Trends become meaningful after 4+ weeks.",
+      "title": "No weekly reviews yet"
+    },
+    "error": "Couldn't load data",
+    "hint": "Share of tasks completed each week (completed / total). See the KPI cards for capacity use and estimate accuracy.",
+    "kpi": {
+      "accuracy": "Estimate accuracy",
+      "completion": "Completion rate",
+      "title": "Average of the last {{n}} weeks",
+      "utilization": "Capacity use",
+      "weeks": "Weeks recorded"
     }
   }
 }

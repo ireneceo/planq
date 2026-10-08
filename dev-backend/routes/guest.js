@@ -258,12 +258,10 @@ router.post('/:token/account-request',
           userIds: memberIds,
           businessId: conversation.business_id,
           eventKind: 'message',
-          title: '고객이 계정을 요청했습니다',
-          body: email
-            ? `${conversation.title || '대화방'} — ${email} 로 초대해 주세요`
-            : `${conversation.title || '대화방'} — 링크로 들어온 분이 계정을 요청했습니다`,
+          // ★ 제목은 수신자 언어로 발송 시점에 만든다(notifyTitle 규약, 2026-10-08 0-I) — 옛: 한국어 문장 박제.
+          titleSpec: { feature: 'chat', action: 'chat_account_request', subject: conversation.title || '' },
+          body: email || null,
           link: `/talk?conv=${conversation.id}`,
-          ctaLabel: '대화 열기',
           entityType: 'Conversation',
           entityId: conversation.id,
           ioApp: req.app,
@@ -401,7 +399,8 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
           businessId: conversation.business_id,
           eventKind: 'message',
           // link.guest_name 은 멤버 메모용이라 대개 비어 있다. 이 글을 쓴 사람의 이름을 쓴다.
-          title: `${guestDisplayName || link.guest_name || '게스트'} (게스트)`,
+          // 제목은 notifyTitle 규약(«Q Talk · 게스트 메시지 · 이름»)으로 수신자 언어 — 옛: '… (게스트)' 한국어 박제(0-I).
+          titleSpec: { feature: 'chat', action: 'chat_guest_message', subject: guestDisplayName || link.guest_name || '' },
           // 정화 전 raw 가 아니라 태그를 걷어낸 cleaned 를 넣는다 — 알림은 메일·inbox·push 로
           //   퍼지고 그중 하나만 HTML 로 렌더하면 무인증 입구가 그대로 통로가 된다 (#259).
           body: cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned,
@@ -409,7 +408,6 @@ router.post('/:token/messages', guestLimiter('guest-send', { windowMs: 60 * 1000
           //   무인증 링크로 들어온 사람이 쓴 자유 텍스트라 더더욱 메일·푸시로 퍼뜨릴 이유가 없다.
           previewPolicy: 'internal_only',
           link: `/talk?conv=${conversation.id}`,
-          ctaLabel: '대화 열기',
           entityType: 'Conversation',
           entityId: conversation.id,
           ioApp: req.app,

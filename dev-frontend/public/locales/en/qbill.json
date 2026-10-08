@@ -297,7 +297,8 @@
       "hint": "Send a preview to my email before sending to the client",
       "sent": "Preview sent to your email ({{to}})",
       "noEmail": "No email on your account, can't send",
-      "failed": "Failed to send preview. Please try again shortly"
+      "failed": "Failed to send preview. Please try again shortly",
+      "queued": "Sending to your email ({{to}}). Check your inbox in a moment"
     },
     "reminder": {
       "action": "Send payment reminder",
@@ -317,7 +318,8 @@
       "noRecipient": "No customer email on file — can't send",
       "failed": "Failed to resend. Please try again later",
       "lastSent": "Last resent · {{days}}d ago",
-      "hint": "Resend the original invoice email (with PDF) to the customer — not a reminder"
+      "hint": "Resend the original invoice email (with PDF) to the customer — not a reminder",
+      "queued": "Resending to {{to}}"
     },
     "confirm": {
       "cancelInstallmentTitle": "Cancel installment",
@@ -376,7 +378,12 @@
     "duplicate": {
       "failedTitle": "Could not duplicate",
       "failed": "Please try again shortly."
-    }
+    },
+    "delete": {
+      "message": "This can't be undone. For an invoice that has been sent, use \"Cancel\" instead of deleting.",
+      "title": "Delete this invoice?"
+    },
+    "financeError": "Something went wrong"
   },
   "newInvoice": {
     "title": "New invoice",
@@ -384,7 +391,9 @@
       "title": "Sent",
       "chat": "Card sent to \"{{name}}\" chat",
       "email": "Email sent to {{to}}",
-      "goChat": "Open chat"
+      "goChat": "Open chat",
+      "emailNoAddr": "Sending to the client's email",
+      "note": "You can check the delivery result in the invoice details. It keeps going even if you close this window."
     },
     "step": {
       "compose": "Compose",
@@ -555,7 +564,8 @@
       "noEmail": "No email",
       "deliverChat": "Chat: {{name}}",
       "deliverEmail": "Email: {{email}}",
-      "deliverPublicOnly": "Public link only (manual delivery)"
+      "deliverPublicOnly": "Public link only (manual delivery)",
+      "none": "None"
     },
     "editTitle": "Edit Invoice",
     "projectLinked": "This invoice will be linked to the project",
@@ -563,7 +573,25 @@
       "useLast": "Reuse last invoice items",
       "useTime": "Add recorded time",
       "timeItemDesc": "Work hours",
-      "coverage": "Time is recorded on {{with}} of {{total}} tasks — the total may be understated"
+      "coverage": "Time is recorded on {{with}} of {{total}} tasks — the total may be understated",
+      "itemCount": "{{count}} items"
+    },
+    "source": {
+      "title": "Source document (optional)",
+      "empty": "This client has no signed contract or quote. The invoice will be issued without a source.",
+      "hint": "Choosing a source fills in the items, amounts and installment schedule.",
+      "sharedOn": "Shared {{date}}"
+    },
+    "deliverOpts": {
+      "title": "Delivery",
+      "chat": "Send a payment-request card to the chat",
+      "noChat": "This client has no chat room",
+      "createChat": "Create a chat room →",
+      "email": "Send by email",
+      "attachPdf": "Attach PDF",
+      "publicLink": "Issue a public link automatically",
+      "publicLinkTarget": "Public payment page (created on issue)",
+      "after": "After issuing: {{list}}"
     }
   },
   "payments": {

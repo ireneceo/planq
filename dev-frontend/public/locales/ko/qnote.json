@@ -79,7 +79,11 @@
       "summary": "요약 생성",
       "organize": "정리하기",
       "organizeTitle": "회의/메모를 업무/지식/문서/공유로 변환",
-      "questions": "질문 보기"
+      "questions": "질문 보기",
+      "emptyTranscript": "요약할 녹취 내용이 없습니다.",
+      "settings": "설정 보기",
+      "share": "공유",
+      "shareTitle": "회의록 공유"
     },
     "summary": {
       "title": "요약",
@@ -236,7 +240,24 @@
     "quickRecord": {
       "title": "음성메모 {{time}}"
     },
-    "translateFailed": "번역 실패"
+    "translateFailed": "번역 실패",
+    "questionsModal": {
+      "empty": "감지된 질문이 없습니다.",
+      "title": "질문 목록"
+    },
+    "sessionDelete": "세션 삭제",
+    "settingsView": {
+      "answerLanguage": "답변 언어",
+      "answerLength": "답변 길이",
+      "answerStyle": "답변 스타일",
+      "brief": "회의 안내",
+      "context": "회의 컨텍스트",
+      "edit": "설정 수정하기",
+      "meetingLanguages": "회의 언어",
+      "participants": "참여자",
+      "title": "회의 설정",
+      "translationLanguage": "번역 언어"
+    }
   },
   "memoPopup": {
     "title": "메모",
@@ -513,5 +534,36 @@
     "registerFailed": "업무로 등록하지 못했어요.",
     "rejectFailed": "후보를 지우지 못했어요.",
     "needText": "전사나 요약이 있어야 업무를 뽑을 수 있어요."
+  },
+  "common": {
+    "deleting": "삭제 중..."
+  },
+  "share": {
+    "external": {
+      "cancel": "취소",
+      "confirmRevoke": "해제",
+      "copied": "복사됨!",
+      "copy": "복사",
+      "create": "공유 링크 만들기",
+      "creating": "링크 생성 중...",
+      "hint": "링크를 받은 누구나 회의 내용을 볼 수 있습니다. 발급 후 언제든 해제 가능.",
+      "revoke": "공유 링크 해제",
+      "revokeConfirm": "정말 해제할까요? 기존 링크는 즉시 만료됩니다.",
+      "title": "외부에 링크로 공유"
+    },
+    "hint": "누가 이 회의록을 볼 수 있는지 선택하세요.",
+    "L1": {
+      "desc": "나만 이 회의록을 볼 수 있습니다.",
+      "title": "본인만"
+    },
+    "L2": {
+      "desc": "연결된 프로젝트의 멤버만 볼 수 있습니다.",
+      "title": "프로젝트 멤버"
+    },
+    "L3": {
+      "desc": "워크스페이스의 모든 멤버가 볼 수 있습니다.",
+      "title": "워크스페이스"
+    },
+    "needProject": "(이 회의록에 연결된 프로젝트가 없습니다)"
   }
 }

@@ -65,7 +65,9 @@
     "copied": "Copied ✓",
     "copy": "Copy",
     "bundleShareTitle": "Share link created",
-    "bundleOpen": "Open preview →"
+    "bundleOpen": "Open preview →",
+    "bundleSelectionLabel": "{{n}} selected",
+    "bundleShareDesc": "{{label}} · Recipients can preview it like a document."
   },
   "drawer.customColumns": "Custom fields",
   "inline": {
@@ -119,7 +121,14 @@
     "purgeCol": "Delete permanently",
     "purgeColConfirm": "This permanently deletes the value \"{{value}}\" of \"{{name}}\". This one cannot be undone.",
     "inferredName": "name guessed",
-    "inferredNameHint": "The field name was not stored when it was removed, so it could not be recovered. Rename it after restoring."
+    "inferredNameHint": "The field name was not stored when it was removed, so it could not be recovered. Rename it after restoring.",
+    "attached": "Attached files · documents",
+    "customColumns": "Fields",
+    "download": "Download",
+    "openPost": "Open document",
+    "removeAttach": "Remove",
+    "tags": "Tags",
+    "visibility": "Visibility"
   },
   "row": {
     "delete": "Delete",
@@ -203,7 +212,9 @@
     "uploadFiles": "Upload new files",
     "attachExistingFiles": "Link existing files",
     "attachExistingPosts": "Link existing docs",
-    "errContentRequired2": "Add at least one thing besides the title — write a body, fill in an item, or attach a file or document"
+    "errContentRequired2": "Add at least one thing besides the title — write a body, fill in an item, or attach a file or document",
+    "attach": "Attach material",
+    "close": "Close"
   },
   "csvIngest": {
     "drop": "Drag a CSV file here, or click to choose",
@@ -213,8 +224,27 @@
     "dupSkip": "Skip",
     "dupCreate": "Add anyway",
     "col": {
-      "fields": "Fields"
-    }
+      "fields": "Fields",
+      "category": "Category",
+      "lang": "Language",
+      "tags": "Tags",
+      "title": "Title",
+      "translate": "Translate"
+    },
+    "back": "Back",
+    "errEmpty": "No rows were parsed. Please check the header and data.",
+    "hint": "Download the sample, fill it in, then paste the text or upload the file. Required headers: title, body, category, tags, source_language, auto_translate",
+    "more": "more rows",
+    "parse": "Preview",
+    "parsing": "Parsing...",
+    "previewHint": "Preview of parsed items. Saving runs embedding and translation in the background.",
+    "rows": "rows",
+    "sample": "Download sample",
+    "saveAll": "Save all",
+    "saving": "Saving...",
+    "text": "CSV content",
+    "textPh": "You can also paste CSV text directly.",
+    "title": "CSV upload"
   },
   "aiIngest": {
     "truncated": "Imported {{returned}} of {{total}} items (max {{limit}} at a time).",
@@ -225,7 +255,35 @@
     "noCategory": "Uncategorized",
     "titleFromPost": "Send to Q info — {{title}}",
     "titleFromPostPlain": "Send to Q info",
-    "hintFromPost": "Split this document into Q info entries. Pulling out each entry’s title, category and values (price, contact, deadline) makes them findable later. Uses only what the original says — nothing is invented."
+    "hintFromPost": "Split this document into Q info entries. Pulling out each entry’s title, category and values (price, contact, deadline) makes them findable later. Uses only what the original says — nothing is invented.",
+    "analyze": "Start AI analysis",
+    "analyzing": "Analyzing...",
+    "back": "Back",
+    "bodyPh": "Body",
+    "errAllExcluded": "Nothing to save.",
+    "errEmpty": "Nothing was extracted. Please check the input.",
+    "exclude": "Exclude",
+    "hint": "Paste free text such as meeting notes, manuals or emails and AI splits it by topic and extracts categories and tags. It only uses the original text — it adds no new information.",
+    "include": "Restore",
+    "lang": "Source language",
+    "langEn": "English",
+    "langKo": "Korean",
+    "reviewHint": "Items extracted by AI. Edit or exclude, then save them all.",
+    "saveAll": "Save all",
+    "saving": "Saving...",
+    "skipReview": "Save immediately without review (faster)",
+    "tagsPh": "Tags (comma separated)",
+    "text": "Content",
+    "textPh": "Paste text here. Multiple topics are split automatically.",
+    "title": "AI auto add",
+    "titlePh": "Title",
+    "translate": "Auto translate",
+    "translateOff": "No translation",
+    "translateOn": "Translate into both languages (uses Cue)",
+    "visHide": "Hide (only users of that language)",
+    "visibility": "For users of other languages",
+    "visShow": "Show the original (with a language badge)",
+    "visTranslate": "Show translated (same as auto translate on)"
   },
   "csv": {
     "secretMasked": "(secret — not exported)"
@@ -238,5 +296,19 @@
   "button": {
     "aiAdd": "Add with AI",
     "aiAddHint": "AI organizes pasted content or text files by topic and adds them"
+  },
+  "confirm": {
+    "delete": "Delete",
+    "deleteBody": "Linked attachments stay; only this item is deleted.",
+    "deleteTitle": "Delete this item?"
+  },
+  "form": {
+    "attach": "Attach material",
+    "body": "Body",
+    "bodyPh": "Enter the body (optional)",
+    "titlePh": "e.g. Refund policy"
+  },
+  "tags": {
+    "placeholder": "tag1, tag2, tag3"
   }
 }

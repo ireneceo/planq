@@ -186,7 +186,10 @@
     "markAllRead": "Mark all read",
     "viewAll": "View all notifications",
     "more": "Show more ({{count}} left)",
-    "targetMissing": "This item was deleted and can't be opened"
+    "targetMissing": "This item was deleted and can't be opened",
+    "filterAll": "All",
+    "filterUnread": "Unread",
+    "emptyUnreadTitle": "You're all caught up"
   },
   "role": {
     "platform_admin": "Platform Admin",

@@ -52,7 +52,10 @@
     "photoHint": "JPG·PNG·WebP · 2MB 이하. 같은 워크스페이스 멤버에게 보입니다.",
     "photoTooLarge": "2MB 이하 이미지만 올릴 수 있어요.",
     "photoImageOnly": "JPG·PNG·WebP 이미지만 올릴 수 있어요.",
-    "photoFailed": "사진을 올리지 못했어요."
+    "photoFailed": "사진을 올리지 못했어요.",
+    "accountName": "이름",
+    "accountNameHint": "회원가입 시 입력한 이름입니다. 영수증·세금계산서 등 공식 발급에 사용됩니다.",
+    "emailVerify": "인증"
   },
   "workspaceProfile": {
     "sectionTitle": "이 워크스페이스 프로필",
@@ -86,7 +89,8 @@
       "invalidCode": "코드가 일치하지 않습니다",
       "expired": "코드가 만료되었습니다. 다시 요청해 주세요.",
       "locked": "5회 실패로 잠금되었습니다. 1시간 후 다시 시도해 주세요.",
-      "unknown": "변경에 실패했습니다"
+      "unknown": "변경에 실패했습니다",
+      "alreadyVerified": "이미 인증된 이메일입니다."
     }
   },
   "qnoteProfile": {
@@ -281,7 +285,30 @@
     "calendarPrimary": "기본",
     "calendarPickReconnect": "지금은 기본 캘린더에 올라갑니다. 다른 캘린더를 고르려면 구글에서 «캘린더 목록 보기» 권한을 한 번 더 허용해 주세요.",
     "calendarPickFailed": "구글 캘린더 목록을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요.",
-    "calendarPickAllow": "캘린더 고르기"
+    "calendarPickAllow": "캘린더 고르기",
+    "connectDrive": "Google Drive 연결",
+    "connectedAt": "연결: {{date}}",
+    "connectFailed": "Google 연결 시작 실패",
+    "connectFailed2": "연결 시작에 실패했어요",
+    "connectGoogle": "Google 계정 연결",
+    "connecting": "연결 중…",
+    "connectingGoogle": "연결 중…",
+    "disconnect": "해제",
+    "disconnectFailed": "해제 실패",
+    "disconnectLockoutWarn": "비밀번호가 설정되지 않아 마지막 로그인 수단을 해제할 수 없어요. 먼저 프로필에서 비밀번호를 설정해주세요.",
+    "driveEmpty": "연결된 개인 파일 저장소가 없어요",
+    "driveSub": "PlanQ 파일을 내 개인 Google Drive 에 저장하고 여기서 함께 봐요 (회사 Drive 와 분리)",
+    "gotoWorkspace": "회사 설정으로",
+    "lastSync": "최근 동기화: {{date}}",
+    "loading": "로드 중...",
+    "login": "로그인",
+    "loginEmpty2": "연결된 로그인 계정이 없어요.",
+    "loginSub": "PlanQ 에 로그인할 때 사용하는 외부 계정",
+    "mailEmpty": "연결된 개인 메일이 없어요",
+    "mailSyncError": "동기화 오류 — 재연결이 필요할 수 있어요",
+    "popupBlocked": "팝업이 차단되었어요. 브라우저에서 팝업을 허용해 주세요.",
+    "title": "내 외부 연동",
+    "workspaceLink": "회사 공용 외부 연동 (Google Drive · 회사 메일 등) 은 회사 설정에서 관리해요"
   },
   "accountDeletion": {
     "title": "계정 삭제",

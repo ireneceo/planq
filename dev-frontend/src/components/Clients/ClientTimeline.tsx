@@ -114,7 +114,12 @@ function titleOf(
     //   판정: `영문키:값` 꼴(공백 없는 코드형)은 사람에게 보여줄 문장이 아니다.
     const reason = meta.reason ? String(meta.reason).trim() : '';
     const looksLikeCode = /^[a-z][a-z0-9_]*:[a-z0-9_.-]+$/i.test(reason);
-    return reason && !looksLikeCode ? `${line} · ${reason}` : line;
+    // 서버가 남기는 자동 사유는 코드(`booking_request` 등, 2026-10-08 0-I) — 사전에 있으면 번역해 보인다.
+    //   사람이 직접 쓴 사유·옛 한국어 행은 사전에 없으므로 그대로 그린다.
+    const codeKey = /^[a-z][a-z0-9_]*$/.test(reason) ? `stageReason.${reason}` : '';
+    const coded = codeKey ? label(codeKey) : '';
+    const shown = coded && coded !== codeKey ? coded : reason;
+    return shown && !looksLikeCode ? `${line} · ${shown}` : line;
   }
   if (it.type === 'guest') {
     return meta.event === 'account_requested' ? label('timeline.guestAccountRequested') : label('timeline.guestIssued');

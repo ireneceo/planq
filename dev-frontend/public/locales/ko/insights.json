@@ -68,7 +68,10 @@
       "aiEst": "AI(h)",
       "actual": "실제(h)",
       "accuracy": "정확도",
-      "leadtime": "리드타임"
+      "leadtime": "리드타임",
+      "category": "카테고리",
+      "id": "ID",
+      "status": "상태"
     }
   },
   "watch": {
@@ -119,7 +122,8 @@
         "title": "12개월 매출·이익 추이",
         "empty": "월별 매출 데이터가 누적되면 표시됩니다",
         "revenue": "매출",
-        "profit": "이익"
+        "profit": "이익",
+        "month": "월"
       }
     }
   },
@@ -352,6 +356,25 @@
       "requested": "상담 신청",
       "confirmed": "확정",
       "registered": "고객 등록"
+    }
+  },
+  "weekly": {
+    "chart": {
+      "completion": "주간 완료율 추세",
+      "needMore": "추세를 보려면 2주 이상 데이터가 필요합니다"
+    },
+    "empty": {
+      "hint": "Q Task 의 \"이번 주 마무리\" 또는 일요일 23:59 cron 으로 확정됩니다. 4주+ 누적되면 의미있는 추세를 볼 수 있습니다.",
+      "title": "아직 누적된 주간 결산이 없습니다"
+    },
+    "error": "데이터를 불러오지 못했습니다",
+    "hint": "주차별 완료한 업무 비율 (완료 / 전체). 캐파 활용률·예측 정확도는 KPI 카드에서 확인하세요.",
+    "kpi": {
+      "accuracy": "예측 정확도",
+      "completion": "완료율",
+      "title": "최근 {{n}}주 평균",
+      "utilization": "캐파 활용률",
+      "weeks": "누적 주차"
     }
   }
 }

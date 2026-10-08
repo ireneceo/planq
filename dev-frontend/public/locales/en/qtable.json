@@ -90,7 +90,8 @@
     "body": "Store structured data (accounts · assets · contacts …) per workspace.",
     "firstColumn": "Add a column to get started",
     "firstColumnHint": "e.g. Company, Owner, Status, Due date",
-    "firstColumnPh": "First column name (Enter)"
+    "firstColumnPh": "First column name (Enter)",
+    "readOnlyEmpty": "No table data yet."
   },
   "attach": {
     "title": "Add attachment",
@@ -104,7 +105,15 @@
     "newSection": "Create new document → link",
     "newBlank": "Blank doc",
     "newAi": "AI write",
-    "blankPostTitle": "New document"
+    "blankPostTitle": "New document",
+    "currentSection": "Linked attachments",
+    "docNum": "Document",
+    "fileNum": "File",
+    "newHint": "A new document is created, linked to this cell automatically, and its editor opens in a new window.",
+    "newTab": "New window",
+    "openDoc": "Open document",
+    "openFile": "Open file",
+    "openInNewTab": "Open in new window"
   },
   "survey": {
     "title": "Collect as survey",

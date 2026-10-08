@@ -192,7 +192,10 @@
     },
     "completed": "종료됨",
     "errMaxOcc": "종료 회차를 1 이상 입력하세요",
-    "errEndDate": "종료일을 선택하세요"
+    "errEndDate": "종료일을 선택하세요",
+    "occCount": "{{n}}/{{m}}회",
+    "occDone": "{{n}}회 발행",
+    "untilBadge": "{{d}}까지"
   },
   "timeline": {
     "title": "고객 통합 타임라인",

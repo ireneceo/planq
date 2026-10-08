@@ -66,7 +66,10 @@
     "defaultTitlePrefix": "Brief",
     "separatorHint": "Separate multiple sources with 2 blank lines. Files can be picked from the workspace or uploaded directly.",
     "attachFile": "Attach file",
-    "attachPickerTitle": "Attach files to brief"
+    "attachPickerTitle": "Attach files to brief",
+    "attachLabel": "Attach files · documents",
+    "optional": "(optional)",
+    "textLabel": "Paste as text"
   },
   "received": {
     "searchPh": "Search by document title",
@@ -214,7 +217,8 @@
     "more": "More",
     "menuSendToKnowledge": "Send to Q info",
     "menuDownloadDocx": "Download Word",
-    "menuPrint": "Print"
+    "menuPrint": "Print",
+    "remove": "Remove"
   },
   "project": {
     "docs": {
@@ -501,7 +505,11 @@
     "limitExceeded_native": "You've used all of this month's AI quota. It resets next month.",
     "unavailable": "AI service is temporarily unavailable. Please try again shortly.",
     "failed": "AI draft failed.",
-    "untitledDoc": "Document"
+    "untitledDoc": "Document",
+    "kindPh": "Select a document type",
+    "kindRequired": "Please select a document type",
+    "regenFailed": "Regeneration failed. Please try again shortly.",
+    "tableDefaultPrefix": "Table"
   },
   "vis": {
     "L1": "Only me",
@@ -524,7 +532,8 @@
     "openLabel": "Visibility",
     "button": "Visibility",
     "change": "Change visibility",
-    "changeHint": "Change visibility — Private / Team (project members) / Workspace / External"
+    "changeHint": "Change visibility — Private / Team (project members) / Workspace / External",
+    "label": "Visibility"
   },
   "share": {
     "button": "Share",
@@ -592,7 +601,8 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "attach": "Attach files · documents"
   },
   "saveTpl": {
     "title": "Save as template",
@@ -659,7 +669,14 @@
     "sigItemSignLong": "Signature (draw or image)",
     "sigMenuHint": "Pick whose spot it is, then what to insert. It goes at the cursor.",
     "sigNewSigner": "New signer",
-    "taskList": "Checklist"
+    "taskList": "Checklist",
+    "addColumnBefore": "Add column to the left",
+    "addRowBefore": "Add row above",
+    "codeBlock": "Code block (syntax colors + copy button)",
+    "heading3": "Heading 3",
+    "inlineCode": "Inline code",
+    "insertImage": "Insert image (or paste/drag)",
+    "insertImageAria": "Insert image"
   },
   "tab": {
     "title": "Docs",
@@ -720,7 +737,8 @@
     "createFirst": "Create first document",
     "noContent": "(empty)",
     "loading": "Loading...",
-    "editedAt": "Edited {{date}}"
+    "editedAt": "Edited {{date}}",
+    "pinned": "Pinned"
   },
   "filepicker": {
     "attachTitle": "Pick file(s) to attach"
@@ -776,7 +794,8 @@
     "pendingLocal": "Kept on this device — press Save to apply",
     "staleBar": "Someone else saved this document. What would you like to do?",
     "staleReload": "Load latest",
-    "staleOverwrite": "Overwrite with my edits"
+    "staleOverwrite": "Overwrite with my edits",
+    "signatureLocked": "This document has a signature request in progress or completed, so it can't be edited. Cancel the signature request or write a new version."
   },
   "toc": {
     "title": "Contents",
@@ -879,5 +898,23 @@
   },
   "links": {
     "saveFailed": "The document was saved, but its linked documents were not. Please try again."
-  }
+  },
+  "cat": {
+    "delete": "Delete",
+    "deleteMessage": "Delete the \"{{name}}\" category?",
+    "deleteMessageInUse": "Delete the \"{{name}}\" category? Its {{count}} documents stay; only the category is cleared.",
+    "deleteTitle": "Delete category",
+    "rename": "Rename"
+  },
+  "slot": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Start as document",
+    "errMissing": "Please fill in the required slots: {{keys}}",
+    "fillHint": "Company, project and client details were filled in automatically. Edit only what you need.",
+    "fillTitle": "Fill in slots",
+    "loading": "Loading…",
+    "preview": "Preview"
+  },
+  "tableDescOpenShort": "Open"
 }
