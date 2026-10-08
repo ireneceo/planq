@@ -1,5 +1,12 @@
 ## 현재 작업 상태
 
+### 답 기다림: Fable 기준 공용판 맞추기 — 공용 기준과 어긋나는 Irene 옛 지시 2건 (2026-10-08 · [Opus] 방 09074bb8)
+- **한 것:** CLAUDE.md «Fable 사용» 절(기준 = `~/dev-server/FABLE.md`, PlanQ 예시·장치·Irene 원문 출처만) · AI 협업 표 · `/fable-검증`·`/검증`·`/개발완료` 0-F·`/기능설계` · 훅 안내 문구 · docs/AI_COLLABORATION_PROTOCOL.md · 메모리 6개. FABLE_GATE_QUEUE.md 미판정·재검증 묶음 → 상황판 Fable 대기 `fwmuz1uqy3`(gate)·`fwmuz1uqyy`(calc), 그 파일은 «판정 기록 보관소».
+- **무엇을:** ① 08-18 «모든 판단은 Fable» vs 공용 «작은 선택은 작업 모델» ② Fable 대기 중인 변경이 있을 때 Irene 의 /배포 지시를 어떻게 다루나
+- **왜 멈췄나:** Irene 원문 지시와 공용 기준이 충돌 — 고치지 않고 묻는다(이 일의 규칙)
+- **답이 오면 할 일:** ① 공용대로면 memory `feedback_fable_decides_not_opus` 의 08-18 단락에 «좁혀짐» 표시 ② 정한 대로 `.claude/commands/배포.md` 에 한 단락(대기 목록 확인·보고)
+
+
 ### 완료: 서명 화면 — 빨간 칸에서 바로 서명 창 (2026-10-08 · [Opus] 방 ab77c16a · 커밋 c4fa04f8)
 - 칸·맨 아래 버튼 → 같은 창(문서 확인했나요? → 본인 확인 → 서명). 페이지가 위아래로 안 오간다. dev 빌드 반영, 운영 미배포.
 - 검증: signflow·signitems 전부 통과(내 칸 화면 위치 259→259→256→256 · 375/820/1440 서명 제출) · i18n·parity 가드 통과. **Fable PASS**(긴 문서·폰 390·키보드·우리쪽 서명자·slot 없음·확인요청 실측). 비차단: ①본인 확인 전 [거절] 은 서버 400 otp_required 인데 오류가 안 보인다(기존 결함) ②창 안에 [거절] 없음 ③짧은 문서+영어에서 칸 21px 이동 ④signflow 픽스처가 짧아 이동 변별력 약함 ⑤Esc 로 그린 서명 사라짐.

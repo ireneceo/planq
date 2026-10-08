@@ -1,6 +1,6 @@
 #!/bin/bash
-# PlanQ — Fable 검증 게이트 Stop 훅 (Irene 지시 2026-07-21)
-# 정책: 모든 구현 검증·테스트 검증은 무조건 Fable 이 수행 (CLAUDE.md '역할 분담').
+# PlanQ — Fable 검증 게이트 Stop 훅 (Irene 지시 2026-07-21 «무조건 Fable» 로 시작 → 09-06 조건부 → 10-08 공용 기준)
+# 정책: 언제 Fable 인가는 ~/dev-server/FABLE.md. 이 훅은 «판정 없는 변경 상태» 에서 한 번 멈춰 가르게 할 뿐이다.
 #
 # 동작: dev-backend/dev-frontend/q-note 에 미커밋 변경이 있는데
 #       그 상태에 대한 Fable 게이트 통과 마커가 없으면 → 정지(완료)를 1회 차단하고
@@ -17,7 +17,7 @@
 #   → 스킵은 **자동 판정**이고, 스킵했다는 사실은 **반드시 남는다.**
 #   ① Fable 을 쓸 수 있으면 → /fable-검증 이 돌고 PASS 마커가 남는다
 #   ② Fable 을 못 쓰면      → /fable-검증 이 `by:"unavailable"` 마커를 남기고
-#                            docs/FABLE_GATE_QUEUE.md 에 항목을 쌓는다. 그 지문에 한해서만 통과.
+#                            상황판 Fable 대기(/api/fable-wait)에 올린다. 그 지문에 한해서만 통과.
 #   두 경우 모두 **그 변경 상태(지문)에 묶인다** — 코드가 더 바뀌면 다시 판정한다.
 #
 # 우회:  touch /opt/planq/.claude/.fable-gate-skip   (사람이 강제로 넘길 때)
@@ -96,13 +96,14 @@ NDIRTY=$(printf '%s' "$CHANGED" | grep -c . 2>/dev/null); NDIRTY=${NDIRTY:-0}
 
 REASON="🚦 Fable 검증 게이트 미통과 — 완료(정지) 금지.
 
-미커밋 소스 변경 ${NDIRTY}건 · 마지막 게이트 통과 이후 **미검증 소스 커밋 ${NCOMMIT}건** 이 있는데 이 상태를 Fable 이 아직 검증하지 않았습니다. (커밋했다고 검증된 것이 아닙니다 — 2026-09-10 에 그 구멍으로 6일간 게이트가 안 울린 채 운영 배포까지 갔습니다.) CLAUDE.md '역할 분담' 정책상 구현 검증·테스트 검증은 무조건 Fable(model:fable) 이 독립 수행해야 합니다. Opus 자체 검증만으로 완료 보고 금지.
+미커밋 소스 변경 ${NDIRTY}건 · 마지막 게이트 통과 이후 **미검증 소스 커밋 ${NCOMMIT}건** 이 있는데 이 상태에 대한 판정이 없습니다. (커밋했다고 검증된 것이 아닙니다 — 2026-09-10 에 그 구멍으로 6일간 게이트가 안 울린 채 운영 배포까지 갔습니다.)
 
-지금 할 일:
-  → /fable-검증  실행.
-     · Fable 을 띄울 수 있으면 → ①diff범위 ②가드스크립트 ③실HTTP회귀 ④배포안전성 독립 검증 후 PASS 마커
-     · Fable 을 못 띄우면      → docs/FABLE_GATE_QUEUE.md 에 항목을 쌓고 unavailable 마커.
-       그러면 이 상태는 통과하되 **미검증이라는 사실이 남습니다.** 조용히 넘어가지 않습니다.
+공용 기준(~/dev-server/FABLE.md · PlanQ 예시는 CLAUDE.md «Fable 사용» 절)으로 가르세요:
+  → Fable 대상(돈·운영 DB·권한·공개 주소·외부 발송·삭제·보호 영역·계산·새 설계)이면 /fable-검증 실행.
+     · Fable 을 띄울 수 있으면 → 독립 검증 후 PASS 마커
+     · 한도로 못 띄우면       → 자체 검증 숫자 + 상황판 Fable 대기(/api/fable-wait) + unavailable 마커,
+       보고 첫 줄 «🕓 나중에 — Fable 대기», 운영 배포는 Fable 통과 뒤로. 조용히 넘어가지 않습니다.
+  → 대상이 아니면(화면·문구·작은 버그·문서) 자체 검증을 실제로 돌려 숫자로 보고하고 «Fable 미검증(자체 검증)» 이라고 적은 뒤 다시 끝내세요.
 ${SKIP_STALE:+
 ⚠️ 수동 우회 파일($SKIP)이 있지만 24시간이 지나 만료됐습니다. 계속 넘기려면 다시 touch 하세요.}
 

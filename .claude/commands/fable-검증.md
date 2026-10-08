@@ -1,42 +1,27 @@
-# /fable-검증 — Fable 독립 검증 게이트 (구현·테스트 검증 무조건 Fable)
+# /fable-검증 — Fable 독립 검증 게이트 (공용 기준의 Fable 대상일 때)
 
-CLAUDE.md **'역할 분담 — 기획·설계·검증·테스트 = Fable (무조건)'** 정책의 실행 커맨드.
-구현 완료 후 **Opus 자체 검증은 완료 근거가 될 수 없다.** 반드시 이 커맨드로 **Fable(model:fable) 서브에이전트**를 띄워 독립 검증하고, 그 판정을 근거로만 완료 보고한다.
+**언제 부르나 = 공용 기준** `~/dev-server/FABLE.md` (PlanQ 의 «되돌리기 어려운 것» 예시는 CLAUDE.md «Fable 사용» 절).
+되돌리기 어려운 변경(돈·운영 DB·권한·공개 주소·외부 발송·삭제·보호 영역)의 완료 검증 · 계산·통계 · 검증 설계 · 새 화면/핵심 흐름 UX 점검일 때 부른다.
+화면 다듬기·작은 버그는 부르지 않는다 — 자체 검증 숫자 + «Fable 미검증(자체 검증)».
+(출처: 2026-07-21 Irene «구현·테스트 검증은 무조건 Fable» → 2026-09-06 «꼭 필요한 부분에만» → 2026-10-08 공용 기준으로 통일.)
 
-이 커맨드는 Stop 훅(`fable-gate-stop.sh`)과 연동된다 — **PASS 시 마커를 기록해야 정지(완료)가 허용**된다.
+이 커맨드는 Stop 훅(`fable-gate-stop.sh`)과 연동된다 — PASS 면 마커를 남겨 그 변경 상태(지문)로는 다시 묻지 않는다.
 
 ---
 
-## 1단계: Fable 서브에이전트로 독립 검증 (필수)
+## 1단계: Fable 서브에이전트로 독립 검증
 
-**Agent 도구를 `model: "fable"` 로 호출**한다(Opus 가 직접 검증하지 않는다). 서브에이전트에 아래를 그대로 위임:
+**Agent 도구를 `model: "fable"` 로 호출**한다. 한 사안 최대 2번(설계 1 + 검증 1), 같은 기능 후속은 묶어서 한 번.
+**사실만 짧게** 넘긴다 — 무엇을 보라는 체크리스트를 내려보내지 않는다(공용 기준 4절):
 
-> 너는 PlanQ 독립 검증관(Fable)이다. 방금 Opus 가 구현한 변경을 **코드 리뷰가 아니라 실제 실행/호출로** 검증하고, 통과/실패를 근거와 함께 판정하라. 통과를 남발하지 말고 의심되면 실패로 판정하라.
+> 너는 PlanQ 독립 검증관(Fable)이다. 아래 변경이 운영에 나가도 되는지 **실제 실행·호출로** 판정하라. 통과를 남발하지 말고 의심되면 실패로 판정하라.
+> - Irene 원문(신고·지시):
+> - 변경 범위: 커밋 `<마지막 마커 commit>..HEAD` + 미커밋 (`source .claude/hooks/fable-gate-paths.sh && git status --porcelain -- "${GATE_PATHS[@]}"`)
+> - 설계 문서:
+> - 내 자체 검증 숫자:
+> - 이 저장소의 검사 도구(필요한 것을 골라 써라): CLAUDE.md «Fable 사용 › 이 저장소의 검사 도구» — health-check · guard-invariants · `npm run build` · e2e 스위트 · 포트 3003 실HTTP(테스트 스크립트는 `dev-backend/` 에서 돌리고 반드시 `rm`).
 >
-> **대상 변경 파악**: `cd /opt/planq && source .claude/hooks/fable-gate-paths.sh && git status --porcelain -- "${GATE_PATHS[@]}"` 와 `git diff` 로 이번 미커밋 변경 범위를 확인.
->
-> **① diff 범위 대조** — 변경이 사전 합의된 설계/요구 범위 안인가. 설계 외 변경(임의 추가·부수 수정) 0 인지 확인. 벗어난 게 있으면 목록화.
->
-> **② 가드 스크립트 3축 + 빌드** (모두 종료코드 0 이어야 통과):
-> ```bash
-> cd /opt/planq/dev-backend && node /opt/planq/scripts/health-check.js
-> node /opt/planq/scripts/guard-invariants.js
-> node /opt/planq/scripts/e2e/run.js --suite tenant
-> cd /opt/planq/dev-frontend && npm run build   # tsc -b EXIT 0 + error TS 0
-> ```
-> (guard-invariants 래칫 실패 = 신규 위반. 의도된 부채 감소가 아니면 실패 처리.)
->
-> **③ 실호출·회귀** — 코드 리뷰 금지, 실제 HTTP(포트 3003)로 증명:
-> - login → 핵심 CUD → 재조회 값 일치
-> - 권한별 접근(비권한 403, 멀티테넌트 비멤버 403)
-> - 운영 옛 데이터 sample 1건으로 회귀 없음 확인
-> - 테스트 스크립트는 `cd /opt/planq/dev-backend && node test-xxx.js` 로 실행 후 **반드시 `rm`**.
->
-> **④ 배포 안전성** (배포/마이그레이션 동반 시) — 운영 ALTER 가이드·백필 idempotent / 프론트 청크 해시 갱신 / 롤백 경로(backups/{TIMESTAMP}).
->
-> **출력**: ①~④ 각 PASS/FAIL + 근거(실제 명령 출력·HTTP 응답 발췌). 하나라도 FAIL 이면 **전체 판정 = FAIL**. 마지막 줄에 정확히 `VERDICT: PASS` 또는 `VERDICT: FAIL` 만 출력.
-
-고위험 변경(보호영역·돈/주문 무결성·운영 DB 마이그레이션·신규 아키텍처·보안 경계)은 ①~④ 전부 생략 불가 — Fable 에게 명시적으로 강조.
+> 출력: 판정 근거(실제 명령 출력·HTTP 응답 발췌) · 차단/비차단 지적 · 마지막 줄에 정확히 `VERDICT: PASS` 또는 `VERDICT: FAIL`.
 
 ---
 
@@ -63,20 +48,23 @@ echo "✅ Fable 게이트 통과 기록됨 (fp=${FP:0:12} commit=${HEADC:0:8})"
 
 그 후 사용자에게 Fable 판정 근거를 요약 보고. (필요 시 이어서 `/개발완료`.)
 
-### Fable 을 **띄우지 못한** 경우 → 대기열 등재 + `unavailable` 마커
+### Fable 을 **띄우지 못한** 경우 (한도·사용량 초과·과부하) → 공용 기준 5절
 
-Irene 2026-09-10: *"페이블 토큰 있을 때 페이블 쓰고 아닐 때 스킵하고 하는 걸로 해야지"*
+출처 Irene 2026-09-10: *"페이블 토큰 있을 때 페이블 쓰고 아닐 때 스킵하고 하는 걸로 해야지"* — 2026-10-08 부터 «스킵» 은 아래 절차다.
+그 밖의 오류는 한 번 다시 시도한다. 귀찮아서·오래 걸려서는 해당 없다.
 
-**"못 띄웠다" 는 Agent 호출이 실제로 실패했을 때만이다.** 귀찮아서·오래 걸려서는 해당 없다.
-띄우지 못했으면 **조용히 넘어가지 않는다** — 넘어가되 그 사실을 두 곳에 남긴다.
-
-1. `docs/FABLE_GATE_QUEUE.md` 에 항목을 **추가**한다. 다음을 반드시 적는다:
-   - 판정(R/S/F 중 무엇이 1인지)과 그 근거
-   - 무엇을 만들었나(파일·라우트·스키마)
-   - 자체 검증으로 무엇을 확인했나 (숫자로)
-   - **Fable 이 봐야 할 것** — 내가 못 가른 지점을 구체적으로
-2. 마커를 `by:"unavailable"` 로 기록한다(아래). 그래야 훅이 이 상태를 통과시키면서도
-   "검증된 것" 과 **구별**된다.
+1. 자체 검증을 **실제로 돌려 숫자로** 남긴다. Fable 몫의 판단을 «통과» 로 쓰지 않는다.
+2. **상황판 Fable 대기**에 올린다(`docs/FABLE_GATE_QUEUE.md` 에 쌓던 것을 대신한다):
+   ```bash
+   curl -s -X POST -H 'Content-Type: application/json' -H 'Origin: http://localhost:8800' --data-binary @- http://127.0.0.1:8800/api/fable-wait <<EOF
+   {"room":"$(basename "$CLAUDE_JOB_DIR")","kind":"gate","title":"한 줄 제목","need":"커밋 범위·바뀐 파일·설계 문서·자체 검증 숫자·내가 못 가른 지점","resetAt":"오류에 풀리는 시각이 있으면 ISO"}
+   EOF
+   ```
+   (방 번호가 없는 터미널 창이면 `"room"` 대신 `"project":"planq"`.)
+3. 작업기록 `.claude/session-state.md` 에 `### 나중에 — Fable 대기: 무엇 · 한도가 풀리면 · 그때 할 일`.
+4. 마커를 `by:"unavailable"` 로 남긴다(아래) — 훅은 이 지문을 통과시키되 «검증됨» 과 **구별**된다.
+5. 보고 첫 줄 `🕓 나중에 — Fable 대기: …`, 본문에 «Fable 미검증(자체 검증)». **운영 배포는 Fable 통과 뒤로.**
+6. 상황판이 풀리는 시각에 이 방을 깨우면 다시 올리고, 판정을 받으면 `{"room":"<방 번호>","done":true}` 를 같은 주소로 보낸다.
 
 ```bash
 REPO=/opt/planq
@@ -89,10 +77,9 @@ if [ -n "$LAST" ] && git -C "$REPO" cat-file -e "${LAST}^{commit}" 2>/dev/null; 
 else COMMITTED=""; fi
 FP=$(printf '%s\n%s' "$CHANGED" "$COMMITTED" | sha256sum | cut -d' ' -f1)
 printf '{"fingerprint":"%s","commit":"%s","ts":%s,"by":"unavailable"}\n' "$FP" "$HEADC" "$(date +%s)" > "$REPO/.claude/.fable-gate.json"
-echo "⚠️ Fable 미가용 — 대기열 등재 + unavailable 마커 (fp=${FP:0:12})"
+echo "⚠️ Fable 미가용 — 상황판 Fable 대기 + unavailable 마커 (fp=${FP:0:12})"
 ```
 
-보고할 때 **"Fable 미검증(자체 검증)"** 이라고 명시한다. 통과했다고 쓰지 않는다.
 
 ### FAIL 인 경우 → 마커 기록 금지
 - 마커를 쓰지 않는다(정지 시 훅이 다시 게이트를 요구).
@@ -102,8 +89,8 @@ echo "⚠️ Fable 미가용 — 대기열 등재 + unavailable 마커 (fp=${FP:
 ---
 
 ## 주의
-- 이 커맨드 없이 "검증 완료/개발 완료"라고 보고하는 것은 정책 위반이다.
-- Opus 가 스스로 ①~④ 를 실행해 통과시키는 것도 위반 — 검증 주체는 **반드시 Fable 서브에이전트**.
+- Fable 대상 변경을 이 커맨드 없이 «검증 완료» 라고 보고하는 것은 위반이다(대상이 아니면 «Fable 미검증(자체 검증)» 으로 보고).
+- Fable 대상 변경에서 Opus 가 스스로 검사를 돌려 PASS 마커를 쓰는 것도 위반 — `by:"fable"` 마커는 Fable 판정으로만.
 - 마커는 "현재 변경 상태"의 지문에 묶인다. 마커 기록 후 코드를 더 바꾸면 지문이 달라져 게이트가 다시 열린다(재검증 필요) — 정상 동작.
 - 사람이 강제로 넘기려면: `touch /opt/planq/.claude/.fable-gate-skip`.
   ★ **24시간 뒤 자동 만료**된다. 2026-08-23 에 임시로 켠 것이 **18일간 켜진 채 잊혀**
