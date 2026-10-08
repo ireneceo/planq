@@ -106,7 +106,10 @@
 2. **Irene 결정 8건 — 미완료.** 7건은 운영 반영·실테스트·Fable 운영 게이트 PASS. ⑥ 구글 «캘린더 목록 보기» 권한: 콘솔 추가 + 심사 재제출(Irene) → 승인 메일 확인 → 승인 후 planq.kr 에서 [캘린더 고르기] 경고 없이 열리는지 실측해야 완료. AI 앱 재연결·중복 연결 정리도 남음(위 «답 기다림»)
 3. ~~남은 피드백 5건~~ ✅ 2026-10-07 — #458 말하기(59b04893) · #434/#456 안드로이드 공유 받기(76da612a, 새 Play 빌드 필요 · iOS 는 App Group 대기) · #460 설문 의견 문서 · #457 회신 알림 언어 수정(c11cf194, 보고자 답 대기) · #415 닫기 제안 → 답글 승인 대기(위 «답 기다림»). Fable C PASS + 지적 2건 수정(a16fa23b). **dev 미배포 4커밋**
 4. ~~종일 일정 시간대~~ ✅ 2026-10-07 [Opus]+[Fable] — 종일 = UTC 자정 날짜(docs/ALLDAY_EVENT_DATE_DESIGN.md). c79778d1 + ea44f5f5, Fable 설계 판정 U → 구현 검증 PASS. **dev 미배포** — 배포 때 `post_restart_backfills` 가 운영 종일 3행(id 42·43·44) 재부호화 후 0건 단언. Fable 관찰(비차단): 배포 스크립트 단언 줄은 ssh 자체 실패 시 set -e 로 멈춤 — 다음에 만질 때 `|| LEFT=@@ERR`. 따로 남김: 시간 일정 반복의 UTC 전개(서울 08:00 매주 수 → 목) — 회차 키 이동·자기 백필이 따라오는 별도 R=1, Fable 설계부터
-5. Irene: ChatGPT 재연결(docs:write) · front_v4.jpg 운영 확인
+5. Irene: ChatGPT 재연결(docs:write) · front_v4.jpg 운영 확인 — 2026-10-08 [Opus] 방 dfbe4a9b 점검: 둘 다 **Irene 손으로만** 끝난다.
+   - front_v4.jpg: 고친 코드(feac9580·5d530d27·122f042d)는 운영 f19fbfca 에 들어 있음 — planq.kr locale 에 «이미지 불러오는 중…»·«크게 보기» 실측. 실제 그 파일이 뜨는지는 Irene 로그인 화면에서만 확인 가능(운영 DB 읽기는 권한 거부)
+   - ChatGPT 재연결: 위 «답 기다림: Irene 직접 할 일 3가지» ②③ 과 같은 일 — 한 번 다시 연결하면 docs:write·files:write·projects:write 가 함께 붙는다. 연결 뒤 앱마다 최신 1개만 남기고 끊기
+   - 답이 오면 할 일: 운영 agent_grants 읽기(권한 허용 시) — 앱별 살아 있는 연결 1개 · scopes 에 docs:write·projects:write
 
 ### 주요 변경사항
 - 신규: `services/{planActive,presence,feedbackRespond}.js` · `scripts/feedback-reply.js` · `pages/QCalendar/{ProjectFilter,CalendarFrame}.tsx`
