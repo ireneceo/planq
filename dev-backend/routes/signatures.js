@@ -24,7 +24,7 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { Op } = require('sequelize');
 const {
-  SignatureRequest, Post, Document, Business, BusinessMember, User, Conversation, Message, Project,
+  SignatureRequest, Post, Document, Business, BusinessMember, User, Conversation, Project,
   PostAttachment, File,
 } = require('../models');
 const { sequelize } = require('../config/database');
@@ -245,11 +245,9 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
         // ★ 2026-09-22 — 카드에 **토큰 URL 을 싣지 않는다.** 방에 있는 누구나 그 사람 대신
         //   서명 화면에 들어갈 수 있었다(링크 자체가 열쇠다). 카드는 제목·서명자·진행만 보여주고,
         //   [서명하기] 는 본인 이메일을 받아 그 주소로 링크를 보낸다(POST /api/sign/request-link).
-        const msg = await Message.create({
-          conversation_id: conv.id,
-          sender_id: req.user.id,
-          content: `[서명 요청] ${docTitle}`,
-          kind: 'card',
+        // 카드 쓰기는 services/chatPost 한 문 — 방송·알림까지(2026-10-08 0-H, 옛: Message.create 만).
+        const msg = await require('../services/chatPost').postCardMessage({
+          conv, senderId: req.user.id, content: `[서명 요청] ${docTitle}`, io: req.app.get('io'),
           meta: {
             card_type: 'signature_request',
             entity_type: 'post', entity_id: post.id,
@@ -257,9 +255,7 @@ router.post('/posts/:id/signatures', authenticateToken, async (req, res, next) =
             signers: created.filter(c => c.party !== 'us').map(c => ({ email: c.signer_email, status: c.status })),
             note: created[0]?.note || null,
           },
-          is_ai: false, is_internal: false,
         });
-        await conv.update({ last_message_at: new Date() });
         chatMessageId = msg.id;
       }
     }

@@ -152,10 +152,12 @@
       "mail": "New mail (Q mail)",
       "sale": "Sales",
       "share_expiry": "Share link expiring",
-      "push_fallback": "Email when push fails"
+      "push_fallback": "Email when push fails",
+      "leave": "Leave",
+      "survey": "Survey responses"
     },
     "eventDesc": {
-      "message": "New message arrives in a chat room",
+      "message": "New message arrives in a chat room · email is sent as one digest if unread for 5 minutes",
       "mention": "@-mentioned in chat",
       "comment_mention": "@-mentioned in task or document comments",
       "signature": "Requests received / signed / rejected",
@@ -167,7 +169,9 @@
       "mail": "Follows each mail account’s notification scope (default: reply needed + review recommended)",
       "sale": "Account requests · unanswered inquiries (later: call transcribed · automatic stage changes)",
       "share_expiry": "When an external share link expires in 3 days",
-      "push_fallback": "Re-sends unread notifications by email when a device push was not delivered"
+      "push_fallback": "Re-sends unread notifications by email when a device push was not delivered",
+      "leave": "Leave requests, approvals and rejections",
+      "survey": "A new response arrives on a survey you opened"
     },
     "footerNote": "Inbox is the in-app notification area. Chat / Email go to external channels.",
     "policy": {

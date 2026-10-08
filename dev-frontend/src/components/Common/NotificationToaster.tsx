@@ -11,12 +11,13 @@
 //   - 'chat' (인앱) channel ON 일 때만 표시 (notification_prefs 매트릭스)
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
-import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
+import { useChromeLocation } from '../../hooks/useChromeNav';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { notificationRowToToastLink, withJumpToLatest, type NotificationFullRow } from '../../utils/notificationLink';
 import NotificationTypeIcon from './NotificationTypeIcon';
+import { tabStore } from '../../stores/tabStore';
 
 interface Toast {
   id: string;
@@ -174,7 +175,6 @@ function playSynth() {
 export default function NotificationToaster() {
   const { user } = useAuth();
   const { t, i18n } = useTranslation('common');
-  const navigate = useChromeNav();
   const location = useChromeLocation();
   const [toasts, setToasts] = useState<Toast[]>([]);
   // message:new 가 conv room + business room 양쪽으로 도착해 같은 메시지가 중복 토스트 되는 것 차단 (운영 #25)
@@ -288,9 +288,13 @@ export default function NotificationToaster() {
     if (toast.link && activePathRef.current === toast.link.split('?')[0]) {
       if (!toast.link.includes('?')) skipToast = true;
     }
-    if (!isChatChannelAllowed(toast.type)) skipToast = true;
-    // Ping 사운드 — 항상. 활성 conv 든 다른 페이지든. (Irene 명시: 사운드 와야 함)
-    playPing();
+    // 사용자가 이 종류의 «앱 안 알림(chat 열)» 을 끈 것 — 토스트도 소리도 내지 않는다(2026-10-08 0-H).
+    //   옛: 토스트만 막고 소리는 울려 «껐는데 소리가 난다» 였다. 끈 설정은 사용자의 뜻이다.
+    const channelOff = !isChatChannelAllowed(toast.type);
+    if (channelOff) skipToast = true;
+    // Ping 사운드 — 활성 conv·같은 페이지여도 울린다(Irene 2026-05-08: 사운드는 새 메시지 인지).
+    //   단 위의 «끈 설정» 만은 예외.
+    if (!channelOff) playPing();
     // 사이드바 토탈 unread 갱신 트리거 — message 토스터는 활성 conv 외 다른 conv 의 새 메시지를
     // 의미하므로 useUnreadTotal 이 즉시 refetch 해야 사이드바 뱃지가 stale 되지 않음.
     if (toast.type === 'message') {
@@ -585,7 +589,9 @@ export default function NotificationToaster() {
           $type={toast.type}
           onClick={() => {
             // N+73 — toast.link 가 항상 정확 (Toaster 자체 link OR notification:new full row OR resolveNotificationLink fallback)
-            navigate(withJumpToLatest(toast.link || '/notifications'));
+            // ★ 하던 일 위에 얹히는 진입점은 새 탭 — 드롭다운·알림 페이지와 같은 규칙(2026-10-08 0-H).
+            //   옛: navigate 로 보던 탭을 덮어써 쓰던 글을 잃었다. 미러 모드(폰)는 tabStore 가 종전대로 이동한다.
+            tabStore.openInNewTab(withJumpToLatest(toast.link || '/notifications'));
             dismiss(toast.id);  // dismiss 가 mark-read 까지 처리
           }}
           role="alert"

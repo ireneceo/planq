@@ -1852,6 +1852,28 @@ router.post('/:businessId/email-threads/:id/assign',
       }
       if (prevAssignee !== userId) logAudit(req, { action: 'mail.assign', targetType: 'email_thread', targetId: threadId, businessId, oldValue: { assignee_user_id: prevAssignee }, newValue: { assignee_user_id: userId } });
       broadcastMail(req, businessId, 'mail:updated', { thread_id: threadId, assignee_user_id: userId });
+      // 담당 지정 알림 (2026-10-08 0-H) — 옛: 알림 0 이라 지정된 사람은 «담당» 폴더를 열기 전까지 몰랐다.
+      //   자기 지정은 알리지 않는다. 받는 사람이 **이 메일 계정을 볼 수 있을 때만** 알린다
+      //   (user_id 는 화면이 보낸 값 — 볼 수 없는 사람에게 제목이 나가면 그게 유출이다).
+      if (userId && userId !== prevAssignee && userId !== req.user.id) {
+        try {
+          const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
+          const targetScope = await getUserScope(userId, businessId);
+          const targetAccts = isMemberOrAbove(targetScope) ? await accessibleAccountIds(businessId, userId) : [];
+          if (targetAccts.includes(thread.account_id)) {
+            const { notify } = require('./notifications');
+            await notify({
+              userId, businessId, eventKind: 'mail',
+              titleSpec: { feature: 'mail', action: 'mail_assigned', subject: String(thread.subject || '').slice(0, 60) },
+              link: `/mail?thread=${threadId}`,
+              entityType: 'email_thread', entityId: threadId,
+              actorUserId: req.user.id,
+              tag: `mail-${threadId}`,
+              ioApp: req.app.get('io'),
+            });
+          }
+        } catch (e) { console.warn('[mail assign notify]', e.message); }
+      }
       return successResponse(res, { thread_id: threadId, assignee_user_id: userId });
     } catch (err) { next(err); }
   }

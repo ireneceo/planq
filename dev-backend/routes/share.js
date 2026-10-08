@@ -9,7 +9,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { Task, File, KbDocument, CalendarEvent, Business, User, Conversation, Message } = require('../models');
+const { Task, File, KbDocument, CalendarEvent, Business, User, Conversation } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
@@ -204,11 +204,9 @@ router.post('/chat', authenticateToken, async (req, res, next) => {
       ? `[${cfg.cardLabel}] ${entityTitle} — ${userMessage}`
       : `[${cfg.cardLabel}] ${entityTitle}`;
 
-    const msg = await Message.create({
-      conversation_id: conv.id,
-      sender_id: req.user.id,
-      content: fallbackContent,
-      kind: 'card',
+    // 카드 쓰기는 services/chatPost 한 문 — 방송·알림까지(2026-10-08 0-H, 옛: Message.create 만).
+    const msg = await require('../services/chatPost').postCardMessage({
+      conv, senderId: req.user.id, content: fallbackContent, io: req.app.get('io'),
       meta: {
         card_type: cfg.cardType,
         share_token: r.token,
@@ -218,10 +216,7 @@ router.post('/chat', authenticateToken, async (req, res, next) => {
         has_password: !!entity.share_password_hash,
         ...cfg.extraMeta(entity),
       },
-      is_ai: false,
-      is_internal: false,
     });
-    await conv.update({ last_message_at: new Date() });
 
     return successResponse(res, {
       share_url: shareUrl,

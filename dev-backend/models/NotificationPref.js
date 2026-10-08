@@ -14,6 +14,27 @@
 const { DataTypes, Model } = require('sequelize');
 const { sequelize } = require('../config/database');
 
+// ★ 알림 종류 목록은 **여기 한 곳**이다 (2026-10-08 0-H). DB ENUM 순서 그대로 — 새 값은 끝에 append.
+//   라우트(routes/notifications.js EVENT_KINDS)가 따로 목록을 들고 있었더니 `leave`·`survey` 가
+//   라우트에만 빠져 PUT /prefs 가 invalid_event_kind 로 거절했다 = 사용자가 끌 수 없는 알림.
+const NOTIFICATION_EVENT_KINDS = [
+  // 워크스페이스 멤버 알림
+  'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite',
+  'message',          // 채팅 일반 메시지
+  'mention',          // 채팅 @멘션 (사이클 N+16-C 부터 채팅 전용)
+  'comment_mention',  // 업무/문서 댓글 @멘션 (사이클 N+16-C 신규 — 채팅 멘션과 분리)
+  // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
+  'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
+  'share_expiry',     // 외부 공유 링크 만료 임박 (여태 이 ENUM 에만 빠져 '끌 수 없는 알림' 이었다)
+  'mail',             // #203 — Q Mail 새 메일 (범위는 email_accounts.notify_scope)
+  'system',           // 메일 계정 sync 실패 등 시스템 경고
+  'leave',            // #208 — 휴가 신청·승인·반려 (ENUM 은 반드시 끝에 append)
+  'sale',             // Q sale — 통화 전사 완료·단계 자동 변경·답 안 한 문의 (끝에 append)
+  'push_fallback',    // 푸시 실패 시 메일 재알림 안전망 — DB(migrate-push-fallback-pref)에는 있었는데 모델에만 빠져 있었다(2026-10-05 맞춤)
+  'client_crash',     // 2026-10-05 — 화면 크래시 관리자 알림 (플랫폼, business_id NULL · 끝에 append)
+  'survey',           // #460 설문 새 응답 (끝에 append — migrate-survey)
+];
+
 class NotificationPref extends Model {}
 
 NotificationPref.init({
@@ -28,23 +49,8 @@ NotificationPref.init({
     comment: 'null 이면 사용자 전역 기본, 값 있으면 워크스페이스별 override',
   },
   event_kind: {
-    type: DataTypes.ENUM(
-      // 워크스페이스 멤버 알림
-      'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite',
-      'message',          // 채팅 일반 메시지
-      'mention',          // 채팅 @멘션 (사이클 N+16-C 부터 채팅 전용)
-      'comment_mention',  // 업무/문서 댓글 @멘션 (사이클 N+16-C 신규 — 채팅 멘션과 분리)
-      // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
-      'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
-      'share_expiry',     // 외부 공유 링크 만료 임박 (여태 이 ENUM 에만 빠져 '끌 수 없는 알림' 이었다)
-      'mail',             // #203 — Q Mail 새 메일 (범위는 email_accounts.notify_scope)
-      'system',           // 메일 계정 sync 실패 등 시스템 경고
-      'leave',            // #208 — 휴가 신청·승인·반려 (ENUM 은 반드시 끝에 append)
-      'sale',             // Q sale — 통화 전사 완료·단계 자동 변경·답 안 한 문의 (끝에 append)
-      'push_fallback',    // 푸시 실패 시 메일 재알림 안전망 — DB(migrate-push-fallback-pref)에는 있었는데 모델에만 빠져 있었다(2026-10-05 맞춤)
-      'client_crash',     // 2026-10-05 — 화면 크래시 관리자 알림 (플랫폼, business_id NULL · 끝에 append)
-      'survey',           // #460 설문 새 응답 (끝에 append — migrate-survey)
-    ),
+    // ★ 값 목록은 위 NOTIFICATION_EVENT_KINDS 하나 — 라우트(PUT /prefs 검증·매트릭스)도 같은 배열을 쓴다.
+    type: DataTypes.ENUM(...NOTIFICATION_EVENT_KINDS),
     allowNull: false,
   },
   channel: {
@@ -59,5 +65,7 @@ NotificationPref.init({
     { fields: ['user_id'] },
   ],
 });
+
+NotificationPref.EVENT_KINDS = NOTIFICATION_EVENT_KINDS;
 
 module.exports = NotificationPref;

@@ -9,7 +9,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
-const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business, Conversation, Message } = require('../models');
+const { Post, PostAttachment, PostCategory, File, User, Project, BusinessMember, Business, Conversation } = require('../models');
 const { sequelize } = require('../config/database');   // 카테고리 이름변경·삭제는 문서 값과 한 트랜잭션이어야 한다
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { authenticateToken } = require('../middleware/auth');
@@ -1600,11 +1600,9 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
     // 폴백: kind='card' 미지원 클라이언트나 알림 미리보기에서 쓰일 짧은 텍스트
     const fallbackContent = userMessage ? `[문서] ${post.title} — ${userMessage}` : `[문서] ${post.title}`;
 
-    const msg = await Message.create({
-      conversation_id: conv.id,
-      sender_id: req.user.id,
-      content: fallbackContent,
-      kind: 'card',
+    // 카드 쓰기는 services/chatPost 한 문 — 방송(message:new)·알림까지(2026-10-08 0-H, 옛: Message.create 만).
+    const msg = await require('../services/chatPost').postCardMessage({
+      conv, senderId: req.user.id, content: fallbackContent, io: req.app.get('io'),
       meta: {
         card_type: 'post',
         post_id: post.id,
@@ -1613,10 +1611,7 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
         title: post.title,
         note: userMessage || null,
       },
-      is_ai: false,
-      is_internal: false,
     });
-    await conv.update({ last_message_at: new Date() });
     require('../services/auditService').logAudit(req, { action: 'post.share_chat', targetType: 'post', targetId: post.id, businessId: post.business_id, newValue: { conversation_id: conv.id, message_id: msg.id, link_issued: linkIssued } }); // 링크(토큰)는 싣지 않는다
     return successResponse(res, { message: msg, share_url: shareUrl });
   } catch (err) { next(err); }

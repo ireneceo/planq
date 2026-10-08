@@ -9,30 +9,10 @@ const { NotificationPref } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 
-const EVENT_KINDS = [
-  // 워크스페이스 멤버 알림
-  'message', 'signature', 'invoice', 'tax_invoice', 'task', 'event', 'invite',
-  'mention',          // 채팅 @멘션 (사이클 N+16-C 부터 채팅 전용)
-  'comment_mention',  // 업무/문서 댓글 @멘션 (사이클 N+16-C 신규)
-  'share_expiry',     // N+74-B — 외부 공유 링크 만료 임박 (D-3)
-  'mail',             // #203 — Q Mail 새 메일 (받을 범위는 메일 계정별 notify_scope 로 따로 고른다)
-  // ★ 2026-09-14 — `sale` 이 **여기 빠져 있었다.** Q sale 사이클에서 DB ENUM 에는 넣었고
-  //   화면(NotificationSettings)도 행을 그렸는데 이 목록에만 없어서 matrix['sale'] 이 undefined 였다.
-  //   그 결과 개인 알림 설정 화면이 `matrix[ev][ch]` 에서 통째로 크래시했고
-  //   (`Cannot read properties of undefined (reading 'inbox')`), 한 번 죽으면 다른 화면까지 에러로 보였다.
-  //   **상태값을 늘리면 그 값을 읽는 곳을 전수로 고친다**(CLAUDE.md 상태값 규약).
-  'sale',             // Q sale — 계정 요청·답 안 한 문의
-  // ★ 2026-09-14 (Irene: *"푸시 실패 시 메일로 재알림 항목 넣는 거 좋은데?"*)
-  //   기기 알림(푸시)이 조용히 실패했을 때 메일로 다시 알리는 **안전망 전용 항목**이다.
-  //   여태 이 발송(unreadEscalationCron)은 설정을 **일부러 무시**했다 — 그래서 "메일 다 껐는데 온다" 가 났다.
-  //   개별 종류의 email 설정과 **별개로** 이 항목 하나가 안전망을 켜고 끈다(기본 ON).
-  //   그래야 ①끄고 싶은 사람은 끌 수 있고 ②개별 메일을 다 꺼도 안전망은 남길 수 있다.
-  'push_fallback',
-  // 플랫폼 관리자 알림 (business_id NULL row 로 저장)
-  'inquiry', 'signup', 'payment', 'subscription', 'trial', 'feedback',
-  'system',           // 시스템 경고 (메일 계정 sync 실패 등) — 여태 목록에 없어 끌 방법이 없었다
-  'client_crash',     // 2026-10-05 — 화면 크래시 관리자 알림 (services/clientCrashAlert)
-];
+// ★ 목록은 모델 한 곳(NotificationPref.EVENT_KINDS — DB ENUM 과 같은 배열)이다 (2026-10-08 0-H).
+//   여기 따로 두었더니 `leave`·`survey` 가 빠져 PUT /prefs 가 거절 = 끌 수 없는 알림이었다.
+//   (옛 목록의 «sale 이 빠져 설정 화면이 통째로 크래시» 2026-09-14 도 같은 두 벌 결함이었다.)
+const EVENT_KINDS = NotificationPref.EVENT_KINDS;
 const CHANNELS = ['inbox', 'chat', 'email', 'push']; // 사이클 J4 — push 채널 추가
 
 // GET /api/notifications/prefs?business_id=X

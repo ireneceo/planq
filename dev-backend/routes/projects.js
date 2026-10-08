@@ -1405,6 +1405,10 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
           previewPolicy: 'excerpt',
           tag: `conv:${conv.id}`,
           entityType: 'conversation', entityId: conv.id,
+          // ★ 2026-10-08 0-H (Irene ⑤) — 채팅 메시지는 **메일을 즉시 보내지 않는다.** 1건 = 1통이라
+          //   dev 30일 779통·읽음 0 이었다. 인앱 행은 그대로 쌓이고, 5분 안 읽으면 unreadEscalationCron 이
+          //   그 사이 것을 묶어 1통으로 보낸다(설정 «메일» 열 = 묶음 메일). @멘션은 즉시 그대로.
+          skipChannels: ['email'],
         }).catch((e) => console.warn('[notify message]', e.message));
       }
     } catch (e) { console.warn('[notify message outer]', e.message); }
