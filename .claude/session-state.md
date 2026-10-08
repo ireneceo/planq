@@ -16,11 +16,13 @@
   ④ 하니스: 순찰 실행 시간이 2h45m(동시 부하 포함) — `nightly-patrol.sh` timeout 9000 을 넘을 수 있다 → 10800 으로 · full-sweep 총 시간 상한 없음(Fable 비차단).
   ⑤ Fable 비차단: 일반 멤버(member) 역할 스위트 없음 · 실시간 2-브라우저 시나리오 부족 · dupname 옛 경로(project_id NULL) 변별력 축소.
 
-### 진행 중: 감사 0단계 결함 수리 (2026-10-08 · [Opus]+[Fable] 감사 방 629e3b90) — Irene «권고대로»
+### 완료: 감사 0단계 결함 수리 — 전 묶음 Fable PASS, dev 반영·운영 미배포 (2026-10-08 · [Opus]+[Fable] 감사 방 629e3b90) — Irene «권고대로»
 - 운영 실측(읽기): RETENTION_PURGE_APPLY=1 · 청구서 7건 전부 KRW · sent 1건 토큰 살아 있음 · canceled 구독에 매달린 pending 결제 4건 · 애드온 결제 0
 - ✅ 0-A·0-B 돈·청구(설계 docs/FIX_0AB_MONEY_DESIGN.md): 93c558a2 + 2dfd8320 — Fable 1차 FAIL(예약 다운그레이드 못 보고 못 취소) → 수정 → **PASS**
-- 🕓 0-C 격리 ccd7b793 · 0-D 휴지통 7a5f30a3 · 0-E 관리자·메뉴 숨김 1c87444a · 0-F 초대 78a7c300 (설계 docs/FIX_0CDEF_ACCESS_DESIGN.md) — Fable 구현 검증 중
-- 남은 0단계: 0-G 숫자 한 벌 · 0-H 알림 계약 · 0-I 문구·i18n · 0-J 작은 결함(R=0, 자체 검증)
+- ✅ 0-C 격리 ccd7b793 · 0-D 휴지통 7a5f30a3 · 0-E 관리자·메뉴 숨김 1c87444a · 0-F 초대 78a7c300 (설계 docs/FIX_0CDEF_ACCESS_DESIGN.md) — **Fable PASS**
+- ✅ 0-G 숫자 d9f538f3 · 0-H 알림 e2a9f10e(채팅 메일 5분 묶음) · 0-I 문구 38d1d64e(610키) · 0-J 작은 결함 43e48a10 · 후속 6d554be7(카드 공유 열쇠 business 방 제거) — **Fable PASS**
+- 다음: 1단계(사용자 체감 P0 15건 — 확인필요 바로 처리·업무 드로어 다음 액션·프로젝트 개요 한 장·메시지→업무·답글·전체답장 등, docs/FABLE_PRODUCT_AUDIT_2026-10-07.md §C) — 운영 배포는 Irene /배포 지시 뒤
+- 운영 배포 전 추가 SELECT(0-C): signature_requests entity_type<>'post' 0 · 위키 문자열 file_id 0 · documents 살아 있는 share_token 수
 - 운영 배포 전 필수: 0-A §1-2 운영 SELECT(고아 4건 plan_code=plan·live 0) · 마이그레이션 슬롯 2개(migrate-invoice-money · migrate-billing-0a) · CONTENT_TRASH_PURGE_APPLY 는 리포트 하루 뒤 켠다
 - Irene 할 일: `dev-backend/scripts/plan-expiry-check.js` 삭제(권한 거부, 미배선이라 동작 영향 없음)
 

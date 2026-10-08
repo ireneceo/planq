@@ -8,7 +8,30 @@
 
 ---
 
-## 2026-10-08 0-C·0-D·0-E·0-F 접근·격리·휴지통·권한·초대 — 구현 완료(Opus) · **Fable 구현 검증 대기(0-C·0-D R=1)**
+## 2026-10-08 0-G·0-H·0-I·0-J 숫자·알림·문구·작은 결함 — **VERDICT: PASS** (Fable — d9f538f3 e2a9f10e 38d1d64e 43e48a10 + 후속 6d554be7 카드 열쇠 business 방 제거·가드 변수형). 매출 원장 = 인사이트(biz5 13,860,000 일치) · 채팅 메일 5분 묶음·@멘션 즉시 · EVENT_KINDS==ENUM · 죽은 라우트 12 호출처 0. 비차단: 활성 대화 conv 방 join 전 찰나 카드 → 다른 대화 갔다 오면 복구(로드 효과 deps 에 historyLoaded 추가로 닫을 수 있음) · push_fallback 끈 사람은 채팅 메일 없음(기존 계약) · project_process 마운트 순서 기존 결함 · 미측정: 환불/부분결제 데이터·Cue 실행 백업 LLM 경로
+- 커밋 d9f538f3(0-G) · e2a9f10e(0-H) · 38d1d64e(0-I) · 43e48a10(0-J). dev 반영(빌드 6회 전부 EXIT 0·error TS 0, 백엔드 재시작), 운영 미배포. Irene 결정 ⑤(채팅 메일 5분 묶음) 반영.
+- **자체 검증 수치**: 전체 health-check 83/83(재시도 shim 전 81/83 — 실패 2 = UND_ERR_SOCKET keep-alive) · 전체 guard EXIT 0(65/66, 1=문서 신선도 경고) ·
+  0-G HTTP 9/9(Cue 한도=게이트 1500 · ack 버킷 reviewing 제외/in_progress 포함/done_feedback 한 버킷 · 원장 API=SQL 13,860,000 · 남 워크스페이스 403 · inTrial active=false/trialing=true) ·
+  0-H HTTP 13/13(prefs leave·survey PUT 200 · 채팅 메시지 인앱 1·즉시 메일 0 → 5분 뒤 크론 묶음 1통(dev skipped) · share-to-chat message:new 방송+알림 · 메일 담당 지정 알림 1/비멤버 0) + 설정 화면 3폭 ·
+  0-I parity_missing_keys 321→0(가드가 세는 263 + 가드 밖 여러-ns 파일 347 = 610키) · 화면 3폭×5(en/ko 인증·가입·비번) · 단계 reason=코드 HTTP ·
+  0-J HTTP 16/16(죽은 라우트 404 · next_contact 반환/과거 제외 · 파일 공유 B 남의 L1 해제 403×2/오너 200 · created_via agent/사람 null) + e2e 3폭 25/25(알림 이전 더 보기 120→140 · API 토큰 회수 확인창·취소 유지 · Ctrl+\ 검색 안 염/Ctrl+K 염 · 채팅 전송 실패 입력 복원 · 다음 일정 줄 · 목록 «불발» 사유 모달) · safeRedirectPath 8/8.
+- **양성 대조군(HEAD 로 되돌려 뒤집힘 확인 후 cmp 원복)**: 0-G cue_limit(5000≠1500)·ack 2·원장(404)·inTrial · 0-H prefs 2·즉시 메일(1)·방송 0·알림 0·담당 알림 0 · 0-I parity(키 1개 지우면 현재 1/베이스 0 FAIL) ·
+  0-J 죽은 라우트 4(200·501 로 뒤집힘, 3개는 HEAD 에서도 권한·검증으로 4xx 라 대조 불가)·next_contact·공유 해제 2·created_via · deadroute(가짜 라우트 1개 → 24/23 FAIL) · safeRedirectPath(HEAD 는 NUL·DEL 통과). 화면 대조군은 재빌드 필요라 안 함.
+- **설계와 다르게/보수적으로 한 것**
+  1. 0-G «제안 무과금»: /help 의 기록을 통째로 지우지 않고 **실행 카드(proposed_action)를 낸 응답만** 무과금 — 2026-09-03 Fable 판정(«가장 비싼 단건 경로가 원장 없음»)을 지키기 위해 그냥 답은 계속 기록.
+  2. 0-G 매출: 새 집계 라우트 대신 `GET /api/invoices/:biz/revenue-ledger`(가시성 invoiceListWhere) + services/stats `ledgerPayments·ledgerRevenueEvents` 를 인사이트 개요와 공유. 홈 통화 기준(옛 화면은 KRW 고정).
+  3. 0-H 카드 쓰기 한 문 = `services/chatPost.postCardMessage` 신설(문서 share-to-chat·서명 카드·/api/share 카드 3곳). 청구서 카드(invoiceDelivery·invoicePayments)는 0-A/B PASS 범위라 건드리지 않음. 카드 알림도 메일 즉시 X.
+  4. 0-H 소리: «활성 대화·같은 페이지에서도 울린다»(Irene 05-08)는 유지, **chat 열을 끈 종류만** 무음.
+  5. 0-I: 서버 403 문구는 0-E 에서 이미 코드(self_or_admin_only)라 할 일 없음. AI 요약은 요청자 언어로 프롬프트·섹션 라벨(저장 요약 1벌이라 다른 언어 사용자는 생성자 언어로 본다).
+  6. 0-J Cue «이전으로»: 새 표(task_body_revisions) 대신 **기존 결과물 회차(TaskDeliverableVersion) + 기존 restore 라우트** 재사용 — 실행 직전 본문을 백업 회차로 남기고, 백업 실패면 덮지 않음. 되돌리기는 기존 규칙대로 본문 편집 가능 상태에서만(컨펌 중이면 수정요청 뒤).
+  7. 0-J 죽은 라우트: 호출처 grep(프론트·MCP·scripts·services·q-note) 0 인 것만. **남김**: conversations cue/pause·resume(감사 4-5 에서 화면 연결 예정) · POST /:biz/:id/messages(카나리 사용) · kb /kb/search(health-access 사용) · auth resend-verify-email(인증 표면 — 보수적) · admin_billing 세금계산서 큐 2·admin_wiki 질문 로그 2(3-9·지식 루프 화면 예정) · email_accounts backfill(운영 수동 도구 가능성). projects `/:id/report` 는 감사표와 달리 **살아 있음**(projectReport.ts). nginx 접근 로그는 권한이 없어 못 봄.
+  8. 0-J deadroute 가드 = 휴리스틱(라우트 고정 조각이 호출 코드에 문자열로 있나) 래칫, 기존 23 동결.
+  9. 0-J 파일 공유 B: 파일 목록이 링크 존재 여부를 모르므로 [링크 해제]는 직접 업로드 파일 1개 선택 시 늘 보인다(없는 링크 해제는 무해).
+  10. god-file 래칫 때문에 «다음 일정» 줄은 NextContactModal.tsx 의 NextContactLine, 목록 «불발» 모달은 SaleInboxBits.LostAskModal, 공유 해제 확인창은 docs/ShareRevokeDialog.tsx 로 뺐다.
+- **Fable 이 볼 것**: ① 0-G 매출 공식 이전(Q Bill 개요가 paid_amount → InvoicePayment 순액·홈 통화, 인사이트와 같은 함수) — 개요 숫자가 바뀐다 ② 0-G Cue 한도 표시(게이트값·애드온·무제한 null) ③ 0-G «제안 무과금» 범위(위 1) ④ 0-H 발송 트리거: 채팅 메시지 메일 즉시→크론 묶음(push_fallback 스위치를 끈 사람은 채팅 메일을 아예 못 받음 — 기존 크론 계약) · 카드 3곳 알림 신설 · 메일 담당 지정 알림 신설(비멤버·계정 접근 불가자 제외) ⑤ 0-J 서버 라우터 마운트 1줄 제거(project_process) ⑥ 0-J 파일 공유 해제 술어 강화(멤버 → 생성과 같은 술어).
+- 확인 못 함: Cue 실행 백업 실경로(LLM 호출 필요 — 코드만) · /help 실행 카드 무과금(LLM) · 토스터 클릭 새 탭(토스트 유발 경로 없음 — 빌드만) · Q Note [더 보기](세션 50건 미만 — 화면 미측정) · 빈 프로젝트 CTA(프로젝트 0건 워크스페이스 없음) · 운영 메일 실발송(dev 정지).
+
+## 2026-10-08 0-C·0-D·0-E·0-F 접근·격리·휴지통·권한·초대 — **VERDICT: PASS** (Fable 2026-10-08 — 4묶음 ①~④ 전부, 이탈 10건 인정. 비차단: safeRedirectPath 제어문자 · owner_only_hint 문구 · invoice:updated 등 통째 방송 11건 래칫 · health-check localhost fetch 불안정. 배포 전 운영 SELECT 3종(entity_type≠post 서명 0 · 위키 문자열 file_id 0 · documents share_token 수))
 - 설계 정본 `docs/FIX_0CDEF_ACCESS_DESIGN.md`. 커밋 ccd7b793(0-C) · 7a5f30a3(0-D) · 1c87444a(0-E) · 78a7c300(0-F). dev 반영(빌드 4회 EXIT 0·error TS 0), 운영 미배포. `CONTENT_TRASH_PURGE_APPLY` 는 **꺼진 채**(dev 리포트: scanned 114 · would_remove 13).
 - **자체 검증(Fable 미검증)**: 전체 health-check 81/83(실패 2 = 02:07 백엔드 재시작 순간 fetch failed, 해당 카테고리 재실행 10/10) · secrets·money·billing·signauth·kbauth·folderauth·mailscope·clientsmenu·wiki 28/28 · retention 6/6 ·
   invite 4/4 · auth 의 me_menu·admin_chat · 가드 전체 EXIT 0(64/65, 1 = 경고) · e2e signature 3검사 추가 전부 ✅ · signflow·signitems ✅ · menuhide 15/15(3폭) · invite 10/10(3폭) · 공개 문서 3폭 · 삭제 문구 3폭.
