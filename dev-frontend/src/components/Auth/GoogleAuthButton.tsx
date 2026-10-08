@@ -40,9 +40,18 @@ interface Props {
   withDivider?: boolean;
   /** 구분선 문구 (기본 '또는') */
   dividerLabel?: string;
+  /** 로그인·가입 뒤 돌아갈 앱 경로(초대 링크·공개 페이지 복귀) — 서버가 state 에 실어 콜백까지 나른다(0-F F-2).
+   *  네이티브 앱은 딥링크로 돌아오므로 싣지 않는다. 서버가 같은 출처 상대경로만 받는다(safeRedirectPath). */
+  redirect?: string | null;
 }
 
-const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = true, dividerLabel }) => {
+const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = true, dividerLabel, redirect }) => {
+  // 시작 URL — 네이티브는 client=native 만, 웹은 redirect 가 있으면 붙인다
+  const startUrl = (provider: 'google' | 'apple') => {
+    const base = `/api/auth/${provider}/initiate`;
+    if (isNativeApp()) return `${base}?client=native`;
+    return redirect ? `${base}?redirect=${encodeURIComponent(redirect)}` : base;
+  };
   const { t } = useTranslation('auth');
   const [apple, setApple] = useState(false);
   useEffect(() => {
@@ -59,7 +68,7 @@ const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = tr
       <GoogleBtn
         type="button"
         data-testid="google-auth-btn"
-        onClick={() => onStart(isNativeApp() ? '/api/auth/google/initiate?client=native' : '/api/auth/google/initiate')}
+        onClick={() => onStart(startUrl('google'))}
         disabled={disabled}
         aria-label={label}
       >
@@ -75,7 +84,7 @@ const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = tr
         <AppleBtn
           type="button"
           data-testid="apple-auth-btn"
-          onClick={() => onStart(isNativeApp() ? '/api/auth/apple/initiate?client=native' : '/api/auth/apple/initiate')}
+          onClick={() => onStart(startUrl('apple'))}
           disabled={disabled}
           aria-label={appleLabel}
         >

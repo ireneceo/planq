@@ -373,6 +373,9 @@ const LoginPage: React.FC = () => {
   const { t: tErr } = useTranslation('errors');
   const navigate = useNavigate();
   const location = useLocation();
+  // 돌아갈 곳(?redirect · 공개 페이지가 보내는 ?next) — 구글·애플 로그인과 «회원가입» 링크에도 실어 보낸다(0-F F-2).
+  //   검증은 아래 착지 로직과 서버(safeRedirectPath)가 한다. 여기서는 나르기만 한다.
+  const redirectParam = (() => { const q = new URLSearchParams(location.search); return q.get('redirect') || q.get('next') || null; })();
   const { login, logout, user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -633,7 +636,7 @@ const LoginPage: React.FC = () => {
               네이티브 앱: initiate 에 ?client=native → callback 이 일회용 code-exchange 딥링크로 분기(H-2).
               시스템 브라우저(SFSafariViewController)로 로그인 후 앱 복귀 시 세션이 WebView 에 심긴다. */}
           {/* 로그인·회원가입 공용 버튼 — components/Auth/GoogleAuthButton */}
-          <GoogleAuthButton onStart={startAuthRedirect} disabled={isLoading} />
+          <GoogleAuthButton onStart={startAuthRedirect} disabled={isLoading} redirect={redirectParam} />
 
           {isDev && (
             <DevPanel>
@@ -658,7 +661,7 @@ const LoginPage: React.FC = () => {
           <Divider />
 
           <BottomLinks>
-            <span>{t('login.noAccount')} <Link to="/register">{t('login.signUp')}</Link></span>
+            <span>{t('login.noAccount')} <Link data-testid="login-register-link" to={redirectParam ? `/register?redirect=${encodeURIComponent(redirectParam)}` : '/register'}>{t('login.signUp')}</Link></span>
             <span><Link to="/forgot-password">{t('login.forgotPassword', '비밀번호를 잊으셨나요?')}</Link></span>
             {/* 좁은 화면에서는 왼쪽 브랜드 패널이 숨는다 — 홈으로 가는 길을 여기에도 둔다. */}
             <span><Link to="/">{t('login.backHome', { defaultValue: '← PlanQ 홈으로' }) as string}</Link></span>

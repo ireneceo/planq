@@ -90,7 +90,9 @@ router.post('/google/connect-confirm', async (req, res) => {
       oldValue: existing ? { provider, email: prevEmail } : null, newValue: { provider, email: stash.email, replaced: !!existing } });
     // 즉시 로그인 (refresh_token cookie set)
     await issueSessionCookie(req, res, user);
-    res.json({ success: true, data: { action: 'connected', user_id: user.id, next: '/inbox' } });
+    // 시작할 때 실어 온 돌아갈 곳(초대 링크 등, 0-F F-2) — 같은 출처 상대경로만
+    const next = require('./core').safeRedirectPath(stash.redirect) || '/inbox';
+    res.json({ success: true, data: { action: 'connected', user_id: user.id, next } });
   } catch (e) {
     console.error('[connect-confirm POST]', e);
     res.status(500).json({ success: false, message: e.message });

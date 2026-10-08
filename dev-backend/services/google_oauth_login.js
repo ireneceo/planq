@@ -25,9 +25,11 @@ const ephemeral = require('./ephemeralStore');
 const STATE_KIND = 'oauth_state';
 const STATE_TTL_MS = 5 * 60 * 1000;
 
-async function genState(pair) {
+// redirect — 로그인/가입 뒤 돌아갈 앱 경로(초대 링크·공개 페이지 복귀, 0-F F-2). 비밀 아님 · 5분.
+//   값은 시작 라우트가 safeRedirectPath 로 자른 것만 싣는다.
+async function genState(pair, redirect = null) {
   const s = crypto.randomBytes(24).toString('base64url');
-  await ephemeral.set(STATE_KIND, s, { pair: pair || null }, STATE_TTL_MS);
+  await ephemeral.set(STATE_KIND, s, { pair: pair || null, redirect: redirect || null }, STATE_TTL_MS);
   return s;
 }
 
@@ -37,9 +39,10 @@ async function consumeStateEntry(s) {
   const row = await ephemeral.get(STATE_KIND, s);        // 만료면 null(행도 지운다)
   if (!row) return null;
   const pair = (row.payload && row.payload.pair) || null;
+  const redirect = (row.payload && row.payload.redirect) || null;
   const removed = await ephemeral.consume(STATE_KIND, s);  // 동시 콜백 — 1 을 받은 쪽만 유효
   if (removed !== 1) return null;
-  return { exp: new Date(row.expires_at).getTime(), challenge: pair };   // 호출부 이름 호환
+  return { exp: new Date(row.expires_at).getTime(), challenge: pair, redirect };   // 호출부 이름 호환
 }
 
 // 참/거짓만 쓰던 옛 호출부 호환.
@@ -67,9 +70,9 @@ function newClient() {
 }
 
 // 1. authorization URL 생성 — frontend 가 사용자 redirect
-async function buildAuthUrl(pair) {
+async function buildAuthUrl(pair, { redirect = null } = {}) {
   const client = newClient();
-  const state = await genState(pair);
+  const state = await genState(pair, redirect);
   const url = client.generateAuthUrl({
     access_type: 'online',           // refresh_token 안 받음 (로그인만 — 매번 새로)
     scope: SCOPES,

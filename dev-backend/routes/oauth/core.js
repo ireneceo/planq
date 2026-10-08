@@ -146,8 +146,19 @@ async function setupNewWorkspace(user, wantsKo, transaction) {
   return business;
 }
 
+/** 돌아갈 앱 경로 — 열린 리다이렉트 차단. 같은 출처 상대경로만 (0-F F-2). */
+function safeRedirectPath(v) {
+  const s = String(v || '');
+  return (s.startsWith('/') && !s.startsWith('//') && !/[\\\s]|:/.test(s) && s.length <= 512 && s !== '/login' && s !== '/register') ? s : null;
+}
+/** redirect 가 초대 링크면 그 토큰 */
+function inviteTokenOf(redirect) {
+  const m = /^\/invite\/([A-Za-z0-9_-]{16,128})/.exec(redirect || '');
+  return m ? m[1] : null;
+}
+
 // 성공/실패 redirect target (CSP 정합 — inline script X)
-function buildRedirectTarget({ ok, error }) {
+function buildRedirectTarget({ ok, error, redirect }) {
   if (!ok) {
     const safeErr = encodeURIComponent(error || 'unknown_error');
     return `/login?oauth_error=${safeErr}`;
@@ -157,7 +168,8 @@ function buildRedirectTarget({ ok, error }) {
   //   (pages/Landing/RootRoute.tsx) **구글로 막 가입한 사용자가 앱이 아니라 랜딩에 떨어졌다.**
   //   온보딩을 만들 때 라우트 등록과 이 분기를 같이 되살릴 것.
   // AuthContext mount 시 tryRefresh() 가 자동 호출되어 refresh_token cookie 로 access token 받음
-  return '/inbox';
+  //   시작할 때 받은 돌아갈 곳(redirect — 초대 링크·공개 페이지 복귀)이 있으면 그리로 (0-F F-2)
+  return safeRedirectPath(redirect) || '/inbox';
 }
 
 // refresh_token cookie 발급 — 옛 login 라우트와 동일
@@ -187,5 +199,5 @@ async function issueSessionCookie(req, res, user, { method = 'oauth' } = {}) {
 module.exports = {
   stashConfirm, peekConfirm, consumeConfirm, claimNativeCodeOnce,
   isNativeOAuth, issueNativeOAuthCode, generateSlug, setupNewWorkspace,
-  buildRedirectTarget, issueSessionCookie,
+  buildRedirectTarget, issueSessionCookie, safeRedirectPath, inviteTokenOf,
 };

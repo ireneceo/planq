@@ -168,6 +168,8 @@ export default function ClientsPage() {
   const [inviteKind, setInviteKind] = useState<'customer' | 'vendor' | 'freelancer' | 'other'>('customer');
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  // 초대는 만들어졌지만 메일이 안 나간 경우(0-F) — 드로어 안 인라인 경고(토스트 금지). 다음 입력·닫기에서 지운다.
+  const [inviteMailWarn, setInviteMailWarn] = useState(false);
   // ★ 2026-09-09 — 메일 상세의 주소 메뉴 "고객으로 저장" 이 여기로 보낸다.
   //   그 링크는 **읽는 곳이 0곳**이었다(memory feedback_produced_link_no_consumer):
   //   보내는 경로도 `/clients` 로 틀려 있어(실제 라우트는 `/business/clients`) 폴백에 걸려
@@ -382,6 +384,7 @@ export default function ClientsPage() {
 
   const submitInvite = async () => {
     setInviteError(null);
+    setInviteMailWarn(false);
     if (!inviteName.trim() || !inviteEmail.trim()) { setInviteError(t('inviteModal.errRequired')); return; }
     setInviteSubmitting(true);
     try {
@@ -391,7 +394,10 @@ export default function ClientsPage() {
       });
       const j = await res.json();
       if (!res.ok || !j.success) throw new Error(j.message || t('inviteModal.errFailed'));
-      setInviteOpen(false); setInviteName(''); setInviteEmail(''); setInviteCompany(''); setInviteKind('customer');
+      // 메일이 안 나갔으면 드로어를 닫지 않고 이유와 다음 행동을 말한다 — 닫으면 «초대했다» 로만 읽힌다
+      const mailFailed = j.data && j.data.invite_email_sent === false;
+      setInviteName(''); setInviteEmail(''); setInviteCompany(''); setInviteKind('customer');
+      if (mailFailed) setInviteMailWarn(true); else setInviteOpen(false);
       await load();
     } catch (e) {
       setInviteError((e as Error).message);
@@ -827,7 +833,7 @@ export default function ClientsPage() {
       {/* 고객 초대 — 센터 모달 → 우측 CreateDrawer 로 통일(Fable 감사 2026-07-15: 추가/등록은 우측 패널 기본) */}
       <CreateDrawer
         open={inviteOpen}
-        onClose={() => setInviteOpen(false)}
+        onClose={() => { setInviteOpen(false); setInviteMailWarn(false); }}
         title={t('inviteModal.title')}
         onSubmit={submitInvite}
         submitting={inviteSubmitting}
@@ -844,6 +850,7 @@ export default function ClientsPage() {
         </Field>
         <Helper>{t('inviteModal.helper')}</Helper>
         {inviteError && <WarnBlock>{inviteError}</WarnBlock>}
+        {inviteMailWarn && <WarnBlock role="alert" data-testid="clients-invite-mail-failed">{t('inviteModal.emailFailed')}</WarnBlock>}
       </CreateDrawer>
 
       {/* 삭제 확인 모달 */}

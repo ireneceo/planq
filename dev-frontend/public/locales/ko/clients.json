@@ -116,7 +116,8 @@
     "submitting": "초대 중…",
     "submit": "초대",
     "errRequired": "이름과 이메일은 필수입니다",
-    "errFailed": "초대 실패"
+    "errFailed": "초대 실패",
+    "emailFailed": "초대는 만들어졌지만 메일을 보내지 못했습니다. 메일 설정을 확인한 뒤 [초대 재발송] 을 눌러 주세요."
   },
   "deleteModal": {
     "title": "고객 삭제 확인",

@@ -5,96 +5,15 @@
 // 기존 /api/projects/invite/:token 은 하위 호환 유지.
 const express = require('express');
 const router = express.Router();
-const { Op } = require('sequelize');
-const { sequelize } = require('../config/database');
-const { ProjectClient, Project, Business, Client, User, BusinessMember, Conversation, ConversationParticipant } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
-
-const { INVITE_EXPIRY_DAYS, isExpired } = require('../services/inviteExpiry');
-
-// 초대 수락 시 실시간 broadcast — 초대한 쪽 화면(참여 고객/고객/멤버 리스트) 즉시 갱신.
-function broadcastAccept(req, bizId, event, data) {
-  try { const io = req.app.get('io'); if (io && bizId) io.to(`business:${bizId}`).emit(event, data); }
-  catch (e) { /* best-effort */ }
-}
-
-// 삭제된 워크스페이스의 초대는 무효다.
-//   초대 토큰은 **비인증 공개 라우트**(GET /:token)로 조회되므로 authenticateToken 안의
-//   단일 관문(workspaceAlive)을 타지 않는다. 그리고 워크스페이스 id 가 요청이 아니라
-//   **토큰에서** 나오므로 그 관문이 애초에 찾지 못한다.
-//   안 막으면 삭제한 워크스페이스의 stale 초대가 계속 조회·수락되어 **삭제된 곳에 새 멤버십이 생긴다**.
-//   토큰 해석이 두 라우트(조회·수락)의 공통 착지점이라 여기서 한 번에 막는다.
-async function isBizAlive(businessId) {
-  if (!businessId) return true;   // 워크스페이스가 특정되지 않는 형태는 판정 대상 아님
-  const row = await Business.findOne({ where: { id: businessId, deleted_at: null }, attributes: ['id'] });
-  return !!row;
-}
-
-async function resolveToken(token) {
-  // 1) 프로젝트 고객 초대
-  const pc = await ProjectClient.findOne({ where: { invite_token: token } });
-  if (pc) {
-    const project = await Project.findByPk(pc.project_id, {
-      include: [{ model: Business, attributes: ['id', 'brand_name', 'name', 'deleted_at'] }],
-    });
-    if (project?.Business?.deleted_at) return null;   // 삭제된 워크스페이스 초대는 무효
-    return {
-      type: 'project_client',
-      record: pc,
-      expired: isExpired(pc.invited_at) && !pc.contact_user_id,
-      alreadyLinked: !!pc.contact_user_id,
-      info: project ? {
-        project_name: project.name,
-        client_company: project.client_company,
-        workspace_name: project.Business?.brand_name || project.Business?.name,
-        contact_name: pc.contact_name,
-        contact_email: pc.contact_email,
-      } : null,
-    };
-  }
-  // 2) 워크스페이스 고객 초대
-  const client = await Client.findOne({ where: { invite_token: token } });
-  if (client) {
-    if (!(await isBizAlive(client.business_id))) return null;
-    const biz = await Business.findByPk(client.business_id, { attributes: ['id', 'brand_name', 'name'] });
-    return {
-      type: 'workspace_client',
-      record: client,
-      expired: isExpired(client.invited_at) && !client.accepted_at,
-      alreadyLinked: !!client.accepted_at && !!client.user_id,
-      info: biz ? {
-        workspace_name: biz.brand_name || biz.name,
-        contact_name: client.display_name,
-        contact_email: client.invite_email,
-        company_name: client.company_name,
-      } : null,
-    };
-  }
-  // 3) 워크스페이스 멤버 초대 (청크3에서 구현)
-  const bm = await BusinessMember.findOne({ where: { invite_token: token } });
-  if (bm) {
-    if (!(await isBizAlive(bm.business_id))) return null;
-    const biz = await Business.findByPk(bm.business_id, { attributes: ['id', 'brand_name', 'name'] });
-    return {
-      type: 'workspace_member',
-      record: bm,
-      expired: isExpired(bm.invited_at) && !bm.joined_at,
-      alreadyLinked: !!bm.joined_at,
-      info: biz ? {
-        workspace_name: biz.brand_name || biz.name,
-        contact_email: bm.invite_email,
-        role: bm.role,
-      } : null,
-    };
-  }
-  return null;
-}
+// 토큰 해석·수락은 services/invites 한 벌 — 회원가입·OAuth 가입도 같은 함수를 부른다(0-F F-1).
+const { resolveInviteToken, acceptInvite, InviteError } = require('../services/invites');
 
 // GET /api/invites/:token — 공개
 router.get('/:token', async (req, res, next) => {
   try {
-    const resolved = await resolveToken(req.params.token);
+    const resolved = await resolveInviteToken(req.params.token);
     if (!resolved) return errorResponse(res, 'invalid_or_expired_invite', 404);
     if (resolved.expired) return errorResponse(res, 'invalid_or_expired_invite', 410);
     return successResponse(res, {
@@ -105,187 +24,24 @@ router.get('/:token', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/invites/:token/accept — 인증
-// 트랜잭션: 여러 테이블 동시 변경(record.update/destroy + 중복 흡수)을 원자화.
-router.post('/:token/accept', authenticateToken, async (req, res, next) => {
-  const t = await sequelize.transaction();
+// POST /api/invites/:token/accept — 인증. 본문은 acceptInvite 하나, 여기는 에러→HTTP 매핑만.
+//   ★ 토큰=인증: 초대 링크의 토큰을 소유 = 그 메일함을 받음 = 본인. 이메일 주소 대조는 하지 않는다
+//     (토큰은 추측불가·단일사용·30일 만료라 그 자체가 충분한 자격증명).
+router.post('/:token/accept', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 services/invites.acceptInvite 가 쓴다(invite.accept)
   try {
-    const resolved = await resolveToken(req.params.token);
-    if (!resolved) { await t.rollback(); return errorResponse(res, 'invalid_or_expired_invite', 404); }
-    if (resolved.expired) { await t.rollback(); return errorResponse(res, 'invalid_or_expired_invite', 410); }
-    if (resolved.alreadyLinked) { await t.rollback(); return errorResponse(res, 'already_accepted', 400); }
-
-    // ★ 토큰=인증: 초대 링크의 토큰을 소유 = 그 메일함을 받음 = 본인. (다중 이메일 한 곳 수신 대응)
-    //   이메일 주소 대조는 불필요한 이중장벽이라 제거 — 토큰 유효(resolveToken) + 로그인이면 수락.
-    //   토큰은 추측불가·단일사용(accepted_at)·30일 만료라 그 자체가 충분한 자격증명.
-
-    if (resolved.type === 'project_client') {
-      const pc = resolved.record;
-      await pc.update({ contact_user_id: req.user.id, accepted_at: new Date() }, { transaction: t });
-      // 프로젝트 고객은 그 프로젝트의 고객 채널에 당연히 참여 — 수락 시 자동 join + Client 활성화(user_id 연결).
-      // workspace_client 와 대칭: 참여할 대화방이 하나도 없으면 환영 대화방을 보장(커밋 후). 안 그러면
-      //   프로젝트 초대 고객이 /talk 착지 시 빈 채팅 → "채팅창에 못 들어감" (근본 버그).
-      let needWelcomeClientId = null;
-      try {
-        const prj = await Project.findByPk(pc.project_id, { attributes: ['id', 'business_id'], transaction: t });
-        if (prj) {
-          // Client 레코드 보장 + user_id 연결 + 활성화 (청구·대화 client_id 정합).
-          //   프로젝트-생성 경로는 client_id 없이 만들어질 수 있어(초대 경로만 Client 생성) findOrCreate 로 보강.
-          let clientId = pc.client_id;
-          if (clientId) {
-            await Client.update(
-              { user_id: req.user.id, status: 'active' },
-              { where: { id: clientId, business_id: prj.business_id }, transaction: t }
-            ).catch(() => {});
-          } else {
-            const [cl] = await Client.findOrCreate({
-              where: { business_id: prj.business_id, user_id: req.user.id },
-              defaults: {
-                business_id: prj.business_id, user_id: req.user.id,
-                display_name: pc.contact_name || null, invite_email: pc.contact_email || null,
-                invited_by: pc.invited_by || null, status: 'active', accepted_at: new Date(),
-              },
-              transaction: t,
-            });
-            clientId = cl.id;
-            if (cl.status !== 'active' || !cl.user_id) {
-              await cl.update({ user_id: req.user.id, status: 'active' }, { transaction: t }).catch(() => {});
-            }
-            await pc.update({ client_id: clientId }, { transaction: t });
-          }
-          // 프로젝트 고객 채널 — **이 고객의 방**에만 들인다(프로젝트 × 고객, 2026-10-07 Fable B 판정 7).
-          //   전에는 프로젝트의 고객 채널 전부에 들이고, 주인 없는 방은 이 고객 것으로 박았다 — 두 번째 고객사가
-          //   수락하면 첫 고객의 방(청구서·첨부)에 같이 들어갔다. 방이 없을 때만 «환영 대화방» 으로 떨어지던 것은 그대로다.
-          const custConvs = await Conversation.findAll({
-            where: { project_id: pc.project_id, business_id: prj.business_id, channel_type: 'customer' },
-            attributes: ['id'], transaction: t,
-          });
-          if (custConvs.length) {
-            await require('../services/clientOnboarding').joinProjectCustomerChannels({
-              businessId: prj.business_id, projectIds: [pc.project_id], userId: req.user.id, clientId, transaction: t,
-            });
-          }
-          // 프로젝트에 customer 대화방이 하나도 없으면 → 워크스페이스 환영 대화방 보장(커밋 후).
-          if (custConvs.length === 0) needWelcomeClientId = clientId;
-        }
-      } catch (e) { console.warn('[invite accept auto-join]', e.message); }
-      await t.commit();
-      // 참여 대화방이 없던 경우 — 워크스페이스 고객 환영 대화방 생성(client 참여자+환영 메시지). best-effort.
-      if (needWelcomeClientId) {
-        try {
-          const cl = await Client.findByPk(needWelcomeClientId);
-          if (cl && cl.user_id) {
-            const { ensureWelcomeConversation } = require('../services/clientOnboarding');
-            await ensureWelcomeConversation(cl, { io: req.app.get('io') });
-          }
-        } catch (e) { console.warn('[invite project welcome]', e.message); }
-      }
-      try { const prj = await Project.findByPk(pc.project_id, { attributes: ['business_id'] }); broadcastAccept(req, prj?.business_id, 'project_client:updated', { project_id: pc.project_id, id: pc.id }); } catch { /* noop */ }
-      notifyInviterOnAccept(pc.invited_by, pc.project_id, 'project_client', req.user.id, null).catch((e) => console.warn('[notify invite project_client]', e.message));
-      require('../services/auditService').logAudit(req, { action: 'project_invite.accept', targetType: 'project_client', targetId: pc.id, businessId: (await Project.findByPk(pc.project_id, { attributes: ['business_id'] }).catch(() => null))?.business_id ?? null, newValue: { type: 'project_client' } }); // 감사 — 계정 결합(AUDIT_GAPS 1순위)
-      return successResponse(res, { type: 'project_client', project_id: pc.project_id, redirect: '/talk' });
+    const resolved = await resolveInviteToken(req.params.token);
+    const r = await acceptInvite(req.user, resolved, { io: req.app.get('io'), actorReq: req });
+    const data = { type: r.type, business_id: r.business_id, redirect: r.redirect };
+    if (r.project_id) data.project_id = r.project_id;
+    if (r.already) data.already = true;
+    return successResponse(res, data);
+  } catch (err) {
+    if (err instanceof InviteError) {
+      if (err.body) return res.status(err.status).json(err.body);
+      return errorResponse(res, err.code, err.status);
     }
-
-    if (resolved.type === 'workspace_client') {
-      const cl = resolved.record;
-      // 이미 같은 business_id + user_id 조합 있는지 확인 (동시성·중복 초대 방어)
-      const dup = await Client.findOne({
-        where: { business_id: cl.business_id, user_id: req.user.id, id: { [Op.ne]: cl.id } },
-        transaction: t, lock: t.LOCK.UPDATE,
-      });
-      if (dup) {
-        await cl.destroy({ transaction: t });
-        await t.commit();
-        broadcastAccept(req, dup.business_id, 'client:updated', { id: dup.id });
-        return successResponse(res, { type: 'workspace_client', business_id: dup.business_id, redirect: '/talk' });
-      }
-      await cl.update({ user_id: req.user.id, accepted_at: new Date(), status: 'active' }, { transaction: t });
-      // 이미 연결돼 있던 프로젝트에 이 계정을 들인다(project_clients.contact_user_id · 고객 채널 참여).
-      //   안 하면 고객 화면에서 프로젝트·채팅방이 통째로 안 보인다(2026-10-06 운영 신고).
-      await require('../services/clientOnboarding').linkClientToProjects(cl, { transaction: t });
-      await t.commit();
-      broadcastAccept(req, cl.business_id, 'client:updated', { id: cl.id });
-      notifyInviterOnAccept(cl.invited_by, null, 'workspace_client', req.user.id, cl.business_id).catch((e) => console.warn('[notify invite workspace_client]', e.message));
-      // N+83 — 첫 응대 준비: 담당자 명의 customer 대화방 + 환영 메시지 자동 생성 (best-effort, 멱등).
-      //   실패해도 수락은 이미 커밋됨 → 고객 접속 자체는 정상.
-      try {
-        const { ensureWelcomeConversation } = require('../services/clientOnboarding');
-        await ensureWelcomeConversation(cl, { io: req.app.get('io') });
-      } catch (e) { console.warn('[onboarding welcome]', e.message); }
-      require('../services/auditService').logAudit(req, { action: 'invite.accept', targetType: 'workspace_client', targetId: cl.id, businessId: cl.business_id, newValue: { type: 'workspace_client' } }); // 감사 — 계정 결합(AUDIT_GAPS 1순위)
-      return successResponse(res, { type: 'workspace_client', business_id: cl.business_id, redirect: '/talk' });
-    }
-
-    if (resolved.type === 'workspace_member') {
-      const bm = resolved.record;
-      const dup = await BusinessMember.findOne({
-        where: { business_id: bm.business_id, user_id: req.user.id, id: { [Op.ne]: bm.id } },
-        transaction: t, lock: t.LOCK.UPDATE,
-      });
-      if (dup) {
-        await bm.destroy({ transaction: t });
-        await t.commit();
-        broadcastAccept(req, dup.business_id, 'member:updated', { id: dup.id });
-        return successResponse(res, { type: 'workspace_member', business_id: dup.business_id, redirect: '/dashboard' });
-      }
-      // 플랜 쿼터 재확인 (race: 초대 발행 후 다른 멤버 추가로 한도 도달했을 수 있음)
-      //   ★ excludeMemberId — 지금 수락하는 이 행(bm)은 초대 발행 때 이미 만들어진 자리다.
-      //     그것까지 세면 자기 자신과 한도를 다퉈 마지막 자리를 영영 못 채운다(plan.js add_member 주석).
-      const planEngine = require('../services/plan');
-      const planCan = await planEngine.can(bm.business_id, 'add_member', { excludeMemberId: bm.id });
-      if (!planCan.ok) {
-        await t.rollback();
-        return res.status(422).json(planEngine.buildQuotaError(planCan, bm.business_id));
-      }
-      await bm.update({ user_id: req.user.id, joined_at: new Date() }, { transaction: t });
-      await t.commit();
-      broadcastAccept(req, bm.business_id, 'member:updated', { id: bm.id });
-      notifyInviterOnAccept(bm.invited_by, null, 'workspace_member', req.user.id, bm.business_id).catch((e) => console.warn('[notify invite workspace_member]', e.message));
-      require('../services/auditService').logAudit(req, { action: 'invite.accept', targetType: 'workspace_member', targetId: bm.id, businessId: bm.business_id, newValue: { type: 'workspace_member' } }); // 감사 — 계정 결합(AUDIT_GAPS 1순위)
-      return successResponse(res, { type: 'workspace_member', business_id: bm.business_id, redirect: '/dashboard' });
-    }
-
-    await t.rollback();
-    return errorResponse(res, 'unsupported_invite_type', 400);
-  } catch (err) { await t.rollback().catch(() => {}); next(err); }
+    next(err);
+  }
 });
-
-// 초대한 사람에게 알림
-async function notifyInviterOnAccept(inviterUserId, projectId, kind, accepterUserId, businessIdHint) {
-  if (!inviterUserId) return;
-  if (inviterUserId === accepterUserId) return; // 본인 → 본인 케이스 방어
-  const { User, Project, Business } = require('../models');
-  const { notify } = require('./notifications');
-  const accepter = await User.findByPk(accepterUserId, { attributes: ['name', 'email'] });
-  let businessId = businessIdHint;
-  let projectName = null;
-  if (projectId && !businessId) {
-    const proj = await Project.findByPk(projectId, { attributes: ['business_id', 'name'] });
-    businessId = proj?.business_id;
-    projectName = proj?.name;
-  }
-  let wsName = null;
-  if (businessId) {
-    const biz = await Business.findByPk(businessId, { attributes: ['name', 'brand_name'] });
-    wsName = biz?.brand_name || biz?.name || null;
-  }
-  const accepterLabel = accepter?.name || accepter?.email || '초대받은 사용자';
-  const titleMap = {
-    workspace_member: '초대한 멤버가 가입했습니다',
-    workspace_client: '초대한 고객이 가입했습니다',
-    project_client: '프로젝트 고객이 초대를 수락했습니다',
-  };
-  // 상대경로 사용 — notify() normalizeLink + 클릭 시 resolveNotificationLink 정합 (N+74-D 박제).
-  //   프로젝트 상세 실 라우트는 /projects/p/:id (옛 /q-project/:id 는 존재하지 않아 404 회귀였음).
-  const link = projectId
-    ? `/projects/p/${projectId}`
-    : `/business/clients`;
-  await notify({
-    userId: inviterUserId, businessId, eventKind: 'invite',
-    title: titleMap[kind] || '초대 수락',
-    body: `${accepterLabel}${projectName ? ` · ${projectName}` : ''}`,
-    link, ctaLabel: '확인하기', workspaceName: wsName,
-  });
-}
 
 module.exports = router;

@@ -94,7 +94,7 @@ async function dropUsers(ids) {
   await sequelize.transaction(async (t) => {
     const q = (sql, rep = []) => sequelize.query(sql, { replacements: rep, transaction: t }).catch(() => null);
     await q('SET FOREIGN_KEY_CHECKS = 0');
-    for (const tb of ['refresh_tokens', 'notifications', 'business_members', 'business_member_permissions', 'agent_grants', 'clients']) {
+    for (const tb of ['refresh_tokens', 'notifications', 'business_members', 'business_member_permissions', 'agent_grants', 'clients', 'oauth_connections', 'push_logs']) {
       await q(`DELETE FROM \`${tb}\` WHERE user_id IN (?)`, [ids]);
     }
     await q('DELETE FROM users WHERE id IN (?)', [ids]);
@@ -473,6 +473,119 @@ const cases = {
     assert(rB.data.message === 'self_or_admin_only', `거절 코드 ${rB.data.message}`);
     expect(await call(A, 'DELETE', `/api/conversations/${biz.id}/${c2.id}/participants/${B.id}`), 200, '관리자 A 가 B 내보내기');
     return '관리자 보관 200 · 멤버 403 · 관리자 내보내기 200 · 멤버 403 self_or_admin_only';
+  },
+
+  // ─── 0-F invite 1: 기존 계정 멤버 초대 수락 → 활성 워크스페이스가 바뀐다 ───
+  async invite_land() {
+    const X = await makeWorld();
+    const Y = await makeWorld();
+    const B = X.B;
+    const tok = `ha${crypto.randomBytes(16).toString('hex')}`;
+    const tokOld = `ha${crypto.randomBytes(16).toString('hex')}`;
+    await M.BusinessMember.create({ business_id: Y.biz.id, user_id: null, role: 'member', invite_token: tokOld, invite_email: B.email, invited_at: new Date(Date.now() - 40 * DAY) });
+    const old = await call(B, 'POST', `/api/invites/${tokOld}/accept`);
+    expect(old, 410, '만료 초대 수락(음성 대조군)');
+    let u = await M.User.findByPk(B.id);
+    assert(u.active_business_id === X.biz.id, `만료 거절 뒤 active ${u.active_business_id} (기대 ${X.biz.id})`);
+    const bm = await M.BusinessMember.create({ business_id: Y.biz.id, user_id: null, role: 'member', invite_token: tok, invite_email: B.email, invited_at: new Date() });
+    const r = await call(B, 'POST', `/api/invites/${tok}/accept`);
+    expect(r, 200, '초대 수락');
+    assert(r.data.data.business_id === Y.biz.id, `응답 business_id ${r.data.data.business_id}`);
+    u = await M.User.findByPk(B.id);
+    assert(u.active_business_id === Y.biz.id, `users.active_business_id ${u.active_business_id} (기대 ${Y.biz.id})`);
+    const me = await call(B, 'GET', '/api/auth/me');
+    assert(me.data.data.business_id === Y.biz.id, `/me business_id ${me.data.data.business_id}`);
+    const again = await call(B, 'POST', `/api/invites/${tok}/accept`);
+    expect(again, 200, '같은 사람 재수락(멱등)');
+    assert(again.data.data.already === true, '재수락이 already 가 아니다');
+    const other = await call(X.A, 'POST', `/api/invites/${tok}/accept`);
+    expect(other, 400, '다른 사람이 이미 수락된 초대');
+    const row = await M.BusinessMember.findByPk(bm.id);
+    assert(row.user_id === B.id && row.joined_at, '멤버십 행이 B 로 안 붙었다');
+    return '만료 410·active 그대로 → 수락 200·active=Y·/me=Y · 본인 재수락 already · 남 400';
+  },
+
+  // ─── 0-F invite 2: 초대 모드 OAuth 신규 가입은 워크스페이스를 만들지 않는다 ───
+  async invite_oauth() {
+    const Y = await makeWorld();
+    const tok = `ha${crypto.randomBytes(16).toString('hex')}`;
+    await M.BusinessMember.create({ business_id: Y.biz.id, user_id: null, role: 'member', invite_token: tok, invite_email: `x-${stamp}@hm.invalid`, invited_at: new Date() });
+    const { finishOauthLogin } = require(`${BE}/routes/oauth/finish`);
+    const run = async (tag, redirect) => {
+      const email = `ha-${stamp}-${tag}@hm.invalid`;
+      const req = {
+        headers: { 'accept-language': 'ko-KR', 'user-agent': 'health-access' }, body: {}, query: {}, cookies: {},
+        ip: '127.0.0.1', protocol: 'https', secure: false,
+        get: (h) => ({ 'user-agent': 'health-access', host: 'localhost' })[String(h).toLowerCase()] || '',
+        app: { get: () => null },
+      };
+      let target = null;
+      const res = { req, cookie() {}, clearCookie() {}, redirect(a, b) { target = b === undefined ? a : b; return this; }, status() { return this; }, json() { return this; }, send() { return this; }, set() { return this; } };
+      const before = (await sequelize.query('SELECT COUNT(*) n FROM businesses'))[0][0].n;
+      await finishOauthLogin(req, res, { provider: 'google', profile: { subject: `ha-${stamp}-${tag}`, email, name: `ha ${tag}` }, native: false, pairId: null, logTag: 'health-access', redirect });
+      const after = (await sequelize.query('SELECT COUNT(*) n FROM businesses'))[0][0].n;
+      const user = await M.User.findOne({ where: { email } });
+      if (user) {
+        madeUsers.push(user.id);
+        const owned = await M.Business.findAll({ where: { owner_id: user.id }, attributes: ['id', 'cue_user_id'] });
+        for (const b of owned) { madeBiz.push(b.id); if (b.cue_user_id) madeUsers.push(b.cue_user_id); }
+      }
+      return { target, delta: Number(after) - Number(before), user };
+    };
+    const inv = await run('inv', `/invite/${tok}`);
+    assert(inv.user, '초대 모드 가입 사용자가 없다');
+    assert(inv.delta === 0, `초대 모드 가입이 워크스페이스를 ${inv.delta}개 만들었다`);
+    assert(inv.target === `/invite/${tok}`, `착지 ${inv.target}`);
+    const bm = await M.BusinessMember.findOne({ where: { invite_token: tok } });
+    assert(bm && bm.user_id === inv.user.id, '초대 멤버십에 새 사용자가 안 붙었다');
+    const u = await M.User.findByPk(inv.user.id);
+    assert(u.active_business_id === Y.biz.id, `active ${u.active_business_id} (기대 ${Y.biz.id})`);
+    const ctl = await run('ctl', null);
+    assert(ctl.delta === 1 && ctl.target === '/inbox', `대조군 — redirect 없으면 워크스페이스 +1·/inbox 여야: +${ctl.delta} ${ctl.target}`);
+    return `초대 모드: 워크스페이스 +0 · 멤버십 연결 · active=초대 워크스페이스 · 착지 /invite/… | 대조군: +1 · /inbox`;
+  },
+
+  // ─── 0-F invite 3: state 가 redirect 를 나른다 · 열린 리다이렉트 차단 ───
+  async invite_state() {
+    process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'health-access-dummy';
+    const g = require(`${BE}/services/google_oauth_login`);
+    const { safeRedirectPath, buildRedirectTarget } = require(`${BE}/routes/oauth/core`);
+    const { url } = await g.buildAuthUrl(null, { redirect: '/invite/abcdefghijklmnop' });
+    const st = new URL(url).searchParams.get('state');
+    const e = await g.consumeStateEntry(st);
+    assert(e && e.redirect === '/invite/abcdefghijklmnop', `state 가 redirect 를 안 나른다: ${JSON.stringify(e)}`);
+    const bad = ['//evil.com', 'https://x', '/login', '/register', '/a b', 'javascript:alert(1)', '/x\\y'];
+    const leaked = bad.filter((v) => safeRedirectPath(v) !== null);
+    assert(!leaked.length, `열린 리다이렉트 통과: ${leaked.join(' ')}`);
+    assert(buildRedirectTarget({ ok: true, redirect: '//evil.com' }) === '/inbox', '착지 함수가 바깥 주소로 보낸다');
+    assert(buildRedirectTarget({ ok: true, redirect: '/public/files/x' }) === '/public/files/x', '정상 상대경로가 버려진다(대조군)');
+    return `state.redirect 왕복 · 음성 ${bad.length}종 null · 착지 함수 차단/통과`;
+  },
+
+  // ─── 0-F invite 4: 초대 메일 실패가 응답에 보인다 ───
+  async invite_mail() {
+    const { biz, O } = await makeWorld();
+    const express = require(`${BE}/node_modules/express`);
+    const app = express(); app.use(express.json()); app.set('io', null);
+    app.use('/api/clients', require(`${BE}/routes/clients`));
+    app.use((err, req, res, next) => { res.status(500).json({ success: false, message: err.message }); });   // eslint-disable-line no-unused-vars
+    const srv = await new Promise((r) => { const x = app.listen(0, '127.0.0.1', () => r(x)); });
+    const base = `http://127.0.0.1:${srv.address().port}`;
+    const post = async (email) => {
+      const res = await fetch(`${base}/api/clients/${biz.id}/invite`, { method: 'POST', headers: { Authorization: `Bearer ${O.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: '[ha] 고객', email }) });
+      return { status: res.status, data: await res.json() };
+    };
+    const emailService = require(`${BE}/services/emailService`);
+    const orig = emailService.sendInviteEmail;
+    try {
+      const f = await post(`fail-${stamp}@hm.invalid`);   // 예약 TLD — sendEmail 이 보내지 않고 false 를 돌려준다(실패 경로)
+      assert(f.status === 201 && f.data.data && f.data.data.invite_email_sent === false, `실패 경로 ${f.status} ${JSON.stringify(f.data).slice(0, 160)}`);
+      assert(!JSON.stringify(f.data).includes('invite_token'), '응답에 초대 토큰');
+      emailService.sendInviteEmail = async () => true;   // 대조군 — 발송 성공을 흉내(외부 발송 없음)
+      const ok = await post(`ok-${stamp}@hm.invalid`);
+      assert(ok.status === 201 && ok.data.data.invite_email_sent === true, `성공 경로 ${ok.status} ${JSON.stringify(ok.data).slice(0, 160)}`);
+      return '보내지 못함 → invite_email_sent:false (201, 토큰 없음) · 보냄 → true(대조군)';
+    } finally { emailService.sendInviteEmail = orig; srv.close(); }
   },
 };
 

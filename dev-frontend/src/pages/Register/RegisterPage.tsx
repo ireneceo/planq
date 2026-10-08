@@ -292,6 +292,8 @@ const RegisterPage: React.FC = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
+  // 돌아갈 곳(?redirect) — 구글·애플 가입과 «로그인» 링크에도 그대로 실어 보낸다(0-F F-2). 서버가 다시 거른다.
+  const redirectParam = new URLSearchParams(location.search).get('redirect') || null;
   // 초대 가입 모드 — redirect=/invite/:token 으로 도착하면 워크스페이스 생성 없이 초대된 곳으로 합류.
   const inviteToken = (() => {
     const rq = new URLSearchParams(location.search).get('redirect') || '';
@@ -481,12 +483,13 @@ const RegisterPage: React.FC = () => {
             onStart={startAuthRedirect}
             disabled={isLoading}
             dividerLabel={t('register.or', { defaultValue: '또는' }) as string}
+            redirect={redirectParam}
           />
 
           <Divider />
 
           <BottomLinks>
-            {t('register.hasAccount')} <Link to="/login">{t('register.signIn')}</Link>
+            {t('register.hasAccount')} <Link data-testid="register-login-link" to={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login'}>{t('register.signIn')}</Link>
             {/* 로그인 화면과 같은 이유 — 좁은 화면에서는 왼쪽 브랜드 패널이 숨어 홈으로 갈 길이 없다. */}
             <span style={{ marginLeft: 10 }}><Link to="/">{t('register.backHome', { defaultValue: '← PlanQ 홈으로' }) as string}</Link></span>
           </BottomLinks>

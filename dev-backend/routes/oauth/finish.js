@@ -18,7 +18,7 @@ const { sendNativeReturn } = require('../../utils/nativeReturn');
 const { logOauthFailure } = require('../../utils/oauthLog');
 const oauthPairing = require('../../services/oauthPairing');
 const {
-  stashConfirm, issueNativeOAuthCode, setupNewWorkspace, buildRedirectTarget, issueSessionCookie,
+  stashConfirm, issueNativeOAuthCode, setupNewWorkspace, buildRedirectTarget, issueSessionCookie, inviteTokenOf, safeRedirectPath,
 } = require('./core');
 
 const PROVIDER_LABEL = { google: 'Google', apple: 'Apple' };
@@ -62,8 +62,10 @@ function failLogin(req, res, reason, { native, provider = 'google' } = {}) {
  * @param {boolean} p.native   네이티브 앱에서 시작한 흐름인가
  * @param {string|null} p.pairId 앱 페어링 흐름 식별자(비밀 아님)
  * @param {string} p.logTag
+ * @param {string|null} [p.redirect] 시작할 때 state 에 실어 온 돌아갈 앱 경로(0-F F-2). 초대 링크면 초대 모드 가입.
  */
-async function finishOauthLogin(req, res, { provider, profile, native, pairId, logTag }) {
+async function finishOauthLogin(req, res, { provider, profile, native, pairId, logTag, redirect = null }) {
+  redirect = safeRedirectPath(redirect);
   const logCtx = { ua: String(req.get('user-agent') || '').slice(0, 120), native: native || undefined };
   const fail = (reason) => {
     logOauthFailure(logTag, reason, logCtx);
@@ -105,6 +107,7 @@ async function finishOauthLogin(req, res, { provider, profile, native, pairId, l
         email: profile.email,
         display_name: profile.name || null,
         picture: profile.picture || null,
+        redirect,   // 연결을 확인하면 돌아갈 곳(초대 링크 등) — connect-confirm 이 next 로 돌려준다
       });
       // ★ 네이티브는 앱으로 먼저 돌아간 뒤 **앱 WebView 안에서** 확인 화면을 연다 —
       //   시스템 브라우저 안에서 확인하면 세션 쿠키가 그 브라우저에 심겨 앱은 못 받는다(2026-09-04).
@@ -120,6 +123,16 @@ async function finishOauthLogin(req, res, { provider, profile, native, pairId, l
       return res.redirect(303, `/oauth/connect-confirm?token=${confirmToken}&email=${encodeURIComponent(profile.email)}&existing_email=${encodeURIComponent(prospectUser.email)}&name=${encodeURIComponent(profile.name || '')}`);
     }
     // [분기 3] 신규 가입
+  }
+
+  // 초대 링크로 시작한 신규 가입 — 워크스페이스를 새로 만들지 않는다(회원가입 auth.js 와 같은 분기, 0-F F-2).
+  //   수락은 커밋 뒤 acceptInvite 를 best-effort 로, 그리고 어쨌든 /invite/:token 으로 보낸다(실패 이유는 그 화면이 말한다).
+  let inviteResolved = null;
+  if (!user && inviteTokenOf(redirect)) {
+    try {
+      const inv = await require('../../services/invites').resolveInviteToken(inviteTokenOf(redirect));
+      if (inv && !inv.expired && !inv.alreadyLinked) inviteResolved = inv;
+    } catch (e) { console.warn('[oauth invite resolve]', e.message); }
   }
 
   if (!user) {
@@ -141,7 +154,7 @@ async function finishOauthLogin(req, res, { provider, profile, native, pairId, l
         privacy_accepted_at: new Date(),
         privacy_version: '1.0',
       }, { transaction: t });
-      await setupNewWorkspace(user, wantsKo, t);
+      if (!inviteResolved) await setupNewWorkspace(user, wantsKo, t);
       await OauthConnection.create({
         user_id: user.id,
         provider,
@@ -158,6 +171,13 @@ async function finishOauthLogin(req, res, { provider, profile, native, pairId, l
       throw e;
     }
     isNewUser = true;
+    if (inviteResolved) {
+      try {
+        await require('../../services/invites').acceptInvite(user, inviteResolved, {
+          io: req.app.get('io'), actorReq: { user: { id: user.id }, ip: req.ip, headers: req.headers, body: {} },
+        });
+      } catch (e) { console.warn('[oauth invite accept]', e.code || e.message); }
+    }
   } else {
     const patch = { last_login_at: new Date() };
     if (!user.avatar_url && profile.picture) patch.avatar_url = profile.picture;
@@ -186,7 +206,7 @@ async function finishOauthLogin(req, res, { provider, profile, native, pairId, l
 
   await issueSessionCookie(req, res, user, { method: provider });
   // 303 — 애플 콜백은 POST 라 302 면 일부 브라우저가 POST 를 다시 보낸다. GET 콜백에도 무해하다.
-  return res.redirect(303, buildRedirectTarget({ ok: true, isNewUser }));
+  return res.redirect(303, buildRedirectTarget({ ok: true, isNewUser, redirect }));
 }
 
 module.exports = { finishOauthLogin, failLogin, PROVIDER_LABEL };

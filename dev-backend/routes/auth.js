@@ -244,14 +244,9 @@ router.post('/register', async (req, res, next) => {
     const lang = default_language === 'en' ? 'en' : 'ko';
 
     // 초대 토큰 유효성 — ProjectClient/Client/BusinessMember invite_token 매칭 시 워크스페이스 미생성
-    let isInviteSignup = false;
-    if (invite_token) {
-      const { ProjectClient, Client: ClientM } = require('../models');
-      const pc = await ProjectClient.findOne({ where: { invite_token }, attributes: ['id'], transaction });
-      const cl = pc ? null : await ClientM.findOne({ where: { invite_token }, attributes: ['id'], transaction });
-      const bm = (pc || cl) ? null : await BusinessMember.findOne({ where: { invite_token }, attributes: ['id'], transaction });
-      isInviteSignup = !!(pc || cl || bm);
-    }
+    //   판정은 수락과 같은 해석기(services/invites.resolveInviteToken — 0-F F-1)
+    const inviteResolved = invite_token ? await require('../services/invites').resolveInviteToken(String(invite_token)) : null;
+    const isInviteSignup = !!inviteResolved;
 
     // Validation — 초대 가입은 워크스페이스명 불필요
     if (!email || !password || !name || (!brandName && !isInviteSignup)) {
@@ -415,7 +410,8 @@ router.post('/register', async (req, res, next) => {
       joined_at: new Date()
     }, { transaction });
     } // end if(!isInviteSignup) — 초대 가입은 워크스페이스 미생성
-    //  연결(초대 수락)은 가입 직후 프론트가 /invite/:token 로 redirect → 기존 자동수락이 처리.
+    //  연결(초대 수락)은 커밋 **뒤** acceptInvite 를 best-effort 로 부른다(0-F F-1). 실패해도 가입은 성공 —
+    //  프론트가 /invite/:token 으로 가서 자동 수락을 한 번 더 시도하고, 실패 이유(쿼터 등)를 그 화면이 말한다.
 
     // 5. Generate tokens
     // remember=true (default): pwa=365일 / web=30일 persistent cookie — sliding renewal 로 활동 시 자동 연장
@@ -432,6 +428,11 @@ router.post('/register', async (req, res, next) => {
     await transaction.commit();
     // 가입 = 곧 첫 로그인(세션을 준다). commit **뒤**에 쓴다 — 롤백된 가입에 로그인 기록이 남지 않게.
     authAudit.signInOk(req, user, { method: 'register', clientKind, remember });
+    if (inviteResolved) {
+      try {
+        await require('../services/invites').acceptInvite(user, inviteResolved, { io: req.app.get('io'), actorReq: { user: { id: user.id }, ip: req.ip, headers: req.headers, body: {} } });
+      } catch (e) { console.warn('[register invite accept]', e.code || e.message); }
+    }
 
     // 6. Set refresh token as HttpOnly cookie
     const secure = cookieSecure(res);   // 실제 연결이 HTTPS 인가 (services/authTokens)

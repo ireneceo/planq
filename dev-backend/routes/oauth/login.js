@@ -6,7 +6,7 @@ const { User } = require('../../models');
 const googleOauthLogin = require('../../services/google_oauth_login');
 const { logOauthFailure } = require('../../utils/oauthLog');
 const {
-  claimNativeCodeOnce, isNativeOAuth, buildRedirectTarget, issueSessionCookie,
+  claimNativeCodeOnce, isNativeOAuth, buildRedirectTarget, issueSessionCookie, safeRedirectPath,
 } = require('./core');
 const { finishOauthLogin, failLogin } = require('./finish');
 
@@ -29,7 +29,9 @@ router.get('/google/initiate', async (req, res) => {
     //   ★ 비밀(코드)은 절대 여기로 들어오지 않는다 — 첫 설계가 그렇게 했다가 ATO 가 됐다.
     const pair = typeof req.query.pair === 'string' && /^[A-Za-z0-9_-]{16,64}$/.test(req.query.pair)
       ? req.query.pair : null;
-    const { url } = await googleOauthLogin.buildAuthUrl(pair);
+    // 돌아갈 곳(초대 링크·공개 페이지 복귀) — 같은 출처 상대경로만(0-F F-2). 네이티브는 딥링크라 싣지 않는다.
+    const redirect = req.query.client === 'native' ? null : safeRedirectPath(req.query.redirect);
+    const { url } = await googleOauthLogin.buildAuthUrl(pair, { redirect });
     return res.redirect(302, url);
   } catch (e) {
     return res.redirect(302, buildRedirectTarget({ ok: false, error: e.message }));
@@ -72,6 +74,7 @@ router.get('/google/callback', async (req, res) => {
       native: isNativeOAuth(req),
       pairId: stateEntry.challenge,   // state 가 나른 흐름 식별자
       logTag: 'auth/google callback',
+      redirect: safeRedirectPath(stateEntry.redirect),
     });
   } catch (e) {
     console.error('[auth_oauth/google/callback]', e);

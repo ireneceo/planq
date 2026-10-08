@@ -363,12 +363,14 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
       newValue: { email: email.trim(), name: name.trim(), company_name: company_name || null },
     });
 
-    // 초대 이메일 발송 (실패해도 초대 레코드는 유지)
+    // 초대 이메일 발송 (실패해도 초대 레코드는 유지) — 실패를 **응답에 싣는다**(0-F F-1).
+    //   sendEmail 은 던지지 않고 false 를 돌려준다(발송 정지·차단 주소·SMTP 오류) — try/catch 만 보면 실패가 영영 안 보인다.
+    let inviteEmailSent = true;
     try {
       const { sendInviteEmail } = require('../services/emailService');
       const biz = await require('../models').Business.findByPk(req.params.businessId, { attributes: ['brand_name', 'name'] });
       const inviter = await User.findByPk(req.user.id, { attributes: ['name'] });
-      await sendInviteEmail({
+      const sent = await sendInviteEmail({
         to: email.trim(),
         workspaceName: biz?.brand_name || biz?.name || 'PlanQ',
         inviterName: inviter?.name || '',
@@ -376,9 +378,12 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
         kind: 'workspace_client',
         token,
       });
-    } catch (e) { console.warn('invite email send failed:', e.message); }
+      inviteEmailSent = sent === true;
+    } catch (e) { inviteEmailSent = false; console.warn('invite email send failed:', e.message); }
 
-    successResponse(res, stripClientSecrets(created.toJSON()), 'Client invited', 201);
+    broadcastClient(req, created, 'client:new');   // 신호만(0-C C-2) — 고객 목록을 연 다른 창이 따라온다
+    successResponse(res, { ...stripClientSecrets(created.toJSON()), invite_email_sent: inviteEmailSent },
+      inviteEmailSent ? 'Client invited' : 'invite_email_failed', 201);
   } catch (error) { next(error); }
 });
 

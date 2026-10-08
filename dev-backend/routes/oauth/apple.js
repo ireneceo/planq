@@ -4,7 +4,7 @@
 //   ③이름은 첫 동의 때 form `user` 로 한 번만 온다.
 const appleOauthLogin = require('../../services/apple_oauth_login');
 const { logOauthFailure } = require('../../utils/oauthLog');
-const { buildRedirectTarget } = require('./core');
+const { buildRedirectTarget, safeRedirectPath } = require('./core');
 const { finishOauthLogin, failLogin } = require('./finish');
 
 const PAIR_RE = /^[A-Za-z0-9_-]{16,64}$/;
@@ -21,7 +21,10 @@ router.get('/oauth-providers', async (req, res) => {
 router.get('/apple/initiate', async (req, res) => {
   try {
     const pair = typeof req.query.pair === 'string' && PAIR_RE.test(req.query.pair) ? req.query.pair : null;
-    const url = await appleOauthLogin.buildAuthUrl({ pair, native: req.query.client === 'native' });
+    const native = req.query.client === 'native';
+    // 돌아갈 곳(초대 링크 등) — 같은 출처 상대경로만(0-F F-2). 네이티브는 딥링크라 싣지 않는다.
+    const redirect = native ? null : safeRedirectPath(req.query.redirect);
+    const url = await appleOauthLogin.buildAuthUrl({ pair, native, redirect });
     return res.redirect(302, url);
   } catch (e) {
     logOauthFailure('auth/apple initiate', e.message, { ua: String(req.get('user-agent') || '').slice(0, 120) });
@@ -61,6 +64,7 @@ router.post('/apple/callback', async (req, res) => {
       native,
       pairId: st.pair,
       logTag,
+      redirect: safeRedirectPath(st.redirect),
     });
   } catch (e) {
     console.error('[auth_oauth/apple/callback]', e.message);

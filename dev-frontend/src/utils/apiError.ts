@@ -76,6 +76,10 @@ const ERROR_CODE_MAP: Record<string, string> = {
   // rate-limit
   'Too many login attempts, please try again later': 'rate_limit_login',
   'Too many requests': 'rate_limit_generic',
+  // 0-F — 가입·재설정 화면이 영문 원문을 그대로 띄우던 것
+  'Too many registration attempts': 'rate_limit_register',
+  'Too many password reset requests': 'rate_limit_reset',
+  'Email already registered': 'email_taken',
 
   // 서버 내부 오류 — 운영은 원문 대신 이 문장을 보낸다(errorHandler). 그대로 괄호에 붙이면 영어가 샌다
   'Internal server error': 'server_error',

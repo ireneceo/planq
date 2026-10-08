@@ -76,12 +76,13 @@ function getRedirectUri() {
 }
 
 // ─── state ──────────────────────────────────────────────
-async function buildAuthUrl({ pair, native }) {
+async function buildAuthUrl({ pair, native, redirect = null }) {
   const cfg = await getAppleConfig();
   if (!cfg) throw new Error('apple_not_configured');
   const state = crypto.randomBytes(24).toString('base64url');
   const nonce = crypto.randomBytes(16).toString('base64url');
-  await ephemeral.set(STATE_KIND, state, { pair: pair || null, native: !!native, nonce }, STATE_TTL_MS);
+  // redirect — 돌아갈 앱 경로(초대 링크 등, 0-F F-2). 시작 라우트가 safeRedirectPath 로 자른 값
+  await ephemeral.set(STATE_KIND, state, { pair: pair || null, native: !!native, nonce, redirect: redirect || null }, STATE_TTL_MS);
   const qs = new URLSearchParams({
     response_type: 'code',
     response_mode: 'form_post',   // scope 에 name/email 이 있으면 애플은 form_post 만 허용한다
@@ -102,7 +103,7 @@ async function consumeState(s) {
   const removed = await ephemeral.consume(STATE_KIND, s);
   if (removed !== 1) return null;
   const p = row.payload || {};
-  return { pair: p.pair || null, native: !!p.native, nonce: p.nonce || null };
+  return { pair: p.pair || null, native: !!p.native, nonce: p.nonce || null, redirect: p.redirect || null };
 }
 
 // ─── 토큰 ───────────────────────────────────────────────

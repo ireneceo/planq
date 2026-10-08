@@ -116,7 +116,8 @@
     "submitting": "Inviting…",
     "submit": "Invite",
     "errRequired": "Name and email are required",
-    "errFailed": "Invite failed"
+    "errFailed": "Invite failed",
+    "emailFailed": "The invite was created but the email couldn’t be sent. Check mail settings and use “Resend invite”."
   },
   "deleteModal": {
     "title": "Confirm client deletion",

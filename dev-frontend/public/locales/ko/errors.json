@@ -58,5 +58,8 @@
   "project_not_in_workspace": "선택한 프로젝트가 이 워크스페이스에 없습니다",
   "subscription_superseded": "이 결제의 구독은 이미 다른 구독으로 바뀌었습니다. 현재 구독의 결제를 확인하세요.",
   "plan_mismatch": "결제 플랜과 현재 플랜이 다릅니다. 새 결제를 만들어 주세요.",
-  "self_or_admin_only": "본인이 나가거나 워크스페이스 관리자만 내보낼 수 있습니다."
+  "self_or_admin_only": "본인이 나가거나 워크스페이스 관리자만 내보낼 수 있습니다.",
+  "email_taken": "이미 가입된 이메일이에요. 로그인해 주세요.",
+  "rate_limit_register": "가입 시도가 많아요. 1시간 뒤 다시 해 주세요.",
+  "rate_limit_reset": "재설정 요청이 많아요. 잠시 뒤 다시 해 주세요."
 }

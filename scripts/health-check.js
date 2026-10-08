@@ -1413,6 +1413,10 @@ function defineAccessTests() {
     ['retention', 'trash_floor', '휴지통 보관 하한 30일 — 전 플랜 값 + resolveRetention 래칫 (0-D)'],
     ['auth', 'me_menu', '/me 에 메뉴 권한 · 권한 변경 신호(permissions:updated) (0-E E-2)'],
     ['auth', 'admin_chat', '채팅 보관·내보내기 = 워크스페이스 관리자(owner·admin) 한 함수 (0-E E-1)'],
+    ['invite', 'invite_land', '기존 계정 멤버 초대 수락 → 활성 워크스페이스 착지 · 만료 410 · 본인 재수락 멱등 (0-F F-1)'],
+    ['invite', 'invite_oauth', '초대 모드 OAuth 신규 가입은 워크스페이스를 만들지 않는다 (0-F F-2)'],
+    ['invite', 'invite_state', 'OAuth state 가 redirect 를 나른다 · 열린 리다이렉트 차단 (0-F F-2)'],
+    ['invite', 'invite_mail', '초대 메일 실패가 응답에 보인다 (0-F)'],
     ['retention', 'content_purge', '문서·정보 휴지통 회차가 만료 행만 지운다 · 리포트 모드 기본 · 라우트와 같은 함수 (0-D)'],
   ];
   let swept = false;

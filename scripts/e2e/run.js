@@ -69,6 +69,8 @@ const SUITES = {
   signature: () => require('./canary-signature-field'),
   // 멤버 메뉴 권한 «숨김» 을 화면이 따른다(0-E E-2) — 사이드바·검색·주소 직접 진입·새로고침 없는 복귀 · 3폭
   menuhide: () => require('./canary-menu-hide'),
+  // 초대 링크 → 로그인/가입·구글 시작이 돌아갈 곳(redirect)을 잃지 않는다 · 409 우리 문장(0-F F-2) · 3폭
+  invite: () => require('./canary-invite'),
   // 서명 **전체 여정** — 멤버 서명 → 고객이 링크·인증번호로 서명 → 완료 → 고정본·PDF.
   //   조각별 검사(signature)와 다른 축이다: 끝까지 걸어야 «중간에 막히는» 것이 드러난다.
   signflow: () => require('./canary-signature-flow'),

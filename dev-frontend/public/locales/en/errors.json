@@ -58,5 +58,8 @@
   "project_not_in_workspace": "The selected project is not in this workspace",
   "subscription_superseded": "This payment's subscription has been superseded. Confirm the current subscription's payment instead.",
   "plan_mismatch": "The payment's plan differs from the current plan. Please create a new checkout.",
-  "self_or_admin_only": "Only you (leaving) or a workspace admin can remove a member."
+  "self_or_admin_only": "Only you (leaving) or a workspace admin can remove a member.",
+  "email_taken": "This email is already registered. Please sign in.",
+  "rate_limit_register": "Too many sign-up attempts. Try again in an hour.",
+  "rate_limit_reset": "Too many reset requests. Try again later."
 }
