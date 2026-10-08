@@ -44,6 +44,8 @@ async function getBusinessPlan(businessId) {
       'addon_members', 'addon_clients', 'addon_qnote_minutes', 'addon_cue_actions', 'addon_storage_bytes',
       // 결제 면제 (운영 #275) — 판정은 아래 exemptActive 한 곳에서만.
       'billing_exempt', 'billing_exempt_kind', 'billing_exempt_plan', 'billing_exempt_until',
+      // 예약 다운그레이드 — /status 표시·cancel-schedule 이 이 객체를 읽는다(빠지면 예약이 화면에 안 보이고 취소가 400).
+      'scheduled_plan',
     ],
   });
   if (!biz) {

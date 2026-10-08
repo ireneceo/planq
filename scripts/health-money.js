@@ -292,6 +292,27 @@ const cases = {
       assert(b.plan === 'basic' && b.scheduled_plan === 'starter', `같은 플랜 갱신 후 plan=${b.plan} scheduled=${b.scheduled_plan}`);
       out.push('같은 플랜 갱신 확정 → 예약 유지');
     }
+    // HTTP — 예약이 화면에 보이고 취소가 된다(Fable FAIL 2026-10-08: getBusinessPlan 이 scheduled_plan 을 안 읽어
+    //   /status 에 안 보이고 cancel-schedule 이 400 이었다. 서비스 함수만 불러서는 이 결손을 못 본다)
+    {
+      const { biz, sub } = await mkActive({ scheduled_plan: null });
+      const ch = await api('POST', `/api/plan/${biz.id}/change`, { to_plan: 'starter' });
+      assert(ch.status === 200, `/change ${ch.status} ${JSON.stringify(ch.data)}`);
+      const st = await api('GET', `/api/plan/${biz.id}/status`);
+      assert(st.status === 200 && st.data.data.scheduled_plan === 'starter', `/status.scheduled_plan=${st.data && st.data.data && st.data.data.scheduled_plan}`);
+      const r = await billing.ensureRenewalPayment(sub);
+      assert(r.payment && Number(r.payment.amount) === planPrice('starter'), `예약 갱신 금액 ${r.payment && r.payment.amount}`);
+      const cs = await api('POST', `/api/plan/${biz.id}/cancel-schedule`);
+      assert(cs.status === 200, `cancel-schedule ${cs.status} ${JSON.stringify(cs.data)}`);
+      const pend = await M.Subscription.findByPk(r.payment.subscription_id);
+      const pay = await M.Payment.findByPk(r.payment.id);
+      assert(pend.status === 'replaced', `예약 pending 구독=${pend.status}`);
+      assert(pay.status === 'canceled', `예약 결제=${pay.status}`);
+      const sub2 = await M.Subscription.findByPk(sub.id);
+      const r2 = await billing.ensureRenewalPayment(sub2);
+      assert(r2.payment && r2.payment.subscription_id === sub.id && Number(r2.payment.amount) === planPrice('basic'), `취소 후 갱신: sub ${r2.payment && r2.payment.subscription_id} 금액 ${r2.payment && r2.payment.amount}`);
+      out.push('HTTP /change → /status 예약 보임 → cancel-schedule 200 → 예약 구독 replaced·결제 canceled → 다시 갱신은 basic 가격');
+    }
     return out.join(' · ');
   },
 
