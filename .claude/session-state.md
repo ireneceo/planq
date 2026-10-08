@@ -13,11 +13,11 @@
 - **왜 멈췄나:** 결제(돈) 화면이라 추측해서 고치지 않는다
 - **답이 오면 할 일:** 원문대로 구현 → 돈 흐름이 바뀌면 Fable 게이트(calc/gate) → dev 검증
 
-### 답 기다림: Fable 기준 공용판 맞추기 — 공용 기준과 어긋나는 Irene 옛 지시 2건 (2026-10-08 · [Opus] 방 09074bb8)
+### 완료: Fable 기준 공용판 맞추기 (2026-10-08 · [Opus] 방 09074bb8) — 옛 지시 2건 Irene «권고대로» 반영
 - **한 것:** CLAUDE.md «Fable 사용» 절(기준 = `~/dev-server/FABLE.md`, PlanQ 예시·장치·Irene 원문 출처만) · AI 협업 표 · `/fable-검증`·`/검증`·`/개발완료` 0-F·`/기능설계` · 훅 안내 문구 · docs/AI_COLLABORATION_PROTOCOL.md · 메모리 6개. FABLE_GATE_QUEUE.md 미판정·재검증 묶음 → 상황판 Fable 대기 `fwmuz1uqy3`(gate)·`fwmuz1uqyy`(calc), 그 파일은 «판정 기록 보관소».
 - **무엇을:** ① 08-18 «모든 판단은 Fable» vs 공용 «작은 선택은 작업 모델» ② Fable 대기 중인 변경이 있을 때 Irene 의 /배포 지시를 어떻게 다루나
 - **왜 멈췄나:** Irene 원문 지시와 공용 기준이 충돌 — 고치지 않고 묻는다(이 일의 규칙)
-- **답이 오면 할 일:** ① 공용대로면 memory `feedback_fable_decides_not_opus` 의 08-18 단락에 «좁혀짐» 표시 ② 정한 대로 `.claude/commands/배포.md` 에 한 단락(대기 목록 확인·보고)
+- **답(권고대로) 반영:** ① 08-18 «모든 판단은 Fable» → 되돌리기 어려운 선택·판정 조건 변경에만(CLAUDE.md 출처·memory) ② `/배포` 0-B단계 — Irene 직접 지시 = 승인, 배포하고 상황판 Fable 대기(planq) 항목을 보고에 적는다
 
 
 ### 완료: 서명 화면 — 빨간 칸에서 바로 서명 창 (2026-10-08 · [Opus] 방 ab77c16a · 커밋 c4fa04f8)
