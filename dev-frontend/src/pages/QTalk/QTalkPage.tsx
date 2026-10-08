@@ -550,10 +550,17 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     // 메시지 수신
     on('message:new', (msg: qtalkApi.ApiMessage) => {
       const mapped = apiMessageToMock(msg);
+      // 워크스페이스 방 사본(meta_partial)은 카드 열쇠를 덜어낸 것이다 — 본문 캐시에 넣지 않고,
+      //   이 대화를 다시 열 때 서버에서 온전한 행을 읽게 한다(목록 미리보기·안읽음은 아래에서 그대로 갱신).
+      const partial = !!(msg as unknown as { meta_partial?: boolean }).meta_partial;
       setMessages((prev) => {
         const arr = prev[mapped.conversation_id] || [];
         // 중복 방지 (자기가 보낸 메시지는 이미 추가됨)
         if (arr.some((m) => m.id === mapped.id)) return prev;
+        if (partial) {
+          setHistoryLoaded((h) => (h[mapped.conversation_id] ? { ...h, [mapped.conversation_id]: false } : h));
+          return prev;
+        }
         return { ...prev, [mapped.conversation_id]: [...arr, mapped] };
       });
       // 대화 리스트 갱신 — last_message_at 끌어올리고 unread_count 증가 (조건부)

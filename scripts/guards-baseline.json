@@ -347,10 +347,14 @@
     "dev-frontend/src/utils/todayTaskSet.ts": 1
   },
   "broadcastpayload": {
+    "dev-backend/routes/conversations.js": 1,
+    "dev-backend/routes/guest.js": 2,
     "dev-backend/routes/invoices.js": 4,
-    "dev-backend/routes/projects.js": 5,
+    "dev-backend/routes/projects.js": 11,
     "dev-backend/services/actions/project_note_actions.js": 1,
-    "dev-backend/services/invoiceDelivery.js": 1
+    "dev-backend/services/actions/task_actions.js": 1,
+    "dev-backend/services/chatPost.js": 1,
+    "dev-backend/services/invoiceDelivery.js": 3
   },
   "adminpredicate": {
     "dev-backend/routes/activity.js": 1,

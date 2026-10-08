@@ -39,7 +39,16 @@ async function postCardMessage({ conv, senderId, content, meta, io }) {
         await applyMemberDisplayNameOne(fullJson, conv.business_id, ['sender']);
       } catch { /* best-effort */ }
       io.to(`conv:${conv.id}`).emit('message:new', fullJson);
-      io.to(`business:${conv.business_id}`).emit('message:new', fullJson);
+      // business 방 = 이 대화에 없는 멤버까지 듣는다 — 카드 meta 의 열쇠(공유 토큰·서명 링크)는 참여자 방에만.
+      //   목록·토스터는 미리보기 본문만 쓴다(Fable 2026-10-08 관찰).
+      //   덜어낸 사본엔 meta_partial 을 붙인다 — 화면은 이 사본을 대화 본문 캐시에 넣지 않고 다음에 열 때 서버에서 다시 읽는다.
+      const SECRET_META = ['share_token', 'share_url', 'token', 'sign_url', 'url'];
+      const meta0 = fullJson.meta && typeof fullJson.meta === 'object' ? fullJson.meta : null;
+      const hasSecret = !!meta0 && Object.keys(meta0).some((k) => SECRET_META.includes(k));
+      const bizJson = hasSecret
+        ? { ...fullJson, meta: Object.fromEntries(Object.entries(meta0).filter(([k]) => !SECRET_META.includes(k))), meta_partial: true }
+        : fullJson;
+      io.to(`business:${conv.business_id}`).emit('message:new', bizJson);
     }
   } catch (e) { console.warn('[chatPost broadcast]', e.message); }
 

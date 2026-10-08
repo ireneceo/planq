@@ -499,6 +499,16 @@ function checkBroadcastPayload() {
       if (!hit && /=\s*\w+\.toJSON\s*\?\s*\w+\.toJSON\(\)/.test(l)) {
         hit = lines.slice(i + 1, i + 4).some((x) => /\.emit\(/.test(x));
       }
+      //   ③ const fullJson = full.toJSON();  … 15줄 안에 emit(…, fullJson) — 변수 이름으로 나중에 보내는 모양
+      //      (Fable 2026-10-08: chatPost 가 이 모양이라 ①② 둘 다 못 셌다). 같은 변수의 emit 은 줄마다 센다.
+      if (!hit) {
+        const m = /(?:const|let|var)\s+(\w+)\s*=\s*\w+\.toJSON\(\)\s*;/.exec(l);
+        if (m) {
+          const re = new RegExp(`\\.emit\\([^;]*\\b${m[1]}\\b`);
+          const k = lines.slice(i + 1, i + 16).filter((x) => re.test(x)).length;
+          if (k) { n += k; if (samples.length < 12) samples.push(`${rel(f)}:${i + 1}: ${t.slice(0, 90)} (emit ×${k})`); }
+        }
+      }
       if (hit) { n += 1; if (samples.length < 12) samples.push(`${rel(f)}:${i + 1}: ${t.slice(0, 90)}`); }
     });
     if (n) current[rel(f)] = n;
