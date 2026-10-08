@@ -191,16 +191,18 @@ async function run() {
       await new Promise((r) => setTimeout(r, 1500));
       const act = document.querySelector('[data-testid="sign-action"]');
       const r = act ? act.getBoundingClientRect() : null;
+      // 짧은 픽스처에선 버튼이 처음부터 화면 안이라 «보인다» 만으로는 무반응을 못 가른다 → 강조(빨간 테두리)가 켜졌는지도 잰다
       return { found: true, after, stillReview: !!document.querySelector('[data-testid="sign-start"]'),
-               actionInView: !!r && r.top < innerHeight && r.bottom > 0, capFound: !!cap };
+               actionInView: !!r && r.top < innerHeight && r.bottom > 0, capFound: !!cap,
+               nudged: !!act && getComputedStyle(act).borderTopColor === 'rgb(244, 63, 94)' };
     })()`);
     if (!slotGuide.found) {
       P('③-b 검토 단계 내 칸 안내', null, '⬜ 미측정 — 빨간 테두리 칸을 못 찾았다');
     } else {
       const says = /확인했습니다 · 서명하기|I have reviewed it · Sign/.test(slotGuide.after);
       P('③-b 검토 단계 빨간 칸이 «맨 아래 버튼» 을 말한다', says, says ? 'OK' : `🔴 칸 문구: ${slotGuide.after.slice(0, 80)}`);
-      P('③-c 칸을 누르면 서명은 시작하지 않고 맨 아래 버튼으로 간다', slotGuide.stillReview && slotGuide.actionInView,
-        `검토 단계 유지 ${slotGuide.stillReview} · 버튼 영역 보임 ${slotGuide.actionInView}`);
+      P('③-c 칸을 누르면 서명은 시작하지 않고 맨 아래 버튼으로 간다', slotGuide.stillReview && slotGuide.actionInView && slotGuide.nudged,
+        `검토 단계 유지 ${slotGuide.stillReview} · 버튼 영역 보임 ${slotGuide.actionInView} · 강조 ${slotGuide.nudged}`);
     }
 
     // 2026-10-07 서명 흐름 개편 — 문서 검토 → [확인했습니다 · 서명하기] → 본인 확인. 검토 단계를 건너뛰면 인증 버튼이 없다.

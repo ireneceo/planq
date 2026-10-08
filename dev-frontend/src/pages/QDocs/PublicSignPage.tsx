@@ -387,6 +387,10 @@ const PublicSignPage: React.FC = () => {
   }
 
   const signedAlready = doc.status === 'signed';
+  // 검토 단계 맨 아래 버튼의 글자 — 칸 안내가 실제 버튼과 같은 글자를 말하게(로그인이 필요한 우리 쪽 서명자는 «로그인하고 서명하기»)
+  const reviewBtnLabel = (needLogin
+    ? t('publicSign.loginToSign', { defaultValue: '로그인하고 서명하기' })
+    : t('publicSign.startSign', { defaultValue: '확인했습니다 · 서명하기' })) as string;
   const rejectedAlready = doc.status === 'rejected';
 
   return (
@@ -474,12 +478,15 @@ const PublicSignPage: React.FC = () => {
               {/* 내 칸이 문서 어디인지 먼저 말한다 — 모른 채 서명하게 두지 않는다(설계 §1) */}
               {doc.slot != null && (
                 <NoteBox data-testid="sign-my-slot">
-                  {t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다. 지금은 문서를 확인하는 단계예요. 끝까지 읽은 뒤 맨 아래 «확인했습니다 · 서명하기» 를 누르면 서명을 시작합니다.', n: doc.slot }) as string}
+                  {/* 검토 단계에서만 «다음 행동» 을 말한다 — 버튼을 누른 뒤에는 아래 단계 칸(SlotLine)이 안내한다 */}
+                  {(phase === 'review'
+                    ? t('publicSign.mySlot', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다. 지금은 문서를 확인하는 단계예요. 끝까지 읽은 뒤 맨 아래 «{{btn}}» 를 누르면 서명을 시작합니다.', n: doc.slot, btn: reviewBtnLabel })
+                    : t('publicSign.mySlotPlain', { defaultValue: '아래 문서에서 {{n}}번 칸(빨간 테두리)이 회원님의 서명 자리입니다.', n: doc.slot })) as string}
                 </NoteBox>
               )}
               <DocBody ref={docBodyRef} $mySlot={doc.slot ?? null} $locate={locate}
                 $mySlotHint={(phase === 'review'
-                  ? t('publicSign.mySlotHintReview', { defaultValue: '여기에 내 서명이 들어갑니다. 문서를 끝까지 확인한 뒤 맨 아래 «확인했습니다 · 서명하기» 를 눌러 주세요 (여기를 누르면 그 버튼으로 이동)' })
+                  ? t('publicSign.mySlotHintReview', { defaultValue: '여기에 내 서명이 들어갑니다. 문서를 끝까지 확인한 뒤 맨 아래 «{{btn}}» 를 눌러 주세요 (여기를 누르면 그 버튼으로 이동)', btn: reviewBtnLabel })
                   : t('publicSign.mySlotHint', { defaultValue: '여기를 누르면 서명하는 곳으로 이동' })) as string}
                 data-testid="sign-doc-body"
                 onClick={(e) => {
