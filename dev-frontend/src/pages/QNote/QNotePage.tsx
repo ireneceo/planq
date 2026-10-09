@@ -2740,7 +2740,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                   <SessionDelBtn type="button"
                     onClick={(e) => { e.stopPropagation(); setSessionDeleteConfirmId(session.id); }}
                     aria-label="delete"
-                    title={t('page.sessionDelete', { defaultValue: '세션 삭제' }) as string}>
+                    title={t('page.sessionDelete', { defaultValue: '노트 삭제' }) as string}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
                   </SessionDelBtn>
                 </SessionItemRow>
@@ -2785,11 +2785,11 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         {sessionDeleteConfirmId !== null && (
           <SessDelBackdrop onClick={() => !sessionDeleting && setSessionDeleteConfirmId(null)}>
             <SessDelDialog onClick={(e) => e.stopPropagation()}>
-              <SessDelTitle>{t('page.sessionDeleteTitle', { defaultValue: '세션을 삭제할까요?' }) as string}</SessDelTitle>
+              <SessDelTitle>{t('page.sessionDeleteTitle', { defaultValue: '이 노트를 삭제할까요?' }) as string}</SessDelTitle>
               <SessDelDesc>{t('page.sessionDeleteDesc', { defaultValue: '발화·문서·QA 등 모든 데이터가 함께 삭제됩니다. 되돌릴 수 없습니다.' }) as string}</SessDelDesc>
               {/* 지우려는 세션이 지금 녹음 중이면 그 사실을 같은 다이얼로그에서 알린다 (팝업 위 팝업 금지) */}
               {recordingSessionIdRef.current === sessionDeleteConfirmId && (
-                <SessDelDesc>{t('page.sessionDeleteRecording', { defaultValue: '이 세션은 녹음 중입니다. 삭제하면 녹음도 함께 중단됩니다.' }) as string}</SessDelDesc>
+                <SessDelDesc>{t('page.sessionDeleteRecording', { defaultValue: '이 노트는 녹음 중입니다. 삭제하면 녹음도 함께 중단됩니다.' }) as string}</SessDelDesc>
               )}
               <SessDelActions>
                 <SessDelCancel type="button" onClick={() => setSessionDeleteConfirmId(null)} disabled={sessionDeleting}>

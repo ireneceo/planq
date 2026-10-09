@@ -76,8 +76,11 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
 
   if (items.length === 0) return null;
 
-  // 한도 초과 항목 1개 이상이면 "초과" 톤으로 — 카드 색상·제목 강조.
-  const anyOver = items.some(it => it.pct >= 1);
+  // 실제로 넘친 항목(current > limit)이 있으면 "초과" 톤 — 빨강. 딱 찬 것(current == limit)은 «한도 도달» — 노랑.
+  //   ★ 2026-10-09 새 팀 첫 길 점검 — 가입 직후 1인 워크스페이스가 멤버 1/1 을 «한도를 초과한 항목이 있어요 · 100%+» 빨강으로
+  //     받았다. 넘친 것이 아니다. 한도에 닿으면 더 추가할 수 없다는 것만 알리면 된다.
+  const anyOver = items.some(it => it.current > it.limit);
+  const anyFull = !anyOver && items.some(it => it.pct >= 1);
 
   return (
     <Wrap role="alert" $over={anyOver}>
@@ -86,8 +89,17 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
           <Title $over={anyOver}>
             {anyOver
               ? t('usageWarn.titleOver', '한도를 초과한 항목이 있어요')
-              : t('usageWarn.title', '한도가 거의 찼습니다')}
+              : anyFull
+                ? t('usageWarn.titleFull', '한도에 도달한 항목이 있어요')
+                : t('usageWarn.title', '한도가 거의 찼습니다')}
           </Title>
+          {anyFull && (
+            <Subtitle>
+              {exempt
+                ? t('usageWarn.subtitleFullExempt', '더 추가하려면 한도를 늘려야 합니다. 플랫폼 관리자에게 문의해 주세요.')
+                : t('usageWarn.subtitleFull', '더 추가하려면 플랜을 올리거나 추가 슬롯을 사세요.')}
+            </Subtitle>
+          )}
           {anyOver && (
             <Subtitle>
               {exempt
@@ -111,9 +123,9 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
       </Header>
       <List>
         {items.map(it => {
-          const over = it.pct >= 1;
-          // 표시 정책: percent cap 100%+ (160% 같은 부풀린 수치 노출 X), 실제 초과량 별도 라벨.
-          const pctLabel = over ? '100%+' : `${Math.round(it.pct * 100)}%`;
+          const over = it.current > it.limit;
+          // 표시 정책: percent cap 100%+ (160% 같은 부풀린 수치 노출 X), 실제 초과량 별도 라벨. 딱 찬 것은 100%.
+          const pctLabel = over ? '100%+' : `${Math.min(100, Math.round(it.pct * 100))}%`;
           const overBy = over ? Math.max(0, it.current - it.limit) : 0;
           return (
             <Row key={it.key} $danger={over}>

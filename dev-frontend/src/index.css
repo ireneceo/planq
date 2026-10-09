@@ -56,6 +56,24 @@ input[type="checkbox"], input[type="radio"], input[type="range"], progress {
 :where(input[type="checkbox"]):indeterminate::before { transform: scale(1); clip-path: none; height: 2px; border-radius: 1px; }
 :where(input[type="checkbox"], input[type="radio"]):focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.3); }
 :where(input[type="checkbox"], input[type="radio"]):disabled { opacity: 0.5; cursor: not-allowed; }
+/* role="switch" 체크박스는 **스위치**로 그린다(switchShell 과 같은 36×20 · 값도 같다).
+   ★ 2026-10-09 새 팀 첫 길 점검 — 위 규칙이 32×18 로 늘린 체크박스를 «빈 네모» 로 그려 새 대화 창의 스위치 3개가
+     켜졌는지 꺼졌는지 보이지 않았다(손잡이가 없다). 화면이 직접 그린 스위치는 여전히 이긴다(:where 우선순위 0). */
+:where(input[type="checkbox"][role="switch"]) {
+  width: 36px; height: 20px; border: none; border-radius: 999px;
+  background: #CBD5E1; position: relative; display: inline-block;
+  transition: background-color 0.15s;
+}
+:where(input[type="checkbox"][role="switch"])::before {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  clip-path: none; transform: none; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: left 0.15s;
+}
+:where(input[type="checkbox"][role="switch"]):checked { background: #14B8A6; }
+:where(input[type="checkbox"][role="switch"]):checked::before { left: 18px; transform: none; }
+:where(input[type="checkbox"][role="switch"]):hover:not(:disabled) { border-color: transparent; background-color: #94A3B8; }
+:where(input[type="checkbox"][role="switch"]):checked:hover:not(:disabled) { background-color: #0D9488; }
 
 html, body {
   margin: 0;

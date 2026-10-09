@@ -262,11 +262,14 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const submit = async () => {
     if (submitting || invalid || !bizId) return;
     // 담당자 결정
-    //   · 내 업무(오늘·이번 주·전체) : 무조건 나
+    //   · 내 업무(오늘·이번 주·전체) : 기본은 나. **담당자 칸에서 동료를 골랐으면 그 사람이다.**
+    //     ★ 2026-10-09 새 팀 첫 길 점검 — 칸은 바뀌어 보이는데(예측시간 칸까지 사라짐) 저장은 무조건 나로
+    //       나갔다. «동료에게 업무 요청» 을 처음 해 보는 바로 그 자리라 요청이 조용히 내 업무가 됐다.
+    //       비우면(null) 나 — 내 업무 목록에서 서버 담당자 체인을 타지 않게 하던 원래 뜻은 그대로다.
     //   · 요청 : 선택 필수
     //   · 그 외 : 미선택이면 **null 로 보낸다** — 그래야 서버의 담당자 체인
     //     (프로젝트 기본담당자 → PM → 생성자)이 탄다. 여기서 나로 채우면 그 체인은 영영 죽은 코드다.
-    const targetAssignee = assigneeFixedToMe ? myId : assigneeId;
+    const targetAssignee = assigneeFixedToMe ? (assigneeId ?? myId) : assigneeId;
     const finalDue = dueDate || (createDefaults?.due_date ?? null);
     // 정기업무는 due_date 가 anchor 다(백엔드도 검증) — 없으면 반복을 붙이지 않는다
     const recurrenceRule = capacityMine && finalDue ? recurrence : null;

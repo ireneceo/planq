@@ -11,6 +11,13 @@
 > 이 파일에는 계속 **Fable 판정 결과**(PASS/FAIL·비차단 지적)를 맨 위에 적는다. 아래 옛 절의 판정식
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
+## 2026-10-09 · 가입 제한 — 살아 있는 초대 링크 가입은 IP 몫을 쓰지 않는다 (방 58947e65 · 새 팀 첫 길 점검)
+- 1차 **FAIL** — skip 술어가 수락 술어보다 넓었다(멤버 초대의 plan.can('add_member') 미검사). 한도로 수락이 실패하는 워크스페이스의 토큰 하나로 차단 IP 에서 201,201,201(무제한 계정).
+- 수정: 술어 = resolveInviteToken 존재·미만료·미연결 + 멤버 초대면 수락과 같은 plan.can(excludeMemberId) · 예외 가입은 토큰당 5/시간(inviteRegisterLimiter).
+- 2차 **PASS** — 차단 IP 한도초과 토큰 429×3 · 토큰당 409×5→429 · 토큰 시도가 IP 몫 미소모 · 만료/연결됨/없는/객체 토큰 전부 429 · 고객 초대 201.
+- 비차단: ① 같은 토큰 동시 가입 경합 — acceptInvite bm.update 에 joined_at IS NULL 조건 없음(기존 결함, 별도 건: 조건부 UPDATE + affectedRows 0 이면 already_accepted) ② 모양 맞는 토큰은 429 전 DB 조회(미미) ③ 한도 초과 초대로 새 IP 가입 시 201 + 연결 실패(기존 best-effort).
+
+
 ---
 
 ## 2026-10-09 · 팀 적응 단계(대시보드 카드 · 도움말 · 랜딩 /start) (방 cdf8db0c) — **설계 VERDICT: PASS-WITH-CHANGES** (Fable 1회 · ④ 처음 동선 설계)

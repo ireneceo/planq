@@ -13,8 +13,8 @@
     "menuVoiceDesc": "Recording + STT + answer search",
     "menuMemo": "Write memo",
     "menuMemoDesc": "Text memo — code blocks / formatting",
-    "sessionSearchPlaceholder": "Search sessions",
-    "emptySessionList": "No sessions yet.",
+    "sessionSearchPlaceholder": "Search notes",
+    "emptySessionList": "No notes yet.",
     "sessionUtteranceCount": "{{count}} utterances",
     "sessionStatus": {
       "recording": "Recording",
@@ -196,14 +196,14 @@
       "hintLine2": "Indexing may take 10 seconds to 1 minute depending on file size."
     },
     "errors": {
-      "noActiveSession": "No active session",
+      "noActiveSession": "No open note",
       "reshareTab": "Please re-share the tab audio. Make sure \"Share tab audio\" is checked in the share dialog.",
       "permissionDenied": "Microphone or tab-share permission denied. Please allow it from the lock icon in the browser address bar.",
       "shareCancelled": "Tab audio sharing was cancelled. When retrying, make sure \"Share tab audio\" is checked.",
       "serverConnection": "Failed to connect to the Q note server. Please refresh and try again.",
       "startPrefix": "Failed to start recording: {{hint}}",
       "noBusiness": "No business information.",
-      "sessionCreate": "Failed to create session",
+      "sessionCreate": "Could not create the note",
       "recorderLocked": "This note is already being recorded in another tab or device. Please pause or end it there first.",
       "recorderLost": "Another tab took over the recording, so this tab has stopped.",
       "recorderLockedBanner": "This note is being recorded in another tab or device. Duplicate recording is not allowed.",
@@ -227,9 +227,9 @@
       "collapse": "Collapse list",
       "expand": "Open list"
     },
-    "sessionDeleteTitle": "Delete this session?",
+    "sessionDeleteTitle": "Delete this note?",
     "sessionDeleteDesc": "All data — transcript, documents, Q&A — is deleted with it. This cannot be undone.",
-    "sessionDeleteRecording": "This session is recording. Deleting it also stops the recording.",
+    "sessionDeleteRecording": "This note is recording. Deleting it also stops the recording.",
     "recordingGuard": {
       "title": "Recording in progress",
       "message": "Leaving will stop the recording. Everything captured so far is already saved.",
@@ -245,7 +245,7 @@
       "empty": "No questions detected.",
       "title": "Questions"
     },
-    "sessionDelete": "Delete session",
+    "sessionDelete": "Delete note",
     "settingsView": {
       "answerLanguage": "Answer language",
       "answerLength": "Answer length",

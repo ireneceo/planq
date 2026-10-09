@@ -28,6 +28,7 @@
     "goLogin": "Go to login",
     "goToApp": "Open PlanQ",
     "accepting": "Accepting...",
+    "joining": "Taking you to the workspace...",
     "accept": "Accept invite",
     "loginRequired": "Please log in or sign up to accept this invite.",
     "login": "Log in",
@@ -726,6 +727,9 @@
   },
   "usageWarn": {
     "title": "Approaching plan limits",
+    "titleFull": "Some plan limits are reached",
+    "subtitleFull": "To add more, upgrade your plan or buy extra slots.",
+    "subtitleFullExempt": "To add more, the limit must be raised. Contact the platform admin.",
     "titleOver": "Some plan limits are exceeded",
     "subtitleOver": "New additions are blocked while over limit. Upgrade your plan or remove existing items.",
     "cta": "Plans & Add-ons",

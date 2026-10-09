@@ -295,6 +295,7 @@ const CloseBtn = styled.button`
   display: flex; align-items: center; justify-content: center;
   border-radius: 4px;
   &:hover { background: #FED7AA; }
-  /* 모바일: 우상단 고정 (본문/버튼 흐름에서 빠짐) */
-  @media (max-width: 640px) { position: absolute; top: 8px; right: 8px; }
+  /* 모바일: 오른쪽 끝에 세로 가운데로 (본문/버튼 흐름에서 빠짐).
+     ★ 2026-10-09 — top:8px 이면 44px 터치 상자가 한 줄짜리 배너(약 36px)보다 커서 × 가 아래 테두리에 걸쳐 보였다. */
+  @media (max-width: 640px) { position: absolute; top: 50%; right: 0; transform: translateY(-50%); }
 `;

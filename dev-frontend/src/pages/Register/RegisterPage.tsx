@@ -301,6 +301,24 @@ const RegisterPage: React.FC = () => {
     return m ? m[1] : null;
   })();
 
+  // 초대 가입이면 어느 팀에 합류하는지 보여 주고, 초대받은 메일 주소를 채워 둔다(2026-10-09 새 팀 첫 길 점검 —
+  //   «14일 무료 체험 · 무료로 시작하기» 만 보여 팀원이 새 회사를 만드는 줄 알았다). 실패하면 보통 가입 화면 그대로.
+  const [inviteWorkspace, setInviteWorkspace] = useState<string | null>(null);
+  useEffect(() => {
+    if (!inviteToken) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/invites/${encodeURIComponent(inviteToken)}`);
+        const j = await r.json();
+        if (!alive || !j?.success) return;
+        if (j.data?.workspace_name) setInviteWorkspace(String(j.data.workspace_name));
+        if (j.data?.contact_email) setEmail((prev) => prev || String(j.data.contact_email));
+      } catch { /* 보통 가입 화면 그대로 */ }
+    })();
+    return () => { alive = false; };
+  }, [inviteToken]);
+
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
       const redirectQuery = new URLSearchParams(location.search).get('redirect');
@@ -380,7 +398,13 @@ const RegisterPage: React.FC = () => {
 
         <RightSection>
           <FormTitle>{t('register.title')}</FormTitle>
-          <FormSubtitle>{t('register.subtitle')}</FormSubtitle>
+          <FormSubtitle>
+            {inviteToken
+              ? (inviteWorkspace
+                ? t('register.inviteSubtitle', { name: inviteWorkspace, defaultValue: '{{name}} 에 팀원으로 합류합니다. 계정만 만들면 바로 들어갑니다.' })
+                : t('register.inviteSubtitleNoName', '초대받은 워크스페이스에 합류합니다. 계정만 만들면 바로 들어갑니다.'))
+              : t('register.subtitle')}
+          </FormSubtitle>
 
           <Form onSubmit={handleSubmit}>
             <InputGroup>
@@ -469,8 +493,9 @@ const RegisterPage: React.FC = () => {
 
             {error && <ErrorMessage>{error}</ErrorMessage>}
 
-            <Button type="submit" disabled={isLoading || !termsAgreed || !privacyAgreed}>
-              {isLoading ? t('register.submitting') : t('register.submit')}
+            {/* 약관 미동의로 버튼을 잠그지 않는다 — 잠그면 왜 안 눌리는지 말할 곳이 없다. 누르면 handleSubmit 이 이유를 띄운다. */}
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? t('register.submitting') : (inviteToken ? t('register.inviteSubmit', '가입하고 합류하기') : t('register.submit'))}
             </Button>
           </Form>
 

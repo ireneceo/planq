@@ -91,6 +91,10 @@ const BannerRoot = styled.div`
   /* 모달·드로어가 열린 동안에도 비운다 — 설치 권유가 다이얼로그 하단 버튼을 덮으면 안 된다.
      RightDock FAB 이 쓰는 것과 같은 계약(useBodyScrollLock 가 토글). */
   body[data-overlay-open="true"] & { display: none; }
+  /* 우측 곁패널(업무 추가·새 대화·상세)은 배경 스크롤을 잠그지 않아(2026-09-13 계약) 위 표식을 세우지 않는다 —
+     그래서 이 배너(z 8500)가 패널(z 130) 아래쪽 입력칸·버튼을 덮고 있었다(2026-10-09 새 팀 첫 길 점검).
+     열린 다이얼로그가 있으면 비운다. */
+  body:has([aria-modal="true"]) & { display: none; }
 `;
 const Icon = styled.div`
   width: 36px; height: 36px;

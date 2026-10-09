@@ -349,12 +349,45 @@ const setupSecurity = (app) => {
   app.use('/api/auth/deletion-recover', loginLimiter);
 
   // Rate Limiting — 회원가입
+  // ★ 살아 있는 초대 링크로 오는 가입은 IP 몫을 쓰지 않는다 (2026-10-09 새 팀 첫 길 점검).
+  //   한 사무실(같은 IP)에서 대표 가입 + 팀원 3명이 초대 링크로 가입하면 **4번째 팀원이 1시간 막혔다**
+  //   («가입 시도가 많아요»). 유효한 초대 토큰은 이미 «이 사람을 들이라» 는 허락이다.
+  //   판정은 **수락이 실제로 그 토큰을 쓰는가** 와 같은 술어다(Fable 2026-10-09 FAIL 지적 반영):
+  //     resolveInviteToken 존재·미만료·미연결 + 멤버 초대면 수락과 같은 plan.can('add_member', excludeMemberId).
+  //     한도로 수락이 실패하는 초대는 토큰이 소모되지 않아 «영구 열쇠» 가 되므로 예외에서 뺀다.
+  //   그리고 예외로 들어온 가입도 **토큰당** 따로 센다(inviteRegisterLimiter) — 경합·중복 이메일·예상 못 한
+  //   실패로 토큰이 안 쓰여도 한 토큰으로 찍어낼 수 있는 계정 수에 상한이 있다. 조회 실패는 센다(fail-closed).
+  const isLiveInviteSignup = async (req) => {
+    if (req._liveInviteSignup !== undefined) return req._liveInviteSignup;
+    let ok = false;
+    const tok = req.body?.invite_token;
+    if (typeof tok === 'string' && /^[A-Za-z0-9_-]{16,128}$/.test(tok)) {
+      try {
+        const r = await require('../services/invites').resolveInviteToken(tok);
+        ok = !!r && !r.expired && !r.alreadyLinked;
+        if (ok && r.type === 'workspace_member') {
+          const planCan = await require('../services/plan').can(r.business_id, 'add_member', { excludeMemberId: r.record.id });
+          ok = !!planCan?.ok;
+        }
+      } catch { ok = false; }
+    }
+    req._liveInviteSignup = ok;
+    return ok;
+  };
   const registerLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1시간
     max: 3,
-    message: { success: false, message: 'Too many registration attempts' }
+    message: { success: false, message: 'Too many registration attempts' },
+    skip: isLiveInviteSignup,
   });
-  app.use('/api/auth/register', registerLimiter);
+  const inviteRegisterLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    keyGenerator: (req) => `invite:${req.body.invite_token}`,
+    skip: async (req) => !(await isLiveInviteSignup(req)),
+    message: { success: false, message: 'Too many registration attempts' },
+  });
+  app.use('/api/auth/register', registerLimiter, inviteRegisterLimiter);
 
   // Rate Limiting — 비밀번호 재설정
   const forgotPasswordLimiter = rateLimit({

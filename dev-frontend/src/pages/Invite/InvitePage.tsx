@@ -53,25 +53,30 @@ const InvitePage: React.FC = () => {
     try {
       const r = await apiFetch(`/api/invites/${token}/accept`, { method: 'POST' });
       const body = await r.json();
-      // 이미 수락된 초대면 에러 대신 자연스럽게 진입 (자동 수락 경합 방어)
-      if (!body.success && body.message !== 'already_accepted') throw new Error(body.message);
+      // 같은 사람의 재수락(가입 직후·경합)은 서버가 성공으로 돌려준다. already_accepted 는 **남이 이미 받은 초대**다 —
+      //   예전처럼 성공으로 삼키면 그 사람을 자기 대시보드로 보내 «합류했다» 고 오해하게 된다. 그대로 알린다.
+      if (!body.success) throw new Error(body.message);
       // 수락으로 새로 연결된 워크스페이스(고객)를 user 에 반영 — 무워크스페이스 가입 직후 진입 보장
       try { await refreshUser(); } catch { /* noop */ }
       navigate(body.data?.redirect || (info?.type === 'workspace_member' ? '/dashboard' : '/talk'));
     } catch (err: unknown) {
-      setError(mapApiError(err, tErr));
+      // 초대 고유 코드는 이 화면의 errorLabel 이 사람 말로 바꾼다 — 공용 매퍼로 보내면 «처리 중 오류 (already_accepted)» 가 된다.
+      const code = err instanceof Error ? err.message : '';
+      setError(['already_accepted', 'email_mismatch', 'invalid_or_expired_invite'].includes(code) ? code : mapApiError(err, tErr));
     } finally {
       setAccepting(false);
     }
   };
 
   // 자동 수락 — 로그인 상태로 초대 링크 도착 시 (가입/로그인 후 redirect 포함) 버튼 클릭 없이 즉시 연결.
-  //  링크 토큰 자체가 자격증명(token-is-proof) 이라 안전. 이미 연결된 초대는 skip(아래 already_linked 화면).
+  //  링크 토큰 자체가 자격증명(token-is-proof) 이라 안전.
+  //  ★ 이미 연결된 초대도 로그인 상태면 부른다(2026-10-09 새 팀 첫 길 점검) — 초대 링크로 **가입하면 가입이 곧 합류**라
+  //    돌아온 이 화면에서는 늘 already_linked 다. 예전엔 여기서 멈춰 방금 합류한 사람에게 «이미 수락된 초대입니다» 를
+  //    보여 줬다. 서버 acceptInvite 는 같은 사람이면 멱등으로 받아 그 워크스페이스로 착지시키고(landOn), 남이면 거절한다.
   const autoAcceptedRef = useRef(false);
   useEffect(() => {
     if (autoAcceptedRef.current) return;
     if (!token || !user || !info || accepting || error) return;
-    if (info.already_linked) return;
     autoAcceptedRef.current = true;
     handleAccept();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -103,6 +108,10 @@ const InvitePage: React.FC = () => {
   );
   if (!info) return null;
 
+  // 로그인 상태면 위 자동 수락이 곧 이동시킨다 — 그 사이 «이미 수락된 초대» 를 비추지 않는다.
+  if (info.already_linked && user) {
+    return <PublicPageShell layout="card" width="sm" brand={false} center print={false}><Inner><Message>{t('invite.joining', '워크스페이스로 이동하는 중...')}</Message></Inner></PublicPageShell>;
+  }
   if (info.already_linked) {
     return (
       <PublicPageShell layout="card" width="sm" brand={false} center print={false}>

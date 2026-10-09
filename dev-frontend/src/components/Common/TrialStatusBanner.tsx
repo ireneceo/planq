@@ -1,5 +1,6 @@
 // 워크스페이스 trial / past_due / 잠금 상태 알림 배너.
-// Dashboard 상단·PlanSettings 등에서 재사용. 본인이 owner 가 아니어도 표시 (워크스페이스 상태이므로).
+// Dashboard 상단·PlanSettings 등에서 재사용. 잠금·마감 임박은 owner 가 아니어도 표시 (워크스페이스 상태이므로) —
+// 단 팀원에게는 결제 버튼 없이 상태 문구만, 평상시 체험 안내는 오너에게만.
 //
 // 상태별 노출:
 //   - active        → 미노출
@@ -12,7 +13,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../../contexts/AuthContext';
+import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { canPurchaseInApp } from '../../utils/purchase';
 
 interface PlanStatus {
@@ -41,6 +42,8 @@ const daysBetween = (iso: string | null): number => {
 
 const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
   const { t } = useTranslation('common');
+  const { user } = useAuth();
+  const isOwner = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
   const [status, setStatus] = useState<PlanStatus | null>(null);
 
   const load = useCallback(() => {
@@ -82,7 +85,11 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
 
   // App Store 3.1.1 — 네이티브 앱에선 명령형 결제 유도 문구(미리 결제하세요 등)도 리젝 회색지대라
   //   상태만 알리는 중립 문구로 대체한다. (CTA 숨김만으론 본문 유도 표현이 남음 — Fable 권고)
-  const native = !canPurchaseInApp();
+  // 결제는 오너 몫이다 — 결제 화면(/business/settings/plan)도 오너 메뉴다. 팀원에게는 결제 버튼·결제 유도 문구 대신
+  //   네이티브와 같은 «상태만 알리는» 문구를 쓰고, 평상시 체험 안내(할 일이 없는 정보)는 보이지 않는다
+  //   (2026-10-09 새 팀 첫 길 점검 — 팀원 첫 화면에 «Starter 체험 · 결제 페이지» 가 떠 있었다).
+  const canPay = isOwner && canPurchaseInApp();
+  const native = !canPay;
 
   if (status.subscription_status === 'canceled') {
     tone = 'danger';
@@ -114,6 +121,7 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
         ? t('trialBanner.trialEnding.descNative', '체험 종료 후 일부 기능이 제한됩니다.')
         : t('trialBanner.trialEnding.desc', '체험 종료 후 자동 잠금되지 않도록 미리 결제하세요.');
     } else {
+      if (!isOwner) return null;
       tone = 'info';
       title = t('trialBanner.trial.title', 'Starter 체험 {{days}}일 남음', { days });
       desc = t('trialBanner.trial.desc', '체험 기간 동안 모든 Starter 기능을 사용할 수 있습니다.');
@@ -129,7 +137,7 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
         <Desc $tone={tone}>{desc}</Desc>
       </Texts>
       {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김 */}
-      {canPurchaseInApp() && <CtaLink to="/business/settings/plan" $tone={tone}>{cta}</CtaLink>}
+      {canPay && <CtaLink to="/business/settings/plan" $tone={tone}>{cta}</CtaLink>}
     </Wrap>
   );
 };

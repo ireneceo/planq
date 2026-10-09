@@ -125,7 +125,8 @@ const DashboardPage: React.FC = () => {
     >
       <OnboardingChecklist businessId={bizId} variant="dashboard" />
       <TrialStatusBanner businessId={bizId} />
-      <UsageWarningCard businessId={bizId} />
+      {/* 한도·업그레이드는 오너가 정한다 — 팀원은 막히는 순간 한도 창이 알린다(2026-10-09 새 팀 첫 길 점검). */}
+      {(user?.business_role === 'owner' || user?.platform_role === 'platform_admin') && <UsageWarningCard businessId={bizId} />}
       {/* Q조직 D1 — 3단 스코프 토글 (회사/내 부서/개인) */}
       {bizId && (canCompany || myDeptId) && (
         <ScopeSwitch role="tablist">

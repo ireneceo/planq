@@ -344,7 +344,9 @@ router.get('/', authenticateToken, async (req, res, next) => {
 ### 보안 미들웨어 (middleware/security.js)
 - Helmet: 보안 헤더
 - CORS: dev.planq.kr, planq.kr만 허용
-- Rate Limit: 로그인 5회/15분, 회원가입 3회/1시간, 일반 100회/분
+- Rate Limit: 로그인 5회/15분, 회원가입 3회/1시간(IP), 일반 100회/분
+  - ★ 살아 있는 초대 링크 가입은 IP 몫을 쓰지 않고 **토큰당 5회/1시간**으로 센다(2026-10-09 — 한 사무실 4번째 팀원이 막혔다).
+    판정은 **수락과 같은 술어**(존재·미만료·미연결 + 멤버 초대면 `plan.can('add_member')`) — 넓으면 한도로 수락 못 하는 토큰이 «영구 열쇠» 가 된다(Fable 1차 FAIL 실측).
 - SSRF 방어: URL 파라미터 검사, 내부 IP 차단
 - SQL Injection 패턴 감지: 추가 방어층
 - CSP: Content Security Policy

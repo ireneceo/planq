@@ -405,6 +405,7 @@
     "cueGoToSettings": "Cue 설정으로 이동",
     "emptyMembers": "아직 멤버가 없습니다",
     "inviteBtn": "멤버 초대",
+    "inviteHint": "받은 사람이 초대 메일의 링크로 가입(이미 계정이 있으면 로그인)하면 바로 팀원이 됩니다. 링크는 30일 동안 열립니다.",
     "invitePlaceholder": "초대할 이메일",
     "inviteSend": "초대 보내기",
     "inviteSending": "전송 중...",
@@ -473,7 +474,7 @@
     "roleMember": "멤버",
     "roleAi": "Cue",
     "invite": "멤버 초대",
-    "defaultRolePlaceholder": "예: 디자인"
+    "defaultRolePlaceholder": "맡은 일 (선택) 예: 디자인"
   },
   "cue": {
     "sectionTitle": "Cue 설정",

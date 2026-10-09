@@ -405,6 +405,7 @@
     "cueGoToSettings": "Go to Cue Settings",
     "emptyMembers": "No members yet",
     "inviteBtn": "Invite member",
+    "inviteHint": "They become a team member as soon as they sign up (or sign in) from the link in the invite email. The link works for 30 days.",
     "invitePlaceholder": "Email to invite",
     "inviteSend": "Send invite",
     "inviteSending": "Sending...",
@@ -473,7 +474,7 @@
     "roleMember": "Member",
     "roleAi": "Cue",
     "invite": "Invite Member",
-    "defaultRolePlaceholder": "e.g. Design"
+    "defaultRolePlaceholder": "Role (optional), e.g. Design"
   },
   "cue": {
     "sectionTitle": "Cue Settings",

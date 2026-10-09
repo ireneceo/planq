@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-09 저녁 ([Opus] Opus 5.5, 방 cdf8db0c) — 팀 적응 5단계: 대시보드 «팀 적응 단계» 카드 · 도움말 글 · 랜딩 /start (운영 미배포). Fable 설계 PASS-WITH-CHANGES 반영, 완성 검증은 자체.
+> **최종 업데이트:** 2026-10-09 밤 ([Opus] Opus 5.5, 방 58947e65) — 새 팀 첫 길 점검: 가입→초대→합류→업무 요청→대화 12건 수리 (운영 미배포). 가입 제한 예외만 Fable 1차 FAIL→2차 PASS, 나머지 자체 검증.
+> ── 이전(2026-10-09 저녁) ──
+> 2026-10-09 저녁 ([Opus] Opus 5.5, 방 cdf8db0c) — 팀 적응 5단계: 대시보드 «팀 적응 단계» 카드 · 도움말 글 · 랜딩 /start (운영 미배포). Fable 설계 PASS-WITH-CHANGES 반영, 완성 검증은 자체.
 > ── 이전(2026-10-09) ──
 > 2026-10-09 ([Opus] Opus 5.5) — 10/08~09 dev 작업 묶음(운영 미배포): 관리자 «확인 필요» 메뉴·배지·알림 · 관리자 입금 확인 링크가 그 구독 행으로 · 워크스페이스 전환 경합 · 서명 창 한 자리 · Q docs AI로 수정 · 편집기 찾기·바꾸기 · 공휴일·가동률 Fable 수정 · #463 AI 업무 옮기기 · #464 영수증 · 돈 정합 0-A/0-B.
 > ── 이전(2026-10-07) ──
@@ -32,6 +34,36 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-09 밤 [Opus] — 새 팀 첫 길 점검 (가입 → 팀원 초대 → 합류 → 업무 요청 → 대화)
+
+Irene: *"이제 새로운 팀이 시작하게 할거야. 기본 루트에서 사용하는데 불편함이 없는지 체계적인 점검 가능해? 불친절한 안내는 없는지더"*
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 업무 추가 담당자 | Q task 기본 탭에서 동료를 골라도 «나» 로 저장되던 것 → 고른 사람 | ✅ 완료 |
+| 초대 합류 | 초대 링크 가입 직후 «이미 수락된 초대입니다» → 바로 대시보드 · 남이 쓴 초대는 오류 화면 | ✅ 완료 |
+| 가입 제한 | 같은 IP 4번째 팀원 1시간 막힘 → 살아 있는 초대(수락과 같은 술어) 가입은 IP 몫 제외 + 토큰당 5/시간 (Fable PASS) | ✅ 완료 |
+| 초대 가입 화면 | «14일 무료 체험» → «○○ 에 팀원으로 합류» · 메일 채움 · «가입하고 합류하기» | ✅ 완료 |
+| 사용량·체험 카드 | 1/1 «초과 100%+» 빨강 → «한도에 도달» 노랑 · 사용량 카드 오너만 · 팀원엔 결제 버튼 없음 | ✅ 완료 |
+| 스위치 | 새 대화·대화 설정 스위치가 빈 네모 → 공용 index.css role=switch 스위치 모양 | ✅ 완료 |
+| 문구 | «(Q note 패턴)» · Q note «세션»→«노트» · 초대 칸 안내·«맡은 일» · «회사·팀 이름» · 약관 미동의 이유 표시 | ✅ 완료 |
+| 폰·겹침 | 폰 Q talk 빈 목록 [새 대화 시작] · 폰 알림 배너 × 위치 · 설치 안내가 우측 서랍 덮음 | ✅ 완료 |
+
+### 남은 것
+- ⏸ Irene 결정: 신규 체험 = 스타터(멤버 1) → 새 팀이 체험 중 팀원 초대 불가 (session-state «답 기다림»)
+- 별도 건: 같은 초대 토큰 동시 가입 경합(acceptInvite bm.update 에 joined_at IS NULL 조건)
+
+### 수정된 파일
+- `dev-backend/middleware/security.js`
+- `dev-frontend/src/components/QTask/TaskCreateForm.tsx` · `pages/Invite/InvitePage.tsx` · `pages/Register/RegisterPage.tsx`
+- `dev-frontend/src/components/Common/{TrialStatusBanner,UsageWarningCard,PushPromptBanner,PwaInstallBanner}.tsx` · `pages/Dashboard/DashboardPage.tsx`
+- `dev-frontend/src/index.css` · `pages/QTalk/{NewChatModal,ChatSettingsModal,LeftPanel}.tsx` · `pages/QNote/QNotePage.tsx` · `pages/Settings/WorkspaceSettingsPage.tsx`
+- `dev-frontend/public/locales/{ko,en}/{auth,common,qnote,qtalk,settings}.json`
 
 ---
 

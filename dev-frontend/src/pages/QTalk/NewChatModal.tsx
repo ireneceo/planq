@@ -244,7 +244,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
 
           <Field>
             <Label>{t('newChat.translation', '번역 표시')}</Label>
-            <Hint>{t('newChat.translationHint', '사용 시 메시지에 두 언어가 함께 표시됩니다 (Q note 패턴). 만든 후 톱니에서 변경 가능.')}</Hint>
+            <Hint>{t('newChat.translationHint', '사용 시 메시지에 두 언어가 함께 표시됩니다. 만든 뒤에도 대화방 설정(톱니)에서 바꿀 수 있습니다.')}</Hint>
             <ToggleLine>
               <ToggleSwitch>
                 <input type="checkbox" role="switch" aria-checked={translationOn}
@@ -332,7 +332,6 @@ const Hint = styled.div`font-size:0.75rem;color:#94A3B8;line-height:1.5;margin-b
 const ToggleLine = styled.div`margin-top:4px;`;
 const ToggleSwitch = styled.label`
   display:inline-flex;align-items:center;gap:8px;font-size:0.8125rem;color:#0F172A;cursor:pointer;
-  input{width:32px;height:18px;}
 `;
 const LangRow = styled.div`display:flex;align-items:flex-end;gap:8px;margin-top:8px;`;
 const LangCol = styled.div`flex:1;display:flex;flex-direction:column;gap:4px;`;

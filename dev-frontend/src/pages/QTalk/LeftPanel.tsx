@@ -197,6 +197,16 @@ const LeftPanel: React.FC<Props> = ({
         {filteredChats.length === 0 && !loading && (
           <Empty>
             {query ? t('left.noResults', '검색 결과 없음') : t('left.noChats', '아직 대화가 없습니다')}
+            {/* 폰·태블릿은 이 목록만 보인다 — 데스크탑 오른쪽의 «대화를 시작해 보세요» 안내가 없어 막다른 화면이었다
+                (2026-10-09 새 팀 첫 길 점검). 데스크탑은 오른쪽 안내가 같은 버튼을 이미 갖고 있어 숨긴다. */}
+            {!query && (
+              <EmptyStart>
+                <EmptyHint>{t('left.noChatsHint', '팀원과 첫 대화방을 만들어 보세요')}</EmptyHint>
+                <EmptyStartBtn type="button" data-testid="qtalk-empty-new-chat" onClick={onOpenNewChat}>
+                  {t('left.noChatsCta', '+ 새 대화 시작')}
+                </EmptyStartBtn>
+              </EmptyStart>
+            )}
           </Empty>
         )}
         {filteredChats.map(({ conversation: c, project: p }) => {
@@ -442,6 +452,16 @@ const Empty = styled.div`
   text-align: center;
   color: #94A3B8;
   font-size: 0.75rem;
+`;
+const EmptyStart = styled.div`
+  display: none;
+  @media (max-width: 1024px) { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 12px; }
+`;
+const EmptyHint = styled.div`font-size: 0.8125rem; color: #64748B; line-height: 1.5;`;
+const EmptyStartBtn = styled.button`
+  height: 40px; padding: 0 18px; border: none; border-radius: 8px;
+  background: #14B8A6; color: #fff; font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  &:hover { background: #0D9488; }
 `;
 
 // 사이클 N+15-A — 초기 로딩 skeleton (Slack/카카오톡 패턴).

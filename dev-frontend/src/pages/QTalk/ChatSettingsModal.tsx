@@ -179,7 +179,7 @@ const ChatSettingsModal: React.FC<Props> = ({
                   checked={translationOn} onChange={e => setTranslationOn(e.target.checked)} />
                 <span>{t('settings.translation.enable', '번역 표시 사용')}</span>
               </ToggleLabel>
-              <ToggleHint>{t('settings.translation.hint', '사용 시 메시지에 두 언어가 함께 표시됩니다 (Q note 패턴). 사용 OFF 시 원문만 표시.')}</ToggleHint>
+              <ToggleHint>{t('settings.translation.hint', '사용 시 메시지에 두 언어가 함께 표시됩니다. 끄면 원문만 보입니다.')}</ToggleHint>
             </ToggleRow>
             {translationOn && (
               <LangRow>
@@ -320,7 +320,6 @@ const ReadHint = styled.div`font-size:0.6875rem;color:#94A3B8;line-height:1.5;`;
 const ToggleRow = styled.div`display:flex;flex-direction:column;gap:4px;`;
 const ToggleLabel = styled.label`
   display:inline-flex;align-items:center;gap:8px;font-size:0.8125rem;color:#0F172A;cursor:pointer;
-  input{width:32px;height:18px;}
 `;
 const ToggleHint = styled.div`font-size:0.6875rem;color:#94A3B8;line-height:1.5;`;
 const LangRow = styled.div`display:flex;align-items:flex-end;gap:8px;`;

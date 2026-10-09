@@ -93,6 +93,7 @@ const InviteRoleInput = styled.input`
   font-size: 0.8125rem; background: #FFFFFF; min-width: 120px;
   &:focus { outline: none; border-color: #14B8A6; box-shadow: 0 0 0 2px rgba(20,184,166,0.15); }
 `;
+const InviteHintText = styled.div`font-size: 0.75rem; color: #64748B; line-height: 1.5; margin-top: 6px;`;
 const InviteError = styled.div`font-size: 0.75rem; color: #DC2626;`;
 const InviteActionRow = styled.div`display: flex; gap: 8px; justify-content: flex-end;`;
 const InviteCancel = styled.button`
@@ -1405,6 +1406,7 @@ export default function WorkspaceSettingsPage() {
                     onChange={(e) => setInviteRole(e.target.value)}
                   />
                 </InviteInputRow>
+                <InviteHintText>{t('members.inviteHint', '받은 사람이 초대 메일의 링크로 가입(이미 계정이 있으면 로그인)하면 바로 팀원이 됩니다. 링크는 30일 동안 열립니다.')}</InviteHintText>
                 {inviteError && <InviteError>{inviteError}</InviteError>}
                 <InviteActionRow>
                   <InviteCancel type="button" onClick={() => { setInviteOpen(false); setInviteEmail(''); setInviteRole(''); setInviteError(null); }}>
