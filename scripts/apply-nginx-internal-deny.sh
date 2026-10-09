@@ -24,8 +24,16 @@ esac
 [ "$(id -u)" = "0" ] || { echo "✗ root 권한이 필요합니다:  sudo $0 $TARGET"; exit 1; }
 [ -f "$CONF" ] || { echo "✗ 설정 파일 없음: $CONF"; exit 1; }
 
-BACKUP="$CONF.bak.$(date +%Y%m%d%H%M%S)"
+# ★ 백업은 sites-enabled **밖에** 둔다 — nginx 는 그 폴더의 파일을 전부 읽어서, 안에 둔 백업이 같은 server 를
+#   한 번 더 선언해 `nginx -t` 가 «duplicate listen» 으로 죽는다(2026-10-09 첫 실행에서 실제로 그랬다).
+BACKUP_DIR=/etc/nginx/backups
+mkdir -p "$BACKUP_DIR"
+BACKUP="$BACKUP_DIR/$(basename "$CONF").bak.$(date +%Y%m%d%H%M%S)"
 cp -a "$CONF" "$BACKUP"
+# 지난 실행이 sites-enabled 안에 남긴 백업이 있으면 밖으로 옮긴다(그대로 두면 nginx -t 가 계속 실패한다)
+for stale in "$(dirname "$CONF")"/"$(basename "$CONF")".bak.*; do
+  [ -e "$stale" ] && mv "$stale" "$BACKUP_DIR/" && echo "  옛 백업을 밖으로 옮김: $(basename "$stale")"
+done
 restore() { echo "↩ 원복: $BACKUP"; cp -a "$BACKUP" "$CONF"; nginx -t >/dev/null 2>&1 && systemctl reload nginx || true; }
 
 python3 - "$CONF" <<'PY'
