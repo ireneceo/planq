@@ -194,6 +194,14 @@ export default function NativeBridge() {
               return;
             }
 
+            // ★ 2026-10-09 — 다른 서버의 링크는 앱 안에서 열지 않는다. 아래는 **경로만** 꺼내 이 앱의 서버로
+            //   이동하므로, 운영 앱이 dev.planq.kr 링크를 받으면 운영 데이터의 같은 경로(/tasks?task=123 …)를
+            //   보여 준다 — 다른 서버의 다른 업무다. 앱이 받는 도메인은 빌드마다 server.url 하나로 좁혔지만
+            //   (scripts/cap-link-domains.js) 이미 깔린 옛 빌드는 두 도메인을 다 받으므로 여기서도 막는다.
+            if (u.protocol === 'https:' && u.origin !== window.location.origin) {
+              Browser.open({ url: u.href }).catch(() => {});
+              return;
+            }
             // 연동 페이지가 상태를 다시 불러오도록 (idempotent — refetch 만).
             window.dispatchEvent(new CustomEvent('planq:oauth-connected'));
             // 딥링크 경로가 앱 라우트면 이동.

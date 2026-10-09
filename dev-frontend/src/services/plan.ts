@@ -158,6 +158,10 @@ export interface PlanStatus {
   history: PlanHistoryItem[];
   // 「지금 결제하면 1개월 추가」 — 자격·개월 수 모두 서버 판정. 화면이 결제 이력으로 스스로 세지 않는다.
   prepay_bonus?: { available: boolean; months: number; option: string } | null;
+  // 실제 적용 한도(add-on 합산 + 체험 중 Cue·녹음 캡) — 사용량 막대는 이것을 읽는다. ∞ 는 null.
+  effective_limits?: Partial<Record<keyof PlanDef['limits'], number | null>> | null;
+  // 체험 중 결제 없이 플랜을 바꿀 수 있는가 — 서버 판정(POST trial-plan 과 같은 함수)
+  trial_plan_switch?: { available: boolean; reason: string | null } | null;
 }
 
 export async function fetchCatalog(): Promise<PlanDef[]> {
@@ -180,6 +184,19 @@ export async function startTrial(businessId: number, planCode: Exclude<PlanCode,
   });
   const j = await r.json();
   return !!j.success;
+}
+
+// 체험 플랜 바꾸기(결제 없음, 체험 종료일 그대로) — 내릴 때 사용량이 넘으면 서버가 409 over_limit + 넘는 항목을 준다.
+export async function switchTrialPlan(businessId: number, planCode: Exclude<PlanCode, 'free' | 'enterprise'>):
+  Promise<{ ok: boolean; exceeds?: Array<{ key: string; used: number; limit: number }> }> {
+  const r = await apiFetch(`/api/plan/${businessId}/trial-plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan_code: planCode }),
+  });
+  const j = await r.json().catch(() => null);
+  if (r.ok && j?.success) return { ok: true };
+  return { ok: false, exceeds: j?.data?.exceeds };
 }
 
 export async function changePlan(

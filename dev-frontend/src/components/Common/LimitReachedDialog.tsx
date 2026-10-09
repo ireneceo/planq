@@ -7,6 +7,7 @@ import { useChromeNav } from '../../hooks/useChromeNav';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { canPurchaseInApp, purchaseCopyKeys } from '../../utils/purchase';
+import { useAuth, apiFetch } from '../../contexts/AuthContext';
 
 interface LimitDetail {
   code?: string;
@@ -39,6 +40,31 @@ const LimitReachedDialog: React.FC = () => {
   const { t } = useTranslation('common');
   const navigate = useChromeNav();
   const [detail, setDetail] = useState<LimitDetail | null>(null);
+  const { user } = useAuth();
+  // 체험 중 멤버 한도 → «팀 체험으로 바꾸기» (2026-10-09 Fable 설계 6). 가능 여부는 서버 판정
+  //   (/status 의 trial_plan_switch = POST trial-plan 과 같은 함수)만 본다 — 화면이 체험·결제 이력으로 스스로 판정하지 않는다.
+  const [trialSwitch, setTrialSwitch] = useState<{ next: 'basic' | 'pro' } | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [switchErr, setSwitchErr] = useState('');
+  const bizId = user?.business_id || null;
+  const isOwner = user?.business_role === 'owner';
+  useEffect(() => {
+    setTrialSwitch(null); setSwitchErr('');
+    if (!detail || detail.code !== 'members_quota_exceeded' || !bizId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/plan/${bizId}/status`);
+        const j = await r.json();
+        const d = j?.data;
+        if (!alive || !d?.trial_plan_switch?.available) return;
+        const cur = d.plan?.code;
+        if (cur === 'starter') setTrialSwitch({ next: 'basic' });
+        else if (cur === 'basic') setTrialSwitch({ next: 'pro' });
+      } catch { /* 버튼 없이 종전 창 */ }
+    })();
+    return () => { alive = false; };
+  }, [detail, bizId]);
 
   useEffect(() => {
     const onEvent = (e: Event) => {
@@ -63,6 +89,23 @@ const LimitReachedDialog: React.FC = () => {
 
   const upgradeUrl = detail.upgrade_url || '/business/settings/plan';
   const close = () => setDetail(null);
+  const doTrialSwitch = async () => {
+    if (!trialSwitch || !bizId || switching) return;
+    setSwitching(true); setSwitchErr('');
+    try {
+      const r = await apiFetch(`/api/plan/${bizId}/trial-plan`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan_code: trialSwitch.next }),
+      });
+      const j = await r.json().catch(() => null);
+      if (!r.ok || j?.success === false) throw new Error(j?.message || 'failed');
+      // 플랜 화면·사용량 카드가 다시 읽게 알린다. 초대 창은 그대로 — 다시 누르면 들어간다.
+      window.dispatchEvent(new CustomEvent('planq:plan-changed', { detail: { business_id: bizId } }));
+      close();
+    } catch {
+      setSwitchErr(t('limit.trialSwitch.error', '바꾸지 못했어요. 잠시 뒤 다시 시도하거나 플랜 화면에서 바꿔 주세요.') as string);
+    } finally { setSwitching(false); }
+  };
 
   return (
     <Backdrop role="dialog" aria-modal="true" onClick={close}>
@@ -87,11 +130,23 @@ const LimitReachedDialog: React.FC = () => {
         {detail.exempt && (
           <AddonHint>{t('limit.exemptHint', '이 워크스페이스는 구독료가 면제되어 있습니다. 한도 조정이 필요하면 플랫폼 관리자에게 문의해 주세요.')}</AddonHint>
         )}
+        {trialSwitch && (
+          <AddonHint data-testid="limit-trial-switch-hint">
+            {isOwner
+              ? t(`limit.trialSwitch.hint_${trialSwitch.next}`)
+              : t('limit.trialSwitch.memberHint', '지금은 체험 중이에요. 워크스페이스 대표가 팀 체험으로 바꾸면 더 초대할 수 있어요.')}
+          </AddonHint>
+        )}
+        {switchErr && <Desc>{switchErr}</Desc>}
         <Actions>
           <SecondaryBtn type="button" onClick={close}>{t('limit.close', '닫기')}</SecondaryBtn>
           {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김.
               면제 워크스페이스도 같이 숨긴다 — 눌러도 체크아웃이 400 이라 막다른 길. */}
-          {canPurchaseInApp() && !detail.exempt && (
+          {trialSwitch && isOwner ? (
+            <PrimaryBtn type="button" data-testid="limit-trial-switch" disabled={switching} onClick={doTrialSwitch}>
+              {t(`limit.trialSwitch.cta_${trialSwitch.next}`)}
+            </PrimaryBtn>
+          ) : canPurchaseInApp() && !detail.exempt && (
             <PrimaryBtn type="button" onClick={() => { close(); navigate(upgradeUrl); }}>
               {t('limit.cta', '플랜·Add-on 보기')}
             </PrimaryBtn>
@@ -119,6 +174,7 @@ const Card = styled.div`
   max-width: 440px; width: 100%;
   display: flex; flex-direction: column; gap: 12px;
   box-shadow: 0 20px 60px rgba(15,23,42,0.25);
+  @media (max-width: 640px) { padding: 22px 20px 16px; }
 `;
 const Title = styled.div` font-size: 1.0625rem; font-weight: 700; color: #0F172A; `;
 const Desc = styled.div` font-size: 0.875rem; color: #475569; line-height: 1.6; `;
@@ -155,8 +211,10 @@ const PrimaryBtn = styled.button`
   font-size: 0.875rem; font-weight: 600;
   cursor: pointer;
   &:hover { background: #0D9488; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 const SecondaryBtn = styled.button`
+  flex-shrink: 0; white-space: nowrap;   /* 폰에서 «닫기» 가 세로로 꺾였다(2026-10-09 실측) */
   padding: 10px 18px; border-radius: 8px;
   background: #FFFFFF; color: #334155;
   border: 1px solid #CBD5E1;

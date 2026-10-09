@@ -102,7 +102,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string, remember?: boolean) => Promise<boolean>;
-  register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean; invite_token?: string }) => Promise<boolean>;
+  register: (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean; invite_token?: string; plan_code?: string }) => Promise<boolean>;
   /** flush:false — 계정 삭제 뒤처럼 대기 중인 자동저장을 보내면 안 되는 경우(확인도 건너뛴다)
    *  discardUnsaved — 로그아웃 확인창에서 "버리고 로그아웃" 을 고른 경우 */
   logout: (opts?: { flush?: boolean; discardUnsaved?: boolean }) => Promise<void>;
@@ -860,7 +860,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return false;
   };
 
-  const register = async (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean; invite_token?: string }): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string, businessName: string, opts?: { terms_accepted?: boolean; privacy_accepted?: boolean; invite_token?: string; plan_code?: string }): Promise<boolean> => {
     const clientKind = detectClientKind();
     const res = await fetch('/api/auth/register', {
       method: 'POST',
@@ -873,6 +873,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         privacy_accepted: opts?.privacy_accepted ?? false,
         // 초대 가입 — 워크스페이스 생성 skip (초대된 워크스페이스에 고객으로 합류)
         ...(opts?.invite_token ? { invite_token: opts.invite_token } : {}),
+        // 체험 플랜(혼자 starter · 팀 basic · 큰 팀 pro) — 서버가 다시 거른다(모르는 값 → starter)
+        ...(opts?.plan_code ? { plan_code: opts.plan_code } : {}),
       }),
     });
 

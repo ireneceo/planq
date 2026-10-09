@@ -50,7 +50,8 @@ const UsageWarningCard: React.FC<Props> = ({ businessId }) => {
       .then(j => {
         if (!mounted || !j?.success) return;
         setUsage(j.data.usage);
-        setLimits(j.data.plan?.limits);
+        // 실제 적용 한도(체험 중 Cue·녹음 캡, add-on 포함) 우선 — 정가 한도로 경고하면 체험 중 50회 캡을 넘어도 조용하다
+        setLimits({ ...(j.data.plan?.limits || {}), ...(j.data.effective_limits || {}) });
         setExempt(!!j.data.exempt);
       })
       .catch(() => {});

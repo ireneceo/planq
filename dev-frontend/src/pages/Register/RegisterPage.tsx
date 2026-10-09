@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { startAuthRedirect } from '../../services/oauth';
 import GoogleAuthButton from '../../components/Auth/GoogleAuthButton';
+import TrialPlanPicker, { DEFAULT_TRIAL_PLAN, parseTrialPlan, type TrialPlanCode } from '../../components/Auth/TrialPlanPicker';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
 import { mapApiError } from '../../utils/apiError';
@@ -284,6 +285,9 @@ const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [businessName, setBusinessName] = useState('');
+  // 체험 플랜 — 요금제 화면에서 ?plan= 으로 오면 그것, 아니면 «팀과 함께»(요금제 «추천» 과 같은 값). 2026-10-09
+  const [trialPlan, setTrialPlan] = useState<TrialPlanCode>(() =>
+    parseTrialPlan(new URLSearchParams(location.search).get('plan')) || DEFAULT_TRIAL_PLAN);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   // 약관 동의 (필수, 2026-05-05)
@@ -368,7 +372,7 @@ const RegisterPage: React.FC = () => {
         return;
       }
       const success = await register(name.trim(), email.trim(), password, businessName.trim(),
-        { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed, ...(inviteToken ? { invite_token: inviteToken } : {}) });
+        { terms_accepted: termsAgreed, privacy_accepted: privacyAgreed, ...(inviteToken ? { invite_token: inviteToken } : { plan_code: trialPlan }) });
       if (!success) {
         setError(t('register.errorGeneric'));
       }
@@ -473,6 +477,9 @@ const RegisterPage: React.FC = () => {
               </InputGroup>
             )}
 
+            {/* 혼자·팀 고르기 → 고른 플랜으로 14일 체험. 초대 가입은 남의 워크스페이스에 합류하므로 없다. */}
+            {!inviteToken && <TrialPlanPicker value={trialPlan} onChange={setTrialPlan} disabled={isLoading} />}
+
             {/* 약관 동의 (필수) — 한국 개인정보보호법 + GDPR */}
             <ConsentRow>
               <ConsentItem>
@@ -509,6 +516,7 @@ const RegisterPage: React.FC = () => {
             disabled={isLoading}
             dividerLabel={t('register.or', { defaultValue: '또는' }) as string}
             redirect={redirectParam}
+            plan={inviteToken ? null : trialPlan}
           />
 
           <Divider />

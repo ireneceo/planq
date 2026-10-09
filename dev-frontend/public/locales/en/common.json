@@ -805,6 +805,14 @@
     "needsDrive": {
       "title": "Large files like video go to Google Drive",
       "desc": "Files over 50MB can’t be stored in PlanQ’s own storage. Connect Google Drive in Settings › Files & integrations to upload video directly."
+    },
+    "trialSwitch": {
+      "hint_basic": "You're on the solo trial (Starter · 1 member). Switch to the team trial to invite up to 5 people at no charge. Your trial end date stays the same.",
+      "hint_pro": "You're on the Basic trial (up to 5). Switch to the larger-team trial (Pro) to invite up to 10 people at no charge. Your trial end date stays the same.",
+      "cta_basic": "Switch to team trial (Basic · 5)",
+      "cta_pro": "Switch to larger-team trial (Pro · 10)",
+      "memberHint": "This workspace is on a trial. The workspace owner can switch to a team trial to invite more people.",
+      "error": "Couldn't switch. Try again shortly, or change it on the plan page."
     }
   },
   "trialBanner": {

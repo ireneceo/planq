@@ -321,6 +321,32 @@ function bonusMonthsForTrialOption(code) {
   return o ? o.bonus_months : 0;
 }
 
+// ─── 체험 플랜 고르기 (2026-10-09, Irene: "처음에 혼자 쓸지 말지 선택 가능한거 아니야? 플랜마다 다른 거잖아") ──
+// 가입 때 혼자(Starter)·팀(Basic)·큰 팀(Pro) 중 고른 플랜으로 14일 체험한다. 체험 중에는 결제 없이 바꿀 수 있다.
+// ★ 새 워크스페이스의 체험 필드는 **newTrialBusinessFields 하나**가 만든다 — 생성 지점(가입·구글/애플·
+//   두 번째 워크스페이스·옛 free 이관)이 'starter'·14 를 따로 적으면 한쪽만 고쳐진다(가드 trialplan).
+// ★ 모르는 값은 starter(가장 좁은 쪽)로 떨어진다 — fail-closed. enterprise·free 는 체험 대상이 아니다.
+// ★ 체험 중 외부 비용이 드는 한도(Cue·Q note 녹음)는 고른 플랜과 무관하게 아래 캡을 쓴다.
+//   멤버·고객·프로젝트·저장소는 고른 플랜 그대로 — 체험의 목적이 «팀으로 써 보기» 다. 결제가 확정되면(active) 풀린다.
+const TRIAL_PLAN_CODES = ['starter', 'basic', 'pro'];
+const TRIAL_DAYS = 14;
+// 화면(TrialPlanPicker DEFAULT_TRIAL_PLAN)의 처음 선택과 맞추는 표시용 값 — 서버는 읽지 않는다.
+//   plan_code 가 없는 요청(옛 화면·API)은 basic 이 아니라 starter(가장 좁은 쪽)로 떨어진다.
+const DEFAULT_SIGNUP_PLAN = 'basic';
+const TRIAL_COST_CAPS = { cue_actions_monthly: 50, qnote_minutes_monthly: 60 };
+
+function resolveTrialPlan(code) {
+  return TRIAL_PLAN_CODES.includes(code) ? code : 'starter';
+}
+
+function newTrialBusinessFields(code, now = new Date()) {
+  return {
+    plan: resolveTrialPlan(code),
+    subscription_status: 'trialing',
+    trial_ends_at: new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+  };
+}
+
 function toPublicJson(code) {
   const p = getPlan(code);
   const convert = v => v === Infinity ? null : v;
@@ -347,6 +373,12 @@ module.exports = {
   DEFAULT_TRIAL_OPTION,
   getTrialOption,
   bonusMonthsForTrialOption,
+  TRIAL_PLAN_CODES,
+  TRIAL_DAYS,
+  DEFAULT_SIGNUP_PLAN,
+  TRIAL_COST_CAPS,
+  resolveTrialPlan,
+  newTrialBusinessFields,
   getPlan,
   getAddon,
   listAddonsForPlan,

@@ -92,12 +92,12 @@ function generateSlug(name) {
 }
 
 // OAuth 신규 가입 — 자동 Business + Cue + BusinessMember 생성 (옛 /register 정합)
-async function setupNewWorkspace(user, wantsKo, transaction) {
+async function setupNewWorkspace(user, wantsKo, transaction, planCode = null) {
   const lang = wantsKo ? 'ko' : 'en';
   const userName = user.name || user.email.split('@')[0];
   const brandName = wantsKo ? `${userName} 의 워크스페이스` : `${userName}'s Workspace`;
-  const TRIAL_DAYS = 14;
-  const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+  // 고른 체험 플랜(가입 화면 → OAuth state) — 없거나 모르는 값이면 starter. 정본 config/plans.newTrialBusinessFields
+  const trialFields = require('../../config/plans').newTrialBusinessFields(planCode);
 
   const business = await Business.create({
     name: brandName,
@@ -107,9 +107,7 @@ async function setupNewWorkspace(user, wantsKo, transaction) {
     default_language: lang,
     cue_mode: 'smart',
     cue_paused: false,
-    plan: 'starter',
-    subscription_status: 'trialing',
-    trial_ends_at: trialEndsAt,
+    ...trialFields,
   }, { transaction });
 
   await BusinessMember.create({

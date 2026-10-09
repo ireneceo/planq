@@ -123,6 +123,21 @@ async function closeDeadPendingPayments(businessId, transaction) {
   });
 }
 
+// 미결제 체크아웃(pending 구독 + 그 입금 안내)을 닫는다 — 새 체크아웃(createPendingSubscription)과
+//   체험 플랜 전환(routes/plan.js trial-plan)이 같이 쓴다. 옛 플랜 금액의 사전청구가 살아 있으면 안 된다.
+//   ★결제완료 active/past_due/grace 는 건드리지 않는다(운영 워프로랩 실사고 — 아래 createPendingSubscription 주석).
+//   반환: 닫은 pending 구독 수
+async function replacePendingCheckout(businessId, transaction) {
+  const [n] = await Subscription.update(
+    { status: 'replaced', canceled_at: new Date() },
+    { where: { business_id: businessId, status: 'pending' }, transaction },
+  );
+  // 확정될 수 없는(살아 있지 않은 구독의) pending 결제를 닫는다 — 잠긴 오너가 다른 플랜으로 새로 체크아웃하면
+  //   옛 입금 안내는 자동으로 죽는다(FIX_0AB A-② 변경 3).
+  await closeDeadPendingPayments(businessId, transaction);
+  return n;
+}
+
 // 갱신·첫 결제 금액 내역 — 플랜 줄 + 애드온 줄들(FIX_0AB A-④). payments.line_items 에 박제한다.
 function planLine(sub) {
   const plan = PLANS.PLANS?.[sub.plan_code] || PLANS[sub.plan_code];
@@ -267,19 +282,7 @@ async function createPendingSubscription({ businessId, planCode, cycle, userId, 
     //   ★결제완료 active/past_due/grace 는 건드리지 않는다 — 새 체크아웃을 열었다고 이미 낸 구독을
     //   미결제로 갈아치우면 결제가 고아가 된다(운영 워프로랩 실사고). 새 결제가 mark-paid 될 때
     //   markPaymentPaid 가 이전 active 를 supersede 한다.
-    await Subscription.update(
-      { status: 'replaced', canceled_at: new Date() },
-      {
-        where: {
-          business_id: businessId,
-          status: 'pending',
-        },
-        transaction: t,
-      }
-    );
-    // 확정될 수 없는(살아 있지 않은 구독의) pending 결제를 닫는다 — 잠긴 오너가 다른 플랜으로 새로 체크아웃하면
-    //   옛 입금 안내는 자동으로 죽는다(FIX_0AB A-② 변경 3).
-    await closeDeadPendingPayments(businessId, t);
+    await replacePendingCheckout(businessId, t);
 
     // 보너스 개월 — 값은 정책표에서 읽고(요청 본문 신뢰 금지), 자격은 서버가 판정한다.
     //   자격: 이 워크스페이스에 **결제 완료된 플랜 결제가 한 건도 없을 때**(= 첫 유료 결제).
@@ -961,6 +964,7 @@ async function getCurrentSubscription(businessId) {
 }
 
 module.exports = {
+  replacePendingCheckout,
   createPendingSubscription,
   computePeriodEnd,
   isFirstPlanPayment,

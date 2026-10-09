@@ -94,14 +94,14 @@ router.post('/', authenticateToken, async (req, res, next) => {
     let slug = base, n = 1;
     while (await Business.findOne({ where: { slug }, transaction })) { n += 1; slug = base.slice(0, 38) + '-' + n; }
 
-    // 신규 워크스페이스 = Starter 14일 trial (register 와 동일 정책)
-    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    // 신규 워크스페이스 = 고른 플랜으로 14일 체험 (register 와 같은 함수 — config/plans.newTrialBusinessFields)
+    const trialFields = require('../config/plans').newTrialBusinessFields(req.body?.plan_code);
     const business = await Business.create({
       name: bName, brand_name: bName,
       brand_name_en: lang === 'ko' ? (brand_name_en || null) : null,
       slug, owner_id: req.user.id, default_language: lang,
       cue_mode: 'smart', cue_paused: false,
-      plan: 'starter', subscription_status: 'trialing', trial_ends_at: trialEndsAt,
+      ...trialFields,
     }, { transaction });
 
     await BusinessMember.create({
@@ -1440,6 +1440,9 @@ router.delete('/:id/members/:memberId', authenticateToken, async (req, res, next
         { where: { business_id: businessId, assigned_member_id: member.user_id }, transaction: t });
     }
     await t.commit();
+    // 멤버 수가 바뀌었다 — 사용량 캐시(30초)를 비운다. 안 비우면 내보낸 직후 «체험 플랜 내리기»(trial-plan)가
+    //   옛 인원으로 409 over_limit 이고, 초대 한도 판정도 30초간 옛 숫자다(2026-10-09 Fable 비차단 ④).
+    require('../services/plan').invalidateBusinessCache(businessId);
     // 사이클 N+21 — 인사 변경 audit log (가장 중요한 영역)
     require('../services/auditService').logAudit(req, {
       action: 'business_member.remove',

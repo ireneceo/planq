@@ -12,14 +12,14 @@
 	<string>development</string>
 
 	<!--
-	  Universal Links — planq.kr / dev.planq.kr 로의 302 복귀(OAuth 연동)와 알림 딥링크에 사용.
-	  실제 발화하려면 각 도메인이 /.well-known/apple-app-site-association 을
-	  application/json 으로 서빙해야 한다 (nginx location + AASA 파일).
-	  AASA 의 appID 는 <TEAM_ID>.app.planq — Team ID 수령 후 치환.
+	  Universal Links — 링크를 누르면 앱이 깔려 있으면 앱으로(OAuth 복귀·알림·상황판 링크).
+	  ★ 도메인은 **이 빌드가 보여 주는 서버 하나**다 — `node scripts/cap-link-domains.js` 가 cap sync 직후
+	    capacitor.config.json 의 server.url 호스트로 다시 쓴다(손으로 고치지 않는다). 운영 앱이 dev.planq.kr 을
+	    받으면 dev 링크를 눌렀는데 운영 데이터의 같은 경로가 열린다(2026-10-09).
+	  경로는 각 도메인의 /.well-known/apple-app-site-association(정본 scripts/native-link-paths.js).
 	-->
 	<key>com.apple.developer.associated-domains</key>
 	<array>
-		<string>applinks:planq.kr</string>
 		<string>applinks:dev.planq.kr</string>
 	</array>
 </dict>

@@ -11,6 +11,18 @@
 > 이 파일에는 계속 **Fable 판정 결과**(PASS/FAIL·비차단 지적)를 맨 위에 적는다. 아래 옛 절의 판정식
 > `R=1 OR (S=1 AND F=0)` 은 공용 기준으로 대체됐다(뜻은 같다).
 
+## 2026-10-09 · 가입 때 혼자·팀 고르기 → 고른 플랜으로 14일 체험 · 체험 중 플랜 바꾸기 (방 c3d0da3b) — 설계 1회 + **완료 VERDICT: PASS**
+- Irene: *"처음에 혼자 쓸지 말지 선택 가능한거 아니야? 플랜마다 다른 거잖아."* — 새 팀이 Starter(1명) 체험이라 첫날 팀원 초대에서 막혔다.
+- 설계(Fable): 가입 라디오 혼자 Starter / 팀 Basic(기본) / 큰 팀 Pro · 요금제 버튼 ?plan= · 구글·애플은 state 로 운반 · 두 번째 워크스페이스도 같은 부품 ·
+  정본 `config/plans.newTrialBusinessFields`(모르는 값 → starter) · `POST /api/plan/:biz/trial-plan`(옛 start-trial 일반화, 판정 `planEngine.canSwitchTrialPlan` = /status 같은 함수,
+  내릴 때 사용량 초과 409, 체험 종료일 불변, 옛 금액 사전청구 `billing.replacePendingCheckout` 로 닫음) · 체험 중 Cue 50·녹음 60분 캡(`TRIAL_COST_CAPS`) · 한도 창 «팀 체험으로 바꾸기» · 가드 `trialplan`.
+- 이탈 6건 승인(이력 reason ENUM 유지 + 감사 `plan.trial_plan_change` · 체험 중 내리기 = «이 플랜으로 체험» · 체크아웃 경고 재사용 생략 · 서버 부재 기본 starter · 옛 이관 스크립트 · 유예 중 캡 없음).
+- 검증: API 38/38 · 브라우저 34/34(3폭) · 빌드 EXIT 0 · 가드 66/67(문서 신선도 경고만) · trialplan 양성 대조군 · health 83/83 · tenant·prepay 0.
+- 비차단: ① DEFAULT_SIGNUP_PLAN 읽는 곳 없음 → 주석으로 «화면 표시용» 명시(반영) ② **체험 끝난 뒤 미결제 유예 7일엔 캡이 풀린다**(Basic/Pro Cue 1,500/7,500) — 술어를 «플랜 결제 0건 ∧ active 아님» 으로 넓히기 권고(다음 사이클)
+  ③ 전환 뒤 사전청구 재발행 때 «7일 남음» 안내가 한 번 더 감 ④ 멤버 내보내기가 사용량 캐시를 안 비움 → 반영(내보낸 직후 내리기 409 → 200 실측) ⑤ trialplan 정규식이 넓다 — 거짓 실패 나면 Business.create 문맥으로 좁힐 것.
+
+---
+
 ## 2026-10-09 · 가입 제한 — 살아 있는 초대 링크 가입은 IP 몫을 쓰지 않는다 (방 58947e65 · 새 팀 첫 길 점검)
 - 1차 **FAIL** — skip 술어가 수락 술어보다 넓었다(멤버 초대의 plan.can('add_member') 미검사). 한도로 수락이 실패하는 워크스페이스의 토큰 하나로 차단 IP 에서 201,201,201(무제한 계정).
 - 수정: 술어 = resolveInviteToken 존재·미만료·미연결 + 멤버 초대면 수락과 같은 plan.can(excludeMemberId) · 예외 가입은 토큰당 5/시간(inviteRegisterLimiter).

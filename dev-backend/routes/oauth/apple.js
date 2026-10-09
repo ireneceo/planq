@@ -6,6 +6,7 @@ const appleOauthLogin = require('../../services/apple_oauth_login');
 const { logOauthFailure } = require('../../utils/oauthLog');
 const { buildRedirectTarget, safeRedirectPath } = require('./core');
 const { finishOauthLogin, failLogin } = require('./finish');
+const { TRIAL_PLAN_CODES } = require('../../config/plans');
 
 const PAIR_RE = /^[A-Za-z0-9_-]{16,64}$/;
 
@@ -24,7 +25,8 @@ router.get('/apple/initiate', async (req, res) => {
     const native = req.query.client === 'native';
     // 돌아갈 곳(초대 링크 등) — 같은 출처 상대경로만(0-F F-2). 네이티브는 딥링크라 싣지 않는다.
     const redirect = native ? null : safeRedirectPath(req.query.redirect);
-    const url = await appleOauthLogin.buildAuthUrl({ pair, native, redirect });
+    const plan = TRIAL_PLAN_CODES.includes(req.query.plan) ? req.query.plan : null;   // 가입 화면에서 고른 체험 플랜
+    const url = await appleOauthLogin.buildAuthUrl({ pair, native, redirect, plan });
     return res.redirect(302, url);
   } catch (e) {
     logOauthFailure('auth/apple initiate', e.message, { ua: String(req.get('user-agent') || '').slice(0, 120) });
@@ -65,6 +67,7 @@ router.post('/apple/callback', async (req, res) => {
       pairId: st.pair,
       logTag,
       redirect: safeRedirectPath(st.redirect),
+      planCode: st.plan || null,
     });
   } catch (e) {
     console.error('[auth_oauth/apple/callback]', e.message);

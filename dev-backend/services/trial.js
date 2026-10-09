@@ -30,8 +30,13 @@ async function safeNotify(biz, kind) {
       expired: '체험 종료 — 7일 안에 결제가 필요합니다',
       locked: '결제 미확인 — 워크스페이스가 잠금됐습니다',
     };
+    // 어느 플랜으로 체험 중인지 말한다 — 가입 때 플랜을 고르게 되면서(2026-10-09) 금액이 사람마다 다르다.
+    const { getPlan } = require('../config/plans');
+    const pl = getPlan(biz.plan);
+    const planLabel = pl && pl.price_monthly && pl.price_monthly.KRW
+      ? `${pl.name_ko || pl.name} 월 ${Number(pl.price_monthly.KRW).toLocaleString('ko-KR')}원` : '';
     const bodies = {
-      pre_bill: '14일 체험이 7일 남았습니다. 결제 페이지에서 입금 정보를 확인하세요.',
+      pre_bill: `14일 체험이 7일 남았습니다.${planLabel ? ` 체험 중인 플랜: ${planLabel}.` : ''} 결제 페이지에서 입금 정보를 확인하세요. 다른 플랜으로 바꾸려면 결제 페이지에서 고르면 됩니다.`,
       expired: '14일 체험이 종료됐습니다. 7일 안에 결제하지 않으면 워크스페이스가 잠금됩니다.',
       locked: '결제가 확인되지 않아 워크스페이스가 잠금 상태로 전환됐습니다. 안내받은 계좌로 입금하고 결제 페이지에서 «입금했어요» 를 누르면 운영팀 확인 후 바로 복구됩니다.',
     };

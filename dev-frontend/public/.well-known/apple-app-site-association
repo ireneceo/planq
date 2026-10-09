@@ -2,16 +2,96 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["H2HW8BHXNW.app.planq"],
+        "appIDs": [
+          "H2HW8BHXNW.app.planq"
+        ],
         "components": [
-          { "/": "/oauth/native-return", "comment": "Google 연동/로그인 복귀" },
-          { "/": "/inbox*", "comment": "알림 딥링크 — 확인 필요" },
-          { "/": "/talk*", "comment": "알림 딥링크 — Q Talk" },
-          { "/": "/task*", "comment": "알림 딥링크 — Q Task" },
-          { "/": "/notifications*", "comment": "알림 피드" }
+          {
+            "/": "/oauth/native-return",
+            "comment": "Google 연동/로그인 복귀"
+          },
+          {
+            "/": "/inbox*"
+          },
+          {
+            "/": "/notifications*"
+          },
+          {
+            "/": "/dashboard*"
+          },
+          {
+            "/": "/home*"
+          },
+          {
+            "/": "/talk*"
+          },
+          {
+            "/": "/task*"
+          },
+          {
+            "/": "/projects*"
+          },
+          {
+            "/": "/docs*"
+          },
+          {
+            "/": "/notes*"
+          },
+          {
+            "/": "/calendar*"
+          },
+          {
+            "/": "/mail*"
+          },
+          {
+            "/": "/files*"
+          },
+          {
+            "/": "/info*"
+          },
+          {
+            "/": "/bills*"
+          },
+          {
+            "/": "/sale*"
+          },
+          {
+            "/": "/signatures*"
+          },
+          {
+            "/": "/attendance*"
+          },
+          {
+            "/": "/stats*"
+          },
+          {
+            "/": "/whats-new*"
+          },
+          {
+            "/": "/personal-vault*"
+          },
+          {
+            "/": "/business/*"
+          },
+          {
+            "/": "/settings*"
+          },
+          {
+            "/": "/profile*"
+          },
+          {
+            "/": "/me/*"
+          },
+          {
+            "/": "/admin*"
+          }
         ]
       }
     ]
   },
-  "webcredentials": { "apps": ["H2HW8BHXNW.app.planq"] }
+  "webcredentials": {
+    "apps": [
+      "H2HW8BHXNW.app.planq"
+    ]
+  }
 }

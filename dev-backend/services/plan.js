@@ -6,7 +6,7 @@ const {
   Business, BusinessMember, Client, Project, Conversation,
   File, BusinessStorageUsage, CueUsage, QnoteUsage, BusinessPlanHistory,
 } = require('../models');
-const { getPlan } = require('../config/plans');
+const { getPlan, TRIAL_COST_CAPS, TRIAL_PLAN_CODES } = require('../config/plans');
 const { activeMemberSeatWhere } = require('./inviteExpiry');
 const { billableClientWhere, prospectWhere } = require('./clientQuota');
 
@@ -124,9 +124,16 @@ async function getLimit(businessId, key) {
  * Infinity (Pro·Enterprise 의 ∞ 값) 은 더해도 Infinity 유지.
  */
 async function getEffectiveLimits(businessId) {
-  const { plan, biz } = await getBusinessPlan(businessId);
+  const { plan, biz, exempt } = await getBusinessPlan(businessId);
   const base = { ...plan.limits };
   if (!biz) return base;
+  // 체험 중에는 외부 비용이 드는 한도(Cue·Q note 녹음)를 고른 플랜과 무관하게 캡으로 덮는다(2026-10-09 Fable 설계 3).
+  //   기본 체험이 Basic 이 되면서 결제 없이 Cue 1,500·녹음 15시간이 열리지 않게. 결제 확정(active)이면 trialing 이 아니라 풀린다.
+  if (biz.subscription_status === 'trialing' && !exempt) {
+    for (const [k, cap] of Object.entries(TRIAL_COST_CAPS)) {
+      if (base[k] == null || base[k] > cap) base[k] = cap;
+    }
+  }
   const addOrSkip = (key, addonKey) => {
     if (base[key] === Infinity) return;
     const add = Number(biz[addonKey] || 0);
@@ -143,6 +150,53 @@ async function getEffectiveLimits(businessId) {
 /**
  * JSON 직렬화 안전 변환 — Infinity → null
  */
+/**
+ * 체험 중 플랜 전환이 가능한가 (2026-10-09 Fable 설계 3) — /status 의 trial_plan_switch 와
+ * POST /api/plan/:biz/trial-plan 이 **이 함수 하나**를 쓴다(화면이 따로 판정하면 버튼이 거짓말을 한다).
+ * 체험 중 ∧ 체험 기간 안 ∧ 플랜 결제 0건 ∧ 면제 아님. 역할(owner) 판정은 라우트가 한다 — 여기는 워크스페이스 상태만.
+ * 반환: { available, reason } — reason: not_trialing | trial_ended | already_paid | exempt | not_found
+ */
+async function canSwitchTrialPlan(businessId) {
+  const { biz, exempt } = await getBusinessPlan(businessId);
+  if (!biz) return { available: false, reason: 'not_found' };
+  if (exempt) return { available: false, reason: 'exempt' };
+  if (biz.subscription_status !== 'trialing') return { available: false, reason: 'not_trialing' };
+  if (!biz.trial_ends_at || new Date(biz.trial_ends_at) <= new Date()) return { available: false, reason: 'trial_ended' };
+  const { isFirstPlanPayment } = require('./billing');   // billing 이 plan 을 불러 순환 — 지연 로드
+  if (!(await isFirstPlanPayment(businessId))) return { available: false, reason: 'already_paid' };
+  return { available: true, reason: null };
+}
+
+/**
+ * 지금 사용량이 목표 플랜 한도를 넘는 항목 — 체험 플랜을 내릴 때 서버가 막는 근거(화면 경고만 두면
+ * 3명 팀이 Starter 체험 → 9,900원 사전청구가 된다). add-on 슬롯은 목표 한도에도 더한다.
+ * 반환: [{ key, used, limit }]
+ */
+async function usageExceedsPlan(businessId, targetCode) {
+  const target = getPlan(targetCode);
+  const { biz } = await getBusinessPlan(businessId);
+  const usage = await getUsage(businessId);
+  const pairs = [
+    ['members', 'members_max', 'addon_members'],
+    ['clients', 'clients_max', 'addon_clients'],
+    ['prospects', 'prospects_max', null],
+    ['projects', 'projects_max', null],
+    ['conversations', 'conversations_max', null],
+    ['storage_bytes', 'storage_bytes', 'addon_storage_bytes'],
+  ];
+  const out = [];
+  for (const [uKey, lKey, addonKey] of pairs) {
+    let limit = target.limits[lKey];
+    if (limit == null || limit === Infinity) continue;
+    if (addonKey && biz) limit += Number(biz[addonKey] || 0);
+    const used = Number(usage[uKey] || 0);
+    if (used > limit) out.push({ key: uKey, used, limit });
+  }
+  return out;
+}
+
+function isTrialPlanCode(code) { return TRIAL_PLAN_CODES.includes(code); }
+
 function limitForJson(v) {
   return v === Infinity ? null : v;
 }
@@ -398,8 +452,8 @@ function requireFeature(featureKey) {
  * 플랜 변경 + 이력 기록 (트랜잭션 안전)
  * reason: 'upgrade' | 'downgrade' | 'trial_start' | 'trial_end' | 'expire' | 'admin_adjust' | 'payment_failed' | 'refund'
  */
-async function changePlan(businessId, { toPlan, reason, changedBy = null, note = null, expiresAt = null, trialEndsAt = null, graceEndsAt = null, scheduledPlan = null, subscriptionStatus = null }) {
-  const biz = await Business.findByPk(businessId);
+async function changePlan(businessId, { toPlan, reason, changedBy = null, note = null, expiresAt = null, trialEndsAt = null, graceEndsAt = null, scheduledPlan = null, subscriptionStatus = null, transaction = null }) {
+  const biz = await Business.findByPk(businessId, { transaction });
   if (!biz) throw new Error('business_not_found');
   const fromPlan = biz.plan;
   const patch = { plan: toPlan };
@@ -408,7 +462,7 @@ async function changePlan(businessId, { toPlan, reason, changedBy = null, note =
   if (graceEndsAt !== null) patch.grace_ends_at = graceEndsAt;
   if (scheduledPlan !== null) patch.scheduled_plan = scheduledPlan;
   if (subscriptionStatus !== null) patch.subscription_status = subscriptionStatus;   // 관리자 보정이 잠금을 풀 수 있게(FIX_0AB A-② 변경 5)
-  await biz.update(patch);
+  await biz.update(patch, { transaction });
   await BusinessPlanHistory.create({
     business_id: businessId,
     from_plan: fromPlan,
@@ -417,7 +471,7 @@ async function changePlan(businessId, { toPlan, reason, changedBy = null, note =
     changed_by: changedBy,
     note,
     effective_at: new Date(),
-  });
+  }, { transaction });
   invalidateBusinessCache(businessId);
   return biz;
 }
@@ -483,6 +537,9 @@ function buildQuotaError(checkResult, businessId) {
 }
 
 module.exports = {
+  canSwitchTrialPlan,
+  usageExceedsPlan,
+  isTrialPlanCode,
   getBusinessPlan,
   getLimit,
   getEffectiveLimits,

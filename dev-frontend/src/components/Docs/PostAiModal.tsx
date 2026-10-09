@@ -91,7 +91,8 @@ const PostAiModal: React.FC<Props> = ({ open, onClose, businessId, projectId: pa
         if (!mounted || !s) return;
         setCueUsage({
           current: s.usage?.cue_actions_this_month ?? 0,
-          limit: s.plan?.limits?.cue_actions_monthly ?? null,
+          // 실제 적용 한도(체험 중 캡·add-on 포함)가 있으면 그것 — 정가 한도로 보이면 남은 횟수가 거짓이 된다
+          limit: s.effective_limits ? (s.effective_limits.cue_actions_monthly ?? null) : (s.plan?.limits?.cue_actions_monthly ?? null),
         });
       })
       .catch(() => { /* status fetch 실패 — hint 미표시 */ });

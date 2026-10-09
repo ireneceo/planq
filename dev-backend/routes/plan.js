@@ -6,7 +6,8 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const planEngine = require('../services/plan');
 const { PLANS, PLAN_ORDER, ADDONS, toPublicJson, planAtLeast, getAddon, listAddonsForPlan,
-  bonusMonthsForTrialOption } = require('../config/plans');
+  bonusMonthsForTrialOption, newTrialBusinessFields } = require('../config/plans');
+const { sequelize } = require('../config/database');
 
 // ─── 결제 면제 워크스페이스 진입 차단 (운영 #275) ───
 // 진짜 게이트는 서비스(createPendingSubscription / requestAddon)에 있다 — cron 도 지나가야 하므로.
@@ -135,6 +136,12 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
         line_items: p.line_items || null,   // 금액 내역(플랜 + 애드온, A-④) — 이력 행이 «왜 이 금액인가» 를 말한다
       })),
       usage,
+      // 실제로 적용되는 한도(add-on 합산 + 체험 중 비용 캡) — 사용량 막대·경고는 이것을 읽는다.
+      //   plan.limits 는 «그 플랜의 정가 한도» 라 체험 중 Cue·녹음 캡(TRIAL_COST_CAPS)을 모른다.
+      effective_limits: Object.fromEntries(Object.entries(await planEngine.getEffectiveLimits(businessId))
+        .map(([k, v]) => [k, v === Infinity ? null : v])),
+      // 체험 중 결제 없이 플랜을 바꿀 수 있는가 — 판정은 planEngine.canSwitchTrialPlan 한 곳(라우트와 같은 함수).
+      trial_plan_switch: await planEngine.canSwitchTrialPlan(businessId),
       // 「지금 결제하면 1개월 추가」를 띄울 수 있는가 — 판정은 서버(billing.isFirstPlanPayment) 한 곳.
       //   화면이 결제 이력을 보고 스스로 판정하면 서버 자격 규칙과 갈라진다.
       prepay_bonus: {
@@ -189,51 +196,78 @@ router.post('/:businessId/qnote/estimate', authenticateToken, checkBusinessAcces
   } catch (e) { next(e); }
 });
 
-// ─── 체험 시작 (Starter 이상, 14일) ───
-// 조건: 현재 free + trial_ends_at 비어있음 (재체험 방지)
-router.post('/:businessId/start-trial', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+// ─── 체험 플랜 고르기·바꾸기 (2026-10-09 Fable 설계 3 — 옛 start-trial 을 일반화) ───
+// body: { plan_code: starter|basic|pro }
+//   ① 옛 free(체험 이력 없음) 워크스페이스 → 고른 플랜으로 14일 체험 시작(종전 start-trial 동작)
+//   ② 체험 중(결제 0건) → 결제 없이 플랜만 바꾼다. **체험 종료일은 그대로** — 바꿔서 체험이 늘지 않는다.
+//      내릴 때는 지금 사용량이 목표 한도 안이어야 한다(409 over_limit). 이미 만든 미결제 사전청구는 옛 금액이라 닫는다
+//      (cron 이 다음 날 새 플랜으로 다시 만든다).
+// 판정은 planEngine.canSwitchTrialPlan 한 곳 — /status 의 trial_plan_switch 와 같은 함수.
+async function trialPlanHandler(req, res, next) {
   try {
-    // 요금제 변경은 owner 또는 platform_admin 만
     if (req.businessRole !== 'owner' && req.user.platform_role !== 'platform_admin') {
       return errorResponse(res, 'owner_only', 403);
     }
     const businessId = Number(req.params.businessId);
     if (await blockIfExempt(businessId, res)) return;
     const { plan_code } = req.body || {};
-    if (!plan_code || !['starter', 'basic', 'pro'].includes(plan_code)) {
-      return errorResponse(res, 'invalid_plan_code', 400);
-    }
+    if (!planEngine.isTrialPlanCode(plan_code)) return errorResponse(res, 'invalid_plan_code', 400);
     const { biz } = await planEngine.getBusinessPlan(businessId);
     if (!biz) return errorResponse(res, 'business_not_found', 404);
-    if (biz.plan !== 'free') return errorResponse(res, 'already_on_paid_plan', 400);
-    if (biz.trial_ends_at) return errorResponse(res, 'trial_already_used', 400);
 
-    const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-    await planEngine.changePlan(businessId, {
-      toPlan: plan_code,
-      reason: 'trial_start',
-      changedBy: req.user.id,
-      note: `14일 무료 체험 시작 (${plan_code})`,
-      trialEndsAt: trialEnd,
-    });
-    // subscription_status = 'trialing'
-    biz.subscription_status = 'trialing';
-    await biz.save();
-    planEngine.invalidateBusinessCache(businessId);
+    // ① 옛 free 경로
+    if (biz.plan === 'free') {
+      if (biz.trial_ends_at) return errorResponse(res, 'trial_already_used', 400);
+      const fields = newTrialBusinessFields(plan_code);
+      await planEngine.changePlan(businessId, {
+        toPlan: fields.plan, reason: 'trial_start', changedBy: req.user.id,
+        note: `14일 무료 체험 시작 (${fields.plan})`, trialEndsAt: fields.trial_ends_at,
+        subscriptionStatus: 'trialing',
+      });
+      planEngine.invalidateBusinessCache(businessId);
+      require('../services/auditService').logAudit(req, {
+        action: 'plan.trial_start', targetType: 'business', targetId: businessId, businessId,
+        oldValue: { plan: 'free' }, newValue: { plan: fields.plan, trial_ends_at: fields.trial_ends_at },
+      });
+      return successResponse(res, { plan_code: fields.plan, trial_ends_at: fields.trial_ends_at });
+    }
 
-    // 사이클 N+51 — audit. 무료 체험 시작 = 구독 상태 변경
-    require('../services/auditService').logAudit(req, {
-      action: 'plan.trial_start',
-      targetType: 'business',
-      targetId: businessId,
-      businessId,
-      oldValue: { plan: 'free' },
-      newValue: { plan: plan_code, trial_ends_at: trialEnd },
-    });
+    // ② 체험 중 전환
+    const gate = await planEngine.canSwitchTrialPlan(businessId);
+    if (!gate.available) return errorResponse(res, `trial_switch_${gate.reason}`, 400);
+    if (biz.plan === plan_code) return successResponse(res, { plan_code, trial_ends_at: biz.trial_ends_at, unchanged: true });
 
-    successResponse(res, { plan_code, trial_ends_at: trialEnd });
+    if (!planAtLeast(plan_code, biz.plan)) {
+      const exceeds = await planEngine.usageExceedsPlan(businessId, plan_code);
+      if (exceeds.length) {
+        return res.status(409).json({ success: false, message: 'over_limit', data: { exceeds } });
+      }
+    }
+
+    const fromPlan = biz.plan;
+    const t = await sequelize.transaction();
+    try {
+      // 옛 플랜 금액으로 만든 미결제 사전청구를 닫는다 — 결제 확정과 같은 «교체» 표시(billing.replacePendingCheckout).
+      const replaced = await billing.replacePendingCheckout(businessId, t);
+      await planEngine.changePlan(businessId, {
+        // 이력 reason 은 ENUM 이라 새 값을 넣으면 운영 스키마 변경이 필요하다 — 체험 (재)시작으로 남기고 note·감사로 가른다.
+        toPlan: plan_code, reason: 'trial_start', changedBy: req.user.id,
+        note: `체험 플랜 변경 ${fromPlan} → ${plan_code}`,
+        trialEndsAt: biz.trial_ends_at, subscriptionStatus: 'trialing', transaction: t,
+      });
+      await t.commit();
+      planEngine.invalidateBusinessCache(businessId);
+      require('../services/auditService').logAudit(req, {
+        action: 'plan.trial_plan_change', targetType: 'business', targetId: businessId, businessId,
+        oldValue: { plan: fromPlan }, newValue: { plan: plan_code, trial_ends_at: biz.trial_ends_at, replaced_pending: replaced },
+      });
+      return successResponse(res, { plan_code, trial_ends_at: biz.trial_ends_at, replaced_pending: replaced });
+    } catch (e) { await t.rollback(); throw e; }
   } catch (error) { next(error); }
-});
+}
+router.post('/:businessId/trial-plan', authenticateToken, checkBusinessAccess, trialPlanHandler);
+// 옛 이름 — 이미 떠 있는 옛 화면이 부르는 경로. 같은 처리기를 쓴다(따로 두면 갈라진다).
+router.post('/:businessId/start-trial', authenticateToken, checkBusinessAccess, trialPlanHandler);
 
 // ─── 플랜 변경 (결제 완료 후 — 현재는 Owner 또는 Admin 만) ───
 // 결제 시스템 연동 전 임시. 실제 production 은 결제 콜백에서만 호출.

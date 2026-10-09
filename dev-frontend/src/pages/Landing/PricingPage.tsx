@@ -46,7 +46,7 @@ const PricingPage: React.FC = () => {
                       </PlanItem>
                     ))}
                   </PlanList>
-                  <PlanCta to="/register" $featured={p === 'basic'}>{t(`pricingPage.plans.${p}.cta`)}</PlanCta>
+                  <PlanCta to={`/register?plan=${p}`} $featured={p === 'basic'}>{t(`pricingPage.plans.${p}.cta`)}</PlanCta>
                 </PlanCard>
               </Reveal>
             ))}

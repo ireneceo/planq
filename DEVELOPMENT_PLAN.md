@@ -1,6 +1,7 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-09 밤 ([Opus] Opus 5.5, 방 58947e65) — 새 팀 첫 길 점검: 가입→초대→합류→업무 요청→대화 12건 수리 (운영 미배포). 가입 제한 예외만 Fable 1차 FAIL→2차 PASS, 나머지 자체 검증.
+> **최종 업데이트:** 2026-10-09 밤 ([Opus]+[Fable] Opus 5.5, 방 c3d0da3b) — 가입 때 혼자·팀 고르기(고른 플랜으로 14일 체험) · 체험 중 결제 없이 플랜 바꾸기 · 체험 비용 캡. Fable 설계 1회 + 완료 PASS. 링크→앱 열기(방 33a23fc2) 같이 커밋. 운영 미배포.
+> ── 이전(2026-10-09 밤, 방 58947e65) ── 새 팀 첫 길 점검: 가입→초대→합류→업무 요청→대화 12건 수리 (운영 미배포). 가입 제한 예외만 Fable 1차 FAIL→2차 PASS, 나머지 자체 검증.
 > ── 이전(2026-10-09 저녁) ──
 > 2026-10-09 저녁 ([Opus] Opus 5.5, 방 cdf8db0c) — 팀 적응 5단계: 대시보드 «팀 적응 단계» 카드 · 도움말 글 · 랜딩 /start (운영 미배포). Fable 설계 PASS-WITH-CHANGES 반영, 완성 검증은 자체.
 > ── 이전(2026-10-09) ──
@@ -34,6 +35,31 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-09 밤 [Opus]+[Fable] — 가입 때 혼자·팀 고르기 → 고른 플랜으로 14일 체험 (방 c3d0da3b)
+
+> Irene(체험 중 팀원 초대 질문의 답): *"처음에 혼자 쓸지 말지 선택 가능한거 아니야? 플랜마다 다른 거잖아."*
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 가입 플랜 고르기 | 가입 화면·새 워크스페이스 창에 혼자 Starter / 팀과 함께 Basic(처음 선택) / 큰 팀 Pro — `TrialPlanPicker` 한 벌. 요금제 버튼 `?plan=` · 구글·애플은 state 로 운반 | ✅ |
+| 정본 한 곳 | `config/plans.newTrialBusinessFields`(모르는 값 → starter) — 생성 4곳이 이것만 쓴다 · 가드 `--category=trialplan` | ✅ |
+| 체험 중 플랜 바꾸기 | `POST /api/plan/:biz/trial-plan`(옛 start-trial 일반화) · 판정 `planEngine.canSwitchTrialPlan`(= /status `trial_plan_switch`) · 내릴 때 인원 초과 409 · 체험 종료일 불변 · 옛 금액 사전청구 `billing.replacePendingCheckout` 로 닫음 | ✅ |
+| 화면 | 한도 창(멤버 한도)에 대표만 «팀 체험으로 바꾸기» · 플랜 화면 «이 플랜으로 체험» · 사용량 막대·경고 카드·AI 창이 `effective_limits` 를 읽음 | ✅ |
+| 체험 비용 캡 | 체험 중 Cue 월 50·녹음 60분(플랜 무관, `TRIAL_COST_CAPS`) — 결제 확정 시 풀림 | ✅ |
+| 멤버 내보내기 캐시 | 내보낸 뒤 사용량 캐시를 비운다(Fable 비차단 ④) | ✅ |
+| 남음 | 체험 끝난 뒤 미결제 유예 7일에도 캡(Fable 비차단 ②) — 다음 사이클 | ⏳ |
+
+- 검증: API 38/38 · 브라우저 34/34(390/820/1440) · 빌드 EXIT 0 · 가드 66/67 · health 83/83 · tenant·prepay 0. Fable 설계 + 완료 PASS(docs/FABLE_GATE_QUEUE.md).
+- 운영 스키마 변경 없음. 배포는 웹 배포만.
+
+### 수정된 파일
+- `dev-backend/config/plans.js` · `services/plan.js` · `services/billing.js` · `services/trial.js` · `routes/plan.js` · `routes/auth.js` · `routes/businesses.js` · `routes/oauth/{core,finish,login,apple}.js` · `services/{google,apple}_oauth_login.js`
+- `dev-frontend/src/components/Auth/{TrialPlanPicker,GoogleAuthButton}.tsx` · `components/Common/{LimitReachedDialog,UsageWarningCard}.tsx` · `components/Docs/PostAiModal.tsx` · `components/Layout/WorkspaceSwitcher.tsx` · `contexts/AuthContext.tsx` · `pages/{Register/RegisterPage,Landing/PricingPage,Settings/PlanSettings}.tsx` · `services/plan.ts` · locales ko/en(auth·common·plan)
+- `scripts/guard-invariants.js`(trialplan)
+- (같이 커밋 — 방 33a23fc2 링크→앱 열기: `scripts/{native-link-paths,cap-link-domains}.js` · AASA · AndroidManifest · entitlements · NativeBridge · package.json · guard-native-release)
 
 ---
 

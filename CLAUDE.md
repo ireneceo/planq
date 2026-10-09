@@ -1369,6 +1369,20 @@ Q Note 목록). Express 는 **먼저 만난 것만** 부르므로 뒤엣것은 �
 > `payment_intent.succeeded` 둘만 받는다. 「Stripe 카드결제 완료」(2026-07-08) 보고는 **사실**이고,
 > 자동 정기청구는 로드맵상 뒤 단계다. 둘을 같은 말로 쓰지 말 것 — 「결제가 안 된다」로 읽힌다.
 
+## 체험 플랜은 **가입 때 고른다** — 혼자 Starter · 팀 Basic · 큰 팀 Pro (2026-10-09 박제)
+
+> Irene: *"처음에 혼자 쓸지 말지 선택 가능한거 아니야? 플랜마다 다른 거잖아."* (Starter 1명 체험이라 새 팀이 첫날 초대에서 막혔다)
+
+- **새 워크스페이스의 체험 필드는 `config/plans.newTrialBusinessFields(planCode)` 하나**가 만든다(가입·구글/애플·두 번째 워크스페이스).
+  모르는 값·없는 값 → **starter**(가장 좁은 쪽). 화면 기본 선택은 basic(요금제 «추천»). `plan: 'starter'`·`14 * 24 * …` 리터럴은 가드 `--category=trialplan` 이 막는다.
+- **체험 중 플랜 바꾸기는 `POST /api/plan/:biz/trial-plan` 하나**(옛 start-trial 도 같은 처리기). 판정 `planEngine.canSwitchTrialPlan`(체험 중 ∧ 기간 안 ∧
+  플랜 결제 0건 ∧ 면제 아님) = /status `trial_plan_switch`. 체험 종료일은 바뀌지 않는다 · 내릴 때 인원 등이 넘으면 409 `over_limit` ·
+  옛 금액 사전청구는 `billing.replacePendingCheckout` 로 닫는다(cron 이 다음 날 새 플랜으로 다시 만든다).
+- **체험 중 비용 캡** — Cue 월 50·녹음 60분(`TRIAL_COST_CAPS`)은 플랜과 무관. `getEffectiveLimits` 가 덮으므로 게이트가 실제로 막는다.
+  화면의 사용량·남은 횟수는 `/status.effective_limits` 를 읽는다(`plan.limits` 는 정가라 캡을 모른다).
+  ★ 남은 구멍: 체험이 끝난 미결제 유예 7일엔 캡이 풀린다(Fable 비차단 — 다음 사이클).
+- 이력 reason 은 ENUM 이라 `trial_start` + 메모로 남기고, 감사 `plan.trial_plan_change` 로 가른다(운영 스키마 변경 없이).
+
 ## 자동저장 (필수)
 
 - **저장이 필요한 모든 입력 폼은 AutoSaveField 컴포넌트를 사용**

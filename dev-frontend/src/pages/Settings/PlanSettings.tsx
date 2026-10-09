@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import {
-  fetchCatalog, fetchStatus, changePlan, cancelScheduledChange, startTrial,
+  fetchCatalog, fetchStatus, changePlan, cancelScheduledChange, startTrial, switchTrialPlan,
   formatPrice, formatLimit, formatBytes, formatMinutes, usageColor, receiptPdfUrl,
   type PlanDef, type PlanStatus, type PlanCode, type BillingCycle, type Currency,
 } from '../../services/plan';
@@ -122,9 +122,17 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
     } finally { setLoading(false); }
   }, [businessId]);
   useEffect(() => { load(); }, [load]);
+  // 한도 창에서 체험 플랜을 바꾸면(LimitReachedDialog) 이 화면도 다시 읽는다
+  useEffect(() => {
+    const onChanged = () => { void load(); };
+    window.addEventListener('planq:plan-changed', onChanged);
+    return () => window.removeEventListener('planq:plan-changed', onChanged);
+  }, [load]);
 
   const currentPlan = status?.plan;
   const usage = status?.usage;
+  // 사용량 막대의 한도 = 실제로 적용되는 한도(체험 중 Cue·녹음 캡, add-on 합산). 없으면 플랜 정가 한도.
+  const effLimits = currentPlan ? { ...currentPlan.limits, ...(status?.effective_limits || {}) } : null;
 
   // ─── 미결제 청구 결제 흐름 (피드백: 배너 "결제하러 가기" → 플랜 재선택이 아니라 청구 내역 보고 결제) ───
   // 미결제 payment 가 있으면 그 구독 플랜으로 CheckoutModal(입금 안내 + mark-paid)을 직접 연다.
@@ -211,6 +219,26 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
   const handleStartTrial = async (target: Exclude<PlanCode, 'free' | 'enterprise'>) => {
     const ok = await startTrial(businessId, target);
     if (ok) await load();
+  };
+
+  // ─── 체험 중 플랜 바꾸기 (2026-10-09) — 결제 없이, 체험 종료일 그대로. 가능 여부는 서버 판정(status.trial_plan_switch) ───
+  const isOwnerish = user?.business_role === 'owner' || user?.platform_role === 'platform_admin';
+  const canTrialSwitch = !!status?.trial_plan_switch?.available && isOwnerish;
+  const [trialSwitching, setTrialSwitching] = useState<PlanCode | null>(null);
+  const [trialSwitchErr, setTrialSwitchErr] = useState('');
+  const handleTrialSwitch = async (target: Exclude<PlanCode, 'free' | 'enterprise'>) => {
+    if (trialSwitching) return;
+    setTrialSwitching(target); setTrialSwitchErr('');
+    try {
+      const r = await switchTrialPlan(businessId, target);
+      if (r.ok) { await load(); return; }
+      if (r.exceeds && r.exceeds.length) {
+        const parts = r.exceeds.map((x) => `${t(`usage.${x.key === 'storage_bytes' ? 'storage' : x.key}`, x.key)} ${x.key === 'storage_bytes' ? formatBytes(x.used) : x.used} / ${x.key === 'storage_bytes' ? formatBytes(x.limit) : x.limit}`);
+        setTrialSwitchErr(t('trialSwitch.overLimit', { items: parts.join(', '), defaultValue: '지금 사용량이 그 플랜 한도를 넘어 바꿀 수 없어요 — {{items}}' }) as string);
+      } else {
+        setTrialSwitchErr(t('trialSwitch.error', '바꾸지 못했어요. 잠시 뒤 다시 시도해 주세요.') as string);
+      }
+    } finally { setTrialSwitching(null); }
   };
 
   if (loading || !status || !currentPlan || !usage) return <Skeleton />;
@@ -354,45 +382,45 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           <UsageRow
             label={t('usage.members')}
             current={usage.members}
-            limit={currentPlan.limits.members_max}
+            limit={effLimits!.members_max}
             t={t}
           />
           <UsageRow
             label={t('usage.clients')}
             current={usage.clients}
-            limit={currentPlan.limits.clients_max}
+            limit={effLimits!.clients_max}
             t={t}
           />
           <UsageRow
             label={t('usage.projects')}
             current={usage.projects}
-            limit={currentPlan.limits.projects_max}
+            limit={effLimits!.projects_max}
             t={t}
           />
           <UsageRow
             label={t('usage.conversations')}
             current={usage.conversations}
-            limit={currentPlan.limits.conversations_max}
+            limit={effLimits!.conversations_max}
             t={t}
           />
           <UsageRow
             label={t('usage.storage')}
             current={usage.storage_bytes}
-            limit={currentPlan.limits.storage_bytes}
+            limit={effLimits!.storage_bytes}
             formatter={formatBytes}
             t={t}
           />
           <UsageRow
             label={t('usage.cue')}
             current={usage.cue_actions_this_month}
-            limit={currentPlan.limits.cue_actions_monthly}
+            limit={effLimits!.cue_actions_monthly}
             unit={t('usage.cueUnit')}
             t={t}
           />
           <UsageRow
             label={t('usage.qnote')}
             current={usage.qnote_minutes_this_month}
-            limit={currentPlan.limits.qnote_minutes_monthly}
+            limit={effLimits!.qnote_minutes_monthly}
             formatter={formatMinutes}
             t={t}
           />
@@ -494,6 +522,17 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                     isCurrent ? <BtnGhost type="button" disabled>{t('comparison.current')}</BtnGhost> : null
                   ) : isCurrent ? (
                     <BtnGhost type="button" disabled>{t('comparison.current')}</BtnGhost>
+                  ) : canTrialSwitch && (p.code === 'starter' || p.code === 'basic' || p.code === 'pro') ? (
+                    <>
+                      {/* 체험 중 — 결제 없이 이 플랜으로 체험을 바꾼다(체험 종료일 그대로). 올리는 쪽은 «지금 결제» 도 같이 둔다. */}
+                      <BtnPrimary type="button" data-testid={`plan-trial-switch-${p.code}`} disabled={!!trialSwitching}
+                        onClick={() => handleTrialSwitch(p.code as 'starter' | 'basic' | 'pro')}>
+                        {t('trialSwitch.cta', '이 플랜으로 체험')}
+                      </BtnPrimary>
+                      {isUpgrade(p.code) && (
+                        <BtnLink type="button" onClick={() => handleAction(p.code)}>{t('trialSwitch.payNow', '지금 결제하기')}</BtnLink>
+                      )}
+                    </>
                   ) : p.code === 'enterprise' ? (
                     <BtnGhost type="button" onClick={() => handleAction(p.code)}>{t('comparison.contactSales')}</BtnGhost>
                   ) : isUpgrade(p.code) ? (
@@ -515,6 +554,8 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             );
           })}
         </PlanGrid>
+        {trialSwitchErr && <TrialSwitchErr role="alert" data-testid="plan-trial-switch-error">{trialSwitchErr}</TrialSwitchErr>}
+        {canTrialSwitch && <TrialSwitchNote>{t('trialSwitch.note', '체험 중에는 결제 없이 플랜을 바꿔 써 볼 수 있어요. 체험 종료일은 바뀌지 않고, 체험 중 AI 실행·녹음 한도는 플랜과 관계없이 같아요.')}</TrialSwitchNote>}
       </Section>
       )}
 
@@ -874,6 +915,11 @@ const PlanBadge = styled.span<{ $code: PlanCode }>`
 `;
 const PlanTitle = styled.h3`margin:0;font-size:1.125rem;font-weight:700;color:#0F172A;`;
 const StatusBadges = styled.div`margin-left:auto;display:flex;gap:6px;`;
+const TrialSwitchErr = styled.div`
+  margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+  background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; font-size: 0.8125rem; line-height: 1.5;
+`;
+const TrialSwitchNote = styled.div`margin-top: 10px; font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 const StateBadge = styled.span<{ $kind: 'active' | 'trial' | 'grace' }>`
   padding:3px 10px;border-radius:999px;font-size:0.6875rem;font-weight:600;
   ${p => p.$kind === 'active' ? 'background:#F0FDFA;color:#0F766E;'

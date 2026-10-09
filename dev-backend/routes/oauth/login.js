@@ -9,6 +9,7 @@ const {
   claimNativeCodeOnce, isNativeOAuth, buildRedirectTarget, issueSessionCookie, safeRedirectPath,
 } = require('./core');
 const { finishOauthLogin, failLogin } = require('./finish');
+const { TRIAL_PLAN_CODES } = require('../../config/plans');
 
 module.exports = function registerLoginRoutes(router) {
 // 1. Google OAuth 시작
@@ -31,7 +32,9 @@ router.get('/google/initiate', async (req, res) => {
       ? req.query.pair : null;
     // 돌아갈 곳(초대 링크·공개 페이지 복귀) — 같은 출처 상대경로만(0-F F-2). 네이티브는 딥링크라 싣지 않는다.
     const redirect = req.query.client === 'native' ? null : safeRedirectPath(req.query.redirect);
-    const { url } = await googleOauthLogin.buildAuthUrl(pair, { redirect });
+    // 가입 화면에서 고른 체험 플랜 — 체험 대상 코드만 싣는다(그 밖은 버리고 기본 starter, 2026-10-09)
+    const plan = TRIAL_PLAN_CODES.includes(req.query.plan) ? req.query.plan : null;
+    const { url } = await googleOauthLogin.buildAuthUrl(pair, { redirect, plan });
     return res.redirect(302, url);
   } catch (e) {
     return res.redirect(302, buildRedirectTarget({ ok: false, error: e.message }));
@@ -75,6 +78,7 @@ router.get('/google/callback', async (req, res) => {
       pairId: stateEntry.challenge,   // state 가 나른 흐름 식별자
       logTag: 'auth/google callback',
       redirect: safeRedirectPath(stateEntry.redirect),
+      planCode: stateEntry.plan || null,
     });
   } catch (e) {
     console.error('[auth_oauth/google/callback]', e);

@@ -9,6 +9,7 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { isEnterAction } from '../../utils/imeKey';
+import TrialPlanPicker, { DEFAULT_TRIAL_PLAN, type TrialPlanCode } from '../Auth/TrialPlanPicker';
 
 /**
  * WorkspaceSwitcher (사이드바 전용)
@@ -58,6 +59,8 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   // 새 워크스페이스 만들기
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState('');
+  // 새 워크스페이스의 체험 플랜 — 가입 화면과 같은 부품·같은 기본값(TrialPlanPicker, 2026-10-09)
+  const [createPlan, setCreatePlan] = useState<TrialPlanCode>(DEFAULT_TRIAL_PLAN);
   const [creating, setCreating] = useState(false);
   const [createErr, setCreateErr] = useState('');
 
@@ -148,7 +151,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
     try {
       const r = await apiFetch('/api/businesses', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand_name: nm }),
+        body: JSON.stringify({ brand_name: nm, plan_code: createPlan }),
       });
       const j = await r.json();
       if (!r.ok || j?.success === false) throw new Error(j?.message || 'create_failed');
@@ -293,6 +296,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
               onChange={(e) => { setCreateName(e.target.value); setCreateErr(''); }}
               onKeyDown={(e) => { if (isEnterAction(e)) handleCreateWorkspace(); if (e.key === 'Escape' && !creating) setCreateOpen(false); }}
             />
+            <PickerGap><TrialPlanPicker value={createPlan} onChange={setCreatePlan} disabled={creating} compact /></PickerGap>
             {createErr && <CreateErr>{createErr}</CreateErr>}
             <CreateActions>
               <CreateCancel type="button" disabled={creating} onClick={() => setCreateOpen(false)}>{t('switcher.cancel', '취소')}</CreateCancel>
@@ -569,6 +573,7 @@ const CreateInput = styled.input`
   border: 1px solid #CBD5E1; border-radius: 8px; color: #0F172A; outline: none;
   &:focus { border-color: #14B8A6; box-shadow: 0 0 0 3px rgba(20,184,166,0.18); }
 `;
+const PickerGap = styled.div`margin-top: 14px;`;
 const CreateErr = styled.div`font-size: 0.75rem; color: #EF4444; margin-top: 8px;`;
 const CreateActions = styled.div`display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px;`;
 const CreateCancel = styled.button`

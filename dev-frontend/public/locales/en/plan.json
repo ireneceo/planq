@@ -66,7 +66,8 @@
       "extract": "Inquiry extraction",
       "agent_tool": "AI app connections (ChatGPT·Claude)",
       "docs_edit": "Doc AI edit"
-    }
+    },
+    "prospects": "Prospects"
   },
   "comparison": {
     "title": "Compare Plans",
@@ -311,5 +312,12 @@
     "desc": "Use PlanQ for {{total}} months at the price of one. Your next charge is in {{total}} months — cancel before then and nothing further is billed.",
     "refundNote": "The month you pay for now is not refunded if you cancel.",
     "cta": "Pay now"
+  },
+  "trialSwitch": {
+    "cta": "Try this plan",
+    "payNow": "Pay now",
+    "note": "During the trial you can switch plans at no charge. Your trial end date stays the same, and AI-action and recording limits are the same on every plan during the trial.",
+    "overLimit": "Current usage is over that plan's limits, so you can't switch — {{items}}",
+    "error": "Couldn't switch. Please try again shortly."
   }
 }

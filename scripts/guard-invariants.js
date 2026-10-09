@@ -2608,6 +2608,36 @@ function checkDupRoute() {
 }
 
 // ═══════════════════════════════════════════════
+// trialplan — **새 워크스페이스의 체험 필드는 config/plans.newTrialBusinessFields 하나가 만든다** (2026-10-09 신설)
+//
+//   Irene: "처음에 혼자 쓸지 말지 선택 가능한거 아니야? 플랜마다 다른 거잖아."
+//   가입·구글/애플 가입·두 번째 워크스페이스가 각자 `plan: 'starter'` + `14 * 24 * 60 * 60 * 1000` 을 적고 있었다.
+//   한 곳만 «고른 플랜» 을 받게 고치면 나머지 입구는 조용히 Starter(1명)로 남는다 — 그래서 리터럴 자체를 막는다.
+//   대상: dev-backend/routes·services·middleware (주석 줄 제외). config/plans.js 와 옛 이관 스크립트는 정본·과거라 제외.
+function checkTrialPlan() {
+  const roots = ['routes', 'services', 'middleware'].map((d) => `${ROOT}/dev-backend/${d}`);
+  const bad = [];
+  let files = 0;
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fp = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (e.name !== 'node_modules') walk(fp); continue; }
+      if (!e.name.endsWith('.js')) continue;
+      files += 1;
+      read(fp).split('\n').forEach((l, i) => {
+        const t = l.trim();
+        if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+        if (/\bplan:\s*'(starter|basic|pro)'/.test(l) || /\b14\s*\*\s*24\s*\*\s*60\s*\*\s*60\s*\*\s*1000\b/.test(l)) {
+          bad.push(`${fp.replace(`${ROOT}/`, '')}:${i + 1} — 체험 플랜·기간 리터럴. config/plans.newTrialBusinessFields(planCode) 를 쓴다`);
+        }
+      });
+    }
+  };
+  roots.forEach((r) => { if (fs.existsSync(r)) walk(r); });
+  report('trialplan', `새 워크스페이스 체험 필드는 newTrialBusinessFields 한 곳 (${files}개 파일)`, bad.length === 0, bad);
+}
+
+// ═══════════════════════════════════════════════
 // navmenu — **메뉴 이름이 화면에 키로 노출되지 않는가** (2026-09-09 신설)
 //
 //   운영 신고 (Irene 2026-09-09): "탭 열기에서 어떤 메뉴들이 이름 제대로 안나오고 nav.으로 나와."
@@ -3450,6 +3480,7 @@ const CATEGORIES = {
   capci: checkCapCi,
   savemerge: checkSaveMerge,
   duproute: checkDupRoute,
+  trialplan: checkTrialPlan,
   navmenu: checkNavMenu,
   i18n: checkI18n,
   parity: checkParity,

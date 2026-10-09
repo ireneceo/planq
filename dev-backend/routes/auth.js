@@ -8,6 +8,7 @@ const { USER_SENSITIVE_FIELDS } = require('../utils/userFields');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const { sequelize } = require('../config/database');
+const { newTrialBusinessFields } = require('../config/plans');
 
 // 세션 토큰·쿠키 정책은 services/authTokens 단일 원천 (라우팅 ≠ 세션 정책).
 //   auth_oauth.js 도 같은 규칙을 쓴다 — 두 벌로 두면 반드시 어긋난다.
@@ -360,9 +361,9 @@ router.post('/register', async (req, res, next) => {
     let business = null;
     let cueUser = null;
     if (!isInviteSignup) {
-    // 신규 가입 = Starter 14일 trial 자동 부여 (2026-05-05). Free 플랜 폐지.
-    const TRIAL_DAYS = 14;
-    const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+    // 신규 가입 = 고른 플랜으로 14일 체험(2026-10-09 — 혼자 Starter · 팀 Basic · 큰 팀 Pro).
+    //   값은 config/plans.newTrialBusinessFields 한 곳이 정한다(모르는 값 → starter).
+    const trialFields = newTrialBusinessFields(req.body?.plan_code);
     const slug = generateSlug(brandName);
     business = await Business.create({
       name: brandName,                // legacy 호환
@@ -373,9 +374,7 @@ router.post('/register', async (req, res, next) => {
       default_language: lang,
       cue_mode: 'smart',
       cue_paused: false,
-      plan: 'starter',
-      subscription_status: 'trialing',
-      trial_ends_at: trialEndsAt,
+      ...trialFields,
     }, { transaction });
 
     // 3. Create BusinessMember (관리자)

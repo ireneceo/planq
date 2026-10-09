@@ -66,6 +66,13 @@ const manifest = read(path.join(FE, 'android/app/src/main/AndroidManifest.xml'))
 if (manifest && /android:scheme="planq"/.test(manifest)) ok('Android custom scheme planq://');
 else fail('Android custom scheme', 'AndroidManifest 에 planq 스킴 intent-filter 가 없다');
 
+// 링크 → 앱 열기: 경로·도메인이 정본(native-link-paths.js · 각 플랫폼 server.url)과 같은가 (2026-10-09)
+{
+  const r = require('child_process').spawnSync(process.execPath, [path.join(__dirname, 'cap-link-domains.js'), '--check'], { encoding: 'utf8' });
+  if (r.status === 0) ok('앱 링크 경로·도메인 = 정본 (AASA · entitlements · AndroidManifest)');
+  else fail('앱 링크 경로·도메인', `정본과 다르다 — node scripts/cap-link-domains.js\n${(r.stdout || '').trim()}`);
+}
+
 // ── 3. App Store 심사 (Guideline) ──────────────────────────────────────
 section('APPSTORE_GUIDELINE');
 

@@ -1,25 +1,47 @@
 ## 현재 작업 상태
 **마지막 업데이트:** 2026-10-09 밤
-**작업 상태:** 완료 (/개발완료 2026-10-09 밤 — 방 58947e65) · ⏸ Irene 답 1건(아래) · **운영 미배포 커밋 다수**(646974b5 v1.70.1 이후)
+**작업 상태:** 완료 (/개발완료 2026-10-09 밤 — 방 c3d0da3b 가입 플랜 고르기 + 방 33a23fc2 링크→앱 열기 같이 커밋) · **운영 미배포 커밋 다수**(646974b5 v1.70.1 이후)
 
 ### 진행 중인 작업
 - 없음
 
-### 답 기다림: 새 팀은 체험 중 팀원을 초대할 수 없다 (2026-10-09 · 방 58947e65)
+### 완료: 가입 때 혼자·팀 고르기 → 고른 플랜으로 14일 체험 · 체험 중 결제 없이 플랜 바꾸기 (2026-10-09 · [Opus]+[Fable] 설계·완료 PASS · 방 c3d0da3b) — 운영 미배포
+- 원문(답): *"처음에 혼자 쓸지 말지 선택 가능한거 아니야? 플랜마다 다른 거잖아."* — 앞 질문(체험 중 팀원 초대)의 B.
+- 가입 화면·«새 워크스페이스 만들기» 창에 «어떻게 쓰실 건가요?» 혼자 Starter 1명 / 팀과 함께 Basic 5명(처음 선택) / 큰 팀 Pro 10명 (`components/Auth/TrialPlanPicker`). 요금제 화면 버튼 → `/register?plan=…`. 구글·애플 가입도 고른 값을 state 로 나른다.
+- 체험 중에는 결제 없이 바꾼다: 한도 창(멤버 한도)에 대표만 «팀 체험으로 바꾸기» · 플랜 화면 카드 «이 플랜으로 체험». 체험 종료일 그대로 · 내릴 때 인원이 넘으면 막고 이유 표시 · 이미 만든 옛 금액 사전청구는 닫힌다.
+- 체험 중 AI 실행 월 50회·녹음 60분은 플랜과 무관(비용 캡). 결제가 확정되면 풀린다. 사용량 막대·경고 카드·AI 창 남은 횟수가 실제 적용 한도를 읽는다.
+- 서버 정본 `config/plans.newTrialBusinessFields` · `POST /api/plan/:biz/trial-plan` · 가드 `--category=trialplan`. 운영 스키마 변경 없음(이력 reason 은 trial_start + 메모·감사).
+- 검증: API 38/38 · 브라우저 34/34(390/820/1440) · 빌드 EXIT 0 · 가드 66/67 · health 83/83 · tenant·prepay 0 · 멤버 내보내기 캐시 수정 실측. Fable 판정 docs/FABLE_GATE_QUEUE.md 맨 위.
+- 테스트 데이터: dev 워크스페이스 1317~1363 대(example.com) 삭제 표시. 검증 중 dev 결제 1건(삭제된 테스트 워크스페이스) 확정 처리됨.
+
+### 정해짐(A · 그대로 둠, Irene 2026-10-09): 상황판 dev 링크를 «앱으로» 열려면 dev 를 보는 앱이 폰에 있어야 한다 (2026-10-09 · 방 33a23fc2)
+- 무엇: 폰에 깔린 PlanQ 앱(스토어·TestFlight)은 운영(planq.kr) 껍데기다. dev.planq.kr 링크를 그 앱으로 열면 운영 데이터가 보인다 → 이번에 운영 앱은 planq.kr 링크만 받게 바꿨다(dev 링크는 브라우저).
+- 선택지: A 그대로(dev 링크 = 브라우저, 운영 링크 = 앱) / B 안드로이드 dev 앱(apk, dev.planq.kr) 따로 설치 / C iOS «PlanQ Dev» 별도 앱(번들 id 분리 + App Store Connect 앱 등록 + TestFlight — Irene 손작업).
+- Irene 답: «그대로 둬» → A. dev 링크는 브라우저, 운영 링크는 앱. 따로 할 일 없음.
+
+### 답 기다림 (이전): 새 팀은 체험 중 팀원을 초대할 수 없다 (2026-10-09 · 방 58947e65) — Irene 답 «처음에 혼자 쓸지 말지 선택 가능한거 아니야? 플랜마다 다른 거잖아» → B(가입 때 혼자·팀 선택 = 플랜별 체험), 방 c3d0da3b 진행
+- (10-09 밤 Irene 답이 «체험 처음에» 에서 끊겨 옴 → 다시 물음)
 - 무엇: 신규 가입 = 스타터 체험(멤버 1명 한도, config/plans.js starter.members_max=1). 팀 적응 1단계 «팀원 초대하기» 를 누르면 «멤버 수 한도 도달» 창 — 새 팀이 첫날 막힌다.
 - 선택지: A 체험을 베이직 한도(5명)로 / B 가입 때 «혼자·팀» 선택(팀이면 베이직 체험) / C 그대로 두고 안내만(«팀원 초대는 베이직부터»).
 - 답이 오면: A·B 는 요금·한도 엔진 변경(체험 끝에 한도 초과 상태 처리 포함)이라 Fable 설계 1회 → 구현 · C 는 1단계 «팀원 초대» 줄·초대 칸 문구만.
 
 ### 다음 할 일
-- ⏸ «답 기다림» 체험 중 팀원 초대 — Irene 답이 오면 그 절대로.
+- 체험 비용 캡을 미결제 유예 7일에도(Fable 비차단 ②) — `services/plan.getEffectiveLimits` 술어를 «플랜 결제 0건 ∧ active 아님» 으로. 돈 관련이라 다음 사이클에 Fable 판정과 함께.
 - 별도 건: 같은 초대 토큰 동시 가입 경합(services/invites.acceptInvite 의 bm.update 에 joined_at IS NULL 조건 + affectedRows 0 이면 already_accepted) — Fable 비차단 지적.
 - 팀 적응 5단계 — Irene 이 dev 에서 보고 3~5단계 구성·랜딩 노출 위치(푸터·기능 페이지 끝, 홈 미노출)를 고치라 하면 문구·순서만 고친다(세 곳 = dashboard.json stage.* · landing.json startPage · 도움말 글, 서버 STEPS).
-- 다음 /배포 때: 배포 후 운영에서 `node seed-wiki-content.js`(도움말 글 team-adoption-stages) · 운영 owner 첫 화면 단계 실측(이번엔 운영 읽기 권한 거부)
+- 다음 /배포 때: 배포 후 운영에서 `node seed-wiki-content.js`(도움말 글 team-adoption-stages · trial-options 플랜 고르기 절) · 운영 owner 첫 화면 단계 실측(이번엔 운영 읽기 권한 거부)
 - **Irene 운영 손작업**: 플랫폼 관리 > 구독 관리 > 결제대기 > 루아테스트2 [입금 확인] (운영 결제 #21)
 - 다음 /배포 — 관리자 확인 필요·배지·알림(cd372c3a) + 입금 확인 링크(6431fc29) + 공휴일·가동률 수정 + 돈 정합 0-A/0-B 가 같이 나간다. 배포 뒤 답글 초안 docs/feedback-replies-2026-10-08.json 적용
 - 비차단 후속: 관리자 푸시 본문 400자 → excerpt · 일정 알림 비교 기준(Fable 권고) · 순찰 2건(앱 메일 새 창 · 다른 스레드 링크)
 
 ---
+
+### 완료: 링크 → 앱 열기 — 경로 넓힘 · 빌드별 도메인 하나 · 다른 서버 링크는 브라우저 (2026-10-09 · [Opus] 방 33a23fc2) — 커밋됨(방 c3d0da3b /개발완료)·운영 미배포 — 안드로이드·iOS 도메인 반영은 GitHub 푸시 후 새 앱 빌드
+- 요청(서버 방 경유): 상황판 «확인할 곳» 링크를 폰에서 누르면 앱이 깔려 있으면 앱으로.
+- 정본 `scripts/native-link-paths.js`(로그인해서 쓰는 앱 화면 25 접두어 + /oauth/native-return, 공개 표면 제외) → `scripts/cap-link-domains.js` 가 AASA·AndroidManifest(pq:app-links 표식 사이)·iOS entitlements 를 쓴다. 도메인 = 각 플랫폼 capacitor.config.json server.url 호스트 하나(운영 빌드 planq.kr / dev 빌드 dev.planq.kr). cap:sync:*·cap:beta* 에 물렸고 `--check` 는 cap:check* · guard-native-release 에.
+- NativeBridge appUrlOpen: https 링크 출처 ≠ 앱 출처면 앱 안 이동 대신 Browser.open(옛 빌드가 두 도메인을 다 받으므로).
+- 검증: 빌드 EXIT 0 · 가드 65/66 · guard-native-release 새 항목 통과(기존 실패 1 nativeShare 는 원래부터) · --check 양성 대조군 2건(manifest host·AASA 경로 바꾸면 exit 1) · 앱 라우트 전수 대조(빠짐 /share-receive 의도 · 공개 경로 잡힘 0). 실기기 확인 못 함.
+- 반영: iOS 경로 = 웹 배포(AASA, 애플 캐시 시간) · iOS 도메인 분리·안드로이드 경로/도메인 = 새 앱 빌드(Codemagic 은 GitHub 에서 당김 → 커밋·푸시 필요) · 다른 서버 링크 가드 = 웹 배포.
 
 ### 완료: 새 팀 첫 길 점검 — 가입 → 팀원 초대 → 합류 → 업무 요청 → 대화 (2026-10-09 · [Opus] 방 58947e65) — 운영 미배포
 - 원문: *"이제 새로운 팀이 시작하게 할거야. 기본 루트에서 사용하는데 불편함이 없는지 체계적인 점검 가능해? 불친절한 안내는 없는지더"*

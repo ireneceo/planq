@@ -43,14 +43,21 @@ interface Props {
   /** 로그인·가입 뒤 돌아갈 앱 경로(초대 링크·공개 페이지 복귀) — 서버가 state 에 실어 콜백까지 나른다(0-F F-2).
    *  네이티브 앱은 딥링크로 돌아오므로 싣지 않는다. 서버가 같은 출처 상대경로만 받는다(safeRedirectPath). */
   redirect?: string | null;
+  /** 가입 화면에서 고른 체험 플랜(starter|basic|pro) — 새로 가입하는 경우에만 서버가 쓴다(2026-10-09).
+   *  서버가 체험 대상 코드만 받고, 없으면 starter. 로그인 화면은 넘기지 않는다. */
+  plan?: string | null;
 }
 
-const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = true, dividerLabel, redirect }) => {
+const GoogleAuthButton: React.FC<Props> = ({ onStart, disabled, withDivider = true, dividerLabel, redirect, plan }) => {
   // 시작 URL — 네이티브는 client=native 만, 웹은 redirect 가 있으면 붙인다
   const startUrl = (provider: 'google' | 'apple') => {
     const base = `/api/auth/${provider}/initiate`;
-    if (isNativeApp()) return `${base}?client=native`;
-    return redirect ? `${base}?redirect=${encodeURIComponent(redirect)}` : base;
+    const q = new URLSearchParams();
+    if (isNativeApp()) q.set('client', 'native');
+    else if (redirect) q.set('redirect', redirect);
+    if (plan) q.set('plan', plan);
+    const qs = q.toString();
+    return qs ? `${base}?${qs}` : base;
   };
   const { t } = useTranslation('auth');
   const [apple, setApple] = useState(false);
