@@ -33,7 +33,7 @@ async function run() {
   try {
     // 픽스처 — 살아 있는 워크스페이스의 pending 플랜 결제 중 통보가 없는 것 하나
     const [[pay]] = await sequelize.query(
-      `SELECT p.id, p.business_id, p.notify_paid_at, p.notify_payer_name, COALESCE(b.brand_name, b.name) AS biz
+      `SELECT p.id, p.business_id, p.subscription_id, p.notify_paid_at, p.notify_payer_name, COALESCE(b.brand_name, b.name) AS biz
          FROM payments p JOIN businesses b ON b.id = p.business_id AND b.deleted_at IS NULL
          JOIN subscriptions s ON s.id = p.subscription_id AND s.status = 'pending'
         WHERE p.status = 'pending' AND p.kind = 'plan' AND p.notify_paid_at IS NULL
@@ -111,6 +111,21 @@ async function run() {
       }, pay.biz);
       push('행을 누르면 구독 관리 «결제대기» 탭 + 그 워크스페이스', after.path.startsWith('/admin/subscriptions') && after.hasBiz && after.sel.some((x) => /결제대기|Pending/i.test(x)),
         `${after.path} · 선택 탭 ${JSON.stringify(after.sel)} · 워크스페이스 ${after.hasBiz ? '있음' : '없음'}`);
+
+      // ④-b 그 구독 행이 표시되고 [입금 확인] 버튼이 화면 안에서 눌리는 자리에 있다 (2026-10-09 — "어디서 입금완료해야 하는지 모르겠어")
+      const focus = await page.evaluate((subId) => {
+        const row = document.querySelector(`[data-sub-id="${subId}"]`);
+        const btn = document.querySelector(`[data-testid="admin-sub-markpaid-${subId}"]`);
+        if (!row || !btn) return { row: !!row, btn: !!btn };
+        const r = btn.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        const cs = getComputedStyle(row);
+        return { row: true, btn: true, inView: r.top >= 0 && r.bottom <= innerHeight && r.width > 0,
+          hitIsBtn: !!hit && (hit === btn || btn.contains(hit)), border: cs.borderTopColor };
+      }, pay.subscription_id);
+      push('그 구독 행으로 가서 [입금 확인] 이 화면 안·눌리는 자리 + 강조 테두리',
+        !!(focus.row && focus.btn && focus.inView && focus.hitIsBtn && focus.border === 'rgb(20, 184, 166)'),
+        JSON.stringify(focus));
 
       // ⑤ 음성 대조군 — 통보를 지우면 사라진다
       await sequelize.query('UPDATE payments SET notify_paid_at = ?, notify_payer_name = ? WHERE id = ?', { replacements: [fixture.notify_paid_at, fixture.notify_payer_name, fixture.id] });

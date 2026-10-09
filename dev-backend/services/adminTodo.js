@@ -78,7 +78,7 @@ async function collectAdminTodo() {
       addon_code: p.addon_code,
       payer_name: p.notify_payer_name || p.payer_name || null,
       at: p.notify_paid_at,
-      link: isAddon ? `/admin/payments?status=pending&payment=${p.id}` : '/admin/subscriptions?status=pending',
+      link: isAddon ? `/admin/payments?status=pending&payment=${p.id}` : `/admin/subscriptions?status=pending&sub=${p.subscription_id}`,
     });
   }
   for (const p of taxes) {

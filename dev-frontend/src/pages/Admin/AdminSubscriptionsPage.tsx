@@ -94,11 +94,20 @@ const AdminSubscriptionsPage = () => {
   useEffect(() => { load(); }, [load]);
 
   // ?status=pending — 확인 필요·알림 메일의 «구독 확인» 이 여기로 온다. 초기값으로만 읽으면 keep-alive 탭에서 안 걸린다.
+  // ?sub=:id — 입금 통보 알림·확인 필요가 가리키는 그 구독. 통보 없는 체험 체크아웃(결제대기)이 여럿 섞여 있어
+  //   목록만 열면 어느 행에서 [입금 확인] 을 눌러야 할지 모른다(2026-10-09 Irene: "어디서 입금완료해야 하는지 모르겠어").
+  //   결제 이력의 ?payment= 와 같은 방식 — 그 행으로 스크롤하고 테두리로 표시한다.
   const [params] = useSearchParams();
+  const focusId = Number(params.get('sub')) || null;
   useEffect(() => {
     const st = params.get('status') as SubStatus | null;
     if (st && (STATUS_TABS as string[]).includes(st)) setActiveStatus(st);
   }, [params]);
+  useEffect(() => {
+    if (!focusId || loading) return;
+    const el = document.querySelector(`[data-sub-id="${focusId}"]`);
+    if (el) el.scrollIntoView({ block: 'center' });
+  }, [focusId, loading, items]);
 
   const fmtKRW = (n: number) => new Intl.NumberFormat('ko-KR').format(Math.round(n));
   const fmtDate = (s: string | null) =>
@@ -211,7 +220,7 @@ const AdminSubscriptionsPage = () => {
                 { field: 'url', text: s.business?.slug },
               ], search);
               return (
-                <Row key={s.id} $notified={notified}>
+                <Row key={s.id} data-sub-id={s.id} $focus={focusId === s.id} $notified={notified}>
                   <RowLeft>
                     <BizName>{s.business?.name ? <HighlightText text={s.business.name} query={search} /> : `(workspace ${s.business?.id})`}</BizName>
                     {hit && !hit.shown && <MatchReason field={hit.field} snippet={hit.snippet} query={search} />}
@@ -245,7 +254,7 @@ const AdminSubscriptionsPage = () => {
                   </RowLeft>
                   <RowRight>
                     {s.pending_payment && (
-                      <PrimaryBtn type="button" disabled={busyId === s.id}
+                      <PrimaryBtn type="button" disabled={busyId === s.id} data-testid={`admin-sub-markpaid-${s.id}`}
                         onClick={() => setConfirm({ kind: 'pay', sub: s })}>
                         {t('subs.markPaid', '입금 확인')}
                       </PrimaryBtn>
@@ -314,12 +323,13 @@ const ErrorBox = styled.div`
   font-size: 0.8125rem; border: 1px solid #FECACA;
 `;
 const List = styled.div`display: flex; flex-direction: column; gap: 8px;`;
-const Row = styled.article<{ $notified?: boolean }>`
+const Row = styled.article<{ $focus?: boolean; $notified?: boolean }>`
   display: flex; gap: 16px; align-items: center;
   padding: 14px 16px;
   background: ${p => p.$notified ? '#F0FDFA' : '#FFFFFF'};
-  border: 1px solid ${p => p.$notified ? '#5EEAD4' : '#E2E8F0'};
+  border: 1px solid ${p => p.$focus ? '#14B8A6' : p.$notified ? '#5EEAD4' : '#E2E8F0'};
   border-radius: 10px;
+  ${p => p.$focus ? 'box-shadow: 0 0 0 3px rgba(20,184,166,0.15);' : ''}
   @media (max-width: 768px) { flex-direction: column; align-items: stretch; }
 `;
 const NotifyBadge = styled.span`

@@ -561,12 +561,17 @@ router.post('/:businessId/payments/:paymentId/notify-paid', authenticateToken, c
         const amountStr = pay.currency === 'KRW'
           ? `${Number(pay.amount).toLocaleString()}원`
           : `${pay.currency} ${Number(pay.amount).toLocaleString()}`;
+        // 링크는 그 건을 가리킨다 — 목록만 열면 체험 체크아웃(통보 없는 대기)들 사이에서 찾아야 한다.
+        //   플랜 결제 → 구독 관리의 그 구독 행([입금 확인]) · 추가 구매 → 결제 이력의 그 결제 행. adminTodo 링크와 같은 규칙.
+        const link = pay.kind === 'addon'
+          ? `${APP_URL}/admin/payments?status=pending&payment=${pay.id}`
+          : `${APP_URL}/admin/subscriptions?status=pending&sub=${pay.subscription_id}`;
         notifyPlatformAdmins({
           eventKind: 'payment',
           title: `입금 통보 도착 — 확인 필요 (${amountStr})`,
           body: `워크스페이스 ID ${businessId} 가 결제 #${pay.id} 입금을 통보했습니다.${payerName ? ` 입금자명 ${payerName}.` : ''} 관리자 확인 후 구독이 활성화됩니다.`,
-          link: `${APP_URL}/admin/subscriptions?status=pending`,
-          ctaLabel: '구독 확인',
+          link,
+          ctaLabel: '입금 확인',
           relatedEntityId: pay.id,
         }).catch(() => null);
       });
