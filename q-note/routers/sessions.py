@@ -300,6 +300,29 @@ async def internal_session_owns(
   })
 
 
+# ─── 팀 적응 단계 — «내가 이 워크스페이스에서 회의를 기록해 봤나» (2026-10-09, docs/TEAM_ADOPTION_STAGES_DESIGN.md) ───
+#   Node `services/onboarding.js` 한 곳만 부른다. 숫자 하나만 준다(제목·내용 없음).
+#   ★ L1(개인) 포함 — 막 끝낸 내 회의는 대개 L1 이다(`by-entity` 가 L1 을 빼서 쓰면 내 것도 «없음» 이 된다).
+#   ★ 글 메모(text)와 시작도 안 한 준비(prepared)는 «회의 기록» 이 아니다.
+@router.get('/internal/count-mine')
+async def internal_count_my_recordings(
+    user_id: int = Query(...),
+    business_id: int = Query(...),
+    x_internal_api_key: Optional[str] = Header(None),
+):
+  expected = os.environ.get('INTERNAL_API_KEY')
+  if not expected or x_internal_api_key != expected:
+    raise HTTPException(status_code=401, detail='invalid internal key')
+  async with db_connect() as db:
+    cur = await db.execute(
+      "SELECT COUNT(*) FROM sessions WHERE user_id = ? AND business_id = ? "
+      "AND COALESCE(capture_mode, '') <> 'text' AND COALESCE(status, '') <> 'prepared'",
+      (int(user_id), int(business_id)),
+    )
+    row = await cur.fetchone()
+  return success({'recordings': int(row[0] if row else 0)})
+
+
 # ─── AI 앱이 노트 한 건을 읽는다 (2026-10-04, AI 에이전트 M3-b · 설계 docs/AI_AGENT_M3_DESIGN.md §1.2) ───
 #   Node `services/qnoteContext.readNote` 한 통로만 부른다. `internal/owns` 는 소유 확인만, `internal/export` 는 전량 덤프라
 #   «읽을 수 있는 사람에게 한 건» 을 주는 문이 없었다.

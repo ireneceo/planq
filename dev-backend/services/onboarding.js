@@ -30,6 +30,10 @@ const {
   EmailAccount, ExternalConnection, RefreshToken, AgentGrant,
 } = require('../models');
 const { billableClientWhere } = require('./clientQuota');
+const { getAdoptionStages } = require('./adoptionStages');
+
+/** 팀 적응 단계를 내놓은 시각 — 이보다 앞선 «다시 보지 않기» 는 단계 묶음에 먹지 않는다(아래 stages 주석). */
+const STAGES_RELEASED_AT = Date.parse('2026-10-09T18:00:00+09:00');
 
 /** 워크스페이스 묶음을 볼 자격 — 워크스페이스를 **꾸리는 사람**만. 고객에게 "고객을 초대하세요" 는 말이 안 된다. */
 const ELIGIBLE_ROLES = new Set(['owner', 'admin']);
@@ -114,12 +118,21 @@ async function getOnboardingState({ businessId, userId }) {
   }
   groups.push(summarize('me', !!membership.onboarding_dismissed_at, meSteps));
 
+  // 팀 적응 단계 (2026-10-09, docs/TEAM_ADOPTION_STAGES_DESIGN.md) — 사람 멤버 전원. 새 화면은 workspace 묶음 대신 이것을 그린다.
+  //   ★ 닫기는 사람 단위(business_members.onboarding_dismissed_at)지만 **단계가 나오기 전의 닫기는 먹지 않는다** —
+  //     옛 카드(설정 체크리스트)를 닫은 사람이 새 단계를 영영 못 보게 되므로(Fable 2026-10-09). 컬럼을 NULL 로 되돌리면
+  //     «내 설정» 묶음까지 되살아나므로 그렇게 하지 않는다. 출시 뒤 닫기는 scope:'all' 이라 둘 다 닫힌다.
+  const dismissedAt = membership.onboarding_dismissed_at ? new Date(membership.onboarding_dismissed_at) : null;
+  const stages = await getAdoptionStages({ businessId: bizId, userId, role: membership.role });
+  stages.dismissed = !!dismissedAt && dismissedAt.getTime() > STAGES_RELEASED_AT;
+
   return {
     dismissed: isManager ? !!business.onboarding_dismissed_at : true,
     done_count: legacySteps.filter((s) => s.done).length,
     total: legacySteps.length,
     steps: legacySteps,
     groups,
+    stages,
   };
 }
 

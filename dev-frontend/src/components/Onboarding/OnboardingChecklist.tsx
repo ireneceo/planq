@@ -8,6 +8,10 @@
 //   - 두 묶음: 워크스페이스(owner/admin) · 나(모든 멤버). 서버가 묶음과 자격을 정한다.
 //   - 배너는 만들지 않는다 — 두 모양이 되면 갈라진다. 대시보드와 설정이 이 컴포넌트를 같이 쓴다(variant).
 //   - 옛 이름은 components/Dashboard/OnboardingCard — 이름만 옮겼다.
+// 팀 적응 단계 (2026-10-09, docs/TEAM_ADOPTION_STAGES_DESIGN.md — Irene: "팀이 적응하는데 필요한 단계별 안내 …
+//   워크스페이스에도 적응단계 안내하면서 하나 하나 사용하게"). 서버가 `stages` 를 주면 «워크스페이스» 묶음 자리에
+//   다섯 단계를 그린다 — **지금 단계 하나만** 펼치고, 점을 누르면 다른 단계를 들여다본다(잠그지 않는다).
+//   지금 단계·완료는 서버가 core 줄로 정한다. 화면은 그 값을 그대로 쓴다(따로 세지 않는다).
 //
 // 원칙 셋:
 //   ① 체크는 **사용자가 하지 않는다.** 실제 데이터로 서버가 판정한다(services/onboarding.js).
@@ -29,7 +33,9 @@ import ActionButton from '../Common/ActionButton';
 
 interface Step { key: string; done: boolean }
 interface Group { scope: 'workspace' | 'me'; dismissed: boolean; done_count: number; total: number; steps: Step[] }
-interface OnboardingState { groups?: Group[] }
+interface StageStep { key: string; stage: number; core: boolean; done: boolean | null }
+interface Stages { current: number | null; stage_count: number; steps: StageStep[]; dismissed: boolean }
+interface OnboardingState { groups?: Group[]; stages?: Stages }
 
 type ActionKind = 'open' | 'connect' | 'turnOn' | 'installGuide';
 
@@ -55,6 +61,19 @@ const STEP_META: Record<string, { go?: string; act?: 'push' | 'wiki'; action: Ac
   // AI 앱 연결 — '내 외부 연동' 의 «연결된 AI 앱» 칸으로 보낸다(2026-10-04). 거기에 주소 복사 + ChatGPT·Claude 의
   //   연결 화면을 바로 여는 버튼 + 순서가 있다. 위키만 열면 사용자가 ChatGPT 메뉴를 직접 찾아야 했다(Irene 이 실제로 막혔다).
   connect_ai_app: { go: '/profile/integrations?focus=ai', action: 'connect', hasWiki: true },
+  // ── 팀 적응 단계 줄 (2026-10-09). 위키 글은 seed-wiki-content.js 에 실제로 있는 것만 hasWiki.
+  invite_team: { go: '/business/members', action: 'open', hasWiki: true },
+  request_task: { go: '/tasks', action: 'open', hasWiki: true },
+  project_task: { go: '/projects', action: 'open', hasWiki: true },
+  // «말로·AI 로 등록» — AI 로 업무추가 창을 바로 연다(`?ai=1`). 말로 추가(우측 아래)·ChatGPT 연결은 «왜» 줄과 사용법이 안내한다.
+  ai_task: { go: '/tasks?ai=1', action: 'open', hasWiki: true },
+  team_chat: { go: '/talk', action: 'open', hasWiki: true },
+  create_event: { go: '/calendar', action: 'open', hasWiki: true },
+  record_meeting: { go: '/notes', action: 'open', hasWiki: true },
+  upload_file: { go: '/files', action: 'open', hasWiki: true },
+  create_document: { go: '/docs', action: 'open', hasWiki: true },
+  client_chat: { go: '/talk', action: 'open', hasWiki: true },
+  issue_invoice: { go: '/bills', action: 'open', hasWiki: true },
 };
 
 const COLLAPSE_KEY = 'planq.onboarding.collapsed';
@@ -77,6 +96,8 @@ const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard
   const [state, setState] = useState<OnboardingState | null>(null);
   const [busy, setBusy] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
+  // 들여다보는 단계 — null 이면 서버가 정한 «지금 단계». 보는 사람의 편의라 저장하지 않는다.
+  const [picked, setPicked] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!businessId) { setState(null); return; }
@@ -106,7 +127,11 @@ const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dismissed: true, scope: 'all' }),
       });
-      if (r.ok) setState((s) => (s ? { ...s, groups: (s.groups || []).map((g) => ({ ...g, dismissed: true })) } : s));
+      if (r.ok) setState((s) => (s ? {
+        ...s,
+        groups: (s.groups || []).map((g) => ({ ...g, dismissed: true })),
+        stages: s.stages ? { ...s.stages, dismissed: true } : s.stages,
+      } : s));
     } finally { setBusy(false); }
   };
 
@@ -132,26 +157,71 @@ const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard
   //   InstallPromptBanner 가 PushPromptBanner 에게 양보할 때 쓰는 바로 그 플래그다.
   //   배너를 접으면(7일 안 보기) 이 줄이 다시 나온다 — 켜는 길이 사라지지는 않는다.
   const bannerUp = typeof document !== 'undefined' && document.body.dataset.pushPromptVisible === '1';
+  const stages = state.stages;
+  // 단계가 오면 «워크스페이스» 묶음(고객 초대 → 대화 → 업무 → 메일)은 단계가 대신한다 — 같은 줄을 두 번 시키지 않는다.
+  const showStages = !!stages && !stages.dismissed && stages.current !== null && stages.steps.length > 0;
   const groups = state.groups
+    .filter((g) => !(stages && g.scope === 'workspace'))
     .filter((g) => !g.dismissed)
     .map((g) => ({ ...g, steps: bannerUp ? g.steps.filter((s) => s.key !== 'enable_notifications') : g.steps }))
     // 다 한 묶음은 조용히 사라진다
     .filter((g) => g.steps.length > 0 && g.steps.some((s) => !s.done));
-  if (groups.length === 0) return null;
+  if (!showStages && groups.length === 0) return null;
+
+  // 단계 하나가 끝났나 = 그 단계의 core 줄이 모두 «안 끝남(false)» 이 아니다(null = 확인 못 함은 막지 않는다 — 서버와 같은 규칙).
+  const stageNos = stages ? Array.from({ length: stages.stage_count }, (_, i) => i + 1) : [];
+  const stageDone = (n: number) => !!stages && !stages.steps.some((s) => s.stage === n && s.core && s.done === false);
+  const viewStage = showStages ? (picked ?? (stages as Stages).current as number) : null;
+  const stageSteps = showStages ? (stages as Stages).steps.filter((s) => s.stage === viewStage) : [];
 
   const total = groups.reduce((n, g) => n + g.steps.length, 0);
   const done = groups.reduce((n, g) => n + g.steps.filter((s) => s.done).length, 0);
 
+  const renderStep = (key: string, isDone: boolean, optional = false) => {
+    const meta = STEP_META[key];
+    return (
+      <Item key={key} data-testid={`onboarding-step-${key}`} data-done={isDone ? '1' : '0'}>
+        <Mark $done={isDone} aria-hidden="true">{isDone ? '✓' : ''}</Mark>
+        <Texts>
+          <Label $done={isDone}>
+            {t(`onboarding.step.${key}.label`, key)}
+            {optional && <OptTag>{t('onboarding.optional', '선택')}</OptTag>}
+          </Label>
+          {!isDone && <Why>{t(`onboarding.step.${key}.why`, '')}</Why>}
+        </Texts>
+        {!isDone && meta && (
+          <Actions>
+            <ActionButton tone="secondary" size="sm" onClick={() => void runStep(key)}
+              data-testid={`onboarding-go-${key}`}>
+              {t(`onboarding.action.${meta.action}`, meta.action)}
+            </ActionButton>
+            {meta.hasWiki && (
+              <ActionButton tone="secondary" size="sm" onClick={() => openWiki(key)}
+                data-testid={`onboarding-wiki-${key}`}>
+                {t('onboarding.howto', '사용법')}
+              </ActionButton>
+            )}
+          </Actions>
+        )}
+      </Item>
+    );
+  };
+
   return (
     <Card
       role="region"
-      aria-label={t('onboarding.title', '업무 효율 높이기') as string}
+      aria-label={(showStages ? t('onboarding.stagesTitle', '팀 적응 단계') : t('onboarding.title', '업무 효율 높이기')) as string}
       data-testid="onboarding-checklist"
       data-variant={variant}
     >
       <Head>
-        <Title>{t('onboarding.title', '업무 효율 높이기')}</Title>
-        <Progress>{t('onboarding.progress', '{{done}}/{{total}}', { done, total })}</Progress>
+        <Title>{showStages ? t('onboarding.stagesTitle', '팀 적응 단계') : t('onboarding.title', '업무 효율 높이기')}</Title>
+        {/* 진행 수는 줄이 아니라 **단계** 수다 — 줄 합산(3/17)은 이미 쓰는 팀에게 낙담 숫자다(Fable 2026-10-09). */}
+        <Progress data-testid="onboarding-progress">
+          {showStages
+            ? t('onboarding.stageProgress', '{{done}}/{{total}}단계', { done: stageNos.filter(stageDone).length, total: stageNos.length })
+            : t('onboarding.progress', '{{done}}/{{total}}', { done, total })}
+        </Progress>
         <Spacer />
         <TextBtn type="button" onClick={toggleCollapsed} aria-expanded={!collapsed} data-testid="onboarding-collapse">
           {collapsed ? t('onboarding.expand', '펼치기') : t('onboarding.collapse', '접기')}
@@ -160,37 +230,44 @@ const OnboardingChecklist: React.FC<Props> = ({ businessId, variant = 'dashboard
           {t('onboarding.dismiss', '다시 보지 않기')}
         </TextBtn>
       </Head>
+      {!collapsed && showStages && viewStage !== null && (
+        <GroupBlock data-testid="onboarding-stages" data-current={String((stages as Stages).current)} data-view={String(viewStage)}>
+          <Dots role="tablist" aria-label={t('onboarding.stagesTitle', '팀 적응 단계') as string}>
+            {stageNos.map((n) => {
+              const isDone = stageDone(n);
+              const isCurrent = n === (stages as Stages).current;
+              return (
+                <Dot key={n} type="button" role="tab" aria-selected={n === viewStage}
+                  $view={n === viewStage} $done={isDone} $current={isCurrent}
+                  aria-label={t('onboarding.stageAria', '{{n}}단계 {{name}}', { n, name: t(`onboarding.stage.${n}.name`, '') }) as string}
+                  data-testid={`onboarding-stage-dot-${n}`}
+                  onClick={() => setPicked(n === (stages as Stages).current ? null : n)}>
+                  {isDone ? '✓' : n}
+                </Dot>
+              );
+            })}
+          </Dots>
+          {/* 선택 단계 이름은 보이는 글자로 — title 은 터치 기기에서 안 뜬다. */}
+          <StageHead>
+            <StageName data-testid="onboarding-stage-name">
+              {t('onboarding.stageLabel', '{{n}}단계 · {{name}}', { n: viewStage, name: t(`onboarding.stage.${viewStage}.name`, '') })}
+              {viewStage === (stages as Stages).current && <NowTag>{t('onboarding.now', '지금')}</NowTag>}
+            </StageName>
+            <TextBtn type="button" onClick={() => askCue(t('onboarding.stagesWikiQuery', '팀이 PlanQ 에 적응하는 5단계') as string, 'wiki')}
+              data-testid="onboarding-stages-guide">
+              {t('onboarding.stagesGuide', '단계 안내 글')}
+            </TextBtn>
+          </StageHead>
+          <StageWhy>{t(`onboarding.stage.${viewStage}.why`, '')}</StageWhy>
+          {stageSteps.map((s) => renderStep(s.key, s.done === true, !s.core))}
+        </GroupBlock>
+      )}
       {!collapsed && groups.map((g) => (
         <GroupBlock key={g.scope} data-testid={`onboarding-group-${g.scope}`}>
           <GroupLabel>
             {g.scope === 'workspace' ? t('onboarding.groupWorkspace', '워크스페이스') : t('onboarding.groupMe', '나')}
           </GroupLabel>
-          {g.steps.map((s) => {
-            const meta = STEP_META[s.key];
-            return (
-              <Item key={s.key} data-testid={`onboarding-step-${s.key}`} data-done={s.done ? '1' : '0'}>
-                <Mark $done={s.done} aria-hidden="true">{s.done ? '✓' : ''}</Mark>
-                <Texts>
-                  <Label $done={s.done}>{t(`onboarding.step.${s.key}.label`, s.key)}</Label>
-                  {!s.done && <Why>{t(`onboarding.step.${s.key}.why`, '')}</Why>}
-                </Texts>
-                {!s.done && meta && (
-                  <Actions>
-                    <ActionButton tone="secondary" size="sm" onClick={() => void runStep(s.key)}
-                      data-testid={`onboarding-go-${s.key}`}>
-                      {t(`onboarding.action.${meta.action}`, meta.action)}
-                    </ActionButton>
-                    {meta.hasWiki && (
-                      <ActionButton tone="secondary" size="sm" onClick={() => openWiki(s.key)}
-                        data-testid={`onboarding-wiki-${s.key}`}>
-                        {t('onboarding.howto', '사용법')}
-                      </ActionButton>
-                    )}
-                  </Actions>
-                )}
-              </Item>
-            );
-          })}
+          {g.steps.map((s) => renderStep(s.key, s.done))}
         </GroupBlock>
       ))}
     </Card>
@@ -251,6 +328,37 @@ const Actions = styled.div`
   flex-shrink: 0; display: flex; gap: 6px;
   ${mediaPhone} { margin-left: 28px; }
 `;
+const OptTag = styled.span`
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px; vertical-align: 1px;
+  background: #F1F5F9; color: #64748B; font-size: 0.625rem; font-weight: 700;
+  text-decoration: none; display: inline-block;
+`;
+// 단계 점 — 컨트롤이라 터치 높이를 지킨다(폰 40). 줄이 넘치면 가로로 흘린다(감기지 않게).
+const Dots = styled.div`
+  display: flex; gap: 6px; padding: 6px 0; overflow-x: auto; scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+`;
+const Dot = styled.button<{ $view: boolean; $done: boolean; $current: boolean }>`
+  flex-shrink: 0; width: ${CONTROL.sm}px; height: ${CONTROL.sm}px; border-radius: 999px;
+  ${mediaPhone} { width: 40px; height: 40px; }
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: inherit; font-size: 0.8125rem; font-weight: 700; cursor: pointer;
+  border: 1px solid ${(p) => (p.$view ? '#14B8A6' : p.$done ? '#99F6E4' : '#E2E8F0')};
+  background: ${(p) => (p.$done ? '#F0FDFA' : p.$view ? '#FFFFFF' : '#FFFFFF')};
+  color: ${(p) => (p.$done ? '#0F766E' : p.$view || p.$current ? '#0F172A' : '#94A3B8')};
+  box-shadow: ${(p) => (p.$view ? '0 0 0 2px rgba(20,184,166,0.25)' : 'none')};
+  &:focus-visible { outline: 2px solid rgba(15,118,110,0.5); outline-offset: 2px; }
+`;
+const StageHead = styled.div`display: flex; align-items: center; gap: 8px; border-top: 1px solid #F1F5F9; padding-top: 6px;`;
+const StageName = styled.h3`
+  margin: 0; flex: 1 1 auto; min-width: 0;
+  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
+`;
+const NowTag = styled.span`
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px; vertical-align: 1px;
+  background: #F0FDFA; color: #0F766E; font-size: 0.625rem; font-weight: 700; display: inline-block;
+`;
+const StageWhy = styled.p`margin: 0 0 4px; font-size: 0.75rem; color: #64748B; line-height: 1.5;`;
 const TextBtn = styled.button`
   flex-shrink: 0; height: ${CONTROL.sm}px; padding: 0 8px;
   border: none; background: transparent; color: #64748B;

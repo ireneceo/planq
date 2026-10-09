@@ -13,6 +13,11 @@
 
 ---
 
+## 2026-10-09 · 팀 적응 단계(대시보드 카드 · 도움말 · 랜딩 /start) (방 cdf8db0c) — **설계 VERDICT: PASS-WITH-CHANGES** (Fable 1회 · ④ 처음 동선 설계)
+- 설계 docs/TEAM_ADOPTION_STAGES_DESIGN.md. 반드시 바꿀 것 6건 전부 반영(같은 문서 §7): core/optional · 옛 닫기는 단계에 안 먹게(`STAGES_RELEASED_AT`) · created_via STRING 확인 · 할 수 없는 줄 숨김·술어 좁힘 · Q note L1 포함 내부 카운트 + 장애 시 null · 진행 «n/5».
+- 완성 검증은 자체(Fable 미검증 — UI·안내, 권한·돈·발송 불변): `--suite onboarding` 118검사 실패 0 · 양성 대조군(선택 줄 core 화 + 단계 숨김)에서 19건 뒤집힘 · 빌드 EXIT 0 · guard 65/66.
+- 비차단(미반영): 사람×워크스페이스 30초 캐시(질의 ~15개, dev 실측 29~225ms라 미도입).
+
 
 ## 2026-10-08 · #463 AI 업무 프로젝트 옮기기 `move_task_to_project` (방 dfbe4a9b) — **설계 READY → VERDICT: PASS** (Fable 2회)
 - 설계: 행동 계층 `task_actions.prepareMove/previewMove/moveToProject/afterMove` 한 벌 — 화면 PUT 의 project_id 분기도 같은 판정 · tasks:write 재사용(재연결 불필요) · MEDIUM 확인 2단계 · 미리보기에 «새로 보는/못 보게 되는 고객» · 외부 파트너 담당자·컨펌자 비참여면 거절(PUT 도) · 영역 비움 · 반복 원본이면 미완 회차 동반 · 닫힌 프로젝트로 넣기 거절/빼기 허용 · 떠난 방 신호.

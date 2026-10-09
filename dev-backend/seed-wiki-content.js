@@ -82,6 +82,7 @@ const BLOG_MAP = {
   'what-is-cue': 'insights',
   'insights-overview': 'insights',
   'client-vs-internal': 'insights',
+  'team-adoption-stages': 'insights',
   'agency-workflow': 'insights',
   'dev-agency-workflow': 'insights',
   'consulting-workflow': 'insights',
@@ -101,6 +102,62 @@ const DAY_MS = 86400000;
 //   [사용법] 을 눌러도 로그인 화면에 막힌다(디테일 페이지에서 실측: 비로그인 4곳 / 로그인 16곳). 새 글도 public 이 기본이다.
 const ARTICLES = [
   // ── 시작하기 ──
+  // 2026-10-09 — 팀 적응 5단계. 워크스페이스 «팀 적응 단계» 카드·랜딩 /start 와 **같은 다섯 단계**다
+  //   (정본 docs/TEAM_ADOPTION_STAGES_DESIGN.md — 단계를 바꾸면 세 곳을 같이 고친다).
+  { cat: 'getting-started', slug: 'team-adoption-stages', visibility: 'public', linked_route: '/dashboard', est: 5, published: '2026-10-09',
+    title: t('팀이 PlanQ 에 적응하는 5단계', '5 stages for your team to settle into PlanQ'),
+    summary: t('기능을 한꺼번에 켜지 말고 업무 → 소통 → 일정·회의 → 자료 → 고객 순서로 하나씩 습관으로', 'Don’t switch everything on at once — make one habit at a time: tasks → communication → meetings → files → clients'),
+    body: [
+      p('PlanQ 에는 대화·업무·일정·회의 기록·문서·파일·메일·청구가 다 들어 있습니다. 첫날 전부 쓰려고 하면 아무것도 습관이 되지 않습니다. 팀이 한 단계를 익숙하게 쓰게 되면 다음 단계로 넘어가세요. 대시보드 맨 위 «팀 적응 단계» 카드가 지금 단계와 해 볼 일을 알려 주고, 실제로 해 보면 저절로 체크됩니다.',
+        'PlanQ includes chat, tasks, calendar, meeting notes, documents, files, mail and billing. Try to use everything on day one and nothing becomes a habit. Move to the next stage once the team is comfortable with the current one. The “Team adoption stages” card at the top of your dashboard shows the current stage and what to try, and ticks itself off as you actually do it.'),
+
+      h('1단계 · 업무 공유와 요청 (첫 1~2주)', 'Stage 1 · Share and request tasks (first 1–2 weeks)'),
+      p('가장 효과가 큰 첫걸음입니다. 할 일을 말이나 메신저가 아니라 업무로 남기고, 서로에게 요청합니다. 누가 무엇을 언제까지 하는지 보이면 «그거 어떻게 됐어?» 가 줄어듭니다.',
+        'The step with the biggest payoff. Record work as tasks instead of in conversation or a messenger, and request work from each other. Once everyone can see who is doing what by when, “how is that going?” questions drop.'),
+      s('팀원을 초대합니다(소유자·관리자). — 사용법: «팀 멤버 초대하기»', 'Invite your teammates (owner/admin). — How-to: “Invite team members”'),
+      s('이번 주 내 할 일을 업무로 등록합니다. — 사용법: «업무 만들고 담당자 정하기»', 'Add this week’s work as tasks. — How-to: “Create a task and assign an owner”'),
+      s('동료에게 업무를 요청합니다. 담당자를 동료로 정하면 요청이 되고, 받은 사람의 «확인 필요» 에 뜹니다. 다 되면 확인 요청으로 돌려받습니다. — 사용법: «확인 요청(컨펌) 워크플로우»',
+        'Request work from a colleague. Setting a colleague as the assignee makes it a request, and it appears in their “Needs attention”. When it is done it comes back to you as a review request. — How-to: “Confirmation (review) workflow”'),
+      s('프로젝트를 만들고 업무를 그 안에 등록합니다. 업무·대화·파일이 프로젝트별로 모입니다. — 사용법: «프로젝트 만들고 정렬·그룹 보기»',
+        'Create a project and add tasks inside it, so tasks, chat and files gather per project. — How-to: “Create a project and sort/group the list”'),
+      s('말로 등록해 봅니다. Q task 의 [AI 로 업무추가] 에 하고 싶은 일을 문장으로 쓰면 업무로 나눠 주고, ChatGPT·Claude 를 연결하면 대화하듯 말해서 업무를 만들 수 있습니다. — 사용법: «ChatGPT·Claude 연결하기»',
+        'Try adding work by just saying it. Write what needs doing as a sentence in [Add tasks with AI] in Q task and it is split into tasks; connect ChatGPT or Claude and you can create tasks by talking to them. — How-to: “Connect ChatGPT or Claude”'),
+      note('이 단계의 규칙은 하나면 충분합니다 — «요청은 PlanQ 업무로». 메신저로 부탁받으면 «업무로 올려 줄래요?» 라고 답하세요.',
+        'One rule is enough for this stage — “requests go in as PlanQ tasks”. When someone asks in a messenger, reply “could you add it as a task?”.'),
+
+      h('2단계 · 대화와 메일로 소통 (2~3주차)', 'Stage 2 · Communicate in chat and mail (weeks 2–3)'),
+      p('업무 이야기를 개인 메신저가 아니라 업무 옆에서 합니다. 대화에서 나온 요청은 그 자리에서 업무가 되고, 메일도 같은 곳에서 봅니다.',
+        'Talk about work next to the work, not in a personal messenger. Requests that come up in chat become tasks right there, and mail is read in the same place.'),
+      s('팀 대화방에서 이야기합니다. 메시지에서 바로 업무를 만들 수 있습니다. — 사용법: «대화 시작하기», «대화에서 업무 자동 추출»',
+        'Talk in a team chat room. You can turn a message into a task directly. — How-to: “Start a conversation”, “Auto-extract tasks from chat”'),
+      s('회사 메일 계정을 연결합니다(소유자·관리자). 멤버는 연결된 메일함에서 답장이 필요한 메일을 확인합니다. — 사용법: «메일 계정 연결하기 (Gmail · IMAP)»',
+        'Connect the company mail account (owner/admin). Members then check mail that needs a reply in the connected inbox. — How-to: “Connect a mail account (Gmail · IMAP)”'),
+
+      h('3단계 · 일정과 회의 (3~4주차)', 'Stage 3 · Calendar and meetings (weeks 3–4)'),
+      p('회의가 기록과 업무로 끝나게 합니다.', 'Make every meeting end with notes and tasks.'),
+      s('일정을 만들고, 원하면 Google 캘린더를 연결합니다. — 사용법: «일정 만들고 시간 지정하기», «구글 캘린더·Meet 연동»',
+        'Create events, and connect Google Calendar if you like. — How-to: “Create an event and set the time”, “Google Calendar & Meet sync”'),
+      s('Q note 로 회의를 기록하거나 녹음 파일을 올립니다. 끝나면 요약과 업무 후보가 나옵니다. — 사용법: «회의 녹음과 요약», «회의록에서 할 일 뽑기»',
+        'Record a meeting in Q note or upload a recording. You get a summary and task suggestions at the end. — How-to: “Record and summarize a meeting”, “Pull action items out of a meeting note”'),
+
+      h('4단계 · 자료와 문서 (두 번째 달)', 'Stage 4 · Files and documents (second month)'),
+      p('«그 파일 어디 있지?» 를 없앱니다. 파일과 문서를 업무·프로젝트 옆에 둡니다.', 'End “where was that file?”. Keep files and documents next to tasks and projects.'),
+      s('파일을 올리거나 Google Drive 에서 가져옵니다. — 사용법: «파일 올리고 공유하기»', 'Upload files or import them from Google Drive. — How-to: “Upload and share files”'),
+      s('회의록·기획서·견적서 같은 문서를 Q docs 에서 씁니다. — 사용법: «견적·계약·제안서 작성»', 'Write documents such as minutes, plans and quotes in Q docs. — How-to: “Create quotes, contracts, proposals”'),
+
+      h('5단계 · 고객과 함께 (팀이 익숙해진 뒤)', 'Stage 5 · Work with clients (once the team is comfortable)'),
+      p('팀 안에서 굴러가는 흐름에 고객을 들입니다. 고객 요청·상담·청구가 같은 프로젝트에 붙습니다.',
+        'Bring clients into the flow your team already runs. Client requests, consultations and invoices attach to the same project.'),
+      s('고객을 초대합니다(소유자·관리자). 고객은 링크만 눌러 들어옵니다. — 사용법: «고객 초대하기»', 'Invite clients (owner/admin). Clients join by clicking a link. — How-to: “Invite a client”'),
+      s('고객 대화방에서 고객과 이야기합니다.', 'Talk with clients in a client chat room.'),
+      s('청구서를 만들어 보냅니다(소유자·관리자). — 사용법: «청구서 발행하기»', 'Create and send an invoice (owner/admin). — How-to: “Issue an invoice”'),
+
+      h('각자 한 번씩 할 설정', 'One-time setup for each person'),
+      p('알림 켜기 · 모바일 앱 설치 · 캘린더 연결 · AI 앱(ChatGPT·Claude) 연결은 단계와 상관없이 각자 한 번 해 두면 됩니다. 같은 카드의 «내 설정» 에 있습니다.',
+        'Turning on notifications, installing the mobile app, connecting your calendar and connecting an AI app (ChatGPT, Claude) are one-off setups each person does, whatever the stage. They are under “My setup” in the same card.'),
+      note('단계는 잠그지 않습니다. 이미 쓰고 있는 기능이 있으면 그 줄은 처음부터 체크되어 있고, 원하면 다른 단계를 먼저 해도 됩니다. 카드는 «다시 보지 않기» 로 닫을 수 있고, 다 끝나면 저절로 사라집니다.',
+        'Stages are never locked. Anything you already use starts ticked, and you can do another stage first if you want. Close the card with “Don’t show again”; it disappears by itself once everything is done.'),
+    ] },
   { cat: 'getting-started', slug: 'create-workspace', visibility: 'public', linked_route: null, est: 2,
     title: t('워크스페이스 만들기', 'Create a workspace'),
     summary: t('PlanQ 가입 후 첫 워크스페이스를 만드는 방법', 'How to create your first workspace after signing up for PlanQ'),

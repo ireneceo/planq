@@ -461,6 +461,12 @@ const QTaskPage:React.FC=()=>{
       : { assigneeId: tab === 'requested' ? null : (myId ?? null) });
     const next = new URLSearchParams(searchParams); next.delete('create'); setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams, tab, myId, location.state, openAddForm]);
+  // `/tasks?ai=1` — «AI 로 업무추가» 를 바로 연다(팀 적응 단계 «말로·AI 로 등록» 줄의 [열기], 2026-10-09).
+  useEffect(() => {
+    if (searchParams.get('ai') !== '1') return;
+    setAiOpen(true);
+    const next = new URLSearchParams(searchParams); next.delete('ai'); setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   const prefillAppliedRef = useRef(false);
   useEffect(() => {
     if (prefillAppliedRef.current) return;

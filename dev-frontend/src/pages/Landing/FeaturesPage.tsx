@@ -3,6 +3,7 @@
 // 그룹 1: Q 시리즈 (핵심 5) / 그룹 2: 워크스페이스 (4) / 그룹 3: AI·분석 (3) / 그룹 4: 기반 (4)
 import { useState } from 'react';
 import styled from 'styled-components';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { Container, SubHero, Eyebrow, Title, Sub, Anchors, Anchor, Group, GroupTag, GroupTitle, GroupDesc, SmallCard, SmallName, SmallLead, CtaBand, CtaTitle, CtaSub, CtaBtn } from '../../components/Landing/landingSections';
@@ -219,6 +220,8 @@ const FeaturesPage: React.FC = () => {
           <CtaTitle>{t('featuresPage.cta.title', '도구를 관리하지 말고 일을 하세요.')}</CtaTitle>
           <CtaSub>{t('featuresPage.cta.sub', '14일 무료 체험. 신용카드 필요 없습니다.')}</CtaSub>
           <CtaBtn to="/register">{t('featuresPage.cta.btn', '무료로 시작하기')}</CtaBtn>
+          {/* 기능이 많다는 걱정에 답하는 문 — 팀 적응 5단계(/start, 2026-10-09) */}
+          <StartGuideLink to="/start" data-testid="features-start-guide">{t('featuresPage.cta.startGuide')} →</StartGuideLink>
         </Container>
       </CtaBand>
     </LandingLayout>
@@ -228,6 +231,10 @@ const FeaturesPage: React.FC = () => {
 export default FeaturesPage;
 
 // ─── styled ───
+const StartGuideLink = styled(Link)`
+  font-size: 0.875rem; color: #5EEAD4; text-decoration: none;
+  &:hover { text-decoration: underline; }
+`;
 
 
 // Q Series block (큰)

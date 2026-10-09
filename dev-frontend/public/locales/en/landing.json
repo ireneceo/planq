@@ -11,7 +11,8 @@
     "toApp": "My workspace",
     "menu": "Menu",
     "service": "Services",
-    "app": "Get the app"
+    "app": "Get the app",
+    "start": "Getting started"
   },
   "hero": {
     "slogan": "WORK, JUST WORK",
@@ -538,7 +539,8 @@
     "cta": {
       "title": "Stop managing tools. Just work.",
       "sub": "14 days free. No credit card required.",
-      "btn": "Start free"
+      "btn": "Start free",
+      "startGuide": "Worried there’s too much? — 5 stages for teams getting started"
     }
   },
   "blogPage": {
@@ -1527,5 +1529,81 @@
   "coming": {
     "backToHome": "Home",
     "eyebrow": "Coming soon"
+  },
+  "startPage": {
+    "eyebrow": "GETTING STARTED",
+    "title": "5 stages for teams getting started",
+    "sub": "PlanQ includes tasks, chat, calendar, meeting notes, documents, files, mail and billing. Switch everything on at once and nothing becomes a habit. Move on once a stage has settled in.",
+    "ctaStart": "Start free",
+    "ctaApp": "Go to my workspace",
+    "ctaGuide": "Read the full guide",
+    "principles": {
+      "title": "Three principles for faster adoption",
+      "p0": {
+        "name": "One at a time",
+        "body": "Don’t introduce every feature. Pick one habit to change this week."
+      },
+      "p1": {
+        "name": "A one-line rule",
+        "body": "Something everyone remembers, like “requests go in as PlanQ tasks”, is enough."
+      },
+      "p2": {
+        "name": "Leaders go first",
+        "body": "When the team lead requests and answers in PlanQ, the team follows."
+      }
+    },
+    "stagesTitle": "The five stages",
+    "stagesSub": "The “Team adoption stages” card on your workspace dashboard shows the current stage and what to try, and ticks itself off as you actually do it.",
+    "stageNo": "Stage {{n}}",
+    "stages": {
+      "s1": {
+        "name": "Share and request tasks",
+        "period": "First 1–2 weeks",
+        "habit": "Record work as tasks instead of in conversation, and request work from each other. The step with the biggest payoff.",
+        "t0": "Invite your teammates",
+        "t1": "Add this week’s work as tasks",
+        "t2": "Request work from a colleague — it lands in their “Needs attention” and comes back to you as a review request",
+        "t3": "Create a project and keep tasks inside it",
+        "t4": "Add tasks by voice — write or say it and AI splits it into tasks; you can also create tasks from ChatGPT or Claude",
+        "tip": "Rule for this stage: “requests go in as PlanQ tasks”"
+      },
+      "s2": {
+        "name": "Communicate in chat and mail",
+        "period": "Weeks 2–3",
+        "habit": "Talk about work next to the work, not in a personal messenger.",
+        "t0": "Talk in a team chat room — turn messages into tasks directly",
+        "t1": "Connect company mail and see mail that needs a reply in the same place",
+        "tip": "Requests from chat become tasks on the spot"
+      },
+      "s3": {
+        "name": "Calendar and meetings",
+        "period": "Weeks 3–4",
+        "habit": "Make every meeting end with notes and tasks.",
+        "t0": "Create events, and connect Google Calendar if you like",
+        "t1": "Record meetings in Q note for a summary and task suggestions",
+        "tip": "Assign suggested tasks right after the meeting"
+      },
+      "s4": {
+        "name": "Files and documents",
+        "period": "Second month",
+        "habit": "End “where was that file?”.",
+        "t0": "Upload files or import them from Google Drive",
+        "t1": "Write minutes, plans and quotes in Q docs",
+        "tip": "Files live with tasks and projects, not in the messenger"
+      },
+      "s5": {
+        "name": "Work with clients",
+        "period": "Once the team is comfortable",
+        "habit": "Bring clients into the flow your team already runs.",
+        "t0": "Invite clients — they join by clicking a link",
+        "t1": "Take requests in client chat and turn them into tasks",
+        "t2": "Create invoices attached to the same project",
+        "tip": "Client commitments become tasks and events too"
+      }
+    },
+    "setupTitle": "One-time setup for each person",
+    "setupBody": "Turning on notifications, installing the mobile app, connecting your calendar and connecting an AI app (ChatGPT, Claude) are one-off setups each person does, whatever the stage.",
+    "closingTitle": "Start with stage 1",
+    "closingSub": "New accounts get a 14-day free trial."
   }
 }

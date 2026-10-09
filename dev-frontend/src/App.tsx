@@ -130,6 +130,7 @@ const SaleDetailPage = lazy(() => import('./pages/QSale/SaleDetailPage'));
 const LandingFeatures = lazy(() => import('./pages/Landing/FeaturesPage'));
 const LandingPricing = lazy(() => import('./pages/Landing/PricingPage'));
 const LandingDetails = lazy(() => import('./pages/Landing/DetailsPage'));
+const LandingStart = lazy(() => import('./pages/Landing/StartPage'));
 const EnglishRoute = lazy(() => import('./components/Landing/EnglishRoute'));
 const LandingService = lazy(() => import('./pages/Landing/ServicePage'));
 const LandingDiagnosis = lazy(() => import('./pages/Landing/DiagnosisPage'));
@@ -695,10 +696,13 @@ function ShellApp() {
         <Route path="/features" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingFeatures />} />
         <Route path="/pricing" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingPricing />} />
         <Route path="/details" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingDetails />} />
+        {/* 처음 시작하는 팀의 5단계 적응 안내 (2026-10-09, docs/TEAM_ADOPTION_STAGES_DESIGN.md) */}
+        <Route path="/start" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingStart />} />
         {/* 영어 공개 페이지 /en/… — 같은 화면을 언어만 en 으로(검색·AI 용 영어 HTML 은 seoArtifacts 가 만든다) */}
         <Route path="/en" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><RootRoute /></EnglishRoute>} />
         <Route path="/en/features" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingFeatures /></EnglishRoute>} />
         <Route path="/en/details" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingDetails /></EnglishRoute>} />
+        <Route path="/en/start" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingStart /></EnglishRoute>} />
         <Route path="/en/pricing" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingPricing /></EnglishRoute>} />
         <Route path="/en/service" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingService /></EnglishRoute>} />
         <Route path="/en/service/diagnosis" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingDiagnosis /></EnglishRoute>} />

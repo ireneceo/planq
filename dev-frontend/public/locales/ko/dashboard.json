@@ -233,17 +233,102 @@
         "label": "AI 앱 연결(ChatGPT·Claude)",
         "why": "대화로 업무·메일·일정을 조회하고 기록합니다",
         "wikiQuery": "ChatGPT·Claude 연결하기"
+      },
+      "invite_team": {
+        "label": "팀원 초대하기",
+        "why": "함께 일할 사람이 있어야 요청이 오갑니다",
+        "wikiQuery": "팀 멤버 초대하기"
+      },
+      "request_task": {
+        "label": "동료에게 업무 요청하기",
+        "why": "담당자를 동료로 정하면 그 사람의 «확인 필요» 에 뜹니다(받은 요청을 확인해도 됩니다)",
+        "wikiQuery": "확인 요청(컨펌) 워크플로우"
+      },
+      "project_task": {
+        "label": "프로젝트에 연결해 등록",
+        "why": "업무·대화·파일이 프로젝트별로 모입니다",
+        "wikiQuery": "프로젝트 만들고 정렬·그룹 보기"
+      },
+      "ai_task": {
+        "label": "말로·AI 로 업무 등록",
+        "why": "문장으로 쓰거나 말하면(우측 아래 «말로 추가») 업무가 됩니다. ChatGPT·Claude 를 연결하면 대화로도 됩니다",
+        "wikiQuery": "ChatGPT·Claude 연결하기"
+      },
+      "team_chat": {
+        "label": "팀 대화방에서 이야기하기",
+        "why": "메시지에서 바로 업무를 만들 수 있습니다",
+        "wikiQuery": "대화 시작하기"
+      },
+      "create_event": {
+        "label": "일정 만들기",
+        "why": "회의·마감이 팀 캘린더에 같이 보입니다",
+        "wikiQuery": "일정 만들고 시간 지정하기"
+      },
+      "record_meeting": {
+        "label": "Q note 로 회의 기록하기",
+        "why": "녹음하거나 파일을 올리면 요약과 업무 후보가 나옵니다",
+        "wikiQuery": "회의 녹음과 요약"
+      },
+      "upload_file": {
+        "label": "파일 올리기",
+        "why": "업무·프로젝트 옆에 두면 다시 찾지 않아도 됩니다",
+        "wikiQuery": "파일 올리고 공유하기"
+      },
+      "create_document": {
+        "label": "문서 쓰기",
+        "why": "회의록·기획서·견적서를 같은 곳에서 씁니다",
+        "wikiQuery": "견적·계약·제안서 작성"
+      },
+      "client_chat": {
+        "label": "고객 대화방에서 이야기하기",
+        "why": "고객 요청이 바로 업무로 이어집니다",
+        "wikiQuery": "대화 시작하기"
+      },
+      "issue_invoice": {
+        "label": "청구서 만들기",
+        "why": "한 일과 청구가 같은 프로젝트에 붙습니다",
+        "wikiQuery": "청구서 발행하기"
       }
     },
     "collapse": "접기",
     "expand": "펼치기",
     "groupWorkspace": "워크스페이스",
-    "groupMe": "나",
+    "groupMe": "내 설정 (각자 한 번)",
     "action": {
       "open": "열기",
       "connect": "연결",
       "turnOn": "켜기",
       "installGuide": "설치 안내"
+    },
+    "stagesTitle": "팀 적응 단계",
+    "stageProgress": "{{done}}/{{total}}단계",
+    "stageAria": "{{n}}단계 {{name}}",
+    "stageLabel": "{{n}}단계 · {{name}}",
+    "now": "지금",
+    "optional": "선택",
+    "stagesGuide": "단계 안내 글",
+    "stagesWikiQuery": "팀이 PlanQ 에 적응하는 5단계",
+    "stage": {
+      "1": {
+        "name": "업무 공유와 요청",
+        "why": "할 일을 말 대신 업무로 남기고 서로 요청합니다. 누가 무엇을 언제까지 하는지 보이면 «그거 어떻게 됐어?» 가 줄어듭니다."
+      },
+      "2": {
+        "name": "대화와 메일로 소통",
+        "why": "업무 이야기를 개인 메신저가 아니라 업무 옆에서 합니다. 대화에서 나온 요청은 그 자리에서 업무가 됩니다."
+      },
+      "3": {
+        "name": "일정과 회의",
+        "why": "회의가 기록과 업무로 끝나게 합니다."
+      },
+      "4": {
+        "name": "자료와 문서",
+        "why": "«그 파일 어디 있지?» 를 없앱니다. 파일과 문서를 업무·프로젝트 옆에 둡니다."
+      },
+      "5": {
+        "name": "고객과 함께",
+        "why": "팀 안에서 굴러가는 흐름에 고객을 들입니다. 고객 요청·청구가 같은 프로젝트에 붙습니다."
+      }
     }
   }
 }

@@ -28,7 +28,10 @@ const VPS = [
   { key: '데스크탑 1440', vp: { width: 1440, height: 900 }, touch: false, phone: false },
 ];
 // connect_ai_app: 2026-10-04 부터 [연결](내 외부 연동 «연결된 AI 앱» 칸) + [사용법](connect-chatgpt-claude) 둘 다
-const WIKI_STEPS = new Set(['invite_client', 'start_conversation', 'create_task', 'connect_mail', 'connect_calendar', 'connect_ai_app']);
+// 팀 적응 단계 줄(2026-10-09)은 전부 위키 글이 있다(OnboardingChecklist STEP_META hasWiki).
+const WIKI_STEPS = new Set(['invite_client', 'start_conversation', 'create_task', 'connect_mail', 'connect_calendar', 'connect_ai_app',
+  'invite_team', 'request_task', 'project_task', 'ai_task', 'team_chat', 'create_event', 'record_meeting', 'upload_file',
+  'create_document', 'client_chat', 'issue_invoice']);
 const PASSWORD = 'Onboarding2026!';
 
 async function api(token, method, path, body) {
@@ -45,12 +48,15 @@ async function login(email) {
   if (!j?.data?.token) throw new Error('login failed ' + email + ' ' + r.status);
   return j.data.token;
 }
+const stageStep = (state, key) => state?.stages?.steps?.find((s) => s.key === key);
 const stepDone = (state, scope, key) => state?.groups?.find((g) => g.scope === scope)?.steps.find((s) => s.key === key)?.done;
+
+const fs = require('fs');
 
 async function run() {
   const results = [];
   const push = (name, ok, msg, extra = {}) => results.push({ name, fail: ok ? 0 : 1, details: [String(msg ?? '')], ...extra });
-  const made = { users: [], biz: null, members: [], clients: [], mail: [], conns: [], push: [], rts: [], grants: [] };
+  const made = { users: [], biz: null, members: [], clients: [], mail: [], conns: [], push: [], rts: [], grants: [], tasks: [], convs: [], perms: [] };
   let browser = null;
   try {
     // ── 픽스처: 새 워크스페이스 + owner·member·client ──
@@ -196,12 +202,98 @@ async function run() {
     push('③ 옛 번들(scope 없음) → 워크스페이스 묶음만 닫힘 · 최상위 dismissed true',
       r.status === 200 && so.dismissed === true && so.groups.find((x) => x.scope === 'workspace').dismissed && !so.groups.find((x) => x.scope === 'me').dismissed,
       JSON.stringify({ top: so.dismissed, g: so.groups.map((x) => [x.scope, x.dismissed]) }));
+    // ── ⑧ 팀 적응 단계 (2026-10-09, docs/TEAM_ADOPTION_STAGES_DESIGN.md) ──
+    {
+      await api(tOwner, 'PUT', D, { dismissed: false, scope: 'all' });
+      await api(tMember, 'PUT', D, { dismissed: false, scope: 'all' });
+      let o = await get(tOwner); let m = await get(tMember);
+      const keysO = (o?.stages?.steps || []).map((x) => x.key);
+      const keysM = (m?.stages?.steps || []).map((x) => x.key);
+      const OWNER_ONLY = ['invite_team', 'invite_client', 'issue_invoice'];
+      push('⑧ 단계 모양 — owner 14줄 · member 는 owner 전용 3줄 없음 · 5단계 · 둘 다 1단계부터',
+        keysO.length === 14 && OWNER_ONLY.every((k) => keysO.includes(k) && !keysM.includes(k)) && keysM.length === 11
+          && o.stages.stage_count === 5 && o.stages.current === 1 && m.stages.current === 1 && o.stages.dismissed === false,
+        JSON.stringify({ o: keysO, m: keysM, cur: [o?.stages?.current, m?.stages?.current] }));
+      push('⑧ invite_team — 사람 멤버가 있으니 owner done(Cue AI 멤버는 세지 않는다)', stageStep(o, 'invite_team')?.done === true, JSON.stringify(stageStep(o, 'invite_team')));
+      push('⑧ 선택 줄 — project_task·ai_task 는 core 아님 · 멤버 메일·고객대화도 선택 · owner 메일은 core',
+        stageStep(o, 'project_task')?.core === false && stageStep(o, 'ai_task')?.core === false && stageStep(m, 'connect_mail')?.core === false
+          && stageStep(m, 'client_chat')?.core === false && stageStep(o, 'connect_mail')?.core === true,
+        JSON.stringify([stageStep(o, 'project_task'), stageStep(m, 'connect_mail'), stageStep(o, 'connect_mail')]));
+      // 업무 요청 — owner 가 member 에게(요청 = 담당자가 사람 동료). member 는 받은 요청을 확인해야 켜진다.
+      const t1 = await M.Task.create({ business_id: biz.id, title: 'onb 요청', created_by: owner.id, assignee_id: member.id, request_by_user_id: owner.id });
+      made.tasks.push(t1.id);
+      o = await get(tOwner); m = await get(tMember);
+      push('⑧ request_task 양성 — owner 가 동료에게 맡김 → owner true · 확인 전 member false',
+        stageStep(o, 'request_task')?.done === true && stageStep(m, 'request_task')?.done === false && stageStep(o, 'create_task')?.done === true,
+        JSON.stringify({ o: stageStep(o, 'request_task'), m: stageStep(m, 'request_task') }));
+      push('⑧ 선택 줄은 단계를 막지 않는다 — 1단계 core 끝 → owner current 2 (project_task·ai_task 는 false 인 채)',
+        o.stages.current === 2 && stageStep(o, 'project_task')?.done === false && stageStep(o, 'ai_task')?.done === false,
+        JSON.stringify({ cur: o.stages.current }));
+      await M.Task.update({ request_ack_at: new Date() }, { where: { id: t1.id } });
+      m = await get(tMember);
+      push('⑧ request_task — 받은 요청을 확인(ack)하면 member 도 true', stageStep(m, 'request_task')?.done === true, JSON.stringify(stageStep(m, 'request_task')));
+      // 남에게 맡긴 것이 Cue(AI 멤버)면 요청이 아니다 — 음성 대조군
+      const aiU = await mkUser('ai');
+      const aiM = await M.BusinessMember.create({ business_id: biz.id, user_id: aiU.id, role: 'ai', joined_at: new Date() });
+      made.members.push(aiM.id);
+      const t2 = await M.Task.create({ business_id: biz.id, title: 'onb ai', created_by: member.id, assignee_id: aiU.id });
+      made.tasks.push(t2.id);
+      m = await get(tMember);
+      // member 의 request_task 는 이미 ack 로 true — t1 ack 를 되돌려 AI 담당만 남긴다
+      await M.Task.update({ request_ack_at: null }, { where: { id: t1.id } });
+      m = await get(tMember);
+      push('⑧ request_task 음성 — AI 멤버에게 맡긴 것은 요청이 아니다', stageStep(m, 'request_task')?.done === false, JSON.stringify(stageStep(m, 'request_task')));
+      // 팀 대화 vs 고객 대화 — 같은 메시지 모양, 방만 다르다
+      const cTeam = await M.Conversation.create({ business_id: biz.id, title: 'onb team', channel_type: 'internal' });
+      const cCli = await M.Conversation.create({ business_id: biz.id, title: 'onb client', client_id: cl.id, channel_type: 'customer' });
+      made.convs.push(cTeam.id, cCli.id);
+      await M.Message.create({ conversation_id: cCli.id, sender_id: owner.id, content: 'onb', kind: 'text' });
+      o = await get(tOwner);
+      push('⑧ 고객 대화방 메시지 → client_chat true · team_chat false(음성)',
+        stageStep(o, 'client_chat')?.done === true && stageStep(o, 'team_chat')?.done === false,
+        JSON.stringify([stageStep(o, 'client_chat'), stageStep(o, 'team_chat')]));
+      await M.Message.create({ conversation_id: cTeam.id, sender_id: owner.id, content: 'onb', kind: 'text' });
+      o = await get(tOwner);
+      push('⑧ 팀 대화방 메시지 → team_chat true', stageStep(o, 'team_chat')?.done === true, JSON.stringify(stageStep(o, 'team_chat')));
+      // 메뉴 권한 none 이면 그 줄을 보여주지 않는다(누르면 403 으로 가는 줄을 두지 않는다)
+      const perm = await M.BusinessMemberPermission.create({ business_id: biz.id, user_id: member.id, menu_key: 'qmail', level: 'none' });
+      made.perms.push(perm.id);
+      m = await get(tMember);
+      push('⑧ 메뉴 권한 none(qmail) → member 에게 connect_mail 줄 없음', !stageStep(m, 'connect_mail'), JSON.stringify((m?.stages?.steps || []).map((x) => x.key)));
+      await M.BusinessMemberPermission.destroy({ where: { id: perm.id } });
+      made.perms = [];
+      // 닫기 — 단계가 나오기 전(옛 카드)에 닫은 것은 단계에 먹지 않는다 · 지금 닫으면 단계도 닫힌다
+      await M.BusinessMember.update({ onboarding_dismissed_at: new Date('2026-10-01T00:00:00Z') }, { where: { business_id: biz.id, user_id: member.id } });
+      m = await get(tMember);
+      push('⑧ 옛 닫기(단계 출시 전) → 단계는 보임 · «내 설정» 은 닫힌 채',
+        m.stages.dismissed === false && m.groups.find((x) => x.scope === 'me').dismissed === true,
+        JSON.stringify({ st: m.stages.dismissed, me: m.groups.find((x) => x.scope === 'me').dismissed }));
+      await api(tMember, 'PUT', D, { dismissed: true, scope: 'all' });
+      m = await get(tMember);
+      push('⑧ 지금 닫기(all) → 단계도 닫힘', m.stages.dismissed === true, JSON.stringify(m.stages.dismissed));
+      // 세 표면이 같은 다섯 단계인가 — 서버 단계 수 · 대시보드 stage.1~5 · 랜딩 startPage.stages s1~s5 (ko/en)
+      for (const lang of ['ko', 'en']) {
+        const dash = JSON.parse(fs.readFileSync(`/opt/planq/dev-frontend/public/locales/${lang}/dashboard.json`, 'utf8')).onboarding;
+        const land = JSON.parse(fs.readFileSync(`/opt/planq/dev-frontend/public/locales/${lang}/landing.json`, 'utf8')).startPage;
+        const dk = Object.keys(dash.stage || {}).join(',');
+        const lk = Object.keys(land.stages || {}).join(',');
+        const names = [1, 2, 3, 4, 5].every((n) => dash.stage[n]?.name && dash.stage[n].name === land.stages[`s${n}`]?.name);
+        const labels = (o.stages.steps || []).every((x) => dash.step[x.key]?.label && dash.step[x.key]?.why);
+        push(`⑧ ${lang} — 단계 키·이름이 카드와 랜딩에서 같다 · 서버 줄마다 문구 있음`,
+          dk === '1,2,3,4,5' && lk === 's1,s2,s3,s4,s5' && names && labels && o.stages.stage_count === 5, JSON.stringify({ dk, lk, names, labels }));
+      }
+      // 화면 검사는 깨끗한 기준으로 — 만든 행을 지우고 닫기 원복
+      await M.Message.destroy({ where: { conversation_id: made.convs } });
+      await M.Conversation.destroy({ where: { id: made.convs } }); made.convs = [];
+      await sequelize.query('DELETE FROM task_status_history WHERE task_id IN (?)', { replacements: [made.tasks] }).catch(() => {});
+      await M.Task.destroy({ where: { id: made.tasks }, force: true }); made.tasks = [];
+    }
+
     // 화면 검사를 위해 원복
     await api(tOwner, 'PUT', D, { dismissed: false, scope: 'all' });
     await api(tMember, 'PUT', D, { dismissed: false, scope: 'all' });
 
     // 위키 검색어가 실제 글에 닿는가 (사용법 버튼이 가리키는 곳)
-    const fs = require('fs');
     for (const lang of ['ko', 'en']) {
       const dict = JSON.parse(fs.readFileSync(`/opt/planq/dev-frontend/public/locales/${lang}/dashboard.json`, 'utf8')).onboarding.step;
       const want = { connect_mail: 'connect-mail', connect_calendar: 'google-calendar-meet', connect_ai_app: 'connect-chatgpt-claude' };
@@ -245,7 +337,12 @@ async function run() {
       const before = parent ? [...parent.children].slice(0, [...parent.children].indexOf(el)).filter((c) => c.getBoundingClientRect().height > 0) : [];
       return { found: true, vis: !!hit && el.contains(hit), w: Math.round(r.width), variant: el.dataset.variant,
         groups: [...el.querySelectorAll('[data-testid^="onboarding-group-"]')].map((x) => x.dataset.testid.replace('onboarding-group-', '')),
-        rows, beforeCount: before.length, bannerUp: document.body.dataset.pushPromptVisible === '1' };
+        rows, beforeCount: before.length, bannerUp: document.body.dataset.pushPromptVisible === '1',
+        stages: (() => { const s = el.querySelector('[data-testid="onboarding-stages"]'); if (!s) return null;
+          const nm = s.querySelector('[data-testid="onboarding-stage-name"]'); const nr = nm && nm.getBoundingClientRect();
+          const hitN = nr && document.elementFromPoint(nr.left + 4, nr.top + nr.height / 2);
+          return { current: s.dataset.current, view: s.dataset.view, dots: s.querySelectorAll('[data-testid^="onboarding-stage-dot-"]').length,
+            nameVis: !!hitN && nm.contains(hitN), progress: (el.querySelector('[data-testid="onboarding-progress"]') || {}).textContent }; })() };
     }, SEL(variant));
     const judgeRows = (v, info, label) => {
       const undone = info.rows.filter((x) => !x.done);
@@ -274,12 +371,28 @@ async function run() {
           for (const [path, variant] of [['/dashboard', 'dashboard'], ['/business/settings', 'settings']]) {
             await openCard(page, path, variant);
             const info = await cardInfo(page, variant);
-            const expectGroups = who.label === 'owner' ? 'workspace,me' : 'me';
+            // 2026-10-09 — «워크스페이스» 묶음 자리는 팀 적응 단계가 대신한다(둘 다 같은 줄을 시키므로).
+            const expectGroups = 'me';
             push(`${v.key} · ${who.label} · ${variant} ④ 카드 보임(elementFromPoint) · 같은 컴포넌트 · 최상단`,
               info.found && info.vis && info.variant === variant && (variant === 'dashboard' || info.beforeCount === 0),
               JSON.stringify({ found: info.found, vis: info.vis, variant: info.variant, before: info.beforeCount }));
-            push(`${v.key} · ${who.label} · ${variant} ⑥ 묶음 = ${expectGroups}`, (info.groups || []).join(',') === expectGroups, JSON.stringify(info.groups));
+            push(`${v.key} · ${who.label} · ${variant} ⑥ 묶음 = 단계 + ${expectGroups}`, (info.groups || []).join(',') === expectGroups && info.stages && info.stages.view === info.stages.current, JSON.stringify({ g: info.groups, st: info.stages }));
             if (info.found) judgeRows(v, info, `${who.label}·${variant}`);
+            // ⑨ 단계 점 — 다른 단계를 누르면 그 단계를 들여다보고(보이는 이름), 지금 단계를 다시 누르면 돌아온다 · 진행 수는 «n/5»
+            if (variant === 'dashboard' && info.stages) {
+              const sel = SEL(variant);
+              const other = info.stages.current === '1' ? 2 : 1;
+              await page.click(`${sel} [data-testid="onboarding-stage-dot-${other}"]`);
+              await sleep(250);
+              const peek = await cardInfo(page, variant);
+              await page.click(`${sel} [data-testid="onboarding-stage-dot-${info.stages.current}"]`);
+              await sleep(250);
+              const back = await cardInfo(page, variant);
+              push(`${v.key} · ${who.label} ⑨ 점 ${other} → 그 단계(이름 보임) · 지금 단계로 복귀 · 점 5개 · 진행 «n/5»`,
+                peek.stages?.view === String(other) && peek.stages?.nameVis && back.stages?.view === info.stages.current
+                  && info.stages.dots === 5 && /\/5/.test(info.stages.progress || ''),
+                JSON.stringify({ peek: peek.stages, back: back.stages?.view, prog: info.stages.progress }));
+            }
           }
           // ⑦ 접기 유지 (owner 만 · 설정 화면)
           if (who.label === 'owner') {
@@ -294,7 +407,7 @@ async function run() {
             await page.click(`${sset} [data-testid="onboarding-collapse"]`);
             await sleep(300);
             const again = await cardInfo(page, 'settings');
-            push(`${v.key} · ⑦ 펼치기 → 묶음 다시 보임`, (again.groups || []).length === 2, JSON.stringify(again.groups));
+            push(`${v.key} · ⑦ 펼치기 → 단계·«내 설정» 다시 보임`, (again.groups || []).length === 1 && !!again.stages, JSON.stringify({ g: again.groups, st: !!again.stages }));
             if (v.key === '데스크탑 1440') {
               await page.click(`${sset} [data-testid="onboarding-dismiss"]`);
               await sleep(800);
@@ -314,11 +427,45 @@ async function run() {
         } finally { await page.close().catch(() => {}); await ctx.close().catch(() => {}); }
       }
     }
+    // ── ⑩ 랜딩 /start — 비로그인 3폭: 다섯 단계 행이 보이고 가로로 넘치지 않는다 ──
+    for (const v of VPS) {
+      const ctx = await browser.createBrowserContext();
+      const page = await ctx.newPage();
+      try {
+        await page.setViewport(v.vp);
+        if (v.touch) await page.setUserAgent(UA);
+        await page.goto(b.BASE + '/start', { waitUntil: 'domcontentloaded' });
+        for (let i = 0; i < 20; i++) { await sleep(500); if (await page.$('[data-testid="start-stage-5"]')) break; }
+        await sleep(500);
+        const r = await page.evaluate(async () => {
+          const out = [];
+          for (let n = 1; n <= 5; n++) {
+            const el = document.querySelector(`[data-testid="start-stage-${n}"]`);
+            if (!el) { out.push({ n, found: false }); continue; }
+            el.scrollIntoView({ block: 'center' });
+            await new Promise((ok) => setTimeout(ok, 120));
+            const rr = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(rr.left + 30, rr.top + 30);
+            out.push({ n, found: true, vis: !!hit && el.contains(hit), text: (el.textContent || '').length });
+          }
+          return { rows: out, overflow: document.documentElement.scrollWidth - window.innerWidth, h1: (document.querySelector('h1') || {}).textContent };
+        });
+        push(`${v.key} · ⑩ 랜딩 /start 다섯 단계 보임 · 가로 넘침 없음`,
+          r.rows.every((x) => x.found && x.vis && x.text > 40) && r.overflow <= 0 && !!r.h1, JSON.stringify(r));
+      } catch (e) {
+        push(`${v.key} · ⑩ 랜딩 오류`, false, e.message.slice(0, 200));
+      } finally { await page.close().catch(() => {}); await ctx.close().catch(() => {}); }
+    }
   } catch (e) {
     push('오류', false, e.message.slice(0, 300));
   } finally {
     if (browser) await browser.close().catch(() => {});
     const del = (model, ids) => (ids.length ? model.destroy({ where: { id: ids }, force: true }).catch((e) => console.warn('cleanup', e.message)) : null);
+    if (made.convs.length) await M.Message.destroy({ where: { conversation_id: made.convs } }).catch(() => {});
+    await del(M.Conversation, made.convs);
+    if (made.tasks.length) await sequelize.query('DELETE FROM task_status_history WHERE task_id IN (?)', { replacements: [made.tasks] }).catch(() => {});
+    await del(M.Task, made.tasks);
+    await del(M.BusinessMemberPermission, made.perms);
     await del(M.AgentGrant, made.grants);
     await del(M.RefreshToken, made.rts);
     await del(M.PushSubscription, made.push);
@@ -336,4 +483,4 @@ async function run() {
   return results;
 }
 
-module.exports = { name: '시작 안내 체크리스트 (M3-d) — 묶음·자격·단계 양성/음성·사람별 닫기 · 대시보드/설정 3폭', run };
+module.exports = { name: '시작 안내 체크리스트 (M3-d) + 팀 적응 단계 — 묶음·자격·단계 양성/음성·사람별 닫기 · 대시보드/설정 3폭 · 랜딩 /start', run };

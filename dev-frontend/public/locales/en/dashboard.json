@@ -233,17 +233,102 @@
         "label": "Connect an AI app (ChatGPT, Claude)",
         "why": "Look things up and leave records by chatting",
         "wikiQuery": "Connect ChatGPT or Claude"
+      },
+      "invite_team": {
+        "label": "Invite teammates",
+        "why": "Requests need someone to go to",
+        "wikiQuery": "Invite team members"
+      },
+      "request_task": {
+        "label": "Request work from a colleague",
+        "why": "Set a colleague as assignee and it lands in their “Needs attention” (accepting a request counts too)",
+        "wikiQuery": "Confirmation (review) workflow"
+      },
+      "project_task": {
+        "label": "Add a task inside a project",
+        "why": "Tasks, chat and files gather per project",
+        "wikiQuery": "Create a project and sort/group the list"
+      },
+      "ai_task": {
+        "label": "Add tasks by voice or AI",
+        "why": "Write or say it (“Add by voice” at the bottom right) and it becomes tasks. Connect ChatGPT or Claude to do it in a conversation",
+        "wikiQuery": "Connect ChatGPT or Claude"
+      },
+      "team_chat": {
+        "label": "Talk in a team chat",
+        "why": "Turn any message into a task",
+        "wikiQuery": "Start a conversation"
+      },
+      "create_event": {
+        "label": "Create an event",
+        "why": "Meetings and deadlines show on the team calendar",
+        "wikiQuery": "Create an event and set the time"
+      },
+      "record_meeting": {
+        "label": "Record a meeting in Q note",
+        "why": "Record or upload and get a summary plus task suggestions",
+        "wikiQuery": "Record and summarize a meeting"
+      },
+      "upload_file": {
+        "label": "Upload a file",
+        "why": "Keep it next to the work so nobody has to hunt for it",
+        "wikiQuery": "Upload and share files"
+      },
+      "create_document": {
+        "label": "Write a document",
+        "why": "Minutes, plans and quotes in the same place",
+        "wikiQuery": "Create quotes, contracts, proposals"
+      },
+      "client_chat": {
+        "label": "Talk in a client chat",
+        "why": "Client requests turn straight into tasks",
+        "wikiQuery": "Start a conversation"
+      },
+      "issue_invoice": {
+        "label": "Create an invoice",
+        "why": "Work and billing attach to the same project",
+        "wikiQuery": "Issue an invoice"
       }
     },
     "collapse": "Collapse",
     "expand": "Expand",
     "groupWorkspace": "Workspace",
-    "groupMe": "Me",
+    "groupMe": "My setup (once each)",
     "action": {
       "open": "Open",
       "connect": "Connect",
       "turnOn": "Turn on",
       "installGuide": "Install guide"
+    },
+    "stagesTitle": "Team adoption stages",
+    "stageProgress": "{{done}}/{{total}} stages",
+    "stageAria": "Stage {{n}} {{name}}",
+    "stageLabel": "Stage {{n}} · {{name}}",
+    "now": "Now",
+    "optional": "Optional",
+    "stagesGuide": "Stage guide",
+    "stagesWikiQuery": "5 stages for your team to settle into PlanQ",
+    "stage": {
+      "1": {
+        "name": "Share and request tasks",
+        "why": "Record work as tasks instead of in conversation, and request work from each other. When everyone sees who does what by when, “how is that going?” drops."
+      },
+      "2": {
+        "name": "Communicate in chat and mail",
+        "why": "Talk about work next to the work, not in a personal messenger. Requests from chat become tasks right there."
+      },
+      "3": {
+        "name": "Calendar and meetings",
+        "why": "Make every meeting end with notes and tasks."
+      },
+      "4": {
+        "name": "Files and documents",
+        "why": "End “where was that file?”. Keep files and documents next to tasks and projects."
+      },
+      "5": {
+        "name": "Work with clients",
+        "why": "Bring clients into the flow your team already runs. Client requests and invoices attach to the same project."
+      }
     }
   }
 }

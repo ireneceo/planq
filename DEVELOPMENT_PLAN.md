@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-09 ([Opus] Opus 5.5) — 10/08~09 dev 작업 묶음(운영 미배포): 관리자 «확인 필요» 메뉴·배지·알림 · 관리자 입금 확인 링크가 그 구독 행으로 · 워크스페이스 전환 경합 · 서명 창 한 자리 · Q docs AI로 수정 · 편집기 찾기·바꾸기 · 공휴일·가동률 Fable 수정 · #463 AI 업무 옮기기 · #464 영수증 · 돈 정합 0-A/0-B.
+> **최종 업데이트:** 2026-10-09 저녁 ([Opus] Opus 5.5, 방 cdf8db0c) — 팀 적응 5단계: 대시보드 «팀 적응 단계» 카드 · 도움말 글 · 랜딩 /start (운영 미배포). Fable 설계 PASS-WITH-CHANGES 반영, 완성 검증은 자체.
+> ── 이전(2026-10-09) ──
+> 2026-10-09 ([Opus] Opus 5.5) — 10/08~09 dev 작업 묶음(운영 미배포): 관리자 «확인 필요» 메뉴·배지·알림 · 관리자 입금 확인 링크가 그 구독 행으로 · 워크스페이스 전환 경합 · 서명 창 한 자리 · Q docs AI로 수정 · 편집기 찾기·바꾸기 · 공휴일·가동률 Fable 수정 · #463 AI 업무 옮기기 · #464 영수증 · 돈 정합 0-A/0-B.
 > ── 이전(2026-10-07) ──
 > 2026-10-07 ([Opus] Opus 5.5) — **운영 배포 4회(5f60f869 · ea395da3 · 8404f0ff · dab6c857)** · 서명 흐름(문서 먼저→위치→본인 확인) · 결제 대기 유예 잠김 해제 · 다른 기기 보는 중 채팅 푸시 생략 · 통합 검색 둘째 줄 · Q calendar 시간대·겹침·업무 연결·프로젝트 필터·프로젝트 «일정» 탭 · 랜딩 «의뢰형» 포지셔닝 원복 · 메일 판정 3건 · 파일 크게 보기. **dev 미배포 5커밋**(체크박스 디자인 · AI create_event 칸 · 반복 회차 날짜 · 감사 대상). Fable PASS 3라운드(A1·A2·재검증) + 59fba176 41/43.
 > ── 이전(2026-10-06 저녁) ──
@@ -30,6 +32,37 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-10-09 저녁 [Opus] — 팀 적응 5단계 (워크스페이스 카드 · 도움말 · 랜딩 /start)
+
+> Irene: *"플랜큐는 기능이 너무 많아. 팀이 적응하는데 필요한 단계별 안내가 필요해 … 처음 가장 효과적인 건 업무 관리 업무요청 … 그리고 채팅과 이메일로 소통하는 거. 여기까지가 2단계"*
+> 설계 `docs/TEAM_ADOPTION_STAGES_DESIGN.md` (Fable 설계 1회 PASS-WITH-CHANGES · 지적 6건 반영 §7)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 다섯 단계 정의 | ① 업무 공유·요청(+프로젝트 연결·말로/AI 선택) ② 대화·메일 소통 ③ 일정·회의 ④ 자료·문서 ⑤ 고객과 함께. 기기 설정은 «내 설정» 묶음 | ✅ |
+| 서버 판정 | `services/adoptionStages.js` — 사람×워크스페이스 실데이터, core/optional, 권한 none·owner 전용 줄 숨김, `onboarding` 응답에 `stages` | ✅ |
+| 옛 닫기 처리 | `STAGES_RELEASED_AT` 이전 «다시 보지 않기» 는 단계에 안 먹음(컬럼·마이그레이션 없음) | ✅ |
+| Q note 내부 카운트 | q-note `GET /api/sessions/internal/count-mine`(내부 키·숫자만, L1 포함) · 장애 시 null | ✅ |
+| AI 업무 출처 | AI 로 업무추가 확정에 `created_via='ai_draft'`(표시 전용 STRING) · `/tasks?ai=1` 로 창 열기 | ✅ |
+| 대시보드 카드 | `OnboardingChecklist` — 워크스페이스 묶음 자리를 단계로: 지금 단계만 펼침 · 점 5개 들여다보기 · «n/5단계» | ✅ |
+| 도움말 | `team-adoption-stages` 글(시작하기 맨 앞 · 인사이트 발행) | ✅ |
+| 랜딩 | `/start`·`/en/start` 페이지 + seo-pages + 푸터 «시작 가이드» + 기능 페이지 끝 링크 | ✅ |
+| 검증 | `--suite onboarding` 118검사 실패 0 · 양성 대조군 19건 뒤집힘 · 실호출 전후(일정·AI 업무 생성/삭제) · health 83/83 · guard 65/66 · tenant 0 · 빌드 EXIT 0 | ✅ |
+
+### 수정된 파일
+- `dev-backend/services/adoptionStages.js`(신규) · `services/onboarding.js` · `routes/tasks.js` · `seed-wiki-content.js`
+- `q-note/routers/sessions.py`
+- `dev-frontend/src/components/Onboarding/OnboardingChecklist.tsx` · `pages/Landing/StartPage.tsx`(신규) · `pages/Landing/FeaturesPage.tsx` · `components/Landing/LandingLayout.tsx` · `pages/QTask/QTaskPage.tsx` · `App.tsx` · `utils/publicSurface.ts`
+- `public/locales/{ko,en}/{dashboard,landing}.json` · `public/seo-pages.json`
+- `scripts/e2e/canary-onboarding.js` · `docs/TEAM_ADOPTION_STAGES_DESIGN.md` · `docs/FABLE_GATE_QUEUE.md`
+
+### 남은 것
+- 운영 배포 후 `node seed-wiki-content.js`(도움말 글) · 운영 기존 워크스페이스 owner 첫 화면 단계 실측(이번엔 운영 읽기 권한 거부로 못 함)
 
 ---
 

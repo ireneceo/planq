@@ -726,6 +726,9 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
         //   후보 JSON 이 프론트까지 살아서 오는데, 확정할 때 이 한 줄이 없어서 매번 버려졌다.
         //   사용자가 카드에서 고쳐 보낸 값이 있으면 그것이 우선이다(사람 > AI).
         priorityLevel: c.priority || null,
+        // 출처 표시 전용(권한·전이 무관) — «말하듯 써서 AI 로 등록» 했는지 팀 적응 단계가 읽는다
+        //   (docs/TEAM_ADOPTION_STAGES_DESIGN.md). 화면 배지는 cue/agent 만 그려 이 값은 보이지 않는다.
+        createdVia: 'ai_draft',
       }, {
         // 이 경로의 고유 규칙 (통일 금지 — 프론트가 이 차이에 기대고 있다):
         keepEstimateForCue: true,          // 담당=Cue 면 요청 업무여도 예측시간을 남긴다

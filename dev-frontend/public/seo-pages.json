@@ -107,6 +107,27 @@
       ]
     },
     {
+      "path": "/start/",
+      "changefreq": "monthly",
+      "priority": "0.8",
+      "title": {
+        "ko": "처음 시작하는 팀을 위한 5단계 — PlanQ 적응 가이드",
+        "en": "5 stages for teams getting started — PlanQ adoption guide"
+      },
+      "description": {
+        "ko": "기능을 한꺼번에 켜지 말고 하나씩 습관으로. 업무 공유·요청 → 대화·메일 소통 → 일정·회의 → 자료·문서 → 고객과 함께, 팀이 PlanQ 에 자리 잡는 다섯 단계.",
+        "en": "Don’t switch everything on at once — one habit at a time. Share and request tasks → chat and mail → meetings → files → clients: five stages for a team to settle into PlanQ."
+      },
+      "h1": {
+        "ko": "처음 시작하는 팀을 위한 5단계",
+        "en": "5 stages for teams getting started"
+      },
+      "label": "시작 가이드",
+      "sections": [
+        "startPage"
+      ]
+    },
+    {
       "path": "/pricing/",
       "changefreq": "monthly",
       "priority": "0.8",

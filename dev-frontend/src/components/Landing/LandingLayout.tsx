@@ -164,6 +164,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
             <FooterCol>
               <FooterTitle>{t('footer.product', 'PRODUCT')}</FooterTitle>
               <FooterLink to="/features">{t('nav.features')}</FooterLink>
+              <FooterLink to="/start">{t('nav.start')}</FooterLink>
               <FooterLink to="/pricing">{t('nav.pricing')}</FooterLink>
               <FooterLink to="/service">{t('nav.service')}</FooterLink>
               <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
