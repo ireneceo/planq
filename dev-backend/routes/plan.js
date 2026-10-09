@@ -144,6 +144,8 @@ router.get('/:businessId/status', authenticateToken, checkBusinessAccess, async 
       trial_plan_switch: await planEngine.canSwitchTrialPlan(businessId),
       // 「지금 결제하면 1개월 추가」를 띄울 수 있는가 — 판정은 서버(billing.isFirstPlanPayment) 한 곳.
       //   화면이 결제 이력을 보고 스스로 판정하면 서버 자격 규칙과 갈라진다.
+      // 체험 중 결제 «해지하고 환불 요청» — 자격은 billing.trialRefundability 한 함수(docs/TRIAL_REFUND_DESIGN.md §1).
+      trial_refund: await billing.trialRefundStatus(businessId),
       prepay_bonus: {
         available: await billing.isFirstPlanPayment(businessId),
         months: bonusMonthsForTrialOption('prepay_1m_bonus'),

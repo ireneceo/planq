@@ -1,4 +1,5 @@
 // 구독 플랜 페이지 — 현재 플랜 카드 + 사용량 바 + 비교표 + Enterprise 문의 + 이력
+import TrialRefundRequest from '../../components/Settings/TrialRefundRequest';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -345,6 +346,12 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           )}
         </MetaRow>
       </CurrentCard>
+
+      {/* 체험 중 결제 «해지하고 환불 요청» (2026-10-09 · docs/TRIAL_REFUND_DESIGN.md) — 자격은 서버 /status.trial_refund */}
+      {businessId && (
+        <TrialRefundRequest businessId={businessId} state={status.trial_refund} onChanged={load}
+          formatMoney={(n, cur) => formatPrice(n, cur as Currency)} formatDate={(d) => formatDate(d)} />
+      )}
 
       {/* 체험 선택지 — 「지금 결제하면 1개월 추가」 (2026-09-23).
           canPurchaseInApp(): App Store 3.1.1 — 앱 안에서는 구매 표면을 띄우지 않는다.

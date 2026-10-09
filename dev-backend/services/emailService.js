@@ -1100,6 +1100,40 @@ async function sendBillingInstructionEmail({ to, kind, workspaceName, itemName, 
   });
 }
 
+// ─── 체험 중 결제 환불 완료 안내 (2026-10-09, docs/TRIAL_REFUND_DESIGN.md §3-8) ───
+//   restoredTo 'trialing' = 체험이 그대로 이어짐(종료일 불변) / 'past_due' = 체험이 이미 끝나 유예(grace) 중.
+async function sendTrialRefundDoneEmail({ to, workspaceName, amount, currency = 'KRW', method, paymentId, restoredTo, trialEndsAt, graceEndsAt, businessId }) {
+  if (!to) return false;
+  const amountStr = currency === 'KRW'
+    ? `${Number(amount).toLocaleString('ko-KR')}원`
+    : `${currency} ${Number(amount).toLocaleString('en-US')}`;
+  const fmt = (d) => (d ? new Date(d).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric' }) : '');
+  const where = method === 'stripe' || method === 'card' ? '결제하신 카드로 취소 처리했습니다(카드사에 따라 영업일 3~7일 걸릴 수 있습니다).' : '알려주신 계좌로 이체했습니다.';
+  const next = restoredTo === 'trialing'
+    ? `체험은 <b>${escapeHtml(fmt(trialEndsAt))}</b> 까지 그대로 이어집니다.`
+    : `체험 기간이 이미 끝났습니다. <b>${escapeHtml(fmt(graceEndsAt))}</b> 까지 결제하지 않으면 워크스페이스 사용이 제한됩니다.`;
+  const body = `
+    <div style="font-size:18px;font-weight:700;color:#0F172A;line-height:1.4;">환불이 완료됐습니다</div>
+    <div style="margin-top:10px;font-size:14px;color:#475569;line-height:1.7;">${escapeHtml(workspaceName || '')} 워크스페이스의 체험 중 결제를 전액 환불했습니다. ${where}</div>
+    <table cellpadding="0" cellspacing="0" role="presentation" style="width:100%;background:#F0FDFA;border:1px solid #99F6E4;border-radius:10px;margin-top:16px;">
+      <tr><td style="padding:14px 16px;">
+        <div style="font-size:11px;color:#0F766E;font-weight:700;letter-spacing:0.4px;">환불 금액</div>
+        <div style="margin-top:4px;font-size:24px;font-weight:800;color:#0F172A;letter-spacing:-0.3px;">${amountStr}</div>
+        <div style="margin-top:4px;font-size:12px;color:#475569;font-family:ui-monospace,monospace;">결제번호 #${paymentId}</div>
+      </td></tr>
+    </table>
+    <div style="margin-top:16px;font-size:14px;color:#475569;line-height:1.7;">${next}</div>`;
+  return sendEmail({
+    to,
+    subject: `${subjectPrefix(workspaceName)} 환불 완료 안내 #${paymentId}`,
+    html: emailWrap({ title: '환불 완료 안내', body }),
+    template: 'trial_refund_done',
+    relatedEntityType: 'payment',
+    relatedEntityId: paymentId || null,
+    businessId: businessId || null,
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 8. 문의 접수 자동 회신 (게스트·사용자 모두에게)
 //    랜딩 /contact 폼 + 게스트 Cue "문의 남기기" 탭 양쪽에서 호출.
@@ -1333,6 +1367,7 @@ async function sendUnreadNotificationEmail({ to, name, items, count, workspaceNa
 }
 
 module.exports = {
+  sendTrialRefundDoneEmail,
   MAIL_FONT_STACK,
   sendEmail,
   sendInviteEmail, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,

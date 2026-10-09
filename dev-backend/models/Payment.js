@@ -85,6 +85,17 @@ Payment.init({
   // 취소 사유 (status='canceled'). refund_reason 은 refunded 전용이라 별개 컬럼.
   cancel_reason: { type: DataTypes.STRING(255), allowNull: true },
 
+  // ─── 체험 중 결제 환불 요청 (2026-10-09, docs/TRIAL_REFUND_DESIGN.md §2) ───
+  // «요청 중» = status='paid' ∧ refund_requested_at 있음 — 돈은 아직 우리에게 있고 서비스도 그대로다.
+  //   되돌리는 것은 관리자 [환불](services/refund.refundPayment) 한 번뿐. 계좌는 암호문(_enc → 전역 toJSON 이 응답에서 내린다),
+  //   처리·취소 때 NULL 로 파기한다.
+  refund_requested_at: { type: DataTypes.DATE, allowNull: true },
+  refund_requested_by: { type: DataTypes.INTEGER, allowNull: true },
+  refund_request_note: { type: DataTypes.STRING(255), allowNull: true },
+  refund_account_enc: { type: DataTypes.TEXT, allowNull: true },
+  refund_kind: { type: DataTypes.ENUM('trial', 'manual'), allowNull: true },
+  stripe_refund_id: { type: DataTypes.STRING(255), allowNull: true },
+
   // ─── 매출 계상 여부 (운영 #275) ───
   // false = 내부/테스터 워크스페이스의 결제 테스트. 플랫폼 매출로 집계하지 않는다.
   // ★ 결제 확정 시점(markPaymentPaid / markAddonPaid)에 그때의 billing_exempt 로 박제한다.

@@ -1265,6 +1265,30 @@ function defineSecretTests() {
     }
   });
 
+  // ★ 2026-10-09 체험 중 결제 환불 요청(docs/TRIAL_REFUND_DESIGN.md §5) — 돌려받을 계좌는 payments.refund_account_enc 암호문이다.
+  //   전역 toJSON 이 *_enc 를 내리므로 결제 목록·/status 응답에 계좌번호가 실리면 안 된다. 읽는 문은 관리자 refund-account 하나.
+  test('secrets', '결제 응답에 환불 계좌(계좌번호)가 실리지 않는다', async () => {
+    await setup();
+    const H = { Authorization: `Bearer ${ctx.token}` };
+    const acct = `9${Date.now()}`.slice(0, 14);
+    const mk = require('child_process').execSync(`node -e "require('dotenv').config();const M=require('./models');const enc=require('./services/encryption');(async()=>{const p=await M.Payment.create({business_id:${Number(ctx.businessId)},kind:'plan',method:'bank_transfer',status:'paid',amount:1,currency:'KRW',cycle:'monthly',paid_at:new Date(),is_revenue:false,payer_memo:'health-refund-secret',refund_requested_at:new Date(),refund_account_enc:enc.encrypt(JSON.stringify({bank:'검사은행',number:'${acct}',holder:'검사'}))});console.log('ID='+p.id);process.exit(0)})().catch(e=>{console.error(e.message);process.exit(1)});"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    const pid = Number((mk.match(/ID=(\d+)/) || [])[1]);
+    if (!pid) throw new Error('검사용 결제를 만들지 못했다 — 준비 실패');
+    try {
+      const list = await http('GET', `${BACKEND}/api/plan/${ctx.businessId}/payments`, { headers: H });
+      const st = await http('GET', `${BACKEND}/api/plan/${ctx.businessId}/status`, { headers: H });
+      const raw = JSON.stringify(list) + JSON.stringify(st);
+      if (raw.includes(acct)) throw new Error('결제 응답에 환불 계좌번호 원문이 있다');
+      if (raw.includes('refund_account_enc')) throw new Error('결제 응답에 refund_account_enc 칸이 실려 있다');
+      // 양성 대조군 — 그 결제는 목록에 와야 한다(빈 응답으로 거짓 통과하는 것을 막는다)
+      const rows = Array.isArray(list.data) ? list.data : [];
+      if (!rows.some((r) => Number(r.id) === pid)) throw new Error('검사용 결제가 목록에 없다 — 응답이 비었을 가능성(거짓 통과)');
+      return `목록 ${rows.length}행 · /status — 계좌번호 0 · 결제 행 유지`;
+    } finally {
+      require('child_process').execSync(`node -e "require('dotenv').config();const {sequelize}=require('./config/database');sequelize.query('DELETE FROM payments WHERE id=${pid} AND payer_memo=\\'health-refund-secret\\'').then(()=>process.exit(0));"`, { cwd: '/opt/planq/dev-backend', encoding: 'utf8', timeout: 30000 });
+    }
+  });
+
   // ★ 2026-10-04 AI 에이전트 M3-a(설계 docs/AI_AGENT_M3_DESIGN.md §7.1) — 메일 도구 응답이 계정 자격증명·동기화 오류 원문
   //   (호스트·아이디가 들어 있다)·본문 HTML·공유 토큰을 싣지 않는다. 메일 계정 모델은 비밀 칸이 많아(IMAP/SMTP 암호·OAuth 토큰)
   //   통째로 내보내는 순간 전부 나간다. 판정은 응답 원문 문자열 + «쓸 필드는 그대로 온다» 대조군.

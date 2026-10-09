@@ -145,7 +145,30 @@
     "refundReason": "Admin refund",
     "taxIssued": "Tax invoice issued",
     "taxIssueFailed": "Failed to mark tax invoice as issued",
-    "taxFailed": "Tax invoice failed"
+    "taxFailed": "Tax invoice failed",
+    "refundRequestedBadge": "Refund requested",
+    "trialRefundedBadge": "Refunded in trial",
+    "trialRefundOpen": "Process trial refund",
+    "trialRefundTitle": "Refund a payment made during trial",
+    "trialRefundSubmit": "Refund",
+    "trialRefundReason": "Refund during trial",
+    "trialRefundLead": "Refund the full {{amount}} payment of {{biz}}. The subscription goes back to the trial (the trial end date stays the same).",
+    "trialRefundRequested": "Requested {{date}}",
+    "trialRefundTaxIssued": "A tax invoice was already issued — issue an amended one separately.",
+    "trialRefundViaStripe": "Refund the card through Stripe (turn off to only record it — when already refunded in Stripe)",
+    "trialRefundNoIntent": "This payment has no Stripe payment ID — refund it at the card issuer or in Stripe first, then process.",
+    "trialRefundNoAccount": "No refund account was provided — contact the customer for one.",
+    "trialRefundTransferred": "I have transferred the money to this account",
+    "trialRefundFailed": "Refund failed ({{code}})",
+    "cancel": "Cancel",
+    "loading": "Loading…",
+    "trialRefundErr": {
+      "subscription_superseded": "This payment's subscription was already replaced — use the regular [Refund].",
+      "period_started": "The paid period had already started when the refund was requested.",
+      "trial_refund_used": "This workspace has already used its trial refund.",
+      "not_requested": "No refund was requested for this payment.",
+      "not_trial_payment": "This is not a payment made during the trial."
+    }
   },
   "subs": {
     "title": "Subscriptions",
@@ -634,21 +657,24 @@
       "deposit": "Deposits",
       "tax_invoice": "Tax invoices",
       "inquiry": "Inquiries",
-      "feedback": "Feedback"
+      "feedback": "Feedback",
+      "refund_request": "Refund requests"
     },
     "type": {
       "deposit_plan": "Deposit",
       "deposit_addon": "Deposit (add-on)",
       "tax_invoice": "Tax invoice",
       "inquiry": "Inquiry",
-      "feedback": "Feedback"
+      "feedback": "Feedback",
+      "refund_request": "Refund request"
     },
     "action": {
       "deposit_plan": "Confirm deposit",
       "deposit_addon": "Confirm deposit",
       "tax_invoice": "Issue",
       "inquiry": "Reply",
-      "feedback": "Reply"
+      "feedback": "Reply",
+      "refund_request": "Process refund"
     },
     "status": {
       "new": "New",
@@ -666,6 +692,10 @@
     "loadFailed": "Couldn't load the list",
     "retry": "Try again",
     "empty": "Nothing to handle",
-    "emptyDesc": "Deposit reports, tax invoice requests, inquiries and feedback will show up here."
+    "emptyDesc": "Deposit reports, tax invoice requests, inquiries and feedback will show up here.",
+    "refundCard": "Card",
+    "refundBank": "Bank transfer",
+    "refundRequestedAt": "Refund requested {{date}}",
+    "refundTaxIssued": "Tax invoice issued — an amended invoice is needed"
   }
 }

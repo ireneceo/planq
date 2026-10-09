@@ -259,6 +259,61 @@ async function isFirstPlanPayment(businessId, transaction = null) {
   return paid === 0;
 }
 
+// ─── 체험 중 결제 환불 자격 (2026-10-09, docs/TRIAL_REFUND_DESIGN.md §1) ───
+// Irene: "체험기간은 그대로 주고 체험기간엔 환불 가능." «체험 중 결제» = **낸 돈의 유료 기간이 아직 시작되지 않았다.**
+//   요청 라우트·/status·관리자 처리(services/refund)가 **이 한 함수**를 부른다 — 화면이 결제 이력으로 스스로 판정하지 않는다.
+//   stage 'request' : 요청 전(이미 요청했으면 already_requested) · 'process' : 관리자 처리(요청 필수, at = 요청 시각)
+//   ★ 처리 단계의 기준 시각은 **사용자가 누른 시각**이다 — 관리자가 늦게 눌러도 자격이 사라지지 않는다.
+function trialRefundability({ payment, sub, biz, at = new Date(), trialRefundsUsed = 0, stage = 'request' }) {
+  const no = (reason) => ({ eligible: false, reason });
+  if (!payment || payment.kind !== 'plan') return no('not_plan_payment');
+  if (payment.status !== 'paid') return no('not_paid');
+  // 체험 중 첫 결제의 지문 — resolvePeriodStart 가 기간 시작을 trial_ends_at 으로 박는다(갱신 결제는 이전 끝).
+  const te = biz && biz.trial_ends_at ? new Date(biz.trial_ends_at).getTime() : null;
+  const ps = payment.period_start ? new Date(payment.period_start).getTime() : null;
+  if (te == null || ps == null || Math.abs(ps - te) > 1000) return no('not_trial_payment');
+  if (stage === 'process' && !payment.refund_requested_at) return no('not_requested');
+  const basis = stage === 'process' ? new Date(payment.refund_requested_at) : at;
+  if (!(ps > basis.getTime())) return no('period_started');
+  if (!sub || sub.id !== payment.subscription_id || sub.status !== 'active') return no('subscription_superseded');
+  if (Number(trialRefundsUsed) > 0) return no('trial_refund_used');
+  if (stage === 'request' && payment.refund_requested_at) return no('already_requested');
+  return { eligible: true, reason: null };
+}
+
+// 그 워크스페이스의 «체험 환불 후보» — 가장 최근에 확정된 플랜 결제 + 그 구독 + 워크스페이스 + 체험 환불 사용 횟수.
+async function loadTrialRefundContext(businessId, { paymentId = null, transaction = null } = {}) {
+  const where = { business_id: businessId, kind: 'plan', status: 'paid' };
+  if (paymentId) where.id = paymentId;
+  const payment = await Payment.findOne({ where, order: [['paid_at', 'DESC'], ['id', 'DESC']], transaction });
+  const sub = payment && payment.subscription_id ? await Subscription.findByPk(payment.subscription_id, { transaction }) : null;
+  const biz = await Business.findByPk(businessId, { transaction });
+  const trialRefundsUsed = await Payment.count({ where: { business_id: businessId, status: 'refunded', refund_kind: 'trial' }, transaction });
+  return { payment, sub, biz, trialRefundsUsed };
+}
+
+// /status 의 trial_refund — 화면은 이것만 읽는다.
+async function trialRefundStatus(businessId) {
+  const ctx = await loadTrialRefundContext(businessId);
+  const { payment, biz } = ctx;
+  const judged = trialRefundability({ ...ctx, stage: 'request' });
+  const requested = !!(payment && payment.refund_requested_at);
+  // 요청한 뒤에는 «요청 중» 상태를 보여 줘야 하므로 처리 단계 술어로 다시 본다(요청 시각 기준).
+  const pending = requested ? trialRefundability({ ...ctx, stage: 'process' }).eligible : false;
+  return {
+    available: judged.eligible,
+    reason: judged.reason,
+    requested,
+    request_valid: pending,
+    payment_id: payment ? payment.id : null,
+    amount: payment ? Number(payment.amount) : null,
+    currency: payment ? payment.currency : null,
+    method: payment ? payment.method : null,
+    requested_at: payment ? payment.refund_requested_at : null,
+    trial_ends_at: biz ? biz.trial_ends_at : null,
+  };
+}
+
 async function createPendingSubscription({ businessId, planCode, cycle, userId, currency = 'KRW', taxInvoice = null, trialOption = null }) {
   // ★ 게이트는 라우트가 아니라 여기(서비스)에 있다 — 청구를 만드는 진입점은 체크아웃 라우트와
   //   services/trial.js 의 cron **둘 다**다. 라우트에만 걸면 cron 이 그대로 지나가 면제
@@ -968,6 +1023,9 @@ module.exports = {
   createPendingSubscription,
   computePeriodEnd,
   isFirstPlanPayment,
+  trialRefundability,
+  loadTrialRefundContext,
+  trialRefundStatus,
   markPaymentPaid,
   downgradeToFree,
   runDailyBillingCron,

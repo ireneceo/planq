@@ -32,6 +32,10 @@
 
 ---
 
+## 2026-10-09 · 체험 중 결제 «해지하고 환불 요청» (방 58947e65 · docs/TRIAL_REFUND_DESIGN.md)
+- 설계 1회(Fable) → 구현 → 완료 검증 **PASS** (차단 없음). Fable 독립 실측: HTTP+DB 55검사(판정기 오류 1 제외 전부) · 실브라우저 19/19(3폭) · 게이트 67/68·84/84·e2e 0.
+- 비차단: ① 감사 requested_at 이 `{}`(Date 마스킹) → **반영함**(toISOString, 재검 31/31) ② 관리자 인앱 알림 entity_id 없음(기존 헬퍼) ③ 실제 `stripe.refunds.create` 는 dev 미측정 — 첫 운영 카드 환불은 Stripe 대시보드와 대조 ④ 체험 환불 뒤 재결제에 +1개월 보너스가 다시 붙음(환불 1회라 악용 아님 — Irene 인지).
+
 ## 2026-10-09 · 가입 제한 — 살아 있는 초대 링크 가입은 IP 몫을 쓰지 않는다 (방 58947e65 · 새 팀 첫 길 점검)
 - 1차 **FAIL** — skip 술어가 수락 술어보다 넓었다(멤버 초대의 plan.can('add_member') 미검사). 한도로 수락이 실패하는 워크스페이스의 토큰 하나로 차단 IP 에서 201,201,201(무제한 계정).
 - 수정: 술어 = resolveInviteToken 존재·미만료·미연결 + 멤버 초대면 수락과 같은 plan.can(excludeMemberId) · 예외 가입은 토큰당 5/시간(inviteRegisterLimiter).

@@ -162,6 +162,8 @@ export interface PlanStatus {
   effective_limits?: Partial<Record<keyof PlanDef['limits'], number | null>> | null;
   // 체험 중 결제 없이 플랜을 바꿀 수 있는가 — 서버 판정(POST trial-plan 과 같은 함수)
   trial_plan_switch?: { available: boolean; reason: string | null } | null;
+  // 체험 중 결제 «해지하고 환불 요청» — 자격·상태 모두 서버 판정(billing.trialRefundability)
+  trial_refund?: import('../components/Settings/TrialRefundRequest').TrialRefundState | null;
 }
 
 export async function fetchCatalog(): Promise<PlanDef[]> {

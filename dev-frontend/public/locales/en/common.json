@@ -843,7 +843,7 @@
       "payNow": "Pay now"
     },
     "prepay": {
-      "desc": "Pay now and get {{months}} extra month(s) — keep your trial to the end, then use {{total}} months starting the day it ends.",
+      "desc": "Pay now and get {{months}} extra month(s) — keep your trial to the end, then use {{total}} months starting the day it ends · cancel before the trial ends for a full refund.",
       "cta": "Pay & get +{{months}} month(s)"
     }
   },

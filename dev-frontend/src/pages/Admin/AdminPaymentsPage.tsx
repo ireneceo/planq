@@ -15,6 +15,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { formatDay } from '../../utils/dateFormat';
 import { useSearchParams } from 'react-router-dom';
 import { refreshAdminTodo } from '../../hooks/useAdminInboxCounts';
+import TrialRefundModal, { type TrialRefundTarget } from '../../components/Admin/TrialRefundModal';
 
 // tax = 세금계산서 발행 필요(결제 완료 + 요청됨/실패) — 상태가 아니라 할 일 필터라 서버엔 ?tax=pending 으로 간다
 type PayStatus = 'all' | 'paid' | 'pending' | 'failed' | 'refunded' | 'canceled' | 'tax';
@@ -50,6 +51,13 @@ interface PaymentRow {
   tax_invoice_status: 'none' | 'requested' | 'issued' | 'failed';
   tax_invoice_data: { biz_no?: string; biz_name?: string; ceo_name?: string; address?: string; email?: string } | null;
   tax_invoice_issued_at: string | null;
+  // 체험 중 결제 환불 요청 (docs/TRIAL_REFUND_DESIGN.md) — 계좌는 실리지 않는다(있는지만)
+  refund_requested_at?: string | null;
+  refund_request_note?: string | null;
+  has_refund_account?: boolean;
+  refund_kind?: 'trial' | 'manual' | null;
+  stripe_refund_id?: string | null;
+  has_stripe_intent?: boolean;
 }
 
 interface Summary {
@@ -72,6 +80,7 @@ const AdminPaymentsPage = () => {
   const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState<number | null>(null);
   const [confirm, setConfirm] = useState<PaymentRow | null>(null);
+  const [trialRefund, setTrialRefund] = useState<TrialRefundTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -266,6 +275,12 @@ const AdminPaymentsPage = () => {
                       {p.status === 'paid' && p.tax_invoice_status === 'failed' && (
                         <StatusBadge $bg="#FEE2E2" $fg="#B91C1C">{t('payments.taxFailed', '세금계산서 발행 실패')}</StatusBadge>
                       )}
+                      {p.status === 'paid' && p.refund_requested_at && (
+                        <StatusBadge $bg="#FFE4E6" $fg="#BE123C">{t('payments.refundRequestedBadge', '환불 요청')}</StatusBadge>
+                      )}
+                      {p.status === 'refunded' && p.refund_kind === 'trial' && (
+                        <StatusBadge $bg="#F1F5F9" $fg="#475569">{t('payments.trialRefundedBadge', '체험 중 환불')}</StatusBadge>
+                      )}
                       {p.is_revenue === false && (
                         <StatusBadge $bg="#F0FDFA" $fg="#0F766E">{t('payments.nonRevenueBadge', '비매출')}</StatusBadge>
                       )}
@@ -306,7 +321,18 @@ const AdminPaymentsPage = () => {
                       <Tag>{t('payments.taxIssued', '세금계산서 발행됨')}</Tag>
                     )}
                     {p.kind === 'addon' && <Tag>Add-on</Tag>}
-                    {p.status === 'paid' && (
+                    {p.status === 'paid' && p.refund_requested_at && (
+                      <DangerBtn type="button" disabled={busyId === p.id} data-testid={`admin-trial-refund-open-${p.id}`}
+                        onClick={() => setTrialRefund({
+                          id: p.id, amount: p.amount, currency: p.currency, method: p.method,
+                          businessName: p.business?.name || null, requestedAt: p.refund_requested_at || null,
+                          note: p.refund_request_note || null, hasStripeIntent: !!p.has_stripe_intent,
+                          taxIssued: p.tax_invoice_status === 'issued',
+                        })}>
+                        {t('payments.trialRefundOpen', '체험 환불 처리')}
+                      </DangerBtn>
+                    )}
+                    {p.status === 'paid' && !p.refund_requested_at && (
                       <DangerBtn type="button" disabled={busyId === p.id}
                         onClick={() => setConfirm(p)}>
                         {t('payments.refund', '환불')}
@@ -319,6 +345,9 @@ const AdminPaymentsPage = () => {
           </List>
         )}
 
+        <TrialRefundModal target={trialRefund} onClose={() => setTrialRefund(null)}
+          onDone={() => { setTrialRefund(null); load(); refreshAdminTodo(); }}
+          fmtMoney={(n, cur) => `${cur} ${fmtKRW(n)}`} fmtDate={fmtDate} />
         {confirm && (
           <ConfirmDialog
             isOpen

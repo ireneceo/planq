@@ -289,6 +289,13 @@ router.get('/payments', async (req, res, next) => {
       tax_invoice_status: p.tax_invoice_status,
       tax_invoice_data: p.tax_invoice_data,
       tax_invoice_issued_at: p.tax_invoice_issued_at,
+      // 체험 중 결제 환불 요청(docs/TRIAL_REFUND_DESIGN.md) — 계좌는 싣지 않는다(있는지만). 읽는 문은 refund-account 하나.
+      refund_requested_at: p.refund_requested_at,
+      refund_request_note: p.refund_request_note,
+      has_refund_account: !!p.refund_account_enc,
+      refund_kind: p.refund_kind,
+      stripe_refund_id: p.stripe_refund_id,
+      has_stripe_intent: !!p.stripe_payment_intent,
     })));
   } catch (err) { next(err); }
 });
@@ -326,24 +333,42 @@ router.get('/payments/summary', async (req, res, next) => {
 });
 
 // POST /api/admin/payments/:id/refund — 환불 처리
+// 환불 — services/refund.refundPayment 한 함수, 두 모드(docs/TRIAL_REFUND_DESIGN.md §4).
+//   body { mode: 'manual'(기본 — 옛 호출 무변경: 결제만 refunded) | 'trial'(체험 중 결제 — 구독·워크스페이스를 체험으로 되돌림),
+//          via_stripe: boolean(기본 false — 켜면 Stripe 로 실제 카드 환불), reason }
+// audit-exempt: 감사는 서비스 안 writeAudit(payment.refunded) 한 곳
 router.post('/payments/:id/refund', async (req, res, next) => {
+  try {
+    const mode = req.body?.mode === 'trial' ? 'trial' : 'manual';
+    const r = await require('../services/refund').refundPayment({
+      paymentId: Number(req.params.id), mode,
+      reason: req.body?.reason, viaStripe: req.body?.via_stripe === true,
+      adminUserId: req.user.id, actor: { userId: req.user.id, ip: req.ip },
+    });
+    return successResponse(res, {
+      refunded: true, already_refunded: !!r.alreadyRefunded, refunded_at: r.payment.refunded_at,
+      restored_to: r.restoredTo || null, stripe_refund_id: r.stripeRefundId || null,
+    }, 'refunded');
+  } catch (err) {
+    if (err.statusCode) return errorResponse(res, err.code || err.message, err.statusCode);
+    next(err);
+  }
+});
+
+// 계좌이체 환불 계좌 — 읽는 문은 여기 하나(docs/TRIAL_REFUND_DESIGN.md §5). 응답 일반 경로엔 _enc 라 실리지 않는다.
+router.get('/payments/:id/refund-account', async (req, res, next) => {
   try {
     const p = await Payment.findByPk(req.params.id);
     if (!p) return errorResponse(res, 'payment_not_found', 404);
-    if (p.status !== 'paid') return errorResponse(res, 'only_paid_can_refund', 400);
-    const reason = req.body?.reason ? String(req.body.reason).slice(0, 255) : '관리자 환불';
-    await p.update({
-      status: 'refunded',
-      refunded_at: new Date(),
-      refund_reason: reason,
-    });
+    let account = null;
+    if (p.refund_account_enc) {
+      try { account = JSON.parse(require('../services/encryption').decrypt(p.refund_account_enc)); } catch { account = null; }
+    }
     require('../services/auditService').logAudit(req, {
-      action: 'admin.payment.refund',
-      targetType: 'payment',
-      targetId: p.id,
-      newValue: { reason, amount: Number(p.amount), business_id: p.business_id },
+      action: 'admin.payment.refund_account_view', targetType: 'payment', targetId: p.id,
+      newValue: { business_id: p.business_id, has_account: !!account },
     });
-    return successResponse(res, { refunded: true, refunded_at: p.refunded_at }, 'refunded');
+    return successResponse(res, { account });
   } catch (err) { next(err); }
 });
 

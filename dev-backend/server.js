@@ -590,6 +590,7 @@ app.use('/api/export', require('./routes/export'));
 app.use('/api/folders', require('./routes/file_folders'));
 app.use('/api/cloud', require('./routes/cloud'));
 app.use('/api/plan', require('./routes/plan'));
+app.use('/api/plan', require('./routes/plan_refund'));   // 체험 중 결제 환불 요청 — 꼬리 경로가 plan.js 와 겹치지 않는다
 app.use('/api/admin', require('./routes/admin'));
 // 외부 API 선불 크레딧 — 같은 /api/admin 아래. admin.js god-file 분리본.
 app.use('/api/admin', require('./routes/admin_credits'));

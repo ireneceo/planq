@@ -145,7 +145,30 @@
     "refundReason": "관리자 환불",
     "taxIssued": "세금계산서 발행됨",
     "taxIssueFailed": "세금계산서 발행 처리 실패",
-    "taxFailed": "세금계산서 발행 실패"
+    "taxFailed": "세금계산서 발행 실패",
+    "refundRequestedBadge": "환불 요청",
+    "trialRefundedBadge": "체험 중 환불",
+    "trialRefundOpen": "체험 환불 처리",
+    "trialRefundTitle": "체험 중 결제 환불",
+    "trialRefundSubmit": "환불 처리",
+    "trialRefundReason": "체험 중 환불",
+    "trialRefundLead": "{{biz}} 의 {{amount}} 결제를 전액 환불합니다. 처리하면 구독이 체험 상태로 돌아갑니다(체험 종료일은 그대로).",
+    "trialRefundRequested": "{{date}} 요청",
+    "trialRefundTaxIssued": "세금계산서가 이미 발행됐습니다 — 수정세금계산서를 따로 발행하세요.",
+    "trialRefundViaStripe": "Stripe 로 카드 환불 실행 (끄면 기록만 — 이미 Stripe 에서 돌려준 경우)",
+    "trialRefundNoIntent": "이 결제에는 Stripe 결제 번호가 없습니다 — 카드사·Stripe 에서 직접 환불한 뒤 처리하세요.",
+    "trialRefundNoAccount": "받은 환불 계좌가 없습니다 — 고객에게 연락해 받으세요.",
+    "trialRefundTransferred": "위 계좌로 이체를 마쳤습니다",
+    "trialRefundFailed": "환불 처리 실패 ({{code}})",
+    "cancel": "취소",
+    "loading": "불러오는 중…",
+    "trialRefundErr": {
+      "subscription_superseded": "이 결제의 구독이 이미 바뀌었습니다 — 일반 [환불] 로 처리하세요.",
+      "period_started": "요청 시각에 이미 유료 기간이 시작된 결제입니다.",
+      "trial_refund_used": "이 워크스페이스는 체험 중 환불을 이미 한 번 받았습니다.",
+      "not_requested": "환불 요청이 없는 결제입니다.",
+      "not_trial_payment": "체험 중 결제가 아닙니다."
+    }
   },
   "subs": {
     "title": "구독 관리",
@@ -634,21 +657,24 @@
       "deposit": "입금 확인",
       "tax_invoice": "세금계산서",
       "inquiry": "문의",
-      "feedback": "피드백"
+      "feedback": "피드백",
+      "refund_request": "환불 요청"
     },
     "type": {
       "deposit_plan": "입금 확인",
       "deposit_addon": "입금 확인 (추가 구매)",
       "tax_invoice": "세금계산서",
       "inquiry": "문의",
-      "feedback": "피드백"
+      "feedback": "피드백",
+      "refund_request": "환불 요청"
     },
     "action": {
       "deposit_plan": "입금 확인하기",
       "deposit_addon": "입금 확인하기",
       "tax_invoice": "발행하기",
       "inquiry": "답변하기",
-      "feedback": "답변하기"
+      "feedback": "답변하기",
+      "refund_request": "환불 처리하기"
     },
     "status": {
       "new": "새 문의",
@@ -666,6 +692,10 @@
     "loadFailed": "목록을 불러오지 못했습니다",
     "retry": "다시 시도",
     "empty": "처리할 일이 없습니다",
-    "emptyDesc": "입금 통보·세금계산서 요청·문의·피드백이 들어오면 여기에 모입니다."
+    "emptyDesc": "입금 통보·세금계산서 요청·문의·피드백이 들어오면 여기에 모입니다.",
+    "refundCard": "카드",
+    "refundBank": "계좌이체",
+    "refundRequestedAt": "{{date}} 환불 요청",
+    "refundTaxIssued": "세금계산서 발행됨 — 수정세금계산서 필요"
   }
 }

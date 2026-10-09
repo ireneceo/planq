@@ -9,7 +9,9 @@
 //   · 한 건 = 한 버킷. 메뉴 배지의 합 = total.
 //       deposit_plan  → 구독 관리      (플랜 결제 · 고객이 입금 통보함 · 아직 pending)
 //       deposit_addon → 결제 이력      (애드온 결제 · 같은 조건)
-//       tax_invoice   → 결제 이력      (결제 완료 · 세금계산서 요청됨/발행 실패)
+//       tax_invoice   → 결제 이력      (결제 완료 · 세금계산서 요청됨/발행 실패 · 환불 요청 중이 아님)
+//       refund_request→ 결제 이력      (결제 완료 · 체험 중 결제 환불 요청됨 — docs/TRIAL_REFUND_DESIGN.md §2)
+//         ★ 한 결제가 세금계산서 요청과 환불 요청을 같이 가지면 **환불 요청 하나로만** 센다(환불이 먼저다).
 //       inquiry       → 문의 인박스    (new · in_progress)
 //       feedback      → 사용자 피드백  (pending · reviewing)
 //   · 입금 통보가 없는 pending 결제는 **세지 않는다** — 고객이 아직 안 낸 것이라 관리자가 할 일이 아니다
@@ -32,11 +34,12 @@ async function collectAdminTodo() {
   };
 
   const depositWhere = { status: 'pending', notify_paid_at: { [Op.ne]: null } };
-  const taxWhere = { status: 'paid', tax_invoice_status: { [Op.in]: ['requested', 'failed'] } };
+  const taxWhere = { status: 'paid', tax_invoice_status: { [Op.in]: ['requested', 'failed'] }, refund_requested_at: null };
+  const refundWhere = { status: 'paid', kind: 'plan', refund_requested_at: { [Op.ne]: null } };
   const inquiryWhere = { status: { [Op.in]: ['new', 'in_progress'] } };
   const feedbackWhere = { status: { [Op.in]: ['pending', 'reviewing'] } };
 
-  const [deposits, taxes, inquiries, feedbacks, inquiryCount, feedbackCount] = await Promise.all([
+  const [deposits, taxes, refunds, inquiries, feedbacks, inquiryCount, feedbackCount] = await Promise.all([
     Payment.findAll({
       where: depositWhere,
       include: [liveBiz, { model: Subscription, attributes: ['id', 'plan_code', 'cycle'], required: false }],
@@ -46,6 +49,11 @@ async function collectAdminTodo() {
       where: taxWhere,
       include: [liveBiz],
       order: [['paid_at', 'ASC']],
+    }),
+    Payment.findAll({
+      where: refundWhere,
+      include: [liveBiz],
+      order: [['refund_requested_at', 'ASC']],
     }),
     ContactInquiry.findAll({
       where: inquiryWhere,
@@ -95,6 +103,21 @@ async function collectAdminTodo() {
       link: `/admin/payments?tax=pending&payment=${p.id}`,
     });
   }
+  for (const p of refunds) {
+    items.push({
+      type: 'refund_request',
+      id: p.id,
+      business_id: p.business_id,
+      business_name: bizName(p.Business),
+      amount: Number(p.amount),
+      currency: p.currency,
+      method: p.method,
+      // 세금계산서가 이미 나갔으면 수정세금계산서를 따로 발행해야 한다 — 막지 않고 알린다(설계 §3-9).
+      tax_status: p.tax_invoice_status || null,
+      at: p.refund_requested_at,
+      link: `/admin/payments?payment=${p.id}`,
+    });
+  }
   for (const q of inquiries) {
     items.push({
       type: 'inquiry',
@@ -123,6 +146,7 @@ async function collectAdminTodo() {
     deposit_plan: deposits.filter((p) => p.kind !== 'addon').length,
     deposit_addon: deposits.filter((p) => p.kind === 'addon').length,
     tax_invoice: taxes.length,
+    refund_request: refunds.length,
     inquiry: inquiryCount,
     feedback: feedbackCount,
   };

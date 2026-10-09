@@ -141,11 +141,12 @@
     "s4": {
       "title": "Article 4 (Refund Policy)",
       "items": [
+        "Payments made during the trial: if you cancel (request a refund) before the trial ends, the full amount is refunded. After the trial ends, the monthly and yearly rules below apply.",
         "Monthly plan: 100% refund within 7 days of payment",
         "Monthly plan: no refund after 7 days",
         "Yearly plan: 100% refund within 14 days of payment",
         "Yearly plan: after 14 days, prorated refund of unused period",
-        "Refund requests: via customer support ({{operatorEmail}})"
+        "Refund requests: use the [Cancel & request refund] button in Settings > Plan (payments made during the trial), or email support ({{operatorEmail}})"
       ]
     },
     "s5": {

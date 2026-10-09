@@ -15,8 +15,8 @@ import { onSocket } from '../../services/socket';
 import { formatDayTime } from '../../utils/dateFormat';
 import { listRowTitleCss } from '../../theme/tokens';
 
-type ItemType = 'deposit_plan' | 'deposit_addon' | 'tax_invoice' | 'inquiry' | 'feedback';
-type Filter = 'all' | 'deposit' | 'tax_invoice' | 'inquiry' | 'feedback';
+type ItemType = 'deposit_plan' | 'deposit_addon' | 'tax_invoice' | 'refund_request' | 'inquiry' | 'feedback';
+type Filter = 'all' | 'deposit' | 'tax_invoice' | 'refund_request' | 'inquiry' | 'feedback';
 
 interface TodoItem {
   type: ItemType;
@@ -30,7 +30,8 @@ interface TodoItem {
   cycle?: string | null;
   addon_code?: string | null;
   payer_name?: string | null;
-  tax_status?: 'requested' | 'failed';
+  tax_status?: string | null;
+  method?: string;
   biz_name?: string | null;
   title?: string;
   from_name?: string;
@@ -45,7 +46,7 @@ interface TodoResponse {
   items: TodoItem[];
 }
 
-const FILTERS: Filter[] = ['all', 'deposit', 'tax_invoice', 'inquiry', 'feedback'];
+const FILTERS: Filter[] = ['all', 'deposit', 'tax_invoice', 'refund_request', 'inquiry', 'feedback'];
 
 const matches = (f: Filter, type: ItemType) =>
   f === 'all' || (f === 'deposit' ? (type === 'deposit_plan' || type === 'deposit_addon') : type === f);
@@ -106,15 +107,15 @@ const AdminInboxPage = () => {
     s ? formatDayTime(s, { locale: i18n.language === 'ko' ? 'ko-KR' : 'en-US', tz: 'Asia/Seoul', year: 'auto' }) : '';
 
   const typeLabel = (type: ItemType) => t(`inbox.type.${type}`, {
-    defaultValue: ({ deposit_plan: '입금 확인', deposit_addon: '입금 확인 (추가 구매)', tax_invoice: '세금계산서', inquiry: '문의', feedback: '피드백' } as Record<ItemType, string>)[type],
+    defaultValue: ({ deposit_plan: '입금 확인', deposit_addon: '입금 확인 (추가 구매)', tax_invoice: '세금계산서', refund_request: '환불 요청', inquiry: '문의', feedback: '피드백' } as Record<ItemType, string>)[type],
   }) as string;
 
   const actionLabel = (type: ItemType) => t(`inbox.action.${type}`, {
-    defaultValue: ({ deposit_plan: '입금 확인하기', deposit_addon: '입금 확인하기', tax_invoice: '발행하기', inquiry: '답변하기', feedback: '답변하기' } as Record<ItemType, string>)[type],
+    defaultValue: ({ deposit_plan: '입금 확인하기', deposit_addon: '입금 확인하기', tax_invoice: '발행하기', refund_request: '환불 처리하기', inquiry: '답변하기', feedback: '답변하기' } as Record<ItemType, string>)[type],
   }) as string;
 
   const rowTitle = (it: TodoItem) => {
-    if (it.type === 'deposit_plan' || it.type === 'deposit_addon' || it.type === 'tax_invoice') {
+    if (it.type === 'deposit_plan' || it.type === 'deposit_addon' || it.type === 'tax_invoice' || it.type === 'refund_request') {
       return it.business_name || t('inbox.unknownWorkspace', { id: it.id, defaultValue: '워크스페이스' });
     }
     return it.title || '';
@@ -134,6 +135,12 @@ const AdminInboxPage = () => {
       out.push(it.tax_status === 'failed'
         ? t('inbox.taxFailed', '발행 실패 — 다시 발행 필요') as string
         : t('inbox.taxRequested', { date: fmtDate(it.at), defaultValue: '{{date}} 결제 · 발행 요청' }) as string);
+    } else if (it.type === 'refund_request') {
+      out.push(fmtMoney(it.amount, it.currency));
+      out.push(it.method === 'stripe' || it.method === 'card' ? t('inbox.refundCard', '카드') as string : t('inbox.refundBank', '계좌이체') as string);
+      out.push(t('inbox.refundRequestedAt', { date: fmtDate(it.at), defaultValue: '{{date}} 환불 요청' }) as string);
+      // 세금계산서가 이미 나갔으면 수정세금계산서를 따로 발행해야 한다(설계 §3-9 — 막지 않고 알린다).
+      if (it.tax_status === 'issued') out.push(t('inbox.refundTaxIssued', '세금계산서 발행됨 — 수정세금계산서 필요') as string);
     } else if (it.type === 'inquiry') {
       if (it.from_name) out.push(it.from_name);
       out.push(t(`inbox.status.${it.status}`, it.status || '') as string);
@@ -156,7 +163,7 @@ const AdminInboxPage = () => {
             return (
               <TabBtn key={f} role="tab" type="button" $active={filter === f} aria-selected={filter === f}
                 data-testid={`admin-inbox-tab-${f}`} onClick={() => setFilter(f)}>
-                <span>{t(`inbox.tab.${f}`, ({ all: '전체', deposit: '입금 확인', tax_invoice: '세금계산서', inquiry: '문의', feedback: '피드백' } as Record<Filter, string>)[f]) as string}</span>
+                <span>{t(`inbox.tab.${f}`, ({ all: '전체', deposit: '입금 확인', tax_invoice: '세금계산서', refund_request: '환불 요청', inquiry: '문의', feedback: '피드백' } as Record<Filter, string>)[f]) as string}</span>
                 {cnt > 0 && <Count $active={filter === f}>{cnt}</Count>}
               </TabBtn>
             );
@@ -248,6 +255,7 @@ const TYPE_TONE: Record<ItemType, { bg: string; fg: string }> = {
   deposit_plan: { bg: '#FEF3C7', fg: '#92400E' },
   deposit_addon: { bg: '#FEF3C7', fg: '#92400E' },
   tax_invoice: { bg: '#E0F2FE', fg: '#0369A1' },
+  refund_request: { bg: '#FFE4E6', fg: '#BE123C' },
   inquiry: { bg: '#F0FDFA', fg: '#0F766E' },
   feedback: { bg: '#F1F5F9', fg: '#475569' },
 };

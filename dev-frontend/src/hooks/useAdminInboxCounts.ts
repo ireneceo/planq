@@ -5,7 +5,7 @@
 //   `data.counts.pending` 으로 잘못 읽어 **배지가 늘 0** 이었다. 입금 통보는 아예 세지 않았다.
 //
 // 배지 계약 (워크스페이스 확인필요와 같다): 한 건 = 한 버킷, 메뉴 배지 합 = total.
-//   subscriptions = 플랜 입금 통보 · payments = 애드온 입금 통보 + 세금계산서 · inquiries · feedback
+//   subscriptions = 플랜 입금 통보 · payments = 애드온 입금 통보 + 세금계산서 + 환불 요청 · inquiries · feedback
 //
 // 갱신: 30초 polling + 탭 복귀 + 관리자 알림 도착(socket notification:new, business_id null)
 //       + 같은 탭 안 처리(window 'admin-todo:refresh').
@@ -19,6 +19,7 @@ export interface AdminTodoCounts {
   deposit_plan: number;
   deposit_addon: number;
   tax_invoice: number;
+  refund_request?: number;
   inquiry: number;
   feedback: number;
 }
@@ -60,7 +61,7 @@ export function useAdminInboxCounts(): AdminInboxCounts {
         setCounts({
           total: j.data.total || 0,
           subscriptions: c.deposit_plan || 0,
-          payments: (c.deposit_addon || 0) + (c.tax_invoice || 0),
+          payments: (c.deposit_addon || 0) + (c.tax_invoice || 0) + (c.refund_request || 0),
           inquiriesPending: c.inquiry || 0,
           feedbackPending: c.feedback || 0,
           loaded: true,

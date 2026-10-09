@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-10-07",
+  "_generated": "2026-10-09",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -1236,6 +1236,11 @@
       "sort_order",
       "created_at"
     ],
+    "invoice_number_counters": [
+      "business_id",
+      "year",
+      "last_no"
+    ],
     "invoice_payments": [
       "id",
       "invoice_id",
@@ -1616,6 +1621,7 @@
       "status",
       "amount",
       "currency",
+      "line_items",
       "cycle",
       "period_start",
       "period_end",
@@ -1648,7 +1654,13 @@
       "stripe_payment_intent",
       "stripe_customer_id",
       "is_revenue",
-      "cancel_reason"
+      "cancel_reason",
+      "refund_requested_at",
+      "refund_requested_by",
+      "refund_request_note",
+      "refund_account_enc",
+      "refund_kind",
+      "stripe_refund_id"
     ],
     "platform_settings": [
       "id",

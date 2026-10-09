@@ -1395,6 +1395,20 @@ Q Note 목록). Express 는 **먼저 만난 것만** 부르므로 뒤엣것은 �
   ★ 남은 구멍: 체험이 끝난 미결제 유예 7일엔 캡이 풀린다(Fable 비차단 — 다음 사이클).
 - 이력 reason 은 ENUM 이라 `trial_start` + 메모로 남기고, 감사 `plan.trial_plan_change` 로 가른다(운영 스키마 변경 없이).
 
+## 체험 중 결제는 **체험이 끝나기 전에 해지하면 전액 환불**한다 (2026-10-09 박제)
+
+> Irene: *"결제를 먼저 하면 +1달 주는 거 안내해서 결제유도 하자. 체험기간은 그대로 주고 체험기간엔 환불 가능."* → A안 *"권고대로 설계해"*
+> 설계 정본: `docs/TRIAL_REFUND_DESIGN.md` (Fable 설계)
+
+- **자격은 `billing.trialRefundability` 한 함수** — «체험 중 결제» = 낸 돈의 유료 기간이 아직 시작 안 됨(`period_start == trial_ends_at` ∧ `> 기준 시각`) ∧ 그 구독이 active ∧ 체험 환불 0건(워크스페이스당 1회).
+  요청·`/status.trial_refund`·관리자 처리가 같이 쓴다. 관리자 처리의 기준 시각은 **사용자가 요청한 시각**이다.
+- **요청은 상태를 바꾸지 않는다**(payments 의 `refund_requested_*` 칸만 — 결제 paid·서비스 그대로). 되돌리는 문은 **`services/refund.refundPayment` 하나**:
+  mode `trial` = 결제 refunded · 구독 canceled(`trial_refund`) · 워크스페이스 trialing(종료일 불변, 이미 끝났으면 past_due + 유예 7일) ·
+  mode `manual` = 옛 관리자 [환불] 그대로(결제만). Stripe 카드 환불은 `via_stripe:true` 일 때만, 트랜잭션 **밖에서 먼저**(idempotencyKey).
+- **환불 계좌는 `payments.refund_account_enc` 암호문** — 읽는 문은 관리자 `GET /api/admin/payments/:id/refund-account` 하나(열람 감사), 처리·취소 때 파기.
+  회귀 `health-check --category=secrets`(응답 원문에 계좌번호 0).
+- 운영: `scripts/migrate-trial-refund.js`(멱등, 배포 슬롯 등록 — 모델이 SELECT 하므로 코드보다 먼저). 약관 제4조에 한 줄 추가(버전은 안 올림 — 이용자에게 유리한 변경).
+
 ## 자동저장 (필수)
 
 - **저장이 필요한 모든 입력 폼은 AutoSaveField 컴포넌트를 사용**

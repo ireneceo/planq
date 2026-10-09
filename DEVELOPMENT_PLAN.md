@@ -1,6 +1,8 @@
 # PlanQ - 개발 진행 현황
 
-> **최종 업데이트:** 2026-10-09 밤 ([Opus]+[Fable] Opus 5.5, 방 166c2f84) — **보안 점검 2차**: 고객·외부인 누수 · 팀/개인 분리 · 해킹 대응 30여 건 수리(치명 1: 남의 워크스페이스 프로젝트·고객 읽기). Fable 1차 FAIL → 2차 PASS. 규칙 4건(D2·D3·D4·D10) Irene 답 대기. 운영 미배포.
+> **최종 업데이트:** 2026-10-10 새벽 ([Opus] Opus 5.5, 방 58947e65) — 체험 중 결제 «해지하고 환불 요청»(Fable 설계·완료 PASS, 운영 미배포).
+> ── 이전 ──
+> 2026-10-09 밤 ([Opus]+[Fable] Opus 5.5, 방 166c2f84) — **보안 점검 2차**: 고객·외부인 누수 · 팀/개인 분리 · 해킹 대응 30여 건 수리(치명 1: 남의 워크스페이스 프로젝트·고객 읽기). Fable 1차 FAIL → 2차 PASS. 규칙 4건(D2·D3·D4·D10) Irene 답 대기. 운영 미배포.
 > ── 이전(2026-10-09 밤, 방 c3d0da3b) ── 가입 때 혼자·팀 고르기(고른 플랜으로 14일 체험) · 체험 중 결제 없이 플랜 바꾸기 · 체험 비용 캡. Fable 설계 1회 + 완료 PASS. 링크→앱 열기(방 33a23fc2) 같이 커밋. 운영 미배포.
 > ── 이전(2026-10-09 밤, 방 58947e65) ── 새 팀 첫 길 점검: 가입→초대→합류→업무 요청→대화 12건 수리 (운영 미배포). 가입 제한 예외만 Fable 1차 FAIL→2차 PASS, 나머지 자체 검증.
 > ── 이전(2026-10-09 저녁) ──
@@ -88,6 +90,20 @@
 - `dev-frontend/src/components/Auth/{TrialPlanPicker,GoogleAuthButton}.tsx` · `components/Common/{LimitReachedDialog,UsageWarningCard}.tsx` · `components/Docs/PostAiModal.tsx` · `components/Layout/WorkspaceSwitcher.tsx` · `contexts/AuthContext.tsx` · `pages/{Register/RegisterPage,Landing/PricingPage,Settings/PlanSettings}.tsx` · `services/plan.ts` · locales ko/en(auth·common·plan)
 - `scripts/guard-invariants.js`(trialplan)
 - (같이 커밋 — 방 33a23fc2 링크→앱 열기: `scripts/{native-link-paths,cap-link-domains}.js` · AASA · AndroidManifest · entitlements · NativeBridge · package.json · guard-native-release)
+
+---
+
+## ✅ 완료: 2026-10-10 [Fable 설계·검증 + Opus 구현] — 체험 중 결제 «해지하고 환불 요청»
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 자격 한 함수 | billing.trialRefundability — 유료 기간 미시작 ∧ 체험 중 첫 결제 ∧ 구독 active ∧ 체험 환불 1회 | ✅ |
+| 요청·취소 | routes/plan_refund.js (owner) · 계좌 암호문 · 관리자 확인 필요 refund_request | ✅ |
+| 관리자 환불 | services/refund.refundPayment(trial/manual) · Stripe 는 via_stripe 일 때만 · 계좌 열람 문 · 완료 메일 | ✅ |
+| 화면·문구 | 요금제 버튼·확인창·상태줄 · 관리자 환불 창 · 약관 제4조 · 선결제 문구 | ✅ |
+| 운영 스키마 | migrate-trial-refund.js(payments 칸 6, 멱등, 배포 슬롯) | ✅ |
+
+설계 docs/TRIAL_REFUND_DESIGN.md · 판정 docs/FABLE_GATE_QUEUE.md 맨 위.
 
 ---
 

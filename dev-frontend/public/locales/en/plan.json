@@ -310,7 +310,7 @@
     "label": "Trial option",
     "title": "Pay now and get {{months}} extra month",
     "desc": "Use PlanQ for {{total}} months at the price of one. Your next charge is in {{total}} months — cancel before then and nothing further is billed.",
-    "refundNote": "The month you pay for now is not refunded if you cancel.",
+    "refundNote": "Cancel before your trial ends for a full refund. After the trial ends, the amount already paid is not refunded.",
     "cta": "Pay now",
     "descTrial": "Keep your trial to the end, then use {{total}} months starting the day it ends (for one month's price). The next charge comes after that; cancel before then and nothing more is charged."
   },
@@ -320,5 +320,32 @@
     "note": "During the trial you can switch plans at no charge. Your trial end date stays the same, and AI-action and recording limits are the same on every plan during the trial.",
     "overLimit": "Current usage is over that plan's limits, so you can't switch — {{items}}",
     "error": "Couldn't switch. Please try again shortly."
+  },
+  "trialRefund": {
+    "pending": "Refund requested {{date}} · waiting for review. Once confirmed, your subscription goes back to the trial and the payment is returned.",
+    "cancelRequest": "Cancel request",
+    "hint": "Cancel before your trial ends on {{date}} and we refund the full payment (one trial refund per workspace).",
+    "open": "Cancel & request refund",
+    "title": "Cancel & request refund",
+    "close": "Close",
+    "submit": "Request refund",
+    "confirm": "Request a full refund of {{amount}}. Once confirmed, your subscription goes back to the trial, which continues until {{date}} (not extended). Refunded to: {{where}}.",
+    "toCard": "the card you paid with",
+    "toAccount": "the account below",
+    "once": "A trial refund is available once per workspace. If you pay again, that payment cannot be refunded this way.",
+    "bank": "Bank",
+    "number": "Account number",
+    "holder": "Account holder",
+    "note": "Reason (optional)",
+    "errGeneric": "Something went wrong. Please try again shortly.",
+    "err": {
+      "refund_account_required": "Enter the account to refund to (bank, account number, holder). The account number is 6–30 digits and dashes.",
+      "already_requested": "You have already requested a refund.",
+      "period_started": "Payments whose paid period has started cannot be refunded this way. Please contact support by email.",
+      "trial_refund_used": "This workspace has already used its trial refund.",
+      "owner_only": "Only the workspace owner can request this.",
+      "already_refunded": "This payment has already been refunded.",
+      "not_requested": "There is no refund request."
+    }
   }
 }
