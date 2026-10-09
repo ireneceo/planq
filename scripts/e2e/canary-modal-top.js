@@ -208,7 +208,7 @@ async function run() {
               : `🔴 before=${ctrl.before} after=${ctrl.after} — 판정이 안 뒤집힌다`),
       });
 
-      await page.screenshot({ path: `/tmp/claude-1000/-opt-planq/a6a2cd14-2506-43c5-b7f3-3d47090a88c4/scratchpad/modal-${vp.w}.png` });
+      if (process.env.SHOT_DIR) await page.screenshot({ path: `${process.env.SHOT_DIR}/modal-${vp.w}.png` });
     }
   } finally {
     // ─── 원복 — 남의 데이터를 바꿔 놓고 끝내지 않는다 ───

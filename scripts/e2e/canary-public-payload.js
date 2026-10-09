@@ -72,13 +72,19 @@ async function run() {
     push('① 공유 토큰 발급(전제)', !!dTok, JSON.stringify(sh).slice(0, 100));
 
     if (dTok) {
-      await fetch(`${API}/api/docs/public/${dTok}/sign`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      // ★ 공개 서명 라우트(POST /public/:token/sign)는 2026-10-08 에 없앴다(0-C C-6).
+      //   그 라우트로 서명을 심던 시절엔, 없어진 뒤로 서명이 안 생겨 아래 "안 나간다" 검사가
+      //   **값이 아예 없어서** 통과하고 있었다. 서명 데이터는 DB 에 직접 심는다(dev 전용, finally 에서 행째 지움).
+      await sequelize.query(
+        'UPDATE documents SET signature_data = ?, signed_at = NOW() WHERE id = ?',
+        { replacements: [JSON.stringify({
           signer_name: '서명자카나리', signer_email: SEC.email, accept: true,
-          note: SEC.note, signature_image_b64: SEC.img,
-        }),
-      });
+          note: SEC.note, signature_image: SEC.img, signed_ip: '203.0.113.9',
+        }), doc.id] });
+      const [seeded] = await sequelize.query(
+        'SELECT signature_data FROM documents WHERE id = ?', { replacements: [doc.id], type: sequelize.QueryTypes.SELECT });
+      const seededRaw = JSON.stringify(seeded && seeded.signature_data);
+      push('① 전제 — 서명 데이터가 DB 에 있다', seededRaw.includes(SEC.email) && seededRaw.includes('SIGNATUREIMAGE9911'), seededRaw.slice(0, 80));
       const raw = await (await fetch(`${API}/api/docs/public/${dTok}`)).text();
       push('① 서명자 이메일이 안 나간다', !raw.includes(SEC.email), raw.includes(SEC.email) ? '유출!' : 'ok');
       push('① 서명 메모가 안 나간다', !raw.includes(SEC.note), raw.includes(SEC.note) ? '유출!' : 'ok');
@@ -88,7 +94,7 @@ async function run() {
       // 음성 대조군 — 화면이 쓰는 것은 나가야 한다
       push('① 음성 대조군 — 본문·제목·서명자 이름은 나간다',
         raw.includes('BODY-KEEP-9911') && raw.includes('공개 응답') && raw.includes('서명자카나리'),
-        '전부 지워 버리면 공개 페이지가 빈 화면이 된다');
+        `본문 ${raw.includes('BODY-KEEP-9911')} · 제목 ${raw.includes('공개 응답')} · 서명자 ${raw.includes('서명자카나리')} — 전부 지워 버리면 공개 페이지가 빈 화면이 된다`);
     }
 
     // ───────── ② Q info 공개 문서 — 지운 항목의 값 ─────────

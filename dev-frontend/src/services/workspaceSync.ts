@@ -26,6 +26,11 @@ export function markSwitching(ms = 8000): void {
   switchingUntil = Date.now() + ms;
 }
 
+/** 전환이 실패했다 — 수신 무시를 바로 푼다(안 풀면 8초 동안 다른 창·기기의 전환을 못 따라간다). */
+export function clearSwitching(): void {
+  switchingUntil = 0;
+}
+
 export function isSwitching(): boolean {
   return Date.now() < switchingUntil;
 }

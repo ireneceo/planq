@@ -98,13 +98,14 @@ async function api(path, opts = {}) {
 
 async function run() {
   // ── 긴 문서 픽스처를 만든다 (짧은 문서로는 이 계열이 재현되지 않는다)
-  let token = null, bizId = null, postId = null;
+  let token = null, bizId = null, postId = null, why = '';
   try {
     const lj = await api('/auth/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: b.CREDS.email, password: b.CREDS.password }),
     });
     token = lj?.data?.token || lj?.data?.accessToken || lj?.data?.access_token;
+    if (!token) why = '로그인 ' + JSON.stringify(lj).slice(0, 120);
     const H = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
     const bz = await api('/businesses', { headers: H });
     bizId = (bz?.data || [])[0]?.id;
@@ -125,11 +126,12 @@ async function run() {
       }),
     });
     postId = cr?.data?.id || null;
-  } catch (e) { /* 아래에서 0건으로 실패 처리 */ }
+    if (!postId && !why) why = `biz=${bizId} 생성 ` + JSON.stringify(cr).slice(0, 120);
+  } catch (e) { why = why || String(e && e.message || e).slice(0, 120); /* 아래에서 0건으로 실패 처리 */ }
 
   if (!postId) {
     P('긴 문서 픽스처를 만들었다 (0건 = 판정 불가)', false,
-      '문서를 못 만들어 우측 밴드를 한 폭도 재지 못했다 — 통과로 세지 않는다');
+      `문서를 못 만들어 우측 밴드를 한 폭도 재지 못했다 — 통과로 세지 않는다 · 이유: ${why || '알 수 없음'}`);
     return { name: 'docsheader', results };
   }
 

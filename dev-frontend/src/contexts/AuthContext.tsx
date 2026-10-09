@@ -8,7 +8,7 @@ import {
   purgeDraftsNotOwnedBy, purgeDraftsOf, setDraftOwner, sweepExpiredDrafts, setDraftsSuppressed, listLeaveBlockers,
   DRAFT_OWNER_KEY,
 } from '../services/draftStore';
-import { markSwitching, broadcastWorkspaceSwitch } from '../services/workspaceSync';
+import { markSwitching, clearSwitching, broadcastWorkspaceSwitch } from '../services/workspaceSync';
 import { flushPendingSaves, LOGOUT_BLOCKED_EVENT } from '../services/pendingSaves';
 
 // ⑥ 멀티탭 P1 선행(Fable BLOCKER #1) — AuthProvider 는 라우터 조상 위에 놓이므로 react-router 훅을
@@ -1008,15 +1008,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (user.business_id === businessId) return true; // 이미 active
     // 전환 POST 전에 대기 중인 자동저장을 **지금 워크스페이스로** 보낸다 — 전환 뒤에 나가면 새 범위로 가거나 409 로 막힌다
     await flushPendingSaves();
+    // ★ 요청을 보내기 **전에** 표시한다(2026-10-09). 서버는 응답보다 먼저 user 방에 'workspace:switched' 를
+    //   쏘고, 그 사이 다른 요청은 409 workspace_stale 을 받는다. 응답 뒤에 표시하면 그 둘이 먼저 도착해
+    //   WorkspaceSyncGuard 가 "다른 곳에서 바뀌었다" 로 읽고 이 창을 다시 부팅한다 — 관리자 화면에서는
+    //   **제자리** 재부팅이라 워크스페이스를 골랐는데 /admin 에 남았다(--suite crash185 간헐 실패).
+    markSwitching();
     try {
       const res = await apiFetch('/api/auth/switch-workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ business_id: businessId }),
       });
-      if (!res.ok) return false;
+      if (!res.ok) { clearSwitching(); return false; }
       const body = await res.json();
-      if (!body.success || !body.data) return false;
+      if (!body.success || !body.data) { clearSwitching(); return false; }
       clearPageCache();   // 워크스페이스가 바뀌면 앞 워크스페이스 캐시는 전부 무효
       // ★ 2026-09-11 (C4) — 누른 창은 자기가 보낸 전파를 다시 받지 않는다(이중 리로드 방지).
       //   같은 브라우저의 다른 창(팝아웃·핀·다른 탭)에는 채널로 즉시, 다른 기기는 서버 소켓 emit 으로 간다.
@@ -1027,6 +1032,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error('[switchWorkspace] failed', e);
+      clearSwitching();
       return false;
     }
   };

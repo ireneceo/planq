@@ -24,7 +24,6 @@ const SCREENS = [
   ['/admin/businesses', '워크스페이스'],
   ['/admin/payments', '결제 이력'],
 ];
-const WS_MENU_WORDS = ['Q talk', 'Q Talk', '확인 필요', 'Q task', 'Q Task'];
 
 const tabTitles = (page) => page.evaluate(() => {
   const strip = document.querySelector('[data-testid="tabstrip"]') || document.querySelector('nav[aria-label]');
@@ -112,6 +111,9 @@ async function run() {
         const box = document.querySelector('[data-testid="gsearch-input"], [aria-modal="true"]');
         return {
           menus: items.map((e) => (e.innerText || '').trim()),
+          // ★ 판정은 글자가 아니라 메뉴 키로 — 2026-10-08 관리자에도 «확인 필요»(admin-inbox)가 생겨
+          //   글자로 가르면 관리자 메뉴를 누출로 읽었다(거짓 실패).
+          keys: items.map((e) => (e.getAttribute('data-testid') || '').replace('gsearch-menu-', '')),
           isSearch: !!document.querySelector('[data-testid^="gsearch-menu-"], [data-testid="search-ask-cue"]'),
           modalText: (box && box.innerText || '').slice(0, 120),
         };
@@ -124,7 +126,7 @@ async function run() {
       push('관리자 `+` 를 열 수 있다', false, 'tabstrip-new 버튼을 찾지 못했다');
     } else {
       push('관리자 `+` 가 통합검색을 연다', A.isSearch, `열린 모달: "${A.modalText.replace(/\n/g, ' ⏎ ')}"`);
-      const leaked = A.menus.filter((m) => WS_MENU_WORDS.some((w) => m.includes(w)));
+      const leaked = A.keys.filter((k) => !k.startsWith('admin-'));
       push('관리자 `+` 목록에 워크스페이스 메뉴가 없다', A.isSearch && leaked.length === 0,
         `메뉴 ${A.menus.length}개 · 누출 ${leaked.length}개 ${leaked.slice(0, 4).join(' / ')}`);
       // ★ 위 판정이 "목록이 통째로 비어서" 통과한 것이 아님을 같은 화면에서 증명한다.
@@ -140,10 +142,10 @@ async function run() {
     if (W === null) {
       push('★ 양성 대조군 — 워크스페이스 `+` 를 열 수 있다', false, 'tabstrip-new 버튼을 찾지 못했다');
     } else {
-      const found = W.menus.filter((m) => WS_MENU_WORDS.some((w) => m.includes(w)));
+      const found = W.keys.filter((k) => !k.startsWith('admin-'));
       push('★ 양성 대조군 — 워크스페이스 `+` 에는 워크스페이스 메뉴가 있다', W.isSearch && found.length > 0,
         `메뉴 ${W.menus.length}개 · 일치 ${found.length}개`);
-      const adminLeak = W.menus.filter((m) => m.includes('/admin/'));
+      const adminLeak = W.keys.filter((k) => k.startsWith('admin-'));
       push('워크스페이스 `+` 에 관리자 메뉴가 없다', adminLeak.length === 0,
         `누출 ${adminLeak.length}개 ${adminLeak.slice(0, 3).join(' / ')}`);
     }
