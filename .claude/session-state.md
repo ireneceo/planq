@@ -9,7 +9,7 @@
 - D2 owner/admin 도 남의 «나만 보기» Q info·일정 닫힘 · D3 프로젝트·고객 없는 팀 대화 참여자만(docs/PRIVATE_CHAT_DESIGN.md) · D4 관리자는 남의 개인 메일 끄기만 · D10 그대로(대표가 개인 회고를 본다 — Irene).
 - 검증: D2/D4 12/12(원본 대조 8 뒤집힘) · D3 26/26 실HTTP+실소켓(원본 대조 16) · Fable 107+9 실측 누수 0 · health 84/84 · guard 68/69 · build 0 · e2e tenant·clientlink·clienthome·inboxcount·chatattach 0.
 - 운영 영향(읽기 실측): 프로젝트 없는 팀 대화 6개, 비참여자가 쓴 방 0 — 대화방을 잃는 사람 없음. 참여자 자동 백필 안 함.
-- ★ Irene 몫: nginx 첫 실행이 sites-enabled 안에 백업(dev.planq.kr.bak.20261009201833)을 남겨 nginx -t 가 실패하는 상태 — 다른 솔루션 nginx reload 도 막힌다. 서버 창에서 `sudo /opt/planq/scripts/apply-nginx-internal-deny.sh dev` 한 번 더(고친 스크립트가 밖으로 옮긴다).
+- nginx 2중 차단(dev) 적용됨 — Irene 이 고친 스크립트를 다시 실행(20:32). 옛 백업은 /etc/nginx/backups 로 옮겨졌고 실측 /api/internal·/api/INTERNAL·/qnote/…/internal 403 · /qnote/health 200. 운영은 다음 배포 때 같은 스크립트 prod.
 
 ### 답 기다림 (이전): 관리자가 멤버의 «나만 보기»·개인 메일·개인 회고·참여 안 한 대화방을 보는 규칙 — Irene «권고대로»(D10 은 그대로)
 
