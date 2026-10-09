@@ -9,6 +9,8 @@ export const Page = styled.div`
   min-height: 100vh; background: #F8FAFC; color: #0F172A;
   display: flex; flex-direction: column;
   font-family: inherit;
+  /* 앱 탭 안(TabPane 본문)에서 열리면 그 칸만 채운다 — 100vh 는 탭바·머리줄을 모른 채 넘친다 */
+  [data-pq-content] & { min-height: 100%; }
 `;
 export const Topbar = styled.header`
   display: flex; align-items: center; justify-content: space-between;

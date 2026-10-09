@@ -34,6 +34,7 @@ export function iconForTab(kind: TabKind, path: string): IconComp {
   if (kind === 'other') {
     if (path.startsWith('/stats') || path.startsWith('/insights')) return InsightsIcon;
     if (path.startsWith('/profile') || path.startsWith('/me/')) return UserIcon;
+    if (path.startsWith('/sign/')) return FileTextIcon;   // 서명 화면(TabPane 의 공개 화면 예외) — 문서다
     return SettingsIcon;
   }
   return KIND_ICON[kind] || SettingsIcon;

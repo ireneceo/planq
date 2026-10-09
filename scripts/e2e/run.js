@@ -76,6 +76,8 @@ const SUITES = {
   signflow: () => require('./canary-signature-flow'),
   // 서명 항목(2026-10-05) — 손으로 적은 자리 바꾸기 · 자리 없는 문서 막힘 · 칸 2개(그리기+이미지) · 3폭
   signitems: () => require('./canary-signature-items'),
+  // 확인필요 «서명» 항목 → 서명 화면에 문서가 보인다 · 웹(새 창) + 앱 흉내(아이패드 탭 모드 · 폰) (2026-10-09)
+  signinbox: () => require('./canary-sign-inbox-open'),
   // 문서 복사 + 상단 버튼 정리 (2026-09-22). 복사본에 서명·공유 링크가 따라가면 원본인 척하게 된다.
   docsdup: () => require('./canary-docs-duplicate'),
   // 「지금 결제하면 1개월 추가」(2026-09-23) — 선불 2개월. 카드가 보이는가·문구가 서버 개월과 같은가·

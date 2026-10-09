@@ -33,6 +33,9 @@ import {
 } from './PublicSignPage.styles';
 import SignLinkedDocs from './SignLinkedDocs';
 import StandardModal from '../../components/Common/StandardModal';
+import { useTabId } from '../../contexts/TabActiveContext';
+import { useTabTitle } from '../../hooks/useTabTitle';
+import { tabStore } from '../../stores/tabStore';
 
 interface PublicSignData {
   token: string;
@@ -89,6 +92,16 @@ const PublicSignPage: React.FC = () => {
   const [otpOk, setOtpOk] = useState(false);
   const [locate, setLocate] = useState(false);
   const { user } = useAuth();
+  // 앱 탭 안에서 열렸는가(데스크탑 앱·아이패드 앱 — components/Tab/TabPane). 외부 고객의 브라우저에서는 null.
+  //   탭 안이면 ①탭 이름 = 문서 제목 ②[닫기] = 이 탭 닫기 ③«맨 위로» 는 창이 아니라 탭 본문을 굴린다.
+  const tabId = useTabId();
+  useTabTitle(doc?.entity?.title || null);
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  const scrollToTop = useCallback(() => {
+    window.scrollTo(0, 0);
+    const box = pageRef.current?.closest('[data-pq-content]') as HTMLElement | null;
+    if (box) box.scrollTop = 0;
+  }, []);
 
   // OTP
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
@@ -151,6 +164,7 @@ const PublicSignPage: React.FC = () => {
   // «위치 다시 보기» — 사람이 고른 이동이다. 창을 닫고 내 칸을 보여 준다(칸을 다시 누르면 창이 그대로 열린다).
   const viewSlotFromDialog = () => { setSignOpen(false); showMySlot(); };
   const tryClose = () => {
+    if (tabId) { tabStore.closeTab(tabId); return; }
     window.close();
     // 메일에서 연 탭은 스크립트로 닫을 수 없는 경우가 많다 — 닫히지 않았으면 직접 닫으라고 말한다
     window.setTimeout(() => { if (!window.closed) setCloseFailed(true); }, 300);
@@ -323,7 +337,7 @@ const PublicSignPage: React.FC = () => {
     setSigning(true);
     if (internalSelf && doc?.request_id) {
       // 우리 쪽 서명자 — 로그인으로 본인 확인(인증번호 없음). 증거(동의·시각·IP·고정본)는 서버가 공개 서명과 같게 남긴다.
-      try { await signInternal(doc.request_id, items); await reload(); window.scrollTo(0, 0); }
+      try { await signInternal(doc.request_id, items); await reload(); scrollToTop(); }
       catch (e) { setSignError((e as Error).message || (t('publicSign.signFailed', '서명 실패') as string)); }
       finally { setSigning(false); }
       return;
@@ -344,7 +358,7 @@ const PublicSignPage: React.FC = () => {
         return;
       }
       await reload();
-      window.scrollTo(0, 0);   // 서명 창이 닫히고 완료 카드는 맨 위에 있다
+      scrollToTop();   // 서명 창이 닫히고 완료 카드는 맨 위에 있다
     } finally { setSigning(false); }
   };
 
@@ -399,7 +413,7 @@ const PublicSignPage: React.FC = () => {
   ) : null;
 
   return (
-    <Page>
+    <Page ref={pageRef}>
       <Topbar>
         <Brand src="/planQ-slogan_color.svg" alt="PlanQ" />
         <TopMeta>{doc.signer_email}</TopMeta>

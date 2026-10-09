@@ -2,7 +2,7 @@
 //
 // alive 탭 전부 동시 렌더, 비활성은 display:none + inert(언마운트 안 함 = 상태·스크롤·열어둔 패널 보존).
 // 각 pane = 형제 MemoryRouter(§3) — 페이지 내부 useNavigate/useParams 무수정 각 탭 바인딩, URL 격리.
-import { Suspense, useLayoutEffect, useRef } from 'react';
+import { Suspense, lazy, useLayoutEffect, useRef } from 'react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import styled from 'styled-components';
 import { TabActiveProvider, TabIdProvider } from '../../contexts/TabActiveContext';
@@ -11,6 +11,14 @@ import { APP_ROUTES } from '../../routes/appRoutes';
 import RouteRoleGate from '../Common/RouteRoleGate';
 import UrlMirror from './UrlMirror';
 import type { Tab } from '../../stores/tabStore';
+
+// ★ 탭 안에서도 열리는 공개 화면 — 서명 화면 하나뿐이다 (2026-10-09, Irene: «확인필요에 이 업무가 있는데 눌러도 서명문서 안나와»).
+//   확인필요·받은 서명은 우리 쪽 서명자를 `/sign/:token` 으로 보낸다. 웹은 새 브라우저 탭으로 가서 멀쩡했지만,
+//   **앱(아이패드 = 탭 모드)** 은 nativeLinks 가 그 새 창을 앱 안 새 탭으로 돌리고, 이 pane 표에는 `/sign` 이 없어
+//   **주소만 바뀌고 빈 탭**이 됐다(대시보드 «확인 필요 미리보기» 의 navigate 도 같은 빈 탭).
+//   appRoutes 에 넣지 않는 이유: 그 표는 App.tsx 의 MainLayout(로그인 필요) 라우트와 1:1 이어야 한다(guard-app-routes) —
+//   서명 화면은 로그인 없는 외부 고객도 쓰는 공개 화면이라 App.tsx 에서는 MainLayout 밖에 그대로 둔다.
+const PublicSignPage = lazy(() => import('../../pages/QDocs/PublicSignPage'));
 
 export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -41,6 +49,7 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
                   <Route key={r.path} path={r.path}
                     element={<RouteRoleGate roles={r.roles}>{r.element}</RouteRoleGate>} />
                 ))}
+                <Route path="/sign/:token" element={<PublicSignPage />} />
                 <Route path="*" element={<Fallback />} />
               </Routes>
             </Suspense>
