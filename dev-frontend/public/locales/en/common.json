@@ -817,8 +817,8 @@
   },
   "trialBanner": {
     "trial": {
-      "title": "{{days}} days left in your Starter trial",
-      "desc": "You can use every Starter feature during the trial."
+      "title": "{{days}} days left in your {{plan}} trial",
+      "desc": "You can use every {{plan}} feature during the trial."
     },
     "trialEnding": {
       "title": "{{days}} days left — pay to keep going",
@@ -841,6 +841,10 @@
     "cta": {
       "openPlan": "Plan & billing",
       "payNow": "Pay now"
+    },
+    "prepay": {
+      "desc": "Pay now and get {{months}} extra month(s) — keep your trial to the end, then use {{total}} months starting the day it ends.",
+      "cta": "Pay & get +{{months}} month(s)"
     }
   },
   "toaster": {

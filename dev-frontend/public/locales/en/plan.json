@@ -311,7 +311,8 @@
     "title": "Pay now and get {{months}} extra month",
     "desc": "Use PlanQ for {{total}} months at the price of one. Your next charge is in {{total}} months — cancel before then and nothing further is billed.",
     "refundNote": "The month you pay for now is not refunded if you cancel.",
-    "cta": "Pay now"
+    "cta": "Pay now",
+    "descTrial": "Keep your trial to the end, then use {{total}} months starting the day it ends (for one month's price). The next charge comes after that; cancel before then and nothing more is charged."
   },
   "trialSwitch": {
     "cta": "Try this plan",

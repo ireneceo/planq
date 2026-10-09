@@ -17,7 +17,7 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { canPurchaseInApp } from '../../utils/purchase';
 
 interface PlanStatus {
-  plan: { code: string };
+  plan: { code: string; name?: string };
   active: boolean;
   in_trial: boolean;
   in_grace: boolean;
@@ -27,6 +27,8 @@ interface PlanStatus {
   // 결제 면제 (운영 #275). services/plan.ts 의 PlanStatus 와 같은 필드 — 이 컴포넌트가
   // 로컬 타입을 따로 쓰므로 양쪽에 있어야 한다.
   exempt?: boolean;
+  // 「지금 결제하면 +N개월」 자격 — 서버 판정(billing.isFirstPlanPayment). 화면이 결제 이력을 세지 않는다.
+  prepay_bonus?: { available: boolean; months: number; option: string } | null;
 }
 
 type Tone = 'info' | 'warn' | 'danger';
@@ -82,6 +84,7 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
   let title = '';
   let desc = '';
   let cta = t('trialBanner.cta.openPlan', '결제 페이지');
+  let ctaTo = '/business/settings/plan';
 
   // App Store 3.1.1 — 네이티브 앱에선 명령형 결제 유도 문구(미리 결제하세요 등)도 리젝 회색지대라
   //   상태만 알리는 중립 문구로 대체한다. (CTA 숨김만으론 본문 유도 표현이 남음 — Fable 권고)
@@ -123,8 +126,21 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
     } else {
       if (!isOwner) return null;
       tone = 'info';
-      title = t('trialBanner.trial.title', 'Starter 체험 {{days}}일 남음', { days });
-      desc = t('trialBanner.trial.desc', '체험 기간 동안 모든 Starter 기능을 사용할 수 있습니다.');
+      // 체험 플랜은 가입 때 고른다(혼자 Starter · 팀 Basic · 큰 팀 Pro) — 이름을 박아 두면 팀 체험에도 «Starter» 가 떴다.
+      const planName = status.plan?.name || status.plan?.code || '';
+      title = t('trialBanner.trial.title', { days, plan: planName, defaultValue: '{{plan}} 체험 {{days}}일 남음' });
+      desc = t('trialBanner.trial.desc', { plan: planName, defaultValue: '체험 기간 동안 모든 {{plan}} 기능을 사용할 수 있습니다.' });
+    }
+    // 「지금 결제하면 +N개월」 — 체험 중 오너에게 같은 카드에서 제안한다(2026-10-09 Irene: "결제를 먼저 하면 +1달 주는 거 안내해서 결제유도 하자").
+    //   체험은 그대로 쓰고 유료 기간은 체험이 끝나는 날부터 시작한다(billing.resolvePeriodStart — 체험 잔여 승계).
+    const pb = status.prepay_bonus;
+    if (canPay && pb?.available && pb.months > 0) {
+      desc = t('trialBanner.prepay.desc', {
+        months: pb.months, total: pb.months + 1,
+        defaultValue: '지금 결제하면 {{months}}개월을 더 드립니다 — 체험은 끝까지 그대로 쓰고, 체험이 끝나는 날부터 {{total}}개월 이용합니다.',
+      });
+      cta = t('trialBanner.prepay.cta', { months: pb.months, defaultValue: '+{{months}}개월 받고 결제' });
+      ctaTo = '/business/settings/plan#prepay';
     }
   } else {
     return null;
@@ -137,7 +153,7 @@ const TrialStatusBanner: React.FC<Props> = ({ businessId }) => {
         <Desc $tone={tone}>{desc}</Desc>
       </Texts>
       {/* App Store 3.1.1 — 네이티브에선 구매 유도 CTA 숨김 */}
-      {canPay && <CtaLink to="/business/settings/plan" $tone={tone}>{cta}</CtaLink>}
+      {canPay && <CtaLink to={ctaTo} $tone={tone} data-testid="trial-banner-cta">{cta}</CtaLink>}
     </Wrap>
   );
 };

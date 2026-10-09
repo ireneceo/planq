@@ -350,7 +350,7 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
           canPurchaseInApp(): App Store 3.1.1 — 앱 안에서는 구매 표면을 띄우지 않는다.
           자격(prepay.available)은 서버 판정이라 화면이 결제 이력을 따로 세지 않는다. */}
       {canPurchaseInApp() && prepay?.available && !status.exempt && prepay.months > 0 && (
-        <PrepayCard data-testid="plan-prepay-card">
+        <PrepayCard id="prepay" data-testid="plan-prepay-card">
           <PrepayHead>
             <PrepayLabel>{t('prepay.label', '체험 선택')}</PrepayLabel>
           </PrepayHead>
@@ -358,11 +358,18 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
             <PrepayInfo>
               <PrepayTitle>{t('prepay.title', { months: prepay.months, defaultValue: '지금 결제하면 {{months}}개월을 더 드립니다' })}</PrepayTitle>
               <PrepayHint>
-                {t('prepay.desc', {
-                  months: prepay.months,
-                  total: prepay.months + 1,
-                  defaultValue: '1개월 요금으로 {{total}}개월을 이용합니다. 다음 결제는 {{total}}개월 뒤이고, 그 전에 해지하면 추가 청구가 없습니다.',
-                })}
+                {/* 체험 중이면 유료 기간은 체험이 끝나는 날부터다(billing.resolvePeriodStart) — «지금부터 2개월» 로 읽히지 않게 말한다. */}
+                {status.in_trial
+                  ? t('prepay.descTrial', {
+                    months: prepay.months,
+                    total: prepay.months + 1,
+                    defaultValue: '체험은 끝까지 그대로 쓰고, 체험이 끝나는 날부터 {{total}}개월 이용합니다(1개월 요금). 다음 결제는 그 뒤이고, 그 전에 해지하면 추가 청구가 없습니다.',
+                  })
+                  : t('prepay.desc', {
+                    months: prepay.months,
+                    total: prepay.months + 1,
+                    defaultValue: '1개월 요금으로 {{total}}개월을 이용합니다. 다음 결제는 {{total}}개월 뒤이고, 그 전에 해지하면 추가 청구가 없습니다.',
+                  })}
               </PrepayHint>
               <PrepayNote>
                 {t('prepay.refundNote', '이미 결제한 1개월 요금은 해지해도 환불되지 않습니다.')}
