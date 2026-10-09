@@ -51,7 +51,7 @@
 | N2 | 낮음 | 운영 5xx 중 500 만 문구를 숨김 | 5xx 전부 |
 | N3 | 낮음 | Drive 웹훅 토큰 `!==` 비교 · 푸시 ack 로그 주입 · 봇이 공개 문서를 «열람» 처리 | 타이밍 안전 비교 · 제어문자 제거 · `utils/botUa` 한 벌 |
 | N4 | 낮음 | 응답 비밀값 내리기가 `_enc` 에만 — `_encrypted` 칸·평문 결제 비밀값 칸 | 전역 toJSON 확장(읽는 두 곳은 원본 행에서 읽게) |
-| X1 | (설정) | nginx `/api/internal` deny 가 대소문자를 가림 · Q Note 내부 주소 deny 없음 | 저장소 운영 conf + `scripts/apply-nginx-internal-deny.sh`(root, 자동 원복) — **Irene 이 적용** |
+| X1 | (설정) | nginx `/api/internal` deny 가 대소문자를 가림 · Q Note 내부 주소 deny 없음 | 저장소 운영 conf + `scripts/apply-nginx-internal-deny.sh`(root, 자동 원복). **dev 적용 완료 2026-10-09 20:32**(Irene — 4주소 403 · 대조 /qnote/health 200). 첫 실행은 스크립트가 백업을 sites-enabled 안에 둬 `duplicate listen` 으로 원복됐다 → 백업을 `/etc/nginx/backups/` 로 고쳐 재실행. **운영은 다음 배포 때 `prod`** |
 
 ## 판단 필요 (Fable 권고 → Irene)
 
